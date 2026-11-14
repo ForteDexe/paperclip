@@ -32,7 +32,7 @@ export function unreconciledNativeExportPredicate() {
       sql`${issueRecoveryActions.evidence}->'executionReconciliation'->'workspaceReconstruction'->>'schema' = 'outpost.workspace-reconstruction.v1'`,
       sql`${issueRecoveryActions.evidence}->>'continuationDelivery' = 'pending'`,
     )),
-    sql`exists (select 1 from ${heartbeatRuns} where ${heartbeatRuns.companyId} = ${issueRecoveryActions.companyId}
+    sql`exists (select 1 from ${heartbeatRuns} where ${heartbeatRuns.spaceId} = ${issueRecoveryActions.spaceId}
       and ${heartbeatRuns.nativeIssueId} = ${issueRecoveryActions.sourceIssueId}
       and ${heartbeatRuns.id}::text = ${issueRecoveryActions.evidence}->>'runId'
       and ${heartbeatRuns.runtimeMode} = 'native' and ${heartbeatRuns.status} = 'failed'
@@ -42,20 +42,20 @@ export function unreconciledNativeExportPredicate() {
 }
 
 export async function validateNativeWorkspaceReconstruction(db: Db, input: {
-  companyId: string; issueId: string; runId: string; actionId: string;
+  spaceId: string; issueId: string; runId: string; actionId: string;
   successorRunId?: string;
   continuationRootRunId?: string;
   predecessorRunIds?: string[];
 }) {
-  const [issue] = await db.select().from(issues).where(and(eq(issues.companyId, input.companyId), eq(issues.id, input.issueId))).for("update");
-  const [coordinator] = await db.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.runId, input.runId))).for("update");
-  const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId))).for("update");
-  const [action] = await db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.sourceIssueId, input.issueId), eq(issueRecoveryActions.id, input.actionId))).for("update");
+  const [issue] = await db.select().from(issues).where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, input.issueId))).for("update");
+  const [coordinator] = await db.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.runId, input.runId))).for("update");
+  const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId))).for("update");
+  const [action] = await db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.sourceIssueId, input.issueId), eq(issueRecoveryActions.id, input.actionId))).for("update");
   if (!issue || !run || !coordinator || !action || run.runtimeMode !== "native" || run.nativeIssueId !== issue.id
     || run.status !== "failed" || run.nativePhase !== "terminal_failure" || coordinator.issueId !== issue.id
     || coordinator.phase !== "terminal_failure" || coordinator.leaseOwner || coordinator.failureDetail?.successorRunId
     || object(run.runnerProfileJson).nativeWorkspaceFinalizationOwner
-    || action.kind !== "active_run_watchdog" || action.ownerType !== "board" || !causes.includes(action.cause)
+    || action.kind !== "active_run_watchdog" || action.ownerType !== "operator" || !causes.includes(action.cause)
     || action.evidence.runId !== run.id || coordinator.failureCode !== action.cause
     || !["active", "escalated", "resolved"].includes(action.status)
     || (action.status === "resolved" && action.resolutionNote !== "new_source_execution_path" && !object(action.evidence.executionReconciliation).workspaceReconstruction)
@@ -65,7 +65,7 @@ export async function validateNativeWorkspaceReconstruction(db: Db, input: {
     || (issue.checkoutRunId && issue.checkoutRunId !== input.successorRunId)) throw changed();
   const reference = readNativeWorkspaceSyncReference(object(run.runnerProfileJson).nativeWorkspaceSync);
   if (!reference || reference.state !== "prepared") throw changed();
-  const leases = await db.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId), eq(environmentLeases.heartbeatRunId, run.id))).for("update");
+  const leases = await db.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId), eq(environmentLeases.heartbeatRunId, run.id))).for("update");
   const lease = leases.find(row => row.id === reference.leaseId);
   if (!lease || lease.issueId !== issue.id || lease.providerLeaseId !== reference.providerLeaseId
     || !leases.every(hasRemoteTerminationReceipt) || object(lease.metadata?.remoteExecutionTermination).state !== "destroyed"
@@ -76,7 +76,7 @@ export async function validateNativeWorkspaceReconstruction(db: Db, input: {
     ne(environmentLeases.id, lease.id), eq(environmentLeases.provider, lease.provider!), eq(environmentLeases.providerLeaseId, lease.providerLeaseId!),
     inArray(environmentLeases.status, ["active", "retained", "pending_cleanup"]),
   )).limit(1);
-  const newer = await db.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+  const newer = await db.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
     nativeIssueId: heartbeatRuns.nativeIssueId, runtimeMode: heartbeatRuns.runtimeMode,
     status: heartbeatRuns.status, finishedAt: heartbeatRuns.finishedAt,
     runnerProfileJson: sql<Record<string, unknown>>`jsonb_build_object(
@@ -89,18 +89,18 @@ export async function validateNativeWorkspaceReconstruction(db: Db, input: {
       'workspaceRestoreFailure', ${heartbeatRuns.resultJson}->'workspaceRestoreFailure',
       'workspaceRestoreRecovery', ${heartbeatRuns.resultJson}->'workspaceRestoreRecovery')`,
   }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), ne(heartbeatRuns.id, run.id),
+    eq(heartbeatRuns.spaceId, input.spaceId), ne(heartbeatRuns.id, run.id),
     input.successorRunId ? notInArray(heartbeatRuns.id, [input.successorRunId, ...(input.predecessorRunIds ?? [])]) : undefined,
     or(eq(heartbeatRuns.nativeIssueId, issue.id), sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${issue.id}`),
     or(gt(heartbeatRuns.createdAt, run.createdAt), inArray(heartbeatRuns.status, ["queued", "running"])),
   )).limit(65).for("update");
   const interveningExecutions = newer.length <= 64 ? await reconciledInterveningExecutions(db, run, newer) : null;
   const [otherAction] = await db.select({ id: issueRecoveryActions.id }).from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.sourceIssueId, issue.id),
+    eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.sourceIssueId, issue.id),
     ne(issueRecoveryActions.id, action.id), inArray(issueRecoveryActions.status, ["active", "escalated"]),
   )).limit(1);
   const [result] = await db.select().from(nativeRunResults).where(and(
-    eq(nativeRunResults.companyId, input.companyId), eq(nativeRunResults.issueId, issue.id), eq(nativeRunResults.runId, run.id),
+    eq(nativeRunResults.spaceId, input.spaceId), eq(nativeRunResults.issueId, issue.id), eq(nativeRunResults.runId, run.id),
     eq(nativeRunResults.id, coordinator.resultId ?? "00000000-0000-0000-0000-000000000000"),
     eq(nativeRunResults.completionContractId, run.completionContractId ?? "00000000-0000-0000-0000-000000000000"), eq(nativeRunResults.schemaStatus, "accepted"),
   )).limit(1);
@@ -114,8 +114,8 @@ export async function validateNativeWorkspaceReconstruction(db: Db, input: {
       || reconstruction.descriptorSha256 !== reference.descriptorSha256 || !reconstruction.sources?.length
       || nativeSha256(reconstruction.interveningExecutions ?? []) !== nativeSha256(interveningExecutions)) throw changed();
     const files = await db.select({ attachmentId: issueAttachments.id, sha256: assets.sha256 }).from(issueAttachments)
-      .innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.companyId, input.companyId)))
-      .where(and(eq(issueAttachments.companyId, input.companyId), eq(issueAttachments.issueId, input.issueId),
+      .innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.spaceId, input.spaceId)))
+      .where(and(eq(issueAttachments.spaceId, input.spaceId), eq(issueAttachments.issueId, input.issueId),
         inArray(issueAttachments.id, reconstruction.sources.map(source => source.attachmentId)))).for("share");
     if (files.length !== reconstruction.sources.length || reconstruction.sources.some(source => !files.some(file => file.attachmentId === source.attachmentId && file.sha256 === source.sha256))) throw changed();
   }
@@ -134,12 +134,12 @@ export async function validateReconstructedWorkspaceDispatch(db: Db, run: typeof
     if (!root.retryOfRunId || predecessorRunIds.length >= 64 || predecessorRunIds.includes(root.retryOfRunId)
       || root.invocationSource !== "automation" || root.triggerDetail !== "system" || !root.scheduledRetryReason
       || object(root.contextSnapshot).retryOfRunId !== root.retryOfRunId) throw changed();
-    const [wake] = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, run.companyId),
+    const [wake] = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, run.spaceId),
       eq(agentWakeupRequests.agentId, run.agentId), eq(agentWakeupRequests.id, root.wakeupRequestId ?? "00000000-0000-0000-0000-000000000000"))).for("share");
     if (!wake || wake.runId !== root.id || wake.source !== "automation" || wake.triggerDetail !== "system"
       || wake.requestedByActorType !== "system" || wake.payload?.retryOfRunId !== root.retryOfRunId
       || wake.payload?.retryReason !== root.scheduledRetryReason || wake.payload?.scheduledRetryAttempt !== root.scheduledRetryAttempt) throw changed();
-    const [parent] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, run.companyId),
+    const [parent] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, run.spaceId),
       eq(heartbeatRuns.agentId, run.agentId), eq(heartbeatRuns.id, root.retryOfRunId))).for("update");
     const parentContext = object(parent?.contextSnapshot);
     if (!parent || !["succeeded", "failed", "timed_out", "cancelled", "interrupted"].includes(parent.status)
@@ -151,28 +151,28 @@ export async function validateReconstructedWorkspaceDispatch(db: Db, run: typeof
     predecessorRunIds.push(parent.id);
     root = parent;
   }
-  const source = await validateNativeWorkspaceReconstruction(db, { companyId: run.companyId, issueId: context.issueId,
+  const source = await validateNativeWorkspaceReconstruction(db, { spaceId: run.spaceId, issueId: context.issueId,
     runId: context.previousRunId, actionId, successorRunId: run.id, continuationRootRunId: root.id, predecessorRunIds });
   if (source.run.agentId !== run.agentId || !object(source.action.evidence.executionReconciliation).workspaceReconstruction) throw changed();
 }
 
 export async function reconstructNativeWorkspace(input: {
-  db: Db; companyId: string; issueId: string; actorId: string;
+  db: Db; spaceId: string; issueId: string; actorId: string;
   request: z.infer<typeof reconstructWorkspaceSchema>;
 }) {
   const request = reconstructWorkspaceSchema.parse(input.request);
   const requestSha256 = nativeSha256(request);
   const outcome = await input.db.transaction(async tx => {
     const db = tx as unknown as Db;
-    const [issue] = await tx.select().from(issues).where(and(eq(issues.companyId, input.companyId), eq(issues.id, input.issueId))).for("update");
-    const [prior] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.sourceIssueId, input.issueId), eq(issueRecoveryActions.id, request.actionId)));
+    const [issue] = await tx.select().from(issues).where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, input.issueId))).for("update");
+    const [prior] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.sourceIssueId, input.issueId), eq(issueRecoveryActions.id, request.actionId)));
     if (prior?.evidence.workspaceReconstructionRequest === requestSha256) return { replayed: true, publication: null };
     if (!issue || !["blocked", "in_progress"].includes(issue.status)
       || issue.statusVersion !== request.expectedStatusVersion || prior?.evidence.executionReconciliation) throw changed();
     const source = await validateNativeWorkspaceReconstruction(db, { ...input, ...request });
     const files = await tx.select({ attachmentId: issueAttachments.id, sha256: assets.sha256, byteSize: assets.byteSize, filename: assets.originalFilename })
-      .from(issueAttachments).innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.companyId, input.companyId)))
-      .where(and(eq(issueAttachments.companyId, input.companyId), eq(issueAttachments.issueId, input.issueId), inArray(issueAttachments.id, request.attachmentIds)));
+      .from(issueAttachments).innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.spaceId, input.spaceId)))
+      .where(and(eq(issueAttachments.spaceId, input.spaceId), eq(issueAttachments.issueId, input.issueId), inArray(issueAttachments.id, request.attachmentIds)));
     if (files.length !== request.attachmentIds.length || files.some(file => !/^[a-f0-9]{64}$/.test(file.sha256) || file.byteSize <= 0)) {
       throw conflict("Choose saved attachments from this task before reconstructing its workspace.", { code: "workspace_reconstruction_sources_invalid" });
     }
@@ -183,8 +183,8 @@ export async function reconstructNativeWorkspace(input: {
         ...(source.interveningExecutions.length ? { interveningExecutions: source.interveningExecutions } : {}) } };
     await markExecutionReconciliation(db, source.action, decision, input.actorId);
     const now = new Date();
-    await notifyAttentionRetentionWork(tx, { companyId: input.companyId });
-    await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: input.companyId, issueId: input.issueId });
+    await notifyAttentionRetentionWork(tx, { spaceId: input.spaceId });
+    await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: input.spaceId, issueId: input.issueId });
     await tx.update(issueRecoveryActions).set({ status: "resolved", outcome: "handed_back", resolvedAt: now, updatedAt: now,
       resolutionNote: "workspace_reconstruction_authorized", nextAction: "Continue from saved sources. The original unexported edits are lost; verify the selected attachments before rebuilding. Do not repeat completed external actions or reset the original work limits.",
       evidence: sql`${issueRecoveryActions.evidence} || ${JSON.stringify({ workspaceReconstructionRequest: requestSha256 })}::jsonb`,
@@ -192,11 +192,11 @@ export async function reconstructNativeWorkspace(input: {
     }).where(eq(issueRecoveryActions.id, source.action.id));
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-    await notifyStatusCardIssueChange(tx, input.companyId);
-    await notifyRoutineExecutionStatus(tx, input.issueId, input.companyId);
+    await notifyStatusCardIssueChange(tx, input.spaceId);
+    await notifyRoutineExecutionStatus(tx, input.issueId, input.spaceId);
     await tx.update(issues).set({ status: "todo", unblockDescriptor: null, blockedTransitionAt: null,
       blockedOwnerNotifiedAt: null, updatedAt: now }).where(eq(issues.id, issue.id));
-    const publication = await persistActivity(db, { companyId: input.companyId, actorType: "user", actorId: input.actorId,
+    const publication = await persistActivity(db, { spaceId: input.spaceId, actorType: "user", actorId: input.actorId,
       action: "issue.workspace_reconstruction_authorized", entityType: "issue", entityId: input.issueId, runId: request.runId,
       details: { recoveryActionId: request.actionId, ...decision } });
     return { replayed: false, publication };

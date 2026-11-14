@@ -30,8 +30,8 @@ async function assertRecordedOwnerStopped(prior: Record<string, unknown>, record
     || prior.processStartedAt !== recordedOwner.processStartedAt
     || prior.controllerBootId !== recordedOwner.controllerBootId) throw changed();
   if (prior.hostHash !== recordedOwner.hostHash) throw changed();
-  // A live or unverifiable owner observable from here contradicts the board's
-  // confirmation. An owner in another PID space is the board's to attest.
+  // A live or unverifiable owner observable from here contradicts the operator's
+  // confirmation. An owner in another PID space is the operator's to attest.
   const proof = await proveCopybackOwnerGone({ hostname: prior.hostname, pid: prior.pid as number,
     processStartedAt: prior.processStartedAt, ...(typeof prior.controllerBootId === "string" ? { controllerBootId: prior.controllerBootId } : {}),
     ...(typeof prior.hostHash === "string" ? { hostHash: prior.hostHash } : {}) });
@@ -40,10 +40,10 @@ async function assertRecordedOwnerStopped(prior: Record<string, unknown>, record
   }
 }
 
-/** Board-only admission after deployment-platform verification. A missing DB
+/** Operator-only admission after deployment-platform verification. A missing DB
  * lock or an expired lease alone never proves physical copyback has stopped. */
 export async function resumeNativeWorkspaceAfterOwnerStop(input: {
-  db: Db; companyId: string; issueId: string; actionId: string; runId: string;
+  db: Db; spaceId: string; issueId: string; actionId: string; runId: string;
   ownerToken: string; controllerAndCopybackStopped: true; stopEvidence: string; actorId: string;
 }) {
   const confirmation = resumeWorkspaceFinalizationSchema.parse({
@@ -55,18 +55,18 @@ export async function resumeNativeWorkspaceAfterOwnerStop(input: {
     // and then apply a confirmation that described an earlier owner.
     if (!await tryLockNativeWorkspaceFinalization(tx as unknown as Db, input)) throw conflict("Workspace copyback is still active. Wait for it to stop before confirming recovery.");
     // Match the status arbiter's coordinator -> issue -> run lock order.
-    const [coordinator] = await tx.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.issueId, input.issueId), eq(nativeRunFinalizations.runId, input.runId))).for("update");
-    const [issue] = await tx.select().from(issues).where(and(eq(issues.companyId, input.companyId), eq(issues.id, input.issueId))).for("update");
-    const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.nativeIssueId, input.issueId), eq(heartbeatRuns.id, input.runId))).for("update");
-    const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.sourceIssueId, input.issueId), eq(issueRecoveryActions.id, input.actionId))).for("update");
+    const [coordinator] = await tx.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.issueId, input.issueId), eq(nativeRunFinalizations.runId, input.runId))).for("update");
+    const [issue] = await tx.select().from(issues).where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, input.issueId))).for("update");
+    const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.nativeIssueId, input.issueId), eq(heartbeatRuns.id, input.runId))).for("update");
+    const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.sourceIssueId, input.issueId), eq(issueRecoveryActions.id, input.actionId))).for("update");
     if (issue && run && action && readWorkspaceRecovery(action.evidence))
       return confirmRetainedCopybackOwnerStop(tx as unknown as Db, { ...input, confirmation, run, coordinator, action });
     if (!issue || !run || !coordinator || !action || action.evidence?.runId !== run.id
-      || action.cause !== "native_workspace_finalization_owner_unverified" || action.ownerType !== "board"
+      || action.cause !== "native_workspace_finalization_owner_unverified" || action.ownerType !== "operator"
       || action.kind !== "active_run_watchdog" || !["active", "escalated"].includes(action.status)
       || (coordinator.leaseOwner && (!coordinator.leaseExpiresAt || coordinator.leaseExpiresAt.getTime() > Date.now()))) throw changed();
     const result = await currentNativeWorkspaceRecoveryResult(tx as unknown as Db, {
-      companyId: input.companyId, issue, run, coordinator,
+      spaceId: input.spaceId, issue, run, coordinator,
     });
     if (!result) throw changed();
     const prior = record(run.runnerProfileJson?.[OWNER_KEY]);
@@ -79,19 +79,19 @@ export async function resumeNativeWorkspaceAfterOwnerStop(input: {
     const now = new Date();
     const proof = { owner: prior, resultId: result.id, actorId: input.actorId,
       stopEvidence: confirmation.stopEvidence, confirmedAt: now.toISOString() };
-    await notifyNativeResultCommit(tx, { companyId: input.companyId, issueId: input.issueId, runId: input.runId });
-    await notifyNativeWorkspaceFinalization(tx, { companyId: input.companyId, issueId: input.issueId, runId: input.runId });
-    await notifyNativeStatusReassessment(tx, { companyId: input.companyId, issueId: input.issueId, runId: input.runId });
-    await notifyQueuedRunDispatch(tx, { companyId: input.companyId });
+    await notifyNativeResultCommit(tx, { spaceId: input.spaceId, issueId: input.issueId, runId: input.runId });
+    await notifyNativeWorkspaceFinalization(tx, { spaceId: input.spaceId, issueId: input.issueId, runId: input.runId });
+    await notifyNativeStatusReassessment(tx, { spaceId: input.spaceId, issueId: input.issueId, runId: input.runId });
+    await notifyQueuedRunDispatch(tx, { spaceId: input.spaceId });
     await tx.update(heartbeatRuns).set({
       runnerProfileJson: sql`${heartbeatRuns.runnerProfileJson} - ${OWNER_KEY}`, updatedAt: now,
-    }).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, run.id),
+    }).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, run.id),
       sql`${heartbeatRuns.runnerProfileJson}->${OWNER_KEY}->>'token' = ${input.ownerToken}`));
     await tx.update(issueRecoveryActions).set({ evidence: { ...action.evidence, workspaceOwnerStop: proof },
       nextAction: "Workspace finalization is queued for the saved result. The agent will not repeat its work.",
       wakePolicy: null, monitorPolicy: null, updatedAt: now,
     }).where(eq(issueRecoveryActions.id, action.id));
-    const publication = await persistActivity(tx as unknown as Db, { companyId: input.companyId,
+    const publication = await persistActivity(tx as unknown as Db, { spaceId: input.spaceId,
       actorType: "user", actorId: input.actorId, action: "issue.workspace_owner_stop_confirmed",
       entityType: "issue", entityId: input.issueId, runId: input.runId,
       details: { recoveryActionId: input.actionId, ...proof },
@@ -107,12 +107,12 @@ export async function resumeNativeWorkspaceAfterOwnerStop(input: {
 /**
  * Retained saved-work recovery for a finished run (RC-50). A restart killed its
  * copyback owner, so recovery and Retry wait on a receipt nothing can release.
- * The board confirmation clears that exact receipt and returns the existing
+ * The operator confirmation clears that exact receipt and returns the existing
  * recovery to the system worker. It accepts no result, starts no agent turn and
  * leaves the task status to the normal recovery and Retry paths.
  */
 async function confirmRetainedCopybackOwnerStop(tx: Db, input: {
-  companyId: string; issueId: string; ownerToken: string; actorId: string;
+  spaceId: string; issueId: string; ownerToken: string; actorId: string;
   confirmation: { stopEvidence: string };
   run: typeof heartbeatRuns.$inferSelect;
   coordinator: typeof nativeRunFinalizations.$inferSelect | undefined;
@@ -141,21 +141,21 @@ async function confirmRetainedCopybackOwnerStop(tx: Db, input: {
       preservationOperationIds: current.preservationOperationIds, providerCooldownAt: current.providerCooldownAt,
       nextAttemptAt: current.providerCooldownAt }
     : { ...current, revision: current.revision + 1, nextAttemptAt: Math.max(now.getTime(), current.providerCooldownAt ?? 0) };
-  const source = { companyId: input.companyId, issueId: input.issueId, runId: run.id, actionId: action.id };
+  const source = { spaceId: input.spaceId, issueId: input.issueId, runId: run.id, actionId: action.id };
   if (!await updateSystemRecovery(tx, source, current, next)) throw changed();
   const proof = { owner: prior, resultId: receipt.resultId, actorId: input.actorId,
     stopEvidence: input.confirmation.stopEvidence, confirmedAt: now.toISOString() };
   const cleared = await tx.update(heartbeatRuns).set({
     runnerProfileJson: sql`${heartbeatRuns.runnerProfileJson} - ${OWNER_KEY}`, updatedAt: now,
-  }).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, run.id),
+  }).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, run.id),
     sql`${heartbeatRuns.runnerProfileJson}->${OWNER_KEY}->>'token' = ${input.ownerToken}`)).returning({ id: heartbeatRuns.id });
   if (!cleared.length) throw changed();
   await tx.update(issueRecoveryActions).set({
     evidence: sql`${issueRecoveryActions.evidence} || ${JSON.stringify({ workspaceOwnerStop: proof,
       workspaceOwnerRecovery: { ...hold, state: "resuming" } })}::jsonb`,
     updatedAt: now,
-  }).where(and(eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, action.id)));
-  const publication = await persistActivity(tx, { companyId: input.companyId,
+  }).where(and(eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, action.id)));
+  const publication = await persistActivity(tx, { spaceId: input.spaceId,
     actorType: "user", actorId: input.actorId, action: "issue.workspace_owner_stop_confirmed",
     entityType: "issue", entityId: input.issueId, runId: run.id,
     details: { recoveryActionId: action.id, ...proof },

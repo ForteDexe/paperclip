@@ -24,7 +24,7 @@ outer anti-join. The local plan materializes these small extracted values. It
 still reads lazily and can stop at an early matching consumed run. There is no
 new table, index, migration, cache, timestamp cutoff, or extra database round trip.
 
-The company condition, exact JSON `issueId` text condition, singular `->>`
+The space condition, exact JSON `issueId` text condition, singular `->>`
 comparison, array `@>` predicate, user author condition, deletion condition, and
 cancelled-before-start exception are unchanged. Native and first-class run issue
 IDs do not replace the JSON authority in this path. No JSON arrays are expanded
@@ -34,7 +34,7 @@ or cast to UUID. Non-array JSON therefore retains the original meaning.
 
 Use a disposable PostgreSQL database with current repository migrations. An
 explicit external database must have a `queued_comments_` name. The script
-clears its company graph before setup and after each fixture. Without the
+clears its space graph before setup and after each fixture. Without the
 external URL the benchmark starts a disposable embedded PostgreSQL database.
 
 ```sh
@@ -74,7 +74,7 @@ one queued comment, eight immediately consumed comments, half consumed comments,
 and sixty-four queued comments. It also retains a 1,400-run stress case, which
 exceeds observed task history and is not called representative. Each nonempty
 history has 1,400 unrelated runs with approximately 27 KiB contexts. This checks
-that the existing company and JSON issue index can limit the target task.
+that the existing space and JSON issue index can limit the target task.
 
 The first-consumed fixture inserts its matching run before physical history
 rows, with a newer creation time. Thus a sequential scan and the existing
@@ -172,7 +172,7 @@ The original source SHA-256 is
 
 The real PostgreSQL regression suite covers exact scalar, array, nested-array,
 object, null and missing JSON behavior; noncanonical JSON issue IDs; conflicting
-native IDs; cross-company rows; deleted and agent-authored comments; duplicate
+native IDs; cross-space rows; deleted and agent-authored comments; duplicate
 array entries; cancelled-before-start and started-cancelled runs; and queued
 runs that already carry a consumed comment. It checks complete execution blocker
 objects and verifies that reads do not create runs or replay input.

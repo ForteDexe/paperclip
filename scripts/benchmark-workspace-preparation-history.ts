@@ -31,8 +31,8 @@ assert.ok(selectedSizes.length && selectedSizes.every(size => size === "small" |
 process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const originalSourceRoot = path.join(repositoryRoot, "server", "src");
-const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-workspace-history-"));
-const baselineDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-workspace-history-baseline-"));
+const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-workspace-history-"));
+const baselineDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-workspace-history-baseline-"));
 const keepAlive = setInterval(() => {}, 1000);
 let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
 let db: Db | undefined;
@@ -40,7 +40,7 @@ let db: Db | undefined;
 type Fixture = Awaited<ReturnType<typeof createWorkspacePreparationHistoryFixture>>;
 type Observation = {
   ms: number; queries: string[]; queryFingerprints: string[]; realpaths: string[];
-  retiredTableQueries: number; historicalReaderQueries: number; companyInventories: number;
+  retiredTableQueries: number; historicalReaderQueries: number; spaceInventories: number;
 };
 
 async function sourceFiles(directory: string): Promise<string[]> {
@@ -97,7 +97,7 @@ async function observe(action: (recorded: Db) => Promise<unknown>,
     queryFingerprints: [...new Set(queries.map(query => createHash("sha256").update(query).digest("hex")))],
     retiredTableQueries: queries.filter(query => /execution_workspace_repository_(?:access|roots)/.test(query)).length,
     historicalReaderQueries: queries.filter(query => /from "heartbeat_runs"/.test(query) && /\bin\s*\(/i.test(query)).length,
-    companyInventories: queries.filter(query => /from "(?:execution_workspaces|project_workspaces)"/.test(query)
+    spaceInventories: queries.filter(query => /from "(?:execution_workspaces|project_workspaces)"/.test(query)
       && !/"(?:execution_workspaces|project_workspaces)"\."id"\s*=/.test(query)).length,
   };
 }
@@ -109,7 +109,7 @@ function stats(observations: Observation[]) {
     realpathCounts: observations.map(item => item.realpaths.length),
     retiredTableQueries: observations.map(item => item.retiredTableQueries),
     historicalReaderQueries: observations.map(item => item.historicalReaderQueries),
-    companyInventories: observations.map(item => item.companyInventories),
+    spaceInventories: observations.map(item => item.spaceInventories),
     realpaths: [...new Set(observations.flatMap(item => item.realpaths))],
     sql: [...new Set(observations.flatMap(item => item.queries))],
     queryFingerprints: [...new Set(observations.flatMap(item => item.queryFingerprints))] };
@@ -131,7 +131,7 @@ try {
       console.error(`Seeding ${size} ${variant}: ${config.workspaces} historical workspaces`);
       fixtures.push(await createWorkspacePreparationHistoryFixture(db, path.join(root, `${size}-${variant}`), config));
     }
-    fixtureSummary.push({ size, ...config, principals: 8, crossCompanyDecoys: 2 });
+    fixtureSummary.push({ size, ...config, principals: 8, crossSpaceDecoys: 2 });
     const modules = [baseline, treatment];
     const phase = async (name: string, build: (module: any, recorded: Db, fixture: Fixture) => Promise<unknown>,
       prepare?: (module: any, recorded: Db, fixture: Fixture) => Promise<() => Promise<unknown>>) => {
@@ -144,7 +144,7 @@ try {
           if (variant === 1) {
             assert.equal(observation.retiredTableQueries, 0, `${name} queried retired root tables`);
             assert.equal(observation.historicalReaderQueries, 0, `${name} loaded historical readers`);
-            assert.equal(observation.companyInventories, 0, `${name} inventoried company workspaces`);
+            assert.equal(observation.spaceInventories, 0, `${name} inventoried space workspaces`);
             assert.ok(observation.realpaths.every(cwd => cwd === fixture.cwd || cwd.startsWith(`${fixture.cwd}${path.sep}`)),
               `${name} canonicalized an unrelated path`);
           }

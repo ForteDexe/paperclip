@@ -7,12 +7,12 @@ import type { IssueComment } from "../../packages/shared/src/types/issue.js";
 const query = "What happened in this thread?";
 const metadata = { scenarioId: "chat-channels.reply-in-thread", journeyKind: "native-slack-thread", slackIngress: { kind: "native-slack-thread" as const, maximumProviderCalls: 20 as const, ingressTimeoutMs: 120000 as const, setupThread:"same-agent-distractor" as const }, expectedRunCount: 4, minimumRunCount: 2, expectedHumanMessageCount: 1, turnTimeoutMs: 120000, attemptTimeoutMs: 600000 };
 function input() {
-  const receipt: ChatSlackIngressReceipt = { query, endpointId: "endpoint", conversationId: "conversation", issueId: "issue", humanCommentId: "comment", linkedPaperclipUserId: "person", providerCalls: 2, provider: { workspaceId: "T123", channelId: "C123", threadId: "1234567890.123456", canonicalMessageId: "1234567891.123456", senderUserId: "U123" } };
-  return { receipt, query, companyId: "company", agentId: "agent", endpoint: { id: "endpoint", companyId: "company", assignedAgentId: "agent", provider: "slack", providerAccountId: "T123" } as ChatEndpoint,
-    conversation: { id: "conversation", companyId: "company", endpointId: "endpoint", issueId: "issue", externalConversationId: "slack:C123", externalThreadId: "slack:C123:1234567890.123456" } as ChatConversation,
+  const receipt: ChatSlackIngressReceipt = { query, endpointId: "endpoint", conversationId: "conversation", issueId: "issue", humanCommentId: "comment", linkedOutpostUserId: "person", providerCalls: 2, provider: { workspaceId: "T123", channelId: "C123", threadId: "1234567890.123456", canonicalMessageId: "1234567891.123456", senderUserId: "U123" } };
+  return { receipt, query, spaceId: "space", agentId: "agent", endpoint: { id: "endpoint", spaceId: "space", assignedAgentId: "agent", provider: "slack", providerAccountId: "T123" } as ChatEndpoint,
+    conversation: { id: "conversation", spaceId: "space", endpointId: "endpoint", issueId: "issue", externalConversationId: "slack:C123", externalThreadId: "slack:C123:1234567890.123456" } as ChatConversation,
     binding: { endpointId: "endpoint", conversationId: "conversation", provider: "slack", assignedAgentLocked: true } as ExternalChannelBindingSummary,
-    comment: { id: "comment", companyId: "company", issueId: "issue", authorAgentId: null, authorUserId: "person", body: query, metadata: { version: 1, sourceChannel: "slack", sections: [{ title: "Slack sender", rows: [{ type: "key_value", label: "Provider ID", value: "U123" }] }] } } as IssueComment,
-    linksEndpointId:"endpoint",senderIdentity:{workspaceId:"T123",userId:"U123",handle:"fixture.sender"},links: [{ principalId:"principal",externalDetail:"@fixture.sender",paperclipUserId: "person", status: "linked" }] };
+    comment: { id: "comment", spaceId: "space", issueId: "issue", authorAgentId: null, authorUserId: "person", body: query, metadata: { version: 1, sourceChannel: "slack", sections: [{ title: "Slack sender", rows: [{ type: "key_value", label: "Provider ID", value: "U123" }] }] } } as IssueComment,
+    linksEndpointId:"endpoint",senderIdentity:{workspaceId:"T123",userId:"U123",handle:"fixture.sender"},links: [{ principalId:"principal",externalDetail:"@fixture.sender",outpostUserId: "person", status: "linked" }] };
 }
 describe("only real declared Slack canonical ingress", () => {
   it("privately proves the selected human token and unique provider handle instead of inferring identity from a display name",async()=>{
@@ -34,7 +34,7 @@ describe("only real declared Slack canonical ingress", () => {
     expect(validSlackIngressDeclaration({ ...metadata, expectedHumanMessageCount: 2 })).toBe(false);
     expect(validSlackIngressDeclaration({ ...metadata, queryBindings: [{ catalogToken: "token", stateKey: "issue", resourceKind: "issue", valueField: "identifier" }] })).toBe(false);
   });
-  it("cross-checks actual exact canonical comment, linked human, endpoint, company and provider thread DTOs", () => {
+  it("cross-checks actual exact canonical comment, linked human, endpoint, space and provider thread DTOs", () => {
     expect(slackIngressReceiptMatches(input())).toBe(true);
     for (const mutate of [
       (v: ReturnType<typeof input>) => { v.comment.body += " Try harder"; },
@@ -48,7 +48,7 @@ describe("only real declared Slack canonical ingress", () => {
       (v: ReturnType<typeof input>) => { v.senderIdentity.workspaceId="T999"; },
       (v: ReturnType<typeof input>) => { v.conversation.externalThreadId = "slack:C123:9999999999.123456"; },
       (v: ReturnType<typeof input>) => { v.conversation.externalConversationId = "C123"; },
-      (v: ReturnType<typeof input>) => { v.endpoint.companyId = "foreign"; },
+      (v: ReturnType<typeof input>) => { v.endpoint.spaceId = "foreign"; },
       (v: ReturnType<typeof input>) => { v.binding.conversationId = "another"; },
       (v: ReturnType<typeof input>) => { v.receipt.providerCalls = 21; },
     ]) { const value = input(); mutate(value); expect(slackIngressReceiptMatches(value)).toBe(false); }
@@ -79,8 +79,8 @@ describe("only real declared Slack canonical ingress", () => {
     expect(sameSlackThreadNewMessage(first, { ...next, provider: { ...next.provider, threadId: "9999999999.123456" } })).toBe(false);
   });
   it("cannot qualify a fast response, wrong agent or unrelated native run as the source execution", () => {
-    const ctx = { issue: () => ({ id: "issue", companyId: "company", assigneeAgentId: "agent" }), input: { fixtures: { company: { id: "company" }, agent: { id: "agent" } } } } as unknown as ChatCatalogContext;
-    const run = { id: "run", companyId: "company", agentId: "agent", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: "issue" } };
+    const ctx = { issue: () => ({ id: "issue", spaceId: "space", assigneeAgentId: "agent" }), input: { fixtures: { space: { id: "space" }, agent: { id: "agent" } } } } as unknown as ChatCatalogContext;
+    const run = { id: "run", spaceId: "space", agentId: "agent", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: "issue" } };
     expect(slackNativeRunCheck(ctx, [run]).passed).toBe(true);
     expect(slackNativeRunCheck(ctx, [run], { slackUnsupportedIngressReceipt: {}, slackSupportedTransferRunIds: [run.id] }).passed).toBe(false);
     expect(slackNativeRunCheck(ctx, [run, { ...run, id: "second-native" }], { slackUnsupportedIngressReceipt: {}, slackSupportedTransferRunIds: [run.id] }).passed).toBe(true);
@@ -92,8 +92,8 @@ describe("only real declared Slack canonical ingress", () => {
 
 it("binds exactly one other-source setup native without treating that source's human as canonical setup history",()=>{
  const receipt={...input().receipt,query:slackOtherThreadSetupQuery,runId:"setup-native"};
- const run={id:"setup-native",companyId:"company",agentId:"agent",runtimeMode:"native",status:"succeeded",contextSnapshot:{issueId:"issue"}};
- const value={receipt,runs:[run],companyId:"company",agentId:"agent"};
+ const run={id:"setup-native",spaceId:"space",agentId:"agent",runtimeMode:"native",status:"succeeded",contextSnapshot:{issueId:"issue"}};
+ const value={receipt,runs:[run],spaceId:"space",agentId:"agent"};
  expect(slackOtherThreadBoundaryMatches(value)).toBe(true);
  for(const wrong of [{...value,runs:[]},{...value,runs:[run,{...run,id:"unrelated"}]},{...value,runs:[{...run,contextSnapshot:{issueId:"other-source"}}]},{...value,runs:[{...run,agentId:"other-agent"}]},{...value,runs:[{...run,status:"running"}]},{...value,receipt:{...receipt,query:"Undeclared setup instruction"}},{...value,sourceIssueId:"issue"}])expect(slackOtherThreadBoundaryMatches(wrong)).toBe(false);
  expect(validSlackIngressDeclaration({...metadata,slackIngress:{kind:"native-slack-thread",maximumProviderCalls:20,ingressTimeoutMs:120000}})).toBe(false);

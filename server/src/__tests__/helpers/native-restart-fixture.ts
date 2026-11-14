@@ -6,7 +6,7 @@ import { rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { resolve } from "node:path";
 import { eq } from "drizzle-orm";
-import { agents, companies, closeRegisteredClients, createDb, heartbeatRuns, issues, nativeRunFinalizations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
+import { agents, spaces, closeRegisteredClients, createDb, heartbeatRuns, issues, nativeRunFinalizations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { afterAll, afterEach, beforeAll, it } from "vitest";
 import { defaultCapabilityRunnerdBinary } from "../../vendor/outpost-runner/index.js";
 import { startEmbeddedPostgresTestDatabase } from "./embedded-postgres.js";
@@ -78,13 +78,13 @@ export async function stopOwnedProcessGroup(
 export function nativeRestartFixture(options: { dedicatedDatabaseUrl?: string } = {}) {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let runtimeRoot: string;
-  let paperclipHome: string;
+  let outpostHome: string;
   let server: Server | null = null;
   let apiUrl: string;
-  const originalPaperclipHome = process.env.OUTPOST_HOME;
+  const originalOutpostHome = process.env.OUTPOST_HOME;
   let isolatedHome: ReturnType<typeof createIsolatedTestHome>;
 
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   let successor: NativeControllerIdentity;
 
@@ -92,8 +92,8 @@ export function nativeRestartFixture(options: { dedicatedDatabaseUrl?: string } 
     temporary = await startRecoveryPostgres("native-runner-restart-recovery-", options);
     runtimeRoot = await createNativeRestartRuntimeRoot();
     isolatedHome = createIsolatedTestHome();
-    paperclipHome = isolatedHome.home;
-    process.env.OUTPOST_HOME = paperclipHome;
+    outpostHome = isolatedHome.home;
+    process.env.OUTPOST_HOME = outpostHome;
     const controllerStartedAt = await readProcessStartedAt(process.pid);
     successor = {
       bootId: randomUUID(),
@@ -116,16 +116,16 @@ export function nativeRestartFixture(options: { dedicatedDatabaseUrl?: string } 
 
     const db = createDb(temporary.connectionString);
     try {
-      await db.insert(companies).values({
-        id: companyId,
+      await db.insert(spaces).values({
+        id: spaceId,
         name: "Native restart recovery",
         issuePrefix: options.dedicatedDatabaseUrl || process.env.OUTPOST_RECOVERY_TEST_DATABASE_URL
-          ? `NRR${companyId.replaceAll("-", "").slice(0, 12).toUpperCase()}` : "NRR",
-        requireBoardApprovalForNewAgents: false,
+          ? `NRR${spaceId.replaceAll("-", "").slice(0, 12).toUpperCase()}` : "NRR",
+        requireOperatorApprovalForNewAgents: false,
       });
       await db.insert(agents).values({
         id: agentId,
-        companyId,
+        spaceId,
         name: "Native restart runner",
         role: "engineer",
         status: "active",
@@ -150,8 +150,8 @@ export function nativeRestartFixture(options: { dedicatedDatabaseUrl?: string } 
     await temporary?.cleanup();
     if (runtimeRoot) await rm(runtimeRoot, { recursive: true, force: true });
     isolatedHome?.cleanup();
-    if (originalPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-    else process.env.OUTPOST_HOME = originalPaperclipHome;
+    if (originalOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+    else process.env.OUTPOST_HOME = originalOutpostHome;
   });
 
   async function seedRun(
@@ -165,7 +165,7 @@ export function nativeRestartFixture(options: { dedicatedDatabaseUrl?: string } 
     const runId = randomUUID();
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       identifier: `NRR-${label}`,
       title: `Recover ${label}`,
       status: "in_progress",
@@ -177,7 +177,7 @@ export function nativeRestartFixture(options: { dedicatedDatabaseUrl?: string } 
       .insert(heartbeatRuns)
       .values({
         id: runId,
-        companyId,
+        spaceId,
         agentId: runAgentId,
         status: "running",
         runtimeMode: "native",
@@ -205,7 +205,7 @@ export function nativeRestartFixture(options: { dedicatedDatabaseUrl?: string } 
     });
     await db.insert(nativeRunFinalizations).values({
       runId,
-      companyId,
+      spaceId,
       issueId,
       phase: "observed",
     });
@@ -238,14 +238,14 @@ export function nativeRestartFixture(options: { dedicatedDatabaseUrl?: string } 
       },
       controlPlaneRegistration: (authority: Parameters<typeof registerRunnerPrpAuthority>[0]["authority"]) =>
         registerRunnerPrpAuthority({
-          companyId,
+          spaceId,
           runId: fixture.runId,
           authority,
         }),
     };
   }
 
-  return { seedRun, transportOptions, get current() { return { temporary, runtimeRoot, paperclipHome, apiUrl, companyId, agentId, successor, server }; } };
+  return { seedRun, transportOptions, get current() { return { temporary, runtimeRoot, outpostHome, apiUrl, spaceId, agentId, successor, server }; } };
 }
 
 export function remotePreparedWorkspace() {

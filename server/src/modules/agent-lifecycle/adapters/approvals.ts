@@ -7,31 +7,31 @@ import { agentRecords } from "./records.js";
 import { createLifecycleStore } from "./postgres.js";
 import type { LifecycleEffects } from "./effects.js";
 
-export type HireDecisionTarget = string | { approvalId: string };
-type HireDecisionResult = {
+export type CreationDecisionTarget = string | { approvalId: string };
+type CreationDecisionResult = {
   approval: typeof approvals.$inferSelect | null;
   agent: Awaited<ReturnType<ReturnType<typeof agentRecords>["getById"]>>;
   applied: boolean;
   activated: boolean;
-  hireApprovedAgentId: string | null;
+  createApprovedAgentId: string | null;
 };
 
-export function hireApprovalService(db: Db, effects: LifecycleEffects) {
+export function creationApprovalService(db: Db, effects: LifecycleEffects) {
   const { getExistingApproval, resolveApproval } = approvalResolutionRecords(db);
-  async function decide(target: HireDecisionTarget, status: "approved" | "rejected", userId: string, note?: string | null): Promise<HireDecisionResult | null> {
+  async function decide(target: CreationDecisionTarget, status: "approved" | "rejected", userId: string, note?: string | null): Promise<CreationDecisionResult | null> {
     const initial = typeof target === "string"
       ? await agentRecords(db, effects).getById(target)
       : await getExistingApproval(target.approvalId);
     if (!initial) return null;
-    if (typeof target !== "string" && (!("type" in initial) || initial.type !== "hire_agent")) throw unprocessable("Expected a hire approval");
-    const companyId = initial.companyId;
-    // Hire decisions acquire the company lock before changing an approval or agent.
-    return effects.transaction(db, companyId, async (tx, publications) => {
+    if (typeof target !== "string" && (!("type" in initial) || initial.type !== "create_agent")) throw unprocessable("Expected a create approval");
+    const spaceId = initial.spaceId;
+    // Create decisions acquire the space lock before changing an approval or agent.
+    return effects.transaction(db, spaceId, async (tx, publications) => {
       const records = agentRecords(tx, effects);
       let approvalId = typeof target === "string" ? null : target.approvalId;
       if (typeof target === "string") {
         const [open] = await tx.select({ id: approvals.id }).from(approvals).where(and(
-          eq(approvals.companyId, companyId), eq(approvals.type, "hire_agent"),
+          eq(approvals.spaceId, spaceId), eq(approvals.type, "create_agent"),
           inArray(approvals.status, resolvableApprovalStatuses),
           sql`${approvals.payload}->>'agentId' = ${target}`,
         )).orderBy(desc(approvals.createdAt)).limit(1);
@@ -51,7 +51,7 @@ export function hireApprovalService(db: Db, effects: LifecycleEffects) {
           const activated = await records.activatePendingApproval(agentId, approval ? payload : null, approval ? approval.requestedByUserId : userId);
           if (!approval) applied = activated?.activated ?? false;
         } else {
-          const created = await records.create(companyId, {
+          const created = await records.create(spaceId, {
             name: String(payload.name ?? "New Agent"),
             appearance: payload.appearance == null ? undefined : agentAppearanceSchema.parse(payload.appearance),
             role: String(payload.role ?? "general"),
@@ -77,10 +77,10 @@ export function hireApprovalService(db: Db, effects: LifecycleEffects) {
           agentId = created.id;
         }
         if (approval && agentId && typeof payload.budgetMonthlyCents === "number" && payload.budgetMonthlyCents > 0) {
-          await effects.setAgentBudget(tx, publications, companyId, agentId, payload.budgetMonthlyCents, userId);
+          await effects.setAgentBudget(tx, publications, spaceId, agentId, payload.budgetMonthlyCents, userId);
         }
       } else if (applied && agentId) {
-        if (approval) await records.rejectPendingHire(agentId);
+        if (approval) await records.rejectPendingCreation(agentId);
         else {
           const before = await records.getById(agentId);
           await createLifecycleStore(tx, effects).change(agentId, "reject");
@@ -89,7 +89,7 @@ export function hireApprovalService(db: Db, effects: LifecycleEffects) {
       }
       return { approval, agent: agentId ? await records.getById(agentId) : null, applied,
         activated: status === "approved" && applied,
-        hireApprovedAgentId: status === "approved" && applied ? agentId : null };
+        createApprovedAgentId: status === "approved" && applied ? agentId : null };
     });
   }
   return { decide };

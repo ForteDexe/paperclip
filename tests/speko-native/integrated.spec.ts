@@ -13,12 +13,12 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
     expect(response.ok(), `${path}: ${response.status()} ${await response.text()}`).toBe(true);
     return response.json();
   };
-  const company = await post("/companies", { name: "Speko integrated", issuePrefix: "SPE" });
-  const other = await post("/companies", { name: "Separate company", issuePrefix: "OTH" });
-  const policy = await page.request.patch(`${origin}/api/companies/${company.id}`, { headers: { Origin: origin }, data: { requireBoardApprovalForNewAgents: false } });
+  const space = await post("/spaces", { name: "Speko integrated", issuePrefix: "SPE" });
+  const other = await post("/spaces", { name: "Separate space", issuePrefix: "OTH" });
+  const policy = await page.request.patch(`${origin}/api/spaces/${space.id}`, { headers: { Origin: origin }, data: { requireBoardApprovalForNewAgents: false } });
   expect(policy.ok()).toBe(true);
-  const agent = await post(`/companies/${company.id}/agents`, { name: "Existing Paperclip Agent", role: "general", adapterType: "process", adapterConfig: { command: "fixture" }, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } } });
-  // Discover the built SDK chunk by its export, rather than mock any Paperclip API.
+  const agent = await post(`/spaces/${space.id}/agents`, { name: "Existing Outpost Agent", role: "general", adapterType: "process", adapterConfig: { command: "fixture" }, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } } });
+  // Discover the built SDK chunk by its export, rather than mock any Outpost API.
   const assets = resolve(root, "ui/dist/assets");
   const candidates = await Promise.all((await readdir(assets)).filter(name => name.endsWith(".js")).map(async name => ({ name, source: await readFile(resolve(assets, name), "utf8") })));
   const sdk = candidates.filter(file => /export\{[^}]* as VoiceConversation\}/.test(file.source));
@@ -32,7 +32,7 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
   });
   page.on("request", request => { const url = new URL(request.url()); if (["http:", "https:", "wss:"].includes(url.protocol) && !["127.0.0.1", "localhost"].includes(url.hostname)) external.push(url.hostname); });
   await page.addInitScript(() => { navigator.mediaDevices.getUserMedia = async () => { throw new Error("Integrated fixture must not request a real microphone"); }; });
-  await page.goto(`/${company.issuePrefix}/apps/chat/connect?provider=speko`);
+  await page.goto(`/${space.issuePrefix}/apps/chat/connect?provider=speko`);
   await page.getByRole("button", { name: "Choose an active agent", exact: true }).click();
   await page.getByRole("button", { name: `Select ${agent.name}`, exact: true }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
@@ -79,20 +79,20 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
   expect(await page.evaluate(() => (window as any).__spekoTransport.open)).toBe(false);
   // Prove connection guidance reaches the ordinary execution provider without
   // installing a template or replacing the selected agent's instructions.
-  await expect.poll(async () => (await evidence()).runs.find((row: any) => row.context.issueId === started.session.issueId)?.context.paperclipTaskCommunicationGuidance).toContain("Keep your existing identity, runtime, tools, and task assignment");
-  const deliveredGuidance = (await evidence()).runs.find((row: any) => row.context.issueId === started.session.issueId).context.paperclipTaskCommunicationGuidance;
+  await expect.poll(async () => (await evidence()).runs.find((row: any) => row.context.issueId === started.session.issueId)?.context.outpostTaskCommunicationGuidance).toContain("Keep your existing identity, runtime, tools, and task assignment");
+  const deliveredGuidance = (await evidence()).runs.find((row: any) => row.context.issueId === started.session.issueId).context.outpostTaskCommunicationGuidance;
   expect(deliveredGuidance).toContain("one focused clarification");
-  expect(deliveredGuidance).toContain("durable Paperclip continuation");
+  expect(deliveredGuidance).toContain("durable Outpost continuation");
   expect(deliveredGuidance).toContain("does not cancel work");
   expect(deliveredGuidance).toContain("Spoken consent does not replace governed approval");
-  const foreign = await page.request.get(`${origin}/api/companies/${other.id}/voice-sessions/${started.session.id}`);
+  const foreign = await page.request.get(`${origin}/api/spaces/${other.id}/voice-sessions/${started.session.id}`);
   expect(foreign.status()).toBe(404);
   await page.getByRole("button", { name: "Close voice panel", exact: true }).click();
-  await page.goto(`/${company.issuePrefix}/apps/chat/connect?provider=speko&resume=${endpoint.id}`);
+  await page.goto(`/${space.issuePrefix}/apps/chat/connect?provider=speko&resume=${endpoint.id}`);
   const rejoining = nextSession(); await page.getByRole("button", { name: "Start voice", exact: true }).click(); const resumed = await rejoining;
   expect(resumed.session.issueId).toBe(started.session.issueId); expect(resumed.session.id).not.toBe(started.session.id);
   await expect(page.getByRole("button", { name: "Mute", exact: true })).toBeEnabled();
-  const journal = await page.evaluate(() => Object.entries(sessionStorage).filter(([key]) => key.startsWith("paperclip:voice-attempt:")));
+  const journal = await page.evaluate(() => Object.entries(sessionStorage).filter(([key]) => key.startsWith("outpost:voice-attempt:")));
   expect(journal).toHaveLength(1);
   expect(journal[0][1]).not.toContain(resumed.media.transportToken);
   // Reload must reconcile the exact old call before it offers a new connection.
@@ -172,7 +172,7 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
   await page.getByRole("button", { name: "Close voice panel", exact: true }).click();
   const activated = await post(`/chat-endpoints/${endpoint.id}/test`, {});
   expect(activated.status).toBe("active");
-  await page.goto(`/${company.issuePrefix}/apps/chat/${endpoint.id}/settings`);
+  await page.goto(`/${space.issuePrefix}/apps/chat/${endpoint.id}/settings`);
   await expect(page.getByRole("textbox", { name: "Your callback number", exact: true })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Start voice", exact: true })).toHaveCount(0);
   await expect(page.getByRole("combobox", { name: "Conversation", exact: true })).toHaveCount(0);
@@ -187,7 +187,7 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
   await expect(page.getByRole("checkbox", { name: "Allow this agent to call me about my tasks", exact: true })).toBeChecked();
   const updatedAgent = await page.request.patch(`${origin}/api/agents/${agent.id}`, { headers: { Origin: origin }, data: { adapterConfig: { command: "fixture-phone" } } });
   expect(updatedAgent.ok()).toBe(true);
-  const callTask = await post(`/companies/${company.id}/issues`, { title: "Call my saved phone", status: "todo", assigneeAgentId: agent.id, responsibleUserId: "local-board" });
+  const callTask = await post(`/spaces/${space.id}/issues`, { title: "Call my saved phone", status: "todo", assigneeAgentId: agent.id, responsibleUserId: "local-operator" });
   await expect.poll(async () => (await executionRows()).some(row => row.event === "phone_called" && row.issueId === callTask.id), { timeout: 30_000 }).toBe(true);
   const phoneExecution = (await executionRows()).find(row => row.event === "phone_called" && row.issueId === callTask.id);
   expect(phoneExecution.secondRejected).toBe(true);
@@ -198,10 +198,10 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
   const phone = (await evidence()).sessions.find((row: any) => row.issueId === callTask.id && row.mode === "outbound_phone");
   const providerState = JSON.parse(await readFile(resolve(home, "speko-fixture-state.json"), "utf8"));
   expect(providerState.sessions.filter((entry: any) => entry[1].mode === "outbound_phone")).toHaveLength(1);
-  const inspectedPhone = await (await page.request.get(`${origin}/api/companies/${company.id}/voice-sessions/${phone.id}`)).json();
+  const inspectedPhone = await (await page.request.get(`${origin}/api/spaces/${space.id}/voice-sessions/${phone.id}`)).json();
   expect(inspectedPhone).toMatchObject({ id: phone.id, issueId: callTask.id, mode: "outbound_phone" });
   expect(JSON.stringify(inspectedPhone)).not.toContain("transportToken");
-  const endedPhone = await post(`/companies/${company.id}/voice-sessions/${phone.id}/end`, {});
+  const endedPhone = await post(`/spaces/${space.id}/voice-sessions/${phone.id}/end`, {});
   expect(endedPhone.state).toBe("ended");
   const retainedTask = await (await page.request.get(`${origin}/api/issues/${callTask.id}`)).json();
   expect(retainedTask.status).not.toBe("cancelled");
@@ -211,7 +211,7 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
   await expect(page.getByRole("status").filter({ hasText: "Callback setting saved" })).toBeVisible();
   await expect.poll(async () => (await evidence()).sessions.every((row: any) => row.state === "ended")).toBe(true);
   // E08: a real signed pre-call route creates NO task before explicit live approval.
-  await page.getByRole("combobox", {name: "Company phone number", exact: true}).selectOption("pn_fixture");
+  await page.getByRole("combobox", {name: "Space phone number", exact: true}).selectOption("pn_fixture");
   await page.getByRole("checkbox", {name: "Enable incoming calls on this number", exact: true}).check();
   await page.getByRole("button", {name: "Save incoming call setting", exact: true}).click();
   await expect(page.getByRole("status").filter({hasText: "Incoming call setting saved"})).toBeVisible();
@@ -232,7 +232,7 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
   await expect(page.getByRole("alert").filter({hasText: "does not match"})).toBeVisible();
   const code = incoming.firstMessage.replace(/\D/g, ""); expect(code).toHaveLength(6);
   await page.getByRole("textbox", {name: "Code spoken on your call", exact: true}).fill(code);
-  const inboundTask = await post(`/companies/${company.id}/issues`, {title: "Approved incoming phone conversation", assigneeAgentId: agent.id, status: "todo"});
+  const inboundTask = await post(`/spaces/${space.id}/issues`, {title: "Approved incoming phone conversation", assigneeAgentId: agent.id, status: "todo"});
   // Refresh task inventory after this fixture task is created.
   await page.reload();
   await page.getByRole("textbox", {name: "Code spoken on your call", exact: true}).fill(code);
@@ -250,15 +250,15 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
   await expect.poll(async () => (await evidence()).comments.some((row: any) => row.issueId === inboundTask.id && row.authorAgentId === agent.id && row.body.includes("Verification number")), {timeout: 100_000}).toBe(true);
   await expect.poll(async () => (await providerCommand({action: "messages", sessionId: incoming.sessionId})).some((message: any) => message.text.includes("Verification number")), {timeout: 30_000}).toBe(true);
   await expect.poll(async () => (await evidence()).pushActions.some((action: any) => action.payload.sessionId === boundIncoming.id && action.status === "completed" && action.result?.messageId && action.result.playback === "unknown")).toBe(true);
-  await post(`/companies/${company.id}/voice-sessions/${boundIncoming.id}/end`, {});
+  await post(`/spaces/${space.id}/voice-sessions/${boundIncoming.id}/end`, {});
   // E15: report reconciliation persists one report, excludes recordings and keeps task assignment.
   await expect.poll(async () => (await evidence()).reports.find((report: any) => report.sessionId === boundIncoming.id)?.status, {timeout: 45000}).toBe("available");
-  const reportResponse = await page.request.get(`${origin}/api/companies/${company.id}/voice-sessions/${boundIncoming.id}/report`);
+  const reportResponse = await page.request.get(`${origin}/api/spaces/${space.id}/voice-sessions/${boundIncoming.id}/report`);
   const report = await reportResponse.json(); expect(report.session.issueId).toBe(inboundTask.id);
   expect(report.report).toMatchObject({costMicroUsd: "152340", transcript: [{text: "Fixture call transcript"}]});
   expect(JSON.stringify(report)).not.toContain("recording"); expect(JSON.stringify(report)).not.toContain("fixture-speko-key");
   await expect(page.getByRole("region", {name: "Your calls", exact: true})).toHaveCount(0);
-  await page.goto(`/${company.issuePrefix}/apps/chat/${endpoint.id}/activity`);
+  await page.goto(`/${space.issuePrefix}/apps/chat/${endpoint.id}/activity`);
   const history = page.getByRole("region", {name: "Connection activity", exact: true});
   await history.getByRole("button", {name: "Refresh", exact: true}).click();
   await expect(history).toContainText("Incoming call · Completed");
@@ -267,7 +267,7 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
   expect((await evidence()).reports.filter((row: any) => row.sessionId === boundIncoming.id)).toHaveLength(1);
   const retainedIncomingTask = await (await page.request.get(`${origin}/api/issues/${inboundTask.id}`)).json();
   expect(retainedIncomingTask.assigneeAgentId).toBe(agent.id); expect(retainedIncomingTask.status).not.toBe("cancelled");
-  await page.goto(`/${company.issuePrefix}/apps/chat/${endpoint.id}/settings`);
+  await page.goto(`/${space.issuePrefix}/apps/chat/${endpoint.id}/settings`);
   // E09: opted-in callers start a task-scoped, low-trust conversation without sign-in.
   await page.getByRole("checkbox", {name: "Let callers start new low-trust tasks without sign-in", exact: true}).check();
   await page.getByRole("button", {name: "Save incoming call setting", exact: true}).click();
@@ -295,7 +295,7 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
   await expect(page.getByRole("heading", {name: "Caller hung up", exact: true})).toBeFocused();
   await expect.poll(async () => (await evidence()).sessions.find((call: any) => call.id === guestSession.id)?.state, {timeout: 45000}).toBe("ended");
   await expect.poll(async () => (await evidence()).reports.find((report: any) => report.sessionId === guestSession.id)?.status, {timeout: 45000}).toBe("available");
-  await page.goto(`/${company.issuePrefix}/apps/chat/${endpoint.id}/activity`);
+  await page.goto(`/${space.issuePrefix}/apps/chat/${endpoint.id}/activity`);
   await history.getByRole("button", {name: "Refresh", exact: true}).click();
   await expect(history.locator("summary").filter({hasText: "Incoming call · Completed"})).toHaveCount(2);
   expect(external).toEqual([]);
@@ -306,12 +306,12 @@ test("E01/E03–E11/E13/E15/E16: setup, delayed work, duplicate input, navigatio
 // Connection setup selects an existing agent without changing its runtime or
 // reassigning tasks created before the connection.
 test("E02: selecting an existing agent preserves its configuration and historical assignment", async ({ page }) => {
-  const company = await (await page.request.post("/api/companies", { data: { name: "Speko existing agent" } })).json();
-  const created = await page.request.post(`/api/companies/${company.id}/agents`, { data: { name: "Existing support agent", role: "general", adapterType: "process", adapterConfig: { command: "true" }, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } } });
+  const space = await (await page.request.post("/api/spaces", { data: { name: "Speko existing agent" } })).json();
+  const created = await page.request.post(`/api/spaces/${space.id}/agents`, { data: { name: "Existing support agent", role: "general", adapterType: "process", adapterConfig: { command: "true" }, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } } });
   expect(created.ok()).toBe(true);
   const agent = await created.json();
-  const task = await (await page.request.post(`/api/companies/${company.id}/issues`, { data: { title: "Preserve existing work", status: "backlog", assigneeAgentId: agent.id } })).json();
-  await page.goto(`/${company.issuePrefix}/apps/chat/connect?provider=speko`);
+  const task = await (await page.request.post(`/api/spaces/${space.id}/issues`, { data: { title: "Preserve existing work", status: "backlog", assigneeAgentId: agent.id } })).json();
+  await page.goto(`/${space.issuePrefix}/apps/chat/connect?provider=speko`);
   await expect(page.getByRole("button", { name: "Review recommended agent" })).toHaveCount(0);
   await page.getByRole("button", { name: "Choose an active agent", exact: true }).click();
   await page.getByRole("button", { name: "Select Existing support agent", exact: true }).click();
@@ -319,23 +319,23 @@ test("E02: selecting an existing agent preserves its configuration and historica
   await expect(page.getByText(/Existing support agent keeps its existing runtime/)).toBeVisible();
   await page.reload();
   await expect(page.getByText(/Existing support agent keeps its existing runtime/)).toBeVisible();
-  const agents = await (await page.request.get(`/api/companies/${company.id}/agents`)).json();
+  const agents = await (await page.request.get(`/api/spaces/${space.id}/agents`)).json();
   expect(agents).toHaveLength(1);
   expect(agents[0].id).toBe(agent.id);
   expect(agents[0].adapterConfig).toEqual(agent.adapterConfig);
   expect(agents[0].reportsTo).toBe(agent.reportsTo);
   expect((await (await page.request.get(`/api/issues/${task.id}`)).json()).assigneeAgentId).toBe(agent.id);
-  const endpoints = await (await page.request.get(`/api/companies/${company.id}/chat-endpoints`)).json();
+  const endpoints = await (await page.request.get(`/api/spaces/${space.id}/chat-endpoints`)).json();
   expect(endpoints).toHaveLength(1);
   expect(endpoints[0].assignedAgentId).toBe(agent.id);
 });
 
 
 test("E12: insufficient credits explains funding and never blindly retries a rejected call", async ({page}) => {
-  const company=await (await page.request.post("/api/companies",{data:{name:"Speko credit rejection"}})).json();
-  const agent=await (await page.request.post(`/api/companies/${company.id}/agents`,{data:{name:"Credit-test agent",role:"general",adapterType:"process",adapterConfig:{command:"true"},runtimeConfig:{heartbeat:{enabled:false,wakeOnDemand:false}}}})).json();
+  const space=await (await page.request.post("/api/spaces",{data:{name:"Speko credit rejection"}})).json();
+  const agent=await (await page.request.post(`/api/spaces/${space.id}/agents`,{data:{name:"Credit-test agent",role:"general",adapterType:"process",adapterConfig:{command:"true"},runtimeConfig:{heartbeat:{enabled:false,wakeOnDemand:false}}}})).json();
   await page.addInitScript(() => { navigator.mediaDevices.getUserMedia=async () => {throw new Error("Rejected call must not request microphone");}; });
-  await page.goto(`/${company.issuePrefix}/apps/chat/connect?provider=speko`);
+  await page.goto(`/${space.issuePrefix}/apps/chat/connect?provider=speko`);
   await page.getByRole("button",{name:"Choose an active agent",exact:true}).click();
   await page.getByRole("button",{name:"Select Credit-test agent",exact:true}).click();
   await page.getByRole("button",{name:"Continue",exact:true}).click();
@@ -352,7 +352,7 @@ test("E12: insufficient credits explains funding and never blindly retries a rej
   expect(JSON.stringify(error)).not.toContain("private fixture provider detail");
   await expect(page.getByRole("alert").filter({hasText:"Add credits in Speko"})).toBeVisible();
   await expect(page.getByRole("button",{name:"Mute",exact:true})).toHaveCount(0);
-  const inspected=await (await page.request.get(`/api/companies/${company.id}/voice-sessions/${error.details.sessionId}`)).json();
+  const inspected=await (await page.request.get(`/api/spaces/${space.id}/voice-sessions/${error.details.sessionId}`)).json();
   expect(inspected).not.toHaveProperty("providerSessionId");expect(inspected.errorCode).toBe("insufficient_credits");
   const {home}=JSON.parse(await readFile(resolve(import.meta.dirname,".instance.json"),"utf8"));
   await expect.poll(async () => JSON.parse(await readFile(resolve(home,"evidence.json"),"utf8")).sessions.find((row: {id: string}) => row.id===error.details.sessionId)?.providerSessionId).toBeNull();

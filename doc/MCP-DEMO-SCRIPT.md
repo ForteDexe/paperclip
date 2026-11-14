@@ -10,21 +10,21 @@ Pair this script with [MCP-ACCESS-GOVERNANCE.md](./MCP-ACCESS-GOVERNANCE.md) for
 
 Before you start the recording:
 
-- Paperclip running in `local_trusted` or `authenticated/private` mode. Public mode is fine as long as the Paperclip process can reach `http://127.0.0.1:8848` (we connect over `remote_http`, so no trusted runtime worker is required).
-- A company with at least one agent identity to act as the caller. That agent must have an **active heartbeat run** for the gateway-call steps (Steps 6, 7, 9, 11). The simplest way to keep one alive during recording is to assign a placeholder task to the agent before the demo starts; the agent's heartbeat run stays in `running` while it works.
+- Outpost running in `local_trusted` or `authenticated/private` mode. Public mode is fine as long as the Outpost process can reach `http://127.0.0.1:8848` (we connect over `remote_http`, so no trusted runtime worker is required).
+- A space with at least one agent identity to act as the caller. That agent must have an **active heartbeat run** for the gateway-call steps (Steps 6, 7, 9, 11). The simplest way to keep one alive during recording is to assign a placeholder task to the agent before the demo starts; the agent's heartbeat run stays in `running` while it works.
 - The KV demo server package built (`pnpm --filter @outpost/kv-demo-mcp-server build`).
-- Board API key (`$BOARD_API_KEY`) exported. Company ID (`$COMPANY_ID`) exported. Agent ID (`$AGENT_ID`) for the caller exported.
-- Paperclip URL (`$OUTPOST_URL`) exported.
-- The Tools & Access UI open at `/<prefix>/companies/<companyId>/tools`.
+- Board API key (`$OPERATOR_API_KEY`) exported. Space ID (`$SPACE_ID`) exported. Agent ID (`$AGENT_ID`) for the caller exported.
+- Outpost URL (`$OUTPOST_URL`) exported.
+- The Tools & Access UI open at `/<prefix>/spaces/<spaceId>/tools`.
 - A browser tab open on the **Values UI** at `http://127.0.0.1:8848/` (you will open this in Step 1).
 
-All API requests use `Authorization: Bearer $BOARD_API_KEY` for board calls. Gateway calls use a dedicated session token via the `X-Paperclip-Tool-Gateway-Token` header — they do not use `Authorization`. See Step 5 for how the token is minted.
+All API requests use `Authorization: Bearer $OPERATOR_API_KEY` for board calls. Gateway calls use a dedicated session token via the `X-Outpost-Tool-Gateway-Token` header — they do not use `Authorization`. See Step 5 for how the token is minted.
 
 ## Step 0 — Frame the demo
 
 Spoken intro:
 
-> "Paperclip ships an MCP gateway that sits between every agent and every upstream tool. Three things happen on every call: we pick the tool against a profile, we evaluate policies, and we record an audit event. I'm going to connect a tiny key/value MCP server I'm running on this laptop, then run a read, a write that needs approval, and a destructive call that gets denied. The KV server has a web UI on the same port that shows its values — so when the agent's write lands, you'll see it appear in the browser. The data lives in the server; the policy decisions and the audit log live in Paperclip."
+> "Outpost ships an MCP gateway that sits between every agent and every upstream tool. Three things happen on every call: we pick the tool against a profile, we evaluate policies, and we record an audit event. I'm going to connect a tiny key/value MCP server I'm running on this laptop, then run a read, a write that needs approval, and a destructive call that gets denied. The KV server has a web UI on the same port that shows its values — so when the agent's write lands, you'll see it appear in the browser. The data lives in the server; the policy decisions and the audit log live in Outpost."
 
 Show the Tools & Access overview tab. Point at:
 
@@ -62,9 +62,9 @@ API equivalent for the recording (the wizard hits these two routes back-to-back)
 
 ```sh
 CONNECT=$(curl -fsS -X POST \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
   -H "Content-Type: application/json" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/apps/connect" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/apps/connect" \
   -d '{
     "link": "http://127.0.0.1:8848/mcp",
     "name": "KV demo"
@@ -89,9 +89,9 @@ Finish the wizard (allow reads, ask-first on `kv_set`, leave `kv_delete` quarant
 
 ```sh
 curl -fsS -X POST \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
   -H "Content-Type: application/json" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/apps/$CONNECTION_ID/finish" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/apps/$CONNECTION_ID/finish" \
   -d '{
     "enabledCatalogEntryIds": '"$READ_ENTRY_IDS"',
     "askFirstCatalogEntryIds": ["'"$WRITE_ENTRY_ID"'"],
@@ -104,19 +104,19 @@ curl -fsS -X POST \
   }'
 
 export PROFILE_ID=$(curl -fsS \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/profiles/effective/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/profiles/effective/agents/$AGENT_ID" \
   | jq -r '.profileIds[0]')
 ```
 
-Expected: `connectionStatus: "active"`, one profile bound to the company, one `require_approval` policy generated for `kv_set`.
+Expected: `connectionStatus: "active"`, one profile bound to the space, one `require_approval` policy generated for `kv_set`.
 
 ## Step 3 — Confirm the effective profile
 
 ```sh
 curl -fsS \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/profiles/effective/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/profiles/effective/agents/$AGENT_ID" \
   | jq '{profileIds, allowedToolNames}'
 ```
 
@@ -124,14 +124,14 @@ Expected: `allowedToolNames` contains `kv_get`, `kv_list`, and `kv_set` (the wiz
 
 ## Step 4 — Mint a gateway session for the demo agent
 
-Gateway sessions are scoped to an active heartbeat run. When a board key mints the session, the request body must carry `companyId`, `agentId`, and `runId`. The run must be in `running` status and must belong to the same agent and company.
+Gateway sessions are scoped to an active heartbeat run. When a board key mints the session, the request body must carry `spaceId`, `agentId`, and `runId`. The run must be in `running` status and must belong to the same agent and space.
 
 Grab the most recent active run for the demo agent:
 
 ```sh
 export RUN_ID=$(curl -fsS \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/heartbeat-runs?agentId=$AGENT_ID&limit=20" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/heartbeat-runs?agentId=$AGENT_ID&limit=20" \
   | jq -r '[.[] | select(.status == "running")] | first | .id')
 
 test -n "$RUN_ID" || { echo "No active run for agent — start one before recording"; exit 1; }
@@ -141,11 +141,11 @@ Mint the session:
 
 ```sh
 SESSION=$(curl -fsS -X POST \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
   -H "Content-Type: application/json" \
   "$OUTPOST_URL/api/tool-gateway/sessions" \
   -d '{
-    "companyId": "'"$COMPANY_ID"'",
+    "spaceId": "'"$SPACE_ID"'",
     "agentId": "'"$AGENT_ID"'",
     "runId": "'"$RUN_ID"'"
   }')
@@ -153,15 +153,15 @@ echo "$SESSION" | jq '{sessionId, expiresAt, toolsUrl, callUrl}'
 export GATEWAY_TOKEN=$(jq -r '.token' <<<"$SESSION")
 ```
 
-In production, the agent obtains this token from its own run bootstrap (agent JWTs auto-populate `companyId`/`agentId`/`runId`). The board-keyed shortcut here is for the recording so the camera stays in one shell.
+In production, the agent obtains this token from its own run bootstrap (agent JWTs auto-populate `spaceId`/`agentId`/`runId`). The board-keyed shortcut here is for the recording so the camera stays in one shell.
 
 ## Step 5 — The read tool (allowed)
 
-Gateway calls use the session token via `X-Paperclip-Tool-Gateway-Token`. The body uses `tool` (string) and `parameters` (object).
+Gateway calls use the session token via `X-Outpost-Tool-Gateway-Token`. The body uses `tool` (string) and `parameters` (object).
 
 ```sh
 curl -fsS -X POST \
-  -H "X-Paperclip-Tool-Gateway-Token: $GATEWAY_TOKEN" \
+  -H "X-Outpost-Tool-Gateway-Token: $GATEWAY_TOKEN" \
   -H "Content-Type: application/json" \
   "$OUTPOST_URL/api/tool-gateway/tools/call" \
   -d '{ "tool": "kv_list", "parameters": {} }' \
@@ -176,7 +176,7 @@ Switch to the **Audit** tab in the UI. Refresh. The newest row is `tool_gateway.
 
 ```sh
 curl -i -X POST \
-  -H "X-Paperclip-Tool-Gateway-Token: $GATEWAY_TOKEN" \
+  -H "X-Outpost-Tool-Gateway-Token: $GATEWAY_TOKEN" \
   -H "Content-Type: application/json" \
   "$OUTPOST_URL/api/tool-gateway/tools/call" \
   -d '{ "tool": "kv_delete", "parameters": { "key": "demo/launch" } }'
@@ -199,7 +199,7 @@ Either `quarantined_catalog_entry` (catalog quarantine, the path we set up in St
 
 Spoken note:
 
-> "The agent doesn't know whether the tool was denied by the profile, by a policy, or by quarantine. It just knows the call failed and the reason code. The operator sees the full decision in the audit row. The KV server was never touched — the gateway short-circuited before the request left Paperclip."
+> "The agent doesn't know whether the tool was denied by the profile, by a policy, or by quarantine. It just knows the call failed and the reason code. The operator sees the full decision in the audit row. The KV server was never touched — the gateway short-circuited before the request left Outpost."
 
 ## Step 7 — The agent call that triggers approval
 
@@ -207,7 +207,7 @@ Spoken note:
 
 ```sh
 CALL=$(curl -sS -w '\n%{http_code}' -X POST \
-  -H "X-Paperclip-Tool-Gateway-Token: $GATEWAY_TOKEN" \
+  -H "X-Outpost-Tool-Gateway-Token: $GATEWAY_TOKEN" \
   -H "Content-Type: application/json" \
   "$OUTPOST_URL/api/tool-gateway/tools/call" \
   -d '{ "tool": "kv_set", "parameters": { "key": "demo/launch", "value": "shipped" } }')
@@ -225,14 +225,14 @@ In the UI, switch to the **Audit** tab and find the approval card. Point at the 
 
 ## Step 8 — Approve the action
 
-Approve via the API for the recording (the UI button does the same thing). The approval endpoint requires `companyId` (in the body or as a query parameter):
+Approve via the API for the recording (the UI button does the same thing). The approval endpoint requires `spaceId` (in the body or as a query parameter):
 
 ```sh
 curl -fsS -X POST \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
   -H "Content-Type: application/json" \
   "$OUTPOST_URL/api/tool-gateway/action-requests/$ACTION_REQUEST_ID/approve" \
-  -d '{ "companyId": "'"$COMPANY_ID"'" }' \
+  -d '{ "spaceId": "'"$SPACE_ID"'" }' \
   | jq '{id, status, resolvedAt, resolvedByUserId, canonicalArgumentsHash}'
 ```
 
@@ -244,7 +244,7 @@ The agent retries the same call with `approvedActionRequestId` set to the action
 
 ```sh
 curl -fsS -X POST \
-  -H "X-Paperclip-Tool-Gateway-Token: $GATEWAY_TOKEN" \
+  -H "X-Outpost-Tool-Gateway-Token: $GATEWAY_TOKEN" \
   -H "Content-Type: application/json" \
   "$OUTPOST_URL/api/tool-gateway/tools/call" \
   -d '{
@@ -265,7 +265,7 @@ Replay the read to close the loop — the agent's view of the world now matches 
 
 ```sh
 curl -fsS -X POST \
-  -H "X-Paperclip-Tool-Gateway-Token: $GATEWAY_TOKEN" \
+  -H "X-Outpost-Tool-Gateway-Token: $GATEWAY_TOKEN" \
   -H "Content-Type: application/json" \
   "$OUTPOST_URL/api/tool-gateway/tools/call" \
   -d '{ "tool": "kv_get", "parameters": { "key": "demo/launch" } }' \
@@ -280,9 +280,9 @@ Skip this on a 5-minute recording. Include it for the 10-minute version because 
 
 ```sh
 curl -fsS -X POST \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
   -H "Content-Type: application/json" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/action-requests/$ACTION_REQUEST_ID/trust-rule" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/action-requests/$ACTION_REQUEST_ID/trust-rule" \
   -d '{
     "name": "Trust kv_set demo/launch from the demo agent",
     "approvalThreshold": 2,
@@ -305,8 +305,8 @@ Pull the audit timeline for the demo:
 
 ```sh
 curl -fsS \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
-  "$OUTPOST_URL/api/tool-gateway/audit?companyId=$COMPANY_ID&limit=20" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
+  "$OUTPOST_URL/api/tool-gateway/audit?spaceId=$SPACE_ID&limit=20" \
   | jq '[.[] | {createdAt, action, tool: .details.tool, decision: .details.decision, reasonCode: .details.reasonCode}]'
 ```
 
@@ -334,7 +334,7 @@ The KV server keeps state in process memory. Restart the server to drop everythi
 pnpm --filter @outpost/kv-demo-mcp-server start
 ```
 
-The next `kv_list` call returns an empty `entries` array. The Values UI shows the empty table again. Paperclip's audit history is untouched — it still records that the calls happened, just against a server that has since reset.
+The next `kv_list` call returns an empty `entries` array. The Values UI shows the empty table again. Outpost's audit history is untouched — it still records that the calls happened, just against a server that has since reset.
 
 If the port is still bound after `Ctrl+C` (the process is gone but TCP timewait is pending), find any leftover process and stop it:
 
@@ -343,23 +343,23 @@ lsof -nP -iTCP:8848 -sTCP:LISTEN
 kill <pid>
 ```
 
-### Paperclip-side cleanup (for a fully clean state)
+### Outpost-side cleanup (for a fully clean state)
 
 Run these if you want the connection and application out of the way as well. Skip them if you plan to keep the demo around for repeat recordings; the smoke replay still works as long as the KV server is running.
 
 ```sh
 # Revoke the trust rule (if you created one in Step 11)
-curl -fsS -X POST -H "Authorization: Bearer $BOARD_API_KEY" -H "Content-Type: application/json" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/trust-rules/$TRUST_RULE_POLICY_ID/revoke" \
+curl -fsS -X POST -H "Authorization: Bearer $OPERATOR_API_KEY" -H "Content-Type: application/json" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/trust-rules/$TRUST_RULE_POLICY_ID/revoke" \
   -d '{ "reason": "Demo cleanup." }' | jq '{id, enabled}'
 
 # Disable the connection
-curl -fsS -X PATCH -H "Authorization: Bearer $BOARD_API_KEY" -H "Content-Type: application/json" \
+curl -fsS -X PATCH -H "Authorization: Bearer $OPERATOR_API_KEY" -H "Content-Type: application/json" \
   "$OUTPOST_URL/api/tool-connections/$CONNECTION_ID" \
   -d '{ "enabled": false, "status": "disabled" }' | jq '{id, enabled, status}'
 
 # Archive the application
-curl -fsS -X PATCH -H "Authorization: Bearer $BOARD_API_KEY" -H "Content-Type: application/json" \
+curl -fsS -X PATCH -H "Authorization: Bearer $OPERATOR_API_KEY" -H "Content-Type: application/json" \
   "$OUTPOST_URL/api/tool-applications/$APPLICATION_ID" \
   -d '{ "status": "archived" }' | jq '{id, status}'
 ```
@@ -369,14 +369,14 @@ Audit history is retained; the connection and application stay archived for the 
 ## What this proves
 
 - **Read** path: the read-only catalog entries, the wizard-built profile, and the gateway audit row line up. Gateway-token header, `tool`/`parameters` body, `status: "completed"` on success.
-- **Approval-gated write** path: profile inclusion + `require_approval` policy + HTTP `409` `approval_required` carrying `actionRequestId` + board-key approval scoped to `companyId` + retry with `approvedActionRequestId` + audit closure + a visible state change in the Values UI. Trust rule promotion (Step 11) bridges the human-in-the-loop step to a steady-state allow without losing the audit trail.
+- **Approval-gated write** path: profile inclusion + `require_approval` policy + HTTP `409` `approval_required` carrying `actionRequestId` + board-key approval scoped to `spaceId` + retry with `approvedActionRequestId` + audit closure + a visible state change in the Values UI. Trust rule promotion (Step 11) bridges the human-in-the-loop step to a steady-state allow without losing the audit trail.
 - **Denied / destructive** path: catalog quarantine on first sight (driven by `destructiveHint: true` on the MCP tool annotation), and a clean deny HTTP response with `reasonCode` at the gateway. The agent sees a failed call; the operator sees the reason in the audit row; the KV server never sees the request at all.
 
 ## What lives where
 
-The demo is also the clearest way to show the data boundary between Paperclip and the upstream MCP server.
+The demo is also the clearest way to show the data boundary between Outpost and the upstream MCP server.
 
-| Concern | Stored in the KV demo server | Stored in Paperclip |
+| Concern | Stored in the KV demo server | Stored in Outpost |
 | --- | --- | --- |
 | Key/value entries | In-memory `Map`, lost on restart. | Not stored. The gateway only sees the MCP request/response envelope. |
 | Connection record (URL, optional token) | Not stored. | Persisted in `tool_connections`. The optional `KV_DEMO_TOKEN` becomes a secret. |

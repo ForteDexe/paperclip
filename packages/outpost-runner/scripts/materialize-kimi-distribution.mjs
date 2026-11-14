@@ -116,7 +116,7 @@ export async function buildKimiDistribution({ outputRoot, target = `${process.pl
   const lockBytes = await readFile(join(lockDirectory, "package-lock.json"));
   if (hash(lockBytes) !== KIMI_DISTRIBUTION_LOCK_SHA256) throw new Error("Kimi distribution lock differs from its source pin");
   await mkdir(dirname(output), { recursive: true });
-  const staging = await mkdtemp(join(await realpath(dirname(output)), ".paperclip-kimi-distribution-"));
+  const staging = await mkdtemp(join(await realpath(dirname(output)), ".outpost-kimi-distribution-"));
   const environment = kimiDistributionEnvironment();
   const runOwned = (command, args, options) => runKimiBuildCommand(command, args, options, checkCancelled, signal);
   const runtime = join(staging, "runtime");
@@ -164,7 +164,7 @@ export async function materializeKimiDistribution(options) {
   try { await lstat(output); throw new Error("Kimi distribution output already exists"); } catch (error) { if (error.code !== "ENOENT") throw error; }
   await mkdir(dirname(output), { recursive: true });
   const parent = await realpath(dirname(output));
-  const temporary = await mkdtemp(join(parent, ".paperclip-kimi-admission-"));
+  const temporary = await mkdtemp(join(parent, ".outpost-kimi-admission-"));
   const candidate = join(temporary, "candidate");
   try {
     const result = await buildKimiDistribution({ ...options, outputRoot: candidate });

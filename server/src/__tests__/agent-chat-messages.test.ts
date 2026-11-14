@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { activityLog, agentApiKeys, agents, authUsers, chatCompletionDeliveries, chatTaskHandoffs, companyMemberships, heartbeatRuns, issueComments, issueThreadInteractions, issues, projects } from "@outpost/db";
+import { activityLog, agentApiKeys, agents, authUsers, chatCompletionDeliveries, chatTaskHandoffs, spaceMemberships, heartbeatRuns, issueComments, issueThreadInteractions, issues, projects } from "@outpost/db";
 import type { AgentApiKeyScope } from "@outpost/shared";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { sendAgentChatMessage } from "../services/agent-chat-messages.js";
@@ -11,7 +11,7 @@ import { issueService } from "../services/issues.js";
 import { activityService } from "../services/activity.js";
 import { recordAcceptedChatHandoff } from "../services/chat-completion-delivery.js";
 import { conversationReplay, deliverConversationComments, undeliveredConversationComments } from "../services/agent-conversations.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { CROSS_ISSUE_INFLUENCE_LIMIT } from "../services/cross-issue-influence-limit.js";
 import { startRunnerApiTestServer } from "./helpers/runner-api-server.js";
 import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.js";
@@ -34,21 +34,21 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
   const input = { body: "## Morning review\n\nThree PRs need your review.", idempotencyKey: "morning-pr-digest" };
   const send = (f: Fixture, value: unknown = input) => sendAgentChatMessage(server.db, f, value);
   const httpSend = (f: Fixture, value: unknown = input, keyScope: AgentApiKeyScope = { kind: "standard" }, authorizingUserId?: string) => fetch(`${server.apiUrl}/api/agents/me/chat/messages`, {
-    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId, keyScope, authorizingUserId)}` },
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId, keyScope, authorizingUserId)}` },
     body: JSON.stringify(value),
   });
   const apiKey = async (f: Fixture, scopeConfig: AgentApiKeyScope = { kind: "standard" }) => {
     const token = `pcp_${randomUUID()}`;
-    const [key] = await server.db.insert(agentApiKeys).values({ companyId: f.companyId, agentId: f.agentId, name: "Chat delivery test",
+    const [key] = await server.db.insert(agentApiKeys).values({ spaceId: f.spaceId, agentId: f.agentId, name: "Chat delivery test",
       responsibleUserId: f.responsibleUserId, scopeConfig, keyHash: createHash("sha256").update(token).digest("hex") }).returning();
     return { ...key, token };
   };
   const keySend = (f: Fixture, token: string, value: unknown = input) => fetch(`${server.apiUrl}/api/agents/me/chat/messages`, {
-    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "x-paperclip-run-id": f.runId },
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "x-outpost-run-id": f.runId },
     body: JSON.stringify(value),
   });
   const spendInfluence = (f: Fixture, count: number) => server.db.insert(activityLog).values(Array.from({ length: count }, (_, index) => ({
-    companyId: f.companyId, actorType: "agent" as const, actorId: f.agentId, agentId: f.agentId, runId: f.runId,
+    spaceId: f.spaceId, actorType: "agent" as const, actorId: f.agentId, agentId: f.agentId, runId: f.runId,
     action: "issue.cross_issue_influence_observed", entityType: "issue", entityId: f.issueId,
     details: { kind: ["comment", "update", "interaction_resolution"][index % 3] },
   })));
@@ -123,9 +123,9 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
 
   it.each(["admitted", "legacy", "saved-task"])("retains a persisted %s skill-test run boundary after task mode changes", async kind => {
     const f = await fixture();
-    const contextSnapshot = kind === "admitted" ? { paperclipAgentJwtScope: { kind: "skill_test", issueId: f.issueId } }
-      : kind === "legacy" ? { paperclipSkillTest: { id: randomUUID() } }
-      : { paperclipIssue: { id: f.issueId, workMode: "skill_test" } };
+    const contextSnapshot = kind === "admitted" ? { outpostAgentJwtScope: { kind: "skill_test", issueId: f.issueId } }
+      : kind === "legacy" ? { outpostSkillTest: { id: randomUUID() } }
+      : { outpostIssue: { id: f.issueId, workMode: "skill_test" } };
     await server.db.update(heartbeatRuns).set({ contextSnapshot }).where(eq(heartbeatRuns.id, f.runId));
     await server.db.update(issues).set({ workMode: "skill_test" }).where(eq(issues.id, f.issueId));
     await server.db.update(issues).set({ workMode: "standard" }).where(eq(issues.id, f.issueId));
@@ -180,11 +180,11 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     expect(snapshot.issues.find(i => i.id === receipt.conversationId)).toMatchObject({ conversationAgentId: f.agentId,
       conversationUserId: f.responsibleUserId, conversationState: "waiting", executionRunId: null, status: "in_review" });
     expect(await issueService(server.db).getById(f.issueId)).toEqual(before);
-    expect(await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
+    expect(await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
     expect(snapshot.activity.filter(a => a.action === "issue.comment_added")).toHaveLength(1);
-    expect(await activityService(server.db).runsForIssue(f.companyId, receipt.conversationId)).toEqual([]);
+    expect(await activityService(server.db).runsForIssue(f.spaceId, receipt.conversationId)).toEqual([]);
     expect(receipt.chatUrl).toContain(`/chats/${f.agentId}`);
-    expect(await withConversationReadState(server.db, f.companyId, f.responsibleUserId!, [{ id: receipt.conversationId }])).toMatchObject([{ isUnreadForMe: true }]);
+    expect(await withConversationReadState(server.db, f.spaceId, f.responsibleUserId!, [{ id: receipt.conversationId }])).toMatchObject([{ isUnreadForMe: true }]);
     expect(await f.authority.recover({ tool: "send_chat_message", arguments: input, callId: randomUUID() }))
       .toMatchObject({ result: { commentId: receipt.commentId, replayed: true } });
   });
@@ -201,7 +201,7 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     await expect(send(f, { ...input, body: "Different digest" })).rejects.toThrow(/different content/);
     const nextRunId = randomUUID();
     await server.db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.runId));
-    await server.db.insert(heartbeatRuns).values({ id: nextRunId, companyId: f.companyId, agentId: f.agentId,
+    await server.db.insert(heartbeatRuns).values({ id: nextRunId, spaceId: f.spaceId, agentId: f.agentId,
       status: "running", nativeIssueId: f.issueId, responsibleUserId: f.responsibleUserId });
     await server.db.update(issues).set({ executionRunId: nextRunId }).where(eq(issues.id, f.issueId));
     expect(await send({ ...f, runId: nextRunId })).toMatchObject({ commentId: a!.commentId, replayed: true });
@@ -215,7 +215,7 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     expect(first.status, await first.clone().text()).toBe(201);
     const receipt = await first.json();
     const replyRun = randomUUID();
-    await server.db.insert(heartbeatRuns).values({ id: replyRun, companyId: f.companyId, agentId: f.agentId, status: "running",
+    await server.db.insert(heartbeatRuns).values({ id: replyRun, spaceId: f.spaceId, agentId: f.agentId, status: "running",
       nativeIssueId: receipt.conversationId, responsibleUserId: f.responsibleUserId, contextSnapshot: { issueId: receipt.conversationId, conversationSessionGeneration: 0 } });
     await server.db.update(issues).set({ executionRunId: replyRun, conversationState: "active" }).where(eq(issues.id, receipt.conversationId));
     const before = await issueService(server.db).getById(receipt.conversationId);
@@ -225,7 +225,7 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     await server.db.update(issues).set({ conversationSessionGeneration: 1, conversationState: "waiting", executionRunId: null }).where(eq(issues.id, receipt.conversationId));
     expect((await httpSend(f, { ...input, idempotencyKey: "after-new" })).status).toBe(201);
     await expect(issueService(server.db).addComment(receipt.conversationId, "Stale reply", { agentId: f.agentId, runId: replyRun })).rejects.toThrow(/earlier session/);
-    expect(await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(2);
+    expect(await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(2);
     expect((await f.snapshot()).comments).toHaveLength(3);
   });
 
@@ -234,16 +234,16 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     const receipt = (await send(f))!;
     const conversation = (await svc.getById(receipt.conversationId))!;
     const enqueue = vi.fn(async (_agentId: string, _options: unknown) => null);
-    expect(await undeliveredConversationComments(server.db, f.companyId, conversation.id)).toEqual([]);
+    expect(await undeliveredConversationComments(server.db, f.spaceId, conversation.id)).toEqual([]);
     await deliverConversationComments(server.db, conversation, enqueue);
     expect(enqueue).not.toHaveBeenCalled();
     const reply = await svc.addComment(conversation.id, "Which PR should I review first?", { userId: f.responsibleUserId! }, { clientRequestId: randomUUID() });
-    expect((await undeliveredConversationComments(server.db, f.companyId, conversation.id)).map(comment => comment.id)).toEqual([reply.id]);
+    expect((await undeliveredConversationComments(server.db, f.spaceId, conversation.id)).map(comment => comment.id)).toEqual([reply.id]);
     await deliverConversationComments(server.db, conversation, enqueue);
     expect(enqueue).toHaveBeenCalledOnce();
     expect(enqueue.mock.calls[0]?.[1]).toMatchObject({ requestedByActorType: "user", requestedByActorId: f.responsibleUserId,
       contextSnapshot: { wakeCommentId: reply.id, wakeCommentIds: [reply.id] } });
-    expect(await conversationReplay(server.db, f.companyId, conversation.id, reply.id))
+    expect(await conversationReplay(server.db, f.spaceId, conversation.id, reply.id))
       .toContain(JSON.stringify({ author: "agent", body: input.body }));
   });
 
@@ -253,11 +253,11 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
   ])("serializes $transport delivery with a native chat mutation, replay=$replay", async ({ transport, replay }) => {
     const f = await fixture(), receipt = (await send(f))!, chatRunId = randomUUID();
     await server.db.update(agents).set({ runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false, maxConcurrentRuns: 2 } } }).where(eq(agents.id, f.agentId));
-    await server.db.insert(heartbeatRuns).values({ id: chatRunId, companyId: f.companyId, agentId: f.agentId, status: "running",
+    await server.db.insert(heartbeatRuns).values({ id: chatRunId, spaceId: f.spaceId, agentId: f.agentId, status: "running",
       runtimeMode: "native", nativeIssueId: receipt.conversationId, responsibleUserId: f.responsibleUserId,
       contextSnapshot: { issueId: receipt.conversationId, conversationSessionGeneration: 0 } });
     await server.db.update(issues).set({ executionRunId: chatRunId, conversationState: "active" }).where(eq(issues.id, receipt.conversationId));
-    const chat = new PaperclipRunnerToolAuthority(server.db, { companyId: f.companyId, agentId: f.agentId,
+    const chat = new OutpostRunnerToolAuthority(server.db, { spaceId: f.spaceId, agentId: f.agentId,
       issueId: receipt.conversationId, runId: chatRunId, apiUrl: server.apiUrl, apiToolsEnabled: false });
     let unlock!: () => void, ready!: (pid: number) => void;
     const locked = new Promise<number>(resolve => { ready = resolve; });
@@ -313,13 +313,13 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     const a = await send(f);
     const userId = randomUUID();
     await server.db.insert(authUsers).values({ id: userId, name: "Second human", email: `${userId}@fixture.invalid`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
-    await server.db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
+    await server.db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
     await server.db.update(heartbeatRuns).set({ responsibleUserId: userId }).where(eq(heartbeatRuns.id, f.runId));
     const b = await send(f);
     expect(b!.conversationId).not.toBe(a!.conversationId);
-    const [agent] = await server.db.insert(agents).values({ companyId: f.companyId, name: "Second agent", status: "active", adapterType: "process" }).returning();
+    const [agent] = await server.db.insert(agents).values({ spaceId: f.spaceId, name: "Second agent", status: "active", adapterType: "process" }).returning();
     const runId = randomUUID();
-    await server.db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: agent.id, status: "running", issueId: f.issueId, responsibleUserId: userId });
+    await server.db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: agent.id, status: "running", issueId: f.issueId, responsibleUserId: userId });
     await server.db.update(issues).set({ assigneeAgentId: agent.id, executionRunId: runId }).where(eq(issues.id, f.issueId));
     const c = await send({ ...f, agentId: agent.id, runId });
     expect(new Set([a!.conversationId, b!.conversationId, c!.conversationId]).size).toBe(3);
@@ -329,18 +329,18 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
 
   it("delivers to its own chat while preserving pending questions and the original handoff completion", async () => {
     const f = await fixture(), svc = issueService(server.db);
-    const own = await svc.create(f.companyId, { title: "Own chat", assigneeAgentId: f.agentId,
+    const own = await svc.create(f.spaceId, { title: "Own chat", assigneeAgentId: f.agentId,
       conversationAgentId: f.agentId, conversationUserId: f.responsibleUserId!, conversationState: "waiting", status: "in_review" });
-    const [coordinator] = await server.db.insert(agents).values({ companyId: f.companyId, name: "Coordinator", status: "active", adapterType: "process" }).returning();
-    const origin = await svc.create(f.companyId, { title: "Origin chat", assigneeAgentId: coordinator.id,
+    const [coordinator] = await server.db.insert(agents).values({ spaceId: f.spaceId, name: "Coordinator", status: "active", adapterType: "process" }).returning();
+    const origin = await svc.create(f.spaceId, { title: "Origin chat", assigneeAgentId: coordinator.id,
       conversationAgentId: coordinator.id, conversationUserId: f.responsibleUserId!, conversationState: "waiting", status: "in_review" });
     await recordAcceptedChatHandoff(server.db, (await svc.getById(f.issueId))!, origin);
-    const [question] = await server.db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: own.id,
+    const [question] = await server.db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: own.id,
       kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Proceed?" } }).returning();
     expect(await send(f)).toMatchObject({ conversationId: own.id });
     expect(await server.db.select().from(issueComments).where(eq(issueComments.issueId, origin.id))).toEqual([]);
     expect(await server.db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, question.id))).toEqual([question]);
-    expect(await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
+    expect(await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
     await svc.update(f.issueId, { status: "done" });
     expect(await server.db.select().from(chatCompletionDeliveries).where(eq(chatCompletionDeliveries.taskId, f.issueId)))
       .toMatchObject([{ status: "pending", responseCommentId: null }]);
@@ -356,7 +356,7 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     if (kind === "stopped") await server.db.update(heartbeatRuns).set({ resultJson: { executionCancellation: { state: "requested" } } }).where(eq(heartbeatRuns.id, f.runId));
     if (kind === "stale") await server.db.update(issues).set({ executionRunId: null }).where(eq(issues.id, f.issueId));
     if (kind === "missing-human") await server.db.update(heartbeatRuns).set({ responsibleUserId: null }).where(eq(heartbeatRuns.id, f.runId));
-    if (kind === "revoked") await server.db.delete(companyMemberships).where(eq(companyMemberships.principalId, f.responsibleUserId!));
+    if (kind === "revoked") await server.db.delete(spaceMemberships).where(eq(spaceMemberships.principalId, f.responsibleUserId!));
     if (kind === "private-task") await server.db.update(issues).set({ visibility: "private" }).where(eq(issues.id, f.issueId));
     if (kind === "private-project") await server.db.update(projects).set({ visibility: "private", privacyOwnerUserId: f.responsibleUserId }).where(eq(projects.id, f.projectId));
     if (kind === "private-ancestor") {
@@ -387,21 +387,21 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     await server.db.update(issueComments).set({ createdAt: sql`'2026-10-30 12:00:00.123789+00'::timestamptz` }).where(eq(issueComments.id, b.commentId));
     const cookie = await server.humanSession(f.responsibleUserId!);
     await server.db.insert(issueComments).values([
-      { companyId: f.companyId, issueId: a.conversationId, authorUserId: f.responsibleUserId, authorType: "user", body: "Human message" },
-      { companyId: f.companyId, issueId: a.conversationId, authorAgentId: f.agentId, authorType: "system", body: "System message" },
-      { companyId: f.companyId, issueId: a.conversationId, authorAgentId: f.agentId, body: "Deleted message", deletedAt: new Date() },
-      { companyId: f.companyId, issueId: a.conversationId, authorAgentId: f.agentId, body: "Receipt", origin: "fast_response" },
-      { companyId: f.companyId, issueId: a.conversationId, authorAgentId: f.agentId, body: "Notice", presentation: { kind: "system_notice", tone: "neutral", detailsDefaultOpen: false } },
+      { spaceId: f.spaceId, issueId: a.conversationId, authorUserId: f.responsibleUserId, authorType: "user", body: "Human message" },
+      { spaceId: f.spaceId, issueId: a.conversationId, authorAgentId: f.agentId, authorType: "system", body: "System message" },
+      { spaceId: f.spaceId, issueId: a.conversationId, authorAgentId: f.agentId, body: "Deleted message", deletedAt: new Date() },
+      { spaceId: f.spaceId, issueId: a.conversationId, authorAgentId: f.agentId, body: "Receipt", origin: "fast_response" },
+      { spaceId: f.spaceId, issueId: a.conversationId, authorAgentId: f.agentId, body: "Notice", presentation: { kind: "system_notice", tone: "neutral", detailsDefaultOpen: false } },
     ]);
     const mark = (id: string) => fetch(`${server.apiUrl}/api/issues/${a.conversationId}/read`, { method: "POST", headers: { Cookie: cookie, Origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ throughCommentId: id }) });
-    const unread = async () => (await withConversationReadState(server.db, f.companyId, f.responsibleUserId!, [{ id: a.conversationId }]))[0];
+    const unread = async () => (await withConversationReadState(server.db, f.spaceId, f.responsibleUserId!, [{ id: a.conversationId }]))[0];
     expect(await unread()).toMatchObject({ isUnreadForMe: true, unreadMessageCount: 2 });
     const response = await mark(a.commentId);
     expect(response.status, await response.text()).toBe(200);
     expect(await unread()).toMatchObject({ isUnreadForMe: true, unreadMessageCount: 1 });
     expect((await mark(b.commentId)).status).toBe(200);
     expect(await unread()).toMatchObject({ isUnreadForMe: false, unreadMessageCount: 0 });
-    expect(await withConversationReadState(server.db, f.companyId, randomUUID(), [{ id: a.conversationId }, { id: f.issueId }]))
+    expect(await withConversationReadState(server.db, f.spaceId, randomUUID(), [{ id: a.conversationId }, { id: f.issueId }]))
       .toMatchObject([{ unreadMessageCount: 2, isUnreadForMe: true }, { unreadMessageCount: 0, isUnreadForMe: false }]);
     expect(await withConversationReadState(server.db, randomUUID(), f.responsibleUserId!, [{ id: a.conversationId }]))
       .toMatchObject([{ unreadMessageCount: 0, isUnreadForMe: false }]);
@@ -410,10 +410,10 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     const foreign = await server.fixture({ connectionScenario: "fresh" });
     const foreignMessage = (await send(foreign))!;
     expect((await mark(foreignMessage.commentId)).status).toBe(404);
-    const chats = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/chats`, { headers: { Cookie: cookie } });
+    const chats = await fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/chats`, { headers: { Cookie: cookie } });
     expect(chats.status).toBe(200);
     expect(await chats.json()).toMatchObject([{ id: a.conversationId, isUnreadForMe: false, unreadMessageCount: 0 }]);
-    const detail = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/chats/${f.agentId}`, { headers: { Cookie: cookie } });
+    const detail = await fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/chats/${f.agentId}`, { headers: { Cookie: cookie } });
     expect(detail.status).toBe(200);
     expect(await detail.json()).toMatchObject({ id: a.conversationId, unreadMessageCount: 0 });
   });

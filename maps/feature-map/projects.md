@@ -37,7 +37,7 @@ can use the project's storage.
 
 Open `/projects/:projectId/configuration`, use **Private project**, and choose **Manage access** or **View access** according to your authority. Create a private project through the supported creation surface or API when needed for a fixture.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a disposable project and a small repository you can access; record checkout and credential ownership.
 
@@ -45,7 +45,7 @@ Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use 
 
 Automated: [projects UI](../../ui/src/pages/Projects.test.tsx) and [project detail](../../ui/src/pages/ProjectDetail.test.tsx) are component tests.
 
-Manual: Create a project, add a task from its view, and reload. Verify the task belongs to that project, list counts are plausible, and links preserve company scope. Archive only the disposable project and inspect list/task behavior.
+Manual: Create a project, add a task from its view, and reload. Verify the task belongs to that project, list counts are plausible, and links preserve space scope. Archive only the disposable project and inspect list/task behavior.
 
 ### `repository-settings`
 
@@ -59,7 +59,7 @@ Manual: Attach a small repository, save, and create a project task. Inspect the 
 
 Automated: [Privacy production review](../../server/src/__tests__/privacy-production-review.test.ts) covers persisted project audience changes, task inheritance, and actor intersections. [Privacy controls](../../ui/src/components/PrivateTaskPrivacyControls.test.tsx) covers UI controls and task-cache invalidation after membership removal. These tests do not prove both people’s live navigation.
 
-Manual: As an ordinary authenticated project owner, create a private project and task. Add another company person and an eligible agent through Manage access, reload, and inspect their project discovery and task reads. The added person can view members but cannot change the audience. Remove them, reload their session, and retry direct project/task links. Confirm removing the owner is unavailable or rejected. Add a direct grant for one private task, then open the project to the company after inspecting the confirmation. Verify the project becomes discoverable, protected tasks remain private, and project-derived task access no longer substitutes for direct task access. Test the agent and its responsible person separately.
+Manual: As an ordinary authenticated project owner, create a private project and task. Add another space person and an eligible agent through Manage access, reload, and inspect their project discovery and task reads. The added person can view members but cannot change the audience. Remove them, reload their session, and retry direct project/task links. Confirm removing the owner is unavailable or rejected. Add a direct grant for one private task, then open the project to the space after inspecting the confirmation. Verify the project becomes discoverable, protected tasks remain private, and project-derived task access no longer substitutes for direct task access. Test the agent and its responsible person separately.
 
 Sources: [Project properties](../../ui/src/components/ProjectProperties.tsx), [access members](../../ui/src/components/ProjectAccessMembers.tsx), [project routes](../../server/src/routes/projects.ts), and [authorization](../../server/src/services/authorization.ts).
 

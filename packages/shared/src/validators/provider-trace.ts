@@ -81,7 +81,7 @@ export const providerTraceMetadataSchema = z
     schema: z.literal("outpost.provider_trace_metadata.v1"),
     id: z.string().min(1),
     runId: z.string().min(1),
-    companyId: z.string().min(1),
+    spaceId: z.string().min(1),
     status: providerTraceStatusSchema,
     provider: z.string().min(1),
     frameCount: z.number().int().nonnegative(),

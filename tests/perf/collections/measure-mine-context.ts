@@ -6,7 +6,7 @@ import { arch, loadavg, platform } from "node:os";
 import { chromium, expect, request, type APIRequestContext, type BrowserContext, type Page, type Request } from "@playwright/test";
 
 type Fixture = {
-  company: { id: string; issuePrefix: string };
+  space: { id: string; issuePrefix: string };
   parents: Array<{ id: string }>;
   children: Array<{ id: string }>;
 };
@@ -60,14 +60,14 @@ async function retainFixture(client: APIRequestContext): Promise<Fixture> {
     return null;
   }) as Fixture | null;
   if (saved) {
-    assert.ok(saved.company?.id && saved.company.issuePrefix
+    assert.ok(saved.space?.id && saved.space.issuePrefix
       && saved.parents.length === 4 && saved.children.length === 30, "Invalid retained fixture.");
     return saved;
   }
-  const company = await api(client, "POST", "/companies", { name: "Mine parent context performance" });
-  const fixture: Fixture = { company: { id: company.id, issuePrefix: company.issuePrefix }, parents: [], children: [] };
+  const space = await api(client, "POST", "/spaces", { name: "Mine parent context performance" });
+  const fixture: Fixture = { space: { id: space.id, issuePrefix: space.issuePrefix }, parents: [], children: [] };
   const create = async (title: string, status: string, parentId?: string) => {
-    const row = await api(client, "POST", `/companies/${company.id}/issues`, { title, status, parentId });
+    const row = await api(client, "POST", `/spaces/${space.id}/issues`, { title, status, parentId });
     return { id: row.id as string };
   };
   for (let index = 0; index < 4; index++) fixture.parents.push(await create(`Parent ${index}`, index === 0 ? "blocked" : "done"));
@@ -180,14 +180,14 @@ const save = async () => {
 try {
   for (const arm of arms) artifacts[arm] = await artifactReceipt(uiClients[arm], apiClients[arm], arm);
   fixture = await retainFixture(apiClients.candidate);
-  for (const arm of arms) await api(apiClients[arm], "GET", `/companies/${fixture.company.id}`);
-  await api(apiClients.candidate, "PUT", `/companies/${fixture.company.id}/workspace-preferences/me`, { coordinatorWorkspaceEnabled: true });
+  for (const arm of arms) await api(apiClients[arm], "GET", `/spaces/${fixture.space.id}`);
+  await api(apiClients.candidate, "PUT", `/spaces/${fixture.space.id}/workspace-preferences/me`, { coordinatorWorkspaceEnabled: true });
   browser = await chromium.launch({ headless: process.env.INBOX_HEADFUL !== "1", channel: process.env.OUTPOST_PLAYWRIGHT_CHANNEL });
   if (scenarios.includes("warm")) for (const arm of arms) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: "block" });
     const prepared = await preparePage(context, origins[arm]);
     warmPages[arm] = { ...prepared, context };
-    await prepared.page.goto(`${origins[arm]}/${fixture.company.issuePrefix}/inbox/mine`);
+    await prepared.page.goto(`${origins[arm]}/${fixture.space.issuePrefix}/inbox/mine`);
     await expect(prepared.page.locator("[data-inbox-item]").first()).toBeVisible();
     await prepared.page.waitForLoadState("networkidle");
   }
@@ -202,7 +202,7 @@ try {
         await page.bringToFront();
         tracker.reset();
         if (httpCache === "warm") await page.reload();
-        else await page.goto(`${origins[arm]}/${fixture.company.issuePrefix}/inbox/mine`);
+        else await page.goto(`${origins[arm]}/${fixture.space.issuePrefix}/inbox/mine`);
         const rows = page.locator("[data-inbox-item]");
         await expect(rows.first()).toBeVisible();
         await page.waitForFunction(() => window.__mineContextMeasure.first !== null);
@@ -223,7 +223,7 @@ try {
           return { path: url.pathname, start: resource.startTime, ms: resource.duration, end: resource.responseEnd,
             transferBytes: resource.transferSize, encodedBytes: resource.encodedBodySize };
         }).filter(resource => resource.path.startsWith("/api/") || resource.path.startsWith("/assets/")));
-        const milestones = Object.fromEntries(["/api/health", "/api/auth/get-session", "/api/cli-auth/me", "/api/companies", "/api/workspace-preferences/me"].map(path => [path, resources.find(resource => resource.path === path) ?? null]));
+        const milestones = Object.fromEntries(["/api/health", "/api/auth/get-session", "/api/cli-auth/me", "/api/spaces", "/api/workspace-preferences/me"].map(path => [path, resources.find(resource => resource.path === path) ?? null]));
         const primary = initialReads.find(read => read.path.endsWith("/inbox/mine") || (read.path.endsWith("/issues") && read.view === "index" && read.ids === 0));
         await page.getByRole("tab", { name: "Recent", exact: true }).click();
         await expect(page.getByRole("tab", { name: "Recent", exact: true })).toHaveAttribute("aria-selected", "true");

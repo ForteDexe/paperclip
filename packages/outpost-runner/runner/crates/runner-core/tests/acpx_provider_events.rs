@@ -340,23 +340,23 @@ fn does_not_label_non_usd_acpx_cost_as_usd() {
 fn matches_typescript_mcp_display_identity_across_tool_lifecycle() {
     for (title, namespace, name) in [
         (
-            "mcp__paperclip__write_document",
-            "paperclip",
+            "mcp__outpost__write_document",
+            "outpost",
             "write_document",
         ),
         (
             "mcp.outpost.write_document",
-            "paperclip",
+            "outpost",
             "write_document",
         ),
         (
-            "  MCP__Paperclip__write_document  ",
-            "Paperclip",
+            "  MCP__Outpost__write_document  ",
+            "Outpost",
             "write_document",
         ),
         ("McP.other.read_document", "other", "read_document"),
-        ("mcp__paperclip__nested__tool", "paperclip", "nested__tool"),
-        ("mcp.outpost.nested.tool", "paperclip", "nested.tool"),
+        ("mcp__outpost__nested__tool", "outpost", "nested__tool"),
+        ("mcp.outpost.nested.tool", "outpost", "nested.tool"),
         ("mcp_____write_document", "_", "write_document"),
         ("mcp__é__write_document", "é", "write_document"),
     ] {
@@ -421,7 +421,7 @@ fn bounds_mcp_namespace_and_name_independently_after_parsing() {
         AcpxRuntimeEventKind::ToolCall,
         json!({"type": "tool_call", "title": format!("mcp.outpost.{}", "雪".repeat(300))}),
     );
-    assert_eq!(events[0].payload["namespace"], "paperclip");
+    assert_eq!(events[0].payload["namespace"], "outpost");
     assert_eq!(
         events[0].payload["name"].as_str().unwrap().chars().count(),
         240
@@ -444,12 +444,12 @@ fn leaves_builtin_and_malformed_mcp_titles_as_display_only_builtin_names() {
     for title in [
         "Read file",
         "write_document",
-        "paperclip__write_document",
+        "outpost__write_document",
         "mcp____write_document",
-        "mcp__paperclip__",
+        "mcp__outpost__",
         "mcp..write_document",
         "mcp.outpost.",
-        "mcp__paperclip__write\ndocument",
+        "mcp__outpost__write\ndocument",
     ] {
         let events = normalize(
             AcpxRuntimeEventKind::ToolCall,

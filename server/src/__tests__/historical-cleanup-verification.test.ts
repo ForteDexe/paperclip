@@ -1,7 +1,7 @@
 import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, environmentCustomImageSetupSessions, environmentLeases, environments, heartbeatRuns } from "@outpost/db";
+import { agents, spaces, createDb, environmentCustomImageSetupSessions, environmentLeases, environments, heartbeatRuns } from "@outpost/db";
 import { historicalCleanupVerificationService } from "../services/historical-cleanup-verification.js";
 import { classifyEnvironmentCapabilities, environmentRuntimeService } from "../services/environment-runtime.js";
 import { withoutCleanupVerification } from "../services/cleanup-verification-proof.js";
@@ -17,20 +17,20 @@ if (!support.supported) console.warn(`Skipping historical cleanup database tests
 (support.supported ? describe : describe.skip)("historical cleanup verification", () => {
   let db: ReturnType<typeof createDb>, database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("historical-cleanup-"); db = createDb(database.connectionString); }, 60_000);
-  afterEach(async () => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); await db.execute(sql`SET client_min_messages = warning; TRUNCATE companies, plugins, environments CASCADE`); });
+  afterEach(async () => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); await db.execute(sql`SET client_min_messages = warning; TRUNCATE spaces, plugins, environments CASCADE`); });
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
   const read = () => readIdleSleepSafety(db, owned, () => now, ownerId, async () => "none", undefined, undefined, true, true);
   const state = async () => (await read()).backgroundWork;
   async function seed(adHoc = false) {
-    const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Cleanup fixture", issuePrefix: `T${companyId.slice(0, 6).toUpperCase()}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Idle fixture", role: "engineer", status: "idle", adapterType: "process" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", status: "failed", finishedAt: new Date(now) });
+    const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Cleanup fixture", issuePrefix: `T${spaceId.slice(0, 6).toUpperCase()}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Idle fixture", role: "engineer", status: "idle", adapterType: "process" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "on_demand", status: "failed", finishedAt: new Date(now) });
     const [environment] = await db.insert(environments).values({ name: "Remote fixture", driver: "sandbox" }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ companyId, environmentId: environment!.id,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, environmentId: environment!.id,
       heartbeatRunId: adHoc ? null : runId, status: "failed", leasePolicy: "ephemeral", provider: "daytona",
       providerLeaseId: randomUUID(), releasedAt: new Date(now), cleanupStatus: "success", metadata: { driver: "sandbox" } }).returning();
-    return { companyId, runId, environment: environment!, lease: lease! };
+    return { spaceId, runId, environment: environment!, lease: lease! };
   }
   function verifier(leaseState = "destroyed", setupState = "destroyed") {
     return historicalCleanupVerificationService(db, {
@@ -49,10 +49,10 @@ if (!support.supported) console.warn(`Skipping historical cleanup database tests
     const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
       if (!absent) return Response.json({ absent: false });
       const binding = JSON.parse(init.body as string), seconds = Math.floor(Date.now() / 1000);
-      expect(binding).toEqual({ purpose: "cleanup", companyId: f.companyId, environmentId: f.environment.id,
+      expect(binding).toEqual({ purpose: "cleanup", spaceId: f.spaceId, environmentId: f.environment.id,
         leaseId: f.lease.id, heartbeatRunId: adHoc ? null : f.runId, provider: "daytona", providerLeaseId: f.lease.providerLeaseId });
-      const header = Buffer.from(JSON.stringify({ alg: "EdDSA", kid: "fixture", typ: "paperclip-sandbox-cleanup-absence+jwt" })).toString("base64url");
-      const claims = Buffer.from(JSON.stringify({ v: 1, iss: "paperclip-cloud", aud: "paperclip-sandbox-cleanup-absence/v1",
+      const header = Buffer.from(JSON.stringify({ alg: "EdDSA", kid: "fixture", typ: "outpost-sandbox-cleanup-absence+jwt" })).toString("base64url");
+      const claims = Buffer.from(JSON.stringify({ v: 1, iss: "outpost-cloud", aud: "outpost-sandbox-cleanup-absence/v1",
         sub: "fixture-stack", ...binding, absent: true, iat: seconds, exp: seconds + 60 })).toString("base64url");
       return Response.json({ receipt: `${header}.${claims}.${sign(null, Buffer.from(`${header}.${claims}`), privateKey).toString("base64url")}` });
     });
@@ -123,7 +123,7 @@ if (!support.supported) console.warn(`Skipping historical cleanup database tests
   });
   it.each(["retained", "pending_cleanup"])("does not inspect a resource with another %s owner", async status => {
     const f = await seed();
-    await db.insert(environmentLeases).values({ companyId: f.companyId, environmentId: f.environment.id,
+    await db.insert(environmentLeases).values({ spaceId: f.spaceId, environmentId: f.environment.id,
       provider: "daytona", providerLeaseId: f.lease.providerLeaseId, status });
     expect(await verifier().sweep()).toMatchObject({ checked: 0, verified: 0 });
     expect(await state()).toBe("present");
@@ -147,7 +147,7 @@ if (!support.supported) console.warn(`Skipping historical cleanup database tests
   async function setup() {
     const f = await seed(); await db.delete(environmentLeases);
     const [row] = await db.insert(environmentCustomImageSetupSessions).values({ environmentId: f.environment.id,
-      provider: "daytona", providerLeaseId: randomUUID(), status: "promoted", finishedAt: new Date(now), metadata: { setupRpcCompanyId: f.companyId } }).returning();
+      provider: "daytona", providerLeaseId: randomUUID(), status: "promoted", finishedAt: new Date(now), metadata: { setupRpcSpaceId: f.spaceId } }).returning();
     return { ...f, setup: row! };
   }
   it("requires deletion proof for terminal image sessions and preserves their history", async () => {
@@ -160,18 +160,18 @@ if (!support.supported) console.warn(`Skipping historical cleanup database tests
     const service = historicalCleanupVerificationService(db, { inspectLease: async () => undefined, inspectSetup: async row => {
       await db.update(environmentCustomImageSetupSessions).set(change === "secret" ? { connectionSecretRef: "secret://fixture" }
         : change === "live" ? { status: "waiting_for_user", finishedAt: null }
-        : change === "provider" ? { provider: "other" } : { metadata: { setupRpcCompanyId: randomUUID() } }).where(eq(environmentCustomImageSetupSessions.id, row.id));
+        : change === "provider" ? { provider: "other" } : { metadata: { setupRpcSpaceId: randomUUID() } }).where(eq(environmentCustomImageSetupSessions.id, row.id));
       return { providerLeaseId: row.providerLeaseId, state: "destroyed" };
     } });
     expect((await service.sweep()).verified).toBe(0); expect(await state()).toBe("present");
   });
   it("keeps image setup blocked when a retained lease owns the same allocation", async () => {
-    const f = await setup(); await db.insert(environmentLeases).values({ companyId: f.companyId,
+    const f = await setup(); await db.insert(environmentLeases).values({ spaceId: f.spaceId,
       environmentId: f.environment.id, provider: "daytona", providerLeaseId: f.setup.providerLeaseId, status: "retained" });
     expect(await verifier().sweep()).toMatchObject({ checked: 0 }); expect(await state()).toBe("present");
   });
 });
 
 it("removes host-owned cleanup evidence from provider metadata", () => {
-  expect(withoutCleanupVerification({ paperclipCleanupVerification: { state: "destroyed" }, driver: "sandbox" })).toEqual({ driver: "sandbox" });
+  expect(withoutCleanupVerification({ outpostCleanupVerification: { state: "destroyed" }, driver: "sandbox" })).toEqual({ driver: "sandbox" });
 });

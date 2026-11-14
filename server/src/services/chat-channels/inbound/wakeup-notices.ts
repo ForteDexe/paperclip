@@ -18,7 +18,7 @@ type NoticeOptions = {
   isExternalActionAuthorizationChange: (error: unknown) => boolean;
   isShuttingDown: () => boolean;
 };
-export type InboundWakeNoticeScope = { companyId: string; issueId?: string };
+export type InboundWakeNoticeScope = { spaceId: string; issueId?: string };
 export type InboundWakeNoticeCursor = { createdAt: string; id: string };
 type NoticeCandidate = { action: typeof chatActions.$inferSelect; cursorCreatedAt: string };
 
@@ -31,7 +31,7 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
     terminal: boolean,
   ) {
     const identityLock = await tx.execute(
-      sql`select pg_try_advisory_xact_lock(hashtextextended(${`chat-identity:${action.companyId}:${action.principalId}`}, 0)) as locked`,
+      sql`select pg_try_advisory_xact_lock(hashtextextended(${`chat-identity:${action.spaceId}:${action.principalId}`}, 0)) as locked`,
     );
     if (!identityLock[0]?.locked)
       throw new NativeChatReviewPresentationContentionError();
@@ -58,7 +58,7 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
       !["processed", "failed"].includes(currentAction.status) ||
       !delivery ||
       delivery.state !== "processed" ||
-      delivery.companyId !== action.companyId ||
+      delivery.spaceId !== action.spaceId ||
       delivery.endpointId !== action.endpointId ||
       delivery.conversationId !== action.conversationId ||
       delivery.principalId !== action.principalId
@@ -70,7 +70,7 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
       .where(
         and(
           eq(issueComments.id, String(action.payload.commentId)),
-          eq(issueComments.companyId, action.companyId),
+          eq(issueComments.spaceId, action.spaceId),
           eq(issueComments.issueId, authorized.issue.id),
         ),
       )
@@ -121,7 +121,7 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
       .from(chatMessageLinks)
       .where(
         and(
-          eq(chatMessageLinks.companyId, publication.companyId),
+          eq(chatMessageLinks.spaceId, publication.spaceId),
           eq(chatMessageLinks.endpointId, publication.endpointId),
           eq(chatMessageLinks.conversationId, publication.conversationId),
           eq(chatMessageLinks.publicationId, publication.id),
@@ -144,18 +144,18 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
     const payloadCommentId = payloadUuid(sql`${chatActions.payload}->>'commentId'`);
     const coalescedOwnerId = sql`${agentWakeupRequests.payload}->>'coalescedIntoWakeupRequestId'`;
     const sourceRemoved = sql`exists (select 1 from issue_comments removed_comment
-      where removed_comment.company_id = ${chatActions.companyId}
+      where removed_comment.space_id = ${chatActions.spaceId}
         and removed_comment.issue_id = ${payloadIssueId}
         and removed_comment.id = ${payloadCommentId}
         and removed_comment.deleted_at is not null)`;
     const hasVisibleQueue = sql`exists (select 1 from chat_publications queued_notice
       join chat_message_links visible_queue on visible_queue.publication_id = queued_notice.id
-        and visible_queue.company_id = queued_notice.company_id
+        and visible_queue.space_id = queued_notice.space_id
         and visible_queue.endpoint_id = queued_notice.endpoint_id
         and visible_queue.conversation_id = queued_notice.conversation_id
         and visible_queue.provider_message_id = queued_notice.provider_message_id
         and visible_queue.direction = 'outbound' and visible_queue.comment_id is null
-      where queued_notice.company_id = ${chatActions.companyId}
+      where queued_notice.space_id = ${chatActions.spaceId}
         and queued_notice.comment_id = ${payloadCommentId}
         and queued_notice.state = 'published'
         and queued_notice.idempotency_key = 'wake:' || ${owner.id}::text || ':queued:' ||
@@ -178,10 +178,10 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
         and(
           eq(chatActions.kind, "inbound_wakeup"),
           sql`${payloadIssueId} is not null`,
-          scope ? eq(chatActions.companyId, scope.companyId) : undefined,
+          scope ? eq(chatActions.spaceId, scope.spaceId) : undefined,
           scope?.issueId ? eq(payloadIssueId, scope.issueId) : undefined,
           inArray(chatActions.status, ["processed", "failed"]),
-          eq(owner.companyId, chatActions.companyId),
+          eq(owner.spaceId, chatActions.spaceId),
           or(
             and(
               isNull(owner.runId),
@@ -201,7 +201,7 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
             ? sql`(${chatActions.createdAt}, ${chatActions.id}) > (${cursor.createdAt}::timestamptz, ${cursor.id}::uuid)`
             : undefined,
           sql`not exists (select 1 from chat_publications notice
-          where notice.company_id = ${chatActions.companyId}
+          where notice.space_id = ${chatActions.spaceId}
             and notice.idempotency_key = 'wake:' || ${owner.id}::text || ':' ||
               (case when ${sourceRemoved} then 'removed' when ${owner.status} = 'deferred_issue_execution'
                 and ${agentWakeupRequests.status} not in ('cancelled','failed','skipped')
@@ -255,7 +255,7 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
             .from(chatPublications)
             .where(
               and(
-                eq(chatPublications.companyId, action.companyId),
+                eq(chatPublications.spaceId, action.spaceId),
                 eq(chatPublications.idempotencyKey, queuedKey),
               ),
             );
@@ -286,7 +286,7 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
           const rows = await tx
             .insert(chatPublications)
             .values({
-              companyId: action.companyId,
+              spaceId: action.spaceId,
               endpointId: action.endpointId,
               conversationId: action.conversationId,
               issueId: context.issue.id,
@@ -330,9 +330,9 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
 
   async function loadInboundWakeNoticeScopes(scope?: InboundWakeNoticeScope, signal?: AbortSignal) {
     signal?.throwIfAborted();
-    if (scope?.issueId) return [{ companyId: scope.companyId, issueId: scope.issueId }];
+    if (scope?.issueId) return [{ spaceId: scope.spaceId, issueId: scope.issueId }];
     const candidates = noticeCandidateQuery(null, scope).as("inbound_notice_candidates");
-    return db.selectDistinct({ companyId: candidates.action.companyId, issueId: candidates.issueId })
+    return db.selectDistinct({ spaceId: candidates.action.spaceId, issueId: candidates.issueId })
       .from(candidates);
   }
 
@@ -361,7 +361,7 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
         .where(
           and(
             eq(chatActions.id, key.wakeId),
-            eq(chatActions.companyId, publication.companyId),
+            eq(chatActions.spaceId, publication.spaceId),
           ),
         );
       if (retry?.kind === "failed_run_retry")
@@ -379,7 +379,7 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, publication.companyId),
+          eq(chatActions.spaceId, publication.spaceId),
           eq(chatActions.endpointId, publication.endpointId),
           eq(chatActions.conversationId, publication.conversationId),
           eq(chatActions.kind, "inbound_wakeup"),
@@ -395,7 +395,7 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, publication.companyId),
+            eq(chatPublications.spaceId, publication.spaceId),
             eq(chatPublications.commentId, publication.commentId),
             eq(chatPublications.state, "published"),
             eq(

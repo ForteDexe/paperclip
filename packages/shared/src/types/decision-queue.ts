@@ -13,7 +13,7 @@ export interface DecisionQueueSeedRule {
 
 export interface DecisionQueueItem {
   id: string;
-  companyId: string;
+  spaceId: string;
   queueId: string;
   sourceKind: AttentionSourceKind;
   sourceId: string;
@@ -27,7 +27,7 @@ export interface DecisionQueueItem {
 
 export interface DecisionQueue {
   id: string;
-  companyId: string;
+  spaceId: string;
   key: string;
   title: string;
   description: string | null;
@@ -47,7 +47,7 @@ export type DecisionTriageDecideBy = "today" | "this_week" | "whenever" | string
 
 export interface DecisionTriage {
   id: string;
-  companyId: string;
+  spaceId: string;
   sourceKind: AttentionSourceKind;
   sourceId: string;
   decideBy: DecisionTriageDecideBy | null;

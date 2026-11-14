@@ -138,7 +138,7 @@ describe("extended ACP harness qualification", () => {
         expect(cell.task.attemptTimeoutMs).toEqual(extendedHarnessFileTask.attemptTimeoutMs);
         expect(prompt).toContain("Create extended-nonce.txt");
         expect(prompt).toContain("Edit that file");
-        expect(prompt).toContain("Wait for paperclip_finish to succeed");
+        expect(prompt).toContain("Wait for outpost_finish to succeed");
       }
     }
   });

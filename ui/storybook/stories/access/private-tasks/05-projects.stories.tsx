@@ -53,7 +53,7 @@ function ProjectStory({
             const updated = await projectsApi.update(
               project.id,
               data,
-              project.companyId,
+              project.spaceId,
             );
             setProject(updated);
           }}
@@ -80,7 +80,7 @@ const meta = {
   title: "Getting started and access/Login, invitations, and access/Private tasks/05 Projects",
   decorators: [privacyDecorator],
   parameters: { ...privacyParameters, docs: { description: { component: "Project settings → Manage access. Human and agent identities appear in the search dropdown and selected value. Owner, reader, error, loading and mobile states use production components." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "access/resources",
         "tasks/properties",
@@ -166,7 +166,7 @@ export const DirectoryFailure: Story = {
   play: async ({ canvasElement }) => {
     const page = await openMembers(canvasElement);
     await expect(
-      await page.findByText("Couldn't load the company access directory."),
+      await page.findByText("Couldn't load the space access directory."),
     ).toBeVisible();
   },
 };
@@ -222,8 +222,8 @@ export const OpenProjectAudienceCopy: Story = {
     const page = within(canvasElement.ownerDocument.body);
     await userEvent.click(await page.findByRole("switch", { name: "Private project" }));
     const dialog = await page.findByRole("alertdialog");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Open to company" }));
-    await expect(await page.findByText(/Everyone in the company can discover this project/)).toBeVisible();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Open to space" }));
+    await expect(await page.findByText(/Everyone in the space can discover this project/)).toBeVisible();
     await expect(page.queryByRole("button", { name: "Manage access" })).not.toBeInTheDocument();
   },
 };
@@ -234,7 +234,7 @@ function ProjectAudienceJourney() {
   return <StoryFrame title="Project membership and task audience" story="Removing project access updates a previously opened task share sheet." checks={[]}>
     <Button onClick={() => setOpen(true)}>View task audience</Button>
     <ProjectAccessMembers project={state.projects[0]!} canManage />
-    <IssueShareSheet issueId="privacy-root" companyId={state.projects[0]!.companyId} canManage open={open} onOpenChange={setOpen} />
+    <IssueShareSheet issueId="privacy-root" spaceId={state.projects[0]!.spaceId} canManage open={open} onOpenChange={setOpen} />
   </StoryFrame>;
 }
 export const MembershipUpdatesTaskAudience: Story = {

@@ -27,11 +27,11 @@ async function fixture() {
   await exec("git", ["-C", original, "worktree", "add", "-b", "task", worktree]);
   await fs.writeFile(path.join(worktree, "retained.txt"), "keep this work\n");
   const workspace = {
-    id: "execution-workspace", companyId: "company", projectId: "project", projectWorkspaceId: null,
+    id: "execution-workspace", spaceId: "space", projectId: "project", projectWorkspaceId: null,
     repoUrl: "https://example.invalid/original.git", baseRef: "HEAD", cwd: worktree, providerRef: worktree,
   };
   return { root, original, replacement, worktree, workspace, input: {
-    companyId: "company", projectId: "project", explicitProjectWorkspaceId: null,
+    spaceId: "space", projectId: "project", explicitProjectWorkspaceId: null,
     workspace, boundProjectWorkspace: null, candidateBaseCwds: [original], managedSourceRoot: root,
   } };
 }
@@ -46,7 +46,7 @@ describe("persisted Git workspace source", () => {
     expect(await fs.readFile(path.join(worktree, "retained.txt"), "utf8")).toBe("keep this work\n");
   });
 
-  it.each(["companyId", "projectId"] as const)("rejects a foreign %s before source inspection or materialization", async field => {
+  it.each(["spaceId", "projectId"] as const)("rejects a foreign %s before source inspection or materialization", async field => {
     const { input } = await fixture();
     const materializeOriginalRepository = vi.fn();
     await expect(resolvePersistedGitWorkspaceSource({ ...input, workspace: { ...input.workspace, [field]: "foreign" },
@@ -61,8 +61,8 @@ describe("persisted Git workspace source", () => {
     });
   });
 
-  it.each([null, { id: "bound", companyId: "foreign", projectId: "project", cwd: null },
-    { id: "bound", companyId: "company", projectId: "foreign", cwd: null }])("rejects an unverified non-null project binding (%j)", async binding => {
+  it.each([null, { id: "bound", spaceId: "foreign", projectId: "project", cwd: null },
+    { id: "bound", spaceId: "space", projectId: "foreign", cwd: null }])("rejects an unverified non-null project binding (%j)", async binding => {
     const { input } = await fixture();
     await expect(resolvePersistedGitWorkspaceSource({ ...input, workspace: { ...input.workspace, projectWorkspaceId: "bound" },
       boundProjectWorkspace: binding })).rejects.toMatchObject({ resultJson: { workspaceValidation: { reasonCode: "source_scope_mismatch" } } });
@@ -71,7 +71,7 @@ describe("persisted Git workspace source", () => {
   it("rejects a supplied source binding when the saved association is null", async () => {
     const { original, input } = await fixture();
     await expect(resolvePersistedGitWorkspaceSource({ ...input,
-      boundProjectWorkspace: { id: "foreign-binding", companyId: "company", projectId: "project", cwd: original },
+      boundProjectWorkspace: { id: "foreign-binding", spaceId: "space", projectId: "project", cwd: original },
     })).rejects.toMatchObject({ resultJson: { workspaceValidation: { reasonCode: "source_scope_mismatch" } } });
   });
 
@@ -145,7 +145,7 @@ describe("persisted Git workspace source", () => {
     await fs.mkdir(cwd);
     expect(await resolvePersistedGitWorkspaceSource({ ...input,
       workspace: { ...input.workspace, repoUrl: null, projectWorkspaceId: "bound" }, candidateBaseCwds: [],
-      boundProjectWorkspace: { id: "bound", companyId: "company", projectId: "project", cwd },
+      boundProjectWorkspace: { id: "bound", spaceId: "space", projectId: "project", cwd },
     })).toBe(original);
   });
 
@@ -159,7 +159,7 @@ describe("persisted Git workspace source", () => {
     await exec("git", ["-C", owner, "worktree", "add", "-b", "retained", task]);
     expect(await resolvePersistedGitWorkspaceSource({ ...input,
       workspace: { ...input.workspace, repoUrl: null, cwd: task, providerRef: task, projectWorkspaceId: "bound" }, candidateBaseCwds: [],
-      boundProjectWorkspace: { id: "bound", companyId: "company", projectId: "project", cwd: owner },
+      boundProjectWorkspace: { id: "bound", spaceId: "space", projectId: "project", cwd: owner },
     })).toBe(owner);
   });
 
@@ -168,7 +168,7 @@ describe("persisted Git workspace source", () => {
     await exec("git", ["-C", original, "worktree", "remove", "--force", worktree]);
     await expect(resolvePersistedGitWorkspaceSource({ ...input,
       workspace: { ...input.workspace, repoUrl: null, projectWorkspaceId: "bound" }, candidateBaseCwds: [],
-      boundProjectWorkspace: { id: "bound", companyId: "company", projectId: "project", cwd: replacement },
+      boundProjectWorkspace: { id: "bound", spaceId: "space", projectId: "project", cwd: replacement },
     })).rejects.toMatchObject({ resultJson: { workspaceValidation: { reasonCode: "source_repository_unavailable" } } });
   });
 
@@ -182,7 +182,7 @@ describe("persisted Git workspace source", () => {
     const { replacement, input } = await fixture();
     await expect(resolvePersistedGitWorkspaceSource({ ...input,
       workspace: { ...input.workspace, repoUrl: null, projectWorkspaceId: "bound" }, candidateBaseCwds: [],
-      boundProjectWorkspace: { id: "bound", companyId: "company", projectId: "project", cwd: replacement },
+      boundProjectWorkspace: { id: "bound", spaceId: "space", projectId: "project", cwd: replacement },
     })).rejects.toMatchObject({ resultJson: { workspaceValidation: { reasonCode: "source_registration_unproven" } } });
   });
 

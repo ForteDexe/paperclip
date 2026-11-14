@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
  * scorecard is only comparable against another scorecard carrying the same id.
  *
  * The bundle is a *declaration*, not a secret store: it must never carry a
- * credential, hidden company identifier, or raw secret payload. Grants are typed
+ * credential, hidden space identifier, or raw secret payload. Grants are typed
  * canonical claim strings (`domain:action` or `domain:resource:action`), not
  * secret material. Callers should
  * run {@link assertBundleSecretFree} before use and persist only the digested

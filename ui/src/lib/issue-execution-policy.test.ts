@@ -27,11 +27,11 @@ describe("reading execution policy defaults", () => {
         { type: "approval" },
         { id: STAGE_ID, type: "review", participants: [
           { id: PARTICIPANT_ID, type: "agent", agentId: AGENT_ID },
-          { type: "user", userId: "board-reviewer" },
+          { type: "user", userId: "operator-reviewer" },
         ] },
       ],
     } as IssueExecutionPolicy;
-    expect(stageParticipantValues(policy, "review")).toEqual([`agent:${AGENT_ID}`, "user:board-reviewer"]);
+    expect(stageParticipantValues(policy, "review")).toEqual([`agent:${AGENT_ID}`, "user:operator-reviewer"]);
     expect(stageParticipantValues(policy, "approval")).toEqual([]);
   });
 });
@@ -65,13 +65,13 @@ describe("buildExecutionPolicy", () => {
     const policy = buildExecutionPolicy({
       existingPolicy: monitorOnlyPolicy,
       reviewerValues: [`agent:${AGENT_ID}`],
-      approverValues: ["user:local-board"],
+      approverValues: ["user:local-operator"],
     });
 
     expect(issueExecutionPolicySchema.safeParse(policy).success).toBe(true);
     expect(policy?.monitor).toEqual(monitorOnlyPolicy.monitor);
     expect(stageParticipantValues(policy, "review")).toEqual([`agent:${AGENT_ID}`]);
-    expect(stageParticipantValues(policy, "approval")).toEqual(["user:local-board"]);
+    expect(stageParticipantValues(policy, "approval")).toEqual(["user:local-operator"]);
   });
 
   it("keeps a monitor-only policy when there are no review or approval stages", () => {
@@ -100,7 +100,7 @@ describe("buildExecutionPolicy", () => {
     const policy = buildExecutionPolicy({
       existingPolicy: null,
       reviewerValues: [`agent:${AGENT_ID}`],
-      approverValues: ["user:local-board"],
+      approverValues: ["user:local-operator"],
     });
 
     expect(policy).not.toBeNull();
@@ -128,7 +128,7 @@ describe("buildExecutionPolicy", () => {
     expect(existingPolicy).toEqual(before);
   });
 
-  it("keeps stage and participant identities and governance fields when editing reviewers", () => {
+  it("keeps stage and participant identities and policy fields when editing reviewers", () => {
     const existingPolicy: IssueExecutionPolicy = {
       mode: "normal", commentRequired: true, maxReviewRounds: 4,
       authorizationPolicy: { trustPreset: "standard" },
@@ -137,14 +137,14 @@ describe("buildExecutionPolicy", () => {
       ] }],
     };
     const policy = buildExecutionPolicy({
-      existingPolicy, reviewerValues: [`agent:${AGENT_ID}`, "user:board-reviewer"], approverValues: [],
+      existingPolicy, reviewerValues: [`agent:${AGENT_ID}`, "user:operator-reviewer"], approverValues: [],
     });
     expect(policy).toMatchObject({
       authorizationPolicy: existingPolicy.authorizationPolicy,
       maxReviewRounds: 4,
       stages: [{ id: STAGE_ID, participants: [
         existingPolicy.stages[0].participants[0],
-        { type: "user", userId: "board-reviewer" },
+        { type: "user", userId: "operator-reviewer" },
       ] }],
     });
     expect(issueExecutionPolicySchema.safeParse(policy).success).toBe(true);
@@ -162,7 +162,7 @@ describe("buildExecutionPolicy", () => {
   it.each([
     { maxReviewRounds: 4 },
     { maxReviewRounds: 4, stages: [{ id: STAGE_ID, type: "review", participants: [
-      { id: PARTICIPANT_ID, type: "user", userId: "board-reviewer" },
+      { id: PARTICIPANT_ID, type: "user", userId: "operator-reviewer" },
     ] }] },
   ])("retains an independent review-round limit when no participants remain: %j", (existingPolicy) => {
     expect(buildExecutionPolicy({ existingPolicy: existingPolicy as IssueExecutionPolicy, reviewerValues: [], approverValues: [] }))

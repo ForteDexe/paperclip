@@ -13,7 +13,7 @@ import {
   SUCCESSFUL_RUN_HANDOFF_RESOLVED_ACTION,
   successfulRunHandoffActivityTone,
 } from "@/lib/successful-run-handoff";
-import { createIssue, storybookAgents } from "../../fixtures/paperclipData";
+import { createIssue, storybookAgents } from "../../fixtures/outpostData";
 
 function ActivityExample({ action }: { action: string }) {
   const tone = successfulRunHandoffActivityTone(action);
@@ -238,12 +238,12 @@ function SuccessfulRunHandoffEscalationComment() {
 }
 
 const meta = {
-  id: "paperclip-successful-run-handoff",
-  title: "Tasks and conversations/Task creation and lifecycle/Paperclip/Successful Run Handoff",
+  id: "outpost-successful-run-handoff",
+  title: "Tasks and conversations/Task creation and lifecycle/Outpost/Successful Run Handoff",
   component: SuccessfulRunHandoffStates,
   parameters: {
     layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "tasks/completion",
         "recovery/diagnosis"

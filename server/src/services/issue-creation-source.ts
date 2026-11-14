@@ -5,8 +5,8 @@ import { isUuidLike } from "@outpost/shared";
 
 type IssueRow = typeof issues.$inferSelect;
 type HeartbeatRunRow = typeof heartbeatRuns.$inferSelect;
-type CreationSourceRun = Pick<HeartbeatRunRow, "id" | "companyId" | "agentId" | "scopeKind" | "nativeIssueId" | "issueId"> & {
-  contextSnapshot: { issueId: unknown; taskId: unknown; taskKey: unknown; paperclipIssue: { id: unknown } } | null;
+type CreationSourceRun = Pick<HeartbeatRunRow, "id" | "spaceId" | "agentId" | "scopeKind" | "nativeIssueId" | "issueId"> & {
+  contextSnapshot: { issueId: unknown; taskId: unknown; taskKey: unknown; outpostIssue: { id: unknown } } | null;
 };
 
 /** The task that created another task, and the run that did so when one did. */
@@ -35,23 +35,23 @@ export function runBoundIssueReference(run: Pick<HeartbeatRunRow, "nativeIssueId
   const context = run.contextSnapshot && typeof run.contextSnapshot === "object"
     ? (run.contextSnapshot as Record<string, unknown>)
     : null;
-  const paperclipIssue = context?.paperclipIssue && typeof context.paperclipIssue === "object"
-    ? (context.paperclipIssue as Record<string, unknown>)
+  const outpostIssue = context?.outpostIssue && typeof context.outpostIssue === "object"
+    ? (context.outpostIssue as Record<string, unknown>)
     : null;
   return (
     run.nativeIssueId ??
     run.issueId ??
     readNonEmptyString(context?.issueId) ??
     readNonEmptyString(context?.taskId) ??
-    readNonEmptyString(paperclipIssue?.id) ??
+    readNonEmptyString(outpostIssue?.id) ??
     readNonEmptyString(context?.taskKey)
   );
 }
 
-/** Loads the run's bound issue within the run's company, or null. */
+/** Loads the run's bound issue within the run's space, or null. */
 export async function loadRunBoundIssue(
   db: Db,
-  run: Pick<HeartbeatRunRow, "companyId" | "nativeIssueId" | "issueId" | "contextSnapshot">,
+  run: Pick<HeartbeatRunRow, "spaceId" | "nativeIssueId" | "issueId" | "contextSnapshot">,
 ): Promise<IssueRow | null> {
   const reference = runBoundIssueReference(run);
   if (!reference) return null;
@@ -61,7 +61,7 @@ export async function loadRunBoundIssue(
   const [issue] = await db
     .select()
     .from(issues)
-    .where(and(condition, eq(issues.companyId, run.companyId)))
+    .where(and(condition, eq(issues.spaceId, run.spaceId)))
     .limit(1);
   return issue ?? null;
 }
@@ -69,20 +69,20 @@ export async function loadRunBoundIssue(
 /**
  * Resolves the task from which an issue was created. The recorded
  * `origin_issue_id` wins; otherwise the task the origin run (or, for historical
- * rows, the run on the creation activity) was executing. Company-scoped; a run
- * or source task from another company never resolves. Does not check viewer
+ * rows, the run on the creation activity) was executing. Space-scoped; a run
+ * or source task from another space never resolves. Does not check viewer
  * access.
  */
 export async function resolveIssueCreationSource(
   db: Db,
-  issue: Pick<IssueRow, "id" | "companyId" | "originRunId"> & { originIssueId?: string | null },
+  issue: Pick<IssueRow, "id" | "spaceId" | "originRunId"> & { originIssueId?: string | null },
 ): Promise<IssueCreationSourceRecord | null> {
   const run = await loadIssueCreationRun(db, issue);
   if (issue.originIssueId && issue.originIssueId !== issue.id) {
     const [sourceIssue] = await db
       .select()
       .from(issues)
-      .where(and(eq(issues.id, issue.originIssueId), eq(issues.companyId, issue.companyId)))
+      .where(and(eq(issues.id, issue.originIssueId), eq(issues.spaceId, issue.spaceId)))
       .limit(1);
     if (sourceIssue) return { run, sourceIssue };
   }
@@ -94,7 +94,7 @@ export async function resolveIssueCreationSource(
 
 async function loadIssueCreationRun(
   db: Db,
-  issue: Pick<IssueRow, "id" | "companyId" | "originRunId">,
+  issue: Pick<IssueRow, "id" | "spaceId" | "originRunId">,
 ): Promise<CreationSourceRun | null> {
   let runId = issue.originRunId;
   if (!runId) {
@@ -102,7 +102,7 @@ async function loadIssueCreationRun(
       .select({ runId: activityLog.runId })
       .from(activityLog)
       .where(and(
-        eq(activityLog.companyId, issue.companyId),
+        eq(activityLog.spaceId, issue.spaceId),
         eq(activityLog.entityType, "issue"),
         eq(activityLog.entityId, issue.id),
         inArray(activityLog.action, CREATION_ACTIVITY_ACTIONS),
@@ -116,7 +116,7 @@ async function loadIssueCreationRun(
   const [run] = await db
     .select({
       id: heartbeatRuns.id,
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
       agentId: heartbeatRuns.agentId,
       scopeKind: heartbeatRuns.scopeKind,
       nativeIssueId: heartbeatRuns.nativeIssueId,
@@ -127,25 +127,25 @@ async function loadIssueCreationRun(
           'issueId', ${heartbeatRuns.contextSnapshot}->'issueId',
           'taskId', ${heartbeatRuns.contextSnapshot}->'taskId',
           'taskKey', ${heartbeatRuns.contextSnapshot}->'taskKey',
-          'paperclipIssue', jsonb_build_object('id', ${heartbeatRuns.contextSnapshot}->'paperclipIssue'->'id')
+          'outpostIssue', jsonb_build_object('id', ${heartbeatRuns.contextSnapshot}->'outpostIssue'->'id')
         ) end`,
     })
     .from(heartbeatRuns)
-    .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, issue.companyId)))
+    .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, issue.spaceId)))
     .limit(1);
   return run ?? null;
 }
 
-/** Company-scoped agent summary for a creation source. */
+/** Space-scoped agent summary for a creation source. */
 export async function loadCreationSourceAgent(
   db: Db,
-  companyId: string,
+  spaceId: string,
   agentId: string,
 ): Promise<{ id: string; name: string } | null> {
   const [agent] = await db
     .select({ id: agents.id, name: agents.name })
     .from(agents)
-    .where(and(eq(agents.id, agentId), eq(agents.companyId, companyId)))
+    .where(and(eq(agents.id, agentId), eq(agents.spaceId, spaceId)))
     .limit(1);
   return agent ?? null;
 }

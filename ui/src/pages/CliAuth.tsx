@@ -154,7 +154,7 @@ export function CliAuthPage() {
       <Card className="block p-6">
         <h1 className="text-xl font-semibold">Approve Outpost CLI access</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          A CLI client is requesting full board access to the outposts you can access on this instance. Approve only if you started this request in your own terminal.
+          A CLI client is requesting full operator access to the outposts you can access on this instance. Approve only if you started this request in your own terminal.
         </p>
 
         <div className="mt-5 space-y-3 text-sm">
@@ -164,7 +164,7 @@ export function CliAuthPage() {
           </div>
           <div>
             <div className="text-muted-foreground">Client</div>
-            <div className="text-foreground">{challenge.clientName ?? "paperclipai cli"}</div>
+            <div className="text-foreground">{challenge.clientName ?? "outpost cli"}</div>
           </div>
           <div>
             <div className="text-muted-foreground">Requested access</div>
@@ -172,10 +172,10 @@ export function CliAuthPage() {
               {challenge.requestedAccess === "instance_admin_required" ? "Instance admin" : "User"}
             </div>
           </div>
-          {challenge.requestedCompanyName && (
+          {challenge.requestedSpaceName && (
             <div>
               <div className="text-muted-foreground">Outpost for audit context</div>
-              <div className="text-foreground">{challenge.requestedCompanyName}</div>
+              <div className="text-foreground">{challenge.requestedSpaceName}</div>
             </div>
           )}
         </div>

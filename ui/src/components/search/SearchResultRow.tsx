@@ -2,7 +2,7 @@ import { AgentAvatar } from "../AgentAvatar";
 import { AgentIdentity } from "../AgentIdentity";
 import { memo, type ComponentType, type SVGProps } from "react";
 import { Bot, FileText, Hexagon, MessageSquare, Paperclip, Quote } from "lucide-react";
-import type { Agent, CompanySearchResult } from "@outpost/shared";
+import type { Agent, SpaceSearchResult } from "@outpost/shared";
 import { Link } from "@/lib/router";
 import { cn } from "@/lib/utils";
 import { StatusIcon } from "../StatusIcon";
@@ -48,7 +48,7 @@ function formatRelativeTime(input: string | null): string {
 }
 
 export interface SearchResultRowProps {
-  result: CompanySearchResult;
+  result: SpaceSearchResult;
   agentsById?: ReadonlyMap<string, Pick<Agent, "id" | "name" | "appearance">>;
   isActive?: boolean;
   className?: string;

@@ -24,8 +24,8 @@ require_cmd jq
 
 OUTPOST_API_URL="${OUTPOST_API_URL:-http://localhost:3100}"
 API_BASE="${OUTPOST_API_URL%/}/api"
-COMPANY_ID="${COMPANY_ID:-${OUTPOST_COMPANY_ID:-}}"
-COMPANY_SELECTOR="${COMPANY_SELECTOR:-}"
+SPACE_ID="${SPACE_ID:-${OUTPOST_SPACE_ID:-}}"
+SPACE_SELECTOR="${SPACE_SELECTOR:-}"
 
 HERMES_AGENT_NAME="${HERMES_AGENT_NAME:-Hermes Gateway Smoke Agent}"
 HERMES_GATEWAY_API_BASE_URL="${HERMES_GATEWAY_API_BASE_URL:-http://127.0.0.1:${HERMES_GATEWAY_PORT:-8642}}"
@@ -42,17 +42,17 @@ print_usage() {
   cat <<'EOF'
 Hermes gateway join smoke
 
-Creates a Hermes gateway agent from an agent-only Paperclip invite, approves the
-join request, claims the one-time Paperclip API key, and verifies the stored
+Creates a Hermes gateway agent from an agent-only Outpost invite, approves the
+join request, claims the one-time Outpost API key, and verifies the stored
 adapter config without printing raw secrets.
 
 Required:
   OUTPOST_API_URL=http://127.0.0.1:3100
-  OUTPOST_AUTH_HEADER='Bearer <board-token>'     # or OUTPOST_COOKIE
+  OUTPOST_AUTH_HEADER='Bearer <operator-token>'     # or OUTPOST_COOKIE
   HERMES_GATEWAY_API_KEY=<API_SERVER_KEY>
 
 Common flags:
-  COMPANY_ID=<uuid> or COMPANY_SELECTOR=<prefix|name|uuid>
+  SPACE_ID=<uuid> or SPACE_SELECTOR=<prefix|name|uuid>
   HERMES_GATEWAY_API_BASE_URL=http://127.0.0.1:8642
   HERMES_GATEWAY_PROBE_URL=http://127.0.0.1:8642
   OUTPOST_API_URL_FOR_HERMES=http://host.docker.internal:3100
@@ -61,13 +61,13 @@ Common flags:
   HERMES_JOIN_OUTPUT_FILE=/secure/path/join-output.json
 
 Notes:
-  HERMES_GATEWAY_API_BASE_URL is stored on the Paperclip adapter and must be
-  reachable by the Paperclip server. HERMES_GATEWAY_PROBE_URL is only used by
-  this operator shell to preflight /health, which is useful when Paperclip talks
+  HERMES_GATEWAY_API_BASE_URL is stored on the Outpost adapter and must be
+  reachable by the Outpost server. HERMES_GATEWAY_PROBE_URL is only used by
+  this operator shell to preflight /health, which is useful when Outpost talks
   to the gateway over a Docker network name but the operator probes localhost.
 
   Raw API keys are redacted from logs. HERMES_JOIN_OUTPUT_FILE contains the
-  claimed Paperclip agent API key and is written chmod 600.
+  claimed Outpost agent API key and is written chmod 600.
 
 See doc/HERMES_GATEWAY_SMOKE.md for Docker Desktop, Linux, same-network,
 LAN/private-network, and reverse-proxy/TLS examples.
@@ -171,11 +171,11 @@ fail_board_auth_required() {
   local operation="$1"
   print_response_error
   cat >&2 <<EOF
-[hermes-gateway-join] ERROR: ${operation} requires board/operator auth.
+[hermes-gateway-join] ERROR: ${operation} requires operator/operator auth.
 
 Provide one of:
-  OUTPOST_AUTH_HEADER="Bearer <board-token>"
-  OUTPOST_COOKIE="<board-session-cookie>"
+  OUTPOST_AUTH_HEADER="Bearer <operator-token>"
+  OUTPOST_COOKIE="<operator-session-cookie>"
 
 Current auth context appears insufficient (HTTP ${RESPONSE_CODE}).
 EOF
@@ -220,30 +220,30 @@ strip_trailing_slash() {
   printf "%s" "$value"
 }
 
-resolve_company_id() {
-  if [[ -n "$COMPANY_ID" ]]; then
+resolve_space_id() {
+  if [[ -n "$SPACE_ID" ]]; then
     return
   fi
 
-  log "resolving company id"
-  api_request "GET" "/companies"
+  log "resolving space id"
+  api_request "GET" "/spaces"
   if [[ "$RESPONSE_CODE" == "401" || "$RESPONSE_CODE" == "403" ]]; then
-    fail_board_auth_required "Company resolution"
+    fail_board_auth_required "Space resolution"
   fi
   assert_status "200"
 
-  if [[ -n "$COMPANY_SELECTOR" ]]; then
-    COMPANY_ID="$(jq -r --arg selector "$COMPANY_SELECTOR" '
+  if [[ -n "$SPACE_SELECTOR" ]]; then
+    SPACE_ID="$(jq -r --arg selector "$SPACE_SELECTOR" '
       map(select(
         (.id == $selector)
         or ((.issuePrefix // "") == $selector)
         or ((.name // "") == $selector)
       )) | .[0].id // empty
     ' <<<"$RESPONSE_BODY")"
-    [[ -n "$COMPANY_ID" ]] || fail "no company matched COMPANY_SELECTOR=${COMPANY_SELECTOR}"
+    [[ -n "$SPACE_ID" ]] || fail "no space matched SPACE_SELECTOR=${SPACE_SELECTOR}"
   else
-    COMPANY_ID="$(jq -r '.[0].id // empty' <<<"$RESPONSE_BODY")"
-    [[ -n "$COMPANY_ID" ]] || fail "no companies found; create one before running smoke test"
+    SPACE_ID="$(jq -r '.[0].id // empty' <<<"$RESPONSE_BODY")"
+    [[ -n "$SPACE_ID" ]] || fail "no spaces found; create one before running smoke test"
   fi
 }
 
@@ -259,7 +259,7 @@ assert_onboarding_contains() {
 probe_hermes_gateway() {
   [[ -n "$HERMES_GATEWAY_API_BASE_URL" ]] || fail "HERMES_GATEWAY_API_BASE_URL is required"
   [[ -n "$HERMES_GATEWAY_PROBE_URL" ]] || fail "HERMES_GATEWAY_PROBE_URL is required"
-  [[ -n "$HERMES_GATEWAY_API_KEY" ]] || fail "HERMES_GATEWAY_API_KEY or API_SERVER_KEY is required before any Paperclip state is mutated"
+  [[ -n "$HERMES_GATEWAY_API_KEY" ]] || fail "HERMES_GATEWAY_API_KEY or API_SERVER_KEY is required before any Outpost state is mutated"
 
   if is_remote_plain_http "$HERMES_GATEWAY_API_BASE_URL" && [[ "$HERMES_GATEWAY_ALLOW_INSECURE_HTTP" != "1" ]]; then
     fail "HERMES_GATEWAY_API_BASE_URL uses non-loopback http. Set HERMES_GATEWAY_ALLOW_INSECURE_HTTP=1 for local-only unsafe HTTP, or use HTTPS."
@@ -268,26 +268,26 @@ probe_hermes_gateway() {
   local health_url="${HERMES_GATEWAY_PROBE_URL%/}/health"
   log "probing Hermes gateway health at ${health_url} with apiKey sha256=$(hash_prefix "$HERMES_GATEWAY_API_KEY") len=${#HERMES_GATEWAY_API_KEY}"
   if [[ "$HERMES_GATEWAY_PROBE_URL" != "$HERMES_GATEWAY_API_BASE_URL" ]]; then
-    log "Paperclip will store Hermes gateway URL ${HERMES_GATEWAY_API_BASE_URL}"
+    log "Outpost will store Hermes gateway URL ${HERMES_GATEWAY_API_BASE_URL}"
   fi
   local code
   code="$(curl -sS -o /dev/null -w "%{http_code}" --max-time "$GATEWAY_PROBE_TIMEOUT_SEC" -H "Authorization: Bearer ${HERMES_GATEWAY_API_KEY}" "$health_url" || true)"
   if [[ "$code" != "200" ]]; then
-    fail "Hermes gateway health probe failed before mutating Paperclip state: ${health_url} returned HTTP ${code}. Start Hermes with API_SERVER_ENABLED=true API_SERVER_KEY=<key> hermes gateway run --replace --accept-hooks, or set HERMES_GATEWAY_API_BASE_URL/HERMES_GATEWAY_API_KEY."
+    fail "Hermes gateway health probe failed before mutating Outpost state: ${health_url} returned HTTP ${code}. Start Hermes with API_SERVER_ENABLED=true API_SERVER_KEY=<key> hermes gateway run --replace --accept-hooks, or set HERMES_GATEWAY_API_BASE_URL/HERMES_GATEWAY_API_KEY."
   fi
 }
 
-log "checking Paperclip health"
+log "checking Outpost health"
 api_request "GET" "/health"
 assert_status "200"
 log "deployment mode=$(jq -r '.deploymentMode // "unknown"' <<<"$RESPONSE_BODY") exposure=$(jq -r '.deploymentExposure // "unknown"' <<<"$RESPONSE_BODY")"
 
-resolve_company_id
+resolve_space_id
 probe_hermes_gateway
 
-log "creating agent-only invite for company ${COMPANY_ID}"
+log "creating agent-only invite for space ${SPACE_ID}"
 INVITE_PAYLOAD="$(jq -nc '{allowedJoinTypes:"agent"}')"
-api_request "POST" "/companies/${COMPANY_ID}/invites" "$INVITE_PAYLOAD"
+api_request "POST" "/spaces/${SPACE_ID}/invites" "$INVITE_PAYLOAD"
 if [[ "$RESPONSE_CODE" == "401" || "$RESPONSE_CODE" == "403" ]]; then
   fail_board_auth_required "Invite creation"
 fi
@@ -320,7 +320,7 @@ JOIN_PAYLOAD="$(jq -nc \
   --arg name "$HERMES_AGENT_NAME" \
   --arg apiBaseUrl "$HERMES_GATEWAY_API_BASE_URL" \
   --arg apiKey "$HERMES_GATEWAY_API_KEY" \
-  --arg paperclipApiUrl "$OUTPOST_API_URL_FOR_HERMES" \
+  --arg outpostApiUrl "$OUTPOST_API_URL_FOR_HERMES" \
   --arg sessionKeyStrategy "$HERMES_GATEWAY_SESSION_KEY_STRATEGY" \
   --argjson timeoutSec "$HERMES_GATEWAY_TIMEOUT_SEC" \
   --argjson allowInsecure "$(if [[ "$HERMES_GATEWAY_ALLOW_INSECURE_HTTP" == "1" ]]; then echo true; else echo false; fi)" \
@@ -336,7 +336,7 @@ JOIN_PAYLOAD="$(jq -nc \
       timeoutSec: $timeoutSec
     }
   }
-  | if $paperclipApiUrl != "" then .agentDefaultsPayload.paperclipApiUrl = $paperclipApiUrl else . end
+  | if $outpostApiUrl != "" then .agentDefaultsPayload.outpostApiUrl = $outpostApiUrl else . end
   | if $allowInsecure then .agentDefaultsPayload.dangerouslyAllowInsecureRemoteHttp = true else . end')"
 
 log "submitting Hermes gateway agent join request"
@@ -360,7 +360,7 @@ if is_remote_plain_http "$HERMES_GATEWAY_API_BASE_URL"; then
 fi
 
 log "approving join request ${JOIN_REQUEST_ID}"
-api_request "POST" "/companies/${COMPANY_ID}/join-requests/${JOIN_REQUEST_ID}/approve" "{}"
+api_request "POST" "/spaces/${SPACE_ID}/join-requests/${JOIN_REQUEST_ID}/approve" "{}"
 if [[ "$RESPONSE_CODE" == "401" || "$RESPONSE_CODE" == "403" ]]; then
   fail_board_auth_required "Join approval"
 fi
@@ -410,13 +410,13 @@ STORED_SESSION_STRATEGY="$(jq -r '.adapterConfig.sessionKeyStrategy // empty' <<
 [[ "$STORED_SESSION_STRATEGY" == "$HERMES_GATEWAY_SESSION_KEY_STRATEGY" ]] || fail "stored sessionKeyStrategy mismatch: expected ${HERMES_GATEWAY_SESSION_KEY_STRATEGY}, got ${STORED_SESSION_STRATEGY:-<empty>}"
 
 if [[ -n "$OUTPOST_API_URL_FOR_HERMES" ]]; then
-  STORED_OUTPOST_API_URL="$(jq -r '.adapterConfig.paperclipApiUrl // empty' <<<"$RESPONSE_BODY")"
+  STORED_OUTPOST_API_URL="$(jq -r '.adapterConfig.outpostApiUrl // empty' <<<"$RESPONSE_BODY")"
   [[ "$STORED_OUTPOST_API_URL" == "$OUTPOST_API_URL_FOR_HERMES" || "$(strip_trailing_slash "$STORED_OUTPOST_API_URL")" == "$(strip_trailing_slash "$OUTPOST_API_URL_FOR_HERMES")" ]] \
-    || fail "stored paperclipApiUrl mismatch"
+    || fail "stored outpostApiUrl mismatch"
 fi
 
 log "success"
-log "companyId=${COMPANY_ID}"
+log "spaceId=${SPACE_ID}"
 log "inviteId=${INVITE_ID}"
 log "joinRequestId=${JOIN_REQUEST_ID}"
 log "agentId=${CREATED_AGENT_ID}"
@@ -427,7 +427,7 @@ log "agentApiKeySha256=$(hash_prefix "$AGENT_API_KEY") len=${#AGENT_API_KEY}"
 if [[ -n "$HERMES_JOIN_OUTPUT_FILE" ]]; then
   mkdir -p "$(dirname "$HERMES_JOIN_OUTPUT_FILE")"
   jq -nc \
-    --arg companyId "$COMPANY_ID" \
+    --arg spaceId "$SPACE_ID" \
     --arg inviteId "$INVITE_ID" \
     --arg joinRequestId "$JOIN_REQUEST_ID" \
     --arg agentId "$CREATED_AGENT_ID" \
@@ -436,7 +436,7 @@ if [[ -n "$HERMES_JOIN_OUTPUT_FILE" ]]; then
     --arg hermesGatewayApiKeySha256 "$(hash_prefix "$HERMES_GATEWAY_API_KEY")" \
     --arg agentApiKeySha256 "$(hash_prefix "$AGENT_API_KEY")" \
     '{
-      companyId: $companyId,
+      spaceId: $spaceId,
       inviteId: $inviteId,
       joinRequestId: $joinRequestId,
       agentId: $agentId,

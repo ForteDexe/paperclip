@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { MUSE_ASSET_VERSION, MUSE_PUBLIC_ROUTES } from "@outpost/shared";
-import { COMPANY_IMPORT_TRANSFERS_ROUTE_PATH } from "@outpost/shared/company-import-transfer";
+import { SPACE_IMPORT_TRANSFERS_ROUTE_PATH } from "@outpost/shared/space-import-transfer";
 import { errorHandler } from "../middleware/index.js";
 import { buildOpenApiSpec, openApiRoutes, applyPluginSettingsVisibility, buildOpenApiDocument } from "../routes/openapi.js";
 import { mcpDiscoveryDocuments } from "../services/public-mcp/discovery.js";
@@ -45,9 +45,9 @@ const apiPrefixes: Record<string, string> = {
   "email.ts": "/api",
   "cloud.ts": "/api/cloud",
   "customer-success.ts": "/api/customer-success/v1",
-  "companies.ts": "/api/companies",
-  "company-skills.ts": "/api",
-  "company-skill-policy.ts": "/api",
+  "spaces.ts": "/api/spaces",
+  "space-skills.ts": "/api",
+  "space-skill-policy.ts": "/api",
   "connection-intents.ts": "/api",
   "connection-event-wake.ts": "/",
   "ephemeral-enrollment.ts": "/api",
@@ -121,25 +121,25 @@ const explicitOpenApiCoverageExclusions = new Set<string>();
 const explicitOpenApiOperationCoverageExclusions = new Set([
   // Compatibility implementation retained for old data tests, but not mounted
   // after the public human-profile feature was removed.
-  "GET /api/companies/{companyId}/users/{userSlug}/profile",
-  // Exact Cloud-control signed action; ordinary board/agent credentials cannot invoke it.
+  "GET /api/spaces/{spaceId}/users/{userSlug}/profile",
+  // Exact Cloud-control signed action; ordinary operator/agent credentials cannot invoke it.
   "POST /api/instance/connector-events/wake",
   "POST /api/instance/ephemeral-enrollment/prepare",
   // Muse uses its closed, versioned receiver protocol and dedicated credentials,
   // documented in doc/muse-personal-agent.md and the shared protocol contract.
-  // Board connection/qualification management remains in this OpenAPI document.
+  // Operator connection/qualification management remains in this OpenAPI document.
   ...MUSE_PUBLIC_ROUTES.map(route => `${route.method} ${route.path}`),
   // Inspection uses its own versioned Cloud-permit/managed-run protocol,
   // documented in CUSTOMER-SUCCESS-INSPECTION.md and the shared contract.
-  // Ordinary board sessions and agent API keys cannot invoke these endpoints.
+  // Ordinary operator sessions and agent API keys cannot invoke these endpoints.
   "GET /api/customer-success/v1/run-authority",
   "POST /api/customer-success/v1/read",
   // OAuth discovery and protocol endpoints have their own metadata contract;
-  // browser connection-management operations remain documented in the board API.
+  // browser connection-management operations remain documented in the operator API.
   // Markdown rendering of the separately documented assistant setup page.
   "GET /api/mcp/setup.md",
   "GET /.well-known/oauth-protected-resource",
-  "GET /.well-known/oauth-protected-resource/mcp/paperclip",
+  "GET /.well-known/oauth-protected-resource/mcp/outpost",
   "GET /.well-known/oauth-protected-resource/mcp/runner",
   "GET /.well-known/oauth-authorization-server",
   "POST /mcp/oauth/register",
@@ -154,8 +154,8 @@ const explicitOpenApiOperationCoverageExclusions = new Set([
   "POST /mcp/runner/oauth/token",
   "POST /mcp/runner/oauth/revoke",
   // This endpoint is authenticated by the provider signature rather than by a
-  // Paperclip board/agent credential. It intentionally stays out of the public
-  // board API document, while this exact exclusion keeps route coverage honest.
+  // Outpost operator/agent credential. It intentionally stays out of the public
+  // operator API document, while this exact exclusion keeps route coverage honest.
   "POST /api/chat-webhooks/agentmail/{publicId}",
   "POST /api/chat-webhooks/{publicId}/{provider}",
   "POST /api/voice-webhooks/{publicId}/events",
@@ -163,7 +163,7 @@ const explicitOpenApiOperationCoverageExclusions = new Set([
 ]);
 
 // The set of contract-first routes whose OpenAPI document leads the mounted
-// request handler. The company-and-environment Claude setup-token login routes
+// request handler. The space-and-environment Claude setup-token login routes
 // now have request handlers, so the set is empty. A new contract-first route
 // belongs here only until its handler lands.
 const specOnlyContractFirstRoutes = new Set<string>([]);
@@ -178,7 +178,7 @@ function createApp() {
 // Route files may compose paths from shared path constants inside template
 // literals; substitute the constants' values before normalizing.
 const routePathConstantSubstitutions: Record<string, string> = {
-  "${COMPANY_IMPORT_TRANSFERS_ROUTE_PATH}": COMPANY_IMPORT_TRANSFERS_ROUTE_PATH,
+  "${SPACE_IMPORT_TRANSFERS_ROUTE_PATH}": SPACE_IMPORT_TRANSFERS_ROUTE_PATH,
 };
 
 function normalizeExpressPath(routePath: string) {
@@ -213,10 +213,10 @@ function resolveMountedPath(file: string, prefix: string, routePath: string) {
   ) {
     return routePath;
   }
-  if ((file === "companies.ts" || file === "health.ts" || file === "liveness.ts" || file === "ready.ts") && routePath === "/") {
+  if ((file === "spaces.ts" || file === "health.ts" || file === "liveness.ts" || file === "ready.ts") && routePath === "/") {
     return prefix;
   }
-  if (file === "companies.ts" || file === "health.ts") {
+  if (file === "spaces.ts" || file === "health.ts") {
     return `${prefix}${routePath}`;
   }
   if (file === "auth.ts") {
@@ -297,16 +297,16 @@ function loadActualRoutes() {
     }
 
     if (
-      file === "companies.ts" &&
-      source.includes("router.post(COMPANY_IMPORT_ROUTE_PATH")
+      file === "spaces.ts" &&
+      source.includes("router.post(SPACE_IMPORT_ROUTE_PATH")
     ) {
-      routes.add("POST /api/companies/import");
+      routes.add("POST /api/spaces/import");
     }
     if (
-      file === "companies.ts" &&
-      source.includes("router.post(COMPANY_IMPORT_TRANSFERS_ROUTE_PATH")
+      file === "spaces.ts" &&
+      source.includes("router.post(SPACE_IMPORT_TRANSFERS_ROUTE_PATH")
     ) {
-      routes.add(`POST /api/companies${COMPANY_IMPORT_TRANSFERS_ROUTE_PATH}`);
+      routes.add(`POST /api/spaces${SPACE_IMPORT_TRANSFERS_ROUTE_PATH}`);
     }
   }
 
@@ -338,22 +338,22 @@ describe("openapi routes", () => {
   it("tells agents that unpriced usage in cost reports is unknown cost, not zero", () => {
     const paths = buildOpenApiSpec().paths;
     for (const segment of ["summary", "by-agent", "by-agent-model", "by-project"]) {
-      const description = paths[`/api/companies/{companyId}/costs/${segment}`].get.description as string;
+      const description = paths[`/api/spaces/{spaceId}/costs/${segment}`].get.description as string;
       expect(description).toContain("unpricedEventCount is above 0");
       expect(description).toContain("never as $0.00");
-      expect(description).toContain("GET /api/companies/{companyId}/heartbeat-runs?agentId=<agentId>");
+      expect(description).toContain("GET /api/spaces/{spaceId}/heartbeat-runs?agentId=<agentId>");
       expect(description).not.toContain("costs/data-quality");
     }
-    expect(paths["/api/companies/{companyId}/costs/window-spend"].get.description).toBeUndefined();
+    expect(paths["/api/spaces/{spaceId}/costs/window-spend"].get.description).toBeUndefined();
   });
 
   it("tells agents managed-agent profiles are created with the CLI, not a web page", () => {
-    const route = buildOpenApiSpec().paths["/api/companies/{companyId}/managed-agent-profiles"];
+    const route = buildOpenApiSpec().paths["/api/spaces/{spaceId}/managed-agent-profiles"];
     for (const operation of [route.get, route.post]) {
-      expect(operation.description).toContain("Board only");
+      expect(operation.description).toContain("Operator only");
       expect(operation.description).toContain("There is no web page");
     }
-    expect(route.post.description).toContain("paperclipai managed-agent setup --company-id <companyId>");
+    expect(route.post.description).toContain("outpost managed-agent setup --space-id <spaceId>");
     expect(route.post.description).toContain("--acknowledge-retention");
   });
 
@@ -368,16 +368,16 @@ describe("openapi routes", () => {
 
   it("documents the export include body so agents can request projects and skills", () => {
     const spec = buildOpenApiSpec();
-    for (const path of ["/api/companies/{companyId}/exports", "/api/companies/{companyId}/exports/preview"]) {
+    for (const path of ["/api/spaces/{spaceId}/exports", "/api/spaces/{spaceId}/exports/preview"]) {
       const operation = spec.paths[path].post;
       const body = operation.requestBody.content["application/json"].schema;
       expect(body.properties.include.properties).toMatchObject({ projects: expect.anything(), skills: expect.anything() });
       expect(operation.description).toMatch(/include\.projects/);
     }
   });
-  it("documents the safe company import body so agents can preview and resolve agent name conflicts", () => {
+  it("documents the safe space import body so agents can preview and resolve agent name conflicts", () => {
     const spec = buildOpenApiSpec();
-    for (const path of ["/api/companies/{companyId}/imports/preview", "/api/companies/{companyId}/imports/apply"]) {
+    for (const path of ["/api/spaces/{spaceId}/imports/preview", "/api/spaces/{spaceId}/imports/apply"]) {
       const operation = spec.paths[path].post;
       const body = operation.requestBody.content["application/json"].schema;
       expect(body.required).toEqual(expect.arrayContaining(["source", "target"]));
@@ -389,18 +389,18 @@ describe("openapi routes", () => {
     const spec = buildOpenApiSpec();
     const operation = spec.paths["/api/routine-triggers/public/{publicId}/fire"].post;
     expect(operation.parameters).toEqual(expect.arrayContaining([
-      expect.objectContaining({ in: "header", name: "X-Paperclip-Source-Run-Token", required: false }),
-      expect.objectContaining({ in: "header", name: "X-Paperclip-Idempotency-Scope", required: false }),
+      expect.objectContaining({ in: "header", name: "X-Outpost-Source-Run-Token", required: false }),
+      expect.objectContaining({ in: "header", name: "X-Outpost-Idempotency-Scope", required: false }),
     ]));
     for (const status of ["202", "400", "401", "404", "409", "415", "422"]) expect(operation.responses).toHaveProperty(status);
     expect(operation.requestBody.content).toHaveProperty("application/json");
     expect(spec.paths).not.toHaveProperty("/api/routine-triggers/public/{publicId}/sentry-run-failures");
   });
-  it.each(["summary", "tasks"])("documents the board-only compact attention %s contract", projection => {
+  it.each(["summary", "tasks"])("documents the operator-only compact attention %s contract", projection => {
     const spec = buildOpenApiSpec() as any;
-    const operation = spec.paths[`/api/companies/{companyId}/attention/${projection}`].get;
-    expect(operation.security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
-    expect(operation["x-paperclip-authorization"]).toEqual({ actor: "board" });
+    const operation = spec.paths[`/api/spaces/{spaceId}/attention/${projection}`].get;
+    expect(operation.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
+    expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
     expect(operation.parameters.filter((parameter: { in: string }) => parameter.in === "query")).toEqual([]);
     const response = operation.responses["200"].content["application/json"].schema;
     expect(response.properties.totalCount).toMatchObject({ type: "integer", minimum: 0 });
@@ -414,8 +414,8 @@ describe("openapi routes", () => {
   it("documents the owned pending-question read as canonical attention items without client scope overrides", () => {
     const spec = buildOpenApiSpec() as any;
     const operation = spec.paths["/api/issues/{id}/pending-questions"].get;
-    expect(operation.security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
-    expect(operation["x-paperclip-authorization"]).toEqual({ actor: "board" });
+    expect(operation.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
+    expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
     expect(operation.parameters.filter((parameter: { in: string }) => parameter.in === "query")).toEqual([]);
     const response = operation.responses["200"].content["application/json"].schema;
     expect(response).toMatchObject({ type: "array", items: { type: "object", properties: {
@@ -425,9 +425,9 @@ describe("openapi routes", () => {
     for (const code of ["200", "400", "401", "403", "404"]) expect(operation.responses[code]).toBeDefined();
   });
 
-  it("documents task-tree controls as board-only and names the human page", () => {
+  it("documents task-tree controls as operator-only and names the human page", () => {
     const spec = buildOpenApiSpec() as any;
-    const boardSecurity = [{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }];
+    const operatorSecurity = [{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }];
     for (const [path, method] of [
       ["/api/issues/{id}/tree-control/state", "get"],
       ["/api/issues/{id}/tree-control/preview", "post"],
@@ -437,50 +437,50 @@ describe("openapi routes", () => {
       ["/api/issues/{id}/tree-holds/{holdId}/release", "post"],
     ] as const) {
       const operation = spec.paths[path][method];
-      expect(operation.security).toEqual(boardSecurity);
-      expect(operation["x-paperclip-authorization"]).toEqual({ actor: "board" });
+      expect(operation.security).toEqual(operatorSecurity);
+      expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
     }
     const create = spec.paths["/api/issues/{id}/tree-holds"].post.description as string;
     expect(create).toContain("Pause subtree");
     expect(create).toContain("/{prefix}/issues/{identifier}");
   });
 
-  it("publishes grant-gated access operations as board_or_agent and keeps member edits board-only", () => {
+  it("publishes grant-gated access operations as operator_or_agent and keeps member edits operator-only", () => {
     const spec = buildOpenApiSpec() as any;
     for (const [path, method, grant] of [
-      ["/api/companies/{companyId}/invites", "post", "users:invite"],
-      ["/api/companies/{companyId}/invites", "get", "users:invite"],
-      ["/api/companies/{companyId}/join-requests", "get", "joins:approve"],
-      ["/api/companies/{companyId}/join-requests/{requestId}/approve", "post", "joins:approve"],
-      ["/api/companies/{companyId}/join-requests/{requestId}/reject", "post", "joins:approve"],
-      ["/api/companies/{companyId}/members", "get", "users:manage_permissions"],
+      ["/api/spaces/{spaceId}/invites", "post", "users:invite"],
+      ["/api/spaces/{spaceId}/invites", "get", "users:invite"],
+      ["/api/spaces/{spaceId}/join-requests", "get", "joins:approve"],
+      ["/api/spaces/{spaceId}/join-requests/{requestId}/approve", "post", "joins:approve"],
+      ["/api/spaces/{spaceId}/join-requests/{requestId}/reject", "post", "joins:approve"],
+      ["/api/spaces/{spaceId}/members", "get", "users:manage_permissions"],
     ] as const) {
       const operation = spec.paths[path][method];
-      expect(operation["x-paperclip-authorization"], `${method} ${path}`).toEqual({ actor: "board_or_agent" });
+      expect(operation["x-outpost-authorization"], `${method} ${path}`).toEqual({ actor: "operator_or_agent" });
       expect(operation.description).toContain(grant);
     }
-    expect(spec.paths["/api/companies/{companyId}/invites"].post.description).toContain("inviteUrl");
+    expect(spec.paths["/api/spaces/{spaceId}/invites"].post.description).toContain("inviteUrl");
     for (const path of [
-      "/api/companies/{companyId}/members/{memberId}/permissions",
-      "/api/companies/{companyId}/members/{memberId}/role-and-grants",
+      "/api/spaces/{spaceId}/members/{memberId}/permissions",
+      "/api/spaces/{spaceId}/members/{memberId}/role-and-grants",
     ]) {
-      expect(spec.paths[path].patch["x-paperclip-authorization"]).toEqual({ actor: "board" });
+      expect(spec.paths[path].patch["x-outpost-authorization"]).toEqual({ actor: "operator" });
       expect(spec.paths[path].patch.description).toContain("no longer exposes human member management");
     }
-    expect(spec.paths["/api/companies/{companyId}/members"].get.description).toContain("no longer exposes human member management");
+    expect(spec.paths["/api/spaces/{spaceId}/members"].get.description).toContain("no longer exposes human member management");
   });
 
   it("documents owned conversation reads and exact revision access separately", () => {
     const spec = buildOpenApiSpec() as any;
-    const boardSecurity = [{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }];
+    const operatorSecurity = [{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }];
     for (const path of [
       "/api/issues/{id}/decision-receipts",
       "/api/issues/{id}/chat-handoffs",
-      "/api/companies/{companyId}/attention/history",
+      "/api/spaces/{spaceId}/attention/history",
     ]) {
       const operation = spec.paths[path].get;
-      expect(operation.security).toEqual(boardSecurity);
-      expect(operation["x-paperclip-authorization"]).toEqual({ actor: "board" });
+      expect(operation.security).toEqual(operatorSecurity);
+      expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
       const query = Object.fromEntries(operation.parameters
         .filter((parameter: { in: string }) => parameter.in === "query")
         .map((parameter: { name: string; schema: unknown }) => [parameter.name, parameter.schema]));
@@ -503,7 +503,7 @@ describe("openapi routes", () => {
     }
 
     const revision = spec.paths["/api/issues/{id}/documents/{key}/revisions/{revisionId}"].get;
-    expect(revision.security).toEqual([...boardSecurity, { AgentBearerAuth: [] }]);
+    expect(revision.security).toEqual([...operatorSecurity, { AgentBearerAuth: [] }]);
     const params = Object.fromEntries(revision.parameters.map(
       (parameter: { name: string; schema: unknown }) => [parameter.name, parameter.schema],
     ));
@@ -525,8 +525,8 @@ describe("openapi routes", () => {
       "/api/cases/{caseId}/handoffs/{handoffId}/cancel",
       "/api/cases/{caseId}/handoffs/{handoffId}/retry",
     ]);
-    expect(spec.paths["/api/companies/{companyId}/cases"].post).toBeDefined();
-    expect(spec.paths["/api/companies/{companyId}/case-handoffs"].post).toBeDefined();
+    expect(spec.paths["/api/spaces/{spaceId}/cases"].post).toBeDefined();
+    expect(spec.paths["/api/spaces/{spaceId}/case-handoffs"].post).toBeDefined();
     expect(spec.paths["/api/cases/{id}"].get).toBeDefined();
     expect(spec.paths["/api/routines/{id}/run"].post).toBeDefined();
   });
@@ -551,7 +551,7 @@ describe("openapi routes", () => {
     expect(properties).toHaveProperty("budgetMonthlyCents");
   });
 
-  it("documents public Dot pairing capabilities while ordinary consent keeps board authentication", () => {
+  it("documents public Dot pairing capabilities while ordinary consent keeps operator authentication", () => {
     const spec = buildOpenApiSpec() as any;
     for (const [method, path] of [
       ["get", "/api/dot-mcp/requests/{id}"],
@@ -577,13 +577,13 @@ describe("openapi routes", () => {
     expect(operation.responses["404"]).toBeDefined();
   });
 
-  it("documents strict run-attributed feedback and board-or-agent commentary reads", () => {
+  it("documents strict run-attributed feedback and operator-or-agent commentary reads", () => {
     const { spec } = loadSpecRoutes();
-    const path = spec.paths["/api/companies/{companyId}/agent-commentary"];
+    const path = spec.paths["/api/spaces/{spaceId}/agent-commentary"];
     expect(Object.keys(path)).toEqual(["get", "post"]);
-    const detail = spec.paths["/api/companies/{companyId}/agent-commentary/{id}"].get;
+    const detail = spec.paths["/api/spaces/{spaceId}/agent-commentary/{id}"].get;
     for (const read of [path.get, detail]) {
-      expect(read.security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }, { AgentBearerAuth: [] }]);
+      expect(read.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }, { AgentBearerAuth: [] }]);
       expect(read.responses["403"]).toBeDefined();
       expect(read.responses["404"]).toBeDefined();
     }
@@ -592,8 +592,8 @@ describe("openapi routes", () => {
     );
     const operation = path.post;
     expect(operation.security).toEqual([{ AgentBearerAuth: [] }]);
-    expect(operation["x-paperclip-authorization"]).toEqual({ actor: "agent", heartbeatBound: true });
-    expect(operation.description).toContain("X-Paperclip-Run-Id");
+    expect(operation["x-outpost-authorization"]).toEqual({ actor: "agent", heartbeatBound: true });
+    expect(operation.description).toContain("X-Outpost-Run-Id");
     const body = operation.requestBody.content["application/json"].schema;
     expect(body.additionalProperties).toBe(false);
     expect(Object.keys(body.properties).sort()).toEqual(["body", "idempotencyKey", "kind"]);
@@ -609,11 +609,11 @@ describe("openapi routes", () => {
 
   it("documents delegated pool management with revision-checked deletion", () => {
     const { spec } = loadSpecRoutes();
-    const pools = spec.paths["/api/companies/{companyId}/ai-connection-pools"];
-    const remove = spec.paths["/api/companies/{companyId}/ai-connection-pools/{poolId}"].delete;
-    const inspection = spec.paths["/api/companies/{companyId}/ai-connection-pools/{poolId}/inspection"].get;
+    const pools = spec.paths["/api/spaces/{spaceId}/ai-connection-pools"];
+    const remove = spec.paths["/api/spaces/{spaceId}/ai-connection-pools/{poolId}"].delete;
+    const inspection = spec.paths["/api/spaces/{spaceId}/ai-connection-pools/{poolId}/inspection"].get;
     for (const operation of [pools.get, pools.post, remove, inspection]) {
-      expect(operation.security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }, { AgentBearerAuth: [] }]);
+      expect(operation.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }, { AgentBearerAuth: [] }]);
     }
     expect(remove.requestBody.required).toBe(true);
     expect(remove.requestBody.content["application/json"].schema).toMatchObject({
@@ -623,22 +623,22 @@ describe("openapi routes", () => {
     expect(Object.keys(remove.responses)).toEqual(expect.arrayContaining(["200", "400", "401", "403", "404", "409"]));
   });
 
-  it("documents personal board-only announcements and private responses", () => {
+  it("documents personal operator-only announcements and private responses", () => {
     const { spec } = loadSpecRoutes();
     const current = spec.paths["/api/announcements/current"].get;
     const image = spec.paths["/api/announcements/{id}/image"].get;
     const animation = spec.paths["/api/announcements/{id}/animation"].get;
     const dismiss = spec.paths["/api/announcements/{id}/dismiss"].post;
     for (const operation of [current, image, animation, dismiss]) {
-      expect(operation.security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
-      expect(operation["x-paperclip-authorization"]).toEqual({ actor: "board" });
+      expect(operation.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
+      expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
       const success = operation.responses["200"] ?? operation.responses["204"];
       expect(success.headers["Cache-Control"].schema.enum).toEqual(["private, no-store"]);
     }
     expect(current.responses["200"].content["application/json"].schema.nullable).toBe(true);
     expect(Object.keys(image.responses["200"].content)).toEqual(["image/png", "image/jpeg", "image/webp"]);
     expect(dismiss.requestBody.content["application/json"].schema).toMatchObject({
-      required: ["companyId"], additionalProperties: false,
+      required: ["spaceId"], additionalProperties: false,
     });
     expect(dismiss.description).toContain("viewers may dismiss their own");
   });
@@ -657,7 +657,7 @@ describe("openapi routes", () => {
     const res = await request(createApp()).get("/api/openapi.json");
     const experimental = res.body.paths["/api/instance/settings/experimental"];
     for (const operation of [experimental.get, experimental.patch]) {
-      expect(operation.description).toContain("[Experimental settings](/<prefix>/company/settings/instance/experimental)");
+      expect(operation.description).toContain("[Experimental settings](/<prefix>/space/settings/instance/experimental)");
       expect(operation.description).toContain("Agent credentials cannot read or change these settings");
       expect(operation.description).toContain("Cases via enableCases");
     }
@@ -682,7 +682,7 @@ describe("openapi routes", () => {
 
   it("tells agents that creating or refreshing a status card only queues the summarizer, so they reply now with its link", async () => {
     const res = await request(createApp()).get("/api/openapi.json");
-    const create = res.body.paths["/api/companies/{companyId}/status-cards"].post;
+    const create = res.body.paths["/api/spaces/{spaceId}/status-cards"].post;
     expect(create.description).toContain("The response is returned before any summary exists");
     expect(create.description).toContain("reply now with the returned href as a Markdown link");
     const refresh = res.body.paths["/api/status-cards/{id}/refresh"].post;
@@ -719,34 +719,34 @@ describe("openapi routes", () => {
       "Get the generated OpenAPI document",
     );
     expect(
-      res.body.paths["/api/companies/{companyId}/agents"].get.summary,
-    ).toBe("List agents in a company");
+      res.body.paths["/api/spaces/{spaceId}/agents"].get.summary,
+    ).toBe("List agents in a space");
     expect(res.body.paths["/api/agents/{id}/keys"].post.summary).toBe(
       "Create an agent API key",
     );
     expect(res.body.components.securitySchemes).toMatchObject({
-      BoardSessionAuth: { type: "apiKey", in: "cookie" },
-      BoardApiKeyAuth: { type: "http", scheme: "bearer" },
+      OperatorSessionAuth: { type: "apiKey", in: "cookie" },
+      OperatorApiKeyAuth: { type: "http", scheme: "bearer" },
       AgentBearerAuth: { type: "http", scheme: "bearer" },
     });
     expect(res.body.paths["/api/health"].get.security).toEqual([]);
     expect(res.body.paths["/api/mcp/project-tools"].post.security).toEqual([{ AgentRunAuth: [] }]);
-    expect(res.body.paths["/api/mcp/project-tools"].post["x-paperclip-authorization"]).toEqual({ actor: "agent", heartbeatBound: true, taskBound: true });
+    expect(res.body.paths["/api/mcp/project-tools"].post["x-outpost-authorization"]).toEqual({ actor: "agent", heartbeatBound: true, taskBound: true });
     expect(res.body.paths["/mcp/gateways/{gatewayPublicId}"].post.security).toEqual([]);
     expect(res.body.paths["/api/mcp/gateways/{gatewayPublicId}"]).toBeUndefined();
-    expect(res.body.paths["/api/companies"].get.parameters).toContainEqual({
+    expect(res.body.paths["/api/spaces"].get.parameters).toContainEqual({
       name: "scope",
       in: "query",
       required: false,
       schema: { type: "string", enum: ["accessible"] },
     });
-    expect(res.body.paths["/api/companies"].get.responses["403"]).toBeDefined();
-    expect(res.body.paths["/api/companies"].get.responses["400"]).toBeDefined();
+    expect(res.body.paths["/api/spaces"].get.responses["403"]).toBeDefined();
+    expect(res.body.paths["/api/spaces"].get.responses["400"]).toBeDefined();
     expect(
-      res.body.paths["/api/companies"].post.responses["201"],
+      res.body.paths["/api/spaces"].post.responses["201"],
     ).toBeDefined();
     expect(
-      res.body.paths["/api/companies"].post.requestBody.content[
+      res.body.paths["/api/spaces"].post.requestBody.content[
         "application/json"
       ].schema,
     ).toMatchObject({
@@ -757,10 +757,10 @@ describe("openapi routes", () => {
       required: ["name"],
     });
     expect(
-      JSON.stringify(res.body.paths["/api/companies"].post.responses),
+      JSON.stringify(res.body.paths["/api/spaces"].post.responses),
     ).not.toContain("candidates");
     expect(
-      res.body.paths["/api/companies/{companyId}/skills/scan-projects"].post
+      res.body.paths["/api/spaces/{spaceId}/skills/scan-projects"].post
         .responses["200"].content["application/json"].schema,
     ).toMatchObject({
       type: "object",
@@ -780,7 +780,7 @@ describe("openapi routes", () => {
       },
     });
     expect(
-      res.body.paths["/api/companies/{companyId}/folders"].post.responses[
+      res.body.paths["/api/spaces/{spaceId}/folders"].post.responses[
         "201"
       ],
     ).toBeDefined();
@@ -807,17 +807,17 @@ describe("openapi routes", () => {
       "anyone",
       "not_creator",
       "human_only",
-      "board_or_agents",
-      "board_only",
+      "operator_or_agents",
+      "operator_only",
     ]) {
       expect(createInteractionSchema).toContain(`\"${resolverPolicy}\"`);
     }
     expect(
-      res.body.paths["/api/companies/{companyId}/folders/items/move"].post
+      res.body.paths["/api/spaces/{spaceId}/folders/items/move"].post
         .summary,
     ).toBe("Move an item into or out of a folder");
     const createQueue =
-      res.body.paths["/api/companies/{companyId}/decision-queues"].post;
+      res.body.paths["/api/spaces/{spaceId}/decision-queues"].post;
     expect(createQueue.security).toContainEqual({ AgentBearerAuth: [] });
     expect(createQueue.responses["200"]).toBeDefined();
     expect(createQueue.responses["201"]).toBeDefined();
@@ -833,7 +833,7 @@ describe("openapi routes", () => {
     });
     const updateTriage =
       res.body.paths[
-        "/api/companies/{companyId}/decision-triage/{sourceKind}/{sourceId}"
+        "/api/spaces/{spaceId}/decision-triage/{sourceKind}/{sourceId}"
       ].put;
     expect(updateTriage.responses["422"]).toBeDefined();
     expect(
@@ -852,10 +852,10 @@ describe("openapi routes", () => {
 
   it("publishes delegated chat configuration and human-only confirmation boundaries", () => {
     const { spec } = loadSpecRoutes();
-    const boardSecurity = [{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }];
+    const operatorSecurity = [{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }];
     const operations = [
-      ["get", "/api/companies/{companyId}/chat-endpoints"],
-      ["post", "/api/companies/{companyId}/chat-endpoints"],
+      ["get", "/api/spaces/{spaceId}/chat-endpoints"],
+      ["post", "/api/spaces/{spaceId}/chat-endpoints"],
       ["get", "/api/chat-endpoints/{endpointId}"],
       ["get", "/api/chat-endpoints/{endpointId}/github/configuration"],
       ["put", "/api/chat-endpoints/{endpointId}/github/configuration"],
@@ -928,14 +928,14 @@ describe("openapi routes", () => {
       expect(
         operation.security,
         `${method.toUpperCase()} ${routePath} retains its actor boundary`,
-      ).toEqual(humanOnly.has(routePath) ? boardSecurity : [...boardSecurity, { AgentBearerAuth: [] }]);
-      expect(operation["x-paperclip-authorization"]).toEqual({
-        actor: humanOnly.has(routePath) ? "board" : "board_or_agent",
+      ).toEqual(humanOnly.has(routePath) ? operatorSecurity : [...operatorSecurity, { AgentBearerAuth: [] }]);
+      expect(operation["x-outpost-authorization"]).toEqual({
+        actor: humanOnly.has(routePath) ? "operator" : "operator_or_agent",
       });
       expect(operation.tags).toContain("chat-channels");
     }
 
-    const create = spec.paths["/api/companies/{companyId}/chat-endpoints"].post;
+    const create = spec.paths["/api/spaces/{spaceId}/chat-endpoints"].post;
     expect(create.responses["201"]).toBeDefined();
     expect(create.requestBody.content["application/json"].schema).toMatchObject(
       {
@@ -1078,16 +1078,16 @@ describe("openapi routes", () => {
       "version",
     ]);
     expect(fileTransfer.properties.phase.enum).toHaveLength(15);
-    const boardSend =
+    const operatorSend =
       spec.paths[
         "/api/chat-endpoints/{endpointId}/conversations/{conversationId}/publications"
       ].post;
-    expect(boardSend.responses["409"]).toBeDefined();
-    expect(boardSend.responses["422"]).toBeDefined();
-    expect(boardSend.description).toContain(
+    expect(operatorSend.responses["409"]).toBeDefined();
+    expect(operatorSend.responses["422"]).toBeDefined();
+    expect(operatorSend.description).toContain(
       "chat_board_send_attachments_already_bound",
     );
-    expect(boardSend.description).toContain(
+    expect(operatorSend.description).toContain(
       "Other errors do not establish non-delivery",
     );
     const batchStatus =
@@ -1178,24 +1178,24 @@ describe("openapi routes", () => {
 
   it("documents session-bound voice authority without durable credentials", () => {
     const {spec} = loadSpecRoutes();
-    const start = spec.paths["/api/companies/{companyId}/voice-sessions"].post;
-    expect(start.security).toEqual([{BoardSessionAuth: []}]);
-    expect(start["x-paperclip-authorization"]).toEqual({actor: "board", sessionBound: true});
+    const start = spec.paths["/api/spaces/{spaceId}/voice-sessions"].post;
+    expect(start.security).toEqual([{OperatorSessionAuth: []}]);
+    expect(start["x-outpost-authorization"]).toEqual({actor: "operator", sessionBound: true});
     expect(start.requestBody.content["application/json"].schema.required).toEqual(expect.arrayContaining(["endpointId", "idempotencyKey"]));
     expect(start.responses["201"]).toBeDefined();
     expect(JSON.stringify(start.responses)).not.toContain("signingSecret");
     expect(spec.paths["/api/voice-webhooks/{publicId}/tools"]).toBeUndefined();
     expect(spec.paths["/api/voice-webhooks/{publicId}/events"]).toBeUndefined();
-    const decision=spec.paths["/api/companies/{companyId}/voice-phone/{endpointId}/incoming/{callId}"].post;
+    const decision=spec.paths["/api/spaces/{spaceId}/voice-phone/{endpointId}/incoming/{callId}"].post;
     expect(decision.requestBody.content["application/json"].schema.required).toEqual(expect.arrayContaining(["approve", "approvalCode"]));
   });
 
-  it("documents board-only prompt injection settings and fixed-sample testing", () => {
+  it("documents operator-only prompt injection settings and fixed-sample testing", () => {
     const { spec } = loadSpecRoutes();
-    const base = "/api/companies/{companyId}/prompt-injection-prevention";
+    const base = "/api/spaces/{spaceId}/prompt-injection-prevention";
     for (const [method, suffix] of [["get", ""], ["put", ""], ["get", "/models"], ["post", "/test"]]) {
-      expect(spec.paths[base + suffix][method]["x-paperclip-authorization"]).toEqual({ actor: "board" });
-      expect(spec.paths[base + suffix][method].security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
+      expect(spec.paths[base + suffix][method]["x-outpost-authorization"]).toEqual({ actor: "operator" });
+      expect(spec.paths[base + suffix][method].security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
     }
     expect(spec.paths[base].put.requestBody.content["application/json"].schema).toMatchObject({
       additionalProperties: false, required: ["enabled", "connectionId", "grantId", "model"],
@@ -1236,22 +1236,22 @@ describe("openapi routes", () => {
     });
   });
 
-  it("documents agent permission grants as Board-only with a strict request", () => {
+  it("documents agent permission grants as Operator-only with a strict request", () => {
     const operation = loadSpecRoutes().spec.paths["/api/agents/{id}/permission-grants"].patch;
-    expect(operation["x-paperclip-authorization"]).toEqual({ actor: "board" });
-    expect(operation.security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
+    expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
+    expect(operation.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
     expect(operation.requestBody.content["application/json"].schema).toMatchObject({
       additionalProperties: false, required: ["permissionKey", "enabled"],
       properties: { enabled: { type: "boolean" }, permissionKey: { enum: expect.arrayContaining(["commentary:view"]) } },
     });
   });
 
-  it("documents additive project access as board-only with a strict request", () => {
+  it("documents additive project access as operator-only with a strict request", () => {
     const { spec } = loadSpecRoutes();
     const path = spec.paths["/api/agents/{id}/project-access"];
     for (const operation of [path.get, path.post]) {
-      expect(operation["x-paperclip-authorization"]).toEqual({ actor: "board" });
-      expect(operation.security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
+      expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
+      expect(operation.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
       expect(operation.responses["200"].content["application/json"].schema.required).toEqual(["projectIds", "canManage"]);
     }
     expect(path.post.requestBody.content["application/json"].schema).toMatchObject({
@@ -1263,12 +1263,12 @@ describe("openapi routes", () => {
 
   it("documents the authenticated personal primary-agent contract", () => {
     const { spec } = loadSpecRoutes();
-    const path = spec.paths["/api/companies/{companyId}/primary-agent/me"];
+    const path = spec.paths["/api/spaces/{spaceId}/primary-agent/me"];
     for (const operation of [path.get, path.put]) {
-      expect(operation["x-paperclip-authorization"]).toEqual({ actor: "board" });
-      expect(operation.security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
+      expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
+      expect(operation.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
       expect(operation.responses["200"].content["application/json"].schema.required).toEqual([
-        "companyId", "userId", "primaryAgentId", "initialized",
+        "spaceId", "userId", "primaryAgentId", "initialized",
       ]);
     }
     expect(path.put.requestBody.content["application/json"].schema).toMatchObject({
@@ -1281,10 +1281,10 @@ describe("openapi routes", () => {
 
   it("documents Muse operator management separately from receiver credentials", () => {
     const { spec } = loadSpecRoutes();
-    const base = "/api/companies/{companyId}/agents/{agentId}/muse-binding";
+    const base = "/api/spaces/{spaceId}/agents/{agentId}/muse-binding";
     const operations = [
-      ["get", "/api/companies/{companyId}/muse-invitations"],
-      ["post", "/api/companies/{companyId}/muse-invitations"],
+      ["get", "/api/spaces/{spaceId}/muse-invitations"],
+      ["post", "/api/spaces/{spaceId}/muse-invitations"],
       ["get", base], ["post", base], ["post", `${base}/verify`],
       ["post", `${base}/revoke`], ["post", `${base}/attest-stop`],
       ["post", `${base}/attest-detector-cleanup`],
@@ -1292,8 +1292,8 @@ describe("openapi routes", () => {
     ];
     for (const [method, routePath] of operations) {
       const operation = spec.paths[routePath][method];
-      expect(operation["x-paperclip-authorization"]).toEqual({ actor: "board" });
-      expect(operation.security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
+      expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
+      expect(operation.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
       expect(operation.responses["403"]).toBeDefined();
     }
     expect(spec.paths[base].post.responses["201"]).toBeDefined();
@@ -1309,35 +1309,35 @@ describe("openapi routes", () => {
 
   it("documents operator Dot invitations and current pairing and event-test fields", () => {
     const { spec } = loadSpecRoutes();
-    const invitations = spec.paths["/api/companies/{companyId}/dot-invitations"];
+    const invitations = spec.paths["/api/spaces/{spaceId}/dot-invitations"];
     for (const operation of [invitations.get, invitations.post]) {
-      expect(operation["x-paperclip-authorization"]).toEqual({ actor: "board" });
+      expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
       expect(operation.responses["200"]).toBeDefined();
     }
     expect(invitations.post.requestBody.content["application/json"].schema.additionalProperties).toBe(false);
-    const base = "/api/companies/{companyId}/agents/{agentId}/dot-binding";
+    const base = "/api/spaces/{spaceId}/agents/{agentId}/dot-binding";
     expect(spec.paths[base].post.requestBody.content["application/json"].schema.properties.replaceBindingId).toMatchObject({ type: "string", format: "uuid" });
     expect(spec.paths[base + "/event-test"].post.requestBody.content["application/json"].schema.properties.bindingId).toMatchObject({ type: "string", format: "uuid" });
   });
 
   it("documents project environment compatibility and creation selection", () => {
     const { spec } = loadSpecRoutes();
-    const operation = spec.paths["/api/companies/{companyId}/project-environments"].get;
-    expect(operation["x-paperclip-authorization"]).toEqual({ actor: "board_or_agent" });
+    const operation = spec.paths["/api/spaces/{spaceId}/project-environments"].get;
+    expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator_or_agent" });
     expect(operation.responses["403"]).toBeDefined();
     expect(operation.responses["200"].content["application/json"].schema.properties).toHaveProperty("defaultEnvironmentId");
-    const creation = spec.paths["/api/companies/{companyId}/projects"].post;
+    const creation = spec.paths["/api/spaces/{spaceId}/projects"].post;
     expect(creation.requestBody.content["application/json"].schema.properties.environmentId).toMatchObject({ type: "string", format: "uuid" });
     expect(creation.requestBody.content["application/json"].schema.properties.expectedStorageProviderPluginId).toMatchObject({ type: "string", nullable: true });
   });
 
-  it("documents board-only repository discovery and selection", () => {
+  it("documents operator-only repository discovery and selection", () => {
     const { spec } = loadSpecRoutes();
-    const discovery = spec.paths["/api/companies/{companyId}/project-repositories"].get;
+    const discovery = spec.paths["/api/spaces/{spaceId}/project-repositories"].get;
     const replacement = spec.paths["/api/projects/{id}/repositories"].put;
     for (const operation of [discovery, replacement]) {
-      expect(operation["x-paperclip-authorization"]).toEqual({ actor: "board" });
-      expect(operation.security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
+      expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
+      expect(operation.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
     }
     expect(replacement.requestBody.content["application/json"].schema.required).toContain("repositoryIds");
     expect(replacement.responses["422"]).toBeDefined();
@@ -1347,8 +1347,8 @@ describe("openapi routes", () => {
     const { spec } = loadSpecRoutes();
     for (const [suffix, method] of [["draft", "put"], ["setup", "post"], ["identity/start", "post"], ["identity/confirm", "post"]]) {
       const operation = spec.paths[`/api/chat-endpoints/{endpointId}/github/${suffix}`][method];
-      expect(operation["x-paperclip-authorization"]).toEqual({ actor: suffix === "identity/confirm" ? "board" : "board_or_agent" });
-      expect(operation.security).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }, ...(suffix === "identity/confirm" ? [] : [{ AgentBearerAuth: [] }])]);
+      expect(operation["x-outpost-authorization"]).toEqual({ actor: suffix === "identity/confirm" ? "operator" : "operator_or_agent" });
+      expect(operation.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }, ...(suffix === "identity/confirm" ? [] : [{ AgentBearerAuth: [] }])]);
     }
     const registration = spec.paths["/api/chat-endpoints/{endpointId}/github/registration"].post;
     const input = registration.requestBody.content["application/json"].schema;
@@ -1368,7 +1368,7 @@ describe("openapi routes", () => {
     const setup = spec.paths[root + "setup"].post.responses["200"].content["application/json"].schema;
     expect(setup.properties.restartableRegistrationId.format).toBe("uuid");
     const restart = spec.paths[root + "registration/restart"].post;
-    expect(restart["x-paperclip-authorization"]).toEqual({ actor: "board_or_agent" });
+    expect(restart["x-outpost-authorization"]).toEqual({ actor: "operator_or_agent" });
     const restartInput = restart.requestBody.content["application/json"].schema;
     expect(restartInput.required).toEqual(expect.arrayContaining(["registrationId", "appNotCreated"]));
     expect(restartInput.properties.appNotCreated.enum ?? [restartInput.properties.appNotCreated.const]).toEqual([true]);
@@ -1383,7 +1383,7 @@ describe("openapi routes", () => {
     const page = spec.paths[root + "repositories"].get;
     expect(page.parameters.map((param: { name: string }) => param.name)).toEqual(expect.arrayContaining(["endpointId", "offset", "limit", "search"]));
     expect(page.responses["200"].content["application/json"].schema.properties).toHaveProperty("totalCount");
-    expect(spec.paths[root + "repositories/access"].put["x-paperclip-authorization"]).toEqual({ actor: "board_or_agent" });
+    expect(spec.paths[root + "repositories/access"].put["x-outpost-authorization"]).toEqual({ actor: "operator_or_agent" });
     const review = spec.paths[root + "reviews/{reviewId}"].get;
     expect(review.parameters.map((param: { name: string }) => param.name)).toEqual(["endpointId", "reviewId"]);
     expect(review.responses["404"]).toBeDefined();
@@ -1397,46 +1397,46 @@ describe("openapi routes", () => {
       spec.paths["/runtime-tools/github/credentials"].post.security,
     ).toEqual([{ RuntimeToolsBearerAuth: [] }]);
     expect(spec.paths["/api/plugins/install"].post.security).toEqual([
-      { BoardSessionAuth: [] },
-      { BoardApiKeyAuth: [] },
+      { OperatorSessionAuth: [] },
+      { OperatorApiKeyAuth: [] },
     ]);
     expect(
-      spec.paths["/api/plugins/install"].post["x-paperclip-authorization"],
+      spec.paths["/api/plugins/install"].post["x-outpost-authorization"],
     ).toEqual({
-      actor: "board",
+      actor: "operator",
       instanceAdmin: true,
     });
     expect(
       spec.paths["/api/execution-workspaces/{id}/reconcile-branch"].post
         .security,
-    ).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
+    ).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
     expect(
       spec.paths["/api/execution-workspaces/{id}/reconcile-branch"].post[
-        "x-paperclip-authorization"
+        "x-outpost-authorization"
       ],
     ).toEqual({
-      actor: "board",
+      actor: "operator",
     });
     expect(
-      spec.paths["/api/companies/{companyId}/cost-events"].post.responses[
+      spec.paths["/api/spaces/{spaceId}/cost-events"].post.responses[
         "201"
       ],
     ).toBeDefined();
     expect(
-      spec.paths["/api/companies/{companyId}/cost-events"].post.responses[
+      spec.paths["/api/spaces/{spaceId}/cost-events"].post.responses[
         "403"
       ],
     ).toBeDefined();
     expect(
-      spec.paths["/api/companies/{companyId}/managed-agent-profiles"].post
+      spec.paths["/api/spaces/{spaceId}/managed-agent-profiles"].post
         .security,
-    ).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
+    ).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
     expect(
-      spec.paths["/api/companies/{companyId}/remote-agent-profiles"].get
+      spec.paths["/api/spaces/{spaceId}/remote-agent-profiles"].get
         .security,
-    ).toEqual([{ BoardSessionAuth: [] }, { BoardApiKeyAuth: [] }]);
+    ).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
     const remoteAgentProfileBody =
-      spec.paths["/api/companies/{companyId}/remote-agent-profiles"].post
+      spec.paths["/api/spaces/{spaceId}/remote-agent-profiles"].post
         .requestBody.content["application/json"].schema;
     expect(remoteAgentProfileBody.properties.service).toMatchObject({
       type: "string",
@@ -1452,10 +1452,10 @@ describe("openapi routes", () => {
       spec.paths["/api/invites/{token}/accept"].post.responses["202"],
     ).toBeDefined();
     expect(
-      spec.paths["/api/board-api-keys"].post.responses["201"],
+      spec.paths["/api/operator-api-keys"].post.responses["201"],
     ).toBeDefined();
     expect(
-      spec.paths["/api/companies/import"].post.responses["202"],
+      spec.paths["/api/spaces/import"].post.responses["202"],
     ).toBeDefined();
     expect(
       spec.paths["/api/routines/{id}/run"].post.responses["422"],
@@ -1464,7 +1464,7 @@ describe("openapi routes", () => {
 
   it("publishes the Claude browser-code grammar and strict setup-token response shapes", () => {
     const { spec } = loadSpecRoutes();
-    const base = "/api/companies/{companyId}/setup-token-login-sessions";
+    const base = "/api/spaces/{spaceId}/setup-token-login-sessions";
 
     // The submitted browser code carries the bounded printable-ASCII grammar.
     const codeBody =
@@ -1555,9 +1555,9 @@ describe("openapi routes", () => {
     const { spec } = loadSpecRoutes();
     const cancel =
       spec.paths[
-        "/api/companies/{companyId}/setup-token-login-sessions/{sessionId}/cancel"
+        "/api/spaces/{spaceId}/setup-token-login-sessions/{sessionId}/cancel"
       ].post;
-    // The 404 is reachable at run time. The company-access gate returns a fixed
+    // The 404 is reachable at run time. The space-access gate returns a fixed
     // 404 for a non-member before the cancel logic runs, so the spec declares
     // it. The idempotent cancel still returns 200 for an owner-scoped missing,
     // terminal, or foreign session id.
@@ -1600,14 +1600,14 @@ describe("heartbeat run ID OpenAPI contract", () => {
 
 it("documents explicit owner removals in the timeline response event enum", () => {
   const spec = buildOpenApiSpec() as any;
-  const schema = spec.paths["/api/companies/{companyId}/timeline"].get.responses["200"].content["application/json"].schema;
+  const schema = spec.paths["/api/spaces/{spaceId}/timeline"].get.responses["200"].content["application/json"].schema;
   expect(schema.properties.events.items.properties.kind.enum).toEqual([
     "created", "commented", "approved", "delegated", "assigned", "unassigned",
   ]);
 });
 
 it("documents canonical saved-resource links in catalog team install responses", () => {
-  const operation = buildOpenApiSpec().paths["/api/companies/{companyId}/teams/catalog/{catalogId}/install"].post;
+  const operation = buildOpenApiSpec().paths["/api/spaces/{spaceId}/teams/catalog/{catalogId}/install"].post;
   expect(operation.description).toContain("resourceLinks");
   const schema = operation.responses[201].content["application/json"].schema;
   expect(schema.required).toContain("resourceLinks");

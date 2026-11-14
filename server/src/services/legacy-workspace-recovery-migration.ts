@@ -22,7 +22,7 @@ export function legacyWorkspaceRecoveryNotMigrated() {
 /** Child tasks can explicitly reuse an ancestor's workspace. The run's own
  * task remains the scope for its recovery files; migration never rebinds it. */
 export async function isLegacyWorkspaceTaskRelated(db: Pick<Db, "select">, input: {
-  companyId: string; issueId: string | null; sourceIssueId: string | null;
+  spaceId: string; issueId: string | null; sourceIssueId: string | null;
 }) {
   let current = input.issueId;
   const visited = new Set<string>();
@@ -30,7 +30,7 @@ export async function isLegacyWorkspaceTaskRelated(db: Pick<Db, "select">, input
     if (current === input.sourceIssueId) return true;
     visited.add(current);
     const [issue] = await db.select({ parentId: issues.parentId }).from(issues)
-      .where(and(eq(issues.companyId, input.companyId), eq(issues.id, current)));
+      .where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, current)));
     current = issue?.parentId ?? null;
   }
   return false;
@@ -40,7 +40,7 @@ export async function isLegacyWorkspaceTaskRelated(db: Pick<Db, "select">, input
  * the task's recovery hold. The recovery owner separately verifies provenance,
  * provider termination and archive bytes before writing its receipts. */
 export async function readLegacyWorkspaceRecoveryAllocations(db: Pick<Db, "select">, run: {
-  id: string; companyId: string; nativeIssueId: string | null; resultJson: Record<string, unknown> | null;
+  id: string; spaceId: string; nativeIssueId: string | null; resultJson: Record<string, unknown> | null;
 }): Promise<LegacyWorkspaceRecoverySource["recoveryAllocations"]> {
   const recovery = run.resultJson?.workspaceRestoreRecovery as { schema?: unknown; leaseIds?: unknown } | undefined;
   const ids = recovery?.leaseIds;
@@ -50,7 +50,7 @@ export async function readLegacyWorkspaceRecoveryAllocations(db: Pick<Db, "selec
   const allocations = [];
   for (const id of [...ids].sort()) {
     const [lease] = await db.select({ providerLeaseId: environmentLeases.providerLeaseId, metadata: environmentLeases.metadata })
-      .from(environmentLeases).where(and(eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.id, id),
+      .from(environmentLeases).where(and(eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.id, id),
         eq(environmentLeases.heartbeatRunId, run.id), eq(environmentLeases.issueId, run.nativeIssueId)));
     if (!lease?.providerLeaseId || typeof lease.metadata?.remoteCwd !== "string" || !lease.metadata.remoteCwd.startsWith("/")) return null;
     allocations.push({ leaseId: id as string, providerLeaseId: lease.providerLeaseId, remoteCwd: lease.metadata.remoteCwd });
@@ -62,9 +62,9 @@ export async function readLegacyWorkspaceRecoveryAllocations(db: Pick<Db, "selec
  * a provider stopped or that its files were recovered. The recovery owner must
  * still validate allocation provenance and termination before exporting. */
 export async function readMigratedLegacyWorkspaceSource(db: Pick<Db, "select">, input: {
-  companyId: string; runId: string; reference: NativeWorkspaceSyncReference | null;
+  spaceId: string; runId: string; reference: NativeWorkspaceSyncReference | null;
 }): Promise<LegacyWorkspaceRecoverySource | null> {
-  const [run] = await db.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId,
+  const [run] = await db.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId,
     nativeIssueId: heartbeatRuns.nativeIssueId,
     resultJson: sql<Record<string, unknown>>`jsonb_build_object('workspaceRestoreRecovery', ${heartbeatRuns.resultJson}->'workspaceRestoreRecovery')`,
     runnerProfileJson: sql<Record<string, unknown>>`jsonb_build_object(
@@ -73,7 +73,7 @@ export async function readMigratedLegacyWorkspaceSource(db: Pick<Db, "select">, 
       'nativeWorkspaceSync', ${heartbeatRuns.runnerProfileJson}->'nativeWorkspaceSync',
       'remoteWorkspace', ${heartbeatRuns.runnerProfileJson}->'remoteWorkspace')`,
   }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId),
+    eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId),
   ));
   const runMarker = run?.runnerProfileJson?.[input.reference?.state === "finalized"
     ? "finalizedWorkspaceRecoveryMigration" : "legacyWorkspaceRecoveryMigration"] as { workspaceId?: unknown } | undefined;
@@ -83,7 +83,7 @@ export async function readMigratedLegacyWorkspaceSource(db: Pick<Db, "select">, 
   const workspaceId = input.reference?.workspaceId ?? runMarker?.workspaceId;
   if (typeof workspaceId !== "string") return null;
   const [workspace] = await db.select({ metadata: executionWorkspaces.metadata }).from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.id, workspaceId),
+    eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.id, workspaceId),
   ));
   if (!readRemoteWorkspaceAuthority(workspace?.metadata)) {
     if (input.reference?.state === "finalized" && runMarker != null) throw new Error("legacy_workspace_migration_receipt_invalid");
@@ -96,7 +96,7 @@ export async function readMigratedLegacyWorkspaceSource(db: Pick<Db, "select">, 
     schema: LEGACY_WORKSPACE_RECOVERY_MIGRATION, operationId: marker.operationId, workspaceId,
   })) throw new Error("legacy_workspace_migration_receipt_invalid");
   const [operation] = await db.select({ metadata: workspaceOperations.metadata }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.executionWorkspaceId, workspaceId),
+    eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.executionWorkspaceId, workspaceId),
     eq(workspaceOperations.id, marker.operationId), eq(workspaceOperations.phase, "remote_workspace_migration"),
     eq(workspaceOperations.status, "succeeded"),
   ));
@@ -111,7 +111,7 @@ export async function readMigratedLegacyWorkspaceSource(db: Pick<Db, "select">, 
   if (source?.recoveryAllocations) {
     for (const allocation of source.recoveryAllocations) {
       const [lease] = await db.select({ providerLeaseId: environmentLeases.providerLeaseId, metadata: environmentLeases.metadata })
-        .from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId),
+        .from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId),
           eq(environmentLeases.id, allocation.leaseId), eq(environmentLeases.heartbeatRunId, input.runId),
           eq(environmentLeases.issueId, source.issueId)));
       if (!lease || lease.providerLeaseId !== allocation.providerLeaseId || lease.metadata?.remoteCwd !== allocation.remoteCwd)

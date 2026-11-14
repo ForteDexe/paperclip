@@ -16,7 +16,7 @@ The alpha surface includes:
 - managed `Wiki Maintainer` agent, managed `LLM Wiki` project, and paused managed routines for wiki update processing, lint, and index refresh
 - plugin-operation issue creation using `surfaceVisibility: "plugin_operation"`
 - local source capture into `raw/` with metadata rows in the plugin DB namespace
-- opt-in company-scoped Outpost event ingestion controls for issues, comments, and documents; event ingestion is disabled by default and routes captured raw provenance into the default space only
+- opt-in space-scoped Outpost event ingestion controls for issues, comments, and documents; event ingestion is disabled by default and routes captured raw provenance into the default space only
 - manual Outpost project/root issue distillation and bounded backfill actions with explicit work items, operation issues, source caps, and estimated cost recording
 - Outpost-derived distillation (cursor windows, manual `distill-now`, backfill) always writes into the default wiki space in Phase 1; non-default spaces remain on manual / raw-file ingest until per-space Outpost ingestion profiles ship
 - Outpost-derived distillation maintains `wiki/projects/<slug>/standup.md` as the executive current-state view for each represented project, alongside durable `wiki/projects/<slug>/index.md` knowledge pages
@@ -31,7 +31,7 @@ Outpost-derived text ingestion stays limited to issue titles/descriptions, issue
 - Issue work products are **metadata-only** in Phase 5.
 - The wiki must not fetch `/api/assets/:id/content`, dereference work-product `url` fields, or store those capability-bearing links in source bundles/snapshots.
 
-The accepted policy lives in [doc/plans/2026-05-06-llm-wiki-paperclip-asset-security-gate.md](../../../doc/plans/2026-05-06-llm-wiki-paperclip-asset-security-gate.md).
+The accepted policy lives in [doc/plans/2026-05-06-llm-wiki-outpost-asset-security-gate.md](../../../doc/plans/2026-05-06-llm-wiki-outpost-asset-security-gate.md).
 
 ## Development
 
@@ -87,7 +87,7 @@ Remaining alpha gaps:
 ```bash
 curl -X POST http://127.0.0.1:3100/api/plugins/install \
   -H "Content-Type: application/json" \
-  -d '{"packageName":"/Users/dotta/paperclip/.paperclip/worktrees/PAP-3179-design-a-llm-wiki-plugin/packages/plugins/plugin-llm-wiki","isLocalPath":true}'
+  -d '{"packageName":"/Users/dotta/outpost/.outpost/worktrees/PAP-3179-design-a-llm-wiki-plugin/packages/plugins/plugin-llm-wiki","isLocalPath":true}'
 ```
 
 ## Build Options

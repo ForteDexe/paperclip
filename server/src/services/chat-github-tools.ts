@@ -114,7 +114,7 @@ export const GITHUB_BOT_TOOLS = [
     name: "formal_review",
     title: "Submit a formal GitHub review",
     description:
-      "Separate governed APPROVE or REQUEST_CHANGES action for the current reviewed commit. Each action must be explicitly enabled in the bot's publication policy. A 5/5 assessment never grants this permission.",
+      "Separate controlled APPROVE or REQUEST_CHANGES action for the current reviewed commit. Each action must be explicitly enabled in the bot's publication policy. A 5/5 assessment never grants this permission.",
     risk: "write",
     schema: objectSchema(
       {
@@ -140,7 +140,7 @@ export async function syncGitHubBotTools(
     .from(toolConnections)
     .where(
       and(
-        eq(toolConnections.companyId, endpoint.companyId),
+        eq(toolConnections.spaceId, endpoint.spaceId),
         eq(toolConnections.id, endpoint.connectionId),
       ),
     );
@@ -150,7 +150,7 @@ export async function syncGitHubBotTools(
       .update(JSON.stringify(tool))
       .digest("hex");
     const values = {
-      companyId: endpoint.companyId,
+      spaceId: endpoint.spaceId,
       applicationId: connection.applicationId,
       connectionId: connection.id,
       entryKind: "tool" as const,
@@ -181,7 +181,7 @@ export async function syncGitHubBotTools(
     await tx
       .insert(toolConnectionInstalls)
       .values({
-        companyId: endpoint.companyId,
+        spaceId: endpoint.spaceId,
         connectionId: connection.id,
         targetType: "agent",
         targetId: endpoint.assignedAgentId,
@@ -192,7 +192,7 @@ export async function syncGitHubBotTools(
   const [profile] = await tx
     .insert(toolProfiles)
     .values({
-      companyId: endpoint.companyId,
+      spaceId: endpoint.spaceId,
       profileKey,
       name: `GitHub bot ${endpoint.id}`,
       description: "Task-scoped tools using this bot's App connection",
@@ -201,7 +201,7 @@ export async function syncGitHubBotTools(
       metadata: { githubChatEndpointId: endpoint.id },
     })
     .onConflictDoUpdate({
-      target: [toolProfiles.companyId, toolProfiles.profileKey],
+      target: [toolProfiles.spaceId, toolProfiles.profileKey],
       set: { status: enabled ? "active" : "disabled", updatedAt: new Date() },
     })
     .returning();
@@ -209,12 +209,12 @@ export async function syncGitHubBotTools(
     .delete(toolProfileEntries)
     .where(
       and(
-        eq(toolProfileEntries.companyId, endpoint.companyId),
+        eq(toolProfileEntries.spaceId, endpoint.spaceId),
         eq(toolProfileEntries.profileId, profile!.id),
       ),
     );
   await tx.insert(toolProfileEntries).values({
-    companyId: endpoint.companyId,
+    spaceId: endpoint.spaceId,
     profileId: profile!.id,
     selectorType: "connection",
     connectionId: connection.id,
@@ -223,7 +223,7 @@ export async function syncGitHubBotTools(
   await tx
     .insert(toolProfileBindings)
     .values({
-      companyId: endpoint.companyId,
+      spaceId: endpoint.spaceId,
       profileId: profile!.id,
       targetType: "agent",
       targetId: endpoint.assignedAgentId,
@@ -237,7 +237,7 @@ export async function githubBotToolsForSession(
   db: Db,
   session: Pick<
     ToolGatewaySession,
-    "companyId" | "agentId" | "issueId" | "runId"
+    "spaceId" | "agentId" | "issueId" | "runId"
   >,
 ): Promise<ToolGatewayDescriptor[]> {
   if (!session.agentId || !session.issueId || !session.runId) return [];
@@ -269,7 +269,7 @@ export async function githubBotToolsForSession(
     )
     .where(
       and(
-        eq(chatConversations.companyId, session.companyId),
+        eq(chatConversations.spaceId, session.spaceId),
         eq(chatConversations.issueId, session.issueId),
         eq(chatEndpoints.assignedAgentId, session.agentId),
         eq(chatEndpoints.provider, "github"),
@@ -289,7 +289,7 @@ export async function githubBotToolsForSession(
         rows.some(other => other.connection.id === row.connection.id && other.entry.name === "github_bot:update_comment")) continue;
     const versionHash = createHash("sha256").update(JSON.stringify(progress)).digest("hex");
     const [entry] = await db.insert(toolCatalogEntries).values({
-      companyId: row.endpoint.companyId, applicationId: row.connection.applicationId,
+      spaceId: row.endpoint.spaceId, applicationId: row.connection.applicationId,
       connectionId: row.connection.id, entryKind: "tool", name: "github_bot:update_comment",
       toolName: progress.name, title: progress.title, description: progress.description,
       inputSchema: progress.schema, riskLevel: "write", isReadOnly: false, isWrite: true,
@@ -313,7 +313,7 @@ export async function githubBotToolsForSession(
       description: entry.description ?? "",
       parametersSchema: entry.inputSchema,
       pluginId: `github-bot:${endpoint.id}`,
-      providerType: "paperclip_github_chat",
+      providerType: "outpost_github_chat",
       risk: entry.riskLevel === "read" ? "read" : "write",
       applicationId: connection.applicationId,
       applicationKey: "github-chat",
@@ -328,7 +328,7 @@ export async function githubBotToolsForSession(
 /** Only a run on the endpoint's bound task may realize its channel tools. */
 export async function githubBotConnectionIdsForRun(
   db: Db,
-  companyId: string,
+  spaceId: string,
   agentId: string,
   runId: string,
 ): Promise<Set<string>> {
@@ -339,7 +339,7 @@ export async function githubBotConnectionIdsForRun(
     .from(heartbeatRuns)
     .where(
       and(
-        eq(heartbeatRuns.companyId, companyId),
+        eq(heartbeatRuns.spaceId, spaceId),
         eq(heartbeatRuns.agentId, agentId),
         eq(heartbeatRuns.id, runId),
       ),
@@ -362,7 +362,7 @@ export async function githubBotConnectionIdsForRun(
     )
     .where(
       and(
-        eq(chatConversations.companyId, companyId),
+        eq(chatConversations.spaceId, spaceId),
         eq(chatConversations.issueId, issueId),
         eq(chatEndpoints.assignedAgentId, agentId),
         eq(chatEndpoints.provider, "github"),
@@ -381,7 +381,7 @@ export async function githubGuestBotConnectionForSession(
   db: Db,
   session: Pick<
     ToolGatewaySession,
-    "companyId" | "agentId" | "runId" | "issueId"
+    "spaceId" | "agentId" | "runId" | "issueId"
   >,
 ): Promise<string | null> {
   if (!session.runId || !session.agentId || !session.issueId) return null;
@@ -402,7 +402,7 @@ export async function githubGuestBotConnectionForSession(
     )
     .where(
       and(
-        eq(chatMessageLinks.companyId, session.companyId),
+        eq(chatMessageLinks.spaceId, session.spaceId),
         ...(commentId ? [eq(chatMessageLinks.commentId, commentId)] : []),
         eq(chatConversations.issueId, session.issueId!),
         eq(chatEndpoints.assignedAgentId, session.agentId!),
@@ -415,7 +415,7 @@ export async function githubGuestBotConnectionForSession(
   const [run] = await db
     .select({
       id: heartbeatRuns.id,
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
       agentId: heartbeatRuns.agentId,
       responsibleUserId: heartbeatRuns.responsibleUserId,
       activeIdentityContextId: heartbeatRuns.activeIdentityContextId,
@@ -426,7 +426,7 @@ export async function githubGuestBotConnectionForSession(
     .from(heartbeatRuns)
     .where(
       and(
-        eq(heartbeatRuns.companyId, session.companyId),
+        eq(heartbeatRuns.spaceId, session.spaceId),
         eq(heartbeatRuns.agentId, session.agentId),
         eq(heartbeatRuns.id, session.runId),
       ),

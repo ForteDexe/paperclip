@@ -76,7 +76,7 @@ const disabledWriteCases = [
           ctx.input.api,
           connected.connectionId,
           {
-            companyId: ctx.input.fixtures.company.id,
+            spaceId: ctx.input.fixtures.space.id,
             agentId: ctx.input.fixtures.agent.id,
             providerURL: provider.url,
             readId: connected.read[0]!,
@@ -92,7 +92,7 @@ const disabledWriteCases = [
           syntheticNotionBindingBeforeQuery: binding.matched,
           syntheticBinding: binding,
           syntheticProvider: true,
-          resultPath: `/${ctx.input.fixtures.company.issuePrefix}/apps/${connected.connectionId}/permissions`,
+          resultPath: `/${ctx.input.fixtures.space.issuePrefix}/apps/${connected.connectionId}/permissions`,
           resultLabel: "Update launch page",
         };
       } catch (error) {
@@ -120,7 +120,7 @@ const disabledWriteCases = [
           ctx.input.api,
           String(state.connectionId),
           {
-            companyId: ctx.input.fixtures.company.id,
+            spaceId: ctx.input.fixtures.space.id,
             agentId: ctx.input.fixtures.agent.id,
             providerURL: provider.url,
             readId: (state.read as string[])[0]!,
@@ -141,7 +141,7 @@ const disabledWriteCases = [
           ctx.input.api,
           String(state.connectionId),
           {
-            companyId: ctx.input.fixtures.company.id,
+            spaceId: ctx.input.fixtures.space.id,
             agentId: ctx.input.fixtures.agent.id,
             providerURL: provider.url,
             readId: (state.read as string[])[0]!,

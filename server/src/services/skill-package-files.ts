@@ -5,7 +5,7 @@ import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createGzip, createGunzip } from "node:zlib";
 import { extract, pack } from "tar-stream";
-import type { CompanySkillVersionFileInventoryEntry } from "@outpost/shared";
+import type { SpaceSkillVersionFileInventoryEntry } from "@outpost/shared";
 import { REPOSITORY_CONTENT_DIR } from "./skill-repository-package.js";
 import { assertSkillSnapshotPath, skillFileBytes, skillSnapshotHash, MAX_SKILL_SNAPSHOT_BYTES, MAX_SKILL_SNAPSHOT_FILES } from "./skill-snapshot.js";
 
@@ -19,14 +19,14 @@ export function assertSkillPackageFileSize(size: number, maxBytes = Number.MAX_S
 }
 export type SkillPackageFile = {
   path: string;
-  kind: CompanySkillVersionFileInventoryEntry["kind"];
+  kind: SpaceSkillVersionFileInventoryEntry["kind"];
   encoding: "utf8" | "base64";
   executable: boolean;
   size: number;
   sha256: string;
 };
 export type SkillPackageManifest = {
-  format: "paperclip-skill-package/v1";
+  format: "outpost-skill-package/v1";
   contentHash: string;
   totalBytes: number;
   files: SkillPackageFile[];
@@ -36,7 +36,7 @@ export const packageSha256 = (bytes: string | Buffer) => createHash("sha256").up
 
 export function validateSkillPackageManifest(value: unknown): SkillPackageManifest {
   const manifest = value as SkillPackageManifest;
-  if (!manifest || manifest.format !== "paperclip-skill-package/v1" || !/^[a-f0-9]{64}$/.test(manifest.contentHash)
+  if (!manifest || manifest.format !== "outpost-skill-package/v1" || !/^[a-f0-9]{64}$/.test(manifest.contentHash)
     || !Array.isArray(manifest.files) || !manifest.files.length || manifest.files.length > MAX_SKILL_PACKAGE_FILES) {
     throw new Error("Invalid skill package manifest");
   }
@@ -63,9 +63,9 @@ export function validateSkillPackageManifest(value: unknown): SkillPackageManife
   return manifest;
 }
 
-export function skillPackageManifest(files: CompanySkillVersionFileInventoryEntry[]): SkillPackageManifest {
+export function skillPackageManifest(files: SpaceSkillVersionFileInventoryEntry[]): SkillPackageManifest {
   return validateSkillPackageManifest({
-    format: "paperclip-skill-package/v1", contentHash: skillSnapshotHash(files),
+    format: "outpost-skill-package/v1", contentHash: skillSnapshotHash(files),
     totalBytes: files.reduce((sum, file) => sum + skillFileBytes(file).length, 0),
     files: files.map(file => {
       const bytes = skillFileBytes(file);
@@ -94,7 +94,7 @@ export function boundedHashStream(maxBytes: number) {
   return { stream, result: () => ({ bytes, sha256: hash.digest("hex") }) };
 }
 
-export async function writeSkillPackageArchive(filename: string, files: CompanySkillVersionFileInventoryEntry[], signal?: AbortSignal) {
+export async function writeSkillPackageArchive(filename: string, files: SpaceSkillVersionFileInventoryEntry[], signal?: AbortSignal) {
   const archive = pack();
   const digest = boundedHashStream(MAX_SKILL_PACKAGE_BYTES + MAX_SKILL_MANIFEST_BYTES);
   const writing = pipeline(archive, createGzip({ level: 3 }), digest.stream, createWriteStream(filename, { flags: "wx", mode: 0o600 }), { signal });

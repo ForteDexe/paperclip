@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
+import { agents, authUsers, spaces, spaceMemberships, createDb, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
 import { registerServerAdapter, unregisterServerAdapter } from "../adapters/index.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { createProviderLimitWait } from "../services/heartbeat/provider-limit-wait.js";
@@ -30,7 +30,7 @@ describePostgres("heartbeat provider usage limit wait", () => {
   beforeAll(async () => {
     temporary = await startRecoveryPostgres("heartbeat-provider-limit-");
     db = createDb(temporary.connectionString);
-    home = await mkdtemp(path.join(tmpdir(), "paperclip-provider-limit-"));
+    home = await mkdtemp(path.join(tmpdir(), "outpost-provider-limit-"));
     process.env.OUTPOST_HOME = home;
     heartbeat = heartbeatService(db);
     registerServerAdapter({
@@ -54,17 +54,17 @@ describePostgres("heartbeat provider usage limit wait", () => {
   });
 
   async function seed(prior: Array<Partial<typeof heartbeatRuns.$inferInsert>>) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-    const userId = `limit-user-${companyId}`;
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    const userId = `limit-user-${spaceId}`;
     await db.insert(authUsers).values({ id: userId, name: "Limit user", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companies).values({ id: companyId, name: "Provider limit fixture", issuePrefix: `L${companyId.slice(0, 6)}` });
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Limited agent", adapterType, status: "idle", adapterConfig: {} });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Triage the next alert", status: "todo", assigneeAgentId: agentId, responsibleUserId: userId, issueNumber: 1 });
+    await db.insert(spaces).values({ id: spaceId, name: "Provider limit fixture", issuePrefix: `L${spaceId.slice(0, 6)}` });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Limited agent", adapterType, status: "idle", adapterConfig: {} });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Triage the next alert", status: "todo", assigneeAgentId: agentId, responsibleUserId: userId, issueNumber: 1 });
     for (const values of prior) {
-      await db.insert(heartbeatRuns).values({ companyId, agentId, invocationSource: "automation", triggerDetail: "system", ...values });
+      await db.insert(heartbeatRuns).values({ spaceId, agentId, invocationSource: "automation", triggerDetail: "system", ...values });
     }
-    return { companyId, agentId, issueId };
+    return { spaceId, agentId, issueId };
   }
 
   async function wake(f: Awaited<ReturnType<typeof seed>>, manual = false) {
@@ -114,7 +114,7 @@ describePostgres("heartbeat provider usage limit wait", () => {
     const [issue] = await db.select().from(issues).where(eq(issues.id, f.issueId));
     expect(issue.status).not.toBe("blocked");
     // The persisted projection names the wait and its reset.
-    expect((await executionProjectionsForRuns(db, f.companyId, [retry!.id])).get(retry!.id)).toMatchObject({
+    expect((await executionProjectionsForRuns(db, f.spaceId, [retry!.id])).get(retry!.id)).toMatchObject({
       label: "Waiting for usage limit reset", phase: "retry_scheduled",
       nextAction: expect.stringContaining(retry!.scheduledRetryAt!.toISOString()),
     });
@@ -135,7 +135,7 @@ describePostgres("heartbeat provider usage limit wait", () => {
   it("releases the task when its retry cannot be scheduled, even if diagnostics fail", async () => {
     const f = await seed([rateLimited(16)]);
     const [agent] = await db.select().from(agents).where(eq(agents.id, f.agentId));
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "running",
       invocationSource: "automation", triggerDetail: "system", contextSnapshot: { issueId: f.issueId } }).returning();
     const deps = {
       setRunStatusIfRunning: vi.fn(async () => ({ updated: true, run: { ...run, status: "cancelled" } })),
@@ -160,7 +160,7 @@ describePostgres("heartbeat provider usage limit wait", () => {
 
   it("recovers a wait whose retry was lost to a crash after its cancellation committed", async () => {
     const f = await seed([]);
-    const [lost] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "cancelled",
+    const [lost] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "cancelled",
       invocationSource: "automation", triggerDetail: "system", issueId: f.issueId, scopeKind: "issue",
       startedAt: new Date(Date.now() - 10 * 60_000), finishedAt: new Date(Date.now() - 9 * 60_000), errorCode: "provider_limit_wait",
       resultJson: { executionRecovery: { kind: "ai_connection_wait", providerWorkStarted: false } },

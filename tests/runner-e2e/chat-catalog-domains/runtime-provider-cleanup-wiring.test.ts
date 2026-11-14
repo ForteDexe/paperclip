@@ -18,7 +18,7 @@ const hostPlatform = process.platform;
 afterEach(() => { vi.restoreAllMocks(); mocks.executable = process.execPath; Object.defineProperty(process, "platform", { value: hostPlatform }); });
 function fixture() {
   const pid = 987654, start = "2026-10-26T12:00:01Z";
-  const run = { id: "run", companyId: "company", nativeIssueId: "source", agentId: "lead", runnerInstanceId: "runner", nativeSessionId: "session", startedAt: "2026-10-26T12:00:00Z",
+  const run = { id: "run", spaceId: "space", nativeIssueId: "source", agentId: "lead", runnerInstanceId: "runner", nativeSessionId: "session", startedAt: "2026-10-26T12:00:00Z",
     runnerProfileJson: { sessionCheckpoint: { process: { providerPid: pid, providerProcessStartedAt: start } }, nativeExecutionInput: { provider: { kind: "opencode" } } } };
   mocks.verify.mockResolvedValue({ run, identity: { pid: 987653, uid: 501 } });
   mocks.events.mockResolvedValue([{ payload: { orpEvent: { runId: "run", normalizedSessionId: "session", sourceKind: "runner", sourceInstanceId: "runner", eventType: "session.started", payload: { processId: pid, providerSessionId: "provider-session" } } } }]);

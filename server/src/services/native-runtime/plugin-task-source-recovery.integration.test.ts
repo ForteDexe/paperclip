@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { environmentTaskOperationSchema } from "@outpost/plugin-sdk";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, completionContracts, createDb, environmentLeases, environments, heartbeatRuns, issues, nativeRunFinalizations,
+import { agents, spaces, completionContracts, createDb, environmentLeases, environments, heartbeatRuns, issues, nativeRunFinalizations,
   nativeRunResults, nativeRunnerCheckpoints, plugins } from "@outpost/db";
 import { parseNativeExecutionInput, runnerProviderLaunchRequirements, DurablePrpControlPlane, type DurablePrpCheckpoint, type NativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 import { recoveryPostgresSupport, startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
@@ -38,18 +38,18 @@ describe.skipIf(!recoveryPostgresSupport.supported)("stopped source admission un
   });
 
   async function fixture(provider: "codex" | "claude" | "acpx_codex" = "codex", currentModel?: string) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), sourceRunId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), sourceRunId = randomUUID(), runId = randomUUID();
     const sourceLeaseId = randomUUID(), leaseId = randomUUID(), environmentId = randomUUID(), pluginId = randomUUID();
     const controller = await currentNativeControllerIdentity(), oldOwner = { bootId: controller.bootId, generation: 1, leaseOwner: randomUUID() };
-    await db.insert(companies).values({ id: companyId, name: "Source admission", issuePrefix: `S${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Source worker", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Continue once", status: "in_progress", assigneeAgentId: agentId });
-    const [sourceRun] = await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId, agentId, nativeIssueId: issueId,
+    await db.insert(spaces).values({ id: spaceId, name: "Source admission", issuePrefix: `S${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Source worker", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Continue once", status: "in_progress", assigneeAgentId: agentId });
+    const [sourceRun] = await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId, agentId, nativeIssueId: issueId,
       status: "running", runtimeMode: "native" }).returning();
     const native = await prepareNativeHeartbeatRun({ db, run: sourceRun, issue: { id: issueId, title: "Continue once", description: null }, environmentLeaseId: sourceLeaseId });
     const [prepared] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, sourceRunId));
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.id, prepared.completionContractId!));
-    const build = (id: string, selected = provider) => buildNativeExecutionInput({ companyId, agentId, runId: id, normalizedSessionId: native.normalizedSessionId,
+    const build = (id: string, selected = provider) => buildNativeExecutionInput({ spaceId, agentId, runId: id, normalizedSessionId: native.normalizedSessionId,
       provider: selected === "codex" ? "codex" : "acpx", acpxAgent: selected === "claude" ? "claude" : "codex",
       ...(selected === "codex" ? {} : { model: selected === "claude" ? "claude-sonnet-4-6" : "gpt-6" }), issue: { id: issueId, identifier: "SOURCE-1", title: "Continue once", description: null, workMode: "standard" },
       taskPrompt: "Continue once", workspace: { id, cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
@@ -59,26 +59,26 @@ describe.skipIf(!recoveryPostgresSupport.supported)("stopped source admission un
     if (currentModel !== undefined) execution.provider.model = currentModel;
     await db.update(heartbeatRuns).set({ driverKind: sourceExecution.session.driverKind,
       runnerProfileJson: { ...prepared.runnerProfileJson, provider: sourceExecution.provider.kind, nativeExecutionInput: sourceExecution } }).where(eq(heartbeatRuns.id, sourceRunId));
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId: sourceRunId, phase: "observed", controllerBootId: oldOwner.bootId,
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId: sourceRunId, phase: "observed", controllerBootId: oldOwner.bootId,
       controllerPid: controller.pid, controllerProcessStartedAt: controller.processStartedAt, controllerGeneration: oldOwner.generation,
       leaseOwner: oldOwner.leaseOwner, leaseExpiresAt: new Date(Date.now() + 60_000) });
     const identity = { runnerInstanceId: native.runnerInstanceId, environmentLeaseId: sourceLeaseId, runId: sourceRunId,
       normalizedSessionId: native.normalizedSessionId, turnId: `turn-${sourceRunId}`, itemId: `item-${sourceRunId}` };
-    const oldWriter = nativeRunnerCheckpointWriter(db, { companyId, issueId, runId: sourceRunId, authorityRunId: sourceRunId, ...oldOwner });
+    const oldWriter = nativeRunnerCheckpointWriter(db, { spaceId, issueId, runId: sourceRunId, authorityRunId: sourceRunId, ...oldOwner });
     let checkpoint!: DurablePrpCheckpoint;
     const core = new DurablePrpControlPlane({ stateDirectory: join(root, sourceRunId), identity,
       expectedRunnerVersion: "source-fixture", expectedRunnerDigest: `sha256:${"a".repeat(64)}` });
     core.setCheckpointPersistence(async value => { checkpoint = value; await oldWriter(value); });
     await core.flushCheckpoint(); await core.stop();
-    const [result] = await db.insert(nativeRunResults).values({ companyId, issueId, runId: sourceRunId,
+    const [result] = await db.insert(nativeRunResults).values({ spaceId, issueId, runId: sourceRunId,
       completionContractId: prepared.completionContractId!, serverFingerprint: "accepted-source", schemaStatus: "accepted",
       resultJson: { summary: "Accepted once" }, canonicalSha256: "accepted-source" }).returning();
     await db.update(nativeRunFinalizations).set({ phase: "committed", resultId: result.id, leaseOwner: null, leaseExpiresAt: null }).where(eq(nativeRunFinalizations.runId, sourceRunId));
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date(Date.now() - 1_000), resultJson: { summary: "Accepted once" } }).where(eq(heartbeatRuns.id, sourceRunId));
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, status: "running", runtimeMode: "native",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId, status: "running", runtimeMode: "native",
       nativeSessionId: native.normalizedSessionId, runnerProfileJson: { nativeExecutionInput: execution } });
     const owner = { bootId: controller.bootId, generation: 3, leaseOwner: randomUUID() };
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "observed", controllerBootId: owner.bootId,
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "observed", controllerBootId: owner.bootId,
       controllerPid: controller.pid, controllerProcessStartedAt: controller.processStartedAt, controllerGeneration: owner.generation,
       leaseOwner: owner.leaseOwner, leaseExpiresAt: new Date(Date.now() + 60_000) });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
@@ -87,15 +87,15 @@ describe.skipIf(!recoveryPostgresSupport.supported)("stopped source admission un
     await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "plugin", status: "active",
       config: { pluginKey: pluginId, driverKey: "tasks" } });
     const metadata = { driver: "plugin", pluginId, driverKey: "tasks", runnerTaskLease: true };
-    const sourceLease = { id: sourceLeaseId, companyId, heartbeatRunId: sourceRunId, provider: `plugin:${pluginId}:tasks`, providerLeaseId: "source-task" };
+    const sourceLease = { id: sourceLeaseId, spaceId, heartbeatRunId: sourceRunId, provider: `plugin:${pluginId}:tasks`, providerLeaseId: "source-task" };
     await db.insert(environmentLeases).values({ ...sourceLease, environmentId, issueId, leasePolicy: "reuse_by_environment", status: "released",
       releasedAt: new Date(), cleanupStatus: "success", metadata: { ...metadata, runnerTaskIdentity: { runnerId: identity.runnerInstanceId,
         leaseId: identity.environmentLeaseId, runId: sourceRunId, sessionId: identity.normalizedSessionId, turnId: identity.turnId, itemId: identity.itemId },
         remoteExecutionTermination: remoteTerminationReceipt(sourceLease, { providerLeaseId: "source-task", state: "stopped" }) } });
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId, issueId, heartbeatRunId: runId,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId, issueId, heartbeatRunId: runId,
       provider: sourceLease.provider, providerLeaseId: "replacement-task", leasePolicy: "reuse_by_environment", status: "active", metadata });
     const context = new NativeExecutionContext(execution, 60_000); context.bindNativeLease(owner); contexts.push(context);
-    const input = { companyId, leaseId, context, identity, resumeFrom: "source-task",
+    const input = { spaceId, leaseId, context, identity, resumeFrom: "source-task",
       ...(provider === "codex" ? { codexSourceRecoveryVersion: 1 as const } : { acpxSourceRecoveryVersion: 1 as const }),
       accountIdentity: "current-selected-account", matchesExecution: (previous: typeof sourceExecution) => previous.provider.kind === execution.provider.kind && previous.workspace.cwd === execution.workspace.cwd };
     const workers = { getWorker: () => ({ supportedMethods: ["environmentTask"] }), call: vi.fn(async (_id: string, _method: string, p: any) => {
@@ -120,7 +120,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("stopped source admission un
       launch: { runnerVersion: "source-fixture", runnerDigest: `sha256:${"a".repeat(64)}`, maxOutboxBytes: 262144,
         p0ReserveBytes: 65536, lifecyclePolicy: { mode: "warm" as const, idleTimeoutMs: 60_000 } } };
     const task = (op: Parameters<typeof executeEnvironmentTask>[2]["operation"] = operation) => executeEnvironmentTask(db, workers as unknown as PluginWorkerManager,
-      { companyId, leaseId, executionContext: context, operation: op });
+      { spaceId, leaseId, executionContext: context, operation: op });
     return { ...input, runId, sourceRunId, sourceLeaseId, environmentId, agentId, issueId, owner, oldOwner, oldWriter, checkpoint, execution, sourceExecution, build, operation, submit, workers, task,
       harness: provider === "claude" ? "claude" as const : "codex" as const, authProvider: provider === "claude" ? "anthropic" : "openai" };
   }
@@ -393,7 +393,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("stopped source admission un
     const original = source.runnerProfileJson!.nativeExecutionInput as NativeExecutionInput;
     const execution = { ...original, binding: { ...original.binding, runId: alternateRunId } };
     await db.insert(heartbeatRuns).values({ ...source, id: alternateRunId, runnerProfileJson: { ...source.runnerProfileJson, nativeExecutionInput: execution } });
-    const [result] = await db.insert(nativeRunResults).values({ companyId: f.companyId, issueId: f.issueId, runId: alternateRunId,
+    const [result] = await db.insert(nativeRunResults).values({ spaceId: f.spaceId, issueId: f.issueId, runId: alternateRunId,
       completionContractId: source.completionContractId!, serverFingerprint: "accepted-alternate", schemaStatus: "accepted",
       resultJson: { summary: "Accepted alternate" }, canonicalSha256: "accepted-alternate" }).returning();
     const [priorOwner] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.sourceRunId));
@@ -402,7 +402,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("stopped source admission un
     const identity = { ...f.identity, runId: alternateRunId, turnId: `turn-${alternateRunId}`, itemId: `item-${alternateRunId}` };
     const core = new DurablePrpControlPlane({ stateDirectory: join(root, alternateRunId), identity,
       expectedRunnerVersion: "source-fixture", expectedRunnerDigest: `sha256:${"a".repeat(64)}` });
-    core.setCheckpointPersistence(nativeRunnerCheckpointWriter(db, { companyId: f.companyId, issueId: f.issueId,
+    core.setCheckpointPersistence(nativeRunnerCheckpointWriter(db, { spaceId: f.spaceId, issueId: f.issueId,
       runId: alternateRunId, authorityRunId: alternateRunId, ...f.oldOwner }));
     try { await core.flushCheckpoint(); } finally { await core.stop(); }
     await db.update(nativeRunFinalizations).set({ phase: "committed", resultId: result.id, leaseOwner: null, leaseExpiresAt: null })
@@ -438,10 +438,10 @@ describe.skipIf(!recoveryPostgresSupport.supported)("stopped source admission un
     await expect(f.oldWriter(f.checkpoint)).resolves.toBeUndefined();
     await claimPluginTaskSourceRecovery(db, f);
     await expect(f.oldWriter(f.checkpoint)).rejects.toThrow("checkpoint_owner_lost");
-    const writer = nativeRunnerCheckpointWriter(db, { companyId: f.companyId, issueId: f.issueId, runId: f.sourceRunId,
+    const writer = nativeRunnerCheckpointWriter(db, { spaceId: f.spaceId, issueId: f.issueId, runId: f.sourceRunId,
       authorityRunId: f.runId, ...f.owner });
     await expect(writer(f.checkpoint)).resolves.toBeUndefined();
-    expect((await loadNativeRunnerCheckpoint(db, { companyId: f.companyId, issueId: f.issueId, runId: f.sourceRunId }))?.runId).toBe(f.sourceRunId);
+    expect((await loadNativeRunnerCheckpoint(db, { spaceId: f.spaceId, issueId: f.issueId, runId: f.sourceRunId }))?.runId).toBe(f.sourceRunId);
     await expect(writer({ ...f.checkpoint, records: new Map([["header", "{}"]]) })).rejects.toThrow("checkpoint_owner_lost");
     await db.update(environmentLeases).set({ metadata: sql`jsonb_set(${environmentLeases.metadata}, '{runnerTaskSourceRecovery,controllerGeneration}', '99'::jsonb)` }).where(eq(environmentLeases.id, f.leaseId));
     await expect(writer(f.checkpoint)).rejects.toThrow("checkpoint_owner_lost");
@@ -453,7 +453,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("stopped source admission un
     try {
       await db.transaction(async tx => {
         if (first === "writer") {
-          await nativeRunnerCheckpointWriter(tx as unknown as typeof db, { companyId: f.companyId, issueId: f.issueId,
+          await nativeRunnerCheckpointWriter(tx as unknown as typeof db, { spaceId: f.spaceId, issueId: f.issueId,
             runId: f.sourceRunId, authorityRunId: f.sourceRunId, ...f.oldOwner })(f.checkpoint);
         } else await claimPluginTaskSourceRecovery(tx as unknown as typeof db, f);
         const [backend] = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);

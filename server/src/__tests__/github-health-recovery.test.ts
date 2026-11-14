@@ -18,7 +18,7 @@ vi.mock("../services/tool-connection-health-notifications.js", async importOrigi
   writeToolConnectionHealthChange: async <T>(db: Db, _target: unknown, write: (transaction: Db) => Promise<T>) => write(db),
 }));
 
-const SUSPENDED_INSTALLATION_URL = "https://github.com/organizations/paperclipai/settings/installations/101";
+const SUSPENDED_INSTALLATION_URL = "https://github.com/organizations/outpost/settings/installations/101";
 
 function json(value: unknown): Response {
   return new Response(JSON.stringify(value), { headers: { "content-type": "application/json" } });
@@ -30,11 +30,11 @@ const suspendedGitHub = vi.fn<typeof fetch>(async (input) => {
   if (url.pathname === "/user") return json({ id: 42, login: "octocat" });
   if (url.pathname === "/user/installations") {
     return json({ installations: [
-      { id: 101, app_slug: "paperclip-staging", repository_selection: "all", suspended_at: "2026-10-22T01:33:41Z", html_url: SUSPENDED_INSTALLATION_URL },
+      { id: 101, app_slug: "outpost-staging", repository_selection: "all", suspended_at: "2026-10-22T01:33:41Z", html_url: SUSPENDED_INSTALLATION_URL },
     ] });
   }
   if (url.pathname === "/user/installations/101/repositories") {
-    return json({ repositories: [{ id: 1, full_name: "paperclipai/a" }] });
+    return json({ repositories: [{ id: 1, full_name: "outpost/a" }] });
   }
   throw new Error(`Unexpected GitHub path: ${url.pathname}`);
 });
@@ -42,7 +42,7 @@ const suspendedGitHub = vi.fn<typeof fetch>(async (input) => {
 function githubConnectionHealth() {
   const connection = {
     id: "conn-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     connectionPurpose: "tools",
     transport: "mcp_remote",
     credentialPolicy: "shared",
@@ -83,7 +83,7 @@ describe("GitHub Refresh access recovery", () => {
       details: {
         code: "github_installation_required",
         managementUrl: SUSPENDED_INSTALLATION_URL,
-        installationUrl: "https://github.com/apps/paperclip-staging/installations/new",
+        installationUrl: "https://github.com/apps/outpost-staging/installations/new",
         connection: { id: "conn-1", healthStatus: "error", healthMessage: expect.stringContaining("suspended") },
       },
     });

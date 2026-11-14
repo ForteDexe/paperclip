@@ -79,7 +79,7 @@ const PROBE_CLEANUP_WARNING = "[outpost] Codex probe cleanup incomplete";
 
 async function prepareCodexHelloProbe(input: {
   runId: string;
-  companyId: string;
+  spaceId: string;
   target: AdapterEnvironmentTestContext["executionTarget"] | null;
   targetIsRemote: boolean;
   cwd: string;
@@ -111,8 +111,8 @@ async function prepareCodexHelloProbe(input: {
   if (input.targetIsRemote && !input.probeApiKey) {
     // Prepare the exact home a real run would use, mirroring execute.ts: vend
     // the shared credential's freshest same-identity cached copy, then seed the
-    // effective home — the company default when no CODEX_HOME is configured, a
-    // Paperclip-managed override (the per-agent home) seeded in place — and
+    // effective home — the space default when no CODEX_HOME is configured, a
+    // Outpost-managed override (the per-agent home) seeded in place — and
     // stage that home's credentials. A genuine external override manages its
     // own auth: its bytes are staged as-is and it is never seeded or mutated.
     // Without this mirror the probe exercises a different credential than the
@@ -122,7 +122,7 @@ async function prepareCodexHelloProbe(input: {
       : null;
     const configuredHomeIsManaged =
       configuredCodexHome != null &&
-      isManagedCodexHomePath(process.env, input.companyId, configuredCodexHome);
+      isManagedCodexHomePath(process.env, input.spaceId, configuredCodexHome);
     if (!input.managedAiConnection && isCodexAuthCacheEnabled(process.env)) {
       // Identity-anchored cache vend, exactly as execute runs it before the
       // seeding below. Best-effort: a vend failure never blocks the probe, and
@@ -130,13 +130,13 @@ async function prepareCodexHelloProbe(input: {
       const sharedHomeAuthPath = path.join(resolveSharedCodexHomeDir(process.env), "auth.json");
       await selectVendCredential(
         sharedHomeAuthPath,
-        (accountId) => resolveCodexAuthCacheEntryPath(process.env, accountId, input.companyId),
+        (accountId) => resolveCodexAuthCacheEntryPath(process.env, accountId, input.spaceId),
         async () => {},
       ).catch(() => undefined);
     }
     let effectiveHome: string;
     if (configuredCodexHome == null) {
-      effectiveHome = await prepareManagedCodexHome(process.env, async () => {}, input.companyId, {
+      effectiveHome = await prepareManagedCodexHome(process.env, async () => {}, input.spaceId, {
         apiKey: null,
       });
     } else {
@@ -154,7 +154,7 @@ async function prepareCodexHelloProbe(input: {
     // and streaming all of it into the sandbox made the environment Test probe
     // take many minutes and look like it hung. The hello probe only needs auth.
     probeHomeLocalDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), `paperclip-codex-probe-home-${input.runId}-`),
+      path.join(os.tmpdir(), `outpost-codex-probe-home-${input.runId}-`),
     );
     let seededAuth = false;
     let seededConfig = false;
@@ -183,7 +183,7 @@ async function prepareCodexHelloProbe(input: {
     }
 
     preparedRuntimeWorkspaceLocalDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), `paperclip-codex-envtest-${input.runId}-`),
+      path.join(os.tmpdir(), `outpost-codex-envtest-${input.runId}-`),
     );
     preparedRuntime = await prepareAdapterExecutionTargetRuntime({
       runId: input.runId,
@@ -192,7 +192,7 @@ async function prepareCodexHelloProbe(input: {
       workspaceLocalDir: preparedRuntimeWorkspaceLocalDir,
       // Pass `input.cwd` as the base (not a pre-built per-run subdir).
       // `prepareRemoteManagedRuntime` itself appends
-      // `.paperclip-runtime/runs/<runId>/workspace` to whatever it gets, so
+      // `.outpost-runtime/runs/<runId>/workspace` to whatever it gets, so
       // pre-building a per-run path here would double-nest the run ID.
       workspaceRemoteDir: input.cwd,
       installCommand: SANDBOX_INSTALL_COMMAND,
@@ -220,8 +220,8 @@ async function prepareCodexHelloProbe(input: {
 
   if (input.probeApiKey) {
     const probeHome = input.targetIsRemote
-      ? path.posix.join(input.cwd, ".paperclip-runtime", "codex", `probe-home-${input.runId}`)
-      : path.join(os.tmpdir(), `paperclip-codex-probe-${input.runId}`);
+      ? path.posix.join(input.cwd, ".outpost-runtime", "codex", `probe-home-${input.runId}`)
+      : path.join(os.tmpdir(), `outpost-codex-probe-${input.runId}`);
     // The local finally path retries cleanup independently of the model result.
     if (!input.targetIsRemote) probeHomeLocalDir = probeHome;
     return {
@@ -472,7 +472,7 @@ export async function testEnvironment(
       const preparedProbe = await prepareCodexHelloProbe({
         managedAiConnection: Boolean(config.managedAiConnection),
         runId,
-        companyId: ctx.companyId,
+        spaceId: ctx.spaceId,
         target,
         targetIsRemote,
         cwd,

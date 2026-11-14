@@ -22,7 +22,7 @@ Related:
 
 ## 1. Purpose
 
-This note inventories the Paperclip issues that point to the same UX class of problem:
+This note inventories the Outpost issues that point to the same UX class of problem:
 
 - pages feel slow because they over-fetch or refetch too much
 - actions feel slow because the UI waits for the round trip before reflecting obvious local intent
@@ -35,16 +35,16 @@ The immediate trigger is [PAP-1192](/PAP/issues/PAP-1192): the issue detail page
 The issue detail page is not obviously blocked by one pathological endpoint. The main problem is the shape of the page:
 
 - `IssueDetail` fans out into many independent queries on mount
-- some of those queries fetch full company-wide collections for data that is local to one issue
+- some of those queries fetch full space-wide collections for data that is local to one issue
 - common mutations invalidate almost every issue-related query, which creates avoidable refetch storms
 - the page has only a minimal top-level `Loading...` fallback and very little staged or sectional loading UX
 
-Measured against the current assigned issue (`PAP-1191`) on local dev, the slowest single request was the full company issues list:
+Measured against the current assigned issue (`PAP-1191`) on local dev, the slowest single request was the full space issues list:
 
 - `GET /api/issues/:id` about `18ms`
 - `GET /api/issues/:id/comments|activity|approvals|attachments` about `6-8ms`
-- `GET /api/companies/:companyId/agents|projects` about `9-11ms`
-- `GET /api/companies/:companyId/issues` about `76ms`
+- `GET /api/spaces/:spaceId/agents|projects` about `9-11ms`
+- `GET /api/spaces/:spaceId/issues` about `76ms`
 
 That strongly suggests the current pain is aggregate client fan-out plus over-broad invalidation, not one obviously broken endpoint.
 
@@ -70,13 +70,13 @@ Pattern: the issue page already has a history of needing both optimistic behavio
 - [PAP-138](/PAP/issues/PAP-138): inbox loading feels stuck
 - [PAP-470](/PAP/issues/PAP-470): create-issue save state felt slow and awkward
 
-Pattern: Paperclip already has several places where the right fix was "show intent immediately, then reconcile," not "wait for refetch."
+Pattern: Outpost already has several places where the right fix was "show intent immediately, then reconcile," not "wait for refetch."
 
 ## 3.3 Broader app-loading siblings
 
 - [PAP-472](/PAP/issues/PAP-472): dashboard charts load very slowly
 - [PAP-797](/PAP/issues/PAP-797): reduce loading states through static generation/caching where possible
-- [PAP-799](/PAP/issues/PAP-799): embed company data at build time to eliminate loading states
+- [PAP-799](/PAP/issues/PAP-799): embed space data at build time to eliminate loading states
 - [PAP-703](/PAP/issues/PAP-703): faster chat and better visual feedback
 
 Pattern: the product has recurring pressure to reduce blank/loading states across the app, so the issue-detail work should fit that broader direction.
@@ -95,7 +95,7 @@ Pattern: the product has recurring pressure to reduce blank/loading states acros
 - attachments
 - live runs
 - active run
-- full company issues list
+- full space issues list
 - agents list
 - auth session
 - projects list
@@ -105,11 +105,11 @@ Pattern: the product has recurring pressure to reduce blank/loading states acros
 
 This is too much for the initial view of a single issue.
 
-## 4.2 The page fetches full company issue data just to derive child issues
+## 4.2 The page fetches full space issue data just to derive child issues
 
 `IssueDetail` currently does:
 
-- `issuesApi.list(selectedCompanyId!)`
+- `issuesApi.list(selectedSpaceId!)`
 - then filters client-side for `parentId === issue.id`
 
 That is expensive relative to the need.
@@ -169,7 +169,7 @@ That is duplicate polling for closely related state.
 - agents list
 - projects list
 - labels
-- and, when the blocker picker opens, the full company issues list
+- and, when the blocker picker opens, the full space issues list
 
 The page and panel are each doing their own list work instead of sharing a narrower issue-detail data model.
 
@@ -197,12 +197,12 @@ Why first:
 - it improves the user-facing feel immediately
 - it reduces the chance that later data changes still feel slow because the page flashes blank
 
-## 5.2 Phase 2: Stop fetching the full company issues list for child issues
+## 5.2 Phase 2: Stop fetching the full space issues list for child issues
 
 Add `parentId` to the `issuesApi.list(...)` filter type and switch `IssueDetail` to:
 
 - fetch child issues only
-- stop loading the full company issue collection on page mount
+- stop loading the full space issue collection on page mount
 
 This is the highest-confidence narrow win because the server path already exists.
 
@@ -232,7 +232,7 @@ Tighten the runtime side of the page:
 
 Examples:
 
-- posting a comment should not force a broad company issue list refetch unless list-visible metadata changed
+- posting a comment should not force a broad space issue list refetch unless list-visible metadata changed
 - attachment changes should not invalidate approvals or unrelated live-run queries
 
 ## 5.5 Phase 5: Consider an issue-detail bootstrap contract
@@ -296,7 +296,7 @@ The same standards should apply to:
 This inventory is successful if the follow-up implementation makes the issue page behave like this:
 
 1. navigating to an issue shows a shaped skeleton immediately, not plain text
-2. the page no longer fetches the full company issue list just to render sub-issues
+2. the page no longer fetches the full space issue list just to render sub-issues
 3. long threads do not require full-thread fetches on every load or comment mutation
 4. local actions feel immediate and do not snap back because of broad invalidation
 5. the issue page feels faster even when absolute backend timings are already reasonable

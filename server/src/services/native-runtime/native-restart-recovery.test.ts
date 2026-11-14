@@ -359,7 +359,7 @@ describe("native controller takeover fencing", () => {
       }
     });
 
-    it("accept a board confirmation that the exact controller stopped", async () => {
+    it("accept a operator confirmation that the exact controller stopped", async () => {
       vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
       await expect(evaluateNativeControllerTakeover({ owner: { ...owner(), controllerHostHash: "operator_attested" }, now,
         isProcessAlive: () => true })).resolves.toEqual({ allowed: true, reason: "operator_attested_controller_stopped" });

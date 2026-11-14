@@ -13,9 +13,9 @@ describeEmbeddedPostgres("native runner restart recovery: checkpoint-cost", () =
   const environment = nativeRestartFixture();
   const { seedRun, transportOptions } = environment;
   let runtimeRoot: typeof environment.current.runtimeRoot;
-  let companyId: typeof environment.current.companyId;
+  let spaceId: typeof environment.current.spaceId;
   let successor: typeof environment.current.successor;
-  beforeAll(() => { ({ runtimeRoot, companyId, successor } = environment.current); });
+  beforeAll(() => { ({ runtimeRoot, spaceId, successor } = environment.current); });
 
   realProcessIt("keeps checkpoint SQL independent of streamed output volume with a real Postgres writer", async () => {
     const samples: Array<{ chunks: number; checkpointWrites: number; transactions: number;
@@ -25,7 +25,7 @@ describeEmbeddedPostgres("native runner restart recovery: checkpoint-cost", () =
       const fixture = await seedRun(`CHECKPOINT-COST-${chunks}`);
       const root = resolve(runtimeRoot, fixture.runId);
       const releaseOutput = resolve(root, "release-output");
-      const binding = { companyId, issueId: fixture.issueId, runId: fixture.runId };
+      const binding = { spaceId, issueId: fixture.issueId, runId: fixture.runId };
       const owner = { ...binding, authorityRunId: fixture.runId, bootId: successor.bootId,
         generation: 1, leaseOwner: "cost-controller" };
       await fixture.db.update(nativeRunFinalizations).set({ controllerBootId: owner.bootId,

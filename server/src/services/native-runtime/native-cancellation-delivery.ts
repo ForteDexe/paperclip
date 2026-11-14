@@ -16,7 +16,7 @@ export async function nativeCancellationHasUnsettledOwner(db: Db, runId: string)
   if (process.env.OUTPOST_EPHEMERAL_SERVER !== "true") return false;
   const [owner] = await db.select({ runId: nativeRunFinalizations.runId }).from(nativeRunFinalizations)
     .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, nativeRunFinalizations.runId),
-      eq(heartbeatRuns.companyId, nativeRunFinalizations.companyId)))
+      eq(heartbeatRuns.spaceId, nativeRunFinalizations.spaceId)))
     .where(and(eq(nativeRunFinalizations.runId, runId), isNull(nativeRunFinalizations.resultId),
       inArray(heartbeatRuns.status, ["running", "queued"]))).limit(1);
   return Boolean(owner);
@@ -25,7 +25,7 @@ export async function nativeCancellationHasUnsettledOwner(db: Db, runId: string)
 /** The accepting HTTP server waits for the real owner's audited ACK. Subscribe
  * before reading so a commit between admission and subscription cannot be lost.
  * The existing intent remains recoverable after timeout or process replacement. */
-export function waitForNativeCancellation(db: Db, input: { companyId: string; runId: string; intentId: string }, timeoutMs = 20_000) {
+export function waitForNativeCancellation(db: Db, input: { spaceId: string; runId: string; intentId: string }, timeoutMs = 20_000) {
   return new Promise<{ dispatched: true; decisionId: string | null; auditId: string }>((resolve, reject) => {
     let settled = false, reading = false, dirty = false;
     const finish = (error?: unknown, result?: { dispatched: true; decisionId: string | null; auditId: string }) => {
@@ -41,7 +41,7 @@ export function waitForNativeCancellation(db: Db, input: { companyId: string; ru
         do {
           dirty = false;
           const [run] = await db.select({ result: heartbeatRuns.resultJson }).from(heartbeatRuns)
-            .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId))).limit(1);
+            .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId))).limit(1);
           const intent = object(run?.result?.nativeCancellation);
           if (intent.intentId !== input.intentId) throw new Error("native_cancellation_intent_conflict");
           if (intent.dispatchState === "acknowledged" && intent.dispatched === true && typeof intent.acknowledgementAuditId === "string") {

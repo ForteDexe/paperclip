@@ -29,7 +29,7 @@ requested stack parent rather than silently dropping or rewriting prior slices.
 ## Trigger, durable truth and quiet predicate
 
 `nativeResultCommitWork` reads the existing coordinator, accepted result,
-heartbeat run, issue and successful workspace operation. All joins bind company,
+heartbeat run, issue and successful workspace operation. All joins bind space,
 issue and run. Eligibility requires:
 
 - native runtime and accepted result;
@@ -63,7 +63,7 @@ signals rather than worker-local counters or new recovery tables.
 
 | Producer | Boundary and purpose |
 | --- | --- |
-| `PaperclipControlPlanePort.completeRun` | Signal before the first accepted-result insert. Covers result arriving after an existing workspace barrier. |
+| `OutpostControlPlanePort.completeRun` | Signal before the first accepted-result insert. Covers result arriving after an existing workspace barrier. |
 | `NativeRunCoordinatorStore.completeRun` | Same contract for the ORP coordinator's independent accepted-result writer. Terminal-event reconciliation delegates here. |
 | Workspace operation recorder | Signal before workspace-finalization receipt writes, including the successful barrier arriving after the accepted result. |
 | Direct workspace recovery | Signal the repaired successful receipt in the same transaction. |
@@ -183,7 +183,7 @@ This slice now incorporates parent #17734 at
 batched tree comparison preserves 1,203 parent-only entries, nine owned-only
 entries, 11,520 identical entries and 12 automatic shared merges. The sole
 manual conflict adds result-commit notification inside the existing ordinary
-issue/run scope guard. Explicit company settings and dedicated result-state
+issue/run scope guard. Explicit space settings and dedicated result-state
 notifications retain their existing scopes. The entire package tree matches
 the parent, including combined Runner profile 80 and all historical fixtures.
 
@@ -197,7 +197,7 @@ reported that blocking await; it is historical failure evidence, not an unresolv
 finding to waive. The subsequent Greptile service error is not a review pass.
 A fresh review on the final published head is still required.
 
-The new real-database regression submits three routine company-only finalization
+The new real-database regression submits three routine space-only finalization
 hints to an idle result worker. A controlled baseline moves only result fanout
 outside the guard and leaves all other parent guards intact. The worker issues
 three candidate SELECTs, so the zero-query assertion fails. Restoring production

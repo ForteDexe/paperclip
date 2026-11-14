@@ -1,5 +1,5 @@
 import { Router, type Request } from "express";
-import { companies, type Db } from "@outpost/db";
+import { spaces, type Db } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { agentCommentaryQuerySchema, isUuidLike } from "@outpost/shared";
 import { badRequest, forbidden, notFound } from "../errors.js";
@@ -7,7 +7,7 @@ import { submitAgentCommentary } from "../services/agent-commentary.js";
 import { agentCommentaryReader } from "../services/agent-commentary-reader.js";
 import { issueReadSqlCondition } from "../services/authorization.js";
 import { accessService } from "../services/access.js";
-import { assertBoard, assertCompanyAccess } from "./authz.js";
+import { assertOperator, assertSpaceAccess } from "./authz.js";
 
 export function agentCommentaryRoutes(db: Db) {
   const router = Router();
@@ -17,68 +17,68 @@ export function agentCommentaryRoutes(db: Db) {
   // Agents can submit commentary. They read only their own entries unless they
   // hold commentary:view, which no agent has by default. A denial names the
   // human page so the agent can send the person somewhere useful.
-  async function denyAgentRead(companyId: string): Promise<never> {
-    const [company] = await db.select({ issuePrefix: companies.issuePrefix }).from(companies).where(eq(companies.id, companyId)).limit(1);
-    throw forbidden("Board access required", company ? {
-      remediation: `Agents read only their own commentary unless granted commentary:view. People with commentary access can read it on the Commentary page; give them this link: [Commentary](/${company.issuePrefix}/activity/commentary).`,
+  async function denyAgentRead(spaceId: string): Promise<never> {
+    const [space] = await db.select({ issuePrefix: spaces.issuePrefix }).from(spaces).where(eq(spaces.id, spaceId)).limit(1);
+    throw forbidden("Operator access required", space ? {
+      remediation: `Agents read only their own commentary unless granted commentary:view. People with commentary access can read it on the Commentary page; give them this link: [Commentary](/${space.issuePrefix}/activity/commentary).`,
     } : undefined);
   }
 
-  async function agentCanReadAll(req: Request, companyId: string) {
+  async function agentCanReadAll(req: Request, spaceId: string) {
     return req.actor.type === "agent" && !!req.actor.agentId
-      && await access.hasPermission(companyId, "agent", req.actor.agentId, "commentary:view");
+      && await access.hasPermission(spaceId, "agent", req.actor.agentId, "commentary:view");
   }
 
-  async function authorizeBoardRead(req: Request, companyId: string) {
-    assertBoard(req);
+  async function authorizeBoardRead(req: Request, spaceId: string) {
+    assertOperator(req);
     if (req.actor.source !== "local_implicit" && !req.actor.isInstanceAdmin
-      && (!req.actor.userId || !await access.canUser(companyId, req.actor.userId, "commentary:view"))) {
+      && (!req.actor.userId || !await access.canUser(spaceId, req.actor.userId, "commentary:view"))) {
       throw forbidden("Missing permission: commentary:view");
     }
     return issueReadSqlCondition(db, req.actor);
   }
 
-  router.get("/companies/:companyId/agent-commentary", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/agent-commentary", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const query = agentCommentaryQuerySchema.safeParse(req.query);
     if (!query.success) throw badRequest("Invalid agent commentary filters", query.error.issues);
     if (req.actor.type === "agent") {
       // Without the grant, only an explicit request for its own entries is allowed.
-      if (!await agentCanReadAll(req, companyId) && query.data.agentId !== req.actor.agentId) await denyAgentRead(companyId);
-      res.json(await reader.list(companyId, query.data, await issueReadSqlCondition(db, req.actor)));
+      if (!await agentCanReadAll(req, spaceId) && query.data.agentId !== req.actor.agentId) await denyAgentRead(spaceId);
+      res.json(await reader.list(spaceId, query.data, await issueReadSqlCondition(db, req.actor)));
       return;
     }
-    if (req.actor.type !== "board") await denyAgentRead(companyId);
-    res.json(await reader.list(companyId, query.data, await authorizeBoardRead(req, companyId)));
+    if (req.actor.type !== "operator") await denyAgentRead(spaceId);
+    res.json(await reader.list(spaceId, query.data, await authorizeBoardRead(req, spaceId)));
   });
 
-  router.get("/companies/:companyId/agent-commentary/:id", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/agent-commentary/:id", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const id = req.params.id as string;
     if (req.actor.type === "agent") {
-      const entry = isUuidLike(id) ? await reader.get(companyId, id, await issueReadSqlCondition(db, req.actor)) : null;
-      if (!await agentCanReadAll(req, companyId) && entry?.agent.id !== req.actor.agentId) await denyAgentRead(companyId);
+      const entry = isUuidLike(id) ? await reader.get(spaceId, id, await issueReadSqlCondition(db, req.actor)) : null;
+      if (!await agentCanReadAll(req, spaceId) && entry?.agent.id !== req.actor.agentId) await denyAgentRead(spaceId);
       if (!entry) throw notFound("Commentary not found");
       res.json(entry);
       return;
     }
-    if (req.actor.type !== "board") await denyAgentRead(companyId);
-    const readCondition = await authorizeBoardRead(req, companyId);
+    if (req.actor.type !== "operator") await denyAgentRead(spaceId);
+    const readCondition = await authorizeBoardRead(req, spaceId);
     if (!isUuidLike(id)) throw notFound("Commentary not found");
-    const entry = await reader.get(companyId, id, readCondition);
+    const entry = await reader.get(spaceId, id, readCondition);
     if (!entry) throw notFound("Commentary not found");
     res.json(entry);
   });
-  router.post("/companies/:companyId/agent-commentary", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.post("/spaces/:spaceId/agent-commentary", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     if (req.actor.type !== "agent" || !req.actor.agentId || !req.actor.runId) {
       throw forbidden("Feedback requires an authenticated agent run");
     }
     const result = await submitAgentCommentary(db, {
-      companyId, agentId: req.actor.agentId, runId: req.actor.runId, agentApiKeyId: req.actor.keyId,
+      spaceId, agentId: req.actor.agentId, runId: req.actor.runId, agentApiKeyId: req.actor.keyId,
     }, req.body);
     res.status(result.replayed ? 200 : 201).json(result);
   });

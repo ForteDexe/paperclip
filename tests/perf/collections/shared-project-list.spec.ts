@@ -8,15 +8,15 @@ test.beforeAll(async ({ request }) => {
 
 // The sidebar wants active projects and the inbox wants archived ones too.
 // One includeArchived read serves both.
-test("Mine reads the company project list once", async ({ page }) => {
-  const path = `/api/companies/${fixture.company.id}/projects`;
+test("Mine reads the space project list once", async ({ page }) => {
+  const path = `/api/spaces/${fixture.space.id}/projects`;
   const reads: URL[] = [];
   page.on("request", item => {
     const url = new URL(item.url());
     if (url.pathname === path) reads.push(url);
   });
-  const inbox = page.waitForResponse(item => new URL(item.url()).pathname === `/api/companies/${fixture.company.id}/inbox/mine` && item.ok());
-  await page.goto(`/${fixture.company.issuePrefix}/issues?view=mine`);
+  const inbox = page.waitForResponse(item => new URL(item.url()).pathname === `/api/spaces/${fixture.space.id}/inbox/mine` && item.ok());
+  await page.goto(`/${fixture.space.issuePrefix}/issues?view=mine`);
   // Mine's own read has completed, so the inbox and the sidebar have both
   // mounted their project consumers.
   await inbox;

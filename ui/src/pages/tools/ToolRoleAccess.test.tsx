@@ -12,8 +12,8 @@ const accessState = vi.hoisted(() => ({ data: undefined as CurrentBoardAccess | 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: accessState.data, isLoading: false }),
 }));
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 vi.mock("@/lib/router", () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
@@ -27,8 +27,8 @@ function snapshot(role: "owner" | "admin" | "operator" | "member" | "viewer"): C
     user: { id: "user-1", email: "editor@example.com", name: "Editor", image: null },
     userId: "user-1",
     isInstanceAdmin: false,
-    companyIds: ["company-1"],
-    memberships: [{ companyId: "company-1", membershipRole: role, status: "active" }],
+    spaceIds: ["space-1"],
+    memberships: [{ spaceId: "space-1", membershipRole: role, status: "active" }],
     source: "session",
     keyId: null,
   };
@@ -63,20 +63,20 @@ describe.each([
     expect(container.textContent).toContain(editorText);
   });
 
-  it("allows local boards and instance admins without company membership", () => {
+  it("allows local operators and instance admins without space membership", () => {
     render({ ...snapshot("viewer"), memberships: [], source: "local_implicit" });
     expect(container.textContent).toContain(editorText);
     render({ ...snapshot("viewer"), memberships: [], isInstanceAdmin: true });
     expect(container.textContent).toContain(editorText);
   });
 
-  it("rejects viewers, inactive memberships, and members of another company", () => {
+  it("rejects viewers, inactive memberships, and members of another space", () => {
     render(snapshot("viewer"));
     expect(container.textContent).not.toContain(editorText);
     const operator = snapshot("operator");
     render({ ...operator, memberships: [{ ...operator.memberships![0]!, status: "suspended" }] });
     expect(container.textContent).not.toContain(editorText);
-    render({ ...operator, memberships: [{ ...operator.memberships![0]!, companyId: "company-2" }] });
+    render({ ...operator, memberships: [{ ...operator.memberships![0]!, spaceId: "space-2" }] });
     expect(container.textContent).not.toContain(editorText);
     render(undefined);
     expect(container.textContent).not.toContain(editorText);

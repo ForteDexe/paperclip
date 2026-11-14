@@ -5,14 +5,14 @@ import type {
   DecisionTrainingSourceKind,
 } from "@outpost/shared";
 import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { issues } from "./issues.js";
 
 export const decisionTrainingExamples = pgTable(
   "decision_training_examples",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     sourceKind: text("source_kind").$type<DecisionTrainingSourceKind>().notNull(),
     sourceId: uuid("source_id").notNull(),
     issueId: uuid("issue_id").notNull().references(() => issues.id, { onDelete: "cascade" }),
@@ -30,8 +30,8 @@ export const decisionTrainingExamples = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyCreatedAtIdx: index("decision_training_examples_company_created_at_idx").on(
-      table.companyId,
+    spaceCreatedAtIdx: index("decision_training_examples_space_created_at_idx").on(
+      table.spaceId,
       table.createdAt,
     ),
     issueIdx: index("decision_training_examples_issue_idx").on(table.issueId),

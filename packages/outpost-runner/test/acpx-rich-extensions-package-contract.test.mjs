@@ -36,9 +36,9 @@ readline.createInterface({input:process.stdin}).on('line',(line)=>{
 `;
 
 async function withClient(options, run) {
-  const cwd = await mkdtemp(join(tmpdir(), "paperclip-acpx-extensions-"));
+  const cwd = await mkdtemp(join(tmpdir(), "outpost-acpx-extensions-"));
   const client = new AcpClient({
-    agentCommand: "paperclip-test-verified-command", cwd, permissionMode: "approve-all",
+    agentCommand: "outpost-test-verified-command", cwd, permissionMode: "approve-all",
     fs: false, terminal: false, authPolicy: "skip", elicitationModes: ["form"],
     suppressSdkConsoleErrors: true,
     spawnAgent: () => spawn(process.execPath, ["-e", fixture], { cwd, stdio: ["pipe", "pipe", "pipe"] }),

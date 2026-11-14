@@ -6,7 +6,7 @@ import { and, eq } from "drizzle-orm";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
   environmentLeases,
@@ -40,11 +40,11 @@ const LEASE_FAILURE = 'Failed to acquire lease for environment "Managed computer
 describe("failed native run owner release", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
   let db: ReturnType<typeof createDb>;
-  let companyId: string;
+  let spaceId: string;
   let agentId: string;
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-owner-release-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-native-owner-release-");
     db = createDb(temporary.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => temporary?.cleanup());
@@ -56,10 +56,10 @@ describe("failed native run owner release", () => {
   });
 
   beforeEach(async () => {
-    companyId = randomUUID();
+    spaceId = randomUUID();
     agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Owner release", issuePrefix: `OR${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Resume agent", adapterType: "codex_local", status: "running" });
+    await db.insert(spaces).values({ id: spaceId, name: "Owner release", issuePrefix: `OR${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Resume agent", adapterType: "codex_local", status: "running" });
   });
 
   async function nativeRun(input: {
@@ -71,10 +71,10 @@ describe("failed native run owner release", () => {
   }) {
     const issueId = randomUUID();
     const runId = input.runId ?? randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Resume the native run", status: "in_progress",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Resume the native run", status: "in_progress",
       assigneeAgentId: agentId, workMode: "standard" });
     await db.insert(heartbeatRuns).values({
-      id: runId, companyId, agentId, nativeIssueId: issueId, status: input.status, runtimeMode: "native",
+      id: runId, spaceId, agentId, nativeIssueId: issueId, status: input.status, runtimeMode: "native",
       runtimeModeResolvedAt: new Date(), contextSnapshot: { issueId },
       startedAt: new Date(), finishedAt: input.status === "running" ? null : new Date(),
       errorCode: input.errorCode ?? null, error: input.error ?? null,
@@ -87,7 +87,7 @@ describe("failed native run owner release", () => {
     });
     const current = await controllerProcess.currentControllerProcess();
     expect(current.hostHash).not.toBe("unknown");
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed", attempt: 1,
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed", attempt: 1,
       controllerHostHash: current.hostHash, ...input.coordinator } as typeof nativeRunFinalizations.$inferInsert);
     return { runId, issueId };
   }
@@ -121,7 +121,7 @@ describe("failed native run owner release", () => {
     });
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)))[0])
       .toMatchObject({ status: "failed", nativePhase: "terminal_failure" });
-    expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, companyId),
+    expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, spaceId),
       eq(activityLog.action, "native.failed_run_owner_released")))).toHaveLength(1);
     expect(await agentExecutionsHaveStopped(db, [agentId])).toBe(true);
     // Settlement is idempotent.
@@ -209,7 +209,7 @@ describe("failed native run owner release", () => {
         expect(await executionControlSchedule(db).finalization()).toBeNull();
       }
       expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, before.issueId))).toEqual([attention]);
-      expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, companyId),
+      expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, spaceId),
         eq(activityLog.action, "native.failed_run_owner_released")))).toHaveLength(0);
     } finally { identity?.mockRestore(); probe.mockRestore(); }
   });
@@ -219,7 +219,7 @@ describe("failed native run owner release", () => {
       controllerBootId: randomUUID(), controllerHostHash: null, leaseExpiresAt: new Date(0) } });
     expect(await releaseAbandonedNativeOwners(db)).toBe(0);
     const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, issueId));
-    expect(action).toMatchObject({ ownerType: "board", cause: "native_restart_recovery_blocked", attemptCount: 0,
+    expect(action).toMatchObject({ ownerType: "operator", cause: "native_restart_recovery_blocked", attemptCount: 0,
       evidence: { runId, reason: "controller_process_space_unverified", controllerAuthority: { digest: expect.any(String) } } });
     expect(await nextAbandonedNativeOwnerReleaseAt(db)).toBeNull();
     expect(await coordinator(runId)).toMatchObject({ phase: "observed", leaseOwner: expect.any(String) });
@@ -279,7 +279,7 @@ describe("failed native run owner release", () => {
       expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, issueId))).toEqual([]);
       expect(await releaseAbandonedNativeOwners(db, leaseExpiresAt)).toBe(0);
       const [attention] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, issueId));
-      expect(attention).toMatchObject({ status: "active", ownerType: "board", attemptCount: 0,
+      expect(attention).toMatchObject({ status: "active", ownerType: "operator", attemptCount: 0,
         wakePolicy: null, monitorPolicy: null, evidence: { runId, reason: "controller_process_space_unverified" } });
       expect(await nextAbandonedNativeOwnerReleaseAt(db)).toBeNull();
       expect(await releaseAbandonedNativeOwners(db, leaseExpiresAt)).toBe(0);
@@ -302,7 +302,7 @@ describe("failed native run owner release", () => {
     }
     expect(await releaseAbandonedNativeOwners(db, new Date(), 2)).toBe(0);
     expect((await nextAbandonedNativeOwnerReleaseAt(db))?.getTime()).toBe(localDeadline.getTime());
-    const rows = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, companyId));
+    const rows = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, spaceId));
     expect(rows).toHaveLength(foreign.length);
     expect(rows.every(row => row.attemptCount === 0 && row.wakePolicy === null && row.monitorPolicy === null)).toBe(true);
     // Deadline reads do not request another pass or turn surfaced holds into timers.
@@ -317,7 +317,7 @@ describe("failed native run owner release", () => {
     expect((await nextAbandonedNativeOwnerReleaseAt(db))!.getTime()).toBeLessThan(localDeadline.getTime());
     expect(await releaseAbandonedNativeOwners(db, new Date(), 2)).toBe(0);
     expect((await nextAbandonedNativeOwnerReleaseAt(db))?.getTime()).toBe(localDeadline.getTime());
-    const reinspected = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, companyId));
+    const reinspected = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, spaceId));
     const byId = (a: typeof rows[number], b: typeof rows[number]) => a.id.localeCompare(b.id);
     expect(reinspected.sort(byId)).toEqual([...rows].sort(byId));
   });
@@ -344,13 +344,13 @@ describe("failed native run owner release", () => {
     const { runId, issueId } = await nativeRun({ status: "failed", coordinator: {
       leaseOwner: `foreign:${randomUUID()}`, controllerHostHash: null, leaseExpiresAt: new Date(0) } });
     const service = issueRecoveryActionService(db);
-    const unrelated = await service.upsertSourceScoped({ companyId, sourceIssueId: issueId, kind: "active_run_watchdog",
-      cause: "independent-test-recovery", fingerprint: "independent-test-identity", ownerType: "board",
+    const unrelated = await service.upsertSourceScoped({ spaceId, sourceIssueId: issueId, kind: "active_run_watchdog",
+      cause: "independent-test-recovery", fingerprint: "independent-test-identity", ownerType: "operator",
       nextAction: "Resolve this independently owned action first.", wakePolicy: null, monitorPolicy: null, attemptCount: 0 });
     expect(await releaseAbandonedNativeOwners(db)).toBe(0);
     expect((await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, issueId)))[0].id).toBe(unrelated.id);
     expect(await nextAbandonedNativeOwnerReleaseAt(db)).toBeNull();
-    expect(await committedWakes(DELIVERY_QUEUES.executionFinalization, () => service.resolveActiveForIssue({ companyId,
+    expect(await committedWakes(DELIVERY_QUEUES.executionFinalization, () => service.resolveActiveForIssue({ spaceId,
       sourceIssueId: issueId, actionId: unrelated.id, status: "resolved", outcome: "restored" }))).toBeGreaterThan(0);
     expect(await releaseAbandonedNativeOwners(db)).toBe(0);
     const rows = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, issueId));
@@ -377,7 +377,7 @@ describe("failed native run owner release", () => {
     const leaseOwner = `default:resume:${randomUUID()}`;
     const { runId, issueId } = await nativeRun({ status: "failed", errorCode: "adapter_failed",
       coordinator: { leaseOwner, leaseExpiresAt: new Date(0) } });
-    const [lease] = await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId: runId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId: runId,
       provider: "test", providerLeaseId: `lease-${runId}`, status: "active" }).returning();
     await expect(releaseAbandonedNativeOwners(db)).resolves.toBe(0);
     // An unreleased sandbox is outside this pass, so it is not polled for.
@@ -421,7 +421,7 @@ describe("failed native run owner release", () => {
     const leaseOwner = `default:resume:${randomUUID()}`;
     const { runId, issueId } = await nativeRun({ status: "failed", errorCode: "adapter_failed",
       coordinator: { leaseOwner, leaseExpiresAt: new Date(0) } });
-    const [lease] = await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId: runId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId: runId,
       provider: "test", providerLeaseId: `lease-${runId}`, status: "active" }).returning();
     // Blocked and unscheduled while the sandbox lease is unsettled.
     expect(await nextAbandonedNativeOwnerReleaseAt(db)).toBeNull();

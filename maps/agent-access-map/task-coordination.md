@@ -22,7 +22,7 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `POST /api/companies/{companyId}/issues`.
+- `POST /api/spaces/{spaceId}/issues`.
 
 Agent access: `available` — Native create_task/reassign_task; REST / CLI / MCP.
 
@@ -39,10 +39,10 @@ commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
-Gaps: Parent/child and provenance paths exist; same-company assignment does not remove
+Gaps: Parent/child and provenance paths exist; same-space assignment does not remove
 protected task/resource policy.
 
 ## `dependencies`
@@ -67,7 +67,7 @@ commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Dedicated set_dependencies is current-task scoped. Generic `call_api`
@@ -84,7 +84,7 @@ API: `present` — representative operation IDs:
 - `PATCH /api/issues/{id}`.
 - `POST /api/issues/{id}/interactions`.
 
-Agent access: `partial` — Native paperclip_finish/paperclip_block and assigned
+Agent access: `partial` — Native outpost_finish/outpost_block and assigned
 resolve_review; legacy agent REST disposition.
 
 Policy: Task visibility/mutation, task-assignment and ownership policy; review audience
@@ -96,7 +96,7 @@ commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Review policy determines final completion; formal board approval is a different
@@ -128,4 +128,4 @@ verify any listed agent request/result path separately. A delegated operation ne
 own policy and access review.
 
 Gaps: Even reads/state/preview require board. There is no agent tree-control path just
-from company/task permissions.
+from space/task permissions.

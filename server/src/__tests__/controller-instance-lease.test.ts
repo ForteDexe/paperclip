@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, controllerInstances, createDb, environmentLeases, heartbeatRuns, issues, nativeRunFinalizations, workspaceOperations } from "@outpost/db";
+import { agents, spaces, controllerInstances, createDb, environmentLeases, heartbeatRuns, issues, nativeRunFinalizations, workspaceOperations } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import {
   controllerInstanceLeaseEnabled, proveControllerInstance, registerControllerInstanceDb, registerControllerInstanceLeaseWork,
@@ -21,13 +21,13 @@ const suite = support.supported ? describe : describe.skip;
 suite("controller instance lease: a replaced container's records are provable", () => {
   let db!: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId = "";
+  let spaceId = "";
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-controller-instance-lease-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-controller-instance-lease-");
     db = createDb(temporary.connectionString);
-    companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "CIL", requireBoardApprovalForNewAgents: false });
+    spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "CIL", requireOperatorApprovalForNewAgents: false });
   }, 30_000);
 
   afterEach(async () => {
@@ -78,7 +78,7 @@ suite("controller instance lease: a replaced container's records are provable", 
     expect(row).toMatchObject({ fencedByEpoch: epoch });
 
     const leaseId = randomUUID();
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, heartbeatRunId: null, status: "active",
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, heartbeatRunId: null, status: "active",
       leasePolicy: "ephemeral", provider: "fake", providerLeaseId: `sandbox://fake/${leaseId}`, updatedAt: new Date(minutesAgo(10)),
       metadata: { [ENVIRONMENT_LEASE_CONTROLLER_KEY]: { bootId: another, pid: 7, hostHash: "old-container", processStartedAt: null } } });
     const first = await runOwnershipReconciliationPass(db, { state: createOwnershipReportState() });
@@ -150,7 +150,7 @@ suite("controller instance lease: a replaced container's records are provable", 
     const replaced = await otherBoot({ expiredMsAgo: 600_000 });
     await startHere();
     const leaseId = randomUUID();
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, heartbeatRunId: null, status: "active",
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, heartbeatRunId: null, status: "active",
       leasePolicy: "ephemeral", provider: "fake", providerLeaseId: `sandbox://fake/${leaseId}`, updatedAt: new Date(minutesAgo(15)),
       metadata: { [ENVIRONMENT_LEASE_CONTROLLER_KEY]: { bootId: replaced, pid: 7, hostHash: "old-container", processStartedAt: null } } });
     const report = await runOwnershipReconciliationPass(db, { state: createOwnershipReportState(), record: false });
@@ -165,10 +165,10 @@ suite("controller instance lease: a replaced container's records are provable", 
       vi.setSystemTime(Date.now() + 120_000);
       const holder = { token: "token-1", bootId: currentControllerBootId(), pid: process.pid, hostHash: currentProcessSpaceHash(), processStartedAt: null };
       const agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-      await db.insert(agents).values({ id: agentId, companyId, name: "Finalizer", adapterType: "codex_local", status: "idle" });
-      await db.insert(issues).values({ id: issueId, companyId, title: "Native task" });
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "succeeded", invocationSource: "on_demand", runtimeMode: "native", nativeIssueId: issueId, issueId });
-      await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed",
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Finalizer", adapterType: "codex_local", status: "idle" });
+      await db.insert(issues).values({ id: issueId, spaceId, title: "Native task" });
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "succeeded", invocationSource: "on_demand", runtimeMode: "native", nativeIssueId: issueId, issueId });
+      await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed",
         leaseOwner: "token-1", leaseHolder: holder, leaseExpiresAt: new Date(Date.now() + 300_000) });
       await db.update(controllerInstances).set({ leaseExpiresAt: sql`now()` });
       currentControllerProcessStamp(); vi.setSystemTime(Date.now() + 120_000);
@@ -192,7 +192,7 @@ suite("controller instance lease: a replaced container's records are provable", 
       vi.setSystemTime(Date.now() + 120_000);
       const invocation = randomUUID();
       const owner = { bootId: currentControllerBootId(), pid: process.pid, hostHash: currentProcessSpaceHash(), processStartedAt: null };
-      await db.insert(workspaceOperations).values({ companyId, phase: "remote_workspace_snapshot", status: "running",
+      await db.insert(workspaceOperations).values({ spaceId, phase: "remote_workspace_snapshot", status: "running",
         metadata: { boundary: "final", epoch: 1, saveWork: { schema: "outpost.remote-workspace-save-work.v1", activeIds: [invocation],
           unknown: false, quiescedAt: null, owners: { [invocation]: owner } } } });
       beginIdleTrackedWork()();
@@ -212,8 +212,8 @@ suite("controller instance lease: a replaced container's records are provable", 
       await startHere();
       vi.setSystemTime(Date.now() + 120_000);
       const agentId = randomUUID(), runId = randomUUID();
-      await db.insert(agents).values({ id: agentId, companyId, name: "Legacy", adapterType: "codex_local", status: "running" });
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", invocationSource: "on_demand",
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Legacy", adapterType: "codex_local", status: "running" });
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", invocationSource: "on_demand",
         runtimeMode: "legacy", controllerBootId: currentControllerBootId() });
       await db.update(controllerInstances).set({ leaseExpiresAt: sql`now()` });
       currentControllerProcessStamp(); vi.setSystemTime(Date.now() + 120_000);
@@ -252,7 +252,7 @@ suite("controller instance lease: a replaced container's records are provable", 
     now = 120_000;
     vi.setSystemTime(Date.now() + 120_000);
     const leaseId = randomUUID();
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, heartbeatRunId: null, status: "active", leasePolicy: "ephemeral",
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, heartbeatRunId: null, status: "active", leasePolicy: "ephemeral",
       metadata: { [ENVIRONMENT_LEASE_CONTROLLER_KEY]: { bootId: currentControllerBootId(), pid: process.pid, hostHash: currentProcessSpaceHash(), processStartedAt: null } } });
     await db.update(controllerInstances).set({ leaseExpiresAt: sql`now()` });
     await tickControllerInstanceLease();
@@ -312,7 +312,7 @@ suite("controller instance lease: a replaced container's records are provable", 
       vi.setSystemTime(Date.now() + 60_000);
       const leaseId = randomUUID();
       const claim = { bootId: currentControllerBootId(), pid: process.pid, hostHash: currentProcessSpaceHash(), processStartedAt: null };
-      await db.insert(environmentLeases).values({ id: leaseId, companyId, heartbeatRunId: null, status: "pending_cleanup", leasePolicy: "ephemeral",
+      await db.insert(environmentLeases).values({ id: leaseId, spaceId, heartbeatRunId: null, status: "pending_cleanup", leasePolicy: "ephemeral",
         metadata: { pendingCleanupController: claim, pendingCleanupInFlight: false } });
       await db.update(controllerInstances).set({ leaseExpiresAt: sql`now()` });
       // A stamp whose record no renewal saw holds the lease until the 10-minute cap.
@@ -350,8 +350,8 @@ suite("controller instance lease: a replaced container's records are provable", 
     try {
       await startHere();
       const agentId = randomUUID(), runId = randomUUID();
-      await db.insert(agents).values({ id: agentId, companyId, name: "Legacy", adapterType: "codex_local", status: "running" });
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", invocationSource: "on_demand",
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Legacy", adapterType: "codex_local", status: "running" });
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", invocationSource: "on_demand",
         runtimeMode: "legacy", controllerBootId: currentControllerBootId() });
       // A second stamp whose ownership write has not committed yet.
       currentControllerProcessStamp();
@@ -420,7 +420,7 @@ suite("controller instance lease: a replaced container's records are provable", 
       leaseExpiresAt: sql`now() - interval '3 minutes'`, epoch: 1 });
     await startHere();
     const leaseId = randomUUID();
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, heartbeatRunId: null, status: "active",
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, heartbeatRunId: null, status: "active",
       leasePolicy: "ephemeral", provider: "fake", providerLeaseId: `sandbox://fake/${leaseId}`, updatedAt: new Date(minutesAgo(5)),
       metadata: { [ENVIRONMENT_LEASE_CONTROLLER_KEY]: { bootId: "exited-boot", pid: 7, hostHash: "old-container", processStartedAt: null } } });
     const passes = [];

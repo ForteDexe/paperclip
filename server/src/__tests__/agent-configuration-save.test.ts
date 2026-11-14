@@ -6,7 +6,7 @@ import express from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { agents, agentConfigRevisions, activityLog, builtInManagedResources, companies, companyMemberships, connectionGrants, createDb, environments, toolConnections, toolConnectionInstalls } from "@outpost/db";
+import { agents, agentConfigRevisions, activityLog, builtInManagedResources, spaces, spaceMemberships, connectionGrants, createDb, environments, toolConnections, toolConnectionInstalls } from "@outpost/db";
 import { agentRoutes } from "../routes/agents.js";
 import { aiConnectionService } from "../services/ai-connections.js";
 import * as environmentTests from "../services/agent-environment-test.js";
@@ -33,23 +33,23 @@ describePostgres("agent configuration save latency", () => {
   const readAgent = async () => (await db.select().from(agents).where(eq(agents.id, agent.id)))[0];
 
   beforeAll(async () => {
-    home = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-config-save-")));
+    home = await realpath(await mkdtemp(path.join(os.tmpdir(), "outpost-config-save-")));
     vi.stubEnv("OUTPOST_HOME", home);
     vi.stubEnv("OUTPOST_INSTANCE_ID", "configuration-save-fixture");
-    database = await startEmbeddedPostgresTestDatabase("paperclip-config-save-db-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-config-save-db-");
     db = createDb(database.connectionString);
   }, 90_000);
 
   beforeEach(async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Configuration save", issuePrefix: `CS${++fixtureNumber}` });
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
-    [agent] = await db.insert(agents).values({ companyId, name: "Configuration agent", adapterType: "outpost_runner",
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Configuration save", issuePrefix: `CS${++fixtureNumber}` });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    [agent] = await db.insert(agents).values({ spaceId, name: "Configuration agent", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex", model: "gpt-5.6-sol" } }).returning();
-    account = await aiConnectionService(db).save(companyId, userId, {
+    account = await aiConnectionService(db).save(spaceId, userId, {
       provider: "openai", method: "api_key", ownership: "personal", name: "Saved account", apiKey: "fixture-save-key", agentIds: [agent.id], allAgents: false,
     }, "fixture-save-key");
-    await aiConnectionService(db).setDefault(companyId, userId, account.grantId);
+    await aiConnectionService(db).setDefault(spaceId, userId, account.grantId);
     allocate.mockReset().mockRejectedValue(new Error("A save must not allocate a remote computer"));
     probe.mockReset().mockResolvedValue({ adapterType: "outpost_runner", status: "pass", testedAt: new Date().toISOString(),
       checks: [{ code: "codex_hello_probe_passed", level: "info", message: "Fixture probe passed" }] });
@@ -59,7 +59,7 @@ describePostgres("agent configuration save latency", () => {
     }));
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("A save must not contact the provider"));
     app = express(); app.use(express.json());
-    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", userId, companyIds: [companyId] }; next(); });
+    app.use((req, _res, next) => { req.actor = { type: "operator", source: "local_implicit", userId, spaceIds: [spaceId] }; next(); });
     app.use("/api", agentRoutes(db));
     app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
       res.status(error.status ?? 500).json({ error: error.message });
@@ -116,12 +116,12 @@ describePostgres("agent configuration save latency", () => {
     expect(allocate).not.toHaveBeenCalled();
   });
 
-  it.each(["foreign", "same-company", "global"])("checks %s environment ownership without a runtime probe", async ownership => {
-    const [environment] = await db.insert(environments).values({ name: `Save target ${agent.companyId}`, driver: "sandbox", config: { provider: "daytona" } }).returning();
+  it.each(["foreign", "same-space", "global"])("checks %s environment ownership without a runtime probe", async ownership => {
+    const [environment] = await db.insert(environments).values({ name: `Save target ${agent.spaceId}`, driver: "sandbox", config: { provider: "daytona" } }).returning();
     if (ownership !== "global") {
-      const companyId = ownership === "foreign" ? randomUUID() : agent.companyId;
-      if (ownership === "foreign") await db.insert(companies).values({ id: companyId, name: "Foreign company", issuePrefix: `FC${++fixtureNumber}` });
-      await db.insert(builtInManagedResources).values({ companyId, bundleKey: "managed-environment", resourceKind: "environment",
+      const spaceId = ownership === "foreign" ? randomUUID() : agent.spaceId;
+      if (ownership === "foreign") await db.insert(spaces).values({ id: spaceId, name: "Foreign space", issuePrefix: `FC${++fixtureNumber}` });
+      await db.insert(builtInManagedResources).values({ spaceId, bundleKey: "managed-environment", resourceKind: "environment",
         resourceKey: "managed-sandbox", resourceId: environment.id, stockVersion: "1", stockHash: "fixture" });
     }
     const response = await request(app).patch(`/api/agents/${agent.id}`).send({ defaultEnvironmentId: environment.id, runtimeConfig: { aiConnection: binding } });
@@ -134,10 +134,10 @@ describePostgres("agent configuration save latency", () => {
   });
 
   it.each(["inherited", "existing-binding"])("rejects a foreign environment with %s settings", async mode => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Foreign company", issuePrefix: `FC${++fixtureNumber}` });
-    const [environment] = await db.insert(environments).values({ name: `Foreign target ${companyId}`, driver: "sandbox", config: { provider: "daytona" } }).returning();
-    await db.insert(builtInManagedResources).values({ companyId, bundleKey: "managed-environment", resourceKind: "environment",
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Foreign space", issuePrefix: `FC${++fixtureNumber}` });
+    const [environment] = await db.insert(environments).values({ name: `Foreign target ${spaceId}`, driver: "sandbox", config: { provider: "daytona" } }).returning();
+    await db.insert(builtInManagedResources).values({ spaceId, bundleKey: "managed-environment", resourceKind: "environment",
       resourceKey: "managed-sandbox", resourceId: environment.id, stockVersion: "1", stockHash: "fixture" });
     const settings = instanceSettingsService(db);
     const previousDefault = (await settings.get()).defaultEnvironmentId;

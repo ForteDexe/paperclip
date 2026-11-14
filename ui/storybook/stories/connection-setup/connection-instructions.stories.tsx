@@ -4,7 +4,7 @@ import { expect, userEvent, within, waitFor } from "storybook/test";
 import { useQueryClient } from "@tanstack/react-query";
 import { getConnectableAppDefinition } from "@outpost/shared";
 import { Route, Routes, useNavigate } from "@/lib/router";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { PluginLauncherProvider } from "@/plugins/launchers";
 import { Layout } from "@/components/Layout";
 import { AppDetail } from "@/pages/apps/AppDetail";
@@ -13,7 +13,7 @@ import { ConnectionSetupFlow } from "@/features/connections/ConnectionSetupFlow"
 import { AgentConnectionInstructions } from "@/features/connections/ConnectionInstructions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { GUIDANCE_COMPANY, GUIDANCE_CONNECTION, guidanceAgents, installConnectionGuidanceFixtures } from "../../fixtures/connectionInstructions";
+import { GUIDANCE_SPACE, GUIDANCE_CONNECTION, guidanceAgents, installConnectionGuidanceFixtures } from "../../fixtures/connectionInstructions";
 
 const HONCHO = getConnectableAppDefinition("honcho")!.agentInstructions!.text;
 const NOTION = "Use Notion as the source for our published product decisions. Look up the relevant decision before proposing a change, and link to the page you used. Ask before changing a published decision. If a page is unavailable, say which context is missing and continue with the information you have.";
@@ -24,7 +24,7 @@ type Props = { initialView?: "connect" | "connection" | "agent"; provider?: "Hon
 function ConnectionInstructionsPrototype({ initialView = "connection", provider = "Honcho", scenario = "normal", baseline = false, providedInstructions }: Props) {
   const client = useQueryClient();
   const navigate = useNavigate();
-  const { selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { selectedSpaceId, setSelectedSpaceId } = useSpace();
   const [ready, setReady] = useState(false);
   const initialized = useRef(false);
   const [previewOpen, setPreviewOpen] = useState(initialView === "agent");
@@ -37,16 +37,16 @@ function ConnectionInstructionsPrototype({ initialView = "connection", provider 
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
-    setSelectedCompanyId(GUIDANCE_COMPANY);
+    setSelectedSpaceId(GUIDANCE_SPACE);
     navigate(initialView === "connect"
       ? `/PAP/apps/connect?source=${provider.toLowerCase()}${scenario === "reconnect" ? `&reconnect=${GUIDANCE_CONNECTION}` : ""}`
       : connectionPath, { replace: true });
     setReady(true);
-  }, [provider, initialView, scenario, navigate, setSelectedCompanyId, connectionPath]);
-  if (!ready || selectedCompanyId !== GUIDANCE_COMPANY) return null;
+  }, [provider, initialView, scenario, navigate, setSelectedSpaceId, connectionPath]);
+  if (!ready || selectedSpaceId !== GUIDANCE_SPACE) return null;
   return <PluginLauncherProvider>
     <Routes>
-      <Route path="/:companyPrefix" element={<Layout />}>
+      <Route path="/:spacePrefix" element={<Layout />}>
         <Route path="apps" element={<Browse />} />
         <Route path="apps/connect" element={<ConnectionSetupFlow onComplete={() => navigate(connectionPath)} />} />
         <Route path="apps/:connectionId/:tab?" element={<><AppDetail /><Button variant="ghost" onClick={() => setPreviewOpen(true)}>Preview on Ada</Button></>} />
@@ -55,7 +55,7 @@ function ConnectionInstructionsPrototype({ initialView = "connection", provider 
     <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader><DialogTitle>Instructions for Ada</DialogTitle><DialogDescription>Instructions provided by assigned connections.</DialogDescription></DialogHeader>
-        <AgentConnectionInstructions companyId={GUIDANCE_COMPANY} agentId={guidanceAgents[0]!.id} />
+        <AgentConnectionInstructions spaceId={GUIDANCE_SPACE} agentId={guidanceAgents[0]!.id} />
       </DialogContent>
     </Dialog>
   </PluginLauncherProvider>;
@@ -67,7 +67,7 @@ const meta = {
   component: ConnectionInstructionsPrototype,
   args: { providedInstructions: HONCHO },
   parameters: { layout: "fullscreen", docs: { description: { component: "Production Layout, ConnectionSetupFlow, AppDetail, identity/access controls, and searchable Actions list with local API fixtures. The production instructions editor saves and reloads through mocked APIs. Baseline stories omit template metadata. No provider calls." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "connection-setup/credentials",
         "agents/instructions"

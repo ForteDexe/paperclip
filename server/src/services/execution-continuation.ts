@@ -29,16 +29,16 @@ const savedRecordOperations = new Set([
 ]);
 
 /** Project duplicate saved content, never the original execution receipt or user input. */
-function continuationApiResult(operationId: string, result: unknown, companyId: string): unknown {
+function continuationApiResult(operationId: string, result: unknown, spaceId: string): unknown {
   const response = object(result);
   const data = object(response.data);
   if (!savedRecordOperations.has(operationId) || response.operationId !== operationId
     || response.ok !== true || typeof response.status !== "number" || response.status < 200 || response.status >= 300
-    || data.companyId !== companyId || !z.string().uuid().safeParse(data.id).success) return result;
+    || data.spaceId !== spaceId || !z.string().uuid().safeParse(data.id).success) return result;
   const serialized = JSON.stringify(data);
   if (Buffer.byteLength(serialized) <= 4 * 1024) return result;
   const reference: Record<string, unknown> = {};
-  for (const key of ["id", "companyId", "issueId", "key", "latestRevisionId", "latestRevisionNumber",
+  for (const key of ["id", "spaceId", "issueId", "key", "latestRevisionId", "latestRevisionNumber",
     "identifier", "status", "statusVersion", "createdAt", "updatedAt"]) {
     const value = data[key];
     if (value === null || typeof value === "string" && value.length <= 256
@@ -111,7 +111,7 @@ export function deliveredContinuationCommentIds(context: unknown): {
   ids: Set<string>;
 } {
   const c = object(context);
-  const wake = object(c.paperclipWake);
+  const wake = object(c.outpostWake);
   const continuation = object(c.executionContinuation);
   const ids = new Set<string>();
   let known = false;
@@ -154,7 +154,7 @@ export function projectHumanInteractionResponse(row: {
 /** Also retain user direction delivered after the source run's initial wake. */
 export async function currentContinuationOrigins(
   db: Db,
-  companyId: string,
+  spaceId: string,
   issueId: string,
   context: unknown,
 ): Promise<string[]> {
@@ -164,7 +164,7 @@ export async function currentContinuationOrigins(
   // reject, rather than silently claiming complete context.
   const foreignComments = candidates.length
     ? await db.select({ id: issueComments.id }).from(issueComments).where(and(
-        eq(issueComments.companyId, companyId),
+        eq(issueComments.spaceId, spaceId),
         sql`${issueComments.issueId} != ${issueId}`,
         inArray(sql<string>`${issueComments.id}::text`, candidates),
       ))
@@ -175,7 +175,7 @@ export async function currentContinuationOrigins(
     .from(issueComments)
     .where(
       and(
-        eq(issueComments.companyId, companyId),
+        eq(issueComments.spaceId, spaceId),
         eq(issueComments.issueId, issueId),
         isNotNull(issueComments.authorUserId),
         isNull(issueComments.createdByRunId),
@@ -196,7 +196,7 @@ export async function currentContinuationOrigins(
 /** Re-read task scope at dispatch, including messages already delivered to an earlier provider session. */
 export async function buildExecutionContinuation(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   agentId: string;
   context: Record<string, unknown>;
@@ -207,17 +207,17 @@ export async function buildExecutionContinuation(input: {
   exposeLowTrustRaw: boolean;
   prospectiveTaskStatus?: "todo";
 }): Promise<ExecutionContinuationEnvelope> {
-  const { db, companyId, issueId } = input;
+  const { db, spaceId, issueId } = input;
   const [issue] = await db
     .select()
     .from(issues)
-    .where(and(eq(issues.companyId, companyId), eq(issues.id, issueId)));
+    .where(and(eq(issues.spaceId, spaceId), eq(issues.id, issueId)));
   if (
     !issue ||
     issue.assigneeAgentId !== input.agentId ||
     issue.status === "cancelled" ||
     (issue.status === "done" && input.prospectiveTaskStatus !== "todo" && !await isCompletedOnboardingHandoffWake(db, {
-      companyId, issueId, agentId: input.agentId,
+      spaceId, issueId, agentId: input.agentId,
       reason: string(input.context.wakeReason), contextSnapshot: input.context,
     }))
   )
@@ -227,7 +227,7 @@ export async function buildExecutionContinuation(input: {
     .from(issueComments)
     .where(
       and(
-        eq(issueComments.companyId, companyId),
+        eq(issueComments.spaceId, spaceId),
         eq(issueComments.issueId, issueId),
       ),
     )
@@ -237,7 +237,7 @@ export async function buildExecutionContinuation(input: {
     .from(issueThreadInteractions)
     .where(
       and(
-        eq(issueThreadInteractions.companyId, companyId),
+        eq(issueThreadInteractions.spaceId, spaceId),
         eq(issueThreadInteractions.issueId, issueId),
       ),
     )
@@ -261,7 +261,7 @@ export async function buildExecutionContinuation(input: {
   const loadRun = async (id: string) => (await db
     .select({ context: heartbeatRuns.contextSnapshot, result: heartbeatRuns.resultJson })
     .from(heartbeatRuns)
-    .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, id)))
+    .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, id)))
   )[0];
   const candidate = requestedSourceRunId ? await loadRun(requestedSourceRunId) : null;
   // An interaction producer is provenance. Explicit resume history must still
@@ -300,7 +300,7 @@ export async function buildExecutionContinuation(input: {
   // the existing fail-closed check below.
   const inheritedForeignComments = producerIssueId && producerIssueId !== issueId && inheritedOrigins.length
     ? await db.select({ id: issueComments.id }).from(issueComments).where(and(
-        eq(issueComments.companyId, companyId),
+        eq(issueComments.spaceId, spaceId),
         sql`${issueComments.issueId}::text = ${producerIssueId}`,
         inArray(sql<string>`${issueComments.id}::text`, inheritedOrigins),
       ))
@@ -344,7 +344,7 @@ export async function buildExecutionContinuation(input: {
           .from(heartbeatRuns)
           .where(
             and(
-              eq(heartbeatRuns.companyId, companyId),
+              eq(heartbeatRuns.spaceId, spaceId),
               eq(heartbeatRuns.agentId, input.agentId),
               eq(heartbeatRuns.id, input.previousContextRunId),
               sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' = ${issueId}`,
@@ -392,7 +392,7 @@ export async function buildExecutionContinuation(input: {
     .from(heartbeatRuns)
     .where(
       and(
-        eq(heartbeatRuns.companyId, companyId),
+        eq(heartbeatRuns.spaceId, spaceId),
         or(eq(heartbeatRuns.agentId, input.agentId),
           sourceRunId ? eq(heartbeatRuns.id, sourceRunId) : undefined),
         sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' = ${issueId}`,
@@ -410,14 +410,14 @@ export async function buildExecutionContinuation(input: {
                 runId: run.id,
                 receiptId,
                 operationId: value.operationId,
-                result: continuationApiResult(value.operationId, value.result, companyId),
+                result: continuationApiResult(value.operationId, value.result, spaceId),
               },
             ]
           : [];
       },
     ),
   );
-  completedActions.push(...await githubRecoveryReceipts(db, companyId, issueId));
+  completedActions.push(...await githubRecoveryReceipts(db, spaceId, issueId));
   const reconciliations = await db
     .select({
       id: issueRecoveryActions.id,
@@ -426,7 +426,7 @@ export async function buildExecutionContinuation(input: {
     .from(issueRecoveryActions)
     .where(
       and(
-        eq(issueRecoveryActions.companyId, companyId),
+        eq(issueRecoveryActions.spaceId, spaceId),
         eq(issueRecoveryActions.sourceIssueId, issueId),
         eq(issueRecoveryActions.status, "resolved"),
       ),
@@ -440,24 +440,24 @@ export async function buildExecutionContinuation(input: {
       ["failed", "timed_out", "interrupted", "cancelled"].includes(run.status));
     const failedRunId = string(explicitContinuation.failedRunId);
     const retryWakes = failedRunId ? await db.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.agentId, input.agentId),
+      eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.agentId, input.agentId),
       eq(agentWakeupRequests.reason, "retry_failed_run"), eq(agentWakeupRequests.requestedByActorType, "user"),
       sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
     )) : [];
-    // Admission records the board operator's authority separately from the
+    // Admission records the operator operator's authority separately from the
     // message author. At dispatch, prove that exact queue was adopted by this
     // run; caller-supplied continuation context cannot grant this authority.
     const queueIntentId = z.string().guid().safeParse(explicitContinuation.queuedCommentInterruptId);
     const nativeQueuedContinuation = predecessor?.runtimeMode === "native" && ["cancelled", "failed"].includes(predecessor.status);
     const [recordedQueue] = nativeQueuedContinuation && input.runId && queueIntentId.success ? await db.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.id, queueIntentId.data), eq(agentWakeupRequests.companyId, companyId),
+      eq(agentWakeupRequests.id, queueIntentId.data), eq(agentWakeupRequests.spaceId, spaceId),
       eq(agentWakeupRequests.agentId, input.agentId), eq(agentWakeupRequests.status, "coalesced"),
       eq(agentWakeupRequests.runId, input.runId), sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
     )) : [];
     const taskRetryId = string(explicitContinuation.taskRetryRequestId);
     const [taskRetryWake] = taskRetryId && z.string().guid().safeParse(taskRetryId).success
       ? await db.select().from(agentWakeupRequests).where(and(
-        eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.id, taskRetryId),
+        eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.id, taskRetryId),
         eq(agentWakeupRequests.agentId, input.agentId), eq(agentWakeupRequests.reason, "task_retry"),
         eq(agentWakeupRequests.requestedByActorType, "user"), eq(agentWakeupRequests.status, "coalesced"),
         sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
@@ -480,7 +480,7 @@ export async function buildExecutionContinuation(input: {
     const interruptQueues = interruptQueueIds.length
       ? await db.select().from(agentWakeupRequests).where(and(
         inArray(agentWakeupRequests.id, interruptQueueIds),
-        eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.agentId, input.agentId),
+        eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.agentId, input.agentId),
         eq(agentWakeupRequests.status, "coalesced"),
         sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
         sql`${agentWakeupRequests.payload}->'queuedCommentInterrupt' is not null`,
@@ -552,7 +552,7 @@ export async function buildExecutionContinuation(input: {
         decision: row.evidence.executionReconciliation,
       })),
     version: 1,
-    companyId,
+    spaceId,
     issueId,
     trigger: {
       reason: triggerReason,
@@ -575,8 +575,8 @@ export async function buildExecutionContinuation(input: {
         kind: row.kind,
         status: row.status,
         result: row.result,
-      })), ...await childReviewOutcomes(db, companyId, issueId, { type: "agent", agentId: input.agentId, companyId, onBehalfOfUserId: issue.responsibleUserId })],
-    // Low-trust evidence only: renderPaperclipWakePrompt removes completedWork
+      })), ...await childReviewOutcomes(db, spaceId, issueId, { type: "agent", agentId: input.agentId, spaceId, onBehalfOfUserId: issue.responsibleUserId })],
+    // Low-trust evidence only: renderOutpostWakePrompt removes completedWork
     // from requestContext and encodes it in the fenced, non-authoritative
     // continuation-evidence section. It cannot supply objective or authority.
     completedWork: input.summary ??

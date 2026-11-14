@@ -16,7 +16,7 @@ function buildContext(
     runId: "run-123",
     agent: {
       id: "agent-123",
-      companyId: "company-123",
+      spaceId: "space-123",
       name: "OpenClaw Gateway Agent",
       adapterType: "openclaw_gateway",
       adapterConfig: {},
@@ -422,24 +422,24 @@ describe("openclaw gateway adapter execute", () => {
               issueId: "issue-123",
               wakeReason: "issue_assigned",
               issueIds: ["issue-123"],
-              paperclipWorkspace: {
+              outpostWorkspace: {
                 cwd: "/tmp/worktrees/pap-123",
                 strategy: "git_worktree",
                 branchName: "pap-123-test",
               },
-              paperclipWorkspaces: [
+              outpostWorkspaces: [
                 {
                   id: "workspace-1",
                   cwd: "/tmp/project",
                 },
               ],
-              paperclipRuntimeServiceIntents: [
+              outpostRuntimeServiceIntents: [
                 {
                   name: "preview",
                   lifecycle: "ephemeral",
                 },
               ],
-              paperclipWake: {
+              outpostWake: {
                 reason: "issue_commented",
                 issue: {
                   id: "issue-123",
@@ -489,11 +489,11 @@ describe("openclaw gateway adapter execute", () => {
       const payload = gateway.getAgentPayload();
       expect(payload).toBeTruthy();
       expect(payload?.idempotencyKey).toBe("run-123");
-      expect(payload?.sessionKey).toBe("paperclip:issue:issue-123");
+      expect(payload?.sessionKey).toBe("outpost:issue:issue-123");
       expect(String(payload?.message ?? "")).toContain("wake now");
       expect(String(payload?.message ?? "")).toContain("OUTPOST_RUN_ID=run-123");
       expect(String(payload?.message ?? "")).toContain("OUTPOST_TASK_ID=task-123");
-      expect(String(payload?.message ?? "")).toContain("## Paperclip Wake Payload");
+      expect(String(payload?.message ?? "")).toContain("## Outpost Wake Payload");
       expect(String(payload?.message ?? "")).toContain(
         "Use this wake to continue the task, applying new user direction and preserving its approval gates.",
       );
@@ -502,7 +502,7 @@ describe("openclaw gateway adapter execute", () => {
       );
       expect(String(payload?.message ?? "")).toContain("First comment");
       expect(String(payload?.message ?? "")).toContain("\"commentIds\":[\"comment-1\",\"comment-2\"]");
-      expect(payload?.paperclip).toBeUndefined();
+      expect(payload?.outpost).toBeUndefined();
       expect(String(payload?.message ?? "")).toContain("\"latestCommentId\":\"comment-2\"");
 
       expect(logs.some((entry) => entry.includes("[openclaw-gateway:event] run=run-123 stream=assistant"))).toBe(true);
@@ -663,7 +663,7 @@ describe("openclaw gateway ui build config", () => {
 describe("openclaw gateway testEnvironment", () => {
   it("reports missing url as failure", async () => {
     const result = await testEnvironment({
-      companyId: "company-123",
+      spaceId: "space-123",
       adapterType: "openclaw_gateway",
       config: {},
     });

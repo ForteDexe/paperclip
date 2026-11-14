@@ -45,16 +45,16 @@ const verified = () => ({ schema: "outpost.kimi.metadata.v1", status: "verified"
 const response = (value: unknown = verified(), exitCode = 0) => ({ stdout: JSON.stringify(value), stderr: "", exitCode, signal: null, timedOut: false });
 const failed = (code: string) => ({ schema: "outpost.kimi.metadata.v1", status: "failed", code, message: apiKey, promptSent: false });
 
-const companyId = "candidate-company";
+const spaceId = "candidate-space";
 const pending = QUALIFIED_ACPX_PROFILES.kimi.qualificationStatus === "pending";
 function probeKimiExecutionTarget(apiKey: string, target: AdapterExecutionTarget | null | undefined, model: string) {
   const platform = target?.kind === "remote" ? "linux" : process.platform;
   const architecture = target?.kind === "remote" ? "x64" : process.arch;
   vi.stubEnv("OUTPOST_ACPX_CANDIDATE_ADMISSION", JSON.stringify({ schema: "outpost.acpx-candidate-admission.v1",
-    companyId, agent: "kimi", model, profileDigest: QUALIFIED_ACPX_PROFILES.kimi.commandDigest,
+    spaceId, agent: "kimi", model, profileDigest: QUALIFIED_ACPX_PROFILES.kimi.commandDigest,
     platform, architecture, expiresAt: Date.now() + 60_000,
     nativeClosureDigest: `sha256:${KIMI_DISTRIBUTION_CLOSURE_SHA256[`${platform}-${architecture}` as "darwin-arm64" | "linux-x64"]}` }));
-  return rawProbeKimiExecutionTarget(apiKey, target, model, { companyId });
+  return rawProbeKimiExecutionTarget(apiKey, target, model, { spaceId });
 }
 
 beforeEach(() => {
@@ -100,7 +100,7 @@ describe("Kimi setup on a selected execution target", () => {
       expect(options.env).toBeUndefined();
       const input = JSON.parse(options.stdin);
       expect(input).toMatchObject({ apiKey, model });
-      if (pending) expect(input.candidateAdmission).toMatchObject({ companyId, agent: "kimi", model, platform: "linux", architecture: "x64", runId: expect.stringMatching(/^kimi-metadata-/), normalizedSessionId: expect.stringMatching(/^metadata-/) });
+      if (pending) expect(input.candidateAdmission).toMatchObject({ spaceId, agent: "kimi", model, platform: "linux", architecture: "x64", runId: expect.stringMatching(/^kimi-metadata-/), normalizedSessionId: expect.stringMatching(/^metadata-/) });
       else expect(input).not.toHaveProperty("candidateAdmission");
       expect(options.timeoutMs).toBeGreaterThan(0);
       expect(options.timeoutMs).toBeLessThanOrEqual(32000);
@@ -117,7 +117,7 @@ describe("Kimi setup on a selected execution target", () => {
       await expect(probeKimiExecutionTarget(apiKey, target, model)).resolves.toEqual(verified());
     }
     expect(mocks.local).toHaveBeenCalledTimes(3);
-    if (pending) expect(mocks.local).toHaveBeenCalledWith(model, apiKey, expect.objectContaining({ companyId, agent: "kimi", model, platform: process.platform, architecture: process.arch, runId: expect.stringMatching(/^kimi-metadata-/), normalizedSessionId: expect.stringMatching(/^metadata-/) }));
+    if (pending) expect(mocks.local).toHaveBeenCalledWith(model, apiKey, expect.objectContaining({ spaceId, agent: "kimi", model, platform: process.platform, architecture: process.arch, runId: expect.stringMatching(/^kimi-metadata-/), normalizedSessionId: expect.stringMatching(/^metadata-/) }));
     else expect(mocks.local).toHaveBeenCalledWith(model, apiKey, undefined);
     expect(mocks.command).not.toHaveBeenCalled();
     expect(mocks.digest).not.toHaveBeenCalled();
@@ -157,7 +157,7 @@ describe("remote Kimi installation fallback and failure admission", () => {
     // and complete selected Linux pack require the newer bytes.
     const imageHelper = "9e87ba56ce4663aa36f310a7eb6224bebb7d838be479c1741c3393577f2953c7";
     const selectedHelper = "22bf5125adbda95208d26762d4889de2b365a351b403ac92863f8f838f6d36fc";
-    const installedRoot = "/workspace/.paperclip-runtime/outpost-runner/provider-pack";
+    const installedRoot = "/workspace/.outpost-runtime/outpost-runner/provider-pack";
     const runner = { execute: vi.fn() };
     const selected = { configuredRoot: "/controller/complete-linux-pack",
       manifest: { payload: { target: { platform: "linux", architecture: "x64" } } } };
@@ -205,11 +205,11 @@ describe("remote Kimi installation fallback and failure admission", () => {
   it("uses the current qualification policy before selected-pack preparation", async () => {
     vi.stubEnv("OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH", "/controller/selected-pack");
     vi.stubEnv("OUTPOST_ACPX_CANDIDATE_ADMISSION", JSON.stringify({ schema: "outpost.acpx-candidate-admission.v1",
-      companyId: "other-company", agent: "kimi", model, profileDigest: QUALIFIED_ACPX_PROFILES.kimi.commandDigest,
+      spaceId: "other-space", agent: "kimi", model, profileDigest: QUALIFIED_ACPX_PROFILES.kimi.commandDigest,
       platform: "linux", architecture: "x64", expiresAt: Date.now() + 60_000,
       nativeClosureDigest: `sha256:${KIMI_DISTRIBUTION_CLOSURE_SHA256["linux-x64"]}` }));
     if (pending) {
-      await expect(rawProbeKimiExecutionTarget(apiKey, remote, model, { companyId }))
+      await expect(rawProbeKimiExecutionTarget(apiKey, remote, model, { spaceId }))
         .rejects.toMatchObject({ details: { code: "KIMI_QUALIFICATION_REQUIRED" } });
       expect(mocks.select).not.toHaveBeenCalled();
       expect(mocks.prepare).not.toHaveBeenCalled();
@@ -219,8 +219,8 @@ describe("remote Kimi installation fallback and failure admission", () => {
       const selected = { configuredRoot: "/controller/selected-pack",
         manifest: { payload: { target: { platform: "linux", architecture: "x64" } } } };
       mocks.select.mockReturnValue(selected);
-      mocks.prepare.mockResolvedValue({ root: "/workspace/.paperclip-runtime/outpost-runner/provider-pack", manifest: selected.manifest, source: "uploaded" });
-      await expect(rawProbeKimiExecutionTarget(apiKey, { ...remote, runner } as AdapterExecutionTarget, model, { companyId })).resolves.toEqual(verified());
+      mocks.prepare.mockResolvedValue({ root: "/workspace/.outpost-runtime/outpost-runner/provider-pack", manifest: selected.manifest, source: "uploaded" });
+      await expect(rawProbeKimiExecutionTarget(apiKey, { ...remote, runner } as AdapterExecutionTarget, model, { spaceId })).resolves.toEqual(verified());
       expect(mocks.prepare).toHaveBeenCalledOnce();
       expect(mocks.command.mock.calls[0]![3].env).not.toHaveProperty("OUTPOST_ACPX_CANDIDATE_ADMISSION");
     }
@@ -322,7 +322,7 @@ it("keeps the selected SSH key out of actual ssh argv and delivers it only over 
   expect(mocks.wire[0]!.stdin).toBe(true);
   const input = JSON.parse(result.stdout);
   expect(input).toMatchObject({ apiKey: wireApiKey, model: wireModel });
-  if (pending) expect(input.candidateAdmission).toMatchObject({ companyId, model: wireModel, platform: "linux", architecture: "x64" });
+  if (pending) expect(input.candidateAdmission).toMatchObject({ spaceId, model: wireModel, platform: "linux", architecture: "x64" });
   else expect(input).not.toHaveProperty("candidateAdmission");
 });
 
@@ -367,7 +367,7 @@ it("preserves SSH installation fallback and typed rejection while stripping tran
 it("uses trusted authority only for a pending metadata Test and ordinary no-grant execution after release", async () => {
   if (!pending) {
     vi.stubEnv("OUTPOST_ACPX_CANDIDATE_ADMISSION", "unrelated-invalid-authority");
-    for (const context of [{}, { companyId }, { companyId, candidateAdmission: { allowAll: true } }]) {
+    for (const context of [{}, { spaceId }, { spaceId, candidateAdmission: { allowAll: true } }]) {
       await expect(rawProbeKimiExecutionTarget(apiKey, remote, model, context)).resolves.toEqual(verified());
     }
     expect(mocks.command).toHaveBeenCalledTimes(3);
@@ -378,19 +378,19 @@ it("uses trusted authority only for a pending metadata Test and ordinary no-gran
   } else {
   vi.stubEnv("OUTPOST_ACPX_CANDIDATE_ADMISSION", undefined);
   vi.stubEnv("OUTPOST_RUNNER_ACPX_QUALIFICATION", JSON.stringify([{ agent: "kimi", model }]));
-  for (const context of [{}, { companyId }, { companyId, candidateAdmission: { allowAll: true } }]) {
+  for (const context of [{}, { spaceId }, { spaceId, candidateAdmission: { allowAll: true } }]) {
     await expect(rawProbeKimiExecutionTarget(apiKey, remote, model, context)).rejects.toMatchObject({ details: { code: "KIMI_QUALIFICATION_REQUIRED" } });
   }
   expect(mocks.local).not.toHaveBeenCalled(); expect(mocks.digest).not.toHaveBeenCalled();
   expect(mocks.command).not.toHaveBeenCalled(); expect(mocks.ssh).not.toHaveBeenCalled();
   await probeKimiExecutionTarget(apiKey, remote, model);
   mocks.command.mockClear(); mocks.digest.mockClear();
-  for (const context of [{ companyId: "foreign" }, {}]) {
+  for (const context of [{ spaceId: "foreign" }, {}]) {
     await expect(rawProbeKimiExecutionTarget(apiKey, remote, model, context)).rejects.toMatchObject({ details: { code: "KIMI_QUALIFICATION_REQUIRED" } });
   }
   const grant = JSON.parse(process.env.OUTPOST_ACPX_CANDIDATE_ADMISSION!);
   vi.stubEnv("OUTPOST_ACPX_CANDIDATE_ADMISSION", JSON.stringify({ ...grant, expiresAt: 0 }));
-  await expect(rawProbeKimiExecutionTarget(apiKey, remote, model, { companyId })).rejects.toMatchObject({ details: { code: "KIMI_QUALIFICATION_REQUIRED" } });
+  await expect(rawProbeKimiExecutionTarget(apiKey, remote, model, { spaceId })).rejects.toMatchObject({ details: { code: "KIMI_QUALIFICATION_REQUIRED" } });
   expect(mocks.command).not.toHaveBeenCalled(); expect(mocks.digest).not.toHaveBeenCalled();
   }
 });
@@ -408,8 +408,8 @@ it("omits candidate authority entirely for released metadata Test, including the
     vi.stubEnv("OUTPOST_ACPX_CANDIDATE_ADMISSION", undefined);
     const { probeKimiExecutionTarget } = await import("../services/kimi-connection-probe.js");
     const { resolveKimiCandidateAdmission } = await import("../services/native-runtime/acpx-qualification.js");
-    expect(resolveKimiCandidateAdmission({ companyId, model }, { OUTPOST_ACPX_CANDIDATE_ADMISSION: "stale-invalid-candidate" })).toBeUndefined();
-    await probeKimiExecutionTarget(apiKey, remote, model, { companyId });
+    expect(resolveKimiCandidateAdmission({ spaceId, model }, { OUTPOST_ACPX_CANDIDATE_ADMISSION: "stale-invalid-candidate" })).toBeUndefined();
+    await probeKimiExecutionTarget(apiKey, remote, model, { spaceId });
     const command = mocks.command.mock.calls[0]![2] as string;
     const options = mocks.command.mock.calls[0]![3];
     expect(command).not.toContain("OUTPOST_ACPX_CANDIDATE_ADMISSION");

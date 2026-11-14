@@ -4,9 +4,9 @@ import type { createDeliveryWorkCoordinator } from "./delivery-work-coordinator.
 import { DELIVERY_QUEUES } from "./delivery-work-notifications.js";
 import { registerScopedDeadlineWork } from "./scoped-deadline-work.js";
 import { importTransferSpoolDeadline, isImportTransferRunId, listImportTransferSpools,
-  onImportTransferSpoolChange, readImportTransferSpool, settleImportTransferSpool } from "./company-import-transfers.js";
+  onImportTransferSpoolChange, readImportTransferSpool, settleImportTransferSpool } from "./space-import-transfers.js";
 
-type Entry = { id: string; companyId: string; dueAt: number };
+type Entry = { id: string; spaceId: string; dueAt: number };
 
 export function registerImportSpoolCleanupWork(db: Db, coordinator: ReturnType<typeof createDeliveryWorkCoordinator>,
   spoolRoot: string, canRun: () => boolean) {
@@ -17,7 +17,7 @@ export function registerImportSpoolCleanupWork(db: Db, coordinator: ReturnType<t
     const dueAt = importTransferSpoolDeadline(spool);
 
 
-    return dueAt === null ? null : { id, companyId: spool.run?.companyId ?? "import-spools-without-company", dueAt };
+    return dueAt === null ? null : { id, spaceId: spool.run?.spaceId ?? "import-spools-without-space", dueAt };
   }
   const worker = registerScopedDeadlineWork(coordinator, {
     queue: DELIVERY_QUEUES.importSpoolCleanup,
@@ -38,7 +38,7 @@ export function registerImportSpoolCleanupWork(db: Db, coordinator: ReturnType<t
 
 
 
-          entries.push({ id, companyId: "import-spools-without-company", dueAt: Date.now() });
+          entries.push({ id, spaceId: "import-spools-without-space", dueAt: Date.now() });
         }
       }
       return entries;

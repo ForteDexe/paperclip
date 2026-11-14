@@ -28,19 +28,19 @@ that entry point, never a file inside `domain/`, `application/`, or
 `adapters/` directly.
 
 `pnpm check:module-boundaries` enforces these rules for production source
-files. It also checks access to the company deletion entry point below.
+files. It also checks access to the space deletion entry point below.
 
-## Company deletion
+## Space deletion
 
-The existing company deletion service owns the database transaction and deletion
-order. A module can expose a separate `company-deletion.ts` entry point.
-Only `services/company-deletion.ts` can import this entry point.
-The entry point exports an implementation of `CompanyDeletionParticipant` from
-`lib/company-deletion.ts`. Do not export it through the normal module index.
+The existing space deletion service owns the database transaction and deletion
+order. A module can expose a separate `space-deletion.ts` entry point.
+Only `services/space-deletion.ts` can import this entry point.
+The entry point exports an implementation of `SpaceDeletionParticipant` from
+`lib/space-deletion.ts`. Do not export it through the normal module index.
 
 The service must complete external cleanup before it starts the transaction.
-It must lock the company before it deletes dependent records or calls a module.
-Creation commands must use the same company lock.
+It must lock the space before it deletes dependent records or calls a module.
+Creation commands must use the same space lock.
 The service removes dependent records before it calls the module.
 The module checks its deletion conditions and deletes the records it owns.
 Use the supplied transaction. Do not start another transaction or call external
@@ -60,7 +60,7 @@ pause, resume, and termination. Use its commands for these changes.
 The execution admission module owns project task-execution policy and the
 durable admission records that charge project capacity. Today it exposes only
 internal policy commands and the deletion guards that project, agent, and
-company deletion call. Settlement releases active charges but keeps each
+space deletion call. Settlement releases active charges but keeps each
 admission's complete project set for later retained-session resolution.
 Execution claims still belong to `services/heartbeat/queue.ts` and native
 review dispatch. See [execution admission accounting](../../../doc/DATABASE.md#execution-admission-accounting).

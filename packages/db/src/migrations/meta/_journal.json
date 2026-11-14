@@ -160,7 +160,7 @@
       "idx": 22,
       "version": "7",
       "when": 1772186400000,
-      "tag": "0022_company_brand_color",
+      "tag": "0022_space_brand_color",
       "breakpoints": true
     },
     {
@@ -503,7 +503,7 @@
       "idx": 71,
       "version": "7",
       "when": 1777131234000,
-      "tag": "0071_default_hire_approval_off",
+      "tag": "0071_default_create_approval_off",
       "breakpoints": true
     },
     {
@@ -559,14 +559,14 @@
       "idx": 79,
       "version": "7",
       "when": 1777821410992,
-      "tag": "0079_company_search_document_indexes",
+      "tag": "0079_space_search_document_indexes",
       "breakpoints": true
     },
     {
       "idx": 80,
       "version": "7",
       "when": 1777849000000,
-      "tag": "0080_company_search_fuzzystrmatch",
+      "tag": "0080_space_search_fuzzystrmatch",
       "breakpoints": true
     },
     {
@@ -587,7 +587,7 @@
       "idx": 83,
       "version": "7",
       "when": 1778074536410,
-      "tag": "0083_company_secret_provider_configs",
+      "tag": "0083_space_secret_provider_configs",
       "breakpoints": true
     },
     {
@@ -664,7 +664,7 @@
       "idx": 94,
       "version": "7",
       "when": 1780533900000,
-      "tag": "0094_backfill_archived_company_agent_pauses",
+      "tag": "0094_backfill_archived_space_agent_pauses",
       "breakpoints": true
     },
     {
@@ -713,7 +713,7 @@
       "idx": 101,
       "version": "7",
       "when": 1781490000000,
-      "tag": "0101_plugin_company_id_tenant_isolation",
+      "tag": "0101_plugin_space_id_tenant_isolation",
       "breakpoints": true
     },
     {
@@ -776,7 +776,7 @@
       "idx": 110,
       "version": "7",
       "when": 1781902400000,
-      "tag": "0110_document_company_cascade",
+      "tag": "0110_document_space_cascade",
       "breakpoints": true
     },
     {
@@ -979,14 +979,14 @@
       "idx": 141,
       "version": "7",
       "when": 1783555301000,
-      "tag": "0141_heartbeat_runs_company_created_at_index",
+      "tag": "0141_heartbeat_runs_space_created_at_index",
       "breakpoints": true
     },
     {
       "idx": 142,
       "version": "7",
       "when": 1783555301100,
-      "tag": "0142_company_search_sort_indexes",
+      "tag": "0142_space_search_sort_indexes",
       "breakpoints": true
     },
     {
@@ -1119,7 +1119,7 @@
       "idx": 161,
       "version": "7",
       "when": 1783953528660,
-      "tag": "0161_environment_custom_image_company_scope_repair",
+      "tag": "0161_environment_custom_image_space_scope_repair",
       "breakpoints": true
     },
     {
@@ -1140,7 +1140,7 @@
       "idx": 164,
       "version": "7",
       "when": 1783953531660,
-      "tag": "0164_plugin_config_company_scope",
+      "tag": "0164_plugin_config_space_scope",
       "breakpoints": true
     },
     {
@@ -1182,7 +1182,7 @@
       "idx": 170,
       "version": "7",
       "when": 1784037600000,
-      "tag": "0170_company_skill_policies",
+      "tag": "0170_space_skill_policies",
       "breakpoints": true
     },
     {
@@ -1350,7 +1350,7 @@
       "idx": 194,
       "version": "7",
       "when": 1784920485226,
-      "tag": "0194_company_skill_releases",
+      "tag": "0194_space_skill_releases",
       "breakpoints": true
     },
     {
@@ -1413,7 +1413,7 @@
       "idx": 203,
       "version": "7",
       "when": 1785702264748,
-      "tag": "0203_interaction_resolver_governance",
+      "tag": "0203_interaction_resolver_policy",
       "breakpoints": true
     },
     {
@@ -1504,7 +1504,7 @@
       "idx": 216,
       "version": "7",
       "when": 1786467952628,
-      "tag": "0216_company_onboarding_seeds",
+      "tag": "0216_space_onboarding_seeds",
       "breakpoints": true
     },
     {
@@ -1595,7 +1595,7 @@
       "idx": 229,
       "version": "7",
       "when": 1787854369379,
-      "tag": "0229_drop_company_brand_color_and_attachment_max_bytes",
+      "tag": "0229_drop_space_brand_color_and_attachment_max_bytes",
       "breakpoints": true
     },
     {
@@ -2673,7 +2673,7 @@
       "idx": 383,
       "version": "7",
       "when": 1793060791727,
-      "tag": "0383_tool_review_company_expiry",
+      "tag": "0383_tool_review_space_expiry",
       "breakpoints": true
     },
     {

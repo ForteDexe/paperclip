@@ -41,7 +41,7 @@ def stop_process(process):
    if stream:stream.close()
 
 with contextlib.ExitStack() as cleanup:
- root=pathlib.Path(tempfile.mkdtemp(prefix='paperclip-copilot-offline-'))
+ root=pathlib.Path(tempfile.mkdtemp(prefix='outpost-copilot-offline-'))
  cleanup.callback(shutil.rmtree, root)
  calls=0
  total_model_calls=0
@@ -128,7 +128,7 @@ with contextlib.ExitStack() as cleanup:
   if n not in responses:raise TimeoutError(method)
   return responses[n]
  try:
-  initialize_params={'protocolVersion':1,'clientCapabilities':{'_meta':{'github.com/copilot':{'events':['session.idle','session.plan_changed','session.background_tasks_changed','session.completion_receipt','user_input.requested','exit_plan_mode.requested','assistant.usage']}}},'clientInfo':{'name':'paperclip-offline-fixture','version':'1'}}
+  initialize_params={'protocolVersion':1,'clientCapabilities':{'_meta':{'github.com/copilot':{'events':['session.idle','session.plan_changed','session.background_tasks_changed','session.completion_receipt','user_input.requested','exit_plan_mode.requested','assistant.usage']}}},'clientInfo':{'name':'outpost-offline-fixture','version':'1'}}
   request('initialize',initialize_params)
   session=request('session/new',{'cwd':str(root),'mcpServers':[]})
   if 'result' in session:

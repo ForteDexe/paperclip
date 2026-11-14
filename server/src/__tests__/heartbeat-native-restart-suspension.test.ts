@@ -17,7 +17,7 @@ import type { NativeRunIdentity, NativeSession, PrpEvent } from "@outpost/outpos
 import { randomUUID } from "node:crypto";
 import * as controllerProcess from "../services/controller-process-identity.js";
 import { and, eq, sql } from "drizzle-orm";
-import { activityLog, agents, createDb, agentWakeupRequests, authUsers, budgetReservations, companyMemberships, completionContracts, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations } from "@outpost/db";
+import { activityLog, agents, createDb, agentWakeupRequests, authUsers, budgetReservations, spaceMemberships, completionContracts, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations } from "@outpost/db";
 import { describe, expect, it, vi } from "vitest";
 import { subscribeDatabaseWork } from "@outpost/db/work-signals";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
@@ -26,7 +26,7 @@ import { heartbeatService } from "../services/heartbeat.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { claimNativeRestartRecoveries, classifyNativeRunnerRecoveryEvidence, currentNativeControllerIdentity } from "../services/native-runtime/native-restart-recovery.js";
 import type { NativeSessionBackend } from "@outpost/outpost-runner";
-import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "../services/native-runtime/outpost-control-plane-port.js";
 import { CONTROL_PLANE_CONFORMANCE_OPEN, CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/outpost-runner/testing.js";
 import { describeEmbeddedPostgres, nativeRestartFixture } from "./helpers/native-restart.js";
 import { currentControllerBootId, currentProcessSpaceHash } from "../services/controller-process-identity.js";
@@ -68,7 +68,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
     const db = createDb(fixture.current.temporary.connectionString, { maxConnections: 4 });
     const [template] = await db.select().from(agents).where(eq(agents.id, fixture.current.agentId));
     const agentId = randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId: template.companyId,
+    await db.insert(agents).values({ id: agentId, spaceId: template.spaceId,
       name: "Isolated useful recovery execution", role: template.role, status: "active",
       adapterType: template.adapterType, adapterConfig: template.adapterConfig,
       runtimeConfig: template.runtimeConfig, permissions: template.permissions });
@@ -82,7 +82,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
     const userId = randomUUID();
     await f.db.insert(authUsers).values({ id: userId, name: "Operator", email: `${userId}@example.invalid`,
       createdAt: new Date(), updatedAt: new Date() });
-    await f.db.insert(companyMemberships).values({ companyId: fixture.current.companyId, principalType: "user",
+    await f.db.insert(spaceMemberships).values({ spaceId: fixture.current.spaceId, principalType: "user",
       principalId: userId, membershipRole: "owner" });
     await f.db.update(heartbeatRuns).set({ responsibleUserId: userId, completionContractId: null,
       completionContractSha256: null }).where(eq(heartbeatRuns.id, f.runId));
@@ -459,9 +459,9 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
       controllerGeneration: 1,
     }).where(eq(nativeRunFinalizations.runId, f.runId));
     const [prepared] = await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-    const identity = { companyId: fixture.current.companyId, issueId: f.issueId, runId: f.runId,
+    const identity = { spaceId: fixture.current.spaceId, issueId: f.issueId, runId: f.runId,
       agentId: fixture.current.agentId, sessionId: prepared.nativeSessionId! };
-    const port = new PaperclipControlPlanePort(f.db, {
+    const port = new OutpostControlPlanePort(f.db, {
       ...identity,
       completionContractId: prepared.completionContractId!,
       completionContractSha256: prepared.completionContractSha256!,
@@ -479,7 +479,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
       callerResultId: `${label}-result`,
     });
     // The detached controller had begun local workspace finalization.
-    await f.db.insert(workspaceOperations).values({ companyId: fixture.current.companyId, issueId: f.issueId,
+    await f.db.insert(workspaceOperations).values({ spaceId: fixture.current.spaceId, issueId: f.issueId,
       heartbeatRunId: f.runId, phase: "workspace_finalize", status: "running", cwd: fixture.current.runtimeRoot });
     const [accepted] = await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
     expect(accepted).toMatchObject({ phase: "workspace_finalizing", resultId: expect.any(String) });
@@ -832,8 +832,8 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
       const [action] = await f.db.select().from(issueRecoveryActions).where(and(
         eq(issueRecoveryActions.sourceIssueId, f.issueId), eq(issueRecoveryActions.status, "active")));
       expect(action.cause).toBe("native_controller_host_unverified");
-      await expect(confirmNativeControllerStopped({ db: f.db, companyId: fixture.current.companyId,
-        issueId: f.issueId, runId: f.runId, actionId: action.id, actorId: "board-user",
+      await expect(confirmNativeControllerStopped({ db: f.db, spaceId: fixture.current.spaceId,
+        issueId: f.issueId, runId: f.runId, actionId: action.id, actorId: "operator-user",
         stopEvidence: "The original controller stopped; provider effects have not been contained." }))
         .resolves.toEqual({ runId: f.runId, status: "queued" });
       const probe = observeOwnerPid(), onClaim = vi.fn();
@@ -909,19 +909,19 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
       await f.db.update(issues).set({ responsibleUserId: source.responsibleUserId }).where(eq(issues.id, f.issueId));
       await claimNativeRestartRecoveries({ db: f.db, restartKind: "hard", runIds: [f.runId] });
       const [action] = await f.db.select().from(issueRecoveryActions).where(and(
-        eq(issueRecoveryActions.companyId, fixture.current.companyId), eq(issueRecoveryActions.sourceIssueId, f.issueId),
+        eq(issueRecoveryActions.spaceId, fixture.current.spaceId), eq(issueRecoveryActions.sourceIssueId, f.issueId),
         eq(issueRecoveryActions.status, "active")));
       const authority = action?.evidence.controllerAuthority;
       if (!authority || typeof authority !== "object" || Array.isArray(authority)
         || !("digest" in authority) || typeof authority.digest !== "string") throw new Error("Expected exact server-owned controller authority");
       return { ...f, action, digest: authority.digest, userId: source.responsibleUserId };
     }
-    function boardRoutes(f: Pick<Awaited<ReturnType<typeof namespaceHold>>, "db" | "userId">, actor?: Express.Request["actor"]) {
+    function operatorRoutes(f: Pick<Awaited<ReturnType<typeof namespaceHold>>, "db" | "userId">, actor?: Express.Request["actor"]) {
       const app = express();
       app.use(express.json());
       app.use((req, _res, next) => {
-        req.actor = actor ?? { type: "board", userId: f.userId, source: "session", companyIds: [fixture.current.companyId],
-          memberships: [{ companyId: fixture.current.companyId, membershipRole: "owner", status: "active" }] };
+        req.actor = actor ?? { type: "operator", userId: f.userId, source: "session", spaceIds: [fixture.current.spaceId],
+          memberships: [{ spaceId: fixture.current.spaceId, membershipRole: "owner", status: "active" }] };
         next();
       });
       app.use("/api", issueRoutes(f.db, createStorageService(createLocalDiskStorageProvider(fixture.current.runtimeRoot))));
@@ -966,8 +966,8 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
 
     it("does not overwrite an unrelated active recovery identity with namespace attention", async () => {
       const f = await seedClaim("CLAIM-OTHER-ATTENTION", "expired", "foreign-process-space");
-      const [prior] = await f.db.insert(issueRecoveryActions).values({ companyId: fixture.current.companyId,
-        sourceIssueId: f.issueId, kind: "active_run_watchdog", ownerType: "board", cause: "uncertain_external_action",
+      const [prior] = await f.db.insert(issueRecoveryActions).values({ spaceId: fixture.current.spaceId,
+        sourceIssueId: f.issueId, kind: "active_run_watchdog", ownerType: "operator", cause: "uncertain_external_action",
         fingerprint: `other:${f.runId}`, evidence: { runId: f.runId, originalEvidence: "keep this exact incident" },
         nextAction: "Review this independent external action first.", attemptCount: 2, maxAttempts: 3 }).returning();
       await claimNativeRestartRecoveries({ db: f.db, restartKind: "hard", runIds: [f.runId] });
@@ -978,7 +978,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
       const f = await namespaceHold("CLAIM-CONTAINMENT-MICROSECOND-CAS");
       await f.db.update(nativeRunFinalizations).set({ leaseExpiresAt: sql`${nativeRunFinalizations.leaseExpiresAt} + interval '1 microsecond'` })
         .where(eq(nativeRunFinalizations.runId, f.runId));
-      const response = await request(boardRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(confirmation(f));
+      const response = await request(operatorRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(confirmation(f));
       expect(response.status, JSON.stringify(response.body)).toBe(409);
       expect(response.body.details?.code).toBe("native_controller_containment_stale");
       expect((await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0].status).toBe("running");
@@ -994,7 +994,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
         : changed === "generation" ? { controllerGeneration: sql`${nativeRunFinalizations.controllerGeneration} + 1` }
         : changed === "namespace" ? { controllerHostHash: "replaced-space" } : { leaseExpiresAt: new Date(Date.now() + 60_000) })
         .where(eq(nativeRunFinalizations.runId, f.runId));
-      const response = await request(boardRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(confirmation(f));
+      const response = await request(operatorRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(confirmation(f));
       expect(response.status, JSON.stringify(response.body)).toBe(409);
       expect((await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0].status).toBe("running");
     }, 60_000);
@@ -1003,7 +1003,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
       const f = await namespaceHold("CLAIM-CONTAINMENT-EXPLICIT-CONTROLLER");
       const body = confirmation(f);
       const { controllerStopped: _stopped, controllerAuthorityDigest: _digest, ...providerOnly } = body.executionReconciliation;
-      const response = await request(boardRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`)
+      const response = await request(operatorRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`)
         .send({ ...body, sourceIssueStatus: "todo", executionReconciliation: providerOnly });
       expect(response.status, JSON.stringify(response.body)).toBe(409);
       expect((await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0].leaseOwner).not.toBeNull();
@@ -1012,7 +1012,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
     it("rejects unknown action outcomes instead of turning containment into replay permission", async () => {
       const f = await namespaceHold("CLAIM-CONTAINMENT-UNKNOWN-OUTCOME");
       const body = confirmation(f);
-      const response = await request(boardRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`)
+      const response = await request(operatorRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`)
         .send({ ...body, executionReconciliation: { ...body.executionReconciliation, actionOutcome: "unknown" } });
       expect(response.status, JSON.stringify(response.body)).toBe(400);
       expect((await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0].status).toBe("running");
@@ -1097,7 +1097,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
 
     async function completeContainedRetry(f: Awaited<ReturnType<typeof namespaceHold>>) {
       const [before] = await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-      const oldClick = await requestTaskRetry({ db: f.db, companyId: fixture.current.companyId, issueId: f.issueId,
+      const oldClick = await requestTaskRetry({ db: f.db, spaceId: fixture.current.spaceId, issueId: f.issueId,
         actorId: f.userId, actorSource: "session", observedRunId: f.runId, idempotencyKey: randomUUID() });
       expect(oldClick.accepted).toBe(true);
       const opened: string[] = [];
@@ -1108,7 +1108,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
         services.push(service); return service;
       });
       try {
-        const app = boardRoutes(f);
+        const app = operatorRoutes(f);
         const [currentTask] = await f.db.select().from(issues).where(eq(issues.id, f.issueId));
         const response = await request(app).post(`/api/issues/${f.issueId}/recovery-actions/resolve`)
           .send({ ...confirmation(f), sourceIssueStatus: currentTask.status });
@@ -1221,12 +1221,12 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
       const f = await inspectHistoricalFailedSource(await seedHistoricalFailedForeignSource("CLAIM-CONTAINMENT-NEWER-COORDINATOR"));
       const [before] = await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
       const newerId = randomUUID();
-      await f.db.insert(heartbeatRuns).values({ id: newerId, companyId: fixture.current.companyId,
+      await f.db.insert(heartbeatRuns).values({ id: newerId, spaceId: fixture.current.spaceId,
         agentId: fixture.current.agentId, status: "queued", runtimeMode: "native", contextSnapshot: { issueId: f.issueId }, nativeIssueId: f.issueId });
-      await f.db.insert(nativeRunFinalizations).values({ runId: newerId, companyId: fixture.current.companyId,
+      await f.db.insert(nativeRunFinalizations).values({ runId: newerId, spaceId: fixture.current.spaceId,
         issueId: f.issueId, phase: "observed", attempt: 0 });
       const [currentTask] = await f.db.select().from(issues).where(eq(issues.id, f.issueId));
-      const response = await request(boardRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`)
+      const response = await request(operatorRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`)
         .send({ ...confirmation(f), sourceIssueStatus: currentTask.status });
       expect(response.status, JSON.stringify(response.body)).toBe(409);
       expect((await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0]).toEqual(before);
@@ -1239,10 +1239,10 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
       const userId = randomUUID();
       await isolated.db.insert(authUsers).values({ id: userId, name: "Operator", email: `${userId}@example.invalid`,
         createdAt: new Date(), updatedAt: new Date() });
-      await isolated.db.insert(companyMemberships).values({ companyId: fixture.current.companyId,
+      await isolated.db.insert(spaceMemberships).values({ spaceId: fixture.current.spaceId,
         principalType: "user", principalId: userId, membershipRole: "owner" });
       await instanceSettingsService(isolated.db).updateExperimental({ enableNativeRunner: true });
-      const [task] = await isolated.db.insert(issues).values({ companyId: fixture.current.companyId,
+      const [task] = await isolated.db.insert(issues).values({ spaceId: fixture.current.spaceId,
         title: "Recover a genuine first preparation failure", status: "in_progress", workMode: "standard",
         assigneeAgentId: isolated.agentId, responsibleUserId: userId }).returning();
       const opened: string[] = [];
@@ -1264,7 +1264,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
         expect(admitted).not.toBeNull();
         await waitForCondition("normal automatic preparation-recovery terminal successor and wakes to settle", async () => {
           const successors = await isolated.db.select().from(heartbeatRuns).where(and(
-            eq(heartbeatRuns.companyId, fixture.current.companyId), eq(heartbeatRuns.agentId, isolated.agentId),
+            eq(heartbeatRuns.spaceId, fixture.current.spaceId), eq(heartbeatRuns.agentId, isolated.agentId),
             eq(heartbeatRuns.retryOfRunId, admitted!.id)));
           return successors.length === 1 && !!successors[0].finishedAt
             && ["succeeded", "interrupted", "failed", "cancelled", "timed_out"].includes(successors[0].status)
@@ -1276,7 +1276,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
         expect(source.resultJson?.executionRecovery).toMatchObject({ kind: "bootstrap", providerWorkStarted: false });
         expect(await isolated.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, source.id))).toEqual([]);
         const successors = await isolated.db.select().from(heartbeatRuns).where(and(
-          eq(heartbeatRuns.companyId, fixture.current.companyId), eq(heartbeatRuns.agentId, isolated.agentId),
+          eq(heartbeatRuns.spaceId, fixture.current.spaceId), eq(heartbeatRuns.agentId, isolated.agentId),
           eq(heartbeatRuns.retryOfRunId, source.id)));
         expect(successors).toHaveLength(1);
         const successor = successors[0];
@@ -1287,7 +1287,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
         expect(backend.mock.calls.map(([execution]) => execution.binding.runId)).not.toContain(source.id);
         expect(successor.resultJson?.nativeResult).toMatchObject({ summary: "The explicitly retried task produced this useful completion." });
         const wakes = await isolated.db.select().from(agentWakeupRequests).where(and(
-          eq(agentWakeupRequests.companyId, fixture.current.companyId), eq(agentWakeupRequests.runId, successor.id),
+          eq(agentWakeupRequests.spaceId, fixture.current.spaceId), eq(agentWakeupRequests.runId, successor.id),
           eq(agentWakeupRequests.reason, "issue_continuation_needed")));
         expect(wakes).toHaveLength(1);
         expect((await isolated.db.select().from(issues).where(eq(issues.id, task.id)))[0].status).toBe("done");
@@ -1306,20 +1306,20 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
       // No provider outcome, accepted result or cost is supplied by this setup.
       await f.db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date(), errorCode: "native_session_resume_failed" })
         .where(eq(heartbeatRuns.id, f.runId));
-      const old = await requestTaskRetry({ db: f.db, companyId: fixture.current.companyId, issueId: f.issueId,
+      const old = await requestTaskRetry({ db: f.db, spaceId: fixture.current.spaceId, issueId: f.issueId,
         actorId: f.userId, actorSource: "session", observedRunId: f.runId, idempotencyKey: randomUUID() });
       const [before] = await f.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, old.requestId!));
       expect(before).toMatchObject({ status: "deferred_issue_execution", runId: null });
       const other = await namespaceHold("CLAIM-OTHER-ACCEPTED-WORK");
-      const accepted = await requestTaskRetry({ db: other.db, companyId: fixture.current.companyId, issueId: other.issueId,
+      const accepted = await requestTaskRetry({ db: other.db, spaceId: fixture.current.spaceId, issueId: other.issueId,
         actorId: other.userId, actorSource: "session", observedRunId: other.runId, idempotencyKey: randomUUID() });
       const [unrelatedBefore] = await f.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, accepted.requestId!));
-      const response = await request(boardRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(confirmation(f));
+      const response = await request(operatorRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(confirmation(f));
       expect(response.status, JSON.stringify(response.body)).toBe(200);
       expect((await f.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, old.requestId!)))[0])
         .toMatchObject({ status: "skipped", runId: null, error: "controller_containment_requires_new_retry", payload: before.payload });
       expect((await f.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, accepted.requestId!)))[0]).toEqual(unrelatedBefore);
-      const next = await requestTaskRetry({ db: f.db, companyId: fixture.current.companyId, issueId: f.issueId,
+      const next = await requestTaskRetry({ db: f.db, spaceId: fixture.current.spaceId, issueId: f.issueId,
         actorId: f.userId, actorSource: "session", observedRunId: f.runId, idempotencyKey: randomUUID() });
       expect(next.accepted).toBe(true);
       expect(next.requestId).not.toBe(old.requestId);
@@ -1327,11 +1327,11 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
 
     it.each(["environment", "workspace"] as const)("retains containment authority while %s cleanup is unsettled", async kind => {
       const f = await namespaceHold(`CLAIM-CONTAINMENT-CLEANUP-${kind}`);
-      if (kind === "environment") await f.db.insert(environmentLeases).values({ companyId: fixture.current.companyId,
+      if (kind === "environment") await f.db.insert(environmentLeases).values({ spaceId: fixture.current.spaceId,
         issueId: f.issueId, heartbeatRunId: f.runId, provider: "local", status: "active" });
-      else await f.db.insert(workspaceOperations).values({ companyId: fixture.current.companyId, issueId: f.issueId,
+      else await f.db.insert(workspaceOperations).values({ spaceId: fixture.current.spaceId, issueId: f.issueId,
         heartbeatRunId: f.runId, phase: "workspace_finalize", status: "running", cwd: fixture.current.runtimeRoot });
-      const response = await request(boardRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(confirmation(f));
+      const response = await request(operatorRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(confirmation(f));
       expect(response.status, JSON.stringify(response.body)).toBe(409);
       expect((await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0].status).toBe("running");
       expect((await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0].leaseOwner).not.toBeNull();
@@ -1343,9 +1343,9 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
       await f.db.update(heartbeatRuns).set({ completionContractId: contract.id, completionContractSha256: contract.canonicalSha256 })
         .where(eq(heartbeatRuns.id, f.runId));
       const [run] = await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-      const identity = { companyId: fixture.current.companyId, issueId: f.issueId, runId: f.runId,
+      const identity = { spaceId: fixture.current.spaceId, issueId: f.issueId, runId: f.runId,
         agentId: fixture.current.agentId, sessionId: run.nativeSessionId! };
-      const port = new PaperclipControlPlanePort(f.db, { ...identity, completionContractId: contract.id,
+      const port = new OutpostControlPlanePort(f.db, { ...identity, completionContractId: contract.id,
         completionContractSha256: contract.canonicalSha256, sourceInstanceId: run.runnerInstanceId!,
         controlPlaneSourceInstanceId: `accepted-after-attention:${f.runId}` });
       await port.openRun({ ...CONTROL_PLANE_CONFORMANCE_OPEN, identity, sourceInstanceId: run.runnerInstanceId! });
@@ -1355,7 +1355,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
       } }, terminal: CONTROL_PLANE_CONFORMANCE_TERMINAL, callerResultId: `accepted-after-attention:${f.runId}` });
       const [accepted] = await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
       expect(accepted.resultId).not.toBeNull();
-      const response = await request(boardRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(confirmation(f));
+      const response = await request(operatorRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(confirmation(f));
       expect(response.status, JSON.stringify(response.body)).toBe(409);
       expect((await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0].resultId).toBe(accepted.resultId);
       expect(await f.db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, f.runId))).toHaveLength(1);
@@ -1369,7 +1369,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
         const f = await namespaceHold(`CLAIM-CONTAINMENT-STOP-${ephemeral}`);
         const [before] = await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
         const requestId = randomUUID();
-        await claimCancellationRequest(f.db, f.runId, fixture.current.companyId, requestId, f.userId);
+        await claimCancellationRequest(f.db, f.runId, fixture.current.spaceId, requestId, f.userId);
         const cancellation = cancelHeartbeatNativeRun({ db: f.db, runId: f.runId, reason: "Operator requested Stop",
           runtimeMode: "native", cancellationRequestId: requestId });
         if (ephemeral) {
@@ -1384,7 +1384,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
         const [pending] = await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
         expect(pending.status).toBe("running");
         expect(pending.resultJson?.startupCancellation).toMatchObject({ cancellationRequestId: requestId,
-          requestedBy: { type: "board", userId: f.userId } });
+          requestedBy: { type: "operator", userId: f.userId } });
         const intent = pending.resultJson?.nativeCancellation;
         expect(intent).toMatchObject({ dispatchState: ephemeral ? "pending" : "acknowledged", dispatched: false });
         if (!intent || typeof intent !== "object" || Array.isArray(intent) || !("intentAuditId" in intent))
@@ -1396,7 +1396,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
           expect(intent.acknowledgementAuditId).not.toBe(intent.intentAuditId);
         }
         if (ephemeral) {
-          const response = await request(boardRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(confirmation(f));
+          const response = await request(operatorRoutes(f)).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(confirmation(f));
           expect(response.status, JSON.stringify(response.body)).toBe(409);
         }
         expect((await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0]).toEqual(before);
@@ -1420,7 +1420,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
 
     it("keeps plugin-runner leases without a checkpoint in their normal Stop recovery", async () => {
       const f = await seedClaim("CLAIM-PLUGIN-NO-CHECKPOINT", "expired", "foreign-process-space");
-      await f.db.insert(environmentLeases).values({ companyId: fixture.current.companyId, issueId: f.issueId,
+      await f.db.insert(environmentLeases).values({ spaceId: fixture.current.spaceId, issueId: f.issueId,
         heartbeatRunId: f.runId, provider: "plugin", status: "active", metadata: { runnerTaskLease: true } });
       const probe = observeOwnerPid();
       try {
@@ -1491,7 +1491,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
       .toEqual({ status: "running", phase: "workspace_finalizing", leaseExpiresAt: f.leaseExpiresAt });
   }, 60_000);
 
-  it("keeps an unrecorded-host lease on an ephemeral server and asks the board to confirm the stop", async () => {
+  it("keeps an unrecorded-host lease on an ephemeral server and asks the operator to confirm the stop", async () => {
     const f = await seedAcceptedResult("ACCEPTED-LEGACY-EPHEMERAL", (runner) => `${runner}:${randomUUID()}`);
     await killedController(f, deadController(null));
     vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
@@ -1504,10 +1504,10 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
     expect(owner.leaseExpiresAt).toEqual(f.leaseExpiresAt);
     const actions = await f.db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issueId));
     expect(actions.map(action => [action.cause, action.ownerType, action.status]))
-      .toEqual([["native_controller_host_unverified", "board", "active"]]);
+      .toEqual([["native_controller_host_unverified", "operator", "active"]]);
   }, 60_000);
 
-  it("finalizes the accepted result after the board confirms its actual unrecorded-controller action", async () => {
+  it("finalizes the accepted result after the operator confirms its actual unrecorded-controller action", async () => {
     const f = await seedAcceptedResult("ACCEPTED-OPERATOR-ATTESTED", (runner) => `${runner}:${randomUUID()}`);
     await killedController(f, deadController(null));
     vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
@@ -1518,8 +1518,8 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
         .toMatchObject({ settled: 0, reasons: { process_space_unrecorded: 1 } });
       const [action] = await f.db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issueId));
       expect(action).toMatchObject({ cause: "native_controller_host_unverified", status: "active" });
-      await expect(confirmNativeControllerStopped({ db: f.db, companyId: fixture.current.companyId,
-        issueId: f.issueId, runId: f.runId, actionId: action.id, actorId: "board-user",
+      await expect(confirmNativeControllerStopped({ db: f.db, spaceId: fixture.current.spaceId,
+        issueId: f.issueId, runId: f.runId, actionId: action.id, actorId: "operator-user",
         stopEvidence: "The original server container is stopped; the accepted provider result is retained." }))
         .resolves.toEqual({ runId: f.runId, status: "queued" });
       const [attested] = await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
@@ -1575,7 +1575,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
     expect(owner.leaseExpiresAt).toEqual(f.leaseExpiresAt);
   }, 60_000);
 
-  it("drops an expired executor lease from the kind and asks the board nothing for it", async () => {
+  it("drops an expired executor lease from the kind and asks the operator nothing for it", async () => {
     const f = await seedAcceptedResult("ACCEPTED-EXPIRED-LEGACY", (runner) => `${runner}:${randomUUID()}`);
     await killedController(f, deadController(null));
     await f.db.update(nativeRunFinalizations).set({ leaseExpiresAt: new Date(Date.now() - 1_000) })
@@ -1636,7 +1636,7 @@ describeEmbeddedPostgres("heartbeat native recovery interrupted by graceful shut
     await killedController(f, { bootId: randomUUID(), pid: process.pid, processStartedAt: self.processStartedAt,
       hostHash: currentProcessSpaceHash() });
     // Grace (5 min) ends about 50 s from now: after the worker turns watch-only.
-    await f.db.insert(issues).values({ id: randomUUID(), companyId: fixture.current.companyId, title: "Idle in progress",
+    await f.db.insert(issues).values({ id: randomUUID(), spaceId: fixture.current.spaceId, title: "Idle in progress",
       status: "in_progress", assigneeAgentId: fixture.current.agentId, updatedAt: new Date(Date.now() - 5 * 60_000 + 50_000) });
     const reports: OwnershipReport[] = [];
     const coordinator = createDeliveryWorkCoordinator({ owner: f.db, canRun: () => true, onError: () => undefined });

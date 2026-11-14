@@ -8,7 +8,7 @@ describe("announcement animation documents", () => {
     expect(validateAnnouncementAnimation(Buffer.from(html))).toContain('viewBox="0 0 10 10"');
   });
   it.each([
-    "<script>fetch('/api/companies')</script>", "<div onclick='alert(1)'>Click</div>",
+    "<script>fetch('/api/spaces')</script>", "<div onclick='alert(1)'>Click</div>",
     "<a href='https://evil.test'>Navigate</a>", "<form action='/api/test'><input></form>",
     "<meta http-equiv='refresh' content='0;url=https://evil.test'>", "<base href='https://evil.test'>",
     "<iframe src='https://evil.test'></iframe>", "<img src='https://evil.test/pixel'>", "<link rel='stylesheet' href='https://evil.test'>",

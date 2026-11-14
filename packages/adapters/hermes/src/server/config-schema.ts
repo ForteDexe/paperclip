@@ -92,7 +92,7 @@ export function getConfigSchema(): AdapterConfigSchema {
         hint: "Pass Hermes --verbose.",
       },
       {
-        key: "paperclipApiUrl",
+        key: "outpostApiUrl",
         label: "Outpost API URL",
         type: "text",
         hint: "Optional API base override. Defaults to OUTPOST_API_URL.",

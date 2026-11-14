@@ -2,9 +2,9 @@ import { expect, it } from "vitest";
 import { exhaustedSourceRecovery, gradeInfrastructureRecovery, readSourceRecoveryRecord, sameRecoveryAction } from "./runtime-infrastructure.js";
 import { savedCall } from "./api-read-receipts.test-fixtures.js";
 function valid(id = "recovery.explain-stall") {
-  const recovery = { id: "recovery", companyId: "company", sourceIssueId: "website", kind: "active_run_watchdog", cause: "native_session_retry_exhausted", ownerType: "board", ownerAgentId: null,
+  const recovery = { id: "recovery", spaceId: "space", sourceIssueId: "website", kind: "active_run_watchdog", cause: "native_session_retry_exhausted", ownerType: "operator", ownerAgentId: null,
     returnOwnerAgentId: "morgan", recoveryIssueId: null, evidence: { runId: "run", coordinatorAttempt: 3, recoveryDisposition: "native_session_retry_exhausted" }, maxAttempts: 3, wakePolicy: null, nextAction: "Inspect the provider trace and explicitly choose a replacement run or provider configuration; automatic provider work is stopped." };
-  return { scenarioId: id, origin: "http://outpost.test", companyId: "company", leadId: "ceo", agents: [], links: ["/COM/issues/COM-2"], humanQueries: [], reply: "", tasks: [{ id: "website" }], activity: [],
+  return { scenarioId: id, origin: "http://outpost.test", spaceId: "space", leadId: "ceo", agents: [], links: ["/COM/issues/COM-2"], humanQueries: [], reply: "", tasks: [{ id: "website" }], activity: [],
     runs: [{ id: "run", agentId: "morgan", status: "failed" }, { id: "source", agentId: "ceo", status: "succeeded" }],
     state: { task: { id: "website", identifier: "COM-2" }, queryRecoveryRead: true, worker: { id: "morgan" }, failure: { id: "run", status: "failed", nativePhase: "terminal_failure" }, recoveryBefore: recovery, recoveryAfter: { ...recovery },
       setupFaults: [1, 2, 3].map(pid => ({ runId: "run", pid, errorCode: "native_runner_process_exited" })), sourceRecoveryVisible: true,
@@ -62,7 +62,7 @@ function settled(overrides: Record<string, unknown> = {}, automatic: Record<stri
 }
 const run = { id: "run", status: "failed", nativePhase: "terminal_failure" } as never;
 const select = (actions: unknown[], status = "blocked", active?: unknown) =>
-  exhaustedSourceRecovery({ active: active as never, actions: actions as never }, { status } as never, run, "company", "website", "morgan");
+  exhaustedSourceRecovery({ active: active as never, actions: actions as never }, { status } as never, run, "space", "website", "morgan");
 it("accepts the exhausted action settled as blocked without replay on a blocked task", () => {
   const action = settled();
   expect(select([action])?.id).toBe("recovery");

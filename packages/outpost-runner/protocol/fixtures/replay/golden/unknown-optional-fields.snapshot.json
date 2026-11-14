@@ -3,7 +3,7 @@
   "fixtureName": "Unknown optional fields",
   "identity": {
     "schema": "outpost.orp.identity.v1",
-    "companyId": "company_replay",
+    "spaceId": "space_replay",
     "issueId": "issue_replay_future",
     "runId": "run_replay_future",
     "environmentLeaseId": "lease_replay_future",

@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { FolderGit2, GitFork } from "lucide-react";
-import type { CompanySkillDetail } from "@outpost/shared";
+import type { SpaceSkillDetail } from "@outpost/shared";
 import { Link } from "@/lib/router";
-import { companySkillsApi } from "@/api/companySkills";
+import { spaceSkillsApi } from "@/api/spaceSkills";
 import { queryKeys } from "@/lib/queryKeys";
-import { skillStudioRoute } from "@/lib/company-skill-routes";
+import { skillStudioRoute } from "@/lib/space-skill-routes";
 import { formatLineageLabel } from "@/lib/skill-fork";
 import { Button } from "@/components/ui/button";
 
@@ -15,16 +15,16 @@ import { Button } from "@/components/ui/button";
  * on demand; if the original is gone we still link by id with a soft label.
  */
 export function SkillLineageChip({
-  companyId,
+  spaceId,
   forkedFromSkillId,
 }: {
-  companyId: string;
+  spaceId: string;
   forkedFromSkillId: string | null;
 }) {
   const originalQuery = useQuery({
-    queryKey: queryKeys.companySkills.detail(companyId, forkedFromSkillId ?? ""),
-    queryFn: () => companySkillsApi.detail(companyId, forkedFromSkillId!),
-    enabled: Boolean(companyId && forkedFromSkillId),
+    queryKey: queryKeys.spaceSkills.detail(spaceId, forkedFromSkillId ?? ""),
+    queryFn: () => spaceSkillsApi.detail(spaceId, forkedFromSkillId!),
+    enabled: Boolean(spaceId && forkedFromSkillId),
     staleTime: 60_000,
   });
 
@@ -57,7 +57,7 @@ export function ProjectScanNotice({
   skill,
   onEditACopy,
 }: {
-  skill: CompanySkillDetail;
+  skill: SpaceSkillDetail;
   onEditACopy: () => void;
 }) {
   const location = skill.sourcePath ?? skill.sourceLabel ?? "the project working tree";

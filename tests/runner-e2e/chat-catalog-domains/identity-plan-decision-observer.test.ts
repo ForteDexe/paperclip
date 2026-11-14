@@ -15,28 +15,28 @@ function fixture(scenarioId: string, remaining = 600_000, inlineDraft = false) {
   const now = Date.now(), at = (offset: number) => new Date(now + offset).toISOString(), review = scenarioId.endsWith("review-plan");
   const query = review ? "I approve this plan; start the work." : "Do not publish it; just make a draft I can review.";
   const state = { sourceId: "chat", personId: "person", worker: { id: "morgan" }, scopeMarker: "Acorn research launch", plan: { id: "source-plan", latestRevisionId: "reviewed" }, original: { id: "proposal", kind: "request_confirmation", status: "pending", payload: { target: { revisionId: "reviewed" } } } };
-  const task = { id: "task", companyId: "acorn", title: "Acorn research launch", description: "Acorn research launch", parentId: null, assigneeAgentId: "morgan", status: "done" };
+  const task = { id: "task", spaceId: "acorn", title: "Acorn research launch", description: "Acorn research launch", parentId: null, assigneeAgentId: "morgan", status: "done" };
   const runs = [
-    { id: "initial", companyId: "acorn", agentId: "ceo", status: "succeeded", runtimeMode: "native", startedAt: at(-9000), contextSnapshot: { issueId: "chat", commentId: "human" } as Record<string, unknown> },
-    { id: "worker", companyId: "acorn", agentId: "morgan", status: "succeeded", runtimeMode: "native", startedAt: at(-8000), contextSnapshot: { issueId: "task" } as Record<string, unknown> },
-    { id: "completion", companyId: "acorn", agentId: "ceo", status: "succeeded", runtimeMode: "native", startedAt: at(-4000), contextSnapshot: { issueId: "chat", wakeReason: "chat_task_completed", wakeSource: "automation", chatCompletionDeliveryIds: ["delivery"], chatCompletionUpdates: [{ id: "task", status: "done", completedAt: at(-5000) }] } as Record<string, unknown> },
+    { id: "initial", spaceId: "acorn", agentId: "ceo", status: "succeeded", runtimeMode: "native", startedAt: at(-9000), contextSnapshot: { issueId: "chat", commentId: "human" } as Record<string, unknown> },
+    { id: "worker", spaceId: "acorn", agentId: "morgan", status: "succeeded", runtimeMode: "native", startedAt: at(-8000), contextSnapshot: { issueId: "task" } as Record<string, unknown> },
+    { id: "completion", spaceId: "acorn", agentId: "ceo", status: "succeeded", runtimeMode: "native", startedAt: at(-4000), contextSnapshot: { issueId: "chat", wakeReason: "chat_task_completed", wakeSource: "automation", chatCompletionDeliveryIds: ["delivery"], chatCompletionUpdates: [{ id: "task", status: "done", completedAt: at(-5000) }] } as Record<string, unknown> },
   ];
   const comments = [{ id: "human", authorAgentId: null as string | null, authorUserId: "person" as string | null, body: query, createdByRunId: null as string | null, createdAt: at(-10000) },
     { id: "source-reply", authorAgentId: "ceo", authorUserId: null, body: "The original requested work is saved for review.", createdByRunId: "completion", createdAt: at(-3000) }];
-  const output = { id: "output", companyId: "acorn", issueId: "task", key: "plan", body: "# Acorn research launch — local draft and implementation checklist for review", latestRevisionId: "output-version" };
+  const output = { id: "output", spaceId: "acorn", issueId: "task", key: "plan", body: "# Acorn research launch — local draft and implementation checklist for review", latestRevisionId: "output-version" };
   const revision = { id: "output-version", documentId: "output", createdByRunId: "worker", createdByAgentId: "morgan" };
-  const workerComments: Array<{ id: string; companyId: string; issueId: string; authorAgentId: string; createdByRunId: string; body: string }> = [];
+  const workerComments: Array<{ id: string; spaceId: string; issueId: string; authorAgentId: string; createdByRunId: string; body: string }> = [];
   const interaction = { ...state.original, status: review ? "accepted" : "rejected", resolvedByAgentId: "ceo", result: { commentId: "human" } };
   const activity = [{ id: "created", entityId: "task", action: "issue.created", agentId: "ceo", details: {} },
     { id: "approved", entityId: "chat", action: review ? "issue.thread_interaction_accepted" : "issue.thread_interaction_rejected", agentId: "ceo", details: { interactionId: "proposal", responseCommentId: "human" } }];
-  const observation = { scenarioId, origin: "http://fixture.invalid", companyId: "acorn", leadId: "ceo", company: { id: "acorn" }, companies: [], agents: [], interactions: [interaction], tasks: [task], projects: [], goals: [], comments: [], documents: [], revisions: [], activity, links: ["/ACO/issues/task"], humanQueries: [query], reply: "The local draft is ready for review.", runs };
+  const observation = { scenarioId, origin: "http://fixture.invalid", spaceId: "acorn", leadId: "ceo", space: { id: "acorn" }, spaces: [], agents: [], interactions: [interaction], tasks: [task], projects: [], goals: [], comments: [], documents: [], revisions: [], activity, links: ["/ACO/issues/task"], humanQueries: [query], reply: "The local draft is ready for review.", runs };
   if (inlineDraft) {
     observation.tasks = []; runs.splice(1); output.issueId = "chat"; output.key = "draft";
     revision.createdByRunId = "initial"; revision.createdByAgentId = "ceo"; comments[1]!.createdByRunId = "initial";
     observation.links = ["#document-draft"];
   }
   port.observation = observation;
-  const source = { id: "chat", companyId: "acorn", assigneeAgentId: "ceo", status: "in_review", conversationState: "waiting" };
+  const source = { id: "chat", spaceId: "acorn", assigneeAgentId: "ceo", status: "in_review", conversationState: "waiting" };
   const get = vi.fn(async (path: string) => {
     if (path === "/api/auth/get-session") return { user: { id: "person" } };
     if (path === "/api/issues/chat/comments?order=asc") return comments;
@@ -51,7 +51,7 @@ function fixture(scenarioId: string, remaining = 600_000, inlineDraft = false) {
     if (path === "/api/issues/chat/documents/draft/revisions") return [revision];
     throw new Error(`Unexpected owned read ${path}`);
   });
-  const ctx = { observationDeadlineAt: now + remaining, input: { fixtures: { company: { id: "acorn" }, agent: { id: "ceo" } }, api: { get } }, scenario: { id: scenarioId, query }, issue: () => source, allRuns: async () => runs, refreshIssue: vi.fn(async () => {}) } as unknown as ChatCatalogContext;
+  const ctx = { observationDeadlineAt: now + remaining, input: { fixtures: { space: { id: "acorn" }, agent: { id: "ceo" } }, api: { get } }, scenario: { id: scenarioId, query }, issue: () => source, allRuns: async () => runs, refreshIssue: vi.fn(async () => {}) } as unknown as ChatCatalogContext;
   return { ctx, state, task, runs, comments, workerComments, output, revision, interaction, observation, source, get, now };
 }
 it("preserves start/handoff with one actual active linked worker and no claimed completion", async () => {
@@ -73,12 +73,12 @@ it("accepts59's actual local draft without inventing a worker or completion turn
 });
 it("accepts a completed125 task with its actual attributed saved comment instead of prescribing a document format", async () => {
   const f = fixture("questions-and-approvals.review-plan"); f.output.body = "";
-  f.workerComments.push({ id: "work-comment", companyId: "acorn", issueId: "task", authorAgentId: "morgan", createdByRunId: "worker", body: "Saved the requested local implementation checklist for review." });
+  f.workerComments.push({ id: "work-comment", spaceId: "acorn", issueId: "task", authorAgentId: "morgan", createdByRunId: "worker", body: "Saved the requested local implementation checklist for review." });
   await expect(planReviewIdentityCases[0]!.act!(f.ctx, f.state)).rejects.toThrow("CONTROL_AFTER_SOURCE_SETTLED");
 });
 it("does not substitute another run's comment for missing completed-work output", async () => {
   const f = fixture("questions-and-approvals.review-plan"); f.output.body = "";
-  f.workerComments.push({ id: "work-comment", companyId: "acorn", issueId: "task", authorAgentId: "morgan", createdByRunId: "unrelated", body: "Some unrelated completed work." });
+  f.workerComments.push({ id: "work-comment", spaceId: "acorn", issueId: "task", authorAgentId: "morgan", createdByRunId: "unrelated", body: "Some unrelated completed work." });
   await expect(planReviewIdentityCases[0]!.act!(f.ctx, f.state)).rejects.toThrow("CONTROL_SOURCE_NOT_SETTLED");
 });
 it.each(["missing draft", "pending decision", "accepted publication", "missing review link"])("59 still rejects %s even with its original source turn settled", async fault => {

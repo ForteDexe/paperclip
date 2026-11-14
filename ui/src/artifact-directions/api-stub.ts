@@ -1,4 +1,4 @@
-import { COMPANY } from "./fixtures";
+import { SPACE } from "./fixtures";
 
 /**
  * The lab's only "server". Every API call in the app goes through `fetch`, so
@@ -30,7 +30,7 @@ function respond(pathname: string, method: string): Response {
   if (pathname.endsWith("/auth/get-session")) {
     return json({ session: { id: "lab-session", userId: "lab-user" }, user: { id: "lab-user", name: "Lab", email: "lab@acmehats.example" } });
   }
-  if (pathname.endsWith("/companies")) return json([COMPANY]);
+  if (pathname.endsWith("/spaces")) return json([SPACE]);
   // An unhandled call answers empty rather than failing, so it is never the
   // reason a frame looks broken; the debug line says what was asked for.
   console.debug("[artifact-directions] unhandled", method, pathname);

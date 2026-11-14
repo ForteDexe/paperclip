@@ -5,8 +5,8 @@ import {
   agents,
   agentWakeupRequests,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   heartbeatRuns,
   externalAgentHolds,
@@ -67,8 +67,8 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
     await heartbeat.drainActiveRunExecutions();
     mockAdapterExecute.mockClear();
     runningProcesses.clear();
-    // Executed runs write to many company-scoped tables; clear them all.
-    await db.execute(sql`truncate table ${companies} cascade`);
+    // Executed runs write to many space-scoped tables; clear them all.
+    await db.execute(sql`truncate table ${spaces} cascade`);
   });
 
   afterAll(async () => {
@@ -76,20 +76,20 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
   });
 
   async function insertAgent() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Claim Isolation Co",
       status: "active",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Claim Isolation Agent",
       role: "engineer",
       status: "idle",
@@ -106,11 +106,11 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
       permissions: {},
     });
 
-    return { companyId, agentId };
+    return { spaceId, agentId };
   }
 
   async function insertQueuedRun(
-    companyId: string,
+    spaceId: string,
     agentId: string,
     wake: Partial<typeof agentWakeupRequests.$inferInsert>,
     createdAt: Date,
@@ -120,7 +120,7 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
 
     await db.insert(agentWakeupRequests).values({
       id: wakeupRequestId,
-      companyId,
+      spaceId,
       agentId,
       source: "on_demand",
       triggerDetail: "manual",
@@ -130,7 +130,7 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "on_demand",
       triggerDetail: "manual",
@@ -144,19 +144,19 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
 
   // A queued-comment interrupt wake whose receipt cannot be verified. The run
   // identity check rejects it with a 403 every time the run is claimed.
-  function insertUnverifiableInterruptRun(companyId: string, agentId: string, createdAt = new Date(Date.now() - 60_000)) {
-    return insertQueuedRun(companyId, agentId, {
+  function insertUnverifiableInterruptRun(spaceId: string, agentId: string, createdAt = new Date(Date.now() - 60_000)) {
+    return insertQueuedRun(spaceId, agentId, {
       reason: "issue_commented",
       idempotencyKey: `queued-comment-interrupt:${randomUUID()}`,
       requestedByActorType: "user",
-      requestedByActorId: "board-user",
+      requestedByActorId: "operator-user",
     }, createdAt);
   }
 
-  // A system wake with no issue in a company without members. Its responsible
+  // A system wake with no issue in a space without members. Its responsible
   // user cannot be resolved yet (422), but a user added later would fix that.
-  function insertUnresolvableOwnerRun(companyId: string, agentId: string, createdAt = new Date(Date.now() - 60_000)) {
-    return insertQueuedRun(companyId, agentId, {
+  function insertUnresolvableOwnerRun(spaceId: string, agentId: string, createdAt = new Date(Date.now() - 60_000)) {
+    return insertQueuedRun(spaceId, agentId, {
       source: "automation",
       triggerDetail: "system",
       requestedByActorType: "system",
@@ -166,10 +166,10 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
 
   // A manual wake from a user. It resolves its identity from the receipt, so it
   // can always be claimed.
-  function insertClaimableRun(companyId: string, agentId: string, createdAt = new Date()) {
-    return insertQueuedRun(companyId, agentId, {
+  function insertClaimableRun(spaceId: string, agentId: string, createdAt = new Date()) {
+    return insertQueuedRun(spaceId, agentId, {
       requestedByActorType: "user",
-      requestedByActorId: "board-user",
+      requestedByActorId: "operator-user",
       payload: { manualUserWake: true },
     }, createdAt);
   }
@@ -183,8 +183,8 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
   }
 
   it("cancels a queued run whose claim is rejected instead of failing recovery", async () => {
-    const { companyId, agentId } = await insertAgent();
-    const { runId, wakeupRequestId } = await insertUnverifiableInterruptRun(companyId, agentId);
+    const { spaceId, agentId } = await insertAgent();
+    const { runId, wakeupRequestId } = await insertUnverifiableInterruptRun(spaceId, agentId);
 
     await expect(heartbeat.resumeQueuedRuns()).resolves.toBeUndefined();
 
@@ -207,9 +207,9 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
   });
 
   it("claims the agent's next queued run after a rejected one", async () => {
-    const { companyId, agentId } = await insertAgent();
-    const { runId: rejectedRunId } = await insertUnverifiableInterruptRun(companyId, agentId);
-    const { runId: healthyRunId } = await insertClaimableRun(companyId, agentId);
+    const { spaceId, agentId } = await insertAgent();
+    const { runId: rejectedRunId } = await insertUnverifiableInterruptRun(spaceId, agentId);
+    const { runId: healthyRunId } = await insertClaimableRun(spaceId, agentId);
 
     await expect(heartbeat.resumeQueuedRuns()).resolves.toBeUndefined();
     await heartbeat.drainActiveRunExecutions();
@@ -223,9 +223,9 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
   });
 
   it("keeps a recoverable rejection queued without blocking the runs behind it", async () => {
-    const { companyId, agentId } = await insertAgent();
-    const { runId: deferredRunId } = await insertUnresolvableOwnerRun(companyId, agentId);
-    const { runId: healthyRunId } = await insertClaimableRun(companyId, agentId);
+    const { spaceId, agentId } = await insertAgent();
+    const { runId: deferredRunId } = await insertUnresolvableOwnerRun(spaceId, agentId);
+    const { runId: healthyRunId } = await insertClaimableRun(spaceId, agentId);
 
     await expect(heartbeat.resumeQueuedRuns()).resolves.toBeUndefined();
     await heartbeat.drainActiveRunExecutions();
@@ -236,31 +236,31 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
   });
 
   it("keeps a routine run queued while another task holds the routine slot, then runs it once the slot is free", async () => {
-    const { companyId, agentId } = await insertAgent();
+    const { spaceId, agentId } = await insertAgent();
     const origin = { originKind: "routine_execution", originId: randomUUID(), originFingerprint: "scheduled" };
     // The earlier task keeps its lock while its failed run waits for a scheduled resume.
     const holderIssueId = randomUUID();
     const holderRunId = randomUUID();
-    await db.insert(issues).values({ id: holderIssueId, companyId, title: "Earlier routine task",
+    await db.insert(issues).values({ id: holderIssueId, spaceId, title: "Earlier routine task",
       status: "in_progress", assigneeAgentId: agentId, ...origin });
-    await db.insert(heartbeatRuns).values({ id: holderRunId, companyId, agentId, status: "failed",
+    await db.insert(heartbeatRuns).values({ id: holderRunId, spaceId, agentId, status: "failed",
       finishedAt: new Date(), contextSnapshot: { issueId: holderIssueId } });
     await db.update(issues).set({ executionRunId: holderRunId }).where(sql`${issues.id} = ${holderIssueId}`);
     const userId = `routine-owner-${randomUUID()}`;
     await db.insert(authUsers).values({ id: userId, name: "Routine owner", email: `${userId}@outpost.test`,
       createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId,
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId,
       status: "active", membershipRole: "owner" });
     const routineIssueId = randomUUID();
-    await db.insert(issues).values({ id: routineIssueId, companyId, title: "Current routine task",
+    await db.insert(issues).values({ id: routineIssueId, spaceId, title: "Current routine task",
       status: "todo", assigneeAgentId: agentId, responsibleUserId: userId, ...origin });
-    const { runId: routineRunId } = await insertQueuedRun(companyId, agentId, {
+    const { runId: routineRunId } = await insertQueuedRun(spaceId, agentId, {
       requestedByActorType: "user", requestedByActorId: userId,
       payload: { manualUserWake: true, issueId: routineIssueId },
     }, new Date(Date.now() - 60_000));
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: routineIssueId } })
       .where(sql`${heartbeatRuns.id} = ${routineRunId}`);
-    const { runId: healthyRunId } = await insertClaimableRun(companyId, agentId);
+    const { runId: healthyRunId } = await insertClaimableRun(spaceId, agentId);
 
     await expect(heartbeat.resumeQueuedRuns()).resolves.toBeUndefined();
     await heartbeat.drainActiveRunExecutions();
@@ -279,9 +279,9 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
   });
 
   it.each(["worker", "native-effects"])("retains a %s barrier across provider changes and resumes only after reconciliation", async barrier => {
-    const { companyId, agentId } = await insertAgent();
-    const { runId } = await insertClaimableRun(companyId, agentId);
-    const [hold] = await db.insert(externalAgentHolds).values({ companyId, agentId, provider: "muse", assignmentId: randomUUID(), bindingId: randomUUID(),
+    const { spaceId, agentId } = await insertAgent();
+    const { runId } = await insertClaimableRun(spaceId, agentId);
+    const [hold] = await db.insert(externalAgentHolds).values({ spaceId, agentId, provider: "muse", assignmentId: randomUUID(), bindingId: randomUUID(),
       bindingGeneration: 1, runId: randomUUID(), workerUnknown: barrier === "worker", nativeEffectsUnknown: barrier === "native-effects" }).returning();
     // The agent now uses Codex; old external uncertainty still owns admission.
     await heartbeat.resumeQueuedRuns();
@@ -296,28 +296,28 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
   });
 
   async function insertCardAnswerInterruptRun(fault?: "other-answer" | "other-resolver") {
-    const { companyId, agentId } = await insertAgent();
+    const { spaceId, agentId } = await insertAgent();
     const userId = `card-owner-${randomUUID()}`;
     await db.insert(authUsers).values({ id: userId, name: "Card owner", email: `${userId}@outpost.test`,
       createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId,
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId,
       status: "active", membershipRole: "owner" });
     const issueId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Website", status: "in_progress",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Website", status: "in_progress",
       assigneeAgentId: agentId, responsibleUserId: userId });
-    const [interaction] = await db.insert(issueThreadInteractions).values({ companyId, issueId,
+    const [interaction] = await db.insert(issueThreadInteractions).values({ spaceId, issueId,
       kind: "request_confirmation", status: "accepted", payload: { version: 1, prompt: "Use the simpler layout?" },
       result: { version: 1, outcome: "accepted" }, createdByUserId: userId,
       resolvedByUserId: fault === "other-resolver" ? "another-user" : userId, resolvedAt: new Date() }).returning();
     const queueId = randomUUID();
-    const { runId, wakeupRequestId } = await insertQueuedRun(companyId, agentId, {
+    const { runId, wakeupRequestId } = await insertQueuedRun(spaceId, agentId, {
       reason: "issue_commented",
       idempotencyKey: `queued-comment-interrupt:${queueId}`,
       requestedByActorType: "user",
       requestedByActorId: userId,
       payload: { issueId, interactionId: interaction!.id, explicitUserContinuation: { queuedCommentInterruptId: queueId } },
     }, new Date(Date.now() - 60_000));
-    await db.insert(agentWakeupRequests).values({ id: queueId, companyId, agentId, source: "automation",
+    await db.insert(agentWakeupRequests).values({ id: queueId, spaceId, agentId, source: "automation",
       triggerDetail: "system", reason: "issue_commented", status: "coalesced", runId,
       requestedByActorType: "user", requestedByActorId: userId,
       payload: { issueId, mutation: "interaction", interactionId: interaction!.id, interactionKind: "request_confirmation",
@@ -354,8 +354,8 @@ describeEmbeddedPostgres("heartbeat queued-run claim isolation", () => {
   it("keeps processing other agents' queued runs after one agent's run is rejected", async () => {
     const first = await insertAgent();
     const second = await insertAgent();
-    const { runId: rejectedRunId } = await insertUnverifiableInterruptRun(first.companyId, first.agentId);
-    const { runId: healthyRunId } = await insertClaimableRun(second.companyId, second.agentId);
+    const { runId: rejectedRunId } = await insertUnverifiableInterruptRun(first.spaceId, first.agentId);
+    const { runId: healthyRunId } = await insertClaimableRun(second.spaceId, second.agentId);
 
     await expect(heartbeat.resumeQueuedRuns()).resolves.toBeUndefined();
     await heartbeat.drainActiveRunExecutions();

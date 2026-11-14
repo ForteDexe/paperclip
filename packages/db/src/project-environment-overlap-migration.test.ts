@@ -20,7 +20,7 @@ describePostgres("project environment rolling migration", () => {
   let sql: ReturnType<typeof postgres>;
 
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-project-environment-overlap-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-project-environment-overlap-");
     sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
@@ -37,10 +37,10 @@ describePostgres("project environment rolling migration", () => {
       (${environmentIds[0]}, ${randomUUID()}, 'ssh'), (${environmentIds[1]}, ${randomUUID()}, 'ssh')`;
     const projectIds = [randomUUID(), randomUUID(), randomUUID()];
     for (let index = 0; index < projectIds.length; index++) {
-      const companyId = randomUUID();
-      await sql`INSERT INTO companies (id, name, issue_prefix) VALUES (${companyId}, 'Legacy company', ${`P${index}${companyId.slice(0, 6)}`})`;
-      await sql`INSERT INTO projects (id, company_id, name, environment_id) VALUES
-        (${projectIds[index]}, ${companyId}, 'Legacy project', ${environmentIds[index] ?? null})`;
+      const spaceId = randomUUID();
+      await sql`INSERT INTO spaces (id, name, issue_prefix) VALUES (${spaceId}, 'Legacy space', ${`P${index}${spaceId.slice(0, 6)}`})`;
+      await sql`INSERT INTO projects (id, space_id, name, environment_id) VALUES
+        (${projectIds[index]}, ${spaceId}, 'Legacy project', ${environmentIds[index] ?? null})`;
     }
     return { environmentIds, projectIds };
   }

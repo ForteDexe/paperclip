@@ -21,7 +21,7 @@ export function requiredSlackIngressLanes(input: SlackConfiguredRequirement): re
   return lanes.sort();
 }
 export function slackConfiguredBindingsFingerprint(bindings: readonly SlackFormBinding[]): string {
-  return hash(bindings.map(b => [b.instanceId, b.companyId, b.endpointId, b.publicId, b.connectionId, b.runtimeGeneration,
+  return hash(bindings.map(b => [b.instanceId, b.spaceId, b.endpointId, b.publicId, b.connectionId, b.runtimeGeneration,
     b.teamId, b.appId, b.eventBindingId, b.credentialFingerprint]).sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : JSON.stringify(a) > JSON.stringify(b) ? 1 : 0));
 }
 export function parseSlackConfiguredCoverage(value: unknown): SlackConfiguredCoverage {
@@ -31,7 +31,7 @@ export function parseSlackConfiguredCoverage(value: unknown): SlackConfiguredCov
   const seen = new Set<string>();
   const entries = v.entries.map(value => {
     const entry = exact(value, ["binding", "lanes"]), binding = parseSlackFormBinding(entry.binding);
-    const key = JSON.stringify([binding.companyId, binding.endpointId, binding.connectionId]);
+    const key = JSON.stringify([binding.spaceId, binding.endpointId, binding.connectionId]);
     if (binding.instanceId !== v.instanceId || seen.has(key) || !Array.isArray(entry.lanes) || !entry.lanes.length || new Set(entry.lanes).size !== entry.lanes.length
       || entry.lanes.join() !== [...entry.lanes].sort().join()) throw new Error("Invalid Slack configured coverage");
     seen.add(key);

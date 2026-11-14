@@ -35,12 +35,12 @@ export interface ReadOnlyGitHubGrant {
   actualProviderConsent: true; actualInstallationSelection: true; genuineHumanSession: true; uiCompletionObserved: true; workerPausedBeforeConsent: true;
   isolatedPrivateBrowser: true; tracingEnabled: false; videoEnabled: false; testRunnerAttached: false;
 }
-export function qualifiesReadOnlyGrant(input: { companyId: string; personId: string; workerId: string; repositoryId: string; repositoryFullName: string; app: GitHubAppQualification; auth: Pick<HumanGitHubAuth, "appSlug" | "clientId">;
+export function qualifiesReadOnlyGrant(input: { spaceId: string; personId: string; workerId: string; repositoryId: string; repositoryFullName: string; app: GitHubAppQualification; auth: Pick<HumanGitHubAuth, "appSlug" | "clientId">;
   connection: ToolConnection; grant: ConnectionGrant; installs: ToolConnectionInstall[]; interaction: ConnectionIntentInteraction }) {
   const { grant: g, connection: c, interaction: i } = input, github = g.providerTenant?.github;
-  return qualifiesReadOnlyApp(input.app, input.auth) && c.companyId === input.companyId && c.status === "active" && c.enabled && c.credentialPolicy === "per_user"
+  return qualifiesReadOnlyApp(input.app, input.auth) && c.spaceId === input.spaceId && c.status === "active" && c.enabled && c.credentialPolicy === "per_user"
     && c.config?.sourceTemplateKey === "github" && (c.config.oauth as { clientId?: string } | undefined)?.clientId === input.auth.clientId
-    && g.companyId === input.companyId && g.connectionId === c.id && g.status === "active" && g.kind === "user" && g.subjectUserId === input.personId
+    && g.spaceId === input.spaceId && g.connectionId === c.id && g.status === "active" && g.kind === "user" && g.subjectUserId === input.personId
     && !!github && github.appSlug === input.app.slug && github.installationCount === 1 && github.repositoryCount === 1 && github.repositorySelection === "selected"
     && github.installationIds.length === 1 && github.repositories?.length === 1 && github.repositories[0]?.id === input.repositoryId
     && github.repositories[0]?.fullName === input.repositoryFullName && github.repositories[0]?.private === true && github.repositories[0]?.installationId === github.installationIds[0]
@@ -48,7 +48,7 @@ export function qualifiesReadOnlyGrant(input: { companyId: string; personId: str
     && i.kind === "connection_intent" && i.payload.serviceSlug === "github" && i.status === "accepted" && i.addresseeUserId === input.personId && i.resolvedByUserId === input.personId && !i.resolvedByAgentId
     && i.result?.outcome === "connected" && i.result.connectionId === c.id;
 }
-export interface GitHubHumanRequest { origin: string; companyId: string; issuePrefix: string; taskId: string; workerId: string; interactionId: string; personId: string; repositoryId: string; repositoryFullName: string; auth: HumanGitHubAuth; cookies: Cookie[]; deadlineAt: number }
+export interface GitHubHumanRequest { origin: string; spaceId: string; issuePrefix: string; taskId: string; workerId: string; interactionId: string; personId: string; repositoryId: string; repositoryFullName: string; auth: HumanGitHubAuth; cookies: Cookie[]; deadlineAt: number }
 export async function completeHumanGitHubGrant(ctx: ChatCatalogContext, input: Omit<GitHubHumanRequest, "auth" | "cookies" | "origin" | "deadlineAt">): Promise<ReadOnlyGitHubGrant> {
   const binding = selectedExternalBinding(ctx);
   if (binding.prerequisites.humanAuthEnv !== humanAuthReference || !binding.credentialEnv.includes(humanAuthReference)) throw new Error(`Setup blocker: humanAuthEnv must explicitly declare ${humanAuthReference}`);
@@ -56,7 +56,7 @@ export async function completeHumanGitHubGrant(ctx: ChatCatalogContext, input: O
   if (!ctx.input.privateSecrets) throw new Error("Private GitHub human grant requires its attempt redaction sink");
   const cookies = await ctx.input.page.context().cookies();
   ctx.input.privateSecrets.push(auth.clientSecret, ...auth.storageState.cookies.map(cookie => cookie.value), ...auth.storageState.origins.flatMap(origin => origin.localStorage.map(row => row.value)), ...cookies.map(cookie => cookie.value));
-  const directory = await mkdtemp(path.join(tmpdir(), "paperclip-repository-human-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "outpost-repository-human-"));
   try {
     const request = path.join(directory, "request.json"), channel = process.env.OUTPOST_PLAYWRIGHT_CHANNEL;
     await writeFile(request, JSON.stringify({ ...input, origin: ctx.input.api.baseURL, auth, cookies, deadlineAt: Date.now() + 420000,

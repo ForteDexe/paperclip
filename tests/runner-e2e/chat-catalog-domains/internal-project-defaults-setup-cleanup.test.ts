@@ -17,7 +17,7 @@ it.each(["creation", "checkout"])("cleans the private prerequisite after %s fail
   const context = {
     observationDeadlineAt: Date.now() + 120_000,
     input: {
-      privateSecrets: [], fixtures: { company: { id: "company" }, agent: { id: "lead" } },
+      privateSecrets: [], fixtures: { space: { id: "space" }, agent: { id: "lead" } },
       api: {
         patch: async () => ({}),
         post: async (_path: string, body: Record<string, unknown>) => {

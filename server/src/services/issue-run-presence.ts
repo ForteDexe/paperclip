@@ -12,7 +12,7 @@ type HeartbeatReads = Pick<
 
 export interface IssueRunPresenceIssue {
   id: string;
-  companyId: string;
+  spaceId: string;
   status: string;
   assigneeAgentId: string | null;
   executionRunId?: string | null;
@@ -74,20 +74,20 @@ export function issueRunPresenceService(
       .innerJoin(agentsTable, eq(heartbeatRuns.agentId, agentsTable.id))
       .where(
         and(
-          eq(heartbeatRuns.companyId, issue.companyId),
+          eq(heartbeatRuns.spaceId, issue.spaceId),
           inArray(heartbeatRuns.status, ["queued", "running"]),
           eq(heartbeatRuns.issueId, issue.id),
         ),
       )
       .orderBy(desc(heartbeatRuns.createdAt));
 
-    const projections = await executionProjectionsForRuns(db, issue.companyId, rows.map(run => run.id));
+    const projections = await executionProjectionsForRuns(db, issue.spaceId, rows.map(run => run.id));
     return Promise.all(rows.map(async (run) => ({
-      ...heartbeat.decorateActiveRunStatus(run, { companyId: issue.companyId, issueId: issue.id }),
+      ...heartbeat.decorateActiveRunStatus(run, { spaceId: issue.spaceId, issueId: issue.id }),
       agentAppearance: resolveAgentAppearance(run.agentAppearance, run.agentId),
       avatarUrl: agentAvatarUrl(resolveAgentAppearance(run.agentAppearance, run.agentId), 512),
       execution: projections.get(run.id) ?? null,
-      outputSilence: await heartbeat.buildRunOutputSilence({ ...run, companyId: issue.companyId }),
+      outputSilence: await heartbeat.buildRunOutputSilence({ ...run, spaceId: issue.spaceId }),
     })));
   }
 
@@ -115,16 +115,16 @@ export function issueRunPresenceService(
     const agent = await deps.getAgentById(run.agentId);
     if (!agent) return null;
 
-    const decoratedRun = heartbeat.decorateActiveRunStatus(run, { companyId: issue.companyId, issueId: issue.id });
+    const decoratedRun = heartbeat.decorateActiveRunStatus(run, { spaceId: issue.spaceId, issueId: issue.id });
     return {
       ...decoratedRun,
-      execution: await executionProjectionForRun(db, issue.companyId, run.id),
+      execution: await executionProjectionForRun(db, issue.spaceId, run.id),
       agentId: agent.id,
       agentName: agent.name,
       agentAppearance: agent.appearance,
       avatarUrl: agent.avatarUrl,
       adapterType: agent.adapterType,
-      outputSilence: await heartbeat.buildRunOutputSilence({ ...run, companyId: issue.companyId }),
+      outputSilence: await heartbeat.buildRunOutputSilence({ ...run, spaceId: issue.spaceId }),
     };
   }
 

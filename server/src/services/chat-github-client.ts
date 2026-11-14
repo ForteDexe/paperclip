@@ -141,7 +141,7 @@ async function githubBotRequestOnce<T>(
 /** Resolve only this endpoint's vaulted App. Never consult personal grants. */
 export async function githubBotCredentials(
   db: Db,
-  companyId: string,
+  spaceId: string,
   endpointId: string,
 ) {
   const [row] = await db
@@ -151,12 +151,12 @@ export async function githubBotCredentials(
       toolConnections,
       and(
         eq(toolConnections.id, chatEndpoints.connectionId),
-        eq(toolConnections.companyId, companyId),
+        eq(toolConnections.spaceId, spaceId),
       ),
     )
     .where(
       and(
-        eq(chatEndpoints.companyId, companyId),
+        eq(chatEndpoints.spaceId, spaceId),
         eq(chatEndpoints.id, endpointId),
         eq(chatEndpoints.provider, "github"),
       ),
@@ -179,7 +179,7 @@ export async function githubBotCredentials(
     );
     if (!ref) continue;
     credentials[key] = await secrets.resolveSecretValue(
-      companyId,
+      spaceId,
       ref.secretId,
       ref.versionSelector ?? "latest",
       {
@@ -203,12 +203,12 @@ export async function githubBotCredentials(
 /** Least-privilege short-lived token restricted to the single task repository. */
 export async function githubBotRepositoryToken(
   db: Db,
-  companyId: string,
+  spaceId: string,
   endpointId: string,
   repositoryId: string,
   fetchImpl = fetch,
 ) {
-  const result = await githubBotCredentials(db, companyId, endpointId);
+  const result = await githubBotCredentials(db, spaceId, endpointId);
   if (
     !result.connection.enabled ||
     result.connection.status !== "active" ||

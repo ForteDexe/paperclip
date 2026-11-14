@@ -15,13 +15,13 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 const roots: string[] = [];
 afterEach(async () => { vi.mocked(writeFile).mockReset(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 const identity = { campaignId: "campaign", attemptId: "attempt", executionId: "execution" };
-const companyId = "88c1939b-2d9f-4bb3-8ebc-8a7a85efeeac";
+const spaceId = "88c1939b-2d9f-4bb3-8ebc-8a7a85efeeac";
 const api = (get: (url: string) => unknown): Pick<RunnerApi, "get"> => ({ async get<T>(url: string) { return get(url) as T; } });
 
 async function fixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), "eval-feedback-recovery-")); roots.push(root);
   await mkdir(path.join(root, "snapshots"));
-  await writeFile(path.join(root, "snapshots/fixtures.json"), JSON.stringify({ executionId: identity.executionId, companyId }));
+  await writeFile(path.join(root, "snapshots/fixtures.json"), JSON.stringify({ executionId: identity.executionId, spaceId }));
   return root;
 }
 

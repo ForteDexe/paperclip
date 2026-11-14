@@ -45,7 +45,7 @@ async function importFreshConfigModules() {
 }
 
 beforeEach(() => {
-  home = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-config-tailnet-"));
+  home = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-config-tailnet-"));
   configPath = path.join(home, "config.json");
   vi.stubEnv("OUTPOST_HOME", home);
   vi.stubEnv("OUTPOST_CONFIG", configPath);

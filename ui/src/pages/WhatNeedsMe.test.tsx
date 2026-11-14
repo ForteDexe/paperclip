@@ -4,8 +4,8 @@ import { DecisionBundleHeader, decisionHistoryCount, decisionHistoryQueryEnabled
 
 describe("WhatNeedsMe decision history", () => {
   it("defers terminal-history queries until their curtain opens", () => {
-    expect(decisionHistoryQueryEnabled("company-1", false)).toBe(false);
-    expect(decisionHistoryQueryEnabled("company-1", true)).toBe(true);
+    expect(decisionHistoryQueryEnabled("space-1", false)).toBe(false);
+    expect(decisionHistoryQueryEnabled("space-1", true)).toBe(true);
     expect(decisionHistoryQueryEnabled(null, true)).toBe(false);
   });
 

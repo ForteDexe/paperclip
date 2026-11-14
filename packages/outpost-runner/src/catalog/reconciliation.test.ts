@@ -27,6 +27,7 @@ describe("canonical semantic-catalog reconciliation authority", () => {
     // reconciliation decision changes these exact sets and fails the gate.
     expect(summary.liveOnly).toEqual([
       "call_api",
+      "create_agent",
       "create_case",
       "create_project",
       "create_workflow",
@@ -36,7 +37,6 @@ describe("canonical semantic-catalog reconciliation authority", () => {
       "get_approval_context",
       "get_workspace",
       "handoff_case",
-      "hire_agent",
       "list_project_repositories",
       "list_workflows",
       "list_workspaces",
@@ -58,17 +58,17 @@ describe("canonical semantic-catalog reconciliation authority", () => {
       "update_workflow",
     ]);
     expect(summary.scenarioOnly).toEqual([
-      "administer_company",
-      "export_company",
+      "administer_space",
+      "export_space",
       "inspect_operation_result",
       "list_cases",
-      "list_company_skills",
       "list_goals",
       "list_routines",
       "list_secret_metadata",
+      "list_space_skills",
       "manage_routine",
       "read_secret_value",
-      "sync_company_skills",
+      "sync_space_skills",
       "upsert_case",
     ]);
   });

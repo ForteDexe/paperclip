@@ -6,8 +6,8 @@ import {
   activityLog,
   agents,
   assets,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   documents,
   heartbeatRuns,
@@ -24,9 +24,9 @@ import {
 } from "./helpers/embedded-postgres.js";
 
 vi.hoisted(() => {
-  process.env.OUTPOST_HOME = "/tmp/paperclip-test-home";
+  process.env.OUTPOST_HOME = "/tmp/outpost-test-home";
   process.env.OUTPOST_INSTANCE_ID = "vitest";
-  process.env.OUTPOST_LOG_DIR = "/tmp/paperclip-test-home/logs";
+  process.env.OUTPOST_LOG_DIR = "/tmp/outpost-test-home/logs";
   process.env.OUTPOST_IN_WORKTREE = "false";
 });
 
@@ -42,18 +42,18 @@ const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : 
 
 type Db = ReturnType<typeof createDb>;
 
-function agentActor(companyId: string, agentId: string): Express.Request["actor"] {
+function agentActor(spaceId: string, agentId: string): Express.Request["actor"] {
   return {
     type: "agent",
     agentId,
-    companyId,
+    spaceId,
     runId: undefined,
     source: "agent_jwt",
   };
 }
 
 async function createApp(db: Db, actor: Express.Request["actor"]) {
-  process.env.OUTPOST_LOG_DIR = "/tmp/paperclip-test-home/logs";
+  process.env.OUTPOST_LOG_DIR = "/tmp/outpost-test-home/logs";
   process.env.OUTPOST_IN_WORKTREE = "false";
   const app = express();
   app.use(express.json());
@@ -69,9 +69,9 @@ async function createApp(db: Db, actor: Express.Request["actor"]) {
   return app;
 }
 
-async function seedCompany(db: Db, label: string) {
+async function seedSpace(db: Db, label: string) {
   return db
-    .insert(companies)
+    .insert(spaces)
     .values({
       name: `Permissions Boundary ${label}`,
       issuePrefix: `PB${randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase()}`,
@@ -82,13 +82,13 @@ async function seedCompany(db: Db, label: string) {
 
 async function seedAgent(
   db: Db,
-  companyId: string,
+  spaceId: string,
   input: { role?: string; permissions?: Record<string, unknown>; status?: "active" | "idle" } = {},
 ) {
   return db
     .insert(agents)
     .values({
-      companyId,
+      spaceId,
       name: `Agent ${randomUUID()}`,
       role: input.role ?? "engineer",
       status: input.status ?? "active",
@@ -106,7 +106,7 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-permissions-boundary-routes-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-permissions-boundary-routes-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -119,11 +119,11 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
     await db.delete(issueComments);
     await db.delete(activityLog);
     await db.delete(principalPermissionGrants);
-    await db.delete(companyMemberships);
+    await db.delete(spaceMemberships);
     await db.delete(heartbeatRuns);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -131,9 +131,9 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
   });
 
   it("keeps V1 private agent visibility from becoming issue, comment, document, attachment, activity, or work product privacy", async () => {
-    const company = await seedCompany(db, "Visibility");
-    const readerAgent = await seedAgent(db, company.id);
-    const privateTargetAgent = await seedAgent(db, company.id, {
+    const space = await seedSpace(db, "Visibility");
+    const readerAgent = await seedAgent(db, space.id);
+    const privateTargetAgent = await seedAgent(db, space.id, {
       permissions: {
         authorizationPolicy: {
           agentVisibility: {
@@ -149,8 +149,8 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
     const issue = await db
       .insert(issues)
       .values({
-        companyId: company.id,
-        identifier: `${company.issuePrefix}-1`,
+        spaceId: space.id,
+        identifier: `${space.issuePrefix}-1`,
         title: "Visible work for a private target agent",
         status: "todo",
         priority: "medium",
@@ -161,17 +161,17 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
     const comment = await db
       .insert(issueComments)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         issueId: issue.id,
         authorAgentId: privateTargetAgent.id,
-        body: "Private target agent status is still company-visible.",
+        body: "Private target agent status is still space-visible.",
       })
       .returning()
       .then((rows) => rows[0]!);
     const doc = await db
       .insert(documents)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         title: "Plan",
         latestBody: "Shared plan body",
         createdByAgentId: privateTargetAgent.id,
@@ -180,7 +180,7 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
       .returning()
       .then((rows) => rows[0]!);
     await db.insert(issueDocuments).values({
-      companyId: company.id,
+      spaceId: space.id,
       issueId: issue.id,
       documentId: doc.id,
       key: "plan",
@@ -188,7 +188,7 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
     const asset = await db
       .insert(assets)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         provider: "local_disk",
         objectKey: `attachments/${randomUUID()}.txt`,
         contentType: "text/plain",
@@ -200,13 +200,13 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
       .returning()
       .then((rows) => rows[0]!);
     await db.insert(issueAttachments).values({
-      companyId: company.id,
+      spaceId: space.id,
       issueId: issue.id,
       issueCommentId: comment.id,
       assetId: asset.id,
     });
     await db.insert(issueWorkProducts).values({
-      companyId: company.id,
+      spaceId: space.id,
       issueId: issue.id,
       type: "url",
       provider: "test",
@@ -215,7 +215,7 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
       status: "ready",
     });
     await db.insert(activityLog).values({
-      companyId: company.id,
+      spaceId: space.id,
       actorType: "agent",
       actorId: privateTargetAgent.id,
       agentId: privateTargetAgent.id,
@@ -225,10 +225,10 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
       details: { source: "test" },
     });
 
-    const app = await createApp(db, agentActor(company.id, readerAgent.id));
+    const app = await createApp(db, agentActor(space.id, readerAgent.id));
 
     const [issueList, comments, docs, docDetail, attachments, activity, workProducts] = await Promise.all([
-      request(app).get(`/api/companies/${company.id}/issues`),
+      request(app).get(`/api/spaces/${space.id}/issues`),
       request(app).get(`/api/issues/${issue.id}/comments`),
       request(app).get(`/api/issues/${issue.id}/documents`),
       request(app).get(`/api/issues/${issue.id}/documents/plan`),
@@ -255,15 +255,15 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
     expect(workProducts.body).toEqual(expect.arrayContaining([expect.objectContaining({ title: "Preview" })]));
   }, 20_000);
 
-  it("denies cross-company issue reads before private-agent grant evaluation can matter", async () => {
-    const sourceCompany = await seedCompany(db, "Source");
-    const targetCompany = await seedCompany(db, "Target");
-    const sourceAgent = await seedAgent(db, sourceCompany.id);
-    const privateTargetAgent = await seedAgent(db, targetCompany.id, {
+  it("denies cross-space issue reads before private-agent grant evaluation can matter", async () => {
+    const sourceSpace = await seedSpace(db, "Source");
+    const targetSpace = await seedSpace(db, "Target");
+    const sourceAgent = await seedAgent(db, sourceSpace.id);
+    const privateTargetAgent = await seedAgent(db, targetSpace.id, {
       permissions: {
         authorizationPolicy: {
           agentVisibility: { mode: "private", hiddenFromDefaultDirectory: true },
-          assignmentPolicy: { mode: "company_default" },
+          assignmentPolicy: { mode: "space_default" },
           protectedAgent: { requiresApproval: false },
         },
       },
@@ -271,8 +271,8 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
     const issue = await db
       .insert(issues)
       .values({
-        companyId: targetCompany.id,
-        title: "Other company work",
+        spaceId: targetSpace.id,
+        title: "Other space work",
         status: "todo",
         priority: "medium",
         assigneeAgentId: privateTargetAgent.id,
@@ -280,7 +280,7 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
       .returning()
       .then((rows) => rows[0]!);
 
-    const res = await request(await createApp(db, agentActor(sourceCompany.id, sourceAgent.id)))
+    const res = await request(await createApp(db, agentActor(sourceSpace.id, sourceAgent.id)))
       .get(`/api/issues/${issue.id}`);
 
     // Cross-tenant reads return 404 (not 403) so the response is
@@ -289,42 +289,42 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
     expect(res.body.error).toBe("Issue not found");
   });
 
-  it("allows same-company route assignment after upgrade but keeps private target assignment grant constrained", async () => {
-    const company = await seedCompany(db, "Assignment");
-    const actorAgent = await seedAgent(db, company.id);
-    const openTargetAgent = await seedAgent(db, company.id);
-    const privateTargetAgent = await seedAgent(db, company.id, {
+  it("allows same-space route assignment after upgrade but keeps private target assignment grant constrained", async () => {
+    const space = await seedSpace(db, "Assignment");
+    const actorAgent = await seedAgent(db, space.id);
+    const openTargetAgent = await seedAgent(db, space.id);
+    const privateTargetAgent = await seedAgent(db, space.id, {
       permissions: {
         authorizationPolicy: {
           agentVisibility: { mode: "private", hiddenFromDefaultDirectory: true },
-          assignmentPolicy: { mode: "company_default" },
+          assignmentPolicy: { mode: "space_default" },
           protectedAgent: { requiresApproval: false },
           managedBy: "permissions-extension",
         },
       },
     });
-    const app = await createApp(db, agentActor(company.id, actorAgent.id));
+    const app = await createApp(db, agentActor(space.id, actorAgent.id));
 
     const openAssignment = await request(app)
-      .post(`/api/companies/${company.id}/issues`)
+      .post(`/api/spaces/${space.id}/issues`)
       .send({ title: "Assignable after upgrade", assigneeAgentId: openTargetAgent.id });
     expect(openAssignment.status, JSON.stringify(openAssignment.body)).toBe(201);
 
     const deniedPrivateAssignment = await request(app)
-      .post(`/api/companies/${company.id}/issues`)
+      .post(`/api/spaces/${space.id}/issues`)
       .send({ title: "Private target needs scope", assigneeAgentId: privateTargetAgent.id });
     expect(deniedPrivateAssignment.status).toBe(403);
     expect(deniedPrivateAssignment.body.error).toContain("private");
 
-    await db.insert(companyMemberships).values({
-      companyId: company.id,
+    await db.insert(spaceMemberships).values({
+      spaceId: space.id,
       principalType: "agent",
       principalId: actorAgent.id,
       status: "active",
       membershipRole: "member",
     });
     await db.insert(principalPermissionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       principalType: "agent",
       principalId: actorAgent.id,
       permissionKey: "tasks:assign_scope",
@@ -333,15 +333,15 @@ describeEmbeddedPostgres("permissions upgrade visibility and route boundaries", 
     });
 
     const allowedPrivateAssignment = await request(app)
-      .post(`/api/companies/${company.id}/issues`)
+      .post(`/api/spaces/${space.id}/issues`)
       .send({ title: "Private target has explicit scope", assigneeAgentId: privateTargetAgent.id });
     expect(allowedPrivateAssignment.status, JSON.stringify(allowedPrivateAssignment.body)).toBe(201);
 
-    const otherPrivateTargetAgent = await seedAgent(db, company.id, {
+    const otherPrivateTargetAgent = await seedAgent(db, space.id, {
       permissions: privateTargetAgent.permissions as Record<string, unknown>,
     });
     const deniedOutsideScope = await request(app)
-      .post(`/api/companies/${company.id}/issues`)
+      .post(`/api/spaces/${space.id}/issues`)
       .send({ title: "Different private target stays denied", assigneeAgentId: otherPrivateTargetAgent.id });
     expect(deniedOutsideScope.status).toBe(403);
     expect(deniedOutsideScope.body.error).toContain("private");

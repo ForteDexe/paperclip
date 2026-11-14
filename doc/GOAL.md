@@ -41,8 +41,8 @@ Feature or bug
 
 ## Compatibility vocabulary
 
-The inherited implementation still uses `company`, `project`, `issue`,
-`board`, and `paperclip` in database fields, API routes, environment variables,
+The inherited implementation still uses `space`, `project`, `issue`,
+`board`, and `outpost` in database fields, API routes, environment variables,
 protocol identifiers, and package names. Those are compatibility terms, not
 the product vocabulary. New user-facing and agent-facing copy uses **Space**,
 **task**, **human/user**, and **Outpost**.

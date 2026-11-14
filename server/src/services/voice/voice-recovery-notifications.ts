@@ -4,11 +4,11 @@ import { notifyVoiceReplies } from "./voice-reply-notifications.js";
 import type { Db } from "@outpost/db";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";
 
-export type VoiceRecoveryScope = { kind: "session" | "endpoint" | "connection" | "company"; id: string };
+export type VoiceRecoveryScope = { kind: "session" | "endpoint" | "connection" | "space"; id: string };
 export function voiceRecoveryScope(hint: string): VoiceRecoveryScope | undefined {
   if (hint === "*") return undefined;
   const [kind, id, extra] = hint.split(":");
-  if (!id || extra !== undefined || !["session", "endpoint", "connection", "company"].includes(kind))
+  if (!id || extra !== undefined || !["session", "endpoint", "connection", "space"].includes(kind))
     throw new Error("Invalid voice recovery scope");
   return { kind: kind as VoiceRecoveryScope["kind"], id };
 }

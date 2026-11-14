@@ -16,7 +16,7 @@ export const selectWorkspaceAction = {
     "idempotency": "required",
     "disabledByDefault": false,
     "realBindingStatus": "live_codex",
-    "realServiceBinding": "PaperclipRunnerToolAuthority",
+    "realServiceBinding": "OutpostRunnerToolAuthority",
     "orpEvidence": "Authenticated task workspace routes and durable selection/repository receipts.",
     "orpBindingStatus": "bound",
     "legacyAliases": []

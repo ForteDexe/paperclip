@@ -34,7 +34,7 @@ it("requires remote workspace authority and native execution independently of pr
   }
   expect(() => assertEphemeralNativeRuntime(true)).not.toThrow();
   expect(() => assertEphemeralNativeRuntime(false)).toThrow("native Outpost Runner");
-  const agent = { id: "agent", companyId: "company", name: "Agent", adapterConfig: {} };
+  const agent = { id: "agent", spaceId: "space", name: "Agent", adapterConfig: {} };
   expect(() => assertEphemeralAgentInstructions(agent)).not.toThrow();
   expect(() => assertEphemeralAgentInstructions({ ...agent, adapterConfig: { instructionsBundleMode: "external", instructionsRootPath: "/old-volume" } })).toThrow("managed agent instructions");
   vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "false");

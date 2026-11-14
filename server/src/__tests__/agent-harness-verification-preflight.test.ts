@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, aiProviderDefaults, companies, companyMemberships, connectionGrants, createDb, environments, plugins } from "@outpost/db";
+import { agents, aiProviderDefaults, spaces, spaceMemberships, connectionGrants, createDb, environments, plugins } from "@outpost/db";
 import type { AdapterEnvironmentTestResult } from "@outpost/adapter-utils";
 import { agentHarnessVerificationService } from "../services/agent-harness-verification.js";
 import * as serverAdapters from "../adapters/index.js";
@@ -38,10 +38,10 @@ describePostgres("saved harness account preflight", () => {
   const verify = () => agentHarnessVerificationService(db, {} as PluginWorkerManager).verify(agent);
 
   beforeAll(async () => {
-    home = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-harness-preflight-")));
+    home = await realpath(await mkdtemp(path.join(os.tmpdir(), "outpost-harness-preflight-")));
     vi.stubEnv("OUTPOST_HOME", home);
     vi.stubEnv("OUTPOST_INSTANCE_ID", "harness-preflight-fixture");
-    database = await startEmbeddedPostgresTestDatabase("paperclip-harness-preflight-db-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-harness-preflight-db-");
     db = createDb(database.connectionString);
   }, 90_000);
 
@@ -58,19 +58,19 @@ describePostgres("saved harness account preflight", () => {
       testManagedEnvironment: probe,
     }));
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Unexpected provider request"));
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     userId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Harness preflight", issuePrefix: `HP${++fixtureNumber}`, defaultResponsibleUserId: userId });
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaces).values({ id: spaceId, name: "Harness preflight", issuePrefix: `HP${++fixtureNumber}`, defaultResponsibleUserId: userId });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
     [agent] = await db.insert(agents).values({
-      companyId, name: "Fixture agent", adapterType: "opencode_local", lifecycleState: "verifying",
+      spaceId, name: "Fixture agent", adapterType: "opencode_local", lifecycleState: "verifying",
       adapterConfig: { model: "openrouter/anthropic/claude-sonnet-4.5" }, runtimeConfig: { aiConnection: binding },
     }).returning();
-    account = await aiConnectionService(db).save(companyId, userId, {
+    account = await aiConnectionService(db).save(spaceId, userId, {
       provider: "openrouter", method: "api_key", ownership: "personal", name: "Fixture account",
       apiKey: "fixture-preflight-key", allAgents: true, agentIds: [],
     }, "fixture-preflight-key");
-    await aiConnectionService(db).setDefault(companyId, userId, account.grantId);
+    await aiConnectionService(db).setDefault(spaceId, userId, account.grantId);
   });
 
   afterEach(() => { vi.restoreAllMocks(); });
@@ -81,7 +81,7 @@ describePostgres("saved harness account preflight", () => {
   });
 
   it("rejects a missing default before allocating a target", async () => {
-    await db.delete(aiProviderDefaults).where(eq(aiProviderDefaults.companyId, agent.companyId));
+    await db.delete(aiProviderDefaults).where(eq(aiProviderDefaults.spaceId, agent.spaceId));
     const failure = await verify().catch(error => error);
     expect(readAiConnectionConfigurationFailure(failure)).toBe("ai_connection_default_missing");
     expect(allocate).not.toHaveBeenCalled();
@@ -132,7 +132,7 @@ describePostgres("saved harness account preflight", () => {
     const pluginId = randomUUID(), pluginKey = `test.runner-tasks.${pluginId}`;
     await db.insert(plugins).values({ id: pluginId, pluginKey, packageName: "@test/runner-tasks", version: "1.0.0", apiVersion: 1,
       categories: ["automation"], status: "ready", manifestJson: { id: pluginKey, apiVersion: 1, version: "1.0.0",
-        displayName: "Runner tasks", description: "Runner task fixture", author: "Paperclip", categories: ["automation"],
+        displayName: "Runner tasks", description: "Runner task fixture", author: "Outpost", categories: ["automation"],
         capabilities: ["environment.drivers.register"], entrypoints: { worker: "worker.js" },
         environmentDrivers: [{ driverKey: "tasks", displayName: "Tasks", supportsTasks: true, configSchema: { type: "object" } }] } } as any);
     const [environment] = await db.insert(environments).values({ name: `Runner tasks ${pluginId}`, driver: "plugin", status: "active",
@@ -140,7 +140,7 @@ describePostgres("saved harness account preflight", () => {
     vi.mocked(environmentTests.agentEnvironmentTestService).mockImplementation((database, manager) => ({
       ...realEnvironmentTests(database, manager),
       resolveAdapterTestEnvironmentId: vi.fn().mockResolvedValue(environment.id),
-      assertAdapterTestEnvironmentForCompany: vi.fn().mockResolvedValue(undefined),
+      assertAdapterTestEnvironmentForSpace: vi.fn().mockResolvedValue(undefined),
       resolveAdapterTestExecutionContext: allocate,
       testManagedEnvironment: probe,
     }));
@@ -188,7 +188,7 @@ describePostgres("saved harness account preflight", () => {
     // session fingerprint ignores (cwd) and literal credentials.
     const model = "openrouter/anthropic/claude-sonnet-4.5";
     let calls = 1;
-    for (const adapterConfig of [{ model: "openrouter/openai/gpt-5.1" }, { model, cwd: "/tmp/paperclip-missing-directory" },
+    for (const adapterConfig of [{ model: "openrouter/openai/gpt-5.1" }, { model, cwd: "/tmp/outpost-missing-directory" },
       { model, env: { FIXTURE_TOKEN: "first-literal" } }, { model, env: { FIXTURE_TOKEN: "second-literal" } }]) {
       await db.update(agents).set({ adapterConfig }).where(eq(agents.id, agent.id));
       await expect(verify()).resolves.toBe("complete");
@@ -233,18 +233,18 @@ describePostgres("saved harness account preflight", () => {
   });
 
   it("records nothing when the probe tested a different account than the digest describes (A, then B, then A)", async () => {
-    const other = await aiConnectionService(db).save(agent.companyId, userId, {
+    const other = await aiConnectionService(db).save(agent.spaceId, userId, {
       provider: "openrouter", method: "api_key", ownership: "personal", name: "Second account",
       apiKey: "fixture-second-key", allAgents: true, agentIds: [],
     }, "fixture-second-key");
     // Switch to B after verify() selected A, before the probe selects its account.
     allocate.mockImplementationOnce(async () => {
-      await aiConnectionService(db).setDefault(agent.companyId, userId, other.grantId);
+      await aiConnectionService(db).setDefault(agent.spaceId, userId, other.grantId);
       return { executionTarget: null, environmentName: "Fixture execution target", fallbackChecks: [], release };
     });
     // The probe tests B; switch back to A before verify() could look again.
     probe.mockImplementationOnce(async () => {
-      await aiConnectionService(db).setDefault(agent.companyId, userId, account.grantId);
+      await aiConnectionService(db).setDefault(agent.spaceId, userId, account.grantId);
       return passed;
     });
     await expect(verify()).resolves.toBe("complete");

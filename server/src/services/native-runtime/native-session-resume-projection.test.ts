@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns, issues, type Db } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRunEvents, heartbeatRuns, issues, type Db } from "@outpost/db";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
@@ -13,43 +13,43 @@ const supported = Boolean(externalUrl) || (await getEmbeddedPostgresTestSupport(
 (supported ? describe : describe.skip)("native session resume SQL projection", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
-  const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), normalizedSessionId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), normalizedSessionId = randomUUID();
   const currentRunId = randomUUID();
   const at = (second: number) => new Date(Date.UTC(2026, 8, 8, 0, 0, second));
-  const input = { companyId, agentId, issueId, normalizedSessionId, currentRunId, beforeCreatedAt: at(30) };
+  const input = { spaceId, agentId, issueId, normalizedSessionId, currentRunId, beforeCreatedAt: at(30) };
   const checkpoint = { sessionId: "provider-session", identity: { runId: "prior" }, complete: [false, 0, "", null] };
   const nativeExecutionInput = { binding: { issueId }, task: { prompt: "Complete native input", description: "Description" }, runtimeContext: { nested: [1, 2] } };
-  const paperclipWake = { externalChatProvider: "slack", githubReviewConfigurations: [{ key: "configuration", nested: { retained: true } }], other: ["preserved"] };
-  const paperclipIssue = { id: issueId, title: "Saved canonical title", description: "Saved canonical description" };
+  const outpostWake = { externalChatProvider: "slack", githubReviewConfigurations: [{ key: "configuration", nested: { retained: true } }], other: ["preserved"] };
+  const outpostIssue = { id: issueId, title: "Saved canonical title", description: "Saved canonical description" };
   const profile = { nativeExecutionInput, sessionCheckpoint: checkpoint, nativeToolContractFingerprint: "fingerprint", unrelated: "Omit" };
   const run = (second: number, overrides: Partial<typeof heartbeatRuns.$inferInsert> = {}) => ({
-    id: randomUUID(), companyId, agentId, nativeIssueId: issueId, nativeSessionId: normalizedSessionId,
+    id: randomUUID(), spaceId, agentId, nativeIssueId: issueId, nativeSessionId: normalizedSessionId,
     runtimeMode: "native", status: "failed", createdAt: at(second), runnerProfileJson: {}, ...overrides,
   });
   const select = () => findNativeSessionResumeRun(db, input);
   const source = () => run(0, { runnerInstanceId: randomUUID(), processPid: 17, processGroupId: 19, processStartedAt: at(0),
     errorCode: "native_session_interrupted",
-    runnerProfileJson: profile, contextSnapshot: { paperclipWake, paperclipIssue: { ...paperclipIssue, unrelated: "Omit" }, prompt: "Omit" } });
+    runnerProfileJson: profile, contextSnapshot: { outpostWake, outpostIssue: { ...outpostIssue, unrelated: "Omit" }, prompt: "Omit" } });
   const writeProfile = (id: string, value: unknown) => db.execute(sql`update ${heartbeatRuns}
     set runner_profile_json = ${JSON.stringify(value)}::jsonb where ${heartbeatRuns.id} = ${id}`);
 
   beforeAll(async () => {
     database = externalUrl ? { connectionString: externalUrl, cleanup: async () => {} } : await startEmbeddedPostgresTestDatabase("native-resume-projection-");
     db = createDb(database.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Resume projection", issuePrefix: `N${companyId.replaceAll("-", "")}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Resume task" });
+    await db.insert(spaces).values({ id: spaceId, name: "Resume projection", issuePrefix: `N${spaceId.replaceAll("-", "")}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Resume task" });
   });
   afterEach(async () => {
-    await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.companyId, companyId));
-    await db.delete(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
+    await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.spaceId, spaceId));
+    await db.delete(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId));
   });
   afterAll(async () => {
     if (!db) return;
     try {
-      await db.delete(issues).where(eq(issues.companyId, companyId));
-      await db.delete(agents).where(eq(agents.companyId, companyId));
-      await db.delete(companies).where(eq(companies.id, companyId));
+      await db.delete(issues).where(eq(issues.spaceId, spaceId));
+      await db.delete(agents).where(eq(agents.spaceId, spaceId));
+      await db.delete(spaces).where(eq(spaces.id, spaceId));
     } finally {
       try { await db.$client.end({ timeout: 0 }); }
       finally { await database.cleanup(); }
@@ -62,7 +62,7 @@ const supported = Boolean(externalUrl) || (await getEmbeddedPostgresTestSupport(
     const result = await select();
     expect(result).toEqual({ ...saved, runnerProfileJson: { nativeExecutionInput, sessionCheckpoint: checkpoint, nativeToolContractFingerprint: "fingerprint", nativeControllerRecovery: null,
       nativeProviderStateUnsaved: null },
-      contextSnapshot: { paperclipWake, paperclipIssue } });
+      contextSnapshot: { outpostWake, outpostIssue } });
     const stored = await db.select({ profile: heartbeatRuns.runnerProfileJson, context: heartbeatRuns.contextSnapshot }).from(heartbeatRuns).where(eq(heartbeatRuns.id, saved.id));
     expect(stored[0].profile).toEqual(profile);
     expect(stored[0].context).toEqual(saved.contextSnapshot);
@@ -106,14 +106,14 @@ const supported = Boolean(externalUrl) || (await getEmbeddedPostgresTestSupport(
   it("preserves malformed selected context values and missing brief fields", async () => {
     const saved = source();
     await db.insert(heartbeatRuns).values(saved);
-    for (const value of [null, false, 0, "invalid", [], {}, { paperclipWake: [], paperclipIssue: { id: issueId, title: false } },
-      { paperclipIssue: { id: issueId, title: "Valid title without description" } },
-      { paperclipIssue: { id: issueId, title: "Valid title", description: null } }]) {
+    for (const value of [null, false, 0, "invalid", [], {}, { outpostWake: [], outpostIssue: { id: issueId, title: false } },
+      { outpostIssue: { id: issueId, title: "Valid title without description" } },
+      { outpostIssue: { id: issueId, title: "Valid title", description: null } }]) {
       await db.execute(sql`update ${heartbeatRuns} set context_snapshot = ${JSON.stringify(value)}::jsonb where ${heartbeatRuns.id} = ${saved.id}`);
       const result = await select();
       const object = typeof value === "object" && value !== null && !Array.isArray(value) ? value : {};
-      expect(result?.contextSnapshot.paperclipWake).toEqual("paperclipWake" in object ? object.paperclipWake : null);
-      expect(result?.contextSnapshot.paperclipIssue).toEqual("paperclipIssue" in object ? object.paperclipIssue : null);
+      expect(result?.contextSnapshot.outpostWake).toEqual("outpostWake" in object ? object.outpostWake : null);
+      expect(result?.contextSnapshot.outpostIssue).toEqual("outpostIssue" in object ? object.outpostIssue : null);
     }
   });
 
@@ -131,32 +131,32 @@ const supported = Boolean(externalUrl) || (await getEmbeddedPostgresTestSupport(
     const saved = source(), newer = run(1);
     await db.insert(heartbeatRuns).values([saved, newer]);
     for (const eventType of ["harness.ready", "session.started", "session.resumed", "session.updated", "turn.started", "provider.event", "provider.rpc_result", "log"]) {
-      await db.insert(heartbeatRunEvents).values({ companyId, agentId, runId: newer.id, seq: 1, eventType });
+      await db.insert(heartbeatRunEvents).values({ spaceId, agentId, runId: newer.id, seq: 1, eventType });
       if (eventType === "log") expect((await select())?.id).toBe(saved.id);
       else expect(await select()).toBeNull();
       await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, newer.id));
     }
   });
 
-  it("excludes current and mismatched agent, company, task and session rows before applying barriers", async () => {
-    const saved = source(), otherCompany = randomUUID(), otherAgent = randomUUID(), otherIssue = randomUUID();
-    await db.insert(companies).values({ id: otherCompany, name: "Other", issuePrefix: `D${otherCompany.replaceAll("-", "")}` });
-    await db.insert(agents).values({ id: otherAgent, companyId: otherCompany, name: "Other" });
-    await db.insert(issues).values({ id: otherIssue, companyId, title: "Other" });
+  it("excludes current and mismatched agent, space, task and session rows before applying barriers", async () => {
+    const saved = source(), otherSpace = randomUUID(), otherAgent = randomUUID(), otherIssue = randomUUID();
+    await db.insert(spaces).values({ id: otherSpace, name: "Other", issuePrefix: `D${otherSpace.replaceAll("-", "")}` });
+    await db.insert(agents).values({ id: otherAgent, spaceId: otherSpace, name: "Other" });
+    await db.insert(issues).values({ id: otherIssue, spaceId, title: "Other" });
     try {
       await db.insert(heartbeatRuns).values([saved, run(1, { id: currentRunId, status: "running" }),
-        run(2, { companyId: otherCompany, status: "running" }), run(3, { agentId: otherAgent, status: "running" }),
+        run(2, { spaceId: otherSpace, status: "running" }), run(3, { agentId: otherAgent, status: "running" }),
         run(4, { nativeIssueId: otherIssue, status: "running" }), run(5, { nativeSessionId: randomUUID(), status: "running" })]);
       expect((await select())?.id).toBe(saved.id);
     } finally {
-      await db.delete(heartbeatRuns).where(eq(heartbeatRuns.companyId, otherCompany));
+      await db.delete(heartbeatRuns).where(eq(heartbeatRuns.spaceId, otherSpace));
       await db.delete(heartbeatRuns).where(eq(heartbeatRuns.agentId, otherAgent));
       await db.delete(issues).where(eq(issues.id, otherIssue));
       await db.delete(agents).where(eq(agents.id, otherAgent));
-      await db.delete(companies).where(eq(companies.id, otherCompany));
+      await db.delete(spaces).where(eq(spaces.id, otherSpace));
     }
     expect(await findNativeSessionResumeRun(db, { ...input, normalizedSessionId: "invalid" })).toBeNull();
-    for (const key of ["companyId", "agentId", "issueId", "normalizedSessionId"] as const) {
+    for (const key of ["spaceId", "agentId", "issueId", "normalizedSessionId"] as const) {
       expect(await findNativeSessionResumeRun(db, { ...input, [key]: input[key].toUpperCase() })).toBeNull();
     }
   });
@@ -198,7 +198,7 @@ const supported = Boolean(externalUrl) || (await getEmbeddedPostgresTestSupport(
             query.execute = async (...executeArgs: Parameters<typeof execute>) => {
               reads++;
               await db.insert(heartbeatRuns).values(run(1, { runnerProfileJson: { sessionCheckpoint: 0 } }));
-              await db.update(heartbeatRuns).set({ nativeSessionId: randomUUID() }).where(and(eq(heartbeatRuns.id, saved.id), eq(heartbeatRuns.companyId, companyId)));
+              await db.update(heartbeatRuns).set({ nativeSessionId: randomUUID() }).where(and(eq(heartbeatRuns.id, saved.id), eq(heartbeatRuns.spaceId, spaceId)));
               return execute(...executeArgs);
             };
             return query;

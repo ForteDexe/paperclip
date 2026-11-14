@@ -11,13 +11,13 @@ import {
 const tempDirs: string[] = [];
 const catalogSkills = [
   {
-    id: "paperclipai:bundled:software-development:github-pr-workflow",
-    key: "paperclipai/bundled/software-development/github-pr-workflow",
+    id: "outpost:bundled:software-development:github-pr-workflow",
+    key: "outpost/bundled/software-development/github-pr-workflow",
     slug: "github-pr-workflow",
   },
   {
-    id: "paperclipai:bundled:paperclip-operations:task-planning",
-    key: "paperclipai/bundled/paperclip-operations/task-planning",
+    id: "outpost:bundled:outpost-operations:task-planning",
+    key: "outpost/bundled/outpost-operations/task-planning",
     slug: "task-planning",
   },
 ];
@@ -34,18 +34,18 @@ describe("teams catalog manifest", () => {
         "name: Product Engineering",
         "description: Product engineering team for implementation and review work.",
         "schema: agentcompanies/v1",
-        "key: paperclipai/bundled/software-development/product-engineering",
-        "manager: agents/cto/AGENTS.md",
-        "recommendedForCompanyTypes:",
+        "key: outpost/bundled/software-development/product-engineering",
+        "manager: agents/engineering-lead/AGENTS.md",
+        "recommendedForSpaceTypes:",
         "  - software",
         "tags:",
         "  - engineering",
       ],
       files: {
-        "agents/cto/AGENTS.md": [
+        "agents/engineering-lead/AGENTS.md": [
           "---",
-          "name: CTO",
-          "slug: cto",
+          "name: Engineering lead",
+          "slug: engineering-lead",
           "skills:",
           "  - github-pr-workflow",
           "---",
@@ -56,7 +56,7 @@ describe("teams catalog manifest", () => {
           "---",
           "name: App",
           "slug: app",
-          "owner: cto",
+          "owner: engineering-lead",
           "---",
           "",
           "Build the app.",
@@ -65,7 +65,7 @@ describe("teams catalog manifest", () => {
           "---",
           "name: Review",
           "slug: review",
-          "assignee: cto",
+          "assignee: engineering-lead",
           "project: app",
           "recurring: true",
           "---",
@@ -84,8 +84,8 @@ describe("teams catalog manifest", () => {
     expect(result.errors).toEqual([]);
     expect(result.manifest.teams).toHaveLength(1);
     expect(result.manifest.teams[0]).toMatchObject({
-      id: "paperclipai:bundled:software-development:product-engineering",
-      key: "paperclipai/bundled/software-development/product-engineering",
+      id: "outpost:bundled:software-development:product-engineering",
+      key: "outpost/bundled/software-development/product-engineering",
       kind: "bundled",
       category: "software-development",
       slug: "product-engineering",
@@ -93,7 +93,7 @@ describe("teams catalog manifest", () => {
       schema: "agentcompanies/v1",
       trustLevel: "markdown_only",
       compatibility: "compatible",
-      recommendedForCompanyTypes: ["software"],
+      recommendedForSpaceTypes: ["software"],
       tags: ["engineering"],
       counts: {
         agents: 1,
@@ -104,8 +104,8 @@ describe("teams catalog manifest", () => {
         catalogSkills: 1,
         externalSkillSources: 0,
       },
-      rootAgentSlugs: ["cto"],
-      agentSlugs: ["cto"],
+      rootAgentSlugs: ["engineering-lead"],
+      agentSlugs: ["engineering-lead"],
       projectSlugs: ["app"],
     });
     expect(result.manifest.teams[0]!.requiredSkills).toEqual([
@@ -113,13 +113,13 @@ describe("teams catalog manifest", () => {
         type: "catalog",
         ref: "github-pr-workflow",
         resolved: true,
-        catalogSkillKey: "paperclipai/bundled/software-development/github-pr-workflow",
-        agentSlugs: ["cto"],
+        catalogSkillKey: "outpost/bundled/software-development/github-pr-workflow",
+        agentSlugs: ["engineering-lead"],
       }),
     ]);
     expect(result.manifest.teams[0]!.files.map((file) => file.path)).toEqual([
       "TEAM.md",
-      "agents/cto/AGENTS.md",
+      "agents/engineering-lead/AGENTS.md",
       "projects/app/PROJECT.md",
       "projects/app/tasks/review/TASK.md",
     ]);
@@ -132,9 +132,9 @@ describe("teams catalog manifest", () => {
       frontmatter: [
         "name: Duplicate",
         "schema: agentcompanies/v1",
-        "key: paperclipai/bundled/software-development/other",
+        "key: outpost/bundled/software-development/other",
         "manager: agents/missing/AGENTS.md",
-        "recommendedForCompanyTypes: software",
+        "recommendedForSpaceTypes: software",
       ],
       files: {
         "agents/lead/AGENTS.md": [
@@ -189,8 +189,8 @@ describe("teams catalog manifest", () => {
         expect.stringContaining("catalog/bundled/software-development/missing-team is missing TEAM.md"),
         expect.stringContaining("has invalid category"),
         expect.stringContaining("frontmatter must include description"),
-        expect.stringContaining("key must be paperclipai/bundled/Bad_Category/duplicate"),
-        expect.stringContaining("field recommendedForCompanyTypes must be an array of strings"),
+        expect.stringContaining("key must be outpost/bundled/Bad_Category/duplicate"),
+        expect.stringContaining("field recommendedForSpaceTypes must be an array of strings"),
         expect.stringContaining("manager must resolve to an AGENTS.md file"),
         expect.stringContaining("reportsTo references unknown agent slug"),
         expect.stringContaining("skill reference \"missing-skill\" does not resolve"),

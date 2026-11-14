@@ -29,7 +29,7 @@ export function authorizeShippedChat(env: NodeJS.ProcessEnv, event: unknown, sel
     || selected.profile.provider !== "opencode" || selected.profile.model !== "openrouter/deepseek/deepseek-v4.1-flash-1017" || selected.profile.expectedRuntimeMode !== "native"
     || selected.requiredCredentials.length !== 1 || selected.requiredCredentials[0] !== "OPENROUTER_API_KEY" || selected.task.id !== "create-backlog"
     || selected.task.expectedRunCount !== 1 || selected.task.turnTimeoutMs !== 120_000 || selected.task.attemptTimeoutMs.local !== 420_000 || selected.task.automaticRetryPolicy !== "single_attempt"
-    || selected.suite.definitionMetadata?.companyAndAgentBudgetCents !== 500 || selected.suite.definitionMetadata?.maximumAttemptsPerCell !== 1) throw new Error("Unexpected shipped chat selection or bounds");
+    || selected.suite.definitionMetadata?.spaceAndAgentBudgetCents !== 500 || selected.suite.definitionMetadata?.maximumAttemptsPerCell !== 1) throw new Error("Unexpected shipped chat selection or bounds");
   const identity = { workflowSha: env.GITHUB_SHA!, targetSha: env.GITHUB_SHA!, runId: env.GITHUB_RUN_ID!, attempt: "1", executionIds: Object.freeze([executionId]) };
   const authoritySha256 = createHash("sha256").update(JSON.stringify({ authority, ...identity, actor, triggering, jobRunId: payload.inputs.ALLURE_JOB_RUN_ID, launchSha256 })).digest("hex");
   return Object.freeze({ ...identity, authority, protocol: MANUAL_PRIVATE_PROTOCOL, launchSha256, authoritySha256, approvalSha256: authoritySha256, private: true as const });

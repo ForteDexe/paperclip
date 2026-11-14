@@ -62,7 +62,7 @@ after expiry before accepting buffered callbacks; preserve that safety boundary.
   its new expiry. This is a configured receiver's takeover obligation, not proof
   that a standby with such an obligation can sleep indefinitely.
 - Initialization/credential/database failures retain scoped retry/backoff. One
-  failed receiver must not starve independent companies or a healthy due backlog.
+  failed receiver must not starve independent spaces or a healthy due backlog.
 - After ownership loss, finish listener fencing/stop and lease release, then wake
   discovery for that endpoint. Do not reinitialize before the old listener stops.
   Avoid a callback cycle on shutdown or a permanent retry after disable/removal.
@@ -84,7 +84,7 @@ Existing helpers are starting points, not proof of complete coverage:
 3. `chat-channels/setup-probes.ts`, `provider-effects.ts`, resource reconciliation,
    publication failures, and inbound activation: eligibility/health transitions.
 4. Generic tool access, removal, health observations, credential/binding changes,
-   membership removal, and company deletion: these can change a receiver without
+   membership removal, and space deletion: these can change a receiver without
    calling the endpoint configuration service.
 5. `runtime/ownership.ts`: renewal failure, token loss, failed initialization,
    runtime invalidation, lease release, and shutdown. A direct callback is suitable
@@ -108,7 +108,7 @@ cadence repeatedly queries receiver inventory. Then verify:
 - renewal failure triggers bounded recovery only after fencing the old runtime;
 - old buffered messages remain fenced after token or credential generation change;
 - Photon and Discord preserve their existing distinct transport behavior;
-- scoped changes, company deletion, nested transaction commit/rollback, uncertain
+- scoped changes, space deletion, nested transaction commit/rollback, uncertain
   commit, page boundaries, failure isolation, concurrent changes, restart,
   drain/resume, and shutdown retain obligations;
 - shared coordinator behavior without this worker remains unchanged;
@@ -129,7 +129,7 @@ removes idle discovery activity, not the receiver's live transport obligation.
 The full original recurring-server inventory remains in scope in the stack ledger.
 
 At audit creation, health #17554 has a passing security scan on 9ef6e4f4c8 but
-other current-head checks remain running. Company cleanup #17561 is e8febb30eb.
+other current-head checks remain running. Space cleanup #17561 is e8febb30eb.
 Discord #17557 is d3187f76a4 with fresh checks required after its failure-path and
 CI fixture repairs. The older #17490 E2E cancellation failure, final reconciliation
 with master, and all fresh review/check gates remain outstanding. No stack PR was
@@ -141,7 +141,7 @@ failed checks, passing security, and fresh Greptile 5/5. Its three reviewed find
 (fair batching, real producer coverage, inventory amplification) are implemented,
 verified, and their threads resolved. This is acceptance of that current head,
 not a claim that the full stack is complete or reconciled with moving master.
-Company cleanup and Discord still have live current-head checks.
+Space cleanup and Discord still have live current-head checks.
 
 
 ## Implementation and verification update
@@ -149,8 +149,8 @@ Company cleanup and Discord still have live current-head checks.
 The aggregate chat lane now calls voice reconciliation only. Receiver discovery
 registers with the existing delivery coordinator. The receiver owner loads UUID
 pages of 100, keeps owned identities with no discovery deadline, and processes
-25 due receivers per fair company batch. Configuration hints refresh only their
-endpoint, connection, or company. A foreign owner schedules its saved lease
+25 due receivers per fair space batch. Configuration hints refresh only their
+endpoint, connection, or space. A foreign owner schedules its saved lease
 expiry; a changed lease is reread before another attempt. Failures retain scoped
 30-second exponential backoff capped at five minutes. Dirty scopes suppress their
 cached deadlines until refresh succeeds; otherwise an old takeover deadline could
@@ -172,7 +172,7 @@ Audited producer groups:
 | Discord Gateway lifecycle | Receiver hints before recovery/failure transitions; metadata-only writes do not create discovery work |
 | Photon transport failure and runtime recovery | Failure callback now signals before attention/disable; existing assert-owned recovery uses the shared endpoint helper |
 | Generic tool update/removal, manual health and access revocation | Existing chat connection helper, broadened configuration dispatch, and SDK transport filter |
-| Company deletion | Company hint precedes endpoint removal in the owning deletion transaction |
+| Space deletion | Space hint precedes endpoint removal in the owning deletion transaction |
 | Ownership loss / invalidation | Local completion callback after listener stop and lease release; suppressed during shutdown |
 
 The additional direct-writer audit found publication-resolution, publication
@@ -195,7 +195,7 @@ prove absence of overlap. The strengthened test failed before the ownership fix.
 Current passing evidence: 32 receiver/startup cases, 90 selected Discord
 integration cases, all 20 Photon channel cases, and server typechecking. The
 Discord selection includes configuration, credential rotation, pause/resume,
-company deletion, token-loss stop ordering, and existing takeover/admission fences.
+space deletion, token-loss stop ordering, and existing takeover/admission fences.
 The dedicated real-DB worker takeover test also passes, as do 75 command/delivery/
 standby consumer cases and full workspace typechecking. This is 218 unique selected
 passing cases. Workspace build passes. Remote review/check gates remain pending.
@@ -227,15 +227,15 @@ Active sockets and lease renewals remain required work, and no Cloud admission
 exemption is added. Voice, Teams, publication maintenance, milestones and other
 inventory reasons remain separate PRs. The full stack is not complete.
 
-Master was fetched again at 0d73505098. Company prerequisite #17561 at e8febb30eb
+Master was fetched again at 0d73505098. Space prerequisite #17561 at e8febb30eb
 and Discord parent #17557 at d3187f76a4 now have no failed or pending checks;
-Paperclip Review is skipped. Fresh review-content reconciliation and final stack
+Outpost Review is skipped. Fresh review-content reconciliation and final stack
 rebasing/verification remain distinct from these check results.
 
 
 ## Receiver review repair
 
-The real company-removal producer regression reproduced two inventory reads for
+The real space-removal producer regression reproduced two inventory reads for
 one observed removal. Discovery-initiated stops now suppress their own completion
 wake; independent token loss still wakes discovery after listener retirement.
 A full reconstruction also covers its already-pending scoped hints. Hints that
@@ -277,7 +277,7 @@ verification remain separate gates.
 The branch normally integrates Discord parent #17557 at
 `cedf2030c49c3650a41b76a4767176fd78170819` through `3e957d1204`. Only the
 original 27 receiver-owned paths differ from that parent. Health #17554 is now
-merged; company cleanup #17561 and Discord #17557 still precede this slice.
+merged; space cleanup #17561 and Discord #17557 still precede this slice.
 Older stack status above describes its recorded source revision.
 
 The latest old review summaries still mention the delay and redundant-stop
@@ -287,7 +287,7 @@ Both were revalidated on the integrated parent rather than duplicated. A guarded
 mutation removing `nextRunAtOnError` fails the 1,100 ms slow-provider next-deadline
 assertion. The expected error also remains visible in teardown after that early
 assertion. A separate mutation reenabling discovery-initiated stop notification
-fails the real company-removal producer assertion with two inventory reads
+fails the real space-removal producer assertion with two inventory reads
 instead of one. Both source files are restored byte for byte after the checks.
 Normal worker and real producer suites pass with the original fixes.
 
@@ -321,7 +321,7 @@ Ponytail reviews remain mandatory. No deployed sleep or full local suite is clai
 ## Landed-foundation integration acceptance, October 27
 
 This slice normally integrates Discord parent `547fdf2139`, which contains
-master `f8563d2507` and landed company-deletion fixes. The original 27-file
+master `f8563d2507` and landed space-deletion fixes. The original 27-file
 scope is unchanged. All owned source matches its precise original patch applied
 to that parent. The shared queue catalog also preserves master's task-drain and
 native-checkpoint declarations. An initial whole-file identity assertion rejected

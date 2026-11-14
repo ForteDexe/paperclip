@@ -43,8 +43,8 @@ import {
   assets,
   chatVoiceSessions,
   authUsers,
-  companySecretProposals,
-  companies,
+  spaceSecretProposals,
+  spaces,
   documents,
   heartbeatRuns,
   runIdentityContexts,
@@ -70,7 +70,7 @@ import type {
   ConnectionIntentInteraction,
   CreateIssueThreadInteraction,
   CreateIssueThreadInteractionInput,
-  InteractionResolverGovernance,
+  InteractionResolverPolicy,
   IssueReviewPolicy,
   IssueThreadInteraction,
   IssueThreadInteractionCanonicalResolverPolicy,
@@ -180,16 +180,16 @@ type InteractionActor = {
   relayedHumanUserId?: string | null;
 };
 
-async function assertInteractionRunWriteAllowed(tx: Db, issue: { id: string; companyId: string }, actor: InteractionActor, texts: string[] = []) {
-  await assertAgentInteraction(tx, { companyId: issue.companyId, actorAgentId: actor.agentId,
+async function assertInteractionRunWriteAllowed(tx: Db, issue: { id: string; spaceId: string }, actor: InteractionActor, texts: string[] = []) {
+  await assertAgentInteraction(tx, { spaceId: issue.spaceId, actorAgentId: actor.agentId,
     operation: "edit", issueId: issue.id, lock: true });
-  await assertAgentInteraction(tx, { companyId: issue.companyId, actorAgentId: actor.agentId,
+  await assertAgentInteraction(tx, { spaceId: issue.spaceId, actorAgentId: actor.agentId,
     operation: "comment", issueId: issue.id, texts, lock: true });
   if (!actor.agentId || !actor.runId) return;
   // Keep the same issue -> run lock order as task mutation and checkout.
   await tx.select({ id: issues.id }).from(issues)
-    .where(and(eq(issues.id, issue.id), eq(issues.companyId, issue.companyId))).for("update");
-  await assertAgentRunWriteAllowed(tx, issue.companyId, actor);
+    .where(and(eq(issues.id, issue.id), eq(issues.spaceId, issue.spaceId))).for("update");
+  await assertAgentRunWriteAllowed(tx, issue.spaceId, actor);
 }
 
 type CreateInteractionOptions = {
@@ -216,7 +216,7 @@ type InteractionWakeup = (
 
 export type IssueThreadInteractionServiceOptions = {
   resolvePullRequestState?: (
-    companyId: string,
+    spaceId: string,
     reference: GitHubPullRequestReference,
     signal?: AbortSignal,
   ) => Promise<PullRequestMergeState>;
@@ -336,7 +336,7 @@ export function getMergeConfirmationPullRequestReferences(
     !Array.isArray(payload.target)
       ? (payload.target as Record<string, unknown>)
       : null;
-  // Plan/document confirmations and governed action cards must never inherit
+  // Plan/document confirmations and controlled action cards must never inherit
   // merge-confirmation authority merely because their prose links to a PR.
   if (target?.type === "issue_document" || target?.type === "issue_attachment") return [];
 
@@ -361,7 +361,7 @@ export function getMergeConfirmationPullRequestReferences(
   // System acceptance is intentionally fail-closed: after replacing recognized
   // PR references, every trusted field must contain merge-only vocabulary. This
   // prevents an otherwise valid merge prompt from smuggling an additional action
-  // that a governed-action denylist did not anticipate.
+  // that a controlled-action denylist did not anticipate.
   if (
     !trustedTextValues.every(
       (value) =>
@@ -375,7 +375,7 @@ export function getMergeConfirmationPullRequestReferences(
 }
 
 const ISSUE_THREAD_INTERACTION_IDEMPOTENCY_CONSTRAINT =
-  "issue_thread_interactions_company_issue_idempotency_uq";
+  "issue_thread_interactions_space_issue_idempotency_uq";
 
 type IssueWakeTarget = {
   id: string;
@@ -437,14 +437,14 @@ const RESOLVER_POLICY_RESTRICTION_RANK: Record<
 export function resolveInteractionPolicy(args: {
   kind: IssueThreadInteractionKind;
   requested?: IssueThreadInteractionResolverPolicy;
-  governance: InteractionResolverGovernance;
+  policy: InteractionResolverPolicy;
   hasToolAction: boolean;
   hasSecretProposal?: boolean;
 }) {
-  const kindGovernance = args.governance[args.kind];
+  const kindPolicy = args.policy[args.kind];
   const requestedPolicyInput =
     args.requested ??
-    kindGovernance?.defaultPolicy ??
+    kindPolicy?.defaultPolicy ??
     DEFAULT_RESOLVER_POLICY_BY_KIND[args.kind];
   const requestedResolverPolicy =
     normalizeIssueThreadInteractionResolverPolicy(requestedPolicyInput);
@@ -456,17 +456,17 @@ export function resolveInteractionPolicy(args: {
     "requested";
   if (args.hasToolAction || args.hasSecretProposal) {
     effectiveResolverPolicy = "human_only";
-    effectiveResolverPolicySource = "governed_action";
-  } else if (kindGovernance?.cap) {
+    effectiveResolverPolicySource = "controlled_action";
+  } else if (kindPolicy?.cap) {
     const cap = normalizeIssueThreadInteractionResolverPolicy(
-      kindGovernance.cap,
+      kindPolicy.cap,
     );
     if (
       RESOLVER_POLICY_RESTRICTION_RANK[cap] >
       RESOLVER_POLICY_RESTRICTION_RANK[effectiveResolverPolicy]
     ) {
       effectiveResolverPolicy = cap;
-      effectiveResolverPolicySource = "company_cap";
+      effectiveResolverPolicySource = "space_cap";
     }
   }
   return {
@@ -502,7 +502,7 @@ function assertInteractionResolutionAllowed(
     actor: resolverActor(actor),
     interaction: current,
     additionalRestriction: actor.resolverPolicyRestriction,
-    governedAction:
+    controlledAction:
       current.kind === "request_confirmation" &&
       current.payload !== null &&
       typeof current.payload === "object" &&
@@ -515,7 +515,7 @@ function assertInteractionResolutionAllowed(
 
 type IssueResolutionContext = {
   id: string;
-  companyId: string;
+  spaceId: string;
   status: string;
   executionRunId: string | null;
   hiddenAt?: Date | null;
@@ -550,7 +550,7 @@ async function assertRequestConfirmationResolutionAllowedUnderLock(
   if (actor.agentId && isNativeCompletionReview(interaction)) {
     const target = (interaction.payload as { target?: { revisionId?: string } }).target;
     if (!actor.runId || !await getNativeReviewAssignment(tx, {
-      companyId: issue.companyId, issueId: issue.id, agentId: actor.agentId,
+      spaceId: issue.spaceId, issueId: issue.id, agentId: actor.agentId,
       contextSnapshot: { nativeReviewInteractionId: interaction.id, nativeReviewDecisionId: target?.revisionId },
       actingRunId: actor.runId,
       issueExecutionRunId: issue.executionRunId,
@@ -669,7 +669,7 @@ async function isEquivalentAcceptedReplay(
     || !isEquivalentCreateRequest(row, { ...input, sourceRunId: row.sourceRunId }, actor, defaultAddresseeUserId)
   ) return false;
   const [latest] = await db.select({ id: issueThreadInteractions.id }).from(issueThreadInteractions).where(and(
-    eq(issueThreadInteractions.companyId, row.companyId),
+    eq(issueThreadInteractions.spaceId, row.spaceId),
     eq(issueThreadInteractions.issueId, row.issueId),
     inArray(issueThreadInteractions.kind, [...REQUEST_CONFIRMATION_INTERACTION_KINDS]),
   )).orderBy(desc(issueThreadInteractions.createdAt), desc(issueThreadInteractions.id)).limit(1);
@@ -711,8 +711,8 @@ function hydrateInteraction(
     row.effectiveResolverPolicy as IssueThreadInteractionResolverPolicy;
   const resolverPolicyProvenance =
     row.resolverPolicyProvenance ??
-    (storedRequestedResolverPolicy === "board_only" ||
-    storedRequestedResolverPolicy === "board_or_agents"
+    (storedRequestedResolverPolicy === "operator_only" ||
+    storedRequestedResolverPolicy === "operator_or_agents"
       ? "legacy_inherited_restriction"
       : "inherited");
   const canonicalizeStoredPolicy = (
@@ -823,9 +823,9 @@ function hydrateInteraction(
   }
 }
 
-async function touchIssue(db: IssueTouchDb, issueId: string, companyId: string) {
+async function touchIssue(db: IssueTouchDb, issueId: string, spaceId: string) {
   await db.transaction(async tx => {
-    await notifyStatusCardIssueChange(tx, companyId);
+    await notifyStatusCardIssueChange(tx, spaceId);
     await tx.update(issues).set({ updatedAt: new Date() }).where(eq(issues.id, issueId));
   });
 }
@@ -1044,7 +1044,7 @@ function buildSupersededByNewerInteractionResult(
 async function supersedeOnboardingTaskQuestionsMovedToChat(
   tx: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     conversationUserId: string;
     replacementInteractionId: string;
@@ -1057,7 +1057,7 @@ async function supersedeOnboardingTaskQuestionsMovedToChat(
   // Lock the onboarding tasks before their questions, matching the
   // task-then-question order of question creation on the task itself.
   const onboardingTaskIds = (await tx.select({ id: issues.id }).from(issues).where(and(
-    eq(issues.companyId, input.companyId),
+    eq(issues.spaceId, input.spaceId),
     eq(issues.originKind, "onboarding_first_task"),
     isNull(issues.conversationAgentId),
     eq(issues.assigneeAgentId, input.agentId),
@@ -1076,7 +1076,7 @@ async function supersedeOnboardingTaskQuestionsMovedToChat(
       updatedAt: now,
     })
     .where(and(
-      eq(issueThreadInteractions.companyId, input.companyId),
+      eq(issueThreadInteractions.spaceId, input.spaceId),
       inArray(issueThreadInteractions.issueId, onboardingTaskIds),
       eq(issueThreadInteractions.kind, "ask_user_questions"),
       eq(issueThreadInteractions.createdByAgentId, input.agentId),
@@ -1090,7 +1090,7 @@ async function supersedeOnboardingTaskQuestionsMovedToChat(
     .returning();
   for (const issueId of new Set(rows.map(row => row.issueId))) {
     await cancelPendingIssueInteractionChatPublications(tx, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       issueId,
       interactionIds: rows.filter(row => row.issueId === issueId).map(row => row.id),
     });
@@ -1111,7 +1111,7 @@ async function supersedeOnboardingTaskQuestionsMovedToChat(
 async function completeOnboardingTaskMovedToChat(
   tx: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     issueId: string;
     conversationIssue: { id: string; identifier: string | null };
@@ -1122,12 +1122,12 @@ async function completeOnboardingTaskMovedToChat(
   // The caller already holds this task's row lock.
   const [task] = await tx.select({ id: issues.id, status: issues.status, identifier: issues.identifier })
     .from(issues)
-    .where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId)));
+    .where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId)));
   if (task?.status !== "in_review") return;
   const [stillPending] = await tx.select({ id: issueThreadInteractions.id })
     .from(issueThreadInteractions)
     .where(and(
-      eq(issueThreadInteractions.companyId, input.companyId),
+      eq(issueThreadInteractions.spaceId, input.spaceId),
       eq(issueThreadInteractions.issueId, task.id),
       eq(issueThreadInteractions.status, "pending"),
     ))
@@ -1146,7 +1146,7 @@ async function completeOnboardingTaskMovedToChat(
     input.postCommitActivityPublications, input.postCommitIssueActions);
   if (!updated) return;
   await logActivity(tx, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     actorType: "agent",
     actorId: input.agentId,
     agentId: input.agentId,
@@ -1262,23 +1262,23 @@ class InteractionResolvedConcurrentlyError extends Error {
 // tool_action_requests row. Administrative resolutions (withdraw, terminal-issue
 // expiry) must settle that row too, or the parked call stays approvable under
 // its own one-hour lifecycle after its card is gone.
-async function hasLinkedToolActionRequests(db: Pick<Db, "select">, companyId: string, interactionIds: string[]) {
+async function hasLinkedToolActionRequests(db: Pick<Db, "select">, spaceId: string, interactionIds: string[]) {
   if (interactionIds.length === 0) return false;
   const [request] = await db.select({ id: toolActionRequests.id }).from(toolActionRequests)
-    .where(and(eq(toolActionRequests.companyId, companyId), inArray(toolActionRequests.interactionId, interactionIds)))
+    .where(and(eq(toolActionRequests.spaceId, spaceId), inArray(toolActionRequests.interactionId, interactionIds)))
     .limit(1);
   return request !== undefined;
 }
 
-async function notifyToolProjectionForInteractions(db: Pick<Db, "select">, companyId: string, interactionIds: string[]) {
+async function notifyToolProjectionForInteractions(db: Pick<Db, "select">, spaceId: string, interactionIds: string[]) {
   // The persisted link also covers legacy cards without current payload flags.
-  if (await hasLinkedToolActionRequests(db, companyId, interactionIds))
-    await notifyDeliveryWork(db, DELIVERY_QUEUES.toolReviewProjection, companyId);
+  if (await hasLinkedToolActionRequests(db, spaceId, interactionIds))
+    await notifyDeliveryWork(db, DELIVERY_QUEUES.toolReviewProjection, spaceId);
 }
 
 async function resolveLinkedToolActionRequests(
   db: Pick<Db, "select" | "update">,
-  interaction: Pick<IssueThreadInteractionRow, "id" | "companyId" | "kind">,
+  interaction: Pick<IssueThreadInteractionRow, "id" | "spaceId" | "kind">,
   outcome: {
     status: "expired" | "cancelled";
     fromStatuses: Array<"pending" | "approved">;
@@ -1287,8 +1287,8 @@ async function resolveLinkedToolActionRequests(
   },
 ) {
   if (interaction.kind !== "request_confirmation" ||
-    !(await hasLinkedToolActionRequests(db, interaction.companyId, [interaction.id]))) return;
-  await notifyToolReviewChange(db, interaction.companyId);
+    !(await hasLinkedToolActionRequests(db, interaction.spaceId, [interaction.id]))) return;
+  await notifyToolReviewChange(db, interaction.spaceId);
   await db
     .update(toolActionRequests)
     .set({
@@ -1300,7 +1300,7 @@ async function resolveLinkedToolActionRequests(
     })
     .where(
       and(
-        eq(toolActionRequests.companyId, interaction.companyId),
+        eq(toolActionRequests.spaceId, interaction.spaceId),
         eq(toolActionRequests.interactionId, interaction.id),
         inArray(toolActionRequests.status, outcome.fromStatuses),
       ),
@@ -1332,19 +1332,19 @@ async function lockLinkedSecretProposal(
   db: Db,
   interaction: Pick<
     IssueThreadInteractionRow,
-    "id" | "companyId" | "kind" | "payload"
+    "id" | "spaceId" | "kind" | "payload"
   >,
 ) {
   const proposalId = linkedSecretProposalId(interaction);
   if (!proposalId) return;
   await db
-    .select({ id: companySecretProposals.id })
-    .from(companySecretProposals)
+    .select({ id: spaceSecretProposals.id })
+    .from(spaceSecretProposals)
     .where(
       and(
-        eq(companySecretProposals.id, proposalId),
-        eq(companySecretProposals.companyId, interaction.companyId),
-        eq(companySecretProposals.interactionId, interaction.id),
+        eq(spaceSecretProposals.id, proposalId),
+        eq(spaceSecretProposals.spaceId, interaction.spaceId),
+        eq(spaceSecretProposals.interactionId, interaction.id),
       ),
     )
     .for("update");
@@ -1354,7 +1354,7 @@ async function resolveLinkedSecretProposal(
   db: Db,
   interaction: Pick<
     IssueThreadInteractionRow,
-    "id" | "companyId" | "kind" | "payload"
+    "id" | "spaceId" | "kind" | "payload"
   >,
   outcome: {
     status: "rejected" | "withdrawn" | "expired";
@@ -1365,9 +1365,9 @@ async function resolveLinkedSecretProposal(
 ) {
   const proposalId = linkedSecretProposalId(interaction);
   if (!proposalId) return;
-  await notifyDeliveryWork(db, DELIVERY_QUEUES.secretProposalExpiry, interaction.companyId);
+  await notifyDeliveryWork(db, DELIVERY_QUEUES.secretProposalExpiry, interaction.spaceId);
   const [proposal] = await db
-    .update(companySecretProposals)
+    .update(spaceSecretProposals)
     .set({
       status: outcome.status,
       resolvedByUserId: outcome.actor.userId ?? null,
@@ -1379,10 +1379,10 @@ async function resolveLinkedSecretProposal(
     })
     .where(
       and(
-        eq(companySecretProposals.id, proposalId),
-        eq(companySecretProposals.companyId, interaction.companyId),
-        eq(companySecretProposals.interactionId, interaction.id),
-        eq(companySecretProposals.status, "pending"),
+        eq(spaceSecretProposals.id, proposalId),
+        eq(spaceSecretProposals.spaceId, interaction.spaceId),
+        eq(spaceSecretProposals.interactionId, interaction.id),
+        eq(spaceSecretProposals.status, "pending"),
       ),
     )
     .returning();
@@ -1398,11 +1398,11 @@ async function resolveLinkedSecretProposal(
     outcome.actor.systemId ??
     "system";
   await logActivity(db, {
-    companyId: interaction.companyId,
+    spaceId: interaction.spaceId,
     actorType,
     actorId,
     action: `secret.proposal.${outcome.status}`,
-    entityType: "company_secret_proposal",
+    entityType: "space_secret_proposal",
     entityId: proposal.id,
     agentId: proposal.proposedByAgentId,
     runId: proposal.originRunId,
@@ -1942,7 +1942,7 @@ function normalizeQuestionAnswers(args: {
 async function getIssueDocumentTargetSnapshot(
   db: Db | any,
   args: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     target: RequestConfirmationTarget;
     // When true, take a FOR UPDATE row lock on the joined document so a concurrent
@@ -1965,7 +1965,7 @@ async function getIssueDocumentTargetSnapshot(
     .innerJoin(documents, eq(issueDocuments.documentId, documents.id))
     .where(
       and(
-        eq(issueDocuments.companyId, args.companyId),
+        eq(issueDocuments.spaceId, args.spaceId),
         eq(issueDocuments.issueId, targetIssueId),
         eq(issueDocuments.key, args.target.key),
       ),
@@ -1991,15 +1991,15 @@ async function getIssueDocumentTargetSnapshot(
 }
 
 async function getIssueAttachmentTargetSnapshot(db: Db | any, args: {
-  companyId: string; issueId: string; target: RequestConfirmationTarget; lockForUpdate?: boolean;
+  spaceId: string; issueId: string; target: RequestConfirmationTarget; lockForUpdate?: boolean;
 }) {
   if (args.target.type !== "issue_attachment") return null;
   // Approval is scoped to the containing task; an arbitrary private task's
   // attachment cannot be made visible through a confirmation elsewhere.
   if (args.target.issueId && args.target.issueId !== args.issueId) return null;
   const query = db.select({ attachmentId: issueAttachments.id, assetId: assets.id, sha256: assets.sha256 })
-    .from(issueAttachments).innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.companyId, args.companyId)))
-    .where(and(eq(issueAttachments.companyId, args.companyId), eq(issueAttachments.issueId, args.issueId),
+    .from(issueAttachments).innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.spaceId, args.spaceId)))
+    .where(and(eq(issueAttachments.spaceId, args.spaceId), eq(issueAttachments.issueId, args.issueId),
       eq(issueAttachments.id, args.target.attachmentId), eq(assets.id, args.target.assetId), eq(assets.sha256, args.target.sha256)));
   const rows = await (args.lockForUpdate ? query.for("update", { of: [issueAttachments, assets] }) : query);
   return rows[0] ?? null;
@@ -2049,7 +2049,7 @@ function buildIssueDocumentTargetFromDocument(args: {
 async function assertRequestConfirmationTargetIsCurrent(
   db: Db | any,
   args: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     target?: RequestConfirmationTarget | null;
     // Forwarded to getIssueDocumentTargetSnapshot; pass true when validating
@@ -2067,7 +2067,7 @@ async function assertRequestConfirmationTargetIsCurrent(
   }
   if (args.target.type !== "issue_document") return;
   const snapshot = await getIssueDocumentTargetSnapshot(db, {
-    companyId: args.companyId,
+    spaceId: args.spaceId,
     issueId: args.issueId,
     target: args.target,
     lockForUpdate: args.lockForUpdate,
@@ -2105,12 +2105,12 @@ async function expireStaleRequestConfirmationTarget(
   if (target.type !== "issue_document" && target.type !== "issue_attachment") return null;
 
   const snapshot = target.type === "issue_document" ? await getIssueDocumentTargetSnapshot(db, {
-    companyId: args.row.companyId,
+    spaceId: args.row.spaceId,
     issueId: args.row.issueId,
     target,
   }) : null;
   const isCurrent = target.type === "issue_attachment"
-    ? await getIssueAttachmentTargetSnapshot(db, { companyId: args.row.companyId, issueId: args.row.issueId, target })
+    ? await getIssueAttachmentTargetSnapshot(db, { spaceId: args.row.spaceId, issueId: args.row.issueId, target })
     :
     snapshot &&
     snapshot.latestRevisionId === target.revisionId &&
@@ -2161,7 +2161,7 @@ async function expireStaleRequestConfirmationTarget(
         "Interaction has already been resolved",
       );
     }
-    await touchIssue(tx, args.row.issueId, args.row.companyId);
+    await touchIssue(tx, args.row.issueId, args.row.spaceId);
     const expired = hydrateInteraction(updated);
     await enqueueTerminalIssueInteractionChatPublications(tx, expired);
     return expired;
@@ -2189,19 +2189,19 @@ export function issueThreadInteractionService(
     : createPullRequestMergeStateResolver(db);
 
   async function resolvePullRequestState(
-    companyId: string,
+    spaceId: string,
     reference: GitHubPullRequestReference,
     signal?: AbortSignal,
   ): Promise<PullRequestMergeState> {
     if (opts.resolvePullRequestState)
-      return opts.resolvePullRequestState(companyId, reference, signal);
-    return defaultPullRequestStateResolver?.(companyId, reference, signal) ?? "unknown";
+      return opts.resolvePullRequestState(spaceId, reference, signal);
+    return defaultPullRequestStateResolver?.(spaceId, reference, signal) ?? "unknown";
   }
 
   async function resolvePullRequestStates(
     entries: Array<{
       key: string;
-      companyId: string;
+      spaceId: string;
       reference: GitHubPullRequestReference;
     }>,
     signal?: AbortSignal,
@@ -2216,7 +2216,7 @@ export function issueThreadInteractionService(
           const entry = pending.shift();
           if (!entry) return;
           const state = await resolvePullRequestState(
-            entry.companyId,
+            entry.spaceId,
             entry.reference,
             signal,
           );
@@ -2228,14 +2228,14 @@ export function issueThreadInteractionService(
   }
   async function mergedPullRequestConfirmationPage(scope?: MergeConfirmationScope, after?: string) {
     const rows = await db.select({ interaction: issueThreadInteractions, issue: {
-      id: issues.id, companyId: issues.companyId, projectId: issues.projectId, goalId: issues.goalId,
+      id: issues.id, spaceId: issues.spaceId, projectId: issues.projectId, goalId: issues.goalId,
       status: issues.status, assigneeAgentId: issues.assigneeAgentId,
     } }).from(issueThreadInteractions).innerJoin(issues, and(
-      eq(issueThreadInteractions.issueId, issues.id), eq(issueThreadInteractions.companyId, issues.companyId),
+      eq(issueThreadInteractions.issueId, issues.id), eq(issueThreadInteractions.spaceId, issues.spaceId),
     )).where(and(
       eq(issueThreadInteractions.kind, "request_confirmation"), eq(issueThreadInteractions.status, "pending"),
       isNull(issues.hiddenAt), sql`${issues.status} NOT IN ('done', 'cancelled')`,
-      scope ? eq(issueThreadInteractions.companyId, scope.companyId) : undefined,
+      scope ? eq(issueThreadInteractions.spaceId, scope.spaceId) : undefined,
       scope?.issueId ? eq(issueThreadInteractions.issueId, scope.issueId) : undefined,
       scope?.interactionId ? eq(issueThreadInteractions.id, scope.interactionId) : undefined,
       after ? sql`${issueThreadInteractions.id} > ${after}::uuid` : undefined,
@@ -2260,18 +2260,18 @@ export function issueThreadInteractionService(
 
   async function getIdempotentInteraction(args: {
     issueId: string;
-    companyId: string;
+    spaceId: string;
     idempotencyKey: string;
   }, handle: Db = db) {
     const [original] = await handle.select().from(issueThreadInteractions).where(and(
-      eq(issueThreadInteractions.companyId, args.companyId), eq(issueThreadInteractions.issueId, args.issueId),
+      eq(issueThreadInteractions.spaceId, args.spaceId), eq(issueThreadInteractions.issueId, args.issueId),
       eq(issueThreadInteractions.idempotencyKey, args.idempotencyKey),
     )).limit(1);
     if (original) return original;
     const [alias] = await handle.select({ interaction: issueThreadInteractions }).from(issueThreadInteractionIdempotencyKeys)
       .innerJoin(issueThreadInteractions, and(eq(issueThreadInteractions.id, issueThreadInteractionIdempotencyKeys.interactionId),
-        eq(issueThreadInteractions.companyId, args.companyId), eq(issueThreadInteractions.issueId, args.issueId)))
-      .where(and(eq(issueThreadInteractionIdempotencyKeys.companyId, args.companyId),
+        eq(issueThreadInteractions.spaceId, args.spaceId), eq(issueThreadInteractions.issueId, args.issueId)))
+      .where(and(eq(issueThreadInteractionIdempotencyKeys.spaceId, args.spaceId),
         eq(issueThreadInteractionIdempotencyKeys.issueId, args.issueId), eq(issueThreadInteractionIdempotencyKeys.idempotencyKey, args.idempotencyKey))).limit(1);
     return alias?.interaction ?? null;
   }
@@ -2280,7 +2280,7 @@ export function issueThreadInteractionService(
   // source-run predicate as accept so another run cannot hold a ready card back.
   async function withAcceptanceReadiness(
     interactions: IssueThreadInteraction[],
-    issueWorkspace?: { companyId: string; executionWorkspaceId: string | null },
+    issueWorkspace?: { spaceId: string; executionWorkspaceId: string | null },
   ): Promise<IssueThreadInteraction[]> {
     interactions = await projectGitHubInteractionErrors(db, interactions);
     const guarded = interactions.filter((interaction) =>
@@ -2295,24 +2295,24 @@ export function issueThreadInteractionService(
     if (guarded.length === 0) return interactions;
     const workspace = issueWorkspace ?? await db
       .select({
-        companyId: issues.companyId,
+        spaceId: issues.spaceId,
         executionWorkspaceId: issues.executionWorkspaceId,
       })
       .from(issues)
       .where(and(
         eq(issues.id, guarded[0].issueId),
-        eq(issues.companyId, guarded[0].companyId),
+        eq(issues.spaceId, guarded[0].spaceId),
       ))
       .then((rows) => rows[0]);
     if (!workspace?.executionWorkspaceId) return interactions;
 
     // Only pending confirmations need checks, once per source run even if that
     // run produced several cards. Historical interactions need no workspace queries.
-    const { companyId, executionWorkspaceId } = workspace;
+    const { spaceId, executionWorkspaceId } = workspace;
     const sourceRunIds = [...new Set(guarded.map((interaction) => interaction.sourceRunId!))];
     const pendingRunIds = new Set<string>();
     await Promise.all(sourceRunIds.map(async (runId) => {
-      if (!await runWorkspaceIsFinalized(db, companyId, executionWorkspaceId, runId)) {
+      if (!await runWorkspaceIsFinalized(db, spaceId, executionWorkspaceId, runId)) {
         pendingRunIds.add(runId);
       }
     }));
@@ -2325,7 +2325,7 @@ export function issueThreadInteractionService(
   }
 
   async function getForIssue(
-    issue: { id: string; companyId: string },
+    issue: { id: string; spaceId: string },
     interactionId: string,
   ) {
     const current = await db
@@ -2335,7 +2335,7 @@ export function issueThreadInteractionService(
       .then((rows) => rows[0] ?? null);
     if (
       !current ||
-      current.companyId !== issue.companyId ||
+      current.spaceId !== issue.spaceId ||
       current.issueId !== issue.id
     ) {
       throw interactionNotFoundError();
@@ -2345,7 +2345,7 @@ export function issueThreadInteractionService(
 
   async function assertIssueWorkspaceFinalizedForAccept(args: {
     db: Pick<Db, "select">;
-    issue: { id: string; companyId: string };
+    issue: { id: string; spaceId: string };
     sourceRunId: string | null;
   }) {
     if (!args.sourceRunId) return;
@@ -2368,7 +2368,7 @@ export function issueThreadInteractionService(
     // wedge this confirmation forever.
     const isFinalized = await runWorkspaceIsFinalized(
       args.db,
-      args.issue.companyId,
+      args.issue.spaceId,
       executionWorkspaceId,
       args.sourceRunId,
     );
@@ -2382,7 +2382,7 @@ export function issueThreadInteractionService(
   }
 
   async function getPendingInteractionForResolution(args: {
-    issue: { id: string; companyId: string; status?: string };
+    issue: { id: string; spaceId: string; status?: string };
     interactionId: string;
   }) {
     const current = await db
@@ -2393,7 +2393,7 @@ export function issueThreadInteractionService(
 
     if (!current) throw interactionNotFoundError();
     if (
-      current.companyId !== args.issue.companyId ||
+      current.spaceId !== args.issue.spaceId ||
       current.issueId !== args.issue.id
     ) {
       throw interactionNotFoundError();
@@ -2409,7 +2409,7 @@ export function issueThreadInteractionService(
 
   function assertIssueOpenForInteractionResolution(issue: {
     id: string;
-    companyId: string;
+    spaceId: string;
     status?: string;
   }) {
     if (issue.status && isTerminalIssueStatus(issue.status)) {
@@ -2418,7 +2418,7 @@ export function issueThreadInteractionService(
   }
 
   async function acceptRequestConfirmation(args: {
-    issue: { id: string; companyId: string };
+    issue: { id: string; spaceId: string };
     current: IssueThreadInteractionRow;
     input: AcceptIssueThreadInteraction;
     actor: InteractionActor;
@@ -2455,7 +2455,7 @@ export function issueThreadInteractionService(
       const issueContext = await tx
         .select({
           id: issues.id,
-          companyId: issues.companyId,
+          spaceId: issues.spaceId,
           status: issues.status,
           executionRunId: issues.executionRunId,
           hiddenAt: issues.hiddenAt,
@@ -2474,7 +2474,7 @@ export function issueThreadInteractionService(
         .then((rows: IssueResolutionContext[]) => rows[0] ?? null);
 
       args.signal?.throwIfAborted();
-      if (!issueContext || issueContext.companyId !== args.issue.companyId) {
+      if (!issueContext || issueContext.spaceId !== args.issue.spaceId) {
         throw notFound("Issue not found");
       }
 
@@ -2488,7 +2488,7 @@ export function issueThreadInteractionService(
         .then((rows) => rows[0] ?? null);
       if (
         !lockedCurrent ||
-        lockedCurrent.companyId !== args.issue.companyId ||
+        lockedCurrent.spaceId !== args.issue.spaceId ||
         lockedCurrent.issueId !== args.issue.id
       ) {
         throw notFound("Interaction not found");
@@ -2513,7 +2513,7 @@ export function issueThreadInteractionService(
 
       const lockedTarget = (hydrateInteraction(lockedCurrent) as RequestConfirmationLikeInteraction).payload.target;
       await assertRequestConfirmationTargetIsCurrent(tx, {
-        companyId: args.issue.companyId, issueId: args.issue.id, target: lockedTarget, lockForUpdate: true,
+        spaceId: args.issue.spaceId, issueId: args.issue.id, target: lockedTarget, lockForUpdate: true,
       });
 
       const interaction = hydrateInteraction(lockedCurrent);
@@ -2525,7 +2525,7 @@ export function issueThreadInteractionService(
             })
           : undefined;
 
-      if (lockedCurrent.kind === "request_confirmation") await notifyToolProjectionForInteractions(tx, lockedCurrent.companyId, [lockedCurrent.id]);
+      if (lockedCurrent.kind === "request_confirmation") await notifyToolProjectionForInteractions(tx, lockedCurrent.spaceId, [lockedCurrent.id]);
       args.signal?.throwIfAborted();
       const [updated] = await tx
         .update(issueThreadInteractions)
@@ -2577,7 +2577,7 @@ export function issueThreadInteractionService(
       if (isNativeCompletionReview(lockedCurrent)) {
         const otherPending = await tx.select({ id: issueThreadInteractions.id })
           .from(issueThreadInteractions).where(and(
-            eq(issueThreadInteractions.companyId, issueContext.companyId),
+            eq(issueThreadInteractions.spaceId, issueContext.spaceId),
             eq(issueThreadInteractions.issueId, issueContext.id),
             ne(issueThreadInteractions.id, lockedCurrent.id),
             or(
@@ -2672,7 +2672,7 @@ export function issueThreadInteractionService(
           };
         }
       } else {
-        await touchIssue(tx, args.issue.id, args.issue.companyId);
+        await touchIssue(tx, args.issue.id, args.issue.spaceId);
       }
 
       // Snapshot the continuation target only after every lifecycle mutation
@@ -2686,7 +2686,7 @@ export function issueThreadInteractionService(
 
       if (args.actor.systemId) {
         await logActivity(tx as unknown as Db, {
-          companyId: args.issue.companyId,
+          spaceId: args.issue.spaceId,
           actorType: "system",
           actorId: args.actor.systemId,
           agentId: null,
@@ -2722,7 +2722,7 @@ export function issueThreadInteractionService(
   }
 
   async function rejectRequestConfirmation(args: {
-    issue: { id: string; companyId: string };
+    issue: { id: string; spaceId: string };
     current: IssueThreadInteractionRow;
     input: RejectIssueThreadInteraction;
     actor: InteractionActor;
@@ -2759,7 +2759,7 @@ export function issueThreadInteractionService(
       const issueContext = await tx
         .select({
           id: issues.id,
-          companyId: issues.companyId,
+          spaceId: issues.spaceId,
           status: issues.status,
           executionRunId: issues.executionRunId,
           workMode: issues.workMode,
@@ -2775,7 +2775,7 @@ export function issueThreadInteractionService(
         .where(eq(issues.id, args.issue.id))
         .for("update")
         .then((rows: IssueResolutionContext[]) => rows[0] ?? null);
-      if (!issueContext || issueContext.companyId !== args.issue.companyId) {
+      if (!issueContext || issueContext.spaceId !== args.issue.spaceId) {
         throw notFound("Issue not found");
       }
 
@@ -2792,7 +2792,7 @@ export function issueThreadInteractionService(
         .then((rows) => rows[0] ?? null);
       if (
         !lockedCurrent ||
-        lockedCurrent.companyId !== args.issue.companyId ||
+        lockedCurrent.spaceId !== args.issue.spaceId ||
         lockedCurrent.issueId !== args.issue.id
       ) {
         throw notFound("Interaction not found");
@@ -2818,7 +2818,7 @@ export function issueThreadInteractionService(
         now,
       });
 
-      if (lockedCurrent.kind === "request_confirmation") await notifyToolProjectionForInteractions(tx, lockedCurrent.companyId, [lockedCurrent.id]);
+      if (lockedCurrent.kind === "request_confirmation") await notifyToolProjectionForInteractions(tx, lockedCurrent.spaceId, [lockedCurrent.id]);
       const [resolved] = await tx
         .update(issueThreadInteractions)
         .set({
@@ -2899,7 +2899,7 @@ export function issueThreadInteractionService(
           tx,
         );
       } else {
-        await touchIssue(tx, args.issue.id, args.issue.companyId);
+        await touchIssue(tx, args.issue.id, args.issue.spaceId);
       }
       await enqueueTerminalIssueInteractionChatPublications(
         tx as unknown as Db,
@@ -2918,7 +2918,7 @@ export function issueThreadInteractionService(
   return {
     getForIssue,
     createConnectionIntent: async (
-      issue: { id: string; companyId: string },
+      issue: { id: string; spaceId: string },
       input: {
         payload: ConnectionIntentInteraction["payload"];
         sourceRunId: string;
@@ -2942,7 +2942,7 @@ export function issueThreadInteractionService(
           Object.keys(payload.savedSetup?.credentialEntry?.previousGenerations ?? {}).sort());
       const existing = await getIdempotentInteraction({
         issueId: issue.id,
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         idempotencyKey: input.idempotencyKey,
       });
       if (existing) {
@@ -2972,7 +2972,7 @@ export function issueThreadInteractionService(
           .select({ status: issues.status, assigneeAgentId: issues.assigneeAgentId })
           .from(issues)
           .where(
-            and(eq(issues.id, issue.id), eq(issues.companyId, issue.companyId)),
+            and(eq(issues.id, issue.id), eq(issues.spaceId, issue.spaceId)),
           )
           .for("update")
           .then((rows) => rows[0] ?? null);
@@ -2981,14 +2981,14 @@ export function issueThreadInteractionService(
         }
 
         const [qualityAlias] = await tx.select({ id: issueThreadInteractionIdempotencyKeys.id }).from(issueThreadInteractionIdempotencyKeys)
-          .where(and(eq(issueThreadInteractionIdempotencyKeys.companyId, issue.companyId), eq(issueThreadInteractionIdempotencyKeys.issueId, issue.id),
+          .where(and(eq(issueThreadInteractionIdempotencyKeys.spaceId, issue.spaceId), eq(issueThreadInteractionIdempotencyKeys.issueId, issue.id),
             eq(issueThreadInteractionIdempotencyKeys.idempotencyKey, input.idempotencyKey))).limit(1);
         if (qualityAlias) throw conflict("Interaction idempotency key already exists for a different request", { idempotencyKey: input.idempotencyKey });
 
         // Generic requests share live cards across runs. Setup cards stay bound
         // to the queued turn that their delivery can repair.
         const pending = await tx.select().from(issueThreadInteractions).where(and(
-          eq(issueThreadInteractions.companyId, issue.companyId),
+          eq(issueThreadInteractions.spaceId, issue.spaceId),
           eq(issueThreadInteractions.issueId, issue.id),
           eq(issueThreadInteractions.kind, "connection_intent"),
           eq(issueThreadInteractions.status, "pending"),
@@ -3005,19 +3005,19 @@ export function issueThreadInteractionService(
 
         const sourceQuery = tx.select({ context: heartbeatRuns.contextSnapshot, status: heartbeatRuns.status,
           agentId: heartbeatRuns.agentId, startedAt: heartbeatRuns.startedAt, runtimeMode: heartbeatRuns.runtimeMode }).from(heartbeatRuns)
-          .where(and(eq(heartbeatRuns.id, input.sourceRunId), eq(heartbeatRuns.companyId, issue.companyId)));
+          .where(and(eq(heartbeatRuns.id, input.sourceRunId), eq(heartbeatRuns.spaceId, issue.spaceId)));
         const [sourceRun] = await (payload.agentSetup ? sourceQuery.for("no key update") : sourceQuery);
         if (payload.agentSetup && (payload.purpose !== "ai" || sourceRun?.agentId !== payload.requestingAgentId
           || sourceRun.status !== "queued" || sourceRun.startedAt !== null || sourceRun.runtimeMode !== "legacy")) {
           throw conflict("Agent setup requests require an unstarted queued turn");
         }
         if (!sourceRun) throw unprocessable("Interaction source run is unavailable");
-        const originCommentIds = await currentContinuationOrigins(tx as unknown as Db, issue.companyId, issue.id, sourceRun.context);
-        await notifyIssueReviewState(tx, { companyId: issue.companyId, issueId: issue.id });
+        const originCommentIds = await currentContinuationOrigins(tx as unknown as Db, issue.spaceId, issue.id, sourceRun.context);
+        await notifyIssueReviewState(tx, { spaceId: issue.spaceId, issueId: issue.id });
         const [row] = await tx
           .insert(issueThreadInteractions)
           .values({
-            companyId: issue.companyId,
+            spaceId: issue.spaceId,
             issueId: issue.id,
             kind: "connection_intent",
             status: "pending",
@@ -3025,7 +3025,7 @@ export function issueThreadInteractionService(
             requestedResolverPolicy: "human_only",
             effectiveResolverPolicy: "human_only",
             resolverPolicyProvenance: "explicit",
-            effectiveResolverPolicySource: "governed_action",
+            effectiveResolverPolicySource: "controlled_action",
             idempotencyKey: input.idempotencyKey,
             sourceRunId: input.sourceRunId,
             originCommentIds,
@@ -3046,7 +3046,7 @@ export function issueThreadInteractionService(
           .from(issueThreadInteractions)
           .where(
             and(
-              eq(issueThreadInteractions.companyId, issue.companyId),
+              eq(issueThreadInteractions.spaceId, issue.spaceId),
               eq(issueThreadInteractions.issueId, issue.id),
               eq(issueThreadInteractions.kind, "connection_intent"),
               eq(
@@ -3069,7 +3069,7 @@ export function issueThreadInteractionService(
           })
           .map((candidate) => candidate.id);
         if (supersededIds.length > 0) {
-          await notifyChatConfirmationResolution(tx, { companyId: issue.companyId, issueId: issue.id, kind: "connection_intent" });
+          await notifyChatConfirmationResolution(tx, { spaceId: issue.spaceId, issueId: issue.id, kind: "connection_intent" });
           await tx
             .delete(toolOauthStates)
             .where(inArray(toolOauthStates.interactionId, supersededIds));
@@ -3091,7 +3091,7 @@ export function issueThreadInteractionService(
             await enqueueTerminalIssueInteractionChatPublications(tx as unknown as Db, hydrateInteraction(previous));
           }
         }
-        await touchIssue(tx, issue.id, issue.companyId);
+        await touchIssue(tx, issue.id, issue.spaceId);
         inserted = true;
         await enqueueIssueInteractionChatPublications(tx as unknown as Db, hydrateInteraction(row));
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.connection);
@@ -3106,7 +3106,7 @@ export function issueThreadInteractionService(
       return interaction;
     },
     updateConnectionIntentPhase: async (
-      issue: { id: string; companyId: string },
+      issue: { id: string; spaceId: string },
       interactionId: string,
       phase: ConnectionIntentInteraction["payload"]["phase"],
       actor: InteractionActor,
@@ -3129,18 +3129,18 @@ export function issueThreadInteractionService(
         .where(
           and(
             eq(issueThreadInteractions.id, interactionId),
-            eq(issueThreadInteractions.companyId, issue.companyId),
+            eq(issueThreadInteractions.spaceId, issue.spaceId),
             eq(issueThreadInteractions.issueId, issue.id),
             eq(issueThreadInteractions.status, "pending"),
           ),
         )
         .returning();
       if (!updated) throw interactionAlreadyResolvedError();
-      await touchIssue(db, issue.id, issue.companyId);
+      await touchIssue(db, issue.id, issue.spaceId);
       return hydrateInteraction(updated) as ConnectionIntentInteraction;
     },
     resolveConnectionIntent: async (
-      issue: { id: string; companyId: string },
+      issue: { id: string; spaceId: string },
       interactionId: string,
       resultInput: ConnectionIntentInteraction["result"] extends infer T
         ? NonNullable<T>
@@ -3184,7 +3184,7 @@ export function issueThreadInteractionService(
         .where(
           and(
             eq(issueThreadInteractions.id, interactionId),
-            eq(issueThreadInteractions.companyId, issue.companyId),
+            eq(issueThreadInteractions.spaceId, issue.spaceId),
             eq(issueThreadInteractions.issueId, issue.id),
             eq(issueThreadInteractions.status, "pending"),
           ),
@@ -3193,14 +3193,14 @@ export function issueThreadInteractionService(
         if (!row) throw interactionAlreadyResolvedError();
         if (status === "accepted" || status === "rejected") {
           await notifyDeliveryWork(tx, DELIVERY_QUEUES.connection);
-          await tx.insert(connectionIntentDeliveries).values({ interactionId, companyId: issue.companyId }).onConflictDoNothing();
+          await tx.insert(connectionIntentDeliveries).values({ interactionId, spaceId: issue.spaceId }).onConflictDoNothing();
         }
         await mutationOptions.afterResolveInTransaction?.(tx, hydrateInteraction(row));
         await enqueueTerminalIssueInteractionChatPublications(tx as unknown as Db, hydrateInteraction(row));
         return row;
       });
       if (!updated) throw interactionAlreadyResolvedError();
-      await touchIssue(db, issue.id, issue.companyId);
+      await touchIssue(db, issue.id, issue.spaceId);
       const interaction = hydrateInteraction(
         updated,
       ) as ConnectionIntentInteraction;
@@ -3211,7 +3211,7 @@ export function issueThreadInteractionService(
     mergedPullRequestConfirmationCandidates,
     sweepMergedPullRequestConfirmations: async (
       mergedHints: Array<{
-        companyId: string;
+        spaceId: string;
         owner: string;
         repo: string;
         number: number;
@@ -3221,12 +3221,12 @@ export function issueThreadInteractionService(
       mutationOptions: InteractionResolutionMutationOptions = {},
     ) => {
       const scopes = scope ? [scope] : mergedHints.length
-        ? [...new Set(mergedHints.map(hint => hint.companyId))].map(companyId => ({ companyId }))
+        ? [...new Set(mergedHints.map(hint => hint.spaceId))].map(spaceId => ({ spaceId }))
         : [undefined];
       const candidates: Awaited<ReturnType<typeof mergedPullRequestConfirmationCandidates>> = [];
       for (const candidateScope of scopes) candidates.push(...await mergedPullRequestConfirmationCandidates(candidateScope));
       const eligible = mergedHints.length ? candidates.filter(candidate => mergedHints.some(hint =>
-        hint.companyId === candidate.issue.companyId && candidate.references.some(reference =>
+        hint.spaceId === candidate.issue.spaceId && candidate.references.some(reference =>
           hint.owner.toLowerCase() === reference.owner.toLowerCase() &&
           hint.repo.toLowerCase() === reference.repo.toLowerCase() && hint.number === reference.number),
       )) : candidates;
@@ -3235,7 +3235,7 @@ export function issueThreadInteractionService(
       const checkedAt = now().getTime();
       const cacheTtlMs = opts.pullRequestCacheTtlMs ?? 5 * 60 * 1000;
       for (const hint of mergedHints) {
-        const key = `${hint.companyId}:${hint.owner.toLowerCase()}/${hint.repo.toLowerCase()}#${hint.number}`;
+        const key = `${hint.spaceId}:${hint.owner.toLowerCase()}/${hint.repo.toLowerCase()}#${hint.number}`;
         setBoundedPullRequestCacheEntry(pullRequestStateCache, key, {
           state: "merged",
           checkedAt,
@@ -3245,18 +3245,18 @@ export function issueThreadInteractionService(
         string,
         {
           key: string;
-          companyId: string;
+          spaceId: string;
           reference: GitHubPullRequestReference;
         }
       >();
       for (const candidate of eligible) {
         for (const reference of candidate.references) {
-          const key = `${candidate.issue.companyId}:${reference.owner.toLowerCase()}/${reference.repo.toLowerCase()}#${reference.number}`;
+          const key = `${candidate.issue.spaceId}:${reference.owner.toLowerCase()}/${reference.repo.toLowerCase()}#${reference.number}`;
           const cached = pullRequestStateCache.get(key);
           if (cached && checkedAt - cached.checkedAt < cacheTtlMs) continue;
           uniqueReferences.set(key, {
             key,
-            companyId: candidate.issue.companyId,
+            spaceId: candidate.issue.spaceId,
             reference,
           });
         }
@@ -3280,7 +3280,7 @@ export function issueThreadInteractionService(
       for (const candidate of eligible) {
         if (signal?.aborted) break;
         const allMerged = candidate.references.every((reference) => {
-          const key = `${candidate.issue.companyId}:${reference.owner.toLowerCase()}/${reference.repo.toLowerCase()}#${reference.number}`;
+          const key = `${candidate.issue.spaceId}:${reference.owner.toLowerCase()}/${reference.repo.toLowerCase()}#${reference.number}`;
           return pullRequestStateCache.get(key)?.state === "merged";
         });
         if (!allMerged) continue;
@@ -3320,7 +3320,7 @@ export function issueThreadInteractionService(
         const wakeIssue = resolved.continuationIssue ?? await db.select({
           id: issues.id, assigneeAgentId: issues.assigneeAgentId, status: issues.status,
         }).from(issues).where(and(eq(issues.id, candidate.issue.id),
-          eq(issues.companyId, candidate.issue.companyId), isNull(issues.hiddenAt))).then(rows => rows[0]);
+          eq(issues.spaceId, candidate.issue.spaceId), isNull(issues.hiddenAt))).then(rows => rows[0]);
         const shouldWake =
           resolved.interaction.continuationPolicy === "wake_assignee" ||
           resolved.interaction.continuationPolicy === "wake_assignee_on_accept";
@@ -3390,7 +3390,7 @@ export function issueThreadInteractionService(
         db
           .select({
             status: issues.status,
-            companyId: issues.companyId,
+            spaceId: issues.spaceId,
             executionWorkspaceId: issues.executionWorkspaceId,
           })
           .from(issues)
@@ -3426,7 +3426,7 @@ export function issueThreadInteractionService(
     },
 
     recordSecretProposalExecutionResult: async (
-      issue: { id: string; companyId: string },
+      issue: { id: string; spaceId: string },
       interactionId: string,
       proposalId: string,
       execution: { status: "executed" | "failed"; errorCode?: string | null },
@@ -3439,7 +3439,7 @@ export function issueThreadInteractionService(
           .select({ id: issues.id })
           .from(issues)
           .where(
-            and(eq(issues.id, issue.id), eq(issues.companyId, issue.companyId)),
+            and(eq(issues.id, issue.id), eq(issues.spaceId, issue.spaceId)),
           )
           .for("update")
           .then((rows) => rows[0] ?? null);
@@ -3447,11 +3447,11 @@ export function issueThreadInteractionService(
 
         const proposal = await tx
           .select()
-          .from(companySecretProposals)
+          .from(spaceSecretProposals)
           .where(
             and(
-              eq(companySecretProposals.id, proposalId),
-              eq(companySecretProposals.companyId, issue.companyId),
+              eq(spaceSecretProposals.id, proposalId),
+              eq(spaceSecretProposals.spaceId, issue.spaceId),
             ),
           )
           .for("update")
@@ -3464,7 +3464,7 @@ export function issueThreadInteractionService(
           .then((rows) => rows[0] ?? null);
         if (
           !current ||
-          current.companyId !== issue.companyId ||
+          current.spaceId !== issue.spaceId ||
           current.issueId !== issue.id
         ) {
           throw notFound("Interaction not found");
@@ -3501,9 +3501,9 @@ export function issueThreadInteractionService(
           : execution.status;
         if (executionStatus === "failed" && proposal.status === "pending") {
           const resolutionReason = `Interaction acceptance failed: ${execution.errorCode ?? "secret_proposal_execution_failed"}`;
-          await notifyDeliveryWork(tx, DELIVERY_QUEUES.secretProposalExpiry, proposal.companyId);
+          await notifyDeliveryWork(tx, DELIVERY_QUEUES.secretProposalExpiry, proposal.spaceId);
           await tx
-            .update(companySecretProposals)
+            .update(spaceSecretProposals)
             .set({
               status: "rejected",
               resolvedByUserId: current.resolvedByUserId ?? null,
@@ -3515,16 +3515,16 @@ export function issueThreadInteractionService(
             })
             .where(
               and(
-                eq(companySecretProposals.id, proposal.id),
-                eq(companySecretProposals.status, "pending"),
+                eq(spaceSecretProposals.id, proposal.id),
+                eq(spaceSecretProposals.status, "pending"),
               ),
             );
           await logActivity(tx as unknown as Db, {
-            companyId: issue.companyId,
+            spaceId: issue.spaceId,
             actorType: current.resolvedByUserId ? "user" : "system",
             actorId: current.resolvedByUserId ?? "system",
             action: "secret.proposal.rejected",
-            entityType: "company_secret_proposal",
+            entityType: "space_secret_proposal",
             entityId: proposal.id,
             agentId: proposal.proposedByAgentId,
             runId: proposal.originRunId,
@@ -3564,14 +3564,14 @@ export function issueThreadInteractionService(
           })
           .where(eq(issueThreadInteractions.id, current.id))
           .returning();
-        await touchIssue(tx, issue.id, issue.companyId);
+        await touchIssue(tx, issue.id, issue.spaceId);
         return row;
       });
       return hydrateInteraction(updated);
     },
 
     cancelPendingForDeletedAddressee: async (
-      companyId: string,
+      spaceId: string,
       addresseeAgentId: string,
     ) => {
       const rows = await db
@@ -3579,7 +3579,7 @@ export function issueThreadInteractionService(
         .from(issueThreadInteractions)
         .where(
           and(
-            eq(issueThreadInteractions.companyId, companyId),
+            eq(issueThreadInteractions.spaceId, spaceId),
             eq(issueThreadInteractions.addresseeAgentId, addresseeAgentId),
             eq(issueThreadInteractions.status, "pending"),
           ),
@@ -3593,7 +3593,7 @@ export function issueThreadInteractionService(
           await notifyChatConfirmationResolution(tx, row);
           if (["ask_user_questions", "request_confirmation"].includes(row.kind)) await notifyChatRunMilestones(tx, row);
           else await notifyIssueReviewState(tx, row);
-          if (row.kind === "request_confirmation") await notifyToolProjectionForInteractions(tx, row.companyId, [row.id]);
+          if (row.kind === "request_confirmation") await notifyToolProjectionForInteractions(tx, row.spaceId, [row.id]);
           const [resolved] = await tx
             .update(issueThreadInteractions)
             .set({
@@ -3627,8 +3627,8 @@ export function issueThreadInteractionService(
         if (updated) cancelled.push(updated);
       }
 
-      for (const [issueId, companyId] of new Map(cancelled.map(interaction => [interaction.issueId, interaction.companyId]))) {
-        await touchIssue(db, issueId, companyId);
+      for (const [issueId, spaceId] of new Map(cancelled.map(interaction => [interaction.issueId, interaction.spaceId]))) {
+        await touchIssue(db, issueId, spaceId);
       }
       await emitResolvedInteractionsTelemetry(db, cancelled);
       return cancelled;
@@ -3646,7 +3646,7 @@ export function issueThreadInteractionService(
           ),
         )
         .orderBy(
-          asc(issueThreadInteractions.companyId),
+          asc(issueThreadInteractions.spaceId),
           asc(issueThreadInteractions.issueId),
           asc(issueThreadInteractions.kind),
           asc(issueThreadInteractions.createdByAgentId),
@@ -3661,7 +3661,7 @@ export function issueThreadInteractionService(
       }> = [];
       for (const row of rows) {
         if (!row.createdByAgentId || isNativeCompletionReview(row)) continue;
-        const groupKey = `${row.companyId}:${row.issueId}:${row.kind}:${row.createdByAgentId}`;
+        const groupKey = `${row.spaceId}:${row.issueId}:${row.kind}:${row.createdByAgentId}`;
         const newest = newestByGroup.get(groupKey);
         if (!newest) {
           newestByGroup.set(groupKey, row);
@@ -3679,7 +3679,7 @@ export function issueThreadInteractionService(
           await notifyChatConfirmationResolution(tx, row);
           if (["ask_user_questions", "request_confirmation"].includes(row.kind)) await notifyChatRunMilestones(tx, row);
           else await notifyIssueReviewState(tx, row);
-          if (row.kind === "request_confirmation") await notifyToolProjectionForInteractions(tx, row.companyId, [row.id]);
+          if (row.kind === "request_confirmation") await notifyToolProjectionForInteractions(tx, row.spaceId, [row.id]);
           const [updatedRow] = await tx
             .update(issueThreadInteractions)
             .set({
@@ -3717,8 +3717,8 @@ export function issueThreadInteractionService(
       }
 
       if (expired.length > 0) {
-        for (const [issueId, companyId] of new Map(expired.map(interaction => [interaction.issueId, interaction.companyId]))) {
-          await touchIssue(db, issueId, companyId);
+        for (const [issueId, spaceId] of new Map(expired.map(interaction => [interaction.issueId, interaction.spaceId]))) {
+          await touchIssue(db, issueId, spaceId);
         }
         await emitResolvedInteractionsTelemetry(db, expired);
       }
@@ -3726,7 +3726,7 @@ export function issueThreadInteractionService(
     },
 
     create: async (
-      issue: { id: string; companyId: string },
+      issue: { id: string; spaceId: string },
       input: CreateIssueThreadInteractionInput,
       actor: InteractionActor,
       options: CreateInteractionOptions = {},
@@ -3740,7 +3740,7 @@ export function issueThreadInteractionService(
       if (qualityItems.length) {
         if (data.addresseeAgentId) throw unprocessable("Required quality review must be addressed to a human");
         const [owner] = await db.select({ executionPolicy: issues.executionPolicy }).from(issues)
-          .where(and(eq(issues.id, issue.id), eq(issues.companyId, issue.companyId)));
+          .where(and(eq(issues.id, issue.id), eq(issues.spaceId, issue.spaceId)));
         for (const item of qualityItems) item.qualityReview = bindQualityReview(requiredQualityReview(owner?.executionPolicy), item.qualityReview!, item.target, issue.id);
         data.resolverPolicy = "human_only";
         data.continuationPolicy = "wake_assignee";
@@ -3753,7 +3753,7 @@ export function issueThreadInteractionService(
         const [conversation] = await db
           .select({ agentId: issues.conversationAgentId, userId: issues.conversationUserId })
           .from(issues)
-          .where(and(eq(issues.id, issue.id), eq(issues.companyId, issue.companyId)));
+          .where(and(eq(issues.id, issue.id), eq(issues.spaceId, issue.spaceId)));
         if (conversation?.agentId && conversation.userId) {
           defaultAddresseeUserId = conversation.userId;
           if (data.addresseeUserId && data.addresseeUserId !== defaultAddresseeUserId) {
@@ -3765,20 +3765,20 @@ export function issueThreadInteractionService(
         }
       }
       const usedDeprecatedResolverPolicyAlias =
-        data.resolverPolicy === "board_or_agents" ||
-        data.resolverPolicy === "board_only";
-      const governance = await db
+        data.resolverPolicy === "operator_or_agents" ||
+        data.resolverPolicy === "operator_only";
+      const policyConfig = await db
         .select({
-          interactionResolverGovernance:
-            companies.interactionResolverGovernance,
+          interactionResolverPolicy:
+            spaces.interactionResolverPolicy,
         })
-        .from(companies)
-        .where(eq(companies.id, issue.companyId))
-        .then((rows) => rows[0]?.interactionResolverGovernance ?? {});
+        .from(spaces)
+        .where(eq(spaces.id, issue.spaceId))
+        .then((rows) => rows[0]?.interactionResolverPolicy ?? {});
       const policy = resolveInteractionPolicy({
         kind: data.kind,
         requested: data.resolverPolicy,
-        governance,
+        policy: policyConfig,
         hasToolAction:
           data.kind === "request_confirmation" &&
           data.payload.toolAction !== undefined,
@@ -3822,7 +3822,7 @@ export function issueThreadInteractionService(
         const addressee = await db
           .select({
             id: agents.id,
-            companyId: agents.companyId,
+            spaceId: agents.spaceId,
             name: agents.name,
             reportsTo: agents.reportsTo,
             status: agents.status,
@@ -3830,9 +3830,9 @@ export function issueThreadInteractionService(
           .from(agents)
           .where(eq(agents.id, normalizedData.addresseeAgentId))
           .then((rows) => rows[0] ?? null);
-        if (!addressee || addressee.companyId !== issue.companyId) {
+        if (!addressee || addressee.spaceId !== issue.spaceId) {
           throw unprocessable(
-            "addresseeAgentId must belong to the same company",
+            "addresseeAgentId must belong to the same space",
           );
         }
         const invokability = await evaluateAgentInvokabilityFromDb(
@@ -3853,7 +3853,7 @@ export function issueThreadInteractionService(
       if (normalizedData.idempotencyKey) {
         const existing = await getIdempotentInteraction({
           issueId: issue.id,
-          companyId: issue.companyId,
+          spaceId: issue.spaceId,
           idempotencyKey: normalizedData.idempotencyKey,
         });
         if (existing) {
@@ -3875,7 +3875,7 @@ export function issueThreadInteractionService(
       if (data.sourceCommentId) {
         const sourceComment = await db
           .select({
-            companyId: issueComments.companyId,
+            spaceId: issueComments.spaceId,
             issueId: issueComments.issueId,
           })
           .from(issueComments)
@@ -3883,11 +3883,11 @@ export function issueThreadInteractionService(
           .then((rows) => rows[0] ?? null);
         if (
           !sourceComment ||
-          sourceComment.companyId !== issue.companyId ||
+          sourceComment.spaceId !== issue.spaceId ||
           sourceComment.issueId !== issue.id
         ) {
           throw unprocessable(
-            "sourceCommentId must belong to the same issue and company",
+            "sourceCommentId must belong to the same issue and space",
           );
         }
       }
@@ -3900,7 +3900,7 @@ export function issueThreadInteractionService(
         const sourceRun = await db
           .select({
             contextSnapshot: heartbeatRuns.contextSnapshot,
-            companyId: heartbeatRuns.companyId,
+            spaceId: heartbeatRuns.spaceId,
             agentId: heartbeatRuns.agentId,
             nativeIssueId: heartbeatRuns.nativeIssueId,
             createdAt: heartbeatRuns.createdAt,
@@ -3909,8 +3909,8 @@ export function issueThreadInteractionService(
           .from(heartbeatRuns)
           .where(eq(heartbeatRuns.id, data.sourceRunId))
           .then((rows) => rows[0] ?? null);
-        if (!sourceRun || sourceRun.companyId !== issue.companyId) {
-          throw unprocessable("sourceRunId must belong to the same company");
+        if (!sourceRun || sourceRun.spaceId !== issue.spaceId) {
+          throw unprocessable("sourceRunId must belong to the same space");
         }
         if (data.kind === "ask_user_questions") {
           if (actor.agentId && sourceRun.agentId !== actor.agentId) {
@@ -3928,11 +3928,11 @@ export function issueThreadInteractionService(
         }
         sourceRunContext = sourceRun.contextSnapshot;
         sourceRunCreatedAt = sourceRun.createdAt;
-        originCommentIds = [...new Set([...originCommentIds, ...await currentContinuationOrigins(db, issue.companyId, issue.id, sourceRun.contextSnapshot)])];
+        originCommentIds = [...new Set([...originCommentIds, ...await currentContinuationOrigins(db, issue.spaceId, issue.id, sourceRun.contextSnapshot)])];
         sourceIdentityContextId = actor.identityContextId ?? sourceRun.activeIdentityContextId;
         if (sourceIdentityContextId) {
           const [origin] = await db.select({id: runIdentityContexts.id}).from(runIdentityContexts).where(and(
-            eq(runIdentityContexts.id, sourceIdentityContextId), eq(runIdentityContexts.companyId, issue.companyId),
+            eq(runIdentityContexts.id, sourceIdentityContextId), eq(runIdentityContexts.spaceId, issue.spaceId),
             eq(runIdentityContexts.runId, data.sourceRunId), eq(runIdentityContexts.status, "accepted"),
           ));
           if (!origin) throw unprocessable("Interaction execution identity is unavailable");
@@ -3956,18 +3956,18 @@ export function issueThreadInteractionService(
         // create keep returning the (by now expired) original.
         const result = await db.transaction(async (tx) => {
           await assertInteractionRunWriteAllowed(tx as unknown as Db, issue, actor, [JSON.stringify(input)]);
-          await assertAgentInteraction(tx, { companyId: issue.companyId, actorAgentId: actor.agentId,
+          await assertAgentInteraction(tx, { spaceId: issue.spaceId, actorAgentId: actor.agentId,
             operation: "mention", issueId: issue.id, texts: [JSON.stringify(normalizedData)], lock: true });
           const configurationTarget = normalizedData.kind === "request_confirmation" || normalizedData.kind === "request_checkbox_confirmation"
             ? normalizedData.payload.target : null;
           const configurationAgentId = configurationTarget?.type === "custom"
             ? agentConfigurationChangeTargetId(configurationTarget.key) : null;
           if (configurationAgentId) await assertAgentInteraction(tx, {
-            companyId: issue.companyId, actorAgentId: actor.agentId, operation: "configure",
+            spaceId: issue.spaceId, actorAgentId: actor.agentId, operation: "configure",
             targetAgentId: configurationAgentId, lock: true,
           });
           if (normalizedData.addresseeAgentId || normalizedData.addresseeUserId) {
-            await assertAgentInteraction(tx, { companyId: issue.companyId, actorAgentId: actor.agentId,
+            await assertAgentInteraction(tx, { spaceId: issue.spaceId, actorAgentId: actor.agentId,
               operation: "assign", targetAgentId: normalizedData.addresseeAgentId,
               assigneeUserId: normalizedData.addresseeUserId, lock: true });
           }
@@ -3977,7 +3977,7 @@ export function issueThreadInteractionService(
             .where(
               and(
                 eq(issues.id, issue.id),
-                eq(issues.companyId, issue.companyId),
+                eq(issues.spaceId, issue.spaceId),
               ),
             )
             .for("update");
@@ -4007,23 +4007,23 @@ export function issueThreadInteractionService(
             const [user] = await tx.select({ id: authUsers.id }).from(authUsers)
               .where(eq(authUsers.id, data.addresseeUserId));
             const cloudManaged = isCloudManagedInstance();
-            // No-login installs have an implicit board, which need not have an
+            // No-login installs have an implicit operator, which need not have an
             // auth row. Never infer this authority in authenticated/Cloud mode.
-            const localImplicit = data.addresseeUserId === "local-board"
+            const localImplicit = data.addresseeUserId === "local-operator"
               && !cloudManaged && resolveDeploymentMode() === "local_trusted";
-            // Use the normal board mutation policy, including viewer restrictions,
+            // Use the normal operator mutation policy, including viewer restrictions,
             // local/instance-admin eligibility and Cloud's no-stale-admin rule.
             const decision = user || localImplicit ? await authorizationService(tx).decide({
               actor: {
-                type: "board",
+                type: "operator",
                 userId: data.addresseeUserId,
                 source: localImplicit ? "local_implicit" : cloudManaged ? "cloud_tenant" : "session",
               },
               action: "issue:mutate",
-              resource: { type: "issue", companyId: issue.companyId, issueId: issue.id, ...issueRow },
+              resource: { type: "issue", spaceId: issue.spaceId, issueId: issue.id, ...issueRow },
             }) : null;
             if (!decision?.allowed) {
-              throw unprocessable("addresseeUserId must identify a user authorized to respond in this company", {
+              throw unprocessable("addresseeUserId must identify a user authorized to respond in this space", {
                 code: "interaction_addressee_user_unavailable",
               });
             }
@@ -4040,11 +4040,11 @@ export function issueThreadInteractionService(
                 .from(issueComments)
                 .where(
                   and(
-                    eq(issueComments.companyId, issue.companyId),
+                    eq(issueComments.spaceId, issue.spaceId),
                     eq(issueComments.issueId, issue.id),
                     eq(issueComments.authorType, "user"),
                     isNotNull(issueComments.authorUserId),
-                    ne(issueComments.authorUserId, "board-concierge"),
+                    ne(issueComments.authorUserId, "operator-concierge"),
                     isNull(issueComments.createdByRunId),
               eq(issueComments.origin, "comment"),
                     isNull(issueComments.deletedAt),
@@ -4072,7 +4072,7 @@ export function issueThreadInteractionService(
           // pointing at a stale revision.
           if (requiresCurrentTarget) {
             await assertRequestConfirmationTargetIsCurrent(tx, {
-              companyId: issue.companyId,
+              spaceId: issue.spaceId,
               issueId: issue.id,
               target: data.payload.target ?? null,
               lockForUpdate: true,
@@ -4081,7 +4081,7 @@ export function issueThreadInteractionService(
           for (const item of qualityItems) {
             const binding = bindQualityReview(requiredQualityReview(issueRow.executionPolicy), item.qualityReview!, item.target, issue.id);
             if (binding.requirementHash !== item.qualityReview!.requirementHash) throw conflict("Quality review requirements changed; read the task again");
-            await assertRequestConfirmationTargetIsCurrent(tx, { companyId: issue.companyId, issueId: issue.id, target: item.target, lockForUpdate: true });
+            await assertRequestConfirmationTargetIsCurrent(tx, { spaceId: issue.spaceId, issueId: issue.id, target: item.target, lockForUpdate: true });
           }
           if (qualityItems.length) {
             const keys = qualityItems.map(item => item.qualityReview!.key);
@@ -4090,7 +4090,7 @@ export function issueThreadInteractionService(
             // task-wide cards bounds every reviewer's queue, even after a human
             // changes the requirement while older cards are still pending.
             const pendingQuality = await tx.select().from(issueThreadInteractions).where(and(
-              eq(issueThreadInteractions.companyId, issue.companyId),
+              eq(issueThreadInteractions.spaceId, issue.spaceId),
               eq(issueThreadInteractions.issueId, issue.id),
               eq(issueThreadInteractions.status, "pending"),
               inArray(issueThreadInteractions.kind, ["request_confirmation", "request_item_verdicts"]),
@@ -4107,7 +4107,7 @@ export function issueThreadInteractionService(
                   const aliases = await tx.select({ id: issueThreadInteractionIdempotencyKeys.id }).from(issueThreadInteractionIdempotencyKeys)
                     .where(eq(issueThreadInteractionIdempotencyKeys.interactionId, pending.id)).limit(100);
                   if (aliases.length >= 100) throw conflict("This review has reached its retry-key limit; use its existing idempotency key", { code: "quality_review_retry_key_limit", interactionId: pending.id });
-                  await tx.insert(issueThreadInteractionIdempotencyKeys).values({ companyId: issue.companyId, issueId: issue.id,
+                  await tx.insert(issueThreadInteractionIdempotencyKeys).values({ spaceId: issue.spaceId, issueId: issue.id,
                     interactionId: pending.id, idempotencyKey: normalizedData.idempotencyKey });
                 }
                 await enqueueIssueInteractionChatPublications(tx as unknown as Db, interaction);
@@ -4126,20 +4126,20 @@ export function issueThreadInteractionService(
           // a protected native question would otherwise wait indefinitely.
           if (data.kind === "ask_user_questions" && !actor.userId) {
             const [guest] = await tx.select({id: chatVoiceSessions.id}).from(chatVoiceSessions)
-              .where(and(eq(chatVoiceSessions.companyId, issue.companyId), eq(chatVoiceSessions.issueId, issue.id),
+              .where(and(eq(chatVoiceSessions.spaceId, issue.spaceId), eq(chatVoiceSessions.issueId, issue.id),
                 eq(chatVoiceSessions.callerAuthority, "guest_intake"))).limit(1);
             if (guest) throw unprocessable("Ask this unverified caller a clarification in a task comment; submit_request will deliver their spoken follow-up. Protected human-input questions require authenticated access.", {code: "voice_guest_use_task_comment"});
           }
           if (data.kind === "ask_user_questions" || data.kind === "request_confirmation") {
-            await notifyChatRunMilestones(tx, { companyId: issue.companyId, issueId: issue.id });
+            await notifyChatRunMilestones(tx, { spaceId: issue.spaceId, issueId: issue.id });
           } else {
-            await notifyNativeStatusReassessment(tx, { companyId: issue.companyId, issueId: issue.id });
+            await notifyNativeStatusReassessment(tx, { spaceId: issue.spaceId, issueId: issue.id });
           }
-          if (data.kind === "request_confirmation") await notifyMergeConfirmationWork(tx, { companyId: issue.companyId, issueId: issue.id });
+          if (data.kind === "request_confirmation") await notifyMergeConfirmationWork(tx, { spaceId: issue.spaceId, issueId: issue.id });
           const [row] = await tx
             .insert(issueThreadInteractions)
             .values({
-              companyId: issue.companyId,
+              spaceId: issue.spaceId,
               issueId: issue.id,
               kind: data.kind,
               status: "pending",
@@ -4165,7 +4165,7 @@ export function issueThreadInteractionService(
             .returning();
 
           if (row.addresseeAgentId || row.addresseeUserId) {
-            const [privacyIssue] = await tx.select().from(issues).where(and(eq(issues.id, issue.id), eq(issues.companyId, issue.companyId)));
+            const [privacyIssue] = await tx.select().from(issues).where(and(eq(issues.id, issue.id), eq(issues.spaceId, issue.spaceId)));
             await ensureAssignmentIssueAccessGrant(tx, { ...privacyIssue!,
               assigneeAgentId: row.addresseeAgentId, assigneeUserId: row.addresseeUserId,
             }, null, { agentId: actor.agentId, userId: actor.userId });
@@ -4198,7 +4198,7 @@ export function issueThreadInteractionService(
               issueRow.conversationAgentId === actor.agentId &&
               issueRow.conversationUserId
                 ? await supersedeOnboardingTaskQuestionsMovedToChat(tx as unknown as Db, {
-                    companyId: issue.companyId,
+                    spaceId: issue.spaceId,
                     agentId: actor.agentId,
                     conversationUserId: issueRow.conversationUserId,
                     replacementInteractionId: row.id,
@@ -4221,7 +4221,7 @@ export function issueThreadInteractionService(
               ? buildSupersededByNewerInteractionResult(row.id)
               : buildSupersededByNewerRequestResult(row.id);
           const siblingCondition = and(
-            eq(issueThreadInteractions.companyId, issue.companyId),
+            eq(issueThreadInteractions.spaceId, issue.spaceId),
             eq(issueThreadInteractions.issueId, issue.id),
             eq(issueThreadInteractions.kind, data.kind),
             eq(issueThreadInteractions.createdByAgentId, actor.agentId),
@@ -4234,7 +4234,7 @@ export function issueThreadInteractionService(
           if (data.kind === "request_confirmation") {
             // The issue lock above excludes concurrent interaction creation.
             const siblings = await tx.select({ id: issueThreadInteractions.id }).from(issueThreadInteractions).where(siblingCondition);
-            await notifyToolProjectionForInteractions(tx, issue.companyId, siblings.map(sibling => sibling.id));
+            await notifyToolProjectionForInteractions(tx, issue.spaceId, siblings.map(sibling => sibling.id));
           }
           const supersededRows = await tx
             .update(issueThreadInteractions)
@@ -4259,7 +4259,7 @@ export function issueThreadInteractionService(
           await cancelPendingIssueInteractionChatPublications(
             tx as unknown as Db,
             {
-              companyId: issue.companyId,
+              spaceId: issue.spaceId,
               issueId: issue.id,
               interactionIds: supersededRows.map((candidate) => candidate.id),
             },
@@ -4288,7 +4288,7 @@ export function issueThreadInteractionService(
         }
         const existing = await getIdempotentInteraction({
           issueId: issue.id,
-          companyId: issue.companyId,
+          spaceId: issue.spaceId,
           idempotencyKey: normalizedData.idempotencyKey,
         });
         if (!existing) throw error;
@@ -4307,7 +4307,7 @@ export function issueThreadInteractionService(
 
       for (const publication of postCommitActivityPublications) publishActivity(publication);
       await executeIssuePostCommitActions(db, postCommitIssueActions);
-      await touchIssue(db, issue.id, issue.companyId);
+      await touchIssue(db, issue.id, issue.spaceId);
       if (superseded.length > 0) {
         await emitResolvedInteractionsTelemetry(
           db,
@@ -4325,7 +4325,7 @@ export function issueThreadInteractionService(
     acceptInteraction: async (
       issue: {
         id: string;
-        companyId: string;
+        spaceId: string;
         projectId: string | null;
         goalId: string | null;
         status?: string;
@@ -4401,7 +4401,7 @@ export function issueThreadInteractionService(
     acceptSuggestedTasks: async (
       issue: {
         id: string;
-        companyId: string;
+        spaceId: string;
         projectId: string | null;
         goalId: string | null;
         status?: string;
@@ -4420,7 +4420,7 @@ export function issueThreadInteractionService(
 
       if (!current) throw interactionNotFoundError();
       if (
-        current.companyId !== issue.companyId ||
+        current.spaceId !== issue.spaceId ||
         current.issueId !== issue.id
       ) {
         throw interactionNotFoundError();
@@ -4435,7 +4435,7 @@ export function issueThreadInteractionService(
       if (actor.agentId && actor.suggestedTaskEffectsAuthorized !== true) {
         throw issueThreadInteractionResolutionError(
           403,
-          "interaction_governed_action_denied",
+          "interaction_controlled_action_denied",
           "Suggested-task creation requires independent task-creation authorization",
         );
       }
@@ -4468,20 +4468,20 @@ export function issueThreadInteractionService(
               .select({
                 id: issues.id,
                 identifier: issues.identifier,
-                companyId: issues.companyId,
+                spaceId: issues.spaceId,
                 conversationAgentId: issues.conversationAgentId,
                 conversationSessionGeneration: issues.conversationSessionGeneration,
               })
               .from(issues)
               .where(
                 and(
-                  eq(issues.companyId, issue.companyId),
+                  eq(issues.spaceId, issue.spaceId),
                   inArray(issues.id, explicitParentIds),
                 ),
               );
       if (parentRows.length !== explicitParentIds.length) {
         throw unprocessable(
-          "Suggested tasks reference parent issues outside this company or issue tree",
+          "Suggested tasks reference parent issues outside this space or issue tree",
         );
       }
 
@@ -4503,19 +4503,19 @@ export function issueThreadInteractionService(
         await assertInteractionRunWriteAllowed(tx as unknown as Db, issue, actor, [JSON.stringify(input)]);
         if (sourceConversation) {
           await lockAcceptedChatHandoffSource(tx, {
-            companyId: issue.companyId, conversationId: sourceConversation.id,
+            spaceId: issue.spaceId, conversationId: sourceConversation.id,
             sessionGeneration: sourceConversation.conversationSessionGeneration,
             userId: actor.userId, agentId: actor.agentId,
           });
           if (interaction.sourceRunId) {
             const [sourceRun] = await tx.select({ context: heartbeatRuns.contextSnapshot }).from(heartbeatRuns)
-              .where(and(eq(heartbeatRuns.id, interaction.sourceRunId), eq(heartbeatRuns.companyId, issue.companyId)));
+              .where(and(eq(heartbeatRuns.id, interaction.sourceRunId), eq(heartbeatRuns.spaceId, issue.spaceId)));
             if (sourceRun?.context?.conversationSessionGeneration !== sourceConversation.conversationSessionGeneration) {
               throw conflict("The originating conversation was reset; request a new task suggestion");
             }
           }
         }
-        await notifyIssueReviewState(tx, { companyId: issue.companyId, issueId: issue.id });
+        await notifyIssueReviewState(tx, { spaceId: issue.spaceId, issueId: issue.id });
         const resolvedAt = new Date();
         const [claimed] = await tx
           .update(issueThreadInteractions)
@@ -4581,14 +4581,14 @@ export function issueThreadInteractionService(
           // parent, so confirm the placement only when it lands exactly there.
           const nestedUnder = task.parentClientKey ? createdByClientKey.get(task.parentClientKey) : undefined;
           const placement = parentIssueId && nestedUnder
-            ? await resolveNewTaskParent(tx as unknown as Db, issue.companyId, parentIssueId, "flatten")
+            ? await resolveNewTaskParent(tx as unknown as Db, issue.spaceId, parentIssueId, "flatten")
             : null;
           const confirmedParent = placement && placement.effectiveParentId === nestedUnder?.parentIssueId
             ? { expectedParentId: placement.effectiveParentId }
             : {};
           const createdIssue = parentIssueId
             ? (await service.createChild(parentIssueId, { ...createInput, ...confirmedParent })).issue
-            : await service.create(issue.companyId, createInput);
+            : await service.create(issue.spaceId, createInput);
 
           const parentIdentifier =
             createdByClientKey.get(task.parentClientKey ?? "")?.identifier ??
@@ -4622,7 +4622,7 @@ export function issueThreadInteractionService(
           .where(eq(issueThreadInteractions.id, interactionId))
           .returning();
 
-        await touchIssue(tx, issue.id, issue.companyId);
+        await touchIssue(tx, issue.id, issue.spaceId);
         await mutationOptions.afterResolveInTransaction?.(tx, hydrateInteraction(updated));
         await enqueueTerminalIssueInteractionChatPublications(tx as unknown as Db, hydrateInteraction(updated));
         current.status = updated.status;
@@ -4644,7 +4644,7 @@ export function issueThreadInteractionService(
     },
 
     rejectInteraction: async (
-      issue: { id: string; companyId: string; status?: string },
+      issue: { id: string; spaceId: string; status?: string },
       interactionId: string,
       input: RejectIssueThreadInteraction,
       actor: InteractionActor,
@@ -4683,7 +4683,7 @@ export function issueThreadInteractionService(
     },
 
     submitItemVerdicts: async (
-      issue: { id: string; companyId: string; status?: string },
+      issue: { id: string; spaceId: string; status?: string },
       interactionId: string,
       input: SubmitIssueThreadInteractionVerdicts,
       actor: InteractionActor,
@@ -4700,9 +4700,9 @@ export function issueThreadInteractionService(
         // Match completion/confirmation ordering: issue -> interaction -> output.
         // A pending multi-item review can contain already-approved output slots,
         // so a replay must not lock those outputs ahead of task completion.
-        const lockedIssue = await tx.select({ id: issues.id, companyId: issues.companyId, status: issues.status })
+        const lockedIssue = await tx.select({ id: issues.id, spaceId: issues.spaceId, status: issues.status })
           .from(issues).where(eq(issues.id, issue.id)).for("update").then(rows => rows[0] ?? null);
-        if (!lockedIssue || lockedIssue.companyId !== issue.companyId) throw notFound("Issue not found");
+        if (!lockedIssue || lockedIssue.spaceId !== issue.spaceId) throw notFound("Issue not found");
         assertIssueOpenForInteractionResolution(lockedIssue);
         const current = await tx
           .select()
@@ -4713,7 +4713,7 @@ export function issueThreadInteractionService(
 
         if (!current) throw interactionNotFoundError();
         if (
-          current.companyId !== issue.companyId ||
+          current.spaceId !== issue.spaceId ||
           current.issueId !== issue.id
         ) {
           throw interactionNotFoundError();
@@ -4765,11 +4765,11 @@ export function issueThreadInteractionService(
         }
 
         await assertRequestConfirmationTargetIsCurrent(tx, {
-          companyId: issue.companyId, issueId: issue.id,
+          spaceId: issue.spaceId, issueId: issue.id,
           target: interaction.payload.target, lockForUpdate: true,
         });
         for (const item of interaction.payload.items.filter(item => data.verdicts.some(verdict => verdict.id === item.id))) {
-          await assertRequestConfirmationTargetIsCurrent(tx, { companyId: issue.companyId, issueId: issue.id, target: item.target, lockForUpdate: true });
+          await assertRequestConfirmationTargetIsCurrent(tx, { spaceId: issue.spaceId, issueId: issue.id, target: item.target, lockForUpdate: true });
         }
         const now = new Date();
         const { items, complete, newlyResolvedItemIds } =
@@ -4789,8 +4789,8 @@ export function issueThreadInteractionService(
           complete,
           items,
         } satisfies RequestItemVerdictsResult;
-        if (complete) await notifyIssueReviewState(tx, { companyId: issue.companyId, issueId: issue.id });
-        else await notifyNativeStatusReassessment(tx, { companyId: issue.companyId, issueId: issue.id });
+        if (complete) await notifyIssueReviewState(tx, { spaceId: issue.spaceId, issueId: issue.id });
+        else await notifyNativeStatusReassessment(tx, { spaceId: issue.spaceId, issueId: issue.id });
         const [updated] = await tx
           .update(issueThreadInteractions)
           .set({
@@ -4814,7 +4814,7 @@ export function issueThreadInteractionService(
           throw interactionAlreadyResolvedError();
         }
 
-        await touchIssue(tx, issue.id, issue.companyId);
+        await touchIssue(tx, issue.id, issue.spaceId);
         await mutationOptions.afterResolveInTransaction?.(tx, hydrateInteraction(updated));
         if (complete) await enqueueTerminalIssueInteractionChatPublications(tx as unknown as Db, hydrateInteraction(updated));
         return {
@@ -4832,7 +4832,7 @@ export function issueThreadInteractionService(
     },
 
     rejectSuggestedTasks: async (
-      issue: { id: string; companyId: string; status?: string },
+      issue: { id: string; spaceId: string; status?: string },
       interactionId: string,
       input: RejectIssueThreadInteraction,
       actor: InteractionActor,
@@ -4841,7 +4841,7 @@ export function issueThreadInteractionService(
     ) => {
       assertIssueOpenForInteractionResolution(issue);
       if (
-        current.companyId !== issue.companyId ||
+        current.spaceId !== issue.spaceId ||
         current.issueId !== issue.id
       ) {
         throw interactionNotFoundError();
@@ -4857,7 +4857,7 @@ export function issueThreadInteractionService(
         await notifyChatConfirmationResolution(tx, current);
         await mutationOptions.beforeResolveInTransaction?.(tx);
         await assertInteractionRunWriteAllowed(tx as unknown as Db, issue, actor, [JSON.stringify(input)]);
-        await notifyIssueReviewState(tx, { companyId: issue.companyId, issueId: issue.id });
+        await notifyIssueReviewState(tx, { spaceId: issue.spaceId, issueId: issue.id });
         const rows = await tx.update(issueThreadInteractions)
         .set({
           status: "rejected",
@@ -4887,14 +4887,14 @@ export function issueThreadInteractionService(
         throw interactionAlreadyResolvedError();
       }
 
-      await touchIssue(db, issue.id, issue.companyId);
+      await touchIssue(db, issue.id, issue.spaceId);
       const rejected = hydrateInteraction(updated);
       await emitInteractionResolvedTelemetry(db, rejected);
       return rejected;
     },
 
     expireRequestConfirmationsSupersededByComment: async (
-      issue: { id: string; companyId: string; status?: string },
+      issue: { id: string; spaceId: string; status?: string },
       comment: {
         id: string;
         createdAt: Date | string;
@@ -4910,14 +4910,14 @@ export function issueThreadInteractionService(
       if (comment.createdByRunId) return [];
 
       const [scope] = await db.select({ conversationAgentId: issues.conversationAgentId, conversationUserId: issues.conversationUserId })
-        .from(issues).where(and(eq(issues.id, issue.id), eq(issues.companyId, issue.companyId)));
+        .from(issues).where(and(eq(issues.id, issue.id), eq(issues.spaceId, issue.spaceId)));
 
       const rows = await db
         .select()
         .from(issueThreadInteractions)
         .where(
           and(
-            eq(issueThreadInteractions.companyId, issue.companyId),
+            eq(issueThreadInteractions.spaceId, issue.spaceId),
             eq(issueThreadInteractions.issueId, issue.id),
             inArray(issueThreadInteractions.kind, [
               ...USER_COMMENT_SUPERSEDABLE_INTERACTION_KINDS,
@@ -4955,7 +4955,7 @@ export function issueThreadInteractionService(
               .delete(toolOauthStates)
               .where(eq(toolOauthStates.interactionId, row.id));
           }
-          if (row.kind === "request_confirmation") await notifyToolProjectionForInteractions(tx, row.companyId, [row.id]);
+          if (row.kind === "request_confirmation") await notifyToolProjectionForInteractions(tx, row.spaceId, [row.id]);
           const [resolved] = await tx
             .update(issueThreadInteractions)
             .set({
@@ -4985,7 +4985,7 @@ export function issueThreadInteractionService(
       }
 
       if (expired.length > 0) {
-        await touchIssue(db, issue.id, issue.companyId);
+        await touchIssue(db, issue.id, issue.spaceId);
         await emitResolvedInteractionsTelemetry(db, expired);
       }
       return expired;
@@ -4993,7 +4993,7 @@ export function issueThreadInteractionService(
 
     expireRequestConfirmationsSupersededByHistoricalComments: async (issue: {
       id: string;
-      companyId: string;
+      spaceId: string;
     }) => {
       const [rows, comments] = await Promise.all([
         db
@@ -5001,7 +5001,7 @@ export function issueThreadInteractionService(
           .from(issueThreadInteractions)
           .where(
             and(
-              eq(issueThreadInteractions.companyId, issue.companyId),
+              eq(issueThreadInteractions.spaceId, issue.spaceId),
               eq(issueThreadInteractions.issueId, issue.id),
               inArray(issueThreadInteractions.kind, [
                 ...USER_COMMENT_SUPERSEDABLE_INTERACTION_KINDS,
@@ -5014,7 +5014,7 @@ export function issueThreadInteractionService(
           .from(issueComments)
           .where(
             and(
-              eq(issueComments.companyId, issue.companyId),
+              eq(issueComments.spaceId, issue.spaceId),
               eq(issueComments.issueId, issue.id),
               isNotNull(issueComments.authorUserId),
               // Only genuine human comments supersede; machine-originated ones carry createdByRunId.
@@ -5128,7 +5128,7 @@ export function issueThreadInteractionService(
             await notifyChatConfirmationResolution(tx, sampleConfirmationRow);
             if (commentRows.some(row => row.kind === "request_confirmation")) await notifyChatRunMilestones(tx, sampleConfirmationRow);
             else await notifyIssueReviewState(tx, sampleConfirmationRow);
-            await notifyToolProjectionForInteractions(tx, issue.companyId, confirmationRowIds);
+            await notifyToolProjectionForInteractions(tx, issue.spaceId, confirmationRowIds);
             const updatedRows = await tx
               .update(issueThreadInteractions)
               .set({
@@ -5217,14 +5217,14 @@ export function issueThreadInteractionService(
       }
 
       if (expired.length > 0) {
-        await touchIssue(db, issue.id, issue.companyId);
+        await touchIssue(db, issue.id, issue.spaceId);
         await emitResolvedInteractionsTelemetry(db, expired);
       }
       return expired;
     },
 
     expireStaleRequestConfirmationsForIssueDocument: async (
-      issue: { id: string; companyId: string },
+      issue: { id: string; spaceId: string },
       document: {
         id: string;
         key: string;
@@ -5238,7 +5238,7 @@ export function issueThreadInteractionService(
         .from(issueThreadInteractions)
         .where(
           and(
-            eq(issueThreadInteractions.companyId, issue.companyId),
+            eq(issueThreadInteractions.spaceId, issue.spaceId),
             eq(issueThreadInteractions.issueId, issue.id),
             inArray(issueThreadInteractions.kind, [
               ...TARGET_BOUND_INTERACTION_KINDS,
@@ -5314,13 +5314,13 @@ export function issueThreadInteractionService(
       }
 
       if (expired.length > 0) {
-        await touchIssue(db, issue.id, issue.companyId);
+        await touchIssue(db, issue.id, issue.spaceId);
         await emitResolvedInteractionsTelemetry(db, expired);
       }
       return expired;
     },
 
-    expireConnectionIntentsForOwnershipChange: async (issue: { id: string; companyId: string }) => {
+    expireConnectionIntentsForOwnershipChange: async (issue: { id: string; spaceId: string }) => {
       // A pending connection_intent asks for either an AI account or a tool
       // account, and the two leave different things broken. One bulk write gave
       // every row the AI wording, so an expired Notion request told the reader
@@ -5330,7 +5330,7 @@ export function issueThreadInteractionService(
         .select({ id: issueThreadInteractions.id, payload: issueThreadInteractions.payload })
         .from(issueThreadInteractions)
         .where(and(
-          eq(issueThreadInteractions.companyId, issue.companyId),
+          eq(issueThreadInteractions.spaceId, issue.spaceId),
           eq(issueThreadInteractions.issueId, issue.id),
           eq(issueThreadInteractions.kind, "connection_intent"),
           eq(issueThreadInteractions.status, "pending"),
@@ -5342,8 +5342,8 @@ export function issueThreadInteractionService(
           ? "the AI account"
           : `the ${payload?.serviceName?.trim() || "requested"} connection`;
         const updated = await db.transaction(async tx => {
-          await notifyIssueReviewState(tx, { companyId: issue.companyId, issueId: issue.id });
-          await notifyChatConfirmationResolution(tx, { companyId: issue.companyId, issueId: issue.id, kind: "connection_intent" });
+          await notifyIssueReviewState(tx, { spaceId: issue.spaceId, issueId: issue.id });
+          await notifyChatConfirmationResolution(tx, { spaceId: issue.spaceId, issueId: issue.id, kind: "connection_intent" });
           const [resolved] = await tx
             .update(issueThreadInteractions)
             .set({
@@ -5370,7 +5370,7 @@ export function issueThreadInteractionService(
       return expired;
     },
     expirePendingInteractionsForTerminalIssue: async (
-      issue: { id: string; companyId: string; status: string },
+      issue: { id: string; spaceId: string; status: string },
       actor: InteractionActor = {},
     ) => {
       if (!isTerminalIssueStatus(issue.status)) return [];
@@ -5379,11 +5379,11 @@ export function issueThreadInteractionService(
         .from(issueThreadInteractions)
         .where(
           and(
-            eq(issueThreadInteractions.companyId, issue.companyId),
+            eq(issueThreadInteractions.spaceId, issue.spaceId),
             eq(issueThreadInteractions.issueId, issue.id),
             eq(issueThreadInteractions.status, "pending"),
             // Completed work retains ordinary historical questions for later
-            // human answers. Cancellation and governed requests still expire.
+            // human answers. Cancellation and controlled requests still expire.
             issue.status === "done" ? sql`not ${historicalQuestionCondition()}` : undefined,
           ),
         );
@@ -5454,14 +5454,14 @@ export function issueThreadInteractionService(
         if (updated) expired.push(hydrateInteraction(updated));
       }
       if (expired.length > 0) {
-        await touchIssue(db, issue.id, issue.companyId);
+        await touchIssue(db, issue.id, issue.spaceId);
         await emitResolvedInteractionsTelemetry(db, expired);
       }
       return expired;
     },
 
     withdrawInteraction: async (
-      issue: { id: string; companyId: string },
+      issue: { id: string; spaceId: string },
       interactionId: string,
       input: WithdrawIssueThreadInteraction,
       actor: InteractionActor,
@@ -5476,7 +5476,7 @@ export function issueThreadInteractionService(
         .then((rows) => rows[0] ?? null);
       if (
         !current ||
-        current.companyId !== issue.companyId ||
+        current.spaceId !== issue.spaceId ||
         current.issueId !== issue.id
       ) {
         throw interactionNotFoundError();
@@ -5516,7 +5516,7 @@ export function issueThreadInteractionService(
             .from(toolActionRequests)
             .where(
               and(
-                eq(toolActionRequests.companyId, current.companyId),
+                eq(toolActionRequests.spaceId, current.spaceId),
                 eq(toolActionRequests.interactionId, current.id),
                 inArray(toolActionRequests.status, ["executing", "executed"]),
               ),
@@ -5559,14 +5559,14 @@ export function issueThreadInteractionService(
         return row;
       });
 
-      await touchIssue(db, issue.id, issue.companyId);
+      await touchIssue(db, issue.id, issue.spaceId);
       const withdrawn = hydrateInteraction(updated);
       await emitInteractionResolvedTelemetry(db, withdrawn);
       return withdrawn;
     },
 
     answerQuestions: async (
-      issue: { id: string; companyId: string; status?: string },
+      issue: { id: string; spaceId: string; status?: string },
       interactionId: string,
       input: RespondIssueThreadInteraction,
       actor: InteractionActor,
@@ -5580,7 +5580,7 @@ export function issueThreadInteractionService(
 
       if (!current) throw interactionNotFoundError();
       if (
-        current.companyId !== issue.companyId ||
+        current.spaceId !== issue.spaceId ||
         current.issueId !== issue.id
       ) {
         throw interactionNotFoundError();
@@ -5620,14 +5620,14 @@ export function issueThreadInteractionService(
         // Serialize against task completion/cancellation and use the persisted
         // status, including when the caller read the task before it closed.
         const [issueRow] = await tx.select({ status: issues.status }).from(issues)
-          .where(and(eq(issues.id, issue.id), eq(issues.companyId, issue.companyId))).for("update");
+          .where(and(eq(issues.id, issue.id), eq(issues.spaceId, issue.spaceId))).for("update");
         if (!issueRow) throw interactionNotFoundError();
         let historicalAnswer = false;
         if (isTerminalIssueStatus(issueRow.status)) {
           if (issueRow.status === "done" && actor.userId && !actor.agentId && !actor.runId && !actor.systemId) {
             historicalAnswer = (await tx.select({ id: issueThreadInteractions.id }).from(issueThreadInteractions)
               .where(and(eq(issueThreadInteractions.id, interactionId),
-                eq(issueThreadInteractions.companyId, issue.companyId), eq(issueThreadInteractions.issueId, issue.id),
+                eq(issueThreadInteractions.spaceId, issue.spaceId), eq(issueThreadInteractions.issueId, issue.id),
                 historicalQuestionCondition())).limit(1)).length > 0;
           }
           if (!historicalAnswer) throw interactionIssueClosedError();
@@ -5682,14 +5682,14 @@ export function issueThreadInteractionService(
         return row;
       });
 
-      await touchIssue(db, issue.id, issue.companyId);
+      await touchIssue(db, issue.id, issue.spaceId);
       const answered = hydrateInteraction(updated);
       await emitInteractionResolvedTelemetry(db, answered);
       return answered;
     },
 
     dismissInteraction: async (
-      issue: { id: string; companyId: string },
+      issue: { id: string; spaceId: string },
       interactionId: string,
       actor: InteractionActor,
       afterDismissed?: (tx: Db) => Promise<void>,
@@ -5702,7 +5702,7 @@ export function issueThreadInteractionService(
         // changes attention state; it never resolves or executes the request.
         const [task] = await tx.select({
           id: issues.id,
-          companyId: issues.companyId,
+          spaceId: issues.spaceId,
           status: issues.status,
           executionRunId: issues.executionRunId,
           workMode: issues.workMode,
@@ -5712,10 +5712,10 @@ export function issueThreadInteractionService(
           createdByAgentId: issues.createdByAgentId,
           createdByUserId: issues.createdByUserId,
         }).from(issues)
-          .where(and(eq(issues.id, issue.id), eq(issues.companyId, issue.companyId))).for("update");
+          .where(and(eq(issues.id, issue.id), eq(issues.spaceId, issue.spaceId))).for("update");
         if (!task) throw interactionNotFoundError();
         const [current] = await tx.select().from(issueThreadInteractions).where(and(
-          eq(issueThreadInteractions.id, interactionId), eq(issueThreadInteractions.companyId, issue.companyId),
+          eq(issueThreadInteractions.id, interactionId), eq(issueThreadInteractions.spaceId, issue.spaceId),
           eq(issueThreadInteractions.issueId, issue.id),
         )).for("update");
         if (!current) throw interactionNotFoundError();
@@ -5734,7 +5734,7 @@ export function issueThreadInteractionService(
     },
 
     skipInteraction: async (
-      issue: { id: string; companyId: string; status?: string },
+      issue: { id: string; spaceId: string; status?: string },
       interactionId: string,
       input: SkipIssueThreadInteraction,
       actor: InteractionActor,
@@ -5749,7 +5749,7 @@ export function issueThreadInteractionService(
 
       if (
         !current ||
-        current.companyId !== issue.companyId ||
+        current.spaceId !== issue.spaceId ||
         current.issueId !== issue.id
       ) {
         throw interactionNotFoundError();
@@ -5782,7 +5782,7 @@ export function issueThreadInteractionService(
             .from(toolActionRequests)
             .where(
               and(
-                eq(toolActionRequests.companyId, current.companyId),
+                eq(toolActionRequests.spaceId, current.spaceId),
                 eq(toolActionRequests.interactionId, current.id),
                 inArray(toolActionRequests.status, ["executing", "executed"]),
               ),
@@ -5820,14 +5820,14 @@ export function issueThreadInteractionService(
         return row;
       });
 
-      await touchIssue(db, issue.id, issue.companyId);
+      await touchIssue(db, issue.id, issue.spaceId);
       const skipped = hydrateInteraction(updated);
       await emitInteractionResolvedTelemetry(db, skipped);
       return skipped;
     },
 
     cancelQuestions: async (
-      issue: { id: string; companyId: string; status?: string },
+      issue: { id: string; spaceId: string; status?: string },
       interactionId: string,
       input: CancelIssueThreadInteraction,
       actor: InteractionActor,
@@ -5843,7 +5843,7 @@ export function issueThreadInteractionService(
 
       if (!current) throw interactionNotFoundError();
       if (
-        current.companyId !== issue.companyId ||
+        current.spaceId !== issue.spaceId ||
         current.issueId !== issue.id
       ) {
         throw interactionNotFoundError();
@@ -5897,7 +5897,7 @@ export function issueThreadInteractionService(
         return row;
       });
 
-      await touchIssue(db, issue.id, issue.companyId);
+      await touchIssue(db, issue.id, issue.spaceId);
       const cancelled = hydrateInteraction(updated);
       await emitInteractionResolvedTelemetry(db, cancelled);
       return cancelled;

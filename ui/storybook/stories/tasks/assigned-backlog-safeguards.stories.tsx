@@ -5,7 +5,7 @@ import type { IssueRelationIssueSummary } from "@outpost/shared";
 import { IssueAssignedBacklogNotice } from "@/components/IssueAssignedBacklogNotice";
 import { IssueBlockedNotice } from "@/components/IssueBlockedNotice";
 import { IssueRow } from "@/components/IssueRow";
-import { storybookAgents, createIssue } from "../../fixtures/paperclipData";
+import { storybookAgents, createIssue } from "../../fixtures/outpostData";
 
 const codexAgent = storybookAgents.find((agent) => agent.id === "agent-codex") ?? storybookAgents[0]!;
 const qaAgent = storybookAgents.find((agent) => agent.id === "agent-qa") ?? storybookAgents[0]!;
@@ -37,7 +37,7 @@ function CreationFormPanel() {
           </span>
           <span>in</span>
           <span className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs">
-            Paperclip App
+            Outpost App
           </span>
         </div>
         <div className="space-y-1.5">
@@ -205,11 +205,11 @@ function AllStates() {
 }
 
 const meta = {
-  id: "paperclip-assigned-backlog-safeguards",
-  title: "Tasks and conversations/Task creation and lifecycle/Paperclip/Assigned Backlog Safeguards",
+  id: "outpost-assigned-backlog-safeguards",
+  title: "Tasks and conversations/Task creation and lifecycle/Outpost/Assigned Backlog Safeguards",
   component: AllStates,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "tasks/completion",
         "recovery/diagnosis"

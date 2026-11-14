@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   executionWorkspaces,
   heartbeatRuns,
@@ -61,7 +61,7 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-subtask-workspace-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-subtask-workspace-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -77,7 +77,7 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
     await db.delete(projects);
     await db.delete(agents);
     await db.delete(instanceSettings);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -91,27 +91,27 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
   };
 
   async function seedParentWithRealizedWorkspace() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const parentWorkspaceId = randomUUID();
     const parentIssueId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Workspace project", status: "in_progress" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Workspace project", status: "in_progress" });
     await db.insert(projectWorkspaces).values({
-      id: projectWorkspaceId, companyId, projectId, name: "Primary workspace", isPrimary: true, sharedWorkspaceKey: "workspace-key",
+      id: projectWorkspaceId, spaceId, projectId, name: "Primary workspace", isPrimary: true, sharedWorkspaceKey: "workspace-key",
     });
     await db.insert(issues).values({
-      id: parentIssueId, companyId, projectId, projectWorkspaceId, title: "Parent issue", status: "in_progress", priority: "medium",
+      id: parentIssueId, spaceId, projectId, projectWorkspaceId, title: "Parent issue", status: "in_progress", priority: "medium",
     });
     await db.insert(executionWorkspaces).values({
-      id: parentWorkspaceId, companyId, projectId, projectWorkspaceId, sourceIssueId: parentIssueId,
+      id: parentWorkspaceId, spaceId, projectId, projectWorkspaceId, sourceIssueId: parentIssueId,
       mode: "isolated_workspace", strategyType: "git_worktree", name: "Parent worktree", status: "active",
       branchName: "pap-1-parent", providerType: "git_worktree", providerRef: `/tmp/${parentWorkspaceId}`,
     });
@@ -120,7 +120,7 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
       executionWorkspacePreference: "reuse_existing",
       executionWorkspaceSettings: parentSettings,
     }).where(eq(issues.id, parentIssueId));
-    return { companyId, projectId, projectWorkspaceId, parentWorkspaceId, parentIssueId };
+    return { spaceId, projectId, projectWorkspaceId, parentWorkspaceId, parentIssueId };
   }
 
   function expectIndependentChild(
@@ -138,7 +138,7 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
 
   it("create() with parentId gives the child its own workspace and keeps the parent's strategy", async () => {
     const fixture = await seedParentWithRealizedWorkspace();
-    const child = await issueService(db).create(fixture.companyId, { parentId: fixture.parentIssueId, title: "Child issue" });
+    const child = await issueService(db).create(fixture.spaceId, { parentId: fixture.parentIssueId, title: "Child issue" });
     expect(child.parentId).toBe(fixture.parentIssueId);
     expectIndependentChild(child, fixture);
     expect(child.executionWorkspaceSettings).toEqual({
@@ -165,7 +165,7 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
   it("createChild into another project does not carry the parent's strategy across the project boundary", async () => {
     const fixture = await seedParentWithRealizedWorkspace();
     const otherProjectId = randomUUID();
-    await db.insert(projects).values({ id: otherProjectId, companyId: fixture.companyId, name: "Other project", status: "in_progress" });
+    await db.insert(projects).values({ id: otherProjectId, spaceId: fixture.spaceId, name: "Other project", status: "in_progress" });
     const { issue: child } = await issueService(db).createChild(fixture.parentIssueId, {
       title: "Cross-project child", status: "todo", priority: "medium", projectId: otherProjectId,
     } as Parameters<ReturnType<typeof issueService>["createChild"]>[1]);
@@ -177,7 +177,7 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
 
   it("keeps the parent's strategy when the New sub-task dialog names only the mode", async () => {
     const fixture = await seedParentWithRealizedWorkspace();
-    const child = await issueService(db).create(fixture.companyId, {
+    const child = await issueService(db).create(fixture.spaceId, {
       parentId: fixture.parentIssueId,
       projectId: fixture.projectId,
       projectWorkspaceId: fixture.projectWorkspaceId,
@@ -195,7 +195,7 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
 
   it("does not share when inheritExecutionWorkspaceFromIssueId points at the parent", async () => {
     const fixture = await seedParentWithRealizedWorkspace();
-    const child = await issueService(db).create(fixture.companyId, {
+    const child = await issueService(db).create(fixture.spaceId, {
       parentId: fixture.parentIssueId,
       inheritExecutionWorkspaceFromIssueId: fixture.parentIssueId,
       title: "Child issue",
@@ -205,7 +205,7 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
 
   it("drops an explicit executionWorkspaceId that belongs to the parent or a further ancestor", async () => {
     const fixture = await seedParentWithRealizedWorkspace();
-    const child = await issueService(db).create(fixture.companyId, {
+    const child = await issueService(db).create(fixture.spaceId, {
       parentId: fixture.parentIssueId,
       projectId: fixture.projectId,
       executionWorkspaceId: fixture.parentWorkspaceId,
@@ -215,7 +215,7 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
     });
     expectIndependentChild(child, fixture);
 
-    const grandchild = await issueService(db).create(fixture.companyId, {
+    const grandchild = await issueService(db).create(fixture.spaceId, {
       parentId: child.id,
       parentDepthPolicy: "allow_nested",
       projectId: fixture.projectId,
@@ -228,7 +228,7 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
 
   it("non-child follow-ups keep the source's project and strategy but get their own workspace", async () => {
     const fixture = await seedParentWithRealizedWorkspace();
-    const followUp = await issueService(db).create(fixture.companyId, {
+    const followUp = await issueService(db).create(fixture.spaceId, {
       parentId: null,
       inheritExecutionWorkspaceFromIssueId: fixture.parentIssueId,
       title: "Follow-up issue",
@@ -239,13 +239,13 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
 
   it("leaves top-level tasks and project workspace defaults unchanged", async () => {
     const fixture = await seedParentWithRealizedWorkspace();
-    const topLevel = await issueService(db).create(fixture.companyId, { projectId: fixture.projectId, title: "Top-level" });
+    const topLevel = await issueService(db).create(fixture.spaceId, { projectId: fixture.projectId, title: "Top-level" });
     expect(topLevel.parentId).toBeNull();
     expect(topLevel.executionWorkspaceId).toBeNull();
     expect(topLevel.projectWorkspaceId).toBe(fixture.projectWorkspaceId);
 
     // An explicit existing workspace for an unrelated top-level task is still honoured.
-    const explicit = await issueService(db).create(fixture.companyId, {
+    const explicit = await issueService(db).create(fixture.spaceId, {
       projectId: fixture.projectId,
       executionWorkspaceId: fixture.parentWorkspaceId,
       executionWorkspacePreference: "reuse_existing",
@@ -260,23 +260,23 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
       const childIssueId = randomUUID();
       // The shape older releases wrote by default for every child.
       await db.insert(issues).values({
-        id: childIssueId, companyId: fixture.companyId, projectId: fixture.projectId, parentId: fixture.parentIssueId,
+        id: childIssueId, spaceId: fixture.spaceId, projectId: fixture.projectId, parentId: fixture.parentIssueId,
         projectWorkspaceId: fixture.projectWorkspaceId, title: "Old child", status: "todo", priority: "medium",
         executionWorkspaceId: fixture.parentWorkspaceId, executionWorkspacePreference: "reuse_existing",
         executionWorkspaceSettings: { ...parentSettings, mode: "isolated_workspace" },
       });
       const agentId = randomUUID();
       await db.insert(agents).values({
-        id: agentId, companyId: fixture.companyId, name: "Coder", role: "engineer", status: "active",
+        id: agentId, spaceId: fixture.spaceId, name: "Coder", role: "engineer", status: "active",
         adapterType: "process", adapterConfig: {}, runtimeConfig: {}, permissions: {},
       });
       return { ...fixture, childIssueId, agentId };
     }
 
-    async function insertRun(input: { companyId: string; agentId: string; issueId: string; status: string }) {
+    async function insertRun(input: { spaceId: string; agentId: string; issueId: string; status: string }) {
       const id = randomUUID();
       await db.insert(heartbeatRuns).values({
-        id, companyId: input.companyId, agentId: input.agentId, invocationSource: "assignment", triggerDetail: "system",
+        id, spaceId: input.spaceId, agentId: input.agentId, invocationSource: "assignment", triggerDetail: "system",
         status: input.status, startedAt: new Date(), contextSnapshot: { issueId: input.issueId },
       });
       return id;
@@ -290,13 +290,13 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
     it("rebinds a child that is not running on its next admission and leaves the parent's workspace alone", async () => {
       const fixture = await seedOldReleaseChild();
       // The parent is writing in its workspace right now.
-      const parentRunId = await insertRun({ companyId: fixture.companyId, agentId: fixture.agentId, issueId: fixture.parentIssueId, status: "running" });
+      const parentRunId = await insertRun({ spaceId: fixture.spaceId, agentId: fixture.agentId, issueId: fixture.parentIssueId, status: "running" });
       await db.update(issues).set({ executionRunId: parentRunId }).where(eq(issues.id, fixture.parentIssueId));
-      const admittedRunId = await insertRun({ companyId: fixture.companyId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "running" });
+      const admittedRunId = await insertRun({ spaceId: fixture.spaceId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "running" });
       const before = await readIssue(fixture.childIssueId);
 
       const released = await executionWorkspaceService(db).releaseAncestorWorkspaceBindingAtAdmission({
-        companyId: fixture.companyId, issueId: fixture.childIssueId, runId: admittedRunId,
+        spaceId: fixture.spaceId, issueId: fixture.childIssueId, runId: admittedRunId,
       });
 
       expect(released).toBe(true);
@@ -319,7 +319,7 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
 
       // Idempotent: a second admission has nothing left to release.
       expect(await executionWorkspaceService(db).releaseAncestorWorkspaceBindingAtAdmission({
-        companyId: fixture.companyId, issueId: fixture.childIssueId, runId: admittedRunId,
+        spaceId: fixture.spaceId, issueId: fixture.childIssueId, runId: admittedRunId,
       })).toBe(false);
     });
 
@@ -328,14 +328,14 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
       // Older releases inherited from the requested parent even when placement
       // flattened the task beside it; the requester is recorded as privacy parent.
       const grandparentId = randomUUID();
-      await db.insert(issues).values({ id: grandparentId, companyId: fixture.companyId, projectId: fixture.projectId,
+      await db.insert(issues).values({ id: grandparentId, spaceId: fixture.spaceId, projectId: fixture.projectId,
         title: "Root", status: "in_progress", priority: "medium" });
       await db.update(issues).set({ parentId: grandparentId }).where(eq(issues.id, fixture.parentIssueId));
       await db.update(issues).set({ parentId: grandparentId, privacyParentIssueId: fixture.parentIssueId })
         .where(eq(issues.id, fixture.childIssueId));
-      const runId = await insertRun({ companyId: fixture.companyId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "running" });
+      const runId = await insertRun({ spaceId: fixture.spaceId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "running" });
       expect(await executionWorkspaceService(db).releaseAncestorWorkspaceBindingAtAdmission({
-        companyId: fixture.companyId, issueId: fixture.childIssueId, runId,
+        spaceId: fixture.spaceId, issueId: fixture.childIssueId, runId,
       })).toBe(true);
       expect((await readIssue(fixture.childIssueId)).executionWorkspaceId).toBeNull();
       expect((await readIssue(fixture.parentIssueId)).executionWorkspaceId).toBe(fixture.parentWorkspaceId);
@@ -345,7 +345,7 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
       const fixture = await seedOldReleaseChild();
       const childWorkspaceId = randomUUID();
       await db.insert(executionWorkspaces).values({
-        id: childWorkspaceId, companyId: fixture.companyId, projectId: fixture.projectId, projectWorkspaceId: fixture.projectWorkspaceId,
+        id: childWorkspaceId, spaceId: fixture.spaceId, projectId: fixture.projectId, projectWorkspaceId: fixture.projectWorkspaceId,
         sourceIssueId: fixture.childIssueId, mode: "isolated_workspace", strategyType: "git_worktree", name: "Child worktree",
         status: "active", providerType: "git_worktree", providerRef: `/tmp/${childWorkspaceId}`,
       });
@@ -353,16 +353,16 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
       await db.update(issues).set({ executionWorkspaceId: childWorkspaceId }).where(eq(issues.id, fixture.parentIssueId));
       // The child created the workspace, so its admission keeps it. A fresh
       // workspace for the child would land on the same issue-named branch.
-      const childRunId = await insertRun({ companyId: fixture.companyId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "running" });
+      const childRunId = await insertRun({ spaceId: fixture.spaceId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "running" });
       expect(await executionWorkspaceService(db).releaseAncestorWorkspaceBindingAtAdmission({
-        companyId: fixture.companyId, issueId: fixture.childIssueId, runId: childRunId,
+        spaceId: fixture.spaceId, issueId: fixture.childIssueId, runId: childRunId,
       })).toBe(false);
       expect((await readIssue(fixture.childIssueId)).executionWorkspaceId).toBe(childWorkspaceId);
       // The parent's next admission moves the parent off its descendant's workspace.
       await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, childRunId));
-      const parentRunId = await insertRun({ companyId: fixture.companyId, agentId: fixture.agentId, issueId: fixture.parentIssueId, status: "running" });
+      const parentRunId = await insertRun({ spaceId: fixture.spaceId, agentId: fixture.agentId, issueId: fixture.parentIssueId, status: "running" });
       expect(await executionWorkspaceService(db).releaseAncestorWorkspaceBindingAtAdmission({
-        companyId: fixture.companyId, issueId: fixture.parentIssueId, runId: parentRunId,
+        spaceId: fixture.spaceId, issueId: fixture.parentIssueId, runId: parentRunId,
       })).toBe(true);
       expect((await readIssue(fixture.parentIssueId)).executionWorkspaceId).toBeNull();
       expect((await readIssue(fixture.childIssueId)).executionWorkspaceId).toBe(childWorkspaceId);
@@ -372,14 +372,14 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
       const fixture = await seedOldReleaseChild();
       const childWorkspaceId = randomUUID();
       await db.insert(executionWorkspaces).values({
-        id: childWorkspaceId, companyId: fixture.companyId, projectId: fixture.projectId, projectWorkspaceId: fixture.projectWorkspaceId,
+        id: childWorkspaceId, spaceId: fixture.spaceId, projectId: fixture.projectId, projectWorkspaceId: fixture.projectWorkspaceId,
         sourceIssueId: fixture.childIssueId, mode: "isolated_workspace", strategyType: "git_worktree", name: "Child worktree",
         status: "active", providerType: "git_worktree", providerRef: `/tmp/${childWorkspaceId}`,
       });
       await db.update(issues).set({ executionWorkspaceId: childWorkspaceId }).where(eq(issues.id, fixture.childIssueId));
-      const runId = await insertRun({ companyId: fixture.companyId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "running" });
+      const runId = await insertRun({ spaceId: fixture.spaceId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "running" });
       expect(await executionWorkspaceService(db).releaseAncestorWorkspaceBindingAtAdmission({
-        companyId: fixture.companyId, issueId: fixture.childIssueId, runId,
+        spaceId: fixture.spaceId, issueId: fixture.childIssueId, runId,
       })).toBe(false);
       expect((await readIssue(fixture.childIssueId)).executionWorkspaceId).toBe(childWorkspaceId);
     });
@@ -387,11 +387,11 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
     it("lets a running child finish in the shared workspace before rebinding", async () => {
       const fixture = await seedOldReleaseChild();
       // The deploy lands while the child's earlier run is still running.
-      await insertRun({ companyId: fixture.companyId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "running" });
-      const nextRunId = await insertRun({ companyId: fixture.companyId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "queued" });
+      await insertRun({ spaceId: fixture.spaceId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "running" });
+      const nextRunId = await insertRun({ spaceId: fixture.spaceId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "queued" });
 
       expect(await executionWorkspaceService(db).releaseAncestorWorkspaceBindingAtAdmission({
-        companyId: fixture.companyId, issueId: fixture.childIssueId, runId: nextRunId,
+        spaceId: fixture.spaceId, issueId: fixture.childIssueId, runId: nextRunId,
       })).toBe(false);
       expect((await readIssue(fixture.childIssueId)).executionWorkspaceId).toBe(fixture.parentWorkspaceId);
     });
@@ -399,18 +399,18 @@ describeEmbeddedPostgres("subtasks never share an ancestor's execution workspace
     it("keeps an explicit share between unrelated tasks", async () => {
       const fixture = await seedOldReleaseChild();
       await db.update(issues).set({ parentId: null }).where(eq(issues.id, fixture.childIssueId));
-      const runId = await insertRun({ companyId: fixture.companyId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "running" });
+      const runId = await insertRun({ spaceId: fixture.spaceId, agentId: fixture.agentId, issueId: fixture.childIssueId, status: "running" });
       expect(await executionWorkspaceService(db).releaseAncestorWorkspaceBindingAtAdmission({
-        companyId: fixture.companyId, issueId: fixture.childIssueId, runId,
+        spaceId: fixture.spaceId, issueId: fixture.childIssueId, runId,
       })).toBe(false);
       expect((await readIssue(fixture.childIssueId)).executionWorkspaceId).toBe(fixture.parentWorkspaceId);
     });
 
     it("never rebinds the parent, even when it is bound to its own workspace a child shares", async () => {
       const fixture = await seedOldReleaseChild();
-      const runId = await insertRun({ companyId: fixture.companyId, agentId: fixture.agentId, issueId: fixture.parentIssueId, status: "running" });
+      const runId = await insertRun({ spaceId: fixture.spaceId, agentId: fixture.agentId, issueId: fixture.parentIssueId, status: "running" });
       expect(await executionWorkspaceService(db).releaseAncestorWorkspaceBindingAtAdmission({
-        companyId: fixture.companyId, issueId: fixture.parentIssueId, runId,
+        spaceId: fixture.spaceId, issueId: fixture.parentIssueId, runId,
       })).toBe(false);
       expect((await readIssue(fixture.parentIssueId)).executionWorkspaceId).toBe(fixture.parentWorkspaceId);
     });

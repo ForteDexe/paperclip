@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, completionContracts, createDb, heartbeatRuns, issues,
+import { agents, spaces, completionContracts, createDb, heartbeatRuns, issues,
   nativeRunFinalizations, nativeRunResults } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { deliverExecutionStatuses } from "../execution-status-delivery.js";
 import { buildIssueMonitorTriggeredPatch, normalizeIssueExecutionPolicy } from "../issue-execution-policy.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { finalizeNativeRun } from "./native-run-finalizer.js";
 
 const support = await getEmbeddedPostgresTestSupport();
@@ -21,19 +21,19 @@ describe.skipIf(!support.supported)("native terminal status projection", () => {
 
   async function fixture() {
     await deliverExecutionStatuses(db, { publish: vi.fn() });
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     const contractId = randomUUID(), resultId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Monitor status", issuePrefix: `S${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner", status: "active" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Saved check", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId,
+    await db.insert(spaces).values({ id: spaceId, name: "Monitor status", issuePrefix: `S${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "outpost_runner", status: "active" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Saved check", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId,
       runtimeMode: "native", status: "running", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    const authority = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId });
+    const authority = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId });
     await authority.execute({ tool: "set_task_monitor", callId: randomUUID(), arguments: {
       idempotencyKey: "saved-monitor", monitor: { nextCheckAt: new Date(Date.now() + 60_000).toISOString(), notes: "Check the saved result." },
     } });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "test", criteria: [] }, canonicalSha256: randomUUID(),
@@ -46,16 +46,16 @@ describe.skipIf(!support.supported)("native terminal status projection", () => {
       terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: "yielded" } };
     const finishedAt = new Date("2020-01-01T00:00:00Z");
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt, completionContractId: contractId }).where(eq(heartbeatRuns.id, runId));
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId, completionContractId: contractId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId, completionContractId: contractId,
       serverFingerprint: randomUUID(), canonicalSha256: randomUUID(), schemaStatus: "accepted", resultJson: accepted });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "retryable_failure", resultId });
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "retryable_failure", resultId });
     const [task] = await db.select().from(issues).where(eq(issues.id, issueId));
     await db.update(issues).set({ ...buildIssueMonitorTriggeredPatch({ issue: task!,
       policy: normalizeIssueExecutionPolicy(task!.executionPolicy), triggeredAt: new Date() }), executionRunId: null, checkoutRunId: null,
     }).where(eq(issues.id, issueId));
     const finalize = () => finalizeNativeRun({ db, runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
     const read = async () => (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)))[0]!;
-    return { runId, companyId, issueId, finishedAt, resultId, accepted, finalize, read };
+    return { runId, spaceId, issueId, finishedAt, resultId, accepted, finalize, read };
   }
 
   it("preserves the original completion time while retrying an accepted monitor result", async () => {

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, issues, principalPermissionGrants,
+import { agents, authUsers, spaces, spaceMemberships, createDb, issues, principalPermissionGrants,
   EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { AGENT_INTERACTION_PERMISSION_KEYS, type AgentInteractionPermissionKey } from "@outpost/shared";
 import { eq } from "drizzle-orm";
@@ -20,26 +20,26 @@ describe("agent interaction authorization", () => {
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
   async function seed() {
-    const companyId = randomUUID(), actorAgentId = randomUUID(), targetAgentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Interactions", issuePrefix: `I${companyId.slice(0, 6)}` });
+    const spaceId = randomUUID(), actorAgentId = randomUUID(), targetAgentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Interactions", issuePrefix: `I${spaceId.slice(0, 6)}` });
     await db.insert(agents).values([actorAgentId, targetAgentId].map((id, i) => ({
-      id, companyId, name: `Agent ${i}`, status: "idle", adapterType: "process", permissions: {},
+      id, spaceId, name: `Agent ${i}`, status: "idle", adapterType: "process", permissions: {},
     })));
-    await db.insert(companyMemberships).values([actorAgentId, targetAgentId].map(principalId => ({
-      companyId, principalId, principalType: "agent", membershipRole: "member", status: "active",
+    await db.insert(spaceMemberships).values([actorAgentId, targetAgentId].map(principalId => ({
+      spaceId, principalId, principalType: "agent", membershipRole: "member", status: "active",
     })));
     const [task, own, unassigned, human, conversation] = await db.insert(issues).values([
       { assigneeAgentId: targetAgentId }, { assigneeAgentId: actorAgentId }, {}, { assigneeUserId: "human" },
       { conversationAgentId: actorAgentId, conversationUserId: "human", assigneeAgentId: actorAgentId, conversationState: "active" as const },
-    ].map((value, i) => ({ companyId, title: `Task ${i}`, status: "todo", ...value }))).returning();
-    return { companyId, actorAgentId, targetAgentId, task: task!, own: own!, unassigned: unassigned!, human: human!, conversation: conversation! };
+    ].map((value, i) => ({ spaceId, title: `Task ${i}`, status: "todo", ...value }))).returning();
+    return { spaceId, actorAgentId, targetAgentId, task: task!, own: own!, unassigned: unassigned!, human: human!, conversation: conversation! };
   }
   type Fixture = Awaited<ReturnType<typeof seed>>;
   async function set(agentId: string, key: AgentInteractionPermissionKey, value = false) {
     await db.update(agents).set({ permissions: { interactions: { [key]: value } } }).where(eq(agents.id, agentId));
   }
   const input = (f: Fixture, operation: AgentInteractionInput["operation"], more: Partial<AgentInteractionInput> = {}): AgentInteractionInput => ({
-    companyId: f.companyId, actorAgentId: f.actorAgentId, operation, ...more,
+    spaceId: f.spaceId, actorAgentId: f.actorAgentId, operation, ...more,
   });
 
   const cases: Array<[AgentInteractionPermissionKey, "incoming" | "outgoing", AgentInteractionInput["operation"]]> = [
@@ -106,19 +106,19 @@ describe("agent interaction authorization", () => {
     expect(await agentInteractionDenial(db, { ...action, texts: [`[@self](agent://${f.actorAgentId})`] })).toBeNull();
   });
 
-  it("enforces explicit denials after shared authorization, including CEO/grants and responsible-human attribution", async () => {
+  it("enforces explicit denials after shared authorization, including Default agent/grants and responsible-human attribution", async () => {
     const f = await seed();
-    await db.update(agents).set({ role: "ceo", permissions: { canCreateAgents: true } }).where(eq(agents.id, f.actorAgentId));
-    await db.insert(principalPermissionGrants).values({ companyId: f.companyId, principalType: "agent", principalId: f.actorAgentId, permissionKey: "tasks:assign" });
-    const actor = { type: "agent" as const, agentId: f.actorAgentId, companyId: f.companyId };
-    const resource = { type: "issue" as const, companyId: f.companyId, assigneeAgentId: f.targetAgentId };
+    await db.update(agents).set({ role: "lead", permissions: { canCreateAgents: true } }).where(eq(agents.id, f.actorAgentId));
+    await db.insert(principalPermissionGrants).values({ spaceId: f.spaceId, principalType: "agent", principalId: f.actorAgentId, permissionKey: "tasks:assign" });
+    const actor = { type: "agent" as const, agentId: f.actorAgentId, spaceId: f.spaceId };
+    const resource = { type: "issue" as const, spaceId: f.spaceId, assigneeAgentId: f.targetAgentId };
     expect((await authorizationService(db).decide({ actor, action: "tasks:assign", resource })).allowed).toBe(true);
     await set(f.targetAgentId, "canReceiveAssignmentsFromAgents");
     const decision = await authorizationService(db).decide({ actor, action: "tasks:assign", resource });
     expect(decision).toMatchObject({ allowed: false, reason: "deny_agent_interaction" });
     expect(authorizationDeniedDetails(decision)).toMatchObject({ code: "agent_interaction_denied", permission: "canReceiveAssignmentsFromAgents", direction: "incoming" });
     await db.update(agents).set({ permissions: { trustPreset: "low_trust_review", interactions: { canAssignTasksToAgents: true },
-      authorizationPolicy: { trustBoundary: { mode: "low_trust_review", companyId: f.companyId, issueIds: [f.own.id] } } } }).where(eq(agents.id, f.actorAgentId));
+      authorizationPolicy: { trustBoundary: { mode: "low_trust_review", spaceId: f.spaceId, issueIds: [f.own.id] } } } }).where(eq(agents.id, f.actorAgentId));
     await set(f.targetAgentId, "canReceiveAssignmentsFromAgents", true);
     expect((await authorizationService(db).decide({ actor, action: "tasks:assign", resource })).allowed).toBe(false);
   });
@@ -126,8 +126,8 @@ describe("agent interaction authorization", () => {
   it("preserves sparse existing records and checks fresh policy even for a reused authorizer", async () => {
     const f = await seed();
     const auth = authorizationService(db);
-    const query = { actor: { type: "agent" as const, agentId: f.actorAgentId, companyId: f.companyId }, action: "issue:comment" as const,
-      resource: { type: "issue" as const, companyId: f.companyId, issueId: f.task.id, assigneeAgentId: f.targetAgentId, assigneeUserId: null, status: "todo" } };
+    const query = { actor: { type: "agent" as const, agentId: f.actorAgentId, spaceId: f.spaceId }, action: "issue:comment" as const,
+      resource: { type: "issue" as const, spaceId: f.spaceId, issueId: f.task.id, assigneeAgentId: f.targetAgentId, assigneeUserId: null, status: "todo" } };
     expect((await auth.decide(query)).allowed).toBe(true);
     expect((await db.select().from(agents).where(eq(agents.id, f.actorAgentId)))[0]?.permissions).toEqual({});
     await set(f.targetAgentId, "canReceiveCommentsFromAgents");
@@ -167,26 +167,26 @@ describe("agent interaction authorization", () => {
   it("uses trusted plugin origin even when a handler labels the operation human or another agent", async () => {
     const f = await seed();
     await set(f.targetAgentId, "canReceiveCommentsFromAgents");
-    await withPluginInteractionOrigin({ companyId: f.companyId, agentId: f.actorAgentId }, async () => {
+    await withPluginInteractionOrigin({ spaceId: f.spaceId, agentId: f.actorAgentId }, async () => {
       for (const actorAgentId of [null, f.targetAgentId]) {
         expect(await agentInteractionDenial(db, input(f, "comment", { actorAgentId, issueId: f.task.id })))
           .toMatchObject({ permission: "canReceiveCommentsFromAgents", actorAgentId: f.actorAgentId });
       }
       const decision = await authorizationService(db).decide({
-        actor: { type: "board", source: "local_implicit" }, action: "issue:comment",
-        resource: { type: "issue", companyId: f.companyId, issueId: f.task.id },
+        actor: { type: "operator", source: "local_implicit" }, action: "issue:comment",
+        resource: { type: "issue", spaceId: f.spaceId, issueId: f.task.id },
       });
       expect(decision).toMatchObject({ allowed: false, code: "agent_interaction_denied" });
-      await expect(agentInteractionDenial(db, input(f, "comment", { companyId: randomUUID() })))
+      await expect(agentInteractionDenial(db, input(f, "comment", { spaceId: randomUUID() })))
         .rejects.toMatchObject({ status: 404 });
     });
   });
 
-  it("checks the original company's sender for an independently authorized cross-company import", async () => {
+  it("checks the original space's sender for an independently authorized cross-space import", async () => {
     const source = await seed(), destination = await seed();
     const action = input(destination, "assign", { actorAgentId: source.actorAgentId, targetAgentId: destination.targetAgentId });
     await expect(agentInteractionDenial(db, action)).rejects.toMatchObject({ status: 404 });
-    const attributed = { ...action, actorCompanyId: source.companyId };
+    const attributed = { ...action, actorSpaceId: source.spaceId };
     expect(await agentInteractionDenial(db, attributed)).toBeNull();
     await set(source.actorAgentId, "canAssignTasksToAgents");
     expect(await agentInteractionDenial(db, attributed)).toMatchObject({ permission: "canAssignTasksToAgents", direction: "outgoing" });

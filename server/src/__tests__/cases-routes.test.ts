@@ -15,8 +15,8 @@ import {
   caseIssueLinks,
   caseLabels,
   cases,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   documentAnnotationComments,
   documentAnnotationThreads,
@@ -44,7 +44,7 @@ import { activityService } from "../services/activity.js";
 import { agentActionAuditService } from "../services/agent-action-audit.js";
 import { assertCaseTrustedForExecution, canActorReadCase, canActorReceiveCase, retainCaseAccessSource } from "../services/case-access.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
-import { subscribeCompanyLiveEvents } from "../services/live-events.js";
+import { subscribeSpaceLiveEvents } from "../services/live-events.js";
 import type { StorageService } from "../storage/types.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
@@ -98,7 +98,7 @@ describeEmbeddedPostgres("cases routes", () => {
 
   beforeAll(async () => {
     process.env.OUTPOST_AGENT_JWT_SECRET = "cases-routes-test-secret";
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-cases-routes-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-cases-routes-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -122,8 +122,8 @@ describeEmbeddedPostgres("cases routes", () => {
     await db.delete(heartbeatRuns);
     await db.delete(projects);
     await db.delete(agents);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
     await db.delete(instanceSettings);
   });
 
@@ -163,17 +163,17 @@ describeEmbeddedPostgres("cases routes", () => {
     await instanceSettingsService(db).updateExperimental({ enableCases: true });
   }
 
-  async function seedCompany(prefix = "CASE") {
-    const [company] = await db.insert(companies).values({
+  async function seedSpace(prefix = "CASE") {
+    const [space] = await db.insert(spaces).values({
       name: `${prefix} Co`,
       issuePrefix: `${prefix}${randomUUID().replace(/-/g, "").slice(0, 4)}`,
     }).returning();
-    return company!;
+    return space!;
   }
 
-  async function seedAgent(companyId: string) {
+  async function seedAgent(spaceId: string) {
     const [agent] = await db.insert(agents).values({
-      companyId,
+      spaceId,
       name: "Cases Agent",
       role: "engineer",
       adapterType: "codex_local",
@@ -184,42 +184,42 @@ describeEmbeddedPostgres("cases routes", () => {
     return agent!;
   }
 
-  const boardActor: Express.Request["actor"] = {
-    type: "board",
-    userId: "board-user",
+  const operatorActor: Express.Request["actor"] = {
+    type: "operator",
+    userId: "operator-user",
     source: "local_implicit",
     isInstanceAdmin: true,
   };
 
   it("gates every case route when enableCases is off", async () => {
-    const company = await seedCompany("OFF");
+    const space = await seedSpace("OFF");
     const [caseRow] = await db.insert(cases).values({
-      companyId: company.id,
+      spaceId: space.id,
       caseNumber: 1,
-      identifier: `${company.issuePrefix}-C1`,
+      identifier: `${space.issuePrefix}-C1`,
       caseType: "bug",
       title: "Hidden case",
     }).returning();
-    const http = request(app(boardActor));
+    const http = request(app(operatorActor));
 
-    const denied = await http.get(`/api/companies/${company.id}/cases`).expect(403);
+    const denied = await http.get(`/api/spaces/${space.id}/cases`).expect(403);
     // The denial is final and names the page where an instance admin turns Cases on.
     expect(denied.body).toMatchObject({ error: "Cases are disabled", code: "cases_disabled" });
-    expect(denied.body.remediation).toContain("[Experimental settings](/<prefix>/company/settings/instance/experimental)");
+    expect(denied.body.remediation).toContain("[Experimental settings](/<prefix>/space/settings/instance/experimental)");
     expect(denied.body.remediation).toContain("Agent credentials cannot change that setting");
     // Hiding only the Cases switch keeps the page, so the denial must not send the person there.
     const previousHidden = process.env.OUTPOST_HIDDEN_SETTINGS;
     process.env.OUTPOST_HIDDEN_SETTINGS = "instance.experimental.enableCases";
     try {
-      const hiddenDenial = await http.get(`/api/companies/${company.id}/cases`).expect(403);
+      const hiddenDenial = await http.get(`/api/spaces/${space.id}/cases`).expect(403);
       expect(hiddenDenial.body.remediation).toContain("An instance operator controls it.");
       expect(hiddenDenial.body.remediation).not.toContain("/instance/experimental");
     } finally {
       if (previousHidden === undefined) delete process.env.OUTPOST_HIDDEN_SETTINGS;
       else process.env.OUTPOST_HIDDEN_SETTINGS = previousHidden;
     }
-    await http.get(`/api/companies/${company.id}/cases/types`).expect(403);
-    await http.post(`/api/companies/${company.id}/cases`).send({ caseType: "bug", title: "Bug" }).expect(403);
+    await http.get(`/api/spaces/${space.id}/cases/types`).expect(403);
+    await http.post(`/api/spaces/${space.id}/cases`).send({ caseType: "bug", title: "Bug" }).expect(403);
     await http.get(`/api/cases/${caseRow!.id}`).expect(403);
     await http.patch(`/api/cases/${caseRow!.id}`).send({ status: "in_progress" }).expect(403);
     await http.put(`/api/cases/${caseRow!.id}/documents/body`).send({ body: "Body" }).expect(403);
@@ -230,18 +230,18 @@ describeEmbeddedPostgres("cases routes", () => {
   });
 
   it("tells a caller that Cases is off for good and names the setting instead of a substitute", async () => {
-    const company = await seedCompany("OFFX");
-    const response = await request(app(boardActor)).get(`/api/companies/${company.id}/cases`).expect(403);
+    const space = await seedSpace("OFFX");
+    const response = await request(app(operatorActor)).get(`/api/spaces/${space.id}/cases`).expect(403);
     expect(response.body).toMatchObject({ error: "Cases are disabled", code: "cases_disabled" });
     expect(response.body.remediation).toContain("this denial is final");
     expect(response.body.remediation).toContain("Do not create a task, project or other record in place of the case before the person chooses");
-    expect(response.body.remediation).toContain("[Experimental settings](/<prefix>/company/settings/instance/experimental)");
+    expect(response.body.remediation).toContain("[Experimental settings](/<prefix>/space/settings/instance/experimental)");
     expect(response.body.remediation).toContain("offer to track the request as an ordinary task instead");
   });
 
   it("returns not found for unknown case IDs on the former shared routes", async () => {
     await enableCases();
-    const http = request(app(boardActor));
+    const http = request(app(operatorActor));
     const unknownId = randomUUID();
     await http.get(`/api/cases/${unknownId}`).expect(404);
     await http.patch(`/api/cases/${unknownId}`).send({ status: "in_progress" }).expect(404);
@@ -252,11 +252,11 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("creates cases and upserts idempotently by type and key", async () => {
     await enableCases();
-    const company = await seedCompany("UPS");
-    const http = request(app(boardActor));
+    const space = await seedSpace("UPS");
+    const http = request(app(operatorActor));
 
     const first = await http
-      .post(`/api/companies/${company.id}/cases`)
+      .post(`/api/spaces/${space.id}/cases`)
       .send({
         caseType: "security",
         key: "CVE-1",
@@ -265,7 +265,7 @@ describeEmbeddedPostgres("cases routes", () => {
       })
       .expect(201);
     const second = await http
-      .post(`/api/companies/${company.id}/cases`)
+      .post(`/api/spaces/${space.id}/cases`)
       .send({
         caseType: "security",
         key: "CVE-1",
@@ -275,7 +275,7 @@ describeEmbeddedPostgres("cases routes", () => {
       .expect(200);
 
     expect(second.body.id).toBe(first.body.id);
-    expect(first.body.identifier).toBe(`${company.issuePrefix.toUpperCase()}-C1`);
+    expect(first.body.identifier).toBe(`${space.issuePrefix.toUpperCase()}-C1`);
     const all = await db.select().from(cases);
     expect(all).toHaveLength(1);
     expect(all[0]!.title).toBe("Investigate report again");
@@ -284,17 +284,17 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("converges concurrent keyed upserts to one case", async () => {
     await enableCases();
-    const company = await seedCompany("RCE");
-    const http = request(app(boardActor));
+    const space = await seedSpace("RCE");
+    const http = request(app(operatorActor));
 
     const requests = [
-      http.post(`/api/companies/${company.id}/cases`).send({
+      http.post(`/api/spaces/${space.id}/cases`).send({
         caseType: "release_note",
         key: "2026-07-07",
         title: "Release note A",
         fields: { channel: "stable" },
       }),
-      http.post(`/api/companies/${company.id}/cases`).send({
+      http.post(`/api/spaces/${space.id}/cases`).send({
         caseType: "release_note",
         key: "2026-07-07",
         title: "Release note B",
@@ -314,17 +314,17 @@ describeEmbeddedPostgres("cases routes", () => {
     expect([{ channel: "stable" }, { channel: "canary" }]).toContainEqual(all[0]!.fields);
   });
 
-  it("upserts keyless cases by company and type", async () => {
+  it("upserts keyless cases by space and type", async () => {
     await enableCases();
-    const company = await seedCompany("NUL");
-    const http = request(app(boardActor));
+    const space = await seedSpace("NUL");
+    const http = request(app(operatorActor));
 
     const first = await http
-      .post(`/api/companies/${company.id}/cases`)
+      .post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "release_note", title: "Draft release note" })
       .expect(201);
     const second = await http
-      .post(`/api/companies/${company.id}/cases`)
+      .post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "release_note", title: "Updated release note" })
       .expect(200);
 
@@ -337,24 +337,24 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("rejects the removed createOnly option without changing existing passive records", async () => {
     await enableCases();
-    const company = await seedCompany("NEW"), http = request(app(boardActor));
-    const original = await http.post(`/api/companies/${company.id}/cases`)
+    const space = await seedSpace("NEW"), http = request(app(operatorActor));
+    const original = await http.post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "research", title: "Existing passive case" }).expect(201);
-    await http.post(`/api/companies/${company.id}/cases`)
+    await http.post(`/api/spaces/${space.id}/cases`)
       .send({ createOnly: true, caseType: "research", title: "Must not overwrite" }).expect(400);
-    const all = await db.select().from(cases).where(eq(cases.companyId, company.id));
+    const all = await db.select().from(cases).where(eq(cases.spaceId, space.id));
     expect(all).toMatchObject([{ id: original.body.id, title: "Existing passive case", workIssueId: null }]);
-    expect(await db.select().from(issues).where(eq(issues.companyId, company.id))).toHaveLength(0);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, company.id))).toHaveLength(0);
+    expect(await db.select().from(issues).where(eq(issues.spaceId, space.id))).toHaveLength(0);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, space.id))).toHaveLength(0);
   });
 
   it("resolves cases by identifier", async () => {
     await enableCases();
-    const company = await seedCompany("REF");
-    const http = request(app(boardActor));
+    const space = await seedSpace("REF");
+    const http = request(app(operatorActor));
 
     const created = await http
-      .post(`/api/companies/${company.id}/cases`)
+      .post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "blog_post", key: "launch", title: "Launch post" })
       .expect(201);
 
@@ -365,29 +365,29 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("auto-links run writes to their issue with a work link and event", async () => {
     await enableCases();
-    const company = await seedCompany("RUN");
-    const agent = await seedAgent(company.id);
+    const space = await seedSpace("RUN");
+    const agent = await seedAgent(space.id);
     const runId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       status: "running",
     });
     const [issue] = await db.insert(issues).values({
-      companyId: company.id,
+      spaceId: space.id,
       title: "Source task",
       status: "in_progress",
       executionRunId: runId,
     }).returning();
-    const created = await request(app(boardActor))
-      .post(`/api/companies/${company.id}/cases`)
+    const created = await request(app(operatorActor))
+      .post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "bug", title: "Bug" })
       .expect(201);
 
     const agentActor: Express.Request["actor"] = {
       type: "agent",
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       runId,
       source: "agent_jwt",
@@ -415,29 +415,29 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("lets a run-scoped agent JWT complete the case happy path without manual linking", async () => {
     await enableCases();
-    const company = await seedCompany("JWT");
-    const agent = await seedAgent(company.id);
+    const space = await seedSpace("JWT");
+    const agent = await seedAgent(space.id);
     const runId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       status: "running",
     });
     const [issue] = await db.insert(issues).values({
-      companyId: company.id,
+      spaceId: space.id,
       title: "Agent case source",
       status: "in_progress",
       executionRunId: runId,
     }).returning();
-    const token = createLocalAgentJwt(agent.id, company.id, agent.adapterType, runId);
+    const token = createLocalAgentJwt(agent.id, space.id, agent.adapterType, runId);
     expect(token).toBeTruthy();
 
     const http = request(authenticatedApp());
     const createResponse = await http
-      .post(`/api/companies/${company.id}/cases`)
+      .post(`/api/spaces/${space.id}/cases`)
       .set("Authorization", `Bearer ${token}`)
-      .set("X-Paperclip-Run-Id", runId)
+      .set("X-Outpost-Run-Id", runId)
       .send({
         caseType: "blog_post",
         key: "launch-post",
@@ -450,14 +450,14 @@ describeEmbeddedPostgres("cases routes", () => {
     await http
       .put(`/api/cases/${createResponse.body.identifier}/documents/body`)
       .set("Authorization", `Bearer ${token}`)
-      .set("X-Paperclip-Run-Id", runId)
+      .set("X-Outpost-Run-Id", runId)
       .send({ body: "# Launch\n\nDraft body." })
       .expect(200);
 
     await http
       .patch(`/api/cases/${caseId}`)
       .set("Authorization", `Bearer ${token}`)
-      .set("X-Paperclip-Run-Id", runId)
+      .set("X-Outpost-Run-Id", runId)
       .send({
         status: "in_review",
         fields: { slug: "launch-post", target_audience: "operators", publish_url: "https://example.com/launch" },
@@ -467,14 +467,14 @@ describeEmbeddedPostgres("cases routes", () => {
     await http
       .post(`/api/cases/${caseId}/attachments`)
       .set("Authorization", `Bearer ${token}`)
-      .set("X-Paperclip-Run-Id", runId)
+      .set("X-Outpost-Run-Id", runId)
       .attach("file", Buffer.from("asset"), "asset.txt")
       .expect(201);
 
     const links = await db.select().from(caseIssueLinks);
     expect(links).toHaveLength(1);
     expect(links[0]).toMatchObject({
-      companyId: company.id,
+      spaceId: space.id,
       caseId,
       issueId: issue!.id,
       role: "origin",
@@ -484,7 +484,7 @@ describeEmbeddedPostgres("cases routes", () => {
     const detail = await http
       .get(`/api/cases/${createResponse.body.identifier}`)
       .set("Authorization", `Bearer ${token}`)
-      .set("X-Paperclip-Run-Id", runId)
+      .set("X-Outpost-Run-Id", runId)
       .expect(200);
     expect(detail.body.status).toBe("in_review");
     expect(detail.body.documents).toHaveLength(1);
@@ -504,20 +504,20 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("holds direct case status writes to the terminal handoff's primary-task authority", async () => {
     await enableCases();
-    const company = await seedCompany("TRM");
-    const owner = await seedAgent(company.id);
-    const other = await seedAgent(company.id);
+    const space = await seedSpace("TRM");
+    const owner = await seedAgent(space.id);
+    const other = await seedAgent(space.id);
     const [primary] = await db.insert(issues).values({
-      companyId: company.id,
-      identifier: `${company.issuePrefix.toUpperCase()}-1`,
+      spaceId: space.id,
+      identifier: `${space.issuePrefix.toUpperCase()}-1`,
       title: "Primary case task",
       status: "done",
       assigneeAgentId: owner.id,
     }).returning();
     const [caseRow] = await db.insert(cases).values({
-      companyId: company.id,
+      spaceId: space.id,
       caseNumber: 1,
-      identifier: `${company.issuePrefix.toUpperCase()}-C1`,
+      identifier: `${space.issuePrefix.toUpperCase()}-C1`,
       caseType: "customer",
       key: "accepted-fix",
       title: "Accepted fix",
@@ -526,7 +526,7 @@ describeEmbeddedPostgres("cases routes", () => {
     }).returning();
     const agentActor = (agentId: string): Express.Request["actor"] => ({
       type: "agent",
-      companyId: company.id,
+      spaceId: space.id,
       agentId,
       source: "agent_key",
       keyId: `key-${agentId}`,
@@ -541,7 +541,7 @@ describeEmbeddedPostgres("cases routes", () => {
       expect(denied.body.error).toBe(`Agents may complete only their own case work. ${owner.name} (agent ${owner.id}) owns primary task ${primary!.identifier} and records the terminal handoff. Ask that agent on ${primary!.identifier} to close the case.`);
     }
     const upsert = await otherHttp
-      .post(`/api/companies/${company.id}/cases`)
+      .post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "customer", key: "accepted-fix", title: "Accepted fix", status: "done" })
       .expect(403);
     expect(upsert.body.error).toMatch(/^Agents may complete only their own case work\. /);
@@ -559,44 +559,44 @@ describeEmbeddedPostgres("cases routes", () => {
     const reopen = await otherHttp.patch(`/api/cases/${caseRow!.id}`).send({ status: "in_progress" }).expect(403);
     expect(reopen.body.error).toMatch(/^Agents may complete only their own case work\. /);
 
-    await request(app(boardActor)).patch(`/api/cases/${caseRow!.id}`).send({ status: "done" }).expect(200);
+    await request(app(operatorActor)).patch(`/api/cases/${caseRow!.id}`).send({ status: "done" }).expect(200);
     expect(await readCase()).toMatchObject({ status: "done", completedAt: expect.any(Date) });
 
     // An upsert without status keeps the locked row's status and completion.
     await otherHttp
-      .post(`/api/companies/${company.id}/cases`)
+      .post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "customer", key: "accepted-fix", title: "Accepted checkout fix" })
       .expect(200);
     expect(await readCase()).toMatchObject({ status: "done", completedAt: expect.any(Date) });
   });
 
-  it("rejects cross-company agent access across the cases route surface", async () => {
+  it("rejects cross-space agent access across the cases route surface", async () => {
     await enableCases();
-    const ownCompany = await seedCompany("OWN");
-    const otherCompany = await seedCompany("OTH");
-    const agent = await seedAgent(ownCompany.id);
+    const ownSpace = await seedSpace("OWN");
+    const otherSpace = await seedSpace("OTH");
+    const agent = await seedAgent(ownSpace.id);
     const [otherIssue] = await db.insert(issues).values({
-      companyId: otherCompany.id,
-      identifier: `${otherCompany.issuePrefix.toUpperCase()}-1`,
-      title: "Other company task",
+      spaceId: otherSpace.id,
+      identifier: `${otherSpace.issuePrefix.toUpperCase()}-1`,
+      title: "Other space task",
       status: "todo",
     }).returning();
     const [caseRow] = await db.insert(cases).values({
-      companyId: otherCompany.id,
+      spaceId: otherSpace.id,
       caseNumber: 1,
-      identifier: `${otherCompany.issuePrefix.toUpperCase()}-C1`,
+      identifier: `${otherSpace.issuePrefix.toUpperCase()}-C1`,
       caseType: "bug",
-      title: "Other company case",
+      title: "Other space case",
     }).returning();
     const [ownCase] = await db.insert(cases).values({
-      companyId: ownCompany.id,
+      spaceId: ownSpace.id,
       caseNumber: 1,
-      identifier: `${ownCompany.issuePrefix.toUpperCase()}-C1`,
+      identifier: `${ownSpace.issuePrefix.toUpperCase()}-C1`,
       caseType: "bug",
-      title: "Own company case",
+      title: "Own space case",
     }).returning();
     await db.insert(caseEvents).values({
-      companyId: otherCompany.id,
+      spaceId: otherSpace.id,
       caseId: caseRow!.id,
       kind: "created",
       actorType: "system",
@@ -605,7 +605,7 @@ describeEmbeddedPostgres("cases routes", () => {
 
     const agentActor: Express.Request["actor"] = {
       type: "agent",
-      companyId: ownCompany.id,
+      spaceId: ownSpace.id,
       agentId: agent.id,
       source: "agent_key",
       keyId: "key-1",
@@ -614,10 +614,10 @@ describeEmbeddedPostgres("cases routes", () => {
     };
     const http = request(app(agentActor));
 
-    await http.get(`/api/companies/${otherCompany.id}/cases`).expect(403);
+    await http.get(`/api/spaces/${otherSpace.id}/cases`).expect(403);
     await http
-      .post(`/api/companies/${otherCompany.id}/cases`)
-      .send({ caseType: "bug", title: "Wrong company create" })
+      .post(`/api/spaces/${otherSpace.id}/cases`)
+      .send({ caseType: "bug", title: "Wrong space create" })
       .expect(403);
     await http.get(`/api/cases/${caseRow!.id}`).expect(404);
     await http.get(`/api/cases/${caseRow!.identifier}`).expect(404);
@@ -635,16 +635,16 @@ describeEmbeddedPostgres("cases routes", () => {
     await http.get(`/api/issues/${otherIssue!.id}/cases`).expect(404);
     await http.get(`/api/issues/${otherIssue!.identifier}/cases`).expect(404);
 
-    const limitedBoardActor: Express.Request["actor"] = {
-      type: "board",
-      userId: "limited-board-user",
+    const limitedOperatorActor: Express.Request["actor"] = {
+      type: "operator",
+      userId: "limited-operator-user",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: [ownCompany.id],
-      memberships: [{ companyId: ownCompany.id, membershipRole: "operator", status: "active" }],
+      spaceIds: [ownSpace.id],
+      memberships: [{ spaceId: ownSpace.id, membershipRole: "operator", status: "active" }],
     };
-    await db.insert(companyMemberships).values({ companyId: ownCompany.id, principalType: "user", principalId: "limited-board-user", status: "active", membershipRole: "operator" });
-    const limitedBoardHttp = request(app(limitedBoardActor));
+    await db.insert(spaceMemberships).values({ spaceId: ownSpace.id, principalType: "user", principalId: "limited-operator-user", status: "active", membershipRole: "operator" });
+    const limitedBoardHttp = request(app(limitedOperatorActor));
     const ownCaseResponse = await limitedBoardHttp.get(`/api/cases/${ownCase!.id}`).expect(200);
     expect(ownCaseResponse.body.id).toBe(ownCase!.id);
     await limitedBoardHttp.get(`/api/cases/${caseRow!.id}`).expect(404);
@@ -652,7 +652,7 @@ describeEmbeddedPostgres("cases routes", () => {
     await limitedBoardHttp.get(`/api/issues/${otherIssue!.id}/cases`).expect(404);
     await limitedBoardHttp.get(`/api/issues/${otherIssue!.identifier}/cases`).expect(404);
 
-    const scopedAdminHttp = request(app({ ...limitedBoardActor, isInstanceAdmin: true }));
+    const scopedAdminHttp = request(app({ ...limitedOperatorActor, isInstanceAdmin: true }));
     await scopedAdminHttp.get(`/api/cases/${caseRow!.id}`).expect(404);
     await scopedAdminHttp.get(`/api/cases/${caseRow!.identifier}`).expect(404);
     await scopedAdminHttp.get(`/api/issues/${otherIssue!.id}/cases`).expect(404);
@@ -667,25 +667,25 @@ describeEmbeddedPostgres("cases routes", () => {
     expect(await db.select().from(caseEvents)).toHaveLength(1);
   });
 
-  it("returns identical cross-company and absent case handoff responses without mutating passive cases", async () => {
+  it("returns identical cross-space and absent case handoff responses without mutating passive cases", async () => {
     await enableCases();
-    const own = await seedCompany("HANDOFF-OWN"), foreign = await seedCompany("HANDOFF-FOREIGN");
+    const own = await seedSpace("HANDOFF-OWN"), foreign = await seedSpace("HANDOFF-FOREIGN");
     const agent = await seedAgent(own.id);
     const [ownCase, foreignCase] = await db.insert(cases).values([
-      { companyId: own.id, caseNumber: 1, identifier: `${own.issuePrefix}-C1`, caseType: "work", title: "Own passive case" },
-      { companyId: foreign.id, caseNumber: 1, identifier: `${foreign.issuePrefix}-C1`, caseType: "work", title: "Foreign confidential case", fields: { privateFact: "Keep this private" } },
+      { spaceId: own.id, caseNumber: 1, identifier: `${own.issuePrefix}-C1`, caseType: "work", title: "Own passive case" },
+      { spaceId: foreign.id, caseNumber: 1, identifier: `${foreign.issuePrefix}-C1`, caseType: "work", title: "Foreign confidential case", fields: { privateFact: "Keep this private" } },
     ]).returning();
-    await db.insert(companyMemberships).values({ companyId: own.id, principalType: "user", principalId: "handoff-operator", status: "active", membershipRole: "operator" });
-    const scopedBoard: Express.Request["actor"] = { type: "board", source: "session", userId: "handoff-operator",
-      companyIds: [own.id], isInstanceAdmin: false,
-      memberships: [{ companyId: own.id, membershipRole: "operator", status: "active" }] };
+    await db.insert(spaceMemberships).values({ spaceId: own.id, principalType: "user", principalId: "handoff-operator", status: "active", membershipRole: "operator" });
+    const scopedBoard: Express.Request["actor"] = { type: "operator", source: "session", userId: "handoff-operator",
+      spaceIds: [own.id], isInstanceAdmin: false,
+      memberships: [{ spaceId: own.id, membershipRole: "operator", status: "active" }] };
     const actors: Express.Request["actor"][] = [
-      { type: "agent", companyId: own.id, agentId: agent.id, source: "agent_key" },
+      { type: "agent", spaceId: own.id, agentId: agent.id, source: "agent_key" },
       scopedBoard, { ...scopedBoard, isInstanceAdmin: true },
     ];
     // An authorized passive case has an empty history, proving the real router
     // is mounted rather than accepting Express's unmatched-route 404.
-    await request(app(boardActor)).get(`/api/cases/${ownCase!.id}/handoffs`).expect(200);
+    await request(app(operatorActor)).get(`/api/cases/${ownCase!.id}/handoffs`).expect(200);
     const absentCaseId = randomUUID(), handoffId = randomUUID();
     for (const actor of actors) {
       const http = request(app(actor));
@@ -708,21 +708,21 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("supports documents, manual issue links, attachment links, events, and list filters", async () => {
     await enableCases();
-    const company = await seedCompany("SUR");
+    const space = await seedSpace("SUR");
     const [label] = await db.insert(labels).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Needs Review",
       color: "#f59e0b",
     }).returning();
     const [issue] = await db.insert(issues).values({
-      companyId: company.id,
-      identifier: `${company.issuePrefix.toUpperCase()}-12`,
+      spaceId: space.id,
+      identifier: `${space.issuePrefix.toUpperCase()}-12`,
       title: "Related task",
       status: "todo",
     }).returning();
-    const http = request(app(boardActor));
+    const http = request(app(operatorActor));
     const created = await http
-      .post(`/api/companies/${company.id}/cases`)
+      .post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "incident", title: "Production incident", status: "in_progress" })
       .expect(201);
 
@@ -732,39 +732,39 @@ describeEmbeddedPostgres("cases routes", () => {
     await http.post(`/api/cases/${created.body.id}/attachments`).attach("file", Buffer.from("artifact"), "artifact.txt").expect(201);
 
     const activeList = await http
-      .get(`/api/companies/${company.id}/cases`)
+      .get(`/api/spaces/${space.id}/cases`)
       .query({ status: "active", label: label!.id, q: "Production" })
       .expect(200);
     expect(activeList.body).toHaveLength(1);
     expect(activeList.body[0].id).toBe(created.body.id);
 
-    const [project] = await db.insert(projects).values({ companyId: company.id, name: "Launch" }).returning();
+    const [project] = await db.insert(projects).values({ spaceId: space.id, name: "Launch" }).returning();
     const [projectCase] = await db.insert(cases).values({
-      companyId: company.id,
+      spaceId: space.id,
       projectId: project!.id,
       caseNumber: 50,
-      identifier: `${company.issuePrefix.toUpperCase()}-C50`,
+      identifier: `${space.issuePrefix.toUpperCase()}-C50`,
       caseType: "brief",
       title: "Project brief",
       status: "draft",
     }).returning();
     const multiFiltered = await http
-      .get(`/api/companies/${company.id}/cases`)
+      .get(`/api/spaces/${space.id}/cases`)
       .query({ types: ["incident", "brief"], statuses: ["in_progress", "draft"], projectIds: [project!.id], includeNoProject: "true" })
       .expect(200);
     expect(multiFiltered.body.map((row: { id: string }) => row.id).sort()).toEqual([created.body.id, projectCase!.id].sort());
 
     await db.insert(cases).values(Array.from({ length: 205 }, (_, index) => ({
-      companyId: company.id,
+      spaceId: space.id,
       caseNumber: 100 + index,
-      identifier: `${company.issuePrefix.toUpperCase()}-C${100 + index}`,
+      identifier: `${space.issuePrefix.toUpperCase()}-C${100 + index}`,
       caseType: "incident",
       title: `Filler incident ${index}`,
       status: "in_progress",
       updatedAt: new Date(`2030-01-01T00:${String(index % 60).padStart(2, "0")}:00.000Z`),
     })));
     const deepFiltered = await http
-      .get(`/api/companies/${company.id}/cases`)
+      .get(`/api/spaces/${space.id}/cases`)
       .query({ q: "Production", limit: 1 })
       .expect(200);
     expect(deepFiltered.body).toHaveLength(1);
@@ -791,17 +791,17 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("enriches events and revisions with actor name and run→issue attribution", async () => {
     await enableCases();
-    const company = await seedCompany("ATT");
-    const agent = await seedAgent(company.id);
+    const space = await seedSpace("ATT");
+    const agent = await seedAgent(space.id);
     const runId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       status: "running",
     });
     const [issue] = await db.insert(issues).values({
-      companyId: company.id,
+      spaceId: space.id,
       title: "Attribution source task",
       status: "in_progress",
       executionRunId: runId,
@@ -809,7 +809,7 @@ describeEmbeddedPostgres("cases routes", () => {
 
     const agentActor: Express.Request["actor"] = {
       type: "agent",
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       runId,
       source: "agent_jwt",
@@ -819,7 +819,7 @@ describeEmbeddedPostgres("cases routes", () => {
     const http = request(app(agentActor));
 
     const created = await http
-      .post(`/api/companies/${company.id}/cases`)
+      .post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "blog_post", title: "Attribution post" })
       .expect(201);
     // Two revisions on the body document.
@@ -857,14 +857,14 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("locks, unlocks, deletes, and restores case documents through shared document controls", async () => {
     await enableCases();
-    const company = await seedCompany("DOC");
-    const http = request(app(boardActor));
+    const space = await seedSpace("DOC");
+    const http = request(app(operatorActor));
     const created = await http
-      .post(`/api/companies/${company.id}/cases`)
+      .post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "blog_post", title: "Document controls" })
       .expect(201);
     const publishedRevisions: Record<string, unknown>[] = [];
-    liveEventUnsubscribers.push(subscribeCompanyLiveEvents(company.id, event => {
+    liveEventUnsubscribers.push(subscribeSpaceLiveEvents(space.id, event => {
       if (event.payload.action === "case.document_revised") publishedRevisions.push(event.payload);
     }));
 
@@ -910,7 +910,7 @@ describeEmbeddedPostgres("cases routes", () => {
     const revisionsByNumber = new Map([firstRevision, secondRevision, restored].map((response, index) => [index + 1, response.body.revision.id]));
     for (const row of documentActivity) {
       const details = row.details as Record<string, unknown>;
-      expect(row).toMatchObject({ companyId: company.id, entityType: "case", entityId: created.body.id, actorType: "user", actorId: "board-user" });
+      expect(row).toMatchObject({ spaceId: space.id, entityType: "case", entityId: created.body.id, actorType: "user", actorId: "operator-user" });
       expect(details).toMatchObject({ key: "body", documentKey: "body", documentId: firstRevision.body.document.id,
         revisionId: revisionsByNumber.get(details.revisionNumber as number) });
       expect(details).not.toHaveProperty("body");
@@ -931,10 +931,10 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("creates, replies to, resolves, reopens, and remaps case document annotations", async () => {
     await enableCases();
-    const company = await seedCompany("ANN");
-    const http = request(app(boardActor));
+    const space = await seedSpace("ANN");
+    const http = request(app(operatorActor));
     const created = await http
-      .post(`/api/companies/${company.id}/cases`)
+      .post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "brief", title: "Annotated case" })
       .expect(201);
     const document = await http
@@ -1012,32 +1012,32 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("lists children by parent, exposes parent in detail, and lists cases for an issue", async () => {
     await enableCases();
-    const company = await seedCompany("TREE");
-    const boardHttp = request(app(boardActor));
-    const parent = await boardHttp
-      .post(`/api/companies/${company.id}/cases`)
+    const space = await seedSpace("TREE");
+    const operatorHttp = request(app(operatorActor));
+    const parent = await operatorHttp
+      .post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "epic", title: "Parent epic" })
       .expect(201);
-    const child = await boardHttp
-      .post(`/api/companies/${company.id}/cases`)
+    const child = await operatorHttp
+      .post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "task", title: "Child task", parentCaseId: parent.body.id })
       .expect(201);
 
-    const children = await boardHttp
-      .get(`/api/companies/${company.id}/cases`)
+    const children = await operatorHttp
+      .get(`/api/spaces/${space.id}/cases`)
       .query({ parent: parent.body.id })
       .expect(200);
     expect(children.body).toHaveLength(1);
     expect(children.body[0].id).toBe(child.body.id);
 
-    const searchOnly = await boardHttp
-      .get(`/api/companies/${company.id}/cases`)
+    const searchOnly = await operatorHttp
+      .get(`/api/spaces/${space.id}/cases`)
       .query({ q: "Child task" })
       .expect(200);
     expect(searchOnly.body.map((row: { id: string }) => row.id)).toEqual([child.body.id]);
 
-    const searchWithAncestors = await boardHttp
-      .get(`/api/companies/${company.id}/cases`)
+    const searchWithAncestors = await operatorHttp
+      .get(`/api/spaces/${space.id}/cases`)
       .query({ q: "Child task", includeAncestors: "true" })
       .expect(200);
     expect(searchWithAncestors.body).toEqual(expect.arrayContaining([
@@ -1045,83 +1045,83 @@ describeEmbeddedPostgres("cases routes", () => {
       expect.objectContaining({ id: parent.body.id, matchesListFilters: false }),
     ]));
 
-    const childDetail = await boardHttp.get(`/api/cases/${child.body.id}`).expect(200);
+    const childDetail = await operatorHttp.get(`/api/cases/${child.body.id}`).expect(200);
     expect(childDetail.body.parent).toMatchObject({ id: parent.body.id, identifier: parent.body.identifier });
 
     // Link the child case to an issue, then resolve cases-for-issue.
     const [issue] = await db.insert(issues).values({
-      companyId: company.id,
+      spaceId: space.id,
       title: "Issue with cases",
       status: "todo",
     }).returning();
-    await boardHttp
+    await operatorHttp
       .post(`/api/cases/${child.body.id}/links`)
       .send({ issueId: issue!.id, role: "work" })
       .expect(201);
 
-    const forIssue = await boardHttp.get(`/api/issues/${issue!.id}/cases`).expect(200);
+    const forIssue = await operatorHttp.get(`/api/issues/${issue!.id}/cases`).expect(200);
     expect(forIssue.body).toHaveLength(1);
     expect(forIssue.body[0]).toMatchObject({ role: "work" });
     expect(forIssue.body[0].case).toMatchObject({ id: child.body.id, identifier: child.body.identifier, status: child.body.status });
   });
   it("carries glyph-only blocker state on a blocked case task without blocker details (BUG-07)", async () => {
     await enableCases();
-    const company = await seedCompany("WORK-BLOCKED");
+    const space = await seedSpace("WORK-BLOCKED");
     const [work, blocker] = await db.insert(issues).values([
-      { companyId: company.id, title: "Blocked case work", identifier: `${company.issuePrefix}-1`, status: "blocked" },
-      { companyId: company.id, title: "Hidden case blocker", identifier: `${company.issuePrefix}-2`, status: "todo" },
+      { spaceId: space.id, title: "Blocked case work", identifier: `${space.issuePrefix}-1`, status: "blocked" },
+      { spaceId: space.id, title: "Hidden case blocker", identifier: `${space.issuePrefix}-2`, status: "todo" },
     ]).returning();
-    await db.insert(issueRelations).values({ companyId: company.id, issueId: blocker!.id, relatedIssueId: work!.id, type: "blocks" });
-    const [record] = await db.insert(cases).values({ companyId: company.id, caseNumber: 1, identifier: `${company.issuePrefix}-C1`,
+    await db.insert(issueRelations).values({ spaceId: space.id, issueId: blocker!.id, relatedIssueId: work!.id, type: "blocks" });
+    const [record] = await db.insert(cases).values({ spaceId: space.id, caseNumber: 1, identifier: `${space.issuePrefix}-C1`,
       caseType: "factory", title: "Blocked case", workIssueId: work!.id }).returning();
-    const detail = await request(app(boardActor)).get(`/api/cases/${record!.id}`).expect(200);
+    const detail = await request(app(operatorActor)).get(`/api/cases/${record!.id}`).expect(200);
     expect(detail.body.workIssue).toMatchObject({ id: work!.id, status: "blocked", blockerAttention: { state: "needs_attention", sampleBlockerIdentifier: null } });
     expect(JSON.stringify(detail.body.workIssue)).not.toContain("Hidden case blocker");
     expect(JSON.stringify(detail.body.workIssue)).not.toContain(blocker!.id);
 
     // Related-task links and the activity feed row draw from the same state.
-    await db.insert(caseIssueLinks).values({ companyId: company.id, caseId: record!.id, issueId: work!.id, role: "reference" });
-    const withLink = await request(app(boardActor)).get(`/api/cases/${record!.id}`).expect(200);
+    await db.insert(caseIssueLinks).values({ spaceId: space.id, caseId: record!.id, issueId: work!.id, role: "reference" });
+    const withLink = await request(app(operatorActor)).get(`/api/cases/${record!.id}`).expect(200);
     expect(withLink.body.issueLinks[0].issue).toMatchObject({ id: work!.id, blockerAttention: { state: "needs_attention", sampleBlockerIdentifier: null } });
 
-    await db.insert(caseEvents).values({ companyId: company.id, caseId: record!.id, kind: "issue_linked",
+    await db.insert(caseEvents).values({ spaceId: space.id, caseId: record!.id, kind: "issue_linked",
       actorType: "system", payload: { issueId: work!.id } });
-    const events = await request(app(boardActor)).get(`/api/cases/${record!.id}/events`).expect(200);
+    const events = await request(app(operatorActor)).get(`/api/cases/${record!.id}/events`).expect(200);
     const linked = events.body.find((event: { kind: string }) => event.kind === "issue_linked");
     expect(linked.issue).toMatchObject({ id: work!.id, status: "blocked", blockerAttention: { state: "needs_attention", sampleBlockerIdentifier: null } });
     expect(JSON.stringify(linked.issue)).not.toContain("Hidden case blocker");
   });
   it("enriches case pages and detail with current work in bounded batch queries", async () => {
     await enableCases();
-    const company = await seedCompany("WORK-LIST");
-    const sender = await seedAgent(company.id);
-    const recipient = await seedAgent(company.id);
+    const space = await seedSpace("WORK-LIST");
+    const sender = await seedAgent(space.id);
+    const recipient = await seedAgent(space.id);
     await db.update(agents).set({ name: "Triage" }).where(eq(agents.id, sender.id));
     await db.update(agents).set({ name: "Verifier" }).where(eq(agents.id, recipient.id));
     const work = await db.insert(issues).values(Array.from({ length: 20 }, (_, index) => ({
-      companyId: company.id, title: `Task ${index}`, identifier: `${company.issuePrefix}-${index + 1}`,
+      spaceId: space.id, title: `Task ${index}`, identifier: `${space.issuePrefix}-${index + 1}`,
       assigneeAgentId: sender.id, status: "todo",
     }))).returning();
     const records = await db.insert(cases).values(work.map((issue, index) => ({
-      companyId: company.id, caseNumber: index + 1, identifier: `${company.issuePrefix}-C${index + 1}`,
+      spaceId: space.id, caseNumber: index + 1, identifier: `${space.issuePrefix}-C${index + 1}`,
       caseType: "factory", title: `Case ${index}`, workIssueId: issue.id, phase: "triage", handoffVersion: 1,
     }))).returning();
     const pending = await db.insert(caseHandoffs).values(records.map((record, index) => ({
-      companyId: company.id, caseId: record.id, issueId: work[index]!.id, version: 1,
+      spaceId: space.id, caseId: record.id, issueId: work[index]!.id, version: 1,
       fromAgentId: sender.id, toAgentId: recipient.id, phase: "verification", instructions: "Check the saved work.",
-      actorType: "user" as const, actorId: "board-user", wakeupRequestId: randomUUID(),
-      actorContext: { schema: "outpost.case-handoff-actor.v1", companyId: company.id, actorType: "user", actorId: "board-user",
+      actorType: "user" as const, actorId: "operator-user", wakeupRequestId: randomUUID(),
+      actorContext: { schema: "outpost.case-handoff-actor.v1", spaceId: space.id, actorType: "user", actorId: "operator-user",
         source: "session", runId: null, keyId: null, sessionId: "INTERNAL_SESSION_CANARY", keyScope: { kind: "standard" },
         onBehalfOfUserId: null, authorizingUserId: null },
       idempotencyKey: randomUUID(), inputFingerprint: "a".repeat(64), state: "pending_dispatch" as const,
     }))).returning();
-    const http = request(app(boardActor));
+    const http = request(app(operatorActor));
     const select = vi.spyOn(db, "select");
     try {
-      await http.get(`/api/companies/${company.id}/cases?limit=1`).expect(200);
+      await http.get(`/api/spaces/${space.id}/cases?limit=1`).expect(200);
       const singleSelects = select.mock.calls.length;
       select.mockClear();
-      const page = await http.get(`/api/companies/${company.id}/cases?limit=20`).expect(200);
+      const page = await http.get(`/api/spaces/${space.id}/cases?limit=20`).expect(200);
       expect(page.body).toHaveLength(20);
       // These are actual Drizzle reads against PostgreSQL, observed without
       // replacing their results. A task/handoff read per row fails this bound.
@@ -1144,51 +1144,51 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("paginates authorized filtered cases and discovers types outside the current page", async () => {
     await enableCases();
-    const company = await seedCompany("LIST-PAGE");
-    const owner = await seedAgent(company.id);
-    const reader = await seedAgent(company.id);
-    const [project] = await db.insert(projects).values({ companyId: company.id, name: "Project" }).returning();
-    const [privateSource] = await db.insert(issues).values({ companyId: company.id, title: "Private", visibility: "private", assigneeAgentId: owner.id }).returning();
+    const space = await seedSpace("LIST-PAGE");
+    const owner = await seedAgent(space.id);
+    const reader = await seedAgent(space.id);
+    const [project] = await db.insert(projects).values({ spaceId: space.id, name: "Project" }).returning();
+    const [privateSource] = await db.insert(issues).values({ spaceId: space.id, title: "Private", visibility: "private", assigneeAgentId: owner.id }).returning();
     const [hidden, first, second] = await db.insert(cases).values([
-      { companyId: company.id, caseNumber: 1, identifier: `${company.issuePrefix}-C1`, title: "Needle hidden", caseType: "factory", status: "in_progress", updatedAt: new Date("2030-01-04") },
-      { companyId: company.id, caseNumber: 2, identifier: `${company.issuePrefix}-C2`, title: "Needle first", caseType: "factory", status: "in_progress", updatedAt: new Date("2030-01-03") },
-      { companyId: company.id, caseNumber: 3, identifier: `${company.issuePrefix}-C3`, title: "Needle second", caseType: "factory", status: "in_progress", updatedAt: new Date("2030-01-02") },
-      { companyId: company.id, caseNumber: 4, identifier: `${company.issuePrefix}-C4`, title: "Unrelated draft", caseType: "research", status: "draft" },
-      { companyId: company.id, caseNumber: 5, identifier: `${company.issuePrefix}-C5`, title: "Needle project", caseType: "factory", status: "in_progress", projectId: project!.id, updatedAt: new Date("2030-01-05") },
+      { spaceId: space.id, caseNumber: 1, identifier: `${space.issuePrefix}-C1`, title: "Needle hidden", caseType: "factory", status: "in_progress", updatedAt: new Date("2030-01-04") },
+      { spaceId: space.id, caseNumber: 2, identifier: `${space.issuePrefix}-C2`, title: "Needle first", caseType: "factory", status: "in_progress", updatedAt: new Date("2030-01-03") },
+      { spaceId: space.id, caseNumber: 3, identifier: `${space.issuePrefix}-C3`, title: "Needle second", caseType: "factory", status: "in_progress", updatedAt: new Date("2030-01-02") },
+      { spaceId: space.id, caseNumber: 4, identifier: `${space.issuePrefix}-C4`, title: "Unrelated draft", caseType: "research", status: "draft" },
+      { spaceId: space.id, caseNumber: 5, identifier: `${space.issuePrefix}-C5`, title: "Needle project", caseType: "factory", status: "in_progress", projectId: project!.id, updatedAt: new Date("2030-01-05") },
     ]).returning();
-    await retainCaseAccessSource(db, { companyId: company.id, caseId: hidden!.id, sourceKind: "issue", sourceId: privateSource!.id });
-    const [secretType] = await db.insert(cases).values({ companyId: company.id, caseNumber: 6,
-      identifier: `${company.issuePrefix}-C6`, title: "Private type", caseType: "secret-type" }).returning();
-    await retainCaseAccessSource(db, { companyId: company.id, caseId: secretType!.id, sourceKind: "issue", sourceId: privateSource!.id });
-    const http = request(app({ type: "agent", companyId: company.id, agentId: reader.id, source: "agent_key" }));
+    await retainCaseAccessSource(db, { spaceId: space.id, caseId: hidden!.id, sourceKind: "issue", sourceId: privateSource!.id });
+    const [secretType] = await db.insert(cases).values({ spaceId: space.id, caseNumber: 6,
+      identifier: `${space.issuePrefix}-C6`, title: "Private type", caseType: "secret-type" }).returning();
+    await retainCaseAccessSource(db, { spaceId: space.id, caseId: secretType!.id, sourceKind: "issue", sourceId: privateSource!.id });
+    const http = request(app({ type: "agent", spaceId: space.id, agentId: reader.id, source: "agent_key" }));
     const query = { q: "Needle", type: "factory", status: "in_progress", includeNoProject: "true", limit: 1 };
-    const firstPage = await http.get(`/api/companies/${company.id}/cases`).query(query).expect(200);
-    const secondPage = await http.get(`/api/companies/${company.id}/cases`).query({ ...query, offset: 1 }).expect(200);
+    const firstPage = await http.get(`/api/spaces/${space.id}/cases`).query(query).expect(200);
+    const secondPage = await http.get(`/api/spaces/${space.id}/cases`).query({ ...query, offset: 1 }).expect(200);
     expect(firstPage.body.map((row: { id: string }) => row.id)).toEqual([first!.id]);
     expect(secondPage.body.map((row: { id: string }) => row.id)).toEqual([second!.id]);
-    await http.get(`/api/companies/${company.id}/cases`).query({ offset: -1 }).expect(400);
-    const types = await http.get(`/api/companies/${company.id}/cases/types`).expect(200);
+    await http.get(`/api/spaces/${space.id}/cases`).query({ offset: -1 }).expect(400);
+    const types = await http.get(`/api/spaces/${space.id}/cases/types`).expect(200);
     expect(types.body).toEqual(["factory", "research"]);
     await db.delete(issues).where(eq(issues.id, privateSource!.id));
-    expect((await http.get(`/api/companies/${company.id}/cases/types`).expect(200)).body).toEqual(types.body);
+    expect((await http.get(`/api/spaces/${space.id}/cases/types`).expect(200)).body).toEqual(types.body);
   });
 
   it("sorts and groups the full authorized result before pagination", async () => {
     await enableCases();
-    const company = await seedCompany("LIST-ORDER");
-    const owner = await seedAgent(company.id);
-    const reader = await seedAgent(company.id);
+    const space = await seedSpace("LIST-ORDER");
+    const owner = await seedAgent(space.id);
+    const reader = await seedAgent(space.id);
     const projectRows = await db.insert(projects).values([
-      { companyId: company.id, name: "One" },
-      { companyId: company.id, name: "Two" },
+      { spaceId: space.id, name: "One" },
+      { spaceId: space.id, name: "Two" },
     ]).returning();
     const [privateSource] = await db.insert(issues).values({
-      companyId: company.id, title: "Private", visibility: "private", assigneeAgentId: owner.id,
+      spaceId: space.id, title: "Private", visibility: "private", assigneeAgentId: owner.id,
     }).returning();
     const statuses = ["draft", "in_progress", "in_review", "approved", "done", "cancelled"];
     const types = ["factory", "incident", "research"];
     const records = await db.insert(cases).values(Array.from({ length: 207 }, (_, index) => ({
-      companyId: company.id, caseNumber: index + 1, identifier: `${company.issuePrefix}-C${index + 1}`,
+      spaceId: space.id, caseNumber: index + 1, identifier: `${space.issuePrefix}-C${index + 1}`,
       title: `${index % 2 ? "Alpha" : "beta"} ${String(207 - index).padStart(3, "0")}`,
       caseType: types[index % types.length]!, status: statuses[index % statuses.length]!,
       projectId: index % 3 === 2 ? null : projectRows[index % 3]!.id,
@@ -1196,12 +1196,12 @@ describeEmbeddedPostgres("cases routes", () => {
       updatedAt: new Date(Date.UTC(2031, 0, 1, 0, 207 - index)),
     }))).returning();
     const [hidden] = await db.insert(cases).values({
-      companyId: company.id, caseNumber: 208, identifier: `${company.issuePrefix}-C208`,
+      spaceId: space.id, caseNumber: 208, identifier: `${space.issuePrefix}-C208`,
       title: "000 confidential", caseType: "a-secret", status: "draft",
       updatedAt: new Date("2035-01-01"),
     }).returning();
-    await retainCaseAccessSource(db, { companyId: company.id, caseId: hidden!.id, sourceKind: "issue", sourceId: privateSource!.id });
-    const http = request(app({ type: "agent", companyId: company.id, agentId: reader.id, source: "agent_key" }));
+    await retainCaseAccessSource(db, { spaceId: space.id, caseId: hidden!.id, sourceKind: "issue", sourceId: privateSource!.id });
+    const http = request(app({ type: "agent", spaceId: space.id, agentId: reader.id, source: "agent_key" }));
     type SortField = "updated" | "created" | "title" | "status" | "type";
     type GroupBy = "none" | "status" | "type" | "project";
     type RecordRow = (typeof records)[number];
@@ -1229,48 +1229,48 @@ describeEmbeddedPostgres("cases routes", () => {
           || compare(right.updatedAt.getTime(), left.updatedAt.getTime())
           || compare(right.createdAt.getTime(), left.createdAt.getTime()) || compare(right.id, left.id);
       });
-      const first = await http.get(`/api/companies/${company.id}/cases`).query({ ...option, limit: 200 }).expect(200);
-      const second = await http.get(`/api/companies/${company.id}/cases`).query({ ...option, offset: 200, limit: 200 }).expect(200);
+      const first = await http.get(`/api/spaces/${space.id}/cases`).query({ ...option, limit: 200 }).expect(200);
+      const second = await http.get(`/api/spaces/${space.id}/cases`).query({ ...option, offset: 200, limit: 200 }).expect(200);
       expect([...first.body, ...second.body].map((row: { id: string }) => row.id), JSON.stringify(option)).toEqual(expected.map((row) => row.id));
     }
     for (const invalid of [{ sortField: "assignee" }, { sortDir: "sideways" }, { groupBy: "private" }]) {
-      await http.get(`/api/companies/${company.id}/cases`).query(invalid).expect(400);
+      await http.get(`/api/spaces/${space.id}/cases`).query(invalid).expect(400);
     }
   });
 
   it("does not enrich readable cases with inaccessible tasks or out-of-bound agent names", async () => {
     await enableCases();
-    const company = await seedCompany("LIST-BOUNDARY");
-    const owner = await seedAgent(company.id);
-    const reader = await seedAgent(company.id);
+    const space = await seedSpace("LIST-BOUNDARY");
+    const owner = await seedAgent(space.id);
+    const reader = await seedAgent(space.id);
     const rootId = randomUUID();
     await db.update(agents).set({ name: "Private owner" }).where(eq(agents.id, owner.id));
     await db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: {
       trustBoundary: { mode: "low_trust_review", rootIssueId: rootId },
     } } }).where(eq(agents.id, reader.id));
     const [privateWork, allowedWork] = await db.insert(issues).values([
-      { companyId: company.id, title: "Private task contents", visibility: "private", assigneeAgentId: owner.id },
-      { id: rootId, companyId: company.id, title: "Allowed task", assigneeAgentId: reader.id },
+      { spaceId: space.id, title: "Private task contents", visibility: "private", assigneeAgentId: owner.id },
+      { id: rootId, spaceId: space.id, title: "Allowed task", assigneeAgentId: reader.id },
     ]).returning();
     const [malformed, allowed] = await db.insert(cases).values([
-      { companyId: company.id, caseNumber: 1, identifier: `${company.issuePrefix}-C1`, title: "Legacy public record", caseType: "factory", workIssueId: privateWork!.id },
-      { companyId: company.id, caseNumber: 2, identifier: `${company.issuePrefix}-C2`, title: "Allowed record", caseType: "factory", workIssueId: allowedWork!.id },
+      { spaceId: space.id, caseNumber: 1, identifier: `${space.issuePrefix}-C1`, title: "Legacy public record", caseType: "factory", workIssueId: privateWork!.id },
+      { spaceId: space.id, caseNumber: 2, identifier: `${space.issuePrefix}-C2`, title: "Allowed record", caseType: "factory", workIssueId: allowedWork!.id },
     ]).returning();
-    await retainCaseAccessSource(db, { companyId: company.id, caseId: allowed!.id, sourceKind: "issue", sourceId: allowedWork!.id });
+    await retainCaseAccessSource(db, { spaceId: space.id, caseId: allowed!.id, sourceKind: "issue", sourceId: allowedWork!.id });
     await db.insert(caseHandoffs).values([malformed!, allowed!].map((record, index) => ({
-      companyId: company.id, caseId: record.id, issueId: record.workIssueId!, version: 1,
+      spaceId: space.id, caseId: record.id, issueId: record.workIssueId!, version: 1,
       fromAgentId: owner.id, toAgentId: reader.id, phase: "verify", instructions: index ? "Allowed instruction" : "Private handoff contents",
-      actorType: "user" as const, actorId: "board-user", wakeupRequestId: randomUUID(),
+      actorType: "user" as const, actorId: "operator-user", wakeupRequestId: randomUUID(),
       idempotencyKey: randomUUID(), inputFingerprint: "a".repeat(64), state: "pending_dispatch" as const,
     })));
-    const ordinary = request(app({ type: "agent", companyId: company.id, agentId: reader.id, source: "agent_key" }));
-    // A low-trust caller cannot read the unsourced company record at all.
-    const page = await ordinary.get(`/api/companies/${company.id}/cases`).expect(200);
+    const ordinary = request(app({ type: "agent", spaceId: space.id, agentId: reader.id, source: "agent_key" }));
+    // A low-trust caller cannot read the unsourced space record at all.
+    const page = await ordinary.get(`/api/spaces/${space.id}/cases`).expect(200);
     expect(page.body).toHaveLength(1);
     expect(page.body[0]).toMatchObject({ id: allowed!.id, workIssue: { id: allowedWork!.id },
       pendingHandoff: { instructions: "Allowed instruction", fromAgentName: null, toAgentName: null } });
     expect(JSON.stringify(page.body)).not.toContain("Private owner");
-    // Standard company access can read a legacy passive case, but its malformed
+    // Standard space access can read a legacy passive case, but its malformed
     // primary link must not bypass the private task's independent boundary.
     await db.update(agents).set({ permissions: {} }).where(eq(agents.id, reader.id));
     const visible = await ordinary.get(`/api/cases/${malformed!.id}`).expect(200);
@@ -1281,16 +1281,16 @@ describeEmbeddedPostgres("cases routes", () => {
 
   it("filters retained private cases before pagination and protects nested content", async () => {
     await enableCases();
-    const company = await seedCompany("PRIV");
-    const owner = await seedAgent(company.id);
-    const unrelated = await seedAgent(company.id);
-    const [source] = await db.insert(issues).values({ companyId: company.id, title: "Private source", visibility: "private", assigneeAgentId: owner.id }).returning();
-    const [hidden] = await db.insert(cases).values({ companyId: company.id, caseNumber: 1, identifier: `${company.issuePrefix}-C1`, caseType: "work", title: "Secret case", updatedAt: new Date("2030-01-01") }).returning();
-    const [open] = await db.insert(cases).values({ companyId: company.id, caseNumber: 2, identifier: `${company.issuePrefix}-C2`, caseType: "work", title: "Open case" }).returning();
-    await retainCaseAccessSource(db, { companyId: company.id, caseId: hidden!.id, sourceKind: "issue", sourceId: source!.id });
-    const actor = { type: "agent" as const, companyId: company.id, agentId: unrelated.id, source: "agent_key" as const };
+    const space = await seedSpace("PRIV");
+    const owner = await seedAgent(space.id);
+    const unrelated = await seedAgent(space.id);
+    const [source] = await db.insert(issues).values({ spaceId: space.id, title: "Private source", visibility: "private", assigneeAgentId: owner.id }).returning();
+    const [hidden] = await db.insert(cases).values({ spaceId: space.id, caseNumber: 1, identifier: `${space.issuePrefix}-C1`, caseType: "work", title: "Secret case", updatedAt: new Date("2030-01-01") }).returning();
+    const [open] = await db.insert(cases).values({ spaceId: space.id, caseNumber: 2, identifier: `${space.issuePrefix}-C2`, caseType: "work", title: "Open case" }).returning();
+    await retainCaseAccessSource(db, { spaceId: space.id, caseId: hidden!.id, sourceKind: "issue", sourceId: source!.id });
+    const actor = { type: "agent" as const, spaceId: space.id, agentId: unrelated.id, source: "agent_key" as const };
     const http = request(app(actor));
-    const list = await http.get(`/api/companies/${company.id}/cases?limit=1`).expect(200);
+    const list = await http.get(`/api/spaces/${space.id}/cases?limit=1`).expect(200);
     expect(list.body.map((row: { id: string }) => row.id)).toEqual([open!.id]);
     await http.get(`/api/cases/${hidden!.id}`).expect(404);
     await http.get(`/api/cases/${hidden!.id}/events`).expect(404);
@@ -1301,14 +1301,14 @@ describeEmbeddedPostgres("cases routes", () => {
   });
 
   it("retains source boundaries after unlink and fails closed after source deletion", async () => {
-    const company = await seedCompany("KEEP");
-    const owner = await seedAgent(company.id);
-    const [source] = await db.insert(issues).values({ companyId: company.id, title: "Source", visibility: "private", assigneeAgentId: owner.id }).returning();
-    const [record] = await db.insert(cases).values({ companyId: company.id, caseNumber: 1, identifier: `${company.issuePrefix}-C1`, caseType: "work", title: "Retained" }).returning();
-    await retainCaseAccessSource(db, { companyId: company.id, caseId: record!.id, sourceKind: "issue", sourceId: source!.id });
-    await db.insert(caseIssueLinks).values({ companyId: company.id, caseId: record!.id, issueId: source!.id, role: "origin" });
+    const space = await seedSpace("KEEP");
+    const owner = await seedAgent(space.id);
+    const [source] = await db.insert(issues).values({ spaceId: space.id, title: "Source", visibility: "private", assigneeAgentId: owner.id }).returning();
+    const [record] = await db.insert(cases).values({ spaceId: space.id, caseNumber: 1, identifier: `${space.issuePrefix}-C1`, caseType: "work", title: "Retained" }).returning();
+    await retainCaseAccessSource(db, { spaceId: space.id, caseId: record!.id, sourceKind: "issue", sourceId: source!.id });
+    await db.insert(caseIssueLinks).values({ spaceId: space.id, caseId: record!.id, issueId: source!.id, role: "origin" });
     await db.delete(caseIssueLinks).where(eq(caseIssueLinks.caseId, record!.id));
-    const actor = { type: "agent" as const, companyId: company.id, agentId: owner.id };
+    const actor = { type: "agent" as const, spaceId: space.id, agentId: owner.id };
     expect(await canActorReadCase(db, actor, record!.id)).toBe(true);
     await db.delete(issues).where(eq(issues.id, source!.id));
     expect(await canActorReadCase(db, actor, record!.id)).toBe(false);
@@ -1316,96 +1316,96 @@ describeEmbeddedPostgres("cases routes", () => {
   });
 
   it("prospectively grants only the transferred task, preserving unrelated retained boundaries", async () => {
-    const company = await seedCompany("DEST");
-    const owner = await seedAgent(company.id);
-    const recipient = await seedAgent(company.id);
+    const space = await seedSpace("DEST");
+    const owner = await seedAgent(space.id);
+    const recipient = await seedAgent(space.id);
     const [primary, unrelated] = await db.insert(issues).values([
-      { companyId: company.id, title: "Primary", visibility: "private", assigneeAgentId: owner.id },
-      { companyId: company.id, title: "Other source", visibility: "private", assigneeAgentId: owner.id },
+      { spaceId: space.id, title: "Primary", visibility: "private", assigneeAgentId: owner.id },
+      { spaceId: space.id, title: "Other source", visibility: "private", assigneeAgentId: owner.id },
     ]).returning();
-    const [record] = await db.insert(cases).values({ companyId: company.id, caseNumber: 1, identifier: `${company.issuePrefix}-C1`, caseType: "work", title: "Prospective", workIssueId: primary!.id }).returning();
-    await retainCaseAccessSource(db, { companyId: company.id, caseId: record!.id, sourceKind: "issue", sourceId: primary!.id });
-    const actor = { type: "agent" as const, companyId: company.id, agentId: owner.id };
+    const [record] = await db.insert(cases).values({ spaceId: space.id, caseNumber: 1, identifier: `${space.issuePrefix}-C1`, caseType: "work", title: "Prospective", workIssueId: primary!.id }).returning();
+    await retainCaseAccessSource(db, { spaceId: space.id, caseId: record!.id, sourceKind: "issue", sourceId: primary!.id });
+    const actor = { type: "agent" as const, spaceId: space.id, agentId: owner.id };
     expect(await canActorReceiveCase(db, actor, record!, primary!.id, recipient.id)).toBe(true);
-    await retainCaseAccessSource(db, { companyId: company.id, caseId: record!.id, sourceKind: "issue", sourceId: unrelated!.id });
+    await retainCaseAccessSource(db, { spaceId: space.id, caseId: record!.id, sourceKind: "issue", sourceId: unrelated!.id });
     expect(await canActorReceiveCase(db, actor, record!, primary!.id, recipient.id)).toBe(false);
   });
 
   it("keeps case assets and activity private, including detached attachment links", async () => {
-    const company = await seedCompany("EXTERNAL");
-    const owner = await seedAgent(company.id);
-    const outsider = await seedAgent(company.id);
-    const [source] = await db.insert(issues).values({ companyId: company.id, title: "Private source", visibility: "private", assigneeAgentId: owner.id }).returning();
+    const space = await seedSpace("EXTERNAL");
+    const owner = await seedAgent(space.id);
+    const outsider = await seedAgent(space.id);
+    const [source] = await db.insert(issues).values({ spaceId: space.id, title: "Private source", visibility: "private", assigneeAgentId: owner.id }).returning();
     const [privateCase, openCase] = await db.insert(cases).values([
-      { companyId: company.id, caseNumber: 1, identifier: `${company.issuePrefix}-C1`, caseType: "work", title: "Private" },
-      { companyId: company.id, caseNumber: 2, identifier: `${company.issuePrefix}-C2`, caseType: "work", title: "Open" },
+      { spaceId: space.id, caseNumber: 1, identifier: `${space.issuePrefix}-C1`, caseType: "work", title: "Private" },
+      { spaceId: space.id, caseNumber: 2, identifier: `${space.issuePrefix}-C2`, caseType: "work", title: "Open" },
     ]).returning();
-    await retainCaseAccessSource(db, { companyId: company.id, caseId: privateCase!.id, sourceKind: "issue", sourceId: source!.id });
-    const [asset] = await db.insert(assets).values({ companyId: company.id, provider: "local_disk", objectKey: `${company.id}/cases/${privateCase!.id}/2026/10/19/evidence.txt`, contentType: "text/plain", byteSize: 1, sha256: "a".repeat(64), originalFilename: "evidence.txt", createdByAgentId: owner.id }).returning();
-    await db.insert(caseAttachments).values({ companyId: company.id, caseId: privateCase!.id, assetId: asset!.id });
-    const actor = { type: "agent" as const, companyId: company.id, agentId: outsider.id };
+    await retainCaseAccessSource(db, { spaceId: space.id, caseId: privateCase!.id, sourceKind: "issue", sourceId: source!.id });
+    const [asset] = await db.insert(assets).values({ spaceId: space.id, provider: "local_disk", objectKey: `${space.id}/cases/${privateCase!.id}/2026/10/19/evidence.txt`, contentType: "text/plain", byteSize: 1, sha256: "a".repeat(64), originalFilename: "evidence.txt", createdByAgentId: owner.id }).returning();
+    await db.insert(caseAttachments).values({ spaceId: space.id, caseId: privateCase!.id, assetId: asset!.id });
+    const actor = { type: "agent" as const, spaceId: space.id, agentId: outsider.id };
     expect(await canActorReadAssetContent(db, actor, asset!)).toBe(false);
     expect(await canActorReadAssetContent(db, { ...actor, agentId: owner.id }, asset!)).toBe(true);
     await db.delete(caseAttachments).where(eq(caseAttachments.assetId, asset!.id));
     expect(await canActorReadAssetContent(db, actor, asset!)).toBe(false);
     await db.insert(activityLog).values([
-      { companyId: company.id, actorType: "agent", actorId: owner.id, agentId: owner.id, action: "case.updated", entityType: "case", entityId: privateCase!.id, details: { title: "Secret" }, createdAt: new Date("2030-01-01") },
-      { companyId: company.id, actorType: "agent", actorId: owner.id, agentId: owner.id, action: "case.updated", entityType: "case", entityId: openCase!.id, details: { title: "Open" } },
+      { spaceId: space.id, actorType: "agent", actorId: owner.id, agentId: owner.id, action: "case.updated", entityType: "case", entityId: privateCase!.id, details: { title: "Secret" }, createdAt: new Date("2030-01-01") },
+      { spaceId: space.id, actorType: "agent", actorId: owner.id, agentId: owner.id, action: "case.updated", entityType: "case", entityId: openCase!.id, details: { title: "Open" } },
     ]);
     const caseReadCondition = await caseActivityReadSqlCondition(db, actor);
-    const activity = await activityService(db).list({ companyId: company.id, caseReadCondition, limit: 1 });
+    const activity = await activityService(db).list({ spaceId: space.id, caseReadCondition, limit: 1 });
     expect(activity.map(row => row.entityId)).toEqual([openCase!.id]);
-    const audit = await agentActionAuditService(db).list({ companyId: company.id, caseReadCondition, limit: 1 });
+    const audit = await agentActionAuditService(db).list({ spaceId: space.id, caseReadCondition, limit: 1 });
     expect(audit.items.map(row => row.entityId)).toEqual([openCase!.id]);
     expect(audit.nextCursor).toBeNull();
   });
 
   it("keeps source-scoped cases inside the canonical low-trust read boundary", async () => {
     await enableCases();
-    const company = await seedCompany("SCOPE");
-    const scopedAgent = await seedAgent(company.id);
+    const space = await seedSpace("SCOPE");
+    const scopedAgent = await seedAgent(space.id);
     const rootId = randomUUID();
     await db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", rootIssueId: rootId } } } }).where(eq(agents.id, scopedAgent.id));
     const [root, outside] = await db.insert(issues).values([
-      { id: rootId, companyId: company.id, title: "Allowed root", assigneeAgentId: scopedAgent.id },
-      { companyId: company.id, title: "Outside root" },
+      { id: rootId, spaceId: space.id, title: "Allowed root", assigneeAgentId: scopedAgent.id },
+      { spaceId: space.id, title: "Outside root" },
     ]).returning();
     const [allowedCase, outsideCase] = await db.insert(cases).values([
-      { companyId: company.id, caseNumber: 1, identifier: `${company.issuePrefix}-C1`, caseType: "work", title: "Allowed" },
-      { companyId: company.id, caseNumber: 2, identifier: `${company.issuePrefix}-C2`, caseType: "work", title: "Outside", updatedAt: new Date("2030-01-01") },
+      { spaceId: space.id, caseNumber: 1, identifier: `${space.issuePrefix}-C1`, caseType: "work", title: "Allowed" },
+      { spaceId: space.id, caseNumber: 2, identifier: `${space.issuePrefix}-C2`, caseType: "work", title: "Outside", updatedAt: new Date("2030-01-01") },
     ]).returning();
-    await retainCaseAccessSource(db, { companyId: company.id, caseId: allowedCase!.id, sourceKind: "issue", sourceId: root!.id });
-    await retainCaseAccessSource(db, { companyId: company.id, caseId: outsideCase!.id, sourceKind: "issue", sourceId: outside!.id });
-    const actor = { type: "agent" as const, companyId: company.id, agentId: scopedAgent.id, source: "agent_key" as const };
+    await retainCaseAccessSource(db, { spaceId: space.id, caseId: allowedCase!.id, sourceKind: "issue", sourceId: root!.id });
+    await retainCaseAccessSource(db, { spaceId: space.id, caseId: outsideCase!.id, sourceKind: "issue", sourceId: outside!.id });
+    const actor = { type: "agent" as const, spaceId: space.id, agentId: scopedAgent.id, source: "agent_key" as const };
     expect(await canActorReadCase(db, actor, allowedCase!.id)).toBe(true);
     expect(await canActorReadCase(db, actor, outsideCase!.id)).toBe(false);
-    const list = await request(app(actor)).get(`/api/companies/${company.id}/cases?limit=1`).expect(200);
+    const list = await request(app(actor)).get(`/api/spaces/${space.id}/cases?limit=1`).expect(200);
     expect(list.body.map((row: { id: string }) => row.id)).toEqual([allowedCase!.id]);
   });
 
   it("rejects quarantined run writes across standalone case routes without restricting trusted writes", async () => {
     await enableCases();
-    const company = await seedCompany("WRITE-TRUST");
-    const agent = await seedAgent(company.id);
-    const [source] = await db.insert(issues).values({ companyId: company.id, title: "Review source", assigneeAgentId: agent.id }).returning();
+    const space = await seedSpace("WRITE-TRUST");
+    const agent = await seedAgent(space.id);
+    const [source] = await db.insert(issues).values({ spaceId: space.id, title: "Review source", assigneeAgentId: agent.id }).returning();
     const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", rootIssueId: source!.id } } };
     const [containedRun, trustedRun] = await db.insert(heartbeatRuns).values([
-      { companyId: company.id, agentId: agent.id, issueId: source!.id, status: "running", contextSnapshot: { executionPolicy: policy } },
-      { companyId: company.id, agentId: agent.id, issueId: source!.id, status: "running", contextSnapshot: { executionPolicy: {} } },
+      { spaceId: space.id, agentId: agent.id, issueId: source!.id, status: "running", contextSnapshot: { executionPolicy: policy } },
+      { spaceId: space.id, agentId: agent.id, issueId: source!.id, status: "running", contextSnapshot: { executionPolicy: {} } },
     ]).returning();
-    const board = request(app(boardActor));
-    const record = await board.post(`/api/companies/${company.id}/cases`).send({ caseType: "review", key: "existing", title: "Passive case", summary: "Trusted summary", fields: { trusted: true } }).expect(201);
-    await board.post(`/api/cases/${record.body.id}/links`).send({ issueId: source!.id, role: "work" }).expect(201);
-    await board.put(`/api/cases/${record.body.id}/documents/existing`).send({ body: "Trusted document" }).expect(200);
+    const operator = request(app(operatorActor));
+    const record = await operator.post(`/api/spaces/${space.id}/cases`).send({ caseType: "review", key: "existing", title: "Passive case", summary: "Trusted summary", fields: { trusted: true } }).expect(201);
+    await operator.post(`/api/cases/${record.body.id}/links`).send({ issueId: source!.id, role: "work" }).expect(201);
+    await operator.put(`/api/cases/${record.body.id}/documents/existing`).send({ body: "Trusted document" }).expect(200);
     const eventsBefore = await db.select().from(caseEvents);
     const sourcesBefore = await db.select().from(caseAccessSources);
-    const token = createLocalAgentJwt(agent.id, company.id, agent.adapterType, containedRun!.id);
+    const token = createLocalAgentJwt(agent.id, space.id, agent.adapterType, containedRun!.id);
     const http = request(authenticatedApp());
     const authorization = `Bearer ${token}`;
     await http.get(`/api/cases/${record.body.id}`).set("Authorization", authorization).expect(200);
-    await http.post(`/api/companies/${company.id}/cases`).set("Authorization", authorization)
+    await http.post(`/api/spaces/${space.id}/cases`).set("Authorization", authorization)
       .send({ caseType: "review", key: "new", title: "Raw case", fields: { raw: "quarantined" } }).expect(403);
-    await http.post(`/api/companies/${company.id}/cases`).set("Authorization", authorization)
+    await http.post(`/api/spaces/${space.id}/cases`).set("Authorization", authorization)
       .send({ caseType: "review", key: "existing", title: "Raw upsert", summary: "Raw instructions" }).expect(403);
     await http.patch(`/api/cases/${record.body.id}`).set("Authorization", authorization)
       .send({ summary: "Raw instructions", fields: { raw: "quarantined" } }).expect(403);
@@ -1424,43 +1424,43 @@ describeEmbeddedPostgres("cases routes", () => {
     expect(await db.select().from(assets)).toHaveLength(0);
     expect(await db.select().from(caseEvents)).toEqual(eventsBefore);
     expect(await db.select().from(caseAccessSources)).toEqual(sourcesBefore);
-    const trusted = `Bearer ${createLocalAgentJwt(agent.id, company.id, agent.adapterType, trustedRun!.id)}`;
+    const trusted = `Bearer ${createLocalAgentJwt(agent.id, space.id, agent.adapterType, trustedRun!.id)}`;
     await http.patch(`/api/cases/${record.body.id}`).set("Authorization", trusted).send({ fields: { sanitized: true } }).expect(200);
     await http.put(`/api/cases/${record.body.id}/documents/sanitized`).set("Authorization", trusted).send({ body: "Trusted finding" }).expect(200);
-    await expect(assertCaseTrustedForExecution(db, { id: record.body.id, companyId: company.id })).resolves.toBeUndefined();
+    await expect(assertCaseTrustedForExecution(db, { id: record.body.id, spaceId: space.id })).resolves.toBeUndefined();
   });
 
   it("blocks historical low-trust case output from execution while preserving authorized reads", async () => {
     await enableCases();
-    const company = await seedCompany("HISTORICAL-TRUST");
-    const agent = await seedAgent(company.id);
-    const [source] = await db.insert(issues).values({ companyId: company.id, title: "Retained source", assigneeAgentId: agent.id }).returning();
-    const record = await request(app(boardActor)).post(`/api/companies/${company.id}/cases`)
+    const space = await seedSpace("HISTORICAL-TRUST");
+    const agent = await seedAgent(space.id);
+    const [source] = await db.insert(issues).values({ spaceId: space.id, title: "Retained source", assigneeAgentId: agent.id }).returning();
+    const record = await request(app(operatorActor)).post(`/api/spaces/${space.id}/cases`)
       .send({ caseType: "review", title: "Historical case", fields: { unreviewed: "Old raw output" } }).expect(201);
-    await retainCaseAccessSource(db, { companyId: company.id, caseId: record.body.id, sourceKind: "issue", sourceId: source!.id });
-    await expect(assertCaseTrustedForExecution(db, { id: record.body.id, companyId: company.id })).resolves.toBeUndefined();
+    await retainCaseAccessSource(db, { spaceId: space.id, caseId: record.body.id, sourceKind: "issue", sourceId: source!.id });
+    await expect(assertCaseTrustedForExecution(db, { id: record.body.id, spaceId: space.id })).resolves.toBeUndefined();
     const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", rootIssueId: source!.id } } };
     await db.update(issues).set({ executionPolicy: policy }).where(eq(issues.id, source!.id));
-    await expect(assertCaseTrustedForExecution(db, { id: record.body.id, companyId: company.id })).rejects.toMatchObject({ status: 403 });
+    await expect(assertCaseTrustedForExecution(db, { id: record.body.id, spaceId: space.id })).rejects.toMatchObject({ status: 403 });
     await db.update(issues).set({ executionPolicy: {} }).where(eq(issues.id, source!.id));
-    const [oldRun] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, issueId: source!.id,
+    const [oldRun] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, issueId: source!.id,
       status: "succeeded", contextSnapshot: { executionPolicy: policy } }).returning();
     // Represents output persisted before cases enforced quarantine; current task
     // and agent settings are now standard, but the recorded source run is not.
-    await db.insert(caseEvents).values({ companyId: company.id, caseId: record.body.id, kind: "fields_changed",
+    await db.insert(caseEvents).values({ spaceId: space.id, caseId: record.body.id, kind: "fields_changed",
       actorType: "agent", actorAgentId: agent.id, runId: oldRun!.id });
-    await expect(assertCaseTrustedForExecution(db, { id: record.body.id, companyId: company.id })).rejects.toMatchObject({ status: 403 });
-    const readable = await request(app(boardActor)).get(`/api/cases/${record.body.id}`).expect(200);
+    await expect(assertCaseTrustedForExecution(db, { id: record.body.id, spaceId: space.id })).rejects.toMatchObject({ status: 403 });
+    const readable = await request(app(operatorActor)).get(`/api/cases/${record.body.id}`).expect(200);
     expect(readable.body.fields).toEqual({ unreviewed: "Old raw output" });
   });
 
-  it("preserves historical source attribution for a delivered board-originated handoff", async () => {
-    const company = await seedCompany("HISTORY");
-    const previous = await seedAgent(company.id), recipient = await seedAgent(company.id);
-    const [task] = await db.insert(issues).values({ companyId: company.id, title: "Historical workflow", assigneeAgentId: recipient.id }).returning();
-    const [record] = await db.insert(cases).values({ companyId: company.id, caseNumber: 1, identifier: `${company.issuePrefix}-C1`, caseType: "work", title: "History", workIssueId: task!.id }).returning();
-    const [handoff] = await db.insert(caseHandoffs).values({ companyId: company.id, caseId: record!.id, issueId: task!.id, version: 1,
-      fromAgentId: previous.id, toAgentId: recipient.id, phase: "implementation", instructions: "Continue this work", actorType: "user", actorId: "fixture-board",
+  it("preserves historical source attribution for a delivered operator-originated handoff", async () => {
+    const space = await seedSpace("HISTORY");
+    const previous = await seedAgent(space.id), recipient = await seedAgent(space.id);
+    const [task] = await db.insert(issues).values({ spaceId: space.id, title: "Historical workflow", assigneeAgentId: recipient.id }).returning();
+    const [record] = await db.insert(cases).values({ spaceId: space.id, caseNumber: 1, identifier: `${space.issuePrefix}-C1`, caseType: "work", title: "History", workIssueId: task!.id }).returning();
+    const [handoff] = await db.insert(caseHandoffs).values({ spaceId: space.id, caseId: record!.id, issueId: task!.id, version: 1,
+      fromAgentId: previous.id, toAgentId: recipient.id, phase: "implementation", instructions: "Continue this work", actorType: "user", actorId: "fixture-operator",
       wakeupRequestId: randomUUID(), idempotencyKey: "history", inputFingerprint: "history", state: "delivered" }).returning();
     await expect(db.delete(agents).where(eq(agents.id, previous.id))).rejects.toThrow();
     expect((await db.select().from(caseHandoffs).where(eq(caseHandoffs.id, handoff!.id)))[0]!.fromAgentId).toBe(previous.id);

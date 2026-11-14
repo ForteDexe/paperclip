@@ -65,7 +65,7 @@ function fixture(entry: Entry, options: { intentFailure?: boolean; qualification
     if (saved) result.push({ role: "combobox", name: "Model", select(value) { expect(value).toBe(gateway.model); model = value; } });
     if (source) result.push({ role: "summary", name: "Advanced", click() { advanced = true; } });
     if (advanced) result.push({ role: "button", name: "Runner", click() { runnerOpen = true; } });
-    if (runnerOpen) result.push({ role: "option", name: "Outpost Runner (default)", click() { runner = "paperclip"; runnerOpen = false; } });
+    if (runnerOpen) result.push({ role: "option", name: "Outpost Runner (default)", click() { runner = "outpost"; runnerOpen = false; } });
     if (saved && model && runner) result.push({ role: "button", name: "Connect", click() {
       expect(events).toContain("qualified"); events.push("paid:connect"); hired = true;
     } });
@@ -96,7 +96,7 @@ function fixture(entry: Entry, options: { intentFailure?: boolean; qualification
     },
     locator(selector: string) { expect(selector).toBe("summary"); return locator(() => controls().filter(control => control.role === "summary")); },
   };
-  const context = { page, company: { id: "company" }, identity: { kind: "cloud" }, startingState: "recipe", api: {
+  const context = { page, space: { id: "space" }, identity: { kind: "cloud" }, startingState: "recipe", api: {
     origin: "https://tenant.example.test",
     async get(route: string) {
       if (route.endsWith("/ai-connections")) return { connections: saved ? [connection] : [] };

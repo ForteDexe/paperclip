@@ -10,7 +10,7 @@ const opaque = z
 const mime = z.enum(["image/png", "image/jpeg", "image/gif"]);
 const scopeSchema = z
   .object({
-    companyId: z.uuid(),
+    spaceId: z.uuid(),
     endpointId: z.uuid(),
     tenantId: z.uuid(),
     botAppId: z.uuid(),

@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { resolveAuthorizationTarget } from "./authorizationUrl";
 
 /**
- * PAP-17099 — the board's own copy of the endpoint gate. The shared validator is
+ * PAP-17099 — the operator's own copy of the endpoint gate. The shared validator is
  * tested exhaustively in `@outpost/shared`; what matters here is that the
- * board applies it, and that its loopback exception follows how the board itself
+ * operator applies it, and that its loopback exception follows how the operator itself
  * is served rather than being unconditional.
  */
 function serveBoardOver(protocol: "http:" | "https:") {
@@ -17,7 +17,7 @@ function serveBoardOver(protocol: "http:" | "https:") {
 
 describe("resolveAuthorizationTarget", () => {
   afterEach(() => {
-    // jsdom's default is a plaintext localhost board.
+    // jsdom's default is a plaintext localhost operator.
     serveBoardOver("http:");
   });
 
@@ -48,7 +48,7 @@ describe("resolveAuthorizationTarget", () => {
     if (value) expect(target.message).not.toContain(value);
   });
 
-  it("allows a loopback authorization server only on a plaintext-http board", () => {
+  it("allows a loopback authorization server only on a plaintext-http operator", () => {
     serveBoardOver("http:");
     expect(resolveAuthorizationTarget("http://127.0.0.1:8930/authorize").ok).toBe(true);
 

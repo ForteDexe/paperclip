@@ -128,7 +128,7 @@ describe("runner E2E catalog", () => {
     expect(cell.task).toMatchObject({ flow: "case_handoff", expectedRunCount: 4, minimumExpectedRunCount: 4,
       turnTimeoutMs: 90_000, attemptTimeoutMs: { local: 300_000 }, automaticRetryPolicy: "single_attempt" });
     expect(cell.suite.definitionMetadata).toMatchObject({ version: 4, scheduling: "explicit-only",
-      credentialModes: ["isolated-company-subscription-login", "company-encrypted-api-secret-reference"],
+      credentialModes: ["isolated-space-subscription-login", "space-encrypted-api-secret-reference"],
       cases: { "receipt-smoke": { budgetMonthlyCents: 100, maximumProviderTurns: 4, minimumProviderTurns: 4,
         runTimeoutMs: 90_000, reasoningEffort: "low", agentDailyRunCaps: { triage: 1, builder: 2, verifier: 1 } },
       "same-task-roundtrip": { budgetMonthlyCents: 1_000, maximumProviderTurns: 6 } } });
@@ -147,7 +147,7 @@ describe("runner E2E catalog", () => {
     expect(productJourneys.map(journey => journey.id)).toEqual([
       "saved-skill-use",
       "task-edit-lifecycle",
-      "company-access-isolation",
+      "space-access-isolation",
       "repository-continuation",
       "routine-scheduled-run",
       "inbox-triage",
@@ -622,7 +622,7 @@ describe("runner E2E catalog", () => {
     ]) {
       const terminalTextInstruction = prompt?.match(/then emit (?:exactly|only)/)?.[0];
       expect(terminalTextInstruction).toBeDefined();
-      expect(prompt!.indexOf("paperclip_finish exactly once")).toBeLessThan(
+      expect(prompt!.indexOf("outpost_finish exactly once")).toBeLessThan(
         prompt!.indexOf(terminalTextInstruction!),
       );
       expect(prompt).toContain("Wait for that tool call to succeed");
@@ -645,14 +645,14 @@ describe("runner E2E catalog", () => {
       .find((task) => task.id === "hello-complete")
       ?.buildPrompt("nonce");
     expect(breadthHello).toContain(
-      "Your first response action must be the paperclip_finish tool call",
+      "Your first response action must be the outpost_finish tool call",
     );
     expect(breadthHello).toContain(
       "Do not emit any assistant text, acknowledgement, or preamble before calling it",
     );
 
     const nativeAsk = ask?.buildPrompt("nonce");
-    expect(nativeAsk).toContain("paperclip_finish must be your only tool call");
+    expect(nativeAsk).toContain("outpost_finish must be your only tool call");
     expect(nativeAsk).toContain(
       "never call report_progress or any other tool before or after it",
     );
@@ -696,7 +696,7 @@ describe("runner E2E catalog", () => {
   it("binds pending provider credentials through secret references only", () => {
     for (const profile of pendingContextIntegrityProfiles) {
       const payload = profile.buildAgent({
-        environmentId: "fixture-company",
+        environmentId: "fixture-space",
         environmentFixtureId: "local",
         workspacePath: "/tmp/runner-e2e-workspace",
         secretRefs: {
@@ -818,7 +818,7 @@ describe("runner E2E catalog", () => {
       "identifies the exact revised Plan revision used as the confirmation target as accepted",
     );
     expect(task!.buildPrompt("nonce")).toContain(
-      "After that verification succeeds, your immediate next action must be the paperclip_finish tool call",
+      "After that verification succeeds, your immediate next action must be the outpost_finish tool call",
     );
     expect(task!.buildPrompt("nonce")).not.toContain(
       "trust that inline acceptance",

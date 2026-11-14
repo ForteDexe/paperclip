@@ -59,8 +59,8 @@ export const integratorCaseCloseCases = [integratorDefinition("cases", "cases.cl
   try {
     await ctx.input.api.patch("/api/instance/settings/experimental", { enableCases: true }); const p = await project(ctx, "Launch"); const worker = await fixtureWorker(ctx);
     await grantCaseTaskAssignment(ctx, worker.id);
-    for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: worker.id }]) await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
-    const kickoff = await ctx.input.api.post<HandoffCaseResult>(`/api/companies/${ctx.input.fixtures.company.id}/case-handoffs`, {
+    for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: worker.id }]) await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+    const kickoff = await ctx.input.api.post<HandoffCaseResult>(`/api/spaces/${ctx.input.fixtures.space.id}/case-handoffs`, {
       idempotencyKey: `close-review-${ctx.input.nonce}`, case: { create: { caseType: "customer", title: "Accepted checkout fix", projectId: p.id, fields: { reviewRequirement: "Verify supplied correction and retain review document" } } }, toAgentId: worker.id, phase: "review",
       instructions: "Review the supplied synthetic checkout correction against its acceptance criteria. Save a task-owned document with key review, the actual reasoning, and accepted or rejected disposition. If the criteria are met, mark this ordinary review task done. Do not perform a terminal case handoff: the person has not requested case closure.",
       workflow_document_text: "Morgan owns this same ordinary primary throughout review and final closure. Its saved review and final documents remain task-owned. Finishing review alone leaves the case open. Only a later explicit accepted-fix closure direction permits Morgan's genuine primary execution to record a terminal handoff and complete normally under ordinary gates.",
@@ -73,8 +73,8 @@ export const integratorCaseCloseCases = [integratorDefinition("cases", "cases.cl
       review: await ctx.input.api.get<IssueDocument>(`/api/issues/${kickoff.taskId}/documents/review`) };
   } catch (error) { await cleanup(ctx); throw error; }
 }, observeClose, gradeIntegratorCaseClose, async (ctx, state) => {
-  const row = state.case as CaseRecord; const primary = state.task as Issue; await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/cases/${row.identifier}`, row.title);
-  await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/issues/${primary.identifier}`, primary.title);
+  const row = state.case as CaseRecord; const primary = state.task as Issue; await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/cases/${row.identifier}`, row.title);
+  await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/issues/${primary.identifier}`, primary.title);
 }, { expectedRunCount: 7, minimumRunCount: 6, expectedHumanMessageCount: 3, attemptTimeoutMs: 1_500_000, cleanup,
   sourceFiles: ["chat-catalog-domains/integrator-case-close.ts", "chat-catalog-domains/integrator-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/internal-definition.ts", "chat-scenarios/cases.yaml"],
   async act(ctx, state) {
@@ -89,7 +89,7 @@ export const integratorCaseCloseCases = [integratorDefinition("cases", "cases.cl
     const result = await pollUntil({ label: "actual terminal result reported in chat", deadlineAt: Date.now() + 180_000, intervalMs: 1000, load: () => observeClose(ctx, state), accept: o => o.runs.length === 4 && o.runs.every(run => run.status === "succeeded") && ctx.issue()?.conversationState === "waiting" });
     state.acceptedResult = { ...result, state: structuredClone(state) }; await ctx.input.evidence("chat-case-terminal-result.json", state.acceptedResult);
     const pendingReview = await task(ctx, "Required independent review remains unresolved", (state.project as Entity).id); state.pendingReview = pendingReview;
-    const second = await ctx.input.api.post<HandoffCaseResult>(`/api/companies/${ctx.input.fixtures.company.id}/case-handoffs`, { idempotencyKey: `unreviewed-${ctx.input.nonce}`, case: { create: { caseType: "customer", title: "Unreviewed separate correction", projectId: (state.project as Entity).id } },
+    const second = await ctx.input.api.post<HandoffCaseResult>(`/api/spaces/${ctx.input.fixtures.space.id}/case-handoffs`, { idempotencyKey: `unreviewed-${ctx.input.nonce}`, case: { create: { caseType: "customer", title: "Unreviewed separate correction", projectId: (state.project as Entity).id } },
       toAgentId: (state.worker as Entity).id, phase: "review", instructions: `The required independent review task ${pendingReview.id} is unresolved. Save it as a real blockedByIssueIds dependency on this ordinary primary, record the missing approval in a task comment, and mark this task blocked. Do not close or terminally hand off the case, resolve its reviewer task, or fabricate acceptance.`,
       workflow_document_text: `This separate correction requires completed independent review task ${pendingReview.id} before ordinary primary completion or case closure. A person's request to skip an unresolved review does not satisfy the required review.` });
     state.negativeCase = await ctx.input.api.get<CaseRecord>(`/api/cases/${second.caseId}`);

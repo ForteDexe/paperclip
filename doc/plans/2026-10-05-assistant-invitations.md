@@ -1,11 +1,11 @@
-# Invite an assistant to Paperclip with one message
+# Invite an assistant to Outpost with one message
 
 Date: 2026-10-05
 
 ## Outcome
 
 From Butter → Connections → Assistant Connection (MCP), copy a message or URL,
-paste it into an assistant, approve the identified client in Paperclip, and use
+paste it into an assistant, approve the identified client in Outpost, and use
 the organization's tools as the consenting human. Sharing an invitation grants
 no access. Keep the existing experimental setting and simplified consent UI.
 
@@ -29,11 +29,11 @@ no access. Keep the existing experimental setting and simplified consent UI.
 
 ## Acceptance
 
-- Cold start: no Paperclip tools/configuration initially; the invitation starts
-  setup and consent; verify the resulting account/company before work.
+- Cold start: no Outpost tools/configuration initially; the invitation starts
+  setup and consent; verify the resulting account/space before work.
 - Existing configuration, unavailable host setup, denied/expired consent,
   later-conversation reconnect, and required client restart are represented.
-- Verify company/role isolation, disabled feature, CIMD SSRF and redirect
+- Verify space/role isolation, disabled feature, CIMD SSRF and redirect
   rejection, audience binding, code replay, concurrent polling and refresh,
   token expiry/revocation, and absence of secrets from copied text and evidence.
 - Browser connectors use host settings where required; do not promise automatic

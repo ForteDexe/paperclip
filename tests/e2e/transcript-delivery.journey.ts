@@ -17,7 +17,7 @@ test("native transcript survives two views and reload through negotiated streami
       for (const socket of sockets) socket.close();
     } });
   });
-  const company = await json(await request.post("/api/companies", { data: { name: "Native transcript delivery" } }));
+  const space = await json(await request.post("/api/spaces", { data: { name: "Native transcript delivery" } }));
   const original = await json(await request.get("/api/instance/settings/experimental"));
   const frames: Array<{ type?: string; runIds?: string[]; revision?: number }> = [];
   let connections = 0;
@@ -34,30 +34,30 @@ test("native transcript survives two views and reload through negotiated streami
   });
   try {
     await json(await request.patch("/api/instance/settings/experimental", { data: { enableNativeRunner: true, enableWorktreeRunExecution: true } }));
-    await json(await request.post(`/api/companies/${company.id}/user-secret-definitions`, { data: { key: "OPENAI_API_KEY", name: "Fixture credential" } }));
-    await json(await request.post(`/api/companies/${company.id}/me/user-secrets`, { data: { definitionKey: "OPENAI_API_KEY", value: "not-a-real-model-key" } }));
-    const agent = await json(await request.post(`/api/companies/${company.id}/agents`, { data: { name: "CEO", role: "ceo", adapterType: "outpost_runner",
+    await json(await request.post(`/api/spaces/${space.id}/user-secret-definitions`, { data: { key: "OPENAI_API_KEY", name: "Fixture credential" } }));
+    await json(await request.post(`/api/spaces/${space.id}/me/user-secrets`, { data: { definitionKey: "OPENAI_API_KEY", value: "not-a-real-model-key" } }));
+    const agent = await json(await request.post(`/api/spaces/${space.id}/agents`, { data: { name: "CEO", role: "ceo", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex", model: "gpt-5.1-codex-mini", env: {
         OPENAI_API_KEY: { type: "user_secret_ref", key: "OPENAI_API_KEY", version: "latest", required: true },
       } } } }));
     await expect.poll(async () => (await json(await request.get(`/api/agents/${agent.id}`))).lifecycleState,
       { timeout: 30_000 }).toBe("ready");
-    await page.goto(`/${company.issuePrefix}/agents/${agent.id}/overview`);
+    await page.goto(`/${space.issuePrefix}/agents/${agent.id}/overview`);
     await page.getByRole("link", { name: "Tasks", exact: true }).click();
     await page.getByRole("button", { name: "New Task", exact: true }).last().click();
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("textbox", { name: "editable markdown" }).fill("Summarize the launch decisions and include the source link");
     await expect(dialog.getByRole("button", { name: "Select assignee" })).toContainText("CEO");
     await dialog.getByRole("button", { name: "Create task", exact: true }).click();
-    await expect.poll(async () => (await json(await request.get(`/api/companies/${company.id}/issues`))).length).toBe(1);
-    const [issue] = await json(await request.get(`/api/companies/${company.id}/issues`));
-    const route = `/${company.issuePrefix}/issues/${issue.identifier}`;
+    await expect.poll(async () => (await json(await request.get(`/api/spaces/${space.id}/issues`))).length).toBe(1);
+    const [issue] = await json(await request.get(`/api/spaces/${space.id}/issues`));
+    const route = `/${space.issuePrefix}/issues/${issue.identifier}`;
     activeConnections.clear();
     frames.length = 0;
     await page.goto(route);
     let runId = "";
     await expect.poll(async () => {
-      const runs = await json(await request.get(`/api/companies/${company.id}/heartbeat-runs`));
+      const runs = await json(await request.get(`/api/spaces/${space.id}/heartbeat-runs`));
       runId = runs[0]?.id ?? "";
       return runs[0]?.status;
     }).toBe("running");
@@ -77,7 +77,7 @@ test("native transcript survives two views and reload through negotiated streami
     expect(activeConnections.size).toBe(1);
     const second = await context.newPage();
     await second.goto(route);
-    const other = await json(await request.post("/api/companies", { data: { name: "Transcript isolation" } }));
+    const other = await json(await request.post("/api/spaces", { data: { name: "Transcript isolation" } }));
     await page.goto(`/${other.issuePrefix}/dashboard`);
     await expect.poll(() => frames.findLast(frame => frame.type === "live.interests")?.runIds).toEqual([]);
     await page.goto(route);
@@ -89,18 +89,18 @@ test("native transcript survives two views and reload through negotiated streami
     await context.setOffline(false);
     await expect.poll(() => connections, { timeout: 15_000 }).toBeGreaterThan(beforeReconnect);
     await expect.poll(subscribed).toBe(true);
-    await expect.poll(async () => (await json(await request.get(`/api/companies/${company.id}/heartbeat-runs`)))[0]?.status, { timeout: 70_000 }).toBe("succeeded");
+    await expect.poll(async () => (await json(await request.get(`/api/spaces/${space.id}/heartbeat-runs`)))[0]?.status, { timeout: 70_000 }).toBe("succeeded");
     for (const view of [page, second]) {
       await expect(view.getByText("STREAM-42: The launch has two stages.", { exact: false }).first()).toBeVisible();
       await view.reload();
       await expect(view.getByText("STREAM-42: The launch has two stages.", { exact: false }).first()).toBeVisible();
     }
-    const runs = await json(await request.get(`/api/companies/${company.id}/heartbeat-runs`));
+    const runs = await json(await request.get(`/api/spaces/${space.id}/heartbeat-runs`));
     expect(runs).toHaveLength(1);
     const comments = await json(await request.get(`/api/issues/${issue.id}/comments`));
     expect(comments.filter((comment: { body: string }) => comment.body.includes("STREAM-42"))).toHaveLength(1);
     await page.screenshot({ path: info.outputPath("native-transcript.png"), fullPage: true });
-    await page.goto(`/${company.issuePrefix}/agents/${agent.id}/runs/${runId}`);
+    await page.goto(`/${space.issuePrefix}/agents/${agent.id}/runs/${runId}`);
     const eventDetails = page.getByText(/^Events \(\d+\)$/).locator("..");
     await expect(eventDetails.getByText("STREAM-42: The launch has two stages.", { exact: false }).first()).toBeVisible();
     await page.reload();
@@ -125,7 +125,7 @@ test("native transcript survives two views and reload through negotiated streami
       interestRevisions: frames.filter(frame => frame.type === "live.interests") }), contentType: "application/json" });
     await second.close();
   } finally {
-    const live = await json(await request.get(`/api/companies/${company.id}/live-runs`));
+    const live = await json(await request.get(`/api/spaces/${space.id}/live-runs`));
     for (const run of live) await json(await request.post(`/api/heartbeat-runs/${run.id}/cancel`));
     await json(await request.patch("/api/instance/settings/experimental", { data: { enableNativeRunner: original.enableNativeRunner,
       enableWorktreeRunExecution: original.enableWorktreeRunExecution } }));

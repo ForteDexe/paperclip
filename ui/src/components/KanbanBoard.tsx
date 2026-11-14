@@ -39,7 +39,7 @@ export const KANBAN_COLUMN_INITIAL_VISIBLE_LIMIT = KANBAN_COLUMN_DEFAULT_PAGE_SI
 export const KANBAN_COLUMN_REVEAL_INCREMENT = KANBAN_COLUMN_DEFAULT_PAGE_SIZE;
 export const KANBAN_COLD_STATUSES = ["backlog", "done", "cancelled"] as const;
 
-export const boardStatuses = [
+export const operatorStatuses = [
   "backlog",
   "todo",
   "in_progress",
@@ -138,7 +138,7 @@ function statusLabel(status: string): string {
 }
 
 export function resolveKanbanTargetStatus(overId: string, issues: Issue[]): IssueStatus | null {
-  if ((boardStatuses as readonly string[]).includes(overId)) {
+  if ((operatorStatuses as readonly string[]).includes(overId)) {
     return overId === "monitoring" ? null : overId as IssueStatus;
   }
   const target = issues.find((issue) => issue.id === overId);
@@ -387,7 +387,7 @@ function KanbanCard({
   );
 }
 
-/* ── Main Board ── */
+/* ── Main Operator ── */
 
 export function KanbanBoard({
   issues,
@@ -415,7 +415,7 @@ export function KanbanBoard({
 
   const columnIssues = useMemo(() => {
     const grouped: Record<IssueDisplayStatus, Issue[]> = {} as Record<IssueDisplayStatus, Issue[]>;
-    for (const status of boardStatuses) {
+    for (const status of operatorStatuses) {
       grouped[status] = [];
     }
     for (const issue of issues) {
@@ -463,7 +463,7 @@ export function KanbanBoard({
     // Could be used for visual feedback; keeping simple for now
   }
 
-  const columns = boardStatuses.map((status) => (
+  const columns = operatorStatuses.map((status) => (
     <KanbanColumn
       key={status}
       status={status}
@@ -493,7 +493,7 @@ export function KanbanBoard({
       onDragEnd={handleDragEnd}
     >
       {showOverflowFades
-        ? <HorizontalScrollViewport label="Task board columns" contentClassName="flex gap-3 pb-4 px-2">{columns}</HorizontalScrollViewport>
+        ? <HorizontalScrollViewport label="Task operator columns" contentClassName="flex gap-3 pb-4 px-2">{columns}</HorizontalScrollViewport>
         : <div className="flex gap-3 overflow-x-auto pb-4 -mx-2 px-2">{columns}</div>}
       <DragOverlay>
         {activeIssue ? (

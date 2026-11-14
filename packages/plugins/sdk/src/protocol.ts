@@ -7,7 +7,7 @@ import type { AiConnectionRouterRequest, AiConnectionRouterResult } from "@outpo
  * JSON-RPC 2.0 message types and protocol helpers for the host ↔ worker IPC
  * channel.
  *
- * The Paperclip plugin runtime uses JSON-RPC 2.0 over stdio to communicate
+ * The Outpost plugin runtime uses JSON-RPC 2.0 over stdio to communicate
  * between the host process and each plugin worker process. This module defines:
  *
  * - Core JSON-RPC 2.0 envelope types (request, response, notification, error)
@@ -21,13 +21,13 @@ import type { AiConnectionRouterRequest, AiConnectionRouterResult } from "@outpo
  */
 
 import type {
-  PaperclipPluginManifestV1,
+  OutpostPluginManifestV1,
   PluginLauncherBounds,
   PluginLauncherRenderContextSnapshot,
   PluginLauncherRenderEnvironment,
   PluginStateScopeKind,
   PluginEntityQuery,
-  Company,
+  Space,
   Project,
   Issue,
   IssueComment,
@@ -101,7 +101,7 @@ export const JSONRPC_VERSION = "2.0" as const;
 
 /**
  * A unique request identifier. JSON-RPC 2.0 allows strings or numbers;
- * we use strings (UUIDs or monotonic counters) for all Paperclip messages.
+ * we use strings (UUIDs or monotonic counters) for all Outpost messages.
  */
 export type JsonRpcId = string | number;
 
@@ -110,7 +110,7 @@ export type JsonRpcId = string | number;
  * invocation id on nested worker→host calls, but they never author this scope.
  */
 export interface JsonRpcInvocationScope {
-  readonly companyId?: string | null;
+  readonly spaceId?: string | null;
 }
 
 export interface JsonRpcInvocationContext {
@@ -140,9 +140,9 @@ export interface JsonRpcRequest<
    * executing. The worker treats this as opaque and echoes only the id on
    * worker→host calls made from the same async execution context.
    */
-  readonly paperclipInvocation?: PluginInvocationContext;
+  readonly outpostInvocation?: PluginInvocationContext;
   /** Opaque top-level invocation id echoed by worker→host requests. */
-  readonly paperclipInvocationId?: string;
+  readonly outpostInvocationId?: string;
 }
 
 /**
@@ -205,11 +205,11 @@ export interface JsonRpcNotification<
   readonly params: TParams;
   /**
    * Host-issued metadata for host→worker push notifications such as events.
-   * Worker→host notifications echo only `paperclipInvocationId`.
+   * Worker→host notifications echo only `outpostInvocationId`.
    */
-  readonly paperclipInvocation?: PluginInvocationContext;
+  readonly outpostInvocation?: PluginInvocationContext;
   /** Opaque top-level invocation id echoed by worker→host notifications. */
-  readonly paperclipInvocationId?: string;
+  readonly outpostInvocationId?: string;
 }
 
 /**
@@ -246,7 +246,7 @@ export type JsonRpcErrorCode =
   (typeof JSONRPC_ERROR_CODES)[keyof typeof JSONRPC_ERROR_CODES];
 
 /**
- * Paperclip plugin-specific error codes.
+ * Outpost plugin-specific error codes.
  *
  * These live in the JSON-RPC "server error" reserved range (-32000 to -32099)
  * as specified by JSON-RPC 2.0 for implementation-defined server errors.
@@ -264,14 +264,14 @@ export const PLUGIN_RPC_ERROR_CODES = {
   TIMEOUT: -32003,
   /** The worker does not implement the requested optional method. */
   METHOD_NOT_IMPLEMENTED: -32004,
-  /** The worker→host call attempted to escape the current invocation company scope. */
+  /** The worker→host call attempted to escape the current invocation space scope. */
   INVOCATION_SCOPE_DENIED: -32005,
   /**
    * A `configChanged` delivery would have collapsed a single-tenant worker onto
-   * a second, distinct company's configuration. The worker fails closed instead
+   * a second, distinct space's configuration. The worker fails closed instead
    * of silently overwriting the already-applied tenant's config. A plugin that
-   * genuinely serves multiple companies from one worker must opt in via
-   * `multiCompanyConfig: true` on its definition.
+   * genuinely serves multiple spaces from one worker must opt in via
+   * `multiSpaceConfig: true` on its definition.
    */
   CROSS_TENANT_CONFIG: -32006,
   /** A catch-all for errors that do not fit other categories. */
@@ -286,11 +286,11 @@ export type PluginRpcErrorCode =
 // ---------------------------------------------------------------------------
 
 /**
- * Company scope attached by the host to one top-level plugin invocation.
+ * Space scope attached by the host to one top-level plugin invocation.
  * Absence of this metadata means the invocation is instance/global scoped.
  */
 export interface PluginInvocationScope {
-  companyId: string;
+  spaceId: string;
   agentOrigin?: { agentId: string; runId?: string | null };
   projectGit?: { projectId: string; workspaceId?: string; runId?: string; agentId?: string; operation?: "prepare" | "inspect" | "remove" };
 }
@@ -349,14 +349,14 @@ export interface WorkerHostCallContext {
  */
 export interface InitializeParams {
   /** Full plugin manifest snapshot. */
-  manifest: PaperclipPluginManifestV1;
-  /** Bootstrap configuration. Company-scoped config is read via `ctx.config.get(companyId)`. */
+  manifest: OutpostPluginManifestV1;
+  /** Bootstrap configuration. Space-scoped config is read via `ctx.config.get(spaceId)`. */
   config: Record<string, unknown>;
   /** Instance-level metadata. */
   instanceInfo: {
-    /** UUID of this Paperclip instance. */
+    /** UUID of this Outpost instance. */
     instanceId: string;
-    /** Semver version of the running Paperclip host. */
+    /** Semver version of the running Outpost host. */
     hostVersion: string;
   };
   /** Host API version. */
@@ -381,10 +381,10 @@ export interface InitializeResult {
  * @see PLUGIN_SPEC.md §13.4 — `configChanged`
  */
 export interface ConfigChangedParams {
-  /** The newly resolved company-scoped configuration. */
+  /** The newly resolved space-scoped configuration. */
   config: Record<string, unknown>;
-  /** Company whose plugin config changed. */
-  companyId?: string | null;
+  /** Space whose plugin config changed. */
+  spaceId?: string | null;
 }
 
 /**
@@ -425,8 +425,8 @@ export interface RunJobParams {
 export interface GetDataParams {
   /** Plugin-defined data key (e.g. `"sync-health"`). */
   key: string;
-  /** Host-authorized active company scope, when this bridge call is company-scoped. */
-  companyId?: string | null;
+  /** Host-authorized active space scope, when this bridge call is space-scoped. */
+  spaceId?: string | null;
   /** Context and query parameters from the UI. */
   params: Record<string, unknown>;
   /** Optional launcher/container metadata from the host render environment. */
@@ -441,30 +441,30 @@ export interface GetDataParams {
 export type PluginPerformActionActorType = "user" | "agent" | "system";
 
 export interface PluginPerformActionActorContext {
-  /** Authenticated principal type resolved by the Paperclip host. */
+  /** Authenticated principal type resolved by the Outpost host. */
   type: PluginPerformActionActorType;
-  /** Authenticated board user id when `type === "user"`, otherwise null. */
+  /** Authenticated operator id when `type === "user"`, otherwise null. */
   userId: string | null;
   /** Authenticated agent id when `type === "agent"`, otherwise null. */
   agentId: string | null;
   /** Authenticated heartbeat/run id when available. */
   runId: string | null;
-  /** Company id authorized by the host bridge for this action, when applicable. */
-  companyId: string | null;
+  /** Space id authorized by the host bridge for this action, when applicable. */
+  spaceId: string | null;
 }
 
 export interface PluginPerformActionContext {
   /** Immutable authenticated actor context supplied by the host. */
   actor: Readonly<PluginPerformActionActorContext>;
-  /** Convenience alias for `actor.companyId`. */
-  companyId: string | null;
+  /** Convenience alias for `actor.spaceId`. */
+  spaceId: string | null;
 }
 
 export interface PerformActionParams {
   /** Plugin-defined action key (e.g. `"resync"`). */
   key: string;
-  /** Host-authorized active company scope, when this bridge call is company-scoped. */
-  companyId?: string | null;
+  /** Host-authorized active space scope, when this bridge call is space-scoped. */
+  spaceId?: string | null;
   /** Action parameters from the UI. */
   params: Record<string, unknown>;
   /** Authenticated actor context resolved by the host, never by caller params. */
@@ -496,7 +496,7 @@ export interface PluginExternalObjectUrlCandidate {
 }
 
 export interface PluginExternalObjectSourceContext {
-  companyId: string;
+  spaceId: string;
   sourceIssueId: string;
   sourceKind: ExternalObjectMentionSourceKind;
   sourceRecordId: string | null;
@@ -505,7 +505,7 @@ export interface PluginExternalObjectSourceContext {
 }
 
 export interface DetectExternalObjectsParams {
-  companyId: string;
+  spaceId: string;
   urls: PluginExternalObjectUrlCandidate[];
   sourceContext: PluginExternalObjectSourceContext;
 }
@@ -527,7 +527,7 @@ export interface DetectExternalObjectsResult {
 
 export interface PluginExternalObjectRecordSnapshot {
   id: string;
-  companyId: string;
+  spaceId: string;
   providerKey: string;
   objectType: string;
   externalId: string;
@@ -549,7 +549,7 @@ export interface PluginExternalObjectRecordSnapshot {
 }
 
 export interface ResolveExternalObjectParams {
-  companyId: string;
+  spaceId: string;
   providerKey: string;
   objectType: string;
   externalId: string;
@@ -583,7 +583,7 @@ export type PluginExternalObjectResolveResult =
     };
 
 export interface RefreshExternalObjectsParams {
-  companyId: string;
+  spaceId: string;
   objects: PluginExternalObjectRecordSnapshot[];
 }
 
@@ -603,7 +603,7 @@ export interface PluginEnvironmentDiagnostic {
 
 export interface PluginEnvironmentDriverBaseParams {
   driverKey: string;
-  companyId: string;
+  spaceId: string;
   environmentId: string;
   issueId?: string | null;
   config: Record<string, unknown>;
@@ -875,7 +875,7 @@ export interface PluginSyncFileMapping {
  * aborts the operation).
  *
  * SECURITY — command origin (Stage-1 design review, condition C1). `command` is
- * a **Paperclip/adapter-authored control operation**: it may be supplied ONLY by
+ * a **Outpost/adapter-authored control operation**: it may be supplied ONLY by
  * core/adapter code. No server route, issue/comment content, project/workspace
  * file content, provider-plugin callback, or arbitrary adapter config may supply
  * a raw `command` string, and any path embedded in it MUST be built by
@@ -1109,8 +1109,8 @@ export interface PluginLoginPtyOpenParams {
   hostRouteId: string;
   /** The environment driver key, for the worker sandbox scope. It routes the worker; it confers no command authority. */
   driverKey: string;
-  /** The company that owns the login session. */
-  companyId: string;
+  /** The space that owns the login session. */
+  spaceId: string;
   /** The environment the login session runs in. */
   environmentId: string;
   /** The provider lease the sandbox is cached under. The worker resolves the sandbox by it. */
@@ -1122,7 +1122,7 @@ export interface PluginLoginPtyOpenParams {
   loginCommandKey: PluginLoginCommandKey;
   /**
    * The server-controlled, validated session home. The shape is exact:
-   * `/tmp/paperclip-adapter-login/<uuid>`. The worker revalidates the shape
+   * `/tmp/outpost-adapter-login/<uuid>`. The worker revalidates the shape
    * before it touches the filesystem.
    */
   sessionHome: string;
@@ -1136,8 +1136,8 @@ export interface PluginLoginPtyOpenResult {
 
 /** The input request. It carries the worker session identifier and the raw input bytes. */
 export interface PluginLoginPtyInputParams {
-  /** Host-bound company context for provider callbacks during this lifecycle call. */
-  companyId?: string;
+  /** Host-bound space context for provider callbacks during this lifecycle call. */
+  spaceId?: string;
   /** Stable identity of this input write. Retries retain the identity and bytes. */
   inputId?: string;
   /** The worker session identifier that the open reply returned. */
@@ -1149,7 +1149,7 @@ export interface PluginLoginPtyInputParams {
 /** Read the fixed Codex result of a bound login allocation; never an arbitrary path. */
 export interface PluginLoginPtyReadCredentialParams {
   driverKey: string;
-  companyId: string;
+  spaceId: string;
   environmentId: string;
   providerLeaseId: string;
   loginCommandKey: "codex";
@@ -1162,16 +1162,16 @@ export interface PluginLoginPtyReadCredentialResult {
 
 /** The stop request. It carries the worker session identifier. */
 export interface PluginLoginPtyStopParams {
-  /** Host-bound company context for provider callbacks during this lifecycle call. */
-  companyId?: string;
+  /** Host-bound space context for provider callbacks during this lifecycle call. */
+  spaceId?: string;
   /** The worker session identifier that the open reply returned. */
   workerSessionId: string;
 }
 
 /** The close request. The host route identifier is the authoritative key. */
 export interface PluginLoginPtyCloseParams {
-  /** Host-bound company context for provider callbacks during this lifecycle call. */
-  companyId?: string;
+  /** Host-bound space context for provider callbacks during this lifecycle call. */
+  spaceId?: string;
   /**
    * The host-owned opaque route identifier. This is the authoritative close key,
    * so the host closes the terminal even when no worker session identifier
@@ -1310,8 +1310,8 @@ export interface PluginDuplexChannelOpenParams {
   hostRouteId: string;
   /** The environment driver key, for the worker sandbox scope. */
   driverKey: string;
-  /** The company that owns the channel. */
-  companyId: string;
+  /** The space that owns the channel. */
+  spaceId: string;
   /** The environment the channel runs in. */
   environmentId: string;
   /** The provider lease the sandbox is cached under. The worker resolves the sandbox by it. */
@@ -1650,7 +1650,7 @@ export interface PluginSpanRecord {
 
 export interface WorkerToHostMethods {
   // Config
-  "config.get": [params: { companyId?: string }, result: Record<string, unknown>];
+  "config.get": [params: { spaceId?: string }, result: Record<string, unknown>];
 
   // Trusted local folders
   "localFolders.declarations": [
@@ -1659,7 +1659,7 @@ export interface WorkerToHostMethods {
   ];
   "localFolders.configure": [
     params: {
-      companyId: string;
+      spaceId: string;
       folderKey: string;
       path: string;
       access?: "read" | "readWrite";
@@ -1669,20 +1669,20 @@ export interface WorkerToHostMethods {
     result: PluginLocalFolderStatus,
   ];
   "localFolders.status": [
-    params: { companyId: string; folderKey: string },
+    params: { spaceId: string; folderKey: string },
     result: PluginLocalFolderStatus,
   ];
   "localFolders.list": [
-    params: { companyId: string; folderKey: string; relativePath?: string | null; recursive?: boolean; maxEntries?: number },
+    params: { spaceId: string; folderKey: string; relativePath?: string | null; recursive?: boolean; maxEntries?: number },
     result: PluginLocalFolderListing,
   ];
   "localFolders.readText": [
-    params: { companyId: string; folderKey: string; relativePath: string },
+    params: { spaceId: string; folderKey: string; relativePath: string },
     result: string,
   ];
   "localFolders.writeTextAtomic": [
     params: {
-      companyId: string;
+      spaceId: string;
       folderKey: string;
       relativePath: string;
       contents: string;
@@ -1690,7 +1690,7 @@ export interface WorkerToHostMethods {
     result: PluginLocalFolderStatus,
   ];
   "localFolders.deleteFile": [
-    params: { companyId: string; folderKey: string; relativePath: string },
+    params: { spaceId: string; folderKey: string; relativePath: string },
     result: PluginLocalFolderStatus,
   ];
 
@@ -1763,10 +1763,10 @@ export interface WorkerToHostMethods {
   ];
 
   // Events
-  "events.listLifecycle": [params: { companyId: string; limit?: number; afterId?: string }, result: ResourceLifecycleEvent[]];
-  "events.acknowledgeLifecycle": [params: { companyId: string; eventId: string }, result: void];
+  "events.listLifecycle": [params: { spaceId: string; limit?: number; afterId?: string }, result: ResourceLifecycleEvent[]];
+  "events.acknowledgeLifecycle": [params: { spaceId: string; eventId: string }, result: void];
   "events.emit": [
-    params: { name: string; companyId: string; payload: unknown },
+    params: { name: string; spaceId: string; payload: unknown },
     result: void,
   ];
   "events.subscribe": [
@@ -1782,14 +1782,14 @@ export interface WorkerToHostMethods {
 
   // Secrets
   "secrets.resolve": [
-    params: { secretRef: string | EnvSecretRefBinding; companyId?: string; configPath?: string },
+    params: { secretRef: string | EnvSecretRefBinding; spaceId?: string; configPath?: string },
     result: string,
   ];
 
   // Activity
   "activity.log": [
     params: {
-      companyId: string;
+      spaceId: string;
       message: string;
       entityType?: string;
       entityId?: string;
@@ -1804,8 +1804,8 @@ export interface WorkerToHostMethods {
       name: string;
       value: number;
       tags?: Record<string, string>;
-      /** Owning tenant for `plugin_logs.company_id` (cascade-delete scope). `null`/omitted = instance-scope. */
-      companyId?: string | null;
+      /** Owning tenant for `plugin_logs.space_id` (cascade-delete scope). `null`/omitted = instance-scope. */
+      spaceId?: string | null;
     },
     result: void,
   ];
@@ -1822,8 +1822,8 @@ export interface WorkerToHostMethods {
       level: "info" | "warn" | "error" | "debug";
       message: string;
       meta?: Record<string, unknown>;
-      /** Owning tenant for `plugin_logs.company_id` (cascade-delete scope). `null`/omitted = instance-scope. */
-      companyId?: string | null;
+      /** Owning tenant for `plugin_logs.space_id` (cascade-delete scope). `null`/omitted = instance-scope. */
+      spaceId?: string | null;
     },
     result: void,
   ];
@@ -1838,76 +1838,76 @@ export interface WorkerToHostMethods {
     result: void,
   ];
 
-  // Companies (read)
-  "companies.list": [
+  // Spaces (read)
+  "spaces.list": [
     params: { limit?: number; offset?: number },
-    result: Company[],
+    result: Space[],
   ];
-  "companies.get": [
-    params: { companyId: string },
-    result: Company | null,
+  "spaces.get": [
+    params: { spaceId: string },
+    result: Space | null,
   ];
 
   // Projects (read)
   "projects.list": [
-    params: { companyId: string; limit?: number; offset?: number },
+    params: { spaceId: string; limit?: number; offset?: number },
     result: Project[],
   ];
   "projects.resolveGitCredential": [
-    params: { projectId: string; workspaceId: string; companyId: string },
+    params: { projectId: string; workspaceId: string; spaceId: string },
     result: string | null,
   ];
   "projects.getInstanceSecrets": [
-    params: { projectId: string; companyId: string },
+    params: { projectId: string; spaceId: string },
     result: Record<string, string>,
   ];
   "projects.readSnapshots": [
-    params: { projectIds: string[]; companyId: string; entityType: string },
+    params: { projectIds: string[]; spaceId: string; entityType: string },
     result: PluginProjectSnapshot[],
   ];
   "projects.get": [
-    params: { projectId: string; companyId: string },
+    params: { projectId: string; spaceId: string },
     result: Project | null,
   ];
   "projects.listWorkspaces": [
-    params: { projectId: string; companyId: string },
+    params: { projectId: string; spaceId: string },
     result: PluginWorkspace[],
   ];
   "projects.getPrimaryWorkspace": [
-    params: { projectId: string; companyId: string },
+    params: { projectId: string; spaceId: string },
     result: PluginWorkspace | null,
   ];
   "projects.getWorkspaceForIssue": [
-    params: { issueId: string; companyId: string },
+    params: { issueId: string; spaceId: string },
     result: PluginWorkspace | null,
   ];
   "executionWorkspaces.get": [
     params: {
       workspaceId: string;
-      companyId: string;
+      spaceId: string;
     },
     result: PluginExecutionWorkspaceMetadata | null,
   ];
   "projects.managed.get": [
-    params: { projectKey: string; companyId: string },
+    params: { projectKey: string; spaceId: string },
     result: PluginManagedProjectResolution,
   ];
   "projects.managed.reconcile": [
-    params: { projectKey: string; companyId: string },
+    params: { projectKey: string; spaceId: string },
     result: PluginManagedProjectResolution,
   ];
   "projects.managed.reset": [
-    params: { projectKey: string; companyId: string },
+    params: { projectKey: string; spaceId: string },
     result: PluginManagedProjectResolution,
   ];
   "routines.managed.get": [
-    params: { routineKey: string; companyId: string },
+    params: { routineKey: string; spaceId: string },
     result: PluginManagedRoutineResolution,
   ];
   "routines.managed.reconcile": [
     params: {
       routineKey: string;
-      companyId: string;
+      spaceId: string;
       assigneeAgentId?: string | null;
       projectId?: string | null;
     },
@@ -1916,7 +1916,7 @@ export interface WorkerToHostMethods {
   "routines.managed.reset": [
     params: {
       routineKey: string;
-      companyId: string;
+      spaceId: string;
       assigneeAgentId?: string | null;
       projectId?: string | null;
     },
@@ -1925,7 +1925,7 @@ export interface WorkerToHostMethods {
   "routines.managed.update": [
     params: {
       routineKey: string;
-      companyId: string;
+      spaceId: string;
       status?: string;
     },
     result: Routine,
@@ -1933,29 +1933,29 @@ export interface WorkerToHostMethods {
   "routines.managed.run": [
     params: {
       routineKey: string;
-      companyId: string;
+      spaceId: string;
       assigneeAgentId?: string | null;
       projectId?: string | null;
     },
     result: RoutineRun,
   ];
   "skills.managed.get": [
-    params: { skillKey: string; companyId: string },
+    params: { skillKey: string; spaceId: string },
     result: PluginManagedSkillResolution,
   ];
   "skills.managed.reconcile": [
-    params: { skillKey: string; companyId: string },
+    params: { skillKey: string; spaceId: string },
     result: PluginManagedSkillResolution,
   ];
   "skills.managed.reset": [
-    params: { skillKey: string; companyId: string },
+    params: { skillKey: string; spaceId: string },
     result: PluginManagedSkillResolution,
   ];
 
   // Issues
   "issues.list": [
     params: {
-      companyId: string;
+      spaceId: string;
       projectId?: string;
       assigneeAgentId?: string;
       originKind?: string;
@@ -1969,12 +1969,12 @@ export interface WorkerToHostMethods {
     result: Issue[],
   ];
   "issues.get": [
-    params: { issueId: string; companyId: string },
+    params: { issueId: string; spaceId: string },
     result: Issue | null,
   ];
   "issues.create": [
     params: {
-      companyId: string;
+      spaceId: string;
       projectId?: string;
       goalId?: string;
       parentId?: string;
@@ -2007,18 +2007,18 @@ export interface WorkerToHostMethods {
     params: {
       issueId: string;
       patch: Record<string, unknown>;
-      companyId: string;
+      spaceId: string;
     },
     result: Issue,
   ];
   "issues.relations.get": [
-    params: { issueId: string; companyId: string },
+    params: { issueId: string; spaceId: string },
     result: PluginIssueRelationSummary,
   ];
   "issues.relations.setBlockedBy": [
     params: {
       issueId: string;
-      companyId: string;
+      spaceId: string;
       blockedByIssueIds: string[];
       actorAgentId?: string | null;
       actorUserId?: string | null;
@@ -2029,7 +2029,7 @@ export interface WorkerToHostMethods {
   "issues.relations.addBlockers": [
     params: {
       issueId: string;
-      companyId: string;
+      spaceId: string;
       blockerIssueIds: string[];
       actorAgentId?: string | null;
       actorUserId?: string | null;
@@ -2040,7 +2040,7 @@ export interface WorkerToHostMethods {
   "issues.relations.removeBlockers": [
     params: {
       issueId: string;
-      companyId: string;
+      spaceId: string;
       blockerIssueIds: string[];
       actorAgentId?: string | null;
       actorUserId?: string | null;
@@ -2051,7 +2051,7 @@ export interface WorkerToHostMethods {
   "issues.assertCheckoutOwner": [
     params: {
       issueId: string;
-      companyId: string;
+      spaceId: string;
       actorAgentId: string;
       actorRunId: string;
     },
@@ -2060,7 +2060,7 @@ export interface WorkerToHostMethods {
   "issues.getSubtree": [
     params: {
       issueId: string;
-      companyId: string;
+      spaceId: string;
       includeRoot?: boolean;
       includeRelations?: boolean;
       includeDocuments?: boolean;
@@ -2072,7 +2072,7 @@ export interface WorkerToHostMethods {
   "issues.requestWakeup": [
     params: {
       issueId: string;
-      companyId: string;
+      spaceId: string;
       reason?: string;
       contextSource?: string;
       idempotencyKey?: string | null;
@@ -2085,7 +2085,7 @@ export interface WorkerToHostMethods {
   "issues.requestWakeups": [
     params: {
       issueIds: string[];
-      companyId: string;
+      spaceId: string;
       reason?: string;
       contextSource?: string;
       idempotencyKeyPrefix?: string | null;
@@ -2098,23 +2098,23 @@ export interface WorkerToHostMethods {
   "issues.summaries.getOrchestration": [
     params: {
       issueId: string;
-      companyId: string;
+      spaceId: string;
       includeSubtree?: boolean;
       billingCode?: string | null;
     },
     result: PluginIssueOrchestrationSummary,
   ];
   "issues.listComments": [
-    params: { issueId: string; companyId: string },
+    params: { issueId: string; spaceId: string },
     result: IssueComment[],
   ];
   "issues.createComment": [
     params: {
       issueId: string;
       body: string;
-      companyId: string;
+      spaceId: string;
       authorAgentId?: string;
-      /** Active human company member the comment is attributed to. Requires `issue.comments.create_human_attributed`. */
+      /** Active human space member the comment is attributed to. Requires `issue.comments.create_human_attributed`. */
       actorUserId?: string;
     },
     result: IssueComment,
@@ -2122,24 +2122,24 @@ export interface WorkerToHostMethods {
   "issues.createInteraction": [
     params: {
       issueId: string;
-      companyId: string;
+      spaceId: string;
       interaction: CreateIssueThreadInteractionInput;
       authorAgentId?: string | null;
     },
     result: IssueThreadInteraction,
   ];
   "issues.listInteractions": [
-    params: { issueId: string; companyId: string },
+    params: { issueId: string; spaceId: string },
     result: IssueThreadInteraction[],
   ];
   "issues.respondInteraction": [
     params: {
       issueId: string;
       interactionId: string;
-      companyId: string;
+      spaceId: string;
       action: "accept" | "reject";
       /**
-       * Active human company member the decision is attributed to. Required —
+       * Active human space member the decision is attributed to. Required —
        * resolving an interaction is a board-user action; the host re-verifies
        * active membership at apply time and never trusts this value blindly.
        */
@@ -2149,21 +2149,21 @@ export interface WorkerToHostMethods {
     result: { interaction: IssueThreadInteraction; applied: boolean },
   ];
   "issues.listAttachments": [
-    params: { issueId: string; companyId: string },
+    params: { issueId: string; spaceId: string },
     result: IssueAttachment[],
   ];
   "issues.getAttachmentContent": [
-    params: { attachmentId: string; companyId: string; maxBytes?: number | null },
+    params: { attachmentId: string; spaceId: string; maxBytes?: number | null },
     result: PluginIssueAttachmentContent | null,
   ];
 
   // Issue Documents
   "issues.documents.list": [
-    params: { issueId: string; companyId: string },
+    params: { issueId: string; spaceId: string },
     result: IssueDocumentSummary[],
   ];
   "issues.documents.get": [
-    params: { issueId: string; key: string; companyId: string },
+    params: { issueId: string; key: string; spaceId: string },
     result: IssueDocument | null,
   ];
   "issues.documents.upsert": [
@@ -2171,7 +2171,7 @@ export interface WorkerToHostMethods {
       issueId: string;
       key: string;
       body: string;
-      companyId: string;
+      spaceId: string;
       title?: string;
       format?: string;
       changeSummary?: string;
@@ -2179,26 +2179,26 @@ export interface WorkerToHostMethods {
     result: IssueDocument,
   ];
   "issues.documents.delete": [
-    params: { issueId: string; key: string; companyId: string },
+    params: { issueId: string; key: string; spaceId: string },
     result: void,
   ];
 
   // Approvals
   "approvals.list": [
-    params: { companyId: string; status?: string | null },
+    params: { spaceId: string; status?: string | null },
     result: Approval[],
   ];
   "approvals.get": [
-    params: { approvalId: string; companyId: string },
+    params: { approvalId: string; spaceId: string },
     result: Approval | null,
   ];
   "approvals.decide": [
     params: {
       approvalId: string;
-      companyId: string;
+      spaceId: string;
       action: "approve" | "reject";
       /**
-       * Active human company member the decision is attributed to. Required —
+       * Active human space member the decision is attributed to. Required —
        * deciding an approval is a board-user action; the host re-verifies
        * active membership at apply time and never trusts this value blindly.
        */
@@ -2210,78 +2210,78 @@ export interface WorkerToHostMethods {
 
   // Agents (read)
   "agents.list": [
-    params: { companyId: string; status?: string; limit?: number; offset?: number },
+    params: { spaceId: string; status?: string; limit?: number; offset?: number },
     result: Agent[],
   ];
   "agents.getRuntimeIdentity": [
-    params: { agentId: string; companyId: string },
+    params: { agentId: string; spaceId: string },
     result: PluginAgentRuntimeIdentity | null,
   ];
   "agents.getRuntime": [
-    params: { agentId: string; companyId: string; environmentId?: string; installEnvironmentSkills?: boolean },
+    params: { agentId: string; spaceId: string; environmentId?: string; installEnvironmentSkills?: boolean },
     result: PluginAgentRuntimeState | null,
   ];
   "agents.get": [
-    params: { agentId: string; companyId: string },
+    params: { agentId: string; spaceId: string },
     result: Agent | null,
   ];
 
   // Agents (write)
   "agents.pause": [
-    params: { agentId: string; companyId: string },
+    params: { agentId: string; spaceId: string },
     result: Agent,
   ];
   "agents.resume": [
-    params: { agentId: string; companyId: string },
+    params: { agentId: string; spaceId: string },
     result: Agent,
   ];
   "agents.invoke": [
-    params: { agentId: string; companyId: string; prompt: string; reason?: string },
+    params: { agentId: string; spaceId: string; prompt: string; reason?: string },
     result: { runId: string },
   ];
   "agents.managed.get": [
-    params: { agentKey: string; companyId: string },
+    params: { agentKey: string; spaceId: string },
     result: PluginManagedAgentResolution,
   ];
   "agents.managed.reconcile": [
-    params: { agentKey: string; companyId: string },
+    params: { agentKey: string; spaceId: string },
     result: PluginManagedAgentResolution,
   ];
   "agents.managed.reset": [
-    params: { agentKey: string; companyId: string },
+    params: { agentKey: string; spaceId: string },
     result: PluginManagedAgentResolution,
   ];
 
   // Agent Sessions
   "agents.sessions.create": [
-    params: { agentId: string; companyId: string; taskKey?: string; reason?: string },
-    result: { sessionId: string; agentId: string; companyId: string; status: "active" | "closed"; createdAt: string },
+    params: { agentId: string; spaceId: string; taskKey?: string; reason?: string },
+    result: { sessionId: string; agentId: string; spaceId: string; status: "active" | "closed"; createdAt: string },
   ];
   "agents.sessions.list": [
-    params: { agentId: string; companyId: string },
-    result: Array<{ sessionId: string; agentId: string; companyId: string; status: "active" | "closed"; createdAt: string }>,
+    params: { agentId: string; spaceId: string },
+    result: Array<{ sessionId: string; agentId: string; spaceId: string; status: "active" | "closed"; createdAt: string }>,
   ];
   "agents.sessions.sendMessage": [
-    params: { sessionId: string; companyId: string; prompt: string; reason?: string },
+    params: { sessionId: string; spaceId: string; prompt: string; reason?: string },
     result: { runId: string },
   ];
   "agents.sessions.close": [
-    params: { sessionId: string; companyId: string },
+    params: { sessionId: string; spaceId: string },
     result: void,
   ];
 
   // Goals
   "goals.list": [
-    params: { companyId: string; level?: string; status?: string; limit?: number; offset?: number },
+    params: { spaceId: string; level?: string; status?: string; limit?: number; offset?: number },
     result: Goal[],
   ];
   "goals.get": [
-    params: { goalId: string; companyId: string },
+    params: { goalId: string; spaceId: string },
     result: Goal | null,
   ];
   "goals.create": [
     params: {
-      companyId: string;
+      spaceId: string;
       title: string;
       description?: string;
       level?: string;
@@ -2295,24 +2295,24 @@ export interface WorkerToHostMethods {
     params: {
       goalId: string;
       patch: Record<string, unknown>;
-      companyId: string;
+      spaceId: string;
     },
     result: Goal,
   ];
 
   // Access
   "access.members.list": [
-    params: { companyId: string; includeArchived?: boolean },
+    params: { spaceId: string; includeArchived?: boolean },
     result: PluginAccessMember[],
   ];
   "access.members.get": [
-    params: { memberId: string; companyId: string },
+    params: { memberId: string; spaceId: string },
     result: PluginAccessMember | null,
   ];
   "access.members.update": [
     params: {
       memberId: string;
-      companyId: string;
+      spaceId: string;
       patch: {
         membershipRole?: string | null;
         status?: "pending" | "active" | "suspended";
@@ -2322,7 +2322,7 @@ export interface WorkerToHostMethods {
   ];
   "access.invites.list": [
     params: {
-      companyId: string;
+      spaceId: string;
       state?: "active" | "revoked" | "accepted" | "expired";
       limit?: number;
       offset?: number;
@@ -2331,7 +2331,7 @@ export interface WorkerToHostMethods {
   ];
   "access.invites.create": [
     params: {
-      companyId: string;
+      spaceId: string;
       allowedJoinTypes?: "human" | "agent" | "both";
       humanRole?: string | null;
       defaultsPayload?: Record<string, unknown> | null;
@@ -2340,18 +2340,18 @@ export interface WorkerToHostMethods {
     result: PluginAccessInvite & { token: string },
   ];
   "access.invites.revoke": [
-    params: { inviteId: string; companyId: string },
+    params: { inviteId: string; spaceId: string },
     result: PluginAccessInvite,
   ];
 
   // Authorization
   "authorization.grants.list": [
-    params: { companyId: string; principalType?: string; principalId?: string },
+    params: { spaceId: string; principalType?: string; principalId?: string },
     result: PrincipalPermissionGrant[],
   ];
   "authorization.grants.set": [
     params: {
-      companyId: string;
+      spaceId: string;
       principalType: string;
       principalId: string;
       grants: Array<{ permissionKey: string; scope?: Record<string, unknown> | null }>;
@@ -2360,17 +2360,17 @@ export interface WorkerToHostMethods {
     result: PrincipalPermissionGrant[],
   ];
   "authorization.policies.summary": [
-    params: { companyId: string },
+    params: { spaceId: string },
     result: PluginAuthorizationPolicySummary,
   ];
   "authorization.policies.get": [
-    params: { companyId: string; resourceType: "company" | "agent" | "project" | "issue"; resourceId: string },
+    params: { spaceId: string; resourceType: "space" | "agent" | "project" | "issue"; resourceId: string },
     result: PluginAuthorizationPolicyRecord | null,
   ];
   "authorization.policies.update": [
     params: {
-      companyId: string;
-      resourceType: "company" | "agent" | "project" | "issue";
+      spaceId: string;
+      resourceType: "space" | "agent" | "project" | "issue";
       resourceId: string;
       policy: Record<string, unknown> | null;
     },
@@ -2386,7 +2386,7 @@ export interface WorkerToHostMethods {
   ];
   "authorization.audit.search": [
     params: {
-      companyId: string;
+      spaceId: string;
       action?: string;
       actorType?: string;
       actorId?: string;
@@ -2419,28 +2419,28 @@ export interface WorkerToHostNotifications {
    *
    * Emitted by the worker for each event on a stream channel. The host
    * publishes to the PluginStreamBus, which fans out to all SSE clients
-   * subscribed to the (pluginId, channel, companyId) tuple.
+   * subscribed to the (pluginId, channel, spaceId) tuple.
    *
    * The `event` payload is JSON-serializable and sent as SSE `data:`.
    * The default SSE event type is `"message"`.
    */
   "streams.emit": {
     channel: string;
-    companyId: string;
+    spaceId: string;
     event: unknown;
   };
 
   /**
    * Signal that a stream channel has been opened.
    *
-   * Emitted when the worker calls `ctx.streams.open(channel, companyId)`.
+   * Emitted when the worker calls `ctx.streams.open(channel, spaceId)`.
    * UI clients may use this to display a "connected" indicator or begin
    * buffering input. The host tracks open channels so it can emit synthetic
    * close events if the worker crashes.
    */
   "streams.open": {
     channel: string;
-    companyId: string;
+    spaceId: string;
   };
 
   /**
@@ -2453,7 +2453,7 @@ export interface WorkerToHostNotifications {
    */
   "streams.close": {
     channel: string;
-    companyId: string;
+    spaceId: string;
   };
 
   /**
@@ -2462,14 +2462,14 @@ export interface WorkerToHostNotifications {
    *
    * The worker emits this notification for each new `stdout` or `stderr` chunk
    * while one execute call runs. The host reads the active invocation id from
-   * the envelope field `paperclipInvocationId`, which the worker RPC host stamps
+   * the envelope field `outpostInvocationId`, which the worker RPC host stamps
    * from the active invocation context. The host correlates the chunk to the
    * host-owned execute route for that id and delivers it to that route's
    * `onLog` callback.
    *
-   * Security: the notification carries no company id on purpose. The
-   * invocation-to-company binding on the host execute route is authoritative.
-   * The host never reads a company id from this payload to select the route or
+   * Security: the notification carries no space id on purpose. The
+   * invocation-to-space binding on the host execute route is authoritative.
+   * The host never reads a space id from this payload to select the route or
    * to grant access. The `chunk` is a text string, because JSON-RPC cannot
    * carry raw bytes; the host drops a chunk that is not a bounded non-empty
    * string or whose stream name is not exactly `stdout` or `stderr`.

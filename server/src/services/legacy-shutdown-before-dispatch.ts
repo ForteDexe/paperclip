@@ -43,9 +43,9 @@ export function legacyShutdownBeforeDispatchCondition() {
       'nativeExecutionInput', 'nativeWorkspaceSync', 'remoteWorkspace', 'nativeWorkspaceFinalizationOwner', 'sessionCheckpoint'])`,
     sql`coalesce(${heartbeatRuns.runnerProfileJson}#>>'{adapterDispatch,adapterType}', '') <> 'outpost_runner'`,
     sql`not exists (select 1 from ${nativeRunFinalizations}
-      where ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId} and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id})`,
+      where ${nativeRunFinalizations.spaceId} = ${heartbeatRuns.spaceId} and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id})`,
     sql`not exists (select 1 from ${heartbeatRunEvents}
-      where ${and(eq(heartbeatRunEvents.companyId, heartbeatRuns.companyId),
+      where ${and(eq(heartbeatRunEvents.spaceId, heartbeatRuns.spaceId),
         eq(heartbeatRunEvents.runId, heartbeatRuns.id), executionStartedEventPredicate())})`,
   )!;
 }
@@ -56,14 +56,14 @@ export function legacyShutdownBeforeDispatchCondition() {
  * so the row lock fences a concurrent stage or handoff write. Returns the
  * stamped row, or null when the run does not carry that proof.
  */
-export async function recordLegacyShutdownBeforeDispatch(tx: Db, run: Pick<Run, "id" | "companyId">): Promise<Run | null> {
+export async function recordLegacyShutdownBeforeDispatch(tx: Db, run: Pick<Run, "id" | "spaceId">): Promise<Run | null> {
   const [stamped] = await tx.update(heartbeatRuns).set({
     resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb)
       || jsonb_build_object('executionRecovery', jsonb_build_object('kind', 'bootstrap', 'providerWorkStarted', false))`,
     executionStatusDeliveryId: randomUUID(),
     updatedAt: new Date(),
   }).where(and(
-    eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId),
+    eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId),
     sql`${heartbeatRuns.resultJson}->'executionRecovery' is null`,
     legacyShutdownBeforeDispatchCondition(),
   )).returning();

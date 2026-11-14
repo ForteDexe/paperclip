@@ -1,6 +1,6 @@
 import { codexLocalReasoningEffortsForModel, isCodexLocalFastModeSupported, isCodexLocalKnownModel } from "@outpost/adapter-codex-local";
 import { claudeLocalReasoningEffortsForModel } from "@outpost/adapter-claude-local";
-import { resolvePaperclipRunnerModel } from "@outpost/adapter-utils";
+import { resolveOutpostRunnerModel } from "@outpost/adapter-utils";
 import { DEFAULT_GROK_LOCAL_MODEL, grokLocalReasoningEffortsForModel } from "@outpost/adapter-grok-local";
 import { DEFAULT_KIMI_LOCAL_MODEL, modelSupportsEffort, KIMI_SUPPORTED_EFFORTS } from "@outpost/adapter-kimi-local";
 import { aiConnectionBindingSchema, aiRuntimeConnectionBindingSchema, agentHarnessType, type Agent, type IssueAssigneeAdapterOverrides } from "@outpost/shared";
@@ -44,10 +44,10 @@ export function composerDefaultModel(agent: Agent | undefined): string {
   if (agent.adapterType === "kimi_local") return DEFAULT_KIMI_LOCAL_MODEL;
   if (agent.adapterType === "outpost_runner") {
     const provider = composerCatalogProvider(agent);
-    if (provider === "codex" || provider === "opencode") return resolvePaperclipRunnerModel(provider, config.model);
+    if (provider === "codex" || provider === "opencode") return resolveOutpostRunnerModel(provider, config.model);
     if (provider === "acpx" && config.acpxAgent === "grok") return "grok-4.7";
     if (provider === "acpx" && config.acpxAgent === "kimi") return "";
-    if (provider === "acpx" && config.acpxAgent !== "grok") return resolvePaperclipRunnerModel(provider, config.model);
+    if (provider === "acpx" && config.acpxAgent !== "grok") return resolveOutpostRunnerModel(provider, config.model);
   }
   return "";
 }

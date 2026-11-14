@@ -50,7 +50,7 @@ export interface AppGroup {
 }
 
 /**
- * Group the company-wide catalog into apps, preferring the application name and
+ * Group the space-wide catalog into apps, preferring the application name and
  * falling back to the connection name for application-less connections.
  */
 export function groupCatalogByApp(

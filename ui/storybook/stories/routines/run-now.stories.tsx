@@ -4,7 +4,7 @@ import { RoutineDetail } from "@/pages/RoutineDetail";
 import { ToastViewport } from "@/components/ToastViewport";
 import { expect, userEvent, within, waitFor } from "storybook/test";
 import { baseRoutine } from "../../fixtures/routineWebhooks";
-import { storybookIssues } from "../../fixtures/paperclipData";
+import { storybookIssues } from "../../fixtures/outpostData";
 import {
   prepareFixtureApi,
   type FixtureState,
@@ -31,7 +31,7 @@ const meta = {
   parameters: {
     layout: "padded",
     initialEntries: ["/PAP/routines/routine-gap"],
-    paperclip: {
+    outpost: {
       "capabilities": [
         "routines/run-now"
       ],
@@ -65,7 +65,7 @@ const meta = {
           }),
         },
         { path: "/api/routines/routine-gap/runs", read: () => [] },
-        { path: "/api/companies/company-storybook/issues", read: () => tasks },
+        { path: "/api/spaces/space-storybook/issues", read: () => tasks },
         {
           path: "/api/routines/routine-gap/run",
           method: "POST",
@@ -82,7 +82,7 @@ const meta = {
             ];
             return {
               id: "routine-run-gap",
-              companyId: "company-storybook",
+              spaceId: "space-storybook",
               routineId: "routine-gap",
               status: "enqueued",
               linkedIssueId: "run-task-gap",

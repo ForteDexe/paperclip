@@ -5,9 +5,9 @@ import type { IssueComment } from "../../packages/shared/src/types/issue.js";
 import type { ChatCatalogCase, ChatCatalogContext, ChatSlackIngressReceipt } from "./chat-catalog-contract.js";
 import type { ChatRun } from "./chat-flow.js";
 export const nativeSlackScenarioIds = ["chat-channels.reply-in-thread", "chat-channels.channel-file"] as const;
-/** Actual /chat-endpoints/:id/principals projection: company/endpoint are route
+/** Actual /chat-endpoints/:id/principals projection: space/endpoint are route
  * scope, not fields on these rows. Raw provider identity is checked separately. */
-interface SlackPrincipalLink { principalId:string;externalDetail?:string|null;paperclipUserId?:string|null;status:string }
+interface SlackPrincipalLink { principalId:string;externalDetail?:string|null;outpostUserId?:string|null;status:string }
 interface SlackSenderIdentity {userId:string;workspaceId:string;handle:string}
 export async function verifySelectedSlackSender(ctx:ChatCatalogContext,receipt:ChatSlackIngressReceipt,signal:AbortSignal,fetcher:typeof fetch=fetch):Promise<SlackSenderIdentity>{
  const config=ctx.input.privateInputs?.configuration("external-provider") as {providers?:{slack?:{disposable?:boolean;resourceIds?:string[];prerequisites?:Record<string,string>}}}|undefined,binding=config?.providers?.slack,p=binding?.prerequisites;
@@ -30,29 +30,29 @@ export function validSlackIngressDeclaration(c: Pick<ChatCatalogCase, "scenarioI
       : c.attemptTimeoutMs === 600000 && c.expectedRunCount === 4 && c.minimumRunCount === 2 && c.expectedHumanMessageCount === 1 && c.slackIngress.setupThread === "same-agent-distractor") && (c.setupHumanMessageCount ?? 0) === 0
     && !c.queryBindings?.length && !c.queryAttachments?.length && !c.queryOutcome && !c.companionSurface && !c.runPolicy;
 }
-export function slackIngressReceiptMatches(input: { receipt: ChatSlackIngressReceipt; query: string; companyId: string; agentId: string;
+export function slackIngressReceiptMatches(input: { receipt: ChatSlackIngressReceipt; query: string; spaceId: string; agentId: string;
   endpoint: ChatEndpoint; conversation: ChatConversation | undefined; binding: ExternalChannelBindingSummary; comment: IssueComment | undefined; links: SlackPrincipalLink[];linksEndpointId:string;senderIdentity:SlackSenderIdentity }) {
   const { receipt: r, endpoint: e, conversation: c, binding: b, comment } = input;
   return !!r && r.query === input.query && Number.isSafeInteger(r.providerCalls) && r.providerCalls >= 1 && r.providerCalls <= 20
     && /^T[A-Z0-9]+$/.test(r.provider.workspaceId) && /^[CG][A-Z0-9]+$/.test(r.provider.channelId) && /^[UW][A-Z0-9]+$/.test(r.provider.senderUserId)
     && /^\d+\.\d{6}$/.test(r.provider.threadId) && /^\d+\.\d{6}$/.test(r.provider.canonicalMessageId)
-    && e.id === r.endpointId && e.companyId === input.companyId && e.assignedAgentId === input.agentId && e.provider === "slack" && e.providerAccountId === r.provider.workspaceId
-    && !!c && c.id === r.conversationId && c.endpointId === e.id && c.companyId === input.companyId && c.issueId === r.issueId
+    && e.id === r.endpointId && e.spaceId === input.spaceId && e.assignedAgentId === input.agentId && e.provider === "slack" && e.providerAccountId === r.provider.workspaceId
+    && !!c && c.id === r.conversationId && c.endpointId === e.id && c.spaceId === input.spaceId && c.issueId === r.issueId
     && c.externalThreadId === `slack:${r.provider.channelId}:${r.provider.threadId}` && c.externalConversationId === `slack:${r.provider.channelId}`
     && b.provider === "slack" && b.endpointId === e.id && b.conversationId === c.id && b.assignedAgentLocked === true
-    && !!comment && comment.id === r.humanCommentId && comment.issueId === r.issueId && comment.companyId === input.companyId
-    && comment.body === input.query && !comment.authorAgentId && comment.authorUserId === r.linkedPaperclipUserId && comment.metadata?.sourceChannel === "slack"
+    && !!comment && comment.id === r.humanCommentId && comment.issueId === r.issueId && comment.spaceId === input.spaceId
+    && comment.body === input.query && !comment.authorAgentId && comment.authorUserId === r.linkedOutpostUserId && comment.metadata?.sourceChannel === "slack"
     && Array.isArray(comment.metadata.sections) && comment.metadata.sections.some(section => section.rows.some(row => row.type === "key_value" && row.label === "Provider ID" && row.value === r.provider.senderUserId))
     && input.linksEndpointId===e.id&&input.senderIdentity.userId===r.provider.senderUserId&&input.senderIdentity.workspaceId===r.provider.workspaceId
-    && input.links.some(link => typeof link.principalId==="string"&&!!link.principalId&&link.externalDetail===`@${input.senderIdentity.handle}`&&link.status === "linked" && link.paperclipUserId === r.linkedPaperclipUserId);
+    && input.links.some(link => typeof link.principalId==="string"&&!!link.principalId&&link.externalDetail===`@${input.senderIdentity.handle}`&&link.status === "linked" && link.outpostUserId === r.linkedOutpostUserId);
 }
 export function sameSlackThreadNewMessage(first: ChatSlackIngressReceipt, next: ChatSlackIngressReceipt) {
   return next.query === first.query && next.endpointId === first.endpointId && next.conversationId === first.conversationId && next.issueId === first.issueId
-    && next.linkedPaperclipUserId === first.linkedPaperclipUserId && next.humanCommentId !== first.humanCommentId
+    && next.linkedOutpostUserId === first.linkedOutpostUserId && next.humanCommentId !== first.humanCommentId
     && next.provider.workspaceId === first.provider.workspaceId && next.provider.channelId === first.provider.channelId && next.provider.threadId === first.provider.threadId
     && next.provider.senderUserId === first.provider.senderUserId && next.provider.canonicalMessageId !== first.provider.canonicalMessageId;
 }
-export const slackOtherThreadSetupQuery = "Please summarize the current company project status in this separate discussion.";
+export const slackOtherThreadSetupQuery = "Please summarize the current space project status in this separate discussion.";
 async function independentlyBoundSlackReceipt(ctx:ChatCatalogContext,receipt:ChatSlackIngressReceipt,query:string,signal:AbortSignal){
   for(const id of [receipt?.endpointId,receipt?.conversationId,receipt?.issueId,receipt?.humanCommentId])if(typeof id!=="string"||!/^[a-zA-Z0-9-]{1,100}$/.test(id))throw new Error("Invalid Slack product receipt identity");
   const api = ctx.input.api;
@@ -62,13 +62,13 @@ async function independentlyBoundSlackReceipt(ctx:ChatCatalogContext,receipt:Cha
   const comments = await api.get<IssueComment[]>(`/api/issues/${receipt.issueId}/comments?order=asc`);
   const links = await api.get<SlackPrincipalLink[]>(`/api/chat-endpoints/${receipt.endpointId}/principals`);
   const senderIdentity=await verifySelectedSlackSender(ctx,receipt,signal);
-  const matched = slackIngressReceiptMatches({ receipt, query: query, companyId: ctx.input.fixtures.company.id, agentId: ctx.input.fixtures.agent.id,
+  const matched = slackIngressReceiptMatches({ receipt, query: query, spaceId: ctx.input.fixtures.space.id, agentId: ctx.input.fixtures.agent.id,
     endpoint, conversation: conversations.find(row => row.id === receipt.conversationId), binding, comment: comments.find(row => row.id === receipt.humanCommentId), links,linksEndpointId:receipt.endpointId,senderIdentity })&&receipt.providerCalls+2<=20;
   return matched;
 }
-export function slackOtherThreadBoundaryMatches(input:{receipt:ChatSlackIngressReceipt & {runId:string};runs:ChatRun[];companyId:string;agentId:string;sourceIssueId?:string}){
+export function slackOtherThreadBoundaryMatches(input:{receipt:ChatSlackIngressReceipt & {runId:string};runs:ChatRun[];spaceId:string;agentId:string;sourceIssueId?:string}){
  const {receipt:r,runs}=input;
- return r.query===slackOtherThreadSetupQuery&&runs.length===1&&runs[0]?.id===r.runId&&runs[0].companyId===input.companyId&&runs[0].agentId===input.agentId&&runs[0].runtimeMode==="native"&&runs[0].status==="succeeded"&&runs[0].contextSnapshot?.issueId===r.issueId&&(!input.sourceIssueId||input.sourceIssueId!==r.issueId);
+ return r.query===slackOtherThreadSetupQuery&&runs.length===1&&runs[0]?.id===r.runId&&runs[0].spaceId===input.spaceId&&runs[0].agentId===input.agentId&&runs[0].runtimeMode==="native"&&runs[0].status==="succeeded"&&runs[0].contextSnapshot?.issueId===r.issueId&&(!input.sourceIssueId||input.sourceIssueId!==r.issueId);
 }
 /** One exact precondition exchange on another actual Slack source. Its human
  * comment never enters the canonical source's setup-human history. */
@@ -80,9 +80,9 @@ export async function prepareNativeSlackOtherThread(ctx:ChatCatalogContext,c:Cha
  let receipt:ChatSlackIngressReceipt & {runId:string};
  try{receipt=await Promise.race([c.dispatchSlackOtherThread(ctx,state,{query:slackOtherThreadSetupQuery,signal}),timeout]);}finally{if(listener)signal.removeEventListener("abort",listener);}
 
- const matched=await independentlyBoundSlackReceipt(ctx,receipt,slackOtherThreadSetupQuery,signal)&&slackOtherThreadBoundaryMatches({receipt,runs:await ctx.allRuns(),companyId:ctx.input.fixtures.company.id,agentId:ctx.input.fixtures.agent.id});
+ const matched=await independentlyBoundSlackReceipt(ctx,receipt,slackOtherThreadSetupQuery,signal)&&slackOtherThreadBoundaryMatches({receipt,runs:await ctx.allRuns(),spaceId:ctx.input.fixtures.space.id,agentId:ctx.input.fixtures.agent.id});
  await ctx.input.evidence("chat-slack-other-thread-setup.json",{receipt,matched,canonicalSourceHumanCount:0,includedInTotalNativeBound:true});
- if(!matched||signal.aborted)throw new Error("Actual Slack other-thread setup did not prove its sole linked-human/company/source/native execution");
+ if(!matched||signal.aborted)throw new Error("Actual Slack other-thread setup did not prove its sole linked-human/space/source/native execution");
  state.slackOtherThreadSetupReceipt=receipt;
 }
 /** Provider transport belongs to the selected domain; public product identity
@@ -106,8 +106,8 @@ export async function dispatchNativeSlackIngress(ctx: ChatCatalogContext, c: Cha
   await ctx.input.evidence(`chat-slack-ingress-${phase}-binding.json`, { matched, sameThreadNewMessage, phase, canonicalQuery: ctx.scenario.query, receipt, assignedAgentId: ctx.input.fixtures.agent.id,
     linkedIdentityConfirmed: matched, independentProviderIdentityCalls:2,privateProviderConfiguration: "withheld", providerSenderMapping: "private official human token/profile plus scoped public principal and actual comment" });
   const other=state.slackOtherThreadSetupReceipt as ChatSlackIngressReceipt|undefined;
-  const otherThreadDistinct=ctx.scenario.id!=="chat-channels.reply-in-thread"||!!other&&other.endpointId===receipt.endpointId&&other.issueId!==receipt.issueId&&other.conversationId!==receipt.conversationId&&other.provider.threadId!==receipt.provider.threadId&&other.provider.workspaceId===receipt.provider.workspaceId&&other.provider.channelId===receipt.provider.channelId&&other.provider.senderUserId===receipt.provider.senderUserId&&other.linkedPaperclipUserId===receipt.linkedPaperclipUserId;
-  if (signal.aborted || !matched || !sameThreadNewMessage || !otherThreadDistinct) throw new Error("Slack ingress did not independently bind exact canonical human, linked identity, company and provider thread");
+  const otherThreadDistinct=ctx.scenario.id!=="chat-channels.reply-in-thread"||!!other&&other.endpointId===receipt.endpointId&&other.issueId!==receipt.issueId&&other.conversationId!==receipt.conversationId&&other.provider.threadId!==receipt.provider.threadId&&other.provider.workspaceId===receipt.provider.workspaceId&&other.provider.channelId===receipt.provider.channelId&&other.provider.senderUserId===receipt.provider.senderUserId&&other.linkedOutpostUserId===receipt.linkedOutpostUserId;
+  if (signal.aborted || !matched || !sameThreadNewMessage || !otherThreadDistinct) throw new Error("Slack ingress did not independently bind exact canonical human, linked identity, space and provider thread");
   await ctx.selectSlackSource(receipt.issueId);
   return receipt;
 }
@@ -115,7 +115,7 @@ export async function completeNativeSlackFileConditional(ctx: ChatCatalogContext
   if (c.scenarioId !== "chat-channels.channel-file" || !c.verifySlackSupportedTransfer || !c.dispatchSlackUnsupportedFile) throw new Error("Missing actual Slack file conditional");
   const first = await pollUntil({ label: "real supported Slack transfer before unsupported upload", deadlineAt, intervalMs: 1000,
     load: async () => { const grade = validateChatCatalogGrade(await c.verifySlackSupportedTransfer!(ctx, state)); const runs = await ctx.allRuns(); return { grade, runs }; },
-    accept: value => value.grade.passed && value.runs.length >= 1 && value.runs.length <= 3 && value.runs.every(run => run.runtimeMode === "native" && run.companyId === ctx.input.fixtures.company.id && run.status === "succeeded") && slackNativeRunCheck(ctx, value.runs).passed });
+    accept: value => value.grade.passed && value.runs.length >= 1 && value.runs.length <= 3 && value.runs.every(run => run.runtimeMode === "native" && run.spaceId === ctx.input.fixtures.space.id && run.status === "succeeded") && slackNativeRunCheck(ctx, value.runs).passed });
   state.slackSupportedTransferRunIds = first.runs.map(run => run.id);
   await ctx.input.evidence("chat-slack-supported-transfer-checkpoint.json", { grade: first.grade, runIds: state.slackSupportedTransferRunIds, beforeUnsupportedUpload: true });
   state.slackUnsupportedIngressReceipt = await dispatchNativeSlackIngress(ctx, c, state, deadlineAt, "unsupported-file");
@@ -124,8 +124,8 @@ export function slackNativeRunCheck(ctx: ChatCatalogContext, runs: ChatRun[], st
   const source = ctx.issue();
   const sourceRuns = runs.filter(run => run.contextSnapshot?.issueId === source?.id);
   const other=state?.slackOtherThreadSetupReceipt as (ChatSlackIngressReceipt & {runId:string})|undefined;
-  const otherStillBound=!other||slackOtherThreadBoundaryMatches({receipt:other,runs:runs.filter(run=>run.contextSnapshot?.issueId===other.issueId),companyId:ctx.input.fixtures.company.id,agentId:ctx.input.fixtures.agent.id,sourceIssueId:source?.id});
-  return { id: "catalog-real-slack-source-native", passed: otherStillBound && !!source && source.companyId === ctx.input.fixtures.company.id && source.assigneeAgentId === ctx.input.fixtures.agent.id
+  const otherStillBound=!other||slackOtherThreadBoundaryMatches({receipt:other,runs:runs.filter(run=>run.contextSnapshot?.issueId===other.issueId),spaceId:ctx.input.fixtures.space.id,agentId:ctx.input.fixtures.agent.id,sourceIssueId:source?.id});
+  return { id: "catalog-real-slack-source-native", passed: otherStillBound && !!source && source.spaceId === ctx.input.fixtures.space.id && source.assigneeAgentId === ctx.input.fixtures.agent.id
     && sourceRuns.length >= 1 && sourceRuns.every(run => run.agentId === ctx.input.fixtures.agent.id && run.runtimeMode === "native" && run.status === "succeeded")
     && runs.every(run => typeof run.contextSnapshot?.issueId === "string")
     && (!state?.slackUnsupportedIngressReceipt || Array.isArray(state.slackSupportedTransferRunIds) && sourceRuns.some(run => !(state.slackSupportedTransferRunIds as unknown[]).includes(run.id))),

@@ -3,7 +3,7 @@ import { registerSlackCloudEnrollmentOwner } from "./cloud-enrollment.js";
 import type { Db } from "@outpost/db";
 import { afterEach, expect, it, vi } from "vitest";
 import { githubConnectionEventService } from "../../github-connection-events.js";
-import type { PaperclipCloudConnector } from "../../paperclip-cloud-connector.js";
+import type { OutpostCloudConnector } from "../../outpost-cloud-connector.js";
 import { registerSlackCloudEventIngress } from "./cloud-ingress.js";
 import { SlackCloudReceiptError, type SlackCloudEvent } from "./cloud-event.js";
 
@@ -12,7 +12,7 @@ function fixture(handler: (event: SlackCloudEvent) => Promise<void>, pendingEnro
   vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_BASE_URL", "");
   let reads = 0;
   const db = { select: () => {
-    const rows = [[], [], [{ companyId: "company" }], [{ id: "endpoint", setup: { slackCloudIntent: { nextAttemptAt: "2000-01-01T00:00:00Z" } } }]][reads++ % (pendingEnrollment ? 4 : 3)]!;
+    const rows = [[], [], [{ spaceId: "space" }], [{ id: "endpoint", setup: { slackCloudIntent: { nextAttemptAt: "2000-01-01T00:00:00Z" } } }]][reads++ % (pendingEnrollment ? 4 : 3)]!;
     const query = { from: () => query, innerJoin: () => query, where: () => query, orderBy: () => query, limit: async () => rows,
       then: (resolve: (rows: unknown[]) => unknown) => Promise.resolve(rows).then(resolve) };
     return query;
@@ -23,7 +23,7 @@ function fixture(handler: (event: SlackCloudEvent) => Promise<void>, pendingEnro
     acknowledgeEvents: vi.fn(async () => 1), eventWakeVersion: () => 1 as const };
   const unregister = registerSlackCloudEventIngress(db, handler);
   let time = Date.now();
-  const service = githubConnectionEventService(db, { connector: connector as unknown as PaperclipCloudConnector, now: () => new Date(time) });
+  const service = githubConnectionEventService(db, { connector: connector as unknown as OutpostCloudConnector, now: () => new Date(time) });
   return { db, service, connector, unregister, event, time: () => time, advance: (ms: number) => { time += ms; } };
 }
 
@@ -34,7 +34,7 @@ it("actual connection-event owner routes Slack and retries a lost ACK through th
     await expect(f.service.pollOnce({ forDelivery: true })).rejects.toThrow("ack response lost");
     expect((await f.service.pollOnce({ forDelivery: true })).processed).toBe(1);
     expect(handler).toHaveBeenCalledTimes(2);
-    expect(f.connector.leaseEvents).toHaveBeenCalledWith({ subject: "github-bot-events", companyId: "company", eventWakeVersion: 1 });
+    expect(f.connector.leaseEvents).toHaveBeenCalledWith({ subject: "github-bot-events", spaceId: "space", eventWakeVersion: 1 });
     expect(f.connector.acknowledgeEvents).toHaveBeenLastCalledWith(expect.objectContaining({ deliveryIds: [f.event.id] }));
   } finally { f.unregister(); }
 });

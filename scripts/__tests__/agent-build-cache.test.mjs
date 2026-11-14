@@ -94,7 +94,7 @@ test("keys depend on content and repo-relative paths, not the checkout location"
 test("the cache directory follows the environment and can be turned off", () => {
   assert.equal(cacheRoot({ OUTPOST_AGENT_CACHE: "0" }), null);
   assert.equal(cacheRoot({ OUTPOST_AGENT_CACHE_DIR: "/tmp/agent-cache" }), "/tmp/agent-cache");
-  assert.equal(cacheRoot({ XDG_CACHE_HOME: "/tmp/xdg" }), "/tmp/xdg/paperclip/agent-build");
+  assert.equal(cacheRoot({ XDG_CACHE_HOME: "/tmp/xdg" }), "/tmp/xdg/outpost/agent-build");
 });
 
 test("pruning keeps the most recently used entries and anything in use", t => {

@@ -18,14 +18,14 @@ const mockAccessService = vi.hoisted(() => ({
   setPrincipalPermission: vi.fn(),
 }));
 
-const mockCompanySkillService = vi.hoisted(() => ({
+const mockSpaceSkillService = vi.hoisted(() => ({
   listRuntimeSkillEntries: vi.fn(),
   resolveRequestedSkillKeys: vi.fn(),
 }));
 
 const mockSecretService = vi.hoisted(() => ({
-  normalizeAdapterConfigForPersistence: vi.fn(async (_companyId: string, config: Record<string, unknown>) => config),
-  resolveAdapterConfigForRuntime: vi.fn(async (_companyId: string, config: Record<string, unknown>) => ({ config })),
+  normalizeAdapterConfigForPersistence: vi.fn(async (_spaceId: string, config: Record<string, unknown>) => config),
+  resolveAdapterConfigForRuntime: vi.fn(async (_spaceId: string, config: Record<string, unknown>) => ({ config })),
 }));
 const mockEnvironmentService = vi.hoisted(() => ({
   getById: vi.fn(),
@@ -80,8 +80,8 @@ function registerModuleMocks() {
     agentInstructionsService: () => mockAgentInstructionsService,
     accessService: () => mockAccessService,
     approvalService: () => mockApprovalService,
-    builtInAgentService: () => ({ ensureCompanyDefaultAgentGrants: vi.fn() }),
-    companySkillService: () => mockCompanySkillService,
+    builtInAgentService: () => ({ ensureSpaceDefaultAgentGrants: vi.fn() }),
+    spaceSkillService: () => mockSpaceSkillService,
     budgetService: () => mockBudgetService,
     heartbeatService: () => mockHeartbeatService,
     issueApprovalService: () => mockIssueApprovalService,
@@ -114,9 +114,9 @@ async function createApp() {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = {
-      type: "board",
-      userId: "local-board",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "local-operator",
+      spaceIds: ["space-1"],
       source: "local_implicit",
       isInstanceAdmin: false,
     };
@@ -162,8 +162,8 @@ async function unregisterTestAdapter(type: string) {
 describe("adapter model refresh route", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    mockCompanySkillService.listRuntimeSkillEntries.mockResolvedValue([]);
-    mockCompanySkillService.resolveRequestedSkillKeys.mockResolvedValue([]);
+    mockSpaceSkillService.listRuntimeSkillEntries.mockResolvedValue([]);
+    mockSpaceSkillService.resolveRequestedSkillKeys.mockResolvedValue([]);
     mockAccessService.canUser.mockResolvedValue(true);
     mockAccessService.hasPermission.mockResolvedValue(true);
     mockAccessService.ensureMembership.mockResolvedValue(undefined);
@@ -193,7 +193,7 @@ describe("adapter model refresh route", () => {
       delete process.env.OUTPOST_ACPX_CANDIDATE_ADMISSION;
       const app = await createApp();
       const res = await requestApp(app, baseUrl =>
-        request(baseUrl).get("/api/companies/company-1/adapters/outpost_runner/models?provider=acpx&acpxAgent=kimi&refresh=1"),
+        request(baseUrl).get("/api/spaces/space-1/adapters/outpost_runner/models?provider=acpx&acpxAgent=kimi&refresh=1"),
       );
 
       expect(res.status, JSON.stringify(res.body)).toBe(status);
@@ -227,7 +227,7 @@ describe("adapter model refresh route", () => {
 
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
-      request(baseUrl).get(`/api/companies/company-1/adapters/${refreshableAdapterType}/models?refresh=1`),
+      request(baseUrl).get(`/api/spaces/space-1/adapters/${refreshableAdapterType}/models?refresh=1`),
     );
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -239,7 +239,7 @@ describe("adapter model refresh route", () => {
   it("skips OpenCode model discovery for non-local environments", async () => {
     mockEnvironmentService.getById.mockResolvedValue({
       id: "env-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Remote SSH",
       driver: "ssh",
       config: {},
@@ -247,7 +247,7 @@ describe("adapter model refresh route", () => {
 
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
-      request(baseUrl).get("/api/companies/company-1/adapters/opencode_local/models?environmentId=env-1"),
+      request(baseUrl).get("/api/spaces/space-1/adapters/opencode_local/models?environmentId=env-1"),
     );
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -258,7 +258,7 @@ describe("adapter model refresh route", () => {
   it("keeps OpenCode model discovery enabled for local environments", async () => {
     mockEnvironmentService.getById.mockResolvedValue({
       id: "env-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Local",
       driver: "local",
       config: {},
@@ -266,7 +266,7 @@ describe("adapter model refresh route", () => {
 
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
-      request(baseUrl).get("/api/companies/company-1/adapters/opencode_local/models?environmentId=env-1"),
+      request(baseUrl).get("/api/spaces/space-1/adapters/opencode_local/models?environmentId=env-1"),
     );
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);

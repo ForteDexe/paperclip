@@ -18,7 +18,7 @@ const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
 async function createTempDatabase(): Promise<string> {
-  const db = await startEmbeddedPostgresTestDatabase("paperclip-derived-attribution-");
+  const db = await startEmbeddedPostgresTestDatabase("outpost-derived-attribution-");
   cleanups.push(db.cleanup);
   return db.connectionString;
 }
@@ -50,29 +50,29 @@ async function dropDerivedAttributionSchema(sql: ReturnType<typeof postgres>): P
 }
 
 async function createSeedGraph(sql: ReturnType<typeof postgres>, label: string) {
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   const issueId = randomUUID();
   const runId = randomUUID();
 
   await sql`
-    INSERT INTO "companies" ("id", "name", "issue_prefix")
-    VALUES (${companyId}, ${`Company ${label}`}, ${`T${label}`})
+    INSERT INTO "spaces" ("id", "name", "issue_prefix")
+    VALUES (${spaceId}, ${`Space ${label}`}, ${`T${label}`})
   `;
   await sql`
-    INSERT INTO "agents" ("id", "company_id", "name", "role", "adapter_type", "adapter_config")
-    VALUES (${agentId}, ${companyId}, ${`Agent ${label}`}, 'engineer', 'process', '{}'::jsonb)
+    INSERT INTO "agents" ("id", "space_id", "name", "role", "adapter_type", "adapter_config")
+    VALUES (${agentId}, ${spaceId}, ${`Agent ${label}`}, 'engineer', 'process', '{}'::jsonb)
   `;
   await sql`
-    INSERT INTO "issues" ("id", "company_id", "title", "identifier")
-    VALUES (${issueId}, ${companyId}, ${`Issue ${label}`}, ${`T${label}-1`})
+    INSERT INTO "issues" ("id", "space_id", "title", "identifier")
+    VALUES (${issueId}, ${spaceId}, ${`Issue ${label}`}, ${`T${label}-1`})
   `;
   await sql`
-    INSERT INTO "heartbeat_runs" ("id", "company_id", "agent_id", "status")
-    VALUES (${runId}, ${companyId}, ${agentId}, 'succeeded')
+    INSERT INTO "heartbeat_runs" ("id", "space_id", "agent_id", "status")
+    VALUES (${runId}, ${spaceId}, ${agentId}, 'succeeded')
   `;
 
-  return { companyId, agentId, issueId, runId };
+  return { spaceId, agentId, issueId, runId };
 }
 
 async function expectDerivedAttributionSchema(sql: ReturnType<typeof postgres>): Promise<void> {
@@ -172,7 +172,7 @@ describeEmbeddedPostgres("issue comment derived attribution migration", () => {
 
       try {
         await makeDerivedAttributionMigrationPending(sql);
-        const { companyId, agentId, issueId, runId } = await createSeedGraph(sql, "OLD126");
+        const { spaceId, agentId, issueId, runId } = await createSeedGraph(sql, "OLD126");
         await sql`
           INSERT INTO "user" ("id", "name", "email", "email_verified", "created_at", "updated_at")
           VALUES ('real-user', 'Real User', 'real-user@example.test', true, now(), now())
@@ -181,7 +181,7 @@ describeEmbeddedPostgres("issue comment derived attribution migration", () => {
         await sql`
           INSERT INTO "issue_comments" (
             "id",
-            "company_id",
+            "space_id",
             "issue_id",
             "author_user_id",
             "created_by_run_id",
@@ -191,9 +191,9 @@ describeEmbeddedPostgres("issue comment derived attribution migration", () => {
             "body"
           )
           VALUES
-            (${alreadyBackfilledCommentId}, ${companyId}, ${issueId}, 'local-board', ${runId}, ${agentId}, ${runId}, 'run_id', 'already attributed'),
-            (${timingTierCommentId}, ${companyId}, ${issueId}, 'local-board', NULL, ${agentId}, ${runId}, 'run_window_unique', 'timing tier'),
-            (${realUserCommentId}, ${companyId}, ${issueId}, 'real-user', ${runId}, NULL, NULL, NULL, 'human comment')
+            (${alreadyBackfilledCommentId}, ${spaceId}, ${issueId}, 'local-operator', ${runId}, ${agentId}, ${runId}, 'run_id', 'already attributed'),
+            (${timingTierCommentId}, ${spaceId}, ${issueId}, 'local-operator', NULL, ${agentId}, ${runId}, 'run_window_unique', 'timing tier'),
+            (${realUserCommentId}, ${spaceId}, ${issueId}, 'real-user', ${runId}, NULL, NULL, NULL, 'human comment')
         `;
       } finally {
         await sql.end();
@@ -266,31 +266,31 @@ describeEmbeddedPostgres("issue comment derived attribution migration", () => {
       try {
         await dropDerivedAttributionSchema(sql);
         await makeDerivedAttributionMigrationPending(sql);
-        const { companyId, agentId, issueId, runId } = await createSeedGraph(sql, "PARTIAL");
+        const { spaceId, agentId, issueId, runId } = await createSeedGraph(sql, "PARTIAL");
         await sql`
           INSERT INTO "issue_comments" (
             "id",
-            "company_id",
+            "space_id",
             "issue_id",
             "author_user_id",
             "created_by_run_id",
             "body"
           )
           VALUES
-            (${eligibleCommentId}, ${companyId}, ${issueId}, 'local-board', ${runId}, 'eligible local-board'),
-            (${deletedUserCommentId}, ${companyId}, ${issueId}, 'deleted-user', ${runId}, 'eligible deleted user')
+            (${eligibleCommentId}, ${spaceId}, ${issueId}, 'local-operator', ${runId}, 'eligible local-operator'),
+            (${deletedUserCommentId}, ${spaceId}, ${issueId}, 'deleted-user', ${runId}, 'eligible deleted user')
         `;
         await sql`
           INSERT INTO "issue_comments" (
             "id",
-            "company_id",
+            "space_id",
             "issue_id",
             "author_agent_id",
             "author_user_id",
             "created_by_run_id",
             "body"
           )
-          VALUES (${agentAuthoredCommentId}, ${companyId}, ${issueId}, ${agentId}, 'local-board', ${runId}, 'already agent-authored')
+          VALUES (${agentAuthoredCommentId}, ${spaceId}, ${issueId}, ${agentId}, 'local-operator', ${runId}, 'already agent-authored')
         `;
       } finally {
         await sql.end();

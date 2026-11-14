@@ -6,7 +6,7 @@ import { Readable } from "node:stream";
 import { setTimeout as delay } from "node:timers/promises";
 import { beforeAll, beforeEach, afterEach, afterAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, agentFileRoots, agentInstructionWorkingCopies, authUsers, companies, companyMemberships, principalPermissionGrants, heartbeatRuns, createDb, closeFileStorageDb } from "@outpost/db";
+import { agents, agentFileRoots, agentInstructionWorkingCopies, authUsers, spaces, spaceMemberships, principalPermissionGrants, heartbeatRuns, createDb, closeFileStorageDb } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { agentFileStore, adoptAgentFiles, fileHash } from "../services/agent-file-store.js";
 import { invalidateAgentFileProjection, persistDurableAgentFiles } from "../services/agent-file-durability.js";
@@ -18,19 +18,19 @@ import { getStorageService } from "../storage/index.js";
 const objects = vi.hoisted(() => ({ bytes: new Map<string, Buffer>(), rejectWrites: false, corruptReads: false, readDelayMs: 0, activeReads: 0, peakReads: 0 }));
 vi.mock("../storage/index.js", () => ({ getStorageService: () => ({
   provider: "s3",
-  async putFile(input: { companyId: string; namespace: string; body: Readable; byteSize: number; sha256: string }) {
+  async putFile(input: { spaceId: string; namespace: string; body: Readable; byteSize: number; sha256: string }) {
     if (objects.rejectWrites) throw new Error("fixture object-store outage");
     const chunks: Buffer[] = [];
     for await (const chunk of input.body) chunks.push(Buffer.from(chunk));
     const body = Buffer.concat(chunks);
     expect(body.length).toBe(input.byteSize);
     expect(fileHash(body)).toBe(input.sha256);
-    const objectKey = `${input.companyId}/${input.namespace}/${randomUUID()}`;
+    const objectKey = `${input.spaceId}/${input.namespace}/${randomUUID()}`;
     objects.bytes.set(objectKey, body);
     return { objectKey };
   },
-  async getObject(companyId: string, objectKey: string, options: { signal?: AbortSignal } = {}) {
-    expect(objectKey.startsWith(`${companyId}/`)).toBe(true);
+  async getObject(spaceId: string, objectKey: string, options: { signal?: AbortSignal } = {}) {
+    expect(objectKey.startsWith(`${spaceId}/`)).toBe(true);
     const body = objects.bytes.get(objectKey);
     if (!body) throw new Error("fixture object missing");
     return { stream: Readable.from((async function* () {
@@ -42,9 +42,9 @@ vi.mock("../storage/index.js", () => ({ getStorageService: () => ({
       } finally { objects.activeReads--; }
     })()) };
   },
-  async headObject(_companyId: string, key: string) { return { exists: objects.bytes.has(key), lastModified: new Date(0) }; },
-  async deleteObject(companyId: string, key: string, options: { allVersions: boolean }) {
-    expect(key.startsWith(`${companyId}/`)).toBe(true);
+  async headObject(_spaceId: string, key: string) { return { exists: objects.bytes.has(key), lastModified: new Date(0) }; },
+  async deleteObject(spaceId: string, key: string, options: { allVersions: boolean }) {
+    expect(key.startsWith(`${spaceId}/`)).toBe(true);
     expect(options.allVersions).toBe(true);
     objects.bytes.delete(key);
   },
@@ -53,8 +53,8 @@ vi.mock("../storage/index.js", () => ({ getStorageService: () => ({
 describe("durable agent file authority", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  let home: string, root: string, companyId: string, agentId: string, userId: string;
-  const actor = () => ({ type: "board" as const, userId, source: "session" as const });
+  let home: string, root: string, spaceId: string, agentId: string, userId: string;
+  const actor = () => ({ type: "operator" as const, userId, source: "session" as const });
   const store = () => agentFileStore(db);
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("durable-agent-files-");
@@ -69,14 +69,14 @@ describe("durable agent file authority", () => {
     vi.stubEnv("OUTPOST_HOME", home); vi.stubEnv("OUTPOST_DURABLE_AGENT_FILES", "true");
     objects.bytes.clear(); objects.rejectWrites = false; objects.corruptReads = false;
     objects.readDelayMs = 0; objects.activeReads = 0; objects.peakReads = 0;
-    companyId = randomUUID(); agentId = randomUUID(); userId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "File authority", issuePrefix: randomUUID().slice(0, 8) });
+    spaceId = randomUUID(); agentId = randomUUID(); userId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "File authority", issuePrefix: randomUUID().slice(0, 8) });
     await db.insert(authUsers).values({ id: userId, name: "Editor", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(agents).values({ id: agentId, companyId, name: "File owner" });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "operator" });
-    await db.insert(principalPermissionGrants).values({ companyId, principalType: "user", principalId: userId,
+    await db.insert(agents).values({ id: agentId, spaceId, name: "File owner" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "operator" });
+    await db.insert(principalPermissionGrants).values({ spaceId, principalType: "user", principalId: userId,
       permissionKey: "agents:configure", scope: { agentIds: [agentId] } });
-    root = resolveManagedInstructionsRoot({ id: agentId, companyId, name: "File owner", adapterConfig: {} });
+    root = resolveManagedInstructionsRoot({ id: agentId, spaceId, name: "File owner", adapterConfig: {} });
   });
   afterEach(async () => {
     vi.unstubAllEnvs();
@@ -86,7 +86,7 @@ describe("durable agent file authority", () => {
     await fs.rm(home, { recursive: true, force: true });
     home = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "durable-agent-replacement-")));
     vi.stubEnv("OUTPOST_HOME", home);
-    root = resolveManagedInstructionsRoot({ id: agentId, companyId, name: "File owner", adapterConfig: {} });
+    root = resolveManagedInstructionsRoot({ id: agentId, spaceId, name: "File owner", adapterConfig: {} });
   }
 
   it("reads instruction compatibility from the committed head after deleting the entire home", async () => {
@@ -96,13 +96,13 @@ describe("durable agent file authority", () => {
     const [agent] = await db.select().from(agents).where(eq(agents.id, agentId));
     const instructions = agentInstructionsService(db);
     expect(await instructions.getManagedEntryFingerprint(agent)).toBeNull();
-    await store().read(companyId, agentId, "AGENTS.md", actor());
+    await store().read(spaceId, agentId, "AGENTS.md", actor());
     const expected = { entryFile: "AGENTS.md", contentHash: `sha256:${fileHash(Buffer.from("Original"))}` };
     expect(await instructions.getManagedEntryFingerprint(agent)).toEqual(expected);
     await replaceFilesystem();
     expect(await instructions.getManagedEntryFingerprint(agent)).toEqual(expected);
     await expect(fs.stat(root)).rejects.toMatchObject({ code: "ENOENT" });
-    expect(await instructions.getManagedEntryFingerprint({ ...agent, companyId: randomUUID() })).toBeNull();
+    expect(await instructions.getManagedEntryFingerprint({ ...agent, spaceId: randomUUID() })).toBeNull();
     expect(await instructions.getManagedEntryFingerprint({ ...agent, adapterConfig: {
       ...agent.adapterConfig, instructionsBundleMode: "external",
     } })).toBeNull();
@@ -116,8 +116,8 @@ describe("durable agent file authority", () => {
     await db.update(agents).set({ adapterConfig: { instructionsBundleMode: "managed", instructionsRootPath: root,
       instructionsEntryFile: "AGENTS.md" } }).where(eq(agents.id, agentId));
     const [agent] = await db.select().from(agents).where(eq(agents.id, agentId));
-    await store().read(companyId, agentId, "AGENTS.md", actor());
-    await store().write({ companyId, agentId, path: "NOTES.md", bytes: Buffer.from("Recorded creation"), baseHash: null }, actor());
+    await store().read(spaceId, agentId, "AGENTS.md", actor());
+    await store().write({ spaceId, agentId, path: "NOTES.md", bytes: Buffer.from("Recorded creation"), baseHash: null }, actor());
     const instructions = agentInstructionsService(db);
     const created = await instructions.readFile(agent, "NOTES.md");
     expect(Number.isFinite(Date.parse(created.createdAt!))).toBe(true);
@@ -145,11 +145,11 @@ describe("durable agent file authority", () => {
     await fs.chmod(path.join(root, "script.sh"), 0o755);
     await fs.mkdir(path.join(root, "empty-folder"));
     await db.update(agents).set({ adapterConfig: { instructionsBundleMode: "managed", instructionsRootPath: root } }).where(eq(agents.id, agentId));
-    expect(await store().read(companyId, agentId, "AGENTS.md", actor())).toEqual(Buffer.from("Original"));
+    expect(await store().read(spaceId, agentId, "AGENTS.md", actor())).toEqual(Buffer.from("Original"));
     await replaceFilesystem();
     vi.stubEnv("OUTPOST_DURABLE_AGENT_FILES", "false");
-    expect(await store().read(companyId, agentId, "nested/data.bin", actor())).toEqual(binary);
-    expect(await store().read(companyId, agentId, "empty.txt", actor())).toEqual(Buffer.alloc(0));
+    expect(await store().read(spaceId, agentId, "nested/data.bin", actor())).toEqual(binary);
+    expect(await store().read(spaceId, agentId, "empty.txt", actor())).toEqual(Buffer.alloc(0));
     expect((await fs.stat(path.join(root, "script.sh"))).mode & 0o777).toBe(0o755);
     expect((await fs.stat(path.join(root, "empty-folder"))).isDirectory()).toBe(true);
   });
@@ -159,10 +159,10 @@ describe("durable agent file authority", () => {
     for (let index = 0; index < 40; index++) {
       await materializeInstructionBytes(root, `nested/file-${index}.bin`, contents);
     }
-    expect(await migrateAgentFiles(db, { companyId, apply: true, writersStopped: true })).toMatchObject({ pageReady: true });
+    expect(await migrateAgentFiles(db, { spaceId, apply: true, writersStopped: true })).toMatchObject({ pageReady: true });
     await replaceFilesystem();
     objects.readDelayMs = 25;
-    expect((await store().read(companyId, agentId, "nested/file-39.bin", actor()))?.equals(contents)).toBe(true);
+    expect((await store().read(spaceId, agentId, "nested/file-39.bin", actor()))?.equals(contents)).toBe(true);
     expect(objects.peakReads).toBeGreaterThan(1);
     expect(objects.peakReads).toBeLessThanOrEqual(8);
     expect(objects.activeReads).toBe(0);
@@ -174,41 +174,41 @@ describe("durable agent file authority", () => {
     // cancelled sibling stream before deleting its temporary directory.
     await invalidateAgentFileProjection(root);
     objects.corruptReads = true;
-    await expect(store().read(companyId, agentId, "nested/file-39.bin", actor())).rejects.toThrow(/committed (size|digest)/);
+    await expect(store().read(spaceId, agentId, "nested/file-39.bin", actor())).rejects.toThrow(/committed (size|digest)/);
     expect(objects.activeReads).toBe(0);
     expect((await fs.readdir(path.dirname(root))).filter(name => name.startsWith(".agent-files-"))).toEqual([]);
     expect((await fs.readFile(path.join(root, "nested/file-39.bin"))).equals(contents)).toBe(true);
     objects.corruptReads = false;
-    expect((await store().read(companyId, agentId, "nested/file-39.bin", actor()))?.equals(contents)).toBe(true);
+    expect((await store().read(spaceId, agentId, "nested/file-39.bin", actor()))?.equals(contents)).toBe(true);
   });
 
   it("does not promote a rejected first save through subsequent local adoption", async () => {
     objects.rejectWrites = true;
-    await expect(store().write({ companyId, agentId, path: "failed.txt", bytes: Buffer.from("uncommitted"), baseHash: null }, actor()))
+    await expect(store().write({ spaceId, agentId, path: "failed.txt", bytes: Buffer.from("uncommitted"), baseHash: null }, actor()))
       .rejects.toThrow("fixture object-store outage");
     expect(await db.select().from(agentFileRoots).where(eq(agentFileRoots.agentId, agentId))).toEqual([]);
     objects.rejectWrites = false;
-    expect(await store().read(companyId, agentId, "failed.txt", actor())).toBeNull();
+    expect(await store().read(spaceId, agentId, "failed.txt", actor())).toBeNull();
     await replaceFilesystem();
-    expect(await store().read(companyId, agentId, "failed.txt", actor())).toBeNull();
+    expect(await store().read(spaceId, agentId, "failed.txt", actor())).toBeNull();
   });
 
   it("dry-runs without adopting files and publishes settled legacy files online", async () => {
     await materializeInstructionBytes(root, "AGENTS.md", Buffer.from("Legacy"));
-    const input = { companyId, apply: false, writersStopped: false };
+    const input = { spaceId, apply: false, writersStopped: false };
     expect(await migrateAgentFiles(db, input)).toMatchObject({ results: [{ agentId, state: "needs_import" }], pageReady: false });
     expect(await db.select().from(agentFileRoots).where(eq(agentFileRoots.agentId, agentId))).toEqual([]);
     expect(await migrateAgentFiles(db, { ...input, apply: true })).toMatchObject({ pageReady: true });
     await replaceFilesystem();
-    expect(await store().read(companyId, agentId, "AGENTS.md", actor())).toEqual(Buffer.from("Legacy"));
+    expect(await store().read(spaceId, agentId, "AGENTS.md", actor())).toEqual(Buffer.from("Legacy"));
   });
 
   it("recognizes an active agent's existing durable head without restoring its filesystem projection", async () => {
-    await store().write({ companyId, agentId, path: "AGENTS.md", bytes: Buffer.from("Durable"), baseHash: null }, actor());
-    const [active] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "running", runtimeMode: "native" }).returning();
+    await store().write({ spaceId, agentId, path: "AGENTS.md", bytes: Buffer.from("Durable"), baseHash: null }, actor());
+    const [active] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "running", runtimeMode: "native" }).returning();
     const before = await db.select().from(agentFileRoots).where(eq(agentFileRoots.agentId, agentId));
     await fs.rm(root, { recursive: true });
-    expect(await migrateAgentFiles(db, { companyId, apply: true, writersStopped: false }))
+    expect(await migrateAgentFiles(db, { spaceId, apply: true, writersStopped: false }))
       .toMatchObject({ results: [{ agentId, state: "durable" }], pageReady: true });
     expect(await db.select().from(agentFileRoots).where(eq(agentFileRoots.agentId, agentId))).toEqual(before);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, active!.id)))[0]).toEqual(active);
@@ -217,12 +217,12 @@ describe("durable agent file authority", () => {
 
   it.each(["pending_collection", "unavailable"])("preserves a %s working copy and keeps first adoption blocked", async state => {
     await materializeInstructionBytes(root, "AGENTS.md", Buffer.from("Canonical files"));
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "failed", finishedAt: new Date() }).returning();
-    const [copy] = await db.insert(agentInstructionWorkingCopies).values({ companyId, agentId, runId: run!.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "failed", finishedAt: new Date() }).returning();
+    const [copy] = await db.insert(agentInstructionWorkingCopies).values({ spaceId, agentId, runId: run!.id,
       responsibleUserId: userId, entryFile: "AGENTS.md", baseHash: "a".repeat(64), localRoot: path.join(home, "retained-copy"),
       executionRoot: "/retained/agent-files", location: "local", state,
       errorCode: "INSTRUCTION_COLLECTION_UNAVAILABLE", receipt: { schema: "outpost.agent-files.v1" } }).returning();
-    expect(await migrateAgentFiles(db, { companyId, apply: true, writersStopped: false }))
+    expect(await migrateAgentFiles(db, { spaceId, apply: true, writersStopped: false }))
       .toMatchObject({ results: [{ agentId, state: "working_copy_unsettled" }], pageReady: false });
     expect(await db.select().from(agentFileRoots).where(eq(agentFileRoots.agentId, agentId))).toEqual([]);
     expect((await db.select().from(agentInstructionWorkingCopies).where(eq(agentInstructionWorkingCopies.runId, run!.id)))[0]).toEqual(copy);
@@ -230,30 +230,30 @@ describe("durable agent file authority", () => {
   });
 
   it("refuses migration while the agent has queued or running execution", async () => {
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "running" }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "running" }).returning();
     for (const status of ["running", "queued"]) {
       await db.update(heartbeatRuns).set({ status }).where(eq(heartbeatRuns.id, run!.id));
-      expect(await migrateAgentFiles(db, { companyId, apply: true, writersStopped: true }))
+      expect(await migrateAgentFiles(db, { spaceId, apply: true, writersStopped: true }))
         .toMatchObject({ results: [{ agentId, state: "active_execution" }], pageReady: false });
       expect(await db.select().from(agentFileRoots).where(eq(agentFileRoots.agentId, agentId))).toEqual([]);
     }
   });
 
   it("retains current and unadopted objects, then collects expired unreferenced and deleted-owner objects", async () => {
-    const prefix = `${companyId}/agent-files/${agentId}/`;
+    const prefix = `${spaceId}/agent-files/${agentId}/`;
     const abandoned = `${prefix}abandoned`;
     objects.bytes.set(abandoned, Buffer.from("uncertain upload"));
     const provider = { id: "s3" as const, listObjects: async () => ({ keys: [...objects.bytes.keys()].filter(key => key.startsWith(prefix)) }) };
-    const input = { companyId, agentId, apply: true, now: AGENT_FILE_OBJECT_GRACE_MS + 1 };
+    const input = { spaceId, agentId, apply: true, now: AGENT_FILE_OBJECT_GRACE_MS + 1 };
     const collect = (options = input) => collectAgentFileObjects(db, provider, getStorageService(), options);
     expect(await collect()).toMatchObject({ retained: 1, deleted: 0 });
-    await store().write({ companyId, agentId, path: "AGENTS.md", bytes: Buffer.from("Current"), baseHash: null }, actor());
+    await store().write({ spaceId, agentId, path: "AGENTS.md", bytes: Buffer.from("Current"), baseHash: null }, actor());
     expect(await collect({ ...input, now: 1 })).toMatchObject({ retained: 2, deleted: 0 });
     expect(await collect({ ...input, apply: false })).toMatchObject({ retained: 1, eligible: 1, deleted: 0 });
     expect(objects.bytes.has(abandoned)).toBe(true);
     expect(await collect()).toMatchObject({ retained: 1, deleted: 1 });
     await replaceFilesystem();
-    expect(await store().read(companyId, agentId, "AGENTS.md", actor())).toEqual(Buffer.from("Current"));
+    expect(await store().read(spaceId, agentId, "AGENTS.md", actor())).toEqual(Buffer.from("Current"));
     await db.delete(agents).where(eq(agents.id, agentId));
     expect(await collect()).toMatchObject({ retained: 0, deleted: 1 });
     expect(objects.bytes.size).toBe(0);
@@ -263,13 +263,13 @@ describe("durable agent file authority", () => {
     await materializeInstructionBytes(root, "AGENTS.md", Buffer.from("Not migrated yet"));
     await db.update(agents).set({ adapterConfig: { instructionsBundleMode: "managed", instructionsRootPath: root } }).where(eq(agents.id, agentId));
     await replaceFilesystem();
-    await expect(store().read(companyId, agentId, "AGENTS.md", actor()))
+    await expect(store().read(spaceId, agentId, "AGENTS.md", actor()))
       .rejects.toMatchObject({ status: 503, details: { code: "AGENT_FILES_MIGRATION_REQUIRED" } });
     expect(await db.select().from(agentFileRoots).where(eq(agentFileRoots.agentId, agentId))).toEqual([]);
   });
 
   it("restores the committed head after SQL rollback and rejects corrupted object bytes", async () => {
-    await store().write({ companyId, agentId, path: "AGENTS.md", bytes: Buffer.from("Committed"), baseHash: null }, actor());
+    await store().write({ spaceId, agentId, path: "AGENTS.md", bytes: Buffer.from("Committed"), baseHash: null }, actor());
     await expect(db.transaction(async tx => {
       const [owner] = await tx.select().from(agents).where(eq(agents.id, agentId)).for("update");
       await adoptAgentFiles(tx, owner!);
@@ -278,10 +278,10 @@ describe("durable agent file authority", () => {
       await persistDurableAgentFiles(tx, owner!, root);
       throw new Error("fixture transaction rollback");
     })).rejects.toThrow("fixture transaction rollback");
-    expect(await store().read(companyId, agentId, "AGENTS.md", actor())).toEqual(Buffer.from("Committed"));
+    expect(await store().read(spaceId, agentId, "AGENTS.md", actor())).toEqual(Buffer.from("Committed"));
     await replaceFilesystem(); objects.corruptReads = true;
-    await expect(store().read(companyId, agentId, "AGENTS.md", actor())).rejects.toThrow(/committed (size|digest)/);
+    await expect(store().read(spaceId, agentId, "AGENTS.md", actor())).rejects.toThrow(/committed (size|digest)/);
     objects.corruptReads = false;
-    expect(await store().read(companyId, agentId, "AGENTS.md", actor())).toEqual(Buffer.from("Committed"));
+    expect(await store().read(spaceId, agentId, "AGENTS.md", actor())).toEqual(Buffer.from("Committed"));
   });
 });

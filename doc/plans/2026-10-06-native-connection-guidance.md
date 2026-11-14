@@ -86,7 +86,7 @@ output, not cognitive consumption or arbitrary prose truthfulness. Existing
 screenshots and the original independent workflow checks remain in use.
 
 Each cell has one attempt, expected two provider turns, a twelve-run ceiling,
-a 720-second deadline and verified 1,000-cent company/lead budget hard stops.
+a 720-second deadline and verified 1,000-cent space/lead budget hard stops.
 The bound is a ceiling, not a target. The selected provider supplies its normal
 model profile and permissions. No production or workflow credentials are
 changed. No paid campaign is started by defining or testing this suite.

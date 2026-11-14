@@ -1,10 +1,10 @@
-# Speed with a paperclip-sized workspace
+# Speed with a outpost-sized workspace
 
 Status: measured 2026-11-08. Follows [`2026-11-07-warm-follow-up-ttft.md`](2026-11-07-warm-follow-up-ttft.md).
 
 ## Summary
 
-- **Locally, follow-ups are fast and first turns are not.** A first turn takes 31–34 s to first token in a fresh paperclip clone, mostly the repository's own `provision-worktree.sh` (about 20 s). Follow-ups take 7 s.
+- **Locally, follow-ups are fast and first turns are not.** A first turn takes 31–34 s to first token in a fresh outpost clone, mostly the repository's own `provision-worktree.sh` (about 20 s). Follow-ups take 7 s.
 - **On Daytona, every follow-up turn re-uploaded the whole workspace.** With a default environment a follow-up took 30 s, because each turn got a new sandbox and synced the repository into it again (13–22 s), then started a new runner (8–9 s).
 - **A reusable warm sandbox removes that wait.** The same follow-up takes 8.1 s (Codex) and 10.3 s (Claude). An agent that never chose a lifecycle, in an environment that inherits it, now runs Codex, OpenCode and Claude warm on a sandbox.
 - **The wait was invisible in the run log.** It sat inside one opaque `heartbeat.prepare_after_environment` span. Named preparation phases are now run-log spans too.

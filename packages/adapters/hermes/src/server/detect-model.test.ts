@@ -94,7 +94,7 @@ async function withHermesHomeConfig(
   configLines: string[],
   fn: () => Promise<void>,
 ) {
-  const tempHome = await mkdtemp(join(tmpdir(), "hermes-paperclip-adapter-"));
+  const tempHome = await mkdtemp(join(tmpdir(), "hermes-outpost-adapter-"));
   const hermesDir = join(tempHome, ".hermes");
   const configPath = join(hermesDir, "config.yaml");
 
@@ -123,7 +123,7 @@ test("testEnvironment does not warn about missing API keys when Hermes config pr
     "  api_key: test-secret",
   ], async () => {
     const result = await testEnvironment({
-      companyId: "company-test",
+      spaceId: "space-test",
       adapterType: "hermes_local",
       config: {
         hermesCommand: "python3",
@@ -146,7 +146,7 @@ test("testEnvironment describes provider-omitted runtime config without inventin
     "  api_key: test-secret",
   ], async () => {
     const result = await testEnvironment({
-      companyId: "company-test",
+      spaceId: "space-test",
       adapterType: "hermes_local",
       config: {
         hermesCommand: "python3",
@@ -170,7 +170,7 @@ test("testEnvironment does not warn about missing API keys when Hermes config pr
     "  api_key: test-secret",
   ], async () => {
     const result = await testEnvironment({
-      companyId: "company-test",
+      spaceId: "space-test",
       adapterType: "hermes_local",
       config: {
         hermesCommand: "python3",

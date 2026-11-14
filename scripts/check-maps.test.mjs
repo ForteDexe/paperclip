@@ -7,14 +7,14 @@ import { checkMaps } from "./check-maps.mjs";
 
 const record = `API: \`present\` — POST /api/example.
 Agent access: \`partial\` — agent REST; native binding missing.
-Policy: same company and calling owner.
+Policy: same space and calling owner.
 Evidence: \`source-only\` — implementation inspected.
-Verification: \`not-run\` — assert permitted owner and denied other company.
+Verification: \`not-run\` — assert permitted owner and denied other space.
 Gaps: native mutation path.
 `;
 
 function fixture(t) {
-  const root = mkdtempSync(path.join(os.tmpdir(), "paperclip-map-contract-"));
+  const root = mkdtempSync(path.join(os.tmpdir(), "outpost-map-contract-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const dir of ["maps/feature-map", "maps/agent-access-map"]) mkdirSync(path.join(root, dir), { recursive: true });
   const product = path.join(root, "maps/feature-map/example.md");

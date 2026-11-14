@@ -28,7 +28,7 @@ These are individual observations, not percentile benchmarks.
 | More results and detail/back | No lost or duplicated rows; reading position preserved | Browser walkthrough and paging regressions |
 | Archive/undo/read and background activity | Existing optimistic behavior survives; observed rows stay put | Existing regression suites and browser |
 | Slow/failed metadata or list read | Stable layout; useful retry/error; no misleading partial inbox | Deferred request component tests and browser |
-| Company/account boundaries | No cross-company or private-row leaks in lists or badges | Authorization tests |
+| Space/account boundaries | No cross-space or private-row leaks in lists or badges | Authorization tests |
 
 ## Implementation sequence
 
@@ -41,7 +41,7 @@ These are individual observations, not percentile benchmarks.
 3. Commit inbox source data together rather than revealing unrelated responses in arrival order.
 4. Match skeleton and row geometry. Enrichment cannot replace index membership,
    sorting fields, or row geometry; retain the existing inbox order pin.
-5. Preload the requested collection module during access/company checks and stop
+5. Preload the requested collection module during access/space checks and stop
    downloading task detail code eagerly on collection opens.
 6. Verify in the existing isolated local app, run required checks, prepare PR and resolve review.
 
@@ -79,7 +79,7 @@ one-child preview instead of spending the expanded row budget or making a reques
 per parent. Optional-detail failures show a retry notice outside document flow;
 12 measured rows remained unchanged and retry restored the recovery indicator.
 All seven exact-run retry/legacy continuation browser scenarios passed after
-fixing the company-loading hook order. Archive/Undo, read/back, nesting, remote
+fixing the space-loading hook order. Archive/Undo, read/back, nesting, remote
 search and rendering all 164 fixture tasks without duplicates also passed.
 PR: https://github.com/paperclipai/paperclip/pull/17756.
 Browser evidence is retained in the chat's `list-cold-open-test-drive` artifact

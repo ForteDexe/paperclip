@@ -25,7 +25,7 @@ The existing candidate query identifies:
 - A pending system confirmation with no user or agent creator.
 - An applied in-review decision with completion_claim_incomplete,
   completion_claim_conflict, or external_verification_required.
-- Matching effect target, company, issue, source run and assessment.
+- Matching effect target, space, issue, source run and assessment.
 - A low-risk agent_claim_policy contract with no assessment attention requests.
 - The exact native-review idempotency key, native_completion_review target,
   decision revision, and historical prompt first line.
@@ -33,7 +33,7 @@ The existing candidate query identifies:
 Current arbitration no longer creates completion-claim reviews by default.
 Explicit attention uses actionable_attention_pending and keyed requests, which
 this query excludes. The typed committer still supports historical input; it
-registers the new company/issue notification before its decision/effect writes
+registers the new space/issue notification before its decision/effect writes
 inside its existing transaction. The notification serializes only those IDs.
 Outer commit, rollback, and uncertain writes use the existing shared protocol.
 
@@ -50,8 +50,8 @@ controllers require explicit integration; process-local signals do not cover the
 ## Worker and invariants
 
 The existing scoped deadline helper reconstructs 100-row keyset pages, stores
-interaction/company/issue IDs and deadlines, and processes fair batches of
-20. Normal commit hints inspect only their company/issue. Settled history leaves
+interaction/space/issue IDs and deadlines, and processes fair batches of
+20. Normal commit hints inspect only their space/issue. Settled history leaves
 no recurring SQL or deadline. No table, migration, separate timer, or provider
 branch is added.
 
@@ -194,7 +194,7 @@ All **462 distinct cases in seven complete files pass without skips**, in
 49.31 seconds. The full 72-case corpus then passes again on the same database
 in 12.95 seconds. Three preexisting PSC/OUT/sentinel rows remain unchanged in
 the inspected ID/name/prefix fields after both runs. Each invocation appends
-only its two fixture companies with distinct prefixes. The repeat is not added again
+only its two fixture spaces with distinct prefixes. The repeat is not added again
 to the distinct case count. Five fresh PostgreSQL 17 fixtures migrate through
 0409; database build, server types/build, boundaries and migration order pass.
 
@@ -233,7 +233,7 @@ CI and review are required on the updated published head.
 
 Master advanced from the actual obsolete-review squash to
 `49fe8b87a49aa5a8985a08dd3d5ce57bdd24756c`. The sole change is an assertion
-that company cleanup removes company skills. Normal merge
+that space cleanup removes space skills. Normal merge
 `4dbec260d36cae02bd73281bbdaac406ee989010` preserves both complete binary
 patches: this PR's full fix and the independent upstream assertion. All production
 source and the accepted GitHub integration file remain unchanged. The complete

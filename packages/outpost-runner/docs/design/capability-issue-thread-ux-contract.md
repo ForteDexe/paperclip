@@ -27,7 +27,7 @@ capability language.
 - **Optional operation families**: discovery (`scoped_discovery`, `search_tasks`,
   `list_agents`, …), delegation/dependencies (`create_task`, `delegate_task`,
   `set_dependencies`, `create_blocked_task`), approvals (`request_approval`,
-  `decide_approval`, …), cases, workspace runtime, routines, company skills, secrets, admin,
+  `decide_approval`, …), cases, workspace runtime, routines, space skills, secrets, admin,
   escape hatch. Grants render exactly as 7A writes them (e.g. `rf:read_or_write`).
 - **Mock-state kinds**: `operation_result`, `runtime_decision_record`, `active_task_context`.
 - **Eval keys**: case `id` (e.g. `ix-confirmation-plan-01`), `group` (16 groups),
@@ -59,7 +59,7 @@ what runs it, what control plane it talks to, and whether this session is live.
    `mode=fake` must be visually distinguishable from `live` in every screenshot (Revision 4
    evidence eligibility).
 3. **Mock identifier scheme**: mock issues use a reserved prefix that cannot be confused with
-   a real company (fixture default: `MCK-<n>`, e.g. `MCK-31`). The UI never renders a
+   a real space (fixture default: `MCK-<n>`, e.g. `MCK-31`). The UI never renders a
    `/PAP/...`-style link to a real control plane; mock entity links navigate inside the
    explorer only.
 4. **No credential surface**: no header, panel, tooltip, error, or diff may contain a token,
@@ -124,7 +124,7 @@ outside an interaction response (§5). Items in chronological order, grouped by 
 
 | # | Item | Source | Anatomy |
 |---|------|--------|---------|
-| T1 | **User message** | thread record | Right-aligned bubble style is **not** used; Outpost comment card with author "You (board user)", timestamp, markdown body. |
+| T1 | **User message** | thread record | Right-aligned bubble style is **not** used; Outpost comment card with author "You (operator)", timestamp, markdown body. |
 | T2 | **Agent response** | model output items | Comment card, author = agent identity chip (`Fake agent` / `Real Codex`), streaming state per §6. Model prose only — never confused with durable records (see T3). |
 | T3 | **Durable progress comment** | `report_progress` / `answer_status_question` `operation_result` | Distinct comment card with a `Recorded to mock thread` marker (filled corner tag + tooltip naming the semantic operation). This is the visual boundary between ephemeral model text (T2) and durable mock records. |
 | T4 | **Tool activity strip** | semantic call + typed result | One line per call inside the turn group: status glyph (`✓ ok`, `✕ denied`, `⏳ running`), operation id (`write_document`), one-line human summary, `›` expander. Expanded: request args (redacted per rules), typed result, and a `View in Evidence` link that opens the debug panel pre-filtered to that call. Strips are collapsed by default; a turn shows at most 3 strips + `N more…` expander (progressive disclosure). |
@@ -334,7 +334,7 @@ Follow the Outpost design language without importing the product `ui/` package:
 ### 10.2 Required matrix (12 slugs × 2 viewports = 24 PNGs)
 
 Viewports: desktop `1440×900`, mobile `390×844`. Output path:
-`.paperclip-local/evidence/capability/ui/<slug>--<desktop|mobile>.png` (package-local). Every capture
+`.outpost-local/evidence/capability/ui/<slug>--<desktop|mobile>.png` (package-local). Every capture
 also asserts `scrollWidth <= clientWidth` on the scrolling element at 390×844.
 
 | Slug | Seeded state | Must be visible |
@@ -359,7 +359,7 @@ locale-dependent renders from fixture data.
 ### 10.3 Evidence naming
 
 Per-eval-case evidence (7F/7K scope) reuses `browserEvidenceRecipe` verbatim:
-`.paperclip-local/evidence/capability/cases/<group>/<case-id>--<viewport>.png`. The §10.2 matrix is
+`.outpost-local/evidence/capability/cases/<group>/<case-id>--<viewport>.png`. The §10.2 matrix is
 the UI acceptance set; case evidence is additive and follows the same settle/determinism
 rules.
 

@@ -30,7 +30,7 @@ describe("fake sandbox provider plugin", () => {
     });
     const base = {
       driverKey: "fake-plugin",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { image: "fake:test", reuseLease: false },
     };
@@ -58,7 +58,7 @@ describe("fake sandbox provider plugin", () => {
       lease,
       workspace: { mode: "isolated_workspace" },
     });
-    expect(realized.cwd).toContain("paperclip-fake-sandbox-");
+    expect(realized.cwd).toContain("outpost-fake-sandbox-");
 
     const executed = await harness.execute({
       ...base,
@@ -191,7 +191,7 @@ describe("fake sandbox provider plugin", () => {
     });
     const base = {
       driverKey: "fake-plugin",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-setup",
       config: { image: "fake:setup", reuseLease: false },
     };
@@ -336,7 +336,7 @@ describe("fake sandbox provider plugin", () => {
     });
     const base = {
       driverKey: "fake-plugin",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-redaction",
       config: { image: "fake:redaction", reuseLease: false },
     };
@@ -376,7 +376,7 @@ describe("fake sandbox provider plugin", () => {
       });
       const base = {
         driverKey: "fake-plugin",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { image: "fake:test", reuseLease: false },
       };
@@ -430,7 +430,7 @@ describe("fake sandbox provider plugin", () => {
     });
     const base = {
       driverKey: "fake-plugin",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { image: "fake:test", reuseLease: false },
     };
@@ -472,7 +472,7 @@ describe("fake sandbox provider plugin", () => {
     });
     const base = {
       driverKey: "fake-plugin",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { image: "fake:test", reuseLease: false },
     };

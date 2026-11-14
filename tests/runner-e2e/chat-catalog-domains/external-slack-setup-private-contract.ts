@@ -5,7 +5,7 @@ export interface SlackSetupPrivateInput {
   signingSecret: string;
 }
 export function validSlackSetupPrivate(
-  companyId: unknown,
+  spaceId: unknown,
   input: SlackSetupPrivateInput | undefined,
   setupURL: string,
   repair = false,
@@ -13,8 +13,8 @@ export function validSlackSetupPrivate(
   try {
     const url = new URL(setupURL);
     return (
-      typeof companyId === "string" &&
-      /^[a-f0-9-]{36}$/i.test(companyId) &&
+      typeof spaceId === "string" &&
+      /^[a-f0-9-]{36}$/i.test(spaceId) &&
       !!input &&
       [input.endpointId, input.agentId].every((id) =>
         /^[a-f0-9-]{36}$/i.test(id),

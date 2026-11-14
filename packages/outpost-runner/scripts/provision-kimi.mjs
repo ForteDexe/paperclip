@@ -107,7 +107,7 @@ export async function provisionKimi(entrypoint, checkCancelled = () => {}, signa
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  if (process.argv.length !== 2) throw new Error("Usage: paperclipai runtime setup kimi (explicit host installation; no model calls)");
+  if (process.argv.length !== 2) throw new Error("Usage: outpost runtime setup kimi (explicit host installation; no model calls)");
   const environment = provisionEnvironment();
   for (const key of Object.keys(process.env)) delete process.env[key]; Object.assign(process.env, environment);
   const controller = new AbortController();

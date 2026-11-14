@@ -8,7 +8,7 @@ belong to only one Space. Switching Spaces changes the complete visible agent,
 task, Decision, North Star, session, and configuration context without stopping
 agent processes that are already running.
 
-The legacy `company` and `project` names remain in internal APIs where changing
+The legacy `space` and `project` names remain in internal APIs where changing
 them would create migration risk. Each Space owns one hidden compatibility
 project/workspace whose cwd is the Space directory; Projects are not a second
 user-created navigation layer. Portable identity/configuration belongs in the

@@ -21,7 +21,7 @@ const popupAssignMock = vi.hoisted(() => vi.fn());
 vi.mock("@/api/tools", () => ({ toolsApi: toolsApiMock }));
 vi.mock("@/lib/browserNavigation", () => ({ navigateTopLevel: navigateTopLevelMock }));
 // The tab uses `useNavigate` from the app router (PAP-11088 draft hand-off),
-// which needs CompanyProvider; stub it so the copy hint renders in isolation.
+// which needs SpaceProvider; stub it so the copy hint renders in isolation.
 vi.mock("@/lib/router", () => ({ useNavigate: () => mockNavigate }));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,7 +68,7 @@ function connectResult(overrides: Partial<ConnectToolAppResult> = {}): ConnectTo
     connectionId: "conn-1",
     application: {
       id: "app-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       applicationKey: "app-gallery:link:test",
       name: "kv-demo",
       description: null,
@@ -84,7 +84,7 @@ function connectResult(overrides: Partial<ConnectToolAppResult> = {}): ConnectTo
     },
     connection: {
       id: "conn-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       applicationId: "app-1",
       name: "kv-demo",
       uid: "app-gallery-link-test/kv-demo",
@@ -93,7 +93,7 @@ function connectResult(overrides: Partial<ConnectToolAppResult> = {}): ConnectTo
       ownership: "customer",
       transport: "mcp_remote",
       authKind: "none",
-      credentialSource: "paperclip_vault",
+      credentialSource: "outpost_vault",
       credentialPolicy: "shared",
       status: "draft",
       enabled: false,
@@ -108,7 +108,7 @@ function connectResult(overrides: Partial<ConnectToolAppResult> = {}): ConnectTo
       lastCatalogRefreshAt: new Date(),
       lastError: null,
       createdByAgentId: null,
-      createdByUserId: "board",
+      createdByUserId: "operator",
       createdAt: new Date(),
       updatedAt: new Date(),
     },
@@ -202,7 +202,7 @@ describe("PasteConfigTab — discoverability copy (PAP-11091)", () => {
       root.render(
         <QueryClientProvider client={queryClient}>
           <MemoryRouter>
-            <PasteConfigTab companyId="company-1" />
+            <PasteConfigTab spaceId="space-1" />
           </MemoryRouter>
         </QueryClientProvider>,
       );
@@ -251,7 +251,7 @@ describe("PasteConfigTab — activation handoff (PAP-11092)", () => {
       root.render(
         <QueryClientProvider client={queryClient}>
           <MemoryRouter>
-            <PasteConfigTab companyId="company-1" />
+            <PasteConfigTab spaceId="space-1" />
           </MemoryRouter>
         </QueryClientProvider>,
       );
@@ -301,7 +301,7 @@ describe("PasteConfigTab — activation handoff (PAP-11092)", () => {
     await flushReact();
 
     expect(mockNavigate).not.toHaveBeenCalled();
-    expect(toolsApiMock.connectApp).toHaveBeenCalledWith("company-1", {
+    expect(toolsApiMock.connectApp).toHaveBeenCalledWith("space-1", {
       link: "http://127.0.0.1:8848/mcp",
       name: "kv-demo",
       credentialValues: {},
@@ -340,7 +340,7 @@ describe("PasteConfigTab — activation handoff (PAP-11092)", () => {
     });
     await flushReact();
 
-    expect(toolsApiMock.finishApp).toHaveBeenCalledWith("company-1", "conn-1", {
+    expect(toolsApiMock.finishApp).toHaveBeenCalledWith("space-1", "conn-1", {
       enabledCatalogEntryIds: ["cat-read", "cat-write"],
       askFirstCatalogEntryIds: [],
       access: "all_agents",
@@ -387,7 +387,7 @@ describe("PasteConfigTab — activation handoff (PAP-11092)", () => {
     });
     await flushReact();
 
-    expect(toolsApiMock.connectApp).toHaveBeenCalledWith("company-1", {
+    expect(toolsApiMock.connectApp).toHaveBeenCalledWith("space-1", {
       link: "https://secure.example/mcp",
       name: "secure-demo",
       credentialValues: { "headers.Authorization": "Bearer new" },
@@ -415,7 +415,7 @@ describe("PasteConfigTab — activation handoff (PAP-11092)", () => {
     await flushReact();
 
     expect(toolsApiMock.connectApp).toHaveBeenCalledTimes(1);
-    expect(toolsApiMock.connectApp).toHaveBeenCalledWith("company-1", {
+    expect(toolsApiMock.connectApp).toHaveBeenCalledWith("space-1", {
       link: "https://mcp.notion.com/mcp",
       name: "Notion generic self-test 2026-08-17T20:00:00Z",
       credentialValues: {},
@@ -477,7 +477,7 @@ describe("PasteConfigTab — activation handoff (PAP-11092)", () => {
     const result = oauthConnectResult("https://my.outpost.app/connections/confirm?session=legacy");
     result.auth = {
       ...result.auth!,
-      handoff: { kind: "paperclip_cloud", session },
+      handoff: { kind: "outpost_cloud", session },
     };
     toolsApiMock.connectApp.mockResolvedValue(result);
 

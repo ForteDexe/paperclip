@@ -5,8 +5,8 @@ import { SystemNoticeUxLab } from "@/pages/SystemNoticeUxLab";
 
 function StoryFrame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="paperclip-story">
-      <main className="paperclip-story__inner">{children}</main>
+    <div className="outpost-story">
+      <main className="outpost-story__inner">{children}</main>
     </div>
   );
 }
@@ -21,7 +21,7 @@ const meta = {
           "The former in-app UX test routes are represented here as Storybook stories so fixture-backed review surfaces stay out of production routing.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "developer-labs/interaction-labs"
       ],

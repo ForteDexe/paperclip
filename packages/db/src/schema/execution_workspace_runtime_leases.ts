@@ -1,6 +1,6 @@
 import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { agents } from "./agents.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { executionWorkspaces } from "./execution_workspaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 import { issues } from "./issues.js";
@@ -12,7 +12,7 @@ export const executionWorkspaceRuntimeLeases = pgTable(
   "execution_workspace_runtime_leases",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     executionWorkspaceId: uuid("execution_workspace_id")
       .notNull()
       .unique()
@@ -32,12 +32,12 @@ export const executionWorkspaceRuntimeLeases = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyWorkspaceIdx: index("execution_workspace_runtime_leases_company_workspace_idx").on(
-      table.companyId,
+    spaceWorkspaceIdx: index("execution_workspace_runtime_leases_space_workspace_idx").on(
+      table.spaceId,
       table.executionWorkspaceId,
     ),
-    companyOwnerIdx: index("execution_workspace_runtime_leases_company_owner_idx").on(
-      table.companyId,
+    spaceOwnerIdx: index("execution_workspace_runtime_leases_space_owner_idx").on(
+      table.spaceId,
       table.ownerKey,
     ),
     expiresAtIdx: index("execution_workspace_runtime_leases_expires_at_idx").on(table.expiresAt),

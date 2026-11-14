@@ -4,7 +4,7 @@
   "runtimeSourceRevision": "526081b9d6c905de5e2da680e3a37c620899b380",
   "providerVersion": "2026.09.26-dd393fe",
   "profileVersion": 3,
-  "patchVersion": "paperclip-cursor-isolation-v1",
+  "patchVersion": "outpost-cursor-isolation-v1",
   "providerPackDigest": "sha256:7166a42d06192c53191aad7b15396e291675624001fbd95dd4b3cbda197f87a0",
   "candidate": {
     "version": "2026.09.26-dd393fe",
@@ -40,7 +40,7 @@
       "scope": "credential-free real ACP SDK fixtures plus mocked admission, recovery, request delivery, lifecycle and cancellation; excludes native provider availability"
     },
     "verifiedNativeLease": {
-      "schema": "paperclip-cursor-offline-pack-proof/v1",
+      "schema": "outpost-cursor-offline-pack-proof/v1",
       "capturedAt": "2026-09-29T14:50:08.614Z",
       "runnerSourceRevision": "526081b9d6c905de5e2da680e3a37c620899b380",
       "packDigest": "sha256:7166a42d06192c53191aad7b15396e291675624001fbd95dd4b3cbda197f87a0",
@@ -84,7 +84,7 @@
               }
             },
             "clientInfo": {
-              "name": "paperclip-offline-pack-probe",
+              "name": "outpost-offline-pack-probe",
               "version": "1"
             }
           }

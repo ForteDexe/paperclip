@@ -16,7 +16,7 @@ removing the combined scan would lose work.
 This slice owns obsolete version-change policy reviews only. The existing
 `obsolete-policy-reviews.ts` service identifies their full historical signature:
 pending system confirmation, exact prompt, applied native review decision,
-exact two-effect payload, and matching company/issue/run/effect/assessment.
+exact two-effect payload, and matching space/issue/run/effect/assessment.
 Real completion reviews, authored requests and answered cards are excluded.
 The current status arbiter does not generate this old prompt. The typed decision
 committer still supports the old effect shape, so a startup-only scan is not
@@ -44,7 +44,7 @@ integration or restart reconstruction.
 
 The service registers with the existing scoped deadline helper. Startup and
 committed issue hints reconstruct exact candidates in 100-row keyset pages.
-The worker stores interaction/company/issue IDs and due times, not the decision
+The worker stores interaction/space/issue IDs and due times, not the decision
 payload. Batches of twenty use the shared fairness mechanism. Each check rereads
 the exact candidate and delegates to the existing transaction owner.
 
@@ -73,7 +73,7 @@ reaper and unrelated finalization duties still run until migrated separately.
 Cloud alarms and sleep eligibility remain unchanged.
 
 Startup cost scales with historical pending candidates and their joins. Scoping
-ordinary commit hints to company/issue uses the existing interaction indexes.
+ordinary commit hints to space/issue uses the existing interaction indexes.
 There is no new schema or unconditional hasPending query. Query-plan evidence
 and final test results are recorded below when available.
 
@@ -90,7 +90,7 @@ PR head CI/review remain required. No local or remote completion is claimed here
 
 The first combined run had 67 passing tests and 49 failures. The producer helper
 serialized the structurally assignable commit input rather than projecting its
-company/issue fields. That included the database object and threw a circular
+space/issue fields. That included the database object and threw a circular
 JSON error on real commits. The helper now serializes only its two domain IDs.
 The failed run is retained at `/tmp/sleep44-owners-v1.log`. A fresh full selection
 is required after this production repair.
@@ -100,7 +100,7 @@ without skips (56 corpus tests, 58 startup tests and two timing tests). The corp
 includes the existing 53 native/legacy fixtures inside its matrix test.
 
 A rolled-back query fixture added 10,000 completed interaction rows on the same
-issue and restored one matching pending historical review. The company/issue
+issue and restored one matching pending historical review. The space/issue
 lookup used existing decision, interaction-idempotency, effect-ordinal and
 assessment indexes. It returned one candidate in 0.058 ms locally. This supports
 the scoped-query access path, not a production latency claim. Startup remains
@@ -190,18 +190,18 @@ required; no previous review score is used as current evidence.
 ## External corpus repeatability review correction
 
 Greptile reported that rerunning the supported external corpus fixture fails
-because the prior companies retain the fixed PSC and OUT prefixes. The exact
+because the prior spaces retain the fixed PSC and OUT prefixes. The exact
 reviewed head `45cb0d9ccc9b0c37068f56a709f16572bd7b7ddc` reproduces PostgreSQL
-23505 on `companies_issue_prefix_idx` when rerun against its previously successful
+23505 on `spaces_issue_prefix_idx` when rerun against its previously successful
 fixture. Setup fails and all 56 cases are skipped; this is a failing reproduction,
 not an assertion pass.
 
 An initial cleanup attempt at `669da4422df74e90eab324100ddab345f21df020`
 passes all 443 assertions but fails the suite in afterAll. Activity-log records
-hold non-cascading company foreign keys. That attempt is not accepted and no
+hold non-cascading space foreign keys. That attempt is not accepted and no
 passing retry erases it. The cleanup and import were fully removed.
 
-The final change derives each prefix from its own already-unique company UUID,
+The final change derives each prefix from its own already-unique space UUID,
 normalizes it to uppercase alphanumeric text, and keeps the PSC or OUT label.
 It changes exactly two fixture values relative to the reviewed head. Existing
 teardown, all assertions and timing limits, runtime code and database schema
@@ -212,9 +212,9 @@ Source `4cc0d03ae96bd92a4fdad44168c2a8647d42466c` passes all **443 distinct
 cases across seven complete files**, without skips, in 46.46 seconds. The complete
 56-case corpus immediately passes a second time against the same database in
 10.15 seconds. The repeat is not added again to the distinct test count. Three
-preexisting companies include retained PSC/OUT prefixes and an unrelated sentinel.
+preexisting spaces include retained PSC/OUT prefixes and an unrelated sentinel.
 All three remain byte-identical in the inspected ID/name/prefix fields after
-both runs. Only each invocation's two distinct companies are appended.
+both runs. Only each invocation's two distinct spaces are appended.
 
 Five new isolated PostgreSQL 17 fixtures migrate through 0409. Actual database
 build, server typecheck/build, boundaries and exact-head migration order pass.

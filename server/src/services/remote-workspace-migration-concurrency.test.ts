@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, closeRegisteredClients, companies, createDb, environmentLeases, executionWorkspaceSnapshots,
+import { agents, closeRegisteredClients, spaces, createDb, environmentLeases, executionWorkspaceSnapshots,
   executionWorkspaces, heartbeatRuns, issues, nativeRunFinalizations, workspaceOperations } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { createStorageService } from "../storage/service.js";
@@ -38,23 +38,23 @@ describe.skipIf(!support.supported)("legacy workspace publication ownership cont
   });
 
   async function fixture() {
-    const companyId = randomUUID(), runId = randomUUID(), workspaceId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Legacy publication", issuePrefix: `L${companyId.slice(0, 6)}` });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Historical worker", adapterType: "outpost_runner" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Retain local work", status: "blocked" }).returning();
+    const spaceId = randomUUID(), runId = randomUUID(), workspaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Legacy publication", issuePrefix: `L${spaceId.slice(0, 6)}` });
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Historical worker", adapterType: "outpost_runner" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Retain local work", status: "blocked" }).returning();
     const cwd = path.join(root, workspaceId); await mkdir(cwd);
     await writeFile(path.join(cwd, "saved.txt"), "original local work\n");
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issue.id,
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issue.id,
       mode: "isolated_workspace", strategyType: "project_primary", providerType: "local_fs", name: "Legacy files", cwd, providerRef: cwd });
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, issue.id));
     const reference = { schema: "outpost.native-workspace-sync/v3", state: "prepared", workspaceId,
       leaseId: randomUUID(), providerLeaseId: randomUUID(), remoteCwd: "/workspaces/task",
       descriptorSha256: "12".repeat(32), baselineSha256: "34".repeat(32), finalHostSha256: null, resourceDisposition: "stop_and_retain" };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId: agent.id, nativeIssueId: issue.id,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId: agent.id, nativeIssueId: issue.id,
       runtimeMode: "native", status: "failed", finishedAt: new Date(), runnerProfileJson: { nativeWorkspaceSync: reference } });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId: issue.id, runId, phase: "terminal_failure" });
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId: issue.id, runId, phase: "terminal_failure" });
     const storage = createStorageService(createLocalDiskStorageProvider(path.join(root, `${workspaceId}-objects`)));
-    return { companyId, workspaceId, runId, issue, cwd, reference, storage,
+    return { spaceId, workspaceId, runId, issue, cwd, reference, storage,
       expectedProfile: { nativeWorkspaceSync: reference } as Record<string, unknown>, expectedPhase: "terminal_failure" };
   }
 
@@ -69,7 +69,7 @@ describe.skipIf(!support.supported)("legacy workspace publication ownership cont
     expect(await readFile(path.join(f.cwd, "saved.txt"), "utf8")).toBe("original local work\n");
     const snapshots = await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.executionWorkspaceId, f.workspaceId));
     expect(snapshots).toEqual([expect.objectContaining({ status: "uploaded" })]);
-    expect((await f.storage.headObject(f.companyId, snapshots[0].objectKey!)).exists).toBe(true);
+    expect((await f.storage.headObject(f.spaceId, snapshots[0].objectKey!)).exists).toBe(true);
     expect(await db.select().from(workspaceOperations).where(eq(workspaceOperations.executionWorkspaceId, f.workspaceId)))
       .toEqual([expect.objectContaining({ phase: "remote_workspace_migration", status: "running" })]);
   }
@@ -84,7 +84,7 @@ describe.skipIf(!support.supported)("legacy workspace publication ownership cont
       const saved = await f.storage.putFile(input); uploadReady.resolve(); await uploadRelease.promise; return saved;
     } };
     let migrationSettled = false;
-    const migrating = migrateRemoteWorkspace({ db: migrationDb, storage, companyId: f.companyId,
+    const migrating = migrateRemoteWorkspace({ db: migrationDb, storage, spaceId: f.spaceId,
       workspaceId: f.workspaceId, apply: true, writersStopped: true })
       .then(value => ({ value }), error => ({ error })).finally(() => { migrationSettled = true; });
     let barrier: Promise<void> | undefined, committing: Promise<unknown> | undefined;
@@ -96,7 +96,7 @@ describe.skipIf(!support.supported)("legacy workspace publication ownership cont
         lockReady.resolve(); await lockRelease.promise;
       });
       await lockReady.promise;
-      committing = commitNativeStatusDecision({ db: nativeDb, companyId: f.companyId, issueId: f.issue.id,
+      committing = commitNativeStatusDecision({ db: nativeDb, spaceId: f.spaceId, issueId: f.issue.id,
         runId: f.runId, assessmentId: randomUUID(), priorStatus: f.issue.status,
         priorStatusVersion: f.issue.statusVersion + 1, priorDecisionId: null,
         decision: { policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, statusAction: "preserve", toStatus: "blocked",
@@ -117,7 +117,7 @@ describe.skipIf(!support.supported)("legacy workspace publication ownership cont
       expect(results[0]).toMatchObject({ error: expect.objectContaining({ message: "remote_workspace_migration_blocked:execution_rows_busy" }) });
       expect(results[1]).toMatchObject({ error: expect.objectContaining({ code: "native_status_race" }) });
       await retained(f);
-      await expect(migrateRemoteWorkspace({ db, storage: f.storage, companyId: f.companyId,
+      await expect(migrateRemoteWorkspace({ db, storage: f.storage, spaceId: f.spaceId,
         workspaceId: f.workspaceId, apply: true, writersStopped: true })).resolves.toMatchObject({ applied: true });
       expect(await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.executionWorkspaceId, f.workspaceId)))
         .toEqual([expect.objectContaining({ status: "committed" })]);
@@ -130,7 +130,7 @@ describe.skipIf(!support.supported)("legacy workspace publication ownership cont
   it.each(["run", "lease"] as const)("holds publication while the saved %s is busy", async kind => {
     const f = await fixture();
     if (kind === "lease") {
-      await db.insert(environmentLeases).values({ id: f.reference.leaseId, companyId: f.companyId, heartbeatRunId: f.runId,
+      await db.insert(environmentLeases).values({ id: f.reference.leaseId, spaceId: f.spaceId, heartbeatRunId: f.runId,
         issueId: f.issue.id, provider: "daytona", providerLeaseId: f.reference.providerLeaseId,
         status: "released", metadata: { remoteCwd: f.reference.remoteCwd } });
       f.expectedProfile = {}; f.expectedPhase = "observed";
@@ -146,7 +146,7 @@ describe.skipIf(!support.supported)("legacy workspace publication ownership cont
     });
     await ready.promise;
     let settled = false;
-    const migrating = migrateRemoteWorkspace({ db, storage: f.storage, companyId: f.companyId,
+    const migrating = migrateRemoteWorkspace({ db, storage: f.storage, spaceId: f.spaceId,
       workspaceId: f.workspaceId, apply: true, writersStopped: true })
       .then(value => ({ value }), error => ({ error })).finally(() => { settled = true; });
     try {
@@ -154,7 +154,7 @@ describe.skipIf(!support.supported)("legacy workspace publication ownership cont
       expect(await migrating).toMatchObject({ error: expect.objectContaining({ message: "remote_workspace_migration_blocked:execution_rows_busy" }) });
       await retained(f);
       release.resolve(); await barrier;
-      await expect(migrateRemoteWorkspace({ db, storage: f.storage, companyId: f.companyId,
+      await expect(migrateRemoteWorkspace({ db, storage: f.storage, spaceId: f.spaceId,
         workspaceId: f.workspaceId, apply: true, writersStopped: true })).resolves.toMatchObject({ applied: true });
     } finally { release.resolve(); await barrier; await migrating; }
   }, 30_000);
@@ -169,7 +169,7 @@ describe.skipIf(!support.supported)("legacy workspace publication ownership cont
     await db.execute(sql.raw(`create trigger import_publication_failure before update on execution_workspaces for each row
       when (new.id = '${f.workspaceId}'::uuid and new.metadata ? 'remoteWorkspace') execute function import_publication_failure()`));
     try {
-      await expect(migrateRemoteWorkspace({ db, storage: f.storage, companyId: f.companyId,
+      await expect(migrateRemoteWorkspace({ db, storage: f.storage, spaceId: f.spaceId,
         workspaceId: f.workspaceId, apply: true, writersStopped: true })).rejects.toMatchObject({ cause: { code: "23514" } });
       const [workspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspaceId));
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));

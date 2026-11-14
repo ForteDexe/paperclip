@@ -6,8 +6,8 @@ import { uploadFactualQueryAttachment } from "../chat-query-attachments.js";
 vi.mock("../chat-query-attachments.js", () => ({ uploadFactualQueryAttachment: vi.fn(async () => ({ id: "factual-upload" })) }));
 
 function fixture() {
-  const target = { id: "target", companyId: "company", projectId: "project", identifier: "RUN-1", title: "Website task" };
-  const source = { id: "chat", companyId: "company", projectId: null as string | null, description: null as string | null };
+  const target = { id: "target", spaceId: "space", projectId: "project", identifier: "RUN-1", title: "Website task" };
+  const source = { id: "chat", spaceId: "space", projectId: null as string | null, description: null as string | null };
   const document = { id: "doc", issueId: "target", key: "plan", title: "Implementation plan", latestRevisionId: "revision", body: "Original pricing bytes" };
   const annotation = { id: "comment", documentId: "doc", originalRevisionId: "revision", status: "open" };
   const attachment = { id: "file", issueId: "target", sha256: "original-hash", originalFilename: "website-v1.html", contentPath: "/api/attachments/file/content" } as IssueAttachment;
@@ -24,7 +24,7 @@ function fixture() {
     patch: vi.fn(async (_path: string, value: object) => Object.assign(source, value)),
   };
   const evidence = vi.fn(async () => undefined);
-  const ctx = { input: { api, fixtures: { company: { id: "company", issuePrefix: "RUN" }, agent: { id: "ceo" } }, evidence },
+  const ctx = { input: { api, fixtures: { space: { id: "space", issuePrefix: "RUN" }, agent: { id: "ceo" } }, evidence },
     refreshIssue: vi.fn(async () => undefined), issue: () => source } as unknown as ChatCatalogContext;
   return { ctx, target, source, document, annotation, attachment, api, evidence };
 }
@@ -39,7 +39,7 @@ describe("factual visible document source selection", () => {
     expect(receipt.factualContextAttachment.id).toBe("factual-upload");
     expect({ document: f.document, annotation: f.annotation }).toEqual(original);
     expect(f.api.patch).toHaveBeenCalledExactlyOnceWith("/api/issues/chat", { projectId: "project", description: f.source.description });
-    expect(f.api.post).toHaveBeenCalledExactlyOnceWith("/api/companies/company/chats/ceo");
+    expect(f.api.post).toHaveBeenCalledExactlyOnceWith("/api/spaces/space/chats/ceo");
     expect(f.evidence).toHaveBeenCalledOnce();
   });
   it("selects an existing revision without supplying which historical contents to restore", async () => {
@@ -59,9 +59,9 @@ describe("factual visible document source selection", () => {
     expect(f.source.description).not.toMatch(/attachments|download|upload|register/);
     expect(f.api.post).toHaveBeenCalledOnce();
   });
-  it.each(["company", "project", "revision", "annotation", "attachment", "persist"]) ("rejects plausible wrong %s evidence before the canonical turn", async kind => {
+  it.each(["space", "project", "revision", "annotation", "attachment", "persist"]) ("rejects plausible wrong %s evidence before the canonical turn", async kind => {
     const f = fixture(); const input = { task: structuredClone(f.target), document: { ...f.document }, annotationId: "comment", attachment: { ...f.attachment } };
-    if (kind === "company") f.target.companyId = "foreign";
+    if (kind === "space") f.target.spaceId = "foreign";
     if (kind === "project") f.target.projectId = "other-project";
     if (kind === "revision") f.document.latestRevisionId = "other-revision";
     if (kind === "annotation") f.annotation.documentId = "other-doc";

@@ -45,7 +45,7 @@ let captured: UseInstallTeamCatalogEntryResult | null = null;
 
 function Harness({ simplified }: { simplified: boolean }) {
   captured = useInstallTeamCatalogEntry({
-    companyId: "company-1",
+    spaceId: "space-1",
     team: sampleTeam,
     simplified,
   });
@@ -100,7 +100,7 @@ describe("useInstallTeamCatalogEntry", () => {
     cleanup();
   });
 
-  it("simplified flow forces a full-company-equivalent target (null manager)", async () => {
+  it("simplified flow forces a full-space-equivalent target (null manager)", async () => {
     const cleanup = await renderHook(true);
     const form: TeamInstallFormState = {
       ...EMPTY_INSTALL_FORM,
@@ -116,12 +116,12 @@ describe("useInstallTeamCatalogEntry", () => {
     const form: TeamInstallFormState = {
       ...EMPTY_INSTALL_FORM,
       targetManagerAgentId: "agent-7",
-      adapterOverrides: { ceo: "codex_local" },
+      adapterOverrides: { lead: "codex_local" },
     };
     const preview = captured!.buildPreviewOptions(form);
     expect(preview.targetManagerAgentId).toBe("agent-7");
     const install = captured!.buildInstallOptions(form);
-    expect(install.adapterOverrides).toEqual({ ceo: { adapterType: "codex_local" } });
+    expect(install.adapterOverrides).toEqual({ lead: { adapterType: "codex_local" } });
     cleanup();
   });
 
@@ -133,7 +133,7 @@ describe("useInstallTeamCatalogEntry", () => {
     await flushReact();
     expect(mockTeamCatalogApi.install).toHaveBeenCalledTimes(1);
     expect(mockTeamCatalogApi.install).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       sampleTeam.id,
       expect.objectContaining({ targetManagerAgentId: null }),
     );

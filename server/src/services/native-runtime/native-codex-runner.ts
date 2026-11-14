@@ -11,16 +11,16 @@ import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command
 import type { Db } from "@outpost/db";
 import { agentSessionGoalActions, agentTaskSessions } from "@outpost/db";
 
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 import { failRunnerGoalAction } from "../runner-goals.js";
 import {
   BUNDLED_REMOTE_RUNNER_IDENTITY_MISMATCH,
   bundledRemoteRunnerRelease,
-  createPaperclipRunnerAuthorizedToolSet,
+  createOutpostRunnerAuthorizedToolSet,
   defaultCapabilityRunnerdBinary,
   defaultCapabilityRunnerdBinaryAsync,
   runnerBinaryTarget,
-  type PaperclipSemanticToolDefinition,
+  type OutpostSemanticToolDefinition,
 } from "../../vendor/outpost-runner/index.js";
 import { runnerPrpCoordinator } from "./runner-orp-coordinator.js";
 import { binaryTargetFromHeader, cachedFileSha256 } from "./off-loop-file-work.js";
@@ -45,7 +45,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 async function readNativeGoalControl(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   agentId: string;
   requestId: string | null;
@@ -67,7 +67,7 @@ async function readNativeGoalControl(input: {
     )
     .where(
       and(
-        eq(agentSessionGoalActions.companyId, input.companyId),
+        eq(agentSessionGoalActions.spaceId, input.spaceId),
         eq(agentSessionGoalActions.requestId, input.requestId),
         eq(agentTaskSessions.agentId, input.agentId),
         eq(agentTaskSessions.taskKey, input.issueId),
@@ -144,7 +144,7 @@ interface NativeRunnerPrepareInput {
   readonly model: string | null;
   readonly resumeProviderSessionId: string | null;
   readonly completionContract: { revision: string; criterionIds: string[] };
-  readonly semanticTools: readonly PaperclipSemanticToolDefinition[];
+  readonly semanticTools: readonly OutpostSemanticToolDefinition[];
   readonly providerLaunch?: NativeRunnerProviderLaunch;
 }
 
@@ -168,7 +168,7 @@ export function buildNativeRunnerPreparePayload(
       approvalPolicy: "never",
     },
     completionContract: input.completionContract,
-    authorizedTools: createPaperclipRunnerAuthorizedToolSet(input.semanticTools),
+    authorizedTools: createOutpostRunnerAuthorizedToolSet(input.semanticTools),
   };
 }
 
@@ -176,22 +176,22 @@ function executableName(): string {
   return process.platform === "win32" ? "outpost-runnerd.exe" : "outpost-runnerd";
 }
 
-function controllerPaperclipRunnerBinaryConfiguration(): string | undefined {
+function controllerOutpostRunnerBinaryConfiguration(): string | undefined {
   return process.env.OUTPOST_RUNNER_BINARY;
 }
 
-export function assertPaperclipRunnerBinaryConfiguration(
-  configuredPath = controllerPaperclipRunnerBinaryConfiguration(),
+export function assertOutpostRunnerBinaryConfiguration(
+  configuredPath = controllerOutpostRunnerBinaryConfiguration(),
 ): void {
   if (configuredPath && !isAbsolute(configuredPath)) {
     throw new Error("OUTPOST_RUNNER_BINARY must be an absolute path");
   }
 }
 
-export function resolvePaperclipRunnerBinary(
-  configuredPath = controllerPaperclipRunnerBinaryConfiguration(),
+export function resolveOutpostRunnerBinary(
+  configuredPath = controllerOutpostRunnerBinaryConfiguration(),
 ): string {
-  assertPaperclipRunnerBinaryConfiguration(configuredPath);
+  assertOutpostRunnerBinaryConfiguration(configuredPath);
   if (configuredPath) {
     try {
       accessSync(configuredPath, constants.R_OK | (process.platform === "win32" ? 0 : constants.X_OK));
@@ -223,11 +223,11 @@ export function resolvePaperclipRunnerBinary(
   );
 }
 
-/** `resolvePaperclipRunnerBinary` without blocking the event loop (run paths). */
-export async function resolvePaperclipRunnerBinaryAsync(
-  configuredPath = controllerPaperclipRunnerBinaryConfiguration(),
+/** `resolveOutpostRunnerBinary` without blocking the event loop (run paths). */
+export async function resolveOutpostRunnerBinaryAsync(
+  configuredPath = controllerOutpostRunnerBinaryConfiguration(),
 ): Promise<string> {
-  assertPaperclipRunnerBinaryConfiguration(configuredPath);
+  assertOutpostRunnerBinaryConfiguration(configuredPath);
   if (configuredPath) {
     try {
       await access(configuredPath, constants.R_OK | (process.platform === "win32" ? 0 : constants.X_OK));
@@ -259,7 +259,7 @@ export async function resolvePaperclipRunnerBinaryAsync(
   );
 }
 
-export async function resolveRemotePaperclipRunnerBinary(input: {
+export async function resolveRemoteOutpostRunnerBinary(input: {
   runner: CommandManagedRuntimeRunner;
   remoteCwd: string;
   configuredPath?: string | null;
@@ -277,7 +277,7 @@ export async function resolveRemotePaperclipRunnerBinary(input: {
   const controllerOverride = platform === process.platform && architecture === process.arch
     ? process.env.OUTPOST_RUNNER_BINARY : undefined;
   const binary = configured || (controllerOverride
-    ? await resolvePaperclipRunnerBinaryAsync(controllerOverride)
+    ? await resolveOutpostRunnerBinaryAsync(controllerOverride)
     : await defaultCapabilityRunnerdBinaryAsync(platform, architecture));
   // The header names the target; reading the whole daemon here blocked the
   // event loop on every remote run.
@@ -390,7 +390,7 @@ async function stopChild(
 
 export async function executeNativeCodexRunner(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   agentId: string;
@@ -421,15 +421,15 @@ export async function executeNativeCodexRunner(input: {
     startedAt: string;
   }) => Promise<void>;
 }): Promise<AdapterExecutionResult> {
-  const binary = input.runnerBinary ?? await resolvePaperclipRunnerBinaryAsync();
+  const binary = input.runnerBinary ?? await resolveOutpostRunnerBinaryAsync();
   const runnerDigest = await cachedFileSha256(binary);
   const runtimeRoot = input.runtimeRoot
     ? resolve(input.runtimeRoot)
-    : resolve(resolvePaperclipInstanceRoot(), "runtime", "outpost-runner");
+    : resolve(resolveOutpostInstanceRoot(), "runtime", "outpost-runner");
   const runnerStateDirectory = resolve(runtimeRoot, "runner", input.runId);
   const goalControl = await readNativeGoalControl({
     db: input.db,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     issueId: input.issueId,
     agentId: input.agentId,
     requestId: input.goalControlRequestId ?? null,
@@ -442,7 +442,7 @@ export async function executeNativeCodexRunner(input: {
   const prepared = await runnerPrpCoordinator(input.db, {
     stateRoot: resolve(runtimeRoot, "control-plane"),
   }).prepare({
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     issueId: input.issueId,
     runId: input.runId,
     agentId: input.agentId,
@@ -611,7 +611,7 @@ export async function executeNativeCodexRunner(input: {
       await failRunnerGoalAction(
         input.db,
         {
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           issueId: input.issueId,
           agentId: input.agentId,
           adapterType: "outpost_runner",

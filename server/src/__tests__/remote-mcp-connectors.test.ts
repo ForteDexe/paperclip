@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, heartbeatRuns, issues, toolCatalogEntries, toolConnectionInstalls, toolInvocations, companies, companyMemberships, instanceSettings, createDb, toolConnections, toolPolicies, toolProfileEntries } from "@outpost/db";
+import { agents, heartbeatRuns, issues, toolCatalogEntries, toolConnectionInstalls, toolInvocations, spaces, spaceMemberships, instanceSettings, createDb, toolConnections, toolPolicies, toolProfileEntries } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { toolAccessService } from "../services/tool-access.js";
@@ -25,9 +25,9 @@ describe("remote connector lifecycle", () => {
     db = createDb(fixture.connectionString);
   });
   afterAll(async () => { await fixture?.cleanup(); vi.unstubAllEnvs(); if (keyDir) await rm(keyDir, { recursive: true, force: true }); });
-  async function company() {
-    const [row] = await db.insert(companies).values({ name: `MCP ${randomUUID()}`, issuePrefix: `M${randomUUID().slice(0, 5)}` }).returning();
-    await db.insert(companyMemberships).values({ companyId: row.id, principalType: "user", principalId: actor.actorId, status: "active", membershipRole: "admin" });
+  async function space() {
+    const [row] = await db.insert(spaces).values({ name: `MCP ${randomUUID()}`, issuePrefix: `M${randomUUID().slice(0, 5)}` }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: row.id, principalType: "user", principalId: actor.actorId, status: "active", membershipRole: "admin" });
     return row;
   }
   function remoteFixture() {
@@ -51,10 +51,10 @@ describe("remote connector lifecycle", () => {
     return { service, requests, add: () => { added = true; }, remove: () => { removed = true; }, restore: () => { removed = false; } };
   }
   it("advertises the initiating OAuth callback and preserves explicitly configured origins", async () => {
-    const org = await company();
+    const org = await space();
     const app = express();
-    app.use((req, _res, next) => { req.actor = { type: "board", userId: actor.actorId, source: "local_implicit", isInstanceAdmin: true }; next(); });
-    app.use("/api", toolAccessRoutes(db, { paperclipCloudConnector: null }));
+    app.use((req, _res, next) => { req.actor = { type: "operator", userId: actor.actorId, source: "local_implicit", isInstanceAdmin: true }; next(); });
+    app.use("/api", toolAccessRoutes(db, { outpostCloudConnector: null }));
 
     const publicBaseUrlEnv = process.env.OUTPOST_AUTH_PUBLIC_BASE_URL;
     const otherPublicUrlNames = ["BETTER_AUTH_URL", "BETTER_AUTH_BASE_URL", "OUTPOST_PUBLIC_URL", "OUTPOST_MANAGED_RUNTIME_PUBLIC_URL"] as const;
@@ -62,24 +62,24 @@ describe("remote connector lifecycle", () => {
     try {
       for (const name of otherPublicUrlNames) process.env[name] = "";
       process.env.OUTPOST_AUTH_PUBLIC_BASE_URL = "https://outpost.example.test";
-      const configured = await request(app).get(`/api/companies/${org.id}/tools/gallery`);
+      const configured = await request(app).get(`/api/spaces/${org.id}/tools/gallery`);
       expect(configured.status).toBe(200);
       expect(configured.body.oauthCallbackUrl).toBe("https://outpost.example.test/api/tools/oauth/callback");
 
       process.env.OUTPOST_AUTH_PUBLIC_BASE_URL = "http://127.0.0.1:3105";
-      const configuredLoopback = await request(app).get(`/api/companies/${org.id}/tools/gallery`);
+      const configuredLoopback = await request(app).get(`/api/spaces/${org.id}/tools/gallery`);
       expect(configuredLoopback.status).toBe(200);
       expect(configuredLoopback.body.oauthCallbackUrl).toBe("http://127.0.0.1:3105/api/tools/oauth/callback");
 
       delete process.env.OUTPOST_AUTH_PUBLIC_BASE_URL;
       const inferredLoopback = await request(app)
-        .get(`/api/companies/${org.id}/tools/gallery`)
+        .get(`/api/spaces/${org.id}/tools/gallery`)
         .set("host", "127.0.0.1:3105");
       expect(inferredLoopback.status).toBe(200);
       expect(inferredLoopback.body.oauthCallbackUrl).toBe("http://localhost:3105/api/tools/oauth/callback");
 
       const unsupported = await request(app)
-        .get(`/api/companies/${org.id}/tools/gallery`)
+        .get(`/api/spaces/${org.id}/tools/gallery`)
         .set("host", "outpost.internal.test");
       expect(unsupported.status).toBe(200);
       expect(unsupported.body).not.toHaveProperty("oauthCallbackUrl");
@@ -98,11 +98,11 @@ describe("remote connector lifecycle", () => {
     if (legacyValue !== undefined) await db.insert(instanceSettings).values({ experimental: { enableMcpAggregators: legacyValue } });
     expect(normalizeExperimentalSettings({ enableMcpAggregators: legacyValue }).enableMcpAggregators).toBe(true);
     expect((await instanceSettingsService(db).getExperimental()).enableMcpAggregators).toBe(true);
-    const org = await company(); const remote = remoteFixture();
+    const org = await space(); const remote = remoteFixture();
     const app = express();
-    app.use((req, _res, next) => { req.actor = { type: "board", userId: actor.actorId, source: "local_implicit", isInstanceAdmin: true }; next(); });
-    app.use("/api", toolAccessRoutes(db, { paperclipCloudConnector: null }));
-    const gallery = await request(app).get(`/api/companies/${org.id}/tools/gallery`);
+    app.use((req, _res, next) => { req.actor = { type: "operator", userId: actor.actorId, source: "local_implicit", isInstanceAdmin: true }; next(); });
+    app.use("/api", toolAccessRoutes(db, { outpostCloudConnector: null }));
+    const gallery = await request(app).get(`/api/spaces/${org.id}/tools/gallery`);
     expect(gallery.status).toBe(200);
     expect(gallery.body.apps.map((entry: { slug: string }) => entry.slug)).toEqual(expect.arrayContaining(["zapier", "arcade", "composio", "executor", "notion"]));
     expect(gallery.body.apps.some((entry: { slug: string }) => entry.slug === "mem0")).toBe(false);
@@ -120,8 +120,8 @@ describe("remote connector lifecycle", () => {
   it.each([
     ["zapier", "generated-url", "https://mcp.zapier.com/api/v1/connect?token=fixture-secret"],
     ["composio", "mcp", "https://mcp.composio.dev/session/fixture?token=fixture-secret"],
-  ])("%s vaults session URLs, paginates discovery, preserves Off/Ask during refresh and reconnect, and isolates companies", async (galleryKey, connectionMethodKey, link) => {
-    const org = await company(); const other = await company(); const remote = remoteFixture();
+  ])("%s vaults session URLs, paginates discovery, preserves Off/Ask during refresh and reconnect, and isolates spaces", async (galleryKey, connectionMethodKey, link) => {
+    const org = await space(); const other = await space(); const remote = remoteFixture();
     const input = { galleryKey, connectionMethodKey, link, authMode: "none" as const };
     const connected = await remote.service.connectGalleryApp(org.id, input, actor);
     expect(connected.catalog).toHaveLength(3);
@@ -140,7 +140,7 @@ describe("remote connector lifecycle", () => {
     const restored = await remote.service.finishGalleryAppConnection(org.id, connected.connectionId, { enabledCatalogEntryIds: reconnected.catalog.map((entry) => entry.id), askFirstCatalogEntryIds: [], access: "all_agents" }, actor);
     expect(restored.connection.status).toBe("active");
     expect(restored.profileEntries.map((entry) => entry.catalogEntryId)).not.toContain(ids.off);
-    const policies = await db.select().from(toolPolicies).where(eq(toolPolicies.companyId, org.id));
+    const policies = await db.select().from(toolPolicies).where(eq(toolPolicies.spaceId, org.id));
     expect(policies.some((policy) => policy.enabled && policy.config?.catalogEntryId === ids.ask)).toBe(true);
     remote.remove();
     const afterRemoval = await remote.service.refreshCatalog(connected.connectionId, actor);
@@ -158,8 +158,8 @@ describe("remote connector lifecycle", () => {
     expect(removed.status).toBe("archived");
   });
   it("renews expired discovery sessions and requires an explicit retry after an expired execution session", async () => {
-    const org = await company();
-    const [agent] = await db.insert(agents).values({ companyId: org.id, name: "Session tester", role: "engineer", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
+    const org = await space();
+    const [agent] = await db.insert(agents).values({ spaceId: org.id, name: "Session tester", role: "engineer", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
     let initialized = 0;
     const expired = new Set<string>();
     const calls: string[] = [];
@@ -180,7 +180,7 @@ describe("remote connector lifecycle", () => {
     expect(initialized).toBe(beforeRefresh + 1);
     await service.finishGalleryAppConnection(org.id, connected.connectionId, { enabledCatalogEntryIds: connected.catalog.map((entry) => entry.id), askFirstCatalogEntryIds: [], access: "all_agents" }, actor);
     const gateway = createToolGatewayService(db, { deploymentMode: "local_trusted", deploymentExposure: "private", remoteHttpRequest: send });
-    const call = () => gateway.executeTestCall({ companyId: org.id, connectionId: connected.connectionId, agentId: agent.id, userId: actor.actorId, toolName: "read", parameters: {} });
+    const call = () => gateway.executeTestCall({ spaceId: org.id, connectionId: connected.connectionId, agentId: agent.id, userId: actor.actorId, toolName: "read", parameters: {} });
     expect(await call()).toMatchObject({ decision: "allowed", result: { data: { isError: false } } });
     const executionSession = calls[0];
     expired.add(executionSession);
@@ -192,7 +192,7 @@ describe("remote connector lifecycle", () => {
     expect(calls[2]).not.toBe(executionSession);
   });
   it("saves a vaulted draft without contacting the provider and resumes with custom headers", async () => {
-    const org = await company(); const remote = remoteFixture();
+    const org = await space(); const remote = remoteFixture();
     const input = { galleryKey: "arcade", connectionMethodKey: "mcp", link: "https://api.arcade.dev/mcp/fixture", authMode: "bearer" as const };
     const draft = await remote.service.connectGalleryApp(org.id, { ...input, saveDraft: true, credentialValues: { "credentials.authorization": "fixture-key", "headers.Arcade-User-ID": "test-user" } }, actor);
     expect(remote.requests).toHaveLength(0);
@@ -202,7 +202,7 @@ describe("remote connector lifecycle", () => {
     expect(remote.requests.every((request) => request.headers.get("authorization") === "Bearer fixture-key" && request.headers.get("arcade-user-id") === "test-user")).toBe(true);
   });
   it("does not widen an empty agent selection after an OAuth callback or reconnect", async () => {
-    const org = await company();
+    const org = await space();
     const endpoint = "https://api.arcade.dev/mcp/fixture-oauth";
     const send = async (url: string, init: RequestInit) => {
       if (url.includes(".well-known/oauth-protected-resource")) return Response.json({ resource: endpoint, authorization_servers: ["https://auth.arcade.dev"] });
@@ -230,9 +230,9 @@ describe("remote connector lifecycle", () => {
     await callback();
     expect((await service.listConnectionInstalls(connected.connectionId))).toHaveLength(0);
   });
-  it("enforces agent and action permissions before dispatch, and preserves provider resume after Paperclip approval", async () => {
-    const org = await company();
-    const [allowed, denied] = await db.insert(agents).values(["Allowed", "Denied"].map((name) => ({ companyId: org.id, name, role: "engineer", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }))).returning();
+  it("enforces agent and action permissions before dispatch, and preserves provider resume after Outpost approval", async () => {
+    const org = await space();
+    const [allowed, denied] = await db.insert(agents).values(["Allowed", "Denied"].map((name) => ({ spaceId: org.id, name, role: "engineer", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }))).returning();
     const calls: { name: string; arguments: unknown; session: string | null }[] = [];
     const send = async (_url: string, init: RequestInit) => {
       const body = JSON.parse(String(init.body));
@@ -249,7 +249,7 @@ describe("remote connector lifecycle", () => {
     const ids = Object.fromEntries(connection.catalog.map((entry) => [entry.toolName, entry.id]));
     await service.finishGalleryAppConnection(org.id, connection.connectionId, { enabledCatalogEntryIds: [ids.execute, ids.resume], askFirstCatalogEntryIds: [ids.execute], access: { agentIds: [allowed.id] } }, actor);
     const gateway = createToolGatewayService(db, { deploymentMode: "local_trusted", deploymentExposure: "private", remoteHttpRequest: send, toolActionSigningSecret: "fixture-signing-key" });
-    const call = (agentId: string, toolName: string, parameters: Record<string, unknown> = {}) => gateway.executeTestCall({ companyId: org.id, connectionId: connection.connectionId, agentId, userId: actor.actorId, toolName, parameters });
+    const call = (agentId: string, toolName: string, parameters: Record<string, unknown> = {}) => gateway.executeTestCall({ spaceId: org.id, connectionId: connection.connectionId, agentId, userId: actor.actorId, toolName, parameters });
     expect((await call(denied.id, "execute")).decision).toBe("off");
     expect((await call(allowed.id, "off")).decision).toBe("off");
     expect(calls).toHaveLength(0);
@@ -257,8 +257,8 @@ describe("remote connector lifecycle", () => {
     expect(asked.decision).toBe("ask_first");
     expect(calls).toHaveLength(0);
     if (!("actionRequestId" in asked)) throw new Error("Missing approval request");
-    await gateway.approveActionRequest({ companyId: org.id, actionRequestId: asked.actionRequestId!, actor: { userId: actor.actorId } });
-    const status = await gateway.getTestCallStatus({ companyId: org.id, connectionId: connection.connectionId, actionRequestId: asked.actionRequestId! });
+    await gateway.approveActionRequest({ spaceId: org.id, actionRequestId: asked.actionRequestId!, actor: { userId: actor.actorId } });
+    const status = await gateway.getTestCallStatus({ spaceId: org.id, connectionId: connection.connectionId, actionRequestId: asked.actionRequestId! });
     expect(status.phase).toBe("done");
     expect(status.upstreamPending).toMatchObject({ executionId: "fixture-execution", resumeTool: "resume" });
     const [invocation] = await db.select().from(toolInvocations).where(eq(toolInvocations.id, asked.invocationId));
@@ -267,9 +267,9 @@ describe("remote connector lifecycle", () => {
     expect(resumed.decision).toBe("allowed");
     expect(calls.map((call) => call.name)).toEqual(["execute", "resume"]);
     expect(calls.every((call) => call.session === "execution-session")).toBe(true);
-    const [issue] = await db.insert(issues).values({ companyId: org.id, title: "Provider approval", status: "in_progress", assigneeAgentId: allowed.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: org.id, agentId: allowed.id, invocationSource: "assignment", status: "running", contextSnapshot: { issueId: issue.id } }).returning();
-    const session = await gateway.createSession({ companyId: org.id, agentId: allowed.id, runId: run.id });
+    const [issue] = await db.insert(issues).values({ spaceId: org.id, title: "Provider approval", status: "in_progress", assigneeAgentId: allowed.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: org.id, agentId: allowed.id, invocationSource: "assignment", status: "running", contextSnapshot: { issueId: issue.id } }).returning();
+    const session = await gateway.createSession({ spaceId: org.id, agentId: allowed.id, runId: run.id });
     const execute = (await gateway.listToolsForSession(session.token)).find((entry) => entry.upstreamToolName === "execute")!;
     expect(execute).toBeDefined();
     let approvalId = "";
@@ -279,7 +279,7 @@ describe("remote connector lifecycle", () => {
       approvalId = (error as { details: { actionRequestId: string } }).details.actionRequestId;
     }
     expect(approvalId).not.toBe("");
-    await gateway.approveActionRequest({ companyId: org.id, actionRequestId: approvalId, actor: { userId: actor.actorId } });
+    await gateway.approveActionRequest({ spaceId: org.id, actionRequestId: approvalId, actor: { userId: actor.actorId } });
     await expect(gateway.executeTool({ sessionToken: session.token, tool: execute.name, parameters: {} })).rejects.toMatchObject({
       reasonCode: "provider_interaction_required", details: { upstreamPending: { executionId: "fixture-execution" } },
     });

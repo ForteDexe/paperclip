@@ -103,7 +103,7 @@ export type HandoffCaseResult = {
 export interface CaseHandoff {
   workflowTransition: CaseWorkflowTransition | null;
   id: string;
-  companyId: string;
+  spaceId: string;
   caseId: string;
   issueId: string;
   version: number;

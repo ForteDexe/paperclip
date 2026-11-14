@@ -15,7 +15,7 @@ import { useVisibilityRefetchInterval } from "@/lib/polling";
 import { accessApi } from "../api/access";
 import { describeError } from "../api/errors";
 import { useDialogActions } from "../context/DialogContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { Link, useNavigate } from "@/lib/router";
 import { executionWorkspacesApi } from "../api/execution-workspaces";
 import { issuesApi } from "../api/issues";
@@ -28,7 +28,7 @@ import {
   shouldBlurPageSearchOnEscape,
 } from "../lib/keyboardShortcuts";
 import { formatAssigneeUserLabel } from "../lib/assignees";
-import { buildCompanyUserLabelMap, buildCompanyUserProfileMap } from "../lib/company-members";
+import { buildSpaceUserLabelMap, buildSpaceUserProfileMap } from "../lib/space-members";
 import { createIssueDetailPath, rememberIssueDetailLocationState, withIssueDetailHeaderSeed } from "../lib/issueDetailBreadcrumb";
 import { prefetchIssueDetailForNavigation } from "../lib/issueDetailCache";
 import {
@@ -781,16 +781,16 @@ function StreamlinedIssuesList({
     // null, so continuous hovering triggers no re-render.
     setSelectedNavKey((prev) => (prev === null ? prev : null));
   }, []);
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { openNewIssue } = useDialogActions();
   const { data: session } = useQuery({
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
   });
-  const { data: companyMembers } = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(selectedCompanyId!),
-    queryFn: () => accessApi.listUserDirectory(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+  const { data: spaceMembers } = useQuery({
+    queryKey: queryKeys.access.spaceUserDirectory(selectedSpaceId!),
+    queryFn: () => accessApi.listUserDirectory(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const { data: experimentalSettings } = useQuery({
     queryKey: queryKeys.instance.experimentalSettings,
@@ -801,10 +801,10 @@ function StreamlinedIssuesList({
   const isolatedWorkspacesEnabled = experimentalSettings?.enableIsolatedWorkspaces === true;
   const externalObjectsEnabled = experimentalSettings?.enableExternalObjects === true;
 
-  // Scope the storage key per company so folding/view state is independent across companies.
-  const scopedKey = selectedCompanyId ? `${viewStateKey}:${selectedCompanyId}` : viewStateKey;
+  // Scope the storage key per space so folding/view state is independent across spaces.
+  const scopedKey = selectedSpaceId ? `${viewStateKey}:${selectedSpaceId}` : viewStateKey;
   const preferenceLocation: TaskCollectionPreferenceLocation = {
-    companyId: selectedCompanyId ?? "__unscoped__",
+    spaceId: selectedSpaceId ?? "__unscoped__",
     collectionKey: viewStateKey,
     legacyViewStorageKey: scopedKey,
     legacyColumnsStorageKey: getIssueColumnsStorageKey(scopedKey),
@@ -833,7 +833,7 @@ function StreamlinedIssuesList({
     ...sort,
     ...(routineTasksOnly === undefined ? {} : { routineTasksOnly }),
   }), [savedViewState, sort, routineTasksOnly]);
-  const showAgentCreatedTasks = useShowAgentCreatedTasks(selectedCompanyId, viewStateKey);
+  const showAgentCreatedTasks = useShowAgentCreatedTasks(selectedSpaceId, viewStateKey);
   useEffect(() => {
     if (!enableAgentCreatedVisibilityFilter) return;
     setViewState((previous) => previous.showAgentCreatedTasks === showAgentCreatedTasks
@@ -881,7 +881,7 @@ function StreamlinedIssuesList({
     initialStatuses,
     initialStatusesKey,
     defaultSortField,
-    preferenceLocation.companyId,
+    preferenceLocation.spaceId,
     preferenceLocation.collectionKey,
     preferenceLocation.legacyViewStorageKey,
     preferenceLocation.legacyColumnsStorageKey,
@@ -904,7 +904,7 @@ function StreamlinedIssuesList({
       return next;
     });
   }, [
-    preferenceLocation.companyId,
+    preferenceLocation.spaceId,
     preferenceLocation.collectionKey,
     preferenceLocation.legacyColumnsStorageKey,
     preferenceLocation.legacyViewStorageKey,
@@ -938,14 +938,14 @@ function StreamlinedIssuesList({
   const creationRequestFilters = issueCreationRequestFilters(viewState, enableAgentCreatedVisibilityFilter);
   const { data: searchedIssues = [] } = useQuery({
     queryKey: [
-      ...queryKeys.issues.search(selectedCompanyId!, normalizedIssueSearch, projectId),
+      ...queryKeys.issues.search(selectedSpaceId!, normalizedIssueSearch, projectId),
       searchFilters ?? {},
       creationRequestFilters,
       enableAgentCreatedVisibilityFilter && viewState.viewMode === "list" ? "index" : "compact",
       ISSUE_SEARCH_RESULT_LIMIT,
     ],
     queryFn: ({ signal }) =>
-      issuesApi.listCompact(selectedCompanyId!, {
+      issuesApi.listCompact(selectedSpaceId!, {
         projection: enableAgentCreatedVisibilityFilter && viewState.viewMode === "list" ? "index" : undefined,
         q: normalizedIssueSearch,
         projectId,
@@ -953,13 +953,13 @@ function StreamlinedIssuesList({
         ...searchFilters,
         ...creationRequestFilters,
       }, { signal }).then((rows) => rows as Issue[]),
-    enabled: !!selectedCompanyId && normalizedIssueSearch.length > 0 && !searchWithinLoadedIssues,
+    enabled: !!selectedSpaceId && normalizedIssueSearch.length > 0 && !searchWithinLoadedIssues,
     placeholderData: (previousData) => previousData,
   });
   const boardIssueQueries = useQueries({
     queries: boardIssueStatuses.map((status) => ({
       queryKey: [
-        ...queryKeys.issues.list(selectedCompanyId ?? "__no-company__"),
+        ...queryKeys.issues.list(selectedSpaceId ?? "__no-space__"),
         "board-column",
         status,
         normalizedIssueSearch,
@@ -970,7 +970,7 @@ function StreamlinedIssuesList({
         ISSUE_BOARD_COLUMN_RESULT_LIMIT,
       ],
       queryFn: ({ signal }: { signal: AbortSignal }) =>
-        issuesApi.listCompact(selectedCompanyId!, {
+        issuesApi.listCompact(selectedSpaceId!, {
           ...searchFilters,
           ...(normalizedIssueSearch.length > 0 ? { q: normalizedIssueSearch } : {}),
           projectId,
@@ -978,16 +978,16 @@ function StreamlinedIssuesList({
           limit: ISSUE_BOARD_COLUMN_RESULT_LIMIT,
           ...creationRequestFilters,
         }, { signal }).then((rows) => rows as Issue[]),
-      enabled: !!selectedCompanyId && viewState.viewMode === "board" && !searchWithinLoadedIssues,
+      enabled: !!selectedSpaceId && viewState.viewMode === "board" && !searchWithinLoadedIssues,
       placeholderData: (previousData: Issue[] | undefined) => previousData,
     })),
   });
   const { data: executionWorkspaces = [] } = useQuery({
-    queryKey: selectedCompanyId
-      ? queryKeys.executionWorkspaces.summaryList(selectedCompanyId)
+    queryKey: selectedSpaceId
+      ? queryKeys.executionWorkspaces.summaryList(selectedSpaceId)
       : ["execution-workspaces", "__disabled__"],
-    queryFn: () => executionWorkspacesApi.listSummaries(selectedCompanyId!),
-    enabled: !!selectedCompanyId && isolatedWorkspacesEnabled,
+    queryFn: () => executionWorkspacesApi.listSummaries(selectedSpaceId!),
+    enabled: !!selectedSpaceId && isolatedWorkspacesEnabled,
   });
 
   const agentName = useCallback((id: string | null) => {
@@ -995,13 +995,13 @@ function StreamlinedIssuesList({
     return agents.find((a) => a.id === id)?.name ?? null;
   }, [agents]);
 
-  const companyUserLabelMap = useMemo(
-    () => buildCompanyUserLabelMap(companyMembers?.users),
-    [companyMembers?.users],
+  const spaceUserLabelMap = useMemo(
+    () => buildSpaceUserLabelMap(spaceMembers?.users),
+    [spaceMembers?.users],
   );
-  const companyUserProfileMap = useMemo(
-    () => buildCompanyUserProfileMap(companyMembers?.users),
-    [companyMembers?.users],
+  const spaceUserProfileMap = useMemo(
+    () => buildSpaceUserProfileMap(spaceMembers?.users),
+    [spaceMembers?.users],
   );
 
   const projectById = useMemo(() => {
@@ -1087,9 +1087,9 @@ function StreamlinedIssuesList({
     if (currentUserId) {
       options.set(`user:${currentUserId}`, {
         id: `user:${currentUserId}`,
-        label: currentUserId === "local-board" ? "You" : "Me",
+        label: currentUserId === "local-operator" ? "You" : "Me",
         kind: "user",
-        searchText: currentUserId === "local-board" ? "board me human local-board" : `me board human ${currentUserId}`,
+        searchText: currentUserId === "local-operator" ? "board me human local-operator" : `me board human ${currentUserId}`,
       });
     }
 
@@ -1101,7 +1101,7 @@ function StreamlinedIssuesList({
             id,
             label: formatAssigneeUserLabel(issue.createdByUserId, currentUserId) ?? issue.createdByUserId.slice(0, 5),
             kind: "user",
-            searchText: `${issue.createdByUserId} board user human`,
+            searchText: `${issue.createdByUserId} operator user human`,
           });
         }
       }
@@ -1221,7 +1221,7 @@ function StreamlinedIssuesList({
     error: externalObjectSummariesError,
     refetch: retryExternalObjectSummaries,
   } = useIssueExternalObjectSummaries(
-    selectedCompanyId,
+    selectedSpaceId,
     issueIdsForExternalObjectSummaries,
   );
   const issueFilterContext = useMemo(() => ({
@@ -1247,8 +1247,8 @@ function StreamlinedIssuesList({
     return sortIssues(filteredByControls, viewState, issue => {
       const parent = issue.parentId ? byId.get(issue.parentId) : null;
       return {
-        createdBy: issue.createdByAgentId ? agentName(issue.createdByAgentId) ?? "Unknown agent" : companyUserLabelMap.get(issue.createdByUserId ?? "") ?? "User",
-        assignee: issue.assigneeAgentId ? agentName(issue.assigneeAgentId) ?? "Unknown agent" : companyUserLabelMap.get(issue.assigneeUserId ?? "") ?? null,
+        createdBy: issue.createdByAgentId ? agentName(issue.createdByAgentId) ?? "Unknown agent" : spaceUserLabelMap.get(issue.createdByUserId ?? "") ?? "User",
+        assignee: issue.assigneeAgentId ? agentName(issue.assigneeAgentId) ?? "Unknown agent" : spaceUserLabelMap.get(issue.assigneeUserId ?? "") ?? null,
         project: projectById.get(issue.projectId ?? "")?.name,
         parentTask: parent ? `${parent.identifier} ${parent.title}` : null,
       };
@@ -1261,7 +1261,7 @@ function StreamlinedIssuesList({
     liveIssueIds,
     issueFilterContext,
     agentName,
-    companyUserLabelMap,
+    spaceUserLabelMap,
     projectById,
   ]);
 
@@ -1313,9 +1313,9 @@ function StreamlinedIssuesList({
   }, [checklistAffordanceEnabled, filtered, issueById, viewState.nestingEnabled]);
 
   const { data: labels } = useQuery({
-    queryKey: queryKeys.issues.labels(selectedCompanyId!),
-    queryFn: () => issuesApi.listLabels(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.issues.labels(selectedSpaceId!),
+    queryFn: () => issuesApi.listLabels(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const activeFilterCount = countActiveIssueFilters(viewState, enableAgentCreatedVisibilityFilter);
@@ -1338,7 +1338,7 @@ function StreamlinedIssuesList({
 
   const hierarchyEnabled = enableAgentCreatedVisibilityFilter && !viewState.showAgentCreatedTasks && !viewState.routineTasksOnly && viewState.nestingEnabled && viewState.viewMode === "list";
   const hierarchy = useIssueHierarchyContext(
-    selectedCompanyId, filtered.slice(0, renderedIssueRowLimit), viewState.collapsedParents,
+    selectedSpaceId, filtered.slice(0, renderedIssueRowLimit), viewState.collapsedParents,
     hierarchyEnabled,
     hierarchyRowBudget,
   );
@@ -1422,7 +1422,7 @@ function StreamlinedIssuesList({
         key === "__unassigned"
           ? "Unassigned"
           : key.startsWith("__user:")
-            ? (formatAssigneeUserLabel(key.slice("__user:".length), currentUserId, companyUserLabelMap) ?? "User")
+            ? (formatAssigneeUserLabel(key.slice("__user:".length), currentUserId, spaceUserLabelMap) ?? "User")
             : (agentName(key) ?? key.slice(0, 8)),
       items: groups[key]!,
     }));
@@ -1435,7 +1435,7 @@ function StreamlinedIssuesList({
     currentUserId,
     workspaceNameMap,
     issueTitleMap,
-    companyUserLabelMap,
+    spaceUserLabelMap,
     projectById,
   ]);
   const groupedContent = useMemo(() => baseGroupedContent.map((group) => ({
@@ -1493,10 +1493,10 @@ function StreamlinedIssuesList({
     () => preloadTaskChats ? topRenderedNavEntryRefs(flatNavEntries, renderedIssueRowLimit) : [],
     [flatNavEntries, preloadTaskChats, renderedIssueRowLimit],
   );
-  usePreloadTaskChats(selectedCompanyId, preloadTaskRefs, !collectionLoading && !error && preloadTaskRefs.length > 0);
+  usePreloadTaskChats(selectedSpaceId, preloadTaskRefs, !collectionLoading && !error && preloadTaskRefs.length > 0);
 
   const { enrichIssueRow, error: rowDetailsError, retry: retryRowDetails } = useIssueRowDetails(
-    selectedCompanyId, rootRef,
+    selectedSpaceId, rootRef,
     flatNavEntries.filter((entry) => entry.type === "issue").map((entry) => entry.type === "issue" ? entry.issue.id : "").join(",") + ":" + renderedIssueRowLimit,
     enableAgentCreatedVisibilityFilter && viewState.viewMode === "list" && !collectionLoading,
     [...issues, ...hierarchy.issues],
@@ -1804,7 +1804,7 @@ function StreamlinedIssuesList({
       columns: normalized,
     });
   }, [
-    preferenceLocation.companyId,
+    preferenceLocation.spaceId,
     preferenceLocation.collectionKey,
     preferenceLocation.legacyColumnsStorageKey,
     preferenceLocation.legacyViewStorageKey,
@@ -1841,7 +1841,7 @@ function StreamlinedIssuesList({
 
       {/* Toolbar */}
       <IssuesToolbar
-        className="paperclip-task-list-toolbar"
+        className="outpost-task-list-toolbar"
         ariaLabel={toolbarPresentation === "collection" ? "Task controls" : undefined}
         context={toolbarContext ? (
           <div className="flex min-w-0 items-center gap-2">
@@ -2210,12 +2210,12 @@ function StreamlinedIssuesList({
                   const issueBadge = issueBadgeById?.get(issue.id);
                   const isMutedIssue = mutedIssueIds?.has(issue.id) === true;
                   const assigneeUserProfile = issue.assigneeUserId
-                    ? companyUserProfileMap.get(issue.assigneeUserId) ?? null
+                    ? spaceUserProfileMap.get(issue.assigneeUserId) ?? null
                     : null;
                   const assigneeUserLabel = formatAssigneeUserLabel(
                     issue.assigneeUserId,
                     currentUserId,
-                    companyUserLabelMap,
+                    spaceUserLabelMap,
                   ) ?? assigneeUserProfile?.label ?? null;
                   const originatingActor = deriveOriginatingActor(issue);
                   const originatingUserId = originatingActor?.kind === "user" ? originatingActor.id : null;
@@ -2450,8 +2450,8 @@ function StreamlinedIssuesList({
                               assigneeUserName={assigneeUserLabel}
                               assigneeUserAvatarUrl={assigneeUserProfile?.image ?? null}
                               creatorAgentName={agentName(issue.createdByAgentId)}
-                              creatorUserName={originatingUserId ? (companyUserProfileMap.get(originatingUserId)?.label ?? null) : null}
-                              creatorUserAvatarUrl={originatingUserId ? (companyUserProfileMap.get(originatingUserId)?.image ?? null) : null}
+                              creatorUserName={originatingUserId ? (spaceUserProfileMap.get(originatingUserId)?.label ?? null) : null}
+                              creatorUserAvatarUrl={originatingUserId ? (spaceUserProfileMap.get(originatingUserId)?.image ?? null) : null}
                               viaAgentName={originatingViaAgentId ? agentName(originatingViaAgentId) : null}
                               currentUserId={currentUserId}
                               parentIdentifier={parentIssue?.identifier ?? null}

@@ -2,7 +2,7 @@ import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notificatio
 
 export type ExternalObjectRefreshIdentity = { providerKey: string; objectType: string; externalId: string; ignoreExternalIdCase?: boolean };
 
-export async function notifyExternalObjectRefresh(tx: object, companyId?: string, object?: string | ExternalObjectRefreshIdentity) {
+export async function notifyExternalObjectRefresh(tx: object, spaceId?: string, object?: string | ExternalObjectRefreshIdentity) {
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.externalObjectRefresh,
-    companyId ? JSON.stringify({ companyId, ...(typeof object === "string" ? { objectId: object } : object ? { identity: object } : {}) }) : "*");
+    spaceId ? JSON.stringify({ spaceId, ...(typeof object === "string" ? { objectId: object } : object ? { identity: object } : {}) }) : "*");
 }

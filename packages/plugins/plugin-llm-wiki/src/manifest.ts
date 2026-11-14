@@ -1,15 +1,15 @@
 import { readFileSync } from "node:fs";
-import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
+import type { OutpostPluginManifestV1 } from "@outpost/plugin-sdk";
 import { DEFAULT_AGENT_INSTRUCTION_FILES, DEFAULT_AGENT_INSTRUCTIONS } from "./templates.js";
 
-export const PLUGIN_ID = "paperclipai.plugin-llm-wiki";
+export const PLUGIN_ID = "outpost.plugin-llm-wiki";
 export const WIKI_ROOT_FOLDER_KEY = "wiki-root";
 export const WIKI_MAINTAINER_AGENT_KEY = "wiki-maintainer";
 export const WIKI_MAINTAINER_SKILL_KEY = "wiki-maintainer";
 export const WIKI_INGEST_SKILL_KEY = "wiki-ingest";
 export const WIKI_QUERY_SKILL_KEY = "wiki-query";
 export const WIKI_LINT_SKILL_KEY = "wiki-lint";
-export const OUTPOST_DISTILL_SKILL_KEY = "paperclip-distill";
+export const OUTPOST_DISTILL_SKILL_KEY = "outpost-distill";
 export const INDEX_REFRESH_SKILL_KEY = "index-refresh";
 export const WIKI_PROJECT_KEY = "llm-wiki";
 export const CURSOR_WINDOW_ROUTINE_KEY = "cursor-window-processing";
@@ -35,7 +35,7 @@ export const WIKI_MANAGED_SKILL_KEYS = [
 ] as const;
 
 function canonicalSkillKey(skillKey: string) {
-  return `plugin/paperclipai-plugin-llm-wiki/${skillKey}`;
+  return `plugin/outpost-plugin-llm-wiki/${skillKey}`;
 }
 
 function skillMarkdown(skillKey: (typeof WIKI_MANAGED_SKILL_KEYS)[number]) {
@@ -78,7 +78,7 @@ Target space: default (slug: default). Outpost-derived indexing currently writes
 5. Append a wiki/log.md entry with the index refresh time, page counts by category, and any unresolved indexing problems.
 6. Close the routine issue with the index changes and any follow-up needed.`;
 
-const manifest: PaperclipPluginManifestV1 = {
+const manifest: OutpostPluginManifestV1 = {
   id: PLUGIN_ID,
   apiVersion: 1,
   version: "0.1.0",
@@ -92,7 +92,7 @@ const manifest: PaperclipPluginManifestV1 = {
     "database.namespace.migrate",
     "database.namespace.read",
     "database.namespace.write",
-    "companies.read",
+    "spaces.read",
     "projects.read",
     "projects.managed",
     "skills.managed",
@@ -129,7 +129,7 @@ const manifest: PaperclipPluginManifestV1 = {
   database: {
     namespaceSlug: "llm_wiki",
     migrationsDir: "migrations",
-    coreReadTables: ["companies", "issues", "projects", "agents"]
+    coreReadTables: ["spaces", "issues", "projects", "agents"]
   },
   localFolders: [
     {
@@ -163,7 +163,7 @@ const manifest: PaperclipPluginManifestV1 = {
         dangerouslySkipPermissions: false,
         dangerouslyBypassApprovalsAndSandbox: false,
         sandbox: true,
-        paperclipSkillSync: {
+        outpostSkillSync: {
           desiredSkills: WIKI_MANAGED_SKILL_CANONICAL_KEYS
         }
       },
@@ -194,7 +194,7 @@ const manifest: PaperclipPluginManifestV1 = {
       skillKey: WIKI_MAINTAINER_SKILL_KEY,
       displayName: "LLM Wiki Maintainer",
       slug: "llm-wiki-maintainer",
-      description: "Use the LLM Wiki plugin tools to maintain a cited local company wiki.",
+      description: "Use the LLM Wiki plugin tools to maintain a cited local space wiki.",
       markdown: skillMarkdown(WIKI_MAINTAINER_SKILL_KEY)
     },
     {
@@ -324,13 +324,13 @@ const manifest: PaperclipPluginManifestV1 = {
       parametersSchema: {
         type: "object",
         properties: {
-          companyId: { type: "string" },
+          spaceId: { type: "string" },
           wikiId: { type: "string" },
           spaceSlug: { type: "string" },
           query: { type: "string" },
           limit: { type: "number" }
         },
-        required: ["companyId", "wikiId", "query"]
+        required: ["spaceId", "wikiId", "query"]
       }
     },
     {
@@ -340,12 +340,12 @@ const manifest: PaperclipPluginManifestV1 = {
       parametersSchema: {
         type: "object",
         properties: {
-          companyId: { type: "string" },
+          spaceId: { type: "string" },
           wikiId: { type: "string" },
           spaceSlug: { type: "string" },
           path: { type: "string" }
         },
-        required: ["companyId", "wikiId", "path"]
+        required: ["spaceId", "wikiId", "path"]
       }
     },
     {
@@ -355,7 +355,7 @@ const manifest: PaperclipPluginManifestV1 = {
       parametersSchema: {
         type: "object",
         properties: {
-          companyId: { type: "string" },
+          spaceId: { type: "string" },
           wikiId: { type: "string" },
           spaceSlug: { type: "string" },
           path: { type: "string" },
@@ -363,7 +363,7 @@ const manifest: PaperclipPluginManifestV1 = {
           expectedHash: { type: "string" },
           summary: { type: "string" }
         },
-        required: ["companyId", "wikiId", "path", "contents"]
+        required: ["spaceId", "wikiId", "path", "contents"]
       }
     },
     {
@@ -373,14 +373,14 @@ const manifest: PaperclipPluginManifestV1 = {
       parametersSchema: {
         type: "object",
         properties: {
-          companyId: { type: "string" },
+          spaceId: { type: "string" },
           wikiId: { type: "string" },
           spaceSlug: { type: "string" },
           path: { type: "string" },
           contents: { type: "string" },
           summary: { type: "string" }
         },
-        required: ["companyId", "wikiId", "path", "contents"]
+        required: ["spaceId", "wikiId", "path", "contents"]
       }
     },
     {
@@ -390,12 +390,12 @@ const manifest: PaperclipPluginManifestV1 = {
       parametersSchema: {
         type: "object",
         properties: {
-          companyId: { type: "string" },
+          spaceId: { type: "string" },
           wikiId: { type: "string" },
           spaceSlug: { type: "string" },
           limit: { type: "number" }
         },
-        required: ["companyId", "wikiId"]
+        required: ["spaceId", "wikiId"]
       }
     },
     {
@@ -405,12 +405,12 @@ const manifest: PaperclipPluginManifestV1 = {
       parametersSchema: {
         type: "object",
         properties: {
-          companyId: { type: "string" },
+          spaceId: { type: "string" },
           wikiId: { type: "string" },
           spaceSlug: { type: "string" },
           rawPath: { type: "string" }
         },
-        required: ["companyId", "wikiId", "rawPath"]
+        required: ["spaceId", "wikiId", "rawPath"]
       }
     },
     {
@@ -420,12 +420,12 @@ const manifest: PaperclipPluginManifestV1 = {
       parametersSchema: {
         type: "object",
         properties: {
-          companyId: { type: "string" },
+          spaceId: { type: "string" },
           wikiId: { type: "string" },
           spaceSlug: { type: "string" },
           entry: { type: "string" }
         },
-        required: ["companyId", "wikiId", "entry"]
+        required: ["spaceId", "wikiId", "entry"]
       }
     },
     {
@@ -435,13 +435,13 @@ const manifest: PaperclipPluginManifestV1 = {
       parametersSchema: {
         type: "object",
         properties: {
-          companyId: { type: "string" },
+          spaceId: { type: "string" },
           wikiId: { type: "string" },
           spaceSlug: { type: "string" },
           contents: { type: "string" },
           expectedHash: { type: "string" }
         },
-        required: ["companyId", "wikiId", "contents"]
+        required: ["spaceId", "wikiId", "contents"]
       }
     },
     {
@@ -451,12 +451,12 @@ const manifest: PaperclipPluginManifestV1 = {
       parametersSchema: {
         type: "object",
         properties: {
-          companyId: { type: "string" },
+          spaceId: { type: "string" },
           wikiId: { type: "string" },
           spaceSlug: { type: "string" },
           path: { type: "string" }
         },
-        required: ["companyId", "wikiId", "path"]
+        required: ["spaceId", "wikiId", "path"]
       }
     },
     {
@@ -466,11 +466,11 @@ const manifest: PaperclipPluginManifestV1 = {
       parametersSchema: {
         type: "object",
         properties: {
-          companyId: { type: "string" },
+          spaceId: { type: "string" },
           wikiId: { type: "string" },
           spaceSlug: { type: "string" }
         },
-        required: ["companyId", "wikiId"]
+        required: ["spaceId", "wikiId"]
       }
     }
   ],
@@ -479,89 +479,89 @@ const manifest: PaperclipPluginManifestV1 = {
       routeKey: "overview",
       method: "GET",
       path: "/overview",
-      auth: "board-or-agent",
+      auth: "operator-or-agent",
       capability: "api.routes.register",
-      companyResolution: { from: "query", key: "companyId" }
+      spaceResolution: { from: "query", key: "spaceId" }
     },
     {
       routeKey: "bootstrap",
       method: "POST",
       path: "/bootstrap",
-      auth: "board",
+      auth: "operator",
       capability: "api.routes.register",
-      companyResolution: { from: "body", key: "companyId" }
+      spaceResolution: { from: "body", key: "spaceId" }
     },
     {
       routeKey: "capture-source",
       method: "POST",
       path: "/sources",
-      auth: "board-or-agent",
+      auth: "operator-or-agent",
       capability: "api.routes.register",
-      companyResolution: { from: "body", key: "companyId" }
+      spaceResolution: { from: "body", key: "spaceId" }
     },
     {
       routeKey: "spaces",
       method: "GET",
       path: "/spaces",
-      auth: "board-or-agent",
+      auth: "operator-or-agent",
       capability: "api.routes.register",
-      companyResolution: { from: "query", key: "companyId" }
+      spaceResolution: { from: "query", key: "spaceId" }
     },
     {
       routeKey: "create-space",
       method: "POST",
       path: "/spaces",
-      auth: "board",
+      auth: "operator",
       capability: "api.routes.register",
-      companyResolution: { from: "body", key: "companyId" }
+      spaceResolution: { from: "body", key: "spaceId" }
     },
     {
       routeKey: "update-space",
       method: "PATCH",
       path: "/spaces/:spaceSlug",
-      auth: "board",
+      auth: "operator",
       capability: "api.routes.register",
-      companyResolution: { from: "body", key: "companyId" }
+      spaceResolution: { from: "body", key: "spaceId" }
     },
     {
       routeKey: "bootstrap-space",
       method: "POST",
       path: "/spaces/:spaceSlug/bootstrap",
-      auth: "board",
+      auth: "operator",
       capability: "api.routes.register",
-      companyResolution: { from: "body", key: "companyId" }
+      spaceResolution: { from: "body", key: "spaceId" }
     },
     {
       routeKey: "archive-space",
       method: "POST",
       path: "/spaces/:spaceSlug/archive",
-      auth: "board",
+      auth: "operator",
       capability: "api.routes.register",
-      companyResolution: { from: "body", key: "companyId" }
+      spaceResolution: { from: "body", key: "spaceId" }
     },
     {
       routeKey: "operations",
       method: "GET",
       path: "/operations",
-      auth: "board-or-agent",
+      auth: "operator-or-agent",
       capability: "api.routes.register",
-      companyResolution: { from: "query", key: "companyId" }
+      spaceResolution: { from: "query", key: "spaceId" }
     },
     {
       routeKey: "start-query",
       method: "POST",
       path: "/query-sessions",
-      auth: "board",
+      auth: "operator",
       capability: "api.routes.register",
-      companyResolution: { from: "body", key: "companyId" }
+      spaceResolution: { from: "body", key: "spaceId" }
     },
     {
       routeKey: "file-as-page",
       method: "POST",
       path: "/file-as-page",
-      auth: "board",
+      auth: "operator",
       capability: "api.routes.register",
-      companyResolution: { from: "body", key: "companyId" }
+      spaceResolution: { from: "body", key: "spaceId" }
     }
   ],
   ui: {

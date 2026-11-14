@@ -141,23 +141,23 @@ describe("provider-neutral events", () => {
   it("maps a failed Codex MCP server start to a user-facing notice", () => {
     const [event] = canonicalProviderEventsFromCodex("mcpServer/startupStatus/updated", {
       threadId: null,
-      name: "paperclip",
+      name: "outpost",
       status: "failed",
-      error: "MCP client for `paperclip` failed to start: program not found: paperclip-mcp",
+      error: "MCP client for `outpost` failed to start: program not found: outpost-mcp",
       failureReason: null,
     });
     expect(event).toMatchObject({
       eventType: "provider.notice.recorded",
-      itemId: "mcp-startup:paperclip",
+      itemId: "mcp-startup:outpost",
       payload: {
         severity: "warning",
         category: "mcp_server_startup_failed",
         scope: "session",
         userActionable: true,
-        summary: "paperclip MCP server failed to start: program not found: paperclip-mcp",
+        summary: "outpost MCP server failed to start: program not found: outpost-mcp",
         details: [
-          { name: "server", value: "paperclip" },
-          { name: "reason", value: "program not found: paperclip-mcp" },
+          { name: "server", value: "outpost" },
+          { name: "reason", value: "program not found: outpost-mcp" },
         ],
       },
     });
@@ -176,7 +176,7 @@ describe("provider-neutral events", () => {
     expect(validatePrpEvent(envelope(reauth)).ok).toBe(true);
 
     for (const status of ["starting", "ready", "cancelled"]) {
-      expect(canonicalProviderEventsFromCodex("mcpServer/startupStatus/updated", { name: "paperclip", status })).toEqual([]);
+      expect(canonicalProviderEventsFromCodex("mcpServer/startupStatus/updated", { name: "outpost", status })).toEqual([]);
     }
   });
 
@@ -757,7 +757,7 @@ describe("provider-neutral events", () => {
     const event = canonicalProviderEventsFromOpenCodePart({
       id: "prt_02c35c313001X42cqyvQrpXOFv",
       type: "tool",
-      tool: "paperclip_report_progress",
+      tool: "outpost_report_progress",
       callID: "call_6cd0302e681d44c2aba3c164",
       state: { status: "pending", input: {}, raw: "" },
     })[0]!;
@@ -767,7 +767,7 @@ describe("provider-neutral events", () => {
         schema: "outpost.tool.execution.v1",
         transport: "builtin",
         status: "running",
-        name: "paperclip_report_progress",
+        name: "outpost_report_progress",
       },
     });
     expect(validatePrpEvent(envelope(event))).toEqual({
@@ -830,7 +830,7 @@ describe("provider-neutral events", () => {
     } as never);
     expect(failed).toMatchObject({
       title: "node --test",
-      paperclipToolDetail: { toolName: "Bash", subject: "node --test", description: "Run the unit tests", exitCode: 2, durationMs: 1_840 },
+      outpostToolDetail: { toolName: "Bash", subject: "node --test", description: "Run the unit tests", exitCode: 2, durationMs: 1_840 },
     });
     const [mapped] = canonicalProviderEventsFromAcpxRuntimeEvent(failed as never, "fallback", "turn-1");
     expect(mapped.payload).toMatchObject({ name: "Bash", operation: "execute", subject: "node --test", exitCode: 2, durationMs: 1_840 });
@@ -905,10 +905,10 @@ describe("provider-neutral events", () => {
       type: "tool_call",
       tag: "tool_call",
       toolCallId: "tool-1",
-      title: "mcp__paperclip__search_tasks",
+      title: "mcp__outpost__search_tasks",
       kind: "other",
       status: "pending",
-      text: "mcp__paperclip__search_tasks (pending)",
+      text: "mcp__outpost__search_tasks (pending)",
       locations: [{ path: "doc/plan.md", line: 4 }],
     } as never);
     const progressed = normalize({
@@ -930,13 +930,13 @@ describe("provider-neutral events", () => {
     } as never);
 
     expect(progressed).toMatchObject({
-      title: "mcp__paperclip__search_tasks",
+      title: "mcp__outpost__search_tasks",
       kind: "other",
       text: "Searching the task index",
       locations: [{ path: "doc/plan.md", line: 4 }],
     });
     expect(completed).toMatchObject({
-      title: "mcp__paperclip__search_tasks",
+      title: "mcp__outpost__search_tasks",
       kind: "other",
       locations: [{ path: "doc/plan.md", line: 4 }],
     });
@@ -948,7 +948,7 @@ describe("provider-neutral events", () => {
       eventType: "tool.execution.completed",
       payload: {
         transport: "mcp",
-        namespace: "paperclip",
+        namespace: "outpost",
         name: "search_tasks",
         operation: "search",
         target: "doc/plan.md",
@@ -1106,7 +1106,7 @@ describe("provider-neutral events", () => {
 
     expect(dotted.payload).toMatchObject({
       transport: "mcp",
-      namespace: "paperclip",
+      namespace: "outpost",
       name: "get_task_context",
       operation: "read",
     });
@@ -1159,11 +1159,11 @@ describe("provider-neutral events", () => {
     const event = canonicalProviderEventsFromOpenCodePart({
       id: "finish-1",
       type: "tool",
-      tool: "paperclip_paperclip_finish",
+      tool: "outpost_outpost_finish",
       state: { status: "running", input: {} },
     })[0]!;
     expect(event.payload).toMatchObject({
-      name: "paperclip_finish",
+      name: "outpost_finish",
       transport: "builtin",
     });
     expect(validatePrpEvent(envelope(event))).toEqual({

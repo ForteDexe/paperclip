@@ -1,5 +1,5 @@
 import { and, eq, exists, gte, isNull, lte, notExists, or, sql } from "drizzle-orm";
-import { aiSubscriptions, aiSubscriptionPrices, aiSubscriptionConnections, connectionGrants, connectionGrantMembers, agents, authUsers, companyMemberships, costEvents, type Db } from "@outpost/db";
+import { aiSubscriptions, aiSubscriptionPrices, aiSubscriptionConnections, connectionGrants, connectionGrantMembers, agents, authUsers, spaceMemberships, costEvents, type Db } from "@outpost/db";
 import { addCents, monthlySubscriptionCents, type SubscriptionCostReport, type SubscriptionPrice, type SubscriptionUsage } from "@outpost/shared";
 import { withAccountingReadSnapshot } from "./accounting-transaction.js";
 import { ordinaryInputTokens } from "./costs.js";
@@ -22,40 +22,40 @@ function priceDto(price: typeof aiSubscriptionPrices.$inferSelect): Subscription
     sourceUrl: price.sourceUrl, effectiveAt: price.effectiveAt.toISOString() };
 }
 
-export async function subscriptionCostReport(db: Db, companyId: string, actor: SubscriptionActor, range?: CostDateRange): Promise<SubscriptionCostReport> {
-  return withAccountingReadSnapshot(db, companyId, async tx => {
+export async function subscriptionCostReport(db: Db, spaceId: string, actor: SubscriptionActor, range?: CostDateRange): Promise<SubscriptionCostReport> {
+  return withAccountingReadSnapshot(db, spaceId, async tx => {
     const period = resolveCostDateRange(range);
-    const conditions = [eq(costEvents.companyId, companyId)];
+    const conditions = [eq(costEvents.spaceId, spaceId)];
     if (period?.from) conditions.push(gte(costEvents.occurredAt, period.from));
     if (period?.to) conditions.push(lte(costEvents.occurredAt, period.to));
-    // Company cost-read permission covers aggregate run usage, not another
+    // Space cost-read permission covers aggregate run usage, not another
     // member's private subscription fee. Billing editors retain visibility
     // after disconnection; other readers need an authorized shared audience.
-    const audience = and(eq(connectionGrantMembers.companyId, companyId), eq(connectionGrantMembers.grantId, connectionGrants.id));
+    const audience = and(eq(connectionGrantMembers.spaceId, spaceId), eq(connectionGrantMembers.grantId, connectionGrants.id));
     const visible = or(
       sql`${actor.userId} = any(${aiSubscriptions.ownerUserIds})`,
       actor.canManage ? eq(aiSubscriptions.shared, true) : undefined,
       exists(tx.select({ id: aiSubscriptionConnections.id }).from(aiSubscriptionConnections)
-        .innerJoin(connectionGrants, and(eq(connectionGrants.id, aiSubscriptionConnections.grantId), eq(connectionGrants.companyId, companyId)))
-        .where(and(eq(aiSubscriptionConnections.companyId, companyId), eq(aiSubscriptionConnections.subscriptionId, aiSubscriptions.id),
+        .innerJoin(connectionGrants, and(eq(connectionGrants.id, aiSubscriptionConnections.grantId), eq(connectionGrants.spaceId, spaceId)))
+        .where(and(eq(aiSubscriptionConnections.spaceId, spaceId), eq(aiSubscriptionConnections.subscriptionId, aiSubscriptions.id),
           eq(connectionGrants.kind, "organization"), eq(connectionGrants.status, "active"), or(
             notExists(tx.select({ id: connectionGrantMembers.id }).from(connectionGrantMembers).where(audience)),
             exists(tx.select({ id: connectionGrantMembers.id }).from(connectionGrantMembers).where(and(audience,
               eq(connectionGrantMembers.subjectType, "user"), eq(connectionGrantMembers.subjectId, actor.userId)))),
           )))),
     );
-    const visibleCurrent = and(eq(aiSubscriptions.companyId, companyId), isNull(aiSubscriptions.mergedIntoId), visible);
+    const visibleCurrent = and(eq(aiSubscriptions.spaceId, spaceId), isNull(aiSubscriptions.mergedIntoId), visible);
     const [accounts, links, prices, owners, groups] = await Promise.all([
       tx.select().from(aiSubscriptions).where(visibleCurrent),
       // Historical aliases are needed to distinguish hidden accounts from
       // truly unattributed runs. Do not load their private metadata or prices.
-      tx.select({ id: aiSubscriptions.id, mergedIntoId: aiSubscriptions.mergedIntoId }).from(aiSubscriptions).where(eq(aiSubscriptions.companyId, companyId)),
+      tx.select({ id: aiSubscriptions.id, mergedIntoId: aiSubscriptions.mergedIntoId }).from(aiSubscriptions).where(eq(aiSubscriptions.spaceId, spaceId)),
       tx.select({ price: aiSubscriptionPrices }).from(aiSubscriptions).innerJoin(aiSubscriptionPrices, and(
-        eq(aiSubscriptionPrices.companyId, aiSubscriptions.companyId), eq(aiSubscriptionPrices.subscriptionId, aiSubscriptions.id),
+        eq(aiSubscriptionPrices.spaceId, aiSubscriptions.spaceId), eq(aiSubscriptionPrices.subscriptionId, aiSubscriptions.id),
         eq(aiSubscriptionPrices.revision, aiSubscriptions.revision),
       )).where(visibleCurrent),
-      tx.select({ id: authUsers.id, name: authUsers.name }).from(authUsers).innerJoin(companyMemberships, and(
-        eq(companyMemberships.principalId, authUsers.id), eq(companyMemberships.companyId, companyId), eq(companyMemberships.principalType, "user"))),
+      tx.select({ id: authUsers.id, name: authUsers.name }).from(authUsers).innerJoin(spaceMemberships, and(
+        eq(spaceMemberships.principalId, authUsers.id), eq(spaceMemberships.spaceId, spaceId), eq(spaceMemberships.principalType, "user"))),
       tx.select({ subscriptionId: costEvents.subscriptionId, billingType: costEvents.billingType,
         agentId: costEvents.agentId, agentName: agents.name,
         inputTokens: sql<number>`coalesce(sum(${ordinaryInputTokens}), 0)::double precision`,
@@ -65,7 +65,7 @@ export async function subscriptionCostReport(db: Db, companyId: string, actor: S
         eventCount: sql<number>`count(*)::int`,
         estimatedEventCount: sql<number>`count(*) filter (where ${costEvents.costStatus} = 'estimated')::int`,
         unpricedEventCount: sql<number>`count(*) filter (where ${costEvents.costStatus} = 'unpriced' and ${costEvents.billingType} <> 'subscription_included')::int`,
-      }).from(costEvents).leftJoin(agents, and(eq(agents.id, costEvents.agentId), eq(agents.companyId, companyId)))
+      }).from(costEvents).leftJoin(agents, and(eq(agents.id, costEvents.agentId), eq(agents.spaceId, spaceId)))
         .where(and(...conditions)).groupBy(costEvents.subscriptionId, costEvents.billingType, costEvents.agentId, agents.name),
     ]);
     const report: SubscriptionCostReport = { canRefresh: !actor.readOnly, asOf: new Date().toISOString(), accounts: [], monthlyTotals: [],

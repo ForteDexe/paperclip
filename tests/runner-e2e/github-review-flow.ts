@@ -3,7 +3,7 @@ import type { GitHubTaskReview } from "../../packages/shared/src/types/chat-gith
 import type { GitHubRepositoryPage } from "../../packages/shared/src/types/chat-channels.js";
 import { ConnectionBlock, ConnectionFailure } from "./connection-config.js";
 import { ConnectionApi } from "./connection-target.js";
-import { assertGitHubJourneyCheck, assertGitHubJourneyTaskDone, awaitJourneyCondition, createGitHubJourneyPullRequest, enterGitHubJourneyCompany, observeGitHubHead, selectGitHubJourneyRepository, waitForGitHubRegistrationControl, type GitHubRegistrationBoundary } from "./github-review-browser.js";
+import { assertGitHubJourneyCheck, assertGitHubJourneyTaskDone, awaitJourneyCondition, createGitHubJourneyPullRequest, enterGitHubJourneySpace, observeGitHubHead, selectGitHubJourneyRepository, waitForGitHubRegistrationControl, type GitHubRegistrationBoundary } from "./github-review-browser.js";
 import { githubCartFixture, hasOnlyOpenedAutomaticReview, matchesGitHubJourneyEnvironment, retainGitHubReview, verifyGitHubReview, verifyGitHubReviewRun, type GitHubReviewJourneyEvidence } from "./github-review-evidence.js";
 import type { GitHubReviewJourneyConfig } from "./github-review-config.js";
 import { captureOwnedGitHubApp, readOwnedGitHubReviewRuns, type GitHubJourneyResources } from "./github-review-ownership.js";
@@ -21,9 +21,9 @@ export async function runGitHubReviewFlow(input: {
   const { page, github, api, config, resources, evidence } = input;
   const capabilities = await api.get('/api/instance/settings/experimental');
   if (capabilities.enableGitHubReviewBots !== true) throw new ConnectionBlock("blocked_target", "github_review_capability_unavailable");
-  const company = await api.get(`/api/companies/${config.target.companyId}`);
+  const space = await api.get(`/api/spaces/${config.target.spaceId}`);
   const agent = await api.get(`/api/agents/${config.agent.id}`);
-  if (company.id !== config.target.companyId || agent.companyId !== company.id || agent.name !== config.agent.name || !["idle", "running"].includes(agent.status)) throw new ConnectionBlock("blocked_target", "configured_review_agent_unavailable");
+  if (space.id !== config.target.spaceId || agent.spaceId !== space.id || agent.name !== config.agent.name || !["idle", "running"].includes(agent.status)) throw new ConnectionBlock("blocked_target", "configured_review_agent_unavailable");
   const environment = await api.get(`/api/environments/${config.target.environmentId}`);
   // Inheritance and task trust policy can select the environment without an
   // agent override. Validate the declared target now; the actual run binding
@@ -34,12 +34,12 @@ export async function runGitHubReviewFlow(input: {
   if (JSON.stringify(agent.adapterConfig ?? {}).includes(config.agent.model) === false) throw new ConnectionBlock("blocked_target", "configured_agent_model_mismatch");
   // Record effective accounting prerequisites without granting or changing them.
   try {
-    const budgets = await api.get(`/api/companies/${company.id}/budgets/overview`);
-    evidence.budgetPolicies = budgets.policies.filter((p: any) => p.isActive && (p.scopeType === "company" || (p.scopeType === "agent" && p.scopeId === agent.id)))
+    const budgets = await api.get(`/api/spaces/${space.id}/budgets/overview`);
+    evidence.budgetPolicies = budgets.policies.filter((p: any) => p.isActive && (p.scopeType === "space" || (p.scopeType === "agent" && p.scopeId === agent.id)))
       .map((p: any) => ({ scopeType: p.scopeType, amount: p.amount, hardStopEnabled: p.hardStopEnabled, unpricedUsagePolicy: p.unpricedUsagePolicy }));
     evidence.budgetPolicyRead = "verified";
   } catch { evidence.budgetPolicyRead = "unavailable"; }
-  await enterGitHubJourneyCompany(page, api.origin, company);
+  await enterGitHubJourneySpace(page, api.origin, space);
   await input.checkpoint("agent", page);
   await input.phase("connector_navigation");
   await page.getByRole("link", { name: "Connectors", exact: true }).click();
@@ -47,12 +47,12 @@ export async function runGitHubReviewFlow(input: {
   await botCard.getByRole("button", { name: /^(?:Connect|Add connection) GitHub Code Review Bot$/ }).click();
   await page.getByRole("button", { name: /Select agent/ }).click();
   await page.getByRole("button", { name: `Select ${config.agent.name}`, exact: true }).click();
-  const creation = page.waitForResponse(r => new URL(r.url()).pathname === `/api/companies/${company.id}/chat-endpoints` && r.request().method() === "POST");
+  const creation = page.waitForResponse(r => new URL(r.url()).pathname === `/api/spaces/${space.id}/chat-endpoints` && r.request().method() === "POST");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const response = await creation;
   if (!response.ok()) throw new ConnectionFailure("endpoint_creation_failed");
   const endpoint = await response.json();
-  if (endpoint.companyId !== company.id || endpoint.assignedAgentId !== agent.id || endpoint.provider !== "github") throw new ConnectionFailure("created_endpoint_binding_mismatch");
+  if (endpoint.spaceId !== space.id || endpoint.assignedAgentId !== agent.id || endpoint.provider !== "github") throw new ConnectionFailure("created_endpoint_binding_mismatch");
   resources.endpointId = endpoint.id;
   evidence.cleanup.endpoint = false;
   await input.persistResources();
@@ -106,7 +106,7 @@ export async function runGitHubReviewFlow(input: {
     await expect(page.getByText(`GitHub account: ${input.githubUsername}`, { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Confirm my account", exact: true }).click();
   } else if (await page.getByRole("button", { name: "Confirm my account", exact: true }).isVisible()) {
-    await expect(page.getByText(`Connect GitHub account ${input.githubUsername} to your Paperclip account.`, { exact: true })).toBeVisible();
+    await expect(page.getByText(`Connect GitHub account ${input.githubUsername} to your Outpost account.`, { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Confirm my account", exact: true }).click();
   } else if (await page.getByRole("button", { name: "Connect my GitHub account", exact: true }).isVisible()) {
     throw new ConnectionBlock("blocked_target", "saved_github_user_connection_required");
@@ -167,7 +167,7 @@ export async function runGitHubReviewFlow(input: {
   await input.checkpoint("automatic_task", page);
   await awaitJourneyCondition(async () => {
     review = await api.get(`/api/chat-endpoints/${endpoint.id}/github/reviews/${review!.id}`);
-    const runs = await readOwnedGitHubReviewRuns(api, { companyId: company.id, agentId: agent.id, issueId: review!.issueId });
+    const runs = await readOwnedGitHubReviewRuns(api, { spaceId: space.id, agentId: agent.id, issueId: review!.issueId });
     resources.runIds = runs.map(r => r.id);
     if (resources.runIds.length > config.maximumRuns) throw new ConnectionFailure("review_run_limit_exceeded");
     if (["error", "incomplete", "superseded", "manual_required"].includes(review!.state)) throw new ConnectionFailure("review_terminal_failure");
@@ -181,7 +181,7 @@ export async function runGitHubReviewFlow(input: {
   await awaitJourneyCondition(async () => {
     review = await api.get(`/api/chat-endpoints/${endpoint.id}/github/reviews/${review!.id}`);
     evidence.review = retainGitHubReview(review!);
-    const runs = await readOwnedGitHubReviewRuns(api, { companyId: company.id, agentId: agent.id, issueId: review!.issueId });
+    const runs = await readOwnedGitHubReviewRuns(api, { spaceId: space.id, agentId: agent.id, issueId: review!.issueId });
     resources.runIds = runs.map(r => r.id);
     if (resources.runIds.length > config.maximumRuns) throw new ConnectionFailure("review_run_limit_exceeded");
     issue = await api.get(`/api/issues/${review!.issueId}`);
@@ -191,16 +191,16 @@ export async function runGitHubReviewFlow(input: {
       environmentId: completedRun?.contextSnapshot?.outpostEnvironment?.id,
       provider: completedRun?.runnerProfileJson?.nativeExecutionInput?.provider?.kind,
       model: completedRun?.runnerProfileJson?.nativeExecutionInput?.provider?.model };
-    if (completedRun && (completedRun.companyId !== company.id || completedRun.agentId !== agent.id
+    if (completedRun && (completedRun.spaceId !== space.id || completedRun.agentId !== agent.id
       || completedRun.issueId !== review!.issueId)) throw new ConnectionFailure("review_run_owner_mismatch");
     if (completedRun && ["failed", "timed_out", "cancelled", "interrupted"].includes(completedRun.status)) throw new ConnectionFailure("review_run_terminal_failure");
     return completedRun?.status === "succeeded" && issue.status === "done";
   }, config.deadlineMs, "review_execution_completion_timeout", input.signal, "failed");
-  if (!verifyGitHubReviewRun(completedRun, { runId: review!.runId, companyId: company.id, agentId: agent.id, issueId: review!.issueId,
+  if (!verifyGitHubReviewRun(completedRun, { runId: review!.runId, spaceId: space.id, agentId: agent.id, issueId: review!.issueId,
     runtimeMode: config.agent.runtimeMode, environmentId: config.target.environmentId, executionEnvironment: config.executionEnvironment,
     environment: await api.get(`/api/environments/${config.target.environmentId}`), provider: config.agent.provider, model: config.agent.model })) throw new ConnectionFailure("review_run_binding_mismatch");
   evidence.dependencies.find(d => d.alias === "review-agent-provider")!.status = "ready";
-  if (!verifyGitHubReview({ review: review!, issue, companyId: company.id, endpointId: endpoint.id, issueId: review!.issueId, repository: config.github.repository,
+  if (!verifyGitHubReview({ review: review!, issue, spaceId: space.id, endpointId: endpoint.id, issueId: review!.issueId, repository: config.github.repository,
     pullNumber: resources.pullNumber, headSha, agentId: agent.id })) throw new ConnectionFailure("review_oracle_failed");
   evidence.score = review!.assessment!.score; evidence.conclusion = review!.conclusion!;
   await input.checkpoint("review_completed", page);
@@ -230,7 +230,7 @@ export async function runGitHubReviewFlow(input: {
   await assertGitHubJourneyCheck(check, { repository: config.github.repository, url: review!.checkUrl, headSha, score: evidence.score });
   await input.checkpoint("check_projection", check);
   await input.phase("task_done");
-  await page.getByRole("link", { name: "Paperclip task", exact: true }).click();
+  await page.getByRole("link", { name: "Outpost task", exact: true }).click();
   await assertGitHubJourneyTaskDone(page);
   await input.checkpoint("task_done", page);
   await input.phase("persisted");

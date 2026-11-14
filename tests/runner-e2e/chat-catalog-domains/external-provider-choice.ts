@@ -76,20 +76,20 @@ const record = (v: unknown): Record<string, unknown> =>
 interface MessageEvent {
   seq?: number;
   runId?: string;
-  companyId?: string;
+  spaceId?: string;
   agentId?: string;
   eventType?: string;
   payload?: unknown;
 }
 export function publicChoiceMessages(
   events: MessageEvent[],
-  expected: { companyId: string; agentId: string; runId: string },
+  expected: { spaceId: string; agentId: string; runId: string },
 ) {
   return events.flatMap((event) => {
     const orp = record(record(event.payload).orpEvent),
       payload = record(orp.payload),
       item = record(payload.item);
-    return event.companyId === expected.companyId &&
+    return event.spaceId === expected.spaceId &&
       event.agentId === expected.agentId &&
       event.runId === expected.runId &&
       orp.runId === expected.runId &&
@@ -107,7 +107,7 @@ export function publicChoiceMessages(
 export function intendedNotionCard(
   cards: ConnectionIntentInteraction[],
   expected: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     agentId: string;
     humanId: string;
@@ -118,7 +118,7 @@ export function intendedNotionCard(
     (c) =>
       c.kind === "connection_intent" &&
       c.status === "pending" &&
-      c.companyId === expected.companyId &&
+      c.spaceId === expected.spaceId &&
       c.issueId === expected.issueId &&
       c.createdByAgentId === expected.agentId &&
       c.addresseeUserId === expected.humanId &&
@@ -171,7 +171,7 @@ async function observeChoiceExplanation(
     );
     messages.push(
       ...publicChoiceMessages(events, {
-        companyId: ctx.input.fixtures.company.id,
+        spaceId: ctx.input.fixtures.space.id,
         agentId: ctx.input.fixtures.agent.id,
         runId: run.id,
       }),
@@ -271,7 +271,7 @@ export const providerChoiceExternalCases = [
       );
       if (before.connections.length)
         throw new Error(
-          "Catalog choice requires no existing account in the disposable company",
+          "Catalog choice requires no existing account in the disposable space",
         );
       return {
         ...choices,
@@ -325,7 +325,7 @@ export const providerChoiceExternalCases = [
             `/api/issues/${issueId}/interactions`,
           ),
           card = intendedNotionCard(cards, {
-            companyId: o.companyId,
+            spaceId: o.spaceId,
             issueId,
             agentId: o.leadId,
             humanId: String(state.humanId),
@@ -348,7 +348,7 @@ export const providerChoiceExternalCases = [
             supportedNotionLink(
               link,
               o.origin,
-              String(ctx.input.fixtures.company.issuePrefix),
+              String(ctx.input.fixtures.space.issuePrefix),
               String(state.methodKey),
             ),
           );
@@ -411,7 +411,7 @@ export const providerChoiceExternalCases = [
             ? intendedNotionCard(
                 o.interactions as unknown as ConnectionIntentInteraction[],
                 {
-                  companyId: o.companyId,
+                  spaceId: o.spaceId,
                   issueId: ctx.issue()!.id,
                   agentId: o.leadId,
                   humanId: String(state.humanId),
@@ -425,7 +425,7 @@ export const providerChoiceExternalCases = [
               supportedNotionLink(
                 state.selectedMethodHref,
                 o.origin,
-                String(ctx.input.fixtures.company.issuePrefix),
+                String(ctx.input.fixtures.space.issuePrefix),
                 String(state.methodKey),
               );
         return { ...o, state };

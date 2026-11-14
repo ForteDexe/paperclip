@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { companies, createDb, sandboxCreationOperations } from "@outpost/db";
+import { spaces, createDb, sandboxCreationOperations } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { currentControllerProcessStamp, currentProcessSpaceHash } from "../services/controller-process-identity.js";
 import { nextEnvironmentCleanupAt } from "../services/environment-cleanup-state.js";
@@ -23,14 +23,14 @@ async function exitedPid(): Promise<number> {
 suite("sandbox_creation_intent on the shared ownership path", () => {
   let db!: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId = "";
+  let spaceId = "";
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-sandbox-creation-intent-ownership-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-sandbox-creation-intent-ownership-");
     db = createDb(temporary.connectionString);
-    companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "SCI",
-      requireBoardApprovalForNewAgents: false });
+    spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "SCI",
+      requireOperatorApprovalForNewAgents: false });
   }, 30_000);
 
   afterEach(async () => {
@@ -46,7 +46,7 @@ suite("sandbox_creation_intent on the shared ownership path", () => {
   async function intent(creationController: Record<string, unknown>) {
     const id = randomUUID();
     const settleAt = new Date(Date.now() + 30 * 60_000);
-    await db.insert(sandboxCreationOperations).values({ id, companyId, originalEnvironmentId: randomUUID(),
+    await db.insert(sandboxCreationOperations).values({ id, spaceId, originalEnvironmentId: randomUUID(),
       runId: randomUUID(), requestKey: "run", provider: "fixture", driverKey: "fixture", state: "pending", config: {},
       nextAttemptAt: settleAt, metadata: { creationController, creationSettleAt: settleAt.toISOString() } });
     return id;
@@ -91,7 +91,7 @@ suite("sandbox_creation_intent on the shared ownership path", () => {
 
   describe("the settle compares and swaps on the exact creator it was given", () => {
     async function record(id: string, creator: Record<string, unknown>) {
-      return { recordId: id, companyId, runId: null, issueId: null, updatedAt: new Date(),
+      return { recordId: id, spaceId, runId: null, issueId: null, updatedAt: new Date(),
         owner: { kind: "process" as const, stamp: { kind: "local" as const, scope: KIND, generation: null, host: null,
           processSpace: String(creator.hostHash), bootId: String(creator.bootId), pid: Number(creator.pid),
           processStartedAt: null, processGroupId: null } } };

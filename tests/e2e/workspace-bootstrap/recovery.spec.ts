@@ -38,7 +38,7 @@ for (const persistent of [false, true]) {
     await expect(page.getByRole("textbox", { name: "Search projects...", includeHidden: true })).toHaveCount(0);
     const created = page.waitForResponse(response =>
       response.request().method() === "POST"
-      && new URL(response.url()).pathname === `/api/companies/${fixture.companyId}/issues`,
+      && new URL(response.url()).pathname === `/api/spaces/${fixture.spaceId}/issues`,
     );
     await page.getByRole("button", { name: "Create task", exact: true }).click();
     const response = await created;
@@ -51,7 +51,7 @@ for (const persistent of [false, true]) {
     const href = await taskLink.getAttribute("href");
     expect(href).toBeTruthy();
     await page.goto(new URL(href!, base).href);
-    const runs = async () => (await api(`/companies/${fixture.companyId}/heartbeat-runs`)).filter((row: { agentId: string }) => row.agentId === fixture.agentId);
+    const runs = async () => (await api(`/spaces/${fixture.spaceId}/heartbeat-runs`)).filter((row: { agentId: string }) => row.agentId === fixture.agentId);
     await expect.poll(async () => (await runs()).some((row: { errorCode: string }) => row.errorCode === "workspace_git_scan_timeout"), { timeout: 30_000 }).toBe(true);
     await expect(page.getByText(/Agent resumes in/)).toBeVisible();
     await page.screenshot({ path: info.outputPath("scheduled-retry.png"), fullPage: true });
@@ -81,8 +81,8 @@ for (const persistent of [false, true]) {
       expect(completedRun.lastOutputSeq).toBeGreaterThan(0);
       expect(completedRun.lastOutputBytes).toBe(completedRun.logBytes);
       expect(completedLog.content).toContain("Workspace recovery verification complete.");
-      const [runtimeService] = completedRun.contextSnapshot.paperclipRuntimeServices;
-      expect(runtimeService).toMatchObject({ serviceName: "fixture-web", companyId: fixture.companyId, provider: "local_process" });
+      const [runtimeService] = completedRun.contextSnapshot.outpostRuntimeServices;
+      expect(runtimeService).toMatchObject({ serviceName: "fixture-web", spaceId: fixture.spaceId, provider: "local_process" });
       const comments = await api(`/issues/${task.id}/comments`);
       expect(comments.some((comment: { body: string }) => comment.body.includes("## Workspace Ready") && comment.body.includes(runtimeService.url))).toBe(true);
       // Run status precedes final cleanup; wait for the owned ephemeral listener to stop.

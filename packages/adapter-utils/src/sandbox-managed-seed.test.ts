@@ -26,7 +26,7 @@ it.each([undefined, "all"] as const)("keeps nested Git metadata sanitized in col
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "managed-seed-sanitized-")); roots.push(temp);
   vi.stubEnv("OUTPOST_HOME", path.join(temp, "home"));
   const host = path.join(temp, "host"), remote = path.join(temp, "remote"), cache = path.join(temp, "cache");
-  const relative = ".paperclip-repositories/fixture";
+  const relative = ".outpost-repositories/fixture";
   const repository = path.join(host, relative); await fs.mkdir(repository, { recursive: true });
   const git = async (root: string, ...args: string[]) => (await execute("git", ["-C", root, ...args])).stdout.trim();
   await git(repository, "init", "-b", "main");

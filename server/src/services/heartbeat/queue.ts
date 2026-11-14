@@ -110,7 +110,7 @@ import {
   budgetIncidents,
   chatConversations,
   chatEndpoints,
-  companies,
+  spaces,
   executionWorkspaces,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -212,7 +212,7 @@ type RunPreparation = ReturnType<typeof createHeartbeatRunPreparation>;
 export interface HeartbeatQueueDependencies extends Pick<HeartbeatRetryDependencies,
   "setWakeupStatus" | "appendRunEvent" | "finalizeAgentStatus" |
   "getAgentInvokability" | "getWorktreeExecutionCutoff" | "applyRunDispatchPostCommitEffects">,
-  Pick<RunPreparation, "toAgentOrgRow" | "listCompanyAgentOrgRows" |
+  Pick<RunPreparation, "toAgentOrgRow" | "listSpaceAgentOrgRows" |
     "resolveResponsibleUserIdForRun" | "getIssueExecutionContext" |
     "getRoutineEnvForExecutionIssue" | "resolveResponsibleUserIdForRunSeed">,
   Pick<HeartbeatRunState, "getAgent" | "getRun" | "resolveExplicitResumeSessionOverride" |
@@ -220,7 +220,7 @@ export interface HeartbeatQueueDependencies extends Pick<HeartbeatRetryDependenc
   Pick<HeartbeatRecoveryDependencies, "setRunStatus"> {
   sweepPendingCleanupLeases: ReturnType<typeof createHeartbeatRecovery>["sweepPendingCleanupLeases"];
   options: Pick<HeartbeatServiceOptions, "beforeChatControlRecoveryCheck">;
-  issuesSvc: Pick<ReturnType<typeof issueService>, "getDependencyReadiness" | "listDependencyReadiness" | "updateForCompany">;
+  issuesSvc: Pick<ReturnType<typeof issueService>, "getDependencyReadiness" | "listDependencyReadiness" | "updateForSpace">;
   treeControlSvc: Pick<ReturnType<typeof issueTreeControlService>, "getActivePauseHoldGate">;
   budgets: Pick<ReturnType<typeof budgetService>, "getInvocationBlock">;
   instanceSettings: Pick<ReturnType<typeof instanceSettingsService>, "getExperimental">;
@@ -238,22 +238,22 @@ export interface HeartbeatQueueDependencies extends Pick<HeartbeatRetryDependenc
   isRunAdmissionClosed?: () => boolean;
   canStartNewExternalBotWork: (agent: typeof agents.$inferSelect) => Promise<boolean>;
   executeRun: (runId: string) => Promise<void>;
-  releaseIssueExecutionAndPromote: (run: Pick<HeartbeatRun, "id" | "companyId">, options?: { suppressImmediateRecovery?: boolean; resumeStrandedQueue?: boolean; deferredPostCommitEffects?: WakeQueuePostCommitEffect[] }) => Promise<unknown>;
+  releaseIssueExecutionAndPromote: (run: Pick<HeartbeatRun, "id" | "spaceId">, options?: { suppressImmediateRecovery?: boolean; resumeStrandedQueue?: boolean; deferredPostCommitEffects?: WakeQueuePostCommitEffect[] }) => Promise<unknown>;
   applyWakeQueuePostCommitEffects: (effects: WakeQueuePostCommitEffect[]) => Promise<void>;
   publishRunLifecyclePluginEvent: (run: HeartbeatRun) => void;
   cancelRunInternal: (runId: string, reason?: string,
     options?: { errorCode?: string; resultJson?: Record<string, unknown> }) => Promise<unknown>;
   cancelActiveForAgentInternal: (agentId: string, reason: string) => Promise<unknown>;
   resumeExecutionWaitComments: (scope?: DeferredReceiptRecoveryOptions) => Promise<unknown>;
-  resumeQueuedCommentInterrupt: (companyId: string, queueId: string) => Promise<unknown>;
-  resumeSavedLegacyComments: (companyId: string, queueId: string) => Promise<unknown>;
+  resumeQueuedCommentInterrupt: (spaceId: string, queueId: string) => Promise<unknown>;
+  resumeSavedLegacyComments: (spaceId: string, queueId: string) => Promise<unknown>;
   formatIssueIdentifierLink: (identifier: string | null, fallback: string) => string;
 }
 
 
 
 
-export const DEFERRED_WAKE_CONTEXT_KEY = "_paperclipWakeContext";
+export const DEFERRED_WAKE_CONTEXT_KEY = "_outpostWakeContext";
 
 export const EXECUTION_PATH_HEARTBEAT_RUN_STATUSES = [
   "queued",
@@ -294,7 +294,7 @@ export function shouldRequireIssueCommentForWake(
 
 async function listUnresolvedBlockerSummaries(
   dbOrTx: Pick<Db, "select">,
-  companyId: string,
+  spaceId: string,
   issueId: string,
   unresolvedBlockerIssueIds: string[],
 ) {
@@ -314,7 +314,7 @@ async function listUnresolvedBlockerSummaries(
     .innerJoin(issues, eq(issueRelations.issueId, issues.id))
     .where(
       and(
-        eq(issueRelations.companyId, companyId),
+        eq(issueRelations.spaceId, spaceId),
         eq(issueRelations.type, "blocks"),
         eq(issueRelations.relatedIssueId, issueId),
         inArray(issues.id, ids),
@@ -388,7 +388,7 @@ export async function claimDueTimerHeartbeatForAgent(
       .set({ lastHeartbeatAt: now, updatedAt: now })
       .where(and(
         eq(agents.id, agent.id),
-        eq(agents.companyId, agent.companyId),
+        eq(agents.spaceId, agent.spaceId),
         or(
           lte(agents.lastHeartbeatAt, dueBefore),
           and(isNull(agents.lastHeartbeatAt), lte(agents.createdAt, dueBefore)),
@@ -439,7 +439,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     resumeQueuedCommentInterrupt,
     resumeSavedLegacyComments,
     cancelActiveForAgentInternal,
-    listCompanyAgentOrgRows,
+    listSpaceAgentOrgRows,
     executeRun,
     canStartNewExternalBotWork,
     activeRunExecutionPromises,
@@ -520,7 +520,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
    */
   async function releaseConversationCommentsForDailyCap(run: typeof heartbeatRuns.$inferSelect) {
     const owned = and(
-      eq(agentWakeupRequests.companyId, run.companyId),
+      eq(agentWakeupRequests.spaceId, run.spaceId),
       eq(agentWakeupRequests.agentId, run.agentId),
       or(eq(agentWakeupRequests.runId, run.id),
         run.wakeupRequestId ? eq(agentWakeupRequests.id, run.wakeupRequestId) : undefined),
@@ -530,7 +530,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       const receipts = await tx.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(owned).for("update");
       if (!receipts.length) return;
       // Register the recovery signal before the write it announces.
-      await notifyIssueRecovery(tx, { companyId: run.companyId });
+      await notifyIssueRecovery(tx, { spaceId: run.spaceId });
       await tx.update(agentWakeupRequests).set({
         idempotencyKey: null,
         payload: sql`coalesce(${agentWakeupRequests.payload}, '{}'::jsonb)
@@ -572,7 +572,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
   }
 
   async function listQueuedRunDependencyReadiness(
-    companyId: string,
+    spaceId: string,
     queuedRuns: Array<typeof heartbeatRuns.$inferSelect>,
   ) {
     const issueIds = [
@@ -590,7 +590,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         Awaited<ReturnType<typeof issuesSvc.getDependencyReadiness>>
       >();
     }
-    return issuesSvc.listDependencyReadiness(companyId, issueIds);
+    return issuesSvc.listDependencyReadiness(spaceId, issueIds);
   }
 
   async function countRunningRunsForAgent(agentId: string) {
@@ -623,7 +623,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     });
     if (stage === "dispatch" && nativeRecovery) {
       // Protected historical/already-admitted owners did not previously take
-      // this fence's locks. A fresh exact read keeps unrelated Board contention
+      // this fence's locks. A fresh exact read keeps unrelated Operator contention
       // from turning their recovery into a new admission failure.
       const [current] = await db
         .select()
@@ -631,7 +631,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         .where(
           and(
             eq(heartbeatRuns.id, run.id),
-            eq(heartbeatRuns.companyId, run.companyId),
+            eq(heartbeatRuns.spaceId, run.spaceId),
             eq(heartbeatRuns.agentId, run.agentId),
             eq(heartbeatRuns.status, "running"),
           ),
@@ -663,7 +663,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           .select({ id: issues.id })
           .from(issues)
           .where(
-            and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)),
+            and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId)),
           )
           .for("update", { noWait: true })
           .limit(1);
@@ -675,7 +675,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             .where(
               and(
                 eq(agentWakeupRequests.id, run.wakeupRequestId),
-                eq(agentWakeupRequests.companyId, run.companyId),
+                eq(agentWakeupRequests.spaceId, run.spaceId),
                 eq(agentWakeupRequests.agentId, run.agentId),
               ),
             )
@@ -687,7 +687,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           .where(
             and(
               eq(heartbeatRuns.id, run.id),
-              eq(heartbeatRuns.companyId, run.companyId),
+              eq(heartbeatRuns.spaceId, run.spaceId),
               eq(heartbeatRuns.agentId, run.agentId),
             ),
           )
@@ -719,7 +719,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             : await readChatControlRecoveryStop(
                 tx as unknown as Db,
                 {
-                  companyId: run.companyId,
+                  spaceId: run.spaceId,
                   issueId,
                   agentId: run.agentId,
                   sourceRunId: run.id,
@@ -755,13 +755,13 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           ? CHAT_CONTROL_RECOVERY_STOP_CODE
           : CHAT_CONTROL_RECOVERY_UNRESOLVED_CODE;
         const error = stopped
-          ? "Automatic continuation stopped by the committed chat conversation close. Send a new request in chat or on the Board to start fresh work."
+          ? "Automatic continuation stopped by the committed chat conversation close. Send a new request in chat or on the Operator to start fresh work."
           : "Automatic continuation source could not be verified before provider admission. Review the task and send a fresh request; this attempt will not automatically retry.";
-        await notifyChatRunMilestones(tx, { companyId: current.companyId, issueId });
-        await notifyInstructionCollection(tx, { companyId: current.companyId, runId: current.id });
-        await notifyExternalAgentSettlement(tx, { companyId: current.companyId, runId: current.id });
-        await notifyCancelledWorkspacePreservation(tx, { companyId: current.companyId, runId: current.id });
-        await notifyExecutionRunWork(tx, { companyId: current.companyId, agentId: current.agentId, runId: current.id });
+        await notifyChatRunMilestones(tx, { spaceId: current.spaceId, issueId });
+        await notifyInstructionCollection(tx, { spaceId: current.spaceId, runId: current.id });
+        await notifyExternalAgentSettlement(tx, { spaceId: current.spaceId, runId: current.id });
+        await notifyCancelledWorkspacePreservation(tx, { spaceId: current.spaceId, runId: current.id });
+        await notifyExecutionRunWork(tx, { spaceId: current.spaceId, agentId: current.agentId, runId: current.id });
         await notifyUnsafeWorkspaceExportRunChange(tx, current);
         [terminal] = await tx
           .update(heartbeatRuns)
@@ -806,7 +806,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             .where(
               and(
                 eq(agentWakeupRequests.id, current.wakeupRequestId),
-                eq(agentWakeupRequests.companyId, current.companyId),
+                eq(agentWakeupRequests.spaceId, current.spaceId),
                 eq(agentWakeupRequests.agentId, current.agentId),
                 eq(agentWakeupRequests.runId, current.id),
                 ne(agentWakeupRequests.status, "cancelled"),
@@ -822,7 +822,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           })
           .where(
             and(
-              eq(issues.companyId, current.companyId),
+              eq(issues.spaceId, current.spaceId),
               eq(issues.id, issueId),
               eq(issues.executionRunId, current.id),
             ),
@@ -835,7 +835,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (terminal) {
         const settled = terminal as typeof heartbeatRuns.$inferSelect;
         publishLiveEvent({
-          companyId: settled.companyId,
+          spaceId: settled.spaceId,
           type: "heartbeat.run.status",
           payload: {
             runId: settled.id,
@@ -863,7 +863,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
 
   async function claimQueuedRun(
     run: typeof heartbeatRuns.$inferSelect,
-    companyAgents?: AgentOrgRow[],
+    spaceAgents?: AgentOrgRow[],
     deferredPostCommitEffects?: WakeQueuePostCommitEffect[],
     deferredCancellations?: Array<() => Promise<void>>,
   ) {
@@ -886,31 +886,31 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       return null;
     }
     const [caseHandoffReceipt] = run.wakeupRequestId ? await db.select().from(caseHandoffs).where(and(
-      eq(caseHandoffs.wakeupRequestId, run.wakeupRequestId), eq(caseHandoffs.companyId, run.companyId),
+      eq(caseHandoffs.wakeupRequestId, run.wakeupRequestId), eq(caseHandoffs.spaceId, run.spaceId),
     )).limit(1) : [];
     if (caseHandoffReceipt) {
       const [current] = await db.select({ version: cases.handoffVersion, issueId: cases.workIssueId,
         agentId: issues.assigneeAgentId, statusVersion: issues.statusVersion }).from(cases)
         .innerJoin(issues, eq(issues.id, cases.workIssueId)).where(and(eq(cases.id, caseHandoffReceipt.caseId),
-          eq(cases.companyId, run.companyId), eq(issues.companyId, run.companyId))).limit(1);
+          eq(cases.spaceId, run.spaceId), eq(issues.spaceId, run.spaceId))).limit(1);
       if (!["pending_dispatch", "delivered"].includes(caseHandoffReceipt.state) || caseHandoffReceipt.toAgentId !== run.agentId ||
           !current || current.version !== caseHandoffReceipt.version || current.issueId !== caseHandoffReceipt.issueId ||
           current.agentId !== run.agentId || (!run.startedAt && current.statusVersion !== caseHandoffReceipt.appliedIssueStatusVersion)) {
         const cancelled = await db.transaction(async tx => {
           const [currentRun] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
-            .where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.status, "queued")))
+            .where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.status, "queued")))
             .for("update");
           if (!currentRun) return null;
-          await notifyChatRunMilestones(tx, { companyId: run.companyId, runId: run.id,
+          await notifyChatRunMilestones(tx, { spaceId: run.spaceId, runId: run.id,
             issueId: run.nativeIssueId ?? run.issueId ?? readNonEmptyString(parseObject(run.contextSnapshot).issueId) ?? undefined });
-          await notifyInstructionCollection(tx, { companyId: run.companyId, runId: run.id });
-          await notifyExternalAgentSettlement(tx, { companyId: run.companyId, runId: run.id });
-          await notifyCancelledWorkspacePreservation(tx, { companyId: run.companyId, runId: run.id });
-          await notifyExecutionRunWork(tx, { companyId: run.companyId, agentId: run.agentId, runId: run.id });
+          await notifyInstructionCollection(tx, { spaceId: run.spaceId, runId: run.id });
+          await notifyExternalAgentSettlement(tx, { spaceId: run.spaceId, runId: run.id });
+          await notifyCancelledWorkspacePreservation(tx, { spaceId: run.spaceId, runId: run.id });
+          await notifyExecutionRunWork(tx, { spaceId: run.spaceId, agentId: run.agentId, runId: run.id });
           await notifyUnsafeWorkspaceExportRunChange(tx, run);
           const [row] = await tx.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date(),
             errorCode: "case_handoff_superseded", error: "This case handoff was cancelled or superseded.", updatedAt: new Date() })
-            .where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.status, "queued"))).returning();
+            .where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.status, "queued"))).returning();
           return row;
         });
         if (cancelled) await setWakeupStatus(run.wakeupRequestId, "cancelled", { finishedAt: new Date(), error: cancelled.error });
@@ -920,7 +920,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     }
     const caseIssueId = readNonEmptyString(parseObject(run.contextSnapshot).issueId);
     if (caseIssueId) {
-      const [pending] = await db.select().from(caseHandoffs).where(and(eq(caseHandoffs.companyId, run.companyId), eq(caseHandoffs.issueId, caseIssueId),
+      const [pending] = await db.select().from(caseHandoffs).where(and(eq(caseHandoffs.spaceId, run.spaceId), eq(caseHandoffs.issueId, caseIssueId),
         inArray(caseHandoffs.state, ["awaiting_release", "pending_dispatch"]))).limit(1);
       if (pending && (pending.wakeupRequestId !== run.wakeupRequestId || pending.state === "awaiting_release")) return null;
     }
@@ -959,8 +959,8 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     }
     // Keep accepted work in the durable queue until setup completes.
     if (isAgentAwaitingSetup(agent)) return null;
-    const invokability = companyAgents
-      ? evaluateAgentInvokability(toAgentOrgRow(agent), companyAgents)
+    const invokability = spaceAgents
+      ? evaluateAgentInvokability(toAgentOrgRow(agent), spaceAgents)
       : await getAgentInvokability(agent);
     if (!invokability.invokable) {
       if (caseHandoffReceipt) return null;
@@ -974,7 +974,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
 
     const context = parseObject(run.contextSnapshot);
     const budgetBlock = await budgets.getInvocationBlock(
-      run.companyId,
+      run.spaceId,
       run.agentId,
       {
         issueId: readNonEmptyString(context.issueId),
@@ -986,8 +986,8 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       // A temporary hold (accounting that is still settling) only delays
       // accepted work. Cancelling the unstarted run would drop the user's
       // message, Retry, or recovery it carries; keep it queued. Settling
-      // accounting re-notifies run dispatch. A reached hard stop is the board's.
-      if (!run.startedAt && !(await isBoardOwnedBudgetBlock(db, run.companyId, budgetBlock))) return null;
+      // accounting re-notifies run dispatch. A reached hard stop is the operator's.
+      if (!run.startedAt && !(await isBoardOwnedBudgetBlock(db, run.spaceId, budgetBlock))) return null;
       // Record which budget stops this queued run, so Raise budget and resume
       // continues it (budget-resume-continuation.ts). Saved before the cancel
       // so a crash between them cannot lose it; the resume matches it only
@@ -1000,7 +1000,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         // conflicts on that row and retries, so its resume sees the stamp
         // (a still-queued stamped run is claimed and waits for this cancel).
         const open = await tx.update(budgetIncidents).set({ updatedAt: new Date() }).where(and(
-          eq(budgetIncidents.companyId, run.companyId), eq(budgetIncidents.scopeType, budgetBlock.scopeType),
+          eq(budgetIncidents.spaceId, run.spaceId), eq(budgetIncidents.scopeType, budgetBlock.scopeType),
           eq(budgetIncidents.scopeId, budgetBlock.scopeId), eq(budgetIncidents.status, "open")))
           .returning({ id: budgetIncidents.id });
         if (!open.length) return false;
@@ -1013,10 +1013,10 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (!stamped) {
         // No open incident: a resume may have just closed it and raised the
         // budget. Read the block again; resumed work stays queued.
-        const current = await budgets.getInvocationBlock(run.companyId, run.agentId, {
+        const current = await budgets.getInvocationBlock(run.spaceId, run.agentId, {
           issueId: readNonEmptyString(context.issueId), projectId: readNonEmptyString(context.projectId) });
         if (!current) return null;
-        if (!run.startedAt && !(await isBoardOwnedBudgetBlock(db, run.companyId, current))) return null;
+        if (!run.startedAt && !(await isBoardOwnedBudgetBlock(db, run.spaceId, current))) return null;
         await cancelRunInternal(run.id, current.reason);
         return null;
       }
@@ -1048,7 +1048,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       const [settlingOwner] = await db.select({ id: heartbeatRuns.id })
         .from(heartbeatRuns)
         .where(and(
-          eq(heartbeatRuns.companyId, run.companyId),
+          eq(heartbeatRuns.spaceId, run.spaceId),
           eq(heartbeatRuns.agentId, run.agentId),
           eq(heartbeatRuns.runtimeMode, "native"),
           inArray(heartbeatRuns.id, [...activeRunExecutions]),
@@ -1059,13 +1059,13 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     }
     if (issueId) {
       const activePauseHold = await treeControlSvc.getActivePauseHoldGate(
-        run.companyId,
+        run.spaceId,
         issueId,
       );
       const treeHoldInteractionWake =
         activePauseHold &&
         (await isVerifiedIssueTreeControlInteractionWake(db, {
-          companyId: run.companyId,
+          spaceId: run.spaceId,
           issueId,
           agentId: run.agentId,
           runId: run.id,
@@ -1081,7 +1081,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             { errorCode: ISSUE_PAUSED_ERROR_CODE, resultJson: pauseSuppressionResult(activePauseHold) },
           );
           await logActivity(db, {
-            companyId: run.companyId,
+            spaceId: run.spaceId,
             actorType: "system",
             actorId: "system",
             agentId: run.agentId,
@@ -1103,7 +1103,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             },
           });
           // A release that committed before this refusal did not see it.
-          await resumeIfPauseAlreadyReleased(db, { companyId: run.companyId, issueId,
+          await resumeIfPauseAlreadyReleased(db, { spaceId: run.spaceId, issueId,
             holdId: activePauseHold.holdId, wakeup: (agentId, opts) => trackWakeup(agentId, opts) });
         };
         // Cancellation promotes the agent's next queued run under the agent
@@ -1114,14 +1114,14 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       }
 
       const dependencyReadiness = await issuesSvc.listDependencyReadiness(
-        run.companyId,
+        run.spaceId,
         [issueId],
       );
       const readiness = dependencyReadiness.get(issueId);
       const unresolvedBlockerCount = readiness?.unresolvedBlockerCount ?? 0;
       // The run's wake request records who asked for it.
       const blockerStallVerified = unresolvedBlockerCount > 0 && await verifyBlockerStallWake(db, {
-        companyId: run.companyId, issueId, contextSnapshot: context,
+        spaceId: run.spaceId, issueId, contextSnapshot: context,
         requestedByActorType: run.wakeupRequestId
           ? (await db.select({ actor: agentWakeupRequests.requestedByActorType }).from(agentWakeupRequests)
             .where(eq(agentWakeupRequests.id, run.wakeupRequestId)).then(rows => rows[0]?.actor ?? null))
@@ -1133,7 +1133,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           context,
           ISSUE_TREE_CONTROL_INTERACTION_WAKE_REASONS,
           blockerStallVerified,
-          await isVerifiedDependencyInteractionResponse(db, { companyId: run.companyId,
+          await isVerifiedDependencyInteractionResponse(db, { spaceId: run.spaceId,
             issueId, agentId: run.agentId, context }),
         )
       ) {
@@ -1151,7 +1151,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
 
       const staleness = await runDispatch.cancelStaleQueuedRun({
         runId: run.id,
-        companyId: run.companyId,
+        spaceId: run.spaceId,
         expectedStatus: "queued",
       });
       if (staleness.outcome === "cancelled" || staleness.outcome === "deferred") {
@@ -1174,7 +1174,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       run,
       contextSnapshot: context,
       issueContext: issueId
-        ? await getIssueExecutionContext(run.companyId, issueId)
+        ? await getIssueExecutionContext(run.spaceId, issueId)
         : null,
       routineEnvContext: {
         routineId: null,
@@ -1182,7 +1182,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         responsibleUserId: null,
       },
     });
-    // All ordinary and comment claims use the same company-scoped issue
+    // All ordinary and comment claims use the same space-scoped issue
     // lock. A batch may claim several runs before executeRun tracks any owner.
     async function lockIssueExecutionClaim(tx: Db) {
       const [owner] = issueId ? await tx.select({
@@ -1191,11 +1191,11 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         executionRunId: issues.executionRunId,
         checkoutRunId: issues.checkoutRunId,
       }).from(issues).where(and(
-        eq(issues.id, issueId), eq(issues.companyId, run.companyId),
+        eq(issues.id, issueId), eq(issues.spaceId, run.spaceId),
       )).for("update") : [];
       const ownsIssue = owner?.assigneeAgentId === run.agentId &&
         context.wakeReason !== "source_scoped_recovery_action";
-      const [handoff] = issueId ? await tx.select().from(caseHandoffs).where(and(eq(caseHandoffs.companyId, run.companyId), eq(caseHandoffs.issueId, issueId),
+      const [handoff] = issueId ? await tx.select().from(caseHandoffs).where(and(eq(caseHandoffs.spaceId, run.spaceId), eq(caseHandoffs.issueId, issueId),
         inArray(caseHandoffs.state, ["awaiting_release", "pending_dispatch"]))).limit(1) : [];
       if (handoff && (handoff.wakeupRequestId !== run.wakeupRequestId || handoff.state === "awaiting_release"))
         return { ownsIssue, blocked: true };
@@ -1205,7 +1205,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           appliedIssueStatusVersion: caseHandoffs.appliedIssueStatusVersion,
           toAgentId: caseHandoffs.toAgentId, wakeupRequestId: caseHandoffs.wakeupRequestId }).from(caseHandoffs)
           .innerJoin(cases, eq(cases.id, caseHandoffs.caseId)).where(and(eq(caseHandoffs.id, caseHandoffReceipt.id),
-            eq(caseHandoffs.companyId, run.companyId))).limit(1);
+            eq(caseHandoffs.spaceId, run.spaceId))).limit(1);
         if (!current || !["pending_dispatch", "delivered"].includes(current.state) || current.version !== current.currentVersion ||
             current.workIssueId !== issueId || current.toAgentId !== run.agentId || current.wakeupRequestId !== run.wakeupRequestId ||
             !ownsIssue || (!run.startedAt && current.appliedIssueStatusVersion !== owner?.statusVersion))
@@ -1232,7 +1232,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         })
           .from(heartbeatRuns).where(and(
             eq(heartbeatRuns.id, previousRunId),
-            eq(heartbeatRuns.companyId, run.companyId),
+            eq(heartbeatRuns.spaceId, run.spaceId),
           ));
         if (previousRunId !== executionOwnerId && (previous?.agentId !== run.agentId ||
             (previous.nativeIssueId ?? previous.issueId ?? previous.contextIssueId) !== issueId)) continue;
@@ -1242,7 +1242,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             liveRunExecutions.has(previousRunId)) {
           return { ownsIssue, blocked: true };
         }
-        if (await hasPendingRunCleanup(tx, run.companyId, previousRunId)) {
+        if (await hasPendingRunCleanup(tx, run.spaceId, previousRunId)) {
           return { ownsIssue, blocked: true };
         }
       }
@@ -1250,13 +1250,13 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     }
     async function bindClaimedIssueExecution(tx: Db, ownsIssue: boolean, claimedRun: typeof heartbeatRuns.$inferSelect | null | undefined) {
       if (!claimedRun || !issueId || !ownsIssue) return;
-      await notifyStatusCardIssueChange(tx, run.companyId);
+      await notifyStatusCardIssueChange(tx, run.spaceId);
       await tx.update(issues).set({
         executionRunId: claimedRun.id,
         executionAgentNameKey: normalizeAgentNameKey(agent.name),
         executionLockedAt: claimedAt,
         updatedAt: claimedAt,
-      }).where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId))).catch((error: unknown) => {
+      }).where(and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId))).catch((error: unknown) => {
         // Another open task of the same routine holds its execution slot, for
         // example a failed run that waits for its scheduled resume. Roll back
         // this claim and keep the run queued until that slot is released.
@@ -1294,7 +1294,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 .where(
                   and(
                     eq(agentWakeupRequests.id, run.wakeupRequestId!),
-                    eq(agentWakeupRequests.companyId, run.companyId),
+                    eq(agentWakeupRequests.spaceId, run.spaceId),
                     eq(agentWakeupRequests.agentId, run.agentId),
                   ),
                 )
@@ -1307,7 +1307,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 .where(
                   and(
                     eq(heartbeatRuns.id, run.id),
-                    eq(heartbeatRuns.companyId, run.companyId),
+                    eq(heartbeatRuns.spaceId, run.spaceId),
                     eq(heartbeatRuns.agentId, run.agentId),
                   ),
                 )
@@ -1332,7 +1332,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 const proof = await readChatControlRecoveryStop(
                   tx as unknown as Db,
                   {
-                    companyId: lockedRun.companyId,
+                    spaceId: lockedRun.spaceId,
                     issueId,
                     agentId: lockedRun.agentId,
                     sourceRunId: lockedRun.id,
@@ -1343,12 +1343,12 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                   return { kind: "stale" as const, run: null };
                 if (proof.kind === "stopped") {
                   const error =
-                    "Automatic continuation stopped by the committed chat conversation close. Send a fresh request in chat or on the Board.";
-                  await notifyChatRunMilestones(tx, { companyId: run.companyId, issueId });
-                  await notifyInstructionCollection(tx, { companyId: run.companyId, runId: run.id });
-                  await notifyExternalAgentSettlement(tx, { companyId: run.companyId, runId: run.id });
-                  await notifyCancelledWorkspacePreservation(tx, { companyId: run.companyId, runId: run.id });
-                  await notifyExecutionRunWork(tx, { companyId: run.companyId, agentId: run.agentId, runId: run.id });
+                    "Automatic continuation stopped by the committed chat conversation close. Send a fresh request in chat or on the Operator.";
+                  await notifyChatRunMilestones(tx, { spaceId: run.spaceId, issueId });
+                  await notifyInstructionCollection(tx, { spaceId: run.spaceId, runId: run.id });
+                  await notifyExternalAgentSettlement(tx, { spaceId: run.spaceId, runId: run.id });
+                  await notifyCancelledWorkspacePreservation(tx, { spaceId: run.spaceId, runId: run.id });
+                  await notifyExecutionRunWork(tx, { spaceId: run.spaceId, agentId: run.agentId, runId: run.id });
                   await notifyUnsafeWorkspaceExportRunChange(tx, run);
                   const [cancelled] = await tx
                     .update(heartbeatRuns)
@@ -1397,7 +1397,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                     .where(
                       and(
                         eq(issues.id, issueId),
-                        eq(issues.companyId, run.companyId),
+                        eq(issues.spaceId, run.spaceId),
                         eq(issues.executionRunId, run.id),
                       ),
                     );
@@ -1427,8 +1427,8 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 // envelope. Preserve their established claim path; only an
                 // explicitly bound queued-message envelope is subject to the
                 // live-comment discard gate below.
-                await withExternalAdmissionGuard(tx, run.companyId, run.agentId, () => assertNoExternalOverlap(tx, run.companyId, run.agentId));
-                await notifyChatRunMilestones(tx, { companyId: run.companyId, issueId });
+                await withExternalAdmissionGuard(tx, run.spaceId, run.agentId, () => assertNoExternalOverlap(tx, run.spaceId, run.agentId));
+                await notifyChatRunMilestones(tx, { spaceId: run.spaceId, issueId });
                 const [claimedRun] = await tx
                   .update(heartbeatRuns)
                   .set({
@@ -1459,7 +1459,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 .from(issueComments)
                 .where(
                   and(
-                    eq(issueComments.companyId, run.companyId),
+                    eq(issueComments.spaceId, run.spaceId),
                     eq(issueComments.issueId, issueId),
                     inArray(issueComments.id, authoritativeIds),
                   ),
@@ -1470,11 +1470,11 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               });
               if (liveIds.length === 0) {
                 const reason = "Queued messages were discarded before dispatch";
-                await notifyChatRunMilestones(tx, { companyId: run.companyId, issueId });
-                await notifyInstructionCollection(tx, { companyId: run.companyId, runId: run.id });
-                await notifyExternalAgentSettlement(tx, { companyId: run.companyId, runId: run.id });
-                await notifyCancelledWorkspacePreservation(tx, { companyId: run.companyId, runId: run.id });
-                await notifyExecutionRunWork(tx, { companyId: run.companyId, agentId: run.agentId, runId: run.id });
+                await notifyChatRunMilestones(tx, { spaceId: run.spaceId, issueId });
+                await notifyInstructionCollection(tx, { spaceId: run.spaceId, runId: run.id });
+                await notifyExternalAgentSettlement(tx, { spaceId: run.spaceId, runId: run.id });
+                await notifyCancelledWorkspacePreservation(tx, { spaceId: run.spaceId, runId: run.id });
+                await notifyExecutionRunWork(tx, { spaceId: run.spaceId, agentId: run.agentId, runId: run.id });
                 await notifyUnsafeWorkspaceExportRunChange(tx, run);
                 const [cancelled] = await tx
                   .update(heartbeatRuns)
@@ -1512,7 +1512,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                   .where(
                     and(
                       eq(issues.id, issueId),
-                      eq(issues.companyId, run.companyId),
+                      eq(issues.spaceId, run.spaceId),
                       eq(issues.executionRunId, run.id),
                     ),
                   );
@@ -1522,8 +1522,8 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 };
               }
 
-              await withExternalAdmissionGuard(tx, run.companyId, run.agentId, () => assertNoExternalOverlap(tx, run.companyId, run.agentId));
-              await notifyChatRunMilestones(tx, { companyId: run.companyId, issueId });
+              await withExternalAdmissionGuard(tx, run.spaceId, run.agentId, () => assertNoExternalOverlap(tx, run.spaceId, run.agentId));
+              await notifyChatRunMilestones(tx, { spaceId: run.spaceId, issueId });
               await tx
                 .update(agentWakeupRequests)
                 .set({
@@ -1578,7 +1578,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           "Queued messages were discarded before dispatch",
       });
       publishLiveEvent({
-        companyId: queuedCommentClaim.run.companyId,
+        spaceId: queuedCommentClaim.run.spaceId,
         type: "heartbeat.run.status",
         payload: {
           runId: queuedCommentClaim.run.id,
@@ -1627,14 +1627,14 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             const issueClaim = await lockIssueExecutionClaim(claimTx as unknown as Db);
             if (issueClaim.blocked) return null;
             if (run.wakeupRequestId) await claimTx.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(and(
-              eq(agentWakeupRequests.id, run.wakeupRequestId), eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+              eq(agentWakeupRequests.id, run.wakeupRequestId), eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
             )).for("update");
             const [lockedRun] = await claimTx.select().from(heartbeatRuns).where(and(
-              eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.agentId, run.agentId),
+              eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.agentId, run.agentId),
             )).for("update");
             if (!lockedRun || lockedRun.status !== "queued") return null;
-            await withExternalAdmissionGuard(claimTx, run.companyId, run.agentId, () => assertNoExternalOverlap(claimTx, run.companyId, run.agentId));
-            await notifyChatRunMilestones(claimTx, { companyId: run.companyId, runId: run.id, issueId: issueId ?? undefined });
+            await withExternalAdmissionGuard(claimTx, run.spaceId, run.agentId, () => assertNoExternalOverlap(claimTx, run.spaceId, run.agentId));
+            await notifyChatRunMilestones(claimTx, { spaceId: run.spaceId, runId: run.id, issueId: issueId ?? undefined });
             const claimedRun = await claimTx.update(heartbeatRuns).set(claimValues).where(and(
               eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.status, "queued"),
             )).returning().then((rows) => rows[0] ?? null);
@@ -1645,7 +1645,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     if (!claimed) return null;
 
     publishLiveEvent({
-      companyId: claimed.companyId,
+      spaceId: claimed.spaceId,
       type: "heartbeat.run.status",
       payload: {
         runId: claimed.id,
@@ -1691,7 +1691,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         .where(
           and(
             eq(issues.id, claimedIssueId),
-            eq(issues.companyId, claimed.companyId),
+            eq(issues.spaceId, claimed.spaceId),
             // Mention/context runs can touch an issue, but only the current assignee
             // owns the issue execution lock shown as the active run.
             eq(issues.assigneeAgentId, claimed.agentId),
@@ -1733,11 +1733,11 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
   async function releaseRunClaimedJustBeforeSuppression(runId: string) {
     const now = new Date();
     await db.transaction(async (tx) => {
-      const [candidate] = await tx.select({ companyId: heartbeatRuns.companyId, contextSnapshot: heartbeatRuns.contextSnapshot })
+      const [candidate] = await tx.select({ spaceId: heartbeatRuns.spaceId, contextSnapshot: heartbeatRuns.contextSnapshot })
         .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.status, "running"))).for("update");
       if (!candidate) return;
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-      await notifyChatRunMilestones(tx, { companyId: candidate.companyId, runId,
+      await notifyChatRunMilestones(tx, { spaceId: candidate.spaceId, runId,
         issueId: readNonEmptyString(parseObject(candidate.contextSnapshot).issueId) ?? undefined });
       const released = await tx
         .update(heartbeatRuns)
@@ -1775,7 +1775,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           .where(
             and(
               eq(issues.id, issueId),
-              eq(issues.companyId, released.companyId),
+              eq(issues.spaceId, released.spaceId),
               eq(issues.executionRunId, released.id),
             ),
           );
@@ -1812,8 +1812,8 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     });
 
     await db.transaction(async tx => {
-      await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: run.companyId, issueId });
-      await notifyNativeStatusReassessment(tx, { companyId: run.companyId, issueId });
+      await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: run.spaceId, issueId });
+      await notifyNativeStatusReassessment(tx, { spaceId: run.spaceId, issueId });
       await tx
       .update(issues)
       .set({
@@ -1824,7 +1824,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       })
       .where(
         and(
-          eq(issues.companyId, run.companyId),
+          eq(issues.spaceId, run.spaceId),
           eq(issues.id, issueId),
           eq(issues.executionRunId, run.id),
         ),
@@ -1849,12 +1849,12 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     if ((await getSchedulingSuppression()).suppressed) return;
     await resumeExecutionWaitComments(scope);
     const cutoff = await getWorktreeExecutionCutoff();
-    const pendingInterrupts = await db.select({ id: agentWakeupRequests.id, companyId: agentWakeupRequests.companyId })
-      .from(agentWakeupRequests).innerJoin(companies, eq(companies.id, agentWakeupRequests.companyId))
-      .where(and(scope.companyId ? eq(agentWakeupRequests.companyId, scope.companyId) : undefined,
+    const pendingInterrupts = await db.select({ id: agentWakeupRequests.id, spaceId: agentWakeupRequests.spaceId })
+      .from(agentWakeupRequests).innerJoin(spaces, eq(spaces.id, agentWakeupRequests.spaceId))
+      .where(and(scope.spaceId ? eq(agentWakeupRequests.spaceId, scope.spaceId) : undefined,
         scope.requestId ? eq(agentWakeupRequests.id, scope.requestId) : undefined,
         eq(agentWakeupRequests.status, "deferred_issue_execution"),
-        eq(companies.status, "active"),
+        eq(spaces.status, "active"),
         sql`${agentWakeupRequests.payload}->'queuedCommentInterrupt' is not null`,
         lte(agentWakeupRequests.updatedAt, new Date(Date.now() - 30_000)),
         cutoff ? gte(agentWakeupRequests.requestedAt, cutoff) : undefined))
@@ -1863,7 +1863,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       await db.update(agentWakeupRequests).set({ updatedAt: new Date() }).where(and(
         eq(agentWakeupRequests.id, wake.id), eq(agentWakeupRequests.status, "deferred_issue_execution"),
       ));
-      await resumeQueuedCommentInterrupt(wake.companyId, wake.id).catch(err => {
+      await resumeQueuedCommentInterrupt(wake.spaceId, wake.id).catch(err => {
         scope.onError?.(err);
         logger.warn({ err, queueId: wake.id }, "failed to resume interrupted comment queue");
       });
@@ -1879,12 +1879,12 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     // stranded-queue pass, which touches each saved wake.
     const pauseLifted = await db.select({ wake: agentWakeupRequests })
       .from(agentWakeupRequests)
-      .innerJoin(issues, and(eq(issues.companyId, agentWakeupRequests.companyId),
+      .innerJoin(issues, and(eq(issues.spaceId, agentWakeupRequests.spaceId),
         sql`${issues.id}::text = ${agentWakeupRequests.payload}->>'issueId'`,
         eq(issues.assigneeAgentId, agentWakeupRequests.agentId), isNull(issues.executionRunId),
         notInArray(issues.status, ["done", "cancelled"])))
-      .innerJoin(companies, and(eq(companies.id, agentWakeupRequests.companyId), eq(companies.status, "active")))
-      .where(and(scope.companyId ? eq(agentWakeupRequests.companyId, scope.companyId) : undefined,
+      .innerJoin(spaces, and(eq(spaces.id, agentWakeupRequests.spaceId), eq(spaces.status, "active")))
+      .where(and(scope.spaceId ? eq(agentWakeupRequests.spaceId, scope.spaceId) : undefined,
         scope.requestId ? eq(agentWakeupRequests.id, scope.requestId) : undefined,
         eq(agentWakeupRequests.status, "deferred_issue_execution"), isNull(agentWakeupRequests.runId),
         // Only messages the pause path saved (never a chat-inbound receipt,
@@ -1894,13 +1894,13 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         // A message the reconciler saved after its wake was lost waits on no
         // hold, so the same explicit wake sends it.
         sql`${agentWakeupRequests.payload}->'executionWait'->>'trigger' in ('pause_lifted', 'reconciler_backstop')`,
-        sql`${agentWakeupRequests.payload}->'executionWait'->>'reason' in ('company.inactive', 'agent.not_invokable', 'wake_lost')`,
+        sql`${agentWakeupRequests.payload}->'executionWait'->>'reason' in ('space.inactive', 'agent.not_invokable', 'wake_lost')`,
         eq(agentWakeupRequests.requestedByActorType, "user"),
         sql`coalesce(${agentWakeupRequests.idempotencyKey}, '') not like 'chat-inbound:%'`,
         sql`exists (select 1 from agents pause_agent where pause_agent.id = ${agentWakeupRequests.agentId}
           and pause_agent.status not in ('paused', 'terminated', 'pending_approval'))`,
         sql`NOT EXISTS (SELECT 1 FROM heartbeat_runs live_issue_run
-          WHERE live_issue_run.company_id = ${issues.companyId}
+          WHERE live_issue_run.space_id = ${issues.spaceId}
             AND (live_issue_run.context_snapshot->>'issueId' = ${issues.id}::text
               OR live_issue_run.native_issue_id = ${issues.id})
             AND live_issue_run.status IN ('queued', 'running', 'scheduled_retry'))`,
@@ -1908,7 +1908,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       .orderBy(asc(agentWakeupRequests.updatedAt)).limit(50);
     const pauseLiftedIssues = new Set<string>();
     for (const { wake } of pauseLifted) {
-      const issueKey = `${wake.companyId}:${String(wake.payload?.issueId)}`;
+      const issueKey = `${wake.spaceId}:${String(wake.payload?.issueId)}`;
       if (pauseLiftedIssues.has(issueKey)) continue;
       pauseLiftedIssues.add(issueKey);
       // Consumption is per comment. The wake adopts every saved message of
@@ -1916,12 +1916,12 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       // completed run already received; a receipt left empty is consumed.
       const issueKeyId = String(wake.payload?.issueId);
       const saved = await db.select().from(agentWakeupRequests).where(and(
-        eq(agentWakeupRequests.companyId, wake.companyId), eq(agentWakeupRequests.agentId, wake.agentId),
+        eq(agentWakeupRequests.spaceId, wake.spaceId), eq(agentWakeupRequests.agentId, wake.agentId),
         eq(agentWakeupRequests.status, "deferred_issue_execution"), isNull(agentWakeupRequests.runId),
         sql`${agentWakeupRequests.payload}->>'issueId' = ${issueKeyId}`));
       for (const receipt of saved) {
         const commentIds = queuedCommentIdsFromWakePayload(receipt.payload);
-        const delivered = await deliveredQueuedCommentIds(db, { companyId: wake.companyId, issueId: issueKeyId,
+        const delivered = await deliveredQueuedCommentIds(db, { spaceId: wake.spaceId, issueId: issueKeyId,
           agentId: wake.agentId, commentIds: commentIds.filter(isUuidLike) });
         if (delivered.size === 0) continue;
         const remaining = commentIds.filter(commentId => !delivered.has(commentId));
@@ -1954,23 +1954,23 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     // release admission, so recovery holds and operator Stops still apply.
     const strandedQueues = await db.select({ wake: agentWakeupRequests })
       .from(agentWakeupRequests)
-      .innerJoin(issues, and(eq(issues.companyId, agentWakeupRequests.companyId),
+      .innerJoin(issues, and(eq(issues.spaceId, agentWakeupRequests.spaceId),
         sql`${issues.id}::text = ${agentWakeupRequests.payload}->>'issueId'`,
         or(eq(issues.assigneeAgentId, agentWakeupRequests.agentId),
-          sql`${agentWakeupRequests.payload} #>> '{_paperclipWakeContext,wakeReason}' = 'issue_comment_mentioned'`)))
-      .innerJoin(companies, and(eq(companies.id, issues.companyId), eq(companies.status, "active")))
-      .where(and(scope.companyId ? eq(agentWakeupRequests.companyId, scope.companyId) : undefined,
+          sql`${agentWakeupRequests.payload} #>> '{_outpostWakeContext,wakeReason}' = 'issue_comment_mentioned'`)))
+      .innerJoin(spaces, and(eq(spaces.id, issues.spaceId), eq(spaces.status, "active")))
+      .where(and(scope.spaceId ? eq(agentWakeupRequests.spaceId, scope.spaceId) : undefined,
         scope.requestId ? eq(agentWakeupRequests.id, scope.requestId) : undefined,
         eq(agentWakeupRequests.status, "deferred_issue_execution"),
         isNull(issues.executionRunId),
         or(and(
-          sql`jsonb_typeof(${agentWakeupRequests.payload} #> '{_paperclipWakeContext,wakeCommentIds}') = 'array'`,
-          sql`${agentWakeupRequests.payload} #> '{_paperclipWakeContext,wakeCommentIds}' <> '[]'::jsonb`,
+          sql`jsonb_typeof(${agentWakeupRequests.payload} #> '{_outpostWakeContext,wakeCommentIds}') = 'array'`,
+          sql`${agentWakeupRequests.payload} #> '{_outpostWakeContext,wakeCommentIds}' <> '[]'::jsonb`,
         ), sql`${agentWakeupRequests.payload}->>'mutation' = 'interaction'`,
         dependencyResolvedWakePayloadSql),
         sql`${agentWakeupRequests.payload}->'queuedCommentInterrupt' is null`,
         sql`NOT EXISTS (SELECT 1 FROM heartbeat_runs live_issue_run
-          WHERE live_issue_run.company_id = ${issues.companyId}
+          WHERE live_issue_run.space_id = ${issues.spaceId}
             AND (live_issue_run.context_snapshot->>'issueId' = ${issues.id}::text
               OR live_issue_run.native_issue_id = ${issues.id})
             AND live_issue_run.status IN ('queued', 'running', 'scheduled_retry'))`,
@@ -1980,10 +1980,10 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     for (const { wake } of strandedQueues) {
       const dependencyWake = isDependencyResolvedWakePayload(wake.payload);
       if (!dependencyWake && !queuedCommentIdsFromWakePayload(wake.payload).length &&
-          !await readQueuedInteractionResponse(db, wake.companyId, String(wake.payload?.issueId), wake.payload)) continue;
+          !await readQueuedInteractionResponse(db, wake.spaceId, String(wake.payload?.issueId), wake.payload)) continue;
       const [latest] = await db.select({
         id: heartbeatRuns.id,
-        companyId: heartbeatRuns.companyId,
+        spaceId: heartbeatRuns.spaceId,
         status: heartbeatRuns.status,
         finishedAt: heartbeatRuns.finishedAt,
         startedAt: heartbeatRuns.startedAt,
@@ -1991,7 +1991,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         errorCode: heartbeatRuns.errorCode,
         sourceVersion: sql<string>`${heartbeatRuns}.xmin::text`,
       }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, wake.companyId),
+        eq(heartbeatRuns.spaceId, wake.spaceId),
         sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${String(wake.payload?.issueId)}`,
         or(isNull(heartbeatRuns.nativeIssueId), sql`${heartbeatRuns.nativeIssueId}::text = ${String(wake.payload?.issueId)}`),
       )).orderBy(desc(heartbeatRuns.createdAt), desc(heartbeatRuns.id)).limit(1);
@@ -2001,20 +2001,20 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (!latest || !latest.finishedAt || !isHeartbeatRunTerminalStatus(latest.status)) continue;
       if (latest.runtimeMode !== "legacy" && latest.runtimeMode !== "native") continue;
       if (wake.idempotencyKey?.startsWith("chat-inbound:")) {
-        await resumeDeferredChatWake(db, { companyId: wake.companyId, agentId: wake.agentId,
+        await resumeDeferredChatWake(db, { spaceId: wake.spaceId, agentId: wake.agentId,
           issueId: String(wake.payload?.issueId), requestId: wake.id }).catch(err => {
           scope.onError?.(err);
           logger.warn({ requestId: wake.id }, "saved chat source could not resume after recovery");
         });
         continue;
       }
-      const releaseSource = `${latest.companyId}:${String(wake.payload?.issueId)}:${latest.id}:${latest.sourceVersion}`;
+      const releaseSource = `${latest.spaceId}:${String(wake.payload?.issueId)}:${latest.id}:${latest.sourceVersion}`;
       if (latest.runtimeMode === "native" && releasedNativeSources.has(releaseSource)) continue;
       if (latest.runtimeMode === "legacy") {
         const cancelledAdmission = latest.status === "cancelled" && !latest.startedAt &&
           latest.errorCode === "execution_reconciliation_required";
-        if ((latest.status !== "cancelled" || cancelledAdmission) && await getExecutionBlocker(db, wake.companyId, String(wake.payload?.issueId))) {
-          await resumeSavedLegacyComments(wake.companyId, wake.id).catch(err => {
+        if ((latest.status !== "cancelled" || cancelledAdmission) && await getExecutionBlocker(db, wake.spaceId, String(wake.payload?.issueId))) {
+          await resumeSavedLegacyComments(wake.spaceId, wake.id).catch(err => {
             scope.onError?.(err);
             logger.warn({ err, queueId: wake.id }, "failed to deliver saved legacy comment after recovery stopped");
           });
@@ -2032,21 +2032,21 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     // is still deferred, including after a failed cleanup promotion or restart.
     // Normal admission still checks process ownership, leases, pauses, and scope.
     const interruptedQueues = await db
-      .select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId })
+      .select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId })
       .from(agentWakeupRequests)
       .innerJoin(heartbeatRuns, and(
         sql`${heartbeatRuns.resultJson}->>'queuedCommentInterruptQueueId' = ${agentWakeupRequests.id}::text`,
-        eq(heartbeatRuns.companyId, agentWakeupRequests.companyId),
+        eq(heartbeatRuns.spaceId, agentWakeupRequests.spaceId),
         eq(heartbeatRuns.agentId, agentWakeupRequests.agentId),
       ))
-      .innerJoin(companies, eq(companies.id, heartbeatRuns.companyId))
+      .innerJoin(spaces, eq(spaces.id, heartbeatRuns.spaceId))
       .where(and(
-        scope.companyId ? eq(agentWakeupRequests.companyId, scope.companyId) : undefined,
+        scope.spaceId ? eq(agentWakeupRequests.spaceId, scope.spaceId) : undefined,
         scope.requestId ? eq(agentWakeupRequests.id, scope.requestId) : undefined,
         eq(agentWakeupRequests.status, "deferred_issue_execution"),
         eq(heartbeatRuns.status, "cancelled"),
         eq(heartbeatRuns.runtimeMode, "legacy"),
-        eq(companies.status, "active"),
+        eq(spaces.status, "active"),
         cutoff ? gte(heartbeatRuns.createdAt, cutoff) : undefined,
       ));
     for (const run of interruptedQueues) {
@@ -2066,18 +2066,18 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
 
   // Release admission promptly without first scanning unrelated recovery work.
   // Every run still passes the ordinary per-agent claim and dispatch gates.
-  async function resumeQueuedRunsAfterDrain(scope?: { companyId: string }) {
+  async function resumeQueuedRunsAfterDrain(scope?: { spaceId: string }) {
     if (isRunAdmissionClosed() || (await getSchedulingSuppression()).suppressed) return;
     const cutoff = await getWorktreeExecutionCutoff();
     const queuedRuns = await db
       .select({ agentId: heartbeatRuns.agentId })
       .from(heartbeatRuns)
-      .innerJoin(companies, eq(companies.id, heartbeatRuns.companyId))
+      .innerJoin(spaces, eq(spaces.id, heartbeatRuns.spaceId))
       .where(
         and(
           eq(heartbeatRuns.status, "queued"),
-          scope ? eq(heartbeatRuns.companyId, scope.companyId) : undefined,
-          eq(companies.status, "active"),
+          scope ? eq(heartbeatRuns.spaceId, scope.spaceId) : undefined,
+          eq(spaces.status, "active"),
           cutoff ? gte(heartbeatRuns.createdAt, cutoff) : undefined,
         ),
       );
@@ -2099,11 +2099,11 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     const rows = await db
       .selectDistinct({ agentId: heartbeatRuns.agentId })
       .from(heartbeatRuns)
-      .innerJoin(companies, eq(companies.id, heartbeatRuns.companyId))
+      .innerJoin(spaces, eq(spaces.id, heartbeatRuns.spaceId))
       .where(
         and(
           eq(heartbeatRuns.status, "queued"),
-          eq(companies.status, "active"),
+          eq(spaces.status, "active"),
           cutoff ? gte(heartbeatRuns.createdAt, cutoff) : undefined,
           sql`not exists (
             select 1 from heartbeat_runs prior
@@ -2142,7 +2142,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
   ) {
     for (const { run, err } of rejected) {
       logger.warn(
-        { err, runId: run.id, agentId: run.agentId, companyId: run.companyId },
+        { err, runId: run.id, agentId: run.agentId, spaceId: run.spaceId },
         "cancelling queued heartbeat run whose claim was rejected",
       );
       try {
@@ -2162,7 +2162,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
 
   async function attachQueuedSetupRequest(agent: typeof agents.$inferSelect) {
     if (isAgentAwaitingSetup(agent)) await connectionIntentService(db)
-      .requestForQueuedAgentSetup(agent.companyId, agent.id)
+      .requestForQueuedAgentSetup(agent.spaceId, agent.id)
       .catch(() => logger.warn({ agentId: agent.id }, "Could not attach queued agent setup connection request"));
   }
 
@@ -2210,7 +2210,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (queuedRuns.every(run => !run.startedAt) && !await canStartNewExternalBotWork(agent)) return [];
 
       const dependencyReadiness = await listQueuedRunDependencyReadiness(
-        agent.companyId,
+        agent.spaceId,
         queuedRuns,
       );
       const queuedIssueIds = [
@@ -2232,13 +2232,13 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         .where(
           queuedIssueIds.length > 0
             ? and(
-                eq(issues.companyId, agent.companyId),
+                eq(issues.spaceId, agent.spaceId),
                 inArray(issues.id, queuedIssueIds),
               )
             : sql`false`,
         );
       const issueById = new Map(issueRows.map((row) => [row.id, row]));
-      const companyAgents = await listCompanyAgentOrgRows(agent.companyId);
+      const spaceAgents = await listSpaceAgentOrgRows(agent.spaceId);
       const prioritizedRuns = [...queuedRuns].sort((left, right) => {
         const leftIssueId = readNonEmptyString(
           parseObject(left.contextSnapshot).issueId,
@@ -2287,7 +2287,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         if (claimedRuns.length >= availableSlots || isRunAdmissionClosed()) break;
         let claimed: typeof heartbeatRuns.$inferSelect | null;
         try {
-          claimed = await claimQueuedRun(queuedRun, companyAgents, deferredPostCommitEffects, deferredCancellations);
+          claimed = await claimQueuedRun(queuedRun, spaceAgents, deferredPostCommitEffects, deferredCancellations);
         } catch (err) {
           if (isPermanentClaimRejection(err)) {
             rejectedClaims.push({ run: queuedRun, err });
@@ -2295,7 +2295,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           }
           if (!isDeferrableClaimRejection(err)) throw err;
           logger.warn(
-            { err, runId: queuedRun.id, agentId: queuedRun.agentId, companyId: queuedRun.companyId },
+            { err, runId: queuedRun.id, agentId: queuedRun.agentId, spaceId: queuedRun.spaceId },
             "queued heartbeat run claim was rejected; leaving it queued for the next recovery pass",
           );
           continue;
@@ -2370,7 +2370,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     };
     const reason = opts.reason ?? null;
     let payload = opts.payload ? { ...opts.payload } : null;
-    // Only the board queue route can record interruption authority on an
+    // Only the operator queue route can record interruption authority on an
     // existing receipt. Never accept this internal marker from a wake caller.
     if (payload) {
       delete payload.queuedCommentInterrupt;
@@ -2416,14 +2416,14 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     // Overwrite caller-supplied nested context rather than trusting it.
     payload = withInteractionDeliveryOrigin(
       { ...payload, [DEFERRED_WAKE_CONTEXT_KEY]: { ...enrichedContextSnapshot } },
-      opts.requestedByActorType, opts.requestedByActorId, savedInteractionOrigin, opts.requestedByActorCompanyId,
+      opts.requestedByActorType, opts.requestedByActorId, savedInteractionOrigin, opts.requestedByActorSpaceId,
     );
     let issueId =
       readNonEmptyString(enrichedContextSnapshot.issueId) ?? issueIdFromPayload;
     if (executionReconciliationWake && !issueId) return null;
     const durableRequest = opts.durableChatRequest;
     let taskRetryActorId: string | null = null;
-    delete enrichedContextSnapshot.boardMessageRetry;
+    delete enrichedContextSnapshot.operatorMessageRetry;
     if (opts.taskRetryRequestId) {
       const [receipt] = await db.select().from(agentWakeupRequests).where(and(
         eq(agentWakeupRequests.id, opts.taskRetryRequestId), eq(agentWakeupRequests.agentId, agentId),
@@ -2442,18 +2442,18 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       enrichedContextSnapshot.forceFreshSession = true;
       enrichedContextSnapshot.previousRunId = retry.sourceRunId;
       enrichedContextSnapshot.taskRetryRequestId = receipt.id;
-      if (retry.boardMessageOrigin) enrichedContextSnapshot.boardMessageRetry = true;
+      if (retry.operatorMessageOrigin) enrichedContextSnapshot.operatorMessageRetry = true;
     }
 
 
     let agent = await getAgent(agentId);
     if (!agent) throw notFound("Agent not found");
     if (issueId && await hasAutomaticInteractionDeliveryHold(db, {
-      companyId: agent.companyId, issueId, agentId, payload, context: enrichedContextSnapshot,
+      spaceId: agent.spaceId, issueId, agentId, payload, context: enrichedContextSnapshot,
       actorType: opts.requestedByActorType, actorId: opts.requestedByActorId,
     })) return null;
     if (issueId) {
-      const [pending] = await db.select().from(caseHandoffs).where(and(eq(caseHandoffs.companyId, agent.companyId), eq(caseHandoffs.issueId, issueId),
+      const [pending] = await db.select().from(caseHandoffs).where(and(eq(caseHandoffs.spaceId, agent.spaceId), eq(caseHandoffs.issueId, issueId),
         inArray(caseHandoffs.state, ["awaiting_release", "pending_dispatch"]))).limit(1);
       if (pending && opts.durableCaseHandoffRequest?.handoffId !== pending.id) return null;
     }
@@ -2461,7 +2461,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     // a run or deferred request; assignment and review have their own wakes.
     if (reason === "issue_comment_mentioned" || enrichedContextSnapshot.wakeReason === "issue_comment_mentioned") return null;
     if (issueId) {
-      const conversation = await getIssueExecutionContext(agent.companyId, issueId);
+      const conversation = await getIssueExecutionContext(agent.spaceId, issueId);
       if (taskRetryActorId && conversation) await assertTaskRetryConversationAllowed(db, conversation, taskRetryActorId);
       if (reason === "issue_children_completed" && conversation?.originKind === "onboarding_first_task") enrichedContextSnapshot.onboardingCompletion = true;
       if (isConversation(conversation)) {
@@ -2490,7 +2490,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           },
         );
         await logActivity(db, {
-          companyId: agent.companyId,
+          spaceId: agent.spaceId,
           actorType: "system",
           actorId: "heartbeat",
           action: "agent.updated",
@@ -2506,14 +2506,14 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       const failed = await getRun(opts.failedRunId, { includeExecutionEvidence: true });
       if (opts.requestedByActorType !== "user" || !opts.requestedByActorId ||
           reason !== "retry_failed_run" || source !== "on_demand" || triggerDetail !== "manual" ||
-          !failed || failed.companyId !== agent.companyId || failed.agentId !== agentId ||
+          !failed || failed.spaceId !== agent.spaceId || failed.agentId !== agentId ||
           !(await canRetryStoppedRun(db, failed)) ||
           (failed.nativeIssueId ?? readNonEmptyString(failed.contextSnapshot?.issueId)) !== issueId) {
         throw conflict("The selected failed run cannot be retried for this task.");
       }
       if (!activeRunExecutions.has(failed.id) && !adapterExecutionControls.has(failed.id)) {
         await sweepPendingCleanupLeases({ explicitRetry: {
-          companyId: failed.companyId, runId: failed.id, actorId: opts.requestedByActorId,
+          spaceId: failed.spaceId, runId: failed.id, actorId: opts.requestedByActorId,
         } });
       }
       if (isConversationAdapter(agent.adapterType) || agent.adapterType === "outpost_runner") {
@@ -2533,7 +2533,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (opts.taskRetryRequestId || opts.durableChatRequest || opts.durableDotRequest || opts.durableMuseRequest || source !== "assignment" || reason !== "case_handoff")
         throw conflict("Invalid case handoff wake authority");
       const [handoff] = await db.select().from(caseHandoffs).where(and(eq(caseHandoffs.id, caseRequest.handoffId),
-        eq(caseHandoffs.companyId, agent.companyId), eq(caseHandoffs.issueId, caseRequest.issueId),
+        eq(caseHandoffs.spaceId, agent.spaceId), eq(caseHandoffs.issueId, caseRequest.issueId),
         eq(caseHandoffs.toAgentId, agentId), eq(caseHandoffs.wakeupRequestId, caseRequest.wakeupRequestId),
         inArray(caseHandoffs.state, ["pending_dispatch", "delivered"]))).limit(1);
       if (!handoff || issueId !== handoff.issueId || caseRequest.expectedIssueStatusVersion !== handoff.appliedIssueStatusVersion)
@@ -2545,7 +2545,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     if (durableRequest) {
       assertDurableChatWakeupRequest(durableRequest, {
         agentId,
-        companyId: agent.companyId,
+        spaceId: agent.spaceId,
         issueId,
         commentId: wakeCommentId ?? null,
         requestedByActorType: opts.requestedByActorType,
@@ -2565,7 +2565,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     const dotRequest = opts.durableDotRequest;
     const museRequest = opts.durableMuseRequest;
     if (dotRequest && (durableRequest || museRequest || dotRequest.agentId !== agentId ||
-        dotRequest.companyId !== agent.companyId || dotRequest.issueId !== issueId ||
+        dotRequest.spaceId !== agent.spaceId || dotRequest.issueId !== issueId ||
         dotRequest.requestId !== payload?.dotRequestId || source !== "assignment" ||
         opts.requestedByActorType !== "agent" || opts.requestedByActorId !== agentId ||
         agent.adapterType !== "outpost_runner" || !["openai_dot", "grok_bot"].includes(String(parseObject(agent.adapterConfig).provider)) ||
@@ -2573,7 +2573,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       throw conflict("Dot work request does not match its admission authority.");
     }
     if (museRequest && (durableRequest || dotRequest || museRequest.agentId !== agentId ||
-        museRequest.companyId !== agent.companyId || museRequest.issueId !== issueId ||
+        museRequest.spaceId !== agent.spaceId || museRequest.issueId !== issueId ||
         museRequest.requestId !== payload?.museRequestId || source !== "assignment" ||
         opts.requestedByActorType !== "agent" || opts.requestedByActorId !== agentId ||
         agent.adapterType !== "outpost_runner" || parseObject(agent.adapterConfig).provider !== "muse" ||
@@ -2597,17 +2597,17 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         .limit(1)
         .then((rows) => rows[0] ?? null);
       if (receipt && durableRequest) assertDurableChatWakeupReceipt(durableRequest, receipt);
-      if (receipt && caseRequest && (receipt.companyId !== agent.companyId || receipt.agentId !== agentId ||
+      if (receipt && caseRequest && (receipt.spaceId !== agent.spaceId || receipt.agentId !== agentId ||
           receipt.payload?.issueId !== caseRequest.issueId || receipt.idempotencyKey !== `case-handoff:${caseRequest.handoffId}`))
         throw conflict("Case handoff wake receipt identity changed");
-      if (receipt && dotRequest && (receipt.companyId !== dotRequest.companyId ||
+      if (receipt && dotRequest && (receipt.spaceId !== dotRequest.spaceId ||
           receipt.agentId !== dotRequest.agentId || receipt.source !== "assignment" ||
           receipt.requestedByActorType !== "agent" || receipt.requestedByActorId !== dotRequest.agentId ||
           receipt.idempotencyKey !== dotRequest.idempotencyKey || receipt.payload?.issueId !== dotRequest.issueId ||
           receipt.payload?.dotRequestId !== dotRequest.requestId)) {
         throw conflict("requestId was reused for another task.");
       }
-      if (receipt && museRequest && (receipt.companyId !== museRequest.companyId ||
+      if (receipt && museRequest && (receipt.spaceId !== museRequest.spaceId ||
           receipt.agentId !== museRequest.agentId || receipt.source !== "assignment" ||
           receipt.requestedByActorType !== "agent" || receipt.requestedByActorId !== museRequest.agentId ||
           receipt.idempotencyKey !== museRequest.idempotencyKey || receipt.payload?.issueId !== museRequest.issueId ||
@@ -2670,7 +2670,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       // its one durable receipt ID on a skipped wake.
       if (caseRequest) return { created: false };
       if (executionWaitRequestId) {
-        const waitSaved = await writeDeferredExecutionWait(db, { companyId: agent.companyId, requestId: executionWaitRequestId }, {
+        const waitSaved = await writeDeferredExecutionWait(db, { spaceId: agent.spaceId, requestId: executionWaitRequestId }, {
           reason: skipReason, message: patch.error ?? (skipReason === "issue_tree_hold_active"
             ? "This task is paused. Resume it to send your saved message."
             : "Waiting for task execution to be enabled. Your message is saved."),
@@ -2679,7 +2679,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       }
       const request = {
         ...durableReceiptFields,
-        companyId: agent.companyId,
+        spaceId: agent.spaceId,
         agentId,
         source,
         triggerDetail,
@@ -2695,9 +2695,9 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (waitCondition && issueId && isUuidLike(issueId)) {
         const waitIssueId = issueId;
         return db.transaction(async (tx) => {
-          await tx.execute(sql`select id from issues where id = ${waitIssueId} and company_id = ${agent.companyId} for update`);
+          await tx.execute(sql`select id from issues where id = ${waitIssueId} and space_id = ${agent.spaceId} for update`);
           if (durableRequest) await notifyChatInboundWakeNotices(tx, {
-            companyId: durableRequest.companyId, issueId: durableRequest.issueId,
+            spaceId: durableRequest.spaceId, issueId: durableRequest.issueId,
           });
           return recordExecutionWait(tx as unknown as Db, {
             issueId: waitIssueId, request, condition: waitCondition, coalesce: coalesceExecutionWait,
@@ -2707,7 +2707,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (durableRequest) {
         await db.transaction(async tx => {
           await notifyChatInboundWakeNotices(tx, {
-            companyId: durableRequest.companyId, issueId: durableRequest.issueId,
+            spaceId: durableRequest.spaceId, issueId: durableRequest.issueId,
           });
           await tx.insert(agentWakeupRequests).values(request);
         });
@@ -2740,7 +2740,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (executionWaitRequestId || caseRequest || durableRequest || !issueId || !isUuidLike(issueId) ||
           opts.requestedByActorType !== "user" || !wakeCommentId) return false;
       const [latest] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
-        .where(and(eq(heartbeatRuns.companyId, agent.companyId), sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${issueId}`))
+        .where(and(eq(heartbeatRuns.spaceId, agent.spaceId), sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${issueId}`))
         .limit(1);
       return Boolean(latest);
     };
@@ -2748,10 +2748,10 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       const savedIssueId = issueId!;
       const condition = deferredWorkIntentWait(refusal, `${message} Your message is saved.`, details);
       await db.transaction(async tx => {
-        await tx.execute(sql`select id from issues where id = ${savedIssueId} and company_id = ${agent.companyId} for update`);
-        await notifyDeferredExecutionWork(tx, { companyId: agent.companyId });
+        await tx.execute(sql`select id from issues where id = ${savedIssueId} and space_id = ${agent.spaceId} for update`);
+        await notifyDeferredExecutionWork(tx, { spaceId: agent.spaceId });
         await tx.insert(agentWakeupRequests).values({
-          companyId: agent.companyId, agentId, source, triggerDetail, reason,
+          spaceId: agent.spaceId, agentId, source, triggerDetail, reason,
           payload: withQueuedCommentIdsInWakePayload({
             ...payload, issueId: savedIssueId, [DEFERRED_WAKE_CONTEXT_KEY]: enrichedContextSnapshot, executionWait: condition,
           }, [...new Set([...queuedCommentIdsFromRunContext(enrichedContextSnapshot), wakeCommentId!])]),
@@ -2789,24 +2789,24 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         ? null
         : await getWorktreeExecutionCutoff();
 
-    const company = await db
-      .select({ status: companies.status })
-      .from(companies)
-      .where(eq(companies.id, agent.companyId))
+    const space = await db
+      .select({ status: spaces.status })
+      .from(spaces)
+      .where(eq(spaces.id, agent.spaceId))
       .then((rows) => rows[0] ?? null);
 
-    if (!company || company.status !== "active") {
+    if (!space || space.status !== "active") {
       if (caseRequest) return null;
-      const companyStatus = company?.status ?? "missing";
+      const spaceStatus = space?.status ?? "missing";
       if (opts.requestedByActorType === "user") {
-        // A paused company is a temporary hold; an archived one is not.
-        if (companyStatus === "paused" && (await canSaveDeferredMessage()))
-          throw await saveDeferredMessage("company.inactive", "Outpost is not active", { status: companyStatus });
-        throw conflict("Outpost is not active", { status: companyStatus });
+        // A paused space is a temporary hold; an archived one is not.
+        if (spaceStatus === "paused" && (await canSaveDeferredMessage()))
+          throw await saveDeferredMessage("space.inactive", "Outpost is not active", { status: spaceStatus });
+        throw conflict("Outpost is not active", { status: spaceStatus });
       }
-      await writeSkippedRequest("company.inactive", {
-        error: `Wake suppressed because company status is ${companyStatus}`,
-      }, { companyStatus });
+      await writeSkippedRequest("space.inactive", {
+        error: `Wake suppressed because space status is ${spaceStatus}`,
+      }, { spaceStatus });
       return null;
     }
 
@@ -2877,8 +2877,8 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     let projectId = readNonEmptyString(enrichedContextSnapshot.projectId);
     if (!projectId && issueId) {
       // Look up by either UUID or identifier (e.g. "ENV-13"), but always scope
-      // by companyId so a row from another tenant can never be returned even
-      // when identifiers collide across companies. Guard the UUID arm because
+      // by spaceId so a row from another tenant can never be returned even
+      // when identifiers collide across spaces. Guard the UUID arm because
       // issues.id is a Postgres uuid column — passing "ENV-13" into eq(issues.id, …)
       // would fail with an invalid-input-syntax cast error before the OR is
       // evaluated.
@@ -2896,7 +2896,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           createdAt: issues.createdAt,
         })
         .from(issues)
-        .where(and(eq(issues.companyId, agent.companyId), idMatch))
+        .where(and(eq(issues.spaceId, agent.spaceId), idMatch))
         .then((rows) => rows[0] ?? null);
       if (resolvedIssue) {
         if (
@@ -2938,15 +2938,15 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (operatorResponsibleUserId) return Promise.resolve(operatorResponsibleUserId);
       queuedResponsibleUserIdPromise ??= (async () => {
         const queuedIssueContext = issueId
-          ? await getIssueExecutionContext(agent.companyId, issueId)
+          ? await getIssueExecutionContext(agent.spaceId, issueId)
           : null;
         const queuedRoutineEnvContext = await getRoutineEnvForExecutionIssue(
-          agent.companyId,
+          agent.spaceId,
           queuedIssueContext,
         );
         const queuedResponsibleUserId =
           await resolveResponsibleUserIdForRunSeed({
-            companyId: agent.companyId,
+            spaceId: agent.spaceId,
             contextSnapshot: enrichedContextSnapshot,
             issueContext: queuedIssueContext,
             routineEnvContext: queuedRoutineEnvContext,
@@ -2962,7 +2962,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             {
               code: "responsible_user_unresolved",
               agentId,
-              companyId: agent.companyId,
+              spaceId: agent.spaceId,
               issueId: issueId ?? null,
               source,
               triggerDetail,
@@ -2978,7 +2978,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     };
 
     const budgetBlock = await budgets.getInvocationBlock(
-      agent.companyId,
+      agent.spaceId,
       agentId,
       {
         issueId,
@@ -2987,7 +2987,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     );
     if (budgetBlock) {
       // A budget block that is not a reached hard stop is an explicit pause.
-      if ((await canSaveDeferredMessage()) && !(await isBoardOwnedBudgetBlock(db, agent.companyId, budgetBlock)))
+      if ((await canSaveDeferredMessage()) && !(await isBoardOwnedBudgetBlock(db, agent.spaceId, budgetBlock)))
         throw await saveDeferredMessage("budget.blocked", budgetBlock.reason,
           { scopeType: budgetBlock.scopeType, scopeId: budgetBlock.scopeId });
       const wait = await writeSkippedRequest("budget.blocked", { error: budgetBlock.reason }, {
@@ -3047,13 +3047,13 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
 
     if (issueId) {
       const activePauseHold = await treeControlSvc.getActivePauseHoldGate(
-        agent.companyId,
+        agent.spaceId,
         issueId,
       );
       if (activePauseHold) {
         const treeHoldInteractionWake =
           await isVerifiedIssueTreeControlInteractionWake(db, {
-            companyId: agent.companyId,
+            spaceId: agent.spaceId,
             issueId,
             agentId,
             contextSnapshot: enrichedContextSnapshot,
@@ -3066,7 +3066,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             holdId: activePauseHold.holdId,
           });
           if (wait.created) await logActivity(db, {
-            companyId: agent.companyId,
+            spaceId: agent.spaceId,
             actorType: "system",
             actorId: "system",
             agentId,
@@ -3115,15 +3115,15 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       const outcome = await db
         .transaction(withDurableChatAdmission(durableRequest, async (tx) => {
           await tx.execute(
-            sql`select id from issues where id = ${issueId} and company_id = ${agent.companyId} for update`,
+            sql`select id from issues where id = ${issueId} and space_id = ${agent.spaceId} for update`,
           );
 
           if (executionWaitRequestId) {
             const [pending] = await tx.select().from(agentWakeupRequests).where(and(
-              eq(agentWakeupRequests.id, executionWaitRequestId), eq(agentWakeupRequests.companyId, agent.companyId),
+              eq(agentWakeupRequests.id, executionWaitRequestId), eq(agentWakeupRequests.spaceId, agent.spaceId),
               eq(agentWakeupRequests.agentId, agentId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
               // A user message can join a queue originally created by a
-              // system wake. Admission validates the saved user comment or board click.
+              // system wake. Admission validates the saved user comment or operator click.
               (opts.queuedCommentInterruptId ?? opts.queuedCommentRequestId) === executionWaitRequestId
                 ? undefined : eq(agentWakeupRequests.requestedByActorType,
                     durableRequest ? opts.requestedByActorType ?? "" : "user"),
@@ -3137,13 +3137,13 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             // An adopted, discarded, or edited receipt is no longer authority.
             if (!pending || (!opts.taskRetryRequestId && !(wakeCommentId && queuedCommentIdsFromWakePayload(pending.payload).includes(wakeCommentId)) &&
                 !(opts.queuedCommentInterruptId && await readQueuedInteractionResponse(tx as unknown as Db,
-                  agent.companyId, issueId, pending.payload)))) {
+                  agent.spaceId, issueId, pending.payload)))) {
               return { kind: "deferred" as const };
             }
             if (opts.taskRetryRequestId && durableRequest?.failedRunRetry) {
               if (pending.id !== durableRequest.id || pending.payload?.taskRetryRequestId !== opts.taskRetryRequestId)
                 return { kind: "deferred" as const };
-              // The parent board Retry is checked separately below after the
+              // The parent operator Retry is checked separately below after the
               // connected conversation reauthorizes this exact child receipt.
             } else if (opts.taskRetryRequestId) {
               const retry = readTaskRetryIntent(pending.payload);
@@ -3153,29 +3153,29 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               // A declined Retry stays saved, but never silently: name the gate
               // so the task explains it and a new click can replace this intent.
               const declineRetry = async (reason: string, message: string) => {
-                await writeDeferredExecutionWait(tx as unknown as Db, { companyId: agent.companyId,
+                await writeDeferredExecutionWait(tx as unknown as Db, { spaceId: agent.spaceId,
                   requestId: pending.id }, { reason, message }, { replace: true, publications: issueActivityPublications });
                 logger.warn({ requestId: pending.id, issueId, reason }, "Task Retry could not start");
                 return { kind: "deferred" as const };
               };
-              if (!await taskRetryMutationAllowed(tx as unknown as Db, { companyId: agent.companyId, issueId,
+              if (!await taskRetryMutationAllowed(tx as unknown as Db, { spaceId: agent.spaceId, issueId,
                 actorId: retry.actorId, actorSource: retry.actorSource }))
                 return declineRetry("retry_authority_denied", "The user who requested Retry can no longer change this task.");
-              if (retry.boardMessageOrigin) {
-                const origin = await readTaskRetryBoardMessageOrigin(tx as unknown as Db, { companyId: agent.companyId,
+              if (retry.operatorMessageOrigin) {
+                const origin = await readTaskRetryBoardMessageOrigin(tx as unknown as Db, { spaceId: agent.spaceId,
                   issueId, agentId, sourceRunId: retry.sourceRunId, actorId: retry.actorId });
-                if (!origin || origin.commentId !== retry.boardMessageOrigin.commentId ||
-                    origin.identityContextId !== retry.boardMessageOrigin.identityContextId)
+                if (!origin || origin.commentId !== retry.operatorMessageOrigin.commentId ||
+                    origin.identityContextId !== retry.operatorMessageOrigin.identityContextId)
                   return declineRetry("retry_source_changed", "The saved message this Retry continues has changed.");
               }
             }
             if (opts.queuedCommentRequestId) {
               const ids = await undeliveredLegacyUserCommentIds(tx as unknown as Db,
-                agent.companyId, issueId, agentId, queuedCommentIdsFromWakePayload(pending.payload));
+                agent.spaceId, issueId, agentId, queuedCommentIdsFromWakePayload(pending.payload));
               if (!wakeCommentId || !ids.includes(wakeCommentId)) return { kind: "deferred" as const };
               pending.payload = withQueuedCommentIdsInWakePayload(parseObject(pending.payload), ids);
               await tx.update(agentWakeupRequests).set({ payload: pending.payload }).where(and(
-                eq(agentWakeupRequests.id, pending.id), eq(agentWakeupRequests.companyId, agent.companyId),
+                eq(agentWakeupRequests.id, pending.id), eq(agentWakeupRequests.spaceId, agent.spaceId),
               ));
             }
             if (!opts.queuedCommentInterruptId && !opts.queuedCommentRequestId && pending.payload?.manualUserWake === true) {
@@ -3185,7 +3185,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               operatorResponsibleUserId = opts.requestedByActorId!;
             }
             if (opts.queuedCommentInterruptId) {
-              // The locked board receipt supplies execution authority even when
+              // The locked operator receipt supplies execution authority even when
               // another user authored the messages. Dispatch revalidates the receipt.
               operatorResponsibleUserId = opts.requestedByActorId!;
             }
@@ -3203,7 +3203,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           ) {
             const nativeParent = await readChatControlNativeParent(
               tx as unknown as Db,
-              { companyId: agent.companyId, issueId, agentId },
+              { spaceId: agent.spaceId, issueId, agentId },
               opts.requestedByActorId ?? null,
             );
             const genericParent =
@@ -3223,7 +3223,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 .from(heartbeatRuns)
                 .where(
                   and(
-                    eq(heartbeatRuns.companyId, agent.companyId),
+                    eq(heartbeatRuns.spaceId, agent.spaceId),
                     eq(heartbeatRuns.id, automaticParentRunId),
                   ),
                 )
@@ -3243,7 +3243,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                   ? await readChatControlRecoveryStop(
                       tx as unknown as Db,
                       {
-                        companyId: agent.companyId,
+                        spaceId: agent.spaceId,
                         issueId,
                         agentId,
                         sourceRunId: automaticParentRunId,
@@ -3255,7 +3255,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               await tx
                 .insert(agentWakeupRequests)
                 .values({
-                  companyId: agent.companyId,
+                  spaceId: agent.spaceId,
                   agentId,
                   source,
                   triggerDetail,
@@ -3281,7 +3281,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             return { kind: "durable" as const, receipt: durableReceipt };
           if (caseRequest) {
             const [handoff] = await tx.select().from(caseHandoffs).where(and(eq(caseHandoffs.id, caseRequest.handoffId),
-              eq(caseHandoffs.companyId, agent.companyId),
+              eq(caseHandoffs.spaceId, agent.spaceId),
               eq(caseHandoffs.issueId, caseRequest.issueId), eq(caseHandoffs.state, "pending_dispatch"),
               eq(caseHandoffs.toAgentId, agentId), eq(caseHandoffs.wakeupRequestId, caseRequest.wakeupRequestId))).for("update");
             if (!handoff || handoff.appliedIssueStatusVersion !== caseRequest.expectedIssueStatusVersion)
@@ -3293,7 +3293,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             {
               phase: "admission",
               wakeupRequestId: durableRequest?.id ?? null,
-              companyId: agent.companyId,
+              spaceId: agent.spaceId,
               agentId,
               issueId,
               contextSnapshot: enrichedContextSnapshot,
@@ -3313,14 +3313,14 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             await durableRequest.authorize(tx as unknown as Db);
             if (opts.taskRetryRequestId) {
               const [retryWake] = await tx.select().from(agentWakeupRequests).where(and(
-                eq(agentWakeupRequests.companyId, agent.companyId), eq(agentWakeupRequests.id, opts.taskRetryRequestId),
+                eq(agentWakeupRequests.spaceId, agent.spaceId), eq(agentWakeupRequests.id, opts.taskRetryRequestId),
                 eq(agentWakeupRequests.agentId, agentId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
               )).for("update");
               const retry = readTaskRetryIntent(retryWake?.payload);
               if (!failedChatRetry || retry?.chatActionId !== durableRequest.id ||
                   retry.actorId !== taskRetryActorId || retry.sourceRunId !== durableRequest.failedRunRetry?.failedRunId)
                 throw new FailedChatRunRetryAuthorizationError();
-              if (!await taskRetryMutationAllowed(tx as unknown as Db, { companyId: agent.companyId, issueId,
+              if (!await taskRetryMutationAllowed(tx as unknown as Db, { spaceId: agent.spaceId, issueId,
                 actorId: retry.actorId, actorSource: retry.actorSource })) return { kind: "deferred" as const };
             }
           } else {
@@ -3329,7 +3329,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               triggerDetail === "manual" &&
               reason === "retry_failed_run"
             ) {
-              // Generic Board retry does not carry server-authorized failed-run
+              // Generic Operator retry does not carry server-authorized failed-run
               // lineage. Caller-supplied source/comment/retry markers cannot
               // restore it, including for a retired conversation generation.
               const [chatBinding] = await tx
@@ -3339,7 +3339,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 .where(
                   and(
                     eq(chatEndpoints.externalExecutionPolicy, "restricted"),
-                    eq(chatConversations.companyId, agent.companyId),
+                    eq(chatConversations.spaceId, agent.spaceId),
                     eq(chatConversations.issueId, issueId),
                   ),
                 )
@@ -3357,8 +3357,8 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               .where(
                 and(
                   eq(issues.id, issueId),
-                  eq(issues.companyId, agent.companyId),
-                  unadmittedChatWakeupCondition(issues.id, issues.companyId),
+                  eq(issues.spaceId, agent.spaceId),
+                  unadmittedChatWakeupCondition(issues.id, issues.spaceId),
                 ),
               )
               .limit(1);
@@ -3373,7 +3373,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           const issue = await tx
             .select({
               id: issues.id,
-              companyId: issues.companyId,
+              spaceId: issues.spaceId,
               identifier: issues.identifier,
               conversationAgentId: issues.conversationAgentId,
               conversationUserId: issues.conversationUserId,
@@ -3397,7 +3397,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             .where(
               and(
                 eq(issues.id, issueId),
-                eq(issues.companyId, agent.companyId),
+                eq(issues.spaceId, agent.spaceId),
               ),
             )
             .then((rows) => rows[0] ?? null);
@@ -3406,7 +3406,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             if (caseRequest) throw conflict("Case handoff task no longer exists");
             await tx.insert(agentWakeupRequests).values({
               ...durableReceiptFields,
-              companyId: agent.companyId,
+              spaceId: agent.spaceId,
               agentId,
               source,
               triggerDetail,
@@ -3430,14 +3430,14 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           if (taskRetryActorId) {
             await assertTaskRetryConversationAllowed(tx as unknown as Db, issue, taskRetryActorId);
             if (await retireSupersededTaskRetry(tx as unknown as Db, {
-              companyId: issue.companyId, issueId: issue.id, requestId: opts.taskRetryRequestId!,
+              spaceId: issue.spaceId, issueId: issue.id, requestId: opts.taskRetryRequestId!,
               sourceRunId: readNonEmptyString(enrichedContextSnapshot.previousRunId)!,
             })) return { kind: "deferred" as const };
           }
           const issueStateGuard = opts.issueStateGuard;
           const activeMonitorRun = issueStateGuard?.monitorNextCheckAt === undefined ? null
             : await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-              eq(heartbeatRuns.companyId, issue.companyId), eq(heartbeatRuns.nativeIssueId, issue.id),
+              eq(heartbeatRuns.spaceId, issue.spaceId), eq(heartbeatRuns.nativeIssueId, issue.id),
               eq(heartbeatRuns.runtimeMode, "native"), inArray(heartbeatRuns.status, ["queued", "running", "scheduled_retry"]),
             )).limit(1).then(rows => rows[0] ?? null);
           if (
@@ -3457,7 +3457,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             if (issueStateGuard.monitorNextCheckAt !== undefined) return { kind: "skipped" as const };
             await tx.insert(agentWakeupRequests).values({
               ...durableReceiptFields,
-              companyId: agent.companyId,
+              spaceId: agent.spaceId,
               agentId,
               source,
               triggerDetail,
@@ -3487,7 +3487,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             // The issue lock makes double-clicks and network retries adopt the
             // same successor, including after it has already finished.
             const [previousRetry] = await tx.select().from(heartbeatRuns).where(and(
-              eq(heartbeatRuns.companyId, issue.companyId), eq(heartbeatRuns.agentId, agentId),
+              eq(heartbeatRuns.spaceId, issue.spaceId), eq(heartbeatRuns.agentId, agentId),
               eq(heartbeatRuns.retryOfRunId, opts.failedRunId),
               sql`${heartbeatRuns.contextSnapshot}->>'wakeReason' = 'retry_failed_run'`,
             )).orderBy(desc(heartbeatRuns.createdAt)).limit(1);
@@ -3526,7 +3526,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               .from(issueRecoveryActions)
               .where(
                 and(
-                  eq(issueRecoveryActions.companyId, issue.companyId),
+                  eq(issueRecoveryActions.spaceId, issue.spaceId),
                   eq(issueRecoveryActions.sourceIssueId, issue.id),
                   eq(issueRecoveryActions.id, actionId),
                 ),
@@ -3561,7 +3561,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               .from(agentWakeupRequests)
               .where(
                 and(
-                  eq(agentWakeupRequests.companyId, issue.companyId),
+                  eq(agentWakeupRequests.spaceId, issue.spaceId),
                   eq(agentWakeupRequests.agentId, agentId),
                   eq(agentWakeupRequests.idempotencyKey, opts.idempotencyKey),
                   ne(agentWakeupRequests.status, "skipped"),
@@ -3583,7 +3583,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 .from(heartbeatRuns)
                 .where(
                   and(
-                    eq(heartbeatRuns.companyId, issue.companyId),
+                    eq(heartbeatRuns.spaceId, issue.spaceId),
                     eq(heartbeatRuns.agentId, agentId),
                     eq(heartbeatRuns.id, existingWake.runId),
                   ),
@@ -3600,11 +3600,11 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             if (action.evidence.continuationDelivery !== "pending")
               return { kind: "skipped" as const };
             const [reconciledRun] = await tx.select().from(heartbeatRuns).where(and(
-              eq(heartbeatRuns.companyId, issue.companyId), eq(heartbeatRuns.id, sourceRunId),
+              eq(heartbeatRuns.spaceId, issue.spaceId), eq(heartbeatRuns.id, sourceRunId),
             ));
             if (decision.workspaceReconstruction) {
               await validateNativeWorkspaceReconstruction(tx as unknown as Db, {
-                companyId: issue.companyId, issueId: issue.id, runId: sourceRunId, actionId,
+                spaceId: issue.spaceId, issueId: issue.id, runId: sourceRunId, actionId,
               });
               reconciledRestoreRetryCount = executionFailureRetryCount(reconciledRun!);
               enrichedContextSnapshot.workspaceReconstructionActionId = action.id;
@@ -3627,17 +3627,17 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             opts.issueStateGuard?.onExecutionDeferred?.(executionBlocker.cause);
             const condition = { recoveryActionId: executionBlocker.recoveryActionId, ...continuationWait };
             if (executionWaitRequestId) {
-              await writeDeferredExecutionWait(tx as unknown as Db, { companyId: agent.companyId,
+              await writeDeferredExecutionWait(tx as unknown as Db, { spaceId: agent.spaceId,
                 requestId: executionWaitRequestId }, condition, { replace: true, publications: issueActivityPublications });
               return { kind: "deferred" as const, admitted: true };
             }
             if (durableRequest || wakeCommentId ||
                 hasInteractionContinuationWakeContext(enrichedContextSnapshot) ||
                 readNonEmptyString(enrichedContextSnapshot.nativeStatusWakeIntentId)) {
-              await notifyDeferredExecutionWork(tx, { companyId: agent.companyId });
+              await notifyDeferredExecutionWork(tx, { spaceId: agent.spaceId });
               await tx.insert(agentWakeupRequests).values({
                 ...durableReceiptFields,
-                companyId: agent.companyId, agentId, source, triggerDetail, reason,
+                spaceId: agent.spaceId, agentId, source, triggerDetail, reason,
                 payload: withQueuedCommentIdsInWakePayload({
                   ...payload,
                   issueId: issue.id,
@@ -3657,7 +3657,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 issueId: issue.id, condition, coalesce: coalesceExecutionWait,
                 request: {
                   ...durableReceiptFields,
-                  companyId: agent.companyId, agentId, source, triggerDetail,
+                  spaceId: agent.spaceId, agentId, source, triggerDetail,
                   reason: "execution_reconciliation_required",
                   error: executionBlocker.nextAction,
                   payload,
@@ -3672,22 +3672,22 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           const explicitContinuationRunId = randomUUID();
           const [resetComment] = isConversation(issue) && opts.requestedByActorType === "user" && opts.requestedByActorId && wakeCommentId
             ? await tx.select({ body: issueComments.body }).from(issueComments).where(and(
-                eq(issueComments.companyId, issue.companyId), eq(issueComments.issueId, issue.id),
+                eq(issueComments.spaceId, issue.spaceId), eq(issueComments.issueId, issue.id),
                 eq(issueComments.id, wakeCommentId), eq(issueComments.authorUserId, opts.requestedByActorId),
                 eq(issueComments.authorType, "user"), isNull(issueComments.deletedAt), isNull(issueComments.createdByRunId),
               )).limit(1)
             : [];
           const verifiedConversationReset = Boolean(resetComment && isConversationReset(resetComment.body));
           if (wakeCommentId && opts.requestedByActorType === "user")
-            await preserveTaskRemoteWorkspaceWriter(tx as unknown as Db, issue.companyId, issue.id);
+            await preserveTaskRemoteWorkspaceWriter(tx as unknown as Db, issue.spaceId, issue.id);
           const executionBlocker = await getExecutionBlocker(
-            tx as unknown as Db, issue.companyId, issue.id,
+            tx as unknown as Db, issue.spaceId, issue.id,
             { conversationResetCommentId: verifiedConversationReset ? wakeCommentId : null },
           );
           // Prove eligibility without retiring the hold. Later gates can still
           // decline this wake; hold retirement and successor creation stay atomic.
           // A bound chat request has already rechecked its current principal
-          // above. Treat its new user message like a board comment, but keep
+          // above. Treat its new user message like a operator comment, but keep
           // failed-run retry actions on their separate exact-request path.
           const ownsReconstructionContinuation = reconciledSourceRunId && executionBlocker?.runId === reconciledSourceRunId
             && executionBlocker.recoveryActionId === enrichedContextSnapshot.recoveryActionId;
@@ -3695,7 +3695,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             recoveryActionId: null, cause: "native_continuation_requires_reconciliation" as const, nextAction: continuationWait.message,
           };
           if ((executionBlocker || opts.queuedCommentInterruptId) && !ownsReconstructionContinuation && !(await admitExplicitNativeContinuation({
-            db: tx as unknown as Db, companyId: issue.companyId, issueId: issue.id,
+            db: tx as unknown as Db, spaceId: issue.spaceId, issueId: issue.id,
             agentId, actorType: taskRetryActorId ? "user" : opts.requestedByActorType, actorId: taskRetryActorId ?? opts.requestedByActorId,
             reason: taskRetryActorId ? "task_retry" : durableRequest && !failedChatRetry ? "issue_commented" : reason,
             commentId: wakeCommentId ?? null, failedRunId: opts.failedRunId, successorRunId: explicitContinuationRunId,
@@ -3716,7 +3716,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             if (caseRequest) waitForCaseAdmission("heartbeat.worktree_execution_cutoff", "Case handoff is waiting for workspace execution to be enabled");
             await tx.insert(agentWakeupRequests).values({
               ...durableReceiptFields,
-              companyId: agent.companyId,
+              spaceId: agent.spaceId,
               agentId,
               source,
               triggerDetail,
@@ -3754,12 +3754,12 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             const reason = issueCancelled
               ? "Cancelled because the issue was cancelled before the scheduled retry became due"
               : "Cancelled because the issue was reassigned before the scheduled retry became due";
-            await notifyInstructionCollection(tx, { companyId: scheduledRun.companyId, runId: scheduledRun.id });
-            await notifyExternalAgentSettlement(tx, { companyId: scheduledRun.companyId, runId: scheduledRun.id });
-            await notifyCancelledWorkspacePreservation(tx, { companyId: scheduledRun.companyId, runId: scheduledRun.id });
+            await notifyInstructionCollection(tx, { spaceId: scheduledRun.spaceId, runId: scheduledRun.id });
+            await notifyExternalAgentSettlement(tx, { spaceId: scheduledRun.spaceId, runId: scheduledRun.id });
+            await notifyCancelledWorkspacePreservation(tx, { spaceId: scheduledRun.spaceId, runId: scheduledRun.id });
             await notifyUnsafeWorkspaceExportRunChange(tx, scheduledRun);
-            await notifyScheduledRetryCancellation(tx, { companyId: scheduledRun.companyId, runId: scheduledRun.id });
-            await notifyChatRunMilestones(tx, { companyId: scheduledRun.companyId, issueId: issue.id });
+            await notifyScheduledRetryCancellation(tx, { spaceId: scheduledRun.spaceId, runId: scheduledRun.id });
+            await notifyChatRunMilestones(tx, { spaceId: scheduledRun.spaceId, issueId: issue.id });
             const cancelled = await tx
               .update(heartbeatRuns)
               .set({
@@ -3819,7 +3819,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             );
 
             await tx.insert(heartbeatRunEvents).values({
-              companyId: cancelled.companyId,
+              spaceId: cancelled.spaceId,
               runId: cancelled.id,
               agentId: cancelled.agentId,
               seq: eventSeq,
@@ -3859,7 +3859,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 .then((rows) => rows[0] ?? null)
             : null;
           const manualExecutionHold = activeExecutionRun && await nativeManualAdmissionHoldsExecution(tx as unknown as Db,
-            { companyId: issue.companyId, runId: activeExecutionRun.id, issueId: issue.id });
+            { spaceId: issue.spaceId, runId: activeExecutionRun.id, issueId: issue.id });
 
           if (
             activeExecutionRun &&
@@ -3900,11 +3900,11 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             issue.assigneeAgentId &&
             activeExecutionRun.agentId !== issue.assigneeAgentId
           ) {
-            await notifyInstructionCollection(tx, { companyId: activeExecutionRun.companyId, runId: activeExecutionRun.id });
-            await notifyExternalAgentSettlement(tx, { companyId: activeExecutionRun.companyId, runId: activeExecutionRun.id });
-            await notifyCancelledWorkspacePreservation(tx, { companyId: activeExecutionRun.companyId, runId: activeExecutionRun.id });
+            await notifyInstructionCollection(tx, { spaceId: activeExecutionRun.spaceId, runId: activeExecutionRun.id });
+            await notifyExternalAgentSettlement(tx, { spaceId: activeExecutionRun.spaceId, runId: activeExecutionRun.id });
+            await notifyCancelledWorkspacePreservation(tx, { spaceId: activeExecutionRun.spaceId, runId: activeExecutionRun.id });
             await notifyUnsafeWorkspaceExportRunChange(tx, activeExecutionRun);
-            await notifyChatRunMilestones(tx, { companyId: activeExecutionRun.companyId, issueId: issue.id });
+            await notifyChatRunMilestones(tx, { spaceId: activeExecutionRun.spaceId, issueId: issue.id });
             const cancelled = await tx
               .update(heartbeatRuns)
               .set({
@@ -3946,8 +3946,8 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           }
 
           if (!activeExecutionRun && issue.executionRunId) {
-            await notifyNativeStatusReassessment(tx, { companyId: issue.companyId, issueId: issue.id });
-            await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: issue.companyId, issueId: issue.id });
+            await notifyNativeStatusReassessment(tx, { spaceId: issue.spaceId, issueId: issue.id });
+            await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: issue.spaceId, issueId: issue.id });
             await tx
               .update(issues)
               .set({
@@ -3965,7 +3965,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               .from(heartbeatRuns)
               .where(
                 and(
-                  eq(heartbeatRuns.companyId, issue.companyId),
+                  eq(heartbeatRuns.spaceId, issue.spaceId),
                   inArray(heartbeatRuns.status, [
                     ...EXECUTION_PATH_HEARTBEAT_RUN_STATUSES,
                   ]),
@@ -3989,7 +3989,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                   .from(agents)
                   .where(eq(agents.id, legacyRun.agentId))
                   .then((rows) => rows[0] ?? null);
-                await notifyStatusCardIssueChange(tx, issue.companyId);
+                await notifyStatusCardIssueChange(tx, issue.spaceId);
                 await tx
                   .update(issues)
                   .set({
@@ -4015,7 +4015,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 compacting ? "The agent is already compacting its context." : "Available when the agent finishes its current run.");
             }
             const [pending] = await tx.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(and(
-              eq(agentWakeupRequests.companyId, issue.companyId), eq(agentWakeupRequests.agentId, agentId),
+              eq(agentWakeupRequests.spaceId, issue.spaceId), eq(agentWakeupRequests.agentId, agentId),
               inArray(agentWakeupRequests.status, ["queued", "deferred_issue_execution"]), isNull(agentWakeupRequests.runId),
               executionWaitRequestId ? ne(agentWakeupRequests.id, executionWaitRequestId) : undefined,
               sql`${agentWakeupRequests.payload}->>'issueId' = ${issue.id}`,
@@ -4028,7 +4028,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           }
 
           const dependencyReadiness = await issuesSvc
-            .listDependencyReadiness(issue.companyId, [issue.id], tx)
+            .listDependencyReadiness(issue.spaceId, [issue.id], tx)
             .then((rows) => rows.get(issue.id) ?? null);
 
           // Blocked descendants should stay idle until the final blocker resolves.
@@ -4043,9 +4043,9 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             allowsDependencyBlockedWake(
               enrichedContextSnapshot,
               ISSUE_TREE_CONTROL_INTERACTION_WAKE_REASONS,
-              await verifyBlockerStallWake(tx as unknown as Db, { companyId: issue.companyId, issueId: issue.id,
+              await verifyBlockerStallWake(tx as unknown as Db, { spaceId: issue.spaceId, issueId: issue.id,
                 contextSnapshot: enrichedContextSnapshot, requestedByActorType: opts.requestedByActorType }),
-              await isVerifiedDependencyInteractionResponse(tx, { companyId: issue.companyId,
+              await isVerifiedDependencyInteractionResponse(tx, { spaceId: issue.spaceId,
                 issueId: issue.id, agentId, context: enrichedContextSnapshot }),
             );
 
@@ -4058,7 +4058,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             enrichedContextSnapshot.unresolvedBlockerSummaries =
               await listUnresolvedBlockerSummaries(
                 tx,
-                issue.companyId,
+                issue.spaceId,
                 issue.id,
                 dependencyReadiness.unresolvedBlockerIssueIds,
               );
@@ -4077,7 +4077,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               condition: { unresolvedBlockerIssueIds: [...dependencyReadiness.unresolvedBlockerIssueIds].sort() },
               request: {
                 ...durableReceiptFields,
-                companyId: agent.companyId,
+                spaceId: agent.spaceId,
                 agentId,
                 source,
                 triggerDetail,
@@ -4132,7 +4132,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                   .where(
                     and(
                       eq(executionWorkspaces.id, issue.executionWorkspaceId),
-                      eq(executionWorkspaces.companyId, issue.companyId),
+                      eq(executionWorkspaces.spaceId, issue.spaceId),
                     ),
                   )
                   .then((rows) => rows[0]?.status ?? null)
@@ -4175,14 +4175,14 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 `- Reason: ${WORKSPACE_WORKTREE_REQUIRES_PROJECT_MESSAGE}`,
                 `- Next action: ${WORKSPACE_WORKTREE_REQUIRES_PROJECT_REMEDIATION}`,
               ].join("\n");
-              await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: issue.companyId, issueId: issue.id });
-              await notifyNativeStatusReassessment(tx, { companyId: issue.companyId, issueId: issue.id });
+              await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: issue.spaceId, issueId: issue.id });
+              await notifyNativeStatusReassessment(tx, { spaceId: issue.spaceId, issueId: issue.id });
               await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
               await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-              if (issue.status !== "blocked") await notifyChatResponseAvailability(tx, { companyId: issue.companyId, issueId: issue.id });
-              await notifyRoutineExecutionStatus(tx, issue.id, issue.companyId);
+              if (issue.status !== "blocked") await notifyChatResponseAvailability(tx, { spaceId: issue.spaceId, issueId: issue.id });
+              await notifyRoutineExecutionStatus(tx, issue.id, issue.spaceId);
               if (issue.status === "done") {
-                const blocked = await issuesSvc.updateForCompany(issue.id, issue.companyId,
+                const blocked = await issuesSvc.updateForSpace(issue.id, issue.spaceId,
                   { status: "blocked", executionState: null }, tx, issueActivityPublications, issuePostCommitActions);
                 if (!blocked) throw conflict("The task changed before its workspace settings could be checked");
               } else await tx
@@ -4197,7 +4197,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 })
                 .where(eq(issues.id, issue.id));
               await insertIssueComment(tx, {
-                companyId: issue.companyId,
+                spaceId: issue.spaceId,
                 issueId: issue.id,
                 body: blockedComment,
                 createdAt: now,
@@ -4205,7 +4205,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               });
               await tx.insert(agentWakeupRequests).values({
                 ...durableReceiptFields,
-                companyId: agent.companyId,
+                spaceId: agent.spaceId,
                 agentId,
                 source,
                 triggerDetail,
@@ -4227,7 +4227,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 finishedAt: now,
               });
               await logActivity(tx as unknown as Db, {
-                companyId: issue.companyId,
+                spaceId: issue.spaceId,
                 actorType: "system",
                 actorId: "system",
                 agentId,
@@ -4277,24 +4277,24 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               // Receipt consumption uses the same issue -> wake -> run -> guard ->
               // binding order. Lock before publishing, then reuse these wake rows.
               pendingFollowUps = await tx.select().from(agentWakeupRequests).where(and(
-                eq(agentWakeupRequests.companyId, agent.companyId), eq(agentWakeupRequests.agentId, agentId),
+                eq(agentWakeupRequests.spaceId, agent.spaceId), eq(agentWakeupRequests.agentId, agentId),
                 isNull(agentWakeupRequests.runId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
                 sql`${agentWakeupRequests.payload}->>'issueId' = ${issue.id}`,
                 sql`${agentWakeupRequests.payload}->>${followUpPayloadKey} is not null`,
               )).orderBy(asc(agentWakeupRequests.createdAt), asc(agentWakeupRequests.id)).for("update");
               const [currentRun] = await tx.select().from(heartbeatRuns).where(and(
-                eq(heartbeatRuns.id, activeExecutionRun.id), eq(heartbeatRuns.companyId, agent.companyId),
+                eq(heartbeatRuns.id, activeExecutionRun.id), eq(heartbeatRuns.spaceId, agent.spaceId),
                 eq(heartbeatRuns.agentId, agentId), eq(heartbeatRuns.status, "running"),
                 eq(heartbeatRuns.runtimeMode, "native"), eq(heartbeatRuns.nativeIssueId, issue.id),
               )).for("update");
-              if (currentRun) followUp = await withExternalAdmissionGuard(tx, agent.companyId, agentId,
+              if (currentRun) followUp = await withExternalAdmissionGuard(tx, agent.spaceId, agentId,
                 () => (museFollowUp ? publishActiveMuseComment : publishActiveDotComment)(tx as unknown as Db, {
-                  companyId: agent.companyId, agentId, bindingId, runId: currentRun.id,
+                  spaceId: agent.spaceId, agentId, bindingId, runId: currentRun.id,
                   issueId: issue.id, commentId: wakeCommentId,
                 }));
             }
             if (followUp) {
-              if (!followUp.consumed) await notifyDeferredExecutionWork(tx, { companyId: agent.companyId });
+              if (!followUp.consumed) await notifyDeferredExecutionWork(tx, { spaceId: agent.spaceId });
               const assignmentId = followUp.assignmentId;
               const pending = followUp.consumed ? undefined : pendingFollowUps.find(wake =>
                 wake.payload?.[followUpPayloadKey] === assignmentId &&
@@ -4304,9 +4304,9 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 payload: withQueuedCommentIdsInWakePayload(pending.payload,
                   [...new Set([...queuedCommentIdsFromWakePayload(pending.payload), wakeCommentId!])]),
                 coalescedCount: pending.coalescedCount + 1, updatedAt: new Date(),
-              }).where(and(eq(agentWakeupRequests.id, pending.id), eq(agentWakeupRequests.companyId, agent.companyId),
+              }).where(and(eq(agentWakeupRequests.id, pending.id), eq(agentWakeupRequests.spaceId, agent.spaceId),
                 eq(agentWakeupRequests.agentId, agentId), eq(agentWakeupRequests.status, "deferred_issue_execution")));
-              else await tx.insert(agentWakeupRequests).values({ companyId: agent.companyId, agentId, source, triggerDetail,
+              else await tx.insert(agentWakeupRequests).values({ spaceId: agent.spaceId, agentId, source, triggerDetail,
                 reason, payload: withQueuedCommentIdsInWakePayload({ ...payload, issueId: issue.id,
                   [followUpPayloadKey]: followUp.assignmentId,
                   [DEFERRED_WAKE_CONTEXT_KEY]: enrichedContextSnapshot }, [wakeCommentId!]),
@@ -4319,13 +4319,13 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             }
 
             const admissionScope = wakeQueue.createAdmissionTransactionScope(
-              agent.companyId,
+              agent.spaceId,
               tx as unknown as Db,
             );
             const admission = await wakeQueue.admitWakeBehindIssueExecution(
               admissionScope,
               {
-                companyId: agent.companyId,
+                spaceId: agent.spaceId,
                 issueId: issue.id,
                 agentId,
                 agentNameKey,
@@ -4403,7 +4403,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               .from(heartbeatRuns)
               .where(
                 and(
-                  eq(heartbeatRuns.companyId, agent.companyId),
+                  eq(heartbeatRuns.spaceId, agent.spaceId),
                   eq(heartbeatRuns.agentId, agentId),
                   sql`${heartbeatRuns.finishedAt} is not null`,
                   gte(
@@ -4425,7 +4425,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                 .from(activityLog)
                 .where(
                   and(
-                    eq(activityLog.companyId, agent.companyId),
+                    eq(activityLog.spaceId, agent.spaceId),
                     eq(activityLog.entityType, "issue"),
                     eq(activityLog.entityId, issue.id),
                     inArray(activityLog.runId, sampleRunIds),
@@ -4444,7 +4444,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
                     .from(activityLog)
                     .where(
                       and(
-                        eq(activityLog.companyId, agent.companyId),
+                        eq(activityLog.spaceId, agent.spaceId),
                         eq(activityLog.entityType, "issue"),
                         eq(activityLog.entityId, issue.id),
                         gt(activityLog.createdAt, lastRunFinishedAt),
@@ -4480,7 +4480,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               if (throttleDecision.blocked) {
                 await tx.insert(agentWakeupRequests).values({
                   ...durableReceiptFields,
-                  companyId: agent.companyId,
+                  spaceId: agent.spaceId,
                   agentId,
                   source,
                   triggerDetail,
@@ -4527,7 +4527,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             const now = new Date();
             await tx.insert(agentWakeupRequests).values({
               ...durableReceiptFields,
-              companyId: agent.companyId,
+              spaceId: agent.spaceId,
               agentId,
               source,
               triggerDetail,
@@ -4561,7 +4561,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           }
 
           const explicitContinuation = await admitExplicitNativeContinuation({
-            db: tx as unknown as Db, companyId: issue.companyId, issueId: issue.id,
+            db: tx as unknown as Db, spaceId: issue.spaceId, issueId: issue.id,
             agentId, actorType: taskRetryActorId ? "user" : opts.requestedByActorType, actorId: taskRetryActorId ?? opts.requestedByActorId,
             reason: taskRetryActorId ? "task_retry" : durableRequest && !failedChatRetry ? "issue_commented" : reason,
             commentId: wakeCommentId ?? null, failedRunId: opts.failedRunId, successorRunId: explicitContinuationRunId,
@@ -4581,11 +4581,11 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           }
 
           if (opts.queuedCommentInterruptId && issue.status === "done") {
-            const reopened = await issuesSvc.updateForCompany(issue.id, issue.companyId,
+            const reopened = await issuesSvc.updateForSpace(issue.id, issue.spaceId,
               { status: "todo", executionState: null }, tx, issueActivityPublications, issuePostCommitActions);
             if (!reopened) throw conflict("The task changed before its saved message could start");
             await logActivity(tx as unknown as Db, {
-              companyId: issue.companyId, actorType: "user", actorId: opts.requestedByActorId!,
+              spaceId: issue.spaceId, actorType: "user", actorId: opts.requestedByActorId!,
               action: "issue.updated", entityType: "issue", entityId: issue.id,
               details: { status: "todo", previousStatus: "done", source: "queued_comment_send", queueId: opts.queuedCommentInterruptId },
             }, issueActivityPublications);
@@ -4593,7 +4593,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
 
           const wakeupValues = {
             ...durableReceiptFields,
-            companyId: agent.companyId,
+            spaceId: agent.spaceId,
             agentId,
             source,
             triggerDetail,
@@ -4610,7 +4610,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             ? await tx.update(agentWakeupRequests).set({
                 payload, status: "queued", error: null, finishedAt: null, updatedAt: new Date(),
               }).where(and(eq(agentWakeupRequests.id, durableRequest.id),
-                eq(agentWakeupRequests.companyId, agent.companyId),
+                eq(agentWakeupRequests.spaceId, agent.spaceId),
                 eq(agentWakeupRequests.status, "deferred_issue_execution"), isNull(agentWakeupRequests.runId)))
                 .returning().then(rows => rows[0])
             : await tx.insert(agentWakeupRequests).values(wakeupValues).returning().then(rows => rows[0]);
@@ -4623,14 +4623,14 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           const handoffSource = source === "assignment" && reason === "issue_assigned" &&
             issue.assigneeAgentId === agentId && interruptedRunId && isUuidLike(interruptedRunId)
               ? await tx.select({ agentId: heartbeatRuns.agentId }).from(heartbeatRuns).where(and(
-                  eq(heartbeatRuns.id, interruptedRunId), eq(heartbeatRuns.companyId, issue.companyId),
+                  eq(heartbeatRuns.id, interruptedRunId), eq(heartbeatRuns.spaceId, issue.spaceId),
                   eq(heartbeatRuns.status, "cancelled"), eq(heartbeatRuns.errorCode, "issue_reassigned"),
                   ne(heartbeatRuns.agentId, agentId),
                   sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${issue.id}`,
                   or(isNull(heartbeatRuns.nativeIssueId), eq(heartbeatRuns.nativeIssueId, issue.id)),
                 )).then(rows => rows[0] ?? null)
               : null;
-          // External input owns an exact authorized source batch. Board input
+          // External input owns an exact authorized source batch. Operator input
           // must retain its separate receipt, including during normal resume.
           const canCoalesceComments = !durableRequest && !isConversation(issue) && opts.allowRunCoalescing !== false;
           // A resumed receipt already passed admission under this issue lock.
@@ -4638,18 +4638,18 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           // in separate turns, or finalization will deliver it a second time.
           const pendingComments =
             (executionWaitRequestId || canCoalesceComments) &&
-            (ownsReconstructionContinuation || !(await getExecutionBlocker(tx as unknown as Db, issue.companyId, issue.id)))
+            (ownsReconstructionContinuation || !(await getExecutionBlocker(tx as unknown as Db, issue.spaceId, issue.id)))
               ? await tx
                   .select()
                   .from(agentWakeupRequests)
                   .where(
                     and(
-                      eq(agentWakeupRequests.companyId, issue.companyId),
+                      eq(agentWakeupRequests.spaceId, issue.spaceId),
                       inArray(agentWakeupRequests.agentId, handoffSource ? [agentId, handoffSource.agentId] : [agentId]),
                       eq(agentWakeupRequests.status, "deferred_issue_execution"),
                       sql`${agentWakeupRequests.payload}->>'issueId' = ${issue.id}`,
                       // Chat Retry already pins its complete authorized source
-                      // batch. Keep separate board input for its own admission.
+                      // batch. Keep separate operator input for its own admission.
                       canCoalesceComments || (opts.taskRetryRequestId && !failedChatRetry)
                         ? undefined : eq(agentWakeupRequests.id, executionWaitRequestId!),
                     ),
@@ -4685,16 +4685,16 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           ];
           if (opts.queuedCommentRequestId || (opts.taskRetryRequestId && !failedChatRetry) || handoffSource) {
             adoptedCommentIds = await undeliveredLegacyUserCommentIds(tx as unknown as Db,
-              agent.companyId, issueId, agentId, adoptedCommentIds);
+              agent.spaceId, issueId, agentId, adoptedCommentIds);
           }
-          await notifyChatRunMilestones(tx, { companyId: agent.companyId, issueId: issueId ?? undefined });
+          await notifyChatRunMilestones(tx, { spaceId: agent.spaceId, issueId: issueId ?? undefined });
           const newRun = await tx
             .insert(heartbeatRuns)
             .values({
               ...(explicitContinuation ? { id: explicitContinuationRunId } : {}),
-              companyId: agent.companyId,
+              spaceId: agent.spaceId,
               agentId,
-            scopeKind: readNonEmptyString(enrichedContextSnapshot.issueId) ? "issue" : "company",
+            scopeKind: readNonEmptyString(enrichedContextSnapshot.issueId) ? "issue" : "space",
             issueId: readNonEmptyString(enrichedContextSnapshot.issueId),
               invocationSource: source,
               triggerDetail,
@@ -4727,7 +4727,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           if (ownsReconstructionContinuation) {
             await tx.update(issueRecoveryActions).set({ evidence: sql`${issueRecoveryActions.evidence} || ${JSON.stringify({
               continuationDelivery: "delivered", continuationRunId: newRun.id,
-            })}::jsonb` }).where(and(eq(issueRecoveryActions.companyId, issue.companyId),
+            })}::jsonb` }).where(and(eq(issueRecoveryActions.spaceId, issue.spaceId),
               eq(issueRecoveryActions.id, String(enrichedContextSnapshot.recoveryActionId)),
               sql`${issueRecoveryActions.evidence}->>'continuationDelivery' = 'pending'`));
           }
@@ -4743,7 +4743,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           if (failedChatRetry && opts.taskRetryRequestId) {
             await tx.update(agentWakeupRequests).set({
               status: "coalesced", runId: newRun.id, finishedAt: new Date(), updatedAt: new Date(),
-            }).where(and(eq(agentWakeupRequests.companyId, issue.companyId),
+            }).where(and(eq(agentWakeupRequests.spaceId, issue.spaceId),
               eq(agentWakeupRequests.id, opts.taskRetryRequestId),
               eq(agentWakeupRequests.status, "deferred_issue_execution")));
           }
@@ -4817,7 +4817,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
 
       const newRun = outcome.run;
       publishLiveEvent({
-        companyId: newRun.companyId,
+        spaceId: newRun.spaceId,
         type: "heartbeat.run.queued",
         payload: {
           runId: newRun.id,
@@ -4910,7 +4910,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
 
       await db.insert(agentWakeupRequests).values({
         ...durableReceiptFields,
-        companyId: agent.companyId,
+        spaceId: agent.spaceId,
         agentId,
         source,
         triggerDetail,
@@ -4928,9 +4928,9 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     }
 
     const queueOutcome = await db.transaction(async (tx) => {
-      await notifyRunDispatch(tx, { companyId: agent.companyId });
+      await notifyRunDispatch(tx, { spaceId: agent.spaceId });
       await tx.execute(
-        sql`select id from agents where id = ${agentId} and company_id = ${agent.companyId} for update`,
+        sql`select id from agents where id = ${agentId} and space_id = ${agent.spaceId} for update`,
       );
 
       const dailyCapBlock = await getHeartbeatDailyCapBlock(
@@ -4944,7 +4944,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         const now = new Date();
         await tx.insert(agentWakeupRequests).values({
           ...durableReceiptFields,
-          companyId: agent.companyId,
+          spaceId: agent.spaceId,
           agentId,
           source,
           triggerDetail,
@@ -4981,7 +4981,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         .insert(agentWakeupRequests)
         .values({
           ...durableReceiptFields,
-          companyId: agent.companyId,
+          spaceId: agent.spaceId,
           agentId,
           source,
           triggerDetail,
@@ -4998,9 +4998,9 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       const newRun = await tx
         .insert(heartbeatRuns)
         .values({
-          companyId: agent.companyId,
+          spaceId: agent.spaceId,
           agentId,
-          scopeKind: readNonEmptyString(enrichedContextSnapshot.issueId) ? "issue" : "company",
+          scopeKind: readNonEmptyString(enrichedContextSnapshot.issueId) ? "issue" : "space",
           issueId: readNonEmptyString(enrichedContextSnapshot.issueId),
           invocationSource: source,
           triggerDetail,
@@ -5030,7 +5030,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
     const newRun = queueOutcome.run;
 
     publishLiveEvent({
-      companyId: newRun.companyId,
+      spaceId: newRun.spaceId,
       type: "heartbeat.run.queued",
       payload: {
         runId: newRun.id,
@@ -5061,7 +5061,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
    * only requeues the intent; it never changes the provider run outcome.
    */
   type NativeStatusWakeDispatchInput = {
-    companyId?: string;
+    spaceId?: string;
     limit?: number;
     staleClaimMs?: number;
     requestId?: string;
@@ -5095,8 +5095,8 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       .from(agentWakeupRequests)
       .where(
         and(
-          input.companyId
-            ? eq(agentWakeupRequests.companyId, input.companyId)
+          input.spaceId
+            ? eq(agentWakeupRequests.spaceId, input.spaceId)
             : undefined,
           input.requestId ? eq(agentWakeupRequests.id, input.requestId) : undefined,
           eq(agentWakeupRequests.requestedByActorType, "system"),
@@ -5114,7 +5114,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
 
     for (const candidate of candidates) {
       const payload = parseObject(candidate.payload);
-      const wakeContext = parseObject(payload._paperclipWakeContext);
+      const wakeContext = parseObject(payload._outpostWakeContext);
       const issueId =
         readNonEmptyString(payload.issueId) ??
         readNonEmptyString(payload.taskId) ??
@@ -5126,7 +5126,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         .from(agentWakeupRequests)
         .where(
           and(
-            eq(agentWakeupRequests.companyId, candidate.companyId),
+            eq(agentWakeupRequests.spaceId, candidate.spaceId),
             eq(agentWakeupRequests.requestedByActorType, "system"),
             eq(agentWakeupRequests.requestedByActorId, dispatchActorId),
           ),
@@ -5149,7 +5149,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
             ? "coalesced"
             : existingDispatch.status;
         await db.transaction(async tx => {
-          await notifyChatRunMilestones(tx, { companyId: candidate.companyId, issueId: issueId ?? undefined });
+          await notifyChatRunMilestones(tx, { spaceId: candidate.spaceId, issueId: issueId ?? undefined });
           await tx
             .update(agentWakeupRequests)
             .set({
@@ -5204,14 +5204,14 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (claimed.length === 0) continue;
 
       const scopeKey = issueId
-        ? `${candidate.companyId}:${candidate.agentId}:${issueId}:${readNativeReviewAssignmentContext(wakeContext)?.nativeReviewInteractionId ?? ""}`
+        ? `${candidate.spaceId}:${candidate.agentId}:${issueId}:${readNativeReviewAssignmentContext(wakeContext)?.nativeReviewInteractionId ?? ""}`
         : null;
       const priorDelivery = scopeKey
         ? deliveredByIssueScope.get(scopeKey)
         : null;
       if (priorDelivery) {
         await db.transaction(async tx => {
-          await notifyChatRunMilestones(tx, { companyId: candidate.companyId, issueId: issueId ?? undefined });
+          await notifyChatRunMilestones(tx, { spaceId: candidate.spaceId, issueId: issueId ?? undefined });
           await tx
             .update(agentWakeupRequests)
             .set({
@@ -5239,19 +5239,19 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           .where(
             and(
               eq(issues.id, issueId),
-              eq(issues.companyId, candidate.companyId),
+              eq(issues.spaceId, candidate.spaceId),
             ),
           )
           .limit(1)
           .then((rows) => rows[0] ?? null);
         const nativeReview = candidate.reason === "native_completion_review"
           ? await getNativeReviewAssignment(db, {
-              companyId: candidate.companyId, issueId, agentId: candidate.agentId,
+              spaceId: candidate.spaceId, issueId, agentId: candidate.agentId,
               contextSnapshot: wakeContext,
             })
           : null;
         const onboardingResultReport = targetIssue?.status === "done" && await isCompletedOnboardingHandoffWake(db, {
-          companyId: candidate.companyId, issueId, agentId: candidate.agentId,
+          spaceId: candidate.spaceId, issueId, agentId: candidate.agentId,
           reason: candidate.reason, contextSnapshot: wakeContext,
         });
         if (onboardingResultReport) completedOnboardingGuard = { assigneeAgentId: candidate.agentId, statuses: ["done"], statusVersion: targetIssue!.statusVersion };
@@ -5262,7 +5262,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           (candidate.reason === "native_completion_review" && !nativeReview)
         ) {
           await db.transaction(async tx => {
-            await notifyChatInboundWakeNotices(tx, { companyId: candidate.companyId, issueId });
+            await notifyChatInboundWakeNotices(tx, { spaceId: candidate.spaceId, issueId });
             await tx
               .update(agentWakeupRequests)
               .set({
@@ -5309,7 +5309,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
           .from(agentWakeupRequests)
           .where(
             and(
-              eq(agentWakeupRequests.companyId, candidate.companyId),
+              eq(agentWakeupRequests.spaceId, candidate.spaceId),
               eq(agentWakeupRequests.requestedByActorType, "system"),
               eq(agentWakeupRequests.requestedByActorId, dispatchActorId),
             ),
@@ -5336,7 +5336,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         // provenance and would otherwise run once before the dispatch receipt).
         const deliveredStatus = delivered?.status ?? "queued";
         await db.transaction(async tx => {
-          await notifyChatRunMilestones(tx, { companyId: candidate.companyId, issueId: issueId ?? undefined });
+          await notifyChatRunMilestones(tx, { spaceId: candidate.spaceId, issueId: issueId ?? undefined });
           await tx
             .update(agentWakeupRequests)
             .set({

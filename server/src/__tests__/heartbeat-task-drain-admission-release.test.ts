@@ -13,9 +13,9 @@ import {
   authUsers,
   agentRuntimeState,
   agentWakeupRequests,
-  companies,
-  companyMemberships,
-  companySkills,
+  spaces,
+  spaceMemberships,
+  spaceSkills,
   createDb,
   environments,
   heartbeatRunEvents,
@@ -28,7 +28,7 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 import { heartbeatService, getTaskDrainStatus, startTaskDrain, stopTaskDrain } from "../services/heartbeat.ts";
-import { subscribeCompanyLiveEvents } from "../services/live-events.ts";
+import { subscribeSpaceLiveEvents } from "../services/live-events.ts";
 import express from "express";
 import request from "supertest";
 import { instanceSettingsRoutes } from "../routes/instance-settings.js";
@@ -85,9 +85,9 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
     await db.delete(issues);
     await db.delete(agentRuntimeState);
     await db.delete(agents);
-    await db.delete(companySkills);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceSkills);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -95,22 +95,22 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
   });
 
   async function seedAgentAndIssue() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user",
       membershipRole: "operator", status: "active" });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Drain Race Agent",
       role: "engineer",
       status: "idle",
@@ -131,7 +131,7 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
 
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Work claimed just before a drain trips",
       status: "todo",
       priority: "high",
@@ -139,17 +139,17 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
       responsibleUserId: "responsible-user",
     });
 
-    return { companyId, agentId, issueId };
+    return { spaceId, agentId, issueId };
   }
 
   async function seedQueuedRun() {
-    const { companyId, agentId, issueId } = await seedAgentAndIssue();
+    const { spaceId, agentId, issueId } = await seedAgentAndIssue();
     const runId = randomUUID();
     const wakeupRequestId = randomUUID();
 
     await db.insert(agentWakeupRequests).values({
       id: wakeupRequestId,
-      companyId,
+      spaceId,
       agentId,
       source: "assignment",
       status: "queued",
@@ -157,7 +157,7 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
 
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "assignment",
       triggerDetail: "system",
@@ -166,11 +166,11 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
       contextSnapshot: { issueId, wakeReason: "issue_assigned" },
     });
 
-    return { companyId, agentId, issueId, runId, wakeupRequestId };
+    return { spaceId, agentId, issueId, runId, wakeupRequestId };
   }
 
   it("releases the run, wakeup, and issue lock when a task drain trips right after the run is claimed", async () => {
-    const { companyId, issueId, runId, wakeupRequestId } = await seedQueuedRun();
+    const { spaceId, issueId, runId, wakeupRequestId } = await seedQueuedRun();
     const heartbeat = heartbeatService(db);
 
     // The claim path publishes a "heartbeat.run.status" live event with
@@ -179,7 +179,7 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
     // drain from that same event reproduces the gap the fix closes: the
     // drain trips after the first admission check passed but before the
     // second one runs.
-    const unsubscribe = subscribeCompanyLiveEvents(companyId, (event) => {
+    const unsubscribe = subscribeSpaceLiveEvents(spaceId, (event) => {
       const payload = event.payload as { runId?: string; status?: string };
       if (event.type === "heartbeat.run.status" && payload.runId === runId && payload.status === "running") {
         startTaskDrain({});
@@ -247,7 +247,7 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
   }, 20_000);
 
   it.each(["release", "paused agent", "new drain"] as const)("reconsiders queued work after maintenance with current gates: %s", async gate => {
-    const { companyId, agentId, issueId } = await seedAgentAndIssue();
+    const { spaceId, agentId, issueId } = await seedAgentAndIssue();
     const heartbeat = heartbeatService(db);
     const counterDir = mkdtempSync(join(tmpdir(), "drain-executor-"));
     const counter = join(counterDir, "executions");
@@ -265,14 +265,14 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
       .from(heartbeatRuns);
     expect(queued).toBeDefined();
     if (gate === "paused agent") await db.update(agents).set({ status: "paused" }).where(eq(agents.id, agentId));
-    const unsubscribe = subscribeCompanyLiveEvents(companyId, event => {
+    const unsubscribe = subscribeSpaceLiveEvents(spaceId, event => {
       if (gate === "new drain" && event.type === "activity.logged" && event.payload.action === "instance.task_drain.stopped") startTaskDrain({});
     });
     try {
       const app = express();
       app.use(express.json());
       app.use((req, _res, next) => {
-        req.actor = { type: "board", userId: "local-board", source: "local_implicit", isInstanceAdmin: true };
+        req.actor = { type: "operator", userId: "local-operator", source: "local_implicit", isInstanceAdmin: true };
         next();
       });
       app.use("/api", instanceSettingsRoutes(db));
@@ -302,7 +302,7 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
   }, 20_000);
 
   it("preserves the plugin worker manager when DELETE releases a queued sandbox run", async () => {
-    const { companyId, agentId, issueId } = await seedAgentAndIssue();
+    const { spaceId, agentId, issueId } = await seedAgentAndIssue();
     const environmentId = randomUUID();
     const pluginId = randomUUID();
     const pluginKey = `test.drain-sandbox.${pluginId}`;
@@ -324,7 +324,7 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
         categories: ["automation"], status: "ready",
         manifestJson: {
           id: pluginKey, apiVersion: 1, version: "1.0.0", displayName: "Drain sandbox",
-          description: "Task-drain release fixture", author: "Paperclip", categories: ["automation"],
+          description: "Task-drain release fixture", author: "Outpost", categories: ["automation"],
           capabilities: ["environment.drivers.register"], entrypoints: { worker: "worker.js" },
           environmentDrivers: [{ driverKey: provider, kind: "sandbox_provider", displayName: "Drain sandbox", configSchema: { type: "object" } }],
         },
@@ -346,7 +346,7 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
       const app = express();
       app.use(express.json());
       app.use((req, _res, next) => {
-        req.actor = { type: "board", userId: "local-board", source: "local_implicit", isInstanceAdmin: true };
+        req.actor = { type: "operator", userId: "local-operator", source: "local_implicit", isInstanceAdmin: true };
         next();
       });
       app.use("/api", instanceSettingsRoutes(db, pluginWorkers));
@@ -359,7 +359,7 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
       expect.soft(runs[0]).toMatchObject({ id: queued!.id, status: "failed", error: expect.stringContaining(acquisitionFailure) });
       expect.soft(calls).toEqual([{
         pluginId, method: "environmentAcquireLease",
-        params: expect.objectContaining({ driverKey: provider, companyId, environmentId,
+        params: expect.objectContaining({ driverKey: provider, spaceId, environmentId,
           issueId, agentId, runId: queued!.id, adapterType: "process" }),
       }]);
     } finally {
@@ -500,7 +500,7 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
   }
 
   it("leaves the run row running for the orphan reaper when the atomic release fails", async () => {
-    const { companyId, issueId, runId, wakeupRequestId } = await seedQueuedRun();
+    const { spaceId, issueId, runId, wakeupRequestId } = await seedQueuedRun();
     // Fault the release transaction on the issue-lock write, so executeRun's
     // suppression branch catches the failure, logs it, and returns instead
     // of throwing. There is no in-process fallback or retry for this path.
@@ -508,7 +508,7 @@ describeEmbeddedPostgres("heartbeat task-drain admission release", () => {
     const failingDb = withFailingTransactionalUpdate(db, issues, () => releaseStarted);
     const heartbeat = heartbeatService(failingDb);
 
-    const unsubscribe = subscribeCompanyLiveEvents(companyId, (event) => {
+    const unsubscribe = subscribeSpaceLiveEvents(spaceId, (event) => {
       const payload = event.payload as { runId?: string; status?: string };
       if (event.type === "heartbeat.run.status" && payload.runId === runId && payload.status === "running") {
         startTaskDrain({});

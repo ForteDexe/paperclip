@@ -7,7 +7,7 @@ import {
 
 /** The name the CEO role fills in — see AGENT_ROLE_LABELS. */
 const AGENT_NAME = "CEO";
-const TASK_TITLE = "Paperclip onboarding";
+const TASK_TITLE = "Outpost onboarding";
 
 /** Wait for the saved question before checking its dismissed presentation. */
 async function expectOpeningQuestionDismissed(page: import("@playwright/test").Page) {
@@ -27,7 +27,7 @@ async function dismissOpeningCard(page: import("@playwright/test").Page) {
 
 test("captures planning mode UI for desktop and mobile", async ({ page }) => {
   const timestamp = Date.now();
-  const companyName = `PAP-3413-${timestamp}`;
+  const spaceName = `PAP-3413-${timestamp}`;
   const screenshotDir = "test-results/planning-mode";
 
   await instrumentNavLog(page);
@@ -74,10 +74,10 @@ test("captures planning mode UI for desktop and mobile", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "What is the name of your organization?" })).toBeVisible({ timeout: 15_000 });
 
-  await page.locator('input[placeholder="e.g. Northwind Labs"]').fill(companyName);
+  await page.locator('input[placeholder="e.g. Northwind Labs"]').fill(spaceName);
   await page.getByRole("button", { name: /^Continue/ }).click();
 
-  // Naming the company creates it and goes straight to the agent step.
+  // Naming the space creates it and goes straight to the agent step.
 
   // The agent step asks for a name and nothing else; the name is what gates
   // "Next", and the hire is filed under the neutral `general` role.
@@ -111,12 +111,12 @@ test("captures planning mode UI for desktop and mobile", async ({ page }) => {
   await expectLandsOnFirstTaskWithoutDashboardBounce(page);
 
   const baseOrigin = new URL(page.url()).origin;
-  const companyRes = await page.request.get(`${baseOrigin}/api/companies`);
-  expect(companyRes.ok()).toBe(true);
-  const companies = await companyRes.json();
-  const company = companies.find((c: { name: string }) => c.name === companyName);
-  expect(company).toBeTruthy();
-  const issueRes = await page.request.get(`${baseOrigin}/api/companies/${company.id}/issues`);
+  const spaceRes = await page.request.get(`${baseOrigin}/api/spaces`);
+  expect(spaceRes.ok()).toBe(true);
+  const spaces = await spaceRes.json();
+  const space = spaces.find((c: { name: string }) => c.name === spaceName);
+  expect(space).toBeTruthy();
+  const issueRes = await page.request.get(`${baseOrigin}/api/spaces/${space.id}/issues`);
   expect(issueRes.ok()).toBe(true);
   const issues = await issueRes.json();
   const planningSeedIssue = issues.find(
@@ -127,8 +127,8 @@ test("captures planning mode UI for desktop and mobile", async ({ page }) => {
 
   const issue = planningSeedIssue;
   const issueIdentifier = issue.identifier ?? issue.id;
-  const issuePath = `/${company.issuePrefix ?? company.id}/issues/${issueIdentifier}`;
-  const companyPrefix = company.issuePrefix ?? company.id;
+  const issuePath = `/${space.issuePrefix ?? space.id}/issues/${issueIdentifier}`;
+  const spacePrefix = space.issuePrefix ?? space.id;
   const issueLinkSelector = `a[href$="/issues/${issueIdentifier}"]`;
 
   const setMode = async (mode: "standard" | "planning") => {
@@ -162,7 +162,7 @@ test("captures planning mode UI for desktop and mobile", async ({ page }) => {
     fullPage: true,
   });
 
-  await page.goto(`/${companyPrefix}/issues`);
+  await page.goto(`/${spacePrefix}/issues`);
   await expect(page.locator(issueLinkSelector)).toBeVisible();
   await expect(page.locator(issueLinkSelector)).not.toContainText("Plan mode");
   await page.screenshot({
@@ -193,7 +193,7 @@ test("captures planning mode UI for desktop and mobile", async ({ page }) => {
     fullPage: true,
   });
 
-  await page.goto(`/${companyPrefix}/issues`);
+  await page.goto(`/${spacePrefix}/issues`);
   await expect(page.locator(issueLinkSelector)).toBeVisible();
   await expect(page.locator(issueLinkSelector)).not.toContainText("Plan mode");
   await page.screenshot({

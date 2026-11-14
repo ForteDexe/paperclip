@@ -13,7 +13,7 @@ export type NativeWarmIngressIdentity = {
   cwd: string;
 };
 export type NativeWarmIngressOwner = {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   issueId: string;
   runId: string;
@@ -39,28 +39,28 @@ export function nativeWarmIngressAllocation(identity: NativeWarmIngressIdentity)
 
 const busy = () => new Error("native_session_supervisor_busy");
 export async function assertNativeWarmIngressRetirement(db: Db, current: NativeWarmIngressClaim, previous: NativeWarmIngressOwner): Promise<void> {
-  if (current.companyId !== previous.companyId || current.agentId !== previous.agentId
+  if (current.spaceId !== previous.spaceId || current.agentId !== previous.agentId
     || current.ingress.workspaceId !== previous.ingress.workspaceId || current.ingress.cwd !== previous.ingress.cwd
     || nativeWarmIngressAllocation(current.ingress) !== nativeWarmIngressAllocation(previous.ingress)
     || current.runId === previous.runId) throw busy();
   await db.transaction(async tx => {
     const [workspace] = await tx.select().from(executionWorkspaces).where(and(
-      eq(executionWorkspaces.companyId, current.companyId), eq(executionWorkspaces.id, current.ingress.workspaceId),
+      eq(executionWorkspaces.spaceId, current.spaceId), eq(executionWorkspaces.id, current.ingress.workspaceId),
     )).for("update");
     const authority = readRemoteWorkspaceAuthority(workspace?.metadata);
     if (!workspace || workspace.status !== "active" || authority?.writerRunId !== current.runId
       || authority.location?.environmentId !== current.ingress.environmentId
       || authority.location.providerLeaseId !== current.ingress.providerLeaseId
       || authority.location.leaseId !== current.ingress.leaseId || authority.location.remoteCwd !== current.ingress.cwd) throw busy();
-    const runs = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, current.companyId),
+    const runs = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, current.spaceId),
       inArray(heartbeatRuns.id, [current.runId, previous.runId])));
     const incoming = runs.find(run => run.id === current.runId), prior = runs.find(run => run.id === previous.runId);
-    const coordinators = await tx.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, current.companyId),
+    const coordinators = await tx.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.spaceId, current.spaceId),
       inArray(nativeRunFinalizations.runId, [current.runId, previous.runId])));
     const incomingCoordinator = coordinators.find(row => row.runId === current.runId), priorCoordinator = coordinators.find(row => row.runId === previous.runId);
-    const tasks = await tx.select().from(issues).where(and(eq(issues.companyId, current.companyId), inArray(issues.id, [current.issueId, previous.issueId])));
+    const tasks = await tx.select().from(issues).where(and(eq(issues.spaceId, current.spaceId), inArray(issues.id, [current.issueId, previous.issueId])));
     const incomingTask = tasks.find(task => task.id === current.issueId), priorTask = tasks.find(task => task.id === previous.issueId);
-    const leases = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, current.companyId),
+    const leases = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, current.spaceId),
       inArray(environmentLeases.id, [current.ingress.leaseId, previous.ingress.leaseId])));
     const incomingLease = leases.find(lease => lease.id === current.ingress.leaseId), priorLease = leases.find(lease => lease.id === previous.ingress.leaseId);
     const now = Date.now();
@@ -90,7 +90,7 @@ export async function assertNativeWarmIngressRetirement(db: Db, current: NativeW
       || !leaseMatches(priorLease, previous) || !["released", "expired"].includes(priorLease!.status)
       || priorLease!.cleanupStatus !== "success") throw busy();
     const otherLeases = await tx.select({ runId: environmentLeases.heartbeatRunId }).from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, current.companyId), eq(environmentLeases.environmentId, current.ingress.environmentId),
+      eq(environmentLeases.spaceId, current.spaceId), eq(environmentLeases.environmentId, current.ingress.environmentId),
       eq(environmentLeases.provider, current.ingress.provider), eq(environmentLeases.providerLeaseId, current.ingress.providerLeaseId),
       eq(environmentLeases.status, "active"),
     ));

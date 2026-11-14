@@ -7,8 +7,8 @@ import {
   agents,
   agentWakeupRequests,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   heartbeatRuns,
   issueAccessGrants,
@@ -32,18 +32,18 @@ const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 type Db = ReturnType<typeof createDb>;
 
-function boardActor(companyId: string, userId: string): Express.Request["actor"] {
+function operatorActor(spaceId: string, userId: string): Express.Request["actor"] {
   return {
-    type: "board",
+    type: "operator",
     userId,
-    companyIds: [companyId],
+    spaceIds: [spaceId],
     source: "session",
     isInstanceAdmin: false,
   };
 }
 
-function agentActor(companyId: string, agentId: string): Express.Request["actor"] {
-  return { type: "agent", agentId, companyId, source: "agent_jwt" };
+function agentActor(spaceId: string, agentId: string): Express.Request["actor"] {
+  return { type: "agent", agentId, spaceId, source: "agent_jwt" };
 }
 
 async function createApp(db: Db, actor: Express.Request["actor"]) {
@@ -69,7 +69,7 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
   const previousPrivacyMode = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-issue-access-grants-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-issue-access-grants-");
     db = createDb(tempDb.connectionString);
     process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
     // Load the current route dependency graph during setup, outside assertion timeouts.
@@ -88,9 +88,9 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
     await db.delete(projects);
     await db.delete(agentWakeupRequests);
     await db.delete(agents);
-    await db.delete(companyMemberships);
+    await db.delete(spaceMemberships);
     await db.delete(authUsers);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -100,17 +100,17 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
   });
 
   async function seedFixture() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const ownerId = `owner-${randomUUID()}`;
     const adminId = `admin-${randomUUID()}`;
     const memberId = `member-${randomUUID()}`;
     const sharedUserId = `shared-${randomUUID()}`;
     const now = new Date();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Private issue grants",
       issuePrefix: `P${randomUUID().replace(/-/g, "").slice(0, 5).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(authUsers).values([
       { id: ownerId, name: "Olivia Owner", email: `${ownerId}@example.test`, createdAt: now, updatedAt: now },
@@ -125,8 +125,8 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
         updatedAt: now,
       },
     ]);
-    await db.insert(companyMemberships).values([ownerId, adminId, memberId, sharedUserId].map((principalId) => ({
-      companyId,
+    await db.insert(spaceMemberships).values([ownerId, adminId, memberId, sharedUserId].map((principalId) => ({
+      spaceId,
       principalType: "user",
       principalId,
       status: "active",
@@ -134,7 +134,7 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
     })));
     const [assignedAgent, sharedAgent] = await db.insert(agents).values([
       {
-        companyId,
+        spaceId,
         name: "Assigned Agent",
         role: "engineer",
         status: "active",
@@ -144,7 +144,7 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
         permissions: {},
       },
       {
-        companyId,
+        spaceId,
         name: "Private Helper",
         role: "engineer",
         status: "active",
@@ -159,7 +159,7 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
       },
     ]).returning();
     const privateProject = await db.insert(projects).values({
-      companyId,
+      spaceId,
       name: "Secret launch project",
       visibility: "private",
       status: "planned",
@@ -167,7 +167,7 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
     const privateIssueId = randomUUID();
     await db.insert(issues).values({
       id: privateIssueId,
-      companyId,
+      spaceId,
       identifier: "PRV-1",
       title: "Confidential root",
       status: "backlog",
@@ -179,7 +179,7 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
       createdByUserId: ownerId,
     });
     const privateChild = await db.insert(issues).values({
-      companyId,
+      spaceId,
       parentId: privateIssueId,
       identifier: "PRV-1A",
       title: "Confidential child",
@@ -192,7 +192,7 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
       createdByUserId: ownerId,
     }).returning().then((rows) => rows[0]!);
     const openIssue = await db.insert(issues).values({
-      companyId,
+      spaceId,
       identifier: "PRV-2",
       title: "Open issue",
       status: "todo",
@@ -200,7 +200,7 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
       createdByUserId: ownerId,
     }).returning().then((rows) => rows[0]!);
     return {
-      companyId,
+      spaceId,
       ownerId,
       adminId,
       memberId,
@@ -216,8 +216,8 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
 
   it("requires explicit owner/admin break-glass and records both audit evidence and an owner-visible notice", async () => {
     const fixture = await seedFixture();
-    const adminApp = await createApp(db, boardActor(fixture.companyId, fixture.adminId));
-    const memberApp = await createApp(db, boardActor(fixture.companyId, fixture.memberId));
+    const adminApp = await createApp(db, operatorActor(fixture.spaceId, fixture.adminId));
+    const memberApp = await createApp(db, operatorActor(fixture.spaceId, fixture.memberId));
 
     await request(adminApp).get(`/api/issues/${fixture.privateIssueId}`).expect(404);
     await request(memberApp).get(`/api/issues/${fixture.privateIssueId}?breakGlass=true`).expect(404);
@@ -253,7 +253,7 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
 
   it("auto-grants child-subtree access on assignment and keeps it sticky until revoke", async () => {
     const fixture = await seedFixture();
-    const ownerApp = await createApp(db, boardActor(fixture.companyId, fixture.ownerId));
+    const ownerApp = await createApp(db, operatorActor(fixture.spaceId, fixture.ownerId));
 
     const assigned = await request(ownerApp)
       .patch(`/api/issues/${fixture.privateChild.id}`)
@@ -284,7 +284,7 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
 
     const readableBeforeRevoke = await request(await createApp(
       db,
-      agentActor(fixture.companyId, fixture.assignedAgent.id),
+      agentActor(fixture.spaceId, fixture.assignedAgent.id),
     )).get(`/api/issues/${fixture.privateChild.id}`);
     expect(readableBeforeRevoke.status).toBe(200);
 
@@ -294,14 +294,14 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
       .expect(200);
     const deniedAfterRevoke = await request(await createApp(
       db,
-      agentActor(fixture.companyId, fixture.assignedAgent.id),
+      agentActor(fixture.spaceId, fixture.assignedAgent.id),
     )).get(`/api/issues/${fixture.privateChild.id}`);
     expect(deniedAfterRevoke.status).toBe(404);
     expect(deniedAfterRevoke.body.error).toBe("Issue not found");
     // A private task and a missing one must give an agent the same final answer.
     const missing = await request(await createApp(
       db,
-      agentActor(fixture.companyId, fixture.assignedAgent.id),
+      agentActor(fixture.spaceId, fixture.assignedAgent.id),
     )).get(`/api/issues/${randomUUID()}`);
     expect(missing.status).toBe(404);
     expect(deniedAfterRevoke.body).toEqual(missing.body);
@@ -310,8 +310,8 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
 
   it("creates and enriches explicit grants idempotently while rejecting unauthorized and open shares", async () => {
     const fixture = await seedFixture();
-    const ownerApp = await createApp(db, boardActor(fixture.companyId, fixture.ownerId));
-    const nonreaderApp = await createApp(db, boardActor(fixture.companyId, fixture.memberId));
+    const ownerApp = await createApp(db, operatorActor(fixture.spaceId, fixture.ownerId));
+    const nonreaderApp = await createApp(db, operatorActor(fixture.spaceId, fixture.memberId));
 
     await request(nonreaderApp)
       .post(`/api/issues/${fixture.privateIssueId}/access-grants`)
@@ -385,8 +385,8 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
     ]);
 
     const granteeApps = [
-      await createApp(db, boardActor(fixture.companyId, fixture.sharedUserId)),
-      await createApp(db, agentActor(fixture.companyId, fixture.sharedAgent.id)),
+      await createApp(db, operatorActor(fixture.spaceId, fixture.sharedUserId)),
+      await createApp(db, agentActor(fixture.spaceId, fixture.sharedAgent.id)),
     ];
 
     for (const app of granteeApps) {
@@ -404,13 +404,13 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
       await request(app).get(`/api/projects/${fixture.privateProject.id}`).expect(404);
 
       const projectList = await request(app)
-        .get(`/api/companies/${fixture.companyId}/projects`);
+        .get(`/api/spaces/${fixture.spaceId}/projects`);
       expect(projectList.status, JSON.stringify(projectList.body)).toBe(200);
       expect(projectList.body.map((project: { id: string }) => project.id))
         .not.toContain(fixture.privateProject.id);
 
       const projectSearch = await request(app)
-        .get(`/api/companies/${fixture.companyId}/search?q=Secret%20launch&scope=projects`);
+        .get(`/api/spaces/${fixture.spaceId}/search?q=Secret%20launch&scope=projects`);
       expect(projectSearch.status, JSON.stringify(projectSearch.body)).toBe(200);
       expect(projectSearch.body.results.map((project: { id: string }) => project.id))
         .not.toContain(fixture.privateProject.id);
@@ -420,7 +420,7 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
   it("returns exact locked stubs only through visible blocker and mention edges", async () => {
     const fixture = await seedFixture();
     const visibleIssue = await db.insert(issues).values({
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       identifier: "PRV-3",
       title: "Visible coordination issue",
       description: "Depends on PRV-1",
@@ -429,13 +429,13 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
       createdByUserId: fixture.memberId,
     }).returning().then((rows) => rows[0]!);
     await db.insert(issueRelations).values({
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       issueId: fixture.privateIssueId,
       relatedIssueId: visibleIssue.id,
       type: "blocks",
     });
     await db.insert(issueReferenceMentions).values({
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       sourceIssueId: visibleIssue.id,
       targetIssueId: fixture.privateIssueId,
       sourceKind: "description",
@@ -444,7 +444,7 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
       matchedText: "PRV-1",
     });
 
-    const app = await createApp(db, boardActor(fixture.companyId, fixture.memberId));
+    const app = await createApp(db, operatorActor(fixture.spaceId, fixture.memberId));
     const detail = await request(app).get(`/api/issues/${visibleIssue.id}`);
     expect(detail.status, JSON.stringify(detail.body)).toBe(200);
     const expectedStub = { id: fixture.privateIssueId, identifier: "PRV-1", locked: true };
@@ -456,14 +456,14 @@ describeEmbeddedPostgres("issue access grant and locked edge routes", { concurre
     expect(direct.status).toBe(404);
 
     const list = await request(app)
-      .get(`/api/companies/${fixture.companyId}/issues?includeBlockedBy=true`);
+      .get(`/api/spaces/${fixture.spaceId}/issues?includeBlockedBy=true`);
     expect(list.status, JSON.stringify(list.body)).toBe(200);
     expect(list.body.map((row: { id: string }) => row.id)).not.toContain(fixture.privateIssueId);
     const visibleRow = list.body.find((row: { id: string }) => row.id === visibleIssue.id);
     expect(visibleRow.blockedBy).toEqual([expectedStub]);
 
     const search = await request(app)
-      .get(`/api/companies/${fixture.companyId}/search?q=Confidential%20root&scope=issues`);
+      .get(`/api/spaces/${fixture.spaceId}/search?q=Confidential%20root&scope=issues`);
     expect(search.status).toBe(200);
     expect(search.body.results.map((row: { id: string }) => row.id)).not.toContain(fixture.privateIssueId);
   }, 20_000);

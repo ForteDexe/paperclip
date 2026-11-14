@@ -68,8 +68,8 @@ import { readEvalOperationsReport } from "./operations-report.js";
 import {
   applyEvalGatewayEnvironment,
   buildRunnerE2EProcessEnvironment,
-  resolvePaperclipRemoteRunnerBinaryForHarness,
-  resolvePaperclipRunnerBinaryForHarness,
+  resolveOutpostRemoteRunnerBinaryForHarness,
+  resolveOutpostRunnerBinaryForHarness,
 } from "./harness-env.js";
 import { assertRunnerDatabaseIsolation } from "./instance-isolation.js";
 import {
@@ -173,7 +173,7 @@ async function terminateProcessGroup(pid: number) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   return processGroupIsAlive(pid)
-    ? `Paperclip/Playwright process group ${pid} survived SIGKILL`
+    ? `Outpost/Playwright process group ${pid} survived SIGKILL`
     : null;
 }
 
@@ -527,11 +527,11 @@ async function runAttempt(input: {
   let gateway: Awaited<ReturnType<EvalOperations["start"]>> | undefined;
   const rawCleanupResults: Array<{ cleanup: string; synthetic: boolean; status: string }> = [];
   try {
-    const paperclipHome = path.join(temporaryRoot, "paperclip-home");
+    const outpostHome = path.join(temporaryRoot, "outpost-home");
     const workspace = path.join(temporaryRoot, "workspace");
     const instanceId = `runner-e2e-${randomBytes(8).toString("hex")}`;
     const configPath = path.join(
-      paperclipHome,
+      outpostHome,
       "instances",
       instanceId,
       "config.json",
@@ -543,7 +543,7 @@ async function runAttempt(input: {
       });
     }
     await Promise.all([
-      mkdir(paperclipHome, { recursive: true, mode: 0o700 }),
+      mkdir(outpostHome, { recursive: true, mode: 0o700 }),
       mkdir(workspace, { recursive: true }),
       mkdir(privateDir, { recursive: true }),
     ]);
@@ -587,14 +587,14 @@ async function runAttempt(input: {
     if (manualPrivateHandoff) for (const credential of credentials) manualEvidenceSecrets.add(credential);
     if (installedCli) await writeFile(path.join(privateDir, "installed-cli-admission.json"), `${JSON.stringify(installedCli, null, 2)}\n`, { mode: 0o600 });
     if (installedPlugin) await writeFile(path.join(privateDir, "installed-daytona-plugin-admission.json"), `${JSON.stringify(installedPlugin, null, 2)}\n`, { mode: 0o600 });
-    const runnerBinary = installedCli ? undefined : resolvePaperclipRunnerBinaryForHarness(
+    const runnerBinary = installedCli ? undefined : resolveOutpostRunnerBinaryForHarness(
       executions,
       repositoryRoot,
     );
     const agentFilesystemSandbox = agentFilesystemSandboxConfig({
       platform: process.platform, env: process.env, executions, repositoryRoot, temporaryRoot, privateDir,
       evidenceRoot: manualPrivateHandoff?.root, installedRelease: Boolean(installedCli),
-      instanceRoot: path.join(paperclipHome, "instances", instanceId),
+      instanceRoot: path.join(outpostHome, "instances", instanceId),
     });
     // Playwright's default cache holds compiled graders in the shared /tmp.
     if (sandboxedAgents) await rm(defaultPlaywrightCacheDirectory(), { recursive: true, force: true });
@@ -623,7 +623,7 @@ async function runAttempt(input: {
       OUTPOST_RUNNER_E2E_SERVER_LOG: path.join(temporaryRoot, "artifacts-private", "server.log"),
       OUTPOST_RUNNER_BINARY: runnerBinary,
       OUTPOST_RUNNER_REMOTE_BINARY_PATH:
-        installedCli ? undefined : resolvePaperclipRemoteRunnerBinaryForHarness(executions, runnerBinary),
+        installedCli ? undefined : resolveOutpostRemoteRunnerBinaryForHarness(executions, runnerBinary),
       // Vite's optimized dependency cache embeds revision query strings. A
       // private per-attempt cache prevents an earlier cell or local rebuild
       // from producing `504 Outdated Optimize Dep` during browser bootstrap.
@@ -636,7 +636,7 @@ async function runAttempt(input: {
           ),
         ),
       ),
-      OUTPOST_HOME: paperclipHome,
+      OUTPOST_HOME: outpostHome,
       OUTPOST_INSTANCE_ID: instanceId,
       OUTPOST_CONFIG: configPath,
       OUTPOST_AGENT_JWT_SECRET: agentJwtSecret,
@@ -690,7 +690,7 @@ async function runAttempt(input: {
       // This is private setup evidence, never a successful provider case/result.
       await cp(privateDir, path.join(proofDir, "private"), { recursive: true });
       const probe = JSON.parse(await readFile(path.join(privateDir, "installed-startup-only.json"), "utf8"));
-      if (processResult.exitCode !== 0 || processResult.timedOut || processResult.spawnError || processCleanupFailed || probe.status !== "health_ui_zero_company_passed" || probe.providerCalls !== 0 || probe.qualified !== false) throw new Error("Installed startup-only actual launch chain failed");
+      if (processResult.exitCode !== 0 || processResult.timedOut || processResult.spawnError || processCleanupFailed || probe.status !== "health_ui_zero_space_passed" || probe.providerCalls !== 0 || probe.qualified !== false) throw new Error("Installed startup-only actual launch chain failed");
       await assertRunnerDatabaseIsolation(configPath, temporaryRoot, dockerDatabase?.filename);
       startupReceiptPath = path.join(proofDir, "receipt.json");
       await writeFile(startupReceiptPath, `${JSON.stringify({ status: "installed_launch_chain_pending_scratch_cleanup", qualified: false, providerCalls: 0, credentialsLoaded: false, installedCli, processResult, probe }, null, 2)}\n`, { mode: 0o600 });
@@ -762,7 +762,7 @@ async function runAttempt(input: {
       try {
         const expectedEphemeralCredentials = new Set<string>();
         for (const [label, directory] of [
-          ["Paperclip home", paperclipHome],
+          ["Outpost home", outpostHome],
           ["workspace", workspace],
         ] as const) {
           while (true) {
@@ -770,20 +770,20 @@ async function runAttempt(input: {
             // fixtures with fake `sk-*` strings. Reject exact campaign credentials.
             const leak = await findSecretLeakInPersistedState(directory, credentials, productDeliveredCredentials, {
               includeShapes: false,
-              ...(label === "Paperclip home" ? { productStateRoot: paperclipHome } : {}),
+              ...(label === "Outpost home" ? { productStateRoot: outpostHome } : {}),
               sources: credentialSources,
-              ...(label === "Paperclip home" ? { privateCodexRuntimeIdentityRoot: paperclipHome,
+              ...(label === "Outpost home" ? { privateCodexRuntimeIdentityRoot: outpostHome,
                 ...(dockerDatabase ? { privateDockerDatabaseConfig: { temporaryRoot, configPath, receiptPath: dockerDatabase.filename } } : {}),
               } : {}),
               ignoreFile: (file) => expectedEphemeralCredentials.has(file),
               allowDisappearedFile: (file) =>
-                label === "Paperclip home" &&
-                isEphemeralPostgresScanFile(paperclipHome, file),
+                label === "Outpost home" &&
+                isEphemeralPostgresScanFile(outpostHome, file),
             });
             if (!leak) break;
             const isManagedCodexRuntimeAuth =
-              label === "Paperclip home" &&
-              isEphemeralCodexRuntimeAuthFile(paperclipHome, leak.file);
+              label === "Outpost home" &&
+              isEphemeralCodexRuntimeAuthFile(outpostHome, leak.file);
             if (isManagedCodexRuntimeAuth) {
               const metadata = await lstat(leak.file);
               if (metadata.isFile() && (metadata.mode & 0o777) === 0o600) {

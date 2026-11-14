@@ -9,7 +9,7 @@ import type { AgentAdapterType } from "@outpost/shared";
 // fake returns a fixed environment and records the lease-metadata tag write.
 const mockEnvironmentService = vi.hoisted(() => ({
   getById: vi.fn(),
-  listBoundCompanyIds: vi.fn(async () => []),
+  listBoundSpaceIds: vi.fn(async () => []),
   updateLeaseMetadata: vi.fn(),
 }));
 
@@ -43,7 +43,7 @@ function fakeWorkerSession() {
 // acquires the lease. The tests set the server-controlled session home.
 function makeBinding(overrides: Partial<LoginPtySessionBinding> = {}): LoginPtySessionBinding {
   return {
-    companyId: "company-1",
+    spaceId: "space-1",
     environmentId: "env-1",
     adapterType: "codex_local" as AgentAdapterType,
     providerLeaseId: "provider-lease-9",
@@ -78,7 +78,7 @@ describe("createWorkerBoundLoginPtyOpener", () => {
     expect(pluginId).toBe("outpost.daytona");
     expect(input).toMatchObject({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "provider-lease-9",
       loginCommandKey: "codex",
@@ -119,7 +119,7 @@ describe("createWorkerBoundLoginPtyOpener", () => {
 describe("createProductionLoginSessionRuntime lease-acquisition gate", () => {
   const acquireInput = {
     expiresAt: new Date(Date.now() + 60_000),
-    companyId: "company-1",
+    spaceId: "space-1",
     environmentId: "env-1",
     adapterType: "codex_local" as AgentAdapterType,
     startedByUserId: "user-a",
@@ -196,7 +196,7 @@ describe("createProductionLoginSessionRuntime lease-acquisition gate", () => {
 describe("production device-login provider deadline", () => {
   const deadline = new Date(Date.now() + 60_000);
   const input = {
-    companyId: "company-1", environmentId: "env-1", adapterType: "codex_local" as AgentAdapterType,
+    spaceId: "space-1", environmentId: "env-1", adapterType: "codex_local" as AgentAdapterType,
     startedByUserId: "user-a", expiresAt: deadline,
   };
 

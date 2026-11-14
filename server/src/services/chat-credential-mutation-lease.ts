@@ -38,7 +38,7 @@ export function chatCredentialMutationLease(db: Db, options: Pick<ChatChannelSer
       const inserted = await db
         .insert(chatEndpointLeases)
         .values({
-          companyId: endpoint.companyId,
+          spaceId: endpoint.spaceId,
           endpointId: endpoint.id,
           leaseKey,
           token,
@@ -52,7 +52,7 @@ export function chatCredentialMutationLease(db: Db, options: Pick<ChatChannelSer
         .set({ token, expiresAt, updatedAt: now })
         .where(
           and(
-            eq(chatEndpointLeases.companyId, endpoint.companyId),
+            eq(chatEndpointLeases.spaceId, endpoint.spaceId),
             eq(chatEndpointLeases.endpointId, endpoint.id),
             eq(chatEndpointLeases.leaseKey, leaseKey),
             lte(chatEndpointLeases.expiresAt, now),
@@ -100,7 +100,7 @@ export function chatCredentialMutationLease(db: Db, options: Pick<ChatChannelSer
       try {
         const owned = options.renewCredentialMutationLease
           ? await options.renewCredentialMutationLease({
-              companyId: endpoint.companyId,
+              spaceId: endpoint.spaceId,
               endpointId: endpoint.id,
               expiresAt,
               leaseKey: lease.leaseKey,
@@ -112,7 +112,7 @@ export function chatCredentialMutationLease(db: Db, options: Pick<ChatChannelSer
                 .set({ expiresAt, updatedAt: now })
                 .where(
                   and(
-                    eq(chatEndpointLeases.companyId, endpoint.companyId),
+                    eq(chatEndpointLeases.spaceId, endpoint.spaceId),
                     eq(chatEndpointLeases.endpointId, endpoint.id),
                     eq(chatEndpointLeases.leaseKey, lease.leaseKey),
                     eq(chatEndpointLeases.token, lease.token),
@@ -180,7 +180,7 @@ export function chatCredentialMutationLease(db: Db, options: Pick<ChatChannelSer
         .delete(chatEndpointLeases)
         .where(
           and(
-            eq(chatEndpointLeases.companyId, endpoint.companyId),
+            eq(chatEndpointLeases.spaceId, endpoint.spaceId),
             eq(chatEndpointLeases.endpointId, endpoint.id),
             eq(chatEndpointLeases.leaseKey, lease.leaseKey),
             eq(chatEndpointLeases.token, lease.token),

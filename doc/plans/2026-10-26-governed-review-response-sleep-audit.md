@@ -35,7 +35,7 @@ issue_thread_interactions review gate. No new queue table is needed.
   its behavior unless the scheduler owns that call explicitly.
 
 Receipt semantics: `hasMaterializedNativeReviewResponse` recognizes an agent
-comment for the exact company/task/run with the presentation authorization reason
+comment for the exact space/task/run with the presentation authorization reason
 and matching current decision proof. Soft-deleted comments remain receipts.
 Restoration already avoids rewriting identical metadata or signaling another
 wake. Preserve those properties.
@@ -74,7 +74,7 @@ compatible with addComment's nonblocking recheck. Do not conflate authorization
 denial with operational errors. Preserve deleted receipts and idempotent replay.
 
 Measure discovery with selected history and a large unpresented backlog. Slice
-48 showed why per-page limits do not make a company-wide reconstruction cheap.
+48 showed why per-page limits do not make a space-wide reconstruction cheap.
 Normal run writes must retain task/run scope; broad reloads are reserved for
 changes whose authority can actually affect the broader scope.
 
@@ -99,7 +99,7 @@ Concrete gaps found in this audit:
   not governed-response recovery. Resolving or unlinking a competing linked
   approval can make an existing proof eligible. Audit approve/reject/revise,
   resubmit, link/unlink, bulk linking, retention, and alternative writers. Prefer
-  an approval identity/task scope over company-wide reconstruction.
+  an approval identity/task scope over space-wide reconstruction.
 - The proof rejects *any* competing pending interaction, while current milestone
   notifications often apply only to questions and confirmations. Resolving a
   connection intent or another kind may restore eligibility. Inventory common
@@ -149,7 +149,7 @@ has happened yet.
 
 The unchanged owner baseline passed 156 cases. The first expanded run passed
 164 of 165; the new principal-revocation fixture incorrectly wrote a nonexistent
-principal status field, also caught by typechecking. Using the existing company
+principal status field, also caught by typechecking. Using the existing space
 membership suspension path repaired the fixture. The complete expanded suite now
 passes all 165 cases and server typecheck passes. Evidence:
 `/tmp/sleep49-baseline.log`, `/tmp/sleep49-contract-tests.log`,
@@ -167,10 +167,10 @@ Approval resolution, cancellation, revision/resubmission, link/unlink and bulk
 link now pass their existing approval/task identity through writeApprovalChange.
 The notification owner finds linked tasks before the mutation and registers only
 those task scopes. Budget resolution supplies its approval identity inside the
-existing accounting transaction. Creation without a task link and company-wide
+existing accounting transaction. Creation without a task link and space-wide
 retention notifications retain their previous behavior and do not reload response
 history. No additional transaction wrapper or approval execution policy was added.
-All production approval updates/deletes were inventoried; company deletion leaves
+All production approval updates/deletes were inventoried; space deletion leaves
 no surviving response obligation. Tool-gateway's separate link insertion still
 needs its explicit task scope during the remaining producer pass.
 
@@ -202,7 +202,7 @@ existing lifecycle pre-status-write hook now signals this worker when an agent
 becomes invokable. Existing task/run milestones and finalization writes also
 fan out to the new topic. The finalization scope accepts an optional issueId so
 issue-wide pending-effect settlement can target its affected task instead of
-reloading all governed responses in the company. Existing pending-effect delivery
+reloading all governed responses in the space. Existing pending-effect delivery
 retains its previous topic semantics. The tool gateway's separate approval link
 insertion now supplies its known issue identity.
 
@@ -261,7 +261,7 @@ remain pending and do not wake this worker. Existing policy remains authoritativ
 the attempted task-assignment restoration was rejected because externally bound
 tasks cannot be reassigned through issueService. Its test now verifies that
 restriction rather than bypassing it. Endpoint/identity configuration already
-uses the company milestone boundary for supported authority restoration.
+uses the space milestone boundary for supported authority restoration.
 
 Current evidence: all 180 owner cases pass, including OAuth outer rollback/commit,
 plus 106 interaction service, nine telemetry, 50 satisfied-connection, and 84
@@ -286,7 +286,7 @@ covered interaction service. Native interaction audit records change summaries
 only. Superseded native review retirement commits with a task-scoped native status
 decision. Tool-review projection and secret-proposal settlement already signal
 task milestones. Board claim and trusted-header membership restoration also
-signal existing company milestones; compatibility membership backfill is agent
+signal existing space milestones; compatibility membership backfill is agent
 only. No new global live-authority registration dependency was found in governed
 review authorization, which reads its durable binding/principal/destination proof.
 
@@ -307,10 +307,10 @@ retry release; server types pass. Evidence: /tmp/sleep49-policy-before.log,
 Discovery was measured against 10,000 cloned, already-presented governed response
 rows plus retained test history. The clones preserve relational selection shape;
 they are not valid authorization proofs and are never used to test publication.
-Initial startup/company reconstruction took about 3,000 ms: receipt lookup scanned
-roughly 4,795 unrelated comments per candidate. A company-first receipt index and
+Initial startup/space reconstruction took about 3,000 ms: receipt lookup scanned
+roughly 4,795 unrelated comments per candidate. A space-first receipt index and
 expression statistics did not reliably fix startup's plan. A run-first partial
-receipt index alone reduced measured startup to 45 ms, company/task discovery to
+receipt index alone reduced measured startup to 45 ms, space/task discovery to
 33–35 ms and exact-run discovery to 1.5 ms. No expression statistics are retained.
 The generated migration builds that index concurrently and preserves deleted
 comments as receipts. These are local query measurements, not host sleep evidence.
@@ -370,13 +370,13 @@ commit and wake recovery while the approval was still pending, and resolution
 could then commit without any task-scoped notification. Parking pending responses
 without polling makes that ordering observable as an indefinitely missing reply.
 
-The existing approval notification owner now locks the company-scoped approval
+The existing approval notification owner now locks the space-scoped approval
 row `FOR UPDATE` before discovering linked tasks. Existing `issue_approvals`
 foreign-key checks hold `KEY SHARE` on that same row until their outer transaction
 settles. If linking wins, resolution waits and then discovers the committed link.
 If resolution wins, linking waits and its own task wake observes the committed
 decision. Both cases use the existing transaction signal and durable records.
-There is no new table, timer, wrapper at each caller, or company-wide discovery.
+There is no new table, timer, wrapper at each caller, or space-wide discovery.
 This adds one primary-key lookup/row lock to approval-identity mutations; task-only
 link notifications and unlinked approval creation keep their existing cost.
 
@@ -384,7 +384,7 @@ The writer audit covers single/bulk issue linking and the gateway's separate
 formal-approval link insertion, all using the existing immediate foreign key.
 Approval decisions, cancellation, revision/resubmission, and budget resolution
 already supply the approval identity through this owner. Hire decisions retain
-company-before-approval ordering; budget decisions retain their accounting
+space-before-approval ordering; budget decisions retain their accounting
 transaction. Unlink carries the removed task identity explicitly. The lock stays
 owned by the outer transaction, and errors retain rollback/normal error handling.
 This contract uses the application's read-committed write transactions and
@@ -453,7 +453,7 @@ Tested source `320146c29489bb1f7308422981fa946b6a3d3368` passes **2828 distinct
 cases across 37 complete files and one focused chat file**. The main selection
 passes 2399 cases in 272.11 seconds; safe replacement passes 59 in 26.04
 seconds; all 270 governed external-chat wait cases pass in 53.07 seconds; the
-complete CLI company import/export E2E passes its real child-server journey in
+complete CLI space import/export E2E passes its real child-server journey in
 13.31 seconds. The focused chat selection passes 39 in 40.41 seconds; 1760
 other chat cases are outside its name pattern and are not claimed. The main
 invocation initially skips two approval files (60 cases) because their external
@@ -463,7 +463,7 @@ already-passing suites. The original skipped output remains retained. Counts:
 
 | File | Passing cases |
 | --- | ---: |
-| cli/src/__tests__/company-import-export-e2e.test.ts | 1 |
+| cli/src/__tests__/space-import-export-e2e.test.ts | 1 |
 | server/src/__tests__/approval-queue-seeding-work.test.ts | 28 |
 | server/src/__tests__/approval-retention-work.test.ts | 32 |
 | server/src/__tests__/approvals-service.test.ts | 8 |
@@ -500,7 +500,7 @@ already-passing suites. The original skipped output remains retained. Counts:
 | server/src/services/native-runtime/native-session-executor.test.ts | 968 |
 | server/src/services/native-runtime/native-workspace-export-retry.test.ts | 80 |
 | server/src/services/native-runtime/native-workspace-reconstruction.test.ts | 50 |
-| server/src/services/native-runtime/paperclip-control-plane-port.test.ts | 55 |
+| server/src/services/native-runtime/outpost-control-plane-port.test.ts | 55 |
 
 The complete 94-case status-authority corpus also passes again on the same
 database. The repeat is not double-counted. Retained PSC/OUT/sentinel rows
@@ -519,7 +519,7 @@ source during validation. All 38 selected committed files match the pre-run
 hashes after fixture restoration. The comment cleanup has token identity proof.
 
 A populated 0412-to0413 upgrade preserves all 411 prior receipts and all
-38 companies, appends exactly one receipt, and adds none on replay. The
+38 spaces, appends exactly one receipt, and adds none on replay. The
 receipt index is valid and ready on fresh and upgraded databases. The
 preexisting response-selection statistic is retained. Earlier failed checks
 and restricted retries above keep their original scope. The first local
@@ -538,7 +538,7 @@ suspension, external Cloud alarm delivery or fleet savings.
 Source `2341714720b5c273f0ce011b48345af0ef39227f` inherits the published
 parent `ef6cb73777f0c31e3622d23d039d702b2fc08263` through a normal merge.
 Both response queues now require an issue or run on ordinary milestone and
-finalization notifications. The explicit company authority boundary invalidates
+finalization notifications. The explicit space authority boundary invalidates
 both workers globally, preserving actual membership/configuration restoration.
 The real coalesced-input producer test covers both queues after outer commit.
 Existing pending-effects and older chat queue payloads remain unchanged.
@@ -590,7 +590,7 @@ three concurrent attention assertions cause exactly one hint and one SELECT,
 then return to quiet. The finding was resolved with that evidence and its
 current-head security check became successful. No production change was needed.
 The regression is retained here and covers both response workers with real
-Paperclip callbacks and PostgreSQL; the external Photon transport is mocked.
+Outpost callbacks and PostgreSQL; the external Photon transport is mocked.
 The complete 22-case Photon file passes on this combined source. An earlier
 single-worker 21-case acceptance retains its own parent source scope.
 

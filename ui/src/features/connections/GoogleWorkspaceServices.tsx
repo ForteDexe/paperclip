@@ -60,7 +60,7 @@ export function GoogleWorkspaceServicesDialog(props: DialogProps) {
       : grant.kind === "organization");
   const savedScopes = existing?.status === "draft"
     ? googleWorkspaceDraftRequestedScopes(existing.config?.workspaceSetup, {
-      companyId: existing.companyId, connectionId: existing.id,
+      spaceId: existing.spaceId, connectionId: existing.id,
       actorType: "user", actorId: grants.data?.currentUserId ?? null,
       grantKind: existing.credentialPolicy === "per_user" ? "user" : existing.credentialPolicy === "per_agent" ? "agent" : "organization",
       subjectId: existing.credentialPolicy === "per_user" ? grants.data?.currentUserId ?? null

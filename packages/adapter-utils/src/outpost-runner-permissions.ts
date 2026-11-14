@@ -1,11 +1,11 @@
-export type PaperclipRunnerProvider =
+export type OutpostRunnerProvider =
   "codex" | "opencode" | "claude_managed" | "aws_agentcore" | "acpx" | "openai_dot" | "grok_bot" | "muse" | "cursor_cloud";
 
 export type CodexPermissionMode = "never" | "on-request" | "untrusted";
 export type OpenCodePermissionMode = "allow" | "ask" | "deny";
-export type AcpxPermissionMode = "approve-all" | "approve-paperclip" | "approve-reads" | "deny-all";
+export type AcpxPermissionMode = "approve-all" | "approve-outpost" | "approve-reads" | "deny-all";
 
-export type PaperclipRunnerPermissionMode =
+export type OutpostRunnerPermissionMode =
   CodexPermissionMode | OpenCodePermissionMode | AcpxPermissionMode;
 
 export const OUTPOST_RUNNER_IDLE_TIMEOUT_DEFAULT_MS = 300_000;
@@ -16,7 +16,7 @@ export const OUTPOST_RUNNER_DEFAULT_MODELS = {
   opencode: "openrouter/deepseek/deepseek-v4-flash-0731",
 } as const;
 
-export interface PaperclipRunnerPermissionOption<
+export interface OutpostRunnerPermissionOption<
   TMode extends string = string,
 > {
   value: TMode;
@@ -24,13 +24,13 @@ export interface PaperclipRunnerPermissionOption<
   description: string;
 }
 
-export type PaperclipRunnerPermissionCapability =
+export type OutpostRunnerPermissionCapability =
   | {
       configurable: true;
       configKey:
         "codexPermissionMode" | "opencodePermissionMode" | "acpxPermissionMode";
-      defaultMode: PaperclipRunnerPermissionMode;
-      options: readonly PaperclipRunnerPermissionOption<PaperclipRunnerPermissionMode>[];
+      defaultMode: OutpostRunnerPermissionMode;
+      options: readonly OutpostRunnerPermissionOption<OutpostRunnerPermissionMode>[];
       description: string;
     }
   | {
@@ -106,7 +106,7 @@ export const OUTPOST_RUNNER_PERMISSION_CAPABILITIES = {
   grok_bot: { configurable: false, defaultMode: "provider-managed", options: [], description: "Grok Bot uses first-party Outpost tools and retains its native apps. Grok manages its model; spending, live steering, provider transcript streaming and remote interruption are unavailable." },
   muse: { configurable: false, defaultMode: "provider-managed", options: [], description: "Muse uses the admitted Outpost tool catalog and its own approved tools. Provider usage is unavailable and remote stop is best effort." },
   openai_dot: { configurable: false, defaultMode: "provider-managed", options: [], description: "Dot uses the admitted Outpost tool catalog. OpenAI manages its model and other tools; provider usage and global interruption are unavailable." },
-  cursor_cloud: { configurable: false, defaultMode: "provider-managed", options: [], description: "Cursor manages commands and files in its cloud environment. Assigned Outpost tools retain company permissions. Provider command approvals and verified model identity are unavailable." },
+  cursor_cloud: { configurable: false, defaultMode: "provider-managed", options: [], description: "Cursor manages commands and files in its cloud environment. Assigned Outpost tools retain space permissions. Provider command approvals and verified model identity are unavailable." },
   acpx: {
     configurable: true,
     configKey: "acpxPermissionMode",
@@ -120,7 +120,7 @@ export const OUTPOST_RUNNER_PERMISSION_CAPABILITIES = {
         description: "Approve ACPX operations without approval pauses.",
       },
       {
-        value: "approve-paperclip",
+        value: "approve-outpost",
         label: "Automatic Outpost actions",
         description:
           "Automatically run assigned Outpost planning and task tools, including reassignment. Outpost permissions and approval requirements still apply. Other operations require permission.",
@@ -139,13 +139,13 @@ export const OUTPOST_RUNNER_PERMISSION_CAPABILITIES = {
     ],
   },
 } as const satisfies Record<
-  PaperclipRunnerProvider,
-  PaperclipRunnerPermissionCapability
+  OutpostRunnerProvider,
+  OutpostRunnerPermissionCapability
 >;
 
-export function isPaperclipRunnerProvider(
+export function isOutpostRunnerProvider(
   value: unknown,
-): value is PaperclipRunnerProvider {
+): value is OutpostRunnerProvider {
   return (
     value === "codex" ||
     value === "opencode" ||
@@ -155,19 +155,19 @@ export function isPaperclipRunnerProvider(
   );
 }
 
-export function resolvePaperclipRunnerPermissionMode(
-  provider: PaperclipRunnerProvider,
+export function resolveOutpostRunnerPermissionMode(
+  provider: OutpostRunnerProvider,
   value: unknown,
-): PaperclipRunnerPermissionMode | "provider-managed" {
+): OutpostRunnerPermissionMode | "provider-managed" {
   const capability = OUTPOST_RUNNER_PERMISSION_CAPABILITIES[provider];
   if (!capability.configurable) return capability.defaultMode;
   return capability.options.some((option) => option.value === value)
-    ? (value as PaperclipRunnerPermissionMode)
+    ? (value as OutpostRunnerPermissionMode)
     : capability.defaultMode;
 }
 
 /** Native session behavior is independent of tool permission policy. */
-export function resolvePaperclipRunnerCursorMode(
+export function resolveOutpostRunnerCursorMode(
   provider: unknown,
   agent: unknown,
   value: unknown,
@@ -181,7 +181,7 @@ export function resolvePaperclipRunnerCursorMode(
   throw new Error("Cursor session mode must be agent, plan, or ask");
 }
 
-export function resolvePaperclipRunnerModel(
+export function resolveOutpostRunnerModel(
   provider: keyof typeof OUTPOST_RUNNER_DEFAULT_MODELS,
   value: unknown,
 ): string {
@@ -190,7 +190,7 @@ export function resolvePaperclipRunnerModel(
     : OUTPOST_RUNNER_DEFAULT_MODELS[provider];
 }
 
-export function resolvePaperclipRunnerIdleTimeoutMs(value: unknown): number {
+export function resolveOutpostRunnerIdleTimeoutMs(value: unknown): number {
   return typeof value === "number" &&
     Number.isSafeInteger(value) &&
     value > 0 &&
@@ -204,13 +204,13 @@ export function resolvePaperclipRunnerIdleTimeoutMs(value: unknown): number {
  * default (warm on a local target for Codex and OpenCode; per-turn for Claude
  * until its follow-up relaunch is removed). Others keep an explicit per_turn.
  */
-export function paperclipRunnerFollowsLifecycleDefault(config: Record<string, unknown>): boolean {
+export function outpostRunnerFollowsLifecycleDefault(config: Record<string, unknown>): boolean {
   return config.provider === "codex" || config.provider === "opencode"
     || (config.provider === "acpx" && config.acpxAgent === "claude");
 }
 
 /** Defaults for converting a local adapter; the operator may override the provider. */
-export function paperclipRunnerTransitionConfig(
+export function outpostRunnerTransitionConfig(
   previousAdapterType: string,
   previousModel: unknown,
   providerOverride?: unknown,
@@ -236,7 +236,7 @@ export function paperclipRunnerTransitionConfig(
       ? typeof previousModel === "string" && previousModel.trim() && previousModel.trim() !== "grok-build" ? previousModel.trim() : "grok-4.7"
       : provider === "acpx" && previousAdapterType === "pi_local"
       ? typeof previousModel === "string" ? previousModel.trim() : ""
-      : resolvePaperclipRunnerModel(
+      : resolveOutpostRunnerModel(
       provider,
       provider === previousProvider ? previousModel : undefined,
     ),
@@ -244,7 +244,7 @@ export function paperclipRunnerTransitionConfig(
     [OUTPOST_RUNNER_PERMISSION_CAPABILITIES[provider].configKey]:
       OUTPOST_RUNNER_PERMISSION_CAPABILITIES[provider].defaultMode,
   };
-  return paperclipRunnerFollowsLifecycleDefault(converted) ? converted : { ...converted, lifecycleMode: "per_turn" };
+  return outpostRunnerFollowsLifecycleDefault(converted) ? converted : { ...converted, lifecycleMode: "per_turn" };
 }
 
 /** Old ACPX Codex agent settings use native Codex on their next configuration write. */
@@ -272,8 +272,8 @@ export const OUTPOST_RUNNER_ACPX_PROFILES = Object.freeze([
 ] as const);
 
 /** Exact Pi native thinking levels; aliases that silently clamp are not configuration. */
-export type PaperclipRunnerPiThinkingLevel = "off" | "low" | "high" | "max";
-export function resolvePaperclipRunnerPiThinkingLevel(provider: unknown, agent: unknown, value: unknown): PaperclipRunnerPiThinkingLevel | undefined {
+export type OutpostRunnerPiThinkingLevel = "off" | "low" | "high" | "max";
+export function resolveOutpostRunnerPiThinkingLevel(provider: unknown, agent: unknown, value: unknown): OutpostRunnerPiThinkingLevel | undefined {
   if (provider !== "acpx" || agent !== "pi") {
     if (value !== undefined) throw new Error("piThinkingLevel is supported only for Pi");
     return undefined;

@@ -15,7 +15,7 @@ import {
 import { useAgentEnvironmentSlots } from "@/plugins/useAgentEnvironmentSlots";
 import { usePluginSlots } from "@/plugins/slots";
 import { agentsApi } from "@/api/agents";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { ContextualSidebarFrame } from "./ContextualSidebarFrame";
 import { SidebarNavItem } from "./SidebarNavItem";
@@ -51,16 +51,16 @@ export function AgentContextualSidebar({
   agentName?: string;
   labels?: Partial<Record<AgentLocalDetailView, string>>;
 }) {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const shouldResolveAgent = !agentId || !agentName;
   const { data: resolvedAgent } = useQuery({
-    queryKey: [...queryKeys.agents.detail(agentRef), selectedCompanyId ?? null, "contextual-sidebar"],
-    queryFn: () => agentsApi.get(agentRef, selectedCompanyId ?? undefined),
-    enabled: shouldResolveAgent && Boolean(agentRef && selectedCompanyId),
+    queryKey: [...queryKeys.agents.detail(agentRef), selectedSpaceId ?? null, "contextual-sidebar"],
+    queryFn: () => agentsApi.get(agentRef, selectedSpaceId ?? undefined),
+    enabled: shouldResolveAgent && Boolean(agentRef && selectedSpaceId),
   });
   const resolvedId = agentId ?? resolvedAgent?.id;
-  const { slots: declaredTabs } = usePluginSlots({ slotTypes: ["detailTab"], entityType: "agent", companyId: resolvedAgent?.companyId ?? selectedCompanyId, enabled: Boolean(resolvedId) });
-  const { slots: pluginTabs } = useAgentEnvironmentSlots(declaredTabs, resolvedId, resolvedAgent?.companyId ?? selectedCompanyId);
+  const { slots: declaredTabs } = usePluginSlots({ slotTypes: ["detailTab"], entityType: "agent", spaceId: resolvedAgent?.spaceId ?? selectedSpaceId, enabled: Boolean(resolvedId) });
+  const { slots: pluginTabs } = useAgentEnvironmentSlots(declaredTabs, resolvedId, resolvedAgent?.spaceId ?? selectedSpaceId);
   const resolvedName = agentName ?? resolvedAgent?.name ?? "Agent";
 
   return (

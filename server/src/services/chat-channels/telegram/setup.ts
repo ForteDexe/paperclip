@@ -62,7 +62,7 @@ export function createTelegramSetup(db: Db, options: TelegramSetupOptions) {
                 "my_chat_member",
               ],
               // A first-time connection may inherit stale updates from a bot
-              // that was used before Paperclip owned it. Reconnect is
+              // that was used before Outpost owned it. Reconnect is
               // different: Telegram may be holding legitimate updates while
               // the old callback URL is unavailable. Preserve that backlog
               // even when an operator is rotating the public origin.

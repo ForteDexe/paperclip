@@ -50,11 +50,11 @@ function sourceKey(sourceKind: string, sourceId: string) {
 
 function canonicalManifest(manifest: readonly AttentionArchiveManifestEntry[]) {
   return [...manifest].sort((left, right) => {
-    const leftKey = `${left.companyId}:${left.sourceKind}:${left.sourceId}`;
-    const rightKey = `${right.companyId}:${right.sourceKind}:${right.sourceId}`;
+    const leftKey = `${left.spaceId}:${left.sourceKind}:${left.sourceId}`;
+    const rightKey = `${right.spaceId}:${right.sourceKind}:${right.sourceId}`;
     return leftKey.localeCompare(rightKey);
   }).map((entry) => ({
-    companyId: entry.companyId,
+    spaceId: entry.spaceId,
     sourceKind: entry.sourceKind,
     sourceId: entry.sourceId,
     expectedVersion: entry.expectedVersion,
@@ -78,7 +78,7 @@ function archiveActorColumns(actor: DecisionMutationActor) {
 
 async function resolveOrigin(
   db: Db,
-  companyId: string,
+  spaceId: string,
   sourceKind: AttentionSourceKind,
   sourceId: string,
 ) {
@@ -87,27 +87,27 @@ async function resolveOrigin(
   if (sourceKind === "approval") {
     const row = await db.select({ agentId: approvals.requestedByAgentId, issueId: issueApprovals.issueId })
       .from(approvals)
-      .leftJoin(issueApprovals, and(eq(issueApprovals.companyId, companyId), eq(issueApprovals.approvalId, approvals.id)))
-      .where(and(eq(approvals.companyId, companyId), eq(approvals.id, sourceId)))
+      .leftJoin(issueApprovals, and(eq(issueApprovals.spaceId, spaceId), eq(issueApprovals.approvalId, approvals.id)))
+      .where(and(eq(approvals.spaceId, spaceId), eq(approvals.id, sourceId)))
       .then((rows) => rows[0] ?? null);
     originAgentId = row?.agentId ?? null;
     originIssueId = row?.issueId ?? null;
   } else if (sourceKind === "decision") {
     const row = await db.select({ agentId: decisions.originAgentId, issueId: decisions.originIssueId })
-      .from(decisions).where(and(eq(decisions.companyId, companyId), eq(decisions.id, sourceId)))
+      .from(decisions).where(and(eq(decisions.spaceId, spaceId), eq(decisions.id, sourceId)))
       .then((rows) => rows[0] ?? null);
     originAgentId = row?.agentId ?? null;
     originIssueId = row?.issueId ?? null;
   } else if (sourceKind === "issue_thread_interaction") {
     const row = await db.select({ agentId: issueThreadInteractions.createdByAgentId, issueId: issueThreadInteractions.issueId })
       .from(issueThreadInteractions)
-      .where(and(eq(issueThreadInteractions.companyId, companyId), eq(issueThreadInteractions.id, sourceId)))
+      .where(and(eq(issueThreadInteractions.spaceId, spaceId), eq(issueThreadInteractions.id, sourceId)))
       .then((rows) => rows[0] ?? null);
     originAgentId = row?.agentId ?? null;
     originIssueId = row?.issueId ?? null;
   } else if (sourceKind === "failed_run") {
     const row = await db.select({ agentId: heartbeatRuns.agentId, context: heartbeatRuns.contextSnapshot })
-      .from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, sourceId)))
+      .from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, sourceId)))
       .then((rows) => rows[0] ?? null);
     const context = row?.context && typeof row.context === "object" ? row.context as Record<string, unknown> : {};
     originAgentId = row?.agentId ?? null;
@@ -115,12 +115,12 @@ async function resolveOrigin(
   } else {
     const issueId = sourceKind === "recovery_action"
       ? await db.select({ issueId: issueRecoveryActions.sourceIssueId }).from(issueRecoveryActions)
-        .where(and(eq(issueRecoveryActions.companyId, companyId), eq(issueRecoveryActions.id, sourceId)))
+        .where(and(eq(issueRecoveryActions.spaceId, spaceId), eq(issueRecoveryActions.id, sourceId)))
         .then((rows) => rows[0]?.issueId ?? null)
       : (["productivity_review", "blocker_attention", "review"] as string[]).includes(sourceKind) ? sourceId : null;
     if (issueId) {
       const row = await db.select({ agentId: issues.createdByAgentId, issueId: issues.id }).from(issues)
-        .where(and(eq(issues.companyId, companyId), eq(issues.id, issueId)))
+        .where(and(eq(issues.spaceId, spaceId), eq(issues.id, issueId)))
         .then((rows) => rows[0] ?? null);
       originAgentId = row?.agentId ?? null;
       originIssueId = row?.issueId ?? null;
@@ -128,7 +128,7 @@ async function resolveOrigin(
   }
   if (!originAgentId || !originIssueId) return null;
   const activeAgent = await db.select({ id: agents.id }).from(agents)
-    .where(and(eq(agents.companyId, companyId), eq(agents.id, originAgentId), eq(agents.status, "active")))
+    .where(and(eq(agents.spaceId, spaceId), eq(agents.id, originAgentId), eq(agents.status, "active")))
     .then((rows) => rows[0] ?? null);
   return activeAgent ? { originAgentId, originIssueId } : null;
 }
@@ -137,29 +137,29 @@ export function decisionRetentionService(
   db: Db,
   options: { notifyOriginAgent?: (batch: ArchiveNotificationBatch) => Promise<unknown> } = {},
 ) {
-  async function syncItems(companyId: string, items: readonly RetentionSource[]) {
+  async function syncItems(spaceId: string, items: readonly RetentionSource[]) {
     if (items.length === 0) return new Map<string, DecisionRetentionState>();
     const unique = [...new Map(items.map(item => [itemSourceKey(item), item])).values()];
     return db.transaction(async tx => {
       const select = () => tx.select().from(decisionRetention).where(and(
-        eq(decisionRetention.companyId, companyId),
+        eq(decisionRetention.spaceId, spaceId),
         inArray(decisionRetention.sourceId, unique.map(item => item.subject.id)),
       ));
       let rows = await select();
       const existing = new Set(rows.map(row => sourceKey(row.sourceKind, row.sourceId)));
       const missing = unique.filter(item => !existing.has(itemSourceKey(item)));
       if (missing.length) {
-        for (const item of missing) await notifyRetentionWork(tx, item.sourceKind, { companyId, sourceId: item.subject.id });
+        for (const item of missing) await notifyRetentionWork(tx, item.sourceKind, { spaceId, sourceId: item.subject.id });
         await tx.insert(decisionRetention).values(missing.map(item => ({
-          companyId, sourceKind: item.sourceKind, sourceId: item.subject.id, sourceActivityAt: new Date(item.activityAt),
-        }))).onConflictDoNothing({ target: [decisionRetention.companyId, decisionRetention.sourceKind, decisionRetention.sourceId] });
+          spaceId, sourceKind: item.sourceKind, sourceId: item.subject.id, sourceActivityAt: new Date(item.activityAt),
+        }))).onConflictDoNothing({ target: [decisionRetention.spaceId, decisionRetention.sourceKind, decisionRetention.sourceId] });
         rows = await select();
       }
       const byKey = new Map(rows.map(row => [sourceKey(row.sourceKind, row.sourceId), row]));
       for (const item of unique) {
         const key = itemSourceKey(item), row = byKey.get(key), activityAt = new Date(item.activityAt);
         if (!row || row.sourceActivityAt.getTime() === activityAt.getTime()) continue;
-        await notifyRetentionWork(tx, item.sourceKind, { companyId, sourceId: item.subject.id });
+        await notifyRetentionWork(tx, item.sourceKind, { spaceId, sourceId: item.subject.id });
         const [updated] = await tx.update(decisionRetention).set({
           sourceActivityAt: activityAt, version: sql`${decisionRetention.version} + 1`, updatedAt: new Date(),
         }).where(and(eq(decisionRetention.id, row.id), ne(decisionRetention.sourceActivityAt, activityAt))).returning();
@@ -173,22 +173,22 @@ export function decisionRetentionService(
     return sourceKey(item.sourceKind, item.subject.id);
   }
 
-  async function writeRetention<T>(companyId: string, kind: AttentionSourceKind, sourceId: string, write: (tx: Db) => Promise<T>) {
+  async function writeRetention<T>(spaceId: string, kind: AttentionSourceKind, sourceId: string, write: (tx: Db) => Promise<T>) {
     return db.transaction(async tx => {
-      await notifyRetentionWork(tx, kind, { companyId, sourceId });
+      await notifyRetentionWork(tx, kind, { spaceId, sourceId });
       return write(tx as unknown as Db);
     });
   }
 
-  async function getState(companyId: string, sourceKind: AttentionSourceKind, sourceId: string) {
+  async function getState(spaceId: string, sourceKind: AttentionSourceKind, sourceId: string) {
     return db.select().from(decisionRetention).where(and(
-      eq(decisionRetention.companyId, companyId),
+      eq(decisionRetention.spaceId, spaceId),
       eq(decisionRetention.sourceKind, sourceKind),
       eq(decisionRetention.sourceId, sourceId),
     )).then((rows) => rows[0] ?? null);
   }
 
-  async function materializeSourceState(database: Db, input: { companyId: string; sourceKind: AttentionSourceKind; sourceId: string; authActor: AuthorizationActor; actor: Pick<DecisionMutationActor, "userId"> }) {
+  async function materializeSourceState(database: Db, input: { spaceId: string; sourceKind: AttentionSourceKind; sourceId: string; authActor: AuthorizationActor; actor: Pick<DecisionMutationActor, "userId"> }) {
     const tables: Record<AttentionSourceKind, string> = {
       approval: "approvals", join_request: "join_requests", decision: "decisions",
       issue_thread_interaction: "issue_thread_interactions", recovery_action: "issue_recovery_actions",
@@ -196,52 +196,52 @@ export function decisionRetentionService(
       budget_alert: "budget_incidents", agent_error_alert: "agents",
     };
     const existingState = () => database.select({ id: decisionRetention.id }).from(decisionRetention).where(and(
-      eq(decisionRetention.companyId, input.companyId), eq(decisionRetention.sourceKind, input.sourceKind),
+      eq(decisionRetention.spaceId, input.spaceId), eq(decisionRetention.sourceKind, input.sourceKind),
       eq(decisionRetention.sourceId, input.sourceId),
     )).then(rows => rows[0]);
     if (input.sourceKind === "recovery_action") {
       const [source] = await database.select().from(issueRecoveryActions).where(and(
-        eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, input.sourceId),
+        eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, input.sourceId),
       )).for("update");
       if (!source) throw notFound("Attention source not found");
       if (!await existingState()) {
         const [eligible] = await database.select({ id: issueRecoveryActions.id }).from(issueRecoveryActions)
-          .innerJoin(issues, and(eq(issues.id, issueRecoveryActions.sourceIssueId), eq(issues.companyId, issueRecoveryActions.companyId)))
-          .where(and(eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, source.id),
+          .innerJoin(issues, and(eq(issues.id, issueRecoveryActions.sourceIssueId), eq(issues.spaceId, issueRecoveryActions.spaceId)))
+          .where(and(eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, source.id),
             recoveryActionAttentionCondition(), attentionIssueCondition(false)));
-        if (!eligible || !await canReadDecisionSource(database, input.authActor, input.companyId, input.sourceKind, input.sourceId)) {
+        if (!eligible || !await canReadDecisionSource(database, input.authActor, input.spaceId, input.sourceKind, input.sourceId)) {
           throw notFound("Attention source not found");
         }
       }
-      await decisionRetentionService(database).syncItems(input.companyId, [{
+      await decisionRetentionService(database).syncItems(input.spaceId, [{
         sourceKind: input.sourceKind, subject: { id: source.id }, activityAt: source.updatedAt.toISOString(),
       }]);
       return;
     }
     if (input.sourceKind === "agent_error_alert") {
-      const [source] = await database.select().from(agents).where(and(eq(agents.companyId, input.companyId), eq(agents.id, input.sourceId))).for("update");
+      const [source] = await database.select().from(agents).where(and(eq(agents.spaceId, input.spaceId), eq(agents.id, input.sourceId))).for("update");
       if (!source || (!await existingState() && source.status !== ATTENTION_AGENT_ERROR_STATUS)) throw notFound("Attention source not found");
-      await decisionRetentionService(database).syncItems(input.companyId, [{
+      await decisionRetentionService(database).syncItems(input.spaceId, [{
         sourceKind: input.sourceKind, subject: { id: input.sourceId }, activityAt: source.updatedAt.toISOString(),
       }]);
       return;
     }
     if (["review", "blocker_attention", "productivity_review"].includes(input.sourceKind)) {
-      const [source] = await database.select().from(issues).where(and(eq(issues.companyId, input.companyId), eq(issues.id, input.sourceId))).for("update");
+      const [source] = await database.select().from(issues).where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, input.sourceId))).for("update");
       if (!source) throw notFound("Attention source not found");
       if (!await existingState()) {
         const [visible] = await database.select({ id: issues.id }).from(issues).where(and(
-          eq(issues.companyId, input.companyId), eq(issues.id, source.id), attentionIssueCondition(false),
+          eq(issues.spaceId, input.spaceId), eq(issues.id, source.id), attentionIssueCondition(false),
         ));
         let eligible = false;
         if (visible && input.sourceKind === "review" && source.status === "in_review") {
           const [pendingApproval] = await database.select({ id: approvals.id }).from(issueApprovals)
             .innerJoin(approvals, eq(approvals.id, issueApprovals.approvalId)).where(and(
-              eq(issueApprovals.companyId, input.companyId), eq(approvals.companyId, input.companyId),
+              eq(issueApprovals.spaceId, input.spaceId), eq(approvals.spaceId, input.spaceId),
               eq(issueApprovals.issueId, source.id), eq(approvals.status, "pending"),
             )).limit(1);
           const state = parseIssueExecutionState(source.executionState);
-          const attention = await issueService(database).listReviewAttention(input.companyId, [source]);
+          const attention = await issueService(database).listReviewAttention(input.spaceId, [source]);
           eligible = requiresReviewAttention({
             hasHumanParticipant: state?.status === "pending" && state.currentParticipant?.type === "user",
             hasUserAssignee: Boolean(source.assigneeUserId), hasPendingApproval: Boolean(pendingApproval),
@@ -249,55 +249,55 @@ export function decisionRetentionService(
           });
         } else if (visible && input.sourceKind === "blocker_attention" && source.status === "blocked") {
           const owner = source.unblockDescriptor?.owner;
-          const ownsDescriptor = owner === "board" || (owner && "userId" in owner && owner.userId === input.actor.userId);
-          const attention = (await issueService(database).listBlockerAttention(input.companyId, [source])).get(source.id);
+          const ownsDescriptor = owner === "operator" || (owner && "userId" in owner && owner.userId === input.actor.userId);
+          const attention = (await issueService(database).listBlockerAttention(input.spaceId, [source])).get(source.id);
           eligible = Boolean(ownsDescriptor && isProspectiveBlockedTransition(source))
             || (terminalBlockerRequiresAttention(attention) && (attention.terminalBlockerIssueId ?? source.id) === source.id);
         }
         if (!eligible) throw notFound("Attention source not found");
       }
-      const activityAt = input.sourceKind === "blocker_attention" && source.unblockDescriptor?.owner === "board" && isProspectiveBlockedTransition(source)
+      const activityAt = input.sourceKind === "blocker_attention" && source.unblockDescriptor?.owner === "operator" && isProspectiveBlockedTransition(source)
         ? source.blockedTransitionAt : source.updatedAt;
-      await decisionRetentionService(database).syncItems(input.companyId, [{
+      await decisionRetentionService(database).syncItems(input.spaceId, [{
         sourceKind: input.sourceKind, subject: { id: input.sourceId }, activityAt: activityAt.toISOString(),
       }]);
       return;
     }
     const activity = input.sourceKind === "failed_run" ? sql`coalesce(finished_at, updated_at, created_at)` : sql`updated_at`;
     const [source] = await database.execute(sql`select ${activity} as "activityAt" from ${sql.identifier(tables[input.sourceKind])}
-      where company_id = ${input.companyId}::uuid and id = ${input.sourceId}::uuid for update`) as unknown as Array<{ activityAt: Date | string }>;
+      where space_id = ${input.spaceId}::uuid and id = ${input.sourceId}::uuid for update`) as unknown as Array<{ activityAt: Date | string }>;
     if (!source) throw notFound("Attention source not found");
-    await decisionRetentionService(database).syncItems(input.companyId, [{
+    await decisionRetentionService(database).syncItems(input.spaceId, [{
       sourceKind: input.sourceKind, subject: { id: input.sourceId }, activityAt: new Date(source.activityAt).toISOString(),
     }]);
   }
 
   async function setKeep(input: {
-    companyId: string;
+    spaceId: string;
     sourceKind: AttentionSourceKind;
     sourceId: string;
     keep: boolean;
     authActor: AuthorizationActor;
     actor: DecisionMutationActor;
   }) {
-    if (!(await canReadDecisionSource(db, input.authActor, input.companyId, input.sourceKind, input.sourceId))) {
+    if (!(await canReadDecisionSource(db, input.authActor, input.spaceId, input.sourceKind, input.sourceId))) {
       throw notFound("Attention source not found");
     }
-    const updated = await writeRetention(input.companyId, input.sourceKind, input.sourceId, async tx => {
+    const updated = await writeRetention(input.spaceId, input.sourceKind, input.sourceId, async tx => {
       await materializeSourceState(tx, input);
       return tx.update(decisionRetention).set({
         keep: input.keep,
         version: sql`${decisionRetention.version} + 1`,
         updatedAt: new Date(),
       }).where(and(
-        eq(decisionRetention.companyId, input.companyId),
+        eq(decisionRetention.spaceId, input.spaceId),
         eq(decisionRetention.sourceKind, input.sourceKind),
         eq(decisionRetention.sourceId, input.sourceId),
       )).returning().then((rows) => rows[0] ?? null);
     });
     if (!updated) throw notFound("Attention source not found");
     await logActivity(db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: input.actor.actorType,
       actorId: input.actor.actorId,
       agentId: input.actor.agentId,
@@ -313,18 +313,18 @@ export function decisionRetentionService(
   }
 
   async function changeArchived(input: {
-    companyId: string;
+    spaceId: string;
     sourceKind: AttentionSourceKind;
     sourceId: string;
     archived: boolean;
     authActor: AuthorizationActor;
     actor: DecisionMutationActor;
   }) {
-    if (!(await canReadDecisionSource(db, input.authActor, input.companyId, input.sourceKind, input.sourceId))) {
+    if (!(await canReadDecisionSource(db, input.authActor, input.spaceId, input.sourceKind, input.sourceId))) {
       throw notFound("Attention source not found");
     }
     const now = new Date();
-    const updated = await writeRetention(input.companyId, input.sourceKind, input.sourceId, async tx => {
+    const updated = await writeRetention(input.spaceId, input.sourceKind, input.sourceId, async tx => {
       await materializeSourceState(tx, input);
       return tx.update(decisionRetention).set(input.archived ? {
         archivedAt: now,
@@ -343,19 +343,19 @@ export function decisionRetentionService(
         version: sql`${decisionRetention.version} + 1`,
         updatedAt: now,
       }).where(and(
-        eq(decisionRetention.companyId, input.companyId),
+        eq(decisionRetention.spaceId, input.spaceId),
         eq(decisionRetention.sourceKind, input.sourceKind),
         eq(decisionRetention.sourceId, input.sourceId),
         input.archived ? isNull(decisionRetention.archivedAt) : isNotNull(decisionRetention.archivedAt),
       )).returning().then((rows) => rows[0] ?? null);
     });
     if (!updated) {
-      const current = await getState(input.companyId, input.sourceKind, input.sourceId);
+      const current = await getState(input.spaceId, input.sourceKind, input.sourceId);
       if (!current) throw notFound("Attention source not found");
       return current;
     }
     await logActivity(db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: input.actor.actorType,
       actorId: input.actor.actorId,
       agentId: input.actor.agentId,
@@ -371,27 +371,27 @@ export function decisionRetentionService(
   }
 
   async function archiveReviewedManifest(input: {
-    companyId: string;
+    spaceId: string;
     manifest: AttentionArchiveManifestEntry[];
     originActor: AuthorizationActor;
     decidingActor: AuthorizationActor;
     decidedByUserId: string;
   }) {
     const keys = input.manifest.map((entry) => sourceKey(entry.sourceKind, entry.sourceId));
-    if (new Set(keys).size !== keys.length || input.manifest.some((entry) => entry.companyId !== input.companyId)) {
-      throw unprocessable("Archive manifest must contain one exact company-scoped set");
+    if (new Set(keys).size !== keys.length || input.manifest.some((entry) => entry.spaceId !== input.spaceId)) {
+      throw unprocessable("Archive manifest must contain one exact space-scoped set");
     }
     return db.transaction(async (tx) => {
       const txDb = tx as unknown as Db;
       for (const entry of input.manifest) {
         const kind = entry.sourceKind as AttentionSourceKind;
-        if (!(await canReadDecisionSource(txDb, input.originActor, input.companyId, kind, entry.sourceId))
-          || !(await canReadDecisionSource(txDb, input.decidingActor, input.companyId, kind, entry.sourceId))) {
+        if (!(await canReadDecisionSource(txDb, input.originActor, input.spaceId, kind, entry.sourceId))
+          || !(await canReadDecisionSource(txDb, input.decidingActor, input.spaceId, kind, entry.sourceId))) {
           throw conflict("archive_proposal_authority_changed", { code: "archive_proposal_authority_changed" });
         }
-        await txDb.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`decision-retention:${input.companyId}:${entry.sourceKind}:${entry.sourceId}`}, 0))`);
+        await txDb.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`decision-retention:${input.spaceId}:${entry.sourceKind}:${entry.sourceId}`}, 0))`);
         const state = await txDb.select().from(decisionRetention).where(and(
-          eq(decisionRetention.companyId, input.companyId),
+          eq(decisionRetention.spaceId, input.spaceId),
           eq(decisionRetention.sourceKind, entry.sourceKind),
           eq(decisionRetention.sourceId, entry.sourceId),
         )).then((rows) => rows[0] ?? null);
@@ -401,7 +401,7 @@ export function decisionRetentionService(
       }
       const now = new Date();
       for (const entry of input.manifest) {
-        await notifyRetentionWork(txDb, entry.sourceKind as AttentionSourceKind, { companyId: input.companyId, sourceId: entry.sourceId });
+        await notifyRetentionWork(txDb, entry.sourceKind as AttentionSourceKind, { spaceId: input.spaceId, sourceId: entry.sourceId });
         const archived = await txDb.update(decisionRetention).set({
           archivedAt: now,
           archivedReason: "accepted_proposal",
@@ -413,7 +413,7 @@ export function decisionRetentionService(
           version: sql`${decisionRetention.version} + 1`,
           updatedAt: now,
         }).where(and(
-          eq(decisionRetention.companyId, input.companyId),
+          eq(decisionRetention.spaceId, input.spaceId),
           eq(decisionRetention.sourceKind, entry.sourceKind),
           eq(decisionRetention.sourceId, entry.sourceId),
           eq(decisionRetention.version, entry.expectedVersion),
@@ -423,7 +423,7 @@ export function decisionRetentionService(
           throw conflict("archive_proposal_stale", { code: "archive_proposal_stale" });
         }
         await logActivity(txDb, {
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           actorType: "system",
           actorId: "decision-archive-proposal",
           responsibleUserIdOverride: input.decidedByUserId,
@@ -437,7 +437,7 @@ export function decisionRetentionService(
     });
   }
 
-  async function autoArchive(input: { companyId: string; items: readonly ArchiveSource[]; now?: Date }) {
+  async function autoArchive(input: { spaceId: string; items: readonly ArchiveSource[]; now?: Date }) {
     const now = input.now ?? new Date();
     const cutoff = new Date(now.getTime() - DEFAULT_DECISION_ARCHIVE_DAYS * DAY_MS);
     const candidates = input.items.filter((item) => new Date(item.activityAt) <= cutoff && !item.keep && !item.archivedAt);
@@ -445,7 +445,7 @@ export function decisionRetentionService(
     await db.transaction(async (tx) => {
       const txDb = tx as unknown as Db;
       for (const item of candidates) {
-        await notifyRetentionWork(txDb, item.sourceKind, { companyId: input.companyId, sourceId: item.subject.id });
+        await notifyRetentionWork(txDb, item.sourceKind, { spaceId: input.spaceId, sourceId: item.subject.id });
         const updated = await txDb.update(decisionRetention).set({
           archivedAt: now,
           archivedReason: "idle_ttl",
@@ -457,7 +457,7 @@ export function decisionRetentionService(
           version: sql`${decisionRetention.version} + 1`,
           updatedAt: now,
         }).where(and(
-          eq(decisionRetention.companyId, input.companyId),
+          eq(decisionRetention.spaceId, input.spaceId),
           eq(decisionRetention.sourceKind, item.sourceKind),
           eq(decisionRetention.sourceId, item.subject.id),
           eq(decisionRetention.version, item.retentionVersion),
@@ -467,11 +467,11 @@ export function decisionRetentionService(
         )).returning().then((rows) => rows[0] ?? null);
         if (!updated) continue;
         archived += 1;
-        const origin = await resolveOrigin(txDb, input.companyId, item.sourceKind, item.subject.id);
+        const origin = await resolveOrigin(txDb, input.spaceId, item.sourceKind, item.subject.id);
         if (origin) {
           await notifyDeliveryWork(txDb, DELIVERY_QUEUES.decisionArchiveDelivery);
           await txDb.insert(decisionArchiveNotificationOutbox).values({
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             sourceKind: item.sourceKind,
             sourceId: item.subject.id,
             archiveVersion: updated.archiveVersion,
@@ -480,7 +480,7 @@ export function decisionRetentionService(
           }).onConflictDoNothing();
         }
         await logActivity(txDb, {
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           actorType: "system",
           actorId: "decision-retention-sweeper",
           action: "decision_retention.auto_archived",

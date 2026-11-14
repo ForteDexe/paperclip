@@ -6,7 +6,7 @@ import {
   agents,
   approvals,
   authUsers,
-  companyMemberships,
+  spaceMemberships,
   heartbeatRuns,
   issueApprovals,
   issueComments,
@@ -38,7 +38,7 @@ export type {
 } from "@outpost/shared";
 
 export interface WorkTimelineQuery {
-  companyId: string;
+  spaceId: string;
   from?: Date;
   to?: Date;
   userId?: string;
@@ -52,7 +52,7 @@ export interface WorkTimelineQuery {
 
 export interface WorkTimelineIssueAccessInput {
   id: string;
-  companyId: string;
+  spaceId: string;
   projectId: string | null;
   parentId: string | null;
   assigneeAgentId: string | null;
@@ -62,7 +62,7 @@ export interface WorkTimelineIssueAccessInput {
 
 type IssueRow = {
   id: string;
-  companyId: string;
+  spaceId: string;
   projectId: string | null;
   goalId: string | null;
   parentId: string | null;
@@ -120,12 +120,12 @@ function dateIso(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
 }
 
-function activeTimelineUser(companyId: string | SQL, userId: SQL) {
-  return sql<boolean>`exists (select 1 from ${companyMemberships}
-    where ${companyMemberships.companyId} = ${companyId}
-      and ${companyMemberships.principalType} = 'user'
-      and ${companyMemberships.principalId} = ${userId}
-      and ${companyMemberships.status} = 'active')`;
+function activeTimelineUser(spaceId: string | SQL, userId: SQL) {
+  return sql<boolean>`exists (select 1 from ${spaceMemberships}
+    where ${spaceMemberships.spaceId} = ${spaceId}
+      and ${spaceMemberships.principalType} = 'user'
+      and ${spaceMemberships.principalId} = ${userId}
+      and ${spaceMemberships.status} = 'active')`;
 }
 
 /** Scalar ownership facts for bounded recorded creation and change events. */
@@ -148,11 +148,11 @@ function timelineOwnershipProjection() {
   const target = (key: string, legacyKey: string) => stringValue(targetValue(key, legacyKey));
   const creationAgentId = stringValue(sql`${details} -> 'assigneeAgentId'`);
   const creationUserId = stringValue(sql`${details} -> 'assigneeUserId'`);
-  const sameCompanyAgent = (id: SQL) => sql`exists (select 1 from ${agents}
+  const sameSpaceAgent = (id: SQL) => sql`exists (select 1 from ${agents}
     where ${agents.id} = case when ${id} ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-      then ${id}::uuid else null end and ${agents.companyId} = ${activityLog.companyId})`;
+      then ${id}::uuid else null end and ${agents.spaceId} = ${activityLog.spaceId})`;
   const knownUser = (id: SQL) => sql`(exists (select 1 from ${authUsers} where ${authUsers.id} = ${id})
-    and ${activeTimelineUser(sql`${activityLog.companyId}`, id)})`;
+    and ${activeTimelineUser(sql`${activityLog.spaceId}`, id)})`;
   const creationOwnerTypes = ["assigneeAgentId", "assigneeUserId"].map(key => sql`${details} ? ${key}
     and jsonb_typeof(${details} -> ${key}) in ('string', 'null')`);
   const cleared = ([["assigneeAgentId", "toAgentId"], ["assigneeUserId", "toUserId"]] as const).map(([key, alias], index) => sql`(
@@ -165,9 +165,9 @@ function timelineOwnershipProjection() {
     creationRecorded: sql<boolean>`coalesce((${activityLog.action} = 'issue.created'
         or (${activityLog.action} = 'issue.child_created' and ${details} -> 'createdByRequest' = 'true'::jsonb))
       and (${sql.join(creationOwnerTypes, sql` and `)})
-      and ((${creationAgentId} is not null and ${creationUserId} is null and ${sameCompanyAgent(creationAgentId)})
+      and ((${creationAgentId} is not null and ${creationUserId} is null and ${sameSpaceAgent(creationAgentId)})
         or (${creationUserId} is not null and ${creationAgentId} is null and ${knownUser(creationUserId)}))
-      and ((${activityLog.actorType} = 'agent' and ${sameCompanyAgent(sql`${activityLog.actorId}`)})
+      and ((${activityLog.actorType} = 'agent' and ${sameSpaceAgent(sql`${activityLog.actorId}`)})
         or (${activityLog.actorType} = 'user' and ${knownUser(sql`${activityLog.actorId}`)})), false)`,
     creationAgentId,
     creationUserId,
@@ -237,7 +237,7 @@ export function workTimelineService(db: Db) {
         issue,
         allowed: await canReadIssue({
           id: issue.id,
-          companyId: issue.companyId,
+          spaceId: issue.spaceId,
           projectId: issue.projectId,
           parentId: issue.parentId,
           assigneeAgentId: issue.assigneeAgentId,
@@ -260,7 +260,7 @@ export function workTimelineService(db: Db) {
     }
 
     const filterConditions = [
-      eq(issues.companyId, input.companyId),
+      eq(issues.spaceId, input.spaceId),
       executionIssueCondition(),
       input.goalId ? eq(issues.goalId, input.goalId) : undefined,
       input.projectId ? eq(issues.projectId, input.projectId) : undefined,
@@ -288,7 +288,7 @@ export function workTimelineService(db: Db) {
       .from(heartbeatRuns)
       .where(
         and(
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
           runOverlapsWindow(from, to),
           sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' is not null`,
         ),
@@ -304,7 +304,7 @@ export function workTimelineService(db: Db) {
       .from(activityLog)
       .where(
         and(
-          eq(activityLog.companyId, input.companyId),
+          eq(activityLog.spaceId, input.spaceId),
           eq(activityLog.entityType, "issue"),
           gte(activityLog.createdAt, from),
           lte(activityLog.createdAt, to),
@@ -319,7 +319,7 @@ export function workTimelineService(db: Db) {
       .from(issueComments)
       .where(
         and(
-          eq(issueComments.companyId, input.companyId),
+          eq(issueComments.spaceId, input.spaceId),
           isNull(issueComments.deletedAt),
           gte(issueComments.createdAt, from),
           lte(issueComments.createdAt, to),
@@ -334,7 +334,7 @@ export function workTimelineService(db: Db) {
       .from(issueThreadInteractions)
       .where(
         and(
-          eq(issueThreadInteractions.companyId, input.companyId),
+          eq(issueThreadInteractions.spaceId, input.spaceId),
           or(
             and(gte(issueThreadInteractions.createdAt, from), lte(issueThreadInteractions.createdAt, to)),
             and(gte(issueThreadInteractions.resolvedAt, from), lte(issueThreadInteractions.resolvedAt, to)),
@@ -351,7 +351,7 @@ export function workTimelineService(db: Db) {
       .innerJoin(approvals, eq(issueApprovals.approvalId, approvals.id))
       .where(
         and(
-          eq(issueApprovals.companyId, input.companyId),
+          eq(issueApprovals.spaceId, input.spaceId),
           or(
             and(gte(approvals.createdAt, from), lte(approvals.createdAt, to)),
             and(gte(approvals.decidedAt, from), lte(approvals.decidedAt, to)),
@@ -370,7 +370,7 @@ export function workTimelineService(db: Db) {
     return db
       .select({
         id: issues.id,
-        companyId: issues.companyId,
+        spaceId: issues.spaceId,
         projectId: issues.projectId,
         goalId: issues.goalId,
         parentId: issues.parentId,
@@ -386,7 +386,7 @@ export function workTimelineService(db: Db) {
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, input.companyId),
+          eq(issues.spaceId, input.spaceId),
           executionIssueCondition(),
           inArray(issues.id, issueIds),
           input.goalId ? eq(issues.goalId, input.goalId) : undefined,
@@ -411,7 +411,7 @@ export function workTimelineService(db: Db) {
         .from(issueComments)
         .where(
           and(
-            eq(issueComments.companyId, input.companyId),
+            eq(issueComments.spaceId, input.spaceId),
             eq(issueComments.authorUserId, input.userId),
             isNull(issueComments.deletedAt),
             gte(issueComments.createdAt, from),
@@ -424,7 +424,7 @@ export function workTimelineService(db: Db) {
         .innerJoin(approvals, eq(issueApprovals.approvalId, approvals.id))
         .where(
           and(
-            eq(issueApprovals.companyId, input.companyId),
+            eq(issueApprovals.spaceId, input.spaceId),
             eq(approvals.decidedByUserId, input.userId),
             gte(approvals.decidedAt, from),
             lte(approvals.decidedAt, to),
@@ -435,7 +435,7 @@ export function workTimelineService(db: Db) {
         .from(issueThreadInteractions)
         .where(
           and(
-            eq(issueThreadInteractions.companyId, input.companyId),
+            eq(issueThreadInteractions.spaceId, input.spaceId),
             eq(issueThreadInteractions.resolvedByUserId, input.userId),
             gte(issueThreadInteractions.resolvedAt, from),
             lte(issueThreadInteractions.resolvedAt, to),
@@ -446,7 +446,7 @@ export function workTimelineService(db: Db) {
         .from(activityLog)
         .where(
           and(
-            eq(activityLog.companyId, input.companyId),
+            eq(activityLog.spaceId, input.spaceId),
             eq(activityLog.actorType, "user"),
             eq(activityLog.actorId, input.userId),
             eq(activityLog.entityType, "issue"),
@@ -474,7 +474,7 @@ export function workTimelineService(db: Db) {
     return rows.filter((issue) => selected.has(issue.id) || byId.get(issue.parentId ?? "") && selected.has(issue.parentId ?? ""));
   }
 
-  async function loadActorMaps(companyId: string, actorIds: Set<string>) {
+  async function loadActorMaps(spaceId: string, actorIds: Set<string>) {
     const agentIds = Array.from(actorIds)
       .filter((id) => id.startsWith("agent:"))
       .map((id) => id.slice("agent:".length));
@@ -487,13 +487,13 @@ export function workTimelineService(db: Db) {
         ? db
           .select({ id: agents.id, name: agents.name, icon: agents.icon, appearance: agents.appearance })
           .from(agents)
-          .where(and(eq(agents.companyId, companyId), inArray(agents.id, maybeUuidList(agentIds))))
+          .where(and(eq(agents.spaceId, spaceId), inArray(agents.id, maybeUuidList(agentIds))))
         : [],
       userIds.length > 0
         ? db
           .select({ id: authUsers.id, name: authUsers.name, image: authUsers.image })
           .from(authUsers)
-          .where(and(inArray(authUsers.id, maybeUuidList(userIds)), activeTimelineUser(companyId, sql`${authUsers.id}`)))
+          .where(and(inArray(authUsers.id, maybeUuidList(userIds)), activeTimelineUser(spaceId, sql`${authUsers.id}`)))
         : [],
     ]);
 
@@ -568,7 +568,7 @@ export function workTimelineService(db: Db) {
         .from(heartbeatRuns)
         .where(
           and(
-            eq(heartbeatRuns.companyId, input.companyId),
+            eq(heartbeatRuns.spaceId, input.spaceId),
             runOverlapsWindow(from, to),
             inArray(sql<string>`${heartbeatRuns.contextSnapshot} ->> 'issueId'`, readableIssueIds),
           ),
@@ -591,8 +591,8 @@ export function workTimelineService(db: Db) {
         .innerJoin(heartbeatRuns, eq(activityLog.runId, heartbeatRuns.id))
         .where(
           and(
-            eq(activityLog.companyId, input.companyId),
-            eq(heartbeatRuns.companyId, input.companyId),
+            eq(activityLog.spaceId, input.spaceId),
+            eq(heartbeatRuns.spaceId, input.spaceId),
             eq(activityLog.entityType, "issue"),
             inArray(activityLog.entityId, readableIssueIds),
             runOverlapsWindow(from, to),
@@ -608,7 +608,7 @@ export function workTimelineService(db: Db) {
         .from(issueComments)
         .where(
           and(
-            eq(issueComments.companyId, input.companyId),
+            eq(issueComments.spaceId, input.spaceId),
             isNull(issueComments.deletedAt),
             inArray(issueComments.issueId, readableIssueIds),
             gte(issueComments.createdAt, from),
@@ -628,7 +628,7 @@ export function workTimelineService(db: Db) {
         .innerJoin(approvals, eq(issueApprovals.approvalId, approvals.id))
         .where(
           and(
-            eq(issueApprovals.companyId, input.companyId),
+            eq(issueApprovals.spaceId, input.spaceId),
             inArray(issueApprovals.issueId, readableIssueIds),
             or(
               and(gte(approvals.createdAt, from), lte(approvals.createdAt, to)),
@@ -649,7 +649,7 @@ export function workTimelineService(db: Db) {
         .from(issueThreadInteractions)
         .where(
           and(
-            eq(issueThreadInteractions.companyId, input.companyId),
+            eq(issueThreadInteractions.spaceId, input.spaceId),
             inArray(issueThreadInteractions.issueId, readableIssueIds),
             or(
               and(gte(issueThreadInteractions.createdAt, from), lte(issueThreadInteractions.createdAt, to)),
@@ -676,7 +676,7 @@ export function workTimelineService(db: Db) {
         .from(activityLog)
         .where(
           and(
-            eq(activityLog.companyId, input.companyId),
+            eq(activityLog.spaceId, input.spaceId),
             eq(activityLog.entityType, "issue"),
             inArray(activityLog.entityId, readableIssueIds),
             gte(activityLog.createdAt, from),
@@ -795,7 +795,7 @@ export function workTimelineService(db: Db) {
       edges.push({ fromActorId, toActorId, issueId: row.issueId, at: row.createdAt.toISOString(), kind: "assignment" });
     }
 
-    const actorMaps = await loadActorMaps(input.companyId, actorIds);
+    const actorMaps = await loadActorMaps(input.spaceId, actorIds);
     const publicActorIds = new Set(Array.from(actorIds).filter(id => {
       if (id.startsWith("agent:")) return actorMaps.agents.has(id.slice("agent:".length));
       if (id.startsWith("user:")) return actorMaps.users.has(id.slice("user:".length));

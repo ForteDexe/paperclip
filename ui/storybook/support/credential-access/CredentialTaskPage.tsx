@@ -7,7 +7,7 @@ import { PluginLauncherProvider } from "@/plugins/launchers";
 import { Navigate, Route, Routes } from "@/lib/router";
 import { queryKeys } from "@/lib/queryKeys";
 import { seedIssueDetailCache } from "@/lib/issueDetailCache";
-import { storybookAgents, storybookIssues, storybookAuthSession } from "../../fixtures/paperclipData";
+import { storybookAgents, storybookIssues, storybookAuthSession } from "../../fixtures/outpostData";
 import type { IssueChatComment, IssueChatLinkedRun } from "@/lib/issue-chat-messages";
 
 export function CredentialTaskPage({ otherPerson = false, runtimeMode = "native", newerAttempt = false }: {
@@ -27,12 +27,12 @@ export function CredentialTaskPage({ otherPerson = false, runtimeMode = "native"
     };
     const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
     const comments: IssueChatComment[] = [{
-      id: "credential-comment", companyId: task.companyId, issueId: task.id,
+      id: "credential-comment", spaceId: task.spaceId, issueId: task.id,
       authorType: "user", authorUserId: otherPerson ? "nicky" : "user-board", authorAgentId: null,
       body: "I just saw a similar bug where we use the task ID rather than the human-friendly task name. Confirm whether your earlier fix addresses this bug. If not, implement a fix and open a PR.",
       presentation: null, metadata: null, createdAt: new Date(ago(4)), updatedAt: new Date(ago(4)),
     }, {
-      id: "credential-retry-comment", companyId: task.companyId, issueId: task.id,
+      id: "credential-retry-comment", spaceId: task.spaceId, issueId: task.id,
       authorType: "user", authorUserId: otherPerson ? "nicky" : "user-board", authorAgentId: null,
       body: "I tried reconnecting my OpenAI subscription but Codie still won’t run for me.",
       presentation: null, metadata: null, createdAt: new Date(ago(2)), updatedAt: new Date(ago(2)),
@@ -53,11 +53,11 @@ export function CredentialTaskPage({ otherPerson = false, runtimeMode = "native"
     seedIssueDetailCache(client, task);
     client.setQueryData(queryKeys.auth.session, { ...storybookAuthSession,
       user: { ...storybookAuthSession.user, name: otherPerson ? "Dotta" : "Nicky" } });
-    client.setQueryData(queryKeys.agents.list(task.companyId), [agent, ...storybookAgents.slice(1)]);
-    client.setQueryData(queryKeys.liveRuns(task.companyId), []);
-    client.setQueryData(["email-thread", task.companyId, task.id], null);
+    client.setQueryData(queryKeys.agents.list(task.spaceId), [agent, ...storybookAgents.slice(1)]);
+    client.setQueryData(queryKeys.liveRuns(task.spaceId), []);
+    client.setQueryData(["email-thread", task.spaceId, task.id], null);
     for (const ref of [task.id, task.identifier]) {
-      client.setQueryData(["email-thread", task.companyId, ref], null);
+      client.setQueryData(["email-thread", task.spaceId, ref], null);
       client.setQueryData(queryKeys.issues.comments(ref), { pages: [[...comments].reverse()], pageParams: [null] });
       client.setQueryData(queryKeys.issues.runs(ref), runs);
       client.setQueryData(queryKeys.issues.documents(ref), []);
@@ -70,14 +70,14 @@ export function CredentialTaskPage({ otherPerson = false, runtimeMode = "native"
     const fetchFixture: typeof fetch = async (input, init) => {
       const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       const url = new URL(raw, window.location.origin);
-      if (url.pathname === `/api/companies/${task.companyId}/agents`) return Response.json([agent, ...storybookAgents.slice(1)]);
-      if (url.pathname === `/api/companies/${task.companyId}/live-runs`) return Response.json([]);
-      if ([task.id, task.identifier].some(ref => url.pathname === `/api/companies/${task.companyId}/email/tasks/${ref}`)) return Response.json(null);
+      if (url.pathname === `/api/spaces/${task.spaceId}/agents`) return Response.json([agent, ...storybookAgents.slice(1)]);
+      if (url.pathname === `/api/spaces/${task.spaceId}/live-runs`) return Response.json([]);
+      if ([task.id, task.identifier].some(ref => url.pathname === `/api/spaces/${task.spaceId}/email/tasks/${ref}`)) return Response.json(null);
       if (url.pathname === `/api/agents/${agent.id}` || url.pathname === "/api/agents/codie") return Response.json(agent);
       const runResource = url.pathname.match(/^\/api\/heartbeat-runs\/(credential-run|newer-run)\/(events|log)$/);
       if (runResource?.[2] === "events") return Response.json([]);
       if (runResource?.[2] === "log") return Response.json({ runId: runResource[1], store: "local", logRef: "storybook", content: "", nextOffset: 0 });
-      if (url.pathname === `/api/companies/${task.companyId}/user-directory`) return Response.json({ users: [
+      if (url.pathname === `/api/spaces/${task.spaceId}/user-directory`) return Response.json({ users: [
         { principalId: "user-board", status: "active", user: { id: "user-board", name: otherPerson ? "Dotta" : "Nicky", email: "board@example.test", image: null } },
         { principalId: "nicky", status: "active", user: { id: "nicky", name: "Nicky", email: "nicky@example.test", image: null } },
       ] });
@@ -100,7 +100,7 @@ export function CredentialTaskPage({ otherPerson = false, runtimeMode = "native"
   });
   useEffect(() => fixture.restore, [fixture]);
   return <PluginLauncherProvider><Routes>
-    <Route path="/:companyPrefix" element={<Layout />}>
+    <Route path="/:spacePrefix" element={<Layout />}>
       <Route path="issues/:issueId" element={<IssueDetail />} />
       <Route path="agents/:agentId/*" element={<AgentDetail />} />
     </Route>

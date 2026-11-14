@@ -15,7 +15,7 @@ export async function customerSuccessRunAuthority(db: Db, bearer: string): Promi
       const [agent] = await tx
         .select()
         .from(agents)
-        .where(and(eq(agents.id, claims.sub), eq(agents.companyId, claims.company_id)));
+        .where(and(eq(agents.id, claims.sub), eq(agents.spaceId, claims.space_id)));
       const [run] = await tx
         .select()
         .from(heartbeatRuns)
@@ -23,7 +23,7 @@ export async function customerSuccessRunAuthority(db: Db, bearer: string): Promi
           and(
             eq(heartbeatRuns.id, claims.run_id),
             eq(heartbeatRuns.agentId, claims.sub),
-            eq(heartbeatRuns.companyId, claims.company_id),
+            eq(heartbeatRuns.spaceId, claims.space_id),
           ),
         );
       if (
@@ -37,14 +37,14 @@ export async function customerSuccessRunAuthority(db: Db, bearer: string): Promi
       )
         throw forbidden("The managed run is not active");
       const identity = await agentIdentityService(tx as unknown as Db).getPublicIdentity(
-        agent.companyId,
+        agent.spaceId,
         agent.id,
       );
       if (!identity) throw forbidden("The agent identity is unprovisioned");
       return {
         version: 1,
         instanceId: claims.instance_id!,
-        companyId: agent.companyId,
+        spaceId: agent.spaceId,
         agentId: agent.id,
         runId: run.id,
         keyId: identity.keyId,

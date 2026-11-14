@@ -3,7 +3,7 @@ import { agents, museAgentBindings as bindings, type Db } from "@outpost/db";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../../services/delivery-work-notifications.js";
 
 export type MuseVerificationScope = {
-  companyId?: string;
+  spaceId?: string;
   bindingId?: string;
   generation?: number;
   operatorId?: string;
@@ -15,7 +15,7 @@ export type MuseVerificationCandidate = {
 };
 export type MuseVerificationHint = {
   kind: "muse-contact-verification";
-  companyId: string;
+  spaceId: string;
   bindingId: string;
   generation: number;
 };
@@ -28,12 +28,12 @@ export async function pendingMuseContactVerifications(
 ): Promise<MuseVerificationCandidate[]> {
   return db.select({ binding: bindings, agent: { status: agents.status, lifecycleState: agents.lifecycleState } })
     .from(bindings)
-    .innerJoin(agents, and(eq(agents.id, bindings.agentId), eq(agents.companyId, bindings.companyId)))
+    .innerJoin(agents, and(eq(agents.id, bindings.agentId), eq(agents.spaceId, bindings.spaceId)))
     .where(and(
       isNull(bindings.revokedAt), isNotNull(bindings.pairedAt),
       contactWillPersist ? undefined : isNotNull(bindings.receiverContactAt),
       isNull(bindings.verifiedReplyAt), isNull(bindings.challengeHash),
-      scope?.companyId ? eq(bindings.companyId, scope.companyId) : undefined,
+      scope?.spaceId ? eq(bindings.spaceId, scope.spaceId) : undefined,
       scope?.bindingId ? eq(bindings.id, scope.bindingId) : undefined,
       scope?.generation !== undefined ? eq(bindings.generation, scope.generation) : undefined,
       scope?.operatorId ? eq(bindings.operatorId, scope.operatorId) : undefined,
@@ -56,7 +56,7 @@ export async function notifyMuseContactVerification(
     const rows = await pendingMuseContactVerifications(tx, scope, after, trigger === "contact-persist");
     for (const { binding } of rows) {
       const hint: MuseVerificationHint = {
-        kind: "muse-contact-verification", companyId: binding.companyId,
+        kind: "muse-contact-verification", spaceId: binding.spaceId,
         bindingId: binding.id, generation: binding.generation,
       };
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.museMaintenance, JSON.stringify(hint));
@@ -72,10 +72,10 @@ export function parseMuseVerificationHint(raw: string): MuseVerificationHint | u
   try { value = JSON.parse(raw); } catch { return; }
   if (!value || typeof value !== "object" || Array.isArray(value)
     || !("kind" in value) || value.kind !== "muse-contact-verification"
-    || !("companyId" in value) || typeof value.companyId !== "string"
+    || !("spaceId" in value) || typeof value.spaceId !== "string"
     || !("bindingId" in value) || typeof value.bindingId !== "string"
     || !("generation" in value) || typeof value.generation !== "number"
     || !Number.isSafeInteger(value.generation) || value.generation < 1) return;
-  return { kind: "muse-contact-verification", companyId: value.companyId,
+  return { kind: "muse-contact-verification", spaceId: value.spaceId,
     bindingId: value.bindingId, generation: value.generation };
 }

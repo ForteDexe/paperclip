@@ -1,11 +1,11 @@
-import { takeCompanyWorkBatch } from "../../company-work-batch.js";
+import { takeSpaceWorkBatch } from "../../space-work-batch.js";
 import type { createDeliveryWorkCoordinator } from "../../delivery-work-coordinator.js";
 import { DELIVERY_QUEUES } from "../../delivery-work-notifications.js";
 import type { ReceiverDeadline, chatReceiverSchedule } from "./receiver-schedule.js";
 import { receiverScope, receiverScopeHint, type ReceiverScope } from "./receiver-work-notifications.js";
 
 function matches(entry: ReceiverDeadline, scope?: ReceiverScope) {
-  return !scope || (scope.kind === "endpoint" ? entry.id : scope.kind === "connection" ? entry.connectionId : entry.companyId) === scope.id;
+  return !scope || (scope.kind === "endpoint" ? entry.id : scope.kind === "connection" ? entry.connectionId : entry.spaceId) === scope.id;
 }
 export function registerChatReceiverWork(
   coordinator: ReturnType<typeof createDeliveryWorkCoordinator>,
@@ -17,7 +17,7 @@ export function registerChatReceiverWork(
   const failures = new Map<string, { count: number; retryAt: number }>();
   const scopeFailures = new Map<string, { count: number; retryAt: number }>();
   let earliest = 0;
-  let lastCompany: string | null = null;
+  let lastSpace: string | null = null;
   function failed(map: typeof failures, id: string) {
     const count = Math.min((map.get(id)?.count ?? 0) + 1, 5);
     map.set(id, { count, retryAt: Date.now() + Math.min(300_000, 30_000 * 2 ** (count - 1)) });
@@ -68,7 +68,7 @@ export function registerChatReceiverWork(
       const due = [...entries.values()].filter(entry => entry.dueAt !== null && !unavailable.some(scope => matches(entry, scope))
         && Math.max(entry.dueAt, failures.get(entry.id)?.retryAt ?? 0) <= Date.now())
         .sort((a, b) => a.dueAt! - b.dueAt! || a.id.localeCompare(b.id));
-      const batch = takeCompanyWorkBatch(due, 25, lastCompany); lastCompany = batch.lastCompany;
+      const batch = takeSpaceWorkBatch(due, 25, lastSpace); lastSpace = batch.lastSpace;
       for (const entry of batch.entries) {
         if (signal.aborted || !canRun()) break;
         try {

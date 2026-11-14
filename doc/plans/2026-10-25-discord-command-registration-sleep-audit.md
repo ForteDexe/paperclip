@@ -2,8 +2,8 @@
 
 Parent: tool-health PR #17554, head `da4089960619d3da2112a4eed3cc7a3d97dbebf8`.
 The parent has 771 selected passing local tests, passing workspace typecheck and
-build, passing Actions checks, and fresh Greptile 5/5. Paperclip Review completed neutral with a 4/5 assessment and follow-ups for
-company fairness and real-producer coverage. It is not accepted or merged. This branch owns
+build, passing Actions checks, and fresh Greptile 5/5. Outpost Review completed neutral with a 4/5 assessment and follow-ups for
+space fairness and real-producer coverage. It is not accepted or merged. This branch owns
 one newly separated reason from the existing chat-runtime inventory.
 
 ## Evidence and boundary
@@ -85,13 +85,13 @@ transaction intent before writing. They emit endpoint-scoped hints through the
 existing coordinator topic. No table or provider request was added to discovery.
 
 `chat-channels/discord/command-schedule.ts` owns eligible Discord endpoint
-selection and maps stored state to normalized deadlines. Startup/company discovery
+selection and maps stored state to normalized deadlines. Startup/space discovery
 uses UUID keyset pages of 100. Due checks reread current eligibility and saved
 deadlines before calling the existing command reconciler, then reload the saved
 result. Discovery checks shutdown cancellation between pages and rows.
 
 `command-work.ts` uses the shared coordinator. It coalesces endpoint, connection,
-or company hints; retains changes arriving during a pass; keeps passive drain
+or space hints; retains changes arriving during a pass; keeps passive drain
 checks in memory; and dispatches at most 25 due endpoints per pass. Unsettled
 attempts back off from 30 seconds to five minutes without being mistaken for
 successful completion. Saved future deadlines remain authoritative. A provider
@@ -116,7 +116,7 @@ must be reconciled before an instance can become quiet. Final evidence is in
 ## Integration checklist at the foundation checkpoint
 
 - Wire configuration, readiness, provider failures, generic connection mutation,
-  connection removal, and company deletion producers to the scoped topic. Audit
+  connection removal, and space deletion producers to the scoped topic. Audit
   all endpoint and connection writers; exempt metadata-only updates explicitly.
 - Register the worker through the chat service, with existing standby, drain,
   startup and shutdown admission. Preserve direct foreground setup calls.
@@ -145,9 +145,9 @@ The actual configure/removal integration test proves a first configuration after
 empty startup publishes its deadline, removal cancels it, and the removed worker
 has no further reads or transactions. The real-protocol suite proves a committed
 pause arriving during provider I/O is retained and eventually disarms the worker.
-The parent health review identified company backlog starvation, and an equivalent
+The parent health review identified space backlog starvation, and an equivalent
 Discord worker regression failed before repair. Shared fair-batch selection now
-gives each due company a turn, with a rotating cursor across bounded passes.
+gives each due space a turn, with a rotating cursor across bounded passes.
 The isolated fairness helper commit is `e77979d4fc` for application to the parent.
 
 Local final evidence:
@@ -183,7 +183,7 @@ worker deadlines while preserving fallback/backoff and drain. The integration
 fixture now waits for active-work settlement as well as an empty scheduler and
 always restores spies. Verification: 87 worker/coordinator/health, eight producer
 and affected Slack, 57 existing lifecycle/startup tests; server types/build pass.
-The health security parent is inherited through company cleanup. See the owning
+The health security parent is inherited through space cleanup. See the owning
 Discord document for failure evidence and exact scope. Fresh remote gates remain.
 
 ## Idle assertion settlement repair
@@ -202,22 +202,22 @@ stack; remote checks must verify the new heads.
 ## Current-parent follow-up, October 27
 
 See [updated parent acceptance](../idle-discord-command-registration.md#updated-parent-acceptance-october-27)
-for normal integration of the repaired health and company-cleanup parents,
+for normal integration of the repaired health and space-cleanup parents,
 127 targeted cases, corrected test selection, and the remaining remote gates.
 The source duty and its 26-file scope are unchanged.
 
 
-## Acceptance after the company-deletion parent landed, October 27
+## Acceptance after the space-deletion parent landed, October 27
 
 The branch integrates master at `f8563d25077b17681ab6ef5949f7b07415a58ede`,
-including the landed health and company-deletion repairs. Squash ancestry caused
+including the landed health and space-deletion repairs. Squash ancestry caused
 merge conflicts. Resolution applies only this slice's exact 26-file patch from
 its recorded parent `21be75d2b0` to that pinned master. Every other file matches
 master. The migration 0394 and current lockfile remain unchanged by this slice.
 
 All 141 distinct targeted cases pass: 78 command-store, batching, coordinator and
 startup-timing cases; 8 real automatic Discord and held-transaction Slack cases;
-and 55 complete startup/export and company-deletion cases. The company-deletion
+and 55 complete startup/export and space-deletion cases. The space-deletion
 fixture starts on an initially empty isolated database and applies migrations.
 The two Discord fixtures use separate migrated database clones. The remaining
 1,581 chat integration cases were deselected. Server typecheck and build pass.

@@ -12,7 +12,7 @@ const port = Number(args[args.indexOf("--port") + 1]);
 const username = process.env.OPENCODE_SERVER_USERNAME ?? "opencode";
 const password = process.env.OPENCODE_SERVER_PASSWORD ?? "";
 const expectedAuth = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
-const session = { id: "ses_fake_1", title: "Paperclip fake" };
+const session = { id: "ses_fake_1", title: "Outpost fake" };
 const clients = new Set();
 let eventConnections = 0;
 const runtimeConfig = JSON.parse(
@@ -21,7 +21,7 @@ const runtimeConfig = JSON.parse(
     "utf8",
   ),
 );
-const mcp = runtimeConfig.mcp?.paperclip;
+const mcp = runtimeConfig.mcp?.outpost;
 let mcpRequestId = 1;
 const mcpEvidence = { tools: [], calls: [] };
 
@@ -194,7 +194,7 @@ async function mcpRequest(method, params, signal) {
 }
 
 let mcpStatus = null;
-async function connectPaperclipMcp() {
+async function connectOutpostMcp() {
   const failuresPath = join(process.env.XDG_DATA_HOME, "fake-mcp-connect-failures");
   const failures = (await readFile(failuresPath, "utf8").catch(() => "")).trim();
   await appendFile(join(process.env.XDG_DATA_HOME, "fake-mcp-connects.log"), "connect\n");
@@ -218,7 +218,7 @@ async function connectPaperclipMcp() {
   }
 }
 
-async function callFirstPaperclipTool() {
+async function callFirstOutpostTool() {
   if (!mcp?.url) return;
   await mcpRequest("initialize", {
     protocolVersion: "2025-03-26",
@@ -229,13 +229,13 @@ async function callFirstPaperclipTool() {
   mcpEvidence.tools = (listed.result?.tools ?? []).map((entry) => entry.name);
   const tool = listed.result?.tools?.find(
     (entry) =>
-      !["paperclip_finish", "paperclip_block"].includes(entry.name) &&
+      !["outpost_finish", "outpost_block"].includes(entry.name) &&
       (entry.inputSchema?.required?.length ?? 0) === 0,
   );
   if (tool)
     mcpEvidence.calls.push(
       await mcpRequest("tools/call", {
-        name: `paperclip_${tool.name}`,
+        name: `outpost_${tool.name}`,
         arguments: {},
       }),
     );
@@ -297,17 +297,17 @@ async function callTerminalTool(promptBody, signal) {
     bad.completionClaim.criteria = String(prompt.message).includes("repair-criteria-missing") ? []
       : String(prompt.message).includes("repair-criteria-duplicate") ? [...result.completionClaim.criteria, ...result.completionClaim.criteria]
       : [{ criterionId: "invented", status: "satisfied", evidenceRefs: [] }];
-    const rejected = await mcpRequest("tools/call", { name: "paperclip_finish", arguments: bad });
+    const rejected = await mcpRequest("tools/call", { name: "outpost_finish", arguments: bad });
     await writeFile(join(process.env.XDG_DATA_HOME, "fake-criteria-repair.json"), JSON.stringify(rejected));
   }
   if (String(prompt.message ?? "").includes("repair-revision")) {
     const stale = structuredClone(result);
     stale.completionClaim.contractRevision = "stale-revision";
-    const rejected = await mcpRequest("tools/call", { name: "paperclip_finish", arguments: stale });
+    const rejected = await mcpRequest("tools/call", { name: "outpost_finish", arguments: stale });
     await writeFile(join(process.env.XDG_DATA_HOME, "fake-revision-repair.json"), JSON.stringify(rejected));
   }
   const call = () => mcpRequest("tools/call", {
-    name: blocked ? "paperclip_block" : "paperclip_finish",
+    name: blocked ? "outpost_block" : "outpost_finish",
     arguments: result,
   }, signal);
   const first = await call();
@@ -317,7 +317,7 @@ async function callTerminalTool(promptBody, signal) {
       let cursor;
       for (let pageIndex = 0; pageIndex < 8; pageIndex++) {
         const response = await mcpRequest("tools/call", {
-          name: "paperclip_read_current_wake_comments", arguments: { cursor },
+          name: "outpost_read_current_wake_comments", arguments: { cursor },
         });
         if (response.result?.isError) throw new Error("Current-wake fixture reader was rejected");
         const page = JSON.parse(response.result.content[0].text);
@@ -355,12 +355,12 @@ const server = createServer(async (request, response) => {
     return;
   }
   if (request.method === "GET" && request.url === "/mcp") {
-    if (mcp?.url && mcpStatus === null) await connectPaperclipMcp();
-    return json(response, 200, mcp?.url ? { paperclip: mcpStatus } : {});
+    if (mcp?.url && mcpStatus === null) await connectOutpostMcp();
+    return json(response, 200, mcp?.url ? { outpost: mcpStatus } : {});
   }
-  if (request.method === "POST" && request.url === "/mcp/paperclip/connect") {
+  if (request.method === "POST" && request.url === "/mcp/outpost/connect") {
     if (!mcp?.url) return json(response, 404, { error: "not found" });
-    await connectPaperclipMcp();
+    await connectOutpostMcp();
     return json(response, 200, true);
   }
   if (request.method === "POST" && request.url === "/session")
@@ -564,7 +564,7 @@ const server = createServer(async (request, response) => {
           try {
             const result = backlogTool === "completion"
               ? await callTerminalTool(promptPayload, AbortSignal.timeout(5000))
-              : await mcpRequest("tools/call", { name: "paperclip_search_assigned_tools", arguments: {} },
+              : await mcpRequest("tools/call", { name: "outpost_search_assigned_tools", arguments: {} },
                 backlogTool === "durable" ? undefined : AbortSignal.timeout(5000));
             receipt = { acknowledged: result.result?.isError !== true && !!result.result, result };
           } catch (error) {
@@ -577,7 +577,7 @@ const server = createServer(async (request, response) => {
         }
         if (String(parsedPrompt.message ?? "").includes("oversized-schema-rejection")) {
           const receipt = await mcpRequest("tools/call", {
-            name: "paperclip_large_call", arguments: Array(12_000).fill(0),
+            name: "outpost_large_call", arguments: Array(12_000).fill(0),
           });
           await writeFile(join(process.cwd(), "fake-large-rejection-receipt.json"), JSON.stringify(receipt));
           await callTerminalTool(promptPayload);
@@ -586,11 +586,11 @@ const server = createServer(async (request, response) => {
         }
         if (String(parsedPrompt.message ?? parsedPrompt.task?.prompt ?? "").includes("argument-diagnostics")) {
           const receipts = [await mcpRequest("tools/call", {
-            name: "paperclip_paperclip_call_assigned_tool", arguments: [],
+            name: "outpost_outpost_call_assigned_tool", arguments: [],
           })];
           for (const name of [42, "benign-operation"]) {
             receipts.push(await mcpRequest("tools/call", {
-              name: "paperclip_paperclip_call_assigned_tool",
+              name: "outpost_outpost_call_assigned_tool",
               arguments: { name, arguments: { token: "private-argument-canary" }, "private-key-canary": "private-value-canary" },
             }));
           }
@@ -598,14 +598,14 @@ const server = createServer(async (request, response) => {
             info: { id: "diagnostic-message", sessionID: session.id, role: "assistant" } } });
           emit({ type: "message.part.updated", id: "diagnostic-part-event", properties: { sessionID: session.id,
             part: { id: "diagnostic-provider-row", messageID: "diagnostic-message", sessionID: session.id,
-              type: "tool", tool: "paperclip_paperclip_call_assigned_tool",
+              type: "tool", tool: "outpost_outpost_call_assigned_tool",
               callID: "unrelated-provider-call", state: { status: "completed", output: "provider-receipt" } } } });
           await writeFile(join(process.cwd(), "fake-diagnostic-receipts.json"), JSON.stringify(receipts));
           await callTerminalTool(promptPayload);
           emit({ type: "session.idle", properties: { sessionID: session.id } });
           return;
         }
-        if (!String(parsedPrompt.message ?? parsedPrompt.task?.prompt ?? "").includes("current-wake-completion-feedback")) await callFirstPaperclipTool();
+        if (!String(parsedPrompt.message ?? parsedPrompt.task?.prompt ?? "").includes("current-wake-completion-feedback")) await callFirstOutpostTool();
         if (String(parsedPrompt.message ?? "").includes("managed-github-operation")) {
           const result = await new Promise(resolve => {
             execFile("gh", ["api", "user"], { timeout: 5000 }, (error, stdout, stderr) => {
@@ -906,7 +906,7 @@ const server = createServer(async (request, response) => {
                 id: "part-limit-tool",
                 messageID: "message-assistant",
                 type: "tool",
-                tool: "paperclip_paperclip_finish",
+                tool: "outpost_outpost_finish",
                 state: { status: "completed", output: "accepted" },
               },
             },
@@ -967,7 +967,7 @@ const server = createServer(async (request, response) => {
                 id: "part-tool",
                 messageID: "message-assistant",
                 type: "tool",
-                tool: "paperclip_paperclip_finish",
+                tool: "outpost_outpost_finish",
                 state: { status: "completed", output: "accepted" },
               },
             },
@@ -1035,7 +1035,7 @@ const server = createServer(async (request, response) => {
                 id: "part-finish",
                 messageID: "message-final",
                 type: "tool",
-                tool: "paperclip_paperclip_finish",
+                tool: "outpost_outpost_finish",
                 state: { status: "completed", output: "accepted" },
               },
             },
@@ -1064,7 +1064,7 @@ const server = createServer(async (request, response) => {
                 messageID: "message-final",
                 type: "tool",
                 tool: "unknown",
-                callID: "functions.paperclip_paperclip_finish:24",
+                callID: "functions.outpost_outpost_finish:24",
                 state: {
                   status: "error",
                   error: "Tool execution aborted",

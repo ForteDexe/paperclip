@@ -7,42 +7,42 @@ export type ContextualSidebarSurface =
   | `plugin:${string}`;
 
 export interface ShellRouteClassification {
-  companySegments: string[];
+  spaceSegments: string[];
   isTaskDetail: boolean;
   builtInContextualSurface: Exclude<ContextualSidebarSurface, `plugin:${string}`> | null;
 }
 
 const CONTEXTUAL_ORIGIN_KEY_PREFIX = "outpost.contextualSidebar.origin";
 
-export function getCompanyPathSegments(pathname: string, companyPrefix: string | undefined): string[] {
-  if (!companyPrefix) return [];
+export function getSpacePathSegments(pathname: string, spacePrefix: string | undefined): string[] {
+  if (!spacePrefix) return [];
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length < 2) return [];
-  if (segments[0]?.toUpperCase() !== companyPrefix.toUpperCase()) return [];
+  if (segments[0]?.toUpperCase() !== spacePrefix.toUpperCase()) return [];
   return segments.slice(1);
 }
 
 export function classifyShellRoute(
   pathname: string,
-  companyPrefix: string | undefined,
+  spacePrefix: string | undefined,
 ): ShellRouteClassification {
-  const companySegments = getCompanyPathSegments(pathname, companyPrefix);
-  const root = companySegments[0]?.toLowerCase();
-  const isCompanySettings = root === "company" && ["settings", "export", "import"].includes(
-    companySegments[1]?.toLowerCase() ?? "",
+  const spaceSegments = getSpacePathSegments(pathname, spacePrefix);
+  const root = spaceSegments[0]?.toLowerCase();
+  const isSpaceSettings = root === "space" && ["settings", "export", "import"].includes(
+    spaceSegments[1]?.toLowerCase() ?? "",
   );
-  const agentSegment = companySegments[1]?.toLowerCase();
+  const agentSegment = spaceSegments[1]?.toLowerCase();
   const isAgentDetail = root === "agents"
     && Boolean(agentSegment)
     && agentSegment !== "new"
     && !["all", "active", "paused", "error", "builtin"].includes(agentSegment ?? "");
-  const isRoutineDetail = root === "routines" && companySegments.length >= 2;
+  const isRoutineDetail = root === "routines" && spaceSegments.length >= 2;
   const isSkillsSurface = root === "skills";
 
   return {
-    companySegments,
-    isTaskDetail: (root === "issues" || root === "chats") && companySegments.length >= 2,
-    builtInContextualSurface: isCompanySettings
+    spaceSegments,
+    isTaskDetail: (root === "issues" || root === "chats") && spaceSegments.length >= 2,
+    builtInContextualSurface: isSpaceSettings
       ? "settings"
       : root === "apps" || root === "tools"
         ? "apps"
@@ -56,29 +56,29 @@ export function classifyShellRoute(
   };
 }
 
-function contextualOriginStorageKey(surface: ContextualSidebarSurface, companyPrefix: string) {
-  return `${CONTEXTUAL_ORIGIN_KEY_PREFIX}:${companyPrefix.toUpperCase()}:${surface}`;
+function contextualOriginStorageKey(surface: ContextualSidebarSurface, spacePrefix: string) {
+  return `${CONTEXTUAL_ORIGIN_KEY_PREFIX}:${spacePrefix.toUpperCase()}:${surface}`;
 }
 
-function isCompanyPath(pathname: string, companyPrefix: string) {
+function isSpacePath(pathname: string, spacePrefix: string) {
   const first = pathname.split("/").filter(Boolean)[0];
-  return first?.toUpperCase() === companyPrefix.toUpperCase();
+  return first?.toUpperCase() === spacePrefix.toUpperCase();
 }
 
 export function rememberContextualSidebarOrigin({
   surface,
-  companyPrefix,
+  spacePrefix,
   previousPathname,
 }: {
   surface: ContextualSidebarSurface;
-  companyPrefix: string;
+  spacePrefix: string;
   previousPathname: string;
 }) {
-  if (typeof window === "undefined" || !isCompanyPath(previousPathname, companyPrefix)) return;
+  if (typeof window === "undefined" || !isSpacePath(previousPathname, spacePrefix)) return;
 
   try {
     window.sessionStorage.setItem(
-      contextualOriginStorageKey(surface, companyPrefix),
+      contextualOriginStorageKey(surface, spacePrefix),
       previousPathname,
     );
   } catch {
@@ -88,18 +88,18 @@ export function rememberContextualSidebarOrigin({
 
 export function readContextualSidebarOrigin({
   surface,
-  companyPrefix,
+  spacePrefix,
   fallbackTo,
 }: {
   surface: ContextualSidebarSurface;
-  companyPrefix: string | null | undefined;
+  spacePrefix: string | null | undefined;
   fallbackTo: string;
 }) {
-  if (typeof window === "undefined" || !companyPrefix) return fallbackTo;
+  if (typeof window === "undefined" || !spacePrefix) return fallbackTo;
 
   try {
-    const stored = window.sessionStorage.getItem(contextualOriginStorageKey(surface, companyPrefix));
-    return stored && isCompanyPath(stored, companyPrefix) ? stored : fallbackTo;
+    const stored = window.sessionStorage.getItem(contextualOriginStorageKey(surface, spacePrefix));
+    return stored && isSpacePath(stored, spacePrefix) ? stored : fallbackTo;
   } catch {
     return fallbackTo;
   }

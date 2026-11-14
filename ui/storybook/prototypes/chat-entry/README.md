@@ -7,7 +7,7 @@ Only the first-use landing page is a review fixture. No real agents run.
 The earliest-created agent always stays in Chats, even after unstarring. Stars
 precede that default and four recent agents. Compose and star controls align;
 compose appears on hover/focus and remains visible on touch. The picker searches
-the whole company by name or role, with no subtitle, count, continuation labels,
+the whole space by name or role, with no subtitle, count, continuation labels,
 or footer. Each agent keeps a distinct fixture conversation across switches.
 
 Stories cover first use, returning chats, picker, role search, search recovery,

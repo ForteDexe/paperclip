@@ -7,7 +7,7 @@ import { ensureDurableDirectory, syncDirectory } from "../lib/durable-directory.
 import { idleQuotaRecoveryPath } from "./idle-local-work.js";
 
 const recoverySchema = z.object({
-  companyId: z.string().uuid(), grantId: z.string().uuid(), connectionId: z.string().uuid(), secretId: z.string().uuid(),
+  spaceId: z.string().uuid(), grantId: z.string().uuid(), connectionId: z.string().uuid(), secretId: z.string().uuid(),
   baseHash: z.string().length(64), value: z.string().min(1),
   provider: z.enum(["openai", "google"]).optional(),
   google: z.object({
@@ -25,16 +25,16 @@ export class RetiredCredentialRecoveryError extends Error {
   }
 }
 export const quotaCredentialHash = (value: string) => createHash("sha256").update(value).digest("hex");
-export const quotaCredentialRecoveryPath = (companyId: string, grantId: string) =>
-  path.join(idleQuotaRecoveryPath(), companyId, `${grantId}.json`);
+export const quotaCredentialRecoveryPath = (spaceId: string, grantId: string) =>
+  path.join(idleQuotaRecoveryPath(), spaceId, `${grantId}.json`);
 
 /** Legacy settlement and local-only Google retirement. Server quota refresh
- * must never create a new record here. Called only while holding the company
+ * must never create a new record here. Called only while holding the space
  * credential mutation lock. The local
  * encrypted provider uses the instance secrets master key, including when the
  * destination vault is remote. No plaintext token enters this journal. */
-export function quotaCredentialRecovery(companyId: string, grantId: string) {
-  const file = quotaCredentialRecoveryPath(companyId, grantId);
+export function quotaCredentialRecovery(spaceId: string, grantId: string) {
+  const file = quotaCredentialRecoveryPath(spaceId, grantId);
   const directory = path.dirname(file);
   async function writeEncrypted(target: string, value: string) {
     const encrypted = await localEncryptedProvider.createVersion({ value });
@@ -60,7 +60,7 @@ export function quotaCredentialRecovery(companyId: string, grantId: string) {
       try { material = await fs.readFile(file, "utf8"); }
       catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; }
       const pending = recoverySchema.parse(JSON.parse(await localEncryptedProvider.resolveVersion({ material: JSON.parse(material), externalRef: null })));
-      if (pending.companyId !== companyId || pending.grantId !== grantId) throw new Error("credentials_unavailable");
+      if (pending.spaceId !== spaceId || pending.grantId !== grantId) throw new Error("credentials_unavailable");
       return pending;
     },
     write: (input: Recovery) => writeEncrypted(file, JSON.stringify(recoverySchema.parse(input))),

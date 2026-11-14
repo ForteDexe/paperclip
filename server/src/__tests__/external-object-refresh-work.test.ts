@@ -3,15 +3,15 @@ import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { activityLog, approvals, applyPendingMigrations, databaseWorkPending, budgetIncidents, budgetPolicies, companies, costEvents, createDb, externalObjects, externalObjectMentions, issues, issueComments, plugins } from "@outpost/db";
+import { activityLog, approvals, applyPendingMigrations, databaseWorkPending, budgetIncidents, budgetPolicies, spaces, costEvents, createDb, externalObjects, externalObjectMentions, issues, issueComments, plugins } from "@outpost/db";
 import { externalObjectService, type ExternalObjectResolveResult } from "../services/external-objects.js";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import { issueService } from "../services/issues.js";
 import { documentService } from "../services/documents.js";
 import { budgetService } from "../services/budgets.js";
 import { pluginRegistryService } from "../services/plugin-registry.js";
-import { companyService } from "../services/companies.js";
+import { spaceService } from "../services/space-service.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { notifyExternalObjectRefresh } from "../services/external-object-refresh-notifications.js";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
@@ -38,25 +38,25 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
   let enabled = true;
   const provider = vi.fn(async (): Promise<ExternalObjectResolveResult> => terminal);
   const errors = vi.fn();
-  const companyIds: string[] = [];
+  const spaceIds: string[] = [];
   beforeAll(async () => {
     if (url) await applyPendingMigrations(url);
     if (!url) temp = await startEmbeddedPostgresTestDatabase("external-refresh-work-");
     db = createDb(url ?? temp!.connectionString, { maxConnections: 4 });
-    await db.execute(sql`truncate table ${companies} cascade`);
+    await db.execute(sql`truncate table ${spaces} cascade`);
   }, 90_000);
   afterEach(async () => {
     await coordinator?.stop(); coordinator = undefined;
     vi.useRealTimers(); vi.restoreAllMocks();
-    for (const id of companyIds.splice(0)) {
-      await db.delete(budgetIncidents).where(eq(budgetIncidents.companyId, id));
-      await db.delete(budgetPolicies).where(eq(budgetPolicies.companyId, id));
-      await db.delete(approvals).where(eq(approvals.companyId, id));
-      await db.delete(costEvents).where(eq(costEvents.companyId, id));
-      await db.delete(activityLog).where(eq(activityLog.companyId, id));
-      await db.delete(issues).where(eq(issues.companyId, id));
-      await db.delete(externalObjects).where(eq(externalObjects.companyId, id));
-      await db.delete(companies).where(eq(companies.id, id));
+    for (const id of spaceIds.splice(0)) {
+      await db.delete(budgetIncidents).where(eq(budgetIncidents.spaceId, id));
+      await db.delete(budgetPolicies).where(eq(budgetPolicies.spaceId, id));
+      await db.delete(approvals).where(eq(approvals.spaceId, id));
+      await db.delete(costEvents).where(eq(costEvents.spaceId, id));
+      await db.delete(activityLog).where(eq(activityLog.spaceId, id));
+      await db.delete(issues).where(eq(issues.spaceId, id));
+      await db.delete(externalObjects).where(eq(externalObjects.spaceId, id));
+      await db.delete(spaces).where(eq(spaces.id, id));
     }
     await db.delete(plugins);
     admitted = true; reconcile = true; enabled = true; errors.mockClear();
@@ -76,15 +76,15 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     return worker;
   }
   async function fixture(status = "active") {
-    const id = randomUUID(); companyIds.push(id);
-    await db.insert(companies).values({ id, name: "Refresh test", status,
+    const id = randomUUID(); spaceIds.push(id);
+    await db.insert(spaces).values({ id, name: "Refresh test", status,
       issuePrefix: `E${id.replaceAll("-", "").slice(0, 8)}` });
-    const [issue] = await db.insert(issues).values({ companyId: id, title: "Reference",
+    const [issue] = await db.insert(issues).values({ spaceId: id, title: "Reference",
       description: `https://example.com/${id}`, status: "todo" }).returning();
-    return { companyId: id, issueId: issue!.id };
+    return { spaceId: id, issueId: issue!.id };
   }
-  async function row(companyId: string) {
-    return (await db.select().from(externalObjects).where(eq(externalObjects.companyId, companyId)))[0]!;
+  async function row(spaceId: string) {
+    return (await db.select().from(externalObjects).where(eq(externalObjects.spaceId, spaceId)))[0]!;
   }
   async function settle(predicate: () => Promise<boolean> | boolean) {
     for (let i = 0; i < 200; i++) {
@@ -95,14 +95,14 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
   }
   async function quiet() { await settle(() => coordinator!.nextWakeAt() === null && idleWorkSnapshot().active === 0); }
   function clock() { vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"], shouldAdvanceTime: true }); }
-  async function change(companyId: string, patch: Partial<typeof externalObjects.$inferInsert>) {
+  async function change(spaceId: string, patch: Partial<typeof externalObjects.$inferInsert>) {
     await db.transaction(async tx => {
-      await notifyExternalObjectRefresh(tx, companyId);
-      await tx.update(externalObjects).set(patch).where(eq(externalObjects.companyId, companyId));
+      await notifyExternalObjectRefresh(tx, spaceId);
+      await tx.update(externalObjects).set(patch).where(eq(externalObjects.spaceId, spaceId));
     });
   }
 
-  it("activates saved work when the ordinary feature and company settings enable it", async () => {
+  it("activates saved work when the ordinary feature and space settings enable it", async () => {
     clock(); const settings = instanceSettingsService(db);
     await settings.updateExperimental({ enableExternalObjects: true });
     const svc = externalObjectService(db, { github: false,
@@ -111,10 +111,10 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     const f = await fixture("paused"); await svc.syncIssue(f.issueId);
     await settings.updateExperimental({ enableExternalObjects: false });
     await start(svc); await quiet();
-    await companyService(db).update(f.companyId, { status: "active" }); await quiet();
+    await spaceService(db).update(f.spaceId, { status: "active" }); await quiet();
     expect(provider).not.toHaveBeenCalled();
     await settings.updateExperimental({ enableExternalObjects: true });
-    await settle(async () => (await row(f.companyId)).isTerminal); await quiet();
+    await settle(async () => (await row(f.spaceId)).isTerminal); await quiet();
     expect(provider).toHaveBeenCalledOnce();
   });
 
@@ -127,8 +127,8 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     await vi.advanceTimersByTimeAsync(15 * 60_000);
     expect(selects).not.toHaveBeenCalled(); expect(provider).not.toHaveBeenCalled();
     const f = await fixture(); await svc.syncIssue(f.issueId);
-    await settle(async () => (await row(f.companyId))?.isTerminal === true); await quiet();
-    expect((await row(f.companyId)).statusKey).toBe("done");
+    await settle(async () => (await row(f.spaceId))?.isTerminal === true); await quiet();
+    expect((await row(f.spaceId)).statusKey).toBe("done");
     expect(await db.transaction(tx => svc.readIdleSchedule(tx, Date.now(), worker.reconciliationSnapshot)))
       .toMatchObject({ blocked: false, deadlines: [] });
     selects.mockClear(); provider.mockClear();
@@ -142,31 +142,31 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     const svc = service(); const worker = await start(svc);
     const f = await fixture(); await svc.syncIssue(f.issueId);
     await settle(() => provider.mock.calls.length === 1);
-    await settle(async () => (await row(f.companyId)).lastResolvedAt !== null);
-    const saved = await row(f.companyId);
+    await settle(async () => (await row(f.spaceId)).lastResolvedAt !== null);
+    const saved = await row(f.spaceId);
     await settle(() => coordinator!.nextWakeAt() === saved.nextRefreshAt!.getTime());
     await settle(() => worker.reconciliationSnapshot().reconciled);
     expect(await db.transaction(tx => svc.readIdleSchedule(tx, Date.now(), worker.reconciliationSnapshot)))
       .toMatchObject({ blocked: false, deadlines: [saved.nextRefreshAt!.getTime()] });
-    const earlier = new Date(Date.now() + 1000); await change(f.companyId, { nextRefreshAt: earlier });
+    const earlier = new Date(Date.now() + 1000); await change(f.spaceId, { nextRefreshAt: earlier });
     await settle(() => coordinator!.nextWakeAt() === earlier.getTime());
     await vi.advanceTimersByTimeAsync(999); expect(provider).toHaveBeenCalledTimes(1);
     provider.mockResolvedValue(terminal); await vi.advanceTimersByTimeAsync(1);
-    await settle(async () => (await row(f.companyId)).isTerminal); await quiet();
+    await settle(async () => (await row(f.spaceId)).isTerminal); await quiet();
     await vi.advanceTimersByTimeAsync(120_000); expect(provider).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps disabled and paused company work passive and reconstructs on eligibility mutation", async () => {
+  it("keeps disabled and paused space work passive and reconstructs on eligibility mutation", async () => {
     clock(); enabled = false;
     const svc = service(); await start(svc); await quiet();
     const f = await fixture("paused");
     enabled = true; await svc.syncIssue(f.issueId); await quiet();
     await vi.advanceTimersByTimeAsync(600_000); expect(provider).not.toHaveBeenCalled();
     await db.transaction(async tx => {
-      await notifyExternalObjectRefresh(tx, f.companyId);
-      await tx.update(companies).set({ status: "active" }).where(eq(companies.id, f.companyId));
+      await notifyExternalObjectRefresh(tx, f.spaceId);
+      await tx.update(spaces).set({ status: "active" }).where(eq(spaces.id, f.spaceId));
     });
-    await settle(async () => (await row(f.companyId)).isTerminal); await quiet();
+    await settle(async () => (await row(f.spaceId)).isTerminal); await quiet();
     expect(provider).toHaveBeenCalledOnce();
   });
 
@@ -176,7 +176,7 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     await expect(db.transaction(async tx => {
       await svc.syncIssue(f.issueId, tx); throw new Error("rollback");
     })).rejects.toThrow("rollback");
-    await quiet(); expect(await row(f.companyId)).toBeUndefined(); expect(provider).not.toHaveBeenCalled();
+    await quiet(); expect(await row(f.spaceId)).toBeUndefined(); expect(provider).not.toHaveBeenCalled();
     let release!: () => void; const held = new Promise<void>(resolve => { release = resolve; });
     let nestedDone = false;
     const commit = db.transaction(async tx => {
@@ -185,7 +185,7 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     });
     await settle(() => nestedDone); await vi.advanceTimersByTimeAsync(60_000);
     expect(provider).not.toHaveBeenCalled(); release(); await commit;
-    await settle(async () => (await row(f.companyId))?.isTerminal); await quiet();
+    await settle(async () => (await row(f.spaceId))?.isTerminal); await quiet();
     expect(provider).toHaveBeenCalledOnce();
   });
 
@@ -197,13 +197,13 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     selects.mockClear(); await vi.advanceTimersByTimeAsync(90_000); expect(selects).not.toHaveBeenCalled();
     admitted = true; provider.mockRejectedValueOnce(new Error("simulated transport failure"));
     await vi.advanceTimersByTimeAsync(30_000); await settle(() => errors.mock.calls.length === 1);
-    const claimed = await row(f.companyId); expect(claimed.refreshToken).not.toBeNull();
+    const claimed = await row(f.spaceId); expect(claimed.refreshToken).not.toBeNull();
     await coordinator!.stop(); coordinator = undefined; await start(svc);
     const due = claimed.refreshStartedAt!.getTime() + 300_000;
     expect(coordinator!.nextWakeAt()).toBe(due);
     await vi.advanceTimersByTimeAsync(due - Date.now() - 1); expect(provider).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1);
-    await settle(async () => (await row(f.companyId)).isTerminal); await quiet();
+    await settle(async () => (await row(f.spaceId)).isTerminal); await quiet();
     expect(provider).toHaveBeenCalledTimes(2);
   });
 
@@ -212,27 +212,27 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     await start(unsupported); const f = await fixture(); await unsupported.syncIssue(f.issueId); await quiet();
     const selects = vi.spyOn(db, "select");
     await vi.advanceTimersByTimeAsync(900_000); expect(selects).not.toHaveBeenCalled();
-    expect((await row(f.companyId)).lastResolvedAt).toBeNull();
+    expect((await row(f.spaceId)).lastResolvedAt).toBeNull();
     await coordinator!.stop(); coordinator = undefined;
     provider.mockResolvedValue(active); const svc = service(); await start(svc);
-    await settle(async () => (await row(f.companyId)).lastResolvedAt !== null);
+    await settle(async () => (await row(f.spaceId)).lastResolvedAt !== null);
     await db.update(issues).set({ description: null }).where(eq(issues.id, f.issueId));
     await svc.syncIssue(f.issueId); await quiet();
     selects.mockClear(); provider.mockClear();
     await vi.advanceTimersByTimeAsync(900_000);
     expect(selects).not.toHaveBeenCalled(); expect(provider).not.toHaveBeenCalled();
     provider.mockResolvedValue(terminal);
-    await db.update(issues).set({ description: `https://example.com/${f.companyId}` }).where(eq(issues.id, f.issueId));
+    await db.update(issues).set({ description: `https://example.com/${f.spaceId}` }).where(eq(issues.id, f.issueId));
     await svc.syncIssue(f.issueId);
-    await settle(async () => (await row(f.companyId)).isTerminal); await quiet();
+    await settle(async () => (await row(f.spaceId)).isTerminal); await quiet();
     expect(provider).toHaveBeenCalledOnce();
   });
 
-  it("activates a newly ready plugin and fences a result after company permission is withdrawn", async () => {
+  it("activates a newly ready plugin and fences a result after space permission is withdrawn", async () => {
     clock(); const registry = pluginRegistryService(db);
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: `outpost.refresh-${randomUUID()}`, apiVersion: 1, version: "1.0.0", displayName: "Refresh fixture",
-      description: "Simulated external object provider", author: "Paperclip", categories: ["connector"],
+      description: "Simulated external object provider", author: "Outpost", categories: ["connector"],
       capabilities: ["external.objects.detect", "external.objects.read"], entrypoints: { worker: "worker.js" },
       objectReferences: [{ providerKey: "tracker", displayName: "Tracker", objectTypes: ["ticket"], urlPatterns: ["https://example.com/:id"] }],
     };
@@ -254,24 +254,24 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     await vi.advanceTimersByTimeAsync(900_000); expect(selects).not.toHaveBeenCalled(); expect(calls).not.toHaveBeenCalled();
     await registry.updateStatus(plugin!.id, { status: "ready" });
     await settle(() => typeof finish === "function");
-    await registry.upsertCompanySettings(plugin!.id, f.companyId, { enabled: false, settingsJson: {} });
+    await registry.upsertSpaceSettings(plugin!.id, f.spaceId, { enabled: false, settingsJson: {} });
     finish(terminal);
-    await settle(async () => (await row(f.companyId)).refreshToken === null); await quiet();
-    expect((await row(f.companyId)).isTerminal).toBe(false);
+    await settle(async () => (await row(f.spaceId)).refreshToken === null); await quiet();
+    expect((await row(f.spaceId)).isTerminal).toBe(false);
     selects.mockClear(); calls.mockClear();
     await vi.advanceTimersByTimeAsync(900_000); expect(selects).not.toHaveBeenCalled(); expect(calls).not.toHaveBeenCalled();
     calls.mockImplementation(async () => terminal);
-    await registry.upsertCompanySettings(plugin!.id, f.companyId, { enabled: true, settingsJson: {} });
-    await settle(async () => (await row(f.companyId)).isTerminal); await quiet();
+    await registry.upsertSpaceSettings(plugin!.id, f.spaceId, { enabled: true, settingsJson: {} });
+    await settle(async () => (await row(f.spaceId)).isTerminal); await quiet();
     expect(calls).toHaveBeenCalledOnce();
   });
 
-  it.each(["company setting", "status", "uninstall", "manifest", "other company"] as const)(
+  it.each(["space setting", "status", "uninstall", "manifest", "other space"] as const)(
     "revalidates the selected plugin after %s changes even while the built-in fallback remains available", async change => {
       clock(); const registry = pluginRegistryService(db);
-      const manifest: PaperclipPluginManifestV1 = {
+      const manifest: OutpostPluginManifestV1 = {
         id: `outpost.selected-${randomUUID()}`, apiVersion: 1, version: "1.0.0", displayName: "Selected provider",
-        description: "Selected resolver fixture", author: "Paperclip", categories: ["connector"],
+        description: "Selected resolver fixture", author: "Outpost", categories: ["connector"],
         capabilities: ["external.objects.detect", "external.objects.read"], entrypoints: { worker: "worker.js" },
         objectReferences: [{ providerKey: "github", displayName: "GitHub", objectTypes: ["pull_request"], urlPatterns: ["https://github.com/:owner/:repo/pull/:id"] }],
       };
@@ -291,31 +291,31 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
         return new Response(JSON.stringify({ state: "closed", merged: true, title: "Allowed fallback" }), { status: 200 });
       });
       const svc = externalObjectService(db, { pluginWorkerManager: { call: calls } as unknown as PluginWorkerManager,
-        github: { fetch: fallback, credentialProvider: () => ({ token: "simulated-company-token", source: "company_secret", secretName: "GITHUB_TOKEN" }) } });
+        github: { fetch: fallback, credentialProvider: () => ({ token: "simulated-space-token", source: "space_secret", secretName: "GITHUB_TOKEN" }) } });
       try {
         await start(svc); const f = await fixture();
         await db.update(issues).set({ description: "https://github.com/acme/app/pull/42" }).where(eq(issues.id, f.issueId));
         await svc.syncIssue(f.issueId); await settle(() => selected);
-        if (change === "company setting") await registry.upsertCompanySettings(plugin!.id, f.companyId, { enabled: false, settingsJson: {} });
+        if (change === "space setting") await registry.upsertSpaceSettings(plugin!.id, f.spaceId, { enabled: false, settingsJson: {} });
         else if (change === "status") await registry.updateStatus(plugin!.id, { status: "error" });
         else if (change === "uninstall") await registry.uninstall(plugin!.id, true);
         else if (change === "manifest") await registry.update(plugin!.id, { manifest: { ...manifest, capabilities: [], objectReferences: [] } });
         else {
           const other = await fixture();
-          await registry.upsertCompanySettings(plugin!.id, other.companyId, { enabled: false, settingsJson: {} });
+          await registry.upsertSpaceSettings(plugin!.id, other.spaceId, { enabled: false, settingsJson: {} });
         }
         finishPlugin({ ok: true, snapshot: { statusKey: "plugin_result", statusCategory: "succeeded", statusTone: "success", isTerminal: true } });
-        if (change === "other company") {
-          await settle(async () => (await row(f.companyId))?.statusKey === "plugin_result"); await quiet();
+        if (change === "other space") {
+          await settle(async () => (await row(f.spaceId))?.statusKey === "plugin_result"); await quiet();
           expect(fallback).not.toHaveBeenCalled();
         } else {
-          await settle(async () => fallback.mock.calls.length > 0 || Boolean((await row(f.companyId))?.lastResolvedAt));
-          const beforeFallback = await row(f.companyId);
+          await settle(async () => fallback.mock.calls.length > 0 || Boolean((await row(f.spaceId))?.lastResolvedAt));
+          const beforeFallback = await row(f.spaceId);
           expect(beforeFallback.isTerminal).toBe(false); expect(beforeFallback.statusKey).toBeNull(); expect(beforeFallback.lastResolvedAt).toBeNull();
           expect(fallback).toHaveBeenCalledOnce();
           finishFallback();
-          await settle(async () => (await row(f.companyId))?.statusKey === "merged"); await quiet();
-          expect((await row(f.companyId)).displayTitle).toBe("acme/app#42: Allowed fallback");
+          await settle(async () => (await row(f.spaceId))?.statusKey === "merged"); await quiet();
+          expect((await row(f.spaceId)).displayTitle).toBe("acme/app#42: Allowed fallback");
         }
       } finally { finishPlugin(terminal); finishFallback(); }
     });
@@ -323,19 +323,19 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
   it("reactivates refresh after ordinary budget pause and budget raise", async () => {
     clock(); const svc = service(); provider.mockResolvedValue(active); await start(svc);
     const f = await fixture(); await svc.syncIssue(f.issueId);
-    await settle(async () => (await row(f.companyId))?.lastResolvedAt !== null);
-    await db.insert(costEvents).values({ companyId: f.companyId, usageKind: "decision", provider: "fixture",
+    await settle(async () => (await row(f.spaceId))?.lastResolvedAt !== null);
+    await db.insert(costEvents).values({ spaceId: f.spaceId, usageKind: "decision", provider: "fixture",
       biller: "fixture", billingType: "metered_api", model: "simulated", costCents: 200, occurredAt: new Date() });
     const budgets = budgetService(db);
-    await budgets.upsertPolicy(f.companyId, { scopeType: "company", scopeId: f.companyId,
+    await budgets.upsertPolicy(f.spaceId, { scopeType: "space", scopeId: f.spaceId,
       amount: 100, hardStopEnabled: true }, null);
-    expect((await db.select().from(companies).where(eq(companies.id, f.companyId)))[0]!.status).toBe("paused");
+    expect((await db.select().from(spaces).where(eq(spaces.id, f.spaceId)))[0]!.status).toBe("paused");
     await quiet();
     const reads = vi.spyOn(db, "select"); provider.mockClear();
     await vi.advanceTimersByTimeAsync(900_000); expect(reads).not.toHaveBeenCalled(); expect(provider).not.toHaveBeenCalled();
     provider.mockResolvedValue(terminal);
-    await budgets.upsertPolicy(f.companyId, { scopeType: "company", scopeId: f.companyId, amount: 300 }, null);
-    await settle(async () => (await row(f.companyId)).isTerminal); await quiet();
+    await budgets.upsertPolicy(f.spaceId, { scopeType: "space", scopeId: f.spaceId, amount: 300 }, null);
+    await settle(async () => (await row(f.spaceId)).isTerminal); await quiet();
     expect(provider).toHaveBeenCalledOnce();
   });
 
@@ -344,24 +344,24 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     const a = await fixture(); const b = await fixture(); await svc.syncIssue(b.issueId);
     let id: string;
     if (kind === "comment") {
-      const [comment] = await db.insert(issueComments).values({ companyId: a.companyId, issueId: a.issueId,
-        body: `https://example.com/${a.companyId}` }).returning();
+      const [comment] = await db.insert(issueComments).values({ spaceId: a.spaceId, issueId: a.issueId,
+        body: `https://example.com/${a.spaceId}` }).returning();
       id = comment!.id; await svc.syncComment(id);
     } else {
       const result = await documentService(db).upsertIssueDocument({ issueId: a.issueId,
-        key: "notes", format: "markdown", body: `https://example.com/${a.companyId}` });
+        key: "notes", format: "markdown", body: `https://example.com/${a.spaceId}` });
       id = result.document.id; await svc.syncDocument(id);
     }
     await settle(async () => {
-      const left = await row(a.companyId), right = await row(b.companyId);
+      const left = await row(a.spaceId), right = await row(b.spaceId);
       return Boolean(left?.lastResolvedAt && right?.lastResolvedAt);
     });
-    const expectedDeadline = Math.min((await row(a.companyId)).nextRefreshAt!.getTime(), (await row(b.companyId)).nextRefreshAt!.getTime());
+    const expectedDeadline = Math.min((await row(a.spaceId)).nextRefreshAt!.getTime(), (await row(b.spaceId)).nextRefreshAt!.getTime());
     await settle(() => coordinator!.nextWakeAt() === expectedDeadline && !databaseWorkPending(db, DELIVERY_QUEUES.externalObjectRefresh));
     const reads: Array<{ query: string; params: unknown[] }> = [];
     const debug = db.$client.options.debug;
     db.$client.options.debug = (_connection, query, params) => {
-      if (/^select/i.test(query) && query.includes('from "external_objects"') && query.includes('inner join "companies"'))
+      if (/^select/i.test(query) && query.includes('from "external_objects"') && query.includes('inner join "spaces"'))
         reads.push({ query, params: [...params] });
     };
     try {
@@ -369,21 +369,21 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
       else { await documentService(db).deleteIssueDocument(a.issueId, "notes"); await svc.syncDocument(id); }
       await settle(() => reads.length > 0);
       for (const read of reads) {
-        expect(read.query).toContain('"external_objects"."company_id" =');
-        expect(read.params).toContain(a.companyId); expect(read.params).not.toContain(b.companyId);
+        expect(read.query).toContain('"external_objects"."space_id" =');
+        expect(read.params).toContain(a.spaceId); expect(read.params).not.toContain(b.spaceId);
       }
     } finally { db.$client.options.debug = debug; }
     expect(provider).toHaveBeenCalledTimes(2);
   });
 
-  it("coalesces repeated company status writes without rebuilding every future object", async () => {
+  it("coalesces repeated space status writes without rebuilding every future object", async () => {
     clock(); const svc = service(); const own = await fixture(), foreign = await fixture();
     const future = new Date(Date.now() + 86_400_000);
     for (let offset = 0; offset < 1100; offset += 250) {
       const ids = Array.from({ length: Math.min(250, 1100 - offset) }, () => randomUUID());
-      await db.insert(externalObjects).values(ids.map(id => ({ id, companyId: own.companyId,
+      await db.insert(externalObjects).values(ids.map(id => ({ id, spaceId: own.spaceId,
         providerKey: "url", objectType: "link", externalId: id, nextRefreshAt: future })));
-      await db.insert(externalObjectMentions).values(ids.map(objectId => ({ companyId: own.companyId,
+      await db.insert(externalObjectMentions).values(ids.map(objectId => ({ spaceId: own.spaceId,
         sourceIssueId: own.issueId, sourceKind: "description" as const, objectId })));
     }
     await svc.syncIssue(foreign.issueId);
@@ -393,16 +393,16 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     const reads: Array<{ query: string; params: unknown[] }> = [];
     const debug = db.$client.options.debug;
     db.$client.options.debug = (_connection, query, params) => {
-      if (/^select/i.test(query) && query.includes('from "external_objects"') && query.includes('inner join "companies"'))
+      if (/^select/i.test(query) && query.includes('from "external_objects"') && query.includes('inner join "spaces"'))
         reads.push({ query, params: [...params] });
     };
     try {
-      const companiesSvc = companyService(db);
-      await companiesSvc.update(own.companyId, { status: "paused" });
+      const spacesSvc = spaceService(db);
+      await spacesSvc.update(own.spaceId, { status: "paused" });
       await settle(() => reads.length === 1 && coordinator!.nextWakeAt() === future.getTime()
         && !databaseWorkPending(db, DELIVERY_QUEUES.externalObjectRefresh));
       for (const status of ["active", "paused", "active", "paused", "active"] as const) {
-        await companiesSvc.update(own.companyId, { status });
+        await spacesSvc.update(own.spaceId, { status });
         await settle(() => !databaseWorkPending(db, DELIVERY_QUEUES.externalObjectRefresh)
           && (coordinator!.nextWakeAt() ?? 0) > Date.now());
         expect(reads).toHaveLength(1);
@@ -413,9 +413,9 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
       await vi.advanceTimersByTimeAsync(rebuildAt - Date.now());
       await settle(() => coordinator!.nextWakeAt() === future.getTime() && reads.length === 6);
       for (const read of reads) {
-        expect(read.query).toContain('"external_objects"."company_id" =');
-        expect(read.params).toContain(own.companyId);
-        expect(read.params).not.toContain(foreign.companyId);
+        expect(read.query).toContain('"external_objects"."space_id" =');
+        expect(read.params).toContain(own.spaceId);
+        expect(read.params).not.toContain(foreign.spaceId);
         expect(read.params.at(-1)).toBe(250);
       }
       const count = reads.length;
@@ -431,24 +431,24 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     const own = await fixture(), foreign = await fixture();
     const future = new Date(Date.now() + 86_400_000), removedDeadline = new Date(Date.now() + 1_800_000);
     const sharedUrl = "https://example.com/shared-issue-object";
-    const [retained] = await db.insert(issues).values({ companyId: own.companyId, title: "Retained",
+    const [retained] = await db.insert(issues).values({ spaceId: own.spaceId, title: "Retained",
       description: sharedUrl }).returning();
     await svc.syncIssue(retained!.id);
     await db.update(issues).set({ description: sharedUrl }).where(eq(issues.id, foreign.issueId));
     await svc.syncIssue(foreign.issueId);
     const deletions: Array<{ id: string; affected: string[]; orphaned: string[] }> = [];
     for (let index = 0; index < 3; index++) {
-      const [issue] = await db.insert(issues).values({ companyId: own.companyId,
+      const [issue] = await db.insert(issues).values({ spaceId: own.spaceId,
         title: sharedUrl, description: `https://example.com/deleted-${index}` }).returning();
       await svc.syncIssue(issue!.id);
-      const [comment] = await db.insert(issueComments).values({ companyId: own.companyId, issueId: issue!.id,
+      const [comment] = await db.insert(issueComments).values({ spaceId: own.spaceId, issueId: issue!.id,
         body: `https://example.com/comment-${index}` }).returning();
       await svc.syncComment(comment!.id);
       const doc = await documentService(db).upsertIssueDocument({ issueId: issue!.id, key: "notes", format: "markdown",
         body: `https://example.com/document-${index}` });
       await svc.syncDocument(doc.document.id);
       const mentions = await db.select().from(externalObjectMentions).where(and(
-        eq(externalObjectMentions.companyId, own.companyId), eq(externalObjectMentions.sourceIssueId, issue!.id)));
+        eq(externalObjectMentions.spaceId, own.spaceId), eq(externalObjectMentions.sourceIssueId, issue!.id)));
       expect(new Set(mentions.map(mention => mention.sourceKind))).toEqual(new Set(["title", "description", "comment", "document"]));
       deletions.push({ id: issue!.id, affected: [...new Set(mentions.map(mention => mention.objectId!))],
         orphaned: mentions.filter(mention => mention.sourceKind !== "title").map(mention => mention.objectId!) });
@@ -456,9 +456,9 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     const shared = (await db.select().from(externalObjectMentions).where(eq(externalObjectMentions.sourceIssueId, retained!.id)))[0]!.objectId!;
     for (let offset = 0; offset < 1100; offset += 250) {
       const ids = Array.from({ length: Math.min(250, 1100 - offset) }, () => randomUUID());
-      await db.insert(externalObjects).values(ids.map(id => ({ id, companyId: own.companyId,
+      await db.insert(externalObjects).values(ids.map(id => ({ id, spaceId: own.spaceId,
         providerKey: "url", objectType: "link", externalId: id, nextRefreshAt: future })));
-      await db.insert(externalObjectMentions).values(ids.map(objectId => ({ companyId: own.companyId,
+      await db.insert(externalObjectMentions).values(ids.map(objectId => ({ spaceId: own.spaceId,
         sourceIssueId: own.issueId, sourceKind: "description" as const, objectId })));
     }
     await db.update(externalObjects).set({ nextRefreshAt: future });
@@ -471,7 +471,7 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     const selections: Array<{ query: string; params: unknown[] }> = [];
     const debug = db.$client.options.debug;
     db.$client.options.debug = (_connection, query, params) => {
-      if (/^select/i.test(query) && query.includes('from "external_objects"') && query.includes('inner join "companies"'))
+      if (/^select/i.test(query) && query.includes('from "external_objects"') && query.includes('inner join "spaces"'))
         reads.push({ query, params: [...params] });
       if (/^select distinct/i.test(query) && query.includes('from "external_object_mentions"'))
         selections.push({ query, params: [...params] });
@@ -488,15 +488,15 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
         expect(deletionReads.length).toBeLessThanOrEqual(entry.affected.length);
         for (const read of deletionReads) {
           expect(read.query).toContain('"external_objects"."id" =');
-          expect(read.params).toContain(own.companyId); expect(read.params).not.toContain(foreign.companyId);
+          expect(read.params).toContain(own.spaceId); expect(read.params).not.toContain(foreign.spaceId);
           expect(read.params.some(value => entry.affected.includes(String(value)))).toBe(true);
         }
       }
       expect(selections).toHaveLength(deletions.length);
       for (let index = 0; index < selections.length; index++) {
-        expect(selections[index]!.query).toContain('"external_object_mentions"."company_id" =');
+        expect(selections[index]!.query).toContain('"external_object_mentions"."space_id" =');
         expect(selections[index]!.query).toContain('"external_object_mentions"."source_issue_id" =');
-        expect(selections[index]!.params).toContain(own.companyId); expect(selections[index]!.params).toContain(deletions[index]!.id);
+        expect(selections[index]!.params).toContain(own.spaceId); expect(selections[index]!.params).toContain(deletions[index]!.id);
       }
       const lastMentions = await db.select().from(externalObjectMentions).where(eq(externalObjectMentions.objectId, shared));
       expect(lastMentions).toHaveLength(1); expect(lastMentions[0]!.sourceIssueId).toBe(retained!.id);
@@ -505,7 +505,7 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
       expect(orphanRows).toHaveLength(orphanIds.length);
       for (const orphan of orphanRows) expect(orphan.nextRefreshAt).toEqual(removedDeadline);
       expect(await db.select().from(externalObjectMentions).where(inArray(externalObjectMentions.objectId, orphanIds))).toEqual([]);
-      const foreignRows = await db.select().from(externalObjects).where(eq(externalObjects.companyId, foreign.companyId));
+      const foreignRows = await db.select().from(externalObjects).where(eq(externalObjects.spaceId, foreign.spaceId));
       expect(foreignRows).toHaveLength(1); expect(foreignRows[0]!.nextRefreshAt).toEqual(future);
       const count = reads.length;
       await vi.advanceTimersByTimeAsync(removedDeadline.getTime() - Date.now() + 1);
@@ -524,7 +524,7 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     expect(selects).not.toHaveBeenCalled(); expect(provider).not.toHaveBeenCalled();
     admitted = true; reconcile = true;
     await vi.advanceTimersByTimeAsync(30_000);
-    await settle(async () => (await row(f.companyId))?.isTerminal); await quiet();
+    await settle(async () => (await row(f.spaceId))?.isTerminal); await quiet();
     expect(provider).toHaveBeenCalledOnce();
   });
 
@@ -534,21 +534,21 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     provider.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
     const f = await fixture(); await svc.syncIssue(f.issueId);
     await settle(() => provider.mock.calls.length === 1);
-    const claimed = await row(f.companyId);
+    const claimed = await row(f.spaceId);
     await vi.advanceTimersByTimeAsync(60_000);
-    await settle(async () => (await row(f.companyId)).refreshStartedAt!.getTime() > claimed.refreshStartedAt!.getTime());
-    const competing = await service().refreshObject(claimed.id, { companyId: f.companyId,
+    await settle(async () => (await row(f.spaceId)).refreshStartedAt!.getTime() > claimed.refreshStartedAt!.getTime());
+    const competing = await service().refreshObject(claimed.id, { spaceId: f.spaceId,
       force: true, now: new Date(claimed.refreshStartedAt!.getTime() + 301_000) });
     expect(competing.reason).toBe("refresh_in_progress"); expect(provider).toHaveBeenCalledOnce();
-    finish(terminal); await settle(async () => (await row(f.companyId)).isTerminal); await quiet();
+    finish(terminal); await settle(async () => (await row(f.spaceId)).isTerminal); await quiet();
   });
 
   it("uses durable provider retry deadlines and cancels the observed result on shutdown without overlap", async () => {
     clock(); const svc = service(); await start(svc);
     provider.mockResolvedValueOnce({ ok: false, liveness: "rate_limited", errorCode: "slow_down", retryAfterSeconds: 5 });
     const f = await fixture(); await svc.syncIssue(f.issueId);
-    await settle(async () => (await row(f.companyId))?.lastErrorCode === "slow_down");
-    const saved = await row(f.companyId);
+    await settle(async () => (await row(f.spaceId))?.lastErrorCode === "slow_down");
+    const saved = await row(f.spaceId);
     await settle(() => coordinator!.nextWakeAt() === saved.nextRefreshAt!.getTime());
     expect(saved.refreshToken).toBeNull();
     await vi.advanceTimersByTimeAsync(saved.nextRefreshAt!.getTime() - Date.now() - 1);
@@ -560,9 +560,9 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     expect(provider).toHaveBeenCalledTimes(2);
     let stopped = false; const stop = coordinator!.stop().then(() => { stopped = true; });
     await stop; expect(stopped).toBe(true); coordinator = undefined;
-    const cancelled = await row(f.companyId); expect(cancelled.refreshToken).toBeNull(); expect(cancelled.isTerminal).toBe(false);
+    const cancelled = await row(f.spaceId); expect(cancelled.refreshToken).toBeNull(); expect(cancelled.isTerminal).toBe(false);
     finish(terminal); await delay(10);
-    expect((await row(f.companyId)).isTerminal).toBe(false);
+    expect((await row(f.spaceId)).isTerminal).toBe(false);
     const selects = vi.spyOn(db, "select");
     await vi.advanceTimersByTimeAsync(600_000);
     expect(selects).not.toHaveBeenCalled(); expect(provider).toHaveBeenCalledTimes(2);
@@ -582,7 +582,7 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     const address = server.address(); if (!address || typeof address === "string") throw new Error("Missing HTTP test port");
     const svc = externalObjectService(db, { github: {
       fetch: (url, init) => fetch(`http://127.0.0.1:${address.port}${new URL(url).pathname}`, init),
-      credentialProvider: () => ({ token: "simulated-company-token", source: "company_secret", secretName: "GITHUB_TOKEN" }),
+      credentialProvider: () => ({ token: "simulated-space-token", source: "space_secret", secretName: "GITHUB_TOKEN" }),
     } });
     try {
       await start(svc); const f = await fixture();
@@ -590,11 +590,11 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
       await svc.syncIssue(f.issueId); await settle(() => started);
       await coordinator!.stop(); coordinator = undefined;
       await settle(() => closed);
-      const cancelled = await row(f.companyId);
+      const cancelled = await row(f.spaceId);
       expect(cancelled.refreshToken).toBeNull(); expect(cancelled.lastResolvedAt).toBeNull();
       expect(cancelled.nextRefreshAt!.getTime()).toBeLessThanOrEqual(Date.now());
       stall = false; await start(svc);
-      await settle(async () => Boolean((await row(f.companyId))?.isTerminal)); await quiet();
+      await settle(async () => Boolean((await row(f.spaceId))?.isTerminal)); await quiet();
     } finally { await coordinator?.stop(); coordinator = undefined; server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
   });
 
@@ -604,21 +604,21 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     const ids = Array.from({ length: 10_000 }, () => randomUUID());
     for (let offset = 0; offset < ids.length; offset += 500) {
       const batch = ids.slice(offset, offset + 500);
-      await db.insert(externalObjects).values(batch.map(id => ({ id, companyId: f.companyId,
+      await db.insert(externalObjects).values(batch.map(id => ({ id, spaceId: f.spaceId,
         providerKey: "url", objectType: "link", externalId: id, nextRefreshAt: future })));
-      await db.insert(externalObjectMentions).values(batch.map(objectId => ({ companyId: f.companyId,
+      await db.insert(externalObjectMentions).values(batch.map(objectId => ({ spaceId: f.spaceId,
         sourceIssueId: f.issueId, sourceKind: "description" as const, objectId })));
     }
     await start(svc);
     await vi.waitFor(() => {
       expect(coordinator!.nextWakeAt()).toBe(future.getTime());
     }, { timeout: 10_000, interval: 5 });
-    const [incoming] = await db.insert(issues).values({ companyId: f.companyId, title: "Incoming",
+    const [incoming] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Incoming",
       description: "https://example.com/new-object" }).returning();
     const reads: Array<{ query: string; params: unknown[] }> = [];
     const debug = db.$client.options.debug;
     db.$client.options.debug = (_connection, query, params) => {
-      if (/^select/i.test(query) && query.includes('from "external_objects"') && query.includes('inner join "companies"'))
+      if (/^select/i.test(query) && query.includes('from "external_objects"') && query.includes('inner join "spaces"'))
         reads.push({ query, params: [...params] });
     };
     try {
@@ -630,27 +630,27 @@ const active: ExternalObjectResolveResult = { ok: true, snapshot: {
     } finally { db.$client.options.debug = debug; }
   });
 
-  it("reconstructs paginated multi-company work and never invokes inactive or never-refresh objects", async () => {
+  it("reconstructs paginated multi-space work and never invokes inactive or never-refresh objects", async () => {
     clock(); const svc = service(); const a = await fixture(); const b = await fixture(); const inactive = await fixture("paused");
-    for (const companyId of [b.companyId, inactive.companyId]) {
+    for (const spaceId of [b.spaceId, inactive.spaceId]) {
       await db.insert(externalObjects).values(Array.from({ length: 255 }, (_, index) => ({
-        companyId, providerKey: "url", objectType: "link", externalId: String(index),
-        sanitizedCanonicalUrl: `https://example.com/${companyId}/${index}`, canonicalIdentityHash: `${companyId}-${index}`,
+        spaceId, providerKey: "url", objectType: "link", externalId: String(index),
+        sanitizedCanonicalUrl: `https://example.com/${spaceId}/${index}`, canonicalIdentityHash: `${spaceId}-${index}`,
         nextRefreshAt: null,
       })));
     }
     await db.update(issues).set({ description: Array.from({ length: 255 }, (_, index) =>
-      `https://example.com/${a.companyId}/${index}`).join(" ") }).where(eq(issues.id, a.issueId));
+      `https://example.com/${a.spaceId}/${index}`).join(" ") }).where(eq(issues.id, a.issueId));
     await svc.syncIssue(a.issueId);
     const future = new Date(Date.now() + 60_000);
-    await db.update(externalObjects).set({ nextRefreshAt: future }).where(eq(externalObjects.companyId, a.companyId));
+    await db.update(externalObjects).set({ nextRefreshAt: future }).where(eq(externalObjects.spaceId, a.spaceId));
     await svc.syncIssue(b.issueId);
     await start(svc); await settle(() => provider.mock.calls.length === 1);
     await settle(() => coordinator!.nextWakeAt() === future.getTime());
-    expect((await row(a.companyId)).nextRefreshAt).toEqual(future);
-    const companiesSeen = provider.mock.calls.map(call => (call as unknown as [{ companyId: string }])[0].companyId);
-    expect(companiesSeen).toEqual([b.companyId]);
-    await change(a.companyId, { isTerminal: true }); await quiet();
+    expect((await row(a.spaceId)).nextRefreshAt).toEqual(future);
+    const spacesSeen = provider.mock.calls.map(call => (call as unknown as [{ spaceId: string }])[0].spaceId);
+    expect(spacesSeen).toEqual([b.spaceId]);
+    await change(a.spaceId, { isTerminal: true }); await quiet();
     await vi.advanceTimersByTimeAsync(600_000); expect(provider).toHaveBeenCalledOnce();
   });
 });

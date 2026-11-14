@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { companies, createDb, projects as projectsTable } from "@outpost/db";
+import { spaces, createDb, projects as projectsTable } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -21,37 +21,37 @@ if (!embeddedPostgresSupport.supported) {
 describeEmbeddedPostgres("project icon persistence", () => {
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId!: string;
+  let spaceId!: string;
   let prefixCounter = 0;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-project-icon-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-project-icon-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
   afterEach(async () => {
     await db.delete(projectsTable);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompany(): Promise<string> {
+  async function seedSpace(): Promise<string> {
     prefixCounter += 1;
-    const [company] = await db
-      .insert(companies)
+    const [space] = await db
+      .insert(spaces)
       .values({ name: "Icon Co", issuePrefix: `ICN${prefixCounter}` })
       .returning();
-    return company.id;
+    return space.id;
   }
 
   it("persists and round-trips a project icon on create", async () => {
-    companyId = await seedCompany();
+    spaceId = await seedSpace();
     const projects = projectService(db);
 
-    const created = await projects.create(companyId, { name: "Rocket", icon: "rocket" });
+    const created = await projects.create(spaceId, { name: "Rocket", icon: "rocket" });
     expect(created.icon).toBe("rocket");
 
     const fetched = await projects.getById(created.id);
@@ -59,10 +59,10 @@ describeEmbeddedPostgres("project icon persistence", () => {
   });
 
   it("defaults icon to null when none is provided", async () => {
-    companyId = await seedCompany();
+    spaceId = await seedSpace();
     const projects = projectService(db);
 
-    const created = await projects.create(companyId, { name: "Plain" });
+    const created = await projects.create(spaceId, { name: "Plain" });
     expect(created.icon).toBeNull();
 
     const fetched = await projects.getById(created.id);
@@ -72,10 +72,10 @@ describeEmbeddedPostgres("project icon persistence", () => {
   // PAP-71: new projects must NOT auto-assign a color — they stay neutral gray
   // (color = null) unless an explicit color is supplied on create.
   it("defaults color to null when none is provided (no auto-assign)", async () => {
-    companyId = await seedCompany();
+    spaceId = await seedSpace();
     const projects = projectService(db);
 
-    const created = await projects.create(companyId, { name: "Gray" });
+    const created = await projects.create(spaceId, { name: "Gray" });
     expect(created.color).toBeNull();
 
     const fetched = await projects.getById(created.id);
@@ -83,10 +83,10 @@ describeEmbeddedPostgres("project icon persistence", () => {
   });
 
   it("still persists an explicit color when one is supplied", async () => {
-    companyId = await seedCompany();
+    spaceId = await seedSpace();
     const projects = projectService(db);
 
-    const created = await projects.create(companyId, { name: "Blue", color: "#3b82f6" });
+    const created = await projects.create(spaceId, { name: "Blue", color: "#3b82f6" });
     expect(created.color).toBe("#3b82f6");
 
     const fetched = await projects.getById(created.id);

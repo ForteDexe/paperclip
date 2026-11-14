@@ -32,7 +32,7 @@ export function slackRegistrationProjection(row: Registration): SlackRegistratio
 
 import { createSlackSetupClient } from "./provider-client.js";
 export type SlackSetupOptions = {
-  managed?: { enabled: boolean; broker: import("../../../paperclip-cloud-connector.js").PaperclipCloudConnector };
+  managed?: { enabled: boolean; broker: import("../../../outpost-cloud-connector.js").OutpostCloudConnector };
   publicOrigin: () => string | null;
   webhookOrigin: () => string | null;
   fetch?: typeof fetch;
@@ -63,11 +63,11 @@ export function createSlackRegistrationStore(db: Db, options: SlackSetupOptions)
     await actor.managementContext?.reauthorize();
     if (!(await instanceSettingsService(db).getExperimental()).enableChatConnectors) throw forbidden("Chat connectors are disabled");
     const [row] = await db.select({ endpoint: chatEndpoints, connection: toolConnections, agentName: agents.name, agentAppearance: agents.appearance })
-      .from(chatEndpoints).innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, chatEndpoints.companyId)))
-      .innerJoin(agents, and(eq(agents.id, chatEndpoints.assignedAgentId), eq(agents.companyId, chatEndpoints.companyId)))
+      .from(chatEndpoints).innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, chatEndpoints.spaceId)))
+      .innerJoin(agents, and(eq(agents.id, chatEndpoints.assignedAgentId), eq(agents.spaceId, chatEndpoints.spaceId)))
       .where(and(eq(chatEndpoints.id, endpointId), eq(chatEndpoints.provider, "slack")));
     if (!row || row.endpoint.status === "archived" || row.connection.status === "archived") throw notFound("Slack connection not found");
-    if (!actor.bypassPermissionCheck && !await accessService(db).hasPermission(row.endpoint.companyId, "user", actor.userId, "tools:manage_connections"))
+    if (!actor.bypassPermissionCheck && !await accessService(db).hasPermission(row.endpoint.spaceId, "user", actor.userId, "tools:manage_connections"))
       throw forbidden("Missing permission: tools:manage_connections");
     return row;
   }
@@ -78,7 +78,7 @@ export function createSlackRegistrationStore(db: Db, options: SlackSetupOptions)
       throw conflict("The Slack webhook address changed. Restore its configured address or update the Slack app and use manual setup.");
   }
   async function audit(row: Registration, actor: SlackSetupActor, action: string, code?: string) {
-    await logActivity(db, { companyId: row.companyId, ...(actor.managementContext?.audit ?? { actorType: "user" as const, actorId: actor.userId }),
+    await logActivity(db, { spaceId: row.spaceId, ...(actor.managementContext?.audit ?? { actorType: "user" as const, actorId: actor.userId }),
       action: `chat_slack.${action}`, entityType: "chat_endpoint", entityId: row.endpointId,
       details: { endpointId: row.endpointId, appId: row.appId, ...(code ? { code } : {}) } });
   }
@@ -92,7 +92,7 @@ export function createSlackRegistrationStore(db: Db, options: SlackSetupOptions)
       if (!current || current.requestId !== row.requestId || current.status === "removed") throw conflict("Slack setup changed. Resume the saved connection.");
       const ids = { ...current.secretIds };
       for (const [key, value] of Object.entries(values)) {
-        const result = await writeConnectionCredential(tx, { companyId: row.companyId, connectionName: "Slack app registration",
+        const result = await writeConnectionCredential(tx, { spaceId: row.spaceId, connectionName: "Slack app registration",
           configPath: `slack_registration.${key}`, label: key, value, actor: { userId: actor.userId },
           ...(ids[key] ? { existingRef: { secretId: ids[key], configPath: `slack_registration.${key}` } } : {}) });
         ids[key] = result.secret.id;
@@ -100,7 +100,7 @@ export function createSlackRegistrationStore(db: Db, options: SlackSetupOptions)
       await notifyChatVerificationWork(tx);
       await tx.update(chatSlackRegistrations).set({ ...patch, secretIds: ids, updatedAt: new Date() }).where(eq(chatSlackRegistrations.endpointId, row.endpointId));
       if (account) {
-        const saved = (await tx.select().from(chatEndpoints).where(and(eq(chatEndpoints.id, row.endpointId), eq(chatEndpoints.companyId, row.companyId))).for("update"))[0];
+        const saved = (await tx.select().from(chatEndpoints).where(and(eq(chatEndpoints.id, row.endpointId), eq(chatEndpoints.spaceId, row.spaceId))).for("update"))[0];
         if (!saved || saved.status === "archived") throw conflict("Slack setup changed");
         // Reauthorization never changes an established personal account binding.
         if (saved.setup.slackAccount?.status !== "linked") await tx.update(chatEndpoints).set({ setup: { ...saved.setup, slackAccount: account }, updatedAt: new Date() }).where(eq(chatEndpoints.id, row.endpointId));
@@ -110,7 +110,7 @@ export function createSlackRegistrationStore(db: Db, options: SlackSetupOptions)
   }
   async function readSecret(row: Registration, key: string) {
     if (!row.secretIds[key]) throw conflict("Slack setup credentials are unavailable. Resume the saved connection.");
-    return vault.resolveSecretValue(row.companyId, row.secretIds[key], "latest", {
+    return vault.resolveSecretValue(row.spaceId, row.secretIds[key], "latest", {
       accessContext: { consumerType: "system", consumerId: `slack-registration:${row.endpointId}`, configPath: `slack_registration.${key}`, actorType: "system" },
     });
   }
@@ -125,10 +125,10 @@ export function createSlackRegistrationStore(db: Db, options: SlackSetupOptions)
       await lease.assertOwned(tx);
       const current = (await tx.select().from(chatSlackRegistrations).where(eq(chatSlackRegistrations.endpointId, row.endpointId)).for("update"))[0];
       if (!current || current.requestId !== row.requestId || current.status === "removed") throw conflict("Slack setup changed. Resume the saved connection.");
-      const saved = (await tx.select().from(chatEndpoints).where(and(eq(chatEndpoints.id, row.endpointId), eq(chatEndpoints.companyId, row.companyId))).for("update"))[0];
+      const saved = (await tx.select().from(chatEndpoints).where(and(eq(chatEndpoints.id, row.endpointId), eq(chatEndpoints.spaceId, row.spaceId))).for("update"))[0];
       if (!saved || saved.status === "archived" || !isProvisionedSlackSetup(saved.setup.slackSetupMethod)) throw conflict("Slack setup changed. Resume the saved connection.");
       await tx.update(chatEndpoints).set({ setup: { ...saved.setup, slackAvatar: avatar }, updatedAt: new Date() })
-        .where(and(eq(chatEndpoints.id, row.endpointId), eq(chatEndpoints.companyId, row.companyId)));
+        .where(and(eq(chatEndpoints.id, row.endpointId), eq(chatEndpoints.spaceId, row.spaceId)));
       await lease.assertOwned(tx);
     });
   }

@@ -52,7 +52,7 @@ function zip(entries = files) {
 }
 
 async function fixture(t, { expectedFiles = files, expectedVendorFiles = files, archive = zip(), patchSuffix = "", baseDirectory = tmpdir(), changeParentDuringPatch = false } = {}) {
-  const root = await realpath(await mkdtemp(join(baseDirectory, "paperclip-antigravity-provision-test-")));
+  const root = await realpath(await mkdtemp(join(baseDirectory, "outpost-antigravity-provision-test-")));
   t.after(() => rm(root, { recursive: true, force: true }));
   const scripts = join(root, "scripts");
   await mkdir(scripts);
@@ -71,7 +71,7 @@ export async function patchAntigravityRuntime({source,destination}) {
   const content=await readFile(join(source,name));
   await writeFile(join(destination,name),name==='agy_acp_server.par'?Buffer.concat([content,Buffer.from(${JSON.stringify(patchSuffix)})]):content,{mode:0o500});
  }
- ${changeParentDuringPatch ? `await chmod(${JSON.stringify(join(root, "home/.paperclip/runtimes/antigravity/darwin-arm64"))},0o777);` : ""}
+ ${changeParentDuringPatch ? `await chmod(${JSON.stringify(join(root, "home/.outpost/runtimes/antigravity/darwin-arm64"))},0o777);` : ""}
  return {version:ANTIGRAVITY_PATCH_VERSION,admissionSourceSha256:${JSON.stringify(admissionSourceSha256)}};
 }
 `);
@@ -93,7 +93,7 @@ export async function patchAntigravityRuntime({source,destination}) {
   const api = await import(pathToFileURL(join(scripts, "materialize-antigravity-distribution.mjs")));
   const provisioner = await import(pathToFileURL(join(scripts, "provision-antigravity.mjs")));
   const home = join(root, "home");
-  const destination = join(home, ".paperclip/runtimes/antigravity/darwin-arm64", closureSha256);
+  const destination = join(home, ".outpost/runtimes/antigravity/darwin-arm64", closureSha256);
   const options = { platform: "darwin", architecture: "arm64", archivePath, destination };
   const provision = () => provisioner.provisionAntigravityRuntime({ ...options, home, moduleUrl: "file:///consumer/node_modules/@outpost/outpost-runner/dist/cli/provision-antigravity.cjs" });
   return { root, destination, options, api, provision, distribution: await api.antigravityDistribution("darwin", "arm64") };

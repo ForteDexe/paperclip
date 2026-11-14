@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issues,
@@ -73,27 +73,27 @@ describeEmbeddedPostgres(
     });
 
     it("does not re-emit agent.task_run when a native ownership-unverified write keeps a failed run's status unchanged", async () => {
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const agentId = randomUUID();
       const runId = randomUUID();
       const issueId = randomUUID();
-      const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+      const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 
-      await db.insert(companies).values({
-        id: companyId,
+      await db.insert(spaces).values({
+        id: spaceId,
         name: "Status Preserving Telemetry",
         issuePrefix,
       });
       await db.insert(agents).values({
         id: agentId,
-        companyId,
+        spaceId,
         name: "Native worker",
         adapterType: "outpost_runner",
         status: "running",
       });
       await db.insert(issues).values({
         id: issueId,
-        companyId,
+        spaceId,
         title: "Native ownership fixture",
         status: "in_progress",
         assigneeAgentId: agentId,
@@ -106,7 +106,7 @@ describeEmbeddedPostgres(
       // reapOrphanedRuns into markNativeOwnershipUnverified.
       await db.insert(heartbeatRuns).values({
         id: runId,
-        companyId,
+        spaceId,
         agentId,
         status: "failed",
         runtimeMode: "native",
@@ -119,7 +119,7 @@ describeEmbeddedPostgres(
       });
       await db.insert(nativeRunFinalizations).values({
         runId,
-        companyId,
+        spaceId,
         issueId,
         phase: "retryable_failure",
         attempt: 0,

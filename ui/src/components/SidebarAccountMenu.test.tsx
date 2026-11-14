@@ -55,9 +55,9 @@ describe.each([SidebarAccountMenu, ProductionSidebarAccountMenu])(
       await act(async () => root.render(<SidebarActions deploymentMode="authenticated" />));
 
       const settings = container.querySelector('a[aria-label="Settings"]');
-      expect(settings?.getAttribute("href")).toBe("/company/settings");
+      expect(settings?.getAttribute("href")).toBe("/space/settings");
       expect(container.textContent).toContain("Settings");
-      expect(container.textContent).not.toContain("Board");
+      expect(container.textContent).not.toContain("Operator");
       expect(container.textContent).not.toContain("Documentation");
       expect(container.querySelector('[aria-label="Share feedback"]')).toBeNull();
       expect(container.querySelector('[aria-label="Open account menu"]')).toBeNull();

@@ -8,7 +8,7 @@ import type {
   ToolMcpGatewayWithTokens,
 } from "@outpost/shared";
 import { toolsApi } from "@/api/tools";
-import { useAccountIdentity } from "@/api/companies-query";
+import { useAccountIdentity } from "@/api/spaces-query";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -78,11 +78,11 @@ function ExpiryValue({ token }: { token: ToolMcpGatewayToken }) {
 }
 
 export function TokensPanel({
-  companyId,
+  spaceId,
   gateway,
   onTokenCreated,
 }: {
-  companyId: string;
+  spaceId: string;
   gateway: ToolMcpGatewayWithTokens;
   onTokenCreated?: (token: ToolMcpGatewayTokenCreated) => void;
 }) {
@@ -99,7 +99,7 @@ export function TokensPanel({
   const [revokeName, setRevokeName] = useState("");
   const [confirmToken, setConfirmToken] = useState<{ id: string; name: string } | null>(null);
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: gatewaysQueryKey(companyId) });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: gatewaysQueryKey(spaceId) });
   const tokens = useMemo(
     () => [...gateway.tokens].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [gateway.tokens],
@@ -119,7 +119,7 @@ export function TokensPanel({
 
   const createMutation = useMutation({
     mutationFn: () =>
-      toolsApi.createGatewayToken(companyId, gateway.id, {
+      toolsApi.createGatewayToken(spaceId, gateway.id, {
         name: name.trim(),
         clientLabel: name.trim(),
         ownerNote: ownerNote.trim(),
@@ -151,7 +151,7 @@ export function TokensPanel({
 
   // Agent-created tokens get their value only when the person reveals them here.
   const revealMutation = useMutation({
-    mutationFn: (tokenId: string) => toolsApi.revealGatewayToken(companyId, tokenId),
+    mutationFn: (tokenId: string) => toolsApi.revealGatewayToken(spaceId, tokenId),
     onSuccess: async (token) => {
       setCreated(token);
       setRevealed(true);
@@ -172,7 +172,7 @@ export function TokensPanel({
   });
 
   const revokeMutation = useMutation({
-    mutationFn: (tokenId: string) => toolsApi.revokeGatewayToken(companyId, tokenId),
+    mutationFn: (tokenId: string) => toolsApi.revokeGatewayToken(spaceId, tokenId),
     onSuccess: async (token) => {
       setConfirmToken(null);
       setRevokeName("");

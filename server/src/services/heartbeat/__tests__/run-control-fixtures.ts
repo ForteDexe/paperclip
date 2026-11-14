@@ -1,5 +1,5 @@
 import type { Db } from "@outpost/db";
-import { agents, companies, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns } from "@outpost/db";
+import { agents, spaces, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns } from "@outpost/db";
 import { sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, vi, type Mock } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../../__tests__/helpers/embedded-postgres.js";
@@ -31,7 +31,7 @@ export function callbacks(db: Db): TestCallbacks {
       listReviewAttention: vi.fn<HeartbeatLifecycleDependencies["issuesSvc"]["listReviewAttention"]>(),
     },
     recovery: { escalateStrandedAssignedIssue: vi.fn<HeartbeatLifecycleDependencies["recovery"]["escalateStrandedAssignedIssue"]>() },
-    companySkills: { completeTestRunForIssue: vi.fn<HeartbeatLifecycleDependencies["companySkills"]["completeTestRunForIssue"]>() },
+    spaceSkills: { completeTestRunForIssue: vi.fn<HeartbeatLifecycleDependencies["spaceSkills"]["completeTestRunForIssue"]>() },
     budgets: { getInvocationBlock: vi.fn(async () => null) },
     treeControlSvc: { getActivePauseHoldGate: vi.fn(async () => null) },
     enqueueWakeup: vi.fn<HeartbeatLifecycleDependencies["enqueueWakeup"]>(),
@@ -86,17 +86,17 @@ export function setupRunControlDatabase(name: string, ready: (db: Db) => void) {
   });
   beforeEach(async () => {
     vi.mocked(terminateLocalService).mockReset().mockResolvedValue(undefined);
-    await db.execute(sql`truncate table companies restart identity cascade`);
+    await db.execute(sql`truncate table spaces restart identity cascade`);
   });
   afterEach(() => runningProcesses.clear());
 
   async function fixture() {
-    const [company] = await db.insert(companies).values({ name: "Run control", issuePrefix: "RC" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Controlled agent", adapterType: "codex_local" }).returning();
-    return { company, agent };
+    const [space] = await db.insert(spaces).values({ name: "Run control", issuePrefix: "RC" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Controlled agent", adapterType: "codex_local" }).returning();
+    return { space, agent };
   }
-  async function liveRun(companyId: string, agentId: string) {
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "running", runtimeMode: "legacy", runtimeModeResolvedAt: new Date() }).returning();
+  async function liveRun(spaceId: string, agentId: string) {
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "running", runtimeMode: "legacy", runtimeModeResolvedAt: new Date() }).returning();
     runningProcesses.set(run.id, { child: { pid: 424242 } as never, graceSec: 4, processGroupId: 424242 });
     return run;
   }

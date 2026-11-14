@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRuns, issues } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, issues } from "@outpost/db";
 import { LOW_TRUST_REVIEW_PRESET } from "@outpost/shared";
 import {
   LOW_TRUST_QUARANTINED_BODY,
@@ -70,7 +70,7 @@ describe("source trust quarantine helpers", () => {
       sourceArtifactKind: "comment",
       sourceArtifactId: "44444444-4444-4444-8444-444444444444",
       promotedByActorType: "user",
-      promotedByActorId: "board-user",
+      promotedByActorId: "operator-user",
       promotedAt: new Date("2026-06-03T12:00:00.000Z"),
     });
 
@@ -84,7 +84,7 @@ describe("source trust quarantine helpers", () => {
         issueId: "11111111-1111-4111-8111-111111111111",
       },
       promotedByActorType: "user",
-      promotedByActorId: "board-user",
+      promotedByActorId: "operator-user",
       promotedAt: "2026-06-03T12:00:00.000Z",
     });
     expect(isLowTrustQuarantined(promoted)).toBe(false);
@@ -96,7 +96,7 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-source-trust-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-source-trust-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -104,16 +104,16 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
     await db.delete(heartbeatRuns);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  async function createCompany() {
+  async function createSpace() {
     return db
-      .insert(companies)
+      .insert(spaces)
       .values({
         name: `Source trust ${randomUUID()}`,
         issuePrefix: `ST${randomUUID().slice(0, 6).toUpperCase()}`,
@@ -122,11 +122,11 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
       .then((rows) => rows[0]!);
   }
 
-  async function createAgent(companyId: string, permissions: Record<string, unknown> = {}) {
+  async function createAgent(spaceId: string, permissions: Record<string, unknown> = {}) {
     return db
       .insert(agents)
       .values({
-        companyId,
+        spaceId,
         name: `Agent ${randomUUID()}`,
         role: "engineer",
         adapterType: "process",
@@ -138,12 +138,12 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
       .then((rows) => rows[0]!);
   }
 
-  function lowTrustExecutionPolicy(companyId: string, rootIssueId: string) {
+  function lowTrustExecutionPolicy(spaceId: string, rootIssueId: string) {
     return {
       authorizationPolicy: {
         trustBoundary: {
           mode: LOW_TRUST_REVIEW_PRESET,
-          companyId,
+          spaceId,
           rootIssueId,
         },
       },
@@ -151,23 +151,23 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
   }
 
   it("uses the heartbeat run execution-policy snapshot after live issue policy changes", async () => {
-    const company = await createCompany();
-    const agent = await createAgent(company.id);
+    const space = await createSpace();
+    const agent = await createAgent(space.id);
     const [issue] = await db
       .insert(issues)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         title: "Run-scoped low-trust issue",
         status: "in_progress",
         priority: "high",
         assigneeAgentId: agent.id,
       })
       .returning();
-    const executionPolicy = lowTrustExecutionPolicy(company.id, issue!.id);
+    const executionPolicy = lowTrustExecutionPolicy(space.id, issue!.id);
     const [run] = await db
       .insert(heartbeatRuns)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         agentId: agent.id,
         status: "running",
         contextSnapshot: {
@@ -183,7 +183,7 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
       db,
       issue: {
         id: issue!.id,
-        companyId: company.id,
+        spaceId: space.id,
         projectId: null,
         executionPolicy: null,
       },
@@ -205,13 +205,13 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
   });
 
   it("fails closed when the supplied run id does not belong to the acting agent", async () => {
-    const company = await createCompany();
-    const actorAgent = await createAgent(company.id);
-    const runOwnerAgent = await createAgent(company.id);
+    const space = await createSpace();
+    const actorAgent = await createAgent(space.id);
+    const runOwnerAgent = await createAgent(space.id);
     const [issue] = await db
       .insert(issues)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         title: "Standard issue",
         status: "in_progress",
         priority: "high",
@@ -221,7 +221,7 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
     const [run] = await db
       .insert(heartbeatRuns)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         agentId: runOwnerAgent.id,
         status: "running",
         contextSnapshot: { issueId: issue!.id },
@@ -232,7 +232,7 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
       db,
       issue: {
         id: issue!.id,
-        companyId: company.id,
+        spaceId: space.id,
         projectId: null,
         executionPolicy: null,
       },
@@ -254,13 +254,13 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
   });
 
   it("surfaces denied trust policy resolution instead of treating it as higher trust", async () => {
-    const company = await createCompany();
-    const agent = await createAgent(company.id, {
+    const space = await createSpace();
+    const agent = await createAgent(space.id, {
       trustPreset: LOW_TRUST_REVIEW_PRESET,
       authorizationPolicy: {
         trustBoundary: {
           mode: LOW_TRUST_REVIEW_PRESET,
-          companyId: randomUUID(),
+          spaceId: randomUUID(),
           projectIds: [randomUUID()],
         },
       },
@@ -268,7 +268,7 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
     const [issue] = await db
       .insert(issues)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         title: "Denied trust policy issue",
         status: "in_progress",
         priority: "high",
@@ -280,7 +280,7 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
       db,
       issue: {
         id: issue!.id,
-        companyId: company.id,
+        spaceId: space.id,
         projectId: null,
         executionPolicy: null,
       },
@@ -292,7 +292,7 @@ describeEmbeddedPostgres("resolveActorSourceTrustForIssue", () => {
       },
     })).rejects.toMatchObject({
       status: 403,
-      message: "Low-trust boundary refers to a different company.",
+      message: "Low-trust boundary refers to a different space.",
     });
   });
 });

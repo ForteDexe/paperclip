@@ -37,10 +37,10 @@ function newestRowForSandbox() {
 function taskMovedToAnotherWorkspace() {
   return and(sql`${environmentLeases.executionWorkspaceId} is not null`,
     sql`exists (select 1 from issues task where task.id = ${environmentLeases.issueId}
-      and task.company_id = ${environmentLeases.companyId}
+      and task.space_id = ${environmentLeases.spaceId}
       and task.execution_workspace_id is not null
       and task.execution_workspace_id <> ${environmentLeases.executionWorkspaceId})`,
-    sql`not exists (select 1 from issues bound where bound.company_id = ${environmentLeases.companyId}
+    sql`not exists (select 1 from issues bound where bound.space_id = ${environmentLeases.spaceId}
       and bound.execution_workspace_id = ${environmentLeases.executionWorkspaceId})`);
 }
 
@@ -100,10 +100,10 @@ function softlyHeldSql(now?: Date) {
   const issue = sql`coalesce(run.native_issue_id, run.issue_id, ${environmentLeases.issueId})`;
   return sql`(${environmentLeases.expiresAt} is null or ${environmentLeases.expiresAt} > ${at}) and (
     exists (select 1 from issue_recovery_actions action, heartbeat_runs run
-      where run.id = ${environmentLeases.heartbeatRunId} and action.company_id = ${environmentLeases.companyId}
+      where run.id = ${environmentLeases.heartbeatRunId} and action.space_id = ${environmentLeases.spaceId}
       and action.source_issue_id = ${issue} and action.status not in ('resolved', 'cancelled'))
     or exists (select 1 from heartbeat_runs run, heartbeat_runs other
-      where run.id = ${environmentLeases.heartbeatRunId} and other.company_id = ${environmentLeases.companyId}
+      where run.id = ${environmentLeases.heartbeatRunId} and other.space_id = ${environmentLeases.spaceId}
       and other.id <> run.id and other.status in ('queued', 'scheduled_retry', 'running')
       and (other.issue_id = ${issue} or other.native_issue_id = ${issue})))`;
 }
@@ -221,7 +221,7 @@ export async function settleRetainedOrphanSandbox(db: Db, record: InProgressReco
     }).where(and(eq(environmentLeases.id, lease.id), eq(environmentLeases.heartbeatRunId, runId),
       eq(environmentLeases.status, status), eq(environmentLeases.cleanupStatus, "success"),
       sql`${environmentLeases.metadata} = ${JSON.stringify(lease.metadata)}::jsonb`))
-      .returning({ id: environmentLeases.id }), { companyId: lease.companyId, runId, leaseId: lease.id });
+      .returning({ id: environmentLeases.id }), { spaceId: lease.spaceId, runId, leaseId: lease.id });
     return released.length ? { settled: true, reason: context.proof.reason } : { settled: false, reason: "lease_changed_since_proof" };
   });
 }
@@ -255,11 +255,11 @@ async function heldBy(tx: Db, lease: LeaseRow, runId: string, now: Date): Promis
   const issueId = run?.nativeIssueId ?? run?.issueId ?? lease.issueId;
   if (!issueId) return null;
   const [action] = await tx.select({ id: issueRecoveryActions.id }).from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, lease.companyId), eq(issueRecoveryActions.sourceIssueId, issueId),
+    eq(issueRecoveryActions.spaceId, lease.spaceId), eq(issueRecoveryActions.sourceIssueId, issueId),
     notInArray(issueRecoveryActions.status, ["resolved", "cancelled"]))).limit(1);
   if (action) return "recovery_action_open";
   const [next] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, lease.companyId), ne(heartbeatRuns.id, runId),
+    eq(heartbeatRuns.spaceId, lease.spaceId), ne(heartbeatRuns.id, runId),
     inArray(heartbeatRuns.status, OPEN_RUN_STATUSES),
     sql`(${heartbeatRuns.issueId} = ${issueId} or ${heartbeatRuns.nativeIssueId} = ${issueId})`)).limit(1);
   if (next) return "issue_run_pending";

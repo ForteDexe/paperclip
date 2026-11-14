@@ -9,7 +9,7 @@ assert.ok(Number.isInteger(calls) && calls >= 1 && calls <= 100_000, "--calls mu
 assert.notEqual(process.platform, "win32", "the counting tailscale stand-in needs a POSIX shell");
 
 const TAILNET_ADDRESS = "100.64.0.1";
-const home = mkdtempSync(path.join(os.tmpdir(), "paperclip-config-load-benchmark-"));
+const home = mkdtempSync(path.join(os.tmpdir(), "outpost-config-load-benchmark-"));
 const configPath = path.join(home, "config.json");
 const execLogPath = path.join(home, "tailscale-execs.log");
 const binDir = path.join(home, "bin");

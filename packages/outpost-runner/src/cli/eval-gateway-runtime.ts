@@ -69,10 +69,10 @@ export async function prepareEvalGatewayRuntime(
     if (codex) {
       environment.OUTPOST_AI_PROVIDER_KEY = token;
       await writeFile(join(codexHome, "config.toml"), [
-        'model_provider = "paperclip_eval"',
+        'model_provider = "outpost_eval"',
         'web_search = "disabled"',
         `model = ${JSON.stringify(request.model)}`,
-        '[model_providers.paperclip_eval]',
+        '[model_providers.outpost_eval]',
         'name = "Outpost eval controller"',
         `base_url = ${JSON.stringify(descriptor.baseUrl + "/v1")}`,
         'wire_api = "responses"', 'requires_openai_auth = false', 'env_key = "OUTPOST_AI_PROVIDER_KEY"',

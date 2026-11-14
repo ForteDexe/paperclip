@@ -7,8 +7,8 @@ import type { IssueRecoveryScope } from "../issue-recovery-notifications.js";
 import { registerScopedDeadlineWork } from "../scoped-deadline-work.js";
 import { recoveryActionSweepCondition } from "./blocker-stall-wakeups.js";
 
-type Entry = { id: string; companyId: string; dueAt: number };
-type Scope = { companyId: string; issueId: string; onDeferredDeadline: (at: number) => void };
+type Entry = { id: string; spaceId: string; dueAt: number };
+type Scope = { spaceId: string; issueId: string; onDeferredDeadline: (at: number) => void };
 const PAGE_SIZE = 100;
 
 export function registerIssueRecoveryWork(
@@ -16,11 +16,11 @@ export function registerIssueRecoveryWork(
   coordinator: ReturnType<typeof createDeliveryWorkCoordinator>,
   owner: {
     stranded(scope: Scope): Promise<unknown>;
-    orphanBlockers(scope: { companyId: string }): Promise<unknown>;
-    recoveryActions(scope: { companyId: string }): Promise<{ blockerStallWakeFailures?: number; blockerStallRetryAt?: number | null } | unknown>;
+    orphanBlockers(scope: { spaceId: string }): Promise<unknown>;
+    recoveryActions(scope: { spaceId: string }): Promise<{ blockerStallWakeFailures?: number; blockerStallRetryAt?: number | null } | unknown>;
     dependencies(scope: Scope): Promise<{ enqueueFailed: number }>;
     locks(scope: Scope): Promise<unknown>;
-    watchdogs(scope: { companyId: string; watchdogId: string; onDeferredDeadline: (at: number) => void }): Promise<{ incomplete: number }>;
+    watchdogs(scope: { spaceId: string; watchdogId: string; onDeferredDeadline: (at: number) => void }): Promise<{ incomplete: number }>;
     schedulingSuppressed(): Promise<boolean>;
   },
   canRun: () => boolean,
@@ -33,13 +33,13 @@ export function registerIssueRecoveryWork(
       reconstructionIntervalMs: 30_000,
       beforePass: async () => { enabled = !(await owner.schedulingSuppressed()); },
       decodeScope: hint => hint === "*" ? undefined : JSON.parse(hint) as IssueRecoveryScope,
-      matches: (entry, scope) => !scope || (entry.companyId === scope.companyId && (!scope.issueId || entry.id === scope.issueId)),
+      matches: (entry, scope) => !scope || (entry.spaceId === scope.spaceId && (!scope.issueId || entry.id === scope.issueId)),
       load: async scope => {
-        const key = scope ? JSON.stringify([scope.companyId, scope.issueId]) : "*";
+        const key = scope ? JSON.stringify([scope.spaceId, scope.issueId]) : "*";
         if (!enabled) { cursors.delete(key); return []; }
         const cursor = cursors.get(key);
-        const rows = await db.select({ id: issues.id, companyId: issues.companyId }).from(issues).where(and(
-          scope ? eq(issues.companyId, scope.companyId) : undefined,
+        const rows = await db.select({ id: issues.id, spaceId: issues.spaceId }).from(issues).where(and(
+          scope ? eq(issues.spaceId, scope.spaceId) : undefined,
           scope?.issueId ? eq(issues.id, scope.issueId) : undefined,
           cursor ? gt(issues.id, cursor) : undefined,
           statuses ? inArray(issues.status, statuses) : or(isNotNull(issues.checkoutRunId), isNotNull(issues.executionRunId)),
@@ -54,13 +54,13 @@ export function registerIssueRecoveryWork(
       check: async entry => {
         if (!enabled) return null;
         let next: number | null = null;
-        await check({ companyId: entry.companyId, issueId: entry.id,
+        await check({ spaceId: entry.spaceId, issueId: entry.id,
           onDeferredDeadline: at => { next = next === null ? at : Math.min(next, at); } });
         return next === null ? null : { ...entry, dueAt: next };
       },
     }, canRun);
   }
-  function registerCompany(queue: DeliveryQueue, kind: "blockers" | "actions", check: (scope: { companyId: string }) => Promise<number | null | void>) {
+  function registerSpace(queue: DeliveryQueue, kind: "blockers" | "actions", check: (scope: { spaceId: string }) => Promise<number | null | void>) {
     const cursors = new Map<string, string>();
     let enabled = false;
     return registerScopedDeadlineWork<Entry, IssueRecoveryScope>(coordinator, {
@@ -68,41 +68,41 @@ export function registerIssueRecoveryWork(
       reconstructionIntervalMs: 30_000,
       beforePass: async () => { enabled = !(await owner.schedulingSuppressed()); },
       decodeScope: hint => hint === "*" ? undefined : JSON.parse(hint) as IssueRecoveryScope,
-      matches: (entry, scope) => !scope || entry.companyId === scope.companyId,
+      matches: (entry, scope) => !scope || entry.spaceId === scope.spaceId,
       load: async scope => {
-        const key = scope?.companyId ?? "*";
+        const key = scope?.spaceId ?? "*";
         if (!enabled) { cursors.delete(key); return []; }
         const cursor = cursors.get(key);
         const rows = kind === "actions"
-          ? await db.selectDistinct({ id: issueRecoveryActions.companyId, companyId: issueRecoveryActions.companyId })
+          ? await db.selectDistinct({ id: issueRecoveryActions.spaceId, spaceId: issueRecoveryActions.spaceId })
             .from(issueRecoveryActions).where(and(recoveryActionSweepCondition(),
-              scope ? eq(issueRecoveryActions.companyId, scope.companyId) : undefined,
-              cursor ? gt(issueRecoveryActions.companyId, cursor) : undefined))
-            .orderBy(asc(issueRecoveryActions.companyId)).limit(PAGE_SIZE)
-          : await db.selectDistinct({ id: issues.companyId, companyId: issues.companyId }).from(issues).where(and(
+              scope ? eq(issueRecoveryActions.spaceId, scope.spaceId) : undefined,
+              cursor ? gt(issueRecoveryActions.spaceId, cursor) : undefined))
+            .orderBy(asc(issueRecoveryActions.spaceId)).limit(PAGE_SIZE)
+          : await db.selectDistinct({ id: issues.spaceId, spaceId: issues.spaceId }).from(issues).where(and(
               inArray(issues.status, ["todo", "blocked"]), isNull(issues.assigneeAgentId), isNull(issues.assigneeUserId),
               isNotNull(issues.createdByAgentId),
-              scope ? eq(issues.companyId, scope.companyId) : undefined,
-              cursor ? gt(issues.companyId, cursor) : undefined,
+              scope ? eq(issues.spaceId, scope.spaceId) : undefined,
+              cursor ? gt(issues.spaceId, cursor) : undefined,
               sql`exists (select 1 from ${issueRelations} r inner join ${issues} dependent
-                on dependent.id = r.related_issue_id and dependent.company_id = r.company_id
-                where r.company_id = ${issues.companyId} and r.issue_id = ${issues.id}
+                on dependent.id = r.related_issue_id and dependent.space_id = r.space_id
+                where r.space_id = ${issues.spaceId} and r.issue_id = ${issues.id}
                 and r.type = 'blocks' and dependent.status not in ('done', 'cancelled'))`,
-            )).orderBy(asc(issues.companyId)).limit(PAGE_SIZE);
+            )).orderBy(asc(issues.spaceId)).limit(PAGE_SIZE);
         const complete = rows.length < PAGE_SIZE;
         if (complete) cursors.delete(key); else cursors.set(key, rows.at(-1)!.id);
         return { rows: rows.map(row => ({ ...row, dueAt: Date.now() })), complete };
       },
       check: async entry => {
         if (!enabled) return null;
-        const next = await check({ companyId: entry.companyId });
+        const next = await check({ spaceId: entry.spaceId });
         return typeof next === "number" ? { ...entry, dueAt: next } : null;
       },
     }, canRun);
   }
   const assignments = register(DELIVERY_QUEUES.strandedAssignments, ["todo", "in_progress", "in_review"], owner.stranded);
-  const orphanBlockers = registerCompany(DELIVERY_QUEUES.orphanBlockers, "blockers", async scope => { await owner.orphanBlockers(scope); });
-  const recoveryActions = registerCompany(DELIVERY_QUEUES.activeRecoveryActions, "actions", async scope => {
+  const orphanBlockers = registerSpace(DELIVERY_QUEUES.orphanBlockers, "blockers", async scope => { await owner.orphanBlockers(scope); });
+  const recoveryActions = registerSpace(DELIVERY_QUEUES.activeRecoveryActions, "actions", async scope => {
     const result = await owner.recoveryActions(scope);
     // A stall wake that failed to enqueue must be retried, not dropped with the entry.
     const failures = result && typeof result === "object" && "blockerStallWakeFailures" in result

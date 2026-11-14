@@ -19,8 +19,8 @@ import { ConnectivityProvider, createConnectivityStore } from "../lib/connectivi
 import { taskCollectionPreferencesStorageKey } from "../lib/task-collection-preferences";
 import { readIssueSortParams } from "../lib/issue-sort";
 
-const companyState = vi.hoisted(() => ({
-  selectedCompanyId: "company-1",
+const spaceState = vi.hoisted(() => ({
+  selectedSpaceId: "space-1",
 }));
 
 const dialogState = vi.hoisted(() => ({
@@ -59,8 +59,8 @@ const mockExternalObjectsApi = vi.hoisted(() => ({
   getIssueSummaries: vi.fn(),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => companyState,
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => spaceState,
 }));
 
 vi.mock("../context/DialogContext", () => ({
@@ -214,7 +214,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
   return {
     id: "issue-1",
     identifier: "PAP-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     projectWorkspaceId: null,
     goalId: null,
@@ -411,20 +411,20 @@ describe("IssuesList", () => {
     const first = createIssue({ id: "child-one", parentId: "parent-one", title: "First nested task" });
     const second = createIssue({ id: "child-two", parentId: "parent-two", title: "Second nested task" });
     let resolveAncestors: (rows: Issue[]) => void = () => undefined;
-    mockIssuesApi.list.mockImplementation((_company, filters) => filters.ids && filters.projection === "index"
+    mockIssuesApi.list.mockImplementation((_space, filters) => filters.ids && filters.projection === "index"
       ? new Promise<Issue[]>((resolve) => { resolveAncestors = resolve; }) : Promise.resolve([]));
     const view = (rows: Issue[]) => <IssuesList issues={rows} agents={[]} projects={[]}
-      viewStateKey="paperclip:test-issues" enableAgentCreatedVisibilityFilter rowPresentation="task"
+      viewStateKey="outpost:test-issues" enableAgentCreatedVisibilityFilter rowPresentation="task"
       onUpdateIssue={() => undefined} />;
     const { root, queryClient } = renderWithQueryClient(view([first]), container);
-    await waitForAssertion(() => expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1",
+    await waitForAssertion(() => expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1",
       expect.objectContaining({ ids: ["parent-one"], projection: "index" }), expect.anything()));
     expect(container.querySelector('[aria-label="Loading tasks"]')).not.toBeNull();
     const parent = createIssue({ id: "parent-one", title: "First parent" });
     await act(() => resolveAncestors([parent]));
     await waitForAssertion(() => expect(container.textContent).toContain("First nested task"));
     await act(() => root.render(<QueryClientProvider client={queryClient}><TooltipProvider>{view([first, second])}</TooltipProvider></QueryClientProvider>));
-    await waitForAssertion(() => expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1",
+    await waitForAssertion(() => expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1",
       expect.objectContaining({ ids: ["parent-one", "parent-two"], projection: "index" }), expect.anything()));
     expect(container.textContent).toContain("First parent");
     expect(container.querySelector('[aria-label="Loading tasks"]')).toBeNull();
@@ -436,14 +436,14 @@ describe("IssuesList", () => {
 
   it.each([true, false])("URL sorting overrides saved sorting and handles direction clicks (streamlined=%s)", async (enableStreamlinedUi) => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableStreamlinedUi, enableExternalObjects: false });
-    localStorage.setItem("paperclip:test-issues:company-1", JSON.stringify({ sortField: "title", sortDir: "asc" }));
+    localStorage.setItem("outpost:test-issues:space-1", JSON.stringify({ sortField: "title", sortDir: "asc" }));
     const issues = [
       createIssue({ id: "older", title: "Alpha older task", createdAt: new Date("2026-01-01") }),
       createIssue({ id: "newer", title: "Zulu newer task", createdAt: new Date("2026-02-01") }),
     ];
     const onSortChange = vi.fn();
     const { root, queryClient } = renderWithQueryClient(<IssuesList issues={issues} agents={[]} projects={[]}
-      viewStateKey="paperclip:test-issues" sort={{ sortField: "created", sortDir: "desc" }}
+      viewStateKey="outpost:test-issues" sort={{ sortField: "created", sortDir: "desc" }}
       onSortChange={onSortChange} onUpdateIssue={() => undefined} />, container);
     const titles = () => [...container.querySelectorAll('[data-testid="issue-row"]')].map(row => row.textContent);
     await waitForAssertion(() => expect(titles()[0]).toContain("Zulu newer task"));
@@ -452,7 +452,7 @@ describe("IssuesList", () => {
     await act(() => [...document.querySelectorAll("button")].find(button => button.textContent?.startsWith("Created"))!.click());
     expect(onSortChange).toHaveBeenLastCalledWith({ sortField: "created", sortDir: "asc" });
     await act(() => root.render(<QueryClientProvider client={queryClient}><TooltipProvider>
-      <IssuesList issues={issues} agents={[]} projects={[]} viewStateKey="paperclip:test-issues"
+      <IssuesList issues={issues} agents={[]} projects={[]} viewStateKey="outpost:test-issues"
         sort={{ sortField: "created", sortDir: "asc" }} onSortChange={onSortChange} onUpdateIssue={() => undefined} />
     </TooltipProvider></QueryClientProvider>));
     await waitForAssertion(() => expect(titles()[0]).toContain("Alpha older task"));
@@ -513,7 +513,7 @@ describe("IssuesList", () => {
         issues={[createIssue()]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         rowPresentation="task"
         onUpdateIssue={() => undefined}
       />,
@@ -521,7 +521,7 @@ describe("IssuesList", () => {
     );
 
     await waitForAssertion(() => {
-      expect(mockExternalObjectsApi.getIssueSummaries).toHaveBeenCalledWith("company-1", ["issue-1"]);
+      expect(mockExternalObjectsApi.getIssueSummaries).toHaveBeenCalledWith("space-1", ["issue-1"]);
       expect(container.querySelector("[data-testid='external-object-summary']")?.textContent).toBe("2");
     });
 
@@ -536,7 +536,7 @@ describe("IssuesList", () => {
         issues={[createIssue()]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         rowPresentation="task"
         onUpdateIssue={() => undefined}
       />,
@@ -564,7 +564,7 @@ describe("IssuesList", () => {
         issues={[parent, child]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         rowPresentation="task"
         onUpdateIssue={() => undefined}
       />,
@@ -590,7 +590,7 @@ describe("IssuesList", () => {
         issues={[createIssue()]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         toolbarPresentation="collection"
         onUpdateIssue={() => undefined}
       />,
@@ -610,7 +610,7 @@ describe("IssuesList", () => {
         issues={[createIssue()]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         rowPresentation="task"
         onUpdateIssue={() => undefined}
       />,
@@ -636,7 +636,7 @@ describe("IssuesList", () => {
     const failedIssue = createIssue({ id: "issue-failed", identifier: "PAP-10", title: "Failed external object" });
     const freshIssue = createIssue({ id: "issue-fresh", identifier: "PAP-11", title: "Fresh external object" });
     const noObjectIssue = createIssue({ id: "issue-none", identifier: "PAP-12", title: "No external object" });
-    localStorage.setItem("paperclip:test-issues:company-1", JSON.stringify({ externalObjectStatuses: ["failed"] }));
+    localStorage.setItem("outpost:test-issues:space-1", JSON.stringify({ externalObjectStatuses: ["failed"] }));
     mockExternalObjectsApi.getIssueSummaries.mockResolvedValue({
       summaries: {
         "issue-failed": {
@@ -667,7 +667,7 @@ describe("IssuesList", () => {
         issues={[failedIssue, freshIssue, noObjectIssue]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         rowPresentation="task"
         onUpdateIssue={() => undefined}
       />,
@@ -676,7 +676,7 @@ describe("IssuesList", () => {
 
     await waitForAssertion(() => {
       expect(mockExternalObjectsApi.getIssueSummaries).toHaveBeenCalledWith(
-        "company-1",
+        "space-1",
         ["issue-failed", "issue-fresh", "issue-none"],
       );
       expect(container.textContent).toContain("Failed external object");
@@ -706,11 +706,11 @@ describe("IssuesList", () => {
 
   it.each([null, 429, 503])("offers retry after a settled external-status failure while reachable (%s)", async status => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableStreamlinedUi: true, enableExternalObjects: true });
-    localStorage.setItem("paperclip:test-issues:company-1", JSON.stringify({ externalObjectStatuses: ["failed"] }));
+    localStorage.setItem("outpost:test-issues:space-1", JSON.stringify({ externalObjectStatuses: ["failed"] }));
     mockExternalObjectsApi.getIssueSummaries.mockRejectedValue(status === null ? new Error("Status lookup unavailable") : new ApiError("temporarily_unavailable", status, null));
     const { root, queryClient } = renderWithQueryClient(<IssuesList
       issues={[createIssue({ id: "issue-failed", title: "Matching task after retry" })]}
-      agents={[]} projects={[]} viewStateKey="paperclip:test-issues" rowPresentation="task"
+      agents={[]} projects={[]} viewStateKey="outpost:test-issues" rowPresentation="task"
       onUpdateIssue={() => undefined}
     />, container);
     await waitForAssertion(() => expect(container.textContent).toContain("Unable to filter tasks by external status"));
@@ -730,10 +730,10 @@ describe("IssuesList", () => {
 
   it("retries feature discovery before applying a saved external-status filter", async () => {
     mockInstanceSettingsApi.getExperimental.mockRejectedValue(new ApiError("rate_limited", 429, null));
-    localStorage.setItem("paperclip:test-issues:company-1", JSON.stringify({ externalObjectStatuses: ["failed"] }));
+    localStorage.setItem("outpost:test-issues:space-1", JSON.stringify({ externalObjectStatuses: ["failed"] }));
     mockExternalObjectsApi.getIssueSummaries.mockResolvedValue({ summaries: { "issue-failed": { total: 1, byStatusCategory: { failed: 1 }, objects: [] } } });
     const { root, queryClient } = renderWithQueryClient(<IssuesList
-      issues={[createIssue({ id: "issue-failed", title: "Recovered filtered task" })]} agents={[]} projects={[]} viewStateKey="paperclip:test-issues"
+      issues={[createIssue({ id: "issue-failed", title: "Recovered filtered task" })]} agents={[]} projects={[]} viewStateKey="outpost:test-issues"
       onUpdateIssue={() => undefined}
     />, container);
     try {
@@ -748,11 +748,11 @@ describe("IssuesList", () => {
 
   it("keeps an initial external-status outage in a quiet loading state", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableStreamlinedUi: true, enableExternalObjects: true });
-    localStorage.setItem("paperclip:test-issues:company-1", JSON.stringify({ externalObjectStatuses: ["failed"] }));
+    localStorage.setItem("outpost:test-issues:space-1", JSON.stringify({ externalObjectStatuses: ["failed"] }));
     mockExternalObjectsApi.getIssueSummaries.mockRejectedValue(new ApiError("tenant_app_unavailable", 503, null));
     const store = createConnectivityStore({ browserOnline: false });
     const { root, queryClient } = renderWithQueryClient(<ConnectivityProvider store={store}><IssuesList
-      issues={[createIssue({ id: "issue-failed" })]} agents={[]} projects={[]} viewStateKey="paperclip:test-issues"
+      issues={[createIssue({ id: "issue-failed" })]} agents={[]} projects={[]} viewStateKey="outpost:test-issues"
       onUpdateIssue={() => undefined}
     /></ConnectivityProvider>, container);
     try {
@@ -766,10 +766,10 @@ describe("IssuesList", () => {
 
   it.each([429, 503])("retains filtered rows after a cached external-status %s", async status => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableStreamlinedUi: true, enableExternalObjects: true });
-    localStorage.setItem("paperclip:test-issues:company-1", JSON.stringify({ externalObjectStatuses: ["failed"] }));
+    localStorage.setItem("outpost:test-issues:space-1", JSON.stringify({ externalObjectStatuses: ["failed"] }));
     mockExternalObjectsApi.getIssueSummaries.mockResolvedValue({ summaries: { "issue-failed": { total: 1, byStatusCategory: { failed: 1 }, objects: [] } } });
     const { root, queryClient } = renderWithQueryClient(<IssuesList
-      issues={[createIssue({ id: "issue-failed", title: "Retained filtered task" })]} agents={[]} projects={[]} viewStateKey="paperclip:test-issues"
+      issues={[createIssue({ id: "issue-failed", title: "Retained filtered task" })]} agents={[]} projects={[]} viewStateKey="outpost:test-issues"
       onUpdateIssue={() => undefined}
     />, container);
     try {
@@ -788,12 +788,12 @@ describe("IssuesList", () => {
   it("offers hierarchy retry after a reachable first-read 429 while keeping matching tasks", async () => {
     const parent = createIssue({ id: "human-root", title: "Readable root task", createdByUserId: "person" });
     let failed = true;
-    mockIssuesApi.list.mockImplementation(async (_company, filters) => {
+    mockIssuesApi.list.mockImplementation(async (_space, filters) => {
       if (filters.parentIds && failed) throw new ApiError("rate_limited", 429, null);
       return [];
     });
     const { root, queryClient } = renderWithQueryClient(<IssuesList
-      issues={[parent]} agents={[]} projects={[]} viewStateKey="paperclip:test-tree"
+      issues={[parent]} agents={[]} projects={[]} viewStateKey="outpost:test-tree"
       enableAgentCreatedVisibilityFilter onUpdateIssue={() => undefined}
     />, container);
     try {
@@ -820,7 +820,7 @@ describe("IssuesList", () => {
         issues={[localIssue]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         initialSearch="server"
         onUpdateIssue={() => undefined}
       />,
@@ -828,7 +828,7 @@ describe("IssuesList", () => {
     );
 
     await waitForAssertion(() => {
-      expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", {
+      expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1", {
         q: "server",
         projection: undefined,
         projectId: undefined,
@@ -854,7 +854,7 @@ describe("IssuesList", () => {
         issues={[localIssue]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         initialSearch="server"
         searchFilters={{ parentId: "parent-1" }}
         onUpdateIssue={() => undefined}
@@ -863,7 +863,7 @@ describe("IssuesList", () => {
     );
 
     await waitForAssertion(() => {
-      expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", {
+      expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1", {
         q: "server",
         projection: undefined,
         projectId: undefined,
@@ -885,7 +885,7 @@ describe("IssuesList", () => {
         issues={[createIssue()]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         baseCreateIssueDefaults={{ parentId: "parent-1", projectId: "project-1" }}
         createIssueLabel="Sub-issue"
         onUpdateIssue={() => undefined}
@@ -920,7 +920,7 @@ describe("IssuesList", () => {
 
   it("uses workspace group defaults when creating an issue from a grouped section", async () => {
     localStorage.setItem(
-      "paperclip:test-issues:company-1",
+      "outpost:test-issues:space-1",
       JSON.stringify({ groupBy: "workspace", sortField: "updated", sortDir: "desc" }),
     );
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableIsolatedWorkspaces: true });
@@ -953,7 +953,7 @@ describe("IssuesList", () => {
         issues={[issue]}
         agents={[]}
         projects={[project]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -1026,7 +1026,7 @@ describe("IssuesList", () => {
         issues={[cancelledIssue, blockedIssue, nextIssue, doneIssue]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         showProgressSummary
         onUpdateIssue={() => undefined}
       />,
@@ -1082,7 +1082,7 @@ describe("IssuesList", () => {
         issues={[issueBlocked, issueActive, issueDone]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         defaultSortField="workflow"
         onUpdateIssue={() => undefined}
       />,
@@ -1112,7 +1112,7 @@ describe("IssuesList", () => {
         issues={[createIssue({ id: "issue-1", identifier: "PAP-1", title: "Task one" })]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         rowPresentation="task"
         onUpdateIssue={() => undefined}
       />,
@@ -1189,7 +1189,7 @@ describe("IssuesList", () => {
         issues={[secondChild, firstChild]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         defaultSortField="workflow"
         onUpdateIssue={() => undefined}
       />,
@@ -1279,7 +1279,7 @@ describe("IssuesList", () => {
         issues={[issueBlocked, thirdBlocker, secondBlocker, firstBlocker, issueDone]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         defaultSortField="workflow"
         onUpdateIssue={() => undefined}
       />,
@@ -1338,7 +1338,7 @@ describe("IssuesList", () => {
         issues={[grandchild, nextRoot, firstRoot, parent]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         defaultSortField="workflow"
         onUpdateIssue={() => undefined}
       />,
@@ -1368,7 +1368,7 @@ describe("IssuesList", () => {
         issues={[createIssue()]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         showProgressSummary
         onUpdateIssue={() => undefined}
       />,
@@ -1405,7 +1405,7 @@ describe("IssuesList", () => {
         ]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         showProgressSummary
         onUpdateIssue={() => undefined}
       />,
@@ -1434,7 +1434,7 @@ describe("IssuesList", () => {
         issues={[localIssue]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onSearchChange={onSearchChange}
         onUpdateIssue={() => undefined}
       />,
@@ -1485,7 +1485,7 @@ describe("IssuesList", () => {
     );
 
     localStorage.setItem(
-      "paperclip:test-issues:company-1",
+      "outpost:test-issues:space-1",
       JSON.stringify({ statuses: ["done"] }),
     );
     mockIssuesApi.list.mockResolvedValue(serverIssues);
@@ -1495,7 +1495,7 @@ describe("IssuesList", () => {
         issues={[]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         initialSearch="server"
         onUpdateIssue={() => undefined}
       />,
@@ -1513,7 +1513,7 @@ describe("IssuesList", () => {
 
   it("loads board issues with a separate result limit for each status column", async () => {
     localStorage.setItem(
-      "paperclip:test-issues:company-1",
+      "outpost:test-issues:space-1",
       JSON.stringify({ viewMode: "board" }),
     );
 
@@ -1533,7 +1533,7 @@ describe("IssuesList", () => {
       status: "done",
     });
 
-    mockIssuesApi.list.mockImplementation((_companyId, filters) => {
+    mockIssuesApi.list.mockImplementation((_spaceId, filters) => {
       if (filters?.displayStatus === "backlog") return Promise.resolve([backlogIssue]);
       if (filters?.displayStatus === "done") return Promise.resolve([doneIssue]);
       return Promise.resolve([]);
@@ -1544,7 +1544,7 @@ describe("IssuesList", () => {
         issues={[parentIssue]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         enableAgentCreatedVisibilityFilter
         onUpdateIssue={() => undefined}
       />,
@@ -1552,13 +1552,13 @@ describe("IssuesList", () => {
     );
 
     await waitForAssertion(() => {
-      expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", expect.objectContaining({
+      expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1", expect.objectContaining({
         displayStatus: "backlog",
         limit: 200,
         includeRoutineExecutions: true,
         includeAgentCreatedTasks: false,
       }), { signal: expect.any(AbortSignal) });
-      expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", expect.objectContaining({
+      expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1", expect.objectContaining({
         displayStatus: "done",
         limit: 200,
         includeRoutineExecutions: true,
@@ -1582,7 +1582,7 @@ describe("IssuesList", () => {
 
   it("uses compact cards and collapsed cold lanes for high-volume boards", async () => {
     localStorage.setItem(
-      "paperclip:test-issues:company-1",
+      "outpost:test-issues:space-1",
       JSON.stringify({ viewMode: "board" }),
     );
 
@@ -1595,7 +1595,7 @@ describe("IssuesList", () => {
       }),
     );
 
-    mockIssuesApi.list.mockImplementation((_companyId, filters) => {
+    mockIssuesApi.list.mockImplementation((_spaceId, filters) => {
       if (filters?.displayStatus === "backlog") return Promise.resolve(backlogIssues);
       return Promise.resolve([]);
     });
@@ -1605,7 +1605,7 @@ describe("IssuesList", () => {
         issues={[]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -1625,9 +1625,9 @@ describe("IssuesList", () => {
     });
   });
 
-  it("lets board users choose the per-column page size", async () => {
+  it("lets operators choose the per-column page size", async () => {
     localStorage.setItem(
-      "paperclip:test-issues:company-1",
+      "outpost:test-issues:space-1",
       JSON.stringify({ viewMode: "board" }),
     );
 
@@ -1636,7 +1636,7 @@ describe("IssuesList", () => {
         issues={[createIssue({ id: "issue-page-size", title: "Page size issue" })]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -1677,7 +1677,7 @@ describe("IssuesList", () => {
       }));
     });
 
-    expect(localStorage.getItem("paperclip:test-issues:company-1")).toContain("\"boardColumnPageSize\":25");
+    expect(localStorage.getItem("outpost:test-issues:space-1")).toContain("\"boardColumnPageSize\":25");
 
     act(() => {
       root.unmount();
@@ -1686,7 +1686,7 @@ describe("IssuesList", () => {
 
   it("shows a refinement hint when a board column hits its server cap", async () => {
     localStorage.setItem(
-      "paperclip:test-issues:company-1",
+      "outpost:test-issues:space-1",
       JSON.stringify({ viewMode: "board" }),
     );
 
@@ -1699,7 +1699,7 @@ describe("IssuesList", () => {
       }),
     );
 
-    mockIssuesApi.list.mockImplementation((_companyId, filters) => {
+    mockIssuesApi.list.mockImplementation((_spaceId, filters) => {
       if (filters?.displayStatus === "backlog") return Promise.resolve(cappedBacklogIssues);
       return Promise.resolve([]);
     });
@@ -1709,7 +1709,7 @@ describe("IssuesList", () => {
         issues={[]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -1738,7 +1738,7 @@ describe("IssuesList", () => {
         issues={manyIssues}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -1763,7 +1763,7 @@ describe("IssuesList", () => {
     }));
     let holdNextRead = false;
     let releaseRead: (() => void) | undefined;
-    mockIssuesApi.list.mockImplementation(async (_companyId, filters) => {
+    mockIssuesApi.list.mockImplementation(async (_spaceId, filters) => {
       if (!filters.parentIds?.includes(parent.id)) return [];
       const rows = children.slice(filters.offset ?? 0, (filters.offset ?? 0) + filters.limit);
       if (holdNextRead) {
@@ -1773,7 +1773,7 @@ describe("IssuesList", () => {
       return rows;
     });
     const { root } = renderWithQueryClient(
-      <IssuesList issues={[parent]} agents={[]} projects={[]} viewStateKey="paperclip:test-tree"
+      <IssuesList issues={[parent]} agents={[]} projects={[]} viewStateKey="outpost:test-tree"
         enableAgentCreatedVisibilityFilter onUpdateIssue={() => undefined} />,
       container,
     );
@@ -1810,7 +1810,7 @@ describe("IssuesList", () => {
         issues={manyIssues}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -1861,7 +1861,7 @@ describe("IssuesList", () => {
         issues={manyIssues}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -1906,7 +1906,7 @@ describe("IssuesList", () => {
         issues={visibleIssues}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         hasMoreIssues
         onLoadMoreIssues={onLoadMoreIssues}
         onUpdateIssue={() => undefined}
@@ -1956,7 +1956,7 @@ describe("IssuesList", () => {
         issues={[parentIssue, childIssue]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -1980,7 +1980,7 @@ describe("IssuesList", () => {
   });
 
   it("uses context-scoped persisted column visibility", async () => {
-    localStorage.setItem("paperclip:test-issues:company-1:issue-columns", JSON.stringify(["id", "assignee"]));
+    localStorage.setItem("outpost:test-issues:space-1:issue-columns", JSON.stringify(["id", "assignee"]));
 
     const assignedIssue = createIssue({
       id: "issue-assigned",
@@ -1994,7 +1994,7 @@ describe("IssuesList", () => {
         issues={[assignedIssue]}
         agents={[{ id: "agent-1", name: "Agent One" }]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -2015,8 +2015,8 @@ describe("IssuesList", () => {
     });
   });
 
-  it("shows human assignee names from company member profiles", async () => {
-    localStorage.setItem("paperclip:test-issues:company-1:issue-columns", JSON.stringify(["id", "assignee"]));
+  it("shows human assignee names from space member profiles", async () => {
+    localStorage.setItem("outpost:test-issues:space-1:issue-columns", JSON.stringify(["id", "assignee"]));
     mockAccessApi.listUserDirectory.mockResolvedValue({
       users: [
         {
@@ -2044,7 +2044,7 @@ describe("IssuesList", () => {
         issues={[assignedIssue]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -2061,7 +2061,7 @@ describe("IssuesList", () => {
 
   it("preserves stored grouping across refresh when initial assignees are applied", async () => {
     localStorage.setItem(
-      "paperclip:test-issues:company-1",
+      "outpost:test-issues:space-1",
       JSON.stringify({ groupBy: "status", sortField: "updated", sortDir: "desc" }),
     );
 
@@ -2073,7 +2073,7 @@ describe("IssuesList", () => {
         issues={[todoIssue, doneIssue]}
         agents={[{ id: "agent-1", name: "Agent One" }]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         initialAssignees={["agent-1"]}
         onUpdateIssue={() => undefined}
       />,
@@ -2093,7 +2093,7 @@ describe("IssuesList", () => {
   });
 
   it("filters the list to a single workspace when a workspace name is clicked", async () => {
-    localStorage.setItem("paperclip:test-issues:company-1:issue-columns", JSON.stringify(["id", "workspace"]));
+    localStorage.setItem("outpost:test-issues:space-1:issue-columns", JSON.stringify(["id", "workspace"]));
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableIsolatedWorkspaces: true });
     mockExecutionWorkspacesApi.listSummaries.mockResolvedValue([
       {
@@ -2130,7 +2130,7 @@ describe("IssuesList", () => {
         issues={[alphaIssue, betaIssue]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -2166,13 +2166,13 @@ describe("IssuesList", () => {
   it("ignores a saved workspace filter when the page address has no workspace query", async () => {
     localStorage.setItem(
       taskCollectionPreferencesStorageKey({
-        companyId: "company-1",
-        collectionKey: "paperclip:test-issues",
+        spaceId: "space-1",
+        collectionKey: "outpost:test-issues",
       }),
       JSON.stringify({
         version: 1,
-        companyId: "company-1",
-        collectionKey: "paperclip:test-issues",
+        spaceId: "space-1",
+        collectionKey: "outpost:test-issues",
         viewState: {
           workspaces: ["workspace-alpha"],
         },
@@ -2197,7 +2197,7 @@ describe("IssuesList", () => {
         issues={[alphaIssue, betaIssue]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -2232,7 +2232,7 @@ describe("IssuesList", () => {
         issues={[alphaIssue, betaIssue]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         initialWorkspaces={["workspace-alpha"]}
         onUpdateIssue={() => undefined}
       />,
@@ -2255,7 +2255,7 @@ describe("IssuesList", () => {
     const manual = createIssue({ id: "manual-result", title: "Manual report", originKind: "manual", createdByUserId: "person" });
     mockIssuesApi.list.mockResolvedValue([routine, manual]);
     const { root, queryClient } = renderWithQueryClient(<IssuesList
-      issues={[routine, manual]} agents={[]} projects={[]} viewStateKey="paperclip:test-issues"
+      issues={[routine, manual]} agents={[]} projects={[]} viewStateKey="outpost:test-issues"
       routineTasksOnly enableAgentCreatedVisibilityFilter initialSearch="report"
       onUpdateIssue={() => undefined}
     />, container);
@@ -2263,7 +2263,7 @@ describe("IssuesList", () => {
       await waitForAssertion(() => {
         expect(container.textContent).toContain("Routine report");
         expect(container.textContent).not.toContain("Manual report");
-        expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", expect.objectContaining({
+        expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1", expect.objectContaining({
           q: "report", originKind: "routine_execution", includeRoutineExecutions: true, includeAgentCreatedTasks: true,
         }), expect.anything());
       });
@@ -2291,7 +2291,7 @@ describe("IssuesList", () => {
   it.each([true, false])("keeps visibility controls and fetching preferences synchronized (streamlined=%s)", async (streamlined) => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableStreamlinedUi: streamlined });
     function PreferenceProbe() {
-      const included = useShowAgentCreatedTasks("company-1", "paperclip:test-issues");
+      const included = useShowAgentCreatedTasks("space-1", "outpost:test-issues");
       return <span data-testid="creation-preference">{String(included)}</span>;
     }
     const manualIssue = createIssue({
@@ -2313,7 +2313,7 @@ describe("IssuesList", () => {
         issues={[manualIssue, routineIssue]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         enableAgentCreatedVisibilityFilter
         onUpdateIssue={() => undefined}
       /></>,
@@ -2352,7 +2352,7 @@ describe("IssuesList", () => {
       expect(container.textContent).toContain("Routine issue");
       expect(container.querySelector("[data-testid='creation-preference']")?.textContent).toBe("true");
     });
-    const preferenceKey = taskCollectionPreferencesStorageKey({ companyId: "company-1", collectionKey: "paperclip:test-issues" });
+    const preferenceKey = taskCollectionPreferencesStorageKey({ spaceId: "space-1", collectionKey: "outpost:test-issues" });
     const envelope = JSON.parse(localStorage.getItem(preferenceKey)!);
     await act(async () => {
       localStorage.setItem(preferenceKey, JSON.stringify({ ...envelope, viewState: { ...envelope.viewState, showAgentCreatedTasks: false } }));
@@ -2375,7 +2375,7 @@ describe("IssuesList", () => {
         issues={[createIssue()]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         initialSearch="bug"
         onUpdateIssue={() => undefined}
       />,
@@ -2411,7 +2411,7 @@ describe("IssuesList", () => {
         issues={[createIssue()]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         initialSearch=""
         onUpdateIssue={() => undefined}
       />,
@@ -2449,14 +2449,14 @@ describe("IssuesList", () => {
         issues={[createIssue()]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
     );
 
     await waitForAssertion(() => {
-      expect(mockExecutionWorkspacesApi.listSummaries).toHaveBeenCalledWith("company-1");
+      expect(mockExecutionWorkspacesApi.listSummaries).toHaveBeenCalledWith("space-1");
       expect(mockExecutionWorkspacesApi.list).not.toHaveBeenCalled();
     });
 
@@ -2475,7 +2475,7 @@ describe("IssuesList", () => {
         issues={[createIssue({ status: "in_progress" })]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         onUpdateIssue={() => undefined}
       />,
       container,
@@ -2513,7 +2513,7 @@ describe("IssuesList", () => {
         ]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         rowPresentation="task"
         onUpdateIssue={() => undefined}
       />,
@@ -2538,15 +2538,15 @@ describe("IssuesList", () => {
   });
 
   it("can hide date group separators from the persisted Columns option", async () => {
-    const collectionKey = "paperclip:test-issues";
+    const collectionKey = "outpost:test-issues";
     localStorage.setItem(
       taskCollectionPreferencesStorageKey({
-        companyId: "company-1",
+        spaceId: "space-1",
         collectionKey,
       }),
       JSON.stringify({
         version: 1,
-        companyId: "company-1",
+        spaceId: "space-1",
         collectionKey,
         viewState: { showDateGroupSeparators: false },
         columns: ["status", "id", "updated"],
@@ -2594,7 +2594,7 @@ describe("IssuesList", () => {
         ]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         rowPresentation="task"
         onUpdateIssue={() => undefined}
       />,
@@ -2627,7 +2627,7 @@ describe("IssuesList", () => {
         ]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         rowPresentation="task"
         onUpdateIssue={() => undefined}
       />,
@@ -2665,7 +2665,7 @@ describe("IssuesList", () => {
         ]}
         agents={[]}
         projects={[]}
-        viewStateKey="paperclip:test-issues"
+        viewStateKey="outpost:test-issues"
         rowPresentation="task"
         onUpdateIssue={() => undefined}
       />,

@@ -54,10 +54,10 @@ describe("errorHandler", () => {
 
   it("passes only authenticated run identity to Sentry for a run-related server error", () => {
     const req = makeReq();
-    req.actor = { type: "agent", runId: "run", companyId: "company", agentId: "agent" };
+    req.actor = { type: "agent", runId: "run", spaceId: "space", agentId: "agent" };
     const error = new Error("run request failed");
     errorHandler(error, req, makeRes(), vi.fn());
-    expect(captureExceptionMock).toHaveBeenCalledWith(error, { runId: "run", companyId: "company", agentId: "agent" });
+    expect(captureExceptionMock).toHaveBeenCalledWith(error, { runId: "run", spaceId: "space", agentId: "agent" });
     expect(JSON.stringify(captureExceptionMock.mock.calls)).not.toContain('"a":1');
   });
 
@@ -103,7 +103,7 @@ describe("errorHandler", () => {
   }
 
   it("answers 503 without reporting a query that outlived the database shutdown", () => {
-    const req = { ...makeReq(), app: { locals: { paperclipDatabaseClosing: true } } } as unknown as Request;
+    const req = { ...makeReq(), app: { locals: { outpostDatabaseClosing: true } } } as unknown as Request;
     const res = makeRes() as any;
     const next = vi.fn() as unknown as NextFunction;
 
@@ -134,7 +134,7 @@ describe("errorHandler", () => {
   });
 
   it("only ends the response when headers were already sent during database shutdown", () => {
-    const req = { ...makeReq(), app: { locals: { paperclipDatabaseClosing: true } } } as unknown as Request;
+    const req = { ...makeReq(), app: { locals: { outpostDatabaseClosing: true } } } as unknown as Request;
     const res = { ...makeRes(), end: vi.fn(), headersSent: true } as any;
     const next = vi.fn() as unknown as NextFunction;
 
@@ -158,7 +158,7 @@ describe("errorHandler", () => {
   });
 
   it("still reports other connection failures during database shutdown", () => {
-    const req = { ...makeReq(), app: { locals: { paperclipDatabaseClosing: true } } } as unknown as Request;
+    const req = { ...makeReq(), app: { locals: { outpostDatabaseClosing: true } } } as unknown as Request;
     const res = makeRes() as any;
     const next = vi.fn() as unknown as NextFunction;
     const err = new Error("Failed query", {
@@ -175,9 +175,9 @@ describe("errorHandler", () => {
     const req = {
       ...makeReq(),
       method: "POST",
-      originalUrl: "/api/companies/import",
+      originalUrl: "/api/spaces/import",
       actor: {
-        type: "board",
+        type: "operator",
         userId: "cloud-user",
         source: "cloud_tenant",
       },
@@ -241,8 +241,8 @@ describe("errorHandler", () => {
 
   it.each([
     { name: "chat setup", method: "POST", path: "/api/chat-endpoints/endpoint-1/setup", body: { credentials: { botToken: "setup-error-token-canary" } } },
-    { name: "observability API keys", method: "PUT", path: "/api/companies/company/observability", body: { credentials: { mode: "replace", apiKey: "setup-error-token-canary" } } },
-    { name: "arbitrary OTLP headers", method: "PUT", path: "/api/companies/company/observability", body: { credentials: { mode: "replace", headers: [{ name: "x-custom", value: "setup-error-token-canary" }] } } },
+    { name: "observability API keys", method: "PUT", path: "/api/spaces/space/observability", body: { credentials: { mode: "replace", apiKey: "setup-error-token-canary" } } },
+    { name: "arbitrary OTLP headers", method: "PUT", path: "/api/spaces/space/observability", body: { credentials: { mode: "replace", headers: [{ name: "x-custom", value: "setup-error-token-canary" }] } } },
   ])("sanitizes $name errors before logs and crash reporting", ({ method, path, body }) => {
     const req = {
       ...makeReq(),
@@ -381,11 +381,11 @@ describe("errorHandler", () => {
     const db = { marker: "db" };
     const req = {
       ...makeReq(),
-      app: { locals: { paperclipDb: db } },
+      app: { locals: { outpostDb: db } },
       actor: {
         type: "agent",
         agentId: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         runId: "run-1",
         source: "agent_jwt",
       },
@@ -409,7 +409,7 @@ describe("errorHandler", () => {
       {
         runId: "run-1",
         agentId: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         code: "RESPONSIBLE_USER_UNAUTHORIZED",
       },
     );

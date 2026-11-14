@@ -28,7 +28,7 @@ export async function readIdleMcpSubscriptionProof(tx: Pick<Db, "select">, input
   await input.budget?.beforeRead();
   const rows = await tx.select({ subscription: mcpEventSubscriptions,
     taskMatches: sql<boolean>`EXISTS (SELECT 1 FROM issues i WHERE i.id = ${mcpEventSubscriptions.taskId}
-      AND i.company_id = ${mcpEventSubscriptions.companyId})`,
+      AND i.space_id = ${mcpEventSubscriptions.spaceId})`,
   }).from(mcpEventSubscriptions).where(isNull(mcpEventSubscriptions.stoppedAt)).orderBy(asc(mcpEventSubscriptions.id)).limit(1001);
   return projectIdleMcpSubscriptionProof(rows, input);
 }
@@ -48,15 +48,15 @@ export async function projectIdleMcpSubscriptionProof(rows: { subscription: Subs
     const dot = row.bindingId !== null && row.taskId === null && bindings.has(row.bindingId) && row.name === "outpost.dot.mailbox_updated";
     const owner = task ? input.personal : dot ? input.dot : undefined;
     if (!grants.has(row.grantId) || !owner?.reconciled || !owner.revision || !args || typeof args !== "object" || Array.isArray(args)
-      || args.companyId !== row.companyId || args[task ? "taskId" : "bindingId"] !== (task ? row.taskId : row.bindingId)
-      || Object.keys(args).some(key => !["companyId", task ? "taskId" : "bindingId", ...(row.name === "outpost.task.status_changed" ? ["statuses"] : [])].includes(key))
+      || args.spaceId !== row.spaceId || args[task ? "taskId" : "bindingId"] !== (task ? row.taskId : row.bindingId)
+      || Object.keys(args).some(key => !["spaceId", task ? "taskId" : "bindingId", ...(row.name === "outpost.task.status_changed" ? ["statuses"] : [])].includes(key))
       || (args.statuses !== undefined && (!Array.isArray(args.statuses) || !args.statuses.length || args.statuses.some(status => !ISSUE_STATUSES.includes(status as typeof ISSUE_STATUSES[number]))))
       || !Number.isFinite(row.startsAt.getTime()) || !Number.isFinite(row.expiresAt.getTime()) || row.expiresAt <= row.startsAt
       || !Number.isFinite(row.verifiedAt.getTime()) || row.verifiedAt.getTime() > input.now
       || !Number.isFinite(row.scannedAt.getTime()) || (row.expiresAt.getTime() > input.now && row.scannedAt < row.verifiedAt)
       || !await input.inspectDestination(row)) return result(true);
     input.budget?.check();
-    state.push([row.id, row.companyId, row.grantId, row.name, row.taskId, row.bindingId, row.arguments,
+    state.push([row.id, row.spaceId, row.grantId, row.name, row.taskId, row.bindingId, row.arguments,
       row.verifiedAt, row.startsAt, row.expiresAt, row.scannedAt,
       createHash("sha256").update(JSON.stringify(row.deliveryMaterial)).digest("hex")]);
     subscriptionIds.push(row.id);

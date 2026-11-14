@@ -99,7 +99,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
         .where(
           and(
             eq(issues.id, publication.issueId),
-            eq(issues.companyId, publication.companyId),
+            eq(issues.spaceId, publication.spaceId),
           ),
         )
         .for("update")
@@ -114,7 +114,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
         .where(
           and(
             eq(heartbeatRuns.id, runId),
-            eq(heartbeatRuns.companyId, publication.companyId),
+            eq(heartbeatRuns.spaceId, publication.spaceId),
             sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' = ${publication.issueId}`,
           ),
         )
@@ -169,7 +169,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
         chatPublications,
         and(
           eq(chatPublications.id, chatMessageLinks.publicationId),
-          eq(chatPublications.companyId, publication.companyId),
+          eq(chatPublications.spaceId, publication.spaceId),
           eq(chatPublications.endpointId, publication.endpointId),
           eq(chatPublications.conversationId, publication.conversationId),
           eq(chatPublications.issueId, publication.issueId),
@@ -179,7 +179,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       )
       .where(
         and(
-          eq(chatMessageLinks.companyId, publication.companyId),
+          eq(chatMessageLinks.spaceId, publication.spaceId),
           eq(chatMessageLinks.endpointId, publication.endpointId),
           eq(chatMessageLinks.conversationId, publication.conversationId),
           eq(chatMessageLinks.direction, "outbound"),
@@ -215,7 +215,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
           .where(
             and(
               eq(heartbeatRuns.id, runId),
-              eq(heartbeatRuns.companyId, publication.companyId),
+              eq(heartbeatRuns.spaceId, publication.spaceId),
               eq(heartbeatRuns.nativeIssueId, publication.issueId),
               eq(heartbeatRuns.runtimeMode, "native"),
               eq(heartbeatRuns.status, "succeeded"),
@@ -236,7 +236,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
           .where(
             and(
               eq(issueComments.id, publication.commentId!),
-              eq(issueComments.companyId, publication.companyId),
+              eq(issueComments.spaceId, publication.spaceId),
               eq(issueComments.issueId, publication.issueId),
               eq(issueComments.createdByRunId, runId),
               eq(issueComments.authorAgentId, run.agentId),
@@ -252,13 +252,13 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
             issueComments,
             and(
               eq(issueComments.id, chatPublications.commentId),
-              eq(issueComments.companyId, publication.companyId),
+              eq(issueComments.spaceId, publication.spaceId),
               eq(issueComments.createdByRunId, runId),
             ),
           )
           .where(
             and(
-              eq(chatPublications.companyId, publication.companyId),
+              eq(chatPublications.spaceId, publication.spaceId),
               eq(chatPublications.endpointId, publication.endpointId),
               eq(chatPublications.conversationId, publication.conversationId),
               eq(chatPublications.issueId, publication.issueId),
@@ -283,7 +283,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
             chatPublications,
             and(
               eq(chatPublications.id, chatMessageLinks.publicationId),
-              eq(chatPublications.companyId, publication.companyId),
+              eq(chatPublications.spaceId, publication.spaceId),
               eq(chatPublications.endpointId, publication.endpointId),
               eq(chatPublications.conversationId, publication.conversationId),
               eq(chatPublications.issueId, publication.issueId),
@@ -299,7 +299,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
           )
           .where(
             and(
-              eq(chatMessageLinks.companyId, publication.companyId),
+              eq(chatMessageLinks.spaceId, publication.spaceId),
               eq(chatMessageLinks.endpointId, publication.endpointId),
               eq(chatMessageLinks.conversationId, publication.conversationId),
               eq(chatMessageLinks.providerMessageId, providerMessageId),
@@ -346,7 +346,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       .leftJoin(issueComments, eq(issueComments.id, chatPublications.commentId))
       .where(
         and(
-          eq(chatPublications.companyId, publication.companyId),
+          eq(chatPublications.spaceId, publication.spaceId),
           eq(chatPublications.endpointId, publication.endpointId),
           eq(chatPublications.conversationId, publication.conversationId),
           eq(chatPublications.state, "published"),
@@ -418,7 +418,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
         .where(
           and(
             eq(issueComments.id, publication.commentId),
-            eq(issueComments.companyId, publication.companyId),
+            eq(issueComments.spaceId, publication.spaceId),
           ),
         )
         .then((rows) => rows[0]?.runId ?? null);
@@ -435,7 +435,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
         .where(
           and(
             eq(issueThreadInteractions.id, payload.interactionId),
-            eq(issueThreadInteractions.companyId, publication.companyId),
+            eq(issueThreadInteractions.spaceId, publication.spaceId),
             eq(issueThreadInteractions.issueId, publication.issueId),
           ),
         )
@@ -467,7 +467,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
         .where(
           and(
             eq(issueThreadInteractions.id, payload.interactionId),
-            eq(issueThreadInteractions.companyId, publication.companyId),
+            eq(issueThreadInteractions.spaceId, publication.spaceId),
             eq(issueThreadInteractions.issueId, publication.issueId),
           ),
         );
@@ -480,7 +480,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
         .where(
           and(
             eq(issueComments.id, publication.commentId),
-            eq(issueComments.companyId, publication.companyId),
+            eq(issueComments.spaceId, publication.spaceId),
             eq(issueComments.issueId, publication.issueId),
           ),
         );
@@ -498,7 +498,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
           )
           .where(
             and(
-              eq(chatPublications.companyId, publication.companyId),
+              eq(chatPublications.spaceId, publication.spaceId),
               eq(chatPublications.endpointId, publication.endpointId),
               eq(chatPublications.conversationId, publication.conversationId),
               eq(chatPublications.state, "published"),
@@ -520,7 +520,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
           and(
             eq(agentWakeupRequests.id, heartbeatRuns.wakeupRequestId),
             eq(agentWakeupRequests.runId, heartbeatRuns.id),
-            eq(agentWakeupRequests.companyId, heartbeatRuns.companyId),
+            eq(agentWakeupRequests.spaceId, heartbeatRuns.spaceId),
             eq(agentWakeupRequests.agentId, heartbeatRuns.agentId),
             // Failed/cancelled is the admitted run's outcome, not loss of
             // its original admission. Its terminal milestone still owns
@@ -531,7 +531,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
         .where(
           and(
             eq(heartbeatRuns.id, runId),
-            eq(heartbeatRuns.companyId, publication.companyId),
+            eq(heartbeatRuns.spaceId, publication.spaceId),
             sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${publication.issueId}`,
           ),
         );
@@ -547,7 +547,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       .from(chatPublications)
       .where(
         and(
-          eq(chatPublications.companyId, publication.companyId),
+          eq(chatPublications.spaceId, publication.spaceId),
           eq(chatPublications.endpointId, publication.endpointId),
           eq(chatPublications.conversationId, publication.conversationId),
           eq(chatPublications.issueId, publication.issueId),
@@ -576,7 +576,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       return queued.commentId === publication.commentId
         ? queued.providerMessageId
         : null;
-    // A deferred owner can be a Board wake into which the exact external
+    // A deferred owner can be a Operator wake into which the exact external
     // comment coalesced. The run must actually contain that source comment;
     // wake ID alone cannot authorize a different successor's edit lane.
     return runContext &&
@@ -602,7 +602,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       .from(chatPublications)
       .where(
         and(
-          eq(chatPublications.companyId, publication.companyId),
+          eq(chatPublications.spaceId, publication.spaceId),
           eq(chatPublications.endpointId, publication.endpointId),
           eq(chatPublications.conversationId, publication.conversationId),
           eq(chatPublications.issueId, publication.issueId),
@@ -637,7 +637,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       .where(
         and(
           eq(issueThreadInteractions.id, payload.interactionId),
-          eq(issueThreadInteractions.companyId, publication.companyId),
+          eq(issueThreadInteractions.spaceId, publication.spaceId),
           eq(issueThreadInteractions.issueId, publication.issueId),
         ),
       )
@@ -655,7 +655,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, publication.companyId),
+            eq(chatPublications.spaceId, publication.spaceId),
             eq(chatPublications.endpointId, publication.endpointId),
             eq(chatPublications.conversationId, publication.conversationId),
             eq(chatPublications.issueId, publication.issueId),
@@ -676,12 +676,12 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
   async function progressSupersededByFastResponse(publication: typeof chatPublications.$inferSelect): Promise<boolean> {
     if (!["queued", "working"].includes(publication.payload.progressState ?? "")) return false;
     const runId = runIdFromMilestonePublication(publication);
-    const [run] = runId ? await db.select({ context: heartbeatRuns.contextSnapshot }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, publication.companyId), eq(heartbeatRuns.id, runId))) : [];
+    const [run] = runId ? await db.select({ context: heartbeatRuns.contextSnapshot }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, publication.spaceId), eq(heartbeatRuns.id, runId))) : [];
     const sourceCommentId = typeof run?.context?.wakeCommentId === "string" ? run.context.wakeCommentId : typeof run?.context?.commentId === "string" ? run.context.commentId : publication.commentId;
     if (!sourceCommentId) return false;
     const [receipt] = await db.select({ id: fastResponseRequests.id }).from(fastResponseRequests).innerJoin(chatPublications,
-      and(eq(chatPublications.companyId, publication.companyId), eq(chatPublications.commentId, fastResponseRequests.commentId), eq(chatPublications.state, "published")))
-      .where(and(eq(fastResponseRequests.companyId, publication.companyId), eq(fastResponseRequests.sourceCommentId, sourceCommentId), eq(fastResponseRequests.endpointId, publication.endpointId), eq(fastResponseRequests.conversationId, publication.conversationId))).limit(1);
+      and(eq(chatPublications.spaceId, publication.spaceId), eq(chatPublications.commentId, fastResponseRequests.commentId), eq(chatPublications.state, "published")))
+      .where(and(eq(fastResponseRequests.spaceId, publication.spaceId), eq(fastResponseRequests.sourceCommentId, sourceCommentId), eq(fastResponseRequests.endpointId, publication.endpointId), eq(fastResponseRequests.conversationId, publication.conversationId))).limit(1);
     return Boolean(receipt);
   }
 
@@ -700,7 +700,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       .from(issueThreadInteractions)
       .where(
         and(
-          eq(issueThreadInteractions.companyId, publication.companyId),
+          eq(issueThreadInteractions.spaceId, publication.spaceId),
           eq(issueThreadInteractions.issueId, publication.issueId),
           eq(issueThreadInteractions.sourceRunId, sourceRunId),
         ),
@@ -712,7 +712,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       .from(chatPublications)
       .where(
         and(
-          eq(chatPublications.companyId, publication.companyId),
+          eq(chatPublications.spaceId, publication.spaceId),
           eq(chatPublications.endpointId, publication.endpointId),
           eq(chatPublications.conversationId, publication.conversationId),
           eq(chatPublications.issueId, publication.issueId),
@@ -751,7 +751,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       .leftJoin(issueComments, eq(issueComments.id, chatPublications.commentId))
       .where(
         and(
-          eq(chatPublications.companyId, publication.companyId),
+          eq(chatPublications.spaceId, publication.spaceId),
           eq(chatPublications.endpointId, publication.endpointId),
           eq(chatPublications.conversationId, publication.conversationId),
           eq(chatPublications.state, "published"),
@@ -827,7 +827,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       .innerJoin(
         heartbeatRuns,
         and(
-          eq(heartbeatRuns.companyId, publication.companyId),
+          eq(heartbeatRuns.spaceId, publication.spaceId),
           eq(heartbeatRuns.agentId, endpoint.assignedAgentId),
           sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${publication.issueId}`,
           sql`split_part(${chatPublications.idempotencyKey}, ':', 2) = ${heartbeatRuns.id}::text`,
@@ -836,7 +836,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       .innerJoin(
         chatMessageLinks,
         and(
-          eq(chatMessageLinks.companyId, publication.companyId),
+          eq(chatMessageLinks.spaceId, publication.spaceId),
           eq(chatMessageLinks.endpointId, publication.endpointId),
           eq(chatMessageLinks.conversationId, publication.conversationId),
           eq(chatMessageLinks.direction, "outbound"),
@@ -850,7 +850,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
         current,
         and(
           eq(current.id, chatMessageLinks.publicationId),
-          eq(current.companyId, publication.companyId),
+          eq(current.spaceId, publication.spaceId),
           eq(current.endpointId, publication.endpointId),
           eq(current.conversationId, publication.conversationId),
           eq(current.issueId, publication.issueId),
@@ -869,7 +869,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
       )
       .where(
         and(
-          eq(chatPublications.companyId, publication.companyId),
+          eq(chatPublications.spaceId, publication.spaceId),
           eq(chatPublications.endpointId, publication.endpointId),
           eq(chatPublications.conversationId, publication.conversationId),
           eq(chatPublications.issueId, publication.issueId),
@@ -892,13 +892,13 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
         issueComments,
         and(
           eq(issueComments.id, chatPublications.commentId),
-          eq(issueComments.companyId, publication.companyId),
+          eq(issueComments.spaceId, publication.spaceId),
           eq(issueComments.issueId, publication.issueId),
         ),
       )
       .where(
         and(
-          eq(chatPublications.companyId, publication.companyId),
+          eq(chatPublications.spaceId, publication.spaceId),
           eq(chatPublications.endpointId, publication.endpointId),
           eq(chatPublications.conversationId, publication.conversationId),
           eq(chatPublications.issueId, publication.issueId),
@@ -925,7 +925,7 @@ export function createChatPublicationReplacement(db: Db, options: ChatPublicatio
             // never reached the provider (including an unconfirmed receipt).
             sql`exists (
               select 1 from issue_thread_interactions consuming_interaction
-              where consuming_interaction.company_id = ${publication.companyId}::uuid
+              where consuming_interaction.space_id = ${publication.spaceId}::uuid
                 and consuming_interaction.issue_id = ${publication.issueId}::uuid
                 and consuming_interaction.source_run_id = ${lane.runId}::uuid
                 and ${chatPublications.payload}->>'interactionId' = consuming_interaction.id::text

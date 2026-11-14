@@ -30,9 +30,9 @@ describe("codex ACP lane model CLI floor", () => {
   let cwd: string;
 
   beforeEach(async () => {
-    cwd = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-acp-version-"));
-    vi.stubEnv("CODEX_HOME", await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-acp-home-")));
-    vi.stubEnv("OUTPOST_HOME", await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-acp-instance-")));
+    cwd = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-acp-version-"));
+    vi.stubEnv("CODEX_HOME", await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-acp-home-")));
+    vi.stubEnv("OUTPOST_HOME", await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-acp-instance-")));
     vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
   });
 
@@ -64,7 +64,7 @@ describe("codex ACP lane model CLI floor", () => {
 
   it("fails the sandbox Test when the shared codex is older than the model's floor", async () => {
     const result = await testCodexAcpEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: { cwd, model: "gpt-6.1-sol", env: { OPENAI_API_KEY: "sk-test" } },
       executionTarget: sandboxTarget(),
@@ -103,7 +103,7 @@ describe("codex ACP lane model CLI floor", () => {
     });
 
     const result = await testCodexAcpEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: {
         cwd,
@@ -153,7 +153,7 @@ describe("codex ACP lane model CLI floor", () => {
     });
 
     const result = await testCodexAcpEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: { cwd, model: "gpt-6.1-sol", env: { OPENAI_API_KEY: "sk-test" } },
       executionTarget: sandboxTarget(),
@@ -168,7 +168,7 @@ describe("codex ACP lane model CLI floor", () => {
 
   it("does not probe the sandbox for models without a verified floor", async () => {
     const result = await testCodexAcpEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: { cwd, model: "gpt-5.6-sol", env: { OPENAI_API_KEY: "sk-test" } },
       executionTarget: sandboxTarget(),

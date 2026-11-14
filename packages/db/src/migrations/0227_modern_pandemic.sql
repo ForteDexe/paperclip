@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "completion_contracts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"revision" integer NOT NULL,
 	"schema_version" text NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS "completion_contracts" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "native_run_finalizations" (
 	"run_id" uuid PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"phase" text NOT NULL,
 	"attempt" integer DEFAULT 0 NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS "native_run_finalizations" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "native_run_results" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
 	"turn_id" text,
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS "native_run_results" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "status_decision_effects" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"decision_id" uuid NOT NULL,
 	"ordinal" integer NOT NULL,
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS "status_decision_effects" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "status_decisions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
 	"assessment_id" uuid NOT NULL,
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS "status_decisions" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "work_assessments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
 	"turn_id" text,
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS "work_assessments" (
 	"trigger_kind" text NOT NULL,
 	"trigger_ref" text,
 	"trigger_capability" text,
-	"trigger_actor_company_id" uuid NOT NULL,
+	"trigger_actor_space_id" uuid NOT NULL,
 	"prior_issue_status" text NOT NULL,
 	"prior_status_version" bigint NOT NULL,
 	"prior_decision_id" uuid,
@@ -143,7 +143,7 @@ SET "next_event_seq" = COALESCE((
 	FROM "heartbeat_run_events" AS event
 	WHERE event."run_id" = run."id"
 ), 1);--> statement-breakpoint
-CREATE OR REPLACE FUNCTION paperclip_bump_issue_status_version()
+CREATE OR REPLACE FUNCTION outpost_bump_issue_status_version()
 RETURNS trigger AS $$
 BEGIN
 	IF NEW."status" IS DISTINCT FROM OLD."status" THEN
@@ -152,12 +152,12 @@ BEGIN
 	RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;--> statement-breakpoint
-DROP TRIGGER IF EXISTS paperclip_issue_status_version_trigger ON "issues";--> statement-breakpoint
-CREATE TRIGGER paperclip_issue_status_version_trigger
+DROP TRIGGER IF EXISTS outpost_issue_status_version_trigger ON "issues";--> statement-breakpoint
+CREATE TRIGGER outpost_issue_status_version_trigger
 BEFORE UPDATE OF "status" ON "issues"
-FOR EACH ROW EXECUTE FUNCTION paperclip_bump_issue_status_version();--> statement-breakpoint
+FOR EACH ROW EXECUTE FUNCTION outpost_bump_issue_status_version();--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "completion_contracts" ADD CONSTRAINT "completion_contracts_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "completion_contracts" ADD CONSTRAINT "completion_contracts_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
@@ -172,7 +172,7 @@ EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "native_run_finalizations" ADD CONSTRAINT "native_run_finalizations_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "native_run_finalizations" ADD CONSTRAINT "native_run_finalizations_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
@@ -187,7 +187,7 @@ EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "native_run_results" ADD CONSTRAINT "native_run_results_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "native_run_results" ADD CONSTRAINT "native_run_results_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
@@ -207,7 +207,7 @@ EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "status_decision_effects" ADD CONSTRAINT "status_decision_effects_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "status_decision_effects" ADD CONSTRAINT "status_decision_effects_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
@@ -222,7 +222,7 @@ EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "status_decisions" ADD CONSTRAINT "status_decisions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "status_decisions" ADD CONSTRAINT "status_decisions_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
@@ -237,7 +237,7 @@ EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
@@ -262,7 +262,7 @@ EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_trigger_actor_company_id_companies_id_fk" FOREIGN KEY ("trigger_actor_company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_trigger_actor_space_id_spaces_id_fk" FOREIGN KEY ("trigger_actor_space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
@@ -272,124 +272,124 @@ CREATE UNIQUE INDEX IF NOT EXISTS "native_run_results_run_fingerprint_uq" ON "na
 CREATE UNIQUE INDEX IF NOT EXISTS "native_run_results_run_caller_result_uq" ON "native_run_results" USING btree ("run_id","caller_result_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "native_run_results_run_caller_dedupe_uq" ON "native_run_results" USING btree ("run_id","caller_dedupe_key");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "status_decision_effects_decision_ordinal_uq" ON "status_decision_effects" USING btree ("decision_id","ordinal");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "status_decision_effects_company_idempotency_uq" ON "status_decision_effects" USING btree ("company_id","idempotency_key");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "status_decisions_company_issue_version_uq" ON "status_decisions" USING btree ("company_id","issue_id","decision_version");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "status_decisions_company_assessment_uq" ON "status_decisions" USING btree ("company_id","assessment_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "status_decisions_company_issue_digest_uq" ON "status_decisions" USING btree ("company_id","issue_id","decision_digest");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "work_assessments_company_issue_input_uq" ON "work_assessments" USING btree ("company_id","issue_id","input_digest");--> statement-breakpoint
--- paperclip:migration-safety-ignore large-create-index-not-concurrently: nullable native source IDs mean historical rows need no backfill and the invariant must commit atomically with the new columns.
+CREATE UNIQUE INDEX IF NOT EXISTS "status_decision_effects_space_idempotency_uq" ON "status_decision_effects" USING btree ("space_id","idempotency_key");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "status_decisions_space_issue_version_uq" ON "status_decisions" USING btree ("space_id","issue_id","decision_version");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "status_decisions_space_assessment_uq" ON "status_decisions" USING btree ("space_id","assessment_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "status_decisions_space_issue_digest_uq" ON "status_decisions" USING btree ("space_id","issue_id","decision_digest");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "work_assessments_space_issue_input_uq" ON "work_assessments" USING btree ("space_id","issue_id","input_digest");--> statement-breakpoint
+-- outpost:migration-safety-ignore large-create-index-not-concurrently: nullable native source IDs mean historical rows need no backfill and the invariant must commit atomically with the new columns.
 CREATE UNIQUE INDEX IF NOT EXISTS "heartbeat_run_events_run_source_event_uq" ON "heartbeat_run_events" USING btree ("run_id","source_event_id") WHERE "heartbeat_run_events"."source_event_id" is not null;--> statement-breakpoint
--- paperclip:migration-safety-ignore large-create-index-not-concurrently: nullable native source sequence fields mean historical rows need no backfill and the invariant must commit atomically with the new columns.
+-- outpost:migration-safety-ignore large-create-index-not-concurrently: nullable native source sequence fields mean historical rows need no backfill and the invariant must commit atomically with the new columns.
 CREATE UNIQUE INDEX IF NOT EXISTS "heartbeat_run_events_run_source_seq_uq" ON "heartbeat_run_events" USING btree ("run_id","source_instance_id","source_seq") WHERE "heartbeat_run_events"."source_instance_id" is not null and "heartbeat_run_events"."source_seq" is not null;
 --> statement-breakpoint
--- paperclip:migration-safety-ignore large-create-index-not-concurrently: the primary key already makes this ownership tuple unique; this supporting index only enables composite foreign keys.
-CREATE UNIQUE INDEX IF NOT EXISTS "issues_company_id_uq" ON "issues" USING btree ("company_id","id");--> statement-breakpoint
--- paperclip:migration-safety-ignore large-create-index-not-concurrently: the primary key already makes this ownership tuple unique; this supporting index only enables composite foreign keys.
-CREATE UNIQUE INDEX IF NOT EXISTS "heartbeat_runs_company_native_issue_id_uq" ON "heartbeat_runs" USING btree ("company_id","native_issue_id","id");--> statement-breakpoint
--- paperclip:migration-safety-ignore large-create-index-not-concurrently: the primary key already makes this ownership tuple unique; this supporting index only enables composite foreign keys.
-CREATE UNIQUE INDEX IF NOT EXISTS "heartbeat_runs_company_native_issue_contract_id_uq" ON "heartbeat_runs" USING btree ("company_id","native_issue_id","id","completion_contract_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "completion_contracts_company_issue_id_uq" ON "completion_contracts" USING btree ("company_id","issue_id","id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "native_run_results_company_issue_run_id_uq" ON "native_run_results" USING btree ("company_id","issue_id","run_id","id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "work_assessments_company_issue_run_id_uq" ON "work_assessments" USING btree ("company_id","issue_id","run_id","id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "status_decisions_company_issue_id_uq" ON "status_decisions" USING btree ("company_id","issue_id","id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "status_decisions_company_issue_run_assessment_id_uq" ON "status_decisions" USING btree ("company_id","issue_id","run_id","assessment_id","id");--> statement-breakpoint
+-- outpost:migration-safety-ignore large-create-index-not-concurrently: the primary key already makes this ownership tuple unique; this supporting index only enables composite foreign keys.
+CREATE UNIQUE INDEX IF NOT EXISTS "issues_space_id_uq" ON "issues" USING btree ("space_id","id");--> statement-breakpoint
+-- outpost:migration-safety-ignore large-create-index-not-concurrently: the primary key already makes this ownership tuple unique; this supporting index only enables composite foreign keys.
+CREATE UNIQUE INDEX IF NOT EXISTS "heartbeat_runs_space_native_issue_id_uq" ON "heartbeat_runs" USING btree ("space_id","native_issue_id","id");--> statement-breakpoint
+-- outpost:migration-safety-ignore large-create-index-not-concurrently: the primary key already makes this ownership tuple unique; this supporting index only enables composite foreign keys.
+CREATE UNIQUE INDEX IF NOT EXISTS "heartbeat_runs_space_native_issue_contract_id_uq" ON "heartbeat_runs" USING btree ("space_id","native_issue_id","id","completion_contract_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "completion_contracts_space_issue_id_uq" ON "completion_contracts" USING btree ("space_id","issue_id","id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "native_run_results_space_issue_run_id_uq" ON "native_run_results" USING btree ("space_id","issue_id","run_id","id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "work_assessments_space_issue_run_id_uq" ON "work_assessments" USING btree ("space_id","issue_id","run_id","id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "status_decisions_space_issue_id_uq" ON "status_decisions" USING btree ("space_id","issue_id","id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "status_decisions_space_issue_run_assessment_id_uq" ON "status_decisions" USING btree ("space_id","issue_id","run_id","assessment_id","id");--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "completion_contracts" ADD CONSTRAINT "completion_contracts_issue_company_fk" FOREIGN KEY ("company_id","issue_id") REFERENCES "public"."issues"("company_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "completion_contracts" ADD CONSTRAINT "completion_contracts_issue_space_fk" FOREIGN KEY ("space_id","issue_id") REFERENCES "public"."issues"("space_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "completion_contracts" ADD CONSTRAINT "completion_contracts_supersedes_owner_fk" FOREIGN KEY ("company_id","issue_id","supersedes_contract_id") REFERENCES "public"."completion_contracts"("company_id","issue_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "completion_contracts" ADD CONSTRAINT "completion_contracts_supersedes_owner_fk" FOREIGN KEY ("space_id","issue_id","supersedes_contract_id") REFERENCES "public"."completion_contracts"("space_id","issue_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "native_run_results" ADD CONSTRAINT "native_run_results_issue_company_fk" FOREIGN KEY ("company_id","issue_id") REFERENCES "public"."issues"("company_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "native_run_results" ADD CONSTRAINT "native_run_results_issue_space_fk" FOREIGN KEY ("space_id","issue_id") REFERENCES "public"."issues"("space_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "native_run_results" ADD CONSTRAINT "native_run_results_run_contract_owner_fk" FOREIGN KEY ("company_id","issue_id","run_id","completion_contract_id") REFERENCES "public"."heartbeat_runs"("company_id","native_issue_id","id","completion_contract_id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "native_run_results" ADD CONSTRAINT "native_run_results_run_contract_owner_fk" FOREIGN KEY ("space_id","issue_id","run_id","completion_contract_id") REFERENCES "public"."heartbeat_runs"("space_id","native_issue_id","id","completion_contract_id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "native_run_results" ADD CONSTRAINT "native_run_results_completion_contract_owner_fk" FOREIGN KEY ("company_id","issue_id","completion_contract_id") REFERENCES "public"."completion_contracts"("company_id","issue_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "native_run_results" ADD CONSTRAINT "native_run_results_completion_contract_owner_fk" FOREIGN KEY ("space_id","issue_id","completion_contract_id") REFERENCES "public"."completion_contracts"("space_id","issue_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_issue_company_fk" FOREIGN KEY ("company_id","issue_id") REFERENCES "public"."issues"("company_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_issue_space_fk" FOREIGN KEY ("space_id","issue_id") REFERENCES "public"."issues"("space_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_run_owner_fk" FOREIGN KEY ("company_id","issue_id","run_id") REFERENCES "public"."heartbeat_runs"("company_id","native_issue_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_run_owner_fk" FOREIGN KEY ("space_id","issue_id","run_id") REFERENCES "public"."heartbeat_runs"("space_id","native_issue_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_contract_owner_fk" FOREIGN KEY ("company_id","issue_id","contract_id") REFERENCES "public"."completion_contracts"("company_id","issue_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_contract_owner_fk" FOREIGN KEY ("space_id","issue_id","contract_id") REFERENCES "public"."completion_contracts"("space_id","issue_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_result_owner_fk" FOREIGN KEY ("company_id","issue_id","run_id","result_id") REFERENCES "public"."native_run_results"("company_id","issue_id","run_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_result_owner_fk" FOREIGN KEY ("space_id","issue_id","run_id","result_id") REFERENCES "public"."native_run_results"("space_id","issue_id","run_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_supersedes_owner_fk" FOREIGN KEY ("company_id","issue_id","run_id","supersedes_assessment_id") REFERENCES "public"."work_assessments"("company_id","issue_id","run_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_supersedes_owner_fk" FOREIGN KEY ("space_id","issue_id","run_id","supersedes_assessment_id") REFERENCES "public"."work_assessments"("space_id","issue_id","run_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "status_decisions" ADD CONSTRAINT "status_decisions_issue_company_fk" FOREIGN KEY ("company_id","issue_id") REFERENCES "public"."issues"("company_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "status_decisions" ADD CONSTRAINT "status_decisions_issue_space_fk" FOREIGN KEY ("space_id","issue_id") REFERENCES "public"."issues"("space_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "status_decisions" ADD CONSTRAINT "status_decisions_assessment_owner_fk" FOREIGN KEY ("company_id","issue_id","run_id","assessment_id") REFERENCES "public"."work_assessments"("company_id","issue_id","run_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "status_decisions" ADD CONSTRAINT "status_decisions_assessment_owner_fk" FOREIGN KEY ("space_id","issue_id","run_id","assessment_id") REFERENCES "public"."work_assessments"("space_id","issue_id","run_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "status_decisions" ADD CONSTRAINT "status_decisions_supersedes_owner_fk" FOREIGN KEY ("company_id","issue_id","supersedes_decision_id") REFERENCES "public"."status_decisions"("company_id","issue_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "status_decisions" ADD CONSTRAINT "status_decisions_supersedes_owner_fk" FOREIGN KEY ("space_id","issue_id","supersedes_decision_id") REFERENCES "public"."status_decisions"("space_id","issue_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "status_decision_effects" ADD CONSTRAINT "status_decision_effects_issue_company_fk" FOREIGN KEY ("company_id","issue_id") REFERENCES "public"."issues"("company_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "status_decision_effects" ADD CONSTRAINT "status_decision_effects_issue_space_fk" FOREIGN KEY ("space_id","issue_id") REFERENCES "public"."issues"("space_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "status_decision_effects" ADD CONSTRAINT "status_decision_effects_decision_owner_fk" FOREIGN KEY ("company_id","issue_id","decision_id") REFERENCES "public"."status_decisions"("company_id","issue_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "status_decision_effects" ADD CONSTRAINT "status_decision_effects_decision_owner_fk" FOREIGN KEY ("space_id","issue_id","decision_id") REFERENCES "public"."status_decisions"("space_id","issue_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "native_run_finalizations" ADD CONSTRAINT "native_run_finalizations_issue_company_fk" FOREIGN KEY ("company_id","issue_id") REFERENCES "public"."issues"("company_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "native_run_finalizations" ADD CONSTRAINT "native_run_finalizations_issue_space_fk" FOREIGN KEY ("space_id","issue_id") REFERENCES "public"."issues"("space_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "native_run_finalizations" ADD CONSTRAINT "native_run_finalizations_run_owner_fk" FOREIGN KEY ("company_id","issue_id","run_id") REFERENCES "public"."heartbeat_runs"("company_id","native_issue_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "native_run_finalizations" ADD CONSTRAINT "native_run_finalizations_run_owner_fk" FOREIGN KEY ("space_id","issue_id","run_id") REFERENCES "public"."heartbeat_runs"("space_id","native_issue_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "native_run_finalizations" ADD CONSTRAINT "native_run_finalizations_result_owner_fk" FOREIGN KEY ("company_id","issue_id","run_id","result_id") REFERENCES "public"."native_run_results"("company_id","issue_id","run_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "native_run_finalizations" ADD CONSTRAINT "native_run_finalizations_result_owner_fk" FOREIGN KEY ("space_id","issue_id","run_id","result_id") REFERENCES "public"."native_run_results"("space_id","issue_id","run_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "native_run_finalizations" ADD CONSTRAINT "native_run_finalizations_assessment_owner_fk" FOREIGN KEY ("company_id","issue_id","run_id","assessment_id") REFERENCES "public"."work_assessments"("company_id","issue_id","run_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "native_run_finalizations" ADD CONSTRAINT "native_run_finalizations_assessment_owner_fk" FOREIGN KEY ("space_id","issue_id","run_id","assessment_id") REFERENCES "public"."work_assessments"("space_id","issue_id","run_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "native_run_finalizations" ADD CONSTRAINT "native_run_finalizations_decision_owner_fk" FOREIGN KEY ("company_id","issue_id","run_id","assessment_id","decision_id") REFERENCES "public"."status_decisions"("company_id","issue_id","run_id","assessment_id","id") ON DELETE no action ON UPDATE no action;
+	ALTER TABLE "native_run_finalizations" ADD CONSTRAINT "native_run_finalizations_decision_owner_fk" FOREIGN KEY ("space_id","issue_id","run_id","assessment_id","decision_id") REFERENCES "public"."status_decisions"("space_id","issue_id","run_id","assessment_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
@@ -404,7 +404,7 @@ EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_trigger_actor_company_check" CHECK ("trigger_actor_company_id" = "company_id");
+	ALTER TABLE "work_assessments" ADD CONSTRAINT "work_assessments_trigger_actor_space_check" CHECK ("trigger_actor_space_id" = "space_id");
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;

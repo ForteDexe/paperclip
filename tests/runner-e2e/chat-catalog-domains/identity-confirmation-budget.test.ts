@@ -15,18 +15,18 @@ describe("confirmation first reply and declared repeat share the original420s ou
   it("actual act can reach real product readback after150s without changing its original deadline", async () => {
     vi.useFakeTimers(); vi.setSystemTime(0); const ctx = context();
     const get = vi.fn(async () => { throw new Error("independent saved-task boundary"); });
-    ctx.input = { api: { get }, fixtures: { company: { id: "acorn" } } } as never;
+    ctx.input = { api: { get }, fixtures: { space: { id: "acorn" } } } as never;
     const pending = definition.act!(ctx, {}).catch(String);
     await vi.advanceTimersByTimeAsync(151_000); expect(get).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(29_000); expect(await pending).toContain("independent saved-task boundary");
-    expect(get).toHaveBeenCalledExactlyOnceWith("/api/companies/acorn/issues?includeAgentCreatedTasks=true", { timeout: 210_000 });
+    expect(get).toHaveBeenCalledExactlyOnceWith("/api/spaces/acorn/issues?includeAgentCreatedTasks=true", { timeout: 210_000 });
     expect(ctx.observationDeadlineAt).toBe(390_000); expect(repeated).not.toHaveBeenCalled();
   });
   it("slow reload cannot start a fresh read or send the declared repeat after expiry", async () => {
     vi.useFakeTimers(); vi.setSystemTime(389_000); const ctx = context(0);
     const get = vi.fn().mockResolvedValueOnce([{ id: "task", title: "Acorn checklist" }]).mockResolvedValueOnce([{ id: "canonical", authorUserId: "person", body: ctx.scenario.query }]);
     const reload = vi.fn(async () => { vi.setSystemTime(391_000); });
-    ctx.input = { api: { get }, fixtures: { company: { id: "acorn" } }, page: { reload } } as never;
+    ctx.input = { api: { get }, fixtures: { space: { id: "acorn" } }, page: { reload } } as never;
     await expect(definition.act!(ctx, { taskTitle: "Acorn checklist" })).rejects.toThrow(/exhausted/);
     expect(get).toHaveBeenCalledTimes(2); expect(reload).toHaveBeenCalledExactlyOnceWith({ waitUntil: "domcontentloaded", timeout: 1000 });
     expect(repeated).not.toHaveBeenCalled();
@@ -42,7 +42,7 @@ describe("confirmation first reply and declared repeat share the original420s ou
   it("passes the same remaining clock to the one declared repeat", async () => {
     vi.useFakeTimers(); vi.setSystemTime(380_000); const ctx = context(0);
     const get = vi.fn().mockResolvedValueOnce([{ id: "task", title: "Acorn checklist" }]).mockResolvedValueOnce([{ id: "canonical", authorUserId: "person", body: ctx.scenario.query }]).mockResolvedValueOnce({ id: "task" });
-    ctx.input = { api: { get }, fixtures: { company: { id: "acorn" } }, page: { reload: async () => {} }, evidence: async () => {} } as never;
+    ctx.input = { api: { get }, fixtures: { space: { id: "acorn" } }, page: { reload: async () => {} }, evidence: async () => {} } as never;
     repeated.mockImplementation(async (_page, _query, remaining) => { expect(remaining()).toBe(10_000); vi.setSystemTime(391_000); expect(() => remaining()).toThrow(/exhausted/); });
     await expect(definition.act!(ctx, { taskTitle: "Acorn checklist", original: { id: "proposal" } })).rejects.toThrow(/exhausted/);
     expect(repeated).toHaveBeenCalledOnce(); expect(repeated.mock.calls[0]![1]).toBe(repeatedProposalAcceptance); expect(repeatedProposalAcceptance).not.toBe(ctx.scenario.query);

@@ -3,7 +3,7 @@ import { createPullRequestMergeStateResolver } from "../services/github-pull-req
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { eq, sql } from "drizzle-orm";
-import { activityLog, agents, chatActions, chatConversations, chatEndpoints, chatPublications, companies, createDb, issues, issueThreadInteractions, toolApplications, toolConnections, type Db } from "@outpost/db";
+import { activityLog, agents, chatActions, chatConversations, chatEndpoints, chatPublications, spaces, createDb, issues, issueThreadInteractions, toolApplications, toolConnections, type Db } from "@outpost/db";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
@@ -18,11 +18,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 (support.supported ? describe : describe.skip)("merge confirmation work with PostgreSQL and simulated GitHub", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: ReturnType<typeof createDb>;
-  let companyId: string, issueId: string, agentId: string;
+  let spaceId: string, issueId: string, agentId: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let draining = false, standby = false;
   const errors: unknown[] = [];
-  const provider = vi.fn(async (_companyId: string, _reference: { number: number }, _signal?: AbortSignal): Promise<"open" | "merged" | "unknown"> => "merged");
+  const provider = vi.fn(async (_spaceId: string, _reference: { number: number }, _signal?: AbortSignal): Promise<"open" | "merged" | "unknown"> => "merged");
   const wakeup = vi.fn(async () => ({ id: "simulated-durable-wake" }));
   beforeAll(async () => {
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("merged-pr-work-");
@@ -31,10 +31,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   beforeEach(async () => {
     errors.length = 0; draining = false; standby = false;
     provider.mockReset().mockResolvedValue("merged"); wakeup.mockClear();
-    companyId = randomUUID(); agentId = randomUUID(); issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Merge worker", issuePrefix: `M${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Coder", role: "engineer", status: "idle", adapterType: "codex_local" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Merge task", status: "todo", assigneeAgentId: agentId });
+    spaceId = randomUUID(); agentId = randomUUID(); issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Merge worker", issuePrefix: `M${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Coder", role: "engineer", status: "idle", adapterType: "codex_local" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Merge task", status: "todo", assigneeAgentId: agentId });
     await Promise.all(Array.from({ length: 6 }, () => db.execute(sql`select pg_sleep(0.01)`)));
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: false });
   });
@@ -44,14 +44,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.delete(chatActions); await db.delete(chatPublications); await db.delete(chatConversations); await db.delete(chatEndpoints);
     await db.delete(toolConnections); await db.delete(toolApplications);
     await db.delete(activityLog); await db.delete(issueThreadInteractions); await db.delete(issues);
-    await db.delete(agents); await db.delete(companies);
+    await db.delete(agents); await db.delete(spaces);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   const service = (database: Db = db) => issueThreadInteractionService(database, { resolvePullRequestState: provider, wakeup });
   const input = (number = 39) => ({ kind: "request_confirmation" as const, title: `Merge paperclipai/paperclip#${number}?`,
     resolverPolicy: "human_only" as const, continuationPolicy: "wake_assignee_on_accept" as const,
     payload: { version: 1 as const, prompt: "Merge the PR?" } });
-  const create = (database: Db = db, number = 39) => service(database).create({ id: issueId, companyId }, input(number), { agentId });
+  const create = (database: Db = db, number = 39) => service(database).create({ id: issueId, spaceId }, input(number), { agentId });
   const stored = (id: string) => db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, id)).then(rows => rows[0]);
   async function start() {
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => !draining && !standby,
@@ -105,7 +105,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("manual cancellation removes the candidate deadline without provider work", async () => {
     provider.mockResolvedValue("open"); await start(); const card = await create();
     await waitFor(() => expect(provider).toHaveBeenCalledTimes(1)); await settle();
-    await service().withdrawInteraction({ id: issueId, companyId }, card.id, {}, { agentId });
+    await service().withdrawInteraction({ id: issueId, spaceId }, card.id, {}, { agentId });
     await quiet(); expect(provider).toHaveBeenCalledTimes(1); expect(wakeup).not.toHaveBeenCalled();
     expect((await stored(card.id)).status).toBe("cancelled");
   });
@@ -167,17 +167,17 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("preserves a real chat binding's durable continuation outbox on automatic acceptance", async () => {
     const applicationId = randomUUID(), connectionId = randomUUID(), endpointId = randomUUID();
-    await db.insert(toolApplications).values({ id: applicationId, companyId, applicationKey: `chat:slack:${endpointId}`, name: "Slack", type: "chat", status: "active" });
-    await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "Slack", uid: endpointId,
+    await db.insert(toolApplications).values({ id: applicationId, spaceId, applicationKey: `chat:slack:${endpointId}`, name: "Slack", type: "chat", status: "active" });
+    await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "Slack", uid: endpointId,
       connectionPurpose: "channel", transport: "chat_sdk", status: "active", enabled: true });
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId, connectionId, provider: "slack", publicId: endpointId,
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId, provider: "slack", publicId: endpointId,
       assignedAgentId: agentId, status: "active" });
-    const [conversation] = await db.insert(chatConversations).values({ companyId, endpointId, issueId,
+    const [conversation] = await db.insert(chatConversations).values({ spaceId, endpointId, issueId,
       externalConversationId: "merge-channel", externalThreadId: "merge-thread", externalLabel: "Merge thread", state: "active" }).returning();
     await start(); await quiet(); const card = await create();
     await waitFor(async () => expect((await stored(card.id)).status).toBe("accepted")); await quiet();
     expect(await db.select().from(chatActions).where(eq(chatActions.kind, "interaction_wakeup"))).toEqual([
-      expect.objectContaining({ companyId, endpointId, conversationId: conversation.id, providerActionId: `interaction_wakeup:${card.id}`,
+      expect.objectContaining({ spaceId, endpointId, conversationId: conversation.id, providerActionId: `interaction_wakeup:${card.id}`,
         payload: expect.objectContaining({ interactionId: card.id, issueId, agentId, interactionStatus: "accepted" }) }),
     ]);
     expect(await db.select().from(chatPublications)).toEqual(expect.arrayContaining([
@@ -214,7 +214,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("honors terminal issues, pure merge URL targets and continuationPolicy none", async () => {
     await start(); await quiet();
-    const target = await service().create({ id: issueId, companyId }, { ...input(), title: "Merge the linked PR?", continuationPolicy: "none",
+    const target = await service().create({ id: issueId, spaceId }, { ...input(), title: "Merge the linked PR?", continuationPolicy: "none",
       payload: { version: 1, prompt: "Merge the PR?", target: { type: "custom", key: "github-pr-39", href: "https://github.com/paperclipai/paperclip/pull/39" } } }, { agentId });
     await waitFor(async () => expect((await stored(target.id)).status).toBe("accepted")); await quiet();
     expect(wakeup).not.toHaveBeenCalled();
@@ -243,19 +243,19 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("unrelated pending confirmations do not retain worker SQL or provider work", async () => {
     await start(); await quiet();
-    await service().create({ id: issueId, companyId }, { ...input(), title: "Approve the plan?", payload: { version: 1, prompt: "Approve the plan?" } }, { agentId });
+    await service().create({ id: issueId, spaceId }, { ...input(), title: "Approve the plan?", payload: { version: 1, prompt: "Approve the plan?" } }, { agentId });
     await quiet(); expect(provider).not.toHaveBeenCalled(); expect(wakeup).not.toHaveBeenCalled();
     expect(errors).toEqual([]);
   });
 
   it("preserves manual acceptance without cancellation and rolls back a failed caller mutation", async () => {
     const card = await create();
-    const issue = { id: issueId, companyId, projectId: null, goalId: null };
-    await expect(service().acceptInteraction(issue, card.id, {}, { userId: "board" }, {
+    const issue = { id: issueId, spaceId, projectId: null, goalId: null };
+    await expect(service().acceptInteraction(issue, card.id, {}, { userId: "operator" }, {
       afterResolveInTransaction: async () => { throw new Error("manual acceptance rollback"); },
     })).rejects.toThrow("manual acceptance rollback");
     expect((await stored(card.id)).status).toBe("pending");
-    const accepted = await service().acceptInteraction(issue, card.id, {}, { userId: "board" });
+    const accepted = await service().acceptInteraction(issue, card.id, {}, { userId: "operator" });
     expect(accepted.interaction.status).toBe("accepted");
     expect((await stored(card.id)).status).toBe("accepted");
   });
@@ -264,7 +264,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     vi.useRealTimers();
     const card = await create();
     let signal: AbortSignal | undefined;
-    provider.mockImplementation(async (_companyId, _reference, currentSignal) => { signal = currentSignal; return "merged"; });
+    provider.mockImplementation(async (_spaceId, _reference, currentSignal) => { signal = currentSignal; return "merged"; });
     let reserved: Awaited<ReturnType<typeof db.$client.reserve>> | undefined = await db.$client.reserve();
     const [{ pid }] = await reserved<{ pid: number }[]>`select pg_backend_pid() as pid`;
     if (phase === "issue lock") {
@@ -421,21 +421,21 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.insert(issueThreadInteractions).values(Array.from({ length: 100 }, (_, index) => {
       const hex = (id - BigInt(index + 1)).toString(16).padStart(32, "0");
       return { id: `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`,
-        companyId, issueId, kind: "request_confirmation", title: "Approve the plan?", payload: { version: 1 as const, prompt: "Approve the plan?" } };
+        spaceId, issueId, kind: "request_confirmation", title: "Approve the plan?", payload: { version: 1 as const, prompt: "Approve the plan?" } };
     }));
     await start(); expect(provider).not.toHaveBeenCalled();
     await waitFor(async () => expect((await stored(card.id)).status).toBe("accepted")); await quiet();
     expect(provider).toHaveBeenCalledTimes(1); expect(wakeup).toHaveBeenCalledTimes(1); expect(errors).toEqual([]);
   });
 
-  it("limits normalized merge hints to the owning company and matching PR and tolerates duplicates", async () => {
+  it("limits normalized merge hints to the owning space and matching PR and tolerates duplicates", async () => {
     provider.mockResolvedValue("open"); const own = await create();
-    const foreignCompany = randomUUID(), foreignIssue = randomUUID();
-    await db.insert(companies).values({ id: foreignCompany, name: "Other company", issuePrefix: "OTH" });
-    await db.insert(issues).values({ id: foreignIssue, companyId: foreignCompany, title: "Other", status: "todo" });
-    const foreign = await service().create({ id: foreignIssue, companyId: foreignCompany }, input(), { userId: "board" });
+    const foreignSpace = randomUUID(), foreignIssue = randomUUID();
+    await db.insert(spaces).values({ id: foreignSpace, name: "Other space", issuePrefix: "OTH" });
+    await db.insert(issues).values({ id: foreignIssue, spaceId: foreignSpace, title: "Other", status: "todo" });
+    const foreign = await service().create({ id: foreignIssue, spaceId: foreignSpace }, input(), { userId: "operator" });
     const local = service();
-    const hint = [{ companyId, owner: "PAPERCLIPAI", repo: "paperclip", number: 39 }];
+    const hint = [{ spaceId, owner: "ForteDexe", repo: "outpost", number: 39 }];
     expect((await local.sweepMergedPullRequestConfirmations(hint)).accepted).toBe(1);
     expect((await stored(own.id)).status).toBe("accepted"); expect((await stored(foreign.id)).status).toBe("pending");
     expect(provider).not.toHaveBeenCalled();

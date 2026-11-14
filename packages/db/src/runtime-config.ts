@@ -3,7 +3,7 @@ import path from "node:path";
 import {
   expandHomePrefix,
   resolveDefaultEmbeddedPostgresDir,
-  resolvePaperclipConfigPathForInstance,
+  resolveOutpostConfigPathForInstance,
   resolveOutpostEnvPathForConfig,
 } from "@outpost/shared/home-paths";
 
@@ -24,7 +24,7 @@ export type ResolvedDatabaseTarget =
   | {
       mode: "postgres";
       connectionString: string;
-      source: "DATABASE_URL" | "paperclip-env" | "config.database.connectionString";
+      source: "DATABASE_URL" | "outpost-env" | "config.database.connectionString";
       configPath: string;
       envPath: string;
     }
@@ -45,7 +45,7 @@ function findConfigFileFromAncestors(startDir: string): string | null {
   let currentDir = path.resolve(startDir);
 
   while (true) {
-    const candidate = path.resolve(currentDir, ".paperclip", CONFIG_BASENAME);
+    const candidate = path.resolve(currentDir, ".outpost", CONFIG_BASENAME);
     if (existsSync(candidate)) return candidate;
 
     const nextDir = path.resolve(currentDir, "..");
@@ -54,11 +54,11 @@ function findConfigFileFromAncestors(startDir: string): string | null {
   }
 }
 
-function resolvePaperclipConfigPath(): string {
+function resolveOutpostConfigPath(): string {
   if (process.env.OUTPOST_CONFIG?.trim()) {
     return path.resolve(process.env.OUTPOST_CONFIG.trim());
   }
-  return findConfigFileFromAncestors(process.cwd()) ?? resolvePaperclipConfigPathForInstance();
+  return findConfigFileFromAncestors(process.cwd()) ?? resolveOutpostConfigPathForInstance();
 }
 
 function resolveOutpostEnvPath(configPath: string): string {
@@ -182,7 +182,7 @@ function readConfig(configPath: string): PartialConfig | null {
 }
 
 export function resolveDatabaseTarget(): ResolvedDatabaseTarget {
-  const configPath = resolvePaperclipConfigPath();
+  const configPath = resolveOutpostConfigPath();
   const envPath = resolveOutpostEnvPath(configPath);
   const envEntries = readEnvEntries(envPath);
 
@@ -202,7 +202,7 @@ export function resolveDatabaseTarget(): ResolvedDatabaseTarget {
     return {
       mode: "postgres",
       connectionString: fileEnvUrl,
-      source: "paperclip-env",
+      source: "outpost-env",
       configPath,
       envPath,
     };

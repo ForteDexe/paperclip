@@ -552,7 +552,7 @@ test('official observed legacy and existing workflow URLs pass all three actual 
 });
 
 test('official legacy URL admission rejects foreign workflow repo query credentials and fragment in all consumers', async () => {
-  for (const url of [observedLegacyJobUrl.replace('/paperclip/actions', '/paperclip-cloud/actions'),
+  for (const url of [observedLegacyJobUrl.replace('/outpost/actions', '/outpost-cloud/actions'),
     observedLegacyJobUrl.replace('Chat+feature+TestOps', 'Other+workflow'), `${observedLegacyJobUrl}&extra=1`,
     observedLegacyJobUrl.replace('https://github.com', 'https://user:password@github.com'), `${observedLegacyJobUrl}#extra`]) {
     await assert.rejects(validateChatSelection(selectedApi({ '/api/job/7': { id: 7, type: 'github', url } }), publicEnv), /chat_testops_job_mismatch/);

@@ -36,7 +36,7 @@ export function createInboxMineTiming() {
       const reported = new Map(shared);
       for (const [phase, duration] of durations) reported.set(phase, duration);
       return [
-        `paperclip_inbox;dur=${(performance.now() - start).toFixed(1)}`,
+        `outpost_inbox;dur=${(performance.now() - start).toFixed(1)}`,
         ...[...reported].map(([phase, duration]) => `inbox_${phase};dur=${duration.toFixed(1)}`),
       ].join(", ");
     },

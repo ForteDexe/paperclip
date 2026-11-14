@@ -1,5 +1,5 @@
 import { healthScope, type HealthScope } from "./tool-connection-health-notifications.js";
-import { takeCompanyWorkBatch } from "./company-work-batch.js";
+import { takeSpaceWorkBatch } from "./space-work-batch.js";
 import type { createDeliveryWorkCoordinator } from "./delivery-work-coordinator.js";
 import { DELIVERY_QUEUES } from "./delivery-work-notifications.js";
 import type { ConnectionHealthDeadline } from "./tool-access/catalog/health-schedule.js";
@@ -7,7 +7,7 @@ import type { ConnectionHealthDeadline } from "./tool-access/catalog/health-sche
 export function registerToolConnectionHealthWork(
   coordinator: ReturnType<typeof createDeliveryWorkCoordinator>,
   service: {
-    load(companyId?: string, connectionId?: string, applicationId?: string, signal?: AbortSignal): Promise<ConnectionHealthDeadline[]>;
+    load(spaceId?: string, connectionId?: string, applicationId?: string, signal?: AbortSignal): Promise<ConnectionHealthDeadline[]>;
     check(id: string): Promise<ConnectionHealthDeadline | null>;
   },
   canRun: () => boolean,
@@ -17,12 +17,12 @@ export function registerToolConnectionHealthWork(
   const failures = new Map<string, { count: number; retryAt: number }>();
   const refreshFailures = new Map<string, { scope: HealthScope; retryAt: number }>();
   const matches = (entry: ConnectionHealthDeadline, scope: HealthScope) =>
-    (scope.companyId === undefined || entry.companyId === scope.companyId)
+    (scope.spaceId === undefined || entry.spaceId === scope.spaceId)
     && (scope.connectionId === undefined || entry.id === scope.connectionId)
     && (scope.applicationId === undefined || entry.applicationId === scope.applicationId);
   const retryMs = 30_000;
   let earliest = 0;
-  let lastCompany: string | null = null;
+  let lastSpace: string | null = null;
   function request(hints?: ReadonlySet<string>) {
     for (const hint of hints ?? ["*"]) dirty.add(hint);
   }
@@ -59,7 +59,7 @@ export function registerToolConnectionHealthWork(
           if ((refreshFailures.get(scope)?.retryAt ?? 0) > Date.now()) {
             dirty.add(scope); unavailable.push(target); continue;
           }
-          const rows = await service.load(target.companyId, target.connectionId, target.applicationId, signal);
+          const rows = await service.load(target.spaceId, target.connectionId, target.applicationId, signal);
           if (target.connectionId) {
             const current = deadlines.get(target.connectionId);
             if (current && matches(current, target)) deadlines.delete(current.id);
@@ -79,8 +79,8 @@ export function registerToolConnectionHealthWork(
       const due = [...deadlines.values()].filter(entry => !unavailable.some(scope => matches(entry, scope))
         && Math.max(entry.dueAt, failures.get(entry.id)?.retryAt ?? 0) <= Date.now())
         .sort((a, b) => a.dueAt - b.dueAt || a.id.localeCompare(b.id));
-      const batch = takeCompanyWorkBatch(due, 25, lastCompany);
-      lastCompany = batch.lastCompany;
+      const batch = takeSpaceWorkBatch(due, 25, lastSpace);
+      lastSpace = batch.lastSpace;
       for (const entry of batch.entries) {
         if (signal.aborted || !canRun()) break;
         try {

@@ -20,7 +20,7 @@ function recordedFailure(evidence: Record<string, unknown>): string {
   return [failure.code, detail.reason, ...(allowedPolicy ? [`lease policy ${policy}`] : [])].join(" · ");
 }
 
-export function RunWorkspaceSourceInspection({ issueId, runId, companyId }: { issueId: string; runId: string; companyId: string }) {
+export function RunWorkspaceSourceInspection({ issueId, runId, spaceId }: { issueId: string; runId: string; spaceId: string }) {
   const listing = useMutation({ mutationFn: () => issuesApi.recoveryActions(issueId, { runId }) });
   const inspection = useMutation({ mutationFn: (actionId: string) => issuesApi.recoveryActions(issueId, { runId, actionId }) });
   const pending = listing.isPending || inspection.isPending;
@@ -43,7 +43,7 @@ export function RunWorkspaceSourceInspection({ issueId, runId, companyId }: { is
             Inspect current source
           </Button>
           {action.evidence.runId === runId ? <WorkspaceExportRecovery action={action}
-            issueId={issueId} companyId={companyId} showStatus={false} /> : null}
+            issueId={issueId} spaceId={spaceId} showStatus={false} /> : null}
         </div>
       ))}
       {current ? <div className="space-y-2 text-xs" role="status">

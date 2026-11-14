@@ -1,6 +1,6 @@
 # In-app announcements
 
-Paperclip displays one optional announcement card in the board UI. Its feed is
+Outpost displays one optional announcement card in the board UI. Its feed is
 `https://pages.outpost.ing/announcements/v1/current.json`. The instance fetches
 JSON on demand and renders it with native components.
 
@@ -11,9 +11,9 @@ JSON on demand and renders it with native components.
   Credentials, query strings, private destinations and redirects are rejected.
 
 Announcements are independent of telemetry. Feed/media requests originate from
-the instance without account IDs, company data, cookies or event tracking. The
+the instance without account IDs, space data, cookies or event tracking. The
 host sees ordinary server network request metadata. The browser requests only
-its own Paperclip API.
+its own Outpost API.
 
 ## Authoring and publishing
 
@@ -24,7 +24,7 @@ The shared `announcementManifestSchema` defines the format:
   "schemaVersion": 1,
   "announcement": {
     "id": "2026-09-projects",
-    "eyebrow": "New in Paperclip",
+    "eyebrow": "New in Outpost",
     "title": "Your next idea starts here",
     "description": "Bring your agents and work together in a project.",
     "secondaryLink": { "kind": "external", "label": "Learn more", "url": "https://outpost.ing" },
@@ -36,9 +36,9 @@ The shared `announcementManifestSchema` defines the format:
 Content is plain text. Every manifest object rejects unknown fields, including
 misspellings in actions and media. Optional fields: `image: { path, alt }`,
 `animation: { path, alt }`, `expiresAt` (ISO
-timestamp), and `minimumPaperclipVersion` (stable `major.minor.patch`). Internal
+timestamp), and `minimumOutpostVersion` (stable `major.minor.patch`). Internal
 actions accept stable pages in `ANNOUNCEMENT_APP_ROUTES` and use the selected
-company. External HTTPS links open a new tab. Actions only navigate.
+space. External HTTPS links open a new tab. Actions only navigate.
 
 Images are `assets/<sha256>.png`, `.jpg` or `.webp`, at most 2 MiB, relative to
 the manifest directory. Use an approximately 2.6:1 banner with important content
@@ -86,7 +86,7 @@ ETags improve fetching but never determine redisplay.
 
 An announcement can show a self-contained **HTML/CSS animation** in its hero
 area. The headline, description, close button and actions remain native
-Paperclip controls. Add an `animation` alongside the required static `image`:
+Outpost controls. Add an `animation` alongside the required static `image`:
 
 ```json
 "image": { "path": "assets/<image-sha256>.png", "alt": "A team working together" },
@@ -105,7 +105,7 @@ requests and imports are blocked by CSP; keep all styling self-contained.
 The publisher and server use the same strict DOMPurify allowlist and reject
 unsupported markup rather than publishing a silently changed animation.
 
-Paperclip verifies the digest, validates the HTML, and renders the result in an
+Outpost verifies the digest, validates the HTML, and renders the result in an
 opaque sandboxed iframe with no permissions. A Content Security Policy blocks
 scripts and network resources both inside the card and on direct API visits.
 The browser fetches HTML from its own authenticated instance; it never loads
@@ -115,22 +115,22 @@ See [iframe sandboxing](https://developer.mozilla.org/en-US/docs/Web/HTML/Refere
 
 The animation plays automatically without playback controls. The static image
 stays visible while loading and on failure. With reduced motion enabled,
-Paperclip does not request or play the animation. Also include a
+Outpost does not request or play the animation. Also include a
 `prefers-reduced-motion` CSS rule in authored documents for standalone previews.
 Animations share the feed's constrained host, three-second server timeout,
 bounded cache, request deduplication and fifteen-minute failure cooldown.
 Dismissal and ID reuse rules are identical for animated and static cards.
-Older Paperclip builds that do not recognize `animation` treat that feed as
+Older Outpost builds that do not recognize `animation` treat that feed as
 unsupported and quietly show no card.
 
 The complete authoring example is `announcements/examples/animated/`. Preview
 it with the same staging/test-drive workflow below:
 
 ```sh
-cp -R announcements/examples/animated .paperclip/announcement-animation-preview
+cp -R announcements/examples/animated .outpost/announcement-animation-preview
 # Edit HTML; recompute its digest and rename it; update current.json.
-node cli/node_modules/tsx/dist/cli.mjs scripts/publish-announcements.ts .paperclip/announcement-animation-preview --staging animated-preview --dry-run
-node cli/node_modules/tsx/dist/cli.mjs scripts/publish-announcements.ts .paperclip/announcement-animation-preview --staging animated-preview --publish
+node cli/node_modules/tsx/dist/cli.mjs scripts/publish-announcements.ts .outpost/announcement-animation-preview --staging animated-preview --dry-run
+node cli/node_modules/tsx/dist/cli.mjs scripts/publish-announcements.ts .outpost/announcement-animation-preview --staging animated-preview --publish
 ```
 
 Point the isolated instance at the printed URL and restart it. Verify movement,
@@ -147,21 +147,21 @@ cannot overwrite the production manifest. With no source directory it uses
 `announcements/examples/staging/`, including a sample banner. Commands default
 to dry-run unless `--publish` is supplied.
 
-For Paperclip's existing preview host, use the branch preview area that
+For Outpost's existing preview host, use the branch preview area that
 CloudFront already has permission to read:
 
 ```sh
-aws sso login --profile paperclip-dev
-export OUTPOST_PAGE_AWS_PROFILE=paperclip-dev
-export OUTPOST_PAGE_BUCKET=paperclipai-runner-e2e-history-078455283791-us-east-1
+aws sso login --profile outpost-dev
+export OUTPOST_PAGE_AWS_PROFILE=outpost-dev
+export OUTPOST_PAGE_BUCKET=outpostai-runner-e2e-history-078455283791-us-east-1
 export OUTPOST_PAGE_BASE_URL=https://d1p6rlowie26tp.cloudfront.net
 export OUTPOST_PAGE_DEFAULT_PREFIX=storybook/branches/codex-announcements
 
 # Copy the public fixture into an ignored directory and edit current.json there.
-mkdir -p .paperclip
-cp -R announcements/examples/staging .paperclip/announcement-preview
-node cli/node_modules/tsx/dist/cli.mjs scripts/publish-announcements.ts .paperclip/announcement-preview --staging my-preview --dry-run
-node cli/node_modules/tsx/dist/cli.mjs scripts/publish-announcements.ts .paperclip/announcement-preview --staging my-preview --publish
+mkdir -p .outpost
+cp -R announcements/examples/staging .outpost/announcement-preview
+node cli/node_modules/tsx/dist/cli.mjs scripts/publish-announcements.ts .outpost/announcement-preview --staging my-preview --dry-run
+node cli/node_modules/tsx/dist/cli.mjs scripts/publish-announcements.ts .outpost/announcement-preview --staging my-preview --publish
 ```
 
 Choose a unique staging name for your test and use the printed manifest URL.
@@ -177,10 +177,10 @@ the **selected instance's `.env`**, not just the invoking shell: test-drive
 deliberately clears inherited `OUTPOST_*` variables.
 
 ```sh
-mkdir -p .paperclip/announcement-test-drive/instances/default
+mkdir -p .outpost/announcement-test-drive/instances/default
 # On a new test directory, create this file. On reuse, update these entries
 # while preserving the file's existing keys.
-cat > .paperclip/announcement-test-drive/instances/default/.env <<'EOF'
+cat > .outpost/announcement-test-drive/instances/default/.env <<'EOF'
 OUTPOST_ANNOUNCEMENTS_FEED_URL=https://d1p6rlowie26tp.cloudfront.net/storybook/branches/codex-announcements/announcements/staging/my-preview/v1/current.json
 OUTPOST_ANNOUNCEMENTS_ENABLED=true
 OUTPOST_DB_BACKUP_ENABLED=false
@@ -190,19 +190,19 @@ EOF
 # A fresh test-drive needs a provider key for its initial CEO. Use your usual
 # provider environment variable; never put a real key into a manifest or commit.
 # Reusing an initialized data directory does not require a bootstrap key.
-node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts test-drive --data-dir .paperclip/announcement-test-drive --no-browser
+node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts test-drive --data-dir .outpost/announcement-test-drive --no-browser
 ```
 
 See [test-drive setup](DEVELOPING.md#one-command-isolated-manual-test-drive) for harness/key options.
 Open the printed local URL. The app chooses a free port starting at 3100 and
 keeps its database under the supplied directory. It creates no tasks or initial
-agent run. After onboarding/company selection, allow three seconds for the card.
+agent run. After onboarding/space selection, allow three seconds for the card.
 
 Before promoting content, verify:
 
 - The image, copy and both actions fit desktop/mobile and both themes.
 - A dialog or bottom-left toast temporarily hides the card, then restores it.
-- Close or follow a link; reload, switch companies and open another tab/browser.
+- Close or follow a link; reload, switch spaces and open another tab/browser.
   The same account should keep that ID dismissed.
 - Edit copy with the same ID: it stays dismissed. Publish a new ID: it appears
   on the next eligible visit. Clearing browser storage alone does not reset
@@ -248,7 +248,7 @@ removes a visible card when its deadline arrives.
 
 ## Timing and persistence
 
-Show after three seconds when opening or returning to Paperclip, after company
+Show after three seconds when opening or returning to Outpost, after space
 selection and onboarding. Dialogs and toasts take priority. Phones show it above
 bottom navigation. No automatic timeout, outside-click dismissal or carousel.
 Tab visibility controls the return check: moving focus to the address bar or
@@ -265,9 +265,9 @@ and withdrawal are discovered on a return after cache expiry (normally within
 about 65 minutes for returning users).
 
 Closing or following either link saves a unique `(userId, announcementId)`
-record in the instance DB, shared across browsers and companies. Its first
-write and audit entry commit together; the active company is audit context.
-Viewers can dismiss their own card. No-login instances share `local-board`.
+record in the instance DB, shared across browsers and spaces. Its first
+write and audit entry commit together; the active space is audit context.
+Viewers can dismiss their own card. No-login instances share `local-operator`.
 Separate installations do not share state.
 
 The browser hides immediately, stores pending writes per account, and retries
@@ -279,7 +279,7 @@ A failed state lookup never shows a card.
 
 Board-only APIs: `GET /api/announcements/current`,
 `GET /api/announcements/:id/image`, `GET /api/announcements/:id/animation`, and `POST /api/announcements/:id/dismiss`
-with `{ "companyId": "..." }`. Responses use `private, no-store`. Repeated POSTs
+with `{ "spaceId": "..." }`. Responses use `private, no-store`. Repeated POSTs
 return 204 without duplicate audits. Pending dismissals remain valid after the
 feed moves to another ID. The instance retains only the IDs of validated
 announcements in a publication registry, so offline retries survive withdrawal

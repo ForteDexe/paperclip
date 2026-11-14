@@ -18,7 +18,7 @@ async function openTransport(
   persistence: "file" | "external",
   onReadable?: (event: ReadableEvent) => void,
 ) {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-transport-pump-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-transport-pump-"));
   let probe: TransportPumpProbe | null = null;
   const bundle = createCapabilityRunnerdCodexTransport({
     runnerBinary: defaultCapabilityRunnerdBinary(),

@@ -21,15 +21,15 @@ describe.skipIf(!support.supported)("GitHub stale review repair PostgreSQL behav
     try {
       await setup.execute(sql`create schema github_review_repair_fixture`);
       await setup.execute(sql`set search_path=github_review_repair_fixture`);
-      await setup.execute(sql`create table chat_github_reviews (id uuid primary key, company_id uuid not null,
+      await setup.execute(sql`create table chat_github_reviews (id uuid primary key, space_id uuid not null,
         endpoint_id uuid not null, delivery_id text not null, state text not null, assessment jsonb,
         updated_at timestamptz not null default now())`);
       await setup.execute(sql`create table chat_deliveries (id uuid primary key, endpoint_id uuid not null, normalized_event jsonb)`);
-      await setup.execute(sql`create table chat_actions (id uuid primary key, company_id uuid not null,
+      await setup.execute(sql`create table chat_actions (id uuid primary key, space_id uuid not null,
         endpoint_id uuid not null, provider_action_id text, kind text not null, status text not null,
         payload jsonb not null, result jsonb, updated_at timestamptz not null default now())`);
       await setup.execute(sql`create unique index chat_actions_provider_action_uq
-        on chat_actions(company_id, endpoint_id, provider_action_id)`);
+        on chat_actions(space_id, endpoint_id, provider_action_id)`);
     } finally {
       await setup.$client.end();
     }
@@ -49,22 +49,22 @@ describe.skipIf(!support.supported)("GitHub stale review repair PostgreSQL behav
   afterAll(async () => { await temporary?.cleanup(); });
 
   async function seed(overrides: Record<string, unknown> = {}) {
-    const companyId = randomUUID(), endpointId = randomUUID();
+    const spaceId = randomUUID(), endpointId = randomUUID();
     const deliveryId = "a" + randomUUID().slice(1), reviewId = randomUUID(), actionId = randomUUID();
     const providerDeliveryId = "provider-" + randomUUID();
-    const values = { companyId, endpointId, deliveryId, reviewId, actionId, providerDeliveryId,
-      actionCompanyId: companyId, actionEndpointId: endpointId, deliveryEndpointId: endpointId,
+    const values = { spaceId, endpointId, deliveryId, reviewId, actionId, providerDeliveryId,
+      actionSpaceId: spaceId, actionEndpointId: endpointId, deliveryEndpointId: endpointId,
       actionDeliveryId: providerDeliveryId, reviewDeliveryId: deliveryId, state: "queued", assessment: null,
       kind: "github_review_check", status: "cancelled", code: "stale_head", ...overrides };
     await db.execute(sql`insert into chat_deliveries(id, endpoint_id, normalized_event)
       values (${deliveryId}::uuid, ${values.deliveryEndpointId}::uuid,
         ${JSON.stringify({ githubAutomatic: { context: { deliveryId: providerDeliveryId } } })}::jsonb)`);
-    await db.execute(sql`insert into chat_actions(id, company_id, endpoint_id, kind, status, payload, result)
-      values (${actionId}::uuid, ${values.actionCompanyId}::uuid, ${values.actionEndpointId}::uuid,
+    await db.execute(sql`insert into chat_actions(id, space_id, endpoint_id, kind, status, payload, result)
+      values (${actionId}::uuid, ${values.actionSpaceId}::uuid, ${values.actionEndpointId}::uuid,
         ${values.kind}, ${values.status}, ${JSON.stringify({ event: { deliveryId: values.actionDeliveryId } })}::jsonb,
         ${JSON.stringify({ code: values.code })}::jsonb)`);
-    await db.execute(sql`insert into chat_github_reviews(id, company_id, endpoint_id, delivery_id, state, assessment, updated_at)
-      values (${reviewId}::uuid, ${companyId}::uuid, ${endpointId}::uuid, ${values.reviewDeliveryId},
+    await db.execute(sql`insert into chat_github_reviews(id, space_id, endpoint_id, delivery_id, state, assessment, updated_at)
+      values (${reviewId}::uuid, ${spaceId}::uuid, ${endpointId}::uuid, ${values.reviewDeliveryId},
         ${values.state}, ${values.assessment === null ? null : JSON.stringify(values.assessment)}::jsonb, '2000-01-01T00:00:00Z')`);
     return values;
   }
@@ -93,7 +93,7 @@ describe.skipIf(!support.supported)("GitHub stale review repair PostgreSQL behav
   });
 
   it.each([
-    ["another action company", { actionCompanyId: randomUUID() }],
+    ["another action space", { actionSpaceId: randomUUID() }],
     ["another action endpoint", { actionEndpointId: randomUUID() }],
     ["another delivery endpoint", { deliveryEndpointId: randomUUID() }],
     ["another provider delivery", { actionDeliveryId: "another-delivery" }],
@@ -140,8 +140,8 @@ describe.skipIf(!support.supported)("GitHub stale review repair PostgreSQL behav
     await db.execute(sql`delete from chat_github_reviews where id=${fixture.reviewId}::uuid`);
     const service = githubReviewCheckService(db, noProviderCall);
     await service.processPending();
-    await db.execute(sql`insert into chat_github_reviews(id, company_id, endpoint_id, delivery_id, state)
-      values (${fixture.reviewId}::uuid, ${fixture.companyId}::uuid, ${fixture.endpointId}::uuid, ${fixture.deliveryId}, 'queued')`);
+    await db.execute(sql`insert into chat_github_reviews(id, space_id, endpoint_id, delivery_id, state)
+      values (${fixture.reviewId}::uuid, ${fixture.spaceId}::uuid, ${fixture.endpointId}::uuid, ${fixture.deliveryId}, 'queued')`);
     await service.processPending();
     const rows = await db.$client.unsafe("select state from chat_github_reviews");
     expect(rows).toEqual([{ state: "superseded" }]);
@@ -149,17 +149,17 @@ describe.skipIf(!support.supported)("GitHub stale review repair PostgreSQL behav
   });
 
   it("resolves each candidate delivery once through its primary key with retained history", async () => {
-    const companyId = randomUUID(), endpointId = randomUUID();
+    const spaceId = randomUUID(), endpointId = randomUUID();
     const candidates = 200;
     await db.execute(sql`insert into chat_deliveries(id, endpoint_id, normalized_event)
       select gen_random_uuid(), ${endpointId}::uuid,
         jsonb_build_object('githubAutomatic', jsonb_build_object('context', jsonb_build_object('deliveryId', 'delivery-' || n)))
       from generate_series(1,8000) n`);
-    await db.execute(sql`insert into chat_github_reviews(id, company_id, endpoint_id, delivery_id, state)
-      select gen_random_uuid(), ${companyId}::uuid, ${endpointId}::uuid, id::text, 'queued'
+    await db.execute(sql`insert into chat_github_reviews(id, space_id, endpoint_id, delivery_id, state)
+      select gen_random_uuid(), ${spaceId}::uuid, ${endpointId}::uuid, id::text, 'queued'
       from chat_deliveries order by id limit ${candidates}`);
-    await db.execute(sql`insert into chat_actions(id, company_id, endpoint_id, provider_action_id, kind, status, payload, result)
-      select gen_random_uuid(), ${companyId}::uuid, ${endpointId}::uuid, 'action-' || n,
+    await db.execute(sql`insert into chat_actions(id, space_id, endpoint_id, provider_action_id, kind, status, payload, result)
+      select gen_random_uuid(), ${spaceId}::uuid, ${endpointId}::uuid, 'action-' || n,
         case when n<=100 then 'github_review_check' else 'another_kind' end, 'cancelled',
         jsonb_build_object('event', jsonb_build_object('deliveryId', 'unmatched-' || n)),
         jsonb_build_object('code', 'stale_head') from generate_series(1,1100) n`);

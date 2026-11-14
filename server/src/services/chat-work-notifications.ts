@@ -1,5 +1,5 @@
 import { notifyChatResponseAvailability } from "./chat-response-availability.js";
-import { notifyChatRunMilestones, notifyChatCompanyAuthorityChange } from "./chat-run-milestone-notifications.js";
+import { notifyChatRunMilestones, notifyChatSpaceAuthorityChange } from "./chat-run-milestone-notifications.js";
 import { notifyChatConnectionConfiguration } from "./chat-channels/configuration-work-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 
@@ -9,7 +9,7 @@ export async function notifyChatDeliveryWork(tx: object): Promise<void> {
 
 export async function notifyChatPublicationWork(
   tx: object,
-  milestoneScope?: { companyId: string; issueId: string | null },
+  milestoneScope?: { spaceId: string; issueId: string | null },
 ): Promise<void> {
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.chatPublications);
   // Receipt recovery waits for the publication owner to release its claim.
@@ -18,8 +18,8 @@ export async function notifyChatPublicationWork(
   // release its provider response slot. Callers supply the affected issue only
   // for those changes; transport claim/lease bookkeeping has no projection debt.
   if (milestoneScope?.issueId) {
-    await notifyChatResponseAvailability(tx, { companyId: milestoneScope.companyId, issueId: milestoneScope.issueId });
-    await notifyChatRunMilestones(tx, { companyId: milestoneScope.companyId, issueId: milestoneScope.issueId });
+    await notifyChatResponseAvailability(tx, { spaceId: milestoneScope.spaceId, issueId: milestoneScope.issueId });
+    await notifyChatRunMilestones(tx, { spaceId: milestoneScope.spaceId, issueId: milestoneScope.issueId });
   }
 }
 
@@ -44,10 +44,10 @@ export async function notifyChatVerificationWork(tx: object): Promise<void> {
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.chatVerification);
 }
 
-export async function notifyChatEndpointWork(tx: object, connectionId: string, companyId: string): Promise<void> {
+export async function notifyChatEndpointWork(tx: object, connectionId: string, spaceId: string): Promise<void> {
   // Configuration/status transitions can restore post-control publication
   // authority. Ordinary health checks use the narrower configuration signals.
-  await notifyChatCompanyAuthorityChange(tx, { companyId });
+  await notifyChatSpaceAuthorityChange(tx, { spaceId });
   await notifyChatDeliveryWork(tx);
   await notifyChatPublicationWork(tx);
   for (const queue of Object.values(CHAT_ACTION_QUEUES)) await notifyDeliveryWork(tx, queue);

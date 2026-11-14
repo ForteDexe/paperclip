@@ -9,13 +9,13 @@ import type { ExternalChannelBindingSummary } from "@outpost/shared";
 import { chatProviderConversationUrl } from "./chat-provider-links.js";
 
 /**
- * Derive the task-facing chat binding from durable Paperclip records. The
- * company predicate is intentionally part of the lookup so callers cannot use
- * a globally unique task id as a cross-company discovery oracle.
+ * Derive the task-facing chat binding from durable Outpost records. The
+ * space predicate is intentionally part of the lookup so callers cannot use
+ * a globally unique task id as a cross-space discovery oracle.
  */
 export async function getExternalChannelBindingSummary(
   db: Db,
-  companyId: string,
+  spaceId: string,
   issueId: string,
 ): Promise<ExternalChannelBindingSummary | null> {
   const row = await db
@@ -28,20 +28,20 @@ export async function getExternalChannelBindingSummary(
     .innerJoin(
       chatEndpoints,
       and(
-        eq(chatEndpoints.companyId, chatConversations.companyId),
+        eq(chatEndpoints.spaceId, chatConversations.spaceId),
         eq(chatEndpoints.id, chatConversations.endpointId),
       ),
     )
     .leftJoin(
       chatPublications,
       and(
-        eq(chatPublications.companyId, chatConversations.companyId),
+        eq(chatPublications.spaceId, chatConversations.spaceId),
         eq(chatPublications.conversationId, chatConversations.id),
       ),
     )
     .where(
       and(
-        eq(chatConversations.companyId, companyId),
+        eq(chatConversations.spaceId, spaceId),
         eq(chatConversations.issueId, issueId),
       ),
     )

@@ -28,9 +28,9 @@
       "riskTier": "S3",
       "label": "Connect MCP server",
       "consoleLinks": {
-        "docs": "https://docs.arcade.dev/en/operate/governance/mcp-gateways"
+        "docs": "https://docs.arcade.dev/en/operate/policy/mcp-gateways"
       }
     }
   ],
-  "docsUrl": "https://docs.arcade.dev/en/operate/governance/mcp-gateways"
+  "docsUrl": "https://docs.arcade.dev/en/operate/policy/mcp-gateways"
 }

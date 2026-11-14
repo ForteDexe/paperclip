@@ -22,7 +22,7 @@ export async function inspectRepositoryBundle(bytes: Buffer, input: { sourceComm
   if (!/^[a-f0-9]{40}$/.test(input.sourceCommit) || bytes.length < 32 || bytes.length > 262_144
     || !/^# v[23] git bundle\n/.test(bytes.subarray(0, 32).toString("ascii"))
     || input.files.some(file => !/^[A-Za-z0-9][A-Za-z0-9.-]{0,120}$/.test(file))) throw new Error("invalid_repository_bundle");
-  const root = await mkdtemp(path.join(os.tmpdir(), "paperclip-qa-repository-inspection-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "outpost-qa-repository-inspection-"));
   const gitDir = path.join(root, "objects.git"), bundle = path.join(root, "proof.bundle");
   const git = async (...args: string[]) => (await execFile("git", ["--no-replace-objects", "-c", "core.hooksPath=/dev/null",
     "-c", "core.fsmonitor=false", "-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "--git-dir", gitDir, ...args], {
@@ -57,16 +57,16 @@ export function repositoryWorkspaceFileMatches(value: WorkspaceFileContent | nul
 }
 
 export function repositoryWorkspaceBindingMatches(input: {
-  companyId: string; issueId: string; projectId: string; projectWorkspaceId: string; workspaceId: string; repoUrl: string;
+  spaceId: string; issueId: string; projectId: string; projectWorkspaceId: string; workspaceId: string; repoUrl: string;
   issue: Record<string, any>; view: Record<string, any>; runs: Array<Record<string, any>>;
 }) {
   const { workspace } = input.view;
-  return Boolean(input.workspaceId && input.issue.id === input.issueId && input.issue.companyId === input.companyId
+  return Boolean(input.workspaceId && input.issue.id === input.issueId && input.issue.spaceId === input.spaceId
     && input.issue.projectId === input.projectId && input.issue.executionWorkspaceId === input.workspaceId
-    && input.view.issueId === input.issueId && workspace?.id === input.workspaceId && workspace.companyId === input.companyId
+    && input.view.issueId === input.issueId && workspace?.id === input.workspaceId && workspace.spaceId === input.spaceId
     && workspace.projectId === input.projectId && workspace.projectWorkspaceId === input.projectWorkspaceId
     && workspace.repoUrl === input.repoUrl && input.runs.length > 0
-    && input.runs.every(run => run.companyId === input.companyId
+    && input.runs.every(run => run.spaceId === input.spaceId
       && run.runnerProfileJson?.nativeExecutionInput?.binding?.executionWorkspaceId === input.workspaceId));
 }
 

@@ -84,7 +84,7 @@ fn streamed_turn_then(
     prepare_provider: impl FnOnce(&mut CodexProvider),
 ) -> (PathBuf, CodexCommandExecutor) {
     let directory = std::env::temp_dir().join(format!(
-        "paperclip-streamed-frames-{}",
+        "outpost-streamed-frames-{}",
         uuid::Uuid::new_v4()
     ));
     fs::create_dir_all(&directory).unwrap();
@@ -300,7 +300,7 @@ fn previous_release_state() -> CodexProviderState {
 #[test]
 fn previous_release_state_is_rewritten_by_the_first_batched_save() {
     let directory = std::env::temp_dir().join(format!(
-        "paperclip-batched-save-upgrade-{}",
+        "outpost-batched-save-upgrade-{}",
         uuid::Uuid::new_v4()
     ));
     fs::create_dir_all(&directory).unwrap();
@@ -391,7 +391,7 @@ fn courtesy_rejections_reach_the_provider_only_after_earlier_frames_are_saved() 
     let saved_at_rejection = std::sync::Arc::new(std::sync::Mutex::new(None::<CodexProviderState>));
     let observer_directory = std::sync::Arc::clone(&directory_slot);
     let observer_saved = std::sync::Arc::clone(&saved_at_rejection);
-    let tail = r#"{"id":"courtesy-1","method":"paperclip/test/unsupported","params":{"threadId":"thread-1","turnId":"turn-1"}}"#;
+    let tail = r#"{"id":"courtesy-1","method":"outpost/test/unsupported","params":{"threadId":"thread-1","turnId":"turn-1"}}"#;
     let (directory, mut executor) = streamed_turn(20, 0, tail, true, move |provider| {
         provider.sent_frame_observer = Some(Box::new(move |frame: &Value| {
             if frame["id"] != "courtesy-1" {
@@ -435,7 +435,7 @@ fn trace_interpretations_name_only_saved_events() {
     let observer_directory = std::sync::Arc::clone(&directory_slot);
     let observer_checked = std::sync::Arc::clone(&checked);
     let trace_path = std::env::temp_dir().join(format!(
-        "paperclip-frame-trace-{}.jsonl",
+        "outpost-frame-trace-{}.jsonl",
         uuid::Uuid::new_v4()
     ));
     let provider_trace_path = trace_path.clone();
@@ -557,7 +557,7 @@ fn trace_interpretations_survive_a_provider_exit_in_the_same_poll() {
     let observer_named = std::sync::Arc::clone(&named);
     let tail = r#"{"method":"item/agentMessage/delta","params":{"threadId":"thread-1","turnId":"turn-1","itemId":"message-1","delta":"last"}}"#;
     let trace_path = std::env::temp_dir().join(format!(
-        "paperclip-frame-trace-exit-{}.jsonl",
+        "outpost-frame-trace-exit-{}.jsonl",
         uuid::Uuid::new_v4()
     ));
     let provider_trace_path = trace_path.clone();

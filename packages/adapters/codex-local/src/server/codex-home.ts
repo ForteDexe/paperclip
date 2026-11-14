@@ -5,14 +5,14 @@ import type { AdapterExecutionContext } from "@outpost/adapter-utils";
 import type { SandboxManagedRuntimeAssetProvision } from "@outpost/adapter-utils/sandbox-managed-runtime";
 import { shellQuote } from "@outpost/adapter-utils/ssh";
 import { buildCodexAuthInboundProvision, CODEX_AUTH_MERGE_EXTRACT_SCRIPT_NAME } from "./codex-auth-merge-scripts.js";
-import { resolvePaperclipInstanceRootForAdapter } from "@outpost/adapter-utils/server-utils";
+import { resolveOutpostInstanceRootForAdapter } from "@outpost/adapter-utils/server-utils";
 import { isCodexAuthCachePath, readSubscriptionAccountId } from "./codex-auth-cache.js";
 
 const TRUTHY_ENV_RE = /^(1|true|yes|on)$/i;
 const COPIED_SHARED_FILES = ["config.json", "config.toml", "instructions.md"] as const;
 const SYMLINKED_SHARED_FILES = ["auth.json"] as const;
-const MANAGED_MCP_BLOCK_START = "# BEGIN PAPERCLIP MANAGED MCP";
-const MANAGED_MCP_BLOCK_END = "# END PAPERCLIP MANAGED MCP";
+const MANAGED_MCP_BLOCK_START = "# BEGIN OUTPOST MANAGED MCP";
+const MANAGED_MCP_BLOCK_END = "# END OUTPOST MANAGED MCP";
 
 /**
  * The allowlist of managed `CODEX_HOME` entries that the codex-local adapter
@@ -50,7 +50,7 @@ asset_tar=$2
 runtime_root=$3
 mkdir -p "$home"
 chmod 700 "$home"
-incoming=$(mktemp -d "$home/.paperclip-home-refresh.XXXXXX")
+incoming=$(mktemp -d "$home/.outpost-home-refresh.XXXXXX")
 trap 'rm -rf -- "$incoming"' EXIT
 trap 'exit 1' HUP INT TERM
 ${prepare}
@@ -168,39 +168,39 @@ function isWorktreeMode(env: NodeJS.ProcessEnv): boolean {
 
 export function resolveManagedCodexHomeDir(
   env: NodeJS.ProcessEnv,
-  companyId?: string,
+  spaceId?: string,
 ): string {
-  const instanceRoot = resolvePaperclipInstanceRootForAdapter({
+  const instanceRoot = resolveOutpostInstanceRootForAdapter({
     homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
     instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
-  return companyId
-    ? path.resolve(instanceRoot, "companies", companyId, "codex-home")
+  return spaceId
+    ? path.resolve(instanceRoot, "spaces", spaceId, "codex-home")
     : path.resolve(instanceRoot, "codex-home");
 }
 
 /**
- * True when `homePath` lives under the Paperclip-managed company tree
- * (`<instanceRoot>/companies/<companyId>/...`). This covers both the shared
- * company `codex-home` and the per-agent `agents/<agentId>/codex-home` set by
+ * True when `homePath` lives under the Outpost-managed space tree
+ * (`<instanceRoot>/spaces/<spaceId>/...`). This covers both the shared
+ * space `codex-home` and the per-agent `agents/<agentId>/codex-home` set by
  * the server-side isolation guard. A path outside that tree is a genuine
- * external/user-supplied override that Paperclip must not seed or overwrite.
+ * external/user-supplied override that Outpost must not seed or overwrite.
  */
 export function isManagedCodexHomePath(
   env: NodeJS.ProcessEnv,
-  companyId: string | undefined,
+  spaceId: string | undefined,
   homePath: string,
 ): boolean {
-  if (!companyId) return false;
-  const instanceRoot = resolvePaperclipInstanceRootForAdapter({
+  if (!spaceId) return false;
+  const instanceRoot = resolveOutpostInstanceRootForAdapter({
     homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
     instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
-  const companyRoot = path.resolve(instanceRoot, "companies", companyId);
+  const spaceRoot = path.resolve(instanceRoot, "spaces", spaceId);
   const resolved = path.resolve(homePath);
-  return resolved === companyRoot || resolved.startsWith(companyRoot + path.sep);
+  return resolved === spaceRoot || resolved.startsWith(spaceRoot + path.sep);
 }
 
 /**
@@ -301,15 +301,15 @@ export async function ensureSymlink(target: string, source: string): Promise<voi
   if (await isExpectedAuthLink(target, source)) return;
 
   if (!existing.isSymbolicLink()) {
-    // A previous Paperclip version copied this file into the managed home
+    // A previous Outpost version copied this file into the managed home
     // instead of symlinking it. Codex refresh tokens rotate and are
     // single-use, so a stale copy fails with refresh_token_reused on the next
     // run (#5028). Replace the regular file with a symlink so the CLI follows
     // the live source. Safe to delete: target is always under the
-    // Paperclip-managed company home, never the user's real ~/.codex.
+    // Outpost-managed space home, never the user's real ~/.codex.
     // Directories are left alone — `fs.unlink` would throw EISDIR on Unix
     // (and behave inconsistently on Windows). A directory at this path is not
-    // a Paperclip-written stale copy and warrants operator inspection rather
+    // a Outpost-written stale copy and warrants operator inspection rather
     // than silent removal.
     if (existing.isDirectory()) return;
     await fs.unlink(target);
@@ -367,21 +367,21 @@ function buildManagedMcpBlock(input: {
   const usedNames = new Set<string>();
   const lines = [
     MANAGED_MCP_BLOCK_START,
-    "# Written by Outpost for governed MCP gateway access. Do not edit this block by hand.",
+    "# Written by Outpost for controlled MCP gateway access. Do not edit this block by hand.",
   ];
   input.gateways.forEach((gateway, index) => {
     const baseName = sanitizeMcpServerName(gateway.name, `gateway-${index + 1}`);
     const directOverlap = input.existingNames.has(gateway.name) || input.existingNames.has(baseName);
-    let managedName = directOverlap ? `paperclip-${baseName}` : baseName;
+    let managedName = directOverlap ? `outpost-${baseName}` : baseName;
     let suffix = 2;
     while (usedNames.has(managedName) || input.existingNames.has(managedName)) {
-      managedName = `paperclip-${baseName}-${suffix}`;
+      managedName = `outpost-${baseName}-${suffix}`;
       suffix += 1;
     }
     usedNames.add(managedName);
     if (directOverlap) {
       warnings.push(
-        `Found unmanaged Codex MCP server "${gateway.name}" overlapping an Outpost-governed gateway; leaving the direct entry in place and adding managed gateway "${managedName}". Outpost cannot enforce policies for that direct entry.`,
+        `Found unmanaged Codex MCP server "${gateway.name}" overlapping an Outpost-controlled gateway; leaving the direct entry in place and adding managed gateway "${managedName}". Outpost cannot enforce policies for that direct entry.`,
       );
     }
     const url = new URL(gateway.endpointPath, input.apiBaseUrl).toString();
@@ -531,7 +531,7 @@ async function stageContainedSubtree(
  * leaving `0644` documents and `0755` scripts group/other-readable in the staged
  * asset; here skill files retain only their executable flag, with owner-only access.
  *
- * `sourceDir`'s *direct* children are the Paperclip-injected skill symlinks that
+ * `sourceDir`'s *direct* children are the Outpost-injected skill symlinks that
  * intentionally point into a shared skill store *outside* `CODEX_HOME/skills/`,
  * so each child is allowed to resolve anywhere — and when it resolves to a
  * directory it becomes the containment root for its own subtree. Everything
@@ -654,11 +654,11 @@ export async function stageCodexHomeForSync(
 ): Promise<string> {
   const runIdPart = nonEmpty(options.runId ?? undefined);
   const stagedHome = await fs.mkdtemp(
-    path.join(os.tmpdir(), `paperclip-codex-home-sync-${runIdPart ? `${runIdPart}-` : ""}`),
+    path.join(os.tmpdir(), `outpost-codex-home-sync-${runIdPart ? `${runIdPart}-` : ""}`),
   );
   try {
     for (const filename of options.additionalFiles ?? []) {
-      if (!/^paperclip-observability-[A-Za-z0-9_-]+\.config\.toml$/.test(filename)) throw new Error("Invalid managed observability profile");
+      if (!/^outpost-observability-[A-Za-z0-9_-]+\.config\.toml$/.test(filename)) throw new Error("Invalid managed observability profile");
       const source = path.join(effectiveCodexHome, filename);
       const stat = await fs.lstat(source);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || (typeof process.getuid === "function" && stat.uid !== process.getuid()) || (stat.mode & 0o077) !== 0) throw new Error("Managed observability profile must be an owned private regular file");
@@ -677,7 +677,7 @@ export async function stageCodexHomeForSync(
 }
 
 /**
- * Seeds auth/config into an explicit Paperclip-managed `targetHome`. Symlinks
+ * Seeds auth/config into an explicit Outpost-managed `targetHome`. Symlinks
  * `auth.json` from the shared source home (so ChatGPT-subscription credentials
  * stay live and single-use refresh tokens are not copied), copies the static
  * shared config files, and — when an API key is supplied — writes an API-key
@@ -685,7 +685,7 @@ export async function stageCodexHomeForSync(
  * `auth.json` holding a subscription identity the shared source does not hold,
  * or the same identity with a `last_refresh` the shared source has not strictly
  * moved past — is kept authoritative: it is neither removed nor replaced by the
- * shared symlink. Used both for the default company home and for the per-agent
+ * shared symlink. Used both for the default space home and for the per-agent
  * home set by the server isolation guard.
  */
 export async function seedManagedCodexHome(
@@ -713,7 +713,7 @@ export async function seedManagedCodexHome(
   await fs.mkdir(targetHome, { recursive: true });
 
   // A regular-file auth.json in the target home is one of two very different
-  // things. The device-login promotion writes the company credential as a
+  // things. The device-login promotion writes the space credential as a
   // regular file, and that file is the durable outcome of an interactive login,
   // so it must survive re-seeding. Everything else — an apikey-mode file left by
   // a previous run, a stale pre-symlink copy of the shared credential (#5028),
@@ -727,7 +727,7 @@ export async function seedManagedCodexHome(
   // the SAME identity but the shared source is not strictly fresher by
   // `last_refresh`. A device login for the account the host is also signed in
   // to promotes a file strictly newer than the host copy; swapping that file
-  // for the symlink would sign the company back in with the very credential the
+  // for the symlink would sign the space back in with the very credential the
   // login just replaced — the failing one that made the user sign in. The
   // #5028 stale copy is the strictly-older direction of the same comparison,
   // and it still heals: the live host credential refreshes on use, so as soon
@@ -736,9 +736,9 @@ export async function seedManagedCodexHome(
   // shared merge decision predicate uses — because deleting a promoted
   // credential is irreversible while keeping it self-corrects on the next seed
   // once the source has provably moved past it. A different-identity (or
-  // source-less) subscription file is the promoted company credential; on a
+  // source-less) subscription file is the promoted space credential; on a
   // server with no shared login there is nothing to symlink at all, and
-  // deleting it would silently sign the company out right after a successful
+  // deleting it would silently sign the space out right after a successful
   // device login.
   let keepPromotedAuth = false;
   if (!apiKey && seedFromShared && !credentialStoreEntry) {
@@ -852,10 +852,10 @@ export async function seedManagedCodexHome(
 export async function prepareManagedCodexHome(
   env: NodeJS.ProcessEnv,
   onLog: AdapterExecutionContext["onLog"],
-  companyId?: string,
+  spaceId?: string,
   options: { apiKey?: string | null } = {},
 ): Promise<string> {
-  const targetHome = resolveManagedCodexHomeDir(env, companyId);
+  const targetHome = resolveManagedCodexHomeDir(env, spaceId);
   await seedManagedCodexHome(targetHome, env, onLog, options);
   return targetHome;
 }
@@ -868,7 +868,7 @@ export type ReconcileManagedCodexHomeStatus =
   | "seeded";
 
 export interface ReconcileManagedCodexHomeInput {
-  companyId: string | undefined;
+  spaceId: string | undefined;
   configuredCodexHome: string | null | undefined;
   apiKey?: string | null;
   /**
@@ -908,7 +908,7 @@ export async function reconcileManagedCodexHome(
   if (!configured) return { status: "no_managed_home", home: null };
 
   const resolved = path.resolve(configured);
-  if (!isManagedCodexHomePath(env, input.companyId, resolved)) {
+  if (!isManagedCodexHomePath(env, input.spaceId, resolved)) {
     return { status: "external_override", home: resolved };
   }
 
@@ -947,7 +947,7 @@ export type CodexCredentialAuthMode = "api" | "subscription";
 
 export interface CodexCredentialReadinessInput {
   env?: NodeJS.ProcessEnv;
-  companyId: string | undefined;
+  spaceId: string | undefined;
   /** `config.env.CODEX_HOME` for the run, if any. */
   configuredCodexHome: string | null | undefined;
   /** Resolved `config.env.OPENAI_API_KEY` value (after secret resolution). */
@@ -955,7 +955,7 @@ export interface CodexCredentialReadinessInput {
 }
 
 export interface CodexCredentialReadiness {
-  /** True when Paperclip owns the effective home and is responsible for its auth. */
+  /** True when Outpost owns the effective home and is responsible for its auth. */
   managed: boolean;
   authMode: CodexCredentialAuthMode;
   /** True when a run launched now would be able to authenticate. */
@@ -973,7 +973,7 @@ export interface CodexCredentialReadiness {
  * of dispatching a run that is guaranteed to fail with "no Codex credentials".
  *
  * - An external/user-supplied `CODEX_HOME` override manages its own auth, so it
- *   is always treated as ready (Paperclip must not seed or inspect it).
+ *   is always treated as ready (Outpost must not seed or inspect it).
  * - A non-empty resolved `OPENAI_API_KEY` means API-key auth, always ready.
  * - Otherwise (subscription mode) the run needs a usable `auth.json`. Because a
  *   managed home symlinks `auth.json` from the shared source home at seed time,
@@ -990,12 +990,12 @@ export async function evaluateCodexCredentialReadiness(
   const sharedSourceHome = resolveSharedCodexHomeDir(env);
 
   const configuredHomeIsManaged =
-    configuredCodexHome != null && isManagedCodexHomePath(env, input.companyId, configuredCodexHome);
+    configuredCodexHome != null && isManagedCodexHomePath(env, input.spaceId, configuredCodexHome);
   const effectiveHomeIsManaged = configuredCodexHome == null || configuredHomeIsManaged;
-  const effectiveHome = configuredCodexHome ?? resolveManagedCodexHomeDir(env, input.companyId);
+  const effectiveHome = configuredCodexHome ?? resolveManagedCodexHomeDir(env, input.spaceId);
 
   if (!effectiveHomeIsManaged) {
-    // Genuine external override: Paperclip never seeds or inspects it.
+    // Genuine external override: Outpost never seeds or inspects it.
     return {
       managed: false,
       authMode: configuredApiKey ? "api" : "subscription",

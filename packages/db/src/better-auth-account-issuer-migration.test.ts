@@ -56,7 +56,7 @@ describeEmbeddedPostgres("historical issuer migration and patched provider ident
   });
 
   it("backfills every pre-upgrade row before the column goes NOT NULL", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-account-issuer-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-account-issuer-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1 });
     cleanups.push(async () => sql.end());
@@ -140,7 +140,7 @@ describeEmbeddedPostgres("historical issuer migration and patched provider ident
 
 describeEmbeddedPostgres("provider identity migration with duplicate legacy keys", () => {
   it("rejects ambiguous provider/account keys without changing legacy rows", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-account-duplicates-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-account-duplicates-");
     const sql = postgres(database.connectionString, { max: 1 });
     try {
       await sql`DROP INDEX "account_provider_account_id_uq"`;

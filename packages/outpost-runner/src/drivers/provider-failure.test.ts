@@ -35,7 +35,7 @@ describe("provider failure boundary", () => {
       { type: "error", error: { type: "rate_limit_error", message: "Usage limit reached." } }), "claude", "startup"))
       .toMatchObject({ category: "rate_limit", providerCode: "rate_limit_error", message: "Usage limit reached." });
     // ACP's reserved authentication-required code, as Pi and Claude raise it.
-    const auth = "Authentication required: Bind the configured OpenRouter API credential to this Paperclip runtime.";
+    const auth = "Authentication required: Bind the configured OpenRouter API credential to this Outpost runtime.";
     expect(acpxProviderFailure(rejected(-32000, auth, { authMethods: [{ id: "openrouter" }] }), "pi", "startup"))
       .toEqual({ schema: "outpost.provider-failure.v1", provider: "pi", phase: "startup", category: "authentication",
         message: auth, retryability: "requires_action" });

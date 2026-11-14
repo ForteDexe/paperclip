@@ -72,7 +72,7 @@ function findDesign(): ChatCatalogCase {
         return readSearchProbeResponse(response);
       };
       const o = await observeInternal(ctx, state); const hidden = entity(state, "privateTask"); const target = entity(state, "task");
-      const [privateRead, search] = await Promise.all([read(`/api/issues/${hidden.id}`), read(`/api/companies/${o.companyId}/search?q=launch%20website%20design`)]);
+      const [privateRead, search] = await Promise.all([read(`/api/issues/${hidden.id}`), read(`/api/spaces/${o.spaceId}/search?q=launch%20website%20design`)]);
       const result = search.body as { results?: unknown[] } | null;
       if (search.status === 200 && !Array.isArray(result?.results)) throw new Error("Design search lacks production results collection");
       return { ...o, approvedRevision: o.revisions.find(row => row.id === (state.approvedRevision as Entity).id),

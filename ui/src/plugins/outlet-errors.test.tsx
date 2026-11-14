@@ -11,7 +11,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { PluginLauncherOutlet, PluginLauncherProvider, usePluginLaunchers } from "./launchers";
 import { _resetPluginModuleLoader, PluginSlotOutlet, registerPluginReactComponent, usePluginSlots } from "./slots";
 
-vi.mock("@/context/CompanyContext", () => ({ useCompany: () => ({ selectedCompany: null }) }));
+vi.mock("@/context/SpaceContext", () => ({ useSpace: () => ({ selectedSpace: null }) }));
 
 const contribution: PluginUiContribution = {
   pluginId: "fixture", pluginKey: "fixture.sidebar", displayName: "Fixture", version: "1",
@@ -25,14 +25,14 @@ const contribution: PluginUiContribution = {
     action: { type: "navigate", target: "/fixture" },
   }],
 };
-const context = { companyId: "company-1", companyPrefix: "PAP" };
+const context = { spaceId: "space-1", spacePrefix: "PAP" };
 let root: Root;
 let container: HTMLDivElement;
 let client: QueryClient;
 
 function HookProbe() {
-  const slots = usePluginSlots({ slotTypes: ["sidebar"], companyId: context.companyId });
-  const launchers = usePluginLaunchers({ placementZones: ["sidebar"], companyId: context.companyId });
+  const slots = usePluginSlots({ slotTypes: ["sidebar"], spaceId: context.spaceId });
+  const launchers = usePluginLaunchers({ placementZones: ["sidebar"], spaceId: context.spaceId });
   return (
     <span data-testid="probe">
       {`slots:${slots.isLoading ? "loading" : "settled"}:${slots.errorMessage ?? "-"}|launchers:${launchers.isLoading ? "loading" : "settled"}:${launchers.errorMessage ?? "-"}`}
@@ -60,7 +60,7 @@ const probeText = () => container.querySelector('[data-testid="probe"]')?.textCo
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   // Module and session fetches stay pending; components are registered directly.
-  vi.stubGlobal("__paperclipPluginBridge__", {});
+  vi.stubGlobal("__outpostPluginBridge__", {});
   vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
   client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);

@@ -68,7 +68,7 @@ describe("liveRunRefetchInterval", () => {
     expect(liveRunRefetchInterval(true, { status, data: [] }, 1000)).toBe(1000);
     expect(liveRunRefetchInterval(true, { status, data: null }, 3000)).toBe(3000);
   });
-  it.each([null, []])("stops known-empty polling with a connected company for %j", (data) => {
+  it.each([null, []])("stops known-empty polling with a connected space for %j", (data) => {
     expect(liveRunRefetchInterval(true, { status: "success", data }, 1000)).toBe(false);
     expect(liveRunRefetchInterval(false, { status: "success", data }, 1000)).toBe(1000);
   });

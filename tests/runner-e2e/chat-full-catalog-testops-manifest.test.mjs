@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { catalogTargetSha, catalogManifestSha256, fullCatalogPlanName, fullCatalogCases, validateFullCatalogManifest, companySecretBindingApprovalMetadata, validateCompanySecretBindingApprovalSource } from './chat-full-catalog-testops-manifest.mjs';
+import { catalogTargetSha, catalogManifestSha256, fullCatalogPlanName, fullCatalogCases, validateFullCatalogManifest, spaceSecretBindingApprovalMetadata, validateSpaceSecretBindingApprovalSource } from './chat-full-catalog-testops-manifest.mjs';
 
 const { parseDocument } = createRequire(import.meta.url)('yaml');
 const bytes = readFileSync(new URL('./chat-full-catalog-testops-manifest.json', import.meta.url));
@@ -162,23 +162,23 @@ test('repair source metadata binds the corrected candidate and explicit changed 
     "oracleVersion"
   ],
   [
-    "companies.agent-observability",
+    "spaces.agent-observability",
     "sourceFiles"
   ],
   [
-    "companies.configure-decision-model",
+    "spaces.configure-decision-model",
     "sourceFiles"
   ],
   [
-    "companies.fast-responses",
+    "spaces.fast-responses",
     "sourceFiles"
   ],
   [
-    "companies.fast-responses",
+    "spaces.fast-responses",
     "originalQuery"
   ],
   [
-    "companies.prompt-injection-guard",
+    "spaces.prompt-injection-guard",
     "sourceFiles"
   ],
   [
@@ -230,11 +230,11 @@ test('repair source metadata binds the corrected candidate and explicit changed 
     "oracleVersion"
   ],
   [
-    "secrets.configure-company-secret",
+    "secrets.configure-space-secret",
     "sourceFiles"
   ],
   [
-    "secrets.configure-company-secret",
+    "secrets.configure-space-secret",
     "oracleVersion"
   ],
   [
@@ -322,15 +322,15 @@ test('repair source metadata binds the corrected candidate and explicit changed 
     "originalQuery"
   ],
   [
-    "secrets.configure-company-secret",
+    "secrets.configure-space-secret",
     "maximumRuns"
   ],
   [
-    "secrets.configure-company-secret",
-    "optionalCompanySecretBindingApproval"
+    "secrets.configure-space-secret",
+    "optionalSpaceSecretBindingApproval"
   ],
   [
-    "secrets.configure-company-secret",
+    "secrets.configure-space-secret",
     "expectedHumanMessageCount"
   ],
   [
@@ -453,7 +453,7 @@ test('repair source metadata binds the corrected candidate and explicit changed 
   assert.equal(repair.runtimeConditions.multipart53QuestionClarification.inventoryDigest, '814bb3633268cb0488563aed51fce2f987bd47650ddfb5a3302d0354292c2323');
   assert.equal(repair.descriptorChanges.length, 55);
   assert.equal(new Set(repair.descriptorChanges.map(change => change.key)).size, 33);
-  assert.deepEqual([...new Set(repair.descriptorChanges.map(change => change.field))].sort(), ['expectedRunCount', 'minimumRunCount', 'optionalCompanySecretBindingApproval', 'oracleVersion', 'setupPolicy', 'sourceFiles']);
+  assert.deepEqual([...new Set(repair.descriptorChanges.map(change => change.field))].sort(), ['expectedRunCount', 'minimumRunCount', 'optionalSpaceSecretBindingApproval', 'oracleVersion', 'setupPolicy', 'sourceFiles']);
   for (const change of repair.descriptorChanges) {
     assert.notDeepEqual(change.current, change.previous);
     const declaration = declarations.find(value => value.scenarioId === change.key);
@@ -462,7 +462,7 @@ test('repair source metadata binds the corrected candidate and explicit changed 
     if (Object.hasOwn(row(change.key), change.field)) assert.deepEqual(row(change.key)[change.field], change.current);
   }
   assert.deepEqual(repair.changedDefinitionFiles.map(value => value.path), [
-    'tests/runner-e2e/chat-scenarios/companies.yaml', 'tests/runner-e2e/chat-scenarios/goals.yaml', 'tests/runner-e2e/chat-scenarios/skills.yaml', 'tests/runner-e2e/chat-scenarios/app-permissions.yaml', 'tests/runner-e2e/chat-scenarios/activity.yaml', 'tests/runner-e2e/chat-scenarios/questions-and-approvals.yaml',
+    'tests/runner-e2e/chat-scenarios/spaces.yaml', 'tests/runner-e2e/chat-scenarios/goals.yaml', 'tests/runner-e2e/chat-scenarios/skills.yaml', 'tests/runner-e2e/chat-scenarios/app-permissions.yaml', 'tests/runner-e2e/chat-scenarios/activity.yaml', 'tests/runner-e2e/chat-scenarios/questions-and-approvals.yaml',
   ]);
   assert.ok(repair.changedDefinitionFiles.every(value => /^[a-f0-9]{64}$/.test(value.sha256)));
   for (const declaration of declarations) {
@@ -471,13 +471,13 @@ test('repair source metadata binds the corrected candidate and explicit changed 
     assert.equal(value.oracleVersion, declaration.oracleVersion);
     assert.equal(value.minimumRuns, declaration.minimumRunCount ?? declaration.expectedRunCount);
     assert.equal(value.maximumRuns, declaration.expectedRunCount);
-    const approval = companySecretBindingApprovalMetadata(declaration);
+    const approval = spaceSecretBindingApprovalMetadata(declaration);
     assert.deepEqual(Object.fromEntries(Object.keys(approval).map(key => [key, value[key]])), approval);
-    assert.equal(Object.hasOwn(value, 'optionalCompanySecretBindingApproval'), Object.hasOwn(approval, 'optionalCompanySecretBindingApproval'));
+    assert.equal(Object.hasOwn(value, 'optionalSpaceSecretBindingApproval'), Object.hasOwn(approval, 'optionalSpaceSecretBindingApproval'));
     assert.equal(value.declaredTurnTimeoutMs, declaration.turnTimeoutMs);
     assert.equal(value.attemptTimeoutMs, declaration.attemptTimeoutMs);
   }
-  assert.deepEqual(repair.changedFields.filter(change => ['minimumRuns', 'maximumRuns'].includes(change.field)), [{ key: 'skills.studio-test', field: 'maximumRuns', previous: 2, current: 3 }, { key: 'secrets.configure-company-secret', field: 'maximumRuns', previous: 2, current: 3 }]);
+  assert.deepEqual(repair.changedFields.filter(change => ['minimumRuns', 'maximumRuns'].includes(change.field)), [{ key: 'skills.studio-test', field: 'maximumRuns', previous: 2, current: 3 }, { key: 'secrets.configure-space-secret', field: 'maximumRuns', previous: 2, current: 3 }]);
   assert.deepEqual(repair.runtimeConditions.studio144Accounting, { key: 'skills.studio-test', previousMinimumRuns: 2, previousMaximumRuns: 2, minimumRuns: 2, maximumRuns: 3, requiredActualAcceptedRuns: 3, originalAttemptTimeoutMs: 540000, humanMessages: 1, condition: 'Initial CEO + real Studio worker + exactly one source-bound completion delivery;2-run no-delivery positive is rejected.' });
   assert.equal(repair.runtimeConditions.toolGuidance106.corePRUnmerged, false);
   assert.equal(repair.runtimeConditions.sdkPublicProof.scannerAndCanaryCertificatesUnchanged, true);
@@ -501,42 +501,42 @@ test('repair source metadata binds the corrected candidate and explicit changed 
 });
 
 
-test('Company approval metadata is projected without executing a fixture and rejects foreign or changed bounds', () => {
-  const declaration = { scenarioId: 'secrets.configure-company-secret', optionalCompanySecretBindingApproval: true,
+test('Space approval metadata is projected without executing a fixture and rejects foreign or changed bounds', () => {
+  const declaration = { scenarioId: 'secrets.configure-space-secret', optionalSpaceSecretBindingApproval: true,
     expectedRunCount: 3, minimumRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 480000,
     setup() { throw new Error('Fixture must not execute'); } };
-  assert.deepEqual(companySecretBindingApprovalMetadata(declaration),
-    { optionalCompanySecretBindingApproval: true, expectedHumanMessageCount: 2 });
-  assert.deepEqual(companySecretBindingApprovalMetadata({ scenarioId: 'other' }), {});
+  assert.deepEqual(spaceSecretBindingApprovalMetadata(declaration),
+    { optionalSpaceSecretBindingApproval: true, expectedHumanMessageCount: 2 });
+  assert.deepEqual(spaceSecretBindingApprovalMetadata({ scenarioId: 'other' }), {});
   const future = structuredClone(manifest);
   Object.assign(future.cases.find(value => value.key === declaration.scenarioId),
-    companySecretBindingApprovalMetadata(declaration), { minimumRuns: 2, maximumRuns: 3 });
+    spaceSecretBindingApprovalMetadata(declaration), { minimumRuns: 2, maximumRuns: 3 });
   assert.equal(validateFullCatalogManifest(future), future);
   for (const mutation of [
-    { scenarioId: 'secrets.personal-secret' }, { optionalCompanySecretBindingApproval: false },
+    { scenarioId: 'secrets.personal-secret' }, { optionalSpaceSecretBindingApproval: false },
     { expectedRunCount: 2 }, { minimumRunCount: 3 }, { expectedHumanMessageCount: 3 }, { attemptTimeoutMs: 480001 },
-  ]) assert.throws(() => companySecretBindingApprovalMetadata({ ...declaration, ...mutation }), /company_approval_invalid/);
+  ]) assert.throws(() => spaceSecretBindingApprovalMetadata({ ...declaration, ...mutation }), /space_approval_invalid/);
   for (const mutation of [
-    { key: 'secrets.personal-secret' }, { optionalCompanySecretBindingApproval: false },
+    { key: 'secrets.personal-secret' }, { optionalSpaceSecretBindingApproval: false },
     { maximumRuns: 2 }, { minimumRuns: 3 }, { expectedHumanMessageCount: 3 }, { attemptTimeoutMs: 480001 },
   ]) {
     const invalid = structuredClone(future);
     Object.assign(invalid.cases.find(value => value.key === declaration.scenarioId), mutation);
-    assert.throws(() => validateFullCatalogManifest(invalid), /company_approval_invalid/);
+    assert.throws(() => validateFullCatalogManifest(invalid), /space_approval_invalid/);
   }
 });
 
 
-test('source admission joins the optional Company approval and base humans to actual static task metadata', () => {
-  const row = { key: 'secrets.configure-company-secret', optionalCompanySecretBindingApproval: true,
+test('source admission joins the optional Space approval and base humans to actual static task metadata', () => {
+  const row = { key: 'secrets.configure-space-secret', optionalSpaceSecretBindingApproval: true,
     minimumRuns: 2, maximumRuns: 3, expectedHumanMessageCount: 2, attemptTimeoutMs: 480000 };
-  const task = { id: row.key, optionalCompanySecretBindingApproval: true, minimumExpectedRunCount: 2,
+  const task = { id: row.key, optionalSpaceSecretBindingApproval: true, minimumExpectedRunCount: 2,
     expectedRunCount: 3, expectedHumanMessageCount: 2, attemptTimeoutMs: { local: 480000 } };
-  assert.doesNotThrow(() => validateCompanySecretBindingApprovalSource(row, task));
-  for (const mutation of [{ optionalCompanySecretBindingApproval: undefined }, { expectedHumanMessageCount: 3 },
+  assert.doesNotThrow(() => validateSpaceSecretBindingApprovalSource(row, task));
+  for (const mutation of [{ optionalSpaceSecretBindingApproval: undefined }, { expectedHumanMessageCount: 3 },
     { id: 'secrets.personal-secret' }, { expectedRunCount: 2 }, { minimumExpectedRunCount: 3 }]) {
-    assert.throws(() => validateCompanySecretBindingApprovalSource(row, { ...task, ...mutation }));
+    assert.throws(() => validateSpaceSecretBindingApprovalSource(row, { ...task, ...mutation }));
   }
-  const unmarked = { ...row }; delete unmarked.optionalCompanySecretBindingApproval;
-  assert.throws(() => validateCompanySecretBindingApprovalSource(unmarked, task), /approval mismatch/);
+  const unmarked = { ...row }; delete unmarked.optionalSpaceSecretBindingApproval;
+  assert.throws(() => validateSpaceSecretBindingApprovalSource(unmarked, task), /approval mismatch/);
 });

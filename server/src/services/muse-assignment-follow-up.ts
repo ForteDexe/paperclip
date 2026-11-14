@@ -7,32 +7,32 @@ import { queuedCommentIdsFromWakePayload, withQueuedCommentIdsInWakePayload } fr
  * The caller preserves explicit fresh-session and durable actor receipt policy.
  */
 export async function publishActiveMuseComment(db: Db, input: {
-  companyId: string; agentId: string; bindingId: string;
+  spaceId: string; agentId: string; bindingId: string;
   runId: string; issueId: string; commentId: string;
 }): Promise<false | { assignmentId: string; consumed: boolean }> {
   // Mailbox writers and cursor readers share the binding lock. An event is a
   // reference to task input; it never grants tools or steers the provider.
   const [binding] = await db.select().from(museAgentBindings).where(and(
-    eq(museAgentBindings.id, input.bindingId), eq(museAgentBindings.companyId, input.companyId),
+    eq(museAgentBindings.id, input.bindingId), eq(museAgentBindings.spaceId, input.spaceId),
     eq(museAgentBindings.agentId, input.agentId), eq(museAgentBindings.status, "ready"),
     isNull(museAgentBindings.revokedAt))).for("update");
   if (!binding) return false;
   const [assignment] = await db.select({ id: museRunnerAssignments.id }).from(museRunnerAssignments)
     .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, museRunnerAssignments.runId),
-      eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.agentId, input.agentId),
+      eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.agentId, input.agentId),
       eq(heartbeatRuns.nativeIssueId, input.issueId), eq(heartbeatRuns.status, "running"),
       eq(heartbeatRuns.runtimeMode, "native"), sql`${heartbeatRuns.nativeSessionId}::text = ${museRunnerAssignments.normalizedSessionId}`))
     .innerJoin(issueComments, and(eq(issueComments.id, input.commentId),
-      eq(issueComments.companyId, input.companyId), eq(issueComments.issueId, input.issueId), isNull(issueComments.deletedAt),
+      eq(issueComments.spaceId, input.spaceId), eq(issueComments.issueId, input.issueId), isNull(issueComments.deletedAt),
       gte(issueComments.createdAt, museRunnerAssignments.createdAt),
       sql`(${issueComments.authorAgentId} is null or ${issueComments.authorAgentId} <> ${input.agentId})`))
-    .where(and(eq(museRunnerAssignments.companyId, input.companyId), eq(museRunnerAssignments.agentId, input.agentId),
+    .where(and(eq(museRunnerAssignments.spaceId, input.spaceId), eq(museRunnerAssignments.agentId, input.agentId),
       eq(museRunnerAssignments.bindingId, binding.id), eq(museRunnerAssignments.bindingGeneration, binding.generation),
       eq(museRunnerAssignments.runId, input.runId), eq(museRunnerAssignments.status, "accepted"),
       gt(museRunnerAssignments.expiresAt, new Date()))).limit(1);
   if (!assignment) return false;
   // Same key as the event scanner: either path may discover the comment first.
-  await db.insert(museMailboxItems).values({ companyId: input.companyId, bindingId: binding.id,
+  await db.insert(museMailboxItems).values({ spaceId: input.spaceId, bindingId: binding.id,
     bindingGeneration: binding.generation, assignmentId: assignment.id, kind: "follow_up",
     sourceEventId: `muse-follow-up:${assignment.id}:${input.commentId}`,
     references: { assignmentId: assignment.id, commentId: input.commentId } }).onConflictDoNothing();
@@ -55,40 +55,40 @@ export async function consumeMuseHistoryReceipt(db: Db, operation: typeof museRu
   if (!ids.length) return;
   await db.transaction(async tx => {
     const [source] = await tx.select().from(museRunnerAssignments).where(and(
-      eq(museRunnerAssignments.id, operation.assignmentId), eq(museRunnerAssignments.companyId, operation.companyId)));
+      eq(museRunnerAssignments.id, operation.assignmentId), eq(museRunnerAssignments.spaceId, operation.spaceId)));
     if (!source) return;
     const [run] = await tx.select({issueId:heartbeatRuns.nativeIssueId}).from(heartbeatRuns).where(eq(heartbeatRuns.id,source.runId));
     if (!run?.issueId) return;
     // Match queue ownership order before touching any binding or deferred wake.
-    await tx.select({id:issues.id}).from(issues).where(and(eq(issues.id,run.issueId),eq(issues.companyId,source.companyId))).for("update");
+    await tx.select({id:issues.id}).from(issues).where(and(eq(issues.id,run.issueId),eq(issues.spaceId,source.spaceId))).for("update");
     const wakes = await tx.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, source.companyId), eq(agentWakeupRequests.agentId, source.agentId),
+      eq(agentWakeupRequests.spaceId, source.spaceId), eq(agentWakeupRequests.agentId, source.agentId),
       isNull(agentWakeupRequests.runId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
       sql`${agentWakeupRequests.payload}->>'museAssignmentFollowUp' = ${source.id}`)).orderBy(agentWakeupRequests.createdAt,agentWakeupRequests.id).for("update");
     await tx.select({id:heartbeatRuns.id}).from(heartbeatRuns).where(eq(heartbeatRuns.id,source.runId)).for("update");
-    return withExternalAdmissionGuard(tx,source.companyId,source.agentId,async()=>{
+    return withExternalAdmissionGuard(tx,source.spaceId,source.agentId,async()=>{
     const [binding] = await tx.select().from(museAgentBindings).where(and(
-      eq(museAgentBindings.id, source.bindingId), eq(museAgentBindings.companyId, source.companyId),
+      eq(museAgentBindings.id, source.bindingId), eq(museAgentBindings.spaceId, source.spaceId),
       eq(museAgentBindings.agentId, source.agentId), eq(museAgentBindings.generation, source.bindingGeneration),
       eq(museAgentBindings.status, "ready"), isNull(museAgentBindings.revokedAt))).for("update");
     if (!binding) return;
     const [current] = await tx.select({ issueId: heartbeatRuns.nativeIssueId })
       .from(museRunnerAssignments).innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, museRunnerAssignments.runId),
-        eq(heartbeatRuns.companyId, source.companyId), eq(heartbeatRuns.agentId, source.agentId),
+        eq(heartbeatRuns.spaceId, source.spaceId), eq(heartbeatRuns.agentId, source.agentId),
         eq(heartbeatRuns.status, "running"), eq(heartbeatRuns.runtimeMode, "native"),
         sql`${heartbeatRuns.nativeSessionId}::text = ${museRunnerAssignments.normalizedSessionId}`))
       .where(and(eq(museRunnerAssignments.id, source.id), eq(museRunnerAssignments.status, "accepted"),
         gt(museRunnerAssignments.expiresAt, new Date())));
     if (!current?.issueId) return; // A receipt read after completion cannot eat queued work.
     const comments = await tx.select({ id: issueComments.id }).from(issueComments).where(and(
-      eq(issueComments.companyId, source.companyId), eq(issueComments.issueId, current.issueId),
+      eq(issueComments.spaceId, source.spaceId), eq(issueComments.issueId, current.issueId),
       inArray(issueComments.id, ids), isNull(issueComments.deletedAt), gte(issueComments.createdAt, source.createdAt),
       sql`(${issueComments.authorAgentId} is null or ${issueComments.authorAgentId} <> ${source.agentId})`));
     if (!comments.length) return;
     // Materialize consumption even if the comment wake has not yet been admitted.
     // Admission, event scanning and receipt reads all serialize on this binding.
     for (const comment of comments) await tx.insert(museMailboxItems).values({
-      companyId: source.companyId, bindingId: binding.id, bindingGeneration: binding.generation,
+      spaceId: source.spaceId, bindingId: binding.id, bindingGeneration: binding.generation,
       assignmentId: source.id, kind: "follow_up", sourceEventId: `muse-follow-up:${source.id}:${comment.id}`,
       references: { assignmentId: source.id, commentId: comment.id, consumed: true },
     }).onConflictDoUpdate({ target: [museMailboxItems.bindingId, museMailboxItems.bindingGeneration, museMailboxItems.sourceEventId],
@@ -103,7 +103,7 @@ export async function consumeMuseHistoryReceipt(db: Db, operation: typeof museRu
         ...(remaining.length ? { payload: withQueuedCommentIdsInWakePayload(wake.payload, remaining) }
           : { status: "coalesced", runId: source.runId, finishedAt: now }),
         updatedAt: now,
-      }).where(and(eq(agentWakeupRequests.id, wake.id), eq(agentWakeupRequests.companyId, source.companyId),
+      }).where(and(eq(agentWakeupRequests.id, wake.id), eq(agentWakeupRequests.spaceId, source.spaceId),
         eq(agentWakeupRequests.status, "deferred_issue_execution")));
     }
     });

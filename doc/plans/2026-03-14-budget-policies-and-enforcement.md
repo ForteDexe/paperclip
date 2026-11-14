@@ -2,7 +2,7 @@
 
 ## Context
 
-Paperclip already treats budgets as a core control-plane responsibility:
+Outpost already treats budgets as a core control-plane responsibility:
 
 - `doc/SPEC.md` gives the Board authority to set budgets, pause agents, pause work, and override any budget.
 - `doc/SPEC-implementation.md` says V1 must support monthly UTC budget windows, soft alerts, and hard auto-pause.
@@ -10,7 +10,7 @@ Paperclip already treats budgets as a core control-plane responsibility:
 
 Today the system has narrow money-budget behavior:
 
-- companies track `budgetMonthlyCents` and `spentMonthlyCents`
+- spaces track `budgetMonthlyCents` and `spentMonthlyCents`
 - agents track `budgetMonthlyCents` and `spentMonthlyCents`
 - `cost_events` ingestion increments those counters
 - when an agent exceeds its monthly budget, the agent is paused
@@ -24,11 +24,11 @@ That leaves major product gaps:
 - no durable incident tracking to prevent duplicate alerts
 - no separation between enforceable spend budgets and advisory usage quotas
 
-This plan defines the concrete budgeting model Paperclip should implement next.
+This plan defines the concrete budgeting model Outpost should implement next.
 
 ## Product Goals
 
-Paperclip should let operators:
+Outpost should let operators:
 
 1. Set budgets on agents and projects.
 2. Understand whether a budget is based on money or usage.
@@ -48,7 +48,7 @@ They are related, but they are not the same concept.
 
 ### V1 Budget Defaults
 
-For the next implementation pass, Paperclip should enforce these defaults:
+For the next implementation pass, Outpost should enforce these defaults:
 
 - agent budgets are recurring monthly budgets
 - project budgets are lifetime total budgets
@@ -78,7 +78,7 @@ They should come later as advisory usage controls once the money-based system is
 
 ### Subscription Usage Decision
 
-Paperclip should separate subscription-included usage from billed spend:
+Outpost should separate subscription-included usage from billed spend:
 
 - `subscription_included`
   - visible in reporting
@@ -98,7 +98,7 @@ This keeps the budget system honest:
 
 ### Soft Alert Versus Hard Stop
 
-Paperclip should have two threshold classes:
+Outpost should have two threshold classes:
 
 - soft alert
   - creates visible notification state
@@ -122,15 +122,15 @@ These should be configurable per policy later, but they are good defaults now.
 
 Budget policies should support:
 
-- `company`
+- `space`
 - `agent`
 - `project`
 
-This plan focuses on finishing `agent` and `project` first while preserving the existing company budget behavior.
+This plan focuses on finishing `agent` and `project` first while preserving the existing space budget behavior.
 
 ### Recommended V1.5 Policy Presets
 
-- Company
+- Space
   - metric: `billed_cents`
   - window: `calendar_month_utc`
 - Agent
@@ -153,7 +153,7 @@ The current codebase is not starting from zero, but the existing shape is too ad
 
 ### What Exists Today
 
-- company and agent monthly cents counters
+- space and agent monthly cents counters
 - cost ingestion that updates those counters
 - agent hard-stop pause on monthly budget overrun
 
@@ -177,7 +177,7 @@ Create a new table for canonical budget definitions.
 Suggested fields:
 
 - `id`
-- `company_id`
+- `space_id`
 - `scope_type`
 - `scope_id`
 - `metric`
@@ -194,8 +194,8 @@ Suggested fields:
 
 Notes:
 
-- `scope_type` is one of `company | agent | project`
-- `scope_id` is nullable only for company-level policy if company is implied; otherwise keep it explicit
+- `scope_type` is one of `space | agent | project`
+- `scope_id` is nullable only for space-level policy if space is implied; otherwise keep it explicit
 - `metric` should start with `billed_cents`
 - `window_kind` starts with `calendar_month_utc | lifetime`
 - `amount` is stored in the natural unit of the metric
@@ -207,7 +207,7 @@ Create a durable record of threshold crossings.
 Suggested fields:
 
 - `id`
-- `company_id`
+- `space_id`
 - `policy_id`
 - `scope_type`
 - `scope_id`
@@ -253,11 +253,11 @@ If that is too large for the immediate pass, a smaller version is:
 - add `pause_reason`
 
 The key requirement is behavioral, not cosmetic:
-Paperclip must know that a project is budget-paused and enforce it.
+Outpost must know that a project is budget-paused and enforce it.
 
 ### 4. Compatibility With Existing Budget Columns
 
-Existing company and agent monthly budget columns should remain temporarily for compatibility.
+Existing space and agent monthly budget columns should remain temporarily for compatibility.
 
 Migration plan:
 
@@ -292,7 +292,7 @@ When a new `cost_event` is written:
 
 1. persist the `cost_event`
 2. identify affected scopes
-   - company
+   - space
    - agent
    - project
 3. fetch active policies for those scopes
@@ -310,7 +310,7 @@ When a new `cost_event` is written:
 
 Budget enforcement cannot rely only on post-hoc cost ingestion.
 
-Paperclip must also block execution before new work starts.
+Outpost must also block execution before new work starts.
 
 Add budget checks to:
 
@@ -407,7 +407,7 @@ Later channels:
 
 Add routes for:
 
-- list budget policies for company
+- list budget policies for space
 - create budget policy
 - update budget policy
 - archive or disable budget policy
@@ -514,7 +514,7 @@ Do not include:
 
 - `subscription_included` cost events with zero billed cents
 - advisory quota rows
-- account-level finance events unless and until company-level financial budgets are added explicitly
+- account-level finance events unless and until space-level financial budgets are added explicitly
 
 ### Why Not Tokens First
 
@@ -549,7 +549,7 @@ But they should enter only after the money-budget path is stable.
 
 ### Phase 2: Compatibility
 
-- backfill policies from existing company and agent monthly budget columns
+- backfill policies from existing space and agent monthly budget columns
 - keep legacy columns readable during migration
 
 ### Phase 3: Enforcement
@@ -594,7 +594,7 @@ Required coverage:
 These should be explicitly deferred unless they block implementation:
 
 - Should project budgets also support monthly mode, or is lifetime enough for the first release?
-- Should company-level budgets eventually include `finance_events` such as OpenRouter top-up fees and Bedrock provisioned charges?
+- Should space-level budgets eventually include `finance_events` such as OpenRouter top-up fees and Bedrock provisioned charges?
 - Should delegated budget editing be limited by org hierarchy in V1, or remain board-only in the UI even if the data model can support delegation later?
 - Do we need "resume once" immediately, or can first approval resolution be "raise budget and resume" plus "keep paused"?
 

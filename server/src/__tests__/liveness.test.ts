@@ -21,7 +21,7 @@ function fixture(standby = false) {
   const auth = vi.fn((_req, _res, next) => next());
   const health = healthRoutes(db, {
     deploymentMode: "authenticated", deploymentExposure: "public", authReady: true,
-    companyDeletionEnabled: false, runtimeEnv: { OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "fixture-token" },
+    spaceDeletionEnabled: false, runtimeEnv: { OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "fixture-token" },
     isWarmStandby: () => standby,
   });
   const app = express();
@@ -64,7 +64,7 @@ describe("database-free process liveness", () => {
       const response = await f.http.get("/api/liveness")
         .set("authorization", "Bearer invalid-fixture")
         .set("cookie", "session_token=invalid-fixture")
-        .set("x-paperclip-cloud-tenant-token", "invalid-fixture");
+        .set("x-outpost-cloud-tenant-token", "invalid-fixture");
       expect(response.status).toBe(200);
       expect(response.headers["cache-control"]).toBe("no-store");
       const serverInfo = getServerInfoSnapshot();
@@ -96,7 +96,7 @@ describe("database-free process liveness", () => {
   it("retains hostname and signed bootstrap endpoint validation", async () => {
     const f = fixture();
     await f.http.get("/api/liveness").set("host", "denied.example").expect(403);
-    await f.http.get("/api/liveness").set("x-paperclip-cloud-runtime-identity", "invalid-fixture")
+    await f.http.get("/api/liveness").set("x-outpost-cloud-runtime-identity", "invalid-fixture")
       .expect(400).expect({ error: "cloud_runtime_identity_wrong_endpoint" });
     expect(f.auth).not.toHaveBeenCalled();
     expect(f.db.execute).not.toHaveBeenCalled();

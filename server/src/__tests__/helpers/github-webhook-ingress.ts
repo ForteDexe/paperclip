@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { agents, chatActions, chatEndpoints, companies, toolApplications, toolConnections, type Db } from "@outpost/db";
+import { agents, chatActions, chatEndpoints, spaces, toolApplications, toolConnections, type Db } from "@outpost/db";
 import { chatCredentialMutationLease } from "../../services/chat-credential-mutation-lease.js";
 import { createGitHubWebhookIngress, type GitHubWebhookIngressPayload } from "../../services/chat-channels/github/webhook-ingress.js";
 
@@ -15,20 +15,20 @@ export function captureIngressQueries(db: Db, queries: CapturedQuery[]) {
   session.options.logger = logger;
 }
 
-export async function cleanupIngressFixture(db: Db, companyId: string) {
-  await db.delete(toolConnections).where(eq(toolConnections.companyId, companyId));
-  await db.delete(toolApplications).where(eq(toolApplications.companyId, companyId));
-  await db.delete(agents).where(eq(agents.companyId, companyId));
-  await db.delete(companies).where(eq(companies.id, companyId));
+export async function cleanupIngressFixture(db: Db, spaceId: string) {
+  await db.delete(toolConnections).where(eq(toolConnections.spaceId, spaceId));
+  await db.delete(toolApplications).where(eq(toolApplications.spaceId, spaceId));
+  await db.delete(agents).where(eq(agents.spaceId, spaceId));
+  await db.delete(spaces).where(eq(spaces.id, spaceId));
 }
 
 export async function githubIngressFixture(db: Db, factory: Factory = createGitHubWebhookIngress, bodyBytes = 96 * 1024) {
-  const companyId = randomUUID(), agentId = randomUUID(), applicationId = randomUUID(), connectionId = randomUUID();
-  await db.insert(companies).values({ id: companyId, name: "Synthetic webhook ingress", issuePrefix: `G${companyId.replaceAll("-", "").slice(0, 6)}` });
-  await db.insert(agents).values({ id: agentId, companyId, name: "Synthetic bot", adapterType: "process" });
-  await db.insert(toolApplications).values({ id: applicationId, companyId, name: "Synthetic GitHub", type: "chat" });
-  await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "Synthetic GitHub", uid: randomUUID(), transport: "chat_sdk", connectionPurpose: "channel" });
-  const [endpoint] = await db.insert(chatEndpoints).values({ companyId, connectionId, assignedAgentId: agentId, publicId: randomUUID(), provider: "github", status: "active" }).returning();
+  const spaceId = randomUUID(), agentId = randomUUID(), applicationId = randomUUID(), connectionId = randomUUID();
+  await db.insert(spaces).values({ id: spaceId, name: "Synthetic webhook ingress", issuePrefix: `G${spaceId.replaceAll("-", "").slice(0, 6)}` });
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Synthetic bot", adapterType: "process" });
+  await db.insert(toolApplications).values({ id: applicationId, spaceId, name: "Synthetic GitHub", type: "chat" });
+  await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "Synthetic GitHub", uid: randomUUID(), transport: "chat_sdk", connectionPurpose: "channel" });
+  const [endpoint] = await db.insert(chatEndpoints).values({ spaceId, connectionId, assignedAgentId: agentId, publicId: randomUUID(), provider: "github", status: "active" }).returning();
   const body = JSON.stringify({ action: "created", content: randomBytes(bodyBytes).toString("base64") });
   const payload: GitHubWebhookIngressPayload = { version: 1, body, bodySha256: createHash("sha256").update(body).digest("hex"),
     deliveryId: randomUUID(), eventType: "issue_comment", runtimeGeneration: 1, credentialFingerprint: "fixture-credentials", contentType: "application/json" };
@@ -51,9 +51,9 @@ export async function githubIngressFixture(db: Db, factory: Factory = createGitH
   };
   const service = factory(db, options);
   async function insertAction(overrides: Partial<typeof chatActions.$inferInsert> = {}) {
-    const [action] = await db.insert(chatActions).values({ companyId, endpointId: endpoint.id, kind: "github_webhook_ingress", providerActionId: randomUUID(), payload, ...overrides }).returning();
+    const [action] = await db.insert(chatActions).values({ spaceId, endpointId: endpoint.id, kind: "github_webhook_ingress", providerActionId: randomUUID(), payload, ...overrides }).returning();
     return action;
   }
   const readAction = (id: string) => db.select().from(chatActions).where(eq(chatActions.id, id)).then(rows => rows[0]!);
-  return { companyId, endpoint, payload, calls, options, service, insertAction, readAction };
+  return { spaceId, endpoint, payload, calls, options, service, insertAction, readAction };
 }

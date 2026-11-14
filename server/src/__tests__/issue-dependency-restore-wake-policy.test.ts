@@ -12,7 +12,7 @@ const base = {
 };
 
 describe("shouldWakeOnRestoredBlockedDependency", () => {
-  it("wakes the assignee when the board blocks an issue whose blockers are already resolved", () => {
+  it("wakes the assignee when the operator blocks an issue whose blockers are already resolved", () => {
     expect(shouldWakeOnRestoredBlockedDependency(base)).toBe(true);
   });
 

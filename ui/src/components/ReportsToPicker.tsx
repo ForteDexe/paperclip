@@ -16,7 +16,7 @@ export function ReportsToPicker({
   onChange,
   disabled = false,
   excludeAgentIds = [],
-  disabledEmptyLabel = "Reports to: N/A (Outpost Lead)",
+  disabledEmptyLabel = "Reports to: N/A (Default agent)",
   chooseLabel = "Reports to...",
   trigger,
   disabledAgentIds = [],

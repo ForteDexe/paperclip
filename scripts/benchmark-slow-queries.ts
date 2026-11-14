@@ -9,7 +9,7 @@ import { createRequire } from "node:module";
 const { and, eq, or, sql } = createRequire(new URL("../server/package.json", import.meta.url))("drizzle-orm");
 import {
   agents, agentWakeupRequests, chatActions, chatConversations, chatEndpoints,
-  companies, createDb, heartbeatRuns, issues, startEmbeddedPostgresTestDatabase,
+  spaces, createDb, heartbeatRuns, issues, startEmbeddedPostgresTestDatabase,
   toolApplications, toolConnections, type Db,
 } from "../packages/db/src/index.js";
 import { issueService } from "../server/src/services/issues.js";
@@ -83,45 +83,45 @@ try {
   await fs.writeFile(baselineModuleFile, rewritten);
   const { createInboundWakeNotices: baselineNotices } = await import(pathToFileURL(baselineModuleFile).href) as typeof import("../server/src/services/chat-channels/inbound/wakeup-notices.js");
   console.error("[benchmark] baseline module ready");
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   const sourceId = randomUUID();
   const endpointId = randomUUID();
   const conversationId = randomUUID();
   const applicationId = randomUUID();
   const connectionId = randomUUID();
-  await db.insert(companies).values({ id: companyId, name: "Query benchmark", issuePrefix: "BENCH" });
-  await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", role: "engineer", adapterType: "codex_local" });
-  await db.insert(issues).values({ id: sourceId, companyId, title: "Source", identifier: "BENCH-1", assigneeAgentId: agentId });
-  await db.insert(toolApplications).values({ id: applicationId, companyId, name: "Fixture", type: "native" });
-  await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "Fixture", uid: connectionId, transport: "chat_sdk", connectionPurpose: "channel" });
-  await db.insert(chatEndpoints).values({ id: endpointId, companyId, connectionId, provider: "slack", publicId: endpointId, assignedAgentId: agentId, status: "active" });
-  await db.insert(chatConversations).values({ id: conversationId, companyId, endpointId, issueId: sourceId, externalConversationId: "fixture", externalThreadId: "fixture", externalLabel: "Fixture", state: "waiting" });
+  await db.insert(spaces).values({ id: spaceId, name: "Query benchmark", issuePrefix: "BENCH" });
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", role: "engineer", adapterType: "codex_local" });
+  await db.insert(issues).values({ id: sourceId, spaceId, title: "Source", identifier: "BENCH-1", assigneeAgentId: agentId });
+  await db.insert(toolApplications).values({ id: applicationId, spaceId, name: "Fixture", type: "native" });
+  await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "Fixture", uid: connectionId, transport: "chat_sdk", connectionPurpose: "channel" });
+  await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId, provider: "slack", publicId: endpointId, assignedAgentId: agentId, status: "active" });
+  await db.insert(chatConversations).values({ id: conversationId, spaceId, endpointId, issueId: sourceId, externalConversationId: "fixture", externalThreadId: "fixture", externalLabel: "Fixture", state: "waiting" });
 
   // Similar row counts to the investigation. Every context has 192 KiB of
   // incompressible synthetic prompt text, so JSON filtering must visit TOAST.
   const prompt = randomBytes(144 * 1024).toString("base64");
-  await db.$client.unsafe(`INSERT INTO heartbeat_runs (company_id, agent_id, status, native_issue_id, created_at, context_snapshot)
+  await db.$client.unsafe(`INSERT INTO heartbeat_runs (space_id, agent_id, status, native_issue_id, created_at, context_snapshot)
     SELECT $1::uuid, $2::uuid, 'succeeded', CASE WHEN n = 3 THEN $3::uuid END, now() + n * interval '1 millisecond',
       jsonb_build_object('prompt', $4::text) || CASE
-        WHEN n = 1 THEN jsonb_build_object('issueId', $3::text, 'paperclipSecretRedactions', jsonb_build_array(jsonb_build_object('fixture', 'top-level')))
-        WHEN n = 2 THEN jsonb_build_object('paperclipIssue', jsonb_build_object('id', $3::text), 'paperclipSecretRedactions', jsonb_build_array(jsonb_build_object('fixture', 'nested')))
+        WHEN n = 1 THEN jsonb_build_object('issueId', $3::text, 'outpostSecretRedactions', jsonb_build_array(jsonb_build_object('fixture', 'top-level')))
+        WHEN n = 2 THEN jsonb_build_object('outpostIssue', jsonb_build_object('id', $3::text), 'outpostSecretRedactions', jsonb_build_array(jsonb_build_object('fixture', 'nested')))
         WHEN n = 3 THEN jsonb_build_object('issueId', gen_random_uuid()::text)
         WHEN n = 4 THEN jsonb_build_object('taskId', $3::text)
         WHEN n = 5 THEN jsonb_build_object('taskKey', 'BENCH-1')
         ELSE jsonb_build_object('issueId', gen_random_uuid()::text) END
-    FROM generate_series(1, 1400) n`, [companyId, agentId, sourceId, prompt]);
+    FROM generate_series(1, 1400) n`, [spaceId, agentId, sourceId, prompt]);
   const originatingRuns = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).limit(5);
   await db.insert(issues).values(Array.from({ length: 334 }, (_, n) => ({
-    companyId, title: `Candidate ${n}`, createdByUserId: "fixture",
+    spaceId, title: `Candidate ${n}`, createdByUserId: "fixture",
     originRunId: originatingRuns[n % originatingRuns.length].id,
   })));
   const wakes = Array.from({ length: 13000 }, (_, n) => ({
-    id: randomUUID(), companyId, agentId, source: "chat", status: n < 50 ? "deferred_issue_execution" : "succeeded",
+    id: randomUUID(), spaceId, agentId, source: "chat", status: n < 50 ? "deferred_issue_execution" : "succeeded",
   }));
   for (let offset = 0; offset < wakes.length; offset += 500) await db.insert(agentWakeupRequests).values(wakes.slice(offset, offset + 500));
   await db.insert(chatActions).values(wakes.slice(0, 377).map((wake, n) => ({
-    id: wake.id, companyId, endpointId, conversationId, kind: "inbound_wakeup", providerActionId: wake.id,
+    id: wake.id, spaceId, endpointId, conversationId, kind: "inbound_wakeup", providerActionId: wake.id,
     status: "processed", payload: n % 3 === 0 ? { coalesced: true } : {},
   })));
   // Cover coalesced ownership as well as ordinary receipts.
@@ -135,14 +135,14 @@ try {
   } as never).enqueueInboundWakeupPublications(200));
   const notice = await noticeQuery(baselineNotices);
   const fixedNotice = await noticeQuery(createInboundWakeNotices);
-  const list = await captureQuery(async (captureDb) => issueService(captureDb).list(companyId, {
+  const list = await captureQuery(async (captureDb) => issueService(captureDb).list(spaceId, {
     createdFromIssueId: sourceId, sortField: "id", sortDir: "asc", limit: 200,
-    readCondition: await issueReadSqlCondition(db, { type: "board", userId: "fixture", source: "cloud_tenant" }),
+    readCondition: await issueReadSqlCondition(db, { type: "operator", userId: "fixture", source: "cloud_tenant" }),
   }));
-  const redactions = db.select({ contextSnapshot: sql`jsonb_build_object('paperclipSecretRedactions', ${heartbeatRuns.contextSnapshot}->'paperclipSecretRedactions')` })
-    .from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), or(
+  const redactions = db.select({ contextSnapshot: sql`jsonb_build_object('outpostSecretRedactions', ${heartbeatRuns.contextSnapshot}->'outpostSecretRedactions')` })
+    .from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), or(
       sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${sourceId}`,
-      sql`${heartbeatRuns.contextSnapshot}->'paperclipIssue'->>'id' = ${sourceId}`,
+      sql`${heartbeatRuns.contextSnapshot}->'outpostIssue'->>'id' = ${sourceId}`,
     ))).toSQL();
 
   // The summary history query projects these eight context fields. Keep its
@@ -151,7 +151,7 @@ try {
     contextIssueId: sql`coalesce(${heartbeatRuns.issueId}::text, ${heartbeatRuns.contextSnapshot}->>'issueId')`,
     ...Object.fromEntries(["taskId", "taskKey", "commentId", "wakeCommentId", "wakeReason", "wakeSource", "wakeTriggerDetail"]
       .map((key) => [key, sql`${heartbeatRuns.contextSnapshot}->>${key}`])),
-  }).from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId)).orderBy(sql`${heartbeatRuns.createdAt} desc`).limit(200).toSQL();
+  }).from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId)).orderBy(sql`${heartbeatRuns.createdAt} desc`).limit(200).toSQL();
   const queries = { chatNotice: notice, createdFromIssueList: list, issueRedactions: redactions, runHistory };
   // Remove only these candidate indexes from this disposable fixture. This
   // also permits repeatable comparisons after the migration is installed.

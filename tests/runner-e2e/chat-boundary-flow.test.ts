@@ -26,8 +26,8 @@ describe("separate browser boundary dispatch", () => {
     const implementation = { ...runtime(), ...disabled };
     const importer = async () => ({ boundaryCases: [implementation] });
     await expect(loadIdentityBoundaryImplementation(disabled, importer)).resolves.toMatchObject({ scenarioId: "agent-chat.chat-disabled" });
-    await expect(loadIdentityBoundaryImplementation({ ...disabled, boundaryTarget: "empty-installed-target" }, importer)).rejects.toThrow("owned authenticated company");
-    await expect(loadIdentityBoundaryImplementation({ ...disabled, authentication: "local-trusted" }, importer)).rejects.toThrow("owned authenticated company");
+    await expect(loadIdentityBoundaryImplementation({ ...disabled, boundaryTarget: "empty-installed-target" }, importer)).rejects.toThrow("owned authenticated space");
+    await expect(loadIdentityBoundaryImplementation({ ...disabled, authentication: "local-trusted" }, importer)).rejects.toThrow("owned authenticated space");
     await expect(loadIdentityBoundaryImplementation({ ...disabled, expectedRunCount: 1 }, importer)).rejects.toThrow("zero agent admissions");
   });
   it("requires actual installed identity and keeps the existing chat-only lane closed", () => {

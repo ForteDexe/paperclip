@@ -27,9 +27,9 @@ Run from the App checkout with these environment variables set:
 export OUTPOST_CLOUD_REPO_ROOT=/path/to/owned/cloud-checkout
 export OUTPOST_SLACK_NODE24=/path/to/node24/bin/node
 export OUTPOST_SLACK_NODE22=/path/to/node22/bin/node
-export OUTPOST_SLACK_TEST_DATABASE_URL=postgres://paperclip@127.0.0.1:55448/sleep2_slack_form_local_app_test
-export SLACK_EVENT_TEST_DATABASE_URL=postgres://paperclip@127.0.0.1:55448/sleep2_slack_form_local_cloud_test
-export OUTPOST_TEST_POSTGRES_ADMIN_URL=postgres://paperclip@127.0.0.1:55448/postgres
+export OUTPOST_SLACK_TEST_DATABASE_URL=postgres://outpost@127.0.0.1:55448/sleep2_slack_form_local_app_test
+export SLACK_EVENT_TEST_DATABASE_URL=postgres://outpost@127.0.0.1:55448/sleep2_slack_form_local_cloud_test
+export OUTPOST_TEST_POSTGRES_ADMIN_URL=postgres://outpost@127.0.0.1:55448/postgres
 python3 server/src/__tests__/helpers/slack-cloud/run-enabled-quiet.py /path/to/fresh-output-directory
 ```
 

@@ -6,13 +6,13 @@ import { buildExecutionPolicy } from "../../../ui/src/lib/issue-execution-policy
 const coderAgentId = "11111111-1111-4111-8111-111111111111";
 const qaAgentId = "22222222-2222-4222-8222-222222222222";
 const ctoAgentId = "33333333-3333-4333-8333-333333333333";
-const ctoUserId = "cto-user";
-const boardUserId = "board-user";
+const ctoUserId = "engineering_lead-user";
+const operatorUserId = "operator-user";
 
 describe("stripMonitorFromExecutionPolicy", () => {
   it.each([
     { stages: [] },
-    { stages: [{ type: "review", participants: [{ type: "user", userId: boardUserId }] }] },
+    { stages: [{ type: "review", participants: [{ type: "user", userId: operatorUserId }] }] },
   ])("retains review limits and protected authorization after monitor cleanup with $stages.length stages", ({ stages }) => {
     const policy = normalizeIssueExecutionPolicy({
       maxReviewRounds: 4,
@@ -602,14 +602,14 @@ describe("issue execution policy transitions", () => {
           },
           policy,
           requestedStatus: "done",
-          requestedAssigneePatch: { assigneeUserId: boardUserId },
+          requestedAssigneePatch: { assigneeUserId: operatorUserId },
           actor: { agentId: coderAgentId },
           commentBody: "Trying to bypass review",
         }),
       ).toThrow("Only the active reviewer or approver can advance");
     });
 
-    it("board override can cancel an active review without recording an approval decision", () => {
+    it("operator override can cancel an active review without recording an approval decision", () => {
       const result = applyIssueExecutionPolicyTransition({
         issue: {
           status: "in_review",
@@ -631,7 +631,7 @@ describe("issue execution policy transitions", () => {
         policy,
         requestedStatus: "cancelled",
         requestedAssigneePatch: {},
-        actor: { userId: boardUserId },
+        actor: { userId: operatorUserId },
         allowBoardOverride: true,
         commentBody: "Cancelling this task",
       });
@@ -641,7 +641,7 @@ describe("issue execution policy transitions", () => {
       expect(result.workflowControlledAssignment).toBeUndefined();
     });
 
-    it("board override can cancel a drifted pending review without rebuilding the pending stage", () => {
+    it("operator override can cancel a drifted pending review without rebuilding the pending stage", () => {
       const result = applyIssueExecutionPolicyTransition({
         issue: {
           status: "blocked",
@@ -663,7 +663,7 @@ describe("issue execution policy transitions", () => {
         policy,
         requestedStatus: "cancelled",
         requestedAssigneePatch: {},
-        actor: { userId: boardUserId },
+        actor: { userId: operatorUserId },
         allowBoardOverride: true,
         commentBody: "Cancelling this drifted task",
       });
@@ -673,7 +673,7 @@ describe("issue execution policy transitions", () => {
       expect(result.workflowControlledAssignment).toBeUndefined();
     });
 
-    it("board override reassignment to an eligible participant re-pends the stage", () => {
+    it("operator override reassignment to an eligible participant re-pends the stage", () => {
       const multiReviewerPolicy = makePolicy([
         {
           type: "review",
@@ -704,7 +704,7 @@ describe("issue execution policy transitions", () => {
         },
         policy: multiReviewerPolicy,
         requestedAssigneePatch: { assigneeAgentId: ctoAgentId },
-        actor: { userId: boardUserId },
+        actor: { userId: operatorUserId },
         allowBoardOverride: true,
         commentBody: "Swapping the reviewer",
       });
@@ -722,7 +722,7 @@ describe("issue execution policy transitions", () => {
       expect(result.decision).toBeUndefined();
     });
 
-    it("board override reassignment to a non-participant dissolves the review", () => {
+    it("operator override reassignment to a non-participant dissolves the review", () => {
       const result = applyIssueExecutionPolicyTransition({
         issue: {
           status: "in_review",
@@ -743,7 +743,7 @@ describe("issue execution policy transitions", () => {
         },
         policy,
         requestedAssigneePatch: { assigneeAgentId: coderAgentId },
-        actor: { userId: boardUserId },
+        actor: { userId: operatorUserId },
         allowBoardOverride: true,
         commentBody: "Handing the task back",
       });
@@ -753,7 +753,7 @@ describe("issue execution policy transitions", () => {
       expect(result.workflowControlledAssignment).toBeUndefined();
     });
 
-    it("board override unassignment dissolves the review instead of stranding in_review", () => {
+    it("operator override unassignment dissolves the review instead of stranding in_review", () => {
       const result = applyIssueExecutionPolicyTransition({
         issue: {
           status: "in_review",
@@ -774,7 +774,7 @@ describe("issue execution policy transitions", () => {
         },
         policy,
         requestedAssigneePatch: { assigneeAgentId: null, assigneeUserId: null },
-        actor: { userId: boardUserId },
+        actor: { userId: operatorUserId },
         allowBoardOverride: true,
         commentBody: "Unassigning the reviewer",
       });
@@ -996,7 +996,7 @@ describe("issue execution policy transitions", () => {
         policy,
         requestedStatus: "todo",
         requestedAssigneePatch: {},
-        actor: { userId: boardUserId },
+        actor: { userId: operatorUserId },
       });
 
       expect(result.patch.executionState).toBeNull();
@@ -1036,7 +1036,7 @@ describe("issue execution policy transitions", () => {
         },
         policy,
         requestedStatus: "in_review",
-        requestedAssigneePatch: { assigneeUserId: boardUserId },
+        requestedAssigneePatch: { assigneeUserId: operatorUserId },
         actor: { agentId: coderAgentId },
       });
 
@@ -1115,14 +1115,14 @@ describe("issue execution policy transitions", () => {
         issue: {
           status: "in_review",
           assigneeAgentId: null,
-          assigneeUserId: boardUserId,
+          assigneeUserId: operatorUserId,
           executionPolicy: null,
           executionState: null,
         },
         policy: reviewOnly,
         requestedStatus: undefined,
         requestedAssigneePatch: {},
-        actor: { userId: boardUserId },
+        actor: { userId: operatorUserId },
       });
 
       expect(result.patch).toEqual({});
@@ -1549,7 +1549,7 @@ describe("issue execution policy transitions", () => {
   describe("user participants", () => {
     it("handles user-type reviewer participant correctly", () => {
       const policy = makePolicy([
-        { type: "review", participants: [{ type: "user", userId: boardUserId }] },
+        { type: "review", participants: [{ type: "user", userId: operatorUserId }] },
       ]);
 
       const result = applyIssueExecutionPolicyTransition({
@@ -1569,7 +1569,7 @@ describe("issue execution policy transitions", () => {
 
       expect(result.patch.status).toBe("in_review");
       expect(result.patch.assigneeAgentId).toBeNull();
-      expect(result.patch.assigneeUserId).toBe(boardUserId);
+      expect(result.patch.assigneeUserId).toBe(operatorUserId);
     });
   });
 
@@ -1599,7 +1599,7 @@ describe("issue execution policy transitions", () => {
         policy: approvalOnly,
         requestedStatus: undefined,
         requestedAssigneePatch: {},
-        actor: { userId: boardUserId },
+        actor: { userId: operatorUserId },
       });
 
       expect(result.patch).toMatchObject({
@@ -1651,7 +1651,7 @@ describe("issue execution policy transitions", () => {
         },
         requestedStatus: undefined,
         requestedAssigneePatch: {},
-        actor: { userId: boardUserId },
+        actor: { userId: operatorUserId },
       });
 
       expect(result.patch).toMatchObject({
@@ -1734,7 +1734,7 @@ describe("issue execution policy transitions", () => {
       ).toThrow(expect.objectContaining({ status: 422, details: { code: "unexecuted_review_stage" } }));
     });
 
-    it("lets a board cancellation through: the live cycle is abandoned, not claimed complete", () => {
+    it("lets a operator cancellation through: the live cycle is abandoned, not claimed complete", () => {
       const originalPolicy = twoStagePolicy();
       const replacementPolicy = twoStagePolicy();
 
@@ -1873,7 +1873,7 @@ describe("issue execution policy transitions", () => {
         monitor: {
           nextCheckAt: "2026-04-11T12:30:00.000Z",
           notes: "Check deployment",
-          scheduledBy: "board",
+          scheduledBy: "operator",
         },
       })!;
 
@@ -1893,19 +1893,19 @@ describe("issue execution policy transitions", () => {
         policy,
         previousPolicy: null,
         requestedAssigneePatch: {},
-        actor: { userId: boardUserId },
+        actor: { userId: operatorUserId },
         monitorExplicitlyUpdated: true,
       });
 
       expect(result.patch.monitorNextCheckAt).toEqual(new Date("2026-04-11T12:30:00.000Z"));
-      expect(result.patch.monitorScheduledBy).toBe("board");
+      expect(result.patch.monitorScheduledBy).toBe("operator");
       expect(result.patch.executionState).toMatchObject({
         status: "idle",
         monitor: {
           status: "scheduled",
           nextCheckAt: "2026-04-11T12:30:00.000Z",
           notes: "Check deployment",
-          scheduledBy: "board",
+          scheduledBy: "operator",
         },
       });
     });
@@ -2041,7 +2041,7 @@ describe("review round circuit breaker", () => {
       status: "in_review",
       assigneeAgentId: qaAgentId,
       assigneeUserId: null,
-      responsibleUserId: boardUserId,
+      responsibleUserId: operatorUserId,
       executionPolicy: policy,
       executionState: {
         status: "pending",
@@ -2083,7 +2083,7 @@ describe("review round circuit breaker", () => {
         status: "in_progress",
         assigneeAgentId: coderAgentId,
         assigneeUserId: null,
-        responsibleUserId: boardUserId,
+        responsibleUserId: operatorUserId,
         executionPolicy: policy,
         executionState: {
           status: "changes_requested",
@@ -2127,11 +2127,11 @@ describe("review round circuit breaker", () => {
     expect(result.decision).toMatchObject({ outcome: "changes_requested" });
     expect(result.patch.status).toBe("in_review");
     expect(result.patch.assigneeAgentId).toBeNull();
-    expect(result.patch.assigneeUserId).toBe(boardUserId);
+    expect(result.patch.assigneeUserId).toBe(operatorUserId);
     expect(result.patch.executionState).toMatchObject({
       status: "pending",
       currentStageId: reviewStageId,
-      currentParticipant: { type: "user", userId: boardUserId },
+      currentParticipant: { type: "user", userId: operatorUserId },
       changesRequestedCount: 3,
     });
   });
@@ -2139,9 +2139,9 @@ describe("review round circuit breaker", () => {
   it("keeps the escalated hold sticky across unrelated transitions", () => {
     const result = applyIssueExecutionPolicyTransition({
       issue: reviewPendingIssue(
-        { assigneeAgentId: null, assigneeUserId: boardUserId },
+        { assigneeAgentId: null, assigneeUserId: operatorUserId },
         {
-          currentParticipant: { type: "user", userId: boardUserId },
+          currentParticipant: { type: "user", userId: operatorUserId },
           changesRequestedCount: 3,
         },
       ),
@@ -2158,9 +2158,9 @@ describe("review round circuit breaker", () => {
     expect(() =>
       applyIssueExecutionPolicyTransition({
         issue: reviewPendingIssue(
-          { assigneeAgentId: null, assigneeUserId: boardUserId },
+          { assigneeAgentId: null, assigneeUserId: operatorUserId },
           {
-            currentParticipant: { type: "user", userId: boardUserId },
+            currentParticipant: { type: "user", userId: operatorUserId },
             changesRequestedCount: 3,
           },
         ),
@@ -2177,9 +2177,9 @@ describe("review round circuit breaker", () => {
     expect(() =>
       applyIssueExecutionPolicyTransition({
         issue: reviewPendingIssue(
-          { assigneeAgentId: null, assigneeUserId: boardUserId },
+          { assigneeAgentId: null, assigneeUserId: operatorUserId },
           {
-            currentParticipant: { type: "user", userId: boardUserId },
+            currentParticipant: { type: "user", userId: operatorUserId },
             changesRequestedCount: 3,
           },
         ),
@@ -2197,7 +2197,7 @@ describe("review round circuit breaker", () => {
         // records the escalated human as participant.
         { assigneeAgentId: qaAgentId, assigneeUserId: null },
         {
-          currentParticipant: { type: "user", userId: boardUserId },
+          currentParticipant: { type: "user", userId: operatorUserId },
           changesRequestedCount: 3,
         },
       ),
@@ -2208,10 +2208,10 @@ describe("review round circuit breaker", () => {
 
     expect(result.patch.status).toBe("in_review");
     expect(result.patch.assigneeAgentId).toBeNull();
-    expect(result.patch.assigneeUserId).toBe(boardUserId);
+    expect(result.patch.assigneeUserId).toBe(operatorUserId);
     expect(result.patch.executionState).toMatchObject({
       status: "pending",
-      currentParticipant: { type: "user", userId: boardUserId },
+      currentParticipant: { type: "user", userId: operatorUserId },
       changesRequestedCount: 3,
     });
   });
@@ -2219,16 +2219,16 @@ describe("review round circuit breaker", () => {
   it("resets the counter when the escalated human requests changes", () => {
     const result = applyIssueExecutionPolicyTransition({
       issue: reviewPendingIssue(
-        { assigneeAgentId: null, assigneeUserId: boardUserId },
+        { assigneeAgentId: null, assigneeUserId: operatorUserId },
         {
-          currentParticipant: { type: "user", userId: boardUserId },
+          currentParticipant: { type: "user", userId: operatorUserId },
           changesRequestedCount: 3,
         },
       ),
       policy,
       requestedStatus: "in_progress",
       requestedAssigneePatch: {},
-      actor: { userId: boardUserId },
+      actor: { userId: operatorUserId },
       commentBody: "Human direction: do X instead",
     });
 
@@ -2243,16 +2243,16 @@ describe("review round circuit breaker", () => {
   it("lets the escalated human approve the stage", () => {
     const result = applyIssueExecutionPolicyTransition({
       issue: reviewPendingIssue(
-        { assigneeAgentId: null, assigneeUserId: boardUserId },
+        { assigneeAgentId: null, assigneeUserId: operatorUserId },
         {
-          currentParticipant: { type: "user", userId: boardUserId },
+          currentParticipant: { type: "user", userId: operatorUserId },
           changesRequestedCount: 3,
         },
       ),
       policy,
       requestedStatus: "done",
       requestedAssigneePatch: {},
-      actor: { userId: boardUserId },
+      actor: { userId: operatorUserId },
       commentBody: "Good enough — shipping",
     });
 
@@ -2293,7 +2293,7 @@ describe("review round circuit breaker", () => {
         status: "in_review",
         assigneeAgentId: qaAgentId,
         assigneeUserId: null,
-        responsibleUserId: boardUserId,
+        responsibleUserId: operatorUserId,
         executionPolicy: strictPolicy,
         executionState: {
           status: "pending",
@@ -2314,10 +2314,10 @@ describe("review round circuit breaker", () => {
       commentBody: "First and only agent round",
     });
 
-    expect(result.patch.assigneeUserId).toBe(boardUserId);
+    expect(result.patch.assigneeUserId).toBe(operatorUserId);
     expect(result.patch.executionState).toMatchObject({
       status: "pending",
-      currentParticipant: { type: "user", userId: boardUserId },
+      currentParticipant: { type: "user", userId: operatorUserId },
       changesRequestedCount: 1,
     });
   });

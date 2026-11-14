@@ -1,21 +1,21 @@
 import { resolveExternalTestDatabaseUrl } from './helpers/external-test-database.js';
 import { applyPendingMigrations } from '@outpost/db';
 import { reserveInitialSkillWork } from '../services/skill-source-import-budget.js';
-import { admitDeferredSkillImports, lockSkillImportQueue, MAX_COMPANY_PENDING_SKILL_IMPORTS, MAX_PROJECT_PENDING_SKILL_IMPORTS, SKILL_IMPORT_CAPACITY_WAIT } from '../services/skill-source-import-queue.js';
+import { admitDeferredSkillImports, lockSkillImportQueue, MAX_SPACE_PENDING_SKILL_IMPORTS, MAX_PROJECT_PENDING_SKILL_IMPORTS, SKILL_IMPORT_CAPACITY_WAIT } from '../services/skill-source-import-queue.js';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
-import { activityLog, agents, authUsers, companies, companyMemberships, companySkillSources, companySkillImportBudgets, companySkills, companySkillVersions, createDb, projects,
+import { activityLog, agents, authUsers, spaces, spaceMemberships, spaceSkillSources, spaceSkillImportBudgets, spaceSkills, spaceSkillVersions, createDb, projects,
   projectWorkspaces, projectSkillSources, projectAccessMembers } from '@outpost/db';
 import { startEmbeddedPostgresTestDatabase, getEmbeddedPostgresTestSupport } from './helpers/embedded-postgres.js';
 import { githubFixture } from './helpers/github-skills.js';
 import { enqueueProjectSkillSource, detachProjectSkillSource, projectSkillSetupIdentity } from '../services/project-skill-source-bindings.js';
 import { adoptProjectSkillRepository, projectSkillRepositories, skillSourceSyncService } from '../services/skill-source-sync.js';
 import { skillSourceService, type SkillSourceContext } from '../services/skill-sources.js';
-import { companySkillService } from '../services/company-skills.js';
+import { spaceSkillService } from '../services/space-skills.js';
 import { skillPackagePaths } from '../services/skill-package-store.js';
 import { projectService } from '../services/projects.js';
 import { skillAccessService, withSkillActor } from '../services/skill-access.js';
@@ -29,7 +29,7 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
   let db: ReturnType<typeof createDb>;
   let home: string;
   const oldHome = process.env.OUTPOST_HOME;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const md = (name: string) => `---\nname: ${name}\ndescription: Test workflow\n---\nFollow the workflow.\n`;
   let files: Record<string, string> = {};
   let commit = 'a'.repeat(40);
@@ -42,29 +42,29 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     }, authorize: async () => {}, audit: async () => {} };
   beforeAll(async () => {
     if (externalUrl) await applyPendingMigrations(externalUrl);
-    else testDb = await startEmbeddedPostgresTestDatabase('paperclip-project-skills-');
+    else testDb = await startEmbeddedPostgresTestDatabase('outpost-project-skills-');
     db = createDb(externalUrl ?? testDb.connectionString, { maxConnections: 4 });
-    home = await fs.mkdtemp(path.join(os.tmpdir(), 'paperclip-project-skills-home-'));
+    home = await fs.mkdtemp(path.join(os.tmpdir(), 'outpost-project-skills-home-'));
     process.env.OUTPOST_HOME = home;
-    await db.insert(companies).values({ id: companyId, name: 'Project skills', issuePrefix: 'PSK' });
+    await db.insert(spaces).values({ id: spaceId, name: 'Project skills', issuePrefix: 'PSK' });
   }, 30000);
   it('rechecks the locked source ref when branch repair races with project attachment', async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: 'Branch repair race', issuePrefix: 'RCE' });
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: 'Branch repair race', issuePrefix: 'RCE' });
     const content = { 'race/SKILL.md': md('race') };
     const sourceContext = { ...context, read: () => githubFixture(content) };
     const service = skillSourceService(db);
-    const created = await service.create(companyId, { repositoryUrl: 'https://github.com/acme/skills', trackingRef: 'configured-branch',
+    const created = await service.create(spaceId, { repositoryUrl: 'https://github.com/acme/skills', trackingRef: 'configured-branch',
       commitSha: 'a'.repeat(40), selectedPaths: ['race/SKILL.md'] }, sourceContext);
-    const [project] = await db.insert(projects).values({ companyId, name: 'Configured branch' }).returning();
-    const [row] = await db.insert(projectWorkspaces).values({ companyId, projectId: project!.id, name: 'Repository',
+    const [project] = await db.insert(projects).values({ spaceId, name: 'Configured branch' }).returning();
+    const [row] = await db.insert(projectWorkspaces).values({ spaceId, projectId: project!.id, name: 'Repository',
       repoUrl: created.source.repositoryUrl, defaultRef: 'configured-branch' }).returning();
     await enqueueProjectSkillSource(db, row!, { refreshUserId: null, refreshAgentId: null, refreshLocalTrusted: true, connectionId: null, refreshGrantId: null });
     let importChecks = 0;
     const worker = skillSourceSyncService(db, { context: async () => ({ ...sourceContext, authorize: async action => {
       // The second authorization occurs after matching the existing source,
       // before the worker locks it for attachment.
-      if (action === 'skills.import' && ++importChecks === 2) await service.settings(companyId, created.source.id,
+      if (action === 'skills.import' && ++importChecks === 2) await service.settings(spaceId, created.source.id,
         { revision: created.source.revision, trackingRef: 'HEAD' }, sourceContext);
     } }) });
     try {
@@ -76,17 +76,17 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
       await worker.tick(new Date(Date.now() + 6 * 60_000));
       const [attached] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, row!.id));
       expect(attached!.sourceId).not.toBe(created.source.id);
-      expect((await service.detail(companyId, attached!.sourceId!)).trackingRef).toBe('configured-branch');
+      expect((await service.detail(spaceId, attached!.sourceId!)).trackingRef).toBe('configured-branch');
     } finally {
       await worker.stop();
-      await db.update(companies).set({ status: 'archived' }).where(eq(companies.id, companyId));
+      await db.update(spaces).set({ status: 'archived' }).where(eq(spaces.id, spaceId));
     }
   });
   it('requires explicit repair before an agent-created repository can search a person’s GitHub grants', async () => {
     const row = await workspace('agent-repair', 'open');
     const binding = await enqueueProjectSkillSource(db, row);
-    const [agent] = await db.insert(agents).values({ companyId, name: 'Agent repository setup', adapterType: 'codex_local', status: 'idle' }).returning();
-    await db.update(projectSkillSources).set({ refreshUserId: 'local-board', refreshAgentId: agent!.id, refreshLocalTrusted: true }).where(eq(projectSkillSources.id, binding!.id));
+    const [agent] = await db.insert(agents).values({ spaceId, name: 'Agent repository setup', adapterType: 'codex_local', status: 'idle' }).returning();
+    await db.update(projectSkillSources).set({ refreshUserId: 'local-operator', refreshAgentId: agent!.id, refreshLocalTrusted: true }).where(eq(projectSkillSources.id, binding!.id));
     const provider = vi.spyOn(globalThis, 'fetch');
     try {
       await skillSourceSyncService(db).tick();
@@ -103,34 +103,34 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     if (home) await fs.rm(home, { recursive: true, force: true });
   });
   async function workspace(ref: string, visibility = 'open') {
-    const [project] = await db.insert(projects).values({ companyId, name: ref, visibility }).returning();
-    const [row] = await db.insert(projectWorkspaces).values({ companyId, projectId: project!.id, name: ref,
+    const [project] = await db.insert(projects).values({ spaceId, name: ref, visibility }).returning();
+    const [row] = await db.insert(projectWorkspaces).values({ spaceId, projectId: project!.id, name: ref,
       repoUrl: 'https://github.com/acme/skills', defaultRef: ref }).returning();
     return row!;
   }
-  const actor = (userId: string): AuthorizationActor => ({ type: 'board', userId, source: 'session', companyIds: [companyId], ignoreInstanceAdmin: true });
+  const actor = (userId: string): AuthorizationActor => ({ type: 'operator', userId, source: 'session', spaceIds: [spaceId], ignoreInstanceAdmin: true });
 
   it('bounds per-project pending imports and admits deferred work after capacity frees', async () => {
     await db.update(projectSkillSources).set({ active: false, lastError: null });
     const root = await workspace('quota-root');
     const rows = [];
     for (let index = 0; index <= MAX_PROJECT_PENDING_SKILL_IMPORTS; index++) {
-      const [row] = await db.insert(projectWorkspaces).values({ companyId, projectId: root.projectId, name: `Repository ${index}`,
+      const [row] = await db.insert(projectWorkspaces).values({ spaceId, projectId: root.projectId, name: `Repository ${index}`,
         repoUrl: root.repoUrl, defaultRef: `project-quota-${index}` }).returning();
       rows.push(row!); await enqueueProjectSkillSource(db, row!);
     }
     const pending = await db.select().from(projectSkillSources).where(eq(projectSkillSources.projectId, root.projectId));
     expect(pending.filter(row => row.active)).toHaveLength(MAX_PROJECT_PENDING_SKILL_IMPORTS);
     expect(pending.filter(row => !row.active)).toEqual([expect.objectContaining({ status: 'pending', lastError: SKILL_IMPORT_CAPACITY_WAIT })]);
-    await detachProjectSkillSource(db, companyId, rows[0]!.id);
-    await admitDeferredSkillImports(db, companyId, new Date());
+    await detachProjectSkillSource(db, spaceId, rows[0]!.id);
+    await admitDeferredSkillImports(db, spaceId, new Date());
     const [admitted] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, rows.at(-1)!.id));
     expect(admitted).toMatchObject({ active: true, lastError: null });
-    const [extra] = await db.insert(projectWorkspaces).values({ companyId, projectId: root.projectId, name: 'Detached waiting repository', repoUrl: root.repoUrl, defaultRef: 'quota-detached' }).returning();
+    const [extra] = await db.insert(projectWorkspaces).values({ spaceId, projectId: root.projectId, name: 'Detached waiting repository', repoUrl: root.repoUrl, defaultRef: 'quota-detached' }).returning();
     await enqueueProjectSkillSource(db, extra!);
-    await detachProjectSkillSource(db, companyId, extra!.id);
-    await detachProjectSkillSource(db, companyId, rows[1]!.id);
-    await admitDeferredSkillImports(db, companyId, new Date());
+    await detachProjectSkillSource(db, spaceId, extra!.id);
+    await detachProjectSkillSource(db, spaceId, rows[1]!.id);
+    await admitDeferredSkillImports(db, spaceId, new Date());
     const [detached] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, extra!.id));
     expect(detached!.active).toBe(false);
     await db.update(projectSkillSources).set({ active: false, lastError: null });
@@ -151,28 +151,28 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
           return { set: (values: Parameters<typeof update.set>[0]) => {
             const set = update.set(values);
             return { where: async (condition: Parameters<typeof set.where>[0]) => {
-              if (!detached) { detached = true; await detachProjectSkillSource(db, companyId, row.id); }
+              if (!detached) { detached = true; await detachProjectSkillSource(db, spaceId, row.id); }
               return set.where(condition);
             } };
           } };
         };
       } })));
     } });
-    await admitDeferredSkillImports(database, companyId, new Date());
+    await admitDeferredSkillImports(database, spaceId, new Date());
     const [saved] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.id, binding!.id));
     expect(detached).toBe(true);
     expect(saved!.active).toBe(false);
     expect(saved!.lastError).toBeNull();
   });
 
-  it('bounds the company pending queue across projects without losing deferred provenance', async () => {
-    const projectsToInsert = Array.from({ length: MAX_COMPANY_PENDING_SKILL_IMPORTS + 1 }, (_, index) => ({ id: randomUUID(), companyId, name: `Quota project ${index}` }));
+  it('bounds the space pending queue across projects without losing deferred provenance', async () => {
+    const projectsToInsert = Array.from({ length: MAX_SPACE_PENDING_SKILL_IMPORTS + 1 }, (_, index) => ({ id: randomUUID(), spaceId, name: `Quota project ${index}` }));
     await db.insert(projects).values(projectsToInsert);
-    const workspaces = await db.insert(projectWorkspaces).values(projectsToInsert.map((project, index) => ({ companyId, projectId: project.id,
-      name: 'Repository', repoUrl: 'https://github.com/acme/skills', defaultRef: `company-quota-${index}` }))).returning();
+    const workspaces = await db.insert(projectWorkspaces).values(projectsToInsert.map((project, index) => ({ spaceId, projectId: project.id,
+      name: 'Repository', repoUrl: 'https://github.com/acme/skills', defaultRef: `space-quota-${index}` }))).returning();
     for (const row of workspaces) await enqueueProjectSkillSource(db, row);
-    const pending = await db.select().from(projectSkillSources).where(and(eq(projectSkillSources.companyId, companyId), eq(projectSkillSources.active, true)));
-    expect(pending.filter(row => !row.sourceId)).toHaveLength(MAX_COMPANY_PENDING_SKILL_IMPORTS);
+    const pending = await db.select().from(projectSkillSources).where(and(eq(projectSkillSources.spaceId, spaceId), eq(projectSkillSources.active, true)));
+    expect(pending.filter(row => !row.sourceId)).toHaveLength(MAX_SPACE_PENDING_SKILL_IMPORTS);
     const deferred = await db.select().from(projectSkillSources).where(eq(projectSkillSources.lastError, SKILL_IMPORT_CAPACITY_WAIT));
     expect(deferred).toHaveLength(1);
     expect(deferred[0]!.workspaceId).toBeTruthy();
@@ -182,48 +182,48 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
   it('admits another project beyond a full project’s oldest waiting batch', async () => {
     const full = await workspace('full-admission-project');
     const other = await workspace('other-admission-project');
-    const rows = await db.insert(projectWorkspaces).values(Array.from({ length: 120 }, (_, index) => ({ companyId, projectId: full.projectId,
+    const rows = await db.insert(projectWorkspaces).values(Array.from({ length: 120 }, (_, index) => ({ spaceId, projectId: full.projectId,
       name: `Queued ${index}`, repoUrl: full.repoUrl, defaultRef: `starvation-${index}` }))).returning();
-    await db.insert(projectSkillSources).values(rows.map((row, index) => ({ companyId, projectId: row.projectId, workspaceId: row.id,
+    await db.insert(projectSkillSources).values(rows.map((row, index) => ({ spaceId, projectId: row.projectId, workspaceId: row.id,
       repositoryUrl: row.repoUrl!, trackingRef: row.defaultRef!, active: index < 20,
       lastError: index < 20 ? null : SKILL_IMPORT_CAPACITY_WAIT, createdAt: new Date(0) })));
-    const [waiting] = await db.insert(projectSkillSources).values({ companyId, projectId: other.projectId, workspaceId: other.id,
+    const [waiting] = await db.insert(projectSkillSources).values({ spaceId, projectId: other.projectId, workspaceId: other.id,
       repositoryUrl: other.repoUrl!, trackingRef: other.defaultRef!, active: false, lastError: SKILL_IMPORT_CAPACITY_WAIT }).returning();
-    await admitDeferredSkillImports(db, companyId, new Date());
+    await admitDeferredSkillImports(db, spaceId, new Date());
     const [saved] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.id, waiting!.id));
     expect(saved!.active).toBe(true);
     await db.update(projectSkillSources).set({ active: false, lastError: null });
   });
 
-  it('adoption waits for the company queue before taking repository binding locks', async () => {
+  it('adoption waits for the space queue before taking repository binding locks', async () => {
     const row = await workspace('adoption-lock-order');
     const binding = await enqueueProjectSkillSource(db, row);
-    const [source] = await db.insert(companySkillSources).values({ companyId, repositoryUrl: row.repoUrl!, fullName: 'acme/skills', trackingRef: row.defaultRef! }).returning();
+    const [source] = await db.insert(spaceSkillSources).values({ spaceId, repositoryUrl: row.repoUrl!, fullName: 'acme/skills', trackingRef: row.defaultRef! }).returning();
     await db.update(projectSkillSources).set({ sourceId: source!.id }).where(eq(projectSkillSources.id, binding!.id));
     let unlock!: () => void, locked!: () => void;
     const release = new Promise<void>(resolve => { unlock = resolve; });
     const ready = new Promise<void>(resolve => { locked = resolve; });
     let editTx!: typeof db;
-    const edit = db.transaction(async tx => { editTx = tx as unknown as typeof db; await lockSkillImportQueue(editTx, companyId); locked(); await release; });
+    const edit = db.transaction(async tx => { editTx = tx as unknown as typeof db; await lockSkillImportQueue(editTx, spaceId); locked(); await release; });
     await ready;
-    const adoption = withSkillActor({ type: 'board', source: 'local_implicit', companyIds: [companyId] },
-      () => adoptProjectSkillRepository(db, companyId, row.id, context.authorize));
+    const adoption = withSkillActor({ type: 'operator', source: 'local_implicit', spaceIds: [spaceId] },
+      () => adoptProjectSkillRepository(db, spaceId, row.id, context.authorize));
     try {
       await vi.waitFor(async () => {
-        const result = await db.execute(sql`select 1 from pg_stat_activity where wait_event_type = 'Lock' and query ilike '%companies%for no key update%'`);
+        const result = await db.execute(sql`select 1 from pg_stat_activity where wait_event_type = 'Lock' and query ilike '%spaces%for no key update%'`);
         expect(result.length).toBeGreaterThan(0);
       });
-      // A repository edit holding the company lock must still be able to lock
+      // A repository edit holding the space lock must still be able to lock
       // this binding. The old inverse adoption order fails with lock_not_available.
       await editTx.execute(sql`select id from project_skill_sources where id = ${binding!.id} for update nowait`);
     } finally { unlock(); await edit; await adoption; }
   });
 
   it('meters failed initial downloads across workers and retries before provider reads', async () => {
-    const budgetCompany = randomUUID();
-    await db.insert(companies).values({ id: budgetCompany, name: 'Initial work credits', issuePrefix: 'IWC' });
-    const [project] = await db.insert(projects).values({ companyId: budgetCompany, name: 'Repeated failed downloads' }).returning();
-    const rows = await db.insert(projectWorkspaces).values(Array.from({ length: 5 }, (_, index) => ({ companyId: budgetCompany,
+    const budgetSpace = randomUUID();
+    await db.insert(spaces).values({ id: budgetSpace, name: 'Initial work credits', issuePrefix: 'IWC' });
+    const [project] = await db.insert(projects).values({ spaceId: budgetSpace, name: 'Repeated failed downloads' }).returning();
+    const rows = await db.insert(projectWorkspaces).values(Array.from({ length: 5 }, (_, index) => ({ spaceId: budgetSpace,
       projectId: project!.id, name: `Failed ${index}`, repoUrl: 'https://github.com/acme/skills', defaultRef: `failed-${index}` }))).returning();
     for (const row of rows) await enqueueProjectSkillSource(db, row);
     const reads = vi.fn(() => {
@@ -231,28 +231,28 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
       reader.openSnapshot = async () => { throw unprocessable('Git download exceeds 128 MiB.'); };
       return reader;
     });
-    const factory = async (setup: { companyId: string }) => setup.companyId === budgetCompany ? { ...context, read: reads } : context;
+    const factory = async (setup: { spaceId: string }) => setup.spaceId === budgetSpace ? { ...context, read: reads } : context;
     const now = new Date();
     try {
       await skillSourceSyncService(db, { context: factory }).tick(now);
       expect(reads).toHaveBeenCalledTimes(4);
-      const [budget] = await db.select().from(companySkillImportBudgets).where(eq(companySkillImportBudgets.companyId, budgetCompany));
+      const [budget] = await db.select().from(spaceSkillImportBudgets).where(eq(spaceSkillImportBudgets.spaceId, budgetSpace));
       expect(budget!.availableBytes).toBe(0);
       const worker = skillSourceSyncService(db, { context: factory });
       await worker.tick(new Date(now.getTime() + 5 * 60_000));
       expect(reads).toHaveBeenCalledTimes(4);
-      const waiting = await db.select().from(projectSkillSources).where(eq(projectSkillSources.companyId, budgetCompany));
+      const waiting = await db.select().from(projectSkillSources).where(eq(projectSkillSources.spaceId, budgetSpace));
       expect(waiting.every(row => row.active && row.status === 'error' && row.lastError?.includes('limited'))).toBe(true);
       await worker.tick(new Date(now.getTime() + 15 * 60_000));
       expect(reads).toHaveBeenCalledTimes(5);
-    } finally { await db.update(companies).set({ status: 'archived' }).where(eq(companies.id, budgetCompany)); }
+    } finally { await db.update(spaces).set({ status: 'archived' }).where(eq(spaces.id, budgetSpace)); }
   });
 
-  it('refunds measured small initial imports while completed jobs keep a company budget', async () => {
-    const budgetCompany = randomUUID();
-    await db.insert(companies).values({ id: budgetCompany, name: 'Small initial imports', issuePrefix: 'SII' });
-    const [project] = await db.insert(projects).values({ companyId: budgetCompany, name: 'Small repositories' }).returning();
-    const rows = await db.insert(projectWorkspaces).values(Array.from({ length: 6 }, (_, index) => ({ companyId: budgetCompany,
+  it('refunds measured small initial imports while completed jobs keep a space budget', async () => {
+    const budgetSpace = randomUUID();
+    await db.insert(spaces).values({ id: budgetSpace, name: 'Small initial imports', issuePrefix: 'SII' });
+    const [project] = await db.insert(projects).values({ spaceId: budgetSpace, name: 'Small repositories' }).returning();
+    const rows = await db.insert(projectWorkspaces).values(Array.from({ length: 6 }, (_, index) => ({ spaceId: budgetSpace,
       projectId: project!.id, name: `Small ${index}`, repoUrl: 'https://github.com/acme/skills', defaultRef: `small-${index}` }))).returning();
     for (const row of rows) await enqueueProjectSkillSource(db, row);
     const opened = vi.fn();
@@ -262,20 +262,20 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
       return reader;
     });
     try {
-      await skillSourceSyncService(db, { context: async setup => setup.companyId === budgetCompany ? { ...context, read: reads } : context }).tick();
-      const bindings = await db.select().from(projectSkillSources).where(eq(projectSkillSources.companyId, budgetCompany));
+      await skillSourceSyncService(db, { context: async setup => setup.spaceId === budgetSpace ? { ...context, read: reads } : context }).tick();
+      const bindings = await db.select().from(projectSkillSources).where(eq(projectSkillSources.spaceId, budgetSpace));
       expect(bindings.every(row => row.status === 'ready' && row.sourceId)).toBe(true);
       expect(opened).toHaveBeenCalledTimes(6);
-      const [budget] = await db.select().from(companySkillImportBudgets).where(eq(companySkillImportBudgets.companyId, budgetCompany));
+      const [budget] = await db.select().from(spaceSkillImportBudgets).where(eq(spaceSkillImportBudgets.spaceId, budgetSpace));
       expect(budget!.availableBytes).toBeGreaterThan(500 * 1024 * 1024);
-    } finally { await db.update(companies).set({ status: 'archived' }).where(eq(companies.id, budgetCompany)); }
+    } finally { await db.update(spaces).set({ status: 'archived' }).where(eq(spaces.id, budgetSpace)); }
   });
 
   it('does not replenish initial work credits when large measured jobs complete', async () => {
-    const budgetCompany = randomUUID();
-    await db.insert(companies).values({ id: budgetCompany, name: 'Completed work credits', issuePrefix: 'CWC' });
-    const [project] = await db.insert(projects).values({ companyId: budgetCompany, name: 'Large measured imports' }).returning();
-    const rows = await db.insert(projectWorkspaces).values(Array.from({ length: 5 }, (_, index) => ({ companyId: budgetCompany,
+    const budgetSpace = randomUUID();
+    await db.insert(spaces).values({ id: budgetSpace, name: 'Completed work credits', issuePrefix: 'CWC' });
+    const [project] = await db.insert(projects).values({ spaceId: budgetSpace, name: 'Large measured imports' }).returning();
+    const rows = await db.insert(projectWorkspaces).values(Array.from({ length: 5 }, (_, index) => ({ spaceId: budgetSpace,
       projectId: project!.id, name: `Measured ${index}`, repoUrl: 'https://github.com/acme/skills', defaultRef: `measured-${index}` }))).returning();
     for (const row of rows) await enqueueProjectSkillSource(db, row);
     const opened = vi.fn();
@@ -285,14 +285,14 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
       return reader;
     });
     try {
-      await skillSourceSyncService(db, { context: async setup => setup.companyId === budgetCompany ? { ...context, read: reads } : context }).tick();
-      const bindings = await db.select().from(projectSkillSources).where(eq(projectSkillSources.companyId, budgetCompany));
+      await skillSourceSyncService(db, { context: async setup => setup.spaceId === budgetSpace ? { ...context, read: reads } : context }).tick();
+      const bindings = await db.select().from(projectSkillSources).where(eq(projectSkillSources.spaceId, budgetSpace));
       expect(bindings.filter(row => row.status === 'ready' && row.sourceId)).toHaveLength(4);
       expect(bindings.filter(row => row.status === 'error' && row.lastError?.includes('limited'))).toHaveLength(1);
       expect(opened).toHaveBeenCalledTimes(4);
-      const [budget] = await db.select().from(companySkillImportBudgets).where(eq(companySkillImportBudgets.companyId, budgetCompany));
+      const [budget] = await db.select().from(spaceSkillImportBudgets).where(eq(spaceSkillImportBudgets.spaceId, budgetSpace));
       expect(budget!.availableBytes).toBe(0);
-    } finally { await db.update(companies).set({ status: 'archived' }).where(eq(companies.id, budgetCompany)); }
+    } finally { await db.update(spaces).set({ status: 'archived' }).where(eq(spaces.id, budgetSpace)); }
   });
 
   it('never counts refill time twice when an older sweep reserves after a newer one', async () => {
@@ -300,19 +300,19 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     const binding = await enqueueProjectSkillSource(db, row);
     const token = randomUUID();
     await db.update(projectSkillSources).set({ leaseToken: token }).where(eq(projectSkillSources.id, binding!.id));
-    await db.delete(companySkillImportBudgets).where(eq(companySkillImportBudgets.companyId, companyId));
+    await db.delete(spaceSkillImportBudgets).where(eq(spaceSkillImportBudgets.spaceId, spaceId));
     const older = new Date(), newer = new Date(older.getTime() + 15 * 60_000);
     try {
       await reserveInitialSkillWork(db, binding!, token, newer);
       await reserveInitialSkillWork(db, binding!, token, older);
-      const [afterOlder] = await db.select().from(companySkillImportBudgets).where(eq(companySkillImportBudgets.companyId, companyId));
+      const [afterOlder] = await db.select().from(spaceSkillImportBudgets).where(eq(spaceSkillImportBudgets.spaceId, spaceId));
       expect(afterOlder!.updatedAt).toEqual(newer);
       await reserveInitialSkillWork(db, binding!, token, newer);
-      const [saved] = await db.select().from(companySkillImportBudgets).where(eq(companySkillImportBudgets.companyId, companyId));
+      const [saved] = await db.select().from(spaceSkillImportBudgets).where(eq(spaceSkillImportBudgets.spaceId, spaceId));
       expect(saved!.availableBytes).toBe(128 * 1024 * 1024);
     } finally {
-      await detachProjectSkillSource(db, companyId, row.id);
-      await db.delete(companySkillImportBudgets).where(eq(companySkillImportBudgets.companyId, companyId));
+      await detachProjectSkillSource(db, spaceId, row.id);
+      await db.delete(spaceSkillImportBudgets).where(eq(spaceSkillImportBudgets.spaceId, spaceId));
     }
   });
 
@@ -320,19 +320,19 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     const row = await workspace('adoption-stale-selection');
     await enqueueProjectSkillSource(db, row);
     try {
-      await withSkillActor({ type: 'board', source: 'local_implicit', companyIds: [companyId] }, async () => {
-        await expect(adoptProjectSkillRepository(db, companyId, row.id, async () => {
+      await withSkillActor({ type: 'operator', source: 'local_implicit', spaceIds: [spaceId] }, async () => {
+        await expect(adoptProjectSkillRepository(db, spaceId, row.id, async () => {
           await projectService(db).updateWorkspace(row.projectId, row.id, { repoUrl: 'https://github.com/acme/skills-next', defaultRef: 'edited-branch' });
         })).rejects.toThrow(/repository changed/i);
       });
       const saved = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, row.id));
       expect(saved.find(binding => binding.trackingRef === 'edited-branch')!.active).toBe(true);
       expect(saved.find(binding => binding.trackingRef === row.defaultRef)!.active).toBe(false);
-    } finally { await detachProjectSkillSource(db, companyId, row.id); }
+    } finally { await detachProjectSkillSource(db, spaceId, row.id); }
   });
 
   it('does not read GitHub or retry an initial job denied by import policy', async () => {
-    await db.update(companySkillSources).set({ automaticUpdates: false });
+    await db.update(spaceSkillSources).set({ automaticUpdates: false });
     const row = await workspace('denied-preflight');
     await enqueueProjectSkillSource(db, row);
     const read = vi.fn(context.read);
@@ -352,8 +352,8 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     await enqueueProjectSkillSource(db, originalWorkspace);
     await skillSourceSyncService(db, { context: async () => context }).tick();
     const [origin] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, originalWorkspace.id));
-    const sources = skillSourceService(db), skills = companySkillService(db);
-    const source = await sources.detail(companyId, origin!.sourceId!);
+    const sources = skillSourceService(db), skills = spaceSkillService(db);
+    const source = await sources.detail(spaceId, origin!.sourceId!);
     const skillId = source.entries[0]!.skillId!;
     const pendingWorkspace = await workspace('removal-race', 'open');
     await enqueueProjectSkillSource(db, pendingWorkspace);
@@ -361,8 +361,8 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     const racingContext = { ...context, authorize: async () => {
       if (++authorizations !== 2 || removed) return;
       removed = true;
-      await sources.disconnect(companyId, source.id, context, { revision: source.revision, skills: 'copy' });
-      await skills.updateFile(companyId, skillId, 'SKILL.md', md('Restricted race edits'));
+      await sources.disconnect(spaceId, source.id, context, { revision: source.revision, skills: 'copy' });
+      await skills.updateFile(spaceId, skillId, 'SKILL.md', md('Restricted race edits'));
     } };
     const worker = skillSourceSyncService(db, { context: async () => racingContext });
     expect((await worker.tick()).imported).toBe(0);
@@ -370,10 +370,10 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     expect(pending).toMatchObject({ sourceId: null, status: 'error' });
     const readerId = randomUUID();
     await db.insert(authUsers).values({ id: readerId, name: 'Open reader', email: `${readerId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: 'user', principalId: readerId, membershipRole: 'member', status: 'active' });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: 'user', principalId: readerId, membershipRole: 'member', status: 'active' });
     await withSkillActor(actor(readerId), async () => {
-      expect(await skills.getById(companyId, skillId)).toBeNull();
-      expect(await skills.readFile(companyId, skillId, 'SKILL.md')).toBeNull();
+      expect(await skills.getById(spaceId, skillId)).toBeNull();
+      expect(await skills.readFile(spaceId, skillId, 'SKILL.md')).toBeNull();
     });
     expect((await worker.tick(new Date(Date.now() + 6 * 60_000))).imported).toBe(1);
     const [retried] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, pendingWorkspace.id));
@@ -386,35 +386,35 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     const binding = await enqueueProjectSkillSource(db, row);
     await enqueueProjectSkillSource(db, row);
     expect(await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, row.id))).toHaveLength(1);
-    expect((await db.select().from(companySkillSources)).filter(source => source.trackingRef === 'automatic')).toHaveLength(0);
+    expect((await db.select().from(spaceSkillSources)).filter(source => source.trackingRef === 'automatic')).toHaveLength(0);
     const worker = skillSourceSyncService(db, { context: async () => context });
     expect((await worker.tick()).imported).toBe(1);
     const [ready] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.id, binding!.id));
     const sourceId = ready!.sourceId!;
-    const first = await skillSourceService(db).detail(companyId, sourceId);
+    const first = await skillSourceService(db).detail(spaceId, sourceId);
     expect(first.accessScope).toBe('projects');
     expect(first.importNewSkills).toBe(true);
     const installedId = first.entries[0]!.skillId!;
-    const original = (await companySkillService(db).getById(companyId, installedId))!;
+    const original = (await spaceSkillService(db).getById(spaceId, installedId))!;
     expect(original.accessSourceId).toBe(sourceId);
     const downloadCount = downloads.mock.calls.length;
     await worker.tick(new Date(Date.now() + 6 * 60_000));
     expect(downloads).toHaveBeenCalledTimes(downloadCount);
     files['one/SKILL.md'] = md('one improved'); files['two/SKILL.md'] = md('two'); commit = 'b'.repeat(40);
     await worker.tick(new Date(Date.now() + 6 * 60_000));
-    const updated = await skillSourceService(db).detail(companyId, sourceId);
+    const updated = await skillSourceService(db).detail(spaceId, sourceId);
     expect(updated.entries.filter(entry => entry.skillId)).toHaveLength(2);
-    const latest = (await companySkillService(db).getById(companyId, installedId))!;
+    const latest = (await spaceSkillService(db).getById(spaceId, installedId))!;
     expect(latest.id).toBe(original.id);
     expect(latest.currentVersionId).not.toBe(original.currentVersionId);
-    const pinned = await companySkillService(db).getVersion(companyId, installedId, original.currentVersionId!);
+    const pinned = await spaceSkillService(db).getVersion(spaceId, installedId, original.currentVersionId!);
     expect(pinned!.fileInventory.find(file => file.path === 'SKILL.md')!.content).toBe(md('one'));
-    await detachProjectSkillSource(db, companyId, row.id);
+    await detachProjectSkillSource(db, spaceId, row.id);
     const before = downloads.mock.calls.length;
     await worker.tick(new Date(Date.now() + 6 * 60_000));
     expect(downloads).toHaveBeenCalledTimes(before);
-    expect(await companySkillService(db).getById(companyId, installedId)).not.toBeNull();
-    expect(await skillSourceService(db).detail(companyId, sourceId)).toMatchObject({ trackingActive: false, syncState: 'paused' });
+    expect(await spaceSkillService(db).getById(spaceId, installedId)).not.toBeNull();
+    expect(await skillSourceService(db).detail(spaceId, sourceId)).toMatchObject({ trackingActive: false, syncState: 'paused' });
   });
 
   it('watches empty repositories, retains folder exclusions and coalesces worker sweeps', async () => {
@@ -428,11 +428,11 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     const [binding] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, row.id));
     expect(binding!.status).toBe('ready');
     const service = skillSourceService(db);
-    const source = await service.detail(companyId, binding!.sourceId!);
-    await service.refresh(companyId, source.id, context, { revision: source.revision, selectedPaths: [], excludedFolders: ['excluded'] });
+    const source = await service.detail(spaceId, binding!.sourceId!);
+    await service.refresh(spaceId, source.id, context, { revision: source.revision, selectedPaths: [], excludedFolders: ['excluded'] });
     files = { 'excluded/secret/SKILL.md': md('excluded'), 'new/SKILL.md': md('new') }; commit = 'd'.repeat(40);
     await worker.tick(new Date(Date.now() + 6 * 60_000));
-    const result = await service.detail(companyId, source.id);
+    const result = await service.detail(spaceId, source.id);
     expect(result.entries.find(entry => entry.path === 'new/SKILL.md')!.skillId).toBeTruthy();
     expect(result.entries.find(entry => entry.path.includes('secret'))!.selection).toBe('excluded');
   });
@@ -444,111 +444,111 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     await skillSourceSyncService(db, { context: async () => context }).tick();
     const [binding] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, row.id));
     expect(binding!.status, binding!.lastError ?? 'initial private binding').toBe('ready');
-    const source = await skillSourceService(db).detail(companyId, binding!.sourceId!);
+    const source = await skillSourceService(db).detail(spaceId, binding!.sourceId!);
     const skillId = source.entries[0]!.skillId!;
     let privateSnapshotPath = '';
     let privatePackagePath = '';
     const privateDerivatives: string[] = [];
     for (const user of ['alice', 'bob']) {
       await db.insert(authUsers).values({ id: user, name: user, email: `${user}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-      await db.insert(companyMemberships).values({ companyId, principalType: 'user', principalId: user, membershipRole: 'member', status: 'active' });
+      await db.insert(spaceMemberships).values({ spaceId, principalType: 'user', principalId: user, membershipRole: 'member', status: 'active' });
     }
-    await db.insert(projectAccessMembers).values({ companyId, projectId: row.projectId, subjectType: 'user', subjectId: 'alice' });
+    await db.insert(projectAccessMembers).values({ spaceId, projectId: row.projectId, subjectType: 'user', subjectId: 'alice' });
     await withSkillActor(actor('alice'), async () => {
-      expect(await companySkillService(db).getById(companyId, skillId)).not.toBeNull();
-      expect((await companySkillService(db).list(companyId)).some(skill => skill.id === skillId)).toBe(true);
-      const skill = (await companySkillService(db).getById(companyId, skillId))!;
-      const [runtime] = await companySkillService(db).listRuntimeSkillEntries(companyId, { onlyKeys: new Set([skill.key]) });
+      expect(await spaceSkillService(db).getById(spaceId, skillId)).not.toBeNull();
+      expect((await spaceSkillService(db).list(spaceId)).some(skill => skill.id === skillId)).toBe(true);
+      const skill = (await spaceSkillService(db).getById(spaceId, skillId))!;
+      const [runtime] = await spaceSkillService(db).listRuntimeSkillEntries(spaceId, { onlyKeys: new Set([skill.key]) });
       privateSnapshotPath = runtime!.source;
-      await expect(companySkillService(db).importFromSource(companyId, runtime!.source)).rejects.toThrow(/Project-derived skill/);
-      const [version] = await db.select({ packageId: companySkillVersions.packageSnapshotId })
-        .from(companySkillVersions).where(eq(companySkillVersions.id, skill.currentVersionId!));
+      await expect(spaceSkillService(db).importFromSource(spaceId, runtime!.source)).rejects.toThrow(/Project-derived skill/);
+      const [version] = await db.select({ packageId: spaceSkillVersions.packageSnapshotId })
+        .from(spaceSkillVersions).where(eq(spaceSkillVersions.id, skill.currentVersionId!));
       expect(version?.packageId).toBeTruthy();
-      privatePackagePath = skillPackagePaths(companyId, version!.packageId!).directory;
+      privatePackagePath = skillPackagePaths(spaceId, version!.packageId!).directory;
       expect((await fs.stat(privatePackagePath)).isDirectory()).toBe(true);
       for (const candidate of [privatePackagePath, path.join(privatePackagePath, 'private'), path.dirname(privatePackagePath)]) {
-        await expect(companySkillService(db).importFromSource(companyId, candidate)).rejects.toMatchObject({
+        await expect(spaceSkillService(db).importFromSource(spaceId, candidate)).rejects.toMatchObject({
           status: 422, details: { code: 'skill_package_cache_import_denied' },
         });
       }
-      const fork = await companySkillService(db).forkSkill(companyId, skillId, { slug: 'private-copy' });
+      const fork = await spaceSkillService(db).forkSkill(spaceId, skillId, { slug: 'private-copy' });
       expect(fork.skill.accessSourceId).not.toBe(source.id);
       expect(fork.skill.accessSourceId).toBeTruthy();
       privateDerivatives.push(fork.skill.id);
-      await expect(companySkillService(db).updateSkill(companyId, fork.skill.id, { sharingScope: 'public_link' })).rejects.toThrow(/public link/);
-      const copy = await companySkillService(db).createLocalSkill(companyId, { name: 'Private derived copy', forkedFromSkillId: skillId });
+      await expect(spaceSkillService(db).updateSkill(spaceId, fork.skill.id, { sharingScope: 'public_link' })).rejects.toThrow(/public link/);
+      const copy = await spaceSkillService(db).createLocalSkill(spaceId, { name: 'Private derived copy', forkedFromSkillId: skillId });
       expect(copy.accessSourceId).not.toBe(source.id);
       expect(copy.accessSourceId).toBeTruthy();
       privateDerivatives.push(copy.id);
-      await expect(companySkillService(db).createLocalSkill(companyId, { name: 'Unsafe publication', forkedFromSkillId: skillId, sharingScope: 'public_link' })).rejects.toThrow(/public link/);
+      await expect(spaceSkillService(db).createLocalSkill(spaceId, { name: 'Unsafe publication', forkedFromSkillId: skillId, sharingScope: 'public_link' })).rejects.toThrow(/public link/);
     });
     await withSkillActor(actor('bob'), async () => {
       const branchRead = vi.fn(context.read(null));
-      await expect(skillSourceService(db).branches(companyId, source.id, {}, { ...context, read: () => branchRead })).rejects.toThrow(/not found/);
+      await expect(skillSourceService(db).branches(spaceId, source.id, {}, { ...context, read: () => branchRead })).rejects.toThrow(/not found/);
       expect(branchRead).not.toHaveBeenCalled();
-      await expect(companySkillService(db).importFromSource(companyId, privateSnapshotPath)).rejects.toThrow(/not found/);
-      await expect(companySkillService(db).importFromSource(companyId, privatePackagePath)).rejects.toMatchObject({
+      await expect(spaceSkillService(db).importFromSource(spaceId, privateSnapshotPath)).rejects.toThrow(/not found/);
+      await expect(spaceSkillService(db).importFromSource(spaceId, privatePackagePath)).rejects.toMatchObject({
         status: 422, details: { code: 'skill_package_cache_import_denied' },
       });
-      expect(await companySkillService(db).getById(companyId, skillId)).toBeNull();
-      expect(await companySkillService(db).readFile(companyId, skillId, 'SKILL.md')).toBeNull();
-      expect((await skillSourceService(db).list(companyId)).some(item => item.id === source.id)).toBe(false);
-      await expect(skillAccessService(db).assertSkill(companyId, skillId)).rejects.toThrow(/not found/);
+      expect(await spaceSkillService(db).getById(spaceId, skillId)).toBeNull();
+      expect(await spaceSkillService(db).readFile(spaceId, skillId, 'SKILL.md')).toBeNull();
+      expect((await skillSourceService(db).list(spaceId)).some(item => item.id === source.id)).toBe(false);
+      await expect(skillAccessService(db).assertSkill(spaceId, skillId)).rejects.toThrow(/not found/);
     });
-    const [reader] = await db.insert(agents).values({ companyId, name: 'Private skill reader', adapterType: 'codex_local', status: 'idle' }).returning();
-    const [outsider] = await db.insert(agents).values({ companyId, name: 'Unassigned reader', adapterType: 'codex_local', status: 'idle' }).returning();
-    for (const agent of [reader!, outsider!]) await db.insert(companyMemberships).values({ companyId, principalType: 'agent', principalId: agent.id, membershipRole: 'member', status: 'active' });
-    await db.insert(projectAccessMembers).values({ companyId, projectId: row.projectId, subjectType: 'agent', subjectId: reader!.id });
+    const [reader] = await db.insert(agents).values({ spaceId, name: 'Private skill reader', adapterType: 'codex_local', status: 'idle' }).returning();
+    const [outsider] = await db.insert(agents).values({ spaceId, name: 'Unassigned reader', adapterType: 'codex_local', status: 'idle' }).returning();
+    for (const agent of [reader!, outsider!]) await db.insert(spaceMemberships).values({ spaceId, principalType: 'agent', principalId: agent.id, membershipRole: 'member', status: 'active' });
+    await db.insert(projectAccessMembers).values({ spaceId, projectId: row.projectId, subjectType: 'agent', subjectId: reader!.id });
     const agentActor = (agentId: string, userId: string): AuthorizationActor => ({
-      type: 'agent', source: 'agent_jwt', companyId, agentId, runId: randomUUID(), onBehalfOfUserId: userId,
+      type: 'agent', source: 'agent_jwt', spaceId, agentId, runId: randomUUID(), onBehalfOfUserId: userId,
     });
     await withSkillActor(agentActor(reader!.id, 'alice'), async () => {
-      expect(await companySkillService(db).readFile(companyId, skillId, 'SKILL.md')).not.toBeNull();
-      const skill = (await companySkillService(db).getById(companyId, skillId))!;
-      expect(await companySkillService(db).getVersion(companyId, skillId, skill.currentVersionId!)).not.toBeNull();
-      expect((await companySkillService(db).listRuntimeSkillEntries(companyId)).some(entry => entry.key === skill.key)).toBe(true);
+      expect(await spaceSkillService(db).readFile(spaceId, skillId, 'SKILL.md')).not.toBeNull();
+      const skill = (await spaceSkillService(db).getById(spaceId, skillId))!;
+      expect(await spaceSkillService(db).getVersion(spaceId, skillId, skill.currentVersionId!)).not.toBeNull();
+      expect((await spaceSkillService(db).listRuntimeSkillEntries(spaceId)).some(entry => entry.key === skill.key)).toBe(true);
     });
-    for (const denied of [agentActor(reader!.id, 'bob'), agentActor(outsider!.id, 'alice'), { ...agentActor(reader!.id, 'alice'), companyId: randomUUID() }]) {
+    for (const denied of [agentActor(reader!.id, 'bob'), agentActor(outsider!.id, 'alice'), { ...agentActor(reader!.id, 'alice'), spaceId: randomUUID() }]) {
       await withSkillActor(denied, async () => {
         const branchRead = vi.fn(context.read(null));
-        await expect(skillSourceService(db).branches(companyId, source.id, {}, { ...context, read: () => branchRead })).rejects.toThrow(/not found/);
+        await expect(skillSourceService(db).branches(spaceId, source.id, {}, { ...context, read: () => branchRead })).rejects.toThrow(/not found/);
         expect(branchRead).not.toHaveBeenCalled();
-        expect(await companySkillService(db).readFile(companyId, skillId, 'SKILL.md')).toBeNull();
-        expect((await companySkillService(db).listRuntimeSkillEntries(companyId)).some(entry => entry.key.includes('private'))).toBe(false);
+        expect(await spaceSkillService(db).readFile(spaceId, skillId, 'SKILL.md')).toBeNull();
+        expect((await spaceSkillService(db).listRuntimeSkillEntries(spaceId)).some(entry => entry.key.includes('private'))).toBe(false);
       });
     }
     const second = await workspace('private', 'private');
-    await db.insert(projectAccessMembers).values({ companyId, projectId: second.projectId, subjectType: 'user', subjectId: 'bob' });
+    await db.insert(projectAccessMembers).values({ spaceId, projectId: second.projectId, subjectType: 'user', subjectId: 'bob' });
     await enqueueProjectSkillSource(db, second);
     await skillSourceSyncService(db, { context: async () => context }).tick();
     const [linked] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, second.id));
     expect(linked!.status, linked!.lastError ?? 'second project binding').toBe('ready');
     expect(linked!.sourceId).toBe(source.id);
-    await withSkillActor(actor('bob'), async () => expect(await companySkillService(db).getById(companyId, skillId)).not.toBeNull());
+    await withSkillActor(actor('bob'), async () => expect(await spaceSkillService(db).getById(spaceId, skillId)).not.toBeNull());
     await db.delete(projectAccessMembers).where(and(eq(projectAccessMembers.projectId, second.projectId), eq(projectAccessMembers.subjectId, 'bob')));
-    await withSkillActor(actor('bob'), async () => expect(await companySkillService(db).getById(companyId, skillId)).toBeNull());
+    await withSkillActor(actor('bob'), async () => expect(await spaceSkillService(db).getById(spaceId, skillId)).toBeNull());
     const opened = await workspace('private', 'open');
     await enqueueProjectSkillSource(db, opened);
     await skillSourceSyncService(db, { context: async () => context }).tick();
     await withSkillActor(actor('bob'), async () => {
-      expect(await companySkillService(db).getById(companyId, skillId)).not.toBeNull();
+      expect(await spaceSkillService(db).getById(spaceId, skillId)).not.toBeNull();
       for (const derivativeId of privateDerivatives) {
-        expect(await companySkillService(db).getById(companyId, derivativeId)).toBeNull();
-        expect(await companySkillService(db).readFile(companyId, derivativeId, 'SKILL.md')).toBeNull();
+        expect(await spaceSkillService(db).getById(spaceId, derivativeId)).toBeNull();
+        expect(await spaceSkillService(db).readFile(spaceId, derivativeId, 'SKILL.md')).toBeNull();
       }
     });
     await withSkillActor(agentActor(reader!.id, 'bob'), async () => {
-      expect(await companySkillService(db).getById(companyId, skillId)).not.toBeNull();
-      for (const derivativeId of privateDerivatives) expect(await companySkillService(db).getById(companyId, derivativeId)).toBeNull();
+      expect(await spaceSkillService(db).getById(spaceId, skillId)).not.toBeNull();
+      for (const derivativeId of privateDerivatives) expect(await spaceSkillService(db).getById(spaceId, derivativeId)).toBeNull();
     });
     await db.delete(projects).where(eq(projects.id, row.projectId));
     await db.delete(projects).where(eq(projects.id, second.projectId));
     await withSkillActor(actor('alice'), async () => {
-      for (const id of privateDerivatives) expect(await companySkillService(db).getById(companyId, id)).toBeNull();
+      for (const id of privateDerivatives) expect(await spaceSkillService(db).getById(spaceId, id)).toBeNull();
     });
     await db.delete(projects).where(eq(projects.id, opened.projectId));
-    await withSkillActor(actor('alice'), async () => expect(await companySkillService(db).getById(companyId, skillId)).toBeNull());
-    expect((await db.select().from(companySkills).where(eq(companySkills.id, skillId)))[0]!.accessSourceId).toBe(source.id);
+    await withSkillActor(actor('alice'), async () => expect(await spaceSkillService(db).getById(spaceId, skillId)).toBeNull());
+    expect((await db.select().from(spaceSkills).where(eq(spaceSkills.id, skillId)))[0]!.accessSourceId).toBe(source.id);
   });
 
   it.each(['copy', 'delete'] as const)('removes project tracking with %s while retaining dynamic copy/fork access', async choice => {
@@ -558,31 +558,31 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     const worker = skillSourceSyncService(db, { context: async () => context });
     await worker.tick();
     const [binding] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, row.id));
-    const service = skillSourceService(db), skills = companySkillService(db);
-    const source = await service.detail(companyId, binding!.sourceId!);
-    const original = (await skills.getById(companyId, source.entries[0]!.skillId!))!;
+    const service = skillSourceService(db), skills = spaceSkillService(db);
+    const source = await service.detail(spaceId, binding!.sourceId!);
+    const original = (await skills.getById(spaceId, source.entries[0]!.skillId!))!;
     const userId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: 'Source owner', email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: 'user', principalId: userId, membershipRole: 'member', status: 'active' });
-    await db.insert(projectAccessMembers).values({ companyId, projectId: row.projectId, subjectType: 'user', subjectId: userId });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: 'user', principalId: userId, membershipRole: 'member', status: 'active' });
+    await db.insert(projectAccessMembers).values({ spaceId, projectId: row.projectId, subjectType: 'user', subjectId: userId });
     await withSkillActor(actor(userId), async () => {
-      const fork = await skills.forkSkill(companyId, original.id, { slug: `retained-${choice}-fork` });
-      await skills.updateFile(companyId, fork.skill.id, 'SKILL.md', md('Private fork edits') + '\nConfidential original-project notes.\n');
-      const result = await service.disconnect(companyId, source.id, context, { revision: source.revision, skills: choice });
+      const fork = await skills.forkSkill(spaceId, original.id, { slug: `retained-${choice}-fork` });
+      await skills.updateFile(spaceId, fork.skill.id, 'SKILL.md', md('Private fork edits') + '\nConfidential original-project notes.\n');
+      const result = await service.disconnect(spaceId, source.id, context, { revision: source.revision, skills: choice });
       expect(result).toMatchObject({ copiedCount: choice === 'copy' ? 1 : 0, deletedCount: choice === 'delete' ? 1 : 0 });
-      await expect(service.detail(companyId, source.id)).rejects.toThrow(/not found/);
-      expect((await service.list(companyId)).some(item => item.id === source.id)).toBe(false);
-      expect((await projectSkillRepositories(db, companyId, actor(userId))).find(item => item.workspaceId === row.id)).toMatchObject({ sourceId: null, status: 'available' });
-      expect(await skills.getById(companyId, fork.skill.id)).not.toBeNull();
+      await expect(service.detail(spaceId, source.id)).rejects.toThrow(/not found/);
+      expect((await service.list(spaceId)).some(item => item.id === source.id)).toBe(false);
+      expect((await projectSkillRepositories(db, spaceId, actor(userId))).find(item => item.workspaceId === row.id)).toMatchObject({ sourceId: null, status: 'available' });
+      expect(await skills.getById(spaceId, fork.skill.id)).not.toBeNull();
       let retainedVersionId = original.currentVersionId;
       if (choice === 'copy') {
-        expect(await skills.getById(companyId, original.id)).toMatchObject({ sourceType: 'managed', sourceLocator: null, accessSourceId: source.id });
-        expect((await skills.readFile(companyId, original.id, '.paperclip-repository/private/SKILL.md'))?.content).toBe(md('retained private workflow'));
-        expect((await skills.readFile(companyId, original.id, 'SKILL.md'))?.content).toContain('.paperclip-repository/private/SKILL.md');
-        await skills.updateFile(companyId, original.id, 'SKILL.md', md('Private copy edits') + '\nConfidential original-project notes.\n');
-        retainedVersionId = (await skills.createVersion(companyId, original.id, { label: 'Private edited copy' })).id;
-      } else expect(await skills.getById(companyId, original.id)).toBeNull();
-      await db.update(companySkillSources).set({ automaticUpdates: false }).where(eq(companySkillSources.companyId, companyId));
+        expect(await skills.getById(spaceId, original.id)).toMatchObject({ sourceType: 'managed', sourceLocator: null, accessSourceId: source.id });
+        expect((await skills.readFile(spaceId, original.id, '.outpost-repository/private/SKILL.md'))?.content).toBe(md('retained private workflow'));
+        expect((await skills.readFile(spaceId, original.id, 'SKILL.md'))?.content).toContain('.outpost-repository/private/SKILL.md');
+        await skills.updateFile(spaceId, original.id, 'SKILL.md', md('Private copy edits') + '\nConfidential original-project notes.\n');
+        retainedVersionId = (await skills.createVersion(spaceId, original.id, { label: 'Private edited copy' })).id;
+      } else expect(await skills.getById(spaceId, original.id)).toBeNull();
+      await db.update(spaceSkillSources).set({ automaticUpdates: false }).where(eq(spaceSkillSources.spaceId, spaceId));
       const before = downloads.mock.calls.length;
       await worker.tick(new Date(Date.now() + 6 * 60_000));
       expect(downloads).toHaveBeenCalledTimes(before);
@@ -591,58 +591,58 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
       await worker.tick(new Date(Date.now() + 6 * 60_000));
       expect(downloads).toHaveBeenCalledTimes(before);
       const legacy = await workspace(`removed-${choice}`, 'open');
-      await db.insert(projectAccessMembers).values({ companyId, projectId: legacy.projectId, subjectType: 'user', subjectId: userId });
+      await db.insert(projectAccessMembers).values({ spaceId, projectId: legacy.projectId, subjectType: 'user', subjectId: userId });
       // This older workspace has no binding/source ID; one explicit adoption must work.
-      await adoptProjectSkillRepository(db, companyId, legacy.id, context.authorize);
+      await adoptProjectSkillRepository(db, spaceId, legacy.id, context.authorize);
       await worker.tick(new Date(Date.now() + 6 * 60_000));
-      await expect(service.detail(companyId, source.id)).rejects.toThrow(/not found/);
+      await expect(service.detail(spaceId, source.id)).rejects.toThrow(/not found/);
       const [adopted] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, legacy.id));
       expect(adopted!.status, adopted!.lastError ?? 'adopted binding').toBe('ready');
       expect(adopted!.sourceId).toBeTruthy();
       expect(adopted!.sourceId).not.toBe(source.id);
-      const restored = await service.detail(companyId, adopted!.sourceId!);
+      const restored = await service.detail(spaceId, adopted!.sourceId!);
       expect(restored.enabled).toBe(true);
       expect(restored.lastError).toBeNull();
       expect(restored.entries.filter(entry => entry.skillId)).toHaveLength(1);
       expect(restored.entries[0]!.skillId).not.toBe(original.id);
-      if (choice === 'copy') expect(await skills.getById(companyId, original.id)).toMatchObject({ key: original.key, sourceType: 'managed', currentVersionId: retainedVersionId });
+      if (choice === 'copy') expect(await skills.getById(spaceId, original.id)).toMatchObject({ key: original.key, sourceType: 'managed', currentVersionId: retainedVersionId });
       const readerId = randomUUID();
       await db.insert(authUsers).values({ id: readerId, name: 'Open project reader', email: `${readerId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-      await db.insert(companyMemberships).values({ companyId, principalType: 'user', principalId: readerId, membershipRole: 'member', status: 'active' });
+      await db.insert(spaceMemberships).values({ spaceId, principalType: 'user', principalId: readerId, membershipRole: 'member', status: 'active' });
       await withSkillActor(actor(readerId), async () => {
         const upstream = restored.entries[0]!.skillId!;
-        expect(await skills.getById(companyId, upstream)).not.toBeNull();
-        expect(await skills.getById(companyId, fork.skill.id)).toBeNull();
-        expect(await skills.readFile(companyId, fork.skill.id, 'SKILL.md')).toBeNull();
+        expect(await skills.getById(spaceId, upstream)).not.toBeNull();
+        expect(await skills.getById(spaceId, fork.skill.id)).toBeNull();
+        expect(await skills.readFile(spaceId, fork.skill.id, 'SKILL.md')).toBeNull();
         if (choice === 'copy') {
-          expect(await skills.getById(companyId, original.id)).toBeNull();
-          expect(await skills.readFile(companyId, original.id, 'SKILL.md')).toBeNull();
-          expect(await skills.getVersion(companyId, original.id, retainedVersionId!)).toBeNull();
+          expect(await skills.getById(spaceId, original.id)).toBeNull();
+          expect(await skills.readFile(spaceId, original.id, 'SKILL.md')).toBeNull();
+          expect(await skills.getVersion(spaceId, original.id, retainedVersionId!)).toBeNull();
         }
-        expect((await skills.readFile(companyId, upstream, '.paperclip-repository/private/SKILL.md'))?.content).not.toContain('Confidential');
+        expect((await skills.readFile(spaceId, upstream, '.outpost-repository/private/SKILL.md'))?.content).not.toContain('Confidential');
         // A guessed hidden slug cannot replace or erase someone else's private fork.
-        const publicFork = await skills.forkSkill(companyId, upstream, { slug: `retained-${choice}-fork` });
+        const publicFork = await skills.forkSkill(spaceId, upstream, { slug: `retained-${choice}-fork` });
         expect(publicFork.skill.id).not.toBe(fork.skill.id);
         expect(publicFork.skill.slug).not.toBe(fork.skill.slug);
       });
-      expect((await skills.readFile(companyId, fork.skill.id, 'SKILL.md'))?.content).toContain('Confidential original-project notes');
+      expect((await skills.readFile(spaceId, fork.skill.id, 'SKILL.md'))?.content).toContain('Confidential original-project notes');
       // Explicit adoption of the original workspace also moves tracking, not provenance.
-      await adoptProjectSkillRepository(db, companyId, row.id, context.authorize);
+      await adoptProjectSkillRepository(db, spaceId, row.id, context.authorize);
       await worker.tick(new Date(Date.now() + 6 * 60_000));
       const [rebound] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, row.id));
       expect(rebound!.sourceId).toBe(restored.id);
-      expect(await skills.getById(companyId, fork.skill.id)).not.toBeNull();
+      expect(await skills.getById(spaceId, fork.skill.id)).not.toBeNull();
       await db.delete(projects).where(eq(projects.id, legacy.projectId));
       await db.delete(projectAccessMembers).where(and(eq(projectAccessMembers.projectId, row.projectId), eq(projectAccessMembers.subjectId, userId)));
-      expect(await skills.getById(companyId, fork.skill.id)).toBeNull();
-      if (choice === 'copy') expect(await skills.getById(companyId, original.id)).toBeNull();
+      expect(await skills.getById(spaceId, fork.skill.id)).toBeNull();
+      if (choice === 'copy') expect(await skills.getById(spaceId, original.id)).toBeNull();
       await db.delete(projects).where(eq(projects.id, row.projectId));
-      expect(await skills.getById(companyId, fork.skill.id)).toBeNull();
+      expect(await skills.getById(spaceId, fork.skill.id)).toBeNull();
     });
   });
 
   it('recovers expired jobs, competes through durable leases and respects failed-refresh backoff', async () => {
-    await db.update(companySkillSources).set({ automaticUpdates: false });
+    await db.update(spaceSkillSources).set({ automaticUpdates: false });
     files = { 'leased/SKILL.md': md('leased') }; commit = 'f'.repeat(40);
     const row = await workspace('leased');
     const binding = await enqueueProjectSkillSource(db, row);
@@ -663,29 +663,29 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     const [ready] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.id, binding!.id));
     const sourceId = ready!.sourceId!;
     const service = skillSourceService(db);
-    const original = await service.detail(companyId, sourceId);
+    const original = await service.detail(spaceId, sourceId);
     const rateLimited = async () => {
       throw unprocessable('GitHub request limit reached.', { retryAfterMs: 7_200_000 });
     };
     const failure: SkillSourceContext = { ...context, read: () => Object.assign(rateLimited, { openSnapshot: rateLimited }) };
     const failedAt = new Date();
-    await db.update(companySkillSources).set({ nextSyncAt: failedAt }).where(eq(companySkillSources.id, sourceId));
+    await db.update(spaceSkillSources).set({ nextSyncAt: failedAt }).where(eq(spaceSkillSources.id, sourceId));
     await skillSourceSyncService(db, { context: async () => failure }).tick(failedAt);
-    const [failed] = await db.select().from(companySkillSources).where(eq(companySkillSources.id, sourceId));
+    const [failed] = await db.select().from(spaceSkillSources).where(eq(spaceSkillSources.id, sourceId));
     expect(failed!.failureCount).toBe(1);
     expect(failed!.nextSyncAt.getTime() - failedAt.getTime()).toBeGreaterThanOrEqual(7_200_000);
-    expect((await service.detail(companyId, sourceId)).entries[0]!.skillId).toBe(original.entries[0]!.skillId);
+    expect((await service.detail(spaceId, sourceId)).entries[0]!.skillId).toBe(original.entries[0]!.skillId);
     const retryRead = vi.fn(context.read);
     await skillSourceSyncService(db, { context: async () => ({ ...context, read: retryRead }) })
       .tick(new Date(failedAt.getTime() + 6 * 60_000));
     expect(retryRead).not.toHaveBeenCalled();
-    await db.update(companySkillSources).set({ automaticUpdates: false, nextSyncAt: new Date() }).where(eq(companySkillSources.id, sourceId));
+    await db.update(spaceSkillSources).set({ automaticUpdates: false, nextSyncAt: new Date() }).where(eq(spaceSkillSources.id, sourceId));
     await skillSourceSyncService(db, { context: async () => ({ ...context, read: retryRead }) }).tick();
     expect(retryRead).not.toHaveBeenCalled();
   });
 
   it('skips live leases before bounding import and refresh batches', async () => {
-    await db.update(companySkillSources).set({ automaticUpdates: false });
+    await db.update(spaceSkillSources).set({ automaticUpdates: false });
     files = { 'fair/SKILL.md': md('fair') }; commit = '9'.repeat(40);
     const now = new Date();
     const expires = new Date(now.getTime() + 60 * 60_000);
@@ -708,21 +708,21 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
       expect(job).toMatchObject({ sourceId: null, leaseExpiresAt: expires, status: 'pending' });
     }
 
-    const [template] = await db.select().from(companySkillSources).where(eq(companySkillSources.id, imported!.sourceId!));
-    await db.update(companySkillSources).set({ automaticUpdates: false });
+    const [template] = await db.select().from(spaceSkillSources).where(eq(spaceSkillSources.id, imported!.sourceId!));
+    await db.update(spaceSkillSources).set({ automaticUpdates: false });
     const readySourceId = randomUUID();
-    await db.insert(companySkillSources).values(Array.from({ length: 11 }, (_, index) => ({
+    await db.insert(spaceSkillSources).values(Array.from({ length: 11 }, (_, index) => ({
       ...template!, id: index === 10 ? readySourceId : randomUUID(), trackingRef: `fair-refresh-${index}`,
-      accessScope: 'company' as const, automaticUpdates: true, nextSyncAt: new Date(now.getTime() - (20 - index) * 1_000),
+      accessScope: 'space' as const, automaticUpdates: true, nextSyncAt: new Date(now.getTime() - (20 - index) * 1_000),
       leaseToken: index === 10 ? null : randomUUID(), leaseExpiresAt: index === 10 ? null : expires,
     })));
     expect((await worker.tick(now)).checked).toBe(1);
-    const [refreshed] = await db.select().from(companySkillSources).where(eq(companySkillSources.id, readySourceId));
+    const [refreshed] = await db.select().from(spaceSkillSources).where(eq(spaceSkillSources.id, readySourceId));
     expect(refreshed!.nextSyncAt.getTime()).toBeGreaterThan(now.getTime());
   });
 
   it('releases interrupted initial imports so a new worker can recover them', async () => {
-    await db.update(companySkillSources).set({ automaticUpdates: false });
+    await db.update(spaceSkillSources).set({ automaticUpdates: false });
     files = { 'recovered/SKILL.md': md('recovered') }; commit = '1'.repeat(40);
     const row = await workspace('restart');
     const binding = await enqueueProjectSkillSource(db, row);
@@ -750,53 +750,53 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
   });
 
   it('keeps deleted setup agents attributable and requires explicit connection repair', async () => {
-    await db.update(companySkillSources).set({ automaticUpdates: false });
+    await db.update(spaceSkillSources).set({ automaticUpdates: false });
     files = { 'owned/SKILL.md': md('owned') }; commit = '2'.repeat(40);
     const row = await workspace('deleted-owner');
-    const [owner] = await db.insert(agents).values({ companyId, name: 'Source setup agent', adapterType: 'codex_local', status: 'idle' }).returning();
+    const [owner] = await db.insert(agents).values({ spaceId, name: 'Source setup agent', adapterType: 'codex_local', status: 'idle' }).returning();
     await enqueueProjectSkillSource(db, row);
-    const ownerContext: SkillSourceContext = { ...context, setup: { userId: 'local-board', localTrusted: true, agentId: owner!.id } };
+    const ownerContext: SkillSourceContext = { ...context, setup: { userId: 'local-operator', localTrusted: true, agentId: owner!.id } };
     await skillSourceSyncService(db, { context: async () => ownerContext }).tick();
     const [binding] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, row.id));
     const sourceId = binding!.sourceId!;
     await db.delete(agents).where(eq(agents.id, owner!.id));
-    await db.update(companySkillSources).set({ nextSyncAt: new Date() }).where(eq(companySkillSources.id, sourceId));
-    const [before] = await db.select().from(companySkillSources).where(eq(companySkillSources.id, sourceId));
+    await db.update(spaceSkillSources).set({ nextSyncAt: new Date() }).where(eq(spaceSkillSources.id, sourceId));
+    const [before] = await db.select().from(spaceSkillSources).where(eq(spaceSkillSources.id, sourceId));
     expect(before!.refreshAgentId).toBe(owner!.id);
     await skillSourceSyncService(db).tick();
-    const [failed] = await db.select().from(companySkillSources).where(eq(companySkillSources.id, sourceId));
+    const [failed] = await db.select().from(spaceSkillSources).where(eq(spaceSkillSources.id, sourceId));
     expect(failed!.lastError).toContain('agent who connected');
     expect(failed!.failureCount).toBe(1);
-    expect((await skillSourceService(db).detail(companyId, sourceId)).entries[0]!.skillId).toBeTruthy();
+    expect((await skillSourceService(db).detail(spaceId, sourceId)).entries[0]!.skillId).toBeTruthy();
   });
 
   it('backs off a policy denial before acquiring a source lease', async () => {
-    await db.update(companySkillSources).set({ automaticUpdates: false });
+    await db.update(spaceSkillSources).set({ automaticUpdates: false });
     files = { 'policy/SKILL.md': md('policy') }; commit = '3'.repeat(40);
     const row = await workspace('policy-denial');
     await enqueueProjectSkillSource(db, row);
     await skillSourceSyncService(db, { context: async () => context }).tick();
     const [binding] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, row.id));
     const now = new Date();
-    await db.update(companySkillSources).set({ nextSyncAt: now }).where(eq(companySkillSources.id, binding!.sourceId!));
-    const authorize = vi.fn(async () => { throw unprocessable('Automatic updates are denied by company policy.'); });
+    await db.update(spaceSkillSources).set({ nextSyncAt: now }).where(eq(spaceSkillSources.id, binding!.sourceId!));
+    const authorize = vi.fn(async () => { throw unprocessable('Automatic updates are denied by space policy.'); });
     const worker = skillSourceSyncService(db, { context: async () => ({ ...context, authorize }) });
     await worker.tick(now);
-    const [failed] = await db.select().from(companySkillSources).where(eq(companySkillSources.id, binding!.sourceId!));
-    expect(failed).toMatchObject({ failureCount: 1, leaseToken: null, lastError: 'Automatic updates are denied by company policy.' });
+    const [failed] = await db.select().from(spaceSkillSources).where(eq(spaceSkillSources.id, binding!.sourceId!));
+    expect(failed).toMatchObject({ failureCount: 1, leaseToken: null, lastError: 'Automatic updates are denied by space policy.' });
     expect(failed!.nextSyncAt.getTime()).toBeGreaterThan(now.getTime());
     await worker.tick(new Date(now.getTime() + 1000));
     expect(authorize).toHaveBeenCalledTimes(1);
   });
 
   it('uses bounded skill packages when a tracked repository outgrows the repository limit', async () => {
-    await db.update(companySkillSources).set({ automaticUpdates: false });
+    await db.update(spaceSkillSources).set({ automaticUpdates: false });
     files = { 'small/SKILL.md': md('small') }; commit = '4'.repeat(40);
     const row = await workspace('growing-repository');
     await enqueueProjectSkillSource(db, row);
     await skillSourceSyncService(db, { context: async () => context }).tick();
     const [binding] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, row.id));
-    const service = skillSourceService(db), original = await service.detail(companyId, binding!.sourceId!);
+    const service = skillSourceService(db), original = await service.detail(spaceId, binding!.sourceId!);
     expect(original.packageMode).toBe('repository');
     const skillId = original.entries[0]!.skillId!;
     files['small/SKILL.md'] = md('small updated'); commit = '5'.repeat(40);
@@ -809,22 +809,22 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
       };
       return fixture;
     } };
-    const result = await service.refresh(companyId, original.id, growing);
+    const result = await service.refresh(spaceId, original.id, growing);
     expect(result.source.packageMode).toBe('repository');
     expect(result.warnings.join(' ')).toContain('repository exceeds');
     expect(result.source.entries[0]!.skillId).toBe(skillId);
     expect(result.updated).toHaveLength(1);
     files = { 'small/SKILL.md': md('small with shared guide') + '\nRead [guide](../shared/guide.md).', 'shared/guide.md': 'Now fits in the repository package.' };
     commit = '6'.repeat(40);
-    const complete = await service.refresh(companyId, original.id, context);
+    const complete = await service.refresh(spaceId, original.id, context);
     expect(complete.source.packageMode).toBe('repository');
     expect(complete.source.entries.find(entry => entry.path === 'small/SKILL.md')!.skillId).toBe(skillId);
-    expect((await companySkillService(db).readFile(companyId, skillId, '.paperclip-repository/shared/guide.md'))?.content)
+    expect((await spaceSkillService(db).readFile(spaceId, skillId, '.outpost-repository/shared/guide.md'))?.content)
       .toBe('Now fits in the repository package.');
   });
 
   it('enqueues repository changes atomically, leaves ordinary legacy edits alone and retains old references', async () => {
-    await db.update(companySkillSources).set({ automaticUpdates: false });
+    await db.update(spaceSkillSources).set({ automaticUpdates: false });
     const legacy = await workspace('lifecycle');
     const service = projectService(db, { captureWorkspaceUpdates: false });
     await service.updateWorkspace(legacy.projectId, legacy.id, { name: 'Renamed older workspace' });
@@ -844,9 +844,9 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     const worker = skillSourceSyncService(db, { context: async () => context });
     await worker.tick();
     const [originalBinding] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, created.id));
-    const source = await skillSourceService(db).detail(companyId, originalBinding!.sourceId!);
+    const source = await skillSourceService(db).detail(spaceId, originalBinding!.sourceId!);
     const skillId = source.entries[0]!.skillId!;
-    const versionId = (await companySkillService(db).getById(companyId, skillId))!.currentVersionId;
+    const versionId = (await spaceSkillService(db).getById(spaceId, skillId))!.currentVersionId;
 
     await service.updateWorkspace(legacy.projectId, created.id, { defaultRef: 'lifecycle-next' });
     await worker.tick();
@@ -855,61 +855,61 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     expect(bindings.find(binding => binding.id === originalBinding!.id)?.active).toBe(false);
     const current = bindings.find(binding => binding.active)!;
     expect(current.sourceId).not.toBe(source.id);
-    const retained = (await companySkillService(db).getById(companyId, skillId))!;
+    const retained = (await spaceSkillService(db).getById(spaceId, skillId))!;
     expect(retained.currentVersionId).toBe(versionId);
-    const newSource = await skillSourceService(db).detail(companyId, current.sourceId!);
+    const newSource = await skillSourceService(db).detail(spaceId, current.sourceId!);
     expect(newSource.entries[0]!.skillId).not.toBe(skillId);
 
     await service.updateWorkspace(legacy.projectId, created.id, { defaultRef: 'lifecycle-next' });
     expect(await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, created.id))).toHaveLength(2);
     await service.removeWorkspace(legacy.projectId, created.id);
-    expect(await skillSourceService(db).detail(companyId, current.sourceId!)).toMatchObject({ trackingActive: false });
-    expect(await companySkillService(db).getById(companyId, skillId)).not.toBeNull();
+    expect(await skillSourceService(db).detail(spaceId, current.sourceId!)).toMatchObject({ trackingActive: false });
+    expect(await spaceSkillService(db).getById(spaceId, skillId)).not.toBeNull();
   });
 
   it('lets API-key agents attach repositories without inventing a setup person', async () => {
-    await db.update(companySkillSources).set({ automaticUpdates: false });
+    await db.update(spaceSkillSources).set({ automaticUpdates: false });
     const project = await workspace('key-agent-parent');
-    const [agent] = await db.insert(agents).values({ companyId, name: 'API-key project creator', adapterType: 'codex_local', status: 'idle' }).returning();
-    const keyActor: AuthorizationActor = { type: 'agent', source: 'agent_key', agentId: agent!.id, companyId, onBehalfOfUserId: 'unverified-person' };
+    const [agent] = await db.insert(agents).values({ spaceId, name: 'API-key project creator', adapterType: 'codex_local', status: 'idle' }).returning();
+    const keyActor: AuthorizationActor = { type: 'agent', source: 'agent_key', agentId: agent!.id, spaceId, onBehalfOfUserId: 'unverified-person' };
     const attached = await withSkillActor(keyActor, () => projectService(db, { captureWorkspaceUpdates: false }).createWorkspace(project.projectId,
       { repoUrl: 'https://github.com/acme/skills', defaultRef: 'key-agent' }));
     expect(attached).not.toBeNull();
     const [binding] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, attached!.id));
     expect(binding).toMatchObject({ status: 'pending', refreshUserId: null, refreshAgentId: agent!.id, refreshLocalTrusted: false, sourceId: null });
-    await detachProjectSkillSource(db, companyId, attached!.id);
+    await detachProjectSkillSource(db, spaceId, attached!.id);
   });
 
   it('requires connection repair before scheduled refresh of API-key public imports', async () => {
-    await db.update(companySkillSources).set({ automaticUpdates: false });
+    await db.update(spaceSkillSources).set({ automaticUpdates: false });
     files = {};
-    const [agent] = await db.insert(agents).values({ companyId, name: 'API-key source importer', adapterType: 'codex_local', status: 'idle' }).returning();
-    const setup = await projectSkillSetupIdentity(db, companyId, { type: 'agent', source: 'agent_key', companyId,
-      agentId: agent!.id, onBehalfOfUserId: 'local-board' });
-    const imported = await skillSourceService(db).create(companyId, { repositoryUrl: 'https://github.com/acme/skills',
+    const [agent] = await db.insert(agents).values({ spaceId, name: 'API-key source importer', adapterType: 'codex_local', status: 'idle' }).returning();
+    const setup = await projectSkillSetupIdentity(db, spaceId, { type: 'agent', source: 'agent_key', spaceId,
+      agentId: agent!.id, onBehalfOfUserId: 'local-operator' });
+    const imported = await skillSourceService(db).create(spaceId, { repositoryUrl: 'https://github.com/acme/skills',
       trackingRef: 'key-generic-public', commitSha: commit, selectedPaths: [] }, { ...context,
       actor: { type: 'agent', agentId: agent!.id }, setup: { userId: setup.refreshUserId, agentId: setup.refreshAgentId, localTrusted: setup.refreshLocalTrusted } });
-    const [stored] = await db.select().from(companySkillSources).where(eq(companySkillSources.id, imported.source.id));
+    const [stored] = await db.select().from(spaceSkillSources).where(eq(spaceSkillSources.id, imported.source.id));
     expect(stored).toMatchObject({ refreshUserId: null, refreshAgentId: agent!.id, refreshLocalTrusted: false, connectionId: null });
-    await db.insert(activityLog).values({ companyId, actorType: 'agent', actorId: agent!.id, agentId: agent!.id,
-      responsibleUserId: 'local-board', action: 'company.skill_source_refreshed', entityType: 'company_skill_source', entityId: imported.source.id });
+    await db.insert(activityLog).values({ spaceId, actorType: 'agent', actorId: agent!.id, agentId: agent!.id,
+      responsibleUserId: 'local-operator', action: 'space.skill_source_refreshed', entityType: 'space_skill_source', entityId: imported.source.id });
     await skillSourceSyncService(db).tick(new Date(Date.now() + 6 * 60_000));
-    const [checked] = await db.select().from(companySkillSources).where(eq(companySkillSources.id, imported.source.id));
+    const [checked] = await db.select().from(spaceSkillSources).where(eq(spaceSkillSources.id, imported.source.id));
     expect(checked!.lastError).toMatch(/Choose a GitHub connection/);
     expect(checked!.refreshUserId).toBeNull();
     expect(checked!.lastSuccessAt).toEqual(stored!.lastSuccessAt);
     // Migrated sources may lack refreshAgentId; API-key audit responsibility
     // still cannot stand in for an authenticated run's credential authority.
-    await db.update(companySkillSources).set({ refreshAgentId: null }).where(eq(companySkillSources.id, imported.source.id));
+    await db.update(spaceSkillSources).set({ refreshAgentId: null }).where(eq(spaceSkillSources.id, imported.source.id));
     await skillSourceSyncService(db).tick(new Date(Date.now() + 12 * 60_000));
-    const [legacy] = await db.select().from(companySkillSources).where(eq(companySkillSources.id, imported.source.id));
+    const [legacy] = await db.select().from(spaceSkillSources).where(eq(spaceSkillSources.id, imported.source.id));
     expect(legacy!.refreshUserId).toBeNull();
     expect(legacy!.lastError).toMatch(/Choose a GitHub connection/);
 
   });
 
   it('follows a changed default branch while an explicit branch remains fixed', async () => {
-    await db.update(companySkillSources).set({ automaticUpdates: false });
+    await db.update(spaceSkillSources).set({ automaticUpdates: false });
     let defaultBranch = 'main';
     const originalFiles = { 'workflow/SKILL.md': md('original default') }, nextFiles = { 'workflow/SKILL.md': md('new default') };
     const moving: SkillSourceContext = { ...context, read: () => {
@@ -927,10 +927,10 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     await worker.tick();
     const [defaultBinding] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.workspaceId, implicit.id));
     const sourceService = skillSourceService(db);
-    const original = await sourceService.detail(companyId, defaultBinding!.sourceId!);
+    const original = await sourceService.detail(spaceId, defaultBinding!.sourceId!);
     expect(original.trackingRef).toBe('HEAD');
     const skillId = original.entries[0]!.skillId!;
-    const versionId = (await companySkillService(db).getById(companyId, skillId))!.currentVersionId;
+    const versionId = (await spaceSkillService(db).getById(spaceId, skillId))!.currentVersionId;
 
     const explicit = await workspace('main');
     await enqueueProjectSkillSource(db, explicit);
@@ -939,12 +939,12 @@ describe.skipIf(!support.supported)('automatic project skill sources', () => {
     expect(fixedBinding!.sourceId).not.toBe(original.id);
     defaultBranch = 'next-default';
     await worker.tick(new Date(Date.now() + 6 * 60_000));
-    expect(await sourceService.detail(companyId, original.id)).toMatchObject({ trackingRef: 'HEAD', lastScanCommit: '8'.repeat(40) });
-    expect(await sourceService.detail(companyId, fixedBinding!.sourceId!)).toMatchObject({ trackingRef: 'main', lastScanCommit: '7'.repeat(40) });
-    const latest = (await companySkillService(db).getById(companyId, skillId))!;
+    expect(await sourceService.detail(spaceId, original.id)).toMatchObject({ trackingRef: 'HEAD', lastScanCommit: '8'.repeat(40) });
+    expect(await sourceService.detail(spaceId, fixedBinding!.sourceId!)).toMatchObject({ trackingRef: 'main', lastScanCommit: '7'.repeat(40) });
+    const latest = (await spaceSkillService(db).getById(spaceId, skillId))!;
     expect(latest.currentVersionId).not.toBe(versionId);
     expect(latest.markdown).toBe(md('new default'));
-    expect((await companySkillService(db).getVersion(companyId, skillId, versionId!))!.fileInventory[0]!.content).toBe(md('original default'));
+    expect((await spaceSkillService(db).getVersion(spaceId, skillId, versionId!))!.fileInventory[0]!.content).toBe(md('original default'));
     const repeated = await workspace('HEAD');
     await enqueueProjectSkillSource(db, repeated);
     await worker.tick();

@@ -8,7 +8,7 @@ import type { ManagedGitInspectionDiagnostic, PersistedWorkspaceSourceReasonCode
 
 const exec = promisify(execFile);
 type SourceWorkspace = Pick<ExecutionWorkspace,
-  "id" | "companyId" | "projectId" | "projectWorkspaceId" | "repoUrl" | "baseRef" | "cwd" | "providerRef"
+  "id" | "spaceId" | "projectId" | "projectWorkspaceId" | "repoUrl" | "baseRef" | "cwd" | "providerRef"
 >;
 
 function fail(workspace: SourceWorkspace, reasonCode: PersistedWorkspaceSourceReasonCode): never {
@@ -100,22 +100,22 @@ async function canMaterializeManagedCandidate(root: string, candidate: string): 
 
 /** Source candidates come from scoped project state and the instance's managed path generator, never Git output. */
 export async function resolvePersistedGitWorkspaceSource(input: {
-  companyId: string;
+  spaceId: string;
   projectId: string | null;
   explicitProjectWorkspaceId: string | null;
   workspace: SourceWorkspace;
-  boundProjectWorkspace: { id: string; companyId: string; projectId: string; cwd: string | null } | null;
+  boundProjectWorkspace: { id: string; spaceId: string; projectId: string; cwd: string | null } | null;
   candidateBaseCwds: string[];
   managedSourceRoot: string;
   materializeOriginalRepository?: () => Promise<string>;
 }): Promise<string> {
   const workspace = input.workspace;
-  if (workspace.companyId !== input.companyId || workspace.projectId !== input.projectId) {
+  if (workspace.spaceId !== input.spaceId || workspace.projectId !== input.projectId) {
     fail(workspace, "source_scope_mismatch");
   }
   const binding = input.boundProjectWorkspace;
   if ((workspace.projectWorkspaceId && !binding) || (binding && (binding.id !== workspace.projectWorkspaceId
-    || binding.companyId !== input.companyId || binding.projectId !== workspace.projectId))) {
+    || binding.spaceId !== input.spaceId || binding.projectId !== workspace.projectId))) {
     fail(workspace, "source_scope_mismatch");
   }
   if (input.explicitProjectWorkspaceId && input.explicitProjectWorkspaceId !== workspace.projectWorkspaceId) {

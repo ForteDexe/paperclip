@@ -17,7 +17,7 @@ export const RUNNER_ATTACHMENT_DOWNLOAD_PATH = "/api/runtime/runner/attachment";
 const maxBytes = Math.min(MAX_ATTACHMENT_BYTES, 10 * 1024 * 1024);
 const ttlMs = 30_000;
 const claimsSchema = z.object({
-  companyId: z.uuid(), issueId: z.uuid(), runId: z.uuid(), agentId: z.uuid(),
+  spaceId: z.uuid(), issueId: z.uuid(), runId: z.uuid(), agentId: z.uuid(),
   attachmentId: z.uuid(), sourceCommentId: z.uuid(),
   kind: z.enum(["wake", "history"]),
   turnId: z.string().min(1).max(160),
@@ -58,7 +58,7 @@ export function createRunnerAttachmentGrant(
 ) {
   const secret = signingSecret(env);
   const claims = claimsSchema.parse({
-    companyId: binding.companyId, issueId: binding.issueId, runId: binding.runId, agentId: binding.agentId,
+    spaceId: binding.spaceId, issueId: binding.issueId, runId: binding.runId, agentId: binding.agentId,
     ...source, turnId, sha256: source.sha256.toLowerCase(), expiresAt: now + ttlMs,
   });
   if (!secret) throw new Error("runner_attachment_download_secret_unavailable");
@@ -86,7 +86,7 @@ export function verifyRunnerAttachmentGrant(token: string, env: NodeJS.ProcessEn
 async function authorizedSource(db: Db, claims: z.infer<typeof claimsSchema>) {
   if (claims.kind === "history") {
     const [run] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, claims.companyId), eq(heartbeatRuns.id, claims.runId),
+      eq(heartbeatRuns.spaceId, claims.spaceId), eq(heartbeatRuns.id, claims.runId),
       eq(heartbeatRuns.nativeIssueId, claims.issueId), eq(heartbeatRuns.agentId, claims.agentId),
       eq(heartbeatRuns.runtimeMode, "native"), eq(heartbeatRuns.status, "running"),
     )).limit(1);
@@ -100,9 +100,9 @@ async function authorizedSource(db: Db, claims: z.infer<typeof claimsSchema>) {
   const [attachment] = await db.select({
     objectKey: assets.objectKey, contentType: assets.contentType, byteSize: assets.byteSize, sha256: assets.sha256,
   }).from(issueAttachments).innerJoin(assets, and(
-    eq(assets.id, issueAttachments.assetId), eq(assets.companyId, claims.companyId),
+    eq(assets.id, issueAttachments.assetId), eq(assets.spaceId, claims.spaceId),
   )).where(and(
-    eq(issueAttachments.companyId, claims.companyId), eq(issueAttachments.issueId, claims.issueId),
+    eq(issueAttachments.spaceId, claims.spaceId), eq(issueAttachments.issueId, claims.issueId),
     eq(issueAttachments.id, claims.attachmentId), eq(issueAttachments.issueCommentId, claims.sourceCommentId),
   )).limit(1);
   return attachment ?? null;
@@ -123,7 +123,7 @@ export function runnerAttachmentDownloadRoutes(db: Db, storage: StorageService, 
         return;
       }
       const body = await readBoundedStorageObject({
-        storage, companyId: claims.companyId, objectKey: source.objectKey,
+        storage, spaceId: claims.spaceId, objectKey: source.objectKey,
         expectedByteSize: claims.byteSize, expectedSha256: claims.sha256,
         allowEmpty: claims.kind === "history", signal: AbortSignal.timeout(8_000),
       });

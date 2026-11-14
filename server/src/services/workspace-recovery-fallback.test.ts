@@ -31,7 +31,7 @@ vi.mock("./environment-execution-target.js", async importOriginal => {
 });
 
 // Recovery text never asks a person to inspect or fix a sandbox.
-const adminText = /sandbox|environment|administrator|board member|owner must|inspect the run/i;
+const adminText = /sandbox|environment|administrator|operator member|owner must|inspect the run/i;
 const workspace = async (id: string) => (await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, id)))[0]!;
 
 describe("retained source fallback", () => {
@@ -64,9 +64,9 @@ describe("retained source fallback", () => {
     const finished = (await run(f.runId)).finishedAt!;
     await db.update(issues).set({ blockedTransitionAt: new Date(finished.getTime() + 100) }).where(eq(issues.id, f.issueId));
     await db.update(issueRecoveryActions).set({ createdAt: finished }).where(eq(issueRecoveryActions.id, f.actionId));
-    const [parent] = await db.insert(issues).values({ companyId: f.companyId, title: "Parent task" }).returning();
+    const [parent] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Parent task" }).returning();
     await db.update(issues).set({ parentId: parent.id }).where(eq(issues.id, f.issueId));
-    await db.insert(environmentLeases).values({ companyId: f.companyId, environmentId: lease.environmentId, issueId: parent.id,
+    await db.insert(environmentLeases).values({ spaceId: f.spaceId, environmentId: lease.environmentId, issueId: parent.id,
       provider: "daytona", providerLeaseId: f.providerLeaseId, status: "expired", leasePolicy: "reuse_by_environment",
       cleanupStatus: "success", releasedAt: new Date(), metadata: { remoteCwd: path.dirname(f.remote) } });
     await db.update(nativeRunFinalizations).set({ failureCode: "native_workspace_sync_out_retry_exhausted" })
@@ -77,7 +77,7 @@ describe("retained source fallback", () => {
     if (saved === "old_release") {
       // The exact shape saved by the Nov 3-6 releases.
       const current = readSystemRecovery((await action(f.actionId)).evidence)!;
-      await db.update(issueRecoveryActions).set({ ownerType: "board", nextAction: oldMessage, evidence: { ...(await action(f.actionId)).evidence,
+      await db.update(issueRecoveryActions).set({ ownerType: "operator", nextAction: oldMessage, evidence: { ...(await action(f.actionId)).evidence,
         systemRecovery: { ...current, revision: current.revision + 5, phase: "verify_execution", state: "exhausted", attempts: 1,
           attemptId: randomUUID(), firstFailureAt: Date.now() - 60_000, deadlineAt: Date.now() + 60_000, nextAttemptAt: null,
           failure: { code: "allocation_ownership_ambiguous", retryClass: "service_required", evidenceFingerprint: "a".repeat(64) } },
@@ -88,12 +88,12 @@ describe("retained source fallback", () => {
     return { ...f, snapshotId: checkpoint.snapshotId, parentIssueId: parent.id };
   }
 
-  async function continuationBlock(f: { companyId: string; issueId: string; runId: string }) {
+  async function continuationBlock(f: { spaceId: string; issueId: string; runId: string }) {
     const source = await run(f.runId);
-    const [comment] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+    const [comment] = await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
       authorType: "user", authorUserId: "operator", body: "Please continue" }).returning();
     const reasons: string[] = [];
-    await admitExplicitNativeContinuation({ db, companyId: f.companyId, issueId: f.issueId, agentId: source.agentId,
+    await admitExplicitNativeContinuation({ db, spaceId: f.spaceId, issueId: f.issueId, agentId: source.agentId,
       actorType: "user", actorId: "operator", reason: "issue_commented", commentId: comment.id, successorRunId: randomUUID(),
       dryRun: true, onBlocked: reason => reasons.push(reason) });
     return reasons;
@@ -101,13 +101,13 @@ describe("retained source fallback", () => {
 
   it.each(["old_release", "fresh"] as const)("continues a cross-task retained hold (%s) from the last save, quarantined and without reusing its root", async saved => {
     const f = await unverifiableRetainedSource(saved);
-    expect((await getExecutionBlocker(db, f.companyId, f.issueId))?.workspaceRepairRequired).toBe(true);
+    expect((await getExecutionBlocker(db, f.spaceId, f.issueId))?.workspaceRepairRequired).toBe(true);
     if (saved === "fresh") {
       // A current release records which Blocked status version this hold owns.
       const [task] = await db.select().from(issues).where(eq(issues.id, f.issueId));
       const source = await run(f.runId);
       await db.update(issueRecoveryActions).set({ evidence: { ...(await action(f.actionId)).evidence, workspaceFinalizationBlock: {
-        schema: "outpost.native-workspace-finalization-block.v1", companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+        schema: "outpost.native-workspace-finalization-block.v1", spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
         agentId: source.agentId, resultId: f.resultId, resultSha256: "result", contractId: source.completionContractId,
         contractSha256: "contract", identityContextId: null, responsibleUserId: null,
         statusVersion: Number(task.statusVersion), priorDecisionId: task.lastStatusDecisionId } } })
@@ -133,10 +133,10 @@ describe("retained source fallback", () => {
     const quarantine = (decision.retainedSourceFallback as { quarantine: { attachmentId: string; sha256: string } }).quarantine;
     const [attachment] = await db.select({ asset: assets }).from(issueAttachments)
       .innerJoin(assets, eq(assets.id, issueAttachments.assetId)).where(eq(issueAttachments.id, quarantine.attachmentId));
-    expect(attachment.asset).toMatchObject({ companyId: f.companyId, sha256: quarantine.sha256, contentType: "application/x-tar" });
+    expect(attachment.asset).toMatchObject({ spaceId: f.spaceId, sha256: quarantine.sha256, contentType: "application/x-tar" });
     const scratch = await mkdtemp(path.join(os.tmpdir(), "quarantine-check-"));
     try {
-      const object = await getStorageService().getObject(f.companyId, attachment.asset.objectKey);
+      const object = await getStorageService().getObject(f.spaceId, attachment.asset.objectKey);
       const chunks: Buffer[] = [];
       for await (const chunk of object.stream) chunks.push(chunk as Buffer);
       await writeFile(path.join(scratch, "files.tar"), Buffer.concat(chunks));
@@ -155,7 +155,7 @@ describe("retained source fallback", () => {
     expect(abandoned.providerRef).toBeNull();
 
     // Every gate is settled: the task hold, the repair flag and the saved-work wait.
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0].status).toBe("todo");
     expect(String(decision.workspaceRepairEvidence).length).toBeGreaterThanOrEqual(20);
     expect(await continuationBlock(f)).not.toEqual(expect.arrayContaining(["saved_work_recovery_failed"]));
@@ -173,13 +173,13 @@ describe("retained source fallback", () => {
     // The next writer restores the last save into a new root; the old root is untouched.
     const source = await run(f.runId);
     const nextRunId = randomUUID(), nextLeaseId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: nextRunId, companyId: f.companyId, agentId: source.agentId, issueId: f.issueId,
+    await db.insert(heartbeatRuns).values({ id: nextRunId, spaceId: f.spaceId, agentId: source.agentId, issueId: f.issueId,
       nativeIssueId: f.issueId, runtimeMode: "native", status: "running", contextSnapshot: { issueId: f.issueId } });
     const storage = { ...getStorageService(), provider: "s3" as const };
-    const reserved = await reserveRemoteWorkspace({ db, storage, companyId: f.companyId, issueId: f.issueId, runId: nextRunId,
+    const reserved = await reserveRemoteWorkspace({ db, storage, spaceId: f.spaceId, issueId: f.issueId, runId: nextRunId,
       agentId: source.agentId, environmentId: f.lease.environmentId!, projectId: null, projectWorkspaceId: null,
       existingWorkspaceId: f.workspaceId, source: { kind: "empty" } });
-    const [nextLease] = await db.insert(environmentLeases).values({ id: nextLeaseId, companyId: f.companyId, issueId: f.issueId,
+    const [nextLease] = await db.insert(environmentLeases).values({ id: nextLeaseId, spaceId: f.spaceId, issueId: f.issueId,
       heartbeatRunId: nextRunId, environmentId: f.lease.environmentId, provider: "daytona", providerLeaseId: f.providerLeaseId,
       status: "active", leasePolicy: "reuse_by_environment" }).returning();
     const oldRoot = await realpath(f.remote), base = path.dirname(path.dirname(oldRoot));
@@ -225,7 +225,7 @@ describe("retained source fallback", () => {
     expect(String(settled.nextAction)).not.toMatch(adminText);
     expect(readRemoteWorkspaceAuthority((await workspace(f.workspaceId)).metadata)).toMatchObject({ writerRunId: null, dirty: false,
       location: null, snapshotId: f.snapshotId });
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
     expect(await db.select().from(issueAttachments).where(eq(issueAttachments.issueId, f.issueId))).toHaveLength(0);
   }, 60_000);
 
@@ -248,7 +248,7 @@ describe("retained source fallback", () => {
 
   it("leaves saved user input to continue the task instead of starting a second continuation", async () => {
     const f = await unverifiableRetainedSource();
-    await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: (await run(f.runId)).agentId, source: "on_demand",
+    await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: (await run(f.runId)).agentId, source: "on_demand",
       reason: "issue_commented", status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: "operator",
       payload: { issueId: f.issueId } });
     await recoverRetainedWorkspace(f.input);
@@ -261,7 +261,7 @@ describe("retained source fallback", () => {
     "keeps the hold and starts no executor with a %s", async fault => {
       const f = await unverifiableRetainedSource();
       const source = await run(f.runId);
-      if (fault === "live_writer") await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: source.agentId,
+      if (fault === "live_writer") await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: source.agentId,
         issueId: f.issueId, runtimeMode: "native", status: "running", startedAt: new Date(), contextSnapshot: { issueId: f.issueId } });
       if (fault === "sandbox_in_use") {
         // The source allocation has no stop receipt, and another task holds the sandbox.
@@ -339,13 +339,13 @@ describe("retained source fallback", () => {
     const [task] = await db.update(issues).set({ status: "blocked", lastStatusDecisionId: null })
       .where(eq(issues.id, f.issueId)).returning();
     const held = await action(f.actionId);
-    const refused = "Paperclip refused to recover the saved files: Paperclip cannot prove which runs used the sandbox that holds the saved files "
+    const refused = "Outpost refused to recover the saved files: Outpost cannot prove which runs used the sandbox that holds the saved files "
       + "(allocation_ownership_ambiguous). Automatic recovery does not repeat this check, because the same saved state gives the same result. "
-      + "Retry runs the check again and succeeds only after Paperclip is updated. The agent's result is saved, and the agent will not repeat its work.";
+      + "Retry runs the check again and succeeds only after Outpost is updated. The agent's result is saved, and the agent will not repeat its work.";
     // The exact row the Nov 10 release saved: resolved with outcome blocked,
     // replay blocked, and the task's Blocked status version recorded.
     await db.update(issueRecoveryActions).set({ kind: "active_run_watchdog", cause: "native_continuation_requires_reconciliation",
-      status: "resolved", outcome: "blocked", resolvedAt: new Date(), ownerType: "board", nextAction: refused,
+      status: "resolved", outcome: "blocked", resolvedAt: new Date(), ownerType: "operator", nextAction: refused,
       evidence: { ...held.evidence,
         automaticRecovery: { runId: f.runId, policy: "preserve_without_replay_v1", replay: "blocked",
           recordedAt: new Date().toISOString(), actionOutcome: "unknown" },
@@ -364,7 +364,7 @@ describe("retained source fallback", () => {
     expect(settled.evidence.continuationDelivery).toBe("pending");
     expect(settled.evidence.automaticRecovery).toBeUndefined();
     for (const text of [settled.nextAction, readWorkspaceRecovery(settled.evidence)?.message])
-      expect(String(text)).not.toMatch(/succeeds only after|Paperclip is updated/);
+      expect(String(text)).not.toMatch(/succeeds only after|Outpost is updated/);
     expect(readRemoteWorkspaceAuthority((await workspace(f.workspaceId)).metadata)).toMatchObject({ writerRunId: null, dirty: false,
       location: null, snapshotId: f.snapshotId });
     // The hold owned the Blocked status, so the task is ready again.
@@ -417,7 +417,7 @@ describe("retained source fallback", () => {
   it("waits until a deferred transient check is due before the worker visits the hold again", async () => {
     const f = await unverifiableRetainedSource();
     const source = await run(f.runId);
-    const [writer] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: source.agentId, issueId: f.issueId,
+    const [writer] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: source.agentId, issueId: f.issueId,
       runtimeMode: "native", status: "running", startedAt: new Date(), contextSnapshot: { issueId: f.issueId } }).returning();
     const work = await reconcileRetainedWorkspaces(db, f.environmentRuntime, async () => undefined, true);
     await Promise.all(work ?? []);
@@ -437,7 +437,7 @@ describe("retained source fallback", () => {
 
   it("continues once the reconciler settles a final save a restart left running after its run ended", async () => {
     const f = await unverifiableRetainedSource();
-    const [save] = await db.insert(workspaceOperations).values({ companyId: f.companyId, executionWorkspaceId: f.workspaceId,
+    const [save] = await db.insert(workspaceOperations).values({ spaceId: f.spaceId, executionWorkspaceId: f.workspaceId,
       heartbeatRunId: f.runId, issueId: f.issueId, phase: "remote_workspace_snapshot", status: "running",
       metadata: { epoch: 8, boundary: "final", generation: 99, exportCleanup: { state: "pending" },
         saveWork: { schema: "outpost.remote-workspace-save-work.v1", activeIds: [], unknown: false, quiescedAt: new Date(Date.now() - 60_000).toISOString() } },
@@ -468,8 +468,8 @@ describe("retained source fallback", () => {
     // An export hold that names the task's Blocked status leaves the status to
     // its saved result's finalization; the sibling settlement must not change it.
     const [task] = await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, f.issueId)).returning();
-    await db.insert(issueRecoveryActions).values({ id: staleId, companyId: f.companyId, sourceIssueId: f.issueId,
-      kind: "active_run_watchdog", status: "active", ownerType: "board", cause: "native_workspace_sync_out_retry_exhausted",
+    await db.insert(issueRecoveryActions).values({ id: staleId, spaceId: f.spaceId, sourceIssueId: f.issueId,
+      kind: "active_run_watchdog", status: "active", ownerType: "operator", cause: "native_workspace_sync_out_retry_exhausted",
       fingerprint: randomUUID(), nextAction: "Automatic recovery of saved work stopped after 6 attempts.",
       evidence: { runId: f.runId, nativeFailureBlock: { runId: f.runId, statusVersion: Number(task.statusVersion) },
         systemRecovery: { schema: "outpost.system-recovery.v1", policyVersion: 1, sourceRunId: f.runId, revision: 54,
@@ -504,8 +504,8 @@ describe("retained source fallback", () => {
       ...readRemoteWorkspaceAuthority(ws.metadata)!, dirty: true, writerRunId: randomUUID() } } }).where(eq(executionWorkspaces.id, f.workspaceId));
     expect(await hasVerifiedWorkspaceRepair(db, await run(f.runId))).toBe(false);
     const staleId = randomUUID(), now = Date.now();
-    await db.insert(issueRecoveryActions).values({ id: staleId, companyId: f.companyId, sourceIssueId: f.issueId,
-      kind: "active_run_watchdog", status: "active", ownerType: "board", cause: "native_workspace_sync_out_retry_exhausted",
+    await db.insert(issueRecoveryActions).values({ id: staleId, spaceId: f.spaceId, sourceIssueId: f.issueId,
+      kind: "active_run_watchdog", status: "active", ownerType: "operator", cause: "native_workspace_sync_out_retry_exhausted",
       fingerprint: randomUUID(), nextAction: "Stale",
       evidence: { runId: f.runId,
         systemRecovery: { schema: "outpost.system-recovery.v1", policyVersion: 1, sourceRunId: f.runId, revision: 3,

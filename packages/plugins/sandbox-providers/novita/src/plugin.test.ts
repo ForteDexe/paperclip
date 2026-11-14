@@ -29,7 +29,7 @@ describe("Novita sandbox provider plugin", () => {
       apiKey: null,
       domain: null,
       template: null,
-      requestedCwd: "/home/user/paperclip-workspace",
+      requestedCwd: "/home/user/outpost-workspace",
       timeoutMs: 300_000,
       requestTimeoutMs: 30_000,
       secure: null,
@@ -42,7 +42,7 @@ describe("Novita sandbox provider plugin", () => {
     expect(parseNovitaDriverConfig({
       apiKey: "sk-test",
       domain: "https://sandbox.example.test",
-      template: "paperclip-template",
+      template: "outpost-template",
       requestedCwd: "/workspace",
       timeoutMs: 600000,
       requestTimeoutMs: 45000,
@@ -52,7 +52,7 @@ describe("Novita sandbox provider plugin", () => {
     })).toMatchObject({
       apiKey: "sk-test",
       domain: "https://sandbox.example.test",
-      template: "paperclip-template",
+      template: "outpost-template",
       requestedCwd: "/workspace",
       timeoutMs: 600_000,
       requestTimeoutMs: 45_000,
@@ -74,9 +74,9 @@ describe("Novita sandbox provider plugin", () => {
     expect(command).toContain("cd '/workspace/project'");
     expect(command).toContain("export MESSAGE='hello world';");
     expect(command).toContain("'node' '-e' 'console.log(process.env.MESSAGE)'");
-    expect(command).toContain("printf '%s' 'input body' > '/tmp/.paperclip-stdin-");
-    expect(command).toMatch(/< '\/tmp\/\.paperclip-stdin-[^']+'/);
-    expect(command).toMatch(/rm -f '\/tmp\/\.paperclip-stdin-[^']+'/);
+    expect(command).toContain("printf '%s' 'input body' > '/tmp/.outpost-stdin-");
+    expect(command).toMatch(/< '\/tmp\/\.outpost-stdin-[^']+'/);
+    expect(command).toMatch(/rm -f '\/tmp\/\.outpost-stdin-[^']+'/);
     expect(command).toContain("exit $status");
   });
 
@@ -99,14 +99,14 @@ describe("Novita sandbox provider plugin", () => {
       command: "cat",
       stdin: "second",
     });
-    const firstPath = first.match(/\/tmp\/\.paperclip-stdin-[^']+/)?.[0];
-    const secondPath = second.match(/\/tmp\/\.paperclip-stdin-[^']+/)?.[0];
+    const firstPath = first.match(/\/tmp\/\.outpost-stdin-[^']+/)?.[0];
+    const secondPath = second.match(/\/tmp\/\.outpost-stdin-[^']+/)?.[0];
 
     expect(firstPath).toBeTruthy();
     expect(secondPath).toBeTruthy();
     expect(firstPath).not.toBe(secondPath);
-    expect(first).not.toContain("/tmp/.paperclip-stdin <<");
-    expect(second).not.toContain("/tmp/.paperclip-stdin <<");
+    expect(first).not.toContain("/tmp/.outpost-stdin <<");
+    expect(second).not.toContain("/tmp/.outpost-stdin <<");
   });
 
   it("rejects unsafe environment variable keys", () => {
@@ -121,7 +121,7 @@ describe("Novita sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "novita",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       issueId: "issue-1",
       config: { apiKey: "sk-test" },

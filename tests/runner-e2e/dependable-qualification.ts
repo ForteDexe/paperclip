@@ -6,11 +6,11 @@ export const DEPENDABLE_JOURNEYS = [
 ] as const;
 export type DependableJourney = typeof DEPENDABLE_JOURNEYS[number];
 export type DependableProvider = "codie" | "claude";
-export type DependableSurface = "paperclip" | "slack";
+export type DependableSurface = "outpost" | "slack";
 export type DependableCell = `${DependableProvider}.${DependableSurface}.${DependableJourney}`;
 
 export const DEPENDABLE_CELLS: readonly DependableCell[] = (["codie", "claude"] as const).flatMap(provider =>
-  (["paperclip", "slack"] as const).flatMap(surface => DEPENDABLE_JOURNEYS.map(journey => `${provider}.${surface}.${journey}` as const)));
+  (["outpost", "slack"] as const).flatMap(surface => DEPENDABLE_JOURNEYS.map(journey => `${provider}.${surface}.${journey}` as const)));
 
 export function dependableExecutionId(cell: DependableCell) {
   if (!DEPENDABLE_CELLS.includes(cell)) throw new Error("Unknown dependable-work cell");

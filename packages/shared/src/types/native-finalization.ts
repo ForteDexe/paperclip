@@ -8,7 +8,7 @@ export interface NativeFinalizationResultV1 {
   runtimeMode: "native";
   runId: string;
   issueId: string;
-  companyId: string;
+  spaceId: string;
   result: Record<string, unknown>;
   terminal: {
     schema: "outpost.orp.terminal.v1";

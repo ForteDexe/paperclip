@@ -11,7 +11,7 @@ import { boundRunIssueIdSql } from "./run-task-binding.js";
 export function chatRunMilestoneSource(since: Date) {
   const selectedFields = {
     id: heartbeatRuns.id,
-    companyId: heartbeatRuns.companyId,
+    spaceId: heartbeatRuns.spaceId,
     agentId: heartbeatRuns.agentId,
     status: heartbeatRuns.status,
     errorCode: heartbeatRuns.errorCode,
@@ -23,7 +23,7 @@ export function chatRunMilestoneSource(since: Date) {
   };
   return new Subquery(sql`
     with chat_milestone_runs as materialized (
-      select ${heartbeatRuns.id}, ${heartbeatRuns.companyId},
+      select ${heartbeatRuns.id}, ${heartbeatRuns.spaceId},
         ${heartbeatRuns.agentId}, ${heartbeatRuns.status},
         ${heartbeatRuns.errorCode}, ${heartbeatRuns.updatedAt},
         ${heartbeatRuns.nativeIssueId}, ${heartbeatRuns.issueId},
@@ -32,7 +32,7 @@ export function chatRunMilestoneSource(since: Date) {
       where ${heartbeatRuns.updatedAt} >= ${since.toISOString()}
         and exists (
           select 1 from ${chatConversations}
-          where ${chatConversations.companyId} = ${heartbeatRuns.companyId}
+          where ${chatConversations.spaceId} = ${heartbeatRuns.spaceId}
             and ${chatConversations.issueId}::text = ${boundRunIssueIdSql()}
             and ${chatConversations.state} in ('active', 'waiting')
         )

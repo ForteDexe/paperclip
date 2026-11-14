@@ -68,20 +68,20 @@ export type ImportProviderCosts = z.input<typeof importProviderCostsSchema>;
 export type ImportBillingInvoice = z.input<typeof importBillingInvoiceSchema>;
 export type AdjustCost = z.input<typeof adjustCostSchema>;
 export interface AccountingFinding {
-  kind: "company_projection" | "agent_projection" | "runtime_projection" | "missing_receipt" | "missing_acknowledgement" | "legacy_runtime" | "receipt_mismatch";
+  kind: "space_projection" | "agent_projection" | "runtime_projection" | "missing_receipt" | "missing_acknowledgement" | "legacy_runtime" | "receipt_mismatch";
   entityId: string;
   repairable: boolean;
   actual: Record<string, string>;
   expected: Record<string, string>;
 }
 export interface AccountingInspection {
-  companyId: string;
+  spaceId: string;
   fingerprint: string;
   findings: AccountingFinding[];
   checkedAt: string;
 }
 export interface AccountingHealth {
-  companyId: string;
+  spaceId: string;
   pendingRunCount: number;
   unpricedEventCount: number;
   oldestPendingAt: string | null;
@@ -90,11 +90,11 @@ export interface AccountingHealth {
   items: Array<{ runId: string | null; costEventId?: string; agentId: string | null; state: "waiting_for_receipt" | "retryable" | "unpriced"; lastError: string | null; attempts: number; since: string; lastAttemptAt: string | null }>;
 }
 export interface BillingInvoice {
-  id: string; companyId: string; biller: string; externalId: string; currency: string; createdAt: string;
+  id: string; spaceId: string; biller: string; externalId: string; currency: string; createdAt: string;
 }
 export interface CostAdjustment {
   id: string;
-  companyId: string;
+  spaceId: string;
   costEventId: string;
   invoiceLineId: string | null;
   idempotencyKey: string;

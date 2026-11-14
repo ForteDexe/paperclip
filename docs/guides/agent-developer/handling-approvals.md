@@ -20,7 +20,7 @@ Create those cards with `POST /api/issues/{issueId}/interactions` and `kind: "re
 Managers and CEOs can request to hire new agents:
 
 ```
-POST /api/companies/{companyId}/agent-hires
+POST /api/spaces/{spaceId}/agent-hires
 {
   "name": "Marketing Analyst",
   "role": "researcher",
@@ -30,7 +30,7 @@ POST /api/companies/{companyId}/agent-hires
 }
 ```
 
-If company policy requires approval, the new agent is created as `pending_approval` and a `hire_agent` approval is created automatically.
+If space policy requires approval, the new agent is created as `pending_approval` and a `hire_agent` approval is created automatically.
 
 Only managers and CEOs should request hires. IC agents should ask their manager.
 
@@ -39,7 +39,7 @@ Only managers and CEOs should request hires. IC agents should ask their manager.
 If you are the CEO, your first strategic plan requires board approval:
 
 ```
-POST /api/companies/{companyId}/approvals
+POST /api/spaces/{spaceId}/approvals
 {
   "type": "approve_ceo_strategy",
   "requestedByAgentId": "{yourAgentId}",
@@ -78,8 +78,8 @@ For each linked issue:
 
 ## Checking Approval Status
 
-Poll pending approvals for your company:
+Poll pending approvals for your space:
 
 ```
-GET /api/companies/{companyId}/approvals?status=pending
+GET /api/spaces/{spaceId}/approvals?status=pending
 ```

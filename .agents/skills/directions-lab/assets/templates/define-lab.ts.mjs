@@ -35,7 +35,7 @@ export interface LabRegistry<D extends LabDirection = LabDirection, S extends La
   readonly landing: { readonly direction: D["id"] | "all"; readonly view: S["id"] | "board" };
   readonly today: { readonly flags: Readonly<Record<string, boolean>> };
   readonly shell: {
-    readonly company: { readonly id: string; readonly name: string; readonly issuePrefix: string };
+    readonly space: { readonly id: string; readonly name: string; readonly issuePrefix: string };
     readonly tasks: readonly LabTask[];
   };
   readonly provenance: { readonly runtimeCommit: string; readonly skillVersion: string; readonly createdAt: string };

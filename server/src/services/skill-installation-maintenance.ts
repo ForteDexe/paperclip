@@ -1,10 +1,10 @@
 import { constants, promises as fs } from "node:fs";
 import path from "node:path";
 import { and, asc, eq, gt, sql } from "drizzle-orm";
-import { companySkills, companySkillVersions, type Db } from "@outpost/db";
-import { parseFrontmatterMarkdown, type CompanySkillVersionFileInventoryEntry } from "@outpost/shared";
+import { spaceSkills, spaceSkillVersions, type Db } from "@outpost/db";
+import { parseFrontmatterMarkdown, type SpaceSkillVersionFileInventoryEntry } from "@outpost/shared";
 import { conflict } from "../errors.js";
-import { classifyInventoryKind, companySkillService } from "./company-skills.js";
+import { classifyInventoryKind, spaceSkillService } from "./space-skills.js";
 import { managedSkillContent } from "./managed-skill-content.js";
 import { skillPackageStore, skillVersionMetadataColumns } from "./skill-package-store.js";
 import { skillPackageMaintenance } from "./skill-package-maintenance.js";
@@ -13,18 +13,18 @@ import { assertSkillSnapshotPath, MAX_SKILL_SNAPSHOT_BYTES, MAX_SKILL_SNAPSHOT_F
 import { protectedVersions, withSkillVersionCacheLock } from "./skill-version-cache.js";
 import { getStorageService, type StorageService } from "../storage/index.js";
 
-type Page = { companyId?: string; after?: string; id?: string; limit?: number; signal?: AbortSignal };
+type Page = { spaceId?: string; after?: string; id?: string; limit?: number; signal?: AbortSignal };
 type Conversion = Page & { apply?: boolean; writersStopped?: boolean };
 const limit = (options: Page) => Math.min(50, Math.max(1, options.limit ?? 10));
-const legacyManaged = (skill: typeof companySkills.$inferSelect) => skill.sourceType === "local_path" && skill.metadata?.sourceKind === "managed_local";
-const linkedLocal = (skill: typeof companySkills.$inferSelect) => skill.sourceType === "local_path"
-  && !legacyManaged(skill) && skill.metadata?.sourceKind !== "paperclip_bundled";
-function coversInstalledInventory(skill: typeof companySkills.$inferSelect, files: Array<{ path: string }>) {
+const legacyManaged = (skill: typeof spaceSkills.$inferSelect) => skill.sourceType === "local_path" && skill.metadata?.sourceKind === "managed_local";
+const linkedLocal = (skill: typeof spaceSkills.$inferSelect) => skill.sourceType === "local_path"
+  && !legacyManaged(skill) && skill.metadata?.sourceKind !== "outpost_bundled";
+function coversInstalledInventory(skill: typeof spaceSkills.$inferSelect, files: Array<{ path: string }>) {
   const paths = new Set(files.map(file => file.path));
   return paths.has("SKILL.md") && skill.fileInventory.every(file => typeof file.path === "string" && paths.has(file.path));
 }
 
-async function legacySourceIdentity(skill: typeof companySkills.$inferSelect) {
+async function legacySourceIdentity(skill: typeof spaceSkills.$inferSelect) {
   if (!skill.sourceLocator || !path.isAbsolute(skill.sourceLocator)) return null;
   const source = path.resolve(skill.sourceLocator), root = path.basename(source) === "SKILL.md" ? path.dirname(source) : source;
   const stat = await fs.lstat(root).catch((error: NodeJS.ErrnoException) => {
@@ -36,7 +36,7 @@ async function legacySourceIdentity(skill: typeof companySkills.$inferSelect) {
   return { root: await fs.realpath(root), device: stat.dev, inode: stat.ino };
 }
 
-async function legacyFiles(skill: typeof companySkills.$inferSelect, signal?: AbortSignal) {
+async function legacyFiles(skill: typeof spaceSkills.$inferSelect, signal?: AbortSignal) {
   if (!skill.sourceLocator || !path.isAbsolute(skill.sourceLocator)) return null;
   const source = path.resolve(skill.sourceLocator);
   const root = path.basename(source) === "SKILL.md" ? path.dirname(source) : source;
@@ -46,7 +46,7 @@ async function legacyFiles(skill: typeof companySkills.$inferSelect, signal?: Ab
   });
   if (!stat) return null;
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("Legacy skill root is not a safe directory");
-  const files: CompanySkillVersionFileInventoryEntry[] = [];
+  const files: SpaceSkillVersionFileInventoryEntry[] = [];
   let bytes = 0;
   async function visit(directory: string) {
     for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
@@ -87,25 +87,25 @@ export function skillInstallationMaintenance(db: Db, storage?: StorageService) {
   const content = managedSkillContent(db, db, storage);
   const provider = () => (storage ?? getStorageService()).provider;
   function scope(options: Page) {
-    return and(options.companyId ? eq(companySkills.companyId, options.companyId) : undefined,
-      options.id ? eq(companySkills.id, options.id) : undefined,
-      options.after ? gt(companySkills.id, options.after) : undefined);
+    return and(options.spaceId ? eq(spaceSkills.spaceId, options.spaceId) : undefined,
+      options.id ? eq(spaceSkills.id, options.id) : undefined,
+      options.after ? gt(spaceSkills.id, options.after) : undefined);
   }
   async function installations(options: Conversion = {}) {
-    const skills = await db.select().from(companySkills).where(scope(options)).orderBy(asc(companySkills.id)).limit(limit(options));
-    const results: Array<{ skillId: string; companyId: string; status: string; versionId?: string | null; reason?: string }> = [];
+    const skills = await db.select().from(spaceSkills).where(scope(options)).orderBy(asc(spaceSkills.id)).limit(limit(options));
+    const results: Array<{ skillId: string; spaceId: string; status: string; versionId?: string | null; reason?: string }> = [];
     for (const skill of skills) {
       options.signal?.throwIfAborted();
       const catalogOrigin = skill.sourceType === "catalog" && !skill.metadata?.originVersionId;
       if (linkedLocal(skill)) {
-        results.push({ skillId: skill.id, companyId: skill.companyId, status: "linked_local", versionId: skill.currentVersionId });
+        results.push({ skillId: skill.id, spaceId: skill.spaceId, status: "linked_local", versionId: skill.currentVersionId });
         continue;
       }
       try {
-        const version = skill.currentVersionId ? await store.version(skill.companyId, skill.id, skill.currentVersionId) : null;
+        const version = skill.currentVersionId ? await store.version(skill.spaceId, skill.id, skill.currentVersionId) : null;
         const complete = version && coversInstalledInventory(skill, await store.versionInventory(version));
         if (!legacyManaged(skill) && !catalogOrigin && complete) {
-          results.push({ skillId: skill.id, companyId: skill.companyId, status: "unchanged", versionId: skill.currentVersionId });
+          results.push({ skillId: skill.id, spaceId: skill.spaceId, status: "unchanged", versionId: skill.currentVersionId });
           continue;
         }
         // Conversion copies current content. Keep old directories, versions and
@@ -116,7 +116,7 @@ export function skillInstallationMaintenance(db: Db, storage?: StorageService) {
           const local = await legacyFiles(skill, options.signal);
           const completeSaved = saved && coversInstalledInventory(skill, saved) ? saved : null;
           const files = local ?? completeSaved ?? ((skill.sourceType === "github" || skill.sourceType === "skills_sh" || skill.sourceType === "url")
-            ? await companySkillService(db).captureLegacyInstallation(skill.companyId, skill.id) : null);
+            ? await spaceSkillService(db).captureLegacyInstallation(skill.spaceId, skill.id) : null);
           const originSource = catalogOrigin && typeof skill.metadata?.originSnapshotLocator === "string"
             ? { ...skill, sourceLocator: skill.metadata.originSnapshotLocator } : null;
           const originIdentity = originSource ? await legacySourceIdentity(originSource) : null;
@@ -129,26 +129,26 @@ export function skillInstallationMaintenance(db: Db, storage?: StorageService) {
             throw new Error("Saved version does not cover the installed inventory");
           }
           if (!options.apply) {
-            return { skillId: skill.id, companyId: skill.companyId, status: "conversion_required", versionId: skill.currentVersionId };
+            return { skillId: skill.id, spaceId: skill.spaceId, status: "conversion_required", versionId: skill.currentVersionId };
           }
           if (version && saved && !version.packageSnapshotId && !version.repositorySnapshotId
             && skillSnapshotHash(saved) === skillSnapshotHash(files)) {
             await skillPackageMaintenance(db, storage).migrateVersions({ id: version.id, apply: true, clearLegacy: false, signal: options.signal });
           }
-          const candidate = await content.prepare(skill.companyId, files, options.signal);
-          if (!candidate.packageSnapshotId || !await store.verifyDurable(skill.companyId, candidate.packageSnapshotId, options.signal)) {
+          const candidate = await content.prepare(skill.spaceId, files, options.signal);
+          if (!candidate.packageSnapshotId || !await store.verifyDurable(skill.spaceId, candidate.packageSnapshotId, options.signal)) {
             throw new Error("Final snapshot is not independently recoverable from object storage");
           }
           let originVersionId = typeof skill.metadata?.originVersionId === "string" ? skill.metadata.originVersionId : null;
           const originCandidate = catalogOrigin && origin && skillSnapshotHash(origin) !== skillSnapshotHash(files)
-            ? await content.prepare(skill.companyId, origin, options.signal) : null;
+            ? await content.prepare(skill.spaceId, origin, options.signal) : null;
           if (originCandidate && !originCandidate.packageSnapshotId) throw new Error("Catalog origin is not durably available");
           const markdown = files.find(file => file.path === "SKILL.md")!.content;
           const parsed = parseFrontmatterMarkdown(markdown);
           const { missingSource: _missing, ...metadata } = skill.metadata ?? {};
           // Object preparation is private. Hold the shared cache lock only for
           // publication so new run pinning does not wait for network uploads.
-          const result = await withSkillVersionCacheLock(db, skill.companyId, () => content.publish(skill, candidate, {
+          const result = await withSkillVersionCacheLock(db, skill.spaceId, () => content.publish(skill, candidate, {
             ...(legacyManaged(skill) ? { sourceType: "managed", sourceLocator: null } : {}), markdown,
             name: typeof parsed.frontmatter.name === "string" ? parsed.frontmatter.name : skill.name,
             description: typeof parsed.frontmatter.description === "string" ? parsed.frontmatter.description : skill.description,
@@ -162,8 +162,8 @@ export function skillInstallationMaintenance(db: Db, storage?: StorageService) {
             validate: async tx => {
               // publish already holds the canonical slug and skill-row locks.
               // Recheck filesystem writers after upload, before changing authority.
-              const [current] = await tx.select().from(companySkills).where(and(
-                eq(companySkills.companyId, skill.companyId), eq(companySkills.id, skill.id)));
+              const [current] = await tx.select().from(spaceSkills).where(and(
+                eq(spaceSkills.spaceId, skill.spaceId), eq(spaceSkills.id, skill.id)));
               if (!current || current.slug !== skill.slug || current.sourceLocator !== skill.sourceLocator
                 || current.sourceRef !== skill.sourceRef || JSON.stringify(current.fileInventory) !== JSON.stringify(skill.fileInventory)
                 || JSON.stringify(await legacySourceIdentity(current)) !== JSON.stringify(sourceIdentity))
@@ -176,7 +176,7 @@ export function skillInstallationMaintenance(db: Db, storage?: StorageService) {
                   !== (origin ? skillSnapshotHash(origin) : null)))
                 throw conflict("Catalog origin changed during conversion. Retry the operation.");
               if (origin && originCandidate?.packageSnapshotId) {
-                originVersionId = (await companySkillService(db).createVersion(skill.companyId, skill.id,
+                originVersionId = (await spaceSkillService(db).createVersion(skill.spaceId, skill.id,
                   { label: "Original catalog package" }, { type: "system" }, {
                     database: tx, fileInventory: origin, packageSnapshotId: originCandidate.packageSnapshotId,
                     packageFileMap: originCandidate.packageFileMap, updateCurrentVersion: false, skipInventoryRefresh: true,
@@ -184,50 +184,50 @@ export function skillInstallationMaintenance(db: Db, storage?: StorageService) {
               }
             },
             afterPublish: async (tx, row, version) => {
-              if (catalogOrigin) await tx.update(companySkills)
-                .set({ metadata: { ...row.metadata, originVersionId: originVersionId ?? version.id } }).where(eq(companySkills.id, row.id));
+              if (catalogOrigin) await tx.update(spaceSkills)
+                .set({ metadata: { ...row.metadata, originVersionId: originVersionId ?? version.id } }).where(eq(spaceSkills.id, row.id));
             },
           }));
-          return { skillId: skill.id, companyId: skill.companyId, status: "converted", versionId: result.version.id };
+          return { skillId: skill.id, spaceId: skill.spaceId, status: "converted", versionId: result.version.id };
         };
         results.push(await convert());
       } catch (error) {
-        results.push({ skillId: skill.id, companyId: skill.companyId, status: "blocked", reason: error instanceof Error ? error.message : "Conversion failed" });
+        results.push({ skillId: skill.id, spaceId: skill.spaceId, status: "blocked", reason: error instanceof Error ? error.message : "Conversion failed" });
       }
     }
     return { inspected: skills.length, after: skills.at(-1)?.id ?? null, results };
   }
 
   async function eligibility(options: Page & { purpose?: "migration" | "startup" } = {}) {
-    const skills = await db.select().from(companySkills).where(scope(options)).orderBy(asc(companySkills.id)).limit(limit(options));
+    const skills = await db.select().from(spaceSkills).where(scope(options)).orderBy(asc(spaceSkills.id)).limit(limit(options));
     const results = [];
     for (const skill of skills) {
       // Migration/eviction must wait for exact pins. Replacement readiness only
       // inspects installation durability: a serving controller may legitimately
       // be between run admission and publishing its immutable skill selection.
-      const pins = options.purpose === "startup" ? undefined : await protectedVersions(db, skill.companyId);
+      const pins = options.purpose === "startup" ? undefined : await protectedVersions(db, skill.spaceId);
       let status = linkedLocal(skill) ? "linked_local" : legacyManaged(skill) ? "legacy_managed" : "version_backed";
       if (pins?.versions === null) status = "unsupported_active_run";
       else if (!linkedLocal(skill) && !skill.currentVersionId) status = "missing_current_version";
       else if (skill.sourceType === "catalog" && !skill.metadata?.originVersionId) status = "legacy_catalog_origin";
       else if (status === "version_backed" && skill.currentVersionId) {
         try {
-          const version = await store.version(skill.companyId, skill.id, skill.currentVersionId);
+          const version = await store.version(skill.spaceId, skill.id, skill.currentVersionId);
           if (!version) status = "unavailable_current_version";
           else if (!coversInstalledInventory(skill, await store.versionInventory(version))) status = "incomplete_current_version";
         } catch { status = "unavailable_current_version"; }
       }
-      results.push({ skillId: skill.id, companyId: skill.companyId, sourceType: skill.sourceType, versionId: skill.currentVersionId, status });
+      results.push({ skillId: skill.id, spaceId: skill.spaceId, sourceType: skill.sourceType, versionId: skill.currentVersionId, status });
     }
     return { inspected: skills.length, after: skills.at(-1)?.id ?? null, results, contentVerified: false };
   }
 
   async function verifyVersions(options: Page = {}) {
-    const versions = await db.select(skillVersionMetadataColumns).from(companySkillVersions).where(and(
-      options.companyId ? eq(companySkillVersions.companyId, options.companyId) : undefined,
-      options.id ? eq(companySkillVersions.id, options.id) : undefined,
-      options.after ? gt(companySkillVersions.id, options.after) : undefined,
-    )).orderBy(asc(companySkillVersions.id)).limit(limit(options));
+    const versions = await db.select(skillVersionMetadataColumns).from(spaceSkillVersions).where(and(
+      options.spaceId ? eq(spaceSkillVersions.spaceId, options.spaceId) : undefined,
+      options.id ? eq(spaceSkillVersions.id, options.id) : undefined,
+      options.after ? gt(spaceSkillVersions.id, options.after) : undefined,
+    )).orderBy(asc(spaceSkillVersions.id)).limit(limit(options));
     const results = [];
     for (const version of versions) {
       options.signal?.throwIfAborted();
@@ -235,22 +235,22 @@ export function skillInstallationMaintenance(db: Db, storage?: StorageService) {
       let status = "missing_package";
       try {
         if (packageId) {
-          const receipt = await store.descriptor(version.companyId, packageId);
+          const receipt = await store.descriptor(version.spaceId, packageId);
           status = !receipt.storage ? "no_durable_receipt" : receipt.storage.provider !== provider() ? "provider_mismatch"
             : receipt.storage.provider === "local_disk" ? "local_storage" : "remote_storage";
           if (receipt.storage && receipt.storage.provider === provider()
-            && !await store.verifyDurable(version.companyId, packageId, options.signal)) status = "corrupt_package";
+            && !await store.verifyDurable(version.spaceId, packageId, options.signal)) status = "corrupt_package";
           if (!receipt.storage && receipt.restorable && version.repositorySnapshotId === packageId) {
-            const active = await protectedVersions(db, version.companyId);
-            const [protectedRow] = await db.execute(sql`select 1 from company_skills
-              where company_id = ${version.companyId} and current_version_id = ${version.id}
-              union all select 1 from company_skill_test_runs where company_id = ${version.companyId}
+            const active = await protectedVersions(db, version.spaceId);
+            const [protectedRow] = await db.execute(sql`select 1 from space_skills
+              where space_id = ${version.spaceId} and current_version_id = ${version.id}
+              union all select 1 from space_skill_test_runs where space_id = ${version.spaceId}
                 and status in ('queued', 'running') and skill_version_id = ${version.id}
-              union all select 1 from agents where company_id = ${version.companyId}
+              union all select 1 from agents where space_id = ${version.spaceId}
                 and adapter_config::text like ${`%${version.id}%`} limit 1`);
             if (!protectedRow && active.versions && !active.versions.has(version.id)
               && Date.now() - receipt.createdAt.getTime() >= 30 * 24 * 60 * 60_000) {
-              await store.recoveryRecipe(version.companyId, packageId);
+              await store.recoveryRecipe(version.spaceId, packageId);
               status = "expired_git_history";
             }
           }
@@ -264,14 +264,14 @@ export function skillInstallationMaintenance(db: Db, storage?: StorageService) {
         // A valid archive can still be an incomplete legacy installation. Compare
         // only the current head: historical revisions may legitimately omit files
         // that were added later. Inventory reads do not load SQL package bodies.
-        const [installed] = await db.select().from(companySkills).where(and(
-          eq(companySkills.companyId, version.companyId), eq(companySkills.id, version.companySkillId),
-          eq(companySkills.currentVersionId, version.id),
+        const [installed] = await db.select().from(spaceSkills).where(and(
+          eq(spaceSkills.spaceId, version.spaceId), eq(spaceSkills.id, version.spaceSkillId),
+          eq(spaceSkills.currentVersionId, version.id),
         ));
         if (installed && !linkedLocal(installed)
           && !coversInstalledInventory(installed, await store.versionInventory(version))) status = "incomplete_current_version";
       } catch { status = "unavailable_or_corrupt_package"; }
-      results.push({ companyId: version.companyId, skillId: version.companySkillId, versionId: version.id, packageId, status });
+      results.push({ spaceId: version.spaceId, skillId: version.spaceSkillId, versionId: version.id, packageId, status });
     }
     return { inspected: versions.length, after: versions.at(-1)?.id ?? null, results };
   }

@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { companies, projects, projectWorkspaces, issues, executionWorkspaces, agents, heartbeatRuns, issueRecoveryActions, nativeRunFinalizations, workspaceRuntimeServices, executionWorkspaceRestorePoints, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
+import { spaces, projects, projectWorkspaces, issues, executionWorkspaces, agents, heartbeatRuns, issueRecoveryActions, nativeRunFinalizations, workspaceRuntimeServices, executionWorkspaceRestorePoints, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { markGitRestorePointExpired } from "../services/git-restore-point-storage.js";
 import { GIT_RESTORE_POINT_EXPIRED_WARNING } from "../services/execution-workspaces.js";
 import { getStorageService } from "../storage/index.js";
@@ -61,11 +61,11 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     if (external) await applyPendingMigrations(external);
     else database = await startEmbeddedPostgresTestDatabase("git-cache-expiration-");
     db = createDb(external ?? database.connectionString);
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-git-expiration-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-git-expiration-"));
     process.env.OUTPOST_HOME = path.join(root, "home");
     process.env.OUTPOST_INSTANCE_ID = "default";
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
-  afterEach(async () => { vi.restoreAllMocks(); await db.execute(sql`TRUNCATE TABLE companies CASCADE`); });
+  afterEach(async () => { vi.restoreAllMocks(); await db.execute(sql`TRUNCATE TABLE spaces CASCADE`); });
   afterAll(async () => {
     if (previousHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = previousHome;
     if (previousInstance === undefined) delete process.env.OUTPOST_INSTANCE_ID; else process.env.OUTPOST_INSTANCE_ID = previousInstance;
@@ -73,8 +73,8 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
   });
 
   async function fixture(managed = false, nested = false, withProject = managed) {
-    const companyId = randomUUID(), issueId = randomUUID(), workspaceId = randomUUID();
-    const location = path.join(root, companyId), source = path.join(location, "author"), remote = path.join(location, "remote.git");
+    const spaceId = randomUUID(), issueId = randomUUID(), workspaceId = randomUUID();
+    const location = path.join(root, spaceId), source = path.join(location, "author"), remote = path.join(location, "remote.git");
     await fs.mkdir(source, { recursive: true });
     git(source, "init", "--initial-branch=main");
     await fs.writeFile(path.join(source, "marker.txt"), "commit A\n");
@@ -82,33 +82,33 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     git(source, "add", "."); git(source, "commit", "-m", "A");
     const commitA = git(source, "rev-parse", "HEAD");
     git(location, "clone", "--bare", source, remote); git(source, "remote", "add", "origin", remote);
-    await db.insert(companies).values({ id: companyId, name: "Git expiration fixture", issuePrefix: `GC${companyId.slice(0, 6)}` });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Finished task", status: "done", completedAt: new Date(Date.now() - 48 * 3_600_000) });
+    await db.insert(spaces).values({ id: spaceId, name: "Git expiration fixture", issuePrefix: `GC${spaceId.slice(0, 6)}` });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Finished task", status: "done", completedAt: new Date(Date.now() - 48 * 3_600_000) });
     const repoUrl = pathToFileURL(remote).href;
     const projectId = withProject ? randomUUID() : null;
-    if (projectId) await db.insert(projects).values({ id: projectId, companyId, name: "Fixture project" });
+    if (projectId) await db.insert(projects).values({ id: projectId, spaceId, name: "Fixture project" });
     const baseCwd = managed
-      ? (await materializeManagedProjectWorkspace(resolveManagedProjectWorkspaceDir({ companyId, projectId: projectId!, repoName: "remote" }), { repoUrl })).cwd
-      : await materializeIsolatedRemoteWorkspaceSource({ companyId, issueId, repoUrl, resolveGitAuth: async () => null });
+      ? (await materializeManagedProjectWorkspace(resolveManagedProjectWorkspaceDir({ spaceId, projectId: projectId!, repoName: "remote" }), { repoUrl })).cwd
+      : await materializeIsolatedRemoteWorkspaceSource({ spaceId, issueId, repoUrl, resolveGitAuth: async () => null });
     const base = { baseCwd, source: "task_session" as const, projectId: null, workspaceId: null, repoUrl, repoRef: "origin/main" };
-    const workspace = await realizeExecutionWorkspace({ base, issue: { id: issueId, identifier: "GC-1", title: "Fixture" }, agent: { id: null, name: "Fixture", companyId },
-      config: { workspaceStrategy: { type: "git_worktree", branchTemplate: "fixture-task", worktreeParentDir: nested ? path.join(baseCwd, ".paperclip", "worktrees") : path.join(location, "worktrees"), baseRef: "origin/main" } }, skipHostProvision: true });
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, projectId, sourceIssueId: issueId, mode: "isolated_workspace", strategyType: "git_worktree", name: "Fixture", status: "active",
+    const workspace = await realizeExecutionWorkspace({ base, issue: { id: issueId, identifier: "GC-1", title: "Fixture" }, agent: { id: null, name: "Fixture", spaceId },
+      config: { workspaceStrategy: { type: "git_worktree", branchTemplate: "fixture-task", worktreeParentDir: nested ? path.join(baseCwd, ".outpost", "worktrees") : path.join(location, "worktrees"), baseRef: "origin/main" } }, skipHostProvision: true });
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, projectId, sourceIssueId: issueId, mode: "isolated_workspace", strategyType: "git_worktree", name: "Fixture", status: "active",
       providerType: "local_fs", cwd: workspace.cwd, providerRef: workspace.cwd, repoUrl, baseRef: "origin/main", branchName: workspace.branchName,
       metadata: { createdByRuntime: workspace.branchCreatedByRuntime, gitBranchOwnershipVersion: 1, baseRefSha: workspace.baseRefSha,
-        ...(managed ? {} : { isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId, issueId, repoUrl } }) } });
+        ...(managed ? {} : { isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", spaceId, issueId, repoUrl } }) } });
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, issueId));
     const row = () => db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, workspaceId)).then(rows => rows[0]!);
     const expire = async (options: Partial<Parameters<typeof expireReconstructableGitWorkspace>[2]> = {}) =>
       expireReconstructableGitWorkspace(db, await row(), { dryRun: false, expireBase: true, now: new Date(), ...options });
-    const reopen = (company = companyId) => executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({ workspaceId,
-      issue: { id: issueId, companyId: company, projectId: null }, actor: { actorType: "user", agentId: null },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true } });
+    const reopen = (space = spaceId) => executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({ workspaceId,
+      issue: { id: issueId, spaceId: space, projectId: null }, actor: { actorType: "user", agentId: null },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true } });
     const advance = async () => {
       await fs.writeFile(path.join(source, "marker.txt"), "commit B\n"); git(source, "add", "."); git(source, "commit", "-m", "B"); git(source, "push", "origin", "main");
       return git(source, "rev-parse", "HEAD");
     };
-    return { companyId, projectId, issueId, workspaceId, cwd: workspace.cwd, baseCwd, base, remote, source, commitA, row, expire, reopen, advance };
+    return { spaceId, projectId, issueId, workspaceId, cwd: workspace.cwd, baseCwd, base, remote, source, commitA, row, expire, reopen, advance };
   }
 
   it("expires through the lifecycle worker and restores the recorded commit after upstream advances", async () => {
@@ -127,9 +127,9 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     expect(await fs.readFile(path.join(f.cwd, "marker.txt"), "utf8")).toBe("commit A\n");
     // The next heartbeat uses this runtime path before handing files to the agent.
     await ensurePersistedExecutionWorkspaceAvailable({ db, base: f.base,
-      workspace: (await executionWorkspaceService(db).getStoredById(f.companyId, f.workspaceId))!,
+      workspace: (await executionWorkspaceService(db).getStoredById(f.spaceId, f.workspaceId))!,
       issue: { id: f.issueId, identifier: "GC-1", title: "Resumed task" },
-      agent: { id: null, name: "Fixture", companyId: f.companyId }, skipHostProvision: true });
+      agent: { id: null, name: "Fixture", spaceId: f.spaceId }, skipHostProvision: true });
     expect(git(f.cwd, "rev-parse", "HEAD")).toBe(f.commitA);
     await fs.writeFile(path.join(f.cwd, "continued.txt"), "continued\n"); git(f.cwd, "add", "."); git(f.cwd, "commit", "-m", "Continued");
     const continued = git(f.cwd, "rev-parse", "HEAD");
@@ -158,10 +158,10 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     await fs.writeFile(settingsPath, "original settings\n");
     expect((await f.expire({ expireBase: false })).expired).toBe(true);
     const service = executionWorkspaceService(db);
-    const stored = (await service.getStoredById(f.companyId, f.workspaceId))!;
+    const stored = (await service.getStoredById(f.spaceId, f.workspaceId))!;
     const input = { db, base: f.base, workspace: stored,
       issue: { id: f.issueId, identifier: "GC-1", title: "Resumed task" },
-      agent: { id: null, name: "Fixture", companyId: f.companyId }, skipHostProvision: true };
+      agent: { id: null, name: "Fixture", spaceId: f.spaceId }, skipHostProvision: true };
     const restored = (await ensurePersistedExecutionWorkspaceAvailable(input))!;
     await service.update(f.workspaceId, { metadata: mergeExecutionWorkspaceMetadataForPersistence({
       existingMetadata: stored.metadata, source: restored.source, createdByRuntime: restored.branchCreatedByRuntime,
@@ -170,7 +170,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     }) });
     expect((await f.row()).metadata?.gitCacheRestoration).toMatchObject({ contentsRestoredAt: expect.any(String) });
     await fs.writeFile(settingsPath, "later task settings\n");
-    await ensurePersistedExecutionWorkspaceAvailable({ ...input, workspace: (await service.getStoredById(f.companyId, f.workspaceId))! });
+    await ensurePersistedExecutionWorkspaceAvailable({ ...input, workspace: (await service.getStoredById(f.spaceId, f.workspaceId))! });
     expect(await fs.readFile(settingsPath, "utf8")).toBe("later task settings\n");
   });
 
@@ -185,10 +185,10 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     git(nestedSource, "add", "."); git(nestedSource, "commit", "-m", "Nested A");
     const nestedA = git(nestedSource, "rev-parse", "HEAD");
     git(path.dirname(nestedSource), "clone", "--bare", nestedSource, nestedRemote);
-    const [source] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: f.projectId!,
+    const [source] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: f.projectId!,
       name: "Nested repository", repoUrl: pathToFileURL(nestedRemote).href, repoRef: "main" }).returning();
     const preparation = { cwd: f.cwd, anchorRepoUrl: f.base.repoUrl, workspaces: [source!], resolveGitAuth: async () => null,
-      ...(shared ? { sharedBase: { companyId: f.companyId, projectId: f.projectId! } } : {}) };
+      ...(shared ? { sharedBase: { spaceId: f.spaceId, projectId: f.projectId! } } : {}) };
     const [nested] = await prepareProjectRepositoryWorkspaces(preparation);
     const settings = Buffer.from('{"permissions":{"allow":["Read(/user/path)"]},"env":{"LOCAL_SETTING":"preserve-me"}}\n');
     const settingsPath = path.join(f.cwd, ".claude/settings.local.json");
@@ -198,7 +198,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     await fs.mkdir(path.dirname(nestedSettingsPath));
     await fs.writeFile(nestedSettingsPath, settings, { mode: 0o640 });
     return { ...f, nestedSource, nestedRemote, nestedA, preparation, nested: nested!, settings, settingsPath, nestedSettingsPath,
-      sharedBase: resolveManagedProjectWorkspaceDir({ companyId: f.companyId, projectId: f.projectId!, repoName: "nested" }) };
+      sharedBase: resolveManagedProjectWorkspaceDir({ spaceId: f.spaceId, projectId: f.projectId!, repoName: "nested" }) };
   }
 
   it("restores expired managed nested contents under the runtime-control source fence", async () => {
@@ -208,14 +208,14 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     let entered!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
-    const sourceOwner = withWorkspaceSourceLocks(db, { companyId: f.companyId, projectIds: [f.projectId!] }, async () => {
+    const sourceOwner = withWorkspaceSourceLocks(db, { spaceId: f.spaceId, projectIds: [f.projectId!] }, async () => {
       entered(); await pending;
     });
     await started;
     const restore = withExecutionWorkspaceLifecycleLock(db, f.workspaceId, () =>
       ensurePersistedExecutionWorkspaceAvailable({ db, base: f.base, workspace,
         issue: { id: f.issueId, identifier: "GC-1", title: "Runtime restore" },
-        agent: { id: null, name: "Fixture", companyId: f.companyId }, skipHostProvision: true,
+        agent: { id: null, name: "Fixture", spaceId: f.spaceId }, skipHostProvision: true,
         prepareRestoredLocalSource: async sourceCwd => {
           const identity = await fs.realpath(sourceCwd);
           return async () => { expect(await fs.realpath(sourceCwd)).toBe(identity); };
@@ -237,14 +237,14 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
 
   it("retains a distinct private Git cache before the actual reopen lifecycle", async () => {
     const f = await fixture(), sourceIssueId = randomUUID();
-    await db.insert(issues).values({ id: sourceIssueId, companyId: f.companyId, title: "Reopen consumer" });
+    await db.insert(issues).values({ id: sourceIssueId, spaceId: f.spaceId, title: "Reopen consumer" });
     const metadata = { ...(await f.row()).metadata };
     delete metadata.isolatedRemoteSource;
     await db.update(executionWorkspaces).set({ sourceIssueId, metadata }).where(eq(executionWorkspaces.id, f.workspaceId));
     let entered!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
-    const owner = withWorkspaceSourceLocks(db, { companyId: f.companyId, issueIds: [f.issueId] }, async () => {
+    const owner = withWorkspaceSourceLocks(db, { spaceId: f.spaceId, issueIds: [f.issueId] }, async () => {
       entered(); await pending;
     });
     await started;
@@ -266,7 +266,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     let entered!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
-    const owner = withWorkspaceSourceLocks(db, { companyId: f.companyId, projectIds: [f.projectId!] }, async () => {
+    const owner = withWorkspaceSourceLocks(db, { spaceId: f.spaceId, projectIds: [f.projectId!] }, async () => {
       entered(); await pending;
     });
     await started;
@@ -506,7 +506,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
       const f = await nestedFixture(false);
       await unpushedNestedWork(f.nested.cwd);
       const generation = Number((await f.row()).metadata?.lifecycleGeneration ?? 0) + 1;
-      const base = { companyId: f.companyId, executionWorkspaceId: f.workspaceId, sourceIssueId: f.issueId, generation,
+      const base = { spaceId: f.spaceId, executionWorkspaceId: f.workspaceId, sourceIssueId: f.issueId, generation,
         sha256: "0".repeat(64), byteSize: 1 };
       const [stale] = await db.insert(executionWorkspaceRestorePoints).values([
         { ...base, checkoutName: path.basename(f.nested.cwd), objectKey: `stale/${randomUUID()}.pcrp`, status: "pending" },
@@ -608,7 +608,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     for (const location of locations) expect(await exists(path.join(location.root, location.relativePath))).toBe(false);
     expect(await f.reopen()).toMatchObject({ ok: true });
     const firstAdmin = path.dirname(path.join(locations[0]!.root, locations[0]!.relativePath));
-    expect((await fs.readdir(firstAdmin)).filter(name => name.startsWith(".paperclip-expiration-"))).toEqual([]);
+    expect((await fs.readdir(firstAdmin)).filter(name => name.startsWith(".outpost-expiration-"))).toEqual([]);
 
     const g = await nestedFixture();
     const remaining = await crashWithExpirationLocks(g);
@@ -675,9 +675,9 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     const continued = git(nested.cwd, "rev-parse", "HEAD");
     await fs.writeFile(settingsPath, "user changes after reopening\n");
     await ensurePersistedExecutionWorkspaceAvailable({ db, base: f.base,
-      workspace: (await executionWorkspaceService(db).getStoredById(f.companyId, f.workspaceId))!,
+      workspace: (await executionWorkspaceService(db).getStoredById(f.spaceId, f.workspaceId))!,
       issue: { id: f.issueId, identifier: "GC-1", title: "Resumed task" },
-      agent: { id: null, name: "Fixture", companyId: f.companyId }, skipHostProvision: true });
+      agent: { id: null, name: "Fixture", spaceId: f.spaceId }, skipHostProvision: true });
     await prepareProjectRepositoryWorkspaces(preparation);
     expect(git(nested.cwd, "rev-parse", "HEAD")).toBe(continued);
     expect(await fs.readFile(settingsPath, "utf8")).toBe("user changes after reopening\n");
@@ -691,7 +691,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
       if (cp.execFileSync('git', ['-C', ${JSON.stringify(f.nested.cwd)}, 'rev-parse', 'HEAD'], {encoding:'utf8'}).trim() !== ${JSON.stringify(f.nestedA)}) throw Error('wrong nested commit');
       if (fs.readFileSync(${JSON.stringify(f.settingsPath)}).toString('base64') !== ${JSON.stringify(f.settings.toString('base64'))}) throw Error('wrong settings');
       fs.writeFileSync(${JSON.stringify(observed)}, 'restored before provision');`);
-    const [primary] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: f.projectId!,
+    const [primary] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: f.projectId!,
       name: "Primary repository", cwd: f.baseCwd, repoUrl: f.base.repoUrl, isPrimary: true }).returning();
     await db.update(issues).set({ projectId: f.projectId }).where(eq(issues.id, f.issueId));
     const row = await f.row();
@@ -715,7 +715,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
       }
       if (fs.readFileSync(${JSON.stringify(f.settingsPath)}, 'utf8') !== ${JSON.stringify(changedSettings)}) throw Error('lost provision edits');
       fs.writeFileSync(${JSON.stringify(observed)}, 'second attempt succeeded');`);
-    const [primary] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: f.projectId!,
+    const [primary] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: f.projectId!,
       name: "Primary repository", cwd: f.baseCwd, repoUrl: f.base.repoUrl, isPrimary: true }).returning();
     await db.update(issues).set({ projectId: f.projectId }).where(eq(issues.id, f.issueId));
     const row = await f.row();
@@ -798,7 +798,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     expect(prepared).toEqual([f.nested]);
     expect(git(f.nested.cwd, "rev-parse", "HEAD")).toBe(f.nestedA);
     expect(await fs.readFile(f.nestedSettingsPath)).toEqual(f.settings);
-    expect(await exists(path.join(f.cwd, ".paperclip-runtime", "detached-repositories"))).toBe(false);
+    expect(await exists(path.join(f.cwd, ".outpost-runtime", "detached-repositories"))).toBe(false);
     await db.update(executionWorkspaces).set({ metadata: { ...row.metadata, reopenPendingConsumption: false } })
       .where(eq(executionWorkspaces.id, f.workspaceId));
     expect(await f.expire()).toMatchObject({ expired: true });
@@ -882,15 +882,15 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     await db.update(executionWorkspaces).set({ status: "idle" }).where(eq(executionWorkspaces.id, f.workspaceId));
     const svc = executionWorkspaceService(db);
     await svc.reconcileExecutionWorkspaceBranch(f.workspaceId, {
-      mode: "forward", actor: { actorType: "user", actorId: "local-board", agentId: null, runId: null },
+      mode: "forward", actor: { actorType: "user", actorId: "local-operator", agentId: null, runId: null },
     });
     expect((await f.row()).metadata?.gitCacheRestoration).toMatchObject({
       branchName: "renamed-task", commit: f.commitA, restoredAt: expect.any(String),
     });
     await ensurePersistedExecutionWorkspaceAvailable({ db, base: f.base,
-      workspace: (await svc.getStoredById(f.companyId, f.workspaceId))!,
+      workspace: (await svc.getStoredById(f.spaceId, f.workspaceId))!,
       issue: { id: f.issueId, identifier: "GC-1", title: "Resumed task" },
-      agent: { id: null, name: "Fixture", companyId: f.companyId }, skipHostProvision: true });
+      agent: { id: null, name: "Fixture", spaceId: f.spaceId }, skipHostProvision: true });
     expect(git(f.cwd, "branch", "--show-current")).toBe("renamed-task");
     expect(git(f.cwd, "rev-parse", "HEAD")).toBe(f.commitA);
   });
@@ -924,7 +924,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
 
   it("preserves live descendants and pending reopening", async () => {
     const f = await fixture();
-    await db.insert(issues).values({ companyId: f.companyId, title: "Active child", status: "in_progress", parentId: f.issueId,
+    await db.insert(issues).values({ spaceId: f.spaceId, title: "Active child", status: "in_progress", parentId: f.issueId,
       executionWorkspaceId: f.workspaceId, executionWorkspacePreference: "reuse_existing" });
     expect((await f.expire()).expired).toBe(false);
     await db.delete(issues).where(eq(issues.parentId, f.issueId));
@@ -997,7 +997,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
     expect(git(f.cwd, "rev-parse", "HEAD")).toBe(f.commitA);
   });
 
-  it("fails restoration explicitly on upstream failure and rejects a different company", async () => {
+  it("fails restoration explicitly on upstream failure and rejects a different space", async () => {
     const f = await fixture();
     expect((await f.expire()).baseExpired).toBe(true);
     await fs.rename(f.remote, `${f.remote}.offline`);
@@ -1097,15 +1097,15 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
   it("preserves scheduled runs, unresolved recovery, and live previews", async () => {
     const f = await fixture();
     const agentId = randomUUID(), runId = randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId: f.companyId, name: "Fixture", role: "engineer", adapterType: "process" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId, nativeIssueId: f.issueId, status: "scheduled_retry" });
+    await db.insert(agents).values({ id: agentId, spaceId: f.spaceId, name: "Fixture", role: "engineer", adapterType: "process" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId, nativeIssueId: f.issueId, status: "scheduled_retry" });
     expect((await f.expire()).expired).toBe(false);
     await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, runId));
-    await db.insert(nativeRunFinalizations).values({ runId, companyId: f.companyId, issueId: f.issueId, phase: "observed", recoveryState: "resuming_session" });
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId: f.spaceId, issueId: f.issueId, phase: "observed", recoveryState: "resuming_session" });
     expect((await f.expire()).expired).toBe(false);
     await db.update(nativeRunFinalizations).set({ phase: "committed", leaseOwner: "native-finalizer:live" }).where(eq(nativeRunFinalizations.runId, runId)); expect((await f.expire()).expired).toBe(false);
     await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, runId));
-    await db.insert(workspaceRuntimeServices).values({ id: randomUUID(), companyId: f.companyId, executionWorkspaceId: f.workspaceId,
+    await db.insert(workspaceRuntimeServices).values({ id: randomUUID(), spaceId: f.spaceId, executionWorkspaceId: f.workspaceId,
       scopeType: "execution_workspace", serviceName: "Preview", status: "running", lifecycle: "persistent", provider: "local" });
     expect((await f.expire()).expired).toBe(false);
     expect(await exists(f.cwd)).toBe(true);
@@ -1113,10 +1113,10 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
 
   it("expires a closed tree whose native recovery state was left behind", async () => {
     const f = await fixture(), agentId = randomUUID(), runIds = [randomUUID(), randomUUID()];
-    await db.insert(agents).values({ id: agentId, companyId: f.companyId, name: "Fixture", role: "engineer", adapterType: "process" });
-    await db.insert(heartbeatRuns).values(runIds.map(id => ({ id, companyId: f.companyId, agentId, nativeIssueId: f.issueId, status: "succeeded", finishedAt: new Date(Date.now() - 48 * 3_600_000) })));
-    await db.insert(nativeRunFinalizations).values([["committed", "resuming_session"], ["terminal_failure", "blocked"]].map(([phase, recoveryState], i) => ({ runId: runIds[i]!, companyId: f.companyId, issueId: f.issueId, phase, recoveryState })));
-    await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId, kind: "active_run_watchdog", ownerAgentId: agentId,
+    await db.insert(agents).values({ id: agentId, spaceId: f.spaceId, name: "Fixture", role: "engineer", adapterType: "process" });
+    await db.insert(heartbeatRuns).values(runIds.map(id => ({ id, spaceId: f.spaceId, agentId, nativeIssueId: f.issueId, status: "succeeded", finishedAt: new Date(Date.now() - 48 * 3_600_000) })));
+    await db.insert(nativeRunFinalizations).values([["committed", "resuming_session"], ["terminal_failure", "blocked"]].map(([phase, recoveryState], i) => ({ runId: runIds[i]!, spaceId: f.spaceId, issueId: f.issueId, phase, recoveryState })));
+    await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId, kind: "active_run_watchdog", ownerAgentId: agentId,
       cause: "native_finalization_error", fingerprint: randomUUID(), nextAction: "Resume the native run.", wakePolicy: { kind: "resume_native_run", runId: runIds[0] } });
     expect(await f.expire()).toMatchObject({ expired: true }); expect(await exists(f.cwd)).toBe(false);
   });
@@ -1197,7 +1197,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
         expect(git(checkout, "rev-parse", "--path-format=absolute", "--git-common-dir")).toBe(path.join(base, ".git"));
         expect(git(checkout, "rev-parse", "HEAD")).toBe(f.nestedA);
         expect(git(checkout, "remote", "get-url", "origin")).toBe(pathToFileURL(f.nestedRemote).href);
-        expect(git(checkout, "symbolic-ref", "--short", "HEAD")).toMatch(/^paperclip\/[a-f0-9]{12}\/main$/);
+        expect(git(checkout, "symbolic-ref", "--short", "HEAD")).toMatch(/^outpost\/[a-f0-9]{12}\/main$/);
         expect(git(checkout, "rev-parse", "--abbrev-ref", "@{upstream}")).toBe("origin/main");
       }
       expect(git(f.nested.cwd, "symbolic-ref", "HEAD")).not.toBe(git(f.sibling.cwd, "symbolic-ref", "HEAD"));
@@ -1225,7 +1225,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
       const held = withNestedRepositoryBaseLock(f.sharedBase, () => new Promise<void>(resolve => { release = resolve; }));
       const pending = prepareProjectRepositoryWorkspaces({ ...f.preparation, cwd: waiting });
       await new Promise(resolve => setTimeout(resolve, 500));
-      expect(await exists(path.join(waiting, ".paperclip-repositories", path.basename(f.nested.cwd)))).toBe(false);
+      expect(await exists(path.join(waiting, ".outpost-repositories", path.basename(f.nested.cwd)))).toBe(false);
       release();
       await held;
       const [late] = await pending;
@@ -1239,7 +1239,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
       await fs.mkdir(task);
       const [prepared] = await prepareProjectRepositoryWorkspaces({ ...f.preparation, cwd: task,
         workspaces: [{ ...f.preparation.workspaces[0]!, repoRef: "release-1.0" }] });
-      expect(git(prepared!.cwd, "symbolic-ref", "--short", "HEAD")).toMatch(/^paperclip\/[a-f0-9]{12}\/release-1\.0$/);
+      expect(git(prepared!.cwd, "symbolic-ref", "--short", "HEAD")).toMatch(/^outpost\/[a-f0-9]{12}\/release-1\.0$/);
       expect(git(prepared!.cwd, "rev-parse", "--abbrev-ref", "@{upstream}")).toBe("origin/release-1.0");
       git(prepared!.cwd, "pull", "-q");
       await expect(assertReproducibleManagedCheckout(prepared!.cwd, { repoUrl: pathToFileURL(f.nestedRemote).href,
@@ -1251,7 +1251,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
       git(f.nestedSource, "push", "-q", f.nestedRemote, "main:other");
       const original = git(f.nested.cwd, "symbolic-ref", "HEAD");
       await prepareProjectRepositoryWorkspaces({ ...f.preparation, workspaces: [{ ...f.preparation.workspaces[0]!, repoRef: "other" }] });
-      const detachedRoot = path.join(f.cwd, ".paperclip-runtime", "detached-repositories");
+      const detachedRoot = path.join(f.cwd, ".outpost-runtime", "detached-repositories");
       const [retained] = await fs.readdir(detachedRoot);
       expect(git(path.join(detachedRoot, retained!), "symbolic-ref", "HEAD")).toBe(original);
       const [back] = await prepareProjectRepositoryWorkspaces(f.preparation);
@@ -1269,7 +1269,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
       await fs.mkdir(task);
       const [prepared] = await prepareProjectRepositoryWorkspaces({ ...f.preparation, cwd: task,
         workspaces: [{ ...f.preparation.workspaces[0]!, repoRef: null }] });
-      expect(git(prepared!.cwd, "symbolic-ref", "--short", "HEAD")).toMatch(/^paperclip\/[a-f0-9]{12}\/trunk$/);
+      expect(git(prepared!.cwd, "symbolic-ref", "--short", "HEAD")).toMatch(/^outpost\/[a-f0-9]{12}\/trunk$/);
       expect(git(prepared!.cwd, "rev-parse", "--abbrev-ref", "@{upstream}")).toBe("origin/trunk");
     });
 
@@ -1325,7 +1325,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
 
     it("keeps adopting a legacy standalone nested clone", async () => {
       const f = await nestedFixture(false);
-      const [prepared] = await prepareProjectRepositoryWorkspaces({ ...f.preparation, sharedBase: { companyId: f.companyId, projectId: f.projectId! } });
+      const [prepared] = await prepareProjectRepositoryWorkspaces({ ...f.preparation, sharedBase: { spaceId: f.spaceId, projectId: f.projectId! } });
       expect(prepared!.cwd).toBe(f.nested.cwd);
       expect((await fs.lstat(path.join(f.nested.cwd, ".git"))).isDirectory()).toBe(true);
       expect(await exists(f.sharedBase)).toBe(false);
@@ -1496,7 +1496,7 @@ describeEmbeddedPostgres("reconstructable Git expiration", () => {
       const base = await real(f.sharedBase);
       const nestedLocks = locations.filter(location => location.checkout !== null);
       expect(nestedLocks.map(location => location.relativePath)).toEqual(expect.arrayContaining([
-        expect.stringMatching(/^\.git\/worktrees\/[^/]+\/index\.lock$/), expect.stringMatching(/^\.git\/refs\/heads\/paperclip\/[a-f0-9]{12}\/main\.lock$/)]));
+        expect.stringMatching(/^\.git\/worktrees\/[^/]+\/index\.lock$/), expect.stringMatching(/^\.git\/refs\/heads\/outpost\/[a-f0-9]{12}\/main\.lock$/)]));
       for (const location of nestedLocks) {
         expect(await real(location.root)).toBe(base);
         expect(await exists(path.join(location.root, location.relativePath))).toBe(true);

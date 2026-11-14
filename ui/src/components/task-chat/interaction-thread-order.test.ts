@@ -15,7 +15,7 @@ function confirmation(
 ): RequestConfirmationInteraction {
   return {
     id: "confirmation-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     kind: "request_confirmation",
     title: "Approve the plan",
@@ -27,7 +27,7 @@ function confirmation(
     effectiveResolverPolicy: "anyone",
     resolverPolicyProvenance: "inherited",
     effectiveResolverPolicySource: "requested",
-    legacyResolverPolicyAliases: { requested: "board_or_agents", effective: "board_or_agents" },
+    legacyResolverPolicyAliases: { requested: "operator_or_agents", effective: "operator_or_agents" },
     createdByAgentId: "agent-1",
     createdByUserId: null,
     resolvedByAgentId: null,
@@ -50,7 +50,7 @@ const RESOLVED_MS = new Date("2026-04-06T12:05:00.000Z").getTime();
 
 describe("isOutdatedPlanConfirmation", () => {
   const plan = {
-    id: "document-plan", companyId: "company-1", issueId: "issue-1",
+    id: "document-plan", spaceId: "space-1", issueId: "issue-1",
     latestRevisionId: "revision-4", latestRevisionNumber: 4, updatedAt: new Date("2026-04-06T12:01:00Z"),
   };
   const review = confirmation({ payload: { version: 1, prompt: "Approve?", target: {
@@ -65,7 +65,7 @@ describe("isOutdatedPlanConfirmation", () => {
     { name: "accepted decision", interaction: { ...review, status: "accepted" as const }, document: plan },
     { name: "question", interaction: pendingAskUserQuestionsInteraction, document: plan },
     { name: "other issue", interaction: review, document: { ...plan, issueId: "other-issue" } },
-    { name: "other company", interaction: review, document: { ...plan, companyId: "other-company" } },
+    { name: "other space", interaction: review, document: { ...plan, spaceId: "other-space" } },
     { name: "matching revision", interaction: review, document: { ...plan, latestRevisionId: "revision-3" } },
     { name: "older document cache", interaction: idOnlyReview, document: { ...plan, updatedAt: new Date("2026-04-06T11:59:00Z") } },
   ])("keeps $name", ({ interaction, document }) => {

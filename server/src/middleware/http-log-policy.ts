@@ -3,12 +3,12 @@ const SILENCED_SUCCESS_METHODS = new Set(["GET", "HEAD"]);
 const SILENCED_SUCCESS_API_PATHS = [
   /^\/api\/muse\/v1\/signal$/i,
   /^\/api\/health(?:\/|$)/,
-  /^\/api\/companies\/[^/]+\/activity(?:\/|$)/,
-  /^\/api\/companies\/[^/]+\/dashboard(?:\/|$)/,
-  /^\/api\/companies\/[^/]+\/heartbeat-runs(?:\/|$)/,
-  /^\/api\/companies\/[^/]+\/issues(?:\/|$)/,
-  /^\/api\/companies\/[^/]+\/live-runs(?:\/|$)/,
-  /^\/api\/companies\/[^/]+\/sidebar-badges(?:\/|$)/,
+  /^\/api\/spaces\/[^/]+\/activity(?:\/|$)/,
+  /^\/api\/spaces\/[^/]+\/dashboard(?:\/|$)/,
+  /^\/api\/spaces\/[^/]+\/heartbeat-runs(?:\/|$)/,
+  /^\/api\/spaces\/[^/]+\/issues(?:\/|$)/,
+  /^\/api\/spaces\/[^/]+\/live-runs(?:\/|$)/,
+  /^\/api\/spaces\/[^/]+\/sidebar-badges(?:\/|$)/,
   /^\/api\/heartbeat-runs\/[^/]+\/log(?:\/|$)/,
 ];
 
@@ -59,8 +59,8 @@ export type SecretSensitiveRouteFamily =
   | "chat_endpoint_setup";
 
 const SECRET_SENSITIVE_HTTP_PATHS: ReadonlyArray<readonly [SecretSensitiveRouteFamily, RegExp]> = [
-  ["voice_sessions", /^\/api\/companies\/[^/]+\/voice-sessions(?:\/|$)/],
-  ["mcp_oauth", /^\/mcp\/(?:oauth|paperclip)(?:\/|$)/],
+  ["voice_sessions", /^\/api\/spaces\/[^/]+\/voice-sessions(?:\/|$)/],
+  ["mcp_oauth", /^\/mcp\/(?:oauth|outpost)(?:\/|$)/],
   ["api_mcp", /^\/api\/mcp(?:\/|$)/],
   ["chat_endpoint_setup", /^\/api\/chat-endpoints\/[^/]+\/setup(?:-secret)?(?:\/|$)/],
 ];
@@ -71,14 +71,14 @@ export function isPrivateAgentCommentaryHttpRequest(url: string | undefined): bo
   if (!url) return false;
   // Express routes are case-insensitive and also accept absolute-form URLs.
   const pathname = normalizePath(url).replace(/^https?:\/\/[^/]*/i, "");
-  return /^\/api\/companies\/[^/]+\/agent-commentary(?:\/|$)/i.test(pathname);
+  return /^\/api\/spaces\/[^/]+\/agent-commentary(?:\/|$)/i.test(pathname);
 }
 
 /** Destination credentials stay private even on malformed settings requests. */
 export function isPrivateAgentObservabilityHttpRequest(url: string | undefined): boolean {
   if (!url) return false;
   const pathname = normalizePath(url).replace(/^https?:\/\/[^/]*/i, "");
-  return /^\/api\/companies\/[^/]+\/observability(?:\/|$)/i.test(pathname);
+  return /^\/api\/spaces\/[^/]+\/observability(?:\/|$)/i.test(pathname);
 }
 
 /** Muse OAuth and worker payloads stay private even on malformed/rejected paths. */
@@ -86,7 +86,7 @@ export function isPrivateMuseHttpRequest(url:string|undefined):boolean {
   if(!url)return false;
   let pathname=normalizePath(url).replace(/^https?:\/\/[^/]*/i, "");
   for(let depth=0;depth<4;depth++) {
-    if(/^\/api\/muse(?:\/|$)/i.test(pathname) || /^\/api\/companies\/[^/]+\/(?:muse-invitations|agents\/[^/]+\/muse-binding)(?:\/|$)/i.test(pathname))return true;
+    if(/^\/api\/muse(?:\/|$)/i.test(pathname) || /^\/api\/spaces\/[^/]+\/(?:muse-invitations|agents\/[^/]+\/muse-binding)(?:\/|$)/i.test(pathname))return true;
     try {const decoded=decodeURIComponent(pathname);if(decoded===pathname)break;pathname=decoded;} catch {break;}
   }
   return false;
@@ -163,7 +163,7 @@ export function secretSensitiveRouteFamily(
   if (isPrivateAgentObservabilityHttpRequest(url)) return "agent_observability";
   // Avatar uploads and dedicated Dot MCP calls may contain private image bytes.
   if (url && /^\/mcp\/runner(?:\/|$)/i.test(normalizePath(url).replace(/^https?:\/\/[^/]*/i, ""))) return "mcp_runner";
-  if (url && /^\/api\/companies\/[^/]+\/agents\/[^/]+\/avatar(?:\/|$)/i.test(normalizePath(url).replace(/^https?:\/\/[^/]*/i, ""))) return "agent_avatar";
+  if (url && /^\/api\/spaces\/[^/]+\/agents\/[^/]+\/avatar(?:\/|$)/i.test(normalizePath(url).replace(/^https?:\/\/[^/]*/i, ""))) return "agent_avatar";
   if (!method || !url) return null;
   if (/^\/api\/chat-slack\/(?:managed\/)?oauth(?:\/|$)/i.test(normalizePath(url).replace(/^https?:\/\/[^/]*/i, ""))) return "chat_slack_oauth";
   if (/^\/api\/chat-endpoints\/[^/]+\/slack(?:\/|$)/i.test(normalizePath(url).replace(/^https?:\/\/[^/]*/i, ""))) return "chat_endpoint_slack";

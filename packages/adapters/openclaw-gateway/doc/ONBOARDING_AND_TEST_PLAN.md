@@ -12,11 +12,11 @@ This plan is now **gateway-only**. Outpost supports OpenClaw through `openclaw_g
 3. Device auth stays enabled by default; pairing is persisted via `adapterConfig.devicePrivateKeyPem`.
 4. Invite/access flow must be secure:
 - invite prompt endpoint is board-permission protected
-- Outpost Lead agent is allowed to invoke the invite prompt endpoint for their own company
+- Default agent agent is allowed to invoke the invite prompt endpoint for their own space
 5. E2E pass criteria must include the 3 functional task cases.
 
 ## Current Product Flow
-1. Board/Outpost Lead opens company settings.
+1. Board/Default agent opens space settings.
 2. Click `Generate OpenClaw Invite Prompt`.
 3. Paste generated prompt into OpenClaw chat.
 4. OpenClaw submits invite acceptance with:
@@ -39,7 +39,7 @@ This plan is now **gateway-only**. Outpost supports OpenClaw through `openclaw_g
 Recommended fields:
 ```json
 {
-  "paperclipApiUrl": "http://host.docker.internal:3100",
+  "outpostApiUrl": "http://host.docker.internal:3100",
   "waitTimeoutMs": 120000,
   "sessionKeyStrategy": "issue",
   "role": "operator",
@@ -71,7 +71,7 @@ curl -fsS http://127.0.0.1:3100/api/health
 ```
 
 ### 2) Invite + join + approval
-- create invite prompt via `POST /api/companies/:companyId/openclaw/invite-prompt`
+- create invite prompt via `POST /api/spaces/:spaceId/openclaw/invite-prompt`
 - paste prompt to OpenClaw
 - approve join request
 - assert created agent:

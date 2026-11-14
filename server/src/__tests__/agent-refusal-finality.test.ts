@@ -9,13 +9,13 @@ import { buildOpenApiDocument } from "../routes/openapi.js";
 import { withMcpConnectionFailure } from "../services/mcp-connection-failure.js";
 import { googleWorkspaceServicesUnavailable, unreachableServerRemediation } from "../services/tool-access/catalog/failures.js";
 
-const COMPANY_ID = "10000000-0000-4000-8000-000000000001";
-const OTHER_COMPANY_ID = "10000000-0000-4000-8000-000000000009";
+const SPACE_ID = "10000000-0000-4000-8000-000000000001";
+const OTHER_SPACE_ID = "10000000-0000-4000-8000-000000000009";
 
-const agentActor: Express.Request["actor"] = { type: "agent", source: "agent_key", agentId: "agent-1", companyId: COMPANY_ID };
-const boardActor: Express.Request["actor"] = { type: "board", source: "local_implicit", userId: "local-board" };
+const agentActor: Express.Request["actor"] = { type: "agent", source: "agent_key", agentId: "agent-1", spaceId: SPACE_ID };
+const operatorActor: Express.Request["actor"] = { type: "operator", source: "local_implicit", userId: "local-operator" };
 
-function lookupApp(actor: Express.Request["actor"], issue: { companyId: string } | null) {
+function lookupApp(actor: Express.Request["actor"], issue: { spaceId: string } | null) {
   const app = express();
   app.use((req, _res, next) => {
     req.actor = actor;
@@ -36,10 +36,10 @@ async function refusedConnection(code: string) {
 }
 
 describe("agent refusals that are final", () => {
-  it("tells an agent a task lookup is final, with one body for missing and other-company tasks", async () => {
+  it("tells an agent a task lookup is final, with one body for missing and other-space tasks", async () => {
     const missing = await request(lookupApp(agentActor, null)).get("/api/issues/COM-2").expect(404);
-    const otherCompany = await request(lookupApp(agentActor, { companyId: OTHER_COMPANY_ID })).get("/api/issues/OTH-1").expect(404);
-    expect(missing.body).toEqual(otherCompany.body);
+    const otherSpace = await request(lookupApp(agentActor, { spaceId: OTHER_SPACE_ID })).get("/api/issues/OTH-1").expect(404);
+    expect(missing.body).toEqual(otherSpace.body);
     expect(missing.body).toEqual(issueNotFoundBody({ actor: agentActor } as express.Request));
     expect(missing.body.error).toBe("Issue not found");
     expect(missing.body.code).toBe(ISSUE_NOT_VISIBLE_CODE);
@@ -49,7 +49,7 @@ describe("agent refusals that are final", () => {
   });
 
   it("keeps the plain task 404 for people", async () => {
-    const res = await request(lookupApp(boardActor, null)).get("/api/issues/COM-2").expect(404);
+    const res = await request(lookupApp(operatorActor, null)).get("/api/issues/COM-2").expect(404);
     expect(res.body).toEqual({ error: "Issue not found" });
   });
 
@@ -94,24 +94,24 @@ describe("agent refusals that are final", () => {
     expect(res.body.remediation).toContain("its host name did not resolve");
   });
 
-  it("marks budget changes and approval decisions board-only in the API catalog", () => {
+  it("marks budget changes and approval decisions operator-only in the API catalog", () => {
     const paths = buildOpenApiDocument().paths;
     for (const [path, method] of [
-      ["/api/companies/{companyId}/budgets/policies", "post"],
-      ["/api/companies/{companyId}/budget-incidents/{incidentId}/resolve", "post"],
-      ["/api/companies/{companyId}/budgets", "patch"],
+      ["/api/spaces/{spaceId}/budgets/policies", "post"],
+      ["/api/spaces/{spaceId}/budget-incidents/{incidentId}/resolve", "post"],
+      ["/api/spaces/{spaceId}/budgets", "patch"],
       ["/api/agents/{agentId}/budgets", "patch"],
       ["/api/approvals/{id}/approve", "post"],
       ["/api/approvals/{id}/reject", "post"],
-    ] as const) expect(paths[path][method]["x-paperclip-authorization"], `${method} ${path}`).toEqual({ actor: "board" });
-    expect(paths["/api/companies/{companyId}/budget-incidents/{incidentId}/resolve"].post.description).toContain("[Open budgets](/<prefix>/activity/budgets)");
+    ] as const) expect(paths[path][method]["x-outpost-authorization"], `${method} ${path}`).toEqual({ actor: "operator" });
+    expect(paths["/api/spaces/{spaceId}/budget-incidents/{incidentId}/resolve"].post.description).toContain("[Open budgets](/<prefix>/activity/budgets)");
     expect(paths["/api/agents/{agentId}/budgets"].patch.description).toContain("[Open budget](/<prefix>/agents/<agentId>/budgets)");
   });
 
   it("points the API catalog at the checked MCP setup route and the complete model lists", () => {
     const paths = buildOpenApiDocument().paths;
-    expect(paths["/api/companies/{companyId}/tools/connections"].post.description).toContain("POST /api/companies/{companyId}/tools/apps/connect with link");
-    const models = paths["/api/companies/{companyId}/adapters/{type}/models"].get;
+    expect(paths["/api/spaces/{spaceId}/tools/connections"].post.description).toContain("POST /api/spaces/{spaceId}/tools/apps/connect with link");
+    const models = paths["/api/spaces/{spaceId}/adapters/{type}/models"].get;
     expect(models.description).toContain("type opencode_local and provider=openrouter");
     expect(models.description).toContain("its adapterConfig.acpxAgent when the provider is acpx");
     expect(models.description).toContain("these calls answer the question");

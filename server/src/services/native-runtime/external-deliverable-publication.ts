@@ -5,12 +5,12 @@ import { heartbeatRuns, type Db } from "@outpost/db";
  * Publication runs only after the stored attachment matches those bytes. The
  * caller holds the transfer's current work-session/grant transaction throughout. */
 export async function prepareExternalDeliverablePublication(db: Db, input: {
-  companyId: string; issueId: string; runId: string; agentId: string;
+  spaceId: string; issueId: string; runId: string; agentId: string;
   uploadId: string; workSessionId: string;
   filename: string; byteSize: number; sha256: string;
 }) {
   const [run] = await db.select({ resultJson: heartbeatRuns.resultJson }).from(heartbeatRuns)
-    .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId),
+    .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId),
       eq(heartbeatRuns.agentId, input.agentId), eq(heartbeatRuns.nativeIssueId, input.issueId),
       eq(heartbeatRuns.runtimeMode, "native"), eq(heartbeatRuns.driverKind, "grok_bot_mcp"),
       eq(heartbeatRuns.status, "running"))).for("update");
@@ -45,11 +45,11 @@ export async function prepareExternalDeliverablePublication(db: Db, input: {
 
 /** A lost HTTP response can recover the committed proof without republishing. */
 export async function readExternalDeliverablePublication(db: Db, input: {
-  companyId: string; issueId: string; runId: string; agentId: string;
+  spaceId: string; issueId: string; runId: string; agentId: string;
   uploadId: string; workSessionId: string; attachmentId: string;
 }) {
   const [run] = await db.select({ resultJson: heartbeatRuns.resultJson }).from(heartbeatRuns)
-    .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId),
+    .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId),
       eq(heartbeatRuns.agentId, input.agentId), eq(heartbeatRuns.nativeIssueId, input.issueId),
       eq(heartbeatRuns.runtimeMode, "native"), eq(heartbeatRuns.driverKind, "grok_bot_mcp"), eq(heartbeatRuns.status, "running")));
   const receipts = run?.resultJson?.semanticToolReceipts as Record<string, unknown> | undefined;

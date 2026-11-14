@@ -13,7 +13,7 @@ another provider does not meet this goal.
 The user authorized implementation, review, merge, staging deployment, and task
 recovery. The supported release covers the affected native Codex and native
 OpenCode remote execution paths, plus shared lifecycle regression controls.
-It preserves existing company, ownership, Stop, pause, approval, budget, and
+It preserves existing space, ownership, Stop, pause, approval, budget, and
 workspace boundaries. Genuine conflicting ownership or an unresolved external
 effect must remain safe and actionable. This is not a promise that infrastructure
 can never fail; it is a checkable promise that the specified failures do not lose
@@ -37,7 +37,7 @@ has not been merged or deployed.
 | Crash during checkpoint, recovery, or workspace copy-back | Resume the persistence obligation without replaying completed provider work; retain the sole recoverable source until saved | Restart/concurrency regression with independently checked file contents |
 | Existing saved or quarantined state from the affected release | Recover eligible old state without requiring a newly created task or discarding its history | Compatibility fixture and recovery of both reported tasks |
 | Duplicate recovery workers, lost acknowledgements, and newer user messages | At most one successor and one delivery of each message; no replay of a completed external action | Durable ledger and side-effect counter assertions |
-| Wrong company/session, a genuinely live competing owner, Stop/pause, revoked access, or unknown external effect | No unsafe adoption, signalling, destruction, or speculative action replay; concrete remaining blocker | Negative controls |
+| Wrong space/session, a genuinely live competing owner, Stop/pause, revoked access, or unknown external effect | No unsafe adoption, signalling, destruction, or speculative action replay; concrete remaining blocker | Negative controls |
 | Deployment | Running staging application and any changed runner artifact match the tested revisions; both tasks have useful results or their genuine task-level disposition | Live revision, run, file, and task inspection |
 
 Use the existing recovery budgets (three provider attempts including the original,

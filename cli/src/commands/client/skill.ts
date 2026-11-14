@@ -9,7 +9,7 @@ import {
 } from "./common.js";
 
 interface SkillOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   payloadJson?: string;
   path?: string;
 }
@@ -17,90 +17,90 @@ interface SkillOptions extends BaseClientOptions {
 export function registerSkillCommands(program: Command): void {
   const skill = program.command("skill").description("Outpost skill operations");
 
-  addCompanyGet(skill, "list", "List company skills", "skills");
+  addSpaceGet(skill, "list", "List space skills", "skills");
 
   addCommonClientOptions(
     skill
       .command("get")
-      .description("Get company skill details")
+      .description("Get space skill details")
       .argument("<skillId>", "Skill ID")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .action(async (skillId: string, opts: SkillOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          printOutput(await ctx.api.get(apiPath`/api/companies/${ctx.companyId}/skills/${skillId}`), { json: ctx.json });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          printOutput(await ctx.api.get(apiPath`/api/spaces/${ctx.spaceId}/skills/${skillId}`), { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
     skill
       .command("file")
-      .description("Read a company skill file")
+      .description("Read a space skill file")
       .argument("<skillId>", "Skill ID")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .option("--path <path>", "Skill-relative file path", "SKILL.md")
       .action(async (skillId: string, opts: SkillOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const query = new URLSearchParams({ path: opts.path ?? "SKILL.md" });
-          printOutput(await ctx.api.get(`${apiPath`/api/companies/${ctx.companyId}/skills/${skillId}/files`}?${query.toString()}`), { json: ctx.json });
+          printOutput(await ctx.api.get(`${apiPath`/api/spaces/${ctx.spaceId}/skills/${skillId}/files`}?${query.toString()}`), { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
-  addCompanyPost(skill, "create", "Create a local company skill", "skills", true);
-  addCompanyPost(skill, "import", "Import company skills from a source", "skills/import", true);
-  addCompanyPost(skill, "scan-projects", "Scan project workspaces for company skills", "skills/scan-projects", true);
+  addSpacePost(skill, "create", "Create a local space skill", "skills", true);
+  addSpacePost(skill, "import", "Import space skills from a source", "skills/import", true);
+  addSpacePost(skill, "scan-projects", "Scan project workspaces for space skills", "skills/scan-projects", true);
 
   addCommonClientOptions(
     skill
       .command("file:update")
-      .description("Update a company skill file")
+      .description("Update a space skill file")
       .argument("<skillId>", "Skill ID")
-      .option("-C, --company-id <id>", "Outpost ID")
-      .requiredOption("--payload-json <json>", "CompanySkillFileUpdate JSON payload")
+      .option("-C, --space-id <id>", "Outpost ID")
+      .requiredOption("--payload-json <json>", "SpaceSkillFileUpdate JSON payload")
       .action(async (skillId: string, opts: SkillOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           printOutput(
-            await ctx.api.patch(apiPath`/api/companies/${ctx.companyId}/skills/${skillId}/files`, parseJson(opts.payloadJson ?? "{}")),
+            await ctx.api.patch(apiPath`/api/spaces/${ctx.spaceId}/skills/${skillId}/files`, parseJson(opts.payloadJson ?? "{}")),
             { json: ctx.json },
           );
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
-  addSkillAction(skill, "update-status", "Get company skill update status", "update-status", "GET");
-  addSkillAction(skill, "install-update", "Install available company skill update", "install-update", "POST");
-  addSkillAction(skill, "delete", "Delete a company skill", "", "DELETE");
+  addSkillAction(skill, "update-status", "Get space skill update status", "update-status", "GET");
+  addSkillAction(skill, "install-update", "Install available space skill update", "install-update", "POST");
+  addSkillAction(skill, "delete", "Delete a space skill", "", "DELETE");
 }
 
-function addCompanyGet(parent: Command, name: string, description: string, path: string): void {
+function addSpaceGet(parent: Command, name: string, description: string, path: string): void {
   addCommonClientOptions(
-    parent.command(name).description(description).option("-C, --company-id <id>", "Outpost ID").action(async (opts: SkillOptions) => {
+    parent.command(name).description(description).option("-C, --space-id <id>", "Outpost ID").action(async (opts: SkillOptions) => {
       try {
-        const ctx = resolveCommandContext(opts, { requireCompany: true });
-        printOutput(await ctx.api.get(`${apiPath`/api/companies/${ctx.companyId}`}/${path}`), { json: ctx.json });
+        const ctx = resolveCommandContext(opts, { requireSpace: true });
+        printOutput(await ctx.api.get(`${apiPath`/api/spaces/${ctx.spaceId}`}/${path}`), { json: ctx.json });
       } catch (err) {
         handleCommandError(err);
       }
     }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 
-function addCompanyPost(parent: Command, name: string, description: string, path: string, requirePayload = false): void {
-  const command = parent.command(name).description(description).option("-C, --company-id <id>", "Outpost ID");
+function addSpacePost(parent: Command, name: string, description: string, path: string, requirePayload = false): void {
+  const command = parent.command(name).description(description).option("-C, --space-id <id>", "Outpost ID");
   if (requirePayload) {
     command.requiredOption("--payload-json <json>", "JSON payload");
   } else {
@@ -109,13 +109,13 @@ function addCompanyPost(parent: Command, name: string, description: string, path
   addCommonClientOptions(
     command.action(async (opts: SkillOptions) => {
       try {
-        const ctx = resolveCommandContext(opts, { requireCompany: true });
-        printOutput(await ctx.api.post(`${apiPath`/api/companies/${ctx.companyId}`}/${path}`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });
+        const ctx = resolveCommandContext(opts, { requireSpace: true });
+        printOutput(await ctx.api.post(`${apiPath`/api/spaces/${ctx.spaceId}`}/${path}`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });
       } catch (err) {
         handleCommandError(err);
       }
     }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 
@@ -125,11 +125,11 @@ function addSkillAction(parent: Command, name: string, description: string, suff
       .command(name)
       .description(description)
       .argument("<skillId>", "Skill ID")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .action(async (skillId: string, opts: SkillOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const path = `${apiPath`/api/companies/${ctx.companyId}/skills/${skillId}`}${suffix ? `/${suffix}` : ""}`;
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const path = `${apiPath`/api/spaces/${ctx.spaceId}/skills/${skillId}`}${suffix ? `/${suffix}` : ""}`;
           const result =
             method === "GET"
               ? await ctx.api.get(path)
@@ -141,7 +141,7 @@ function addSkillAction(parent: Command, name: string, description: string, suff
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 

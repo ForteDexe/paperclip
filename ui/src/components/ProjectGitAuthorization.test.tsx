@@ -37,7 +37,7 @@ describe("ProjectGitAuthorization", () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
     });
-    client.setQueryData(["project-git-authorization", "company-a", "project-a"], saved);
+    client.setQueryData(["project-git-authorization", "space-a", "project-a"], saved);
     const container = document.createElement("div"),
       root = createRoot(container);
     document.body.appendChild(container);
@@ -45,7 +45,7 @@ describe("ProjectGitAuthorization", () => {
       await act(async () =>
         root.render(
           <QueryClientProvider client={client}>
-            <ProjectGitAuthorization project={{ id: "project-a", companyId: "company-a" } as Project} />
+            <ProjectGitAuthorization project={{ id: "project-a", spaceId: "space-a" } as Project} />
           </QueryClientProvider>,
         ),
       );
@@ -66,7 +66,7 @@ describe("ProjectGitAuthorization", () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       });
       expect(projectsApi.setGitAuthorization).toHaveBeenCalledWith("project-a", null);
-      expect(client.getQueryData(["project-git-authorization", "company-a", "project-a"])).toMatchObject({
+      expect(client.getQueryData(["project-git-authorization", "space-a", "project-a"])).toMatchObject({
         grantId: null,
       });
       expect(container.textContent).not.toContain("Revoke authorization");

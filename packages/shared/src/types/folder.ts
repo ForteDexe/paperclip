@@ -2,7 +2,7 @@ export type FolderKind = "routine" | "skill";
 
 export interface Folder {
   id: string;
-  companyId: string;
+  spaceId: string;
   kind: FolderKind;
   parentId: string | null;
   name: string;

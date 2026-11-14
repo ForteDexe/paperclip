@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  agents, approvals, companies, companyMemberships, companySecrets, connectionGrants,
+  agents, approvals, spaces, spaceMemberships, spaceSecrets, connectionGrants,
   createDb, heartbeatRuns, issues, toolAccessAuditEvents, toolActionRequests,
   toolApplications, toolCallEvents, toolConnections, toolOauthStates,
 } from "@outpost/db";
@@ -51,11 +51,11 @@ describe("Braintrust reviewed tool risks", () => {
 });
 
 const support = await getEmbeddedPostgresTestSupport();
-(support.supported ? describe : describe.skip)("Braintrust connection lifecycle and governed gateway", () => {
+(support.supported ? describe : describe.skip)("Braintrust connection lifecycle and controlled gateway", () => {
   let db: ReturnType<typeof createDb>;
   let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   beforeAll(async () => {
-    temp = await startEmbeddedPostgresTestDatabase("paperclip-braintrust-");
+    temp = await startEmbeddedPostgresTestDatabase("outpost-braintrust-");
     db = createDb(temp.connectionString);
   }, 30000);
   afterAll(async () => { await temp?.cleanup(); });
@@ -67,8 +67,8 @@ const support = await getEmbeddedPostgresTestSupport();
     const endpoint = `${origin}/mcp`;
     const accessToken = `braintrust-fixture-${randomUUID()}`;
     const refreshToken = `braintrust-refresh-${randomUUID()}`;
-    const [company] = await db.insert(companies).values({ name: "Braintrust fixture", issuePrefix: `BT${randomUUID().slice(0, 6)}` }).returning();
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: actor.actorId, status: "active", membershipRole: "admin" });
+    const [space] = await db.insert(spaces).values({ name: "Braintrust fixture", issuePrefix: `BT${randomUUID().slice(0, 6)}` }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: actor.actorId, status: "active", membershipRole: "admin" });
     let tools = [...initialTools];
     let authorized = !oauth;
     const request = vi.fn(async (url: string, init: RequestInit) => {
@@ -105,9 +105,9 @@ const support = await getEmbeddedPostgresTestSupport();
     const connectInput = { galleryKey: "braintrust", connectionMethodKey: methodKey,
       ...(options.personal ? { grantKind: "user" as const } : {}),
       ...(!oauth ? { credentialValues: { "credentials.authorization": accessToken } } : {}) };
-    const connect = () => service.connectGalleryApp(company.id, connectInput, actor);
+    const connect = () => service.connectGalleryApp(space.id, connectInput, actor);
     const signIn = async (connectionId: string) => {
-      const start = await service.startOAuth(company.id, connectionId, { redirectUri, actor });
+      const start = await service.startOAuth(space.id, connectionId, { redirectUri, actor });
       const authorization = new URL(start.authorizationUrl);
       expect(start.registrationSource).toBe("dcr");
       expect(authorization.origin).toBe(origin);
@@ -117,23 +117,23 @@ const support = await getEmbeddedPostgresTestSupport();
       return service.completeOAuthCallback({ state: authorization.searchParams.get("state")!, code: "fixture-code", iss: origin, redirectUri, actor });
     };
     let connected = await connect();
-    if (oauth && options.deferOAuth) return { company, service, request, connect, accessToken, endpoint, origin, signIn, connected,
+    if (oauth && options.deferOAuth) return { space, service, request, connect, accessToken, endpoint, origin, signIn, connected,
       agent: undefined, gateway: undefined, session: undefined, call: undefined, run: undefined, issue: undefined, setTools: undefined };
     if (oauth && !options.deferOAuth) connected = await signIn(connected.connectionId);
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Braintrust analyst", role: "engineer", adapterType: "process" }).returning();
-    await service.finishGalleryAppConnection(company.id, connected.connectionId, { enabledCatalogEntryIds: connected.catalog.map(entry => entry.id), askFirstCatalogEntryIds: [], access: { agentIds: [agent.id] } }, actor);
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Braintrust fixture work", assigneeAgentId: agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, issueId: issue.id,
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Braintrust analyst", role: "engineer", adapterType: "process" }).returning();
+    await service.finishGalleryAppConnection(space.id, connected.connectionId, { enabledCatalogEntryIds: connected.catalog.map(entry => entry.id), askFirstCatalogEntryIds: [], access: { agentIds: [agent.id] } }, actor);
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Braintrust fixture work", assigneeAgentId: agent.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, issueId: issue.id,
       scopeKind: "issue", invocationSource: "on_demand", status: "running", responsibleUserId: actor.actorId, contextSnapshot: { issueId: issue.id } }).returning();
     const gateway = createToolGatewayService(db, { remoteHttpRequest: request, toolActionSigningSecret: "braintrust-fixture-signing-key" });
-    const session = await gateway.createSession({ companyId: company.id, agentId: agent.id, runId: run.id, issueId: issue.id });
+    const session = await gateway.createSession({ spaceId: space.id, agentId: agent.id, runId: run.id, issueId: issue.id });
     const listed = await gateway.listToolsForSession(session.token);
     const call = (name: string, parameters = {}) => {
       const tool = listed.find(entry => entry.upstreamToolName === name);
       expect(tool, name).toBeTruthy();
       return gateway.executeTool({ sessionToken: session.token, tool: tool!.name, parameters, idempotencyKey: randomUUID() });
     };
-    return { company, service, request, connect, accessToken, endpoint, origin, signIn,
+    return { space, service, request, connect, accessToken, endpoint, origin, signIn,
       connected, agent, gateway, session, call, run, issue, setTools: (next: McpToolDescriptor[]) => { tools = next; } };
   }
 
@@ -148,8 +148,8 @@ const support = await getEmbeddedPostgresTestSupport();
     const [grant] = await db.select().from(connectionGrants).where(eq(connectionGrants.connectionId, connected.connectionId));
     expect(grant.kind).toBe(personal ? "user" : "organization");
     for (const ref of grant.credentialSecretRefs) {
-      const [secret] = await db.select().from(companySecrets).where(eq(companySecrets.id, ref.secretId));
-      expect(secret.scope).toBe(personal ? "user" : "company");
+      const [secret] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, ref.secretId));
+      expect(secret.scope).toBe(personal ? "user" : "space");
       expect(secret.ownerUserId).toBe(personal ? actor.actorId : null);
     }
     expect(JSON.stringify(await f.call!("sql_query", { query: "SELECT id FROM project_logs LIMIT 1" }))).toContain("Executed sql_query");
@@ -157,18 +157,18 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(write).toContain("Executed run_eval");
     expect(write).not.toContain(f.accessToken);
     const persisted = { connection: await f.service.getConnection(connected.connectionId),
-      audit: await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.companyId, f.company.id)),
-      calls: await db.select().from(toolCallEvents).where(eq(toolCallEvents.companyId, f.company.id)) };
+      audit: await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.spaceId, f.space.id)),
+      calls: await db.select().from(toolCallEvents).where(eq(toolCallEvents.spaceId, f.space.id)) };
     expect(JSON.stringify(persisted)).not.toContain(f.accessToken);
   });
 
   it("keeps EU OAuth cancellation resumable with the same region and method", async () => {
     const f = await fixture({ methodKey: "mcp-eu-oauth", deferOAuth: true });
     const connected = f.connected!;
-    const start = await f.service.startOAuth(f.company.id, connected.connectionId, { redirectUri, actor });
+    const start = await f.service.startOAuth(f.space.id, connected.connectionId, { redirectUri, actor });
     await expect(f.service.completeOAuthCallback({ state: new URL(start.authorizationUrl).searchParams.get("state")!, error: "access_denied", redirectUri, actor })).rejects.toMatchObject({ status: 400 });
     expect(await db.select().from(toolOauthStates).where(eq(toolOauthStates.connectionId, connected.connectionId))).toHaveLength(0);
-    const resumed = await f.service.connectGalleryApp(f.company.id, { galleryKey: "braintrust", connectionMethodKey: "mcp-eu-oauth", resumeConnectionId: connected.connectionId }, actor);
+    const resumed = await f.service.connectGalleryApp(f.space.id, { galleryKey: "braintrust", connectionMethodKey: "mcp-eu-oauth", resumeConnectionId: connected.connectionId }, actor);
     expect(resumed.connectionId).toBe(connected.connectionId);
     expect(resumed.connection.config).toMatchObject({ url: f.endpoint, connectionMethodKey: "mcp-eu-oauth" });
     await f.signIn(connected.connectionId);
@@ -176,16 +176,16 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("cleans up vaulted credentials and the new identity after failed discovery", async () => {
-    const [company] = await db.insert(companies).values({ name: "Braintrust failed setup", issuePrefix: `BF${randomUUID().slice(0, 6)}` }).returning();
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: actor.actorId, status: "active", membershipRole: "admin" });
+    const [space] = await db.insert(spaces).values({ name: "Braintrust failed setup", issuePrefix: `BF${randomUUID().slice(0, 6)}` }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: actor.actorId, status: "active", membershipRole: "admin" });
     const service = toolAccessService(db, {
       remoteHttpEndpointLookup: async () => [{ address: "8.8.8.8", family: 4 }],
       remoteHttpRequest: async () => new Response("provider-private-detail", { status: 503 }),
     });
-    await expect(service.connectGalleryApp(company.id, { galleryKey: "braintrust", connectionMethodKey: "mcp-api-key", grantKind: "user",
+    await expect(service.connectGalleryApp(space.id, { galleryKey: "braintrust", connectionMethodKey: "mcp-api-key", grantKind: "user",
       credentialValues: { "credentials.authorization": "braintrust-failed-setup-key" } }, actor)).rejects.toMatchObject({ status: 502 });
-    for (const table of [toolConnections, toolApplications, connectionGrants, companySecrets]) {
-      expect(await db.select().from(table).where(eq(table.companyId, company.id))).toHaveLength(0);
+    for (const table of [toolConnections, toolApplications, connectionGrants, spaceSecrets]) {
+      expect(await db.select().from(table).where(eq(table.spaceId, space.id))).toHaveLength(0);
     }
   });
 
@@ -193,7 +193,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const f = await fixture({ methodKey });
     const connected = f.connected!;
     const offName = "set_automation_status", askName = "edit_dataset_rows";
-    await f.service.finishGalleryAppConnection(f.company.id, connected.connectionId, {
+    await f.service.finishGalleryAppConnection(f.space.id, connected.connectionId, {
       enabledCatalogEntryIds: connected.catalog.filter(entry => entry.toolName !== offName).map(entry => entry.id),
       askFirstCatalogEntryIds: connected.catalog.filter(entry => entry.toolName === askName).map(entry => entry.id), access: { agentIds: [f.agent!.id] },
     }, actor);
@@ -201,9 +201,9 @@ const support = await getEmbeddedPostgresTestSupport();
     await expect(f.call!(offName)).rejects.toThrow();
     await expect(f.call!(askName)).rejects.toMatchObject({ reasonCode: "approval_required" });
     expect(f.request).not.toHaveBeenCalled();
-    const [pending] = await db.select().from(toolActionRequests).where(eq(toolActionRequests.companyId, f.company.id));
+    const [pending] = await db.select().from(toolActionRequests).where(eq(toolActionRequests.spaceId, f.space.id));
     if (pending.approvalId) await db.update(approvals).set({ status: "approved", decidedByUserId: actor.actorId, decidedAt: new Date() }).where(eq(approvals.id, pending.approvalId));
-    await f.gateway!.approveActionRequest({ companyId: f.company.id, actionRequestId: pending.id, actor: { userId: actor.actorId } });
+    await f.gateway!.approveActionRequest({ spaceId: f.space.id, actionRequestId: pending.id, actor: { userId: actor.actorId } });
     expect(f.request.mock.calls.filter(([, init]) => String(init.body).includes('"method":"tools/call"'))).toHaveLength(1);
     f.setTools!([...initialTools.map(tool => tool.name === "sql_query" ? {
       ...tool, inputSchema: { type: "object", properties: { query: { type: "string" }, project_id: { type: "string" } } },
@@ -212,7 +212,7 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(refreshed.catalog.find(entry => entry.toolName === "sql_query")?.status).toBe("quarantined");
     expect(refreshed.catalog.find(entry => entry.toolName === "provider_added_tool")).toMatchObject({ riskLevel: "write", status: "quarantined" });
     if (methodKey.endsWith("oauth")) await f.signIn(connected.connectionId);
-    else await f.service.reconnectGalleryApp(connected.connectionId, f.company.id, { credentialValues: { "credentials.authorization": f.accessToken } }, actor);
+    else await f.service.reconnectGalleryApp(connected.connectionId, f.space.id, { credentialValues: { "credentials.authorization": f.accessToken } }, actor);
     const afterReconnect = await f.service.refreshCatalog(connected.connectionId, actor, { enableAllByDefault: true });
     expect(afterReconnect.connection.config?.quarantineNewEntries).toBe(true);
     expect(afterReconnect.connection.transportConfig.quarantineNewEntries).toBe(true);
@@ -224,29 +224,29 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(f.request).not.toHaveBeenCalled();
   });
 
-  it("refreshes the EU OAuth grant at its issuer and enforces ownership, company and revocation boundaries", async () => {
+  it("refreshes the EU OAuth grant at its issuer and enforces ownership, space and revocation boundaries", async () => {
     const f = await fixture({ methodKey: "mcp-eu-oauth", personal: true });
     const connected = f.connected!;
     const [grant] = await db.select().from(connectionGrants).where(eq(connectionGrants.connectionId, connected.connectionId));
     f.request.mockClear();
-    await f.service.refreshOAuthGrantCredentials({ companyId: f.company.id, connectionId: connected.connectionId, grantId: grant.id, forceRefresh: true, actor });
+    await f.service.refreshOAuthGrantCredentials({ spaceId: f.space.id, connectionId: connected.connectionId, grantId: grant.id, forceRefresh: true, actor });
     expect(f.request.mock.calls.some(([url, init]) => url === `${f.origin}/oauth/token` && new URLSearchParams(String(init.body)).get("grant_type") === "refresh_token")).toBe(true);
     expect(JSON.stringify(await f.call!("sql_query"))).not.toContain(f.accessToken);
     await expect(f.service.getConnection(connected.connectionId, randomUUID())).rejects.toMatchObject({ status: 404 });
-    await expect(f.gateway!.createSession({ companyId: randomUUID(), agentId: f.agent!.id, runId: f.run!.id })).rejects.toThrow();
-    await expect(f.service.reconnectGalleryApp(connected.connectionId, f.company.id, { credentialValues: { "credentials.authorization": "other-user-value" } }, { actorType: "user", actorId: "another-user" })).rejects.toThrow();
+    await expect(f.gateway!.createSession({ spaceId: randomUUID(), agentId: f.agent!.id, runId: f.run!.id })).rejects.toThrow();
+    await expect(f.service.reconnectGalleryApp(connected.connectionId, f.space.id, { credentialValues: { "credentials.authorization": "other-user-value" } }, { actorType: "user", actorId: "another-user" })).rejects.toThrow();
     // Existing gateway sessions must reject a secret that no longer belongs to
-    // the selected personal identity; they cannot fall back to company secrets.
+    // the selected personal identity; they cannot fall back to space secrets.
     const accessRef = grant.credentialSecretRefs.find(ref => ref.configPath === "oauth.access_token")!;
-    await db.update(companySecrets).set({ ownerUserId: "another-user" }).where(eq(companySecrets.id, accessRef.secretId));
+    await db.update(spaceSecrets).set({ ownerUserId: "another-user" }).where(eq(spaceSecrets.id, accessRef.secretId));
     f.request.mockClear();
     await expect(f.call!("sql_query")).rejects.toMatchObject({ reasonCode: "grant_credential_invalid" });
     expect(f.request).not.toHaveBeenCalled();
-    await db.update(companySecrets).set({ ownerUserId: actor.actorId }).where(eq(companySecrets.id, accessRef.secretId));
+    await db.update(spaceSecrets).set({ ownerUserId: actor.actorId }).where(eq(spaceSecrets.id, accessRef.secretId));
     await f.service.revokeConnectionGrant(connected.connectionId, grant.id, actor);
     await expect(f.call!("sql_query")).rejects.toThrow();
     expect(f.request).not.toHaveBeenCalled();
-    await f.service.archiveConnection(connected.connectionId, f.company.id, actor);
-    expect(await db.select().from(companySecrets).where(and(eq(companySecrets.companyId, f.company.id), eq(companySecrets.ownerUserId, actor.actorId)))).toHaveLength(0);
+    await f.service.archiveConnection(connected.connectionId, f.space.id, actor);
+    expect(await db.select().from(spaceSecrets).where(and(eq(spaceSecrets.spaceId, f.space.id), eq(spaceSecrets.ownerUserId, actor.actorId)))).toHaveLength(0);
   });
 });

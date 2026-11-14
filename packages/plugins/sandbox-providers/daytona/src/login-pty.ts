@@ -18,7 +18,7 @@
 // Session home: the module revalidates the descriptor and the home shape, then
 // creates the session home directory with one `mkdir -p` command. The command
 // runs inside the sandbox, so it holds no authority over a host file and no
-// authority to call the Paperclip API. The sandbox contract in
+// authority to call the Outpost API. The sandbox contract in
 // `SANDBOX-REQUIREMENTS.md` treats a check that only inspects state inside the
 // sandbox as a non-boundary control, so this module keeps no owner check, no
 // mode check, and no link-type check for the session home.
@@ -64,7 +64,7 @@ export interface LoginPtyLaunchDescriptor {
   loginCommandKey: LoginCommandKey;
   /**
    * The server-controlled session home. The shape is exact:
-   * `/tmp/paperclip-adapter-login/<uuid>`.
+   * `/tmp/outpost-adapter-login/<uuid>`.
    */
   sessionHome: string;
 }
@@ -81,7 +81,7 @@ const LOGIN_COMMAND_BY_KEY: Readonly<Record<LoginCommandKey, string>> = {
 };
 
 /** The fixed root for a login session home. */
-const LOGIN_SESSION_HOME_ROOT = "/tmp/paperclip-adapter-login";
+const LOGIN_SESSION_HOME_ROOT = "/tmp/outpost-adapter-login";
 
 /**
  * The exact absolute path shape for a login session home. The path is the fixed
@@ -90,7 +90,7 @@ const LOGIN_SESSION_HOME_ROOT = "/tmp/paperclip-adapter-login";
  * those match the UUID or the fixed root.
  */
 const SESSION_HOME_PATTERN =
-  /^\/tmp\/paperclip-adapter-login\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  /^\/tmp\/outpost-adapter-login\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** The fixed non-secret error a rejected launch descriptor or session home returns. */
 export const LOGIN_PTY_DESCRIPTOR_REJECTED = "LOGIN_PTY_DESCRIPTOR_REJECTED";
@@ -292,7 +292,7 @@ export async function openDaytonaLoginPtySession(
   let buffered = "";
 
   const handle = await process.createPty({
-    id: `paperclip-login-pty-${randomUUID()}`,
+    id: `outpost-login-pty-${randomUUID()}`,
     ...(options?.cwd ? { cwd: options.cwd } : {}),
     cols: LOGIN_PTY_COLS,
     rows: LOGIN_PTY_ROWS,
@@ -381,7 +381,7 @@ function composeLoginProfileCommand(command: string): string {
  * Creates a {@link DaytonaLoginHomeFs} bound to a Daytona `process`. It runs one
  * `mkdir -p` command on the sandbox to create the session home. The command runs
  * inside the sandbox, so it holds no authority over a host file and no authority
- * to call the Paperclip API. The real command lands against a live sandbox; a
+ * to call the Outpost API. The real command lands against a live sandbox; a
  * unit test injects a fake surface instead.
  */
 export function createDaytonaLoginHomeFs(exec: DaytonaSandboxExec): DaytonaLoginHomeFs {

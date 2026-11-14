@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { check, pgTable, uuid, text, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { agents } from "./agents.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 import { issues } from "./issues.js";
 
@@ -9,7 +9,7 @@ export const issueInboxArchives = pgTable(
   "issue_inbox_archives",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     issueId: uuid("issue_id").notNull().references(() => issues.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull(),
     archivedByActorType: text("archived_by_actor_type").$type<"user" | "agent">().notNull().default("user"),
@@ -21,10 +21,10 @@ export const issueInboxArchives = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyIssueIdx: index("issue_inbox_archives_company_issue_idx").on(table.companyId, table.issueId),
-    companyUserIdx: index("issue_inbox_archives_company_user_idx").on(table.companyId, table.userId),
-    companyIssueUserUnique: uniqueIndex("issue_inbox_archives_company_issue_user_idx").on(
-      table.companyId,
+    spaceIssueIdx: index("issue_inbox_archives_space_issue_idx").on(table.spaceId, table.issueId),
+    spaceUserIdx: index("issue_inbox_archives_space_user_idx").on(table.spaceId, table.userId),
+    spaceIssueUserUnique: uniqueIndex("issue_inbox_archives_space_issue_user_idx").on(
+      table.spaceId,
       table.issueId,
       table.userId,
     ),

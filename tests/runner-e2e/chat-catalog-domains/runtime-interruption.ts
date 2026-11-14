@@ -58,7 +58,7 @@ export const runtimeInterruptionCases = [runtimeDefinition("steering.interrupt-w
     title: "Approve the saved simpler Website layout", resolverPolicy: "human_only", continuationPolicy: "wake_assignee",
     payload: { version: 1, prompt: "Use this saved simpler layout on the next eligible attempt?", supersedeOnUserComment: false,
       target: { type: "issue_document", issueId: task.id, documentId: plan.id, key: "plan", revisionId: plan.latestRevisionId, revisionNumber: plan.latestRevisionNumber } } }));
-  await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+  await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
   const acceptPaths = issueApiPaths(task, `/interactions/${confirmation.id}/accept`);
   const accept = ctx.input.page.waitForResponse(r => r.request().method() === "POST" && acceptPaths.has(new URL(r.url()).pathname));
   await clickInteractionAction(ctx.input.page, confirmation, "Approve");
@@ -101,8 +101,8 @@ export const runtimeInterruptionCases = [runtimeDefinition("steering.interrupt-w
       load: () => ctx.input.api.get<HeartbeatRun>(`/api/heartbeat-runs/${state.workerRunId}`),
       accept: run => run.status === "cancelled" && (run.resultJson?.nativeCancellation as { dispatchState?: string } | undefined)?.dispatchState === "acknowledged" });
     state.oldRunAfter = stopped;
-    const cancellation = stopped.resultJson?.nativeCancellation as { runId?: string; issueId?: string; companyId?: string; dispatched?: boolean; dispatchState?: string } | undefined;
-    state.nativeStopAcknowledged = cancellation?.runId === stopped.id && cancellation.issueId === task.id && cancellation.companyId === ctx.input.fixtures.company.id && cancellation.dispatched === true && cancellation.dispatchState === "acknowledged";
+    const cancellation = stopped.resultJson?.nativeCancellation as { runId?: string; issueId?: string; spaceId?: string; dispatched?: boolean; dispatchState?: string } | undefined;
+    state.nativeStopAcknowledged = cancellation?.runId === stopped.id && cancellation.issueId === task.id && cancellation.spaceId === ctx.input.fixtures.space.id && cancellation.dispatched === true && cancellation.dispatchState === "acknowledged";
     // No gate value injects the simpler direction: it exists only in the
     // independently approved persisted plan and its actual queued response.
     await writeFile((state.gate as { gate: string }).gate, "The pending fixture tool has been released.", "utf8");
@@ -130,7 +130,7 @@ export const runtimeInterruptionCases = [runtimeDefinition("steering.interrupt-w
       state.deliveryRevisionBound = deliveryRevisionBound(o, task.id, String(state.successorRunId), (state.worker as Entity).id); }
     return o; },
   async verifyResult(ctx, state) { const source = ctx.input.page.url(), task = state.task as Entity;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" }); await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" }); await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("button", { name: "Change status (current: Done)", exact: true }).first()).toBeVisible(); await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" }); },
   cleanup: async (_ctx, state) => releaseRuntimeWorker(state),
 })];

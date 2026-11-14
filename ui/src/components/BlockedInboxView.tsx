@@ -30,7 +30,7 @@ import { Card } from "@/components/ui/card";
 import { taskStatusIconProps } from "@/lib/task-status-presentation";
 
 interface BlockedInboxViewProps {
-  companyId: string;
+  spaceId: string;
   searchQuery: string;
   agentNameById: ReadonlyMap<string, string>;
   agents?: import("./AgentAvatar").AvatarAgent[];
@@ -52,7 +52,7 @@ interface BlockedInboxViewProps {
 const BLOCKED_LIST_LIMIT = 200;
 
 export function BlockedInboxView({
-  companyId,
+  spaceId,
   searchQuery,
   agentNameById,
   agents,
@@ -73,9 +73,9 @@ export function BlockedInboxView({
   const [collapsedVariants, setCollapsedVariants] = useState<Set<string>>(() => new Set());
 
   const blockedQuery = useQuery({
-    queryKey: [...queryKeys.issues.listBlockedAttention(companyId), "live-descendant-summary", issueFilters.showAgentCreatedTasks],
+    queryKey: [...queryKeys.issues.listBlockedAttention(spaceId), "live-descendant-summary", issueFilters.showAgentCreatedTasks],
     queryFn: () =>
-      issuesApi.list(companyId, {
+      issuesApi.list(spaceId, {
         attention: "blocked",
         includeRoutineExecutions: true,
         includeAgentCreatedTasks: issueFilters.showAgentCreatedTasks,

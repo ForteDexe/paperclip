@@ -39,7 +39,7 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
   const publicComments: any[][] = [];
   const sync = () => {
     const target = remote ? "pi-control-fixture.txt" : harness.target;
-    f.scope.target = target; f.tool.target = target; f.issue.title = "Provider-generated task name"; f.issue.companyId = "company"; f.issue.assigneeAgentId = "agent";
+    f.scope.target = target; f.tool.target = target; f.issue.title = "Provider-generated task name"; f.issue.spaceId = "space"; f.issue.assigneeAgentId = "agent";
   };
   const queue = () => ({ queueId: "queue", targetRunId: "run", revision: "revision", protocol: "outpost_runner_v1", steeringDisposition: "available", entries: harness.message ? [{ comment: { id: "comment", body: harness.message + (failure === "foreign-queued-body" ? " altered" : "") } }] : [] });
   const api = {
@@ -52,7 +52,7 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
     get: async (path: string) => {
       sync();
       if (path === "/api/health") return { deploymentMode: "local_trusted" };
-      if (path === "/api/auth/get-session") return { session: { userId: "local-board", id: "paperclip:local_implicit:local-board" } };
+      if (path === "/api/auth/get-session") return { session: { userId: "local-operator", id: "outpost:local_implicit:local-operator" } };
       if (path === "/api/agents/agent") return { adapterConfig: {} };
       if (path.endsWith("/issues?limit=100")) return [f.issue];
       if (path === "/api/issues/issue") return f.issue;
@@ -66,7 +66,7 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
       if (path.endsWith("/comments")) {
         const comments = f.run.status !== "succeeded" ? [] : [
           { id: "decoy", createdByRunId: "other-run", body: steeringMarker, authorAgentId: "other-agent" },
-          ...cleaningUp && failure === "missing-comment" ? [] : [{ id: "final", companyId: "company", issueId: "issue",
+          ...cleaningUp && failure === "missing-comment" ? [] : [{ id: "final", spaceId: "space", issueId: "issue",
             createdByRunId: cleaningUp && failure === "foreign-comment" ? "other-run" : "run", body: steeringMarker,
             authorAgentId: "agent", createdAt: "2026-10-01T00:00:02Z", updatedAt: "2026-10-01T00:00:02Z", observedRead: publicComments.length }],
         ];
@@ -128,22 +128,22 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
   // The real shared remote oracle is exercised. Poisoned local copyback cannot
   // satisfy these remote observations or retirement assertions.
   const root = { pid: 50, ppid: 1, startTicks: "200", bootId: "12345678-1234-1234-1234-123456789abc" };
-  const binding = { companyId: "company", environmentId: "environment", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `image@sha256:${"a".repeat(64)}`, remoteCwd: "/home/daytona/workspace" };
+  const binding = { spaceId: "space", environmentId: "environment", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `image@sha256:${"a".repeat(64)}`, remoteCwd: "/home/daytona/workspace" };
   const snapshot = (retired = false) => ({
     binding, observedAtMs: ++remoteSequence, receivedAtMs: remoteSequence + 1, observedMonotonicNs: String(remoteSequence), complete: true, workspace: {},
     targets: { "pi-control-fixture.txt": { absent: true, sha256: null, complete: true, mutationCount: retired && harness.mutation ? 1 : 0, parent: { dev: "1", ino: "2" } } },
     watcher: { complete: !(retired && harness.incomplete), targetMutationCount: retired && harness.mutation ? 1 : 0, workspaceMutationCount: 0 },
     processes: { captured: true, root: retired && failure === "root-rotation" ? { ...root, startTicks: "201" } : root, journal: [root], live: retired ? [] : [50] },
-    setup: { path: ".paperclip-eval-action-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt", sha256: published ? `sha256:${"b".repeat(64)}` : null, published }, attached: null,
+    setup: { path: ".outpost-eval-action-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt", sha256: published ? `sha256:${"b".repeat(64)}` : null, published }, attached: null,
   });
   let seal: ReturnType<typeof snapshot> | undefined;
-  const fixture = { binding, remoteCwd: binding.remoteCwd, actionFile: ".paperclip-eval-action-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt", snapshot: async () => snapshot(), finish: async () => seal ??= snapshot(true), close: vi.fn() };
+  const fixture = { binding, remoteCwd: binding.remoteCwd, actionFile: ".outpost-eval-action-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt", snapshot: async () => snapshot(), finish: async () => seal ??= snapshot(true), close: vi.fn() };
   const remoteBootstrap = remote ? { prompt: () => "Read bootstrap only", bindAndRelease: async (input: any) => {
     expect(input.targets).toEqual(["pi-control-fixture.txt"]); harness.prompt = await input.actionPrompt(fixture); published = true; return fixture;
   } } : undefined;
   try {
     if (remote) await writeFile(join(workspacePath, "pi-control-fixture.txt"), "WRONG HOST COPYBACK");
-    const call = runPiControlsFlow({ page, api, fixtures: { company: { id: "company", issuePrefix: "PI" }, agent: { id: "agent", name: "Pi" }, environment: { id: "environment" } },
+    const call = runPiControlsFlow({ page, api, fixtures: { space: { id: "space", issuePrefix: "PI" }, agent: { id: "agent", name: "Pi" }, environment: { id: "environment" } },
       execution: { task, suite: { id: "pi-controls" }, environment: { id: remote ? "daytona" : "local" }, profile: { qualificationCandidate: "pi" } }, workspacePath, nonce: "fixture", deadlineAt: Date.now() + 1000,
       observe: () => {}, capture: async () => {}, evidence: async (name: string, value: unknown) => saved.set(name, structuredClone(value)), remoteBootstrap,
       registerCleanupAssertion: (fn: () => Promise<any>) => localCleanup.push(fn), registerBeforeEnvironmentTeardownAssertion: (fn: () => Promise<any>) => remoteCleanup.push(fn) } as any);
@@ -159,7 +159,7 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
       expect(browserSteers).toBe(stopCase ? 0 : 1); expect(browserDeclines).toBe(stopCase ? 0 : 1);
       if (!stopCase) {
         const receipt = saved.get("pi-steering-presentation.json");
-        expect(receipt).toMatchObject({ schema: "outpost.e2e.pi-steering-presentation.v1", phase: "final", companyId: "company", issueId: "issue", runId: "run", commentsApiPath: "/api/issues/issue/comments" });
+        expect(receipt).toMatchObject({ schema: "outpost.e2e.pi-steering-presentation.v1", phase: "final", spaceId: "space", issueId: "issue", runId: "run", commentsApiPath: "/api/issues/issue/comments" });
         expect(receipt.comments).toEqual(publicComments.at(-1));
         expect(receipt.run.resultJson.presentationDecision).toEqual(f.run.resultJson.presentationDecision);
         expect(receipt).not.toHaveProperty("finalMessage");

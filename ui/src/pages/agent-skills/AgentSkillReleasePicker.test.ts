@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CompanySkillVersion } from "@outpost/shared";
+import type { SpaceSkillVersion } from "@outpost/shared";
 import {
   formatReleaseDate,
   releaseName,
@@ -7,16 +7,16 @@ import {
   releaseShortLabel,
 } from "./AgentSkillReleasePicker";
 
-function makeRelease(overrides: Partial<CompanySkillVersion> = {}): CompanySkillVersion {
+function makeRelease(overrides: Partial<SpaceSkillVersion> = {}): SpaceSkillVersion {
   return {
     id: "v7-roster",
-    companyId: "company-1",
-    companySkillId: "skill-1",
+    spaceId: "space-1",
+    spaceSkillId: "skill-1",
     revisionNumber: 7,
     label: "V7 — Roster champion",
     releaseId: "v7-roster",
     releaseName: "V7 — Roster champion",
-    releasedAt: "2026-07-21" as unknown as CompanySkillVersion["releasedAt"],
+    releasedAt: "2026-07-21" as unknown as SpaceSkillVersion["releasedAt"],
     fileInventory: [],
     authorAgentId: null,
     authorUserId: null,

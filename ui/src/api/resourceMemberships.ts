@@ -6,16 +6,16 @@ import type {
 import { api } from "./client";
 
 export const resourceMembershipsApi = {
-  listMine: (companyId: string) =>
-    api.get<ResourceMemberships>(`/companies/${companyId}/resource-memberships/me`),
-  updateProject: (companyId: string, projectId: string, data: UpdateResourceMembership) =>
+  listMine: (spaceId: string) =>
+    api.get<ResourceMemberships>(`/spaces/${spaceId}/resource-memberships/me`),
+  updateProject: (spaceId: string, projectId: string, data: UpdateResourceMembership) =>
     api.put<ResourceMembershipUpdateResult>(
-      `/companies/${companyId}/resource-memberships/me/projects/${projectId}`,
+      `/spaces/${spaceId}/resource-memberships/me/projects/${projectId}`,
       data,
     ),
-  updateAgent: (companyId: string, agentId: string, data: UpdateResourceMembership) =>
+  updateAgent: (spaceId: string, agentId: string, data: UpdateResourceMembership) =>
     api.put<ResourceMembershipUpdateResult>(
-      `/companies/${companyId}/resource-memberships/me/agents/${agentId}`,
+      `/spaces/${spaceId}/resource-memberships/me/agents/${agentId}`,
       data,
     ),
 };

@@ -4,11 +4,11 @@ The tool-action request and invocation are authoritative. The interaction card
 is a projection of their outcome. Previously the aggregate maintenance tick
 joined these tables repeatedly, even when every card already matched.
 
-The projection worker reconstructs affected companies at startup and reconciles
-after committed changes. Producer hints carry the company ID. Subsequent
-candidate discovery and paginated repair queries filter by that company; review
-writes cannot drive a scan of another company's terminal history. The shared
-scoped worker dispatches one company per pass with one-second minimum spacing.
+The projection worker reconstructs affected spaces at startup and reconciles
+after committed changes. Producer hints carry the space ID. Subsequent
+candidate discovery and paginated repair queries filter by that space; review
+writes cannot drive a scan of another space's terminal history. The shared
+scoped worker dispatches one space per pass with one-second minimum spacing.
 It retains a 30-second retry only for a mismatch or failed reconciliation.
 Configured idle tools, pending reviews without terminal outcomes, and matching
 terminal history have no recurring projection SQL or provider calls. This is
@@ -18,17 +18,17 @@ worker quiet, not whole-instance suspension.
 
 `tool-review-projection.ts` owns candidate discovery and pagination. The gateway
 retains card interpretation, current-state checks, locks, activity publication,
-and the existing continuation callback. The scheduler consumes company discovery,
-`sweep(companyId)`, and the returned retry obligation. No provider payload enters shared scheduling.
-No table is added. A concurrent company/interaction lookup index supports the
+and the existing continuation callback. The scheduler consumes space discovery,
+`sweep(spaceId)`, and the returned retry obligation. No provider payload enters shared scheduling.
+No table is added. A concurrent space/interaction lookup index supports the
 existing link checks and linked-request updates.
 
 The existing review notification helper now also signals projection repair.
 Notifications are awaited before writes and inherit the outer transaction's
 commit, rollback, and uncertainty tracking. Unrelated review changes can cause
-one empty company-scoped reconciliation; they do not create a recurring deadline.
+one empty space-scoped reconciliation; they do not create a recurring deadline.
 Interaction-only writes first check for an actual linked tool request using the
-company and affected card IDs. Generic confirmation kinds alone do not signal
+space and affected card IDs. Generic confirmation kinds alone do not signal
 any tool-review queue. This also preserves recovery for legacy linked cards
 without current tool payload flags. These reads happen in the mutation owner,
 not a background poll. Sibling selection shares the update predicate and runs
@@ -66,11 +66,11 @@ Candidate queries page in request-ID order, 100 rows at a time. A card that cann
 yet be projected does not starve later pages. Per-row failures do not prevent
 attempting the remaining candidates; failures keep the retry. A final mismatch
 check retains retries for no-op repairs rather than silently declaring them done.
-Failed companies retain their own backoff across notifications while other
-companies progress. An unresolved no-op projection retains a 30-second deadline;
-a new relevant company change can make it actionable sooner. A company pass
+Failed spaces retain their own backoff across notifications while other
+spaces progress. An unresolved no-op projection retains a 30-second deadline;
+a new relevant space change can make it actionable sooner. A space pass
 still drains all its pages, preserving progress past an unprojectable card.
-The joins inspect that company's history on activation. This change removes repeated
+The joins inspect that space's history on activation. This change removes repeated
 idle scans; it does not introduce an indexed projection-debt table or claim that
 an activated reconciliation has constant cost independent of history size.
 
@@ -120,23 +120,23 @@ change or timeout increase was made to force that result. Full repository tests
 will run in CI; the local selections do not claim a complete repository test run.
 Fresh PR CI/review remains required.
 
-Company-scoping follow-up reproduced two regressions: captured recovery SQL lacked
-a company predicate, and ordinary confirmation creation/replacement/cancellation
+Space-scoping follow-up reproduced two regressions: captured recovery SQL lacked
+a space predicate, and ordinary confirmation creation/replacement/cancellation
 published three unnecessary tool-projection wakes. Both regressions now pass
-through real producers. Additional coverage keeps failed-company retry timing
+through real producers. Additional coverage keeps failed-space retry timing
 independent, proves ordinary mutations still complete without recovery scans,
 and exercises administrative repair of legacy cards identified by their saved
 link rather than payload flags.
 
-Company-scoping follow-up verification: all 180 gateway and startup cases and all 152 interaction and secret-proposal route cases passed against dedicated PostgreSQL test databases. Server typechecking passed. These are local checks; stack CI and deployed sleep qualification remain separate.
+Space-scoping follow-up verification: all 180 gateway and startup cases and all 152 interaction and secret-proposal route cases passed against dedicated PostgreSQL test databases. Server typechecking passed. These are local checks; stack CI and deployed sleep qualification remain separate.
 
 
 ## Indexed interaction links
 
 Review found that the new link check had no supporting interaction index. An
-ordinary unlinked confirmation could scan all tool-action history for its company.
+ordinary unlinked confirmation could scan all tool-action history for its space.
 The generated `0386_steady_epoch.sql` migration adds the non-unique
-`(company_id, interaction_id)` index concurrently, and the existing top-level
+`(space_id, interaction_id)` index concurrently, and the existing top-level
 migration executor handles its creation and interrupted-build recovery. The
 schema and generated snapshot describe the same index; older SQL and journal
 entries are preserved and snapshot pruning retains the five newest snapshots.
@@ -155,12 +155,12 @@ counted as a product regression.
 Migration numbering/safety checks, generated snapshot drift, server types and
 server build pass. All 214 cases in the full gateway/projection/startup/scoped-
 deadline selection pass against a separate freshly migrated database, preserving
-notification quiet, company isolation, transaction settlement, and interruption
+notification quiet, space isolation, transaction settlement, and interruption
 behavior. Latest-head CI and automated reviews remain required merge gates.
 
 ## Bounded projection and lifecycle interruption
 
-A review found that one company could drain an unlimited backlog in a single
+A review found that one space could drain an unlimited backlog in a single
 worker pass. Five real PostgreSQL regressions reproduced 501 rows being consumed
 instead of the 500-row budget, missing abort/drain handling, and the absence of
 continuation past a full page of unprojectable or failed cards.
@@ -168,15 +168,15 @@ continuation past a full page of unprojectable or failed cards.
 The worker now gives its existing service a 500-row budget, the coordinator's
 abort signal, and its admission predicate. The service checks admission between
 rows and reads at most 100 candidates per page. It retains the last attempted
-request ID for each unfinished company, including after a failed pass, so a
+request ID for each unfinished space, including after a failed pass, so a
 poisoned early page cannot hide later healthy cards. A truncated pass schedules
-a one-second continuation; the existing shared per-company fairness and failure
+a one-second continuation; the existing shared per-space fairness and failure
 backoff remain in force. A completed pass that still has an unprojectable card
-backs off from thirty seconds to five minutes. Fresh committed company changes
+backs off from thirty seconds to five minutes. Fresh committed space changes
 reset that delay and wake the affected scope promptly. These are real unresolved projections,
 not an unconditional empty-history scan.
 
-Reconstruction clears continuation state for companies that no longer have
+Reconstruction clears continuation state for spaces that no longer have
 mismatches. A sixth real regression reproduced an abandoned cursor skipping the
 first new earlier card after an empty reconstruction; clearing that cursor makes
 the first new pass repair it immediately. The maps contain no durable truth:
@@ -206,9 +206,9 @@ selection above remains evidence for its stated revision.
 
 ## Review efficiency follow-up
 
-A company-scoped hint now enters the bounded owner directly rather than first
-repeating company discovery. Startup/global reconstruction still discovers
-companies from existing rows. An empty sweep with no saved cursor returns after
+A space-scoped hint now enters the bounded owner directly rather than first
+repeating space discovery. Startup/global reconstruction still discovers
+spaces from existing rows. An empty sweep with no saved cursor returns after
 one candidate query; a resumed cursor or attempted reflection still needs the
 final query to detect unresolved earlier cards. The reflection callback returns
 no settlement result, so an attempted reflection cannot establish that a card

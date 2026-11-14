@@ -20,13 +20,13 @@ afterEach(async () => {
   vi.restoreAllMocks();
   capture.mockClear();
 });
-it("dismisses a failed chunk without replacing the board or its draft", async () => {
+it("dismisses a failed chunk without replacing the operator or its draft", async () => {
   const Failed = lazy(async () => { throw new Error("Chunk download failed"); });
-  function Board() {
+  function Operator() {
     const [requested, setRequested] = useState(true);
     return <><textarea defaultValue="Keep my unsent reply" /><DeferredOverlay requested={requested} title="New task" onClose={() => setRequested(false)}><Failed /></DeferredOverlay></>;
   }
-  await act(async () => root.render(<Board />));
+  await act(async () => root.render(<Operator />));
   const draft = container.querySelector("textarea")!;
   expect(document.body.textContent).toContain("Couldn't open new task");
   const close = [...document.querySelectorAll("button")].find((button) => button.textContent === "Close")!;
@@ -53,11 +53,11 @@ it("removes a pending overlay on navigation and contains a later rejection", asy
 });
 it("allows cancelling an in-flight download", async () => {
   const Pending = lazy(() => new Promise<never>(() => {}));
-  function Board() {
+  function Operator() {
     const [requested, setRequested] = useState(true);
     return <DeferredOverlay requested={requested} title="New project" onClose={() => setRequested(false)}><Pending /></DeferredOverlay>;
   }
-  await act(async () => root.render(<Board />));
+  await act(async () => root.render(<Operator />));
   const cancel = [...document.querySelectorAll("button")].find((button) => button.textContent === "Cancel")!;
   await act(async () => cancel.click());
   expect(document.querySelector('[role="dialog"]')).toBeNull();

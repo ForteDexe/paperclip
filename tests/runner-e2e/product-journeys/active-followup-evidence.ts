@@ -20,7 +20,7 @@ export function activeFollowupBoundary(run: Row, events: Row[]): ActiveFollowupB
   const bound = events.filter(event => {
     const envelope = event.payload?.orpEvent;
     return envelope && isValidNativePrpEnvelope(envelope, event.protocolSchemaVersion)
-      && event.runId === run.id && event.companyId === run.companyId && event.agentId === run.agentId
+      && event.runId === run.id && event.spaceId === run.spaceId && event.agentId === run.agentId
       && envelope.runId === run.id && envelope.eventType === event.eventType && envelope.sourceKind === "runner"
       && typeof envelope.sourceEventId === "string" && Boolean(envelope.sourceEventId) && envelope.sourceEventId === event.sourceEventId
       && typeof envelope.sourceInstanceId === "string" && Boolean(envelope.sourceInstanceId) && envelope.sourceInstanceId === event.sourceInstanceId
@@ -38,12 +38,12 @@ export function activeFollowupBoundary(run: Row, events: Row[]): ActiveFollowupB
         // that named v1 shell shape; unknown semantic/custom tools still fail.
         || event.protocolSchemaVersion === 1 && payload.operation === "unknown"
           && payload.transport === "builtin" && payload.name === "bash" && payload.readOnly === false)
-      // Provider display titles vary, but Paperclip semantic calls never prove
+      // Provider display titles vary, but Outpost semantic calls never prove
       // native command work, even when a provider maps them to builtin execute.
       && payload.namespace == null
       && (payload.transport === "process" || typeof payload.name === "string" && Boolean(payload.name.trim())
         && !/^(?:unknown|tool(?:[ _-]+call)?)$/i.test(payload.name.trim())
-        && !/(?:^|[._:/-])paperclip(?:[._:/-]|$)/i.test(payload.name.trim()))
+        && !/(?:^|[._:/-])outpost(?:[._:/-]|$)/i.test(payload.name.trim()))
       && payload.readOnly !== true && payload.status === "running";
   });
   const pending = starts.filter(start => {

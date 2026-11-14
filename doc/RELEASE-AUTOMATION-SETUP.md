@@ -1,6 +1,6 @@
 # Release Automation Setup
 
-This document covers the GitHub and npm setup required for the current Paperclip release model:
+This document covers the GitHub and npm setup required for the current Outpost release model:
 
 - automatic canaries from `master`
 - manual stable promotion from a chosen source ref
@@ -29,11 +29,11 @@ Required files:
 
 ## 2. Configure npm Trusted Publishing
 
-Do this for every public package that Paperclip publishes.
+Do this for every public package that Outpost publishes.
 
 At minimum that includes:
 
-- `paperclipai`
+- `outpostai`
 - `@outpost/server`
 - `@outpost/ui`
 - public packages under `packages/`
@@ -104,7 +104,7 @@ Only after that should you remove old token-based access.
 After trusted publishing works:
 
 1. revoke any repository or organization `NPM_TOKEN` secrets used for publish
-2. revoke any personal automation token that used to publish Paperclip
+2. revoke any personal automation token that used to publish Outpost
 3. if npm offers a package-level setting to restrict publishing to trusted publishers, enable it
 
 Goal:
@@ -236,7 +236,7 @@ Resolution keeps locked versions, but it picks the newest matching version for a
 
 The merge uses a dedicated GitHub App. Do not reuse `commitperclip` or bypass the built-in `github-actions` app. Those identities are available to other workflows, including release jobs that run dependency install scripts, so a bypass for them would let any of those workflows land code on `master`.
 
-1. Create an organization-owned GitHub App, for example `paperclip-lockfile-bot`:
+1. Create an organization-owned GitHub App, for example `outpost-lockfile-bot`:
    - Disable the webhook.
    - Repository permissions: `Contents: Read and write`, `Pull requests: Read and write`. Leave everything else at `No access`.
    - Allow installation only on this account.
@@ -292,11 +292,11 @@ After setup:
 Install-path check:
 
 ```bash
-npm install --prefix "$(mktemp -d)" paperclipai@canary --no-audit --no-fund
+npm install --prefix "$(mktemp -d)" @outpost/cli@canary --no-audit --no-fund
 ```
 
 The release script runs this clean-prefix install after publishing every workspace
-package dependency-first and publishing `paperclipai` last. A package that is not
+package dependency-first and publishing `outpostai` last. A package that is not
 yet registry-visible stops the train before the channel entrypoint can advance.
 
 ## 12. Verify the Stable Workflow
@@ -391,9 +391,9 @@ warm release dependencies. The cache writer is shorter than the protocol lane.
 
 GitHub matches a cache entry on its key and on a version hash of the absolute
 paths in the entry. The master writer runs on the RunsOn fleet, where the
-checkout is `/home/runner/_work/paperclip/paperclip`. The trusted PR workflow
+checkout is `/home/runner/_work/outpost/outpost`. The trusted PR workflow
 restores the same entry read-only on GitHub-hosted runners, where the checkout
-is `/home/runner/work/paperclip/paperclip`. A `Pin the Runner Rust workspace
+is `/home/runner/work/outpost/outpost`. A `Pin the Runner Rust workspace
 path` step in both workflows links `$HOME/outpost-runner-rust` to the Runner
 crate and passes that path to the cache action, so both layouts hash the same
 paths and the PR lanes can restore master's entry. The guard tests under
@@ -525,8 +525,8 @@ accounts for it in both ordinary PR and release verification.
 
 ## Cloud readiness runner placement
 
-When AWS routing is enabled, Cloud image builds use `paperclip-cloud-build-x64`
-and source verification uses `paperclip-post-merge-x64`. The artifact wait and
+When AWS routing is enabled, Cloud image builds use `outpost-cloud-build-x64`
+and source verification uses `outpost-post-merge-x64`. The artifact wait and
 the `Cloud source verified v1` and `Cloud deployable v1` marker jobs run on
 GitHub-hosted runners. These small jobs must not hold or wait for capacity in
 the source-verification fleet. During a merge

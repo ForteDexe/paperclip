@@ -25,7 +25,7 @@ import path from "node:path";
 import express from "express";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, vi } from "vitest";
-import { agents, completionContracts, companies, createDb, applyPendingMigrations, environmentLeases, environments, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, executionWorkspaces } from "@outpost/db";
+import { agents, completionContracts, spaces, createDb, applyPendingMigrations, environmentLeases, environments, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, executionWorkspaces } from "@outpost/db";
 import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/outpost-runner/testing.js";
 import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import type { EnvironmentLease } from "@outpost/shared";
@@ -44,7 +44,7 @@ import * as workerProof from "../native-runtime/native-workspace-platform-proof.
 export let db: ReturnType<typeof createDb>;
 export let root: string;
 export let connectionString: string;
-export const fixtureCompanyIds = new Set<string>();
+export const fixtureSpaceIds = new Set<string>();
 let targets: Map<string, AdapterSandboxExecutionTarget>;
 
 /** Swaps the connection the shared helpers use; a suite restores the previous one itself. */
@@ -70,7 +70,7 @@ export function useWorkspaceRecoveryFixture(executionTargets: Map<string, Adapte
     } else temporary = await startEmbeddedPostgresTestDatabase("workspace-recovery-");
     connectionString = temporary.connectionString;
     db = createDb(connectionString);
-    if (external) await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
+    if (external) await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
   }, external ? WORKSPACE_RECOVERY_EXTERNAL_SETUP_TIMEOUT_MS : 30_000);
   afterAll(async () => {
     await db?.$client.end(); await temporary?.cleanup();
@@ -91,46 +91,46 @@ export function useWorkspaceRecoveryFixture(executionTargets: Map<string, Adapte
     // Discovery is intentionally global and bounded. An unresolved source from
     // an earlier test must not consume the current fixture's recovery page.
     // Keep all history within each test until its assertions have completed.
-    const companyIds = [...fixtureCompanyIds]; fixtureCompanyIds.clear();
-    if (!companyIds.length) return;
+    const spaceIds = [...fixtureSpaceIds]; fixtureSpaceIds.clear();
+    if (!spaceIds.length) return;
     // Stop global queue sweeps from revisiting deferred input after this
     // fixture's recovery actions and lease bindings are removed below.
-    await db.update(agents).set({ status: "paused" }).where(inArray(agents.companyId, companyIds));
+    await db.update(agents).set({ status: "paused" }).where(inArray(agents.spaceId, spaceIds));
     await db.update(agentWakeupRequests).set({ status: "cancelled", finishedAt: new Date() }).where(and(
-      inArray(agentWakeupRequests.companyId, companyIds),
+      inArray(agentWakeupRequests.spaceId, spaceIds),
       inArray(agentWakeupRequests.status, ["queued", "claimed", "deferred_issue_execution"])));
     await heartbeatService(db).drainActiveRunExecutions();
     // Admission tests leave synthetic queue blockers. Retire them only after
     // assertions so they cannot trip the next test's instance-wide drain fence.
     await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date() }).where(and(
-      inArray(heartbeatRuns.companyId, companyIds), inArray(heartbeatRuns.status, ["queued", "running"])));
+      inArray(heartbeatRuns.spaceId, spaceIds), inArray(heartbeatRuns.status, ["queued", "running"])));
     const leases = await db.select({ id: environmentLeases.id }).from(environmentLeases)
-      .where(inArray(environmentLeases.companyId, companyIds));
+      .where(inArray(environmentLeases.spaceId, spaceIds));
     for (const lease of leases) targets.delete(lease.id);
-    await db.delete(environmentLeases).where(inArray(environmentLeases.companyId, companyIds));
+    await db.delete(environmentLeases).where(inArray(environmentLeases.spaceId, spaceIds));
     // Historical adoption can reconstruct an action from either the lease or
     // the run descriptor, so retire both fixture inputs before deleting it.
     await db.update(heartbeatRuns).set({ resultJson: sql`${heartbeatRuns.resultJson} - 'workspaceRestoreRecovery' - 'workspaceRestoreFailure'` })
-      .where(inArray(heartbeatRuns.companyId, companyIds));
-    await db.delete(issueRecoveryActions).where(inArray(issueRecoveryActions.companyId, companyIds));
+      .where(inArray(heartbeatRuns.spaceId, spaceIds));
+    await db.delete(issueRecoveryActions).where(inArray(issueRecoveryActions.spaceId, spaceIds));
   });
 }
 
 export async function seed(mode = "native", nativeDescriptor = true, resourceDisposition: "destroy" | "keep_running" = "destroy", reusable = false, ephemeral = false,
   descriptorWorkspaceId?: string) {
-  const companyId = randomUUID(), issueId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), actionId: string = randomUUID();
-  await db.insert(companies).values({ id: companyId, name: "Workspace recovery", defaultResponsibleUserId: "board", issuePrefix: `R${companyId.slice(0, 6)}` });
-  fixtureCompanyIds.add(companyId);
-  await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner", status: "idle", runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } });
-  await db.insert(issues).values({ id: issueId, companyId, assigneeAgentId: agentId, status: "blocked", title: "Recover existing work" });
-  await db.insert(heartbeatRuns).values({ id: runId, companyId, issueId, nativeIssueId: mode === "native" ? issueId : null,
+  const spaceId = randomUUID(), issueId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), actionId: string = randomUUID();
+  await db.insert(spaces).values({ id: spaceId, name: "Workspace recovery", defaultResponsibleUserId: "operator", issuePrefix: `R${spaceId.slice(0, 6)}` });
+  fixtureSpaceIds.add(spaceId);
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "outpost_runner", status: "idle", runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } });
+  await db.insert(issues).values({ id: issueId, spaceId, assigneeAgentId: agentId, status: "blocked", title: "Recover existing work" });
+  await db.insert(heartbeatRuns).values({ id: runId, spaceId, issueId, nativeIssueId: mode === "native" ? issueId : null,
     agentId, runtimeMode: mode, status: "failed", finishedAt: new Date(), errorCode: "execution_interrupted", contextSnapshot: { issueId } });
   if (mode === "legacy") await db.update(heartbeatRuns).set({ runnerProfileJson: { adapterDispatch: { adapterType: "codex_local" } } }).where(eq(heartbeatRuns.id, runId));
-  if (mode === "native") await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "terminal_failure" });
+  if (mode === "native") await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "terminal_failure" });
   const [environment] = await db.insert(environments).values({ name: runId, driver: "sandbox" }).returning();
   const providerLeaseId: string = randomUUID(), remote = path.join(root, runId, "remote"), host = path.join(root, runId, "host");
   await mkdir(host, { recursive: true }); await writeFile(path.join(host, "existing.txt"), "base\n");
-  const leaseValues = { companyId, issueId, heartbeatRunId: runId,
+  const leaseValues = { spaceId, issueId, heartbeatRunId: runId,
     environmentId: environment.id, provider: "daytona", providerLeaseId,
     metadata: { remoteCwd: remote, driver: "sandbox", pluginId: randomUUID(), sandboxProviderPlugin: true, ...(reusable ? { agentId } : {}) } };
   const acquired = reusable ? await environmentService(db).acquireLease({ ...leaseValues, leasePolicy: "reuse_by_environment" }) : null;
@@ -149,7 +149,7 @@ export async function seed(mode = "native", nativeDescriptor = true, resourceDis
     }) } };
   targets.set(lease.id, target);
   if (nativeDescriptor) {
-    const prepared = await prepareNativeWorkspaceSync({ db, companyId, workspaceId: descriptorWorkspaceId ?? issueId, workspaceLocalDir: host,
+    const prepared = await prepareNativeWorkspaceSync({ db, spaceId, workspaceId: descriptorWorkspaceId ?? issueId, workspaceLocalDir: host,
       runId, lease: lease as EnvironmentLease, target, resourceDisposition });
     expect(prepared).not.toBeNull();
   } else {
@@ -171,8 +171,8 @@ export async function seed(mode = "native", nativeDescriptor = true, resourceDis
     conversationContinuation: "continue_conversation_v1" } }).where(eq(heartbeatRuns.id, runId));
   await db.update(environmentLeases).set({ metadata: { ...lease.metadata,
     remoteExecutionTermination: remoteTerminationReceipt(lease, { providerLeaseId, state: "stopped" }) } }).where(eq(environmentLeases.id, lease.id));
-  await db.insert(issueRecoveryActions).values({ id: actionId, companyId, sourceIssueId: issueId, kind: "active_run_watchdog",
-    ownerType: "board", cause: mode === "native" ? "native_continuation_requires_reconciliation" : "legacy_execution_requires_reconciliation",
+  await db.insert(issueRecoveryActions).values({ id: actionId, spaceId, sourceIssueId: issueId, kind: "active_run_watchdog",
+    ownerType: "operator", cause: mode === "native" ? "native_continuation_requires_reconciliation" : "legacy_execution_requires_reconciliation",
     fingerprint: runId, nextAction: "Manual repair required", evidence: { runId, workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: recovery } });
   const runtime = { resumeRunLease: vi.fn(async (_input: { lease: EnvironmentLease }) => ({ providerLeaseId, metadata: { remoteCwd: remote } })),
     retryPendingSandboxTeardown: vi.fn(async (_input: { lease: EnvironmentLease }) => ({ providerLeaseId, state: "stopped" })) };
@@ -180,7 +180,7 @@ export async function seed(mode = "native", nativeDescriptor = true, resourceDis
     acquireRunLease: vi.fn(), releaseRunLease: vi.fn(), ...runtime,
     resolveCapabilities: async () => classifyEnvironmentCapabilities({ verifiedMethods: [], declared: null, narrowing: null }),
   }] });
-  const input = { db, companyId, issueId, runId, actionId, environmentRuntime };
+  const input = { db, spaceId, issueId, runId, actionId, environmentRuntime };
   return { ...input, input, runtime, host, remote, lease, providerLeaseId };
 }
 
@@ -192,7 +192,7 @@ export async function failedWarmSource(exportOnly = false, hops = 0) {
   const f = hops ? await warmHandoffSource(hops) : await seed("native", true, "keep_running");
   if (hops) await db.update(heartbeatRuns).set({ status: "failed" }).where(eq(heartbeatRuns.id, f.runId));
   await db.update(environmentLeases).set({ leasePolicy: "reuse_by_environment" }).where(eq(environmentLeases.id, f.lease.id));
-  const retry = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issueId, actorId: "board",
+  const retry = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issueId, actorId: "operator",
     actorSource: "local_implicit", idempotencyKey: randomUUID(), observedRunId: f.runId });
   const failed = failSystemRecovery(reserveSystemRecoveryAttempt(createSystemRecovery(f.runId, retry.requestId!))!,
     new SystemRecoveryFailure("source_binding_invalid", "service_required"), { now: Date.now() - 86_400_000 });
@@ -201,12 +201,12 @@ export async function failedWarmSource(exportOnly = false, hops = 0) {
       attempt: 1, attemptLimit: 6, requestIds: [retry.requestId!] } } }).where(eq(issueRecoveryActions.id, f.actionId));
   if (exportOnly) {
     const contractId = randomUUID(), resultId = randomUUID();
-    await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
+    await db.insert(completionContracts).values({ id: contractId, spaceId: f.spaceId, issueId: f.issueId,
       revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: {},
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
     await db.update(heartbeatRuns).set({ completionContractId: contractId, resultJson: {} }).where(eq(heartbeatRuns.id, f.runId));
-    await db.insert(nativeRunResults).values({ id: resultId, companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
       completionContractId: contractId, schemaStatus: "accepted", serverFingerprint: resultId, canonicalSha256: resultId,
       resultJson: { terminal: { runTerminalState: "succeeded" } } });
     await db.update(nativeRunFinalizations).set({ resultId }).where(eq(nativeRunFinalizations.runId, f.runId));
@@ -217,11 +217,11 @@ export async function failedWarmSource(exportOnly = false, hops = 0) {
   return { ...f, retry, failed };
 }
 
-export function boardRecoveryApp(actor: { userId: string; source: "local_implicit" | "session"; companyIds?: string[] } = { userId: "local-board", source: "local_implicit" },
+export function operatorRecoveryApp(actor: { userId: string; source: "local_implicit" | "session"; spaceIds?: string[] } = { userId: "local-operator", source: "local_implicit" },
   heartbeat?: ReturnType<typeof heartbeatService>) {
   const app = express();
   app.use(express.json());
-  app.use((req, _res, next) => { req.actor = { type: "board", ...actor }; next(); });
+  app.use((req, _res, next) => { req.actor = { type: "operator", ...actor }; next(); });
   const factory = heartbeat ? vi.spyOn(heartbeatServices, "heartbeatService").mockReturnValue(heartbeat) : undefined;
   try { app.use("/api", issueRoutes(db, {} as Parameters<typeof issueRoutes>[1])); }
   finally { factory?.mockRestore(); }
@@ -229,10 +229,10 @@ export function boardRecoveryApp(actor: { userId: string; source: "local_implici
   return app;
 }
 
-export function receiptOnlyRecoveryApp(actor?: Parameters<typeof boardRecoveryApp>[0]) {
+export function receiptOnlyRecoveryApp(actor?: Parameters<typeof operatorRecoveryApp>[0]) {
   const routeHeartbeat = heartbeatService(db);
   vi.spyOn(routeHeartbeat, "resumeTaskRetry").mockImplementation(async () => undefined as never);
-  return boardRecoveryApp(actor, routeHeartbeat);
+  return operatorRecoveryApp(actor, routeHeartbeat);
 }
 
 export type RecoverySourceLayout = "retained" | "published" | "raw";
@@ -255,7 +255,7 @@ export async function acceptedRemoteExport(sourceLayout: RecoverySourceLayout = 
     delete leaseMetadata.remoteExecutionTermination;
     const [activeLease] = await db.update(environmentLeases).set({ status: "active", releasedAt: null,
       cleanupStatus: null, metadata: leaseMetadata }).where(eq(environmentLeases.id, f.lease.id)).returning();
-    const reserved = await reserveRemoteWorkspace({ db, companyId: f.companyId, issueId: f.issueId,
+    const reserved = await reserveRemoteWorkspace({ db, spaceId: f.spaceId, issueId: f.issueId,
       runId: f.runId, agentId: source.agentId, environmentId: activeLease.environmentId!,
       projectId: null, projectWorkspaceId: null, existingWorkspaceId: null, source: { kind: "empty" } });
     const prepared = await prepareRemoteWorkspace({ db, workspace: reserved, runId: f.runId,
@@ -271,7 +271,7 @@ export async function acceptedRemoteExport(sourceLayout: RecoverySourceLayout = 
     await db.update(issues).set({ status: issue.status, executionRunId: issue.executionRunId,
       executionLockedAt: issue.executionLockedAt }).where(eq(issues.id, f.issueId));
   } else if (sourceLayout === "retained") {
-    const publishedRoot = path.join(path.dirname(f.remote), ".paperclip-workspaces", workspaceId);
+    const publishedRoot = path.join(path.dirname(f.remote), ".outpost-workspaces", workspaceId);
     await mkdir(path.dirname(publishedRoot), { recursive: true });
     await rename(f.remote, publishedRoot);
     f.remote = publishedRoot;
@@ -288,7 +288,7 @@ export async function acceptedRemoteExport(sourceLayout: RecoverySourceLayout = 
   const authority = { schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: null,
     source: { kind: "empty" }, writerRunId: f.runId, dirty: true,
     location: { environmentId: f.lease.environmentId!, leaseId: f.lease.id, providerLeaseId: f.providerLeaseId, remoteCwd } };
-  if (sourceLayout !== "published") await db.insert(executionWorkspaces).values({ id: workspaceId, companyId: f.companyId, sourceIssueId: f.issueId,
+  if (sourceLayout !== "published") await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId: f.spaceId, sourceIssueId: f.issueId,
     name: "Completed remote work", cwd: remoteCwd, providerType: "cloud_sandbox", mode: "isolated_workspace",
     strategyType: "project_primary", status: "active", metadata: { remoteWorkspace: authority } });
   await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, f.issueId));
@@ -296,7 +296,7 @@ export async function acceptedRemoteExport(sourceLayout: RecoverySourceLayout = 
   await db.update(environmentLeases).set({ executionWorkspaceId: workspaceId, leasePolicy: "reuse_by_environment",
     metadata: { ...lease.metadata, remoteCwd, agentId: source.agentId } }).where(eq(environmentLeases.id, lease.id));
   const contractId = randomUUID(), resultId = randomUUID();
-  await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
+  await db.insert(completionContracts).values({ id: contractId, spaceId: f.spaceId, issueId: f.issueId,
     revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "low",
     completionAuthority: "agent_claim_policy", incompleteCriteriaPolicy: "preserve_non_terminal",
     contractJson: { revision: CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim.contractRevision,
@@ -307,7 +307,7 @@ export async function acceptedRemoteExport(sourceLayout: RecoverySourceLayout = 
     remoteWorkspace: preparedReference ?? { schema: "outpost.remote-workspace-run.v1", workspaceId, leaseId: lease.id,
       providerLeaseId: f.providerLeaseId, remoteCwd, epoch: 1, state: "prepared", snapshotId: null },
   } }).where(eq(heartbeatRuns.id, f.runId));
-  await db.insert(nativeRunResults).values({ id: resultId, companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+  await db.insert(nativeRunResults).values({ id: resultId, spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
     completionContractId: contractId, schemaStatus: "accepted", serverFingerprint: "result", canonicalSha256: "result",
     resultJson: { terminal: CONTROL_PLANE_CONFORMANCE_TERMINAL, result: CONTROL_PLANE_CONFORMANCE_RESULT } });
   await db.update(nativeRunFinalizations).set({ resultId, failureCode: "native_workspace_sync_out_retry_exhausted" })
@@ -344,13 +344,13 @@ export async function interruptedRemotePreparation(interruption: "shutdown" | "l
       nativeBootstrapFailureBlock: { runId: f.runId, previousStatus: "in_progress", statusVersion: 2 } },
   }).where(eq(issueRecoveryActions.id, f.actionId));
   await adoptSystemRecovery(db, f);
-  await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.source.agentId, status: "running" });
+  await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.source.agentId, status: "running" });
   return f;
 }
 
-export async function withheldPreparationRetry(f: { companyId: string; issueId: string; runId: string; actionId: string }) {
+export async function withheldPreparationRetry(f: { spaceId: string; issueId: string; runId: string; actionId: string }) {
   const source = await run(f.runId);
-  const [withheld] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: source.agentId,
+  const [withheld] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: source.agentId,
     responsibleUserId: source.responsibleUserId, scopeKind: "issue", issueId: f.issueId, runtimeMode: "legacy", status: "cancelled", finishedAt: new Date(),
     retryOfRunId: f.runId, scheduledRetryAttempt: 1, scheduledRetryReason: "transient_failure",
     errorCode: "execution_reconciliation_required", contextSnapshot: { issueId: f.issueId },
@@ -369,14 +369,14 @@ export async function failedRemotePreparation(sourceLayout: RecoverySourceLayout
       startedAt: new Date(Date.now() - 1000), contextSnapshot: { ...source.contextSnapshot, source: "native_status_decision" },
       resultJson: { ...source.resultJson, stopReason: "adapter_failed",
         executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } } });
-  if (warning) await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.runId, agentId: source.agentId,
+  if (warning) await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.runId, agentId: source.agentId,
     eventType: "agent_observability.unavailable", stream: "system", level: "warn",
     payload: { reason: "unsupported_harness", revision: randomUUID() } });
-  if (startedMarker) await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.runId, agentId: source.agentId,
+  if (startedMarker) await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.runId, agentId: source.agentId,
     eventType: "lifecycle", stream: "system", level: "info", message: "run started" });
-  await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.runId, agentId: source.agentId,
+  await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.runId, agentId: source.agentId,
     eventType: "error", stream: "system", level: "error", message: error });
-  await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.runId, agentId: source.agentId,
+  await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.runId, agentId: source.agentId,
     eventType: "lifecycle", stream: "system", level: "info", message: "task.run.measured",
     payload: { phase: "task.run.measured", outcome: "failed", durationMs: 1000, durableSettlement: true } });
   return f;
@@ -387,7 +387,7 @@ export async function stoppedWorkspaceWorker(f: { runId: string }) {
   const deploymentWorker = { provider: "railway" as const, projectId: randomUUID(), environmentId: randomUUID(), serviceId: randomUUID(), deploymentId: randomUUID() };
   const owner = { token: randomUUID(), hostname: "previous-controller", pid: 123,
     processStartedAt: new Date().toISOString(), worker: deploymentWorker };
-  const stopProof = { v: 1 as const, iss: "paperclip-cloud" as const, aud: "paperclip-workspace-worker-stop/v1" as const,
+  const stopProof = { v: 1 as const, iss: "outpost-cloud" as const, aud: "outpost-workspace-worker-stop/v1" as const,
     sub: "test-stack", stopped: true as const, iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + 30, runId: f.runId, ownerToken: owner.token, worker: deploymentWorker };
   const proof = vi.spyOn(workerProof, "requestWorkspaceWorkerStopProof").mockResolvedValue({ status: "verified", proof: stopProof });
@@ -404,9 +404,9 @@ export async function warmHandoffSource(hops = 1, beforeStop?: (lease: typeof en
   const descriptorWorkspaceId = sharedWorkspaceId ?? prior.issueId;
   let executionWorkspaceId: string | null = null, taskId: string = prior.issueId;
   if (sharedWorkspaceId) {
-    const [workspace] = await db.insert(executionWorkspaces).values({ id: sharedWorkspaceId, companyId: prior.companyId,
+    const [workspace] = await db.insert(executionWorkspaces).values({ id: sharedWorkspaceId, spaceId: prior.spaceId,
       mode: "isolated_workspace", strategyType: "test", name: "Shared task workspace" }).returning();
-    const [later] = await db.insert(issues).values({ companyId: prior.companyId, assigneeAgentId: source.agentId,
+    const [later] = await db.insert(issues).values({ spaceId: prior.spaceId, assigneeAgentId: source.agentId,
       status: "blocked", title: "Later task in the same workspace" }).returning();
     executionWorkspaceId = workspace.id; taskId = later.id;
     await db.update(environmentLeases).set({ executionWorkspaceId }).where(eq(environmentLeases.id, prior.lease.id));
@@ -422,18 +422,18 @@ export async function warmHandoffSource(hops = 1, beforeStop?: (lease: typeof en
     await db.delete(issueRecoveryActions).where(eq(issueRecoveryActions.id, prior.actionId));
     await environmentService(db).releaseLease(previousLeaseId, "released", { cleanupStatus: "success" });
     const [released] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, previousLeaseId));
-    [current] = await db.insert(heartbeatRuns).values({ companyId: prior.companyId, agentId: source.agentId,
+    [current] = await db.insert(heartbeatRuns).values({ spaceId: prior.spaceId, agentId: source.agentId,
       issueId: taskId, nativeIssueId: taskId, runtimeMode: "native", status: "cancelled", finishedAt: new Date(),
       contextSnapshot: { issueId: taskId } }).returning();
-    await db.insert(nativeRunFinalizations).values({ companyId: prior.companyId, issueId: taskId, runId: current.id, phase: "terminal_failure" });
-    const acquired = await environmentService(db).acquireLease({ companyId: prior.companyId, environmentId: prior.lease.environmentId!,
+    await db.insert(nativeRunFinalizations).values({ spaceId: prior.spaceId, issueId: taskId, runId: current.id, phase: "terminal_failure" });
+    const acquired = await environmentService(db).acquireLease({ spaceId: prior.spaceId, environmentId: prior.lease.environmentId!,
       issueId: taskId, heartbeatRunId: current.id, provider: "daytona", providerLeaseId: prior.providerLeaseId,
       executionWorkspaceId, leasePolicy: "reuse_by_environment", replacesReusableLeaseId: previousLeaseId,
       metadata: { ...released.metadata, sandboxLeaseAcquisition: { outcome: "resumed" } } });
     [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, acquired.id));
     const target = { ...previousTarget, leaseId: lease.id, sandboxLeaseAcquisition: { outcome: "resumed" as const, providerLeaseId: prior.providerLeaseId } };
     targets.set(lease.id, target);
-    expect(await prepareNativeWorkspaceSync({ db, companyId: prior.companyId, workspaceId: descriptorWorkspaceId,
+    expect(await prepareNativeWorkspaceSync({ db, spaceId: prior.spaceId, workspaceId: descriptorWorkspaceId,
       workspaceLocalDir: prior.host, runId: current.id, lease: lease as EnvironmentLease, target, resourceDisposition: "keep_running" })).not.toBeNull();
     leaseIds.push(lease.id); previousRunId = current.id; previousLeaseId = lease.id; previousTarget = target;
   }
@@ -441,7 +441,7 @@ export async function warmHandoffSource(hops = 1, beforeStop?: (lease: typeof en
   await beforeStop?.(lease);
   await writeFile(path.join(prior.remote, "after-warm-stop.txt"), "stopped turn work\n");
   await recordRequiredWorkspaceRestoreFailure(db, await run(current.id), { workspaceRestoreFailure: "restore_failed" }, lease);
-  const [action] = await db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, prior.companyId),
+  const [action] = await db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, prior.spaceId),
     eq(issueRecoveryActions.fingerprint, `native-workspace:${current.id}`)));
   const [retained] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, lease.id));
   const stopping = readStopOnlyCleanup(retained) ? retained : await prepareSandboxStopAndRetain(db, retained);
@@ -460,10 +460,10 @@ export async function makeRetryDue(actionId: string) {
 }
 
 /** The recovery worker's steps for every saved-work hold of one run (Retry can
- * add one beside the board hold), without its post-recovery dispatch. */
+ * add one beside the operator hold), without its post-recovery dispatch. */
 export async function recoverRunHolds(f: Parameters<typeof recoverRetainedWorkspace>[0]) {
   const holds = await db.select({ id: issueRecoveryActions.id }).from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, f.companyId), sql`${issueRecoveryActions.evidence}->>'runId' = ${f.runId}`,
+    eq(issueRecoveryActions.spaceId, f.spaceId), sql`${issueRecoveryActions.evidence}->>'runId' = ${f.runId}`,
     sql`${issueRecoveryActions.evidence} ? 'systemRecovery'`)).orderBy(issueRecoveryActions.createdAt);
   for (const hold of holds) await recoverRetainedWorkspace({ ...f, actionId: hold.id });
 }

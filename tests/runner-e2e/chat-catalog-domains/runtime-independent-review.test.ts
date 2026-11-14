@@ -2,11 +2,11 @@ import { expect, it } from "vitest";
 import { gradeIndependentReview, independentReviewRoles, replyLinksTask } from "./runtime-independent-review.js";
 function valid() {
   const policy = { stages: [{ id: "review-stage", type: "review", participants: [{ type: "agent", agentId: "riley" }] }] };
-  return { scenarioId: "task-coordination.independent-review", companyId: "company", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "", tasks: [{ id: "website" }], activity: [],
+  return { scenarioId: "task-coordination.independent-review", spaceId: "space", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "", tasks: [{ id: "website" }], activity: [],
     runs: [{ id: "implementation", agentId: "morgan", status: "succeeded" }, { id: "context", agentId: "ceo", status: "succeeded" }, { id: "request", agentId: "ceo", status: "succeeded" }, { id: "review", agentId: "riley", status: "succeeded" }, { id: "report", agentId: "ceo", status: "succeeded" }],
     state: { task: { id: "website" }, worker: { id: "morgan" }, reviewer: { id: "riley" },
       implementationBefore: { id: "website", status: "blocked", assigneeAgentId: "morgan", executionState: { status: "none" }, executionPolicy: policy },
-      pendingReview: { id: "website", companyId: "company", status: "in_review", assigneeAgentId: "riley", executionPolicy: policy,
+      pendingReview: { id: "website", spaceId: "space", status: "in_review", assigneeAgentId: "riley", executionPolicy: policy,
         executionState: { status: "pending", currentStageType: "review", currentParticipant: { agentId: "riley" }, returnAssignee: { agentId: "morgan" } } },
       reviewAfter: { id: "website", status: "done", executionPolicy: policy, executionState: { status: "completed", lastDecisionOutcome: "approved", lastDecisionId: "riley-decision" } },
       setupReviewRunCount: 0, actualImplementation: true, reviewerEligibleBeforeQuery: true, reviewRequestSourceBound: true, reviewerWasReallyWaiting: true, reviewerActualBriefAccess: true, acceptanceContextDelivered: true,

@@ -44,7 +44,7 @@ function clickEvent(
 }
 
 afterEach(() => {
-  delete globalThis.__paperclipPluginBridge__;
+  delete globalThis.__outpostPluginBridge__;
 });
 
 function act(callback: () => void) {
@@ -52,24 +52,24 @@ function act(callback: () => void) {
 }
 
 describe("plugin host navigation", () => {
-  it("resolves plugin page routes into the active company prefix", () => {
+  it("resolves plugin page routes into the active space prefix", () => {
     expect(resolveHostNavigationHref("/wiki", "PAP")).toBe("/PAP/wiki");
     expect(resolveHostNavigationHref("/wiki?tab=browse#page", "pap")).toBe(
       "/PAP/wiki?tab=browse#page",
     );
   });
 
-  it("does not double-prefix active company paths or global host paths", () => {
+  it("does not double-prefix active space paths or global host paths", () => {
     expect(resolveHostNavigationHref("/PAP/wiki", "PAP")).toBe("/PAP/wiki");
     expect(resolveHostNavigationHref("/pap/wiki", "PAP")).toBe("/pap/wiki");
   });
 
-  it("rewrites legacy instance settings paths into the active company settings scope", () => {
+  it("rewrites legacy instance settings paths into the active space settings scope", () => {
     expect(resolveHostNavigationHref("/instance/settings/plugins", "PAP")).toBe(
-      "/PAP/company/settings/instance/plugins",
+      "/PAP/space/settings/instance/plugins",
     );
     expect(resolveHostNavigationHref("/settings/experimental?x=1#auto", "pap")).toBe(
-      "/PAP/company/settings/instance/experimental?x=1#auto",
+      "/PAP/space/settings/instance/experimental?x=1#auto",
     );
   });
 
@@ -95,8 +95,8 @@ describe("useHostNavigation mobile drawer behavior", () => {
     return {
       pluginId: "test-plugin",
       hostContext: {
-        companyId: "co",
-        companyPrefix: "PAP",
+        spaceId: "co",
+        spacePrefix: "PAP",
         projectId: null,
         entityId: null,
         entityType: null,
@@ -253,7 +253,7 @@ describe("plugin SDK FileTree bridge", () => {
   });
 
   it("throws a clear error when the host FileTree implementation is missing", () => {
-    globalThis.__paperclipPluginBridge__ = {
+    globalThis.__outpostPluginBridge__ = {
       react: React,
       reactJsxRuntime: ReactJsxRuntime,
       reactDom: ReactDOM,
@@ -277,7 +277,7 @@ describe("plugin SDK markdown component bridge", () => {
   it("injects markdown display and editor components through the bridge runtime", () => {
     initPluginBridge(React, ReactDOM);
 
-    const registry = globalThis.__paperclipPluginBridge__?.sdkUi ?? {};
+    const registry = globalThis.__outpostPluginBridge__?.sdkUi ?? {};
     expect(registry.MarkdownBlock).toBeTypeOf("function");
     expect(registry.MarkdownEditor).toBeTypeOf("function");
     expect(registry.IssuesList).toBeTypeOf("function");
@@ -287,7 +287,7 @@ describe("plugin SDK markdown component bridge", () => {
   });
 
   it("renders plugin-provided markdown components when registered by the host", () => {
-    globalThis.__paperclipPluginBridge__ = {
+    globalThis.__outpostPluginBridge__ = {
       react: React,
       reactJsxRuntime: ReactJsxRuntime,
       reactDom: ReactDOM,
@@ -341,7 +341,7 @@ describe("plugin jsx runtime bridge", () => {
   it("exposes the host jsx runtime on the bridge registry", () => {
     initPluginBridge(React, ReactDOM);
 
-    const runtime = globalThis.__paperclipPluginBridge__?.reactJsxRuntime as typeof ReactJsxRuntime;
+    const runtime = globalThis.__outpostPluginBridge__?.reactJsxRuntime as typeof ReactJsxRuntime;
     expect(runtime.jsx).toBeTypeOf("function");
     expect(runtime.jsxs).toBeTypeOf("function");
     expect(runtime.Fragment).toBe(ReactJsxRuntime.Fragment);
@@ -349,7 +349,7 @@ describe("plugin jsx runtime bridge", () => {
 
   it("renders unkeyed static children through the bridged runtime without key warnings", () => {
     initPluginBridge(React, ReactDOM);
-    const runtime = globalThis.__paperclipPluginBridge__?.reactJsxRuntime as typeof ReactJsxRuntime;
+    const runtime = globalThis.__outpostPluginBridge__?.reactJsxRuntime as typeof ReactJsxRuntime;
 
     // Mirror what a compiled plugin bundle emits for static multi-child JSX:
     // jsxs() with an unkeyed children array. The previous shim rebuilt this

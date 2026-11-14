@@ -1,9 +1,9 @@
-import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
+import type { OutpostPluginManifestV1 } from "@outpost/plugin-sdk";
 
 const PLUGIN_ID = "outpost.novita-sandbox-provider";
 const PLUGIN_VERSION = "0.1.0";
 
-const manifest: PaperclipPluginManifestV1 = {
+const manifest: OutpostPluginManifestV1 = {
   id: PLUGIN_ID,
   apiVersion: 1,
   version: PLUGIN_VERSION,
@@ -30,7 +30,7 @@ const manifest: PaperclipPluginManifestV1 = {
             type: "string",
             format: "secret-ref",
             description:
-              "Environment-specific Novita API key. Paste a key or an existing Outpost secret reference; saved environments store pasted values as company secrets. Falls back to NOVITA_API_KEY if omitted.",
+              "Environment-specific Novita API key. Paste a key or an existing Outpost secret reference; saved environments store pasted values as space secrets. Falls back to NOVITA_API_KEY if omitted.",
           },
           domain: {
             type: "string",
@@ -44,7 +44,7 @@ const manifest: PaperclipPluginManifestV1 = {
           },
           requestedCwd: {
             type: "string",
-            default: "/home/user/paperclip-workspace",
+            default: "/home/user/outpost-workspace",
             description: "Workspace directory to create inside the sandbox lease.",
           },
           timeoutMs: {

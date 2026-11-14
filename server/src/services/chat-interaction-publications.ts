@@ -223,8 +223,8 @@ export function nativeChatCheckbox(interaction: IssueThreadInteraction): Request
 /**
  * Slack and Telegram can render ordinary binary confirmations as inline buttons.
  * Confirmations that collect a rejection reason or authorize a credential,
- * connection, or tool side effect stay in Paperclip, where the complete
- * governed review UI and permission checks are available.
+ * connection, or tool side effect stay in Outpost, where the complete
+ * controlled review UI and permission checks are available.
  */
 export function nativeChatConfirmation(
   interaction: IssueThreadInteraction,
@@ -259,7 +259,7 @@ export async function enqueueIssueInteractionChatPublications(
   // An endpoint is one immutable provider bot identity. Never externalize a
   // user/system-authored interaction, or let one agent speak through another
   // agent's endpoint. If the interaction names a source run, verify that run's
-  // company and agent instead of trusting the denormalized creator alone.
+  // space and agent instead of trusting the denormalized creator alone.
   if (!interaction.createdByAgentId) return [];
   if (interaction.sourceRunId) {
     const sourceRun = await db
@@ -268,7 +268,7 @@ export async function enqueueIssueInteractionChatPublications(
       .where(
         and(
           eq(heartbeatRuns.id, interaction.sourceRunId),
-          eq(heartbeatRuns.companyId, interaction.companyId),
+          eq(heartbeatRuns.spaceId, interaction.spaceId),
           eq(heartbeatRuns.agentId, interaction.createdByAgentId),
         ),
       )
@@ -284,14 +284,14 @@ export async function enqueueIssueInteractionChatPublications(
     .innerJoin(
       chatEndpoints,
       and(
-        eq(chatEndpoints.companyId, chatConversations.companyId),
+        eq(chatEndpoints.spaceId, chatConversations.spaceId),
         eq(chatEndpoints.id, chatConversations.endpointId),
           eq(chatEndpoints.publicationMode, "automatic"),
       ),
     )
     .where(
       and(
-        eq(chatConversations.companyId, interaction.companyId),
+        eq(chatConversations.spaceId, interaction.spaceId),
         eq(chatConversations.issueId, interaction.issueId),
         inArray(chatConversations.state, ["active", "waiting"]),
         inArray(chatEndpoints.status, ["active", "verifying"]),
@@ -454,7 +454,7 @@ export async function enqueueIssueInteractionChatPublications(
       const rows = await tx
         .insert(chatPublications)
         .values({
-          companyId: interaction.companyId,
+          spaceId: interaction.spaceId,
           endpointId: endpoint.id,
           conversationId: conversation.id,
           issueId: interaction.issueId,
@@ -467,14 +467,14 @@ export async function enqueueIssueInteractionChatPublications(
       const publication = rows[0];
       if (publication && endpoint.provider === "imessage-photon" && nativePhotonInteraction(interaction)) {
         const reference = randomBytes(9).toString("base64url");
-        await tx.insert(chatActions).values({ companyId: interaction.companyId, endpointId: endpoint.id, conversationId: conversation.id,
+        await tx.insert(chatActions).values({ spaceId: interaction.spaceId, endpointId: endpoint.id, conversationId: conversation.id,
           kind: "photon_interaction", providerActionId: `photon:${reference}`,
           payload: { version: 1, reference, interactionId: interaction.id, publicationId: publication.id, sessionGeneration: conversation.sessionGeneration,
             expiresAt: new Date(publication.createdAt.getTime() + CHAT_QUESTION_ACTION_TOKEN_TTL_MS).toISOString() }, status: "issued" });
       } else if (publication && formDraft) {
         await tx.insert(chatActions).values(
           chatQuestionFormActionRecords(formDraft, {
-            companyId: interaction.companyId,
+            spaceId: interaction.spaceId,
             endpointId: endpoint.id,
             conversationId: conversation.id,
             publicationId: publication.id,
@@ -483,7 +483,7 @@ export async function enqueueIssueInteractionChatPublications(
       }
       if (publication && supportsCallbacks && multipleQuestion && multipleActionId) {
         await tx.insert(chatActions).values({
-          companyId: interaction.companyId, endpointId: endpoint.id, conversationId: conversation.id,
+          spaceId: interaction.spaceId, endpointId: endpoint.id, conversationId: conversation.id,
           kind: "question_answer", providerActionId: multipleActionId, status: "issued",
           payload: { version: 1, publicationId: publication.id, interactionId: interaction.id, questionId: multipleQuestion.id,
             selectionOptions: questionActionTokens.map(({ actionId, option }) => ({ value: actionId, optionId: option.id })),
@@ -495,7 +495,7 @@ export async function enqueueIssueInteractionChatPublications(
         ).toISOString();
         await tx.insert(chatActions).values(
           questionActionTokens.map(({ actionId, option }) => ({
-            companyId: interaction.companyId,
+            spaceId: interaction.spaceId,
             endpointId: endpoint.id,
             conversationId: conversation.id,
             kind: "question_answer",
@@ -521,7 +521,7 @@ export async function enqueueIssueInteractionChatPublications(
         ).toISOString();
         await tx.insert(chatActions).values(
           confirmationActionTokens.map(({ actionId, decision }) => ({
-            companyId: interaction.companyId,
+            spaceId: interaction.spaceId,
             endpointId: endpoint.id,
             conversationId: conversation.id,
             kind: "confirmation_response",
@@ -549,12 +549,12 @@ export async function enqueueIssueInteractionChatPublications(
 /**
  * Settles every delivered question or confirmation card. Providers without a
  * native callback receive the same actionless terminal edit/follow-up as
- * providers with buttons, so an "Open in Paperclip" prompt never remains
- * visibly pending after the authoritative board decision.
+ * providers with buttons, so an "Open in Outpost" prompt never remains
+ * visibly pending after the authoritative operator decision.
  *
  * The terminal publication shares the provider callback idempotency key. If a
  * provider click wins the race, its handler converges on the same row; if the
- * Paperclip UI wins, all still-issued callback tokens expire in this same
+ * Outpost UI wins, all still-issued callback tokens expire in this same
  * authoritative resolution transaction.
  */
 export async function enqueueTerminalIssueInteractionChatPublications(
@@ -568,7 +568,7 @@ export async function enqueueTerminalIssueInteractionChatPublications(
       .from(chatPublications)
       .where(
         and(
-          eq(chatPublications.companyId, interaction.companyId),
+          eq(chatPublications.spaceId, interaction.spaceId),
           eq(chatPublications.issueId, interaction.issueId),
           eq(
             sql<string>`${chatPublications.payload}->>'interactionId'`,
@@ -592,7 +592,7 @@ export async function enqueueTerminalIssueInteractionChatPublications(
     })
     .where(
       and(
-        eq(chatActions.companyId, interaction.companyId),
+        eq(chatActions.spaceId, interaction.spaceId),
         inArray(chatActions.kind, [
           "photon_interaction",
           "question_answer",
@@ -690,7 +690,7 @@ export async function enqueueTerminalIssueInteractionChatPublications(
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, interaction.companyId),
+          eq(issues.spaceId, interaction.spaceId),
           eq(issues.id, interaction.issueId),
         ),
       )
@@ -715,11 +715,11 @@ export async function enqueueTerminalIssueInteractionChatPublications(
       )
     ) {
       await db.transaction(async tx => {
-        await notifyChatContinuationWork(tx, { companyId: interaction.companyId, issueId: interaction.issueId });
+        await notifyChatContinuationWork(tx, { spaceId: interaction.spaceId, issueId: interaction.issueId });
         await tx
           .insert(chatActions)
           .values({
-            companyId: interaction.companyId,
+            spaceId: interaction.spaceId,
             endpointId: wakeBinding.endpointId,
             conversationId: wakeBinding.conversationId,
             kind: "interaction_wakeup",
@@ -776,7 +776,7 @@ export async function enqueueTerminalIssueInteractionChatPublications(
       return tx
         .insert(chatPublications)
         .values({
-          companyId: interaction.companyId,
+          spaceId: interaction.spaceId,
           endpointId: original.endpointId,
           conversationId: original.conversationId,
           issueId: interaction.issueId,
@@ -809,7 +809,7 @@ export async function enqueueTerminalIssueInteractionChatPublications(
 export async function cancelPendingIssueInteractionChatPublications(
   db: ChatPublicationDb,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     interactionIds: readonly string[];
   },
@@ -824,7 +824,7 @@ export async function cancelPendingIssueInteractionChatPublications(
     })
     .where(
       and(
-        eq(chatActions.companyId, input.companyId),
+        eq(chatActions.spaceId, input.spaceId),
         inArray(chatActions.kind, [
           "question_answer",
           "question_form_open",
@@ -850,7 +850,7 @@ export async function cancelPendingIssueInteractionChatPublications(
       })
       .where(
         and(
-          eq(chatPublications.companyId, input.companyId),
+          eq(chatPublications.spaceId, input.spaceId),
           eq(chatPublications.issueId, input.issueId),
           inArray(chatPublications.state, ["pending", "retry"]),
           inArray(sql<string>`${chatPublications.payload}->>'interactionId'`, [

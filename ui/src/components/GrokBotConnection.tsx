@@ -11,12 +11,12 @@ import { Input } from "./ui/input";
 import { queryKeys } from "@/lib/queryKeys";
 
 /** Configuration writes update the authoritative binding, never an unsaved agent form. */
-export function GrokBotConnection({ companyId, agentId }: { companyId?: string; agentId?: string }) {
+export function GrokBotConnection({ spaceId, agentId }: { spaceId?: string; agentId?: string }) {
   const pairingCodeId = useId();
   const cache = useQueryClient();
-  const key = ["grok-binding", companyId, agentId];
-  const state = useQuery({ queryKey: key, enabled: !!companyId && !!agentId,
-    queryFn: ({ signal }) => grokBotApi.connection(companyId!, agentId!, signal), refetchInterval: 5000 });
+  const key = ["grok-binding", spaceId, agentId];
+  const state = useQuery({ queryKey: key, enabled: !!spaceId && !!agentId,
+    queryFn: ({ signal }) => grokBotApi.connection(spaceId!, agentId!, signal), refetchInterval: 5000 });
   const [pairing, setPairing] = useState<DotPairing | null>(null);
   const [replace, setReplace] = useState(false);
   const [botName, setBotName] = useState("");
@@ -27,22 +27,22 @@ export function GrokBotConnection({ companyId, agentId }: { companyId?: string; 
   const binding = state.data?.binding, routine = binding?.routine, exchange = routine?.lastExchange;
   const refresh = async () => {
     await cache.invalidateQueries({ queryKey: key });
-    if (companyId && agentId) await cache.invalidateQueries({ queryKey: queryKeys.agents.detail(agentId) });
+    if (spaceId && agentId) await cache.invalidateQueries({ queryKey: queryKeys.agents.detail(agentId) });
   };
-  const pair = useMutation({ mutationFn: async () => { setPairing(await grokBotApi.pair(companyId!, agentId!, binding?.status === "pairing" ? binding.id : undefined)); }, onSuccess: refresh, gcTime: 0 });
+  const pair = useMutation({ mutationFn: async () => { setPairing(await grokBotApi.pair(spaceId!, agentId!, binding?.status === "pairing" ? binding.id : undefined)); }, onSuccess: refresh, gcTime: 0 });
   const configure = useMutation({ mutationFn: async () => {
-    await grokBotApi.configure(companyId!, agentId!, { bindingId: binding!.id, expectedRevision: routine?.revision ?? 0, botName, webhookUrl, webhookKey });
+    await grokBotApi.configure(spaceId!, agentId!, { bindingId: binding!.id, expectedRevision: routine?.revision ?? 0, botName, webhookUrl, webhookKey });
     setWebhookUrl(""); setWebhookKey(""); setReplace(false); verifyRequest.current = null;
   }, onSuccess: refresh, gcTime: 0 });
   const verify = useMutation({ mutationFn: async () => {
     if (["rejected", "cancelled"].includes(exchange?.status ?? "")) verifyRequest.current = null;
     verifyRequest.current ??= crypto.randomUUID();
-    await grokBotApi.verify(companyId!, agentId!, binding!.id, verifyRequest.current);
+    await grokBotApi.verify(spaceId!, agentId!, binding!.id, verifyRequest.current);
   }, onSuccess: refresh, gcTime: 0 });
-  const retryDelivery = useMutation({ mutationFn: (correlationId: string) => grokBotApi.retry(companyId!, agentId!, correlationId), onSuccess: refresh });
-  const disconnect = useMutation({ mutationFn: () => grokBotApi.disconnect(companyId!, agentId!), onSuccess: async () => { setPairing(null); await refresh(); } });
-  const recover = useMutation({ mutationFn: () => grokBotApi.recover(companyId!, agentId!), onSuccess: async () => { setInspected(false); verifyRequest.current = null; await refresh(); } });
-  const stop = useMutation({ mutationFn: (runId: string) => grokBotApi.stop(companyId!, agentId!, runId), onSuccess: refresh });
+  const retryDelivery = useMutation({ mutationFn: (correlationId: string) => grokBotApi.retry(spaceId!, agentId!, correlationId), onSuccess: refresh });
+  const disconnect = useMutation({ mutationFn: () => grokBotApi.disconnect(spaceId!, agentId!), onSuccess: async () => { setPairing(null); await refresh(); } });
+  const recover = useMutation({ mutationFn: () => grokBotApi.recover(spaceId!, agentId!), onSuccess: async () => { setInspected(false); verifyRequest.current = null; await refresh(); } });
+  const stop = useMutation({ mutationFn: (runId: string) => grokBotApi.stop(spaceId!, agentId!, runId), onSuccess: refresh });
   useEffect(() => { if (routine?.botName) setBotName(routine.botName); }, [routine?.botName]);
   useEffect(() => {
     if (!pairing) return;

@@ -93,10 +93,10 @@ export function directHumanCommentCondition() {
     AND NOT EXISTS (
       SELECT 1 FROM ${chatConversations}
       INNER JOIN ${chatMessageLinks}
-        ON ${chatMessageLinks.companyId} = ${chatConversations.companyId}
+        ON ${chatMessageLinks.spaceId} = ${chatConversations.spaceId}
         AND ${chatMessageLinks.endpointId} = ${chatConversations.endpointId}
         AND ${chatMessageLinks.conversationId} = ${chatConversations.id}
-      WHERE ${chatConversations.companyId} = ${issueComments.companyId}
+      WHERE ${chatConversations.spaceId} = ${issueComments.spaceId}
         AND ${chatConversations.issueId} = ${issueComments.issueId}
         AND ${chatMessageLinks.commentId} = ${issueComments.id}
         AND ${chatMessageLinks.direction} = 'inbound'
@@ -104,8 +104,8 @@ export function directHumanCommentCondition() {
   )`;
 }
 
-export function pendingUserRequestRowCondition(companyId: string, userId: string, after?: SQL) {
-  return sql<boolean>`(${issueThreadInteractions.companyId} = ${companyId}
+export function pendingUserRequestRowCondition(spaceId: string, userId: string, after?: SQL) {
+  return sql<boolean>`(${issueThreadInteractions.spaceId} = ${spaceId}
       AND ${issueThreadInteractions.issueId} = ${issues.id}
       AND ${issueThreadInteractions.status} = 'pending'
       AND ${issues.status} NOT IN ('done', 'cancelled')
@@ -120,17 +120,17 @@ export function pendingUserRequestRowCondition(companyId: string, userId: string
   )`;
 }
 
-export function pendingUserRequestCondition(companyId: string, userId: string, after?: SQL) {
+export function pendingUserRequestCondition(spaceId: string, userId: string, after?: SQL) {
   return sql<boolean>`EXISTS (
     SELECT 1 FROM ${issueThreadInteractions}
-    WHERE ${pendingUserRequestRowCondition(companyId, userId, after)}
+    WHERE ${pendingUserRequestRowCondition(spaceId, userId, after)}
   )`;
 }
 
-export function userParticipationActivityCondition(companyId: string, userId: string) {
+export function userParticipationActivityCondition(spaceId: string, userId: string) {
   return sql<boolean>`(
     ${activityLog.entityType} = 'issue'
-    AND ${activityLog.companyId} = ${companyId}
+    AND ${activityLog.spaceId} = ${spaceId}
     AND ${activityLog.actorType} = 'user'
     AND ${activityLog.actorId} = ${userId}
     AND NOT ${automaticReadRecoveryCleanupCondition()}
@@ -145,23 +145,23 @@ export function userParticipationActivityCondition(companyId: string, userId: st
   )`;
 }
 
-export function touchedByUserCondition(companyId: string, userId: string) {
+export function touchedByUserCondition(spaceId: string, userId: string) {
   return sql<boolean>`
     (
       (${issues.createdByUserId} = ${userId} AND ${humanCreatedIssueCondition()})
       OR ${issues.assigneeUserId} = ${userId}
-      OR ${pendingUserRequestCondition(companyId, userId)}
+      OR ${pendingUserRequestCondition(spaceId, userId)}
       OR EXISTS (
         SELECT 1
         FROM ${activityLog}
         WHERE ${activityLog.entityId} = ${issues.id}::text
-          AND ${userParticipationActivityCondition(companyId, userId)}
+          AND ${userParticipationActivityCondition(spaceId, userId)}
       )
       OR EXISTS (
         SELECT 1
         FROM ${issueComments}
         WHERE ${issueComments.issueId} = ${issues.id}
-          AND ${issueComments.companyId} = ${companyId}
+          AND ${issueComments.spaceId} = ${spaceId}
           AND ${issueComments.authorUserId} = ${userId}
           AND ${directHumanCommentCondition()}
       )

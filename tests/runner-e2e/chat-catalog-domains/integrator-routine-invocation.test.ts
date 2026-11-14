@@ -7,13 +7,13 @@ function valid() {
   const chatRun = { id: "chat-run", agentId: "ceo", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: "chat" } };
   const outputRun = { id: "output-run", agentId: "ceo", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: "task" } };
   const followUpRun = { id: "follow-up-run", agentId: "ceo", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: "chat" } };
-  const base = { scenarioId: "routines.run-now", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { project: { id: "project" } },
+  const base = { scenarioId: "routines.run-now", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { project: { id: "project" } },
     tasks: [task], projects: [], goals: [], comments: [], documents: [], revisions: [], humanQueries: [], activity: [], links: ["/ACN/issues/ACN-2"],
     routine: { id: "routine" }, invocations: [invocation], outputComments: [{ id: "output", authorAgentId: "ceo", createdByRunId: "output-run", body: "Launch: payment approval is pending." }],
     runs: [chatRun, outputRun], reply: "Accepted the Launch summary invocation; its task is waiting.",
     toolReads: [
-      { runId: "output-run", name: "paperclip_list_projects", at: "2026-01-01T00:01:30.000Z", output: '{"projects":[{"id":"project"}]}' },
-      { runId: "follow-up-run", name: "paperclip_get_task", at: "2026-01-01T00:03:00.000Z", output: '{"data":{"id":"task","status":"done"}}' },
+      { runId: "output-run", name: "outpost_list_projects", at: "2026-01-01T00:01:30.000Z", output: '{"projects":[{"id":"project"}]}' },
+      { runId: "follow-up-run", name: "outpost_get_task", at: "2026-01-01T00:03:00.000Z", output: '{"data":{"id":"task","status":"done"}}' },
     ] };
   const first = structuredClone(base); first.invocations[0]!.status = "issue_created"; first.tasks[0]!.status = "todo";
   return { ...base, runs: [...base.runs, followUpRun], state: { ...base.state, replayRunId: "invocation", replayIssueId: "task", firstInvocation: first },

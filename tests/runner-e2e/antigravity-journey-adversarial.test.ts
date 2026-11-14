@@ -56,7 +56,7 @@ it("accepts the fully correlated synthetic retained baseline used by the wrong-b
   expect(() => validateRetainedRunnerResult(retainedResult())).not.toThrow();
 });
 
-it.each(["companyId", "agentId", "connectionId"] as const)("rejects a passing report with a foreign or missing top-level %s binding", key => {
+it.each(["spaceId", "agentId", "connectionId"] as const)("rejects a passing report with a foreign or missing top-level %s binding", key => {
   for (const missing of [false, true]) {
     const result = retainedResult();
     if (missing) delete result.antigravityJourney![key];

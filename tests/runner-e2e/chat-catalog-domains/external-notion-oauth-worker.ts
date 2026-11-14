@@ -65,7 +65,7 @@ async function main(): Promise<NotionOAuthReceipt> {
       throw new Error(
         "Public Notion setup person differs from addressed human",
       );
-    const root = `/api/companies/${input.companyId}/tools`;
+    const root = `/api/spaces/${input.spaceId}/tools`;
     if (input.intentId) {
       const cards = await api<
         Array<{
@@ -101,7 +101,7 @@ async function main(): Promise<NotionOAuthReceipt> {
       .getByRole("heading", {
         name: input.draftId
           ? "Finish connecting Notion"
-          : "Connect Notion to Paperclip",
+          : "Connect Notion to Outpost",
         exact: true,
       })
       .waitFor();
@@ -153,7 +153,7 @@ async function main(): Promise<NotionOAuthReceipt> {
     if (input.reconnectId) {
       if (
         draft.id !== input.reconnectId ||
-        draft.companyId !== input.companyId ||
+        draft.spaceId !== input.spaceId ||
         draft.authKind !== "oauth" ||
         draft.credentialPolicy !== "shared" ||
         !before.some((c) => c.id === draft.id) ||
@@ -163,7 +163,7 @@ async function main(): Promise<NotionOAuthReceipt> {
           "Actual Notion reconnect changed the existing shared OAuth identity",
         );
     } else if (
-      draft.companyId !== input.companyId ||
+      draft.spaceId !== input.spaceId ||
       draft.credentialPolicy !== "per_user" ||
       draft.authKind !== "oauth" ||
       draft.status !== "draft" ||
@@ -310,7 +310,7 @@ async function main(): Promise<NotionOAuthReceipt> {
     }
     if (
       !connected ||
-      connected.companyId !== input.companyId ||
+      connected.spaceId !== input.spaceId ||
       connected.status !== "active" ||
       connected.healthStatus !== "ok" ||
       connected.credentialPolicy !== (input.reconnectId ? "shared" : "per_user")

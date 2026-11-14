@@ -30,7 +30,7 @@ process.stdin.on("data", chunk => {
         process.stdout.write(delta.subarray(cut));
         send({ id: message.id, result: { turn: { id: "turn-" + message.id } } });
         send({ method: "turn/started", params: { threadId: message.params.threadId, turn: { id: "turn-" + message.id } } });
-        for (const tool of ["write_document", "paperclip_finish"]) {
+        for (const tool of ["write_document", "outpost_finish"]) {
           send({ method: "item/completed", params: { threadId: message.params.threadId, item: { type: "dynamicToolCall", id: "call-" + tool, tool, status: "completed" } } });
         }
       }, 20);
@@ -152,16 +152,16 @@ describe("provider message fault shim", () => {
     expect(result.terminals).toHaveLength(1);
   });
 
-  it("tool_completed drops the first Paperclip tool completion, never a finish or block (staging, 2026-11-11)", async () => {
+  it("tool_completed drops the first Outpost tool completion, never a finish or block (staging, 2026-11-11)", async () => {
     const { seam: installed, root } = await seam();
     await installed.arm([task("eeee4444", { kind: "PV2", message: "tool_completed" })]);
     const result = await turnThroughShim(root, "nonce eeee4444");
-    expect(result.toolCompletions).toEqual(["paperclip_finish"]);
+    expect(result.toolCompletions).toEqual(["outpost_finish"]);
     expect(result.terminals).toHaveLength(1);
     expect((await installed.eventsFor("eeee4444")).filter(event => event.event === "applied"))
       .toMatchObject([{ kind: "PV2", message: "tool_completed", action: "drop", tool: "write_document" }]);
-    expect((await turnThroughShim(root, "nonce eeee4444")).toolCompletions).toEqual(["write_document", "paperclip_finish"]);
-    expect((await turnThroughShim(root, "nonce ffff5555")).toolCompletions).toEqual(["write_document", "paperclip_finish"]);
+    expect((await turnThroughShim(root, "nonce eeee4444")).toolCompletions).toEqual(["write_document", "outpost_finish"]);
+    expect((await turnThroughShim(root, "nonce ffff5555")).toolCompletions).toEqual(["write_document", "outpost_finish"]);
   });
 
   it("discards a held message when the provider exits first, as a dead provider would", async () => {

@@ -1,16 +1,16 @@
 import { mkdtempSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import { BUNDLED_PLUGIN_CATALOG, resolveBundledPluginInstalls } from "../../services/bundled-plugins.js";
 import { distributionBundleDigest, readDistributionPluginCatalog } from "../../services/distribution-plugin-catalog.js";
 import { derivePluginDatabaseNamespace } from "../../services/plugin-database.js";
 import { createBundledPluginPackageResolver } from "../../services/bundled-plugin-package.js";
 
-export function bundledImageFixture(manifestOverrides: Partial<PaperclipPluginManifestV1> = {}) {
+export function bundledImageFixture(manifestOverrides: Partial<OutpostPluginManifestV1> = {}) {
   const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bundled-image-")));
   const packageRoot = path.join(root, "distribution", "fixture");
-  const manifest: PaperclipPluginManifestV1 = {
+  const manifest: OutpostPluginManifestV1 = {
     id: "outpost.image-fixture", apiVersion: 1, version: "1.0.0", displayName: "Image Fixture",
     description: "Image package relocation fixture", author: "Outpost", categories: ["automation"], capabilities: ["issues.read"],
     entrypoints: { worker: "dist/worker.js", ui: "dist/ui" }, ...manifestOverrides,
@@ -18,7 +18,7 @@ export function bundledImageFixture(manifestOverrides: Partial<PaperclipPluginMa
   mkdirSync(path.join(packageRoot, "dist", "ui"), { recursive: true });
   writeFileSync(path.join(packageRoot, "package.json"), JSON.stringify({
     name: "@outpost/plugin-image-fixture", version: manifest.version, type: "module",
-    paperclipPlugin: { manifest: "dist/manifest.js", ...manifest.entrypoints },
+    outpostPlugin: { manifest: "dist/manifest.js", ...manifest.entrypoints },
   }));
   writeFileSync(path.join(packageRoot, "dist", "manifest.js"), `export default ${JSON.stringify(manifest)};`);
   writeFileSync(path.join(packageRoot, "dist", "worker.js"), `import readline from "node:readline";
@@ -29,7 +29,7 @@ else {
     const request = JSON.parse(line);
     let result = {};
     if (request.method === "initialize") result = { ok: true, supportedMethods: ["configChanged", "health"] };
-    if (request.method === "configChanged") configs[request.params.companyId] = request.params.config;
+    if (request.method === "configChanged") configs[request.params.spaceId] = request.params.config;
     if (request.method === "health") result = { status: "ok", details: { source: import.meta.url, configs } };
     process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }) + "\\n");
     if (request.method === "shutdown") setImmediate(() => process.exit(0));

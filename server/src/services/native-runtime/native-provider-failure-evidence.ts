@@ -19,14 +19,14 @@ async function observePersistedNativeTurnFailure(
       terminal.turnTerminalState !== "failed" || terminal.runTerminalState !== "failed") return null;
   let execution;
   try { execution = parseNativeExecutionInput(record(run.runnerProfileJson).nativeExecutionInput); } catch { return null; }
-  if (execution.binding.runId !== run.id || execution.binding.companyId !== run.companyId ||
+  if (execution.binding.runId !== run.id || execution.binding.spaceId !== run.spaceId ||
       execution.binding.agentId !== run.agentId || execution.binding.issueId !== run.nativeIssueId ||
       execution.session.normalizedSessionId !== run.nativeSessionId ||
       execution.completionContract.id !== run.completionContractId ||
       execution.completionContract.sha256 !== run.completionContractSha256) return null;
 
   const [row] = await db.select().from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     eq(heartbeatRunEvents.sourceInstanceId, run.runnerInstanceId), eq(heartbeatRunEvents.eventType, "turn.failed"),
     sql`${heartbeatRunEvents.payload}->'orpEvent'->>'turnId' = ${turnId}`,
   )).orderBy(desc(heartbeatRunEvents.seq)).limit(1);

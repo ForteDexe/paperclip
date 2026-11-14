@@ -124,7 +124,7 @@ it("rejects active work and buffered tools from a resumed stopped checkpoint", a
               payload: expect.objectContaining({
                 payload: expect.objectContaining({
                   code: "prepared_provider_checkpoint_has_active_work",
-                  paperclipAccepted: false,
+                  outpostAccepted: false,
                   providerReportedActive: true,
                 }),
               }),
@@ -155,7 +155,7 @@ it("does not retry a real memoized transport close whose suspension proof is una
   const identity = {
     runId: "run-recovery",
     sessionId: "session-recovery",
-    companyId: "company-recovery",
+    spaceId: "space-recovery",
     issueId: "issue-recovery",
     agentId: "agent-recovery",
   };
@@ -188,7 +188,7 @@ it("does not retry a real memoized transport close whose suspension proof is una
   const input: NativeExecutionInputV1 = {
     schema: "outpost.native-execution-input.v1",
     binding: {
-      companyId: identity.companyId,
+      spaceId: identity.spaceId,
       runId: identity.runId,
       issueId: identity.issueId,
       agentId: identity.agentId,

@@ -8,7 +8,7 @@ import { runtimeSessionCases } from "./chat-catalog-domains/runtime-session.js";
 
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 function context(id: string, deadline: number) {
-  return { observationDeadlineAt: deadline, scenario: { id }, input: { nonce: "unit", privateSecrets: [], execution: { id: `chat-features.runner-opencode.local.${id}` }, fixtures: { agent: { id: "ceo" }, company: { id: "company" } }, api: {
+  return { observationDeadlineAt: deadline, scenario: { id }, input: { nonce: "unit", privateSecrets: [], execution: { id: `chat-features.runner-opencode.local.${id}` }, fixtures: { agent: { id: "ceo" }, space: { id: "space" } }, api: {
     get: async () => ({ runtimeConfig: {} }), patch: async () => ({}), post: async () => ({}), putSensitive: async () => ({}),
     postSensitive: async () => ({ connectionId: "connection", actions: { readOnly: [], canMakeChanges: [] } }),
   } }, issue: () => ({ id: "chat", conversationState: "waiting" }), refreshIssue: async () => {}, allRuns: async () => [] } as unknown as ChatCatalogContext;

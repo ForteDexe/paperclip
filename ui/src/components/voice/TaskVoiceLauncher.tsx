@@ -8,12 +8,12 @@ import { Button } from "@/components/ui/button";
 import { VoiceCallContext } from "./VoiceCallContext";
 import { NativeVoiceConversation } from "./NativeVoiceConversation";
 
-export function TaskVoiceLauncher({ companyId, issueId, agentId, boundEndpointId }: { companyId: string; issueId: string; agentId?: string | null; boundEndpointId?: string }) {
+export function TaskVoiceLauncher({ spaceId, issueId, agentId, boundEndpointId }: { spaceId: string; issueId: string; agentId?: string | null; boundEndpointId?: string }) {
   const launcher = useRef<HTMLButtonElement>(null), restoreFocus = useRef(false);
   const host = useContext(VoiceCallContext), previouslyActive = useRef(false);
   const { enabled } = useChatConnectorsEnabled();
   const [open, setOpen] = useState(false), [selected, setSelected] = useState("");
-  const connections = useQuery({ queryKey: queryKeys.chatEndpoints.list(companyId), queryFn: () => chatEndpointsApi.list(companyId), enabled: enabled && Boolean(agentId || boundEndpointId) });
+  const connections = useQuery({ queryKey: queryKeys.chatEndpoints.list(spaceId), queryFn: () => chatEndpointsApi.list(spaceId), enabled: enabled && Boolean(agentId || boundEndpointId) });
   const connectionsView = useQueryView(connections);
   useEffect(() => {
     if (previouslyActive.current && !host?.active && open) { setOpen(false); restoreFocus.current = true; }
@@ -38,6 +38,6 @@ export function TaskVoiceLauncher({ companyId, issueId, agentId, boundEndpointId
     {!open ? <div className="flex flex-wrap items-center gap-3">
       {candidates.length > 1 && <label className="flex min-w-0 max-w-full flex-col gap-2 text-sm">Voice persona<select aria-label="Voice persona" className="w-full min-w-0 max-w-full rounded-md border border-input bg-background p-2 text-sm" value={endpoint.id} onChange={(event) => setSelected(event.target.value)}>{candidates.map((entry) => <option key={entry.id} value={entry.id}>{entry.botLabel ?? entry.assignedAgentName}</option>)}</select></label>}
       <Button ref={launcher} variant="outline" onClick={() => setOpen(true)}>Talk to {endpoint.assignedAgentName}</Button>
-    </div> : <NativeVoiceConversation key={`${companyId}:${issueId}:${endpoint.id}`} companyId={companyId} endpointId={endpoint.id} issueId={issueId} agentName={endpoint.assignedAgentName} />}
+    </div> : <NativeVoiceConversation key={`${spaceId}:${issueId}:${endpoint.id}`} spaceId={spaceId} endpointId={endpoint.id} issueId={issueId} agentName={endpoint.assignedAgentName} />}
   </section>;
 }

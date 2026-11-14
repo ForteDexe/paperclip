@@ -133,7 +133,7 @@ export function telegramForumControlResponse(command: "new" | "close", taskLabel
 export function telegramInboundControls(text: string, surfaceKind: ReturnType<typeof chatSurfaceKind>) {
   // Telegram exposes its small command vocabulary in forum topics too.
   // A forum topic is a native provider thread and therefore stays bound to
-  // one immutable Paperclip task, but the command must still be consumed
+  // one immutable Outpost task, but the command must still be consumed
   // as control-plane input instead of becoming a task comment/wakeup.
   const controlCommand = linearControlCommand(text);
   const guidanceCommand = telegramGuidanceCommand(text);

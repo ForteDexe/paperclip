@@ -1,7 +1,7 @@
 import type { ConnectionManagementContext } from "./connection-management.js";
 import { randomUUID } from "node:crypto";
 import { and, eq, ne, sql } from "drizzle-orm";
-import { aiConnectionPools, aiConnectionRouterCursors, aiConnectionTaskPins, companySecrets, connectionGrants, instanceSettings, plugins, toolApplications, toolConnections, toolConnectionInstalls, type Db } from "@outpost/db";
+import { aiConnectionPools, aiConnectionRouterCursors, aiConnectionTaskPins, spaceSecrets, connectionGrants, instanceSettings, plugins, toolApplications, toolConnections, toolConnectionInstalls, type Db } from "@outpost/db";
 import { aiConnectionRouterAppDefinition, aiConnectionRouterSlug, aiConnectionPoolConfigSchema, isAiConnectionCompatible, type AiConnectionPool, type AiConnectionPoolMember, type AiConnectionRouterRequest, type AiConnectionRouterSelection, type AiConnectionPoolSaveInput, type AiConnectionUsage } from "@outpost/shared";
 import { isCodexLocalKnownModel, codexLocalReasoningEffortsForModel } from "@outpost/adapter-codex-local";
 import { models as claudeModels, claudeLocalReasoningEffortsForModel } from "@outpost/adapter-claude-local";
@@ -11,7 +11,7 @@ import { instanceSettingsService } from "./instance-settings.js";
 import { logActivity } from "./activity-log.js";
 import { forbidden, notFound, conflict, unprocessable } from "../errors.js";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
-import { resolvePaperclipRunnerProviderProfile, resolvePaperclipRunnerNativeProviderInput } from "./native-runtime/provider-profile.js";
+import { resolveOutpostRunnerProviderProfile, resolveOutpostRunnerNativeProviderInput } from "./native-runtime/provider-profile.js";
 
 const usageCache = new Map<string, { expires: number; value: AiConnectionUsage }>();
 const usageInFlight = new Map<string, Promise<AiConnectionUsage | undefined>>();
@@ -41,8 +41,8 @@ export function poolMemberRuntimeConfig(member: AiConnectionPoolMember, adapterT
   const validate = () => {
     if (!isAiConnectionCompatible(member.binding, adapterType, config.model, config.provider, config.acpxAgent)) throw unprocessable("Pool member is incompatible with this harness");
     if (adapterType === "outpost_runner") {
-      const resolved = resolvePaperclipRunnerProviderProfile(config);
-      resolvePaperclipRunnerNativeProviderInput({ backend: resolved.backend, adapterConfig: config });
+      const resolved = resolveOutpostRunnerProviderProfile(config);
+      resolveOutpostRunnerNativeProviderInput({ backend: resolved.backend, adapterConfig: config });
     }
   };
   validate();
@@ -86,17 +86,17 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
           : plugin.status !== "ready" ? { reason: "Enable the connection pool plugin in Plugins." } : {}),
       }));
   }
-  async function list(companyId: string) {
+  async function list(spaceId: string) {
     const rows = await db.select({ pool: aiConnectionPools }).from(aiConnectionPools)
-      .innerJoin(toolConnections, and(eq(toolConnections.id, aiConnectionPools.id), eq(toolConnections.companyId, aiConnectionPools.companyId)))
-      .where(and(eq(aiConnectionPools.companyId, companyId), ne(toolConnections.status, "archived")));
-    return rows.map(({ pool: row }): AiConnectionPool => ({ ...row.config, id: row.id, companyId, pluginKey: row.pluginKey, revision: row.revision }));
+      .innerJoin(toolConnections, and(eq(toolConnections.id, aiConnectionPools.id), eq(toolConnections.spaceId, aiConnectionPools.spaceId)))
+      .where(and(eq(aiConnectionPools.spaceId, spaceId), ne(toolConnections.status, "archived")));
+    return rows.map(({ pool: row }): AiConnectionPool => ({ ...row.config, id: row.id, spaceId, pluginKey: row.pluginKey, revision: row.revision }));
   }
-  async function selectable(companyId: string, userId: string) {
+  async function selectable(spaceId: string, userId: string) {
     if (!(await instanceSettingsService(db).getExperimental()).enableAiConnectionRouters) return [];
-    const accounts = await aiConnectionService(db).list(companyId, userId);
+    const accounts = await aiConnectionService(db).list(spaceId, userId);
     const result: AiConnectionPool[] = [];
-    for (const pool of await list(companyId)) {
+    for (const pool of await list(spaceId)) {
       if (!pool.enabled) continue;
       try { await owner(pool.pluginKey); } catch { continue; }
       const members = pool.members.filter(member => accounts.some(account => account.id === member.binding.connectionId && account.grantId === member.binding.grantId));
@@ -104,14 +104,14 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     }
     return result;
   }
-  async function inspect(companyId: string, poolId: string, userId: string) {
-    const pool = (await list(companyId)).find(pool => pool.id === poolId);
+  async function inspect(spaceId: string, poolId: string, userId: string) {
+    const pool = (await list(spaceId)).find(pool => pool.id === poolId);
     if (!pool) throw notFound("Connection pool not found");
-    const visible = await aiConnectionService(db).list(companyId, userId);
+    const visible = await aiConnectionService(db).list(spaceId, userId);
     const result: Record<string, { reason: string; checkedAt: string | null; usage?: AiConnectionUsage }> = {};
     for (const member of pool.members) {
       const account = visible.find(account => account.id === member.binding.connectionId && account.grantId === member.binding.grantId);
-      const key = account ? await usageCacheKey(member, companyId) : null;
+      const key = account ? await usageCacheKey(member, spaceId) : null;
       const cached = key ? usageCache.get(key) : undefined;
       const observation = cached && cached.expires > Date.now() ? cached.value : undefined;
       result[member.id] = { reason: account?.status === "connected" ? "Eligible if agent access permits" : account?.status ?? "Not permitted", checkedAt: account && observation ? observation.checkedAt : null, ...(account && observation ? { usage: observation } : {}) };
@@ -122,61 +122,61 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     await enabled();
     const plugin = await owner(pluginKey);
     const config = aiConnectionPoolConfigSchema.parse(input.config);
-    const visible = await aiConnectionService(db).list(input.companyId, userId);
+    const visible = await aiConnectionService(db).list(input.spaceId, userId);
     for (const member of config.members) {
-      if (!visible.some((v) => v.id === member.binding.connectionId && v.grantId === member.binding.grantId)) throw forbidden("Choose an account you may use in this company");
+      if (!visible.some((v) => v.id === member.binding.connectionId && v.grantId === member.binding.grantId)) throw forbidden("Choose an account you may use in this space");
       poolMemberRuntimeConfig(member, "outpost_runner");
     }
     const id = input.id ?? randomUUID();
     await managementContext?.reauthorize();
     await db.transaction(async (tx) => {
       if (input.id) {
-        const [row] = await tx.select().from(aiConnectionPools).where(and(eq(aiConnectionPools.id, id), eq(aiConnectionPools.companyId, input.companyId), eq(aiConnectionPools.pluginKey, pluginKey))).for("update");
+        const [row] = await tx.select().from(aiConnectionPools).where(and(eq(aiConnectionPools.id, id), eq(aiConnectionPools.spaceId, input.spaceId), eq(aiConnectionPools.pluginKey, pluginKey))).for("update");
         if (!row) throw notFound("Connection pool not found");
-        const [connection] = await tx.select().from(toolConnections).where(and(eq(toolConnections.id, id), eq(toolConnections.companyId, input.companyId)));
+        const [connection] = await tx.select().from(toolConnections).where(and(eq(toolConnections.id, id), eq(toolConnections.spaceId, input.spaceId)));
         if (!connection || connection.status === "archived") throw notFound("Connection pool not found");
         if (input.expectedRevision !== row.revision) throw conflict("Pool changed; reload before saving");
         await tx.update(aiConnectionPools).set({ config, revision: row.revision + 1, updatedAt: new Date() }).where(eq(aiConnectionPools.id, id));
-        await tx.update(toolConnections).set({ name: config.name, enabled: config.enabled, updatedAt: new Date() }).where(and(eq(toolConnections.id, id), eq(toolConnections.companyId, input.companyId)));
+        await tx.update(toolConnections).set({ name: config.name, enabled: config.enabled, updatedAt: new Date() }).where(and(eq(toolConnections.id, id), eq(toolConnections.spaceId, input.spaceId)));
       } else {
         const key = `plugin:${pluginKey}:ai-router`;
-        await tx.insert(toolApplications).values({ companyId: input.companyId, applicationKey: key, name: plugin.manifestJson.aiConnectionRouter?.name ?? plugin.manifestJson.displayName, metadata: { sourceTemplateKey: aiConnectionRouterSlug(pluginKey) }, type: "paperclip_plugin", pluginId: plugin.id }).onConflictDoNothing();
-        const [application] = await tx.select().from(toolApplications).where(and(eq(toolApplications.companyId, input.companyId), eq(toolApplications.applicationKey, key)));
+        await tx.insert(toolApplications).values({ spaceId: input.spaceId, applicationKey: key, name: plugin.manifestJson.aiConnectionRouter?.name ?? plugin.manifestJson.displayName, metadata: { sourceTemplateKey: aiConnectionRouterSlug(pluginKey) }, type: "outpost_plugin", pluginId: plugin.id }).onConflictDoNothing();
+        const [application] = await tx.select().from(toolApplications).where(and(eq(toolApplications.spaceId, input.spaceId), eq(toolApplications.applicationKey, key)));
         if (!application) throw new Error("Router application could not be created");
-        await tx.insert(toolConnections).values({ id, companyId: input.companyId, applicationId: application.id, name: config.name, uid: id, connectionPurpose: "ai", transport: "runtime_auth", enabled: config.enabled, status: "active", healthStatus: "ok", config: { aiRouter: { pluginKey }, sourceTemplateKey: aiConnectionRouterSlug(pluginKey) }, createdByUserId: userId });
-        await tx.insert(aiConnectionPools).values({ id, companyId: input.companyId, pluginKey, config });
-        await tx.insert(aiConnectionRouterCursors).values({ poolId: id, companyId: input.companyId });
-        await tx.insert(toolConnectionInstalls).values({ companyId: input.companyId, connectionId: id, targetType: "company", targetId: input.companyId, createdByUserId: userId });
+        await tx.insert(toolConnections).values({ id, spaceId: input.spaceId, applicationId: application.id, name: config.name, uid: id, connectionPurpose: "ai", transport: "runtime_auth", enabled: config.enabled, status: "active", healthStatus: "ok", config: { aiRouter: { pluginKey }, sourceTemplateKey: aiConnectionRouterSlug(pluginKey) }, createdByUserId: userId });
+        await tx.insert(aiConnectionPools).values({ id, spaceId: input.spaceId, pluginKey, config });
+        await tx.insert(aiConnectionRouterCursors).values({ poolId: id, spaceId: input.spaceId });
+        await tx.insert(toolConnectionInstalls).values({ spaceId: input.spaceId, connectionId: id, targetType: "space", targetId: input.spaceId, createdByUserId: userId });
       }
-      await logActivity(tx as unknown as Db, { companyId: input.companyId, ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }), action: "ai_connection.pool_saved", entityType: "tool_connection", entityId: id, details: { enabled: config.enabled, memberCount: config.members.length, mode: config.mode } });
+      await logActivity(tx as unknown as Db, { spaceId: input.spaceId, ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }), action: "ai_connection.pool_saved", entityType: "tool_connection", entityId: id, details: { enabled: config.enabled, memberCount: config.members.length, mode: config.mode } });
     });
-    return (await list(input.companyId)).find((p) => p.id === id)!;
+    return (await list(input.spaceId)).find((p) => p.id === id)!;
   }
-  async function remove(companyId: string, poolId: string, expectedRevision: number, userId: string, managementContext?: ConnectionManagementContext) {
+  async function remove(spaceId: string, poolId: string, expectedRevision: number, userId: string, managementContext?: ConnectionManagementContext) {
     // Archive the virtual connection; cascading deletion would erase task pins.
     // Cleanup remains available when the experimental flag or plugin is off.
     await managementContext?.reauthorize();
     await db.transaction(async tx => {
-      const [row] = await tx.select().from(aiConnectionPools).where(and(eq(aiConnectionPools.id, poolId), eq(aiConnectionPools.companyId, companyId))).for("update");
+      const [row] = await tx.select().from(aiConnectionPools).where(and(eq(aiConnectionPools.id, poolId), eq(aiConnectionPools.spaceId, spaceId))).for("update");
       if (!row) throw notFound("Connection pool not found");
-      const [connection] = await tx.select().from(toolConnections).where(and(eq(toolConnections.id, poolId), eq(toolConnections.companyId, companyId)));
+      const [connection] = await tx.select().from(toolConnections).where(and(eq(toolConnections.id, poolId), eq(toolConnections.spaceId, spaceId)));
       if (!connection || connection.status === "archived") throw notFound("Connection pool not found");
       if (row.revision !== expectedRevision) throw conflict("Pool changed; reload before deleting");
       await tx.update(aiConnectionPools).set({ config: { ...row.config, enabled: false }, revision: row.revision + 1, updatedAt: new Date() }).where(eq(aiConnectionPools.id, poolId));
-      await tx.update(toolConnections).set({ status: "archived", enabled: false, updatedAt: new Date() }).where(and(eq(toolConnections.id, poolId), eq(toolConnections.companyId, companyId)));
-      await logActivity(tx as unknown as Db, { companyId, ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }), action: "ai_connection.pool_deleted", entityType: "tool_connection", entityId: poolId, details: { retainedTaskPins: true } });
+      await tx.update(toolConnections).set({ status: "archived", enabled: false, updatedAt: new Date() }).where(and(eq(toolConnections.id, poolId), eq(toolConnections.spaceId, spaceId)));
+      await logActivity(tx as unknown as Db, { spaceId, ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }), action: "ai_connection.pool_deleted", entityType: "tool_connection", entityId: poolId, details: { retainedTaskPins: true } });
     });
     return { ok: true };
   }
-  async function usageCacheKey(member: AiConnectionPoolMember, companyId: string) {
-    const [grant] = await db.select().from(connectionGrants).where(and(eq(connectionGrants.companyId, companyId), eq(connectionGrants.id, member.binding.grantId)));
+  async function usageCacheKey(member: AiConnectionPoolMember, spaceId: string) {
+    const [grant] = await db.select().from(connectionGrants).where(and(eq(connectionGrants.spaceId, spaceId), eq(connectionGrants.id, member.binding.grantId)));
     if (!grant) return null;
     const ref = grant.credentialSecretRefs.find((r) => r.configPath === "ai.credential");
-    const [secret] = ref ? await db.select({ version: companySecrets.latestVersion }).from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.id, ref.secretId))) : [];
-    return `${companyId}:${grant.id}:${ref?.secretId}:${secret?.version}:${grant.updatedAt.toISOString()}`;
+    const [secret] = ref ? await db.select({ version: spaceSecrets.latestVersion }).from(spaceSecrets).where(and(eq(spaceSecrets.spaceId, spaceId), eq(spaceSecrets.id, ref.secretId))) : [];
+    return `${spaceId}:${grant.id}:${ref?.secretId}:${secret?.version}:${grant.updatedAt.toISOString()}`;
   }
-  async function probe(member: AiConnectionPoolMember, companyId: string, userId: string, deadline: number) {
-    const key = await usageCacheKey(member, companyId);
+  async function probe(member: AiConnectionPoolMember, spaceId: string, userId: string, deadline: number) {
+    const key = await usageCacheKey(member, spaceId);
     if (!key) return undefined;
     const cached = usageCache.get(key);
     if (cached && cached.expires > Date.now()) return cached.value;
@@ -184,7 +184,7 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     if (!pending) {
       let probeTimer: ReturnType<typeof setTimeout> | undefined;
       pending = Promise.race([
-        aiConnectionService(db).probeUsage(companyId, userId, member.binding.connectionId, member.binding.grantId).catch(() => undefined),
+        aiConnectionService(db).probeUsage(spaceId, userId, member.binding.connectionId, member.binding.grantId).catch(() => undefined),
         new Promise<undefined>(resolve => { probeTimer = setTimeout(() => resolve(undefined), 15_000); }),
       ]).then(value => {
         if (value) {
@@ -205,9 +205,9 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     } finally { if (timer) clearTimeout(timer); }
   }
 
-  async function resolve(input: { companyId: string; poolId: string; agentId: string; userId: string | null; adapterType: string; taskKey: string; overrides?: Record<string, unknown>; existingGrantId?: string; requireExisting?: boolean; persisted?: AiConnectionRouterSelection }) {
-    const pinWhere = and(eq(aiConnectionTaskPins.companyId, input.companyId), eq(aiConnectionTaskPins.poolId, input.poolId), eq(aiConnectionTaskPins.agentId, input.agentId), eq(aiConnectionTaskPins.taskKey, input.taskKey));
-    const validateSelection = async (selection: AiConnectionRouterSelection, client = db) => aiConnectionService(client).select({ companyId: input.companyId, agentId: input.agentId, userId: input.userId, adapterType: input.adapterType, binding: selection.binding, model: selection.runtimeConfig.model, runnerProvider: selection.runtimeConfig.provider, acpxAgent: selection.runtimeConfig.acpxAgent });
+  async function resolve(input: { spaceId: string; poolId: string; agentId: string; userId: string | null; adapterType: string; taskKey: string; overrides?: Record<string, unknown>; existingGrantId?: string; requireExisting?: boolean; persisted?: AiConnectionRouterSelection }) {
+    const pinWhere = and(eq(aiConnectionTaskPins.spaceId, input.spaceId), eq(aiConnectionTaskPins.poolId, input.poolId), eq(aiConnectionTaskPins.agentId, input.agentId), eq(aiConnectionTaskPins.taskKey, input.taskKey));
+    const validateSelection = async (selection: AiConnectionRouterSelection, client = db) => aiConnectionService(client).select({ spaceId: input.spaceId, agentId: input.agentId, userId: input.userId, adapterType: input.adapterType, binding: selection.binding, model: selection.runtimeConfig.model, runnerProvider: selection.runtimeConfig.provider, acpxAgent: selection.runtimeConfig.acpxAgent });
     if (input.persisted) {
       if (input.persisted.poolId !== input.poolId) throw unprocessable("Persisted pool selection does not match this run");
       const [pin] = await db.select().from(aiConnectionTaskPins).where(pinWhere);
@@ -220,17 +220,17 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     await enabled();
     for (let attempt = 0; attempt < 20; attempt++) {
       const [record] = await db.select({ pool: aiConnectionPools, connectionStatus: toolConnections.status }).from(aiConnectionPools)
-        .innerJoin(toolConnections, and(eq(toolConnections.id, aiConnectionPools.id), eq(toolConnections.companyId, aiConnectionPools.companyId)))
-        .where(and(eq(aiConnectionPools.id, input.poolId), eq(aiConnectionPools.companyId, input.companyId)));
+        .innerJoin(toolConnections, and(eq(toolConnections.id, aiConnectionPools.id), eq(toolConnections.spaceId, aiConnectionPools.spaceId)))
+        .where(and(eq(aiConnectionPools.id, input.poolId), eq(aiConnectionPools.spaceId, input.spaceId)));
       if (!record || record.connectionStatus === "archived") throw unprocessable("This connection pool is unavailable; choose another AI connection");
       const row = record.pool;
       if (!row.config.enabled) throw unprocessable("Enable the selected connection pool");
       const plugin = await owner(row.pluginKey);
       if (!workerManager?.isRunning(plugin.id)) throw unprocessable("The connection router worker is unavailable; retry when it is ready");
       const [pin] = await db.select().from(aiConnectionTaskPins).where(pinWhere);
-      const [cursor] = await db.select().from(aiConnectionRouterCursors).where(and(eq(aiConnectionRouterCursors.poolId, row.id), eq(aiConnectionRouterCursors.companyId, input.companyId)));
+      const [cursor] = await db.select().from(aiConnectionRouterCursors).where(and(eq(aiConnectionRouterCursors.poolId, row.id), eq(aiConnectionRouterCursors.spaceId, input.spaceId)));
       if (!cursor) throw unprocessable("The connection pool cursor is unavailable");
-      const pool: AiConnectionPool = { ...row.config, id: row.id, companyId: row.companyId, pluginKey: row.pluginKey, revision: row.revision };
+      const pool: AiConnectionPool = { ...row.config, id: row.id, spaceId: row.spaceId, pluginKey: row.pluginKey, revision: row.revision };
       const deadline = Date.now() + 15_000;
       const candidates: AiConnectionRouterRequest["candidates"] = [];
       for (const member of pin ? [pin.member] : pool.members) {
@@ -248,10 +248,10 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
       }
       if (pool.mode === "usage_aware" && input.userId) {
         // At most four provider calls at once; the shared deadline bounds the whole pool.
-        for (let i = 0; i < candidates.length && Date.now() < deadline; i += 4) await Promise.all(candidates.slice(i, i + 4).map(async (candidate) => { candidate.usage = await probe(candidate.member, input.companyId, input.userId!, deadline); }));
+        for (let i = 0; i < candidates.length && Date.now() < deadline; i += 4) await Promise.all(candidates.slice(i, i + 4).map(async (candidate) => { candidate.usage = await probe(candidate.member, input.spaceId, input.userId!, deadline); }));
       }
       const authorizedPool = { ...pool, members: candidates.map((candidate) => candidate.member) };
-      const result = await workerManager.call(plugin.id, "routeAiConnection", { companyId: input.companyId, pool: authorizedPool, memberOrder: pool.members.map((member) => member.id), agentId: input.agentId, taskKey: input.taskKey, lastMemberId: cursor.lastMemberId, cursorVersion: cursor.version, ...(pin ? { pinnedMemberId: pin.member.id } : {}), candidates, now: new Date().toISOString() }, 5000);
+      const result = await workerManager.call(plugin.id, "routeAiConnection", { spaceId: input.spaceId, pool: authorizedPool, memberOrder: pool.members.map((member) => member.id), agentId: input.agentId, taskKey: input.taskKey, lastMemberId: cursor.lastMemberId, cursorVersion: cursor.version, ...(pin ? { pinnedMemberId: pin.member.id } : {}), candidates, now: new Date().toISOString() }, 5000);
       if (result.kind === "exhausted") {
         const retry = Date.parse(result.retryAt);
         throw new AiConnectionPoolExhausted(new Date(Number.isFinite(retry) ? Math.max(Date.now() + 1000, retry) : Date.now() + 60_000).toISOString(), pool.id);
@@ -262,19 +262,19 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
       const selected: AiConnectionRouterSelection = { poolId: row.id, memberId: candidate.member.id, binding: candidate.member.binding, runtimeConfig: candidate.runtimeConfig, notes: candidate.notes };
       if (pin) return selected;
       const committed = await db.transaction(async (tx) => {
-        const [locked] = await tx.select().from(aiConnectionRouterCursors).where(and(eq(aiConnectionRouterCursors.poolId, row.id), eq(aiConnectionRouterCursors.companyId, input.companyId))).for("update");
+        const [locked] = await tx.select().from(aiConnectionRouterCursors).where(and(eq(aiConnectionRouterCursors.poolId, row.id), eq(aiConnectionRouterCursors.spaceId, input.spaceId))).for("update");
         const [existing] = await tx.select().from(aiConnectionTaskPins).where(pinWhere);
         if (existing) return { retry: true };
-        const [current] = await tx.select().from(aiConnectionPools).where(and(eq(aiConnectionPools.id, row.id), eq(aiConnectionPools.companyId, input.companyId))).for("share");
+        const [current] = await tx.select().from(aiConnectionPools).where(and(eq(aiConnectionPools.id, row.id), eq(aiConnectionPools.spaceId, input.spaceId))).for("share");
         if (!locked || locked.version !== cursor.version || !current || current.revision !== row.revision) return { retry: true };
         const [currentPlugin] = await tx.select().from(plugins).where(eq(plugins.id, plugin.id)).for("share");
         if (currentPlugin?.status !== "ready") throw unprocessable("The router plugin was disabled during allocation");
         await tx.select({ id: instanceSettings.id }).from(instanceSettings).where(eq(instanceSettings.singletonKey, "default")).for("share");
         if (!(await instanceSettingsService(tx as unknown as Db).getExperimental()).enableAiConnectionRouters) throw unprocessable("AI connection routers were disabled during allocation");
         await validateSelection(selected, tx as unknown as Db);
-        await tx.insert(aiConnectionTaskPins).values({ companyId: input.companyId, poolId: row.id, agentId: input.agentId, taskKey: input.taskKey, selection: selected, member: candidate.member });
+        await tx.insert(aiConnectionTaskPins).values({ spaceId: input.spaceId, poolId: row.id, agentId: input.agentId, taskKey: input.taskKey, selection: selected, member: candidate.member });
         await tx.update(aiConnectionRouterCursors).set({ lastMemberId: candidate.member.id, version: sql`${aiConnectionRouterCursors.version} + 1` }).where(eq(aiConnectionRouterCursors.poolId, row.id));
-        await logActivity(tx as unknown as Db, { companyId: input.companyId, actorType: "system", actorId: "system", agentId: input.agentId, action: "ai_connection.pool_selected", entityType: "tool_connection", entityId: row.id, details: { memberId: candidate.member.id, connectionId: candidate.member.binding.connectionId, taskKey: input.taskKey } });
+        await logActivity(tx as unknown as Db, { spaceId: input.spaceId, actorType: "system", actorId: "system", agentId: input.agentId, action: "ai_connection.pool_selected", entityType: "tool_connection", entityId: row.id, details: { memberId: candidate.member.id, connectionId: candidate.member.binding.connectionId, taskKey: input.taskKey } });
         return { retry: false };
       });
       if (!committed.retry) return selected;

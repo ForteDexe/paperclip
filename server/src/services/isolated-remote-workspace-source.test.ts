@@ -4,7 +4,7 @@ import { canIsolateRemoteWorkspaceSource, recordedIsolatedRemoteSource } from ".
 
 const allowed = {
   error: forbidden("Task workspace access is no longer available"),
-  repoUrl: "https://example.test/company/repository.git",
+  repoUrl: "https://example.test/space/repository.git",
   reuseExisting: false,
   hasExistingWorkspace: false,
   selectedProjectWorkspaceId: null,
@@ -58,12 +58,12 @@ describe("isolated remote source admission", () => {
 });
 
 describe("recorded isolated source identity", () => {
-  const workspace = { companyId: "company", sourceIssueId: "task", repoUrl: allowed.repoUrl,
-    metadata: { isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId: "company", issueId: "task", repoUrl: allowed.repoUrl } } };
+  const workspace = { spaceId: "space", sourceIssueId: "task", repoUrl: allowed.repoUrl,
+    metadata: { isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", spaceId: "space", issueId: "task", repoUrl: allowed.repoUrl } } };
   it("keeps ordinary workspace sources unchanged", () => {
     expect(recordedIsolatedRemoteSource({ ...workspace, metadata: null })).toBeNull();
   });
-  it.each([{ companyId: "other-company" }, { sourceIssueId: "other-task" }, { repoUrl: "https://example.test/other" },
+  it.each([{ spaceId: "other-space" }, { sourceIssueId: "other-task" }, { repoUrl: "https://example.test/other" },
     { metadata: { isolatedRemoteSource: { schema: "unknown" } } },
   ])("rejects a changed source binding: %j", patch => {
     expect(() => recordedIsolatedRemoteSource({ ...workspace, ...patch })).toThrow("source identity changed");

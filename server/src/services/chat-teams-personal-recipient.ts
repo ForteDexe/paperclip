@@ -13,7 +13,7 @@ const eventId = z
   .max(2500)
   .regex(/^[^\x00-\x20\x7f]+$/);
 const scopeFields = {
-  companyId: z.uuid(),
+  spaceId: z.uuid(),
   endpointId: z.uuid(),
   runtimeGeneration: generation,
   credentialFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
@@ -105,7 +105,7 @@ export type TeamsPersonalRecipientBinding = Readonly<
   }
 >;
 
-// A route-free ID is Paperclip's durable identity. The pinned SDK's routed
+// A route-free ID is Outpost's durable identity. The pinned SDK's routed
 // form may omit its personal suffix. Neither that omission nor any prefix
 // (including a:) establishes personal scope; only the admitted proof does.
 function conversationFromThread(threadId: string): string | null {
@@ -163,7 +163,7 @@ export function deriveTeamsPersonalRecipient(
   return parseTeamsPersonalRecipient(
     {
       schema: "outpost.teams.personal-recipient.v1",
-      companyId: expected.data.companyId,
+      spaceId: expected.data.spaceId,
       endpointId: expected.data.endpointId,
       runtimeGeneration: expected.data.runtimeGeneration,
       credentialFingerprint: expected.data.credentialFingerprint,

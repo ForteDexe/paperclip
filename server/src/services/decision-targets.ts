@@ -14,12 +14,12 @@ export function notifyDecisionTargetWork(transaction: object, hint: `issue:${str
 }
 
 export async function notifyDecisionTargetIssueRemoval(transaction: Pick<Db, "select" | "selectDistinct">, issueId: string) {
-  const [issue] = await transaction.select({ companyId: issues.companyId }).from(issues)
+  const [issue] = await transaction.select({ spaceId: issues.spaceId }).from(issues)
     .where(eq(issues.id, issueId)).for("update");
   if (!issue) return;
   const linked = await transaction.selectDistinct({ decisionId: decisionTargetIssues.decisionId }).from(decisionTargetIssues)
     .innerJoin(decisions, eq(decisions.id, decisionTargetIssues.decisionId))
-    .where(and(eq(decisionTargetIssues.companyId, issue.companyId), eq(decisionTargetIssues.issueId, issueId), eq(decisions.companyId, issue.companyId), open));
+    .where(and(eq(decisionTargetIssues.spaceId, issue.spaceId), eq(decisionTargetIssues.issueId, issueId), eq(decisions.spaceId, issue.spaceId), open));
   for (const row of linked) await notifyDecisionTargetWork(transaction, `decision:${row.decisionId}`);
 }
 
@@ -40,7 +40,7 @@ export function decisionTargetService(db: Db, expire: ReturnType<typeof decision
       .filter(effect => effect.staleness === "strict").flatMap(decisionEffectTargetIssueIds)));
     if (strictIds.size === 0) return null;
     const targets = await db.select({ id: issues.id, status: issues.status }).from(issues)
-      .where(and(eq(issues.companyId, decision.companyId), inArray(issues.id, [...strictIds])));
+      .where(and(eq(issues.spaceId, decision.spaceId), inArray(issues.id, [...strictIds])));
     if (targets.length !== strictIds.size || targets.some(target => target.status === "cancelled")) return "target_gone";
     const snapshots = decision.targetSnapshots as Record<string, { status?: string }>;
     return targets.every(target => target.status === "done") && targets.some(target => snapshots[target.id]?.status !== "done")

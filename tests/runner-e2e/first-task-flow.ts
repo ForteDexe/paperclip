@@ -182,9 +182,9 @@ export async function observeManagedFirstTaskSetup(page: Page, api: RunnerApi, f
   function phase(request: Request): "platform" | "adapter" | "discovery" | null {
     const url = new URL(request.url());
     if (request.method() === "POST" && url.pathname === `/api/environments/${fixtures.environment.id}/probe`
-      && url.searchParams.get("companyId") === fixtures.company.id) return "platform";
-    if (request.method() === "POST" && url.pathname === `/api/companies/${fixtures.company.id}/adapters/codex_local/test-environment`) return "adapter";
-    if (request.method() === "GET" && url.pathname === "/api/adapters" && url.searchParams.get("companyId") === fixtures.company.id
+      && url.searchParams.get("spaceId") === fixtures.space.id) return "platform";
+    if (request.method() === "POST" && url.pathname === `/api/spaces/${fixtures.space.id}/adapters/codex_local/test-environment`) return "adapter";
+    if (request.method() === "GET" && url.pathname === "/api/adapters" && url.searchParams.get("spaceId") === fixtures.space.id
       && url.searchParams.get("environmentId") === fixtures.environment.id) return "discovery";
     return null;
   }
@@ -209,7 +209,7 @@ export async function observeManagedFirstTaskSetup(page: Page, api: RunnerApi, f
       if (kind === "discovery") {
         if (Array.isArray(body) && responseAt >= platformEndedAt) {
           const codex = body.find(adapter => adapter.type === "codex_local");
-          qualifiedDefault = codex?.defaultRunner === "paperclip" && codex?.supportedRunners?.includes("paperclip") === true;
+          qualifiedDefault = codex?.defaultRunner === "outpost" && codex?.supportedRunners?.includes("outpost") === true;
           if (!qualifiedDefault) rejectFailure(new Error("The selected image is not qualified for native Codex onboarding"));
         }
         return;
@@ -225,13 +225,13 @@ export async function observeManagedFirstTaskSetup(page: Page, api: RunnerApi, f
         automaticRequest = request.postDataJSON()?.runner === undefined && (requestStarts.get(request) ?? 0) >= platformEndedAt;
       }
       const leaseId = kind === "platform" ? data.details?.leaseId
-        : /(?:^|;\s*)paperclipLeaseId=([a-zA-Z0-9-]+)(?:;|$)/.exec(String(data.checks?.find((check: Row) => check.code === "sandbox_test_identity")?.detail ?? ""))?.[1];
+        : /(?:^|;\s*)outpostLeaseId=([a-zA-Z0-9-]+)(?:;|$)/.exec(String(data.checks?.find((check: Row) => check.code === "sandbox_test_identity")?.detail ?? ""))?.[1];
       if (typeof leaseId !== "string" || !leaseId) {
         fixtures.setupLeaseAccountingIncomplete = true;
         return;
       }
       const lease = await api.get<Row>(`/api/environment-leases/${encodeURIComponent(leaseId)}`, { timeout: 10_000 });
-      if (before.has(leaseId) || lease.companyId !== fixtures.company.id || lease.environmentId !== fixtures.environment.id
+      if (before.has(leaseId) || lease.spaceId !== fixtures.space.id || lease.environmentId !== fixtures.environment.id
         || lease.provider !== "daytona" || lease.heartbeatRunId || lease.issueId) throw new Error("Setup response references a foreign or non-setup lease");
       pendingSetupRequests.delete(request);
       if (!fixtures.setupLeases!.some(entry => entry.leaseId === leaseId)) fixtures.setupLeases!.push({ leaseId, phase: kind,
@@ -254,7 +254,7 @@ export async function observeManagedFirstTaskSetup(page: Page, api: RunnerApi, f
     try { leases = await api.get<Row[]>(`/api/environments/${fixtures.environment.id}/leases`, { timeout: 10_000 }); }
     catch (error) { fixtures.setupLeaseAccountingIncomplete = true; throw error; }
     for (const lease of leases) {
-      if (before.has(lease.id) || lease.companyId !== fixtures.company.id || lease.environmentId !== fixtures.environment.id
+      if (before.has(lease.id) || lease.spaceId !== fixtures.space.id || lease.environmentId !== fixtures.environment.id
         || lease.provider !== "daytona" || lease.heartbeatRunId || lease.issueId) continue;
       if (!fixtures.setupLeases!.some(entry => entry.leaseId === lease.id)) fixtures.setupLeaseAccountingIncomplete = true;
     }
@@ -268,7 +268,7 @@ export async function observeManagedFirstTaskSetup(page: Page, api: RunnerApi, f
     await pollUntil({ label: "managed onboarding setup lease cleanup", deadlineAt: Math.min(deadlineAt, Date.now() + 120_000),
       load: () => api.get<Row[]>(`/api/environments/${fixtures.environment.id}/leases`),
       accept: rows => fixtures.setupLeases!.every(entry => rows.some(row => row.id === entry.leaseId
-        && row.companyId === fixtures.company.id && row.environmentId === fixtures.environment.id
+        && row.spaceId === fixtures.space.id && row.environmentId === fixtures.environment.id
         && row.status === "released" && row.cleanupStatus === "success")),
     });
   };
@@ -284,7 +284,7 @@ export async function setupFirstTaskFixtures(input: {
   daytonaImage?: string;
   deadlineAt?: number;
   observe: (fixtures: LiveFixtureValues) => void;
-  onCompanyCreated?: (companyId: string) => Promise<void>;
+  onSpaceCreated?: (spaceId: string) => Promise<void>;
 }): Promise<FirstTaskFixtureValues> {
   const { page, api, execution, nonce } = input;
   const legacySetup = ["legacy-codex", "legacy-claude"].includes(execution.profile.id);
@@ -303,20 +303,20 @@ export async function setupFirstTaskFixtures(input: {
     .fill(`First task ${nonce}`);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.locator("#onboarding-agent-name")).toBeVisible();
-  const companies = await api.get<Row[]>("/api/companies");
-  const company = companies.find((c) => c.name === `First task ${nonce}`);
-  if (!company) throw new Error("Onboarding fixture company missing");
-  await input.onCompanyCreated?.(company.id);
+  const spaces = await api.get<Row[]>("/api/spaces");
+  const space = spaces.find((c) => c.name === `First task ${nonce}`);
+  if (!space) throw new Error("Onboarding fixture space missing");
+  await input.onSpaceCreated?.(space.id);
   const fixtures = await provisionFirstTaskFixtures({
     api,
     execution,
     nonce,
     credentials: input.credentials,
     daytonaImage: input.daytonaImage,
-    company: {
-      id: company.id,
-      name: company.name,
-      issuePrefix: company.issuePrefix,
+    space: {
+      id: space.id,
+      name: space.name,
+      issuePrefix: space.issuePrefix,
     },
   });
   const secret = fixtures.secretRefs[execution.profile.credential]!;
@@ -338,7 +338,7 @@ export async function setupFirstTaskFixtures(input: {
     const agents = await pollUntil({
       label: "first-task agent setup configuration",
       deadlineAt: Date.now() + 30_000,
-      load: () => api.get<Row[]>(`/api/companies/${company.id}/agents`),
+      load: () => api.get<Row[]>(`/api/spaces/${space.id}/agents`),
       accept: rows => rows.some(agent => agent.name === fixtures.agent.name
         && agent.pauseReason === "setup" && agent.metadata?.setupAdapterPending === false),
     });
@@ -360,7 +360,7 @@ export async function setupFirstTaskFixtures(input: {
   if (await useKey.isVisible()) await useKey.click();
   await page
     .getByRole("combobox", { name: "Saved API key" })
-    .selectOption(`company:${secret.secretId}`);
+    .selectOption(`space:${secret.secretId}`);
   const managed = isManagedFirstTask(execution);
   if (managed && (!input.deadlineAt || input.deadlineAt - Date.now() <= 120_000)) throw new Error("Managed onboarding has no bounded setup deadline");
   const stopSetup = managed ? await observeManagedFirstTaskSetup(page, api, fixtures, input.deadlineAt! - 60_000) : null;
@@ -375,7 +375,7 @@ export async function setupFirstTaskFixtures(input: {
   try { await stopSetup?.(!setupError); }
   catch (error) { setupError = setupError ? new AggregateError([setupError, error], "Managed onboarding and setup evidence failed") : error; }
   if (setupError) throw setupError;
-  const agents = await api.get<Row[]>(`/api/companies/${company.id}/agents`);
+  const agents = await api.get<Row[]>(`/api/spaces/${space.id}/agents`);
   expect(agents).toHaveLength(1);
   const wizardAdapter =
     execution.profile.credential === "OPENAI_API_KEY"
@@ -398,7 +398,7 @@ export async function setupFirstTaskFixtures(input: {
   }
   fixtures.agent = {
     id: agents[0].id,
-    companyId: company.id,
+    spaceId: space.id,
     name: agents[0].name,
   };
   input.observe(fixtures);
@@ -439,10 +439,10 @@ export async function runFirstTaskFlow(input: {
   }
   const deadlineAt = managed ? (input.deadlineAt ?? Date.now()) - 120_000
     : Date.now() + execution.task.attemptTimeoutMs.local - 120_000;
-  const tasksPath = `/api/companies/${fixtures.company.id}/issues?limit=100`;
+  const tasksPath = `/api/spaces/${fixtures.space.id}/issues?limit=100`;
   const allRuns = async () => {
     const runs = await api.get<Row[]>(
-      `/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100`,
+      `/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100`,
     );
     return Promise.all(
       runs.map((r) => api.get<Row>(`/api/heartbeat-runs/${r.id}`)),
@@ -477,7 +477,7 @@ export async function runFirstTaskFlow(input: {
   ) => {
     const [tasks, agents, comments, interactions, runs] = await Promise.all([
       api.get<Row[]>(tasksPath),
-      api.get<Row[]>(`/api/companies/${fixtures.company.id}/agents`),
+      api.get<Row[]>(`/api/spaces/${fixtures.space.id}/agents`),
       api.get<Row[]>(`/api/issues/${issue.id}/comments?order=asc`),
       api.get<Row[]>(`/api/issues/${issue.id}/interactions`),
       allRuns(),
@@ -623,12 +623,12 @@ export async function runFirstTaskFlow(input: {
       permissions: agent.permissions,
     };
     const desired =
-      agent.adapterConfig?.paperclipSkillSync?.desiredSkills ?? [];
+      agent.adapterConfig?.outpostSkillSync?.desiredSkills ?? [];
     expect(
       desired.map((s: string | { key: string }) =>
         typeof s === "string" ? s : s.key,
       ),
-    ).toContain("paperclipai/paperclip/first-task");
+    ).toContain("outpost/outpost/first-task");
     const bundle = await api.get<{ files: Array<{ path: string }> }>(
       `/api/agents/${fixtures.agent.id}/instructions-bundle`,
     );
@@ -641,14 +641,14 @@ export async function runFirstTaskFlow(input: {
       );
     }
     const skills = await api.get<Row[]>(
-      `/api/companies/${fixtures.company.id}/skills`,
+      `/api/spaces/${fixtures.space.id}/skills`,
     );
     for (const selection of desired) {
       const key = typeof selection === "string" ? selection : selection.key;
       const skill = skills.find((s) => s.key === key);
       if (!skill) throw new Error(`Missing assigned skill ${key}`);
       const file = await api.get<{ content: string }>(
-        `/api/companies/${fixtures.company.id}/skills/${skill.id}/files?path=SKILL.md`,
+        `/api/spaces/${fixtures.space.id}/skills/${skill.id}/files?path=SKILL.md`,
       );
       e.instructions.push(
         snapshotInstruction(
@@ -671,7 +671,7 @@ export async function runFirstTaskFlow(input: {
     );
     await snapshot("opening");
     await page.goto(
-      `/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`,
+      `/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`,
     );
     if (scenario.opening === "ordinary") {
       const before = new Set((await allRuns()).map((r) => r.id));
@@ -683,7 +683,7 @@ export async function runFirstTaskFlow(input: {
       input.observe(issue, [], e);
       expect(issue.description).not.toContain("/first-task");
       await page.goto(
-        `/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`,
+        `/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`,
       );
       await settle(before);
       await snapshot("response");
@@ -699,7 +699,7 @@ export async function runFirstTaskFlow(input: {
           o.id === (scenario.opening === "interview" ? "interview" : "task"),
       );
       await page
-        // Paperclip includes the option description in the accessible name.
+        // Outpost includes the option description in the accessible name.
         .getByRole("radio", { name: option.label })
         .last()
         .click();

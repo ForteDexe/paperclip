@@ -14,7 +14,7 @@ import { MarkdownUrlLink } from "./MarkdownUrlLink";
 import { recognizeLinkPreview, type LinkPreviewState } from "@outpost/shared";
 import { Link, useCaseHref } from "@/lib/router";
 import { useTheme } from "../context/ThemeContext";
-import { useOptionalCompany } from "../context/CompanyContext";
+import { useOptionalSpace } from "../context/SpaceContext";
 import { mentionChipInlineStyle, parseMentionChipHref } from "../lib/mention-chips";
 import { issuesApi } from "../api/issues";
 import { ApiError } from "../api/client";
@@ -62,19 +62,19 @@ function MarkdownAgentMention({ agentId, children, style }: {
   children: ReactNode;
   style?: React.CSSProperties;
 }) {
-  const companyId = useOptionalCompany()?.selectedCompanyId;
-  // All mentions share the company list cache; never fetch one agent per chip.
+  const spaceId = useOptionalSpace()?.selectedSpaceId;
+  // All mentions share the space list cache; never fetch one agent per chip.
   const { data: agents } = useQuery<Agent[]>({
-    queryKey: queryKeys.agents.list(companyId ?? "__none__"),
-    queryFn: () => agentsApi.list(companyId!),
-    enabled: Boolean(companyId),
+    queryKey: queryKeys.agents.list(spaceId ?? "__none__"),
+    queryFn: () => agentsApi.list(spaceId!),
+    enabled: Boolean(spaceId),
     staleTime: 60_000,
   });
   const appearance = agents?.find((agent) => agent.id === agentId)?.appearance;
   return (
     <a
       href={`/agents/${agentId}`}
-      className="paperclip-mention-chip paperclip-mention-chip--agent"
+      className="outpost-mention-chip outpost-mention-chip--agent"
       data-mention-kind="agent"
       style={{ ...mergeWrapStyle(style), ...mentionChipInlineStyle({ kind: "agent", agentId, icon: null, appearance }) }}
     >
@@ -224,7 +224,7 @@ function MarkdownIssueLink({
       onFocus={() => setEngaged(true)}
       // Boxless inline mention: the unified status glyph + a regular-weight
       // underlined link, optically centered with the body text.
-      className={cn("paperclip-markdown-issue-ref", "font-normal underline")}
+      className={cn("outpost-markdown-issue-ref", "font-normal underline")}
       title={title}
       aria-label={issueLabel}
     >
@@ -250,7 +250,7 @@ function MarkdownCaseLink({
     <Link
       to={caseHref(identifier)}
       data-mention-kind="case"
-      className={cn("paperclip-markdown-case-ref", "font-normal underline")}
+      className={cn("outpost-markdown-case-ref", "font-normal underline")}
       aria-label={`Case ${identifier}`}
     >
       {children}
@@ -302,7 +302,7 @@ function MarkdownExternalLink({
       data-external-liveness={reference.liveness}
       title={title}
       aria-label={`${displayKey} ${statusLabel}${livenessSuffix}: ${reference.displayTitle ?? href}`}
-      className="paperclip-markdown-external-ref"
+      className="outpost-markdown-external-ref"
     >
       <ExternalObjectStatusIcon
         category={reference.statusCategory}
@@ -473,12 +473,12 @@ function parseWikiLinkBody(body: string): ParsedWikiLink | null {
 }
 
 /**
- * Agents sometimes write a company link as `//PAP/agents/...`. A browser reads
- * that as a protocol-relative URL for a host named after the company prefix,
- * which leaves the app. When the "host" is exactly a known company prefix, the
- * link can only mean the company path, so render it as `/PAP/agents/...`.
+ * Agents sometimes write a space link as `//PAP/agents/...`. A browser reads
+ * that as a protocol-relative URL for a host named after the space prefix,
+ * which leaves the app. When the "host" is exactly a known space prefix, the
+ * link can only mean the space path, so render it as `/PAP/agents/...`.
  */
-export function companyPathFromProtocolRelativeHref(href: string | undefined, knownPrefixes?: readonly string[]): string | undefined {
+export function spacePathFromProtocolRelativeHref(href: string | undefined, knownPrefixes?: readonly string[]): string | undefined {
   if (!href || !knownPrefixes?.length) return href;
   const match = /^\/\/([^/?#]+)((?:[/?#].*)?)$/.exec(href.trim());
   if (!match || !knownPrefixes.includes(match[1]!)) return href;
@@ -520,8 +520,8 @@ function createWikiLinkNode(href: string, wikiLink: ParsedWikiLink): MarkdownAst
     title: null,
     data: {
       hProperties: {
-        "data-paperclip-wiki-link": "true",
-        "data-paperclip-wiki-target": wikiLink.target,
+        "data-outpost-wiki-link": "true",
+        "data-outpost-wiki-target": wikiLink.target,
       },
     },
     children: [{ type: "text", value: wikiLink.label }],
@@ -643,7 +643,7 @@ function CodeBlock({
   const wrapLabel = wrapLines ? "Unwrap lines" : "Wrap lines";
 
   return (
-    <div className="paperclip-markdown-codeblock" data-wrap-lines={wrapLines || undefined}>
+    <div className="outpost-markdown-codeblock" data-wrap-lines={wrapLines || undefined}>
       <pre
         {...preProps}
         ref={preRef}
@@ -662,7 +662,7 @@ function CodeBlock({
         {patchText !== null ? <code className="language-diff"><PatchLines text={patchText} /></code> : children}
       </pre>
       <div
-        className="paperclip-markdown-codeblock-actions"
+        className="outpost-markdown-codeblock-actions"
         style={codeBlockActionsStyle}
         data-active={copied || failed || wrapLines || undefined}
       >
@@ -671,7 +671,7 @@ function CodeBlock({
           onClick={() => setWrapLines((value) => !value)}
           aria-label={wrapLabel}
           title={wrapLabel}
-          className="paperclip-markdown-codeblock-action paperclip-markdown-codeblock-wrap"
+          className="outpost-markdown-codeblock-action outpost-markdown-codeblock-wrap"
           style={wrapLines
             ? {
                 ...codeBlockWrapActionStyle,
@@ -689,7 +689,7 @@ function CodeBlock({
           onClick={handleCopy}
           aria-label="Copy code"
           title={copyLabel}
-          className="paperclip-markdown-codeblock-action paperclip-markdown-codeblock-copy"
+          className="outpost-markdown-codeblock-action outpost-markdown-codeblock-copy"
           style={codeBlockActionStyle}
           data-copied={copied || undefined}
           data-failed={failed || undefined}
@@ -699,7 +699,7 @@ function CodeBlock({
           ) : (
             <Copy aria-hidden="true" className="h-3.5 w-3.5" />
           )}
-          <span className="paperclip-markdown-codeblock-action-label">{copyLabel}</span>
+          <span className="outpost-markdown-codeblock-action-label">{copyLabel}</span>
         </button>
       </div>
     </div>
@@ -725,7 +725,7 @@ function MermaidDiagramBlock({ source, darkMode }: { source: string; darkMode: b
           fontFamily: "inherit",
           suppressErrorRendering: true,
         });
-        const rendered = await mermaid.render(`paperclip-mermaid-${renderId}`, source);
+        const rendered = await mermaid.render(`outpost-mermaid-${renderId}`, source);
         if (!active) return;
         setSvg(rendered.svg);
       })
@@ -744,15 +744,15 @@ function MermaidDiagramBlock({ source, darkMode }: { source: string; darkMode: b
   }, [darkMode, renderId, source]);
 
   return (
-    <div className="paperclip-mermaid">
+    <div className="outpost-mermaid">
       {svg ? (
         <div dangerouslySetInnerHTML={{ __html: svg }} />
       ) : (
         <>
-          <p className={cn("paperclip-mermaid-status", error && "paperclip-mermaid-status-error")}>
+          <p className={cn("outpost-mermaid-status", error && "outpost-mermaid-status-error")}>
             {error ? `Unable to render Mermaid diagram: ${error}` : "Rendering Mermaid diagram..."}
           </p>
-          <pre className="paperclip-mermaid-source">
+          <pre className="outpost-mermaid-source">
             <code className="language-mermaid">{source}</code>
           </pre>
         </>
@@ -781,16 +781,16 @@ function MarkdownBodyImpl({
   const { theme } = useTheme();
   const coordinator = useCoordinatorPresentation();
   const streamWords = useContext(MarkdownWordStreaming);
-  // Read company prefixes non-throwingly: MarkdownBody renders in surfaces that
-  // may lack a CompanyProvider. A null context (or no companies yet) leaves
+  // Read space prefixes non-throwingly: MarkdownBody renders in surfaces that
+  // may lack a SpaceProvider. A null context (or no spaces yet) leaves
   // knownPrefixes undefined, which keeps issue auto-linking permissive.
-  const company = useOptionalCompany();
-  const companies = company?.companies;
+  const space = useOptionalSpace();
+  const spaces = space?.spaces;
   // Stable identity so it can feed the memoized remark plugins without
   // re-creating them (and forcing a full markdown re-parse) every render.
   const knownPrefixes = useMemo(
-    () => (companies?.length ? companies.map((c) => c.issuePrefix) : undefined),
-    [companies],
+    () => (spaces?.length ? spaces.map((c) => c.issuePrefix) : undefined),
+    [spaces],
   );
   const externalReferenceLookup = useMemo<MarkdownExternalReferenceMap | null>(() => {
     if (!externalReferences) return null;
@@ -844,7 +844,7 @@ function MarkdownBodyImpl({
       </blockquote>
     ),
     table: ({ node: _node, style: tableStyle, children: tableChildren, ...tableProps }) => (
-      <div className="paperclip-markdown-table-scroll" role="region" aria-label="Scrollable table" tabIndex={0}>
+      <div className="outpost-markdown-table-scroll" role="region" aria-label="Scrollable table" tabIndex={0}>
         <table {...tableProps} style={tableStyle as React.CSSProperties | undefined}>
           {tableChildren}
         </table>
@@ -873,7 +873,7 @@ function MarkdownBodyImpl({
       </code>
     ),
     a: ({ node: _node, href: rawHref, style: linkStyle, children: linkChildren, ...anchorProps }) => {
-      const href = companyPathFromProtocolRelativeHref(rawHref, knownPrefixes);
+      const href = spacePathFromProtocolRelativeHref(rawHref, knownPrefixes);
       const workspaceFileRef = parseWorkspaceFileHref(href);
       if (workspaceFileRef) {
         return (
@@ -886,7 +886,7 @@ function MarkdownBodyImpl({
       }
 
       const dataProps = anchorProps as Record<string, unknown>;
-      const isWikiLink = dataProps["data-paperclip-wiki-link"] === "true";
+      const isWikiLink = dataProps["data-outpost-wiki-link"] === "true";
       if (isWikiLink && href && !/^[a-z][a-z\d+.-]*:/i.test(href) && !href.startsWith("//")) {
         return (
           <Link
@@ -933,7 +933,7 @@ function MarkdownBodyImpl({
         if (parsed.kind === "user") {
           return (
             <span
-              className="paperclip-mention-chip paperclip-mention-chip--user"
+              className="outpost-mention-chip outpost-mention-chip--user"
               data-mention-kind="user"
               style={{ ...mergeWrapStyle(linkStyle as React.CSSProperties | undefined), ...mentionChipInlineStyle(parsed) }}
             >
@@ -952,9 +952,9 @@ function MarkdownBodyImpl({
           <a
             href={targetHref}
             className={cn(
-              "paperclip-mention-chip",
-              `paperclip-mention-chip--${parsed.kind}`,
-              parsed.kind === "project" && "paperclip-project-mention-chip",
+              "outpost-mention-chip",
+              `outpost-mention-chip--${parsed.kind}`,
+              parsed.kind === "project" && "outpost-project-mention-chip",
             )}
             data-mention-kind={parsed.kind}
             style={{ ...mergeWrapStyle(linkStyle as React.CSSProperties | undefined), ...mentionChipInlineStyle(parsed) }}
@@ -1031,7 +1031,7 @@ function MarkdownBodyImpl({
   return (
     <div
       className={cn(
-        "paperclip-markdown prose prose-sm min-w-0 max-w-full break-words overflow-hidden",
+        "outpost-markdown prose prose-sm min-w-0 max-w-full break-words overflow-hidden",
         theme === "dark" && "prose-invert",
         className,
       )}

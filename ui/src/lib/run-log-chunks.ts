@@ -5,7 +5,7 @@ import type { RunLogChunk } from "../adapters";
  * (`useLiveRunTranscripts`) and the summary draft stream (`useSummaryDraftStream`).
  *
  * Both consumers ingest the same run-log records from two transports — the
- * persisted offset-read poller and the company events WebSocket — which
+ * persisted offset-read poller and the space events WebSocket — which
  * interleave and re-deliver records. This module centralizes the ordering and
  * de-duplication rules so the two hooks cannot drift apart.
  */

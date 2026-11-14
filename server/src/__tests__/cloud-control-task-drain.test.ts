@@ -16,7 +16,7 @@ import {
   type CloudControlAction,
 } from "../services/cloud-runtime-identity.js";
 import { cloudControlMiddleware } from "../middleware/cloud-control.js";
-import { boardMutationGuard } from "../middleware/board-mutation-guard.js";
+import { operatorMutationGuard } from "../middleware/operator-mutation-guard.js";
 
 const STACK_ID = "stack-drain-test";
 const NOW = new Date("2099-01-01T00:00:00.000Z");
@@ -261,7 +261,7 @@ describe("cloudControlMiddleware", () => {
     expect((await request(app).post(path).set(CLOUD_CONTROL_HEADER, freshAssertion("connector-events:wake"))).status).toBe(503);
   });
 
-  it("installs a synthetic instance-admin board actor for a valid assertion, per method", async () => {
+  it("installs a synthetic instance-admin operator actor for a valid assertion, per method", async () => {
     const app = createApp();
     for (const [method, action] of [
       ["get", "task-drain:read"],
@@ -272,8 +272,8 @@ describe("cloudControlMiddleware", () => {
         .set(CLOUD_CONTROL_HEADER, freshAssertion(action));
       expect(res.status).toBe(200);
       expect(res.body.actor).toMatchObject({
-        type: "board",
-        userId: "paperclip-cloud",
+        type: "operator",
+        userId: "outpost-cloud",
         isInstanceAdmin: true,
         source: "cloud_control",
       });
@@ -295,7 +295,7 @@ describe("cloudControlMiddleware", () => {
       .get("/api/instance/lifecycle")
       .set(CLOUD_CONTROL_HEADER, freshAssertion("lifecycle:read"));
     expect(read.status).toBe(200);
-    expect(read.body.actor).toMatchObject({ type: "board", isInstanceAdmin: true, source: "cloud_control" });
+    expect(read.body.actor).toMatchObject({ type: "operator", isInstanceAdmin: true, source: "cloud_control" });
 
     const unarchive = await request(app)
       .post("/api/instance/lifecycle/unarchive-primary")
@@ -363,18 +363,18 @@ describe("cloudControlMiddleware", () => {
     expect(res.body.actor).toMatchObject({ type: "none" });
   });
 
-  it("the board mutation guard exempts cloud_control mutations from the browser-origin check", async () => {
+  it("the operator mutation guard exempts cloud_control mutations from the browser-origin check", async () => {
     const app = express();
     app.use((req, _res, next) => {
       req.actor = {
-        type: "board",
-        userId: "paperclip-cloud",
+        type: "operator",
+        userId: "outpost-cloud",
         isInstanceAdmin: true,
         source: "cloud_control",
       };
       next();
     });
-    app.use(boardMutationGuard());
+    app.use(operatorMutationGuard());
     app.post("/api/instance/task-drain", (_req, res) => {
       res.json({ ok: true });
     });

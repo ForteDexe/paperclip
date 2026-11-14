@@ -14,7 +14,7 @@ import { WORKSPACE_GIT_SCAN_SATURATED_CODE } from "@outpost/adapter-utils/git-wo
 const tempPaths: string[] = [];
 
 async function makeWorkspace(name = "workspace"): Promise<string> {
-  const parent = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-git-scheduler-"));
+  const parent = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-git-scheduler-"));
   tempPaths.push(parent);
   const workspace = path.join(parent, name);
   await fs.mkdir(workspace, { recursive: true });
@@ -134,7 +134,7 @@ describe("WorkspaceGitOperationScheduler", () => {
     const requests = Array.from({ length: 6 }, (_, index) => scheduler.run(scanInput(
       workspace,
       String(index),
-      [`company:${index}`, `actor:${index}`, `issue:${index}`],
+      [`space:${index}`, `actor:${index}`, `issue:${index}`],
     )));
 
     await vi.waitFor(() => expect(scheduler.snapshot()).toMatchObject({ activeCount: 2, queuedCount: 4 }));
@@ -347,10 +347,10 @@ describe("WorkspaceGitOperationScheduler", () => {
     });
     const scheduler = createWorkspaceGitOperationScheduler({ concurrency: 1, queueCapacity: 4, runner });
 
-    const firstA = scheduler.run(scanInput(workspace, "a-1", ["company:a", "actor:a"]));
+    const firstA = scheduler.run(scanInput(workspace, "a-1", ["space:a", "actor:a"]));
     await vi.waitFor(() => expect(order).toEqual(["a-1"]));
-    const secondA = scheduler.run(scanInput(workspace, "a-2", ["company:a", "actor:a"]));
-    const firstB = scheduler.run(scanInput(workspace, "b-1", ["company:b", "actor:b"]));
+    const secondA = scheduler.run(scanInput(workspace, "a-2", ["space:a", "actor:a"]));
+    const firstB = scheduler.run(scanInput(workspace, "b-1", ["space:b", "actor:b"]));
     await vi.waitFor(() => expect(scheduler.snapshot().queuedCount).toBe(2));
     releases.shift()?.();
     await vi.waitFor(() => expect(order).toEqual(["a-1", "b-1"]));
@@ -498,7 +498,7 @@ describe("WorkspaceGitOperationScheduler", () => {
     const requests = Array.from({ length: 500 }, (_, index) => scheduler.run(scanInput(
       index % 2 === 0 ? firstWorkspace : secondWorkspace,
       "same",
-      [`company:${index % 17}`, `actor:${index % 73}`, `issue:${index}`],
+      [`space:${index % 17}`, `actor:${index % 73}`, `issue:${index}`],
     )));
 
     await vi.waitFor(() => expect(scheduler.snapshot().totals.singleFlightJoins).toBe(498));

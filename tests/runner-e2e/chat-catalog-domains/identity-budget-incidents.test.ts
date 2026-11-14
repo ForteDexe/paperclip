@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { budgetIncidentIdentityCases, budgetHoldSurvivesChat, budgetPage, incidentSourceFundingReady } from "./identity-budget-incidents.js";
 import type { IdentityObservation } from "./identity-support.js";
 function valid(scenarioId: string): IdentityObservation {
-  const resolve = scenarioId.endsWith("resolve-budget"); const task = { id: "task", companyId: "acorn", title: "Unfinished website", status: "backlog", assigneeAgentId: "morgan" };
-  const incident = { id: "incident", companyId: "acorn", policyId: "policy", scopeType: "agent", scopeId: "morgan", thresholdType: "hard", status: "open", amountObserved: 125, amountLimit: 100 };
-  const o: IdentityObservation = { scenarioId, origin: "http://fixture.invalid", companyId: "acorn", leadId: "ceo", company: { id: "acorn" }, companies: [], agents: [], tasks: [task], projects: [], goals: [], interactions: [], comments: [], documents: [], revisions: [], links: ["/ACO/activity/costs?tab=budgets&agentId=morgan"], runs: [], humanQueries: [],
+  const resolve = scenarioId.endsWith("resolve-budget"); const task = { id: "task", spaceId: "acorn", title: "Unfinished website", status: "backlog", assigneeAgentId: "morgan" };
+  const incident = { id: "incident", spaceId: "acorn", policyId: "policy", scopeType: "agent", scopeId: "morgan", thresholdType: "hard", status: "open", amountObserved: 125, amountLimit: 100 };
+  const o: IdentityObservation = { scenarioId, origin: "http://fixture.invalid", spaceId: "acorn", leadId: "ceo", space: { id: "acorn" }, spaces: [], agents: [], tasks: [task], projects: [], goals: [], interactions: [], comments: [], documents: [], revisions: [], links: ["/ACO/activity/costs?tab=budgets&agentId=morgan"], runs: [], humanQueries: [],
     reply: "Morgan reached the recorded budget hard stop. This is different from the separate manual pause. Open Costs for the human budget control; choose a new amount there.",
     activity: [{ id: "stop", action: "budget.hard_threshold_crossed", entityId: "incident", actorType: "system" }],
     state: { incident, worker: { id: "morgan", name: "Morgan" }, manual: { id: "manual" }, task: { ...task }, receiptOrigin: "public-imported-synthetic-fixture", importedReceiptId: "receipt",
@@ -39,15 +39,15 @@ it("stops before human controls when chat already changes the cap or clears the 
   expect(budgetHoldSurvivesChat({ ...budget, policies: [{ ...budget.policies[0]!, scopeId: "foreign" }] }, incident, worker)).toBe(false);
 });
 
-it("requires source/company funding without clearing or funding the target incident", () => {
+it("requires source/space funding without clearing or funding the target incident", () => {
   const row = { amount: 500, unpricedUsagePolicy: "allow", hardStopEnabled: true, isActive: true, paused: false, status: "ok" };
   const target = { scopeType: "agent", scopeId: "morgan", amount: 100, paused: true, status: "hard_stop", unpricedUsagePolicy: "allow" };
-  const budget = { policies: [{ ...row, scopeType: "company", scopeId: "company" }, { ...row, scopeType: "agent", scopeId: "ceo" }, target],
+  const budget = { policies: [{ ...row, scopeType: "space", scopeId: "space" }, { ...row, scopeType: "agent", scopeId: "ceo" }, target],
     activeIncidents: [{ scopeType: "agent", scopeId: "morgan", thresholdType: "hard" }] } as Parameters<typeof incidentSourceFundingReady>[0];
-  expect(incidentSourceFundingReady(budget, "company", "ceo")).toBe(true);
-  expect(incidentSourceFundingReady({ ...budget, policies: budget.policies.map(p => p.scopeId === "company" ? { ...p, unpricedUsagePolicy: "block" } : p) }, "company", "ceo")).toBe(false);
-  expect(incidentSourceFundingReady({ ...budget, activeIncidents: [...budget.activeIncidents, { ...budget.activeIncidents[0]!, scopeId: "ceo" }] }, "company", "ceo")).toBe(false);
-  expect(incidentSourceFundingReady({ ...budget, policies: budget.policies.filter(p => p.scopeId !== "ceo") }, "company", "ceo")).toBe(false);
+  expect(incidentSourceFundingReady(budget, "space", "ceo")).toBe(true);
+  expect(incidentSourceFundingReady({ ...budget, policies: budget.policies.map(p => p.scopeId === "space" ? { ...p, unpricedUsagePolicy: "block" } : p) }, "space", "ceo")).toBe(false);
+  expect(incidentSourceFundingReady({ ...budget, activeIncidents: [...budget.activeIncidents, { ...budget.activeIncidents[0]!, scopeId: "ceo" }] }, "space", "ceo")).toBe(false);
+  expect(incidentSourceFundingReady({ ...budget, policies: budget.policies.filter(p => p.scopeId !== "ceo") }, "space", "ceo")).toBe(false);
 });
 
 it("accepts the Budgets page the catalog guidance links, and the Costs page", () => {

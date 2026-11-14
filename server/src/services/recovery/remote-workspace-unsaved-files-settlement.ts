@@ -13,19 +13,19 @@ const WORK_STARTED_EVENT_PREFIXES = ["turn.", "provider.", "native.process_"];
 
 export async function settlePreparationOnlyRemoteWorkspaceEpoch(db: Db, record: InProgressRecord,
   context: { now: Date; proof: OwnerProof }): Promise<SettleOutcome> {
-  if (record.owner.kind !== "run" || !record.runId || !record.companyId) return { settled: false, reason: "owner_not_provable" };
-  const runId = record.runId, companyId = record.companyId;
+  if (record.owner.kind !== "run" || !record.runId || !record.spaceId) return { settled: false, reason: "owner_not_provable" };
+  const runId = record.runId, spaceId = record.spaceId;
   return db.transaction(async (transaction): Promise<SettleOutcome> => {
     const tx = transaction as unknown as Db;
     const [run] = await tx.select({ status: heartbeatRuns.status, executionStage: heartbeatRuns.executionStage,
       runtimeModeResolvedAt: heartbeatRuns.runtimeModeResolvedAt, processPid: heartbeatRuns.processPid,
       processGroupId: heartbeatRuns.processGroupId, nativeSessionId: heartbeatRuns.nativeSessionId,
       runnerInstanceId: heartbeatRuns.runnerInstanceId })
-      .from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId))).for("update");
+      .from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId))).for("update");
     if (!run || !TERMINAL_RUN_STATUSES.includes(run.status)) return { settled: false, reason: "owner_run_active" };
     if (run.runtimeModeResolvedAt || run.executionStage !== "preparing") return { settled: false, reason: "writer_reached_runtime", watch: false };
     const [finalization] = await tx.select({ runId: nativeRunFinalizations.runId }).from(nativeRunFinalizations)
-      .where(and(eq(nativeRunFinalizations.companyId, companyId), eq(nativeRunFinalizations.runId, runId))).limit(1);
+      .where(and(eq(nativeRunFinalizations.spaceId, spaceId), eq(nativeRunFinalizations.runId, runId))).limit(1);
     if (finalization || run.processPid || run.processGroupId || run.nativeSessionId || run.runnerInstanceId) {
       return { settled: false, reason: "writer_reached_runtime", watch: false };
     }
@@ -34,13 +34,13 @@ export async function settlePreparationOnlyRemoteWorkspaceEpoch(db: Db, record: 
         ...WORK_STARTED_EVENT_PREFIXES.map(prefix => like(heartbeatRunEvents.eventType, `${prefix}%`))))).limit(1);
     if (workStarted) return { settled: false, reason: "writer_reached_runtime", watch: false };
     const [workspace] = await tx.select({ metadata: executionWorkspaces.metadata }).from(executionWorkspaces)
-      .where(and(eq(executionWorkspaces.companyId, companyId), eq(executionWorkspaces.id, record.recordId)));
+      .where(and(eq(executionWorkspaces.spaceId, spaceId), eq(executionWorkspaces.id, record.recordId)));
     const authority = readRemoteWorkspaceAuthority(workspace?.metadata);
     if (!authority?.dirty || authority.writerRunId !== runId || !authority.location) {
       return { settled: false, reason: "unsaved_files_no_longer_held" };
     }
     const [save] = await tx.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-      eq(workspaceOperations.companyId, companyId), eq(workspaceOperations.executionWorkspaceId, record.recordId),
+      eq(workspaceOperations.spaceId, spaceId), eq(workspaceOperations.executionWorkspaceId, record.recordId),
       eq(workspaceOperations.phase, "remote_workspace_snapshot"), inArray(workspaceOperations.status, ["running", "pending"]),
       sql`${workspaceOperations.metadata}->>'epoch' = ${String(authority.epoch)}`)).limit(1);
     if (save) return { settled: false, reason: "save_in_flight" };
@@ -51,13 +51,13 @@ export async function settlePreparationOnlyRemoteWorkspaceEpoch(db: Db, record: 
     // it. Anything unproven (no baseline from an older release, a provisioning
     // command, a runner command, a process, a kill before the restore published)
     // is abandoned exactly as before.
-    if (await releaseUnchangedRemoteWorkspaceWriterById(transaction, { companyId, workspaceId: record.recordId, runId })) {
+    if (await releaseUnchangedRemoteWorkspaceWriterById(transaction, { spaceId, workspaceId: record.recordId, runId })) {
       return { settled: true, reason: context.proof.reason };
     }
     await notifyTerminalWorkspaceWork(tx, `workspace:${record.recordId}`);
     try {
       await abandonUnverifiedRemoteWorkspaceEpoch(transaction, {
-        companyId, workspaceId: record.recordId, runId, epoch: authority.epoch, snapshotId: authority.snapshotId,
+        spaceId, workspaceId: record.recordId, runId, epoch: authority.epoch, snapshotId: authority.snapshotId,
         location: authority.location,
       });
     } catch (error) {

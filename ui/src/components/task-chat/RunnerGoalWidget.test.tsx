@@ -9,7 +9,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { RunnerGoalWidget, useRunnerGoalControl } from "./RunnerGoalWidget";
 
 vi.mock("@/api/issues", () => ({ issuesApi: { getRunnerGoal: vi.fn(), actOnRunnerGoal: vi.fn() } }));
-vi.mock("@/context/LiveUpdatesProvider", () => ({ useCompanyLiveEvent: vi.fn() }));
+vi.mock("@/context/LiveUpdatesProvider", () => ({ useSpaceLiveEvent: vi.fn() }));
 
 const projection: RunnerGoalProjection = {
   issueId: "issue-goal", agentId: "agent-goal", adapterType: "outpost_runner", sessionId: "session-goal",

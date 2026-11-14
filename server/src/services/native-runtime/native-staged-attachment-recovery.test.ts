@@ -10,7 +10,7 @@ import { nativeToolContractFingerprintForTarget } from "./native-session-resume.
 import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
 import { resolveNativeStagedAttachmentRecovery } from "./native-staged-attachment-recovery.js";
 
-const companyId = "10000000-0000-4000-8000-000000000001";
+const spaceId = "10000000-0000-4000-8000-000000000001";
 const issueId = "20000000-0000-4000-8000-000000000002";
 const agentId = "30000000-0000-4000-8000-000000000003";
 const sourceRunId = "40000000-0000-4000-8000-000000000004";
@@ -24,7 +24,7 @@ const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
 function execution(runId: string) {
-  return buildNativeExecutionInput({ companyId, runId, agentId, normalizedSessionId,
+  return buildNativeExecutionInput({ spaceId, runId, agentId, normalizedSessionId,
     issue: { id: issueId, identifier: "TEST-1", title: "Continue", description: null, workMode: "standard" },
     taskPrompt: "Continue normally", provider: "codex", workspace: { id: "workspace-1", cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
     completionContract: { id: "80000000-0000-4000-8000-000000000008", sha256: `sha256:${"a".repeat(64)}`,
@@ -45,19 +45,19 @@ async function fixture() {
   core.stageRunAttachment(targetIdentity, { provider: { provider: "codex", command: "codex" }, authorizedTools: {} });
   await core.flushCheckpoint();
   const header = saved.records.get("header")!;
-  const base = { companyId, agentId, issueId, nativeIssueId: issueId, runnerInstanceId,
+  const base = { spaceId, agentId, issueId, nativeIssueId: issueId, runnerInstanceId,
     nativeSessionId: normalizedSessionId, runtimeMode: "native", status: "running", finishedAt: null as Date | null };
   const currentRun = { ...base, id: currentRunId, runnerProfileJson: { nativeExecutionInput: execution(currentRunId) } };
   const sourceRun = { ...base, id: sourceRunId, status: "succeeded", finishedAt: new Date(), runnerProfileJson: {
     nativeExecutionInput: execution(sourceRunId), nativeToolContractFingerprint: nativeToolContractFingerprintForTarget("remote", "codex"),
     sessionCheckpoint: { sessionId: "provider-thread-1", providerSessionId: "provider-thread-1", identity: {
-      companyId, issueId, agentId, runId: sourceRunId, sessionId: normalizedSessionId },
+      spaceId, issueId, agentId, runId: sourceRunId, sessionId: normalizedSessionId },
     },
   } };
-  const source = { run: sourceRun, coordinator: { runId: sourceRunId, companyId, issueId,
+  const source = { run: sourceRun, coordinator: { runId: sourceRunId, spaceId, issueId,
     phase: "committed", resultId: "result-1", leaseOwner: null, leaseExpiresAt: null }, resultId: "result-1", resultStatus: "accepted" };
   function database(sourceRows = [source], contents = sourceHeader, envelope = {}) {
-    const material = createLocalEncryptedCipher("write").encrypt(JSON.stringify({ companyId, issueId, runId: sourceRunId, part: "header", contents, ...envelope }));
+    const material = createLocalEncryptedCipher("write").encrypt(JSON.stringify({ spaceId, issueId, runId: sourceRunId, part: "header", contents, ...envelope }));
     const batches: unknown[][] = [sourceRows, [{ material }]];
     const select = vi.fn(() => {
       const chain = { from: () => chain, innerJoin: () => chain, where: () => chain,
@@ -104,7 +104,7 @@ describe("private staged attachment restart evidence", () => {
       phase: "attachment_queued", receipt: null, targetIdentity });
   });
 
-  it.each(["runId", "companyId", "issueId", "agentId", "sessionId", "providerSessionId"])(
+  it.each(["runId", "spaceId", "issueId", "agentId", "sessionId", "providerSessionId"])(
     "rejects a present target checkpoint with changed %s instead of replaying the source", async key => {
       const f = await fixture(); const snapshot = structuredClone(f.sourceRun.runnerProfileJson.sessionCheckpoint);
       snapshot.identity.runId = currentRunId;
@@ -122,7 +122,7 @@ describe("private staged attachment restart evidence", () => {
       expect(select).not.toHaveBeenCalled();
     });
 
-  it.each(["agentId", "companyId", "nativeIssueId", "nativeSessionId", "runnerInstanceId"] as const)(
+  it.each(["agentId", "spaceId", "nativeIssueId", "nativeSessionId", "runnerInstanceId"] as const)(
     "rejects mixed source DB %s", async key => {
       const f = await fixture(); Object.assign(f.source.run, { [key]: "foreign" });
       expect(await resolveNativeStagedAttachmentRecovery({ ...f.database(), header: f.header, currentRun: f.currentRun })).toBeNull();
@@ -161,7 +161,7 @@ describe("private staged attachment restart evidence", () => {
       matchesExecution: () => false })).toBeNull();
   });
 
-  it.each(["companyId", "issueId", "runId", "part"])("rejects encrypted source header with another %s", async key => {
+  it.each(["spaceId", "issueId", "runId", "part"])("rejects encrypted source header with another %s", async key => {
     const f = await fixture();
     expect(await resolveNativeStagedAttachmentRecovery({ ...f.database([f.source], f.sourceHeader, { [key]: "foreign" }),
       header: f.header, currentRun: f.currentRun })).toBeNull();

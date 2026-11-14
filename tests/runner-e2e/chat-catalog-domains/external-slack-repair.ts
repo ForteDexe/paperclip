@@ -175,7 +175,7 @@ export function gradeSlackRepair(value: unknown) {
       o.state.agentReconnectStatus === 403 &&
       o.state.directedEndpointId === e.id &&
       e.id === o.state.endpointId &&
-      e.companyId === o.companyId &&
+      e.spaceId === o.spaceId &&
       e.assignedAgentId === o.leadId,
     "The actual first phase truthfully directs this endpoint's supported human repair; an agent cannot reconnect it or claim it was repaired before the human.",
   );
@@ -211,7 +211,7 @@ export function gradeSlackRepair(value: unknown) {
       t.wizardUi.tracingEnabled === false &&
       t.wizardUi.videoEnabled === false &&
       t.wizardUi.apiStepRecorder === false &&
-      t.wizardUi.paperclipUserId === o.state.currentHumanId &&
+      t.wizardUi.outpostUserId === o.state.currentHumanId &&
       t.principalUserId === o.state.currentHumanId &&
       !!t.connectAt &&
       e.status === "active" &&
@@ -228,7 +228,7 @@ export function gradeSlackRepair(value: unknown) {
       s.issueId !== o.state.canonicalIssueId &&
       s.provider.threadId === o.state.threadId &&
       !!run &&
-      run.companyId === o.companyId &&
+      run.spaceId === o.spaceId &&
       run.agentId === o.leadId &&
       run.runtimeMode === "native" &&
       run.status === "succeeded" &&
@@ -261,7 +261,7 @@ export function gradeSlackRepair(value: unknown) {
       o.runs.length === 3 &&
       o.runs.every(
         (row) =>
-          row.companyId === o.companyId &&
+          row.spaceId === o.spaceId &&
           row.runtimeMode === "native" &&
           row.status === "succeeded" &&
           (row.id === t.runId ||
@@ -417,7 +417,7 @@ export const slackRepairExternalCases = [
         });
         const chat = await openStandingChat(ctx);
         await ctx.input.api.patch(`/api/issues/${chat.id}`, {
-          description: `The existing Slack endpoint is ${f.endpoint.id}, assigned to you. A real preflight delivery in its intended Slack conversation failed after its previously valid bot authorization naturally expired. The original thread remains ${f.threadId}; there is no new authorized conversation. Supported repair is /${ctx.input.fixtures.company.issuePrefix}/apps/chat/connect?provider=slack&purpose=chat&resume=${f.endpoint.id}&reconnect=1.`,
+          description: `The existing Slack endpoint is ${f.endpoint.id}, assigned to you. A real preflight delivery in its intended Slack conversation failed after its previously valid bot authorization naturally expired. The original thread remains ${f.threadId}; there is no new authorized conversation. Supported repair is /${ctx.input.fixtures.space.issuePrefix}/apps/chat/connect?provider=slack&purpose=chat&resume=${f.endpoint.id}&reconnect=1.`,
         });
         return {
           endpointId: f.endpoint.id,
@@ -522,7 +522,7 @@ export const slackRepairExternalCases = [
             return (
               u.origin === o.origin &&
               u.pathname ===
-                `/${ctx.input.fixtures.company.issuePrefix}/apps/chat/connect` &&
+                `/${ctx.input.fixtures.space.issuePrefix}/apps/chat/connect` &&
               u.searchParams.get("provider") === "slack" &&
               u.searchParams.get("resume") === f.endpoint.id &&
               u.searchParams.get("reconnect") === "1"
@@ -547,7 +547,7 @@ export const slackRepairExternalCases = [
         repairURL.searchParams.set("stage", "credentials");
         local.credentialUi = await privateBrowserEntry({
           mode: "slack-endpoint-reconnect",
-          companyId: ctx.input.fixtures.company.id,
+          spaceId: ctx.input.fixtures.space.id,
           slackSetup: {
             endpointId: f.endpoint.id,
             agentId: ctx.input.fixtures.agent.id,
@@ -630,7 +630,7 @@ export const slackRepairExternalCases = [
         const page = await ctx.input.page.context().newPage();
         try {
           await page.goto(
-            `${o.origin}/${ctx.input.fixtures.company.issuePrefix}/apps/chat/connect?provider=slack&purpose=chat&resume=${f.endpoint.id}`,
+            `${o.origin}/${ctx.input.fixtures.space.issuePrefix}/apps/chat/connect?provider=slack&purpose=chat&resume=${f.endpoint.id}`,
             { waitUntil: "domcontentloaded" },
           );
           await page
@@ -701,7 +701,7 @@ export const slackRepairExternalCases = [
         const principal = await f.readPrincipal();
         local.wizardUi = await privateBrowserEntry({
           mode: "slack-wizard-resume",
-          companyId: ctx.input.fixtures.company.id,
+          spaceId: ctx.input.fixtures.space.id,
           slackIdentity: {
             endpointId: f.endpoint.id,
             principalId: f.principalId,
@@ -710,7 +710,7 @@ export const slackRepairExternalCases = [
             externalLabel: principal.externalLabel,
           },
           baseURL: o.origin,
-          setupURL: `${o.origin}/${ctx.input.fixtures.company.issuePrefix}/apps/chat/connect?provider=slack&purpose=chat&resume=${f.endpoint.id}`,
+          setupURL: `${o.origin}/${ctx.input.fixtures.space.issuePrefix}/apps/chat/connect?provider=slack&purpose=chat&resume=${f.endpoint.id}`,
           providerURL: o.origin,
           credential: "finite-Slack-repair-wizard-resume",
           cookies: await ctx.input.page.context().cookies(o.origin),
@@ -815,7 +815,7 @@ export const slackRepairExternalCases = [
           sourceBound = slackIngressReceiptMatches({
             receipt: local.source,
             query: local.source.query,
-            companyId: ctx.input.fixtures.company.id,
+            spaceId: ctx.input.fixtures.space.id,
             agentId: ctx.input.fixtures.agent.id,
             endpoint,
             conversation: conversations.find(
@@ -847,7 +847,7 @@ export const slackRepairExternalCases = [
             reply: local.reply,
             messages: local.messages ?? [],
             connectAt: local.connectAt,
-            principalUserId: principal.paperclipUserId,
+            principalUserId: principal.outpostUserId,
             failedProviderCapture: state.failedSignedProviderDelivery === true,
           },
         } satisfies Observation;
@@ -858,7 +858,7 @@ export const slackRepairExternalCases = [
         const page = await ctx.input.page.context().newPage();
         try {
           await page.goto(
-            `${o.origin}/${ctx.input.fixtures.company.issuePrefix}/apps/chat/${o.repair.endpoint.id}/settings`,
+            `${o.origin}/${ctx.input.fixtures.space.issuePrefix}/apps/chat/${o.repair.endpoint.id}/settings`,
             { waitUntil: "domcontentloaded" },
           );
           await expect(page.getByRole("main")).toBeVisible();

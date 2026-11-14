@@ -11,7 +11,7 @@ const MANIFEST_PATH = fileURLToPath(new URL("../antigravity-distributions.json",
 const ADMISSION_SOURCE_PATH = fileURLToPath(new URL("./patch-antigravity-runtime.admission.py", import.meta.url));
 const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
 const MAX_TREE_BYTES = 1024 * 1024 * 1024;
-export const ANTIGRAVITY_TREE_MANIFEST = ".paperclip-antigravity-closure.json";
+export const ANTIGRAVITY_TREE_MANIFEST = ".outpost-antigravity-closure.json";
 const RUNTIME_FILES = ["agy_acp_server.par", "localharness_external"];
 const SHA256 = /^[a-f0-9]{64}$/;
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");

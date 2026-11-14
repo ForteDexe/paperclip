@@ -6,8 +6,8 @@ import type {
 } from "@outpost/adapter-utils";
 import {
   buildRuntimeMountedSkillSnapshot,
-  readPaperclipRuntimeSkillEntries,
-  resolveLegacyPaperclipDesiredSkillNames,
+  readOutpostRuntimeSkillEntries,
+  resolveLegacyOutpostDesiredSkillNames,
   resolveNativeOutpostDesiredSkillNames,
 } from "@outpost/adapter-utils/server-utils";
 
@@ -17,10 +17,10 @@ async function buildCodexSkillSnapshot(
   config: Record<string, unknown>,
   adapterType: string,
 ): Promise<AdapterSkillSnapshot> {
-  const availableEntries = await readPaperclipRuntimeSkillEntries(config, __moduleDir);
+  const availableEntries = await readOutpostRuntimeSkillEntries(config, __moduleDir);
   const desiredSkills = adapterType === "outpost_runner"
     ? resolveNativeOutpostDesiredSkillNames(config, availableEntries)
-    : resolveLegacyPaperclipDesiredSkillNames(config, availableEntries);
+    : resolveLegacyOutpostDesiredSkillNames(config, availableEntries);
   return buildRuntimeMountedSkillSnapshot({
     adapterType,
     availableEntries,
@@ -44,5 +44,5 @@ export function resolveCodexDesiredSkillNames(
   config: Record<string, unknown>,
   availableEntries: Array<{ key: string; required?: boolean }>,
 ) {
-  return resolveLegacyPaperclipDesiredSkillNames(config, availableEntries);
+  return resolveLegacyOutpostDesiredSkillNames(config, availableEntries);
 }

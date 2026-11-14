@@ -276,7 +276,7 @@ export async function resolveProviderPackUploadSource(input: {
   if (configured?.schema !== manifest.schema || configured.digest !== `sha256:${digest(canonicalProviderPackJson(configured.payload))}`
     || input.sourceDigest !== undefined && input.sourceDigest !== configured.digest) fail();
   if (configured.digest === manifest.digest) return { root: input.root, archiveOnly: false };
-  const cache = join(await realpath(tmpdir()), `paperclip-provider-pack-sources-${process.getuid?.()}`);
+  const cache = join(await realpath(tmpdir()), `outpost-provider-pack-sources-${process.getuid?.()}`);
   await mkdir(cache, { recursive: true, mode: 0o700 });
   await privateDirectory(cache);
   const signal = input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(180_000)]) : AbortSignal.timeout(180_000);

@@ -12,10 +12,10 @@ import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-ho
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from "@opentelemetry/sdk-trace";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { eq, sql } from "drizzle-orm";
-import { authUsers, companyMemberships, companySkillSources, heartbeatRuns, projects, projectSkillSources,
-  companies, companySkills, companySkillVersions, companySkillRepositorySnapshots,
+import { authUsers, spaceMemberships, spaceSkillSources, heartbeatRuns, projects, projectSkillSources,
+  spaces, spaceSkills, spaceSkillVersions, spaceSkillRepositorySnapshots,
   applyPendingMigrations, closeRegisteredClients, createDb, startEmbeddedPostgresTestDatabase } from "../../packages/db/src/index.js";
-import type { CompanySkillVersionFileInventoryEntry } from "@outpost/shared";
+import type { SpaceSkillVersionFileInventoryEntry } from "@outpost/shared";
 import { createRunPreparationTiming, withRunExecutionTiming } from "../src/services/execution-preparation-timing.js";
 import { repositorySkillProjection } from "../src/services/skill-repository-package.js";
 import { materializeSelectedSkills } from "../src/services/native-runtime/runtime-context.js";
@@ -37,11 +37,11 @@ const stagingShape = argument("--staging-shape") === "true";
 // app-wide SDK disabled, then restore the operator's export configuration.
 const operatorEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
 delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
-let companySkillService: typeof import("../src/services/company-skills.js").companySkillService;
+let spaceSkillService: typeof import("../src/services/space-skills.js").spaceSkillService;
 let withSkillActor: typeof import("../src/services/skill-access.js").withSkillActor;
 let createAgentLifecycle: typeof import("../src/services/agent-lifecycle.js").createAgentLifecycle;
 try {
-  ({ companySkillService } = await import("../src/services/company-skills.js"));
+  ({ spaceSkillService } = await import("../src/services/space-skills.js"));
   ({ withSkillActor } = await import("../src/services/skill-access.js"));
   ({ createAgentLifecycle } = await import("../src/services/agent-lifecycle.js"));
 }
@@ -52,7 +52,7 @@ const sourceRevision = execFileSync("git", ["rev-parse", "HEAD"], {
   cwd: fileURLToPath(new URL("../../", import.meta.url)), encoding: "utf8",
 }).trim();
 const sourceHash = createHash("sha256");
-for (const file of [import.meta.url, new URL("../src/services/company-skills.ts", import.meta.url),
+for (const file of [import.meta.url, new URL("../src/services/space-skills.ts", import.meta.url),
   new URL("../src/services/skill-version-cache.ts", import.meta.url), new URL("../src/services/execution-preparation-timing.ts", import.meta.url),
   ...["skill-package-store", "skill-package-runtime", "skill-package-files", "skill-package-cache", "file-manifest-cache",
     "skill-package-recovery", "skill-package-work", "native-runtime/runtime-context", "native-runtime/skill-asset-cache", "native-runtime/runtime-asset-retention"].map(name => new URL(`../src/services/${name}.ts`, import.meta.url))]) {
@@ -62,7 +62,7 @@ const sourceChangesHash = sourceHash.digest("hex");
 if (exportOtlp) assert.ok(process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim(), "OTLP export requires an operator-configured endpoint");
 const snapshotFile = argument("--snapshot-file");
 const entrypoint = argument("--entrypoint") ?? "skills/diagnostic/SKILL.md";
-const files: CompanySkillVersionFileInventoryEntry[] = snapshotFile
+const files: SpaceSkillVersionFileInventoryEntry[] = snapshotFile
   ? JSON.parse(await fs.readFile(snapshotFile, "utf8"))
   : [{ path: entrypoint, kind: "skill", content: "---\nname: diagnostic\ndescription: Native preparation benchmark\n---\nReport the model ID.\n" },
     ...Array.from({ length: 207 }, (_, index) => ({ path: `assets/${index}.txt`, kind: "reference" as const, content: "x".repeat(52_000) }))];
@@ -103,7 +103,7 @@ try {
     } }));
   }
   provider = new TracerProvider({ spanProcessors: processors, resource: resourceFromAttributes({
-    "service.name": process.env.OTEL_SERVICE_NAME || "paperclip",
+    "service.name": process.env.OTEL_SERVICE_NAME || "outpost",
     "service.version": `local-skill-bench-${sourceChangesHash.slice(0, 12)}`,
     "deployment.environment.name": "local-diagnostic",
   }) });
@@ -174,44 +174,44 @@ try {
     target.port = String(address.port);
   }
   db = createDb(target.href);
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   const userId = randomUUID();
   const selections = new Map<string, string>();
   const samples: unknown[] = [];
   let rootPoolQueries = 0;
   db.$client.options.debug = () => { rootPoolQueries++; };
-  await db.insert(companies).values({ id: companyId, name: "Native preparation benchmark", issuePrefix: "BENCH" });
+  await db.insert(spaces).values({ id: spaceId, name: "Native preparation benchmark", issuePrefix: "BENCH" });
   if (authenticated) {
-    await createAgentLifecycle(db).requestHire(companyId, {
+    await createAgentLifecycle(db).requestHire(spaceId, {
       id: agentId, name: "Diagnostic reader", adapterType: "outpost_runner", status: "paused",
     }, { runnerResolved: true });
     await db.insert(authUsers).values({ id: userId, name: "Diagnostic owner", email: `${userId}@example.invalid`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values([
-      { companyId, principalType: "agent", principalId: agentId, membershipRole: "member" },
-      { companyId, principalType: "user", principalId: userId, membershipRole: "owner" },
+    await db.insert(spaceMemberships).values([
+      { spaceId, principalType: "agent", principalId: agentId, membershipRole: "member" },
+      { spaceId, principalType: "user", principalId: userId, membershipRole: "owner" },
     ]);
   }
   if (stagingShape) {
-    // Match observed staging cardinalities without copying unrelated company content.
-    const projectRows = await db.insert(projects).values(Array.from({ length: 14 }, (_, i) => ({ companyId, name: `Fixture ${i}` }))).returning();
-    const sourceRows = await db.insert(companySkillSources).values(Array.from({ length: 10 }, (_, i) => ({
-      companyId, repositoryUrl: `https://example.invalid/fixture-${i}`, fullName: `fixture/${i}`, trackingRef: "main",
-      accessScope: i < 4 ? "projects" as const : "company" as const,
+    // Match observed staging cardinalities without copying unrelated space content.
+    const projectRows = await db.insert(projects).values(Array.from({ length: 14 }, (_, i) => ({ spaceId, name: `Fixture ${i}` }))).returning();
+    const sourceRows = await db.insert(spaceSkillSources).values(Array.from({ length: 10 }, (_, i) => ({
+      spaceId, repositoryUrl: `https://example.invalid/fixture-${i}`, fullName: `fixture/${i}`, trackingRef: "main",
+      accessScope: i < 4 ? "projects" as const : "space" as const,
     }))).returning();
-    await db.insert(projectSkillSources).values(Array.from({ length: 8 }, (_, i) => ({ companyId,
+    await db.insert(projectSkillSources).values(Array.from({ length: 8 }, (_, i) => ({ spaceId,
       projectId: projectRows[i % 5]!.id, sourceId: sourceRows[i]!.id,
       repositoryUrl: sourceRows[i]!.repositoryUrl, trackingRef: "main", status: "ready" as const,
     })));
-    await db.insert(companySkills).values(Array.from({ length: 155 }, (_, i) => ({ companyId,
+    await db.insert(spaceSkills).values(Array.from({ length: 155 }, (_, i) => ({ spaceId,
       key: `fixture/unselected-${i}`, slug: `unselected-${i}`, name: `Unselected ${i}`, sourceType: "github",
       sourceLocator: "https://example.invalid/immutable-fixture", markdown: "x".repeat(7_330),
       accessSourceId: sourceRows[i % sourceRows.length]!.id,
     })));
-    await db.insert(companySkills).values({ companyId, key: "fixture/catalog", slug: "catalog", name: "Unselected catalog", sourceType: "catalog", markdown: "x".repeat(1_578) });
+    await db.insert(spaceSkills).values({ spaceId, key: "fixture/catalog", slug: "catalog", name: "Unselected catalog", sourceType: "catalog", markdown: "x".repeat(1_578) });
   }
-  const snapshotId = externalPackages ? await skillPackageStore(db).prepare(companyId, files)
-    : (await db.insert(companySkillRepositorySnapshots).values({ companyId, contentHash: skillSnapshotHash(files), fileInventory: files }).returning())[0]!.id;
+  const snapshotId = externalPackages ? await skillPackageStore(db).prepare(spaceId, files)
+    : (await db.insert(spaceSkillRepositorySnapshots).values({ spaceId, contentHash: skillSnapshotHash(files), fileInventory: files }).returning())[0]!.id;
   let objectGets = 0, objectReadBytes = 0;
   const backend = getStorageService();
   const getObject = backend.getObject.bind(backend);
@@ -222,42 +222,42 @@ try {
   };
   for (const [index, selectedPath] of entrypoints.entries()) {
     const skillId = randomUUID();
-    const key = `company/${companyId}/diagnostic-${index}`;
-    await db.insert(companySkills).values({ id: skillId, companyId, key, slug: `diagnostic-${index}`, name: `Diagnostic ${index}`,
+    const key = `space/${spaceId}/diagnostic-${index}`;
+    await db.insert(spaceSkills).values({ id: skillId, spaceId, key, slug: `diagnostic-${index}`, name: `Diagnostic ${index}`,
       markdown: files.find(file => file.path === selectedPath)!.content, sourceType: "github",
       sourceLocator: "https://example.invalid/immutable-fixture", metadata: { packageMode: "repository", snapshotHash: "fixture" } });
-    const [version] = await db.insert(companySkillVersions).values({ companyId, companySkillId: skillId, revisionNumber: 1,
+    const [version] = await db.insert(spaceSkillVersions).values({ spaceId, spaceSkillId: skillId, revisionNumber: 1,
       repositorySnapshotId: snapshotId, repositorySkillPath: selectedPath }).returning();
-    await db.update(companySkills).set({ currentVersionId: version!.id }).where(eq(companySkills.id, skillId));
+    await db.update(spaceSkills).set({ currentVersionId: version!.id }).where(eq(spaceSkills.id, skillId));
     selections.set(key, version!.id);
   }
   const benchmarkDb = db;
-  const service = companySkillService(db);
+  const service = spaceSkillService(db);
   console.error("benchmark: measuring preparations");
   for (const label of ["cold", ...Array.from({ length: warmRuns }, (_, index) => `warm-${index + 1}`), "warm-new-service"]) {
     exporter.reset();
     rootPoolQueries = 0;
-    const selected: ReturnType<typeof companySkillService> = label === "warm-new-service" ? companySkillService(db) : service;
+    const selected: ReturnType<typeof spaceSkillService> = label === "warm-new-service" ? spaceSkillService(db) : service;
     const runId = randomUUID();
-    if (authenticated) await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", responsibleUserId: userId, contextSnapshot: { executionPolicy: {} } });
+    if (authenticated) await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", responsibleUserId: userId, contextSnapshot: { executionPolicy: {} } });
     rootPoolQueries = 0;
     sqlResponseBytes = 0; objectGets = 0; objectReadBytes = 0;
     let nativeAssetMs = 0;
     const cpuStarted = process.cpuUsage();
     const measuredStarted = performance.now();
-    const resolve = () => selected.withRuntimeSkillEntries(companyId, {
+    const resolve = () => selected.withRuntimeSkillEntries(spaceId, {
       onlyKeys: new Set(selections.keys()), versionSelections: selections, snapshotLatest: true,
     }, async entries => {
       if (authenticated) await benchmarkDb.update(heartbeatRuns).set({ contextSnapshot: sql`coalesce(${heartbeatRuns.contextSnapshot}, '{}'::jsonb) || ${JSON.stringify({ skillVersions: Object.fromEntries(selections), skillSelectionSnapshot: true })}::jsonb` }).where(eq(heartbeatRuns.id, runId));
       if (nativeAssets) {
         const started = performance.now();
-        await materializeSelectedSkills({ paperclipSkillSync: { desiredSkills: [...selections.keys()] } }, entries, true);
+        await materializeSelectedSkills({ outpostSkillSync: { desiredSkills: [...selections.keys()] } }, entries, true);
         nativeAssetMs = performance.now() - started;
       }
       return entries;
     });
     const entries: Awaited<ReturnType<typeof selected.listRuntimeSkillEntries>> = await withRunExecutionTiming(runId, () => createRunPreparationTiming(runId)("configuration_skills", () => authenticated
-      ? withSkillActor({ type: "agent", agentId, companyId, runId, source: "agent_jwt", onBehalfOfUserId: userId }, resolve)
+      ? withSkillActor({ type: "agent", agentId, spaceId, runId, source: "agent_jwt", onBehalfOfUserId: userId }, resolve)
       : resolve()));
     const elapsedMs = performance.now() - measuredStarted;
     const queryCount = rootPoolQueries;

@@ -9,12 +9,12 @@ Stop fixing restart bugs one crash window at a time. Add one shared ownership pr
 
 ## Why: the campaign's bugs share one shape
 
-A control-plane restart can land between any two durable writes. It leaves an in-progress record owned by a process that is now dead. That record might be a lease, a startup fence, a coordinator claim, a workspace operation, an accounting receipt, a reservation or a deferred wake. Each subsystem decided alone whether it was safe to continue, and none could prove the owner was dead. They fail closed, so the leftover record became a Retry, a company-wide hold, or a run that stays `running` forever.
+A control-plane restart can land between any two durable writes. It leaves an in-progress record owned by a process that is now dead. That record might be a lease, a startup fence, a coordinator claim, a workspace operation, an accounting receipt, a reservation or a deferred wake. Each subsystem decided alone whether it was safe to continue, and none could prove the owner was dead. They fail closed, so the leftover record became a Retry, a space-wide hold, or a run that stays `running` forever.
 
 | Class | Examples (ledger IDs) | Approximate PRs |
 |---|---|---|
 | A dead owner's fence or lease that only a TTL releases | RC-16/16b/16c, 29d, 39, 41, 42, 47, 50, 57, 62, 64 | 12 |
-| Accounting completeness gates company admission | RC-05/06 family, including regressions RC-06k and RC-06m | 8 |
+| Accounting completeness gates space admission | RC-05/06 family, including regressions RC-06k and RC-06m | 8 |
 | Work intents (wakes, Retries, comments) end terminally on a temporary refusal | RC-37, 45, 58, s7532 | 4 |
 | Retry budgets charged per restart, not per unit of work | RC-22/22b/22c, 40, 60 | 5 |
 | Events from an earlier generation break the current turn | RC-15, 20/20b/20c, 33/33b, 59, 61 | 10 |
@@ -32,7 +32,7 @@ These become reconciler checks and crash-suite assertions. They should also be a
 
 1. **Owned:** every in-progress durable record carries an owner stamp and a generation.
 2. **Settled:** a record whose owner is proven gone reaches a terminal state within a bounded time (target: one reconciler pass after boot). Proof is by identity, never by age.
-3. **Admission is independent of cleanup:** admitting new work never waits on another run's cleanup or accounting completeness. Only real spend reaching a hard stop, an explicit pause, or an inactive company refuses work.
+3. **Admission is independent of cleanup:** admitting new work never waits on another run's cleanup or accounting completeness. Only real spend reaching a hard stop, an explicit pause, or an inactive space refuses work.
 4. **Exactly-once intents:** an accepted work intent (assignment, comment, Retry, recovery) is delivered exactly once, unless the task is cancelled or a hard stop applies. A temporary refusal defers it and never ends it terminally.
 5. **Work-based budgets:** a restart consumes run budget only when the resumed attempt started provider work and made no progress.
 6. **Generation fencing:** every runner and provider event carries its generation and turn. Events from an earlier generation are recorded as history and never fail the current turn.
@@ -99,9 +99,9 @@ Restart recovery latency, from `ready` to the recovered run's next provider even
 | codex | 6.5 / 8.0 |
 | opencode | 25.5 / 38.5 |
 
-Since 2026-11-09 this full latency is reported, not judged: the provider's saved-session load (`provider.session.load`) grows with session size and with how many sessions resume at once (Codex at concurrency 6: 3.0–6.3 s of a 5.5–8.5 s recovery). The judged row is Paperclip's own share, `restart_recovery_control_plane`: from `ready` to the start of the provider's session load, or to the next provider event when nothing reloads. It covers claim, prepare, runtime stage and runner launch, which measured 1.2–2.0 s per run with six Codex runs resuming at once (wave `w-20261109T045320-s9807`).
+Since 2026-11-09 this full latency is reported, not judged: the provider's saved-session load (`provider.session.load`) grows with session size and with how many sessions resume at once (Codex at concurrency 6: 3.0–6.3 s of a 5.5–8.5 s recovery). The judged row is Outpost's own share, `restart_recovery_control_plane`: from `ready` to the start of the provider's session load, or to the next provider event when nothing reloads. It covers claim, prepare, runtime stage and runner launch, which measured 1.2–2.0 s per run with six Codex runs resuming at once (wave `w-20261109T045320-s9807`).
 
-| Adapter | Paperclip share budget (s, p50 / p95) |
+| Adapter | Outpost share budget (s, p50 / p95) |
 |---|---|
 | claude, codex, opencode | 2.5 / 4.0 |
 
@@ -132,7 +132,7 @@ What the data does and does not show:
 
 ### Phase 2 data: harsh local waves (2026-11-07)
 
-Storms, crash loops and outages up to 588 s, all unmasked, are in [`2026-11-07-phase2-reconciler-data.md`](2026-11-07-phase2-reconciler-data.md). Existing paths settle most run-lifecycle records within 45 s of `ready`. This is not a bound: one environment lease took 119 s, and some native claims stayed proven gone during a load spike. One leak was found: a claimed wake whose run ended without settling it. The unowned pending-cleanup queue and unstamped accounting rows are the main I1 findings. One Daytona wave found the same claimed-wake leak, remote settling of 76–107 s, and a Retry blocked by the company-wide accounting gate (Phase 3).
+Storms, crash loops and outages up to 588 s, all unmasked, are in [`2026-11-07-phase2-reconciler-data.md`](2026-11-07-phase2-reconciler-data.md). Existing paths settle most run-lifecycle records within 45 s of `ready`. This is not a bound: one environment lease took 119 s, and some native claims stayed proven gone during a load spike. One leak was found: a claimed wake whose run ended without settling it. The unowned pending-cleanup queue and unstamped accounting rows are the main I1 findings. One Daytona wave found the same claimed-wake leak, remote settling of 76–107 s, and a Retry blocked by the space-wide accounting gate (Phase 3).
 
 ## Relationship to the zero-downtime upgrade work
 
@@ -142,7 +142,7 @@ Separate work moves the control plane toward zero-downtime upgrades on an epheme
 - `server/src/services/native-runtime/native-runner-ownership.ts`
 - `server/src/services/native-runtime/native-finalization-reconciler.ts`
 - `server/src/services/native-runtime/native-harness-filesystem-independence.ts`
-- in paperclip-cloud, `src/fleet/ephemeral-overlap.ts`
+- in outpost-cloud, `src/fleet/ephemeral-overlap.ts`
 
 This plan builds on that work and must not fork it:
 
@@ -155,7 +155,7 @@ This plan builds on that work and must not fork it:
 
    WEB evidence receipts prove filesystem preservation, not successful remote recovery.
 4. **Extend the existing pieces.** Section C extends `native-finalization-reconciler.ts`; it does not add a second loop. Section A starts from `native-runner-ownership.ts` and `controller-process-identity.ts`. Phase 0 includes the upgrade work's record kinds, and its owner reviews the inventory.
-5. **External tool effects are not exactly-once.** The design guarantees exactly-once for Paperclip's own records (results, accounting, wakes). A tool's outside effect may run again after a crash. The agent checks before it repeats one; see #19804.
+5. **External tool effects are not exactly-once.** The design guarantees exactly-once for Outpost's own records (results, accounting, wakes). A tool's outside effect may run again after a crash. The agent checks before it repeats one; see #19804.
 6. **Object storage must stay off the turn path.** Restoring an archive or checkpoint must not delay `turn.start` when a live workspace or runner exists. A cold restore that cannot be avoided counts against the time-to-first-token budget and is reported as its own step.
 
 ## Design
@@ -197,7 +197,7 @@ This replaces the per-subsystem startup sweeps gradually, by deleting each one o
 ### D. Separate admission from accounting
 
 - Admission reads per-run exposure only: reserved plus observed cost. Hard stops use settled or estimated spend.
-- A run with unfinished accounting adds its bounded estimate to exposure. It never adds a company-wide gate.
+- A run with unfinished accounting adds its bounded estimate to exposure. It never adds a space-wide gate.
 - This finishes the direction of #19497 → #19724 → #19826 and removes the `waitingRunCount` gate, rather than narrowing it again.
 
 ### E. Work-intent outbox
@@ -253,7 +253,7 @@ The runner stamps `generation` and `turnId` on every event. Driver and session c
 | 0. Inventory and baseline | List every in-progress record kind: table, column, writer, current release rule, current proof. Start from the 43 ownership, lease, sweep and fence modules. Separately, instrument and record the TTFT, boot and restart-latency baseline per adapter and environment, and list everything on the critical path before `turn.start`. | An inventory doc reviewed, with each kind mapped to A–G. A baseline report with the slowest critical-path steps ranked. |
 | 1. Primitive and observe-only reconciler | `OwnerStamp`, `proveOwnerGone`, registry, reconciler running invariant checks in report-only mode. No behavior change. | The invariant violation rate is measured in chaos waves and staging. |
 | 2. Move kinds over | One PR per kind or small group. Each switches release to the shared path and deletes its bespoke code, with a crash-point test. | Bespoke liveness code removed; crash-point suite green per kind. |
-| 3. Admission and outbox | D and E. These change the most user-visible behavior, so they wait until Phase 1 data exists. | No company-wide gate; zero terminal skips for temporary reasons. |
+| 3. Admission and outbox | D and E. These change the most user-visible behavior, so they wait until Phase 1 data exists. | No space-wide gate; zero terminal skips for temporary reasons. |
 | 4. Budgets and generations | F and G. | One attempt-charge rule; no per-variant stale-event code. |
 | 5. On-demand suite | The crash-point suite is runnable locally and by manual CI dispatch, filtered by crash point or record kind. The chaos soak stays available too. | The suite is green on the release candidate; chaos soak 500-pass streak target. |
 
@@ -268,7 +268,7 @@ The runner stamps `generation` and `turnId` on every event. Driver and session c
 
 ## Decisions (Dotta, 2026-11-07)
 
-1. **Remove the company-wide accounting gate entirely.** Phase 3 deletes the gate; it does not narrow it further. Admission reads per-run exposure and hard stops only. This is a product rule and goes into `doc/SPEC-implementation.md`.
+1. **Remove the space-wide accounting gate entirely.** Phase 3 deletes the gate; it does not narrow it further. Admission reads per-run exposure and hard stops only. This is a product rule and goes into `doc/SPEC-implementation.md`.
 2. **The crash-point suite runs on demand and is not a required PR check.** It is available as a local command and as a manual (`workflow_dispatch`) CI run that can target selected crash points or record kinds. Phase 5's exit criterion changes to "the suite is runnable on demand and green on the release candidate".
 3. **Inventory ownership:** one owning agent, with parallel per-subsystem readers (see "Phase 0 ownership" below).
 4. **Land the open restart PRs first:** #19727, #19826 and #19829 merge as they are. They shrink Phase 2.

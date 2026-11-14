@@ -49,7 +49,7 @@ describe("onboarding character export", () => {
     expect(sequenceLeadIn(definition, "missing")).toBe(0);
   });
 
-  it("recolours only the body, gray before the hire and the palette after", () => {
+  it("recolours only the body, gray before the create and the palette after", () => {
     const appearance = appearanceForPalette("coral-mint");
     const asleep = colorOnboardingDefinition(definition, appearance, true);
     const awake = colorOnboardingDefinition(definition, appearance, false);

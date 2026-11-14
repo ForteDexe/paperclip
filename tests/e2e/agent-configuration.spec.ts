@@ -31,12 +31,12 @@ async function json(response: APIResponse) {
 }
 
 async function setup(request: APIRequestContext) {
-  const company = await json(await request.post("/api/companies", { data: { name: `Agent YAML ${Date.now()}` } }));
-  const agent = await json(await request.post(`/api/companies/${company.id}/agents`, { data: {
+  const space = await json(await request.post("/api/spaces", { data: { name: `Agent YAML ${Date.now()}` } }));
+  const agent = await json(await request.post(`/api/spaces/${space.id}/agents`, { data: {
     name: "YAML engineer", role: "engineer", adapterType: "process", adapterConfig: { command: "true", removable: "old value" },
     runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } },
   } }));
-  return { company, agent, url: `/${company.issuePrefix}/agents/${agent.urlKey}` };
+  return { space, agent, url: `/${space.issuePrefix}/agents/${agent.urlKey}` };
 }
 
 const editor = (page: Page) => page.getByRole("textbox", { name: "Agent YAML configuration" });
@@ -62,7 +62,7 @@ async function document(page: Page): Promise<AgentConfigurationInput> {
       element.dispatchEvent(new ClipboardEvent("copy", { clipboardData, bubbles: true, cancelable: true }));
       return clipboardData.getData("text/plain");
     });
-    return /^apiVersion: paperclip\/v1(?:\r?\n|$)/.test(source);
+    return /^apiVersion: outpost\/v1(?:\r?\n|$)/.test(source);
   }, { message: "Copy the current YAML from the focused editor" }).toBe(true);
   return parse(source);
 }
@@ -81,8 +81,8 @@ async function save(page: Page) {
 }
 
 test("Secrets shows masked inline variables and preserves them when another variable is saved", async ({ page, request }) => {
-  const { company, agent, url } = await setup(request);
-  const secret = await json(await request.post(`/api/companies/${company.id}/secrets`, { data: {
+  const { space, agent, url } = await setup(request);
+  const secret = await json(await request.post(`/api/spaces/${space.id}/secrets`, { data: {
     name: "Release credential", value: "disposable-reference-credential",
   } }));
   await json(await request.patch(`/api/agents/${agent.id}`, { data: { adapterConfig: {
@@ -127,8 +127,8 @@ test("Secrets shows masked inline variables and preserves them when another vari
   expect(after.configurationRevision).toBe(before.configurationRevision);
 });
 
-test("compact YAML stays small as the company grows and preserves hidden configuration", async ({ page, request }) => {
-  const { company, agent, url } = await setup(request);
+test("compact YAML stays small as the space grows and preserves hidden configuration", async ({ page, request }) => {
+  const { space, agent, url } = await setup(request);
   await json(await request.patch(`/api/agents/${agent.id}/instructions-bundle`, { data: { mode: "managed" } }));
   const entry = await json(await request.get(`/api/agents/${agent.id}/instructions-bundle/file?path=AGENTS.md`));
   const instructions = "Keep the agent instructions outside its YAML configuration.\n".repeat(500);
@@ -136,11 +136,11 @@ test("compact YAML stays small as the company grows and preserves hidden configu
     path: "AGENTS.md", content: instructions, baseHash: entry.contentHash, baseRevisionId: entry.revision?.id ?? null,
   } }));
   const profiles: Array<{ id: string }> = [];
-  for (let index = 0; index < 8; index++) profiles.push(await json(await request.post(`/api/companies/${company.id}/tools/profiles`, { data: {
+  for (let index = 0; index < 8; index++) profiles.push(await json(await request.post(`/api/spaces/${space.id}/tools/profiles`, { data: {
     profileKey: `profile-${index}`, name: `Profile ${index}`, defaultAction: "deny",
     entries: Array.from({ length: 30 }, (_, tool) => ({ selectorType: "tool_name", effect: "include", toolName: `fixture_tool_${tool}` })),
   } })));
-  await json(await request.post(`/api/companies/${company.id}/tools/profiles/${profiles[0].id}/bind`, { data: { targetType: "agent", targetId: agent.id, priority: 100 } }));
+  await json(await request.post(`/api/spaces/${space.id}/tools/profiles/${profiles[0].id}/bind`, { data: { targetType: "agent", targetId: agent.id, priority: 100 } }));
   await page.goto(`${url}/advanced`);
   const compact = await document(page);
   const source = stringify(compact);
@@ -156,19 +156,19 @@ test("compact YAML stays small as the company grows and preserves hidden configu
   expect((await json(await request.get(`/api/agents/${agent.id}/instructions-bundle/file?path=AGENTS.md`))).content).toBe(instructions);
   await edit(page, value => { value.spec.tools = { profiles: [{ profileKey: "profile-0" }, { profileKey: "profile-1" }] }; });
   await save(page);
-  const selected = await json(await request.get(`/api/companies/${company.id}/tools/profiles`));
+  const selected = await json(await request.get(`/api/spaces/${space.id}/tools/profiles`));
   expect(selected.profiles.find((profile: { id: string }) => profile.id === profiles[1].id).bindings).toContainEqual(expect.objectContaining({ targetType: "agent", targetId: agent.id }));
   for (const profile of selected.profiles.filter((profile: { id: string }) => profiles.some(created => created.id === profile.id))) expect(profile.entries).toHaveLength(30);
 });
 
 test("Advanced YAML persists settings and commands through their real resource APIs", async ({ page, request, toolProvider }, info) => {
   test.setTimeout(120_000);
-  const { company, agent, url } = await setup(request);
+  const { space, agent, url } = await setup(request);
   await json(await request.patch(`/api/agents/${agent.id}/instructions-bundle`, { data: { mode: "managed" } }));
-  const skill = await json(await request.post(`/api/companies/${company.id}/skills`, { data: {
+  const skill = await json(await request.post(`/api/spaces/${space.id}/skills`, { data: {
     name: "YAML proof", slug: "yaml-proof", markdown: "---\nname: yaml-proof\ndescription: Verify saved configuration.\n---\nCheck the persisted state.\n",
   } }));
-  const connection = await json(await request.post(`/api/companies/${company.id}/tools/connections`, { data: {
+  const connection = await json(await request.post(`/api/spaces/${space.id}/tools/connections`, { data: {
     name: "YAML tools", transport: "mcp_remote", config: { url: toolProvider.url }, status: "draft", enabled: false,
   } }));
   await page.goto(`${url}/overview`);
@@ -306,7 +306,7 @@ test("a lost creation response requires reload and cannot blindly replay command
   // text as well as the YAML header. The read helper must reacquire a clean
   // editor copy instead of accepting the header and parsing the whole page.
   await page.evaluate(() => window.document.addEventListener("copy", event => {
-    event.clipboardData?.setData("text/plain", "Skip to Main Content\napiVersion: paperclip/v1\nCopied surrounding page text");
+    event.clipboardData?.setData("text/plain", "Skip to Main Content\napiVersion: outpost/v1\nCopied surrounding page text");
     event.preventDefault();
   }, { capture: true, once: true }));
   expect((await document(page)).spec.apiKeys!.create).toHaveLength(2);

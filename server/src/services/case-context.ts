@@ -28,79 +28,79 @@ export interface CaseExecutionContext {
 
 /** One bounded, fresh snapshot for both new and resumed adapter turns. */
 export async function getCaseExecutionContext(db: Db, input: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   agentId: string;
   runId: string;
   exposeLowTrustRaw?: boolean;
 }): Promise<CaseExecutionContext | null> {
   const [caseRow] = await db.select({ case: cases, issue: issues }).from(cases)
-    .innerJoin(issues, and(eq(issues.id, cases.workIssueId), eq(issues.companyId, cases.companyId)))
-    .where(and(eq(cases.companyId, input.companyId), eq(cases.workIssueId, input.issueId))).limit(1);
+    .innerJoin(issues, and(eq(issues.id, cases.workIssueId), eq(issues.spaceId, cases.spaceId)))
+    .where(and(eq(cases.spaceId, input.spaceId), eq(cases.workIssueId, input.issueId))).limit(1);
   if (!caseRow) return null;
   const [run] = await db.select().from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.agentId, input.agentId),
+    eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.agentId, input.agentId),
   )).limit(1);
   if (!run || (run.nativeIssueId ?? run.issueId ?? run.contextSnapshot?.issueId) !== input.issueId) {
     throw forbidden("Case context requires the task's admitted run");
   }
-  const admittedScope = run.contextSnapshot?.paperclipAgentJwtScope as { kind?: string } | undefined;
+  const admittedScope = run.contextSnapshot?.outpostAgentJwtScope as { kind?: string } | undefined;
   // Skill-test execution deliberately has a narrower task-only authority.
   // Workflow context must not expand it through retained sources or references.
   if (caseRow.issue.workMode === "skill_test" || admittedScope?.kind === "skill_test"
-      || run.contextSnapshot?.paperclipSkillTest) return null;
+      || run.contextSnapshot?.outpostSkillTest) return null;
   const actor: AuthorizationActor = {
-    type: "agent", agentId: input.agentId, companyId: input.companyId, runId: input.runId,
+    type: "agent", agentId: input.agentId, spaceId: input.spaceId, runId: input.runId,
     onBehalfOfUserId: run.responsibleUserId,
     keyScope: { kind: "standard" },
   };
   const [agent] = await db.select({ config: agents.adapterConfig }).from(agents)
-    .where(and(eq(agents.id, input.agentId), eq(agents.companyId, input.companyId))).limit(1);
+    .where(and(eq(agents.id, input.agentId), eq(agents.spaceId, input.spaceId))).limit(1);
   if (agent?.config?.provider === "muse") {
     const bindingId = agent.config.museBindingId;
     if (typeof bindingId !== "string") throw forbidden("Case context requires the current external authorizer");
     const [binding] = await db.select({ generation: museAgentBindings.generation }).from(museAgentBindings).where(and(
-      eq(museAgentBindings.id, bindingId), eq(museAgentBindings.companyId, input.companyId),
+      eq(museAgentBindings.id, bindingId), eq(museAgentBindings.spaceId, input.spaceId),
       eq(museAgentBindings.agentId, input.agentId), isNull(museAgentBindings.revokedAt),
     )).limit(1);
     if (!binding) throw forbidden("Case context requires the current external authorizer");
     const { museRunnerBroker } = await import("./muse-runner-broker.js");
     actor.authorizingUserId = await museRunnerBroker(db).authorizingUserIdForBinding({
-      companyId: input.companyId, agentId: input.agentId, bindingId, bindingGeneration: binding.generation,
+      spaceId: input.spaceId, agentId: input.agentId, bindingId, bindingGeneration: binding.generation,
     });
   }
   if (!(await canActorReadCase(db, actor, caseRow.case))) throw forbidden("The current run cannot read its workflow case");
   await assertCaseTrustedForExecution(db, caseRow.case);
-  const definition = caseRow.case.workflowId ? await getWorkflowMetadata(db, input.companyId, caseRow.case.workflowId) : null;
+  const definition = caseRow.case.workflowId ? await getWorkflowMetadata(db, input.spaceId, caseRow.case.workflowId) : null;
   const workflow = definition ? { id: definition.id, name: definition.name } : null;
   const [incoming] = await db.select({ handoff: {
     id: caseHandoffs.id, commentId: caseHandoffs.commentId, fromAgentId: caseHandoffs.fromAgentId,
   }, fromAgentName: agents.name }).from(caseHandoffs)
-    .leftJoin(agents, and(eq(agents.id, caseHandoffs.fromAgentId), eq(agents.companyId, caseHandoffs.companyId)))
-    .where(and(eq(caseHandoffs.companyId, input.companyId), eq(caseHandoffs.caseId, caseRow.case.id),
+    .leftJoin(agents, and(eq(agents.id, caseHandoffs.fromAgentId), eq(agents.spaceId, caseHandoffs.spaceId)))
+    .where(and(eq(caseHandoffs.spaceId, input.spaceId), eq(caseHandoffs.caseId, caseRow.case.id),
       eq(caseHandoffs.version, caseRow.case.handoffVersion), eq(caseHandoffs.toAgentId, input.agentId),
       inArray(caseHandoffs.state, ["pending_dispatch", "delivered"])))
     .limit(1);
   const [legacyDocumentRefs, taskDocumentRefs, related, history] = await Promise.all([
     db.select({ key: caseDocuments.key, title: documents.title, revisionId: documents.latestRevisionId })
-      .from(caseDocuments).innerJoin(documents, and(eq(documents.id, caseDocuments.documentId), eq(documents.companyId, input.companyId)))
-      .where(and(eq(caseDocuments.companyId, input.companyId), eq(caseDocuments.caseId, caseRow.case.id)))
+      .from(caseDocuments).innerJoin(documents, and(eq(documents.id, caseDocuments.documentId), eq(documents.spaceId, input.spaceId)))
+      .where(and(eq(caseDocuments.spaceId, input.spaceId), eq(caseDocuments.caseId, caseRow.case.id)))
       .orderBy(caseDocuments.key).limit(21),
-    listCaseTaskDocuments(db, { companyId: input.companyId, caseId: caseRow.case.id,
+    listCaseTaskDocuments(db, { spaceId: input.spaceId, caseId: caseRow.case.id,
       workIssueId: input.issueId, actor, limit: 20, exposeLowTrustRaw: input.exposeLowTrustRaw }),
     db.select({ id: issues.id, identifier: issues.identifier, title: issues.title, status: issues.status, role: caseIssueLinks.role })
-      .from(caseIssueLinks).innerJoin(issues, and(eq(issues.id, caseIssueLinks.issueId), eq(issues.companyId, caseIssueLinks.companyId)))
-      .where(and(eq(caseIssueLinks.companyId, input.companyId), eq(caseIssueLinks.caseId, caseRow.case.id),
+      .from(caseIssueLinks).innerJoin(issues, and(eq(issues.id, caseIssueLinks.issueId), eq(issues.spaceId, caseIssueLinks.spaceId)))
+      .where(and(eq(caseIssueLinks.spaceId, input.spaceId), eq(caseIssueLinks.caseId, caseRow.case.id),
         await issueReadSqlCondition(db, actor)))
       .orderBy(caseIssueLinks.createdAt, caseIssueLinks.id).limit(21),
     db.select({ version: caseHandoffs.version, phase: caseHandoffs.phase, state: caseHandoffs.state,
       destinationKind: caseHandoffs.destinationKind, toAgentId: caseHandoffs.toAgentId, workflowTransition: caseHandoffs.workflowTransition })
-      .from(caseHandoffs).where(and(eq(caseHandoffs.companyId, input.companyId), eq(caseHandoffs.caseId, caseRow.case.id)))
+      .from(caseHandoffs).where(and(eq(caseHandoffs.spaceId, input.spaceId), eq(caseHandoffs.caseId, caseRow.case.id)))
       .orderBy(desc(caseHandoffs.version)).limit(6),
   ]);
   const access = authorizationService(db);
   const relatedDecisions = await access.decideReads(actor, related.map(issue => ({
-    type: "issue" as const, companyId: input.companyId, issueId: issue.id,
+    type: "issue" as const, spaceId: input.spaceId, issueId: issue.id,
   })));
   const permittedRelated = related.filter((_, index) => relatedDecisions[index]?.allowed).slice(0, 20);
   const documentRefs = [
@@ -115,7 +115,7 @@ export async function getCaseExecutionContext(db: Db, input: {
   const workProducts = await db.select({ id: issueWorkProducts.id, issueId: issueWorkProducts.issueId,
     title: issueWorkProducts.title, type: issueWorkProducts.type, status: issueWorkProducts.status,
     url: issueWorkProducts.url, sourceTrust: issueWorkProducts.sourceTrust })
-    .from(issueWorkProducts).where(and(eq(issueWorkProducts.companyId, input.companyId),
+    .from(issueWorkProducts).where(and(eq(issueWorkProducts.spaceId, input.spaceId),
       inArray(issueWorkProducts.issueId, [input.issueId, ...permittedRelated.map(issue => issue.id)])))
     .orderBy(desc(issueWorkProducts.updatedAt), issueWorkProducts.id).limit(21);
   const permittedWorkProducts = workProducts.slice(0, 20)
@@ -126,7 +126,7 @@ export async function getCaseExecutionContext(db: Db, input: {
   let sourceCommentDeleted = false;
   if (incoming?.handoff.commentId) {
     const [comment] = await db.select().from(issueComments).where(and(
-      eq(issueComments.id, incoming.handoff.commentId), eq(issueComments.companyId, input.companyId), eq(issueComments.issueId, input.issueId),
+      eq(issueComments.id, incoming.handoff.commentId), eq(issueComments.spaceId, input.spaceId), eq(issueComments.issueId, input.issueId),
     )).limit(1);
     if (comment?.deletedAt) {
       sourceCommentDeleted = true;

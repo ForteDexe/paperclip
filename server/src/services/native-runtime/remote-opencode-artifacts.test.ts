@@ -34,7 +34,7 @@ afterEach(async () => {
 });
 async function fixture() {
   const root = await realpath(
-    await mkdtemp(join(tmpdir(), "paperclip-closed-launch-")),
+    await mkdtemp(join(tmpdir(), "outpost-closed-launch-")),
   );
   homes.push(root);
   const accountHome = join(root, "account"),
@@ -272,7 +272,7 @@ it("rejects administrative symlinks and source hash drift before publication", a
     await readdir(
       join(
         f.accountHome,
-        ".paperclip-runtime/outpost-runner/provider-artifacts",
+        ".outpost-runtime/outpost-runner/provider-artifacts",
       ),
     ),
   ).toEqual([]);

@@ -27,6 +27,6 @@ describe("catalog agent lifecycle readiness", () => {
   it("accepting a busy agent does not accept a running canonical native as a completed run", () => {
     expect(chatCatalogAgentIsReady({ lifecycleState: "ready", status: "running" })).toBe(true);
     expect(chatCatalogRunStatusAllowed({ implementation: {}, run: { status: "running" } as never,
-      companyId: "company", leadId: "lead" })).toBe(false);
+      spaceId: "space", leadId: "lead" })).toBe(false);
   });
 });

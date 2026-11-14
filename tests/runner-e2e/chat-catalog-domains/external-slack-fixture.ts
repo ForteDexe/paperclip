@@ -30,7 +30,7 @@ interface Principal {
   principalId: string;
   externalLabel: string;
   externalDetail: string;
-  paperclipUserId: string | null;
+  outpostUserId: string | null;
   status: string;
   lastConnectAt?: string | null;
 }
@@ -165,7 +165,7 @@ export async function prepareSlackFixture(
         `/api/chat-endpoints/${options.normalWizard.endpointId}`,
       );
       if (
-        endpoint.companyId !== ctx.input.fixtures.company.id ||
+        endpoint.spaceId !== ctx.input.fixtures.space.id ||
         endpoint.provider !== "slack" ||
         endpoint.assignedAgentId !== options.normalWizard.agentId ||
         endpoint.setup.slackSetupMethod !== "existing" ||
@@ -287,7 +287,7 @@ export async function prepareSlackFixture(
     if (options.normalWizard) {
       credentialUiReceipt = await privateBrowserEntry({
         mode: "slack-endpoint-configure",
-        companyId: ctx.input.fixtures.company.id,
+        spaceId: ctx.input.fixtures.space.id,
         slackSetup: {
           endpointId: endpoint.id,
           agentId: options.normalWizard.agentId,
@@ -300,7 +300,7 @@ export async function prepareSlackFixture(
         },
         baseURL: ctx.input.api.baseURL,
         providerURL: ctx.input.api.baseURL,
-        setupURL: `${ctx.input.api.baseURL}/${ctx.input.fixtures.company.issuePrefix}/apps/chat/connect?provider=slack&purpose=chat&resume=${endpoint.id}&stage=credentials`,
+        setupURL: `${ctx.input.api.baseURL}/${ctx.input.fixtures.space.issuePrefix}/apps/chat/connect?provider=slack&purpose=chat&resume=${endpoint.id}&stage=credentials`,
         credential: selectedExternalCredential(ctx, binding, "botTokenEnv"),
         cookies: await ctx.input.page.context().cookies(ctx.input.api.baseURL),
       });
@@ -357,7 +357,7 @@ export async function prepareSlackFixture(
       const page = await ctx.input.page.context().newPage();
       try {
         await page.goto(
-          `${ctx.input.api.baseURL}/${ctx.input.fixtures.company.issuePrefix}/apps/chat/connect?provider=slack&purpose=chat&resume=${endpoint.id}`,
+          `${ctx.input.api.baseURL}/${ctx.input.fixtures.space.issuePrefix}/apps/chat/connect?provider=slack&purpose=chat&resume=${endpoint.id}`,
           { waitUntil: "domcontentloaded" },
         );
         await page
@@ -525,7 +525,7 @@ export async function prepareSlackFixture(
       );
       identityUiReceipt = await privateBrowserEntry({
         mode: "slack-wizard-confirm",
-        companyId: ctx.input.fixtures.company.id,
+        spaceId: ctx.input.fixtures.space.id,
         slackIdentity: {
           endpointId: endpoint.id,
           principalId: principal[0]!.principalId,
@@ -535,7 +535,7 @@ export async function prepareSlackFixture(
         },
         baseURL: ctx.input.api.baseURL,
         providerURL: ctx.input.api.baseURL,
-        setupURL: `${ctx.input.api.baseURL}/${ctx.input.fixtures.company.issuePrefix}/apps/chat/connect?provider=slack&purpose=chat&resume=${endpoint.id}`,
+        setupURL: `${ctx.input.api.baseURL}/${ctx.input.fixtures.space.issuePrefix}/apps/chat/connect?provider=slack&purpose=chat&resume=${endpoint.id}`,
         credential: "finite-slack-normal-wizard-confirmation",
         cookies: await ctx.input.page.context().cookies(ctx.input.api.baseURL),
       });
@@ -569,7 +569,7 @@ export async function prepareSlackFixture(
         row.principalId === principal[0]!.principalId &&
         row.status === "linked",
     );
-    if (linked.length !== 1 || !linked[0]!.paperclipUserId)
+    if (linked.length !== 1 || !linked[0]!.outpostUserId)
       throw new Error(
         "Actual signed-in person did not complete the selected Slack identity link",
       );
@@ -585,7 +585,7 @@ export async function prepareSlackFixture(
       throw new Error(
         "Setup blocker: supported Slack finish did not activate the actual endpoint",
       );
-    let linkedPaperclipUserId: string | null = linked[0]!.paperclipUserId;
+    let linkedOutpostUserId: string | null = linked[0]!.outpostUserId;
     const principalId = principal[0]!.principalId;
     if (options.unlinkBeforeCanonical) {
       await ctx.input.api.delete(
@@ -600,7 +600,7 @@ export async function prepareSlackFixture(
         throw new Error(
           "Public unlink did not revoke the exact qualified sender",
         );
-      linkedPaperclipUserId = null;
+      linkedOutpostUserId = null;
     }
     return {
       binding,
@@ -619,8 +619,8 @@ export async function prepareSlackFixture(
         workspaceId: human.user.team_id,
         handle: human.user.name,
       },
-      get linkedPaperclipUserId() {
-        return linkedPaperclipUserId;
+      get linkedOutpostUserId() {
+        return linkedOutpostUserId;
       },
       async readPrincipal() {
         const rows = await ctx.input.api.get<Principal[]>(
@@ -641,14 +641,14 @@ export async function prepareSlackFixture(
             (row) =>
               row.principalId === principalId &&
               row.status === "linked" &&
-              !!row.paperclipUserId,
+              !!row.outpostUserId,
           );
         if (current.length !== 1)
           throw new Error(
             "Actual Slack principal has no current confirmed identity",
           );
-        linkedPaperclipUserId = current[0]!.paperclipUserId;
-        return linkedPaperclipUserId!;
+        linkedOutpostUserId = current[0]!.outpostUserId;
+        return linkedOutpostUserId!;
       },
       async createDistractor(text: string) {
         return postRoot(text);
@@ -679,7 +679,7 @@ export async function prepareSlackFixture(
           throw new Error(
             "Slack ingress resolution escaped an owned actual root",
           );
-        if (!linkedPaperclipUserId)
+        if (!linkedOutpostUserId)
           throw new Error(
             "Slack source cannot resolve before actual identity confirmation",
           );
@@ -710,7 +710,7 @@ export async function prepareSlackFixture(
           humanComments = comments.filter(
             (row) =>
               row.body === query &&
-              row.authorUserId === linkedPaperclipUserId &&
+              row.authorUserId === linkedOutpostUserId &&
               row.metadata?.sourceChannel === "slack",
           );
         if (!humanComments.length)
@@ -723,7 +723,7 @@ export async function prepareSlackFixture(
           conversationId: conversation.id,
           issueId: conversation.issueId,
           humanCommentId: humanComments.at(-1)!.id,
-          linkedPaperclipUserId: linkedPaperclipUserId!,
+          linkedOutpostUserId: linkedOutpostUserId!,
           providerCalls,
           provider: {
             workspaceId: p.workspaceId!,

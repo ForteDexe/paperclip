@@ -57,7 +57,7 @@ describe("createEvaluateScheduledRetryGate", () => {
     const before = Date.now();
     const result = await createEvaluateScheduledRetryGate({ reader })({
       runId: "run-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       retryReasonOverride: "max_turns_continuation",
     });
 
@@ -66,7 +66,7 @@ describe("createEvaluateScheduledRetryGate", () => {
     const call = reader.evaluateCalls[0] as { now: Date };
     expect(call).toMatchObject({
       runId: "run-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       retryReasonOverride: "max_turns_continuation",
     });
     expect(call.now.getTime()).toBeGreaterThanOrEqual(before);
@@ -79,12 +79,12 @@ describe("createPromoteScheduledRetry", () => {
     const now = new Date("2026-01-01T00:00:00.000Z");
     const result = await createPromoteScheduledRetry({ writer })({
       runId: "run-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       now,
     });
 
     expect(result).toEqual({ outcome: "promoted", postCommitEffects: [] });
-    expect(writer.promoteCalls).toEqual([{ runId: "run-1", companyId: "company-1", now }]);
+    expect(writer.promoteCalls).toEqual([{ runId: "run-1", spaceId: "space-1", now }]);
   });
 
   it("passes a gate-suppressed outcome through without a persistence row", async () => {
@@ -97,7 +97,7 @@ describe("createPromoteScheduledRetry", () => {
     });
     const result = await createPromoteScheduledRetry({ writer })({
       runId: "run-1",
-      companyId: "company-1",
+      spaceId: "space-1",
     });
     expect(result).toEqual({
       outcome: "gate_suppressed",
@@ -111,7 +111,7 @@ describe("createPromoteDueScheduledRetries", () => {
   it("keeps due order and caps a sweep at 50 runs", async () => {
     const dueRuns = Array.from({ length: 75 }, (_, i) => ({
       runId: `run-${i}`,
-      companyId: "company-1",
+      spaceId: "space-1",
     }));
     const reader = fakeReader(dueRuns);
     const writer = fakeWriter();
@@ -139,7 +139,7 @@ describe("createCancelStaleQueuedRun", () => {
     const now = new Date("2026-01-01T00:00:00.000Z");
     const result = await createCancelStaleQueuedRun({ writer })({
       runId: "run-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       expectedStatus: "queued",
       now,
     });
@@ -147,7 +147,7 @@ describe("createCancelStaleQueuedRun", () => {
     expect(result.outcome).toBe("cancelled");
     expect(cancelStaleQueuedRun).toHaveBeenCalledWith({
       runId: "run-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       expectedStatus: "queued",
       now,
     });
@@ -160,7 +160,7 @@ describe("createDispatchResolvedInteractionIfCurrent", () => {
     const dispatch = vi.fn(async () => "started");
     const result = await createDispatchResolvedInteractionIfCurrent({ writer })({
       runId: "run-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       expectedStatus: "running",
       reservationId: "reservation-1",
       enforceContinuationOwnership: false,

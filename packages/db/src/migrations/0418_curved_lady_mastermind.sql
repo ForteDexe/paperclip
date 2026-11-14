@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "sandbox_creation_operations" (
 	"id" uuid PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"environment_id" uuid,
 	"original_environment_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
@@ -30,4 +30,4 @@ DO $$ BEGIN
 END $$;
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "sandbox_creation_operations_pending_deadline_idx" ON "sandbox_creation_operations" USING btree ("next_attempt_at") WHERE "sandbox_creation_operations"."state" = 'pending';--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "sandbox_creation_operations_owner_idx" ON "sandbox_creation_operations" USING btree ("company_id","original_environment_id","run_id","request_key");
+CREATE UNIQUE INDEX IF NOT EXISTS "sandbox_creation_operations_owner_idx" ON "sandbox_creation_operations" USING btree ("space_id","original_environment_id","run_id","request_key");

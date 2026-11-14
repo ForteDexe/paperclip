@@ -22,7 +22,7 @@ import {
 
 const tenantId = "11111111-1111-4111-8111-111111111111";
 const appId = "22222222-2222-4222-8222-222222222222";
-const companyId = "33333333-3333-4333-8333-333333333333";
+const spaceId = "33333333-3333-4333-8333-333333333333";
 const endpointId = "44444444-4444-4444-8444-444444444444";
 const conversationId = "19:question-channel@thread.tacv2;messageid=1729";
 const serviceUrl = "https://smba.trafficmanager.net/amer/";
@@ -50,7 +50,7 @@ type TaskResponse = {
 function memoryPersistence(): ChatSdkStatePersistence {
   const rows = new Map<string, ChatSdkStateRecord>();
   const keyFor = (scope: ChatSdkStateScope, key: string) =>
-    JSON.stringify([scope.companyId, scope.endpointId, key]);
+    JSON.stringify([scope.spaceId, scope.endpointId, key]);
   return {
     async read(scope, key) {
       return rows.get(keyFor(scope, key)) ?? null;
@@ -78,7 +78,7 @@ function questionForm() {
   const now = new Date().toISOString();
   const interaction: AskUserQuestionsInteraction = {
     id: "55555555-5555-4555-8555-555555555555",
-    companyId,
+    spaceId,
     issueId: "66666666-6666-4666-8666-666666666666",
     kind: "ask_user_questions",
     status: "pending",
@@ -116,7 +116,7 @@ function questionForm() {
           allowOther: true,
           options: [
             {
-              id: "__paperclip_text__",
+              id: "__outpost_text__",
               label: "Type an answer",
               freeText: true,
             },
@@ -152,7 +152,7 @@ function questionForm() {
   const draft = createChatQuestionFormDraft(interaction)!;
   const payload = parseChatQuestionFormSubmitTokenPayload(
     chatQuestionFormActionRecords(draft, {
-      companyId,
+      spaceId,
       endpointId,
       conversationId: "77777777-7777-4777-8777-777777777777",
       publicationId: "88888888-8888-4888-8888-888888888888",
@@ -200,7 +200,7 @@ function invoke(
 }
 
 // This crosses the real pinned HTTP bridge, Teams event dispatch, adapter and
-// Chat SDK into Paperclip's callbacks. Only the instance JWT check is replaced;
+// Chat SDK into Outpost's callbacks. Only the instance JWT check is replaced;
 // this is not Microsoft tenant authentication, DB authorization or live proof.
 describe("Teams native task module adapter-to-runtime boundary", () => {
   const runtimes: ChatSdkEndpointRuntime[] = [];
@@ -229,7 +229,7 @@ describe("Teams native task module adapter-to-runtime boundary", () => {
   ) {
     const onMessage = vi.fn();
     const runtime = createChatSdkEndpointRuntime({
-      companyId,
+      spaceId,
       endpointId,
       callbacks: { onAction, onModalSubmit, onMessage },
       logger: "silent",
@@ -303,7 +303,7 @@ describe("Teams native task module adapter-to-runtime boundary", () => {
     return { runtime, check, dispatch, onMessage };
   }
 
-  it("round-trips the Paperclip form through task/fetch and task/submit with exact opaque fields and source", async () => {
+  it("round-trips the Outpost form through task/fetch and task/submit with exact opaque fields and source", async () => {
     const form = questionForm();
     const onAction = vi.fn<ActionCallback>(async ({ event }) => {
       await event.openModal(form.modal);

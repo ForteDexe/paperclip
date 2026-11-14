@@ -7,7 +7,7 @@ The `process` adapter executes arbitrary shell commands. Use it for simple scrip
 
 ## When to Use
 
-- Running a Python script that calls the Paperclip API
+- Running a Python script that calls the Outpost API
 - Executing a custom agent loop
 - Any runtime that can be invoked as a shell command
 
@@ -27,7 +27,7 @@ The `process` adapter executes arbitrary shell commands. Use it for simple scrip
 
 ## How It Works
 
-1. Paperclip spawns the configured command as a child process
+1. Outpost spawns the configured command as a child process
 2. Standard Outpost environment variables are injected (`OUTPOST_AGENT_ID`, `OUTPOST_API_KEY`, etc.)
 3. The process runs to completion
 4. Exit code determines success/failure
@@ -47,4 +47,4 @@ An agent that runs a Python script:
 }
 ```
 
-The script can use the injected environment variables to authenticate with the Paperclip API and perform work.
+The script can use the injected environment variables to authenticate with the Outpost API and perform work.

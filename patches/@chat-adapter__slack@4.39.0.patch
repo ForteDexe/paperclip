@@ -35,7 +35,7 @@ diff --git a/dist/index.js b/dist/index.js
 +    await this.chat.processSlashCommand(event, options);
 +    return Response.json({
 +      response_type: "ephemeral",
-+      text: "Paperclip received this command."
++      text: "Outpost received this command."
 +    });
    }
    /**
@@ -84,7 +84,7 @@ diff --git a/dist/index.js b/dist/index.js
 +          files,
 +          channel,
 +          threadTs,
-+          this.paperclipFileUploadReceiptContext?.getStore?.()
++          this.outpostFileUploadReceiptContext?.getStore?.()
 +        );
          const hasText = typeof message === "string" || typeof message === "object" && message !== null && ("raw" in message && message.raw || "markdown" in message && message.markdown || "ast" in message && message.ast);
          const card2 = extractCard(message);
@@ -207,7 +207,7 @@ diff --git a/dist/index.js b/dist/index.js
 +    );
 +    if (!messageId) {
 +      try {
-+        messageId = await this.paperclipResolveFileUploadMessageId(fileIds, channel, threadTs);
++        messageId = await this.outpostResolveFileUploadMessageId(fileIds, channel, threadTs);
 +      } catch {
 +        throw new Error(
 +          "Slack file upload completed, but its message identity could not be confirmed"
@@ -221,7 +221,7 @@ diff --git a/dist/index.js b/dist/index.js
 +    }
 +    return { fileIds, messageId };
 +  }
-+  async paperclipResolveFileUploadReceipt(fileIds, threadId) {
++  async outpostResolveFileUploadReceipt(fileIds, threadId) {
 +    if (!Array.isArray(fileIds) || fileIds.length === 0 || fileIds.length > 20 || new Set(fileIds).size !== fileIds.length || fileIds.some((fileId) => typeof fileId !== "string" || !/^F[A-Z0-9]{1,254}$/.test(fileId))) {
 +      const error = new Error("Slack file upload receipt is invalid");
 +      error.name = "ValidationError";
@@ -229,12 +229,12 @@ diff --git a/dist/index.js b/dist/index.js
 +    }
 +    const { channel, threadTs: rawThreadTs } = this.decodeThreadId(threadId);
 +    try {
-+      return await this.paperclipResolveFileUploadMessageId(fileIds, channel, rawThreadTs || void 0);
++      return await this.outpostResolveFileUploadMessageId(fileIds, channel, rawThreadTs || void 0);
 +    } catch (error) {
 +      this.handleSlackError(error);
 +    }
 +  }
-+  async paperclipResolveFileUploadMessageId(fileIds, channel, threadTs) {
++  async outpostResolveFileUploadMessageId(fileIds, channel, threadTs) {
 +    const deadline = Date.now() + 5e3;
 +    const retryDelays = [100, 250, 500, 1e3];
 +    let lookupAttempt = 0;

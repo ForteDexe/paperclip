@@ -227,7 +227,7 @@ fn lost_acknowledgement_blocks_calls_until_socket_replacement() {
             let e = e.unwrap();
             e.file_name()
                 .to_string_lossy()
-                .starts_with(".paperclip-mcp-")
+                .starts_with(".outpost-mcp-")
                 && fs::read(e.path()).unwrap() == b"pending"
         }),
         "unfinished marker missing"

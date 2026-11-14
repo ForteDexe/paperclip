@@ -10,7 +10,7 @@ function record(value: unknown): Record<string, unknown> {
 // windowed, so an interaction/status key cannot prove this continuation. Match
 // the server-owned wake to saved decisions before following its source run.
 export async function resolveItemVerdictContinuationWake(db: Db, input: {
-  companyId: string; issueId: string; interactionId: string; sourceRunId: string;
+  spaceId: string; issueId: string; interactionId: string; sourceRunId: string;
   runId: string; agentId: string; result: unknown;
 }): Promise<{ id: string } | null> {
   const result = record(input.result);
@@ -20,7 +20,7 @@ export async function resolveItemVerdictContinuationWake(db: Db, input: {
   const wakes = await db.select({ id: agentWakeupRequests.id,
     key: agentWakeupRequests.idempotencyKey, payload: agentWakeupRequests.payload,
   }).from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.companyId, input.companyId),
+    eq(agentWakeupRequests.spaceId, input.spaceId),
     eq(agentWakeupRequests.agentId, input.agentId),
     eq(agentWakeupRequests.runId, input.runId),
     eq(agentWakeupRequests.source, "automation"),
@@ -39,16 +39,16 @@ export async function resolveItemVerdictContinuationWake(db: Db, input: {
 }
 
 export async function resolveConnectionIntentContinuationSource(db: Db, input: {
-  companyId: string; issueId: string; interactionId: string; runId: string; agentId: string;
+  spaceId: string; issueId: string; interactionId: string; runId: string; agentId: string;
 }): Promise<string | null> {
   const [receipt] = await db.select({ sourceRunId: issueThreadInteractions.sourceRunId })
     .from(issueThreadInteractions)
     .innerJoin(connectionIntentDeliveries, and(
-      eq(connectionIntentDeliveries.companyId, issueThreadInteractions.companyId),
+      eq(connectionIntentDeliveries.spaceId, issueThreadInteractions.spaceId),
       eq(connectionIntentDeliveries.interactionId, issueThreadInteractions.id),
     ))
     .innerJoin(agentWakeupRequests, and(
-      eq(agentWakeupRequests.companyId, input.companyId),
+      eq(agentWakeupRequests.spaceId, input.spaceId),
       eq(agentWakeupRequests.agentId, input.agentId),
       eq(agentWakeupRequests.runId, input.runId),
       eq(agentWakeupRequests.source, "automation"),
@@ -61,7 +61,7 @@ export async function resolveConnectionIntentContinuationSource(db: Db, input: {
       sql`${agentWakeupRequests.payload}->>'interactionStatus' = ${issueThreadInteractions.status}`,
     ))
     .where(and(
-      eq(issueThreadInteractions.companyId, input.companyId),
+      eq(issueThreadInteractions.spaceId, input.spaceId),
       eq(issueThreadInteractions.issueId, input.issueId),
       eq(issueThreadInteractions.id, input.interactionId),
       eq(issueThreadInteractions.kind, "connection_intent"),

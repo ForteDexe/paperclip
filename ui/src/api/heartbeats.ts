@@ -109,7 +109,7 @@ export type RuntimeRequestResolution =
   | { action: "accept" | "accept_for_session" | "decline" | "cancel" }
   | { action: "submit"; answers: Record<string, { answers: string[] }> }
   | { action: "submit"; content: Record<string, unknown> }
-  | { action: "submit"; response: import("@outpost/adapter-utils").PaperclipQuestionResponse };
+  | { action: "submit"; response: import("@outpost/adapter-utils").OutpostQuestionResponse };
 
 export interface HeartbeatRunListOptions {
   latestFailuresOnly?: boolean;
@@ -124,7 +124,7 @@ export interface ProviderTraceInspection {
 export const heartbeatsApi = {
   executionForIssue: (issueId: string) => api.get<{ runId: string; agentId: string; recoveryAction: IssueRecoveryAction | null; execution: HeartbeatRun["execution"] } | null>(`/issues/${issueId}/execution`),
   list: (
-    companyId: string,
+    spaceId: string,
     agentId?: string,
     limit = HEARTBEAT_RUN_LIST_DEFAULT_LIMIT,
     options: HeartbeatRunListOptions = {},
@@ -136,7 +136,7 @@ export const heartbeatsApi = {
     if (options.latestFailuresOnly) searchParams.set("latestFailuresOnly", "true");
     const qs = searchParams.toString();
     return api.get<HeartbeatRun[]>(
-      `/companies/${companyId}/heartbeat-runs${qs ? `?${qs}` : ""}`,
+      `/spaces/${spaceId}/heartbeat-runs${qs ? `?${qs}` : ""}`,
     );
   },
   get: (runId: string) => api.get<HeartbeatRun>(`/heartbeat-runs/${runId}`),
@@ -169,10 +169,10 @@ export const heartbeatsApi = {
     ),
   providerTrace: (runId: string) =>
     api.get<ProviderTraceInspection>(`/heartbeat-runs/${runId}/provider-trace`),
-  providerTraceMetadata: (companyId: string, runIds: string[]) => {
+  providerTraceMetadata: (spaceId: string, runIds: string[]) => {
     const params = new URLSearchParams({ runIds: runIds.slice(0, 100).join(",") });
     return api.get<ProviderTraceMetadata[]>(
-      `/companies/${companyId}/provider-traces?${params.toString()}`,
+      `/spaces/${spaceId}/provider-traces?${params.toString()}`,
     );
   },
   revealProviderTraceFrame: (runId: string, frameId: number) =>
@@ -222,7 +222,7 @@ export const heartbeatsApi = {
       const value = run?.resultJson?.nativeCancellation;
       const intent = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
       const pending = run?.id === runId && intent?.schema === "outpost.native-cancellation.v1"
-        && intent.runId === runId && intent.companyId === run.companyId
+        && intent.runId === runId && intent.spaceId === run.spaceId
         && intent.intentId === `native-cancellation:${options.cancellationRequestId}` && intent.scope === "run"
         && intent.dispatchState === "pending" && intent.dispatched === false
         && typeof intent.intentAuditId === "string" && intent.intentAuditId.length > 0;
@@ -256,8 +256,8 @@ export const heartbeatsApi = {
     api.get<LiveRunForIssue[]>(`/issues/${issueId}/live-runs`),
   activeRunForIssue: (issueId: string) =>
     api.get<ActiveRunForIssue | null>(`/issues/${issueId}/active-run`),
-  liveRunsForCompany: (
-    companyId: string,
+  liveRunsForSpace: (
+    spaceId: string,
     options?: number | { minCount?: number; limit?: number; distinctTasks?: boolean },
   ) => {
     const searchParams = new URLSearchParams();
@@ -271,7 +271,7 @@ export const heartbeatsApi = {
     }
     const qs = searchParams.toString();
     return api.get<LiveRunForIssue[]>(
-      `/companies/${companyId}/live-runs${qs ? `?${qs}` : ""}`,
+      `/spaces/${spaceId}/live-runs${qs ? `?${qs}` : ""}`,
     );
   },
 };

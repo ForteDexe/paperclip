@@ -16,8 +16,8 @@ function fixture(tools: ToolGatewayDescriptor[]) {
 }
 
 describe("assigned MCP runner tools", () => {
-  const searchName = "paperclip_search_assigned_tools";
-  const callName = "paperclip_call_assigned_tool";
+  const searchName = "outpost_search_assigned_tools";
+  const callName = "outpost_call_assigned_tool";
 
   it.each(["", " \t\n"])("discovers and calls assigned tools through MCP with a blank schema reference %j", async schemaTool => {
     const github = descriptor("github_bot:read_pull_request");

@@ -29,9 +29,9 @@ import { scanGitHubSkills, scanGitHubSkillsWithPackageFallback, type GitHubRead 
 const exec = promisify(execFile);
 let directory: string, commit: string, laterCommit: string;
 const git = (...args: string[]) => exec('git', ['-C', directory, '-c', 'user.name=Test', '-c', 'user.email=test@example.test', ...args]);
-const request = (values: Partial<Parameters<typeof openGitSkillSnapshot>[0]> = {}) => ({ repositoryUrl: 'https://github.com/acme/skills', ref: 'feature/skills', token: 'test-token-never-on-disk', cacheScope: 'company:alice', ...values });
+const request = (values: Partial<Parameters<typeof openGitSkillSnapshot>[0]> = {}) => ({ repositoryUrl: 'https://github.com/acme/skills', ref: 'feature/skills', token: 'test-token-never-on-disk', cacheScope: 'space:alice', ...values });
 beforeAll(async () => {
-  directory = await mkdtemp(path.join(os.tmpdir(), 'paperclip-snapshot-fixture-'));
+  directory = await mkdtemp(path.join(os.tmpdir(), 'outpost-snapshot-fixture-'));
   interception.remote = directory;
   await git('init', '-b', 'feature/skills');
   await mkdir(path.join(directory, '.agents/deep/scripts'), { recursive: true });
@@ -52,7 +52,7 @@ afterAll(async () => { await rm(directory, { recursive: true, force: true }); })
 
 describe('Git skill snapshots', () => {
   it('uses real Git batches for transitive dependencies in an oversized repository', async () => {
-    const remote = await mkdtemp(path.join(os.tmpdir(), 'paperclip-dependency-blobs-'));
+    const remote = await mkdtemp(path.join(os.tmpdir(), 'outpost-dependency-blobs-'));
     interception.remote = remote;
     try {
       await exec('git', ['-C', remote, 'init', '-b', 'main']);
@@ -91,7 +91,7 @@ describe('Git skill snapshots', () => {
   }, 30_000);
 
   it('reads many unrelated support files with one Git batch per scan, including cache hits', async () => {
-    const remote = await mkdtemp(path.join(os.tmpdir(), 'paperclip-many-blobs-'));
+    const remote = await mkdtemp(path.join(os.tmpdir(), 'outpost-many-blobs-'));
     interception.remote = remote;
     try {
       await exec('git', ['-C', remote, 'init', '-b', 'main']);
@@ -175,7 +175,7 @@ describe('Git skill snapshots', () => {
     expect(pinned.commitSha).toBe(first.commitSha); await pinned.release();
     expect(interception.commands.filter(command => command.args.includes('fetch'))).toHaveLength(1);
     expect(beforeDownload).toHaveBeenCalledOnce();
-    const other = await openGitSkillSnapshot(request({ commitSha: first.commitSha, cacheScope: 'company:bob' })); await other.release();
+    const other = await openGitSkillSnapshot(request({ commitSha: first.commitSha, cacheScope: 'space:bob' })); await other.release();
     expect(interception.commands.filter(command => command.args.includes('fetch'))).toHaveLength(2);
   });
   it('fetches an older pinned commit rather than silently using the current branch', async () => {

@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "connection_token_issuances" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "application_id" uuid,
   "connection_id" uuid NOT NULL,
   "agent_id" uuid NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS "connection_token_issuances" (
   CONSTRAINT "connection_token_issuances_token_hash_format" CHECK ("connection_token_issuances"."token_hash" IS NULL OR "connection_token_issuances"."token_hash" ~ '^[a-f0-9]{64}$')
 );--> statement-breakpoint
 DO $$ BEGIN
-  ALTER TABLE "connection_token_issuances" ADD CONSTRAINT "connection_token_issuances_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "connection_token_issuances" ADD CONSTRAINT "connection_token_issuances_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
@@ -58,7 +58,7 @@ DO $$ BEGIN
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "connection_token_issuances_company_created_idx" ON "connection_token_issuances" USING btree ("company_id", "created_at");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "connection_token_issuances_connection_created_idx" ON "connection_token_issuances" USING btree ("company_id", "connection_id", "created_at");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "connection_token_issuances_agent_connection_idx" ON "connection_token_issuances" USING btree ("company_id", "agent_id", "connection_id", "created_at");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "connection_token_issuances_run_idx" ON "connection_token_issuances" USING btree ("company_id", "run_id");
+CREATE INDEX IF NOT EXISTS "connection_token_issuances_space_created_idx" ON "connection_token_issuances" USING btree ("space_id", "created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "connection_token_issuances_connection_created_idx" ON "connection_token_issuances" USING btree ("space_id", "connection_id", "created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "connection_token_issuances_agent_connection_idx" ON "connection_token_issuances" USING btree ("space_id", "agent_id", "connection_id", "created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "connection_token_issuances_run_idx" ON "connection_token_issuances" USING btree ("space_id", "run_id");

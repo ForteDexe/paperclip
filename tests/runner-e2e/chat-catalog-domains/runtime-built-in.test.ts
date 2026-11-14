@@ -6,18 +6,18 @@ const TUNED = ORIGINAL.replace("a paragraph or two of status prose", "one paragr
 const hash = (content: string) => createHash("sha256").update(content).digest("hex");
 function valid() {
   const builtIn = { definition: { key: "summarizer" }, agentId: "summarizer" };
-  const task = { id: "history", title: "Summary history", companyId: "company", assigneeAgentId: "summarizer", status: "backlog" };
+  const task = { id: "history", title: "Summary history", spaceId: "space", assigneeAgentId: "summarizer", status: "backlog" };
   // Reads report a content token stamped with the reader, and history is empty (design change 14420).
-  const token = { id: "token", companyId: "company", agentId: "summarizer", actorAgentId: null, sourceRunId: null, source: "api" };
-  return { scenarioId: "agents.configure-required-agent", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  const token = { id: "token", spaceId: "space", agentId: "summarizer", actorAgentId: null, sourceRunId: null, source: "api" };
+  return { scenarioId: "agents.configure-required-agent", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { builtInBefore: builtIn, builtInAfter: { ...builtIn }, originalInstruction: { path: "AGENTS.md", content: ORIGINAL, revision: token }, agentCountBefore: 2, historicalTask: task },
     instruction: { path: "AGENTS.md", content: TUNED, revision: { ...token, id: "token-2" } },
     instructionHistory: { revisions: [] as unknown[] },
-    agents: [{ id: "ceo", name: "CEO", companyId: "company" }, { id: "summarizer", name: "Summarizer", companyId: "company" }], tasks: [task],
+    agents: [{ id: "ceo", name: "CEO", spaceId: "space" }, { id: "summarizer", name: "Summarizer", spaceId: "space" }], tasks: [task],
     links: ["/RUN/agents/summarizer"], reply: "Updated the [Summarizer](/RUN/agents/summarizer) instructions with a hard length budget.",
-    activity: [{ id: "write", companyId: "company", action: "agent.files_updated", entityType: "agent", entityId: "summarizer", actorType: "agent", actorId: "ceo",
+    activity: [{ id: "write", spaceId: "space", action: "agent.files_updated", entityType: "agent", entityId: "summarizer", actorType: "agent", actorId: "ceo",
       agentId: "ceo", runId: "run", details: { path: "AGENTS.md", source: "api", created: false, contentHash: hash(TUNED) } }],
-    runs: [{ id: "run", companyId: "company", agentId: "ceo" }], humanQueries: [] };
+    runs: [{ id: "run", spaceId: "space", agentId: "ceo" }], humanQueries: [] };
 }
 const grade = (o: unknown) => gradeBuiltInConfiguration(o).passed;
 it("accepts the run's saved, attributed tuning of the existing summarizer", () => expect(grade(valid())).toBe(true));
@@ -32,13 +32,13 @@ it("rejects replacing the protected identity with an ordinary hire", () => {
   const o = valid(); o.state.builtInAfter.agentId = "replacement"; expect(grade(o)).toBe(false);
 });
 it("rejects an extra ordinary hire", () => {
-  const o = valid(); o.agents.push({ id: "hire", name: "Short Summarizer", companyId: "company" }); expect(grade(o)).toBe(false);
+  const o = valid(); o.agents.push({ id: "hire", name: "Short Summarizer", spaceId: "space" }); expect(grade(o)).toBe(false);
 });
 it("rejects a reply that claims a change the product never saved", () => {
   const o = valid(); o.instruction.content = ORIGINAL; expect(grade(o)).toBe(false);
 });
 it("rejects instructions changed by someone other than the chat run", () => {
-  const o = valid(); Object.assign(o.activity[0], { actorType: "user", actorId: "local-board", agentId: null, runId: null }); expect(grade(o)).toBe(false);
+  const o = valid(); Object.assign(o.activity[0], { actorType: "user", actorId: "local-operator", agentId: null, runId: null }); expect(grade(o)).toBe(false);
 });
 it("rejects an audit row for different bytes than the product now serves", () => {
   const o = valid(); o.activity[0].details.contentHash = hash(`${TUNED}\nlater edit`); expect(grade(o)).toBe(false);

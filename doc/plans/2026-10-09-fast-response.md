@@ -2,11 +2,11 @@
 
 ## Finish line
 
-Optional company-wide acknowledgements use existing API connections, preserve the normal agent turn, retain server-controlled provenance, and account for provider work exactly once. OpenRouter leads live verification; other providers are verified by HTTP contracts. Existing decision behavior remains unchanged.
+Optional space-wide acknowledgements use existing API connections, preserve the normal agent turn, retain server-controlled provenance, and account for provider work exactly once. OpenRouter leads live verification; other providers are verified by HTTP contracts. Existing decision behavior remains unchanged.
 
 ## Implementation
 
-- Company settings, shared API connection selection, model catalog/manual IDs, fixed sample test, availability and Costs history.
+- Space settings, shared API connection selection, model catalog/manual IDs, fixed sample test, availability and Costs history.
 - SDK-backed direct generation across native providers and configured Messages, Responses, Chat Completions, Bedrock and local routes.
 - Durable deduplicated accepted-turn requests with a three-second admission deadline, bounded workers, authorization and budget checks, one inference attempt, and restart quarantine.
 - Platform receipts in task and agent chat, board chat and shared external intake/publication, excluded from completion, unanswered-turn recovery and interaction resolution.
@@ -14,7 +14,7 @@ Optional company-wide acknowledgements use existing API connections, preserve th
 
 ## Evidence collected
 
-Isolated checkout `codex/fast-response`, app at `http://127.0.0.1:3109`, cloned database under `/private/tmp/paperclip-fast-response-home`.
+Isolated checkout `codex/fast-response`, app at `http://127.0.0.1:3109`, cloned database under `/private/tmp/outpost-fast-response-home`.
 
 - Live OpenRouter `openai/gpt-oss-120b` settings test: UI 0.95 seconds, 212 input / 31 output tokens, reported cost 0.00504 cents.
 - Live task `DOT-302`: initial acknowledgement admitted in 1.013 seconds, 261 input / 38 output tokens, reported cost 0.006195 cents. Subsequent human turns also received receipts.

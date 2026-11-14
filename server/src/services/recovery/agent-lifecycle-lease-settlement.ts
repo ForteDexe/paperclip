@@ -27,7 +27,7 @@ export async function settleAgentLifecycleLease(db: Db, record: InProgressRecord
     if (!released.released) return { settled: false, reason: released.reason };
     const { agent } = released;
     const activity = await persistActivity(tx, {
-      companyId: agent.companyId, actorType: "system", actorId: "ownership-reconciler",
+      spaceId: agent.spaceId, actorType: "system", actorId: "ownership-reconciler",
       action: "agent.lifecycle_lease_reconciled", entityType: "agent", entityId: agent.id, agentId: agent.id,
       details: {
         schema: "outpost.agent-lifecycle-lease-settlement.v1", phase: agent.lifecycleState,

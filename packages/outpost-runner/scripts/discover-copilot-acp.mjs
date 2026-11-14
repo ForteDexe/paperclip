@@ -16,7 +16,7 @@ export async function withDiscoveryWorkspace(install, callback, filesystem = { m
   const lease = await install.openCommand();
   let root;
   try {
-    root = await filesystem.mkdtemp("/tmp/paperclip-copilot-auth-discovery-");
+    root = await filesystem.mkdtemp("/tmp/outpost-copilot-auth-discovery-");
     return await callback(lease, root);
   } finally {
     try { await lease.close(); }
@@ -96,7 +96,7 @@ export async function discoverCopilot(packInput, output, model, token) {
       child = lease.spawn([], { cwd: root, env, stdio: "pipe" });
       exitPromise = new Promise(resolve => child.once("close", (code, signal) => resolve({ code, signal })));
       rpc = createDiscoveryRpc(child);
-      const initialized = await rpc.request("initialize", { protocolVersion: 1, clientInfo: { name: "paperclip-authenticated-model-discovery", version: "1" }, clientCapabilities: COPILOT_ACP_CLIENT_CAPABILITIES });
+      const initialized = await rpc.request("initialize", { protocolVersion: 1, clientInfo: { name: "outpost-authenticated-model-discovery", version: "1" }, clientCapabilities: COPILOT_ACP_CLIENT_CAPABILITIES });
       const opened = await rpc.request("session/new", { cwd: root, mcpServers: [] });
       const safe = { schema: "outpost.copilot-authenticated-discovery/v1", observedAt: new Date().toISOString(), harnessVersion: initialized.agentInfo?.version,
         sourceRevision: manifest.payload.runnerSourceRevision, providerPackDigest: manifest.digest, profileDigest: install.commandDigest,

@@ -45,7 +45,7 @@ async function act(callback: () => void | Promise<void>) {
 function makeAttachment(overrides: Partial<IssueAttachment> = {}): IssueAttachment {
   return {
     id: "attachment-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     issueCommentId: null,
     assetId: "asset-1",
@@ -147,7 +147,7 @@ describe("IssueAttachmentsSection", () => {
       expect(container.querySelector('[data-testid="fold-curtain"]')).toBeTruthy();
       const markdownBody = container.querySelector('[data-testid="markdown-body"]');
       expect(markdownBody?.textContent).toContain("Imported plan");
-      expect(markdownBody?.className).toContain("paperclip-edit-in-place-content");
+      expect(markdownBody?.className).toContain("outpost-edit-in-place-content");
     });
   });
 

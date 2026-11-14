@@ -43,12 +43,12 @@ export function observabilitySecretValues(launch: ProviderObservabilityLaunch | 
 }
 
 export function buildProviderObservabilityLaunch(input: {
-  kind: "codex" | "claude" | "opencode"; companyId: string; agentId: string; revision: string | null;
+  kind: "codex" | "claude" | "opencode"; spaceId: string; agentId: string; revision: string | null;
   compatibilityKey: string; enabled: boolean; capture: AgentObservabilityCapture;
   logsEndpoint?: string; tracesEndpoint?: string; headers?: Readonly<Record<string, string>>;
 }): ProviderObservabilityLaunch {
   const { enabled, capture, kind, compatibilityKey } = input;
-  const attributes = { "outpost.company.id": input.companyId, "outpost.agent.id": input.agentId, "outpost.observability.revision": input.revision ?? "unconfigured" };
+  const attributes = { "outpost.space.id": input.spaceId, "outpost.agent.id": input.agentId, "outpost.observability.revision": input.revision ?? "unconfigured" };
   const environment: Record<string, string> = {
     OTEL_EXPORTER_OTLP_LOGS_TIMEOUT: "3000", OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "3000",
   };

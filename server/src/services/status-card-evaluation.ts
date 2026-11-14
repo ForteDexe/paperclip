@@ -1,7 +1,7 @@
 import { readIdleStatusCardSchedule } from "./status-card-idle-schedule.js";
 import type { DeadlineReconciliationSnapshot } from "./deadline-reconciliation.js";
 import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
-import { companies, statusCards, type Db } from "@outpost/db";
+import { spaces, statusCards, type Db } from "@outpost/db";
 import { logger } from "../middleware/logger.js";
 import { registerDeadlineWork } from "./deadline-work.js";
 import type { createDeliveryWorkCoordinator } from "./delivery-work-coordinator.js";
@@ -42,14 +42,14 @@ export function statusCardEvaluationService(db: Db, heartbeat: IssueAssignmentWa
       if (!enabled || signal.aborted) return;
       const reconstruct = reconstructReactive;
       const evaluateAllChanges = allChanges;
-      const companiesChanged = new Set(changes);
+      const spacesChanged = new Set(changes);
       changes.clear();
       reconstructReactive = false;
       allChanges = false;
       try {
-        const result = await cards.tickDueStatusCards(new Date(), evaluateAllChanges ? "changed" : companiesChanged, reconstruct);
-        retryAt = result.deferredCompanyIds.size ? Date.now() + 30_000 : null;
-        for (const companyId of result.deferredCompanyIds) changes.add(companyId);
+        const result = await cards.tickDueStatusCards(new Date(), evaluateAllChanges ? "changed" : spacesChanged, reconstruct);
+        retryAt = result.deferredSpaceIds.size ? Date.now() + 30_000 : null;
+        for (const spaceId of result.deferredSpaceIds) changes.add(spaceId);
         const assignments = await Promise.allSettled(result.enqueued.map(async ({ cardId, generatingIssue }) => {
           // Once generated, dispatch or cancel even if shutdown begins: leaving
           // an unassigned claimed card is not a completed sweep.
@@ -75,15 +75,15 @@ export function statusCardEvaluationService(db: Db, heartbeat: IssueAssignmentWa
       } catch (error) {
         reconstructReactive ||= reconstruct;
         allChanges ||= evaluateAllChanges;
-        for (const companyId of companiesChanged) changes.add(companyId);
+        for (const spaceId of spacesChanged) changes.add(spaceId);
         throw error;
       }
     },
     async next() {
       if (!enabled) return null;
       const [next] = await db.select({ at: statusCards.nextEvalAt }).from(statusCards)
-        .innerJoin(companies, eq(companies.id, statusCards.companyId))
-        .where(and(eq(companies.status, "active"), isNull(statusCards.archivedAt),
+        .innerJoin(spaces, eq(spaces.id, statusCards.spaceId))
+        .where(and(eq(spaces.status, "active"), isNull(statusCards.archivedAt),
           isNull(statusCards.generatingIssueId), isNotNull(statusCards.nextEvalAt)))
         .orderBy(asc(statusCards.nextEvalAt)).limit(1);
       const deadline = next?.at?.getTime() ?? null;

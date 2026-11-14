@@ -39,7 +39,7 @@ function sandbox(id = "fixture-sandbox", state = "archived") {
 }
 
 const params = {
-  driverKey: "daytona", companyId: "fixture-company", environmentId: "fixture-environment",
+  driverKey: "daytona", spaceId: "fixture-space", environmentId: "fixture-environment",
   providerLeaseId: "fixture-sandbox", config: { apiKey: "private-api-key", timeoutMs: 300000, reuseLease: true },
   leaseMetadata: { workspaceSentinel: { token: "private-token", result: "written" } },
 };
@@ -53,7 +53,7 @@ function workerHarness() {
   lines.on("line", line => {
     const message = JSON.parse(line);
     if (message.method) {
-      if (message.method === "span.record") receipts.push({ invocationId: message.paperclipInvocationId, span: message.params });
+      if (message.method === "span.record") receipts.push({ invocationId: message.outpostInvocationId, span: message.params });
       if (message.id !== undefined) stdin.write(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: null }) + "\n");
     } else {
       const waiter = pending.get(message.id);
@@ -68,7 +68,7 @@ function workerHarness() {
     return new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });
       stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, params: input,
-        ...(invocation ? { paperclipInvocation: invocation } : {}) }) + "\n");
+        ...(invocation ? { outpostInvocation: invocation } : {}) }) + "\n");
     });
   }
   return {
@@ -80,7 +80,7 @@ function workerHarness() {
 }
 
 function invocation(id: string, enabled = true): PluginInvocationContext {
-  return { id, scope: { companyId: "fixture-company" },
+  return { id, scope: { spaceId: "fixture-space" },
     ...(enabled ? { traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01" } : {}) };
 }
 
@@ -113,7 +113,7 @@ describe("Daytona lease worker tracing", () => {
         }
       }
       checkBounds(root);
-      expect(JSON.stringify(root)).not.toMatch(/private-|fixture-sandbox|fixture-company|\/home\//);
+      expect(JSON.stringify(root)).not.toMatch(/private-|fixture-sandbox|fixture-space|\/home\//);
     } finally { worker.close(); }
   });
 

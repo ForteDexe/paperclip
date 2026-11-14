@@ -188,7 +188,7 @@ jobs:
         run: |
           set -euo pipefail
           github_runner='ubuntu-latest'
-          aws_runner='runs-on/fleet=paperclip-public-pr-x64/env=public-ci'
+          aws_runner='runs-on/fleet=outpost-public-pr-x64/env=public-ci'
           bounded=false
           if [ "$EVENT_NAME" = schedule ] || [ "$EVAL_CADENCE" != manual ]; then
             if [ "$REPOSITORY_PRIVATE" != false ]; then
@@ -1204,7 +1204,7 @@ jobs:
 
       - name: Install checksum-verified Grok executable
         if: matrix.environmentId == 'local' && (matrix.profileId == 'runner-acpx-grok' || matrix.profileId == 'runner-acpx-grok-subscription')
-        run: sudo node packages/outpost-runner/scripts/provision-grok.mjs /opt/paperclip/providers/grok/1.0.13/grok
+        run: sudo node packages/outpost-runner/scripts/provision-grok.mjs /opt/outpost/providers/grok/1.0.13/grok
 
       - name: Download immutable campaign outputs
         if: startsWith(matrix.profileId, 'runner-') || matrix.suiteId == 'openrouter-model-breadth'
@@ -1349,8 +1349,8 @@ jobs:
           if (!binary.startsWith(root + "/node_modules/.pnpm/") || !binary.endsWith(suffix) || !/^[/A-Za-z0-9_.@+\-]+$/.test(binary)) {
             throw new Error("Codex executable is outside the resolved dependency tree");
           }
-          const name = `paperclip-e2e-codex-${createHash("sha256").update(binary).digest("hex").slice(0,16)}`;
-          const profilePath = path.join(process.env.RUNNER_TEMP, "paperclip-codex-userns.apparmor");
+          const name = `outpost-e2e-codex-${createHash("sha256").update(binary).digest("hex").slice(0,16)}`;
+          const profilePath = path.join(process.env.RUNNER_TEMP, "outpost-codex-userns.apparmor");
           writeFileSync(profilePath, `abi <abi/4.0>,\ninclude <tunables/global>\nprofile ${name} "${binary}" flags=(unconfined) {\n  userns,\n}\n`, {mode:0o600, flag:"wx"});
           execFileSync("sudo", ["-n", "apparmor_parser", "-r", profilePath], {timeout:15000, stdio:"pipe"});
           NODE

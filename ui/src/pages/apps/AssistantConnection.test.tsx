@@ -9,11 +9,11 @@ const mocks = vi.hoisted(() => ({ setup: vi.fn(), connections: vi.fn(), revoke: 
 vi.mock("@/hooks/usePrefersReducedMotion", () => ({ usePrefersReducedMotion: () => true }));
 vi.mock("@/lib/clipboard", () => ({ copyTextToClipboard: mocks.copy }));
 vi.mock("@/api/publicMcp", () => ({ publicMcpApi: mocks }));
-vi.mock("@/context/CompanyContext", () => ({ useCompany: () => ({ selectedCompanyId: "butter", selectedCompany: { id: "butter", name: "Butter", logoUrl: null } }) }));
+vi.mock("@/context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: "butter", selectedSpace: { id: "butter", name: "Butter", logoUrl: null } }) }));
 vi.mock("@/context/BreadcrumbContext", () => ({ useBreadcrumbs: () => ({ setBreadcrumbs: mocks.breadcrumbs }) }));
 vi.mock("@/lib/router", () => ({ Link: ({ children, to, ...props }: { children: React.ReactNode; to: string }) => <a href={to} {...props}>{children}</a> }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-const grant = { id: "grant", companyId: "butter", companyName: "Butter", clientName: "OpenCode", user: { name: "Dotta", image: "/avatar.jpg" }, scopes: ["paperclip:read", "paperclip:write"], createdAt: "2026-10-05T00:00:00Z", revokedAt: null };
+const grant = { id: "grant", spaceId: "butter", spaceName: "Butter", clientName: "OpenCode", user: { name: "Dotta", image: "/avatar.jpg" }, scopes: ["outpost:read", "outpost:write"], createdAt: "2026-10-05T00:00:00Z", revokedAt: null };
 let root: Root, container: HTMLDivElement, client: QueryClient;
 async function flush() { await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); }); }
 async function render(element: React.ReactNode = <AssistantConnection initialAssistant="opencode" />) {
@@ -21,7 +21,7 @@ async function render(element: React.ReactNode = <AssistantConnection initialAss
   await flush();
 }
 beforeEach(() => {
-  mocks.setup.mockResolvedValue({ enabled: true, serverUrl: "https://canonical.example/mcp/paperclip" });
+  mocks.setup.mockResolvedValue({ enabled: true, serverUrl: "https://canonical.example/mcp/outpost" });
   mocks.connections.mockResolvedValue([]);
   mocks.revoke.mockResolvedValue(undefined);
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -33,7 +33,7 @@ describe("assistant setup from Connections", () => {
     await render();
     expect(container.querySelector("details")?.open).toBe(false);
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Copy invitation"]')!.click());
-    expect(mocks.copy).toHaveBeenLastCalledWith(expect.stringContaining("https://canonical.example/mcp/setup?company=butter"));
+    expect(mocks.copy).toHaveBeenLastCalledWith(expect.stringContaining("https://canonical.example/mcp/setup?space=butter"));
     expect(mocks.copy).toHaveBeenLastCalledWith(expect.stringContaining("after I approve"));
     expect(document.body.textContent).toContain("Copied to clipboard");
     expect(container.textContent).not.toContain("Copy link");
@@ -55,21 +55,21 @@ describe("assistant setup from Connections", () => {
   it("uses the canonical URL and explains how OpenCode opens consent without granting access", async () => {
     await render();
     const config = Array.from(container.querySelectorAll("pre")).map(p => p.textContent!).find(p => p.startsWith("{"))!;
-    expect(JSON.parse(config).mcp.paperclip).toEqual({ type: "remote", url: "https://canonical.example/mcp/paperclip", enabled: true, oauth: { scope: "paperclip:read paperclip:write paperclip:configure offline_access" } });
-    expect(container.textContent).toContain("opencode mcp auth paperclip");
+    expect(JSON.parse(config).mcp.outpost).toEqual({ type: "remote", url: "https://canonical.example/mcp/outpost", enabled: true, oauth: { scope: "outpost:read outpost:write outpost:configure offline_access" } });
+    expect(container.textContent).toContain("opencode mcp auth outpost");
     expect(container.textContent).toContain("No assistants connected to Butter yet");
     expect(container.querySelector('[role="combobox"]')).toBeNull();
     expect(mocks.revoke).not.toHaveBeenCalled();
   });
   it("shows the enable path while disabled, with no usable setup instructions", async () => {
-    mocks.setup.mockResolvedValue({ enabled: false, serverUrl: "https://canonical.example/mcp/paperclip" });
+    mocks.setup.mockResolvedValue({ enabled: false, serverUrl: "https://canonical.example/mcp/outpost" });
     await render();
-    expect(container.querySelector('a[href="/company/settings/instance/experimental"]')).not.toBeNull();
+    expect(container.querySelector('a[href="/space/settings/instance/experimental"]')).not.toBeNull();
     expect(container.textContent).not.toContain("opencode mcp auth");
     expect(container.textContent).not.toContain("https://canonical.example");
   });
   it("only shows this organization’s grants and revokes the selected grant", async () => {
-    mocks.connections.mockResolvedValue([grant, { ...grant, id: "other", companyId: "elsewhere", clientName: "Other secret client" }]);
+    mocks.connections.mockResolvedValue([grant, { ...grant, id: "other", spaceId: "elsewhere", clientName: "Other secret client" }]);
     await render();
     expect(container.textContent).not.toContain("Other secret client");
     expect(container.textContent).toContain("Connected as you · Read and write");
@@ -139,7 +139,7 @@ describe("assistant setup from Connections", () => {
     expect(container.querySelector('[aria-label="Copy first prompt"]')).toBeNull();
   });
   it("keeps Dot agent grants out of personal assistant setup and connected status", async () => {
-    const dot = { ...grant, id: "dot", clientName: "Dedicated Dot", scopes: ["paperclip:agent", "offline_access"] };
+    const dot = { ...grant, id: "dot", clientName: "Dedicated Dot", scopes: ["outpost:agent", "offline_access"] };
     mocks.connections.mockResolvedValue([dot]);
     await render(<AssistantConnectionCard onNavigate={vi.fn()} />);
     expect(container.querySelector('[data-connected]')?.getAttribute("data-connected")).toBe("false");
@@ -159,10 +159,10 @@ describe("assistant setup from Connections", () => {
     mocks.setup.mockRejectedValue(new Error("offline"));
     await render();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("Couldn't load assistant setup");
-    mocks.setup.mockResolvedValue({ enabled: true, serverUrl: "https://canonical.example/mcp/paperclip" });
+    mocks.setup.mockResolvedValue({ enabled: true, serverUrl: "https://canonical.example/mcp/outpost" });
     await act(async () => Array.from(container.querySelectorAll('button')).find(b => b.textContent === "Retry")!.click());
     await flush();
-    expect(container.textContent).toContain("opencode mcp auth paperclip");
+    expect(container.textContent).toContain("opencode mcp auth outpost");
   });
   it("keeps the card's loaded connection status through a transient refetch failure", async () => {
     mocks.connections.mockResolvedValue([grant]);

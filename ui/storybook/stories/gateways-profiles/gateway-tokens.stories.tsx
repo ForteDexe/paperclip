@@ -21,7 +21,7 @@ import {
 } from "../../support/capability-gaps/api";
 const token: ToolMcpGatewayToken = {
   id: "token-gap",
-  companyId: "company-storybook",
+  spaceId: "space-storybook",
   gatewayId: "gateway-gap",
   name: "Preview client",
   tokenPrefix: "pcgw_fixture",
@@ -44,7 +44,7 @@ const token: ToolMcpGatewayToken = {
 };
 const gateway: ToolMcpGatewayWithTokens = {
   id: "gateway-gap",
-  companyId: "company-storybook",
+  spaceId: "space-storybook",
   gatewayPublicId: "preview-gateway",
   name: "Preview gateway",
   displaySlug: "preview",
@@ -75,14 +75,14 @@ const gateway: ToolMcpGatewayWithTokens = {
 };
 function Tokens() {
   const query = useQuery({
-    queryKey: gatewaysQueryKey("company-storybook"),
-    queryFn: () => toolsApi.listGateways("company-storybook"),
+    queryKey: gatewaysQueryKey("space-storybook"),
+    queryFn: () => toolsApi.listGateways("space-storybook"),
   });
   if (!query.data) return null;
   return (
     <>
       <TokensPanel
-        companyId="company-storybook"
+        spaceId="space-storybook"
         gateway={query.data.gateways[0]}
       />
       <ToastViewport />
@@ -95,7 +95,7 @@ const meta = {
     "Apps, channels, and extensions/Tool gateways and access profiles/Named gateway tokens",
   component: Tokens,
   parameters: { layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "gateways-profiles/tokens"
       ],
@@ -122,7 +122,7 @@ const meta = {
     return prepareFixtureApi(
       [
         {
-          path: "/api/companies/company-storybook/tools/gateways",
+          path: "/api/spaces/space-storybook/tools/gateways",
           read: () => ({ gateways: [current] }),
         },
         {

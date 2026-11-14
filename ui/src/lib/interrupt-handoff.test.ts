@@ -39,7 +39,7 @@ describe("resolveRunStatusPresentation", () => {
     const p = resolveRunStatusPresentation("cancelled", { operatorInterrupted: true });
     expect(p.label).toBe("interrupted");
     expect(p.className).toContain("amber");
-    expect(p.srHint).toMatch(/board comment/);
+    expect(p.srHint).toMatch(/operator comment/);
   });
 
   it("renders a plain cancel as muted 'cancelled'", () => {
@@ -114,9 +114,9 @@ describe("computeComposerHandoffPreview", () => {
   });
 
   it("B. reassign to user = handoff, no agent wake", () => {
-    const p = computeComposerHandoffPreview({ ...base, reassignTarget: "user:user-board" });
+    const p = computeComposerHandoffPreview({ ...base, reassignTarget: "user:user-operator" });
     expect(p.kind).toBe("user_handoff");
-    expect(p.chip).toEqual({ kind: "user", id: "user-board" });
+    expect(p.chip).toEqual({ kind: "user", id: "user-operator" });
     expect(p.suffix).toMatch(/no agent/i);
   });
 
@@ -172,8 +172,8 @@ describe("classifyAssigneeHandoff", () => {
     expect(info.wakeText).toMatch(/interrupted run attached/);
   });
 
-  it("B. to user = no wake, board handoff", () => {
-    const info = classifyAssigneeHandoff({ agentId: null, userId: "user-board" });
+  it("B. to user = no wake, operator handoff", () => {
+    const info = classifyAssigneeHandoff({ agentId: null, userId: "user-operator" });
     expect(info.kind).toBe("user_handoff");
     expect(info.wakeText).toMatch(/not created/);
   });

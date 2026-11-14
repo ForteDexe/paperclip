@@ -317,7 +317,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
           .from(toolConnections)
           .where(
             and(
-              eq(toolConnections.companyId, record.endpoint.companyId),
+              eq(toolConnections.spaceId, record.endpoint.spaceId),
               eq(toolConnections.id, record.endpoint.connectionId),
             ),
           )
@@ -344,7 +344,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
         // queued by GitHub before pause/reconnect must not be authenticated
         // into a later generation, even if the provider signs with its current
         // secret. Include archived endpoints so reusing an App cannot move a
-        // delayed callback into another endpoint/company.
+        // delayed callback into another endpoint/space.
         const recoveryReceipts = credentials.appId
           ? await tx
               .select({
@@ -442,7 +442,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
             .from(chatEndpointResources)
             .where(
               and(
-                eq(chatEndpointResources.companyId, currentEndpoint.companyId),
+                eq(chatEndpointResources.spaceId, currentEndpoint.spaceId),
                 eq(chatEndpointResources.endpointId, currentEndpoint.id),
                 eq(chatEndpointResources.type, "repository"),
                 eq(chatEndpointResources.availability, "available"),
@@ -486,7 +486,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
               await tx
                 .insert(chatDeliveries)
                 .values({
-                  companyId: currentEndpoint.companyId,
+                  spaceId: currentEndpoint.spaceId,
                   endpointId: currentEndpoint.id,
                   providerEventId,
                   deduplicationKey: providerEventId,
@@ -548,7 +548,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
         const inserted = await tx
           .insert(chatActions)
           .values({
-            companyId: currentEndpoint.companyId,
+            spaceId: currentEndpoint.spaceId,
             endpointId: currentEndpoint.id,
             kind: "github_webhook_ingress",
             providerActionId: `github_webhook_ingress:${providerDeliveryId}`,
@@ -946,7 +946,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
       .from(chatEndpointResources)
       .where(
         and(
-          eq(chatEndpointResources.companyId, endpoint.companyId),
+          eq(chatEndpointResources.spaceId, endpoint.spaceId),
           eq(chatEndpointResources.endpointId, endpoint.id),
           eq(chatEndpointResources.type, "repository"),
           eq(chatEndpointResources.enabled, true),
@@ -974,7 +974,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, endpoint.companyId),
+          eq(chatActions.spaceId, endpoint.spaceId),
           eq(chatActions.endpointId, endpoint.id),
           eq(chatActions.providerActionId, `github_webhook_ingress:${guid}`),
         ),
@@ -989,7 +989,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
       .from(chatDeliveries)
       .where(
         and(
-          eq(chatDeliveries.companyId, endpoint.companyId),
+          eq(chatDeliveries.spaceId, endpoint.spaceId),
           eq(chatDeliveries.endpointId, endpoint.id),
           eq(
             chatDeliveries.providerEventId,
@@ -1024,7 +1024,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
       await tx
         .insert(chatActions)
         .values({
-          companyId: current.companyId,
+          spaceId: current.spaceId,
           endpointId: current.id,
           kind: "github_webhook_recovery",
           providerActionId: `github_webhook_recovery:${original.guid}`,
@@ -1108,7 +1108,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
         toolConnections,
         and(
           eq(toolConnections.id, chatEndpoints.connectionId),
-          eq(toolConnections.companyId, chatEndpoints.companyId),
+          eq(toolConnections.spaceId, chatEndpoints.spaceId),
         ),
       )
       .leftJoin(
@@ -1174,7 +1174,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
     const endpoint = record.endpoint;
     const context = runtimeContextForRecord(record);
     const webhookUrl = `${getWebhookPublicBaseUrl()}/api/chat-webhooks/${endpoint.publicId}/github`;
-    const scope = { companyId: endpoint.companyId, endpointId: endpoint.id };
+    const scope = { spaceId: endpoint.spaceId, endpointId: endpoint.id };
     const stored = await persistence.read(scope, GITHUB_RECOVERY_STATE_KEY);
     const previous = githubRecoveryWindow(stored?.value);
     const epochMatches =
@@ -1450,7 +1450,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
               .where(
                 and(
                   eq(toolConnections.id, current.connectionId),
-                  eq(toolConnections.companyId, current.companyId),
+                  eq(toolConnections.spaceId, current.spaceId),
                   eq(toolConnections.enabled, true),
                   eq(toolConnections.status, "active"),
                 ),
@@ -1510,7 +1510,7 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
               : await tx
                   .insert(chatActions)
                   .values({
-                    companyId: endpoint.companyId,
+                    spaceId: endpoint.spaceId,
                     endpointId: endpoint.id,
                     kind: "github_webhook_recovery",
                     providerActionId: recoveryId,

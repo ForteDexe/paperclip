@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 type Room = {
   id: string;
-  company_id: string;
+  space_id: string;
   project_id: string | null;
   name: string;
   created_at: string;
@@ -75,7 +75,7 @@ function FlameIcon() {
 
 export function CampfireSidebarLink({ context }: PluginSidebarProps) {
   const navigation = useHostNavigation();
-  if (!context.companyId) return null;
+  if (!context.spaceId) return null;
   return (
     <a
       {...navigation.linkProps("/campfire")}
@@ -89,7 +89,7 @@ export function CampfireSidebarLink({ context }: PluginSidebarProps) {
 }
 
 export function CampfirePage({ context }: PluginPageProps) {
-  const companyId = context.companyId;
+  const spaceId = context.spaceId;
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [newRoomName, setNewRoomName] = useState("");
   const [draft, setDraft] = useState("");
@@ -103,11 +103,11 @@ export function CampfirePage({ context }: PluginPageProps) {
   const removeMember = usePluginAction("remove-member");
   const sendMessage = usePluginAction("send-message");
   const state = usePluginData<RoomState>("room-state", {
-    companyId,
+    spaceId,
     roomId: selectedRoomId ?? undefined,
   });
   const stream = usePluginStream<RoomEvent>("campfire:rooms", {
-    companyId: companyId ?? undefined,
+    spaceId: spaceId ?? undefined,
   });
 
   useEffect(() => {
@@ -154,9 +154,9 @@ export function CampfirePage({ context }: PluginPageProps) {
   async function submitRoom(event: FormEvent) {
     event.preventDefault();
     const name = newRoomName.trim();
-    if (!companyId || !name) return;
+    if (!spaceId || !name) return;
     const result = await perform("create-room", () => createRoom({
-      companyId,
+      spaceId,
       name,
       projectId: context.projectId ?? undefined,
     })) as { roomId?: string } | null;
@@ -169,16 +169,16 @@ export function CampfirePage({ context }: PluginPageProps) {
 
   async function invite(agent: AgentOption) {
     const roomId = state.data?.room?.id;
-    if (!companyId || !roomId) return;
-    await perform(`add:${agent.id}`, () => addMember({ companyId, roomId, agentId: agent.id }));
+    if (!spaceId || !roomId) return;
+    await perform(`add:${agent.id}`, () => addMember({ spaceId, roomId, agentId: agent.id }));
     state.refresh();
   }
 
   async function remove(member: Member) {
     const roomId = state.data?.room?.id;
-    if (!companyId || !roomId) return;
+    if (!spaceId || !roomId) return;
     await perform(`remove:${member.agent_id}`, () => removeMember({
-      companyId,
+      spaceId,
       roomId,
       agentId: member.agent_id,
     }));
@@ -189,8 +189,8 @@ export function CampfirePage({ context }: PluginPageProps) {
     event.preventDefault();
     const roomId = state.data?.room?.id;
     const body = draft.trim();
-    if (!companyId || !roomId || !body) return;
-    const result = await perform("send", () => sendMessage({ companyId, roomId, body }));
+    if (!spaceId || !roomId || !body) return;
+    const result = await perform("send", () => sendMessage({ spaceId, roomId, body }));
     if (result) {
       setDraft("");
       wasAtBottom.current = true;
@@ -198,8 +198,8 @@ export function CampfirePage({ context }: PluginPageProps) {
     }
   }
 
-  if (!companyId) {
-    return <main className="p-6 text-muted-foreground">Choose a company to open Campfire.</main>;
+  if (!spaceId) {
+    return <main className="p-6 text-muted-foreground">Choose a space to open Campfire.</main>;
   }
 
   return (

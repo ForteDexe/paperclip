@@ -14,13 +14,13 @@ export function hasNativeWorkspaceFinalizationOwner(profile: Record<string, unkn
 /** A terminal task does not prove that an older controller's copyback stopped. */
 export async function hasUnverifiedNativeWorkspaceFinalizationOwner(
   db: Db,
-  action: Pick<IssueRecoveryAction, "companyId" | "sourceIssueId" | "cause" | "fingerprint" | "evidence">,
+  action: Pick<IssueRecoveryAction, "spaceId" | "sourceIssueId" | "cause" | "fingerprint" | "evidence">,
 ): Promise<boolean> {
   if (action.cause !== NATIVE_WORKSPACE_OWNER_UNVERIFIED) return false;
   const runId = action.evidence?.runId;
   if (typeof runId !== "string" || !isUuidLike(runId)) return false;
   const [run] = await db.select({ profile: heartbeatRuns.runnerProfileJson }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, action.companyId),
+    eq(heartbeatRuns.spaceId, action.spaceId),
     eq(heartbeatRuns.id, runId),
     eq(heartbeatRuns.nativeIssueId, action.sourceIssueId),
     eq(heartbeatRuns.runtimeMode, "native"),

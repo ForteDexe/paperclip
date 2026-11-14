@@ -7,7 +7,7 @@ describe("task repository acquisition authority", () => {
   it("requires a currently authorized catalog ID, including on retry after revocation", () => {
     expect(resolveTaskRepository({ kind: "catalog", id: "123" }, [repository])).toMatchObject({ catalogRepositoryId: "123" });
     expect(() => resolveTaskRepository({ kind: "catalog", id: "123" }, [])).toThrow(/no longer available/);
-    expect(() => resolveTaskRepository({ kind: "catalog", id: "other-company-repo" }, [repository])).toThrow(/no longer available/);
+    expect(() => resolveTaskRepository({ kind: "catalog", id: "other-space-repo" }, [repository])).toThrow(/no longer available/);
   });
   it("normalizes HTTPS URLs and never accepts credentials, alternate hosts, or shell paths", () => {
     expect(resolveTaskRepository({ kind: "url", url: "https://github.com/team/source.git" }, [repository])).toMatchObject({ catalogRepositoryId: "123", repositoryIdentity: repository.url });
@@ -20,7 +20,7 @@ describe("task repository acquisition authority", () => {
     const source = resolveTaskRepository({ kind: "catalog", id: "123" }, [repository]);
     const alias = resolveTaskRepository({ kind: "url", url: "https://github.com/TEAM/SOURCE.git" }, [repository]);
     expect(taskRepositoryRelativePath(source.repositoryIdentity)).toBe(taskRepositoryRelativePath(alias.repositoryIdentity));
-    expect(taskRepositoryRelativePath(source.repositoryIdentity)).toMatch(/^\.paperclip-repositories\/task-repo-[a-f0-9]{24}$/);
+    expect(taskRepositoryRelativePath(source.repositoryIdentity)).toMatch(/^\.outpost-repositories\/task-repo-[a-f0-9]{24}$/);
     const receipt = { repositoryIdentity: source.repositoryIdentity, requestedRef: "main" };
     expect(() => assertRepositoryRetryMatches(receipt, source.repositoryIdentity, "main")).not.toThrow();
     expect(() => assertRepositoryRetryMatches(receipt, source.repositoryIdentity, "release")).toThrow(/different ref/);

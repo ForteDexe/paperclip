@@ -48,10 +48,10 @@ function capturingLogger(entries: unknown[]): Logger {
 function memoryPersistence(): ChatSdkStatePersistence {
   const rows = new Map<string, ChatSdkStateRecord>();
   const keyFor = (input: {
-    companyId: string;
+    spaceId: string;
     endpointId: string;
     key: string;
-  }) => `${input.companyId}:${input.endpointId}:${input.key}`;
+  }) => `${input.spaceId}:${input.endpointId}:${input.key}`;
   return {
     async compareAndSet(input) {
       const key = keyFor(input);
@@ -113,17 +113,17 @@ describe("Chat SDK published adapter integration", () => {
     const providerConfigs = [
       {
         provider: "slack" as const,
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: { botToken: "xoxb-test", signingSecret: "secret" },
       },
       {
         provider: "github" as const,
-        userName: "paperclip-agent[bot]",
+        userName: "outpost-agent[bot]",
         credentials: { token: "github_pat_test", webhookSecret: "secret" },
       },
       {
         provider: "microsoft-teams" as const,
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-0000-0000-000000000000",
           appPassword: "secret",
@@ -131,7 +131,7 @@ describe("Chat SDK published adapter integration", () => {
       },
       {
         provider: "telegram" as const,
-        userName: "paperclip_agent_bot",
+        userName: "outpost_agent_bot",
         credentials: { botToken: "123:test", secretToken: "secret" },
       },
     ];
@@ -139,7 +139,7 @@ describe("Chat SDK published adapter integration", () => {
     const runtimes = providerConfigs.map((providerConfig, index) =>
       createChatSdkEndpointRuntime({
         callbacks: { onMessage() {} },
-        companyId: "company-1",
+        spaceId: "space-1",
         endpointId: `endpoint-${index}`,
         logger: "silent",
         persistence,
@@ -175,13 +175,13 @@ describe("Chat SDK published adapter integration", () => {
     vi.stubGlobal("fetch", providerFetch);
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-github-timeout",
+      spaceId: "space-github-timeout",
       endpointId: "endpoint-github-timeout",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "github",
-        userName: "paperclip-agent[bot]",
+        userName: "outpost-agent[bot]",
         credentials: { token: "github_pat_test", webhookSecret: "secret" },
       },
     });
@@ -212,13 +212,13 @@ describe("Chat SDK published adapter integration", () => {
     vi.stubGlobal("fetch", providerFetch);
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-telegram-timeout",
+      spaceId: "space-telegram-timeout",
       endpointId: "endpoint-telegram-timeout",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "telegram",
-        userName: "paperclip_agent_bot",
+        userName: "outpost_agent_bot",
         credentials: {
           botToken: "123:test",
           secretToken: "telegram-webhook-secret",
@@ -248,13 +248,13 @@ describe("Chat SDK published adapter integration", () => {
   it("configures a bounded Teams HTTP client reused by scoped egress", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-timeout",
+      spaceId: "space-teams-timeout",
       endpointId: "endpoint-teams-timeout",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-0000-0000-000000000000",
           appPassword: "secret",
@@ -292,25 +292,25 @@ describe("Chat SDK published adapter integration", () => {
     vi.stubGlobal("fetch", providerFetch);
     const slackRuntime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-slack-fetch-timeout",
+      spaceId: "space-slack-fetch-timeout",
       endpointId: "endpoint-slack-fetch-timeout",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: { botToken: "xoxb-test", signingSecret: "secret" },
       },
     });
     const discordRuntime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-discord-fetch-timeout",
+      spaceId: "space-discord-fetch-timeout",
       endpointId: "endpoint-discord-fetch-timeout",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "discord",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           apiUrl: "https://discord.com/api/v10",
           applicationId: "123456789012345678",
@@ -373,13 +373,13 @@ describe("Chat SDK published adapter integration", () => {
             { status: 201 },
           );
         }
-        if (url.endsWith("/repos/paperclipai/chat-e2e/issues/42/comments")) {
+        if (url.endsWith("/repos/outpost/chat-e2e/issues/42/comments")) {
           commentAuthorizations.push(headers.get("authorization") ?? "");
           return Response.json(
             {
               id: 9_000 + commentAuthorizations.length,
               body: "safe reply",
-              user: { id: 9001, login: "maya-paperclip[bot]", type: "Bot" },
+              user: { id: 9001, login: "maya-outpost[bot]", type: "Bot" },
             },
             { status: 201 },
           );
@@ -390,13 +390,13 @@ describe("Chat SDK published adapter integration", () => {
     vi.stubGlobal("fetch", providerFetch);
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-github-token-refresh",
+      spaceId: "space-github-token-refresh",
       endpointId: "endpoint-github-token-refresh",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "github",
-        userName: "maya-paperclip[bot]",
+        userName: "maya-outpost[bot]",
         credentials: {
           appId: "123456",
           botUserId: 9001,
@@ -413,11 +413,11 @@ describe("Chat SDK published adapter integration", () => {
       ): Promise<{ id: string }>;
     };
     try {
-      await adapter.postMessage("github:paperclipai/chat-e2e:issue:42", {
+      await adapter.postMessage("github:outpost/chat-e2e:issue:42", {
         markdown: "first safe reply",
       });
       vi.setSystemTime(new Date(start.getTime() + 61 * 60_000));
-      await adapter.postMessage("github:paperclipai/chat-e2e:issue:42", {
+      await adapter.postMessage("github:outpost/chat-e2e:issue:42", {
         markdown: "delayed safe reply",
       });
 
@@ -437,28 +437,28 @@ describe("Chat SDK published adapter integration", () => {
     const onAction = vi.fn();
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onAction, onMessage() {} },
-      companyId: "company-slack-action-envelope",
+      spaceId: "space-slack-action-envelope",
       endpointId: "endpoint-slack-action-envelope",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret,
         },
       },
     });
     const payload = {
       type: "block_actions",
-      team: { id: "T-PAPERCLIP" },
+      team: { id: "T-OUTPOST" },
       user: { id: "U-OPERATOR", username: "operator" },
-      channel: { id: "D-PAPERCLIP-DM" },
+      channel: { id: "D-OUTPOST-DM" },
       container: {
         type: "message",
-        channel_id: "D-PAPERCLIP-DM",
+        channel_id: "D-OUTPOST-DM",
         message_ts: "1788.200",
       },
       message: { ts: "1788.200" },
@@ -495,7 +495,7 @@ describe("Chat SDK published adapter integration", () => {
           event: expect.objectContaining({
             actionId: "pcq:blue",
             messageId: "1788.200",
-            threadId: "slack:D-PAPERCLIP-DM:1788.200",
+            threadId: "slack:D-OUTPOST-DM:1788.200",
             value: "interaction-id",
           }),
         }),
@@ -510,24 +510,24 @@ describe("Chat SDK published adapter integration", () => {
     const onSlashCommand = vi.fn(async () => undefined);
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {}, onSlashCommand },
-      companyId: "company-slack-slash-ack",
+      spaceId: "space-slack-slash-ack",
       endpointId: "endpoint-slack-slash-ack",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret,
         },
       },
     });
     const body = new URLSearchParams({
-      channel_id: "C-PAPERCLIP",
-      command: "/paperclip-agent",
-      team_id: "T-PAPERCLIP",
+      channel_id: "C-OUTPOST",
+      command: "/outpost-agent",
+      team_id: "T-OUTPOST",
       text: "investigate the release",
       trigger_id: "slash-trigger",
       user_id: "U-OPERATOR",
@@ -546,7 +546,7 @@ describe("Chat SDK published adapter integration", () => {
         async () =>
           await new Promise<never>(() => {
             // A regression to the upstream cold lookup would hold the provider
-            // acknowledgement open until Paperclip's webhook deadline.
+            // acknowledgement open until Outpost's webhook deadline.
           }),
       );
       adapter._client.users.info = usersInfo;
@@ -573,14 +573,14 @@ describe("Chat SDK published adapter integration", () => {
       expect((response as Response).status).toBe(200);
       await expect((response as Response).json()).resolves.toEqual({
         response_type: "ephemeral",
-        text: "Paperclip received this command.",
+        text: "Outpost received this command.",
       });
       expect(usersInfo).not.toHaveBeenCalled();
       expect(onSlashCommand).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: "slack",
           event: expect.objectContaining({
-            command: "/paperclip-agent",
+            command: "/outpost-agent",
             text: "investigate the release",
             user: expect.objectContaining({
               userId: "U-OPERATOR",
@@ -605,16 +605,16 @@ describe("Chat SDK published adapter integration", () => {
         onMessageDeleted,
         onMessageUpdated,
       },
-      companyId: "company-slack-lifecycle-envelope",
+      spaceId: "space-slack-lifecycle-envelope",
       endpointId: "endpoint-slack-lifecycle-envelope",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret,
         },
       },
@@ -641,7 +641,7 @@ describe("Chat SDK published adapter integration", () => {
       const previousMessage = {
         type: "message",
         user: "U-OPERATOR",
-        text: "@paperclip-agent original request",
+        text: "@outpost-agent original request",
         ts: "1788.500",
         thread_ts: "1788.400",
       };
@@ -649,17 +649,17 @@ describe("Chat SDK published adapter integration", () => {
       const edited = await runtime.handleWebhook(
         signedSlackEventRequest(signingSecret, {
           type: "event_callback",
-          team_id: "T-PAPERCLIP",
+          team_id: "T-OUTPOST",
           event_id: "Ev-slack-edit",
           event: {
             type: "message",
             subtype: "message_changed",
-            channel: "C-PAPERCLIP",
+            channel: "C-OUTPOST",
             channel_type: "channel",
             event_ts: "1788.600",
             message: {
               ...previousMessage,
-              text: "@paperclip-agent corrected request",
+              text: "@outpost-agent corrected request",
               edited: { user: "U-OPERATOR", ts: "1788.600" },
             },
             previous_message: previousMessage,
@@ -673,7 +673,7 @@ describe("Chat SDK published adapter integration", () => {
           endpointId: "endpoint-slack-lifecycle-envelope",
           provider: "slack",
           thread: expect.objectContaining({
-            id: "slack:C-PAPERCLIP:1788.400",
+            id: "slack:C-OUTPOST:1788.400",
           }),
           message: expect.objectContaining({
             id: "1788.500",
@@ -689,12 +689,12 @@ describe("Chat SDK published adapter integration", () => {
       const deleted = await runtime.handleWebhook(
         signedSlackEventRequest(signingSecret, {
           type: "event_callback",
-          team_id: "T-PAPERCLIP",
+          team_id: "T-OUTPOST",
           event_id: "Ev-slack-delete",
           event: {
             type: "message",
             subtype: "message_deleted",
-            channel: "C-PAPERCLIP",
+            channel: "C-OUTPOST",
             channel_type: "channel",
             deleted_ts: "1788.500",
             event_ts: "1788.700",
@@ -709,9 +709,9 @@ describe("Chat SDK published adapter integration", () => {
           endpointId: "endpoint-slack-lifecycle-envelope",
           provider: "slack",
           event: expect.objectContaining({
-            channelId: "C-PAPERCLIP",
+            channelId: "C-OUTPOST",
             messageId: "1788.500",
-            threadId: "slack:C-PAPERCLIP:1788.400",
+            threadId: "slack:C-OUTPOST:1788.400",
           }),
         }),
       );
@@ -841,16 +841,16 @@ describe("Chat SDK published adapter integration", () => {
         const onMessageDeleted = vi.fn(async () => undefined);
         const runtime = createChatSdkEndpointRuntime({
           callbacks: { onMessage, onMessageUpdated, onMessageDeleted },
-          companyId: "company-slack-file-lifecycle",
+          spaceId: "space-slack-file-lifecycle",
           endpointId: "endpoint-slack-file-lifecycle",
           logger: "silent",
           persistence: memoryPersistence(),
           providerConfig: {
             provider: "slack",
-            userName: "paperclip-agent",
+            userName: "outpost-agent",
             credentials: {
               botToken: "xoxb-test",
-              botUserId: "U-PAPERCLIP-BOT",
+              botUserId: "U-OUTPOST-BOT",
               signingSecret,
             },
           },
@@ -890,13 +890,13 @@ describe("Chat SDK published adapter integration", () => {
                 : signingSecret,
               {
                 type: "event_callback",
-                team_id: "T-PAPERCLIP",
+                team_id: "T-OUTPOST",
                 event_id: "Ev-slack-files-only",
                 event: {
                   type: "message",
                   subtype: "message_changed",
                   hidden: testCase.hidden ?? true,
-                  channel: "C-PAPERCLIP",
+                  channel: "C-OUTPOST",
                   channel_type: "channel",
                   event_ts: "1788.700",
                   message: {
@@ -929,7 +929,7 @@ describe("Chat SDK published adapter integration", () => {
           if (testCase.changed) {
             const update = onMessageUpdated.mock.calls[0]![0];
             expect(update.provider).toBe("slack");
-            expect(update.thread.id).toBe("slack:C-PAPERCLIP:1788.400");
+            expect(update.thread.id).toBe("slack:C-OUTPOST:1788.400");
             expect(update.message.id).toBe(previousMessage.ts);
             expect(update.message.text).toBe(previousMessage.text);
             expect(update.message.metadata.editedAt).toEqual(
@@ -975,16 +975,16 @@ describe("Chat SDK published adapter integration", () => {
     >(async () => undefined);
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {}, onReaction },
-      companyId: "company-slack-reaction-envelope",
+      spaceId: "space-slack-reaction-envelope",
       endpointId: "endpoint-slack-reaction-envelope",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret,
         },
       },
@@ -1023,7 +1023,7 @@ describe("Chat SDK published adapter integration", () => {
         const response = await runtime.handleWebhook(
           signedSlackEventRequest(signingSecret, {
             type: "event_callback",
-            team_id: "T-PAPERCLIP",
+            team_id: "T-OUTPOST",
             event_id: `Ev-slack-${type}`,
             event: {
               type,
@@ -1031,7 +1031,7 @@ describe("Chat SDK published adapter integration", () => {
               reaction: "eyes",
               item: {
                 type: "message",
-                channel: "C-PAPERCLIP",
+                channel: "C-OUTPOST",
                 ts: "1788.500",
               },
               event_ts: eventTs,
@@ -1049,7 +1049,7 @@ describe("Chat SDK published adapter integration", () => {
             added: true,
             messageId: "1788.500",
             rawEmoji: "eyes",
-            threadId: "slack:C-PAPERCLIP:1788.400",
+            threadId: "slack:C-OUTPOST:1788.400",
           }),
         }),
         expect.objectContaining({
@@ -1059,7 +1059,7 @@ describe("Chat SDK published adapter integration", () => {
             added: false,
             messageId: "1788.500",
             rawEmoji: "eyes",
-            threadId: "slack:C-PAPERCLIP:1788.400",
+            threadId: "slack:C-OUTPOST:1788.400",
           }),
         }),
       ]);
@@ -1071,16 +1071,16 @@ describe("Chat SDK published adapter integration", () => {
   it("falls back from unavailable Slack native streaming to bounded post and edit", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-slack-stream-fallback",
+      spaceId: "space-slack-stream-fallback",
       endpointId: "endpoint-slack-stream-fallback",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret: "slack-stream-signing-secret",
         },
       },
@@ -1100,12 +1100,12 @@ describe("Chat SDK published adapter integration", () => {
       }));
       const postMessage = vi.fn(async () => ({
         ok: true,
-        channel: "D-PAPERCLIP",
+        channel: "D-OUTPOST",
         ts: "1788.901",
       }));
       const update = vi.fn(async () => ({
         ok: true,
-        channel: "D-PAPERCLIP",
+        channel: "D-OUTPOST",
         ts: "1788.901",
       }));
       const adapter = runtime.getProviderAdapter() as unknown as {
@@ -1137,10 +1137,10 @@ describe("Chat SDK published adapter integration", () => {
       };
 
       const sent = await adapter.stream(
-        "slack:D-PAPERCLIP:1788.400",
+        "slack:D-OUTPOST:1788.400",
         chunks(),
         {
-          recipientTeamId: "T-PAPERCLIP",
+          recipientTeamId: "T-OUTPOST",
           recipientUserId: "U-OPERATOR",
           updateIntervalMs: 0,
         },
@@ -1169,16 +1169,16 @@ describe("Chat SDK published adapter integration", () => {
   it("uses one Slack provider call for a file-only publication", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-slack-file-only",
+      spaceId: "space-slack-file-only",
       endpointId: "endpoint-slack-file-only",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret: "secret",
         },
       },
@@ -1190,10 +1190,10 @@ describe("Chat SDK published adapter integration", () => {
           ok: true,
           files: [
             {
-              id: "FPAPERCLIP",
+              id: "FOUTPOST",
               shares: {
                 public: {
-                  "C-PAPERCLIP": [{ thread_ts: "1788.300", ts: "1788.302" }],
+                  "C-OUTPOST": [{ thread_ts: "1788.300", ts: "1788.302" }],
                 },
               },
             },
@@ -1221,7 +1221,7 @@ describe("Chat SDK published adapter integration", () => {
       adapter._client.files.uploadV2 = uploadV2;
       adapter._client.files.info = fileInfo;
       adapter._client.chat.postMessage = postMessage;
-      const sent = await adapter.postMessage("slack:C-PAPERCLIP:1788.300", {
+      const sent = await adapter.postMessage("slack:C-OUTPOST:1788.300", {
         markdown: "",
         files: [
           {
@@ -1235,7 +1235,7 @@ describe("Chat SDK published adapter integration", () => {
       expect(uploadV2).toHaveBeenCalledOnce();
       expect(uploadV2).toHaveBeenCalledWith(
         expect.objectContaining({
-          channel_id: "C-PAPERCLIP",
+          channel_id: "C-OUTPOST",
           thread_ts: "1788.300",
           file_uploads: [expect.objectContaining({ filename: "result.txt" })],
         }),
@@ -1250,16 +1250,16 @@ describe("Chat SDK published adapter integration", () => {
   it("resolves a sparse Slack upload response to its exact private thread share", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-slack-file-identity",
+      spaceId: "space-slack-file-identity",
       endpointId: "endpoint-slack-file-identity",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret: "secret",
         },
       },
@@ -1280,7 +1280,7 @@ describe("Chat SDK published adapter integration", () => {
           id: "FSPARSE",
           shares: {
             private: {
-              "D-PAPERCLIP": [{ thread_ts: "1788.400", ts: "1788.401" }],
+              "D-OUTPOST": [{ thread_ts: "1788.400", ts: "1788.401" }],
             },
           },
         },
@@ -1308,7 +1308,7 @@ describe("Chat SDK published adapter integration", () => {
       adapter._client.files.info = fileInfo;
       adapter._client.chat.postMessage = postMessage;
       vi.useFakeTimers();
-      const sentPromise = adapter.postMessage("slack:D-PAPERCLIP:1788.400", {
+      const sentPromise = adapter.postMessage("slack:D-OUTPOST:1788.400", {
         markdown: "",
         files: [
           {
@@ -1336,16 +1336,16 @@ describe("Chat SDK published adapter integration", () => {
   it("records accepted Slack file IDs before the share lookup and preserves Thread.post", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-slack-file-receipt",
+      spaceId: "space-slack-file-receipt",
       endpointId: "endpoint-slack-file-receipt",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret: "secret",
         },
       },
@@ -1360,7 +1360,7 @@ describe("Chat SDK published adapter integration", () => {
         id: "FRECEIPT1",
         shares: {
           public: {
-            "C-PAPERCLIP": [{ thread_ts: "1788.410", ts: "1788.411" }],
+            "C-OUTPOST": [{ thread_ts: "1788.410", ts: "1788.411" }],
           },
         },
       },
@@ -1393,7 +1393,7 @@ describe("Chat SDK published adapter integration", () => {
       adapter._client.files.info = fileInfo;
       adapter._client.chat.postMessage = postMessage;
       const sentPromise = runtime.postSlackFilePublication(
-        "slack:C-PAPERCLIP:1788.410",
+        "slack:C-OUTPOST:1788.410",
         {
           files: [
             {
@@ -1409,7 +1409,7 @@ describe("Chat SDK published adapter integration", () => {
       await receiptAccepted;
       expect(onUploadAccepted).toHaveBeenCalledWith({
         version: 1,
-        channelId: "C-PAPERCLIP",
+        channelId: "C-OUTPOST",
         fileIds: ["FRECEIPT1"],
         threadTs: "1788.410",
       });
@@ -1417,7 +1417,7 @@ describe("Chat SDK published adapter integration", () => {
       releaseReceipt();
       await expect(sentPromise).resolves.toMatchObject({
         id: "1788.411",
-        threadId: "slack:C-PAPERCLIP:1788.410",
+        threadId: "slack:C-OUTPOST:1788.410",
         edit: expect.any(Function),
         addReaction: expect.any(Function),
         toJSON: expect.any(Function),
@@ -1434,16 +1434,16 @@ describe("Chat SDK published adapter integration", () => {
   it("isolates concurrent Slack upload receipt callbacks and restores the ordinary post context", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-slack-file-concurrent",
+      spaceId: "space-slack-file-concurrent",
       endpointId: "endpoint-slack-file-concurrent",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret: "secret",
         },
       },
@@ -1471,7 +1471,7 @@ describe("Chat SDK published adapter integration", () => {
                 id: first ? "FFIRST" : second ? "FSECOND" : "FORDINARY",
                 shares: {
                   public: {
-                    "C-PAPERCLIP": [
+                    "C-OUTPOST": [
                       {
                         thread_ts: args.thread_ts,
                         ts: first
@@ -1516,12 +1516,12 @@ describe("Chat SDK published adapter integration", () => {
       adapter._client.files.info = fileInfo;
       adapter._client.chat.postMessage = postMessage;
       const first = runtime.postSlackFilePublication(
-        "slack:C-PAPERCLIP:1788.430",
+        "slack:C-OUTPOST:1788.430",
         message,
         firstCallback,
       );
       const second = runtime.postSlackFilePublication(
-        "slack:C-PAPERCLIP:1788.440",
+        "slack:C-OUTPOST:1788.440",
         message,
         secondCallback,
       );
@@ -1534,7 +1534,7 @@ describe("Chat SDK published adapter integration", () => {
       expect(firstCallback).not.toHaveBeenCalled();
       expect(secondCallback).toHaveBeenCalledExactlyOnceWith({
         version: 1,
-        channelId: "C-PAPERCLIP",
+        channelId: "C-OUTPOST",
         threadTs: "1788.440",
         fileIds: ["FSECOND"],
       });
@@ -1542,13 +1542,13 @@ describe("Chat SDK published adapter integration", () => {
       await expect(first).resolves.toMatchObject({ id: "1788.431" });
       expect(firstCallback).toHaveBeenCalledExactlyOnceWith({
         version: 1,
-        channelId: "C-PAPERCLIP",
+        channelId: "C-OUTPOST",
         threadTs: "1788.430",
         fileIds: ["FFIRST"],
       });
 
       await expect(
-        runtime.thread("slack:C-PAPERCLIP:1788.450").post(message),
+        runtime.thread("slack:C-OUTPOST:1788.450").post(message),
       ).resolves.toMatchObject({ id: "1788.451" });
       expect(firstCallback).toHaveBeenCalledOnce();
       expect(secondCallback).toHaveBeenCalledOnce();
@@ -1568,16 +1568,16 @@ describe("Chat SDK published adapter integration", () => {
     async (failure) => {
       const runtime = createChatSdkEndpointRuntime({
         callbacks: { onMessage() {} },
-        companyId: "company-slack-file-callback-failure",
+        spaceId: "space-slack-file-callback-failure",
         endpointId: "endpoint-slack-file-callback-failure",
         logger: "silent",
         persistence,
         providerConfig: {
           provider: "slack",
-          userName: "paperclip-agent",
+          userName: "outpost-agent",
           credentials: {
             botToken: "xoxb-test",
-            botUserId: "U-PAPERCLIP-BOT",
+            botUserId: "U-OUTPOST-BOT",
             signingSecret: "secret",
           },
         },
@@ -1614,7 +1614,7 @@ describe("Chat SDK published adapter integration", () => {
         adapter._client.chat.postMessage = postMessage;
         await expect(
           runtime.postSlackFilePublication(
-            "slack:C-PAPERCLIP:1788.460",
+            "slack:C-OUTPOST:1788.460",
             {
               files: [
                 {
@@ -1643,16 +1643,16 @@ describe("Chat SDK published adapter integration", () => {
   it("resolves a captured Slack file receipt with metadata reads only", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-slack-file-recovery",
+      spaceId: "space-slack-file-recovery",
       endpointId: "endpoint-slack-file-recovery",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret: "secret",
         },
       },
@@ -1664,7 +1664,7 @@ describe("Chat SDK published adapter integration", () => {
         id: "FRECOVERY1",
         shares: {
           public: {
-            "C-PAPERCLIP": [{ thread_ts: "1788.420", ts: "1788.421" }],
+            "C-OUTPOST": [{ thread_ts: "1788.420", ts: "1788.421" }],
           },
         },
       },
@@ -1682,14 +1682,14 @@ describe("Chat SDK published adapter integration", () => {
       adapter._client.files.uploadV2 = uploadV2;
       adapter._client.files.info = fileInfo;
       await expect(
-        runtime.resolveSlackFileUploadReceipt("slack:C-PAPERCLIP:1788.420", [
+        runtime.resolveSlackFileUploadReceipt("slack:C-OUTPOST:1788.420", [
           "FRECOVERY1",
         ]),
       ).resolves.toBe("1788.421");
       expect(fileInfo).toHaveBeenCalledOnce();
       expect(uploadV2).not.toHaveBeenCalled();
       await expect(
-        runtime.resolveSlackFileUploadReceipt("slack:C-PAPERCLIP:1788.420", [
+        runtime.resolveSlackFileUploadReceipt("slack:C-OUTPOST:1788.420", [
           "not-a-slack-file-id",
         ]),
       ).rejects.toMatchObject({ name: "ValidationError" });
@@ -1702,16 +1702,16 @@ describe("Chat SDK published adapter integration", () => {
   it("rejects a Slack file upload whose provider message identity stays ambiguous", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-slack-file-ambiguous",
+      spaceId: "space-slack-file-ambiguous",
       endpointId: "endpoint-slack-file-ambiguous",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret: "secret",
         },
       },
@@ -1755,7 +1755,7 @@ describe("Chat SDK published adapter integration", () => {
       adapter._client.chat.postMessage = postMessage;
       vi.useFakeTimers();
       const rejected = expect(
-        adapter.postMessage("slack:C-PAPERCLIP:1788.500", {
+        adapter.postMessage("slack:C-OUTPOST:1788.500", {
           markdown: "",
           files: [
             {
@@ -1783,16 +1783,16 @@ describe("Chat SDK published adapter integration", () => {
   it("bounds a stalled Slack file identity lookup without uploading again", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-slack-file-timeout",
+      spaceId: "space-slack-file-timeout",
       endpointId: "endpoint-slack-file-timeout",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret: "secret",
         },
       },
@@ -1826,7 +1826,7 @@ describe("Chat SDK published adapter integration", () => {
       adapter._client.chat.postMessage = postMessage;
       vi.useFakeTimers();
       const rejected = expect(
-        adapter.postMessage("slack:C-PAPERCLIP:1788.700", {
+        adapter.postMessage("slack:C-OUTPOST:1788.700", {
           markdown: "",
           files: [
             {
@@ -1854,16 +1854,16 @@ describe("Chat SDK published adapter integration", () => {
   it("does not start a Slack file lookup after token resolution exceeds the deadline", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-slack-file-late-token",
+      spaceId: "space-slack-file-late-token",
       endpointId: "endpoint-slack-file-late-token",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
-          botUserId: "U-PAPERCLIP-BOT",
+          botUserId: "U-OUTPOST-BOT",
           signingSecret: "secret",
         },
       },
@@ -1902,7 +1902,7 @@ describe("Chat SDK published adapter integration", () => {
         return input;
       };
       const rejected = expect(
-        adapter.postMessage("slack:C-PAPERCLIP:1788.800", {
+        adapter.postMessage("slack:C-OUTPOST:1788.800", {
           markdown: "",
           files: [
             {
@@ -1942,7 +1942,7 @@ describe("Chat SDK published adapter integration", () => {
           id: "FOTHER",
           shares: {
             public: {
-              "C-PAPERCLIP": [{ thread_ts: "1788.600", ts: "1788.601" }],
+              "C-OUTPOST": [{ thread_ts: "1788.600", ts: "1788.601" }],
             },
           },
         },
@@ -1953,16 +1953,16 @@ describe("Chat SDK published adapter integration", () => {
     async ({ caseName, infoResult }) => {
       const runtime = createChatSdkEndpointRuntime({
         callbacks: { onMessage() {} },
-        companyId: `company-slack-file-${caseName}`,
+        spaceId: `space-slack-file-${caseName}`,
         endpointId: `endpoint-slack-file-${caseName}`,
         logger: "silent",
         persistence,
         providerConfig: {
           provider: "slack",
-          userName: "paperclip-agent",
+          userName: "outpost-agent",
           credentials: {
             botToken: "xoxb-test",
-            botUserId: "U-PAPERCLIP-BOT",
+            botUserId: "U-OUTPOST-BOT",
             signingSecret: "secret",
           },
         },
@@ -1999,7 +1999,7 @@ describe("Chat SDK published adapter integration", () => {
         adapter._client.files.info = fileInfo;
         adapter._client.chat.postMessage = postMessage;
         await expect(
-          adapter.postMessage("slack:C-PAPERCLIP:1788.600", {
+          adapter.postMessage("slack:C-OUTPOST:1788.600", {
             markdown: "",
             files: [
               {
@@ -2024,13 +2024,13 @@ describe("Chat SDK published adapter integration", () => {
   it("parses attachments carried by a Telegram slash-command caption", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-telegram-caption-file",
+      spaceId: "space-telegram-caption-file",
       endpointId: "endpoint-telegram-caption-file",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "telegram",
-        userName: "paperclip_agent_bot",
+        userName: "outpost_agent_bot",
         credentials: {
           botToken: "123:test",
           secretToken: "telegram-webhook-secret",
@@ -2043,7 +2043,7 @@ describe("Chat SDK published adapter integration", () => {
         date: 1_788_700_000,
         chat: { id: -1004415501660, type: "supergroup", title: "Agent Lab" },
         from: { id: 417200359, is_bot: false, first_name: "Dotta" },
-        caption: "/task@paperclip_agent_bot inspect this file",
+        caption: "/task@outpost_agent_bot inspect this file",
         caption_entities: [{ offset: 0, length: 30, type: "bot_command" }],
         document: {
           file_id: "telegram-file-id",
@@ -2086,7 +2086,7 @@ describe("Chat SDK published adapter integration", () => {
     { label: "an absent Content-Length", contentLength: undefined },
     { label: "a misleading small Content-Length", contentLength: "4" },
   ])(
-    "stops Telegram attachment downloads at Paperclip's byte cap with $label",
+    "stops Telegram attachment downloads at Outpost's byte cap with $label",
     async ({ contentLength }) => {
       const providerFetch = vi.fn(async (input: string | URL | Request) => {
         const url = String(input);
@@ -2118,13 +2118,13 @@ describe("Chat SDK published adapter integration", () => {
       vi.stubGlobal("fetch", providerFetch);
       const runtime = createChatSdkEndpointRuntime({
         callbacks: { onMessage() {} },
-        companyId: `company-telegram-download-${contentLength ?? "absent"}`,
+        spaceId: `space-telegram-download-${contentLength ?? "absent"}`,
         endpointId: `endpoint-telegram-download-${contentLength ?? "absent"}`,
         logger: "silent",
         persistence,
         providerConfig: {
           provider: "telegram",
-          userName: "paperclip_agent_bot",
+          userName: "outpost_agent_bot",
           maxDownloadBytes: 5,
           credentials: {
             botToken: "123:test",
@@ -2180,13 +2180,13 @@ describe("Chat SDK published adapter integration", () => {
     vi.stubGlobal("fetch", providerFetch);
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-telegram-native-output",
+      spaceId: "space-telegram-native-output",
       endpointId: "endpoint-telegram-native-output",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "telegram",
-        userName: "paperclip_agent_bot",
+        userName: "outpost_agent_bot",
         maxDownloadBytes: 10,
         credentials: {
           botToken: "123:test",
@@ -2317,13 +2317,13 @@ describe("Chat SDK published adapter integration", () => {
       vi.stubGlobal("fetch", providerFetch);
       const runtime = createChatSdkEndpointRuntime({
         callbacks: { onMessage() {} },
-        companyId: "company-telegram-durable-part",
+        spaceId: "space-telegram-durable-part",
         endpointId: "endpoint-telegram-durable-part",
         logger: "silent",
         persistence,
         providerConfig: {
           provider: "telegram",
-          userName: "paperclip_agent_bot",
+          userName: "outpost_agent_bot",
           credentials: {
             botToken: "123:test",
             secretToken: "telegram-webhook-secret",
@@ -2361,7 +2361,7 @@ describe("Chat SDK published adapter integration", () => {
       // only the final HTTP methods are replaced. No live tenant/UI claim.
       const runtime = createChatSdkEndpointRuntime({
         callbacks: { onMessage() {} },
-        companyId: "company-teams-close-edit",
+        spaceId: "space-teams-close-edit",
         endpointId: `endpoint-teams-close-${scope}`,
         logger: "silent",
         persistence: memoryPersistence(),
@@ -2437,7 +2437,7 @@ describe("Chat SDK published adapter integration", () => {
         );
         const edited = await adapter.editMessage(threadId, "owned-progress", {
           markdown:
-            "This chat conversation is closed. The Paperclip task remains available.",
+            "This chat conversation is closed. The Outpost task remains available.",
         });
         expect(edited).toMatchObject({ id: "owned-progress", threadId });
         expect(put).toHaveBeenCalledTimes(1);
@@ -2448,7 +2448,7 @@ describe("Chat SDK published adapter integration", () => {
         expect(body).toMatchObject({
           type: "message",
           textFormat: "markdown",
-          text: "This chat conversation is closed. The Paperclip task remains available.",
+          text: "This chat conversation is closed. The Outpost task remains available.",
         });
         expect(body.attachments ?? []).toEqual([]);
         expect(body.suggestedActions).toBeUndefined();
@@ -2486,13 +2486,13 @@ describe("Chat SDK published adapter integration", () => {
   it("parses verified Teams edit, delete, and restore envelopes through the public adapter contract", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-message-update",
+      spaceId: "space-teams-message-update",
       endpointId: "endpoint-teams-message-update",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-4000-8000-000000000511",
           appPassword: "secret",
@@ -2584,13 +2584,13 @@ describe("Chat SDK published adapter integration", () => {
     async ({ description, expected, status }) => {
       const runtime = createChatSdkEndpointRuntime({
         callbacks: { onMessage() {} },
-        companyId: "company-telegram-errors",
+        spaceId: "space-telegram-errors",
         endpointId: `endpoint-telegram-${status}`,
         logger: "silent",
         persistence,
         providerConfig: {
           provider: "telegram",
-          userName: "paperclip_agent_bot",
+          userName: "outpost_agent_bot",
           credentials: {
             botToken: "123:test",
             secretToken: "telegram-webhook-secret",
@@ -2661,13 +2661,13 @@ describe("Chat SDK published adapter integration", () => {
     async ({ providerCode, rawError }) => {
       const runtime = createChatSdkEndpointRuntime({
         callbacks: { onMessage() {} },
-        companyId: "company-teams-errors",
+        spaceId: "space-teams-errors",
         endpointId: `endpoint-teams-${providerCode}`,
         logger: "silent",
         persistence,
         providerConfig: {
           provider: "microsoft-teams",
-          userName: "Paperclip Agent",
+          userName: "Outpost Agent",
           credentials: {
             appId: "00000000-0000-4000-8000-000000000000",
             appPassword: "secret",
@@ -2717,13 +2717,13 @@ describe("Chat SDK published adapter integration", () => {
   it("keeps a Teams 401 as an endpoint authentication error", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-auth-error",
+      spaceId: "space-teams-auth-error",
       endpointId: "endpoint-teams-auth-error",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-4000-8000-000000000000",
           appPassword: "secret",
@@ -2762,7 +2762,7 @@ describe("Chat SDK published adapter integration", () => {
       provider: "slack",
       providerConfig: {
         provider: "slack" as const,
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
           botUserId: "U-BOT",
@@ -2779,7 +2779,7 @@ describe("Chat SDK published adapter integration", () => {
       provider: "github",
       providerConfig: {
         provider: "github" as const,
-        userName: "paperclip-agent[bot]",
+        userName: "outpost-agent[bot]",
         credentials: {
           botUserId: 1,
           token: "github_pat_test",
@@ -2799,7 +2799,7 @@ describe("Chat SDK published adapter integration", () => {
       provider: "telegram",
       providerConfig: {
         provider: "telegram" as const,
-        userName: "paperclip_agent_bot",
+        userName: "outpost_agent_bot",
         credentials: {
           botToken: "123:test",
           secretToken: "telegram-webhook-secret",
@@ -2818,7 +2818,7 @@ describe("Chat SDK published adapter integration", () => {
       provider: "microsoft-teams",
       providerConfig: {
         provider: "microsoft-teams" as const,
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-0000-0000-000000000000",
           appPassword: "teams-secret",
@@ -2843,8 +2843,8 @@ describe("Chat SDK published adapter integration", () => {
             result: {
               id: 123,
               is_bot: true,
-              first_name: "Paperclip Agent",
-              username: "paperclip_agent_bot",
+              first_name: "Outpost Agent",
+              username: "outpost_agent_bot",
             },
           });
         }
@@ -2853,7 +2853,7 @@ describe("Chat SDK published adapter integration", () => {
       vi.stubGlobal("fetch", providerFetch);
       const runtime = createChatSdkEndpointRuntime({
         callbacks: { onMessage() {} },
-        companyId: "company-signature-test",
+        spaceId: "space-signature-test",
         endpointId: `endpoint-${providerConfig.provider}`,
         logger: "silent",
         persistence,
@@ -2877,7 +2877,7 @@ describe("Chat SDK published adapter integration", () => {
       "https://github.com/user-attachments/assets/11111111-2222-3333-4444-555555555555";
     const existingBareUrl = "https://already-visible.example.test/log.txt";
     const markdown = [
-      `@paperclip-agent inspect [the build](${safeLink}).`,
+      `@outpost-agent inspect [the build](${safeLink}).`,
       `![failure.log](${safeImage})`,
       `Existing URL: ${existingBareUrl}`,
       "[unsafe](javascript:alert(1))",
@@ -2896,7 +2896,7 @@ describe("Chat SDK published adapter integration", () => {
       repository: {
         id: 202,
         name: "chat-e2e",
-        owner: { id: 303, login: "paperclipai", type: "Organization" },
+        owner: { id: 303, login: "outpost", type: "Organization" },
       },
       sender: { id: 101, login: "operator", type: "User" },
     };
@@ -2907,13 +2907,13 @@ describe("Chat SDK published adapter integration", () => {
     const onMessage = vi.fn(async (_event: unknown) => undefined);
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage },
-      companyId: "company-github-links",
+      spaceId: "space-github-links",
       endpointId: "endpoint-github-links",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "github",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botUserId: 999,
           token: "github_pat_test",
@@ -2962,7 +2962,7 @@ describe("Chat SDK published adapter integration", () => {
         payload.comment,
         payload.repository,
         42,
-        "github:paperclipai/chat-e2e:42:rc:4242",
+        "github:outpost/chat-e2e:42:rc:4242",
       );
       expect(review.text).toContain(safeLink);
       expect(review.text).toContain(safeImage);
@@ -2977,13 +2977,13 @@ describe("Chat SDK published adapter integration", () => {
     const logEntries: unknown[] = [];
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-log-boundary",
+      spaceId: "space-teams-log-boundary",
       endpointId: "endpoint-teams-log-boundary",
       logger: capturingLogger(logEntries),
       persistence,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-0000-0000-000000000000",
           appPassword: "teams-secret",
@@ -3033,7 +3033,7 @@ describe("Chat SDK published adapter integration", () => {
       {
         providerConfig: {
           provider: "slack",
-          userName: "paperclip-agent",
+          userName: "outpost-agent",
           credentials: {
             botToken: "xoxb-never-persist",
             signingSecret: "slack-signing-never-persist",
@@ -3064,7 +3064,7 @@ describe("Chat SDK published adapter integration", () => {
       {
         providerConfig: {
           provider: "microsoft-teams",
-          userName: "Paperclip Agent",
+          userName: "Outpost Agent",
           credentials: {
             appId: "00000000-0000-0000-0000-000000000000",
             appPassword: "teams-password-never-persist",
@@ -3093,7 +3093,7 @@ describe("Chat SDK published adapter integration", () => {
       {
         providerConfig: {
           provider: "telegram",
-          userName: "paperclip_agent_bot",
+          userName: "outpost_agent_bot",
           credentials: {
             botToken: "123:telegram-never-persist",
             secretToken: "telegram-webhook-never-persist",
@@ -3127,7 +3127,7 @@ describe("Chat SDK published adapter integration", () => {
     for (const [index, testCase] of cases.entries()) {
       const runtime = createChatSdkEndpointRuntime({
         callbacks: { onMessage() {} },
-        companyId: "company-attachment-recovery",
+        spaceId: "space-attachment-recovery",
         endpointId: `endpoint-attachment-${index}`,
         logger: "silent",
         persistence,
@@ -3166,13 +3166,13 @@ describe("Chat SDK published adapter integration", () => {
   it("fails closed for cross-provider and bearer-style Teams attachment locators", () => {
     const teams = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-attachment-recovery",
+      spaceId: "space-attachment-recovery",
       endpointId: "endpoint-teams-attachment",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-0000-0000-000000000000",
           appPassword: "secret",
@@ -3190,13 +3190,13 @@ describe("Chat SDK published adapter integration", () => {
 
     const slack = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-attachment-recovery",
+      spaceId: "space-attachment-recovery",
       endpointId: "endpoint-slack-attachment",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: { botToken: "token", signingSecret: "secret" },
       },
     });
@@ -3213,13 +3213,13 @@ describe("Chat SDK published adapter integration", () => {
   it("isolates concurrent Teams sends by verified thread service URL", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-egress",
+      spaceId: "space-teams-egress",
       endpointId: "endpoint-teams-egress",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-0000-0000-000000000000",
           appPassword: "secret",
@@ -3296,13 +3296,13 @@ describe("Chat SDK published adapter integration", () => {
     const state = memoryPersistence();
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-route-refresh",
+      spaceId: "space-teams-route-refresh",
       endpointId: "endpoint-teams-route-refresh",
       logger: "silent",
       persistence: state,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-0000-0000-000000000000",
           appPassword: "secret",
@@ -3353,19 +3353,19 @@ describe("Chat SDK published adapter integration", () => {
     await runtime.shutdown();
   });
 
-  it("persists Teams metadata only after Paperclip admits the authenticated activity", async () => {
+  it("persists Teams metadata only after Outpost admits the authenticated activity", async () => {
     const state = memoryPersistence();
     const tenantId = "00000000-0000-4000-8000-000000000622";
     const appId = "00000000-0000-4000-8000-000000000611";
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-admitted-metadata",
+      spaceId: "space-teams-admitted-metadata",
       endpointId: "endpoint-teams-admitted-metadata",
       logger: "silent",
       persistence: state,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId,
           appPassword: "secret",
@@ -3465,13 +3465,13 @@ describe("Chat SDK published adapter integration", () => {
   it("scopes direct Teams edit, reaction, and delete calls to signed Microsoft service URLs", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-direct-api",
+      spaceId: "space-teams-direct-api",
       endpointId: "endpoint-teams-direct-api",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-0000-0000-000000000000",
           appPassword: "secret",
@@ -3567,13 +3567,13 @@ describe("Chat SDK published adapter integration", () => {
     const state = memoryPersistence();
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-open-dm",
+      spaceId: "space-teams-open-dm",
       endpointId: "endpoint-teams-open-dm",
       logger: "silent",
       persistence: state,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-0000-0000-000000000000",
           appPassword: "secret",
@@ -3689,13 +3689,13 @@ describe("Chat SDK published adapter integration", () => {
   it("restores the Teams API client after a scoped outbound failure", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-egress-failure",
+      spaceId: "space-teams-egress-failure",
       endpointId: "endpoint-teams-egress-failure",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-0000-0000-000000000000",
           appPassword: "secret",
@@ -3729,13 +3729,13 @@ describe("Chat SDK published adapter integration", () => {
   it("accepts canonical Microsoft first-party Teams service URL suffixes", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-egress-first-party",
+      spaceId: "space-teams-egress-first-party",
       endpointId: "endpoint-teams-egress-first-party",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-4000-8000-000000000000",
           appPassword: "secret",
@@ -3780,13 +3780,13 @@ describe("Chat SDK published adapter integration", () => {
   it("rejects unsafe Teams thread service URLs before transport", async () => {
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-egress-untrusted",
+      spaceId: "space-teams-egress-untrusted",
       endpointId: "endpoint-teams-egress-untrusted",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "00000000-0000-0000-0000-000000000000",
           appPassword: "secret",
@@ -3837,13 +3837,13 @@ describe("Chat SDK published adapter integration", () => {
     const configuredApiUrl = "https://connector.example.test:8443/custom";
     const runtime = createChatSdkEndpointRuntime({
       callbacks: { onMessage() {} },
-      companyId: "company-teams-custom-api",
+      spaceId: "space-teams-custom-api",
       endpointId: "endpoint-teams-custom-api",
       logger: "silent",
       persistence,
       providerConfig: {
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           apiUrl: configuredApiUrl,
           appId: "00000000-0000-0000-0000-000000000000",

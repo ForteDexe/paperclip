@@ -40,7 +40,7 @@ export type AgentCaseReadDocument = Record<string, unknown> & {
 /** The route reauthorizes the case on every page. Document selection never
  * expands that boundary to an arbitrary task, system document or quarantine. */
 export async function loadAgentCaseDocument(db: Db, input: {
-  caseRow: { id: string; companyId: string; workIssueId: string | null };
+  caseRow: { id: string; spaceId: string; workIssueId: string | null };
   actor: AuthorizationActor; documentKey: string; documentIssueId?: string;
 }): Promise<AgentCaseReadDocument> {
   const { caseRow, actor } = input;
@@ -49,35 +49,35 @@ export async function loadAgentCaseDocument(db: Db, input: {
     const key = issueDocumentKeySchema.parse(input.documentKey.trim().toLowerCase());
     if (isSystemIssueDocumentKey(key)) throw notFound("Case document not found");
     const [task] = await db.select({ id: issues.id }).from(issues).where(and(
-      eq(issues.companyId, caseRow.companyId), eq(issues.id, input.documentIssueId),
+      eq(issues.spaceId, caseRow.spaceId), eq(issues.id, input.documentIssueId),
       or(caseRow.workIssueId ? eq(issues.id, caseRow.workIssueId) : undefined,
         exists(db.select({ id: caseIssueLinks.id }).from(caseIssueLinks).where(and(
-          eq(caseIssueLinks.companyId, caseRow.companyId), eq(caseIssueLinks.caseId, caseRow.id), eq(caseIssueLinks.issueId, issues.id),
+          eq(caseIssueLinks.spaceId, caseRow.spaceId), eq(caseIssueLinks.caseId, caseRow.id), eq(caseIssueLinks.issueId, issues.id),
         )))), await issueReadSqlCondition(db, actor),
     )).limit(1);
     if (!task || !(await authorizationService(db).decide({ actor, action: "issue:read",
-      resource: { type: "issue", companyId: caseRow.companyId, issueId: task.id } })).allowed) throw notFound("Case document not found");
+      resource: { type: "issue", spaceId: caseRow.spaceId, issueId: task.id } })).allowed) throw notFound("Case document not found");
     const value = await documentService(db).getIssueDocumentByKey(task.id, key);
-    if (value?.companyId === caseRow.companyId && typeof value.body === "string") {
+    if (value?.spaceId === caseRow.spaceId && typeof value.body === "string") {
       document = { ...value, body: value.body, sourceKind: "issue", sourceIssueId: task.id };
     }
   } else {
     const [value] = await db.select({ document: documents }).from(caseDocuments).innerJoin(documents, and(
-      eq(documents.id, caseDocuments.documentId), eq(documents.companyId, caseRow.companyId),
-    )).where(and(eq(caseDocuments.companyId, caseRow.companyId), eq(caseDocuments.caseId, caseRow.id), eq(caseDocuments.key, input.documentKey))).limit(1);
+      eq(documents.id, caseDocuments.documentId), eq(documents.spaceId, caseRow.spaceId),
+    )).where(and(eq(caseDocuments.spaceId, caseRow.spaceId), eq(caseDocuments.caseId, caseRow.id), eq(caseDocuments.key, input.documentKey))).limit(1);
     if (value) {
       const { latestBody, ...metadata } = value.document;
       document = { ...metadata, key: input.documentKey, body: latestBody, sourceKind: "case", sourceIssueId: null };
     }
   }
-  if (!document || (actor.type !== "board" && isLowTrustQuarantined(document.sourceTrust as Parameters<typeof isLowTrustQuarantined>[0]))) {
+  if (!document || (actor.type !== "operator" && isLowTrustQuarantined(document.sourceTrust as Parameters<typeof isLowTrustQuarantined>[0]))) {
     throw notFound("Case document not found");
   }
   return document;
 }
 
 type CaseDetail = Record<string, unknown> & {
-  id: string; companyId: string; workIssueId: string | null; phase: string | null; handoffVersion: number;
+  id: string; spaceId: string; workIssueId: string | null; phase: string | null; handoffVersion: number;
   fields: Record<string, unknown>;
   workIssue: { id: string; status: string; statusVersion: number } | null;
 };
@@ -88,7 +88,7 @@ export function projectAgentCaseRead(detail: CaseDetail, rawOptions: unknown, do
   const options = caseReadPageSchema.parse(rawOptions);
   const section = options.section ?? "case", offset = options.offsetBytes ?? 0;
   const limit = options.limitBytes ?? CASE_READ_PAGE_BYTES;
-  const routing = { id: detail.id, companyId: detail.companyId, workIssueId: detail.workIssueId,
+  const routing = { id: detail.id, spaceId: detail.spaceId, workIssueId: detail.workIssueId,
     phase: detail.phase, handoffVersion: detail.handoffVersion, workflowId: detail.workflowId, workflow: detail.workflow,
     workIssue: detail.workIssue ? { id: detail.workIssue.id, status: detail.workIssue.status, statusVersion: detail.workIssue.statusVersion } : null };
   if (section === "document" && (!document || document.key !== (options.documentIssueId ? options.documentKey!.toLowerCase() : options.documentKey) ||

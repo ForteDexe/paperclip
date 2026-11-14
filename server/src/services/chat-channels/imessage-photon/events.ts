@@ -202,7 +202,7 @@ export function createPhotonEvents(db: Db, options: PhotonEventsOptions) {
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, endpoint.companyId),
+          eq(chatActions.spaceId, endpoint.spaceId),
           eq(chatActions.endpointId, endpoint.id),
           eq(chatActions.kind, "photon_interaction"),
           eq(chatActions.providerActionId, `photon:${reference}`),
@@ -224,7 +224,7 @@ export function createPhotonEvents(db: Db, options: PhotonEventsOptions) {
       .from(chatConversations)
       .where(
         and(
-          eq(chatConversations.companyId, endpoint.companyId),
+          eq(chatConversations.spaceId, endpoint.spaceId),
           eq(chatConversations.endpointId, endpoint.id),
           eq(chatConversations.id, action.conversationId),
         ),
@@ -242,7 +242,7 @@ export function createPhotonEvents(db: Db, options: PhotonEventsOptions) {
       .from(chatPublications)
       .where(
         and(
-          eq(chatPublications.companyId, endpoint.companyId),
+          eq(chatPublications.spaceId, endpoint.spaceId),
           eq(chatPublications.endpointId, endpoint.id),
           eq(chatPublications.id, binding.publicationId),
           eq(chatPublications.conversationId, conversation.id),
@@ -271,7 +271,7 @@ export function createPhotonEvents(db: Db, options: PhotonEventsOptions) {
     if (
       !interaction ||
       interaction.status !== "pending" ||
-      interaction.companyId !== endpoint.companyId ||
+      interaction.spaceId !== endpoint.spaceId ||
       interaction.createdByAgentId !== endpoint.assignedAgentId ||
       !nativePhotonInteraction(interaction)
     )
@@ -436,7 +436,7 @@ export function createPhotonEvents(db: Db, options: PhotonEventsOptions) {
           .from(issues)
           .where(
             and(
-              eq(issues.companyId, endpoint.companyId),
+              eq(issues.spaceId, endpoint.spaceId),
               eq(issues.id, conversation.issueId),
             ),
           )
@@ -497,7 +497,7 @@ export function createPhotonEvents(db: Db, options: PhotonEventsOptions) {
               if (!claimed.length)
                 throw forbidden("Photon prompt has already been resolved");
               await logActivity(tx as unknown as Db, {
-                companyId: endpoint.companyId,
+                spaceId: endpoint.spaceId,
                 actorType: "user",
                 actorId: principal.userId!,
                 action: "issue.thread_interaction_answered",
@@ -560,7 +560,7 @@ export function createPhotonEvents(db: Db, options: PhotonEventsOptions) {
           .from(issues)
           .where(
             and(
-              eq(issues.companyId, endpoint.companyId),
+              eq(issues.spaceId, endpoint.spaceId),
               eq(issues.id, conversation.issueId),
             ),
           )
@@ -614,7 +614,7 @@ export function createPhotonEvents(db: Db, options: PhotonEventsOptions) {
             if (!claimed.length)
               throw forbidden("Photon prompt has already been resolved");
             await logActivity(tx as unknown as Db, {
-              companyId: endpoint.companyId,
+              spaceId: endpoint.spaceId,
               actorType: "user",
               actorId: principal.userId!,
               action:
@@ -728,7 +728,7 @@ export function createPhotonEvents(db: Db, options: PhotonEventsOptions) {
         await tx
           .insert(chatEndpointResources)
           .values({
-            companyId: record.endpoint.companyId,
+            spaceId: record.endpoint.spaceId,
             endpointId,
             providerResourceId: removedThreadId,
             type: "group_chat",
@@ -754,7 +754,7 @@ export function createPhotonEvents(db: Db, options: PhotonEventsOptions) {
       return;
     }
     const groupIdentity = photonThreadId({ lineId: adapter.authentication.identity.lineId, chatGuid: event.chatGuid, isGroup: true });
-    const removedGroup = await db.select({ metadata: chatEndpointResources.metadata }).from(chatEndpointResources).where(and(eq(chatEndpointResources.companyId, record.endpoint.companyId), eq(chatEndpointResources.endpointId, endpointId), eq(chatEndpointResources.providerResourceId, groupIdentity))).limit(1).then((rows) => rows[0]);
+    const removedGroup = await db.select({ metadata: chatEndpointResources.metadata }).from(chatEndpointResources).where(and(eq(chatEndpointResources.spaceId, record.endpoint.spaceId), eq(chatEndpointResources.endpointId, endpointId), eq(chatEndpointResources.providerResourceId, groupIdentity))).limit(1).then((rows) => rows[0]);
     const readded = event.type === "group.changed" && event.change.type === "participantAdded" && event.change.participant.address === record.endpoint.botExternalId;
     // Late events from a removed chat must still advance recovery without a
     // now-forbidden chat lookup holding every other conversation behind them.
@@ -824,7 +824,7 @@ export function createPhotonEvents(db: Db, options: PhotonEventsOptions) {
       await tx
         .insert(chatEndpointResources)
         .values({
-          companyId: record.endpoint.companyId,
+          spaceId: record.endpoint.spaceId,
           endpointId,
           providerResourceId: threadId,
           type: chat.isGroup ? "group_chat" : "direct_message",

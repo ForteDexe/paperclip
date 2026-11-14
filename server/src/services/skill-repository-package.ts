@@ -1,9 +1,9 @@
 import path from 'node:path';
-import type { CompanySkillVersionFileInventoryEntry, SkillRepositoryPackage } from '@outpost/shared';
+import type { SpaceSkillVersionFileInventoryEntry, SkillRepositoryPackage } from '@outpost/shared';
 import { z } from 'zod';
 import { assertSkillSnapshotPath, skillFileBytes } from './skill-snapshot.js';
 
-export const REPOSITORY_CONTENT_DIR = '.paperclip-repository';
+export const REPOSITORY_CONTENT_DIR = '.outpost-repository';
 export const MAX_REPOSITORY_FILES = 9_990;
 export const MAX_REPOSITORY_BYTES = 61 * 1024 * 1024;
 export function repositorySkillFrontmatter(content: string): string | undefined {
@@ -16,7 +16,7 @@ const manifestSchema = z.object({
 }).strict();
 
 /** Declarative metadata only: importing never invokes a repository's installer. */
-export function inspectRepositoryManifest(files: CompanySkillVersionFileInventoryEntry[], skillPaths: string[]) {
+export function inspectRepositoryManifest(files: SpaceSkillVersionFileInventoryEntry[], skillPaths: string[]) {
   const file = files.find(file => file.path === 'outpost.skills.json');
   if (!file) return {};
   const manifest = manifestSchema.parse(JSON.parse(skillFileBytes(file).toString('utf8')));
@@ -25,7 +25,7 @@ export function inspectRepositoryManifest(files: CompanySkillVersionFileInventor
   return { skillPaths: declared, requirements: manifest.requirements ?? null };
 }
 
-export function repositoryPackageInspection(files: CompanySkillVersionFileInventoryEntry[], skillPaths: string[], warnings: string[], error: string | null): SkillRepositoryPackage {
+export function repositoryPackageInspection(files: SpaceSkillVersionFileInventoryEntry[], skillPaths: string[], warnings: string[], error: string | null): SkillRepositoryPackage {
   let manifest: ReturnType<typeof inspectRepositoryManifest> = {};
   try { manifest = inspectRepositoryManifest(files, skillPaths); }
   catch { warnings = [...warnings, 'outpost.skills.json — Invalid manifest; skills were discovered automatically.']; }
@@ -37,7 +37,7 @@ export function repositoryPackageInspection(files: CompanySkillVersionFileInvent
  * The full tree travels inside the skill on every existing adapter and sandbox
  * transport. Never rewrite authored relative links or use host-only symlinks.
  */
-export function repositorySkillProjection(files: CompanySkillVersionFileInventoryEntry[], skillPath: string): CompanySkillVersionFileInventoryEntry[] {
+export function repositorySkillProjection(files: SpaceSkillVersionFileInventoryEntry[], skillPath: string): SpaceSkillVersionFileInventoryEntry[] {
   assertSkillSnapshotPath(skillPath);
   const skill = files.find(file => file.path === skillPath);
   if (!skill || skill.encoding === 'base64') throw new Error('Repository skill entrypoint is missing or not text.');

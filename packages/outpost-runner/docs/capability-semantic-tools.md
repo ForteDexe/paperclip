@@ -55,13 +55,13 @@ task permissions still apply to every retry.
 | --- | --- |
 | discovery | `search_tasks`, `list_agents`, `list_projects`, `list_goals` |
 | delegation_dependencies | `create_task`, `reassign_task`, `set_dependencies` |
-| governance | `list_approvals`, `request_approval`, `decide_approval`, `comment_on_approval` |
+| approvals | `list_approvals`, `request_approval`, `decide_approval`, `comment_on_approval` |
 | cases | `list_cases`, `upsert_case` |
 | workspace_runtime | `get_workspace_runtime`, `control_workspace_service` |
 | routines | `list_routines`, `manage_routine` |
-| company_skills | `create_skill`, `update_skill`, `list_company_skills`, `sync_company_skills` |
+| space_skills | `create_skill`, `update_skill`, `list_space_skills`, `sync_space_skills` |
 | secrets | `list_secret_metadata`, `read_secret_value` |
-| portability_admin | `export_company`, `administer_company` |
+| portability_admin | `export_space`, `administer_space` |
 | test_escape_hatch | `generic_api_request` |
 
 ## Descriptor shape
@@ -69,7 +69,7 @@ task permissions still apply to every retry.
 Each descriptor carries `operationId`, `version` (1), `title`, `description`,
 input/output JSON schemas, `disposition`, an optional `optionalGroup`,
 `requiredClaims`, and optionally `allowedRoles`, `taskModes`, a `sideEffectClass`
-(`read`, `task_write`, `company_write`, `governance`, `workspace_control`,
+(`read`, `task_write`, `space_write`, `approvals`, `workspace_control`,
 `secret_read`, `admin`, `test_escape_hatch`), an `idempotency` level, `redaction`
 rules, and an abstract `mockCommandMapping`.
 
@@ -109,7 +109,7 @@ that every optional group is present.
 
 ## Reassigning existing tasks
 
-`reassign_task` moves another existing company task to an eligible agent. Read
+`reassign_task` moves another existing space task to an eligible agent. Read
 `search_tasks` first and send the observed `expectedAssigneeActorId` (nullable)
 and `expectedStatusVersion`, the new `assigneeActorId`, a handoff `reason`, and a
 stable `idempotencyKey`. It requires `delegation:tasks:assign` and production

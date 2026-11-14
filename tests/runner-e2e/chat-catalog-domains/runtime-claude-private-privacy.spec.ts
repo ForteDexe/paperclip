@@ -8,13 +8,13 @@ for (const branch of ["success", "private-child-failure", "parent-failure"] as c
   test.skip(!process.env.OUTPOST_CLAUDE_CANARY_PRIVATE_FILE, "Explicit synthetic-only privacy canary");
   const credential = `synthetic-claude-${randomUUID()}`, cookie = `synthetic-cookie-${randomUUID()}`;
   await appendFile(process.env.OUTPOST_CLAUDE_CANARY_PRIVATE_FILE!, `${credential}\n${cookie}\n`, { mode: 0o600 });
-  const companyId = randomUUID(), environmentId = randomUUID(), connectionId = randomUUID(), grantId = randomUUID(); let keyObserved = false, cookieObserved = false;
+  const spaceId = randomUUID(), environmentId = randomUUID(), connectionId = randomUUID(), grantId = randomUUID(); let keyObserved = false, cookieObserved = false;
   const server = createServer(async (req, res) => {
     cookieObserved ||= req.headers.cookie === `canary=${cookie}`;
     res.setHeader("content-type", "application/json");
     if (req.method === "GET") {
       const environment = { id: environmentId, driver: "local", status: "active" };
-      res.end(JSON.stringify(req.url?.endsWith("/environments") ? [environment] : req.url?.includes("/environments/") ? environment : { id: companyId })); return;
+      res.end(JSON.stringify(req.url?.endsWith("/environments") ? [environment] : req.url?.includes("/environments/") ? environment : { id: spaceId })); return;
     }
     let raw = ""; for await (const chunk of req) raw += chunk; const body = JSON.parse(raw);
     if (req.url?.endsWith("/ai-connections")) {
@@ -26,7 +26,7 @@ for (const branch of ["success", "private-child-failure", "parent-failure"] as c
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve)); const address = server.address(); if (!address || typeof address === "string") throw new Error("Synthetic canary did not bind");
   try {
-    const operation = privateClaudeOperation({ operation: "prepare-account", credential, companyId, environmentId, harnessExecutable: "synthetic-command-never-executed", model: "synthetic-model-never-called", baseURL: `http://127.0.0.1:${address.port}`, cookies: [{ name: "canary", value: cookie, domain: "127.0.0.1", path: "/", expires: -1, httpOnly: true, secure: false, sameSite: "Lax" }] });
+    const operation = privateClaudeOperation({ operation: "prepare-account", credential, spaceId, environmentId, harnessExecutable: "synthetic-command-never-executed", model: "synthetic-model-never-called", baseURL: `http://127.0.0.1:${address.port}`, cookies: [{ name: "canary", value: cookie, domain: "127.0.0.1", path: "/", expires: -1, httpOnly: true, secure: false, sameSite: "Lax" }] });
     if (branch === "private-child-failure") await expect(operation).rejects.toThrow("diagnostics withheld");
     else { const receipt = await operation; expect(receipt.processIsolation).toBe(true); expect(receipt.testRunnerAttached).toBe(false); expect(receipt.probeStatus).toBe("pass"); }
     expect(keyObserved && cookieObserved).toBe(true);

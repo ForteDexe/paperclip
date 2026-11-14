@@ -4,9 +4,9 @@ import { agentInstructionWorkingCopies as copies, type Db } from "@outpost/db";
 /** Terminal run status does not settle private edits. Only the copy owner's
  * save/resolution or confirmed stopped no-save cleanup releases local bytes. */
 export async function hasUnsettledLocalInstructionCopies(db: Pick<Db, "select">,
-  scope?: { companyId: string; agentId?: string }): Promise<boolean> {
+  scope?: { spaceId: string; agentId?: string }): Promise<boolean> {
   return (await db.select({ runId: copies.runId }).from(copies).where(and(
-    scope ? eq(copies.companyId, scope.companyId) : undefined,
+    scope ? eq(copies.spaceId, scope.spaceId) : undefined,
     scope?.agentId ? eq(copies.agentId, scope.agentId) : undefined,
     eq(copies.location, "local"), notInArray(copies.state, ["saved", "unchanged", "resolved", "superseded"]),
     not(and(eq(copies.state, "unavailable"), isNotNull(copies.processStoppedAt),

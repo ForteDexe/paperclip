@@ -35,7 +35,7 @@ type RemoteWorkspaceSourceResolution = { authority: "remote"; source: RemoteWork
 
 /** Resolve an authorized source without materializing any controller directory. */
 export async function resolveRemoteWorkspaceSource(db: Db, input: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   agentId: string;
   runId: string;
@@ -52,11 +52,11 @@ export async function resolveRemoteWorkspaceSource(db: Db, input: {
   branchMode?: "create" | "existing";
 }): Promise<RemoteWorkspaceSourceResolution> {
   const actor = {
-    type: "agent", source: "agent_jwt", companyId: input.companyId,
+    type: "agent", source: "agent_jwt", spaceId: input.spaceId,
     agentId: input.agentId, runId: input.runId,
-    onBehalfOfUserId: input.responsibleUserId === "local-board" ? null : input.responsibleUserId,
+    onBehalfOfUserId: input.responsibleUserId === "local-operator" ? null : input.responsibleUserId,
   } as const;
-  const selected = await assertTaskWorkspaceExecutionAccess(db, actor, input.companyId, { issueId: input.issueId,
+  const selected = await assertTaskWorkspaceExecutionAccess(db, actor, input.spaceId, { issueId: input.issueId,
     ...(!input.selection && input.existingWorkspace ? { workspaceId: input.existingWorkspace.id } : {}),
     ...(input.selection ? { persistedSelection: input.selection.selection } : {}),
   });
@@ -73,8 +73,8 @@ export async function resolveRemoteWorkspaceSource(db: Db, input: {
     const extra = [...(base.repositories ?? [])];
     for (const projectId of new Set(extra.flatMap(repository => repository.projectId ? [repository.projectId] : []))) {
       try {
-        await assertTaskWorkspaceSourceProjectAccess(db, actor, input.companyId, projectId);
-        await assertSelectedWorkspaceTrust(db, { companyId: input.companyId, actor, issueId: input.issueId,
+        await assertTaskWorkspaceSourceProjectAccess(db, actor, input.spaceId, projectId);
+        await assertSelectedWorkspaceTrust(db, { spaceId: input.spaceId, actor, issueId: input.issueId,
           sourceProjectId: projectId });
       } catch (error) {
         if (error instanceof ProjectAccessDeniedError || !(error instanceof HttpError) || error.status !== 403) throw error;
@@ -90,7 +90,7 @@ export async function resolveRemoteWorkspaceSource(db: Db, input: {
       for (const repository of extra) if (!remoteRepositorySource(repository.repoUrl)) return hostSource();
     }
     const referenced = isMultiProjectWorkspaceSyncEnabled() ? await resolveRunReferencedProjects(input.issueId, anchorProjectId, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actor,
       issues: issueService(db), projects: projectService(db), access: authorizationService(db),
     }) : { additional: [], warnings: [], failures: [] };
@@ -100,11 +100,11 @@ export async function resolveRemoteWorkspaceSource(db: Db, input: {
         "Referenced remote workspace access is disabled.", { reason: "remote_referenced_workspace_disabled" });
       for (const { projectId, project } of referenced.additional) {
         if (!project.workspaces.length) continue;
-        await assertSelectedWorkspaceTrust(db, { companyId: input.companyId, actor, issueId: input.issueId,
+        await assertSelectedWorkspaceTrust(db, { spaceId: input.spaceId, actor, issueId: input.issueId,
           sourceProjectId: projectId });
         for (const repository of project.workspaces) {
           if (extra.some(saved => saved.id === repository.id)) continue;
-          if (repository.sourceType === "remote_managed" || (repository.cwd && repository.cwd !== "/__paperclip_repo_only__")
+          if (repository.sourceType === "remote_managed" || (repository.cwd && repository.cwd !== "/__outpost_repo_only__")
             || (repository.repoUrl && !remoteRepositorySource(repository.repoUrl))) {
             throw new WorkspaceValidationFailure(
               `Import the local folder for project "${project.name}" before attaching it to a remote task.`,
@@ -115,7 +115,7 @@ export async function resolveRemoteWorkspaceSource(db: Db, input: {
             { reason: "remote_workspace_source_unavailable", projectId, projectWorkspaceId: repository.id });
           const ref = repository.repoRef ?? repository.defaultRef ?? null;
           extra.push({ id: repository.id, projectId, projectWorkspaceId: repository.id,
-            relativePath: `.paperclip-repositories/${managedProjectCheckoutName({
+            relativePath: `.outpost-repositories/${managedProjectCheckoutName({
               id: repository.id, repoUrl: repository.repoUrl, repoRef: ref,
             })}`, repoUrl: repository.repoUrl, ref });
         }
@@ -143,9 +143,9 @@ export async function resolveRemoteWorkspaceSource(db: Db, input: {
   const sourceId = input.selection?.selection.kind === "configured_source"
     ? input.selection.selection.projectWorkspaceId : selected.source?.id ?? selected.task.projectWorkspaceId;
   const [source] = sourceId ? await db.select().from(projectWorkspaces).where(and(
-    eq(projectWorkspaces.id, sourceId), eq(projectWorkspaces.companyId, input.companyId),
+    eq(projectWorkspaces.id, sourceId), eq(projectWorkspaces.spaceId, input.spaceId),
   )) : projectId ? await db.select().from(projectWorkspaces).where(and(
-    eq(projectWorkspaces.projectId, projectId), eq(projectWorkspaces.companyId, input.companyId),
+    eq(projectWorkspaces.projectId, projectId), eq(projectWorkspaces.spaceId, input.spaceId),
   )).orderBy(asc(projectWorkspaces.createdAt), asc(projectWorkspaces.id)).limit(1) : [];
   if (!source) {
     let implicitTaskDirectory = false;
@@ -154,9 +154,9 @@ export async function resolveRemoteWorkspaceSource(db: Db, input: {
       && selected.task.workspaceSelection == null && selected.task.workspacePendingSelection == null
       && input.ref == null && input.branchName == null && input.branchMode !== "existing") {
       const [metadataProject] = await db.select({ policy: projects.executionWorkspacePolicy }).from(projects).where(and(
-        eq(projects.id, projectId), eq(projects.companyId, input.companyId),
+        eq(projects.id, projectId), eq(projects.spaceId, input.spaceId),
         notExists(db.select({ id: projectWorkspaces.id }).from(projectWorkspaces).where(and(
-          eq(projectWorkspaces.projectId, projects.id), eq(projectWorkspaces.companyId, input.companyId),
+          eq(projectWorkspaces.projectId, projects.id), eq(projectWorkspaces.spaceId, input.spaceId),
         ))),
       )).limit(1);
       implicitTaskDirectory = Boolean(metadataProject) && sourcelessProjectWorkspacePolicy(metadataProject.policy) === null;
@@ -169,30 +169,30 @@ export async function resolveRemoteWorkspaceSource(db: Db, input: {
   // Recheck authorization against the concrete configured source; the earliest
   // project default may have been selected after the initial task read.
   await assertTaskWorkspaceExecutionAccess(db, {
-    type: "agent", source: "agent_jwt", companyId: input.companyId,
+    type: "agent", source: "agent_jwt", spaceId: input.spaceId,
     agentId: input.agentId, runId: input.runId,
-    onBehalfOfUserId: input.responsibleUserId === "local-board" ? null : input.responsibleUserId,
-  }, input.companyId, { issueId: input.issueId,
+    onBehalfOfUserId: input.responsibleUserId === "local-operator" ? null : input.responsibleUserId,
+  }, input.spaceId, { issueId: input.issueId,
     ...(selected.source ? { projectWorkspaceId: source.id } : {}),
   });
   if (source.sourceType === "remote_managed") return hostSource();
-  if (source.cwd && source.cwd !== "/__paperclip_repo_only__") return hostSource();
+  if (source.cwd && source.cwd !== "/__outpost_repo_only__") return hostSource();
   if (!source.repoUrl) throw new WorkspaceValidationFailure(
     "The selected workspace has no repository URL.", { reason: "remote_workspace_source_unavailable" });
   if (!remoteRepositorySource(source.repoUrl)) return hostSource();
   const sameProject = await db.select().from(projectWorkspaces).where(and(
-    eq(projectWorkspaces.companyId, input.companyId), eq(projectWorkspaces.projectId, source.projectId),
+    eq(projectWorkspaces.spaceId, input.spaceId), eq(projectWorkspaces.projectId, source.projectId),
   )).orderBy(asc(projectWorkspaces.createdAt), asc(projectWorkspaces.id));
   const repositories: NonNullable<RemoteWorkspaceSource["repositories"]> = [];
   const identities = new Set([projectRepositoryIdentity(source.repoUrl)]);
   for (const repository of sameProject) {
     if (!repository.repoUrl || identities.has(projectRepositoryIdentity(repository.repoUrl))) continue;
     if (repository.sourceType === "remote_managed") return hostSource();
-    if (repository.cwd && repository.cwd !== "/__paperclip_repo_only__") return hostSource();
+    if (repository.cwd && repository.cwd !== "/__outpost_repo_only__") return hostSource();
     if (!remoteRepositorySource(repository.repoUrl)) return hostSource();
     identities.add(projectRepositoryIdentity(repository.repoUrl));
     const ref = repository.repoRef ?? repository.defaultRef ?? null;
-    repositories.push({ id: repository.id, relativePath: `.paperclip-repositories/${managedProjectCheckoutName({
+    repositories.push({ id: repository.id, relativePath: `.outpost-repositories/${managedProjectCheckoutName({
       id: repository.id, repoUrl: repository.repoUrl, repoRef: ref,
     })}`, repoUrl: repository.repoUrl, ref, projectId: source.projectId,
       projectWorkspaceId: repository.id });

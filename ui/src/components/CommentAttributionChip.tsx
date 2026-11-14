@@ -51,7 +51,7 @@ export function CommentAttributionChip({
           data-testid="comment-attribution-chip"
           aria-label={`Posted on behalf of ${user}`}
           // `Badge` renders a span, which is not focusable — without this a
-          // sighted keyboard user can never open the explanation. Radix opens
+          // sighted keyoperator can never open the explanation. Radix opens
           // the tooltip on focus as well as hover.
           tabIndex={0}
           className={cn(

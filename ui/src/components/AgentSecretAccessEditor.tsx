@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { KeyRound, Plus, ServerCog, Trash2, Variable } from "lucide-react";
 import type {
-  CompanySecret,
+  SpaceSecret,
   EnvSecretRefBinding,
   SecretProposalView,
   SecretVersionSelector,
@@ -153,14 +153,14 @@ export function normalizeAccessMapKey(map: Record<string, EnvSecretRefBinding>):
 export interface AgentSecretAccessEditorProps {
   /** Effective adapter config (env + top-level `access.*`), reflecting unsaved edits. */
   config: Record<string, unknown>;
-  secrets: readonly CompanySecret[];
+  secrets: readonly SpaceSecret[];
   /**
    * Emit the complete desired set of API-access grants (alias → secret_ref). The
    * parent diffs this against the current `access.*` keys to add/remove them.
    */
   onChange: (next: Record<string, EnvSecretRefBinding>) => void;
-  /** Create a company secret from the shared picker's pinned create action. */
-  onCreateSecret?: (name: string, value: string) => Promise<CompanySecret>;
+  /** Create a space secret from the shared picker's pinned create action. */
+  onCreateSecret?: (name: string, value: string) => Promise<SpaceSecret>;
   disabled?: boolean;
   /** Pending binding proposals targeting this agent (PAP-14731). */
   proposals?: readonly SecretProposalView[];

@@ -13,7 +13,7 @@ function valid() {
     hadOwnedSecret = false,
     returnedOwnedSecret = false,
   ) => ({
-    companyId: "company",
+    spaceId: "space",
     agentId,
     operationId: phase === "resuming" ? "resume" : "prepare",
     version: phase === "resuming" ? 4 : 1,
@@ -23,14 +23,14 @@ function valid() {
   });
   return {
     scenarioId: "secrets.least-scope-delivery",
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     reply:
       "The endpoint check succeeded with HTTP200 using Morgan's bound deployment credential.",
     phaseReplies: [
       {
         runId: "source-final",
-        body: "The endpoint check succeeded with HTTP200 using Morgan's bound deployment credential. I cannot access unrelated company or instance secrets.",
+        body: "The endpoint check succeeded with HTTP200 using Morgan's bound deployment credential. I cannot access unrelated space or instance secrets.",
       },
     ],
     connections: [],
@@ -113,7 +113,7 @@ function valid() {
       task: {
         executionWorkspaceId: "workspace",
         id: "task",
-        companyId: "company",
+        spaceId: "space",
         assigneeAgentId: "morgan",
         parentId: null as string | null,
         originIssueId: "source",
@@ -124,7 +124,7 @@ function valid() {
         {
           runId: "worker",
           agentId: "morgan",
-          companyId: "company",
+          spaceId: "space",
           tokenRunMatched: true,
           taskId: "task",
           workspaceId: "workspace",
@@ -134,9 +134,9 @@ function valid() {
           // The worker also holds its model-provider credential binding.
           catalogKeys: ["openrouter_api_key", "deployment-api-key"],
           secretRefs: ["provider", "bound"],
-          companyKey: "unrelated-company-key",
+          spaceKey: "unrelated-space-key",
           instanceKey: "custody_probe",
-          companyDeniedStatus: 403,
+          spaceDeniedStatus: 403,
           instanceDeniedStatus: 403,
         },
       ],
@@ -233,10 +233,10 @@ it("rejects wrong owner/run/reference/custody, overgrant, missing delivery and l
       o.state.scopeReceipts[0]!.runId = "source-first";
     },
     (o: ReturnType<typeof valid>) => {
-      o.state.scopeReceipts[0]!.companyId = "other-company";
+      o.state.scopeReceipts[0]!.spaceId = "other-space";
     },
     (o: ReturnType<typeof valid>) => {
-      o.state.scopeReceipts[0]!.catalogKeys.push("unrelated-company-key");
+      o.state.scopeReceipts[0]!.catalogKeys.push("unrelated-space-key");
     },
     (o: ReturnType<typeof valid>) => {
       o.state.scopeReceipts[0]!.secretRefs = ["unrelated-secret"];
@@ -245,7 +245,7 @@ it("rejects wrong owner/run/reference/custody, overgrant, missing delivery and l
       o.state.scopeReceipts[0]!.instanceKey = "nonexistent-key";
     },
     (o: ReturnType<typeof valid>) => {
-      o.state.scopeReceipts[0]!.companyDeniedStatus = 200;
+      o.state.scopeReceipts[0]!.spaceDeniedStatus = 200;
     },
     (o: ReturnType<typeof valid>) => {
       o.state.scopeReceipts[0]!.instanceDeniedStatus = 200;
@@ -280,14 +280,14 @@ it("rejects wrong owner/run/reference/custody, overgrant, missing delivery and l
     expect(gradeSecretDelivery(o).passed, String(index)).toBe(false);
   }
   expect(gradeSecretDelivery(undefined).passed).toBe(false);
-  expect(custodyRoundtrip({}, "company", "riley", "resume", 4)).toBe(false);
+  expect(custodyRoundtrip({}, "space", "riley", "resume", 4)).toBe(false);
   expect(
     validSecretScopeReceipt(
       {},
       {
         runId: "worker",
         agentId: "morgan",
-        companyId: "company",
+        spaceId: "space",
         boundSecretId: "bound",
         boundKey: "deployment-api-key",
       },
@@ -302,21 +302,21 @@ it("validates the genuine finite lifecycle package and requires exact public res
   ).toBe(true);
   const o = valid(),
     custody = o.state.custodyAfter;
-  expect(custodyRoundtrip(custody, "company", "riley", "resume", 4)).toBe(true);
-  for (const [company, owner, operation, version] of [
-    ["other-company", "riley", "resume", 4],
-    ["company", "morgan", "resume", 4],
-    ["company", "riley", "prepare", 4],
-    ["company", "riley", "resume", 1],
+  expect(custodyRoundtrip(custody, "space", "riley", "resume", 4)).toBe(true);
+  for (const [space, owner, operation, version] of [
+    ["other-space", "riley", "resume", 4],
+    ["space", "morgan", "resume", 4],
+    ["space", "riley", "prepare", 4],
+    ["space", "riley", "resume", 1],
   ] as const)
-    expect(custodyRoundtrip(custody, company, owner, operation, version)).toBe(
+    expect(custodyRoundtrip(custody, space, owner, operation, version)).toBe(
       false,
     );
   expect(
     validSecretScopeReceipt(o.state.scopeReceipts[0]!, {
       runId: "worker",
       agentId: "morgan",
-      companyId: "company",
+      spaceId: "space",
       boundSecretId: "bound",
       boundKey: "deployment-api-key",
     }),

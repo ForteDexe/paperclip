@@ -29,7 +29,7 @@ const SQL_PLACEHOLDER = /\$\d+\b/;
 const SQL_STATEMENT = /\b(?:select\b[\s\S]*?\bfrom\b|insert\s+into\b|update\b[\s\S]*?\bset\b|delete\s+from\b|with\b[\s\S]*?\bas\s*\()/i;
 
 /**
- * Run error text for the board with any SQL statement and its parameters
+ * Run error text for the operator with any SQL statement and its parameters
  * removed. Text before the statement (the caller's own wrapper) is kept and the
  * statement is replaced by "Database query failed (<cause>)". Text without SQL
  * is returned unchanged.

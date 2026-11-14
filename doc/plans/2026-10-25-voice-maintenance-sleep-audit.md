@@ -66,7 +66,7 @@ slice and stays active under its existing contract for now.
 
 Use existing transaction ownership. Add intent before the write; transaction
 outcome uncertainty remains the shared database layer's responsibility. Prefer
-session/endpoint/company scopes rather than refreshing all sessions per mutation.
+session/endpoint/space scopes rather than refreshing all sessions per mutation.
 Authorization stays with the voice store; provider requests stay with the Speko
 provider. Shared scheduling consumes normalized work identities and deadlines.
 
@@ -76,7 +76,7 @@ Reproduce recurring SQL in no-session and retained-terminal-history states befor
 removal. Test first real session creation after quiet; nested transaction commit
 and rollback; uncertain creation without duplicate provider calls; expiry/grace;
 ending cleanup failure and retry; active hangup recovery; revoked membership,
-changed task binding and feature disable; guest isolation; multiple-company
+changed task binding and feature disable; guest isolation; multiple-space
 fairness and backlog; failed scoped reads; mutation during sweep; drain/resume;
 shutdown joining admitted provider work. Keep all four adjacent obligations and
 their existing tests running. Inspect `voice-session-store.integration.test.ts`
@@ -84,7 +84,7 @@ and current producer fixtures before inventing new test contracts.
 
 The receiver parent has 218 selected passing tests, workspace typecheck/build,
 and is published/attached. CI run 40173962833 is live on its exact head; Greptile,
-security and Paperclip review are pending. This is not stack completion or merge
+security and Outpost review are pending. This is not stack completion or merge
 permission. The full original ledger, #17490 failure and final master
 reconciliation remain required.
 
@@ -107,7 +107,7 @@ pass after fixing the database projection of the internal runtime generation.
 The startup wiring regression failed before removal. This is a checkpoint only:
 full producer, lifecycle, race, backlog, and consumer evidence is still required.
 
-Receiver #17572 has Greptile 5/5 and no failed checks, but Paperclip Review 4/5
+Receiver #17572 has Greptile 5/5 and no failed checks, but Outpost Review 4/5
 requests suppressing rediscovery after discovery-initiated stops. Its optional
 full-refresh coalescing observation will also be addressed in the owning parent
 before this branch is published. Preserve all unfinished voice changes in this
@@ -138,7 +138,7 @@ retry check proves no SQL during the actual backoff. No production failure was
 concealed or treated as a successful run.
 
 Outstanding before publication: complete producer/authorization-change audit,
-current-state races, cross-company fairness and failed-scope coverage, affected
+current-state races, cross-space fairness and failed-scope coverage, affected
 shared producer consumers, full workspace verification and remote gates. The
 other four voice duties and every remaining original stack item remain required.
 
@@ -155,7 +155,7 @@ A late provider binding between grace-period discovery and expiration was reprod
 the previous update marked a connecting call expired despite its new provider ID.
 The expiration update now requires provider identity to remain absent. The regression
 proves the known call stays live for exact-provider cleanup. All 11 recovery lifecycle
-cases pass, including company fairness and failed-scope fencing.
+cases pass, including space fairness and failed-scope fencing.
 
 Expanded real-service coverage passes for endpoint pause, generic voice connection
 disable, task reassignment and signed guest lifecycle settlement. Shared consumer

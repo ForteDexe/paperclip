@@ -4,7 +4,7 @@ import {
   trackRecentSelectionId,
 } from "./recent-selections";
 
-const STORAGE_KEY = "paperclip:recent-assignees";
+const STORAGE_KEY = "outpost:recent-assignees";
 
 function agentSelectionId(agentId: string): string {
   return `agent:${agentId}`;
@@ -26,21 +26,21 @@ export function getRecentAssigneeIds(): string[] {
     .filter((id): id is string => Boolean(id));
 }
 
-export function getRecentAssigneeSelectionIds(companyId?: string): string[] {
-  return readRecentSelectionIds(companyId ? `${STORAGE_KEY}:${companyId}` : STORAGE_KEY).map((id) => {
+export function getRecentAssigneeSelectionIds(spaceId?: string): string[] {
+  return readRecentSelectionIds(spaceId ? `${STORAGE_KEY}:${spaceId}` : STORAGE_KEY).map((id) => {
     if (id.includes(":")) return id;
     return agentSelectionId(id);
   });
 }
 
-export function trackRecentAssignee(agentId: string, companyId?: string): void {
+export function trackRecentAssignee(agentId: string, spaceId?: string): void {
   trackRecentSelectionId(STORAGE_KEY, agentSelectionId(agentId));
-  if (companyId) trackRecentSelectionId(`${STORAGE_KEY}:${companyId}`, agentSelectionId(agentId));
+  if (spaceId) trackRecentSelectionId(`${STORAGE_KEY}:${spaceId}`, agentSelectionId(agentId));
 }
 
-export function trackRecentAssigneeUser(userId: string, companyId?: string): void {
+export function trackRecentAssigneeUser(userId: string, spaceId?: string): void {
   trackRecentSelectionId(STORAGE_KEY, userSelectionId(userId));
-  if (companyId) trackRecentSelectionId(`${STORAGE_KEY}:${companyId}`, userSelectionId(userId));
+  if (spaceId) trackRecentSelectionId(`${STORAGE_KEY}:${spaceId}`, userSelectionId(userId));
 }
 
 export function sortAgentsByRecency<T extends { id: string; name: string }>(

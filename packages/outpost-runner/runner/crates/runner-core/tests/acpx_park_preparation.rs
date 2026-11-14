@@ -212,7 +212,7 @@ impl Harness {
         descriptor["runtimeContext"]["aggregateDigest"] = json!(format!("{run}-aggregate"));
         let mut payload = json!({
             "provider": descriptor,
-            "paperclipNextAuthority": {"identity": {
+            "outpostNextAuthority": {"identity": {
                 "runId": run, "normalizedSessionId": self.config.normalized_session_id,
             }},
         });

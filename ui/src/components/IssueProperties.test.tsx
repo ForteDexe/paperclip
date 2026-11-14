@@ -71,9 +71,9 @@ const mockSidebarState = vi.hoisted(() => ({
   isMobile: false,
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({
-    selectedCompanyId: "company-1",
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({
+    selectedSpaceId: "space-1",
   }),
 }));
 
@@ -247,7 +247,7 @@ async function waitForAssertion(assertion: () => void, attempts = 20) {
 function createIssue(overrides: Partial<Issue> = {}): Issue {
   return {
     id: "issue-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     projectWorkspaceId: null,
     goalId: null,
@@ -292,7 +292,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
 function createLabel(overrides: Partial<IssueLabel> = {}): IssueLabel {
   return {
     id: "label-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Bug",
     color: "#ef4444",
     createdAt: new Date("2026-04-06T12:00:00.000Z"),
@@ -304,7 +304,7 @@ function createLabel(overrides: Partial<IssueLabel> = {}): IssueLabel {
 function createRuntimeService(overrides: Partial<WorkspaceRuntimeService> = {}): WorkspaceRuntimeService {
   return {
     id: "service-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     projectWorkspaceId: "workspace-main",
     executionWorkspaceId: "workspace-1",
@@ -316,7 +316,7 @@ function createRuntimeService(overrides: Partial<WorkspaceRuntimeService> = {}):
     lifecycle: "shared",
     reuseKey: null,
     command: "pnpm dev",
-    cwd: "/tmp/paperclip",
+    cwd: "/tmp/outpost",
     port: 62475,
     url: "http://127.0.0.1:62475",
     provider: "local_process",
@@ -337,7 +337,7 @@ function createRuntimeService(overrides: Partial<WorkspaceRuntimeService> = {}):
 function createExecutionWorkspace(overrides: Partial<ExecutionWorkspace> = {}): ExecutionWorkspace {
   return {
     id: "workspace-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     projectWorkspaceId: "workspace-main",
     sourceIssueId: "issue-1",
@@ -346,12 +346,12 @@ function createExecutionWorkspace(overrides: Partial<ExecutionWorkspace> = {}): 
     name: "PAP-1 workspace",
     status: "active",
     deliveryState: "unknown",
-    cwd: "/tmp/paperclip/PAP-1",
+    cwd: "/tmp/outpost/PAP-1",
     repoUrl: null,
     baseRef: "master",
     branchName: "pap-1-workspace",
     providerType: "git_worktree",
-    providerRef: "/tmp/paperclip/PAP-1",
+    providerRef: "/tmp/outpost/PAP-1",
     derivedFromExecutionWorkspaceId: null,
     lastUsedAt: new Date("2026-04-06T12:04:00.000Z"),
     openedAt: new Date("2026-04-06T12:01:00.000Z"),
@@ -370,11 +370,11 @@ function createExecutionWorkspace(overrides: Partial<ExecutionWorkspace> = {}): 
 function createProject(overrides: Partial<Project> = {}): Project {
   const primaryWorkspace = {
     id: "workspace-main",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     name: "Main",
     sourceType: "local_path" as const,
-    cwd: "/tmp/paperclip",
+    cwd: "/tmp/outpost",
     repoUrl: null,
     repoRef: null,
     defaultRef: "master",
@@ -393,7 +393,7 @@ function createProject(overrides: Partial<Project> = {}): Project {
   };
   return {
     id: "project-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     urlKey: "project-1",
     goalId: null,
     goalIds: [],
@@ -415,9 +415,9 @@ function createProject(overrides: Partial<Project> = {}): Project {
       repoRef: null,
       defaultRef: "master",
       repoName: null,
-      localFolder: "/tmp/paperclip",
-      managedFolder: "/tmp/paperclip",
-      effectiveLocalFolder: "/tmp/paperclip",
+      localFolder: "/tmp/outpost",
+      managedFolder: "/tmp/outpost",
+      effectiveLocalFolder: "/tmp/outpost",
       origin: "local_folder",
     },
     workspaces: [primaryWorkspace],
@@ -668,7 +668,7 @@ describe("IssueProperties", () => {
         {
           principalId: "user-1",
           status: "active",
-          user: { id: "user-1", name: "Riley Board", email: "riley@example.com", image: null },
+          user: { id: "user-1", name: "Riley Operator", email: "riley@example.com", image: null },
         },
         {
           principalId: "user-2",
@@ -983,7 +983,7 @@ describe("IssueProperties", () => {
   it("overrides a previously selected pane tab for a document deep link", async () => {
     const planDocument = {
       id: "document-plan",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       key: "plan",
       title: "Plan",
@@ -1086,7 +1086,7 @@ describe("IssueProperties", () => {
       expect(container.textContent).toContain("Assignee");
       expect(container.textContent).toContain("CodexCoder");
       expect(container.textContent).toContain("Originating");
-      expect(container.textContent).toContain("Riley Board");
+      expect(container.textContent).toContain("Riley Operator");
       expect(container.textContent).not.toContain("Morgan Product");
       expect(container.textContent).not.toContain("Responsible");
       expect(container.textContent).not.toContain("Kicked off by");
@@ -1111,7 +1111,7 @@ describe("IssueProperties", () => {
 
     await waitForAssertion(() => {
       expect(container.textContent).toContain("Originating");
-      expect(container.textContent).toContain("Riley Board");
+      expect(container.textContent).toContain("Riley Operator");
       expect(container.textContent).not.toContain("Kicked off by");
       expect(container.textContent).not.toContain("Kicked off by · responsible");
       expect(container.textContent).not.toContain("(auto)");
@@ -1599,11 +1599,11 @@ describe("IssueProperties", () => {
     act(() => root.unmount());
   });
 
-  it("searches all company issues when adding a blocker", async () => {
+  it("searches all space issues when adding a blocker", async () => {
     const onUpdate = vi.fn();
     const loadedIssue = createIssue({ id: "issue-3", identifier: "PAP-3", title: "Loaded issue", status: "todo" });
     const remoteIssue = createIssue({ id: "issue-99", identifier: "PAP-99", title: "Remote blocker", status: "in_progress" });
-    mockIssuesApi.list.mockImplementation((_companyId: string, filters?: { q?: string; limit?: number }) => {
+    mockIssuesApi.list.mockImplementation((_spaceId: string, filters?: { q?: string; limit?: number }) => {
       if (filters?.q === "remote") return Promise.resolve([remoteIssue]);
       return Promise.resolve([loadedIssue]);
     });
@@ -1634,7 +1634,7 @@ describe("IssueProperties", () => {
     });
 
     await waitForAssertion(() => {
-      expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", { q: "remote", limit: 50 });
+      expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1", { q: "remote", limit: 50 });
       expect(container.textContent).toContain("PAP-99 Remote blocker");
       expect(container.textContent).not.toContain("PAP-3 Loaded issue");
     });
@@ -1969,7 +1969,7 @@ describe("IssueProperties", () => {
     });
     await flush();
 
-    expect(mockProjectsApi.list).toHaveBeenCalledWith("company-1", { includeArchived: true });
+    expect(mockProjectsApi.list).toHaveBeenCalledWith("space-1", { includeArchived: true });
     await waitForAssertion(() => {
       expect(findRowTrigger(container, "Project")?.textContent).toContain("Archived Project");
     });
@@ -2015,12 +2015,12 @@ describe("IssueProperties", () => {
     const option = [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.trim() === "Remembered Project")!;
     expect(option).toBeDefined();
     act(() => option.click());
-    expect(getLastProjectId("company-1")).toBeUndefined();
+    expect(getLastProjectId("space-1")).toBeUndefined();
     await act(() => findRowTrigger(container, "Project")!.click());
     const none = [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.trim() === "No project")!;
     act(() => none.click());
-    expect(getLastProjectId("company-1")).toBeUndefined();
-    expect(getLastProjectId("company-2")).toBeUndefined();
+    expect(getLastProjectId("space-1")).toBeUndefined();
+    expect(getLastProjectId("space-2")).toBeUndefined();
     act(() => root.unmount());
     localStorage.clear();
   });
@@ -2185,7 +2185,7 @@ describe("IssueProperties", () => {
         executionWorkspaceId: "workspace-1",
         currentExecutionWorkspace: createExecutionWorkspace({
           branchName: "pap-1-workspace",
-          cwd: "/tmp/paperclip/PAP-1",
+          cwd: "/tmp/outpost/PAP-1",
         }),
       }),
       childIssues: [],
@@ -2198,12 +2198,12 @@ describe("IssueProperties", () => {
       'button[aria-label="Copy pap-1-workspace to clipboard"]',
     );
     const folderCopyButton = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Copy /tmp/paperclip/PAP-1 to clipboard"]',
+      'button[aria-label="Copy /tmp/outpost/PAP-1 to clipboard"]',
     );
     expect(branchCopyButton).not.toBeNull();
     expect(folderCopyButton?.querySelector('[data-middle-truncate="true"]')?.textContent)
-      .toBe("/tmp/paperclip/PAP-1");
-    expect(folderCopyButton?.title).toBe("/tmp/paperclip/PAP-1");
+      .toBe("/tmp/outpost/PAP-1");
+    expect(folderCopyButton?.title).toBe("/tmp/outpost/PAP-1");
 
     await act(async () => {
       branchCopyButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -2340,7 +2340,7 @@ describe("IssueProperties", () => {
   it("opens the label picker from its relationship value without a redundant add button", async () => {
     const root = renderProperties(container, {
       issue: createIssue({
-        labels: [{ id: "label-1", companyId: "company-1", name: "Bug", color: "#ef4444", createdAt: new Date("2026-04-06T12:00:00.000Z"), updatedAt: new Date("2026-04-06T12:00:00.000Z") }],
+        labels: [{ id: "label-1", spaceId: "space-1", name: "Bug", color: "#ef4444", createdAt: new Date("2026-04-06T12:00:00.000Z"), updatedAt: new Date("2026-04-06T12:00:00.000Z") }],
         labelIds: ["label-1"],
       }),
       childIssues: [],
@@ -2431,7 +2431,7 @@ describe("IssueProperties", () => {
     const modelTrigger = findRowTrigger(container, "Model");
     expect(modelTrigger).toBeDefined();
     await act(async () => modelTrigger!.click());
-    await waitForAssertion(() => expect(mockAgentsApi.adapterModels).toHaveBeenCalledWith("company-1", "outpost_runner", {
+    await waitForAssertion(() => expect(mockAgentsApi.adapterModels).toHaveBeenCalledWith("space-1", "outpost_runner", {
       environmentId: "daytona-1", provider: "acpx", acpxAgent, agentId: "agent-1", aiConnection: binding,
     }));
     await act(async () => { await queryClient.invalidateQueries({ type: "active" }, { cancelRefetch: false }); });
@@ -2740,7 +2740,7 @@ describe("IssueProperties", () => {
       status: "todo",
       priority: "low",
     });
-    mockIssuesApi.list.mockImplementation((_companyId: string, filters?: { q?: string; limit?: number }) => {
+    mockIssuesApi.list.mockImplementation((_spaceId: string, filters?: { q?: string; limit?: number }) => {
       if (filters?.q === "needle") return Promise.resolve([lowPriorityMatch]);
       return Promise.resolve([defaultPageCandidate]);
     });
@@ -2777,7 +2777,7 @@ describe("IssueProperties", () => {
 
     // The typed text re-queries the server with `q`, and the low-priority match now appears.
     await waitForAssertion(() => {
-      expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", { q: "needle", limit: 50 });
+      expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1", { q: "needle", limit: 50 });
       expect(container.textContent).toContain("PAP-900 Low priority needle");
       expect(container.textContent).not.toContain("PAP-2 High priority candidate");
     });
@@ -2918,7 +2918,7 @@ describe("IssueProperties", () => {
           monitor: {
             nextCheckAt: "2026-04-11T12:30:00.000Z",
             notes: "Check deployment",
-            scheduledBy: "board",
+            scheduledBy: "operator",
           },
         }),
         executionState: createExecutionState({
@@ -2935,7 +2935,7 @@ describe("IssueProperties", () => {
             lastTriggeredAt: null,
             attemptCount: 0,
             notes: "Check deployment",
-            scheduledBy: "board",
+            scheduledBy: "operator",
             clearedAt: null,
             clearReason: null,
           },
@@ -2993,7 +2993,7 @@ describe("IssueProperties", () => {
     const executionPolicy = {
       ...(withAuthorization ? { authorizationPolicy: { trustPreset: "standard" } } : {}),
       maxReviewRounds: 4,
-      monitor: { nextCheckAt: "2099-01-01T12:00:00.000Z", notes: "Check service", scheduledBy: "board" },
+      monitor: { nextCheckAt: "2099-01-01T12:00:00.000Z", notes: "Check service", scheduledBy: "operator" },
     } as IssueExecutionPolicy;
     const before = structuredClone(executionPolicy);
     const root = renderProperties(container, {
@@ -3061,7 +3061,7 @@ describe("IssueProperties", () => {
       lastTriggeredAt: null,
       attemptCount: 1,
       notes: "Verify deployment",
-      scheduledBy: "board" as const,
+      scheduledBy: "operator" as const,
       clearedAt: null,
       clearReason: null,
     };
@@ -3179,7 +3179,7 @@ describe("IssueProperties", () => {
   function createWatchdogSummary(overrides: Record<string, unknown> = {}) {
     return {
       id: "watchdog-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       watchdogAgentId: "agent-1",
       instructions: "Keep the tree moving.",
@@ -3544,7 +3544,7 @@ describe("IssueProperties", () => {
     expect(pullRequestLink?.textContent).not.toContain("acme/web#241");
     expect(pullRequestLink?.textContent).not.toContain("Github PR");
     expect(pullRequestLink?.querySelectorAll("svg")).toHaveLength(1);
-    expect(pullRequestLink?.className).not.toContain("paperclip-mention-chip");
+    expect(pullRequestLink?.className).not.toContain("outpost-mention-chip");
     expect(pullRequestLink?.className).not.toContain("rounded-full");
     expect(pullRequestLink?.className).not.toContain("border");
     const unrefreshedPullRequestLink = Array.from(container.querySelectorAll("a"))
@@ -3817,14 +3817,14 @@ describe("IssueProperties", () => {
     const alphaWorkspace = createExecutionWorkspace({
       id: "workspace-alpha",
       name: "Alpha workspace",
-      cwd: "/tmp/paperclip/alpha",
+      cwd: "/tmp/outpost/alpha",
       branchName: "alpha-branch",
       lastUsedAt: new Date(),
     });
     const betaWorkspace = createExecutionWorkspace({
       id: "workspace-beta",
       name: "Beta workspace",
-      cwd: "/tmp/paperclip/beta",
+      cwd: "/tmp/outpost/beta",
       branchName: "beta-branch",
       lastUsedAt: new Date(),
     });
@@ -3848,7 +3848,7 @@ describe("IssueProperties", () => {
       expect(container.textContent).toContain("Alpha workspace");
       expect(container.textContent).toContain("Beta workspace");
     });
-    expect(mockExecutionWorkspacesApi.list).toHaveBeenCalledWith("company-1", {
+    expect(mockExecutionWorkspacesApi.list).toHaveBeenCalledWith("space-1", {
       projectId: "project-1",
       projectWorkspaceId: "workspace-main",
       reuseEligible: true,

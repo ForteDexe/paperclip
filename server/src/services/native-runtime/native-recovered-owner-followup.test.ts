@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  agents, companies, completionContracts, createDb, environmentLeases, environments, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations,
+  agents, spaces, completionContracts, createDb, environmentLeases, environments, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations,
   nativeRunnerCheckpoints, nativeRunResults,
 } from "@outpost/db";
 import { DurablePrpControlPlane, type PersistedNativeSession } from "../../vendor/outpost-runner/index.js";
@@ -28,7 +28,7 @@ import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
 const toolDefinitions = vi.hoisted(() => vi.fn());
 vi.mock("../../runtime-api.js", async importOriginal => ({ ...await importOriginal<typeof import("../../runtime-api.js")>(), resolveLocalRuntimeApiUrl: () => "http://127.0.0.1:43219" }));
 vi.mock("./outpost-runner-tool-authority.js", () => ({
-  PaperclipRunnerToolAuthority: class {
+  OutpostRunnerToolAuthority: class {
     readonly binding = {};
     definitions() { return toolDefinitions(); }
     close() {}
@@ -56,15 +56,15 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
   let stateDirectory: string;
   const previousHome = process.env.OUTPOST_HOME;
   const previousStateDirectory = process.env.OUTPOST_RUNNER_STATE_DIR;
-  const companyId = randomUUID(), agentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID();
 
   beforeAll(async () => {
     home = createIsolatedTestHome();
     process.env.OUTPOST_HOME = home.home;
     database = await startRecoveryPostgres("native-recovered-owner-");
     db = createDb(database.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Recovered owner", issuePrefix: "ROF" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", adapterType: "outpost_runner",
+    await db.insert(spaces).values({ id: spaceId, name: "Recovered owner", issuePrefix: "ROF" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Runner", adapterType: "outpost_runner",
       adapterConfig: { provider: "acpx", acpxAgent: "claude" } });
   }, 60_000);
   afterAll(async () => {
@@ -94,15 +94,15 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     | "failed-turn-start" | "rejected-turn-start" | "indeterminate-turn-start" | "unknown-outcome-turn-start"
     | "unsuperseded-unknown-outcome-turn-start" | "failed-suspend" | "pending-attach" | "pending-tool-result" = "settled",
     options: { controller?: { bootId: string; pid: number; processStartedAt: Date }; provider?: "codex" | "acpx" | "opencode";
-      lifecycle?: "warm"; governedWait?: boolean } = {}) {
+      lifecycle?: "warm"; controlledWait?: boolean } = {}) {
     const issueId = randomUUID(), workspaceId = randomUUID(), runId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Continue after recovery", assigneeAgentId: agentId, status: "in_progress" });
-    const [row] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Continue after recovery", assigneeAgentId: agentId, status: "in_progress" });
+    const [row] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
       nativeIssueId: issueId, contextSnapshot: { issueId } }).returning();
     const native = await prepareNativeHeartbeatRun({ db, run: row, issue: issueFields(issueId), environmentLeaseId: randomUUID() });
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issueId));
     const executionFor = (currentRunId: string) => buildNativeExecutionInput({
-      companyId, agentId, runId: currentRunId, provider: options.provider ?? "acpx", acpxAgent: "claude",
+      spaceId, agentId, runId: currentRunId, provider: options.provider ?? "acpx", acpxAgent: "claude",
       model: options.provider === "codex" ? "gpt-6.1-sol"
         : options.provider === "opencode" ? "openrouter/deepseek/deepseek-v4.1-flash-1017" : "claude-opus-5-5",
       issue: { id: issueId, identifier: "ROF-1", title: "Continue after recovery", description: null, workMode: "standard" },
@@ -119,8 +119,8 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
       environmentLeaseId: native.environmentLeaseId, turnId: native.turnId, itemId: native.itemId };
     const priorController = options.controller ?? { bootId: randomUUID(), pid: 2_147_483_000,
       processStartedAt: new Date(Date.now() - 60_000) };
-    const owner = { companyId, issueId, runId, authorityRunId: runId, bootId: priorController.bootId, generation: 1, leaseOwner: randomUUID() };
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "observed",
+    const owner = { spaceId, issueId, runId, authorityRunId: runId, bootId: priorController.bootId, generation: 1, leaseOwner: randomUUID() };
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "observed",
       controllerBootId: owner.bootId, controllerGeneration: 1, controllerPid: priorController.pid,
       controllerProcessStartedAt: priorController.processStartedAt, leaseOwner: owner.leaseOwner,
       leaseExpiresAt: new Date(Date.now() + 60_000) });
@@ -170,12 +170,12 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     }
     const snapshot: PersistedNativeSession = { backendKind: "runner", sessionId: native.normalizedSessionId,
       providerSessionId: "provider-session-before-recovery", activeTurnId: null, pendingRuntimeRequests: [],
-      identity: { companyId, agentId, issueId, runId, sessionId: native.normalizedSessionId } };
+      identity: { spaceId, agentId, issueId, runId, sessionId: native.normalizedSessionId } };
     const [prepared] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
-    const [result] = await db.insert(nativeRunResults).values({ companyId, issueId, runId,
+    const [result] = await db.insert(nativeRunResults).values({ spaceId, issueId, runId,
       completionContractId: prepared.completionContractId!, serverFingerprint: "fixture", schemaStatus: "accepted",
-      // A turn parked on a request_human_input question commits this governed-wait result.
-      resultJson: options.governedWait ? { continuation: { kind: "response_wake", idempotencyKey: "interaction-response:question" },
+      // A turn parked on a request_human_input question commits this controlled-wait result.
+      resultJson: options.controlledWait ? { continuation: { kind: "response_wake", idempotencyKey: "interaction-response:question" },
         artifacts: [{ kind: "issue_thread_interaction", ref: `interaction:${randomUUID()}` }] } : {},
       canonicalSha256: "fixture" }).returning();
     await db.update(nativeRunFinalizations).set({ phase: "committed", resultId: result.id, leaseOwner: null, leaseExpiresAt: null })
@@ -194,13 +194,13 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
    * provider checkpoint before the executor admits its durable root. */
   async function admitFollowUp(prior: Awaited<ReturnType<typeof seedRecoveredPriorRun>>) {
     const runId = randomUUID();
-    const [row] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native",
+    const [row] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
       nativeIssueId: prior.issueId, nativeSessionId: prior.native.normalizedSessionId, contextSnapshot: { issueId: prior.issueId } }).returning();
     const next = await prepareNativeHeartbeatRun({ db, run: row, issue: issueFields(prior.issueId), environmentLeaseId: randomUUID() });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId: prior.issueId, runId, phase: "observed" });
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId: prior.issueId, runId, phase: "observed" });
     await db.update(issues).set({ executionRunId: runId, status: "in_progress" }).where(eq(issues.id, prior.issueId));
     const execution = prior.executionFor(runId);
-    const selected = await findNativeSessionResumeRun(db, { companyId, agentId, issueId: prior.issueId,
+    const selected = await findNativeSessionResumeRun(db, { spaceId, agentId, issueId: prior.issueId,
       normalizedSessionId: prior.native.normalizedSessionId, currentRunId: runId, beforeCreatedAt: row.createdAt });
     const admission = buildNativeExecutionWithCheckpoint({ previousRun: selected, normalizedSessionId: prior.native.normalizedSessionId,
       executionTargetKind: "remote", buildExecution: () => execution });
@@ -253,7 +253,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
   async function seedSuccessorCheckpoint(prior: Awaited<ReturnType<typeof seedRecoveredPriorRun>>) {
     const pending = await admitFollowUp(prior), runId = pending.runId, execution = prior.executionFor(runId);
     const identity = { ...prior.identity, runId, turnId: `turn-${runId}`, itemId: `item-${runId}` };
-    const owner = { companyId, issueId: prior.issueId, runId, authorityRunId: runId,
+    const owner = { spaceId, issueId: prior.issueId, runId, authorityRunId: runId,
       bootId: randomUUID(), generation: 1, leaseOwner: randomUUID() };
     await db.update(heartbeatRuns).set({ runnerInstanceId: identity.runnerInstanceId }).where(eq(heartbeatRuns.id, runId));
     await db.update(nativeRunFinalizations).set({ controllerBootId: owner.bootId, controllerGeneration: 1,
@@ -279,8 +279,8 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     const [prepared] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
     const snapshot: PersistedNativeSession = { backendKind: "runner", sessionId: prior.native.normalizedSessionId,
       providerSessionId: "provider-session-before-recovery", activeTurnId: null, pendingRuntimeRequests: [],
-      identity: { companyId, agentId, issueId: prior.issueId, runId, sessionId: prior.native.normalizedSessionId } };
-    const [result] = await db.insert(nativeRunResults).values({ companyId, issueId: prior.issueId, runId,
+      identity: { spaceId, agentId, issueId: prior.issueId, runId, sessionId: prior.native.normalizedSessionId } };
+    const [result] = await db.insert(nativeRunResults).values({ spaceId, issueId: prior.issueId, runId,
       completionContractId: prepared.completionContractId!, serverFingerprint: runId, schemaStatus: "accepted",
       resultJson: {}, canonicalSha256: runId }).returning();
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date(), runnerProfileJson: {
@@ -299,7 +299,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     const latest = await seedSuccessorCheckpoint(prior), followUp = await admitFollowUp(prior);
     expect(followUp.selectedRunId).toBe(latest.runId);
     const root = scopedRunnerdStateRoot(latest.execution), backupRoot = join(root, "failover-backups", "current");
-    const oldCheckpoint = await loadNativeRunnerCheckpoint(db, { companyId, issueId: prior.issueId, runId: prior.runId });
+    const oldCheckpoint = await loadNativeRunnerCheckpoint(db, { spaceId, issueId: prior.issueId, runId: prior.runId });
     expect(oldCheckpoint).not.toBeNull();
     oldCheckpoint!.restoreSessionDirectory(root);
     const path = join(root, "control-plane", "control-plane-state.json");
@@ -362,7 +362,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     const fixture = await staleProjection("codex", true), { latest, followUp, root, path } = fixture;
     await writeFile(path, JSON.stringify({ schema: "outpost.runner.external-control-plane-state.v1", identity: latest.identity }));
     await db.insert(environments).values({ id: followUp.environmentId, name: `retained-${followUp.environmentId}`, driver: "sandbox" });
-    await db.insert(environmentLeases).values({ companyId, environmentId: followUp.environmentId,
+    await db.insert(environmentLeases).values({ spaceId, environmentId: followUp.environmentId,
       issueId: fixture.prior.issueId, heartbeatRunId: latest.runId, provider: "daytona", providerLeaseId: followUp.providerLeaseId,
       status: "released", metadata: { remoteCwd: "/workspace" } });
     const runnerState = { schema: "outpost.runner.durable.state.v1", ...latest.identity, lifecycle: "suspended", outbox: [],
@@ -396,7 +396,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
       environmentLeaseId: followUp.native.environmentLeaseId, normalizedSessionId: followUp.native.normalizedSessionId,
       turnId: followUp.native.turnId, itemId: followUp.native.itemId };
     const root = scopedRunnerdStateRoot(prior.executionFor(followUp.runId));
-    const owner = { companyId, issueId: prior.issueId, runId: followUp.runId, authorityRunId: followUp.runId,
+    const owner = { spaceId, issueId: prior.issueId, runId: followUp.runId, authorityRunId: followUp.runId,
       bootId: randomUUID(), generation: 1, leaseOwner: randomUUID() };
     await db.update(nativeRunFinalizations).set({ controllerBootId: owner.bootId, controllerGeneration: 1,
       leaseOwner: owner.leaseOwner, leaseExpiresAt: new Date(Date.now() + 60_000) })
@@ -484,7 +484,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     const hold = new Promise<void>(resolve => { release = resolve; });
     const acquired = new Promise<void>(resolve => { locked = resolve; });
     const blocker = db.transaction(async tx => {
-      await lockSourceRecoveryCoordinators(tx, companyId, [fixture.latest.runId]);
+      await lockSourceRecoveryCoordinators(tx, spaceId, [fixture.latest.runId]);
       locked();
       await hold;
     });
@@ -697,11 +697,11 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
         await db.update(heartbeatRuns).set({ processPid: 4_242 }).where(eq(heartbeatRuns.id, failed));
       }
       if (scenario === "provider event") {
-        await db.insert(heartbeatRunEvents).values({ companyId, agentId, runId: failed, seq: 100, eventType: "session.started",
+        await db.insert(heartbeatRunEvents).values({ spaceId, agentId, runId: failed, seq: 100, eventType: "session.started",
           stream: "system", payload: {} });
       }
       if (scenario === "controller checkpoint") {
-        await db.insert(nativeRunnerCheckpoints).values({ companyId, issueId: prior.issueId, runId: failed, part: "header", material: {} });
+        await db.insert(nativeRunnerCheckpoints).values({ spaceId, issueId: prior.issueId, runId: failed, part: "header", material: {} });
       }
       if (scenario === "provider work receipt") {
         await db.update(heartbeatRuns).set({ resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: true } } })
@@ -711,7 +711,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
         await db.update(nativeRunFinalizations).set({ controllerPid: 4_242 }).where(eq(nativeRunFinalizations.runId, failed));
       }
       if (scenario === "run result") {
-        await db.insert(nativeRunResults).values({ companyId, issueId: prior.issueId, runId: failed,
+        await db.insert(nativeRunResults).values({ spaceId, issueId: prior.issueId, runId: failed,
           completionContractId: run.completionContractId!, serverFingerprint: "fixture", schemaStatus: "rejected",
           resultJson: {}, canonicalSha256: "fixture" });
       }
@@ -762,7 +762,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     const followUp = await admitFollowUp(prior);
     if (recorded) {
       await db.insert(environments).values({ id: followUp.environmentId, name: `ended-${followUp.environmentId}`, driver: "sandbox" });
-      await db.insert(environmentLeases).values({ companyId, environmentId: followUp.environmentId, issueId: prior.issueId,
+      await db.insert(environmentLeases).values({ spaceId, environmentId: followUp.environmentId, issueId: prior.issueId,
         heartbeatRunId: prior.runId, provider: "daytona", providerLeaseId: sameSandbox ? followUp.providerLeaseId : `sandbox-${prior.runId}`,
         status, releasedAt: status === "retained" ? null : new Date(), metadata: { remoteCwd: "/workspace" } });
     }
@@ -789,18 +789,18 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
       outcome: stranded("journal_tool_input_unanswered") },
     // Staging: the owner parked on a durable question, so that
     // question's tool input is unanswered by design. Its Runner is gone.
-    { control: "unanswered-tool", governedWait: true, label: "ended on another sandbox after a governed-wait park",
+    { control: "unanswered-tool", controlledWait: true, label: "ended on another sandbox after a controlled-wait park",
       status: "expired", sameSandbox: false, recorded: true, outcome: ADMITTED },
-    { control: "unanswered-tool", governedWait: true, label: "ended on this sandbox after a governed-wait park",
+    { control: "unanswered-tool", controlledWait: true, label: "ended on this sandbox after a controlled-wait park",
       status: "expired", sameSandbox: true, recorded: true, outcome: stranded("journal_tool_input_unanswered") },
   ] as const)("retires a finished remote owner with an unacknowledged $control when its sandbox lease $label",
     async ({ control, status, sameSandbox, recorded, outcome, ...rest }) => {
-      const governedWait = "governedWait" in rest && rest.governedWait === true;
-      const prior = await seedRecoveredPriorRun(control, { provider: "opencode", governedWait });
+      const controlledWait = "controlledWait" in rest && rest.controlledWait === true;
+      const prior = await seedRecoveredPriorRun(control, { provider: "opencode", controlledWait });
       const followUp = await admitFollowUp(prior);
       if (recorded) {
         await db.insert(environments).values({ id: followUp.environmentId, name: `ended-${followUp.environmentId}`, driver: "sandbox" });
-        await db.insert(environmentLeases).values({ companyId, environmentId: followUp.environmentId, issueId: prior.issueId,
+        await db.insert(environmentLeases).values({ spaceId, environmentId: followUp.environmentId, issueId: prior.issueId,
           heartbeatRunId: prior.runId, provider: "daytona", providerLeaseId: sameSandbox ? followUp.providerLeaseId : `sandbox-${prior.runId}`,
           status, releasedAt: status === "retained" ? null : new Date(), metadata: { remoteCwd: "/workspace" } });
       }
@@ -1090,7 +1090,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
   it("retires a finished local owner from its saved stop receipt after settlement cleared the process fields", async () => {
     const runner = await stoppedRunnerProcess();
     const { prior, followUp, root } = await seedUnsuspendedLocalOwner(runner);
-    await db.insert(heartbeatRunEvents).values({ companyId, agentId, runId: prior.runId, seq: 900, eventType: "native.local_process_stopped",
+    await db.insert(heartbeatRunEvents).values({ spaceId, agentId, runId: prior.runId, seq: 900, eventType: "native.local_process_stopped",
       stream: "system", payload: { processPid: runner.pid, processGroupId: runner.pid, processStartedAt: runner.processStartedAt.toISOString() } });
     await db.update(heartbeatRuns).set({ processPid: null, processGroupId: null, processStartedAt: null })
       .where(eq(heartbeatRuns.id, prior.runId));
@@ -1102,7 +1102,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("follow-up after a recovered
     const provider = await runnerProcess();
     try {
       const { prior, followUp } = await seedUnsuspendedLocalOwner(await stoppedRunnerProcess());
-      await db.insert(heartbeatRunEvents).values({ companyId, agentId, runId: prior.runId, seq: 901, eventType: "provider.event",
+      await db.insert(heartbeatRunEvents).values({ spaceId, agentId, runId: prior.runId, seq: 901, eventType: "provider.event",
         stream: "system", payload: { orpEvent: { payload: { processId: provider.pid,
           processStartedAt: provider.processStartedAt.toISOString() } } } });
       expect(await followUp.startLocal()).toBe(stranded("provider_process_alive"));

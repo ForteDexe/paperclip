@@ -2,7 +2,7 @@
 export const PUBLIC_CHAT_SCHEMA =
   "outpost.runner-protocol-eval.public-chat/v1";
 export const PUBLIC_CHAT_NOTICE =
-  "Public replay of an isolated mock eval. Conversation text is scrubbed; provider identities, tool payloads, traces, and company-state snapshots are withheld. Full evidence remains in the access-controlled Actions artifact.";
+  "Public replay of an isolated mock eval. Conversation text is scrubbed; provider identities, tool payloads, traces, and space-state snapshots are withheld. Full evidence remains in the access-controlled Actions artifact.";
 
 export const SECRET_TEXT = [
   /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/gu,
@@ -63,7 +63,7 @@ export function publicChatView(artifact, evalCase) {
   // Only the dedicated mock eval boundary can publish recorded conversation.
   // Early infrastructure failures still receive a viewer with an honest notice.
   const isolated =
-    network?.realPaperclipRequests === 0 &&
+    network?.realOutpostRequests === 0 &&
     Array.isArray(network?.childOutpostEnvironmentKeys) &&
     network.childOutpostEnvironmentKeys.length === 0;
   const source =

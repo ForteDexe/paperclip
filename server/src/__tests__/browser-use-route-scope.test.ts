@@ -21,21 +21,21 @@ describe("browser task route scope", () => {
     "12345678-1234-7234-8234-123456789ABC",
     "00000000-0000-0000-0000-000000000000",
   ])("keeps canonical PostgreSQL task UUIDs queryable: %s", async (id) => {
-    const companyId = randomUUID();
-    const limit = vi.fn().mockResolvedValue([{ companyId }]);
+    const spaceId = randomUUID();
+    const limit = vi.fn().mockResolvedValue([{ spaceId }]);
     const db = { select: () => ({ from: () => ({ where: () => ({ limit }) }) }) } as unknown as Db;
     const list = vi.fn().mockResolvedValue([]);
     const service = { list } as unknown as NonNullable<Parameters<typeof browserUseRoutes>[1]>;
     const app = express();
     app.use((req, _res, next) => {
-      req.actor = { type: "board", userId: "browser-reviewer", source: "session", companyIds: [companyId] };
+      req.actor = { type: "operator", userId: "browser-reviewer", source: "session", spaceIds: [spaceId] };
       next();
     });
     app.use(browserUseRoutes(db, service));
     app.use(errorHandler);
     expect((await http(app).get(`/issues/${id}/browsers`)).status).toBe(200);
     expect(limit).toHaveBeenCalledExactlyOnceWith(1);
-    expect(list).toHaveBeenCalledExactlyOnceWith(companyId, id, "browser-reviewer");
+    expect(list).toHaveBeenCalledExactlyOnceWith(spaceId, id, "browser-reviewer");
   });
 
   it.each(routes)("rejects invalid task IDs before any query: $method $suffix", async ({ method, suffix }) => {
@@ -45,13 +45,13 @@ describe("browser task route scope", () => {
       ["list", "viewer", "presence", "resize", "releaseViewport", "humanSession", "control"]
         .map((name) => [name, vi.fn()]),
     ) as unknown as NonNullable<Parameters<typeof browserUseRoutes>[1]>;
-    let actorType: "board" | "agent" | "none" = "board";
+    let actorType: "operator" | "agent" | "none" = "operator";
     const app = express();
     app.use((req, _res, next) => {
-      req.actor = actorType === "board"
-        ? { type: "board", userId: "browser-reviewer", source: "session", companyIds: [] }
+      req.actor = actorType === "operator"
+        ? { type: "operator", userId: "browser-reviewer", source: "session", spaceIds: [] }
         : actorType === "agent"
-          ? { type: "agent", companyId: randomUUID(), agentId: randomUUID(), source: "agent_key" }
+          ? { type: "agent", spaceId: randomUUID(), agentId: randomUUID(), source: "agent_key" }
           : { type: "none" };
       next();
     });
@@ -60,12 +60,12 @@ describe("browser task route scope", () => {
     const id = randomUUID();
     for (const invalidId of [`chat:${id}`, "not-a-uuid", `${id}'`, ` ${id}`, `${id}\n`]) {
       const path = `/issues/${encodeURIComponent(invalidId)}/browsers${suffix ? `/${id}${suffix}` : ""}`;
-      for (const type of ["board", "agent", "none"] as const) {
+      for (const type of ["operator", "agent", "none"] as const) {
         actorType = type;
         const response = await http(app)[method](path);
-        expect(response.status).toBe(type === "board" ? 404 : 403);
-        expect(response.body).toMatchObject({ error: type === "board" ? "Task not found" : "Board access required" });
-        expect(response.body.code).toBe(type === "agent" ? "board_access_required" : undefined);
+        expect(response.status).toBe(type === "operator" ? 404 : 403);
+        expect(response.body).toMatchObject({ error: type === "operator" ? "Task not found" : "Operator access required" });
+        expect(response.body.code).toBe(type === "agent" ? "operator_access_required" : undefined);
       }
     }
     expect(select).not.toHaveBeenCalled();

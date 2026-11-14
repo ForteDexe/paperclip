@@ -1,4 +1,4 @@
-export default () => `import { COMPANY } from "../../fixtures";
+export default () => `import { SPACE } from "../../fixtures";
 
 export function guid(seed: string): string {
   let h = 0x811c9dc5;
@@ -12,5 +12,5 @@ export function guid(seed: string): string {
 
 export const agentId = (name: string) => guid(\`agent:\${name}\`);
 export const issueIdFor = (taskIdentifier: string) => guid(\`issue:\${taskIdentifier}\`);
-export const issueHref = (taskIdentifier: string) => \`/\${COMPANY.issuePrefix}/issues/\${taskIdentifier}\`;
+export const issueHref = (taskIdentifier: string) => \`/\${SPACE.issuePrefix}/issues/\${taskIdentifier}\`;
 `;

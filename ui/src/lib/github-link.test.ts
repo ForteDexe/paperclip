@@ -15,7 +15,7 @@ describe("GitHub inline link presentation", () => {
   });
 
   it.each([
-    "https://github.com", "https://github.com/paperclipai",
+    "https://github.com", "https://github.com/example",
     "https://github.com/acme/web/tree/main", "https://github.com/acme/web/pull/nope",
     "https://github.com/acme/web/issues/0", "https://github.com/settings/profile",
     "https://github.com/features/actions", "https://github.com/orgs/acme",

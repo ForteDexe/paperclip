@@ -1,6 +1,6 @@
-CREATE TABLE "company_transfer_runs" (
+CREATE TABLE "space_transfer_runs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid,
+	"space_id" uuid,
 	"direction" text NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"actor_key" text NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE "company_transfer_runs" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "company_transfer_runs" ADD CONSTRAINT "company_transfer_runs_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "company_transfer_runs_company_idx" ON "company_transfer_runs" USING btree ("company_id");--> statement-breakpoint
-CREATE INDEX "company_transfer_runs_idempotency_direction_idx" ON "company_transfer_runs" USING btree ("idempotency_key","direction");--> statement-breakpoint
-CREATE INDEX "company_transfer_runs_actor_status_idx" ON "company_transfer_runs" USING btree ("actor_key","status");
+ALTER TABLE "space_transfer_runs" ADD CONSTRAINT "space_transfer_runs_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "space_transfer_runs_space_idx" ON "space_transfer_runs" USING btree ("space_id");--> statement-breakpoint
+CREATE INDEX "space_transfer_runs_idempotency_direction_idx" ON "space_transfer_runs" USING btree ("idempotency_key","direction");--> statement-breakpoint
+CREATE INDEX "space_transfer_runs_actor_status_idx" ON "space_transfer_runs" USING btree ("actor_key","status");

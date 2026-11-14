@@ -3,12 +3,12 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { eq } from "drizzle-orm";
-import { agentWakeupRequests, authUsers, companyMemberships, heartbeatRuns, issueComments, issueThreadInteractions, issues } from "@outpost/db";
+import { agentWakeupRequests, authUsers, spaceMemberships, heartbeatRuns, issueComments, issueThreadInteractions, issues } from "@outpost/db";
 import { createIssueThreadInteractionSchema } from "@outpost/shared";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
 import { documentService } from "../services/documents.js";
 import { resolveConfirmationFromComment } from "../services/confirmation-comment-resolution.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { initializeRunIdentity } from "../services/run-identity.js";
 import { issueService } from "../services/issues.js";
@@ -64,7 +64,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     const before = await f.snapshot();
     const [beforeRun] = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     const wakes: unknown[] = [];
-    const authority = new PaperclipRunnerToolAuthority(server.db, { ...f, enqueueWakeup: async (...args) => { wakes.push(args); return null; } });
+    const authority = new OutpostRunnerToolAuthority(server.db, { ...f, enqueueWakeup: async (...args) => { wakes.push(args); return null; } });
     await expect(authority.execute({ tool: "create_task", callId: randomUUID(), arguments: {
       title: "Execute proposed work", idempotencyKey: "before-acceptance", status: "todo",
     } })).rejects.toThrow(/proposal.*accept/i);
@@ -79,8 +79,8 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
   it.each(["root", "child"])("rejects generic %s creation including explicit standalone parent before acceptance", async path => {
     const f = await fixture();
     const before = await f.snapshot();
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId)!;
-    const route = path === "root" ? `/api/companies/${f.companyId}/issues` : `/api/issues/${f.issueId}/children`;
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId)!;
+    const route = path === "root" ? `/api/spaces/${f.spaceId}/issues` : `/api/issues/${f.issueId}/children`;
     const response = await fetch(`${server.apiUrl}${route}`, {
       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ title: "Bypass proposal", parentId: null, assigneeAgentId: f.agentId, status: "todo" }),
@@ -118,7 +118,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     const f = await fixture();
     await accept(f, await proposal(f));
     const wakes: unknown[] = [];
-    const authority = new PaperclipRunnerToolAuthority(server.db, { ...f, enqueueWakeup: async (...args) => { wakes.push(args); return null; } });
+    const authority = new OutpostRunnerToolAuthority(server.db, { ...f, enqueueWakeup: async (...args) => { wakes.push(args); return null; } });
     const before = await f.snapshot();
     const [beforeRun] = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     const input = { title: "Approved artifact child", idempotencyKey: "first-task-handoff", status: "todo",
@@ -149,8 +149,8 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     const f = await fixture();
     await accept(f, await proposal(f));
     const before = await f.snapshot();
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
-    const route = path === "root" ? `/api/companies/${f.companyId}/issues` : `/api/issues/${f.issueId}/children`;
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const route = path === "root" ? `/api/spaces/${f.spaceId}/issues` : `/api/issues/${f.issueId}/children`;
     const response = await fetch(`${server.apiUrl}${route}`, {
       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ title: "Approved execution", parentId: null, assigneeAgentId: f.agentId,
@@ -170,7 +170,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
       else await server.db.update(issues).set({ originKind: "manual", description: "Ordinary task mentioning /first-task." }).where(eq(issues.id, f.issueId));
       const blockerId = onboarding ? f.blockerId : f.issueId;
       const wakes: unknown[] = [];
-      const authority = new PaperclipRunnerToolAuthority(server.db, { ...f, enqueueWakeup: async (...args) => { wakes.push(args); return null; } });
+      const authority = new OutpostRunnerToolAuthority(server.db, { ...f, enqueueWakeup: async (...args) => { wakes.push(args); return null; } });
       const created = await authority.execute({ tool: "create_task", callId: randomUUID(), arguments: {
         title: "Work with a real prerequisite", idempotencyKey: "valid-blocker", status: "todo", blockedByTaskIds: [blockerId],
       } }) as { task: { id: string } };
@@ -199,7 +199,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
       .find(value => value.createTask && value.setDependencies);
     if (!recipe) throw new Error("Missing shipped first-task handoff recipe");
     const wakes: unknown[] = [];
-    const authority = new PaperclipRunnerToolAuthority(server.db, { ...f, enqueueWakeup: async (...args) => { wakes.push(args); return null; } });
+    const authority = new OutpostRunnerToolAuthority(server.db, { ...f, enqueueWakeup: async (...args) => { wakes.push(args); return null; } });
     await authority.execute({ tool: "set_dependencies", callId: randomUUID(), arguments: {
       idempotencyKey: "existing-prerequisite", blockedByTaskIds: [f.blockerId],
     } });
@@ -222,11 +222,11 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
 
     // Read under the child's own native execution binding, without a model call.
     const childRunId = randomUUID();
-    await server.db.insert(heartbeatRuns).values({ id: childRunId, companyId: f.companyId, agentId: f.agentId,
+    await server.db.insert(heartbeatRuns).values({ id: childRunId, spaceId: f.spaceId, agentId: f.agentId,
       status: "running", runtimeMode: "native", nativeIssueId: created.task.id,
       responsibleUserId: f.responsibleUserId, contextSnapshot: { issueId: created.task.id } });
     await server.db.update(issues).set({ status: "in_progress", executionRunId: childRunId }).where(eq(issues.id, created.task.id));
-    const childAuthority = new PaperclipRunnerToolAuthority(server.db, { ...f, issueId: created.task.id, runId: childRunId });
+    const childAuthority = new OutpostRunnerToolAuthority(server.db, { ...f, issueId: created.task.id, runId: childRunId });
     const context = await childAuthority.execute({ tool: "get_task_context", callId: randomUUID(), arguments: {} }) as {
       activeTask: { description: string };
     };
@@ -256,8 +256,8 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
       title: "Approved ready child", idempotencyKey: "ready-child", status: "todo",
     } }) as { task: { id: string } };
     const before = await f.snapshot();
-    const beforeWakes = await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const beforeWakes = await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId));
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
     const response = await fetch(`${server.apiUrl}/api/issues/${created.task.id}`, {
       method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ status: "blocked", blockedByIssueIds: [f.issueId.toUpperCase()] }),
@@ -273,7 +273,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
       action: "issue.cross_issue_influence_observed", entityId: created.task.id, runId: f.runId,
       details: expect.objectContaining({ sourceIssueId: f.issueId, targetIssueId: created.task.id, kind: "update", allowed: true }),
     })]);
-    expect(await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toEqual(beforeWakes);
+    expect(await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toEqual(beforeWakes);
   });
 
   const childExecution = async (onboarding = true) => {
@@ -288,15 +288,15 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     await server.db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.runId));
     await server.db.update(issues).set({ status: "blocked", executionRunId: null }).where(eq(issues.id, f.issueId));
     const childRunId = randomUUID();
-    await server.db.insert(heartbeatRuns).values({ id: childRunId, companyId: f.companyId, agentId: f.agentId,
+    await server.db.insert(heartbeatRuns).values({ id: childRunId, spaceId: f.spaceId, agentId: f.agentId,
       status: "running", runtimeMode: "native", nativeIssueId: created.task.id,
       responsibleUserId: f.responsibleUserId, contextSnapshot: { issueId: created.task.id } });
     await server.db.update(issues).set({ status: "in_progress", executionRunId: childRunId }).where(eq(issues.id, created.task.id));
-    await initializeRunIdentity(server.db, { companyId: f.companyId, runId: childRunId, issueId: created.task.id,
+    await initializeRunIdentity(server.db, { spaceId: f.spaceId, runId: childRunId, issueId: created.task.id,
       responsibleUserId: f.responsibleUserId, cause: "instruction" });
-    const childAuthority = new PaperclipRunnerToolAuthority(server.db, { ...f, issueId: created.task.id, runId: childRunId });
+    const childAuthority = new OutpostRunnerToolAuthority(server.db, { ...f, issueId: created.task.id, runId: childRunId });
     await issueService(server.db).checkout(created.task.id, f.agentId, ["in_progress"], childRunId);
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", childRunId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", childRunId, f.responsibleUserId)!;
     return { f, childId: created.task.id, childRunId, childAuthority, token };
   };
 
@@ -305,7 +305,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     const input = { idempotencyKey: "child-own-parent-blocker", blockedByTaskIds: [f.issueId.toUpperCase()] };
     const before = await f.snapshot();
     const [beforeRun] = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, childRunId));
-    const beforeWakes = await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId));
+    const beforeWakes = await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId));
     if (transport === "native") {
       await expect(childAuthority.execute({ tool: "set_dependencies", callId: randomUUID(), arguments: input })).rejects.toMatchObject({
         status: 400, details: { code: "onboarding_first_task_parent_blocker" },
@@ -323,21 +323,21 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     expect(after.activity).toEqual(before.activity);
     const [afterRun] = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, childRunId));
     expect(afterRun.resultJson).toEqual(beforeRun.resultJson);
-    expect(await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toEqual(beforeWakes);
+    expect(await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toEqual(beforeWakes);
     // A definite input error leaves the key available and other blockers valid.
     for (const blockedByTaskIds of [[f.blockerId], []]) await expect(childAuthority.execute({ tool: "set_dependencies",
       callId: randomUUID(), arguments: { ...input, idempotencyKey: blockedByTaskIds.length ? input.idempotencyKey : randomUUID(), blockedByTaskIds },
     })).resolves.toMatchObject({ disposition: "applied" });
   });
 
-  it.each(["native", "REST", "board"])("preserves ordinary parent blockers and explicit board edits (%s)", async actor => {
-    const { f, childId, childAuthority, token } = await childExecution(actor === "board");
+  it.each(["native", "REST", "operator"])("preserves ordinary parent blockers and explicit operator edits (%s)", async actor => {
+    const { f, childId, childAuthority, token } = await childExecution(actor === "operator");
     if (actor === "native") {
       await expect(childAuthority.execute({ tool: "set_dependencies", callId: randomUUID(), arguments: {
         idempotencyKey: "ordinary-parent-blocker", blockedByTaskIds: [f.issueId],
       } })).resolves.toMatchObject({ disposition: "applied" });
     } else {
-      const headers: Record<string, string> = actor === "board"
+      const headers: Record<string, string> = actor === "operator"
         ? { Cookie: await server.humanSession(f.responsibleUserId!), "Content-Type": "application/json", Origin: server.apiUrl }
         : { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
       const response = await fetch(`${server.apiUrl}/api/issues/${childId}`, {
@@ -376,7 +376,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
       title: "Existing approved child", idempotencyKey: "approved-before-new-proposal", status: "todo",
     } }) as { task: { id: string } };
     await proposal(f);
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
     for (const blockedByIssueIds of [[f.blockerId], []]) {
       const response = await fetch(`${server.apiUrl}/api/issues/${created.task.id}`, {
         method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -397,7 +397,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     const created = await f.authority.execute({ tool: "create_task", callId: randomUUID(), arguments: {
       title: "Ordinary child", idempotencyKey: "ordinary-child", status: "todo",
     } }) as { task: { id: string } };
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
     const response = await fetch(`${server.apiUrl}/api/issues/${created.task.id}`, {
       method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ status: "blocked", blockedByIssueIds: [f.issueId] }),
@@ -420,7 +420,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     } }) as { interaction: { id: string; kind: string } };
     expect(interaction.kind).toBe("ask_user_questions");
     await expect(create(f)).rejects.toThrow(/proposal.*accept/i);
-    const answered = await issueThreadInteractionService(server.db).answerQuestions({ id: f.issueId, companyId: f.companyId }, interaction.id,
+    const answered = await issueThreadInteractionService(server.db).answerQuestions({ id: f.issueId, spaceId: f.spaceId }, interaction.id,
       { answers: [{ questionId: "approve_child_task", optionIds: ["approve"] }] }, { userId: f.responsibleUserId! });
     expect(answered).toMatchObject({ status: "answered", resolvedByUserId: f.responsibleUserId,
       result: { answers: [{ questionId: "approve_child_task", optionIds: ["approve"] }] } });
@@ -442,7 +442,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
       expect(interaction.kind).toBe(kind === "confirmation" ? "request_confirmation" : "request_checkbox_confirmation");
       await expect(create(f)).rejects.toThrow(/proposal.*accept/i);
       const selectedOptionIds = kind === "checkbox" ? ((args.payload as { options: { id: string }[] }).options.map(option => option.id)) : undefined;
-      await issueThreadInteractionService(server.db).acceptInteraction({ id: f.issueId, companyId: f.companyId, projectId: null, goalId: null }, interaction.id,
+      await issueThreadInteractionService(server.db).acceptInteraction({ id: f.issueId, spaceId: f.spaceId, projectId: null, goalId: null }, interaction.id,
         selectedOptionIds ? { selectedOptionIds } : {}, actor === "human" ? { userId: f.responsibleUserId! } : { agentId: f.agentId, runId: f.runId });
       if (actor === "human") await expect(create(f)).resolves.toMatchObject({ task: { parentId: f.issueId } });
       else await expect(create(f)).rejects.toThrow(/proposal.*accept/i);
@@ -465,14 +465,14 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     expect(rejected, JSON.stringify(rejected)).toMatchObject({ status: "rejected", continuationPolicy: "wake_assignee",
       resolvedByUserId: f.responsibleUserId, result: { outcome: "rejected", reason: "Please revise the proposed scope." } });
     expect(response.status).toBe(200);
-    const wakes = (await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId)))
+    const wakes = (await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId)))
       .filter(wake => wake.payload?.interactionId === interaction.id);
     expect(wakes).toHaveLength(1);
     expect(wakes[0]).toMatchObject({ agentId: f.agentId, requestedByActorType: "user", requestedByActorId: f.responsibleUserId,
       payload: { issueId: f.issueId, interactionId: interaction.id, interactionStatus: "rejected",
-        paperclipAgentMessage: { text: "Please revise the proposed scope.", source: "interaction_rejection" } } });
+        outpostAgentMessage: { text: "Please revise the proposed scope.", source: "interaction_rejection" } } });
     // The fixture disables execution: observe the real durable wake, not a model call.
-    expect((await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).map(run => run.id)).toEqual([f.runId]);
+    expect((await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).map(run => run.id)).toEqual([f.runId]);
     await expect(create(f)).rejects.toThrow(/proposal.*accept/i);
     expect((await f.snapshot()).issues.map(issue => issue.id).sort()).toEqual(issueIds);
   });
@@ -487,9 +487,9 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
   it("admits a persisted conversational acceptance with actual same-task human comment provenance", async () => {
     const f = await fixture();
     const p = await proposal(f);
-    const [comment] = await server.db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+    const [comment] = await server.db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
       authorUserId: f.responsibleUserId!, authorType: "user", body: "Yes, create that task." }).returning();
-    await resolveConfirmationFromComment(server.db, { companyId: f.companyId, issueId: f.issueId,
+    await resolveConfirmationFromComment(server.db, { spaceId: f.spaceId, issueId: f.issueId,
       interactionId: p.card.id, actor: { agentId: f.agentId, runId: f.runId }, input: { commentId: comment.id, decision: "accept" } });
     const [saved] = await server.db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, p.card.id));
     expect(saved).toMatchObject({ status: "accepted", resolvedByAgentId: f.agentId, resolvedByUserId: null,
@@ -502,15 +502,15 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     const originalUserId = randomUUID();
     await server.db.insert(authUsers).values({ id: originalUserId, name: "Original requester",
       email: `${originalUserId}@fixture.invalid`, createdAt: new Date(), updatedAt: new Date() });
-    await server.db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user",
+    await server.db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user",
       principalId: originalUserId, status: "active", membershipRole: "member" });
     await server.db.update(issues).set({ responsibleUserId: originalUserId }).where(eq(issues.id, f.issueId));
     const p = await proposal(f);
     if (kind === "card") await accept(f, p);
     else {
-      const [comment] = await server.db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+      const [comment] = await server.db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
         authorUserId: f.responsibleUserId!, authorType: "user", body: "Yes, create that task." }).returning();
-      await resolveConfirmationFromComment(server.db, { companyId: f.companyId, issueId: f.issueId,
+      await resolveConfirmationFromComment(server.db, { spaceId: f.spaceId, issueId: f.issueId,
         interactionId: p.card.id, actor: { agentId: f.agentId, runId: f.runId }, input: { commentId: comment.id, decision: "accept" } });
     }
     // Database-created timestamps and application decision timestamps have
@@ -531,7 +531,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     await expect(create(f)).resolves.toMatchObject({ task: { parentId: f.issueId } });
   });
 
-  it.each(["opening-answer", "agent-self-accept", "old-comment", "foreign-comment", "derived-comment", "governed-accept", "foreign-source-run"])(
+  it.each(["opening-answer", "agent-self-accept", "old-comment", "foreign-comment", "derived-comment", "controlled-accept", "foreign-source-run"])(
     "does not treat %s as persisted human proposal acceptance", async kind => {
       const f = await fixture();
       const p = await proposal(f);
@@ -540,7 +540,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
           result: { version: 1, answers: [] }, resolvedByUserId: f.responsibleUserId!, resolvedAt: new Date() }).where(eq(issueThreadInteractions.id, p.card.id));
       } else if (kind === "agent-self-accept") {
         await p.svc.acceptInteraction(p.issue, p.card.id, {}, { agentId: f.agentId, runId: f.runId });
-      } else if (kind === "governed-accept") {
+      } else if (kind === "controlled-accept") {
         await accept(f, p);
         await server.db.update(issueThreadInteractions).set({ payload: { ...p.card.payload, toolAction: {} } as never }).where(eq(issueThreadInteractions.id, p.card.id));
       } else if (kind === "foreign-source-run") {
@@ -548,7 +548,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
         await accept(f, p);
         await server.db.update(issueThreadInteractions).set({ sourceRunId: other.runId }).where(eq(issueThreadInteractions.id, p.card.id));
       } else {
-        const [comment] = await server.db.insert(issueComments).values({ companyId: f.companyId,
+        const [comment] = await server.db.insert(issueComments).values({ spaceId: f.spaceId,
           issueId: kind === "foreign-comment" ? f.blockerId : f.issueId,
           authorUserId: f.responsibleUserId!, authorType: "user", body: "A reply",
           ...(kind === "old-comment" ? { createdAt: new Date(new Date(p.card.createdAt).getTime() - 1_000) } : {}),
@@ -653,7 +653,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     const f = await fixture();
     const p = await proposal(f, true);
     await accept(f, p);
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
     const response = await fetch(`${server.apiUrl}/api/issues/${f.issueId}/accepted-plan-decompositions`, {
       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ acceptedPlanRevisionId: p.plan!.latestRevisionId,
@@ -747,7 +747,7 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
     const p = await proposal(f);
     await accept(f, p);
     const wakes: unknown[] = [];
-    const authority = new PaperclipRunnerToolAuthority(server.db, { ...f, enqueueWakeup: async (...args) => { wakes.push(args); return null; } });
+    const authority = new OutpostRunnerToolAuthority(server.db, { ...f, enqueueWakeup: async (...args) => { wakes.push(args); return null; } });
     const input = { tool: "create_task", callId: randomUUID(), arguments: { title: "Approved child", idempotencyKey: "owned", status: "todo" } };
     const first = await authority.execute(input);
     expect(wakes).toHaveLength(1);
@@ -769,8 +769,8 @@ describe.skipIf(!support.supported)("onboarding first-task execution admission",
   it("replays an owned generic creation after a newer pending proposal", async () => {
     const f = await fixture();
     await accept(f, await proposal(f));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
-    const route = `${server.apiUrl}/api/companies/${f.companyId}/issues`;
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const route = `${server.apiUrl}/api/spaces/${f.spaceId}/issues`;
     const body = { title: "Approved child", parentId: f.issueId, idempotencyKey: "owned-rest", assigneeAgentId: f.agentId, status: "backlog" };
     const post = async (input = body) => {
       const response = await fetch(route, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(input) });

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/api/client";
 import { ConnectivityProvider, createConnectivityStore, type ConnectivityStore } from "@/lib/connectivity";
 import {
-  ExecutionWorkspaceCompanyGate,
+  ExecutionWorkspaceSpaceGate,
   UnprefixedExecutionWorkspaceRedirect,
 } from "./UnprefixedExecutionWorkspaceRedirect";
 
@@ -17,13 +17,13 @@ vi.mock("@/api/execution-workspaces", () => ({
   executionWorkspacesApi: mockExecutionWorkspacesApi,
 }));
 
-const PAP = { id: "company-pap", name: "Outpost", issuePrefix: "PAP", status: "active" };
-const FOR = { id: "company-for", name: "Forgotten Runes", issuePrefix: "FOR", status: "active" };
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({
-    companies: [PAP, FOR],
-    selectedCompanyId: FOR.id,
-    selectedCompany: FOR,
+const PAP = { id: "space-pap", name: "Outpost", issuePrefix: "PAP", status: "active" };
+const FOR = { id: "space-for", name: "Forgotten Runes", issuePrefix: "FOR", status: "active" };
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({
+    spaces: [PAP, FOR],
+    selectedSpaceId: FOR.id,
+    selectedSpace: FOR,
     loading: false,
   }),
 }));
@@ -60,7 +60,7 @@ describe("UnprefixedExecutionWorkspaceRedirect", () => {
         <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route path="execution-workspaces/:workspaceId/issues" element={<UnprefixedExecutionWorkspaceRedirect />} />
-            <Route path=":companyPrefix/execution-workspaces/:workspaceId/issues" element={<Destination />} />
+            <Route path=":spacePrefix/execution-workspaces/:workspaceId/issues" element={<Destination />} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>
@@ -78,7 +78,7 @@ describe("UnprefixedExecutionWorkspaceRedirect", () => {
         <QueryClientProvider client={queryClient}>
           <MemoryRouter initialEntries={[path]}>
             <Routes>
-              <Route path=":companyPrefix" element={<ExecutionWorkspaceCompanyGate />}>
+              <Route path=":spacePrefix" element={<ExecutionWorkspaceSpaceGate />}>
                 <Route path="execution-workspaces/:workspaceId/issues" element={<Destination />} />
               </Route>
             </Routes>
@@ -88,8 +88,8 @@ describe("UnprefixedExecutionWorkspaceRedirect", () => {
     });
   }
 
-  it("uses the workspace owner instead of the selected company after login", async () => {
-    mockExecutionWorkspacesApi.get.mockResolvedValue({ id: "workspace-1", companyId: PAP.id });
+  it("uses the workspace owner instead of the selected space after login", async () => {
+    mockExecutionWorkspacesApi.get.mockResolvedValue({ id: "workspace-1", spaceId: PAP.id });
     render("/execution-workspaces/workspace-1/issues?tab=open#latest");
 
     await vi.waitFor(() => {
@@ -146,8 +146,8 @@ describe("UnprefixedExecutionWorkspaceRedirect", () => {
     expect(container.textContent).toContain("Retry");
   });
 
-  it("rejects a prefixed route for a different company's workspace", async () => {
-    mockExecutionWorkspacesApi.get.mockResolvedValue({ id: "workspace-1", companyId: PAP.id });
+  it("rejects a prefixed route for a different space's workspace", async () => {
+    mockExecutionWorkspacesApi.get.mockResolvedValue({ id: "workspace-1", spaceId: PAP.id });
     renderGate("/FOR/execution-workspaces/workspace-1/issues");
 
     await vi.waitFor(() => expect(container.textContent).toContain("NOT_FOUND"));

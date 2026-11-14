@@ -154,7 +154,7 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
     logIdentityRef.current = run.logRef ?? null; retiredLogRefs.current.clear();
     hasMoreEventsRef.current = false; setHasMoreEvents(false); setLoadingMoreEvents(false); setEventsError(null);
     setEvents([]); setLoading(true);
-  }, [run.id, run.companyId]);
+  }, [run.id, run.spaceId]);
   useEffect(() => { if (isLive) wasLiveRef.current = true; }, [isLive]);
 
   function appendEvents(rows: HeartbeatRunEvent[], retainHistory = false) {
@@ -171,8 +171,8 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
     });
   }
 
-  const stream = useTranscriptLiveStream(isLive ? [run.id] : [], { companyId: run.companyId, enabled: visible }, event => {
-    if (event.companyId !== run.companyId) return;
+  const stream = useTranscriptLiveStream(isLive ? [run.id] : [], { spaceId: run.spaceId, enabled: visible }, event => {
+    if (event.spaceId !== run.spaceId) return;
     const payload = asRecord(event.payload);
     if (!payload || payload.runId !== run.id) return;
     if (event.type === "heartbeat.run.log") {
@@ -264,7 +264,7 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
       cancelled = true; refreshEventsRef.current = null; loadMoreEventsRef.current = null;
       abort.abort(); if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [visible, run.id, run.companyId, run.status, stream.healthy, stream.epoch]);
+  }, [visible, run.id, run.spaceId, run.status, stream.healthy, stream.epoch]);
 
   const getScrollContainer = useCallback((): ScrollContainer => {
     if (scrollContainerRef.current) return scrollContainerRef.current;
@@ -360,7 +360,7 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
   const pendingLogRefresh = useRef(false);
   const logSourceEnabled = Boolean(run.logRef) || shouldPollShellLog;
   const persistedLog = useResilientFetch({
-    key: ["run-log", run.companyId, run.id, run.logRef ?? null, isLive ? null : run.logBytes, shouldPollShellLog],
+    key: ["run-log", run.spaceId, run.id, run.logRef ?? null, isLive ? null : run.logBytes, shouldPollShellLog],
     enabled: visible && logSourceEnabled,
     refetchInterval: logSequenceRef.current.needsCatchup || (shouldPollShellLog && !stream.healthy) ? 2000 : false,
     fetcher: async (signal) => {
@@ -435,9 +435,9 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
     [adapter, censorUsernameInLogs, logLines, parserTick],
   );
   const toolDecisionLookup = useQuery({
-    queryKey: queryKeys.tools.runDecisions(run.companyId, run.id),
-    queryFn: () => toolsApi.getRunDecisionLookup(run.companyId, run.id),
-    enabled: Boolean(run.companyId && run.id),
+    queryKey: queryKeys.tools.runDecisions(run.spaceId, run.id),
+    queryFn: () => toolsApi.getRunDecisionLookup(run.spaceId, run.id),
+    enabled: Boolean(run.spaceId && run.id),
     refetchInterval: isLive ? 3000 : false,
     staleTime: isLive ? 1000 : 30_000,
   });

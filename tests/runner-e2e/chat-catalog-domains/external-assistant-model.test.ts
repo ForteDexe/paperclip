@@ -1,7 +1,7 @@
 import { describe,expect,it } from "vitest";
 import { runScopedCompanion } from "./external-assistant-model.js";
 const query="Create a website task for Morgan in Acorn.",credential="fixture-private-provider-key";
-const tool={name:"paperclip_create_task",description:"Create a task",inputSchema:{type:"object"}};
+const tool={name:"outpost_create_task",description:"Create a task",inputSchema:{type:"object"}};
 const response=(id:string,output:unknown[],extra:Record<string,unknown>={})=>new Response(JSON.stringify({id,model:"gpt-5.4-mini",usage:{input_tokens:40,output_tokens:20},output,...extra}));
 describe("finite real-provider companion driver controls",()=>{
  it("sends the exact canonical input, dispatches only model-selected admitted calls and preserves provider/model/usage evidence",async()=>{

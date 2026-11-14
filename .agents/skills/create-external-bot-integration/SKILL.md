@@ -1,17 +1,17 @@
 ---
 name: create-external-bot-integration
 description: >-
-  Build and qualify external bots such as Dot in Paperclip. Use for two-way work,
+  Build and qualify external bots such as Dot in Outpost. Use for two-way work,
   invitation, identity, wakeup, Runner lifecycle, native tools, recovery, and
   Cloud delivery. CLI adapters and app-only connectors use their existing skills.
 ---
 
 # Create an External Bot Integration
 
-Make an existing external agent a useful Paperclip participant: Paperclip can
+Make an existing external agent a useful Outpost participant: Outpost can
 assign work to it, and it can initiate governed work from its own conversation.
 It uses its relevant native capabilities, returns inspectable results to
-Paperclip, and participates in normal admission, authority, and finalization.
+Outpost, and participates in normal admission, authority, and finalization.
 
 This workflow incorporates the September 30–October 9, 2026 Dot integration.
 Provider facts and code paths in the references are dated evidence, not a claim
@@ -42,11 +42,11 @@ well as direct APIs and chat channels. Do not assume that a bot mention wakes
 another bot, that MCP notifications wake an offline agent, or that a plugin listed
 in settings is callable in the agent's current conversation.
 
-Use a synthetic company and stable public HTTPS endpoint. Start with a scripted
+Use a synthetic space and stable public HTTPS endpoint. Start with a scripted
 client for deterministic protocol tests, then the actual provider account:
 
 1. Fresh connection → callable read tool → verified event round trip.
-2. Paperclip assignment → autonomous acceptance → persisted result → finalization.
+2. Outpost assignment → autonomous acceptance → persisted result → finalization.
 3. Idle bot request → one governed intake → useful action → finalization.
 
 If idle autonomy is in scope, the third journey is a first milestone, not an
@@ -57,7 +57,7 @@ A successful assisted run does not prove prompt-only first-time setup.
 ## 3. Reuse Runner while keeping placement and capability separate
 
 Read [runner-architecture.md](references/runner-architecture.md) before changing
-execution or authority. For Paperclip, prefer the existing Runner infrastructure:
+execution or authority. For Outpost, prefer the existing Runner infrastructure:
 shared lifecycle, receipts, recovery, and a future sandbox boundary for workspace
 tools. The bot's model and native tools can remain entirely at its provider.
 
@@ -85,8 +85,8 @@ action. Use stories for waiting, expiry, errors, pause, readiness, and recovery,
 then verify the real rendered transitions and persistence.
 
 The prompt must tell the bot to use its own relevant tools/apps/skills and return
-results. The Paperclip catalog governs Paperclip calls, not the bot's entire
-runtime. Limit qualification restrictions to the specific test and Paperclip
+results. The Outpost catalog governs Outpost calls, not the bot's entire
+runtime. Limit qualification restrictions to the specific test and Outpost
 destination. Never turn “use this test connection” into “use no other tools.”
 
 ## 5. Qualify both correctness and the ordinary user experience
@@ -117,7 +117,7 @@ Retain the environment while the user/provider is testing; do not expire it
 silently or reset the OAuth database behind a cached client registration.
 
 Use the repository's adapter, eval, PR, and release workflows when available.
-The Paperclip `create-agent-adapter` skill covers shared configuration surfaces;
+The Outpost `create-agent-adapter` skill covers shared configuration surfaces;
 `outpost-runner-release` coordinates a release; `test-it-for-real` validates the
 actual experience. Discover their installed locations rather than assuming they
 are siblings of this skill. This skill adds external-bot-specific contracts.
@@ -130,7 +130,7 @@ the operation and observed cause; preserve the same resumable deployment request
 
 Report supported capabilities, exact live evidence, interventions, unsupported
 provider controls, remaining gates, and resource disposition. Never equate unknown
-cost with zero cost, or revoked Paperclip access with confirmed global bot stop.
+cost with zero cost, or revoked Outpost access with confirmed global bot stop.
 This skill supplies procedure, not new permission to message, grant access, spend,
 publish, or deploy. Apply the current user's authorization and host policies.
 
@@ -139,7 +139,7 @@ publish, or deploy. Apply the current user's authorization and host policies.
 - [Release contract](references/release-contract.md): scope, capability matrix,
   provider research, architecture decision, and finish-line template.
 - [Runner architecture](references/runner-architecture.md): identity, state,
-  admission, receipts, follow-ups, recovery, files, and concrete Paperclip anchors.
+  admission, receipts, follow-ups, recovery, files, and concrete Outpost anchors.
 - [Onboarding and prompts](references/onboarding-and-prompts.md): UI states,
   consent, lifetime, tool loading, native capabilities, and reusable prompt text.
 - [Conformance tests](references/conformance-tests.md): runnable journey recipes,

@@ -1,9 +1,9 @@
-import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
+import type { OutpostPluginManifestV1 } from "@outpost/plugin-sdk";
 
 const PLUGIN_ID = "outpost.kubernetes-sandbox-provider";
 const PLUGIN_VERSION = "0.1.0-alpha.1";
 
-const manifest: PaperclipPluginManifestV1 = {
+const manifest: OutpostPluginManifestV1 = {
   id: PLUGIN_ID,
   apiVersion: 1,
   version: PLUGIN_VERSION,
@@ -29,25 +29,25 @@ const manifest: PaperclipPluginManifestV1 = {
           inCluster: {
             type: "boolean",
             description:
-              "When true, the plugin uses the in-pod ServiceAccount credentials. Requires paperclip-server to be running inside the target cluster.",
+              "When true, the plugin uses the in-pod ServiceAccount credentials. Requires outpost-server to be running inside the target cluster.",
           },
           kubeconfig: {
             type: "string",
             format: "secret-ref",
             description:
-              "Inline kubeconfig YAML. Paste a kubeconfig or an existing Outpost secret reference; pasted values are stored as company secrets.",
+              "Inline kubeconfig YAML. Paste a kubeconfig or an existing Outpost secret reference; pasted values are stored as space secrets.",
           },
           namespacePrefix: {
             type: "string",
-            description: "Prefix for the per-company tenant namespace (default: paperclip-).",
+            description: "Prefix for the per-space tenant namespace (default: outpost-).",
           },
-          companySlug: {
+          spaceSlug: {
             type: "string",
-            description: "Override the auto-derived company slug used in the tenant namespace name.",
+            description: "Override the auto-derived space slug used in the tenant namespace name.",
           },
           imageRegistry: {
             type: "string",
-            description: "Override the default registry for agent runtime images (default: ghcr.io/paperclipai).",
+            description: "Override the default registry for agent runtime images (default: ghcr.io/fortedexe).",
           },
           imageAllowList: {
             type: "array",

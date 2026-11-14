@@ -21,7 +21,7 @@ const meta = {
   id: "onboarding-connect-a-model",
   title: "Getting started and access/Onboarding and first work/Onboarding/Connect a model",
   parameters: { layout: "centered",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "onboarding/adapter",
         "onboarding/first-task"

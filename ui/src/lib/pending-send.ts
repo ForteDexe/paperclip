@@ -2,14 +2,14 @@
  * Durable sends: writes that must not lose the user's text across a deploy,
  * a restart, or a network drop.
  *
- * The pattern (generalized from `components/chat/board-send-draft.ts`):
+ * The pattern (generalized from `components/chat/operator-send-draft.ts`):
  *
  * 1. Persist the payload and its idempotency key **before** the request.
  * 2. Send.
  * 3. On a transient or unconfirmed failure, keep the record and resend it with
  *    the **same key** when the connection returns. The server dedupes by that
  *    key (`clientRequestId` for comments, `idempotencyKey` for issue create and
- *    board publishes), so a resend after a lost response cannot post twice.
+ *    operator publishes), so a resend after a lost response cannot post twice.
  * 4. Clear the record only after a confirmed receipt.
  * 5. On a definitive rejection (a 4xx), clear the record and give the text
  *    back to the editor with `describeError` copy.

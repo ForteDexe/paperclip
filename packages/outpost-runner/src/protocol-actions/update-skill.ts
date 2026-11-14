@@ -3,15 +3,15 @@ export const updateSkillAction = {
   id: "update_skill",
   canonical: {
     operationId: "update_skill", surfaces: ["scenario", "live"], placement: "optional_agent_tool",
-    optionalGroup: "company_skills", requiredClaims: [], taskModes: ["standard", "skill_test"],
-    sideEffectClass: "company_write", idempotency: "required", disabledByDefault: false,
-    realBindingStatus: "live_codex", realServiceBinding: "PaperclipRunnerToolAuthority",
+    optionalGroup: "space_skills", requiredClaims: [], taskModes: ["standard", "skill_test"],
+    sideEffectClass: "space_write", idempotency: "required", disabledByDefault: false,
+    realBindingStatus: "live_codex", realServiceBinding: "OutpostRunnerToolAuthority",
     orpEvidence: "Authenticated skill file API with version guard, durable receipt, and attributed activity.",
     orpBindingStatus: "bound", legacyAliases: [],
   },
   documentation: {
     title: "Update skill",
-    description: "Replace the primary SKILL.md of an existing company skill. Read the current skill and version first. Supply the complete file, expectedVersionId, and an idempotencyKey; reuse the key on retries. A version conflict requires a fresh read. This uses the existing file API and company edit policy.",
+    description: "Replace the primary SKILL.md of an existing space skill. Read the current skill and version first. Supply the complete file, expectedVersionId, and an idempotencyKey; reuse the key on retries. A version conflict requires a fresh read. This uses the existing file API and space edit policy.",
     note: null,
   },
   examples: {
@@ -23,7 +23,7 @@ export const updateSkillAction = {
     order: 47,
     descriptor: {
       schema: "outpost.semantic-tool.v1", operationId: "update_skill", version: 1,
-      title: "Update skill", description: "Replace an existing company skill's complete SKILL.md using the current version as a guard. Reuse idempotencyKey on lost-response retries; read again after a version conflict.",
+      title: "Update skill", description: "Replace an existing space skill's complete SKILL.md using the current version as a guard. Reuse idempotencyKey on lost-response retries; read again after a version conflict.",
       exposure: "optional", requiredClaims: [], allowedModes: ["standard", "skill_test"],
       inputSchema: { type: "object", properties: {
         skillId: { type: "string", minLength: 1 },
@@ -39,15 +39,15 @@ export const updateSkillAction = {
     successExample: { schema: "outpost.capability.tool-result.v1", ok: true, operationId: "update_skill", operationResultId: "example-result", value: { commandId: "example", disposition: "applied", stateRevision: 1, entityRefs: ["skill:skill-example"], scheduledWakeIds: [] }, commandResult: null, authorization: {} },
     descriptor: {
       operationId: "update_skill", version: 1, title: "Update skill",
-      description: "Replace an existing company skill's complete SKILL.md with an expected version guard and a retry key.",
+      description: "Replace an existing space skill's complete SKILL.md with an expected version guard and a retry key.",
       inputSchema: { type: "object", properties: {
         skillId: { type: "string", minLength: 1 },
         markdown: { type: "string", minLength: 1, maxLength: 200000 },
         expectedVersionId: { type: "string", minLength: 1 },
       }, required: ["skillId", "markdown", "expectedVersionId"], additionalProperties: false },
       outputSchema: { type: "object", additionalProperties: true },
-      disposition: "optional_agent_tool", optionalGroup: "company_skills", requiredClaims: [],
-      taskModes: ["standard", "skill_test"], sideEffectClass: "company_write", idempotency: "required", redaction: [],
+      disposition: "optional_agent_tool", optionalGroup: "space_skills", requiredClaims: [],
+      taskModes: ["standard", "skill_test"], sideEffectClass: "space_write", idempotency: "required", redaction: [],
       mockCommandMapping: { kind: "semantic_command", commandKind: "update_skill" },
     },
   },

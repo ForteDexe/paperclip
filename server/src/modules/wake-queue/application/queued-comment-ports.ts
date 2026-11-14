@@ -37,14 +37,14 @@ export type QueuedCommentActivityLogInput = {
  * before calling `publishActivity`.
  */
 export type QueuedCommentActivityPublication = {
-  companyId: string;
+  spaceId: string;
   payload: Record<string, unknown>;
   pluginEvent: unknown;
 };
 
 export type QueuedCommentIssueContext = {
   id: string;
-  companyId: string;
+  spaceId: string;
   assigneeAgentId: string | null;
   executionRunId: string | null;
 };
@@ -83,8 +83,8 @@ export type LockedQueuedCommentState = {
 
 /**
  * Every member is bound to the one transaction `withLockedQueue` owns, and
- * to the one company that transaction is open for. Every read and every
- * write names that bound `companyId` in its own predicate; a
+ * to the one space that transaction is open for. Every read and every
+ * write names that bound `spaceId` in its own predicate; a
  * caller-supplied `issue`/`wake`/`queueRun` value is never trusted as an
  * authorization boundary by itself.
  */
@@ -171,7 +171,7 @@ export interface QueuedCommentIssueLockWriter {
    */
   withLockedQueue<T>(
     input: {
-      /** Also carries the company id; every locked read and write binds its `companyId` predicate to `issue.companyId`. */
+      /** Also carries the space id; every locked read and write binds its `spaceId` predicate to `issue.spaceId`. */
       issue: QueuedCommentIssueContext;
       actor: QueuedCommentActor;
       queueId: string;

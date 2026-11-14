@@ -73,7 +73,7 @@ describe.skipIf(!endpoint)("instance storage for run evidence", () => {
     for (const [index, bucket] of buckets.entries()) {
       const store = stores[index]!;
       const handle = await store.begin({
-        companyId: "same-company",
+        spaceId: "same-space",
         agentId: "same-agent",
         runId: "same-run",
         newRun: true,
@@ -88,7 +88,7 @@ describe.skipIf(!endpoint)("instance storage for run evidence", () => {
       );
       expect(
         keys.every((key) =>
-          key.startsWith("existing-root/run-logs/segments-v1/same-company/same-agent/same-run/"),
+          key.startsWith("existing-root/run-logs/segments-v1/same-space/same-agent/same-run/"),
         ),
       ).toBe(true);
     }
@@ -134,7 +134,7 @@ describe.skipIf(!endpoint)("instance storage for run evidence", () => {
     const { getRunLogStore } = await import("./run-log-store.js");
     const external = getRunLogStore();
     const handle = await external.begin({
-      companyId: "file-company",
+      spaceId: "file-space",
       agentId: "agent",
       runId: "run",
       newRun: true,
@@ -154,7 +154,7 @@ describe.skipIf(!endpoint)("instance storage for run evidence", () => {
     vi.resetModules();
     const local = (await import("./run-log-store.js")).getRunLogStore();
     const localHandle = await local.begin({
-      companyId: "local-company",
+      spaceId: "local-space",
       agentId: "agent",
       runId: "run",
       newRun: true,
@@ -170,36 +170,36 @@ describe.skipIf(!endpoint)("instance storage for run evidence", () => {
     expect((await restored.read(handle)).content).toContain("file-config");
     await fs.unlink(path.join(directory, "config.json"));
   });
-  it("scopes trace publication and cleanup to the existing prefix, company and stack", async () => {
+  it("scopes trace publication and cleanup to the existing prefix, space and stack", async () => {
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "a".repeat(64));
     const { resolveRunEvidenceStorage } = await import("./run-evidence-storage.js");
     const { createProviderTraceObjectStore } = await import("./provider-trace-object-store.js");
     const { createStorageService } = await import("../storage/service.js");
     const filename = `${randomUUID()}.ndjson`;
     const records = [];
-    for (const [prefix, company] of [
-      ["stack-a", "same-company"],
-      ["stack-b", "same-company"],
-      ["stack-a", "other-company"],
+    for (const [prefix, space] of [
+      ["stack-a", "same-space"],
+      ["stack-b", "same-space"],
+      ["stack-a", "other-space"],
     ]) {
       selectStack(buckets[0]!, prefix);
       const config = resolveRunEvidenceStorage()!;
       const store = createProviderTraceObjectStore(config.provider, config.tracePrefix);
       const storage = createStorageService(config.provider);
-      const ref = `s3-segments-v1:${company}/same-run/${filename}`;
-      const file = path.join(directory, `${prefix}-${company}.ndjson`);
-      const body = Buffer.from(`${JSON.stringify({ fixture: `${prefix}:${company}` })}\n`);
+      const ref = `s3-segments-v1:${space}/same-run/${filename}`;
+      const file = path.join(directory, `${prefix}-${space}.ndjson`);
+      const body = Buffer.from(`${JSON.stringify({ fixture: `${prefix}:${space}` })}\n`);
       await store.open(ref, file, async () => undefined);
       await fs.appendFile(file, body);
       await store.finish(ref);
       const product = await storage.putFile({
-        companyId: company!,
+        spaceId: space!,
         namespace: "attachments",
         originalFilename: "keep.txt",
         contentType: "text/plain",
         body: Buffer.from("keep"),
       });
-      records.push({ store, storage, ref, body, product, company: company! });
+      records.push({ store, storage, ref, body, product, space: space! });
     }
     expect(records[0]!.ref).toBe(records[1]!.ref);
     await records[0]!.store.remove(records[0]!.ref);
@@ -207,7 +207,7 @@ describe.skipIf(!endpoint)("instance storage for run evidence", () => {
     for (const record of records.slice(1))
       expect(await record.store.read(record.ref)).toEqual(record.body);
     for (const record of records) {
-      const object = await record.storage.getObject(record.company, record.product.objectKey);
+      const object = await record.storage.getObject(record.space, record.product.objectKey);
       const chunks = [];
       for await (const chunk of object.stream) chunks.push(Buffer.from(chunk));
       expect(Buffer.concat(chunks).toString()).toBe("keep");
@@ -217,9 +217,9 @@ describe.skipIf(!endpoint)("instance storage for run evidence", () => {
     ).Contents!.map((object) => object.Key!);
     expect(
       keys.some((key) =>
-        key.startsWith("stack-b/provider-traces/segments-v1/same-company/same-run/"),
+        key.startsWith("stack-b/provider-traces/segments-v1/same-space/same-run/"),
       ),
     ).toBe(true);
-    expect(keys.some((key) => key.startsWith("stack-b/same-company/attachments/"))).toBe(true);
+    expect(keys.some((key) => key.startsWith("stack-b/same-space/attachments/"))).toBe(true);
   });
 });

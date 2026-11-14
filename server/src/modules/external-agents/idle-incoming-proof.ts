@@ -16,7 +16,7 @@ export function idleExternalAgentIncomingWorkQuery(reason: string, proof?: IdleM
 
     return sql`${sql.raw(check.query)} AND NOT (m.binding_id IN (${ids}) AND m.assignment_id IS NULL
       AND m.kind = 'readiness_challenge' AND EXISTS (SELECT 1 FROM dot_agent_bindings binding
-        WHERE binding.id = m.binding_id AND binding.company_id = m.company_id
+        WHERE binding.id = m.binding_id AND binding.space_id = m.space_id
           AND m.binding_generation > 0 AND m.binding_generation <= binding.generation
           AND binding.challenge_hash IS NULL AND binding.pairing_code_hash IS NULL))`;
   }

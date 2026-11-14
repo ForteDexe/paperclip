@@ -147,13 +147,13 @@ describe("execution truth projection", () => {
   it("keeps cleanup quarantine visible without a coordinator or recovery row", () => {
     const stopped = run({ id: "stopped", status: "failed", errorCode: "native_session_cleanup_quarantined" });
     expect(projectExecution(stopped, undefined, [], undefined, now)).toMatchObject({
-      phase: "recovery_needed", cause: "native_session_cleanup_quarantined", recoveryOwner: "board",
+      phase: "recovery_needed", cause: "native_session_cleanup_quarantined", recoveryOwner: "operator",
       permittedActions: ["inspect_run", "inspect_recovery"],
     });
     expect(projectExecution(stopped, coordinator({ phase: "retryable_failure" }), [], undefined, now).phase).toBe("recovery_needed");
     expect(projectExecution({ ...stopped, finishedAt: now }, coordinator({
       phase: "terminal_failure", failureCode: "native_provider_terminal_failed",
-    }), [], undefined, now)).toMatchObject({ phase: "recovery_needed", recoveryOwner: "board" });
+    }), [], undefined, now)).toMatchObject({ phase: "recovery_needed", recoveryOwner: "operator" });
     expect(projectExecution({ ...stopped, errorCode: "provider_frame_too_large" }, undefined, [], undefined, now).phase).toBe("failed");
     expect(projectExecution(stopped, undefined, [], { status: "resolved", cause: "native_session_cleanup_quarantined", nextAction: "Verify prior execution",
       evidence: { executionReconciliation: { providerStopped: true }, continuationRunId: "successor" } }, now))
@@ -287,13 +287,13 @@ describe("execution truth projection", () => {
   it("includes the original legacy attempt in the displayed incident budget", () => {
     expect(projectExecution(run({ runtimeMode: "legacy", status: "scheduled_retry", scheduledRetryAttempt: 1 }), undefined, [], undefined, now)).toMatchObject({ attempt: 2, maxAttempts: 3 });
   });
-  it("keeps saved governed work in shutdown reconciliation without offering a new attempt", () => {
+  it("keeps saved controlled work in shutdown reconciliation without offering a new attempt", () => {
     expect(project(
-      run({ status: "failed", errorCode: "native_governed_wait_settlement_pending" }),
-      coordinator({ phase: "retryable_failure", failureCode: "native_governed_wait_settlement_pending",
+      run({ status: "failed", errorCode: "native_controlled_wait_settlement_pending" }),
+      coordinator({ phase: "retryable_failure", failureCode: "native_controlled_wait_settlement_pending",
         nextAttemptAt: new Date(now.getTime() + 30_000) }),
     )).toMatchObject({ phase: "finishing", label: "Finishing shutdown", permittedActions: ["inspect_run"],
-      nextAction: "The work and waiting state are saved. Paperclip is confirming shutdown before continuing." });
+      nextAction: "The work and waiting state are saved. Outpost is confirming shutdown before continuing." });
   });
   it("shows pending interaction only after productive work has stopped", () => {
     expect(
@@ -333,7 +333,7 @@ describe("execution truth projection", () => {
       ),
     ).toMatchObject({
       phase: "recovery_needed",
-      recoveryOwner: "board",
+      recoveryOwner: "operator",
       nextAction: "Reconcile the email delivery.",
     });
   });

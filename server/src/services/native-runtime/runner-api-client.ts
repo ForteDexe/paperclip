@@ -30,7 +30,7 @@ export const runnerApiCallSchema = z.object({
 export type RunnerApiCall = z.infer<typeof runnerApiCallSchema>;
 export type RunnerApiFile = z.infer<typeof fileSchema>;
 export interface RunnerApiContext {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   issueIdentifier?: string | null;
   runId: string;
@@ -69,7 +69,7 @@ export function validateRunnerApiCall(value: unknown, context: RunnerApiContext)
     input = rest;
   }
   if (!operation.allowedModes.includes(context.workMode)) throw forbidden("call_api permits only reads in Ask and Plan modes; use the permitted dedicated tools");
-  if (input.pathParams?.companyId && input.pathParams.companyId !== context.companyId) throw forbidden("API call belongs to another company");
+  if (input.pathParams?.spaceId && input.pathParams.spaceId !== context.spaceId) throw forbidden("API call belongs to another space");
   const contentType = (input.contentType ?? "application/json").split(";", 1)[0].trim().toLowerCase();
   if (input.body !== undefined && !input.files?.length) {
     const requestSchema = operation.requestBody?.content?.[contentType]?.schema as { type?: string } | undefined;
@@ -107,7 +107,7 @@ export function runnerApiUrl(operation: RunnerApiOperation, input: RunnerApiCall
   const origin = new URL(apiUrl);
   if (!["http:", "https:"].includes(origin.protocol) || origin.username || origin.password || origin.search || origin.hash) throw new Error("Invalid configured Outpost API origin");
   const params = { ...input.pathParams };
-  if (operation.path.includes("{companyId}")) params.companyId ??= context.companyId;
+  if (operation.path.includes("{spaceId}")) params.spaceId ??= context.spaceId;
   const names = [...operation.path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]);
   for (const name of Object.keys(params)) if (!names.includes(name)) throw badRequest(`Unknown path parameter: ${name}`);
   const path = operation.path.replace(/\{([^}]+)\}/g, (_, name: string) => {
@@ -155,18 +155,18 @@ export async function readBoundedResponse(response: Response, maxBytes = RUNNER_
 
 /**
  * Page position reported by capped list routes (for example
- * GET /api/companies/{companyId}/issues) through X-Paperclip-Has-More and its
+ * GET /api/spaces/{spaceId}/issues) through X-Outpost-Has-More and its
  * sibling headers. Agents never see response headers, so surface it beside the
  * data; otherwise a capped page reads as the complete list.
  */
 export function runnerApiPagination(headers: Headers) {
-  const hasMoreHeader = headers.get("x-paperclip-has-more");
+  const hasMoreHeader = headers.get("x-outpost-has-more");
   if (hasMoreHeader !== "true" && hasMoreHeader !== "false") return undefined;
   const hasMore = hasMoreHeader === "true";
-  const limit = Number(headers.get("x-paperclip-limit"));
-  const offsetHeader = headers.get("x-paperclip-next-offset");
+  const limit = Number(headers.get("x-outpost-limit"));
+  const offsetHeader = headers.get("x-outpost-next-offset");
   const nextOffset = offsetHeader !== null && /^\d+$/.test(offsetHeader) ? Number(offsetHeader) : null;
-  const nextAfterId = hasMore ? headers.get("x-paperclip-next-after-id") : null;
+  const nextAfterId = hasMore ? headers.get("x-outpost-next-after-id") : null;
   const next = [
     ...(nextAfterId ? [`afterId=${nextAfterId}`] : []),
     ...(nextOffset !== null ? [`offset=${nextOffset}`] : []),
@@ -189,7 +189,7 @@ export async function executeRunnerApi(input: RunnerApiCall, context: RunnerApiC
   const sensitiveResponse = runnerApiSensitiveResponse(operation.method, operation.path);
   const url = runnerApiUrl(operation, input, context, io.apiUrl);
   if (!io.token) throw new Error("Outpost run authentication is unavailable");
-  const headers = new Headers({ Authorization: `Bearer ${io.token}`, "X-Paperclip-Run-Id": context.runId });
+  const headers = new Headers({ Authorization: `Bearer ${io.token}`, "X-Outpost-Run-Id": context.runId });
   const textOffset = input.responseText?.offsetBytes ?? 0;
   const textLimit = input.responseText?.limitBytes
     ?? (input.responseText ? io.responseTextPageBytes : undefined) ?? RUNNER_API_INLINE_BYTES;

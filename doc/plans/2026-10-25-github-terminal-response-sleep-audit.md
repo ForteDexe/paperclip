@@ -44,7 +44,7 @@ self-wake loop through the release notification.
   response-state topic after verifying coverage.
 - Response action completion and provider publication/assessment settlement must
   wake affected terminal candidates. Repository lease release is scoped to its
-  company, endpoint, repository and PR/issue number.
+  space, endpoint, repository and PR/issue number.
 - An unresolved competing lease owns its saved expiration, not a permanent scan.
 - Failed terminal sends remain with the existing acknowledgement retry owner,
   including the current attempt budget and ambiguous-outcome policy.
@@ -213,7 +213,7 @@ Verification:
 - Workspace typecheck and build pass after final source/wiring/index changes
   (`/tmp/sleep35-workspace-types.log`, `/tmp/sleep35-workspace-build.log`).
 - Fresh complete chat/publication/startup acceptance is running on
-  `paperclip_sleep35_full_20261025_test`, log `/tmp/sleep35-full-chat.log`.
+  `outpost_sleep35_full_20261025_test`, log `/tmp/sleep35-full-chat.log`.
   Its expected count is 1,571. Do not claim completion before its terminal result.
 - Remote checks/review and any resulting repairs remain required.
 

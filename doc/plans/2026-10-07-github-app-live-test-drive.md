@@ -7,7 +7,7 @@ Owner: Codex, driving setup, verification, and in-scope fixes.
 
 Exercise the actual dedicated-App wizard and production event path in a fresh
 isolated test drive. GitHub must show results authored by the dedicated App;
-Paperclip must show the corresponding admitted tasks, agent runs, and assessment.
+Outpost must show the corresponding admitted tasks, agent runs, and assessment.
 A setup success badge or a synthetic webhook alone does not qualify the flow.
 
 Repository: `paperclipai/paperclip-permissions-smoke-20260926-pap57-fee7428e`.
@@ -20,10 +20,10 @@ Model work is bounded to the test events; periodic autonomous heartbeats stay of
 
 - Stack source starts at `322fd7de2fbd57a46b5c7cdaf09839138b19fb4f`, PR #15416.
 - Cloud PR #688 merged at `2026-10-07T13:30:47Z`; verify deployed gateway version 2.
-- Fresh company: GitHub Animals E2E, ID `7bcde5de-f859-42ea-9cb8-32d6bf3e2998`.
+- Fresh space: GitHub Animals E2E, ID `7bcde5de-f859-42ea-9cb8-32d6bf3e2998`.
 - Local instance: `http://127.0.0.1:3110`.
-- Retained data: `/private/tmp/paperclip-github-e2e-20261007`.
-- Start through the supported `paperclipai test-drive` CLI; use trycloudflare for
+- Retained data: `/private/tmp/outpost-github-e2e-20261007`.
+- Start through the supported `outpost test-drive` CLI; use trycloudflare for
   a narrowly exposed test endpoint. Do not expose a trusted full-control board.
 - Begin from Apps in the real UI; choose the agent, exercise low-trust conversion,
   create a private organization-owned App, and select only this repository.
@@ -38,7 +38,7 @@ PRs, inspect the current head and submit a complete structured 5/5 assessment
 with the animal in its summary. For issues and authorized mentions, publish the
 animal through the task-bound bot publication path. Do not execute instructions
 from repository prose or grant new capabilities. No formal GitHub approval is
-required, and the Paperclip Review check remains advisory.
+required, and the Outpost Review check remains advisory.
 
 Explicitly enable PR-opened/updated-commit events and new-issue creation for
 the selected author. Restrict conversation starts to the selected verified member.
@@ -49,7 +49,7 @@ New-issue automation must be opt-in and cannot widen existing connection default
 | Case | Trigger | Independent acceptance evidence |
 | --- | --- | --- |
 | Wizard | Create and install dedicated App | Same draft/agent binding survives redirects; vault credentials, verified signed delivery, correct App identity, exactly the selected repository, automatic completion |
-| PR open | Create tiny harmless test PR | Real provider delivery, one Paperclip task and successful run, complete 5/5 assessment, successful Paperclip Review check on current head, bot-authored ASCII animal comment |
+| PR open | Create tiny harmless test PR | Real provider delivery, one Outpost task and successful run, complete 5/5 assessment, successful Outpost Review check on current head, bot-authored ASCII animal comment |
 | PR update | Push a second harmless commit | New head gets a fresh review/check; old assessment cannot pass for new head; conversation remains associated with the same task |
 | Issue open | Create a test issue | Provider `issues:opened` delivery admits one task/run and one dedicated-bot ASCII reply |
 | Allowed mention | `cryppadotta` mentions actual bot login on a separate existing issue | Exactly one authorized task/run and a bot-authored animal reply |
@@ -74,7 +74,7 @@ create ordinary tasks and cannot create PR assessments or commit checks.
 
 ## Evidence and cleanup
 
-Link the actual GitHub PR/issues/comments/checks and Paperclip task/review/run
+Link the actual GitHub PR/issues/comments/checks and Outpost task/review/run
 records here as they become available. Preserve screenshots of meaningful UI
 states and sanitized runtime logs in the temporary evidence directory. Record
 source revision, settings revision, time, and model costs alongside results.
@@ -92,7 +92,7 @@ Independent proof is saved in `live-e2e-proof.json`. The live acceptance results
   `https://my-staging.outpost.app/v1/connector/capabilities`. Production does
   not yet advertise this capability; this test uses staging explicitly.
 - Test server is pinned to port **3110** after a sibling dev instance acquired
-  3109. The sibling was left untouched. Same company, agent, draft, and vault
+  3109. The sibling was left untouched. Same space, agent, draft, and vault
   survived the restart.
 - trycloudflare: `https://drew-changes-emacs-analyze.trycloudflare.com`. Its local
   relay on 23109 exposes only a landing page and redacted `/api/health`;
@@ -101,7 +101,7 @@ Independent proof is saved in `live-e2e-proof.json`. The live acceptance results
 - Animal Bot: `4be7066f-130b-4bfd-9a1a-740d52fe5080`. Real UI agent selection and
   one-click low-trust conversion passed. Agent instructions request 5/5 reviews
   and random ASCII animals through task-bound bot tools.
-- Draft `d5918d73-be6a-46b7-bf89-01e396c84ce8` retains organization `paperclipai`
+- Draft `d5918d73-be6a-46b7-bf89-01e396c84ce8` retains organization `outpostai`
   and suggested name `Animal Bot E2E 20261007` after reload/restart.
 - Cloud enrollment for **http://localhost:3110** is approved. Human sign-in and access confirmation completed. Installation selected only the designated test repository, and the dedicated App identity was linked and confirmed.
 - Existing Daytona environment `49bd3525-7d3b-4edf-b719-95e48431ea06` uses the
@@ -128,7 +128,7 @@ Independent proof is saved in `live-e2e-proof.json`. The live acceptance results
   A successful model exit is **not** a passed task or GitHub E2E test.
 - Automatic recovery run `322ce17e-3a56-485b-a8a7-7183c5faf69e` could write a
   comment and block GIT-1. It correctly could not schedule privileged retries.
-  Both CLI runs failed to load `Paperclip_connections` and `Paperclip_projects`
+  Both CLI runs failed to load `Outpost_connections` and `Outpost_projects`
   MCP servers because the sandbox cannot use host localhost endpoints.
 - Switched the same bot to `outpost_runner` / Codex / `gpt-5.4` in the same
   sandbox. Native tools use the authenticated Runner transport. GIT-2
@@ -156,23 +156,23 @@ Independent proof is saved in `live-e2e-proof.json`. The live acceptance results
 - Model secret references stay vaulted. A normal agent config save replaces
   declaration IDs, so the driver refreshes the exact model-binding grant through
   the permissions API after configuration edits. No broad secret grant.
-- Costs recorded by Paperclip are unpriced/null for the CLI turn; do not invent a
+- Costs recorded by Outpost are unpriced/null for the CLI turn; do not invent a
   monetary value. Startup-only failures did not run a model. Retain separate
   actual runtime, deterministic fixture, and external publication evidence.
 
 ### Evidence and resume
 
-Sanitized evidence: `/private/tmp/paperclip-github-e2e-evidence/`.
-Full check logs: `/private/tmp/paperclip-github-e2e-full-{typecheck,tests,build}.log`.
-Linux build log: `/private/tmp/paperclip-github-e2e-runner-linux-build.log`.
+Sanitized evidence: `/private/tmp/outpost-github-e2e-evidence/`.
+Full check logs: `/private/tmp/outpost-github-e2e-full-{typecheck,tests,build}.log`.
+Linux build log: `/private/tmp/outpost-github-e2e-runner-linux-build.log`.
 
 The live matrix is complete. No GitHub consent handoff remains pending. The earlier TES-1 monitor remains paused. Retain the App, bot and test-drive data for inspection; close only this test's disposable provider fixtures and stop the owned public relay/tunnel.
 
 Restart the retained instance with:
 
 ```sh
-cd /private/tmp/paperclip-github-gateway-pr
-PATH=/private/tmp/gateway-tools:$PATH node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts test-drive --data-dir /private/tmp/paperclip-github-e2e-20261007 --no-browser
+cd /private/tmp/outpost-github-gateway-pr
+PATH=/private/tmp/gateway-tools:$PATH node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts test-drive --data-dir /private/tmp/outpost-github-e2e-20261007 --no-browser
 ```
 
 Its instance `.env` contains the non-secret Linux artifact path and staging
@@ -182,7 +182,7 @@ Do not print the `.env` file or expose trusted board routes through the tunnel.
 The earlier provider fixtures are now qualified:
 
 - Mention issue: https://github.com/paperclipai/paperclip-permissions-smoke-20260926-pap57-fee7428e/issues/1 . Created before installation to isolate mentions from issue-open automation.
-- PR: https://github.com/paperclipai/paperclip-permissions-smoke-20260926-pap57-fee7428e/pull/3 . Branch `codex/github-animals-e2e-20261007`, harmless file `paperclip-animal-e2e.txt`.
+- PR: https://github.com/paperclipai/paperclip-permissions-smoke-20260926-pap57-fee7428e/pull/3 . Branch `codex/github-animals-e2e-20261007`, harmless file `outpost-animal-e2e.txt`.
 - Initial head: `c1525d7a904142590babb421971e7590d0a03b26`.
 - Retest head: `b046e7e18bdda6208515088540aee438091ab120`.
 - New issues: https://github.com/paperclipai/paperclip-permissions-smoke-20260926-pap57-fee7428e/issues/2 and https://github.com/paperclipai/paperclip-permissions-smoke-20260926-pap57-fee7428e/issues/4 .
@@ -191,7 +191,7 @@ The following sections are chronological failure diagnoses. Their original inter
 
 ### Live enrollment diagnosis 2026-10-07T15:17:51.100312+00:00
 
-Cloud enrollment was approved for `http://localhost:3110`. The old consent expired and was renewed with the same recipient/scope. Two actual setup defects surfaced: the enrollment return allowlist rejected the company-prefixed chat wizard path and fell back to the connector list; GitHub registration used the numeric loopback alias while Cloud correctly required the exact enrolled origin (`RETURN_ORIGIN_NOT_ENROLLED`). Fixed the unprefixed chat return path and its narrow allowlist, and select an already enrolled loopback alias only on the same port. Retry retains registration ID/state, using the current approved destination. Added 23 passing focused tests; server typecheck and token gates passed. No App was created before the rejection.
+Cloud enrollment was approved for `http://localhost:3110`. The old consent expired and was renewed with the same recipient/scope. Two actual setup defects surfaced: the enrollment return allowlist rejected the space-prefixed chat wizard path and fell back to the connector list; GitHub registration used the numeric loopback alias while Cloud correctly required the exact enrolled origin (`RETURN_ORIGIN_NOT_ENROLLED`). Fixed the unprefixed chat return path and its narrow allowlist, and select an already enrolled loopback alias only on the same port. Retry retains registration ID/state, using the current approved destination. Added 23 passing focused tests; server typecheck and token gates passed. No App was created before the rejection.
 
 A restart briefly failed because macOS exhausted its SysV shared-memory IDs. Released exactly one orphan with zero attachments and a verified exited creator; did not stop sibling services or change kernel limits. Retrying the owned instance with the same database.
 
@@ -203,7 +203,7 @@ Added manager-only renewal of an expired, unconsumed Cloud registration after an
 
 ### Browser POST diagnosis and current consent handoff
 
-The initial scripted manifest form repeatedly reached GitHub's 500 page before creation. A loopback-only diagnostic using an ordinary HTML form reached the creation confirmation with the identical manifest, under both numeric loopback and localhost origins. No permission or manifest-field workaround was needed. Changed the real wizard to a mounted native POST form; verified that Continue to GitHub now reaches **Create GitHub App for paperclipai**. Fresh API preparation submits the mounted form with requestSubmit, guarded against duplicate effect execution. Wizard regression suite: 17 passing tests.
+The initial scripted manifest form repeatedly reached GitHub's 500 page before creation. A loopback-only diagnostic using an ordinary HTML form reached the creation confirmation with the identical manifest, under both numeric loopback and localhost origins. No permission or manifest-field workaround was needed. Changed the real wizard to a mounted native POST form; verified that Continue to GitHub now reaches **Create GitHub App for outpostai**. Fresh API preparation submits the mounted form with requestSubmit, guarded against duplicate effect execution. Wizard regression suite: 17 passing tests.
 
 An action-time browser confirmation is pending for the exact private App, designated smoke repository, read contents/metadata and write issues/pull requests/checks, with webhook events routed through the staging Cloud gateway. Earlier blanket approval does not meet the browser tool's action-time access requirement. No App creation, repository installation, or real GitHub bot publication has occurred. The exact draft and approved enrollment are retained; the native model/task smoke remains qualified separately.
 
@@ -221,7 +221,7 @@ Live fixtures now open: issue 2 (new-issue automation) and PR 3 (initial head `c
 
 ### Duplicate response fix and final live results
 
-The first successful tool publications exposed another product defect: the native runner's final summary replaced the generic progress comment with another animal, duplicating the tool's authoritative reply. Final presentations now remain internal after a confirmed task-bound GitHub comment, formal review, or assessment-summary receipt. The receipt must match the company, issue, run, endpoint, conversation and assigned agent. Pending/failed operations, another run's receipt, and check-only assessments do not suppress a final response. A generic completed progress marker remains.
+The first successful tool publications exposed another product defect: the native runner's final summary replaced the generic progress comment with another animal, duplicating the tool's authoritative reply. Final presentations now remain internal after a confirmed task-bound GitHub comment, formal review, or assessment-summary receipt. The receipt must match the space, issue, run, endpoint, conversation and assigned agent. Pending/failed operations, another run's receipt, and check-only assessments do not suppress a final response. A generic completed progress marker remains.
 
 A focused integration case verifies those receipt boundaries. The complete GitHub review workflow group passes **38 tests**, and chat-run publication units pass **20 tests**. After restarting the same instance, three real provider events each produced one animal response plus the generic completed marker, with no duplicate runner animal.
 
@@ -232,7 +232,7 @@ A focused integration case verifies those receipt boundaries. The complete GitHu
 | PR updated | Same task `344e157e-ba0f-416e-8c4b-d5819a7e95bb`; run `87545503-e6be-410a-85bf-316db115aa8c` succeeded. New assessment `fdff7e83-a777-4817-af0c-79f2eb8c08dd` completed at 5/5. Check `112928995770` passed on exact new head `b046e7e18bdda6208515088540aee438091ab120`. |
 | New issue | Issue 2 run `28fcb039-2663-4773-93ef-4262e490bfa0` and post-fix issue 4 run `04308fc0-11c7-4f3a-b42b-478ba7b56118` succeeded. Issue 4 has one bot animal reply, comment `6043522941`. |
 | Allowed mention | Initial run `2aa46373-3165-4714-b42b-1aa407a22f39` and post-fix run `97fc1ec0-4499-43c1-a6bb-f2ed972893d1` succeeded on the same task. Post-fix animal comment `6043507486` is authored by the dedicated App. |
-| Denied mention | Temporarily removed cryppadotta from the allowlist, posted mention `6043347709`, and observed `filtered` with `Linked Paperclip account is not currently permitted`. No new run or reply. Restored exactly the prior policy as revision 4. This did not use a second human actor. |
+| Denied mention | Temporarily removed cryppadotta from the allowlist, posted mention `6043347709`, and observed `filtered` with `Linked Outpost account is not currently permitted`. No new run or reply. Restored exactly the prior policy as revision 4. This did not use a second human actor. |
 | No mention | Ordinary comment `6043243532` was delivered and filtered because it did not address the agent or an active task. No task/run admitted. |
 | Duplicate delivery | Redelivered original PR delivery `0efb52f0-c275-11f1-9c40-56d38adaec3f` through GitHub's controls. GitHub recorded HTTP 202 at 17:42:29 UTC. One original local delivery remained, with no extra task, model run or publication before the later fresh-head event. This qualifies duplicate prevention across the gateway; it does not claim a second stack admission. |
 | Persistence | Restart at 17:41 UTC retained the original App, draft, connection, vault, identity, selected repository and revision 4. The three subsequent live events passed. |
@@ -244,7 +244,7 @@ Inspectable provider results:
 - [New-issue animal reply](https://github.com/paperclipai/paperclip-permissions-smoke-20260926-pap57-fee7428e/issues/4#issuecomment-6043522941).
 - [Allowed-mention animal reply](https://github.com/paperclipai/paperclip-permissions-smoke-20260926-pap57-fee7428e/issues/1#issuecomment-6043507486).
 
-All corresponding Paperclip tasks finished. All ten recorded sandbox leases have successful cleanup (eight expired, two released); no active lease remains. Costs were not independently priced for this qualification and no monetary estimate is claimed.
+All corresponding Outpost tasks finished. All ten recorded sandbox leases have successful cleanup (eight expired, two released); no active lease remains. Costs were not independently priced for this qualification and no monetary estimate is claimed.
 
 Final source checks after the response fix: repository typecheck, build, token gates and diff whitespace check pass. The earlier full-suite run remains a failed result, not a green claim: 29 failed files / six failed tests, with PostgreSQL bootstrap failures and adapter/timeouts. It was not rerun after the final response fix; the changed workflow's 38 integration and 20 publication tests were rerun and passed. The PR remains draft pending current-head CI/review and full-suite failure resolution.
 
@@ -307,7 +307,7 @@ Formal approval and request-changes controls retain their off defaults and have
 tooltips describing explicit actions after a completed assessment, independent
 of scores and checks. **Run automatically** explains each person's authored
 PR/issue scheduling and preserves mention-only access when disabled. The
-responsible-member tooltip explains Paperclip accountability without personal
+responsible-member tooltip explains Outpost accountability without personal
 credential delegation. The tooltips were opened in the live UI, including the
 approval tooltip at 390px. **Add external contributor** replaces the old label.
 The normal bot-tools switch is removed; saved disabled restrictions remain
@@ -329,7 +329,7 @@ earlier full-suite failure and outstanding current-head CI/review still apply.
 ### Custom App identity and branding qualification
 
 The live bot is the dedicated **Animal Bot E2E 20261007** App owned by
-`paperclipai`, not the shared Paperclip App. Its verified GitHub author is
+`outpostai`, not the shared Outpost App. Its verified GitHub author is
 `animal-bot-e2e-20261007[bot]`; the human mention is
 `@animal-bot-e2e-20261007`. The published review's GitHub author and App fields
 agree with the saved endpoint identity.
@@ -380,7 +380,7 @@ setup test. Already configured connections still require explicit reconnect.
 
 After restarting the preserved test drive, the same Animal Bot Baby App and
 draft reached **GitHub connected** and `active` / `complete`, with mention
-`@animal-bot-baby`. Its saved signed-ping timestamp, company and assigned agent
+`@animal-bot-baby`. Its saved signed-ping timestamp, space and assigned agent
 remained unchanged. The original Animal Bot E2E connection remains active at
 configuration revision 7. No new App, tunnel, provider permission, credential
 entry, model turn or review execution was performed by this recovery.
@@ -397,10 +397,10 @@ failure and outstanding current-head CI/review limits still apply.
 
 The preceding HTTP prerequisite banner was misleading. Cloud already provides
 the public HTTPS receiver, and localhost retrieves signed events through
-outbound requests. The user's Paperclip origin does not need HTTPS or a tunnel
+outbound requests. The user's Outpost origin does not need HTTPS or a tunnel
 for this wizard. Removed the banner, its extra enrollment-status query, and
 the two obsolete component stories. Keep the existing conditional Connect
-Paperclip Cloud handoff as the actual setup action when enrollment is absent.
+Outpost Cloud handoff as the actual setup action when enrollment is absent.
 
 The running localhost wizard now shows Choose agent without an HTTPS warning.
 No new connection or App was created during this correction. The delayed-ping
@@ -440,14 +440,14 @@ permission scope. Older Apps remain compatible; review-summary mentions need
 that event enabled in their App settings. The gateway still transports the
 original signed bytes, and the stack owns parsing and admission.
 
-Live qualification used the existing Banana Bot Man App, company, agent,
+Live qualification used the existing Banana Bot Man App, space, agent,
 installation, vault and single smoke repository, with revision 1 unchanged:
 mentions-only, automatic events empty, and automatic issue runs off.
 
-| Real GitHub source | Paperclip outcome | Provider outcome |
+| Real GitHub source | Outpost outcome | Provider outcome |
 | --- | --- | --- |
 | Issue #6 description | GIT-7 completed | One animal response from `banana-bot-man[bot]` |
-| PR #7 description | GIT-8 completed; current head `7f456f37881bf4bfe39692f897d60e1625521298` | 5/5 review with animal; completed successful Paperclip Review check |
+| PR #7 description | GIT-8 completed; current head `7f456f37881bf4bfe39692f897d60e1625521298` | 5/5 review with animal; completed successful Outpost Review check |
 | Issue #8 without mention | No task | Activity explains mentions-only skip |
 | Issue #8 comment edited to add mention | GIT-9 completed | Animal response from the same App |
 | PR #7 inline comment | GIT-10 completed in the exact inline thread | Animal reply under that comment |
@@ -468,7 +468,7 @@ passes in isolation. There is no verified baseline or green full-suite claim.
 Logs: `/private/tmp/github-mentions-repo-tests.log` and
 `/private/tmp/github-mentions-workspace-runtime-failure.log`.
 
-Live review evidence: `/private/tmp/paperclip-github-e2e-evidence/github-description-mention-review.png`.
+Live review evidence: `/private/tmp/outpost-github-e2e-evidence/github-description-mention-review.png`.
 
 
 ## Tool-owned GitHub replies — 2026-10-08
@@ -485,7 +485,7 @@ A failed run can publish one safe fallback if no reply was delivered. Confirmed
 comments, formal reviews, assessment summaries and partial finding receipts
 suppress it. Pending or ambiguous tool writes hold the fallback; an exhausted
 retry or later authorization denial cannot disprove a possible earlier write.
-The guard checks company, endpoint, conversation, task, assigned agent and run,
+The guard checks space, endpoint, conversation, task, assigned agent and run,
 and repeats the check after acquiring the credential lane. Terminal reaction
 cleanup stays independent of a provider comment. Legacy test-based setup accepts
 a confirmed, causally bound tool reply instead of requiring a runner summary.
@@ -540,7 +540,7 @@ native model runs; no synthetic webhook or host credential substituted for them.
 ## Known organization picker — 2026-10-09
 
 GitHub setup lists organizations already observed through the configuring member's
-usable repository connections and connected company bots. Repository discovery
+usable repository connections and connected space bots. Repository discovery
 retains GitHub's owner type, so personal repository owners and unknown legacy
 observations are not misclassified as organizations. This adds no new OAuth
 handoff or access grant. The account picker deduplicates organizations, preserves
@@ -549,7 +549,7 @@ two introductory App-creation paragraphs were removed.
 
 Verification: 38 focused wizard/repository metadata tests passed. Shared build,
 UI and server typechecks, UI, server and Storybook builds, and token gates passed. In the
-retained test drive, `paperclipai` appeared from the existing connected App;
+retained test drive, `outpostai` appeared from the existing connected App;
 selecting it hid the redundant Organization field. **Another organization**
 accepted `test` and enabled Continue. No GitHub registration was submitted.
 The production Storybook journey covers known organizations and manual entry.
@@ -600,7 +600,7 @@ repeated for this backend follow-up; prior full-suite/CI limitations remain.
 Banana's existing issue subscription treated a Gonzo-only mention as an ordinary
 follow-up. Both Apps share the Animal Bot agent, so Banana's unwanted run could
 also delay Gonzo. Durable admission now checks exact, case-insensitive handles
-of other non-archived GitHub bots in the same company. A message explicitly
+of other non-archived GitHub bots in the same space. A message explicitly
 addressed elsewhere is filtered before task work, agent wakeup or eyes. The
 delivery ledger retains identifiers and the reason without retaining content.
 Duplicate and recovered deliveries use the same decision. Mentioning both bots
@@ -621,7 +621,7 @@ Evidence: `/private/tmp/github-bot-routing-live-observations.json` and
 `/private/tmp/github-bot-routing-gonzo-only-20261009.jpg`.
 
 Verification: 13 new database-backed cases cover issue, PR and inline-review
-subscriptions, exact handles, both-bot mentions, company/provider/archive
+subscriptions, exact handles, both-bot mentions, space/provider/archive
 boundaries, duplicate deliveries and restart recovery. The broader GitHub
 workflow/reaction group passed all 87 cases; three related unit suites passed
 all 61 cases. Server typecheck and build passed. Logs:
@@ -639,7 +639,7 @@ Accepted GitHub requests now receive one App-owned working comment instead of
 a new eyes reaction. The assigned agent has `update_comment` for meaningful
 progress, then `comment` or `submit_review` replaces that same comment with the
 final answer or review summary. No caller-selected comment ID is accepted.
-Publication keeps its task, company, person, repository, credential and lease
+Publication keeps its task, space, person, repository, credential and lease
 checks. Marker recovery handles an uncertain first creation without duplicates.
 Late progress cannot replace a final result. Terminal failure notices also edit
 the same comment; a turn with no final publication ends with a neutral notice.
@@ -649,7 +649,7 @@ The first live trial correctly edited its acknowledgement with the final answer,
 but the agent could not see the new progress tool. Its persisted Codex thread
 retained the old declarations despite resume advertising the current catalog.
 The native tool contract now rotates incompatible checkpoints while retaining
-the same Paperclip task and saved history. Native GitHub guidance explicitly
+the same Outpost task and saved history. Native GitHub guidance explicitly
 permits provider progress edits and keeps semantic completion internal.
 
 After that fix, the [issue request](https://github.com/paperclipai/paperclip-permissions-smoke-20260926-pap57-fee7428e/issues/5#issuecomment-6084847530)
@@ -701,10 +701,10 @@ remain. This change adds no schema migration.
 ## GitHub instruction skills — 2026-10-09
 
 Common and event-specific bot instructions now use the shared Markdown editor
-and company slash-skill picker. Common instructions reach every admitted task;
+and space slash-skill picker. Common instructions reach every admitted task;
 event instructions reach only their event. The runtime selects skill keys from
 the admitted configuration snapshot for the current wake, rather than scanning
-GitHub messages or old task comments. Company scope, queued-event snapshots,
+GitHub messages or old task comments. Space scope, queued-event snapshots,
 coalesced wakes, and the existing tool/isolation restrictions remain enforced.
 The trigger selector now explicitly says **@mentions + automatic events**;
 authorized mentions work in all modes, with separate per-person automatic-event
@@ -751,7 +751,7 @@ inline options and formal review actions use the same disclosure treatment. The
 header prioritizes the actual App name and includes a larger agent avatar, PNG
 download icon, branding link and identity refresh.
 
-Access separates company members from external contributors. Each row shows
+Access separates space members from external contributors. Each row shows
 mentions and automatic-run permissions. Member linking and contributor lookup use
 focused dialogs. The existing all-linked/selected member policy and
 linked-author/allowed-author automatic policies are preserved. Changing an
@@ -780,19 +780,19 @@ available on port 3110.
 This follow-up replaces the slider and per-person automatic permissions described
 above. The score is a whole-number input from 1 to 5, defaulting to 5. Invalid input
 has an inline error and cannot be saved. Explicit report-only configurations remain
-supported. Inline help distinguishes Paperclip's assessment/check conclusion from
+supported. Inline help distinguishes Outpost's assessment/check conclusion from
 GitHub's branch-rule requirement and from formal PR approval.
 
 Access no longer shows per-person automatic switches. The scheduler ignores legacy
 `automaticReviews` fields and uses author filters. Current member authorization,
 repository restrictions, global automation, event selection, the external-author
 opt-in and active sponsorship are still enforced. The linked-members description
-uses the connection company's name, even if another company is selected elsewhere.
+uses the connection space's name, even if another space is selected elsewhere.
 
 Live browser checks on the existing port-3110 test drive verified score validation,
 correction and discard, the actual event-specific slash picker, insertion of the
 `github-instruction-smoke` rich link, and retention when switching events. The New
-issue instructions remained separate. Verified company-specific copy and absence
+issue instructions remained separate. Verified space-specific copy and absence
 of per-person switches in Access. Desktop and 390px score layouts were inspected.
 All test draft edits were discarded; no saved bot configuration or GitHub rule was
 changed and no agent run was started during this follow-up.

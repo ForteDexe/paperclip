@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
 import { agentsApi, type OrgNode } from "../api/agents";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { agentUrl } from "../lib/utils";
@@ -174,7 +174,7 @@ const defaultDotColor = "var(--hex-a3a3a3)";
 // ── Main component ──────────────────────────────────────────────────────
 
 export function OrgChart() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
   // Import is floored server-side on cloud-managed instances (403 cloud_managed), so the
@@ -182,21 +182,21 @@ export function OrgChart() {
   // buttons also respect the operator-hidden settings registry.
   const isCloud = Boolean(useCloudInstance());
   const { hidden: hiddenSettings } = useHiddenSettings();
-  const showImport = !isCloud && !hiddenSettings.has("company.import");
-  const showExport = !hiddenSettings.has("company.export");
+  const showImport = !isCloud && !hiddenSettings.has("space.import");
+  const showExport = !hiddenSettings.has("space.export");
 
   const orgTreeQuery = useQuery({
-    queryKey: queryKeys.org(selectedCompanyId!),
-    queryFn: () => agentsApi.org(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.org(selectedSpaceId!),
+    queryFn: () => agentsApi.org(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const { data: orgTree, isLoading } = orgTreeQuery;
   const orgTreeView = useQueryView(orgTreeQuery);
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const agentMap = useMemo(() => {
@@ -440,7 +440,7 @@ export function OrgChart() {
     };
   }, [pan, zoom]);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <EmptyState icon={Network} message="Select an Outpost to view the crew map." />;
   }
 
@@ -470,7 +470,7 @@ export function OrgChart() {
     <div className="flex h-(--sz-calc-38) min-h-(--sz-420px) flex-col md:h-full md:min-h-0">
       <div className="mb-2 flex shrink-0 flex-wrap items-center justify-start gap-2">
         {showImport && (
-          <Link to="/company/import">
+          <Link to="/space/import">
             <Button variant="outline" size="sm">
               <Upload className="mr-1.5 h-3.5 w-3.5" />
               Import Outpost
@@ -478,7 +478,7 @@ export function OrgChart() {
           </Link>
         )}
         {showExport && (
-          <Link to="/company/export">
+          <Link to="/space/export">
             <Button variant="outline" size="sm">
               <Download className="mr-1.5 h-3.5 w-3.5" />
               Export Outpost

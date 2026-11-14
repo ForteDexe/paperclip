@@ -32,7 +32,7 @@ vi.mock("../services/workspace-realization.js", () => ({
 }));
 
 vi.mock("../services/environments.js", () => ({
-  assertEnvironmentCompanyBinding: vi.fn(async () => {}),
+  assertEnvironmentSpaceBinding: vi.fn(async () => {}),
   environmentService: vi.fn(() => ({
     ensureLocalEnvironment: vi.fn(),
     getById: mockGetEnvironment,
@@ -98,7 +98,7 @@ function makeEnvironment(driver: string = "local"): Environment {
 function makeLease(overrides: Partial<EnvironmentLease> = {}): EnvironmentLease {
   return {
     id: "lease-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     environmentId: "env-1",
     executionWorkspaceId: null,
     issueId: null,
@@ -143,7 +143,7 @@ function makePersistedExecutionWorkspace(
 ): ExecutionWorkspace {
   return {
     id: "ew-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     projectWorkspaceId: null,
     sourceIssueId: null,
@@ -181,7 +181,7 @@ function makeRealizeInput(overrides: {
     environment: overrides.environment ?? makeEnvironment("local"),
     lease: overrides.lease ?? makeLease(),
     adapterType: "claude_local",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: null,
     heartbeatRunId: "run-1",
     executionWorkspace: makeExecutionWorkspace(),
@@ -238,7 +238,7 @@ describe("environmentRunOrchestrator — realizeForRun", () => {
     mockBuildWorkspaceRealizationRequest.mockReturnValue({
       version: 1,
       adapterType: "claude_local",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       executionWorkspaceId: null,
       issueId: null,
@@ -276,7 +276,7 @@ describe("environmentRunOrchestrator — realizeForRun", () => {
     const runtime = makeMockRuntime({ releaseRunLeases });
     const orchestrator = environmentRunOrchestrator(mockDb, { environmentRuntime: runtime });
     await orchestrator.releaseForRun({
-      heartbeatRunId: "run-1", companyId: "company-1", agentId: "agent-1",
+      heartbeatRunId: "run-1", spaceId: "space-1", agentId: "agent-1",
       providerResourceDisposition: "stop_and_retain", cancelActiveWork,
     });
     expect(releaseRunLeases).toHaveBeenCalledWith(
@@ -285,13 +285,13 @@ describe("environmentRunOrchestrator — realizeForRun", () => {
     );
   });
 
-  it("enforces company bindings when a caller acquires a lease directly", async () => {
+  it("enforces space bindings when a caller acquires a lease directly", async () => {
     const runtime = makeMockRuntime();
     await environmentRunOrchestrator(mockDb, { environmentRuntime: runtime }).acquireLease({
-      companyId: "company-1", environment: makeEnvironment(), issueId: null, agentId: "agent-1", heartbeatRunId: "run-1",
+      spaceId: "space-1", environment: makeEnvironment(), issueId: null, agentId: "agent-1", heartbeatRunId: "run-1",
       persistedExecutionWorkspace: null, executionWorkspaceSettings: null, adapterType: null,
     });
-    expect(runtime.acquireRunLease).toHaveBeenCalledWith(expect.objectContaining({ assertCompanyBinding: true }));
+    expect(runtime.acquireRunLease).toHaveBeenCalledWith(expect.objectContaining({ assertSpaceBinding: true }));
   });
 
   it("realizes an enrolled remote workspace in place and persists its authoritative remote root", async () => {
@@ -301,7 +301,7 @@ describe("environmentRunOrchestrator — realizeForRun", () => {
       remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 1, source: { kind: "empty" },
         writerRunId: randomUUID(), dirty: false, snapshotId: null, location: null },
     } });
-    const remoteRoot = `/sandbox/.paperclip-workspaces/${workspace.id}`;
+    const remoteRoot = `/sandbox/.outpost-workspaces/${workspace.id}`;
     const savedLease = { ...lease, metadata: { remoteCwd: remoteRoot } };
     const target = { kind: "remote", transport: "sandbox", remoteCwd: "/sandbox", runner: { execute: vi.fn() } };
     mockResolveEnvironmentExecutionTarget.mockResolvedValue(target);
@@ -505,7 +505,7 @@ describe("environmentRunOrchestrator — realizeForRun", () => {
     mockBuildWorkspaceRealizationRequest.mockReturnValue({
       version: 1,
       adapterType: "claude_local",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       executionWorkspaceId: null,
       issueId: null,
@@ -583,7 +583,7 @@ describe("environmentRunOrchestrator — realizeForRun", () => {
     mockBuildWorkspaceRealizationRequest.mockReturnValue({
       version: 1,
       adapterType: "claude_local",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       executionWorkspaceId: null,
       issueId: null,
@@ -646,7 +646,7 @@ describe("environmentRunOrchestrator — realizeForRun", () => {
     mockBuildWorkspaceRealizationRequest.mockReturnValue({
       version: 1,
       adapterType: "claude_local",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       executionWorkspaceId: null,
       issueId: null,
@@ -690,7 +690,7 @@ describe("environmentRunOrchestrator — realizeForRun", () => {
     mockBuildWorkspaceRealizationRequest.mockReturnValue({
       version: 1,
       adapterType: "gemini_local",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       executionWorkspaceId: null,
       issueId: null,
@@ -769,7 +769,7 @@ describe("environmentRunOrchestrator — realizeForRun", () => {
     mockBuildWorkspaceRealizationRequest.mockReturnValue({
       version: 1,
       adapterType: "claude_local",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       executionWorkspaceId: null,
       issueId: null,
@@ -823,7 +823,7 @@ describe("native runner lifecycle changes before lease acquisition", () => {
     const acquireRunLease = vi.fn(async input => ({ environment: input.environment,
       lease: makeLease({ leasePolicy: input.environment.config.runnerLifecycleMode === "warm" ? "reuse_by_environment" : "ephemeral" }), leaseContext: { executionWorkspaceId: null, executionWorkspaceMode: null } }));
     const orchestrator = environmentRunOrchestrator({} as never, { environmentRuntime: makeMockRuntime({ acquireRunLease }) });
-    const result = await orchestrator.acquireForRun({ companyId: "company-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local",
+    const result = await orchestrator.acquireForRun({ spaceId: "space-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local",
       adapterType: "outpost_runner", adapterConfig: { lifecycleMode: "warm" }, managedAiCredentialIdentity,
       issueId: "task-1", heartbeatRunId: "run-1", agentId: "agent-1", persistedExecutionWorkspace: null, executionWorkspaceSettings: null });
     expect(result.environment.config.runnerLifecycleMode).toBe(managedAiCredentialIdentity ? "warm" : "per_turn");
@@ -841,7 +841,7 @@ describe("native runner lifecycle changes before lease acquisition", () => {
     }));
     const orchestrator = environmentRunOrchestrator({} as never, { environmentRuntime: makeMockRuntime({ acquireRunLease }) });
     const input = {
-      companyId: "company-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local",
+      spaceId: "space-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local",
       adapterType: "outpost_runner", issueId: "existing-task", heartbeatRunId: "run-1", agentId: "agent-1",
       runnerTaskProjectIds:["anchor","authorized-reference"],
       persistedExecutionWorkspace: { id: "existing-workspace", mode: "shared_workspace" as const },
@@ -878,7 +878,7 @@ describe("native runner lifecycle changes before lease acquisition", () => {
     });
     const { managed, ...adapterConfig } = { managed: false, ...agent };
     await orchestrator.acquireForRun({
-      companyId: "company-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local", adapterType: "outpost_runner",
+      spaceId: "space-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local", adapterType: "outpost_runner",
       adapterConfig, managedAiCredentialIdentity: managed ? "account:generation" : undefined,
       issueId: "task-1", heartbeatRunId: "run-1", agentId: "agent-1",
       persistedExecutionWorkspace: null, executionWorkspaceSettings: null,
@@ -902,7 +902,7 @@ describe("native runner lifecycle changes before lease acquisition", () => {
     const acquireRunLease = vi.fn(async (input) => ({ environment: input.environment, lease: makeLease(), leaseContext: { executionWorkspaceId: null, executionWorkspaceMode: null } }));
     const orchestrator = environmentRunOrchestrator({} as never, { environmentRuntime: makeMockRuntime({ acquireRunLease }) });
     await orchestrator.acquireForRun({
-      companyId: "company-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local", adapterType,
+      spaceId: "space-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local", adapterType,
       adapterConfig: { lifecycleMode }, issueId: "task-1", heartbeatRunId: "run-1", agentId: "agent-1",
       persistedExecutionWorkspace: null, executionWorkspaceSettings: null,
     });
@@ -922,7 +922,7 @@ describe("native runner lifecycle changes before lease acquisition", () => {
     const acquireRunLease = vi.fn(async (input) => ({ environment: input.environment, lease: makeLease(), leaseContext: { executionWorkspaceId: null, executionWorkspaceMode: null } }));
     const orchestrator = environmentRunOrchestrator({} as never, { environmentRuntime: makeMockRuntime({ acquireRunLease }) });
     await orchestrator.acquireForRun({
-      companyId: "company-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local", adapterType,
+      spaceId: "space-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local", adapterType,
       adapterConfig: {}, issueId: "task-1", heartbeatRunId: "run-1", agentId: "agent-1",
       persistedExecutionWorkspace: null, executionWorkspaceSettings: null,
     });
@@ -941,7 +941,7 @@ describe("admitted native lifecycle recovery", () => {
     const acquireRunLease = vi.fn(async (input) => ({ environment: input.environment, lease: makeLease(), leaseContext: { executionWorkspaceId: null, executionWorkspaceMode: null } }));
     const orchestrator = environmentRunOrchestrator({} as never, { environmentRuntime: makeMockRuntime({ acquireRunLease }) });
     await orchestrator.acquireForRun({
-      companyId: "company-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local",
+      spaceId: "space-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local",
       adapterType: "outpost_runner", adapterConfig: { lifecycleMode }, admittedLifecycleMode,
       issueId: "task-1", heartbeatRunId: "run-1", agentId: "agent-1",
       persistedExecutionWorkspace: null, executionWorkspaceSettings: null,
@@ -953,7 +953,7 @@ describe("admitted native lifecycle recovery", () => {
 
 describe("live remote runner lease reattachment", () => {
   const input = {
-    companyId: "company-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local",
+    spaceId: "space-1", selectedEnvironmentId: "env-1", localEnvironmentId: "local",
     adapterType: "outpost_runner", admittedLifecycleMode: "per_turn" as const,
     issueId: "task-1", heartbeatRunId: "run-1", agentId: "agent-1",
     persistedExecutionWorkspace: { id: "ew-1", mode: "shared_workspace" as const },
@@ -1069,12 +1069,12 @@ describe("live remote runner lease reattachment", () => {
     expect(runtime.acquireRunLease).not.toHaveBeenCalled();
     expect(runtime.execute).not.toHaveBeenCalled();
   });
-  it.each(["active", "foreign-company", "revoked", "undispatched", "stopped"])("inspects the original plugin task lease (%s)", async state => {
+  it.each(["active", "foreign-space", "revoked", "undispatched", "stopped"])("inspects the original plugin task lease (%s)", async state => {
     mockGetEnvironment.mockResolvedValue(makeEnvironment("plugin"));
     const lease = originalLease();
     lease.metadata = { agentId: "agent-1", runnerTaskLease: true,
       runnerTaskDispatched: state !== "undispatched", runnerTaskExecutionStopped: state === "stopped" };
-    if (state === "foreign-company") lease.companyId = "foreign";
+    if (state === "foreign-space") lease.spaceId = "foreign";
     if (state === "revoked") lease.status = "released";
     mockGetLease.mockResolvedValue(lease);
     const runtime = makeMockRuntime();
@@ -1083,12 +1083,12 @@ describe("live remote runner lease reattachment", () => {
     });
     if (state === "active") await expect(acquired).resolves.toMatchObject({ lease });
     else await expect(acquired).rejects.toThrow(new Error("native_remote_recovery_lease_mismatch: stage=environment_acquire field="
-      + (state === "foreign-company" ? "lease_scope" : state === "revoked" ? "lease_status" : "plugin_task")));
+      + (state === "foreign-space" ? "lease_scope" : state === "revoked" ? "lease_status" : "plugin_task")));
     expect(runtime.acquireRunLease).not.toHaveBeenCalled();
     expect(runtime.resumeRunLease).not.toHaveBeenCalled();
   });
   it.each([
-    [{ companyId: "foreign" }, "lease_scope"], [{ environmentId: "foreign" }, "lease_scope"],
+    [{ spaceId: "foreign" }, "lease_scope"], [{ environmentId: "foreign" }, "lease_scope"],
     [{ heartbeatRunId: "another-run" }, "lease_scope"], [{ issueId: "another-task" }, "lease_scope"],
     [{ executionWorkspaceId: "another-workspace" }, "lease_scope"],
     [{ providerLeaseId: "replacement" }, "provider_lease_id"], [{ provider: "another-provider" }, "provider"],

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issueThreadInteractions,
@@ -19,25 +19,25 @@ import { issueThreadInteractionService } from "../services/issue-thread-interact
 describe("native interaction bridge with closed interactions", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   const issueId = randomUUID();
   const runId = randomUUID();
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-closed-interaction-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-native-closed-interaction-");
     db = createDb(temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Closed interaction", issuePrefix: "NCI" });
+    await db.insert(spaces).values({ id: spaceId, name: "Closed interaction", issuePrefix: "NCI" });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Closed interaction agent",
       adapterType: "codex_local",
       status: "running",
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Continue after a withdrawn request",
       status: "in_progress",
       assigneeAgentId: agentId,
@@ -45,7 +45,7 @@ describe("native interaction bridge with closed interactions", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       contextSnapshot: { issueId },
@@ -62,7 +62,7 @@ describe("native interaction bridge with closed interactions", () => {
     await db.insert(issueThreadInteractions).values([
       {
         id: withdrawnConfirmationId,
-        companyId,
+        spaceId,
         issueId,
         kind: "request_confirmation",
         status: "pending",
@@ -71,7 +71,7 @@ describe("native interaction bridge with closed interactions", () => {
       },
       {
         id: withdrawnSuggestionId,
-        companyId,
+        spaceId,
         issueId,
         kind: "suggest_tasks",
         status: "pending",
@@ -80,7 +80,7 @@ describe("native interaction bridge with closed interactions", () => {
       },
       {
         id: cancelledQuestionsId,
-        companyId,
+        spaceId,
         issueId,
         kind: "ask_user_questions",
         status: "pending",
@@ -97,7 +97,7 @@ describe("native interaction bridge with closed interactions", () => {
       },
       {
         id: pendingConfirmationId,
-        companyId,
+        spaceId,
         issueId,
         kind: "request_confirmation",
         status: "pending",
@@ -107,20 +107,20 @@ describe("native interaction bridge with closed interactions", () => {
     // Close them through the same service paths as the withdraw and cancel
     // routes, which then wake the assignee with the closed interaction id.
     const interactionSvc = issueThreadInteractionService(db);
-    const issue = { id: issueId, companyId, status: "in_progress" };
-    const boardActor = { userId: "board-user" };
+    const issue = { id: issueId, spaceId, status: "in_progress" };
+    const operatorActor = { userId: "operator-user" };
     const withdrawnConfirmation = await interactionSvc.withdrawInteraction(
-      issue, withdrawnConfirmationId, { reason: "No longer needed" }, boardActor);
+      issue, withdrawnConfirmationId, { reason: "No longer needed" }, operatorActor);
     const withdrawnSuggestion = await interactionSvc.withdrawInteraction(
-      issue, withdrawnSuggestionId, { reason: "No longer needed" }, boardActor);
+      issue, withdrawnSuggestionId, { reason: "No longer needed" }, operatorActor);
     const cancelledQuestions = await interactionSvc.cancelQuestions(
-      issue, cancelledQuestionsId, { reason: "Asked in another task" }, boardActor);
+      issue, cancelledQuestionsId, { reason: "Asked in another task" }, operatorActor);
     expect([withdrawnConfirmation.status, withdrawnSuggestion.status, cancelledQuestions.status])
       .toEqual(["cancelled", "cancelled", "cancelled"]);
 
     const responses = await materializeNativeInteractionResponses({
       db,
-      companyId,
+      spaceId,
       issueId,
       runId,
       agentId,
@@ -156,7 +156,7 @@ describe("native interaction bridge with closed interactions", () => {
     // A cancelled question carries no answers for the legacy wake prompt.
     await expect(materializeLegacyQuestionResponseWakeProjection({
       db,
-      companyId,
+      spaceId,
       issueId,
       runId,
       agentId,
@@ -165,7 +165,7 @@ describe("native interaction bridge with closed interactions", () => {
     // A still-open request remains unresolved; withdrawal does not relax that.
     const error = await materializeNativeInteractionResponses({
       db,
-      companyId,
+      spaceId,
       issueId,
       runId,
       agentId,

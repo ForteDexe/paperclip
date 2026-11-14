@@ -1,15 +1,15 @@
 /** Saved-state checks. Browser actions must produce these records through the normal API. */
 export interface TaskDocumentExpectation {
-  companyId: string; issueId: string; userId: string; key: string; title: string; body: string;
+  spaceId: string; issueId: string; userId: string; key: string; title: string; body: string;
 }
 export interface TaskDocumentSnapshot {
-  id: string; companyId: string; issueId: string; key: string; title: string | null; body: string; format: string;
+  id: string; spaceId: string; issueId: string; key: string; title: string | null; body: string; format: string;
   latestRevisionId: string | null; latestRevisionNumber: number;
   createdByUserId: string | null; createdByAgentId: string | null;
   updatedByUserId: string | null; updatedByAgentId: string | null;
 }
 export interface TaskDocumentRevision {
-  id: string; companyId: string; issueId: string; documentId: string; key: string;
+  id: string; spaceId: string; issueId: string; documentId: string; key: string;
   title: string | null; body: string; format: string; revisionNumber: number;
   createdByUserId: string | null; createdByAgentId: string | null; createdByRunId?: string | null;
 }
@@ -17,7 +17,7 @@ export interface TaskDocumentRevision {
 export function taskDocumentMatches(document: TaskDocumentSnapshot | undefined, expected: TaskDocumentExpectation): boolean {
   return Boolean(document && document.id && document.latestRevisionId
     && Number.isSafeInteger(document.latestRevisionNumber) && document.latestRevisionNumber > 0
-    && document.companyId === expected.companyId && document.issueId === expected.issueId
+    && document.spaceId === expected.spaceId && document.issueId === expected.issueId
     && document.key === expected.key && document.format === "markdown"
     && document.title === expected.title && document.body === expected.body
     && document.createdByUserId === expected.userId && document.createdByAgentId === null
@@ -27,7 +27,7 @@ export function taskDocumentMatches(document: TaskDocumentSnapshot | undefined, 
 function revisionMatches(revision: TaskDocumentRevision | undefined, document: TaskDocumentSnapshot, expected: TaskDocumentExpectation): boolean {
   return Boolean(revision && revision.id === document.latestRevisionId
     && revision.revisionNumber === document.latestRevisionNumber && revision.documentId === document.id
-    && revision.companyId === expected.companyId && revision.issueId === expected.issueId
+    && revision.spaceId === expected.spaceId && revision.issueId === expected.issueId
     && revision.key === expected.key && revision.format === "markdown"
     && revision.title === expected.title && revision.body === expected.body
     && revision.createdByUserId === expected.userId && revision.createdByAgentId === null

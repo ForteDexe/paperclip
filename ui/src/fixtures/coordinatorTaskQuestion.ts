@@ -13,11 +13,11 @@ export const coordinatorTaskQuestion = {
 };
 
 export const coordinatorTaskQuestionAttention: AttentionItem = {
-  id: `issue_thread_interaction:${coordinatorTaskQuestion.id}`, companyId: coordinatorTaskQuestion.companyId,
+  id: `issue_thread_interaction:${coordinatorTaskQuestion.id}`, spaceId: coordinatorTaskQuestion.spaceId,
   sourceKind: "issue_thread_interaction", subject: { kind: "interaction", id: coordinatorTaskQuestion.id,
-    companyId: coordinatorTaskQuestion.companyId, title: coordinatorTaskQuestion.title, identifier: null, status: "pending",
+    spaceId: coordinatorTaskQuestion.spaceId, title: coordinatorTaskQuestion.title, identifier: null, status: "pending",
     href: `/issues/PAPER-102#interaction-${coordinatorTaskQuestion.id}` },
-  relatedIssue: { kind: "issue", id: coordinatorTaskQuestion.issueId, companyId: coordinatorTaskQuestion.companyId,
+  relatedIssue: { kind: "issue", id: coordinatorTaskQuestion.issueId, spaceId: coordinatorTaskQuestion.spaceId,
     title: "Write the launch post", identifier: "PAPER-102", status: "blocked", href: "/issues/PAPER-102" },
   whyNow: "The task needs an audience.", decisionVerbs: [], inlineResolvable: true, entryRule: "pending", exitRule: "answered",
   dedupKey: coordinatorTaskQuestion.id, dismissalKey: coordinatorTaskQuestion.id, dismissal: null, severity: "medium", rank: 1,

@@ -77,7 +77,7 @@ function installStubs(ids: StubOptions) {
     ].join("\n"),
   );
   writeStub("gosu", `echo "gosu $*" >> "${logFile}"\nshift\nexec "$@"`);
-  const nodeHome = ids.nodeHome === undefined ? "/paperclip" : ids.nodeHome;
+  const nodeHome = ids.nodeHome === undefined ? "/outpost" : ids.nodeHome;
   writeStub(
     "getent",
     nodeHome === null
@@ -115,7 +115,7 @@ describe("docker-entrypoint.sh", () => {
     expect(calls).not.toContain("chown");
   });
 
-  it("remaps the node user and chowns /paperclip before gosu when root requests a different UID/GID", async () => {
+  it("remaps the node user and chowns /outpost before gosu when root requests a different UID/GID", async () => {
     // The stubbed node uid stays 1000 while the stat probe reports the old
     // ownership, modelling the post-remap mismatch that must trigger chown.
     installStubs({ uid: 0, gid: 0, homeMismatch: true });
@@ -138,7 +138,7 @@ describe("docker-entrypoint.sh", () => {
     // usermod re-owns files only under the current home, so every ID change
     // runs while the home points at a placeholder that does not exist.
     expect(lines.filter((line) => line.startsWith("usermod "))).toEqual([
-      `usermod -d /nonexistent/paperclip-uid-remap${stubDir} node`,
+      `usermod -d /nonexistent/outpost-uid-remap${stubDir} node`,
       "usermod -o -u 1001 node",
       "usermod -g 1001 node",
       `usermod -d ${stubDir} node`,
@@ -153,7 +153,7 @@ describe("docker-entrypoint.sh", () => {
     const { calls } = await runEntrypoint({ USER_UID: "1001", USER_GID: "1001", OUTPOST_HOME: stubDir });
 
     expect(calls.trim().split("\n").filter((line) => line.startsWith("usermod "))).toEqual([
-      `usermod -d /nonexistent/paperclip-uid-remap${stubDir} node`,
+      `usermod -d /nonexistent/outpost-uid-remap${stubDir} node`,
       "usermod -g 1001 node",
       `usermod -d ${stubDir} node`,
     ]);
@@ -162,7 +162,7 @@ describe("docker-entrypoint.sh", () => {
   it("keeps the plain remap when the passwd home is outside the app home", async () => {
     // The ownership probe covers only the app home, so usermod must still
     // re-own a separate passwd home.
-    installStubs({ uid: 0, gid: 0, nodeHome: "/paperclip" });
+    installStubs({ uid: 0, gid: 0, nodeHome: "/outpost" });
 
     const { calls } = await runEntrypoint({ USER_UID: "1001", USER_GID: "1001", OUTPOST_HOME: stubDir });
 
@@ -181,7 +181,7 @@ describe("docker-entrypoint.sh", () => {
   });
 
   it("restores the home left by an interrupted remap when the IDs already match", async () => {
-    installStubs({ uid: 0, gid: 0, nodeUid: 1001, nodeGid: 1001, nodeHome: `/nonexistent/paperclip-uid-remap${stubDir}` });
+    installStubs({ uid: 0, gid: 0, nodeUid: 1001, nodeGid: 1001, nodeHome: `/nonexistent/outpost-uid-remap${stubDir}` });
 
     const { stdout, calls } = await runEntrypoint({ USER_UID: "1001", USER_GID: "1001", OUTPOST_HOME: stubDir });
 
@@ -192,13 +192,13 @@ describe("docker-entrypoint.sh", () => {
   });
 
   it("restores the original home, not the placeholder, when an interrupted remap is retried", async () => {
-    installStubs({ uid: 0, gid: 0, nodeHome: `/nonexistent/paperclip-uid-remap${stubDir}` });
+    installStubs({ uid: 0, gid: 0, nodeHome: `/nonexistent/outpost-uid-remap${stubDir}` });
 
     const { calls } = await runEntrypoint({ USER_UID: "1001", USER_GID: "1001", OUTPOST_HOME: stubDir });
 
     expect(calls.trim().split("\n").filter((line) => line.startsWith("usermod "))).toEqual([
       `usermod -d ${stubDir} node`,
-      `usermod -d /nonexistent/paperclip-uid-remap${stubDir} node`,
+      `usermod -d /nonexistent/outpost-uid-remap${stubDir} node`,
       "usermod -o -u 1001 node",
       "usermod -g 1001 node",
       `usermod -d ${stubDir} node`,
@@ -259,7 +259,7 @@ describe("docker-entrypoint.sh", () => {
   });
 
   describe("ownership probe cost", () => {
-    const marker = () => join(stubDir, ".paperclip-ownership-verified");
+    const marker = () => join(stubDir, ".outpost-ownership-verified");
 
     it("skips the full-tree walk when ownership is correct and the marker is current", async () => {
       installStubs({ uid: 0, gid: 0 });

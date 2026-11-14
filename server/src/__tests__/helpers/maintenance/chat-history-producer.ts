@@ -14,8 +14,8 @@ export async function produceChatHistory(db: Db) {
   const service = chatChannelService(db, { heartbeat: { wakeup: async () => { throw new Error('Unexpected chat turn'); } },
     fetch: async () => { throw new Error('Unexpected provider HTTP outside signed-webhook fixture'); } });
   try {
-    await service.configure(fixture.endpoint.id, { action: 'remove' }, 'local-board');
+    await service.configure(fixture.endpoint.id, { action: 'remove' }, 'local-operator');
   } finally { await service.shutdown(); }
-  return { companyId: fixture.companyId, actionId: action.id, endpointId: fixture.endpoint.id,
+  return { spaceId: fixture.spaceId, actionId: action.id, endpointId: fixture.endpoint.id,
     boundary: 'Existing signed webhook fixture input; actual chat ingress completion and ordinary endpoint removal preserve history' };
 }

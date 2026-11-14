@@ -6,10 +6,10 @@ type Input = Parameters<typeof pendingNewToolsForProfile>[0];
 const date = new Date("2026-01-01T00:00:00Z");
 const later = new Date("2026-01-02T00:00:00Z");
 function profile(overrides: Partial<typeof toolProfiles.$inferSelect> = {}): typeof toolProfiles.$inferSelect {
-  return { id: "profile", companyId: "company", profileKey: "selected", name: "Selected", description: null, status: "active", defaultAction: "deny", newToolsReviewedAt: null, metadata: {}, createdAt: date, updatedAt: date, ...overrides };
+  return { id: "profile", spaceId: "space", profileKey: "selected", name: "Selected", description: null, status: "active", defaultAction: "deny", newToolsReviewedAt: null, metadata: {}, createdAt: date, updatedAt: date, ...overrides };
 }
 function rule(overrides: Partial<typeof toolProfileEntries.$inferSelect>): typeof toolProfileEntries.$inferSelect {
-  return { id: "rule", companyId: "company", profileId: "profile", selectorType: "catalog_entry", effect: "include", applicationId: null, connectionId: null, catalogEntryId: null, toolName: null, riskLevel: null, conditions: null, createdAt: date, updatedAt: date, ...overrides };
+  return { id: "rule", spaceId: "space", profileId: "profile", selectorType: "catalog_entry", effect: "include", applicationId: null, connectionId: null, catalogEntryId: null, toolName: null, riskLevel: null, conditions: null, createdAt: date, updatedAt: date, ...overrides };
 }
 function legacy(input: Input) {
   if (input.profile.status !== "active" || input.profile.defaultAction !== "deny") return [];

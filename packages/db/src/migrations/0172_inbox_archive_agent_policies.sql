@@ -24,7 +24,7 @@ DO $$ BEGIN
 END $$;--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "user_inbox_agent_policies" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"user_id" text NOT NULL,
 	"mode" text DEFAULT 'open' NOT NULL,
 	"allowed_agent_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
@@ -34,9 +34,9 @@ CREATE TABLE IF NOT EXISTS "user_inbox_agent_policies" (
 );--> statement-breakpoint
 DO $$ BEGIN
 	IF NOT EXISTS (
-		SELECT 1 FROM "pg_constraint" WHERE "conname" = 'user_inbox_agent_policies_company_id_companies_id_fk'
+		SELECT 1 FROM "pg_constraint" WHERE "conname" = 'user_inbox_agent_policies_space_id_spaces_id_fk'
 	) THEN
-		ALTER TABLE "user_inbox_agent_policies" ADD CONSTRAINT "user_inbox_agent_policies_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+		ALTER TABLE "user_inbox_agent_policies" ADD CONSTRAINT "user_inbox_agent_policies_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 	END IF;
 END $$;--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "user_inbox_agent_policies_company_user_uq" ON "user_inbox_agent_policies" USING btree ("company_id", "user_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_inbox_agent_policies_space_user_uq" ON "user_inbox_agent_policies" USING btree ("space_id", "user_id");

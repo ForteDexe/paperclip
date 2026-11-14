@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MUSE_ASSET_VERSION, MUSE_CLIENT_VERSION, MUSE_PUBLIC_ROUTES, museCommandSchema, musePairSchema, museQuerySchema } from "./muse-protocol.js";
-import { paperclipQuestionSetPayloadSchema } from "./validators/issue.js";
+import { outpostQuestionSetPayloadSchema } from "./validators/issue.js";
 
 const assignmentId = "00000000-0000-4000-8000-000000000001";
 const requestId = "00000000-0000-4000-8000-000000000002";
@@ -126,7 +126,7 @@ describe("Muse bridge-supported question admission", () => {
 
   it.each(["^[0-9]+$", "", "(a+)+$"])("rejects provider pattern %j while the generic canonical form remains valid", pattern => {
     const payload = { ...questionSet, questions: [{ ...questionSet.questions[0], textValidation: { pattern } }] };
-    expect(paperclipQuestionSetPayloadSchema.safeParse(payload).success).toBe(true);
+    expect(outpostQuestionSetPayloadSchema.safeParse(payload).success).toBe(true);
     expect(validate(payload).success).toBe(false);
   });
 

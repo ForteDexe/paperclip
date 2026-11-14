@@ -3,13 +3,13 @@ import type { AiConnectionList, AiConnectionPool, AppDefinition } from "@outpost
 
 // Exercise the full shipped app and an installed router, with real persistence.
 // No browser routes, credentials, providers, or pool APIs are mocked. Opt in
-// only against a loopback test-drive company with existing saved accounts.
-const companyId = process.env.AI_CONNECTIONS_TEST_COMPANY_ID;
-test.skip(process.env.OUTPOST_CONNECTION_POOL_E2E !== "1" || !companyId, "Opt in with an isolated connection-pool test drive");
+// only against a loopback test-drive space with existing saved accounts.
+const spaceId = process.env.AI_CONNECTIONS_TEST_SPACE_ID;
+test.skip(process.env.OUTPOST_CONNECTION_POOL_E2E !== "1" || !spaceId, "Opt in with an isolated connection-pool test drive");
 let prefix: string;
 let connector: AppDefinition;
 let accounts: AiConnectionList["connections"];
-const poolsPath = `/api/companies/${companyId}/ai-connection-pools`;
+const poolsPath = `/api/spaces/${spaceId}/ai-connection-pools`;
 async function listPools(request: APIRequestContext): Promise<AiConnectionPool[]> {
   const response = await request.get(poolsPath);
   expect(response.ok()).toBe(true);
@@ -22,13 +22,13 @@ test.beforeAll(async ({ request }, testInfo) => {
   expect(["127.0.0.1", "[::1]"]).toContain(origin.hostname);
   const health = await (await request.get("/api/health")).json();
   expect(health).toMatchObject({ status: "ok", bootstrapStatus: "ready", deploymentMode: "local_trusted" });
-  const company = await (await request.get(`/api/companies/${companyId}`)).json();
-  expect(company.name).toMatch(/test drive|e2e/i);
-  prefix = company.issuePrefix;
-  const gallery = await (await request.get(`/api/companies/${companyId}/tools/gallery`)).json();
+  const space = await (await request.get(`/api/spaces/${spaceId}`)).json();
+  expect(space.name).toMatch(/test drive|e2e/i);
+  prefix = space.issuePrefix;
+  const gallery = await (await request.get(`/api/spaces/${spaceId}/tools/gallery`)).json();
   connector = gallery.apps.find((app: AppDefinition) => app.aiConnectionRouter && app.availability?.available);
   expect(connector, "Install and enable a router plugin, then opt in to the instance flag").toBeTruthy();
-  const list: AiConnectionList = await (await request.get(`/api/companies/${companyId}/ai-connections`)).json();
+  const list: AiConnectionList = await (await request.get(`/api/spaces/${spaceId}/ai-connections`)).json();
   expect(list.canManageConnections).toBe(true);
   accounts = list.connections.filter((account, index, all) => account.status === "connected" && all.findIndex(candidate => candidate.id === account.id) === index).slice(0, 2);
   expect(accounts, "Use two pre-existing authorized accounts").toHaveLength(2);
@@ -38,7 +38,7 @@ test("operator-enabled routing has no experimental settings control", async ({ p
   const response = await request.get("/api/instance/settings/experimental");
   expect(response.ok()).toBe(true);
   expect(await response.json()).toMatchObject({ enableAiConnectionRouters: true });
-  await page.goto(`/${prefix}/company/settings/instance/experimental`);
+  await page.goto(`/${prefix}/space/settings/instance/experimental`);
   await expect(page.getByRole("heading", { name: "Experimental", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Experimental features", exact: true })).toBeVisible();
   await expect(page.getByText("AI connection routers", { exact: true })).toHaveCount(0);
@@ -48,7 +48,7 @@ test("operator-enabled routing has no experimental settings control", async ({ p
 test("native catalog setup, account edits, conflicts and removal persist through the full app", async ({ page, request }) => {
   test.setTimeout(90_000);
   const originalPools = await listPools(request);
-  const originalAccountIds = (await (await request.get(`/api/companies/${companyId}/ai-connections`)).json()).connections.map((account: { id: string }) => account.id).sort();
+  const originalAccountIds = (await (await request.get(`/api/spaces/${spaceId}/ai-connections`)).json()).connections.map((account: { id: string }) => account.id).sort();
   let poolId: string | undefined;
   try {
     await page.goto(`/${prefix}/dashboard`);
@@ -123,7 +123,7 @@ test("native catalog setup, account edits, conflicts and removal persist through
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     await expect.poll(async () => (await listPools(request)).map(pool => pool.id).sort()).toEqual(originalPools.map(pool => pool.id).sort());
     await expect(page.getByRole("button", { name: `Open ${name} permissions`, exact: true })).toHaveCount(0);
-    const remaining = await (await request.get(`/api/companies/${companyId}/ai-connections`)).json();
+    const remaining = await (await request.get(`/api/spaces/${spaceId}/ai-connections`)).json();
     expect(remaining.connections.map((account: { id: string }) => account.id).sort()).toEqual(originalAccountIds);
   } finally {
     // Cleanup only this test's own disposable pool, through the normal API.
@@ -142,7 +142,7 @@ test("an unavailable dynamic router stays on an actionable setup page", async ({
 
 test("a saved pool shows its configured agents with avatars and profile links", async ({ page, request }) => {
   const pools = await listPools(request);
-  const response = await request.get(`/api/companies/${companyId}/agents`);
+  const response = await request.get(`/api/spaces/${spaceId}/agents`);
   expect(response.ok()).toBe(true);
   const agents = await response.json() as Array<{ id: string; name: string; status: string; runtimeConfig: { aiConnection?: { mode: string; connectionId?: string } } }>;
   const pool = pools.find(candidate => agents.some(agent => agent.status !== "terminated" && agent.runtimeConfig.aiConnection?.mode === "router" && agent.runtimeConfig.aiConnection.connectionId === candidate.id));

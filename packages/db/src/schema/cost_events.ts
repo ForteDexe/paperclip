@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, timestamp, integer, index, numeric, uniqueIndex, check, jsonb } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { agents } from "./agents.js";
 import { issues } from "./issues.js";
 import { projects } from "./projects.js";
@@ -12,7 +12,7 @@ export const costEvents = pgTable(
   "cost_events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     agentId: uuid("agent_id").references(() => agents.id),
     usageKind: text("usage_kind").notNull().default("agent"),
     responsibleUserId: text("responsible_user_id"),
@@ -42,32 +42,32 @@ export const costEvents = pgTable(
   },
   (table) => ({
     usageKindCheck: check("cost_events_usage_kind_check", sql`${table.usageKind} in ('decision', 'fast_response', 'prompt_injection') or (${table.usageKind} = 'agent' and ${table.agentId} is not null)`),
-    receiptUniqueIdx: uniqueIndex("cost_events_company_receipt_idx").on(table.companyId, table.idempotencyKey),
-    providerRequestIdx: index("cost_events_provider_request_idx").on(table.companyId, table.biller, table.providerRequestId),
+    receiptUniqueIdx: uniqueIndex("cost_events_space_receipt_idx").on(table.spaceId, table.idempotencyKey),
+    providerRequestIdx: index("cost_events_provider_request_idx").on(table.spaceId, table.biller, table.providerRequestId),
     nonnegativeAmounts: check("cost_events_nonnegative_amounts", sql`${table.costCents} >= 0 and ${table.inputTokens} >= 0 and ${table.cachedInputTokens} >= 0 and ${table.outputTokens} >= 0`),
-    companyProjectOccurredIdx: index("cost_events_company_project_occurred_idx").on(table.companyId, table.projectId, table.occurredAt),
-    unpricedIdx: index("cost_events_unpriced_idx").on(table.companyId, table.occurredAt, table.id).where(sql`${table.costStatus} = 'unpriced' and ${table.billingType} <> 'subscription_included'`),
-    dataQualityIdx: index("cost_events_data_quality_idx").on(table.companyId, table.occurredAt.desc(), table.id)
+    spaceProjectOccurredIdx: index("cost_events_space_project_occurred_idx").on(table.spaceId, table.projectId, table.occurredAt),
+    unpricedIdx: index("cost_events_unpriced_idx").on(table.spaceId, table.occurredAt, table.id).where(sql`${table.costStatus} = 'unpriced' and ${table.billingType} <> 'subscription_included'`),
+    dataQualityIdx: index("cost_events_data_quality_idx").on(table.spaceId, table.occurredAt.desc(), table.id)
       .where(sql`${table.billingType} = 'unknown' or (${table.costStatus} = 'unpriced' and ${table.billingType} <> 'subscription_included')`),
-    companyOccurredIdx: index("cost_events_company_occurred_idx").on(table.companyId, table.occurredAt),
-    companySubscriptionOccurredIdx: index("cost_events_company_subscription_occurred_idx").on(table.companyId, table.subscriptionId, table.occurredAt),
-    companyAgentOccurredIdx: index("cost_events_company_agent_occurred_idx").on(
-      table.companyId,
+    spaceOccurredIdx: index("cost_events_space_occurred_idx").on(table.spaceId, table.occurredAt),
+    spaceSubscriptionOccurredIdx: index("cost_events_space_subscription_occurred_idx").on(table.spaceId, table.subscriptionId, table.occurredAt),
+    spaceAgentOccurredIdx: index("cost_events_space_agent_occurred_idx").on(
+      table.spaceId,
       table.agentId,
       table.occurredAt,
     ),
-    companyProviderOccurredIdx: index("cost_events_company_provider_occurred_idx").on(
-      table.companyId,
+    spaceProviderOccurredIdx: index("cost_events_space_provider_occurred_idx").on(
+      table.spaceId,
       table.provider,
       table.occurredAt,
     ),
-    companyBillerOccurredIdx: index("cost_events_company_biller_occurred_idx").on(
-      table.companyId,
+    spaceBillerOccurredIdx: index("cost_events_space_biller_occurred_idx").on(
+      table.spaceId,
       table.biller,
       table.occurredAt,
     ),
-    companyHeartbeatRunIdx: index("cost_events_company_heartbeat_run_idx").on(
-      table.companyId,
+    spaceHeartbeatRunIdx: index("cost_events_space_heartbeat_run_idx").on(
+      table.spaceId,
       table.heartbeatRunId,
     ),
   }),

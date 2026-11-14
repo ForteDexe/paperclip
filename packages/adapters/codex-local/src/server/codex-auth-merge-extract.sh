@@ -8,7 +8,7 @@ fi
 asset_dir=$1
 asset_tar=$2
 auth_name=auth.json
-stage_root="$asset_dir.paperclip-extract.$$"
+stage_root="$asset_dir.outpost-extract.$$"
 stage_dir="$stage_root/stage"
 preserve_dir="$stage_root/preserve"
 sandbox_auth="$asset_dir/$auth_name"

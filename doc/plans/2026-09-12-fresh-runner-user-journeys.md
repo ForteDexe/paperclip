@@ -2,9 +2,9 @@
 
 Date: 2026-09-12. Baseline: c9021c6721f91e2c74bd9fee9d3fd41c999d17b7 (fresh worktree).
 
-User: a first-time Paperclip operator who wants useful work from an agent without learning runner internals or manually managing task status.
+User: a first-time Outpost operator who wants useful work from an agent without learning runner internals or manually managing task status.
 
-Environment: isolated test-drive instance, disposable company and tasks, real API-backed Codex and Claude Code providers, local and Daytona execution. Onboarding/bootstrap fixtures are setup, not an onboarding acceptance result. Task submission and user follow-ups are performed through the production browser interface. No special completion-tool instructions are added to user prompts.
+Environment: isolated test-drive instance, disposable space and tasks, real API-backed Codex and Claude Code providers, local and Daytona execution. Onboarding/bootstrap fixtures are setup, not an onboarding acceptance result. Task submission and user follow-ups are performed through the production browser interface. No special completion-tool instructions are added to user prompts.
 
 ## Stories and acceptance
 
@@ -45,6 +45,6 @@ Fix shared causes in submission persistence, execution lifecycle/projection, pro
 
 The implementation was exercised through the ordinary browser task flow with local Codex, local Claude Code, Codex in Daytona, and Claude Code in Daytona. Each completed a plain-language request and follow-up. The interrupted Codex task recovered from a deliberately killed local Codex runner without a Retry click, new message, or controller restart. A separate task proved Stop followed by a new completed request. A fresh clarification task proved real questions and one-answer continuation, including after reopening Done. The open task refreshed a newly delivered file automatically, and shared Daytona workspace contention displayed neutral waiting.
 
-Additional fixes cover live artifact query invalidation, passive waiting on a direct user comment that reopens completed work, and draft text entered during an in-flight submission. The database restart path now verifies the owned PostgreSQL port and data directory before migration. This was prompted by an isolation incident: the QA server briefly connected to another development database and applied migrations 0273/0274 before the wrong company was noticed. No test task was created there; no rollback of another developer's work was attempted.
+Additional fixes cover live artifact query invalidation, passive waiting on a direct user comment that reopens completed work, and draft text entered during an in-flight submission. The database restart path now verifies the owned PostgreSQL port and data directory before migration. This was prompted by an isolation incident: the QA server briefly connected to another development database and applied migrations 0273/0274 before the wrong space was noticed. No test task was created there; no rollback of another developer's work was attempted.
 
 Historical ambiguous executions were retained, not force-replayed or manually marked successful. Their old task statuses were not backfilled. Automatic crash replacement was proven only for the narrowly verified local Codex case; remote crash recovery and Claude controller-restart recovery are not claimed. Simple Claude Daytona responses remained slow in this sample. The local acceptance report and selected evidence were delivered through artifact work products, with explicit limits and before/after observations. Disposable Daytona sandbox cleanup was completed.

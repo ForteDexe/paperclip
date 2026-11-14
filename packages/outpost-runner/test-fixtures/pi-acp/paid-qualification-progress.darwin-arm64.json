@@ -340,7 +340,7 @@
       "retainedMachineDisposition": null,
       "retainedStatus": "passed",
       "cleanup": "passed",
-      "diagnosis": "All six canonical hello matchers pass. Authenticated Pi executes paperclip_finish over semantic MCP; the provider turn completes, task becomes done, and native run succeeds. Sleep assertion and dual-clock supervision avoid the prior environmental interruption. USD remains unpriced; independent measured billing delta is separate.",
+      "diagnosis": "All six canonical hello matchers pass. Authenticated Pi executes outpost_finish over semantic MCP; the provider turn completes, task becomes done, and native run succeeds. Sleep assertion and dual-clock supervision avoid the prior environmental interruption. USD remains unpriced; independent measured billing delta is separate.",
       "submittedProviderTurns": 1,
       "providerRequestCount": null,
       "billingDeltaUsd": 0.000654767,
@@ -396,7 +396,7 @@
         "cachedWriteTokens": 0,
         "totalTokens": 3652,
         "_meta": {
-          "paperclipPi": {
+          "outpostPi": {
             "provenance": "assistant_message_receipts",
             "costUsd": 0.00032807600000000006,
             "costSource": "pi_pricing_estimate"
@@ -586,7 +586,7 @@
         "cachedWriteTokens": 0,
         "totalTokens": 5659,
         "_meta": {
-          "paperclipPi": {
+          "outpostPi": {
             "provenance": "assistant_message_receipts",
             "costUsd": 0.00040961200000000006,
             "costSource": "pi_pricing_estimate"
@@ -691,7 +691,7 @@
         "cachedWriteTokens": 0,
         "totalTokens": 8955,
         "_meta": {
-          "paperclipPi": {
+          "outpostPi": {
             "provenance": "assistant_message_receipts",
             "costUsd": 0.000803936,
             "costSource": "pi_pricing_estimate"
@@ -723,7 +723,7 @@
         "cachedWriteTokens": 0,
         "totalTokens": 5659,
         "_meta": {
-          "paperclipPi": {
+          "outpostPi": {
             "provenance": "assistant_message_receipts",
             "costUsd": 0.0006111560000000002,
             "costSource": "pi_pricing_estimate"
@@ -744,7 +744,7 @@
     ],
     "terminalTurnObserved": false,
     "terminalUsageAvailable": false,
-    "realPaperclipRequests": 0
+    "realOutpostRequests": 0
   },
   "verification": {
     "sharedReasoningProjection": {

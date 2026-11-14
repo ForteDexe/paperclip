@@ -15,17 +15,17 @@ interface CardsObservation extends InternalObservation { cards: StatusCard[]; up
 /** What the responding agent actually got back when it read the source task, split by chat turn. */
 export interface SourceReads { initialLive: boolean; laterUnavailable: boolean; laterLive: boolean }
 const objectRecord = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-/** Reads that return the card's saved state: the company list and the card both carry state, failureReason and lastGeneratedAt. */
-const CARD_STATE_READS = ["GET /api/companies/{companyId}/status-cards", "GET /api/status-cards/{id}"];
+/** Reads that return the card's saved state: the space list and the card both carry state, failureReason and lastGeneratedAt. */
+const CARD_STATE_READS = ["GET /api/spaces/{spaceId}/status-cards", "GET /api/status-cards/{id}"];
 /**
- * Status-card reads a run completed successfully for this card (or its company's card list). call_api
+ * Status-card reads a run completed successfully for this card (or its space's card list). call_api
  * payloads are redacted before saving, so each read is bound by its input digest and its paired result;
  * a started, failed or other-card request does not count.
  */
-export function statusCardOperations(events: readonly Record<string, unknown>[], cardId: string, companyId: string): string[] {
-  const card = recordParams("id", cardId), company = [...recordParams("companyId", companyId), undefined];
+export function statusCardOperations(events: readonly Record<string, unknown>[], cardId: string, spaceId: string): string[] {
+  const card = recordParams("id", cardId), space = [...recordParams("spaceId", spaceId), undefined];
   const digests = apiReadDigests([
-    { operationId: "GET /api/companies/{companyId}/status-cards", pathParams: company, queries: [{ archived: true }, { archived: "true" }, { archived: false }, { archived: "false" }] },
+    { operationId: "GET /api/spaces/{spaceId}/status-cards", pathParams: space, queries: [{ archived: true }, { archived: "true" }, { archived: false }, { archived: "false" }] },
     { operationId: "GET /api/status-cards/{id}", pathParams: card },
     { operationId: "GET /api/status-cards/{id}/summary-revisions", pathParams: card, paged: true },
     { operationId: "GET /api/status-cards/{id}/updates", pathParams: card, paged: true },
@@ -49,7 +49,7 @@ export function sourceTaskReads(events: readonly Record<string, unknown>[], sour
   return { live, unavailable };
 }
 
-const root = (ctx: ChatCatalogContext) => `/api/companies/${ctx.input.fixtures.company.id}`;
+const root = (ctx: ChatCatalogContext) => `/api/spaces/${ctx.input.fixtures.space.id}`;
 /** Polls pass runEvents: false; only the final observation reads every lead run's tool events. */
 async function observeCards(ctx: ChatCatalogContext, state: Record<string, unknown>, options: { runEvents?: boolean } = {}): Promise<CardsObservation> {
   const base = await observeInternal(ctx, state); const api = ctx.input.api;
@@ -66,7 +66,7 @@ async function observeCards(ctx: ChatCatalogContext, state: Record<string, unkno
 }
 async function observeCardOperations(ctx: ChatCatalogContext, base: InternalObservation, cardId: string): Promise<Record<string, string[]>> {
   return Object.fromEntries(await Promise.all(base.runs.filter(run => run.agentId === base.leadId).map(async run => [run.id,
-    statusCardOperations(await collectRunEvents<Record<string, unknown>>(afterSeq => ctx.input.api.get(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=1000`)), cardId, ctx.input.fixtures.company.id)])));
+    statusCardOperations(await collectRunEvents<Record<string, unknown>>(afterSeq => ctx.input.api.get(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=1000`)), cardId, ctx.input.fixtures.space.id)])));
 }
 /** True when one of the lead's runs in this turn read the card's saved state. */
 function turnReadCard(o: CardsObservation, runIds: readonly string[], operations: readonly string[]) {
@@ -93,14 +93,14 @@ function authorProfileLinked(o: InternalObservation, author: Entity | undefined)
     return url.origin === new URL(o.origin).origin && index >= 0 && [author.id, author.urlKey].filter(Boolean).includes(parts[index + 1]); } catch { return false; } });
 }
 function cardLink(o: InternalObservation, id: string) { return resultHref(o, id, "status") ?? resultHref(o, id, "status-cards"); }
-/** The company's issue prefix, from its own saved task identifiers. */
-function companyPrefix(o: InternalObservation) {
+/** The space's issue prefix, from its own saved task identifiers. */
+function spacePrefix(o: InternalObservation) {
   const prefixes = new Set(o.tasks.map(row => typeof row.identifier === "string" ? row.identifier.replace(/-\d+$/, "") : "").filter(Boolean));
   return prefixes.size === 1 ? [...prefixes][0]! : undefined;
 }
-/** A same-origin link to this company's status cards page (where archived cards are listed with Restore). */
+/** A same-origin link to this space's status cards page (where archived cards are listed with Restore). */
 function statusBoardHref(o: InternalObservation) {
-  const prefix = companyPrefix(o); if (!prefix) return undefined;
+  const prefix = spacePrefix(o); if (!prefix) return undefined;
   return o.links.find(href => { try { const url = new URL(href, o.origin); const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
     return url.origin === new URL(o.origin).origin && parts.length === 2 && parts[0] === prefix && parts[1] === "status"; } catch { return false; } });
 }
@@ -121,12 +121,12 @@ export function gradeIntegratorCards(value: unknown) {
   c.add("feature-and-source-records-retained", o.cardsEnabled && originals.every(row => o.scenarioId === "status-cards.explain-card" && o.state.sourceUnavailable === true && o.state.sourceReadStatus === 404 && row.id === originals[0]?.id ? !o.tasks.some(now => now.id === row.id) : sameTask(row, o.tasks.find(now => now.id === row.id))), "The source tasks remain intact; compilation cannot alter source state to fit its result.");
   if (o.scenarioId === "status-cards.create-card") {
     const p = o.state.project as Entity;
-    c.add("one-agent-authored-valid-card", o.cards.length === 1 && !!card && card.companyId === o.companyId && card.createdByAgentId === o.leadId && !card.archivedAt
+    c.add("one-agent-authored-valid-card", o.cards.length === 1 && !!card && card.spaceId === o.spaceId && card.createdByAgentId === o.leadId && !card.archivedAt
       && o.activity.some(event => event.action === "status_card.created" && event.agentId === o.leadId && event.entityId === card.id)
       && [o.leadId, (o.state.worker as Entity | undefined)?.id ?? "missing-worker"].includes(card.agentId ?? ""), "Exactly one authored card is saved with an eligible real summarizer.");
     // The card's purpose is the person's words in a model-written interestPrompt, so it is graded through what the
     // summarizer compiled from it: saved queries that are not narrowed to another project, and a product-computed
-    // fingerprint that holds the blocked Launch task. Launch is the fixture company's only project, so a company-wide
+    // fingerprint that holds the blocked Launch task. Launch is the fixture space's only project, so a space-wide
     // blocked-work query is a valid compile of "the launch's biggest blockers".
     c.add("compiled-launch-watch-scope", !!card && card.queries.length > 0 && card.queries.every(query => !query.projectId || query.projectId === p?.id)
       && originals.some(row => !!card.fingerprint?.[row.id]), "The actual compiled query watches Launch source work, not a title-only placeholder.");
@@ -144,7 +144,7 @@ export function gradeIntegratorCards(value: unknown) {
     // not deleted" failed the old phrase check). The saved state above proves archive-not-delete; this grades
     // that the reply gives the person a usable route to where the archived card is viewed and restored.
     c.add("restore-route-linked", !!card && card.archivedAt != null && (!!cardLink(o, card.id) || statusBoardLinked(o)),
-      "The reply links the archived card or the company's status cards page, where the card is viewed and restored.");
+      "The reply links the archived card or the space's status cards page, where the card is viewed and restored.");
   } else if (o.scenarioId === "status-cards.explain-card") {
     const source = originals[0];
     const initial = cardsObservation(o.state.accessCheckpoint);
@@ -190,7 +190,7 @@ export function gradeIntegratorCards(value: unknown) {
       && failed.length === 1 && failed[0]?.generationIssueId === o.state.failedGenerationIssueId && !!failed[0]?.error && !!failedRun
       && genuineCardWorkFailure(card, failed[0]!, failedRun.id, o.leadId, o.cardWork)
       && !!o.cardWork && originals.some(source => sameTask(source, o.cardWork!.checklistSource))
-      && o.cardWork?.runs.length === 7 && o.runs.length === 7 && o.runs.every(run => run.status === "succeeded" && o.cardWork?.runs.some(actual => actual.id === run.id && actual.agentId === run.agentId && actual.companyId === run.companyId && actual.contextSnapshot?.issueId === run.contextSnapshot?.issueId))
+      && o.cardWork?.runs.length === 7 && o.runs.length === 7 && o.runs.every(run => run.status === "succeeded" && o.cardWork?.runs.some(actual => actual.id === run.id && actual.agentId === run.agentId && actual.spaceId === run.spaceId && actual.contextSnapshot?.issueId === run.contextSnapshot?.issueId))
       && card.summaryBody === lastGood.summaryBody && card.lastGeneratedAt === lastGood.lastGeneratedAt
       && JSON.stringify(o.summaries[card.id]) === JSON.stringify(successfulResult.summaries[card.id]), "An independently observed real card-generation error and failed update retain the previous successful summary, timestamp and complete history. A failed native row without card error does not qualify.");
     const beforeFailureQuestion = new Set(o.state.failureQuestionRunIds as string[] | undefined);
@@ -222,13 +222,13 @@ async function verifyCard(ctx: ChatCatalogContext, _state: Record<string, unknow
   const o = cardsObservation(value); const card = o && (o.state.card ? o.cards.find(row => row.id === (o.state.card as StatusCard).id) : o.cards[0]); if (!card) throw new Error("Missing saved card");
   const href = cardLink(o!, card.id), board = !href ? statusBoardHref(o!) : undefined;
   if (board) {
-    // The reply linked only the board: follow that rendered link to this company's status page.
+    // The reply linked only the board: follow that rendered link to this space's status page.
     const source = ctx.input.page.url(), link = ctx.input.page.locator(`[id^="comment-"] a[href=${JSON.stringify(board)}]`).first();
     await expect(link).toBeVisible(); await link.click();
-    await expect(ctx.input.page).toHaveURL(url => url.pathname === `/${ctx.input.fixtures.company.issuePrefix}/status`);
+    await expect(ctx.input.page).toHaveURL(url => url.pathname === `/${ctx.input.fixtures.space.issuePrefix}/status`);
     await ctx.input.page.goto(source); await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible();
   }
-  await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/status/${card.id}`, card.title ?? card.interestPrompt, href);
+  await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/status/${card.id}`, card.title ?? card.interestPrompt, href);
 }
 // These three prerequisite waits consumed a generic180s allowance before the
 // query, although the unchanged whole-case clock is installed before setup.
@@ -261,7 +261,7 @@ async function seedCard(ctx: ChatCatalogContext, authorId: string, summarizerId:
 /** Human-visible selected resource data, copied from actual saved public rows.
  * Live task state is deliberately left for the responding agent to inspect. */
 export function selectedStatusCardReference(card: StatusCard, sources: Entity[], issuePrefix: string | null | undefined) {
-  if (!issuePrefix) throw new Error("Selected status card context requires the actual company issue prefix");
+  if (!issuePrefix) throw new Error("Selected status card context requires the actual space issue prefix");
   const sourceReferences = sources.filter(source => !!card.fingerprint?.[source.id]).map(source => ({ id: source.id, identifier: source.identifier,
     title: card.fingerprint?.[source.id]?.title, href: `/${issuePrefix}/issues/${source.identifier ?? source.id}` }));
   return `# Selected status card\n\n[${card.title ?? "Status card"}](/${issuePrefix}/status/${card.id})\n\n` + JSON.stringify({
@@ -291,7 +291,7 @@ function define(id: string, seed: "none" | "ceo" | "morgan", extra: Partial<Chat
       if (seed === "none") return { project: p, sourceTasks: [t], worker };
       // Funding is a real public prerequisite before setup's native generation;
       // the ordinary shared flow applies the same policy before the human query.
-      for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: worker.id }])
+      for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: worker.id }])
         await ctx.input.api.post(`${root(ctx)}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
       if (id === "status-cards.refresh-card") await allowLeadTurns(ctx, REFRESH_CARD_LEAD_TURNS);
       const cardRecipe = id === "status-cards.refresh-card" ? await prepareCardChecklist(ctx, worker.id, p.id, t) : undefined;
@@ -321,7 +321,7 @@ function define(id: string, seed: "none" | "ceo" | "morgan", extra: Partial<Chat
         if (cardRecipe) updateCardChecklistSource(ctx, sourceTasks[0]!);
       }
       const factualContextAttachment = ["status-cards.explain-card", "status-cards.archive-card"].includes(id)
-        ? await uploadFactualQueryAttachment(ctx, { filename: "selected-status-card.md", body: selectedStatusCardReference(card, sourceTasks, ctx.input.fixtures.company.issuePrefix) }) : undefined;
+        ? await uploadFactualQueryAttachment(ctx, { filename: "selected-status-card.md", body: selectedStatusCardReference(card, sourceTasks, ctx.input.fixtures.space.issuePrefix) }) : undefined;
       return { project: p, sourceTasks, worker, card, otherCard, ...(cardRecipe ? { cardRecipe, initialChecklist } : {}), factualContextAttachment, originalUpdates: await ctx.input.api.get<StatusCardUpdate[]>(`/api/status-cards/${card.id}/updates`), originalSummaries: await ctx.input.api.get<StatusCardSummaryRevision[]>(`/api/status-cards/${card.id}/summary-revisions`) };
     } catch (error) { try { await cleanupCardChecklist(ctx); } finally { await ctx.input.api.patch("/api/instance/settings/experimental", { enableStatusCards: previous.enableStatusCards }); experiments.delete(ctx); } throw error; }
   }, observeCards, gradeIntegratorCards, verifyCard, { expectedRunCount: 2, attemptTimeoutMs: 540_000, ...extra,
@@ -342,7 +342,7 @@ export const integratorStatusCardsCases: readonly ChatCatalogCase[] = [
           && o.runs.every(run => run.status === "succeeded") && !o.cards.find(row => row.id === cardId)?.generatingIssueId && ctx.issue()?.conversationState === "waiting" });
       state.accessCheckpoint = { ...first, state: structuredClone(state) }; await ctx.input.evidence("chat-card-explanation-before-access-loss.json", state.accessCheckpoint);
       const source = (state.sourceTasks as Entity[])[0]!;
-      await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/issues/${source.identifier ?? source.id}`, source.title!, resultHref(first, source.identifier ?? source.id, "issues") ?? resultHref(first, source.id, "issues"));
+      await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/issues/${source.identifier ?? source.id}`, source.title!, resultHref(first, source.identifier ?? source.id, "issues") ?? resultHref(first, source.id, "issues"));
       await ctx.input.api.delete(`/api/issues/${source.id}`);
       const denial = await readAgentResource(ctx, `/api/issues/${source.id}`); state.sourceReadStatus = denial.status; state.accessPrincipalId = ctx.input.fixtures.agent.id; state.sourceUnavailable = true;
       const answered = first.cards.find(row => row.id === cardId)!; const answeredSummaries = first.summaries[cardId];
@@ -377,7 +377,7 @@ export const integratorStatusCardsCases: readonly ChatCatalogCase[] = [
           return { observed, update, checklist: update ? await observeCardChecklistSuccess(ctx, recipe, update) : undefined };
         }, accept: value => value.observed.runs.length === 4 && value.observed.runs.every(run => run.status === "succeeded") && ctx.issue()?.conversationState === "waiting"
           && !!value.update && genuineCardChecklistSuccess(before.id, recipe, value.update, value.checklist)
-          && !!value.checklist && cardAccountingReady(ctx.input.fixtures.company.id, recipe.workerId, ctx.input.fixtures.agent.id, value.checklist.runs, value.checklist.overview) });
+          && !!value.checklist && cardAccountingReady(ctx.input.fixtures.space.id, recipe.workerId, ctx.input.fixtures.agent.id, value.checklist.runs, value.checklist.overview) });
       const succeeded = success.observed;
       state.successfulChecklist = success.checklist;
       state.successfulRefreshResult = { ...succeeded, state: structuredClone(state) }; await ctx.input.evidence("chat-card-refresh-last-successful-result.json", state.successfulRefreshResult);

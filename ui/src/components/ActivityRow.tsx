@@ -7,7 +7,7 @@ import { timeAgo } from "../lib/timeAgo";
 import { cn } from "../lib/utils";
 import { formatActivityVerb } from "../lib/activity-format";
 import { deriveProjectUrlKey, type ActivityEvent, type Agent } from "@outpost/shared";
-import type { CompanyUserProfile } from "../lib/company-members";
+import type { SpaceUserProfile } from "../lib/space-members";
 import { useState, type ReactNode } from "react";
 import { CellMarquee, HoveredCellContext, useCellMarqueeHover } from "./CellMarquee";
 
@@ -25,7 +25,7 @@ function entityLink(entityType: string, entityId: string, name?: string | null):
 export interface ActivityRowProps {
   event: ActivityEvent;
   agentMap: Map<string, Agent>;
-  userProfileMap?: Map<string, CompanyUserProfile>;
+  userProfileMap?: Map<string, SpaceUserProfile>;
   entityNameMap: Map<string, string>;
   entityTitleMap?: Map<string, string>;
   className?: string;

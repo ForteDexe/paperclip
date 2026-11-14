@@ -6,10 +6,10 @@ import { api } from "./client";
  *
  * Consumes the unified read API shipped by Phase 2c
  * (`server/src/routes/activity.ts` → `services/agent-action-audit.ts`):
- *   GET /companies/:companyId/audit/agent-actions
+ *   GET /spaces/:spaceId/audit/agent-actions
  * The default agent scope is gated server-side by the
- * `audit:view_agent_actions` board permission. The explicit all-actors scope
- * also supports a company-read basic tier with attribution stripped. CSV
+ * `audit:view_agent_actions` operator permission. The explicit all-actors scope
+ * also supports a space-read basic tier with attribution stripped. CSV
  * export streams from the permission-gated sibling `.csv` endpoint, which
  * logs the export action itself.
  */
@@ -25,7 +25,7 @@ export interface AuditEntitySnippet {
 /** One enriched `activity_log` row from the agent-action audit feed. */
 export interface AuditActionRecord {
   id: string;
-  companyId: string;
+  spaceId: string;
   actorType: "agent" | "user" | "system" | "plugin" | null;
   actorId: string | null;
   action: string;
@@ -87,13 +87,13 @@ export const auditApi = {
   /**
    * Cursor-paginated activity/audit feed. The default agent scope throws a
    * 403 without `audit:view_agent_actions`; `actorScope: "all"` returns a
-   * redacted basic tier to ordinary company readers.
+   * redacted basic tier to ordinary space readers.
    */
-  listAgentActions: (companyId: string, filters: AuditActionFilters = {}) => {
+  listAgentActions: (spaceId: string, filters: AuditActionFilters = {}) => {
     const search = buildAuditQuery(filters);
     const qs = search.toString();
     return api.get<AuditActionsResponse>(
-      `/companies/${companyId}/audit/agent-actions${qs ? `?${qs}` : ""}`,
+      `/spaces/${spaceId}/audit/agent-actions${qs ? `?${qs}` : ""}`,
     );
   },
 
@@ -102,13 +102,13 @@ export const auditApi = {
    * activity row for the export itself (training-data export precedent).
    */
   exportAgentActionsCsv: async (
-    companyId: string,
+    spaceId: string,
     filters: Omit<AuditActionFilters, "cursor" | "limit"> = {},
   ): Promise<Blob> => {
     const search = buildAuditQuery(filters);
     const qs = search.toString();
     const res = await fetch(
-      `/api/companies/${companyId}/audit/agent-actions.csv${qs ? `?${qs}` : ""}`,
+      `/api/spaces/${spaceId}/audit/agent-actions.csv${qs ? `?${qs}` : ""}`,
       { credentials: "include", headers: { Accept: "text/csv" } },
     );
     if (!res.ok) {

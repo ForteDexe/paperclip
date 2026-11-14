@@ -39,7 +39,7 @@ afterEach(() => { flushSync(() => root.unmount()); client.clear(); document.body
 function render(node: React.ReactNode) { flushSync(() => root.render(<QueryClientProvider client={client}>{node}</QueryClientProvider>)); }
 function publicButton() { return [...document.body.querySelectorAll("button")].find(b => b.textContent?.trim() === "Make public")!; }
 function actions(scope: { privacyParentIssueId?: string; projectId?: string } = {}) {
-  render(<IssuePrivacyActions issue={{ id: "child", visibility: "private", identifier: "PAP-1", ...scope }} companyId="company" canManage closeMenu={() => {}}>{items => <div>{items}</div>}</IssuePrivacyActions>);
+  render(<IssuePrivacyActions issue={{ id: "child", visibility: "private", identifier: "PAP-1", ...scope }} spaceId="space" canManage closeMenu={() => {}}>{items => <div>{items}</div>}</IssuePrivacyActions>);
 }
 describe("inherited privacy controls", () => {
   it("blocks a private parent and does not send an impossible visibility change", async () => {
@@ -113,11 +113,11 @@ it("invalidates cached task audience when project membership is removed", async 
   client.setQueryData(key, [{ subjectId: "member", source: "project" }]);
   api.members.mockResolvedValue([{ id: "m1", subjectType: "user", subjectId: "member", subjectDisplayName: "Morgan" }]);
   api.remove.mockResolvedValue({});
-  render(<ProjectAccessMembers project={{ id: "project", companyId: "company" } as Project} canManage />);
+  render(<ProjectAccessMembers project={{ id: "project", spaceId: "space" } as Project} canManage />);
   flushSync(() => [...document.body.querySelectorAll("button")].find(b => b.textContent?.includes("Manage access"))!.click());
   await settle();
   flushSync(() => (document.body.querySelector('[aria-label="Remove Morgan"]') as HTMLButtonElement).click());
   await settle();
-  expect(api.remove).toHaveBeenCalledWith("project", "m1", "company");
+  expect(api.remove).toHaveBeenCalledWith("project", "m1", "space");
   expect(client.getQueryState(key)?.isInvalidated).toBe(true);
 });

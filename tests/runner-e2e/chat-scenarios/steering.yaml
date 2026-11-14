@@ -21,7 +21,7 @@ scenarios:
       - steering/edit-order-discard
     context: >-
       The person owns an undispatched queued message asking for a red page; queue mutations
-      require their board session.
+      require their operator session.
     query: >-
       Change my queued request from red to blue, and put it first.
     expected_outcome: >-

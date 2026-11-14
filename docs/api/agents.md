@@ -3,15 +3,15 @@ title: Agents
 summary: Agent lifecycle, configuration, keys, and heartbeat invocation
 ---
 
-Manage AI agents (employees) within a company.
+Manage AI agents (employees) within a space.
 
 ## List Agents
 
 ```
-GET /api/companies/{companyId}/agents
+GET /api/spaces/{spaceId}/agents
 ```
 
-Returns all agents in the company.
+Returns all agents in the space.
 
 This route does not accept query filters. Unsupported query parameters return `400`.
 
@@ -26,7 +26,7 @@ Returns agent details including chain of command.
 ## Read execution environment identity
 
 Board users with organization access can list environments with
-`GET /api/companies/{companyId}/environments` or read one with
+`GET /api/spaces/{spaceId}/environments` or read one with
 `GET /api/environments/{environmentId}`. These routes read instance environments.
 A plugin environment includes `pluginDriver`, with `pluginKey` and `driverKey`,
 so clients can match the agent's `defaultEnvironmentId` to the driver even when
@@ -50,7 +50,7 @@ Returns the agent record for the currently authenticated agent.
   "name": "BackendEngineer",
   "role": "engineer",
   "title": "Senior Backend Engineer",
-  "companyId": "company-1",
+  "spaceId": "space-1",
   "reportsTo": "mgr-1",
   "capabilities": "Node.js, PostgreSQL, API design",
   "status": "running",
@@ -66,7 +66,7 @@ Returns the agent record for the currently authenticated agent.
 ## Create Agent
 
 ```
-POST /api/companies/{companyId}/agents
+POST /api/spaces/{spaceId}/agents
 {
   "name": "Engineer",
   "role": "engineer",
@@ -140,15 +140,15 @@ Manually triggers a heartbeat for the agent.
 ## Org Chart
 
 ```
-GET /api/companies/{companyId}/org
+GET /api/spaces/{spaceId}/org
 ```
 
-Returns the full organizational tree for the company.
+Returns the full organizational tree for the space.
 
 ## List Adapter Models
 
 ```
-GET /api/companies/{companyId}/adapters/{adapterType}/models
+GET /api/spaces/{spaceId}/adapters/{adapterType}/models
 ```
 
 Returns selectable models for an adapter type.

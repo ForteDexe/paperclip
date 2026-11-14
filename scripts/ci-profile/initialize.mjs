@@ -12,6 +12,6 @@ if (process.env.OUTPOST_CI_PROFILE_JOB === "policy" && process.env.GITHUB_STEP_S
   const now = Math.floor(Date.now() / 1000);
   const params = new URLSearchParams({ trace_id: traceId, trace_start_ts: String(now - 86400), trace_end_ts: String(now + 86400) });
   appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-    `### Full CI profile\n\n[Open the Honeycomb waterfall](https://ui.honeycomb.io/paperclip/environments/test/datasets/paperclip-ci/trace?${params})\n\n` +
+    `### Full CI profile\n\n[Open the Honeycomb waterfall](https://ui.honeycomb.io/outpost/environments/test/datasets/outpost-ci/trace?${params})\n\n` +
     "The trace becomes available after this attempt completes and the CI profile exporter finishes. Keep the profile-ci label on the PR until then.\n");
 }

@@ -5,7 +5,7 @@ import { closeLivenessDb, createDb, databaseClientOptionsFromEnv, livenessDb, wi
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./test-embedded-postgres.js";
 import { runEventPayload } from "./run-event-payload.js";
 
-const records = pgTable("prepared_query_fixture", { id: text("id").primaryKey(), companyId: text("company_id").notNull(), value: integer("value").notNull(), payload: jsonb("payload") });
+const records = pgTable("prepared_query_fixture", { id: text("id").primaryKey(), spaceId: text("space_id").notNull(), value: integer("value").notNull(), payload: jsonb("payload") });
 const encoded = pgTable("prepared_encoded_fixture", { id: text("id").primaryKey(), payload: runEventPayload("payload") });
 const support = await getEmbeddedPostgresTestSupport();
 
@@ -16,7 +16,7 @@ describe.skipIf(!support.supported)("explicit ORM prepared statements on Postgre
   beforeAll(async () => {
     temporary = await startEmbeddedPostgresTestDatabase("prepared-orm-");
     setup = createDb(temporary.connectionString, { prepare: false, maxConnections: 1 });
-    await setup.execute(sql`create table prepared_query_fixture(id text primary key, company_id text not null, value integer not null, payload jsonb)`);
+    await setup.execute(sql`create table prepared_query_fixture(id text primary key, space_id text not null, value integer not null, payload jsonb)`);
     await setup.execute(sql`create table prepared_encoded_fixture(id text primary key, payload jsonb)`);
     await setup.execute(sql`create table prepared_schema_change_fixture(id text primary key)`);
     await setup.execute(sql`insert into prepared_schema_change_fixture(id) values ('retained')`);
@@ -24,8 +24,8 @@ describe.skipIf(!support.supported)("explicit ORM prepared statements on Postgre
   beforeEach(async () => {
     await setup.execute(sql`truncate prepared_query_fixture, prepared_encoded_fixture`);
     await setup.insert(records).values([
-      { id: "a", companyId: "company-a", value: 1, payload: { owner: "a" } },
-      { id: "b", companyId: "company-b", value: 2, payload: { owner: "b" } },
+      { id: "a", spaceId: "space-a", value: 1, payload: { owner: "a" } },
+      { id: "b", spaceId: "space-b", value: 2, payload: { owner: "b" } },
     ]);
   });
   afterEach(async () => {
@@ -45,18 +45,18 @@ describe.skipIf(!support.supported)("explicit ORM prepared statements on Postgre
 
   it.each([undefined, false])("keeps the existing ORM mode when prepare is %s", async prepare => {
     const db = fixture({ prepare });
-    expect(await db.select().from(records).where(eq(records.companyId, "company-a"))).toEqual([
-      { id: "a", companyId: "company-a", value: 1, payload: { owner: "a" } },
+    expect(await db.select().from(records).where(eq(records.spaceId, "space-a"))).toEqual([
+      { id: "a", spaceId: "space-a", value: 1, payload: { owner: "a" } },
     ]);
     expect(await statements(db)).toHaveLength(0);
   });
 
-  it("honors the explicit environment opt-in for ORM queries with fresh company bindings", async () => {
+  it("honors the explicit environment opt-in for ORM queries with fresh space bindings", async () => {
     const db = fixture(databaseClientOptionsFromEnv({ DATABASE_PREPARED_STATEMENTS: "true" }));
     for (let i = 0; i < 12; i++) {
-      const companyId = i % 2 ? "company-b" : "company-a";
-      const rows = await db.select().from(records).where(eq(records.companyId, companyId));
-      expect(rows).toEqual([{ id: i % 2 ? "b" : "a", companyId, value: i % 2 ? 2 : 1, payload: { owner: i % 2 ? "b" : "a" } }]);
+      const spaceId = i % 2 ? "space-b" : "space-a";
+      const rows = await db.select().from(records).where(eq(records.spaceId, spaceId));
+      expect(rows).toEqual([{ id: i % 2 ? "b" : "a", spaceId, value: i % 2 ? 2 : 1, payload: { owner: i % 2 ? "b" : "a" } }]);
     }
     expect(await statements(db)).toHaveLength(1);
   });
@@ -79,15 +79,15 @@ describe.skipIf(!support.supported)("explicit ORM prepared statements on Postgre
 
   it("does not replay a rejected prepared write", async () => {
     const db = fixture({ prepare: true });
-    await expect(db.insert(records).values({ id: "a", companyId: "company-b", value: 9 }))
+    await expect(db.insert(records).values({ id: "a", spaceId: "space-b", value: 9 }))
       .rejects.toMatchObject({ cause: { code: "23505" } });
-    expect(await db.select({ companyId: records.companyId, value: records.value }).from(records).where(eq(records.id, "a")))
-      .toEqual([{ companyId: "company-a", value: 1 }]);
+    expect(await db.select({ spaceId: records.spaceId, value: records.value }).from(records).where(eq(records.id, "a")))
+      .toEqual([{ spaceId: "space-a", value: 1 }]);
   });
 
   it("keeps write queries lazy and repeated awaits from repeating writes", async () => {
     const db = fixture({ prepare: true });
-    const pending = db.$client.unsafe("insert into prepared_query_fixture(id,company_id,value) values ($1,$2,$3) returning id", ["lazy", "company-a", 3]);
+    const pending = db.$client.unsafe("insert into prepared_query_fixture(id,space_id,value) values ($1,$2,$3) returning id", ["lazy", "space-a", 3]);
     expect(typeof pending.values).toBe("function");
     expect(await setup.select().from(records).where(eq(records.id, "lazy"))).toEqual([]);
     expect(await pending).toEqual([{ id: "lazy" }]);
@@ -99,13 +99,13 @@ describe.skipIf(!support.supported)("explicit ORM prepared statements on Postgre
   it("preserves transaction commits, nested savepoint rollback, and scoped reads", async () => {
     const db = fixture({ prepare: true });
     await db.transaction(async tx => {
-      expect(await tx.select({ value: records.value }).from(records).where(eq(records.companyId, "company-a"))).toEqual([{ value: 1 }]);
+      expect(await tx.select({ value: records.value }).from(records).where(eq(records.spaceId, "space-a"))).toEqual([{ value: 1 }]);
       await expect(tx.transaction(async nested => {
-        await nested.update(records).set({ value: 99 }).where(eq(records.companyId, "company-a"));
+        await nested.update(records).set({ value: 99 }).where(eq(records.spaceId, "space-a"));
         throw new Error("rollback savepoint");
       })).rejects.toThrow("rollback savepoint");
-      expect(await tx.select({ value: records.value }).from(records).where(eq(records.companyId, "company-a"))).toEqual([{ value: 1 }]);
-      await tx.insert(records).values({ id: "committed", companyId: "company-b", value: 3 });
+      expect(await tx.select({ value: records.value }).from(records).where(eq(records.spaceId, "space-a"))).toEqual([{ value: 1 }]);
+      await tx.insert(records).values({ id: "committed", spaceId: "space-b", value: 3 });
       const names = await tx.execute(sql`select statement from pg_prepared_statements`);
       expect(names.some(row => String(row.statement).includes('"prepared_query_fixture"'))).toBe(true);
     }, { isolationLevel: "serializable" });
@@ -153,11 +153,11 @@ describe.skipIf(!support.supported)("explicit ORM prepared statements on Postgre
   it("inherits the opt-in in dedicated and liveness clients", async () => {
     const db = fixture({ prepare: true });
     await withDedicatedDbConnection(db, async dedicated => {
-      expect(await dedicated.select({ value: records.value }).from(records).where(eq(records.companyId, "company-b"))).toEqual([{ value: 2 }]);
+      expect(await dedicated.select({ value: records.value }).from(records).where(eq(records.spaceId, "space-b"))).toEqual([{ value: 2 }]);
       expect(await statements(dedicated)).toHaveLength(1);
     });
     const live = livenessDb(db);
-    expect(await live.select({ value: records.value }).from(records).where(eq(records.companyId, "company-a"))).toEqual([{ value: 1 }]);
+    expect(await live.select({ value: records.value }).from(records).where(eq(records.spaceId, "space-a"))).toEqual([{ value: 1 }]);
     expect(await statements(live)).toHaveLength(1);
   });
 

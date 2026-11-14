@@ -9,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { eq } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
-import { agents, companies, createDb, environmentLeases, environments, heartbeatRuns, issueRecoveryActions,
+import { agents, spaces, createDb, environmentLeases, environments, heartbeatRuns, issueRecoveryActions,
   issues, workspaceOperations } from "@outpost/db";
 import { NOOP_PLUGIN_TRACER } from "@outpost/plugin-sdk";
 import { startEmbeddedPostgresTestDatabase } from "../src/__tests__/helpers/embedded-postgres.js";
@@ -99,7 +99,7 @@ it.skipIf(!live || Boolean(worker))("preserves provider files across an interrup
   const snapshotId = process.env.OUTPOST_RECOVERY_SNAPSHOT_ID;
   if (!image?.includes("@sha256:") && !/^[0-9a-f-]{36}$/i.test(snapshotId ?? ""))
     throw new Error("An immutable qualification image or snapshot ID is required");
-  const directory = await mkdtemp(path.join(os.tmpdir(), "paperclip-provider-recovery-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "outpost-provider-recovery-"));
   const priorHome = process.env.OUTPOST_HOME;
   process.env.OUTPOST_HOME = path.join(directory, "home");
   const priorStorage = process.env.OUTPOST_STORAGE_LOCAL_DIR;
@@ -117,8 +117,8 @@ it.skipIf(!live || Boolean(worker))("preserves provider files across an interrup
       expect(snapshot.state).toBe("active");
     }
     sandbox = await daytona.create({ ...(snapshotId ? { snapshot: snapshotId } : { image, resources: { cpu: 2, memory: 4, disk: 10 } }),
-      autoStopInterval: 10, autoArchiveInterval: 60, labels: { purpose: "paperclip-recovery-qualification" } }, { timeout: 300 });
-    const remoteCwd = "/tmp/paperclip-recovery-fixture";
+      autoStopInterval: 10, autoArchiveInterval: 60, labels: { purpose: "outpost-recovery-qualification" } }, { timeout: 300 });
+    const remoteCwd = "/tmp/outpost-recovery-fixture";
     await sandbox.process.executeCommand(`mkdir -p ${remoteCwd}`, undefined, undefined, 30);
     await sandbox.process.createSession("old-agent");
     await sandbox.process.executeSessionCommand("old-agent", {
@@ -127,14 +127,14 @@ it.skipIf(!live || Boolean(worker))("preserves provider files across an interrup
     });
     await expect.poll(async () => (await sandbox.process.executeCommand(`cat ${remoteCwd}/saved.txt`, undefined, undefined, 30)).result)
       .toContain("saved work");
-    const companyId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), actionId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Disposable provider qualification", issuePrefix: "LIVE" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Disposable preservation fixture", status: "blocked", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, issueId, agentId, status: "failed", runtimeMode: "legacy",
+    const spaceId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), actionId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Disposable provider qualification", issuePrefix: "LIVE" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Disposable preservation fixture", status: "blocked", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, issueId, agentId, status: "failed", runtimeMode: "legacy",
       contextSnapshot: { issueId }, finishedAt: new Date() });
     const [environment] = await db.insert(environments).values({ name: runId, driver: "sandbox" }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId: runId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId: runId,
       environmentId: environment.id, provider: "daytona", providerLeaseId: sandbox.id,
       leasePolicy: "retain_on_failure", status: "released", releasedAt: new Date(),
       metadata: { remoteCwd, driver: "sandbox", pluginId: randomUUID(), sandboxProviderPlugin: true,
@@ -142,11 +142,11 @@ it.skipIf(!live || Boolean(worker))("preserves provider files across an interrup
     const recovery = { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [lease.id] };
     await db.update(heartbeatRuns).set({ resultJson: { workspaceRestoreRecovery: recovery, workspaceRestoreFailure: "restore_failed" } })
       .where(eq(heartbeatRuns.id, runId));
-    await db.insert(issueRecoveryActions).values({ id: actionId, companyId, sourceIssueId: issueId,
+    await db.insert(issueRecoveryActions).values({ id: actionId, spaceId, sourceIssueId: issueId,
       kind: "active_run_watchdog", ownerType: "system", fingerprint: runId, nextAction: "",
       cause: "legacy_execution_requires_reconciliation", evidence: { runId, workspaceRestoreRecovery: recovery } });
     const fixture = path.join(directory, "fixture.json");
-    await writeFile(fixture, JSON.stringify({ connectionString: database.connectionString, companyId, issueId, runId, actionId,
+    await writeFile(fixture, JSON.stringify({ connectionString: database.connectionString, spaceId, issueId, runId, actionId,
       leaseId: lease.id, providerLeaseId: sandbox.id, remoteCwd, directory }), { mode: 0o600 });
     async function runController(phase) {
       const child = spawn(process.execPath, [path.join(root, "node_modules/vitest/vitest.mjs"), "run", "--config", "vitest.config.ts",
@@ -176,7 +176,7 @@ it.skipIf(!live || Boolean(worker))("preserves provider files across an interrup
     const finished = JSON.parse(await readFile(path.join(directory, "resume.json"), "utf8"));
     expect(finished.attempts).toBe(2);
     const fresh = path.join(directory, "fresh"); await mkdir(fresh);
-    const attached = await attachPreservedWorkspaceSnapshots({ db, companyId, issueId, sourceRunIds: [runId], cwd: fresh });
+    const attached = await attachPreservedWorkspaceSnapshots({ db, spaceId, issueId, sourceRunIds: [runId], cwd: fresh });
     const files = path.join(attached[0].path, "files");
     expect(await readFile(path.join(files, "saved.txt"), "utf8")).toBe("saved work\n");
     evidence.oldAgentStarts = (await readFile(path.join(files, "agent-starts"), "utf8")).trim().split("\n").length;

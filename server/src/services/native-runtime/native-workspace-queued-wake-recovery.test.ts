@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
   agents,
-  companies,
+  spaces,
   completionContracts,
   createDb,
   executionWorkspaces,
@@ -33,20 +33,20 @@ describe("native workspace recovery with a queued answer wake", () => {
   let db: ReturnType<typeof createDb>;
   let workspaceRoot: string;
   let priorLogRoot: string | undefined;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   const projectId = randomUUID();
 
   beforeAll(async () => {
-    workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-native-queued-wake-recovery-"));
+    workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-native-queued-wake-recovery-"));
     priorLogRoot = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH;
     process.env.WORKSPACE_OPERATION_LOG_BASE_PATH = path.join(workspaceRoot, "operation-logs");
     const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_WORKSPACE_FINALIZER_TEST_DATABASE_URL");
-    if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-queued-wake-recovery-");
+    if (!external) temporary = await startEmbeddedPostgresTestDatabase("outpost-native-queued-wake-recovery-");
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 6 });
-    await db.insert(companies).values({ id: companyId, name: "Queued wake recovery", issuePrefix: "QWR" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Native workspace agent", adapterType: "outpost_runner", status: "running" });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Native workspace project", status: "active" });
+    await db.insert(spaces).values({ id: spaceId, name: "Queued wake recovery", issuePrefix: "QWR" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Native workspace agent", adapterType: "outpost_runner", status: "running" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Native workspace project", status: "active" });
   }, 30_000);
 
   afterAll(async () => {
@@ -62,33 +62,33 @@ describe("native workspace recovery with a queued answer wake", () => {
     const worker = { provider: "railway" as const, projectId: "p", environmentId: "e", serviceId: "s", deploymentId: "d" };
     const owner = { token: randomUUID(), hostname: "replaced-controller", pid: 2,
       processStartedAt: "2026-10-10T00:02:55.560Z", controllerBootId: randomUUID(), worker };
-    await db.insert(issues).values({ id: issueId, companyId, title: "Saved copyback with an answer wake",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Saved copyback with an answer wake",
       status: "in_progress", workMode: "standard", assigneeAgentId: agentId });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "native-queued-wake-recovery-test-v1",
       risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { objective: "Saved copyback" }, canonicalSha256: `contract-${contractId}`,
       createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
       nativeIssueId: issueId, nativePhase: "workspace_finalizing", completionContractId: contractId,
       runnerProfileJson: { nativeExecutionInput: { binding: { executionWorkspaceId: randomUUID() } },
         nativeWorkspaceFinalizationOwner: owner } });
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId, completionContractId: contractId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId, completionContractId: contractId,
       serverFingerprint: `result-${resultId}`, schemaStatus: "accepted", resultJson: {}, canonicalSha256: `result-${resultId}` });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "workspace_finalizing", resultId });
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "workspace_finalizing", resultId });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    const action = await issueRecoveryActionService(db).upsertSourceScoped({ companyId, sourceIssueId: issueId,
-      kind: "active_run_watchdog", ownerType: "board", cause: "native_workspace_finalization_owner_unverified",
+    const action = await issueRecoveryActionService(db).upsertSourceScoped({ spaceId, sourceIssueId: issueId,
+      kind: "active_run_watchdog", ownerType: "operator", cause: "native_workspace_finalization_owner_unverified",
       fingerprint: nativeSha256({ runId, owner }), evidence: { runId, owner }, maxAttempts: 1,
       nextAction: "Verify the previous controller and its workspace-copyback processes have stopped." });
-    return { companyId, db, issueId, runId, owner, actionId: action.id, ownerToken: owner.token, actorId: "operator",
+    return { spaceId, db, issueId, runId, owner, actionId: action.id, ownerToken: owner.token, actorId: "operator",
       controllerAndCopybackStopped: true as const,
       stopEvidence: "Deployment platform confirms the exact old container and all its processes exited." };
   }
 
   async function queueAnswerWake(seed: { runId: string; issueId: string }, values: Partial<typeof heartbeatRuns.$inferInsert> = {}) {
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, seed.runId));
-    const [wake] = await db.insert(heartbeatRuns).values({ companyId, agentId, runtimeMode: "native", status: "queued",
+    const [wake] = await db.insert(heartbeatRuns).values({ spaceId, agentId, runtimeMode: "native", status: "queued",
       contextSnapshot: { issueId: seed.issueId, wakeReason: "ask_user_questions.answered" },
       createdAt: new Date(run.createdAt.getTime() + 60_000), ...values }).returning();
     return wake;
@@ -96,7 +96,7 @@ describe("native workspace recovery with a queued answer wake", () => {
 
   function proveStopped(seed: Awaited<ReturnType<typeof seedAbandonedCopyback>>) {
     return vi.spyOn(platformProof, "requestWorkspaceWorkerStopProof").mockResolvedValue({ status: "verified", proof: {
-      v: 1, iss: "paperclip-cloud", aud: "paperclip-workspace-worker-stop/v1", sub: "stack", runId: seed.runId,
+      v: 1, iss: "outpost-cloud", aud: "outpost-workspace-worker-stop/v1", sub: "stack", runId: seed.runId,
       ownerToken: seed.owner.token, worker: seed.owner.worker, stopped: true, iat: 1, exp: 61 } });
   }
 
@@ -130,7 +130,7 @@ describe("native workspace recovery with a queued answer wake", () => {
     if (changed === "requeued started wake") await queueAnswerWake(seed, { startedAt: new Date() });
     if (changed === "recovery action wake") await queueAnswerWake(seed, { contextSnapshot: { issueId: seed.issueId, wakeReason: "source_scoped_recovery_action" } });
     if (changed === "other agent's queued run") {
-      const [other] = await db.insert(agents).values({ companyId, name: "Mentioned agent", adapterType: "outpost_runner", status: "running" }).returning();
+      const [other] = await db.insert(agents).values({ spaceId, name: "Mentioned agent", adapterType: "outpost_runner", status: "running" }).returning();
       await queueAnswerWake(seed, { agentId: other.id });
     }
     const probe = proveStopped(seed);
@@ -152,7 +152,7 @@ describe("native workspace recovery with a queued answer wake", () => {
     const workspaceId = randomUUID(), cwd = path.join(workspaceRoot, seed.runId);
     await fs.mkdir(cwd);
     await fs.writeFile(path.join(cwd, "saved.txt"), "accepted work");
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, projectId, mode: "local", strategyType: "local_directory", name: "Retained workspace", cwd });
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, projectId, mode: "local", strategyType: "local_directory", name: "Retained workspace", cwd });
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, seed.issueId));
     await db.update(nativeRunResults).set({ resultJson: {
       result: { schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded", summary: "Wait for the answer.",

@@ -1,24 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 import { chatEndpoints, type Db } from "@outpost/db";
 import { githubConnectionEventService } from "./github-connection-events.js";
-import type { PaperclipCloudConnector } from "./paperclip-cloud-connector.js";
+import type { OutpostCloudConnector } from "./outpost-cloud-connector.js";
 
 function fixture(push = false, forcePolling = false) {
   let time = Date.parse("2026-09-04T12:00:00Z");
   const bindings = [{
-    grant: { id: "grant", companyId: "company", kind: "user", subjectUserId: "owner", status: "active",
+    grant: { id: "grant", spaceId: "space", kind: "user", subjectUserId: "owner", status: "active",
       providerTenant: { github: { installationIds: ["101"] } } },
     connection: { id: "connection", config: { sourceTemplateKey: "github", oauth: { connectorProfile: "github.code" } } },
   }];
-  const bots: Array<{ companyId: string }> = [];
+  const bots: Array<{ spaceId: string }> = [];
   // Only SQL is stubbed. Backoff, lease admission and concurrent execution use
   // the real service; relational persistence has its own Postgres suite.
   const result = <T>(rows: T[]) => Object.assign(Promise.resolve(rows), { limit: async () => rows.slice(0, 1) });
   const select = vi.fn(() => ({ from: (table: unknown) => table === chatEndpoints
     ? { where: () => result(bots) }
     : { innerJoin: () => ({ where: () => result(bindings) }) } }));
-  const leaseEvents = vi.fn<PaperclipCloudConnector["leaseEvents"]>().mockResolvedValue(null);
-  const connector = { leaseEvents, eventWakeVersion: () => push ? 1 : null } as unknown as PaperclipCloudConnector;
+  const leaseEvents = vi.fn<OutpostCloudConnector["leaseEvents"]>().mockResolvedValue(null);
+  const connector = { leaseEvents, eventWakeVersion: () => push ? 1 : null } as unknown as OutpostCloudConnector;
   const service = githubConnectionEventService({ select } as unknown as Db, { connector, env: forcePolling ? { OUTPOST_GITHUB_EVENT_POLLING: "1" } : {}, now: () => new Date(time) });
   return { service, leaseEvents, select, bots, bindings, advance: (ms: number) => { time += ms; } };
 }
@@ -32,7 +32,7 @@ describe("GitHub event polling during active App setup", () => {
     }
     expect(f.leaseEvents).toHaveBeenCalledTimes(5);
     const queries = f.select.mock.calls.length;
-    f.bots.push({ companyId: "company" });
+    f.bots.push({ spaceId: "space" });
     f.advance(5_000);
     for (let index = 0; index < 3; index++) await f.service.pollOnce();
     expect(f.select).toHaveBeenCalledTimes(queries);

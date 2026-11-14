@@ -1,0 +1,23 @@
+[Unit]
+Description=Outpost AI Agent Orchestrator
+Requires=outpost-db.service
+After=outpost-db.service
+
+[Container]
+Image=outpost-local
+ContainerName=outpost
+Pod=outpost.pod
+Volume=%h/.local/share/outpost:/outpost:Z
+Environment=HOST=0.0.0.0
+Environment=OUTPOST_HOME=/outpost
+Environment=OUTPOST_DEPLOYMENT_MODE=authenticated
+Environment=OUTPOST_DEPLOYMENT_EXPOSURE=private
+Environment=OUTPOST_PUBLIC_URL=http://localhost:3100
+EnvironmentFile=%h/.config/containers/systemd/outpost.env
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

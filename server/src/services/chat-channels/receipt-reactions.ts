@@ -125,7 +125,7 @@ export function createReceiptReactions(db: Db, options: ReceiptReactionsOptions)
     const [inserted] = await tx
         .insert(chatActions)
         .values({
-          companyId: input.endpoint.companyId,
+          spaceId: input.endpoint.spaceId,
           endpointId: input.endpoint.id,
           deliveryId: input.deliveryId,
           kind: "receipt_reaction",
@@ -168,7 +168,7 @@ export function createReceiptReactions(db: Db, options: ReceiptReactionsOptions)
       .from(chatActions)
       .leftJoin(chatDeliveries, and(
         eq(chatDeliveries.id, chatActions.deliveryId),
-        eq(chatDeliveries.companyId, chatActions.companyId),
+        eq(chatDeliveries.spaceId, chatActions.spaceId),
         eq(chatDeliveries.endpointId, chatActions.endpointId),
       ))
       .where(
@@ -404,13 +404,13 @@ export function createReceiptReactions(db: Db, options: ReceiptReactionsOptions)
               toolConnections,
               and(
                 eq(toolConnections.id, chatEndpoints.connectionId),
-                eq(toolConnections.companyId, chatEndpoints.companyId),
+                eq(toolConnections.spaceId, chatEndpoints.spaceId),
               ),
             )
             .where(
               and(
                 eq(chatEndpoints.id, action!.endpointId),
-                eq(chatEndpoints.companyId, action!.companyId),
+                eq(chatEndpoints.spaceId, action!.spaceId),
               ),
             )
             .limit(1);

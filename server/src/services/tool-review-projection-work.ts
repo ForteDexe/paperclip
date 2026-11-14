@@ -13,16 +13,16 @@ export function registerToolReviewProjectionWork(
     queue: DELIVERY_QUEUES.toolReviewProjection,
     batchSize: 1,
     decodeScope: hint => hint === "*" ? undefined : hint,
-    matches: (entry, companyId?: string) => companyId === undefined || entry.companyId === companyId,
-    load: async (companyId?: string) => {
-      const rows = companyId ? [{ companyId }] : await service.companies();
+    matches: (entry, spaceId?: string) => spaceId === undefined || entry.spaceId === spaceId,
+    load: async (spaceId?: string) => {
+      const rows = spaceId ? [{ spaceId }] : await service.spaces();
       for (const scope of unresolvedPasses.keys()) {
-        if (!companyId || scope === companyId) unresolvedPasses.delete(scope);
+        if (!spaceId || scope === spaceId) unresolvedPasses.delete(scope);
       }
-      return rows.map(row => ({ ...row, id: row.companyId, dueAt: Date.now() }));
+      return rows.map(row => ({ ...row, id: row.spaceId, dueAt: Date.now() }));
     },
     check: async (entry, signal) => {
-      const result = await service.sweep(entry.companyId, { maxRows: 500, signal, shouldContinue: canRun });
+      const result = await service.sweep(entry.spaceId, { maxRows: 500, signal, shouldContinue: canRun });
       if (!result.retry) { unresolvedPasses.delete(entry.id); return null; }
       if (result.truncated) return { ...entry, dueAt: Date.now() + 1000 };
       const count = Math.min((unresolvedPasses.get(entry.id) ?? 0) + 1, 5);

@@ -556,7 +556,7 @@ describe("AI repair inside the card", () => {
     renderBody(interaction); await flush();
     await act(() => button("Fix connection")!.click());
     expect(document.querySelector('[data-testid="shared-ai-credentials"]')).toBeNull();
-    expect(routedCredentialRender.mock.lastCall![0]).toMatchObject({ companyId: interaction.companyId, agentId: interaction.payload.requestingAgentId, reconnect: routedConnection });
+    expect(routedCredentialRender.mock.lastCall![0]).toMatchObject({ spaceId: interaction.spaceId, agentId: interaction.payload.requestingAgentId, reconnect: routedConnection });
     await act(() => button("Reconnect routed account")!.click());
     expect(completeMock).toHaveBeenCalledWith(interaction.id, connection.id);
   });
@@ -576,7 +576,7 @@ describe("AI repair inside the card", () => {
     expect(document.body.textContent).toContain("This replaces the agent’s existing authentication");
     await act(() => button("Use connection and continue")!.click());
     await flush();
-    expect(adoptMock).toHaveBeenCalledWith(interaction.payload.requestingAgentId, interaction.id, "new-ai-account", interaction.companyId);
+    expect(adoptMock).toHaveBeenCalledWith(interaction.payload.requestingAgentId, interaction.id, "new-ai-account", interaction.spaceId);
     expect(updateAgentMock).not.toHaveBeenCalled();
     expect(installMock).not.toHaveBeenCalled();
     expect(completeMock).not.toHaveBeenCalled();
@@ -626,10 +626,10 @@ describe("AI repair inside the card", () => {
     await act(() => credentialRender.mock.lastCall![0].onComplete({ connectionId: "new-subscription", grantId: "new-grant", method: "subscription" }));
     await flush();
     if (mode === "responsible_user") {
-      expect(setDefaultMock).toHaveBeenCalledWith(interaction.companyId, "new-grant");
+      expect(setDefaultMock).toHaveBeenCalledWith(interaction.spaceId, "new-grant");
       expect(updateAgentMock).not.toHaveBeenCalled();
     } else {
-      expect(updateAgentMock).toHaveBeenCalledWith(interaction.payload.requestingAgentId, { runtimeConfig: { heartbeat: { enabled: true }, aiConnection: { ...binding, method: "subscription", connectionId: "new-subscription", grantId: "new-grant" } } }, interaction.companyId);
+      expect(updateAgentMock).toHaveBeenCalledWith(interaction.payload.requestingAgentId, { runtimeConfig: { heartbeat: { enabled: true }, aiConnection: { ...binding, method: "subscription", connectionId: "new-subscription", grantId: "new-grant" } } }, interaction.spaceId);
       expect(setDefaultMock).not.toHaveBeenCalled();
     }
     expect(completeMock).toHaveBeenCalledWith(interaction.id, "new-subscription");
@@ -720,7 +720,7 @@ describe("AgentMail inline setup", () => {
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
   }
-  it("shows only the key inline, saves company access for this agent and completes after inbox setup", async () => {
+  it("shows only the key inline, saves space access for this agent and completes after inbox setup", async () => {
     renderBody(interaction);
     await flush();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
@@ -730,11 +730,11 @@ describe("AgentMail inline setup", () => {
     expect(button("Connect AgentMail")?.disabled).toBe(true);
     await enterKey();
     await clickReadyButton("Connect AgentMail");
-    expect(emailConnectMock).toHaveBeenCalledWith(interaction.companyId, {
+    expect(emailConnectMock).toHaveBeenCalledWith(interaction.spaceId, {
       apiKey: "fixture-api-key", grantKind: "organization", allAgents: false,
       agentIds: [interaction.payload.requestingAgentId], idempotencyKey: interaction.id,
     });
-    expect(emailSetupMock).toHaveBeenCalledWith(interaction.companyId, {
+    expect(emailSetupMock).toHaveBeenCalledWith(interaction.spaceId, {
       assignedAgentId: interaction.payload.requestingAgentId, credentialConnectionId: "email-account",
       receiveMode: "websocket", idempotencyKey: interaction.id,
     });
@@ -778,8 +778,8 @@ describe("AgentMail inline setup", () => {
     await clickReadyButton("Connect AgentMail");
     const next = emailSetupMock.mock.calls[1][1].idempotencyKey;
     expect(next).not.toBe(interaction.id);
-    expect(emailConnectMock).toHaveBeenCalledWith(interaction.companyId, expect.objectContaining({ idempotencyKey: next }));
-    expect(sessionStorage.getItem(`outpost.agentmail-inline:${interaction.companyId}:${interaction.id}`)).not.toContain("fixture-api-key");
+    expect(emailConnectMock).toHaveBeenCalledWith(interaction.spaceId, expect.objectContaining({ idempotencyKey: next }));
+    expect(sessionStorage.getItem(`outpost.agentmail-inline:${interaction.spaceId}:${interaction.id}`)).not.toContain("fixture-api-key");
     await act(() => root!.unmount()); host!.remove(); queryClient.clear();
     renderBody(interaction); await flush();
     await clickReadyButton("Finish setup");
@@ -798,7 +798,7 @@ describe("AgentMail inline setup", () => {
   });
   it("recovers the server-saved account when refresh interrupted its response", async () => {
     const resumedInteraction = { ...interaction, id: "a381e91e-7127-427d-9d2d-519d4deba89f" };
-    sessionStorage.setItem(`outpost.agentmail-inline:${interaction.companyId}:${resumedInteraction.id}`, JSON.stringify({
+    sessionStorage.setItem(`outpost.agentmail-inline:${interaction.spaceId}:${resumedInteraction.id}`, JSON.stringify({
       setupRequestId: resumedInteraction.id, credentialId: null, inboxConnectionId: null, selectedCredentialId: "",
     }));
     setupOptionsMock.mockResolvedValue({ existingConnections: [], emailSetup: { credentialConnectionId: "server-saved-account", readyConnectionId: null } });
@@ -806,13 +806,13 @@ describe("AgentMail inline setup", () => {
     expect(document.querySelector('input[type="password"]')).toBeNull();
     await clickReadyButton("Finish setup");
     expect(emailConnectMock).not.toHaveBeenCalled();
-    expect(emailSetupMock).toHaveBeenCalledWith(interaction.companyId, expect.objectContaining({
+    expect(emailSetupMock).toHaveBeenCalledWith(interaction.spaceId, expect.objectContaining({
       credentialConnectionId: "server-saved-account", idempotencyKey: resumedInteraction.id,
     }));
   });
   it("keeps a different saved-key selection when recovering an interrupted save", async () => {
     const resumedInteraction = { ...interaction, id: "a381e91e-7127-427d-9d2d-519d4deba89f" };
-    sessionStorage.setItem(`outpost.agentmail-inline:${interaction.companyId}:${resumedInteraction.id}`, JSON.stringify({
+    sessionStorage.setItem(`outpost.agentmail-inline:${interaction.spaceId}:${resumedInteraction.id}`, JSON.stringify({
       setupRequestId: resumedInteraction.id, credentialId: null, inboxConnectionId: null, selectedCredentialId: "selected-account",
     }));
     emailCredentialsMock.mockResolvedValue([{ id: "selected-account", label: "My selected key", scope: "organization", createdAt: "2026-10-01T14:00:00Z" }]);
@@ -821,20 +821,20 @@ describe("AgentMail inline setup", () => {
     await waitForAssertion(() => expect((document.querySelector('select') as HTMLSelectElement)?.value).toBe("selected-account"));
     await clickReadyButton("Connect AgentMail");
     expect(emailConnectMock).not.toHaveBeenCalled();
-    expect(emailSetupMock).toHaveBeenCalledWith(interaction.companyId, expect.objectContaining({
+    expect(emailSetupMock).toHaveBeenCalledWith(interaction.spaceId, expect.objectContaining({
       credentialConnectionId: "selected-account", idempotencyKey: resumedInteraction.id,
     }));
   });
   it("does not restore an abandoned server account after the user changes keys", async () => {
     const replacementRequestId = "a381e91e-7127-427d-9d2d-519d4deba89f";
-    sessionStorage.setItem(`outpost.agentmail-inline:${interaction.companyId}:${interaction.id}`, JSON.stringify({
+    sessionStorage.setItem(`outpost.agentmail-inline:${interaction.spaceId}:${interaction.id}`, JSON.stringify({
       setupRequestId: replacementRequestId, credentialId: null, inboxConnectionId: null, selectedCredentialId: "",
     }));
     setupOptionsMock.mockResolvedValue({ existingConnections: [], emailSetup: { credentialConnectionId: "abandoned-account", readyConnectionId: null } });
     renderBody(interaction); await flush(); await enterKey();
     await clickReadyButton("Connect AgentMail");
-    expect(emailConnectMock).toHaveBeenCalledWith(interaction.companyId, expect.objectContaining({ idempotencyKey: replacementRequestId }));
-    expect(emailSetupMock).toHaveBeenCalledWith(interaction.companyId, expect.objectContaining({
+    expect(emailConnectMock).toHaveBeenCalledWith(interaction.spaceId, expect.objectContaining({ idempotencyKey: replacementRequestId }));
+    expect(emailSetupMock).toHaveBeenCalledWith(interaction.spaceId, expect.objectContaining({
       credentialConnectionId: "email-account", idempotencyKey: replacementRequestId,
     }));
   });

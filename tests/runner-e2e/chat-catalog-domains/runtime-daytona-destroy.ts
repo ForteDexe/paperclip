@@ -5,12 +5,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Cookie } from "@playwright/test";
-export interface DestroySandboxBinding { companyId: string; environmentId: string; taskId: string; runId: string; leaseId: string; sandboxId: string; actionId: string; attempt: string }
+export interface DestroySandboxBinding { spaceId: string; environmentId: string; taskId: string; runId: string; leaseId: string; sandboxId: string; actionId: string; attempt: string }
 export interface DestroySandboxReceipt extends DestroySandboxBinding { processIsolation: true; testRunnerAttached: false; apiStepRecorder: false; actualOwnedProviderLabels: true; actualDeleteAccepted: true; independentlyAbsent: true }
 export function providerSandboxIsOwned(sandbox: { id?: string; name?: string; labels?: Record<string, string> }, binding: DestroySandboxBinding) {
-  const labels = sandbox.labels, attempt = labels?.["paperclip-create-attempt"];
-  return sandbox.id === binding.sandboxId && !!attempt && /^[a-f0-9-]{36}$/i.test(attempt) && sandbox.name === `paperclip-create-${attempt}` && labels?.["paperclip-provider"] === "daytona"
-    && labels["paperclip-company-id"] === binding.companyId && labels["paperclip-environment-id"] === binding.environmentId && labels["paperclip-run-id"] === binding.runId && labels["paperclip-reuse-lease"] === "false";
+  const labels = sandbox.labels, attempt = labels?.["outpost-create-attempt"];
+  return sandbox.id === binding.sandboxId && !!attempt && /^[a-f0-9-]{36}$/i.test(attempt) && sandbox.name === `outpost-create-${attempt}` && labels?.["outpost-provider"] === "daytona"
+    && labels["outpost-space-id"] === binding.spaceId && labels["outpost-environment-id"] === binding.environmentId && labels["outpost-run-id"] === binding.runId && labels["outpost-reuse-lease"] === "false";
 }
 export function validateDestroyedSandboxReceipt(value: unknown, expected: DestroySandboxBinding): DestroySandboxReceipt {
   const r = value as DestroySandboxReceipt;
@@ -22,7 +22,7 @@ export function validateDestroyedSandboxReceipt(value: unknown, expected: Destro
 export async function destroyOwnedFailedSandbox(input: { scenarioId: "workspaces.recover-lost-sandbox"; executionId: string; binding: DestroySandboxBinding; baseURL: string; cookies: Cookie[]; credential: string }, privateSecrets: string[]): Promise<DestroySandboxReceipt> {
   if (input.credential.length < 12) throw new Error("The exact selected Daytona key is required for the owned sandbox fault");
   privateSecrets.push(input.credential, ...input.cookies.map(row => row.value));
-  const directory = await mkdtemp(path.join(tmpdir(), "paperclip-owned-sandbox-fault-")); await chmod(directory, 0o700);
+  const directory = await mkdtemp(path.join(tmpdir(), "outpost-owned-sandbox-fault-")); await chmod(directory, 0o700);
   try {
     const request = path.join(directory, "request.json"); await writeFile(request, JSON.stringify(input), { flag: "wx", mode: 0o600 });
     const loader = fileURLToPath(new URL("../../../server/node_modules/tsx/dist/loader.mjs", import.meta.url)), worker = fileURLToPath(new URL("./runtime-daytona-destroy-worker.ts", import.meta.url));

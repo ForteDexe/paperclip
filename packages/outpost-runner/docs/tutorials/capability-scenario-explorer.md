@@ -58,7 +58,7 @@ Capability eval conformance passed: 106 cases across 16 groups.
 ```
 
 The report is written to
-`.paperclip-local/evidence/capability/eval-parity-report.{json,md}`. It is a
+`.outpost-local/evidence/capability/eval-parity-report.{json,md}`. It is a
 generated-on-demand artifact, not a committed file; a clean checkout does not
 contain it. Delete it before you run `pnpm --filter @outpost/outpost-runner docs:validate`
 (the report carries no OKF frontmatter and would otherwise fail the knowledge
@@ -160,7 +160,7 @@ pnpm --filter @outpost/outpost-runner docs:validate
 ## Known gaps and boundaries
 
 - **Reports are local.** `report:capability-evals` writes ignored output under
-  `.paperclip-local/evidence/`; `docs:validate` does not scan it.
+  `.outpost-local/evidence/`; `docs:validate` does not scan it.
 - **Codex mode is disabled.** The explorer offers a bounded real-Codex binding
   sample only through `report:capability-evals`; the browser holds no credential
   and the in-page Codex mode is inert with a stated reason.

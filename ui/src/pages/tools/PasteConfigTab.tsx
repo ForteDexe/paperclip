@@ -96,12 +96,12 @@ function askFirstLevelsFrom(result: ConnectToolAppResult): string[] {
 /**
  * M8a — "Paste a config" tab on the Advanced door (PAP-10862, plan D8).
  *
- * A thin, honest surface over `POST /companies/:id/tools/mcp/import-json`: paste
+ * A thin, honest surface over `POST /spaces/:id/tools/mcp/import-json`: paste
  * the snippet a README tells you to copy, and we parse it into a friendly
  * preview (humanized field labels, never the raw transport jargon). This is one
  * of the two M8 screens where "MCP" vocabulary is allowed (PAP-10827 vocab map).
  */
-export function PasteConfigTab({ companyId }: { companyId: string }) {
+export function PasteConfigTab({ spaceId }: { spaceId: string }) {
   const navigate = useNavigate();
   const [draftText, setDraftText] = useState("");
   const [preview, setPreview] = useState<McpJsonImportPreview | null>(null);
@@ -116,7 +116,7 @@ export function PasteConfigTab({ companyId }: { companyId: string }) {
 
   const authorization = useAuthorizationWindow();
   const importMutation = useMutation({
-    mutationFn: (mcpJson: string) => toolsApi.importMcpJson(companyId, { mcpJson }),
+    mutationFn: (mcpJson: string) => toolsApi.importMcpJson(spaceId, { mcpJson }),
     onSuccess: (result) => {
       setPreview(result);
       setConnectionNames(Object.fromEntries(result.drafts.map((draft) => [draft.name, draft.name])));
@@ -189,7 +189,7 @@ export function PasteConfigTab({ companyId }: { companyId: string }) {
     mutationFn: (draft: McpJsonImportDraft) => {
       const url = draftConnectUrl(draft);
       if (!url) throw new Error("Only remote HTTP drafts can be checked and activated from pasted config.");
-      return toolsApi.connectApp(companyId, {
+      return toolsApi.connectApp(spaceId, {
         link: url,
         name: connectionNames[draft.name]?.trim() || draft.name,
         credentialValues: credentialValuesForDraft(draft, credentialValues),
@@ -235,7 +235,7 @@ export function PasteConfigTab({ companyId }: { companyId: string }) {
       const askFirstIds = (connectResult?.actions.canMakeChanges ?? [])
         .filter((action) => enabled[action.catalogEntryId] && askFirstLevels.includes(action.riskLevel))
         .map((action) => action.catalogEntryId);
-      return toolsApi.finishApp(companyId, connectResult!.connectionId, {
+      return toolsApi.finishApp(spaceId, connectResult!.connectionId, {
         enabledCatalogEntryIds: enabledIds,
         askFirstCatalogEntryIds: askFirstIds,
         access: "all_agents",

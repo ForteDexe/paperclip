@@ -1,20 +1,20 @@
-import type { PaperclipSemanticActionDescriptor } from "../catalog/semantic-action-types.js";
+import type { OutpostSemanticActionDescriptor } from "../catalog/semantic-action-types.js";
 import type {
-  PaperclipSemanticAuthorizationDecision,
-  PaperclipSemanticAuthorizationPhase,
-  PaperclipSemanticDenialCode,
-  PaperclipSemanticRunContext,
+  OutpostSemanticAuthorizationDecision,
+  OutpostSemanticAuthorizationPhase,
+  OutpostSemanticDenialCode,
+  OutpostSemanticRunContext,
 } from "./types.js";
 
 const TERMINAL_TASK_STATES = new Set(["done", "cancelled", "canceled"]);
 
-export function decidePaperclipSemanticAuthorization(
-  descriptor: PaperclipSemanticActionDescriptor,
-  context: PaperclipSemanticRunContext,
-  phase: PaperclipSemanticAuthorizationPhase,
+export function decideOutpostSemanticAuthorization(
+  descriptor: OutpostSemanticActionDescriptor,
+  context: OutpostSemanticRunContext,
+  phase: OutpostSemanticAuthorizationPhase,
   requestedRunId: string,
   input?: unknown,
-): PaperclipSemanticAuthorizationDecision {
+): OutpostSemanticAuthorizationDecision {
   if (!validAuthorityContext(context, requestedRunId)) {
     return {
       allowed: false,
@@ -35,9 +35,9 @@ export function decidePaperclipSemanticAuthorization(
     effectiveClaims,
   } as const;
   const deny = (
-    code: PaperclipSemanticDenialCode,
+    code: OutpostSemanticDenialCode,
     reason: string,
-  ): PaperclipSemanticAuthorizationDecision => ({
+  ): OutpostSemanticAuthorizationDecision => ({
     ...base,
     allowed: false,
     code,
@@ -51,12 +51,12 @@ export function decidePaperclipSemanticAuthorization(
     );
   }
   if (
-    context.actor.companyId !== context.companyId ||
-    context.activeTask.companyId !== context.companyId
+    context.actor.spaceId !== context.spaceId ||
+    context.activeTask.spaceId !== context.spaceId
   ) {
     return deny(
-      "company_mismatch",
-      "The actor and active task must belong to the run company.",
+      "space_mismatch",
+      "The actor and active task must belong to the run space.",
     );
   }
   if (context.actor.status !== "active") {
@@ -138,7 +138,7 @@ export function decidePaperclipSemanticAuthorization(
 function validAuthorityContext(
   context: unknown,
   requestedRunId: string,
-): context is PaperclipSemanticRunContext {
+): context is OutpostSemanticRunContext {
   if (
     !isRecord(context) ||
     !isRecord(context.actor) ||
@@ -153,11 +153,11 @@ function validAuthorityContext(
   const stableIds = [
     requestedRunId,
     context.runId,
-    context.companyId,
+    context.spaceId,
     actor.id,
-    actor.companyId,
+    actor.spaceId,
     task.id,
-    task.companyId,
+    task.spaceId,
     ...(task.assigneeActorId === null ? [] : [task.assigneeActorId]),
     ...(task.executionRunId === null ? [] : [task.executionRunId]),
   ];

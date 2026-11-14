@@ -40,7 +40,7 @@ test("Muse registration validates actual production subjects with honest fixture
   const entry = entries[0];
   assert.equal(entry.stableId, stableId);
   assert.equal(entry.sidebarTitle, muse.title);
-  assert.deepEqual(entry.capabilities, ["agents/hire", "agents/lifecycle", "access/invitations"]);
+  assert.deepEqual(entry.capabilities, ["agents/create", "agents/lifecycle", "access/invitations"]);
   assert.equal(entry.status, "unreviewed");
   assert.equal(entry.implementation, "production");
   assert.equal(entry.boundary, "fixtures");
@@ -61,7 +61,7 @@ test("Muse registration validates actual production subjects with honest fixture
 
 test("generated catalog navigation links the one Muse suite from every registered capability", () => {
   const generated = renderIndex(catalog, stories, index);
-  for (const capability of ["agents/hire", "agents/lifecycle", "access/invitations"]) {
+  for (const capability of ["agents/create", "agents/lifecycle", "access/invitations"]) {
     const line = generated.split("\n").find(text => text.startsWith(`- \`${capability}\`:`));
     assert.ok(line?.includes(`../../${file}`), `Missing Muse lookup: ${capability}`);
   }

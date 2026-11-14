@@ -19,14 +19,14 @@ export const SUPERSEDED_NATIVE_FINALIZATION_REASON = "superseded_workspace_final
  * which the in-process registry rules out. Age is never used.
  */
 export async function settleSupersededNativeWorkspaceFinalizations(db: Db, input: {
-  companyId: string;
+  spaceId: string;
   runId: string;
   issueId: string;
   superseding: { id: string; status: string };
 }): Promise<string[]> {
   if (input.superseding.status === "running") return [];
   const candidates = await db.select().from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, input.companyId),
+    eq(workspaceOperations.spaceId, input.spaceId),
     eq(workspaceOperations.heartbeatRunId, input.runId),
     eq(workspaceOperations.issueId, input.issueId),
     eq(workspaceOperations.phase, "workspace_finalize"),
@@ -40,7 +40,7 @@ export async function settleSupersededNativeWorkspaceFinalizations(db: Db, input
   const settled: string[] = [];
   for (const candidate of candidates) {
     if (isNativeWorkspaceFinalizationOperationActive({
-      operationId: candidate.id, companyId: input.companyId, runId: input.runId, issueId: input.issueId,
+      operationId: candidate.id, spaceId: input.spaceId, runId: input.runId, issueId: input.issueId,
     })) continue;
     const metadata = candidate.metadata ?? {};
     // Independent obligations are never retired by a later export.
@@ -71,12 +71,12 @@ export async function settleSupersededNativeWorkspaceFinalizations(db: Db, input
         metadata: { ...metadata, supersededFinalization: provenance },
       }).where(and(
         eq(workspaceOperations.id, candidate.id),
-        eq(workspaceOperations.companyId, input.companyId),
+        eq(workspaceOperations.spaceId, input.spaceId),
         eq(workspaceOperations.status, "running"),
       )).returning({ id: workspaceOperations.id });
       if (!row) return null;
       const activity = await persistActivity(tx as unknown as Db, {
-        companyId: input.companyId, actorType: "system", actorId: "native-workspace-finalizer",
+        spaceId: input.spaceId, actorType: "system", actorId: "native-workspace-finalizer",
         action: "workspace_operation.reconciled", entityType: "workspace_operation", entityId: candidate.id,
         runId: input.runId, issueId: input.issueId, details: provenance,
       });

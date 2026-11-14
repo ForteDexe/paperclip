@@ -5,11 +5,11 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   activityLog,
-  companies,
-  companyMemberships,
-  companySecretBindings,
-  companySecretVersions,
-  companySecrets,
+  spaces,
+  spaceMemberships,
+  spaceSecretBindings,
+  spaceSecretVersions,
+  spaceSecrets,
   createDb,
   secretAccessEvents,
   userSecretDeclarations,
@@ -31,7 +31,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
   let stopDb: (() => Promise<void>) | null = null;
   let db!: ReturnType<typeof createDb>;
   const previousKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
-  const secretsTmpDir = path.join(os.tmpdir(), `paperclip-owner-scoped-${randomUUID()}`);
+  const secretsTmpDir = path.join(os.tmpdir(), `outpost-owner-scoped-${randomUUID()}`);
 
   beforeAll(async () => {
     mkdirSync(secretsTmpDir, { recursive: true });
@@ -46,12 +46,12 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
     await db.delete(activityLog);
     await db.delete(secretAccessEvents);
     await db.delete(userSecretDeclarations);
-    await db.delete(companySecretBindings);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
+    await db.delete(spaceSecretBindings);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
     await db.delete(userSecretDefinitions);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -64,26 +64,26 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
     rmSync(secretsTmpDir, { recursive: true, force: true });
   });
 
-  async function seedCompany(name = "Acme") {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+  async function seedSpace(name = "Acme") {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name,
-      issuePrefix: `T${companyId.slice(0, 7)}`.toUpperCase(),
+      issuePrefix: `T${spaceId.slice(0, 7)}`.toUpperCase(),
       status: "active",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    return companyId;
+    return spaceId;
   }
 
-  async function seedCompanyMember(
-    companyId: string,
+  async function seedSpaceMember(
+    spaceId: string,
     userId: string,
     membershipRole: "owner" | "member" | "viewer" = "owner",
   ) {
-    await db.insert(companyMemberships).values({
-      companyId,
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "user",
       principalId: userId,
       status: "active",
@@ -103,15 +103,15 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
   };
 
   it("owner_scoped resolves a required user_secret_ref by owner without a declaration row", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "local_encrypted",
     });
-    await svc.createCurrentUserSecretValue(companyId, "user-1", {
+    await svc.createCurrentUserSecretValue(spaceId, "user-1", {
       definitionId: definition.id,
       value: "ghp_owner_value",
     });
@@ -129,7 +129,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
 
     // No userSecretDeclarations row exists — owner_scoped must still resolve.
     const resolved = await svc.resolveAdapterConfigForRuntime(
-      companyId,
+      spaceId,
       adapterConfig,
       { ...ownerScopedConsumer, responsibleUserId: "user-1" },
       { adapterType: "hermes_gateway", userSecretMediation: "owner_scoped" },
@@ -140,10 +140,10 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
   });
 
   it("owner_scoped still throws responsible_user_missing when no responsible user", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    await svc.createUserSecretDefinition(companyId, {
+    await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "local_encrypted",
@@ -162,7 +162,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
 
     await expect(
       svc.resolveAdapterConfigForRuntime(
-        companyId,
+        spaceId,
         adapterConfig,
         { ...ownerScopedConsumer, actorId: null, responsibleUserId: null },
         { adapterType: "hermes_gateway", userSecretMediation: "owner_scoped" },
@@ -173,48 +173,48 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
     });
   });
 
-  it("owner_scoped resolves a company secret_ref with no binding row (no regression)", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+  it("owner_scoped resolves a space secret_ref with no binding row (no regression)", async () => {
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    const companySecret = await svc.create(companyId, {
-      name: `company-token-${randomUUID()}`,
+    const spaceSecret = await svc.create(spaceId, {
+      name: `space-token-${randomUUID()}`,
       provider: "local_encrypted",
-      value: "company-secret-value",
+      value: "space-secret-value",
     });
 
     const adapterConfig = {
       env: {
-        COMPANY_TOKEN: {
+        SPACE_TOKEN: {
           type: "secret_ref" as const,
-          secretId: companySecret.id,
+          secretId: spaceSecret.id,
           version: "latest" as const,
         },
       },
     };
 
-    // No companySecretBindings row exists for this prospective config.
+    // No spaceSecretBindings row exists for this prospective config.
     const resolved = await svc.resolveAdapterConfigForRuntime(
-      companyId,
+      spaceId,
       adapterConfig,
       { ...ownerScopedConsumer, responsibleUserId: "user-1" },
       { adapterType: "hermes_gateway", userSecretMediation: "owner_scoped" },
     );
 
-    expect(resolved.config.env).toEqual({ COMPANY_TOKEN: "company-secret-value" });
-    expect(resolved.secretKeys).toEqual(new Set(["COMPANY_TOKEN"]));
+    expect(resolved.config.env).toEqual({ SPACE_TOKEN: "space-secret-value" });
+    expect(resolved.secretKeys).toEqual(new Set(["SPACE_TOKEN"]));
   });
 
   it("owner_scoped with allowedBindingIds present throws the explicit owner-scoped configuration error (fail-closed, not silently stripped)", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "local_encrypted",
     });
-    await svc.createCurrentUserSecretValue(companyId, "user-1", {
+    await svc.createCurrentUserSecretValue(spaceId, "user-1", {
       definitionId: definition.id,
       value: "ghp_owner_value",
     });
@@ -232,7 +232,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
 
     await expect(
       svc.resolveAdapterConfigForRuntime(
-        companyId,
+        spaceId,
         adapterConfig,
         { ...ownerScopedConsumer, responsibleUserId: "user-1", allowedBindingIds: ["some-binding-id"] },
         { adapterType: "hermes_gateway", userSecretMediation: "owner_scoped" },
@@ -244,15 +244,15 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
   });
 
   it("owner_scoped with an empty allowedBindingIds array is rejected too (an empty allowlist requests 'allow nothing', which owner_scoped cannot honor)", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "local_encrypted",
     });
-    await svc.createCurrentUserSecretValue(companyId, "user-1", {
+    await svc.createCurrentUserSecretValue(spaceId, "user-1", {
       definitionId: definition.id,
       value: "ghp_owner_value",
     });
@@ -270,7 +270,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
 
     await expect(
       svc.resolveAdapterConfigForRuntime(
-        companyId,
+        spaceId,
         adapterConfig,
         { ...ownerScopedConsumer, responsibleUserId: "user-1", allowedBindingIds: [] },
         { adapterType: "hermes_gateway", userSecretMediation: "owner_scoped" },
@@ -282,15 +282,15 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
   });
 
   it("declared mode is unchanged (declared ref resolves; undeclared required ref → binding_missing)", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "local_encrypted",
     });
-    await svc.createCurrentUserSecretValue(companyId, "user-1", {
+    await svc.createCurrentUserSecretValue(spaceId, "user-1", {
       definitionId: definition.id,
       value: "ghp_owner_value",
     });
@@ -318,7 +318,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
     // Undeclared required ref → binding_missing (declaration guard active in declared mode).
     await expect(
       svc.resolveAdapterConfigForRuntime(
-        companyId,
+        spaceId,
         adapterConfig,
         declaredConsumer,
         { adapterType: "hermes_gateway" },
@@ -330,7 +330,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
 
     // Add the matching declaration row (configPath the resolver injects: env.<KEY>).
     await db.insert(userSecretDeclarations).values({
-      companyId,
+      spaceId,
       userSecretDefinitionId: definition.id,
       targetType: "agent",
       targetId: "agent-1",
@@ -342,7 +342,7 @@ describeEmbeddedPostgres("secretService resolveAdapterConfigForRuntime — userS
     });
 
     const resolved = await svc.resolveAdapterConfigForRuntime(
-      companyId,
+      spaceId,
       adapterConfig,
       declaredConsumer,
       { adapterType: "hermes_gateway" },

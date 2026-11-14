@@ -46,19 +46,19 @@ import {
   parseScopedNetworkEgressGrant,
 } from "./scoped-network-egress.js";
 import {
-  deriveCompanySlug,
+  deriveSpaceSlug,
   deriveNamespaceName,
   newRunUlidDns,
-  paperclipLabels,
+  outpostLabels,
 } from "./utils.js";
 
-// The namespace paperclip-server itself runs in. Used when building
+// The namespace outpost-server itself runs in. Used when building
 // NetworkPolicy manifests so the tenant namespace allows inbound traffic
 // from the server pod.
-const OUTPOST_SERVER_NAMESPACE = "paperclip";
+const OUTPOST_SERVER_NAMESPACE = "outpost";
 
 // Name of the ServiceAccount created inside each tenant namespace by ensureTenant.
-const TENANT_SERVICE_ACCOUNT = "paperclip-tenant-sa";
+const TENANT_SERVICE_ACCOUNT = "outpost-tenant-sa";
 
 // Resource quota defaults applied to every tenant namespace (tunable via
 // config in a future iteration).
@@ -70,16 +70,16 @@ const DEFAULT_RESOURCE_QUOTA = {
   limitsMemory: "40Gi",
 };
 
-function deriveTenantNamespace(config: KubernetesProviderConfig, companyId: string): string {
-  // TODO: future versions could thread companyName through AcquireLeaseParams
+function deriveTenantNamespace(config: KubernetesProviderConfig, spaceId: string): string {
+  // TODO: future versions could thread spaceName through AcquireLeaseParams
   // to get a friendlier slug (e.g. "acme-corp") instead of the UUID-derived one.
-  const slug = config.companySlug ?? deriveCompanySlug(companyId);
+  const slug = config.spaceSlug ?? deriveSpaceSlug(spaceId);
   return deriveNamespaceName(config.namespacePrefix, slug);
 }
 
 function generateBootstrapToken(): string {
   // TODO: tighten once the agent runtime shim (companion images PR) lands its
-  // callback auth scheme; paperclip-server's callback auth is out of scope for
+  // callback auth scheme; outpost-server's callback auth is out of scope for
   // this plugin. For now this per-run random token is stored in the per-run
   // Secret and read by the runtime image entrypoint for initial registration.
   return randomBytes(32).toString("hex");
@@ -152,7 +152,7 @@ async function resolveSyncPodExec(
   const namespace =
     typeof lease.metadata?.namespace === "string"
       ? lease.metadata.namespace
-      : deriveTenantNamespace(config, params.companyId);
+      : deriveTenantNamespace(config, params.spaceId);
 
   const leaseBackend =
     typeof lease.metadata?.backend === "string"
@@ -252,7 +252,7 @@ const plugin = definePlugin({
       };
     }
     const config = parsed.data;
-    const namespace = deriveTenantNamespace(config, params.companyId);
+    const namespace = deriveTenantNamespace(config, params.spaceId);
 
     try {
       const kc = createKubeConfig({
@@ -300,7 +300,7 @@ const plugin = definePlugin({
     },
   ): Promise<PluginEnvironmentLease> {
     const config = kubernetesProviderConfigSchema.parse(params.config);
-    const namespace = deriveTenantNamespace(config, params.companyId);
+    const namespace = deriveTenantNamespace(config, params.spaceId);
 
     // The adapter for THIS run is the agent's adapter (params.adapterType) when
     // supplied, so one environment can serve mixed harnesses; otherwise fall back
@@ -311,7 +311,7 @@ const plugin = definePlugin({
 
     // Emit a runtime warning if FQDNs are configured but egressMode=standard
     // cannot enforce them. Mirrors the validateConfig warning so operators see
-    // it in paperclip-server logs even if they missed the validation step.
+    // it in outpost-server logs even if they missed the validation step.
     const adapterDefaultsForWarn = getAdapterDefaults(effectiveAdapterType, config.adapters);
     const totalFqdnsForWarn = [...adapterDefaultsForWarn.allowFqdns, ...config.egressAllowFqdns];
     if (config.egressMode === "standard" && totalFqdnsForWarn.length > 0) {
@@ -338,8 +338,8 @@ const plugin = definePlugin({
 
     await ensureTenant(clients, {
       namespace,
-      companyId: params.companyId,
-      paperclipServerNamespace: OUTPOST_SERVER_NAMESPACE,
+      spaceId: params.spaceId,
+      outpostServerNamespace: OUTPOST_SERVER_NAMESPACE,
       serviceAccountAnnotations: config.serviceAccountAnnotations,
       egressMode: config.egressMode,
       egressAllowFqdns: [...adapterDefaults.allowFqdns, ...config.egressAllowFqdns],
@@ -352,10 +352,10 @@ const plugin = definePlugin({
 
     // TODO: use params.runId as stand-in for agentId in labels; future
     // versions will have a dedicated agentId on AcquireLeaseParams.
-    const labels = paperclipLabels({
+    const labels = outpostLabels({
       runId: params.runId,
       agentId: params.runId,
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       adapterType: effectiveAdapterType,
     });
 
@@ -475,7 +475,7 @@ const plugin = definePlugin({
     const namespace =
       typeof params.leaseMetadata?.namespace === "string"
         ? params.leaseMetadata.namespace
-        : deriveTenantNamespace(config, params.companyId);
+        : deriveTenantNamespace(config, params.spaceId);
     const leaseBackend =
       typeof params.leaseMetadata?.backend === "string"
         ? (params.leaseMetadata.backend as "sandbox-cr" | "job")
@@ -577,7 +577,7 @@ const plugin = definePlugin({
     const namespace =
       typeof params.leaseMetadata?.namespace === "string"
         ? params.leaseMetadata.namespace
-        : deriveTenantNamespace(config, params.companyId);
+        : deriveTenantNamespace(config, params.spaceId);
 
     const kc = createKubeConfig({
       inCluster: config.inCluster,
@@ -616,7 +616,7 @@ const plugin = definePlugin({
     const namespace =
       typeof params.leaseMetadata?.namespace === "string"
         ? params.leaseMetadata.namespace
-        : deriveTenantNamespace(config, params.companyId);
+        : deriveTenantNamespace(config, params.spaceId);
     const leaseBackend =
       typeof params.leaseMetadata?.backend === "string"
         ? (params.leaseMetadata.backend as "sandbox-cr" | "job")
@@ -674,7 +674,7 @@ const plugin = definePlugin({
     const namespace =
       typeof lease.metadata?.namespace === "string"
         ? lease.metadata.namespace
-        : deriveTenantNamespace(config, params.companyId);
+        : deriveTenantNamespace(config, params.spaceId);
 
     // Determine which backend this lease was created with.
     const leaseBackend =
@@ -932,7 +932,7 @@ const plugin = definePlugin({
       };
     } else {
       // ── Job backend (legacy / stable fallback) ──────────────────────────────
-      // The container entrypoint is baked into the Job spec (Tini + paperclip-agent-shim).
+      // The container entrypoint is baked into the Job spec (Tini + outpost-agent-shim).
       // We do NOT re-exec command/args — instead we wait for the Job to finish
       // and collect its logs.
       //

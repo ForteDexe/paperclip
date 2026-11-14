@@ -10,7 +10,7 @@ import { prepareOwnedCli, runOwnedCli, cleanupOwnedCli } from "./privileged-cli-
 
 export function documentExportCommand(reply: string, sourceId: string, sourceIdentifier?: string) {
   const blocks = [...reply.matchAll(/```(?:bash|sh|shell|zsh|console)?\s*\n([\s\S]*?)```/g)].map(match => match[1]!.replace(/\\\r?\n/g, " ").trim());
-  const matches = blocks.flatMap(block => block.split(/\r?\n/)).map(line => line.trim().replace(/^\$\s+/, "").match(/^(?:paperclipai|npx(?: -y)? paperclipai|pnpm (?:exec )?paperclipai)\s+issue\s+document:get\s+(\S+)\s+plan\s+--json\s*\|\s*jq\s+(-[rj]+)\s+['"]?\.body['"]?\s*>\s*([A-Za-z0-9][A-Za-z0-9_.-]*)$/)).filter(Boolean);
+  const matches = blocks.flatMap(block => block.split(/\r?\n/)).map(line => line.trim().replace(/^\$\s+/, "").match(/^(?:outpost|npx(?: -y)? outpost|pnpm (?:exec )?outpost)\s+issue\s+document:get\s+(\S+)\s+plan\s+--json\s*\|\s*jq\s+(-[rj]+)\s+['"]?\.body['"]?\s*>\s*([A-Za-z0-9][A-Za-z0-9_.-]*)$/)).filter(Boolean);
   if (matches.length !== 1) throw new Error("One supported plan JSON-to-file command is required; arbitrary shell is not admitted");
   const command = matches[0]!;
   // The CLI resolves a task by its UUID or its identifier (such as COM-1).
@@ -39,7 +39,7 @@ export function gradeExportDocumentCli(value: unknown) {
 const exportPlan = privilegedDefinition("cli-operations.export-document-cli", "privileged-document-cli", {
   async setup(ctx) {
     const operator = await prepareOwnedCli(ctx);
-    await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/chats/${ctx.input.fixtures.agent.id}`);
+    await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/chats/${ctx.input.fixtures.agent.id}`);
     await ctx.refreshIssue(); const issue = ctx.issue(); if (!issue) throw new Error("Owned standing task did not persist");
     const body = `# Website plan\n\nA saved synthetic revision for Acorn.\n\nReference ${ctx.input.nonce}.`;
     const document = await putDocument(ctx, issue.id, body);

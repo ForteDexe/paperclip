@@ -27,7 +27,7 @@ async function invoke(operation: unknown, handler: (params: PluginEnvironmentTas
       const message = parseMessage(line);
       if (isJsonRpcResponse(message)) resolve(message);
     }));
-    stdin.write(serializeMessage(createRequest("environmentTask", { companyId: "company", taskId: "task",
+    stdin.write(serializeMessage(createRequest("environmentTask", { spaceId: "space", taskId: "task",
       runId: "claimant-run", lease: { providerLeaseId: "task" }, operation }, "lifecycle")));
     return await response;
   } finally { worker.stop(); lines.close(); stdin.destroy(); stdout.destroy(); }

@@ -8,11 +8,11 @@ import {
   intendedNotionCard,
   supportedNotionLink,
 } from "./external-provider-choice.js";
-const reason = "Vercel Connect setup is disabled on this Paperclip instance.";
+const reason = "Vercel Connect setup is disabled on this Outpost instance.";
 function valid() {
   return {
     scenarioId: "connection-setup.choose-provider",
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     reply:
       "Use Notion sign-in for the easiest connection. Vercel Connect is disabled here; ask the administrator to enable it before choosing that option.",
@@ -156,12 +156,12 @@ describe("actual source attribution and supported choice lanes", () => {
       expect(gradeProviderChoice(o).passed).toBe(false);
     }
   });
-  it("accepts only completed public messages from the exact source company/agent/run", () => {
+  it("accepts only completed public messages from the exact source space/agent/run", () => {
     const e = {
       seq: 1,
       eventType: "item.completed",
       runId: "run",
-      companyId: "company",
+      spaceId: "space",
       agentId: "ceo",
       payload: {
         orpEvent: {
@@ -178,14 +178,14 @@ describe("actual source attribution and supported choice lanes", () => {
         },
       },
     };
-    const target = { runId: "run", companyId: "company", agentId: "ceo" };
+    const target = { runId: "run", spaceId: "space", agentId: "ceo" };
     expect(publicChoiceMessages([e], target)).toEqual([
       { runId: "run", eventId: "msg", body: "Public setup explanation" },
     ]);
     for (const delta of [
       { runId: "foreign" },
       { agentId: "other" },
-      { companyId: "foreign" },
+      { spaceId: "foreign" },
       { eventType: "item.started" },
     ])
       expect(publicChoiceMessages([{ ...e, ...delta }], target)).toEqual([]);
@@ -198,7 +198,7 @@ describe("actual source attribution and supported choice lanes", () => {
         id: "intent",
         kind: "connection_intent",
         status: "pending",
-        companyId: "company",
+        spaceId: "space",
         issueId: "issue",
         createdByAgentId: "ceo",
         addresseeUserId: "human",
@@ -206,7 +206,7 @@ describe("actual source attribution and supported choice lanes", () => {
         payload: { serviceSlug: "notion" },
       } as ConnectionIntentInteraction,
       target = {
-        companyId: "company",
+        spaceId: "space",
         issueId: "issue",
         agentId: "ceo",
         humanId: "human",
@@ -214,7 +214,7 @@ describe("actual source attribution and supported choice lanes", () => {
       };
     expect(intendedNotionCard([c], target)?.id).toBe("intent");
     for (const delta of [
-      { companyId: "foreign" },
+      { spaceId: "foreign" },
       { issueId: "other" },
       { createdByAgentId: "other" },
       { addresseeUserId: "other" },
@@ -232,7 +232,7 @@ describe("actual source attribution and supported choice lanes", () => {
       intendedNotionCard([c, { ...c, id: "duplicate" }], target),
     ).toBeUndefined();
   });
-  it("allows actual same-company selected method links and rejects wrong method/company/provider", () => {
+  it("allows actual same-space selected method links and rejects wrong method/space/provider", () => {
     expect(
       supportedNotionLink(
         "/ACORN/apps/connect?source=notion&method=mcp-oauth",

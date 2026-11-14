@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GitFork, Loader2, Users } from "lucide-react";
 import type {
-  CompanySkillDetail,
-  CompanySkillForkPrecheckResult,
+  SpaceSkillDetail,
+  SpaceSkillForkPrecheckResult,
 } from "@outpost/shared";
 import { useNavigate } from "@/lib/router";
-import { companySkillsApi } from "@/api/companySkills";
+import { spaceSkillsApi } from "@/api/spaceSkills";
 import { queryKeys } from "@/lib/queryKeys";
-import { skillStudioRoute } from "@/lib/company-skill-routes";
+import { skillStudioRoute } from "@/lib/space-skill-routes";
 import { useOptionalToastActions } from "@/context/ToastContext";
 import {
   agentUsageSentence,
@@ -37,13 +37,13 @@ import { cn } from "@/lib/utils";
  * (fork-sprawl guard, §5).
  */
 export function ForkSkillDialog({
-  companyId,
+  spaceId,
   skill,
   open,
   onOpenChange,
 }: {
-  companyId: string;
-  skill: CompanySkillDetail;
+  spaceId: string;
+  skill: SpaceSkillDetail;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -54,7 +54,7 @@ export function ForkSkillDialog({
 
   // Seed from the already-loaded skill detail so the dialog renders instantly,
   // then let the dedicated precheck endpoint refresh usage/existing-fork data.
-  const seededPrecheck: CompanySkillForkPrecheckResult = useMemo(
+  const seededPrecheck: SpaceSkillForkPrecheckResult = useMemo(
     () => ({
       skillId: skill.id,
       original: {
@@ -73,9 +73,9 @@ export function ForkSkillDialog({
   );
 
   const precheckQuery = useQuery({
-    queryKey: queryKeys.companySkills.forkPrecheck(companyId, skill.id),
-    queryFn: () => companySkillsApi.forkPrecheck(companyId, skill.id),
-    enabled: open && Boolean(companyId && skill.id),
+    queryKey: queryKeys.spaceSkills.forkPrecheck(spaceId, skill.id),
+    queryFn: () => spaceSkillsApi.forkPrecheck(spaceId, skill.id),
+    enabled: open && Boolean(spaceId && skill.id),
     initialData: seededPrecheck,
   });
 
@@ -94,15 +94,15 @@ export function ForkSkillDialog({
 
   const forkMutation = useMutation({
     mutationFn: () =>
-      companySkillsApi.fork(companyId, skill.id, {
+      spaceSkillsApi.fork(spaceId, skill.id, {
         reassignAgentIds: reassign ? reassignTargetIds(usedByAgents) : [],
       }),
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.list(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.spaceSkills.list(spaceId) });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.detail(companyId, skill.id),
+        queryKey: queryKeys.spaceSkills.detail(spaceId, skill.id),
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(spaceId) });
       for (const entry of result.reassignments) {
         queryClient.invalidateQueries({
           queryKey: queryKeys.agents.skills(entry.agentId),

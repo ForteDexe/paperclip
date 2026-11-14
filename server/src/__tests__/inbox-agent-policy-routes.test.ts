@@ -6,8 +6,8 @@ import {
   activityLog,
   agents,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   principalPermissionGrants,
   userInboxAgentPolicies,
@@ -27,7 +27,7 @@ describeEmbeddedPostgres("inbox agent policy routes", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-inbox-agent-policy-routes-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-inbox-agent-policy-routes-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -35,9 +35,9 @@ describeEmbeddedPostgres("inbox agent policy routes", () => {
     await db.delete(activityLog);
     await db.delete(userInboxAgentPolicies);
     await db.delete(principalPermissionGrants);
-    await db.delete(companyMemberships);
+    await db.delete(spaceMemberships);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     await db.delete(authUsers);
   });
 
@@ -58,15 +58,15 @@ describeEmbeddedPostgres("inbox agent policy routes", () => {
   }
 
   async function seed() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const userId = `user-${randomUUID()}`;
     const otherUserId = `user-${randomUUID()}`;
     const agentId = randomUUID();
     const now = new Date();
-    await db.insert(companies).values({
-      id: companyId,
-      name: `Policy ${companyId}`,
-      issuePrefix: `IP${companyId.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: `Policy ${spaceId}`,
+      issuePrefix: `IP${spaceId.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
     });
     await db.insert(authUsers).values([
       {
@@ -86,16 +86,16 @@ describeEmbeddedPostgres("inbox agent policy routes", () => {
         updatedAt: now,
       },
     ]);
-    await db.insert(companyMemberships).values([
+    await db.insert(spaceMemberships).values([
       {
-        companyId,
+        spaceId,
         principalType: "user",
         principalId: userId,
         status: "active",
         membershipRole: "operator",
       },
       {
-        companyId,
+        spaceId,
         principalType: "user",
         principalId: otherUserId,
         status: "active",
@@ -104,7 +104,7 @@ describeEmbeddedPostgres("inbox agent policy routes", () => {
     ]);
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Allowed agent",
       role: "engineer",
       adapterType: "codex_local",
@@ -112,29 +112,29 @@ describeEmbeddedPostgres("inbox agent policy routes", () => {
       runtimeConfig: {},
       permissions: {},
     });
-    return { companyId, userId, otherUserId, agentId };
+    return { spaceId, userId, otherUserId, agentId };
   }
 
-  function boardActor(companyId: string, userId: string): Express.Request["actor"] {
+  function operatorActor(spaceId: string, userId: string): Express.Request["actor"] {
     return {
-      type: "board",
+      type: "operator",
       source: "session",
       userId,
-      companyIds: [companyId],
-      memberships: [{ companyId, membershipRole: "operator", status: "active" }],
+      spaceIds: [spaceId],
+      memberships: [{ spaceId, membershipRole: "operator", status: "active" }],
       isInstanceAdmin: false,
     };
   }
 
   it("returns the open default and lets users update their own policy", async () => {
     const seeded = await seed();
-    const app = appFor(boardActor(seeded.companyId, seeded.userId));
+    const app = appFor(operatorActor(seeded.spaceId, seeded.userId));
 
     await request(app)
-      .get(`/companies/${seeded.companyId}/users/me/inbox-agent-policy`)
+      .get(`/spaces/${seeded.spaceId}/users/me/inbox-agent-policy`)
       .expect(200)
       .expect(({ body }) => expect(body).toMatchObject({
-        companyId: seeded.companyId,
+        spaceId: seeded.spaceId,
         userId: seeded.userId,
         mode: "open",
         allowedAgentIds: [],
@@ -142,7 +142,7 @@ describeEmbeddedPostgres("inbox agent policy routes", () => {
       }));
 
     await request(app)
-      .put(`/companies/${seeded.companyId}/users/me/inbox-agent-policy`)
+      .put(`/spaces/${seeded.spaceId}/users/me/inbox-agent-policy`)
       .send({ mode: "allowlist", allowedAgentIds: [seeded.agentId] })
       .expect(200)
       .expect(({ body }) => expect(body).toMatchObject({
@@ -168,24 +168,24 @@ describeEmbeddedPostgres("inbox agent policy routes", () => {
 
   it("gates the admin variant with users:manage_permissions", async () => {
     const seeded = await seed();
-    const actor = boardActor(seeded.companyId, seeded.userId);
+    const actor = operatorActor(seeded.spaceId, seeded.userId);
     const app = appFor(actor);
 
     await request(app)
-      .put(`/companies/${seeded.companyId}/users/${seeded.otherUserId}/inbox-agent-policy`)
+      .put(`/spaces/${seeded.spaceId}/users/${seeded.otherUserId}/inbox-agent-policy`)
       .send({ mode: "disabled", allowedAgentIds: [] })
       .expect(403)
       .expect(({ body }) => expect(body.code).toBe("inbox_agent_policy_admin_required"));
 
     await db.insert(principalPermissionGrants).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       principalType: "user",
       principalId: seeded.userId,
       permissionKey: "users:manage_permissions",
     });
 
     await request(app)
-      .put(`/companies/${seeded.companyId}/users/${seeded.otherUserId}/inbox-agent-policy`)
+      .put(`/spaces/${seeded.spaceId}/users/${seeded.otherUserId}/inbox-agent-policy`)
       .send({ mode: "disabled", allowedAgentIds: [] })
       .expect(200)
       .expect(({ body }) => expect(body).toMatchObject({
@@ -195,34 +195,34 @@ describeEmbeddedPostgres("inbox agent policy routes", () => {
       }));
   });
 
-  it("rejects admin policies for users without an active company membership", async () => {
+  it("rejects admin policies for users without an active space membership", async () => {
     const seeded = await seed();
-    const actor = boardActor(seeded.companyId, seeded.userId);
+    const actor = operatorActor(seeded.spaceId, seeded.userId);
     await db.insert(principalPermissionGrants).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       principalType: "user",
       principalId: seeded.userId,
       permissionKey: "users:manage_permissions",
     });
 
     await request(appFor(actor))
-      .put(`/companies/${seeded.companyId}/users/user-missing/inbox-agent-policy`)
+      .put(`/spaces/${seeded.spaceId}/users/user-missing/inbox-agent-policy`)
       .send({ mode: "disabled", allowedAgentIds: [] })
       .expect(404);
   });
 
   it("rejects agent IDs outside allowlist mode", async () => {
     const seeded = await seed();
-    await request(appFor(boardActor(seeded.companyId, seeded.userId)))
-      .put(`/companies/${seeded.companyId}/users/me/inbox-agent-policy`)
+    await request(appFor(operatorActor(seeded.spaceId, seeded.userId)))
+      .put(`/spaces/${seeded.spaceId}/users/me/inbox-agent-policy`)
       .send({ mode: "disabled", allowedAgentIds: [seeded.agentId] })
       .expect(400);
   });
 
-  it("rejects allowlist agents from another company", async () => {
+  it("rejects allowlist agents from another space", async () => {
     const seeded = await seed();
-    await request(appFor(boardActor(seeded.companyId, seeded.userId)))
-      .put(`/companies/${seeded.companyId}/users/me/inbox-agent-policy`)
+    await request(appFor(operatorActor(seeded.spaceId, seeded.userId)))
+      .put(`/spaces/${seeded.spaceId}/users/me/inbox-agent-policy`)
       .send({ mode: "allowlist", allowedAgentIds: [randomUUID()] })
       .expect(422)
       .expect(({ body }) => expect(body.code).toBe("inbox_agent_policy_invalid_agents"));

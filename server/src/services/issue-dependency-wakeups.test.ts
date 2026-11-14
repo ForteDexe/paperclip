@@ -9,7 +9,7 @@ import {
 
 const dependentIssueId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const blockerIssueId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-const companyId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const spaceId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const firstCycle = new Date("2026-04-01T12:00:00.000Z");
 const secondCycle = new Date("2026-08-01T09:30:00.000Z");
 
@@ -94,7 +94,7 @@ describe("buildIssueBlockersResolvedWakeStateKey", () => {
 
 describe("findExistingIssueBlockersResolvedWakeForReadyState", () => {
   const readyState = {
-    companyId,
+    spaceId,
     dependentIssueId,
     blockerIssueIds: [blockerIssueId],
     blockedTransitionAt: secondCycle,
@@ -169,7 +169,7 @@ describe("findExistingIssueBlockersResolvedWakeForReadyState", () => {
         },
       ]),
       {
-        companyId,
+        spaceId,
         dependentIssueId,
         blockerIssueIds: [blockerIssueId],
         blockedTransitionAt: null,

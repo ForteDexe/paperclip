@@ -57,14 +57,14 @@ async function read(stream: NodeJS.ReadableStream) {
 describe("waiting out a storage outage on a run's critical path (Daytona storage chaos ST1)", () => {
   it("restores a saved object once the store is back instead of failing the run", async () => {
     outageUntil = Date.now() + 3_000;
-    const object = await waitOutStorageOutages(() => provider().getObject({ objectKey: "company/workspace.pcws" }));
+    const object = await waitOutStorageOutages(() => provider().getObject({ objectKey: "space/workspace.pcws" }));
     expect(await read(object.stream)).toBe("saved");
     expect(requests).toBeGreaterThan(1);
   }, 30_000);
 
   it("claims the run log once the store is back", async () => {
     outageUntil = Date.now() + 3_000;
-    await expect(waitOutStorageOutages(() => provider().putObjectConditional!({ objectKey: "company/runs/head.json",
+    await expect(waitOutStorageOutages(() => provider().putObjectConditional!({ objectKey: "space/runs/head.json",
       body: Buffer.from("{}"), contentType: "application/json", contentLength: 2, ifNoneMatch: "*" })))
       .resolves.toEqual({ etag: '"v2"' });
   }, 30_000);
@@ -72,16 +72,16 @@ describe("waiting out a storage outage on a run's critical path (Daytona storage
   it("keeps failing fast outside a run's critical path", async () => {
     outageUntil = Date.now() + 60_000;
     const startedAt = Date.now();
-    await expect(provider().headObject({ objectKey: "company/avatar.png" })).rejects.toMatchObject({ $metadata: { httpStatusCode: 503 } });
+    await expect(provider().headObject({ objectKey: "space/avatar.png" })).rejects.toMatchObject({ $metadata: { httpStatusCode: 503 } });
     expect(Date.now() - startedAt).toBeLessThan(10_000);
   }, 30_000);
 
   it("stops waiting when the run is stopped", async () => {
     outageUntil = Date.now() + 60_000;
     const stop = new AbortController();
-    setTimeout(() => stop.abort(new Error("Stopped by a board operator")), 3_000);
+    setTimeout(() => stop.abort(new Error("Stopped by a operator operator")), 3_000);
     const startedAt = Date.now();
-    await expect(waitOutStorageOutages(() => provider().getObject({ objectKey: "company/workspace.pcws", signal: stop.signal })))
+    await expect(waitOutStorageOutages(() => provider().getObject({ objectKey: "space/workspace.pcws", signal: stop.signal })))
       .rejects.toBeTruthy();
     expect(Date.now() - startedAt).toBeLessThan(15_000);
   }, 30_000);
@@ -111,7 +111,7 @@ describe("the shared storage outage wait", () => {
     await expect(retryThroughStorageOutage(outage, AbortSignal.timeout(50), slow))
       .rejects.toSatisfy(isStorageUnavailableError);
     const stop = new AbortController();
-    setTimeout(() => stop.abort(new Error("Stopped by a board operator")), 50);
+    setTimeout(() => stop.abort(new Error("Stopped by a operator operator")), 50);
     const stopped = await retryThroughStorageOutage(outage, stop.signal, slow).catch((error: unknown) => error);
     expect(stopped).toMatchObject({ name: "AbortError" });
     expect(isStorageUnavailableError(stopped)).toBe(false);
@@ -179,7 +179,7 @@ describe("the shared storage outage wait", () => {
 
   it("gives a run started from a stopped run's cleanup its own scope", async () => {
     const stopped = new AbortController();
-    stopped.abort(new Error("Stopped by a board operator"));
+    stopped.abort(new Error("Stopped by a operator operator"));
     const wide = { budgetMs: 2_000, firstDelayMs: 20, maxDelayMs: 40 };
     let calls = 0;
     const next = await waitOutStorageOutages(async () => {
@@ -199,7 +199,7 @@ describe("the shared storage outage wait", () => {
       shared = runSharedStorageWork(() => retryThroughStorageOutage(async () => (Date.now() < endsAt ? outage() : "shared"), undefined, wide));
       return retryThroughStorageOutage(outage, undefined, wide);
     });
-    setTimeout(() => stopA.abort(new Error("Stopped by a board operator")), 30);
+    setTimeout(() => stopA.abort(new Error("Stopped by a operator operator")), 30);
     await expect(runA).rejects.toMatchObject({ name: "AbortError" });
     await expect(shared).resolves.toBe("shared");
   });

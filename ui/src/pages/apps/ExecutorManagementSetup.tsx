@@ -4,7 +4,7 @@ import type { ToolConnection } from "@outpost/shared";
 import { aggregatorManagementUrl } from "@outpost/shared/aggregator-apps";
 import { describeError } from "@/api/errors";
 import { toolsApi } from "@/api/tools";
-import { useAccountIdentity } from "@/api/companies-query";
+import { useAccountIdentity } from "@/api/spaces-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,7 @@ export function ExecutorManagementSetup({ connection, onClose }: { connection: T
     await queries.invalidateQueries({ queryKey: queryKeys.tools.aggregatorApps(connection.id, userId) });
     const result = await toolsApi.syncAggregatorApps(connection.id, true);
     queries.setQueryData(queryKeys.tools.aggregatorApps(connection.id, userId), result);
-  }, onSuccess: async () => { await queries.invalidateQueries({ queryKey: queryKeys.tools.connections(connection.companyId) }); onClose(); } });
+  }, onSuccess: async () => { await queries.invalidateQueries({ queryKey: queryKeys.tools.connections(connection.spaceId) }); onClose(); } });
   return <Dialog open onOpenChange={open => { if (!open && !save.isPending) onClose(); }}><DialogContent>
     <DialogHeader><DialogTitle>Executor console</DialogTitle><DialogDescription>Choose where to manage accounts for “{connection.name}”. Include your workspace path.</DialogDescription></DialogHeader>
     <form className="space-y-4" onSubmit={event => { event.preventDefault(); save.mutate(); }}>

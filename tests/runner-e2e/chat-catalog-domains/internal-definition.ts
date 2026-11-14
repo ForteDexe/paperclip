@@ -3,7 +3,7 @@ import { observeInternal, verifyInternalResult, type Entity, type InternalObserv
 import { codexSubscriptionAgentConfig } from "../codex-subscription-fixture.js";
 import { pollUntil } from "../api.js";
 export function makeDefinition(scenarioId: string, setup: ChatCatalogCase["setup"], grade: ChatCatalogCase["grade"]): ChatCatalogCase {
-  const coverageGaps = scenarioId === "goals.align-existing-work" ? ["cross-company-goal-rejection"]
+  const coverageGaps = scenarioId === "goals.align-existing-work" ? ["cross-space-goal-rejection"]
     : scenarioId === "goals.explain-purpose" ? ["missing-association", "inaccessible-goal-nondisclosure"]
     : scenarioId === "documents-artifacts.restore-document" ? ["concurrent-edit-conflict"]
     : scenarioId === "tasks.edit-properties" ? ["execution-ownership-denied"] : [];
@@ -18,40 +18,40 @@ export async function fixtureWorker(ctx: ChatCatalogContext) {
     workspacePath, secretRefs: fixtures.secretRefs, executionId: nonce });
   const payload = { ...base, name: "Morgan", role: "engineer", title: "Frontend engineer", reportsTo: fixtures.agent.id,
     capabilities: "Builds accessible websites.", runtimeConfig: { ...(base.runtimeConfig as Record<string, unknown>), heartbeat: { enabled: false, maxConcurrentRuns: 1 } } };
-  const worker = await api.post<Entity>(`/api/companies/${fixtures.company.id}/agents`, execution.profile.credential === "CODEX_AUTH_JSON"
-    ? codexSubscriptionAgentConfig(payload, process.env, fixtures.company.id) : payload);
+  const worker = await api.post<Entity>(`/api/spaces/${fixtures.space.id}/agents`, execution.profile.credential === "CODEX_AUTH_JSON"
+    ? codexSubscriptionAgentConfig(payload, process.env, fixtures.space.id) : payload);
   const deadlineAt = originalDeadline ?? Date.now() + 45_000;
   const observations: Record<string, unknown>[] = [];
   let previous: string | undefined;
   try {
     await pollUntil({ label: "Morgan runtime readiness", deadlineAt,
       load: async () => {
-        const row = await api.get<{ id: string; companyId: string; lifecycleState: string; status?: string; lifecycleError?: string | null }>(`/api/agents/${worker.id}`,
+        const row = await api.get<{ id: string; spaceId: string; lifecycleState: string; status?: string; lifecycleError?: string | null }>(`/api/agents/${worker.id}`,
           { timeout: Math.max(1, Math.min(5_000, deadlineAt - Date.now())) });
-        const state = { id: row.id, companyId: row.companyId, lifecycleState: row.lifecycleState, status: row.status,
+        const state = { id: row.id, spaceId: row.spaceId, lifecycleState: row.lifecycleState, status: row.status,
           errorPresent: !!row.lifecycleError,
-          automaticRecovery: /\b(?:Paperclip will|It will) retry automatically\./.test(row.lifecycleError ?? ""),
+          automaticRecovery: /\b(?:Outpost will|It will) retry automatically\./.test(row.lifecycleError ?? ""),
           verificationPaused: row.lifecycleError?.includes("Automatic verification is paused.") ?? false };
         const current = JSON.stringify(state);
         if (current !== previous) { observations.push({ ...state, observedAt: new Date().toISOString() }); previous = current; }
         return row;
       },
-      accept: row => Date.now() < deadlineAt && row.id === worker.id && row.companyId === fixtures.company.id
+      accept: row => Date.now() < deadlineAt && row.id === worker.id && row.spaceId === fixtures.space.id
         && row.lifecycleState === "ready" && !row.lifecycleError,
       reject: row => {
-        if (row.id !== worker.id || row.companyId !== fixtures.company.id) return "Morgan runtime identity changed";
+        if (row.id !== worker.id || row.spaceId !== fixtures.space.id) return "Morgan runtime identity changed";
         if (["pending_approval", "paused", "rejected", "terminated", "terminating", "cleaning_up"].includes(row.lifecycleState)) return "Morgan runtime setup stopped";
         // Public agent rows omit lifecycleOperation. The lifecycle owner exposes its
         // automatic-recovery promise and manual-repair boundary in fixed diagnostics.
         const recovering = originalDeadline !== undefined && row.lifecycleState === "verifying"
-          && /\b(?:Paperclip will|It will) retry automatically\./.test(row.lifecycleError ?? "")
+          && /\b(?:Outpost will|It will) retry automatically\./.test(row.lifecycleError ?? "")
           && !row.lifecycleError?.includes("Automatic verification is paused.");
         return row.lifecycleError && !recovering ? "Morgan runtime setup failed" : undefined;
       } });
   } finally {
     await ctx.input.evidence(`chat-catalog-worker-readiness-${worker.id}.json`, {
       policy: originalDeadline === undefined ? "authored-45s" : "original-native-case-clock",
-      deadlineAt, agentId: worker.id, companyId: fixtures.company.id, observations,
+      deadlineAt, agentId: worker.id, spaceId: fixtures.space.id, observations,
     });
   }
   return worker;

@@ -56,7 +56,7 @@ const IN_USE_MS = 30 * 60 * 1000;
 export function cacheRoot(env = process.env) {
   if (env.OUTPOST_AGENT_CACHE === "0") return null;
   if (env.OUTPOST_AGENT_CACHE_DIR) return path.resolve(env.OUTPOST_AGENT_CACHE_DIR);
-  return path.join(env.XDG_CACHE_HOME || path.join(os.homedir(), ".cache"), "paperclip", "agent-build");
+  return path.join(env.XDG_CACHE_HOME || path.join(os.homedir(), ".cache"), "outpost", "agent-build");
 }
 
 function run(command, args, options = {}) {

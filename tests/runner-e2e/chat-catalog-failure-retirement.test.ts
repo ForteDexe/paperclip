@@ -25,11 +25,11 @@ vi.mock("./api.js", () => ({ pollUntil: async ({ load }: { load: () => Promise<u
 import { runChatCatalogFlow } from "./chat-catalog-flow.js";
 it("does not let a stalled failure collector prevent outer retirement of an owned pending native", async () => {
   let retired = false;
-  const run = { id: "pending-native", companyId: "company", agentId: "ceo", status: "running", runtimeMode: "native" };
+  const run = { id: "pending-native", spaceId: "space", agentId: "ceo", status: "running", runtimeMode: "native" };
   const context = { scenario: { id: "questions-and-approvals.multi-part-question", query: "Original question-form request" },
-    input: { execution: { task: { turnTimeoutMs: 0 } }, fixtures: { company: { id: "company", issuePrefix: "RUN" }, agent: { id: "ceo" } },
+    input: { execution: { task: { turnTimeoutMs: 0 } }, fixtures: { space: { id: "space", issuePrefix: "RUN" }, agent: { id: "ceo" } },
       api: { baseURL: "http://127.0.0.1", get: async () => [] }, page: { locator: () => ({ count: async () => 0 }) }, evidence: async () => {} },
-    refreshIssue: async () => {}, issue: () => ({ id: "source", companyId: "company" }), allRuns: async () => [run] };
+    refreshIssue: async () => {}, issue: () => ({ id: "source", spaceId: "space" }), allRuns: async () => [run] };
   Object.assign(context.input, { retireFailedAttempt: async () => { retired = true; run.status = "cancelled"; } });
   const attempt = runChatCatalogFlow(context as never).finally(async () => { retired = true; run.status = "cancelled"; });
   const rejected = expect(attempt).rejects.toThrow("Original attempt failed");
@@ -45,10 +45,10 @@ it("bounds failed collection and cannot write evidence after the collector later
   vi.useFakeTimers();
   const writes: string[] = [], order: string[] = [];
   const context = { scenario: { id: "questions-and-approvals.multi-part-question", query: "Original request" },
-    input: { execution: { task: { turnTimeoutMs: 0 } }, fixtures: { company: { id: "company" }, agent: { id: "ceo" } },
+    input: { execution: { task: { turnTimeoutMs: 0 } }, fixtures: { space: { id: "space" }, agent: { id: "ceo" } },
       api: { baseURL: "http://127.0.0.1", get: async () => [] }, page: { locator: () => ({ count: async () => 0 }) }, evidence: async (name: string) => { writes.push(name); },
       retireFailedAttempt: async () => { order.push("retired"); } },
-    refreshIssue: async () => {}, issue: () => ({ id: "source", companyId: "company" }), allRuns: async () => [{ id: "pending", companyId: "company", status: "cancelled" }] };
+    refreshIssue: async () => {}, issue: () => ({ id: "source", spaceId: "space" }), allRuns: async () => [{ id: "pending", spaceId: "space", status: "cancelled" }] };
   const attempt = runChatCatalogFlow(context as never);
   const rejected = expect(attempt).rejects.toThrow("Original attempt failed");
   await control.collectorEntered;
@@ -73,10 +73,10 @@ it("retains completed observation and conversation before scenario cleanup mutat
   control.completeQuery = true; control.stall = false;
   const snapshots: Record<string, any> = {};
   const context = { scenario: { id: "questions-and-approvals.multi-part-question", query: "Original request" },
-    input: { execution: { task: { turnTimeoutMs: 0 } }, fixtures: { company: { id: "company", issuePrefix: "RUN" }, agent: { id: "ceo" } },
+    input: { execution: { task: { turnTimeoutMs: 0 } }, fixtures: { space: { id: "space", issuePrefix: "RUN" }, agent: { id: "ceo" } },
       api: { baseURL: "http://127.0.0.1", get: async (route: string) => route.endsWith("/budgets/overview") ? { policies: [] } : route.startsWith("/api/agents/") ? { adapterConfig: { timeoutSec: 0 } } : route.endsWith("/interactions") ? [{ id: "question" }] : [] },
       page: { locator: () => ({ count: async () => 0 }) }, evidence: async (name: string, value: unknown) => { snapshots[name] = structuredClone(value); }, retireFailedAttempt: async () => {} },
-    refreshIssue: async () => {}, issue: () => ({ id: "source", companyId: "company" }), allRuns: async () => [] };
+    refreshIssue: async () => {}, issue: () => ({ id: "source", spaceId: "space" }), allRuns: async () => [] };
   await expect(runChatCatalogFlow(context as never)).rejects.toThrow("Original attempt failed");
   expect(snapshots["api-state.json"]).toMatchObject({ issue: { id: "source" }, comments: [], interactions: [{ id: "question" }], observation: { state: { label: "before cleanup" } } });
   expect(control.savedState.label).toBe("after cleanup");
@@ -86,7 +86,7 @@ it("executes the real outer failure-capture guard without entering a held duplic
   const start = source.indexOf("    const captureApiState = async (capturePhase: \"failure\" | \"final\" = \"failure\") => {"), end = source.indexOf("\n\n    page.on", start);
   const body = stripTypeScriptTypes(source.slice(start, end), { mode: "strip" });
   let reads = 0;
-  const capture = new Function("catalogFailureCaptureAttempted", "fixtures", "api", body + "; return captureApiState;")(true, { company: { id: "company" } }, { get: async () => { reads++; return new Promise(() => {}); } });
+  const capture = new Function("catalogFailureCaptureAttempted", "fixtures", "api", body + "; return captureApiState;")(true, { space: { id: "space" } }, { get: async () => { reads++; return new Promise(() => {}); } });
   const primary = new Error("Original attempt failed");
   const caller = (async () => { try { throw primary; } catch (error) { await capture(); throw error; } })();
   await expect(caller).rejects.toBe(primary);

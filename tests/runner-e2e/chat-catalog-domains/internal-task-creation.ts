@@ -32,14 +32,14 @@ export function gradeDelegatedCreation(value: unknown) {
   const created = newTasks(o); const saved = created[0]; const worker = entity(o.state, "worker");
   const launch = o.projects.filter(row => row.name === "Launch"); const p = launch[0];
   const workRuns = saved ? o.runs.filter(run => boundIssue(run) === saved.id) : [];
-  c.add("one-ordinary-company-task", created.length === 1 && !!saved && saved.companyId === o.companyId
+  c.add("one-ordinary-space-task", created.length === 1 && !!saved && saved.spaceId === o.spaceId
     && saved.assigneeAgentId === worker.id && saved.parentId == null && saved.projectId === p?.id && saved.id !== o.source?.id,
     "One ordinary task belongs to the intended Launch project and single eligible Morgan, separately from standing Chat.");
   c.add("requested-work-captured", !!saved && (o.scenarioId === "projects.project-work"
     ? /\bmobile\b/i.test(`${saved.title} ${saved.description ?? ""}`) && /\blayout\b/i.test(`${saved.title} ${saved.description ?? ""}`)
     : /\b(?:website|web site|landing.page)\b/i.test(`${saved.title} ${saved.description ?? ""}`)),
     "The actual new task captures the requested website or mobile-layout work.");
-  c.add("one-launch-and-attribution", launch.length === 1 && p?.companyId === o.companyId && !!saved
+  c.add("one-launch-and-attribution", launch.length === 1 && p?.spaceId === o.spaceId && !!saved
     && o.activity.filter(row => row.action === "issue.created" && row.entityId === saved.id).length === 1
     && o.activity.some(row => row.action === "issue.created" && row.entityId === saved.id && row.agentId === o.leadId),
     "Exactly one intended Launch and one CEO-attributed task creation exist.");

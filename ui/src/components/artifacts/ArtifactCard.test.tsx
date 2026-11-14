@@ -24,9 +24,9 @@ vi.mock("@/lib/router", () => ({
 }));
 
 import { ArtifactCard } from "./ArtifactCard";
-import type { CompanyArtifact } from "@/api/artifacts";
+import type { SpaceArtifact } from "@/api/artifacts";
 
-function makeArtifact(overrides: Partial<CompanyArtifact> = {}): CompanyArtifact {
+function makeArtifact(overrides: Partial<SpaceArtifact> = {}): SpaceArtifact {
   return {
     id: "art-1",
     source: "attachment",

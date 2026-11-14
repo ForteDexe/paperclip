@@ -63,7 +63,7 @@ function inferVerificationReason(value: string): PrpVerificationReasonCode {
   if (/budget|quota|token limit/.test(lower)) return "budget_exhausted";
   if (/credential|api key|secret|login|auth(?:entication)? required/.test(lower)) return "credential_missing";
   if (/permission|denied|forbidden|not allowed/.test(lower)) return "permission_denied";
-  if (/policy|governance|approval policy/.test(lower)) return "policy_restricted";
+  if (/policy|approvals|approval policy/.test(lower)) return "policy_restricted";
   if (/external|service|upstream|network|offline|dns/.test(lower)) return "external_service_unavailable";
   if (/dependency|package|module|library/.test(lower)) return "dependency_missing";
   if (/tool|command|binary|node|npm|sandbox/.test(lower)) return "tool_unavailable";
@@ -132,7 +132,7 @@ export function normalizeLegacyPrpStructuredRunResult(value: unknown): unknown {
   const reportedSchema = text(normalized.schema);
   if (
     reportedSchema === null
-    || ["paperclip_finish", "paperclip_paperclip_finish", "paperclip_finish.v1"].includes(reportedSchema)
+    || ["outpost_finish", "outpost_outpost_finish", "outpost_finish.v1"].includes(reportedSchema)
   ) {
     normalized.schema = "outpost.run_result.v1";
   }
@@ -186,7 +186,7 @@ function legacyAttentionRequest(
   switch (sourceKind) {
     case "credential_grant":
       return { kind: "credential", summary, ownerClass: "human", targetAgentId: null, sourceIndex, sourceKind, legacy: true };
-    case "governed_approval":
+    case "controlled_approval":
       return { kind: "approval", summary, ownerClass: "human", targetAgentId: null, sourceIndex, sourceKind, legacy: true };
     case "subjective_decision":
       return { kind: "human_input", summary, ownerClass: "human", targetAgentId: null, sourceIndex, sourceKind, legacy: true };

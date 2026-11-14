@@ -237,7 +237,7 @@ type DaytonaSnapshotService = {
 
 type SnapshotIdentity = { provider: "daytona"; requestedRef: string; id: string; name: string; organizationId: string; createdAt: string };
 
-const WORKSPACE_SENTINEL_RELATIVE_PATH = ".paperclip-runtime/reusable-sandbox-lease.json";
+const WORKSPACE_SENTINEL_RELATIVE_PATH = ".outpost-runtime/reusable-sandbox-lease.json";
 
 // Quota-safety defaults (minutes). Daytona counts *stopped* sandboxes against
 // the storage quota; only *archived* sandboxes move to cold object storage and
@@ -487,7 +487,7 @@ function validateCreationTtl(config: DaytonaDriverConfig): string | null {
 }
 
 function buildSandboxLabels(input: {
-  companyId: string;
+  spaceId: string;
   environmentId: string;
   runId?: string;
   setupSessionId?: string;
@@ -495,13 +495,13 @@ function buildSandboxLabels(input: {
   reuseLease: boolean;
 }): Record<string, string> {
   return {
-    "paperclip-provider": "daytona",
-    "paperclip-company-id": input.companyId,
-    "paperclip-environment-id": input.environmentId,
-    "paperclip-reuse-lease": input.reuseLease ? "true" : "false",
-    ...(input.runId ? { "paperclip-run-id": input.runId } : {}),
-    ...(input.setupSessionId ? { "paperclip-setup-session-id": input.setupSessionId } : {}),
-    ...(input.purpose ? { "paperclip-purpose": input.purpose } : {}),
+    "outpost-provider": "daytona",
+    "outpost-space-id": input.spaceId,
+    "outpost-environment-id": input.environmentId,
+    "outpost-reuse-lease": input.reuseLease ? "true" : "false",
+    ...(input.runId ? { "outpost-run-id": input.runId } : {}),
+    ...(input.setupSessionId ? { "outpost-setup-session-id": input.setupSessionId } : {}),
+    ...(input.purpose ? { "outpost-purpose": input.purpose } : {}),
   };
 }
 
@@ -786,7 +786,7 @@ async function resolveSandboxWorkingDirectory(sandbox: Sandbox, create = true): 
   const root = (await sandbox.getWorkDir())?.trim()
     || (await sandbox.getUserHomeDir())?.trim()
     || "/home/daytona";
-  const remoteCwd = path.posix.join(root, "paperclip-workspace");
+  const remoteCwd = path.posix.join(root, "outpost-workspace");
   if (create) await sandbox.fs.createFolder(remoteCwd, "755");
   return remoteCwd;
 }
@@ -815,7 +815,7 @@ function parseProbeInteger(value: string | undefined | null): number | null {
 }
 
 function workspaceSentinelToken(input: {
-  params: Pick<PluginEnvironmentAcquireLeaseParams, "companyId" | "environmentId" | "agentId" | "executionWorkspaceId" | "issueId" | "adapterType" | "runId">;
+  params: Pick<PluginEnvironmentAcquireLeaseParams, "spaceId" | "environmentId" | "agentId" | "executionWorkspaceId" | "issueId" | "adapterType" | "runId">;
   providerLeaseId: string;
   config: DaytonaDriverConfig;
 }): string | null {
@@ -826,7 +826,7 @@ function workspaceSentinelToken(input: {
     .update(stableStringify({
       provider: "daytona",
       ...(!input.config.reuseLease ? { ephemeralRunId: input.params.runId, ephemeralProviderLeaseId: input.providerLeaseId } : {}),
-      companyId: input.params.companyId,
+      spaceId: input.params.spaceId,
       environmentId: input.params.environmentId,
       agentId: input.params.agentId,
       executionWorkspaceId: input.params.executionWorkspaceId,
@@ -866,7 +866,7 @@ async function writeWorkspaceSentinel(input: {
   const content = Buffer.from(JSON.stringify({
     version: 1,
     token,
-    companyId: input.params.companyId,
+    spaceId: input.params.spaceId,
     environmentId: input.params.environmentId,
     agentId: input.params.agentId,
     executionWorkspaceId: input.params.executionWorkspaceId,
@@ -960,7 +960,7 @@ function leaseMetadata(input: {
     ...(input.resumedLease
       ? { resumedFromState: input.resumedFromState ?? null }
       : {}),
-    // Record the resources Paperclip attempted to request so future diagnosis
+    // Record the resources Outpost attempted to request so future diagnosis
     // can compare requested allocation against what Daytona provisioned.
     ...(input.config.cpu != null ? { cpu: input.config.cpu } : {}),
     ...(input.config.memory != null ? { memory: input.config.memory } : {}),
@@ -1250,20 +1250,20 @@ async function createSandbox(
   // Keep an attempt-specific provider name so that failure cannot lose ownership.
   const attemptId = "creationOperationId" in params && params.creationOperationId ? params.creationOperationId : randomUUID();
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(attemptId)) throw new Error("Invalid creation operation identity");
-  const name = `paperclip-create-${attemptId}`;
+  const name = `outpost-create-${attemptId}`;
   const labels = { ...buildSandboxLabels({
-    companyId: params.companyId,
+    spaceId: params.spaceId,
     environmentId: params.environmentId,
     runId: "runId" in params ? params.runId : undefined,
     setupSessionId: "sessionId" in params ? params.sessionId : undefined,
     purpose: options.purpose,
     reuseLease: config.reuseLease,
-  }), "paperclip-create-attempt": attemptId };
+  }), "outpost-create-attempt": attemptId };
   // The SDK mutates params.labels (for example, code-toolbox-language).
   // Preserve our immutable ownership snapshot for validation and retry.
   const createParams = { ...buildCreateParams(createConfig, { ...labels }), name };
   const cleanup: PluginEnvironmentCreationCleanup = {
-    providerLeaseId: name, companyId: params.companyId, environmentId: params.environmentId,
+    providerLeaseId: name, spaceId: params.spaceId, environmentId: params.environmentId,
     ...("runId" in params ? { runId: params.runId } : {}),
     attemptId, labels, accountFingerprint: sandboxAccountDiscriminator(config),
   };
@@ -1316,16 +1316,16 @@ async function destroyFailedCreation(
   driverKey: string,
   requireDurableObservation = false,
 ): Promise<void> {
-  if (cleanup.providerLeaseId !== `paperclip-create-${cleanup.attemptId}` ||
+  if (cleanup.providerLeaseId !== `outpost-create-${cleanup.attemptId}` ||
       cleanup.accountFingerprint !== sandboxAccountDiscriminator(config) ||
-      cleanup.labels["paperclip-provider"] !== "daytona" ||
-      cleanup.labels["paperclip-create-attempt"] !== cleanup.attemptId ||
-      cleanup.labels["paperclip-company-id"] !== cleanup.companyId ||
-      cleanup.labels["paperclip-environment-id"] !== cleanup.environmentId ||
-      (cleanup.runId !== undefined && cleanup.labels["paperclip-run-id"] !== cleanup.runId)) {
+      cleanup.labels["outpost-provider"] !== "daytona" ||
+      cleanup.labels["outpost-create-attempt"] !== cleanup.attemptId ||
+      cleanup.labels["outpost-space-id"] !== cleanup.spaceId ||
+      cleanup.labels["outpost-environment-id"] !== cleanup.environmentId ||
+      (cleanup.runId !== undefined && cleanup.labels["outpost-run-id"] !== cleanup.runId)) {
     throw new Error("Failed-create sandbox ownership does not match");
   }
-  const identity = { driverKey, companyId: cleanup.companyId, environmentId: cleanup.environmentId };
+  const identity = { driverKey, spaceId: cleanup.spaceId, environmentId: cleanup.environmentId };
   const allocation = idleActivity.resource(providerActivityKey(identity, config, cleanup.providerLeaseId), true);
   if (cleanup.observedProviderLeaseId) {
     idleActivity.observe(allocation, providerActivityKey(identity, config, cleanup.observedProviderLeaseId));
@@ -1409,7 +1409,7 @@ const SNAPSHOT_PREPARATION_STATES = new Set<PluginEnvironmentAcquisitionProvider
 // commands inside another's sandbox. The guarantees below map 1:1 to the Stage-1
 // required-fix conditions:
 //   C1  Key by a NON-SECRET composite scope, never the bare providerLeaseId:
-//       {driverKey, companyId, environmentId, providerLeaseId, account}. The
+//       {driverKey, spaceId, environmentId, providerLeaseId, account}. The
 //       account discriminator is a hash of the resolved endpoint + credentials
 //       so two environments pointing at different Daytona accounts (or a rotated
 //       key) never collide — without storing the secret in the key.
@@ -1424,14 +1424,14 @@ const SNAPSHOT_PREPARATION_STATES = new Set<PluginEnvironmentAcquisitionProvider
 //       promise can never be awaited for lease B.
 type SandboxScope = {
   driverKey: string;
-  companyId: string;
+  spaceId: string;
   environmentId: string;
   providerLeaseId: string;
   config: DaytonaDriverConfig;
 };
 
 function providerActivityKey(
-  identity: { driverKey: string; companyId: string; environmentId: string },
+  identity: { driverKey: string; spaceId: string; environmentId: string },
   config: DaytonaDriverConfig,
   providerLeaseId: string,
 ): string {
@@ -1462,7 +1462,7 @@ function sandboxAccountDiscriminator(config: DaytonaDriverConfig): string {
 function sandboxHandleCacheKey(scope: SandboxScope): string {
   return stableStringify({
     driverKey: scope.driverKey,
-    companyId: scope.companyId,
+    spaceId: scope.spaceId,
     environmentId: scope.environmentId,
     providerLeaseId: scope.providerLeaseId,
     account: sandboxAccountDiscriminator(scope.config),
@@ -1967,14 +1967,14 @@ export function __resetDaytonaSandboxHandleCacheForTest(): void {
  */
 export function __getDaytonaWritableDirsForTest(input: {
   driverKey: string;
-  companyId: string;
+  spaceId: string;
   environmentId: string;
   lease: { providerLeaseId?: string | null };
   config: Record<string, unknown>;
 }): string[] {
   const scope: SandboxScope = {
     driverKey: input.driverKey,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     environmentId: input.environmentId,
     providerLeaseId: input.lease.providerLeaseId ?? "",
     config: parseDriverConfig(input.config),
@@ -2025,7 +2025,7 @@ async function getOrCreateSession(sandbox: Sandbox, scope: SandboxScope): Promis
   // session. The guard checks and starts the create in one synchronous step, so
   // no second command can slip in between the store read and the create start.
   return sandboxHandleSessionStore.runSingle(scope, async () => {
-    const sessionId = `paperclip-${randomUUID()}`;
+    const sessionId = `outpost-${randomUUID()}`;
     // Wrap the session create in a short `session.open` provider span. The span
     // carries no session id and no command text, only the provider family. The
     // host maps the name to `sandbox.daytona.session.open`.
@@ -2087,7 +2087,7 @@ async function executeOneShot(
   const timeoutMs = resolveTimeoutMs(params.timeoutMs, config);
   const effectiveTimeoutMs = gitNet ? Math.min(timeoutMs, GIT_NETWORK_TIMEOUT_MS) : timeoutMs;
   const timeoutSeconds = toTimeoutSeconds(effectiveTimeoutMs);
-  const stdinPath = params.stdin != null ? `/tmp/paperclip-stdin-${randomUUID()}` : null;
+  const stdinPath = params.stdin != null ? `/tmp/outpost-stdin-${randomUUID()}` : null;
 
   // Marks the start of the `executeCommand` REST round-trip. Hoisted out of the
   // try so the timeout path below can still attribute the exec wall-time it spent
@@ -2535,7 +2535,7 @@ async function executeInSession(
   const timeoutMs = resolveTimeoutMs(params.timeoutMs, config);
   const effectiveTimeoutMs = gitNet ? Math.min(timeoutMs, GIT_NETWORK_TIMEOUT_MS) : timeoutMs;
   const timeoutSeconds = toTimeoutSeconds(effectiveTimeoutMs);
-  const stdinPath = params.stdin != null ? `/tmp/paperclip-stdin-${randomUUID()}` : null;
+  const stdinPath = params.stdin != null ? `/tmp/outpost-stdin-${randomUUID()}` : null;
 
   // Marks the start of the session dispatch and poll. The timeout paths report
   // the exec wall-time spent before the abort, so a slow command is still
@@ -2798,7 +2798,7 @@ async function recoverSandboxForStop(sandbox: Sandbox, timeoutSeconds: number, r
 async function stopLease(params: PluginEnvironmentReleaseLeaseParams): Promise<PluginEnvironmentTerminationReceipt> {
   if (!params.providerLeaseId) throw new Error("Daytona stop requires an exact sandbox identity");
   const config = parseDriverConfig(params.config);
-  const scope: SandboxScope = { driverKey: params.driverKey, companyId: params.companyId,
+  const scope: SandboxScope = { driverKey: params.driverKey, spaceId: params.spaceId,
     environmentId: params.environmentId, providerLeaseId: params.providerLeaseId, config };
   const teardownGate = sandboxHandleTeardownGates.begin(scope);
   sandboxHandleLeaseAdmissionStates.close(scope);
@@ -3068,7 +3068,7 @@ const plugin = definePlugin(trackDaytonaHooks({
         const shellCommand = await traceLeaseStep("lease.shell", () => detectSandboxShellCommand(sandbox, toTimeoutSeconds(Math.max(1, deadline - Date.now()))));
         assertActive();
         // Configure a provider-side destroy time at or before a caller deadline, so
-        // an abandoned sandbox self-destroys even if Paperclip is down. The lease
+        // an abandoned sandbox self-destroys even if Outpost is down. The lease
         // carries the real provider expiry (or none) as evidence of the bound.
         phase = "expiry";
         const expiresAt = await traceLeaseStep("lease.expiry", () => configureSandboxExpiry({
@@ -3089,7 +3089,7 @@ const plugin = definePlugin(trackDaytonaHooks({
         assertActive();
         sandboxHandleLeaseAdmissionStates.open({
           driverKey: params.driverKey,
-          companyId: params.companyId,
+          spaceId: params.spaceId,
           environmentId: params.environmentId,
           providerLeaseId: sandbox.id,
           config,
@@ -3100,7 +3100,7 @@ const plugin = definePlugin(trackDaytonaHooks({
         sandboxHandleCache.seed(
           {
             driverKey: params.driverKey,
-            companyId: params.companyId,
+            spaceId: params.spaceId,
             environmentId: params.environmentId,
             providerLeaseId: sandbox.id,
             config,
@@ -3181,7 +3181,7 @@ const plugin = definePlugin(trackDaytonaHooks({
     }
     const scope: SandboxScope = {
       driverKey: params.driverKey,
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       environmentId: params.environmentId,
       providerLeaseId: params.providerLeaseId,
       config,
@@ -3310,7 +3310,7 @@ const plugin = definePlugin(trackDaytonaHooks({
     const config = parseDriverConfig(params.config);
     const scope: SandboxScope = {
       driverKey: params.driverKey,
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       environmentId: params.environmentId,
       providerLeaseId: params.providerLeaseId,
       config,
@@ -3397,20 +3397,20 @@ const plugin = definePlugin(trackDaytonaHooks({
       if (![attemptId, runId].every(value => typeof value === "string" && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(value))) {
         throw new Error("Invalid creation operation identity");
       }
-      const name = `paperclip-create-${attemptId}`;
+      const name = `outpost-create-${attemptId}`;
       try {
         const sandbox = await withLivenessTimeout("sandbox.creationLookup", 10_000, () => createDaytonaClient(config).get(name));
         const labels = {
-          "paperclip-provider": "daytona", "paperclip-create-attempt": attemptId,
-          "paperclip-company-id": params.companyId, "paperclip-environment-id": params.environmentId,
-          "paperclip-run-id": runId,
+          "outpost-provider": "daytona", "outpost-create-attempt": attemptId,
+          "outpost-space-id": params.spaceId, "outpost-environment-id": params.environmentId,
+          "outpost-run-id": runId,
         };
         if (sandbox.name !== name || Object.entries(labels).some(([key, value]) => sandbox.labels?.[key] !== value)) {
           throw new Error("Creation operation ownership does not match");
         }
         return { providerLeaseId: name, state: "active", creationCleanup: {
-          providerLeaseId: name, observedProviderLeaseId: sandbox.id, companyId: params.companyId,
-          environmentId: params.environmentId, runId: labels["paperclip-run-id"], attemptId,
+          providerLeaseId: name, observedProviderLeaseId: sandbox.id, spaceId: params.spaceId,
+          environmentId: params.environmentId, runId: labels["outpost-run-id"], attemptId,
           accountFingerprint: sandboxAccountDiscriminator(config), labels,
         } };
       } catch (error) {
@@ -3444,9 +3444,9 @@ const plugin = definePlugin(trackDaytonaHooks({
     const config = parseDriverConfig(params.config);
     if (params.leaseMetadata?.failedCreateCleanup !== undefined) {
       const cleanup = readEnvironmentCreationCleanupError({ data: {
-        schema: "paperclip/environment-creation-cleanup/v1", cleanup: params.leaseMetadata.failedCreateCleanup,
+        schema: "outpost/environment-creation-cleanup/v1", cleanup: params.leaseMetadata.failedCreateCleanup,
       } });
-      if (!cleanup || cleanup.companyId !== params.companyId || cleanup.environmentId !== params.environmentId ||
+      if (!cleanup || cleanup.spaceId !== params.spaceId || cleanup.environmentId !== params.environmentId ||
           cleanup.providerLeaseId !== params.providerLeaseId) {
         throw new Error("Failed-create sandbox cleanup scope does not match");
       }
@@ -3455,7 +3455,7 @@ const plugin = definePlugin(trackDaytonaHooks({
     }
     const scope: SandboxScope = {
       driverKey: params.driverKey,
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       environmentId: params.environmentId,
       providerLeaseId: params.providerLeaseId,
       config,
@@ -3487,12 +3487,12 @@ const plugin = definePlugin(trackDaytonaHooks({
       typeof params.lease.metadata?.remoteCwd === "string" &&
       params.lease.metadata.remoteCwd.trim().length > 0
         ? params.lease.metadata.remoteCwd.trim()
-        : params.workspace.remotePath ?? params.workspace.localPath ?? "/paperclip-workspace";
+        : params.workspace.remotePath ?? params.workspace.localPath ?? "/outpost-workspace";
 
     if (params.lease.providerLeaseId) {
       const scope: SandboxScope = {
         driverKey: params.driverKey,
-        companyId: params.companyId,
+        spaceId: params.spaceId,
         environmentId: params.environmentId,
         providerLeaseId: params.lease.providerLeaseId,
         config,
@@ -3528,7 +3528,7 @@ const plugin = definePlugin(trackDaytonaHooks({
       );
       sandboxHandleLeaseAdmissionStates.open({
         driverKey: params.driverKey,
-        companyId: params.companyId,
+        spaceId: params.spaceId,
         environmentId: params.environmentId,
         providerLeaseId: sandbox.id,
         config,
@@ -3574,7 +3574,7 @@ const plugin = definePlugin(trackDaytonaHooks({
     }
     const scope = {
       driverKey: params.driverKey,
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       environmentId: params.environmentId,
       providerLeaseId: params.providerLeaseId,
       config,
@@ -3636,7 +3636,7 @@ const plugin = definePlugin(trackDaytonaHooks({
     }
     const scope = {
       driverKey: params.driverKey,
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       environmentId: params.environmentId,
       providerLeaseId: params.providerLeaseId,
       config,
@@ -3651,7 +3651,7 @@ const plugin = definePlugin(trackDaytonaHooks({
     }
     const templateRef = sanitizeSnapshotName(
       params.templateLabel,
-      `paperclip-${params.environmentId}-${randomUUID().slice(0, 8)}`,
+      `outpost-${params.environmentId}-${randomUUID().slice(0, 8)}`,
     );
     const timeoutMs = typeof params.timeoutMs === "number" && Number.isFinite(params.timeoutMs) && params.timeoutMs > 0
       ? Math.trunc(params.timeoutMs)
@@ -3690,7 +3690,7 @@ const plugin = definePlugin(trackDaytonaHooks({
     }
     const scope: SandboxScope = {
       driverKey: params.driverKey,
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       environmentId: params.environmentId,
       providerLeaseId: params.providerLeaseId,
       config,
@@ -3773,7 +3773,7 @@ const plugin = definePlugin(trackDaytonaHooks({
     const providerLeaseId = params.lease.providerLeaseId;
     return await withSandboxActivityGate({
       driverKey: params.driverKey,
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       environmentId: params.environmentId,
       providerLeaseId,
       config,
@@ -3795,7 +3795,7 @@ const plugin = definePlugin(trackDaytonaHooks({
       let cacheHit = false;
       const sandbox = await getSandbox({
         driverKey: params.driverKey,
-        companyId: params.companyId,
+        spaceId: params.spaceId,
         environmentId: params.environmentId,
         providerLeaseId,
         config,
@@ -3808,7 +3808,7 @@ const plugin = definePlugin(trackDaytonaHooks({
       const getDurationMs = timingNow() - getStart;
       const scope: SandboxScope = {
         driverKey: params.driverKey,
-        companyId: params.companyId,
+        spaceId: params.spaceId,
         environmentId: params.environmentId,
         providerLeaseId,
         config,
@@ -3861,7 +3861,7 @@ const plugin = definePlugin(trackDaytonaHooks({
     const config = parseDriverConfig(params.config);
     const scope: SandboxScope = {
       driverKey: params.driverKey,
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       environmentId: params.environmentId,
       providerLeaseId,
       config,
@@ -3921,7 +3921,7 @@ const plugin = definePlugin(trackDaytonaHooks({
     const timeoutSeconds = resolveSyncTimeoutSeconds(config, params.minimumTimeoutMs);
     const scope = {
       driverKey: params.driverKey,
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       environmentId: params.environmentId,
       providerLeaseId: params.lease.providerLeaseId,
       config,
@@ -3956,7 +3956,7 @@ const plugin = definePlugin(trackDaytonaHooks({
     const timeoutSeconds = resolveSyncTimeoutSeconds(config, params.minimumTimeoutMs);
     const scope = {
       driverKey: params.driverKey,
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       environmentId: params.environmentId,
       providerLeaseId: params.lease.providerLeaseId,
       config,

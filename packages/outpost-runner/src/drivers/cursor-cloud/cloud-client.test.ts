@@ -77,7 +77,7 @@ describe("Cursor Cloud v1 HTTP client", () => {
     });
     const client = new CursorCloudClient({ apiKey: API_KEY, baseUrl });
     const model = { id: "future-model/exact", params: [{ id: "thinking", value: "high" }] };
-    const mcpServers = [{ name: "paperclip", type: "http" as const, url: "https://tools.example.test/mcp", headers: { Authorization: "Bearer run-secret" } }];
+    const mcpServers = [{ name: "outpost", type: "http" as const, url: "https://tools.example.test/mcp", headers: { Authorization: "Bearer run-secret" } }];
     expect(await client.createAgent({ prompt: { text: "Create the proof" }, model, repos: [], mcpServers }, { idempotencyKey: "initial-receipt" })).toEqual({ agent, run });
     await client.createRun(AGENT, { prompt: { text: "Continue" }, model, envVars: { OUTPOST_RUN_ID: "new-run" }, mcpServers }, { idempotencyKey: "followup-receipt" });
     expect((await client.getRun(AGENT, RUN)).status).toBe("WAITING_FOR_BACKGROUND_WORK");

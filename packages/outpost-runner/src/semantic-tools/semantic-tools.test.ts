@@ -11,7 +11,7 @@ const OPEN = {
   identity: {
     runId: "run-semantic-1",
     sessionId: "session-semantic-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "task-1",
     agentId: "actor-1",
   },
@@ -28,7 +28,7 @@ async function running(
     actors: seed.actors ?? [
       {
         id: "actor-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Semantic Engineer",
         role: "engineer",
         status: "active",
@@ -157,12 +157,12 @@ describe("Capability semantic catalog and authorization", () => {
   });
 
   it("discovers only authorized optional tools and returns trusted schemas", async () => {
-    const claims = ["discovery:agents:read", "governance:approvals:read"];
+    const claims = ["discovery:agents:read", "approvals:approvals:read"];
     const adapter = await running(claims);
     const dispatcher = new CapabilitySemanticDispatcher(adapter, {
       scenario: { id: "lazy-search", claims }, explicitClaims: claims,
     });
-    const found = dispatcher.discoverTools(OPEN.identity.runId, "find company agents", { namespace: "discovery" });
+    const found = dispatcher.discoverTools(OPEN.identity.runId, "find space agents", { namespace: "discovery" });
     expect(found.operations.map((tool) => tool.name)).toEqual(["list_agents", "get_agent"]);
     expect(found.operations.every((tool) => tool.annotations.semanticContract === "outpost.semantic-tool.v1")).toBe(true);
     expect(JSON.stringify(found)).not.toContain("list_approvals");
@@ -174,7 +174,7 @@ describe("Capability semantic catalog and authorization", () => {
     const dispatcher = new CapabilitySemanticDispatcher(adapter, {
       scenario: { id: "feedback-discovery", claims }, explicitClaims: claims,
     });
-    const agents = dispatcher.discoverTools(OPEN.identity.runId, "find company agents");
+    const agents = dispatcher.discoverTools(OPEN.identity.runId, "find space agents");
     expect(agents.operations.map((tool) => tool.name)).toEqual(expect.arrayContaining(["list_agents", "get_agent"]));
     for (const options of [{}, { namespace: "feedback" }]) {
       const feedback = dispatcher.discoverTools(OPEN.identity.runId, "feedback", options);
@@ -187,7 +187,7 @@ describe("Capability semantic catalog and authorization", () => {
     const dispatcher = new CapabilitySemanticDispatcher(adapter);
     const found = dispatcher.discoverTools(OPEN.identity.runId, "create child task approval secret admin", { namespace: "delegation" });
     expect(found.operations).toEqual([]);
-    expect(JSON.stringify(found.operations)).not.toMatch(/create_task|approval|secret|administer_company/);
+    expect(JSON.stringify(found.operations)).not.toMatch(/create_task|approval|secret|administer_space/);
     const before = adapter.snapshot().revision;
     for (const operationId of ["create_project", "list_project_repositories", "list_projects", "get_workspace", "list_workspaces", "select_workspace", "prepare_repository", "handoff_case", "create_case", "read_case", "update_case"] as const) {
       expect(dispatcher.listTools(OPEN.identity.runId).map((tool) => tool.name)).not.toContain(operationId);
@@ -205,7 +205,7 @@ describe("Capability semantic catalog and authorization", () => {
       tasks: [
         {
           id: "task-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           identifier: "MCK-1",
           title: "Active task",
           description: null,
@@ -221,7 +221,7 @@ describe("Capability semantic catalog and authorization", () => {
         },
         {
           id: "task-2",
-          companyId: "company-1",
+          spaceId: "space-1",
           identifier: "MCK-2",
           title: "Blocking task",
           description: null,
@@ -290,7 +290,7 @@ describe("Capability semantic catalog and authorization", () => {
     const adapter = await running([], {
       tasks: [{
         id: "task-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         identifier: "MCK-1",
         title: "Ask-only task",
         description: null,
@@ -312,7 +312,7 @@ describe("Capability semantic catalog and authorization", () => {
     await expect(dispatcher.dispatch({
       runId: OPEN.identity.runId,
       callId: "unknown",
-      operationId: "paperclipApiRequest",
+      operationId: "outpostApiRequest",
       input: {},
     })).resolves.toMatchObject({ ok: false, denial: { code: "tool_not_exposed" } });
     await expect(dispatcher.dispatch({
@@ -324,7 +324,7 @@ describe("Capability semantic catalog and authorization", () => {
   });
 
   it("preserves credential payloads for execution while redacting authorization records", async () => {
-    const claim = "governance:approvals:request";
+    const claim = "approvals:approvals:request";
     const adapter = await running([claim]);
     const dispatcher = new CapabilitySemanticDispatcher(adapter, {
       scenario: { id: "approval", claims: [claim] },
@@ -338,7 +338,7 @@ describe("Capability semantic catalog and authorization", () => {
       operationId: "request_approval",
       input: {
         idempotencyKey: "approval-secret",
-        approvalType: "request_board_approval",
+        approvalType: "request_operator_approval",
         payload: { authorization: secret },
       },
     });

@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { createHash } from "node:crypto";
-import { assets, companies, completionContracts, documents, documentRevisions, heartbeatRuns, issueDocuments, issueAttachments, issues, issueThreadInteractions, issueWorkProducts, mcpAttachmentUploads, dotRunnerAssignments, type Db } from "@outpost/db";
+import { assets, spaces, completionContracts, documents, documentRevisions, heartbeatRuns, issueDocuments, issueAttachments, issues, issueThreadInteractions, issueWorkProducts, mcpAttachmentUploads, dotRunnerAssignments, type Db } from "@outpost/db";
 import { projectHumanInteractionResponse } from "../execution-continuation.js";
 
 export class NativeDeliverableEvidenceError extends Error {}
@@ -34,7 +34,7 @@ function publicationEvidence(value: unknown): NativePublicationEvidence {
       ...(Array.isArray(criteria) ? criteria.flatMap(entry => evidenceRefs(record(entry).evidenceRefs)) : [])] };
 }
 
-async function hasCurrentPublicationReceipt(db: Db, companyId: string, receipts: unknown, attachment: {
+async function hasCurrentPublicationReceipt(db: Db, spaceId: string, receipts: unknown, attachment: {
   id: string; originatingRunId: string | null; filename: string | null; byteSize: number; sha256: string;
 }, lockSources = false): Promise<boolean> {
   for (const value of Object.values(record(receipts))) {
@@ -52,8 +52,8 @@ async function hasCurrentPublicationReceipt(db: Db, companyId: string, receipts:
       && input.byteSize === attachment.byteSize && input.sha256 === attachment.sha256) {
       const query = db.select({ id: mcpAttachmentUploads.id }).from(mcpAttachmentUploads)
         .innerJoin(dotRunnerAssignments, and(eq(dotRunnerAssignments.id, mcpAttachmentUploads.workSessionId),
-          eq(dotRunnerAssignments.companyId, companyId)))
-        .where(and(eq(mcpAttachmentUploads.id, input.uploadId), eq(mcpAttachmentUploads.companyId, companyId),
+          eq(dotRunnerAssignments.spaceId, spaceId)))
+        .where(and(eq(mcpAttachmentUploads.id, input.uploadId), eq(mcpAttachmentUploads.spaceId, spaceId),
           eq(mcpAttachmentUploads.workSessionId, input.workSessionId), eq(mcpAttachmentUploads.attachmentId, attachment.id),
           eq(dotRunnerAssignments.runId, attachment.originatingRunId), eq(mcpAttachmentUploads.originalFilename, attachment.filename),
           eq(mcpAttachmentUploads.byteSize, attachment.byteSize), eq(mcpAttachmentUploads.sha256, attachment.sha256))).limit(1);
@@ -84,8 +84,8 @@ async function hasCurrentPublicationReceipt(db: Db, companyId: string, receipts:
     if (typeof source.attachmentId !== "string" || !uuid.test(source.attachmentId) ||
         typeof source.commentId !== "string" || !uuid.test(source.commentId)) continue;
     const query = db.select({ filename: assets.originalFilename, byteSize: assets.byteSize, sha256: assets.sha256 })
-      .from(issueAttachments).innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.companyId, companyId)))
-      .where(and(eq(issueAttachments.id, source.attachmentId), eq(issueAttachments.companyId, companyId),
+      .from(issueAttachments).innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.spaceId, spaceId)))
+      .where(and(eq(issueAttachments.id, source.attachmentId), eq(issueAttachments.spaceId, spaceId),
         eq(issueAttachments.issueCommentId, source.commentId))).limit(1);
     const [original] = await (lockSources ? query.for("share", { of: [issueAttachments, assets], noWait: true }) : query);
     if (original?.filename === attachment.filename && original.byteSize === attachment.byteSize &&
@@ -259,13 +259,13 @@ export function explicitlyRequestsTaskDocumentOutput(objective: string): boolean
 }
 
 async function declinedTaskDocumentNotRequired(db: Db, binding: {
-  companyId: string; issueId: string; runId: string; objective: string; lockSources?: boolean;
+  spaceId: string; issueId: string; runId: string; objective: string; lockSources?: boolean;
 }): Promise<boolean> {
   if (!/\bif I (?:decline|reject) the action\b/iu.test(binding.objective) ||
       !/\bno (?:briefing|document|doc)(?: document)? is required after a (?:decline|rejection)\b/iu.test(binding.objective)) return false;
   const runQuery = db.select({ context: heartbeatRuns.contextSnapshot, description: issues.description }).from(heartbeatRuns)
-    .innerJoin(issues, and(eq(issues.id, binding.issueId), eq(issues.companyId, binding.companyId))).where(and(
-    eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.companyId, binding.companyId), eq(heartbeatRuns.nativeIssueId, binding.issueId),
+    .innerJoin(issues, and(eq(issues.id, binding.issueId), eq(issues.spaceId, binding.spaceId))).where(and(
+    eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.spaceId, binding.spaceId), eq(heartbeatRuns.nativeIssueId, binding.issueId),
   )).limit(1);
   const [run] = await (binding.lockSources ? runQuery.for("share", { of: [heartbeatRuns, issues], noWait: true }) : runQuery);
   const continuation = record(run?.context?.executionContinuation);
@@ -279,10 +279,10 @@ async function declinedTaskDocumentNotRequired(db: Db, binding: {
   const query = db.select({ interaction: issueThreadInteractions, sourceContext: heartbeatRuns.contextSnapshot,
     sourceContract: completionContracts.contractJson }).from(issueThreadInteractions)
     .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, issueThreadInteractions.sourceRunId),
-      eq(heartbeatRuns.companyId, binding.companyId), eq(heartbeatRuns.nativeIssueId, binding.issueId), eq(heartbeatRuns.runtimeMode, "native")))
+      eq(heartbeatRuns.spaceId, binding.spaceId), eq(heartbeatRuns.nativeIssueId, binding.issueId), eq(heartbeatRuns.runtimeMode, "native")))
     .innerJoin(completionContracts, and(eq(completionContracts.id, heartbeatRuns.completionContractId),
-      eq(completionContracts.companyId, binding.companyId), eq(completionContracts.issueId, binding.issueId)))
-    .where(and(eq(issueThreadInteractions.id, trigger.interactionId), eq(issueThreadInteractions.companyId, binding.companyId),
+      eq(completionContracts.spaceId, binding.spaceId), eq(completionContracts.issueId, binding.issueId)))
+    .where(and(eq(issueThreadInteractions.id, trigger.interactionId), eq(issueThreadInteractions.spaceId, binding.spaceId),
       eq(issueThreadInteractions.issueId, binding.issueId), eq(issueThreadInteractions.sourceRunId, trigger.sourceRunId))).limit(1);
   const [saved] = await (binding.lockSources ? query.for("share", { of: [issueThreadInteractions, heartbeatRuns, completionContracts], noWait: true }) : query);
   if (!saved || saved.interaction.kind !== "request_confirmation" || saved.interaction.dismissedAt ||
@@ -301,20 +301,20 @@ async function declinedTaskDocumentNotRequired(db: Db, binding: {
  * revision to its originating run preserves completed work across continuations
  * without accepting stale, foreign-task, or provider-invented document refs.
  */
-export async function publishedTaskDocuments(db: Db, binding: { companyId: string; issueId: string; lockSources?: boolean }) {
+export async function publishedTaskDocuments(db: Db, binding: { spaceId: string; issueId: string; lockSources?: boolean }) {
   const query = db.select({ id: documents.id, revisionId: documents.latestRevisionId,
     key: issueDocuments.key, resultJson: heartbeatRuns.resultJson,
-    issuePrefix: companies.issuePrefix, issueIdentifier: issues.identifier })
+    issuePrefix: spaces.issuePrefix, issueIdentifier: issues.identifier })
     .from(issueDocuments)
-    .innerJoin(issues, and(eq(issues.id, issueDocuments.issueId), eq(issues.companyId, binding.companyId)))
-    .innerJoin(companies, eq(companies.id, issues.companyId))
-    .innerJoin(documents, and(eq(documents.id, issueDocuments.documentId), eq(documents.companyId, binding.companyId)))
+    .innerJoin(issues, and(eq(issues.id, issueDocuments.issueId), eq(issues.spaceId, binding.spaceId)))
+    .innerJoin(spaces, eq(spaces.id, issues.spaceId))
+    .innerJoin(documents, and(eq(documents.id, issueDocuments.documentId), eq(documents.spaceId, binding.spaceId)))
     .innerJoin(documentRevisions, and(eq(documentRevisions.id, documents.latestRevisionId),
-      eq(documentRevisions.documentId, documents.id), eq(documentRevisions.companyId, binding.companyId)))
+      eq(documentRevisions.documentId, documents.id), eq(documentRevisions.spaceId, binding.spaceId)))
     .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, documentRevisions.createdByRunId),
-      eq(heartbeatRuns.companyId, binding.companyId), eq(heartbeatRuns.nativeIssueId, binding.issueId),
+      eq(heartbeatRuns.spaceId, binding.spaceId), eq(heartbeatRuns.nativeIssueId, binding.issueId),
       eq(heartbeatRuns.runtimeMode, "native")))
-    .where(and(eq(issueDocuments.companyId, binding.companyId), eq(issueDocuments.issueId, binding.issueId)));
+    .where(and(eq(issueDocuments.spaceId, binding.spaceId), eq(issueDocuments.issueId, binding.issueId)));
   const saved = await (binding.lockSources ? query.for("share", { of: [issueDocuments, documents, documentRevisions, heartbeatRuns], noWait: true }) : query);
   return saved.filter(document => Object.values(record(document.resultJson?.semanticToolReceipts)).some(value => {
     const receipt = record(value), result = record(receipt.result), published = record(result.document);
@@ -329,11 +329,11 @@ export async function publishedTaskDocuments(db: Db, binding: { companyId: strin
  * its current task. A completed direct child's attachment is a valid citation,
  * but not this run's publication of a file that the parent itself requests.
  */
-async function completedChildAttachment(db: Db, binding: { companyId: string; issueId: string; lockSources?: boolean }, id: string): Promise<boolean> {
+async function completedChildAttachment(db: Db, binding: { spaceId: string; issueId: string; lockSources?: boolean }, id: string): Promise<boolean> {
   const query = db.select({ id: issueAttachments.id }).from(issueAttachments)
-    .innerJoin(issues, and(eq(issues.id, issueAttachments.issueId), eq(issues.companyId, binding.companyId),
+    .innerJoin(issues, and(eq(issues.id, issueAttachments.issueId), eq(issues.spaceId, binding.spaceId),
       eq(issues.parentId, binding.issueId), eq(issues.status, "done")))
-    .where(and(eq(issueAttachments.id, id), eq(issueAttachments.companyId, binding.companyId))).limit(1);
+    .where(and(eq(issueAttachments.id, id), eq(issueAttachments.spaceId, binding.spaceId))).limit(1);
   const [attachment] = await (binding.lockSources ? query.for("share", { of: [issueAttachments, issues], noWait: true }) : query);
   return attachment !== undefined;
 }
@@ -341,7 +341,7 @@ async function completedChildAttachment(db: Db, binding: { companyId: string; is
 /** Files cited as completed output must be reachable outside the agent workspace. */
 export async function validateNativeDeliverableEvidence(
   db: Db,
-  binding: { companyId: string; issueId: string; runId: string; objective: string; semanticToolReceipts: unknown; lockSources?: boolean; authoritativeDone?: true },
+  binding: { spaceId: string; issueId: string; runId: string; objective: string; semanticToolReceipts: unknown; lockSources?: boolean; authoritativeDone?: true },
   result: unknown,
 ): Promise<void> {
   const evidence = publicationEvidence(result);
@@ -366,8 +366,8 @@ export async function validateNativeDeliverableEvidence(
       const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
       const query = db.select({ id: issueAttachments.id, originatingRunId: issueAttachments.originatingRunId,
             filename: assets.originalFilename, byteSize: assets.byteSize, sha256: assets.sha256 }).from(issueAttachments)
-            .innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.companyId, binding.companyId)))
-            .where(and(eq(issueAttachments.id, id), eq(issueAttachments.companyId, binding.companyId), eq(issueAttachments.issueId, binding.issueId)))
+            .innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.spaceId, binding.spaceId)))
+            .where(and(eq(issueAttachments.id, id), eq(issueAttachments.spaceId, binding.spaceId), eq(issueAttachments.issueId, binding.issueId)))
             .limit(1);
       const [attachment] = uuid.test(id)
         ? await (binding.lockSources ? query.for("share", { of: [issueAttachments, assets], noWait: true }) : query) : [];
@@ -380,7 +380,7 @@ export async function validateNativeDeliverableEvidence(
       // controller restart of this run; a replacement can re-register preserved
       // workspace bytes internally rather than asking the user to confirm them.
       if ((fileRequested || taskDocumentRequested) && attachment.originatingRunId !== binding.runId) continue;
-      if ((fileRequested || taskDocumentRequested) && !await hasCurrentPublicationReceipt(db, binding.companyId, binding.semanticToolReceipts, attachment, binding.lockSources)) {
+      if ((fileRequested || taskDocumentRequested) && !await hasCurrentPublicationReceipt(db, binding.spaceId, binding.semanticToolReceipts, attachment, binding.lockSources)) {
         throw new NativeDeliverableEvidenceError("This attachment has no matching verified publication receipt for this run's requested output. Inspect any preserved file and use register_deliverable to verify its current filename, size, and SHA-256, then cite the new receipt. No human completion approval was created.");
       }
       registeredAttachment = true;
@@ -402,7 +402,7 @@ export async function validateNativeDeliverableEvidence(
   }
   if (fileRequested && !registeredAttachment) {
     const query = db.select().from(issueWorkProducts).where(and(
-      eq(issueWorkProducts.companyId, binding.companyId), eq(issueWorkProducts.issueId, binding.issueId),
+      eq(issueWorkProducts.spaceId, binding.spaceId), eq(issueWorkProducts.issueId, binding.issueId),
       eq(issueWorkProducts.createdByRunId, binding.runId),
     ));
     const products = refs.size ? await (binding.lockSources ? query.for("share", { noWait: true }) : query) : [];

@@ -18,7 +18,7 @@ const AGENTS = [
 function callEvent(overrides: Partial<ToolCallEvent>): ToolCallEvent {
   return {
     id: "evt",
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     eventType: "call_completed",
     actorType: "agent",
     actorId: "agent-coder",
@@ -125,7 +125,7 @@ const meta: Meta = {
   id: "apps-app-detail-·-activity-lifecycle",
   title: "Oversight and operation/Dashboards and audit trails/Apps/App detail · Activity (lifecycle)",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "activity/activity",
         "gateways-profiles/activity"

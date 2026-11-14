@@ -1,10 +1,10 @@
 import { it, expect } from "vitest";
 import { gradePauseAgent } from "./runtime-agent-lifecycle.js";
 function valid() {
-  return { scenarioId: "agents.pause-agent", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  return { scenarioId: "agents.pause-agent", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { worker: { id: "morgan" }, workerRunId: "worker-run", workerWasReallyWaiting: true, beforeHumanStatus: "running", beforeHumanLifecycleState: "ready",
       workerRunStatusBeforeHuman: "running", agentPauseStatus: 403, humanPaused: true, profileLinkFollowed: "/ACORN/agents/morgan" } as Record<string, unknown>,
-    agents: [{ id: "morgan", companyId: "company", status: "paused", lifecycleState: "paused" }], tasks: [], links: ["/ACORN/agents/morgan"],
+    agents: [{ id: "morgan", spaceId: "space", status: "paused", lifecycleState: "paused" }], tasks: [], links: ["/ACORN/agents/morgan"],
     // The run 42557891748 reply, with its profile link.
     reply: "I couldn't pause Morgan myself: the pause action is board-only and returned 403 \"Board access required,\" which is a final boundary for my credentials.\n\nA board user needs to do it from [Morgan's profile](/ACORN/agents/morgan) (Pause). Morgan is still running until that's done; tell me when it's set and I'll keep them out of any delegation.",
     activity: [{ id: "pause", action: "agent.paused", entityId: "morgan", actorType: "user" } as Record<string, unknown>],

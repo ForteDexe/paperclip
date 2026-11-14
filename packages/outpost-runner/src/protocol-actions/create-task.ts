@@ -16,15 +16,15 @@ export const createTaskAction = {
       "standard",
       "skill_test"
     ],
-    "sideEffectClass": "company_write",
+    "sideEffectClass": "space_write",
     "idempotency": "required",
     "disabledByDefault": false,
     "realBindingStatus": "live_codex",
     "realServiceBinding": "issues.create / issues.createChild",
-    "orpEvidence": "semantic-operation item event plus company-entity state diff and audit record",
+    "orpEvidence": "semantic-operation item event plus space-entity state diff and audit record",
     "orpBindingStatus": "bound",
     "legacyAliases": [
-      "mcp:paperclipCreateIssue"
+      "mcp:outpostCreateIssue"
     ]
   },
   "documentation": {
@@ -119,7 +119,7 @@ export const createTaskAction = {
               "string",
               "null"
             ],
-            "description": "Existing company agent ID from list_agents. Set the requested teammate here during creation. Omit or use null to assign the current agent; a todo task can start that agent before a later reassignment. Mutually exclusive with assigneeUserId.",
+            "description": "Existing space agent ID from list_agents. Set the requested teammate here during creation. Omit or use null to assign the current agent; a todo task can start that agent before a later reassignment. Mutually exclusive with assigneeUserId.",
             "maxLength": 20000
           },
           "status": {
@@ -354,7 +354,7 @@ export const createTaskAction = {
         "standard",
         "skill_test"
       ],
-      "sideEffectClass": "company_write",
+      "sideEffectClass": "space_write",
       "idempotency": "required",
       "redaction": [],
       "mockCommandMapping": {

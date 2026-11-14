@@ -3,7 +3,7 @@ name: Senior Coder
 slug: senior-coder
 title: Senior Software Engineer
 role: engineer
-reportsTo: cto
+reportsTo: engineering-lead
 skills:
   - github-pr-workflow
   - doc-maintenance

@@ -26,7 +26,7 @@ export interface ExternalObjectCanonicalUrl {
 }
 
 export interface ExternalObjectMentionSource {
-  companyId?: string;
+  spaceId?: string;
   sourceIssueId?: string;
   sourceKind: ExternalObjectMentionSourceKind;
   sourceRecordId?: string | null;

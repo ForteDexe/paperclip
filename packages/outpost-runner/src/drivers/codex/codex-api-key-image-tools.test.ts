@@ -16,7 +16,7 @@ import { WORKSPACE } from "./codex-app-server-driver.test-support.js";
  * reads the tool list from the first model request.
  */
 describe("Codex API-key image tools (pinned binary)", () => {
-  it("hides Codex's built-in image_gen under API-key auth, so Paperclip's generate_image is the image path", async () => {
+  it("hides Codex's built-in image_gen under API-key auth, so Outpost's generate_image is the image path", async () => {
     const requests: string[] = [];
     const server = createServer((req: IncomingMessage, res) => {
       const chunks: Buffer[] = [];
@@ -30,7 +30,7 @@ describe("Codex API-key image tools (pinned binary)", () => {
     });
     await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
     const port = (server.address() as { port: number }).port;
-    const codexHome = mkdtempSync(join(tmpdir(), "paperclip-n12-api-key-home-"));
+    const codexHome = mkdtempSync(join(tmpdir(), "outpost-n12-api-key-home-"));
     // The same files prepareIsolatedCodexHome writes for an API-key agent.
     writeFileSync(join(codexHome, "config.toml"), 'cli_auth_credentials_store = "file"\n[features]\nshell_snapshot = false\n');
     writeFileSync(join(codexHome, "auth.json"), JSON.stringify({ OPENAI_API_KEY: "sk-test-not-a-real-key" }), { mode: 0o600 });
@@ -84,7 +84,7 @@ describe("Codex API-key image tools (pinned binary)", () => {
       }
       // Codex gates image_gen on ChatGPT/Codex-backend auth, so an API key never gets it.
       expect(names.some(name => /image_gen|imagegen|image_generation/.test(name))).toBe(false);
-      // Paperclip's server-side tool does reach the model on this path.
+      // Outpost's server-side tool does reach the model on this path.
       expect(JSON.stringify(body)).toContain("generate_image");
     } finally {
       const exited = child.exitCode !== null || child.signalCode !== null ? Promise.resolve() : new Promise(done => child.once("exit", done));

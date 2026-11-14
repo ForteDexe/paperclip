@@ -5,7 +5,7 @@ import { forbidden, HttpError } from "../../errors.js";
 import { boundRunIssueId, boundRunIssueIdSql } from "../run-task-binding.js";
 
 type Run = Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "responsibleUserId" | "activeIdentityContextId" | "nativeIssueId" | "issueId" | "contextSnapshot">;
+  "id" | "spaceId" | "agentId" | "responsibleUserId" | "activeIdentityContextId" | "nativeIssueId" | "issueId" | "contextSnapshot">;
 type Context = typeof runIdentityContexts.$inferSelect;
 type Options = { allowLegacyWakeComment?: boolean; provider?: ChatProvider };
 
@@ -14,14 +14,14 @@ type Options = { allowLegacyWakeComment?: boolean; provider?: ChatProvider };
 type Value = string | SQL;
 
 const contextColumns = {
-  id: runIdentityContexts.id, runId: runIdentityContexts.runId, companyId: runIdentityContexts.companyId,
+  id: runIdentityContexts.id, runId: runIdentityContexts.runId, spaceId: runIdentityContexts.spaceId,
   status: runIdentityContexts.status, responsibleUserId: runIdentityContexts.responsibleUserId,
   messageId: runIdentityContexts.messageId, parentContextId: runIdentityContexts.parentContextId,
 };
 const readColumns = {
   context: contextColumns,
   link: { issueId: chatConversations.issueId, provider: chatEndpoints.provider },
-  boardMessage: { authorUserId: issueComments.authorUserId },
+  operatorMessage: { authorUserId: issueComments.authorUserId },
   parent: contextColumns,
   sourceRun: {
     issueId: boundRunIssueIdSql().as("bound_issue_id"),
@@ -32,42 +32,42 @@ const readColumns = {
 
 /** The reads of the provenance check. Each read returns its first row, if
  * any. The single check and the batch check build every read here, so both
- * apply the same joins, company scope and filters. */
+ * apply the same joins, space scope and filters. */
 const provenanceReads = {
   /** The active identity context of the run. */
-  context: (db: Db, of: Record<"contextId" | "runId" | "companyId", Value>) => db.select(readColumns.context)
+  context: (db: Db, of: Record<"contextId" | "runId" | "spaceId", Value>) => db.select(readColumns.context)
     .from(runIdentityContexts).where(and(
       eq(runIdentityContexts.id, of.contextId),
       eq(runIdentityContexts.runId, of.runId),
-      eq(runIdentityContexts.companyId, of.companyId),
+      eq(runIdentityContexts.spaceId, of.spaceId),
       eq(runIdentityContexts.status, "accepted"),
     )).limit(1),
   /** The channel conversation that received the accepted message. */
-  link: (db: Db, of: Record<"messageId" | "companyId", Value>) => db.select(readColumns.link).from(chatMessageLinks)
-    .innerJoin(chatConversations, and(eq(chatConversations.id, chatMessageLinks.conversationId), eq(chatConversations.companyId, of.companyId)))
-    .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatConversations.endpointId), eq(chatEndpoints.companyId, of.companyId)))
-    .where(and(eq(chatMessageLinks.companyId, of.companyId), eq(chatMessageLinks.commentId, of.messageId),
+  link: (db: Db, of: Record<"messageId" | "spaceId", Value>) => db.select(readColumns.link).from(chatMessageLinks)
+    .innerJoin(chatConversations, and(eq(chatConversations.id, chatMessageLinks.conversationId), eq(chatConversations.spaceId, of.spaceId)))
+    .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatConversations.endpointId), eq(chatEndpoints.spaceId, of.spaceId)))
+    .where(and(eq(chatMessageLinks.spaceId, of.spaceId), eq(chatMessageLinks.commentId, of.messageId),
       eq(chatMessageLinks.direction, "inbound"))).limit(1),
-  /** The accepted message as a board message of the task of the run. */
-  boardMessage: (db: Db, of: Record<"messageId" | "companyId" | "issueId", Value>) => db.select(readColumns.boardMessage)
+  /** The accepted message as a operator message of the task of the run. */
+  operatorMessage: (db: Db, of: Record<"messageId" | "spaceId" | "issueId", Value>) => db.select(readColumns.operatorMessage)
     .from(issueComments).where(and(
-      eq(issueComments.id, of.messageId), eq(issueComments.companyId, of.companyId),
+      eq(issueComments.id, of.messageId), eq(issueComments.spaceId, of.spaceId),
       eq(issueComments.issueId, of.issueId),
       or(eq(issueComments.authorType, "user"), and(isNull(issueComments.authorType), isNull(issueComments.authorAgentId))),
       isNull(issueComments.deletedAt),
     )).limit(1),
   /** The identity context that the current context continues. */
-  parent: (db: Db, of: Record<"contextId" | "companyId", Value>) => db.select(readColumns.parent)
+  parent: (db: Db, of: Record<"contextId" | "spaceId", Value>) => db.select(readColumns.parent)
     .from(runIdentityContexts).where(and(
       eq(runIdentityContexts.id, of.contextId),
-      eq(runIdentityContexts.companyId, of.companyId),
+      eq(runIdentityContexts.spaceId, of.spaceId),
       eq(runIdentityContexts.status, "accepted"),
     )).limit(1),
   /** The run of the parent context, for the same agent. */
-  sourceRun: (db: Db, of: Record<"runId" | "companyId" | "agentId", Value>) => db.select(readColumns.sourceRun)
+  sourceRun: (db: Db, of: Record<"runId" | "spaceId" | "agentId", Value>) => db.select(readColumns.sourceRun)
     .from(heartbeatRuns).where(and(
       eq(heartbeatRuns.id, of.runId),
-      eq(heartbeatRuns.companyId, of.companyId),
+      eq(heartbeatRuns.spaceId, of.spaceId),
       eq(heartbeatRuns.agentId, of.agentId),
     )).limit(1),
 };
@@ -79,7 +79,7 @@ type Read = { [K in Kind]: { kind: K; values: Values<K> } }[Kind];
 type ReadOf = (db: Db, of: Record<string, Value>) => ReturnType<typeof provenanceReads[Kind]>;
 type Walk = Generator<Read, string | null, unknown>;
 
-/** Every value of a read is a UUID. A run without a task binding matches no board message. */
+/** Every value of a read is a UUID. A run without a task binding matches no operator message. */
 const NO_TASK = "00000000-0000-0000-0000-000000000000";
 
 function* read<K extends Kind>(kind: K, values: Values<K>): Generator<Read, Row<K> | undefined, unknown> {
@@ -96,10 +96,10 @@ function* sourceMessageWalk(run: Run, options: Options & { context?: Row<"contex
     return legacyMessageId;
   }
   const active = options.context ?? (yield* read("context", {
-    contextId: run.activeIdentityContextId, runId: run.id, companyId: run.companyId,
+    contextId: run.activeIdentityContextId, runId: run.id, spaceId: run.spaceId,
   }));
   if (!active || active.id !== run.activeIdentityContextId || active.runId !== run.id ||
-      active.companyId !== run.companyId || active.status !== "accepted" ||
+      active.spaceId !== run.spaceId || active.status !== "accepted" ||
       active.responsibleUserId !== run.responsibleUserId) {
     throw forbidden("Chat requester provenance changed");
   }
@@ -110,30 +110,30 @@ function* sourceMessageWalk(run: Run, options: Options & { context?: Row<"contex
     if (origin.messageId) {
       acceptedMessageSeen = true;
       if (!options.provider) return origin.messageId;
-      const link = yield* read("link", { messageId: origin.messageId, companyId: run.companyId });
+      const link = yield* read("link", { messageId: origin.messageId, spaceId: run.spaceId });
       if (link) {
         if (link.issueId !== boundRunIssueId(run)) throw forbidden("Chat request belongs to another task");
         if (link.provider !== options.provider) return null;
         return origin.messageId;
       }
-      const message = yield* read("boardMessage", {
-        messageId: origin.messageId, companyId: run.companyId, issueId: boundRunIssueId(run) ?? NO_TASK,
+      const message = yield* read("operatorMessage", {
+        messageId: origin.messageId, spaceId: run.spaceId, issueId: boundRunIssueId(run) ?? NO_TASK,
       });
       if (!run.responsibleUserId || message?.authorUserId !== run.responsibleUserId) throw forbidden("Chat requester provenance changed");
-      // This verified board message may continue its same-user channel history,
+      // This verified operator message may continue its same-user channel history,
       // but its own wake metadata is not the earlier channel request.
       legacyMessageId = null;
     }
     if (!origin.parentContextId) return legacyMessageId;
     if (seen.has(origin.id)) throw forbidden("Chat source provenance could not be verified");
     seen.add(origin.id);
-    const parent: Row<"parent"> | undefined = yield* read("parent", { contextId: origin.parentContextId, companyId: run.companyId });
+    const parent: Row<"parent"> | undefined = yield* read("parent", { contextId: origin.parentContextId, spaceId: run.spaceId });
     if (!parent) throw forbidden("Chat requester provenance changed");
     if (parent.responsibleUserId !== run.responsibleUserId) {
       if (acceptedMessageSeen) return null;
       throw forbidden("Chat requester provenance changed");
     }
-    const sourceRun = yield* read("sourceRun", { runId: parent.runId, companyId: run.companyId, agentId: run.agentId });
+    const sourceRun = yield* read("sourceRun", { runId: parent.runId, spaceId: run.spaceId, agentId: run.agentId });
     if (!sourceRun || !boundRunIssueId(run) || sourceRun.issueId !== boundRunIssueId(run)) {
       throw forbidden("Chat tools cannot be inherited by another task");
     }

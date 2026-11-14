@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { companies, createDb, principalPermissionGrants } from "@outpost/db";
+import { spaces, createDb, principalPermissionGrants } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
-import { grantsForHumanRole } from "../services/company-member-roles.js";
+import { grantsForHumanRole } from "../services/space-member-roles.js";
 import {
   ensureHumanRoleDefaultGrants,
   insertMissingPrincipalGrants,
@@ -26,22 +26,22 @@ describeEmbeddedPostgres("insertMissingPrincipalGrants", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-principal-grants-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-principal-grants-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
   afterEach(async () => {
     await db.delete(principalPermissionGrants);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  async function createCompany() {
+  async function createSpace() {
     return db
-      .insert(companies)
+      .insert(spaces)
       .values({
         name: `Grant Seeding ${randomUUID()}`,
         issuePrefix: `GS${randomUUID().slice(0, 6).toUpperCase()}`,
@@ -50,13 +50,13 @@ describeEmbeddedPostgres("insertMissingPrincipalGrants", () => {
       .then((rows) => rows[0]!);
   }
 
-  async function grantKeys(companyId: string, principalId: string) {
+  async function grantKeys(spaceId: string, principalId: string) {
     const rows = await db
       .select({ permissionKey: principalPermissionGrants.permissionKey })
       .from(principalPermissionGrants)
       .where(
         and(
-          eq(principalPermissionGrants.companyId, companyId),
+          eq(principalPermissionGrants.spaceId, spaceId),
           eq(principalPermissionGrants.principalType, "user"),
           eq(principalPermissionGrants.principalId, principalId),
         ),
@@ -65,11 +65,11 @@ describeEmbeddedPostgres("insertMissingPrincipalGrants", () => {
   }
 
   it("inserts only the grants that are missing", async () => {
-    const company = await createCompany();
+    const space = await createSpace();
     const userId = `user-${randomUUID()}`;
     const ownerGrants = grantsForHumanRole("owner");
     await insertMissingPrincipalGrants(db, {
-      companyId: company.id,
+      spaceId: space.id,
       principalType: "user",
       principalId: userId,
       grants: ownerGrants.slice(0, 2),
@@ -77,19 +77,19 @@ describeEmbeddedPostgres("insertMissingPrincipalGrants", () => {
     });
 
     const inserted = await ensureHumanRoleDefaultGrants(db, {
-      companyId: company.id,
+      spaceId: space.id,
       principalId: userId,
       membershipRole: "owner",
       grantedByUserId: null,
     });
 
     expect(inserted).toBe(ownerGrants.length - 2);
-    expect(await grantKeys(company.id, userId)).toEqual(
+    expect(await grantKeys(space.id, userId)).toEqual(
       ownerGrants.map((grant) => grant.permissionKey).sort(),
     );
     await expect(
       ensureHumanRoleDefaultGrants(db, {
-        companyId: company.id,
+        spaceId: space.id,
         principalId: userId,
         membershipRole: "owner",
         grantedByUserId: null,
@@ -98,10 +98,10 @@ describeEmbeddedPostgres("insertMissingPrincipalGrants", () => {
   });
 
   it("does not wait on a transaction that is deleting grants that already exist", async () => {
-    const company = await createCompany();
+    const space = await createSpace();
     const userId = `user-${randomUUID()}`;
     await ensureHumanRoleDefaultGrants(db, {
-      companyId: company.id,
+      spaceId: space.id,
       principalId: userId,
       membershipRole: "owner",
       grantedByUserId: null,
@@ -125,7 +125,7 @@ describeEmbeddedPostgres("insertMissingPrincipalGrants", () => {
           .delete(principalPermissionGrants)
           .where(
             and(
-              eq(principalPermissionGrants.companyId, company.id),
+              eq(principalPermissionGrants.spaceId, space.id),
               eq(principalPermissionGrants.principalId, userId),
             ),
           );
@@ -140,7 +140,7 @@ describeEmbeddedPostgres("insertMissingPrincipalGrants", () => {
     try {
       await lockHeld;
       const seeding = ensureHumanRoleDefaultGrants(db, {
-        companyId: company.id,
+        spaceId: space.id,
         principalId: userId,
         membershipRole: "owner",
         grantedByUserId: null,

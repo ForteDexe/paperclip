@@ -6,8 +6,8 @@ const mockRegistry = vi.hoisted(() => ({
   getById: vi.fn(),
   getByKey: vi.fn(),
   upsertConfig: vi.fn(),
-  getCompanySettings: vi.fn(),
-  upsertCompanySettings: vi.fn(),
+  getSpaceSettings: vi.fn(),
+  upsertSpaceSettings: vi.fn(),
 }));
 
 const mockLifecycle = vi.hoisted(() => ({
@@ -105,21 +105,21 @@ function createSelectQueueDb(rows: Array<Array<Record<string, unknown>>>) {
   };
 }
 
-const companyA = "22222222-2222-4222-8222-222222222222";
-const companyB = "33333333-3333-4333-8333-333333333333";
+const spaceA = "22222222-2222-4222-8222-222222222222";
+const spaceB = "33333333-3333-4333-8333-333333333333";
 const agentA = "44444444-4444-4444-8444-444444444444";
 const runA = "55555555-5555-4555-8555-555555555555";
 const projectA = "66666666-6666-4666-8666-666666666666";
 const pluginId = "11111111-1111-4111-8111-111111111111";
 const secretId = "77777777-7777-4777-8777-777777777777";
 
-function boardActor(overrides: Record<string, unknown> = {}) {
+function operatorActor(overrides: Record<string, unknown> = {}) {
   return {
-    type: "board",
+    type: "operator",
     userId: "user-1",
     source: "session",
     isInstanceAdmin: false,
-    companyIds: [companyA],
+    spaceIds: [spaceA],
     ...overrides,
   };
 }
@@ -128,7 +128,7 @@ function agentActor(overrides: Record<string, unknown> = {}) {
   return {
     type: "agent",
     agentId: agentA,
-    companyId: companyA,
+    spaceId: spaceA,
     runId: runA,
     source: "agent_jwt",
     ...overrides,
@@ -150,7 +150,7 @@ describe("plugin install and upgrade authz", () => {
   });
 
   it("lists bundled monorepo plugin packages", async () => {
-    const { app } = await createApp(boardActor());
+    const { app } = await createApp(operatorActor());
 
     const res = await request(app).get("/api/plugins/examples");
 
@@ -171,18 +171,18 @@ describe("plugin install and upgrade authz", () => {
     expect(typeof byPackageName.get("@outpost/plugin-workspace-diff")?.hasBuiltEntrypoints).toBe("boolean");
   }, 20_000);
 
-  it("rejects plugin installation for non-admin board users", async () => {
+  it("rejects plugin installation for non-admin operator users", async () => {
     const { app, loader } = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     });
 
     const res = await request(app)
       .post("/api/plugins/install")
-      .send({ packageName: "paperclip-plugin-example" });
+      .send({ packageName: "outpost-plugin-example" });
 
     expect(res.status).toBe(403);
     expect(loader.installPlugin).not.toHaveBeenCalled();
@@ -200,48 +200,48 @@ describe("plugin install and upgrade authz", () => {
     mockRegistry.getByKey.mockResolvedValue({
       id: pluginId,
       pluginKey,
-      packageName: "paperclip-plugin-example",
+      packageName: "outpost-plugin-example",
       version: "1.0.0",
     });
     mockRegistry.getById.mockResolvedValue({
       id: pluginId,
       pluginKey,
-      packageName: "paperclip-plugin-example",
+      packageName: "outpost-plugin-example",
       version: "1.0.0",
     });
     mockLifecycle.load.mockResolvedValue(undefined);
 
     const { app, loader } = await createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "admin-1",
         source: "session",
         isInstanceAdmin: true,
-        companyIds: [],
+        spaceIds: [],
       },
       { installPlugin: vi.fn().mockResolvedValue(discovered) },
     );
 
     const res = await request(app)
       .post("/api/plugins/install")
-      .send({ packageName: "paperclip-plugin-example" });
+      .send({ packageName: "outpost-plugin-example" });
 
     expect(res.status).toBe(200);
     expect(loader.installPlugin).toHaveBeenCalledWith({
-      packageName: "paperclip-plugin-example",
+      packageName: "outpost-plugin-example",
       version: undefined,
     });
     expect(mockLifecycle.load).toHaveBeenCalledWith(pluginId);
   }, 20_000);
 
-  it("rejects plugin upgrades for non-admin board users", async () => {
+  it("rejects plugin upgrades for non-admin operator users", async () => {
     const pluginId = "11111111-1111-4111-8111-111111111111";
     const { app } = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     });
 
     const res = await request(app)
@@ -258,13 +258,13 @@ describe("plugin install and upgrade authz", () => {
     ["enable", "post", "/api/plugins/11111111-1111-4111-8111-111111111111/enable", {}],
     ["disable", "post", "/api/plugins/11111111-1111-4111-8111-111111111111/disable", {}],
     ["config", "post", "/api/plugins/11111111-1111-4111-8111-111111111111/config", { configJson: {} }],
-  ] as const)("rejects plugin %s for non-admin board users", async (_name, method, path, body) => {
+  ] as const)("rejects plugin %s for non-admin operator users", async (_name, method, path, body) => {
     const { app } = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     });
 
     const req = method === "delete" ? request(app).delete(path) : request(app).post(path).send(body);
@@ -279,7 +279,7 @@ describe("plugin install and upgrade authz", () => {
   }, 20_000);
 
   it("resolves plugin keys without probing the UUID id column for core plugin actions", async () => {
-    const pluginKey = "paperclipqa.hello-plugin";
+    const pluginKey = "outpostqa.hello-plugin";
     const plugin = {
       id: pluginId,
       pluginKey,
@@ -295,11 +295,11 @@ describe("plugin install and upgrade authz", () => {
     mockLifecycle.disable.mockResolvedValue(plugin);
 
     const { app } = await createApp({
-      type: "board",
+      type: "operator",
       userId: "admin-1",
       source: "session",
       isInstanceAdmin: true,
-      companyIds: [companyA],
+      spaceIds: [spaceA],
     });
 
     const inspectRes = await request(app).get(`/api/plugins/${pluginKey}`);
@@ -318,65 +318,65 @@ describe("plugin install and upgrade authz", () => {
     expect(mockLifecycle.unload).toHaveBeenCalledWith(pluginId, true);
   }, 20_000);
 
-  it("allows instance admins to save company-scoped secret refs and sync plugin bindings", async () => {
+  it("allows instance admins to save space-scoped secret refs and sync plugin bindings", async () => {
     readyPlugin();
     const configJson = {
       apiKeyRef: { type: "secret_ref", secretId, version: "latest" },
     };
-    mockSecretService.getById.mockResolvedValue({ id: secretId, companyId: companyA, status: "active" });
+    mockSecretService.getById.mockResolvedValue({ id: secretId, spaceId: spaceA, status: "active" });
     mockSecretService.syncSecretRefsForTarget.mockResolvedValue([]);
-    mockRegistry.upsertConfig.mockResolvedValue({ id: "config-1", pluginId, companyId: companyA, configJson });
+    mockRegistry.upsertConfig.mockResolvedValue({ id: "config-1", pluginId, spaceId: spaceA, configJson });
 
     const { app } = await createApp({
-      type: "board",
+      type: "operator",
       userId: "admin-1",
       source: "session",
       isInstanceAdmin: true,
-      companyIds: [companyA],
+      spaceIds: [spaceA],
     });
 
     const res = await request(app)
       .post(`/api/plugins/${pluginId}/config`)
-      .send({ companyId: companyA, configJson });
+      .send({ spaceId: spaceA, configJson });
 
     expect(res.status).toBe(200);
     expect(mockSecretService.getById).toHaveBeenCalledWith(secretId);
     expect(mockSecretService.syncSecretRefsForTarget).toHaveBeenCalledWith(
-      companyA,
+      spaceA,
       { targetType: "plugin", targetId: pluginId },
       [expect.objectContaining({ secretId, configPath: "apiKeyRef", versionSelector: "latest" })],
       { replaceAll: true },
     );
-    expect(mockRegistry.upsertConfig).toHaveBeenCalledWith(pluginId, companyA, {
-      companyId: companyA,
+    expect(mockRegistry.upsertConfig).toHaveBeenCalledWith(pluginId, spaceA, {
+      spaceId: spaceA,
       configJson,
     });
   }, 20_000);
 
-  it("rejects plugin config saves that reference another company's secret before syncing bindings", async () => {
+  it("rejects plugin config saves that reference another space's secret before syncing bindings", async () => {
     readyPlugin();
-    mockSecretService.getById.mockResolvedValue({ id: secretId, companyId: companyB, status: "active" });
+    mockSecretService.getById.mockResolvedValue({ id: secretId, spaceId: spaceB, status: "active" });
     mockSecretService.syncSecretRefsForTarget.mockResolvedValue([]);
 
     const { app } = await createApp({
-      type: "board",
+      type: "operator",
       userId: "admin-1",
       source: "session",
       isInstanceAdmin: true,
-      companyIds: [companyA],
+      spaceIds: [spaceA],
     });
 
     const res = await request(app)
       .post(`/api/plugins/${pluginId}/config`)
       .send({
-        companyId: companyA,
+        spaceId: spaceA,
         configJson: {
           apiKeyRef: { type: "secret_ref", secretId, version: "latest" },
         },
       });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/outside the selected company/i);
+    expect(res.body.error).toMatch(/outside the selected space/i);
     expect(mockSecretService.syncSecretRefsForTarget).not.toHaveBeenCalled();
     expect(mockRegistry.upsertConfig).not.toHaveBeenCalled();
   }, 20_000);
@@ -394,11 +394,11 @@ describe("plugin install and upgrade authz", () => {
     });
 
     const { app } = await createApp({
-      type: "board",
+      type: "operator",
       userId: "admin-1",
       source: "session",
       isInstanceAdmin: true,
-      companyIds: [],
+      spaceIds: [],
     });
 
     const res = await request(app)
@@ -415,7 +415,7 @@ describe("scoped plugin API routes", () => {
     vi.clearAllMocks();
   });
 
-  it("dispatches manifest-declared scoped routes after company access checks", async () => {
+  it("dispatches manifest-declared scoped routes after space access checks", async () => {
     const pluginId = "11111111-1111-4111-8111-111111111111";
     const workerManager = {
       call: vi.fn().mockResolvedValue({
@@ -437,9 +437,9 @@ describe("scoped plugin API routes", () => {
             routeKey: "smoke",
             method: "GET",
             path: "/smoke",
-            auth: "board-or-agent",
+            auth: "operator-or-agent",
             capability: "api.routes.register",
-            companyResolution: { from: "query", key: "companyId" },
+            spaceResolution: { from: "query", key: "spaceId" },
           },
         ],
       },
@@ -447,11 +447,11 @@ describe("scoped plugin API routes", () => {
 
     const { app } = await createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "admin-1",
         source: "session",
         isInstanceAdmin: false,
-        companyIds: ["company-1"],
+        spaceIds: ["space-1"],
       },
       {},
       { bridgeDeps: { workerManager } },
@@ -459,7 +459,7 @@ describe("scoped plugin API routes", () => {
 
     const res = await request(app)
       .get("/api/plugins/outpost.example/api/smoke")
-      .query({ companyId: "company-1" });
+      .query({ spaceId: "space-1" });
 
     expect(res.status).toBe(202);
     expect(res.body).toEqual({ ok: true });
@@ -469,8 +469,8 @@ describe("scoped plugin API routes", () => {
       expect.objectContaining({
         routeKey: "smoke",
         method: "GET",
-        companyId: "company-1",
-        query: { companyId: "company-1" },
+        spaceId: "space-1",
+        query: { spaceId: "space-1" },
       }),
     );
   }, 20_000);
@@ -479,7 +479,7 @@ describe("scoped plugin API routes", () => {
 describe("plugin local folder routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRegistry.getCompanySettings.mockResolvedValue(null);
+    mockRegistry.getSpaceSettings.mockResolvedValue(null);
   });
 
   function readyLocalFolderPlugin() {
@@ -506,28 +506,28 @@ describe("plugin local folder routes", () => {
 
   it("rejects validation for undeclared local folder keys", async () => {
     readyLocalFolderPlugin();
-    const { app } = await createApp(boardActor());
+    const { app } = await createApp(operatorActor());
 
     const res = await request(app)
-      .post(`/api/plugins/${pluginId}/companies/${companyA}/local-folders/ssh/validate`)
+      .post(`/api/plugins/${pluginId}/spaces/${spaceA}/local-folders/ssh/validate`)
       .send({ path: "/tmp" });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toContain("Local folder key is not declared");
-    expect(mockRegistry.upsertCompanySettings).not.toHaveBeenCalled();
+    expect(mockRegistry.upsertSpaceSettings).not.toHaveBeenCalled();
   });
 
   it("rejects saving undeclared local folder keys", async () => {
     readyLocalFolderPlugin();
-    const { app } = await createApp(boardActor());
+    const { app } = await createApp(operatorActor());
 
     const res = await request(app)
-      .put(`/api/plugins/${pluginId}/companies/${companyA}/local-folders/ssh`)
+      .put(`/api/plugins/${pluginId}/spaces/${spaceA}/local-folders/ssh`)
       .send({ path: "/tmp" });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toContain("Local folder key is not declared");
-    expect(mockRegistry.upsertCompanySettings).not.toHaveBeenCalled();
+    expect(mockRegistry.upsertSpaceSettings).not.toHaveBeenCalled();
   });
 });
 
@@ -536,10 +536,10 @@ describe("plugin tool and bridge authz", () => {
     vi.clearAllMocks();
   });
 
-  it("rejects tool execution when the board user cannot access runContext.companyId", async () => {
+  it("rejects tool execution when the operator user cannot access runContext.spaceId", async () => {
     const executeTool = vi.fn();
     const getTool = vi.fn();
-    const { app } = await createApp(boardActor(), {}, {
+    const { app } = await createApp(operatorActor(), {}, {
       toolDeps: {
         toolDispatcher: {
           listToolsForAgent: vi.fn(),
@@ -557,7 +557,7 @@ describe("plugin tool and bridge authz", () => {
         runContext: {
           agentId: agentA,
           runId: runA,
-          companyId: companyB,
+          spaceId: spaceB,
           projectId: projectA,
         },
       });
@@ -567,41 +567,41 @@ describe("plugin tool and bridge authz", () => {
     expect(executeTool).not.toHaveBeenCalled();
   });
 
-  it("rejects tool execution when any runContext reference is outside the company scope", async () => {
+  it("rejects tool execution when any runContext reference is outside the space scope", async () => {
     const cases: Array<[string, Array<Array<Record<string, unknown>>>]> = [
       [
         "agentId",
         [
-          [{ companyId: companyB }],
+          [{ spaceId: spaceB }],
         ],
       ],
       [
-        "runId company",
+        "runId space",
         [
-          [{ companyId: companyA }],
-          [{ companyId: companyB, agentId: agentA }],
+          [{ spaceId: spaceA }],
+          [{ spaceId: spaceB, agentId: agentA }],
         ],
       ],
       [
         "runId agent",
         [
-          [{ companyId: companyA }],
-          [{ companyId: companyA, agentId: "77777777-7777-4777-8777-777777777777" }],
+          [{ spaceId: spaceA }],
+          [{ spaceId: spaceA, agentId: "77777777-7777-4777-8777-777777777777" }],
         ],
       ],
       [
         "projectId",
         [
-          [{ companyId: companyA }],
-          [{ companyId: companyA, agentId: agentA }],
-          [{ companyId: companyB }],
+          [{ spaceId: spaceA }],
+          [{ spaceId: spaceA, agentId: agentA }],
+          [{ spaceId: spaceB }],
         ],
       ],
     ];
 
     for (const [label, rows] of cases) {
       const executeTool = vi.fn();
-      const { app } = await createApp(boardActor(), {}, {
+      const { app } = await createApp(operatorActor(), {}, {
         db: createSelectQueueDb(rows),
         toolDeps: {
           toolDispatcher: {
@@ -620,7 +620,7 @@ describe("plugin tool and bridge authz", () => {
           runContext: {
             agentId: agentA,
             runId: runA,
-            companyId: companyA,
+            spaceId: spaceA,
             projectId: projectA,
           },
         });
@@ -630,13 +630,13 @@ describe("plugin tool and bridge authz", () => {
     }
   });
 
-  it("allows tool execution when agent, run, and project all belong to runContext.companyId", async () => {
+  it("allows tool execution when agent, run, and project all belong to runContext.spaceId", async () => {
     const executeTool = vi.fn().mockResolvedValue({ content: "ok" });
-    const { app } = await createApp(boardActor(), {}, {
+    const { app } = await createApp(operatorActor(), {}, {
       db: createSelectQueueDb([
-        [{ companyId: companyA }],
-        [{ companyId: companyA, agentId: agentA }],
-        [{ companyId: companyA }],
+        [{ spaceId: spaceA }],
+        [{ spaceId: spaceA, agentId: agentA }],
+        [{ spaceId: spaceA }],
       ]),
       toolDeps: {
         toolDispatcher: {
@@ -655,7 +655,7 @@ describe("plugin tool and bridge authz", () => {
         runContext: {
           agentId: agentA,
           runId: runA,
-          companyId: companyA,
+          spaceId: spaceA,
           projectId: projectA,
         },
       });
@@ -667,7 +667,7 @@ describe("plugin tool and bridge authz", () => {
       {
         agentId: agentA,
         runId: runA,
-        companyId: companyA,
+        spaceId: spaceA,
         projectId: projectA,
       },
     );
@@ -675,11 +675,11 @@ describe("plugin tool and bridge authz", () => {
 
   it("allows tool execution for a run with no project and skips the project lookup", async () => {
     const executeTool = vi.fn().mockResolvedValue({ content: "ok" });
-    const { app } = await createApp(boardActor(), {}, {
+    const { app } = await createApp(operatorActor(), {}, {
       // Only the agent and run lookups. A project lookup would get no row and fail.
       db: createSelectQueueDb([
-        [{ companyId: companyA }],
-        [{ companyId: companyA, agentId: agentA }],
+        [{ spaceId: spaceA }],
+        [{ spaceId: spaceA, agentId: agentA }],
       ]),
       toolDeps: {
         toolDispatcher: {
@@ -695,14 +695,14 @@ describe("plugin tool and bridge authz", () => {
       .send({
         tool: "outpost.example:search",
         parameters: {},
-        runContext: { agentId: agentA, runId: runA, companyId: companyA, projectId: "" },
+        runContext: { agentId: agentA, runId: runA, spaceId: spaceA, projectId: "" },
       });
 
     expect(res.status).toBe(200);
     expect(executeTool).toHaveBeenCalledWith(
       "outpost.example:search",
       {},
-      { agentId: agentA, runId: runA, companyId: companyA, projectId: "" },
+      { agentId: agentA, runId: runA, spaceId: spaceA, projectId: "" },
     );
   });
 
@@ -711,10 +711,10 @@ describe("plugin tool and bridge authz", () => {
     ["null", { projectId: null }],
   ])("passes an empty projectId to the plugin when runContext.projectId is %s", async (_label, project) => {
     const executeTool = vi.fn().mockResolvedValue({ content: "ok" });
-    const { app } = await createApp(boardActor(), {}, {
+    const { app } = await createApp(operatorActor(), {}, {
       db: createSelectQueueDb([
-        [{ companyId: companyA }],
-        [{ companyId: companyA, agentId: agentA }],
+        [{ spaceId: spaceA }],
+        [{ spaceId: spaceA, agentId: agentA }],
       ]),
       toolDeps: {
         toolDispatcher: {
@@ -730,20 +730,20 @@ describe("plugin tool and bridge authz", () => {
       .send({
         tool: "outpost.example:search",
         parameters: {},
-        runContext: { agentId: agentA, runId: runA, companyId: companyA, ...project },
+        runContext: { agentId: agentA, runId: runA, spaceId: spaceA, ...project },
       });
 
     expect(res.status).toBe(200);
     expect(executeTool).toHaveBeenCalledWith(
       "outpost.example:search",
       {},
-      { agentId: agentA, runId: runA, companyId: companyA, projectId: "" },
+      { agentId: agentA, runId: runA, spaceId: spaceA, projectId: "" },
     );
   });
 
   it("rejects tool execution when runContext.projectId is not a string", async () => {
     const executeTool = vi.fn();
-    const { app } = await createApp(boardActor(), {}, {
+    const { app } = await createApp(operatorActor(), {}, {
       toolDeps: {
         toolDispatcher: { listToolsForAgent: vi.fn(), getTool: vi.fn(), executeTool },
       },
@@ -754,7 +754,7 @@ describe("plugin tool and bridge authz", () => {
       .send({
         tool: "outpost.example:search",
         parameters: {},
-        runContext: { agentId: agentA, runId: runA, companyId: companyA, projectId: 42 },
+        runContext: { agentId: agentA, runId: runA, spaceId: spaceA, projectId: 42 },
       });
 
     expect(res.status).toBe(400);
@@ -766,10 +766,10 @@ describe("plugin tool and bridge authz", () => {
     ["legacy action", "post", `/api/plugins/${pluginId}/bridge/action`, { key: "sync" }],
     ["url data", "post", `/api/plugins/${pluginId}/data/health`, {}],
     ["url action", "post", `/api/plugins/${pluginId}/actions/sync`, {}],
-  ] as const)("rejects %s bridge calls without companyId for non-admin users", async (_name, _method, path, body) => {
+  ] as const)("rejects %s bridge calls without spaceId for non-admin users", async (_name, _method, path, body) => {
     readyPlugin();
     const call = vi.fn();
-    const { app } = await createApp(boardActor(), {}, {
+    const { app } = await createApp(operatorActor(), {}, {
       bridgeDeps: {
         workerManager: { call },
       },
@@ -783,10 +783,10 @@ describe("plugin tool and bridge authz", () => {
     expect(call).not.toHaveBeenCalled();
   });
 
-  it("forwards authorized bridge company scope to the plugin worker", async () => {
+  it("forwards authorized bridge space scope to the plugin worker", async () => {
     readyPlugin();
     const call = vi.fn().mockResolvedValue({ ok: true });
-    const { app } = await createApp(boardActor(), {}, {
+    const { app } = await createApp(operatorActor(), {}, {
       bridgeDeps: {
         workerManager: { call },
       },
@@ -794,24 +794,24 @@ describe("plugin tool and bridge authz", () => {
 
     const res = await request(app)
       .post(`/api/plugins/${pluginId}/data/health`)
-      .send({ companyId: companyA, params: { view: "compact" } });
+      .send({ spaceId: spaceA, params: { view: "compact" } });
 
     expect(res.status).toBe(200);
     expect(call).toHaveBeenCalledWith(pluginId, "getData", {
       key: "health",
-      companyId: companyA,
+      spaceId: spaceA,
       params: { view: "compact" },
       renderEnvironment: null,
     });
   });
 
-  it("allows omitted-company bridge calls for instance admins as global plugin actions", async () => {
+  it("allows omitted-space bridge calls for instance admins as global plugin actions", async () => {
     readyPlugin();
     const call = vi.fn().mockResolvedValue({ ok: true });
-    const { app } = await createApp(boardActor({
+    const { app } = await createApp(operatorActor({
       userId: "admin-1",
       isInstanceAdmin: true,
-      companyIds: [],
+      spaceIds: [],
     }), {}, {
       bridgeDeps: {
         workerManager: { call },
@@ -831,16 +831,16 @@ describe("plugin tool and bridge authz", () => {
         userId: "admin-1",
         agentId: null,
         runId: null,
-        companyId: null,
+        spaceId: null,
       },
       renderEnvironment: null,
     });
   });
 
-  it("passes authenticated actor context and overrides spoofed company scope for plugin actions", async () => {
+  it("passes authenticated actor context and overrides spoofed space scope for plugin actions", async () => {
     readyPlugin();
     const call = vi.fn().mockResolvedValue({ ok: true });
-    const { app } = await createApp(boardActor({ runId: runA }), {}, {
+    const { app } = await createApp(operatorActor({ runId: runA }), {}, {
       bridgeDeps: {
         workerManager: { call },
       },
@@ -849,9 +849,9 @@ describe("plugin tool and bridge authz", () => {
     const res = await request(app)
       .post(`/api/plugins/${pluginId}/actions/sync`)
       .send({
-        companyId: companyA,
+        spaceId: spaceA,
         params: {
-          companyId: companyB,
+          spaceId: spaceB,
           reviewerUserId: "spoofed-user",
         },
       });
@@ -860,7 +860,7 @@ describe("plugin tool and bridge authz", () => {
     expect(call).toHaveBeenCalledWith(pluginId, "performAction", {
       key: "sync",
       params: {
-        companyId: companyA,
+        spaceId: spaceA,
         reviewerUserId: "spoofed-user",
       },
       actorContext: {
@@ -868,16 +868,16 @@ describe("plugin tool and bridge authz", () => {
         userId: "user-1",
         agentId: null,
         runId: runA,
-        companyId: companyA,
+        spaceId: spaceA,
       },
       renderEnvironment: null,
     });
   });
 
-  it("uses null for board actor userId when no authenticated user id is present", async () => {
+  it("uses null for operator actor userId when no authenticated user id is present", async () => {
     readyPlugin();
     const call = vi.fn().mockResolvedValue({ ok: true });
-    const { app } = await createApp(boardActor({ userId: undefined }), {}, {
+    const { app } = await createApp(operatorActor({ userId: undefined }), {}, {
       bridgeDeps: {
         workerManager: { call },
       },
@@ -885,14 +885,14 @@ describe("plugin tool and bridge authz", () => {
 
     const res = await request(app)
       .post(`/api/plugins/${pluginId}/actions/sync`)
-      .send({ companyId: companyA });
+      .send({ spaceId: spaceA });
 
     expect(res.status).toBe(200);
     expect(call).toHaveBeenCalledWith(pluginId, "performAction", expect.objectContaining({
       actorContext: expect.objectContaining({
         type: "user",
         userId: null,
-        companyId: companyA,
+        spaceId: spaceA,
       }),
     }));
   });
@@ -909,9 +909,9 @@ describe("plugin tool and bridge authz", () => {
     const res = await request(app)
       .post(`/api/plugins/${pluginId}/actions/sync`)
       .send({
-        companyId: companyA,
+        spaceId: spaceA,
         params: {
-          companyId: companyB,
+          spaceId: spaceB,
           reviewerAgentId: "spoofed-agent",
         },
       });
@@ -920,7 +920,7 @@ describe("plugin tool and bridge authz", () => {
     expect(call).toHaveBeenCalledWith(pluginId, "performAction", {
       key: "sync",
       params: {
-        companyId: companyA,
+        spaceId: spaceA,
         reviewerAgentId: "spoofed-agent",
       },
       actorContext: {
@@ -928,7 +928,7 @@ describe("plugin tool and bridge authz", () => {
         userId: null,
         agentId: agentA,
         runId: runA,
-        companyId: companyA,
+        spaceId: spaceA,
       },
       renderEnvironment: null,
     });
@@ -938,9 +938,9 @@ describe("plugin tool and bridge authz", () => {
       .post(`/api/plugins/${pluginId}/bridge/action`)
       .send({
         key: "sync",
-        companyId: companyA,
+        spaceId: spaceA,
         params: {
-          companyId: companyB,
+          spaceId: spaceB,
           reviewerAgentId: "spoofed-agent",
         },
       });
@@ -949,7 +949,7 @@ describe("plugin tool and bridge authz", () => {
     expect(call).toHaveBeenCalledWith(pluginId, "performAction", {
       key: "sync",
       params: {
-        companyId: companyA,
+        spaceId: spaceA,
         reviewerAgentId: "spoofed-agent",
       },
       actorContext: {
@@ -957,13 +957,13 @@ describe("plugin tool and bridge authz", () => {
         userId: null,
         agentId: agentA,
         runId: runA,
-        companyId: companyA,
+        spaceId: spaceA,
       },
       renderEnvironment: null,
     });
   });
 
-  it("rejects agent plugin actions outside the authenticated company scope", async () => {
+  it("rejects agent plugin actions outside the authenticated space scope", async () => {
     readyPlugin();
     const call = vi.fn().mockResolvedValue({ ok: true });
     const { app } = await createApp(agentActor(), {}, {
@@ -974,7 +974,7 @@ describe("plugin tool and bridge authz", () => {
 
     const res = await request(app)
       .post(`/api/plugins/${pluginId}/actions/sync`)
-      .send({ companyId: companyB });
+      .send({ spaceId: spaceB });
 
     expect(res.status).toBe(403);
     expect(call).not.toHaveBeenCalled();
@@ -984,7 +984,7 @@ describe("plugin tool and bridge authz", () => {
     readyPlugin();
     const call = vi.fn().mockRejectedValue(new Error("missing source_objects column"));
     const captured: Array<{ context: any; body: unknown }> = [];
-    const { app } = await createApp(boardActor(), {}, {
+    const { app } = await createApp(operatorActor(), {}, {
       bridgeDeps: {
         workerManager: { call },
       },
@@ -995,7 +995,7 @@ describe("plugin tool and bridge authz", () => {
 
     const res = await request(app)
       .post(`/api/plugins/${pluginId}/data/source-objects`)
-      .send({ companyId: companyA });
+      .send({ spaceId: spaceA });
 
     expect(res.status).toBe(502);
     expect(res.body).toMatchObject({
@@ -1014,10 +1014,10 @@ describe("plugin tool and bridge authz", () => {
     });
   });
 
-  it("rejects manual job triggers for non-admin board users", async () => {
+  it("rejects manual job triggers for non-admin operator users", async () => {
     const scheduler = { triggerJob: vi.fn() };
     const jobStore = { getJobByIdForPlugin: vi.fn() };
-    const { app } = await createApp(boardActor(), {}, {
+    const { app } = await createApp(operatorActor(), {}, {
       jobDeps: { scheduler, jobStore },
     });
 
@@ -1034,10 +1034,10 @@ describe("plugin tool and bridge authz", () => {
     readyPlugin();
     const scheduler = { triggerJob: vi.fn().mockResolvedValue({ runId: "run-1", jobId: "job-1" }) };
     const jobStore = { getJobByIdForPlugin: vi.fn().mockResolvedValue({ id: "job-1" }) };
-    const { app } = await createApp(boardActor({
+    const { app } = await createApp(operatorActor({
       userId: "admin-1",
       isInstanceAdmin: true,
-      companyIds: [],
+      spaceIds: [],
     }), {}, {
       jobDeps: { scheduler, jobStore },
     });
@@ -1053,10 +1053,10 @@ describe("plugin tool and bridge authz", () => {
 
   // ─── Agent JWT tool execution (cherry-picked from #5549) ─────────────────────
 
-  it("rejects board users with no company memberships from listing plugin tools", async () => {
+  it("rejects operator users with no space memberships from listing plugin tools", async () => {
     const listToolsForAgent = vi.fn(() => []);
     const { app } = await createApp(
-      boardActor({ companyIds: [], isInstanceAdmin: false, source: "session" }),
+      operatorActor({ spaceIds: [], isInstanceAdmin: false, source: "session" }),
       {},
       {
         toolDeps: {
@@ -1093,16 +1093,16 @@ describe("plugin tool and bridge authz", () => {
     expect(listToolsForAgent).toHaveBeenCalled();
   });
 
-  it("allows agent JWT to execute a tool within its company scope", async () => {
+  it("allows agent JWT to execute a tool within its space scope", async () => {
     const executeTool = vi.fn().mockResolvedValue({ content: "ok" });
     const { app } = await createApp(
       agentActor(),
       {},
       {
         db: createSelectQueueDb([
-          [{ companyId: companyA }],
-          [{ companyId: companyA, agentId: agentA }],
-          [{ companyId: companyA }],
+          [{ spaceId: spaceA }],
+          [{ spaceId: spaceA, agentId: agentA }],
+          [{ spaceId: spaceA }],
         ]),
         toolDeps: {
           toolDispatcher: {
@@ -1119,18 +1119,18 @@ describe("plugin tool and bridge authz", () => {
       .send({
         tool: "outpost.example:search",
         parameters: { q: "test" },
-        runContext: { agentId: agentA, runId: runA, companyId: companyA, projectId: projectA },
+        runContext: { agentId: agentA, runId: runA, spaceId: spaceA, projectId: projectA },
       });
 
     expect(res.status).toBe(200);
     expect(executeTool).toHaveBeenCalledWith(
       "outpost.example:search",
       { q: "test" },
-      { agentId: agentA, runId: runA, companyId: companyA, projectId: projectA },
+      { agentId: agentA, runId: runA, spaceId: spaceA, projectId: projectA },
     );
   });
 
-  it("rejects agent JWT when runContext.companyId is outside the agent's company scope", async () => {
+  it("rejects agent JWT when runContext.spaceId is outside the agent's space scope", async () => {
     const executeTool = vi.fn();
     const { app } = await createApp(
       agentActor(),
@@ -1152,14 +1152,14 @@ describe("plugin tool and bridge authz", () => {
       .send({
         tool: "outpost.example:search",
         parameters: {},
-        runContext: { agentId: agentA, runId: runA, companyId: companyB, projectId: projectA },
+        runContext: { agentId: agentA, runId: runA, spaceId: spaceB, projectId: projectA },
       });
 
     expect(res.status).toBe(403);
     expect(executeTool).not.toHaveBeenCalled();
   });
 
-  it("rejects agent JWT when runContext.agentId does not belong to runContext.companyId", async () => {
+  it("rejects agent JWT when runContext.agentId does not belong to runContext.spaceId", async () => {
     const otherAgent = "77777777-7777-4777-8777-777777777777";
     const executeTool = vi.fn();
     const { app } = await createApp(
@@ -1167,7 +1167,7 @@ describe("plugin tool and bridge authz", () => {
       {},
       {
         db: createSelectQueueDb([
-          [{ companyId: companyB }],
+          [{ spaceId: spaceB }],
         ]),
         toolDeps: {
           toolDispatcher: {
@@ -1184,7 +1184,7 @@ describe("plugin tool and bridge authz", () => {
       .send({
         tool: "outpost.example:search",
         parameters: {},
-        runContext: { agentId: otherAgent, runId: runA, companyId: companyA, projectId: projectA },
+        runContext: { agentId: otherAgent, runId: runA, spaceId: spaceA, projectId: projectA },
       });
 
     expect(res.status).toBe(403);
@@ -1201,7 +1201,7 @@ describe("operator-hidden plugin management floor", () => {
     delete process.env.OUTPOST_HIDDEN_SETTINGS;
   });
 
-  const instanceAdmin = () => boardActor({ isInstanceAdmin: true, userId: "instance-admin" });
+  const instanceAdmin = () => operatorActor({ isInstanceAdmin: true, userId: "instance-admin" });
 
   it("floors plugin lifecycle and config writes for instance admins", async () => {
     const { app, loader } = await createApp(instanceAdmin());
@@ -1218,7 +1218,7 @@ describe("operator-hidden plugin management floor", () => {
       [
         "local folder",
         request(app)
-          .put(`/api/plugins/${pluginId}/companies/${companyA}/local-folders/data`)
+          .put(`/api/plugins/${pluginId}/spaces/${spaceA}/local-folders/data`)
           .send({ path: "/tmp/folder" }),
       ],
     ];
@@ -1236,7 +1236,7 @@ describe("operator-hidden plugin management floor", () => {
   });
 
   it("keeps plugin reads open while the surface is hidden", async () => {
-    const { app } = await createApp(boardActor());
+    const { app } = await createApp(operatorActor());
 
     const res = await request(app).get("/api/plugins/examples");
 

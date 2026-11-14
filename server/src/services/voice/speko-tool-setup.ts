@@ -7,7 +7,7 @@ import { createSpekoProvider, SpekoProviderError } from "./speko-provider.js";
 
 /** Called while the existing connection credential lease is held. */
 export async function configureSpekoSessionTools(db: Db, input: {
-  companyId: string; endpointId: string; agentId: string; callbackUrl: string; signingSecret: string;
+  spaceId: string; endpointId: string; agentId: string; callbackUrl: string; signingSecret: string;
   previousSigningSecret?: string;
   client: ReturnType<typeof createSpekoProvider>; assertOwned(): Promise<void>;
 }) {
@@ -34,7 +34,7 @@ export async function configureSpekoSessionTools(db: Db, input: {
       const oldFingerprint = oldDefinition && createHash("sha256").update(JSON.stringify({agentId: input.agentId, definition: oldDefinition, signingSecret: input.previousSigningSecret ?? input.signingSecret})).digest("hex");
       const oldDefinitionHash = oldDefinition && createHash("sha256").update(JSON.stringify(oldDefinition)).digest("hex");
       const [owned] = oldFingerprint ? await db.select().from(chatActions).where(and(
-        eq(chatActions.companyId, input.companyId), eq(chatActions.endpointId, input.endpointId),
+        eq(chatActions.spaceId, input.spaceId), eq(chatActions.endpointId, input.endpointId),
         eq(chatActions.kind, "speko_tool_setup"), eq(chatActions.status, "completed"),
         sql`${chatActions.result}->>'toolId' = ${existing.id}`,
         or(eq(chatActions.providerActionId, `speko_tool:${definition.name}:${oldFingerprint}`),
@@ -52,10 +52,10 @@ export async function configureSpekoSessionTools(db: Db, input: {
     }
     const fingerprint = createHash("sha256").update(JSON.stringify({ agentId: input.agentId, definition, signingSecret: input.signingSecret })).digest("hex");
     const actionId = `speko_tool:${definition.name}:${fingerprint}`;
-    let [action] = await db.select().from(chatActions).where(and(eq(chatActions.companyId, input.companyId), eq(chatActions.endpointId, input.endpointId), eq(chatActions.providerActionId, actionId)));
+    let [action] = await db.select().from(chatActions).where(and(eq(chatActions.spaceId, input.spaceId), eq(chatActions.endpointId, input.endpointId), eq(chatActions.providerActionId, actionId)));
     if (action && action.status !== "failed" && !existing) throw conflict("A previous Speko tool setup has an uncertain outcome. Inspect the voice agent's tools before reconnecting.");
     if (!action) {
-      [action] = await db.insert(chatActions).values({ companyId: input.companyId, endpointId: input.endpointId, kind: "speko_tool_setup", providerActionId: actionId, status: "processing", payload: { name: definition.name, fingerprint, ownershipAgentId: input.agentId, ownershipDefinitionHash: createHash("sha256").update(JSON.stringify(definition)).digest("hex") } }).returning();
+      [action] = await db.insert(chatActions).values({ spaceId: input.spaceId, endpointId: input.endpointId, kind: "speko_tool_setup", providerActionId: actionId, status: "processing", payload: { name: definition.name, fingerprint, ownershipAgentId: input.agentId, ownershipDefinitionHash: createHash("sha256").update(JSON.stringify(definition)).digest("hex") } }).returning();
     }
     // A recovered matching tool is repaired with an idempotent PATCH. GET does
     // not expose the secret, so presence alone cannot verify the signing key.
@@ -86,7 +86,7 @@ export async function configureSpekoSessionTools(db: Db, input: {
     if (hook.url === callback.href) { matching.push(hook); continue; }
     const oldFingerprint = createHash("sha256").update(JSON.stringify({agentId: input.agentId, url: hook.url, secret: input.previousSigningSecret ?? input.signingSecret})).digest("hex");
     const [owned] = await db.select().from(chatActions).where(and(
-      eq(chatActions.companyId, input.companyId), eq(chatActions.endpointId, input.endpointId),
+      eq(chatActions.spaceId, input.spaceId), eq(chatActions.endpointId, input.endpointId),
       eq(chatActions.kind, "speko_lifecycle_setup"), eq(chatActions.status, "completed"),
       sql`${chatActions.result}->>'webhookId' = ${hook.id}`,
       or(eq(chatActions.providerActionId, `speko_lifecycle:${oldFingerprint}`),
@@ -102,9 +102,9 @@ export async function configureSpekoSessionTools(db: Db, input: {
   if (matching.length > 1 || scoped.some(hook => hook.events.includes("call.pre_call") && !matching.includes(hook))) throw conflict("This Speko persona already has another pre-call webhook. Use a dedicated voice persona.");
   const fingerprint = createHash("sha256").update(JSON.stringify({ agentId: input.agentId, url: callback.href, secret: input.signingSecret })).digest("hex");
   const actionId = `speko_lifecycle:${fingerprint}`;
-  const [previous] = await db.select().from(chatActions).where(and(eq(chatActions.companyId, input.companyId), eq(chatActions.endpointId, input.endpointId), eq(chatActions.providerActionId, actionId)));
+  const [previous] = await db.select().from(chatActions).where(and(eq(chatActions.spaceId, input.spaceId), eq(chatActions.endpointId, input.endpointId), eq(chatActions.providerActionId, actionId)));
   if (previous && previous.status !== "failed" && !matching.length) throw conflict("Speko webhook setup has an uncertain outcome. Inspect Webhooks in Speko before reconnecting.");
-  const action = previous ?? (await db.insert(chatActions).values({companyId: input.companyId, endpointId: input.endpointId, kind: "speko_lifecycle_setup", providerActionId: actionId, status: "processing", payload: { fingerprint, ownershipAgentId: input.agentId, ownershipUrl: callback.href }}).returning())[0]!;
+  const action = previous ?? (await db.insert(chatActions).values({spaceId: input.spaceId, endpointId: input.endpointId, kind: "speko_lifecycle_setup", providerActionId: actionId, status: "processing", payload: { fingerprint, ownershipAgentId: input.agentId, ownershipUrl: callback.href }}).returning())[0]!;
   await input.assertOwned();
   try {
     const receipt = await input.client.configureWebhook(input.agentId, callback.href, input.signingSecret, matching[0]?.id);

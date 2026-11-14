@@ -4,7 +4,7 @@ import { expect, userEvent, within, waitFor } from "storybook/test";
 import { IssuePrivacyActions } from "@/components/IssuePrivacyActions";
 import { issuesApi } from "@/api/issues";
 import { queryKeys } from "@/lib/queryKeys";
-import { privacyCompanyId } from "../../../fixtures/privateTasks";
+import { privacySpaceId } from "../../../fixtures/privateTasks";
 import {
   mobile,
   privacyDecorator,
@@ -22,7 +22,7 @@ function PrivacyActionsStory({ child = false }: { child?: boolean }) {
   return (
     <StoryFrame
       title="Task privacy actions"
-      story="As the owner or a company admin, I manage the audience from the task menu. A shared reader can read the task but cannot change its audience."
+      story="As the owner or a space admin, I manage the audience from the task menu. A shared reader can read the task but cannot change its audience."
       checks={[
         "Private tasks offer Share and Make public. Open tasks offer Make private.",
         "Making public requires confirmation explaining disclosure and private descendants.",
@@ -33,11 +33,11 @@ function PrivacyActionsStory({ child = false }: { child?: boolean }) {
         <div className="space-y-3">
           <p className="text-sm">
             {issue.identifier} ·{" "}
-            {issue.visibility === "private" ? "Private" : "Open to company"}
+            {issue.visibility === "private" ? "Private" : "Open to space"}
           </p>
           <IssuePrivacyActions
             issue={issue}
-            companyId={privacyCompanyId}
+            spaceId={privacySpaceId}
             canManage={state.options.role !== "reader"}
             closeMenu={() => {}}
           >
@@ -60,7 +60,7 @@ const meta = {
   title: "Getting started and access/Login, invitations, and access/Private tasks/03 Task actions",
   decorators: [privacyDecorator],
   parameters: { ...privacyParameters, docs: { description: { component: "Task menu privacy actions, permission gates and disclosure confirmation." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "access/resources",
         "tasks/properties"
@@ -90,7 +90,7 @@ export const SharedReader: Story = {
     ).toBeDisabled();
   },
 };
-export const CompanyAdmin: Story = {
+export const SpaceAdmin: Story = {
   parameters: { privacy: { role: "admin" } },
 };
 export const MakePublicConfirmation: Story = {

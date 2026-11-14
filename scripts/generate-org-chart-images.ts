@@ -26,26 +26,26 @@ interface OrgNode {
 
 const ORGS: Record<string, OrgNode> = {
   sm: {
-    name: "CEO",
-    role: "Chief Executive",
+    name: "Default agent",
+    role: "Default agent",
     icon: "👑",
-    tag: "ceo",
+    tag: "lead",
     children: [
       { name: "Engineer", role: "Engineer", icon: "⌨️", tag: "eng" },
       { name: "Designer", role: "Design", icon: "🪄", tag: "des" },
     ],
   },
   med: {
-    name: "CEO",
-    role: "Chief Executive",
+    name: "Default agent",
+    role: "Default agent",
     icon: "👑",
-    tag: "ceo",
+    tag: "lead",
     children: [
       {
-        name: "CTO",
+        name: "Engineering Lead",
         role: "Technology",
         icon: "💻",
-        tag: "cto",
+        tag: "engineering_lead",
         children: [
           { name: "ClaudeCoder", role: "Engineer", tag: "eng" },
           { name: "CodexCoder", role: "Engineer", tag: "eng" },
@@ -55,25 +55,25 @@ const ORGS: Record<string, OrgNode> = {
         ],
       },
       {
-        name: "CMO",
+        name: "Product Lead",
         role: "Marketing",
         icon: "🌐",
-        tag: "cmo",
+        tag: "product",
         children: [{ name: "Designer", role: "Design", tag: "des" }],
       },
     ],
   },
   lg: {
-    name: "CEO",
-    role: "Chief Executive",
+    name: "Default agent",
+    role: "Default agent",
     icon: "👑",
-    tag: "ceo",
+    tag: "lead",
     children: [
       {
-        name: "CTO",
+        name: "Engineering Lead",
         role: "Technology",
         icon: "💻",
-        tag: "cto",
+        tag: "engineering_lead",
         children: [
           { name: "Eng 1", role: "Eng", tag: "eng" },
           { name: "Eng 2", role: "Eng", tag: "eng" },
@@ -82,17 +82,17 @@ const ORGS: Record<string, OrgNode> = {
         ],
       },
       {
-        name: "CMO",
+        name: "Product Lead",
         role: "Marketing",
         icon: "🌐",
-        tag: "cmo",
+        tag: "product",
         children: [
           { name: "Designer", role: "Design", tag: "des" },
           { name: "Content", role: "Writer", tag: "eng" },
         ],
       },
       {
-        name: "CFO",
+        name: "Operations Lead",
         role: "Finance",
         icon: "📊",
         tag: "fin",
@@ -115,12 +115,12 @@ const ORGS: Record<string, OrgNode> = {
 
 // OG collapsed org
 const OG_ORG: OrgNode = {
-  name: "CEO",
-  role: "Chief Executive",
-  tag: "ceo",
+  name: "Default agent",
+  role: "Default agent",
+  tag: "lead",
   children: [
-    { name: "CTO", role: "×5 reports", tag: "cto" },
-    { name: "CMO", role: "×1 report", tag: "cmo" },
+    { name: "Engineering Lead", role: "×5 reports", tag: "engineering_lead" },
+    { name: "Product Lead", role: "×1 report", tag: "product" },
   ],
 };
 
@@ -367,7 +367,7 @@ body { background: #0c0c0e; }
 .watermark svg { stroke: rgba(99,102,241,0.3); }
 `,
     renderCard: (node, isOg) => {
-      const cls = node.tag === "ceo" ? " chief" : "";
+      const cls = node.tag === "lead" ? " chief" : "";
       const icon =
         node.icon && !isOg
           ? `<div class="icon-wrap">${node.icon}</div>`
@@ -401,9 +401,9 @@ body { background: #fafaf9; }
   display: flex; align-items: center; justify-content: center;
   font-size: 15px; line-height: 1;
 }
-.org-card .avatar.r-ceo { background: #fef3c7; }
-.org-card .avatar.r-cto { background: #dbeafe; }
-.org-card .avatar.r-cmo { background: #dcfce7; }
+.org-card .avatar.r-lead { background: #fef3c7; }
+.org-card .avatar.r-engineering_lead { background: #dbeafe; }
+.org-card .avatar.r-product { background: #dcfce7; }
 .org-card .avatar.r-eng { background: #f3e8ff; }
 .org-card .avatar.r-qa  { background: #ffe4e6; }
 .org-card .avatar.r-des { background: #fce7f3; }
@@ -420,9 +420,9 @@ body { background: #fafaf9; }
 `,
     renderCard: (node, isOg) => {
       const icons: Record<string, string> = {
-        ceo: "👑",
-        cto: "💻",
-        cmo: "🌐",
+        lead: "👑",
+        engineering_lead: "💻",
+        product: "🌐",
         eng: "⌨️",
         qa: "🔬",
         des: "🪄",
@@ -470,9 +470,9 @@ body { background: #0d1117; }
   height: 2px;
   border-radius: 4px 4px 0 0;
 }
-.org-card.t-ceo::after { background: #f0883e; }
-.org-card.t-cto::after { background: #58a6ff; }
-.org-card.t-cmo::after { background: #3fb950; }
+.org-card.t-lead::after { background: #f0883e; }
+.org-card.t-engineering_lead::after { background: #58a6ff; }
+.org-card.t-product::after { background: #3fb950; }
 .org-card.t-eng::after { background: #bc8cff; }
 .org-card.t-qa::after  { background: #f778ba; }
 .org-card.t-des::after { background: #79c0ff; }
@@ -489,9 +489,9 @@ body { background: #0d1117; }
 `,
     renderCard: (node, isOg) => {
       const schemaRoles: Record<string, string> = {
-        ceo: "chief_executive",
-        cto: "chief_technology",
-        cmo: "chief_marketing",
+        lead: "chief_leadership",
+        engineering_lead: "chief_technology",
+        product: "chief_marketing",
         eng: "engineer",
         qa: "quality",
         des: "designer",
@@ -543,7 +543,7 @@ const OUTPOST_WATERMARK = `<div class="watermark">
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="m18 4-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"/>
   </svg>
-  Paperclip
+  Outpost
 </div>`;
 
 function buildHtml(

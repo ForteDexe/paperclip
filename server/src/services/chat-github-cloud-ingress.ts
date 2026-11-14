@@ -1,7 +1,7 @@
 import type { Db, chatEndpoints } from "@outpost/db";
 import { chatEndpoints as endpoints } from "@outpost/db";
 import { and, eq, sql } from "drizzle-orm";
-import type { SealedConnectorEvents } from "./paperclip-cloud-connector.js";
+import type { SealedConnectorEvents } from "./outpost-cloud-connector.js";
 
 type Event = SealedConnectorEvents["events"][number];
 type Endpoint = typeof chatEndpoints.$inferSelect;

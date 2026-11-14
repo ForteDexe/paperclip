@@ -21,14 +21,14 @@ describe("neutral connection guidance selection", () => {
       expect(selectRunnerExecutions(parseRunnerSelectors(args), runnerMatrix).some(row => row.suite.id === CONNECTION_GUIDANCE_SUITE)).toBe(false);
     }
     expect(runnerSuites.find(suite => suite.id === CONNECTION_GUIDANCE_SUITE)?.definitionMetadata)
-      .toMatchObject({ fixtureDigest: connectionGuidanceDefinitionDigest(), companyAndAgentBudgetCents: 1_000, maximumAttemptsPerCell: 1 });
+      .toMatchObject({ fixtureDigest: connectionGuidanceDefinitionDigest(), spaceAndAgentBudgetCents: 1_000, maximumAttemptsPerCell: 1 });
   });
   it("keeps workflow instructions out of new decline prompts and preserves the historical prompts", () => {
     for (const task of connectionGuidanceTasks) {
       const original = everydayTasks.find(row => row.id === task.id)!;
       if (task.id.endsWith("decline")) {
         expect(task.buildPrompt("nonce")).toMatch(/brief explanation is enough/);
-        expect(task.buildPrompt("nonce")).not.toMatch(/declin|Not now|None for now|do not|retry|try again|connection_request|connections_search|paperclip_|yield|poll/i);
+        expect(task.buildPrompt("nonce")).not.toMatch(/declin|Not now|None for now|do not|retry|try again|connection_request|connections_search|outpost_|yield|poll/i);
         expect(task.buildPrompt("nonce")).not.toBe(original.buildPrompt("nonce"));
       } else expect(task.buildPrompt("nonce")).toBe(original.buildPrompt("nonce"));
     }

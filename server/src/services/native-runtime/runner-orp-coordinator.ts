@@ -11,7 +11,7 @@ import {
 } from "@outpost/db";
 import {
   DurablePrpControlPlane,
-  type PaperclipSemanticToolDefinition,
+  type OutpostSemanticToolDefinition,
   type PrpStructuredRunResult,
   type PrpTerminalState,
 } from "../../vendor/outpost-runner/index.js";
@@ -23,7 +23,7 @@ import {
   projectNativeRuntimeRequest,
   registerNativeQuestionCommandTarget,
 } from "./native-question-bridge.js";
-import { PaperclipRunnerSemanticAuthority } from "./runner-semantic-authority.js";
+import { OutpostRunnerSemanticAuthority } from "./runner-semantic-authority.js";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,7 +31,7 @@ const STABLE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,239}$/;
 const RUNNER_DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 
 export interface PrepareRunnerPrpSessionInput {
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly issueId: string;
   readonly runId: string;
   readonly agentId: string;
@@ -50,7 +50,7 @@ export interface PreparedRunnerPrpSession {
   readonly connectUrl: string;
   /** One-use secret. Pass it only through the runner's protected bootstrap channel. */
   readonly bootstrapTicket: string;
-  readonly semanticTools: readonly PaperclipSemanticToolDefinition[];
+  readonly semanticTools: readonly OutpostSemanticToolDefinition[];
   queueCommand(
     type: string,
     payload?: Record<string, unknown>,
@@ -92,7 +92,7 @@ function clampDuration(
 
 function validateInput(input: PrepareRunnerPrpSessionInput): void {
   for (const id of [
-    input.companyId,
+    input.spaceId,
     input.issueId,
     input.runId,
     input.agentId,
@@ -175,28 +175,28 @@ export function runnerPrpCoordinator(
           issues,
           and(
             eq(issues.id, heartbeatRuns.nativeIssueId),
-            eq(issues.companyId, heartbeatRuns.companyId),
+            eq(issues.spaceId, heartbeatRuns.spaceId),
           ),
         )
         .innerJoin(
           agents,
           and(
             eq(agents.id, heartbeatRuns.agentId),
-            eq(agents.companyId, heartbeatRuns.companyId),
+            eq(agents.spaceId, heartbeatRuns.spaceId),
           ),
         )
         .innerJoin(
           completionContracts,
           and(
             eq(completionContracts.id, heartbeatRuns.completionContractId),
-            eq(completionContracts.companyId, heartbeatRuns.companyId),
+            eq(completionContracts.spaceId, heartbeatRuns.spaceId),
             eq(completionContracts.issueId, heartbeatRuns.nativeIssueId),
           ),
         )
         .where(
           and(
             eq(heartbeatRuns.id, input.runId),
-            eq(heartbeatRuns.companyId, input.companyId),
+            eq(heartbeatRuns.spaceId, input.spaceId),
             eq(heartbeatRuns.agentId, input.agentId),
             eq(heartbeatRuns.nativeIssueId, input.issueId),
             eq(heartbeatRuns.runnerInstanceId, input.runnerInstanceId),
@@ -226,15 +226,15 @@ export function runnerPrpCoordinator(
       );
       if (!criterionIds) throw new Error("runner_orp_run_not_authorized");
 
-      const semanticAuthority = new PaperclipRunnerSemanticAuthority(db, {
-        companyId: input.companyId,
+      const semanticAuthority = new OutpostRunnerSemanticAuthority(db, {
+        spaceId: input.spaceId,
         issueId: input.issueId,
         runId: input.runId,
         agentId: input.agentId,
       });
       const semanticTools = await semanticAuthority.listAlwaysAvailableTools();
       const storeBinding = {
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         issueId: input.issueId,
         runId: input.runId,
         agentId: input.agentId,
@@ -307,7 +307,7 @@ export function runnerPrpCoordinator(
       let registration: Awaited<ReturnType<typeof registerRunnerPrpAuthority>>;
       try {
         registration = await registerRunnerPrpAuthority({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           issueId: input.issueId,
           agentId: input.agentId,
           runId: input.runId,

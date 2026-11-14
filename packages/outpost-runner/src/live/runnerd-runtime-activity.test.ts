@@ -42,7 +42,7 @@ it("delivers authenticated runtime activity through the real Runner bridge acros
   const notifications = bundle.transport.notifications.bind(bundle.transport);
   bundle.transport.notifications = async function* () {
     for await (const notification of notifications()) {
-      if (notification.method === "paperclip/runtimeActivityRecorded" && notification.params.runId === "activity-next") observedNewActivity();
+      if (notification.method === "outpost/runtimeActivityRecorded" && notification.params.runId === "activity-next") observedNewActivity();
       yield notification;
     }
   };

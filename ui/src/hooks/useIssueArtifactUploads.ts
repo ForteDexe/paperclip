@@ -6,7 +6,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { uploadedDocumentKey } from "@/lib/issue-artifact-upload";
 import type { ArtifactUploadEntry } from "@/components/artifacts/ArtifactUploadControls";
 
-export function useIssueArtifactUploads(issue: Pick<Issue, "id" | "companyId">) {
+export function useIssueArtifactUploads(issue: Pick<Issue, "id" | "spaceId">) {
   const client = useQueryClient();
   const [entries, setEntries] = useState<ArtifactUploadEntry[]>([]);
   const [announcement, setAnnouncement] = useState("");
@@ -35,7 +35,7 @@ export function useIssueArtifactUploads(issue: Pick<Issue, "id" | "companyId">) 
             client.setQueryData<IssueDocument[]>([...queryKeys.issues.documents(issue.id), "list"], current => [document, ...(current ?? []).filter(row => row.id !== document.id)]);
             void client.invalidateQueries({ queryKey: queryKeys.issues.documents(issue.id) });
           } else {
-            const attachment = await issuesApi.uploadAttachment(issue.companyId, issue.id, file);
+            const attachment = await issuesApi.uploadAttachment(issue.spaceId, issue.id, file);
             client.setQueryData<IssueAttachment[]>(queryKeys.issues.attachments(issue.id), current => [attachment, ...(current ?? []).filter(row => row.id !== attachment.id)]);
             void client.invalidateQueries({ queryKey: queryKeys.issues.attachments(issue.id) });
           }
@@ -50,7 +50,7 @@ export function useIssueArtifactUploads(issue: Pick<Issue, "id" | "companyId">) 
         }
       }
     });
-  }, [client, issue.companyId, issue.id]);
+  }, [client, issue.spaceId, issue.id]);
 
   const upload = useCallback((picked: File[]) => enqueue(picked.map(file => ({ id: crypto.randomUUID(), file }))), [enqueue]);
   const retry = useCallback((id: string) => {

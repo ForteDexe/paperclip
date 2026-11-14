@@ -7,7 +7,7 @@ import { LayoutGroup, motion, useReducedMotion } from "motion/react";
 import type { Agent, AttentionItem, DecisionHistoryItem } from "@outpost/shared";
 import { attentionApi } from "@/api/attention";
 import { agentsApi } from "@/api/agents";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { usePanel } from "@/context/PanelContext";
 import { useSidebar } from "@/context/SidebarContext";
@@ -29,11 +29,11 @@ import { parseCssTimeMs } from "@/components/task-chat/motion-tokens";
 import { readIssueReviewPolicyMetadata } from "@/lib/review-policy";
 import { CoordinatorDecisionReceipt as Receipt } from "./CoordinatorDecisionReceipt";
 import { CoordinatorTaskMotion } from "./CoordinatorTaskCommitment";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 
 type Group = "none" | "task" | "agent" | "project";
 
-function HistoryPanel({ companyId, agents, onClose, mobile = false }: { companyId: string; agents: Agent[]; onClose: () => void; mobile?: boolean }) {
+function HistoryPanel({ spaceId, agents, onClose, mobile = false }: { spaceId: string; agents: Agent[]; onClose: () => void; mobile?: boolean }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [outcome, setOutcome] = useState("");
@@ -41,10 +41,10 @@ function HistoryPanel({ companyId, agents, onClose, mobile = false }: { companyI
   const [projectId, setProjectId] = useState("");
   const [groupBy, setGroupBy] = useState<Group>("none");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
-  const projects = useQuery({ ...companyProjectsQuery(companyId) });
+  const projects = useQuery({ ...spaceProjectsQuery(spaceId) });
   const history = useInfiniteQuery({
-    queryKey: [...queryKeys.attention(companyId), "history", { search, outcome, agentId, projectId, sort }],
-    queryFn: ({ pageParam }) => attentionApi.history(companyId, { search, outcome, agentId, projectId, sort, cursor: pageParam, limit: 40 }),
+    queryKey: [...queryKeys.attention(spaceId), "history", { search, outcome, agentId, projectId, sort }],
+    queryFn: ({ pageParam }) => attentionApi.history(spaceId, { search, outcome, agentId, projectId, sort, cursor: pageParam, limit: 40 }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
   });
@@ -79,7 +79,7 @@ function HistoryPanel({ companyId, agents, onClose, mobile = false }: { companyI
 }
 
 export function CoordinatorNeedsYou() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { userId } = useCoordinatorWorkspaceEnabled();
   const { setBreadcrumbs } = useBreadcrumbs();
   const { openPanel, closePanel, setPanelVisible } = usePanel();
@@ -97,17 +97,17 @@ export function CoordinatorNeedsYou() {
   const [now, setNow] = useState(Date.now);
   const [settling, setSettling] = useState<AttentionItem[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set());
-  useEffect(() => { setSettling([]); setSavedIds(new Set()); }, [selectedCompanyId, userId]);
+  useEffect(() => { setSettling([]); setSavedIds(new Set()); }, [selectedSpaceId, userId]);
   const [renderLimit, setRenderLimit] = useState(40);
-  const feed = useQuery({ queryKey: coordinatorAttentionQueryKey(selectedCompanyId!),
-    queryFn: () => attentionApi.list(selectedCompanyId!, { all: true }), enabled: !!selectedCompanyId, refetchOnWindowFocus: true });
+  const feed = useQuery({ queryKey: coordinatorAttentionQueryKey(selectedSpaceId!),
+    queryFn: () => attentionApi.list(selectedSpaceId!, { all: true }), enabled: !!selectedSpaceId, refetchOnWindowFocus: true });
   const feedView = useQueryView(feed);
   const feedWaiting = ["loading", "reconnecting"].includes(feedView.kind);
-  const agentQuery = useQuery({ queryKey: queryKeys.agents.list(selectedCompanyId!), queryFn: () => agentsApi.list(selectedCompanyId!), enabled: !!selectedCompanyId });
+  const agentQuery = useQuery({ queryKey: queryKeys.agents.list(selectedSpaceId!), queryFn: () => agentsApi.list(selectedSpaceId!), enabled: !!selectedSpaceId });
   // Full history lives in its own paginated tab. Only the newest bounded page
   // is fetched here; its window expires visually without deleting any record.
-  const recent = useQuery({ queryKey: [...queryKeys.attention(selectedCompanyId!), "history", "recent"],
-    queryFn: () => attentionApi.history(selectedCompanyId!, { limit: 100, since: new Date(Date.now() - COORDINATOR_RECENT_DECISION_MS).toISOString() }), enabled: !!selectedCompanyId, refetchOnWindowFocus: true });
+  const recent = useQuery({ queryKey: [...queryKeys.attention(selectedSpaceId!), "history", "recent"],
+    queryFn: () => attentionApi.history(selectedSpaceId!, { limit: 100, since: new Date(Date.now() - COORDINATOR_RECENT_DECISION_MS).toISOString() }), enabled: !!selectedSpaceId, refetchOnWindowFocus: true });
   const recentView = useQueryView(recent);
   const agentMap = useMemo(() => new Map((agentQuery.data ?? []).map((agent) => [agent.id, agent])), [agentQuery.data]);
   const recentItems = useMemo(() => recentDecisionReceipts(recent.data?.items ?? [], now), [recent.data, now]);
@@ -152,7 +152,7 @@ export function CoordinatorNeedsYou() {
     return [...result];
   }, [filtered, groupBy, renderLimit]);
   useEffect(() => {
-    if (!deepLinkDecisionId || !selectedCompanyId || !pendingItems.some(item => item.sourceKind === "decision" && item.subject.id === deepLinkDecisionId)) return;
+    if (!deepLinkDecisionId || !selectedSpaceId || !pendingItems.some(item => item.sourceKind === "decision" && item.subject.id === deepLinkDecisionId)) return;
     // A saved decision link takes precedence over local toolbar filters and the
     // rendering window. Consume it only after its actual card has mounted.
     if (query || agentFilter || projectFilter) { setQuery(""); setAgentFilter(""); setProjectFilter(""); return; }
@@ -163,7 +163,7 @@ export function CoordinatorNeedsYou() {
     card.focus({ preventScroll: true });
     card.scrollIntoView({ block: "center", behavior: reducedMotion ? "auto" : "smooth" });
     setSearchParams(current => { const next = new URLSearchParams(current); next.delete("decisionId"); return next; }, { replace: true });
-  }, [deepLinkDecisionId, selectedCompanyId, pendingItems, filtered, query, agentFilter, projectFilter, renderLimit, reducedMotion, setSearchParams]);
+  }, [deepLinkDecisionId, selectedSpaceId, pendingItems, filtered, query, agentFilter, projectFilter, renderLimit, reducedMotion, setSearchParams]);
   const projects = useMemo(() => [...new Map([
     ...pendingItems.flatMap((item) => item.project ? [[item.project.id, item.project.name] as const] : []),
     ...recentItems.flatMap((item) => item.projectId ? [[item.projectId, item.projectName ?? "Unnamed project"] as const] : []),
@@ -175,12 +175,12 @@ export function CoordinatorNeedsYou() {
   useEffect(() => {
     setSettling([]); setHistoryOpen(false); setNow(Date.now()); closePanel();
     return closePanel;
-  }, [selectedCompanyId, closePanel]);
+  }, [selectedSpaceId, closePanel]);
   useEffect(() => {
-    if (!historyOpen || !selectedCompanyId || isMobile) { closePanel(); return; }
+    if (!historyOpen || !selectedSpaceId || isMobile) { closePanel(); return; }
     setPanelVisible(true);
-    openPanel(<HistoryPanel companyId={selectedCompanyId} agents={agentQuery.data ?? []} onClose={closeHistory} />);
-  }, [historyOpen, selectedCompanyId, isMobile, agentQuery.data, openPanel, closePanel, closeHistory, setPanelVisible]);
+    openPanel(<HistoryPanel spaceId={selectedSpaceId} agents={agentQuery.data ?? []} onClose={closeHistory} />);
+  }, [historyOpen, selectedSpaceId, isMobile, agentQuery.data, openPanel, closePanel, closeHistory, setPanelVisible]);
   useEffect(() => {
     const next = recentItems.reduce((earliest, item) => Math.min(earliest, Date.parse(item.resolvedAt) + COORDINATOR_RECENT_DECISION_MS), Infinity);
     if (!Number.isFinite(next)) return;
@@ -197,12 +197,12 @@ export function CoordinatorNeedsYou() {
     void feed.refetch();
   };
   const duration = typeof document === "undefined" ? 0 : parseCssTimeMs(getComputedStyle(document.documentElement).getPropertyValue("--motion-duration-base")) / 1_000;
-  if (!selectedCompanyId) return <p className="text-sm text-muted-foreground">Choose a outpost to see its decisions.</p>;
+  if (!selectedSpaceId) return <p className="text-sm text-muted-foreground">Choose a outpost to see its decisions.</p>;
   return <LayoutGroup id="coordinator-decisions"><section className="coordinator-needs-you mx-auto w-full max-w-4xl space-y-6" aria-label="Inbox">
     {isMobile ? <Sheet open={historyOpen} onOpenChange={open => { if (!open) closeHistory(); }}>
       <SheetContent side="bottom" aria-describedby={undefined} className="mobile-task-side-panel inset-0 h-dvh max-h-dvh w-full max-w-none gap-0 border-0 p-0 pt-(--sz-safe-top) pb-(--sz-safe-bottom)">
         <SheetHeader><SheetTitle>Decision history</SheetTitle></SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4"><HistoryPanel companyId={selectedCompanyId} agents={agentQuery.data ?? []} onClose={closeHistory} mobile /></div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4"><HistoryPanel spaceId={selectedSpaceId} agents={agentQuery.data ?? []} onClose={closeHistory} mobile /></div>
       </SheetContent>
     </Sheet> : null}
     <header className="flex items-center justify-between gap-3"><h1 className="text-2xl font-medium">Inbox</h1><Button variant="ghost" onClick={showHistory}><History className="size-4" />Decision history</Button></header>
@@ -227,15 +227,15 @@ export function CoordinatorNeedsYou() {
       const receipt = settlingIds.has(id) ? recentItems.find(entry => entry.id === id) : undefined;
       const phase = !receipt ? "pending" : ["cancelled", "expired"].includes(receipt.outcome) ? "closed" : "resolved";
       return <motion.div id={item.sourceKind === "decision" ? `coordinator-decision-${item.subject.id}` : undefined} tabIndex={item.sourceKind === "decision" ? -1 : undefined} layout={reducedMotion ? false : "position"} layoutId={reducedMotion ? undefined : id} transition={{ duration }} key={id}>
-      <CoordinatorTaskMotion eventId={`decision:${selectedCompanyId}:${userId}:${id}`} phase={phase} createdAt={item.activityAt} className="coordinator-decision-motion"
+      <CoordinatorTaskMotion eventId={`decision:${selectedSpaceId}:${userId}:${id}`} phase={phase} createdAt={item.activityAt} className="coordinator-decision-motion"
         onSettled={() => setSettling(current => current.filter(entry => `${entry.sourceKind}:${entry.subject.id}` !== id))}>
       {receipt ? <Receipt item={receipt} onOpen={navigate} /> : <article className="coordinator-decision-card space-y-4 rounded-xl border border-border bg-card p-6">
-        {interaction ? <AttentionInteractionResolver footerSlot={taskLink} presentation="coordinator-decision" companyId={selectedCompanyId} issueId={issueId} interactionId={item.subject.id} agentMap={agentMap} currentUserId={userId} onResolved={resolved => {
+        {interaction ? <AttentionInteractionResolver footerSlot={taskLink} presentation="coordinator-decision" spaceId={selectedSpaceId} issueId={issueId} interactionId={item.subject.id} agentMap={agentMap} currentUserId={userId} onResolved={resolved => {
           if (!resolved || resolved.status === "pending") { void feed.refetch(); void recent.refetch(); return; }
           onResolved(item);
         }} />
-          : decision ? <DecisionResolver companyId={selectedCompanyId} decisionId={item.subject.id} originIssue={item.relatedIssue} agentMap={agentMap} onResolved={() => onResolved(item)} />
-          : stalledReview ? <><h2 className="text-lg font-medium">Choose how this task continues</h2><p className="text-sm">This task is still in review with no active reviewer or continuation. Return it to work, request changes, or mark the task done.</p><StalledReviewActions footerSlot={taskLink} issueId={item.subject.id} companyId={selectedCompanyId} reviewPolicy={readIssueReviewPolicyMetadata(item.subject.metadata)} approveLabel="Mark task done" onResolved={() => { void feed.refetch(); void recent.refetch(); }} /></>
+          : decision ? <DecisionResolver spaceId={selectedSpaceId} decisionId={item.subject.id} originIssue={item.relatedIssue} agentMap={agentMap} onResolved={() => onResolved(item)} />
+          : stalledReview ? <><h2 className="text-lg font-medium">Choose how this task continues</h2><p className="text-sm">This task is still in review with no active reviewer or continuation. Return it to work, request changes, or mark the task done.</p><StalledReviewActions footerSlot={taskLink} issueId={item.subject.id} spaceId={selectedSpaceId} reviewPolicy={readIssueReviewPolicyMetadata(item.subject.metadata)} approveLabel="Mark task done" onResolved={() => { void feed.refetch(); void recent.refetch(); }} /></>
           : <><h2 className="text-lg font-medium">{item.subject.title ?? item.whyNow}</h2><p className="text-sm">{attentionDetailLine(item) ?? item.whyNow}</p><Button disabled={!item.subject.href} onClick={() => { if (item.subject.href) navigate(item.subject.href); }}>Open to review<ArrowUpRight className="size-4" /></Button></>}
         {!interaction && !stalledReview ? taskLink : null}
       </article>}

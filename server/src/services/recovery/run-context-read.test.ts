@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { agents, companies, createDb, heartbeatRuns } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -13,14 +13,14 @@ const support = await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("recovery context PostgreSQL projection", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  let companyId: string;
+  let spaceId: string;
   let agentId: string;
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("recovery-context-read-");
     db = createDb(database.connectionString);
-    const [company] = await db.insert(companies).values({ name: "Recovery fixture", issuePrefix: "RC" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Recovery agent", adapterType: "process" }).returning();
-    companyId = company.id;
+    const [space] = await db.insert(spaces).values({ name: "Recovery fixture", issuePrefix: "RC" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Recovery agent", adapterType: "process" }).returning();
+    spaceId = space.id;
     agentId = agent.id;
   }, 60_000);
   afterAll(async () => {
@@ -29,7 +29,7 @@ describe.skipIf(!support.supported)("recovery context PostgreSQL projection", ()
   });
 
   async function read(contextSnapshot: unknown) {
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, contextSnapshot: contextSnapshot as Record<string, unknown> | null }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, contextSnapshot: contextSnapshot as Record<string, unknown> | null }).returning();
     const [selected] = await db.select({ context: recoveryRunContextColumn, version: recoveryRunVersionColumn })
       .from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id));
     return { run, selected };
@@ -50,10 +50,10 @@ describe.skipIf(!support.supported)("recovery context PostgreSQL projection", ()
       wakeCommentIds: [randomUUID(), randomUUID()], wakeCommentId: randomUUID(), commentId: randomUUID(),
       externalChatContinuation: true,
     };
-    const context = { ...evidence, paperclipWake: { externalInteractionContinuation: true, prompt: payload },
-      paperclipWorkspace: { mode: "shared_workspace", instructions: payload }, executionContinuation: { prompt: payload }, paperclipTaskMarkdown: payload };
+    const context = { ...evidence, outpostWake: { externalInteractionContinuation: true, prompt: payload },
+      outpostWorkspace: { mode: "shared_workspace", instructions: payload }, executionContinuation: { prompt: payload }, outpostTaskMarkdown: payload };
     const { run, selected } = await read(context);
-    expect(selected.context).toEqual({ ...evidence, paperclipWake: { externalInteractionContinuation: true }, paperclipWorkspace: { mode: "shared_workspace" } });
+    expect(selected.context).toEqual({ ...evidence, outpostWake: { externalInteractionContinuation: true }, outpostWorkspace: { mode: "shared_workspace" } });
     expect(Buffer.byteLength(JSON.stringify(selected))).toBeLessThan(4096);
     expect(isExternalChatPresentationContext(selected.context)).toBe(isExternalChatPresentationContext(context));
     expect(legacyDispositionEpisode({ ...run, contextSnapshot: selected.context })).toEqual(legacyDispositionEpisode(run));
@@ -61,13 +61,13 @@ describe.skipIf(!support.supported)("recovery context PostgreSQL projection", ()
     expect(stored.contextSnapshot).toEqual(context);
     const [serialized] = await db.$client.unsafe("SELECT xmin::text AS version FROM heartbeat_runs WHERE id = $1", [run.id]);
     expect(selected.version).toBe(serialized.version);
-    await db.update(heartbeatRuns).set({ contextSnapshot: { ...context, paperclipTaskMarkdown: "changed" } }).where(eq(heartbeatRuns.id, run.id));
+    await db.update(heartbeatRuns).set({ contextSnapshot: { ...context, outpostTaskMarkdown: "changed" } }).where(eq(heartbeatRuns.id, run.id));
     const [changed] = await db.select({ context: recoveryRunContextColumn, version: recoveryRunVersionColumn }).from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id));
     expect(changed.context).toEqual(selected.context);
     expect(changed.version).not.toBe(selected.version);
   });
 
-  it.each([null, [], ["unexpected"], "scalar", 42, { issueId: 42, taskId: false, paperclipWake: [], paperclipWorkspace: null }].map(context => ({ context })))("preserves decisions for malformed context $context", async ({ context }) => {
+  it.each([null, [], ["unexpected"], "scalar", 42, { issueId: 42, taskId: false, outpostWake: [], outpostWorkspace: null }].map(context => ({ context })))("preserves decisions for malformed context $context", async ({ context }) => {
     const { selected } = await read(context);
     expect(isExternalChatPresentationContext(selected.context)).toBe(isExternalChatPresentationContext(context));
     expect(legacyDispositionEpisode({ id: "run", contextSnapshot: selected.context })).toEqual(legacyDispositionEpisode({ id: "run", contextSnapshot: context }));

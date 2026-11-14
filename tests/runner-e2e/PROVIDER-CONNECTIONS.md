@@ -75,17 +75,17 @@ Each command generates a separate campaign, preserving previous attempts.
 
 ## Authentication handoff
 
-Playwright drives Paperclip and opens the real provider sign-in page. When login
+Playwright drives Outpost and opens the real provider sign-in page. When login
 needs a person, the terminal prints the provider and account alias and writes
 `progress.json`. Complete Google/provider login, MFA, consent, and any code
-entry in the visible QA browser. The test resumes only after Paperclip reports
+entry in the visible QA browser. The test resumes only after Outpost reports
 a saved, connected credential. Do not paste passwords or OAuth codes into chat.
 
 The QA browser uses its own private profile. It refuses an existing unmarked
 profile, keeps a lock while running, and never uses your normal Chrome profile.
 `signed-in` permits previously saved website login; it still creates a fresh
-Paperclip connection. `signed-out` starts a temporary empty browser profile.
-Paperclip SSO and provider SSO may share an identity provider, so this records
+Outpost connection. `signed-out` starts a temporary empty browser profile.
+Outpost SSO and provider SSO may share an identity provider, so this records
 the browser's initial state, not a guarantee of another password challenge.
 
 Human help is recorded as `assisted`. A login deadline records `awaiting_user`,
@@ -117,28 +117,28 @@ To use an existing local server or staging, replace `target` with:
 For local attach use `http://127.0.0.1:PORT` and `local_trusted`. Health must
 match the expected revision and deployment mode before credentials are read.
 The target is never reset, restarted, or given instance-setting changes.
-Sign in to Paperclip in the QA browser if needed; that session supplies the
-same public API permissions as the browser. The operator needs company/agent
-creation, connection management, and company archival permissions.
+Sign in to Outpost in the QA browser if needed; that session supplies the
+same public API permissions as the browser. The operator needs space/agent
+creation, connection management, and space archival permissions.
 
 Deployment and execution environment are different dimensions. `.local.` means
 the agent runs in the target's local environment, including a staging server's
 local environment. `.daytona.` requires an already configured active Daytona
 environment on the selected target; this suite does not provision one. Use
-`target.companyId` and `target.environmentId` to select an empty dedicated
-company named `Connection QA…` with that environment. For a new QA company the
+`target.spaceId` and `target.environmentId` to select an empty dedicated
+space named `Connection QA…` with that environment. For a new QA space the
 harness uses the matching visible instance environment. Missing environments
 or a disabled native runner are explicit target blockers.
 
-Each cell creates a separate QA company unless one was supplied. Teardown
+Each cell creates a separate QA space unless one was supplied. Teardown
 pauses its agents, cancels active runs, revokes its test connections, and
-archives the created company. This avoids requiring hard-delete support on
-staging and retains inspectable task history. Supplied QA companies must start
+archives the created space. This avoids requiring hard-delete support on
+staging and retains inspectable task history. Supplied QA spaces must start
 without active agents or usable connections; revoked connection records and
 terminated agents from earlier attempts are allowed. Their new test agents are
-deleted and test connections revoked; historical records may remain. `retainCompany: true`
+deleted and test connections revoked; historical records may remain. `retainSpace: true`
 keeps the fixture and credentials for diagnosis, with agents paused, and is
-recorded explicitly in evidence. Clean it up before reusing that company.
+recorded explicitly in evidence. Clean it up before reusing that space.
 
 ## What qualifies as a pass
 
@@ -169,7 +169,7 @@ configured model and agent configuration; connection attribution proves the
 selected credential, not an upstream gateway's internal model mapping.
 
 The matrix covers Claude, Codex, Grok, Gemini, OpenCode, and Hermes local where
-Paperclip's managed-connection capability table admits them, with applicable
+Outpost's managed-connection capability table admits them, with applicable
 legacy/native variants and both UI entry points. Cursor local, Kimi, and Pi
 remain visible product gaps for managed connection onboarding. Remote OpenClaw
 and Hermes gateways, Cursor Cloud, managed Claude/AWS AgentCore, process/HTTP,
@@ -196,11 +196,11 @@ file-conversion, session-configuration, or shell-restriction failures. It reads
 error records and failed tool receipts only; messages, stderr, model output,
 and reasoning are not copied into the result. An empty signal list leaves the
 cause unknown. Missing logs remain explicit and do not imply a healthy run.
-Attached-company cleanup captures these diagnostics after stopping runs and
+Attached-space cleanup captures these diagnostics after stopping runs and
 before deleting the fixture agent, since agent deletion also removes its logs.
 Cleanup revokes only this attempt's account IDs from successful creation or
 owned sign-in receipts. Concurrent campaigns' accounts are never adopted or
-revoked, even if both campaigns initially observed an empty QA company.
+revoked, even if both campaigns initially observed an empty QA space.
 UI probes may incur unreported spend, so billing is explicitly partial.
 Regenerate the report from retained results with
 `pnpm test:e2e:runner:dashboard -- /absolute/path/to/connections-campaign`.
@@ -242,7 +242,7 @@ campaigns for the exact revision, definition hash, timestamps, and results.
 ## Local follow-up (2026-10-05)
 
 Every eligible non-subscription local cell was attempted against the existing
-onboarding instance, preserving its original company data. The latest retained
+onboarding instance, preserving its original space data. The latest retained
 attempts now contain 43 passing journeys out of 46 non-subscription cells,
 including the Gemini investigation on October 6:
 
@@ -286,9 +286,9 @@ signals stop further cells during startup and reporting and still stop the owned
 target. Signal handlers remain installed until teardown finishes.
 An expired human handoff also stops the campaign instead of opening the next
 subscription window. The affected attempt remains failed in the evidence; its
-login was cancelled and its disposable company archived through the public API.
-The cleanup audit covers all 113 disposable companies and confirms that the
-original onboarding company remains available.
+login was cancelled and its disposable space archived through the public API.
+The cleanup audit covers all 113 disposable spaces and confirms that the
+original onboarding space remains available.
 
 Hermes was tested using an isolated official CLI installation. Its temporary
 PATH launcher was removed after qualification; replay requires Hermes to be
@@ -343,7 +343,7 @@ local qualification date.
 
 After the catalog selector repair, runner E2E typecheck and all 13 connection
 support tests passed. The final cleanup audit found no usable QA connections,
-active QA agents, or active QA runs; the original onboarding company and test
+active QA agents, or active QA runs; the original onboarding space and test
 server remain available. The private report includes `credential-refresh.json`,
 `key-retest-diagnostics.json`, `gemini-generation-probe.json`, and
 `cleanup-audit.json`. None contain credential values or authorization codes.
@@ -374,7 +374,7 @@ API-key turn.
 On 2026-10-06, host-side Grok transcript retention/restoration was removed after
 security review: other agents running as the same OS user could read restored
 transcripts regardless of private file modes. Managed Grok follow-ups now start
-fresh with the Paperclip task handoff. The historical Grok passes above precede
+fresh with the Outpost task handoff. The historical Grok passes above precede
 this change and do not qualify current transcript continuation; an isolated
 history solution and new live qualification remain required.
 
@@ -385,7 +385,7 @@ hit daily inference quota; a small request for `gemini-3.1-flash-lite` succeeded
 These are distinct from model-list and connection-probe success.
 
 Local Gemini turns now also receive the current selected skill root and
-explicit instructions to read the Paperclip artifact workflow before making
+explicit instructions to read the Outpost artifact workflow before making
 control-plane calls. A real follow-up exposed Gemini CLI's rejection of inline
 command substitution when building a JSON completion request. Its local turn
 guidance now uses workspace JSON body files with `curl --data-binary @file` or
@@ -440,7 +440,7 @@ shared/database/skill-catalog groups passed. Further isolated checks do not
 substitute for a successful complete PR verification run.
 
 The pinned native Grok executable is still absent at
-`/opt/paperclip/providers/grok/1.0.13/grok`. Installing it needs administrator
+`/opt/outpost/providers/grok/1.0.13/grok`. Installing it needs administrator
 access; retain the checked-in provisioning helper and its checksum verification.
 Subscriptions, staging/Daytona, and common-build release qualification remain
 outstanding.
@@ -492,7 +492,7 @@ The original 3109 instance is currently stopped, and its temporary config and
 encryption key are missing. Its database was left untouched; substituting a new
 key would not recover the existing credentials. Fresh investigation campaigns
 use managed instances with separate databases and keys, archive their owned
-companies, and remove their owned servers. The private consolidated report
+spaces, and remove their owned servers. The private consolidated report
 retains all earlier failures, exact model/source provenance, and
 `gemini-investigation.json`. These mixed working-tree attempts do not qualify
 staging or a common committed release build.

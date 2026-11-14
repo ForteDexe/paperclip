@@ -8,12 +8,12 @@ import { Layout } from "@/components/Layout";
 import { RoutineDetail } from "@/pages/RoutineDetail";
 import { Routines } from "@/pages/Routines";
 import { Route, Routes, useNavigate } from "@/lib/router";
-import { useCompany } from "@/context/CompanyContext";
-import { storybookAgents, storybookIssues } from "./paperclipData";
+import { useSpace } from "@/context/SpaceContext";
+import { storybookAgents, storybookIssues } from "./outpostData";
 
 const now = new Date("2026-09-18T15:00:00Z");
 const routineId = "routine-webhook-story";
-const companyId = "company-storybook";
+const spaceId = "space-storybook";
 const defaultWebhookUrl = "https://acme.outpost.example/api/routine-triggers/public/0123456789abcdef01234567/fire";
 const demoSecret = "storybook-demo-secret-not-a-real-credential";
 const actorFields = {
@@ -24,7 +24,7 @@ const actorFields = {
 
 export function webhook(signingMode: string, index = 1, webhookUrl = defaultWebhookUrl): RoutineTrigger {
   return {
-    ...actorFields, id: `webhook-${index}`, companyId, routineId,
+    ...actorFields, id: `webhook-${index}`, spaceId, routineId,
     kind: "webhook", label: "Deployment completed", enabled: true,
     cronExpression: null, timezone: null, nextRunAt: null,
     lastFiredAt: now, publicId: "0123456789abcdef01234567", webhookUrl,
@@ -36,7 +36,7 @@ export function webhook(signingMode: string, index = 1, webhookUrl = defaultWebh
 }
 
 const completedRun: RoutineRunSummary = {
-  id: "storybook-webhook-run", companyId, routineId, triggerId: "webhook-1",
+  id: "storybook-webhook-run", spaceId, routineId, triggerId: "webhook-1",
   source: "webhook", status: "completed", triggeredAt: now, completedAt: now,
   createdAt: now, updatedAt: now, idempotencyKey: "deployment-123",
   triggerPayload: { event: "deployment", environment: "production" },
@@ -49,13 +49,13 @@ const completedRun: RoutineRunSummary = {
 };
 
 export const baseRoutine: RoutineDetailData = {
-  ...actorFields, id: routineId, companyId, projectId: null, goalId: null,
+  ...actorFields, id: routineId, spaceId, projectId: null, goalId: null,
   parentIssueId: null, responsibleUserId: null,
   title: "Verify a deployment",
   description: "Check the deployment from the incoming webhook. Verify the service is healthy and report the result.",
   assigneeAgentId: storybookAgents[0]?.id ?? null, priority: "medium", status: "active",
   concurrencyPolicy: "coalesce_if_active", catchUpPolicy: "skip_missed",
-  activityGatePolicy: "always", activityGateScope: "company", variables: [], env: null,
+  activityGatePolicy: "always", activityGateScope: "space", variables: [], env: null,
   latestRevisionId: "revision-1", latestRevisionNumber: 1,
   lastTriggeredAt: now, lastEnqueuedAt: null, managedByPlugin: null,
   project: null, assignee: null, parentIssue: null, activeIssue: null,
@@ -70,7 +70,7 @@ const executionIssues: Issue[] = [
 ].map((entry, index) => ({
   ...storybookIssues[0], ...entry,
   id: `routine-execution-${index}`, identifier: `PAP-${123 + index}`, issueNumber: 123 + index,
-  companyId, originKind: "routine_execution", originId: routineId,
+  spaceId, originKind: "routine_execution", originId: routineId,
   originRunId: `routine-run-${index}`, projectId: null, parentId: null,
   assigneeAgentId: storybookAgents[0].id,
   executionRunId: null, checkoutRunId: null, executionLockedAt: null,
@@ -87,7 +87,7 @@ const routineActivity: ActivityEvent[] = [
   { action: "routine.updated", entityType: "routine", details: { title: "Verify a deployment", changedFields: ["description"] } },
   { action: "routine.trigger_created", entityType: "routine_trigger", details: { kind: "webhook", label: "Deployment completed" } },
 ].map((event, index) => ({
-  ...event, id: `routine-activity-${index}`, companyId, entityId: routineId,
+  ...event, id: `routine-activity-${index}`, spaceId, entityId: routineId,
   actorType: "user", actorId: "user-board", agentId: null, runId: null,
   createdAt: new Date(now.getTime() - index * 3_600_000),
 }));
@@ -102,9 +102,9 @@ type Props = {
 /** The actual application shell and route pages, backed by an in-memory API. */
 export function WebhookReview({ signingMode = "bearer", state = "configured", preview, webhookUrl = defaultWebhookUrl }: Props) {
   const navigate = useNavigate();
-  const { setSelectedCompanyId } = useCompany();
+  const { setSelectedSpaceId } = useSpace();
   const [ready, setReady] = useState(false);
-  const initialActions = useRef({ navigate, setSelectedCompanyId });
+  const initialActions = useRef({ navigate, setSelectedSpaceId });
 
   useEffect(() => {
     const fresh = state === "setup" || state === "credentials";
@@ -127,12 +127,12 @@ export function WebhookReview({ signingMode = "bearer", state = "configured", pr
     const originalCompactList = issuesApi.listCompact;
     let issues = executionIssues.map((issue) => ({ ...issue }));
     issuesApi.list = async (id, filters) => {
-      if (id !== companyId || filters?.originId !== routineId) return originalIssuesList(id, filters);
+      if (id !== spaceId || filters?.originId !== routineId) return originalIssuesList(id, filters);
       const search = filters.q?.toLowerCase();
       return issues.filter((issue) => !search || `${issue.identifier} ${issue.title}`.toLowerCase().includes(search));
     };
     issuesApi.listCompact = async (id, filters, options) => {
-      if (id !== companyId || filters?.originId !== routineId) return originalCompactList(id, filters, options);
+      if (id !== spaceId || filters?.originId !== routineId) return originalCompactList(id, filters, options);
       const rows = await issuesApi.list(id, filters);
       return rows.filter((issue) => !filters.status || filters.status.split(",").includes(issue.status))
         .map((issue) => ({ ...issue, activeRecoveryAction: null, successfulRunHandoff: null }));
@@ -168,7 +168,7 @@ export function WebhookReview({ signingMode = "bearer", state = "configured", pr
       trigger: routine.triggers.find((item) => item.id === id)!,
       secretMaterial: { webhookUrl, webhookSecret: `${demoSecret}-rotated` },
     });
-    foldersApi.list = async (_companyId, kind) => ({ kind, folders: [], allCount: 1, unfiledCount: 1 });
+    foldersApi.list = async (_spaceId, kind) => ({ kind, folders: [], allCount: 1, unfiledCount: 1 });
     const previousFetch = window.fetch;
     window.fetch = async (input, init) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.origin);
@@ -179,7 +179,7 @@ export function WebhookReview({ signingMode = "bearer", state = "configured", pr
       }
       return previousFetch(input, init);
     };
-    initialActions.current.setSelectedCompanyId(companyId);
+    initialActions.current.setSelectedSpaceId(spaceId);
     initialActions.current.navigate(state === "list" ? "/PAP/routines" : `/PAP/routines/${routineId}/${["overview", "runs", "activity"].includes(state) ? state : "triggers"}`, { replace: true });
     setReady(true);
     return () => {
@@ -196,7 +196,7 @@ export function WebhookReview({ signingMode = "bearer", state = "configured", pr
   return (
     <PluginLauncherProvider>
     <Routes>
-      <Route path="/:companyPrefix" element={<Layout />}>
+      <Route path="/:spacePrefix" element={<Layout />}>
         <Route path="routines" element={<Routines />} />
         <Route path="routines/:routineId/:section?" element={preview ?? <RoutineDetail />} />
       </Route>

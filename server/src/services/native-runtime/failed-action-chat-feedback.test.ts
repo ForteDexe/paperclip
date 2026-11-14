@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { agents, companies, completionContracts, createDb, heartbeatRuns, issues } from "@outpost/db";
+import { agents, spaces, completionContracts, createDb, heartbeatRuns, issues } from "@outpost/db";
 import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
 import { nativeCompletionFeedback } from "./native-completion-feedback.js";
 import type { PrpStructuredRunResult } from "../../vendor/outpost-runner/index.js";
@@ -11,16 +11,16 @@ let db: ReturnType<typeof createDb>;
 beforeAll(async () => { temporary = await startRecoveryPostgres("failed-action-chat-feedback-"); db = createDb(temporary.connectionString); });
 afterAll(async () => { await temporary?.cleanup(); });
 it("compares truthful failed-action chat reports with ordinary-task and false-success controls", async () => {
-  const companyId = randomUUID(), agentId = randomUUID();
-  await db.insert(companies).values({ id: companyId, name: "Feedback control", issuePrefix: `C${companyId.slice(0, 7)}` });
-  await db.insert(agents).values({ id: agentId, companyId, name: "CEO", adapterType: "outpost_runner", status: "active" });
+  const spaceId = randomUUID(), agentId = randomUUID();
+  await db.insert(spaces).values({ id: spaceId, name: "Feedback control", issuePrefix: `C${spaceId.slice(0, 7)}` });
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Default agent", adapterType: "outpost_runner", status: "active" });
   async function fixture(conversation: boolean) {
     const issueId = randomUUID(), runId = randomUUID(), contractId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: conversation ? "Chat with CEO" : "Update launch page", status: "in_progress", assigneeAgentId: agentId,
+    await db.insert(issues).values({ id: issueId, spaceId, title: conversation ? "Chat with Default agent" : "Update launch page", status: "in_progress", assigneeAgentId: agentId,
       ...(conversation ? { conversationAgentId: agentId, conversationUserId: "control-user", conversationState: "active" } : {}) });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, status: "running", runtimeMode: "native", completionContractId: contractId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId, status: "running", runtimeMode: "native", completionContractId: contractId,
       contextSnapshot: { issueId, conversationMode: conversation, source: "tool_action_review", toolAction: { invocationId: randomUUID(), actionRequestId: randomUUID(), executionStatus: "failed", decision: "accepted", error: "Synthetic write failed; page unchanged", instructions: "The approved action did not complete successfully. Do not automatically replay it; inspect the recorded outcome first." } } });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 4, schemaVersion: "outpost.completion-contract.v1", policyVersion: "phase6-v1", risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", canonicalSha256: randomUUID(), createdByActorType: "system", createdByActorId: "control", contractJson: { revision: "4", criteria: [{ id: "objective", requirement: conversation ? "Address this request in the current authorized conversation response: Respond to the current conversation context." : "Update launch page successfully." }] } });
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 4, schemaVersion: "outpost.completion-contract.v1", policyVersion: "phase6-v1", risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", canonicalSha256: randomUUID(), createdByActorType: "system", createdByActorId: "control", contractJson: { revision: "4", criteria: [{ id: "objective", requirement: conversation ? "Address this request in the current authorized conversation response: Respond to the current conversation context." : "Update launch page successfully." }] } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     return runId;
   }

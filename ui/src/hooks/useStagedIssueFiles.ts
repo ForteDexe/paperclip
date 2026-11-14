@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type SetStateAction } from "react";
 import { readStagedIssueFiles, writeStagedIssueFiles, type StagedIssueFile } from "../lib/staged-issue-files";
 
-export function useStagedIssueFiles(owner: string | undefined, companyId: string | null | undefined) {
-  const key = owner !== undefined && companyId ? JSON.stringify([owner, companyId]) : null;
+export function useStagedIssueFiles(owner: string | undefined, spaceId: string | null | undefined) {
+  const key = owner !== undefined && spaceId ? JSON.stringify([owner, spaceId]) : null;
   const [state, setState] = useState<{
     key: string | null;
     files: StagedIssueFile[];

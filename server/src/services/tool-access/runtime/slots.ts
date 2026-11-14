@@ -12,7 +12,7 @@ function toRuntimeSlot(
 ): ToolRuntimeSlot {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     applicationId: row.applicationId,
     connectionId: row.connectionId,
     projectWorkspaceId: row.projectWorkspaceId,
@@ -51,13 +51,13 @@ export function createToolRuntimeSlots(db: Db, runtimeSupervisor: Pick<ReturnTyp
     connection: typeof toolConnections.$inferSelect,
   ): Promise<ToolRuntimeSlot | null> {
     if (connection.transport !== "local_stdio" || connection.config.templateId === "outpost.cognee-cloud") return null;
-    const slotKey = `mcp:${connection.companyId}:${connection.id}`;
+    const slotKey = `mcp:${connection.spaceId}:${connection.id}`;
     const [existing] = await db
       .select()
       .from(toolRuntimeSlots)
       .where(
         and(
-          eq(toolRuntimeSlots.companyId, connection.companyId),
+          eq(toolRuntimeSlots.spaceId, connection.spaceId),
           eq(toolRuntimeSlots.slotKey, slotKey),
         ),
       );
@@ -65,7 +65,7 @@ export function createToolRuntimeSlots(db: Db, runtimeSupervisor: Pick<ReturnTyp
     const [created] = await db
       .insert(toolRuntimeSlots)
       .values({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         applicationId: connection.applicationId,
         connectionId: connection.id,
         slotKey,
@@ -73,7 +73,7 @@ export function createToolRuntimeSlots(db: Db, runtimeSupervisor: Pick<ReturnTyp
         ownerScopeId: connection.id,
         runtimeKind: "local_stdio",
         status: "stopped",
-        provider: "paperclip",
+        provider: "outpost",
         providerRef: `template:${String(connection.config.templateId)}`,
         commandTemplateKey: String(connection.config.templateId),
         healthStatus: "unchecked",
@@ -84,7 +84,7 @@ export function createToolRuntimeSlots(db: Db, runtimeSupervisor: Pick<ReturnTyp
   }
 
   async function runtimeSlotById(
-    companyId: string,
+    spaceId: string,
     slotId: string,
   ): Promise<ToolRuntimeSlot> {
     const [row] = await db
@@ -92,7 +92,7 @@ export function createToolRuntimeSlots(db: Db, runtimeSupervisor: Pick<ReturnTyp
       .from(toolRuntimeSlots)
       .where(
         and(
-          eq(toolRuntimeSlots.companyId, companyId),
+          eq(toolRuntimeSlots.spaceId, spaceId),
           eq(toolRuntimeSlots.id, slotId),
         ),
       )
@@ -109,7 +109,7 @@ export function createToolRuntimeSlots(db: Db, runtimeSupervisor: Pick<ReturnTyp
   }
 
   async function controlRuntimeSlot(input: {
-    companyId: string;
+    spaceId: string;
     slotId: string;
     action: "stop" | "restart";
     actor?: ActorInfo;
@@ -118,19 +118,19 @@ export function createToolRuntimeSlots(db: Db, runtimeSupervisor: Pick<ReturnTyp
     try {
       if (input.action === "stop") {
         await runtimeSupervisor.stopSlot({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           slotId: input.slotId,
           reason: "operator_stop",
         });
       } else {
         await runtimeSupervisor.restartSlot({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           slotId: input.slotId,
         });
       }
-      const slot = await runtimeSlotById(input.companyId, input.slotId);
+      const slot = await runtimeSlotById(input.spaceId, input.slotId);
       await logActivity(db, {
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         actorType: input.actor?.actorType ?? "system",
         actorId: input.actor?.actorId ?? "tool-access-service",
         ...input.actor?.managementContext?.audit,
@@ -157,28 +157,28 @@ export function createToolRuntimeSlots(db: Db, runtimeSupervisor: Pick<ReturnTyp
   return {
     ensureRuntimeSlot,
     api: {
-      listRuntimeSlots: async (companyId: string): Promise<ToolRuntimeSlot[]> => {
+      listRuntimeSlots: async (spaceId: string): Promise<ToolRuntimeSlot[]> => {
       const rows = await db
         .select()
         .from(toolRuntimeSlots)
-        .where(eq(toolRuntimeSlots.companyId, companyId))
+        .where(eq(toolRuntimeSlots.spaceId, spaceId))
         .orderBy(desc(toolRuntimeSlots.updatedAt));
       return rows.map(toRuntimeSlot);
     },
 
       stopRuntimeSlot: (
-      companyId: string,
+      spaceId: string,
       slotId: string,
       actor?: ActorInfo,
     ): Promise<ToolRuntimeSlot> =>
-      controlRuntimeSlot({ companyId, slotId, action: "stop", actor }),
+      controlRuntimeSlot({ spaceId, slotId, action: "stop", actor }),
 
       restartRuntimeSlot: (
-      companyId: string,
+      spaceId: string,
       slotId: string,
       actor?: ActorInfo,
     ): Promise<ToolRuntimeSlot> =>
-      controlRuntimeSlot({ companyId, slotId, action: "restart", actor })
+      controlRuntimeSlot({ spaceId, slotId, action: "restart", actor })
     },
   };
 }

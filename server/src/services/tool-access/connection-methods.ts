@@ -11,7 +11,7 @@ import {
   mcpRemoteHeaderRejectionMessage,
 } from "@outpost/shared";
 import { badRequest, unprocessable } from "../../errors.js";
-import { isPaperclipCloudConnectorStrategy } from "../paperclip-cloud-connector.js";
+import { isOutpostCloudConnectorStrategy } from "../outpost-cloud-connector.js";
 import { honchoManagedArguments } from "../honcho-connection.js";
 import { assertGoogleChatToolArgumentsSupported, googleChatToolInputSchema } from "../google-chat-tool-policy.js";
 import { gmailArchiveToolInputSchema } from "../gmail-archive-tool-policy.js";
@@ -31,8 +31,8 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 export function connectionMethodFor(app: AppDefinition, methodKey?: string | null) {
   const normalizedMethodKey =
-    app.slug === "gmail" && methodKey === "paperclip-id-oauth"
-      ? "paperclip-draft"
+    app.slug === "gmail" && methodKey === "outpost-id-oauth"
+      ? "outpost-draft"
       : methodKey;
   // Stored managed connections must remain recognizable for callback, refresh,
   // and revoke even though static definitions omit instance availability. New
@@ -43,7 +43,7 @@ export function connectionMethodFor(app: AppDefinition, methodKey?: string | nul
     (candidate) =>
       candidate.purpose !== "channel" && candidate.purpose !== "ai"
       && candidate.transport !== "chat_sdk" && candidate.transport !== "runtime_auth"
-      && (availableMethods.has(candidate) || isPaperclipCloudConnectorStrategy(candidate.oauthStrategy)),
+      && (availableMethods.has(candidate) || isOutpostCloudConnectorStrategy(candidate.oauthStrategy)),
   );
   const method = normalizedMethodKey
     ? (toolMethods.find((candidate) => candidate.key === normalizedMethodKey) ??

@@ -18,7 +18,7 @@ route are unchanged:
     "type": "tailscale_https",
     "hostname": "auto",
     "publicPort": "same",
-    "includePaperclipViteHmr": true,
+    "includeOutpostViteHmr": true,
     "failurePolicy": "fail_closed"
   }
 }
@@ -51,7 +51,7 @@ socket so timed-out peers cannot retain kernel-level connection slots. Missing
 or invalid native credentials fail closed; socket permissions are not used as
 a substitute identity.
 
-## One-time host installation (`paperclip-dev`)
+## One-time host installation (`outpost-dev`)
 
 These steps require **root** and must be run by CloudOps/host owner, not the
 Outpost agent account. They install the broker as a dedicated
@@ -64,19 +64,19 @@ Tailscale-operator service account distinct from the Outpost app account.
 2. **Create the dedicated operator account and socket group.**
 
    ```sh
-   sudo useradd --system --home /var/lib/paperclip-tailscale-broker \
-     --shell /usr/sbin/nologin paperclip-tsbroker
-   sudo groupadd --system paperclip-tsbroker-sock
+   sudo useradd --system --home /var/lib/outpost-tailscale-broker \
+     --shell /usr/sbin/nologin outpost-tsbroker
+   sudo groupadd --system outpost-tsbroker-sock
    # The Outpost *app* service account must have this as its PRIMARY group so
    # its SO_PEERCRED gid matches the socket group (supplemental membership is
    # intentionally NOT accepted).
-   sudo usermod -g paperclip-tsbroker-sock <paperclip-app-account>
+   sudo usermod -g outpost-tsbroker-sock <outpost-app-account>
    ```
 
 3. **Grant Tailscale operator authority to the broker account only.**
 
    ```sh
-   sudo tailscale set --operator=paperclip-tsbroker
+   sudo tailscale set --operator=outpost-tsbroker
    ```
 
    Do **not** grant `--operator` to the Outpost app/agent account (that grant
@@ -86,18 +86,18 @@ Tailscale-operator service account distinct from the Outpost app account.
    packaged unit creates these automatically; for a manual install use:
 
    ```sh
-   sudo install -d -o paperclip-tsbroker -g paperclip-tsbroker-sock -m 0750 /run/paperclip-tailscale-broker
-   sudo install -d -o paperclip-tsbroker -g paperclip-tsbroker-sock -m 0700 /var/lib/paperclip-tailscale-broker
-   sudo install -d -o paperclip-tsbroker -g paperclip-tsbroker-sock -m 0700 /var/log/paperclip-tailscale-broker
+   sudo install -d -o outpost-tsbroker -g outpost-tsbroker-sock -m 0750 /run/outpost-tailscale-broker
+   sudo install -d -o outpost-tsbroker -g outpost-tsbroker-sock -m 0700 /var/lib/outpost-tailscale-broker
+   sudo install -d -o outpost-tsbroker -g outpost-tsbroker-sock -m 0700 /var/log/outpost-tailscale-broker
    ```
 
    The broker refuses to start if the registry path's parent is group/other
    writable.
 
-5. **Build, install the package under `/opt/paperclip`, and install the
+5. **Build, install the package under `/opt/outpost`, and install the
    packaged systemd unit.** The unit's `ExecStart` (and the doctor command
    below) run the build output from
-   `/opt/paperclip/packages/tailscale-https-broker/dist`, so copy it there
+   `/opt/outpost/packages/tailscale-https-broker/dist`, so copy it there
    explicitly. The Linux build requires a C compiler and Node.js headers to
    compile the dependency-free N-API `SO_PEERCRED` addon. The output is
    self-contained (Node builtins plus the compiled addon; no `node_modules`
@@ -105,14 +105,14 @@ Tailscale-operator service account distinct from the Outpost app account.
 
    ```sh
    pnpm --filter @outpost/tailscale-https-broker build
-   sudo install -d -m 0755 /opt/paperclip/packages/tailscale-https-broker
+   sudo install -d -m 0755 /opt/outpost/packages/tailscale-https-broker
    sudo cp -r packages/tailscale-https-broker/dist \
-     /opt/paperclip/packages/tailscale-https-broker/
+     /opt/outpost/packages/tailscale-https-broker/
    sudo install -D -m 0644 \
-     packages/tailscale-https-broker/deploy/paperclip-tailscale-https-broker.service \
-     /etc/systemd/system/paperclip-tailscale-https-broker.service
-   sudo install -d -m 0750 /etc/paperclip
-   sudoedit /etc/paperclip/tailscale-https-broker.env
+     packages/tailscale-https-broker/deploy/outpost-tailscale-https-broker.service \
+     /etc/systemd/system/outpost-tailscale-https-broker.service
+   sudo install -d -m 0750 /etc/outpost
+   sudoedit /etc/outpost/tailscale-https-broker.env
    ```
 
    The packaged unit is equivalent to:
@@ -125,23 +125,23 @@ Tailscale-operator service account distinct from the Outpost app account.
 
    [Service]
    Type=simple
-   User=paperclip-tsbroker
-   # Socket must end up 0660 paperclip-tsbroker:paperclip-tsbroker-sock. Set the group here and
+   User=outpost-tsbroker
+   # Socket must end up 0660 outpost-tsbroker:outpost-tsbroker-sock. Set the group here and
    # the broker chmods the socket to 0660 on bind.
-   Group=paperclip-tsbroker-sock
-   EnvironmentFile=/etc/paperclip/tailscale-https-broker.env
-   ExecStart=/usr/bin/node /opt/paperclip/packages/tailscale-https-broker/dist/main.js
+   Group=outpost-tsbroker-sock
+   EnvironmentFile=/etc/outpost/tailscale-https-broker.env
+   ExecStart=/usr/bin/node /opt/outpost/packages/tailscale-https-broker/dist/main.js
    Restart=on-failure
    NoNewPrivileges=true
    ProtectSystem=strict
-   ReadWritePaths=/run/paperclip-tailscale-broker /var/lib/paperclip-tailscale-broker /var/log/paperclip-tailscale-broker
+   ReadWritePaths=/run/outpost-tailscale-broker /var/lib/outpost-tailscale-broker /var/log/outpost-tailscale-broker
 
    [Install]
    WantedBy=multi-user.target
    ```
 
    Put the `BROKER_*` values from the table below in the environment file. Set
-   `OUTPOST_TAILSCALE_BROKER_SOCKET=/run/paperclip-tailscale-broker/broker.sock`
+   `OUTPOST_TAILSCALE_BROKER_SOCKET=/run/outpost-tailscale-broker/broker.sock`
    on the Outpost service only if overriding its default.
 
    Environment variables (defaults in `src/config.ts`):
@@ -153,9 +153,9 @@ Tailscale-operator service account distinct from the Outpost app account.
    | `BROKER_SERVICE_GID` | yes | — | GID of the dedicated socket group (caller's primary GID) |
    | `BROKER_RUNTIME_UID` | yes | — | UID that owns Outpost-managed runtime processes (normally the Outpost app service account); only its loopback listeners are eligible |
    | `BROKER_TAILSCALE_BIN` | no | `/usr/bin/tailscale` | absolute path to the Tailscale CLI |
-   | `BROKER_SOCKET_PATH` | no | `/run/paperclip-tailscale-broker/broker.sock` | Unix socket path |
-   | `BROKER_REGISTRY_PATH` | no | `/var/lib/paperclip-tailscale-broker/registry.json` | root-owned `0600` ownership registry |
-   | `BROKER_AUDIT_PATH` | no | `/var/log/paperclip-tailscale-broker/audit.log` | append-only security audit log |
+   | `BROKER_SOCKET_PATH` | no | `/run/outpost-tailscale-broker/broker.sock` | Unix socket path |
+   | `BROKER_REGISTRY_PATH` | no | `/var/lib/outpost-tailscale-broker/registry.json` | root-owned `0600` ownership registry |
+   | `BROKER_AUDIT_PATH` | no | `/var/log/outpost-tailscale-broker/audit.log` | append-only security audit log |
    | `BROKER_PROTECTED_PORTS` | no | *(empty)* | comma/space separated ports the broker must **never** create, remove, or reclaim — even when its own registry holds a valid lease for them (see below) |
 
    ### `BROKER_PROTECTED_PORTS` — operator-declared preservation (PAP-17285)
@@ -185,17 +185,17 @@ Tailscale-operator service account distinct from the Outpost app account.
    Confirm it took effect before trusting it — `--doctor` echoes the parsed set:
 
    ```sh
-   sudo -u paperclip-tsbroker \
-     env $(cat /etc/paperclip/tailscale-https-broker.env | xargs) \
-     node /opt/paperclip/packages/tailscale-https-broker/dist/main.js --doctor
+   sudo -u outpost-tsbroker \
+     env $(cat /etc/outpost/tailscale-https-broker.env | xargs) \
+     node /opt/outpost/packages/tailscale-https-broker/dist/main.js --doctor
    ```
 
 6. **Preflight (read-only, no mutation).**
 
    ```sh
-   sudo -u paperclip-tsbroker \
+   sudo -u outpost-tsbroker \
      BROKER_NODE_IDENTITY=$(hostname) BROKER_SERVICE_UID=... BROKER_SERVICE_GID=... BROKER_RUNTIME_UID=... \
-     node /opt/paperclip/packages/tailscale-https-broker/dist/main.js --doctor
+     node /opt/outpost/packages/tailscale-https-broker/dist/main.js --doctor
    ```
 
    Verifies: supported Tailscale CLI version, Serve status is readable, the
@@ -203,14 +203,14 @@ Tailscale-operator service account distinct from the Outpost app account.
    node identity. Exit 0 = ready. It never mutates Serve state.
 
 7. **Enable.** `sudo systemctl daemon-reload && sudo systemctl enable --now
-   paperclip-tailscale-https-broker`. Confirm the socket is `0660
-   paperclip-tsbroker:paperclip-tsbroker-sock`.
+   outpost-tailscale-https-broker`. Confirm the socket is `0660
+   outpost-tsbroker:outpost-tsbroker-sock`.
 
 ## Upgrade
 
 Deploy new package output to
-`/opt/paperclip/packages/tailscale-https-broker/dist`, then
-`sudo systemctl restart paperclip-tailscale-https-broker`. On
+`/opt/outpost/packages/tailscale-https-broker/dist`, then
+`sudo systemctl restart outpost-tailscale-https-broker`. On
 restart the broker re-reads its root-owned registry and adopts only exact-lease
 matches; a changed `BROKER_NODE_IDENTITY` (host reimage / boot-id change) forces
 quarantine and operator reconciliation rather than silently re-adopting.
@@ -224,7 +224,7 @@ resets Serve or changes the primary route.
    `expose`). Existing previews drain on runtime stop.
 2. Drain owned listeners: stop each managed runtime so Outpost issues `remove`
    for its own leases (proven by handle).
-3. `sudo systemctl disable --now paperclip-tailscale-https-broker`.
+3. `sudo systemctl disable --now outpost-tailscale-https-broker`.
 4. Optional cleanup: remove the state dirs and `sudo tailscale set --operator=`
    to drop the operator grant. Do **not** run `tailscale serve reset` — remove
    only the specific per-port Serve entries if any remain.

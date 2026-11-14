@@ -6,7 +6,7 @@ async function json<T = Record<string, any>>(response: APIResponse): Promise<T> 
   return response.json();
 }
 
-let cleanup: { companyId: string; enableCases: boolean } | undefined;
+let cleanup: { spaceId: string; enableCases: boolean } | undefined;
 
 test.afterEach(async ({ request }, testInfo) => {
   const state = cleanup;
@@ -15,13 +15,13 @@ test.afterEach(async ({ request }, testInfo) => {
   testInfo.setTimeout(15_000);
   const results = await Promise.allSettled([
     request.patch("/api/instance/settings/experimental", { data: { enableCases: state.enableCases }, timeout: 5_000 }),
-    request.patch(`/api/companies/${state.companyId}`, { data: { status: "archived" }, timeout: 5_000 }),
+    request.patch(`/api/spaces/${state.spaceId}`, { data: { status: "archived" }, timeout: 5_000 }),
   ]);
   const failures = results.flatMap((result, index) => result.status === "rejected"
     ? [`Cleanup ${index}: ${String(result.reason)}`]
     : result.value.ok() ? [] : [`Cleanup ${index}: HTTP ${result.value.status()}`]);
   if (!failures.length) return;
-  await testInfo.attach("cleanup-failure", { body: Buffer.from(JSON.stringify({ companyId: state.companyId, failures })), contentType: "application/json" }).catch(() => undefined);
+  await testInfo.attach("cleanup-failure", { body: Buffer.from(JSON.stringify({ spaceId: state.spaceId, failures })), contentType: "application/json" }).catch(() => undefined);
   // Keep the original journey failure; a cleanup error still fails a passing test.
   if (testInfo.status === "passed") throw new Error(failures.join("\n"));
 });
@@ -33,23 +33,23 @@ test("browses passive cases and rolled-up task documents without starting work o
   });
   const api = page.request;
   const original = await json(await api.get("/api/instance/settings/experimental"));
-  const company = await json(await api.post("/api/companies", { data: { name: `Read-only cases ${randomUUID()}` } }));
-  const companyPath = `/api/companies/${company.id}`;
-  cleanup = { companyId: company.id, enableCases: original.enableCases };
+  const space = await json(await api.post("/api/spaces", { data: { name: `Read-only cases ${randomUUID()}` } }));
+  const spacePath = `/api/spaces/${space.id}`;
+  cleanup = { spaceId: space.id, enableCases: original.enableCases };
   await json(await api.patch("/api/instance/settings/experimental", { data: { enableCases: true } }));
-  const project = await json(await api.post(`${companyPath}/projects`, { data: { name: "Receipt project" } }));
+  const project = await json(await api.post(`${spacePath}/projects`, { data: { name: "Receipt project" } }));
   const items = [{ description: "Tea", quantity: 2, unitPrice: 3 }];
   const delivery = { method: "email", recipient: { name: "Pacific customer" } };
   const checks = [{ phase: "triage", status: "passed" }, { phase: "review", status: "pending" }];
-  const receipt = await json(await api.post(`${companyPath}/cases`, { data: {
+  const receipt = await json(await api.post(`${spacePath}/cases`, { data: {
     caseType: "receipt", key: "pacific-receipt", title: "Pacific receipt", status: "draft", projectId: project.id,
     summary: "A saved receipt awaiting review.", fields: { currency: "USD", total: 6, notes: "Read-only invoice", items, delivery, checks },
   } }));
   const research = [];
-  for (const status of ["draft", "done"]) research.push(await json(await api.post(`${companyPath}/cases`, {
+  for (const status of ["draft", "done"]) research.push(await json(await api.post(`${spacePath}/cases`, {
     data: { caseType: "research", key: `research-${status}`, title: `Research ${status}`, status, fields: { topic: "Receipt research" } },
   })));
-  const task = await json(await api.post(`${companyPath}/issues`, { data: { title: "Receipt reference task", status: "todo", assigneeAgentId: null } }));
+  const task = await json(await api.post(`${spacePath}/issues`, { data: { title: "Receipt reference task", status: "todo", assigneeAgentId: null } }));
   await json(await api.post(`/api/cases/${receipt.id}/links`, { data: { issueId: task.id, role: "reference" } }));
   const documentPath = `/api/issues/${task.id}/documents/receipt`;
   const first = await json(await api.put(documentPath, { data: { format: "markdown", title: "Receipt", body: "# Receipt revision one\n\nTotal: 6. Currency pending." } }));
@@ -69,14 +69,14 @@ test("browses passive cases and rolled-up task documents without starting work o
   expect(persistedFields.checks).toEqual(checks);
   const caseWrites: string[] = [];
   page.on("request", request => {
-    if (!["GET", "HEAD", "OPTIONS"].includes(request.method()) && /\/api\/(cases\/|companies\/[^/]+\/case)/.test(request.url())) {
+    if (!["GET", "HEAD", "OPTIONS"].includes(request.method()) && /\/api\/(cases\/|spaces\/[^/]+\/case)/.test(request.url())) {
       caseWrites.push(`${request.method()} ${new URL(request.url()).pathname}`);
     }
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
   // The agentless dashboard offers onboarding. Start on the ordinary task
   // list so this zero-agent fixture can use Cases navigation without setup.
-  await page.goto(`/${company.issuePrefix}/issues`);
+  await page.goto(`/${space.issuePrefix}/issues`);
   await page.getByRole("button", { name: "More workspace pages", exact: true }).click();
   await page.getByRole("link", { name: /^Cases\b/ }).first().click();
   const casePage = page.getByTestId("case-pages");
@@ -177,7 +177,7 @@ test("browses passive cases and rolled-up task documents without starting work o
   await openReceipt.click();
   const dialog = page.getByRole("dialog", { name: "Receipt", exact: true });
   await expect(dialog.getByRole("heading", { name: "Receipt revision two", exact: true })).toBeVisible();
-  await expect(dialog.getByRole("link", { name: task.identifier, exact: true })).toHaveAttribute("href", `/${company.issuePrefix}/issues/${task.identifier}#document-receipt`);
+  await expect(dialog.getByRole("link", { name: task.identifier, exact: true })).toHaveAttribute("href", `/${space.issuePrefix}/issues/${task.identifier}#document-receipt`);
   await dialog.locator("summary").filter({ hasText: "Revision history" }).click();
   const history = dialog.locator("details").filter({ hasText: "Revision history" });
   await history.getByRole("button", { name: /^rev 1(?!\d)/ }).click();
@@ -191,7 +191,7 @@ test("browses passive cases and rolled-up task documents without starting work o
   await expect(dialog).toHaveCount(0);
   await expect(openReceipt).toBeFocused();
   const auditLink = casePage.getByRole("link", { name: "View in Audit", exact: true });
-  await expect(auditLink).toHaveAttribute("href", `/${company.issuePrefix}/activity?entityType=case&entityId=${receipt.id}`);
+  await expect(auditLink).toHaveAttribute("href", `/${space.issuePrefix}/activity?entityType=case&entityId=${receipt.id}`);
   await auditLink.click();
   await expect(page).toHaveURL(new RegExp(`/activity\\?entityType=case&entityId=${receipt.id}$`));
   await expect(page.getByRole("link", { name: `${receipt.identifier} · ${receipt.title}`, exact: true }).first()).toBeVisible();
@@ -201,7 +201,7 @@ test("browses passive cases and rolled-up task documents without starting work o
   const created = audit.getByRole("listitem").filter({ hasText: "case.created" });
   await expect(created).toHaveCount(1);
   await expect(created.getByRole("link", { name: `${receipt.identifier} · ${receipt.title}`, exact: true })).toHaveAttribute(
-    "href", `/${company.issuePrefix}/cases/${receipt.identifier}`,
+    "href", `/${space.issuePrefix}/cases/${receipt.identifier}`,
   );
   await page.getByRole("combobox", { name: "Action", exact: true }).click();
   await page.getByRole("option", { name: "Cases", exact: true }).click();
@@ -229,13 +229,13 @@ test("browses passive cases and rolled-up task documents without starting work o
   await testInfo.attach("mobile-read-only-case", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
 
   const after = await snapshot();
-  const agents = await json<unknown[]>(await api.get(`${companyPath}/agents`));
-  const runs = await json<unknown[]>(await api.get(`${companyPath}/heartbeat-runs?limit=20`));
+  const agents = await json<unknown[]>(await api.get(`${spacePath}/agents`));
+  const runs = await json<unknown[]>(await api.get(`${spacePath}/heartbeat-runs?limit=20`));
   expect(after).toEqual(before);
   expect(after.cases.map(record => record.workIssueId)).toEqual([null, null, null]);
   expect(after.revisions.map((revision: { revisionNumber: number }) => revision.revisionNumber)).toEqual([2, 1]);
   expect(agents).toEqual([]);
   expect(runs).toEqual([]);
   expect(caseWrites).toEqual([]);
-  await testInfo.attach("read-only-persistence-proof", { body: Buffer.from(JSON.stringify({ companyId: company.id, before, after, agents, runs, caseWrites }, null, 2)), contentType: "application/json" });
+  await testInfo.attach("read-only-persistence-proof", { body: Buffer.from(JSON.stringify({ spaceId: space.id, before, after, agents, runs, caseWrites }, null, 2)), contentType: "application/json" });
 });

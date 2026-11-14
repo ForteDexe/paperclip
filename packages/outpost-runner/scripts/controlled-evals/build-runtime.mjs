@@ -24,7 +24,7 @@ export async function buildControllerRuntime({ outputDirectory, sourceRevision }
   const { build } = await import(require.resolve('esbuild'));
   const result = await build({ entryPoints: [join(source, 'shared-cost-runtime.ts')], outfile: runtime, bundle: true,
     platform: 'node', format: 'esm', target: 'node24', metafile: true, logLevel: 'silent',
-    banner: { js: "import { createRequire as __paperclipCreateRequire } from 'node:module'; const require = __paperclipCreateRequire(import.meta.url);" } });
+    banner: { js: "import { createRequire as __outpostCreateRequire } from 'node:module'; const require = __outpostCreateRequire(import.meta.url);" } });
   const history = await build({ entryPoints: [join(repository, 'tests/runner-e2e/private-history.ts')],
     outfile: join(output, 'private-history.mjs'), bundle: true, platform: 'node', format: 'esm', target: 'node24', metafile: true, logLevel: 'silent' });
   await cp(join(repository, 'tests/runner-e2e/private-history-archive.py'), join(output, 'private-history-archive.py'), { errorOnExist: true, force: false });

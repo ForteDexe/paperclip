@@ -8,12 +8,12 @@ import { parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 const announcement = "Welcome to Acorn Notes, launching November 12! Join us with invitation code ACORN123.";
 function outcome(delegated = false): ChatFeatureObservation {
   const input: ChatFeatureObservation = {
-    caseId: delegated ? "delegate-announcement" : "create-backlog", companyId: "company", leadId: "ceo", workerId: "morgan", projectId: "launch",
+    caseId: delegated ? "delegate-announcement" : "create-backlog", spaceId: "space", leadId: "ceo", workerId: "morgan", projectId: "launch",
     query: "Please create the task.", marker: "ACORN123",
-    source: { id: "chat", companyId: "company", title: "CEO", assigneeAgentId: "ceo", status: "in_review", conversationState: "waiting" },
-    tasks: [{ id: "task", companyId: "company", title: "Launch announcement", identifier: "EVA-2", projectId: "launch", assigneeAgentId: "morgan",
+    source: { id: "chat", spaceId: "space", title: "CEO", assigneeAgentId: "ceo", status: "in_review", conversationState: "waiting" },
+    tasks: [{ id: "task", spaceId: "space", title: "Launch announcement", identifier: "EVA-2", projectId: "launch", assigneeAgentId: "morgan",
       status: delegated ? "done" : "backlog", completedAt: delegated ? "2026-10-26T10:01:00Z" : null }],
-    runs: [{ id: "handoff", companyId: "company", agentId: "ceo", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "chat" } }],
+    runs: [{ id: "handoff", spaceId: "space", agentId: "ceo", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "chat" } }],
     comments: [
       { id: "request", issueId: "chat", body: "Please create the task.", authorUserId: "user", createdAt: "2026-10-26T10:00:00Z" },
       { id: "reply", issueId: "chat", body: "Saved in the backlog: EVA-2.", authorAgentId: "ceo", createdByRunId: "handoff", createdAt: "2026-10-26T10:00:10Z" },
@@ -23,10 +23,10 @@ function outcome(delegated = false): ChatFeatureObservation {
   };
   if (delegated) {
     input.runs.push(
-      { id: "writing", companyId: "company", agentId: "morgan", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "task" }, startedAt: "2026-10-26T10:00:15Z", finishedAt: "2026-10-26T10:01:00Z" },
-      { id: "delivery", companyId: "company", agentId: "ceo", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "chat", chatCompletionUpdates: [{ id: "task", status: "done" }] } },
+      { id: "writing", spaceId: "space", agentId: "morgan", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "task" }, startedAt: "2026-10-26T10:00:15Z", finishedAt: "2026-10-26T10:01:00Z" },
+      { id: "delivery", spaceId: "space", agentId: "ceo", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "chat", chatCompletionUpdates: [{ id: "task", status: "done" }] } },
     );
-    input.documents.push({ id: "doc", issueId: "task", companyId: "company", key: "announcement", body: announcement, latestRevisionId: "revision",
+    input.documents.push({ id: "doc", issueId: "task", spaceId: "space", key: "announcement", body: announcement, latestRevisionId: "revision",
       createdByAgentId: "morgan", updatedByAgentId: "morgan", revisions: [{ id: "revision", body: announcement, createdByAgentId: "morgan", createdByRunId: "writing", createdAt: "2026-10-26T10:00:50Z" }] });
     input.comments.push({ id: "completion", issueId: "chat", body: `Morgan finished: ${announcement}`, authorAgentId: "ceo", createdByRunId: "delivery", createdAt: "2026-10-26T10:01:10Z" });
   }
@@ -34,7 +34,7 @@ function outcome(delegated = false): ChatFeatureObservation {
 }
 const failures = (input: ChatFeatureObservation) => gradeChatFeature(input).checks.filter(check => !check.passed).map(check => check.id);
 function withSupersededWake(input = outcome(true)) {
-  input.runs.push({ id: "old-assignment", companyId: "company", agentId: "ceo", status: "cancelled", runtimeMode: "legacy",
+  input.runs.push({ id: "old-assignment", spaceId: "space", agentId: "ceo", status: "cancelled", runtimeMode: "legacy",
     startedAt: null, errorCode: "issue_assignee_changed", contextSnapshot: { issueId: "task" },
     resultJson: { stopReason: "issue_assignee_changed", timeoutSource: "stale_queued_run_gate", timeoutFired: false } });
   return input;
@@ -61,7 +61,7 @@ describe("chat feature saved-state oracle", () => {
   });
   it.each([
     { startedAt: "2026-10-26T10:00:15Z" }, { startedAt: undefined }, { errorCode: "cancelled" },
-    { companyId: "foreign" }, { agentId: "unrelated" }, { contextSnapshot: { issueId: "other-task" } },
+    { spaceId: "foreign" }, { agentId: "unrelated" }, { contextSnapshot: { issueId: "other-task" } },
     { contextSnapshot: { issueId: "chat" } }, { resultJson: {} }, { nativeIssueId: "task" },
   ])("rejects cancelled work without proof of an obsolete unstarted handoff: %j", patch => {
     const input = withSupersededWake();
@@ -71,7 +71,7 @@ describe("chat feature saved-state oracle", () => {
   });
   it.each([
     ["duplicate task", (o: ChatFeatureObservation) => o.tasks.push({ ...o.tasks[0]!, id: "duplicate" }), "one-assigned-task"],
-    ["wrong company", (o: ChatFeatureObservation) => { o.tasks[0]!.companyId = "foreign"; }, "one-assigned-task"],
+    ["wrong space", (o: ChatFeatureObservation) => { o.tasks[0]!.spaceId = "foreign"; }, "one-assigned-task"],
     ["wrong assignee", (o: ChatFeatureObservation) => { o.tasks[0]!.assigneeAgentId = "ceo"; }, "one-assigned-task"],
     ["wrong project", (o: ChatFeatureObservation) => { o.tasks[0]!.projectId = null; }, "one-assigned-task"],
     ["unrelated work", (o: ChatFeatureObservation) => { o.tasks[0]!.title = "Fix the billing report"; }, "task-request-captured"],

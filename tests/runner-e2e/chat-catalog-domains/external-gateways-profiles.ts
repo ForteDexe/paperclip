@@ -12,7 +12,7 @@ import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 const providers = new WeakMap<ChatCatalogContext, NotesProvider>();
 
 type SavedGateway = Entity & { profileId?: string; createdByUserId?: string | null; metadata?: Record<string, unknown> | null; tokens?: Array<{ pendingReveal?: boolean; subjectType?: string }> };
-/** Paperclip creates its own runtime gateway for an agent with assigned tools at run start; it is not a gateway anyone asked for. */
+/** Outpost creates its own runtime gateway for an agent with assigned tools at run start; it is not a gateway anyone asked for. */
 export function requestedGateways(rows: SavedGateway[]) {
   return rows.filter(row => typeof row.metadata?.nativeRuntimeAssignmentDigest !== "string");
 }
@@ -27,8 +27,8 @@ export function gradeGatewayCreate(value: unknown) {
   const gateways = o.state.gatewaysAfter as SavedGateway[] | undefined, gateway = Array.isArray(gateways) && gateways.length === 1 ? gateways[0]! : undefined;
   const agentCreated = o.state.agentCreated === true && gateway?.createdByAgentId === o.leadId;
   const humanCreated = o.state.humanCreated === true && o.state.gatewayCountBeforeHuman === 0 && !gateway?.createdByAgentId && gateway?.name === "Website team tools";
-  c.add("one-scoped-gateway", !!gateway && gateway.companyId === o.companyId && gateway.profileId === o.state.profileId && agentCreated !== humanCreated && (agentCreated || humanCreated),
-    "Exactly one gateway is saved for the intended company and profile, created by the agent under delegated authority or by the person.");
+  c.add("one-scoped-gateway", !!gateway && gateway.spaceId === o.spaceId && gateway.profileId === o.state.profileId && agentCreated !== humanCreated && (agentCreated || humanCreated),
+    "Exactly one gateway is saved for the intended space and profile, created by the agent under delegated authority or by the person.");
   c.add("person-opens-gateway", o.state.linkedGateway === true, "The reply or a question card renders a link the person follows to the saved gateway (or, when the person creates it, to the gateways page).");
   c.add("gateway-mutation-attribution", !!gateway && o.activity.some(row => row.entityId === gateway.id && row.actorType === (agentCreated ? "agent" : "user") && /gateway.*created/.test(row.action ?? "")),
     "The saved gateway has recorded attribution matching its creator.");
@@ -43,7 +43,7 @@ export const gatewayExternalCases = [definition("gateways-profiles.create-gatewa
     const connection = await connectNotes(ctx, provider, "read-only");
     const profile = await ctx.input.api.post<Entity>(`${root(ctx)}/tools/profiles`, { profileKey: "website-team", name: "Website team tools", defaultAction: "deny",
       entries: [{ selectorType: "catalog_entry", effect: "include", connectionId: connection.connectionId, catalogEntryId: connection.read[0] }] });
-    return { profileId: profile.id, connectionId: connection.connectionId, gatewaysPath: `/${ctx.input.fixtures.company.issuePrefix}/apps/gateways` };
+    return { profileId: profile.id, connectionId: connection.connectionId, gatewaysPath: `/${ctx.input.fixtures.space.issuePrefix}/apps/gateways` };
   } catch (error) { providers.delete(ctx); await provider.close(); throw error; }
 }, gradeGatewayCreate, {
   oracleVersion: "outpost.chat-catalog.external.v2",
@@ -84,7 +84,7 @@ export const gatewayExternalCases = [definition("gateways-profiles.create-gatewa
     // Creating a gateway needs no token. If the agent also created one, it must
     // still be waiting for the person to reveal its value.
     state.tokenScanComplete = gateways.gateways.every(row => Array.isArray(row.tokens));
-    // Every gateway, including Paperclip's runtime one: only run tokens may carry a value there.
+    // Every gateway, including Outpost's runtime one: only run tokens may carry a value there.
     state.tokensWithheld = gateways.gateways.every(row => (row.tokens ?? []).every(token => token.subjectType === "heartbeat_run" || token.pendingReveal === true));
     state.tokenValueShapeSeen = GATEWAY_TOKEN_VALUE.test(JSON.stringify([events, o.runs, o.reply, o.phaseReplies, o.interactions]));
     return { ...o, state };
@@ -100,12 +100,12 @@ export const gatewayExternalCases = [definition("gateways-profiles.create-gatewa
     try {
       const gateways = await ctx.input.api.get<{ gateways: SavedGateway[] }>(`${root(ctx)}/tools/gateways`);
       for (const gateway of gateways.gateways) {
-        for (const token of (gateway.tokens ?? []) as Array<{ id?: string; revokedAt?: string | null }>) if (token.id && !token.revokedAt) await ctx.input.api.post(`/api/tool-gateway/gateway-tokens/${token.id}/revoke`, { companyId: ctx.input.fixtures.company.id });
-        await ctx.input.api.patch(`/api/tool-gateway/gateways/${gateway.id}`, { companyId: ctx.input.fixtures.company.id, status: "disabled" });
+        for (const token of (gateway.tokens ?? []) as Array<{ id?: string; revokedAt?: string | null }>) if (token.id && !token.revokedAt) await ctx.input.api.post(`/api/tool-gateway/gateway-tokens/${token.id}/revoke`, { spaceId: ctx.input.fixtures.space.id });
+        await ctx.input.api.patch(`/api/tool-gateway/gateways/${gateway.id}`, { spaceId: ctx.input.fixtures.space.id, status: "disabled" });
       }
       if (typeof state.connectionId === "string") await ctx.input.api.delete(`/api/tool-connections/${state.connectionId}`, { allowNotFound: true });
     } finally { await provider?.close(); }
     // The profile is still referenced by the disabled gateway; the outer
-    // disposable-company teardown owns its eventual deletion.
+    // disposable-space teardown owns its eventual deletion.
   },
 })];

@@ -22,16 +22,16 @@ export function agentModelCostRows(rows: readonly CostByAgentModel[] | undefined
     .sort((a, b) => b.costCents - a.costCents);
 }
 
-export function AgentCostsPanel({ agentId, agentName, companyId }: { agentId: string; agentName: string; companyId: string }) {
+export function AgentCostsPanel({ agentId, agentName, spaceId }: { agentId: string; agentName: string; spaceId: string }) {
   const { preset, setPreset, customFrom, setCustomFrom, customTo, setCustomTo, from, to, customReady } = useDateRange();
   const reportFrom = ["custom", "mtd", "ytd"].includes(preset) ? from || undefined : undefined;
   const reportTo = preset === "custom" ? to || undefined : preset;
   const spend = useQuery({
-    queryKey: [...queryKeys.costs(companyId, reportFrom, reportTo), "agent", agentId],
+    queryKey: [...queryKeys.costs(spaceId, reportFrom, reportTo), "agent", agentId],
     queryFn: async () => {
       const [byAgent, byAgentModel] = await Promise.all([
-        costsApi.byAgent(companyId, from || undefined, to || undefined),
-        costsApi.byAgentModel(companyId, from || undefined, to || undefined),
+        costsApi.byAgent(spaceId, from || undefined, to || undefined),
+        costsApi.byAgentModel(spaceId, from || undefined, to || undefined),
       ]);
       return { row: agentCostRow(byAgent, agentId), models: agentModelCostRows(byAgentModel, agentId) };
     },

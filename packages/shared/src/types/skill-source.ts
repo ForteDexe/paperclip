@@ -1,4 +1,4 @@
-import type { CompanySkill } from './company-skill.js';
+import type { SpaceSkill } from './space-skill.js';
 
 export type SkillSourcePackageMode = 'skills' | 'repository';
 export interface SkillRepositoryPackage {
@@ -81,7 +81,7 @@ export interface SkillSourceEntry {
 }
 export interface SkillSource {
   id: string;
-  companyId: string;
+  spaceId: string;
   packageMode?: SkillSourcePackageMode;
   repositoryPackage?: SkillRepositoryPackage | null;
   repositoryId: string | null;
@@ -93,7 +93,7 @@ export interface SkillSource {
   enabled: boolean;
   automaticUpdates?: boolean;
   importNewSkills?: boolean;
-  accessScope?: 'company' | 'projects';
+  accessScope?: 'space' | 'projects';
   trackingActive?: boolean;
   syncState?: 'pending' | 'refreshing' | 'ready' | 'error' | 'paused';
   projects?: Array<{ id: string; name: string; visibility: 'open' | 'private'; active: boolean }>;
@@ -195,8 +195,8 @@ export interface SkillSourceSelectionRequest {
 }
 export interface SkillSourceRefreshResult {
   source: SkillSource;
-  imported: CompanySkill[];
-  updated: CompanySkill[];
+  imported: SpaceSkill[];
+  updated: SpaceSkill[];
   unchanged: number;
   warnings: string[];
 }

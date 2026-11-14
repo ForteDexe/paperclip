@@ -16,9 +16,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 const AgentBulkSettingsSheet = lazy(() => import("./AgentBulkSettingsSheet").then(m => ({ default: m.AgentBulkSettingsSheet })));
 
-/** Shared by both roster layouts. Mount with a company key to isolate selection. */
-export function AgentBulkRoster({ companyId, agents, visibleAgents, renderAgent, renderChat, renderStatus }: {
-  companyId: string; agents: Agent[]; visibleAgents: Agent[]; renderAgent: (agent: Agent) => ReactNode;
+/** Shared by both roster layouts. Mount with a space key to isolate selection. */
+export function AgentBulkRoster({ spaceId, agents, visibleAgents, renderAgent, renderChat, renderStatus }: {
+  spaceId: string; agents: Agent[]; visibleAgents: Agent[]; renderAgent: (agent: Agent) => ReactNode;
   renderChat?: (agent: Agent) => ReactNode;
   renderStatus?: (agent: Agent) => ReactNode;
 }) {
@@ -34,7 +34,7 @@ export function AgentBulkRoster({ companyId, agents, visibleAgents, renderAgent,
   };
   const [editing, setEditing] = useState<Agent[] | null>(null);
   const [notice, setNotice] = useState("");
-  const accounts = useQuery({ queryKey: ["ai-connections", companyId], queryFn: () => aiConnectionsApi.list(companyId) });
+  const accounts = useQuery({ queryKey: ["ai-connections", spaceId], queryFn: () => aiConnectionsApi.list(spaceId) });
   const visible = visibleAgents;
   const rosterIndex = useMemo(() => buildAgentRosterIndex(agents, accounts.data), [agents, accounts.data]);
   const selectable = visible.filter(a => !bulkAgentDisabledReason(a));
@@ -58,11 +58,11 @@ export function AgentBulkRoster({ companyId, agents, visibleAgents, renderAgent,
       await account.whenAccountReady();
       if (!account.isCurrentAccount() || revision !== selectionRevision.current) return;
       const complete = await Promise.all(selectedAgents.filter(a => bulkAgentHarness(a) === harness)
-        .map(a => agentsApi.get(a.id, companyId, { cache: "no-store", fresh: true })));
+        .map(a => agentsApi.get(a.id, spaceId, { cache: "no-store", fresh: true })));
       if (!account.isCurrentAccount() || revision !== selectionRevision.current) return;
       // The display cache excludes private runtime fields. Only complete,
       // freshly authorized agents can become the editor's optimistic base.
-      if (complete.some(a => a.companyId !== companyId || bulkAgentHarness(a) !== harness || bulkAgentDisabledReason(a))) {
+      if (complete.some(a => a.spaceId !== spaceId || bulkAgentHarness(a) !== harness || bulkAgentDisabledReason(a))) {
         setOpenError("The selected agents changed. Refresh the roster and select them again.");
         return;
       }
@@ -104,7 +104,7 @@ export function AgentBulkRoster({ companyId, agents, visibleAgents, renderAgent,
       })}</tbody>
     </table></div>
     {!visible.length && <p className="py-8 text-center text-sm text-muted-foreground">No agents match these filters.</p>}
-    {editing && <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">Loading editor…</p>}><AgentBulkSettingsSheet companyId={companyId} agents={editing} totalSelected={selectedAgents.length} onClose={(updatedIds, complete) => {
+    {editing && <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">Loading editor…</p>}><AgentBulkSettingsSheet spaceId={spaceId} agents={editing} totalSelected={selectedAgents.length} onClose={(updatedIds, complete) => {
       setEditing(null);
       if (updatedIds.length) {
         changeSelection(ids => ids.filter(id => !(complete ? editing.map(a => a.id) : updatedIds).includes(id)));

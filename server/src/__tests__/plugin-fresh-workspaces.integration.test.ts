@@ -26,7 +26,7 @@ describe.skipIf(!support.supported)("provider-owned fresh retry reservations", (
     const f = await createPluginWorkspaceFixture(db);
     const previous = await preparePluginWorkspace(db, f.workers, f.input);
     await db.update(heartbeatRuns).set({ status: "failed" }).where(eq(heartbeatRuns.id, f.runId));
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.input.agentId,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.input.agentId,
       issueId: f.issueId, status: "running" }).returning();
     const fresh = { attemptId: randomUUID(), sourceRunId: f.runId, previousWorkspaceId: previous!.id, recoverySnapshots: [] };
     const input = { ...f.input, runId: run.id, existingWorkspaceId: previous!.id, fresh, expectedBindingRevision: 1 };
@@ -54,7 +54,7 @@ describe.skipIf(!support.supported)("provider-owned fresh retry reservations", (
     const [retained] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.previous.id));
     expect(retained.providerRef).toBe(f.previous.providerRef);
     expect(retained.metadata).toEqual(f.previous.metadata);
-    const rows = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.companyId, f.companyId));
+    const rows = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.spaceId, f.spaceId));
     expect(rows).toHaveLength(2);
   });
   it("keeps fresh directory authority server-owned through metadata updates", async () => {
@@ -74,7 +74,7 @@ describe.skipIf(!support.supported)("provider-owned fresh retry reservations", (
     await db.update(issues).set({ projectId: null, projectWorkspaceId: null }).where(eq(issues.id, f.issueId));
     const owner = { agentId: f.input.agentId, environmentId: randomUUID(), pluginKey: "test.tasks", driverKey: "tasks" };
     const next = { ...f.fresh, attemptId: randomUUID(), previousWorkspaceId: prepared!.id };
-    const id = await reserveFreshPluginTaskWorkspace({ db, companyId: f.companyId, issueId: f.issueId,
+    const id = await reserveFreshPluginTaskWorkspace({ db, spaceId: f.spaceId, issueId: f.issueId,
       runId: f.input.runId, agentId: f.input.agentId, responsibleUserId: null, fresh: next, owner,
       expectedBindingRevision: 2 });
     const directory = await service.update(id, { metadata: { runnerTaskFreshWorkspace: f.fresh,
@@ -108,7 +108,7 @@ describe.skipIf(!support.supported)("provider-owned fresh retry reservations", (
     const f = await fixture();
     await db.update(issues).set({ projectId: null, projectWorkspaceId: null }).where(eq(issues.id, f.issueId));
     const owner = { agentId: f.input.agentId, environmentId: randomUUID(), pluginKey: "test.tasks", driverKey: "tasks" };
-    const input = { db, companyId: f.companyId, issueId: f.issueId, runId: f.input.runId,
+    const input = { db, spaceId: f.spaceId, issueId: f.issueId, runId: f.input.runId,
       agentId: f.input.agentId, responsibleUserId: null, fresh: f.fresh, owner, expectedBindingRevision: 1 };
     const id = await reserveFreshPluginTaskWorkspace(input);
     expect(await reserveFreshPluginTaskWorkspace(input)).toBe(id);

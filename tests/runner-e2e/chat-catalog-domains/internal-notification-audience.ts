@@ -10,29 +10,29 @@ type Frame = NotificationBoundFrame;
 interface ToastReceipt { text: string; hrefs: string[]; at: number }
 interface ObserverEvidence { principalId: string; visibility: string; frames: Frame[]; toasts: ToastReceipt[]; sockets: string[] }
 interface AudienceObservation extends InternalObservation { alex: ObserverEvidence; riley: ObserverEvidence; observedAt: number }
-interface ObserverProbe { page: Page; principalId: string; companyId: string; taskId: string; origin: string; frames: NotificationPublicFrame[]; sockets: string[]; overflow: boolean; baseline?: { sessionPrincipalId: string; activityIds: string[]; commentIds: string[] } }
+interface ObserverProbe { page: Page; principalId: string; spaceId: string; taskId: string; origin: string; frames: NotificationPublicFrame[]; sockets: string[]; overflow: boolean; baseline?: { sessionPrincipalId: string; activityIds: string[]; commentIds: string[] } }
 const negativeWindowMs = 2000;
-declare global { interface Window { __paperclipAudienceToastReceipts?: ToastReceipt[] } }
-async function startObserver(page: Page, principalId: string, target: Entity, href: string, companyId: string): Promise<ObserverProbe> {
-  const probe: ObserverProbe = { page, principalId, companyId, taskId: target.id, origin: new URL(href).origin, frames: [], sockets: [], overflow: false };
+declare global { interface Window { __outpostAudienceToastReceipts?: ToastReceipt[] } }
+async function startObserver(page: Page, principalId: string, target: Entity, href: string, spaceId: string): Promise<ObserverProbe> {
+  const probe: ObserverProbe = { page, principalId, spaceId, taskId: target.id, origin: new URL(href).origin, frames: [], sockets: [], overflow: false };
   page.on("websocket", socket => {
     const path = new URL(socket.url()).pathname; if (!/\/events\/ws$/.test(path)) return; probe.sockets.push(path);
     socket.on("framereceived", frame => {
       try { const message = JSON.parse(String(frame.payload));
-        const actual = publicNotificationFrame(message, companyId, target.id, Date.now());
+        const actual = publicNotificationFrame(message, spaceId, target.id, Date.now());
         if (actual) { if (probe.frames.length >= 128) probe.overflow = true; else probe.frames.push(actual); }
       } catch { /* Non-JSON transport frames are not task/comment evidence. */ }
     });
   });
   await page.goto(href, { waitUntil: "domcontentloaded" });
   await page.evaluate(({ id, identifier }) => {
-    window.__paperclipAudienceToastReceipts = [];
+    window.__outpostAudienceToastReceipts = [];
     const seen = new WeakMap<Node, string>();
     const capture = () => { for (const node of document.querySelectorAll('aside[aria-live="polite"] li')) {
       const hrefs = [...node.querySelectorAll("a[href]")].map(link => link.getAttribute("href")!);
       if (!hrefs.some(href => href.split(/[/?#]/).includes(id) || !!identifier && href.split(/[/?#]/).includes(identifier))) continue;
       const text = node.textContent?.trim() ?? ""; const key = JSON.stringify([text, hrefs]); if (seen.get(node) === key) continue; seen.set(node, key);
-      window.__paperclipAudienceToastReceipts!.push({ text, hrefs, at: Date.now() });
+      window.__outpostAudienceToastReceipts!.push({ text, hrefs, at: Date.now() });
     } };
     new MutationObserver(capture).observe(document.body, { childList: true, subtree: true, characterData: true }); capture();
   }, { id: target.id, identifier: target.identifier });
@@ -46,9 +46,9 @@ async function publicProbeRows(probe: ObserverProbe) {
   };
   const [activity, comments] = await Promise.all([read(`/api/issues/${probe.taskId}/activity`), read(`/api/issues/${probe.taskId}/comments?order=asc`)]);
   if (!Array.isArray(activity) || !Array.isArray(comments)) throw new Error("Notification observer saved evidence is not a list");
-  return { activity: activity.map((row: Record<string, unknown>) => ({ id: row.id, companyId: row.companyId, entityType: row.entityType, entityId: row.entityId,
+  return { activity: activity.map((row: Record<string, unknown>) => ({ id: row.id, spaceId: row.spaceId, entityType: row.entityType, entityId: row.entityId,
     action: row.action, actorType: row.actorType, actorId: row.actorId, createdAt: row.createdAt, details: { commentId: (row.details as Record<string, unknown> | null)?.commentId } })),
-    comments: comments.map((row: Record<string, unknown>) => ({ id: row.id, companyId: row.companyId, issueId: row.issueId, createdAt: row.createdAt,
+    comments: comments.map((row: Record<string, unknown>) => ({ id: row.id, spaceId: row.spaceId, issueId: row.issueId, createdAt: row.createdAt,
       authorAgentId: row.authorAgentId, authorUserId: row.authorUserId, deletedAt: row.deletedAt })) };
 }
 async function armProbe(probe: ObserverProbe) {
@@ -63,7 +63,7 @@ async function armProbe(probe: ObserverProbe) {
   probe.frames.length = 0;
 }
 async function observeProbe(probe: ObserverProbe) {
-  const browser = await probe.page.evaluate(() => ({ visibility: document.visibilityState, toasts: window.__paperclipAudienceToastReceipts ?? [] }));
+  const browser = await probe.page.evaluate(() => ({ visibility: document.visibilityState, toasts: window.__outpostAudienceToastReceipts ?? [] }));
   const input: NotificationObserverInput | undefined = probe.baseline ? { principalId: probe.principalId, sessionPrincipalId: probe.baseline.sessionPrincipalId,
     frames: structuredClone(probe.frames), overflow: probe.overflow, baselineActivityIds: probe.baseline.activityIds, baselineCommentIds: probe.baseline.commentIds,
     ...await publicProbeRows(probe) } : undefined;
@@ -111,7 +111,7 @@ function notificationAudience(): ChatCatalogCase {
   const observeAudienceProbes = async () => {
     if (!alexProbe || !rileyProbe) throw new Error("Missing actual observer pages");
     const [alex, riley] = await Promise.all([observeProbe(alexProbe), observeProbe(rileyProbe)]);
-    latestBinding = alex.input && riley.input ? bindNotificationPublicEvents(alexProbe.companyId, alexProbe.taskId, [alex.input, riley.input]) : undefined;
+    latestBinding = alex.input && riley.input ? bindNotificationPublicEvents(alexProbe.spaceId, alexProbe.taskId, [alex.input, riley.input]) : undefined;
     return { alex: { principalId: alex.principalId, visibility: alex.visibility, sockets: alex.sockets, toasts: alex.toasts, frames: latestBinding?.frames[0] ?? [] },
       riley: { principalId: riley.principalId, visibility: riley.visibility, sockets: riley.sockets, toasts: riley.toasts, frames: latestBinding?.frames[1] ?? [] } };
   };
@@ -124,8 +124,8 @@ function notificationAudience(): ChatCatalogCase {
       const p = await project(ctx); const t = await task(ctx, "Launch task", p.id, { description: "The launch draft is complete and ready for human review; post ordinary task discussion updates without changing task execution." });
       await putDocument(ctx, t.id, "# Launch draft\nThe Acorn Notes draft is ready for human review.\n");
       const read = await personRead(riley, `/api/issues/${t.id}`); if (read.status !== 200) throw new Error("The nonparticipant is not an actual authorized task reader");
-      const origin = ctx.input.api.baseURL; const href = `${origin}/${ctx.input.fixtures.company.issuePrefix}/activity`;
-      alexProbe = await startObserver(await ctx.input.page.context().newPage(), alexId, t, href, ctx.input.fixtures.company.id); rileyProbe = await startObserver(await riley.context.newPage(), riley.id, t, href, ctx.input.fixtures.company.id);
+      const origin = ctx.input.api.baseURL; const href = `${origin}/${ctx.input.fixtures.space.issuePrefix}/activity`;
+      alexProbe = await startObserver(await ctx.input.page.context().newPage(), alexId, t, href, ctx.input.fixtures.space.id); rileyProbe = await startObserver(await riley.context.newPage(), riley.id, t, href, ctx.input.fixtures.space.id);
       await pollUntil({ label: "Observer page visibility and production socket registration", deadlineAt: Date.now() + 15000,
         load: observeAudienceProbes,
         accept: proof => proof.alex.visibility === "visible" && proof.riley.visibility === "visible" && proof.alex.sockets.length > 0 && proof.riley.sockets.length > 0 });

@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PrimaryAgentCrownButton, PrimaryAgentPresentationProvider } from "./PrimaryAgentPresentation";
 
-const agent = (id: string, name: string) => ({ id, name, companyId: "company-a", status: "idle" }) as Agent;
-const ceo = agent("ceo", "CEO");
-const cto = agent("cto", "CTO");
+const agent = (id: string, name: string) => ({ id, name, spaceId: "space-a", status: "idle" }) as Agent;
+const lead = agent("lead", "Default agent");
+const engineering_lead = agent("engineering_lead", "Engineering Lead");
 
 let root: Root;
 let container: HTMLDivElement;
@@ -23,17 +23,17 @@ function Harness({ initial, onChange, error, onRetry }: {
   return (
     <TooltipProvider>
       <PrimaryAgentPresentationProvider value={{
-        companyId: "company-a",
+        spaceId: "space-a",
         primaryAgentId: primary?.id ?? null,
         primaryAgent: primary,
         error,
         onRetry,
         onChange: (agentId) => {
           onChange(agentId);
-          setPrimary([ceo, cto].find((candidate) => candidate.id === agentId) ?? null);
+          setPrimary([lead, engineering_lead].find((candidate) => candidate.id === agentId) ?? null);
         },
       }}>
-        <PrimaryAgentCrownButton agent={ceo} />
+        <PrimaryAgentCrownButton agent={lead} />
       </PrimaryAgentPresentationProvider>
     </TooltipProvider>
   );
@@ -68,7 +68,7 @@ describe("PrimaryAgentCrownButton", () => {
 
     await act(async () => crown()?.click());
 
-    expect(onChange).toHaveBeenCalledWith("ceo");
+    expect(onChange).toHaveBeenCalledWith("lead");
     expect(dialog()).toBeNull();
     expect(crown()?.getAttribute("role")).toBe("img");
     expect(crown()?.getAttribute("aria-label")).toBe("Default agent");
@@ -83,7 +83,7 @@ describe("PrimaryAgentCrownButton", () => {
 
   it("asks before replacing the current default agent, then fills after the dialog", async () => {
     const onChange = vi.fn();
-    await render({ initial: cto, onChange });
+    await render({ initial: engineering_lead, onChange });
 
     await act(async () => crown()?.click());
     expect(dialog()?.textContent).toContain("Change the default agent?");
@@ -92,7 +92,7 @@ describe("PrimaryAgentCrownButton", () => {
     const confirm = Array.from(dialog()?.querySelectorAll("button") ?? []).find((button) => button.textContent === "Set as default agent");
     await act(async () => confirm?.click());
 
-    expect(onChange).toHaveBeenCalledWith("ceo");
+    expect(onChange).toHaveBeenCalledWith("lead");
     expect(crown()?.getAttribute("aria-label")).toBe("Default agent");
     expect(crown()?.dataset.pop).toBe("after-dialog");
     await nextTick();
@@ -102,7 +102,7 @@ describe("PrimaryAgentCrownButton", () => {
 
   it("keeps the current default agent when the dialog is cancelled", async () => {
     const onChange = vi.fn();
-    await render({ initial: cto, onChange });
+    await render({ initial: engineering_lead, onChange });
 
     await act(async () => crown()?.click());
     const cancel = Array.from(dialog()?.querySelectorAll("button") ?? []).find((button) => button.textContent === "Cancel");
@@ -116,7 +116,7 @@ describe("PrimaryAgentCrownButton", () => {
   });
 
   it("shows a still, filled pin on the default agent", async () => {
-    await render({ initial: ceo, onChange: vi.fn() });
+    await render({ initial: lead, onChange: vi.fn() });
     expect(crown()?.getAttribute("role")).toBe("img");
     expect(crown()?.dataset.pop).toBeUndefined();
     expect(crown()?.querySelector(".primary-crown-bubble")).toBeNull();

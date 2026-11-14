@@ -4,7 +4,7 @@ import { enqueueIssueInteractionChatPublications } from "../services/chat-intera
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agentWakeupRequests, agents, approvals, authUsers, companies, companyMemberships, connectionGrants, connectionGrantDelegations,
+import { activityLog, agentWakeupRequests, agents, approvals, authUsers, spaces, spaceMemberships, connectionGrants, connectionGrantDelegations,
   chatConversations, chatEndpoints, chatPublications, connectionIntentDeliveries, createDb, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueApprovals, issueRecoveryActions, issueThreadInteractions, issues, projects, toolApplications,
   toolCatalogEntries, toolConnectionInstalls, toolConnections, toolProfileBindings, toolProfiles, toolPolicies,
 } from "@outpost/db";
@@ -30,40 +30,40 @@ describePostgres("already available connection requests", () => {
   let db!: ReturnType<typeof createDb>;
   let temp!: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   beforeAll(async () => {
-    if (!externalUrl) temp = await startEmbeddedPostgresTestDatabase("paperclip-satisfied-connections-");
+    if (!externalUrl) temp = await startEmbeddedPostgresTestDatabase("outpost-satisfied-connections-");
     db = createDb(externalUrl ?? temp.connectionString);
     await db.insert(authUsers).values({ id: "connection-owner", name: "Owner", email: "owner@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
   }, 20_000);
-  beforeEach(async () => { await db.execute(sql`truncate table companies cascade`); });
+  beforeEach(async () => { await db.execute(sql`truncate table spaces cascade`); });
   afterAll(async () => { await db.$client.end({ timeout: 1 }); await temp?.cleanup(); });
 
   async function seed() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Connections", issuePrefix: "CON", defaultResponsibleUserId: "connection-owner" });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "connection-owner", status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Assignee", role: "engineer", adapterType: "claude_local", status: "idle", runtimeConfig: { heartbeat: { wakeOnDemand: true } } });
-    const [task] = await db.insert(issues).values({ id: issueId, companyId, title: "Use Sentry", status: "in_review", assigneeAgentId: agentId, responsibleUserId: "connection-owner" }).returning();
-    const [intent] = await db.insert(issueThreadInteractions).values({ companyId, issueId, kind: "connection_intent", status: "pending", addresseeUserId: "connection-owner",
+    await db.insert(spaces).values({ id: spaceId, name: "Connections", issuePrefix: "CON", defaultResponsibleUserId: "connection-owner" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "connection-owner", status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Assignee", role: "engineer", adapterType: "claude_local", status: "idle", runtimeConfig: { heartbeat: { wakeOnDemand: true } } });
+    const [task] = await db.insert(issues).values({ id: issueId, spaceId, title: "Use Sentry", status: "in_review", assigneeAgentId: agentId, responsibleUserId: "connection-owner" }).returning();
+    const [intent] = await db.insert(issueThreadInteractions).values({ spaceId, issueId, kind: "connection_intent", status: "pending", addresseeUserId: "connection-owner",
       requestedResolverPolicy: "human_only", effectiveResolverPolicy: "human_only", payload: { version: 1, serviceSlug: "sentry", serviceName: "Sentry", requestingAgentId: agentId, requestingAgentName: "Assignee", phase: "requested" } }).returning();
-    const [app] = await db.insert(toolApplications).values({ companyId, applicationKey: "sentry", name: "Sentry", type: "mcp_http", status: "active", metadata: { sourceTemplateKey: "sentry" } }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId, applicationId: app!.id, name: "Existing Sentry", uid: "sentry", transport: "mcp_remote", authKind: "api_key", credentialPolicy: "per_user", status: "active", enabled: true, healthStatus: "ok", config: { sourceTemplateKey: "sentry" } }).returning();
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId: connection!.id, kind: "user", subjectUserId: "connection-owner", status: "active" }).returning();
-    await db.insert(toolConnectionInstalls).values({ companyId, connectionId: connection!.id, targetType: "agent", targetId: agentId });
-    const [tool] = await db.insert(toolCatalogEntries).values({ companyId, connectionId: connection!.id, toolName: "sentry-read", name: "sentry-read", versionHash: "v1", status: "active", entryKind: "tool" }).returning();
-    const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: "reads", name: "Reads", defaultAction: "allow", status: "active" }).returning();
-    await db.insert(toolProfileBindings).values({ companyId, profileId: profile!.id, targetType: "agent", targetId: agentId });
-    return { companyId, agentId, issueId, task: task!, intent: intent!, connection: connection!, grant: grant!, tool: tool!, profile: profile! };
+    const [app] = await db.insert(toolApplications).values({ spaceId, applicationKey: "sentry", name: "Sentry", type: "mcp_http", status: "active", metadata: { sourceTemplateKey: "sentry" } }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId: app!.id, name: "Existing Sentry", uid: "sentry", transport: "mcp_remote", authKind: "api_key", credentialPolicy: "per_user", status: "active", enabled: true, healthStatus: "ok", config: { sourceTemplateKey: "sentry" } }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId: connection!.id, kind: "user", subjectUserId: "connection-owner", status: "active" }).returning();
+    await db.insert(toolConnectionInstalls).values({ spaceId, connectionId: connection!.id, targetType: "agent", targetId: agentId });
+    const [tool] = await db.insert(toolCatalogEntries).values({ spaceId, connectionId: connection!.id, toolName: "sentry-read", name: "sentry-read", versionHash: "v1", status: "active", entryKind: "tool" }).returning();
+    const [profile] = await db.insert(toolProfiles).values({ spaceId, profileKey: "reads", name: "Reads", defaultAction: "allow", status: "active" }).returning();
+    await db.insert(toolProfileBindings).values({ spaceId, profileId: profile!.id, targetType: "agent", targetId: agentId });
+    return { spaceId, agentId, issueId, task: task!, intent: intent!, connection: connection!, grant: grant!, tool: tool!, profile: profile! };
   }
   async function retry(f: Awaited<ReturnType<typeof seed>>) {
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, issueId: f.issueId,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId,
       status: "scheduled_retry", scheduledRetryReason: "transient_failure", scheduledRetryAt: new Date(), runtimeMode: "legacy",
       responsibleUserId: "connection-owner", contextSnapshot: { issueId: f.issueId }, resultJson: { conversationContinuation: "continue_conversation_v1" } }).returning();
     return run!;
   }
 
-  it("wakes governed response recovery only when automatic cleanup retires a connection card", async () => {
+  it("wakes controlled response recovery only when automatic cleanup retires a connection card", async () => {
     const f = await seed();
     const notified = vi.fn();
     const unsubscribe = subscribeDeliveryWork(db, DELIVERY_QUEUES.nativeReviewResponse, notified);
@@ -94,10 +94,10 @@ describePostgres("already available connection requests", () => {
   it("settles a published Slack card when existing access retires the connection request", async () => {
     const f = await seed();
     const endpointId = randomUUID();
-    const [app] = await db.insert(toolApplications).values({ companyId: f.companyId, applicationKey: `chat:slack:${endpointId}`, name: "Slack", type: "chat", status: "active" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId: f.companyId, applicationId: app.id, name: "Slack channel", uid: endpointId, connectionPurpose: "channel", transport: "chat_sdk", status: "active", enabled: true }).returning();
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId: f.companyId, connectionId: connection.id, provider: "slack", publicId: randomUUID(), assignedAgentId: f.agentId, status: "active", capabilities: { threads: true, directMessages: true, nativeStreaming: false, messageEdits: true, messageDeletes: false, reactions: true, files: true, cards: true, actions: true, modals: true, slashCommands: true, ephemeralMessages: true, proactiveDirectMessages: true } });
-    await db.insert(chatConversations).values({ companyId: f.companyId, endpointId, issueId: f.issueId, externalConversationId: "C-CONNECTION", externalThreadId: "slack:C-CONNECTION:123.1", externalLabel: "Connection setup", state: "active" });
+    const [app] = await db.insert(toolApplications).values({ spaceId: f.spaceId, applicationKey: `chat:slack:${endpointId}`, name: "Slack", type: "chat", status: "active" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId: f.spaceId, applicationId: app.id, name: "Slack channel", uid: endpointId, connectionPurpose: "channel", transport: "chat_sdk", status: "active", enabled: true }).returning();
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId: f.spaceId, connectionId: connection.id, provider: "slack", publicId: randomUUID(), assignedAgentId: f.agentId, status: "active", capabilities: { threads: true, directMessages: true, nativeStreaming: false, messageEdits: true, messageDeletes: false, reactions: true, files: true, cards: true, actions: true, modals: true, slashCommands: true, ephemeralMessages: true, proactiveDirectMessages: true } });
+    await db.insert(chatConversations).values({ spaceId: f.spaceId, endpointId, issueId: f.issueId, externalConversationId: "C-CONNECTION", externalThreadId: "slack:C-CONNECTION:123.1", externalLabel: "Connection setup", state: "active" });
     await db.update(issueThreadInteractions).set({ createdByAgentId: f.agentId }).where(eq(issueThreadInteractions.id, f.intent.id));
     const interaction = await issueThreadInteractionService(db).getById(f.intent.id);
     expect(interaction).not.toBeNull();
@@ -108,13 +108,13 @@ describePostgres("already available connection requests", () => {
     const publications = await db.select().from(chatPublications).where(eq(chatPublications.endpointId, endpointId));
     expect(publications).toHaveLength(2);
     const terminal = publications.find(row => row.id !== original.id);
-    expect(terminal?.payload.card?.body).toBe("Expired in Paperclip");
+    expect(terminal?.payload.card?.body).toBe("Expired in Outpost");
     expect(terminal?.payload.card?.actions).toBeUndefined();
   });
 
   it("ignores an already available connection before the worker retires its card", async () => {
     const f = await seed(); const run = await retry(f);
-    expect(await createPostgresRunDispatchAdapter(db).evaluateScheduledRetryGate({ companyId: f.companyId, runId: run.id, retryReasonOverride: "transient_failure", now: new Date() })).toMatchObject({ allowed: true });
+    expect(await createPostgresRunDispatchAdapter(db).evaluateScheduledRetryGate({ spaceId: f.spaceId, runId: run.id, retryReasonOverride: "transient_failure", now: new Date() })).toMatchObject({ allowed: true });
     expect((await db.select().from(issueThreadInteractions))[0].status).toBe("pending");
   });
 
@@ -125,17 +125,17 @@ describePostgres("already available connection requests", () => {
     expect((await db.select().from(issueThreadInteractions))[0].status).toBe("expired");
     await db.update(issues).set({ status: "todo" }).where(eq(issues.id, f.issueId));
     if (state === "revoked") await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, f.grant.id));
-    if (state === "question") await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issueId,
+    if (state === "question") await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issueId,
       kind: "ask_user_questions", status: "pending", addresseeUserId: "connection-owner", payload: { version: 1, questions: [] } });
     if (state === "approval") {
-      const [approval] = await db.insert(approvals).values({ companyId: f.companyId, type: "tool_action", status: "pending", payload: {} }).returning();
-      await db.insert(issueApprovals).values({ companyId: f.companyId, issueId: f.issueId, approvalId: approval.id });
+      const [approval] = await db.insert(approvals).values({ spaceId: f.spaceId, type: "tool_action", status: "pending", payload: {} }).returning();
+      await db.insert(issueApprovals).values({ spaceId: f.spaceId, issueId: f.issueId, approvalId: approval.id });
     }
     const [task] = await db.select().from(issues).where(eq(issues.id, f.issueId));
     expect(await findSatisfiedToolConnection(db, task, f.intent, run.id)).toBeNull();
     expect(await connectionContinuationPendingResponse(db, task, "connection-owner", run.id))
       .toBe(state === "ready" ? null : state === "approval" ? "approval" : "interaction");
-    expect(await createPostgresRunDispatchAdapter(db).evaluateScheduledRetryGate({ companyId: f.companyId,
+    expect(await createPostgresRunDispatchAdapter(db).evaluateScheduledRetryGate({ spaceId: f.spaceId,
       runId: run.id, retryReasonOverride: "native_safe_replacement", now: new Date() }))
       .toMatchObject({ allowed: state === "ready" });
   });
@@ -143,7 +143,7 @@ describePostgres("already available connection requests", () => {
   it("keeps a retry under another user's identity waiting for its response", async () => {
     const f = await seed(); const run = await retry(f);
     await db.update(heartbeatRuns).set({ responsibleUserId: "someone-else" }).where(eq(heartbeatRuns.id, run.id));
-    expect(await createPostgresRunDispatchAdapter(db).evaluateScheduledRetryGate({ companyId: f.companyId, runId: run.id, retryReasonOverride: "transient_failure", now: new Date() })).toMatchObject({ allowed: false, errorCode: "issue_waiting_for_response" });
+    expect(await createPostgresRunDispatchAdapter(db).evaluateScheduledRetryGate({ spaceId: f.spaceId, runId: run.id, retryReasonOverride: "transient_failure", now: new Date() })).toMatchObject({ allowed: false, errorCode: "issue_waiting_for_response" });
   });
 
   it("notifies an idle worker when a new connection request commits", async () => {
@@ -155,7 +155,7 @@ describePostgres("already available connection requests", () => {
     const notified = vi.fn();
     const unsubscribe = subscribeDeliveryWork(db, DELIVERY_QUEUES.connection, notified);
     try {
-      await issueThreadInteractionService(db).createConnectionIntent({ id: f.issueId, companyId: f.companyId }, {
+      await issueThreadInteractionService(db).createConnectionIntent({ id: f.issueId, spaceId: f.spaceId }, {
         payload: f.intent.payload as ConnectionIntentPayload, sourceRunId: source.id, addresseeUserId: "connection-owner", idempotencyKey: "new-card",
       });
       expect(notified).toHaveBeenCalledOnce();
@@ -169,11 +169,11 @@ describePostgres("already available connection requests", () => {
     const f = await seed();
     await db.delete(issueThreadInteractions);
     await db.update(toolConnections).set({ status: "draft", enabled: false }).where(eq(toolConnections.id, f.connection.id));
-    const [source] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+    const [source] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
       status: "succeeded", finishedAt: new Date(), contextSnapshot: { issueId: f.issueId } }).returning();
     let cardId = "";
     const wakeup = vi.fn(async () => {
-      await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId, source: "automation",
+      await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId, source: "automation",
         status: "queued", idempotencyKey: `connection-intent:${cardId}:expired` });
       return null;
     });
@@ -197,7 +197,7 @@ describePostgres("already available connection requests", () => {
           return pending;
         }, nextRunAt: service.nextRunAt,
       }).ready;
-      const card = await issueThreadInteractionService(db).createConnectionIntent({ id: f.issueId, companyId: f.companyId }, {
+      const card = await issueThreadInteractionService(db).createConnectionIntent({ id: f.issueId, spaceId: f.spaceId }, {
         payload: f.intent.payload as ConnectionIntentPayload, sourceRunId: source!.id, addresseeUserId: "connection-owner", idempotencyKey: "passive-setup-card",
       });
       cardId = card.id;
@@ -225,27 +225,27 @@ describePostgres("already available connection requests", () => {
     if (reason === "wrong_identity") await db.update(heartbeatRuns).set({ responsibleUserId: "someone-else" });
     if (reason === "revoked") await db.update(connectionGrants).set({ status: "revoked" });
     if (reason === "disabled") await db.update(toolConnections).set({ enabled: false });
-    if (reason === "removed_member") await db.delete(companyMemberships);
-    if (reason === "denied_policy") await db.insert(toolPolicies).values({ companyId: f.companyId, name: "Block this task", policyType: "block", selectors: { issueId: f.issueId } });
-    expect(await createPostgresRunDispatchAdapter(db).evaluateScheduledRetryGate({ companyId: f.companyId, runId: run.id, retryReasonOverride: "transient_failure", now: new Date() })).toMatchObject({ allowed: false, errorCode: "issue_waiting_for_response" });
+    if (reason === "removed_member") await db.delete(spaceMemberships);
+    if (reason === "denied_policy") await db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Block this task", policyType: "block", selectors: { issueId: f.issueId } });
+    expect(await createPostgresRunDispatchAdapter(db).evaluateScheduledRetryGate({ spaceId: f.spaceId, runId: run.id, retryReasonOverride: "transient_failure", now: new Date() })).toMatchObject({ allowed: false, errorCode: "issue_waiting_for_response" });
   });
 
-  it.each(["company", "issue", "project"] as const)("uses %s policy when deciding whether tools are ready", async (scope) => {
+  it.each(["space", "issue", "project"] as const)("uses %s policy when deciding whether tools are ready", async (scope) => {
     const f = await seed();
     const selectors = scope === "issue" ? { issueId: f.issueId } : scope === "project" ? { projectId: randomUUID() } : {};
     if (scope === "project") {
       const projectId = (selectors as { projectId: string }).projectId;
-      await db.insert(projects).values({ id: projectId, companyId: f.companyId, name: "Tools" });
+      await db.insert(projects).values({ id: projectId, spaceId: f.spaceId, name: "Tools" });
       await db.update(issues).set({ projectId });
     }
-    await db.insert(toolPolicies).values({ companyId: f.companyId, name: "Block tools", policyType: "block", selectors });
+    await db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Block tools", policyType: "block", selectors });
     expect(await satisfiedConnectionIntentService(db).sweepPending()).toMatchObject({ satisfied: 0 });
     expect((await db.select().from(issueThreadInteractions))[0].status).toBe("pending");
   });
 
   it("retains invocation approval when the authorized connection's tools require it", async () => {
     const f = await seed();
-    await db.insert(toolPolicies).values({ companyId: f.companyId, name: "Ask before use", policyType: "require_approval", selectors: { issueId: f.issueId } });
+    await db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Ask before use", policyType: "require_approval", selectors: { issueId: f.issueId } });
     expect(await satisfiedConnectionIntentService(db).sweepPending()).toMatchObject({ satisfied: 1 });
     expect((await db.select().from(toolPolicies))[0].policyType).toBe("require_approval");
     expect(await db.select().from(approvals)).toHaveLength(0);
@@ -254,12 +254,12 @@ describePostgres("already available connection requests", () => {
 
   async function addWait(f: Awaited<ReturnType<typeof seed>>, kind: "question" | "approval") {
     if (kind === "question") {
-      const [question] = await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issueId,
+      const [question] = await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issueId,
         kind: "ask_user_questions", status: "pending", payload: { version: 1, questions: [] } }).returning();
       return async () => { await db.update(issueThreadInteractions).set({ status: "answered" }).where(eq(issueThreadInteractions.id, question!.id)); };
     }
-    const [approval] = await db.insert(approvals).values({ companyId: f.companyId, type: "tool_action", status: "pending", payload: {} }).returning();
-    await db.insert(issueApprovals).values({ companyId: f.companyId, issueId: f.issueId, approvalId: approval!.id });
+    const [approval] = await db.insert(approvals).values({ spaceId: f.spaceId, type: "tool_action", status: "pending", payload: {} }).returning();
+    await db.insert(issueApprovals).values({ spaceId: f.spaceId, issueId: f.issueId, approvalId: approval!.id });
     return async () => { await db.update(approvals).set({ status: "approved" }).where(eq(approvals.id, approval!.id)); };
   }
 
@@ -285,7 +285,7 @@ describePostgres("already available connection requests", () => {
       mutation: "interaction", wakeReason: "issue_commented", source: "connection_intent.resolved" } }).where(eq(heartbeatRuns.id, run.id));
     if (kind === "revoked") await db.update(connectionGrants).set({ status: "revoked" });
     else await addWait(f, kind);
-    expect(await createPostgresRunDispatchAdapter(db).cancelStaleQueuedRun({ companyId: f.companyId, runId: run.id,
+    expect(await createPostgresRunDispatchAdapter(db).cancelStaleQueuedRun({ spaceId: f.spaceId, runId: run.id,
       expectedStatus: "queued", now: new Date() })).toMatchObject({ outcome: "cancelled", errorCode: "issue_waiting_for_response" });
   });
 
@@ -294,7 +294,7 @@ describePostgres("already available connection requests", () => {
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, f.grant.id));
     const [connection] = await db.insert(toolConnections).values({ ...f.connection, id: randomUUID(), uid: "sentry-replacement", name: "Replacement Sentry" }).returning();
     await db.insert(connectionGrants).values({ ...f.grant, id: randomUUID(), connectionId: connection!.id, status: "active" });
-    await db.insert(toolConnectionInstalls).values({ companyId: f.companyId, connectionId: connection!.id, targetType: "agent", targetId: f.agentId });
+    await db.insert(toolConnectionInstalls).values({ spaceId: f.spaceId, connectionId: connection!.id, targetType: "agent", targetId: f.agentId });
     await db.insert(toolCatalogEntries).values({ ...f.tool, id: randomUUID(), connectionId: connection!.id });
     return connection!;
   }
@@ -303,17 +303,17 @@ describePostgres("already available connection requests", () => {
     const f = await seed(); const run = await retry(f);
     await satisfiedConnectionIntentService(db).sweepPending();
     const replacement = await replaceAccount(f);
-    await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issueId, kind: "connection_intent",
+    await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issueId, kind: "connection_intent",
       status: "accepted", payload: f.intent.payload, addresseeUserId: "connection-owner", resolvedByUserId: "connection-owner",
       result: { version: 1, outcome: "connected", connectionId: replacement.id }, resolvedAt: new Date() });
-    expect(await createPostgresRunDispatchAdapter(db).evaluateScheduledRetryGate({ companyId: f.companyId, runId: run.id, retryReasonOverride: "transient_failure", now: new Date() })).toMatchObject({ allowed: true });
+    expect(await createPostgresRunDispatchAdapter(db).evaluateScheduledRetryGate({ spaceId: f.spaceId, runId: run.id, retryReasonOverride: "transient_failure", now: new Date() })).toMatchObject({ allowed: true });
   });
 
   it("refreshes only the system observation for an already authorized replacement", async () => {
     const f = await seed(); const run = await retry(f);
     await satisfiedConnectionIntentService(db).sweepPending();
     const replacement = await replaceAccount(f);
-    const input = { db, companyId: f.companyId, issueId: f.issueId, runId: run.id, agentId: f.agentId, interactionIds: [f.intent.id] };
+    const input = { db, spaceId: f.spaceId, issueId: f.issueId, runId: run.id, agentId: f.agentId, interactionIds: [f.intent.id] };
     await expect(materializeNativeInteractionResponses(input)).rejects.toMatchObject({ code: "native_interaction_unresolved" });
     await connectionIntentDeliveryService(db, { wakeup: vi.fn().mockResolvedValue(null) }).sweepPending();
     expect((await db.select().from(issueThreadInteractions))[0]).toMatchObject({ status: "expired", resolvedByUserId: null,
@@ -328,7 +328,7 @@ describePostgres("already available connection requests", () => {
     const f = await seed(); const run = await retry(f);
     await satisfiedConnectionIntentService(db).sweepPending();
     const key = `connection-intent:${f.intent.id}:expired`;
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId,
       source: "automation", status: "claimed", idempotencyKey: key, runId: run.id }).returning();
     await db.update(connectionIntentDeliveries).set({ deliveredAt: new Date() });
     await db.update(heartbeatRuns).set({ status, startedAt: status === "running" ? new Date() : null,
@@ -340,12 +340,12 @@ describePostgres("already available connection requests", () => {
     await db.update(connectionGrants).set({ status: "revoked" });
     const dispatch = createPostgresRunDispatchAdapter(db);
     if (status === "queued") {
-      expect(await dispatch.cancelStaleQueuedRun({ companyId: f.companyId, runId: run.id,
+      expect(await dispatch.cancelStaleQueuedRun({ spaceId: f.spaceId, runId: run.id,
         expectedStatus: "queued", now: new Date() })).toMatchObject({ outcome: "cancelled", errorCode: "issue_waiting_for_response" });
     } else {
       const invoke = vi.fn(async () => null);
-      const reservation = await reserveRunBudget(db, f.companyId, run.id, null);
-      expect(await dispatch.dispatchResolvedInteractionIfCurrent({ companyId: f.companyId, runId: run.id,
+      const reservation = await reserveRunBudget(db, f.spaceId, run.id, null);
+      expect(await dispatch.dispatchResolvedInteractionIfCurrent({ spaceId: f.spaceId, runId: run.id,
         reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch: invoke })).toMatchObject({ dispatched: false,
           cancellation: { outcome: "cancelled", errorCode: "issue_waiting_for_response" } });
       expect(invoke).not.toHaveBeenCalled();
@@ -356,13 +356,13 @@ describePostgres("already available connection requests", () => {
     expect((await db.select().from(agentWakeupRequests))[0].status).toBe("skipped");
     await db.update(connectionGrants).set({ status: "active" });
     const wakeup = vi.fn(async () => {
-      await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId, source: "automation", status: "queued", idempotencyKey: key });
+      await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId, source: "automation", status: "queued", idempotencyKey: key });
       return null;
     });
     await connectionIntentDeliveryService(db, { wakeup }).sweepPending();
     expect(wakeup).toHaveBeenCalledOnce();
     expect((await db.select().from(connectionIntentDeliveries))[0].deliveredAt).not.toBeNull();
-    await db.insert(heartbeatRunEvents).values({ companyId: f.companyId, runId: run.id, agentId: f.agentId,
+    await db.insert(heartbeatRunEvents).values({ spaceId: f.spaceId, runId: run.id, agentId: f.agentId,
       seq: 2, eventType: "adapter.invoke" });
     expect(await legacyExecutionNeedsReconciliationWithEvidence(db, cancelled)).toBe(true);
   });
@@ -371,7 +371,7 @@ describePostgres("already available connection requests", () => {
     const f = await seed(); const run = await retry(f);
     await satisfiedConnectionIntentService(db).sweepPending();
     const key = `connection-intent:${f.intent.id}:expired`;
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId,
       source: "automation", status: "claimed", idempotencyKey: key, runId: run.id }).returning();
     await db.update(heartbeatRuns).set({ status: "queued", wakeupRequestId: wake!.id,
       contextSnapshot: { issueId: f.issueId, interactionId: f.intent.id, connectionIntentResolution: "existing_connection",
@@ -388,7 +388,7 @@ describePostgres("already available connection requests", () => {
           if (!values.deliveredAt) return update;
           return { async where(condition: Parameters<typeof update.where>[0]) {
             await db.update(connectionGrants).set({ status: "revoked" });
-            expect(await createPostgresRunDispatchAdapter(db).cancelStaleQueuedRun({ companyId: f.companyId,
+            expect(await createPostgresRunDispatchAdapter(db).cancelStaleQueuedRun({ spaceId: f.spaceId,
               runId: run.id, expectedStatus: "queued", now: new Date() })).toMatchObject({ outcome: "cancelled" });
             cancelled = true;
             return update.where(condition);
@@ -400,7 +400,7 @@ describePostgres("already available connection requests", () => {
     expect(cancelled).toBe(true);
     expect((await db.select().from(connectionIntentDeliveries))[0].deliveredAt).toBeNull();
     await db.update(connectionGrants).set({ status: "active" });
-    const wakeup = vi.fn(async () => { await db.insert(agentWakeupRequests).values({ companyId: f.companyId,
+    const wakeup = vi.fn(async () => { await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId,
       agentId: f.agentId, source: "automation", status: "queued", idempotencyKey: key }); return null; });
     await connectionIntentDeliveryService(db, { wakeup }).sweepPending();
     expect(wakeup).toHaveBeenCalledOnce();
@@ -452,14 +452,14 @@ describePostgres("already available connection requests", () => {
   it("delivers system retirement to the native runner only while the same connection remains usable", async () => {
     const f = await seed(); const run = await retry(f);
     await satisfiedConnectionIntentService(db).sweepPending();
-    const input = { db, companyId: f.companyId, issueId: f.issueId, runId: run.id, agentId: f.agentId, interactionIds: [f.intent.id] };
+    const input = { db, spaceId: f.spaceId, issueId: f.issueId, runId: run.id, agentId: f.agentId, interactionIds: [f.intent.id] };
     expect(await materializeNativeInteractionResponses(input)).toEqual([expect.objectContaining({
       kind: "connection_intent", response: expect.objectContaining({ status: "expired", result: expect.objectContaining({ connectionId: f.connection.id }) }) })]);
     await db.update(connectionGrants).set({ status: "revoked" });
     await expect(materializeNativeInteractionResponses(input)).rejects.toMatchObject({ code: "native_interaction_unresolved" });
   });
 
-  it.each(["missing_install", "denied_tools", "disabled", "unhealthy", "revoked", "wrong_user", "viewer", "removed_member", "additional_access", "ai", "channel", "upstream", "reassigned", "human_owner", "closed", "other_company"] as const)("preserves a request for %s", async (reason) => {
+  it.each(["missing_install", "denied_tools", "disabled", "unhealthy", "revoked", "wrong_user", "viewer", "removed_member", "additional_access", "ai", "channel", "upstream", "reassigned", "human_owner", "closed", "other_space"] as const)("preserves a request for %s", async (reason) => {
     const f = await seed();
     if (reason === "missing_install") await db.delete(toolConnectionInstalls);
     if (reason === "denied_tools") await db.update(toolProfiles).set({ defaultAction: "deny" });
@@ -467,8 +467,8 @@ describePostgres("already available connection requests", () => {
     if (reason === "unhealthy") await db.update(toolConnections).set({ healthStatus: "error" });
     if (reason === "revoked") await db.update(connectionGrants).set({ status: "revoked" });
     if (reason === "wrong_user") await db.update(connectionGrants).set({ subjectUserId: "someone-else" });
-    if (reason === "viewer") await db.update(companyMemberships).set({ membershipRole: "viewer" });
-    if (reason === "removed_member") await db.delete(companyMemberships);
+    if (reason === "viewer") await db.update(spaceMemberships).set({ membershipRole: "viewer" });
+    if (reason === "removed_member") await db.delete(spaceMemberships);
     if (["ai", "channel", "upstream", "additional_access"].includes(reason)) {
       const extra = reason === "ai" || reason === "channel" ? { purpose: reason }
         : reason === "upstream" ? { upstreamService: { slug: "sentry", name: "Sentry" } }
@@ -478,9 +478,9 @@ describePostgres("already available connection requests", () => {
     if (reason === "reassigned") await db.update(issues).set({ assigneeAgentId: null });
     if (reason === "human_owner") await db.update(issues).set({ assigneeUserId: "connection-owner" });
     if (reason === "closed") await db.update(issues).set({ status: "done" });
-    if (reason === "other_company") {
-      const [other] = await db.insert(companies).values({ name: "Other", issuePrefix: "OTH" }).returning();
-      await db.update(issueThreadInteractions).set({ companyId: other!.id });
+    if (reason === "other_space") {
+      const [other] = await db.insert(spaces).values({ name: "Other", issuePrefix: "OTH" }).returning();
+      await db.update(issueThreadInteractions).set({ spaceId: other!.id });
     }
     const task = (await db.select().from(issues))[0]; const intent = (await db.select().from(issueThreadInteractions))[0];
     expect(await findSatisfiedToolConnection(db, task, intent)).toBeNull();
@@ -491,21 +491,21 @@ describePostgres("already available connection requests", () => {
 
   it("keeps a real question blocking even when a sibling connection is available", async () => {
     const f = await seed(); const run = await retry(f);
-    await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issueId, kind: "ask_user_questions", status: "pending", payload: { version: 1, questions: [] } });
-    expect(await createPostgresRunDispatchAdapter(db).evaluateScheduledRetryGate({ companyId: f.companyId, runId: run.id, retryReasonOverride: "transient_failure", now: new Date() })).toMatchObject({ allowed: false, errorCode: "issue_waiting_for_response" });
+    await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issueId, kind: "ask_user_questions", status: "pending", payload: { version: 1, questions: [] } });
+    expect(await createPostgresRunDispatchAdapter(db).evaluateScheduledRetryGate({ spaceId: f.spaceId, runId: run.id, retryReasonOverride: "transient_failure", now: new Date() })).toMatchObject({ allowed: false, errorCode: "issue_waiting_for_response" });
   });
 
   it("does not bypass a retained workspace hold after connecting", async () => {
     const f = await seed();
     const leaseId = randomUUID();
     const workspaceRestoreRecovery = { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId] };
-    const [source] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, issueId: f.issueId, status: "interrupted", finishedAt: new Date(), runtimeMode: "legacy",
+    const [source] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId, status: "interrupted", finishedAt: new Date(), runtimeMode: "legacy",
       contextSnapshot: { issueId: f.issueId }, resultJson: { conversationContinuation: "continue_conversation_v1", workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery } }).returning();
-    const identity = { id: leaseId, companyId: f.companyId, heartbeatRunId: source!.id, provider: "daytona", providerLeaseId: `fixture-${leaseId}` };
+    const identity = { id: leaseId, spaceId: f.spaceId, heartbeatRunId: source!.id, provider: "daytona", providerLeaseId: `fixture-${leaseId}` };
     await db.insert(environmentLeases).values({ ...identity, issueId: f.issueId, status: "released", leasePolicy: "retain_on_failure", releasedAt: new Date(), cleanupStatus: "success",
       metadata: { remoteExecutionTermination: remoteTerminationReceipt(identity, { providerLeaseId: identity.providerLeaseId, state: "stopped" }) } });
-    await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
-      kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", ownerType: "board",
+    await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
+      kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", ownerType: "operator",
       fingerprint: `legacy-execution:${source!.id}`, status: "resolved", outcome: "blocked",
       nextAction: "Repair the retained workspace before continuing.", evidence: { runId: source!.id,
         workspaceRestoreFailure: "restore_failed", automaticRecovery: { replay: "blocked" },
@@ -514,8 +514,8 @@ describePostgres("already available connection requests", () => {
     await db.update(heartbeatRuns).set({ retryOfRunId: source!.id, contextSnapshot: { issueId: f.issueId, retryOfRunId: source!.id } }).where(eq(heartbeatRuns.id, run.id));
     await satisfiedConnectionIntentService(db).sweepPending();
     const dispatch = createPostgresRunDispatchAdapter(db);
-    await dispatch.promoteOrCancelDueRetry({ companyId: f.companyId, runId: run.id, now: new Date() });
-    const outcome = await dispatch.cancelStaleQueuedRun({ companyId: f.companyId, runId: run.id, expectedStatus: "queued", now: new Date() });
+    await dispatch.promoteOrCancelDueRetry({ spaceId: f.spaceId, runId: run.id, now: new Date() });
+    const outcome = await dispatch.cancelStaleQueuedRun({ spaceId: f.spaceId, runId: run.id, expectedStatus: "queued", now: new Date() });
     expect(outcome).toMatchObject({ outcome: "cancelled", errorCode: "execution_reconciliation_required" });
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0].status).toBe("cancelled");
   });

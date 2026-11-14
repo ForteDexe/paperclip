@@ -52,7 +52,7 @@ it("reads owned synthetic compiled manifests, detects missing output and rejects
     const rows = [];
     for (const target of pins.certificates) {
       await mkdir(path.join(root, target.target), { recursive: true });
-      for (const [file, text] of [["index.js", "export const syntheticUnit=true;\n"], [".paperclip-build-complete", JSON.stringify({ sources: "a".repeat(64), outputs: "b".repeat(64) })+'\n']]) {
+      for (const [file, text] of [["index.js", "export const syntheticUnit=true;\n"], [".outpost-build-complete", JSON.stringify({ sources: "a".repeat(64), outputs: "b".repeat(64) })+'\n']]) {
         await writeFile(path.join(root, target.target, file!), text!);
         rows.push({ file: `${target.target}/${file}`, size: Buffer.byteLength(text!), sha256: hash(text!) });
       }

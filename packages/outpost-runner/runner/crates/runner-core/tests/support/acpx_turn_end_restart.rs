@@ -395,7 +395,7 @@ fn the_next_run_resumes_the_conversation_after_a_failed_turn_end_restart() {
                 payload
                     .as_object_mut()
                     .unwrap()
-                    .remove("paperclipNextAuthority");
+                    .remove("outpostNextAuthority");
             });
             harness.execute("run.attach", payload)
         } else {
@@ -476,7 +476,7 @@ fn a_runner_restart_in_the_same_run_keeps_the_failed_turn_end_restart_closed() {
         payload
             .as_object_mut()
             .unwrap()
-            .remove("paperclipNextAuthority");
+            .remove("outpostNextAuthority");
     });
     let attached = harness.execute("run.attach", payload);
     assert_eq!(attached.result["providerSessionId"], conversation);

@@ -19,7 +19,7 @@ import { parseAgentMentionHref } from "@outpost/shared";
 
 /**
  * Whether a run's terminal record reflects an intentional operator interrupt
- * (a board comment that cancelled the active run) rather than an unexplained
+ * (a operator comment that cancelled the active run) rather than an unexplained
  * failure or a plain control-plane cancel.
  */
 export function isOperatorInterruptedRun(
@@ -61,7 +61,7 @@ export interface RunStatusPresentation {
 }
 
 /**
- * Resolve the visible run status. A board-triggered interrupt reads as
+ * Resolve the visible run status. A operator-triggered interrupt reads as
  * "interrupted" (amber, operator-intentional) instead of a muted "cancelled"
  * that looks like an adapter failure.
  */
@@ -73,7 +73,7 @@ export function resolveRunStatusPresentation(
     return {
       label: "interrupted",
       className: "text-amber-700 dark:text-amber-300",
-      srHint: "interrupted by board comment",
+      srHint: "interrupted by operator comment",
     };
   }
   return {
@@ -305,7 +305,7 @@ export function classifyAssigneeHandoff(
   if (to.userId) {
     return {
       kind: "user_handoff",
-      wakeText: "not created — this is a handoff to a board user",
+      wakeText: "not created — this is a handoff to a operator user",
     };
   }
   return {
@@ -387,7 +387,7 @@ const PAUSE_BUCKET_DETAIL: Record<PauseAffectsBucketKey, string> = {
   live_runs: "interrupted now, re-queued when you resume",
   queued_wakes: "held — they won't start until you resume",
   agent_owned: "responsible agent; no run is live",
-  human_owned: "owned by a board user; pausing won't notify them",
+  human_owned: "owned by a operator user; pausing won't notify them",
   static: "no responsible; nothing was going to run",
 };
 

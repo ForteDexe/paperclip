@@ -25,7 +25,7 @@ scenarios:
     query: >-
       Show me what installing the website team would add.
     expected_outcome: >-
-      A preview describes the proposed resources, options and conflicts in the current company
+      A preview describes the proposed resources, options and conflicts in the current space
       without creating them. Chat distinguishes preview from installation and identifies any
       missing configuration needed for an eventual working team.
   - id: teams.install-team
@@ -36,9 +36,9 @@ scenarios:
       The preview is accepted, required accounts exist, and the agent has effective installation
       and resource-creation authority.
     query: >-
-      Install that website team in this company.
+      Install that website team in this space.
     expected_outcome: >-
-      The supported installer creates the intended resources once in the active company and
+      The supported installer creates the intended resources once in the active space and
       reports conflicts or partial failures truthfully. Chat links to the installed agents and
       project. Repeating an uncertain request reconciles the existing installation rather than
       blindly duplicating the team.

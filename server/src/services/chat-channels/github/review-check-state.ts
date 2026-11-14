@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { chatActions, chatDeliveries, chatEndpoints, chatEndpointResources,
-  chatGitHubConfigurations, chatGitHubReviews, chatMessageLinks, companies,
+  chatGitHubConfigurations, chatGitHubReviews, chatMessageLinks, spaces,
   heartbeatRuns, type Db } from "@outpost/db";
 import type { GitHubReviewEventContext } from "@outpost/shared";
 
@@ -11,10 +11,10 @@ export async function githubReviewCheckState(db: Db, action: typeof chatActions.
       endpoint: chatEndpoints,
       resource: chatEndpointResources,
       configuration: chatGitHubConfigurations.configuration,
-      companyPrefix: companies.issuePrefix,
+      spacePrefix: spaces.issuePrefix,
     })
     .from(chatEndpoints)
-    .innerJoin(companies, eq(companies.id, chatEndpoints.companyId))
+    .innerJoin(spaces, eq(spaces.id, chatEndpoints.spaceId))
     .innerJoin(
       chatGitHubConfigurations,
       eq(chatGitHubConfigurations.endpointId, chatEndpoints.id),
@@ -26,7 +26,7 @@ export async function githubReviewCheckState(db: Db, action: typeof chatActions.
     .where(
       and(
         eq(chatEndpoints.id, action.endpointId),
-        eq(chatEndpoints.companyId, action.companyId),
+        eq(chatEndpoints.spaceId, action.spaceId),
         eq(chatEndpointResources.providerResourceId, event.repository),
       ),
     );
@@ -89,7 +89,7 @@ export async function githubReviewCheckState(db: Db, action: typeof chatActions.
         .from(heartbeatRuns)
         .where(
           and(
-            eq(heartbeatRuns.companyId, action.companyId),
+            eq(heartbeatRuns.spaceId, action.spaceId),
             eq(heartbeatRuns.agentId, source.endpoint.assignedAgentId),
             inArray(sql`${heartbeatRuns.contextSnapshot}->>'wakeCommentId'`, commentIds),
           ),

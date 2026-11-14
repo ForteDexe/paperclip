@@ -1,5 +1,5 @@
 name: Enhancement proposal
-description: Propose an improvement to an existing Paperclip feature
+description: Propose an improvement to an existing Outpost feature
 labels: [enhancement]
 body:
   - type: markdown
@@ -23,7 +23,7 @@ body:
     attributes:
       label: What existing behavior does this improve?
       description: Name the specific command, endpoint, UI view, or behavior being enhanced.
-      placeholder: "e.g. /api/companies response shape, board task list sorting, adapter startup log output"
+      placeholder: "e.g. /api/spaces response shape, board task list sorting, adapter startup log output"
     validations:
       required: true
 

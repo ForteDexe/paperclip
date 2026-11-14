@@ -23,7 +23,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   const delivery = vi.fn(async () => ({ delivery: "accepted" as const, httpStatus: 200 }));
   const enable = (enableGrokBot = true) => instanceSettingsService(db).updateExperimental({ enablePublicMcp: true, enableNativeRunner: true, enableGrokBot });
   const reserve = (f: Awaited<ReturnType<typeof grokRoutineFixture>>, database = db) => grokRoutineService(database, delivery).reserve({
-    companyId: f.company.id, agentId: f.agent.id, bindingId: f.pairing.bindingId, sourceEventId: randomUUID(), kind: "verify",
+    spaceId: f.space.id, agentId: f.agent.id, bindingId: f.pairing.bindingId, sourceEventId: randomUUID(), kind: "verify",
   });
   const status = async (id: string) => (await db.select().from(grokBotDispatches).where(eq(grokBotDispatches.id, id)))[0]?.status;
 
@@ -137,7 +137,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   it("shares the durable claim with a simultaneous foreground send", async () => {
     const f = await grokRoutineFixture(db); await start(); await quiet();
     const row = await reserve(f);
-    await Promise.all([grokRoutineService(db, delivery).send(f.company.id, f.agent.id, row.id), worker.tick()]);
+    await Promise.all([grokRoutineService(db, delivery).send(f.space.id, f.agent.id, row.id), worker.tick()]);
     await delivered(row.id); await quiet(); expect(delivery).toHaveBeenCalledTimes(1);
   });
   it("cancels an expired unsent dispatch without contacting the provider", async () => {

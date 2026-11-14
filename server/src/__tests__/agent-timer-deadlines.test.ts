@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, activityLog, approvals, authUsers, applyPendingMigrations, companies, companyMemberships, companySkills, companySkillVersions, companySkillTestRuns, issueRecoveryActions, chatEndpoints, chatConversations, toolApplications, toolConnections, costEvents, createDb, heartbeatRuns, issues, issueComments, reconcileDatabaseWork, subscribeDatabaseWork, type Db } from "@outpost/db";
+import { agents, activityLog, approvals, authUsers, applyPendingMigrations, spaces, spaceMemberships, spaceSkills, spaceSkillVersions, spaceSkillTestRuns, issueRecoveryActions, chatEndpoints, chatConversations, toolApplications, toolConnections, costEvents, createDb, heartbeatRuns, issues, issueComments, reconcileDatabaseWork, subscribeDatabaseWork, type Db } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createHeartbeatQueueTestDependencies } from "./helpers/heartbeat-queue.js";
@@ -13,8 +13,8 @@ import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { registerScheduledWork } from "../services/scheduled-work.js";
 import { updateAgentConfigurationInTransaction } from "../services/agent-configuration-transaction.js";
 import { agentService } from "../services/agents.js";
-import { companyService } from "../services/companies.js";
-import { companySkillService } from "../services/company-skills.js";
+import { spaceService } from "../services/space-service.js";
+import { spaceSkillService } from "../services/space-skills.js";
 import { settleUnrecoverableExecutions } from "../services/execution-recovery-resolution.js";
 import { createPostgresWatchdogAdapter } from "../modules/active-run-watchdog/adapters/postgres.js";
 import { prepareConversationTurn, settleConversationTurn } from "../services/agent-conversations.js";
@@ -50,7 +50,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
 
     await reconcileDatabaseWork(db, DELIVERY_QUEUES.agentTimers);
-    await db.execute(sql`truncate companies cascade`);
+    await db.execute(sql`truncate spaces cascade`);
     errors.length = 0;
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     vi.setSystemTime(now);
@@ -63,9 +63,9 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
   afterAll(async () => { await db?.$client.end(); await temporary?.cleanup(); });
 
   async function fixture(heartbeat: Record<string, unknown> = { enabled: true, intervalSec: 600 }) {
-    const [company] = await db.insert(companies).values({ name: "Timer company", issuePrefix: "TMR",
-      defaultResponsibleUserId: randomUUID(), requireBoardApprovalForNewAgents: false }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Timer agent", status: "idle",
+    const [space] = await db.insert(spaces).values({ name: "Timer space", issuePrefix: "TMR",
+      defaultResponsibleUserId: randomUUID(), requireOperatorApprovalForNewAgents: false }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Timer agent", status: "idle",
       lifecycleState: "ready", adapterType: "process", createdAt: now, runtimeConfig: { heartbeat } }).returning();
     const deps = createHeartbeatQueueTestDependencies(db);
     const preparation = createHeartbeatRunPreparation(db);
@@ -74,12 +74,12 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
     const scheduling = createHeartbeatScheduling(db, {
       getRun: deps.getRun, getAgent: deps.getAgent, getWorktreeExecutionCutoff: deps.getWorktreeExecutionCutoff,
       getSchedulingSuppression: deps.getSchedulingSuppression, toAgentOrgRow: preparation.toAgentOrgRow,
-      groupAgentOrgRowsByCompany: preparation.groupAgentOrgRowsByCompany, issuesSvc: issueService(db),
+      groupAgentOrgRowsBySpace: preparation.groupAgentOrgRowsBySpace, issuesSvc: issueService(db),
       scheduleBoundedRetryForRun: vi.fn(), enqueueWakeup,
       parseHeartbeatPolicy: queue.parseHeartbeatPolicy, nextTimerHeartbeatAt: queue.nextTimerHeartbeatAt,
       claimDueTimerHeartbeat: queue.claimDueTimerHeartbeat,
     });
-    return { company, agent, queue, scheduling, enqueueWakeup, deps };
+    return { space, agent, queue, scheduling, enqueueWakeup, deps };
   }
   async function start(f: Awaited<ReturnType<typeof fixture>>, retryMs = 1000) {
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError: error => errors.push(error) });
@@ -141,7 +141,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
   it.each([{ enabled: false, intervalSec: 600 }, { enabled: true, intervalSec: 0 },
     { enabled: true, intervalSec: 600, skipTimerWhenNoActionableWork: true }])("is quiet for inactive timer policy %j", async policy => {
     const f = await fixture(policy);
-    await db.insert(issues).values({ companyId: f.company.id, title: "Completed history", status: "done", assigneeAgentId: f.agent.id });
+    await db.insert(issues).values({ spaceId: f.space.id, title: "Completed history", status: "done", assigneeAgentId: f.agent.id });
     await start(f); await quiet();
     expect(f.enqueueWakeup).not.toHaveBeenCalled();
     const [saved] = await db.select().from(agents).where(eq(agents.id, f.agent.id));
@@ -150,7 +150,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
   it("uses the next UTC day for a reached daily run cap, and no deadline for a zero cap", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, maxDailyRuns: 1 });
-    await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+    await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
       status: "succeeded", startedAt: now, finishedAt: now });
     expect(await f.queue.nextTimerHeartbeatAt(f.agent, now)).toBe(Date.parse("2026-10-28T00:00:00Z"));
     expect(await f.queue.nextTimerHeartbeatAt({ ...f.agent, runtimeConfig: { heartbeat: { enabled: true, intervalSec: 600, maxDailyRuns: 0 } } }, now)).toBeNull();
@@ -159,18 +159,18 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
   it("defers a reached daily cost cap until UTC midnight", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, maxDailyCostCents: 10 });
-    await db.insert(costEvents).values({ companyId: f.company.id, agentId: f.agent.id,
+    await db.insert(costEvents).values({ spaceId: f.space.id, agentId: f.agent.id,
       provider: "test", model: "test", costCents: 10, occurredAt: now });
     expect(await f.queue.nextTimerHeartbeatAt(f.agent, now)).toBe(Date.parse("2026-10-28T00:00:00Z"));
   });
 
   it("rearms before midnight when an accounting correction lowers today's cost", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, maxDailyCostCents: 10 });
-    const [charge] = await db.insert(costEvents).values({ companyId: f.company.id, agentId: f.agent.id,
+    const [charge] = await db.insert(costEvents).values({ spaceId: f.space.id, agentId: f.agent.id,
       provider: "test", model: "test", costCents: 10, occurredAt: now }).returning();
     await start(f);
     expect(coordinator!.nextWakeAt()).toBe(Date.parse("2026-10-28T00:00:00Z"));
-    await billingReconciliationService(db).adjust(f.company.id, charge.id, {
+    await billingReconciliationService(db).adjust(f.space.id, charge.id, {
       idempotencyKey: randomUUID(), expectedCents: 10, correctedCents: 5,
       reason: "Correct provider charge", pricing: { source: "operator" },
     }, "timer-test-operator");
@@ -178,38 +178,38 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000), { timeout: 3000 });
   });
 
-  it("disarms on company archive even when no agent has a live run", async () => {
+  it("disarms on space archive even when no agent has a live run", async () => {
     const f = await fixture();
     await start(f);
     expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000);
-    await companyService(db).archive(f.company.id);
-    expect((await db.select().from(companies).where(eq(companies.id, f.company.id)))[0].status).toBe("archived");
+    await spaceService(db).archive(f.space.id);
+    expect((await db.select().from(spaces).where(eq(spaces.id, f.space.id)))[0].status).toBe("archived");
     await quiet();
   });
 
-  it.each(["pause", "resume"] as const)("updates timer eligibility after company budget %s", async operation => {
+  it.each(["pause", "resume"] as const)("updates timer eligibility after space budget %s", async operation => {
     const f = await fixture();
     const budgets = budgetService(db);
-    const policy = { scopeType: "company" as const, scopeId: f.company.id,
+    const policy = { scopeType: "space" as const, scopeId: f.space.id,
       amount: 10, hardStopEnabled: true, notifyEnabled: false };
-    await db.insert(costEvents).values({ companyId: f.company.id, agentId: f.agent.id,
+    await db.insert(costEvents).values({ spaceId: f.space.id, agentId: f.agent.id,
       provider: "test", model: "test", costCents: 15, occurredAt: now });
-    if (operation === "resume") await budgets.upsertPolicy(f.company.id, policy, null);
+    if (operation === "resume") await budgets.upsertPolicy(f.space.id, policy, null);
     await start(f);
     if (operation === "pause") {
       expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000);
-      await budgets.upsertPolicy(f.company.id, policy, null);
-      expect((await db.select().from(companies).where(eq(companies.id, f.company.id)))[0].status).toBe("paused");
+      await budgets.upsertPolicy(f.space.id, policy, null);
+      expect((await db.select().from(spaces).where(eq(spaces.id, f.space.id)))[0].status).toBe("paused");
       await quiet();
     } else {
       await quiet();
-      await budgets.upsertPolicy(f.company.id, { ...policy, amount: 20 }, null);
-      expect((await db.select().from(companies).where(eq(companies.id, f.company.id)))[0].status).toBe("active");
+      await budgets.upsertPolicy(f.space.id, { ...policy, amount: 20 }, null);
+      expect((await db.select().from(spaces).where(eq(spaces.id, f.space.id)))[0].status).toBe("active");
       await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000), { timeout: 3000 });
     }
   });
 
-  it("stays quiet when company deletion follows required agent termination", async () => {
+  it("stays quiet when space deletion follows required agent termination", async () => {
     const f = await fixture();
     const lifecycle = startAgentLifecycle(db, {
       requiredPluginIds: async () => [], runHost: async () => "complete", runPlugin: async () => "complete",
@@ -220,18 +220,18 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
       await createAgentLifecycle(db).terminateAgent(f.agent.id);
       await lifecycle.sweep();
       await quiet();
-      await companyService(db).remove(f.company.id);
-      expect(await db.select().from(companies).where(eq(companies.id, f.company.id))).toEqual([]);
+      await spaceService(db).remove(f.space.id);
+      expect(await db.select().from(spaces).where(eq(spaces.id, f.space.id))).toEqual([]);
       await quiet();
     } finally { await lifecycle.stop(); }
   });
 
-  it("disarms a descendant timer when its manager hire approval is rejected", async () => {
+  it("disarms a descendant timer when its manager create approval is rejected", async () => {
     const f = await fixture();
-    const [manager] = await db.insert(agents).values({ companyId: f.company.id, name: "Pending manager",
+    const [manager] = await db.insert(agents).values({ spaceId: f.space.id, name: "Pending manager",
       status: "pending_approval", lifecycleState: "pending_approval", adapterType: "process" }).returning();
     await db.update(agents).set({ reportsTo: manager.id }).where(eq(agents.id, f.agent.id));
-    const [approval] = await db.insert(approvals).values({ companyId: f.company.id, type: "hire_agent",
+    const [approval] = await db.insert(approvals).values({ spaceId: f.space.id, type: "create_agent",
       payload: { agentId: manager.id }, status: "pending" }).returning();
     await start(f);
     expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000);
@@ -243,11 +243,11 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
   it.each(["prepare", "settle"] as const)("updates the worktree timer gate when a conversation turn does %s", async operation => {
     const f = await fixture();
     f.deps.getWorktreeExecutionCutoff.mockResolvedValue(now);
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Worktree conversation",
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Worktree conversation",
       status: operation === "prepare" ? "in_review" : "in_progress", assigneeAgentId: f.agent.id,
       conversationAgentId: f.agent.id, conversationUserId: "timer-test-operator", conversationSessionGeneration: 0,
       conversationState: operation === "prepare" ? "waiting" : "active", createdAt: now }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
       status: operation === "prepare" ? "running" : "succeeded",
       contextSnapshot: { issueId: issue.id, conversationSessionGeneration: 0 } }).returning();
     await start(f);
@@ -258,7 +258,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
       await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000), { timeout: 3000 });
     } else {
       expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000);
-      await db.insert(issueComments).values({ companyId: f.company.id, issueId: issue.id,
+      await db.insert(issueComments).values({ spaceId: f.space.id, issueId: issue.id,
         authorAgentId: f.agent.id, createdByRunId: run.id, body: "Turn completed" });
       expect(await settleConversationTurn(db, run)).toBe(true);
       expect((await db.select().from(issues).where(eq(issues.id, issue.id)))[0].status).toBe("in_review");
@@ -268,23 +268,23 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
   it("reschedules after the watchdog folds a completed source run", async () => {
     const f = await fixture();
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Finished work",
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Finished work",
       status: "done", assigneeAgentId: f.agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
       status: "running", startedAt: now, contextSnapshot: { issueId: issue.id } }).returning();
-    await db.insert(activityLog).values({ companyId: f.company.id, actorType: "agent", actorId: f.agent.id,
+    await db.insert(activityLog).values({ spaceId: f.space.id, actorType: "agent", actorId: f.agent.id,
       runId: run.id, action: "issue.updated", entityType: "issue", entityId: issue.id,
       details: { status: "done" }, createdAt: now });
     await start(f);
     await vi.advanceTimersByTimeAsync(60_000);
     const adapter = createPostgresWatchdogAdapter(db);
-    const snapshot = await adapter.findRunForCompany(f.company.id, run.id);
-    const sourceIssue = await adapter.findSourceIssue(f.company.id, issue.id);
-    const evidence = await adapter.findLatestSameRunTerminalEvidence(f.company.id, {
+    const snapshot = await adapter.findRunForSpace(f.space.id, run.id);
+    const sourceIssue = await adapter.findSourceIssue(f.space.id, issue.id);
+    const evidence = await adapter.findLatestSameRunTerminalEvidence(f.space.id, {
       runId: run.id, sourceIssueId: issue.id, sourceIssueStatus: "done", evidenceAfter: now,
     });
     expect(snapshot).not.toBeNull(); expect(sourceIssue).not.toBeNull(); expect(evidence).not.toBeNull();
-    expect(await adapter.foldSourceResolvedRun(f.company.id, { run: snapshot!, sourceIssue: sourceIssue!, evidence: evidence!,
+    expect(await adapter.foldSourceResolvedRun(f.space.id, { run: snapshot!, sourceIssue: sourceIssue!, evidence: evidence!,
       existingEvaluation: null, silenceStartedAt: now, silenceAgeMs: 60_000,
       cleanup: { attempted: false, outcome: "no_process_metadata", adapterType: "process" }, now: new Date(),
     })).toMatchObject({ kind: "folded" });
@@ -297,30 +297,30 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
   it("disarms when an expired skill harness hides the last actionable task", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, skipTimerWhenNoActionableWork: true });
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Expired harness",
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Expired harness",
       status: "in_progress", assigneeAgentId: f.agent.id, harnessKind: "skill_test" }).returning();
-    const [skill] = await db.insert(companySkills).values({ companyId: f.company.id,
+    const [skill] = await db.insert(spaceSkills).values({ spaceId: f.space.id,
       key: "timer-test", slug: "timer-test", name: "Timer test", markdown: "Test" }).returning();
-    const [version] = await db.insert(companySkillVersions).values({ companyId: f.company.id,
-      companySkillId: skill.id, revisionNumber: 1 }).returning();
-    await db.insert(companySkillTestRuns).values({ companyId: f.company.id, skillId: skill.id,
+    const [version] = await db.insert(spaceSkillVersions).values({ spaceId: f.space.id,
+      spaceSkillId: skill.id, revisionNumber: 1 }).returning();
+    await db.insert(spaceSkillTestRuns).values({ spaceId: f.space.id, skillId: skill.id,
       skillVersionId: version.id, agentId: f.agent.id, issueId: issue.id, inputSnapshot: "Test",
       harnessIssueExpiresAt: new Date(now.getTime() - 1000) });
     await start(f);
     expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000);
-    expect(await companySkillService(db).pruneExpiredTestHarnessIssues(f.company.id, now)).toEqual({ pruned: 1 });
+    expect(await spaceSkillService(db).pruneExpiredTestHarnessIssues(f.space.id, now)).toEqual({ pruned: 1 });
     expect((await db.select().from(issues).where(eq(issues.id, issue.id)))[0].hiddenAt).toEqual(now);
     await quiet();
   });
 
   it("disarms when execution disposition blocks the last actionable task", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, skipTimerWhenNoActionableWork: true });
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Unrecoverable task",
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Unrecoverable task",
       status: "in_progress", assigneeAgentId: f.agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
       status: "failed", contextSnapshot: { issueId: issue.id } }).returning();
-    await db.insert(issueRecoveryActions).values({ companyId: f.company.id, sourceIssueId: issue.id,
-      kind: "active_run_watchdog", status: "active", ownerType: "board", returnOwnerAgentId: f.agent.id,
+    await db.insert(issueRecoveryActions).values({ spaceId: f.space.id, sourceIssueId: issue.id,
+      kind: "active_run_watchdog", status: "active", ownerType: "operator", returnOwnerAgentId: f.agent.id,
       cause: "legacy_execution_requires_reconciliation", fingerprint: run.id, evidence: { runId: run.id },
       nextAction: "Verify execution outcome" });
     await start(f);
@@ -336,12 +336,12 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
     await settings.updateExperimental({ enableIsolatedWorkspaces: true });
     f.deps.instanceSettings.getExperimental.mockImplementation(() => settings.getExperimental());
     f.deps.getAgent.mockResolvedValue(f.agent);
-    const userId = f.company.defaultResponsibleUserId!;
+    const userId = f.space.defaultResponsibleUserId!;
     await db.insert(authUsers).values({ id: userId, name: "Timer operator", email: `${userId}@example.test`,
       createdAt: now, updatedAt: now });
-    await db.insert(companyMemberships).values({ companyId: f.company.id, principalType: "user",
+    await db.insert(spaceMemberships).values({ spaceId: f.space.id, principalType: "user",
       principalId: userId, status: "active", membershipRole: "member" });
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Projectless isolated task",
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Projectless isolated task",
       status: "todo", assigneeAgentId: f.agent.id, responsibleUserId: userId,
       executionWorkspaceSettings: { mode: "isolated_workspace", workspaceStrategy: { type: "git_worktree" } } }).returning();
     await start(f);
@@ -356,10 +356,10 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
   it("reactivates after checkout adopts an execution that finished between its two write attempts", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, skipTimerWhenNoActionableWork: true });
     const [oldRun, newRun] = await db.insert(heartbeatRuns).values([
-      { companyId: f.company.id, agentId: f.agent.id, status: "running" },
-      { companyId: f.company.id, agentId: f.agent.id, status: "queued" },
+      { spaceId: f.space.id, agentId: f.agent.id, status: "running" },
+      { spaceId: f.space.id, agentId: f.agent.id, status: "queued" },
     ]).returning();
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Checkout race",
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Checkout race",
       status: "backlog", assigneeAgentId: f.agent.id, executionRunId: oldRun.id }).returning();
     await start(f); await quiet();
     const transaction = db.transaction.bind(db);
@@ -386,21 +386,21 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
   it("keeps a zero cost cap quiet even when today's positive run cap was also reached", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, maxDailyRuns: 1, maxDailyCostCents: 0 });
-    await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+    await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
       status: "succeeded", startedAt: now, finishedAt: now });
     await start(f); await quiet();
   });
 
   it("leaves an empty instance quiet after discovery", async () => {
     const f = await fixture();
-    await db.execute(sql`truncate companies cascade`);
+    await db.execute(sql`truncate spaces cascade`);
     await start(f); await quiet();
     expect(f.enqueueWakeup).not.toHaveBeenCalled();
   });
 
   it("stops admission between due agents without consuming the remaining deadline", async () => {
     const f = await fixture();
-    await db.insert(agents).values({ companyId: f.company.id, name: "Second timer", status: "idle",
+    await db.insert(agents).values({ spaceId: f.space.id, name: "Second timer", status: "idle",
       lifecycleState: "ready", adapterType: "process", createdAt: now,
       runtimeConfig: { heartbeat: { enabled: true, intervalSec: 600 } } });
     let canContinue = true;
@@ -443,7 +443,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
   it("reactivates from creation of the first actionable issue", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, skipTimerWhenNoActionableWork: true });
     await start(f); await quiet();
-    await issueService(db).create(f.company.id, { title: "First task", status: "todo", assigneeAgentId: f.agent.id });
+    await issueService(db).create(f.space.id, { title: "First task", status: "todo", assigneeAgentId: f.agent.id });
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000), { timeout: 3000 });
   });
 
@@ -520,11 +520,11 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
     } finally { await lifecycle.stop(); }
   });
 
-  it("reactivates when the company becomes active", async () => {
+  it("reactivates when the space becomes active", async () => {
     const f = await fixture();
-    await db.update(companies).set({ status: "paused" }).where(eq(companies.id, f.company.id));
+    await db.update(spaces).set({ status: "paused" }).where(eq(spaces.id, f.space.id));
     await start(f); await quiet();
-    await companyService(db).update(f.company.id, { status: "active" });
+    await spaceService(db).update(f.space.id, { status: "active" });
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000), { timeout: 3000 });
   });
 
@@ -541,7 +541,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
   it("reactivates when checkout assigns the first actionable issue", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, skipTimerWhenNoActionableWork: true });
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Unclaimed", status: "backlog" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Unclaimed", status: "backlog" }).returning();
     await start(f); await quiet();
     await issueService(db).checkout(issue.id, f.agent.id, ["backlog"], null);
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000), { timeout: 3000 });
@@ -549,7 +549,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
   it.each(["release", "adminForceRelease", "remove"] as const)("disarms when %s removes the last actionable assignment", async operation => {
     const f = await fixture({ enabled: true, intervalSec: 600, skipTimerWhenNoActionableWork: true });
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Only task", status: "in_progress", assigneeAgentId: f.agent.id }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Only task", status: "in_progress", assigneeAgentId: f.agent.id }).returning();
     await start(f);
     expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000);
     const service = issueService(db);
@@ -560,7 +560,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
   it("reactivates a descendant after its terminated manager is purged", async () => {
     const f = await fixture();
-    const [manager] = await db.insert(agents).values({ companyId: f.company.id, name: "Former manager",
+    const [manager] = await db.insert(agents).values({ spaceId: f.space.id, name: "Former manager",
       status: "terminated", lifecycleState: "terminated", adapterType: "process" }).returning();
     await db.update(agents).set({ reportsTo: manager.id }).where(eq(agents.id, f.agent.id));
     await start(f); await quiet();
@@ -660,7 +660,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
       ...(reason === "no work" ? { skipTimerWhenNoActionableWork: true } : { maxDailyRuns: 0 }) });
     f.deps.getAgent.mockResolvedValue(f.agent);
     const [issue] = reason === "issue daily cap" ? await db.insert(issues).values({
-      companyId: f.company.id, title: "Capped task", status: "todo", assigneeAgentId: f.agent.id,
+      spaceId: f.space.id, title: "Capped task", status: "todo", assigneeAgentId: f.agent.id,
     }).returning() : [];
     if (issue) f.deps.instanceSettings.getExperimental.mockResolvedValue({ enableIsolatedWorkspaces: false } as never);
     const events: string[] = [];
@@ -676,7 +676,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
   it("moves the deadline back from midnight when suppression releases a counted run claim", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, maxDailyRuns: 1 });
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
       status: "running", startedAt: now }).returning();
     await start(f);
     expect(coordinator!.nextWakeAt()).toBe(Date.parse("2026-10-28T00:00:00Z"));
@@ -687,25 +687,25 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
   it("reactivates when a cancelled issue tree is restored", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, skipTimerWhenNoActionableWork: true });
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Restorable", status: "todo", assigneeAgentId: f.agent.id }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Restorable", status: "todo", assigneeAgentId: f.agent.id }).returning();
     const tree = issueTreeControlService(db);
-    const actor = { actorType: "user" as const, actorId: "board", userId: "board" };
-    const cancel = await tree.createHold(f.company.id, issue.id, { mode: "cancel", actor });
-    await tree.cancelIssueStatusesForHold(f.company.id, issue.id, cancel.hold.id);
+    const actor = { actorType: "user" as const, actorId: "operator", userId: "operator" };
+    const cancel = await tree.createHold(f.space.id, issue.id, { mode: "cancel", actor });
+    await tree.cancelIssueStatusesForHold(f.space.id, issue.id, cancel.hold.id);
     await start(f); await quiet();
-    const restore = await tree.createHold(f.company.id, issue.id, { mode: "restore", actor });
-    const result = await tree.restoreIssueStatusesForHold(f.company.id, issue.id, restore.hold.id, { actor });
+    const restore = await tree.createHold(f.space.id, issue.id, { mode: "restore", actor });
+    const result = await tree.restoreIssueStatusesForHold(f.space.id, issue.id, restore.hold.id, { actor });
     expect(result.updatedIssueIds).toEqual([issue.id]);
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000), { timeout: 3000 });
   });
 
   it("reactivates when member archival reassigns work to the agent", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, skipTimerWhenNoActionableWork: true });
-    const [member] = await db.insert(companyMemberships).values({ companyId: f.company.id,
+    const [member] = await db.insert(spaceMemberships).values({ spaceId: f.space.id,
       principalType: "user", principalId: randomUUID(), status: "active", membershipRole: "operator" }).returning();
-    await db.insert(issues).values({ companyId: f.company.id, title: "Reassigned", status: "in_progress", assigneeUserId: member.principalId });
+    await db.insert(issues).values({ spaceId: f.space.id, title: "Reassigned", status: "in_progress", assigneeUserId: member.principalId });
     await start(f); await quiet();
-    await accessService(db).archiveMember(f.company.id, member.id, { reassignment: { assigneeAgentId: f.agent.id } });
+    await accessService(db).archiveMember(f.space.id, member.id, { reassignment: { assigneeAgentId: f.agent.id } });
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000), { timeout: 3000 });
   });
 
@@ -717,7 +717,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
     const heartbeat = heartbeatService(db, { runtimeEnv });
     expect((await heartbeat.resolveSchedulingSuppression(true)).suppressed).toBe(true);
     await settings.updateExperimental({ enableWorktreeRunExecution: true });
-    await db.insert(issues).values({ companyId: f.company.id, title: "New worktree work", status: "todo",
+    await db.insert(issues).values({ spaceId: f.space.id, title: "New worktree work", status: "todo",
       assigneeAgentId: f.agent.id, createdAt: now });
     expect(await heartbeat.nextAgentTimerAt()).toBe(now.getTime() + 600_000);
     await settings.updateExperimental({ enableWorktreeRunExecution: false });
@@ -738,16 +738,16 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
   it("reactivates when an incoming message resumes an idle external conversation", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, skipTimerWhenNoActionableWork: true });
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Conversation", status: "in_review", assigneeAgentId: f.agent.id }).returning();
-    const [application] = await db.insert(toolApplications).values({ companyId: f.company.id, name: "Slack", type: "chat" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId: f.company.id, applicationId: application.id,
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Conversation", status: "in_review", assigneeAgentId: f.agent.id }).returning();
+    const [application] = await db.insert(toolApplications).values({ spaceId: f.space.id, name: "Slack", type: "chat" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId: f.space.id, applicationId: application.id,
       name: "Slack", uid: randomUUID(), transport: "chat_sdk", connectionPurpose: "channel" }).returning();
-    const [endpoint] = await db.insert(chatEndpoints).values({ companyId: f.company.id, connectionId: connection.id,
+    const [endpoint] = await db.insert(chatEndpoints).values({ spaceId: f.space.id, connectionId: connection.id,
       provider: "slack", publicId: randomUUID(), assignedAgentId: f.agent.id, status: "active" }).returning();
-    await db.insert(chatConversations).values({ companyId: f.company.id, endpointId: endpoint.id, issueId: issue.id,
+    await db.insert(chatConversations).values({ spaceId: f.space.id, endpointId: endpoint.id, issueId: issue.id,
       externalConversationId: "channel", externalThreadId: "thread", externalLabel: "#timer-test", state: "waiting" });
     await start(f); await quiet();
-    await db.transaction(tx => resumeExternalConversation(tx as unknown as Db, f.company.id, issue.id));
+    await db.transaction(tx => resumeExternalConversation(tx as unknown as Db, f.space.id, issue.id));
     expect((await db.select().from(issues).where(eq(issues.id, issue.id)))[0].status).toBe("todo");
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000), { timeout: 3000 });
   });
@@ -761,7 +761,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
 
   it("reactivates when the real issue producer creates actionable work", async () => {
     const f = await fixture({ enabled: true, intervalSec: 600, skipTimerWhenNoActionableWork: true });
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Upcoming task", status: "backlog", assigneeAgentId: f.agent.id }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Upcoming task", status: "backlog", assigneeAgentId: f.agent.id }).returning();
     await start(f); await quiet();
     await issueService(db).update(issue.id, { status: "todo" });
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(now.getTime() + 600_000), { timeout: 3000 });

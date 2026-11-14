@@ -9,7 +9,7 @@
   "rows": [
     {
       "id": 38,
-      "companyId": "acfabb15-ad54-40b3-b288-13ec06abe4b8",
+      "spaceId": "acfabb15-ad54-40b3-b288-13ec06abe4b8",
       "runId": "34412568-43a8-47ed-8c91-91a2974562d2",
       "agentId": "efc5ae8f-9876-4c1a-bad0-21772e849d90",
       "seq": 38,
@@ -83,7 +83,7 @@
                     "label": "Cancel"
                   }
                 ],
-                "threadId": "paperclip-ad8774ab01e9c0d2f68bdd24378679c2ae71490f9bf41e3096d5708331765383"
+                "threadId": "outpost-ad8774ab01e9c0d2f68bdd24378679c2ae71490f9bf41e3096d5708331765383"
               },
               "requestId": "acpx-input-77b887edc8c38070824692b3",
               "requestKind": "permission_approval"
@@ -109,7 +109,7 @@
     },
     {
       "id": 39,
-      "companyId": "acfabb15-ad54-40b3-b288-13ec06abe4b8",
+      "spaceId": "acfabb15-ad54-40b3-b288-13ec06abe4b8",
       "runId": "34412568-43a8-47ed-8c91-91a2974562d2",
       "agentId": "efc5ae8f-9876-4c1a-bad0-21772e849d90",
       "seq": 39,
@@ -178,7 +178,7 @@
     },
     {
       "id": 40,
-      "companyId": "acfabb15-ad54-40b3-b288-13ec06abe4b8",
+      "spaceId": "acfabb15-ad54-40b3-b288-13ec06abe4b8",
       "runId": "34412568-43a8-47ed-8c91-91a2974562d2",
       "agentId": "efc5ae8f-9876-4c1a-bad0-21772e849d90",
       "seq": 40,
@@ -194,13 +194,13 @@
           "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_e3bf9964656b47bdb71b6cf1ba78912d",
           "payload": {
-            "name": "paperclip-get_task_context",
+            "name": "outpost-get_task_context",
             "output": "null",
             "schema": "outpost.tool.execution.v1",
             "status": "running",
             "target": null,
             "exitCode": null,
-            "progress": "paperclip-get_task_context (pending)",
+            "progress": "outpost-get_task_context (pending)",
             "readOnly": true,
             "namespace": null,
             "operation": "read",
@@ -232,7 +232,7 @@
     },
     {
       "id": 42,
-      "companyId": "acfabb15-ad54-40b3-b288-13ec06abe4b8",
+      "spaceId": "acfabb15-ad54-40b3-b288-13ec06abe4b8",
       "runId": "34412568-43a8-47ed-8c91-91a2974562d2",
       "agentId": "efc5ae8f-9876-4c1a-bad0-21772e849d90",
       "seq": 42,

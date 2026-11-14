@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { DeadlineReconciliationSnapshot } from "./deadline-reconciliation.js";
-import { takeCompanyWorkBatch } from "./company-work-batch.js";
+import { takeSpaceWorkBatch } from "./space-work-batch.js";
 import type { createDeliveryWorkCoordinator } from "./delivery-work-coordinator.js";
 import type { DeliveryQueue } from "./delivery-work-notifications.js";
 
-type ScheduledEntry = { id: string; companyId: string; dueAt: number };
+type ScheduledEntry = { id: string; spaceId: string; dueAt: number };
 
 /** Coalesced scope reconstruction and fair deadline dispatch. Domain owners
  * supply persistence, eligibility, and execution; this helper owns no SQL. */
@@ -51,7 +51,7 @@ export function registerScopedDeadlineWork<Entry extends ScheduledEntry, Scope>(
   const scopeFailures = new Map<string, { count: number; retryAt: number }>();
   const reconstructAfter = new Map<string, number>();
   let earliest = 0;
-  let lastCompany: string | null = null;
+  let lastSpace: string | null = null;
   function failed(map: typeof failures, id: string) {
     const count = Math.min((map.get(id)?.count ?? 0) + 1, 5);
     map.set(id, { count, retryAt: Date.now() + Math.min(300_000, 30_000 * 2 ** (count - 1)) });
@@ -138,7 +138,7 @@ export function registerScopedDeadlineWork<Entry extends ScheduledEntry, Scope>(
           && Math.max(entry.dueAt, failures.get(entry.id)?.retryAt ?? 0) <= Date.now())
           .sort((a, b) => (options.priority?.(b) ?? 0) - (options.priority?.(a) ?? 0)
             || a.dueAt - b.dueAt || a.id.localeCompare(b.id));
-        const batch = takeCompanyWorkBatch(due, options.batchSize ?? 25, lastCompany); lastCompany = batch.lastCompany;
+        const batch = takeSpaceWorkBatch(due, options.batchSize ?? 25, lastSpace); lastSpace = batch.lastSpace;
         // An owner may share more than one resource (for example a task and an
         // endpoint). Merge intersecting keys before dispatch so waiting siblings
         // do not occupy the bounded check slots ahead of independent work.

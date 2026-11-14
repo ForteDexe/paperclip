@@ -58,7 +58,7 @@ export async function captureSdkCanaryBuild(input: { repositoryRoot: string; tem
   const retainedFiles = retained.files.filter(row => row.file !== "receipt.json").map(({ file, size, sha256 }) => ({ file, size, sha256 })).sort((a, b) => a.file.localeCompare(b.file));
   const certificates = [];
   for (const expected of pins.certificates) {
-    const marker = await readFile(path.join(input.repositoryRoot, expected.target, ".paperclip-build-complete"));
+    const marker = await readFile(path.join(input.repositoryRoot, expected.target, ".outpost-build-complete"));
     const certificate = JSON.parse(marker.toString("utf8"));
     const saved = retained.receipt.certifiedTargets.find(row => row.directory === expected.target);
     if (saved?.sources !== certificate.sources || saved?.outputs !== certificate.outputs) fail();

@@ -7,8 +7,8 @@ import {
   agents,
   agentWakeupRequests,
   authUsers,
-  companyMemberships,
-  companies,
+  spaceMemberships,
+  spaces,
   createDb,
   environmentLeases,
   environments,
@@ -52,21 +52,21 @@ async function exitedPid(): Promise<number> {
 suite("held interrupted preparations on the shared ownership path", () => {
   let db!: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId = "", agentId = "", environmentId = "";
+  let spaceId = "", agentId = "", environmentId = "";
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-interrupted-preparation-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-interrupted-preparation-");
     db = createDb(temporary.connectionString);
-    companyId = randomUUID(); agentId = randomUUID(); environmentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "IPH",
-      requireBoardApprovalForNewAgents: false });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Coder", role: "engineer", status: "idle",
+    spaceId = randomUUID(); agentId = randomUUID(); environmentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "IPH",
+      requireOperatorApprovalForNewAgents: false });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Coder", role: "engineer", status: "idle",
       adapterType: "outpost_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
     await db.insert(environments).values({ id: environmentId, name: "Sandbox", driver: "sandbox", status: "active",
       config: { provider: "fake" } });
-    await db.insert(authUsers).values({ id: "local-board", name: "Local operator", email: "local-board@example.invalid",
+    await db.insert(authUsers).values({ id: "local-operator", name: "Local operator", email: "local-operator@example.invalid",
       createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "local-board", membershipRole: "owner" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "local-operator", membershipRole: "owner" });
   }, 30_000);
 
   afterEach(async () => {
@@ -97,10 +97,10 @@ suite("held interrupted preparations on the shared ownership path", () => {
     const controller = options.controller ?? await deadController();
     // Terminalization projected the task to blocked and kept a receipt so the
     // settle can restore exactly that projection.
-    await db.insert(issues).values({ id: issueId, companyId, title: "Warm follow-up", status: options.issueStatus ?? "blocked",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Warm follow-up", status: options.issueStatus ?? "blocked",
       assigneeAgentId: agentId, statusVersion: 2 });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "automation",
-      responsibleUserId: "local-board", issueId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "automation",
+      responsibleUserId: "local-operator", issueId,
       status: "interrupted", errorCode: "server_shutdown_interrupted", runtimeMode: "legacy", executionStage: "preparing",
       startedAt: new Date(finishedAt.getTime() - 2_000), finishedAt, nextEventSeq: 1,
       controllerBootId: controller.bootId, controllerProcess: controller.process,
@@ -111,15 +111,15 @@ suite("held interrupted preparations on the shared ownership path", () => {
         source: "shutdown", expected: true, initiator: { type: "system" }, recordedAt: finishedAt.toISOString() } },
       ...options.run });
     const released = options.leaseReleased !== false;
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId, issueId, heartbeatRunId: runId,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId, issueId, heartbeatRunId: runId,
       status: released ? "released" : "pending_cleanup", cleanupStatus: released ? "success" : "failed",
       leasePolicy: "reuse_by_environment", provider: "fake", providerLeaseId,
       releasedAt: released ? new Date(finishedAt.getTime() + 2_000) : null,
-      metadata: released ? { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId, runId,
+      metadata: released ? { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", spaceId, runId,
         leaseId, provider: "fake", providerLeaseId, state: "stopped", confirmedAt: finishedAt.toISOString() } } : {} });
-    const [hold] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId,
+    const [hold] = await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId,
       kind: "execution_reconciliation", cause: "legacy_execution_requires_reconciliation",
-      fingerprint: `legacy-execution:${runId}`, status: "resolved", outcome: "blocked", ownerType: "board",
+      fingerprint: `legacy-execution:${runId}`, status: "resolved", outcome: "blocked", ownerType: "operator",
       nextAction: "Inspect the stopped provider and recorded actions.", resolvedAt: finishedAt,
       evidence: { runId, automaticRecovery: { policy: "preserve_without_replay_v1", runId, replay: "blocked",
         actionOutcome: "unknown", recordedAt: finishedAt.toISOString() },
@@ -156,7 +156,7 @@ suite("held interrupted preparations on the shared ownership path", () => {
   it.each([
     ["provider work may have started", async () => {
       const f = await interruptedPreparation();
-      await db.insert(heartbeatRunEvents).values({ companyId, runId: f.runId, agentId, seq: 1, eventType: "turn.started",
+      await db.insert(heartbeatRunEvents).values({ spaceId, runId: f.runId, agentId, seq: 1, eventType: "turn.started",
         stream: "system", level: "info", message: "turn started" });
       return f;
     }],
@@ -168,9 +168,9 @@ suite("held interrupted preparations on the shared ownership path", () => {
       process: { bootId: legacyControllerBootId, pid: process.pid, hostHash: currentProcessSpaceHash(), processStartedAt: null } } })],
     ["its sandbox lease is still cleaning up", async () => interruptedPreparation({ leaseReleased: false })],
     ["an operator confirmed the owner gone on the hold", async () =>
-      interruptedPreparation({ holdEvidence: { ownerGoneAttestation: { actorId: "board-user" } } })],
+      interruptedPreparation({ holdEvidence: { ownerGoneAttestation: { actorId: "operator-user" } } })],
     ["the user already continued", async () =>
-      interruptedPreparation({ holdEvidence: { explicitUserContinuation: { actorId: "board-user" } } })],
+      interruptedPreparation({ holdEvidence: { explicitUserContinuation: { actorId: "operator-user" } } })],
     ["it is a workspace-restore hold owned by restore recovery", async () =>
       interruptedPreparation({ holdEvidence: { workspaceRestoreFailure: "restore_failed",
         workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [] } } })],
@@ -184,15 +184,15 @@ suite("held interrupted preparations on the shared ownership path", () => {
   async function preparedRemoteWorkspace(runId: string, issueId: string, options: { receipt?: Record<string, unknown>;
     savedSnapshotId?: string | null; authority?: Record<string, unknown>; profile?: Record<string, unknown> } = {}) {
     const workspaceId = randomUUID(), leaseId = randomUUID(), providerLeaseId = `sandbox-${leaseId}`;
-    const remoteCwd = `/home/daytona/paperclip-workspace/.paperclip-workspaces/${workspaceId}-1-${leaseId}`;
+    const remoteCwd = `/home/daytona/outpost-workspace/.outpost-workspaces/${workspaceId}-1-${leaseId}`;
     const location = { environmentId, leaseId, providerLeaseId, remoteCwd };
-    const source = { kind: "git", repoUrl: "https://github.com/paperclipai/outpost.git", ref: "a".repeat(40),
+    const source = { kind: "git", repoUrl: "https://github.com/outpost/outpost.git", ref: "a".repeat(40),
       branchMode: "create", branchName: "IPH-1-change" };
     const authority = { schema: "outpost.remote-workspace.v1", epoch: 2, source, location: null, dirty: false, writerRunId: null,
       snapshotId: options.savedSnapshotId ?? null, ...options.authority };
     const receipts = [{ schema: "outpost.remote-workspace-abandoned-epoch.v1", epoch: 1, runId,
       snapshotId: options.savedSnapshotId ?? null, location, providerRef: remoteCwd, abandonedAt: new Date().toISOString(), ...options.receipt }];
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId, mode: "isolated_workspace",
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issueId, mode: "isolated_workspace",
       strategyType: "git_worktree", name: "Remote workspace", status: "active", providerType: "git_worktree",
       metadata: { remoteWorkspace: authority, remoteWorkspaceAbandonedEpochs: receipts } });
     await db.update(heartbeatRuns).set({ runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" },
@@ -261,7 +261,7 @@ suite("held interrupted preparations on the shared ownership path", () => {
   it("replays a preparation that lost its controller lease before provider work instead of holding it for reconciliation", async () => {
     heartbeatService(db);
     const f = await leaseLostSavedFilesHold({ keepStatusReceipt: true });
-    await expect(inspectWorkspaceRecoverySource(db, { companyId, issueId: f.issueId, runId: f.runId, actionId: f.holdId }))
+    await expect(inspectWorkspaceRecoverySource(db, { spaceId, issueId: f.issueId, runId: f.runId, actionId: f.holdId }))
       .rejects.toMatchObject({ code: "source_unavailable", retryClass: "use_alternative_strategy" });
     expect(await pass()).toMatchObject({ inProgress: 1, settled: 1 });
     expect(await hold(f.holdId)).toMatchObject({ status: "resolved", outcome: "false_positive" });
@@ -274,15 +274,15 @@ suite("held interrupted preparations on the shared ownership path", () => {
   it("clears the saved-files gate of a lost-lease preparation that an older release blocked, so one Retry continues it", async () => {
     const heartbeat = heartbeatService(db);
     const f = await leaseLostSavedFilesHold({ keepStatusReceipt: false });
-    expect(await getExecutionBlocker(db, companyId, f.issueId)).toMatchObject({ cause: "legacy_execution_requires_reconciliation" });
+    expect(await getExecutionBlocker(db, spaceId, f.issueId)).toMatchObject({ cause: "legacy_execution_requires_reconciliation" });
     expect(await pass()).toMatchObject({ inProgress: 1, settled: 1 });
     expect(await hold(f.holdId)).toMatchObject({ status: "resolved", outcome: "false_positive",
       evidence: expect.objectContaining({ bootstrapPreparationContinuation: "deferred" }) });
-    expect(await getExecutionBlocker(db, companyId, f.issueId)).toBeNull();
-    const receipt = await requestTaskRetry({ db, companyId, issueId: f.issueId, actorId: "local-board",
+    expect(await getExecutionBlocker(db, spaceId, f.issueId)).toBeNull();
+    const receipt = await requestTaskRetry({ db, spaceId, issueId: f.issueId, actorId: "local-operator",
       actorSource: "local_implicit", idempotencyKey: randomUUID(), observedRunId: f.runId });
     expect(receipt).toMatchObject({ accepted: true });
-    await heartbeat.resumeTaskRetry(companyId, receipt.requestId!);
+    await heartbeat.resumeTaskRetry(spaceId, receipt.requestId!);
     const [wake] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, receipt.requestId!));
     expect(wake?.status).not.toBe("deferred_issue_execution");
     expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.issueId, f.issueId),
@@ -297,12 +297,12 @@ suite("held interrupted preparations on the shared ownership path", () => {
     const heartbeat = heartbeatService(db);
     const controller = await deadController();
     const issueId = randomUUID(), firstRunId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Lease loop", status,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Lease loop", status,
       assigneeAgentId: agentId, statusVersion: 2 });
     const lostLease = (runId: string, context: Record<string, unknown>, retry: Partial<typeof heartbeatRuns.$inferInsert> = {}) => {
       const finishedAt = new Date(Date.now() - 30 * 60_000);
-      return { ...controllerLeaseLostRun(finishedAt), id: runId, companyId, agentId, invocationSource: "automation",
-        responsibleUserId: "local-board", issueId, runtimeMode: "legacy", executionStage: "preparing",
+      return { ...controllerLeaseLostRun(finishedAt), id: runId, spaceId, agentId, invocationSource: "automation",
+        responsibleUserId: "local-operator", issueId, runtimeMode: "legacy", executionStage: "preparing",
         startedAt: new Date(finishedAt.getTime() - 2_000), finishedAt, nextEventSeq: 1,
         controllerBootId: controller.bootId, controllerProcess: controller.process,
         runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
@@ -312,7 +312,7 @@ suite("held interrupted preparations on the shared ownership path", () => {
     let latest: string = firstRunId;
     let successors = 0;
     for (let round = 0; round < 40; round += 1) {
-      await heartbeat.reconcileStrandedAssignedIssues({ companyId, issueId });
+      await heartbeat.reconcileStrandedAssignedIssues({ spaceId, issueId });
       const [task] = await db.select().from(issues).where(eq(issues.id, issueId));
       if (task!.status === "blocked") break;
       expect(task!.status).toBe(status);
@@ -332,7 +332,7 @@ suite("held interrupted preparations on the shared ownership path", () => {
     }
     expect(successors).toBe(cap);
     expect((await db.select().from(issues).where(eq(issues.id, issueId)))[0]).toMatchObject({ status: "blocked" });
-    const receipt = await requestTaskRetry({ db, companyId, issueId, actorId: "local-board",
+    const receipt = await requestTaskRetry({ db, spaceId, issueId, actorId: "local-operator",
       actorSource: "local_implicit", idempotencyKey: randomUUID(), observedRunId: latest });
     expect(receipt).toMatchObject({ accepted: true });
   }, 120_000);
@@ -353,7 +353,7 @@ suite("held interrupted preparations on the shared ownership path", () => {
   it("reports a retired prepared epoch to workspace recovery as an unavailable source, not a binding failure", async () => {
     const f = await interruptedPreparation();
     await preparedRemoteWorkspace(f.runId, f.issueId);
-    await expect(inspectWorkspaceRecoverySource(db, { companyId, issueId: f.issueId, runId: f.runId, actionId: f.holdId }))
+    await expect(inspectWorkspaceRecoverySource(db, { spaceId, issueId: f.issueId, runId: f.runId, actionId: f.holdId }))
       .rejects.toMatchObject({ code: "source_unavailable", retryClass: "use_alternative_strategy" });
   });
 
@@ -396,7 +396,7 @@ suite("held interrupted preparations on the shared ownership path", () => {
   it("settles exactly once when two processes judge the same hold", async () => {
     heartbeatService(db);
     const f = await interruptedPreparation();
-    const record = { recordId: f.runId, companyId, runId: f.runId, issueId: f.issueId, owner: { kind: "none" as const },
+    const record = { recordId: f.runId, spaceId, runId: f.runId, issueId: f.issueId, owner: { kind: "none" as const },
       updatedAt: null };
     const context = { now: new Date(), proof: { verdict: "gone" as const, reason: "pid_dead" as const } };
     const outcomes = await Promise.all([settleHeldInterruptedPreparation(db, record, context),

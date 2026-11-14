@@ -31,7 +31,7 @@ async function fixture(nativeFailure = false, unscopedActivity = false, delayedR
   let pendingContent: string | undefined;
   const saves: string[] = [], owns: any[] = [], apiWrites: string[] = [], activityReads: string[] = [];
   const unrelatedActivity = Array.from({ length: 600 }, (_, index) => ({ id: `unrelated-${index}`,
-    companyId: f.scope.companyId, entityType: "agent", entityId: "another-agent", details: {} }));
+    spaceId: f.scope.spaceId, entityType: "agent", entityId: "another-agent", details: {} }));
   const current = () => content === f.original
     ? dispatched ? f.evidence.restored! : f.evidence.original!
     : dispatched ? f.evidence.afterWork! : f.evidence.saved!;
@@ -81,7 +81,7 @@ async function fixture(nativeFailure = false, unscopedActivity = false, delayedR
       return structuredClone(current().file);
     }
     if (route.includes("/heartbeat-runs?agentId=agent")) return structuredClone(current().runs);
-    if (route.startsWith("/api/companies/company/activity?")) {
+    if (route.startsWith("/api/spaces/space/activity?")) {
       activityReads.push(route);
       const query = new URL(route, api.origin).searchParams;
       expect(query.get("entityType")).toBe("agent"); expect(query.get("entityId")).toBe("agent");
@@ -101,9 +101,9 @@ async function fixture(nativeFailure = false, unscopedActivity = false, delayedR
     throw new Error("unexpected_read:" + route);
   }, async put() { apiWrites.push("put"); throw new Error("tested save must use browser"); },
   async patch() { apiWrites.push("patch"); throw new Error("tested save must use browser"); } };
-  const context = { page, api, company: { id: "company", issuePrefix: "QA" }, user: { id: "user", name: "QA" },
+  const context = { page, api, space: { id: "space", issuePrefix: "QA" }, user: { id: "user", name: "QA" },
     agent: { id: "agent", name: "Owned agent campaign-1", provider: "opencode", model: "model", runtimeMode: "native" },
-    environmentId: "environment", capabilities: ["company", "board-user", "task-write", "agent", "agent-settings-write"] } as unknown as JourneyContext;
+    environmentId: "environment", capabilities: ["space", "board-user", "task-write", "agent", "agent-settings-write"] } as unknown as JourneyContext;
   controls.createTask.mockReset(); controls.openDocument.mockReset();
   controls.createTask.mockImplementation(async (input: any) => {
     expect(saves).toHaveLength(1); expect(input.prompt).toBe(settingsTaskPrompt);
@@ -147,9 +147,9 @@ describe("agent settings production-surface orchestration", () => {
     expect(artifact).not.toContain("must-not-be-retained");
     const saved = JSON.parse(artifact); expect(saved.checks.every((row: any) => row.passed)).toBe(true);
     expect(saved.checkpoints.original.contentHash).toBe(saved.checkpoints.restored.contentHash);
-    expect(saved.saveAudits).toEqual({ saved: { id: "save", companyId: "company", actorType: "user", actorId: "user",
+    expect(saved.saveAudits).toEqual({ saved: { id: "save", spaceId: "space", actorType: "user", actorId: "user",
       agentId: null, runId: null, action: "agent.files_updated", entityType: "agent", entityId: "agent", path: "AGENTS.md",
-      contentHash: saved.checkpoints.saved.contentHash, source: "board" }, restored: { id: "restore", companyId: "company",
+      contentHash: saved.checkpoints.saved.contentHash, source: "board" }, restored: { id: "restore", spaceId: "space",
       actorType: "user", actorId: "user", agentId: null, runId: null, action: "agent.files_updated", entityType: "agent",
       entityId: "agent", path: "AGENTS.md", contentHash: saved.checkpoints.restored.contentHash, source: "board" } });
     expect(f.unrelatedActivity).toHaveLength(600); expect(f.activityReads.length).toBeGreaterThan(0);
@@ -166,7 +166,7 @@ describe("agent settings production-surface orchestration", () => {
     expect(f.evidence.checks.every(row => row.passed)).toBe(true);
   });
   it("requires scoped settings-write capability before any configuration edit", async () => {
-    const f = await fixture(); f.context.capabilities = ["company", "board-user", "task-write", "agent"];
+    const f = await fixture(); f.context.capabilities = ["space", "board-user", "task-write", "agent"];
     await expect(runAgentSettings(f.context, f.session, "campaign-1", f.evidence, f.options)).rejects.toThrow("owned_agent_settings_capability_required");
     expect(f.saves).toEqual([]); expect(f.owns).toEqual([]);
   });

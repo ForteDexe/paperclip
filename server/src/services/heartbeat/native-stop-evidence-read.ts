@@ -1,10 +1,10 @@
 import { heartbeatRuns, type Db } from "@outpost/db";
 import { and, eq, sql } from "drizzle-orm";
 
-export async function readNativeStopExecutionEvidence(db: Db, companyId: string, runId: string) {
+export async function readNativeStopExecutionEvidence(db: Db, spaceId: string, runId: string) {
   const [run] = await db.select({
     id: heartbeatRuns.id,
-    companyId: heartbeatRuns.companyId,
+    spaceId: heartbeatRuns.spaceId,
     nativeIssueId: heartbeatRuns.nativeIssueId,
     status: heartbeatRuns.status,
     processPid: heartbeatRuns.processPid,
@@ -15,6 +15,6 @@ export async function readNativeStopExecutionEvidence(db: Db, companyId: string,
         from jsonb_each(${heartbeatRuns.resultJson})
         where key = any(array['nativeCancellation', 'cancelledByActorType', 'cancelledByUserId'])
       ) else null end`,
-  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId))).limit(1);
+  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId))).limit(1);
   return run ?? null;
 }

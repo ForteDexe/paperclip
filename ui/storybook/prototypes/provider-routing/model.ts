@@ -109,7 +109,7 @@ export const providers: {
   {
     value: "custom",
     label: "Custom provider or gateway",
-    description: "A company endpoint or local model service",
+    description: "A space endpoint or local model service",
   },
 ];
 export const formatLabels: Record<Protocol, string> = {
@@ -143,7 +143,7 @@ export const connections: Connection[] = [
   },
   {
     id: "router",
-    name: "Company OpenRouter",
+    name: "Space OpenRouter",
     provider: "openrouter",
     endpoint: "https://openrouter.ai/api",
     protocols: ["responses", "messages", "chat"],
@@ -154,7 +154,7 @@ export const connections: Connection[] = [
   },
   {
     id: "bedrock",
-    name: "Company Bedrock",
+    name: "Space Bedrock",
     provider: "bedrock",
     endpoint: "us-east-1",
     protocols: ["responses", "messages"],
@@ -187,7 +187,7 @@ export const connections: Connection[] = [
   },
   {
     id: "gemini",
-    name: "Company Gemini",
+    name: "Space Gemini",
     provider: "google",
     endpoint: "Google Gemini API",
     protocols: ["gemini"],
@@ -198,7 +198,7 @@ export const connections: Connection[] = [
   },
   {
     id: "openai-api",
-    name: "Company OpenAI",
+    name: "Space OpenAI",
     provider: "openai",
     endpoint: "https://api.openai.com/v1",
     protocols: ["responses"],
@@ -228,7 +228,7 @@ export function compatibility(
     connection.provider === "bedrock" &&
     !["codex", "claude", "opencode"].includes(harness)
   )
-    return "Bedrock support has not been verified for this harness in Paperclip.";
+    return "Bedrock support has not been verified for this harness in Outpost.";
   if (
     !harnesses
       .find((item) => item.value === harness)!

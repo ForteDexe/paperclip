@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agentRuntimeState, agents, companies, createDb } from "@outpost/db";
+import { agentRuntimeState, agents, spaces, createDb } from "@outpost/db";
 import { readProviderRateLimits, type ProviderRateLimitSnapshot } from "@outpost/shared";
 import { recordAgentProviderRateLimits, preservedAccountRuntimeState } from "../services/agent-provider-rate-limits.js";
 import { heartbeatService } from "../services/heartbeat.js";
@@ -47,7 +47,7 @@ const weekly = (usedPercent: number) => ({
   usedPercent, resetsAt: "2026-11-09T09:00:00.000Z", status: null,
 });
 
-/** The latest provider rate-limit snapshot is kept per agent, in its own company. */
+/** The latest provider rate-limit snapshot is kept per agent, in its own space. */
 describePostgres("agent provider rate limits", () => {
   let temporary: Awaited<ReturnType<typeof startRecoveryPostgres>>;
   let db: ReturnType<typeof createDb>;
@@ -63,10 +63,10 @@ describePostgres("agent provider rate limits", () => {
   });
 
   async function seed() {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Rate limit fixture", issuePrefix: `R${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Codex planner", adapterType: "outpost_runner", status: "idle", adapterConfig: {} });
-    return { companyId, agentId };
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Rate limit fixture", issuePrefix: `R${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Codex planner", adapterType: "outpost_runner", status: "idle", adapterConfig: {} });
+    return { spaceId, agentId };
   }
 
   async function stored(agentId: string) {
@@ -111,10 +111,10 @@ describePostgres("agent provider rate limits", () => {
     expect((await stored(binding.agentId))?.windows[0]?.usedPercent).toBe(78);
   });
 
-  it("does not write for another company's agent or for unrelated notices", async () => {
+  it("does not write for another space's agent or for unrelated notices", async () => {
     const binding = await seed();
     const other = await seed();
-    await expect(recordAgentProviderRateLimits(db, { companyId: other.companyId, agentId: binding.agentId }, notice(snapshot({
+    await expect(recordAgentProviderRateLimits(db, { spaceId: other.spaceId, agentId: binding.agentId }, notice(snapshot({
       observedAt: "2026-11-05T15:00:00.000Z", windows: [fiveHour(10)],
     })))).resolves.toBe(false);
     await expect(recordAgentProviderRateLimits(db, binding, {
@@ -124,7 +124,7 @@ describePostgres("agent provider rate limits", () => {
     expect(await stored(binding.agentId)).toBeNull();
   });
 
-  it("keeps the snapshot when the board resets the agent's session", async () => {
+  it("keeps the snapshot when the operator resets the agent's session", async () => {
     const binding = await seed();
     await recordAgentProviderRateLimits(db, binding, notice(snapshot({ observedAt: "2026-11-05T15:00:00.000Z", windows: [fiveHour(55)] })));
     await db.update(agentRuntimeState)

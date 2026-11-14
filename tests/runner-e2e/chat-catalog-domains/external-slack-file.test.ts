@@ -19,7 +19,7 @@ function valid() {
     conversationId: "conversation",
     issueId: "source",
     humanCommentId: "human1",
-    linkedPaperclipUserId: "person",
+    linkedOutpostUserId: "person",
     providerCalls: 6,
     provider: {
       workspaceId: "T123",
@@ -54,7 +54,7 @@ function valid() {
   };
   const run = (id: string) => ({
     id,
-    companyId: "company",
+    spaceId: "space",
     agentId: "ceo",
     runtimeMode: "native",
     status: "succeeded",
@@ -68,7 +68,7 @@ function valid() {
   });
   return {
     scenarioId: "chat-channels.channel-file",
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     origin: "http://127.0.0.1:3399",
     reply: "",

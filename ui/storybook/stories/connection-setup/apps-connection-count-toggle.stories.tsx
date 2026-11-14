@@ -9,7 +9,7 @@ type Row = ComponentProps<typeof ConnectorCard>["row"];
 
 const PROFILES = new Map([
   ["user-dotta", { label: "Dotta B", image: null }],
-  ["user-nicky", { label: "Nicky Paperclip Admin", image: null }],
+  ["user-nicky", { label: "Nicky Outpost Admin", image: null }],
   ["user-devin", { label: "Devin Foley", image: null }],
   ["user-scott", { label: "Scott", image: null }],
 ]);
@@ -17,9 +17,9 @@ const PROFILES = new Map([
 function aiConnection(id: string, name: string, owner: string, provider: "openai" | "anthropic", method: "api_key" | "subscription",
   shared: boolean, overrides: Partial<ToolConnection> = {}): ToolConnection {
   return {
-    id, companyId: "company-storybook", applicationId: `app-${provider}`, uid: id, name,
+    id, spaceId: "space-storybook", applicationId: `app-${provider}`, uid: id, name,
     connectionKind: "managed", connectionPurpose: "ai", ownership: "customer", transport: "http", authKind: method === "api_key" ? "api_key" : "oauth",
-    credentialSource: "paperclip_vault", credentialPolicy: shared ? "shared" : "per_user", status: "active", enabled: true,
+    credentialSource: "outpost_vault", credentialPolicy: shared ? "shared" : "per_user", status: "active", enabled: true,
     config: { sourceTemplateKey: provider, aiIsolatedSubscription: true, ai: { provider, method } }, transportConfig: {}, credentialSecretRefs: [],
     healthStatus: "ok", healthCheckedAt: new Date(), lastError: null, createdByAgentId: null, createdByUserId: owner,
     createdAt: new Date(), updatedAt: new Date(), ...overrides,
@@ -37,7 +37,7 @@ const OPENAI_ACCOUNTS = [
 function providerRow(slug: string, connections: ToolConnection[]): Row {
   const entry = getAppStoreDefinition(slug)!;
   const application: ToolApplication = {
-    id: `app-${slug}`, companyId: "company-storybook", name: entry.name, description: entry.description, type: "mcp_http",
+    id: `app-${slug}`, spaceId: "space-storybook", name: entry.name, description: entry.description, type: "mcp_http",
     status: "active", pluginId: null, ownerAgentId: null, ownerUserId: null, metadata: { sourceTemplateKey: slug },
     archivedAt: null, createdAt: new Date(), updatedAt: new Date(),
   };
@@ -62,7 +62,7 @@ const meta = {
   component: ConnectionCountToggleReview,
   parameters: {
     layout: "fullscreen",
-    paperclip: {
+    outpost: {
       capabilities: ["connection-setup/catalog", "app-permissions/account-maintenance"],
       status: "current",
       implementation: "production",
@@ -95,9 +95,9 @@ export const UnfinishedChatSetup: Story = {
   args: { rows: [{
     ...providerRow("slack", []),
     chatEndpoints: [
-      { id: "slack-active", companyId: "company-storybook", provider: "slack", status: "active",
+      { id: "slack-active", spaceId: "space-storybook", provider: "slack", status: "active",
         assignedAgentId: "active-agent", assignedAgentName: "Active agent", allowUnlinkedPeople: false },
-      { id: "slack-verifying", companyId: "company-storybook", provider: "slack", status: "verifying",
+      { id: "slack-verifying", spaceId: "space-storybook", provider: "slack", status: "verifying",
         assignedAgentId: "setup-agent", assignedAgentName: "Setup agent", allowUnlinkedPeople: false,
         setup: { step: "provider_setup" } },
     ],

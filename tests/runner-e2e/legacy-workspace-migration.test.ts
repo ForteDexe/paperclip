@@ -10,7 +10,7 @@ const checkpoints = [{ phase: "final", attachments: [{ originalFilename: "migrat
   contentSha256: referenceSha256, contentVerified: true }] }] as ContinuationCheckpoint[];
 const before: MigrationPoint = { workspaceId: "workspace", providerType: "isolated_worktree", migrated: false,
   proofSha256: referenceSha256, runId: "first", sessionId: "session", providerSessionSha256: "provider-session",
-  logicalCwd: "/old-controller/workspace", remoteCwd: "/home/daytona/paperclip-workspace" };
+  logicalCwd: "/old-controller/workspace", remoteCwd: "/home/daytona/outpost-workspace" };
 const after: MigrationPoint = { ...before, runId: "second", migrated: true, providerType: "cloud_sandbox" };
 
 describe("legacy workspace migration qualification", () => {

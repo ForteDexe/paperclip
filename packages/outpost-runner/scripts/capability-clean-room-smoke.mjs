@@ -153,13 +153,13 @@ async function main() {
     const guard = second.view.evidence.control_plane.find((record) =>
       record.id.startsWith("network-guard-"),
     );
-    assertions.realApiBlocked = guard?.outcome === "no_real_paperclip_request";
+    assertions.realApiBlocked = guard?.outcome === "no_real_outpost_request";
     assertions.noCredentialInView = credentialLeaks(second.view).length === 0;
 
     const fresh = await post("/api/capability/ui/cleanroom/session", { sessionId: opened.sessionId });
     assertions.newChatRotatesIdentity =
       fresh.sessionId !== opened.sessionId &&
-      fresh.identity.companyId !== opened.identity.companyId &&
+      fresh.identity.spaceId !== opened.identity.spaceId &&
       fresh.identity.taskId !== opened.identity.taskId &&
       fresh.view.turns.length === 0;
     const retired = await jar.fetch("/api/capability/ui/message", {
@@ -175,7 +175,7 @@ async function main() {
     );
     await foreign.text();
     assertions.crossSessionDenied = foreign.status === 404;
-    assertions.capabilityBound = typeof jar.value("paperclip_capability_chat") === "string";
+    assertions.capabilityBound = typeof jar.value("outpost_capability_chat") === "string";
 
     summary = {
       schema: "outpost.capability.clean-room-smoke.v1",

@@ -6,13 +6,13 @@ import { createRequire } from "node:module";
 import type { Duplex } from "node:stream";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { agentApiKeys, companyMemberships, instanceUserRoles, heartbeatRuns, projects } from "@outpost/db";
+import { agentApiKeys, spaceMemberships, instanceUserRoles, heartbeatRuns, projects } from "@outpost/db";
 import { issueActivityChangesTaskIdentity, type DeploymentMode, type LiveEvent } from "@outpost/shared";
 import type { BetterAuthSessionResult } from "../auth/better-auth.js";
 import { logger } from "../middleware/logger.js";
 import { activityToastIdentity } from "./activity-toast-identity.js";
 import { taskToastEligible } from "./task-toast-eligibility.js";
-import { subscribeCompanyLiveEvents } from "../services/live-events.js";
+import { subscribeSpaceLiveEvents } from "../services/live-events.js";
 import { trackIdleWork } from "../services/task-admission.js";
 import { createLiveRunEventRedactor } from "../services/live-run-event-redaction.js";
 
@@ -56,21 +56,21 @@ import { canActorReadCase } from "../services/case-access.js";
 interface UpgradeContext {
   actor: AuthorizationActor;
   apiKeyId?: string;
-  companyId: string;
-  actorType: "board" | "agent";
+  spaceId: string;
+  actorType: "operator" | "agent";
   actorId: string;
 }
 
-/** Cloud-proxied browser identity resolved from trusted x-paperclip-cloud-* headers. */
+/** Cloud-proxied browser identity resolved from trusted x-outpost-cloud-* headers. */
 export interface CloudUpgradeActor {
   userId: string;
-  /** Companies this actor may subscribe to (primary stack company + real memberships). */
-  companyIds: string[];
+  /** Spaces this actor may subscribe to (primary stack space + real memberships). */
+  spaceIds: string[];
 }
 
 interface IncomingMessageWithContext extends IncomingMessage {
-  paperclipWebSocketHandled?: boolean;
-  paperclipUpgradeContext?: UpgradeContext;
+  outpostWebSocketHandled?: boolean;
+  outpostUpgradeContext?: UpgradeContext;
 }
 
 function hashToken(token: string) {
@@ -104,8 +104,8 @@ function rejectUpgrade(socket: Duplex, statusLine: string, message: string) {
   }
 }
 
-function parseCompanyId(pathname: string) {
-  const match = pathname.match(/^\/api\/companies\/([^/]+)\/events\/ws$/);
+function parseSpaceId(pathname: string) {
+  const match = pathname.match(/^\/api\/spaces\/([^/]+)\/events\/ws$/);
   if (!match) return null;
 
   try {
@@ -139,7 +139,7 @@ function headersFromIncomingMessage(req: IncomingMessage): Headers {
 async function authorizeUpgrade(
   db: Db,
   req: IncomingMessage,
-  companyId: string,
+  spaceId: string,
   url: URL,
   opts: {
     deploymentMode: DeploymentMode;
@@ -151,19 +151,19 @@ async function authorizeUpgrade(
   const authToken = parseBearerToken(req.headers.authorization);
   const token = authToken ?? (queryToken.length > 0 ? queryToken : null);
 
-  // Browser board context has no bearer token in local_trusted and authenticated modes.
+  // Browser operator context has no bearer token in local_trusted and authenticated modes.
   if (!token) {
     if (opts.deploymentMode === "local_trusted") {
       return {
-        companyId,
-        actorType: "board",
-        actorId: "board",
-        actor: { type: "board", userId: "local-board", source: "local_implicit" },
+        spaceId,
+        actorType: "operator",
+        actorId: "operator",
+        actor: { type: "operator", userId: "local-operator", source: "local_implicit" },
       };
     }
 
     // Cloud-managed deployments authenticate proxied browsers with trusted
-    // x-paperclip-cloud-* headers, never a local Better Auth session — the
+    // x-outpost-cloud-* headers, never a local Better Auth session — the
     // session fallback below can only 403 them, which left the live-events
     // socket permanently unreachable behind the Cloud front door. A resolved
     // cloud actor is authoritative: authorize against its membership scope.
@@ -172,12 +172,12 @@ async function authorizeUpgrade(
     if (opts.resolveCloudActor) {
       const cloudActor = await opts.resolveCloudActor(req);
       if (cloudActor) {
-        if (!cloudActor.companyIds.includes(companyId)) return null;
+        if (!cloudActor.spaceIds.includes(spaceId)) return null;
         return {
-          companyId,
-          actorType: "board",
+          spaceId,
+          actorType: "operator",
           actorId: cloudActor.userId,
-          actor: { type: "board", userId: cloudActor.userId, source: "cloud_tenant", companyIds: cloudActor.companyIds },
+          actor: { type: "operator", userId: cloudActor.userId, source: "cloud_tenant", spaceIds: cloudActor.spaceIds },
         };
       }
     }
@@ -197,25 +197,25 @@ async function authorizeUpgrade(
         .where(and(eq(instanceUserRoles.userId, userId), eq(instanceUserRoles.role, "instance_admin")))
         .then((rows) => rows[0] ?? null),
       db
-        .select({ companyId: companyMemberships.companyId })
-        .from(companyMemberships)
+        .select({ spaceId: spaceMemberships.spaceId })
+        .from(spaceMemberships)
         .where(
           and(
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, userId),
-            eq(companyMemberships.status, "active"),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, userId),
+            eq(spaceMemberships.status, "active"),
           ),
         ),
     ]);
 
-    const hasCompanyMembership = memberships.some((row) => row.companyId === companyId);
-    if (!roleRow && !hasCompanyMembership) return null;
+    const hasSpaceMembership = memberships.some((row) => row.spaceId === spaceId);
+    if (!roleRow && !hasSpaceMembership) return null;
 
     return {
-      companyId,
-      actorType: "board",
+      spaceId,
+      actorType: "operator",
       actorId: userId,
-      actor: { type: "board", userId, source: "session", companyIds: memberships.map(m => m.companyId) },
+      actor: { type: "operator", userId, source: "session", spaceIds: memberships.map(m => m.spaceId) },
     };
   }
 
@@ -226,7 +226,7 @@ async function authorizeUpgrade(
     .where(and(eq(agentApiKeys.keyHash, tokenHash), isNull(agentApiKeys.revokedAt)))
     .then((rows) => rows[0] ?? null);
 
-  if (!key || key.companyId !== companyId || key.scopeConfig) {
+  if (!key || key.spaceId !== spaceId || key.scopeConfig) {
     return null;
   }
 
@@ -236,11 +236,11 @@ async function authorizeUpgrade(
     .where(eq(agentApiKeys.id, key.id));
 
   return {
-    companyId,
+    spaceId,
     actorType: "agent",
     actorId: key.agentId,
     apiKeyId: key.id,
-    actor: { type: "agent", agentId: key.agentId, companyId, source: "agent_key", onBehalfOfUserId: key.responsibleUserId },
+    actor: { type: "agent", agentId: key.agentId, spaceId, source: "agent_key", onBehalfOfUserId: key.responsibleUserId },
   };
 }
 
@@ -249,11 +249,11 @@ export function setupLiveEventsWebSocketServer(
   db: Db,
   opts: {
     deploymentMode: DeploymentMode;
-    subscribeInvalidation?: (companyId: string, resync: () => void) => () => void;
+    subscribeInvalidation?: (spaceId: string, resync: () => void) => () => void;
     resolveSessionFromHeaders?: (headers: Headers) => Promise<BetterAuthSessionResult | null>;
     /**
      * Resolves a Cloud-proxied browser's identity from the trusted
-     * x-paperclip-cloud-* headers on the upgrade request. Wired by managed
+     * x-outpost-cloud-* headers on the upgrade request. Wired by managed
      * deployments; self-hosted instances leave it unset.
      */
     resolveCloudActor?: (req: IncomingMessage) => Promise<CloudUpgradeActor | null>;
@@ -276,7 +276,7 @@ export function setupLiveEventsWebSocketServer(
   }, 30000);
 
   wss.on("connection", (socket: WsSocket, req: IncomingMessage) => {
-    const context = (req as IncomingMessageWithContext).paperclipUpgradeContext;
+    const context = (req as IncomingMessageWithContext).outpostUpgradeContext;
     if (!context) {
       socket.close(1008, "missing context");
       return;
@@ -285,12 +285,12 @@ export function setupLiveEventsWebSocketServer(
     const access = authorizationService(db);
     async function visibleEvent(event: LiveEvent, reads: LiveDeliveryReads): Promise<LiveEvent | null> {
       if (event.payload.entityType === "case" && (typeof event.payload.entityId !== "string"
-        || !(await canActorReadCase(db, context!.actor, { id: event.payload.entityId, companyId: event.companyId })))) return null;
+        || !(await canActorReadCase(db, context!.actor, { id: event.payload.entityId, spaceId: event.spaceId })))) return null;
       if (context!.actor.source === "local_implicit") {
         if (event.type === "activity.logged" && event.payload.entityType === "issue") {
           return { ...event, payload: { ...event.payload,
             taskIdentityChanged: issueActivityChangesTaskIdentity(event.payload.action, event.payload.details),
-            ...await activityToastIdentity(db, event.companyId, event.payload) } };
+            ...await activityToastIdentity(db, event.spaceId, event.payload) } };
         }
         return event;
       }
@@ -300,9 +300,9 @@ export function setupLiveEventsWebSocketServer(
             .where(and(eq(agentApiKeys.id, context!.apiKeyId), isNull(agentApiKeys.revokedAt))).limit(1);
           return active.length > 0;
         }
-        const membership = await db.select({ id: companyMemberships.id }).from(companyMemberships)
-          .where(and(eq(companyMemberships.companyId, context!.companyId), eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, context!.actorId), eq(companyMemberships.status, "active"))).limit(1);
+        const membership = await db.select({ id: spaceMemberships.id }).from(spaceMemberships)
+          .where(and(eq(spaceMemberships.spaceId, context!.spaceId), eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, context!.actorId), eq(spaceMemberships.status, "active"))).limit(1);
         const admin = context!.actor.source !== "cloud_tenant" && await db.select({ id: instanceUserRoles.id }).from(instanceUserRoles)
           .where(and(eq(instanceUserRoles.userId, context!.actorId), eq(instanceUserRoles.role, "instance_admin"))).limit(1).then(rows => rows.length > 0);
         return membership.length > 0 || admin;
@@ -315,41 +315,41 @@ export function setupLiveEventsWebSocketServer(
         : payload.entityType === "heartbeat_run" && typeof payload.entityId === "string" ? payload.entityId : null;
       if (event.type === "heartbeat.run.event" || event.type === "heartbeat.run.log") {
         const allowed = await sharedDeliveryRead(reads, "transcript-scope", async () => (await access.decide({
-          actor: context!.actor, action: "company_scope:read",
-          resource: { type: "company", companyId: event.companyId } })).allowed);
+          actor: context!.actor, action: "space_scope:read",
+          resource: { type: "space", spaceId: event.spaceId } })).allowed);
         if (!allowed) return null;
       }
       const readBindings: Parameters<typeof getHeartbeatRunReadDecisions>[3][number][] = [];
       if (issueId) {
-        readBindings.push({ companyId: event.companyId, scopeKind: "issue", issueId });
+        readBindings.push({ spaceId: event.spaceId, scopeKind: "issue", issueId });
       }
       if (runId) {
         const run = await sharedDeliveryRead(reads, `run:${runId}`, async () => (await db.select({
-          companyId: heartbeatRuns.companyId,
+          spaceId: heartbeatRuns.spaceId,
           scopeKind: heartbeatRuns.scopeKind,
           issueId: heartbeatRuns.issueId,
-        }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, event.companyId))))[0]);
+        }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, event.spaceId))))[0]);
         if (!run) return null;
         readBindings.push(run);
       }
       if (!(await sharedDeliveryRead(reads, `read:${issueId ?? ""}:${runId ?? ""}`, async () =>
         (await getHeartbeatRunReadDecisions(db, access, context!.actor, readBindings)).every(Boolean)))) return null;
-      if (["company_skill", "company_skill_source"].includes(String(payload.entityType)) && typeof payload.entityId === "string") {
+      if (["space_skill", "space_skill_source"].includes(String(payload.entityType)) && typeof payload.entityId === "string") {
         try {
           const skills = skillAccessService(db, context!.actor);
-          if (payload.entityType === "company_skill") await skills.assertSkill(event.companyId, payload.entityId);
-          else await skills.assertSource(event.companyId, payload.entityId);
+          if (payload.entityType === "space_skill") await skills.assertSkill(event.spaceId, payload.entityId);
+          else await skills.assertSource(event.spaceId, payload.entityId);
         } catch { return null; }
       }
       if (payload.entityType === "project" && typeof payload.entityId === "string") {
         const [project] = await db.select({ id: projects.id }).from(projects)
-          .where(and(eq(projects.id, payload.entityId), eq(projects.companyId, event.companyId))).limit(1);
+          .where(and(eq(projects.id, payload.entityId), eq(projects.spaceId, event.spaceId))).limit(1);
         if (!project || !(await access.decide({ actor: context!.actor, action: "project:read",
-          resource: { type: "project", companyId: event.companyId, projectId: project.id } })).allowed) return null;
+          resource: { type: "project", spaceId: event.spaceId, projectId: project.id } })).allowed) return null;
       }
       if (event.type.startsWith("heartbeat.run.")) return runId ? event : null;
       if (event.type === "agent.session.goal.changed") return issueId ? event : null;
-      // Company-wide invalidations carry no task-derived content. Authorized
+      // Space-wide invalidations carry no task-derived content. Authorized
       // clients obtain details through viewer-filtered HTTP reads.
       if (event.type === "activity.logged") return { ...event, payload: {
         action: payload.action, entityType: payload.entityType, entityId: payload.entityId,
@@ -362,7 +362,7 @@ export function setupLiveEventsWebSocketServer(
           ? { taskIdentityChanged: issueActivityChangesTaskIdentity(payload.action, payload.details) }
           : {}),
         // The task read check above authorizes attribution, but not arbitrary details.
-        ...(issueId ? await activityToastIdentity(db, event.companyId, payload) : {}),
+        ...(issueId ? await activityToastIdentity(db, event.spaceId, payload) : {}),
       } };
       if (event.type === "agent.status") return { ...event, payload: { agentId: payload.agentId, status: payload.status } };
       if (event.type === "agent.runtime_state.updated") return { ...event, payload: { agentId: payload.agentId } };
@@ -381,14 +381,14 @@ export function setupLiveEventsWebSocketServer(
         let toastEligible = false;
         try {
           toastEligible = await taskToastEligible(db, visible,
-            context.actor.type === "board" ? context.actor.userId ?? null : null);
-        } catch (err) { logger.warn({ err, companyId: context.companyId }, "task toast eligibility failed"); }
+            context.actor.type === "operator" ? context.actor.userId ?? null : null);
+        } catch (err) { logger.warn({ err, spaceId: context.spaceId }, "task toast eligibility failed"); }
         return { ...visible, toastEligible };
       },
-      onError: err => logger.warn({ err, companyId: context.companyId }, "live event authorization failed"),
+      onError: err => logger.warn({ err, spaceId: context.spaceId }, "live event authorization failed"),
     });
-    const unsubscribe = subscribeCompanyLiveEvents(context.companyId, event => delivery.enqueue(event));
-    const unsubscribeInvalidation = opts.subscribeInvalidation?.(context.companyId, delivery.requestResync);
+    const unsubscribe = subscribeSpaceLiveEvents(context.spaceId, event => delivery.enqueue(event));
+    const unsubscribeInvalidation = opts.subscribeInvalidation?.(context.spaceId, delivery.requestResync);
     socket.on("message", (data, isBinary) => {
       if (isBinary) { socket.close(1003, "text messages required"); return; }
       delivery.receive(data.toString());
@@ -408,7 +408,7 @@ export function setupLiveEventsWebSocketServer(
     });
 
     socket.on("error", (err: Error) => {
-      logger.warn({ err, companyId: context.companyId }, "live websocket client error");
+      logger.warn({ err, spaceId: context.spaceId }, "live websocket client error");
     });
   });
 
@@ -417,7 +417,7 @@ export function setupLiveEventsWebSocketServer(
   });
 
   server.on("upgrade", (req, socket, head) => {
-    if ((req as IncomingMessageWithContext).paperclipWebSocketHandled) {
+    if ((req as IncomingMessageWithContext).outpostWebSocketHandled) {
       return;
     }
 
@@ -438,15 +438,15 @@ export function setupLiveEventsWebSocketServer(
     }
 
     const url = new URL(req.url, "http://localhost");
-    const companyId = parseCompanyId(url.pathname);
-    if (!companyId) {
+    const spaceId = parseSpaceId(url.pathname);
+    if (!spaceId) {
       closeUpgradeSocket(socket);
       return;
     }
 
     // Upgrade admission precedes this async authentication. An idle hold or
     // socket close must not make its accepted database writes disappear.
-    void trackIdleWork(authorizeUpgrade(db, req, companyId, url, {
+    void trackIdleWork(authorizeUpgrade(db, req, spaceId, url, {
       deploymentMode: opts.deploymentMode,
       resolveSessionFromHeaders: opts.resolveSessionFromHeaders,
       resolveCloudActor: opts.resolveCloudActor,
@@ -463,7 +463,7 @@ export function setupLiveEventsWebSocketServer(
         }
 
         const reqWithContext = req as IncomingMessageWithContext;
-        reqWithContext.paperclipUpgradeContext = context;
+        reqWithContext.outpostUpgradeContext = context;
 
         cleanupRawSocketListeners();
         wss.handleUpgrade(req, socket, head, (ws: WsSocket) => {

@@ -11,32 +11,32 @@ export function registerNativeReviewResponseWork(db: Db,
   return nativeReviewResponseWork(db).register(coordinator, canRun);
 }
 
-type Entry = { id: string; companyId: string; issueId: string; agentId: string; dueAt: number };
+type Entry = { id: string; spaceId: string; issueId: string; agentId: string; dueAt: number };
 
 export function nativeReviewResponseWork(db: Db) {
   function candidates(scope?: NativeReviewResponseScope, after?: string, runId?: string) {
-    return db.select({ id: nativeRunFinalizations.runId, companyId: nativeRunFinalizations.companyId,
+    return db.select({ id: nativeRunFinalizations.runId, spaceId: nativeRunFinalizations.spaceId,
       issueId: nativeRunFinalizations.issueId, agentId: heartbeatRuns.agentId,
       decisionId: nativeRunFinalizations.decisionId, resultId: nativeRunFinalizations.resultId,
       assessmentId: nativeRunFinalizations.assessmentId, nextAttemptAt: nativeRunFinalizations.nextAttemptAt,
     }).from(nativeRunFinalizations)
       .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, nativeRunFinalizations.runId),
-        eq(heartbeatRuns.companyId, nativeRunFinalizations.companyId), eq(heartbeatRuns.nativeIssueId, nativeRunFinalizations.issueId)))
+        eq(heartbeatRuns.spaceId, nativeRunFinalizations.spaceId), eq(heartbeatRuns.nativeIssueId, nativeRunFinalizations.issueId)))
       .innerJoin(statusDecisions, and(eq(statusDecisions.id, nativeRunFinalizations.decisionId),
-        eq(statusDecisions.companyId, nativeRunFinalizations.companyId), eq(statusDecisions.issueId, nativeRunFinalizations.issueId),
+        eq(statusDecisions.spaceId, nativeRunFinalizations.spaceId), eq(statusDecisions.issueId, nativeRunFinalizations.issueId),
         eq(statusDecisions.runId, nativeRunFinalizations.runId), eq(statusDecisions.assessmentId, nativeRunFinalizations.assessmentId)))
       .where(and(eq(nativeRunFinalizations.phase, "committed"), isNull(nativeRunFinalizations.leaseOwner),
         isNotNull(nativeRunFinalizations.resultId), isNotNull(nativeRunFinalizations.assessmentId),
         eq(heartbeatRuns.runtimeMode, "native"), eq(heartbeatRuns.status, "succeeded"),
-        eq(statusDecisions.reasonCode, "governed_response_waiting"), eq(statusDecisions.applicationState, "applied"),
+        eq(statusDecisions.reasonCode, "controlled_response_waiting"), eq(statusDecisions.applicationState, "applied"),
         sql`${statusDecisions.decisionJson}->'externalChatReviewPresentation'->>'schema' = 'outpost.chat_review_response_presentation.v1'`,
         notExists(db.select({ id: issueComments.id }).from(issueComments).where(and(
-          eq(issueComments.companyId, nativeRunFinalizations.companyId), eq(issueComments.issueId, nativeRunFinalizations.issueId),
+          eq(issueComments.spaceId, nativeRunFinalizations.spaceId), eq(issueComments.issueId, nativeRunFinalizations.issueId),
           eq(issueComments.createdByRunId, nativeRunFinalizations.runId), eq(issueComments.authorAgentId, heartbeatRuns.agentId),
           eq(issueComments.authorType, "agent"), sql`${issueComments.metadata}->>'authorizationReason' = 'allow_chat_run_presentation'`,
           sql`${heartbeatRuns.resultJson}->'externalChatReviewPresentation'->>'decisionId' = ${nativeRunFinalizations.decisionId}::text`,
         ))),
-        scope ? eq(nativeRunFinalizations.companyId, scope.companyId) : undefined,
+        scope ? eq(nativeRunFinalizations.spaceId, scope.spaceId) : undefined,
         scope?.issueId ? eq(nativeRunFinalizations.issueId, scope.issueId) : undefined,
         scope?.runId ? eq(nativeRunFinalizations.runId, scope.runId) : undefined,
         scope?.agentId ? eq(heartbeatRuns.agentId, scope.agentId) : undefined,
@@ -49,20 +49,20 @@ export function nativeReviewResponseWork(db: Db) {
     let after: string | undefined;
     while (canRun() && !signal?.aborted) {
       const rows = await candidates(scope, after);
-      for (const row of rows) entries.push({ id: row.id, companyId: row.companyId,
+      for (const row of rows) entries.push({ id: row.id, spaceId: row.spaceId,
         issueId: row.issueId, agentId: row.agentId, dueAt: row.nextAttemptAt?.getTime() ?? 0 });
       if (rows.length < 100) return entries;
       after = rows[rows.length - 1].id;
     }
-    throw new Error("Governed review response discovery stopped");
+    throw new Error("Controlled review response discovery stopped");
   }
   async function check(entry: Entry, signal?: AbortSignal): Promise<Entry | null> {
-    if (signal?.aborted) throw new Error("Governed review response recovery stopped");
-    const scope = { companyId: entry.companyId, issueId: entry.issueId };
+    if (signal?.aborted) throw new Error("Controlled review response recovery stopped");
+    const scope = { spaceId: entry.spaceId, issueId: entry.issueId };
     const [current] = await candidates(scope, undefined, entry.id);
     if (!current) return null;
     if (current.nextAttemptAt && current.nextAttemptAt.getTime() > Date.now()) return { ...entry, dueAt: current.nextAttemptAt.getTime() };
-    if (signal?.aborted) throw new Error("Governed review response recovery stopped");
+    if (signal?.aborted) throw new Error("Controlled review response recovery stopped");
     const recoveryStartedAt = Date.now();
     await recoverCommittedNativeReviewResponse(db, { ...scope, runId: entry.id,
       decisionId: current.decisionId!, resultId: current.resultId!, assessmentId: current.assessmentId!, onlyWhenDue: true });
@@ -74,12 +74,12 @@ export function nativeReviewResponseWork(db: Db) {
     return registerScopedDeadlineWork(coordinator, {
       queue: DELIVERY_QUEUES.nativeReviewResponse,
       decodeScope: (hint: string): NativeReviewResponseScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
-      matches: (entry: Entry, scope?: NativeReviewResponseScope) => !scope || entry.companyId === scope.companyId
+      matches: (entry: Entry, scope?: NativeReviewResponseScope) => !scope || entry.spaceId === scope.spaceId
         && (!scope.issueId || entry.issueId === scope.issueId) && (!scope.runId || entry.id === scope.runId)
         && (!scope.agentId || entry.agentId === scope.agentId),
       load: (scope, signal) => load(scope, signal, canRun),
       check: (entry, signal) => {
-        if (!canRun()) throw new Error("Governed review response recovery paused");
+        if (!canRun()) throw new Error("Controlled review response recovery paused");
         return check(entry, signal);
       },
     }, canRun);

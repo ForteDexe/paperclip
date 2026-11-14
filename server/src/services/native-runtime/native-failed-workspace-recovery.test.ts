@@ -7,7 +7,7 @@ import { createHeartbeatRunPreparation } from "../heartbeat/run-preparation.js";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, agentWakeupRequests, companies, createDb, applyPendingMigrations, environmentLeases, environments, externalAgentHolds, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
+import { activityLog, agents, agentWakeupRequests, spaces, createDb, applyPendingMigrations, environmentLeases, environments, externalAgentHolds, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { getExecutionBlocker } from "../execution-blocker.js";
 import { markExecutionReconciliation, settleUnrecoverableExecutions, validateExecutionReconciliation } from "../execution-recovery-resolution.js";
@@ -37,17 +37,17 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   afterAll(async () => { await db?.$client.end(); await temporary?.cleanup(); });
 
   async function seed() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Native workspace", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Engineer", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Preserve unfinished files", status: "in_progress", assigneeAgentId: agentId });
-    const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId,
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Native workspace", issuePrefix: spaceId.slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Engineer", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Preserve unfinished files", status: "in_progress", assigneeAgentId: agentId });
+    const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, nativeIssueId: issueId,
       runtimeMode: "native", status: "failed", nativePhase: "terminal_failure", errorCode: "adapter_failed",
       error: "runner_remote_process_identity_unavailable", resultJson: { originalDiagnostic: true }, contextSnapshot: { issueId },
     }).returning();
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "terminal_failure" });
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "terminal_failure" });
     const [environment] = await db.insert(environments).values({ name: `Native recovery ${runId}`, driver: "sandbox" }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId: runId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId: runId,
       environmentId: environment.id, provider: "daytona", providerLeaseId: randomUUID(), status: "active", leasePolicy: "ephemeral",
       metadata: { driver: "sandbox", pluginId: randomUUID(), sandboxProviderPlugin: true, remoteCwd: "/work" },
     }).returning();
@@ -56,7 +56,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       baselineSha256: "b".repeat(64), finalHostSha256: null, workspaceId: runId,
       leaseId: lease.id, providerLeaseId: lease.providerLeaseId, remoteCwd: "/work", resourceDisposition: "destroy",
     } } }).where(eq(heartbeatRuns.id, runId)).returning();
-    return { companyId, agentId, issueId, runId, run: bound, lease, environment };
+    return { spaceId, agentId, issueId, runId, run: bound, lease, environment };
   }
   const readRun = async (id: string) => (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, id)))[0]!;
   const readLease = async (id: string) => (await db.select().from(environmentLeases).where(eq(environmentLeases.id, id)))[0]!;
@@ -104,8 +104,8 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       expect(current.resultJson?.workspaceRestoreRecovery).toBeUndefined();
       expect(await readLease(f.lease.id)).toMatchObject({ status: "active", leasePolicy: "ephemeral" });
     }
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0].attempt).toBe(1);
   });
 
@@ -139,19 +139,19 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   });
 
   describe("cancelled workspace preservation worker", () => {
-    const fixtureCompanies = new Set<string>();
+    const fixtureSpaces = new Set<string>();
     afterEach(async () => {
       vi.useRealTimers(); vi.restoreAllMocks();
-      if (fixtureCompanies.size) await db.update(heartbeatRuns).set({ status: "failed" })
-        .where(inArray(heartbeatRuns.companyId, [...fixtureCompanies]));
-      fixtureCompanies.clear();
+      if (fixtureSpaces.size) await db.update(heartbeatRuns).set({ status: "failed" })
+        .where(inArray(heartbeatRuns.spaceId, [...fixtureSpaces]));
+      fixtureSpaces.clear();
     });
     async function prepared() {
-      const fixture = await seed(); fixtureCompanies.add(fixture.companyId); return fixture;
+      const fixture = await seed(); fixtureSpaces.add(fixture.spaceId); return fixture;
     }
     const acknowledgement = (f: Awaited<ReturnType<typeof seed>>) => ({
       cancelledByActorType: "user", cancelledByUserId: "operator", nativeCancellation: {
-        schema: "outpost.native-cancellation.v1", runId: f.runId, companyId: f.companyId, issueId: f.issueId,
+        schema: "outpost.native-cancellation.v1", runId: f.runId, spaceId: f.spaceId, issueId: f.issueId,
         scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
         intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID(),
       },
@@ -163,7 +163,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       ...createHeartbeatRunState(owner), ...createHeartbeatRunPreparation(owner),
       issuesSvc: { addComment: vi.fn(), listReviewAttention: vi.fn() },
       recovery: { escalateStrandedAssignedIssue: vi.fn() },
-      companySkills: { completeTestRunForIssue: vi.fn() },
+      spaceSkills: { completeTestRunForIssue: vi.fn() },
       budgets: { getInvocationBlock: vi.fn(async () => null) },
       treeControlSvc: { getActivePauseHoldGate: vi.fn(async () => null) },
       enqueueWakeup: vi.fn(), getCurrentUserRedactionOptions: vi.fn(async () => ({})),
@@ -199,13 +199,13 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
         expect((await readLease(external.lease.id)).status).toBe("active");
       } finally { await worker.stop(); }
     });
-    it.each(["missing issue", "foreign company"] as const)("does not schedule an unbound cancellation receipt: %s", async mismatch => {
+    it.each(["missing issue", "foreign space"] as const)("does not schedule an unbound cancellation receipt: %s", async mismatch => {
       const f = await prepared(); const result = acknowledgement(f);
       if (mismatch === "missing issue") await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
       await db.update(heartbeatRuns).set({ status: "cancelled",
         ...(mismatch === "missing issue" ? { nativeIssueId: null } : {}),
         resultJson: { ...result, nativeCancellation: { ...result.nativeCancellation,
-          ...(mismatch === "missing issue" ? { issueId: null } : { companyId: randomUUID() }),
+          ...(mismatch === "missing issue" ? { issueId: null } : { spaceId: randomUUID() }),
         } },
       }).where(eq(heartbeatRuns.id, f.runId));
       clock(); const worker = coordinator();
@@ -338,7 +338,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       }
       clock(); const worker = coordinator();
       const retained = () => db.select({ id: environmentLeases.id }).from(environmentLeases)
-        .where(and(inArray(environmentLeases.companyId, [...fixtureCompanies]), eq(environmentLeases.leasePolicy, "retain_on_failure")));
+        .where(and(inArray(environmentLeases.spaceId, [...fixtureSpaces]), eq(environmentLeases.leasePolicy, "retain_on_failure")));
       try {
         await registerCancelledWorkspacePreservationWork(db, worker, () => true, async () => true).ready;
         expect((await retained()).length).toBeLessThanOrEqual(5);
@@ -383,7 +383,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       .where(eq(heartbeatRuns.id, f.runId));
     await db.update(nativeRunFinalizations).set({ phase: "retryable_failure", attempt: 1,
       recoveryState: "resuming_session", nextAttemptAt: new Date(0) }).where(eq(nativeRunFinalizations.runId, f.runId));
-    const [successor] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+    const [successor] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
       issueId: f.issueId, nativeIssueId: f.issueId, runtimeMode: "native", status: "succeeded", nativePhase: "committed",
       startedAt: new Date(3), finishedAt: new Date(4), contextSnapshot: { issueId: f.issueId,
         previousRunId: f.runId, taskRetryRequestId: randomUUID() } }).returning();
@@ -408,7 +408,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     expect(retainedActions).toHaveLength(1);
     await recover();
     expect(await actions(f.issueId)).toEqual(retainedActions);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(2);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(2);
   });
 
   it.each(["live_owner", "process", "current_execution", "unfinished_successor", "unlinked_successor", "foreign_successor", "mismatched_source"])(
@@ -425,7 +425,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       if (scenario === "foreign_successor") {
         const foreign = await seed();
         await db.update(heartbeatRuns).set({ contextSnapshot: {} }).where(eq(heartbeatRuns.id, f.successor.id));
-        await db.insert(heartbeatRuns).values({ companyId: foreign.companyId, agentId: foreign.agentId,
+        await db.insert(heartbeatRuns).values({ spaceId: foreign.spaceId, agentId: foreign.agentId,
           issueId: foreign.issueId, nativeIssueId: foreign.issueId, runtimeMode: "native", status: "succeeded", nativePhase: "committed",
           startedAt: new Date(3), finishedAt: new Date(4), contextSnapshot: { previousRunId: f.runId, taskRetryRequestId: randomUUID() } });
       }
@@ -471,7 +471,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       expect(await actions(busy.issueId)).toHaveLength(0);
     } finally { unlock(); await holding; }
     expect(await preserveOrphanedNativeWorkspace(db, busy.lease)).toBe(true);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, busy.companyId))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, busy.spaceId))).toHaveLength(1);
   });
 
   it("rolls back orphan registration with its enclosing transaction", async () => {
@@ -489,7 +489,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 
   it.each(["settled", "historical", "live_owner", "retry", "nonterminal", "wrong_wake", "wrong_hold_run", "no_hold"])("retires only an exact superseded native resume obligation: %s", async scenario => {
     const f = await seed(), actionId = randomUUID();
-    await db.insert(issueRecoveryActions).values({ id: actionId, companyId: f.companyId, sourceIssueId: f.issueId,
+    await db.insert(issueRecoveryActions).values({ id: actionId, spaceId: f.spaceId, sourceIssueId: f.issueId,
       kind: "active_run_watchdog", status: "active", ownerType: "agent", ownerAgentId: f.agentId,
       returnOwnerAgentId: f.agentId, cause: "native_session_interrupted", fingerprint: randomUUID(),
       evidence: { runId: f.runId }, nextAction: "Resume the exact persisted session.",
@@ -504,7 +504,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     if (scenario === "wrong_hold_run") await db.update(issueRecoveryActions).set({ evidence: { ...hold.evidence, runId: randomUUID() } }).where(eq(issueRecoveryActions.id, hold.id));
     if (scenario === "no_hold") await db.delete(issueRecoveryActions).where(eq(issueRecoveryActions.id, hold.id));
     const beforeRun = await readRun(f.runId), beforeLease = await readLease(f.lease.id);
-    const beforeBlocker = await getExecutionBlocker(db, f.companyId, f.issueId);
+    const beforeBlocker = await getExecutionBlocker(db, f.spaceId, f.issueId);
     const [beforeTask] = await db.select().from(issues).where(eq(issues.id, f.issueId));
     await settleUnrecoverableExecutions(db);
     if (scenario === "historical") await settleUnrecoverableExecutions(db);
@@ -518,11 +518,11 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       expect(await db.select().from(activityLog).where(and(eq(activityLog.entityId, f.issueId),
         eq(activityLog.action, "issue.execution_recovery_settled")))).toHaveLength(1);
     }
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toEqual(beforeBlocker);
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toEqual(beforeBlocker);
     expect(await readRun(f.runId)).toEqual(beforeRun);
     expect(await readLease(f.lease.id)).toEqual(beforeLease);
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]).toEqual(beforeTask);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
   });
 
   it.each(["acknowledged", "warm", "pending", "foreign", "owned"])("pins historical cancelled work only after an exact Stop acknowledgement: %s", async kind => {
@@ -531,7 +531,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     await db.update(heartbeatRuns).set({ status: "cancelled", nativePhase: "observed", finishedAt: new Date(),
       resultJson: { cancelledByActorType: "user", cancelledByUserId: "operator", nativeCancellation: {
         schema: "outpost.native-cancellation.v1", runId: f.runId,
-        companyId: kind === "foreign" ? randomUUID() : f.companyId, issueId: f.issueId,
+        spaceId: kind === "foreign" ? randomUUID() : f.spaceId, issueId: f.issueId,
         scope: "run", reasonCode: "cancellation_run_only", dispatchState: kind === "pending" ? "pending" : "acknowledged",
         dispatched: true, intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID(),
       } },
@@ -547,13 +547,13 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       ? { status: "pending_cleanup", leasePolicy: "retain_on_failure", metadata: { sandboxStopAndRetain: { runId: f.runId } } }
       : { status: "active", leasePolicy: "ephemeral" });
     expect(await actions(f.issueId)).toHaveLength(pinned ? 1 : 0);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
   });
   it("keeps another cancelled workspace recoverable when one task row is locked", async () => {
     const busy = await seed(), free = await seed();
     for (const f of [busy, free]) await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date(),
       resultJson: { cancelledByActorType: "user", cancelledByUserId: "operator", nativeCancellation: {
-        schema: "outpost.native-cancellation.v1", runId: f.runId, companyId: f.companyId, issueId: f.issueId,
+        schema: "outpost.native-cancellation.v1", runId: f.runId, spaceId: f.spaceId, issueId: f.issueId,
         scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
         intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID(),
       } },
@@ -576,7 +576,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     const f = await seed();
     await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date(),
       resultJson: { cancelledByActorType: "user", cancelledByUserId: "operator", nativeCancellation: {
-        schema: "outpost.native-cancellation.v1", runId: f.runId, companyId: f.companyId, issueId: f.issueId,
+        schema: "outpost.native-cancellation.v1", runId: f.runId, spaceId: f.spaceId, issueId: f.issueId,
         scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
         intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID(),
       } },
@@ -601,7 +601,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 
   it("pins only the exact unexported source and exposes a file-only recovery card", async () => {
     const f = await seed();
-    const [other] = await db.insert(environmentLeases).values({ companyId: f.companyId, heartbeatRunId: f.runId,
+    const [other] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, heartbeatRunId: f.runId,
       issueId: f.issueId, environmentId: f.environment.id, provider: "daytona", providerLeaseId: randomUUID(),
       status: "active", metadata: f.lease.metadata,
     }).returning();
@@ -614,20 +614,20 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     } });
     expect(await readLease(other.id)).toMatchObject({ status: "active" });
     expect(await actions(f.issueId)).toMatchObject([{ status: "resolved", outcome: "blocked", evidence: { runId: f.runId } }]);
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toMatchObject({ runId: f.runId,
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toMatchObject({ runId: f.runId,
       cause: "native_continuation_requires_reconciliation", workspaceRepairRequired: true,
       canRecordWorkspaceRepair: true, canRetry: false, canContinue: false,
     });
     await preserveNativeFailedWorkspace(db, await readRun(f.runId));
     expect(await actions(f.issueId)).toHaveLength(1);
-    expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.companyId),
+    expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.spaceId),
       eq(activityLog.action, "issue.workspace_recovery_required")))).toHaveLength(1);
   });
 
-  async function bindExternalInput(f: Awaited<ReturnType<typeof seed>>, provider: "grok_bot" | "openai_dot" | "muse", change?: (input: { schema: string; binding: { runId: string; companyId: string; agentId: string; issueId: string }; provider: { kind: string; bridgeRevision?: string }; workspace: { access: string; cwd: string | null } }) => void) {
+  async function bindExternalInput(f: Awaited<ReturnType<typeof seed>>, provider: "grok_bot" | "openai_dot" | "muse", change?: (input: { schema: string; binding: { runId: string; spaceId: string; agentId: string; issueId: string }; provider: { kind: string; bridgeRevision?: string }; workspace: { access: string; cwd: string | null } }) => void) {
     const run = await readRun(f.runId);
     const input = { schema: provider === "muse" ? "outpost.native-execution-input.v8" : "outpost.native-execution-input.v6",
-      binding: { runId: f.runId, companyId: f.companyId, agentId: f.agentId, issueId: f.issueId },
+      binding: { runId: f.runId, spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId },
       provider: { kind: provider, ...(provider === "muse" ? { bridgeRevision: "muse-v1" } : {}) }, workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null } };
     change?.(input);
     const [updated] = await db.update(heartbeatRuns).set({ driverKind: provider === "muse" ? "muse_external" : provider === "grok_bot" ? "grok_bot_mcp" : "openai_dot_mcp",
@@ -637,7 +637,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 
   it.each(["grok_bot", "openai_dot", "muse"] as const)("does not invent file recovery for %s admitted without workspace access", async provider => {
     const f = await seed(), run = await bindExternalInput(f, provider);
-    const [hold] = provider === "muse" ? await db.insert(externalAgentHolds).values({ companyId: f.companyId, agentId: f.agentId,
+    const [hold] = provider === "muse" ? await db.insert(externalAgentHolds).values({ spaceId: f.spaceId, agentId: f.agentId,
       provider: "muse", assignmentId: randomUUID(), bindingId: randomUUID(), bindingGeneration: 1, runId: f.runId,
       workerUnknown: true, nativeEffectsUnknown: true }).returning() : [];
     await preserveNativeFailedWorkspace(db, run);
@@ -647,11 +647,11 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     if (hold) expect((await db.select().from(externalAgentHolds).where(eq(externalAgentHolds.id, hold.id)))[0]).toEqual(hold);
   });
 
-  it.each(["run", "company", "agent", "schema", "write_access"])("preserves file safeguards when no-workspace evidence has an invalid %s", async mismatch => {
+  it.each(["run", "space", "agent", "schema", "write_access"])("preserves file safeguards when no-workspace evidence has an invalid %s", async mismatch => {
     const f = await seed();
     const run = await bindExternalInput(f, "grok_bot", input => {
       if (mismatch === "run") input.binding.runId = randomUUID();
-      if (mismatch === "company") input.binding.companyId = randomUUID();
+      if (mismatch === "space") input.binding.spaceId = randomUUID();
       if (mismatch === "agent") input.binding.agentId = randomUUID();
       if (mismatch === "schema") input.schema = "unknown";
       if (mismatch === "write_access") input.workspace.access = "read_write";
@@ -661,11 +661,11 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     expect(await readLease(f.lease.id)).toMatchObject({ leasePolicy: "retain_on_failure" });
   });
 
-  it.each(["run", "company", "agent", "issue", "schema", "provider", "bridge", "missing_bridge", "driver", "write_access", "cwd"] as const)("retains file safeguards for a mismatched Muse %s contract", async mismatch => {
+  it.each(["run", "space", "agent", "issue", "schema", "provider", "bridge", "missing_bridge", "driver", "write_access", "cwd"] as const)("retains file safeguards for a mismatched Muse %s contract", async mismatch => {
     const f = await seed();
     await bindExternalInput(f, "muse", input => {
       if (mismatch === "run") input.binding.runId = randomUUID();
-      if (mismatch === "company") input.binding.companyId = randomUUID();
+      if (mismatch === "space") input.binding.spaceId = randomUUID();
       if (mismatch === "agent") input.binding.agentId = randomUUID();
       if (mismatch === "issue") input.binding.issueId = randomUUID();
       if (mismatch === "schema") input.schema = "outpost.native-execution-input.v6";
@@ -691,7 +691,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       receipt: { providerLeaseId: lease.providerLeaseId, state: "stopped" } });
     await bindExternalInput(f, provider);
     await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, f.runId));
-    const blocker = await getExecutionBlocker(db, f.companyId, f.issueId);
+    const blocker = await getExecutionBlocker(db, f.spaceId, f.issueId);
     expect(blocker).toMatchObject({ runId: f.runId, canRetry: false, canContinue: false,
       workspaceRepairRequired: provider !== "grok_bot", canRecordWorkspaceRepair: provider !== "grok_bot" });
     if (provider === "grok_bot") {
@@ -712,12 +712,12 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     const [action] = await actions(f.issueId);
     const decision = { runId: f.runId, providerStopped: true as const, actionOutcome: "mixed" as const,
       outcomeEvidence: "Files verified; no external action is replayed.", workspaceRepairEvidence: "Exact retained allocation exported and every source hash checked." };
-    await validateExecutionReconciliation({ db, companyId: f.companyId, issueId: f.issueId,
+    await validateExecutionReconciliation({ db, spaceId: f.spaceId, issueId: f.issueId,
       agentId: null, sourceRunId: f.runId, decision, workspaceRepairOnly: true });
-    await markExecutionReconciliation(db, action!, decision, "board-operator", undefined, { workspaceRepairOnly: true });
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+    await markExecutionReconciliation(db, action!, decision, "operator-operator", undefined, { workspaceRepairOnly: true });
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
     expect(await db.select().from(issues).where(eq(issues.id, f.issueId))).toMatchObject([{ status: "done", assigneeAgentId: null }]);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
     expect(await actions(f.issueId)).toMatchObject([{ evidence: { continuationDelivery: "not_requested" } }]);
   });
 
@@ -750,7 +750,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       stopReason: "adapter_failed", workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: { leaseIds: [f.lease.id] },
     } });
     expect(await readLease(f.lease.id)).toMatchObject({ status: "pending_cleanup", leasePolicy: "retain_on_failure" });
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toMatchObject({ workspaceRepairRequired: true });
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toMatchObject({ workspaceRepairRequired: true });
   });
 
   it("records terminal file retention after the executor retires its recovery claim", async () => {
@@ -762,7 +762,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     await preserveNativeFailedWorkspace(db, await readRun(f.runId), { allowPreterminal: true, restartRecovery });
     expect(await readRun(f.runId)).toMatchObject({ status: "failed", nativePhase: "terminal_failure" });
     expect(await readLease(f.lease.id)).toMatchObject({ status: "pending_cleanup", leasePolicy: "retain_on_failure" });
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toMatchObject({ workspaceRepairRequired: true });
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toMatchObject({ workspaceRepairRequired: true });
   });
 
   it.each(["token", "generation", "attempt", "run", "remote", "expired", "released"])("refuses a stale %s recovery claim", async kind => {
@@ -793,7 +793,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     await expect(preserveNativeFailedWorkspace(db, await readRun(f.runId), { allowPreterminal: true }))
       .rejects.toBeInstanceOf(NativeWorkspaceFinalizationBusyError);
     if (kind === "accepted") await db.update(nativeRunFinalizations).set({ phase: "result_accepted" }).where(eq(nativeRunFinalizations.runId, f.runId));
-    const released = await releaseUnstartedNativeExecutionClaim({ db, runId: f.runId, companyId: f.companyId, issueId: f.issueId,
+    const released = await releaseUnstartedNativeExecutionClaim({ db, runId: f.runId, spaceId: f.spaceId, issueId: f.issueId,
       leaseOwner: kind === "foreign" ? randomUUID() : leaseOwner, attempt: kind === "attempt" ? 2 : 1 });
     expect(released).toBe(kind === "own");
     if (kind !== "own") {
@@ -819,13 +819,13 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     expect(await actions(f.issueId)).toHaveLength(0);
   });
 
-  it.each(["finalized", "retryable_failure", "result_accepted", "wrong_provider", "wrong_company"])("leaves %s outside failed-source retention", async kind => {
+  it.each(["finalized", "retryable_failure", "result_accepted", "wrong_provider", "wrong_space"])("leaves %s outside failed-source retention", async kind => {
     const f = await seed();
     if (kind === "retryable_failure" || kind === "result_accepted") {
       await db.update(nativeRunFinalizations).set({ phase: kind }).where(eq(nativeRunFinalizations.runId, f.runId));
     } else {
       const reference = f.run.runnerProfileJson!.nativeWorkspaceSync as Record<string, unknown>;
-      if (kind === "wrong_company") {
+      if (kind === "wrong_space") {
         const foreign = await seed();
         await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: {
           ...reference, leaseId: foreign.lease.id, providerLeaseId: foreign.lease.providerLeaseId,

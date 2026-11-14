@@ -5,7 +5,7 @@
 use super::*;
 use outpost_runner_core::durable::PROVIDER_SESSION_CLOSED;
 
-const JOURNAL: &str = "paperclip-turn-dispatch.jsonl";
+const JOURNAL: &str = "outpost-turn-dispatch.jsonl";
 
 fn journal_phases(harness: &Harness) -> Vec<String> {
     fs::read_to_string(harness.fixture.0.join(JOURNAL))

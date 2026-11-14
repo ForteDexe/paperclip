@@ -13,12 +13,12 @@ import request from "supertest";
 import { taskWorkspaceRoutes } from "../routes/task-workspaces.js";
 import { issueRoutes } from "../routes/issues.js";
 import { errorHandler } from "../middleware/error-handler.js";
-import { agents, authUsers, companies, companyMemberships, completionContracts, createDb, environmentLeases, executionWorkspaceRepositories, executionWorkspaceRepositoryAccess, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations, principalPermissionGrants, projectAccessMembers, projects, projectWorkspaces } from "@outpost/db";
+import { agents, authUsers, spaces, spaceMemberships, completionContracts, createDb, environmentLeases, executionWorkspaceRepositories, executionWorkspaceRepositoryAccess, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations, principalPermissionGrants, projectAccessMembers, projects, projectWorkspaces } from "@outpost/db";
 import { executionWorkspaceService } from "../services/execution-workspaces.js";
 import { authorizationService, canActorReadExecutionWorkspace } from "../services/authorization.js";
 import { assertChatExecutionDefaultsAccess } from "../services/chat-execution-defaults.js";
 import { assertExecutionWorkspaceRecordAccess } from "../services/task-workspace-access.js";
-import { deleteCompany } from "../services/company-deletion.js";
+import { deleteSpace } from "../services/space-deletion.js";
 import { issueService } from "../services/issues.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -28,32 +28,32 @@ const support = await getEmbeddedPostgresTestSupport();
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-task-workspace-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-task-workspace-");
     db = createDb(temporary.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => { await temporary?.cleanup(); });
 
   async function fixture() {
-    const companyId = randomUUID(), issueId = randomUUID(), workspaceId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Task files", issuePrefix: `T${companyId.slice(0, 6)}` });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Write a report" });
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, projectId: null, sourceIssueId: issueId,
+    const spaceId = randomUUID(), issueId = randomUUID(), workspaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Task files", issuePrefix: `T${spaceId.slice(0, 6)}` });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Write a report" });
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, projectId: null, sourceIssueId: issueId,
       mode: "shared_workspace", strategyType: "project_primary", name: "Task files", cwd: `/tmp/task-${issueId}` });
-    return { companyId, issueId, workspaceId, actor: { type: "board" as const, source: "local_implicit" as const, isInstanceAdmin: true } };
+    return { spaceId, issueId, workspaceId, actor: { type: "operator" as const, source: "local_implicit" as const, isInstanceAdmin: true } };
   }
 
   it("persists a projectless binding, preserves it on project edits, and lists it in overview", async () => {
     const f = await fixture(), svc = executionWorkspaceService(db);
-    await svc.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
+    await svc.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
     const projectId = randomUUID();
-    await db.insert(projects).values({ id: projectId, companyId: f.companyId, name: "Reports" });
+    await db.insert(projects).values({ id: projectId, spaceId: f.spaceId, name: "Reports" });
     const updated = await issueService(db).update(f.issueId, { projectId });
     expect(updated?.executionWorkspaceId).toBe(f.workspaceId);
-    const view = await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor);
+    const view = await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor);
     expect(view.workspace?.projectId).toBeNull();
     expect(view.workspace?.cwd).toBe(`/tmp/task-${f.issueId}`);
     expect(view.bindingRevision).toBe(1);
-    const overview = await svc.listOverview(f.companyId, { limit: 20, offset: 0 });
+    const overview = await svc.listOverview(f.spaceId, { limit: 20, offset: 0 });
     expect(overview.items).toEqual(expect.arrayContaining([expect.objectContaining({ workspaceId: f.workspaceId, projectId: null })]));
   });
 
@@ -65,10 +65,10 @@ const support = await getEmbeddedPostgresTestSupport();
       await fs.mkdir(oldCwd);
       await fs.mkdir(newCwd);
       await fs.writeFile(path.join(oldCwd, "private.txt"), "Retained old files");
-      const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Original source policy" }).returning();
+      const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Original source policy" }).returning();
       const [ancestor, replacement] = await db.insert(issues).values([
-        { companyId: f.companyId, title: "Earlier private source" },
-        { companyId: f.companyId, title: "Replacement task" },
+        { spaceId: f.spaceId, title: "Earlier private source" },
+        { spaceId: f.spaceId, title: "Replacement task" },
       ]).returning();
       await db.update(executionWorkspaces).set({ sourceIssueId: ancestor.id })
         .where(eq(executionWorkspaces.id, f.workspaceId));
@@ -82,7 +82,7 @@ const support = await getEmbeddedPostgresTestSupport();
         label: "replacement metadata", _issuePrivacySources: { [ancestor.id]: true, [f.issueId]: true },
       } });
       const retained = await db.select().from(executionWorkspaceRepositoryAccess)
-        .where(eq(executionWorkspaceRepositoryAccess.companyId, f.companyId));
+        .where(eq(executionWorkspaceRepositoryAccess.spaceId, f.spaceId));
       expect(retained).toEqual([]);
       expect(await fs.readFile(path.join(oldCwd, "private.txt"), "utf8")).toBe("Retained old files");
       expect(await service.update(f.workspaceId, { metadata: null })).toMatchObject({
@@ -105,7 +105,7 @@ const support = await getEmbeddedPostgresTestSupport();
       await expect(service.update(f.workspaceId, { cwd: path.join(root, "new"), sourceIssueId: null, metadata: null }))
         .resolves.toMatchObject({ cwd: path.join(root, "new"), sourceIssueId: null });
       expect(await db.select().from(executionWorkspaceRepositoryAccess)
-        .where(eq(executionWorkspaceRepositoryAccess.companyId, f.companyId))).toEqual([]);
+        .where(eq(executionWorkspaceRepositoryAccess.spaceId, f.spaceId))).toEqual([]);
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }
@@ -115,10 +115,10 @@ const support = await getEmbeddedPostgresTestSupport();
     const f = await fixture(), settings = instanceSettingsService(db), previous = await settings.getExperimental();
     await settings.updateExperimental({ enableIsolatedWorkspaces: true });
     try {
-      const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Legacy source" }).returning();
-      const [workspace] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: project.id,
+      const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Legacy source" }).returning();
+      const [workspace] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: project.id,
         name: "Legacy folder", cwd: "/tmp/legacy-folder" }).returning();
-      const created = await issueService(db).create(f.companyId, {
+      const created = await issueService(db).create(f.spaceId, {
         title: "Use a new task folder", projectId: project.id,
         projectWorkspaceId: workspace.id, executionWorkspaceId: f.workspaceId,
         executionWorkspacePreference: "reuse_existing", executionWorkspaceSettings: { mode: "isolated_workspace" },
@@ -128,7 +128,7 @@ const support = await getEmbeddedPostgresTestSupport();
       expect(stored).toMatchObject({ projectId: project.id, projectWorkspaceId: null, executionWorkspaceId: null,
         executionWorkspacePreference: null, executionWorkspaceSettings: { mode: "shared_workspace" },
         workspaceSelection: { selection: { kind: "task_directory" }, source } });
-      expect((await executionWorkspaceService(db).inspectTaskWorkspace(f.companyId, created.id, f.actor)).workspace).toBeNull();
+      expect((await executionWorkspaceService(db).inspectTaskWorkspace(f.spaceId, created.id, f.actor)).workspace).toBeNull();
     } finally {
       await settings.updateExperimental({ enableIsolatedWorkspaces: previous.enableIsolatedWorkspaces });
     }
@@ -138,21 +138,21 @@ const support = await getEmbeddedPostgresTestSupport();
     const f = await fixture(), settings = instanceSettingsService(db), previous = await settings.getExperimental();
     await settings.updateExperimental({ enableIsolatedWorkspaces: false });
     try {
-      await executionWorkspaceService(db).bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
+      await executionWorkspaceService(db).bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
       const tasks = issueService(db);
       const input = { title: "Continue parent work", workspaceSelectionActor: f.actor,
         workspaceSelection: { kind: "task_directory" as const }, workspaceSelectionSource: "channel" as const };
       const child = entryPoint === "create"
-        ? await tasks.create(f.companyId, { ...input, parentId: f.issueId })
+        ? await tasks.create(f.spaceId, { ...input, parentId: f.issueId })
         : (await tasks.createChild(f.issueId, input)).issue;
       expect(child).toMatchObject({ parentId: f.issueId, projectId: null, executionWorkspaceId: null });
       expect(child.executionWorkspacePreference).not.toBe("reuse_existing");
-      const view = await executionWorkspaceService(db).inspectTaskWorkspace(f.companyId, child.id, f.actor);
+      const view = await executionWorkspaceService(db).inspectTaskWorkspace(f.spaceId, child.id, f.actor);
       expect(view.workspace).toBeNull();
       // The parent keeps its own task folder.
-      expect((await executionWorkspaceService(db).inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).workspace)
+      expect((await executionWorkspaceService(db).inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).workspace)
         .toMatchObject({ id: f.workspaceId, cwd: `/tmp/task-${f.issueId}` });
-      const explicit = await tasks.create(f.companyId, { ...input, title: "Explicit separate folder", parentId: f.issueId,
+      const explicit = await tasks.create(f.spaceId, { ...input, title: "Explicit separate folder", parentId: f.issueId,
         workspaceSelectionSource: "explicit" });
       expect(explicit.executionWorkspaceId).toBeNull();
     } finally {
@@ -167,49 +167,49 @@ const support = await getEmbeddedPostgresTestSupport();
     { entryPoint: "createChild", parentSource: "configured_source" },
   ] as const)("honors a child's explicit source through $entryPoint over its parent's $parentSource binding", async ({ entryPoint, parentSource }) => {
     const f = await fixture(), tasks = issueService(db), workspaces = executionWorkspaceService(db);
-    const [sourceProject] = await db.insert(projects).values({ companyId: f.companyId, name: "Filesystem sources" }).returning();
+    const [sourceProject] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Filesystem sources" }).returning();
     const [parentConfigured, childConfigured] = await db.insert(projectWorkspaces).values([
-      { companyId: f.companyId, projectId: sourceProject.id, name: "Parent files", cwd: `/tmp/parent-${f.issueId}` },
-      { companyId: f.companyId, projectId: sourceProject.id, name: "Child files", cwd: `/tmp/child-${f.issueId}` },
+      { spaceId: f.spaceId, projectId: sourceProject.id, name: "Parent files", cwd: `/tmp/parent-${f.issueId}` },
+      { spaceId: f.spaceId, projectId: sourceProject.id, name: "Child files", cwd: `/tmp/child-${f.issueId}` },
     ]).returning();
     if (parentSource === "configured_source") {
       await db.update(executionWorkspaces).set({ projectId: sourceProject.id, projectWorkspaceId: parentConfigured.id })
         .where(eq(executionWorkspaces.id, f.workspaceId));
     }
-    await workspaces.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
-    const parentBefore = await workspaces.inspectTaskWorkspace(f.companyId, f.issueId, f.actor);
+    await workspaces.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
+    const parentBefore = await workspaces.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor);
     const input = { title: "Use child-specific files", projectWorkspaceId: childConfigured.id, workspaceSelectionActor: f.actor };
     const child = entryPoint === "create"
-      ? await tasks.create(f.companyId, { ...input, parentId: f.issueId })
+      ? await tasks.create(f.spaceId, { ...input, parentId: f.issueId })
       : (await tasks.createChild(f.issueId, input)).issue;
     expect(child).toMatchObject({ parentId: f.issueId, projectId: null, projectWorkspaceId: childConfigured.id,
       executionWorkspaceId: null, executionWorkspacePreference: null });
-    expect((await workspaces.inspectTaskWorkspace(f.companyId, child.id, f.actor)).workspace).toBeNull();
-    const parentAfter = await workspaces.inspectTaskWorkspace(f.companyId, f.issueId, f.actor);
+    expect((await workspaces.inspectTaskWorkspace(f.spaceId, child.id, f.actor)).workspace).toBeNull();
+    const parentAfter = await workspaces.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor);
     expect(parentAfter.workspace).toEqual(parentBefore.workspace);
     expect(parentAfter.bindingRevision).toBe(parentBefore.bindingRevision);
   });
 
   it.each(["create", "createChild", "strategy_only"] as const)("preserves an explicit null source through %s while applying organizational defaults", async entryPoint => {
     const f = await fixture(), tasks = issueService(db), workspaces = executionWorkspaceService(db);
-    const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Organizational defaults" }).returning();
+    const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Organizational defaults" }).returning();
     const [defaultSource, parentSource] = await db.insert(projectWorkspaces).values([
-      { companyId: f.companyId, projectId: project.id, name: "Default files", cwd: `/tmp/default-${f.issueId}`, isPrimary: true },
-      { companyId: f.companyId, projectId: project.id, name: "Parent files", cwd: `/tmp/parent-${f.issueId}` },
+      { spaceId: f.spaceId, projectId: project.id, name: "Default files", cwd: `/tmp/default-${f.issueId}`, isPrimary: true },
+      { spaceId: f.spaceId, projectId: project.id, name: "Parent files", cwd: `/tmp/parent-${f.issueId}` },
     ]).returning();
     await db.update(issues).set({ projectId: project.id }).where(eq(issues.id, f.issueId));
     await db.update(executionWorkspaces).set({ projectId: project.id, projectWorkspaceId: parentSource.id })
       .where(eq(executionWorkspaces.id, f.workspaceId));
-    await workspaces.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
+    await workspaces.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
     const input = { title: "Clear parent workspace choice", projectWorkspaceId: null, workspaceSelectionActor: f.actor };
     const child = entryPoint === "create"
-      ? await tasks.create(f.companyId, { ...input, parentId: f.issueId })
+      ? await tasks.create(f.spaceId, { ...input, parentId: f.issueId })
       : (await tasks.createChild(f.issueId, { ...input,
           ...(entryPoint === "strategy_only" ? { executionWorkspaceInheritanceMode: "strategy_only" as const } : {}),
         })).issue;
     expect(child).toMatchObject({ projectId: project.id, projectWorkspaceId: defaultSource.id,
       executionWorkspaceId: null, executionWorkspacePreference: null, workspaceSelection: null });
-    expect((await workspaces.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).workspace)
+    expect((await workspaces.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).workspace)
       .toMatchObject({ id: f.workspaceId, projectWorkspaceId: parentSource.id });
   });
 
@@ -218,17 +218,17 @@ const support = await getEmbeddedPostgresTestSupport();
     const settings = instanceSettingsService(db), previous = await settings.getExperimental();
     await settings.updateExperimental({ enableIsolatedWorkspaces: true });
     try {
-      await svc.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
-      const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Organization with unrelated source" }).returning();
-      const [projectWorkspace] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: project.id,
+      await svc.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
+      const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Organization with unrelated source" }).returning();
+      const [projectWorkspace] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: project.id,
         name: "Unrelated repository", cwd: "/tmp/unrelated-source", isPrimary: true }).returning();
       let parentId: string | undefined;
       if (source === "inherited") {
-        const [parent] = await db.insert(issues).values({ companyId: f.companyId, projectId: project.id,
+        const [parent] = await db.insert(issues).values({ spaceId: f.spaceId, projectId: project.id,
           title: "Parent sharing task files", executionWorkspaceId: f.workspaceId }).returning();
         parentId = parent.id;
       }
-      const created = await tasks.create(f.companyId, {
+      const created = await tasks.create(f.spaceId, {
         title: "Reuse files under an organizational project", projectId: project.id, parentId,
         workspaceSelectionActor: f.actor,
         ...(source === "legacy"
@@ -244,7 +244,7 @@ const support = await getEmbeddedPostgresTestSupport();
       expect(created).toMatchObject({ projectId: project.id, executionWorkspaceId: f.workspaceId, projectWorkspaceId: null });
       const [original] = await db.select().from(issues).where(eq(issues.id, f.issueId));
       expect(original).toMatchObject({ projectId: null, projectWorkspaceId: null, executionWorkspaceId: f.workspaceId });
-      const { workspace } = await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor);
+      const { workspace } = await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor);
       expect(workspace).toMatchObject({ projectId: null, projectWorkspaceId: null, cwd: `/tmp/task-${f.issueId}` });
       for (const task of [created, original]) {
         await expect(assertGitSensitiveAdapterWorkspaceValid({
@@ -268,13 +268,13 @@ const support = await getEmbeddedPostgresTestSupport();
     const previous = await settings.getExperimental();
     await settings.updateExperimental({ enableIsolatedWorkspaces: true });
     try {
-      await svc.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
-      const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Organizational project" }).returning();
-      const [source] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: project.id,
+      await svc.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
+      const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Organizational project" }).returning();
+      const [source] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: project.id,
         name: "Previous source", cwd: "/tmp/previous-source" }).returning();
-      const [oldWorkspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId, projectId: project.id,
+      const [oldWorkspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, projectId: project.id,
         projectWorkspaceId: source.id, name: "Previous folder", cwd: source.cwd, mode: "shared_workspace", strategyType: "project_primary" }).returning();
-      const [task] = await db.insert(issues).values({ companyId: f.companyId, projectId: project.id,
+      const [task] = await db.insert(issues).values({ spaceId: f.spaceId, projectId: project.id,
         projectWorkspaceId: source.id, executionWorkspaceId: oldWorkspace.id, title: "Switch to task files" }).returning();
       await svc.selectTaskWorkspace({ ...f, issueId: task.id, selection: { kind: "task_directory" },
         expectedBindingRevision: 0, requestKey: "superseded-before-raw-binding" });
@@ -282,7 +282,7 @@ const support = await getEmbeddedPostgresTestSupport();
       expect(updated).toMatchObject({ projectId: project.id, executionWorkspaceId: f.workspaceId, projectWorkspaceId: null,
         workspaceBindingRevision: 2, workspacePendingSelection: null });
       expect(await svc.applyPendingTaskWorkspaceSelection({ ...f, issueId: task.id, runId: randomUUID() })).toBe(false);
-      expect((await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).workspace)
+      expect((await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).workspace)
         .toMatchObject({ id: f.workspaceId, projectId: null, projectWorkspaceId: null, cwd: `/tmp/task-${f.issueId}` });
       const [previousWorkspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, oldWorkspace.id));
       expect(previousWorkspace).toMatchObject({ projectId: project.id, projectWorkspaceId: source.id, cwd: source.cwd });
@@ -293,14 +293,14 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("queues explicit root changes without changing the current binding and applies at admission", async () => {
     const f = await fixture(), svc = executionWorkspaceService(db);
-    await svc.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
+    await svc.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
     const request = { ...f, selection: { kind: "task_directory" as const }, expectedBindingRevision: 1, requestKey: "choose-task-directory" };
     expect(await svc.selectTaskWorkspace(request)).toMatchObject({ kind: "scheduled", applies: "next_normal_admission" });
     expect(await svc.selectTaskWorkspace(request)).toMatchObject({ kind: "scheduled" });
     await expect(svc.selectTaskWorkspace({ ...request, selection: { kind: "existing", workspaceId: f.workspaceId } })).rejects.toThrow("different intent");
-    expect((await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).workspace?.id).toBe(f.workspaceId);
+    expect((await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).workspace?.id).toBe(f.workspaceId);
     await svc.applyPendingTaskWorkspaceSelection({ ...f, runId: randomUUID() });
-    const view = await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor);
+    const view = await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor);
     expect(view.workspace).toBeNull();
     expect(view.selection).toMatchObject({ selection: { kind: "task_directory" } });
     expect(view.bindingRevision).toBe(3);
@@ -312,12 +312,12 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it.each(["before admission", "after admission"] as const)("rejects a superseded selection retry %s without replacing the newer choice", async phase => {
     const f = await fixture(), svc = executionWorkspaceService(db);
-    await svc.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
-    const [nextWorkspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId,
+    await svc.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
+    const [nextWorkspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId,
       mode: "shared_workspace", strategyType: "project_primary", name: "Newer choice", cwd: `/tmp/newer-${f.issueId}` }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Running worker" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Running worker" }).returning();
     const immutableInput = { cwd: `/tmp/task-${f.issueId}`, binding: { executionWorkspaceId: f.workspaceId } };
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: agent.id,
       status: "running", contextSnapshot: { issueId: f.issueId, persistedNativeExecutionInput: immutableInput } }).returning();
     const app = express();
     app.use(express.json());
@@ -334,7 +334,7 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(acceptedB.status).toBe(200);
     const admission = { ...f, runId: randomUUID() };
     await expect(svc.applyPendingTaskWorkspaceSelection(admission)).rejects.toThrow("Previous task run must finish");
-    expect(await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).toMatchObject({
+    expect(await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).toMatchObject({
       workspace: { id: f.workspaceId }, pendingSelection: { requestKey: second.requestKey },
     });
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0]).toMatchObject({
@@ -344,11 +344,11 @@ const support = await getEmbeddedPostgresTestSupport();
       await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, run.id));
       expect(await svc.applyPendingTaskWorkspaceSelection(admission)).toBe(true);
     }
-    const beforeRetry = await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor);
+    const beforeRetry = await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor);
     const retryA = await select(first);
     expect(retryA.status).toBe(409);
     expect(retryA.body.error).toContain("binding changed");
-    expect(await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).toEqual(beforeRetry);
+    expect(await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).toEqual(beforeRetry);
     const retryB = await select(second);
     expect(retryB.status).toBe(200);
     expect(retryB.body.kind).toBe(phase === "before admission" ? "scheduled" : "applied");
@@ -356,7 +356,7 @@ const support = await getEmbeddedPostgresTestSupport();
       await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, run.id));
       expect(await svc.applyPendingTaskWorkspaceSelection(admission)).toBe(true);
     }
-    expect(await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).toMatchObject({
+    expect(await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).toMatchObject({
       workspace: { id: nextWorkspace.id }, selection: { request: { key: second.requestKey } }, pendingSelection: null,
     });
   });
@@ -370,25 +370,25 @@ const support = await getEmbeddedPostgresTestSupport();
     afterAll(async () => { await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: isolatedWorkspacesEnabled }); });
     async function settledNativeTask(failureCode = "native_retry_cancelled", acceptedResult = false) {
       const f = await fixture(), svc = executionWorkspaceService(db);
-      await svc.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
-      const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Stopped worker" }).returning();
-      const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: agent.id,
+      await svc.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
+      const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Stopped worker" }).returning();
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: agent.id,
         nativeIssueId: f.issueId, runtimeMode: "native", nativePhase: "terminal_failure", status: "cancelled",
         contextSnapshot: {}, finishedAt: new Date() }).returning();
       let resultId: string | null = null;
       if (acceptedResult) {
-        const [contract] = await db.insert(completionContracts).values({ companyId: f.companyId, issueId: f.issueId,
+        const [contract] = await db.insert(completionContracts).values({ spaceId: f.spaceId, issueId: f.issueId,
           revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "low",
           completionAuthority: "agent", incompleteCriteriaPolicy: "block", contractJson: {}, canonicalSha256: "contract",
           createdByActorType: "agent", createdByActorId: agent.id }).returning();
         await db.update(heartbeatRuns).set({ completionContractId: contract.id }).where(eq(heartbeatRuns.id, run.id));
-        const [result] = await db.insert(nativeRunResults).values({ companyId: f.companyId, issueId: f.issueId, runId: run.id,
+        const [result] = await db.insert(nativeRunResults).values({ spaceId: f.spaceId, issueId: f.issueId, runId: run.id,
           completionContractId: contract.id, serverFingerprint: randomUUID(), schemaStatus: "accepted", resultJson: {}, canonicalSha256: "result" }).returning();
         resultId = result.id;
       }
-      await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issueId, runId: run.id,
+      await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issueId, runId: run.id,
         phase: "terminal_failure", failureCode, resultId });
-      const [lease] = await db.insert(environmentLeases).values({ companyId: f.companyId, issueId: f.issueId,
+      const [lease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, issueId: f.issueId,
         heartbeatRunId: run.id, executionWorkspaceId: f.workspaceId, status: "released", cleanupStatus: "success", releasedAt: new Date() }).returning();
       if (entryPoint === "pending selection") await svc.selectTaskWorkspace({ ...f, selection: { kind: "task_directory" }, expectedBindingRevision: 1, requestKey: "after-stop" });
       const change = () => entryPoint === "pending selection"
@@ -400,7 +400,7 @@ const support = await getEmbeddedPostgresTestSupport();
     it.each(["native_retry_cancelled", "native_permission_declined"])("allows a settled %s without deleting its historical failure", async (failureCode) => {
       const f = await settledNativeTask(failureCode);
       await f.change();
-      expect(await f.svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).toMatchObject({ workspace: null, bindingRevision: entryPoint === "pending selection" ? 3 : 2, pendingSelection: null });
+      expect(await f.svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).toMatchObject({ workspace: null, bindingRevision: entryPoint === "pending selection" ? 3 : 2, pendingSelection: null });
       expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.run.id)))[0])
         .toMatchObject({ phase: "terminal_failure", failureCode });
     });
@@ -414,16 +414,16 @@ const support = await getEmbeddedPostgresTestSupport();
       if (obligation === "failed cleanup") await db.update(environmentLeases).set({ cleanupStatus: "failed" }).where(eq(environmentLeases.id, f.lease.id));
       if (obligation === "export marker") await db.update(environmentLeases).set({ metadata: { nativeWorkspaceExportResume: { runId: f.run.id } } }).where(eq(environmentLeases.id, f.lease.id));
       if (obligation === "active lease") await db.update(environmentLeases).set({ status: "active", releasedAt: null }).where(eq(environmentLeases.id, f.lease.id));
-      if (obligation === "failed output") await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId,
+      if (obligation === "failed output") await db.insert(workspaceOperations).values({ spaceId: f.spaceId, issueId: f.issueId,
         heartbeatRunId: f.run.id, executionWorkspaceId: f.workspaceId, phase: "workspace_finalize", status: "failed" });
       await expect(f.change()).rejects.toThrow(/workspace|Previous task run/);
-      expect(await f.svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).toMatchObject({ workspace: { id: f.workspaceId }, bindingRevision: entryPoint === "pending selection" ? 2 : 1 });
+      expect(await f.svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).toMatchObject({ workspace: { id: f.workspaceId }, bindingRevision: entryPoint === "pending selection" ? 2 : 1 });
       if (obligation === "failed output" || obligation === "accepted output") {
         await db.update(workspaceOperations).set({ createdAt: new Date(0) }).where(eq(workspaceOperations.heartbeatRunId, f.run.id));
-        await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId,
+        await db.insert(workspaceOperations).values({ spaceId: f.spaceId, issueId: f.issueId,
           heartbeatRunId: f.run.id, executionWorkspaceId: f.workspaceId, phase: "workspace_finalize", status: "succeeded", finishedAt: new Date() });
         await f.change();
-        expect(await f.svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).toMatchObject({ workspace: null, bindingRevision: entryPoint === "pending selection" ? 3 : 2 });
+        expect(await f.svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).toMatchObject({ workspace: null, bindingRevision: entryPoint === "pending selection" ? 3 : 2 });
       }
     });
 
@@ -433,11 +433,11 @@ const support = await getEmbeddedPostgresTestSupport();
         resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
         runnerProfileJson: { sessionCheckpoint: { providerSessionId: "inherited-session" } },
       }).where(eq(heartbeatRuns.id, f.run.id));
-      await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId,
+      await db.insert(workspaceOperations).values({ spaceId: f.spaceId, issueId: f.issueId,
         heartbeatRunId: f.run.id, executionWorkspaceId: f.workspaceId, phase: "workspace_finalize", status: "failed",
         metadata: { errorMessage: "runner_state_identity_mismatch: prior_owner_terminal_state_indeterminate" } });
       await f.change();
-      expect(await f.svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).toMatchObject({
+      expect(await f.svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).toMatchObject({
         workspace: null, pendingSelection: null,
       });
       expect((await db.select().from(workspaceOperations).where(eq(workspaceOperations.heartbeatRunId, f.run.id)))[0])
@@ -455,11 +455,11 @@ const support = await getEmbeddedPostgresTestSupport();
           runnerProfileJson: obligation === "sync descriptor" ? { nativeWorkspaceSync: { state: "prepared" } }
             : obligation === "copyback owner" ? { nativeWorkspaceFinalizationOwner: { token: "owner" } } : {},
         }).where(eq(heartbeatRuns.id, f.run.id));
-        if (obligation === "provider event") await db.insert(heartbeatRunEvents).values({ companyId: f.companyId,
+        if (obligation === "provider event") await db.insert(heartbeatRunEvents).values({ spaceId: f.spaceId,
           agentId: f.run.agentId, runId: f.run.id, seq: 1, eventType: "turn.started", stream: "system", payload: {} });
         if (obligation === "pending cleanup") await db.update(environmentLeases).set({ status: "pending_cleanup" })
           .where(eq(environmentLeases.id, f.lease.id));
-        await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId,
+        await db.insert(workspaceOperations).values({ spaceId: f.spaceId, issueId: f.issueId,
           heartbeatRunId: f.run.id, executionWorkspaceId: f.workspaceId, phase: "workspace_finalize",
           status: obligation === "unfinished operation" ? "running" : "failed" });
         await expect(f.change()).rejects.toThrow(/workspace|Previous task run/);
@@ -468,26 +468,26 @@ const support = await getEmbeddedPostgresTestSupport();
     it.each(["warm release", "unsafe export omission"] as const)("accepts a settled %s receipt", async (receipt) => {
       const f = await settledNativeTask("native_retry_cancelled", receipt === "unsafe export omission");
       if (receipt === "warm release") await db.update(environmentLeases).set({ releasedAt: null, status: "retained", leasePolicy: "reuse_by_environment", cleanupStatus: "success" }).where(eq(environmentLeases.id, f.lease.id));
-      if (receipt === "unsafe export omission") await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId,
+      if (receipt === "unsafe export omission") await db.insert(workspaceOperations).values({ spaceId: f.spaceId, issueId: f.issueId,
         heartbeatRunId: f.run.id, executionWorkspaceId: f.workspaceId, phase: "workspace_finalize", status: "succeeded",
         metadata: { workspaceSync: { omitted: true } }, finishedAt: new Date() });
       await f.change();
-      expect(await f.svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).toMatchObject({ workspace: null, bindingRevision: entryPoint === "pending selection" ? 3 : 2 });
+      expect(await f.svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).toMatchObject({ workspace: null, bindingRevision: entryPoint === "pending selection" ? 3 : 2 });
     });
   });
 
   it("preserves a queued next-run choice through first binding and its original retry receipt", async () => {
     const f = await fixture(), svc = executionWorkspaceService(db);
-    const [nextWorkspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId,
+    const [nextWorkspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId,
       mode: "shared_workspace", strategyType: "project_primary", name: "Next folder", cwd: `/tmp/next-${f.issueId}` }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "First worker", adapterType: "process" }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: agent.id,
+    const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "First worker", adapterType: "process" }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: agent.id,
       status: "running", invocationSource: "on_demand", contextSnapshot: { issueId: f.issueId } }).returning();
     const selectionRequest = { ...f, selection: { kind: "existing" as const, workspaceId: nextWorkspace.id },
       expectedBindingRevision: 0, requestKey: "choose-during-first-admission" };
     await svc.selectTaskWorkspace(selectionRequest);
-    await svc.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
-    expect(await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).toMatchObject({
+    await svc.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
+    expect(await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).toMatchObject({
       workspace: { id: f.workspaceId }, bindingRevision: 2,
       pendingSelection: { expectedBindingRevision: 2, intent: { request: { expectedBindingRevision: 0 } } },
     });
@@ -497,35 +497,35 @@ const support = await getEmbeddedPostgresTestSupport();
     await expect(svc.applyPendingTaskWorkspaceSelection(admission)).rejects.toThrow("Previous task run must finish");
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, run.id));
     expect(await svc.applyPendingTaskWorkspaceSelection(admission)).toBe(true);
-    expect(await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).toMatchObject({
+    expect(await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).toMatchObject({
       workspace: { id: nextWorkspace.id }, bindingRevision: 3, pendingSelection: null,
     });
     expect(await svc.selectTaskWorkspace(selectionRequest)).toMatchObject({ kind: "applied", bindingRevision: 3 });
 
     await svc.selectTaskWorkspace({ ...f, selection: { kind: "task_directory" },
       expectedBindingRevision: 3, requestKey: "later-choice" });
-    await svc.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
+    await svc.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
     await expect(svc.applyPendingTaskWorkspaceSelection({ ...f, runId: randomUUID() })).rejects.toThrow("Pending workspace selection is stale");
   });
 
   it("allows regular signed-in members to select files and request repositories while denying viewers", async () => {
     const f = await fixture(), svc = executionWorkspaceService(db), userId = randomUUID();
-    await db.insert(authUsers).values({ id: userId, name: "Board member", email: `${userId}@example.test`,
+    await db.insert(authUsers).values({ id: userId, name: "Operator member", email: `${userId}@example.test`,
       createdAt: new Date(), updatedAt: new Date() });
-    const [membership] = await db.insert(companyMemberships).values({ companyId: f.companyId,
+    const [membership] = await db.insert(spaceMemberships).values({ spaceId: f.spaceId,
       principalType: "user", principalId: userId, status: "active", membershipRole: "member" }).returning();
-    await svc.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
-    const actor = { type: "board" as const, source: "session" as const, userId,
-      companyIds: [f.companyId], isInstanceAdmin: false };
+    await svc.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
+    const actor = { type: "operator" as const, source: "session" as const, userId,
+      spaceIds: [f.spaceId], isInstanceAdmin: false };
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => { req.actor = actor; next(); });
     app.use("/api", taskWorkspaceRoutes(db));
     app.use(errorHandler);
-    const [assignee] = await db.insert(agents).values({ companyId: f.companyId, name: "Assigned worker", status: "idle" }).returning();
-    const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Protected files",
+    const [assignee] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Assigned worker", status: "idle" }).returning();
+    const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Protected files",
       executionWorkspacePolicy: { authorizationPolicy: { assignmentPolicy: { mode: "protected" } } } }).returning();
-    const [source] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: project.id,
+    const [source] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: project.id,
       name: "Source", cwd: `/tmp/task-${f.issueId}` }).returning();
     await db.update(issues).set({ assigneeAgentId: assignee.id }).where(eq(issues.id, f.issueId));
     await db.update(executionWorkspaces).set({ projectId: project.id, projectWorkspaceId: source.id }).where(eq(executionWorkspaces.id, f.workspaceId));
@@ -533,14 +533,14 @@ const support = await getEmbeddedPostgresTestSupport();
     const repository = { repository: { kind: "url" as const, url: "https://github.com/public/example" }, requestKey: "member-repository" };
     expect((await request(app).put(`/api/issues/${f.issueId}/workspace`).send(selection)).status).toBe(200);
     expect((await request(app).post(`/api/issues/${f.issueId}/workspace/repositories`).send(repository)).status).toBe(200);
-    const channelDefaults = { companyId: f.companyId, actor, assigneeAgentId: assignee.id,
+    const channelDefaults = { spaceId: f.spaceId, actor, assigneeAgentId: assignee.id,
       defaults: { workspace: { kind: "configured_source" as const, projectWorkspaceId: source.id, mode: "shared" as const } } };
     await expect(assertChatExecutionDefaultsAccess(db, channelDefaults)).resolves.toBeUndefined();
-    await db.insert(principalPermissionGrants).values({ companyId: f.companyId, principalType: "user", principalId: userId,
+    await db.insert(principalPermissionGrants).values({ spaceId: f.spaceId, principalType: "user", principalId: userId,
       permissionKey: "tasks:assign_scope", scope: { projectId: project.id, assigneeAgentId: assignee.id } });
     await expect(assertChatExecutionDefaultsAccess(db, channelDefaults)).resolves.toBeUndefined();
     await expect(assertChatExecutionDefaultsAccess(db, { ...channelDefaults, assigneeAgentId: null })).resolves.toBeUndefined();
-    expect(await issueService(db).create(f.companyId, { title: "Board-assigned shared work", createdByUserId: userId,
+    expect(await issueService(db).create(f.spaceId, { title: "Operator-assigned shared work", createdByUserId: userId,
       assigneeAgentId: assignee.id, workspaceSelectionActor: actor,
       workspaceSelection: { kind: "configured_source", projectWorkspaceId: source.id, mode: "shared" } }))
       .toMatchObject({ assigneeAgentId: assignee.id, projectWorkspaceId: source.id });
@@ -550,18 +550,18 @@ const support = await getEmbeddedPostgresTestSupport();
     const prepared = await request(app).post(`/api/issues/${f.issueId}/workspace/repositories`).send(repository);
     expect(prepared.status, JSON.stringify(prepared.body)).toBe(200);
     expect(prepared.body).toMatchObject({ kind: "requires_next_admission" });
-    const before = await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor);
+    const before = await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor);
     expect(before).toMatchObject({ workspace: { id: f.workspaceId }, pendingSelection: { requestKey: selection.requestKey } });
-    expect(await svc.listTaskRepositories(f.companyId, f.workspaceId)).toHaveLength(1);
+    expect(await svc.listTaskRepositories(f.spaceId, f.workspaceId)).toHaveLength(1);
 
-    await db.update(companyMemberships).set({ membershipRole: "viewer" }).where(eq(companyMemberships.id, membership.id));
+    await db.update(spaceMemberships).set({ membershipRole: "viewer" }).where(eq(spaceMemberships.id, membership.id));
     const deniedSelection = { ...selection, requestKey: "viewer-selection" };
     const deniedRepository = { ...repository, requestKey: "viewer-repository" };
     expect((await request(app).put(`/api/issues/${f.issueId}/workspace`).send(deniedSelection)).status).toBe(403);
     expect((await request(app).post(`/api/issues/${f.issueId}/workspace/repositories`).send(deniedRepository)).status).toBe(403);
     await expect(svc.selectTaskWorkspace({ ...f, actor, ...deniedSelection })).rejects.toThrow("modification is not allowed");
     await expect(svc.requestTaskRepository({ ...f, actor, request: deniedRepository })).rejects.toThrow("modification is not allowed");
-    expect(await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).toEqual(before);
+    expect(await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).toEqual(before);
     expect(await db.select().from(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.executionWorkspaceId, f.workspaceId))).toHaveLength(1);
   });
 
@@ -571,17 +571,17 @@ const support = await getEmbeddedPostgresTestSupport();
     await settings.updateExperimental({ enableIsolatedWorkspaces: true });
     try {
       await db.insert(authUsers).values({ id: userId, name: "Reader", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-      await db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: userId, membershipRole: "member", status: "active" });
-      const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Private config", visibility: "private" }).returning();
-      const [source] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: project.id, name: "Source", cwd: `/tmp/source-${f.issueId}` }).returning();
+      await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: userId, membershipRole: "member", status: "active" });
+      const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Private config", visibility: "private" }).returning();
+      const [source] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: project.id, name: "Source", cwd: `/tmp/source-${f.issueId}` }).returning();
       await db.update(executionWorkspaces).set({ projectId: project.id, projectWorkspaceId: source.id }).where(eq(executionWorkspaces.id, f.workspaceId));
-      const actor = { type: "board" as const, source: "session" as const, userId, companyIds: [f.companyId], isInstanceAdmin: false };
+      const actor = { type: "operator" as const, source: "session" as const, userId, spaceIds: [f.spaceId], isInstanceAdmin: false };
       const app = express(); app.use(express.json()); app.use((req, _res, next) => { req.actor = actor; next(); });
       app.use("/api", issueRoutes(db, {} as never)); app.use(errorHandler);
       const patch = kind === "binding" ? { executionWorkspaceId: f.workspaceId } : { projectWorkspaceId: source.id };
       await request(app).patch(`/api/issues/${f.issueId}`).send(patch).expect(403);
       expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]).toMatchObject({ executionWorkspaceId: null, projectWorkspaceId: null });
-      await db.insert(projectAccessMembers).values({ companyId: f.companyId, projectId: project.id, subjectType: "user", subjectId: userId });
+      await db.insert(projectAccessMembers).values({ spaceId: f.spaceId, projectId: project.id, subjectType: "user", subjectId: userId });
       await request(app).patch(`/api/issues/${f.issueId}`).send(patch).expect(200);
       expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]).toMatchObject({ projectWorkspaceId: source.id, workspaceBindingRevision: 1 });
     } finally {
@@ -596,23 +596,23 @@ const support = await getEmbeddedPostgresTestSupport();
     await settings.updateExperimental({ enableIsolatedWorkspaces: true, enableIsolatedWorkspacesByDefault: false });
     try {
       await db.insert(authUsers).values({ id: userId, name: "Source reader", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-      await db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
+      await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
       const [isolatedAgent, sharedAgent] = await db.insert(agents).values(["git_worktree", "project_primary"].map(type => ({
-        companyId: f.companyId, name: type, status: "idle", adapterConfig: { workspaceStrategy: { type } },
+        spaceId: f.spaceId, name: type, status: "idle", adapterConfig: { workspaceStrategy: { type } },
         runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } },
       }))).returning();
-      const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Read-only source",
+      const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Read-only source",
         executionWorkspacePolicy: { authorizationPolicy: { assignmentPolicy: { mode: "protected" } } } }).returning();
-      const [source] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: project.id, name: "Source", cwd: `/tmp/source-${f.issueId}` }).returning();
-      const actor = { type: "board" as const, source: "session" as const, userId, companyIds: [f.companyId], isInstanceAdmin: false };
+      const [source] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: project.id, name: "Source", cwd: `/tmp/source-${f.issueId}` }).returning();
+      const actor = { type: "operator" as const, source: "session" as const, userId, spaceIds: [f.spaceId], isInstanceAdmin: false };
       const sharedOverrides = { adapterConfig: { workspaceStrategy: { type: "project_primary" } } };
       const tasks = issueService(db), workspaces = executionWorkspaceService(db);
       if (operation === "create") {
         const input = { title: "Read source in separate checkout", assigneeAgentId: isolatedAgent.id,
           projectWorkspaceId: source.id, workspaceSelectionActor: actor, createdByUserId: userId };
-        await expect(tasks.create(f.companyId, { ...input, assigneeAdapterOverrides: sharedOverrides })).resolves.toBeDefined();
-        await expect(tasks.create(f.companyId, input)).resolves.toMatchObject({ assigneeAgentId: isolatedAgent.id, projectWorkspaceId: source.id });
-        await expect(tasks.create(f.companyId, { ...input, workspaceSelection: { kind: "configured_source", projectWorkspaceId: source.id, mode: "managed_isolated" },
+        await expect(tasks.create(f.spaceId, { ...input, assigneeAdapterOverrides: sharedOverrides })).resolves.toBeDefined();
+        await expect(tasks.create(f.spaceId, input)).resolves.toMatchObject({ assigneeAgentId: isolatedAgent.id, projectWorkspaceId: source.id });
+        await expect(tasks.create(f.spaceId, { ...input, workspaceSelection: { kind: "configured_source", projectWorkspaceId: source.id, mode: "managed_isolated" },
           assigneeAdapterOverrides: sharedOverrides })).resolves.toBeDefined();
       } else if (operation === "patch") {
         await db.update(issues).set({ assigneeAgentId: sharedAgent.id }).where(eq(issues.id, f.issueId));
@@ -629,7 +629,7 @@ const support = await getEmbeddedPostgresTestSupport();
         expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]).toMatchObject({ assigneeAgentId: isolatedAgent.id, projectWorkspaceId: source.id });
       } else {
         await db.update(issues).set({ assigneeAgentId: isolatedAgent.id, assigneeAdapterOverrides: sharedOverrides }).where(eq(issues.id, f.issueId));
-        const input = { companyId: f.companyId, issueId: f.issueId, actor,
+        const input = { spaceId: f.spaceId, issueId: f.issueId, actor,
           selection: { kind: "configured_source" as const, projectWorkspaceId: source.id, mode: "managed_isolated" as const } };
         await expect(workspaces.validateSelection(input)).resolves.toBeDefined();
         await db.update(issues).set({ assigneeAdapterOverrides: null }).where(eq(issues.id, f.issueId));
@@ -645,28 +645,28 @@ const support = await getEmbeddedPostgresTestSupport();
     const settings = instanceSettingsService(db), previous = await settings.getExperimental();
     await settings.updateExperimental({ enableIsolatedWorkspaces: true });
     try {
-      const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Source reader", adapterType: "process", status: "idle" }).returning();
-      await db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "agent", principalId: agent.id, status: "active", membershipRole: "member" });
-      const actor = { type: "agent" as const, agentId: agent.id, companyId: f.companyId, source: "agent_key" as const };
-      const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Protected config",
+      const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Source reader", adapterType: "process", status: "idle" }).returning();
+      await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "agent", principalId: agent.id, status: "active", membershipRole: "member" });
+      const actor = { type: "agent" as const, agentId: agent.id, spaceId: f.spaceId, source: "agent_key" as const };
+      const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Protected config",
         executionWorkspacePolicy: { authorizationPolicy: { assignmentPolicy: { mode: "protected" } } } }).returning();
-      const [source] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: project.id,
+      const [source] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: project.id,
         name: "Shared source", cwd: `/tmp/protected-${f.issueId}` }).returning();
       for (const mode of ["shared", "managed_isolated"] as const) {
         const selection = { kind: "configured_source" as const, projectWorkspaceId: source.id, mode };
         await expect(svc.validateSelection({ ...f, actor, selection })).resolves.toMatchObject({ projectWorkspaceId: source.id });
         for (const sourceKind of ["explicit", "channel"] as const) {
-          expect(await tasks.create(f.companyId, { title: `${sourceKind} ${mode}`, createdByAgentId: agent.id,
+          expect(await tasks.create(f.spaceId, { title: `${sourceKind} ${mode}`, createdByAgentId: agent.id,
             workspaceSelection: selection, workspaceSelectionSource: sourceKind, workspaceSelectionActor: actor })).toMatchObject({ projectWorkspaceId: source.id });
         }
       }
-      const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId, projectId: project.id,
+      const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, projectId: project.id,
         projectWorkspaceId: source.id, name: "Shared files", cwd: source.cwd, mode: "shared_workspace", strategyType: "project_primary" }).returning();
       await expect(svc.validateSelection({ ...f, actor, selection: { kind: "existing", workspaceId: workspace.id } })).resolves.toMatchObject({ executionWorkspaceId: workspace.id });
-      await expect(assertExecutionWorkspaceRecordAccess(db, actor, f.companyId, workspace.id)).resolves.toBeUndefined();
+      await expect(assertExecutionWorkspaceRecordAccess(db, actor, f.spaceId, workspace.id)).resolves.toBeUndefined();
       // Changing the app configuration still requires its normal write grant.
       expect(await authorizationService(db).decide({ actor, action: "project:write_workspace", resource: {
-        type: "issue", companyId: f.companyId, projectId: project.id, assigneeAgentId: agent.id,
+        type: "issue", spaceId: f.spaceId, projectId: project.id, assigneeAgentId: agent.id,
       } })).toMatchObject({ allowed: false });
     } finally { await settings.updateExperimental({ enableIsolatedWorkspaces: previous.enableIsolatedWorkspaces }); }
   });
@@ -676,40 +676,40 @@ const support = await getEmbeddedPostgresTestSupport();
     const settings = instanceSettingsService(db), previous = await settings.getExperimental();
     await settings.updateExperimental({ enableIsolatedWorkspaces: true });
     try {
-      await svc.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
+      await svc.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
       const request = { ...f, selection: { kind: "task_directory" as const }, expectedBindingRevision: 1, requestKey: "older-choice" };
       await svc.selectTaskWorkspace(request);
-      const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "New source" }).returning();
-      const [source] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: project.id, name: "New files", cwd: `/tmp/new-source-${f.issueId}` }).returning();
-      const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId, projectId: null,
+      const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "New source" }).returning();
+      const [source] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: project.id, name: "New files", cwd: `/tmp/new-source-${f.issueId}` }).returning();
+      const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, projectId: null,
         mode: "shared_workspace", strategyType: "project_primary", name: "New binding", cwd: `/tmp/new-binding-${f.issueId}` }).returning();
       const patch = kind === "binding" ? { executionWorkspaceId: workspace.id } : { executionWorkspaceId: null, projectWorkspaceId: source.id };
       await tasks.update(f.issueId, patch);
       expect(await svc.applyPendingTaskWorkspaceSelection({ ...f, runId: randomUUID() })).toBe(false);
-      const view = await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor);
+      const view = await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor);
       expect(view).toMatchObject({ bindingRevision: 3, pendingSelection: null, selection: null });
       expect(view.workspace?.id ?? null).toBe(kind === "binding" ? workspace.id : null);
       const [task] = await db.select().from(issues).where(eq(issues.id, f.issueId));
       expect(task.projectWorkspaceId).toBe(kind === "configured_source" ? source.id : null);
       await expect(svc.selectTaskWorkspace(request)).rejects.toThrow("binding changed");
       await tasks.update(f.issueId, { projectId: project.id, ...patch });
-      expect((await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).bindingRevision).toBe(3);
+      expect((await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).bindingRevision).toBe(3);
     } finally { await settings.updateExperimental({ enableIsolatedWorkspaces: previous.enableIsolatedWorkspaces }); }
   });
 
   it("rejects an ordinary source annotation on bound files and preserves active run ownership", async () => {
     const f = await fixture(), svc = executionWorkspaceService(db), tasks = issueService(db);
-    await svc.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId);
-    const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Other source" }).returning();
-    const [source] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: project.id, name: "Other files", cwd: `/tmp/other-${f.issueId}` }).returning();
+    await svc.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId);
+    const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Other source" }).returning();
+    const [source] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: project.id, name: "Other files", cwd: `/tmp/other-${f.issueId}` }).returning();
     await expect(tasks.update(f.issueId, { projectWorkspaceId: source.id })).rejects.toThrow("already has bound files");
-    const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Running worker", adapterType: "process", status: "active" }).returning();
-    await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: agent.id, status: "running", invocationSource: "on_demand", nativeIssueId: f.issueId, contextSnapshot: { issueId: f.issueId } });
+    const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Running worker", adapterType: "process", status: "active" }).returning();
+    await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: agent.id, status: "running", invocationSource: "on_demand", nativeIssueId: f.issueId, contextSnapshot: { issueId: f.issueId } });
     const settings = instanceSettingsService(db), previous = await settings.getExperimental();
     await settings.updateExperimental({ enableIsolatedWorkspaces: true });
     try {
       await expect(tasks.update(f.issueId, { executionWorkspaceId: null, projectWorkspaceId: source.id })).rejects.toThrow("still owns its workspace");
-      expect(await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).toMatchObject({ bindingRevision: 1, workspace: { id: f.workspaceId } });
+      expect(await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).toMatchObject({ bindingRevision: 1, workspace: { id: f.workspaceId } });
       await expect(svc.selectTaskWorkspace({ ...f, selection: { kind: "configured_source", projectWorkspaceId: source.id, mode: "shared" },
         expectedBindingRevision: 1, requestKey: "next-admission" })).resolves.toMatchObject({ kind: "scheduled" });
     } finally { await settings.updateExperimental({ enableIsolatedWorkspaces: previous.enableIsolatedWorkspaces }); }
@@ -720,7 +720,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "task-workspace-default-"));
     vi.stubEnv("OUTPOST_HOME", root);
     try {
-      const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "File worker", adapterType: "process", status: "idle" }).returning();
+      const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "File worker", adapterType: "process", status: "idle" }).returning();
       const legacy = resolveDefaultAgentWorkspaceDir(agent!.id);
       await fs.mkdir(legacy, { recursive: true });
       const old = await fs.open(path.join(legacy, "unrelated.bin"), "w");
@@ -733,18 +733,18 @@ const support = await getEmbeddedPostgresTestSupport();
       const again = await resolver.resolveWorkspaceForRun(agent!, { issueId: f.issueId }, null);
       expect(again.cwd).toBe(first.cwd);
       const chatId = randomUUID();
-      await db.insert(issues).values({ id: chatId, companyId: f.companyId, title: "Chat report", originKind: "chat_channel" });
+      await db.insert(issues).values({ id: chatId, spaceId: f.spaceId, title: "Chat report", originKind: "chat_channel" });
       const chat = await resolver.resolveWorkspaceForRun(agent!, { issueId: chatId }, null);
       expect(chat.cwd).not.toBe(first.cwd);
       expect(path.dirname(chat.cwd)).toBe(path.dirname(first.cwd));
       const organizationId = randomUUID();
-      await db.insert(projects).values({ id: organizationId, companyId: f.companyId, name: "Organization only" });
+      await db.insert(projects).values({ id: organizationId, spaceId: f.spaceId, name: "Organization only" });
       await db.update(issues).set({ projectId: organizationId }).where(eq(issues.id, chatId));
       const organized = await resolver.resolveWorkspaceForRun(agent!, { issueId: chatId }, null);
       expect(organized.cwd).toBe(chat.cwd);
       expect(organized.projectId).toBeNull();
       const nativeChatScope = await findNativeChatWorkspaceScope(db, {
-        adapterType: "outpost_runner", environmentDriver: "local", companyId: f.companyId,
+        adapterType: "outpost_runner", environmentDriver: "local", spaceId: f.spaceId,
         agentId: agent!.id, issueId: chatId, instanceRoot: root,
       });
       expect(nativeChatScope?.projectId).toBeNull();
@@ -761,19 +761,19 @@ const support = await getEmbeddedPostgresTestSupport();
       const siblingCwd = path.join(root, "usable-sibling");
       await fs.mkdir(siblingCwd);
       await fs.writeFile(path.join(siblingCwd, "source.txt"), "Other repository");
-      await db.insert(projects).values({ id: projectId, companyId: f.companyId, name: "Multiple sources" });
+      await db.insert(projects).values({ id: projectId, spaceId: f.spaceId, name: "Multiple sources" });
       await db.insert(projectWorkspaces).values([
-        { id: sourceId, companyId: f.companyId, projectId, name: "Selected", isPrimary: true,
+        { id: sourceId, spaceId: f.spaceId, projectId, name: "Selected", isPrimary: true,
           sourceType: failure === "clone_failure" ? "git_repo" : "local_path",
           cwd: failure === "clone_failure" ? null : path.join(root, "missing-source"),
           repoUrl: failure === "clone_failure" ? path.join(root, "missing-remote.git") : null },
-        { id: siblingId, companyId: f.companyId, projectId, name: "Other", sourceType: "local_path", cwd: siblingCwd },
+        { id: siblingId, spaceId: f.spaceId, projectId, name: "Other", sourceType: "local_path", cwd: siblingCwd },
       ]);
       await db.update(issues).set({ projectId, projectWorkspaceId: sourceId,
         workspaceSelection: { version: 1, source: "explicit", selection: { kind: "configured_source", projectWorkspaceId: sourceId, mode: "shared" } },
       }).where(eq(issues.id, f.issueId));
       if (failure === "deleted_source") await db.delete(projectWorkspaces).where(eq(projectWorkspaces.id, sourceId));
-      const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Worker", adapterType: "process",
+      const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Worker", adapterType: "process",
         adapterConfig: { cwd: siblingCwd } }).returning();
       await expect(createHeartbeatWorkspaceResolver(db).resolveWorkspaceForRun(agent!, { issueId: f.issueId }, { cwd: siblingCwd }))
         .rejects.toMatchObject({ code: "workspace_validation_failed", resultJson: { workspaceValidation: {
@@ -793,8 +793,8 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("retains every task privacy source when simultaneous tasks bind the same folder", async () => {
     const f = await fixture(), secondIssueId = randomUUID(), svc = executionWorkspaceService(db);
-    await db.insert(issues).values({ id: secondIssueId, companyId: f.companyId, title: "Second task" });
-    await Promise.all([svc.bindTaskWorkspace(f.companyId, f.issueId, f.workspaceId), svc.bindTaskWorkspace(f.companyId, secondIssueId, f.workspaceId)]);
+    await db.insert(issues).values({ id: secondIssueId, spaceId: f.spaceId, title: "Second task" });
+    await Promise.all([svc.bindTaskWorkspace(f.spaceId, f.issueId, f.workspaceId), svc.bindTaskWorkspace(f.spaceId, secondIssueId, f.workspaceId)]);
     const [workspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspaceId));
     expect(workspace?.metadata).toMatchObject({ _issuePrivacySources: { [f.issueId]: true, [secondIssueId]: true } });
   });
@@ -803,9 +803,9 @@ const support = await getEmbeddedPostgresTestSupport();
     vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     try {
       const f = await fixture(), svc = executionWorkspaceService(db);
-      const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Organization" }).returning();
-      const [reader] = await db.insert(agents).values({ companyId: f.companyId, name: "Unrelated reader", adapterType: "process" }).returning();
-      const writer = await issueService(db).create(f.companyId, {
+      const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Organization" }).returning();
+      const [reader] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Unrelated reader", adapterType: "process" }).returning();
+      const writer = await issueService(db).create(f.spaceId, {
         title: "Private writer", projectId: project.id, visibility: "private", responsibleUserId: "private-owner",
         workspaceSelectionActor: f.actor,
         ...(installation === "creation" ? { workspaceSelection: { kind: "existing" as const, workspaceId: f.workspaceId } } : {}),
@@ -815,7 +815,7 @@ const support = await getEmbeddedPostgresTestSupport();
           expectedBindingRevision: 0, requestKey: "install-existing" });
         await svc.applyPendingTaskWorkspaceSelection({ ...f, issueId: writer.id, runId: randomUUID() });
       }
-      const installed = await svc.inspectTaskWorkspace(f.companyId, writer.id, f.actor);
+      const installed = await svc.inspectTaskWorkspace(f.spaceId, writer.id, f.actor);
       expect(installed.workspace?.id).toBe(f.workspaceId);
       expect(installed.workspace?.metadata?._issuePrivacySources).toMatchObject({ [writer.id]: true });
       await svc.selectTaskWorkspace({ ...f, issueId: writer.id, selection: { kind: "task_directory" },
@@ -823,31 +823,31 @@ const support = await getEmbeddedPostgresTestSupport();
       await svc.applyPendingTaskWorkspaceSelection({ ...f, issueId: writer.id, runId: randomUUID() });
       const [retained] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspaceId));
       expect(retained.metadata?._issuePrivacySources).toMatchObject({ [writer.id]: true });
-      expect(await canActorReadExecutionWorkspace(db, { type: "agent", agentId: reader.id, companyId: f.companyId }, retained.id)).toBe(false);
+      expect(await canActorReadExecutionWorkspace(db, { type: "agent", agentId: reader.id, spaceId: f.spaceId }, retained.id)).toBe(false);
     } finally { vi.unstubAllEnvs(); }
   });
 
-  it("deletes a whole company in source-workspace dependency order", async () => {
+  it("deletes a whole space in source-workspace dependency order", async () => {
     const f = await fixture(), sourceProjectId = randomUUID();
-    await db.insert(projects).values({ id: sourceProjectId, companyId: f.companyId, name: "Source policy" });
+    await db.insert(projects).values({ id: sourceProjectId, spaceId: f.spaceId, name: "Source policy" });
     await db.update(executionWorkspaces).set({ projectId: sourceProjectId }).where(eq(executionWorkspaces.id, f.workspaceId));
-    expect(await deleteCompany(db, f.companyId)).toMatchObject({ id: f.companyId });
+    expect(await deleteSpace(db, f.spaceId)).toMatchObject({ id: f.spaceId });
     expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspaceId))).toEqual([]);
     expect(await db.select().from(projects).where(eq(projects.id, sourceProjectId))).toEqual([]);
   });
 
   it("retains source-project policy until workspaces are explicitly cleaned up", async () => {
     const f = await fixture(), sourceProjectId = randomUUID();
-    await db.insert(projects).values({ id: sourceProjectId, companyId: f.companyId, name: "Source policy" });
+    await db.insert(projects).values({ id: sourceProjectId, spaceId: f.spaceId, name: "Source policy" });
     await db.update(executionWorkspaces).set({ projectId: sourceProjectId }).where(eq(executionWorkspaces.id, f.workspaceId));
     await expect(db.delete(projects).where(eq(projects.id, sourceProjectId))).rejects.toThrow();
     expect((await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspaceId)))[0]?.projectId).toBe(sourceProjectId);
   });
 
-  it("rejects foreign-company selections before changing pending state", async () => {
+  it("rejects foreign-space selections before changing pending state", async () => {
     const f = await fixture(), other = await fixture(), svc = executionWorkspaceService(db);
     await expect(svc.selectTaskWorkspace({ ...f, expectedBindingRevision: 0, requestKey: "foreign",
       selection: { kind: "existing", workspaceId: other.workspaceId } })).rejects.toThrow("unavailable or inaccessible");
-    expect((await svc.inspectTaskWorkspace(f.companyId, f.issueId, f.actor)).pendingSelection).toBeNull();
+    expect((await svc.inspectTaskWorkspace(f.spaceId, f.issueId, f.actor)).pendingSelection).toBeNull();
   });
 });

@@ -36,16 +36,16 @@ it("preserves the effective one-human limit when optional declaration defaults a
   }
 });
 
-it("declares company approval as a static optional extra action without invoking callbacks",async()=>{
- const descriptor=chatCatalogCases.find(row=>row.scenarioId==="secrets.configure-company-secret")!;
- expect(descriptor).toMatchObject({expectedRunCount:3,minimumRunCount:2,expectedHumanMessageCount:2,optionalCompanySecretBindingApproval:true});
- expect(chatCatalogTasks.find(t=>t.id===descriptor.scenarioId)).toMatchObject({expectedRunCount:3,minimumExpectedRunCount:2,expectedHumanMessageCount:2,optionalCompanySecretBindingApproval:true});
- expect(chatCatalogTasks.filter(t=>t.optionalCompanySecretBindingApproval).map(t=>t.id)).toEqual([descriptor.scenarioId]);
+it("declares space approval as a static optional extra action without invoking callbacks",async()=>{
+ const descriptor=chatCatalogCases.find(row=>row.scenarioId==="secrets.configure-space-secret")!;
+ expect(descriptor).toMatchObject({expectedRunCount:3,minimumRunCount:2,expectedHumanMessageCount:2,optionalSpaceSecretBindingApproval:true});
+ expect(chatCatalogTasks.find(t=>t.id===descriptor.scenarioId)).toMatchObject({expectedRunCount:3,minimumExpectedRunCount:2,expectedHumanMessageCount:2,optionalSpaceSecretBindingApproval:true});
+ expect(chatCatalogTasks.filter(t=>t.optionalSpaceSecretBindingApproval).map(t=>t.id)).toEqual([descriptor.scenarioId]);
  const callback=vi.fn(()=>{throw new Error("No fixture or proof callback during declaration validation");});
- const runtime={...descriptor,setup:callback,observe:callback,grade:callback,verifyResult:callback,expectedCompanySecretBindingApproval:callback};
+ const runtime={...descriptor,setup:callback,observe:callback,grade:callback,verifyResult:callback,expectedSpaceSecretBindingApproval:callback};
  const importer=async()=>({[descriptor.exportName]:[runtime]});
  await expect(validateChatCatalogConsistency([descriptor],importer)).resolves.toMatchObject({fixtureCallbacksInvoked:0});
- await expect(validateChatCatalogConsistency([{...descriptor,optionalCompanySecretBindingApproval:undefined}],importer)).rejects.toThrow("Runtime descriptor drift");
+ await expect(validateChatCatalogConsistency([{...descriptor,optionalSpaceSecretBindingApproval:undefined}],importer)).rejects.toThrow("Runtime descriptor drift");
  expect(validChatCatalogHumanCounts({...descriptor,scenarioId:"secrets.personal-secret"})).toBe(false);
  expect(callback).not.toHaveBeenCalled();
 });

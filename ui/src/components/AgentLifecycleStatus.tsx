@@ -32,8 +32,8 @@ export function agentLifecycleRefetchInterval(state?: AgentLifecycleState) {
 /** Poll lifecycle fields without refreshing the record used by editable forms. */
 export function useAgentLifecycleStatus(agent?: Agent) {
   return useQuery({
-    queryKey: [...queryKeys.agents.detail(agent?.id ?? ""), "lifecycle", agent?.companyId],
-    queryFn: () => agentsApi.get(agent!.id, agent!.companyId),
+    queryKey: [...queryKeys.agents.detail(agent?.id ?? ""), "lifecycle", agent?.spaceId],
+    queryFn: () => agentsApi.get(agent!.id, agent!.spaceId),
     enabled: Boolean(agent),
     select: current => ({ status: current.status, pauseReason: current.pauseReason, pausedAt: current.pausedAt, lifecycleState: current.lifecycleState,
       lifecycleVersion: current.lifecycleVersion, lifecycleError: current.lifecycleError }),

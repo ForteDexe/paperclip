@@ -46,18 +46,18 @@ describe("isolated task directories", () => {
   });
 
   async function setup() {
-    root = await mkdtemp(path.join(os.tmpdir(), "paperclip-isolated-task-"));
+    root = await mkdtemp(path.join(os.tmpdir(), "outpost-isolated-task-"));
     vi.stubEnv("OUTPOST_HOME", root);
-    return { companyId: "company-1", issueId: "issue-1" };
+    return { spaceId: "space-1", issueId: "issue-1" };
   }
 
-  it("retains a task's files across turns without sharing them with another task or company", async () => {
+  it("retains a task's files across turns without sharing them with another task or space", async () => {
     const identity = await setup();
     const cwd = await materializeIsolatedTaskDirectory(identity);
     await writeFile(path.join(cwd, "notes.txt"), "private task output");
     expect(await materializeIsolatedTaskDirectory(identity)).toBe(cwd);
     expect(await readFile(path.join(cwd, "notes.txt"), "utf8")).toBe("private task output");
-    for (const other of [{ issueId: "issue-2" }, { companyId: "company-2" }]) {
+    for (const other of [{ issueId: "issue-2" }, { spaceId: "space-2" }]) {
       const otherCwd = await materializeIsolatedTaskDirectory({ ...identity, ...other });
       expect(otherCwd).not.toBe(cwd);
       expect(otherCwd.startsWith(`${cwd}${path.sep}`)).toBe(false);
@@ -83,13 +83,13 @@ describe("isolated task directories", () => {
     }
   });
 
-  it.each(["other-company", "other-issue", "outside", "traversal", "missing", "symlink"])(
+  it.each(["other-space", "other-issue", "outside", "traversal", "missing", "symlink"])(
     "does not admit or recreate a reused task directory with %s binding", async change => {
       const identity = await setup();
       const cwd = await materializeIsolatedTaskDirectory({ ...identity, attemptId: "prior-attempt" });
       await writeFile(path.join(cwd, "saved.txt"), "preserved");
       let reuseCwd = cwd;
-      if (change === "other-company") reuseCwd = cwd.replace(identity.companyId, "other-company");
+      if (change === "other-space") reuseCwd = cwd.replace(identity.spaceId, "other-space");
       if (change === "other-issue") reuseCwd = cwd.replace(identity.issueId, "other-issue");
       if (change === "outside") reuseCwd = path.dirname(path.dirname(cwd));
       if (change === "traversal") reuseCwd = `${cwd}/../prior-attempt`;

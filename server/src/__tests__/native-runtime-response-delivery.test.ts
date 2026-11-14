@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
-import { agents, companies, companyMemberships, instanceUserRoles, issues, heartbeatRuns, heartbeatRunEvents,
+import { agents, spaces, spaceMemberships, instanceUserRoles, issues, heartbeatRuns, heartbeatRunEvents,
   nativeRunFinalizations, createDb } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -17,7 +17,7 @@ vi.mock("../services/native-runtime/native-session-executor.js", () => ({
 }));
 let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
 let a: ReturnType<typeof createDb>, b: ReturnType<typeof createDb>;
-let companyId: string, runId: string, agentId: string, userId: string;
+let spaceId: string, runId: string, agentId: string, userId: string;
 let bridgeA: ReturnType<typeof deploymentNotifications>, bridgeB: ReturnType<typeof deploymentNotifications>;
 let coordinatorA: ReturnType<typeof createDeliveryWorkCoordinator>, coordinatorB: ReturnType<typeof createDeliveryWorkCoordinator>;
 let worker: ReturnType<typeof registerNativeRuntimeResponseDelivery>;
@@ -26,15 +26,15 @@ let seq = 0;
 beforeAll(async () => {
   database = await startEmbeddedPostgresTestDatabase("runtime-response-delivery-");
   a = createDb(database.connectionString); b = createDb(database.connectionString);
-  companyId = randomUUID(); runId = randomUUID(); agentId = randomUUID(); userId = randomUUID();
+  spaceId = randomUUID(); runId = randomUUID(); agentId = randomUUID(); userId = randomUUID();
   const issueId = randomUUID(), identity = await currentNativeControllerIdentity();
-  await a.insert(companies).values({ id: companyId, name: "Response fixture", issuePrefix: "RESP" });
-  await a.insert(agents).values({ id: agentId, companyId, name: "Remote fixture" });
-  await a.insert(issues).values({ id: issueId, companyId, title: "Response fixture", status: "in_progress" });
-  await a.insert(heartbeatRuns).values({ id: runId, companyId, agentId, runtimeMode: "native", status: "running", nativeIssueId: issueId });
-  await a.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "executing", controllerBootId: identity.bootId,
+  await a.insert(spaces).values({ id: spaceId, name: "Response fixture", issuePrefix: "RESP" });
+  await a.insert(agents).values({ id: agentId, spaceId, name: "Remote fixture" });
+  await a.insert(issues).values({ id: issueId, spaceId, title: "Response fixture", status: "in_progress" });
+  await a.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, runtimeMode: "native", status: "running", nativeIssueId: issueId });
+  await a.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "executing", controllerBootId: identity.bootId,
     leaseOwner: "fixture-owner", leaseExpiresAt: new Date(Date.now() + 60_000) });
-  await a.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "operator" });
+  await a.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "operator" });
   await a.insert(instanceUserRoles).values({ userId, role: "instance_admin" });
   coordinatorA = createDeliveryWorkCoordinator({ owner: a, canRun: () => true, onError: error => errors.push(error) });
   coordinatorB = createDeliveryWorkCoordinator({ owner: b, canRun: () => true, onError: error => errors.push(error) });
@@ -55,9 +55,9 @@ afterAll(async () => {
   await Promise.all([a?.$client.end({ timeout: 1 }), b?.$client.end({ timeout: 1 })]); await database?.cleanup();
 });
 async function pending(): Promise<PendingNativeRuntimeRequest> {
-  const request = { companyId, runId, requestId: randomUUID(), requestKind: "command_approval" as const,
+  const request = { spaceId, runId, requestId: randomUUID(), requestKind: "command_approval" as const,
     turnId: "turn-fixture", resolverPolicy: "instance_admin" as const };
-  await a.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: ++seq, eventType: "runtime_request.created",
+  await a.insert(heartbeatRunEvents).values({ spaceId, runId, agentId, seq: ++seq, eventType: "runtime_request.created",
     payload: { orpEvent: { schema: "outpost.orp.event.v1", eventType: "runtime_request.created", sourceKind: "runner", runId,
       payload: { request: { ...request, status: "pending" } } } } });
   return request;
@@ -85,10 +85,10 @@ it("persists B's response before an owner is attached, then dispatches once thro
     localImplicit: false, resolution: { action: "cancel" } })).rejects.toThrow("different response");
   expect(errors).toEqual([]);
 });
-it("rechecks company access even for an administrator before dispatch", async () => {
+it("rechecks space access even for an administrator before dispatch", async () => {
   setNativeExecutionActive(runId, false);
   const request = await pending(); await enqueue(request);
-  await a.update(companyMemberships).set({ status: "inactive" }).where(eq(companyMemberships.principalId, userId));
+  await a.update(spaceMemberships).set({ status: "inactive" }).where(eq(spaceMemberships.principalId, userId));
   setNativeExecutionActive(runId, true);
   await expect.poll(() => state(request.requestId)).toBe("denied");
   expect(provider.accepted).not.toHaveBeenCalled();
@@ -97,7 +97,7 @@ it("rechecks company access even for an administrator before dispatch", async ()
 it("does not dispatch an answer after its request has become terminal", async () => {
   setNativeExecutionActive(runId, false);
   const request = await pending(); await enqueue(request);
-  await a.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: ++seq, eventType: "runtime_request.resolved",
+  await a.insert(heartbeatRunEvents).values({ spaceId, runId, agentId, seq: ++seq, eventType: "runtime_request.resolved",
     payload: { orpEvent: { payload: { requestId: request.requestId } } } });
   setNativeExecutionActive(runId, true);
   await expect.poll(() => state(request.requestId)).toBe("obsolete");
@@ -107,7 +107,7 @@ it("does not dispatch an answer after its request has become terminal", async ()
 
 it("retires a stale provider turn and still delivers the next pending answer", async () => {
   setNativeExecutionActive(runId, false);
-  await a.update(companyMemberships).set({ status: "active" }).where(eq(companyMemberships.principalId, userId));
+  await a.update(spaceMemberships).set({ status: "active" }).where(eq(spaceMemberships.principalId, userId));
   const stale = await pending(), current = await pending();
   await enqueue(stale);
   await enqueue(current);

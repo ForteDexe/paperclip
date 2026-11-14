@@ -26,7 +26,7 @@ export function nativeHarnessBackupManifestSha256(manifestBytes: Buffer | string
 /**
  * A created sandbox normally refuses a per-turn backup that has no recorded
  * reusable lease, because the backup's source sandbox may still hold newer
- * provider state. That ambiguity is absent when Paperclip itself destroyed the
+ * provider state. That ambiguity is absent when Outpost itself destroyed the
  * source sandbox: the provider confirmed the termination, the source lease's
  * stamp names exactly this backup, and no provider work for the session was
  * recorded after the backup completed. This is the same proof a confirmed
@@ -48,7 +48,7 @@ export function nativeHarnessBackupManifestSha256(manifestBytes: Buffer | string
  * older state after the restored lease moves on.
  */
 export async function retiredSourceAuthorizesNativeBackupRestore(db: Db, input: {
-  companyId: string;
+  spaceId: string;
   currentRunId: string;
   normalizedSessionId: string;
   manifest: { sourceProviderLeaseId: string; runnerInstanceId: string; normalizedSessionId: string };
@@ -59,10 +59,10 @@ export async function retiredSourceAuthorizesNativeBackupRestore(db: Db, input: 
   if (!input.manifest.sourceProviderLeaseId || input.manifest.normalizedSessionId !== input.normalizedSessionId
     || input.manifest.sourceProviderLeaseId === input.targetProviderLeaseId) return false;
   const leases = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, input.companyId),
+    eq(environmentLeases.spaceId, input.spaceId),
     eq(environmentLeases.providerLeaseId, input.manifest.sourceProviderLeaseId),
   ));
-  const source = leases.filter(lease => lease.companyId === input.companyId
+  const source = leases.filter(lease => lease.spaceId === input.spaceId
     && lease.providerLeaseId === input.manifest.sourceProviderLeaseId);
   const tips = source.filter(lease => !Object.hasOwn(lease.metadata ?? {}, "reusableLeaseSuccessor"));
   if (tips.length !== 1) return false;
@@ -83,8 +83,8 @@ export async function retiredSourceAuthorizesNativeBackupRestore(db: Db, input: 
   const later = await db.select({ runId: heartbeatRunEvents.runId }).from(heartbeatRunEvents)
     .innerJoin(heartbeatRuns, eq(heartbeatRuns.id, heartbeatRunEvents.runId))
     .where(and(
-      eq(heartbeatRunEvents.companyId, input.companyId),
-      eq(heartbeatRuns.companyId, input.companyId),
+      eq(heartbeatRunEvents.spaceId, input.spaceId),
+      eq(heartbeatRuns.spaceId, input.spaceId),
       eq(heartbeatRuns.nativeSessionId, input.normalizedSessionId),
       ne(heartbeatRuns.id, input.currentRunId),
       inArray(heartbeatRunEvents.eventType, [...NATIVE_PROVIDER_DURABLE_EVENT_TYPES]),
@@ -106,7 +106,7 @@ export const SUPERSEDED_REUSABLE_SANDBOX_KEY = "reusableSandboxLeaseSuperseded";
  * in the meantime wins, and the restore does not happen.
  */
 async function supersedeIdleWarmSource(db: Db, lease: typeof environmentLeases.$inferSelect, input: {
-  companyId: string; currentRunId: string; manifestSha256: string; targetProviderLeaseId?: string | null;
+  spaceId: string; currentRunId: string; manifestSha256: string; targetProviderLeaseId?: string | null;
 }) {
   const { reusableSandboxLease: scope, ...metadata } = lease.metadata ?? {};
   const [claimed] = await db.update(environmentLeases).set({
@@ -117,7 +117,7 @@ async function supersedeIdleWarmSource(db: Db, lease: typeof environmentLeases.$
     } },
     updatedAt: new Date(),
   }).where(and(
-    eq(environmentLeases.companyId, input.companyId), eq(environmentLeases.id, lease.id),
+    eq(environmentLeases.spaceId, input.spaceId), eq(environmentLeases.id, lease.id),
     eq(environmentLeases.status, lease.status), eq(environmentLeases.leasePolicy, "reuse_by_environment"),
     eq(environmentLeases.heartbeatRunId, lease.heartbeatRunId!),
     sql`${environmentLeases.metadata} = ${JSON.stringify(lease.metadata)}::jsonb`,
@@ -141,7 +141,7 @@ async function idleWarmSourceRetiresBackup(db: Db, lease: typeof environmentLeas
     || Object.hasOwn(lease.metadata ?? {}, LEGACY_WORKSPACE_RECOVERY_KEY)
     || (lease.metadata?.legacyShutdownWorkspaceSettlement as { state?: unknown } | undefined)?.state === "pending") return false;
   const [run] = await db.select({ sourceRunStatus: heartbeatRuns.status }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, lease.companyId), eq(heartbeatRuns.id, lease.heartbeatRunId))).limit(1);
+    eq(heartbeatRuns.spaceId, lease.spaceId), eq(heartbeatRuns.id, lease.heartbeatRunId))).limit(1);
   if (!run || !TERMINAL_SOURCE_RUN_STATUSES.has(run.sourceRunStatus)) return false;
   return !await nativeWorkspaceExportPendingForResource(db, lease, currentRunId);
 }

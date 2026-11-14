@@ -13,7 +13,7 @@ const mockProjectService = vi.hoisted(() => ({
 }));
 
 const mockInstanceSettingsService = vi.hoisted(() => ({
-  listCompanyIds: vi.fn(),
+  listSpaceIds: vi.fn(),
   getExperimental: vi.fn(),
 }));
 
@@ -46,7 +46,7 @@ const mockLogActivity = vi.hoisted(() => vi.fn());
 const mockSecretService = vi.hoisted(() => ({
   create: vi.fn(),
   normalizeEnvBindingsForPersistence: vi.fn(),
-  listBindingCompanyIdsForTarget: vi.fn(),
+  listBindingSpaceIdsForTarget: vi.fn(),
   resolveSecretValueForEphemeralAccess: vi.fn(),
   syncEnvBindingsForTarget: vi.fn(),
   syncSecretRefsForTarget: vi.fn(),
@@ -109,7 +109,7 @@ function createEnvironment(overrides: Record<string, unknown> = {}) {
     status: "active" as const,
     config: {},
     envVars: {},
-    metadata: { managedByPaperclip: true },
+    metadata: { managedByOutpost: true },
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -133,19 +133,19 @@ function createApp(actor: Express.Request["actor"]) {
 describe("environment instance routes", () => {
   it.each(["post", "patch"])("rejects client-written sandbox platform evidence on %s", async method => {
     mockEnvironmentService.getById.mockResolvedValue(createEnvironment());
-    const app = createApp({ type: "board", source: "local_implicit", isInstanceAdmin: true });
-    const payload = { ...(method === "post" ? { name: "Fixture", driver: "local", config: {} } : {}), metadata: { paperclipSandboxPlatformProbes: { "company-1": { v: 1 } } } };
-    const res = method === "post" ? await request(app).post("/api/companies/company-1/environments").send(payload)
+    const app = createApp({ type: "operator", source: "local_implicit", isInstanceAdmin: true });
+    const payload = { ...(method === "post" ? { name: "Fixture", driver: "local", config: {} } : {}), metadata: { outpostSandboxPlatformProbes: { "space-1": { v: 1 } } } };
+    const res = method === "post" ? await request(app).post("/api/spaces/space-1/environments").send(payload)
       : await request(app).patch("/api/environments/env-1").send(payload);
     expect(res.status).toBe(422);
     expect(res.body.details?.code ?? res.body.code).toBe("environment_platform_probe_reserved");
     expect(mockEnvironmentService.create).not.toHaveBeenCalled();
   });
   it.each([null, { userNote: "replacement" }])("passes explicit user metadata replacement through without copying an old probe (%j)", async metadata => {
-    const existing = createEnvironment({ metadata: { userNote: "old", paperclipSandboxPlatformProbes: { "company-1": { v: 1, marker: "stale" } } } });
+    const existing = createEnvironment({ metadata: { userNote: "old", outpostSandboxPlatformProbes: { "space-1": { v: 1, marker: "stale" } } } });
     mockEnvironmentService.getById.mockResolvedValue(existing);
     mockEnvironmentService.update.mockResolvedValue({ ...existing, metadata });
-    const app = createApp({ type: "board", source: "local_implicit", isInstanceAdmin: true });
+    const app = createApp({ type: "operator", source: "local_implicit", isInstanceAdmin: true });
     const res = await request(app).patch("/api/environments/env-1").send({ metadata });
     expect(res.status).toBe(200);
     expect(mockEnvironmentService.update).toHaveBeenCalledExactlyOnceWith("env-1", { metadata }, { db: expect.anything() });
@@ -154,7 +154,7 @@ describe("environment instance routes", () => {
   beforeEach(() => {
     mockIssueService.clearExecutionWorkspaceEnvironmentSelection.mockReset();
     mockProjectService.clearExecutionWorkspaceEnvironmentSelection.mockReset();
-    mockInstanceSettingsService.listCompanyIds.mockReset();
+    mockInstanceSettingsService.listSpaceIds.mockReset();
     mockInstanceSettingsService.getExperimental.mockReset();
     mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableManagedSandboxOnly: false });
     mockEnvironmentService.list.mockReset();
@@ -173,32 +173,32 @@ describe("environment instance routes", () => {
     mockLogActivity.mockReset();
     mockSecretService.create.mockReset();
     mockSecretService.normalizeEnvBindingsForPersistence.mockReset();
-    mockSecretService.listBindingCompanyIdsForTarget.mockReset();
+    mockSecretService.listBindingSpaceIdsForTarget.mockReset();
     mockSecretService.resolveSecretValueForEphemeralAccess.mockReset();
     mockSecretService.syncEnvBindingsForTarget.mockReset();
     mockSecretService.syncSecretRefsForTarget.mockReset();
     mockSecretService.replaceSecretRefsForInstanceTarget.mockReset();
     mockSecretService.replaceSecretRefsForInstanceTarget.mockResolvedValue([]);
 
-    mockInstanceSettingsService.listCompanyIds.mockResolvedValue(["company-1", "company-2"]);
+    mockInstanceSettingsService.listSpaceIds.mockResolvedValue(["space-1", "space-2"]);
     mockEnvironmentService.list.mockResolvedValue([]);
     mockEnvironmentService.create.mockResolvedValue(createEnvironment());
-    mockSecretService.normalizeEnvBindingsForPersistence.mockImplementation(async (_companyId, env) => env ?? {});
-    mockSecretService.listBindingCompanyIdsForTarget.mockResolvedValue([]);
+    mockSecretService.normalizeEnvBindingsForPersistence.mockImplementation(async (_spaceId, env) => env ?? {});
+    mockSecretService.listBindingSpaceIdsForTarget.mockResolvedValue([]);
     mockSecretService.syncEnvBindingsForTarget.mockResolvedValue([]);
     mockSecretService.syncSecretRefsForTarget.mockResolvedValue([]);
   });
 
-  it("lists the instance environment catalog for a local board actor", async () => {
+  it("lists the instance environment catalog for a local operator actor", async () => {
     mockEnvironmentService.list.mockResolvedValue([createEnvironment()]);
     const app = createApp({
-      type: "board",
-      userId: "board-1",
+      type: "operator",
+      userId: "operator-1",
       source: "local_implicit",
       isInstanceAdmin: true,
     });
 
-    const res = await request(app).get("/api/companies/company-1/environments?driver=local");
+    const res = await request(app).get("/api/spaces/space-1/environments?driver=local");
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
@@ -208,50 +208,50 @@ describe("environment instance routes", () => {
     });
   });
 
-  it("allows non-admin board members with company access to read the shared environment catalog", async () => {
+  it("allows non-admin operator members with space access to read the shared environment catalog", async () => {
     mockEnvironmentService.list.mockResolvedValue([createEnvironment()]);
     const app = createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
-      companyIds: ["company-1"],
-      memberships: [{ companyId: "company-1", membershipRole: "member", status: "active" }],
+      spaceIds: ["space-1"],
+      memberships: [{ spaceId: "space-1", membershipRole: "member", status: "active" }],
       isInstanceAdmin: false,
     });
 
-    const res = await request(app).get("/api/companies/company-1/environments");
+    const res = await request(app).get("/api/spaces/space-1/environments");
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(mockEnvironmentService.list).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects company agents from enumerating the shared environment catalog", async () => {
+  it("rejects space agents from enumerating the shared environment catalog", async () => {
     const app = createApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
       runId: "run-1",
     });
 
-    const res = await request(app).get("/api/companies/company-1/environments");
+    const res = await request(app).get("/api/spaces/space-1/environments");
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("Board access required");
+    expect(res.body.error).toContain("Operator access required");
   });
 
-  it("rejects non-admin signed-in board members from mutating instance environments", async () => {
+  it("rejects non-admin signed-in operator members from mutating instance environments", async () => {
     const app = createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
       isInstanceAdmin: false,
     });
 
     const res = await request(app)
-      .post("/api/companies/company-1/environments")
+      .post("/api/spaces/space-1/environments")
       .send({
         name: "Shared Local",
         driver: "local",
@@ -263,16 +263,16 @@ describe("environment instance routes", () => {
     expect(mockEnvironmentService.create).not.toHaveBeenCalled();
   });
 
-  it("creates an instance-scoped environment and logs the mutation to every company", async () => {
+  it("creates an instance-scoped environment and logs the mutation to every space", async () => {
     const app = createApp({
-      type: "board",
-      userId: "board-1",
+      type: "operator",
+      userId: "operator-1",
       source: "local_implicit",
       isInstanceAdmin: true,
     });
 
     const res = await request(app)
-      .post("/api/companies/company-1/environments")
+      .post("/api/spaces/space-1/environments")
       .send({
         name: "Shared Local",
         driver: "local",
@@ -295,13 +295,13 @@ describe("environment instance routes", () => {
       { db: expect.anything() },
     );
     expect(mockSecretService.syncEnvBindingsForTarget).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       { targetType: "environment", targetId: "env-1" },
       {},
       { db: expect.anything() },
     );
     expect(mockLogActivity).toHaveBeenCalledTimes(2);
-    expect(mockLogActivity.mock.calls.map((call) => call[1].companyId)).toEqual(["company-1", "company-2"]);
+    expect(mockLogActivity.mock.calls.map((call) => call[1].spaceId)).toEqual(["space-1", "space-2"]);
   });
 
   it("normalizes and syncs environment envVars on create", async () => {
@@ -311,14 +311,14 @@ describe("environment instance routes", () => {
     mockSecretService.normalizeEnvBindingsForPersistence.mockResolvedValue(envVars);
     mockEnvironmentService.create.mockResolvedValue(createEnvironment({ envVars }));
     const app = createApp({
-      type: "board",
-      userId: "board-1",
+      type: "operator",
+      userId: "operator-1",
       source: "local_implicit",
       isInstanceAdmin: true,
     });
 
     const res = await request(app)
-      .post("/api/companies/company-1/environments")
+      .post("/api/spaces/space-1/environments")
       .send({
         name: "Shared Local",
         driver: "local",
@@ -328,7 +328,7 @@ describe("environment instance routes", () => {
 
     expect(res.status).toBe(201);
     expect(mockSecretService.normalizeEnvBindingsForPersistence).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       envVars,
       expect.objectContaining({ fieldPath: "envVars" }),
     );
@@ -338,7 +338,7 @@ describe("environment instance routes", () => {
       { db: expect.anything() },
     );
     expect(mockSecretService.syncEnvBindingsForTarget).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       { targetType: "environment", targetId: "env-1" },
       envVars,
       { db: expect.anything() },
@@ -348,8 +348,8 @@ describe("environment instance routes", () => {
   it("returns full environment details for an instance admin", async () => {
     mockEnvironmentService.getById.mockResolvedValue(createEnvironment({ config: { shell: "zsh" } }));
     const app = createApp({
-      type: "board",
-      userId: "board-1",
+      type: "operator",
+      userId: "operator-1",
       source: "local_implicit",
       isInstanceAdmin: true,
     });

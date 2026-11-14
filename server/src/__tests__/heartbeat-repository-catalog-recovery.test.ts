@@ -10,7 +10,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  agents, authUsers, companies, companyMemberships, connectionGrants, createDb,
+  agents, authUsers, spaces, spaceMemberships, connectionGrants, createDb,
   executionWorkspaceRepositories, executionWorkspaces, heartbeatRuns, issues, toolApplications, toolConnections,
 } from "@outpost/db";
 import { RepositoryCatalogUnavailableError } from "../services/repository-catalog-unavailable-error.js";
@@ -62,11 +62,11 @@ describe.skipIf(!recoveryPostgresSupport.supported)("repository catalog bootstra
   });
 
   async function fixture(status: number, genuineDenial = false) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
     const workspaceId = randomUUID(), repositoryId = randomUUID(), userId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Repository owner", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companies).values({ id: companyId, name: "Repository retry", issuePrefix: `C${companyId.slice(0, 6)}`, defaultResponsibleUserId: userId });
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", membershipRole: "owner", status: "active" });
+    await db.insert(spaces).values({ id: spaceId, name: "Repository retry", issuePrefix: `C${spaceId.slice(0, 6)}`, defaultResponsibleUserId: userId });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", membershipRole: "owner", status: "active" });
     const cwd = path.join(root, workspaceId), repoUrl = "https://github.com/catalog-fixture/repository";
     const relativePath = taskRepositoryRelativePath(repoUrl), checkout = path.join(cwd, relativePath);
     await mkdir(checkout, { recursive: true });
@@ -79,27 +79,27 @@ describe.skipIf(!recoveryPostgresSupport.supported)("repository catalog bootstra
     git("add", "saved.txt");
     git("commit", "-m", "Saved fixture");
     const pinnedCommit = git("rev-parse", "HEAD");
-    await writeFile(path.join(checkout, ".git", "paperclip-workspace-owner.json"), JSON.stringify({ version: 1, repositoryId, pinnedCommit }));
-    await db.insert(agents).values({ id: agentId, companyId, name: "Catalog worker", status: "idle", adapterType: "codex_local",
+    await writeFile(path.join(checkout, ".git", "outpost-workspace-owner.json"), JSON.stringify({ version: 1, repositoryId, pinnedCommit }));
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Catalog worker", status: "idle", adapterType: "codex_local",
       adapterConfig: { cwd }, runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } }, permissions: {} });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Continue retained repository", status: "todo", assigneeAgentId: agentId,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Continue retained repository", status: "todo", assigneeAgentId: agentId,
       executionWorkspacePreference: "reuse_existing", executionWorkspaceSettings: { mode: "shared_workspace" },
       workspaceSelection: { version: 1, source: "explicit", selection: { kind: "existing", workspaceId } } });
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId, name: "Retained task files", cwd,
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issueId, name: "Retained task files", cwd,
       mode: "shared_workspace", strategyType: "task_directory" });
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, issueId));
-    await db.insert(executionWorkspaceRepositories).values({ id: repositoryId, companyId, executionWorkspaceId: workspaceId,
+    await db.insert(executionWorkspaceRepositories).values({ id: repositoryId, spaceId, executionWorkspaceId: workspaceId,
       requestedByIssueId: issueId, repoUrl, repositoryIdentity: repoUrl, catalogRepositoryId: "201", relativePath,
       requestedRef: "HEAD", pinnedCommit, branchName: "main", state: "ready", requestKey: "saved-repository", requestKeys: ["saved-repository"] });
-    const [application] = await db.insert(toolApplications).values({ companyId, name: "Catalog GitHub", type: "mcp_http" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId, applicationId: application.id, name: "Catalog GitHub", uid: randomUUID(),
+    const [application] = await db.insert(toolApplications).values({ spaceId, name: "Catalog GitHub", type: "mcp_http" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId: application.id, name: "Catalog GitHub", uid: randomUUID(),
       enabled: true, status: "active", transport: "mcp_remote", authKind: "api_key", credentialPolicy: "per_user", config: { sourceTemplateKey: "github" } }).returning();
-    const { secret } = await writeConnectionCredential(db, { companyId, connectionName: connection.name, configPath: "credentials.authorization",
+    const { secret } = await writeConnectionCredential(db, { spaceId, connectionName: connection.name, configPath: "credentials.authorization",
       label: "Fixture credential", value: "synthetic-catalog-token", ownerUserId: userId, actor: { userId } });
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId: connection.id, kind: "user", subjectUserId: userId,
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId: connection.id, kind: "user", subjectUserId: userId,
       credentialSecretRefs: [{ configPath: "credentials.authorization", secretId: secret.id, versionSelector: "latest" }] }).returning();
     await syncConnectionCredentialBindings(db, connection);
-    expect(await toolAccessService(db).githubReadHeaders(companyId, connection.id, userId)).toEqual({ Authorization: "Bearer synthetic-catalog-token" });
+    expect(await toolAccessService(db).githubReadHeaders(spaceId, connection.id, userId)).toEqual({ Authorization: "Bearer synthetic-catalog-token" });
     let available = false;
     const retryAt = new Date(Math.ceil((Date.now() + 1000) / 1000) * 1000);
     const provider = vi.spyOn(globalThis, "fetch").mockImplementation(async url => {
@@ -115,7 +115,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("repository catalog bootstra
       await db.update(issues).set({ status: "done" }).where(eq(issues.id, issueId));
       return { exitCode: 0, signal: null, timedOut: false };
     });
-    return { companyId, agentId, issueId, workspaceId, repositoryId, userId, applicationId: application.id, grant, provider, retryAt, recover: () => { available = true; } };
+    return { spaceId, agentId, issueId, workspaceId, repositoryId, userId, applicationId: application.id, grant, provider, retryAt, recover: () => { available = true; } };
   }
 
   it("keeps the direct repository request HTTP contract outside bootstrap recovery", async () => {
@@ -123,8 +123,8 @@ describe.skipIf(!recoveryPostgresSupport.supported)("repository catalog bootstra
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "session", userId: f.userId, companyIds: [f.companyId],
-        memberships: [{ companyId: f.companyId, membershipRole: "owner", status: "active" }], isInstanceAdmin: false };
+      req.actor = { type: "operator", source: "session", userId: f.userId, spaceIds: [f.spaceId],
+        memberships: [{ spaceId: f.spaceId, membershipRole: "owner", status: "active" }], isInstanceAdmin: false };
       next();
     });
     app.use("/api", taskWorkspaceRoutes(db));
@@ -135,18 +135,18 @@ describe.skipIf(!recoveryPostgresSupport.supported)("repository catalog bootstra
     expect(response.body.error).toBe("Repository access is no longer available; refresh the repository catalog");
     expect(f.provider).toHaveBeenCalled();
     expect(execute).not.toHaveBeenCalled();
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(0);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(0);
   });
 
   it.each([true, false])("accepts a partial catalog only when the required repository is present (%s)", async present => {
     const f = await fixture(503);
-    const [connection] = await db.insert(toolConnections).values({ companyId: f.companyId, applicationId: f.applicationId,
+    const [connection] = await db.insert(toolConnections).values({ spaceId: f.spaceId, applicationId: f.applicationId,
       name: "Healthy GitHub", uid: randomUUID(), enabled: true, status: "active", transport: "mcp_remote",
       authKind: "api_key", credentialPolicy: "per_user", config: { sourceTemplateKey: "github" } }).returning();
-    const { secret } = await writeConnectionCredential(db, { companyId: f.companyId, connectionName: connection.name,
+    const { secret } = await writeConnectionCredential(db, { spaceId: f.spaceId, connectionName: connection.name,
       configPath: "credentials.authorization", label: "Healthy fixture", value: "synthetic-healthy-token",
       ownerUserId: f.userId, actor: { userId: f.userId } });
-    await db.insert(connectionGrants).values({ companyId: f.companyId, connectionId: connection.id, kind: "user",
+    await db.insert(connectionGrants).values({ spaceId: f.spaceId, connectionId: connection.id, kind: "user",
       subjectUserId: f.userId, credentialSecretRefs: [{ configPath: "credentials.authorization", secretId: secret.id, versionSelector: "latest" }] });
     await syncConnectionCredentialBindings(db, connection);
     f.provider.mockImplementation(async (url, init) => {
@@ -156,7 +156,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("repository catalog bootstra
       }
       return new Response(null, { status: 503 });
     });
-    const discovered = toolAccessService(db).listProjectRepositories(f.companyId, f.userId, false, { requiredRepositoryIds: ["201"] });
+    const discovered = toolAccessService(db).listProjectRepositories(f.spaceId, f.userId, false, { requiredRepositoryIds: ["201"] });
     if (present) expect(await discovered).toMatchObject({ failedConnectionCount: 1, repositories: [expect.objectContaining({ id: "201" })] });
     else await expect(discovered).rejects.toMatchObject({ code: "repository_catalog_unavailable" });
     expect(f.provider).toHaveBeenCalledTimes(2);
@@ -202,7 +202,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("repository catalog bootstra
       resultJson: { cancelledByActorType: "user", cancelledByUserId: f.grant.subjectUserId } });
     f.recover();
     await heartbeat.promoteDueScheduledRetries(new Date(successor.scheduledRetryAt!.getTime() + 1));
-    await heartbeat.resumeQueuedRunsForAgent(f.companyId, f.agentId);
+    await heartbeat.resumeQueuedRunsForAgent(f.spaceId, f.agentId);
     expect(await heartbeat.getRun(successor.id)).toMatchObject({ status: "cancelled" });
     expect(execute).not.toHaveBeenCalled();
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.retryOfRunId, successor.id))).toHaveLength(0);
@@ -226,7 +226,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("repository catalog bootstra
     const due = new Date(successors[0].scheduledRetryAt!.getTime() + 1);
     await new Promise(resolve => setTimeout(resolve, Math.max(0, due.getTime() - Date.now())));
     await heartbeat.promoteDueScheduledRetries(due);
-    await heartbeat.resumeQueuedRunsForAgent(f.companyId, f.agentId);
+    await heartbeat.resumeQueuedRunsForAgent(f.spaceId, f.agentId);
     await vi.waitFor(async () => { expect(await heartbeat.getRun(successors[0].id)).toMatchObject({ status: "succeeded" }); }, { timeout: 15_000 });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.retryOfRunId, run!.id))).toHaveLength(1);

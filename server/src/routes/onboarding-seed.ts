@@ -3,17 +3,17 @@ import type { Db } from "@outpost/db";
 import { applyOnboardingSeedSchema } from "@outpost/shared";
 import { validate } from "../middleware/index.js";
 import { onboardingSeedService } from "../services/onboarding-seed.js";
-import { assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertSpaceAccess, getActorInfo } from "./authz.js";
 
 /**
- * Receiver for the onboarding seed Paperclip Cloud collects at signup and
+ * Receiver for the onboarding seed Outpost Cloud collects at signup and
  * pushes into the stack at activation.
  *
  * Authentication is the trusted Cloud envelope, resolved exactly as it is for
- * `POST /api/companies/:companyId/logo`: the `x-paperclip-cloud-*` headers
- * produce a company-scoped actor and `assertCompanyAccess` fails closed for
+ * `POST /api/spaces/:spaceId/logo`: the `x-outpost-cloud-*` headers
+ * produce a space-scoped actor and `assertSpaceAccess` fails closed for
  * anyone else. The seed itself is customer free text and rides the JSON body
- * only — it is never read from a header. Every `x-paperclip-cloud-*` value is
+ * only — it is never read from a header. Every `x-outpost-cloud-*` value is
  * derived server-side from the host plus verified domain records, which is
  * what makes that set trustworthy; customer free text must not be mixed into
  * it.
@@ -34,11 +34,11 @@ export function onboardingSeedRoutes(db: Db) {
   const svc = onboardingSeedService(db);
 
   router.post(
-    "/companies/:companyId/onboarding-seed",
+    "/spaces/:spaceId/onboarding-seed",
     validate(applyOnboardingSeedSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      assertSpaceAccess(req, spaceId);
 
       // The audit entry is written inside `apply`'s own transaction, so it
       // commits with the seed or not at all. A logging failure therefore rolls
@@ -47,10 +47,10 @@ export function onboardingSeedRoutes(db: Db) {
       // and re-logs. Handling it here instead, as this route used to, could only
       // pick which half to lose: 500 and the retry reports `changed: false` and
       // never logs; 200 and Cloud stops retrying with the entry still absent.
-      const result = await svc.apply(companyId, req.body, getActorInfo(req));
+      const result = await svc.apply(spaceId, req.body, getActorInfo(req));
 
       res.status(200).json({
-        companyId,
+        spaceId,
         revision: result.revision,
         applied: true,
         changed: result.changed,

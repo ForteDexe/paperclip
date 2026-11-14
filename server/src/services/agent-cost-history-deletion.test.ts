@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { agents, companies, costEvents, createDb, financeEvents, heartbeatRuns } from "@outpost/db";
+import { agents, spaces, costEvents, createDb, financeEvents, heartbeatRuns } from "@outpost/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { createAgentLifecycle } from "./agent-lifecycle.js";
@@ -15,14 +15,14 @@ describe("agent purge with retained cost history", () => {
   afterAll(async () => { await temporary?.cleanup(); });
 
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Cost deletion", issuePrefix: `C${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Billed worker", status: "terminated", lifecycleState: "terminated" });
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "succeeded" }).returning();
-    return { companyId, agentId, run: run! };
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Cost deletion", issuePrefix: `C${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Billed worker", status: "terminated", lifecycleState: "terminated" });
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "succeeded" }).returning();
+    return { spaceId, agentId, run: run! };
   }
-  const cost = (companyId: string, values: Partial<typeof costEvents.$inferInsert>) => db.insert(costEvents).values({
-    companyId, usageKind: "decision", provider: "anthropic", model: "claude", costCents: 1, occurredAt: new Date(), ...values,
+  const cost = (spaceId: string, values: Partial<typeof costEvents.$inferInsert>) => db.insert(costEvents).values({
+    spaceId, usageKind: "decision", provider: "anthropic", model: "claude", costCents: 1, occurredAt: new Date(), ...values,
   }).returning();
 
   async function expectRetained(f: Awaited<ReturnType<typeof fixture>>) {
@@ -34,20 +34,20 @@ describe("agent purge with retained cost history", () => {
 
   it("refuses before cleanup when a cost event references one of the agent's runs", async () => {
     const f = await fixture();
-    const [event] = await cost(f.companyId, { heartbeatRunId: f.run.id });
+    const [event] = await cost(f.spaceId, { heartbeatRunId: f.run.id });
     await expectRetained(f);
     expect(await db.select().from(costEvents).where(eq(costEvents.id, event!.id))).toEqual([event]);
   });
 
   it("refuses when a cost event is attributed to the agent", async () => {
     const f = await fixture();
-    await cost(f.companyId, { usageKind: "agent", agentId: f.agentId });
+    await cost(f.spaceId, { usageKind: "agent", agentId: f.agentId });
     await expectRetained(f);
   });
 
   it("refuses when a finance event references one of the agent's runs", async () => {
     const f = await fixture();
-    const [event] = await db.insert(financeEvents).values({ companyId: f.companyId, heartbeatRunId: f.run.id,
+    const [event] = await db.insert(financeEvents).values({ spaceId: f.spaceId, heartbeatRunId: f.run.id,
       eventKind: "usage", biller: "anthropic", amountCents: 1, occurredAt: new Date() }).returning();
     await expectRetained(f);
     expect(await db.select().from(financeEvents).where(eq(financeEvents.id, event!.id))).toEqual([event]);

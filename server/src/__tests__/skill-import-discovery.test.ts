@@ -4,8 +4,8 @@ import { executeRunnerApi, validateRunnerApiCall } from "../services/native-runt
 import { startOpenCodeMcpBridge } from "../../../packages/outpost-runner/src/drivers/opencode/mcp-bridge.js";
 import { searchApiAction } from "../../../packages/outpost-runner/src/protocol-actions/search-api.js";
 
-const operationId = "POST /api/companies/{companyId}/skills/import";
-const context = { companyId: "company-a", issueId: "issue-a", runId: "run-a", workMode: "standard" };
+const operationId = "POST /api/spaces/{spaceId}/skills/import";
+const context = { spaceId: "space-a", issueId: "issue-a", runId: "run-a", workMode: "standard" };
 
 it("surfaces existing source import on the first discovery page and delivers its contract through MCP", async () => {
   const descriptor = searchApiAction.live.descriptor;
@@ -15,7 +15,7 @@ it("surfaces existing source import on the first discovery page and delivers its
     handler: async call => { calls++; return { type: "inputText", text: JSON.stringify(searchRunnerApi(call.arguments)) }; },
   });
   const body = JSON.stringify({ jsonrpc: "2.0", id: "source-import-discovery", method: "tools/call",
-    params: { name: "paperclip_search_api", arguments: { query: "import skill from source SKILL.md", limit: 10 } } });
+    params: { name: "outpost_search_api", arguments: { query: "import skill from source SKILL.md", limit: 10 } } });
   try {
     const denied = await fetch(bridge.url, { method: "POST", headers: { Authorization: "Bearer wrong-synthetic-bridge-token", "Content-Type": "application/json" }, body });
     expect(denied.status).toBe(401); expect(calls).toBe(0);
@@ -36,7 +36,7 @@ it("surfaces existing source import on the first discovery page and delivers its
     expect(operation!.description).toMatch(/local.*director/i);
     expect(operation!.description).toMatch(/workspace.*managed/i);
     expect(operation!.description).toMatch(/source provenance/i);
-    expect(operation!.authorization.actor).toBe("board_or_agent");
+    expect(operation!.authorization.actor).toBe("operator_or_agent");
     expect(operation!.transport).toBe("rest");
     expect(operation!.requestBody?.content["application/json"].schema).toMatchObject({
       type: "object", required: ["source"], properties: { source: { type: "string", minLength: 1 } },
@@ -46,16 +46,16 @@ it("surfaces existing source import on the first discovery page and delivers its
 });
 
 it("keeps exact non-import discovery and schema lookup intact", () => {
-  const id = "DELETE /api/companies/{companyId}/skills/{skillId}";
+  const id = "DELETE /api/spaces/{spaceId}/skills/{skillId}";
   const result = searchRunnerApi({ query: id, limit: 10 });
   expect(result.results.map(row => row.operationId)).toEqual([id]);
   expect(result.nextCursor).toBeNull();
   expect(result.results[0]!.method).toBe("DELETE");
 });
 
-it("keeps foreign-company and read-only-mode import calls denied before dispatch", () => {
-  const input = { operationId, body: { source: "/owned-company-workspace/example-skill" } };
-  expect(() => validateRunnerApiCall({ ...input, pathParams: { companyId: "company-b" } }, context)).toThrow(/another company/);
+it("keeps foreign-space and read-only-mode import calls denied before dispatch", () => {
+  const input = { operationId, body: { source: "/owned-space-workspace/example-skill" } };
+  expect(() => validateRunnerApiCall({ ...input, pathParams: { spaceId: "space-b" } }, context)).toThrow(/another space/);
   for (const workMode of ["ask", "planning"]) {
     expect(() => validateRunnerApiCall(input, { ...context, workMode })).toThrow(/only reads/);
   }
@@ -63,7 +63,7 @@ it("keeps foreign-company and read-only-mode import calls denied before dispatch
 
 it("preserves the actual agent credential and source-policy denial returned by the route", async () => {
   const request = vi.fn<typeof fetch>(async () => Response.json({ error: "Skill import policy denied" }, { status: 403 }));
-  const result = await executeRunnerApi({ operationId, body: { source: "/owned-company-workspace/example-skill" } }, context,
+  const result = await executeRunnerApi({ operationId, body: { source: "/owned-space-workspace/example-skill" } }, context,
     { apiUrl: "https://outpost.test", token: "synthetic-agent-only", fetch: request,
       readFile: async () => { throw new Error("No file read required"); },
       saveResponse: async () => { throw new Error("No capture required"); } });
@@ -71,5 +71,5 @@ it("preserves the actual agent credential and source-policy denial returned by t
   expect(request).toHaveBeenCalledOnce();
   const headers = new Headers(request.mock.calls[0]![1]?.headers);
   expect(headers.get("Authorization")).toBe("Bearer synthetic-agent-only");
-  expect(headers.get("X-Paperclip-Run-Id")).toBe(context.runId);
+  expect(headers.get("X-Outpost-Run-Id")).toBe(context.runId);
 });

@@ -253,7 +253,7 @@ type Row = Record<string, unknown>;
 const num = (value: unknown) => value === null || value === undefined || value === "" ? null : Number(value);
 
 /** Reads the runs and runner identity events `checkCrossServer` needs from the wave database. */
-export async function readCrossServerEvidence(db: Db, companyId: string): Promise<{ runs: CrossServerRun[]; events: RunIdentityEvent[] }> {
+export async function readCrossServerEvidence(db: Db, spaceId: string): Promise<{ runs: CrossServerRun[]; events: RunIdentityEvent[] }> {
   const client = db.$client;
   const runs = await client.unsafe(
     `select r.id::text as "runId", r.issue_id::text as "issueId", r.status, r.error_code as "errorCode",
@@ -263,14 +263,14 @@ export async function readCrossServerEvidence(db: Db, companyId: string): Promis
        from heartbeat_runs r
        left join native_run_finalizations f on f.run_id = r.id
        left join controller_instances ci on ci.boot_id = coalesce(r.controller_boot_id::text, f.controller_boot_id, f.lease_holder->>'bootId')
-      where r.company_id::text = $1
+      where r.space_id::text = $1
         and (r.status in ('failed', 'timed_out', 'cancelled') or r.error_code in ('process_lost', 'native_execution_ownership_unverified'))`,
-    [companyId]) as Row[];
+    [spaceId]) as Row[];
   const events = await client.unsafe(
     `select e.run_id::text as "runId", e.event_type as "eventType", e.payload->>'processPid' as pid,
             floor(extract(epoch from e.created_at) * 1000) as at
        from heartbeat_run_events e join heartbeat_runs r on r.id = e.run_id
-      where r.company_id::text = $1 and e.event_type in ('native.process_identity_recorded', 'native.local_process_stopped')`, [companyId]) as Row[];
+      where r.space_id::text = $1 and e.event_type in ('native.process_identity_recorded', 'native.local_process_stopped')`, [spaceId]) as Row[];
   return {
     runs: runs.map(row => ({ runId: String(row.runId), issueId: row.issueId === null ? null : String(row.issueId), status: String(row.status),
       errorCode: row.errorCode === null ? null : String(row.errorCode), endedAt: num(row.endedAt),

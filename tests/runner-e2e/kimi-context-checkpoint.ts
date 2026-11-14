@@ -14,7 +14,7 @@ const hash = (x: unknown) => `sha256:${bytes(canonicalJson(x))}`;
 const demand = (x: unknown): void => { if (!x) throw new Error("Kimi context checkpoint: exact bound result delivery unavailable"); };
 export interface KimiContextAuthority {
   schema: "outpost.e2e.kimi-context-authority.v2";
-  companyId: string; issueId: string; agentId: string; environmentId: string; runId: string;
+  spaceId: string; issueId: string; agentId: string; environmentId: string; runId: string;
   sessionId: string; sourceInstanceId: string; turnId: string;
   observerLeaseId: string; executionWorkspaceId: string; controllerTurnId: string; controllerItemId: string; requestId: string; toolCallId: string;
   requestCreatedSourceSeq: number; requestResolvedSourceSeq: number; requestCreatedSha256: string; requestResolvedSha256: string; turnStartSha256: string; resolutionCommandSha256: string;
@@ -70,7 +70,7 @@ export function projectKimiContextCheckpoint(checkpoint: DurablePrpCheckpoint, p
   const request = rec(rec(controllerEvent(created!).payload).request), resolution = rec(controllerEvent(resolved!).payload);
   demand(request.schema === "outpost.runtime_request.v2" && request.requestKind === "permission_approval" && request.type === "permission" && request.status === "pending"
     && request.requestId === p.requestId && request.turnId === identity!.turnId && request.itemId === identity!.itemId
-    && request.prompt === "mcp__paperclip__get_task_context" && hasAcpxNativeOrigin(request.origin, "kimi", "session/request_permission")
+    && request.prompt === "mcp__outpost__get_task_context" && hasAcpxNativeOrigin(request.origin, "kimi", "session/request_permission")
     && request.details?.toolCallId === p.toolCallId && resolution.requestId === p.requestId && resolution.requestKind === "permission_approval"
     && resolution.action === "accept" && resolution.turnId === identity!.turnId && resolution.itemId === identity!.itemId && created!.sourceSeq < resolved!.sourceSeq);
   const resolutionCommand = resolutions[0]!, resolvedDelivery = completed(resolutionCommand, "delivered");
@@ -99,9 +99,9 @@ export function projectKimiContextCheckpoint(checkpoint: DurablePrpCheckpoint, p
   demand(command.status === "completed" && delivered.commandId === command.commandId && delivered.controllerSeq === command.controllerSeq
     && delivered.commandType === command.type && delivered.status === "completed" && delivered.result?.status === "delivered" && delivered.result?.callId === tool.callId);
   const value = rec(body.result);
-  demand(value.company?.id === p.companyId && value.actor?.id === p.agentId && value.activeTask?.id === p.issueId
+  demand(value.space?.id === p.spaceId && value.actor?.id === p.agentId && value.activeTask?.id === p.issueId
     && typeof value.activeTask.description === "string" && `sha256:${bytes(value.activeTask.description)}` === p.actionSha256);
-  return { schema: "outpost.e2e.kimi-context-authority.v2", companyId: p.companyId, issueId: p.issueId, agentId: p.agentId, environmentId: p.environmentId, runId: p.runId,
+  return { schema: "outpost.e2e.kimi-context-authority.v2", spaceId: p.spaceId, issueId: p.issueId, agentId: p.agentId, environmentId: p.environmentId, runId: p.runId,
     sessionId: p.sessionId, sourceInstanceId: p.sourceInstanceId, turnId: p.turnId, observerLeaseId: p.observerLeaseId, executionWorkspaceId, controllerTurnId: identity!.turnId, controllerItemId: identity!.itemId, requestId: p.requestId, toolCallId: p.toolCallId,
     requestCreatedSourceSeq: created!.sourceSeq, requestResolvedSourceSeq: resolved!.sourceSeq, requestCreatedSha256: hash(created), requestResolvedSha256: hash(resolved), turnStartSha256: hash(turnStart), resolutionCommandSha256: hash(resolutionCommand), actionSha256: p.actionSha256, callId: tool.callId,
     inputSourceSeq: event.sourceSeq, inputSourceEventId: event.sourceEventId, inputSha256: hash({}), inputEventSha256: hash(saved), resultSha256: hash(value), correlationSha256: hash(correlation),
@@ -112,36 +112,36 @@ export async function assertKimiContextObserverConfig(env: NodeJS.ProcessEnv) {
   const temporary = env.OUTPOST_RUNNER_E2E_TEMP_ROOT, config = env.OUTPOST_CONFIG, home = env.OUTPOST_HOME, instance = env.OUTPOST_INSTANCE_ID;
   demand(temporary && config && home && instance && path.isAbsolute(temporary) && path.isAbsolute(config) && path.isAbsolute(home) && /^[A-Za-z0-9_-]+$/.test(instance));
   const [root, actualConfig, actualHome] = await Promise.all([realpath(temporary!), realpath(config!), realpath(home!)]);
-  demand(actualHome === path.join(root, "paperclip-home") && actualConfig === path.join(actualHome, "instances", instance!, "config.json"));
+  demand(actualHome === path.join(root, "outpost-home") && actualConfig === path.join(actualHome, "instances", instance!, "config.json"));
   const { assertEmbeddedDatabaseIsolation } = await import("./instance-isolation.js");
   await assertEmbeddedDatabaseIsolation(actualConfig, root);
   return actualConfig;
 }
 export async function createKimiContextCheckpointObserver(p: KimiContextPublication) {
   const configPath = await assertKimiContextObserverConfig(process.env);
-  const [{ createDb }, { paperclipConfigSchema }, { loadNativeRunnerCheckpoint }, { createRequire }] = await Promise.all([
+  const [{ createDb }, { outpostConfigSchema }, { loadNativeRunnerCheckpoint }, { createRequire }] = await Promise.all([
     import("../../packages/db/src/index.js"), import("../../packages/shared/src/config-schema.js"), import("../../server/src/services/native-runtime/native-runner-checkpoint.js"), import("node:module"),
   ]);
   const { sql } = createRequire(new URL("../../packages/db/package.json", import.meta.url))("drizzle-orm");
-  const config = paperclipConfigSchema.parse(JSON.parse(await readFile(configPath, "utf8")));
-  const url = config.database.mode === "postgres" ? config.database.connectionString : `postgres://paperclip:paperclip@127.0.0.1:${config.database.embeddedPostgresPort}/paperclip`;
+  const config = outpostConfigSchema.parse(JSON.parse(await readFile(configPath, "utf8")));
+  const url = config.database.mode === "postgres" ? config.database.connectionString : `postgres://outpost:outpost@127.0.0.1:${config.database.embeddedPostgresPort}/outpost`;
   demand(url); const db = createDb(url!, { maxConnections: 1, connectTimeoutSeconds: 5 }); let closed = false;
   return {
     read: async () => {
       demand(!closed);
       return db.transaction(async tx => {
         await tx.execute(sql`set local statement_timeout = '5000ms'`);
-        const [owned] = await tx.execute(sql`select l.execution_workspace_id as "executionWorkspaceId", r.runner_profile_json as profile from heartbeat_runs r join issues i on i.id = r.native_issue_id and i.company_id = r.company_id
-          join environment_leases l on l.heartbeat_run_id = r.id and l.company_id = r.company_id and l.issue_id = i.id
-          join execution_workspaces w on w.id = l.execution_workspace_id and w.id = i.execution_workspace_id and w.company_id = r.company_id and w.source_issue_id = i.id and w.status = 'active'
-          where l.id = ${p.observerLeaseId} and l.environment_id = ${p.environmentId} and l.status = 'active' and r.id = ${p.runId} and r.company_id = ${p.companyId} and r.agent_id = ${p.agentId} and r.native_issue_id = ${p.issueId}
+        const [owned] = await tx.execute(sql`select l.execution_workspace_id as "executionWorkspaceId", r.runner_profile_json as profile from heartbeat_runs r join issues i on i.id = r.native_issue_id and i.space_id = r.space_id
+          join environment_leases l on l.heartbeat_run_id = r.id and l.space_id = r.space_id and l.issue_id = i.id
+          join execution_workspaces w on w.id = l.execution_workspace_id and w.id = i.execution_workspace_id and w.space_id = r.space_id and w.source_issue_id = i.id and w.status = 'active'
+          where l.id = ${p.observerLeaseId} and l.environment_id = ${p.environmentId} and l.status = 'active' and r.id = ${p.runId} and r.space_id = ${p.spaceId} and r.agent_id = ${p.agentId} and r.native_issue_id = ${p.issueId}
           and r.native_session_id = ${p.sessionId} and r.runner_instance_id = ${p.sourceInstanceId} and r.runtime_mode = 'native' and r.status = 'running'
           and i.execution_run_id = r.id and i.assignee_agent_id = r.agent_id and i.status = 'in_progress'`);
         demand(owned);
         const execution = parseNativeExecutionInput(rec(owned.profile).nativeExecutionInput), binding = execution.binding;
-        demand(binding.companyId === p.companyId && binding.issueId === p.issueId && binding.agentId === p.agentId && binding.runId === p.runId
+        demand(binding.spaceId === p.spaceId && binding.issueId === p.issueId && binding.agentId === p.agentId && binding.runId === p.runId
           && binding.executionWorkspaceId === owned.executionWorkspaceId && execution.session.normalizedSessionId === p.sessionId);
-        const checkpoint = await loadNativeRunnerCheckpoint(tx as any, { companyId: p.companyId, issueId: p.issueId, runId: p.runId });
+        const checkpoint = await loadNativeRunnerCheckpoint(tx as any, { spaceId: p.spaceId, issueId: p.issueId, runId: p.runId });
         return checkpoint ? projectKimiContextCheckpoint(checkpoint, p, owned.executionWorkspaceId as string) : undefined;
       }, { isolationLevel: "repeatable read", accessMode: "read only" });
     },

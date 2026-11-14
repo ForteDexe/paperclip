@@ -36,7 +36,7 @@ vi.mock("../services/quota-credential-recovery.js", () => ({
   },
 }));
 vi.mock("@outpost/adapter-codex-local/server", () => ({
-  decideCodexAuthMerge: vi.fn(), withAccountHomeSecretMutationLock: async (_environment: unknown, _companyId: unknown, work: () => Promise<void>) => work(),
+  decideCodexAuthMerge: vi.fn(), withAccountHomeSecretMutationLock: async (_environment: unknown, _spaceId: unknown, work: () => Promise<void>) => work(),
 }));
 import { prepareManagedAiRuntime, withManagedAiProbe } from "../services/ai-connection-runtime.js";
 import { NativeEnvironmentProbeCleanupError } from "../vendor/outpost-runner/index.js";
@@ -65,7 +65,7 @@ function database(): Db {
 }
 async function prepare() {
   const runtime = await prepareManagedAiRuntime(database(), {
-    companyId: "44444444-4444-4444-8444-444444444444", agentId: "55555555-5555-4555-8555-555555555555", responsibleUserId: "alice",
+    spaceId: "44444444-4444-4444-8444-444444444444", agentId: "55555555-5555-4555-8555-555555555555", responsibleUserId: "alice",
     adapterType: "outpost_runner", binding: { provider: "google", method: "subscription", mode: "responsible_user" },
     config: { provider: "acpx", acpxAgent: "antigravity", model: "caller-model", env: { GEMINI_API_KEY: "ambient", GEMINI_HOME: "/ambient" } },
   });
@@ -95,7 +95,7 @@ describe("managed Antigravity subscription projection and writeback", () => {
     const retired = new Promise<void>(resolve => { confirmRetirement = resolve; });
     let home = "", token = "";
     const result = await withManagedAiProbe(database(), {
-      companyId: "44444444-4444-4444-8444-444444444444", agentId: "55555555-5555-4555-8555-555555555555", responsibleUserId: "alice",
+      spaceId: "44444444-4444-4444-8444-444444444444", agentId: "55555555-5555-4555-8555-555555555555", responsibleUserId: "alice",
       adapterType: "outpost_runner", binding: { provider: "google", method: "subscription", mode: "responsible_user" },
       config: { provider: "acpx", acpxAgent: "antigravity", model: "caller-model" },
     }, async runtime => {

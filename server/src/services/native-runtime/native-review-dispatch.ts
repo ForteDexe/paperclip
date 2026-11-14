@@ -18,30 +18,30 @@ export async function claimQueuedNativeReviewRun(db: Db, input: {
   return db.transaction(async (tx) => {
     // Match the queue editor's lock order: issue, wake, then run.
     const [issue] = await tx.select({ id: issues.id }).from(issues).where(and(
-      eq(issues.id, issueId), eq(issues.companyId, input.run.companyId),
+      eq(issues.id, issueId), eq(issues.spaceId, input.run.spaceId),
     )).for("update");
     if (!issue) return null;
     if (input.run.wakeupRequestId) {
       const [wake] = await tx.select().from(agentWakeupRequests).where(and(
         eq(agentWakeupRequests.id, input.run.wakeupRequestId),
-        eq(agentWakeupRequests.companyId, input.run.companyId),
+        eq(agentWakeupRequests.spaceId, input.run.spaceId),
         eq(agentWakeupRequests.agentId, input.run.agentId),
       )).for("update");
       if (!wake || wake.status !== "queued" || wake.runId !== input.run.id) return null;
     }
     const [run] = await tx.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, input.run.id), eq(heartbeatRuns.companyId, input.run.companyId),
+      eq(heartbeatRuns.id, input.run.id), eq(heartbeatRuns.spaceId, input.run.spaceId),
       eq(heartbeatRuns.agentId, input.run.agentId),
     )).for("update");
     if (!run || run.status !== "queued" || run.wakeupRequestId !== input.run.wakeupRequestId) return null;
     if ((run.contextSnapshot as Record<string, unknown> | null)?.issueId !== issueId) return null;
-    await withExternalAdmissionGuard(tx, run.companyId, run.agentId, () => assertNoExternalOverlap(tx, run.companyId, run.agentId));
+    await withExternalAdmissionGuard(tx, run.spaceId, run.agentId, () => assertNoExternalOverlap(tx, run.spaceId, run.agentId));
     const locked = await claimNativeReviewExecutionLock(tx as unknown as Db, {
-      companyId: run.companyId, issueId, agentId: run.agentId, runId: run.id,
+      spaceId: run.spaceId, issueId, agentId: run.agentId, runId: run.id,
       contextSnapshot: context, agentNameKey: input.agentNameKey, claimedAt: input.claimedAt,
     });
     if (!locked) return null;
-    await notifyChatRunMilestones(tx, { companyId: run.companyId, issueId });
+    await notifyChatRunMilestones(tx, { spaceId: run.spaceId, issueId });
     const [claimed] = await tx.update(heartbeatRuns).set({
       ...input.claimValues, status: "running", startedAt: run.startedAt ?? input.claimedAt,
       updatedAt: input.claimedAt,

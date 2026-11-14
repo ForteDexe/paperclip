@@ -33,7 +33,7 @@ describe("task titles", () => {
     else process.env.OUTPOST_AGENT_JWT_SECRET = originalSecret;
   });
   type Fixture = Awaited<ReturnType<typeof server.fixture>>;
-  const token = (f: Fixture) => createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
+  const token = (f: Fixture) => createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
   const request = (f: Fixture, path: string, method: string, body: unknown) => fetch(`${server.apiUrl}/api${path}`, {
     method, headers: { Authorization: `Bearer ${token(f)}`, "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
@@ -48,11 +48,11 @@ describe("task titles", () => {
   it("creates a provisional title from the prompt through the API and preserves the full description", async () => {
     const f = await server.fixture();
     const description = "  Investigate\n the sign-in redirect. " + "Keep this detail. ".repeat(20);
-    const response = await request(f, `/companies/${f.companyId}/issues`, "POST", { description, status: "backlog" });
+    const response = await request(f, `/spaces/${f.spaceId}/issues`, "POST", { description, status: "backlog" });
     const result = await response.json();
     expect(response.status, JSON.stringify(result)).toBe(201);
     expect(result).toMatchObject({ title: description.trim().replace(/\s+/g, " ").slice(0, 120), description, titleNeedsGeneration: true });
-    expect(await issueService(server.db).create(f.companyId, { title: "Chosen title", description })).toMatchObject({ title: "Chosen title", titleNeedsGeneration: false });
+    expect(await issueService(server.db).create(f.spaceId, { title: "Chosen title", description })).toMatchObject({ title: "Chosen title", titleNeedsGeneration: false });
     expect(createIssueSchema.safeParse({ title: "  ", description: "\n " }).success).toBe(false);
     expect(createIssueSchema.safeParse({ description: "A request" }).success).toBe(true);
     expect(setIssueTitleSchema.safeParse({ title: "  " }).success).toBe(false);
@@ -66,25 +66,25 @@ describe("task titles", () => {
       "# Fix the [sign-in redirect](https://example.com/issues/42)",
       "Keep `returnTo` working with **saved sessions**.",
     ].join("\n\n");
-    const result = await issueService(server.db).create(f.companyId, { description });
+    const result = await issueService(server.db).create(f.spaceId, { description });
     expect(result).toMatchObject({
       title: "Fix the sign-in redirect Keep returnTo working with saved sessions.",
       description,
       titleNeedsGeneration: true,
     });
-    await expect(issueService(server.db).create(f.companyId, {
+    await expect(issueService(server.db).create(f.spaceId, {
       description: "![Error dialog](https://example.com/error.png)",
     })).resolves.toMatchObject({ title: "Error dialog", titleNeedsGeneration: true });
-    await expect(issueService(server.db).create(f.companyId, {
+    await expect(issueService(server.db).create(f.spaceId, {
       description: "![](https://example.com/image.png)",
     })).resolves.toMatchObject({ title: "Image", titleNeedsGeneration: true });
-    await expect(issueService(server.db).create(f.companyId, {
+    await expect(issueService(server.db).create(f.spaceId, {
       description: "![Map](https://example.com/Map_(1).png)",
     })).resolves.toMatchObject({ title: "Map", titleNeedsGeneration: true });
-    await expect(issueService(server.db).create(f.companyId, {
+    await expect(issueService(server.db).create(f.spaceId, {
       description: "Fix `set_task_title`",
     })).resolves.toMatchObject({ title: "Fix set_task_title", titleNeedsGeneration: true });
-    await expect(issueService(server.db).create(f.companyId, {
+    await expect(issueService(server.db).create(f.spaceId, {
       description: "![Screenshot][img]\n\n[img]: https://example.com/image.png\n\nFix login",
     })).resolves.toMatchObject({ title: "Fix login", titleNeedsGeneration: true });
   });
@@ -94,7 +94,7 @@ describe("task titles", () => {
     const description = `  Fix the login flow after a failed parser\n${"long ".repeat(30)}`;
     vi.mocked(chat[parser]).mockImplementationOnce(() => { throw new Error("parser failed"); });
     try {
-      const result = await issueService(server.db).create(f.companyId, { description });
+      const result = await issueService(server.db).create(f.spaceId, { description });
       expect(result).toMatchObject({
         title: description.trim().replace(/\s+/g, " ").slice(0, 120),
         description,
@@ -142,12 +142,12 @@ describe("task titles", () => {
     const f = await server.fixture();
     const prefix = "Please investigate ".repeat(10);
     const svc = issueService(server.db);
-    const first = await svc.create(f.companyId, { description: prefix + "the login flow", allowDuplicate: false, idempotencyKey: "prompt-request" });
-    const second = await svc.create(f.companyId, { description: prefix + "the signup flow", allowDuplicate: false });
+    const first = await svc.create(f.spaceId, { description: prefix + "the login flow", allowDuplicate: false, idempotencyKey: "prompt-request" });
+    const second = await svc.create(f.spaceId, { description: prefix + "the signup flow", allowDuplicate: false });
     expect(first.title).toBe(second.title);
     expect(first.id).not.toBe(second.id);
     await svc.update(first.id, { title: "Fix login" });
-    expect((await svc.create(f.companyId, { description: prefix + "the login flow", idempotencyKey: "prompt-request" })).id).toBe(first.id);
+    expect((await svc.create(f.spaceId, { description: prefix + "the login flow", idempotencyKey: "prompt-request" })).id).toBe(first.id);
   });
 
   it.each(["standard", "ask", "planning"] as const)("names the active task once in %s mode without changing execution", async mode => {
@@ -172,7 +172,7 @@ describe("task titles", () => {
     await provisional(f);
     await issueService(server.db).update(f.issueId, { title: "My chosen title" });
     expect(await rename(f)).toMatchObject({ title: "My chosen title", changed: false });
-    const result = await callProjectTool({ name: "set_task_title", arguments: { title: "Intentional new title", onlyIfProvisional: false, idempotencyKey: "rename" }, apiUrl: server.apiUrl, token: token(f), companyId: f.companyId, issueId: f.issueId, agentId: f.agentId, conversation: false });
+    const result = await callProjectTool({ name: "set_task_title", arguments: { title: "Intentional new title", onlyIfProvisional: false, idempotencyKey: "rename" }, apiUrl: server.apiUrl, token: token(f), spaceId: f.spaceId, issueId: f.issueId, agentId: f.agentId, conversation: false });
     expect(result).toMatchObject({ title: "Intentional new title", changed: true });
     const retry = await request(f, `/issues/${f.issueId}/title`, "PUT", { title: "Intentional new title" });
     expect(await retry.json()).toMatchObject({ changed: false });
@@ -239,9 +239,9 @@ describe("task titles", () => {
   it("rejects unrelated tasks, stale runs, and malformed title mutations", async () => {
     const f = await server.fixture();
     await provisional(f);
-    const other = await issueService(server.db).create(f.companyId, { title: "Unrelated task" });
+    const other = await issueService(server.db).create(f.spaceId, { title: "Unrelated task" });
     expect((await request(f, `/issues/${other.id}/title`, "PUT", { title: "Wrong" })).status).toBe(403);
-    const foreign = await issueService(server.db).create(f.foreignCompanyId, { title: "Foreign task" });
+    const foreign = await issueService(server.db).create(f.foreignSpaceId, { title: "Foreign task" });
     expect([403, 404]).toContain((await request(f, `/issues/${foreign.id}/title`, "PUT", { title: "Wrong" })).status);
     expect((await request(f, `/issues/${f.issueId}/title`, "PUT", { title: "Wrong", status: "done" })).status).toBe(400);
     await expect(rename(f, { title: "  " })).rejects.toThrow();

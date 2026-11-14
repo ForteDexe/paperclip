@@ -1,5 +1,5 @@
 /**
- * @fileoverview Frontend API client for the Paperclip plugin system.
+ * @fileoverview Frontend API client for the Outpost plugin system.
  *
  * All functions in `pluginsApi` map 1:1 to REST endpoints on
  * `server/src/routes/plugins.ts`. Call sites should consume these functions
@@ -179,7 +179,7 @@ export interface PluginLocalFolderStatus {
 
 export interface PluginLocalFoldersResponse {
   pluginId: string;
-  companyId: string;
+  spaceId: string;
   declarations: PluginLocalFolderDeclaration[];
   folders: PluginLocalFolderStatus[];
 }
@@ -236,7 +236,7 @@ export const pluginsApi = {
    * On success, the plugin is registered in the database and transitioned to
    * `ready` state. The response is the newly created `PluginRecord`.
    *
-   * @param params.packageName - npm package name (e.g. `@paperclip/plugin-linear`)
+   * @param params.packageName - npm package name (e.g. `@outpost/plugin-linear`)
    *   or a filesystem path when `isLocalPath` is `true`.
    * @param params.version - Target npm version tag/range (optional; defaults to latest).
    * @param params.isLocalPath - Set to `true` when `packageName` is a local path.
@@ -358,8 +358,8 @@ export const pluginsApi = {
    *
    * @param pluginId - UUID of the plugin.
    */
-  getConfig: (pluginId: string, companyId: string) =>
-    api.get<PluginConfig | null>(`/plugins/${pluginId}/config?companyId=${encodeURIComponent(companyId)}`),
+  getConfig: (pluginId: string, spaceId: string) =>
+    api.get<PluginConfig | null>(`/plugins/${pluginId}/config?spaceId=${encodeURIComponent(spaceId)}`),
 
   /**
    * Save (create or update) the configuration for a plugin.
@@ -370,8 +370,8 @@ export const pluginsApi = {
    * @param pluginId - UUID of the plugin.
    * @param configJson - Configuration values matching the plugin's `instanceConfigSchema`.
    */
-  saveConfig: (pluginId: string, companyId: string, configJson: Record<string, unknown>) =>
-    api.post<PluginConfig>(`/plugins/${pluginId}/config`, { companyId, configJson }),
+  saveConfig: (pluginId: string, spaceId: string, configJson: Record<string, unknown>) =>
+    api.post<PluginConfig>(`/plugins/${pluginId}/config`, { spaceId, configJson }),
 
   /**
    * Call the plugin's `validateConfig` RPC method to test the configuration
@@ -385,21 +385,21 @@ export const pluginsApi = {
    * @param pluginId - UUID of the plugin.
    * @param configJson - Configuration values to validate.
    */
-  testConfig: (pluginId: string, companyId: string, configJson: Record<string, unknown>) =>
-    api.post<{ valid: boolean; message?: string }>(`/plugins/${pluginId}/config/test`, { companyId, configJson }),
+  testConfig: (pluginId: string, spaceId: string, configJson: Record<string, unknown>) =>
+    api.post<{ valid: boolean; message?: string }>(`/plugins/${pluginId}/config/test`, { spaceId, configJson }),
 
   /**
-   * List manifest-declared and stored company-scoped local folders for a plugin.
+   * List manifest-declared and stored space-scoped local folders for a plugin.
    */
-  listLocalFolders: (pluginId: string, companyId: string) =>
-    api.get<PluginLocalFoldersResponse>(`/plugins/${pluginId}/companies/${companyId}/local-folders`),
+  listLocalFolders: (pluginId: string, spaceId: string) =>
+    api.get<PluginLocalFoldersResponse>(`/plugins/${pluginId}/spaces/${spaceId}/local-folders`),
 
   /**
    * Inspect a configured local folder without changing persisted settings.
    */
-  localFolderStatus: (pluginId: string, companyId: string, folderKey: string) =>
+  localFolderStatus: (pluginId: string, spaceId: string, folderKey: string) =>
     api.get<PluginLocalFolderStatus>(
-      `/plugins/${pluginId}/companies/${companyId}/local-folders/${encodeURIComponent(folderKey)}/status`,
+      `/plugins/${pluginId}/spaces/${spaceId}/local-folders/${encodeURIComponent(folderKey)}/status`,
     ),
 
   /**
@@ -407,26 +407,26 @@ export const pluginsApi = {
    */
   validateLocalFolder: (
     pluginId: string,
-    companyId: string,
+    spaceId: string,
     folderKey: string,
     input: PluginLocalFolderSaveInput,
   ) =>
     api.post<PluginLocalFolderStatus>(
-      `/plugins/${pluginId}/companies/${companyId}/local-folders/${encodeURIComponent(folderKey)}/validate`,
+      `/plugins/${pluginId}/spaces/${spaceId}/local-folders/${encodeURIComponent(folderKey)}/validate`,
       input,
     ),
 
   /**
-   * Persist a company-scoped local folder path and return its inspected status.
+   * Persist a space-scoped local folder path and return its inspected status.
    */
   configureLocalFolder: (
     pluginId: string,
-    companyId: string,
+    spaceId: string,
     folderKey: string,
     input: PluginLocalFolderSaveInput,
   ) =>
     api.put<PluginLocalFolderStatus>(
-      `/plugins/${pluginId}/companies/${companyId}/local-folders/${encodeURIComponent(folderKey)}`,
+      `/plugins/${pluginId}/spaces/${spaceId}/local-folders/${encodeURIComponent(folderKey)}`,
       input,
     ),
 
@@ -447,13 +447,13 @@ export const pluginsApi = {
    * @param pluginId - UUID of the plugin whose worker should handle the request
    * @param key - Plugin-defined data key (e.g. `"sync-health"`)
    * @param params - Optional query parameters forwarded to the worker handler
-   * @param companyId - Optional company scope used for board/company access checks.
+   * @param spaceId - Optional space scope used for operator/space access checks.
    * @param renderEnvironment - Optional launcher/page snapshot forwarded for
    *   launcher-backed UI so workers can distinguish modal, drawer, popover, and
    *   page execution.
    *
    * Error responses:
-   * - `401`/`403` when auth or company access checks fail
+   * - `401`/`403` when auth or space access checks fail
    * - `404` when the plugin or handler key does not exist
    * - `409` when the plugin is not in a callable runtime state
    * - `5xx` with a `PluginBridgeError`-shaped body when the worker throws
@@ -465,11 +465,11 @@ export const pluginsApi = {
     pluginId: string,
     key: string,
     params?: Record<string, unknown>,
-    companyId?: string | null,
+    spaceId?: string | null,
     renderEnvironment?: PluginLauncherRenderContextSnapshot | null,
   ) =>
     api.post<{ data: unknown }>(`/plugins/${pluginId}/data/${encodeURIComponent(key)}`, {
-      companyId: companyId ?? undefined,
+      spaceId: spaceId ?? undefined,
       params,
       renderEnvironment: renderEnvironment ?? undefined,
     }),
@@ -487,13 +487,13 @@ export const pluginsApi = {
    * @param pluginId - UUID of the plugin whose worker should handle the request
    * @param key - Plugin-defined action key (e.g. `"resync"`)
    * @param params - Optional parameters forwarded to the worker handler
-   * @param companyId - Optional company scope used for board/company access checks.
+   * @param spaceId - Optional space scope used for operator/space access checks.
    * @param renderEnvironment - Optional launcher/page snapshot forwarded for
    *   launcher-backed UI so workers can distinguish modal, drawer, popover, and
    *   page execution.
    *
    * Error responses:
-   * - `401`/`403` when auth or company access checks fail
+   * - `401`/`403` when auth or space access checks fail
    * - `404` when the plugin or handler key does not exist
    * - `409` when the plugin is not in a callable runtime state
    * - `5xx` with a `PluginBridgeError`-shaped body when the worker throws
@@ -505,11 +505,11 @@ export const pluginsApi = {
     pluginId: string,
     key: string,
     params?: Record<string, unknown>,
-    companyId?: string | null,
+    spaceId?: string | null,
     renderEnvironment?: PluginLauncherRenderContextSnapshot | null,
   ) =>
     api.post<{ data: unknown }>(`/plugins/${pluginId}/actions/${encodeURIComponent(key)}`, {
-      companyId: companyId ?? undefined,
+      spaceId: spaceId ?? undefined,
       params,
       renderEnvironment: renderEnvironment ?? undefined,
     }),

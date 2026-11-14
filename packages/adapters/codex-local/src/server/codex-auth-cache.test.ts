@@ -38,7 +38,7 @@ describe("codex auth cache store", () => {
   });
 
   async function makeInstanceRoot(): Promise<string> {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "paperclip-codex-cache-"));
+    const dir = await mkdtemp(path.join(os.tmpdir(), "outpost-codex-cache-"));
     cleanupDirs.push(dir);
     return dir;
   }
@@ -71,45 +71,45 @@ describe("codex auth cache store", () => {
     it("resolveCodexAuthCacheDir returns a path outside resolveSharedCodexHomeDir", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home, { CODEX_HOME: path.join(home, "shared-codex") });
-      const cacheDir = resolveCodexAuthCacheDir(env, "company-a");
+      const cacheDir = resolveCodexAuthCacheDir(env, "space-a");
       const sharedHome = resolveSharedCodexHomeDir(env);
       expect(cacheDir.startsWith(sharedHome + path.sep)).toBe(false);
       expect(cacheDir).not.toBe(sharedHome);
     });
 
-    it("resolveCodexAuthCacheDir returns a company-scoped path under the instance companies directory when companyId is set", async () => {
+    it("resolveCodexAuthCacheDir returns a space-scoped path under the instance spaces directory when spaceId is set", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      const cacheDir = resolveCodexAuthCacheDir(env, "company-a");
+      const cacheDir = resolveCodexAuthCacheDir(env, "space-a");
       expect(cacheDir).toBe(
-        path.resolve(home, "instances", "default", "companies", "company-a", "codex-auth-cache"),
+        path.resolve(home, "instances", "default", "spaces", "space-a", "codex-auth-cache"),
       );
     });
 
-    it("isCodexAuthCachePath recognizes store entries for any company and rejects everything else", async () => {
+    it("isCodexAuthCachePath recognizes store entries for any space and rejects everything else", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      const cacheDir = resolveCodexAuthCacheDir(env, "company-a");
+      const cacheDir = resolveCodexAuthCacheDir(env, "space-a");
       expect(isCodexAuthCachePath(env, cacheDir)).toBe(true);
       expect(isCodexAuthCachePath(env, path.join(cacheDir, "acct-1"))).toBe(true);
-      expect(isCodexAuthCachePath(env, resolveCodexAuthCacheDir(env, "company-b"))).toBe(true);
-      // The company Codex home and a per-agent home are managed homes, not
+      expect(isCodexAuthCachePath(env, resolveCodexAuthCacheDir(env, "space-b"))).toBe(true);
+      // The space Codex home and a per-agent home are managed homes, not
       // store entries — the seeding pass owns them.
-      expect(isCodexAuthCachePath(env, path.join(home, "instances", "default", "companies", "company-a", "codex-home"))).toBe(false);
+      expect(isCodexAuthCachePath(env, path.join(home, "instances", "default", "spaces", "space-a", "codex-home"))).toBe(false);
       expect(
-        isCodexAuthCachePath(env, path.join(home, "instances", "default", "companies", "company-a", "agents", "agent-1", "codex-home")),
+        isCodexAuthCachePath(env, path.join(home, "instances", "default", "spaces", "space-a", "agents", "agent-1", "codex-home")),
       ).toBe(false);
       // A sibling directory whose name merely STARTS with the store name
       // stays out, as does anything outside the instance tree.
-      expect(isCodexAuthCachePath(env, path.join(home, "instances", "default", "companies", "company-a", "codex-auth-cache-extra"))).toBe(false);
+      expect(isCodexAuthCachePath(env, path.join(home, "instances", "default", "spaces", "space-a", "codex-auth-cache-extra"))).toBe(false);
       expect(isCodexAuthCachePath(env, "/tmp/codex-auth-cache/acct-1")).toBe(false);
     });
 
     it("resolveCodexAuthCacheEntryPath keys the entry by a sanitized account_id and ends with auth.json", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      const entryPath = resolveCodexAuthCacheEntryPath(env, "acct-42", "company-a");
-      const cacheDir = resolveCodexAuthCacheDir(env, "company-a");
+      const entryPath = resolveCodexAuthCacheEntryPath(env, "acct-42", "space-a");
+      const cacheDir = resolveCodexAuthCacheDir(env, "space-a");
       expect(entryPath).toBe(path.join(cacheDir, "acct-42", "auth.json"));
     });
 
@@ -125,11 +125,11 @@ describe("codex auth cache store", () => {
       expect(toCacheKey("acct-42")).toBe("acct-42");
     });
 
-    it("resolveCodexAuthCacheDir rejects a traversal companyId before it builds the path", async () => {
+    it("resolveCodexAuthCacheDir rejects a traversal spaceId before it builds the path", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      // A traversal companyId must never make the cache root escape the
-      // companies/ directory. Sanitization runs before path construction, so a
+      // A traversal spaceId must never make the cache root escape the
+      // spaces/ directory. Sanitization runs before path construction, so a
       // relative segment, a path separator, an absolute path, and a NUL byte all
       // fail loud.
       expect(() => resolveCodexAuthCacheDir(env, "")).toThrow();
@@ -141,12 +141,12 @@ describe("codex auth cache store", () => {
       expect(() => resolveCodexAuthCacheDir(env, "a/b")).toThrow();
       expect(() => resolveCodexAuthCacheDir(env, "a\\b")).toThrow();
       expect(() => resolveCodexAuthCacheDir(env, "a\0b")).toThrow();
-      // The clear path inherits the same guard, so a traversal companyId can
+      // The clear path inherits the same guard, so a traversal spaceId can
       // never reach rm() on an escaped root.
       await expect(clearCodexAuthCache(env, "../../etc")).rejects.toThrow();
-      const safeDir = resolveCodexAuthCacheDir(env, "company-a");
+      const safeDir = resolveCodexAuthCacheDir(env, "space-a");
       expect(safeDir).toBe(
-        path.resolve(home, "instances", "default", "companies", "company-a", "codex-auth-cache"),
+        path.resolve(home, "instances", "default", "spaces", "space-a", "codex-auth-cache"),
       );
     });
 
@@ -156,9 +156,9 @@ describe("codex auth cache store", () => {
       // A space, a plus sign, and a leading hyphen all fail the stricter
       // account-handle allowlist, even though the older denylist alone would
       // accept some of them.
-      expect(() => resolveCodexAuthCacheEntryPath(env, "acct 42", "company-a")).toThrow();
-      expect(() => resolveCodexAuthCacheEntryPath(env, "acct+42", "company-a")).toThrow();
-      expect(() => resolveCodexAuthCacheEntryPath(env, "-rf", "company-a")).toThrow();
+      expect(() => resolveCodexAuthCacheEntryPath(env, "acct 42", "space-a")).toThrow();
+      expect(() => resolveCodexAuthCacheEntryPath(env, "acct+42", "space-a")).toThrow();
+      expect(() => resolveCodexAuthCacheEntryPath(env, "-rf", "space-a")).toThrow();
     });
 
     it("resolveCodexAuthCacheEntryPath verifies the resolved path stays under the cache root", async () => {
@@ -166,9 +166,9 @@ describe("codex auth cache store", () => {
       const env = envFor(home);
       // A traversal account_id is rejected by toCacheKey, so the resolved entry
       // path can never escape the cache root.
-      expect(() => resolveCodexAuthCacheEntryPath(env, "../../etc", "company-a")).toThrow();
-      const entryPath = resolveCodexAuthCacheEntryPath(env, "acct-ok", "company-a");
-      const cacheDir = resolveCodexAuthCacheDir(env, "company-a");
+      expect(() => resolveCodexAuthCacheEntryPath(env, "../../etc", "space-a")).toThrow();
+      const entryPath = resolveCodexAuthCacheEntryPath(env, "acct-ok", "space-a");
+      const cacheDir = resolveCodexAuthCacheDir(env, "space-a");
       expect(entryPath.startsWith(cacheDir + path.sep)).toBe(true);
       expect(entryPath.endsWith(path.join("acct-ok", "auth.json"))).toBe(true);
     });
@@ -176,9 +176,9 @@ describe("codex auth cache store", () => {
     it("ensureCodexAuthCacheEntryDir creates the cache root and the entry directory private (0700)", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      const entryPath = await ensureCodexAuthCacheEntryDir(env, "acct-priv", "company-a");
+      const entryPath = await ensureCodexAuthCacheEntryDir(env, "acct-priv", "space-a");
       const entryDir = path.dirname(entryPath);
-      const cacheDir = resolveCodexAuthCacheDir(env, "company-a");
+      const cacheDir = resolveCodexAuthCacheDir(env, "space-a");
       expect((await lstat(entryDir)).mode & 0o777).toBe(0o700);
       expect((await lstat(cacheDir)).mode & 0o777).toBe(0o700);
     });
@@ -186,24 +186,24 @@ describe("codex auth cache store", () => {
     it("the cache root fails closed (lstat) when it is a symlink or a non-directory", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      const cacheDir = resolveCodexAuthCacheDir(env, "company-a");
+      const cacheDir = resolveCodexAuthCacheDir(env, "space-a");
       // Make the cache root a symlink to another directory. lstat (not stat)
       // must catch it and fail closed.
       await mkdir(path.dirname(cacheDir), { recursive: true });
       const target = path.join(home, "elsewhere");
       await mkdir(target, { recursive: true });
       await symlink(target, cacheDir);
-      await expect(ensureCodexAuthCacheEntryDir(env, "acct-x", "company-a")).rejects.toThrow();
+      await expect(ensureCodexAuthCacheEntryDir(env, "acct-x", "space-a")).rejects.toThrow();
     });
 
     it("the entry directory fails closed (lstat) when it is a symlink or a non-directory", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      const cacheDir = resolveCodexAuthCacheDir(env, "company-a");
+      const cacheDir = resolveCodexAuthCacheDir(env, "space-a");
       await mkdir(cacheDir, { recursive: true, mode: 0o700 });
       // Put a regular file where the entry directory must be.
       await writeFile(path.join(cacheDir, "acct-file"), "not a dir", { mode: 0o600 });
-      await expect(ensureCodexAuthCacheEntryDir(env, "acct-file", "company-a")).rejects.toThrow();
+      await expect(ensureCodexAuthCacheEntryDir(env, "acct-file", "space-a")).rejects.toThrow();
     });
   });
 
@@ -221,7 +221,7 @@ describe("codex auth cache store", () => {
         await writeFile(sharedHomeAuthPath, input.hostAuth, { mode: 0o600 });
       }
       for (const [accountId, auth] of Object.entries(input.cacheAuthByAccount ?? {})) {
-        const entryPath = await ensureCodexAuthCacheEntryDir(env, accountId, "company-a");
+        const entryPath = await ensureCodexAuthCacheEntryDir(env, accountId, "space-a");
         await writeFile(entryPath, auth, { mode: 0o600 });
       }
       return { env, sharedHomeAuthPath };
@@ -229,7 +229,7 @@ describe("codex auth cache store", () => {
 
     const resolveEntry =
       (env: NodeJS.ProcessEnv) => (accountId: string) =>
-        resolveCodexAuthCacheEntryPath(env, accountId, "company-a");
+        resolveCodexAuthCacheEntryPath(env, accountId, "space-a");
 
     it("vend refreshes the host identity when the cached copy is strictly newer for the same identity", async () => {
       const { env, sharedHomeAuthPath } = await stageHostAndCache({
@@ -325,12 +325,12 @@ describe("codex auth cache store", () => {
     it("clearCodexAuthCacheEntry removes one identity slot and leaves other slots intact", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      const keepPath = await ensureCodexAuthCacheEntryDir(env, "acct-keep", "company-a");
-      const dropPath = await ensureCodexAuthCacheEntryDir(env, "acct-drop", "company-a");
+      const keepPath = await ensureCodexAuthCacheEntryDir(env, "acct-keep", "space-a");
+      const dropPath = await ensureCodexAuthCacheEntryDir(env, "acct-drop", "space-a");
       await writeFile(keepPath, subscriptionAuth({ accountId: "acct-keep" }), { mode: 0o600 });
       await writeFile(dropPath, subscriptionAuth({ accountId: "acct-drop" }), { mode: 0o600 });
 
-      await clearCodexAuthCacheEntry(env, "acct-drop", "company-a");
+      await clearCodexAuthCacheEntry(env, "acct-drop", "space-a");
       await expect(lstat(path.dirname(dropPath))).rejects.toThrow();
       expect(await readFile(keepPath, "utf8")).toContain("acct-keep");
     });
@@ -338,24 +338,24 @@ describe("codex auth cache store", () => {
     it("clearCodexAuthCacheEntry rejects an account_id that escapes the cache root", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      await expect(clearCodexAuthCacheEntry(env, "../../etc", "company-a")).rejects.toThrow();
-      await expect(clearCodexAuthCacheEntry(env, "a/b", "company-a")).rejects.toThrow();
+      await expect(clearCodexAuthCacheEntry(env, "../../etc", "space-a")).rejects.toThrow();
+      await expect(clearCodexAuthCacheEntry(env, "a/b", "space-a")).rejects.toThrow();
     });
 
     it("clearCodexAuthCacheEntry is a benign no-op for a missing slot", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      await expect(clearCodexAuthCacheEntry(env, "acct-absent", "company-a")).resolves.toBeUndefined();
+      await expect(clearCodexAuthCacheEntry(env, "acct-absent", "space-a")).resolves.toBeUndefined();
     });
 
     it("clearCodexAuthCache removes every slot", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      await ensureCodexAuthCacheEntryDir(env, "acct-1", "company-a");
-      await ensureCodexAuthCacheEntryDir(env, "acct-2", "company-a");
-      const cacheDir = resolveCodexAuthCacheDir(env, "company-a");
+      await ensureCodexAuthCacheEntryDir(env, "acct-1", "space-a");
+      await ensureCodexAuthCacheEntryDir(env, "acct-2", "space-a");
+      const cacheDir = resolveCodexAuthCacheDir(env, "space-a");
       expect((await readdir(cacheDir)).sort()).toEqual(["acct-1", "acct-2"]);
-      await clearCodexAuthCache(env, "company-a");
+      await clearCodexAuthCache(env, "space-a");
       await expect(lstat(cacheDir)).rejects.toThrow();
     });
 
@@ -370,8 +370,8 @@ describe("codex auth cache store", () => {
     });
   });
 
-  describe("Phase 6: whole-promotion serialization for one company", () => {
-    it("withCodexAccountHomePromotionLock never overlaps two concurrent callers for the same company", async () => {
+  describe("Phase 6: whole-promotion serialization for one space", () => {
+    it("withCodexAccountHomePromotionLock never overlaps two concurrent callers for the same space", async () => {
       // The device-login route holds this lock across its whole promotion
       // sequence: the account-home directory decision, the credential write,
       // and the secret bind or cleanup that follows. Two different logins for
@@ -379,7 +379,7 @@ describe("codex auth cache store", () => {
       // a login can never delete the shared account-home directory while
       // another login's own sequence is still writing its credential or
       // binding its own secret to that same directory. This proves the lock
-      // itself enforces that: two concurrent callers for one company never run
+      // itself enforces that: two concurrent callers for one space never run
       // their callbacks at the same time, whichever caller goes first.
       const home = await makeInstanceRoot();
       const env = envFor(home);
@@ -389,7 +389,7 @@ describe("codex auth cache store", () => {
         releaseFirstCaller = resolve;
       });
 
-      const firstCall = withCodexAccountHomePromotionLock(env, "company-shared", async () => {
+      const firstCall = withCodexAccountHomePromotionLock(env, "space-shared", async () => {
         events.push("first-enter");
         await firstCallerGate;
         events.push("first-exit");
@@ -398,7 +398,7 @@ describe("codex auth cache store", () => {
       // Give the first caller a chance to acquire the lock and enter its
       // callback before the second caller starts racing for the same lock.
       await new Promise((resolve) => setTimeout(resolve, 20));
-      const secondCall = withCodexAccountHomePromotionLock(env, "company-shared", async () => {
+      const secondCall = withCodexAccountHomePromotionLock(env, "space-shared", async () => {
         events.push("second-enter");
         events.push("second-exit");
         return "second";
@@ -416,45 +416,45 @@ describe("codex auth cache store", () => {
       expect(events).toEqual(["first-enter", "first-exit", "second-enter", "second-exit"]);
     });
 
-    it("withCodexAccountHomePromotionLock keeps two different companies independent", async () => {
-      // The lock is per company, so two different companies' device logins
+    it("withCodexAccountHomePromotionLock keeps two different spaces independent", async () => {
+      // The lock is per space, so two different spaces' device logins
       // never wait on each other.
       const home = await makeInstanceRoot();
       const env = envFor(home);
       const events: string[] = [];
-      let releaseCompanyA!: () => void;
-      const companyAGate = new Promise<void>((resolve) => {
-        releaseCompanyA = resolve;
+      let releaseSpaceA!: () => void;
+      const spaceAGate = new Promise<void>((resolve) => {
+        releaseSpaceA = resolve;
       });
 
-      const companyACall = withCodexAccountHomePromotionLock(env, "company-a", async () => {
+      const spaceACall = withCodexAccountHomePromotionLock(env, "space-a", async () => {
         events.push("a-enter");
-        await companyAGate;
+        await spaceAGate;
         events.push("a-exit");
       });
       await new Promise((resolve) => setTimeout(resolve, 20));
-      const companyBCall = withCodexAccountHomePromotionLock(env, "company-b", async () => {
+      const spaceBCall = withCodexAccountHomePromotionLock(env, "space-b", async () => {
         events.push("b-enter");
         events.push("b-exit");
       });
-      await companyBCall;
-      // Company B's callback ran and finished while company A's callback was
+      await spaceBCall;
+      // Space B's callback ran and finished while space A's callback was
       // still waiting on its own gate, so the two locks never contended.
       expect(events).toEqual(["a-enter", "b-enter", "b-exit"]);
 
-      releaseCompanyA();
-      await companyACall;
+      releaseSpaceA();
+      await spaceACall;
       expect(events).toEqual(["a-enter", "b-enter", "b-exit", "a-exit"]);
     });
   });
 
-  describe("Phase 7: account-home secret-mutation serialization for one company", () => {
-    it("withAccountHomeSecretMutationLock never overlaps two concurrent callers for the same company", async () => {
+  describe("Phase 7: account-home secret-mutation serialization for one space", () => {
+    it("withAccountHomeSecretMutationLock never overlaps two concurrent callers for the same space", async () => {
       // The secrets service holds this lock for the whole of a `local_encrypted`
       // secret's create or rotate call, and an account-home cleanup's claimant
       // scan holds it for the whole of its final check-and-delete step. This
       // proves the lock itself enforces mutual exclusion between any two
-      // holders for one company, whichever caller goes first.
+      // holders for one space, whichever caller goes first.
       const home = await makeInstanceRoot();
       const env = envFor(home);
       const events: string[] = [];
@@ -464,7 +464,7 @@ describe("codex auth cache store", () => {
       });
 
       const entered = deferredSignal();
-      const firstCall = withAccountHomeSecretMutationLock(env, "company-shared", async () => {
+      const firstCall = withAccountHomeSecretMutationLock(env, "space-shared", async () => {
         events.push("first-enter");
         entered.resolve();
         await firstCallerGate;
@@ -472,7 +472,7 @@ describe("codex auth cache store", () => {
         return "first";
       });
       await entered.promise;
-      const secondCall = withAccountHomeSecretMutationLock(env, "company-shared", async () => {
+      const secondCall = withAccountHomeSecretMutationLock(env, "space-shared", async () => {
         events.push("second-enter");
         events.push("second-exit");
         return "second";
@@ -490,36 +490,36 @@ describe("codex auth cache store", () => {
       expect(events).toEqual(["first-enter", "first-exit", "second-enter", "second-exit"]);
     });
 
-    it("withAccountHomeSecretMutationLock keeps two different companies independent", async () => {
+    it("withAccountHomeSecretMutationLock keeps two different spaces independent", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
       const events: string[] = [];
-      let releaseCompanyA!: () => void;
-      const companyAGate = new Promise<void>((resolve) => {
-        releaseCompanyA = resolve;
+      let releaseSpaceA!: () => void;
+      const spaceAGate = new Promise<void>((resolve) => {
+        releaseSpaceA = resolve;
       });
 
       const entered = deferredSignal();
-      const companyACall = withAccountHomeSecretMutationLock(env, "company-a", async () => {
+      const spaceACall = withAccountHomeSecretMutationLock(env, "space-a", async () => {
         events.push("a-enter");
         entered.resolve();
-        await companyAGate;
+        await spaceAGate;
         events.push("a-exit");
       });
       await entered.promise;
-      const companyBCall = withAccountHomeSecretMutationLock(env, "company-b", async () => {
+      const spaceBCall = withAccountHomeSecretMutationLock(env, "space-b", async () => {
         events.push("b-enter");
         events.push("b-exit");
       });
-      await companyBCall;
+      await spaceBCall;
       expect(events).toEqual(["a-enter", "b-enter", "b-exit"]);
 
-      releaseCompanyA();
-      await companyACall;
+      releaseSpaceA();
+      await spaceACall;
       expect(events).toEqual(["a-enter", "b-enter", "b-exit", "a-exit"]);
     });
 
-    it("withAccountHomeSecretMutationLock does not contend with withCodexAccountHomePromotionLock for the same company", async () => {
+    it("withAccountHomeSecretMutationLock does not contend with withCodexAccountHomePromotionLock for the same space", async () => {
       // The two locks use separate lock directories (Security condition: no
       // shared lock key), so a device-login promotion that holds
       // `withCodexAccountHomePromotionLock` for its whole sequence can still
@@ -529,9 +529,9 @@ describe("codex auth cache store", () => {
       const env = envFor(home);
       const events: string[] = [];
 
-      await withCodexAccountHomePromotionLock(env, "company-shared", async () => {
+      await withCodexAccountHomePromotionLock(env, "space-shared", async () => {
         events.push("promotion-enter");
-        await withAccountHomeSecretMutationLock(env, "company-shared", async () => {
+        await withAccountHomeSecretMutationLock(env, "space-shared", async () => {
           events.push("mutation-enter");
           events.push("mutation-exit");
         });
@@ -568,12 +568,12 @@ describe("codex auth cache store", () => {
     it("resolves for a value naming a directory that still exists under the cache root", async () => {
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      const companyId = "company-still-exists";
-      const entryPath = await ensureCodexAuthCacheEntryDir(env, "acct-still-exists", companyId);
+      const spaceId = "space-still-exists";
+      const entryPath = await ensureCodexAuthCacheEntryDir(env, "acct-still-exists", spaceId);
       const accountHomeDir = path.dirname(entryPath);
 
       await expect(
-        assertAccountHomeCacheDirStillValid(env, companyId, accountHomeDir),
+        assertAccountHomeCacheDirStillValid(env, spaceId, accountHomeDir),
       ).resolves.toBeUndefined();
     });
 
@@ -584,17 +584,17 @@ describe("codex auth cache store", () => {
       // secret that points at nothing.
       const home = await makeInstanceRoot();
       const env = envFor(home);
-      const companyId = "company-removed";
-      const entryPath = await ensureCodexAuthCacheEntryDir(env, "acct-removed", companyId);
+      const spaceId = "space-removed";
+      const entryPath = await ensureCodexAuthCacheEntryDir(env, "acct-removed", spaceId);
       const accountHomeDir = path.dirname(entryPath);
       await rm(accountHomeDir, { recursive: true, force: true });
 
-      await expect(assertAccountHomeCacheDirStillValid(env, companyId, accountHomeDir)).rejects.toThrow(
+      await expect(assertAccountHomeCacheDirStillValid(env, spaceId, accountHomeDir)).rejects.toThrow(
         /no longer exists/,
       );
     });
 
-    it("leaves a value alone when it does not sit under this company's cache root", async () => {
+    it("leaves a value alone when it does not sit under this space's cache root", async () => {
       // Most `local_encrypted` secret values (an API key, a token, a
       // hand-typed string) never sit under the cache root, so this check must
       // never reject a write that only happens to name a missing path.
@@ -602,7 +602,7 @@ describe("codex auth cache store", () => {
       const env = envFor(home);
 
       await expect(
-        assertAccountHomeCacheDirStillValid(env, "company-unrelated", "/some/unrelated/missing/path"),
+        assertAccountHomeCacheDirStillValid(env, "space-unrelated", "/some/unrelated/missing/path"),
       ).resolves.toBeUndefined();
     });
   });

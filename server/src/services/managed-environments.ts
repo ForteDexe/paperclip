@@ -4,7 +4,7 @@
  * Managed-cloud instances may declare sandbox environments in the
  * `environments` section of `OUTPOST_MANAGED_CONFIG` (parsed fail-closed in
  * `managed-config.ts`). On boot, each declared environment is idempotently
- * ensured as the instance-level Paperclip-managed sandbox row via the
+ * ensured as the instance-level Outpost-managed sandbox row via the
  * provider-agnostic `ensureManagedSandboxEnvironment` — the control plane
  * provisions, tenants use, for any bundled sandbox provider plugin.
  *
@@ -261,7 +261,7 @@ export async function applyManagedEnvironments(
   if (managedConfig.environments.length === 0 && pluginSpecs.length === 0) return null;
 
   // The forced-execution-mode bootstrap (`OUTPOST_EXECUTION_MODE=kubernetes`)
-  // and this one both own the single Paperclip-managed sandbox row
+  // and this one both own the single Outpost-managed sandbox row
   // (`environments_managed_sandbox_idx`). Configuring both is contradictory;
   // refuse startup rather than let bootstrap ordering pick a winner. Plugin
   // entries do not touch that slot.

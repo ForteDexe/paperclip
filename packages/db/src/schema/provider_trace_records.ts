@@ -8,7 +8,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 
 /** Metadata only. Exact provider bytes live in the restricted sidecar store. */
@@ -16,9 +16,9 @@ export const providerTraceRecords = pgTable(
   "provider_trace_records",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id),
+      .references(() => spaces.id),
     runId: uuid("run_id")
       .notNull()
       .references(() => heartbeatRuns.id, { onDelete: "cascade" }),
@@ -45,8 +45,8 @@ export const providerTraceRecords = pgTable(
       table.status,
       table.expiresAt,
     ),
-    companyCreatedIdx: index("provider_trace_records_company_created_idx").on(
-      table.companyId,
+    spaceCreatedIdx: index("provider_trace_records_space_created_idx").on(
+      table.spaceId,
       table.createdAt,
     ),
   }),

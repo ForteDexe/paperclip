@@ -6,7 +6,7 @@ import { chatEndpoints, chatGitHubConfigurations } from "@outpost/db";
 export function allowsAutomaticRunPublication() {
   return or(ne(chatEndpoints.provider, "github"), notExists(
     sql`(select 1 from ${chatGitHubConfigurations}
-      where ${chatGitHubConfigurations.companyId} = ${chatEndpoints.companyId}
+      where ${chatGitHubConfigurations.spaceId} = ${chatEndpoints.spaceId}
         and ${chatGitHubConfigurations.endpointId} = ${chatEndpoints.id})`,
   ));
 }
@@ -18,4 +18,4 @@ export function chatRunProjectionWindow(input: { since?: Date; limit?: number })
   };
 }
 
-export type ChatRunProjectionScope = { companyId: string; issueId?: string };
+export type ChatRunProjectionScope = { spaceId: string; issueId?: string };

@@ -8,9 +8,9 @@ const expanded: ReadonlySet<string> = new Set();
 
 /** Shared collection behavior for the proposed task UI. Supply accessible data;
  * this hook scopes presentation, and does not replace server authorization. */
-export function useTaskListCollection({ items, companyId, userId, viewStorageKey, initialQuery = "", query: controlledQuery, onQueryChange, view: controlledView, layout: controlledLayout, onLayoutChange, initialFilters, searchMode = "local", liveIssueIds }: {
+export function useTaskListCollection({ items, spaceId, userId, viewStorageKey, initialQuery = "", query: controlledQuery, onQueryChange, view: controlledView, layout: controlledLayout, onLayoutChange, initialFilters, searchMode = "local", liveIssueIds }: {
   items: readonly TaskListItem[];
-  companyId: string | null;
+  spaceId: string | null;
   userId: string | null;
   viewStorageKey: string;
   initialQuery?: string;
@@ -31,14 +31,14 @@ export function useTaskListCollection({ items, companyId, userId, viewStorageKey
   const [layoutState, setLayoutState] = useState<"list" | "board">("list");
   const layout = controlledLayout ?? layoutState;
   const [filters, setFilters] = useState<IssueFilterState>(() => ({ ...defaultIssueFilterState, ...initialFilters }));
-  const [collapse, setCollapse] = useState({ companyId, ids: expanded });
-  const collapsedIds = collapse.companyId === companyId ? collapse.ids : expanded;
-  const setCollapsedIds = (ids: ReadonlySet<string>) => setCollapse({ companyId, ids });
+  const [collapse, setCollapse] = useState({ spaceId, ids: expanded });
+  const collapsedIds = collapse.spaceId === spaceId ? collapse.ids : expanded;
+  const setCollapsedIds = (ids: ReadonlySet<string>) => setCollapse({ spaceId, ids });
   const resetExpansion = () => setCollapsedIds(expanded);
 
-  const companyItems = items.filter(item => item.issue.companyId === companyId);
+  const spaceItems = items.filter(item => item.issue.spaceId === spaceId);
   const creatorsById = new Map<string, CreatorOption>();
-  for (const item of companyItems) {
+  for (const item of spaceItems) {
     const { createdByAgentId, createdByUserId } = item.issue;
     const rawId = createdByAgentId ?? createdByUserId;
     if (!rawId) continue;
@@ -46,14 +46,14 @@ export function useTaskListCollection({ items, companyId, userId, viewStorageKey
     const id = `${kind}:${rawId}`;
     creatorsById.set(id, { id, kind, label: item.createdBy || rawId });
   }
-  const filteredIds = new Set(applyIssueFilters(companyItems.map(item => item.issue), filters, userId, false, liveIssueIds).map(issue => issue.id));
+  const filteredIds = new Set(applyIssueFilters(spaceItems.map(item => item.issue), filters, userId, false, liveIssueIds).map(issue => issue.id));
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const matchingItems = companyItems.filter(item => filteredIds.has(item.issue.id)
+  const matchingItems = spaceItems.filter(item => filteredIds.has(item.issue.id)
     && matchesTaskListView(view, item.issue, Boolean(item.unread), userId)
     && (searchMode === "server" || [item.issue.title, item.issue.identifier, item.issue.description, item.createdBy, item.assignee, item.issue.project?.name,
       ...(item.issue.labels ?? []).map(label => label.name)].some(value => value?.toLocaleLowerCase().includes(normalizedQuery))));
-  const visibleItems = includeTaskListAncestors(companyItems, matchingItems);
-  const parentIds = new Set(companyItems.flatMap(item => item.issue.parentId ? [item.issue.parentId] : []));
+  const visibleItems = includeTaskListAncestors(spaceItems, matchingItems);
+  const parentIds = new Set(spaceItems.flatMap(item => item.issue.parentId ? [item.issue.parentId] : []));
   const allExpanded = ![...parentIds].some(id => collapsedIds.has(id));
   const activeFilterCount = countActiveIssueFilters(filters);
 
@@ -71,7 +71,7 @@ export function useTaskListCollection({ items, companyId, userId, viewStorageKey
 
   return {
     query, setQuery, view, setView, layout, setLayout: onLayoutChange ?? setLayoutState, filters, updateFilters, clear,
-    companyItems, matchingItems, visibleItems, creators: [...creatorsById.values()],
+    spaceItems, matchingItems, visibleItems, creators: [...creatorsById.values()],
     collapsedIds, setCollapsedIds, allExpanded,
     toggleExpanded: () => setCollapsedIds(allExpanded ? parentIds : expanded),
     activeFilterCount, narrowed: Boolean(normalizedQuery || activeFilterCount || view !== "all"),

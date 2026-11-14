@@ -44,11 +44,11 @@ import {
   chatDeliveries,
   chatEndpoints,
   chatMessageLinks,
-  companyMemberships,
-  companySkillTestRuns,
-  companySkillVersions,
-  companySkills as companySkillsTable,
-  companies,
+  spaceMemberships,
+  spaceSkillTestRuns,
+  spaceSkillVersions,
+  spaceSkills as spaceSkillsTable,
+  spaces,
   documentAnnotationComments,
   documentAnnotationThreads,
   heartbeatRuns,
@@ -114,8 +114,8 @@ import {
 import { redactSensitiveText } from "../../redaction.js";
 import { createRunSecretRedactionRegistry } from "../run-secret-redaction.js";
 import {
-  readPaperclipSkillSyncPreference,
-  writePaperclipSkillSyncPreference,
+  readOutpostSkillSyncPreference,
+  writeOutpostSkillSyncPreference,
 } from "@outpost/adapter-utils/server-utils";
 import {
   extractSkillMentionIds,
@@ -126,14 +126,14 @@ import type { TrustPresetResolution } from "../trust-preset-resolver.js";
 
 const EXTERNAL_ATTACHMENT_OMISSIONS_KEY = "externalAttachmentOmissions";
 
-export const OUTPOST_WAKE_PAYLOAD_KEY = "paperclipWake";
+export const OUTPOST_WAKE_PAYLOAD_KEY = "outpostWake";
 
-const OUTPOST_AGENT_MESSAGE_KEY = "paperclipAgentMessage";
+const OUTPOST_AGENT_MESSAGE_KEY = "outpostAgentMessage";
 
-export const OUTPOST_HARNESS_CHECKOUT_KEY = "paperclipHarnessCheckedOut";
+export const OUTPOST_HARNESS_CHECKOUT_KEY = "outpostHarnessCheckedOut";
 
 export const OUTPOST_EXTERNAL_CHAT_EXECUTION_BOUND_KEY =
-  "paperclipExternalChatExecutionBound";
+  "outpostExternalChatExecutionBound";
 
 const MAX_INLINE_WAKE_COMMENTS = 8;
 
@@ -313,7 +313,7 @@ function assertLowTrustEnvConfigAllowed(envValue: unknown, source: string) {
 
 export async function resolveExecutionRunAdapterConfig(input: {
   managedAiCredentials?: boolean;
-  companyId: string;
+  spaceId: string;
   agentId?: string | null;
   adapterType?: string | null;
   issueId?: string | null;
@@ -388,7 +388,7 @@ export async function resolveExecutionRunAdapterConfig(input: {
       {
         configurationIncomplete: {
           reason: requiredScopedEnvBinding.reason,
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           agentId: input.agentId ?? null,
           issueId: input.issueId ?? null,
           projectId: input.projectId ?? null,
@@ -408,7 +408,7 @@ export async function resolveExecutionRunAdapterConfig(input: {
   if (typeof collectMissing === "function") {
     const checks: Array<() => Promise<MissingRuntimeBinding[]>> = [];
     const checkEnv = (env: unknown, consumerType: "environment" | "agent" | "project" | "routine", consumerId: string) => {
-      checks.push(() => collectMissing(input.companyId, env, {
+      checks.push(() => collectMissing(input.spaceId, env, {
         consumerType, consumerId, responsibleUserId: input.responsibleUserId ?? null,
       }));
     };
@@ -417,7 +417,7 @@ export async function resolveExecutionRunAdapterConfig(input: {
       checkEnv(parseObject(executionRunConfig.env), "agent", input.agentId);
       const collectAdapterMissing = input.secretsSvc.collectMissingAdapterConfigRuntimeBindings;
       if (typeof collectAdapterMissing === "function") {
-        checks.push(() => collectAdapterMissing(input.companyId, executionRunConfig, input.adapterType ?? null, {
+        checks.push(() => collectAdapterMissing(input.spaceId, executionRunConfig, input.adapterType ?? null, {
           consumerType: "agent", consumerId: input.agentId!, responsibleUserId: input.responsibleUserId ?? null,
         }));
       }
@@ -447,7 +447,7 @@ export async function resolveExecutionRunAdapterConfig(input: {
           {
             configurationIncomplete: {
               reason: requiredScopedEnvBinding.reason,
-              companyId: input.companyId,
+              spaceId: input.spaceId,
               agentId: input.agentId ?? null,
               issueId: input.issueId ?? null,
               projectId: input.projectId ?? null,
@@ -469,7 +469,7 @@ export async function resolveExecutionRunAdapterConfig(input: {
         {
           configurationIncomplete: {
             reason: "secret_binding_missing",
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             agentId: input.agentId ?? null,
             issueId: input.issueId ?? null,
             projectId: input.projectId ?? null,
@@ -482,7 +482,7 @@ export async function resolveExecutionRunAdapterConfig(input: {
   }
   const environmentEnvResolution = environmentEnv
     ? await input.secretsSvc.resolveEnvBindings(
-        input.companyId,
+        input.spaceId,
         environmentEnv,
         input.environmentId
           ? {
@@ -505,7 +505,7 @@ export async function resolveExecutionRunAdapterConfig(input: {
     secretKeys,
     manifest,
   } = await input.secretsSvc.resolveAdapterConfigForRuntime(
-    input.companyId,
+    input.spaceId,
     executionRunConfig,
     input.agentId
       ? {
@@ -534,7 +534,7 @@ export async function resolveExecutionRunAdapterConfig(input: {
   }
   const projectEnvResolution = projectEnv
     ? await input.secretsSvc.resolveEnvBindings(
-        input.companyId,
+        input.spaceId,
         projectEnv,
         input.projectId
           ? {
@@ -563,7 +563,7 @@ export async function resolveExecutionRunAdapterConfig(input: {
   }
   const routineEnvResolution = routineEnv
     ? await input.secretsSvc.resolveEnvBindings(
-        input.companyId,
+        input.spaceId,
         routineEnv,
         input.routineId
           ? {
@@ -623,7 +623,7 @@ export async function resolveExecutionRunAdapterConfig(input: {
     const resolvedEnv = parseObject(resolvedConfig.env);
     const readiness = await evaluateCodexCredentialReadiness({
       env: process.env,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       configuredCodexHome: readNonEmptyString(resolvedEnv.CODEX_HOME),
       configuredApiKey: readNonEmptyString(resolvedEnv.OPENAI_API_KEY),
     });
@@ -634,7 +634,7 @@ export async function resolveExecutionRunAdapterConfig(input: {
         {
           configurationIncomplete: {
             reason: "codex_credentials_missing",
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             agentId: input.agentId ?? null,
             issueId: input.issueId ?? null,
             projectId: input.projectId ?? null,
@@ -689,8 +689,8 @@ export function applyRunScopedMentionedSkillKeys(
   );
   if (normalizedSkillKeys.length === 0) return config;
 
-  const existingPreference = readPaperclipSkillSyncPreference(config);
-  return writePaperclipSkillSyncPreference(config, [
+  const existingPreference = readOutpostSkillSyncPreference(config);
+  return writeOutpostSkillSyncPreference(config, [
     ...existingPreference.desiredSkillEntries,
     ...normalizedSkillKeys,
   ]);
@@ -698,7 +698,7 @@ export function applyRunScopedMentionedSkillKeys(
 
 export async function resolveRunScopedMentionedSkillKeys(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   issueId: string | null;
   commentIds?: string[];
   actor?: AuthorizationActor;
@@ -712,7 +712,7 @@ export async function resolveRunScopedMentionedSkillKeys(input: {
     })
     .from(issues)
     .where(
-      and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId)),
+      and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId)),
     )
     .then((rows) => rows[0] ?? null);
   if (!issue) return [];
@@ -721,24 +721,24 @@ export async function resolveRunScopedMentionedSkillKeys(input: {
   const githubConversations = await input.db.select({ id: chatConversations.id })
     .from(chatConversations)
     .innerJoin(chatEndpoints, and(
-      eq(chatEndpoints.companyId, chatConversations.companyId),
+      eq(chatEndpoints.spaceId, chatConversations.spaceId),
       eq(chatEndpoints.id, chatConversations.endpointId),
     ))
     .where(and(
-      eq(chatConversations.companyId, input.companyId),
+      eq(chatConversations.spaceId, input.spaceId),
       eq(chatConversations.issueId, input.issueId),
       eq(chatEndpoints.provider, "github"),
     ));
   if (githubConversations.length) {
     const binding = and(
-      eq(chatDeliveries.companyId, input.companyId),
+      eq(chatDeliveries.spaceId, input.spaceId),
       inArray(chatDeliveries.conversationId, githubConversations.map((row) => row.id)),
       eq(chatDeliveries.state, "processed"),
     );
     const admitted = () => input.db.select({ event: chatDeliveries.normalizedEvent })
       .from(chatDeliveries)
       .innerJoin(chatMessageLinks, and(
-        eq(chatMessageLinks.companyId, chatDeliveries.companyId),
+        eq(chatMessageLinks.spaceId, chatDeliveries.spaceId),
         eq(chatMessageLinks.endpointId, chatDeliveries.endpointId),
         eq(chatMessageLinks.deliveryId, chatDeliveries.id),
         eq(chatMessageLinks.conversationId, chatDeliveries.conversationId),
@@ -747,7 +747,7 @@ export async function resolveRunScopedMentionedSkillKeys(input: {
     const forComments = input.commentIds?.length
       ? await admitted().where(and(binding, inArray(chatMessageLinks.commentId, input.commentIds)))
       : [];
-    // Interaction continuations and board wakes have no inbound comment id.
+    // Interaction continuations and operator wakes have no inbound comment id.
     // Retain the latest admitted configuration, never provider-derived text.
     const rows = forComments.length ? forComments : await admitted().where(binding)
       .orderBy(desc(chatDeliveries.createdAt), desc(chatDeliveries.id)).limit(1);
@@ -756,7 +756,7 @@ export async function resolveRunScopedMentionedSkillKeys(input: {
     const comments = await input.db.select({ body: issueComments.body }).from(issueComments)
       .where(and(
         eq(issueComments.issueId, input.issueId),
-        eq(issueComments.companyId, input.companyId),
+        eq(issueComments.spaceId, input.spaceId),
         isNull(issueComments.deletedAt),
       ));
     sources = [issue.title, issue.description ?? "", ...comments.map((comment) => comment.body)];
@@ -766,21 +766,21 @@ export async function resolveRunScopedMentionedSkillKeys(input: {
 
   const skillRows = await input.db
     .select({
-      id: companySkillsTable.id,
-      key: companySkillsTable.key,
+      id: spaceSkillsTable.id,
+      key: spaceSkillsTable.key,
     })
-    .from(companySkillsTable)
+    .from(spaceSkillsTable)
     .where(
       and(
-        eq(companySkillsTable.companyId, input.companyId),
-        inArray(companySkillsTable.id, mentionedSkillIds),
+        eq(spaceSkillsTable.spaceId, input.spaceId),
+        inArray(spaceSkillsTable.id, mentionedSkillIds),
       ),
     );
   for (const skillId of mentionedSkillIds) {
-    try { await skillAccessService(input.db, input.actor).assertSkill(input.companyId, skillId); }
+    try { await skillAccessService(input.db, input.actor).assertSkill(input.spaceId, skillId); }
     catch {
       throw new ConfigurationIncompleteFailure("A referenced skill is unavailable or you do not have project access. Update the task's skill reference or project access.", {
-        configurationIncomplete: { reason: "skill_unavailable", companyId: input.companyId, actionUrl: "/skills" },
+        configurationIncomplete: { reason: "skill_unavailable", spaceId: input.spaceId, actionUrl: "/skills" },
       });
     }
   }
@@ -794,21 +794,21 @@ export async function resolveRunScopedMentionedSkillKeys(input: {
 export interface WakeupOptions {
   /** Internal durable case assignment receipt. Never accepted from public wake payloads. */
   durableCaseHandoffRequest?: { handoffId: string; wakeupRequestId: string; issueId: string; expectedIssueStatusVersion: number };
-  /** Set only by authenticated board wake routes; never copied from caller payloads. */
+  /** Set only by authenticated operator wake routes; never copied from caller payloads. */
   manualUserWake?: boolean;
-  /** Internal resume of a queue with persisted board interruption intent. */
+  /** Internal resume of a queue with persisted operator interruption intent. */
   queuedCommentInterruptId?: string;
   /** Internal delivery of an existing undelivered user comment. */
   queuedCommentRequestId?: string;
   /** Internal delivery of the authenticated task-level Retry receipt. */
   taskRetryRequestId?: string;
-  /** Exact failed run selected by an authenticated board Retry request. */
+  /** Exact failed run selected by an authenticated operator Retry request. */
   failedRunId?: string | null;
   durableChatRequest?: DurableChatWakeupRequest;
   /** Server-owned Dot admission receipt; never accepted from API payloads. */
   durableDotRequest?: {
     id: string;
-    companyId: string;
+    spaceId: string;
     agentId: string;
     issueId: string;
     requestId: string;
@@ -828,7 +828,7 @@ export interface WakeupOptions {
   idempotencyKey?: string | null;
   requestedByActorType?: "user" | "agent" | "system";
   requestedByActorId?: string | null;
-  requestedByActorCompanyId?: string;
+  requestedByActorSpaceId?: string;
   contextSnapshot?: Record<string, unknown>;
   issueStateGuard?: {
     statuses: string[];
@@ -865,15 +865,15 @@ type ManagedMcpGatewayRunConfig = {
   }>;
 };
 
-export function configuredPaperclipApiBaseUrl(): string | null {
+export function configuredOutpostApiBaseUrl(): string | null {
   const configured = readNonEmptyString(process.env.OUTPOST_API_URL);
   return configured
     ? configured.replace(/\/+$/, "").replace(/\/api$/, "")
     : null;
 }
 
-export function paperclipApiBaseUrl(): string {
-  const configured = configuredPaperclipApiBaseUrl();
+export function outpostApiBaseUrl(): string {
+  const configured = configuredOutpostApiBaseUrl();
   if (!configured) {
     throw new Error(
       "OUTPOST_API_URL is required to deliver managed runtime MCP servers",
@@ -884,7 +884,7 @@ export function paperclipApiBaseUrl(): string {
 
 export async function revokeHeartbeatRunGatewayTokens(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   runId: string;
 }): Promise<void> {
   const now = new Date();
@@ -893,7 +893,7 @@ export async function revokeHeartbeatRunGatewayTokens(input: {
     .set({ revokedAt: now, updatedAt: now })
     .where(
       and(
-        eq(toolMcpGatewayTokens.companyId, input.companyId),
+        eq(toolMcpGatewayTokens.spaceId, input.spaceId),
         eq(toolMcpGatewayTokens.subjectType, "heartbeat_run"),
         eq(toolMcpGatewayTokens.subjectId, input.runId),
         isNull(toolMcpGatewayTokens.revokedAt),
@@ -901,15 +901,15 @@ export async function revokeHeartbeatRunGatewayTokens(input: {
     );
 }
 
-export async function buildPaperclipRuntimeMcpServers(input: {
+export async function buildOutpostRuntimeMcpServers(input: {
   db: Db;
-  agent: Pick<typeof agents.$inferSelect, "id" | "companyId" | "name">;
+  agent: Pick<typeof agents.$inferSelect, "id" | "spaceId" | "name">;
   runId: string;
   expectedAssignmentDigest?: string | null;
 }): Promise<AdapterRuntimeMcpServer[]> {
   const access = toolAccessService(input.db);
   const effective = await access.getEffectiveToolAssignmentsForAgent(
-    input.agent.companyId,
+    input.agent.spaceId,
     input.agent.id,
   );
   const [runIdentity] = await input.db
@@ -922,7 +922,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
     .where(
       and(
         eq(heartbeatRuns.id, input.runId),
-        eq(heartbeatRuns.companyId, input.agent.companyId),
+        eq(heartbeatRuns.spaceId, input.agent.spaceId),
         eq(heartbeatRuns.agentId, input.agent.id),
       ),
     )
@@ -931,7 +931,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
     ? effective.installedConnections
     : await filterResolvedGitHubConnectionsForRun({
         db: input.db,
-        companyId: input.agent.companyId,
+        spaceId: input.agent.spaceId,
         agentId: input.agent.id,
         responsibleUserId: runIdentity?.responsibleUserId ?? null,
         connections: effective.installedConnections,
@@ -957,7 +957,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
           .from(toolConnections)
           .where(
             and(
-              eq(toolConnections.companyId, input.agent.companyId),
+              eq(toolConnections.spaceId, input.agent.spaceId),
               inArray(toolConnections.id, [...permittedConnectionIds]),
             ),
           )
@@ -971,10 +971,10 @@ export async function buildPaperclipRuntimeMcpServers(input: {
     )
     .map(({ id, name }) => ({ id, name }))
     .sort((a, b) => a.name.localeCompare(b.name));
-  const githubBotConnectionIds = await githubBotConnectionIdsForRun(input.db, input.agent.companyId, input.agent.id, input.runId);
+  const githubBotConnectionIds = await githubBotConnectionIdsForRun(input.db, input.agent.spaceId, input.agent.id, input.runId);
   const spekoConnectionIds = effective.installedConnections.some(connection => connection.transport === "voice")
     ? new Set((await spekoToolsForSession(input.db, {
-        companyId: input.agent.companyId,
+        spaceId: input.agent.spaceId,
         agentId: input.agent.id,
         runId: input.runId,
         issueId: runIdentity?.issueId ?? null,
@@ -1003,7 +1003,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
   const service = createToolGatewayService(input.db);
   if (assignedConnections.length === 0) {
     await service.recordRuntimeMcpDeliveryDiagnostic({
-      companyId: input.agent.companyId,
+      spaceId: input.agent.spaceId,
       agentId: input.agent.id,
       runId: input.runId,
       permittedNotInstalledConnections,
@@ -1033,7 +1033,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
     .from(toolProfiles)
     .where(
       and(
-        eq(toolProfiles.companyId, input.agent.companyId),
+        eq(toolProfiles.spaceId, input.agent.spaceId),
         eq(toolProfiles.profileKey, profileKey),
       ),
     )
@@ -1074,7 +1074,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
     // selector here: truncating or replacing them with connection-wide grants
     // would either lose assigned tools or authorize tools outside this snapshot.
     try {
-      const created = await access.createProfile(input.agent.companyId, {
+      const created = await access.createProfile(input.agent.spaceId, {
         profileKey,
         name: `Native ${input.agent.id.slice(0, 8)} ${assignmentDigest.slice(0, 12)}`,
         description: "Immutable Outpost Runner MCP assignment profile.",
@@ -1098,7 +1098,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
         .from(toolProfiles)
         .where(
           and(
-            eq(toolProfiles.companyId, input.agent.companyId),
+            eq(toolProfiles.spaceId, input.agent.spaceId),
             eq(toolProfiles.profileKey, profileKey),
           ),
         )
@@ -1118,7 +1118,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
       .from(toolMcpGateways)
       .where(
         and(
-          eq(toolMcpGateways.companyId, input.agent.companyId),
+          eq(toolMcpGateways.spaceId, input.agent.spaceId),
           eq(toolMcpGateways.status, "active"),
           isNull(toolMcpGateways.archivedAt),
         ),
@@ -1141,7 +1141,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
       .where(
         and(
           eq(toolMcpGateways.id, gateway.id),
-          eq(toolMcpGateways.companyId, input.agent.companyId),
+          eq(toolMcpGateways.spaceId, input.agent.spaceId),
           isNull(toolMcpGateways.agentId),
         ),
       );
@@ -1155,7 +1155,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
     const slug = `native-${input.agent.id.replaceAll("-", "").slice(0, 12)}-${assignmentDigest.slice(0, 16)}`;
     try {
       const created = await service.createNamedGateway({
-        companyId: input.agent.companyId,
+        spaceId: input.agent.spaceId,
         body: {
           name: `Native ${input.agent.name} ${assignmentDigest.slice(0, 8)}`,
           slug,
@@ -1183,7 +1183,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
         .from(toolMcpGateways)
         .where(
           and(
-            eq(toolMcpGateways.companyId, input.agent.companyId),
+            eq(toolMcpGateways.spaceId, input.agent.spaceId),
             eq(toolMcpGateways.slug, slug),
           ),
         )
@@ -1199,7 +1199,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
   }
 
   const token = await service.createNamedGatewayToken({
-    companyId: input.agent.companyId,
+    spaceId: input.agent.spaceId,
     gatewayId: gateway!.id,
     body: {
       name: `Run ${input.runId.slice(0, 8)}`,
@@ -1216,7 +1216,7 @@ export async function buildPaperclipRuntimeMcpServers(input: {
   return [
     {
       name: ASSIGNED_MCP_SERVER_NAME,
-      url: `${paperclipApiBaseUrl()}/mcp/gateways/${gateway!.gatewayPublicId}`,
+      url: `${outpostApiBaseUrl()}/mcp/gateways/${gateway!.gatewayPublicId}`,
       token: token.token,
       connectionId: `assignment:${assignmentDigest}`,
     },
@@ -1235,14 +1235,14 @@ export function createAdapterRuntimeMcpAccess(
 
 export function createAdapterRuntimeToolAccess(input: {
   agentId: string;
-  companyId: string;
+  spaceId: string;
   runId: string;
   responsibleUserId: string | null;
 }): AdapterRuntimeToolAccess | undefined {
   if (!input.responsibleUserId) return undefined;
   const minted = createRuntimeToolsToken({
     agentId: input.agentId,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     runId: input.runId,
     responsibleUserId: input.responsibleUserId,
   });
@@ -1251,7 +1251,7 @@ export function createAdapterRuntimeToolAccess(input: {
   // tests invoke heartbeat execution without booting an HTTP server, however;
   // in that context there is no reachable endpoint to advertise and runtime
   // tools should simply remain unavailable instead of failing the run.
-  const baseUrl = configuredPaperclipApiBaseUrl();
+  const baseUrl = configuredOutpostApiBaseUrl();
   if (!baseUrl) return undefined;
   return Object.freeze({
     version: 1,
@@ -1306,7 +1306,7 @@ function gatewayAppliesToRun(input: {
 
 async function gatewayConnectionIds(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   gateway: typeof toolMcpGateways.$inferSelect;
 }): Promise<Set<string>> {
   const managedRuntimeConnectionId = readNonEmptyString(
@@ -1320,7 +1320,7 @@ async function gatewayConnectionIds(input: {
       .from(toolProfiles)
       .where(
         and(
-          eq(toolProfiles.companyId, input.companyId),
+          eq(toolProfiles.spaceId, input.spaceId),
           eq(toolProfiles.id, input.gateway.profileId),
         ),
       )
@@ -1330,7 +1330,7 @@ async function gatewayConnectionIds(input: {
       .from(toolProfileEntries)
       .where(
         and(
-          eq(toolProfileEntries.companyId, input.companyId),
+          eq(toolProfileEntries.spaceId, input.spaceId),
           eq(toolProfileEntries.profileId, input.gateway.profileId),
         ),
       ),
@@ -1345,7 +1345,7 @@ async function gatewayConnectionIds(input: {
       .from(toolCatalogEntries)
       .where(
         and(
-          eq(toolCatalogEntries.companyId, input.companyId),
+          eq(toolCatalogEntries.spaceId, input.spaceId),
           eq(toolCatalogEntries.status, "active"),
         ),
       ),
@@ -1355,7 +1355,7 @@ async function gatewayConnectionIds(input: {
         applicationId: toolConnections.applicationId,
       })
       .from(toolConnections)
-      .where(eq(toolConnections.companyId, input.companyId)),
+      .where(eq(toolConnections.spaceId, input.spaceId)),
   ]);
   if (!profile) return new Set();
   if (profile.defaultAction === "allow")
@@ -1388,7 +1388,7 @@ export async function createManagedMcpRunConfig(input: {
   db: Db;
   agent: Pick<
     typeof agents.$inferSelect,
-    "id" | "companyId" | "name" | "adapterType"
+    "id" | "spaceId" | "name" | "adapterType"
   >;
   runId: string;
   config: Record<string, unknown>;
@@ -1403,7 +1403,7 @@ export async function createManagedMcpRunConfig(input: {
     .from(toolMcpGateways)
     .where(
       and(
-        eq(toolMcpGateways.companyId, input.agent.companyId),
+        eq(toolMcpGateways.spaceId, input.agent.spaceId),
         eq(toolMcpGateways.status, "active"),
         isNull(toolMcpGateways.archivedAt),
         // A native profile remains an immutable assignment even if gateway
@@ -1411,7 +1411,7 @@ export async function createManagedMcpRunConfig(input: {
         sql`not exists (
           select 1 from ${toolProfiles}
           where ${toolProfiles.id} = ${toolMcpGateways.profileId}
-            and ${toolProfiles.companyId} = ${toolMcpGateways.companyId}
+            and ${toolProfiles.spaceId} = ${toolMcpGateways.spaceId}
             and (${toolProfiles.profileKey} like 'native:%'
               or ${toolProfiles.metadata}->>'source' = 'outpost_runner')
         )`,
@@ -1433,13 +1433,13 @@ export async function createManagedMcpRunConfig(input: {
       toolConnections,
       and(
         eq(toolConnections.id, toolConnectionInstalls.connectionId),
-        eq(toolConnections.companyId, toolConnectionInstalls.companyId),
+        eq(toolConnections.spaceId, toolConnectionInstalls.spaceId),
       ),
     )
     .where(
       and(
-        eq(toolConnectionInstalls.companyId, input.agent.companyId),
-        sql`((${toolConnectionInstalls.targetType} = 'company' and ${toolConnectionInstalls.targetId} = ${input.agent.companyId}) or (${toolConnectionInstalls.targetType} = 'agent' and ${toolConnectionInstalls.targetId} = ${input.agent.id}))`,
+        eq(toolConnectionInstalls.spaceId, input.agent.spaceId),
+        sql`((${toolConnectionInstalls.targetType} = 'space' and ${toolConnectionInstalls.targetId} = ${input.agent.spaceId}) or (${toolConnectionInstalls.targetType} = 'agent' and ${toolConnectionInstalls.targetId} = ${input.agent.id}))`,
       ),
     );
   const [runIdentity] = await input.db
@@ -1451,7 +1451,7 @@ export async function createManagedMcpRunConfig(input: {
     .where(
       and(
         eq(heartbeatRuns.id, input.runId),
-        eq(heartbeatRuns.companyId, input.agent.companyId),
+        eq(heartbeatRuns.spaceId, input.agent.spaceId),
         eq(heartbeatRuns.agentId, input.agent.id),
       ),
     )
@@ -1462,7 +1462,7 @@ export async function createManagedMcpRunConfig(input: {
         .map((install) => ({ id: install.connectionId }))
     : await filterResolvedGitHubConnectionsForRun({
         db: input.db,
-        companyId: input.agent.companyId,
+        spaceId: input.agent.spaceId,
         agentId: input.agent.id,
         responsibleUserId: runIdentity?.responsibleUserId ?? null,
         connections: installRows
@@ -1500,7 +1500,7 @@ export async function createManagedMcpRunConfig(input: {
         gateway,
         connectionIds: await gatewayConnectionIds({
           db: input.db,
-          companyId: input.agent.companyId,
+          spaceId: input.agent.spaceId,
           gateway,
         }),
       })),
@@ -1521,7 +1521,7 @@ export async function createManagedMcpRunConfig(input: {
   const managedGateways: ManagedMcpGatewayRunConfig["gateways"] = [];
   for (const gateway of gateways) {
     const token = await service.createNamedGatewayToken({
-      companyId: input.agent.companyId,
+      spaceId: input.agent.spaceId,
       gatewayId: gateway.id,
       body: {
         name: `Managed ${input.agent.name} ${input.runId.slice(0, 8)}`,
@@ -1789,7 +1789,7 @@ type AcceptedPlanWakeRoutingDecision = {
 
 export async function resolveAcceptedPlanWakeRoutingDecision(args: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   issueId: string | null;
   acceptedPlanContinuationWake: boolean;
@@ -1808,7 +1808,7 @@ export async function resolveAcceptedPlanWakeRoutingDecision(args: {
     .innerJoin(issues, eq(issues.id, issuePlanDecompositions.sourceIssueId))
     .where(
       and(
-        eq(issuePlanDecompositions.companyId, args.companyId),
+        eq(issuePlanDecompositions.spaceId, args.spaceId),
         eq(issuePlanDecompositions.ownerAgentId, args.agentId),
         eq(issuePlanDecompositions.status, "in_flight"),
       ),
@@ -1943,7 +1943,7 @@ export function mergeCoalescedContextSnapshot(
 // chat binding rather than trusting an arbitrary caller's source/context marker.
 export async function resolveExternalChatWakeProvider(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   agentId?: string | null;
   runId?: string | null;
   issueId: string | null;
@@ -1954,7 +1954,7 @@ export async function resolveExternalChatWakeProvider(input: {
     const answer = await resolveExternalChatQuestionResponse(
       input.db,
       {
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         agentId: input.agentId,
         issueId: input.issueId,
         runId: input.runId,
@@ -1991,7 +1991,7 @@ export async function resolveExternalChatWakeProvider(input: {
     .innerJoin(
       chatConversations,
       and(
-        eq(chatConversations.companyId, chatMessageLinks.companyId),
+        eq(chatConversations.spaceId, chatMessageLinks.spaceId),
         eq(chatConversations.id, chatMessageLinks.conversationId),
         eq(chatConversations.endpointId, chatMessageLinks.endpointId),
       ),
@@ -1999,13 +1999,13 @@ export async function resolveExternalChatWakeProvider(input: {
     .innerJoin(
       chatEndpoints,
       and(
-        eq(chatEndpoints.companyId, chatConversations.companyId),
+        eq(chatEndpoints.spaceId, chatConversations.spaceId),
         eq(chatEndpoints.id, chatConversations.endpointId),
       ),
     )
     .where(
       and(
-        eq(chatMessageLinks.companyId, input.companyId),
+        eq(chatMessageLinks.spaceId, input.spaceId),
         eq(chatMessageLinks.direction, "inbound"),
         inArray(chatMessageLinks.commentId, commentIds),
         eq(chatConversations.issueId, input.issueId),
@@ -2034,7 +2034,7 @@ const CHAT_ATTACHMENT_DENIAL_REASONS: ReadonlyMap<
 
 export async function attestReviewedExternalChatRun(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   issueId: string;
   runId: string;
@@ -2061,7 +2061,7 @@ export async function attestReviewedExternalChatRun(input: {
           .where(
             and(
               eq(issues.id, input.issueId),
-              eq(issues.companyId, input.companyId),
+              eq(issues.spaceId, input.spaceId),
             ),
           )
           .for("update", { noWait: true })
@@ -2072,7 +2072,7 @@ export async function attestReviewedExternalChatRun(input: {
           .where(
             and(
               eq(heartbeatRuns.id, input.runId),
-              eq(heartbeatRuns.companyId, input.companyId),
+              eq(heartbeatRuns.spaceId, input.spaceId),
               eq(heartbeatRuns.agentId, input.agentId),
             ),
           )
@@ -2084,7 +2084,7 @@ export async function attestReviewedExternalChatRun(input: {
           .where(
             and(
               eq(agents.id, input.agentId),
-              eq(agents.companyId, input.companyId),
+              eq(agents.spaceId, input.spaceId),
             ),
           )
           .for("update", { noWait: true })
@@ -2174,7 +2174,7 @@ export async function attestReviewedExternalChatRun(input: {
                 chatDeliveries,
                 and(
                   eq(chatDeliveries.id, chatMessageLinks.deliveryId),
-                  eq(chatDeliveries.companyId, chatMessageLinks.companyId),
+                  eq(chatDeliveries.spaceId, chatMessageLinks.spaceId),
                   eq(chatDeliveries.endpointId, chatMessageLinks.endpointId),
                   eq(
                     chatDeliveries.conversationId,
@@ -2184,7 +2184,7 @@ export async function attestReviewedExternalChatRun(input: {
               )
               .where(
                 and(
-                  eq(chatMessageLinks.companyId, input.companyId),
+                  eq(chatMessageLinks.spaceId, input.spaceId),
                   eq(chatMessageLinks.direction, "inbound"),
                   inArray(chatMessageLinks.commentId, admittedIds),
                 ),
@@ -2249,12 +2249,12 @@ export async function attestReviewedExternalChatRun(input: {
   throw new ReviewedChatBindingNotReadyError();
 }
 
-export async function readHeartbeatWakeComments(db: Db, companyId: string, issueId: string | null, commentIds: string[]) {
+export async function readHeartbeatWakeComments(db: Db, spaceId: string, issueId: string | null, commentIds: string[]) {
   if (commentIds.length === 0) return [];
   return db
     .select({
       id: issueComments.id,
-      companyId: issueComments.companyId,
+      spaceId: issueComments.spaceId,
       issueId: issueComments.issueId,
       body: issueComments.body,
       origin: issueComments.origin,
@@ -2274,16 +2274,16 @@ export async function readHeartbeatWakeComments(db: Db, companyId: string, issue
     .from(issueComments)
     .where(
       and(
-        eq(issueComments.companyId, companyId),
+        eq(issueComments.spaceId, spaceId),
         issueId ? eq(issueComments.issueId, issueId) : undefined,
         inArray(issueComments.id, commentIds),
       ),
     );
 }
 
-export async function buildPaperclipWakePayload(input: {
+export async function buildOutpostWakePayload(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   agentId?: string | null;
   runId?: string | null;
   contextSnapshot: Record<string, unknown>;
@@ -2340,7 +2340,7 @@ export async function buildPaperclipWakePayload(input: {
           })
           .from(issues)
           .where(
-            and(eq(issues.id, issueId), eq(issues.companyId, input.companyId)),
+            and(eq(issues.id, issueId), eq(issues.spaceId, input.spaceId)),
           )
           .then((rows) => rows[0] ?? null)
       : null);
@@ -2353,8 +2353,8 @@ export async function buildPaperclipWakePayload(input: {
     return null;
 
   const commentRows = input.wakeCommentRows
-    ? input.wakeCommentRows.filter(row => row.companyId === input.companyId && (!issueId || row.issueId === issueId) && commentIds.includes(row.id))
-    : await readHeartbeatWakeComments(input.db, input.companyId, issueId, commentIds);
+    ? input.wakeCommentRows.filter(row => row.spaceId === input.spaceId && (!issueId || row.issueId === issueId) && commentIds.includes(row.id))
+    : await readHeartbeatWakeComments(input.db, input.spaceId, issueId, commentIds);
 
   const commentsById = new Map(
     commentRows.map((comment) => [comment.id, comment]),
@@ -2459,12 +2459,12 @@ export async function buildPaperclipWakePayload(input: {
             assets,
             and(
               eq(issueAttachments.assetId, assets.id),
-              eq(assets.companyId, input.companyId),
+              eq(assets.spaceId, input.spaceId),
             ),
           )
           .where(
             and(
-              eq(issueAttachments.companyId, input.companyId),
+              eq(issueAttachments.spaceId, input.spaceId),
               eq(issueAttachments.issueId, issueId),
               inArray(issueAttachments.issueCommentId, attachmentCommentIds),
             ),
@@ -2536,10 +2536,10 @@ export async function buildPaperclipWakePayload(input: {
           )
           .where(
             and(
-              eq(documentAnnotationComments.companyId, input.companyId),
+              eq(documentAnnotationComments.spaceId, input.spaceId),
               eq(documentAnnotationComments.issueId, issueId),
               eq(documentAnnotationComments.id, annotationCommentId),
-              eq(documentAnnotationThreads.companyId, input.companyId),
+              eq(documentAnnotationThreads.spaceId, input.spaceId),
               eq(documentAnnotationThreads.issueId, issueId),
             ),
           )
@@ -2595,7 +2595,7 @@ export async function buildPaperclipWakePayload(input: {
   const planReviewContext = issueId && (!conversationMode || resolvedPlanInteraction)
     ? await buildPlanReviewContext({
         db: input.db,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         issueId,
         issueWorkMode: conversationMode ? null : issueSummary?.workMode ?? null,
         includeForIssueComment: !conversationMode && commentIds.length > 0,
@@ -2606,7 +2606,7 @@ export async function buildPaperclipWakePayload(input: {
   const documentReviewContext = issueId && !conversationMode
     ? await buildDocumentReviewContext({
         db: input.db,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         issueId,
         includeForIssueComment: commentIds.length > 0,
         includeForAnnotationDelta: annotationDeltas.length > 0,
@@ -2628,7 +2628,7 @@ export async function buildPaperclipWakePayload(input: {
         .where(
           and(
             eq(issueRecoveryActions.id, recoveryActionId),
-            eq(issueRecoveryActions.companyId, input.companyId),
+            eq(issueRecoveryActions.spaceId, input.spaceId),
           ),
         )
         .then((rows) => rows[0] ?? null)
@@ -2650,7 +2650,7 @@ export async function buildPaperclipWakePayload(input: {
         .where(
           and(
             eq(agents.id, originalAssigneeId),
-            eq(agents.companyId, input.companyId),
+            eq(agents.spaceId, input.spaceId),
           ),
         )
         .then((rows) => rows[0] ?? null)
@@ -2658,7 +2658,7 @@ export async function buildPaperclipWakePayload(input: {
 
   const externalChatProvider = await resolveExternalChatWakeProvider({
     db: input.db,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     agentId: input.agentId,
     runId: input.runId,
     issueId: issueSummary?.id === issueId ? issueId : null,
@@ -2682,7 +2682,7 @@ export async function buildPaperclipWakePayload(input: {
     attachmentOmissions,
     externalChatProvider,
     githubReviewConfigurations: (externalChatProvider === "github" || issueSummary?.originKind === "chat_channel") && issueId && input.agentId
-      ? await resolveGitHubReviewInstructions({ db: input.db, companyId: input.companyId, agentId: input.agentId, issueId,
+      ? await resolveGitHubReviewInstructions({ db: input.db, spaceId: input.spaceId, agentId: input.agentId, issueId,
           commentIds: externalChatProvider === "github" ? commentIds : [] })
       : [],
     recovery:
@@ -2825,7 +2825,7 @@ export async function buildPaperclipWakePayload(input: {
     executionStage:
       Object.keys(executionStage).length > 0 ? executionStage : null,
     taskWatchdog: (input.contextSnapshot.taskWatchdog ?? null) as unknown,
-    skillTest: (input.contextSnapshot.paperclipSkillTest ?? null) as unknown,
+    skillTest: (input.contextSnapshot.outpostSkillTest ?? null) as unknown,
     continuationSummary: safeContinuationSummary
       ? {
           key: safeContinuationSummary.key,
@@ -2855,7 +2855,7 @@ export async function buildPaperclipWakePayload(input: {
   };
   return issueId
     ? createRunSecretRedactionRegistry(input.db).redactForIssue(
-        input.companyId,
+        input.spaceId,
         issueId,
         payload,
       )
@@ -2871,47 +2871,47 @@ export function createHeartbeatRunPreparation(db: Db) {
   function toAgentOrgRow(
     agent: Pick<
       typeof agents.$inferSelect,
-      "id" | "companyId" | "name" | "reportsTo" | "status"
+      "id" | "spaceId" | "name" | "reportsTo" | "status"
     >,
   ): AgentOrgRow {
     return {
       id: agent.id,
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       name: agent.name,
       reportsTo: agent.reportsTo,
       status: agent.status,
     };
   }
 
-  async function listCompanyAgentOrgRows(
-    companyId: string,
+  async function listSpaceAgentOrgRows(
+    spaceId: string,
   ): Promise<AgentOrgRow[]> {
     return db
       .select({
         id: agents.id,
-        companyId: agents.companyId,
+        spaceId: agents.spaceId,
         name: agents.name,
         reportsTo: agents.reportsTo,
         status: agents.status,
       })
       .from(agents)
-      .where(eq(agents.companyId, companyId));
+      .where(eq(agents.spaceId, spaceId));
   }
 
-  function groupAgentOrgRowsByCompany(agentRows: AgentOrgRow[]) {
-    const byCompany = new Map<string, AgentOrgRow[]>();
+  function groupAgentOrgRowsBySpace(agentRows: AgentOrgRow[]) {
+    const bySpace = new Map<string, AgentOrgRow[]>();
     for (const agent of agentRows) {
-      const companyAgents = byCompany.get(agent.companyId);
-      if (companyAgents) {
-        companyAgents.push(agent);
+      const spaceAgents = bySpace.get(agent.spaceId);
+      if (spaceAgents) {
+        spaceAgents.push(agent);
       } else {
-        byCompany.set(agent.companyId, [agent]);
+        bySpace.set(agent.spaceId, [agent]);
       }
     }
-    return byCompany;
+    return bySpace;
   }
 
-  async function getIssueExecutionContext(companyId: string, issueId: string) {
+  async function getIssueExecutionContext(spaceId: string, issueId: string) {
     return db
       .select({
         chatCommunicationGuidance: chatConversations.communicationGuidance,
@@ -2955,47 +2955,47 @@ export function createHeartbeatRunPreparation(db: Db) {
       })
       .from(issues)
       .leftJoin(chatConversations, and(
-        eq(chatConversations.companyId, issues.companyId),
+        eq(chatConversations.spaceId, issues.spaceId),
         eq(chatConversations.issueId, issues.id),
       ))
       .leftJoin(chatEndpoints, and(
-        eq(chatEndpoints.companyId, chatConversations.companyId),
+        eq(chatEndpoints.spaceId, chatConversations.spaceId),
         eq(chatEndpoints.id, chatConversations.endpointId),
       ))
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, companyId)))
+      .where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId)))
       .then((rows) => rows[0] ?? null);
   }
 
-  async function getPinnedSkillTestContext(companyId: string, issueId: string) {
+  async function getPinnedSkillTestContext(spaceId: string, issueId: string) {
     const row = await db
       .select({
-        testRunId: companySkillTestRuns.id,
-        skillId: companySkillTestRuns.skillId,
-        skillKey: companySkillsTable.key,
-        inputId: companySkillTestRuns.inputId,
-        skillVersionId: companySkillTestRuns.skillVersionId,
-        outputDocumentKey: companySkillTestRuns.outputDocumentKey,
+        testRunId: spaceSkillTestRuns.id,
+        skillId: spaceSkillTestRuns.skillId,
+        skillKey: spaceSkillsTable.key,
+        inputId: spaceSkillTestRuns.inputId,
+        skillVersionId: spaceSkillTestRuns.skillVersionId,
+        outputDocumentKey: spaceSkillTestRuns.outputDocumentKey,
         version: skillVersionMetadataColumns,
-        revisionNumber: companySkillVersions.revisionNumber,
-        label: companySkillVersions.label,
+        revisionNumber: spaceSkillVersions.revisionNumber,
+        label: spaceSkillVersions.label,
       })
-      .from(companySkillTestRuns)
+      .from(spaceSkillTestRuns)
       .innerJoin(
-        companySkillVersions,
+        spaceSkillVersions,
         and(
-          eq(companySkillVersions.id, companySkillTestRuns.skillVersionId),
-          eq(companySkillVersions.companyId, companySkillTestRuns.companyId),
-          eq(companySkillVersions.companySkillId, companySkillTestRuns.skillId),
+          eq(spaceSkillVersions.id, spaceSkillTestRuns.skillVersionId),
+          eq(spaceSkillVersions.spaceId, spaceSkillTestRuns.spaceId),
+          eq(spaceSkillVersions.spaceSkillId, spaceSkillTestRuns.skillId),
         ),
       )
-      .innerJoin(companySkillsTable, and(
-        eq(companySkillsTable.id, companySkillTestRuns.skillId),
-        eq(companySkillsTable.companyId, companySkillTestRuns.companyId),
+      .innerJoin(spaceSkillsTable, and(
+        eq(spaceSkillsTable.id, spaceSkillTestRuns.skillId),
+        eq(spaceSkillsTable.spaceId, spaceSkillTestRuns.spaceId),
       ))
       .where(
         and(
-          eq(companySkillTestRuns.companyId, companyId),
-          eq(companySkillTestRuns.issueId, issueId),
+          eq(spaceSkillTestRuns.spaceId, spaceId),
+          eq(spaceSkillTestRuns.issueId, issueId),
         ),
       )
       .then((rows) => rows[0] ?? null);
@@ -3031,7 +3031,7 @@ export function createHeartbeatRunPreparation(db: Db) {
   }
 
   async function getRoutineEnvForExecutionIssue(
-    companyId: string,
+    spaceId: string,
     issueContext: { originKind: string | null; originId: string | null; originRunId: string | null } | null,
   ) {
     if (
@@ -3052,7 +3052,7 @@ export function createHeartbeatRunPreparation(db: Db) {
           .where(
             and(
               eq(routineRuns.id, issueContext.originRunId),
-              eq(routineRuns.companyId, companyId),
+              eq(routineRuns.spaceId, spaceId),
               eq(routineRuns.routineId, issueContext.originId),
             ),
           )
@@ -3069,7 +3069,7 @@ export function createHeartbeatRunPreparation(db: Db) {
         .where(
           and(
             eq(routineRevisions.id, routineRun.routineRevisionId),
-            eq(routineRevisions.companyId, companyId),
+            eq(routineRevisions.spaceId, spaceId),
             eq(routineRevisions.routineId, issueContext.originId),
           ),
         )
@@ -3098,7 +3098,7 @@ export function createHeartbeatRunPreparation(db: Db) {
       .where(
         and(
           eq(routines.id, issueContext.originId),
-          eq(routines.companyId, companyId),
+          eq(routines.spaceId, spaceId),
         ),
       )
       .then((rows) => rows[0] ?? null);
@@ -3110,51 +3110,51 @@ export function createHeartbeatRunPreparation(db: Db) {
     };
   }
 
-  async function resolveCompanyDefaultResponsibleUserId(companyId: string) {
-    const company = await db
-      .select({ defaultResponsibleUserId: companies.defaultResponsibleUserId })
-      .from(companies)
-      .where(eq(companies.id, companyId))
+  async function resolveSpaceDefaultResponsibleUserId(spaceId: string) {
+    const space = await db
+      .select({ defaultResponsibleUserId: spaces.defaultResponsibleUserId })
+      .from(spaces)
+      .where(eq(spaces.id, spaceId))
       .then((rows) => rows[0] ?? null);
     const explicitDefault = readNonEmptyString(
-      company?.defaultResponsibleUserId,
+      space?.defaultResponsibleUserId,
     );
     if (explicitDefault) return explicitDefault;
 
     const owner = await db
-      .select({ userId: companyMemberships.principalId })
-      .from(companyMemberships)
+      .select({ userId: spaceMemberships.principalId })
+      .from(spaceMemberships)
       .where(
         and(
-          eq(companyMemberships.companyId, companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.status, "active"),
-          eq(companyMemberships.membershipRole, "owner"),
+          eq(spaceMemberships.spaceId, spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.status, "active"),
+          eq(spaceMemberships.membershipRole, "owner"),
         ),
       )
-      .orderBy(asc(companyMemberships.createdAt), asc(companyMemberships.id))
+      .orderBy(asc(spaceMemberships.createdAt), asc(spaceMemberships.id))
       .limit(1)
       .then((rows) => rows[0] ?? null);
     if (owner?.userId) return owner.userId;
 
     const firstUser = await db
-      .select({ userId: companyMemberships.principalId })
-      .from(companyMemberships)
+      .select({ userId: spaceMemberships.principalId })
+      .from(spaceMemberships)
       .where(
         and(
-          eq(companyMemberships.companyId, companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.status, "active"),
+          eq(spaceMemberships.spaceId, spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.status, "active"),
         ),
       )
-      .orderBy(asc(companyMemberships.createdAt), asc(companyMemberships.id))
+      .orderBy(asc(spaceMemberships.createdAt), asc(spaceMemberships.id))
       .limit(1)
       .then((rows) => rows[0] ?? null);
     return firstUser?.userId ?? null;
   }
 
   async function resolveParentIssueResponsibleUserId(
-    companyId: string,
+    spaceId: string,
     parentId: string | null | undefined,
   ) {
     if (!parentId) return null;
@@ -3164,7 +3164,7 @@ export function createHeartbeatRunPreparation(db: Db) {
         createdByUserId: issues.createdByUserId,
       })
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.id, parentId)))
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.id, parentId)))
       .then((rows) => rows[0] ?? null);
     return parent?.responsibleUserId ?? null;
   }
@@ -3183,7 +3183,7 @@ export function createHeartbeatRunPreparation(db: Db) {
   }
 
   async function resolveResponsibleUserIdForRunSeed(input: {
-    companyId: string;
+    spaceId: string;
     contextSnapshot: Record<string, unknown>;
     issueContext: { id: string; responsibleUserId: string | null; parentId: string | null } | null;
     routineEnvContext: Awaited<
@@ -3222,7 +3222,7 @@ export function createHeartbeatRunPreparation(db: Db) {
         .from(issueComments)
         .where(
           and(
-            eq(issueComments.companyId, input.companyId),
+            eq(issueComments.spaceId, input.spaceId),
             eq(issueComments.issueId, input.issueContext.id),
             inArray(issueComments.id, messageIds),
           ),
@@ -3244,7 +3244,7 @@ export function createHeartbeatRunPreparation(db: Db) {
         .from(heartbeatRuns)
         .where(
           and(
-            eq(heartbeatRuns.companyId, input.companyId),
+            eq(heartbeatRuns.spaceId, input.spaceId),
             eq(heartbeatRuns.id, retryOfRunId),
           ),
         );
@@ -3259,13 +3259,13 @@ export function createHeartbeatRunPreparation(db: Db) {
     if (input.issueContext?.responsibleUserId)
       return input.issueContext.responsibleUserId;
     const parentResponsibleUserId = await resolveParentIssueResponsibleUserId(
-      input.companyId,
+      input.spaceId,
       input.issueContext?.parentId,
     );
     if (parentResponsibleUserId) return parentResponsibleUserId;
     if (!input.issueContext && requestedUserId) return requestedUserId;
-    input.contextSnapshot.executionIdentityCause = "company_default";
-    return resolveCompanyDefaultResponsibleUserId(input.companyId);
+    input.contextSnapshot.executionIdentityCause = "space_default";
+    return resolveSpaceDefaultResponsibleUserId(input.spaceId);
   }
 
   async function resolveResponsibleUserIdForRun(input: {
@@ -3278,7 +3278,7 @@ export function createHeartbeatRunPreparation(db: Db) {
   }) {
     const operatorIdentity = await explicitOperatorRunIdentity(db, input.run);
     const responsibleUserId = operatorIdentity?.actorId ?? await resolveResponsibleUserIdForRunSeed({
-      companyId: input.run.companyId,
+      spaceId: input.run.spaceId,
       contextSnapshot: input.contextSnapshot,
       issueContext: input.issueContext,
       routineEnvContext: input.routineEnvContext,
@@ -3294,7 +3294,7 @@ export function createHeartbeatRunPreparation(db: Db) {
           code: "responsible_user_unresolved",
           runId: input.run.id,
           agentId: input.run.agentId,
-          companyId: input.run.companyId,
+          spaceId: input.run.spaceId,
           issueId: input.issueContext?.id ?? null,
           invocationSource: input.run.invocationSource,
           triggerDetail: input.run.triggerDetail,
@@ -3313,14 +3313,14 @@ export function createHeartbeatRunPreparation(db: Db) {
       readNonEmptyString(contextSnapshot.issueId) ??
       readNonEmptyString(contextSnapshot.taskId);
     const issueContext = issueId
-      ? await getIssueExecutionContext(run.companyId, issueId)
+      ? await getIssueExecutionContext(run.spaceId, issueId)
       : null;
     return resolveResponsibleUserIdForRun({
       run,
       contextSnapshot,
       issueContext,
       routineEnvContext: await getRoutineEnvForExecutionIssue(
-        run.companyId,
+        run.spaceId,
         issueContext,
       ),
     });
@@ -3328,8 +3328,8 @@ export function createHeartbeatRunPreparation(db: Db) {
 
   return {
     toAgentOrgRow,
-    listCompanyAgentOrgRows,
-    groupAgentOrgRowsByCompany,
+    listSpaceAgentOrgRows,
+    groupAgentOrgRowsBySpace,
     getIssueExecutionContext,
     getPinnedSkillTestContext,
     getRoutineEnvForExecutionIssue,

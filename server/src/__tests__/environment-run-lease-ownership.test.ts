@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   completionContracts,
   createDb,
   environmentLeases,
@@ -47,19 +47,19 @@ async function exitedPid(): Promise<number> {
 suite("environment_run_lease_active on the shared ownership path", () => {
   let db!: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId = "";
+  let spaceId = "";
   let agentId = "";
   let sandboxEnvironmentId = "";
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-environment-run-lease-ownership-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-environment-run-lease-ownership-");
     db = createDb(temporary.connectionString);
-    companyId = randomUUID();
+    spaceId = randomUUID();
     agentId = randomUUID();
     sandboxEnvironmentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "ERL",
-      requireBoardApprovalForNewAgents: false });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Coder", role: "engineer", status: "idle",
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "ERL",
+      requireOperatorApprovalForNewAgents: false });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Coder", role: "engineer", status: "idle",
       adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
     await db.insert(environments).values({ id: sandboxEnvironmentId, name: "Fake Sandbox", driver: "sandbox",
       status: "active", config: { provider: "fake", image: "ubuntu:24.04" } });
@@ -77,7 +77,7 @@ suite("environment_run_lease_active on the shared ownership path", () => {
 
   async function run(status: string, extra: Partial<typeof heartbeatRuns.$inferInsert> = {}) {
     const id = randomUUID();
-    await db.insert(heartbeatRuns).values({ id, companyId, agentId, invocationSource: "on_demand", status,
+    await db.insert(heartbeatRuns).values({ id, spaceId, agentId, invocationSource: "on_demand", status,
       nextEventSeq: 1, ...extra });
     return id;
   }
@@ -86,7 +86,7 @@ suite("environment_run_lease_active on the shared ownership path", () => {
    * leaves behind: a terminal run whose lease is still active. */
   async function lease(runId: string, holder: Record<string, unknown> | null, sandbox = false) {
     const id = randomUUID();
-    await db.insert(environmentLeases).values({ id, companyId, heartbeatRunId: runId, status: "active",
+    await db.insert(environmentLeases).values({ id, spaceId, heartbeatRunId: runId, status: "active",
       leasePolicy: "ephemeral",
       ...(sandbox ? { environmentId: sandboxEnvironmentId, provider: "fake", providerLeaseId: `sandbox://fake/${id}` } : {}),
       metadata: holder ? { [ENVIRONMENT_LEASE_CONTROLLER_KEY]: holder } : {} });
@@ -104,7 +104,7 @@ suite("environment_run_lease_active on the shared ownership path", () => {
 
   it("stamps the lease holder in the write that makes a lease active, with no extra I/O", async () => {
     const runId = await run("running");
-    const acquired = await environmentService(db).acquireLease({ companyId, environmentId: sandboxEnvironmentId,
+    const acquired = await environmentService(db).acquireLease({ spaceId, environmentId: sandboxEnvironmentId,
       heartbeatRunId: runId, provider: "fake", providerLeaseId: "sandbox://fake/stamped", metadata: { driver: "sandbox" } });
     expect(acquired.metadata?.[ENVIRONMENT_LEASE_CONTROLLER_KEY]).toEqual(currentControllerProcessStamp());
     expect(acquired.metadata?.driver).toBe("sandbox");
@@ -150,10 +150,10 @@ suite("environment_run_lease_active on the shared ownership path", () => {
     const foreign = { bootId: "other", pid: 1, hostHash: "another-pid-space", processStartedAt: null };
     const keptRuns = await Promise.all(Array.from({ length: 100 }, () => run("failed")));
     await db.insert(environmentLeases).values(keptRuns.map((runId, index) => ({
-      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`, companyId, heartbeatRunId: runId,
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`, spaceId, heartbeatRunId: runId,
       status: "active", metadata: { [ENVIRONMENT_LEASE_CONTROLLER_KEY]: foreign } })));
     const orphanId = "ffffffff-0000-4000-8000-000000000000";
-    await db.insert(environmentLeases).values({ id: orphanId, companyId, heartbeatRunId: await run("failed"), status: "active",
+    await db.insert(environmentLeases).values({ id: orphanId, spaceId, heartbeatRunId: await run("failed"), status: "active",
       metadata: { [ENVIRONMENT_LEASE_CONTROLLER_KEY]: await deadHolder() } });
     const heartbeat = heartbeatService(db);
     expect(await heartbeat.sweepOrphanedActiveLeases({ backoffMs: 0 })).toEqual({ recovered: 0 });
@@ -164,9 +164,9 @@ suite("environment_run_lease_active on the shared ownership path", () => {
 
   it("waits for native settlement only while the lease's environment exists to release it", async () => {
     const issueId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Native settlement" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Native settlement" });
     const contractId = randomUUID();
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "result-worker-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "result-worker-v1", objective: "Finish", criteria: [] },
@@ -179,9 +179,9 @@ suite("environment_run_lease_active on the shared ownership path", () => {
       config: { provider: "fake", image: "ubuntu:24.04" } });
     for (const runId of [kept, orphaned]) {
       const resultId = randomUUID();
-      await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId, completionContractId: contractId,
+      await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId, completionContractId: contractId,
         serverFingerprint: "fixture", schemaStatus: "accepted", resultJson: {}, canonicalSha256: "a".repeat(64) });
-      await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "committed", resultId });
+      await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "committed", resultId });
     }
     const keptLease = await lease(kept, await deadHolder(), true);
     const orphanedLease = await lease(orphaned, await deadHolder(), true);
@@ -260,7 +260,7 @@ suite("environment_run_lease_active on the shared ownership path", () => {
     it("dates the first cleanup attempt as a top-level key even for a scalar metadata root", async () => {
       const runId = await run("failed");
       const id = randomUUID();
-      await db.insert(environmentLeases).values({ id, companyId, heartbeatRunId: runId, status: "active",
+      await db.insert(environmentLeases).values({ id, spaceId, heartbeatRunId: runId, status: "active",
         metadata: sql`'["provider-wrote-an-array"]'::jsonb` });
       await runOwnershipReconciliationPass(db, { state: createOwnershipReportState() });
       const settled = await row(id);

@@ -15,7 +15,7 @@ import {
   type AdapterExecutionTarget,
   type AdapterExecutionTargetShellOptions,
 } from "@outpost/adapter-utils/execution-target";
-import { resolvePaperclipInstanceRootForAdapter } from "@outpost/adapter-utils/server-utils";
+import { resolveOutpostInstanceRootForAdapter } from "@outpost/adapter-utils/server-utils";
 import { shellQuote } from "@outpost/adapter-utils/ssh";
 import { classifyThrownErrorClass, logSandboxProbeDiagnostic } from "./probe-diagnostics.js";
 
@@ -140,32 +140,32 @@ export function resolveSharedClaudeConfigDir(
 
 export function resolveManagedClaudeConfigSeedDir(
   env: NodeJS.ProcessEnv,
-  companyId?: string,
+  spaceId?: string,
 ): string {
-  const instanceRoot = resolvePaperclipInstanceRootForAdapter({
+  const instanceRoot = resolveOutpostInstanceRootForAdapter({
     homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
     instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
-  return companyId
-    ? path.resolve(instanceRoot, "companies", companyId, "claude-config-seed")
+  return spaceId
+    ? path.resolve(instanceRoot, "spaces", spaceId, "claude-config-seed")
     : path.resolve(instanceRoot, "claude-config-seed");
 }
 
 export function resolveManagedClaudeRuntimeStateDir(
   env: NodeJS.ProcessEnv,
-  companyId: string,
+  spaceId: string,
   agentId: string,
 ): string {
-  const instanceRoot = resolvePaperclipInstanceRootForAdapter({
+  const instanceRoot = resolveOutpostInstanceRootForAdapter({
     homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
     instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
-  return path.join(instanceRoot, "companies", companyId, "agents", agentId, "claude-runtime");
+  return path.join(instanceRoot, "spaces", spaceId, "agents", agentId, "claude-runtime");
 }
 
-export async function writePaperclipClaudeMcpConfig(input: {
+export async function writeOutpostClaudeMcpConfig(input: {
   stateDir: string;
   runId: string;
   servers: AdapterRuntimeMcpServer[];
@@ -197,11 +197,11 @@ export async function writePaperclipClaudeMcpConfig(input: {
 export async function prepareClaudeConfigSeed(
   env: NodeJS.ProcessEnv,
   onLog: AdapterExecutionContext["onLog"],
-  companyId?: string,
+  spaceId?: string,
   options: { permissionDefaultMode?: RemoteClaudePermissionDefaultMode } = {},
 ): Promise<string> {
   const sourceDir = resolveSharedClaudeConfigDir(env);
-  const targetRootDir = resolveManagedClaudeConfigSeedDir(env, companyId);
+  const targetRootDir = resolveManagedClaudeConfigSeedDir(env, spaceId);
 
   if (path.resolve(sourceDir) === path.resolve(targetRootDir)) {
     return targetRootDir;
@@ -405,7 +405,7 @@ function isNonEmptyString(value: unknown): value is string {
 /**
  * Prepare the sandbox runtime that a Claude hello probe needs. The step
  * installs the Claude CLI in the sandbox when the CLI is absent, and it
- * materializes the Paperclip-managed Claude config directory. Both the CLI
+ * materializes the Outpost-managed Claude config directory. Both the CLI
  * Test lane and the ACP Test lane call this helper, so the two lanes probe
  * the same login state. The Claude CLI and the Claude ACP engine share the
  * same stored Claude login.
@@ -420,7 +420,7 @@ export async function prepareSandboxClaudeProbeRuntime(input: {
   runId: string;
   target: AdapterExecutionTarget | null;
   cwd: string;
-  companyId?: string;
+  spaceId?: string;
   env: Record<string, string>;
   installCommand: string;
   detectCommand: string;
@@ -448,11 +448,11 @@ export async function prepareSandboxClaudeProbeRuntime(input: {
     let tempWorkspaceDir: string | null = null;
     let preparedRuntime: Awaited<ReturnType<typeof prepareAdapterExecutionTargetRuntime>> | null = null;
     try {
-      const seedDir = input.managedAiConnection ? input.env.CLAUDE_CONFIG_DIR : await prepareClaudeConfigSeed(process.env, async () => {}, input.companyId);
+      const seedDir = input.managedAiConnection ? input.env.CLAUDE_CONFIG_DIR : await prepareClaudeConfigSeed(process.env, async () => {}, input.spaceId);
       const managedRemoteCwd =
         input.target?.kind === "remote" ? input.target.remoteCwd : input.cwd;
       tempWorkspaceDir = await fs.mkdtemp(
-        path.join(os.tmpdir(), "paperclip-claude-envtest-workspace-"),
+        path.join(os.tmpdir(), "outpost-claude-envtest-workspace-"),
       );
       preparedRuntime = await prepareAdapterExecutionTargetRuntime({
         runId: input.runId,
@@ -473,7 +473,7 @@ export async function prepareSandboxClaudeProbeRuntime(input: {
       });
       const runtimeRootDir =
         preparedRuntime.runtimeRootDir ??
-        path.posix.join(managedRemoteCwd, ".paperclip-runtime", "claude");
+        path.posix.join(managedRemoteCwd, ".outpost-runtime", "claude");
       const remoteClaudeConfigSeedDir =
         preparedRuntime.assetDirs["config-seed"] ??
         path.posix.join(runtimeRootDir, "config-seed");

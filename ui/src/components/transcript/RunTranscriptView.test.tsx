@@ -213,13 +213,13 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("result");
   });
 
-  it("links tool rows to pending governed action decisions", () => {
+  it("links tool rows to pending controlled action decisions", () => {
     const invocationId = "11111111-1111-4111-8111-111111111111";
     const actionRequestId = "22222222-2222-4222-8222-222222222222";
     const decision: ToolRunDecision = {
       invocation: {
         id: invocationId,
-        companyId: "company-1",
+        spaceId: "space-1",
         idempotencyKey: null,
         actorType: "agent",
         actorId: "agent-1",
@@ -250,7 +250,7 @@ describe("RunTranscriptView", () => {
       },
       actionRequest: {
         id: actionRequestId,
-        companyId: "company-1",
+        spaceId: "space-1",
         invocationId,
         issueId: "issue-1",
         interactionId: "33333333-3333-4333-8333-333333333333",

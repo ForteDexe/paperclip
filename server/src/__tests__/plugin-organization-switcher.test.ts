@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { pluginManifestV1Schema, type PaperclipPluginManifestV1 } from "@outpost/shared";
+import { pluginManifestV1Schema, type OutpostPluginManifestV1 } from "@outpost/shared";
 import { pluginCapabilityValidator } from "../services/plugin-capability-validator.js";
 
 describe("organization switcher installation", () => {
   it("accepts the slot and requires the sidebar capability", () => {
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: "example.account", apiVersion: 1, version: "1.0.0", displayName: "Account", categories: ["ui"],
       description: "Organization navigation", author: "Example",
       capabilities: ["ui.sidebar.register"], entrypoints: { worker: "./dist/worker.js", ui: "./dist/ui" },

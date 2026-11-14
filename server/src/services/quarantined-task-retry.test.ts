@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  agents, agentWakeupRequests, companies, createDb, environmentLeases, executionWorkspaces, heartbeatRunEvents,
+  agents, agentWakeupRequests, spaces, createDb, environmentLeases, executionWorkspaces, heartbeatRunEvents,
   heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, workspaceOperations,
 } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
@@ -36,7 +36,7 @@ describe("task Retry after inherited native cleanup quarantine", () => {
   afterAll(async () => { await db?.$client.end(); await postgres?.cleanup(); });
 
   async function seed(base: string, transient = false, provider: "codex" | "acpx" = "codex") {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
     const ownerId = randomUUID(), sourceId = randomUUID(), nativeSessionId = randomUUID(), runnerInstanceId = randomUUID();
     const workspaceId = randomUUID();
     const execution = (runId: string) => parseNativeExecutionInput({
@@ -45,7 +45,7 @@ describe("task Retry after inherited native cleanup quarantine", () => {
         profile: { driverKind: "acpx_runtime", protocolVersion: 1, acpxVersion: "0.22.0", agent: "claude", agentProfileVersion: 1,
           agentServerPackage: "@zed-industries/claude-agent-acp", agentServerVersion: "1", agentRuntimePackage: null,
           agentRuntimeVersion: null, commandDigest: "fixture" } } : { kind: "codex", model: null },
-      binding: { companyId, agentId, issueId, runId, executionWorkspaceId: transient ? runId : workspaceId },
+      binding: { spaceId, agentId, issueId, runId, executionWorkspaceId: transient ? runId : workspaceId },
       task: { identifier: "TEST", title: "Continue saved work", description: null, prompt: "Continue saved work", workMode: "standard" },
       workspace: { cwd: base, repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: nativeSessionId, driverKind: provider === "acpx" ? "acpx_runtime" : "codex_app_server", protocolVersion: 1,
@@ -56,19 +56,19 @@ describe("task Retry after inherited native cleanup quarantine", () => {
     });
     const processStartedAt = new Date(Date.now() - 120_000);
     const processIdentity = { processPid: 99_999_999, processGroupId: 99_999_999, processStartedAt };
-    await db.insert(companies).values({ id: companyId, name: "Quarantined Retry", defaultResponsibleUserId: "board",
-      issuePrefix: `Q${companyId.replaceAll("-", "")}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Native worker", adapterType: "outpost_runner", status: "idle",
+    await db.insert(spaces).values({ id: spaceId, name: "Quarantined Retry", defaultResponsibleUserId: "operator",
+      issuePrefix: `Q${spaceId.replaceAll("-", "")}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Native worker", adapterType: "outpost_runner", status: "idle",
       runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Continue saved work", status: "blocked", assigneeAgentId: agentId });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Continue saved work", status: "blocked", assigneeAgentId: agentId });
     if (!transient) {
-      await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId,
+      await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issueId,
         mode: "shared_workspace", strategyType: "project_primary", name: "Saved work", cwd: base });
       await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, issueId));
     }
     const resultJson = { savedAnswer: "Existing work", recoveredExecutionFailure: { errorCode: "provider_transport_failed" } };
     for (const runId of [ownerId, sourceId]) {
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId,
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, nativeIssueId: issueId,
         runtimeMode: "native", nativeSessionId, runnerInstanceId, ...processIdentity,
         status: runId === ownerId ? "succeeded" : "failed", resultJson: runId === ownerId ? resultJson : null,
         errorCode: runId === sourceId ? "native_session_cleanup_quarantined" : null,
@@ -78,14 +78,14 @@ describe("task Retry after inherited native cleanup quarantine", () => {
         contextSnapshot: { issueId }, runnerProfileJson: { nativeExecutionInput: execution(runId),
           nativeToolContractFingerprint: `sha256:${"1".repeat(64)}`, sessionCheckpoint: { sessionId: "retained-provider-thread" } },
       });
-      await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId,
+      await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId,
         phase: runId === ownerId ? "committed" : "terminal_failure" });
-      await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId: runId,
+      await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId: runId,
         provider: "local", status: "failed", leasePolicy: "ephemeral", releasedAt: new Date(Date.now() - 40_000) });
     }
-    await appendHeartbeatRunEvent(db, { companyId, runId: ownerId, agentId, eventType: PROCESS_IDENTITY_RECORDED,
+    await appendHeartbeatRunEvent(db, { spaceId, runId: ownerId, agentId, eventType: PROCESS_IDENTITY_RECORDED,
       payload: { ...processIdentity, processStartedAt: processStartedAt.toISOString(), targetKind: "local", hostname: hostname() } });
-    await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId, kind: "active_run_watchdog",
+    await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId, kind: "active_run_watchdog",
       cause: "native_session_cleanup_quarantined", fingerprint: sourceId, status: "resolved", outcome: "blocked",
       nextAction: "Automatic recovery stopped.", evidence: { runId: sourceId,
         automaticRecovery: { replay: "blocked", actionOutcome: "unknown" } } });
@@ -98,10 +98,10 @@ describe("task Retry after inherited native cleanup quarantine", () => {
       payload: { providerSessionId: "retained-provider-thread", processId: 99_999_998 } };
     const normalized = { ...event, sourceSeq: 1, sourceEventId: `${runnerInstanceId}:${ownerId}:1`, turnId: undefined, itemId: undefined,
       payload: { providerSessionId: "retained-provider-thread", driverSessionId: "retained-provider-thread" } };
-    await appendHeartbeatRunEvent(db, { companyId, runId: ownerId, agentId, eventType: event.eventType,
+    await appendHeartbeatRunEvent(db, { spaceId, runId: ownerId, agentId, eventType: event.eventType,
       payload: { orpEvent: normalized }, nativeSource: { sourceInstanceId: runnerInstanceId,
         sourceEventId: normalized.sourceEventId, sourceSeq: 1, protocolSchemaVersion: 1, canonicalPayload: normalized } });
-    const root = provider === "acpx" ? scopedRunnerdStateRoot(execution(ownerId)) : join(base, nativeSha256({ schema: "outpost.native-session-scope.v2", companyId, agentId,
+    const root = provider === "acpx" ? scopedRunnerdStateRoot(execution(ownerId)) : join(base, nativeSha256({ schema: "outpost.native-session-scope.v2", spaceId, agentId,
       workspace: transient ? { kind: "transient", cwd: base, repoUrl: null, repoRef: null, branchName: null }
         : { kind: "managed", executionWorkspaceId: workspaceId },
       provider: { driverKind: "codex_app_server", identity: { kind: "codex" } }, normalizedSessionId: nativeSessionId }));
@@ -121,7 +121,7 @@ describe("task Retry after inherited native cleanup quarantine", () => {
     await mkdir(join(root, "runner"), { recursive: true });
     for (const [path, value] of Object.entries(files)) await writeFile(join(root, path), JSON.stringify(value));
     await writeFile(join(base, "saved-work.txt"), "Keep the prior result and uncertain action history.");
-    return { companyId, agentId, issueId, workspaceId, ownerId, sourceId, runnerInstanceId, resultJson, root, files };
+    return { spaceId, agentId, issueId, workspaceId, ownerId, sourceId, runnerInstanceId, resultJson, root, files };
   }
 
   it.each(["preserved", "projectless", "changed_binding", "changed_cwd", "pending_operation", "active_lease", "closed_workspace", "remote_workspace", "foreign_receipt"])(
@@ -131,14 +131,14 @@ describe("task Retry after inherited native cleanup quarantine", () => {
     process.env.OUTPOST_RUNNER_STATE_DIR = base;
     try {
       const f = await seed(base, mode === "projectless");
-      await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running" });
-      const input = { db, companyId: f.companyId, issueId: f.issueId, actorId: "board", actorSource: "local_implicit", observedRunId: f.sourceId };
+      await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "running" });
+      const input = { db, spaceId: f.spaceId, issueId: f.issueId, actorId: "operator", actorSource: "local_implicit", observedRunId: f.sourceId };
       const receipt = await requestTaskRetry({ ...input, idempotencyKey: randomUUID() });
       const duplicate = await requestTaskRetry({ ...input, idempotencyKey: randomUUID() });
       expect(duplicate.requestId).toBe(receipt.requestId);
       const heartbeat = heartbeatService(db);
-      await Promise.all([heartbeat.resumeTaskRetry(f.companyId, receipt.requestId!), heartbeat.resumeTaskRetry(f.companyId, receipt.requestId!)]);
-      const successors = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.status, "queued")));
+      await Promise.all([heartbeat.resumeTaskRetry(f.spaceId, receipt.requestId!), heartbeat.resumeTaskRetry(f.spaceId, receipt.requestId!)]);
+      const successors = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.status, "queued")));
       const [state] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, receipt.requestId!));
       expect(successors, JSON.stringify(state.payload)).toHaveLength(1);
       expect(successors[0].contextSnapshot).toMatchObject({ previousRunId: f.sourceId, forceFreshSession: true, taskRetryRequestId: receipt.requestId });
@@ -146,9 +146,9 @@ describe("task Retry after inherited native cleanup quarantine", () => {
       if (mode === "changed_cwd") await db.update(executionWorkspaces).set({ cwd: join(base, "another-directory") }).where(eq(executionWorkspaces.id, f.workspaceId));
       if (mode === "closed_workspace") await db.update(executionWorkspaces).set({ status: "closed" }).where(eq(executionWorkspaces.id, f.workspaceId));
       if (mode === "remote_workspace") await db.update(executionWorkspaces).set({ providerType: "plugin" }).where(eq(executionWorkspaces.id, f.workspaceId));
-      if (mode === "pending_operation") await db.insert(workspaceOperations).values({ companyId: f.companyId,
+      if (mode === "pending_operation") await db.insert(workspaceOperations).values({ spaceId: f.spaceId,
         executionWorkspaceId: f.workspaceId, heartbeatRunId: f.ownerId, issueId: f.issueId, phase: "workspace_restore", status: "running" });
-      if (mode === "active_lease") await db.insert(environmentLeases).values({ companyId: f.companyId,
+      if (mode === "active_lease") await db.insert(environmentLeases).values({ spaceId: f.spaceId,
         executionWorkspaceId: f.workspaceId, heartbeatRunId: f.ownerId, issueId: f.issueId, provider: "local", status: "active", leasePolicy: "ephemeral" });
       if (mode === "foreign_receipt") {
         const [proof] = await db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.runId, f.sourceId),
@@ -163,7 +163,7 @@ describe("task Retry after inherited native cleanup quarantine", () => {
         expect(await readFreshWorkspaceReadiness(db, successors[0])).toMatchObject({ mode: "resume_stopped_native_workspace",
           retryIntentId: receipt.requestId, sourceRunId: f.sourceId, workspaceId: f.workspaceId, cwd: base });
       } else await expect(readFreshWorkspaceReadiness(db, successors[0])).rejects.toThrow(/Verified native continuation workspace/);
-      expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+      expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
       const [wake] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, receipt.requestId!));
       expect(wake).toMatchObject({ status: "coalesced", runId: successors[0].id });
       const [owner] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.ownerId));
@@ -200,9 +200,9 @@ describe("task Retry after inherited native cleanup quarantine", () => {
         // sees the same live worker, not a reused PID.
         const startedAt = new Date((await currentProcessStartedAtMs())!);
         await db.update(heartbeatRuns).set({ processPid: process.pid, processGroupId: process.pid, processStartedAt: startedAt })
-          .where(eq(heartbeatRuns.companyId, f.companyId));
+          .where(eq(heartbeatRuns.spaceId, f.spaceId));
         const [owner] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.ownerId));
-        await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.ownerId, agentId: f.agentId,
+        await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.ownerId, agentId: f.agentId,
           eventType: PROCESS_IDENTITY_RECORDED, payload: { targetKind: "local", hostname: hostname(),
             processPid: process.pid, processGroupId: process.pid, processStartedAt: owner.processStartedAt!.toISOString() } });
       }
@@ -212,7 +212,7 @@ describe("task Retry after inherited native cleanup quarantine", () => {
         mode === "owner_remote" ? { provider: "daytona" } : { releasedAt: null },
       ).where(eq(environmentLeases.heartbeatRunId, f.ownerId));
       if (mode === "owner_new_launch" || mode === "source_new_launch") await appendHeartbeatRunEvent(db, {
-        companyId: f.companyId, runId: mode === "owner_new_launch" ? f.ownerId : f.sourceId, agentId: f.agentId, eventType: PROCESS_START_REQUESTED,
+        spaceId: f.spaceId, runId: mode === "owner_new_launch" ? f.ownerId : f.sourceId, agentId: f.agentId, eventType: PROCESS_START_REQUESTED,
       });
       if (mode === "foreign_host") {
         const [identity] = await db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.runId, f.ownerId),
@@ -251,7 +251,7 @@ describe("task Retry after inherited native cleanup quarantine", () => {
         await writeFile(join(f.root, "runner/runner-state.json"), "{}");
         expect(proof!.retire()).toBe(false);
       } else expect(proof).toBeNull();
-      expect(await getExecutionBlocker(db, f.companyId, f.issueId)).not.toBeNull();
+      expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).not.toBeNull();
     } finally {
       if (previous === undefined) delete process.env.OUTPOST_RUNNER_STATE_DIR; else process.env.OUTPOST_RUNNER_STATE_DIR = previous;
       await rm(base, { recursive: true, force: true });
@@ -271,7 +271,7 @@ describe("task Retry after inherited native cleanup quarantine", () => {
       await db.update(heartbeatRuns).set({ processPid: null, processGroupId: null, processStartedAt: null })
         .where(eq(heartbeatRuns.id, f.sourceId));
       if (mode === "source_launch_requested") await appendHeartbeatRunEvent(db, {
-        companyId: f.companyId, runId: f.sourceId, agentId: f.agentId, eventType: PROCESS_START_REQUESTED });
+        spaceId: f.spaceId, runId: f.sourceId, agentId: f.agentId, eventType: PROCESS_START_REQUESTED });
       if (mode === "owner_running") await db.update(heartbeatRuns).set({ status: "running", finishedAt: null }).where(eq(heartbeatRuns.id, f.ownerId));
       const [source] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.sourceId));
       const proof = await verifyStoppedNativeSessionForContinuation(db, source);
@@ -345,7 +345,7 @@ describe("task Retry after inherited native cleanup quarantine", () => {
       const deferredWake = vi.fn();
       const unsubscribeDeferred = subscribeDeliveryWork(db, DELIVERY_QUEUES.deferredExecutionReceipts, deferredWake);
       const pendingClose = new Promise<void>(resolve => { releaseClose = resolve; });
-      const identity = { runId: randomUUID(), sessionId: "retained-close-session", companyId: f.companyId, issueId: f.issueId, agentId: f.agentId };
+      const identity = { runId: randomUUID(), sessionId: "retained-close-session", spaceId: f.spaceId, issueId: f.issueId, agentId: f.agentId };
       const capabilities = { resume: true, typedEvents: true, steering: false, interruption: false, structuredResult: true };
       const session: NativeSession = {
         identity: () => identity, capabilities: async () => capabilities,
@@ -357,7 +357,7 @@ describe("task Retry after inherited native cleanup quarantine", () => {
       };
       await expect(executeNativeSession({
         input: parseNativeExecutionInput({ schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
-          binding: { companyId: f.companyId, agentId: f.agentId, issueId: f.issueId, runId: identity.runId, executionWorkspaceId: f.workspaceId },
+          binding: { spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId, runId: identity.runId, executionWorkspaceId: f.workspaceId },
           task: { identifier: "TEST", title: "Continue saved work", description: null, prompt: "Continue saved work", workMode: "standard" },
           workspace: { cwd: base, repoUrl: null, repoRef: null, branchName: null },
           session: { normalizedSessionId: identity.sessionId, driverKind: "codex_app_server", protocolVersion: 1,
@@ -372,15 +372,15 @@ describe("task Retry after inherited native cleanup quarantine", () => {
           replayEvents: async () => ({ events: [], highestContiguousSourceSeq: 0 }), completeRun: async () => {} },
         runnerInstanceId: f.runnerInstanceId, controlPlaneInstanceId: "control",
       })).rejects.toThrow("retained close transport stopped");
-      expect(nativeSessionCleanupBlock({ companyId: f.companyId, issueId: f.issueId })).toBe("pending");
-      expect(nativeSessionCleanupBlock({ companyId: f.companyId, issueId: randomUUID() })).toBeNull();
+      expect(nativeSessionCleanupBlock({ spaceId: f.spaceId, issueId: f.issueId })).toBe("pending");
+      expect(nativeSessionCleanupBlock({ spaceId: f.spaceId, issueId: randomUUID() })).toBeNull();
 
-      await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running" });
-      const receipt = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issueId, actorId: "board",
+      await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "running" });
+      const receipt = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issueId, actorId: "operator",
         actorSource: "local_implicit", observedRunId: f.sourceId, idempotencyKey: randomUUID() });
       const heartbeat = heartbeatService(db);
-      await heartbeat.resumeTaskRetry(f.companyId, receipt.requestId!);
-      const queued = () => db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.status, "queued")));
+      await heartbeat.resumeTaskRetry(f.spaceId, receipt.requestId!);
+      const queued = () => db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.status, "queued")));
       // No successor is dispatched that the runner would refuse at once.
       expect(await queued()).toHaveLength(0);
       const [held] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, receipt.requestId!));
@@ -389,15 +389,15 @@ describe("task Retry after inherited native cleanup quarantine", () => {
 
       // The close settles by itself; its release wakes the held Retry, which then starts.
       releaseClose();
-      await vi.waitFor(() => expect(settled).toHaveBeenCalledWith({ companyId: f.companyId, issueIds: [f.issueId] }));
+      await vi.waitFor(() => expect(settled).toHaveBeenCalledWith({ spaceId: f.spaceId, issueIds: [f.issueId] }));
       await vi.waitFor(() => expect(deferredWake).toHaveBeenCalled());
       expect(wakeFailure).not.toHaveBeenCalled();
-      expect(nativeSessionCleanupBlock({ companyId: f.companyId, issueId: f.issueId })).toBeNull();
+      expect(nativeSessionCleanupBlock({ spaceId: f.spaceId, issueId: f.issueId })).toBeNull();
       unsubscribe();
       unregisterWake();
       unsubscribeDeferred();
       // The deferred-execution worker runs this pass on that wake.
-      await heartbeat.resumeTaskRetry(f.companyId, receipt.requestId!);
+      await heartbeat.resumeTaskRetry(f.spaceId, receipt.requestId!);
       expect(await queued()).toHaveLength(1);
     } finally {
       releaseClose();
@@ -409,9 +409,9 @@ describe("task Retry after inherited native cleanup quarantine", () => {
   // s9107 t04/t05: the server paused (SIGSTOP) after a turn completed, its
   // runner checkpoint owner lapsed, and the session close could not prove the
   // runner suspended, leaving an operator-required gate in this process.
-  async function quarantineOwnClose(f: { companyId: string; agentId: string; issueId: string; sourceId: string;
+  async function quarantineOwnClose(f: { spaceId: string; agentId: string; issueId: string; sourceId: string;
     workspaceId: string; runnerInstanceId: string }, base: string, runId = f.sourceId) {
-    const identity = { runId, sessionId: "own-close-session", companyId: f.companyId, issueId: f.issueId, agentId: f.agentId };
+    const identity = { runId, sessionId: "own-close-session", spaceId: f.spaceId, issueId: f.issueId, agentId: f.agentId };
     const capabilities = { resume: true, typedEvents: true, steering: false, interruption: false, structuredResult: true };
     const session: NativeSession = {
       identity: () => identity, capabilities: async () => capabilities,
@@ -423,7 +423,7 @@ describe("task Retry after inherited native cleanup quarantine", () => {
     };
     await expect(executeNativeSession({
       input: parseNativeExecutionInput({ schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
-        binding: { companyId: f.companyId, agentId: f.agentId, issueId: f.issueId, runId, executionWorkspaceId: f.workspaceId },
+        binding: { spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId, runId, executionWorkspaceId: f.workspaceId },
         task: { identifier: "TEST", title: "Continue saved work", description: null, prompt: "Continue saved work", workMode: "standard" },
         workspace: { cwd: base, repoUrl: null, repoRef: null, branchName: null },
         session: { normalizedSessionId: identity.sessionId, driverKind: "codex_app_server", protocolVersion: 1,
@@ -438,20 +438,20 @@ describe("task Retry after inherited native cleanup quarantine", () => {
         replayEvents: async () => ({ events: [], highestContiguousSourceSeq: 0 }), completeRun: async () => {} },
       runnerInstanceId: f.runnerInstanceId, controlPlaneInstanceId: "control",
     })).rejects.toThrow();
-    await vi.waitFor(() => expect(nativeSessionCleanupBlock({ companyId: f.companyId, issueId: f.issueId })).toBe("operator_required"));
+    await vi.waitFor(() => expect(nativeSessionCleanupBlock({ spaceId: f.spaceId, issueId: f.issueId })).toBe("operator_required"));
   }
 
   // An ACPX session open names no provider PID; its sidecar reports one separately (s9107 t04).
-  async function recordOwnStop(f: { companyId: string; agentId: string; sourceId: string }, providerPid: number,
+  async function recordOwnStop(f: { spaceId: string; agentId: string; sourceId: string }, providerPid: number,
     sidecar?: { processGroupId: number | null }, options: { noIdentity?: boolean; startedPid?: boolean } = {}) {
     const processStartedAt = new Date(Date.now() - 90_000).toISOString();
-    await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.sourceId, agentId: f.agentId, eventType: PROCESS_IDENTITY_RECORDED,
+    await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.sourceId, agentId: f.agentId, eventType: PROCESS_IDENTITY_RECORDED,
       payload: { processPid: 99_999_996, processGroupId: 99_999_996, processStartedAt, targetKind: "local", hostname: hostname() } });
     // The real Codex projection names no PID in session opens; the checkpoint does.
-    await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.sourceId, agentId: f.agentId,
+    await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.sourceId, agentId: f.agentId,
       eventType: "session.started", payload: { orpEvent: { payload: { providerSessionId: "own-provider", driverSessionId: "own-provider",
         ...(options.startedPid ? { started: { pid: providerPid } } : {}) } } } });
-    await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.sourceId, agentId: f.agentId,
+    await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.sourceId, agentId: f.agentId,
       eventType: "session.reconciled", payload: { orpEvent: { payload: { providerSessionId: "own-provider", turnCount: 1,
         activeTurnId: null, terminalTurnId: "own-turn" } } } });
     if (!sidecar && !options.noIdentity && !options.startedPid) {
@@ -460,10 +460,10 @@ describe("task Retry after inherited native cleanup quarantine", () => {
         sessionCheckpoint: { ...(row.runnerProfileJson as { sessionCheckpoint: object }).sessionCheckpoint, process: { providerPid } } } })
         .where(eq(heartbeatRuns.id, f.sourceId));
     }
-    if (sidecar) await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.sourceId, agentId: f.agentId,
+    if (sidecar) await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.sourceId, agentId: f.agentId,
       eventType: "harness.diagnostic", payload: { orpEvent: { payload: { code: "acpx_process",
         details: { pid: providerPid, role: "sidecar", processGroupId: sidecar.processGroupId } } } } });
-    await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.sourceId, agentId: f.agentId, eventType: "native.local_process_stopped",
+    await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.sourceId, agentId: f.agentId, eventType: "native.local_process_stopped",
       payload: { processPid: 99_999_996, processGroupId: 99_999_996, processStartedAt } });
   }
 
@@ -480,8 +480,8 @@ describe("task Retry after inherited native cleanup quarantine", () => {
         { noIdentity: mode === "no_provider_identity", startedPid: mode === "started_pid" });
       const retires = mode === "stopped" || mode === "started_pid" || mode === "acpx_sidecar";
       const [source] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.sourceId));
-      expect(await retireStoppedSessionCleanupGates(db, { companyId: f.companyId, issueId: f.issueId, run: source })).toBe(retires);
-      expect(nativeSessionCleanupBlock({ companyId: f.companyId, issueId: f.issueId }))
+      expect(await retireStoppedSessionCleanupGates(db, { spaceId: f.spaceId, issueId: f.issueId, run: source })).toBe(retires);
+      expect(nativeSessionCleanupBlock({ spaceId: f.spaceId, issueId: f.issueId }))
         .toBe(retires ? null : "operator_required");
     } finally {
       if (previous === undefined) delete process.env.OUTPOST_RUNNER_STATE_DIR; else process.env.OUTPOST_RUNNER_STATE_DIR = previous;
@@ -503,11 +503,11 @@ describe("task Retry after inherited native cleanup quarantine", () => {
         .where(eq(heartbeatRuns.id, f.sourceId));
       const [source] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.sourceId));
       expect(await verifyStoppedNativeSessionForContinuation(db, source)).toBeNull();
-      await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running" });
-      const receipt = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issueId, actorId: "board",
+      await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "running" });
+      const receipt = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issueId, actorId: "operator",
         actorSource: "local_implicit", observedRunId: f.sourceId, idempotencyKey: randomUUID() });
-      await heartbeatService(db).resumeTaskRetry(f.companyId, receipt.requestId!);
-      const queued = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.status, "queued")));
+      await heartbeatService(db).resumeTaskRetry(f.spaceId, receipt.requestId!);
+      const queued = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.status, "queued")));
       const [state] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, receipt.requestId!));
       if (mode === "provider_alive") {
         expect(queued).toHaveLength(0);
@@ -537,15 +537,15 @@ describe("task Retry after inherited native cleanup quarantine", () => {
       const startedAt = mode === "runner_alive" ? new Date((await currentProcessStartedAtMs())!) : source.processStartedAt!;
       await db.update(heartbeatRuns).set({ status: "succeeded", errorCode: null, processPid: pid, processGroupId: pid, processStartedAt: startedAt })
         .where(eq(heartbeatRuns.id, f.sourceId));
-      await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.sourceId, agentId: f.agentId, eventType: PROCESS_IDENTITY_RECORDED,
+      await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.sourceId, agentId: f.agentId, eventType: PROCESS_IDENTITY_RECORDED,
         payload: { processPid: pid, processGroupId: pid, processStartedAt: startedAt.toISOString(),
           targetKind: "local", hostname: hostname() } });
-      await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.sourceId, agentId: f.agentId, eventType: "harness.diagnostic",
+      await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.sourceId, agentId: f.agentId, eventType: "harness.diagnostic",
         payload: { orpEvent: { payload: { code: "acpx_process", details: { pid: 99_999_994, role: "sidecar", processGroupId: null } } } } });
-      await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.sourceId, agentId: f.agentId, eventType: "session.started",
+      await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.sourceId, agentId: f.agentId, eventType: "session.started",
         payload: { orpEvent: { payload: { providerSessionId: "own-provider" } } } });
-      expect(await retireStoppedSessionCleanupGates(db, { companyId: f.companyId, issueId: f.issueId })).toBe(mode === "stopped");
-      expect(nativeSessionCleanupBlock({ companyId: f.companyId, issueId: f.issueId }))
+      expect(await retireStoppedSessionCleanupGates(db, { spaceId: f.spaceId, issueId: f.issueId })).toBe(mode === "stopped");
+      expect(nativeSessionCleanupBlock({ spaceId: f.spaceId, issueId: f.issueId }))
         .toBe(mode === "stopped" ? null : "operator_required");
     } finally {
       if (previous === undefined) delete process.env.OUTPOST_RUNNER_STATE_DIR; else process.env.OUTPOST_RUNNER_STATE_DIR = previous;
@@ -568,14 +568,14 @@ describe("task Retry after inherited native cleanup quarantine", () => {
         ...f.files["runner/codex-provider-state.json"], lifecycle: "ready" }));
       const [source] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.sourceId));
       expect(await verifyStoppedNativeSessionForContinuation(db, source)).toBeNull();
-      await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running" });
-      const receipt = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issueId, actorId: "board",
+      await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "running" });
+      const receipt = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issueId, actorId: "operator",
         actorSource: "local_implicit", observedRunId: f.sourceId, idempotencyKey: randomUUID() });
-      await heartbeatService(db).resumeTaskRetry(f.companyId, receipt.requestId!);
-      const queued = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.status, "queued")));
+      await heartbeatService(db).resumeTaskRetry(f.spaceId, receipt.requestId!);
+      const queued = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.status, "queued")));
       const [state] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, receipt.requestId!));
       expect(queued, JSON.stringify(state.payload)).toHaveLength(1);
-      expect(nativeSessionCleanupBlock({ companyId: f.companyId, issueId: f.issueId })).toBeNull();
+      expect(nativeSessionCleanupBlock({ spaceId: f.spaceId, issueId: f.issueId })).toBeNull();
     } finally {
       if (previous === undefined) delete process.env.OUTPOST_RUNNER_STATE_DIR; else process.env.OUTPOST_RUNNER_STATE_DIR = previous;
       await rm(base, { recursive: true, force: true });

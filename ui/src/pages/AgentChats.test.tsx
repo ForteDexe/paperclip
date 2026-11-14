@@ -9,7 +9,7 @@ import { AgentChats } from "./AgentChats";
 const state = vi.hoisted(() => ({
   primaryAgentId: null as string | null,
   primaryLoading: false,
-  companyId: "company-a",
+  spaceId: "space-a",
   userId: "user-a",
   agents: [] as Agent[],
   chats: [] as { id: string; conversationAgentId: string }[],
@@ -24,7 +24,7 @@ vi.mock("@/components/primary-agent/PrimaryAgentPresentation", () => ({ usePrima
 vi.mock("@/context/BreadcrumbContext", () => ({ useBreadcrumbs: () => ({ setBreadcrumbs: vi.fn() }) }));
 vi.mock("@/hooks/useAgentChatNavigation", () => ({
   useAgentChatNavigation: () => ({
-    companyId: state.companyId,
+    spaceId: state.spaceId,
     userId: state.userId,
     enabled: true,
     loaded: true,
@@ -42,8 +42,8 @@ vi.mock("@/components/AgentAvatar", () => ({ AgentAvatar: () => null }));
 
 let root: Root;
 let container: HTMLDivElement;
-const agent = (id: string, companyId = "company-a") => ({
-  id, companyId, name: id, urlKey: `${id}-slug`, role: "engineer", status: "idle",
+const agent = (id: string, spaceId = "space-a") => ({
+  id, spaceId, name: id, urlKey: `${id}-slug`, role: "engineer", status: "idle",
 } as Agent);
 
 async function render() {
@@ -54,7 +54,7 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   state.primaryAgentId = null;
   state.primaryLoading = false;
-  state.companyId = "company-a";
+  state.spaceId = "space-a";
   state.userId = "user-a";
   state.agents = [agent("alice"), agent("bob")];
   state.chats = [];
@@ -63,10 +63,10 @@ beforeEach(() => {
   state.sessionError = null;
   state.navigate.mockReset();
   for (const id of ["alice", "bob", "removed", "retired-id"])
-    recordAgentChatVisit("company-a", "user-a", id, null);
-  localStorage.setItem("outpost.recentAgentChats:company-a:user-a", "[]");
-  localStorage.setItem("outpost.recentAgentChats:company-b:user-a", "[]");
-  localStorage.setItem("outpost.recentAgentChats:company-a:user-b", "[]");
+    recordAgentChatVisit("space-a", "user-a", id, null);
+  localStorage.setItem("outpost.recentAgentChats:space-a:user-a", "[]");
+  localStorage.setItem("outpost.recentAgentChats:space-b:user-a", "[]");
+  localStorage.setItem("outpost.recentAgentChats:space-a:user-b", "[]");
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -81,11 +81,11 @@ afterEach(async () => {
 describe("Chat landing", () => {
   it("uses the primary only when there is no valid recent conversation", async () => {
     state.primaryAgentId = "alice";
-    recordAgentChatVisit("company-a", "user-a", "removed");
+    recordAgentChatVisit("space-a", "user-a", "removed");
     await render();
     expect(state.navigate).toHaveBeenCalledWith("/chats/alice-slug", { replace: true });
     state.navigate.mockClear();
-    recordAgentChatVisit("company-a", "user-a", "bob");
+    recordAgentChatVisit("space-a", "user-a", "bob");
     await render();
     expect(state.navigate).toHaveBeenCalledWith("/chats/bob-slug", { replace: true });
   });
@@ -103,24 +103,24 @@ describe("Chat landing", () => {
   });
 
   it("opens the most recently visited agent and replaces the landing history entry", async () => {
-    recordAgentChatVisit("company-a", "user-a", "alice");
-    recordAgentChatVisit("company-a", "user-a", "bob");
+    recordAgentChatVisit("space-a", "user-a", "alice");
+    recordAgentChatVisit("space-a", "user-a", "bob");
     await render();
     expect(state.navigate).toHaveBeenCalledWith("/chats/bob-slug", { replace: true });
     expect(container.textContent).toContain("Opening chat");
   });
 
-  it("skips unavailable saved agents and preserves the company and user scope", async () => {
-    recordAgentChatVisit("company-a", "user-a", "alice");
-    recordAgentChatVisit("company-a", "user-a", "removed");
-    recordAgentChatVisit("company-b", "user-a", "other-company-agent");
-    recordAgentChatVisit("company-a", "user-b", "other-user-agent");
+  it("skips unavailable saved agents and preserves the space and user scope", async () => {
+    recordAgentChatVisit("space-a", "user-a", "alice");
+    recordAgentChatVisit("space-a", "user-a", "removed");
+    recordAgentChatVisit("space-b", "user-a", "other-space-agent");
+    recordAgentChatVisit("space-a", "user-b", "other-user-agent");
     await render();
     expect(state.navigate).toHaveBeenCalledWith("/chats/alice-slug", { replace: true });
   });
 
   it("does not reopen historical chats for agents missing from the active roster", async () => {
-    recordAgentChatVisit("company-a", "user-a", "retired-id");
+    recordAgentChatVisit("space-a", "user-a", "retired-id");
     state.chats = [{ id: "chat-retired", conversationAgentId: "retired-id" }];
     await render();
     expect(state.navigate).not.toHaveBeenCalled();
@@ -128,8 +128,8 @@ describe("Chat landing", () => {
   });
 
   it("skips a missing recent agent without waiting for history", async () => {
-    recordAgentChatVisit("company-a", "user-a", "alice");
-    recordAgentChatVisit("company-a", "user-a", "retired-id");
+    recordAgentChatVisit("space-a", "user-a", "alice");
+    recordAgentChatVisit("space-a", "user-a", "retired-id");
     state.chatsFetched = false;
     await render();
     expect(state.navigate).toHaveBeenCalledWith("/chats/alice-slug", { replace: true });
@@ -150,22 +150,22 @@ describe("Chat landing", () => {
   });
 
   it("shows the chooser when no saved chat remains available", async () => {
-    recordAgentChatVisit("company-a", "user-a", "removed");
+    recordAgentChatVisit("space-a", "user-a", "removed");
     await render();
     expect(state.navigate).not.toHaveBeenCalled();
     expect(container.textContent).toContain("Who would you like to talk to?");
   });
 
   it("skips a saved conversation that is no longer accessible even when its agent remains available", async () => {
-    recordAgentChatVisit("company-a", "user-a", "alice");
-    recordAgentChatVisit("company-a", "user-a", "bob", "deleted-chat");
+    recordAgentChatVisit("space-a", "user-a", "alice");
+    recordAgentChatVisit("space-a", "user-a", "bob", "deleted-chat");
     state.chats = [{ id: "chat-alice", conversationAgentId: "alice" }];
     await render();
     expect(state.navigate).toHaveBeenCalledWith("/chats/alice-slug", { replace: true });
   });
 
   it("reopens an active agent when history fails", async () => {
-    recordAgentChatVisit("company-a", "user-a", "alice", "chat-alice");
+    recordAgentChatVisit("space-a", "user-a", "alice", "chat-alice");
     state.chatsFetched = false;
     state.chatsError = new Error("History unavailable");
     await render();
@@ -173,14 +173,14 @@ describe("Chat landing", () => {
   });
 
   it("reopens a visited empty chat without waiting for history", async () => {
-    recordAgentChatVisit("company-a", "user-a", "alice", null);
+    recordAgentChatVisit("space-a", "user-a", "alice", null);
     state.chatsFetched = false;
     await render();
     expect(state.navigate).toHaveBeenCalledWith("/chats/alice-slug", { replace: true });
   });
 
   it("shows a retry state when identity fails instead of waiting for disabled history", async () => {
-    recordAgentChatVisit("company-a", "user-a", "alice");
+    recordAgentChatVisit("space-a", "user-a", "alice");
     state.sessionError = new Error("Session unavailable");
     state.chatsFetched = false;
     await render();

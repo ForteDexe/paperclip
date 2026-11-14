@@ -14,7 +14,7 @@ const kind = sql<string | null>`${heartbeatRunEvents.payload}->'orpEvent'->'payl
  */
 export async function readUnreadSteeredMessages(
   db: Db,
-  input: { companyId: string; runId: string; issueId: string },
+  input: { spaceId: string; runId: string; issueId: string },
 ): Promise<Array<{ id: string; text: string }>> {
   const rows = await db
     .select({
@@ -25,7 +25,7 @@ export async function readUnreadSteeredMessages(
     })
     .from(heartbeatRunEvents)
     .where(and(
-      eq(heartbeatRunEvents.companyId, input.companyId),
+      eq(heartbeatRunEvents.spaceId, input.spaceId),
       eq(heartbeatRunEvents.runId, input.runId),
       isNotNull(heartbeatRunEvents.sourceEventId),
       or(
@@ -45,7 +45,7 @@ export async function readUnreadSteeredMessages(
     .select({ id: issueComments.id, body: issueComments.body })
     .from(issueComments)
     .where(and(
-      eq(issueComments.companyId, input.companyId),
+      eq(issueComments.spaceId, input.spaceId),
       eq(issueComments.issueId, input.issueId),
       inArray(issueComments.id, uuids),
     ));
@@ -57,7 +57,7 @@ export async function readUnreadSteeredMessages(
       .select()
       .from(issueThreadInteractions)
       .where(and(
-        eq(issueThreadInteractions.companyId, input.companyId),
+        eq(issueThreadInteractions.spaceId, input.spaceId),
         eq(issueThreadInteractions.issueId, input.issueId),
         inArray(issueThreadInteractions.id, remaining),
       ));

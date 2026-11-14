@@ -11,10 +11,10 @@ import { prepareOwnedCli, runOwnedCli, cleanupOwnedCli } from "./privileged-cli-
 export function inspectRunCommands(reply: string, runId: string) {
   const matches = [...reply.matchAll(/```(?:bash|sh|shell|zsh|console)?\s*\n([\s\S]*?)```/g)]
     .flatMap(match => match[1]!.replace(/\\\r?\n/g, " ").split(/\r?\n/))
-    .map(line => line.trim().replace(/^\$\s+/, "")).filter(line => /^(?:paperclipai|npx(?: -y)? paperclipai|pnpm (?:exec )?paperclipai)\s+run\s+(?:get|cancel)\b/.test(line));
+    .map(line => line.trim().replace(/^\$\s+/, "")).filter(line => /^(?:outpost|npx(?: -y)? outpost|pnpm (?:exec )?outpost)\s+run\s+(?:get|cancel)\b/.test(line));
   const commands: string[][] = [], bindings: Array<{ placeholder: string; fixtureValue: string }> = [];
   for (const line of matches) {
-    const parsed = line.match(/^(?:paperclipai|npx(?: -y)? paperclipai|pnpm (?:exec )?paperclipai)\s+run\s+(get|cancel)\s+(\S+)(?:\s+(--json))?$/);
+    const parsed = line.match(/^(?:outpost|npx(?: -y)? outpost|pnpm (?:exec )?outpost)\s+run\s+(get|cancel)\s+(\S+)(?:\s+(--json))?$/);
     if (!parsed) throw new Error("Unsupported run command flags or shell syntax");
     let id = parsed[2]!;
     if (/^(?:<[A-Z_ -]+>|\$\{?[A-Z_]+\}?)$/.test(id)) { bindings.push({ placeholder: id, fixtureValue: runId }); id = runId; }
@@ -28,8 +28,8 @@ export function gradeInspectRunCli(value: unknown) {
   const c = checks(), o = privilegedObservation(value);
   c.add("run-companion-observation", !!o, "Actual read-before-cancel state and the owned native worker run are required."); if (!o) return c.result();
   c.add("read-exact-last-morgan-run", o.state.initialRunReallyRunning === true && o.state.readRunId === o.state.workerRunId
-    && o.state.readAgentId === (o.state.worker as { id?: string } | undefined)?.id && o.state.readCompanyId === o.companyId
-    && o.state.readStatus === "running", "The actual CLI read selects Morgan's exact current run, rather than a stale or other-company run.");
+    && o.state.readAgentId === (o.state.worker as { id?: string } | undefined)?.id && o.state.readSpaceId === o.spaceId
+    && o.state.readStatus === "running", "The actual CLI read selects Morgan's exact current run, rather than a stale or other-space run.");
   // Who may cancel is set by the product (the agent bearer probe); how the reply
   // words that is not graded by keywords and is read by a person instead.
   c.add("board-only-control", o.state.agentCancelStatus === 403,
@@ -60,9 +60,9 @@ const inspect = privilegedDefinition("cli-operations.inspect-run-cli", "privileg
         && o.runs.filter(run => run.agentId === ctx.input.fixtures.agent.id && run.status === "succeeded").length === 1) });
     const returned = inspectRunCommands(initial.reply, String(state.workerRunId));
     await runOwnedCli(ctx, returned.commands[0]!);
-    const read = await ctx.input.api.get<{ id: string; agentId: string; companyId: string; status: string }>(`/api/heartbeat-runs/${state.workerRunId}`);
-    state.readRunId = read.id; state.readAgentId = read.agentId; state.readCompanyId = read.companyId; state.readStatus = read.status;
-    if (read.id !== state.workerRunId || read.companyId !== ctx.input.fixtures.company.id || read.agentId !== (state.worker as { id: string }).id) throw new Error("CLI read did not verify the exact owned Morgan run");
+    const read = await ctx.input.api.get<{ id: string; agentId: string; spaceId: string; status: string }>(`/api/heartbeat-runs/${state.workerRunId}`);
+    state.readRunId = read.id; state.readAgentId = read.agentId; state.readSpaceId = read.spaceId; state.readStatus = read.status;
+    if (read.id !== state.workerRunId || read.spaceId !== ctx.input.fixtures.space.id || read.agentId !== (state.worker as { id: string }).id) throw new Error("CLI read did not verify the exact owned Morgan run");
     if (read.status === "running") {
       await runOwnedCli(ctx, returned.commands[1]!);
       state.cancelRunId = read.id; state.cancelOnlyAfterRead = true;

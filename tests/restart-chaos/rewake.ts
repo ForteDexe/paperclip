@@ -86,7 +86,7 @@ const w2Description = (nonce: string) => [
   "Save it as this issue's document with key `brief` (title \"Brief\"), in markdown.",
   `It must contain the line \`${briefMarker(nonce)}\` exactly, on its own line, and at least three bullet points that start with "- ".`,
   "Then leave this task `in_progress` and end your turn. Do not mark it done or move it to review in phase 1. Do not create files or other tasks.",
-  "Phase 1 does not finish the task: report this turn with `paperclip_finish` and `reportedWorkDisposition` `yielded`, never `done`,",
+  "Phase 1 does not finish the task: report this turn with `outpost_finish` and `reportedWorkDisposition` `yielded`, never `done`,",
   `with a continuation of kind \`response_wake\` (summary "Waiting for the board's phase 2 wake", idempotencyKey \`w2-${nonce}\`).`,
   "List phase 2 in remainingWork with blocksCompletion false: phase 1 is complete, and phase 2 waits for the board.",
   phaseTwo(nonce),

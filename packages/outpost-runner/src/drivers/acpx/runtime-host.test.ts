@@ -288,7 +288,7 @@ describe("ACPX runtime host", () => {
     expect(openRuntime).not.toHaveBeenCalled();
   });
 
-  it.each(["approve-reads", "approve-paperclip", "deny-all"] as const)("rejects unqualified preconfigured permission mode %s before admission", async permissionMode => {
+  it.each(["approve-reads", "approve-outpost", "deny-all"] as const)("rejects unqualified preconfigured permission mode %s before admission", async permissionMode => {
     const fixture = await hostFixture();
     const openRuntime = vi.fn();
     await expect(AcpxRuntimeHost.open({ ...fixture.options, agent: "claude", model: "claude-sonnet-5", permissionMode,
@@ -302,7 +302,7 @@ describe("ACPX runtime host", () => {
     const home = join(fixture.root, "user-home");
     await mkdir(home);
     const config = join(home, "user-mcp.json");
-    const contents = '{"mcpServers":{"paperclip":{"url":"http://127.0.0.1:3211/user"}}}';
+    const contents = '{"mcpServers":{"outpost":{"url":"http://127.0.0.1:3211/user"}}}';
     await writeFile(config, contents);
     const model = agent === "claude" ? "claude-sonnet-5" : "gpt-6.1-sol";
     const names: string[] = [];
@@ -373,9 +373,9 @@ describe("ACPX runtime host", () => {
   });
 
   it.each([
-    { OUTPOST_NATIVE_MCP_NAME: "paperclip-assigned" },
-    { OUTPOST_NATIVE_MCP_NAME: "paperclip", OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1:3211/mcp", OUTPOST_NATIVE_MCP_TOKEN: "x".repeat(40) },
-    { OUTPOST_NATIVE_MCP_NAME: "paperclip-assigned", OUTPOST_NATIVE_MCP_URL: "http://external.example/mcp", OUTPOST_NATIVE_MCP_TOKEN: "x".repeat(40) },
+    { OUTPOST_NATIVE_MCP_NAME: "outpost-assigned" },
+    { OUTPOST_NATIVE_MCP_NAME: "outpost", OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1:3211/mcp", OUTPOST_NATIVE_MCP_TOKEN: "x".repeat(40) },
+    { OUTPOST_NATIVE_MCP_NAME: "outpost-assigned", OUTPOST_NATIVE_MCP_URL: "http://external.example/mcp", OUTPOST_NATIVE_MCP_TOKEN: "x".repeat(40) },
   ])("rejects invalid assigned connection bindings before runtime launch", async (environment) => {
     const fixture = await hostFixture();
     const openRuntime = vi.fn();
@@ -449,7 +449,7 @@ describe("ACPX runtime host", () => {
   it.each(["deny-all", "approve-all"] as const)("admits the compact assigned MCP catalog through ORP with %s policy", async permissionMode => {
     const fixture = await hostFixture();
     const runtimeContext = { skills: [], mcp: { bindingId: "assigned-run" } } as unknown as NativeRuntimeContextSnapshot;
-    const catalog = ["paperclip_search_assigned_tools", "paperclip_call_assigned_tool"].map(name => ({ name, inputSchema: { type: "object" } }));
+    const catalog = ["outpost_search_assigned_tools", "outpost_call_assigned_tool"].map(name => ({ name, inputSchema: { type: "object" } }));
     const readOnly = permissionMode === "deny-all";
     const handler = vi.fn(async () => ({ value: "assigned result" }));
     let bridge: { url: string; bearerToken: string } | undefined;
@@ -459,7 +459,7 @@ describe("ACPX runtime host", () => {
     const openRuntime = vi.fn(async (launch: AcpxRuntimePortOpenOptions) => {
       expect(launch.permissionMode).toBe(permissionMode);
       expect(launch.launchEnvironment.OUTPOST_RUNNER_HOME_MODE).toBeUndefined();
-      expect(launch.mcpServers.map(server => server.name)).toEqual(["paperclip"]);
+      expect(launch.mcpServers.map(server => server.name)).toEqual(["outpost"]);
       if (!("url" in launch.mcpServers[0])) throw new Error("missing tool bridge");
       bridge = launch.mcpServers[0];
       return runtimePort({ getStatus: async () => ({ models: { currentModelId: "claude-sonnet-5" } }) });
@@ -493,7 +493,7 @@ describe("ACPX runtime host", () => {
       agent: "claude", model: "claude-sonnet-5",
       permissionMode: "approve-reads",
       environment: {
-        OUTPOST_NATIVE_MCP_NAME: "paperclip-assigned",
+        OUTPOST_NATIVE_MCP_NAME: "outpost-assigned",
         OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1:3211/mcp/gateway",
         OUTPOST_NATIVE_MCP_TOKEN: "fixture-gateway-token-".repeat(3),
       },
@@ -503,8 +503,8 @@ describe("ACPX runtime host", () => {
       return runtimePort({ getStatus: async () => ({ models: { currentModelId: "claude-sonnet-5" } }) });
     } }));
     try {
-      expect(servers.map(server => server.name)).toEqual(["paperclip", "paperclip-assigned"]);
-      expect(servers[1]).toEqual({ name: "paperclip-assigned", url: "http://127.0.0.1:3211/mcp/gateway",
+      expect(servers.map(server => server.name)).toEqual(["outpost", "outpost-assigned"]);
+      expect(servers[1]).toEqual({ name: "outpost-assigned", url: "http://127.0.0.1:3211/mcp/gateway",
         bearerToken: "fixture-gateway-token-".repeat(3), runnerOwned: true });
     } finally { await host.close({ reason: "gateway test complete" }); }
   });
@@ -532,8 +532,8 @@ describe("ACPX runtime host", () => {
   });
 
   it.each([
-    ["approve-reads", ["mcp__paperclip__get_task_context"]],
-    ["approve-paperclip", ["mcp__paperclip__create_task", "mcp__paperclip__get_task_context", "mcp__paperclip__reassign_task", "mcp__paperclip__write_document"]],
+    ["approve-reads", ["mcp__outpost__get_task_context"]],
+    ["approve-outpost", ["mcp__outpost__create_task", "mcp__outpost__get_task_context", "mcp__outpost__reassign_task", "mcp__outpost__write_document"]],
     ["deny-all", undefined],
   ] as const)("binds exact assigned Claude tools to %s before provider launch", async (permissionMode, allow) => {
     const fixture = await hostFixture();
@@ -545,7 +545,7 @@ describe("ACPX runtime host", () => {
         ));
         expect(settings.permissions).toEqual(allow ? { allow } : undefined);
         expect(options.mcpServers).toMatchObject([
-          { name: "paperclip", runnerOwned: true },
+          { name: "outpost", runnerOwned: true },
         ]);
         return runtimePort({
           getStatus: async () => ({ models: { currentModelId: "claude-sonnet-5" } }),
@@ -1034,7 +1034,7 @@ describe("ACPX runtime host", () => {
       });
       const listed = await response.json() as { result: { tools: Array<{ name: string; _meta?: Record<string, unknown> }> } };
       expect(listed.result.tools.filter(tool => tool._meta?.["anthropic/alwaysLoad"] === true).map(({ name }) => name))
-        .toEqual(agent === "claude" ? ["set_task_title", "paperclip_finish", "paperclip_block"] : []);
+        .toEqual(agent === "claude" ? ["set_task_title", "outpost_finish", "outpost_block"] : []);
     } finally { await host.close({ reason: "tool preload verified" }); }
   });
 
@@ -1056,7 +1056,7 @@ describe("ACPX runtime host", () => {
       const receipt = readNativeSemanticReceipt({ contents: body.result.content });
       expect(receipt).not.toBeNull();
       expect(events).toHaveLength(1);
-      expect(events[0]!.payload).toMatchObject({ category: "paperclip_semantic_tool_receipt_v2", provenance: { sessionId: "backend-1", turnId: "turn-1" },
+      expect(events[0]!.payload).toMatchObject({ category: "outpost_semantic_tool_receipt_v2", provenance: { sessionId: "backend-1", turnId: "turn-1" },
         details: expect.arrayContaining([{ name: "schema", value: "outpost.semantic_tool_receipt.v2" }, { name: "normalizedInputSha256", value: "null" }, { name: "callIdentitySha256", value: receipt!.callIdentitySha256 }, { name: "resultSha256", value: receipt!.resultSha256 }]) });
     } finally { await host.close({ reason: "receipt forwarding verified" }); }
     await expect(fetch(bridge!.url)).rejects.toThrow();
@@ -1100,7 +1100,7 @@ describe("ACPX runtime host", () => {
     );
 
     expect(bridge).toMatchObject({
-      name: "paperclip",
+      name: "outpost",
       runnerOwned: true,
     });
     expect(new URL(bridge!.url).hostname).toBe("127.0.0.1");
@@ -1199,7 +1199,7 @@ describe("ACPX runtime host", () => {
 
   it.each(["cursor", "copilot", "pi"] as const)("binds %s agent files from each registered run copy, never ambient roots", async (agent) => {
     const fixture = await hostFixture();
-    const copies = await mkdtemp(join(tmpdir(), "paperclip-agent-copies-"));
+    const copies = await mkdtemp(join(tmpdir(), "outpost-agent-copies-"));
     temporaryDirectories.push(copies);
     const model = agent === "pi" ? "openrouter/deepseek/deepseek-v4-flash-0731" : "explicit-test-model";
     const options = { ...fixture.options, agent, model, ...(agent === "pi" ? { piThinkingLevel: "low" as const } : {}), permissionMode: "approve-all" as const,
@@ -1237,7 +1237,7 @@ describe("ACPX runtime host", () => {
   it("reopens Pi with the current registered home in a resumed child shell after prior copies are removed", async () => {
     const fixture = await hostFixture();
     const root = await realpath(fixture.root);
-    const copies = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-home-probe-")));
+    const copies = await realpath(await mkdtemp(join(tmpdir(), "outpost-pi-home-probe-")));
     temporaryDirectories.push(copies);
     const sessionHome = join(root, "pi-session-home");
     await mkdir(join(sessionHome, "sessions"), { recursive: true });
@@ -2412,7 +2412,7 @@ function runtimeTurn(): AcpxRuntimeTurn & {
 }
 
 async function hostFixture() {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-acpx-host-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-acpx-host-"));
   temporaryDirectories.push(root);
   const runtimeDirectory = join(root, "runtime");
   const workingDirectory = join(root, "workspace");

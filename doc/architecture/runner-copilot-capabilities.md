@@ -4,7 +4,7 @@
 
 Copilot runs as **profile 92** on `@github/copilot` 1.0.88. Its `commandDigest`
 attests the upstream release: the package version and the complete patched
-distribution closure for each qualified platform. It does not bind Paperclip
+distribution closure for each qualified platform. It does not bind Outpost
 source or the shared ACPX layer. Every ACPX harness binds the shared ACPX layer the same way: saved inputs must
 match the current ACPX version, and the provider pack's `contractDigest` binds
 the Runner's ACPX patch with the other Runner contracts. `generate:acpx-profiles` writes the digest to `acpx-profiles.json`,
@@ -14,7 +14,7 @@ version still decode, so recovery can refuse them.
 
 ## Profile chronology
 
-Until 2026-10-30, these digests hashed Paperclip source files, so each change
+Until 2026-10-30, these digests hashed Outpost source files, so each change
 to a bound file advanced the profile version. The dated sections below record
 that period; their profile versions and digests are not current.
 
@@ -69,7 +69,7 @@ actual parsed sidecar command handler and the Rust subprocess transport,
 including rejection of a 300 KiB payload before pending-tool admission.
 
 Historical source candidate (2026-10-01): **Copilot profile v10 was unqualified**.
-Admitted Paperclip MCP calls append a bounded `outpost.semantic_tool_receipt.v1`
+Admitted Outpost MCP calls append a bounded `outpost.semantic_tool_receipt.v1`
 text block after the original result blocks. It records the operation, call-ID
 hash, canonical argument hash, result hash and transport outcome. An invocation
 callback bound to the active turn emits matching durable evidence. Native tool
@@ -110,7 +110,7 @@ large, contains control/direction-format characters, or would be redacted, the
 request offers only the provider's one-time denial (when present) and cancellation.
 Forged once/session grants are rejected. Raw `kind: edit` is required; titles do
 not infer operation type. Non-edit permissions retain their existing behavior.
-Default/full-auto selection is unchanged: callbacks handled by Paperclip receive
+Default/full-auto selection is unchanged: callbacks handled by Outpost receive
 this check before any permission-mode fallback; no new automatic grant is added.
 The existing transport policy still applies before permission handling.
 
@@ -144,7 +144,7 @@ large, contains control/direction-format characters, or would be redacted, the
 request offers only the provider's one-time denial (when present) and cancellation.
 Forged once/session grants are rejected. Raw `kind: edit` is required; titles do
 not infer operation type. Non-edit permissions retain their existing behavior.
-Default/full-auto selection is unchanged: callbacks handled by Paperclip receive
+Default/full-auto selection is unchanged: callbacks handled by Outpost receive
 this check before any permission-mode fallback; no new automatic grant is added.
 The existing transport policy still applies before permission handling.
 
@@ -286,7 +286,7 @@ the failed empty-session attempt, stays in the private
 The prior Product question failure remains a model-behavior failure: the retained
 snapshot contains the exact requested marker in the task instructions, the
 answered Cobalt choice, and warm-session continuation. Copilot instead supplied
-`[terminal marker]` to `paperclip_finish`. Neither the grader nor the terminal
+`[terminal marker]` to `outpost_finish`. Neither the grader nor the terminal
 marker requirement changed. A final-runtime rerun remains required.
 
 ### Final v3 Product question attempt
@@ -337,7 +337,7 @@ below remains labeled with its original profile and source.
 The [native model-request probe](../../packages/outpost-runner/test/fixtures/copilot-native-instruction-delivery-2026-09-29.json)
 retains a separate instruction-delivery failure: Copilot 1.0.88 ignores generic
 ACP `_meta.systemPrompt` on new sessions, and ACPX does not include it on load.
-Actual loopback model requests contained neither the Paperclip prompt nor the
+Actual loopback model requests contained neither the Outpost prompt nor the
 registered directory guidance. Passing a refreshed descriptor alone is insufficient.
 
 A credential-free follow-up wrote the composed text to the isolated provider
@@ -451,10 +451,10 @@ credential path. Private configuration disables hooks, memory and automatic IDE
 attachment and has no trusted folders.
 
 Never set `COPILOT_ALLOW_ALL=true`: this exact string also trusts workspace
-hooks, plugins and MCP configuration. Paperclip's full-auto policy answers the
+hooks, plugins and MCP configuration. Outpost's full-auto policy answers the
 individual permission callback. It must not grant ambient configuration trust.
 Mode/config changes, including autopilot and the provider's `allow_all` option,
-must not bypass the admitted Paperclip policy. Slash-command discovery includes
+must not bypass the admitted Outpost policy. Slash-command discovery includes
 commands capable of changing permissions, cwd, remote/export, MCP and schedules;
 these are not authority to offer an unrestricted command UI. Adversarial
 workspace/config qualification remains required before release.
@@ -526,19 +526,19 @@ Daytona claims require the separate live product qualification.
 
 | Capability / Codex benchmark | Copilot native and ACP exposure | Runner and user-visible surface | Evidence / remaining gap |
 | --- | --- | --- | --- |
-| Authentication | Initialize advertises `copilot-login`, including terminal-auth command, args and label. | Explicit company-bound `COPILOT_GITHUB_TOKEN`; missing binding fails before executable admission. Terminal login is not launched. | Packaged initialize and host cleanup/retry test; terminal-auth remains intentionally unused because it would introduce ambient interactive identity. |
+| Authentication | Initialize advertises `copilot-login`, including terminal-auth command, args and label. | Explicit space-bound `COPILOT_GITHUB_TOKEN`; missing binding fails before executable admission. Terminal login is not launched. | Packaged initialize and host cleanup/retry test; terminal-auth remains intentionally unused because it would introduce ambient interactive identity. |
 | Prompt attachments | Initialize advertises images and embedded context, and explicitly denies audio input. | Current runner prompt contract sends text. Image/context input blocks are not forwarded. | Observed initialize; P1 add validated attachment inputs. Audio is confirmed unsupported in this ACP advertisement. |
 | Active turn steering (`turn/steer`) | Native SDK steering exists. ACP `session/prompt` unconditionally aborts the active session before sending a new prompt. | Unsupported active steering; do not impersonate it with concurrent prompts. | Source; P1 add a versioned upstream ACP steering method. |
 | Ordered follow-ups | Native pending-message controls and `pending_messages.modified`; notification has no queue body. | Lifecycle activity only. Scheduler can start a subsequent completed-turn prompt, but that is not native queue delivery. | Source; P1 require queue acknowledgment and ordering contract. |
 | Interruption (`turn/interrupt`) | Standard `session/cancel`, active prompt abort and process shutdown. | Shared cancellation and bounded cleanup. | Source; authenticated cancellation/process-tree test pending. |
 | Session recovery/history | `session/load`, list and close; native history and rewind richer. | Exact identity/warm continuation through shared ACPX host; never replay approvals or mutations. | Live Product controller restart preserved the pending interaction and reused the same provider session. Provider-death restoration and history loading remain unqualified. |
-| Session list / explicit close | Initialize advertises both methods. | Runner owns its selected-session registry and process cleanup; it does not call Copilot's list or explicit close methods. | Observed initialize; P2 company-scoped history/session management before consuming these interfaces. |
+| Session list / explicit close | Initialize advertises both methods. | Runner owns its selected-session registry and process cleanup; it does not call Copilot's list or explicit close methods. | Observed initialize; P2 space-scoped history/session management before consuming these interfaces. |
 | Fork / history paging | Native CLI/SDK capabilities exist; no ACP fork advertised. | Unsupported. | Confirmed absent from initialize advertisement, not proof native harness lacks it; P2 upstream extension. |
-| Tools / correlation | Standard `tool_call`/`tool_call_update`; parent identity in `_meta["github.com/copilot"].agentId`. HTTP/SSE MCP supported. | Shared tool activity, authenticated runner-owned MCP bridge. | Real create/bash/read_bash traffic and canonical authenticated get-task-context pass; Product semantic question and plan calls observed. Full adversarial company-boundary coverage remains pending. |
-| MCP transport selection | Both HTTP and SSE are advertised. | The assigned Paperclip gateway uses the controlled HTTP bridge. Arbitrary SSE endpoint configuration is not exposed. | Observed initialize; SSE remains unused, P2 only if a governed connection requires it. |
+| Tools / correlation | Standard `tool_call`/`tool_call_update`; parent identity in `_meta["github.com/copilot"].agentId`. HTTP/SSE MCP supported. | Shared tool activity, authenticated runner-owned MCP bridge. | Real create/bash/read_bash traffic and canonical authenticated get-task-context pass; Product semantic question and plan calls observed. Full adversarial space-boundary coverage remains pending. |
+| MCP transport selection | Both HTTP and SSE are advertised. | The assigned Outpost gateway uses the controlled HTTP bridge. Arbitrary SSE endpoint configuration is not exposed. | Observed initialize; SSE remains unused, P2 only if a governed connection requires it. |
 | Scoped approvals | `session/request_permission`, actual options allow_once/allow_always/reject_once. | Shared durable permissions; only received decisions offered, policy enforced. | Real-service wire ID 0 denied before file creation, with no side effect through cleanup. Durable Product restrictive-mode recovery and wider tool denial remain unqualified. |
-| Structured questions | Native `ask_user` callback and `user_input.requested`; current ACP adapter does not wire the responder. | Emits capability-gap notice if native notification arrives; cannot claim answer delivery. | Actual agent-mode tool list omits `ask_user` without a suppression flag. Paperclip semantic questions are available: restart case passes, while the separate question case failed its exact marker. Pinned offline agent/plan catalogs now prove both tools unavailable; the production guard admits agent mode and terminates any unexpected native blocking request. |
-| Plan approval | Native `exit_plan_mode` callback; notification contains plan content/actions but lacks qualified ACP responder. | Capability-gap notice only; never synthesize plan acceptance. | Agent-mode tool list omits exit_plan_mode. Paperclip semantic plan/revision approval passes through the UI; Native plan-mode input is confirmed unavailable offline; production mode controls remain disabled. |
+| Structured questions | Native `ask_user` callback and `user_input.requested`; current ACP adapter does not wire the responder. | Emits capability-gap notice if native notification arrives; cannot claim answer delivery. | Actual agent-mode tool list omits `ask_user` without a suppression flag. Outpost semantic questions are available: restart case passes, while the separate question case failed its exact marker. Pinned offline agent/plan catalogs now prove both tools unavailable; the production guard admits agent mode and terminates any unexpected native blocking request. |
+| Plan approval | Native `exit_plan_mode` callback; notification contains plan content/actions but lacks qualified ACP responder. | Capability-gap notice only; never synthesize plan acceptance. | Agent-mode tool list omits exit_plan_mode. Outpost semantic plan/revision approval passes through the UI; Native plan-mode input is confirmed unavailable offline; production mode controls remain disabled. |
 | Plan progress | Standard plan from todos SQL; native `session.plan_changed` has operation only. | Existing ACP plan/activity; native operation preserved, `planContentAvailable:false`. | Source; plan document reads require native interface. P1. |
 | Models / reasoning / config | Source `session/set_model`, config options for model, reasoning, mode, custom agents, allow_all. | Explicit model admission. Mode/governance changes must remain policy-gated. | Authenticated catalog, exact set_model/config echo and real inference verified for gpt-5.6-luna. Other models and config-mode changes remain unqualified. |
 | Native notification attribution | Copilot passthrough identifies the session, optional subagent and timestamp, but no originating turn. | Bounded redacted session notices retain all admitted details; typed delegation/artifact/compaction projection is withheld. | Delayed same-session regression; P1 require a provider-origin turn correlation contract. Arrival time and optional payload IDs cannot establish it. |
@@ -617,7 +617,7 @@ file validation, semantic tools, plan approval and controller-restart evidence.
 Remaining qualification blockers include the failed standalone question marker,
 every native blocking question/plan mode, restrictive permissions across native
 tools and configuration, provider-death recovery, active cancellation,
-multi-company isolation, rich artifact/diff UI, macOS x64 execution and Linux x64
+multi-space isolation, rich artifact/diff UI, macOS x64 execution and Linux x64
 Daytona E2E. Authoritative per-turn USD remains unavailable; external included-credit
 reconciliation is distinct from cost-limit coverage. Retry with
 another pinned release if a blocking interaction or settlement/denial case fails;
@@ -707,7 +707,7 @@ builder/materializer, candidate-registry and probe-cleanup tests, all six Dayton
 image-content tests, and the runner
 TypeScript build including generated schema checks and verified sidecar bundles.
 The evidence update itself passed the four evidence cases again. The complete
-pack remains inspectable at `/tmp/paperclip-copilot-launch-boundary-pack-20260928`
+pack remains inspectable at `/tmp/outpost-copilot-launch-boundary-pack-20260928`
 on the build host; the sanitized tracked fixture provides the portable proof.
 The exact Docker resolution command, seeded from the tracked lockfile, produced
 `650e23d20e967bcfbfced888e131199b9a06e66a1ba4f64cfb68383b59def4a8`, matching
@@ -889,7 +889,7 @@ this was one explicit new attempt with no automatic retry. Browser review shows
 the complete Plan revision 1, a confirmation targeting that exact revision,
 the approval message and the exact terminal marker once.
 
-This is Paperclip semantic planning. It does not enable Copilot's unwired native
+This is Outpost semantic planning. It does not enable Copilot's unwired native
 `exit_plan_mode` responder. The approved continuation deliberately opened a fresh
 session after the adapter configuration changed and `forceFreshSession` was
 requested, so this case does not prove warm-session reuse. Both paused and

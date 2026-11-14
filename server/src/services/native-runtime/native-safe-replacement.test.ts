@@ -5,7 +5,7 @@ import { buildExecutionContinuation } from "../execution-continuation.js";
 import { issueService } from "../issues.js";
 import { activityService } from "../activity.js";
 import { instanceSettingsService } from "../instance-settings.js";
-import { buildPaperclipWakePayload, heartbeatService } from "../heartbeat.js";
+import { buildOutpostWakePayload, heartbeatService } from "../heartbeat.js";
 import { legacyExecutionNeedsReconciliation, terminalizeLegacyExecution } from "../legacy-execution-recovery.js";
 import { deliverExecutionStatuses } from "../execution-status-delivery.js";
 import { publishLiveEvent } from "../live-events.js";
@@ -29,7 +29,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   subscribeDatabaseWork,
   heartbeatRunEvents,
@@ -65,46 +65,46 @@ const support = externalDatabaseUrl
         return;
       }
       database = await startEmbeddedPostgresTestDatabase(
-        "paperclip-safe-replacement-",
+        "outpost-safe-replacement-",
       );
       db = createDb(database.connectionString);
     }, 30_000);
     afterEach(async () => {
-      // Each sweep scans all companies. Keep earlier tests' unresolved runs out
+      // Each sweep scans all spaces. Keep earlier tests' unresolved runs out
       // of later tests so every case exercises only its own recovery fixtures.
-      await db.execute(sql`TRUNCATE companies CASCADE`);
+      await db.execute(sql`TRUNCATE spaces CASCADE`);
     });
     afterAll(async () => {
       if (externalDatabaseUrl) await db?.$client.end();
       else await database?.cleanup();
     });
     async function seed(attempt = 1) {
-      const companyId = randomUUID(),
+      const spaceId = randomUUID(),
         agentId = randomUUID(),
         issueId = randomUUID(),
         runId = randomUUID();
-      await db.insert(companies).values({
-        id: companyId,
+      await db.insert(spaces).values({
+        id: spaceId,
         name: "Recovery",
-        issuePrefix: `R${companyId.slice(0, 6)}`,
+        issuePrefix: `R${spaceId.slice(0, 6)}`,
       });
       await db.insert(agents).values({
         id: agentId,
-        companyId,
+        spaceId,
         name: "Executor",
         role: "engineer",
         adapterType: "outpost_runner",
       });
       await db.insert(issues).values({
         id: issueId,
-        companyId,
+        spaceId,
         title: "Read fixture",
         status: "in_progress",
         assigneeAgentId: agentId,
       });
       await db.insert(heartbeatRuns).values({
         id: runId,
-        companyId,
+        spaceId,
         agentId,
         nativeIssueId: issueId,
         runtimeMode: "native",
@@ -112,13 +112,13 @@ const support = externalDatabaseUrl
         contextSnapshot: {
           issueId,
           preservedRecoveryContext: true,
-          paperclipWake: { comments: [{ id: "stale-comment" }] },
-          paperclipWakeComment: { id: "stale-comment" },
-          paperclipTaskMarkdown: "stale historical task",
-          paperclipTaskMarkdownCompact: "stale historical compact task",
-          paperclipTaskMarkdownAssignment: "stale assignment task",
-          paperclipTaskMarkdownAssignmentCompact: "stale assignment compact task",
-          paperclipTurnContext: {
+          outpostWake: { comments: [{ id: "stale-comment" }] },
+          outpostWakeComment: { id: "stale-comment" },
+          outpostTaskMarkdown: "stale historical task",
+          outpostTaskMarkdownCompact: "stale historical compact task",
+          outpostTaskMarkdownAssignment: "stale assignment task",
+          outpostTaskMarkdownAssignmentCompact: "stale assignment compact task",
+          outpostTurnContext: {
             version: 1,
             assignment: { owner: "task_markdown" },
             events: { owner: "wake_prompt", comments: [{ id: "stale-comment" }] },
@@ -134,21 +134,21 @@ const support = externalDatabaseUrl
       });
       await db.insert(nativeRunFinalizations).values({
         runId,
-        companyId,
+        spaceId,
         issueId,
         phase: "terminal_failure",
         attempt,
         failureCode: "native_provider_terminal_failed",
         failureDetail: { originalFailureCode: "fixture_checkpoint_unusable" },
       });
-      return { companyId, agentId, issueId, runId };
+      return { spaceId, agentId, issueId, runId };
     }
     it.each(["verified", "unproven", "unknown_action"] as const)(
       "preserves saved work and a queued request at a controlled recovery boundary (%s)",
       async (mode) => {
         // The stopped-session verifier is the injected boundary here. These are
         // scheduler/database tests, not evidence that SIGKILL is a safe boundary.
-        const workspace = await mkdtemp(join(tmpdir(), "paperclip-recovery-work-"));
+        const workspace = await mkdtemp(join(tmpdir(), "outpost-recovery-work-"));
         try {
           const file = join(workspace, "saved.txt");
           const saved = "Completed work from before the interruption.\n";
@@ -162,16 +162,16 @@ const support = externalDatabaseUrl
             .where(eq(nativeRunFinalizations.runId, source.runId));
           const projected = await issueService(db).update(source.issueId, { status: "blocked" });
           await db.insert(issueRecoveryActions).values({
-            companyId: source.companyId, sourceIssueId: source.issueId,
+            spaceId: source.spaceId, sourceIssueId: source.issueId,
             kind: "active_run_watchdog", cause: "native_session_cleanup_quarantined", fingerprint: source.runId,
-            ownerType: "board", returnOwnerAgentId: source.agentId, status: "resolved", outcome: "blocked",
+            ownerType: "operator", returnOwnerAgentId: source.agentId, status: "resolved", outcome: "blocked",
             evidence: { runId: source.runId, nativeFailureBlock: { runId: source.runId, statusVersion: projected!.statusVersion } },
             nextAction: "Verify the stopped execution before restarting.",
           });
           const body = "Keep the saved work and explain the result.";
           const comment = await issueService(db).addComment(source.issueId, body, { userId: "operator" });
           if (mode === "unknown_action") await appendHeartbeatRunEvent(db, {
-            companyId: source.companyId, runId: source.runId, agentId: source.agentId,
+            spaceId: source.spaceId, runId: source.runId, agentId: source.agentId,
             eventType: "tool.execution.started", stream: "system",
             payload: { name: "send_email", executionId: "unconfirmed-write", transport: "process" },
           });
@@ -196,18 +196,18 @@ const support = externalDatabaseUrl
               preservedRecoveryContext: true,
             });
             for (const key of [
-              "paperclipWake",
-              "paperclipWakeComment",
-              "paperclipTaskMarkdown",
-              "paperclipTaskMarkdownCompact",
-              "paperclipTaskMarkdownAssignment",
-              "paperclipTaskMarkdownAssignmentCompact",
-              "paperclipTurnContext",
+              "outpostWake",
+              "outpostWakeComment",
+              "outpostTaskMarkdown",
+              "outpostTaskMarkdownCompact",
+              "outpostTaskMarkdownAssignment",
+              "outpostTaskMarkdownAssignmentCompact",
+              "outpostTurnContext",
             ]) {
               expect(successors[0]!.contextSnapshot).not.toHaveProperty(key);
             }
             const continuation = await buildExecutionContinuation({
-              db, companyId: source.companyId, issueId: source.issueId, agentId: source.agentId,
+              db, spaceId: source.spaceId, issueId: source.issueId, agentId: source.agentId,
               context: successors[0]!.contextSnapshot!, summary: null, exposeLowTrustRaw: false,
             });
             expect(continuation.messages.filter((message) => message.id === comment.id)).toHaveLength(1);
@@ -227,7 +227,7 @@ const support = externalDatabaseUrl
     );
     it("wakes a completed replacement scan after actual local stop proof commits", async () => {
       const source = await seed(2);
-      const workspace = await mkdtemp(join(tmpdir(), "paperclip-late-stop-"));
+      const workspace = await mkdtemp(join(tmpdir(), "outpost-late-stop-"));
       const child = spawn(process.execPath, ["-e", "process.exit(0)"], { detached: true, stdio: "ignore" });
       const pid = child.pid!;
       await new Promise<void>((resolve, reject) => { child.once("exit", () => resolve()); child.once("error", reject); });
@@ -238,9 +238,9 @@ const support = externalDatabaseUrl
       } }).where(eq(heartbeatRuns.id, source.runId));
       await db.update(nativeRunFinalizations).set({ failureCode: "provider_transport_failed" })
         .where(eq(nativeRunFinalizations.runId, source.runId));
-      await appendHeartbeatRunEvent(db, { companyId: source.companyId, runId: source.runId, agentId: source.agentId,
+      await appendHeartbeatRunEvent(db, { spaceId: source.spaceId, runId: source.runId, agentId: source.agentId,
         eventType: "harness.ready", stream: "system", message: "Provider started before its transport failed." });
-      const verifyStoppedSession = async () => await hasNativeLocalProcessStop(db, source.companyId, source.runId)
+      const verifyStoppedSession = async () => await hasNativeLocalProcessStop(db, source.spaceId, source.runId)
         ? { evidence: {}, retire: () => true } : null;
       invalidateNativeReplacementDiscovery(db);
       expect(await reconcileSafeNativeReplacements(db, new Date(), { verifyStoppedSession })).toMatchObject({ scheduled: 0 });
@@ -265,7 +265,7 @@ const support = externalDatabaseUrl
     });
     it("wakes completed recovery when the real task becomes eligible", async () => {
       const source = await seed();
-      const workspace = await mkdtemp(join(tmpdir(), "paperclip-late-eligibility-"));
+      const workspace = await mkdtemp(join(tmpdir(), "outpost-late-eligibility-"));
       await db.update(heartbeatRuns).set({ runnerProfileJson: { recoveryEventInventoryVersion: 1,
         nativeExecutionInput: { provider: { kind: "codex" }, workspace: { cwd: workspace } },
       } }).where(eq(heartbeatRuns.id, source.runId));
@@ -288,7 +288,7 @@ const support = externalDatabaseUrl
       } finally { unsubscribe(); await rm(workspace, { recursive: true, force: true }); }
     });
     it("advances past a failed full page and retries it after later work progresses", async () => {
-      const workspace = await mkdtemp(join(tmpdir(), "paperclip-failed-page-"));
+      const workspace = await mkdtemp(join(tmpdir(), "outpost-failed-page-"));
       const sources: Awaited<ReturnType<typeof seed>>[] = [];
       for (let index = 0; index < 26; index++) {
         const source = await seed(); sources.push(source);
@@ -326,17 +326,17 @@ const support = externalDatabaseUrl
       const source = await seed(2);
       await db.update(nativeRunFinalizations).set({ failureCode: "native_session_cleanup_quarantined" }).where(eq(nativeRunFinalizations.runId, source.runId));
       const [projected] = await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, source.issueId)).returning();
-      await db.insert(issueRecoveryActions).values({ companyId: source.companyId, sourceIssueId: source.issueId,
+      await db.insert(issueRecoveryActions).values({ spaceId: source.spaceId, sourceIssueId: source.issueId,
         kind: "active_run_watchdog", cause: "native_session_cleanup_quarantined", fingerprint: source.runId,
-        ownerType: "board", returnOwnerAgentId: source.agentId, status: "resolved", outcome: "blocked",
+        ownerType: "operator", returnOwnerAgentId: source.agentId, status: "resolved", outcome: "blocked",
         evidence: { runId: source.runId, nativeFailureBlock: { runId: source.runId, statusVersion: projected!.statusVersion }, automaticRecovery: { replay: "blocked" } }, nextAction: "Automatic recovery stopped.",
       });
       const retire = vi.fn(() => mode === "verified");
       const verifyStoppedSession = vi.fn(async (run: typeof heartbeatRuns.$inferSelect) =>
         run.id === source.runId && mode !== "unproven" ? { evidence: { completedTaskControlCallIds: ["completion"] }, retire } : null);
-      await appendHeartbeatRunEvent(db, { companyId: source.companyId, runId: source.runId, agentId: source.agentId,
+      await appendHeartbeatRunEvent(db, { spaceId: source.spaceId, runId: source.runId, agentId: source.agentId,
         eventType: "tool.execution.started", stream: "system",
-        payload: { name: "paperclip_finish", executionId: "completion", transport: "process" },
+        payload: { name: "outpost_finish", executionId: "completion", transport: "process" },
       });
       for (let sweep = 0; sweep < 2; sweep++) {
         const decision = reconcileSafeNativeReplacements(db, new Date(), { verifyStoppedSession });
@@ -352,7 +352,7 @@ const support = externalDatabaseUrl
         // Prove that the real dispatch gate accepts the successor, not only that a row exists.
         const dispatch = createRunDispatch(db);
         await db.update(heartbeatRuns).set({ status: "queued" }).where(eq(heartbeatRuns.id, successors[0]!.id));
-        const result = await dispatch.cancelStaleQueuedRun({ companyId: source.companyId, runId: successors[0]!.id, expectedStatus: "queued", now: new Date() });
+        const result = await dispatch.cancelStaleQueuedRun({ spaceId: source.spaceId, runId: successors[0]!.id, expectedStatus: "queued", now: new Date() });
         expect(result.outcome).toBe("not_stale");
       } else {
         expect(hold!.evidence.automaticRecovery).toEqual({ replay: "blocked" });
@@ -365,15 +365,15 @@ const support = externalDatabaseUrl
       const evidence = { runId: source.runId, ...(mode === "missing_receipt" ? {} : {
         nativeFailureBlock: { runId: mode === "other_run" ? randomUUID() : source.runId, statusVersion: projected!.statusVersion },
       }) };
-      const [hold] = await db.insert(issueRecoveryActions).values({ companyId: source.companyId, sourceIssueId: source.issueId,
+      const [hold] = await db.insert(issueRecoveryActions).values({ spaceId: source.spaceId, sourceIssueId: source.issueId,
         kind: "active_run_watchdog", cause: mode === "other_cause" ? "native_event_replay_conflict" : "native_session_cleanup_quarantined",
-        fingerprint: source.runId, ownerType: "board", returnOwnerAgentId: source.agentId,
+        fingerprint: source.runId, ownerType: "operator", returnOwnerAgentId: source.agentId,
         status: "resolved", outcome: "blocked", evidence, nextAction: "Preserve this hold.",
       }).returning();
       if (mode === "manual_reblock") await issueService(db).update(source.issueId, { status: "blocked", actorUserId: "operator" });
       if (mode === "dependency_edit") {
         const blockerId = randomUUID();
-        await db.insert(issues).values({ id: blockerId, companyId: source.companyId, title: "Human dependency", status: "todo" });
+        await db.insert(issues).values({ id: blockerId, spaceId: source.spaceId, title: "Human dependency", status: "todo" });
         await issueService(db).update(source.issueId, { blockedByIssueIds: [blockerId], actorUserId: "operator" });
       }
       const comment = mode === "queued_comment" ? await issueService(db).addComment(source.issueId, "Also explain the result", { userId: "operator" }) : null;
@@ -410,18 +410,18 @@ const support = externalDatabaseUrl
       } });
       const logs = await db.select().from(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, source.runId));
       expect(logs.filter(log => log.payload?.automaticRecovery === "preserve_without_replay_v1")).toHaveLength(1);
-      const history = await activityService(db).runsForIssue(source.companyId, source.issueId);
+      const history = await activityService(db).runsForIssue(source.spaceId, source.issueId);
       expect(history.find(run => run.runId === source.runId)).toMatchObject({ execution: { phase: "recovery_needed", label: "Stopped" } });
 
-      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, source.companyId))).toHaveLength(1);
+      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, source.spaceId))).toHaveLength(1);
     });
     it("does not let a full batch awaiting replacement starve an eligible disposition", async () => {
       const sources: Awaited<ReturnType<typeof seed>>[] = [];
       for (let index = 0; index < 26; index += 1) {
         const source = await seed();
         sources.push(source);
-        await db.insert(issueRecoveryActions).values({ companyId: source.companyId, sourceIssueId: source.issueId,
-          kind: "active_run_watchdog", ownerType: "board", returnOwnerAgentId: source.agentId,
+        await db.insert(issueRecoveryActions).values({ spaceId: source.spaceId, sourceIssueId: source.issueId,
+          kind: "active_run_watchdog", ownerType: "operator", returnOwnerAgentId: source.agentId,
           cause: "native_provider_terminal_failed", fingerprint: source.runId, evidence: { runId: source.runId }, nextAction: "Checking recovery" });
         if (index === 25) {
           await db.update(nativeRunFinalizations).set({ failureDetail: { replacementDenied: "uncertain_external_action" } }).where(eq(nativeRunFinalizations.runId, source.runId));
@@ -449,8 +449,8 @@ const support = externalDatabaseUrl
     });
     it("does not let the automatic fallback preempt a safe replacement", async () => {
       const source = await seed();
-      await db.insert(issueRecoveryActions).values({ companyId: source.companyId, sourceIssueId: source.issueId,
-        kind: "active_run_watchdog", ownerType: "board", returnOwnerAgentId: source.agentId,
+      await db.insert(issueRecoveryActions).values({ spaceId: source.spaceId, sourceIssueId: source.issueId,
+        kind: "active_run_watchdog", ownerType: "operator", returnOwnerAgentId: source.agentId,
         cause: "native_provider_terminal_failed", fingerprint: source.runId, evidence: { runId: source.runId }, nextAction: "Checking recovery" });
       await settleUnrecoverableExecutions(db);
       const [task] = await db.select().from(issues).where(eq(issues.id, source.issueId));
@@ -462,7 +462,7 @@ const support = externalDatabaseUrl
       const source = await seed(3);
       await reconcileSafeNativeReplacements(db);
       const nextRun = randomUUID();
-      if (change === "new_execution") await db.insert(heartbeatRuns).values({ id: nextRun, companyId: source.companyId, agentId: source.agentId, status: "running" });
+      if (change === "new_execution") await db.insert(heartbeatRuns).values({ id: nextRun, spaceId: source.spaceId, agentId: source.agentId, status: "running" });
       const patch = change === "closed" ? { status: "done" } : change === "reassigned" ? { assigneeAgentId: null } : { executionRunId: nextRun };
       await db.update(issues).set(patch).where(eq(issues.id, source.issueId));
       await settleUnrecoverableExecutions(db);
@@ -493,7 +493,7 @@ const support = externalDatabaseUrl
       expect(task).toMatchObject({ assigneeAgentId: source.agentId, executionRunId: null, checkoutRunId: null });
       const actions = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, source.issueId));
       expect(actions).toHaveLength(1);
-      expect(actions[0]).toMatchObject({ ownerType: "board", cause: "legacy_execution_requires_reconciliation" });
+      expect(actions[0]).toMatchObject({ ownerType: "operator", cause: "legacy_execution_requires_reconciliation" });
       await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, source.runId));
       await settleUnrecoverableExecutions(db);
       const [settled] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, actions[0]!.id));
@@ -507,14 +507,14 @@ const support = externalDatabaseUrl
     it.each(["pending", "accepted", "rejected", "expired"] as const)("preserves %s approval and saved work while unsafe restore recovery is repeated", async (status) => {
       const source = await seed();
       const documentId = randomUUID(), revisionId = randomUUID(), interactionId = randomUUID();
-      await db.insert(documents).values({ id: documentId, companyId: source.companyId, title: "Plan", latestBody: "Only the two approved changes.", latestRevisionId: revisionId });
-      await db.insert(documentRevisions).values({ id: revisionId, companyId: source.companyId, documentId, revisionNumber: 1, body: "Only the two approved changes.", createdByRunId: source.runId });
-      await db.insert(issueDocuments).values({ companyId: source.companyId, issueId: source.issueId, documentId, key: "plan" });
-      await db.insert(issueComments).values({ companyId: source.companyId, issueId: source.issueId, authorAgentId: source.agentId, createdByRunId: source.runId, body: "The plan is saved." });
+      await db.insert(documents).values({ id: documentId, spaceId: source.spaceId, title: "Plan", latestBody: "Only the two approved changes.", latestRevisionId: revisionId });
+      await db.insert(documentRevisions).values({ id: revisionId, spaceId: source.spaceId, documentId, revisionNumber: 1, body: "Only the two approved changes.", createdByRunId: source.runId });
+      await db.insert(issueDocuments).values({ spaceId: source.spaceId, issueId: source.issueId, documentId, key: "plan" });
+      await db.insert(issueComments).values({ spaceId: source.spaceId, issueId: source.issueId, authorAgentId: source.agentId, createdByRunId: source.runId, body: "The plan is saved." });
       await db.insert(issueThreadInteractions).values({
-        id: interactionId, companyId: source.companyId, issueId: source.issueId, kind: "request_confirmation", status,
+        id: interactionId, spaceId: source.spaceId, issueId: source.issueId, kind: "request_confirmation", status,
         sourceRunId: source.runId, createdByAgentId: source.agentId,
-        resolvedByUserId: status === "accepted" || status === "rejected" ? "board-user" : null,
+        resolvedByUserId: status === "accepted" || status === "rejected" ? "operator-user" : null,
         resolvedAt: status === "pending" ? null : new Date(),
         payload: { version: 1, prompt: "Review the scoped plan.", target: { type: "issue_document", key: "plan", revisionId } },
         result: status === "pending" ? null : { version: 1, outcome: status === "expired" ? "superseded_by_comment" : status },
@@ -524,9 +524,9 @@ const support = externalDatabaseUrl
         runnerProfileJson: { adapterDispatch: { adapterType: "grok_local" } },
         resultJson: { workspaceRestoreFailure: "restore_unsafe_archive", conversationContinuation: "continue_conversation_v1", summary: "The plan is saved.", workspaceRestorePath: "/tmp/private-clone/file", savedPlanRevisionId: randomUUID() },
       }).where(eq(heartbeatRuns.id, source.runId)).returning();
-      const [resetComment] = await db.insert(issueComments).values({ companyId: source.companyId, issueId: source.issueId, authorUserId: "board-user", body: "/new" }).returning();
-      await db.update(issues).set({ conversationAgentId: source.agentId, conversationUserId: "board-user", conversationState: "active", conversationBoundaryCommentId: resetComment.id }).where(eq(issues.id, source.issueId));
-      const activityRuns = await activityService(db).runsForIssue(source.companyId, source.issueId);
+      const [resetComment] = await db.insert(issueComments).values({ spaceId: source.spaceId, issueId: source.issueId, authorUserId: "operator-user", body: "/new" }).returning();
+      await db.update(issues).set({ conversationAgentId: source.agentId, conversationUserId: "operator-user", conversationState: "active", conversationBoundaryCommentId: resetComment.id }).where(eq(issues.id, source.issueId));
+      const activityRuns = await activityService(db).runsForIssue(source.spaceId, source.issueId);
       expect(activityRuns.find((row) => row.runId === source.runId)?.resultJson).toMatchObject({ workspaceRestoreFailure: "restore_unsafe_archive", savedPlanRevisionId: revisionId, workspaceRestorePath: null });
       const before = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, interactionId));
       const savedComments = await db.select().from(issueComments).where(eq(issueComments.issueId, source.issueId));
@@ -541,9 +541,9 @@ const support = externalDatabaseUrl
       const [action] = actions;
       expect(action).toMatchObject({ outcome: "blocked", evidence: { automaticRecovery: { replay: "blocked" }, workspaceRestoreFailure: "restore_unsafe_archive" } });
       expect(action.nextAction).toContain("Workspace repair required");
-      expect(await getExecutionBlocker(db, source.companyId, source.issueId, { conversationResetCommentId: resetComment.id })).toMatchObject({ runId: source.runId });
+      expect(await getExecutionBlocker(db, source.spaceId, source.issueId, { conversationResetCommentId: resetComment.id })).toMatchObject({ runId: source.runId });
       const decision = { runId: source.runId, providerStopped: true as const, actionOutcome: "mixed" as const, outcomeEvidence: "Verified saved plan and comment. Workspace copy-back failed." };
-      const input = { db, companyId: source.companyId, issueId: source.issueId, agentId: source.agentId, sourceRunId: source.runId, decision };
+      const input = { db, spaceId: source.spaceId, issueId: source.issueId, agentId: source.agentId, sourceRunId: source.runId, decision };
       await expect(validateExecutionReconciliation(input)).rejects.toThrow("workspaceRepairEvidence");
       const verified = { ...decision, workspaceRepairEvidence: "Verified fresh confined staging after repairing the unsafe fixture link." };
       await expect(validateExecutionReconciliation({ ...input, decision: verified })).resolves.toMatchObject({ id: source.runId });
@@ -551,8 +551,8 @@ const support = externalDatabaseUrl
       // Occupy the only agent slot. Exercise real admission without a provider.
       await instanceSettingsService(db).updateExperimental({ enableAgentChat: true });
       await db.update(agents).set({ status: "active", adapterType: "grok_local", runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } }).where(eq(agents.id, source.agentId));
-      await db.update(issues).set({ responsibleUserId: "board-user" }).where(eq(issues.id, source.issueId));
-      await db.insert(heartbeatRuns).values({ companyId: source.companyId, agentId: source.agentId, status: "running" });
+      await db.update(issues).set({ responsibleUserId: "operator-user" }).where(eq(issues.id, source.issueId));
+      await db.insert(heartbeatRuns).values({ spaceId: source.spaceId, agentId: source.agentId, status: "running" });
       const heartbeat = heartbeatService(db);
       const wake = vi.fn(heartbeat.wakeup);
       await deliverReconciledExecutions(db, wake as unknown as Parameters<typeof deliverReconciledExecutions>[1]);
@@ -563,7 +563,7 @@ const support = externalDatabaseUrl
       await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, successor.id));
       const [original] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, source.runId));
       expect(original).toMatchObject({ status: "failed", errorCode: "workspace_restore_failed", resultJson: run.resultJson });
-      const continuation = await buildExecutionContinuation({ db, companyId: source.companyId, issueId: source.issueId, agentId: source.agentId, context: { previousRunId: source.runId }, summary: null, exposeLowTrustRaw: false });
+      const continuation = await buildExecutionContinuation({ db, spaceId: source.spaceId, issueId: source.issueId, agentId: source.agentId, context: { previousRunId: source.runId }, summary: null, exposeLowTrustRaw: false });
       if (status === "accepted" || status === "rejected") expect(continuation.humanResponses).toContainEqual(expect.objectContaining({ id: interactionId, status }));
       else expect(continuation.humanResponses).not.toContainEqual(expect.objectContaining({ id: interactionId }));
       expect(await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.issueId, source.issueId))).toEqual(before);
@@ -578,7 +578,7 @@ const support = externalDatabaseUrl
       const [run] = await db.update(heartbeatRuns).set({ runtimeMode: "legacy", status: "cancelled" }).where(eq(heartbeatRuns.id, source.runId)).returning();
       await terminalizeLegacyExecution({ db, run, status: "cancelled" });
       const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, source.issueId));
-      await markExecutionReconciliation(db, action!, { runId: source.runId, providerStopped: true, actionOutcome: "not_performed", outcomeEvidence: "The deterministic fixture has stopped and only printed output." }, "board");
+      await markExecutionReconciliation(db, action!, { runId: source.runId, providerStopped: true, actionOutcome: "not_performed", outcomeEvidence: "The deterministic fixture has stopped and only printed output." }, "operator");
       await db.update(issueRecoveryActions).set({ status: "resolved" }).where(eq(issueRecoveryActions.id, action!.id));
       await terminalizeLegacyExecution({ db, run, status: "cancelled" });
       const actions = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, source.issueId));
@@ -589,7 +589,7 @@ const support = externalDatabaseUrl
     it("surfaces a failed current reviewer without transferring the original assignment", async () => {
       const source = await seed();
       const reviewerId = randomUUID();
-      await db.insert(agents).values({ id: reviewerId, companyId: source.companyId, name: "Reviewer", role: "engineer", adapterType: "process" });
+      await db.insert(agents).values({ id: reviewerId, spaceId: source.spaceId, name: "Reviewer", role: "engineer", adapterType: "process" });
       await db.update(issues).set({ status: "in_review", executionState: {
         status: "pending", currentStageId: randomUUID(), currentStageIndex: 0, currentStageType: "review",
         currentParticipant: { type: "agent", agentId: reviewerId, userId: null },
@@ -599,8 +599,8 @@ const support = externalDatabaseUrl
       const [run] = await db.update(heartbeatRuns).set({ agentId: reviewerId, runtimeMode: "legacy", status: "running" }).where(eq(heartbeatRuns.id, source.runId)).returning();
       await terminalizeLegacyExecution({ db, run, status: "failed", patch: { finishedAt: new Date() } });
       const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, source.issueId));
-      expect(action).toMatchObject({ ownerType: "board", returnOwnerAgentId: source.agentId, evidence: { reviewParticipantAgentId: reviewerId } });
-      const input = { db, companyId: source.companyId, issueId: source.issueId, agentId: source.agentId, sourceRunId: source.runId,
+      expect(action).toMatchObject({ ownerType: "operator", returnOwnerAgentId: source.agentId, evidence: { reviewParticipantAgentId: reviewerId } });
+      const input = { db, spaceId: source.spaceId, issueId: source.issueId, agentId: source.agentId, sourceRunId: source.runId,
         decision: { runId: source.runId, providerStopped: true as const, actionOutcome: "not_performed" as const, outcomeEvidence: "Inspected reviewer process and verified no actions occurred." } };
       await expect(validateExecutionReconciliation(input)).resolves.toMatchObject({ id: source.runId });
       await db.update(issues).set({ executionState: null }).where(eq(issues.id, source.issueId));
@@ -608,8 +608,8 @@ const support = externalDatabaseUrl
     });
     it("does not turn an already reconciled continuation into a recovery assignment", async () => {
       const source = await seed();
-      const [action] = await db.insert(issueRecoveryActions).values({ companyId: source.companyId, sourceIssueId: source.issueId, kind: "active_run_watchdog", status: "resolved", ownerType: "board", returnOwnerAgentId: source.agentId, cause: "native_event_replay_conflict", fingerprint: source.runId, nextAction: "Old recovery instruction", evidence: { executionReconciliation: { runId: source.runId } } }).returning();
-      const wake = await buildPaperclipWakePayload({ db, companyId: source.companyId, contextSnapshot: { issueId: source.issueId, recoveryActionId: action.id, wakeReason: "issue_recovery_action_restored" } });
+      const [action] = await db.insert(issueRecoveryActions).values({ spaceId: source.spaceId, sourceIssueId: source.issueId, kind: "active_run_watchdog", status: "resolved", ownerType: "operator", returnOwnerAgentId: source.agentId, cause: "native_event_replay_conflict", fingerprint: source.runId, nextAction: "Old recovery instruction", evidence: { executionReconciliation: { runId: source.runId } } }).returning();
+      const wake = await buildOutpostWakePayload({ db, spaceId: source.spaceId, contextSnapshot: { issueId: source.issueId, recoveryActionId: action.id, wakeReason: "issue_recovery_action_restored" } });
       expect(wake?.recovery).toBeNull();
       expect(wake?.reason).toBe("issue_recovery_action_restored");
     });
@@ -641,14 +641,14 @@ const support = externalDatabaseUrl
     it.each(["done", "cancelled", "review"])("does not reuse consumed wake authority after a later %s transition", async transition => {
       const source = await seed();
       const previousRunId = randomUUID(), commentId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: previousRunId, companyId: source.companyId,
+      await db.insert(heartbeatRuns).values({ id: previousRunId, spaceId: source.spaceId,
         agentId: source.agentId, runtimeMode: "native", status: "failed", contextSnapshot: { issueId: source.issueId } });
-      await db.insert(issueComments).values({ id: commentId, companyId: source.companyId,
-        issueId: source.issueId, authorType: "user", authorUserId: "board", body: "Continue" });
-      await db.insert(issueRecoveryActions).values({ companyId: source.companyId, sourceIssueId: source.issueId,
+      await db.insert(issueComments).values({ id: commentId, spaceId: source.spaceId,
+        issueId: source.issueId, authorType: "user", authorUserId: "operator", body: "Continue" });
+      await db.insert(issueRecoveryActions).values({ spaceId: source.spaceId, sourceIssueId: source.issueId,
         kind: "active_run_watchdog", cause: "native_provider_terminal_failed", fingerprint: previousRunId,
         status: "resolved", outcome: "cancelled", nextAction: "User continued", evidence: {
-          explicitUserContinuation: { previousRunId, commentId, actorId: "board", runId: source.runId },
+          explicitUserContinuation: { previousRunId, commentId, actorId: "operator", runId: source.runId },
         } });
       await db.update(heartbeatRuns).set({ contextSnapshot: {
         issueId: source.issueId, previousRunId,
@@ -662,7 +662,7 @@ const support = externalDatabaseUrl
       expect(deriveCommentId(successor.contextSnapshot)).toBeNull();
       expect(successor.contextSnapshot?.resumeIntent).toBeUndefined();
       expect(successor.contextSnapshot?.followUpRequested).toBeUndefined();
-      const envelope = await buildExecutionContinuation({ db, companyId: source.companyId,
+      const envelope = await buildExecutionContinuation({ db, spaceId: source.spaceId,
         issueId: source.issueId, agentId: source.agentId, context: successor.contextSnapshot!,
         summary: null, exposeLowTrustRaw: false });
       expect(envelope.trigger.sourceRunId).toBe(source.runId);
@@ -678,7 +678,7 @@ const support = externalDatabaseUrl
         await db.update(issues).set({ status: transition }).where(eq(issues.id, source.issueId));
       }
       await db.update(heartbeatRuns).set({ status: "queued" }).where(eq(heartbeatRuns.id, successor.id));
-      expect(await createRunDispatch(db).cancelStaleQueuedRun({ companyId: source.companyId,
+      expect(await createRunDispatch(db).cancelStaleQueuedRun({ spaceId: source.spaceId,
         runId: successor.id, expectedStatus: "queued" })).toMatchObject({ outcome: "cancelled",
         errorCode: transition === "review" ? "issue_review_participant_changed" : "issue_terminal_status" });
     });
@@ -792,7 +792,7 @@ const support = externalDatabaseUrl
       );
       expect(observed).toEqual([
         expect.objectContaining({
-          companyId: source.companyId,
+          spaceId: source.spaceId,
           payload: expect.objectContaining({
             runId: source.runId,
             issueId: source.issueId,
@@ -801,7 +801,7 @@ const support = externalDatabaseUrl
           }),
         }),
         expect.objectContaining({
-          companyId: source.companyId,
+          spaceId: source.spaceId,
           payload: expect.objectContaining({
             runId: source.runId,
             issueId: source.issueId,
@@ -841,14 +841,14 @@ const support = externalDatabaseUrl
       "native_foreign",
       "native_nonexistent",
     ] as const)(
-      "routes status delivery only through a proven same-company task: %s",
+      "routes status delivery only through a proven same-space task: %s",
       async (association) => {
         await deliverExecutionStatuses(db);
         const source = await seed();
         const otherIssueId = randomUUID();
         await db.insert(issues).values({
           id: otherIssueId,
-          companyId: source.companyId,
+          spaceId: source.spaceId,
           title: "Other task",
           status: "backlog",
         });
@@ -916,7 +916,7 @@ const support = externalDatabaseUrl
         }
         await db.insert(heartbeatRuns).values({
           id: runId,
-          companyId: source.companyId,
+          spaceId: source.spaceId,
           agentId: source.agentId,
           runtimeMode: nativeIssueId ? "native" : "legacy",
           nativeIssueId,
@@ -933,7 +933,7 @@ const support = externalDatabaseUrl
           await db
             .select({ id: heartbeatRuns.id })
             .from(heartbeatRuns)
-            .where(eq(heartbeatRuns.companyId, source.companyId))
+            .where(eq(heartbeatRuns.spaceId, source.spaceId))
         )
           .map((row) => row.id)
           .sort();
@@ -946,7 +946,7 @@ const support = externalDatabaseUrl
         });
         expect(observed).toEqual([
           {
-            companyId: source.companyId,
+            spaceId: source.spaceId,
             type: "heartbeat.run.status",
             payload: {
               runId,
@@ -967,7 +967,7 @@ const support = externalDatabaseUrl
             await db
               .select({ id: heartbeatRuns.id })
               .from(heartbeatRuns)
-              .where(eq(heartbeatRuns.companyId, source.companyId))
+              .where(eq(heartbeatRuns.spaceId, source.spaceId))
           )
             .map((row) => row.id)
             .sort(),
@@ -1004,7 +1004,7 @@ const support = externalDatabaseUrl
             .where(eq(issueRecoveryActions.sourceIssueId, source.issueId))
         )[0],
       ).toMatchObject({
-        ownerType: "board",
+        ownerType: "operator",
         cause: "execution_recovery_budget_exhausted",
       });
     });
@@ -1034,7 +1034,7 @@ const support = externalDatabaseUrl
       async (wrapped) => {
         const source = await seed();
         await db.insert(heartbeatRunEvents).values({
-          companyId: source.companyId,
+          spaceId: source.spaceId,
           runId: source.runId,
           agentId: source.agentId,
           seq: 1,
@@ -1076,7 +1076,7 @@ const support = externalDatabaseUrl
     it("surfaces a reviewer's abandoned control transition for the operator", async () => {
       const source = await seed();
       const reviewerId = randomUUID();
-      await db.insert(agents).values({ id: reviewerId, companyId: source.companyId, name: "Reviewer", role: "engineer", adapterType: "process" });
+      await db.insert(agents).values({ id: reviewerId, spaceId: source.spaceId, name: "Reviewer", role: "engineer", adapterType: "process" });
       await db.update(issues).set({ status: "in_review", executionRunId: source.runId, executionState: {
         status: "pending", currentStageId: randomUUID(), currentStageIndex: 0, currentStageType: "review",
         currentParticipant: { type: "agent", agentId: reviewerId, userId: null },
@@ -1086,7 +1086,7 @@ const support = externalDatabaseUrl
       await db.update(heartbeatRuns).set({ agentId: reviewerId, status: "running", executionControlDeadlineAt: new Date(Date.now() - 1_000) }).where(eq(heartbeatRuns.id, source.runId));
       await reconcileAbandonedExecutionControl(db);
       expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, source.issueId))).toMatchObject([
-        { ownerType: "board", returnOwnerAgentId: source.agentId, evidence: { reviewParticipantAgentId: reviewerId } },
+        { ownerType: "operator", returnOwnerAgentId: source.agentId, evidence: { reviewParticipantAgentId: reviewerId } },
       ]);
       expect((await db.select().from(issues).where(eq(issues.id, source.issueId)))[0]).toMatchObject({ assigneeAgentId: source.agentId, executionRunId: null });
     });
@@ -1193,14 +1193,14 @@ const support = externalDatabaseUrl
             .from(issueRecoveryActions)
             .where(eq(issueRecoveryActions.sourceIssueId, source.issueId))
         )[0]?.ownerType,
-      ).toBe("board");
+      ).toBe("operator");
     });
     it("does not release another run's checkout or replace a reassigned task", async () => {
       const source = await seed();
       const otherRunId = randomUUID();
       await db.insert(heartbeatRuns).values({
         id: otherRunId,
-        companyId: source.companyId,
+        spaceId: source.spaceId,
         agentId: source.agentId,
         status: "running",
       });
@@ -1231,7 +1231,7 @@ const support = externalDatabaseUrl
       const source = await seed();
       const input = {
         db,
-        companyId: source.companyId,
+        spaceId: source.spaceId,
         issueId: source.issueId,
         agentId: source.agentId,
         sourceRunId: source.runId,
@@ -1264,7 +1264,7 @@ const support = externalDatabaseUrl
       await expect(
         validateExecutionReconciliation({
           ...input,
-          companyId: randomUUID(),
+          spaceId: randomUUID(),
           decision,
         }),
       ).rejects.toThrow("source or task owner changed");
@@ -1274,11 +1274,11 @@ const support = externalDatabaseUrl
       const [action] = await db
         .insert(issueRecoveryActions)
         .values({
-          companyId: source.companyId,
+          spaceId: source.spaceId,
           sourceIssueId: source.issueId,
           kind: "active_run_watchdog",
           status: "resolved",
-          ownerType: "board",
+          ownerType: "operator",
           returnOwnerAgentId: source.agentId,
           cause: "uncertain_provider_action",
           fingerprint: source.runId,

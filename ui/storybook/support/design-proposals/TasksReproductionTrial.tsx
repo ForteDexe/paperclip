@@ -8,12 +8,12 @@ import { KanbanBoard } from "@/components/KanbanBoard";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
 import { TaskList, type TaskListItem } from "@/components/TaskList";
 import { TaskListToolbar } from "@/components/TaskListToolbar";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useDialogActions } from "@/context/DialogContext";
 import { useTaskListCollection } from "@/hooks/useTaskListCollection";
 import { TruncatedTextMarqueeProvider } from "@/components/TruncatedText";
 import { taskListViewStorageKey } from "@/lib/task-list-views";
-import { storybookAgents, storybookIssueLabels, storybookProjects } from "../../fixtures/paperclipData";
+import { storybookAgents, storybookIssueLabels, storybookProjects } from "../../fixtures/outpostData";
 import { DesignProposalAccess } from "./DesignProposalAccess";
 import { initialItems, recentTasks } from "./task-page-data";
 
@@ -22,16 +22,16 @@ const userId = "user-board";
 const viewKey = taskListViewStorageKey("design-agent-task-list-trial", userId);
 
 function TrialContent() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { openNewIssue } = useDialogActions();
   const [items, setItems] = useState<TaskListItem[]>(initialItems);
   const { query, setQuery, view, setView, layout, setLayout, filters, updateFilters, clear,
-    companyItems, matchingItems: matches, visibleItems, creators, collapsedIds, setCollapsedIds,
+    spaceItems, matchingItems: matches, visibleItems, creators, collapsedIds, setCollapsedIds,
     allExpanded, toggleExpanded, activeFilterCount, narrowed } = useTaskListCollection({
-      items, companyId: selectedCompanyId, userId, viewStorageKey: viewKey,
+      items, spaceId: selectedSpaceId, userId, viewStorageKey: viewKey,
     });
-  const emptyState = companyItems.length === 0
-    ? <EmptyState icon={ListChecks} message="No tasks in this organization" description="This preview has task fixtures for Paperclip Storybook." />
+  const emptyState = spaceItems.length === 0
+    ? <EmptyState icon={ListChecks} message="No tasks in this organization" description="This preview has task fixtures for Outpost Storybook." />
     : <EmptyState icon={SearchX} message="No tasks match this view" description="Try another search or clear your filters." action="Clear filters" hideActionIcon onAction={clear} />;
 
   return <TruncatedTextMarqueeProvider>
@@ -47,7 +47,7 @@ function TrialContent() {
         }} />
       {narrowed ? <p className="design-task-results" role="status">{matches.length} matching task{matches.length === 1 ? "" : "s"}{visibleItems.length > matches.length ? " · Parent tasks included for context" : ""}</p> : null}
       <section className="design-task-list-panel" hidden={layout !== "list"} aria-label="Tasks">
-        <TaskList key={selectedCompanyId} items={visibleItems} allItems={companyItems} collapsedIds={collapsedIds} onCollapsedIdsChange={setCollapsedIds} emptyState={emptyState} />
+        <TaskList key={selectedSpaceId} items={visibleItems} allItems={spaceItems} collapsedIds={collapsedIds} onCollapsedIdsChange={setCollapsedIds} emptyState={emptyState} />
       </section>
       {layout === "board" ? <section className="design-task-board" aria-label="Task board">
         {matches.length ? <KanbanBoard issues={matches.map(item => item.issue)} agents={storybookAgents} showOverflowFades

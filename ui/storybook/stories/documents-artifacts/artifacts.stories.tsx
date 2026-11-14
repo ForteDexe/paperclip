@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn, formatDate } from "@/lib/utils";
-import type { CompanyArtifact } from "@/api/artifacts";
+import type { SpaceArtifact } from "@/api/artifacts";
 import {
   ARTIFACT_GROUP_OPTIONS,
   ARTIFACT_KIND_FILTERS,
@@ -21,7 +21,7 @@ import {
 } from "@/pages/Artifacts";
 
 /**
- * Storybook coverage for the company Artifacts page. Covers:
+ * Storybook coverage for the space Artifacts page. Covers:
  *  - the flat grid (PAP-10359)
  *  - the new group-by control, stack cards, and selected stack view (PAP-10440 / PAP-10442)
  *
@@ -50,7 +50,7 @@ const SAMPLE_IMAGE_AMBER =
     `<svg xmlns='http://www.w3.org/2000/svg' width='480' height='270'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#f59e0b'/><stop offset='1' stop-color='#ef4444'/></linearGradient></defs><rect width='480' height='270' fill='url(#g)'/><text x='50%' y='52%' font-family='sans-serif' font-size='22' fill='white' text-anchor='middle'>hero-warm.png</text></svg>`,
   );
 
-function makeArtifact(overrides: Partial<CompanyArtifact>): CompanyArtifact {
+function makeArtifact(overrides: Partial<SpaceArtifact>): SpaceArtifact {
   return {
     id: "art",
     source: "attachment",
@@ -62,7 +62,7 @@ function makeArtifact(overrides: Partial<CompanyArtifact>): CompanyArtifact {
     openPath: null,
     downloadPath: null,
     issue: { id: "issue-1", identifier: "PAP-10306", title: "Landing visuals refresh" },
-    project: { id: "proj-1", name: "Paperclip App" },
+    project: { id: "proj-1", name: "Outpost App" },
     createdByAgent: { id: "agent-1", name: "ClaudeCoder" },
     updatedAt: new Date("2026-06-04T12:00:00Z").toISOString(),
     href: "/issues/PAP-10306#attachment-art",
@@ -70,7 +70,7 @@ function makeArtifact(overrides: Partial<CompanyArtifact>): CompanyArtifact {
   };
 }
 
-const ARTIFACTS: CompanyArtifact[] = [
+const ARTIFACTS: SpaceArtifact[] = [
   makeArtifact({
     id: "wp-video",
     source: "work_product",
@@ -98,7 +98,7 @@ const ARTIFACTS: CompanyArtifact[] = [
     mediaKind: "document",
     title: "Artifacts Page Plan",
     previewText:
-      "Build a company-level Artifacts page at /{companyPrefix}/artifacts, with a sidebar item below Goals and a three-column artifact grid. The page should make agent-produced work easy to find without becoming another attachment dump.",
+      "Build a space-level Artifacts page at /{spacePrefix}/artifacts, with a sidebar item below Goals and a three-column artifact grid. The page should make agent-produced work easy to find without becoming another attachment dump.",
     contentType: "text/markdown",
     issue: { id: "issue-3", identifier: "PAP-10341", title: "Draft the rollout plan" },
     createdByAgent: { id: "agent-2", name: "CodexCoder" },
@@ -135,7 +135,7 @@ const ARTIFACTS: CompanyArtifact[] = [
   }),
 ];
 
-function ArtifactsGrid({ artifacts }: { artifacts: CompanyArtifact[] }) {
+function ArtifactsGrid({ artifacts }: { artifacts: SpaceArtifact[] }) {
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
       {artifacts.map((artifact) => (
@@ -252,7 +252,7 @@ interface MockGroup {
   issueIdentifier: string;
   issueTitle: string;
   count: number;
-  preview: CompanyArtifact;
+  preview: SpaceArtifact;
   updatedAt: string;
   href: string;
 }
@@ -433,7 +433,7 @@ const PARENT_TASK_GROUPS: MockGroup[] = [
   },
 ];
 
-const SELECTED_GROUP_ARTIFACTS: CompanyArtifact[] = [
+const SELECTED_GROUP_ARTIFACTS: SpaceArtifact[] = [
   makeArtifact({
     id: "img-hero",
     mediaKind: "image",
@@ -475,7 +475,7 @@ const SELECTED_GROUP_ARTIFACTS: CompanyArtifact[] = [
 ];
 
 const meta: Meta = {
-  parameters: { paperclip: {
+  parameters: { outpost: {
       "capabilities": [
         "documents-artifacts/library",
         "documents-artifacts/work-products"

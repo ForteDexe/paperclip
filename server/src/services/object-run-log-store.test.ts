@@ -55,7 +55,7 @@ function memory() {
     },
   };
 }
-const input = { companyId: "company", agentId: "agent", runId: "run" };
+const input = { spaceId: "space", agentId: "agent", runId: "run" };
 const event = (seq: number) => ({
   stream: "stdout" as const,
   chunk: "再開",
@@ -301,7 +301,7 @@ describe("S3 run log store", () => {
     const original = m.provider.getObject;
     let hiddenHeadReads = 0;
     m.provider.getObject = async (i) => {
-      if (i.objectKey === "logs/segments-v1/company/agent/lagged-run/head.json") {
+      if (i.objectKey === "logs/segments-v1/space/agent/lagged-run/head.json") {
         hiddenHeadReads++;
         throw Object.assign(Error("not yet visible"), { name: "NoSuchKey", $metadata: { httpStatusCode: 404 } });
       }
@@ -320,7 +320,7 @@ describe("S3 run log store", () => {
   it("fails a read of a run log that was never written", async () => {
     const m = memory(),
       store = createObjectRunLogStore({ provider: m.provider, keyPrefix: "logs", assertWriterAuthority: async () => undefined });
-    await expect(store.read({ store: "s3_segments", logRef: "company/agent/never-written", attemptId: "attempt" }))
+    await expect(store.read({ store: "s3_segments", logRef: "space/agent/never-written", attemptId: "attempt" }))
       .rejects.toMatchObject({ status: 404, message: "Run log not found" });
   });
   it("batches concurrent appends, confirms durability, and resumes offsets/sequence on a replacement", async () => {

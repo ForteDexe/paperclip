@@ -1,5 +1,5 @@
 INSERT INTO "principal_permission_grants" (
-  "company_id",
+  "space_id",
   "principal_type",
   "principal_id",
   "permission_key",
@@ -7,17 +7,17 @@ INSERT INTO "principal_permission_grants" (
   "granted_by_user_id"
 )
 SELECT
-  "company_id",
+  "space_id",
   'user',
   "principal_id",
   'commentary:view',
   NULL,
   NULL
-FROM "company_memberships"
+FROM "space_memberships"
 WHERE "principal_type" = 'user'
   AND "status" = 'active'
 ON CONFLICT (
-  "company_id",
+  "space_id",
   "principal_type",
   "principal_id",
   "permission_key"

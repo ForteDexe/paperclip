@@ -65,12 +65,12 @@ Research date: October 23, 2026. Harness pins rechecked October 26, 2026.
   `grok --help` from 1.0.70.
   [Kimi Code 2.2.0 and 2.3.0](https://github.com/MoonshotAI/kimi-code/releases)
   remove the `kaos` MCP executor and require qualified plugin skill names;
-  Paperclip uses neither. Kimi Code 2.3.2 stops the agent from launching
+  Outpost uses neither. Kimi Code 2.3.2 stops the agent from launching
   swarms by itself, so `kimi -p` and ACP sessions no longer start swarms;
   2.3.1 and 2.3.3 are fixes and prompt changes. `-m`, `-p`,
   `--output-format`, and `acp` are unchanged in `kimi --help` from 2.3.3.
   Gemini CLI 0.65.0 makes workspace settings read-only in untrusted folders;
-  Paperclip writes only home settings and sets `GEMINI_CLI_TRUST_WORKSPACE`
+  Outpost writes only home settings and sets `GEMINI_CLI_TRUST_WORKSPACE`
   for remote runs.
 - Cursor CLI 2026.10.22-27dcf5f is the version `https://cursor.com/install`
   resolves. The archive SHA-256 was computed from the versioned Linux x64
@@ -86,7 +86,7 @@ Research date: October 23, 2026. Harness pins rechecked October 26, 2026.
 
 - **Claude runtime 2.1.286 → 2.1.308.** Claude Code's `stable` channel is
   2.1.308 (`latest` is 2.1.309), with Agent SDK 0.3.308. The range changes
-  headless defaults that Paperclip runs depend on: fork subagents are on by
+  headless defaults that Outpost runs depend on: fork subagents are on by
   default in `-p` and the Agent SDK (2.1.302), sessions with no permission
   mode start in `default` mode on third-party providers (2.1.302), and MCP
   allow rules match whole server names (2.1.299). This needs a separate runner
@@ -110,7 +110,7 @@ Research date: October 23, 2026. Harness pins rechecked October 26, 2026.
 - **Gemini 4 Argon** in the Gemini CLI and Cursor catalogs: the CLI does not
   register it yet, and Cursor documents display names only.
 - **Codex default model.** Codex 0.161.0 makes `gpt-6.1-sol` its default.
-  Paperclip keeps `gpt-5.6-sol` so saved agents and spending do not change.
+  Outpost keeps `gpt-5.6-sol` so saved agents and spending do not change.
 - **Hidden Codex aliases** (`gpt-daybreak-*`) are restricted to eligible
   accounts.
 - **Claude Sonnet 4.5** is deprecated and retires November 30, 2026. It stays

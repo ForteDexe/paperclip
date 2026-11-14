@@ -18,7 +18,7 @@ finally {
 const execute = promisify(execFile);
 
 it.skipIf(!supported).each(["SIGTERM", "SIGINT"] as const)("drains the test command's descendants before PostgreSQL on %s", async (signal) => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-command-cancel-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-command-cancel-"));
   const ready = path.join(directory, "ready"), done = path.join(directory, "done");
   const env: NodeJS.ProcessEnv = {
     ...process.env, TEST_COMMAND_TREE_READY: ready, TEST_COMMAND_TREE_DONE: done,
@@ -45,7 +45,7 @@ it.skipIf(!supported).each(["SIGTERM", "SIGINT"] as const)("drains the test comm
     wrapper.kill(signal);
     expect(await exited, output).toBe(signal === "SIGINT" ? 130 : 143);
     expect(fs.readFileSync(done, "utf8")).toBe("database available during child shutdown");
-    expect(fs.readdirSync(directory).filter((name) => name.startsWith("paperclip-test-command-"))).toEqual([]);
+    expect(fs.readdirSync(directory).filter((name) => name.startsWith("outpost-test-command-"))).toEqual([]);
     for (const pid of Object.values(descendants)) {
       const result = await execute("/bin/ps", ["-p", String(pid), "-o", "stat="]).catch(() => ({ stdout: "" }));
       expect(result.stdout.trim() === "" || result.stdout.trim().startsWith("Z"), `descendant ${pid} still running`).toBe(true);

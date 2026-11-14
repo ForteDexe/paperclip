@@ -11,7 +11,7 @@ const mockPluginsApi = vi.hoisted(() => ({
 
 const mockSetBreadcrumbs = vi.hoisted(() => vi.fn());
 const mockParams = vi.hoisted(() => ({
-  companyPrefix: "PAP" as string | undefined,
+  spacePrefix: "PAP" as string | undefined,
   pluginId: undefined as string | undefined,
   pluginRoutePath: undefined as string | undefined,
   "*": undefined as string | undefined,
@@ -27,10 +27,10 @@ vi.mock("@/context/BreadcrumbContext", () => ({
   }),
 }));
 
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({
-    companies: [{ id: "company-1", name: "Outpost", issuePrefix: "PAP" }],
-    selectedCompanyId: "company-1",
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({
+    spaces: [{ id: "space-1", name: "Outpost", issuePrefix: "PAP" }],
+    selectedSpaceId: "space-1",
   }),
 }));
 
@@ -69,7 +69,7 @@ async function flushReact() {
 function pageContribution(overrides: Partial<{ slots: unknown[] }> = {}) {
   return {
     pluginId: "plugin-wiki",
-    pluginKey: "paperclipai.plugin-llm-wiki",
+    pluginKey: "outpost.plugin-llm-wiki",
     displayName: "LLM Wiki",
     version: "0.1.0",
     uiEntryFile: "ui.js",
@@ -111,7 +111,7 @@ describe("PluginPage", () => {
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);
-    mockParams.companyPrefix = "PAP";
+    mockParams.spacePrefix = "PAP";
     mockParams.pluginId = undefined;
     mockParams.pluginRoutePath = undefined;
     mockParams["*"] = undefined;
@@ -130,7 +130,7 @@ describe("PluginPage", () => {
     const root = await renderPage(container);
 
     expect(mockSetBreadcrumbs).toHaveBeenCalledWith([
-      { label: "Plugins", href: "/company/settings/instance/plugins" },
+      { label: "Plugins", href: "/space/settings/instance/plugins" },
       { label: "LLM Wiki" },
     ]);
     expect(container.textContent).toContain("Back");

@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { agents, companies, createDb, issueRecoveryActions, issues } from "@outpost/db";
+import { agents, spaces, createDb, issueRecoveryActions, issues } from "@outpost/db";
 import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } from "../../__tests__/helpers/full-database-response-capture.js";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -22,20 +22,20 @@ describe.skipIf(!support.supported)("recovery issue state reads", () => {
   });
 
   it.each([false, true])("does not load unused source and child descriptions (child=%s)", async (withChild) => {
-    const [company] = await db.insert(companies).values({
+    const [space] = await db.insert(spaces).values({
       name: "Recovery state reads",
       issuePrefix: `R${randomUUID().slice(0, 7).toUpperCase()}`,
     }).returning();
     const description = randomBytes(128 * 1024).toString("base64");
     const [parent] = await db.insert(issues).values({
-      companyId: company.id,
-      title: "Await the board decision",
+      spaceId: space.id,
+      title: "Await the operator decision",
       description,
       status: "blocked",
     }).returning();
     const child = withChild
       ? (await db.insert(issues).values({
-          companyId: company.id,
+          spaceId: space.id,
           title: "A child that also needs a decision",
           description,
           status: "blocked",
@@ -43,19 +43,19 @@ describe.skipIf(!support.supported)("recovery issue state reads", () => {
         }).returning())[0]
       : null;
     const [action] = await db.insert(issueRecoveryActions).values({
-      companyId: company.id,
+      spaceId: space.id,
       sourceIssueId: parent.id,
       kind: "stranded_assigned_issue",
       cause: "stranded_assigned_issue",
       fingerprint: randomUUID(),
       status: "active",
-      ownerType: "board",
-      wakePolicy: { type: "board_escalation" },
+      ownerType: "operator",
+      wakePolicy: { type: "operator_escalation" },
       nextAction: "Choose the next disposition",
       evidence: { retainedControl: { proof: "unchanged" } },
     }).returning();
     const enqueueWakeup = vi.fn(async () => {
-      throw new Error("Board-owned work must remain pending");
+      throw new Error("Operator-owned work must remain pending");
     });
     const service = recoveryService(db, { enqueueWakeup });
     const events: Array<Record<string, unknown>> = [];
@@ -78,17 +78,17 @@ describe.skipIf(!support.supported)("recovery issue state reads", () => {
   });
 
   it("keeps a candidate waiting for agent setup without reading its description", async () => {
-    const [company] = await db.insert(companies).values({
+    const [space] = await db.insert(spaces).values({
       name: "Recovery candidate read",
       issuePrefix: `R${randomUUID().slice(0, 7).toUpperCase()}`,
     }).returning();
     const [agent] = await db.insert(agents).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Preparing agent",
       lifecycleState: "preparing",
     }).returning();
     const [issue] = await db.insert(issues).values({
-      companyId: company.id,
+      spaceId: space.id,
       title: "Wait for agent setup",
       description: randomBytes(128 * 1024).toString("base64"),
       status: "todo",
@@ -112,6 +112,6 @@ describe.skipIf(!support.supported)("recovery issue state reads", () => {
     expect(enqueueWakeup).not.toHaveBeenCalled();
     expect((await db.select().from(issues).where(eq(issues.id, issue.id)))[0]).toEqual(issue);
     expect((await db.select().from(agents).where(eq(agents.id, agent.id)))[0]).toEqual(agent);
-    expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, company.id))).toEqual([]);
+    expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, space.id))).toEqual([]);
   });
 });

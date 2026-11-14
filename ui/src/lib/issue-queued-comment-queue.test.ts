@@ -9,7 +9,7 @@ function comment(id: string, body: string) {
   const now = new Date("2026-09-04T12:00:00.000Z");
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     authorType: "user" as const,
     authorAgentId: null,

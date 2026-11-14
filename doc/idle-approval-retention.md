@@ -5,7 +5,7 @@ It does not migrate the other attention source kinds or establish host sleep.
 
 ## Obligation and owner
 
-A pending approval in an active company is eligible for automatic archiving
+A pending approval in an active space is eligible for automatic archiving
 90 days after its last approval activity, unless kept or already archived.
 This is a presentation/attention archive: it does not approve, reject, cancel,
 or delete the approval. The deadline and policy are unchanged.
@@ -30,7 +30,7 @@ eligible for recovery. Each candidate is re-read and locked before archiving,
 so a resubmission committed while the worker waited cannot archive the new
 activity using an old selection. Existing retention version, keep and archive
 compare-and-set checks remain authoritative. This does not add cross-table
-serializability for concurrent link/visibility/company policy changes.
+serializability for concurrent link/visibility/space policy changes.
 
 ## Producer coverage
 
@@ -43,12 +43,12 @@ serializability for concurrent link/visibility/company policy changes.
 | Link, unlink and bulk link | Issue approval write transaction |
 | Issue visibility changes and deletion | Existing issue mutation transaction |
 | Routine creation rollback cleanup | Existing transaction before cascading issue deletion |
-| Company activation, pause, archive and deletion | Existing company/accounting transaction |
+| Space activation, pause, archive and deletion | Existing space/accounting transaction |
 | Keep, manual archive, revive and accepted archive manifest | Existing retention mutation transaction |
 | Retention materialization or source activity change | Signal only when inserting or changing actual state |
 
 Approval comments do not change approval activity under the existing policy.
-Company portability imports do not write approvals; restored durable records
+Space portability imports do not write approvals; restored durable records
 are reconstructed at startup. Signals belong to the application DB owner and
 its dedicated child pools. Independent SQL writers or another active process
 need explicit integration; this change does not claim to observe them.
@@ -69,7 +69,7 @@ The deadline worker uses the shared scheduler's generation and drain behavior.
 Startup reconstructs pending work; idle drain retains requests without passive
 SQL; resume reconciles them. Failed work retains a 30-second recovery spacing.
 No eligible approval means no recurring deadline or query. Completed history,
-kept/archived approvals, and inactive companies are quiet until a supported
+kept/archived approvals, and inactive spaces are quiet until a supported
 mutation changes eligibility. Shutdown joins admitted work and stops between
 candidates. Notification delivery remains owned by the separate archive worker.
 
@@ -80,7 +80,7 @@ and the existing migration runner's nontransactional execution list.
 ## Verification and limits
 
 Real-Postgres lifecycle tests cover unseen sources, future deadlines, retained
-history, keep/unkeep, archive/revive, revision/resubmission, company activity,
+history, keep/unkeep, archive/revive, revision/resubmission, space activity,
 linked issue visibility/deletion/order, normal versus maintenance attention
 reads, nested commits/rollback, startup and first-write drain, failed database
 writes through drain, bounded progress past failure, shutdown, and a concurrent
@@ -104,7 +104,7 @@ hidden first/visible later stays excluded; visible first/hidden later stays
 eligible. The worker's current-state recheck remains under the approval row lock.
 
 Manual keep, archive and revive materialize an unseen approval on demand inside
-the existing retention write transaction. They lock the company-scoped approval
+the existing retention write transaction. They lock the space-scoped approval
 row in the same order as automatic archival, read its real activity timestamp,
 and use the existing versioned `syncItems` operation. Missing or unauthorized
 sources retain their existing rejection; other source kinds are unchanged. This
@@ -139,7 +139,7 @@ unavailable. No extra wrapper or scope argument is threaded through those calls.
 
 The aggregate retention worker now coalesces sequential notifications for thirty
 seconds after a successful reconciliation. This is a single instance-wide read
-budget, stricter than granting each company an independent thirty-second budget,
+budget, stricter than granting each space an independent thirty-second budget,
 and matches the former default maintenance cadence. Known business deadlines
 still preempt the coalescing window. The window schedules no work on its own;
 without a notification or saved deadline the worker remains quiet. Newly changed
@@ -149,7 +149,7 @@ Three new real regressions failed before repair: approve and reject cases
 observed unwanted tool-review signals from ordinary mutations, and four
 sequential tenant writes caused eight global reads rather than one two-read
 reconciliation. Terminal approve/reject/cancel signals are now tested explicitly.
-With another company's pending approval present, sequential writes cause no extra
+With another space's pending approval present, sequential writes cause no extra
 SQL within the window and one reconciliation when the window ends.
 
 The first coalescing fixture incorrectly expected the pending-work hold to clear

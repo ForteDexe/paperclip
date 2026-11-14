@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issueCreateIdempotencyKeys,
@@ -40,7 +40,7 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-issue-create-deduplication-routes-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-issue-create-deduplication-routes-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -50,7 +50,7 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
     await db.delete(issues);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -66,20 +66,20 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
     return app;
   }
 
-  async function seedCompany() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `D${companyId.replace(/-/g, "").slice(0, 5).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+  async function seedSpace() {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `D${spaceId.replace(/-/g, "").slice(0, 5).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
-    return companyId;
+    return spaceId;
   }
 
-  async function seedParent(companyId: string) {
+  async function seedParent(spaceId: string) {
     const [parent] = await db.insert(issues).values({
-      companyId,
+      spaceId,
       title: "Parent issue",
       status: "todo",
       priority: "medium",
@@ -87,17 +87,17 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
     return parent;
   }
 
-  it("replays the existing issue for the same company idempotency key", async () => {
-    const companyId = await seedCompany();
-    const parent = await seedParent(companyId);
+  it("replays the existing issue for the same space idempotency key", async () => {
+    const spaceId = await seedSpace();
+    const parent = await seedParent(spaceId);
     const app = createApp();
 
     const first = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({ parentId: parent.id, title: "Prepare release", idempotencyKey: "run-1:prepare-release" })
       .expect(201);
     const replay = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({
         parentId: parent.id,
         title: "Different retry payload",
@@ -116,8 +116,8 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
   });
 
   it("expires old idempotency keys before replay lookup", async () => {
-    const companyId = await seedCompany();
-    const parent = await seedParent(companyId);
+    const spaceId = await seedSpace();
+    const parent = await seedParent(spaceId);
     const app = createApp();
     const oldIssueId = randomUUID();
     const idempotencyKey = "run-1:expired-retry";
@@ -126,21 +126,21 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
     );
     await db.insert(issues).values({
       id: oldIssueId,
-      companyId,
+      spaceId,
       parentId: parent.id,
       title: "Expired retry target",
       status: "todo",
       priority: "medium",
     });
     await db.insert(issueCreateIdempotencyKeys).values({
-      companyId,
+      spaceId,
       idempotencyKey,
       issueId: oldIssueId,
       createdAt: expiredCreatedAt,
     });
 
     const recreated = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({ parentId: parent.id, title: "Expired retry creates new work", idempotencyKey })
       .expect(201);
 
@@ -148,23 +148,23 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
     expect(recreated.body.id).not.toBe(oldIssueId);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      companyId,
+      spaceId,
       idempotencyKey,
       issueId: recreated.body.id,
     });
   });
 
   it("returns a recent open sibling whose normalized title matches", async () => {
-    const companyId = await seedCompany();
-    const parent = await seedParent(companyId);
+    const spaceId = await seedSpace();
+    const parent = await seedParent(spaceId);
     const app = createApp();
 
     const first = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({ parentId: parent.id, title: "Create   a single PR" })
       .expect(201);
     const duplicate = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({ parentId: parent.id, title: "  create a SINGLE pr  " })
       .expect(200);
 
@@ -176,16 +176,16 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
   });
 
   it("serializes keyed and title-only creates for the same issue", async () => {
-    const companyId = await seedCompany();
-    const parent = await seedParent(companyId);
+    const spaceId = await seedSpace();
+    const parent = await seedParent(spaceId);
     const app = createApp();
 
     const [keyed, titleOnly] = await Promise.all([
       request(app)
-        .post(`/api/companies/${companyId}/issues`)
+        .post(`/api/spaces/${spaceId}/issues`)
         .send({ parentId: parent.id, title: "Coordinate launch", idempotencyKey: "run-2:coordinate-launch" }),
       request(app)
-        .post(`/api/companies/${companyId}/issues`)
+        .post(`/api/spaces/${spaceId}/issues`)
         .send({ parentId: parent.id, title: "Coordinate launch" }),
     ]);
 
@@ -201,7 +201,7 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
     ]);
 
     const replay = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({ parentId: parent.id, title: "Different title", idempotencyKey: "run-2:coordinate-launch" })
       .expect(200);
     expect(replay.body).toMatchObject({
@@ -212,16 +212,16 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
   });
 
   it("allows an explicit duplicate create", async () => {
-    const companyId = await seedCompany();
-    const parent = await seedParent(companyId);
+    const spaceId = await seedSpace();
+    const parent = await seedParent(spaceId);
     const app = createApp();
 
     const first = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({ parentId: parent.id, title: "Investigate incident" })
       .expect(201);
     const duplicate = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({ parentId: parent.id, title: "Investigate incident", allowDuplicate: true })
       .expect(201);
 
@@ -229,17 +229,17 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
   });
 
   it("does not apply the route soft guard to internal service creates", async () => {
-    const companyId = await seedCompany();
-    const parent = await seedParent(companyId);
+    const spaceId = await seedSpace();
+    const parent = await seedParent(spaceId);
     const svc = issueService(db);
 
-    const first = await svc.create(companyId, {
+    const first = await svc.create(spaceId, {
       parentId: parent.id,
       title: "System-generated follow-up",
       status: "todo",
       priority: "medium",
     });
-    const second = await svc.create(companyId, {
+    const second = await svc.create(spaceId, {
       parentId: parent.id,
       title: "System-generated follow-up",
       status: "todo",
@@ -250,15 +250,15 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
   });
 
   it("does not let closed or older issues block a recreate", async () => {
-    const companyId = await seedCompany();
-    const parent = await seedParent(companyId);
+    const spaceId = await seedSpace();
+    const parent = await seedParent(spaceId);
     const app = createApp();
     const oldIssueId = randomUUID();
     const closedIssueId = randomUUID();
     await db.insert(issues).values([
       {
         id: oldIssueId,
-        companyId,
+        spaceId,
         parentId: parent.id,
         title: "Retry old work",
         status: "todo",
@@ -267,7 +267,7 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
       },
       {
         id: closedIssueId,
-        companyId,
+        spaceId,
         parentId: parent.id,
         title: "Retry closed work",
         status: "done",
@@ -276,11 +276,11 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
     ]);
 
     const recreatedOld = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({ parentId: parent.id, title: "Retry old work" })
       .expect(201);
     const recreatedClosed = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({ parentId: parent.id, title: "Retry closed work" })
       .expect(201);
 
@@ -289,14 +289,14 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
   });
 
   it("stores the request run header on manual creates", async () => {
-    const companyId = await seedCompany();
-    const parent = await seedParent(companyId);
+    const spaceId = await seedSpace();
+    const parent = await seedParent(spaceId);
     const app = createApp();
     const runId = randomUUID();
     const agentId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Creating agent",
       role: "engineer",
       status: "active",
@@ -307,14 +307,14 @@ describeEmbeddedPostgres("issue create deduplication routes", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
     });
 
     const response = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
-      .set("X-Paperclip-Run-Id", runId)
+      .post(`/api/spaces/${spaceId}/issues`)
+      .set("X-Outpost-Run-Id", runId)
       .send({ parentId: parent.id, title: "Attributed create" })
       .expect(201);
     const [created] = await db.select().from(issues).where(eq(issues.id, response.body.id));

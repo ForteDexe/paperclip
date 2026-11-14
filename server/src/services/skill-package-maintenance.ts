@@ -1,6 +1,6 @@
 import path from "node:path";
 import { and, asc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
-import { companySkillRepositorySnapshots as snapshots, companySkillVersions as versions,
+import { spaceSkillRepositorySnapshots as snapshots, spaceSkillVersions as versions,
   skillPackageDeletions, type Db } from "@outpost/db";
 import { getStorageService, type StorageService } from "../storage/index.js";
 import { skillPackageStore, skillVersionFileMap, skillVersionMetadataColumns } from "./skill-package-store.js";
@@ -8,15 +8,15 @@ import { packageSha256 } from "./skill-package-files.js";
 import { skillFileBytes, skillSnapshotHash } from "./skill-snapshot.js";
 import { runtimeSkillPackageUnreferencedSql } from "./native-runtime/runtime-skill-preservation-reference.js";
 
-type PageOptions = { id?: string; signal?: AbortSignal; companyId?: string; after?: string; limit?: number; apply?: boolean; clearLegacy?: boolean };
+type PageOptions = { id?: string; signal?: AbortSignal; spaceId?: string; after?: string; limit?: number; apply?: boolean; clearLegacy?: boolean };
 const pageSize = (options: PageOptions) => Math.min(50, Math.max(1, options.limit ?? 10));
 
 /** Bounded maintenance shared by automatic delivery and optional operator diagnostics. */
 export function skillPackageMaintenance(db: Db, storage?: StorageService) {
   const store = skillPackageStore(db, storage);
   async function migrateSnapshots(options: PageOptions = {}) {
-    const rows = await db.select({ id: snapshots.id, companyId: snapshots.companyId, contentHash: snapshots.contentHash })
-      .from(snapshots).where(and(options.companyId ? eq(snapshots.companyId, options.companyId) : undefined,
+    const rows = await db.select({ id: snapshots.id, spaceId: snapshots.spaceId, contentHash: snapshots.contentHash })
+      .from(snapshots).where(and(options.spaceId ? eq(snapshots.spaceId, options.spaceId) : undefined,
         options.id ? eq(snapshots.id, options.id) : undefined,
         options.after ? gt(snapshots.id, options.after) : undefined, options.clearLegacy ? undefined : isNull(snapshots.storage)))
       .orderBy(asc(snapshots.id)).limit(pageSize(options));
@@ -30,8 +30,8 @@ export function skillPackageMaintenance(db: Db, storage?: StorageService) {
         continue;
       }
       if (skillSnapshotHash(legacy.files) !== row.contentHash) throw new Error(`Legacy package hash mismatch: ${row.id}`);
-      const id = await store.prepare(row.companyId, legacy.files, true, options.signal);
-      if (id !== row.id || !await store.verifyDurable(row.companyId, id, options.signal)) throw new Error(`Package verification failed: ${row.id}`);
+      const id = await store.prepare(row.spaceId, legacy.files, true, options.signal);
+      if (id !== row.id || !await store.verifyDurable(row.spaceId, id, options.signal)) throw new Error(`Package verification failed: ${row.id}`);
       // An ambiguous result is safe to retry: storage is already published, IDs
       // are unchanged, and the old bytes survive until this final update.
       if (options.clearLegacy) await db.update(snapshots).set({ fileInventory: [], migrationAt: null }).where(and(eq(snapshots.id, id), eq(snapshots.contentHash, row.contentHash), sql`${snapshots.storage} is not null`));
@@ -42,7 +42,7 @@ export function skillPackageMaintenance(db: Db, storage?: StorageService) {
 
   async function migrateVersions(options: PageOptions = {}) {
     const rows = await db.select(skillVersionMetadataColumns).from(versions).where(and(
-      options.companyId ? eq(versions.companyId, options.companyId) : undefined,
+      options.spaceId ? eq(versions.spaceId, options.spaceId) : undefined,
       options.id ? eq(versions.id, options.id) : undefined,
       options.after ? gt(versions.id, options.after) : undefined,
       options.clearLegacy ? undefined : or(isNull(versions.packageSnapshotId), isNull(versions.packageFileMap)), isNull(versions.releaseId)))
@@ -54,9 +54,9 @@ export function skillPackageMaintenance(db: Db, storage?: StorageService) {
       options.signal?.throwIfAborted();
       if (!files?.length) {
         if (row.packageSnapshotId && !row.packageFileMap) {
-          const manifest = await store.manifest(row.companyId, row.packageSnapshotId, options.signal);
+          const manifest = await store.manifest(row.spaceId, row.packageSnapshotId, options.signal);
           const changed = await db.update(versions).set({ packageFileMap: skillVersionFileMap(manifest.files), migrationAt: null })
-            .where(and(eq(versions.companyId, row.companyId), eq(versions.id, row.id),
+            .where(and(eq(versions.spaceId, row.spaceId), eq(versions.id, row.id),
               eq(versions.packageSnapshotId, row.packageSnapshotId), isNull(versions.packageFileMap)))
             .returning({ id: versions.id });
           migrated += changed.length;
@@ -70,7 +70,7 @@ export function skillPackageMaintenance(db: Db, storage?: StorageService) {
       let fileMap = row.packageFileMap;
       if (packageId && skillSnapshotHash(await store.versionFiles(row, true, options.signal)) !== skillSnapshotHash(files)) throw new Error(`Legacy version differs from its package: ${row.id}`);
       if (!packageId && row.repositorySnapshotId && row.repositorySkillPath) {
-        const manifest = await store.manifest(row.companyId, row.repositorySnapshotId, options.signal);
+        const manifest = await store.manifest(row.spaceId, row.repositorySnapshotId, options.signal);
         const byPath = new Map(manifest.files.map(file => [file.path, file]));
         const mappings = files.map(file => ({ path: file.path, kind: file.kind, encoding: file.encoding ?? "utf8" as const,
           sourcePath: file.path === "SKILL.md" ? row.repositorySkillPath! : path.posix.join(path.posix.dirname(row.repositorySkillPath!), file.path) }));
@@ -79,14 +79,14 @@ export function skillPackageMaintenance(db: Db, storage?: StorageService) {
           return source?.sha256 === packageSha256(skillFileBytes(file)) && source.executable === Boolean(file.executable);
         })) { packageId = row.repositorySnapshotId; fileMap = mappings; }
       }
-      packageId ??= await store.prepare(row.companyId, files, true, options.signal);
+      packageId ??= await store.prepare(row.spaceId, files, true, options.signal);
       const legacyMetadata = new Map(files.map(file => [file.path, file]));
       fileMap = fileMap ? fileMap.map(file => ({ ...file, kind: legacyMetadata.get(file.path)?.kind ?? file.kind,
         encoding: legacyMetadata.get(file.path)?.encoding ?? "utf8" })) : skillVersionFileMap(files);
-      const receipt = await store.descriptor(row.companyId, packageId);
-      if (!receipt.storage || !await store.verifyDurable(row.companyId, packageId, options.signal)) throw new Error(`Package must be migrated and verified first: ${packageId}`);
+      const receipt = await store.descriptor(row.spaceId, packageId);
+      if (!receipt.storage || !await store.verifyDurable(row.spaceId, packageId, options.signal)) throw new Error(`Package must be migrated and verified first: ${packageId}`);
       await db.update(versions).set({ packageSnapshotId: packageId, packageFileMap: fileMap, ...(options.clearLegacy ? { fileInventory: [], migrationAt: null } : {}) })
-        .where(and(eq(versions.companyId, row.companyId), eq(versions.id, row.id), row.packageSnapshotId ? eq(versions.packageSnapshotId, row.packageSnapshotId) : isNull(versions.packageSnapshotId)));
+        .where(and(eq(versions.spaceId, row.spaceId), eq(versions.id, row.id), row.packageSnapshotId ? eq(versions.packageSnapshotId, row.packageSnapshotId) : isNull(versions.packageSnapshotId)));
       migrated++;
     }
     return { inspected: rows.length, migrated, after: rows.at(-1)?.id ?? null };
@@ -97,7 +97,7 @@ export function skillPackageMaintenance(db: Db, storage?: StorageService) {
       and ${runtimeSkillPackageUnreferencedSql()}`;
     const expired = sql`(${snapshots.upload} is null or (${snapshots.upload}->>'expiresAt')::timestamptz < now())`;
     const rows = await db.select({ id: snapshots.id }).from(snapshots).where(and(
-      options.companyId ? eq(snapshots.companyId, options.companyId) : undefined,
+      options.spaceId ? eq(snapshots.spaceId, options.spaceId) : undefined,
       options.id ? eq(snapshots.id, options.id) : undefined,
         options.after ? gt(snapshots.id, options.after) : undefined,
       sql`${snapshots.createdAt} < now() - interval '1 day'`,
@@ -120,7 +120,7 @@ export function skillPackageMaintenance(db: Db, storage?: StorageService) {
   async function deleteObjects(options: PageOptions = {}) {
     const backend = storage ?? getStorageService();
     const rows = await db.select().from(skillPackageDeletions).where(and(
-      options.companyId ? eq(skillPackageDeletions.companyId, options.companyId) : undefined,
+      options.spaceId ? eq(skillPackageDeletions.spaceId, options.spaceId) : undefined,
       options.id ? eq(skillPackageDeletions.id, options.id) : undefined,
       options.after ? gt(skillPackageDeletions.id, options.after) : undefined,
       lte(skillPackageDeletions.deleteAfter, new Date()), eq(skillPackageDeletions.provider, backend.provider),
@@ -128,7 +128,7 @@ export function skillPackageMaintenance(db: Db, storage?: StorageService) {
     let removed = 0;
     if (options.apply) for (const row of rows) {
       options.signal?.throwIfAborted();
-      const [referenced] = await db.select({ id: snapshots.id }).from(snapshots).where(and(eq(snapshots.companyId, row.companyId),
+      const [referenced] = await db.select({ id: snapshots.id }).from(snapshots).where(and(eq(snapshots.spaceId, row.spaceId),
         sql`(${snapshots.storage}->>'archiveKey' = ${row.archiveKey} or ${snapshots.upload}->>'archiveKey' = ${row.archiveKey})`)).limit(1);
       if (referenced) {
         // Live ownership supersedes this receipt. A future replacement/deletion
@@ -139,8 +139,8 @@ export function skillPackageMaintenance(db: Db, storage?: StorageService) {
       const timeout = AbortSignal.timeout(30_000);
       const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
       for (const key of [row.archiveKey, row.manifestKey]) {
-        await backend.deleteObject(row.companyId, key, { signal });
-        if ((await backend.headObject(row.companyId, key, { signal })).exists) throw new Error(`Storage did not confirm package deletion: ${row.id}`);
+        await backend.deleteObject(row.spaceId, key, { signal });
+        if ((await backend.headObject(row.spaceId, key, { signal })).exists) throw new Error(`Storage did not confirm package deletion: ${row.id}`);
       }
       signal.throwIfAborted();
       await db.delete(skillPackageDeletions).where(eq(skillPackageDeletions.id, row.id));

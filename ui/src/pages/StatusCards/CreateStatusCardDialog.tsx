@@ -26,11 +26,11 @@ const EXAMPLES = [
 ];
 
 export function CreateStatusCardDialog({
-  companyId,
+  spaceId,
   open,
   onOpenChange,
 }: {
-  companyId: string;
+  spaceId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -54,7 +54,7 @@ export function CreateStatusCardDialog({
 
   const createMutation = useMutation({
     mutationFn: () =>
-      statusCardsApi.create(companyId, {
+      statusCardsApi.create(spaceId, {
         interestPrompt: prompt.trim(),
         titlePinned: false,
         agentId: agentId || null,
@@ -63,8 +63,8 @@ export function CreateStatusCardDialog({
     onMutate: () => setError(null),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.list(companyId, false) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.list(companyId, true) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.list(spaceId, false) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.list(spaceId, true) }),
       ]);
       close();
     },
@@ -114,7 +114,7 @@ export function CreateStatusCardDialog({
 
         <div className="space-y-2">
           <label className="block text-sm font-semibold">Agent</label>
-          <SummarizerAgentSelect companyId={companyId} value={agentId} onChange={setAgentId} enabled={open} />
+          <SummarizerAgentSelect spaceId={spaceId} value={agentId} onChange={setAgentId} enabled={open} />
           <p className="text-xs text-muted-foreground">
             Runs this card's setup and updates. Leave on the default unless another agent should own it.
           </p>

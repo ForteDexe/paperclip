@@ -1,11 +1,11 @@
 /**
  * Plugin secrets host-side handler. Plugin workers may resolve shared
- * `secret_ref` config bindings only with an explicit company context.
+ * `secret_ref` config bindings only with an explicit space context.
  */
 
 import { and, eq } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { companySecretBindings } from "@outpost/db";
+import { spaceSecretBindings } from "@outpost/db";
 import type { EnvSecretRefBinding, SecretProjectionClass, SecretVersionSelector } from "@outpost/shared";
 import { envBindingSecretRefSchema } from "@outpost/shared";
 import {
@@ -29,11 +29,11 @@ function invalidSecretRef(secretRef: unknown): Error {
   return err;
 }
 
-function requireCompanyId(companyId: unknown): string {
-  if (typeof companyId !== "string" || companyId.trim().length === 0) {
-    throw unprocessable("companyId is required for plugin secret resolution");
+function requireSpaceId(spaceId: unknown): string {
+  if (typeof spaceId !== "string" || spaceId.trim().length === 0) {
+    throw unprocessable("spaceId is required for plugin secret resolution");
   }
-  return companyId.trim();
+  return spaceId.trim();
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -151,10 +151,10 @@ export function extractSecretRefPathsFromConfig(
 // ---------------------------------------------------------------------------
 
 export interface PluginSecretsResolveParams {
-  /** Shared secret reference object from company-scoped plugin config. */
+  /** Shared secret reference object from space-scoped plugin config. */
   secretRef: string | EnvSecretRefBinding;
-  /** Authorized company context for this worker invocation. */
-  companyId?: string;
+  /** Authorized space context for this worker invocation. */
+  spaceId?: string;
   /** Config path that produced this ref. Required when a secret appears in multiple paths. */
   configPath?: string;
   actorType?: "agent" | "user" | "system" | "plugin";
@@ -195,23 +195,23 @@ export function createPluginSecretsHandler(
   const rateLimiter = createRateLimiter(30, 60_000);
 
   async function lookupBinding(input: {
-    companyId: string;
+    spaceId: string;
     secretId: string;
     versionSelector: SecretVersionSelector;
     configPath?: string;
   }) {
     const conditions = [
-      eq(companySecretBindings.companyId, input.companyId),
-      eq(companySecretBindings.targetType, "plugin"),
-      eq(companySecretBindings.targetId, pluginId),
-      eq(companySecretBindings.secretId, input.secretId),
+      eq(spaceSecretBindings.spaceId, input.spaceId),
+      eq(spaceSecretBindings.targetType, "plugin"),
+      eq(spaceSecretBindings.targetId, pluginId),
+      eq(spaceSecretBindings.secretId, input.secretId),
     ];
     if (input.configPath) {
-      conditions.push(eq(companySecretBindings.configPath, input.configPath));
+      conditions.push(eq(spaceSecretBindings.configPath, input.configPath));
     }
     const rows = await db
       .select()
-      .from(companySecretBindings)
+      .from(spaceSecretBindings)
       .where(and(...conditions));
     const matchingVersion = rows.filter(
       (row) => row.versionSelector === String(input.versionSelector),
@@ -228,9 +228,9 @@ export function createPluginSecretsHandler(
       const bindingRef = parseSecretRefBinding(params.secretRef);
       if (!bindingRef) throw invalidSecretRef(params.secretRef);
 
-      const companyId = requireCompanyId(params.companyId);
+      const spaceId = requireSpaceId(params.spaceId);
 
-      if (!rateLimiter.check(`${companyId}:${pluginId}`)) {
+      if (!rateLimiter.check(`${spaceId}:${pluginId}`)) {
         const err = new Error("Rate limit exceeded for secret resolution");
         err.name = "RateLimitExceededError";
         throw err;
@@ -238,7 +238,7 @@ export function createPluginSecretsHandler(
 
       const versionSelector = bindingRef.version ?? "latest";
       const bindings = await lookupBinding({
-        companyId,
+        spaceId,
         secretId: bindingRef.secretId,
         versionSelector,
         configPath: params.configPath,
@@ -258,7 +258,7 @@ export function createPluginSecretsHandler(
       }
 
       const binding = bindings[0]!;
-      return secretService(db).resolveSecretValue(companyId, bindingRef.secretId, versionSelector, {
+      return secretService(db).resolveSecretValue(spaceId, bindingRef.secretId, versionSelector, {
         bindingContext: {
           consumerType: "plugin",
           consumerId: pluginId,

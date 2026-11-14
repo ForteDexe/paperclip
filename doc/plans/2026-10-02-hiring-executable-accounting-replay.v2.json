@@ -83,7 +83,7 @@
               "passed": true
             },
             {
-              "id": "resolved-company-account-and-identity",
+              "id": "resolved-space-account-and-identity",
               "passed": true
             },
             {
@@ -195,7 +195,7 @@
             "id": "supplied-coder-instructions",
             "dimension": "coverage",
             "passed": true,
-            "detail": "Saved hired instructions use the source revision's coder example with its company/name placeholders filled."
+            "detail": "Saved hired instructions use the source revision's coder example with its space/name placeholders filled."
           },
           {
             "id": "hired-instructions-durable",
@@ -278,7 +278,7 @@
               "passed": true
             },
             {
-              "id": "resolved-company-account-and-identity",
+              "id": "resolved-space-account-and-identity",
               "passed": true
             },
             {
@@ -390,7 +390,7 @@
             "id": "supplied-coder-instructions",
             "dimension": "coverage",
             "passed": true,
-            "detail": "Saved hired instructions use the source revision's coder example with its company/name placeholders filled."
+            "detail": "Saved hired instructions use the source revision's coder example with its space/name placeholders filled."
           },
           {
             "id": "hired-instructions-durable",
@@ -473,7 +473,7 @@
               "passed": true
             },
             {
-              "id": "resolved-company-account-and-identity",
+              "id": "resolved-space-account-and-identity",
               "passed": true
             },
             {
@@ -585,7 +585,7 @@
             "id": "supplied-coder-instructions",
             "dimension": "coverage",
             "passed": true,
-            "detail": "Saved hired instructions use the source revision's coder example with its company/name placeholders filled."
+            "detail": "Saved hired instructions use the source revision's coder example with its space/name placeholders filled."
           },
           {
             "id": "hired-instructions-durable",
@@ -668,7 +668,7 @@
               "passed": true
             },
             {
-              "id": "resolved-company-account-and-identity",
+              "id": "resolved-space-account-and-identity",
               "passed": true
             },
             {
@@ -780,7 +780,7 @@
             "id": "supplied-coder-instructions",
             "dimension": "coverage",
             "passed": false,
-            "detail": "Saved hired instructions use the source revision's coder example with its company/name placeholders filled."
+            "detail": "Saved hired instructions use the source revision's coder example with its space/name placeholders filled."
           },
           {
             "id": "hired-instructions-durable",

@@ -20,8 +20,8 @@ it("matches generated GFM checkboxes and rejects changed check states", () => {
   expect(taskReplyContentMatches(observation, "- [ ] Finished\n- [ ] Next")).toBe(false);
 });
 
-it("uses production GFM autolinks and issue linking with the viewer's known companies", () => {
-  const context = { pageUrl: "https://fixture.test/QA/issues/QA-1", knownCompanyPrefixes: ["QA"] };
+it("uses production GFM autolinks and issue linking with the viewer's known spaces", () => {
+  const context = { pageUrl: "https://fixture.test/QA/issues/QA-1", knownSpacePrefixes: ["QA"] };
   expect(taskReplyContentMatches({ ...context, body: "Depends on QA-123.", content: [{ text: "Depends on " },
     { href: "/QA/issues/QA-123", label: "QA-123", decorated: true }, { text: "." }] }, "Depends on QA-123.")).toBe(true);
   expect(taskReplyContentMatches({ ...context, body: "See https://example.com/", content: [{ text: "See " },
@@ -29,7 +29,7 @@ it("uses production GFM autolinks and issue linking with the viewer's known comp
   expect(taskReplyContentMatches({ ...context, body: "Depends on TREE-604." }, "Depends on TREE-604.")).toBe(true);
 });
 
-it("uses the production company prefix and current task URL without accepting a changed target", () => {
+it("uses the production space prefix and current task URL without accepting a changed target", () => {
   const observation = { body: "Read Outcome", pageUrl: "https://fixture.test/QA/issues/QA-123",
     content: [{ text: "Read " }, { href: "/QA/issues/QA-123#document-outcome", label: "Outcome" }] };
   for (const href of ["/issues/QA-123#document-outcome", "#document-outcome"])

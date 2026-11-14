@@ -64,7 +64,7 @@ export interface NativeEvidenceAssessment {
   unverifiableEvidence: Array<{ ref: string; reasonCode: string }>;
   blocker: {
     unblockAction: string;
-    boardOwned: boolean;
+    operatorOwned: boolean;
     scope: "current_track" | "task_wide";
   } | null;
   continuation: {
@@ -111,7 +111,7 @@ export function readNativeEventEvidenceOutcome(value: unknown): "accepted" | "re
 
 async function classifyEvidenceRef(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   ref: string;
@@ -120,7 +120,7 @@ async function classifyEvidenceRef(input: {
   const handoffId = uuidRef(input.ref, ["case-handoff"]);
   if (handoffId) {
     const query = input.db.select({ id: caseHandoffs.id, state: caseHandoffs.state }).from(caseHandoffs).where(and(
-      eq(caseHandoffs.id, handoffId), eq(caseHandoffs.companyId, input.companyId), eq(caseHandoffs.issueId, input.issueId),
+      eq(caseHandoffs.id, handoffId), eq(caseHandoffs.spaceId, input.spaceId), eq(caseHandoffs.issueId, input.issueId),
       eq(caseHandoffs.sourceRunId, input.runId),
     )).limit(1);
     const [row] = await (input.lockSources ? query.for("share", { noWait: true }) : query);
@@ -137,7 +137,7 @@ async function classifyEvidenceRef(input: {
     })
       .from(heartbeatRunEvents)
       .where(and(
-        eq(heartbeatRunEvents.companyId, input.companyId),
+        eq(heartbeatRunEvents.spaceId, input.spaceId),
         eq(heartbeatRunEvents.runId, input.runId),
         or(eq(heartbeatRunEvents.seq, cursor), eq(heartbeatRunEvents.sourceSeq, cursor)),
       )).limit(1);
@@ -171,7 +171,7 @@ async function classifyEvidenceRef(input: {
       reviewState: issueWorkProducts.reviewState,
     }).from(issueWorkProducts).where(and(
       eq(issueWorkProducts.id, workProductId),
-      eq(issueWorkProducts.companyId, input.companyId),
+      eq(issueWorkProducts.spaceId, input.spaceId),
       eq(issueWorkProducts.issueId, input.issueId),
     )).limit(1);
     const [row] = await (input.lockSources ? query.for("share", { noWait: true }) : query);
@@ -197,9 +197,9 @@ async function classifyEvidenceRef(input: {
       .from(issueApprovals)
       .innerJoin(approvals, eq(issueApprovals.approvalId, approvals.id))
       .where(and(
-        eq(issueApprovals.companyId, input.companyId),
+        eq(issueApprovals.spaceId, input.spaceId),
         eq(issueApprovals.issueId, input.issueId),
-        eq(approvals.companyId, input.companyId),
+        eq(approvals.spaceId, input.spaceId),
         eq(approvals.id, approvalId),
       )).limit(1);
     const [row] = await (input.lockSources ? query.for("share", { noWait: true }) : query);
@@ -217,7 +217,7 @@ async function classifyEvidenceRef(input: {
       result: issueThreadInteractions.result,
     }).from(issueThreadInteractions).where(and(
       eq(issueThreadInteractions.id, interactionId),
-      eq(issueThreadInteractions.companyId, input.companyId),
+      eq(issueThreadInteractions.spaceId, input.spaceId),
       eq(issueThreadInteractions.issueId, input.issueId),
     )).limit(1);
     const [row] = await (input.lockSources ? query.for("share", { noWait: true }) : query);
@@ -236,7 +236,7 @@ async function classifyEvidenceRef(input: {
   if (attachmentId) {
     const query = input.db.select({ id: issueAttachments.id }).from(issueAttachments).where(and(
       eq(issueAttachments.id, attachmentId),
-      eq(issueAttachments.companyId, input.companyId),
+      eq(issueAttachments.spaceId, input.spaceId),
       eq(issueAttachments.issueId, input.issueId),
     )).limit(1);
     const [row] = await (input.lockSources ? query.for("share", { noWait: true }) : query);
@@ -260,7 +260,7 @@ async function classifyEvidenceRef(input: {
 
 export async function classifyNativeEvidence(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   contract: Record<string, unknown>;
@@ -372,7 +372,7 @@ export async function classifyNativeEvidence(input: {
     if (request.ownerClass === "agent" && request.targetAgentId) {
       const targetQuery = input.db.select({ id: agents.id }).from(agents).where(and(
         eq(agents.id, request.targetAgentId),
-        eq(agents.companyId, input.companyId),
+        eq(agents.spaceId, input.spaceId),
       )).limit(1);
       const targets = await (input.lockSources ? targetQuery.for("share", { noWait: true }) : targetQuery);
       if (targets.length === 0) {
@@ -417,7 +417,7 @@ export async function classifyNativeEvidence(input: {
     blocker: reported === "blocked" && typeof blocker.unblockAction === "string"
       ? {
           unblockAction: blocker.unblockAction,
-          boardOwned: blockerOwner.kind === "board" || blockerOwner.owner === "board",
+          operatorOwned: blockerOwner.kind === "operator" || blockerOwner.owner === "operator",
           scope: blocker.scope === "task_wide" ? "task_wide" : "current_track",
         }
       : null,

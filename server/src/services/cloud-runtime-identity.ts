@@ -5,10 +5,10 @@ import { eq } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import { instanceSettings } from "@outpost/db";
 
-export const CLOUD_RUNTIME_IDENTITY_HEADER = "x-paperclip-cloud-runtime-identity";
-export const CLOUD_RUNTIME_IDENTITY_AUDIENCE = "paperclip-runtime-identity/v1";
-export const CLOUD_RUNTIME_IDENTITY_ISSUER = "paperclip-cloud";
-export const CLOUD_RUNTIME_IDENTITY_JWS_TYPE = "paperclip-cloud-runtime-identity+jwt";
+export const CLOUD_RUNTIME_IDENTITY_HEADER = "x-outpost-cloud-runtime-identity";
+export const CLOUD_RUNTIME_IDENTITY_AUDIENCE = "outpost-runtime-identity/v1";
+export const CLOUD_RUNTIME_IDENTITY_ISSUER = "outpost-cloud";
+export const CLOUD_RUNTIME_IDENTITY_JWS_TYPE = "outpost-cloud-runtime-identity+jwt";
 
 const SINGLETON_KEY = "cloud-runtime-identity/v1";
 const MAX_ASSERTION_LIFETIME_SECONDS = 10 * 60;
@@ -444,9 +444,9 @@ export function resetCloudRuntimeIdentityForTests() {
 // action so a "read status" token cannot start or stop a drain.
 // ---------------------------------------------------------------------------
 
-export const CLOUD_CONTROL_HEADER = "x-paperclip-cloud-control";
-export const CLOUD_CONTROL_AUDIENCE = "paperclip-cloud-control/v1";
-export const CLOUD_CONTROL_JWS_TYPE = "paperclip-cloud-control+jwt";
+export const CLOUD_CONTROL_HEADER = "x-outpost-cloud-control";
+export const CLOUD_CONTROL_AUDIENCE = "outpost-cloud-control/v1";
+export const CLOUD_CONTROL_JWS_TYPE = "outpost-cloud-control+jwt";
 export const CLOUD_CONTROL_ACTIONS = [
   "ephemeral-enrollment:prepare",
   "task-drain:read",
@@ -619,14 +619,14 @@ export function verifyCloudConnectorReceipt<T extends { binding: { instanceId: s
   const [headerPart, payloadPart, signaturePart] = input.compactJws.split(".");
   const header = decodeJsonPart(headerPart, "connector receipt header");
   if (Object.keys(header).sort().join() !== "alg,kid,typ" || header.alg !== "EdDSA"
-    || header.typ !== "paperclip-connector-ack-receipt+jwt" || typeof header.kid !== "string" || !header.kid)
+    || header.typ !== "outpost-connector-ack-receipt+jwt" || typeof header.kid !== "string" || !header.kid)
     throw new Error("Invalid connector ACK receipt header");
   const key = cloudRuntimePublicKeyForKid(env, header.kid);
   if (!verify(null, Buffer.from(`${headerPart}.${payloadPart}`, "ascii"), key, Buffer.from(signaturePart, "base64url")))
     throw new Error("Invalid connector ACK receipt signature");
   const claims = decodeJsonPart(payloadPart, "connector receipt claims");
   if (Object.keys(claims).sort().join() !== "aud,iss,receipt,sub,v" || claims.v !== 1 || claims.iss !== CLOUD_RUNTIME_IDENTITY_ISSUER
-    || claims.aud !== "paperclip-connector-ack-receipt/v1" || claims.sub !== nonEmpty(env.OUTPOST_CLOUD_STACK_ID))
+    || claims.aud !== "outpost-connector-ack-receipt/v1" || claims.sub !== nonEmpty(env.OUTPOST_CLOUD_STACK_ID))
     throw new Error("Invalid connector ACK receipt claims");
   const receipt = parseReceipt(claims.receipt);
   if (receipt.binding.instanceId !== claims.sub) throw new Error("Connector ACK receipt instance changed");

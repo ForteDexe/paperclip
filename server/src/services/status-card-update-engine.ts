@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CompanySearchIssueSummary, StatusCardRefreshPolicy } from "@outpost/shared";
+import type { SpaceSearchIssueSummary, StatusCardRefreshPolicy } from "@outpost/shared";
 
 export type StatusCardFingerprintEntry = {
   status: string;
@@ -31,7 +31,7 @@ const ISSUE_LINK_MENTION_PATTERN = /\/issues\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-
 /**
  * Pull issue references out of summary markdown: bare identifiers ("PAP-123")
  * and issue links carrying a UUID ("/issues/<id>"). Callers must resolve the
- * candidates against the card's company before trusting them.
+ * candidates against the card's space before trusting them.
  */
 export function extractIssueMentions(markdown: string) {
   const identifiers = new Set<string>();
@@ -41,7 +41,7 @@ export function extractIssueMentions(markdown: string) {
   return { identifiers: [...identifiers], issueIds: [...issueIds] };
 }
 
-export function buildStatusCardFingerprint(issues: Array<CompanySearchIssueSummary & { latestHumanCommentAt?: string | null }>): StatusCardFingerprint {
+export function buildStatusCardFingerprint(issues: Array<SpaceSearchIssueSummary & { latestHumanCommentAt?: string | null }>): StatusCardFingerprint {
   return Object.fromEntries(issues.map((issue) => [issue.id, {
     status: issue.status,
     updatedAt: issue.updatedAt,
@@ -109,7 +109,7 @@ export function statusCardFingerprintHash(fingerprint: StatusCardFingerprint) {
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
 }
 
-// These caches contain only timezone/policy calculations, never card or company
+// These caches contain only timezone/policy calculations, never card or space
 // data. Bound both maps because timezone aliases and hour pairs are user input.
 const activeHoursFormatters = new Map<string, Intl.DateTimeFormat>();
 const upcomingActiveHours = new Map<string, { closedAt: number; opensAt: number }>();

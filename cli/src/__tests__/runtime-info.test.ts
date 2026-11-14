@@ -6,7 +6,7 @@ import {
   readRuntimeInfo,
   removeRuntimeInfoForPid,
   writeRuntimeInfo,
-  type PaperclipRuntimeInfo,
+  type OutpostRuntimeInfo,
 } from "../runtime-info.js";
 
 const roots: string[] = [];
@@ -15,8 +15,8 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
-function fixture(): { filePath: string; info: PaperclipRuntimeInfo } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-runtime-info-"));
+function fixture(): { filePath: string; info: OutpostRuntimeInfo } {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-runtime-info-"));
   roots.push(root);
   return {
     filePath: path.join(root, "runtime-info.json"),

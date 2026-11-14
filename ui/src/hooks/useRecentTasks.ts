@@ -24,36 +24,36 @@ const RECENT_TASK_ORDER_DEBOUNCE_MS = 1_000;
 export const RECENT_TASK_SUMMARY_CONCURRENCY = 3;
 
 export function useRecentTasks({
-  companyId,
+  spaceId,
   userId,
 }: {
-  companyId: string | null | undefined;
+  spaceId: string | null | undefined;
   userId: string | null | undefined;
 }) {
   const storageKey = useMemo(
-    () => companyId ? getRecentTasksStorageKey(companyId, userId) : null,
-    [companyId, userId],
+    () => spaceId ? getRecentTasksStorageKey(spaceId, userId) : null,
+    [spaceId, userId],
   );
   const queryClient = useQueryClient();
   const [snapshot, setSnapshot] = useState(() => ({
     storageKey,
-    entries: storageKey && companyId ? readRecentTasks(storageKey, companyId) : [],
+    entries: storageKey && spaceId ? readRecentTasks(storageKey, spaceId) : [],
   }));
   // A scope change must not request the previous account's IDs for one render.
   const entries = snapshot.storageKey === storageKey
     ? snapshot.entries
-    : storageKey && companyId ? readRecentTasks(storageKey, companyId) : [];
+    : storageKey && spaceId ? readRecentTasks(storageKey, spaceId) : [];
   const setEntries = (next: RecentTaskEntry[]) => setSnapshot({ storageKey, entries: next });
 
   useEffect(() => {
-    if (storageKey && companyId) migrateRecentTasks(storageKey, companyId);
-    setEntries(storageKey && companyId ? readRecentTasks(storageKey, companyId) : []);
-  }, [companyId, storageKey]);
+    if (storageKey && spaceId) migrateRecentTasks(storageKey, spaceId);
+    setEntries(storageKey && spaceId ? readRecentTasks(storageKey, spaceId) : []);
+  }, [spaceId, storageKey]);
 
   useEffect(() => {
-    if (!storageKey || !companyId) return;
+    if (!storageKey || !spaceId) return;
 
-    const sync = () => setEntries(readRecentTasks(storageKey, companyId));
+    const sync = () => setEntries(readRecentTasks(storageKey, spaceId));
     const onStorage = (event: StorageEvent) => {
       if (event.key === storageKey) sync();
     };
@@ -68,17 +68,17 @@ export function useRecentTasks({
       window.removeEventListener("storage", onStorage);
       window.removeEventListener(RECENT_TASKS_UPDATED_EVENT, onRecentTasksUpdated);
     };
-  }, [companyId, storageKey]);
+  }, [spaceId, storageKey]);
 
   const queryIds = useMemo(() => entries.map((entry) => entry.id).sort(), [entries]);
   const membership = JSON.stringify(queryIds);
   const scope = JSON.stringify([storageKey, queryIds]);
-  const summaryKey = queryKeys.issues.summaryBatch(companyId ?? "__none__", userId, queryIds);
+  const summaryKey = queryKeys.issues.summaryBatch(spaceId ?? "__none__", userId, queryIds);
   // A cached omission predates IDs that the user has just added back. Only a
   // response completed during this visit to the batch may remove those IDs.
   const batchVisit = useMemo(() => ({
     initialUpdateCount: queryClient.getQueryState(summaryKey)?.dataUpdateCount ?? 0,
-    // The serialized scope includes the account, company, and sorted ID set.
+    // The serialized scope includes the account, space, and sorted ID set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [queryClient, scope]);
   const summaryQuery = useQuery({
@@ -95,13 +95,13 @@ export function useRecentTasks({
       const worker = async () => {
         while (next < chunks.length) {
           const index = next++;
-          results[index] = await issuesApi.summaries(companyId!, chunks[index]!, { signal });
+          results[index] = await issuesApi.summaries(spaceId!, chunks[index]!, { signal });
         }
       };
       await Promise.all(Array.from({ length: Math.min(RECENT_TASK_SUMMARY_CONCURRENCY, chunks.length) }, worker));
       return results.flat();
     },
-    enabled: Boolean(companyId && queryIds.length),
+    enabled: Boolean(spaceId && queryIds.length),
     staleTime: 30_000,
   });
   // Observe completion even when structural sharing preserves the data object.
@@ -109,7 +109,7 @@ export function useRecentTasks({
   const fetchingSummaries = summaryQuery.isFetching;
   const updateCount = queryClient.getQueryState(summaryKey)?.dataUpdateCount ?? 0;
   const summaries = summaryQuery.isSuccess ? summaryQuery.data : undefined;
-  const confirmed = new Map((summaries ?? []).filter((issue) => issue.companyId === companyId)
+  const confirmed = new Map((summaries ?? []).filter((issue) => issue.spaceId === spaceId)
     .map((issue) => [issue.id, issue]));
   const refreshedEntries = entries.map((entry) => {
     const issue = confirmed.get(entry.id);
@@ -118,37 +118,37 @@ export function useRecentTasks({
   const processed = useRef<{ scope: string; revision: number } | null>(null);
 
   useEffect(() => {
-    if (!storageKey || !companyId || !summaries) return;
+    if (!storageKey || !spaceId || !summaries) return;
     if (processed.current?.scope === scope && processed.current.revision === updateCount) return;
     processed.current = { scope, revision: updateCount };
-    const returnedIds = new Set(summaries.filter((issue) => issue.companyId === companyId).map((issue) => issue.id));
-    updateRecentTaskSnapshots(storageKey, companyId, summaries);
+    const returnedIds = new Set(summaries.filter((issue) => issue.spaceId === spaceId).map((issue) => issue.id));
+    updateRecentTaskSnapshots(storageKey, spaceId, summaries);
     const omittedIds = new Set(queryIds.filter((id) => !returnedIds.has(id)));
     if (omittedIds.size && updateCount <= batchVisit.initialUpdateCount) {
       void summaryQuery.refetch({ cancelRefetch: false });
       return;
     }
     // Never prune IDs added after this particular batch was requested.
-    pruneRecentTasks(storageKey, companyId, omittedIds);
+    pruneRecentTasks(storageKey, spaceId, omittedIds);
     // A storage notification must not republish the same successful revision.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [batchVisit, companyId, fetchingSummaries, scope, updateCount, summaries, storageKey]);
+  }, [batchVisit, spaceId, fetchingSummaries, scope, updateCount, summaries, storageKey]);
 
   useEffect(() => {
-    if (!storageKey || !companyId || !summaries) return;
-    const summaryById = new Map(summaries.filter((issue) => issue.companyId === companyId).map((issue) => [issue.id, issue]));
+    if (!storageKey || !spaceId || !summaries) return;
+    const summaryById = new Map(summaries.filter((issue) => issue.spaceId === spaceId).map((issue) => [issue.id, issue]));
     const authorizedIds = new Set(summaryById.keys());
     const mergeCached = (value: unknown) => {
       if (!value || typeof value !== "object") return;
       const issue = value as Issue;
-      if (!authorizedIds.has(issue.id) || issue.companyId !== companyId || issue.hiddenAt
+      if (!authorizedIds.has(issue.id) || issue.spaceId !== spaceId || issue.hiddenAt
         || typeof issue.title !== "string" || typeof issue.status !== "string"
         || !issue.updatedAt || !Object.hasOwn(issue, "projectId")) return;
       // At equal task versions, the summary's independently computed readiness
       // is newer than an already-cached full detail response.
       const summary = summaryById.get(issue.id);
       if (!summary || new Date(issue.updatedAt).getTime() <= new Date(summary.updatedAt).getTime()) return;
-      updateRecentTaskSnapshots(storageKey, companyId, [issue]);
+      updateRecentTaskSnapshots(storageKey, spaceId, [issue]);
     };
     for (const id of authorizedIds) mergeCached(queryClient.getQueryData(queryKeys.issues.detail(id)));
     return queryClient.getQueryCache().subscribe((event) => {
@@ -157,7 +157,7 @@ export function useRecentTasks({
       if (key.length === 3 && key[0] === "issues" && key[1] === "detail"
         && event.query.state.status === "success") mergeCached(event.query.state.data);
     });
-  }, [companyId, queryClient, summaries, storageKey]);
+  }, [spaceId, queryClient, summaries, storageKey]);
 
   const [settledOrder, setSettledOrder] = useState(() => entries.map((entry) => entry.id));
   const activityRevision = JSON.stringify(entries.map((entry) => [entry.id, entry.recordedAt]));

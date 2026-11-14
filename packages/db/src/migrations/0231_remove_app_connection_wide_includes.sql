@@ -1,7 +1,7 @@
 DELETE FROM "tool_profile_entries" AS "entry"
 USING "tool_profiles" AS "profile"
 WHERE "entry"."profile_id" = "profile"."id"
-  AND "entry"."company_id" = "profile"."company_id"
+  AND "entry"."space_id" = "profile"."space_id"
   AND "entry"."selector_type" = 'connection'
   AND "entry"."effect" = 'include'
   AND "entry"."connection_id" IS NOT NULL

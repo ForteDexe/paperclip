@@ -17,7 +17,7 @@ function bootstrap(pathname: string, imports: Record<string, string[]> = {}, res
   const listeners = new Map<string, (event: unknown) => void>();
   const win: Record<string, unknown> = { addEventListener: (name: string, listener: (event: unknown) => void) => listeners.set(name, listener) };
   runInNewContext(tags[0].children, {
-    location: { pathname, origin: "https://board.example" },
+    location: { pathname, origin: "https://operator.example" },
     fetch: (...args: unknown[]) => { fetches.push(args); return Promise.resolve({ ok: responseOk, headers: { get: () => cacheControl }, arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)) }); },
     window: win,
     document: {
@@ -26,7 +26,7 @@ function bootstrap(pathname: string, imports: Record<string, string[]> = {}, res
       addEventListener: (name: string, listener: (event: unknown) => void) => listeners.set(name, listener),
     },
   });
-  return { win, links, fetches, painted: () => listeners.get(TASK_COLLECTION_PAINTED_EVENT)!({}), intent: (type: string, pathname: string, origin = "https://board.example") => {
+  return { win, links, fetches, painted: () => listeners.get(TASK_COLLECTION_PAINTED_EVENT)!({}), intent: (type: string, pathname: string, origin = "https://operator.example") => {
     listeners.get(type)!({ target: { closest: () => ({ pathname, origin }) } });
   } };
 }

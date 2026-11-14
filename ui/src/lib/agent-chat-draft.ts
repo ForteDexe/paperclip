@@ -6,7 +6,7 @@ export function agentChatDraft(
 ): Issue {
   return {
     id: `chat:${agent.id}`,
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     title: `Chat with ${agent.name}`,
     conversationAgentId: agent.id,
     conversationUserId: "draft",

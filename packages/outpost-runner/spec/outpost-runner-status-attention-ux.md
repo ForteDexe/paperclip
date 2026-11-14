@@ -74,7 +74,7 @@ Anatomy top-to-bottom:
 1. **Header:** classification icon + request summary/question (`text-sm font-medium`) + state chip (`pending / routed / resolved / expired / superseded / rejected / exhausted`) + urgency flag (`high` = amber dot, never a red fill).
 2. **Meta chip row** (the required operator fields, each a labeled chip, `text-xs`):
    - **Owner** — selected resolver: avatar + "Waiting on: Dotta (board)" / "Routed to: CodexCoder". Owner is always a named person/agent/system, never "someone".
-   - **Authority** — derived `minimumAuthority` in plain words: "needs a board decision", "needs governed approval". When the agent asked for more authority than policy derived, show the correction inline: `asked: human → resolved as: expertise` with tooltip "Outpost routes by policy, not by the agent's request" (trust signal; prevents learned helplessness about spurious escalations).
+   - **Authority** — derived `minimumAuthority` in plain words: "needs a board decision", "needs controlled approval". When the agent asked for more authority than policy derived, show the correction inline: `asked: human → resolved as: expertise` with tooltip "Outpost routes by policy, not by the agent's request" (trust signal; prevents learned helplessness about spurious escalations).
    - **Scope** — "blocks this turn only" / "blocks one track" / "blocks the whole task". When narrowed, strike the claim: `~~task-wide~~ → this turn` with the alternate live track linked.
    - **Attempts** — "attempt 2 of 6" from `AttentionResolutionBudget` (spec §18.3.3); expandable route history (context ✓ → retry ✗ → agent…) so a human landing here sees escalation was earned, not first-resort.
    - **Expiry** — relative countdown "expires in 3h 40m"; switches to amber text under 25% remaining; the expired state renders the card inert with "expired unanswered · one fallback wake sent".
@@ -102,7 +102,7 @@ Anatomy top-to-bottom:
 3. Expanding shows the claim-vs-decision strip, the criterion table (e.g. `tests pass` → claim satisfied → **missing**: no persisted test record), and "Queued continuation for UXDesigner".
 4. Operator actions: open evidence refs; add guidance comment; or use the normal board status override — copy on the override confirm: "Your change is recorded as a board decision and supersedes the arbiter's" (the override becomes a `board_user` trigger for a superseding decision; the old card shows the supersession chain).
 
-**Anti-goal:** no red/error styling. Disagreement is a *normal governed outcome*, not a failure — amber "downgraded" tone only on the decision glyph.
+**Anti-goal:** no red/error styling. Disagreement is a *normal controlled outcome*, not a failure — amber "downgraded" tone only on the decision glyph.
 
 ### Flow B — Real human-needed interaction (`attention_requires_human_authority`)
 
@@ -115,7 +115,7 @@ Anatomy top-to-bottom:
 
 ### Flow C — Agent-routed resolution (`attention_routed_to_agent`)
 
-> Agent asked for a human; resolver reclassified to expertise and delegated in-company.
+> Agent asked for a human; resolver reclassified to expertise and delegated in-space.
 
 1. **Not** in the attention inbox, no `Needs you` chip — humans are only interrupted for human-authority work (the parent issue's core ask).
 2. Task page renders the card read-only: authority chip shows the correction `asked: human → resolved as: expertise`; owner "Routed to: CodexCoder"; link to the delegated issue; resume line "*CodexCoder's answer resumes this track — no action needed from you.*"
@@ -150,7 +150,7 @@ Plain-language, ≤ 70 chars, agent-name-free; raw code in the audit footer. (Pl
 | completion_claim_policy_accepted | Claim accepted under low-risk policy | accepted |
 | completion_evidence_incomplete | Completion claim not accepted: evidence incomplete | downgraded |
 | completion_review_required | Completion needs review before Done | review |
-| governed_gate_pending | Waiting on a governed approval | review |
+| controlled_gate_pending | Waiting on a controlled approval | review |
 | live_continuation_registered | More work queued — continuing | progress |
 | turn_waiting_other_track_live | One track waiting; another continues | progress |
 | task_wide_blocker_bound | Blocked task-wide — unblock owner assigned | blocked |

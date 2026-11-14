@@ -3,12 +3,12 @@ import { createHash, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { activityLog, agents, assets, companies, createDb, heartbeatRuns, issueAttachments, issues, runnerApiResponseReservations } from "@outpost/db";
+import { activityLog, agents, assets, spaces, createDb, heartbeatRuns, issueAttachments, issues, runnerApiResponseReservations } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import type { StorageService } from "../../storage/types.js";
 import { TaskAttachmentReadCache } from "./runner-task-attachments.js";
 import { runnerApiCatalog } from "./runner-api-catalog.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 const sha = (body: Buffer) => createHash("sha256").update(body).digest("hex");
 describe("Dot assigned-task attachment reading", () => {
@@ -22,20 +22,20 @@ describe("Dot assigned-task attachment reading", () => {
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
   async function fixture(body = Buffer.from("only in the file 🌍"), enabled = true) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Files", issuePrefix: `F${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Dot", status: "active", adapterType: "outpost_runner",
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Files", issuePrefix: `F${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Dot", status: "active", adapterType: "outpost_runner",
       adapterConfig: { provider: "openai_dot", dotAttachmentAccess: enabled, dotWorkspaceAccess: false } });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Inspect file", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId } });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Inspect file", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    const [asset] = await db.insert(assets).values({ companyId, provider: "local_disk", objectKey: `${companyId}/private-file`, originalFilename: "proof.txt", contentType: "text/plain", byteSize: body.length, sha256: sha(body) }).returning();
-    const [attachment] = await db.insert(issueAttachments).values({ companyId, issueId, assetId: asset!.id }).returning();
+    const [asset] = await db.insert(assets).values({ spaceId, provider: "local_disk", objectKey: `${spaceId}/private-file`, originalFilename: "proof.txt", contentType: "text/plain", byteSize: body.length, sha256: sha(body) }).returning();
+    const [attachment] = await db.insert(issueAttachments).values({ spaceId, issueId, assetId: asset!.id }).returning();
     const getObject = vi.fn().mockImplementation(async () => ({ stream: Readable.from([body]) }));
     const storage = { provider: "local_disk", getObject } as unknown as StorageService;
     const assertBridgeAuthority = vi.fn().mockResolvedValue(undefined);
-    const binding = { companyId, agentId, issueId, runId, dotRuntime: true, taskAttachmentRead: enabled, storage, assertBridgeAuthority };
-    const authority = new PaperclipRunnerToolAuthority(db, binding);
+    const binding = { spaceId, agentId, issueId, runId, dotRuntime: true, taskAttachmentRead: enabled, storage, assertBridgeAuthority };
+    const authority = new OutpostRunnerToolAuthority(db, binding);
     const call = (tool: string, args: unknown = {}) => authority.execute({ tool, callId: randomUUID(), arguments: args });
     return { ...binding, authority, call, asset: asset!, attachment: attachment!, body, getObject };
   }
@@ -54,16 +54,16 @@ describe("Dot assigned-task attachment reading", () => {
     const result = await f.call("read_task_attachment", { attachmentId: f.attachment.id });
     expect(result).toMatchObject({ content: f.body.toString(), sha256: sha(f.body), byteSize: f.body.length, nextOffset: null, contentTrust: "untrusted_attachment" });
     expect(JSON.stringify(result)).not.toContain("private-file");
-    expect(f.getObject).toHaveBeenCalledWith(f.companyId, f.asset.objectKey);
-    const logs = await db.select().from(activityLog).where(eq(activityLog.companyId, f.companyId));
+    expect(f.getObject).toHaveBeenCalledWith(f.spaceId, f.asset.objectKey);
+    const logs = await db.select().from(activityLog).where(eq(activityLog.spaceId, f.spaceId));
     expect(logs).toHaveLength(1);
     expect(logs[0]).toMatchObject({ action: "dot.attachment_read", runId: f.runId });
     expect(JSON.stringify(logs)).not.toContain(f.body.toString());
   });
-  it("rejects another task, another company, and caller-supplied scope", async () => {
+  it("rejects another task, another space, and caller-supplied scope", async () => {
     const f = await fixture(), foreign = await fixture();
     expect(await f.call("read_task_attachment", { attachmentId: foreign.attachment.id })).toMatchObject({ outcome: "failed", code: "runner_attachment_not_found" });
-    const [other] = await db.insert(issues).values({ companyId: f.companyId, title: "Other", status: "todo", assigneeAgentId: f.agentId }).returning();
+    const [other] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Other", status: "todo", assigneeAgentId: f.agentId }).returning();
     await db.update(issueAttachments).set({ issueId: other!.id }).where(eq(issueAttachments.id, f.attachment.id));
     expect(await f.call("list_task_attachments")).toMatchObject({ attachments: [] });
     expect(await f.call("read_task_attachment", { attachmentId: f.attachment.id })).toMatchObject({ outcome: "failed", code: "runner_attachment_not_found" });
@@ -80,14 +80,14 @@ describe("Dot assigned-task attachment reading", () => {
       return { stream: Readable.from([f.body]) };
     });
     expect(await f.call("read_task_attachment", { attachmentId: f.attachment.id })).toMatchObject({ outcome: "failed" });
-    expect(await db.select().from(activityLog).where(eq(activityLog.companyId, f.companyId))).toHaveLength(0);
+    expect(await db.select().from(activityLog).where(eq(activityLog.spaceId, f.spaceId))).toHaveLength(0);
   });
   it.each(["corrupt", "oversized", "deleted", "changed", "storage_error"])("settles %s input without sending bytes", async reason => {
     const f = await fixture();
     if (reason === "oversized") await db.update(assets).set({ byteSize: 16 * 1024 * 1024 + 1 }).where(eq(assets.id, f.asset.id));
     else f.getObject.mockImplementationOnce(async () => {
       if (reason === "deleted") await db.delete(issueAttachments).where(eq(issueAttachments.id, f.attachment.id));
-      if (reason === "changed") await db.update(assets).set({ objectKey: `${f.companyId}/changed` }).where(eq(assets.id, f.asset.id));
+      if (reason === "changed") await db.update(assets).set({ objectKey: `${f.spaceId}/changed` }).where(eq(assets.id, f.asset.id));
       if (reason === "storage_error") throw new Error("PRIVATE STORAGE SECRET");
       return { stream: Readable.from([reason === "corrupt" ? Buffer.alloc(f.body.length) : f.body]) };
     });
@@ -129,16 +129,16 @@ describe("Dot assigned-task attachment reading", () => {
       const operation = runnerApiCatalog().find(o => o.method === "GET" && o.path === path)!;
       await expect(f.call("call_api", { operationId: operation.operationId, pathParams })).rejects.toThrow(/Dot must use|Dot may read/);
     }
-    const upload = runnerApiCatalog().find(o => o.method === "POST" && o.path === "/api/companies/{companyId}/issues/{issueId}/attachments")!;
-    await expect(f.call("call_api", { operationId: upload.operationId, pathParams: { companyId: f.companyId, issueId: f.issueId }, contentType: "multipart/form-data", files: [{ path: "private.txt" }] })).rejects.toThrow("workspace access");
-    await expect(f.call("call_api", { operationId: upload.operationId, pathParams: { companyId: f.companyId, issueId: f.issueId }, contentType: "multipart/form-data", files: [{ artifactId: f.asset.id }] })).rejects.toThrow("this run only");
+    const upload = runnerApiCatalog().find(o => o.method === "POST" && o.path === "/api/spaces/{spaceId}/issues/{issueId}/attachments")!;
+    await expect(f.call("call_api", { operationId: upload.operationId, pathParams: { spaceId: f.spaceId, issueId: f.issueId }, contentType: "multipart/form-data", files: [{ path: "private.txt" }] })).rejects.toThrow("workspace access");
+    await expect(f.call("call_api", { operationId: upload.operationId, pathParams: { spaceId: f.spaceId, issueId: f.issueId }, contentType: "multipart/form-data", files: [{ artifactId: f.asset.id }] })).rejects.toThrow("this run only");
     expect(f.getObject).not.toHaveBeenCalled();
   });
   it("retains pagination of this run's API captures while rejecting another run's capture", async () => {
     const f = await fixture(Buffer.from("captured")), other = await fixture();
     await db.insert(runnerApiResponseReservations).values([
-      { companyId: f.companyId, runId: f.runId, assetId: f.asset.id, reservedBytes: f.body.length },
-      { companyId: other.companyId, runId: other.runId, assetId: other.asset.id, reservedBytes: other.body.length },
+      { spaceId: f.spaceId, runId: f.runId, assetId: f.asset.id, reservedBytes: f.body.length },
+      { spaceId: other.spaceId, runId: other.runId, assetId: other.asset.id, reservedBytes: other.body.length },
     ]);
     vi.stubEnv("OUTPOST_AGENT_JWT_SECRET", "synthetic-test-key-not-a-live-credential");
     vi.stubEnv("OUTPOST_API_URL", "http://127.0.0.1:3217");

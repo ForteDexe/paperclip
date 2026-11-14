@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, companies, createDb, subscribeDatabaseWork, decisionBundles, decisionEffectExecutions, decisions,
+import { activityLog, agents, spaces, createDb, subscribeDatabaseWork, decisionBundles, decisionEffectExecutions, decisions,
   decisionTargetIssues, heartbeatRuns, issues } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
@@ -17,7 +17,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 (support.supported ? describe : describe.skip)("decision expiry worker", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: ReturnType<typeof createDb>;
-  let companyId: string, agentId: string, issueId: string, runId: string;
+  let spaceId: string, agentId: string, issueId: string, runId: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let draining: boolean;
   const errors: unknown[] = [];
@@ -30,11 +30,11 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   }, 30_000);
   beforeEach(async () => {
     process.env.OUTPOST_DECISION_SIGNING_SECRET = "0123456789abcdef0123456789abcdef";
-    companyId = randomUUID(); agentId = randomUUID(); issueId = randomUUID(); runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Expiry", issuePrefix: `E${companyId.slice(0, 6)}`, requireBoardApprovalForNewAgents: false });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Proposer", role: "engineer", status: "active", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Origin", status: "in_progress", priority: "medium", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", contextSnapshot: { issueId } });
+    spaceId = randomUUID(); agentId = randomUUID(); issueId = randomUUID(); runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Expiry", issuePrefix: `E${spaceId.slice(0, 6)}`, requireOperatorApprovalForNewAgents: false });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Proposer", role: "engineer", status: "active", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Origin", status: "in_progress", priority: "medium", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", contextSnapshot: { issueId } });
     await Promise.all(Array.from({ length: 6 }, () => db.execute(sql`select pg_sleep(0.01)`)));
     draining = false; errors.length = 0; wake.mockReset();
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"], shouldAdvanceTime: true });
@@ -48,14 +48,14 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     await db.execute(sql`drop function if exists decision_expiry_audit_fail()`);
     await db.delete(decisionEffectExecutions); await db.delete(decisionTargetIssues); await db.delete(decisions);
     await db.delete(decisionBundles); await db.delete(activityLog); await db.delete(heartbeatRuns);
-    await db.delete(issues); await db.delete(agents); await db.delete(companies);
+    await db.delete(issues); await db.delete(agents); await db.delete(spaces);
     expect(errors).toEqual([]);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
 
-  const actor = () => ({ type: "agent" as const, companyId, agentId, runId, source: "agent_jwt" as const });
+  const actor = () => ({ type: "agent" as const, spaceId, agentId, runId, source: "agent_jwt" as const });
   function input(expiresAt: Date) {
-    return { companyId, agentId, runId, actor: actor(), title: "Decision", body: "Body", expiresAt,
+    return { spaceId, agentId, runId, actor: actor(), title: "Decision", body: "Body", expiresAt,
       continuationPolicy: "wake_origin_agent" as const, options: [{ id: "yes", label: "Yes", effects: [] }] };
   }
   const create = (at = new Date(Date.now() + 120_000)) => service().create(input(at));
@@ -106,7 +106,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     try {
       const deadline = new Date(Date.now() + 120_000);
       const row = mode === "single" ? await create(deadline) : (await service().createBundle({
-        companyId, actor: actor(), agentId, runId, title: "Bundle", summary: "Summary", decisions: [input(deadline)],
+        spaceId, actor: actor(), agentId, runId, title: "Bundle", summary: "Summary", decisions: [input(deadline)],
       })).decisions[0];
       expect(events).toEqual([]);
       await vi.waitFor(async () => {
@@ -197,7 +197,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 
   it("registers bundle creation inside its existing transaction", async () => {
     await start(); await quiet(); const at = new Date(Date.now() + 120_000);
-    const bundle = await service().createBundle({ companyId, actor: actor(), agentId, runId, title: "Bundle", summary: "Summary",
+    const bundle = await service().createBundle({ spaceId, actor: actor(), agentId, runId, title: "Bundle", summary: "Summary",
       decisions: [input(at), input(at)] });
     await expired(bundle.decisions[0].id); await expired(bundle.decisions[1].id); await quiet();
     expect(wake).toHaveBeenCalledTimes(2);

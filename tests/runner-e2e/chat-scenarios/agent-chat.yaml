@@ -68,7 +68,7 @@ scenarios:
     expected_outcome: >-
       The agent points the person to the gated board discussion surface and explains its actual
       scope. The journey opens that surface only in the supported deployment and retains normal
-      company context. It does not promise ordinary standing-chat history or execution parity
+      space context. It does not promise ordinary standing-chat history or execution parity
       where the board-chat protocol differs.
   - id: agent-chat.chat-disabled
     capabilities:
@@ -83,7 +83,7 @@ scenarios:
       Open the conference room so I can talk with Morgan.
     expected_outcome: >-
       The person does not land on a broken route or a Conference Room that cannot work: the old
-      link opens a working company page and navigation does not offer the Conference Room. The
+      link opens a working space page and navigation does not offer the Conference Room. The
       supported alternative, an ordinary chat with Morgan, opens from Chat. The board discussion
       API refuses while the experiment is off, and nothing creates a task, chat or run that
       claims to be the conference room. Turning the experiment on is an instance operator

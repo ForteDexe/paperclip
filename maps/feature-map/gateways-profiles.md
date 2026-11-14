@@ -32,7 +32,7 @@ Open `/apps/advanced/profiles`, create a profile, or follow its detail/edit rout
 
 ## Driving it with Playwright and an MCP client
 
-Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a fixture tool connection and test client. Record gateway/profile, token owner, transport, and selected company.
+Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a fixture tool connection and test client. Record gateway/profile, token owner, transport, and selected space.
 
 Gateway creation selects a profile. Maintain that profile's app/action selection
 through the Apps/Tools links; the gateway form is not a separate tool picker.
@@ -57,7 +57,7 @@ Automated: [profile wizard](../../ui/src/pages/tools/profiles/ProfileWizard.test
 
 Backend: [profile entry validation](../../server/src/__tests__/tool-profile-entry-validation.test.ts)
 uses isolated PostgreSQL to create and replace a 518-selector assignment with
-bounded reference reads. It checks exact selector retention, company boundaries,
+bounded reference reads. It checks exact selector retention, space boundaries,
 invalid input order, and fresh validation after deletion. This does not establish
 live client latency.
 

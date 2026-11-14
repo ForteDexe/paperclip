@@ -7,9 +7,9 @@ values. This worker uses those records; it adds no queue table or migration.
 
 `secret-proposals.ts` still owns quotas, authority checks, approval, expiry,
 ciphertext scrubbing, dependent binding rejection, audit records, and interaction
-reflection. `expiryDeadlines(companyId?)` returns one saved deadline per pending
-company. Normal write notifications reload only the affected company. Startup
-reconstruction loads all companies once. The manual `nextExpiryAt()` query remains
+reflection. `expiryDeadlines(spaceId?)` returns one saved deadline per pending
+space. Normal write notifications reload only the affected space. Startup
+reconstruction loads all spaces once. The manual `nextExpiryAt()` query remains
 available to existing callers.
 Terminal history does not create a deadline. Approval still rejects an expired
 proposal synchronously, even when maintenance is paused.
@@ -22,9 +22,9 @@ writes in the owning transaction:
 - `transition`: rejection, withdrawal, expiry, and dependent binding rejection.
 - Interaction resolution: rejection, withdrawal/cancellation, expiry, and failed
   acceptance execution that resolves a linked pending binding.
-- Company deletion: a company hint removes its cached deadline after deletion commits.
+- Space deletion: a space hint removes its cached deadline after deletion commits.
 
-Each producer includes its company ID. The remaining proposal write only attaches
+Each producer includes its space ID. The remaining proposal write only attaches
 an interaction ID and does not change expiry eligibility. Independent SQL writers
 or another DB root are not supported live producers of these process-local signals;
 startup reconstructs their persisted rows, but it is not a live replica contract.
@@ -39,18 +39,18 @@ existing protocol. Callers do not pass recovery counters or reconnect the databa
 is enabled. It replaces the secret-proposal sweep in the aggregate maintenance
 tick. Disabled heartbeat scheduling keeps its existing behavior.
 
-The worker reloads the affected company's saved minimum expiry after a committed
+The worker reloads the affected space's saved minimum expiry after a committed
 change. It does not sweep future work. At a due deadline it sweeps at most 100
-expired proposals for that company, then reads that company's next deadline.
-Companies rotate fairly between bounded passes. Retained history creates no work.
+expired proposals for that space, then reads that space's next deadline.
+Spaces rotate fairly between bounded passes. Retained history creates no work.
 No pending proposal, unresolved write, or failed reconciliation means no recurring
-query. Unscoped legacy hints still reconstruct all companies.
+query. Unscoped legacy hints still reconstruct all spaces.
 
 `scoped-deadline-work.ts` owns scope invalidation, cached deadlines, fair dispatch,
 and failure backoff. It owns no SQL or proposal policy. Failed loads and failed
-company sweeps back off independently from 30 seconds to five minutes. A new
-write reloads that company without erasing its failed sweep's backoff. Other
-companies keep their own deadlines, including already-due work. The coordinator's
+space sweeps back off independently from 30 seconds to five minutes. A new
+write reloads that space without erasing its failed sweep's backoff. Other
+spaces keep their own deadlines, including already-due work. The coordinator's
 optional `nextRunAtOnError` contract permits immediate eligible work only after
 the worker has recorded per-item backoffs. Failed transaction reconciliation and
 failed pending-state inspection retain the coordinator's normal retry.
@@ -74,9 +74,9 @@ ciphertext scrubbing and dependent-card resolution, startup reconstruction,
 withdrawal, interaction rejection/failed execution, failure retry, and drain/resume.
 It also verifies that expired approval fails while cleanup is paused. The existing
 coordinator suite verifies fallback retry and uncertainty boundaries. New cases
-record actual SQL to prove normal writes and due expiry stay company-scoped; they
-also cover five-second deadlines, earlier replacement deadlines, company deletion,
-and another company making progress while one sweep fails. A deterministic
+record actual SQL to prove normal writes and due expiry stay space-scoped; they
+also cover five-second deadlines, earlier replacement deadlines, space deletion,
+and another space making progress while one sweep fails. A deterministic
 shared-worker test covers a 250ms replacement deadline.
 
 The worker tests use a controlled clock and a real PostgreSQL database. Existing

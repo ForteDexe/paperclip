@@ -37,7 +37,7 @@ import { PageTabBar } from "../components/PageTabBar";
 import { ProviderQuotaCard } from "../components/ProviderQuotaCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useDateRange, PRESET_KEYS, PRESET_LABELS } from "../hooks/useDateRange";
 import { retainQuotaWindows } from "../lib/quota-refresh";
 import { queryKeys } from "../lib/queryKeys";
@@ -46,7 +46,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const NO_COMPANY = "__none__";
+const NO_SPACE = "__none__";
 export type CostsMainTab = "overview" | "budgets" | "providers" | "billers" | "finance" | "decisions" | "fast-responses";
 
 export interface CostsProps {
@@ -176,16 +176,16 @@ export function Costs({
   lockTab = false,
   hideBudgetsTab = false,
 }: CostsProps = {}) {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const scopedAgentId = searchParams.get("agentId");
   const { data: scopedAgent, error: scopedAgentError } = useQuery({
-    queryKey: [...queryKeys.agents.detail(scopedAgentId ?? NO_COMPANY), selectedCompanyId],
-    queryFn: () => agentsApi.get(scopedAgentId!, selectedCompanyId!),
-    enabled: Boolean(selectedCompanyId && scopedAgentId),
+    queryKey: [...queryKeys.agents.detail(scopedAgentId ?? NO_SPACE), selectedSpaceId],
+    queryFn: () => agentsApi.get(scopedAgentId!, selectedSpaceId!),
+    enabled: Boolean(selectedSpaceId && scopedAgentId),
   });
   const museUsageUnavailable = scopedAgent?.adapterType === "outpost_runner" && scopedAgent.adapterConfig.provider === "muse";
   const [mainTab, setMainTab] = useState<CostsMainTab>(initialTab);
@@ -232,53 +232,53 @@ export function Costs({
   }, []);
 
   const weekRange = useMemo(() => currentWeekRange(), [today]);
-  const companyId = selectedCompanyId ?? NO_COMPANY;
+  const spaceId = selectedSpaceId ?? NO_SPACE;
   // The clock advances the request bounds, not the identity of the report.
-  // Keep successful data visible during polling; a different company or selected
+  // Keep successful data visible during polling; a different space or selected
   // period still gets its own cache entry and initial loading state.
   // Month/year-to-date become a different reporting period at their UTC
   // boundary. Rolling windows retain identity as their lower bound advances.
   const reportQueryFrom = ["custom", "mtd", "ytd"].includes(preset) ? from || undefined : undefined;
   const reportQueryTo = preset === "custom" ? to || undefined : preset;
 
-  const subscriptionKey = ["cost-subscriptions", companyId, reportQueryFrom, reportQueryTo];
+  const subscriptionKey = ["cost-subscriptions", spaceId, reportQueryFrom, reportQueryTo];
   const { data: subscriptions, error: subscriptionError } = useQuery({
     queryKey: subscriptionKey,
-    queryFn: () => subscriptionsApi.report(companyId, from || undefined, to || undefined),
-    enabled: !!selectedCompanyId && customReady && showSummaryChrome,
+    queryFn: () => subscriptionsApi.report(spaceId, from || undefined, to || undefined),
+    enabled: !!selectedSpaceId && customReady && showSummaryChrome,
     refetchInterval: 30_000,
   });
-  const invalidateSubscriptions = () => { void queryClient.invalidateQueries({ queryKey: ["cost-subscriptions", companyId] }); };
-  const discoveryCompany = useRef<string | null>(null);
+  const invalidateSubscriptions = () => { void queryClient.invalidateQueries({ queryKey: ["cost-subscriptions", spaceId] }); };
+  const discoverySpace = useRef<string | null>(null);
   const discoverSubscriptions = useMutation({ mutationFn: (id: string) => subscriptionsApi.refresh(id),
     onSuccess: (_data, id) => { void queryClient.invalidateQueries({ queryKey: ["cost-subscriptions", id] }); } });
   useEffect(() => {
-    if (!selectedCompanyId || !showSummaryChrome || !subscriptions?.canRefresh || discoveryCompany.current === selectedCompanyId) return;
-    discoveryCompany.current = selectedCompanyId;
-    discoverSubscriptions.mutate(selectedCompanyId);
-  }, [selectedCompanyId, showSummaryChrome, subscriptions?.canRefresh, discoverSubscriptions.mutate]);
+    if (!selectedSpaceId || !showSummaryChrome || !subscriptions?.canRefresh || discoverySpace.current === selectedSpaceId) return;
+    discoverySpace.current = selectedSpaceId;
+    discoverSubscriptions.mutate(selectedSpaceId);
+  }, [selectedSpaceId, showSummaryChrome, subscriptions?.canRefresh, discoverSubscriptions.mutate]);
 
   const { data: budgetData, isLoading: budgetLoading, error: budgetError } = useQuery({
-    queryKey: queryKeys.budgets.overview(companyId),
-    queryFn: () => budgetsApi.overview(companyId),
-    enabled: !!selectedCompanyId && customReady,
+    queryKey: queryKeys.budgets.overview(spaceId),
+    queryFn: () => budgetsApi.overview(spaceId),
+    enabled: !!selectedSpaceId && customReady,
     refetchInterval: 30_000,
     staleTime: 5_000,
   });
 
   const invalidateBudgetViews = () => {
-    if (!selectedCompanyId) return;
-    queryClient.invalidateQueries({ queryKey: queryKeys.budgets.overview(selectedCompanyId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(selectedCompanyId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedCompanyId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(selectedCompanyId) });
+    if (!selectedSpaceId) return;
+    queryClient.invalidateQueries({ queryKey: queryKeys.budgets.overview(selectedSpaceId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(selectedSpaceId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedSpaceId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(selectedSpaceId) });
   };
 
   const policyMutation = useMutation({
     mutationFn: ({ summary, changes }: {
       summary: BudgetPolicySummary;
       changes: Partial<Pick<BudgetPolicySummary, "amount" | "reservationCents" | "unpricedUsagePolicy">>;
-    }) => budgetsApi.upsertPolicy(companyId, {
+    }) => budgetsApi.upsertPolicy(spaceId, {
       scopeType: summary.scopeType,
       scopeId: summary.scopeId,
       metric: summary.metric,
@@ -290,56 +290,56 @@ export function Costs({
 
   const incidentMutation = useMutation({
     mutationFn: (input: { incidentId: string; action: "keep_paused" | "raise_budget_and_resume"; amount?: number }) =>
-      budgetsApi.resolveIncident(companyId, input.incidentId, input),
+      budgetsApi.resolveIncident(spaceId, input.incidentId, input),
     onSuccess: invalidateBudgetViews,
   });
 
   const { data: spendData, isLoading: spendLoading, error: spendError } = useQuery({
-    queryKey: queryKeys.costs(companyId, reportQueryFrom, reportQueryTo),
+    queryKey: queryKeys.costs(spaceId, reportQueryFrom, reportQueryTo),
     queryFn: async () => {
       const [summary, byAgent, byProject, byAgentModel] = await Promise.all([
-        costsApi.summary(companyId, from || undefined, to || undefined),
-        costsApi.byAgent(companyId, from || undefined, to || undefined),
-        costsApi.byProject(companyId, from || undefined, to || undefined),
-        costsApi.byAgentModel(companyId, from || undefined, to || undefined),
+        costsApi.summary(spaceId, from || undefined, to || undefined),
+        costsApi.byAgent(spaceId, from || undefined, to || undefined),
+        costsApi.byProject(spaceId, from || undefined, to || undefined),
+        costsApi.byAgentModel(spaceId, from || undefined, to || undefined),
       ]);
       return { summary, byAgent, byProject, byAgentModel };
     },
-    enabled: !!selectedCompanyId && customReady && showSummaryChrome,
+    enabled: !!selectedSpaceId && customReady && showSummaryChrome,
     refetchInterval: 30_000,
   });
 
   const { data: userSpendData, error: userSpendError } = useQuery({
-    queryKey: [...queryKeys.costs(companyId, reportQueryFrom, reportQueryTo), "by-user"],
-    queryFn: () => costsApi.byUser(companyId, from || undefined, to || undefined),
-    enabled: !!selectedCompanyId && customReady && showSummaryChrome && mainTab === "overview",
+    queryKey: [...queryKeys.costs(spaceId, reportQueryFrom, reportQueryTo), "by-user"],
+    queryFn: () => costsApi.byUser(spaceId, from || undefined, to || undefined),
+    enabled: !!selectedSpaceId && customReady && showSummaryChrome && mainTab === "overview",
     refetchInterval: 30_000,
   });
 
   const { data: financeData, isLoading: financeLoading, error: financeError } = useQuery({
     queryKey: [
-      queryKeys.financeSummary(companyId, reportQueryFrom, reportQueryTo),
-      queryKeys.financeByBiller(companyId, reportQueryFrom, reportQueryTo),
-      queryKeys.financeByKind(companyId, reportQueryFrom, reportQueryTo),
-      queryKeys.financeEvents(companyId, reportQueryFrom, reportQueryTo, 18),
+      queryKeys.financeSummary(spaceId, reportQueryFrom, reportQueryTo),
+      queryKeys.financeByBiller(spaceId, reportQueryFrom, reportQueryTo),
+      queryKeys.financeByKind(spaceId, reportQueryFrom, reportQueryTo),
+      queryKeys.financeEvents(spaceId, reportQueryFrom, reportQueryTo, 18),
     ],
     queryFn: async () => {
       const [summary, byBiller, byKind, events] = await Promise.all([
-        costsApi.financeSummary(companyId, from || undefined, to || undefined),
-        costsApi.financeByBiller(companyId, from || undefined, to || undefined),
-        costsApi.financeByKind(companyId, from || undefined, to || undefined),
-        costsApi.financeEvents(companyId, from || undefined, to || undefined, 18),
+        costsApi.financeSummary(spaceId, from || undefined, to || undefined),
+        costsApi.financeByBiller(spaceId, from || undefined, to || undefined),
+        costsApi.financeByKind(spaceId, from || undefined, to || undefined),
+        costsApi.financeEvents(spaceId, from || undefined, to || undefined, 18),
       ]);
       return { summary, byBiller, byKind, events };
     },
-    enabled: !!selectedCompanyId && customReady && showSummaryChrome,
+    enabled: !!selectedSpaceId && customReady && showSummaryChrome,
     refetchInterval: 30_000,
   });
 
   const [expandedAgents, setExpandedAgents] = useState<Set<string | null>>(new Set());
   useEffect(() => {
     setExpandedAgents(new Set());
-  }, [companyId, preset, customFrom, customTo]);
+  }, [spaceId, preset, customFrom, customTo]);
 
   function toggleAgent(agentId: string | null) {
     setExpandedAgents((prev) => {
@@ -364,53 +364,53 @@ export function Costs({
   }, [spendData?.byAgentModel]);
 
   const { data: providerData, error: providerError } = useQuery({
-    queryKey: queryKeys.usageByProvider(companyId, reportQueryFrom, reportQueryTo),
-    queryFn: () => costsApi.byProvider(companyId, from || undefined, to || undefined),
-    enabled: !!selectedCompanyId && customReady && (mainTab === "providers" || mainTab === "billers"),
+    queryKey: queryKeys.usageByProvider(spaceId, reportQueryFrom, reportQueryTo),
+    queryFn: () => costsApi.byProvider(spaceId, from || undefined, to || undefined),
+    enabled: !!selectedSpaceId && customReady && (mainTab === "providers" || mainTab === "billers"),
     refetchInterval: 30_000,
     staleTime: 10_000,
   });
 
   const { data: billerData, error: billerError } = useQuery({
-    queryKey: queryKeys.usageByBiller(companyId, reportQueryFrom, reportQueryTo),
-    queryFn: () => costsApi.byBiller(companyId, from || undefined, to || undefined),
-    enabled: !!selectedCompanyId && customReady && mainTab === "billers",
+    queryKey: queryKeys.usageByBiller(spaceId, reportQueryFrom, reportQueryTo),
+    queryFn: () => costsApi.byBiller(spaceId, from || undefined, to || undefined),
+    enabled: !!selectedSpaceId && customReady && mainTab === "billers",
     refetchInterval: 30_000,
     staleTime: 10_000,
   });
 
   const { data: weekData, error: weekError } = useQuery({
-    queryKey: queryKeys.usageByProvider(companyId, weekRange.from, weekRange.to),
-    queryFn: () => costsApi.byProvider(companyId, weekRange.from, weekRange.to),
-    enabled: !!selectedCompanyId && (mainTab === "providers" || mainTab === "billers"),
+    queryKey: queryKeys.usageByProvider(spaceId, weekRange.from, weekRange.to),
+    queryFn: () => costsApi.byProvider(spaceId, weekRange.from, weekRange.to),
+    enabled: !!selectedSpaceId && (mainTab === "providers" || mainTab === "billers"),
     refetchInterval: 30_000,
     staleTime: 10_000,
   });
 
   const { data: weekBillerData, error: weekBillerError } = useQuery({
-    queryKey: queryKeys.usageByBiller(companyId, weekRange.from, weekRange.to),
-    queryFn: () => costsApi.byBiller(companyId, weekRange.from, weekRange.to),
-    enabled: !!selectedCompanyId && mainTab === "billers",
+    queryKey: queryKeys.usageByBiller(spaceId, weekRange.from, weekRange.to),
+    queryFn: () => costsApi.byBiller(spaceId, weekRange.from, weekRange.to),
+    enabled: !!selectedSpaceId && mainTab === "billers",
     refetchInterval: 30_000,
     staleTime: 10_000,
   });
 
   const { data: windowData, error: windowError } = useQuery({
-    queryKey: queryKeys.usageWindowSpend(companyId),
-    queryFn: () => costsApi.windowSpend(companyId),
-    enabled: !!selectedCompanyId && mainTab === "providers",
+    queryKey: queryKeys.usageWindowSpend(spaceId),
+    queryFn: () => costsApi.windowSpend(spaceId),
+    enabled: !!selectedSpaceId && mainTab === "providers",
     refetchInterval: 30_000,
     staleTime: 10_000,
   });
 
   const { data: quotaData, isLoading: quotaLoading, error: quotaFetchError } = useQuery({
-    queryKey: queryKeys.usageQuotaWindows(companyId),
-    queryFn: () => costsApi.quotaWindows(companyId),
+    queryKey: queryKeys.usageQuotaWindows(spaceId),
+    queryFn: () => costsApi.quotaWindows(spaceId),
     structuralSharing: (previous, incoming) => retainQuotaWindows(
       previous as ProviderQuotaResult[] | undefined,
       incoming as ProviderQuotaResult[],
     ),
-    enabled: !!selectedCompanyId && mainTab === "providers",
+    enabled: !!selectedSpaceId && mainTab === "providers",
     refetchInterval: 300_000,
     staleTime: 60_000,
   });
@@ -592,12 +592,12 @@ export function Costs({
   const budgetPolicies = budgetData?.policies ?? [];
   const activeBudgetIncidents = budgetData?.activeIncidents ?? [];
   const budgetPoliciesByScope = useMemo(() => ({
-    company: budgetPolicies.filter((policy) => policy.scopeType === "company"),
+    space: budgetPolicies.filter((policy) => policy.scopeType === "space"),
     agent: budgetPolicies.filter((policy) => policy.scopeType === "agent"),
     project: budgetPolicies.filter((policy) => policy.scopeType === "project"),
   }), [budgetPolicies]);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <EmptyState icon={DollarSign} message="Select an outpost to view costs." />;
   }
 
@@ -673,7 +673,7 @@ export function Costs({
               </div> : subscriptionError ? "API usage is unavailable" : "API usage is loading"}
               icon={DollarSign}
             />
-            <SubscriptionCostCard key={companyId} companyId={companyId} report={subscriptions} error={subscriptionError} onChanged={invalidateSubscriptions} />
+            <SubscriptionCostCard key={spaceId} spaceId={spaceId} report={subscriptions} error={subscriptionError} onChanged={invalidateSubscriptions} />
             <MetricTile
               label="Budget"
               value={activeBudgetIncidents.length > 0 ? String(activeBudgetIncidents.length) : (
@@ -714,11 +714,11 @@ export function Costs({
           {discoverSubscriptions.error && <div role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <p>Connected accounts could not be checked. Existing subscription estimates are still shown.</p>
             {subscriptions?.canRefresh && <Button variant="outline" size="sm" disabled={discoverSubscriptions.isPending}
-              onClick={() => discoverSubscriptions.mutate(companyId)}>Retry account check</Button>}
+              onClick={() => discoverSubscriptions.mutate(spaceId)}>Retry account check</Button>}
           </div>}
           {mainTab === "overview" && spendData && (spendData.summary.unpricedEventCount > 0 || spendData.summary.pendingRunCount > 0 || (spendData.summary.unknownBillingEventCount ?? 0) > 0) && (
-            <CostDataQualityNotice key={`${companyId}:${reportQueryFrom}:${reportQueryTo}`} companyId={companyId}
-              from={from || undefined} to={to || undefined} reportKey={queryKeys.costs(companyId, reportQueryFrom, reportQueryTo)}
+            <CostDataQualityNotice key={`${spaceId}:${reportQueryFrom}:${reportQueryTo}`} spaceId={spaceId}
+              from={from || undefined} to={to || undefined} reportKey={queryKeys.costs(spaceId, reportQueryFrom, reportQueryTo)}
               unpricedCount={spendData.summary.unpricedEventCount} pendingCount={spendData.summary.pendingRunCount}
               unknownBillingCount={spendData.summary.unknownBillingEventCount ?? 0} />
           )}
@@ -752,8 +752,8 @@ export function Costs({
           </div>
         ) : null}
 
-        <TabsContent value="fast-responses" className="mt-4">{showCustomPrompt ? <p className="text-sm text-muted-foreground">Select a start and end date to load data.</p> : <FastResponseHistory companyId={companyId} from={from} to={to} />}</TabsContent>
-        <TabsContent value="decisions" className="mt-4">{showCustomPrompt ? <p className="text-sm text-muted-foreground">Select a start and end date to load data.</p> : <DecisionHistory companyId={companyId} from={from} to={to} />}</TabsContent>
+        <TabsContent value="fast-responses" className="mt-4">{showCustomPrompt ? <p className="text-sm text-muted-foreground">Select a start and end date to load data.</p> : <FastResponseHistory spaceId={spaceId} from={from} to={to} />}</TabsContent>
+        <TabsContent value="decisions" className="mt-4">{showCustomPrompt ? <p className="text-sm text-muted-foreground">Select a start and end date to load data.</p> : <DecisionHistory spaceId={spaceId} from={from} to={to} />}</TabsContent>
         <TabsContent value="overview" className="mt-4 space-y-4">
           {showCustomPrompt ? (
             <p className="text-sm text-muted-foreground">Select a start and end date to load data.</p>
@@ -945,7 +945,7 @@ export function Costs({
                   <MetricTile
                     label="Pending approvals"
                     value={String(budgetData?.pendingApprovalCount ?? 0)}
-                    subtitle="Budget override approvals awaiting board action"
+                    subtitle="Budget override approvals awaiting operator action"
                     icon={ArrowUpRight}
                   />
                   <MetricTile
@@ -991,15 +991,15 @@ export function Costs({
               ) : null}
 
               <div className="space-y-5">
-                {(["company", "agent", "project"] as const).map((scopeType) => {
+                {(["space", "agent", "project"] as const).map((scopeType) => {
                   const rows = budgetPoliciesByScope[scopeType];
                   if (rows.length === 0) return null;
                   return (
                     <section key={scopeType} className="space-y-3">
                       <div>
-                        <h2 className="text-lg font-semibold capitalize">{scopeType === "company" ? "organization" : scopeType} budgets</h2>
+                        <h2 className="text-lg font-semibold capitalize">{scopeType === "space" ? "organization" : scopeType} budgets</h2>
                         <p className="text-sm text-muted-foreground">
-                          {scopeType === "company"
+                          {scopeType === "space"
                             ? "Outpost-wide monthly policy."
                             : scopeType === "agent"
                               ? "Recurring monthly spend policies for individual agents."
@@ -1055,7 +1055,7 @@ export function Costs({
                           rows={byProvider.get(provider) ?? []}
                           budgetMonthlyCents={spendData?.summary.budgetCents ?? 0}
                           showBudgetUtilization={preset === "mtd"}
-                          totalCompanySpendCents={spendData?.summary.spendCents ?? 0}
+                          totalSpaceSpendCents={spendData?.summary.spendCents ?? 0}
                           weekSpendCents={weekSpendByProvider.get(provider) ?? 0}
                           windowRows={windowSpendByProvider.get(provider) ?? []}
                           showDeficitNotch={deficitNotchByProvider.get(provider) ?? false}
@@ -1078,7 +1078,7 @@ export function Costs({
                       rows={byProvider.get(provider) ?? []}
                       budgetMonthlyCents={spendData?.summary.budgetCents ?? 0}
                           showBudgetUtilization={preset === "mtd"}
-                      totalCompanySpendCents={spendData?.summary.spendCents ?? 0}
+                      totalSpaceSpendCents={spendData?.summary.spendCents ?? 0}
                       weekSpendCents={weekSpendByProvider.get(provider) ?? 0}
                       windowRows={windowSpendByProvider.get(provider) ?? []}
                       showDeficitNotch={deficitNotchByProvider.get(provider) ?? false}
@@ -1120,7 +1120,7 @@ export function Costs({
                             weekSpendCents={weekSpendByBiller.get(biller) ?? 0}
                             budgetMonthlyCents={spendData?.summary.budgetCents ?? 0}
                           showBudgetUtilization={preset === "mtd"}
-                            totalCompanySpendCents={spendData?.summary.spendCents ?? 0}
+                            totalSpaceSpendCents={spendData?.summary.spendCents ?? 0}
                             providerRows={providerRows}
                           />
                         );
@@ -1140,7 +1140,7 @@ export function Costs({
                         weekSpendCents={weekSpendByBiller.get(biller) ?? 0}
                         budgetMonthlyCents={spendData?.summary.budgetCents ?? 0}
                           showBudgetUtilization={preset === "mtd"}
-                        totalCompanySpendCents={spendData?.summary.spendCents ?? 0}
+                        totalSpaceSpendCents={spendData?.summary.spendCents ?? 0}
                         providerRows={providerRows}
                       />
                     </TabsContent>

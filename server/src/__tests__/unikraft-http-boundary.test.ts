@@ -44,7 +44,7 @@ async function provider() {
     });
   };
   const call = (toolName: string, parameters: unknown) => executeUnikraftTool({
-    binding: { companyId: "company", agentId: "agent" }, connection: { companyId: "company", config: {} },
+    binding: { spaceId: "space", agentId: "agent" }, connection: { spaceId: "space", config: {} },
     headers: { Authorization: `Bearer ${credential}` }, request, toolName, parameters,
     signal: AbortSignal.timeout(3000), deadlineAt: Date.now() + 3000,
   });

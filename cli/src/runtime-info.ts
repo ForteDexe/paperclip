@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { resolvePaperclipInstanceRoot } from "./config/home.js";
+import { resolveOutpostInstanceRoot } from "./config/home.js";
 
 export const OUTPOST_RUNTIME_INFO_FILENAME = "runtime-info.json";
 
-export type PaperclipRuntimeInfo = {
+export type OutpostRuntimeInfo = {
   schemaVersion: 1;
   instanceId: string;
   pid: number;
@@ -15,10 +15,10 @@ export type PaperclipRuntimeInfo = {
 };
 
 export function resolveRuntimeInfoPath(instanceId?: string): string {
-  return path.join(resolvePaperclipInstanceRoot(instanceId), OUTPOST_RUNTIME_INFO_FILENAME);
+  return path.join(resolveOutpostInstanceRoot(instanceId), OUTPOST_RUNTIME_INFO_FILENAME);
 }
 
-function parseRuntimeInfo(value: unknown): PaperclipRuntimeInfo | null {
+function parseRuntimeInfo(value: unknown): OutpostRuntimeInfo | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
   if (
@@ -35,10 +35,10 @@ function parseRuntimeInfo(value: unknown): PaperclipRuntimeInfo | null {
   ) {
     return null;
   }
-  return record as PaperclipRuntimeInfo;
+  return record as OutpostRuntimeInfo;
 }
 
-export function readRuntimeInfo(instanceId?: string, filePath = resolveRuntimeInfoPath(instanceId)): PaperclipRuntimeInfo | null {
+export function readRuntimeInfo(instanceId?: string, filePath = resolveRuntimeInfoPath(instanceId)): OutpostRuntimeInfo | null {
   try {
     const info = parseRuntimeInfo(JSON.parse(fs.readFileSync(filePath, "utf8")));
     if (!info) return null;
@@ -50,7 +50,7 @@ export function readRuntimeInfo(instanceId?: string, filePath = resolveRuntimeIn
 }
 
 export function writeRuntimeInfo(
-  info: PaperclipRuntimeInfo,
+  info: OutpostRuntimeInfo,
   filePath = resolveRuntimeInfoPath(info.instanceId),
 ): void {
   const directoryPath = path.dirname(filePath);

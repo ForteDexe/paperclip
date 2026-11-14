@@ -197,8 +197,8 @@
         },
         "inputDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
         "result": {
-          "company": {
-            "id": "synthetic-company"
+          "space": {
+            "id": "synthetic-space"
           },
           "actor": {
             "id": "synthetic-agent"
@@ -225,7 +225,7 @@
   ],
   "projected": {
     "schema": "outpost.e2e.kimi-context-authority.v1",
-    "companyId": "synthetic-company",
+    "spaceId": "synthetic-space",
     "issueId": "synthetic-task",
     "agentId": "synthetic-agent",
     "environmentId": "synthetic-env",
@@ -261,7 +261,7 @@
     "records": [
       [
         "command:1",
-        "{\"schema\":\"outpost.orp.command.v1\",\"commandId\":\"command_tool_a840ed4f1dc2c14279f748c5dd1ea8b3\",\"controllerSeq\":1,\"type\":\"semantic_tool.result\",\"issuedAt\":\"2026-10-29T18:41:45.919Z\",\"payload\":{\"callId\":\"native-mcp-context-1\",\"operationId\":\"get_task_context\",\"sourceEventId\":\"semantic-event-4\",\"sourceEventType\":\"semantic_tool.input\",\"correlation\":{\"runId\":\"00000000-0000-4000-8000-000000000001\",\"normalizedSessionId\":\"session-test-1\",\"turnId\":\"turn-test-1\",\"itemId\":\"item-test-1\"},\"inputDigest\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"result\":{\"company\":{\"id\":\"synthetic-company\"},\"actor\":{\"id\":\"synthetic-agent\"},\"activeTask\":{\"id\":\"synthetic-task\",\"description\":\"synthetic operator continuation\"}},\"isError\":false},\"status\":\"completed\",\"result\":{\"commandId\":\"command_tool_a840ed4f1dc2c14279f748c5dd1ea8b3\",\"controllerSeq\":1,\"commandType\":\"semantic_tool.result\",\"status\":\"completed\",\"result\":{\"status\":\"delivered\",\"callId\":\"native-mcp-context-1\"}}}"
+        "{\"schema\":\"outpost.orp.command.v1\",\"commandId\":\"command_tool_a840ed4f1dc2c14279f748c5dd1ea8b3\",\"controllerSeq\":1,\"type\":\"semantic_tool.result\",\"issuedAt\":\"2026-10-29T18:41:45.919Z\",\"payload\":{\"callId\":\"native-mcp-context-1\",\"operationId\":\"get_task_context\",\"sourceEventId\":\"semantic-event-4\",\"sourceEventType\":\"semantic_tool.input\",\"correlation\":{\"runId\":\"00000000-0000-4000-8000-000000000001\",\"normalizedSessionId\":\"session-test-1\",\"turnId\":\"turn-test-1\",\"itemId\":\"item-test-1\"},\"inputDigest\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"result\":{\"space\":{\"id\":\"synthetic-space\"},\"actor\":{\"id\":\"synthetic-agent\"},\"activeTask\":{\"id\":\"synthetic-task\",\"description\":\"synthetic operator continuation\"}},\"isError\":false},\"status\":\"completed\",\"result\":{\"commandId\":\"command_tool_a840ed4f1dc2c14279f748c5dd1ea8b3\",\"controllerSeq\":1,\"commandType\":\"semantic_tool.result\",\"status\":\"completed\",\"result\":{\"status\":\"delivered\",\"callId\":\"native-mcp-context-1\"}}}"
       ],
       [
         "event:1",

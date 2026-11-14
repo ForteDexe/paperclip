@@ -73,7 +73,7 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
     setSentryRunLinkResolver(async () => { entered(); await held; return null; });
     const { captureTaskInterruptionFailure, sentryReady } = await import("../sentry.js");
     await sentryReady;
-    const event = { companyId: "55555555-5555-4555-8555-555555555555", agentId: "66666666-6666-4666-8666-666666666666",
+    const event = { spaceId: "55555555-5555-4555-8555-555555555555", agentId: "66666666-6666-4666-8666-666666666666",
       taskId: "11111111-1111-4111-8111-111111111111", runId: "22222222-2222-4222-8222-222222222222",
       agentAdapter: "outpost_runner", runStatus: "interrupted" as const, intentId: null };
     const dropped = { ...event, taskId: "33333333-3333-4333-8333-333333333333", runId: "44444444-4444-4444-8444-444444444444" };
@@ -126,25 +126,25 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
       }),
     }));
     const { setSentryRunLinkResolver } = await import("../sentry-links.js");
-    const companyId = "55555555-5555-4555-8555-555555555555", agentId = "66666666-6666-4666-8666-666666666666";
+    const spaceId = "55555555-5555-4555-8555-555555555555", agentId = "66666666-6666-4666-8666-666666666666";
     const taskId = "11111111-1111-4111-8111-111111111111", runId = "22222222-2222-4222-8222-222222222222";
     const routineId = "77777777-7777-4777-8777-777777777777";
-    setSentryRunLinkResolver(async () => ({ companyId, agentId, taskId, taskIdentifier: "TEAM-1", companyPrefix: "TEAM",
+    setSentryRunLinkResolver(async () => ({ spaceId, agentId, taskId, taskIdentifier: "TEAM-1", spacePrefix: "TEAM",
       creationProvenance: { status: "complete", routineIds: [routineId], shareable: true } }));
     const { captureRunFailure, captureTaskInterruptionFailure, sentryReady } = await import("../sentry.js");
     await sentryReady;
-    captureRunFailure({ companyId, agentId, taskId, runId, agentAdapter: "process", runStatus: "failed",
+    captureRunFailure({ spaceId, agentId, taskId, runId, agentAdapter: "process", runStatus: "failed",
       errorCode: "process_lost", errorMessage: "Provider process lost" });
-    captureTaskInterruptionFailure({ companyId, agentId, taskId, runId, agentAdapter: "process", runStatus: "succeeded", intentId: "sdk-provenance" });
+    captureTaskInterruptionFailure({ spaceId, agentId, taskId, runId, agentAdapter: "process", runStatus: "succeeded", intentId: "sdk-provenance" });
     Sentry.captureEvent({ message: "Unrelated request failure", request: { headers: {
-      "X-Paperclip-Source-Run-Token": "private-provenance-credential", "content-type": "application/json",
+      "X-Outpost-Source-Run-Token": "private-provenance-credential", "content-type": "application/json",
     } } });
     await Sentry.flush(2000);
     const failures = events.filter(event => (event.tags as Record<string, string> | undefined)?.event_kind === "run_failure");
     expect(failures).toHaveLength(2);
     for (const failure of failures) expect(failure).toMatchObject({ tags: {
       automation_origin_status: "complete", automation_routine_ids: routineId, task_shareable: "true",
-    }, contexts: { paperclip_creation: { routineIds: [routineId] } } });
+    }, contexts: { outpost_creation: { routineIds: [routineId] } } });
     const unrelated = events.find(event => event.message === "Unrelated request failure");
     expect(unrelated).toBeDefined();
     expect(unrelated?.tags ?? {}).not.toHaveProperty("automation_origin_status");
@@ -155,7 +155,7 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
   it("captures an early OpenCode timeout without inventing a deadline or exporting provider output", async () => {
     const Sentry = sentryPackage!;
     const events: Array<Record<string, unknown>> = [];
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-opencode-sentry-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-opencode-sentry-"));
     const restore = vi.fn(async () => {});
     const stop = vi.fn(async () => {});
     const processResult = {
@@ -187,7 +187,7 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
         assetDirs: {}, restoreWorkspace: restore,
       })),
       readAdapterExecutionTargetHomeDir: vi.fn(async () => "/home/fixture"),
-      startAdapterExecutionTargetPaperclipBridge: vi.fn(async () => ({ env: {}, stop })),
+      startAdapterExecutionTargetOutpostBridge: vi.fn(async () => ({ env: {}, stop })),
       runAdapterExecutionTargetProcess: runProcess,
     }));
     vi.resetModules();
@@ -197,7 +197,7 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
       await sentryReady;
       const result = await execute({
         runId: "22222222-2222-4222-8222-222222222222",
-        agent: { id: "agent-fixture", companyId: "company-fixture", name: "Fixture", adapterType: "opencode_local", adapterConfig: {} },
+        agent: { id: "agent-fixture", spaceId: "space-fixture", name: "Fixture", adapterType: "opencode_local", adapterConfig: {} },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: { command: "opencode", model: "openai/fixture", cwd: root, timeoutSec: 0,
           env: { OPENCODE_ALLOW_ALL_MODELS: "1" } },
@@ -247,7 +247,7 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
     vi.resetModules();
     const { sentryReady, captureRunFailure, captureException } = await import("../sentry.js");
     await sentryReady;
-    const scope = { companyId: "company-fixture", environmentId: "environment-fixture",
+    const scope = { spaceId: "space-fixture", environmentId: "environment-fixture",
       runId: "22222222-2222-4222-8222-222222222222" };
     // The acquire boundary and real worker wire are covered separately. This
     // narrow SDK job imports only the dependency-free private-marker projection.
@@ -256,7 +256,7 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
     }));
     captureEnvironmentAcquisitionDiagnostic(error, scope, { phase: "workspace", elapsedMs: 100, budgetMs: 2_000 });
     const diagnostics = sanitizeRunFailureDiagnostics(collectRunFailureDiagnostics({
-      id: scope.runId, companyId: scope.companyId, errorCode: "setup_failed", resultJson: null,
+      id: scope.runId, spaceId: scope.spaceId, errorCode: "setup_failed", resultJson: null,
     } as typeof heartbeatRuns.$inferSelect, { error: new Error("Cleanup confirmed", { cause: error }), phase: "setup" }));
     captureRunFailure({ taskId: "11111111-1111-4111-8111-111111111111", runId: scope.runId,
       errorMessage: "Acquisition failed", errorCode: "setup_failed", agentAdapter: "fixture-adapter",
@@ -477,7 +477,7 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
     await sentryReady;
 
     const first = {
-      companyId: "55555555-5555-4555-8555-555555555555",
+      spaceId: "55555555-5555-4555-8555-555555555555",
       agentId: "66666666-6666-4666-8666-666666666666",
       taskId: "11111111-1111-4111-8111-111111111111",
       runId: "22222222-2222-4222-8222-222222222222",
@@ -491,7 +491,7 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
     vi.stubEnv("OUTPOST_PUBLIC_URL", "https://outpost.example.com");
     const { setSentryRunLinkResolver } = await import("../sentry-links.js");
     setSentryRunLinkResolver(async ({ runId }) => ({
-      companyId: first.companyId, companyPrefix: "TEAM", agentId: first.agentId,
+      spaceId: first.spaceId, spacePrefix: "TEAM", agentId: first.agentId,
       taskId: runId === first.runId ? first.taskId : "33333333-3333-4333-8333-333333333333",
       taskIdentifier: runId === first.runId ? "TEAM-42" : "TEAM-43",
     }));
@@ -532,7 +532,7 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
     });
     captureException(new Error("unrelated filesystem error"));
     captureException(new Error("run-related request error"), {
-      runId: first.runId, companyId: first.companyId, agentId: first.agentId,
+      runId: first.runId, spaceId: first.spaceId, agentId: first.agentId,
     });
     const { AdapterStopTimeoutError } = await import("../services/adapter-stop-timeout.js");
     captureException(new AdapterStopTimeoutError(60_000, { runId: first.runId }));
@@ -562,7 +562,7 @@ describe.skipIf(!sentryPackage)("run failure context with the real Sentry SDK", 
     expect(firstCapture).toMatchObject({ tags: {
       task_url: "https://outpost.example.com/TEAM/issues/TEAM-42",
       run_url: `https://outpost.example.com/TEAM/agents/${first.agentId}/runs/${first.runId}`,
-    }, contexts: { paperclip: { taskUrl: "https://outpost.example.com/TEAM/issues/TEAM-42" } } });
+    }, contexts: { outpost: { taskUrl: "https://outpost.example.com/TEAM/issues/TEAM-42" } } });
     expect(captured(second.errorMessage)).toHaveProperty("tags.task_url", "https://outpost.example.com/TEAM/issues/TEAM-43");
     expect(captured("run-related request error")).toHaveProperty("tags.task_url", "https://outpost.example.com/TEAM/issues/TEAM-42");
     expect(events.find(event => (event.tags as Record<string, unknown>)?.error_code === "adapter_stop_unconfirmed"))

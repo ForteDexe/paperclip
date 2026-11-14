@@ -16,7 +16,7 @@ describe("buildAgentOnboardingPrompt", () => {
     expect(prompt).toContain("hermes gateway run --replace --accept-hooks");
     expect(prompt).toContain("default Hermes API server port is `8642`");
     expect(prompt).toContain("agentDefaultsPayload.apiBaseUrl");
-    expect(prompt).toContain("agentDefaultsPayload.paperclipApiUrl");
+    expect(prompt).toContain("agentDefaultsPayload.outpostApiUrl");
     expect(prompt).toContain("http://127.0.0.1:8642");
     expect(prompt).toContain("http://127.0.0.1:9119");
     expect(prompt).toContain("http://127.0.0.1:9119/chat");

@@ -34,7 +34,7 @@ export function agentDirectoryBusyRetryDelayMs(random: () => number = Math.rando
 export type AgentDirectoryDeferralOutcome = "not_applicable" | "deferred" | "pre_admission" | "refused";
 
 export async function deferRunForBusyAgentDirectory(db: Db, input: {
-  run: { id: string; companyId: string };
+  run: { id: string; spaceId: string };
   error: unknown;
   leaseOwner?: string;
   restartRecovery?: { leaseOwner: string };
@@ -45,7 +45,7 @@ export async function deferRunForBusyAgentDirectory(db: Db, input: {
   if (!(input.error instanceof AgentDirectoryPreparationDeferral)) return "not_applicable";
   const retryAt = new Date(Date.now() + agentDirectoryBusyRetryDelayMs(input.random));
   const outcome = await deferNativeRunForBusyAgentDirectory(db, {
-    companyId: input.run.companyId, runId: input.run.id, leaseOwner: input.leaseOwner ?? input.restartRecovery?.leaseOwner,
+    spaceId: input.run.spaceId, runId: input.run.id, leaseOwner: input.leaseOwner ?? input.restartRecovery?.leaseOwner,
     retryAt, maxDeferrals: AGENT_DIRECTORY_BUSY_MAX_DEFERRALS,
   });
   if (outcome !== "deferred") return outcome;

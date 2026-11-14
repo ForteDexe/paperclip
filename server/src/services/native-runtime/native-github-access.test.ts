@@ -4,14 +4,14 @@ import { mkdtemp, mkdir, readFile, rm, writeFile, access } from "node:fs/promise
 import { promisify } from "node:util";
 import type { CommandManagedDuplexChannel, CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
 import type { DuplexObservabilityRecorder } from "@outpost/adapter-utils/duplex-observability";
-import { startAdapterExecutionTargetPaperclipBridge } from "@outpost/adapter-utils/execution-target";
+import { startAdapterExecutionTargetOutpostBridge } from "@outpost/adapter-utils/execution-target";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { createNativeGitHubAccess, type NativeGitHubAccess } from "./native-github-access.js";
 import { OpenCodeServerDriver } from "@outpost/outpost-runner";
 import { createCapabilityRunnerdProviderEnvironment } from "@outpost/outpost-runner/live";
-const scope = { companyId: "company-a", agentId: "agent-a", issueId: "task-a" };
+const scope = { spaceId: "space-a", agentId: "agent-a", issueId: "task-a" };
 const run = (runId: string) => ({ ...scope, runId });
 const cleanups: (() => Promise<unknown>)[] = [];
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); });
@@ -71,7 +71,7 @@ duplex?: { enabled?: boolean; capability: boolean; unavailable?: boolean; record
   const result = await createNativeGitHubAccess({ scope, target, cwd: root,
     env: { PATH: `${bin}:${path.dirname(process.execPath)}:/usr/bin:/bin`, OUTPOST_API_KEY: "old-run-api-key" }, resolveCredentials, onLog },
     bridgeUnavailable ? async () => { throw new Error("fixture bridge unavailable"); } : async input => {
-      const bridge = await startAdapterExecutionTargetPaperclipBridge(input);
+      const bridge = await startAdapterExecutionTargetOutpostBridge(input);
       bridgeModes.push(bridge?.env.OUTPOST_API_BRIDGE_MODE);
       return bridge;
     });
@@ -212,7 +212,7 @@ it.each([false, true])("keeps one live parent and its original launcher environm
 }, 45_000);
 it("rejects other scopes, concurrent bindings, browser requests and forged authority", async () => {
   const b = await broker();
-  for (const field of ["companyId", "agentId", "issueId"] as const) {
+  for (const field of ["spaceId", "agentId", "issueId"] as const) {
     expect(() => b.activate({ ...run("a"), [field]: "other" })).toThrow("scope mismatch");
   }
   const release = b.activate(run("a"));
@@ -222,7 +222,7 @@ it("rejects other scopes, concurrent bindings, browser requests and forged autho
   for (const headers of rejectedHeaders) {
     expect((await request(b, { headers })).status).toBe(403);
   }
-  expect((await request(b, {}, "/api/companies")).status).toBe(404);
+  expect((await request(b, {}, "/api/spaces")).status).toBe(404);
   expect((await request(b, { method: "GET", body: undefined })).status).toBe(404);
   const response = await request(b, { body: JSON.stringify({ runId: "b", responsibleUserId: "other" }) });
   expect(response.status).toBe(200);

@@ -15,7 +15,7 @@ import { isUuidLike } from "@outpost/shared";
  */
 export async function isUnstartedTaskQuestionAnswer(
   db: Db,
-  input: { companyId: string; issueId: string; interactionId: unknown },
+  input: { spaceId: string; issueId: string; interactionId: unknown },
 ): Promise<boolean> {
   const interactionId = typeof input.interactionId === "string" ? input.interactionId : null;
   if (!interactionId || !isUuidLike(interactionId)) return false;
@@ -24,11 +24,11 @@ export async function isUnstartedTaskQuestionAnswer(
     .from(issueThreadInteractions)
     .innerJoin(issues, and(
       eq(issues.id, issueThreadInteractions.issueId),
-      eq(issues.companyId, issueThreadInteractions.companyId),
+      eq(issues.spaceId, issueThreadInteractions.spaceId),
     ))
     .where(and(
       eq(issueThreadInteractions.id, interactionId),
-      eq(issueThreadInteractions.companyId, input.companyId),
+      eq(issueThreadInteractions.spaceId, input.spaceId),
       eq(issueThreadInteractions.issueId, input.issueId),
       eq(issueThreadInteractions.kind, "ask_user_questions"),
       eq(issueThreadInteractions.status, "answered"),

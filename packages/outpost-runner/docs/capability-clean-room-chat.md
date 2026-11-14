@@ -12,14 +12,14 @@ for a provider.
 | | Preset scenario explorer | Clean-room chat |
 | --- | --- | --- |
 | Route | `#/issue/<fixtureProfile>` | `#/chat` |
-| Seed | A recorded eval case: transcript, scripted calls, parity verdicts | A company, an agent, and one blank issue |
+| Seed | A recorded eval case: transcript, scripted calls, parity verdicts | A space, an agent, and one blank issue |
 | Modes | `fake` (default), `replay`, `mode=live` | Live only — no fixture, no recording |
 | Tool calls | Fixed by the scenario | Chosen by the conversation |
 | Evidence drawer | Collapsed by default | Collapsed by default |
 
 ## What "clean room" means
 
-Every open mints a new mock tenant — a new company, actor, task, and `MCK-`
+Every open mints a new mock tenant — a new space, actor, task, and `MCK-`
 identifier — and seeds nothing else. `assertCapabilityCleanRoomSeedIsBlank` fails the
 open if any comment, document, interaction, approval, artifact, blocker, wake,
 or fault is present, so "the thread starts blank" is enforced at the seam that
@@ -50,7 +50,7 @@ Three grants stay withheld on purpose:
 
 | Withheld grant | Effect |
 | --- | --- |
-| `governance:approvals:decide` | The agent may request an approval; the board decides it. |
+| `approvals:approvals:decide` | The agent may request an approval; the board decides it. |
 | `workspace:control` | No service lifecycle changes from a chat. |
 | `test:generic_api_request` | The escape hatch stays off. |
 
@@ -91,7 +91,7 @@ scenario session can never be handed to the chat route or the reverse.
 | --- | --- |
 | Turns per chat | 24, then a named `turn_limit` refusal that points at `New chat` |
 | Message size | 8 KiB |
-| Concurrent clean rooms | 4; the oldest yields to a new board user |
+| Concurrent clean rooms | 4; the oldest yields to a new operator |
 | Turn timeout | 120 s (`CapabilityLiveSessionService` default) |
 
 ## Real-API block
@@ -109,9 +109,9 @@ provider, runner, or control-plane credential.
 ## DevTools state inspector
 
 Opening **DevTools** opens a Redux-DevTools-style inspector over the live
-mock company. Its timeline starts at the pristine fixture, adds a revision for
+mock space. Its timeline starts at the pristine fixture, adds a revision for
 each successful semantic mutation, and lets the operator inspect or diff the
-complete browser-safe company scaffolding: company, actors, tasks, comments,
+complete browser-safe space scaffolding: space, actors, tasks, comments,
 documents, interactions, approvals, artifacts, work products, blockers,
 workspace services, budgets, runs, wakes, audit records, decisions,
 idempotency records, and configured faults. Separate tabs expose the protocol

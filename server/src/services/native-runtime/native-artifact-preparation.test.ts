@@ -64,7 +64,7 @@ async function fixture(input: {
       }
     },
   };
-  const runtimeRoot = join(cwd, ".paperclip-runtime");
+  const runtimeRoot = join(cwd, ".outpost-runtime");
   const runnerTarget = join(runtimeRoot, "bin", "outpost-runnerd");
   const codexTarget = join(runtimeRoot, "bin", "codex");
   const options: Parameters<typeof createRemoteNativeArtifactPreparation>[0] = {

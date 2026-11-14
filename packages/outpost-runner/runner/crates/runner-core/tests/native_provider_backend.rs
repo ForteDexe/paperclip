@@ -25,7 +25,7 @@ fn temporary_directory(label: &str) -> PathBuf {
         .unwrap()
         .as_nanos();
     let directory = std::env::temp_dir().join(format!(
-        "paperclip-native-provider-{label}-{}-{nonce}",
+        "outpost-native-provider-{label}-{}-{nonce}",
         std::process::id()
     ));
     fs::create_dir_all(&directory).unwrap();
@@ -186,7 +186,7 @@ fn candidate_fixture(directory: &Path) -> (DurableRunnerConfig, Value) {
         serde_json::from_str(include_str!("../../../../antigravity-distributions.json")).unwrap();
     let profile = &profiles["profiles"]["antigravity"];
     let admission = AcpxCandidateAdmission::parse_json(&json!({
-        "schema":"outpost.acpx-candidate-admission.v1", "companyId":"company-1",
+        "schema":"outpost.acpx-candidate-admission.v1", "spaceId":"space-1",
         "agent":"antigravity", "model":"explicit-test-model", "profileDigest":profile["commandDigest"],
         "nativeClosureDigest":format!("sha256:{}",distributions["platforms"]["darwin-arm64"]["closureSha256"].as_str().unwrap()),
         "platform":"darwin", "architecture":"arm64", "expiresAt":SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64 + 60_000,
@@ -242,7 +242,7 @@ fn candidate_cannot_change_provider_kind_or_adopt_prior_activation() {
         );
         assert!(!directory.join("acpx-runtime").exists());
     }
-    payload["paperclipNextAuthority"] = json!({});
+    payload["outpostNextAuthority"] = json!({});
     let mut executor = NativeProviderCommandExecutor::with_runner_config(&directory, &config);
     assert!(executor
         .execute(&command(1, "run.attach", payload))
@@ -1097,7 +1097,7 @@ fn managed_prepare_payload(kind: &str) -> Value {
             "memoryId": "memory-1",
             "invocationRoleArn": "arn:aws:iam::123456789012:role/runner",
             "contextBucket": "context-bucket",
-            "contextPrefix": "companies/company/profiles/profile",
+            "contextPrefix": "spaces/space/profiles/profile",
             "contextKmsKeyArn": "arn:aws:kms:us-east-1:123456789012:key/test",
             "qualificationRevision": "aws-agentcore-harness-context-v2",
             "eventExpiryDays": 90,
@@ -1204,7 +1204,7 @@ fn routes_reserved_completion_feedback_with_the_full_controller_catalog() {
     let mode = "turns-reserved-feedback-roundtrip";
     let config = acpx_config(&directory, mode);
     let mut executor = NativeProviderCommandExecutor::with_runner_config(&directory, &config);
-    let operations = ["paperclip_block", "paperclip_finish"]
+    let operations = ["outpost_block", "outpost_finish"]
         .map(|name| AuthorizedTool {
             operation_id: name.to_owned(),
             version: 1,
@@ -1245,7 +1245,7 @@ fn routes_reserved_completion_feedback_with_the_full_controller_catalog() {
         .any(|event| event.event_type == "turn.completed"));
     executor.acknowledge_events(events.len()).unwrap();
     executor.execute(&command(4, "semantic_tool.result", json!({
-        "callId":"call-finish", "operationId":"paperclip_finish", "isError":true,
+        "callId":"call-finish", "operationId":"outpost_finish", "isError":true,
         "result":{"success":false,"contentItems":[{"type":"inputText","text":"Name the reviewer and decision."}]},
     }))).unwrap();
     // The sidecar emits this correction only after receiving the exact reason.
@@ -1263,11 +1263,11 @@ fn routes_reserved_completion_feedback_with_the_full_controller_catalog() {
         .any(|event| event.event_type == "turn.completed"));
     executor.acknowledge_events(events.len()).unwrap();
     assert!(executor.execute(&command(5, "semantic_tool.result", json!({
-        "callId":"call-finish-2", "operationId":"paperclip_finish", "isError":false,
+        "callId":"call-finish-2", "operationId":"outpost_finish", "isError":false,
         "result":{"success":true,"contentItems":[{"type":"inputText","text":"Accepted"}],"unchecked":true},
     }))).is_err(), "Unexpected fields must not weaken the acknowledgement contract");
     executor.execute(&command(6, "semantic_tool.result", json!({
-        "callId":"call-finish-2", "operationId":"paperclip_finish", "isError":false,
+        "callId":"call-finish-2", "operationId":"outpost_finish", "isError":false,
         "result":{"success":true,"contentItems":[{"type":"inputText","text":"Completion report accepted."}]},
     }))).unwrap();
     let events = executor.poll_events().unwrap();
@@ -1433,7 +1433,7 @@ fn provider_death_expires_input_and_commits_failure_without_querying_the_dead_pr
     let provider = &mut payload["provider"];
     provider["agent"] = json!("copilot");
     provider["model"] = json!("gpt-5.6-luna");
-    provider["permissionMode"] = json!("approve-paperclip");
+    provider["permissionMode"] = json!("approve-outpost");
     provider["agentServerPackage"] = json!("@github/copilot");
     provider["agentServerVersion"] = json!("1.0.88");
     provider["agentRuntimePackage"] = Value::Null;
@@ -2053,7 +2053,7 @@ fn cursor_cloud_run_attachment_reopens_the_same_thread_in_a_fresh_sidecar() {
     assert_eq!(
         calls
             .lines()
-            .filter(|line| *line == "paperclip/shutdown")
+            .filter(|line| *line == "outpost/shutdown")
             .count(),
         1
     );
@@ -2127,7 +2127,7 @@ fn cursor_cloud_stop_preserves_active_ownership_until_remote_termination_is_conf
     assert_eq!(
         calls
             .lines()
-            .filter(|line| *line == "paperclip/shutdown")
+            .filter(|line| *line == "outpost/shutdown")
             .count(),
         2
     );
@@ -2761,7 +2761,7 @@ fn resumes_opencode_after_cold_state_and_artifact_restore_into_a_new_allocation(
     let old_state = root.join("old-controller-and-lease");
     let new_state = root.join("new-controller-and-lease");
     let old_cwd =
-        root.join(".paperclip-workspaces/workspace-1-42fd5504-d7d5-4374-a622-b06335b61e61");
+        root.join(".outpost-workspaces/workspace-1-42fd5504-d7d5-4374-a622-b06335b61e61");
     let new_cwd = old_cwd.clone();
     for path in [&account, &old_state, &new_state, &old_cwd, &new_cwd] {
         fs::create_dir_all(path).unwrap();

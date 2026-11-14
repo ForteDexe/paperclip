@@ -10,7 +10,7 @@ import type {
   function isExplicitOperatorPublication(
     publication: Pick<typeof chatPublications.$inferSelect, "idempotencyKey">,
   ): boolean {
-    return /^(?:explicit:|explicit-board:)/.test(publication.idempotencyKey);
+    return /^(?:explicit:|explicit-operator:)/.test(publication.idempotencyKey);
   }
 
 const ATTACHMENT_FAILURE_NOTICE_PREFIX = "attachment-failure-notice:";

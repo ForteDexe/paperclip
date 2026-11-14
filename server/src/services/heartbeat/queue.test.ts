@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { contextCompactionService } from "../context-compaction.js";
 import { claimNativeSessionResumptions } from "../native-runtime/native-finalization-reconciler.js";
 import type { Db } from "@outpost/db";
-import { authUsers, agents, agentWakeupRequests, budgetIncidents, budgetPolicies, caseHandoffs, cases, chatCompletionDeliveries, companies, companyMemberships, costEvents, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, heartbeatRuns, issueComments, issueThreadInteractions, issues, nativeRunFinalizations } from "@outpost/db";
+import { authUsers, agents, agentWakeupRequests, budgetIncidents, budgetPolicies, caseHandoffs, cases, chatCompletionDeliveries, spaces, spaceMemberships, costEvents, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, heartbeatRuns, issueComments, issueThreadInteractions, issues, nativeRunFinalizations } from "@outpost/db";
 import { eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
@@ -116,7 +116,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: Db;
   beforeAll(async () => {
-    if (!external) database = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-queue-module");
+    if (!external) database = await startEmbeddedPostgresTestDatabase("outpost-heartbeat-queue-module");
     db = createDb(external ?? database!.connectionString, { maxConnections: 4 });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => {
@@ -124,14 +124,14 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     await database?.cleanup();
   });
   beforeEach(async () => {
-    await db.execute(sql`truncate table companies restart identity cascade`);
+    await db.execute(sql`truncate table spaces restart identity cascade`);
   });
 
   it.each([
     { provider: "codex" }, { provider: "acpx", acpxAgent: "antigravity" }, { provider: "muse" },
   ])("rejects direct taskless timer wakes for $provider before a run or request can be persisted", async adapterConfig => {
-    const [company] = await db.insert(companies).values({ name: "Timer scope", issuePrefix: "TS" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Ready for a task", status: "idle",
+    const [space] = await db.insert(spaces).values({ name: "Timer scope", issuePrefix: "TS" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Ready for a task", status: "idle",
       adapterType: "outpost_runner", adapterConfig, runtimeConfig: { heartbeat: { enabled: true, intervalSec: 60 } } }).returning();
     const deps = callbacks(db);
     deps.getAgent.mockResolvedValue(agent);
@@ -151,17 +151,17 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
       id: "queue-conversation-race-user", name: "Conversation owner", email: "queue-race@outpost.test",
       createdAt: new Date(), updatedAt: new Date(),
     }).onConflictDoUpdate({ target: authUsers.id, set: { name: "Conversation owner" } }).returning();
-    const [company] = await db.insert(companies).values({ name: "Conversation race", issuePrefix: "CR" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Chat agent",
+    const [space] = await db.insert(spaces).values({ name: "Conversation race", issuePrefix: "CR" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Chat agent",
       status: "idle", adapterType: "process", adapterConfig: {} }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Answered conversation",
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Answered conversation",
       assigneeAgentId: agent.id, responsibleUserId: user.id, conversationAgentId: agent.id,
       conversationUserId: user.id, conversationState: "active", status: "in_progress" }).returning();
-    const [completed] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const [completed] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "succeeded", finishedAt: new Date(), invocationSource: "on_demand", triggerDetail: "manual",
       contextSnapshot: { issueId: issue.id, conversationSessionGeneration: issue.conversationSessionGeneration },
     }).returning();
-    await db.insert(issueComments).values({ companyId: company.id, issueId: issue.id, authorAgentId: agent.id,
+    await db.insert(issueComments).values({ spaceId: space.id, issueId: issue.id, authorAgentId: agent.id,
       createdByRunId: completed.id, origin: "comment", body: "The requested answer." });
 
     const deps = callbacks(db);
@@ -217,9 +217,9 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     const [user] = await db.insert(authUsers).values({ id: "queue-conversation-owner", name: "Owner",
       email: "queue-owner@outpost.test", createdAt: new Date(), updatedAt: new Date() })
       .onConflictDoUpdate({ target: authUsers.id, set: { name: "Owner" } }).returning();
-    const [company] = await db.insert(companies).values({ name: "Waiting conversation", issuePrefix: "WC" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Chat agent", status: "idle", adapterType: "process" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Waiting for input",
+    const [space] = await db.insert(spaces).values({ name: "Waiting conversation", issuePrefix: "WC" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Chat agent", status: "idle", adapterType: "process" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Waiting for input",
       assigneeAgentId: agent.id, responsibleUserId: user.id, conversationAgentId: agent.id,
       conversationUserId: user.id, conversationState: "waiting", status: "in_review" }).returning();
     const deps = callbacks(db);
@@ -228,7 +228,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     deps.getSchedulingSuppression.mockResolvedValue({ suppressed: true, reason: "task_drain" });
     deps.getSchedulingSuppression.mockResolvedValueOnce({ suppressed: false, reason: null });
     await instanceSettingsService(db).updateExperimental({ enableAgentChat: true });
-    return { user, company, agent, issue, deps, queue: createHeartbeatQueue(db, deps) };
+    return { user, space, agent, issue, deps, queue: createHeartbeatQueue(db, deps) };
   }
 
   async function waitingCompactionFixture() {
@@ -243,7 +243,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
 
   it("admits the owner's context compaction maintenance request while its conversation waits", async () => {
     const f = await waitingCompactionFixture();
-    const accepted = await f.service.request({ companyId: f.company.id, issue: f.issue, userId: f.user.id });
+    const accepted = await f.service.request({ spaceId: f.space.id, issue: f.issue, userId: f.user.id });
     const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, f.agent.id));
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({ id: accepted.runId, status: "queued", contextSnapshot: {
@@ -284,7 +284,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
       return f.queue.enqueueWakeup(...args);
     } });
     const results = await Promise.allSettled([0, 1].map(() => service.request({
-      companyId: f.company.id, issue: f.issue, userId: f.user.id,
+      spaceId: f.space.id, issue: f.issue, userId: f.user.id,
     })));
     // Inspect both forms of durable execution authority before asserting.
     // A saved deferred maintenance request can replay after the first run;
@@ -297,7 +297,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     expect(maintenanceReceipts.map(row => ({ id: row.id, status: row.status, runId: row.runId })),
       "one durable compaction authority including deferred").toHaveLength(1);
     expect(maintenanceRuns.map(run => run.id)).toHaveLength(1);
-    expect(maintenanceRuns[0]).toMatchObject({ companyId: f.company.id, contextSnapshot: { issueId: f.issue.id } });
+    expect(maintenanceRuns[0]).toMatchObject({ spaceId: f.space.id, contextSnapshot: { issueId: f.issue.id } });
     expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
     const rejected = results.filter(result => result.status === "rejected");
     expect(rejected).toHaveLength(1);
@@ -319,8 +319,8 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
       const context = enrichWakeContextSnapshot({ contextSnapshot: { ...options.contextSnapshot },
         reason: options.reason ?? null, source, triggerDetail, payload: options.payload ?? null });
       await db.transaction(async tx => {
-        await createWakeAdmissionWriter().insertNewDeferredWake(TransactionScope.create(f.company.id, tx), {
-          companyId: f.company.id, agentId, source, triggerDetail,
+        await createWakeAdmissionWriter().insertNewDeferredWake(TransactionScope.create(f.space.id, tx), {
+          spaceId: f.space.id, agentId, source, triggerDetail,
           payload: { ...options.payload, manualUserWake: true, [DEFERRED_WAKE_CONTEXT_KEY]: context.contextSnapshot },
           requestedByActorType: options.requestedByActorType ?? null,
           requestedByActorId: options.requestedByActorId ?? null, idempotencyKey: options.idempotencyKey ?? null,
@@ -328,12 +328,12 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
       });
       return null;
     } });
-    await expect(historical.request({ companyId: f.company.id, issue: f.issue, userId: f.user.id }))
+    await expect(historical.request({ spaceId: f.space.id, issue: f.issue, userId: f.user.id }))
       .rejects.toMatchObject({ code: "wake_skipped" });
     const [pending] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.agentId, f.agent.id));
     expect(pending).toMatchObject({ reason: "issue_execution_deferred", status: "deferred_issue_execution", runId: null,
       payload: { issueId: f.issue.id, intent: "context_compaction" } });
-    await expect(f.service.request({ companyId: f.company.id, issue: f.issue, userId: f.user.id }))
+    await expect(f.service.request({ spaceId: f.space.id, issue: f.issue, userId: f.user.id }))
       .rejects.toMatchObject({ code: "already_pending" });
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, f.agent.id))).toEqual([]);
     expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.agentId, f.agent.id))).toEqual([pending]);
@@ -341,7 +341,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     // Nonpending history must not permanently block a fresh normal request.
     await db.update(agentWakeupRequests).set({ status: "cancelled", finishedAt: new Date() })
       .where(eq(agentWakeupRequests.id, pending.id));
-    const accepted = await f.service.request({ companyId: f.company.id, issue: f.issue, userId: f.user.id });
+    const accepted = await f.service.request({ spaceId: f.space.id, issue: f.issue, userId: f.user.id });
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, f.agent.id)))
       .toEqual([expect.objectContaining({ id: accepted.runId, status: "queued" })]);
     const receipts = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.agentId, f.agent.id));
@@ -356,7 +356,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     { actor: "foreign owner", userId: "another-conversation-owner", message: "Only the conversation owner can start a chat run" },
   ])("refuses waiting-conversation compaction from a $actor", async ({ userId, message }) => {
     const f = await waitingCompactionFixture();
-    await expect(f.service.request({ companyId: f.company.id, issue: f.issue, userId })).rejects.toThrow(message);
+    await expect(f.service.request({ spaceId: f.space.id, issue: f.issue, userId })).rejects.toThrow(message);
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, f.agent.id))).toHaveLength(0);
     expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.agentId, f.agent.id))).toHaveLength(0);
     expect(f.deps.executeRun).not.toHaveBeenCalled();
@@ -373,7 +373,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
         if (kind === "mismatched request") payload.requestId = randomUUID();
         return f.queue.enqueueWakeup(agentId, { ...options, contextSnapshot, payload });
       } });
-      await expect(service.request({ companyId: f.company.id, issue: f.issue, userId: f.user.id }))
+      await expect(service.request({ spaceId: f.space.id, issue: f.issue, userId: f.user.id }))
         .rejects.toMatchObject({ code: "wake_skipped" });
       expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, f.agent.id))).toHaveLength(0);
       expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.agentId, f.agent.id))).toHaveLength(0);
@@ -395,10 +395,10 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
 
   it("keeps closed tasks ineligible for a compaction request", async () => {
     const f = await waitingCompactionFixture();
-    const [closed] = await db.insert(issues).values({ companyId: f.company.id, title: "Closed task",
+    const [closed] = await db.insert(issues).values({ spaceId: f.space.id, title: "Closed task",
       status: "done", assigneeAgentId: f.agent.id }).returning();
     if (!closed) throw new Error("Missing closed task");
-    await expect(f.service.request({ companyId: f.company.id, issue: closed, userId: f.user.id }))
+    await expect(f.service.request({ spaceId: f.space.id, issue: closed, userId: f.user.id }))
       .rejects.toMatchObject({ code: "task_closed" });
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, f.agent.id))).toHaveLength(0);
     expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.agentId, f.agent.id))).toHaveLength(0);
@@ -406,10 +406,10 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
 
   it("keeps a busy conversation ineligible for a second compaction run", async () => {
     const f = await waitingCompactionFixture();
-    const [running] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+    const [running] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
       issueId: f.issue.id, scopeKind: "issue", status: "running" }).returning();
     if (!running) throw new Error("Missing active conversation run");
-    await expect(f.service.request({ companyId: f.company.id, issue: f.issue, userId: f.user.id }))
+    await expect(f.service.request({ spaceId: f.space.id, issue: f.issue, userId: f.user.id }))
       .rejects.toMatchObject({ code: "agent_busy" });
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, f.agent.id))).map(run => run.id))
       .toEqual([running.id]);
@@ -422,12 +422,12 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     const context: Record<string, unknown> = { issueId: f.issue.id, source: "issue.continuation_recovery" };
     const payload: Record<string, unknown> = { issueId: f.issue.id };
     if (cause === "comment") {
-      const [comment] = await db.insert(issueComments).values({ companyId: f.company.id, issueId: f.issue.id,
+      const [comment] = await db.insert(issueComments).values({ spaceId: f.space.id, issueId: f.issue.id,
         authorUserId: f.user.id, body: "A new question" }).returning();
       context.wakeCommentId = comment.id;
       payload.commentId = comment.id;
     } else if (cause === "interaction") {
-      const [interaction] = await db.insert(issueThreadInteractions).values({ companyId: f.company.id,
+      const [interaction] = await db.insert(issueThreadInteractions).values({ spaceId: f.space.id,
         issueId: f.issue.id, createdByAgentId: f.agent.id, kind: "ask_user_questions", status: "answered",
         resolvedByUserId: f.user.id, resolvedAt: new Date(),
         payload: { version: 1, questions: [{ id: "q", prompt: "Continue?", selectionMode: "single",
@@ -451,9 +451,9 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
 
   it("delivers a real task completion to its waiting conversation", async () => {
     const f = await waitingConversationFixture();
-    const [source] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+    const [source] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
       status: "succeeded", finishedAt: new Date(), contextSnapshot: { issueId: f.issue.id, conversationSessionGeneration: 0 } }).returning();
-    const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Handed-off task",
+    const [task] = await db.insert(issues).values({ spaceId: f.space.id, title: "Handed-off task",
       status: "in_progress", createdByAgentId: f.agent.id }).returning();
     await recordChatHandoff(db, task, source.id);
     const recorded = await db.transaction(async tx => {
@@ -462,7 +462,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     });
     expect(recorded).toBe(true);
     await chatCompletionDeliveryService(db, { wakeup: (agentId, options) => f.queue.enqueueWakeup(agentId, options) }).sweepPending();
-    const [delivery] = await db.select().from(chatCompletionDeliveries).where(eq(chatCompletionDeliveries.companyId, f.company.id));
+    const [delivery] = await db.select().from(chatCompletionDeliveries).where(eq(chatCompletionDeliveries.spaceId, f.space.id));
     expect(delivery).toMatchObject({ status: "queued" });
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, delivery.targetRunId!));
     expect(run).toMatchObject({ agentId: f.agent.id, status: "queued" });
@@ -471,23 +471,23 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
   });
 
   async function fixture(status = "running") {
-    const [company] = await db.insert(companies).values({ name: "Queue module", issuePrefix: "QM" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Queue agent", role: "engineer", status: "idle", adapterType: "process", adapterConfig: {} }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Queue task", status: "todo", assigneeAgentId: agent.id }).returning();
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: company.id, agentId: agent.id, source: "assignment", status: "claimed", claimedAt: new Date() }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, status, invocationSource: "assignment", wakeupRequestId: wake.id, startedAt: status === "running" ? new Date() : null, contextSnapshot: { issueId: issue.id } }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Queue module", issuePrefix: "QM" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Queue agent", role: "engineer", status: "idle", adapterType: "process", adapterConfig: {} }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Queue task", status: "todo", assigneeAgentId: agent.id }).returning();
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: space.id, agentId: agent.id, source: "assignment", status: "claimed", claimedAt: new Date() }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, status, invocationSource: "assignment", wakeupRequestId: wake.id, startedAt: status === "running" ? new Date() : null, contextSnapshot: { issueId: issue.id } }).returning();
     await db.update(issues).set({ executionRunId: run.id, executionAgentNameKey: agent.name, executionLockedAt: new Date() }).where(eq(issues.id, issue.id));
-    return { company, agent, issue, wake, run };
+    return { space, agent, issue, wake, run };
   }
 
   async function pendingPredecessorFixture() {
     const f = await fixture("queued");
-    const [source] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+    const [source] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
       issueId: f.issue.id, status: "failed", runtimeMode: "legacy", finishedAt: new Date(),
       executionStage: "preparing", errorCode: "adapter_failed",
       resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
       contextSnapshot: { issueId: f.issue.id } }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ companyId: f.company.id, issueId: f.issue.id,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: f.space.id, issueId: f.issue.id,
       heartbeatRunId: source.id, provider: "daytona", providerLeaseId: crypto.randomUUID(), status: "active" }).returning();
     const [successor] = await db.update(heartbeatRuns).set({ retryOfRunId: source.id, responsibleUserId: "queue-test-user",
       contextSnapshot: { issueId: f.issue.id, source: "issue.continuation_recovery", retryOfRunId: source.id,
@@ -522,7 +522,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     expect(await f.queue.claimQueuedRun(f.successor)).toMatchObject({ id: f.successor.id, status: "running" });
   });
 
-  it.each(["missing", "foreign company", "other task", "other agent", "native task overrides context"] as const)(
+  it.each(["missing", "foreign space", "other task", "other agent", "native task overrides context"] as const)(
     "does not hold a queued run for a %s retry source", async mismatch => {
       const f = await pendingPredecessorFixture();
       let sourceId = f.source.id;
@@ -530,26 +530,26 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
         await db.delete(heartbeatRuns).where(eq(heartbeatRuns.id, sourceId));
         expect(await f.queue.claimQueuedRun(f.successor)).toMatchObject({ id: f.successor.id, status: "running" });
         return;
-      } else if (mismatch === "foreign company") {
-        const [company] = await db.insert(companies).values({ name: "Unrelated company", issuePrefix: "OTHER" }).returning();
-        const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Other company worker", adapterType: "process" }).returning();
-        const [source] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+      } else if (mismatch === "foreign space") {
+        const [space] = await db.insert(spaces).values({ name: "Unrelated space", issuePrefix: "OTHER" }).returning();
+        const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Other space worker", adapterType: "process" }).returning();
+        const [source] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
           status: "failed", finishedAt: new Date() }).returning();
         sourceId = source.id;
-        await db.insert(environmentLeases).values({ companyId: company.id, heartbeatRunId: sourceId, status: "active", provider: "daytona" });
+        await db.insert(environmentLeases).values({ spaceId: space.id, heartbeatRunId: sourceId, status: "active", provider: "daytona" });
       } else if (mismatch === "other agent") {
-        const [other] = await db.insert(agents).values({ companyId: f.company.id, name: "Another worker", adapterType: "process" }).returning();
-        const [source] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: other.id, issueId: f.issue.id,
+        const [other] = await db.insert(agents).values({ spaceId: f.space.id, name: "Another worker", adapterType: "process" }).returning();
+        const [source] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: other.id, issueId: f.issue.id,
           status: "failed", finishedAt: new Date() }).returning();
         sourceId = source.id;
-        await db.insert(environmentLeases).values({ companyId: f.company.id, heartbeatRunId: sourceId, status: "active", provider: "daytona" });
+        await db.insert(environmentLeases).values({ spaceId: f.space.id, heartbeatRunId: sourceId, status: "active", provider: "daytona" });
       } else {
-        const [other] = await db.insert(issues).values({ companyId: f.company.id, title: "Another task" }).returning();
-        const [source] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, issueId: other.id,
+        const [other] = await db.insert(issues).values({ spaceId: f.space.id, title: "Another task" }).returning();
+        const [source] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id, issueId: other.id,
           ...(mismatch === "native task overrides context" ? { nativeIssueId: other.id } : {}),
           contextSnapshot: { issueId: f.issue.id }, status: "failed", finishedAt: new Date() }).returning();
         sourceId = source.id;
-        await db.insert(environmentLeases).values({ companyId: f.company.id, heartbeatRunId: sourceId, status: "active", provider: "daytona" });
+        await db.insert(environmentLeases).values({ spaceId: f.space.id, heartbeatRunId: sourceId, status: "active", provider: "daytona" });
       }
       const [successor] = await db.update(heartbeatRuns).set({ retryOfRunId: sourceId })
         .where(eq(heartbeatRuns.id, f.successor.id)).returning();
@@ -559,7 +559,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
 
   it("retains the current execution owner's hold when retry provenance is unrelated", async () => {
     const f = await pendingPredecessorFixture();
-    const [unrelated] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+    const [unrelated] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
       status: "succeeded", finishedAt: new Date() }).returning();
     const [successor] = await db.update(heartbeatRuns).set({ retryOfRunId: unrelated.id })
       .where(eq(heartbeatRuns.id, f.successor.id)).returning();
@@ -572,21 +572,21 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     const f = await fixture("queued");
     let admissionAgent: typeof agents.$inferSelect = { ...f.agent, adapterType, adapterConfig: adapterType === "outpost_runner" ? { provider: "codex" } : {} };
     await db.update(agents).set({ adapterType, adapterConfig: admissionAgent.adapterConfig }).where(eq(agents.id, f.agent.id));
-    if (scenario === "same-named-agent") [admissionAgent] = await db.insert(agents).values({ companyId: f.company.id,
+    if (scenario === "same-named-agent") [admissionAgent] = await db.insert(agents).values({ spaceId: f.space.id,
       name: f.agent.name.toUpperCase(), role: "engineer", status: "idle", adapterType, adapterConfig: admissionAgent.adapterConfig,
     }).returning();
-    const userId = `source-user-${f.company.id}`;
-    await db.insert(authUsers).values({ id: userId, name: "Source owner", email: `${f.company.id}@queue.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId: f.company.id, principalType: "user", principalId: userId, status: "active", membershipRole: "operator" });
-    await db.update(companies).set({ defaultResponsibleUserId: userId }).where(eq(companies.id, f.company.id));
-    const incomingActorId = scenario === "mixed-author" ? `second-user-${f.company.id}` : userId;
+    const userId = `source-user-${f.space.id}`;
+    await db.insert(authUsers).values({ id: userId, name: "Source owner", email: `${f.space.id}@queue.test`, createdAt: new Date(), updatedAt: new Date() });
+    await db.insert(spaceMemberships).values({ spaceId: f.space.id, principalType: "user", principalId: userId, status: "active", membershipRole: "operator" });
+    await db.update(spaces).set({ defaultResponsibleUserId: userId }).where(eq(spaces.id, f.space.id));
+    const incomingActorId = scenario === "mixed-author" ? `second-user-${f.space.id}` : userId;
     if (scenario === "mixed-author") {
       await db.insert(authUsers).values({ id: incomingActorId, name: "Incoming source owner", email: `${incomingActorId}@queue.test`, createdAt: new Date(), updatedAt: new Date() });
-      await db.insert(companyMemberships).values({ companyId: f.company.id, principalType: "user", principalId: incomingActorId, status: "active", membershipRole: "operator" });
+      await db.insert(spaceMemberships).values({ spaceId: f.space.id, principalType: "user", principalId: incomingActorId, status: "active", membershipRole: "operator" });
     }
-    const [oldComment] = await db.insert(issueComments).values({ companyId: f.company.id, issueId: f.issue.id,
+    const [oldComment] = await db.insert(issueComments).values({ spaceId: f.space.id, issueId: f.issue.id,
       authorType: "user", authorUserId: userId, body: "Review source A" }).returning();
-    const [newComment] = await db.insert(issueComments).values({ companyId: f.company.id, issueId: f.issue.id,
+    const [newComment] = await db.insert(issueComments).values({ spaceId: f.space.id, issueId: f.issue.id,
       authorType: "user", authorUserId: incomingActorId, body: "Review source B" }).returning();
     await db.update(agentWakeupRequests).set({ status: scenario === "claimed-primary" ? "claimed" : "queued", runId: f.run.id, claimedAt: null,
       requestedByActorType: scenario === "system-primary" ? "system" : "user", requestedByActorId: scenario === "system-primary" ? null : userId,
@@ -598,9 +598,9 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     }).where(eq(heartbeatRuns.id, f.run.id)).returning();
     let foreignPrimary: typeof agentWakeupRequests.$inferSelect | undefined;
     if (scenario === "foreign-primary") {
-      const [company] = await db.insert(companies).values({ name: "Foreign source", issuePrefix: "FOREIGN" }).returning();
-      const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Foreign source agent", adapterType: "process" }).returning();
-      [foreignPrimary] = await db.insert(agentWakeupRequests).values({ companyId: company.id, agentId: agent.id, source: "assignment", status: "queued", payload: { source: "foreign" } }).returning();
+      const [space] = await db.insert(spaces).values({ name: "Foreign source", issuePrefix: "FOREIGN" }).returning();
+      const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Foreign source agent", adapterType: "process" }).returning();
+      [foreignPrimary] = await db.insert(agentWakeupRequests).values({ spaceId: space.id, agentId: agent.id, source: "assignment", status: "queued", payload: { source: "foreign" } }).returning();
       await db.update(heartbeatRuns).set({ wakeupRequestId: foreignPrimary.id }).where(eq(heartbeatRuns.id, f.run.id));
     }
     if (scenario === "delete-old") await db.update(issueComments).set({ deletedAt: new Date() }).where(eq(issueComments.id, oldComment.id));
@@ -632,30 +632,30 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
       expect(coalesced).toBeNull();
       const [preserved] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id));
       expect(preserved.contextSnapshot).toMatchObject({ wakeCommentId: oldComment.id, wakeCommentIds: [oldComment.id] });
-      const receipts = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.company.id));
+      const receipts = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.space.id));
       expect(receipts.find(row => row.id !== f.wake.id)).toMatchObject({ status: "deferred_issue_execution", runId: null });
       expect(receipts.find(row => row.id === f.wake.id)).toEqual(originalPrimary);
       if (scenario === "same-named-agent") {
         expect(preserved).toEqual(scanned);
         expect(receipts.find(row => row.id !== f.wake.id)).toMatchObject({ agentId: admissionAgent.id,
           requestedByActorType: "user", requestedByActorId: incomingActorId, payload: { issueId: f.issue.id, commentId: newComment.id } });
-        expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.company.id))).toEqual([scanned]);
+        expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.space.id))).toEqual([scanned]);
       }
       if (foreignPrimary) expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, foreignPrimary.id)))[0]).toEqual(foreignPrimary);
       expect(deps.executeRun).not.toHaveBeenCalled();
       return;
     }
     expect(coalesced).toMatchObject({ id: f.run.id, status: "queued", contextSnapshot: { wakeCommentIds: [oldComment.id, newComment.id] } });
-    const accepted = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.company.id));
+    const accepted = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.space.id));
     expect(accepted.find(row => row.id !== f.wake.id)).toMatchObject({ status: "coalesced", runId: f.run.id, finishedAt: expect.any(Date),
       requestedByActorType: "user", requestedByActorId: incomingActorId });
     const [updatedPrimary] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, f.wake.id));
-    expect(updatedPrimary).toMatchObject({ id: originalPrimary.id, companyId: originalPrimary.companyId,
+    expect(updatedPrimary).toMatchObject({ id: originalPrimary.id, spaceId: originalPrimary.spaceId,
       agentId: originalPrimary.agentId, source: originalPrimary.source, requestedByActorType: originalPrimary.requestedByActorType,
       requestedByActorId: originalPrimary.requestedByActorId, idempotencyKey: originalPrimary.idempotencyKey, requestedAt: originalPrimary.requestedAt });
     if (scenario === "legacy-envelope" || scenario === "claimed-primary") expect(updatedPrimary.payload).toEqual(originalPrimary.payload);
     else expect(updatedPrimary.payload).toMatchObject({ retainedSource: "original-source", commentId: oldComment.id,
-      _paperclipWakeContext: { commentId: oldComment.id, wakeCommentId: oldComment.id, wakeCommentIds: [oldComment.id, newComment.id] } });
+      _outpostWakeContext: { commentId: oldComment.id, wakeCommentId: oldComment.id, wakeCommentIds: [oldComment.id, newComment.id] } });
     if (scenario === "claimed-primary") {
       deps.canStartNewExternalBotWork.mockResolvedValue(true);
       expect(await queue.claimQueuedRun(scanned)).toBeNull();
@@ -681,7 +681,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     expect(claimed).toMatchObject({ id: f.run.id, status: "running",
       contextSnapshot: { wakeCommentId: scenario === "delete-new" ? oldComment.id : newComment.id,
         wakeCommentIds: scenario === "delete-old" ? [newComment.id] : scenario === "delete-new" ? [oldComment.id] : [oldComment.id, newComment.id] } });
-    const receipts = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.company.id));
+    const receipts = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.space.id));
     expect(receipts.find(row => row.id !== f.wake.id)).toMatchObject({ status: "coalesced", runId: f.run.id });
     expect(deps.executeRun).not.toHaveBeenCalled();
   });
@@ -689,13 +689,13 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
   async function strandedMention(runtimeMode = "legacy") {
     const seeded = await fixture("succeeded");
     await db.update(heartbeatRuns).set({ runtimeMode, nativeIssueId: runtimeMode === "native" ? seeded.issue.id : null, finishedAt: new Date() }).where(eq(heartbeatRuns.id, seeded.run.id));
-    if (runtimeMode === "native") await db.insert(nativeRunFinalizations).values({ runId: seeded.run.id, companyId: seeded.company.id, issueId: seeded.issue.id, phase: "committed" });
+    if (runtimeMode === "native") await db.insert(nativeRunFinalizations).values({ runId: seeded.run.id, spaceId: seeded.space.id, issueId: seeded.issue.id, phase: "committed" });
     await db.update(issues).set({ executionRunId: null, checkoutRunId: null }).where(eq(issues.id, seeded.issue.id));
-    const [recipient] = await db.insert(agents).values({ companyId: seeded.company.id, name: "Mention recipient", role: "engineer", status: "idle", adapterType: "process", adapterConfig: {} }).returning();
-    const [comment] = await db.insert(issueComments).values({ companyId: seeded.company.id, issueId: seeded.issue.id, body: "Saved feedback", authorAgentId: seeded.agent.id }).returning();
-    const [pending] = await db.insert(agentWakeupRequests).values({ companyId: seeded.company.id, agentId: recipient.id,
+    const [recipient] = await db.insert(agents).values({ spaceId: seeded.space.id, name: "Mention recipient", role: "engineer", status: "idle", adapterType: "process", adapterConfig: {} }).returning();
+    const [comment] = await db.insert(issueComments).values({ spaceId: seeded.space.id, issueId: seeded.issue.id, body: "Saved feedback", authorAgentId: seeded.agent.id }).returning();
+    const [pending] = await db.insert(agentWakeupRequests).values({ spaceId: seeded.space.id, agentId: recipient.id,
       source: "automation", reason: "issue_execution_deferred", status: "deferred_issue_execution",
-      payload: { issueId: seeded.issue.id, _paperclipWakeContext: { issueId: seeded.issue.id, wakeReason: "issue_comment_mentioned", wakeCommentIds: [comment.id] } },
+      payload: { issueId: seeded.issue.id, _outpostWakeContext: { issueId: seeded.issue.id, wakeReason: "issue_comment_mentioned", wakeCommentIds: [comment.id] } },
     }).returning();
     return { ...seeded, recipient, pending };
   }
@@ -703,11 +703,11 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
   async function addStrandedMessages(seeded: Awaited<ReturnType<typeof strandedMention>>) {
     const messages = [seeded.pending];
     for (let index = 0; index < 2; index++) {
-      const [comment] = await db.insert(issueComments).values({ companyId: seeded.company.id, issueId: seeded.issue.id,
+      const [comment] = await db.insert(issueComments).values({ spaceId: seeded.space.id, issueId: seeded.issue.id,
         body: `Additional saved feedback ${index}`, authorAgentId: seeded.agent.id }).returning();
-      const [wake] = await db.insert(agentWakeupRequests).values({ companyId: seeded.company.id, agentId: seeded.recipient.id,
+      const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: seeded.space.id, agentId: seeded.recipient.id,
         source: "automation", reason: "issue_execution_deferred", status: "deferred_issue_execution",
-        payload: { issueId: seeded.issue.id, _paperclipWakeContext: { issueId: seeded.issue.id,
+        payload: { issueId: seeded.issue.id, _outpostWakeContext: { issueId: seeded.issue.id,
           wakeReason: "issue_comment_mentioned", wakeCommentIds: [comment.id] } } }).returning();
       messages.push(wake);
     }
@@ -770,7 +770,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     const deps = callbacks(db);
     let nextId: string | undefined;
     deps.releaseIssueExecutionAndPromote.mockImplementationOnce(async () => {
-      const [next] = await db.insert(heartbeatRuns).values({ companyId: seeded.company.id, agentId: seeded.agent.id,
+      const [next] = await db.insert(heartbeatRuns).values({ spaceId: seeded.space.id, agentId: seeded.agent.id,
         runtimeMode: "native", nativeIssueId: seeded.issue.id, status: "succeeded", finishedAt: new Date(),
         contextSnapshot: { issueId: seeded.issue.id } }).returning();
       nextId = next.id;
@@ -794,14 +794,14 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
 
   it("checks each unrelated native task in the same pass", async () => {
     const seeded = await strandedMention("native"), firstMessages = await addStrandedMessages(seeded);
-    const [issue] = await db.insert(issues).values({ companyId: seeded.company.id, title: "Another saved task", status: "todo", assigneeAgentId: seeded.agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: seeded.company.id, agentId: seeded.agent.id,
+    const [issue] = await db.insert(issues).values({ spaceId: seeded.space.id, title: "Another saved task", status: "todo", assigneeAgentId: seeded.agent.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: seeded.space.id, agentId: seeded.agent.id,
       runtimeMode: "native", nativeIssueId: issue.id, status: "succeeded", finishedAt: new Date(), contextSnapshot: { issueId: issue.id } }).returning();
-    const [comment] = await db.insert(issueComments).values({ companyId: seeded.company.id, issueId: issue.id,
+    const [comment] = await db.insert(issueComments).values({ spaceId: seeded.space.id, issueId: issue.id,
       body: "Other task feedback", authorAgentId: seeded.agent.id }).returning();
-    const [pending] = await db.insert(agentWakeupRequests).values({ companyId: seeded.company.id, agentId: seeded.recipient.id,
+    const [pending] = await db.insert(agentWakeupRequests).values({ spaceId: seeded.space.id, agentId: seeded.recipient.id,
       source: "automation", reason: "issue_execution_deferred", status: "deferred_issue_execution",
-      payload: { issueId: issue.id, _paperclipWakeContext: { issueId: issue.id, wakeReason: "issue_comment_mentioned", wakeCommentIds: [comment.id] } } }).returning();
+      payload: { issueId: issue.id, _outpostWakeContext: { issueId: issue.id, wakeReason: "issue_comment_mentioned", wakeCommentIds: [comment.id] } } }).returning();
     const secondMessages = await addStrandedMessages({ ...seeded, issue, run, pending });
     const deps = callbacks(db);
     await createHeartbeatQueue(db, deps).resumeQueuedRuns();
@@ -810,24 +810,24 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     await expectSavedMessages([...firstMessages, ...secondMessages]);
   });
 
-  // H1 bug C review: a queued run admission cancels for a board-owned budget
+  // H1 bug C review: a queued run admission cancels for a operator-owned budget
   // block records which budget stopped it, so Raise budget and resume can
   // continue it.
   async function admissionBudgetBlock(options: { openIncident: boolean }) {
     const fixtureRows = await fixture("queued");
-    const { company, agent } = fixtureRows;
-    const [policy] = await db.insert(budgetPolicies).values({ companyId: company.id, scopeType: "company", scopeId: company.id,
+    const { space, agent } = fixtureRows;
+    const [policy] = await db.insert(budgetPolicies).values({ spaceId: space.id, scopeType: "space", scopeId: space.id,
       windowKind: "lifetime", amount: 1, hardStopEnabled: true, isActive: true }).returning();
-    await db.insert(costEvents).values({ companyId: company.id, agentId: agent.id, provider: "test", model: "test",
+    await db.insert(costEvents).values({ spaceId: space.id, agentId: agent.id, provider: "test", model: "test",
       costCents: 5, occurredAt: new Date() });
-    if (options.openIncident) await db.insert(budgetIncidents).values({ companyId: company.id, policyId: policy.id,
-      scopeType: "company", scopeId: company.id, metric: "billed_cents", windowKind: "lifetime",
+    if (options.openIncident) await db.insert(budgetIncidents).values({ spaceId: space.id, policyId: policy.id,
+      scopeType: "space", scopeId: space.id, metric: "billed_cents", windowKind: "lifetime",
       windowStart: new Date(0), windowEnd: new Date(Date.now() + 86_400_000), thresholdType: "hard",
       amountLimit: 1, amountObserved: 5 });
     const deps = callbacks(db);
     deps.getAgent.mockResolvedValue(agent);
-    deps.budgets.getInvocationBlock.mockResolvedValue({ scopeType: "company", scopeId: company.id,
-      scopeName: company.name, reason: "Company cannot start work because its budget hard-stop is still exceeded." });
+    deps.budgets.getInvocationBlock.mockResolvedValue({ scopeType: "space", scopeId: space.id,
+      scopeName: space.name, reason: "Space cannot start work because its budget hard-stop is still exceeded." });
     deps.cancelRunInternal.mockImplementation(async (runId: string) => {
       await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date() }).where(eq(heartbeatRuns.id, runId));
     });
@@ -838,8 +838,8 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     // Raise budget and resume closed the incident between the admission
     // check and the cancel: the re-read finds no block, so the task runs.
     const { run, deps } = await admissionBudgetBlock({ openIncident: false });
-    deps.budgets.getInvocationBlock.mockResolvedValueOnce({ scopeType: "company", scopeId: run.companyId,
-      scopeName: "Budget", reason: "Company cannot start work because its budget hard-stop is still exceeded." })
+    deps.budgets.getInvocationBlock.mockResolvedValueOnce({ scopeType: "space", scopeId: run.spaceId,
+      scopeName: "Budget", reason: "Space cannot start work because its budget hard-stop is still exceeded." })
       .mockResolvedValueOnce(null);
     expect(await createHeartbeatQueue(db, deps).claimQueuedRun({ ...run, responsibleUserId: "queue-test-user" })).toBeNull();
     expect(deps.cancelRunInternal).not.toHaveBeenCalled();
@@ -847,19 +847,19 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
   });
 
   it("records the budget that cancelled a queued run at admission", async () => {
-    const { company, agent, run, deps } = await admissionBudgetBlock({ openIncident: true });
+    const { space, agent, run, deps } = await admissionBudgetBlock({ openIncident: true });
     void agent;
     expect(await createHeartbeatQueue(db, deps).claimQueuedRun({ ...run, responsibleUserId: "queue-test-user" })).toBeNull();
     expect(deps.cancelRunInternal).toHaveBeenCalledWith(run.id, expect.stringContaining("budget"), expect.anything());
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0].resultJson)
-      .toMatchObject({ budgetAdmissionStop: { scopeType: "company", scopeId: company.id } });
+      .toMatchObject({ budgetAdmissionStop: { scopeType: "space", scopeId: space.id } });
   });
 
   it("rechecks a handoff's assignment version under the issue claim lock", async () => {
-    const { company, agent, issue, wake, run } = await fixture("queued");
-    const [record] = await db.insert(cases).values({ companyId: company.id, caseNumber: 1, identifier: "QM-CASE-1",
+    const { space, agent, issue, wake, run } = await fixture("queued");
+    const [record] = await db.insert(cases).values({ spaceId: space.id, caseNumber: 1, identifier: "QM-CASE-1",
       caseType: "work", title: issue.title, workIssueId: issue.id, handoffVersion: 1 }).returning();
-    await db.insert(caseHandoffs).values({ companyId: company.id, caseId: record.id, issueId: issue.id,
+    await db.insert(caseHandoffs).values({ spaceId: space.id, caseId: record.id, issueId: issue.id,
       version: 1, toAgentId: agent.id, phase: "implementation", instructions: "Build the change", actorType: "system",
       actorId: "test", idempotencyKey: "queue-version-race", inputFingerprint: "fixture", wakeupRequestId: wake.id,
       expectedIssueStatusVersion: issue.statusVersion, appliedIssueStatusVersion: issue.statusVersion, state: "delivered" });
@@ -880,7 +880,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
 
   it.each(["legacy", "native"])("periodic recovery preserves a paused recipient through the real %s release adapter", async runtimeMode => {
     const seeded = await strandedMention(runtimeMode);
-    const { company, issue, recipient } = seeded;
+    const { space, issue, recipient } = seeded;
     const messages = await addStrandedMessages(seeded);
     await db.update(agents).set({ status: "paused" }).where(eq(agents.id, recipient.id));
     await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, issue.id));
@@ -897,7 +897,7 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
     for (let pass = 0; pass < 2; pass++) {
       await createHeartbeatQueue(db, deps).resumeQueuedRuns();
       await expectSavedMessages(messages);
-      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, company.id))).toHaveLength(1);
+      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, space.id))).toHaveLength(1);
     }
     expect(deps.releaseIssueExecutionAndPromote).toHaveBeenCalledTimes(runtimeMode === "native" ? 2 : 6);
     expect(deps.executeRun).not.toHaveBeenCalled();
@@ -926,8 +926,8 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
 
   it("preserves a former owner's ordinary messages for the assignment handoff", async () => {
     const { pending } = await strandedMention();
-    const payload = { ...pending.payload, _paperclipWakeContext: {
-      ...(pending.payload!._paperclipWakeContext as Record<string, unknown>), wakeReason: "issue_commented",
+    const payload = { ...pending.payload, _outpostWakeContext: {
+      ...(pending.payload!._outpostWakeContext as Record<string, unknown>), wakeReason: "issue_commented",
     } };
     await db.update(agentWakeupRequests).set({ payload }).where(eq(agentWakeupRequests.id, pending.id));
     const deps = callbacks(db);
@@ -939,8 +939,8 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
   });
 
   it.each(["queued", "running", "scheduled_retry"])("does not replay a finishing owner while another agent has a %s turn", async status => {
-    const { company, issue, recipient } = await strandedMention();
-    await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: recipient.id, status, invocationSource: "assignment", contextSnapshot: { issueId: issue.id } });
+    const { space, issue, recipient } = await strandedMention();
+    await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: recipient.id, status, invocationSource: "assignment", contextSnapshot: { issueId: issue.id } });
     const deps = callbacks(db);
     deps.getAgent.mockResolvedValue({ ...recipient, status: "paused" });
     await createHeartbeatQueue(db, deps).resumeQueuedRuns();
@@ -962,8 +962,8 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
   });
 
   it("preserves a newer execution owner when releasing an old claim", async () => {
-    const { run, issue, agent, company } = await fixture();
-    const [newOwner] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, status: "running", invocationSource: "assignment" }).returning();
+    const { run, issue, agent, space } = await fixture();
+    const [newOwner] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, status: "running", invocationSource: "assignment" }).returning();
     await db.update(issues).set({ executionRunId: newOwner.id }).where(eq(issues.id, issue.id));
     await createHeartbeatQueue(db, callbacks(db)).releaseRunClaimedJustBeforeSuppression(run.id);
     const [current] = await db.select().from(issues).where(eq(issues.id, issue.id));
@@ -971,14 +971,14 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
   });
 
   it.each(["running", "failed"])("resumes the %s native owner before promoting its queued waiter", async status => {
-    const { run, issue, agent, company } = await fixture(status);
+    const { run, issue, agent, space } = await fixture(status);
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issue.id, runnerProfileJson: {
       nativeExecutionInput: { binding: { runId: run.id } },
       sessionCheckpoint: { providerSessionId: "original-session" },
     } }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: company.id,
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: space.id,
       issueId: issue.id, phase: "retryable_failure", attempt: 1 });
-    const [waiter] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const [waiter] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "queued", invocationSource: "assignment", responsibleUserId: "queue-test-user", contextSnapshot: { issueId: issue.id },
     }).returning();
     const deps = callbacks(db);
@@ -1061,14 +1061,14 @@ describe.skipIf(!support.supported)("heartbeat queue database wiring", () => {
   });
 
   it("keeps a claim queued while another task of its routine holds the execution slot", async () => {
-    const { company, agent, issue, run } = await fixture("queued");
+    const { space, agent, issue, run } = await fixture("queued");
     const origin = { originKind: "routine_execution", originId: crypto.randomUUID(), originFingerprint: "scheduled" };
     await db.update(issues).set({ ...origin, executionRunId: null, executionAgentNameKey: null, executionLockedAt: null })
       .where(eq(issues.id, issue.id));
     // An earlier task of the same routine keeps its lock while its failed run waits for a scheduled resume.
-    const [holder] = await db.insert(issues).values({ companyId: company.id, title: "Earlier routine task",
+    const [holder] = await db.insert(issues).values({ spaceId: space.id, title: "Earlier routine task",
       status: "in_progress", assigneeAgentId: agent.id, ...origin }).returning();
-    const [holderRun] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const [holderRun] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "failed", finishedAt: new Date(), contextSnapshot: { issueId: holder.id } }).returning();
     await db.update(issues).set({ executionRunId: holderRun.id }).where(eq(issues.id, holder.id));
     const deps = callbacks(db);

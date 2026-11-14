@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { companies, environmentLeases, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations, type Db } from "@outpost/db";
+import { spaces, environmentLeases, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations, type Db } from "@outpost/db";
 import { remoteWorkspaceAuthoritySchema, remoteWorkspaceRunReferenceSchema } from "@outpost/shared";
 import { adapterExecutionControls } from "../adapter-execution-control.js";
 import { logActivity } from "../activity-log.js";
@@ -41,7 +41,7 @@ async function preservationTransaction<T>(db: Db, operation: (tx: Db) => Promise
 
 function sourceSha256(run: Run) {
   const profile = run.runnerProfileJson ?? {};
-  return nativeSha256({ runId: run.id, companyId: run.companyId, agentId: run.agentId, issueId: run.nativeIssueId,
+  return nativeSha256({ runId: run.id, spaceId: run.spaceId, agentId: run.agentId, issueId: run.nativeIssueId,
     nativeSessionId: run.nativeSessionId, runnerInstanceId: run.runnerInstanceId,
     processPid: run.processPid, processGroupId: run.processGroupId, processStartedAt: run.processStartedAt?.toISOString() ?? null,
     remoteWorkspace: profile.remoteWorkspace, nativeExecutionInput: profile.nativeExecutionInput,
@@ -79,34 +79,34 @@ function matchesObserved(run: Run, coordinator: Coordinator | undefined, now: Da
     && run.resultJson?.executionCancellation == null && run.resultJson?.cancellation == null
     && !(run.controllerLeaseExpiresAt && run.controllerLeaseExpiresAt > now)
     && run.runnerProfileJson?.nativeWorkspaceSync == null && run.runnerProfileJson?.nativeWorkspaceFinalizationOwner == null
-    && coordinator?.companyId === run.companyId && coordinator.issueId === run.nativeIssueId
+    && coordinator?.spaceId === run.spaceId && coordinator.issueId === run.nativeIssueId
     && coordinator.runId === run.id && coordinator.phase === "observed" && coordinator.resultId === null
     && coordinator.assessmentId === null && coordinator.decisionId === null && coordinator.failureCode === null
     && coordinator.recoveryState === "awaiting_runner_reattach" && coordinator.nextAttemptAt === null && coordinator.controlDeadlineAt === null
     && Boolean(coordinator.leaseOwner) && Boolean(coordinator.leaseExpiresAt && coordinator.leaseExpiresAt <= now);
 }
 
-async function lockSource(db: Db, companyId: string, runId: string) {
-  await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId)).for("key share", { noWait: true });
+async function lockSource(db: Db, spaceId: string, runId: string) {
+  await db.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, spaceId)).for("key share", { noWait: true });
   const [identity] = await db.select({ issueId: heartbeatRuns.nativeIssueId }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId)));
+    eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId)));
   if (!identity?.issueId) return null;
-  const [task] = await db.select().from(issues).where(and(eq(issues.companyId, companyId), eq(issues.id, identity.issueId))).for("update", { noWait: true });
+  const [task] = await db.select().from(issues).where(and(eq(issues.spaceId, spaceId), eq(issues.id, identity.issueId))).for("update", { noWait: true });
   const [coordinator] = await db.select().from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, companyId), eq(nativeRunFinalizations.runId, runId),
+    eq(nativeRunFinalizations.spaceId, spaceId), eq(nativeRunFinalizations.runId, runId),
     eq(nativeRunFinalizations.issueId, identity.issueId))).for("update", { noWait: true });
-  const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId))).for("update", { noWait: true });
+  const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId))).for("update", { noWait: true });
   if (!task || !run || task.status !== "blocked" || task.assigneeAgentId !== run.agentId || task.assigneeUserId
     || task.executionRunId || task.checkoutRunId || !matchesObserved(run, coordinator, new Date())) return null;
   const [accepted] = await db.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-    eq(nativeRunResults.companyId, companyId), eq(nativeRunResults.runId, runId), eq(nativeRunResults.schemaStatus, "accepted")))
+    eq(nativeRunResults.spaceId, spaceId), eq(nativeRunResults.runId, runId), eq(nativeRunResults.schemaStatus, "accepted")))
     .limit(1).for("update", { noWait: true });
   if (accepted) return null;
   const parsed = remoteWorkspaceRunReferenceSchema.safeParse(run.runnerProfileJson?.remoteWorkspace);
   if (!parsed.success || parsed.data.state !== "prepared" || task.executionWorkspaceId !== parsed.data.workspaceId) return null;
   const reference = parsed.data;
   const [workspace] = await db.select().from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, companyId), eq(executionWorkspaces.id, reference.workspaceId))).for("update", { noWait: true });
+    eq(executionWorkspaces.spaceId, spaceId), eq(executionWorkspaces.id, reference.workspaceId))).for("update", { noWait: true });
   const parsedAuthority = remoteWorkspaceAuthoritySchema.safeParse(workspace?.metadata?.remoteWorkspace);
   const authority = parsedAuthority.success ? parsedAuthority.data : null;
   if (!workspace || workspace.sourceIssueId !== task.id || !authority?.location || authority.epoch !== reference.epoch
@@ -114,11 +114,11 @@ async function lockSource(db: Db, companyId: string, runId: string) {
     || authority.location.leaseId !== reference.leaseId || authority.location.providerLeaseId !== reference.providerLeaseId
     || authority.location.remoteCwd !== reference.remoteCwd) return null;
   const [operation] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, companyId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
+    eq(workspaceOperations.spaceId, spaceId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
     inArray(workspaceOperations.status, ["pending", "running"]))).limit(1);
   if (operation) return null;
   const leases = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, companyId), eq(environmentLeases.heartbeatRunId, run.id))).orderBy(asc(environmentLeases.id));
+    eq(environmentLeases.spaceId, spaceId), eq(environmentLeases.heartbeatRunId, run.id))).orderBy(asc(environmentLeases.id));
   if (leases.length !== 1) return null;
   const selected = leases[0];
   if (!selected.provider || !selected.providerLeaseId) return null;
@@ -133,7 +133,7 @@ async function lockSource(db: Db, companyId: string, runId: string) {
     || lease.metadata?.remoteCwd !== reference.remoteCwd || lease.metadata?.agentId !== run.agentId
     || (lease.metadata?.pendingCleanupInFlight != null && lease.metadata.pendingCleanupInFlight !== false)) return null;
   const [writer] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, companyId), inArray(heartbeatRuns.status, ["queued", "running", "scheduled_retry"]),
+    eq(heartbeatRuns.spaceId, spaceId), inArray(heartbeatRuns.status, ["queued", "running", "scheduled_retry"]),
     sql`(${heartbeatRuns.nativeIssueId} = ${task.id}::uuid or ${heartbeatRuns.issueId} = ${task.id}::uuid
       or ${heartbeatRuns.contextSnapshot}->>'issueId' = ${task.id}
       or ${heartbeatRuns.contextSnapshot}->>'executionWorkspaceId' = ${workspace.id})`)).limit(1);
@@ -156,12 +156,12 @@ function fenceMatches(fence: Fence, source: NonNullable<Awaited<ReturnType<typeo
     && fence.environmentId === lease.environmentId && fence.workspaceId === source.workspace.id;
 }
 
-export async function pinFailedObservedWorkspace(db: Db, companyId: string, runId: string): Promise<boolean> {
+export async function pinFailedObservedWorkspace(db: Db, spaceId: string, runId: string): Promise<boolean> {
   return preservationTransaction(db, async tx => {
-    const source = await lockSource(tx, companyId, runId);
+    const source = await lockSource(tx, spaceId, runId);
     if (!source) return false;
     const { run, task, coordinator, workspace, lease } = source;
-    const [existing] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, companyId),
+    const [existing] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, spaceId),
       eq(issueRecoveryActions.sourceIssueId, task.id), eq(issueRecoveryActions.fingerprint, `native-workspace:${run.id}`))).for("update", { noWait: true });
     if (hasRequiredWorkspaceRecovery(run.resultJson)) {
       const fence = readFence(existing?.evidence[FIELD]);
@@ -173,11 +173,11 @@ export async function pinFailedObservedWorkspace(db: Db, companyId: string, runI
       && (lease.metadata?.pendingCleanupLeaseExpiresAtMs == null || lease.metadata.pendingCleanupLeaseExpiresAtMs === 0)
       && lease.metadata?.workspaceRecoveryCleanup == null;
     if (!active) return false;
-    await notifyNativeEnvironmentSettlement(tx, { companyId, runId, issueId: task.id });
-    await notifyDeliveryWork(tx, DELIVERY_QUEUES.ownershipInvariantReport, JSON.stringify({ companyId, runId }));
+    await notifyNativeEnvironmentSettlement(tx, { spaceId, runId, issueId: task.id });
+    await notifyDeliveryWork(tx, DELIVERY_QUEUES.ownershipInvariantReport, JSON.stringify({ spaceId, runId }));
     const retained = await recordRequiredWorkspaceRestoreFailure(tx, run, { workspaceRestoreFailure: "restore_failed" }, lease);
     if (!retained || !hasRequiredWorkspaceRecovery(retained.resultJson)) throw new Error("observed_workspace_retention_missing");
-    const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, companyId),
+    const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, spaceId),
       eq(issueRecoveryActions.sourceIssueId, task.id), eq(issueRecoveryActions.fingerprint, `native-workspace:${run.id}`))).for("update", { noWait: true });
     if (!action) throw new Error("observed_workspace_retention_action_missing");
     const fence: Fence = { schema: SCHEMA, state: "stop_pending", runId, leaseOwner: coordinator.leaseOwner!,
@@ -185,20 +185,20 @@ export async function pinFailedObservedWorkspace(db: Db, companyId: string, runI
       providerAttempt: coordinator.attempt, sourceSha256: sourceSha256(run), coordinatorSha256: coordinatorSha256(coordinator), leaseId: lease.id,
       provider: lease.provider!, providerLeaseId: lease.providerLeaseId!, environmentId: lease.environmentId!, workspaceId: workspace.id };
     await tx.update(issueRecoveryActions).set({ evidence: { ...action.evidence, [FIELD]: fence }, updatedAt: new Date() })
-      .where(and(eq(issueRecoveryActions.companyId, companyId), eq(issueRecoveryActions.id, action.id)));
-    await logActivity(tx, { companyId, actorType: "system", actorId: "native-workspace-recovery",
+      .where(and(eq(issueRecoveryActions.spaceId, spaceId), eq(issueRecoveryActions.id, action.id)));
+    await logActivity(tx, { spaceId, actorType: "system", actorId: "native-workspace-recovery",
       action: "issue.observed_workspace_preservation_pinned", entityType: "issue", entityId: task.id, runId,
       details: { recoveryActionId: action.id, sourceRunId: runId, controllerGeneration: fence.controllerGeneration } });
     return true;
   });
 }
 
-export async function settleStoppedObservedWorkspace(db: Db, companyId: string, runId: string): Promise<boolean> {
+export async function settleStoppedObservedWorkspace(db: Db, spaceId: string, runId: string): Promise<boolean> {
   return preservationTransaction(db, async tx => {
-    const source = await lockSource(tx, companyId, runId);
+    const source = await lockSource(tx, spaceId, runId);
     if (!source) return false;
     const { run, task, coordinator, lease } = source;
-    const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, companyId),
+    const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, spaceId),
       eq(issueRecoveryActions.sourceIssueId, task.id), eq(issueRecoveryActions.fingerprint, `native-workspace:${run.id}`))).for("update", { noWait: true });
     const fence = readFence(action?.evidence[FIELD]);
     if (!fence || fence.state !== "stop_pending" || !hasRequiredWorkspaceRecovery(run.resultJson)
@@ -209,16 +209,16 @@ export async function settleStoppedObservedWorkspace(db: Db, companyId: string, 
     const [settled] = await tx.update(nativeRunFinalizations).set({ phase: "terminal_failure", leaseOwner: null,
       leaseExpiresAt: null, controlDeadlineAt: null, nextAttemptAt: null, recoveryState: "blocked",
       failureCode: "native_continuation_requires_reconciliation", updatedAt: new Date() }).where(and(
-        eq(nativeRunFinalizations.companyId, companyId), eq(nativeRunFinalizations.runId, runId),
+        eq(nativeRunFinalizations.spaceId, spaceId), eq(nativeRunFinalizations.runId, runId),
         eq(nativeRunFinalizations.issueId, task.id), eq(nativeRunFinalizations.phase, "observed"), isNull(nativeRunFinalizations.resultId),
         eq(nativeRunFinalizations.leaseOwner, fence.leaseOwner), eq(nativeRunFinalizations.controllerGeneration, fence.controllerGeneration),
         eq(nativeRunFinalizations.attempt, fence.providerAttempt))).returning({ id: nativeRunFinalizations.runId });
     if (!settled) throw new Error("observed_workspace_preservation_fence_changed");
     await tx.update(heartbeatRuns).set({ nativePhase: "terminal_failure", nativePhaseUpdatedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId)));
+      .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId)));
     await tx.update(issueRecoveryActions).set({ evidence: { ...action!.evidence, [FIELD]: { ...fence, state: "stopped" } }, updatedAt: new Date() })
-      .where(and(eq(issueRecoveryActions.companyId, companyId), eq(issueRecoveryActions.id, action!.id)));
-    await logActivity(tx, { companyId, actorType: "system", actorId: "native-workspace-recovery",
+      .where(and(eq(issueRecoveryActions.spaceId, spaceId), eq(issueRecoveryActions.id, action!.id)));
+    await logActivity(tx, { spaceId, actorType: "system", actorId: "native-workspace-recovery",
       action: "issue.observed_workspace_stop_verified", entityType: "issue", entityId: task.id, runId,
       details: { recoveryActionId: action!.id, sourceRunId: runId, controllerGeneration: fence.controllerGeneration } });
     return true;

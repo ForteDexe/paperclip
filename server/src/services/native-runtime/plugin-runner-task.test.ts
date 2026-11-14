@@ -81,7 +81,7 @@ describe("plugin native Runner ownership", () => {
   });
   it("reuses exact adopted A preparation under current B without a source launch", async () => {
     const { task } = provider();
-    const context = new NativeExecutionContext({ binding: { companyId: "company", agentId: "agent", runId: "next" } } as never, 1_000);
+    const context = new NativeExecutionContext({ binding: { spaceId: "space", agentId: "agent", runId: "next" } } as never, 1_000);
     const owner = createPluginRunnerTaskOwner({ taskId: "task", task, projectIds: [], harness: "codex", projectAuthCheckVersion: 1,
       executionContext: context, adoptIdentity: requirements.identity });
     const recovery = { configurationId: "retained-configuration", requirementsDigest: `sha256:${"a".repeat(64)}` as const, provider: { kind: "codex" } };
@@ -135,7 +135,7 @@ describe("plugin native Runner ownership", () => {
     } finally { await registration.release("detach"); }
   });
   it.each(["finish", "rebind"])("does not send startup Stop after the context %s", mode => {
-    const context = new NativeExecutionContext({ binding: { companyId: "company", agentId: "agent", runId: "run" } } as never, 1_000);
+    const context = new NativeExecutionContext({ binding: { spaceId: "space", agentId: "agent", runId: "run" } } as never, 1_000);
     const next = new NativeExecutionContext(context.execution, 1_000);
     const remove = vi.spyOn(context.signal, "removeEventListener");
     const { task } = provider();
@@ -313,7 +313,7 @@ describe("plugin native Runner ownership", () => {
     expect(task.mock.calls.some(([op]) => op.kind === "submit")).toBe(false);
   });
   it("sends Stop before a late preparation can publish a launch", async () => {
-    const context = new NativeExecutionContext({ binding: { companyId: "company", agentId: "agent", runId: "run" } } as never, 1_000);
+    const context = new NativeExecutionContext({ binding: { spaceId: "space", agentId: "agent", runId: "run" } } as never, 1_000);
     const { task } = provider(), perform = task.getMockImplementation()!;
     let release!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
@@ -640,7 +640,7 @@ describe("plugin Runner release/resume facade", () => {
 
   it.each(["released", "detached", "cancelled"] as const)("does not dispatch after the owner is %s", async state => {
     const task = provider().task;
-    const context = new NativeExecutionContext({ binding: { companyId: "company", agentId: "agent", runId: "run" } } as never, 1_000);
+    const context = new NativeExecutionContext({ binding: { spaceId: "space", agentId: "agent", runId: "run" } } as never, 1_000);
     const owner = createPluginRunnerTaskOwner({ ...input("codex"), task, executionContext: context });
     try {
       if (state === "cancelled") context.abort(new Error("fixture cancellation"));

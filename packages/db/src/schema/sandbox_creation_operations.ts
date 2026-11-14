@@ -4,7 +4,7 @@ import { environments } from "./environments.js";
 
 export const sandboxCreationOperations = pgTable("sandbox_creation_operations", {
   id: uuid("id").primaryKey(),
-  companyId: uuid("company_id").notNull(),
+  spaceId: uuid("space_id").notNull(),
   environmentId: uuid("environment_id").references(() => environments.id, { onDelete: "set null" }),
   originalEnvironmentId: uuid("original_environment_id").notNull(),
   runId: uuid("run_id").notNull(),
@@ -23,5 +23,5 @@ export const sandboxCreationOperations = pgTable("sandbox_creation_operations", 
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => ({
   pendingDeadline: index("sandbox_creation_operations_pending_deadline_idx").on(table.nextAttemptAt).where(sql`${table.state} = 'pending'`),
-  owner: uniqueIndex("sandbox_creation_operations_owner_idx").on(table.companyId, table.originalEnvironmentId, table.runId, table.requestKey),
+  owner: uniqueIndex("sandbox_creation_operations_owner_idx").on(table.spaceId, table.originalEnvironmentId, table.runId, table.requestKey),
 }));

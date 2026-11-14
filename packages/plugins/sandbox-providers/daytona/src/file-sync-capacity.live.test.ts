@@ -36,7 +36,7 @@ it.skipIf(!process.env.DAYTONA_API_KEY)("preserves a stopped Daytona workspace a
     const execute = sandbox.process.executeCommand.bind(sandbox.process);
     const failures: string[] = [];
     sandbox.process.executeCommand = async (...args: Parameters<typeof execute>) => {
-      if (args[0].includes("tar -c")) args[0] = args[0].replace(/\/tmp\/archive-capacity-proof\/\.paperclip-upload-[\w-]+\.tar/g, "/dev/full");
+      if (args[0].includes("tar -c")) args[0] = args[0].replace(/\/tmp\/archive-capacity-proof\/\.outpost-upload-[\w-]+\.tar/g, "/dev/full");
       const result = await execute(...args);
       if (result.exitCode !== 0) failures.push(result.result);
       return result;
@@ -57,7 +57,7 @@ it.skipIf(!process.env.DAYTONA_API_KEY)("preserves a stopped Daytona workspace a
     expect(await fs.readdir(output)).toEqual(expect.arrayContaining([".hidden", "saved.bin", "safe-link"]));
     expect(await fs.readdir(output)).not.toEqual(expect.arrayContaining(["unsafe-link"]));
     expect(await fs.readdir(output)).not.toEqual(expect.arrayContaining(["ignored"]));
-    const retained = await execute(`sha256sum ${remote}/saved.bin && readlink ${remote}/unsafe-link && find ${remote} -name '.paperclip-upload*'`);
+    const retained = await execute(`sha256sum ${remote}/saved.bin && readlink ${remote}/unsafe-link && find ${remote} -name '.outpost-upload*'`);
     expect(retained.result.trim().split("\n")).toEqual([`${sourceDigest}  ${remote}/saved.bin`, "/etc/passwd"]);
     // Reconnect to the retained workspace and export a later saved result.
     await sandbox.stop();
@@ -88,7 +88,7 @@ it.skipIf(!process.env.DAYTONA_API_KEY)("saves an existing Daytona archive when 
     let expected = setup.result.trim().split(/\s/)[0];
     const failures: string[] = [];
     sandbox.process.executeCommand = async (...args: Parameters<typeof execute>) => {
-      if (args[0].includes("cp --")) args[0] = args[0].replace(/'\/tmp\/file-capacity-proof\/\.paperclip-upload-[\w-]+'/g, "/dev/full");
+      if (args[0].includes("cp --")) args[0] = args[0].replace(/'\/tmp\/file-capacity-proof\/\.outpost-upload-[\w-]+'/g, "/dev/full");
       const result = await execute(...args);
       if (result.exitCode !== 0) failures.push(result.result);
       return result;
@@ -106,7 +106,7 @@ it.skipIf(!process.env.DAYTONA_API_KEY)("saves an existing Daytona archive when 
       });
       expect(createHash("sha256").update(await fs.readFile(targetPath)).digest("hex")).toBe(expected);
       expect((await fs.stat(targetPath)).mode & 0o777).toBe(0o600);
-      const retained = await execute(`sha256sum ${source} && find ${remote} -name '.paperclip-upload*'`);
+      const retained = await execute(`sha256sum ${source} && find ${remote} -name '.outpost-upload*'`);
       expect(retained.result.trim()).toBe(`${expected}  ${source}`);
     }
     expect(failures).toHaveLength(2);

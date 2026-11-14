@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 export function antigravityRuntimeCachePath(closureSha256, platform = process.platform, architecture = process.arch, home = homedir()) {
   if (!/^[a-f0-9]{64}$/.test(closureSha256) || !["darwin", "linux"].includes(platform) || !["arm64", "x64"].includes(architecture) || !isAbsolute(home)) throw new Error("Invalid Antigravity runtime cache identity");
-  return resolve(home, ".paperclip/runtimes/antigravity", `${platform}-${architecture}`, closureSha256);
+  return resolve(home, ".outpost/runtimes/antigravity", `${platform}-${architecture}`, closureSha256);
 }
 
 export function antigravityProvisionerPackageRoot(moduleUrl) {

@@ -14,10 +14,10 @@ const api = (read: (path: string) => unknown | Promise<unknown>) => ({ get: asyn
 const event = (seq: number, eventType: string, payload: unknown, runId = "run") => ({ seq, eventType,
   payload: { orpEvent: { runId, sourceKind: "runner", eventType, payload } } });
 
-it("collects full paginated company feedback, including feedback outside the selected task, and checkpoints it", async () => {
+it("collects full paginated space feedback, including feedback outside the selected task, and checkpoints it", async () => {
   const entries = Array.from({ length: 101 }, (_, i) => ({ ...entry(String(i), "a".repeat(300)), runId: `child-${i}` }));
   const checkpoints: FeedbackEvidence[] = [];
-  const summary = await collectAttemptFeedback({ companyId: "company", persist: async value => { checkpoints.push(structuredClone(value)); },
+  const summary = await collectAttemptFeedback({ spaceId: "space", persist: async value => { checkpoints.push(structuredClone(value)); },
     api: api(path => {
       if (path.includes("agent-commentary?")) {
         const offset = Number(new URL(path, "http://fixture").searchParams.get("offset"));
@@ -35,11 +35,11 @@ it("collects full paginated company feedback, including feedback outside the sel
 });
 
 it("keeps saved-feedback absence separate from unavailable reads and unknown tool availability", async () => {
-  const empty = await collectAttemptFeedback({ companyId: "company", persist: async () => {},
+  const empty = await collectAttemptFeedback({ spaceId: "space", persist: async () => {},
     api: api(path => path.includes("agent-commentary") ? { items: [], total: 0 } : []),
   });
   expect(empty).toMatchObject({ collection: "complete", complaints: 0, suggestions: 0, toolAvailability: "unknown" });
-  const unavailable = await collectAttemptFeedback({ companyId: "company", persist: async () => {}, api: api(() => { throw new Error("unavailable"); }) });
+  const unavailable = await collectAttemptFeedback({ spaceId: "space", persist: async () => {}, api: api(() => { throw new Error("unavailable"); }) });
   expect(unavailable).toMatchObject({ collection: "unavailable", invocationCollection: "unavailable", complaints: 0 });
 });
 
@@ -52,7 +52,7 @@ it("retains partial bodies and failed submissions without inventing persistence 
     event(4, "tool.execution.completed", { name: "submit_complaint", executionId: "done", status: "completed" }),
     event(5, "tool.execution.started", { name: "submit_suggestion", executionId: "interrupted" }),
   ];
-  const summary = await collectAttemptFeedback({ companyId: "company", persist: async value => { retained = structuredClone(value); },
+  const summary = await collectAttemptFeedback({ spaceId: "space", persist: async value => { retained = structuredClone(value); },
     api: api(path => {
       if (path.includes("agent-commentary?")) return { items: [entry("1"), entry("2")], total: 2 };
       if (path.endsWith("agent-commentary/1")) return entry("1");
@@ -77,7 +77,7 @@ it("binds native invocations to their run, ignores prose, and recognizes compati
   expect(observeFeedbackInvocations("run", events)).toEqual([{ runId: "run", callId: "call", kind: "complaint", outcome: "failed" }]);
 });
 
-it.each(["paperclip_", "paperclip__", "mcp__paperclip__"])("maps namespaced feedback receipts through native events: %s", prefix => {
+it.each(["outpost_", "outpost__", "mcp__outpost__"])("maps namespaced feedback receipts through native events: %s", prefix => {
   const events = [
     event(1, "tool.execution.started", { executionId: "failed", name: `${prefix}submit_complaint` }),
     event(2, "tool.execution.completed", { executionId: "failed", name: `${prefix}submit_complaint`, status: "failed" }),
@@ -94,7 +94,7 @@ it.each(["paperclip_", "paperclip__", "mcp__paperclip__"])("maps namespaced feed
 });
 
 it.each([{ runtimeMode: "legacy", status: "succeeded" }, { runtimeMode: "native", status: "running" }])("does not claim complete invocation coverage for legacy helpers or still-active work: %o", async run => {
-  const summary = await collectAttemptFeedback({ companyId: "company", persist: async () => {}, api: api(path => {
+  const summary = await collectAttemptFeedback({ spaceId: "space", persist: async () => {}, api: api(path => {
     if (path.includes("agent-commentary")) return { items: [], total: 0 };
     if (path.includes("/events?")) return [];
     if (path === "/api/heartbeat-runs/run") return { id: "run", ...run };
@@ -105,7 +105,7 @@ it.each([{ runtimeMode: "legacy", status: "succeeded" }, { runtimeMode: "native"
 
 function workspaceDeferral(): Record<string, unknown> {
   return {
-    id: "run", companyId: "company", agentId: "agent", issueId: "child", status: "cancelled", runtimeMode: "legacy",
+    id: "run", spaceId: "space", agentId: "agent", issueId: "child", status: "cancelled", runtimeMode: "legacy",
     errorCode: "workspace_busy", startedAt: "2026-10-28T03:35:01.660Z", finishedAt: "2026-10-28T03:35:02.268Z",
     runtimeModeResolvedAt: null, processStartedAt: null, processPid: null, processStartTicks: null,
     runnerInstanceId: null, nativeSessionId: null, sessionIdAfter: null, lastOutputSeq: 0, costUsd: null,
@@ -121,7 +121,7 @@ function workspaceDeferral(): Record<string, unknown> {
 
 async function collectWorkspaceDeferral(run: Record<string, unknown>, events: Record<string, unknown>[] = []) {
   let retained: FeedbackEvidence | undefined;
-  const summary = await collectAttemptFeedback({ companyId: "company", persist: async value => { retained = structuredClone(value); }, api: api(path => {
+  const summary = await collectAttemptFeedback({ spaceId: "space", persist: async value => { retained = structuredClone(value); }, api: api(path => {
     if (path.includes("agent-commentary")) return { items: [], total: 0 };
     if (path.includes("/events?")) return events;
     if (path === "/api/heartbeat-runs/run") return run;
@@ -170,7 +170,7 @@ it.each([
 
 it("requires an exhaustive event scan before recording no-provider coverage", async () => {
   let retained: FeedbackEvidence | undefined;
-  const summary = await collectAttemptFeedback({ companyId: "company", persist: async value => { retained = structuredClone(value); }, api: api(path => {
+  const summary = await collectAttemptFeedback({ spaceId: "space", persist: async value => { retained = structuredClone(value); }, api: api(path => {
     if (path.includes("agent-commentary")) return { items: [], total: 0 };
     if (path.includes("/events?")) throw new Error("unavailable");
     if (path === "/api/heartbeat-runs/run") return workspaceDeferral();
@@ -183,7 +183,7 @@ it("requires an exhaustive event scan before recording no-provider coverage", as
 
 it("examines all event pages before accepting no-provider coverage", async () => {
   let pages = 0, retained: FeedbackEvidence | undefined;
-  const summary = await collectAttemptFeedback({ companyId: "company", persist: async value => { retained = structuredClone(value); }, api: api(path => {
+  const summary = await collectAttemptFeedback({ spaceId: "space", persist: async value => { retained = structuredClone(value); }, api: api(path => {
     if (path.includes("agent-commentary")) return { items: [], total: 0 };
     if (path.includes("/events?")) {
       pages++;
@@ -206,7 +206,7 @@ it("does not complete feedback while a workspace deferral's replacement remains 
     workspaceDeferral(),
     { id: "replacement", status: "scheduled_retry", runtimeMode: "legacy", retryOfRunId: "run", startedAt: null },
   ];
-  const summary = await collectAttemptFeedback({ companyId: "company", persist: async value => { retained = structuredClone(value); }, api: api(path => {
+  const summary = await collectAttemptFeedback({ spaceId: "space", persist: async value => { retained = structuredClone(value); }, api: api(path => {
     if (path.includes("agent-commentary")) return { items: [], total: 0 };
     if (path.includes("/events?")) return [];
     if (path.startsWith("/api/heartbeat-runs/")) return runs.find(run => run.id === path.split("/").at(-1));
@@ -227,7 +227,7 @@ it("captures feedback after cancellation failure but before destructive teardown
     retireRuns: async () => { throw new Error("cancel failed"); }, assertions: [],
     teardown: async () => {
       try {
-        await collectAttemptFeedback({ companyId: "company", api: api(() => []), persist: async () => { calls.push("capture"); throw new Error("disk full"); } });
+        await collectAttemptFeedback({ spaceId: "space", api: api(() => []), persist: async () => { calls.push("capture"); throw new Error("disk full"); } });
       } finally { calls.push("teardown"); }
     },
   });
@@ -237,7 +237,7 @@ it("captures feedback after cancellation failure but before destructive teardown
 
 it("bounds collection by a deadline and retains content-free diagnostics", async () => {
   let requests = 0, last: FeedbackEvidence | undefined;
-  const summary = await collectAttemptFeedback({ companyId: "company", deadlineAt: 0,
+  const summary = await collectAttemptFeedback({ spaceId: "space", deadlineAt: 0,
     persist: async value => { last = structuredClone(value); }, api: api(() => { requests++; throw new Error("secret response"); }),
   });
   expect(requests).toBe(0);
@@ -258,7 +258,7 @@ it("preserves the read prefix when slow detail requests exhaust the read budget 
     return entry(url.split("/").at(-1)!);
   } } as Pick<RunnerApi, "get">;
   try {
-    const summary = await collectAttemptFeedback({ companyId: "company", deadlineAt: 30_000, api: slowApi,
+    const summary = await collectAttemptFeedback({ spaceId: "space", deadlineAt: 30_000, api: slowApi,
       persist: async evidence => { checkpoints.push(structuredClone(evidence)); now += 20; },
     });
     expect(summary).toMatchObject({ collection: "partial", invocationCollection: "unavailable" });
@@ -289,7 +289,7 @@ it("groups feedback across retries without omitting incomplete collection and ke
 
 it("uses run details for native coverage when the real list projection omits runtimeMode", async () => {
   const reads: string[] = [];
-  const summary = await collectAttemptFeedback({ companyId: "company", persist: async () => {}, api: api(path => {
+  const summary = await collectAttemptFeedback({ spaceId: "space", persist: async () => {}, api: api(path => {
     reads.push(path);
     if (path.includes("agent-commentary")) return { items: [], total: 0 };
     if (path.includes("/events?")) return [];
@@ -301,7 +301,7 @@ it("uses run details for native coverage when the real list projection omits run
 });
 it("retains partial evidence if the run-detail lookup fails", async () => {
   let retained: FeedbackEvidence | undefined;
-  const summary = await collectAttemptFeedback({ companyId: "company", persist: async value => { retained = structuredClone(value); }, api: api(path => {
+  const summary = await collectAttemptFeedback({ spaceId: "space", persist: async value => { retained = structuredClone(value); }, api: api(path => {
     if (path.includes("agent-commentary")) return { items: [], total: 0 };
     if (path.includes("/events?")) return [event(1, "tool.execution.started", { name: "submit_complaint", executionId: "call" })];
     if (path === "/api/heartbeat-runs/run") throw new Error("unavailable");
@@ -313,9 +313,9 @@ it("retains partial evidence if the run-detail lookup fails", async () => {
 
 it("retains OpenCode feedback whose first observed update is running or terminal", () => {
   const updates = [
-    { id: "running", status: "running", tool: "paperclip_submit_suggestion" },
-    { id: "failed", status: "error", tool: "paperclip_submit_complaint" },
-    { id: "completed", status: "completed", tool: "paperclip_submit_suggestion" },
+    { id: "running", status: "running", tool: "outpost_submit_suggestion" },
+    { id: "failed", status: "error", tool: "outpost_submit_complaint" },
+    { id: "completed", status: "completed", tool: "outpost_submit_suggestion" },
   ].flatMap(update => canonicalProviderEventsFromOpenCodePart({
     id: update.id, messageID: "message", type: "tool", callID: update.id, tool: update.tool,
     state: { status: update.status, input: {}, output: "fixture result", error: "fixture failure", time: { start: 1, end: 2 } },
@@ -331,7 +331,7 @@ it("retains OpenCode feedback whose first observed update is running or terminal
 it("bounds retained bytes and checkpoint writes for maximum-size feedback bodies", async () => {
   const body = "x".repeat(524_288);
   let detailReads = 0, writtenBytes = 0, writes = 0, retained: FeedbackEvidence | undefined;
-  const summary = await collectAttemptFeedback({ companyId: "company",
+  const summary = await collectAttemptFeedback({ spaceId: "space",
     persist: async evidence => { writes++; writtenBytes += Buffer.byteLength(JSON.stringify(evidence, null, 2)); retained = structuredClone(evidence); },
     api: api(url => {
       if (url.includes("agent-commentary?")) return { items: Array.from({ length: 100 }, (_, index) => entry(String(index), "preview")), total: 10_000 };
@@ -350,7 +350,7 @@ it("bounds retained bytes and checkpoint writes for maximum-size feedback bodies
 
 it("caps entry count and stops requesting further feedback pages", async () => {
   let pages = 0, retained: FeedbackEvidence | undefined;
-  const summary = await collectAttemptFeedback({ companyId: "company", persist: async evidence => { retained = structuredClone(evidence); },
+  const summary = await collectAttemptFeedback({ spaceId: "space", persist: async evidence => { retained = structuredClone(evidence); },
     api: api(url => {
       if (url.includes("agent-commentary?")) {
         const offset = Number(new URL(url, "http://fixture").searchParams.get("offset")); pages++;
@@ -368,7 +368,7 @@ it("caps entry count and stops requesting further feedback pages", async () => {
 
 it("aborts stalled evidence persistence at the collection deadline", async () => {
   let signal: AbortSignal | undefined, reads = 0;
-  await expect(collectAttemptFeedback({ companyId: "company", deadlineAt: Date.now() + 50,
+  await expect(collectAttemptFeedback({ spaceId: "space", deadlineAt: Date.now() + 50,
     persist: async (_evidence, currentSignal) => { signal = currentSignal; await new Promise<void>(() => {}); },
     api: api(() => { reads++; return []; }),
   })).rejects.toThrow("Feedback persistence deadline reached");
@@ -379,7 +379,7 @@ it("aborts stalled evidence persistence at the collection deadline", async () =>
 it("acknowledges only successfully persisted feedback when a later checkpoint fails", async () => {
   let retained: FeedbackEvidence | undefined, acknowledged = emptyFeedbackSummary();
   const entries = Array.from({ length: 11 }, (_, index) => entry(String(index)));
-  await expect(collectAttemptFeedback({ companyId: "company",
+  await expect(collectAttemptFeedback({ spaceId: "space",
     onCheckpoint: summary => { acknowledged = summary; },
     persist: async evidence => {
       if (evidence.entries.length > 10) throw new Error("disk full");
@@ -399,7 +399,7 @@ it("returns saved review counts when the deadline expires before a later checkpo
   const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
   const entries = Array.from({ length: 11 }, (_, index) => entry(String(index)));
   try {
-    const summary = await collectAttemptFeedback({ companyId: "company", deadlineAt: 30_000,
+    const summary = await collectAttemptFeedback({ spaceId: "space", deadlineAt: 30_000,
       persist: async evidence => { retained = structuredClone(evidence); },
       api: api(url => {
         if (url.includes("agent-commentary?")) return { items: entries, total: entries.length };
@@ -416,7 +416,7 @@ it("returns saved review counts when the deadline expires before a later checkpo
 
 it("bounds raw event inspection while retaining the observed feedback receipt prefix", async () => {
   let pages = 0, retained: FeedbackEvidence | undefined;
-  const summary = await collectAttemptFeedback({ companyId: "company", persist: async evidence => { retained = structuredClone(evidence); },
+  const summary = await collectAttemptFeedback({ spaceId: "space", persist: async evidence => { retained = structuredClone(evidence); },
     api: api(url => {
       if (url.includes("agent-commentary?")) return { items: [], total: 0 };
       if (url.includes("/events?")) {
@@ -443,7 +443,7 @@ it("allows a slow event read to finish within the shared collection deadline", a
   let retained: FeedbackEvidence | undefined;
   const slowApi = { get: async (url: string, options: { timeout: number }) => {
     if (url.includes("agent-commentary?")) return { items: [], total: 0 };
-    if (url === "/api/companies/company/heartbeat-runs?limit=1000") return [{ id: "run", status: "succeeded" }];
+    if (url === "/api/spaces/space/heartbeat-runs?limit=1000") return [{ id: "run", status: "succeeded" }];
     if (url === "/api/heartbeat-runs/run") return { id: "run", status: "succeeded", runtimeMode: "native" };
     if (url.includes("/events?")) {
       eventReads++;
@@ -454,7 +454,7 @@ it("allows a slow event read to finish within the shared collection deadline", a
     throw new Error("Unexpected read");
   } } as Pick<RunnerApi, "get">;
   try {
-    const summary = await collectAttemptFeedback({ companyId: "company", deadlineAt: 30_000, api: slowApi,
+    const summary = await collectAttemptFeedback({ spaceId: "space", deadlineAt: 30_000, api: slowApi,
       persist: async evidence => { retained = structuredClone(evidence); },
     });
     expect(summary).toMatchObject({ collection: "complete", invocationCollection: "complete", runsInspected: 1,
@@ -473,7 +473,7 @@ it("still times out a stalled event read and reserves time to persist saved feed
   const stalledApi = { get: async (url: string, options: { timeout: number }) => {
     if (url.includes("agent-commentary?")) return { items: [entry("saved")], total: 1 };
     if (url.includes("agent-commentary/")) return entry("saved");
-    if (url === "/api/companies/company/heartbeat-runs?limit=1000") return [{ id: "run", status: "succeeded" }];
+    if (url === "/api/spaces/space/heartbeat-runs?limit=1000") return [{ id: "run", status: "succeeded" }];
     if (url === "/api/heartbeat-runs/run") return { id: "run", status: "succeeded", runtimeMode: "native" };
     if (url.includes("/events?")) {
       eventReads++;
@@ -483,7 +483,7 @@ it("still times out a stalled event read and reserves time to persist saved feed
     throw new Error("Unexpected read");
   } } as Pick<RunnerApi, "get">;
   try {
-    const summary = await collectAttemptFeedback({ companyId: "company", deadlineAt: 30_000, api: stalledApi,
+    const summary = await collectAttemptFeedback({ spaceId: "space", deadlineAt: 30_000, api: stalledApi,
       persist: async evidence => { retained = structuredClone(evidence); },
     });
     expect(now).toBe(25_000);
@@ -505,7 +505,7 @@ it("keeps time for event coverage after an earlier feedback endpoint stalls", as
       now += options.timeout;
       throw new Error("request timeout");
     }
-    if (url === "/api/companies/company/heartbeat-runs?limit=1000") return [{ id: "run", status: "succeeded" }];
+    if (url === "/api/spaces/space/heartbeat-runs?limit=1000") return [{ id: "run", status: "succeeded" }];
     if (url === "/api/heartbeat-runs/run") return { id: "run", status: "succeeded", runtimeMode: "native" };
     if (url.includes("/events?")) {
       eventReads++;
@@ -516,7 +516,7 @@ it("keeps time for event coverage after an earlier feedback endpoint stalls", as
     throw new Error("Unexpected read");
   } } as Pick<RunnerApi, "get">;
   try {
-    const summary = await collectAttemptFeedback({ companyId: "company", deadlineAt: 30_000, api: stalledListApi,
+    const summary = await collectAttemptFeedback({ spaceId: "space", deadlineAt: 30_000, api: stalledListApi,
       persist: async evidence => { retained = structuredClone(evidence); },
     });
     expect(summary).toMatchObject({ collection: "unavailable", invocationCollection: "complete", runsInspected: 1 });

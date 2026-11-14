@@ -2,7 +2,7 @@
 
 This directory defines the reviewable, deterministic foundation for Runner
 acceptance checks. It contains no launcher and grants no authority to start
-Paperclip, a provider process, a browser, a remote environment, or a billable
+Outpost, a provider process, a browser, a remote environment, or a billable
 model request.
 
 The catalog covers:

@@ -52,7 +52,7 @@ export interface UpdateDecisionTriageBody {
 
 export interface DecisionRetentionDto {
   id: string;
-  companyId: string;
+  spaceId: string;
   sourceKind: AttentionSourceKind;
   sourceId: string;
   sourceActivityAt: string;
@@ -70,79 +70,79 @@ export interface CreateDecisionArchiveProposalBody {
 }
 
 /**
- * Decision queues + triage (PAP-16039 P1). Queues are named, company-scoped,
- * durable lists any agent or the board can feed; triage stores the per-source
+ * Decision queues + triage (PAP-16039 P1). Queues are named, space-scoped,
+ * durable lists any agent or the operator can feed; triage stores the per-source
  * decide-by / snooze that drives the desk's `sort=decide` ordering. The
  * attention feed already surfaces `queues[]` and `decideBy` per item — these
  * routes are the write path and the queue-rail/queue-page read path.
  */
 export const decisionQueuesApi = {
-  seedRules: (companyId: string) =>
-    api.get<DecisionQueueSeedDefinition[]>(`/companies/${companyId}/decision-queue-seed-rules`),
+  seedRules: (spaceId: string) =>
+    api.get<DecisionQueueSeedDefinition[]>(`/spaces/${spaceId}/decision-queue-seed-rules`),
 
-  list: (companyId: string) => api.get<DecisionQueueDto[]>(`/companies/${companyId}/decision-queues`),
+  list: (spaceId: string) => api.get<DecisionQueueDto[]>(`/spaces/${spaceId}/decision-queues`),
 
-  create: (companyId: string, body: CreateDecisionQueueBody) =>
-    api.post<DecisionQueueDto>(`/companies/${companyId}/decision-queues`, body),
+  create: (spaceId: string, body: CreateDecisionQueueBody) =>
+    api.post<DecisionQueueDto>(`/spaces/${spaceId}/decision-queues`, body),
 
-  update: (companyId: string, key: string, body: UpdateDecisionQueueBody) =>
-    api.patch<DecisionQueueDto>(`/companies/${companyId}/decision-queues/${encodeURIComponent(key)}`, body),
+  update: (spaceId: string, key: string, body: UpdateDecisionQueueBody) =>
+    api.patch<DecisionQueueDto>(`/spaces/${spaceId}/decision-queues/${encodeURIComponent(key)}`, body),
 
-  listItems: (companyId: string, key: string) =>
-    api.get<DecisionQueueItemDto[]>(`/companies/${companyId}/decision-queues/${encodeURIComponent(key)}/items`),
+  listItems: (spaceId: string, key: string) =>
+    api.get<DecisionQueueItemDto[]>(`/spaces/${spaceId}/decision-queues/${encodeURIComponent(key)}/items`),
 
-  addItem: (companyId: string, key: string, sourceKind: AttentionSourceKind, sourceId: string) =>
+  addItem: (spaceId: string, key: string, sourceKind: AttentionSourceKind, sourceId: string) =>
     api.post<DecisionQueueItemDto>(
-      `/companies/${companyId}/decision-queues/${encodeURIComponent(key)}/items`,
+      `/spaces/${spaceId}/decision-queues/${encodeURIComponent(key)}/items`,
       { sourceKind, sourceId },
     ),
 
   removeItem: (
-    companyId: string,
+    spaceId: string,
     key: string,
     sourceKind: AttentionSourceKind,
     sourceId: string,
     reason?: string,
   ) =>
     api.delete<DecisionQueueItemDto>(
-      `/companies/${companyId}/decision-queues/${encodeURIComponent(key)}/items/${encodeURIComponent(sourceKind)}/${encodeURIComponent(sourceId)}`,
+      `/spaces/${spaceId}/decision-queues/${encodeURIComponent(key)}/items/${encodeURIComponent(sourceKind)}/${encodeURIComponent(sourceId)}`,
       reason ? { reason } : {},
     ),
 
-  getTriage: (companyId: string, sourceKind: AttentionSourceKind, sourceId: string) =>
+  getTriage: (spaceId: string, sourceKind: AttentionSourceKind, sourceId: string) =>
     api.get<DecisionTriageDto | null>(
-      `/companies/${companyId}/decision-triage/${encodeURIComponent(sourceKind)}/${encodeURIComponent(sourceId)}`,
+      `/spaces/${spaceId}/decision-triage/${encodeURIComponent(sourceKind)}/${encodeURIComponent(sourceId)}`,
     ),
 
   updateTriage: (
-    companyId: string,
+    spaceId: string,
     sourceKind: AttentionSourceKind,
     sourceId: string,
     body: UpdateDecisionTriageBody,
   ) =>
     api.put<DecisionTriageDto>(
-      `/companies/${companyId}/decision-triage/${encodeURIComponent(sourceKind)}/${encodeURIComponent(sourceId)}`,
+      `/spaces/${spaceId}/decision-triage/${encodeURIComponent(sourceKind)}/${encodeURIComponent(sourceId)}`,
       body,
     ),
 
-  setKeep: (companyId: string, sourceKind: AttentionSourceKind, sourceId: string, keep: boolean) =>
+  setKeep: (spaceId: string, sourceKind: AttentionSourceKind, sourceId: string, keep: boolean) =>
     api.patch<DecisionRetentionDto>(
-      `/companies/${companyId}/decision-retention/${encodeURIComponent(sourceKind)}/${encodeURIComponent(sourceId)}`,
+      `/spaces/${spaceId}/decision-retention/${encodeURIComponent(sourceKind)}/${encodeURIComponent(sourceId)}`,
       { keep },
     ),
 
-  archive: (companyId: string, sourceKind: AttentionSourceKind, sourceId: string) =>
+  archive: (spaceId: string, sourceKind: AttentionSourceKind, sourceId: string) =>
     api.post<DecisionRetentionDto>(
-      `/companies/${companyId}/decision-retention/${encodeURIComponent(sourceKind)}/${encodeURIComponent(sourceId)}/archive`,
+      `/spaces/${spaceId}/decision-retention/${encodeURIComponent(sourceKind)}/${encodeURIComponent(sourceId)}/archive`,
       {},
     ),
 
-  revive: (companyId: string, sourceKind: AttentionSourceKind, sourceId: string) =>
+  revive: (spaceId: string, sourceKind: AttentionSourceKind, sourceId: string) =>
     api.post<DecisionRetentionDto>(
-      `/companies/${companyId}/decision-retention/${encodeURIComponent(sourceKind)}/${encodeURIComponent(sourceId)}/revive`,
+      `/spaces/${spaceId}/decision-retention/${encodeURIComponent(sourceKind)}/${encodeURIComponent(sourceId)}/revive`,
       {},
     ),
 
-  proposeArchive: (companyId: string, body: CreateDecisionArchiveProposalBody) =>
-    api.post(`/companies/${companyId}/decision-archive-proposals`, body),
+  proposeArchive: (spaceId: string, body: CreateDecisionArchiveProposalBody) =>
+    api.post(`/spaces/${spaceId}/decision-archive-proposals`, body),
 };

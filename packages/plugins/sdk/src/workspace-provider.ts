@@ -110,7 +110,7 @@ export type PluginWorkspaceResult = z.infer<
 export const pluginWorkspaceParamsSchema = z
   .object({
     pluginId: z.string().uuid(),
-    companyId: z.string().uuid(),
+    spaceId: z.string().uuid(),
     projectId: z.string().uuid(),
     executionWorkspaceId: z.string().uuid(),
     /** Stable across ambiguous retries; reconcile before repeating effects. */

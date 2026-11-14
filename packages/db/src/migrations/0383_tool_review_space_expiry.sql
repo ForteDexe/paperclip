@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "tool_action_requests_space_pending_expiry_idx" ON "tool_action_requests" USING btree ("space_id","expires_at") WHERE "tool_action_requests"."status" = 'pending';

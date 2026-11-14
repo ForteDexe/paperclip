@@ -17,11 +17,11 @@ export const callApiAction = {
       "planning",
       "skill_test"
     ],
-    "sideEffectClass": "company_write",
+    "sideEffectClass": "space_write",
     "idempotency": "none",
     "disabledByDefault": false,
     "realBindingStatus": "live_codex",
-    "realServiceBinding": "PaperclipRunnerToolAuthority",
+    "realServiceBinding": "OutpostRunnerToolAuthority",
     "orpEvidence": "Authenticated ORP tool input/result and existing HTTP route authorization/activity records.",
     "orpBindingStatus": "bound",
     "legacyAliases": []
@@ -35,7 +35,7 @@ export const callApiAction = {
     "call": {
       "operationId": "call_api",
       "input": {
-        "operationId": "GET /api/companies/{companyId}/projects"
+        "operationId": "GET /api/spaces/{spaceId}/projects"
       }
     },
     "success": {

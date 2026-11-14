@@ -30,7 +30,7 @@ async function main() {
     const headers: Record<string, string> = { "content-type": "application/json", "idempotency-key": `${input.nonce}-valid` };
     if (["bearer", "app_webhook"].includes(input.signingMode)) headers.authorization = `Bearer ${secret}`;
     else if (["github_hmac", "fireflies_hmac"].includes(input.signingMode)) headers[input.signingMode === "github_hmac" ? "x-hub-signature-256" : "x-hub-signature"] = `sha256=${createHmac("sha256", secret).update(payload).digest("hex")}`;
-    else if (input.signingMode === "hmac_sha256") { const timestamp = String(Math.floor(Date.now() / 1000)); headers["x-paperclip-timestamp"] = timestamp; headers["x-paperclip-signature"] = `sha256=${createHmac("sha256", secret).update(`${timestamp}.${payload}`).digest("hex")}`; }
+    else if (input.signingMode === "hmac_sha256") { const timestamp = String(Math.floor(Date.now() / 1000)); headers["x-outpost-timestamp"] = timestamp; headers["x-outpost-signature"] = `sha256=${createHmac("sha256", secret).update(`${timestamp}.${payload}`).digest("hex")}`; }
     else throw new Error("Webhook did not require authenticated delivery");
     const accepted = await fetch(endpoint, { method: "POST", redirect: "error", headers, body: payload, signal: AbortSignal.timeout(15_000) });
     const validStatus = accepted.status; if (validStatus !== 202) throw new Error("Authenticated synthetic delivery was not accepted");

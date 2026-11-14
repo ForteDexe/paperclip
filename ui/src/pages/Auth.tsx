@@ -10,9 +10,9 @@ import { tenantSignInReturnPath } from "@/lib/cloudLinks";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { AsciiArtAnimation } from "@/components/AsciiArtAnimation";
-import { PaperclipLoading } from "@/components/AnimatedPaperclipIcon";
+import { OutpostLoading } from "@/components/AnimatedOutpostIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { PaperclipLockup } from "../components/PaperclipLockup";
+import { OutpostLockup } from "../components/OutpostLockup";
 import { QueryErrorState, useQueryView } from "../components/QueryView";
 
 type AuthMode = "sign_in" | "sign_up";
@@ -72,11 +72,11 @@ export function AuthPage() {
       setError(null);
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
       await queryClient.invalidateQueries({ queryKey: queryKeys.health });
-      // Reset rather than invalidate: the `["companies"]` entry is shared app-wide and
+      // Reset rather than invalidate: the `["spaces"]` entry is shared app-wide and
       // is not account-scoped, so invalidating leaves the previous account's list
       // readable (and any fetch for that session in flight) until the refetch lands.
       // Sign-in can change accounts, so drop the list outright.
-      await queryClient.resetQueries({ queryKey: queryKeys.companies.all });
+      await queryClient.resetQueries({ queryKey: queryKeys.spaces.all });
       navigate(nextPath, { replace: true });
     },
     onError: (err) => {
@@ -92,7 +92,7 @@ export function AuthPage() {
   if (healthQuery.isLoading || isSessionLoading || session) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
-        <PaperclipLoading className="min-h-0" />
+        <OutpostLoading className="min-h-0" />
       </div>
     );
   }
@@ -126,7 +126,7 @@ export function AuthPage() {
       <div className="w-full md:w-1/2 flex flex-col overflow-y-auto">
         <div className="w-full max-w-md mx-auto my-auto px-8 py-12">
           <div className="mb-8">
-            <PaperclipLockup className="h-5 w-auto" />
+            <OutpostLockup className="h-5 w-auto" />
           </div>
 
           <h1 className="text-xl font-semibold">

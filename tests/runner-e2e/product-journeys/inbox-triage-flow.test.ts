@@ -18,7 +18,7 @@ function fixture(options: { loading?: boolean; listVisible?: boolean; ignoreClea
   };
   const list = { visible: () => options.listVisible !== false };
   const context = {
-    api: { origin: "https://qa.example.test" }, company: { issuePrefix: "QA" },
+    api: { origin: "https://qa.example.test" }, space: { issuePrefix: "QA" },
     page: {
       goto: async (url: string) => { visits.push(url); },
       getByPlaceholder: () => search,

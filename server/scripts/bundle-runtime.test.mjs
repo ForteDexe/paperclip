@@ -20,7 +20,7 @@ describe("bundleRuntime", () => {
   let root;
 
   beforeEach(() => {
-    root = realpathSync(mkdtempSync(path.join(tmpdir(), "paperclip-bundle-runtime-")));
+    root = realpathSync(mkdtempSync(path.join(tmpdir(), "outpost-bundle-runtime-")));
     const pkg = path.join(root, "packages", "fixture");
     write(path.join(pkg, "package.json"), JSON.stringify({ name: "@outpost/fixture", type: "module", exports: { ".": "./src/index.ts" } }));
     write(path.join(pkg, "src", "asset.txt"), "asset beside its source\n");
@@ -44,8 +44,8 @@ describe("bundleRuntime", () => {
     write(path.join(pkg, "node_modules", "dual-build-dep", "bundler", "index.js"), "export * from \"./extensionless\";\n");
 
     const server = path.join(root, "server");
-    mkdirSync(path.join(server, "node_modules", "@paperclipai"), { recursive: true });
-    symlinkSync(pkg, path.join(server, "node_modules", "@paperclipai", "fixture"), "dir");
+    mkdirSync(path.join(server, "node_modules", "@outpost"), { recursive: true });
+    symlinkSync(pkg, path.join(server, "node_modules", "@outpost", "fixture"), "dir");
     write(path.join(server, "package.json"), JSON.stringify({ name: "server", type: "module" }));
     for (const [version, flavor] of [["1", "installed at build"], ["2", "replaced after build"]]) {
       const store = path.join(root, "node_modules", ".pnpm", `server-dep@${version}`);

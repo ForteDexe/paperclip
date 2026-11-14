@@ -230,7 +230,7 @@ export function OpenClawGatewayConfigFields({
             value={
               isCreate
                 ? values!.sessionKey ?? ""
-                : eff("adapterConfig", "sessionKey", String(config.sessionKey ?? "paperclip"))
+                : eff("adapterConfig", "sessionKey", String(config.sessionKey ?? "outpost"))
             }
             onCommit={(v) =>
               isCreate
@@ -239,7 +239,7 @@ export function OpenClawGatewayConfigFields({
             }
             immediate
             className={inputClass}
-            placeholder="paperclip"
+            placeholder="outpost"
           />
         </Field>
       )}
@@ -313,13 +313,13 @@ export function OpenClawGatewayConfigFields({
         <DraftInput
           value={
             isCreate
-              ? values!.paperclipApiUrl ?? ""
-              : eff("adapterConfig", "paperclipApiUrl", String(config.paperclipApiUrl ?? ""))
+              ? values!.outpostApiUrl ?? ""
+              : eff("adapterConfig", "outpostApiUrl", String(config.outpostApiUrl ?? ""))
           }
           onCommit={(v) =>
             isCreate
-              ? set!({ paperclipApiUrl: v })
-              : mark("adapterConfig", "paperclipApiUrl", v || undefined)
+              ? set!({ outpostApiUrl: v })
+              : mark("adapterConfig", "outpostApiUrl", v || undefined)
           }
           immediate
           className={inputClass}
@@ -381,7 +381,7 @@ export function OpenClawGatewayConfigFields({
             onCommit={(v) => mark("adapterConfig", "claimedApiKeyPath", v || undefined)}
             immediate
             className={inputClass}
-            placeholder="~/.openclaw/workspace/paperclip-claimed-api-key.json"
+            placeholder="~/.openclaw/workspace/outpost-claimed-api-key.json"
           />
         </Field>
       )}

@@ -28,7 +28,7 @@ export interface WorkloadDefinition {
   grade(nonce: string, artifacts: OracleArtifacts, agents?: WorkloadAgents): OracleResult;
 }
 
-export interface WorkloadAgents { self: { id: string; name: string }; other: { id: string; name: string }; companyId?: string }
+export interface WorkloadAgents { self: { id: string; name: string }; other: { id: string; name: string }; spaceId?: string }
 
 /** G1: the board's decision for this task, fixed by its nonce (about half approve, half reject). */
 export function g1Decision(nonce: string): "approve" | "reject" {
@@ -203,9 +203,9 @@ const delegateDescription = (nonce: string, agents?: WorkloadAgents) => {
 
 const approvalDescription = (nonce: string, agents?: WorkloadAgents) => [
   "This task needs the board's approval before you act.",
-  "1. Request approval exactly once with the `call_api` tool: operationId `POST /api/companies/{companyId}/approvals`,"
-    + ` pathParams \`{ "companyId": "${agents?.companyId ?? "<your company id>"}" }\`, and this body:`,
-  `   \`{ "type": "request_board_approval", "issueIds": ["<this task's id>"], "payload": { "title": "${g1ApprovalTitle(nonce)}",`
+  "1. Request approval exactly once with the `call_api` tool: operationId `POST /api/spaces/{spaceId}/approvals`,"
+    + ` pathParams \`{ "spaceId": "${agents?.spaceId ?? "<your space id>"}" }\`, and this body:`,
+  `   \`{ "type": "request_operator_approval", "issueIds": ["<this task's id>"], "payload": { "title": "${g1ApprovalTitle(nonce)}",`
     + ` "summary": "Create the follow-up subtask for ${nonce}.", "recommendedAction": "Approve", "risks": [] } }\``,
   "2. Then set this task's status to `blocked` and end your turn. Do not create anything else yet.",
   `3. Only if you are woken because that approval was approved: create exactly one subtask titled "${g1ChildTitle(nonce)}"`,
@@ -240,13 +240,13 @@ function budgetChecks(artifacts: OracleArtifacts) {
   return [
     { name: "budget_set", ok: typeof governance?.budgetSetCents === "number" && !governance.budgetSetError,
       detail: governance?.budgetSetError ?? `budget=${governance?.budgetSetCents ?? "unset"}` },
-    { name: "company_paused_for_budget", ok: typeof governance?.budgetPausedAt === "number" },
+    { name: "space_paused_for_budget", ok: typeof governance?.budgetPausedAt === "number" },
     { name: "pause_held_until_resume", ok: typeof governance?.budgetPausedAt === "number" && !governance.pauseLostAt },
     { name: "nothing_dispatched_while_paused", ok: governance?.runsStartedWhilePaused !== undefined && governance.runsStartedWhilePaused.length === 0,
       detail: (governance?.runsStartedWhilePaused ?? ["not checked"]).join(",") },
     { name: "board_resumed_after_restart", ok: governance?.resume !== undefined && governance.resume.error === null && governance.resume.afterFault,
       detail: JSON.stringify(governance?.resume ?? null) },
-    { name: "company_active_at_rest", ok: governance?.companyActiveAtRest === true },
+    { name: "space_active_at_rest", ok: governance?.spaceActiveAtRest === true },
   ];
 }
 
@@ -475,13 +475,13 @@ export const workloadDefinitions: Record<WorkloadId, WorkloadDefinition> = {
   },
   R1: {
     id: "R1",
-    label: "Code change in a Paperclip clone",
+    label: "Code change in a Outpost clone",
     usesRepository: true,
     fireWindowMs: [20_000, 90_000],
     budgetMs: 15 * 60_000,
     title: nonce => `Chaos R1 slug module ${nonce}`,
     description: nonce => [
-      "Work in this task's repository workspace, a clone of the Paperclip repository.",
+      "Work in this task's repository workspace, a clone of the Outpost repository.",
       `Add \`${r1Module(nonce)}\` exporting \`chaosSlug(input: string): string\`: lowercase, every run of characters`,
       "other than a-z and 0-9 becomes a single `-`, and no leading or trailing `-`.",
       `Add \`${r1Test(nonce)}\` that uses \`node:test\` and \`node:assert/strict\`, imports \`./slug-${nonce}.ts\`,`,
@@ -495,7 +495,7 @@ export const workloadDefinitions: Record<WorkloadId, WorkloadDefinition> = {
       commands: [
         { name: "node_test", argv: nonce => [process.execPath, "--test", r1Test(nonce)] },
         { name: "slug", argv: nonce => [process.execPath, "--input-type=module", "-e",
-          `import { chaosSlug } from "./${r1Module(nonce)}"; console.log(JSON.stringify(["Hello Chaos World", "  R1 -- Paperclip__Chaos 2026! "].map(chaosSlug)));`] },
+          `import { chaosSlug } from "./${r1Module(nonce)}"; console.log(JSON.stringify(["Hello Chaos World", "  R1 -- Outpost__Chaos 2026! "].map(chaosSlug)));`] },
       ],
     },
     grade(nonce, artifacts) {
@@ -507,7 +507,7 @@ export const workloadDefinitions: Record<WorkloadId, WorkloadDefinition> = {
         { name: "module_present", ok: typeof artifacts.files[r1Module(nonce)] === "string" },
         { name: "test_checks_chaos_slug", ok: r1TestChecksSlug(artifacts.files[r1Test(nonce)]) },
         { name: "node_test_passes", ok: tests?.exitCode === 0, detail: `exit=${tests?.exitCode ?? "not run"}` },
-        { name: "required_and_hidden_cases", ok: slug?.exitCode === 0 && slug.stdout.trim() === JSON.stringify(["hello-chaos-world", "r1-paperclip-chaos-2026"]),
+        { name: "required_and_hidden_cases", ok: slug?.exitCode === 0 && slug.stdout.trim() === JSON.stringify(["hello-chaos-world", "r1-outpost-chaos-2026"]),
           detail: JSON.stringify(slug?.stdout.trim() ?? null) },
       ]);
     },
@@ -548,7 +548,7 @@ export const workloadDefinitions: Record<WorkloadId, WorkloadDefinition> = {
 /** Files committed into the `chaos-sandbox` fixture repository. */
 export function fixtureRepositoryFiles(benchSeconds = 240): Record<string, { content: string; mode?: number }> {
   return {
-    "README.md": { content: "# chaos-sandbox\n\nFixture repository for the Paperclip restart chaos harness.\n" },
+    "README.md": { content: "# chaos-sandbox\n\nFixture repository for the Outpost restart chaos harness.\n" },
     "chaoscli/__init__.py": { content: "" },
     "chaoscli/__main__.py": { content: "from chaoscli.cli import main\n\nraise SystemExit(main())\n" },
     "chaoscli/cli.py": { content: [

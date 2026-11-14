@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, companyMemberships, companySecrets, connectionGrants, createDb,
+import { agents, spaces, spaceMemberships, spaceSecrets, connectionGrants, createDb,
   ensurePostgresDatabase, applyPendingMigrations, heartbeatRuns, issues, toolCatalogEntries, toolConnections } from "@outpost/db";
 import { toolAccessService } from "../services/tool-access.js";
 import { createToolGatewayService } from "../services/tool-gateway.js";
@@ -12,7 +12,7 @@ const external = process.env.OUTPOST_TEST_DATABASE_URL;
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const actor = { actorType: "user" as const, actorId: "unikraft-reviewer" };
 const credential = "unikraft-fixture-token";
-(support.supported ? describe : describe.skip)("Unikraft governed provider actions", () => {
+(support.supported ? describe : describe.skip)("Unikraft controlled provider actions", () => {
   let db: ReturnType<typeof createDb>;
   let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   beforeAll(async () => {
@@ -25,8 +25,8 @@ const credential = "unikraft-fixture-token";
   afterAll(async () => { await db?.$client.end(); await temp?.cleanup(); });
 
   async function fixture(options: { personal?: boolean; metro?: string } = {}) {
-    const [company] = await db.insert(companies).values({ name: "Unikraft fixture", issuePrefix: `U${randomUUID().slice(0, 6)}` }).returning();
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: actor.actorId, membershipRole: "admin", status: "active" });
+    const [space] = await db.insert(spaces).values({ name: "Unikraft fixture", issuePrefix: `U${randomUUID().slice(0, 6)}` }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: actor.actorId, membershipRole: "admin", status: "active" });
     const instanceId = randomUUID();
     const request = vi.fn(async (url: string, init: RequestInit) => {
       expect(new Headers(init.headers).get("Authorization")).toBe(`Bearer ${credential}`);
@@ -47,32 +47,32 @@ const credential = "unikraft-fixture-token";
       throw new Error(`Unexpected provider request ${init.method} ${url}`);
     });
     const service = toolAccessService(db, { remoteHttpRequest: request, remoteHttpEndpointLookup: async () => [{ address: "8.8.8.8", family: 4 }] });
-    const connected = await service.connectGalleryApp(company.id, { galleryKey: "unikraft", connectionMethodKey: "api-token",
+    const connected = await service.connectGalleryApp(space.id, { galleryKey: "unikraft", connectionMethodKey: "api-token",
       ...(options.personal ? { grantKind: "user" as const } : {}), ...(options.metro ? { configValues: { metro: options.metro } } : {}),
       credentialValues: { "credentials.authorization": credential } }, actor);
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Operator", role: "engineer", adapterType: "process" }).returning();
-    await service.finishGalleryAppConnection(company.id, connected.connectionId, { enabledCatalogEntryIds: connected.catalog.map(c => c.id),
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Operator", role: "engineer", adapterType: "process" }).returning();
+    await service.finishGalleryAppConnection(space.id, connected.connectionId, { enabledCatalogEntryIds: connected.catalog.map(c => c.id),
       askFirstCatalogEntryIds: [], access: { agentIds: [agent.id] } }, actor);
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Provider work", assigneeAgentId: agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, issueId: issue.id,
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Provider work", assigneeAgentId: agent.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, issueId: issue.id,
       scopeKind: "issue", invocationSource: "on_demand", status: "running", responsibleUserId: actor.actorId, contextSnapshot: { issueId: issue.id } }).returning();
     const gateway = createToolGatewayService(db, { remoteHttpRequest: request });
-    const session = await gateway.createSession({ companyId: company.id, agentId: agent.id, runId: run.id, issueId: issue.id });
+    const session = await gateway.createSession({ spaceId: space.id, agentId: agent.id, runId: run.id, issueId: issue.id });
     const tools = await gateway.listToolsForSession(session.token);
     const call = (name: string, parameters: unknown) => {
       const tool = tools.find(t => t.upstreamToolName === name);
       expect(tool, name).toBeTruthy();
       return gateway.executeTool({ sessionToken: session.token, tool: tool!.name, parameters, idempotencyKey: randomUUID() });
     };
-    return { company, service, connected, agent, request, call, gateway, session, instanceId };
+    return { space, service, connected, agent, request, call, gateway, session, instanceId };
   }
 
   it.each([false, true])("uses the selected vault identity for real gateway reads, writes and sandbox commands (personal=%s)", async personal => {
     const f = await fixture({ personal });
     const [grant] = await db.select().from(connectionGrants).where(eq(connectionGrants.connectionId, f.connected.connectionId));
-    const [secret] = await db.select().from(companySecrets).where(eq(companySecrets.id, grant.credentialSecretRefs[0].secretId));
+    const [secret] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, grant.credentialSecretRefs[0].secretId));
     expect(grant.kind).toBe(personal ? "user" : "organization");
-    expect(secret.scope).toBe(personal ? "user" : "company");
+    expect(secret.scope).toBe(personal ? "user" : "space");
     expect(secret.ownerUserId).toBe(personal ? actor.actorId : null);
     expect(f.connected.catalog).toHaveLength(UNIKRAFT_TOOLS.length);
     expect(f.connected.catalog.find(c => c.toolName === "unikraft_get_instances")).toMatchObject({ isReadOnly: true });
@@ -105,25 +105,25 @@ const credential = "unikraft-fixture-token";
     await expect(f.call("unikraft_get_instances", { command: "printenv" })).rejects.toThrow();
     await expect(f.call("unikraft_sandbox_run_command", { instance: "../../users/quotas", body: { cmd: "true" } })).rejects.toThrow("Invalid Unikraft path");
     expect(f.request).not.toHaveBeenCalled();
-    await expect(executeUnikraftTool({ binding: { companyId: randomUUID(), agentId: f.agent.id },
-      connection: { companyId: f.company.id, config: {} }, headers: { Authorization: `Bearer ${credential}` }, request: f.request,
+    await expect(executeUnikraftTool({ binding: { spaceId: randomUUID(), agentId: f.agent.id },
+      connection: { spaceId: f.space.id, config: {} }, headers: { Authorization: `Bearer ${credential}` }, request: f.request,
       toolName: "unikraft_get_instances", parameters: {} })).rejects.toThrow("Connection not found");
-    await expect(executeUnikraftTool({ binding: { companyId: f.company.id, agentId: f.agent.id },
-      connection: { companyId: f.company.id, config: { methodConfig: { metro: "evil" } } }, headers: { Authorization: `Bearer ${credential}` },
+    await expect(executeUnikraftTool({ binding: { spaceId: f.space.id, agentId: f.agent.id },
+      connection: { spaceId: f.space.id, config: { methodConfig: { metro: "evil" } } }, headers: { Authorization: `Bearer ${credential}` },
       request: f.request, toolName: "unikraft_get_instances", parameters: {} })).rejects.toThrow("Choose a Unikraft Cloud metro");
     expect(f.request).not.toHaveBeenCalled();
   });
 
   it("rechecks revocation and Off policies for a previously created gateway session", async () => {
     const f = await fixture();
-    await f.service.finishGalleryAppConnection(f.company.id, f.connected.connectionId, {
+    await f.service.finishGalleryAppConnection(f.space.id, f.connected.connectionId, {
       enabledCatalogEntryIds: f.connected.catalog.filter(c => c.toolName !== "unikraft_sandbox_run_command").map(c => c.id),
       askFirstCatalogEntryIds: [], access: { agentIds: [f.agent.id] },
     }, actor);
     f.request.mockClear();
     await expect(f.call("unikraft_sandbox_run_command", { instance: "web", body: { cmd: "true" } })).rejects.toThrow();
     expect(f.request).not.toHaveBeenCalled();
-    await db.update(toolConnections).set({ enabled: false }).where(and(eq(toolConnections.id, f.connected.connectionId), eq(toolConnections.companyId, f.company.id)));
+    await db.update(toolConnections).set({ enabled: false }).where(and(eq(toolConnections.id, f.connected.connectionId), eq(toolConnections.spaceId, f.space.id)));
     await expect(f.call("unikraft_get_instances", {})).rejects.toThrow();
     expect(f.request).not.toHaveBeenCalled();
   });
@@ -144,8 +144,8 @@ const credential = "unikraft-fixture-token";
   it("does not export the token to agents", async () => {
     const f = await fixture();
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, f.agent.id));
-    await expect(f.service.mintConnectionTokenForAgent({ connectionId: f.connected.connectionId, companyId: f.company.id,
-      agentId: f.agent.id, runId: run.id, body: {} as never })).rejects.toThrow("Unikraft credentials stay in the governed tool gateway");
+    await expect(f.service.mintConnectionTokenForAgent({ connectionId: f.connected.connectionId, spaceId: f.space.id,
+      agentId: f.agent.id, runId: run.id, body: {} as never })).rejects.toThrow("Unikraft credentials stay in the controlled tool gateway");
   });
 });
 
@@ -154,8 +154,8 @@ describe("Unikraft provider client", () => {
     const request = vi.fn(async () => { throw new Error("Unexpected provider request"); });
     expect(UNIKRAFT_TOOLS).toHaveLength(105);
     for (const tool of UNIKRAFT_TOOLS) {
-      await expect(executeUnikraftTool({ binding: { companyId: "company", agentId: "agent" },
-        connection: { companyId: "company", config: {} }, headers: { Authorization: `Bearer ${credential}` },
+      await expect(executeUnikraftTool({ binding: { spaceId: "space", agentId: "agent" },
+        connection: { spaceId: "space", config: {} }, headers: { Authorization: `Bearer ${credential}` },
         request, toolName: tool.name, parameters: null }), tool.name).rejects.toThrow("Invalid Unikraft action arguments");
     }
     expect(request).not.toHaveBeenCalled();
@@ -172,19 +172,19 @@ describe("Unikraft provider client", () => {
       ["unikraft_stop_instances", { body: [{ name: "web", drain_timeout_ms: -1 }] }],
       ["unikraft_suspend_instance_by_uuid", { path: { uuid: randomUUID() }, body: { drain_timeout_ms: -1 } }],
     ] as const) {
-      await executeUnikraftTool({ binding: { companyId: "company", agentId: "agent" }, connection: { companyId: "company", config: {} },
+      await executeUnikraftTool({ binding: { spaceId: "space", agentId: "agent" }, connection: { spaceId: "space", config: {} },
         headers: { Authorization: `Bearer ${credential}` }, request, toolName, parameters });
     }
     expect(request).toHaveBeenCalledTimes(2);
-    await expect(executeUnikraftTool({ binding: { companyId: "company", agentId: "agent" }, connection: { companyId: "company", config: {} },
+    await expect(executeUnikraftTool({ binding: { spaceId: "space", agentId: "agent" }, connection: { spaceId: "space", config: {} },
       headers: { Authorization: `Bearer ${credential}` }, request, toolName: "unikraft_stop_instances",
       parameters: { body: [{ name: "web", drain_timeout_ms: -2 }] } })).rejects.toThrow("Invalid Unikraft action arguments");
   });
   it("reports a timed-out sandbox wait as a still-running command, not a provider failure", async () => {
     const commandId = randomUUID();
     const request = vi.fn(async (_url: string, _init: RequestInit) => new Response(null, { status: 408 }));
-    const call = (toolName: string) => executeUnikraftTool({ binding: { companyId: "company", agentId: "agent" },
-      connection: { companyId: "company", config: {} }, headers: { Authorization: `Bearer ${credential}` }, request, toolName,
+    const call = (toolName: string) => executeUnikraftTool({ binding: { spaceId: "space", agentId: "agent" },
+      connection: { spaceId: "space", config: {} }, headers: { Authorization: `Bearer ${credential}` }, request, toolName,
       parameters: { instance: "web", path: { uuid: commandId }, ...(toolName.endsWith("with_timeout") ? { body: { timeout_s: 0.01 } } : {}) } });
     await expect(call("unikraft_sandbox_wait_for_command_with_timeout")).resolves.toMatchObject({ status: "running", timedOut: true });
     expect(request.mock.calls[0]![0]).toBe(`https://api.fra.unikraft.cloud/v1/instances/web/plugins/sandbox/commands/${commandId}/wait_timeout`);

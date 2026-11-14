@@ -20,8 +20,8 @@ export function createSpekoChannelService(db: Db, options: SpekoChannelOptions) 
     allowLocalBoard: options.allowLocalBoard,
     credentials: async (endpoint, expectedFingerprint) => {
       const record = await endpointRecord(endpoint.id);
-      if (!record || record.endpoint.companyId !== endpoint.companyId) throw notFound("Voice connection not found");
-      if (expectedFingerprint && await currentVoiceCredentialFingerprint(db, endpoint.companyId, record.credentialSecretRefs) !== expectedFingerprint) throw conflict("Voice credentials changed during setup");
+      if (!record || record.endpoint.spaceId !== endpoint.spaceId) throw notFound("Voice connection not found");
+      if (expectedFingerprint && await currentVoiceCredentialFingerprint(db, endpoint.spaceId, record.credentialSecretRefs) !== expectedFingerprint) throw conflict("Voice credentials changed during setup");
       return resolveCredentialRefs(endpoint, record.credentialSecretRefs);
     },
     provider: (apiKey) => createSpekoProvider(apiKey, fetchImpl),
@@ -31,7 +31,7 @@ export function createSpekoChannelService(db: Db, options: SpekoChannelOptions) 
 
 export async function authorizeSpekoPublicVoiceTask(db: Db, endpoint: EndpointRow, externalId: string, authorizePrincipal: ReturnType<typeof voiceSessionStore>["authorizePrincipal"]): Promise<boolean> {
         try {
-          const authority = await db.transaction(tx => authorizePrincipal(tx, endpoint.companyId, endpoint.id, externalId));
+          const authority = await db.transaction(tx => authorizePrincipal(tx, endpoint.spaceId, endpoint.id, externalId));
           return authority.allowed && authority.userId === null;
         } catch (error) {
           if (!(error instanceof HttpError && [403, 404].includes(error.status))) throw error;
@@ -41,7 +41,7 @@ export async function authorizeSpekoPublicVoiceTask(db: Db, endpoint: EndpointRo
 
 export function replaceSpekoChannelRuntime(runtime: ChatRuntime | ChatSdkRuntime, record: EndpointRecord, persistence: ChatSdkStatePersistence) {
   if (!("replaceVoiceEndpoint" in runtime)) throw conflict("Voice runtime is unavailable");
-  return runtime.replaceVoiceEndpoint({ companyId: record.endpoint.companyId, endpointId: record.endpoint.id, userName: record.assignedAgentName, persistence });
+  return runtime.replaceVoiceEndpoint({ spaceId: record.endpoint.spaceId, endpointId: record.endpoint.id, userName: record.assignedAgentName, persistence });
 }
 
 export const SPEKO_CONVERSATION_IS_LINEAR = false;

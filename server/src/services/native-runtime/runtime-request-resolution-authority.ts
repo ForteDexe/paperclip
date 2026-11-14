@@ -23,7 +23,7 @@ const REQUEST_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 export type NativeRuntimeRequestKind = HarnessRuntimeRequestKind | "runtime";
 
 export interface PendingNativeRuntimeRequest {
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly runId: string;
   readonly requestId: string;
   readonly requestKind: NativeRuntimeRequestKind;
@@ -52,7 +52,7 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 function canonicalPendingRequest(input: {
-  companyId: string;
+  spaceId: string;
   runId: string;
   requestId: string;
   payload: unknown;
@@ -95,7 +95,7 @@ function canonicalPendingRequest(input: {
   }
   const kind = requestKind as NativeRuntimeRequestKind;
   return {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     runId: input.runId,
     requestId,
     requestKind: kind,
@@ -114,7 +114,7 @@ function canonicalPendingRequest(input: {
 export async function readPendingNativeRuntimeRequest(
   db: Db,
   input: {
-    readonly companyId: string;
+    readonly spaceId: string;
     readonly runId: string;
     readonly requestId: string;
   },
@@ -127,7 +127,7 @@ export async function readPendingNativeRuntimeRequest(
     })
     .from(heartbeatRunEvents)
     .where(and(
-      eq(heartbeatRunEvents.companyId, input.companyId),
+      eq(heartbeatRunEvents.spaceId, input.spaceId),
       eq(heartbeatRunEvents.runId, input.runId),
       inArray(heartbeatRunEvents.eventType, [...RUNTIME_REQUEST_EVENTS]),
       sql`coalesce(

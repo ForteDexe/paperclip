@@ -18,11 +18,11 @@ export const NATIVE_CASE_OPERATIONS = new Set([
 
 /** Retain the case boundary on generic HTTP response captures too. Shared
  * pipeline routes deliberately do not establish a standalone-case identity. */
-export async function caseIdForApiCapture(db: Db, companyId: string, path: string, pathParams?: Record<string, string>) {
+export async function caseIdForApiCapture(db: Db, spaceId: string, path: string, pathParams?: Record<string, string>) {
   const parameter = /^\/api\/cases\/\{([^}]+)\}(?:\/|$)/.exec(path)?.[1];
   const identity = parameter ? pathParams?.[parameter] : undefined;
   if (!identity) return undefined;
-  const [record] = await db.select({ id: cases.id }).from(cases).where(and(eq(cases.companyId, companyId),
+  const [record] = await db.select({ id: cases.id }).from(cases).where(and(eq(cases.spaceId, spaceId),
     isUuidLike(identity) ? eq(cases.id, identity) : eq(cases.identifier, identity.trim().toUpperCase()),
   )).limit(1);
   return record?.id;
@@ -52,7 +52,7 @@ const schemas = {
  * mutation fences, retained sources and audit. Never resolves pipeline cases. */
 export async function executeNativeCaseTool(input: {
   db: Db;
-  binding: { companyId: string; issueId: string; casesEnabled?: boolean };
+  binding: { spaceId: string; issueId: string; casesEnabled?: boolean };
   actor: AuthorizationActor;
   tool: string;
   arguments: unknown;
@@ -66,8 +66,8 @@ export async function executeNativeCaseTool(input: {
   const parsed = schema.safeParse(input.arguments);
   if (!parsed.success) throw badRequest("Invalid case tool arguments", { issues: parsed.error.issues });
   const values = parsed.data as { caseId?: string; idempotencyKey?: string } & Record<string, unknown>;
-  const [caseRow] = await input.db.select({ id: cases.id, companyId: cases.companyId }).from(cases).where(and(
-    eq(cases.companyId, input.binding.companyId), values.caseId ? eq(cases.id, values.caseId) : eq(cases.workIssueId, input.binding.issueId),
+  const [caseRow] = await input.db.select({ id: cases.id, spaceId: cases.spaceId }).from(cases).where(and(
+    eq(cases.spaceId, input.binding.spaceId), values.caseId ? eq(cases.id, values.caseId) : eq(cases.workIssueId, input.binding.issueId),
   )).limit(1);
   if (!caseRow) throw notFound("Case not found");
   await assertActorCanReadCase(input.db, input.actor, caseRow);

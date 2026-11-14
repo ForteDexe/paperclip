@@ -44,7 +44,7 @@ this slice alone does not make the whole orphan pass quiet.
 
 | Obligation / transition | Producer or durable source | Wake and stop condition |
 | --- | --- | --- |
-| First accepted result | `PaperclipControlPlanePort.completeRun` and `NativeRunCoordinatorStore.completeRun` (including terminal-event reconstruction) | Intent in the result's transaction; outer commit wakes, rollback creates no work |
+| First accepted result | `OutpostControlPlanePort.completeRun` and `NativeRunCoordinatorStore.completeRun` (including terminal-event reconstruction) | Intent in the result's transaction; outer commit wakes, rollback creates no work |
 | Saved retry or finalization transition | Existing native-finalization notification fanout, coordinator and finalizer writers | Reconstruct `nextAttemptAt`; do not advance it on inspection |
 | Finalization lease | Existing coordinator row | Wait for the saved expiry; execution re-reads it before copy-back |
 | Workspace-operation progress/completion | Workspace recorder's `workspace_finalize` writes | Same-transaction scoped notification; any successful barrier disarms this worker |
@@ -127,7 +127,7 @@ excludes any successful barrier, but the remaining result reconciler used only
 the latest receipt. A later stale failure could then leave result projection
 waiting forever after periodic copy-back was disabled. The added regression
 failed with `workspace_finalizing` instead of `committed`. The reconciler now
-prefers a successful company/task/run-scoped receipt, matching the physical
+prefers a successful space/task/run-scoped receipt, matching the physical
 finalizer's existing success rule. The complete 13-case worker lifecycle suite
 passes with this repair, including the normal result-reconciliation path and no
 repeated physical copy-back.
@@ -215,12 +215,12 @@ The current parent is #17717 at reviewed head
 slice preserves 1,198 parent-only paths, 15 owned-only paths, 11,517 shared
 paths, and 10 automatic shared merges. The only manual conflict is ordinary
 native-finalization fanout. Workspace finalization joins the existing issue/run
-scope guard there. Explicit company-wide settings and owner-release notifications
+scope guard there. Explicit space-wide settings and owner-release notifications
 keep their existing contracts. The entire Runner/package tree is byte-exact to
 the parent, including combined source profile 80 and both historical identities.
 
 The new real-database regression starts an idle workspace worker and submits
-three routine company-only finalization hints. A controlled baseline moves only
+three routine space-only finalization hints. A controlled baseline moves only
 workspace fanout outside the guard, retaining every other parent's guard. It
 produces three candidate SELECTs and fails the zero-query assertion. Restoring
 the production bytes passes the same assertion; a real accepted result then

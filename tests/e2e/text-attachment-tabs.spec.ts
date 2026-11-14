@@ -12,8 +12,8 @@ async function json(response: Awaited<ReturnType<APIRequestContext["get"]>>) {
 for (const mobile of [false, true]) {
   test(`opens uploaded text in task tabs and downloads the original (mobile=${mobile})`, async ({ page, request }, testInfo) => {
     await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 });
-    const company = await json(await request.post("/api/companies", { data: { name: `Text files ${randomUUID()}` } }));
-    const issue = await json(await request.post(`/api/companies/${company.id}/issues`, {
+    const space = await json(await request.post("/api/spaces", { data: { name: `Text files ${randomUUID()}` } }));
+    const issue = await json(await request.post(`/api/spaces/${space.id}/issues`, {
       data: { title: "Review uploaded text files", status: "backlog" },
     }));
     const files = [
@@ -21,14 +21,14 @@ for (const mobile of [false, true]) {
       { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("Plain text <script>never execute</script>\n") },
     ];
     const attachments = [];
-    for (const file of files) attachments.push(await json(await request.post(`/api/companies/${company.id}/issues/${issue.id}/attachments`, { multipart: { file } })));
+    for (const file of files) attachments.push(await json(await request.post(`/api/spaces/${space.id}/issues/${issue.id}/attachments`, { multipart: { file } })));
     await json(await request.post(`/api/issues/${issue.id}/comments`, {
       data: { body: "Review the attached files.", attachmentIds: attachments.map((attachment) => attachment.id) },
     }));
     for (const [index, attachment] of attachments.entries()) {
       await json(await request.post(`/api/issues/${issue.id}/work-products`, {
         data: {
-          type: "artifact", provider: "paperclip", title: `Delivered ${files[index]!.name}`, status: "ready_for_review",
+          type: "artifact", provider: "outpost", title: `Delivered ${files[index]!.name}`, status: "ready_for_review",
           metadata: {
             attachmentId: attachment.id, contentType: attachment.contentType, byteSize: attachment.byteSize,
             originalFilename: files[index]!.name, contentPath: attachment.contentPath,
@@ -37,7 +37,7 @@ for (const mobile of [false, true]) {
         },
       }));
     }
-    await page.goto(`/${company.issuePrefix}/issues/${issue.identifier}`);
+    await page.goto(`/${space.issuePrefix}/issues/${issue.identifier}`);
     const threadFiles = page.getByTestId("task-chat-bubble-artifacts-v1");
     await threadFiles.getByRole("link", { name: "Open AGENTS.md", exact: true }).click();
     const panel = mobile ? page.getByTestId("mobile-task-side-panel") : page.locator("aside").filter({ has: page.getByRole("tab", { name: "AGENTS.md", exact: true }) });
@@ -96,18 +96,18 @@ for (const mobile of [false, true]) {
 
 
 test("downloads a delivered JSON chip through its visible file tab with exact attachment binding", async ({ page, request }) => {
-  const company = await json(await request.post("/api/companies", { data: { name: `JSON delivery ${randomUUID()}` } }));
-  const issue = await json(await request.post(`/api/companies/${company.id}/issues`, {
+  const space = await json(await request.post("/api/spaces", { data: { name: `JSON delivery ${randomUUID()}` } }));
+  const issue = await json(await request.post(`/api/spaces/${space.id}/issues`, {
     data: { title: "Read the delivered result", status: "backlog" },
   }));
   const original = Buffer.from('{"reference":"original","label":"latest"}\n');
-  const attachment = await json(await request.post(`/api/companies/${company.id}/issues/${issue.id}/attachments`, {
+  const attachment = await json(await request.post(`/api/spaces/${space.id}/issues/${issue.id}/attachments`, {
     multipart: { file: { name: "result.json", mimeType: "application/json", buffer: original } },
   }));
   await json(await request.post(`/api/issues/${issue.id}/comments`, {
     data: { body: `[result.json](${attachment.contentPath})` },
   }));
-  await page.goto(`/${company.issuePrefix}/issues/${issue.identifier}`);
+  await page.goto(`/${space.issuePrefix}/issues/${issue.identifier}`);
   const downloaded = await downloadTaskTextArtifact(page, attachment.id, "result.json");
   expect(await fs.readFile(downloaded)).toEqual(original);
 });

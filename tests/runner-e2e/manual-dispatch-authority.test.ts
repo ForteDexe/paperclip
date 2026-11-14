@@ -53,7 +53,7 @@ describe("authorizeManualDispatch", () => {
   });
 
   it("keeps the per-run cell limit", () => {
-    const many = ["activity.agent-feedback", "activity.work-timeline", "companies.import-preview", "navigation-preferences.dismiss-announcement",
+    const many = ["activity.agent-feedback", "activity.work-timeline", "spaces.import-preview", "navigation-preferences.dismiss-announcement",
       "tasks.completion-with-gate", "tasks.private-task", "secrets.personal-secret", "agents.choose-primary", "access.cli-authorization"]
       .map(id => `chat-features.runner-opencode.local.${id}`);
     expect(() => authorizeManualDispatch(env({ MANUAL_PRIVATE_IDS: JSON.stringify(many) }), event({}, { id: many.join(",") }))).toThrow(/limit/);

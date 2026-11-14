@@ -49,7 +49,7 @@ function storageWarning(size: number, count: number, fullFile?: string) {
 
 export function agentFilePath(value: string): string {
   const relative = instructionPath(value);
-  if (relative.split("/").includes(".paperclip-runtime") || relative === "promptTemplate.legacy.md") {
+  if (relative.split("/").includes(".outpost-runtime") || relative === "promptTemplate.legacy.md") {
     throw unprocessable(`${relative} is reserved and cannot be used for agent files`);
   }
   return relative;
@@ -91,7 +91,7 @@ export async function adoptAgentFiles(tx: Tx, agent: Agent): Promise<string> {
   }
   const legacy = await tx.select({ entryFile: agentInstructionHeads.entryFile, contentBase64: agentInstructionRevisions.contentBase64 })
     .from(agentInstructionHeads).innerJoin(agentInstructionRevisions, eq(agentInstructionHeads.revisionId, agentInstructionRevisions.id))
-    .where(and(eq(agentInstructionHeads.companyId, agent.companyId), eq(agentInstructionHeads.agentId, agent.id)));
+    .where(and(eq(agentInstructionHeads.spaceId, agent.spaceId), eq(agentInstructionHeads.agentId, agent.id)));
   for (const entry of legacy) await materializeInstructionBytes(root, entry.entryFile, Buffer.from(entry.contentBase64, "base64"));
   await materializeInstructionBytes(markerRoot, marker, Buffer.from(JSON.stringify({ schema: AGENT_FILES_CONTRACT })));
   await persistDurableAgentFiles(tx, agent, root, true);
@@ -176,13 +176,13 @@ export async function snapshotAgentFiles(root: string, enforceLimits = true): Pr
 export async function isAgentFileSaveRecorded(tx: Tx, agent: Agent, relative: string, contentHash: string | null): Promise<boolean> {
   if (agent.status === "pending_approval" || agent.status === "terminated") return true;
   const [latest] = await tx.select({ id: resourceLifecycleEvents.id }).from(resourceLifecycleEvents)
-    .where(and(eq(resourceLifecycleEvents.companyId, agent.companyId), eq(resourceLifecycleEvents.resourceType, "agent_runtime"), eq(resourceLifecycleEvents.resourceId, agent.id)))
+    .where(and(eq(resourceLifecycleEvents.spaceId, agent.spaceId), eq(resourceLifecycleEvents.resourceType, "agent_runtime"), eq(resourceLifecycleEvents.resourceId, agent.id)))
     .orderBy(desc(resourceLifecycleEvents.id)).limit(1);
   if (!latest) return false;
   const hash = sql<string>`${activityLog.details}->>'contentHash'`;
   const [recorded] = await tx.select({ id: activityLog.id }).from(activityLog)
     .innerJoin(resourceLifecycleEvents, and(eq(resourceLifecycleEvents.id, latest.id), eq(activityLog.createdAt, resourceLifecycleEvents.createdAt))).where(and(
-    eq(activityLog.companyId, agent.companyId), eq(activityLog.entityType, "agent"), eq(activityLog.entityId, agent.id), eq(activityLog.action, "agent.files_updated"),
+    eq(activityLog.spaceId, agent.spaceId), eq(activityLog.entityType, "agent"), eq(activityLog.entityId, agent.id), eq(activityLog.action, "agent.files_updated"),
     eq(sql<string>`${activityLog.details}->>'agentRuntimeRevision'`, String(latest.id)),
     eq(sql<string>`${activityLog.details}->>'path'`, relative), contentHash === null ? isNull(hash) : eq(hash, contentHash),
   )).limit(1);
@@ -191,12 +191,12 @@ export async function isAgentFileSaveRecorded(tx: Tx, agent: Agent, relative: st
 
 export function agentFileStore(db: Db) {
   db = fileStorageDb(db);
-  async function locked<T>(companyId: string, agentId: string, actor: AuthorizationActor, write: boolean,
+  async function locked<T>(spaceId: string, agentId: string, actor: AuthorizationActor, write: boolean,
     fn: (tx: Tx, agent: Agent, root: string, bound: AuthorizationActor) => Promise<T>, texts: string[] = []) {
     return db.transaction(async tx => {
-      if (write) await assertAgentInteraction(tx, { companyId, actorAgentId: actor.type === "agent" ? actor.agentId : null,
+      if (write) await assertAgentInteraction(tx, { spaceId, actorAgentId: actor.type === "agent" ? actor.agentId : null,
         operation: "configure", targetAgentId: agentId, lockAgentIds: texts.flatMap(extractAgentMentionIds), lock: "update" });
-      const [agent] = await tx.select().from(agents).where(and(eq(agents.companyId, companyId), eq(agents.id, agentId))).for("update");
+      const [agent] = await tx.select().from(agents).where(and(eq(agents.spaceId, spaceId), eq(agents.id, agentId))).for("update");
       if (!agent) throw notFound("Agent not found");
       const bound = write ? await authorizeInstructionCommit(tx, actor, agent) : await authorizeInstructionRead(tx, actor, agent);
       const root = await adoptAgentFiles(tx, agent);
@@ -208,17 +208,17 @@ export function agentFileStore(db: Db) {
   }
   async function audit(tx: Tx, agent: Agent, actor: AuthorizationActor, details: Record<string, unknown>) {
     const origin = currentPluginInteractionOrigin();
-    await tx.insert(activityLog).values({ companyId: agent.companyId, actorType: origin ? "agent" : actor.type === "board" ? "user" : "agent",
-      actorId: origin?.agentId ?? (actor.type === "board" ? actor.userId : actor.agentId)!, agentId: origin?.agentId ?? (actor.type === "agent" ? actor.agentId : null),
-      runId: origin ? origin.runId : actor.runId, responsibleUserId: origin ? null : actor.type === "board" ? actor.userId : actor.onBehalfOfUserId,
+    await tx.insert(activityLog).values({ spaceId: agent.spaceId, actorType: origin ? "agent" : actor.type === "operator" ? "user" : "agent",
+      actorId: origin?.agentId ?? (actor.type === "operator" ? actor.userId : actor.agentId)!, agentId: origin?.agentId ?? (actor.type === "agent" ? actor.agentId : null),
+      runId: origin ? origin.runId : actor.runId, responsibleUserId: origin ? null : actor.type === "operator" ? actor.userId : actor.onBehalfOfUserId,
       action: "agent.files_updated", entityType: "agent", entityId: agent.id, details });
   }
   return {
     locked,
-    download: async (companyId: string, agentId: string, relative: string, actor: AuthorizationActor) => {
+    download: async (spaceId: string, agentId: string, relative: string, actor: AuthorizationActor) => {
       const opened: { file: Awaited<ReturnType<typeof openAgentFile>> } = { file: null };
       try {
-        const file = await locked(companyId, agentId, actor, false, async (_tx, _agent, root) => {
+        const file = await locked(spaceId, agentId, actor, false, async (_tx, _agent, root) => {
           opened.file = await openAgentFile(root, instructionPath(relative));
           return opened.file;
         });
@@ -229,10 +229,10 @@ export function agentFileStore(db: Db) {
         return { size: file.size, stream: file.handle.createReadStream({ end: file.size - 1 }) };
       } catch (error) { await opened.file?.handle.close(); throw error; }
     },
-    read: (companyId: string, agentId: string, relative: string, actor: AuthorizationActor) =>
-      locked(companyId, agentId, actor, false, (_tx, _agent, root) => readAgentFile(root, instructionPath(relative))),
-    write: (input: { companyId: string; agentId: string; path: string; bytes: Buffer | null; baseHash: string | null }, actor: AuthorizationActor) =>
-      locked(input.companyId, input.agentId, actor, true, async (tx, agent, root, bound) => {
+    read: (spaceId: string, agentId: string, relative: string, actor: AuthorizationActor) =>
+      locked(spaceId, agentId, actor, false, (_tx, _agent, root) => readAgentFile(root, instructionPath(relative))),
+    write: (input: { spaceId: string; agentId: string; path: string; bytes: Buffer | null; baseHash: string | null }, actor: AuthorizationActor) =>
+      locked(input.spaceId, input.agentId, actor, true, async (tx, agent, root, bound) => {
         const relative = agentFilePath(input.path);
         if (input.bytes) assertFileSize(input.bytes.length, relative);
         const previous = await inspectAgentFile(root, relative);
@@ -243,7 +243,7 @@ export function agentFileStore(db: Db) {
           return { contentHash: currentHash, changed: false };
         }
         if (input.bytes && input.bytes.length <= MAX_INSTRUCTION_BYTES) {
-          await assertAgentInteraction(tx, { companyId: input.companyId, actorAgentId: bound.type === "agent" ? bound.agentId : null,
+          await assertAgentInteraction(tx, { spaceId: input.spaceId, actorAgentId: bound.type === "agent" ? bound.agentId : null,
             operation: "mention", texts: [input.bytes.toString("utf8")] });
         }
         if (currentHash !== input.baseHash) throw conflict("This file changed since it was read. Reload before saving.", { code: "AGENT_FILE_CONFLICT", path: relative, currentHash });
@@ -262,9 +262,9 @@ export function agentFileStore(db: Db) {
         await audit(tx, agent, bound, { path: relative, contentHash: incomingHash, created: previous === null && input.bytes !== null });
         return { contentHash: incomingHash, changed: true };
       }, input.bytes && input.bytes.length <= MAX_INSTRUCTION_BYTES ? [input.bytes.toString("utf8")] : []),
-    apply: async (input: { companyId: string; agentId: string; sourceDir: string; baseline: DirectorySnapshot; checkpoint?: AgentFileManifest }, actor: AuthorizationActor) => {
+    apply: async (input: { spaceId: string; agentId: string; sourceDir: string; baseline: DirectorySnapshot; checkpoint?: AgentFileManifest }, actor: AuthorizationActor) => {
       const incoming = input.checkpoint ? checkpointSnapshot(input.checkpoint) : await snapshotAgentFiles(input.sourceDir);
-      const [target] = await db.select().from(agents).where(and(eq(agents.companyId, input.companyId), eq(agents.id, input.agentId)));
+      const [target] = await db.select().from(agents).where(and(eq(agents.spaceId, input.spaceId), eq(agents.id, input.agentId)));
       if (!target) throw notFound("Agent not found");
       const requestedEntry = deriveBundleState(target).entryFile;
       const changedMentions = new Map<string, { hash: string; text: string }>();
@@ -277,7 +277,7 @@ export function agentFileStore(db: Db) {
           if (mentions.length) changedMentions.set(name, { hash: fileHash(bytes!), text: mentions.map(id => `[@agent](agent://${id})`).join(" ") });
         }
       }
-      return locked(input.companyId, input.agentId, actor, true, async (tx, agent, root, bound) => {
+      return locked(input.spaceId, input.agentId, actor, true, async (tx, agent, root, bound) => {
         if (deriveBundleState(agent).entryFile !== requestedEntry) throw conflict("Agent instructions entry changed; retry the file synchronization");
         const entryPath = deriveBundleState(agent).entryFile;
         if (incoming.entries.get(entryPath)?.kind !== "file") throw unprocessable("The configured instruction entry cannot be deleted");
@@ -294,7 +294,7 @@ export function agentFileStore(db: Db) {
           const prior = current.entries.get(name);
           return prior?.kind === "file" && prior.hash === value.hash ? [] : [value.text];
         });
-        await assertAgentInteraction(tx, { companyId: input.companyId, actorAgentId: bound.type === "agent" ? bound.agentId : null,
+        await assertAgentInteraction(tx, { spaceId: input.spaceId, actorAgentId: bound.type === "agent" ? bound.agentId : null,
           operation: "mention", texts });
         // Rebase only the run's changed paths onto the current tree. This makes
         // same-file edits/deletions last-sync-wins while untouched files retain

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   documentRevisions,
   documents,
@@ -32,7 +32,7 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-documents-service-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-documents-service-");
     db = createDb(tempDb.connectionString);
     svc = documentService(db);
   }, 20_000);
@@ -44,7 +44,7 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
     await db.delete(issues);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -52,19 +52,19 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
   });
 
   async function createIssueWithDocuments() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       identifier: "PAP-1600",
       title: "System document filtering",
       description: "Validate document filtering",
@@ -78,7 +78,7 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
       title: "Plan",
       format: "markdown",
       body: "# Plan",
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
     await svc.upsertIssueDocument({
       issueId,
@@ -88,7 +88,7 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
       body: "# Handoff",
     });
 
-    return { issueId, companyId };
+    return { issueId, spaceId };
   }
 
   it("filters continuation summaries from default document lists and issue payload summaries", async () => {
@@ -134,10 +134,10 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
   });
 
   it("returns each actual writer run in revision history without attributing human revisions to a run", async () => {
-    const { issueId, companyId } = await createIssueWithDocuments();
+    const { issueId, spaceId } = await createIssueWithDocuments();
     const agentId = randomUUID(), firstRunId = randomUUID(), secondRunId = randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId, name: "Receipt writer", role: "engineer", adapterType: "process" });
-    await db.insert(heartbeatRuns).values([firstRunId, secondRunId].map(id => ({ id, companyId, agentId,
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Receipt writer", role: "engineer", adapterType: "process" });
+    await db.insert(heartbeatRuns).values([firstRunId, secondRunId].map(id => ({ id, spaceId, agentId,
       status: "succeeded", invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId } })));
     const first = await svc.upsertIssueDocument({ issueId, key: "receipt", title: "Receipt", format: "markdown",
       body: '{"total":6}', createdByAgentId: agentId, createdByRunId: firstRunId });
@@ -150,7 +150,7 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
       { id: first.document.latestRevisionId, revisionNumber: 1, createdByAgentId: agentId, createdByRunId: firstRunId,
         body: '{"total":6}' },
     ]);
-    expect(await svc.listIssueDocumentRevisions(issueId, "plan")).toMatchObject([{ createdByUserId: "board-user", createdByRunId: null }]);
+    expect(await svc.listIssueDocumentRevisions(issueId, "plan")).toMatchObject([{ createdByUserId: "operator-user", createdByRunId: null }]);
     expect(await svc.listIssueDocumentRevisions(randomUUID(), "receipt")).toEqual([]);
   });
 
@@ -195,12 +195,12 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
     const locked = await svc.lockIssueDocument({
       issueId,
       key: "plan",
-      lockedByUserId: "board-user",
+      lockedByUserId: "operator-user",
     });
 
     expect(locked.changed).toBe(true);
     expect(locked.document.lockedAt).toBeInstanceOf(Date);
-    expect(locked.document.lockedByUserId).toBe("board-user");
+    expect(locked.document.lockedByUserId).toBe("operator-user");
 
     await expect(svc.upsertIssueDocument({
       issueId,
@@ -209,7 +209,7 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
       format: "markdown",
       body: "# Updated plan",
       baseRevisionId: locked.document.latestRevisionId,
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     })).rejects.toMatchObject({
       status: 409,
       message: "Document is locked",
@@ -226,7 +226,7 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
       format: "markdown",
       body: "# Updated plan",
       baseRevisionId: unlocked.document.latestRevisionId,
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
 
     expect(updated.created).toBe(false);
@@ -238,7 +238,7 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
     const locked = await svc.lockIssueDocument({
       issueId,
       key: "plan",
-      lockedByUserId: "board-user",
+      lockedByUserId: "operator-user",
     });
 
     const fallback = await svc.upsertIssueDocument({

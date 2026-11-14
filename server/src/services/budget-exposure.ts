@@ -13,7 +13,7 @@ export interface BudgetExposure {
   unknownBrowserRunCount: number;
 }
 
-export type SpendPolicy = Pick<typeof budgetPolicies.$inferSelect, "companyId" | "scopeType" | "scopeId" | "windowKind" | "metric">;
+export type SpendPolicy = Pick<typeof budgetPolicies.$inferSelect, "spaceId" | "scopeType" | "scopeId" | "windowKind" | "metric">;
 export type ObservedSpend = BudgetExposure & {
   windowStart: Date; windowEnd: Date; total: number; totalExact: string;
   /** Terminal runs whose accounting is unfinished. Display only: each one
@@ -79,23 +79,23 @@ async function readObservedSpends(db: Db, policies: SpendPolicy[], now: Date): P
   const ledgerPredicates: SQL[] = [], heldPredicates: SQL[] = [], runPredicates: SQL[] = [], browserPredicates: SQL[] = [];
   for (const { policy, index } of billable) {
     const { start, end } = windows[index];
-    const ledger = and(eq(costEvents.companyId, policy.companyId),
+    const ledger = and(eq(costEvents.spaceId, policy.spaceId),
       policy.scopeType === "agent" ? eq(costEvents.agentId, policy.scopeId) : undefined,
       policy.scopeType === "project" ? eq(costEvents.projectId, policy.scopeId) : undefined,
       policy.windowKind === "calendar_month_utc" ? and(gte(costEvents.occurredAt, start), lt(costEvents.occurredAt, end)) : undefined)!;
-    const held = and(eq(budgetReservations.companyId, policy.companyId), eq(budgetReservations.state, "held"),
+    const held = and(eq(budgetReservations.spaceId, policy.spaceId), eq(budgetReservations.state, "held"),
       policy.scopeType === "agent" ? eq(budgetReservations.agentId, policy.scopeId) : undefined,
       policy.scopeType === "project" ? eq(budgetReservations.projectId, policy.scopeId) : undefined)!;
     // Hosted browser work is a separate paid operation from its parent run.
     // Its durable hold survives unknown POST outcomes and monthly rollover.
-    const browserHold = sql`${browserUseRuns.result}->'paperclipBudgetHold'`;
+    const browserHold = sql`${browserUseRuns.result}->'outpostBudgetHold'`;
     const hasBrowserHold = sql`coalesce(jsonb_typeof(${browserHold}) = 'object'
       and ${browserHold}->>'invocationId' = ${browserUseRuns.invocationId}::text, false)`;
     // Earlier browser rows did not persist a cap/dispatch projection. Their
     // unfinished work remains unknown until a terminal receipt is accounted.
     const legacyBrowserPending = sql`not ${hasBrowserHold} and ${browserUseRuns.eventsDrained} = 0
       and (${browserUseRuns.providerRunId} is not null or ${browserUseRuns.status} in ('creating', 'unknown', 'queued', 'dispatching', 'running'))`;
-    const browser = and(eq(browserUseRuns.companyId, policy.companyId), eq(browserUseSessions.companyId, policy.companyId),
+    const browser = and(eq(browserUseRuns.spaceId, policy.spaceId), eq(browserUseSessions.spaceId, policy.spaceId),
       sql`((${hasBrowserHold} and ${browserHold}->>'state' = 'held') or (${legacyBrowserPending}))`,
       policy.scopeType === "agent" ? eq(browserUseSessions.agentId, policy.scopeId) : undefined,
       policy.scopeType === "project" ? sql`case when ${hasBrowserHold} then ${browserHold}->>'projectId'
@@ -116,14 +116,14 @@ async function readObservedSpends(db: Db, policies: SpendPolicy[], now: Date): P
       ? sql`coalesce(${heartbeatRuns.finishedAt}, ${now.toISOString()}::timestamptz) >= ${start.toISOString()}::timestamptz
         and coalesce(${heartbeatRuns.finishedAt}, ${now.toISOString()}::timestamptz) < ${end.toISOString()}::timestamptz` : sql`true`;
     const lateReceiptDebt = sql`coalesce(${usage}->>'accountingLateReceiptPending', 'false') = 'true'`;
-    const run = and(eq(heartbeatRuns.companyId, policy.companyId), or(eq(heartbeatRuns.costAccountingPending, true), lateReceiptDebt),
+    const run = and(eq(heartbeatRuns.spaceId, policy.spaceId), or(eq(heartbeatRuns.costAccountingPending, true), lateReceiptDebt),
       policy.scopeType === "agent" ? eq(heartbeatRuns.agentId, policy.scopeId) : undefined,
       policy.scopeType === "project" ? sql`${usage}->'ledgerScope'->>'projectId' = ${policy.scopeId}` : undefined)!;
     const terminal = and(run, inArray(heartbeatRuns.status, ["succeeded", "failed", "timed_out", "cancelled", "interrupted"]), or(inWindow, lateReceiptDebt))!;
     // Keep correlated subqueries in nested SQL chunks. Drizzle strips column
     // qualifiers from a single-table selection's direct column chunks.
     const hasReservation = sql`exists (select 1 from ${budgetReservations}
-      where ${budgetReservations.companyId} = ${heartbeatRuns.companyId}
+      where ${budgetReservations.spaceId} = ${heartbeatRuns.spaceId}
         and ${budgetReservations.runId} = ${heartbeatRuns.id} and ${budgetReservations.state} = 'held')`;
     ledgerPredicates.push(ledger); heldPredicates.push(held); runPredicates.push(run);
     ledgerColumns[`total${index}`] = sql`coalesce(sum(${costEvents.costCents}) filter (where ${ledger}), 0)::text`;
@@ -133,8 +133,8 @@ async function readObservedSpends(db: Db, policies: SpendPolicy[], now: Date): P
     // - a final charge accounting settled without its receipt: lost with a
     //   stopped provider, closure evidence that never arrived, or a failed
     //   capture (its receipt is never certified complete, even if a later
-    //   report adds usage). Accounting is never a company gate (plan decision 1); its
-    //   exposure is recorded, and the activity entry is the board's notice;
+    //   report adds usage). Accounting is never a space gate (plan decision 1); its
+    //   exposure is recorded, and the activity entry is the operator's notice;
     // - a charge that carries a known partial cost;
     // - metered API or subscription billing with no observed tokens.
     // Unknown billing with no tokens (for example Cursor Cloud) still counts.
@@ -143,7 +143,7 @@ async function readObservedSpends(db: Db, policies: SpendPolicy[], now: Date): P
     const finalCharge = sql`${costEvents.idempotencyKey} = 'heartbeat:' || ${costEvents.heartbeatRunId}::text || ':final'`;
     const exemptFromUnpricedBlock = sql`((${finalCharge}
         and exists (select 1 from ${heartbeatRuns} lost_receipt_run where lost_receipt_run.id = ${costEvents.heartbeatRunId}
-          and lost_receipt_run.company_id = ${costEvents.companyId}
+          and lost_receipt_run.space_id = ${costEvents.spaceId}
           and (lost_receipt_run.usage_json->>'accountingReceiptUnavailable' = 'true'
             or lost_receipt_run.usage_json->>'accountingClosureTimedOut' = 'true'
             or lost_receipt_run.usage_json->>'accountingCaptureFailed' = 'true'
@@ -172,12 +172,12 @@ async function readObservedSpends(db: Db, policies: SpendPolicy[], now: Date): P
   if (billable.length) {
     const ledgerQuery = db.select(columns(ledgerColumns)).from(costEvents).where(or(...ledgerPredicates));
     const heldQuery = db.select(columns(heldColumns)).from(budgetReservations)
-      .leftJoin(heartbeatRuns, and(eq(heartbeatRuns.id, budgetReservations.runId), eq(heartbeatRuns.companyId, budgetReservations.companyId)))
+      .leftJoin(heartbeatRuns, and(eq(heartbeatRuns.id, budgetReservations.runId), eq(heartbeatRuns.spaceId, budgetReservations.spaceId)))
       .where(or(...heldPredicates));
     const runsQuery = db.select(columns(runColumns)).from(heartbeatRuns).where(or(...runPredicates));
     const browserQuery = db.select(columns(browserColumns)).from(browserUseRuns)
-      .innerJoin(browserUseSessions, and(eq(browserUseSessions.id, browserUseRuns.sessionId), eq(browserUseSessions.companyId, browserUseSessions.companyId)))
-      .leftJoin(issues, and(eq(issues.id, browserUseSessions.issueId), eq(issues.companyId, browserUseSessions.companyId)))
+      .innerJoin(browserUseSessions, and(eq(browserUseSessions.id, browserUseRuns.sessionId), eq(browserUseSessions.spaceId, browserUseSessions.spaceId)))
+      .leftJoin(issues, and(eq(issues.id, browserUseSessions.issueId), eq(issues.spaceId, browserUseSessions.spaceId)))
       .where(or(...browserPredicates));
     const [row] = await db.execute<{ ledger: Record<string, string>; held: Record<string, string>; runs: Record<string, string>; browser: Record<string, string> }>(sql`
       select row_to_json(ledger) as ledger, row_to_json(held) as held,

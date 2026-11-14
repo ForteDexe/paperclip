@@ -16,14 +16,14 @@ Runtime authentication: [AI Connections](./AI-CONNECTIONS.md).
 
 Long-term memory: [Experimental memory connectors](./MEMORY.md).
 
-Provider notes: [Google Workspace](./GOOGLE-WORKSPACE.md),
+Provider notes: [Google Workspace](./GOOGLE-WORKCOMPANY.md),
 [Gmail](./GMAIL.md), [Asana](./ASANA.md), [Sentry](./SENTRY.md), [PostHog](./POSTHOG.md), [Braintrust](./BRAINTRUST.md), [Neon](./NEON.md), [Superagent](./SUPERAGENT.md), [Gauge](./GAUGE.md), [Ditto](./DITTO.md),
 [1Password](./1PASSWORD.md), [Unikraft](./UNIKRAFT.md), [AgentMail](./AGENTMAIL.md), [Telem.AI](./TELEM.md), [iMessage Photon](./IMESSAGE-PHOTON.md),
 [Enterpret](./ENTERPRET.md), [Supabase](./SUPABASE.md), and
 [Vercel](./vercel.md). Optional credential custody:
 [Vercel Connect](./VERCEL-CONNECT.md).
 
-Post-read action: classify a new integration request, pick the right Paperclip
+Post-read action: classify a new integration request, pick the right Outpost
 layer to change, and avoid creating a parallel connection framework.
 
 ## Decision Record
@@ -36,10 +36,10 @@ substrate on the PAP-10341 branch canonical:
   rules, action requests, gateway sessions, audit events, and runtime slots.
   Connections v1 is retired as an implementation path.
 - **D2: one credential authority per connection, brokered projections.** The
-  default is the Paperclip instance vault: durable third-party credentials live
-  in `company_secrets` as secret refs. A reviewed remote MCP method may instead
+  default is the Outpost instance vault: durable third-party credentials live
+  in `space_secrets` as secret refs. A reviewed remote MCP method may instead
   opt in to [Vercel Connect](./VERCEL-CONNECT.md), in which case Vercel is the
-  durable credential authority and Paperclip stores only the connector reference
+  durable credential authority and Outpost stores only the connector reference
   and redacted grant metadata. A connection must never mix those two sources.
   Adapter config, plugin config, harness credential files, and run environments
   may receive only brokered or projected credentials.
@@ -49,8 +49,8 @@ substrate on the PAP-10341 branch canonical:
 - **D4: unification lands on PAP-10341.** Pages, CircleBack-style harness MCP
   OAuth, provider gallery work, and plugin-provided integrations converge on
   this branch instead of spawning new integration substrates.
-- **D5: inbound stays thin.** External clients that call Paperclip use scoped
-  Paperclip tokens and existing profiles/rules. They do not get a separate
+- **D5: inbound stays thin.** External clients that call Outpost use scoped
+  Outpost tokens and existing profiles/rules. They do not get a separate
   permission model.
 
 ## Canonical Object Model
@@ -69,7 +69,7 @@ Everything else is an axis on that object:
 | Direction | outbound, inbound | Who is the client? |
 | Transport | MCP, native REST/OpenAPI, OAuth app install, webhook | How do bytes move? |
 | Auth mode | OAuth, API key/PAT, app installation, none | What does the secret represent? |
-| Credential owner | company, user, run | Whose identity acts? |
+| Credential owner | space, user, run | Whose identity acts? |
 | Packaging | catalog entry, plugin, skill | How does it ship? |
 
 MCP is a transport, not a product category. "Install the Discord app",
@@ -86,12 +86,12 @@ solves the problem:
 | Surface | user-facing Apps, Connections, Review, Developer/Advanced screens | gallery cards, setup wizard, review queue |
 | Governance | profiles, bindings, allow/ask-first/block rules, quarantine, audit | read-only profile, ask-first write policy |
 | Capability | action catalogs, schemas, risk classes, changed-tool review | `search_issues`, `create_comment`, schema hash |
-| Credential | `company_secrets`, OAuth broker, credential resolver, token broker | Slack bot token ref, Google OAuth refresh token ref |
+| Credential | `space_secrets`, OAuth broker, credential resolver, token broker | Slack bot token ref, Google OAuth refresh token ref |
 | Identity | actor attribution and token exchange | board user, agent run, first-party service identity |
 | Transport | how the external system is reached | remote HTTP MCP, local stdio, REST/OpenAPI, webhook |
 
 The agent should not hold a durable provider credential. It should hold a
-Paperclip run/session token; the server or broker resolves the connection,
+Outpost run/session token; the server or broker resolves the connection,
 checks governance, invokes the provider, and writes audit.
 
 ## Identity vs. connections
@@ -104,9 +104,9 @@ identity-service documentation or re-deriving it.
 
 | Plane | Question | Lives where | Token profile |
 | --- | --- | --- | --- |
-| **P1. Sign-in methods** | *Who are you?* | `paperclip-id` (id.outpost.ing → Account) | Minimal-scope provider tokens (`openid email profile`), used once to authenticate, encrypted at rest, never exported |
-| **P2. Connections (Apps)** | *What may your agents touch?* | Paperclip App instances (`tool_connections`), acquired via the **connect broker** for hosted + self-hosted | Rich-scope, long-lived resource tokens in the **instance's** encrypted vault; per-agent grants; risk-tier policy defaults |
-| **P3. Login with Paperclip** | *Who may authenticate against us?* | `paperclip-id` OIDC provider + DB-backed client registry | Our ES256 ID/access tokens issued *by* us to registered RPs (instances, the broker, future third parties) |
+| **P1. Sign-in methods** | *Who are you?* | `outpost-id` (id.outpost.ing → Account) | Minimal-scope provider tokens (`openid email profile`), used once to authenticate, encrypted at rest, never exported |
+| **P2. Connections (Apps)** | *What may your agents touch?* | Outpost App instances (`tool_connections`), acquired via the **connect broker** for hosted + self-hosted | Rich-scope, long-lived resource tokens in the **instance's** encrypted vault; per-agent grants; risk-tier policy defaults |
+| **P3. Login with Outpost** | *Who may authenticate against us?* | `outpost-id` OIDC provider + DB-backed client registry | Our ES256 ID/access tokens issued *by* us to registered RPs (instances, the broker, future third parties) |
 
 Everything in `doc/connections/` — the [First-30 matrix](./FIRST-30-MATRIX.md),
 the [connection authoring runbook](./CONNECTOR-PLAYBOOK.md), and the connect-broker work —
@@ -150,7 +150,7 @@ Use the surface-correct name for each plane; they intentionally differ:
 
 | Surface | Plane | Name to use |
 | --- | --- | --- |
-| Paperclip App instances | P2 | **"Connections"** |
+| Outpost App instances | P2 | **"Connections"** |
 | id.outpost.ing Account | P1 | **"Ways to sign in"** |
 | id.outpost.ing admin | P3 | **"OIDC clients"** (until the app store productizes it) |
 
@@ -179,7 +179,7 @@ not own durable tokens.
   playbook work.
 - [Connecting any remote MCP server](./GENERIC-REMOTE-MCP.md) is the baseline:
   how an operator connects a standards-compliant remote MCP endpoint with no
-  Paperclip code change, and how sign-in resolves a client.
+  Outpost code change, and how sign-in resolves a client.
 - [Connection authoring runbook](./CONNECTOR-PLAYBOOK.md) is the one
   end-to-end, agent-executable guide for adding a vendor as a catalog entry on
   Apps v2: research, connection-type selection, OAuth/API-key/generated-URL

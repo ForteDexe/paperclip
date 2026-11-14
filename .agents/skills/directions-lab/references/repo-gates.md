@@ -42,10 +42,10 @@ validates the result (lines 83-116). Line numbers in 1.1-1.5 refer to that scrip
   `parameters.designProposalTheme === false`; `html:has(.design-proposal-theme)` switches `--font-mono` to
   Paper Mono (`ui/src/index.css:3916-3918`). Theme toolbar defaults to dark (line 861); a11y is `test: "error"` (line 876).
 
-### 1.2 The `parameters.paperclip` block: fields and allowed values
+### 1.2 The `parameters.outpost` block: fields and allowed values
 
 Allowed keys (line 16): `capabilities`, `status`, `implementation`, `boundary`, `notes`, `home`,
-`exception`, `replacement`; any other key throws `unknown paperclip field` (line 57).
+`exception`, `replacement`; any other key throws `unknown outpost field` (line 57).
 
 | Field | Allowed values | Lab value |
 | --- | --- | --- |
@@ -62,12 +62,12 @@ Defaults when omitted: `status`, `implementation`, `boundary` are `"unreviewed"`
 
 ### 1.3 Placement and the literal-only rule
 
-- `parameters` is an object literal with exactly one non-computed `paperclip` property (lines 47-51).
+- `parameters` is an object literal with exactly one non-computed `outpost` property (lines 47-51).
 - Every value inside the block is a string, boolean, number, array or object literal; `as` and
   `satisfies` are unwrapped (lines 26-42). An identifier, call, spread or template string inside the block
   throws `metadata must be literal; expressions are not executed` (line 42). Expressions in `argTypes`,
   `args` and `component` are fine.
-- No `...spread` or computed property may come after `paperclip` (lines 52-54). Literal properties may
+- No `...spread` or computed property may come after `outpost` (lines 52-54). Literal properties may
   follow it; placing it last is convention, not rule.
 - `annotation()` throws at scan time (one error per run); `validateCatalog` errors are joined (lines 189-190).
 
@@ -110,7 +110,7 @@ const meta = {
           "Pick a direction and a surface. Today is the shipped components fed with the lab's fixtures; 1–5 are the explored directions.",
       },
     },
-    paperclip: {
+    outpost: {
       capabilities: ["documents-artifacts/library", "documents-artifacts/work-products", "documents-artifacts/attachments"],
       status: "proposed",
       home: "design-proposals",
@@ -124,7 +124,7 @@ const meta = {
 
 Lines 60-74 add `argTypes` built from runtime constants (`DIRECTION_IDS`, `KIT_META`, `SURFACE_IDS`),
 default `args`, and `} satisfies Meta<typeof DirectionView>;`. GENERIC: `layout: "fullscreen"`,
-`docs.description.component`, the six `paperclip` fields, runtime constants in `argTypes`.
+`docs.description.component`, the six `outpost` fields, runtime constants in `argTypes`.
 ARTIFACT-SPECIFIC: every string, the constants, the default args. The per-direction story
 (`artifact-directions-hybrid.stories.tsx:27-48`) has the same block with no `component` and one `render`
 export per surface and per slot (lines 56-155).
@@ -308,13 +308,13 @@ Render with `act(() => root.render(<X />))`. A test that stubs `window.fetch` re
 (`ui/src/artifact-directions/api-stub.test.ts:7-14`). A fixture factory `test-<entity>.ts` takes
 `Partial<T> & Pick<T, "kind">` (`d5-v1-mvp/test-artifact.ts`) and is not a test file for the coverage gate.
 
-When a tested component renders the app's `Link`, mock `CompanyContext` and wrap in `MemoryRouter`:
-`ui/src/lib/router.tsx:67` exports a `Link` that reads `useCompany()` (lines 5, 31). Pattern
+When a tested component renders the app's `Link`, mock `SpaceContext` and wrap in `MemoryRouter`:
+`ui/src/lib/router.tsx:67` exports a `Link` that reads `useSpace()` (lines 5, 31). Pattern
 (`ui/src/plugins/outlet-errors.test.tsx:4,13,35`):
 
 ```tsx
 import { MemoryRouter } from "react-router-dom";
-vi.mock("@/context/CompanyContext", () => ({ useCompany: () => ({ selectedCompany: null }) }));
+vi.mock("@/context/SpaceContext", () => ({ useSpace: () => ({ selectedSpace: null }) }));
 ```
 
 The artifact lab's own tests render no `Link` and do not use this mock.

@@ -8,7 +8,7 @@ import type { LinkPreviewProvider, LinkPreviewScope } from "./link-previews.js";
 /** Only the viewer's own connection is eligible. Never borrow the task assignee's identity. */
 export async function resolveLinkPreviewGitHubCredential(db: Db, scope: LinkPreviewScope) {
   if (scope.userId) {
-    const managed = await resolveManagedGitHubCredential(db, secretService(db), scope.companyId, {
+    const managed = await resolveManagedGitHubCredential(db, secretService(db), scope.spaceId, {
       responsibleUserId: scope.userId, allowStandingDelegation: false,
     });
     if (managed.configured) {
@@ -16,7 +16,7 @@ export async function resolveLinkPreviewGitHubCredential(db: Db, scope: LinkPrev
       return { token: managed.credential.token, source: "managed_connection" as const, secretName: null };
     }
   }
-  return resolveGitHubApiCredential(db, scope.companyId);
+  return resolveGitHubApiCredential(db, scope.spaceId);
 }
 
 export function createGitHubLinkPreviewProvider(db: Db, options?: GitHubExternalObjectProviderOptions): LinkPreviewProvider {
@@ -28,7 +28,7 @@ export function createGitHubLinkPreviewProvider(db: Db, options?: GitHubExternal
         ...options,
         credentialProvider: options?.credentialProvider ?? (() => resolveLinkPreviewGitHubCredential(db, scope)),
       }).resolvers.find(candidate => candidate.objectType === "pull_request")!;
-      const result = await resolver.resolve({ companyId: scope.companyId, signal, object: {
+      const result = await resolver.resolve({ spaceId: scope.spaceId, signal, object: {
         externalId: `${owner}/${repo}#pull/${number}`,
         sanitizedCanonicalUrl: target.canonicalUrl,
       } });

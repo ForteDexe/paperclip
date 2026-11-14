@@ -82,7 +82,7 @@ async function createBundledPluginFixture(
         ...(postinstallScript ? { postinstall: postinstallScript } : {}),
         build: "node ./scripts/build.mjs",
       },
-      paperclipPlugin: {
+      outpostPlugin: {
         manifest: "./dist/manifest.js",
         worker: "./dist/worker.js",
         ui: "./dist/ui/",
@@ -97,9 +97,9 @@ async function createBundledPluginFixture(
     version: "0.1.0",
     displayName: "Autobuild Fixture",
     description: "Bundled plugin fixture for install-time auto-build coverage.",
-    author: "Paperclip",
+    author: "Outpost",
     categories: ["automation"],
-    capabilities: ["companies.read"],
+    capabilities: ["spaces.read"],
     entrypoints: {
       worker: "./dist/worker.js",
     },
@@ -151,11 +151,11 @@ async function createInstallApp(db: ReturnType<typeof createDb>) {
   app.use(express.json());
   app.use((req, _res, next) => {
     req.actor = {
-      type: "board",
+      type: "operator",
       userId: "admin-1",
       source: "session",
       isInstanceAdmin: true,
-      companyIds: [],
+      spaceIds: [],
     } as typeof req.actor;
     next();
   });
@@ -175,7 +175,7 @@ describe("ensureLocalPluginBuilt", () => {
   });
 
   it("skips auto-build for local plugin paths outside the repo", async () => {
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "paperclip-plugin-outside-"));
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "outpost-plugin-outside-"));
     const packageRoot = path.join(tempRoot, "plugin-outside");
     cleanupPaths.add(path.dirname(packageRoot));
     await mkdir(packageRoot, { recursive: true });
@@ -185,7 +185,7 @@ describe("ensureLocalPluginBuilt", () => {
       packageRoot,
       {
         name: "@outpost/plugin-outside",
-        paperclipPlugin: {
+        outpostPlugin: {
           manifest: "./dist/manifest.js",
           worker: "./dist/worker.js",
         },
@@ -225,7 +225,7 @@ describe("ensureLocalPluginBuilt", () => {
     const installArgs = ["install", "--ignore-workspace", ...(localPolicy ? ["--ignore-scripts"] : []), "--no-lockfile"];
     const execStub = vi.fn(async (_file: string, args: readonly string[]) => {
       if (args.join(" ") === installArgs.join(" ")) {
-        await mkdir(path.join(fixture.packageRoot, "node_modules", "@paperclipai", "plugin-sdk"), { recursive: true });
+        await mkdir(path.join(fixture.packageRoot, "node_modules", "@outpost", "plugin-sdk"), { recursive: true });
       }
       if (args.join(" ") === "build") {
         await mkdir(path.join(fixture.distDir, "ui"), { recursive: true });
@@ -264,7 +264,7 @@ describe("ensureLocalPluginBuilt", () => {
     cleanupPaths.add(fixture.packageRoot);
 
     const execStub = vi.fn(async () => {
-      await mkdir(path.join(fixture.packageRoot, "node_modules", "@paperclipai", "plugin-sdk"), { recursive: true });
+      await mkdir(path.join(fixture.packageRoot, "node_modules", "@outpost", "plugin-sdk"), { recursive: true });
       return { stdout: "", stderr: "" };
     });
     await ensureLocalPluginBuilt(
@@ -289,7 +289,7 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
   const cleanupPaths = new Set<string>();
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-plugin-autobuild-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-plugin-autobuild-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -345,7 +345,7 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
     expect(existsSync(path.join(fixture.distDir, "manifest.js"))).toBe(true);
     expect(existsSync(path.join(fixture.distDir, "worker.js"))).toBe(true);
     expect(existsSync(path.join(fixture.distDir, "ui", "index.js"))).toBe(true);
-    expect(existsSync(path.join(fixture.packageRoot, "node_modules", "@paperclipai", "plugin-sdk"))).toBe(true);
+    expect(existsSync(path.join(fixture.packageRoot, "node_modules", "@outpost", "plugin-sdk"))).toBe(true);
     expect(mockLifecycle.load).toHaveBeenCalledTimes(1);
   }, 60_000);
 
@@ -358,7 +358,7 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
     const app = await createInstallApp(db);
 
     expect(existsSync(path.join(fixture.distDir, "manifest.js"))).toBe(true);
-    expect(existsSync(path.join(fixture.packageRoot, "node_modules", "@paperclipai", "plugin-sdk"))).toBe(false);
+    expect(existsSync(path.join(fixture.packageRoot, "node_modules", "@outpost", "plugin-sdk"))).toBe(false);
 
     const res = await request(app)
       .post("/api/plugins/install")
@@ -367,7 +367,7 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
     expect(res.status).toBe(200);
     expect(res.body.packageName).toBe(fixture.packageName);
     expect(res.body.pluginKey).toBe(fixture.pluginKey);
-    expect(existsSync(path.join(fixture.packageRoot, "node_modules", "@paperclipai", "plugin-sdk"))).toBe(true);
+    expect(existsSync(path.join(fixture.packageRoot, "node_modules", "@outpost", "plugin-sdk"))).toBe(true);
     expect(mockLifecycle.load).toHaveBeenCalledTimes(1);
   }, 60_000);
 
@@ -382,7 +382,7 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
       .send({ packageName: fixture.packageRoot, isLocalPath: true });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toContain("does not appear to be a Paperclip plugin (no manifest found)");
+    expect(res.body.error).toContain("does not appear to be a Outpost plugin (no manifest found)");
     expect(res.body.error).toContain(`pnpm --filter ${fixture.packageName} build`);
     expect(existsSync(path.join(fixture.distDir, "manifest.js"))).toBe(false);
     expect(mockLifecycle.load).not.toHaveBeenCalled();
@@ -399,7 +399,7 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
       .send({ packageName: fixture.packageRoot, isLocalPath: true });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toContain("does not appear to be a Paperclip plugin (no manifest found)");
+    expect(res.body.error).toContain("does not appear to be a Outpost plugin (no manifest found)");
     expect(res.body.error).toContain(path.relative(REPO_ROOT, fixture.packageRoot));
     expect(res.body.error).toContain("pnpm install --ignore-workspace --no-lockfile && pnpm build");
     expect(existsSync(path.join(fixture.distDir, "manifest.js"))).toBe(false);

@@ -9,14 +9,14 @@ import type {
 } from "@outpost/shared";
 import { ManagedAiConnectionDetails } from "@/components/ai-connections/ManagedAiConnectionDetails";
 
-const companyId = "company-storybook";
+const spaceId = "space-storybook";
 const currentUserId = "usage-review-user";
 const checkedAt = "2026-10-02T15:00:00Z";
 const date = new Date(checkedAt);
 
 function account(provider: AiManagedConnectionSummary["provider"], name: string): AiManagedConnectionSummary {
   return {
-    id: `usage-review-${provider}`, grantId: `usage-grant-${provider}`, companyId,
+    id: `usage-review-${provider}`, grantId: `usage-grant-${provider}`, spaceId,
     provider, method: provider === "openrouter" ? "api_key" : "subscription", name,
     accountLabel: "alex@example.test", ownership: "personal", ownerUserId: currentUserId,
     ownerName: "Alex", isDefault: true, status: "connected",
@@ -99,9 +99,9 @@ const unavailable: Scenario = {
 
 function connection(row: AiManagedConnectionSummary): ToolConnection {
   return {
-    id: row.id, companyId, applicationId: `app-${row.provider}`, name: row.name, uid: row.id,
+    id: row.id, spaceId, applicationId: `app-${row.provider}`, name: row.name, uid: row.id,
     connectionKind: "managed", ownership: "customer", connectionPurpose: "ai", transport: "runtime_auth",
-    authKind: row.method === "subscription" ? "oauth" : "api_key", credentialSource: "paperclip_vault",
+    authKind: row.method === "subscription" ? "oauth" : "api_key", credentialSource: "outpost_vault",
     credentialPolicy: "per_user", status: "active", enabled: true, transportConfig: {},
     config: { ai: { provider: row.provider, method: row.method }, aiIsolatedSubscription: true }, credentialSecretRefs: [],
     healthStatus: "ok", healthCheckedAt: date, healthMessage: null, lastError: null,
@@ -114,12 +114,12 @@ function grants(row: AiManagedConnectionSummary): ConnectionGrantsResponse {
     connection: { id: row.id, uid: row.id }, currentUserId,
     members: [{ userId: currentUserId, name: "Alex", email: "alex@example.test" }],
     capabilities: {
-      canConfigure: true, canCreateOrganizationGrant: true, canSetCompanyInstall: true,
+      canConfigure: true, canCreateOrganizationGrant: true, canSetSpaceInstall: true,
       canConnectAsCurrentUser: true, canManageAgentInstalls: true,
       canViewOtherPersonalIdentities: true, editableAgentIds: [],
     },
     grants: [{
-      id: row.grantId, companyId, connectionId: row.id, kind: "user", subjectUserId: currentUserId,
+      id: row.grantId, spaceId, connectionId: row.id, kind: "user", subjectUserId: currentUserId,
       providerTenant: { name: row.accountLabel }, credentialSecretRefs: [], status: "active", isDefault: false,
       createdByAgentId: null, createdByUserId: currentUserId, revokedAt: null, revokedByAgentId: null,
       revokedByUserId: null, lastUsedAt: null, createdAt: date, updatedAt: date, members: [],
@@ -139,11 +139,11 @@ export function AiConnectionUsageReview({ scenarios }: { scenarios: Scenario[] }
     const fixtureFetch: typeof window.fetch = async (input, init) => {
       const url = new URL(input instanceof Request ? input.url : String(input), window.location.origin);
       const path = url.pathname;
-      if (path === `/api/companies/${companyId}/ai-connections`) {
+      if (path === `/api/spaces/${spaceId}/ai-connections`) {
         return Response.json({ currentUserId, canManageConnections: true, connections: scenarios.map((entry) => entry.account) });
       }
       for (const entry of scenarios) {
-        const base = `/api/companies/${companyId}/ai-connections/${entry.account.id}`;
+        const base = `/api/spaces/${spaceId}/ai-connections/${entry.account.id}`;
         if (path === `${base}/usage`) {
           if (entry.pending) return new Promise<Response>(() => {});
           return Response.json(entry.usage);
@@ -152,7 +152,7 @@ export function AiConnectionUsageReview({ scenarios }: { scenarios: Scenario[] }
         if (path === `/api/tool-connections/${entry.account.id}/grants`) return Response.json(grants(entry.account));
       }
       // Fixture account controls cannot send mutations to a live instance.
-      if (path.startsWith(`/api/companies/${companyId}/ai-connections`) || path.startsWith("/api/tool-connections/usage-review-")) {
+      if (path.startsWith(`/api/spaces/${spaceId}/ai-connections`) || path.startsWith("/api/tool-connections/usage-review-")) {
         return Response.json({ error: "This Storybook preview only simulates usage checks." }, { status: 400 });
       }
       return previous(input, init);

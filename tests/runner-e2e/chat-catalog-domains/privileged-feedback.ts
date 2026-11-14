@@ -28,15 +28,15 @@ export function storedArchiveEntries(bytes: Buffer): Map<string, Buffer> {
   if (!rows.size || offset + 4 > bytes.length || bytes.readUInt32LE(offset) !== 0x02014b50) throw new Error("Missing feedback ZIP directory");
   return rows;
 }
-export function interruptedBundleMatches(bundle: FeedbackTraceBundle, ids: { company: string; issue: string; run: string; agent: string; comment: string }) {
-  const run = bundle.paperclipRun;
-  const runFile = bundle.files.find(f => f.path === "paperclip/run.json"), eventsFile = bundle.files.find(f => f.path === "paperclip/run-events.json");
+export function interruptedBundleMatches(bundle: FeedbackTraceBundle, ids: { space: string; issue: string; run: string; agent: string; comment: string }) {
+  const run = bundle.outpostRun;
+  const runFile = bundle.files.find(f => f.path === "outpost/run.json"), eventsFile = bundle.files.find(f => f.path === "outpost/run-events.json");
   if (!runFile || !eventsFile) return false;
   try {
     const saved = JSON.parse(runFile.contents) as Record<string, unknown>, events = JSON.parse(eventsFile.contents) as Array<{ runId?: string; agentId?: string; seq?: number }>;
-    return bundle.companyId === ids.company && bundle.issueId === ids.issue && bundle.envelope.targetId === ids.comment
-      && run?.id === ids.run && run.companyId === ids.company && run.agentId === ids.agent && run.status === "cancelled"
-      && saved.id === ids.run && saved.status === "cancelled" && saved.agentId === ids.agent && saved.companyId === ids.company
+    return bundle.spaceId === ids.space && bundle.issueId === ids.issue && bundle.envelope.targetId === ids.comment
+      && run?.id === ids.run && run.spaceId === ids.space && run.agentId === ids.agent && run.status === "cancelled"
+      && saved.id === ids.run && saved.status === "cancelled" && saved.agentId === ids.agent && saved.spaceId === ids.space
       && events.length > 0 && events.every(e => e.runId === ids.run) && Number(run.eventCount) === events.length;
   } catch { return false; }
 }
@@ -46,10 +46,10 @@ export function gradeFeedbackBundle(value: unknown) {
   c.add("interrupted-work-not-fabricated-failure", o.state.workerWasReallyWaiting === true && o.state.cancelledBeforeCanonical === true
     && o.state.exportedInterruptionMatches === true && o.runs.some(r => r.id === o.state.workerRunId && r.status === "cancelled")
     && o.state.originalTraceUnchanged === true, "The original actual cancelled run, source-attributed comment and exact retained events survive export; cancellation is never relabeled as a failed native/model outcome.");
-  c.add("owned-local-bytes-and-scope", o.state.bundleWithinOwnedDirectory === true && o.state.exportCompanyMatches === true && o.state.exportIssueMatches === true
+  c.add("owned-local-bytes-and-scope", o.state.bundleWithinOwnedDirectory === true && o.state.exportSpaceMatches === true && o.state.exportIssueMatches === true
     && o.state.fullTraceBytesMatch === true && o.state.archiveBytesMatch === true && typeof o.state.zipSha256 === "string" && Number(o.state.zipBytes) > 0
     && o.state.noPrivateCredentialBytes === true && o.state.remoteSharingUnchanged === true && o.state.bundlePublished === false,
-    "Actual JSON and archive bytes match the intended company/issue trace only, remain private and do not enable remote sharing.");
+    "Actual JSON and archive bytes match the intended space/issue trace only, remain private and do not enable remote sharing.");
   const report = o.state.exportReport as { attributed?: boolean; reply?: string } | undefined;
   // The saved state above proves scope, bytes and sharing. The reply must be the
   // attributed answer to the receipt and give the real local location; a person
@@ -62,7 +62,7 @@ const feedback = privilegedDefinition("cli-operations.feedback-bundle", "privile
   async setup(ctx) {
     const gate = await prepareRuntimeWorkerGate(ctx, { taskBound: true }); const pending = { gate, taskId: undefined as string | undefined }; pendingFixtures.set(ctx, pending);
     const marker = `Waiting for operator brief ${ctx.input.nonce}`;
-    const task = await ctx.input.api.post<Entity>(`${gate.company}/issues`, { title: "Interrupted local feedback fixture", status: "todo", assigneeAgentId: gate.worker.id,
+    const task = await ctx.input.api.post<Entity>(`${gate.space}/issues`, { title: "Interrupted local feedback fixture", status: "todo", assigneeAgentId: gate.worker.id,
       description: `First post one normal task comment saying exactly ${JSON.stringify(marker)}. Then run ${gate.gate.command} once and wait for the human brief. Do not mark this task complete or replace the script. This is an owned interruption fixture.` });
     pending.taskId = task.id;
     const running = await pollUntil({ label: "Actual worker comment and native waiting process", deadlineAt: Date.now() + 150000,
@@ -93,20 +93,20 @@ const feedback = privilegedDefinition("cli-operations.feedback-bundle", "privile
     await pollUntil({ label: "Canonical human-export guidance settled", deadlineAt: chatCatalogNativePhaseDeadline(ctx, Date.now() + 150000),
       load: async () => { await ctx.refreshIssue(); return { issue: ctx.issue(), runs: await ctx.allRuns() }; },
       accept: o => chatCatalogNativePhaseIsTimely(ctx) && (o.issue?.conversationState === "waiting" && o.runs.length === 2 && o.runs.filter(r => r.status === "succeeded").length === 1 && o.runs.filter(r => r.status === "cancelled").length === 1) });
-    const prior = await ctx.allRuns(); const company = ctx.input.fixtures.company.id, task = state.task as Entity;
+    const prior = await ctx.allRuns(); const space = ctx.input.fixtures.space.id, task = state.task as Entity;
     const output = path.join(String(state.operatorDirectory), "feedback-export");
-    const result = JSON.parse(await runOwnedCli(ctx, ["feedback", "export", "--company-id", company, "--issue-id", task.id, "--out", output, "--json"])); state.cliExecuted = true;
+    const result = JSON.parse(await runOwnedCli(ctx, ["feedback", "export", "--space-id", space, "--issue-id", task.id, "--out", output, "--json"])); state.cliExecuted = true;
     const directory = await realpath(output), root = await realpath(String(state.operatorDirectory));
     state.bundleWithinOwnedDirectory = directory.startsWith(root + path.sep) && result.outputDir === output && result.zipPath === output + ".zip";
     if (!state.bundleWithinOwnedDirectory) throw new Error("Feedback CLI output escapes its exact owned local destination");
-    const indexBytes = await readFile(path.join(directory, "index.json")), index = JSON.parse(indexBytes.toString()) as { companyId: string; summary: { total: number; issues: string[] }; files: { fullTraces: string[]; traces: string[]; votes: string[] } };
-    state.exportCompanyMatches = index.companyId === company; state.exportIssueMatches = index.summary.total === 1
+    const indexBytes = await readFile(path.join(directory, "index.json")), index = JSON.parse(indexBytes.toString()) as { spaceId: string; summary: { total: number; issues: string[] }; files: { fullTraces: string[]; traces: string[]; votes: string[] } };
+    state.exportSpaceMatches = index.spaceId === space; state.exportIssueMatches = index.summary.total === 1
       && index.summary.issues.length === 1 && index.summary.issues[0] === (task.identifier ?? task.id) && index.files.fullTraces.length === 1 && index.files.traces.length === 1 && index.files.votes.length === 1;
-    if (!state.exportIssueMatches) throw new Error("Feedback export contains unexpected company or issue scope");
+    if (!state.exportIssueMatches) throw new Error("Feedback export contains unexpected space or issue scope");
     const traceDir = index.files.fullTraces[0]!;
     if (path.basename(traceDir) !== traceDir) throw new Error("Unexpected feedback trace directory");
     const bundleBytes = await readFile(path.join(directory, "full-traces", traceDir, "bundle.json")), bundle = JSON.parse(bundleBytes.toString()) as FeedbackTraceBundle;
-    state.exportedInterruptionMatches = interruptedBundleMatches(bundle, { company, issue: task.id, run: String(state.workerRunId), agent: (state.worker as Entity).id, comment: String(state.workerCommentId) });
+    state.exportedInterruptionMatches = interruptedBundleMatches(bundle, { space, issue: task.id, run: String(state.workerRunId), agent: (state.worker as Entity).id, comment: String(state.workerCommentId) });
     const actual = await ctx.input.api.get<FeedbackTraceBundle>(`/api/feedback-traces/${state.traceId}/bundle`);
     state.fullTraceBytesMatch = JSON.stringify(bundle) === JSON.stringify(actual);
     const zip = await readFile(result.zipPath), archive = storedArchiveEntries(zip);
@@ -130,7 +130,7 @@ const feedback = privilegedDefinition("cli-operations.feedback-bundle", "privile
     const sharingAfter = await ctx.input.api.get<{ feedbackDataSharingPreference?: string }>("/api/instance/settings/general");
     state.remoteSharingUnchanged = sharingAfter.feedbackDataSharingPreference === state.sharingPreferenceBefore && before.status === "local_only" && after.status === "local_only" && after.destination == null && after.exportId == null;
     state.bundlePublished = false; state.localOutputDirectory = directory;
-    const receipt = { localOutputDirectory: directory, zipSha256: state.zipSha256, zipBytes: state.zipBytes, companyId: company, issueId: task.id,
+    const receipt = { localOutputDirectory: directory, zipSha256: state.zipSha256, zipBytes: state.zipBytes, spaceId: space, issueId: task.id,
       feedbackTraceId: state.traceId, originalRunId: state.workerRunId, originalRunStatus: "cancelled", originalAgentId: (state.worker as Entity).id,
       exportedContents: ["scoped feedback vote", "trace metadata", "original cancelled run", "retained run events"], exactLocalBytesVerified: state.fullTraceBytesMatch,
       remoteSharingEnabled: false, publicAttachmentCreated: false, outcomeKind: "operator interrupted unfinished work; not a model failure or failed-native run" };

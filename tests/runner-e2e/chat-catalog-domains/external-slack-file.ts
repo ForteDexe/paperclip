@@ -149,7 +149,7 @@ export function gradeSlackFile(value: unknown, supportedOnly = false) {
       t.input.byteSize === Buffer.byteLength(brief) &&
       input?.issueId === t.source.issueId &&
       input.issueCommentId === t.source.humanCommentId &&
-      input.createdByUserId === t.source.linkedPaperclipUserId &&
+      input.createdByUserId === t.source.linkedOutpostUserId &&
       input.sha256 === t.input.hash &&
       input.byteSize === t.input.byteSize &&
       t.actualBriefRead,
@@ -200,7 +200,7 @@ export function gradeSlackFile(value: unknown, supportedOnly = false) {
     o.runs.length >= 1 &&
       o.runs.every(
         (run) =>
-          run.companyId === o.companyId &&
+          run.spaceId === o.spaceId &&
           run.runtimeMode === "native" &&
           run.status === "succeeded" &&
           sourceIds.has(String(run.contextSnapshot?.issueId)),

@@ -2,7 +2,7 @@ import { inArray } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import {
-  agents, companies, createDb, heartbeatRuns, issues, principalPermissionGrants,
+  agents, spaces, createDb, heartbeatRuns, issues, principalPermissionGrants,
   projects, toolApplications, toolCatalogEntries, toolConnections, toolPolicies,
   toolProfileBindings, toolProfileEntries, toolProfiles,
 } from "@outpost/db";
@@ -35,12 +35,12 @@ export async function createListingFixture(
   toolCount: number,
   options: { broadBindings?: boolean; connectionCount?: number } = {},
 ) {
-  const company = await db.insert(companies).values({
+  const space = await db.insert(spaces).values({
     name: `Listing ${randomUUID()}`,
     issuePrefix: `LM${randomUUID().slice(0, 6).toUpperCase()}`,
   }).returning().then((rows) => rows[0]!);
   const agent = await db.insert(agents).values({
-    companyId: company.id,
+    spaceId: space.id,
     name: `Listing Agent ${randomUUID()}`,
     role: "engineer",
     adapterType: "process",
@@ -49,18 +49,18 @@ export async function createListingFixture(
     permissions: {},
   }).returning().then((rows) => rows[0]!);
   const project = await db.insert(projects).values({
-    companyId: company.id,
+    spaceId: space.id,
     name: `Listing Project ${randomUUID()}`,
   }).returning().then((rows) => rows[0]!);
   const issue = await db.insert(issues).values({
-    companyId: company.id,
+    spaceId: space.id,
     projectId: project.id,
     title: "Listing work",
     status: "in_progress",
     assigneeAgentId: agent.id,
   }).returning().then((rows) => rows[0]!);
   const run = await db.insert(heartbeatRuns).values({
-    companyId: company.id,
+    spaceId: space.id,
     agentId: agent.id,
     invocationSource: "assignment",
     status: "running",
@@ -68,14 +68,14 @@ export async function createListingFixture(
     resultJson: { summary: LARGE_TASK_TEXT },
   }).returning().then((rows) => rows[0]!);
   const application = await db.insert(toolApplications).values({
-    companyId: company.id,
+    spaceId: space.id,
     applicationKey: `listing-${randomUUID().slice(0, 8)}`,
     name: `Listing MCP ${randomUUID()}`,
     type: "mcp_http",
     status: "active",
   }).returning().then((rows) => rows[0]!);
   const connection = await db.insert(toolConnections).values({
-    companyId: company.id,
+    spaceId: space.id,
     applicationId: application.id,
     name: "Listing connection",
     uid: `test/${randomUUID()}`,
@@ -88,7 +88,7 @@ export async function createListingFixture(
   }).returning().then((rows) => rows[0]!);
   const entries = await db.insert(toolCatalogEntries).values(
     Array.from({ length: toolCount }, (_, index) => ({
-      companyId: company.id,
+      spaceId: space.id,
       applicationId: application.id,
       connectionId: connection.id,
       entryKind: "tool" as const,
@@ -110,7 +110,7 @@ export async function createListingFixture(
 
   for (let i = 1; i < (options.connectionCount ?? 1); i += 1) {
     const extra = await db.insert(toolConnections).values({
-      companyId: company.id, applicationId: application.id, name: `Listing connection ${i}`,
+      spaceId: space.id, applicationId: application.id, name: `Listing connection ${i}`,
       uid: `test/${randomUUID()}`, transport: "mcp_remote", status: "active", enabled: true,
       healthStatus: "ok", config: { url: "https://8.8.8.8/mcp" },
     }).returning().then((rows) => rows[0]!);
@@ -119,42 +119,42 @@ export async function createListingFixture(
   }
 
   // The gateway profile allows every tool except one excluded entry. The
-  // company and agent bindings lose to the narrower gateway binding.
+  // space and agent bindings lose to the narrower gateway binding.
   const gatewayProfile = await db.insert(toolProfiles).values({
-    companyId: company.id,
+    spaceId: space.id,
     profileKey: `gateway-${randomUUID()}`,
     name: `Gateway profile ${randomUUID()}`,
     defaultAction: "allow",
   }).returning().then((rows) => rows[0]!);
   await db.insert(toolProfileEntries).values({
-    companyId: company.id,
+    spaceId: space.id,
     profileId: gatewayProfile.id,
     selectorType: "catalog_entry",
     catalogEntryId: entries[1]!.id,
     effect: "exclude",
   });
   const broadProfile = await db.insert(toolProfiles).values({
-    companyId: company.id,
+    spaceId: space.id,
     profileKey: `broad-${randomUUID()}`,
     name: `Broad profile ${randomUUID()}`,
     defaultAction: "deny",
   }).returning().then((rows) => rows[0]!);
   if (options.broadBindings !== false) {
     await db.insert(toolProfileBindings).values([
-      { companyId: company.id, profileId: broadProfile.id, targetType: "company", targetId: company.id },
-      { companyId: company.id, profileId: broadProfile.id, targetType: "agent", targetId: agent.id },
+      { spaceId: space.id, profileId: broadProfile.id, targetType: "space", targetId: space.id },
+      { spaceId: space.id, profileId: broadProfile.id, targetType: "agent", targetId: agent.id },
     ]);
   }
   await db.insert(toolPolicies).values([
     {
-      companyId: company.id,
+      spaceId: space.id,
       name: `Block one tool ${randomUUID()}`,
       policyType: "block",
       priority: 10,
       selectors: { catalogEntryId: entries[2]!.id },
     },
     {
-      companyId: company.id,
+      spaceId: space.id,
       name: `Review writes ${randomUUID()}`,
       policyType: "require_approval",
       priority: 20,
@@ -163,7 +163,7 @@ export async function createListingFixture(
   ]);
   // A grant for another connection: the listing reads it, but it allows nothing here.
   await db.insert(principalPermissionGrants).values({
-    companyId: company.id,
+    spaceId: space.id,
     principalType: "agent",
     principalId: agent.id,
     permissionKey: "tools:use",
@@ -172,11 +172,11 @@ export async function createListingFixture(
 
   const setupGateway = createToolGatewayService(db);
   const namedGateway = await setupGateway.createNamedGateway({
-    companyId: company.id,
+    spaceId: space.id,
     body: { name: `Listing gateway ${randomUUID().slice(0, 8)}`, profileId: gatewayProfile.id },
   });
   const token = await setupGateway.createNamedGatewayToken({
-    companyId: company.id,
+    spaceId: space.id,
     gatewayId: namedGateway.id,
     body: {
       name: "Run token",
@@ -186,5 +186,5 @@ export async function createListingFixture(
       ownerNote: "",
     },
   });
-  return { company, agent, project, issue, run, application, connection, entries, namedGateway, token };
+  return { space, agent, project, issue, run, application, connection, entries, namedGateway, token };
 }

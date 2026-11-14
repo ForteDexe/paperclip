@@ -6,7 +6,7 @@
  * A repeatable-read snapshot taken before that lock goes stale whenever one of
  * those writes commits first, and four retries could not outlast a busy stream
  * (restart-chaos L1 with `--db-pressure`). The deterministic cases commit a real
- * run-event append after the writer's transaction validates the company and
+ * run-event append after the writer's transaction validates the space and
  * before it locks the run, on every attempt, which is the race a stream produces.
  */
 import { randomUUID } from "node:crypto";
@@ -16,7 +16,7 @@ import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-  agents, budgetEvaluationWork, budgetPolicies, budgetReservations, companies, createDb, heartbeatRuns, runUsageReceipts, type Db,
+  agents, budgetEvaluationWork, budgetPolicies, budgetReservations, spaces, createDb, heartbeatRuns, runUsageReceipts, type Db,
 } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import {
@@ -39,32 +39,32 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
   async function fixture(options: { status?: "queued" | "running"; limitCents?: number; reservationCents?: string } = {}) {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Contention lab", issuePrefix: `C${companyId.slice(0, 5)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", role: "engineer", status: "idle", adapterType: "process" });
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Contention lab", issuePrefix: `C${spaceId.slice(0, 5)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", role: "engineer", status: "idle", adapterType: "process" });
     if (options.limitCents !== undefined) {
-      await db.insert(budgetPolicies).values({ companyId, scopeType: "company", scopeId: companyId, metric: "billed_cents",
+      await db.insert(budgetPolicies).values({ spaceId, scopeType: "space", scopeId: spaceId, metric: "billed_cents",
         windowKind: "calendar_month_utc", amount: options.limitCents, reservationCents: options.reservationCents ?? "0",
         notifyEnabled: false, unpricedUsagePolicy: "allow" });
     }
     const run = async (status = options.status ?? "queued") => {
-      const [row] = await db.insert(heartbeatRuns).values({ companyId, agentId, invocationSource: "assignment", status }).returning();
+      const [row] = await db.insert(heartbeatRuns).values({ spaceId, agentId, invocationSource: "assignment", status }).returning();
       return row.id;
     };
-    return { companyId, agentId, run };
+    return { spaceId, agentId, run };
   }
 
   /** Commit a real run-event append after the accounting transaction checks
-   * the company (its first statement, which starts the snapshot) and before
+   * the space (its first statement, which starts the snapshot) and before
    * it locks the run. Fires on every attempt, so a snapshot-sensitive writer
    * exhausts its retries deterministically. */
-  function interleaveRunEvents(f: { companyId: string; agentId: string }, runId: string) {
+  function interleaveRunEvents(f: { spaceId: string; agentId: string }, runId: string) {
     let interleavings = 0;
     const observed = new Proxy(db, { get(target, key) {
       if (key !== "transaction") return Reflect.get(target, key);
       return (callback: Parameters<Db["transaction"]>[0], options: Parameters<Db["transaction"]>[1]) => {
         // Only accounting transactions (which name an isolation level). A plain
-        // transaction can already hold the run lock where it reads companies.
+        // transaction can already hold the run lock where it reads spaces.
         let first = Boolean(options?.isolationLevel);
         return target.transaction(tx => callback(new Proxy(tx, { get(transaction, property) {
           if (property !== "select") return Reflect.get(transaction, property);
@@ -72,12 +72,12 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
             const builder = transaction.select(...fields), from = builder.from.bind(builder);
             builder.from = ((...args: Parameters<typeof from>) => {
               const query = from(...args);
-              if (args[0] === companies && first) {
+              if (args[0] === spaces && first) {
                 first = false;
                 const execute = query.execute.bind(query);
                 query.execute = async (...executeArgs: Parameters<typeof execute>) => {
                   const rows = await execute(...executeArgs);
-                  await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId, agentId: f.agentId,
+                  await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId, agentId: f.agentId,
                     eventType: "lifecycle", message: "stream advanced" });
                   interleavings++;
                   return rows;
@@ -114,11 +114,11 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
   }
 
   describe("reserveRunBudget", () => {
-    it("reserves once when run events commit between its company check and its run lock", async () => {
+    it("reserves once when run events commit between its space check and its run lock", async () => {
       const f = await fixture({ limitCents: 1_000, reservationCents: "100" });
       const runId = await f.run();
       const hooked = interleaveRunEvents(f, runId);
-      await expect(reserveRunBudget(hooked.db, f.companyId, runId, null)).resolves.toMatchObject({ reused: false });
+      await expect(reserveRunBudget(hooked.db, f.spaceId, runId, null)).resolves.toMatchObject({ reused: false });
       expect(hooked.interleavings()).toBe(1);
       expect(await db.select().from(budgetReservations).where(eq(budgetReservations.runId, runId))).toHaveLength(1);
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
@@ -134,7 +134,7 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
         const writers = pressure(runId);
         await steady(writers);
         try {
-          await expect(reserveRunBudget(db, f.companyId, runId, null)).resolves.toMatchObject({ reused: false });
+          await expect(reserveRunBudget(db, f.spaceId, runId, null)).resolves.toMatchObject({ reused: false });
         } finally { await writers.stop(); }
       }
     }, 60_000);
@@ -143,7 +143,7 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
       const f = await fixture({ limitCents: 1_000, reservationCents: "100" });
       const runId = await f.run();
       const outcomes = await Promise.allSettled([
-        reserveRunBudget(db, f.companyId, runId, null), reserveRunBudget(db, f.companyId, runId, null),
+        reserveRunBudget(db, f.spaceId, runId, null), reserveRunBudget(db, f.spaceId, runId, null),
       ]);
       expect(outcomes.filter(outcome => outcome.status === "fulfilled")).toHaveLength(1);
       const rejected = outcomes.find(outcome => outcome.status === "rejected") as PromiseRejectedResult;
@@ -158,37 +158,37 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
       for (let i = 0; i < 3; i++) {
         const runId = await f.run();
         const hooked = interleaveRunEvents(f, runId);
-        results.push(await reserveRunBudget(hooked.db, f.companyId, runId, null).then(() => "reserved",
+        results.push(await reserveRunBudget(hooked.db, f.spaceId, runId, null).then(() => "reserved",
           (error: Error) => error.message));
       }
       expect(results).toEqual(["reserved", "reserved", "Available budget is reserved by unfinished runs"]);
       const [held] = await db.select({ cents: sql<string>`sum(${budgetReservations.amountCents})::text` }).from(budgetReservations)
-        .where(and(eq(budgetReservations.companyId, f.companyId), eq(budgetReservations.state, "held")));
+        .where(and(eq(budgetReservations.spaceId, f.spaceId), eq(budgetReservations.state, "held")));
       expect(Number(held.cents)).toBeLessThanOrEqual(250);
     });
 
     it("still refuses a run once the hard stop is reached", async () => {
       const f = await fixture({ limitCents: 100 });
       // Another run's observed spend already exceeds the limit.
-      await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, invocationSource: "assignment",
+      await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, invocationSource: "assignment",
         status: "running", costAccountingPending: true, usageJson: { costUsd: 2, billingType: "metered_api" } });
       const runId = await f.run();
       const hooked = interleaveRunEvents(f, runId);
-      await expect(reserveRunBudget(hooked.db, f.companyId, runId, null)).rejects.toMatchObject({ status: 409 });
+      await expect(reserveRunBudget(hooked.db, f.spaceId, runId, null)).rejects.toMatchObject({ status: 409 });
       expect(await db.select().from(budgetReservations).where(eq(budgetReservations.runId, runId))).toHaveLength(0);
     });
   });
 
   describe("final dispatch gate", () => {
-    it("admits and hands off a reserved run when run events commit between its company check and its run lock", async () => {
+    it("admits and hands off a reserved run when run events commit between its space check and its run lock", async () => {
       const f = await fixture({ limitCents: 1_000, reservationCents: "100" });
       const runId = await f.run();
-      const reservation = await reserveRunBudget(db, f.companyId, runId, null);
+      const reservation = await reserveRunBudget(db, f.spaceId, runId, null);
       await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, runId));
       const hooked = interleaveRunEvents(f, runId);
       let dispatched = 0;
       const outcome = await createPostgresRunDispatchAdapter(hooked.db).dispatchResolvedInteractionIfCurrent({
-        companyId: f.companyId, runId, reservationId: (reservation as { id: string }).id, expectedStatus: "running",
+        spaceId: f.spaceId, runId, reservationId: (reservation as { id: string }).id, expectedStatus: "running",
         now: new Date(), dispatch: async () => { dispatched++; } });
       expect(outcome).toMatchObject({ dispatched: true });
       expect(dispatched).toBe(1);
@@ -202,12 +202,12 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
       const f = await fixture({ limitCents: 100_000, reservationCents: "1" });
       for (let i = 0; i < 6; i++) {
         const runId = await f.run();
-        const reservation = await reserveRunBudget(db, f.companyId, runId, null);
+        const reservation = await reserveRunBudget(db, f.spaceId, runId, null);
         await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, runId));
         const writers = pressure(runId);
         await steady(writers);
         try {
-          await expect(createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ companyId: f.companyId, runId,
+          await expect(createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ spaceId: f.spaceId, runId,
             reservationId: (reservation as { id: string }).id, expectedStatus: "running", now: new Date(), dispatch: async () => {} }))
             .resolves.toMatchObject({ dispatched: true });
         } finally { await writers.stop(); }
@@ -218,7 +218,7 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
   describe("createRunUsageRecorder", () => {
     const spool = () => fs.mkdtemp(path.join(os.tmpdir(), "run-accounting-contention-"));
 
-    it("binds its receipt source when run events commit between its company check and its run lock", async () => {
+    it("binds its receipt source when run events commit between its space check and its run lock", async () => {
       const f = await fixture({ status: "running" });
       const runId = await f.run();
       const directory = await spool();
@@ -227,13 +227,13 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
       const previousSource = randomUUID();
       await db.update(heartbeatRuns).set({ usageJson: { accountingReceiptSourceId: previousSource, accountingReceiptSequence: 0 } })
         .where(eq(heartbeatRuns.id, runId));
-      const pending: UsageReceiptEnvelope = { schema: "paperclip/accounting-receipt/v1", id: randomUUID(), companyId: f.companyId,
+      const pending: UsageReceiptEnvelope = { schema: "outpost/accounting-receipt/v1", id: randomUUID(), spaceId: f.spaceId,
         runId, sourceId: previousSource, sequence: 1, receivedAt: new Date().toISOString(), adapterType: "process",
         receipt: { complete: false, usageBasis: "per_run", costUsd: 0.01, billingType: "metered_api" } };
       await spoolUsageReceipt(pending, directory);
       try {
         const hooked = interleaveRunEvents(f, runId);
-        await expect(createRunUsageRecorder(hooked.db, { companyId: f.companyId, runId, adapterType: "process" }, directory)).resolves.toBeTruthy();
+        await expect(createRunUsageRecorder(hooked.db, { spaceId: f.spaceId, runId, adapterType: "process" }, directory)).resolves.toBeTruthy();
         expect(hooked.interleavings()).toBe(1);
         const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
         expect(run.usageJson).toMatchObject({ accountingReceiptSequence: 0, accountingReceiptReady: false,
@@ -244,13 +244,13 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
       } finally { await fs.rm(directory, { recursive: true, force: true }); }
     });
 
-    it("persists its capture-failure fence once when run events commit between its company check and its run lock", async () => {
+    it("persists its capture-failure fence once when run events commit between its space check and its run lock", async () => {
       const f = await fixture({ status: "running" });
       const runId = await f.run();
       const directory = await spool();
       try {
         const hooked = interleaveRunEvents(f, runId);
-        const recorder = await createRunUsageRecorder(hooked.db, { companyId: f.companyId, runId, adapterType: "process" }, directory);
+        const recorder = await createRunUsageRecorder(hooked.db, { spaceId: f.spaceId, runId, adapterType: "process" }, directory);
         // A checkpoint the schema rejects fails the capture; the recorder then
         // fences the run as capture-failed in its own accounting transaction.
         await expect(recorder.capture(null as never)).rejects.toThrow();
@@ -263,7 +263,7 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
         expect(run).toMatchObject({ costAccountingPending: true, accountingLastError: "usage_capture_failed", nextEventSeq: 4 });
         // One evaluation input for the handoff and one for the fence; the
         // repeated persistFailure call found the fence already committed.
-        expect(await db.select().from(budgetEvaluationWork).where(eq(budgetEvaluationWork.companyId, f.companyId))).toHaveLength(2);
+        expect(await db.select().from(budgetEvaluationWork).where(eq(budgetEvaluationWork.spaceId, f.spaceId))).toHaveLength(2);
       } finally { await fs.rm(directory, { recursive: true, force: true }); }
     });
 
@@ -275,7 +275,7 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
         const writers = pressure(runId);
         await steady(writers);
         try {
-          await expect(createRunUsageRecorder(db, { companyId: f.companyId, runId, adapterType: "process" }, directory)).resolves.toBeTruthy();
+          await expect(createRunUsageRecorder(db, { spaceId: f.spaceId, runId, adapterType: "process" }, directory)).resolves.toBeTruthy();
         } finally { await writers.stop(); await fs.rm(directory, { recursive: true, force: true }); }
       }
     }, 60_000);
@@ -287,7 +287,7 @@ describe.skipIf(!support.supported)("run accounting writers under concurrent run
       const runId = await f.run();
       const hooked = interleaveRunEvents(f, runId);
       // A writer that still uses a repeatable-read snapshot loses every attempt.
-      const error = await withOperationAccountingTransaction(hooked.db, f.companyId, async tx => {
+      const error = await withOperationAccountingTransaction(hooked.db, f.spaceId, async tx => {
         await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)).for("update");
       }).then(() => null, (failure: unknown) => failure);
       expect(hooked.interleavings()).toBe(4);

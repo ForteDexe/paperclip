@@ -19,8 +19,8 @@ const PRIVATE_FILE_MODE = 0o600;
 const MAX_DIRECTORY_SYNC_ATTEMPTS = 8;
 const DIRECTORY_SYNC_OPERATION_TIMEOUT_MS = 1_000;
 const MAX_AUTONOMOUS_CREDENTIAL_CLEANUP_ATTEMPTS = 8;
-const CREDENTIAL_CLEANUP_INTENT = ".paperclip-auth-cleanup-required";
-const CREDENTIAL_STAGING_FILE = ".paperclip-auth-staging-v1";
+const CREDENTIAL_CLEANUP_INTENT = ".outpost-auth-cleanup-required";
+const CREDENTIAL_STAGING_FILE = ".outpost-auth-staging-v1";
 const CREDENTIAL_LEASE_HOST = "127.0.0.1";
 const CREDENTIAL_LEASE_PORT_MIN = 49_152;
 const CREDENTIAL_LEASE_PORT_COUNT = 16_384;
@@ -81,10 +81,10 @@ const quarantinedCredentialCleanups = new Map<
   QuarantinedCredentialCleanup
 >();
 const processDirectorySyncHelperState = globalThis as typeof globalThis & {
-  __paperclipDirectorySyncHelperRegistryV1?: DirectorySyncHelperRegistry;
+  __outpostDirectorySyncHelperRegistryV1?: DirectorySyncHelperRegistry;
 };
 const directorySyncHelperRegistry =
-  processDirectorySyncHelperState.__paperclipDirectorySyncHelperRegistryV1 ?? {
+  processDirectorySyncHelperState.__outpostDirectorySyncHelperRegistryV1 ?? {
     activeChildren: new Set<ChildProcess>(),
     childDirectories: new Map<ChildProcess, string>(),
     activeParentOperations: new Set<symbol>(),
@@ -94,7 +94,7 @@ const directorySyncHelperRegistry =
     pendingCleanups: new Map<string, Promise<void>>(),
     stuckChildren: new Map<string, ChildProcess>(),
   };
-processDirectorySyncHelperState.__paperclipDirectorySyncHelperRegistryV1 =
+processDirectorySyncHelperState.__outpostDirectorySyncHelperRegistryV1 =
   directorySyncHelperRegistry;
 const pendingDirectorySyncCleanups =
   directorySyncHelperRegistry.pendingCleanups;
@@ -478,7 +478,7 @@ function credentialLeasePorts(home: string): readonly [number, number, number] {
   const userScope =
     typeof process.getuid === "function" ? String(process.getuid()) : "win32";
   const digest = createHash("sha256")
-    .update("paperclip-managed-codex-lease-v2:")
+    .update("outpost-managed-codex-lease-v2:")
     .update(userScope)
     .update("\0")
     .update(home)
@@ -740,7 +740,7 @@ async function createCredentialCleanupIntent(
       PRIVATE_FILE_MODE,
     );
     await handle.chmod(PRIVATE_FILE_MODE);
-    await handle.writeFile("paperclip-managed-codex-cleanup-v1\n", "utf8");
+    await handle.writeFile("outpost-managed-codex-cleanup-v1\n", "utf8");
     await handle.sync();
     await handle.close();
     handle = undefined;

@@ -29,7 +29,7 @@ const storage = (domain: string) => ({
 const input: NotionOAuthInput = {
   operation: "authorize",
   publicOrigin: "https://owned.example.test",
-  companyId: "company",
+  spaceId: "space",
   prefix: "ACORN",
   humanId: "person",
   agentId: "ceo",
@@ -64,7 +64,7 @@ function receipt(): NotionOAuthReceipt {
 function valid(id: string): ExternalObservation {
   return {
     scenarioId: id,
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     origin: "http://127.0.0.1:3100",
     state: {
@@ -270,7 +270,7 @@ describe("named Notion human setup controls", () => {
     }
     const wrong = structuredClone(o);
     wrong.phaseReplies[0]!.body =
-      "Connect the shared company Notion account and give everyone access.";
+      "Connect the shared space Notion account and give everyone access.";
     expect(gradeNotionSetup(wrong).passed).toBe(false);
   });
   it("gates human personal setup on actual personal-account guidance", () => {
@@ -280,7 +280,7 @@ describe("named Notion human setup controls", () => {
       ),
     ).toBe(true);
     for (const text of [
-      "Connect the shared company account.",
+      "Connect the shared space account.",
       "I've connected your personal workspace.",
       "I have already authorized your personal account.",
     ])

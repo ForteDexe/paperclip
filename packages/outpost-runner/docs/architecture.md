@@ -20,7 +20,7 @@ Eval/conformance consumers --> use packed runtime + ./evals + ./testing exports
 The dependency arrow always points from an implementation toward a contract.
 The standalone package does not reach backward into an Outpost implementation.
 The production implementation lives in
-`server/src/services/native-runtime/paperclip-control-plane-port.ts`; it depends
+`server/src/services/native-runtime/outpost-control-plane-port.ts`; it depends
 on the public port, never the reverse. The accepted package/export ownership is
 recorded in [ADR 0001](adr/0001-runner-testing-eval-package-boundaries.md).
 
@@ -284,7 +284,7 @@ mode and eligibility rules, and [the live runnerd/Codex loop](capability-live-ru
 for the session API. The package server blocks every request to a real
 Outpost API, and the evidence suite proves no such request occurred. The same
 topology serves the [clean-room chat](capability-clean-room-chat.md): the only
-difference is a mock tenant seeded with a company, an agent, and one blank issue
+difference is a mock tenant seeded with a space, an agent, and one blank issue
 instead of a recorded eval case.
 
 ## Integration rule
@@ -294,7 +294,7 @@ adapter, but this package must remain independently buildable, testable, and
 runnable against the mock adapter.
 
 The proposed Standalone seam is recorded in
-[Standalone Thin Outpost Adapter Boundary](design/standalone-thin-paperclip-adapter.md).
+[Standalone Thin Outpost Adapter Boundary](design/standalone-thin-outpost-adapter.md).
 It keeps one dependency direction, branches only after Outpost workspace and
 environment realization, composes a package-owned `NativeSessionBackend` with
 a server-bound `ControlPlanePort`, and returns to the existing Outpost

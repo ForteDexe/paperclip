@@ -11,17 +11,17 @@ export function antigravityTurnFixture(second = false) {
   const model = "gemini-3.8-flash-low", profileDigest = `sha256:${"a".repeat(64)}`;
   const providerIdentity = { kind: "acpx", acpxRecordId: "acpx-record", agentSessionId: "provider-session", backendSessionId: "provider-session",
     normalizedSessionId: "native-session", requestedModel: model, effectiveModel: model, permissionMode: "approve-all", workspaceDigest: `sha256:${"b".repeat(64)}`, profileDigest };
-  const run: Record<string, any> = { id: runId, companyId: "company", agentId: "agent", issueId: "task", status: "succeeded", runtimeMode: "native", driverKind: "acpx_runtime",
+  const run: Record<string, any> = { id: runId, spaceId: "space", agentId: "agent", issueId: "task", status: "succeeded", runtimeMode: "native", driverKind: "acpx_runtime",
     nativeSessionId: "native-session", runnerInstanceId, costAccountingPending: false,
     processPid: second ? 900002 : 900001, processGroupId: second ? 900002 : 900001, processStartedAt: second ? "2026-10-29T01:00:00.000Z" : "2026-10-29T00:00:00.000Z",
-    runnerProfileJson: { backend: "acpx_runtime", nativeExecutionInput: { binding: { runId, companyId: "company", agentId: "agent", issueId: "task" },
+    runnerProfileJson: { backend: "acpx_runtime", nativeExecutionInput: { binding: { runId, spaceId: "space", agentId: "agent", issueId: "task" },
       provider: { kind: "acpx", agent: "antigravity", model, profile: { commandDigest: profileDigest } } }, sessionCheckpoint: { providerIdentity } },
     contextSnapshot: { aiConnection: { provider: "google", method: "subscription", connectionId: "connection" }, outpostEnvironment: { id: "environment", driver: "local", leaseId: `lease-${runId}` } },
     resultJson: { finalizationPhase: "committed", authoritativeDecision: "done", issueStatusAfter: "done", workspaceFinalizeStatus: "succeeded", assessmentId: `assessment-${runId}`, decisionId: `decision-${runId}`,
       nativeResult: { schema: "outpost.run_result.v1" }, nativeTerminal: { runTerminalState: "succeeded" },
       semanticToolReceipts: { register: { operationId: "register_deliverable", input: { filename: "antigravity-proof.txt", byteSize: expectedBytes.length, sha256 }, result: { attachmentId, disposition: "applied" } } } } };
   const event = (operation: string, seq: number, status = "completed", name = `client_${operation}_file`, execution = `call-${seq}`) => ({
-    companyId: "company", runId, seq, sourceInstanceId: runnerInstanceId, sourceSeq: seq, sourceEventId: executorSourceEventId(runnerInstanceId, seq),
+    spaceId: "space", runId, seq, sourceInstanceId: runnerInstanceId, sourceSeq: seq, sourceEventId: executorSourceEventId(runnerInstanceId, seq),
     protocolSchemaVersion: 1, eventType: status === "running" ? "tool.execution.started" : "tool.execution.completed", payload: { orpEvent: {
       schema: "outpost.orp.event.v1", schemaVersion: 1, eventType: status === "running" ? "tool.execution.started" : "tool.execution.completed", runId, sourceKind: "runner", sourceInstanceId: runnerInstanceId,
       sourceSeq: seq, sourceEventId: executorSourceEventId(runnerInstanceId, seq), normalizedSessionId: "native-session", turnId: `turn-${runId}`,
@@ -30,23 +30,23 @@ export function antigravityTurnFixture(second = false) {
     event("edit", 3, "running", "client_edit_file", "edit-call"), event("edit", 4, "completed", "client_edit_file", "edit-call"),
     event("read", 5, "running", "client_read_file", "read-call"), event("read", 6, "completed", "client_read_file", "read-call")]
     : [event("edit", 1, "running", "client_edit_file", "edit-call"), event("edit", 2, "completed", "client_edit_file", "edit-call"), event("read", 3, "running", "client_read_file", "read-call"), event("read", 4, "completed", "client_read_file", "read-call")];
-  events.push(event("execute", events.length + 1, "failed", "paperclip_paperclip_finish"));
+  events.push(event("execute", events.length + 1, "failed", "outpost_outpost_finish"));
   for (const eventType of ["run.result.accepted", "run.terminal"]) {
     const seq = events.length + 1, sourceInstanceId = `${runnerInstanceId}:control`;
     const payload = eventType === "run.result.accepted" ? { result: structuredClone(run.resultJson.nativeResult) }
       : { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: "done" };
-    events.push({ companyId: "company", runId, seq, sourceInstanceId, sourceSeq: seq, sourceEventId: `${sourceInstanceId}:${runId}:${seq}`,
+    events.push({ spaceId: "space", runId, seq, sourceInstanceId, sourceSeq: seq, sourceEventId: `${sourceInstanceId}:${runId}:${seq}`,
       protocolSchemaVersion: 1, eventType, payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, eventType, runId,
         sourceKind: "control_plane", sourceInstanceId, sourceSeq: seq, sourceEventId: `${sourceInstanceId}:${runId}:${seq}`,
         normalizedSessionId: "native-session", turnId: `turn-${runId}`, payload } } } as any);
   }
-  return { companyId: "company", agentId: "agent", issueId: "task", connectionId: "connection", environmentId: "environment", model, expectedProfileDigest: profileDigest,
+  return { spaceId: "space", agentId: "agent", issueId: "task", connectionId: "connection", environmentId: "environment", model, expectedProfileDigest: profileDigest,
     expectedBytes, afterRunIds: second ? ["run-first"] : [], run,
-    issue: { id: "task", companyId: "company", assigneeAgentId: "agent", status: "done" },
-    attachment: { id: attachmentId, companyId: "company", issueId: "task", createdByAgentId: "agent", originatingRunId: runId,
+    issue: { id: "task", spaceId: "space", assigneeAgentId: "agent", status: "done" },
+    attachment: { id: attachmentId, spaceId: "space", issueId: "task", createdByAgentId: "agent", originatingRunId: runId,
       originalFilename: "antigravity-proof.txt", contentType: "text/plain", byteSize: expectedBytes.length, sha256 },
     downloadedBytes: Buffer.from(expectedBytes), events,
-    lease: { id: `lease-${runId}`, companyId: "company", environmentId: "environment", heartbeatRunId: runId, status: "released", releasedAt: "2026-10-29T00:00:00Z" },
+    lease: { id: `lease-${runId}`, spaceId: "space", environmentId: "environment", heartbeatRunId: runId, status: "released", releasedAt: "2026-10-29T00:00:00Z" },
     retirement: { captured: true, observedProcessCount: 3, remainingProcessCount: 0, identityChanged: false,
       primaryOwner: { runId, pid: run.processPid as number, groupId: run.processGroupId as number, startedAt: run.processStartedAt as string, commandSha256: "c".repeat(64), perTurnArgvVerified: true as const },
       nativeFencesReacquired: true, nativeFenceCount: 3 } };
@@ -60,7 +60,7 @@ function executorSourceEventId(runnerInstanceId: string, seq: number) {
 
 export function antigravityEvidenceFixture(): AntigravityJourneyEvidence {
   return { version: 1, setupId: "calibration", hosting: "self-hosted", targetCommit: "a".repeat(40), phase: "persisted", outcome: "passed", assisted: false,
-    privacy: "private", authentication: "saved-subscription", model: "gemini-3.8-flash-low", companyId: "company", agentId: "agent", connectionId: "connection",
+    privacy: "private", authentication: "saved-subscription", model: "gemini-3.8-flash-low", spaceId: "space", agentId: "agent", connectionId: "connection",
     checkpoints: Object.fromEntries(antigravityJourneyCheckpoints.map(key => [key, true])),
     turnEvidence: [gradeAntigravityJourneyTurn(antigravityTurnFixture()), gradeAntigravityJourneyTurn(antigravityTurnFixture(true))],
     cleanup: { agent: true, runs: true, connectionPreserved: true } };

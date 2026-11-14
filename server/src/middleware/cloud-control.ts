@@ -41,7 +41,7 @@ const ACTIONS_BY_ENDPOINT: Record<string, Record<string, CloudControlAction>> = 
  * Accepts Cloud's signed control assertion only on the closed endpoint set
  * above — the task-drain hold the deploy path uses, and the lifecycle
  * read-back/unarchive pair behind the Cloud archive sync. The JWS is the entire
- * authorization: a valid assertion installs a synthetic instance-admin board
+ * authorization: a valid assertion installs a synthetic instance-admin operator
  * actor (replacing whatever weaker actor the request carried), each assertion
  * is bound to exactly one method's action, and the header is rejected loudly
  * anywhere else so it can never become an ambient credential. Instances
@@ -76,8 +76,8 @@ export function cloudControlMiddleware(): RequestHandler {
       return;
     }
     req.actor = {
-      type: "board",
-      userId: "paperclip-cloud",
+      type: "operator",
+      userId: "outpost-cloud",
       userName: "Outpost Cloud",
       userEmail: null,
       isInstanceAdmin: true,

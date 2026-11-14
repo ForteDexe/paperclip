@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, assets, companies, createDb, heartbeatRuns, issues, runnerApiResponseReservations } from "@outpost/db";
+import { agents, assets, spaces, createDb, heartbeatRuns, issues, runnerApiResponseReservations } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { SemanticToolOutcomeUnknownError } from "../../vendor/outpost-runner/index.js";
 import { createArtifactInstaller } from "./artifact-transfer.js";
 import type { StorageService } from "../../storage/types.js";
@@ -22,24 +22,24 @@ describe.skipIf(process.platform !== "linux")("native authenticated artifact ins
   afterAll(async () => { await temporary?.cleanup(); });
 
   it("materializes all 388131 synthetic bytes without model transcription and verifies a retry", async () => {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), artifactId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Synthetic transfer", issuePrefix: `A${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Transfer", role: "ceo", status: "active", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Transfer synthetic bytes", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId } });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), artifactId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Synthetic transfer", issuePrefix: `A${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Transfer", role: "lead", status: "active", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Transfer synthetic bytes", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     const unit = Buffer.from('🧭é"\\\n\u0000 synthetic transfer\n');
     const bytes = Buffer.concat([Buffer.concat(Array.from({ length: Math.floor(388131 / unit.length) }, () => unit)), Buffer.alloc(388131 % unit.length, 65)]);
     const sha256 = createHash("sha256").update(bytes).digest("hex");
-    const objectKey = `${companyId}/synthetic/${artifactId}`;
-    await db.insert(assets).values({ id: artifactId, companyId, provider: "local_disk", objectKey, contentType: "application/octet-stream", byteSize: bytes.length, sha256, createdByAgentId: agentId });
+    const objectKey = `${spaceId}/synthetic/${artifactId}`;
+    await db.insert(assets).values({ id: artifactId, spaceId, provider: "local_disk", objectKey, contentType: "application/octet-stream", byteSize: bytes.length, sha256, createdByAgentId: agentId });
     let storedBytes = bytes;
     let beforeRead: (() => Promise<void>) | undefined;
     const getObject = vi.fn(async () => { await beforeRead?.(); return { stream: Readable.from([storedBytes.subarray(0, 24576), storedBytes.subarray(24576)]) }; });
     const storage = { getObject } as unknown as StorageService;
     const root = await mkdtemp(join(tmpdir(), "native-artifact-transfer-"));
     try {
-      const authority = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId, workspaceRoot: root, storage, apiToolsEnabled: true });
+      const authority = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId, workspaceRoot: root, storage, apiToolsEnabled: true });
       expect(authority.definitions().some(tool => tool.name === "download_artifact")).toBe(true);
       const call = { tool: "download_artifact", callId: "synthetic-install", arguments: { artifactId, destination: "synthetic.bin", byteSize: bytes.length, sha256 } };
       const result = await authority.execute(call);
@@ -58,7 +58,7 @@ describe.skipIf(process.platform !== "linux")("native authenticated artifact ins
         await realInstaller(input);
         if (loseReceipt && !input.verifyOnly) { loseReceipt = false; throw new SemanticToolOutcomeUnknownError("lost commit receipt"); }
       });
-      const remoteAuthority = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId, workspaceRoot: root, storage,
+      const remoteAuthority = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId, workspaceRoot: root, storage,
         executionTargetKind: "remote", installRemoteArtifact: remoteInstaller });
       const remoteCall = { ...call, arguments: { ...call.arguments, destination: "remote-synthetic.bin" } };
       await expect(remoteAuthority.execute(remoteCall)).rejects.toThrow("lost commit receipt");
@@ -73,18 +73,18 @@ describe.skipIf(process.platform !== "linux")("native authenticated artifact ins
         await expect(authority.execute({ ...call, arguments: arguments_ })).rejects.toThrow();
         expect(getObject).not.toHaveBeenCalled();
       }
-      const foreignCompany = randomUUID(), foreignAsset = randomUUID();
-      await db.insert(companies).values({ id: foreignCompany, name: "Foreign synthetic", issuePrefix: `F${foreignCompany.slice(0, 6)}` });
-      await db.insert(assets).values({ id: foreignAsset, companyId: foreignCompany, provider: "local_disk", objectKey: `${foreignCompany}/synthetic/file`, contentType: "application/octet-stream", byteSize: bytes.length, sha256 });
-      await expect(authority.execute({ ...call, arguments: { ...call.arguments, artifactId: foreignAsset } })).rejects.toThrow("company");
+      const foreignSpace = randomUUID(), foreignAsset = randomUUID();
+      await db.insert(spaces).values({ id: foreignSpace, name: "Foreign synthetic", issuePrefix: `F${foreignSpace.slice(0, 6)}` });
+      await db.insert(assets).values({ id: foreignAsset, spaceId: foreignSpace, provider: "local_disk", objectKey: `${foreignSpace}/synthetic/file`, contentType: "application/octet-stream", byteSize: bytes.length, sha256 });
+      await expect(authority.execute({ ...call, arguments: { ...call.arguments, artifactId: foreignAsset } })).rejects.toThrow("space");
       expect(getObject).not.toHaveBeenCalled();
 
-      // The content-read ACL retains capture ownership, independently of company membership.
+      // The content-read ACL retains capture ownership, independently of space membership.
       const foreignRun = randomUUID(), foreignAgent = randomUUID(), privateAsset = randomUUID();
-      await db.insert(agents).values({ id: foreignAgent, companyId, name: "Other", status: "active", adapterType: "outpost_runner" });
-      await db.insert(heartbeatRuns).values({ id: foreignRun, companyId, agentId: foreignAgent, status: "succeeded", invocationSource: "assignment", triggerDetail: "system" });
-      await db.insert(assets).values({ id: privateAsset, companyId, provider: "local_disk", objectKey: `${companyId}/assets/runner-api/private`, contentType: "application/json", byteSize: bytes.length, sha256 });
-      await db.insert(runnerApiResponseReservations).values({ companyId, runId: foreignRun, assetId: privateAsset, reservedBytes: bytes.length });
+      await db.insert(agents).values({ id: foreignAgent, spaceId, name: "Other", status: "active", adapterType: "outpost_runner" });
+      await db.insert(heartbeatRuns).values({ id: foreignRun, spaceId, agentId: foreignAgent, status: "succeeded", invocationSource: "assignment", triggerDetail: "system" });
+      await db.insert(assets).values({ id: privateAsset, spaceId, provider: "local_disk", objectKey: `${spaceId}/assets/runner-api/private`, contentType: "application/json", byteSize: bytes.length, sha256 });
+      await db.insert(runnerApiResponseReservations).values({ spaceId, runId: foreignRun, assetId: privateAsset, reservedBytes: bytes.length });
       await expect(authority.execute({ ...call, arguments: { ...call.arguments, artifactId: privateAsset } })).rejects.toThrow("actor");
       expect(getObject).not.toHaveBeenCalled();
       await db.update(heartbeatRuns).set({ agentId, responsibleUserId: "other-synthetic-user" }).where(eq(heartbeatRuns.id, foreignRun));
@@ -92,7 +92,7 @@ describe.skipIf(process.platform !== "linux")("native authenticated artifact ins
       expect(getObject).not.toHaveBeenCalled();
 
       for (const binding of [{ workMode: "planning" as const }, { executionTargetKind: "remote" as const }, { firstPartyOnly: true }, { dotRuntime: true }, { museRuntime: true }, { apiToolsEnabled: false }]) {
-        const restricted = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId, workspaceRoot: root, storage, ...binding });
+        const restricted = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId, workspaceRoot: root, storage, ...binding });
         expect(restricted.definitions().some(tool => tool.name === "download_artifact")).toBe(false);
         await expect(restricted.execute(call)).rejects.toThrow();
       }

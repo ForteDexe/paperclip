@@ -29,7 +29,7 @@ export function createOAuthCatalogCompletion(db: Db, finishGalleryAppConnection:
           .where(
             and(
               eq(issueThreadInteractions.id, input.interactionId),
-              eq(issueThreadInteractions.companyId, input.connection.companyId),
+              eq(issueThreadInteractions.spaceId, input.connection.spaceId),
             ),
           )
           .limit(1)
@@ -43,12 +43,12 @@ export function createOAuthCatalogCompletion(db: Db, finishGalleryAppConnection:
       .from(toolConnectionInstalls)
       .where(
         and(
-          eq(toolConnectionInstalls.companyId, input.connection.companyId),
+          eq(toolConnectionInstalls.spaceId, input.connection.spaceId),
           eq(toolConnectionInstalls.connectionId, input.connection.id),
         ),
       );
-    const companyInstall = installs.some(
-      (install) => install.targetType === "company",
+    const spaceInstall = installs.some(
+      (install) => install.targetType === "space",
     );
     const agentIds = installs
       .filter((install) => install.targetType === "agent")
@@ -79,7 +79,7 @@ export function createOAuthCatalogCompletion(db: Db, finishGalleryAppConnection:
       ? { agentIds: [] }
       : installs.length === 0
         ? preserveEmptyInstalls ? { agentIds: [] } : normalizedSuggestedAccess
-        : companyInstall
+        : spaceInstall
           ? "all_agents"
           : { agentIds };
     const askFirstRiskLevels = new Set(
@@ -95,7 +95,7 @@ export function createOAuthCatalogCompletion(db: Db, finishGalleryAppConnection:
         (input.activateQuarantined === true && entry.status === "quarantined"),
     );
     const finished = await finishGalleryAppConnection(
-      input.connection.companyId,
+      input.connection.spaceId,
       input.connection.id,
       {
         enabledCatalogEntryIds: enabledCatalog.map((entry) => entry.id),
@@ -118,8 +118,8 @@ export function createOAuthCatalogCompletion(db: Db, finishGalleryAppConnection:
         access === "all_agents"
           ? [
               {
-                targetType: "company" as const,
-                targetId: input.connection.companyId,
+                targetType: "space" as const,
+                targetId: input.connection.spaceId,
               },
             ]
           : [...new Set(access.agentIds)].map((agentId) => ({
@@ -131,7 +131,7 @@ export function createOAuthCatalogCompletion(db: Db, finishGalleryAppConnection:
           .insert(toolConnectionInstalls)
           .values(
             installTargets.map((target) => ({
-              companyId: input.connection.companyId,
+              spaceId: input.connection.spaceId,
               connectionId: input.connection.id,
               ...target,
               createdByAgentId:

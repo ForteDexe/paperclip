@@ -62,19 +62,19 @@ describe("instance settings service", () => {
     expect(result.experimental.remoteWorkspaceStorageEnabled).toBe(expected);
     expect(normalized.remoteWorkspaceStorageEnabled).toBe("remoteWorkspaceStorageEnabled" in stored ? stored.remoteWorkspaceStorageEnabled : true);
     expect(result.managedKeys.remoteWorkspaceStorageEnabled).toEqual(managed === undefined
-      ? undefined : { managed: true, managedBy: "paperclip-cloud" });
+      ? undefined : { managed: true, managedBy: "outpost-cloud" });
   });
   it("keeps Notebook off for legacy or invalid settings and round-trips explicit operator choices", () => {
     for (const stored of [undefined, null, {}, { enableApps: true },
-      { enablePaperclipNotebook: "true" }, { enablePaperclipNotebook: 1 },
-      { enablePaperclipNotebook: true, enableCases: "invalid" }]) {
-      expect(normalizeExperimentalSettings(stored).enablePaperclipNotebook).toBe(false);
+      { enableOutpostNotebook: "true" }, { enableOutpostNotebook: 1 },
+      { enableOutpostNotebook: true, enableCases: "invalid" }]) {
+      expect(normalizeExperimentalSettings(stored).enableOutpostNotebook).toBe(false);
     }
-    const enabled = applyExperimentalSettingsPatch({}, { enablePaperclipNotebook: true });
+    const enabled = applyExperimentalSettingsPatch({}, { enableOutpostNotebook: true });
     const restored = normalizeExperimentalSettings(JSON.parse(JSON.stringify(enabled)));
-    expect(restored).toMatchObject({ enablePaperclipNotebook: true, enableMemoryConnectors: false });
-    const disabled = applyExperimentalSettingsPatch(restored, { enablePaperclipNotebook: false });
-    expect(normalizeExperimentalSettings(JSON.parse(JSON.stringify(disabled))).enablePaperclipNotebook).toBe(false);
+    expect(restored).toMatchObject({ enableOutpostNotebook: true, enableMemoryConnectors: false });
+    const disabled = applyExperimentalSettingsPatch(restored, { enableOutpostNotebook: false });
+    expect(normalizeExperimentalSettings(JSON.parse(JSON.stringify(disabled))).enableOutpostNotebook).toBe(false);
   });
   it("keeps OpenAI Dot opt-in and persists its setting independently of its prerequisites", () => {
     expect(normalizeExperimentalSettings({}).enableOpenAiDot).toBe(false);
@@ -110,7 +110,7 @@ describe("instance settings service", () => {
       enableBuiltInAgents: true,
       enableGoalsSidebarLink: true,
       enableServerInfoDebugView: true,
-      enablePaperclipDeveloperMode: true,
+      enableOutpostDeveloperMode: true,
       autoRestartDevServerWhenIdle: true,
       enableWorkspaceBranchReconcileForward: true,
       enableWorkspaceDirtyQuarantineRepair: false,
@@ -138,7 +138,7 @@ describe("instance settings service", () => {
       enableChatConnectors: false,
       enableGitHubReviewBots: false,
       enableMemoryConnectors: false,
-      enablePaperclipNotebook: false,
+      enableOutpostNotebook: false,
       enableGoogleWorkspaceConnector: false,
       enableClassicTaskInterface: false,
       enableLegacyComposerSubmit: false,
@@ -155,7 +155,7 @@ describe("instance settings service", () => {
       enableFastResponses: false,
       enableGoalsSidebarLink: true,
       enableServerInfoDebugView: true,
-      enablePaperclipDeveloperMode: true,
+      enableOutpostDeveloperMode: true,
       enableSimplifiedEnglishInteractions: false,
       enableFirstTaskPlanProposal: false,
       autoRestartDevServerWhenIdle: true,
@@ -236,12 +236,12 @@ describe("instance settings service", () => {
     ).toBe(false);
   });
 
-  it("defaults enablePaperclipDeveloperMode to false for empty and legacy settings", () => {
-    expect(normalizeExperimentalSettings(undefined).enablePaperclipDeveloperMode).toBe(false);
-    expect(normalizeExperimentalSettings({}).enablePaperclipDeveloperMode).toBe(false);
+  it("defaults enableOutpostDeveloperMode to false for empty and legacy settings", () => {
+    expect(normalizeExperimentalSettings(undefined).enableOutpostDeveloperMode).toBe(false);
+    expect(normalizeExperimentalSettings({}).enableOutpostDeveloperMode).toBe(false);
     expect(
       normalizeExperimentalSettings({ enableServerInfoDebugView: true })
-        .enablePaperclipDeveloperMode,
+        .enableOutpostDeveloperMode,
     ).toBe(false);
   });
 

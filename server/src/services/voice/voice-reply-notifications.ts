@@ -1,11 +1,11 @@
 import type { ChatProvider } from "@outpost/shared";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";
 
-export type VoiceReplyScope = { kind: "session" | "endpoint" | "connection" | "company" | "conversation"; id: string };
+export type VoiceReplyScope = { kind: "session" | "endpoint" | "connection" | "space" | "conversation"; id: string };
 export function voiceReplyScope(hint: string): VoiceReplyScope | undefined {
   if (hint === "*") return undefined;
   const [kind, id, extra] = hint.split(":");
-  if (!id || extra !== undefined || !["session", "endpoint", "connection", "company", "conversation"].includes(kind))
+  if (!id || extra !== undefined || !["session", "endpoint", "connection", "space", "conversation"].includes(kind))
     throw new Error("Invalid voice reply scope");
   return { kind: kind as VoiceReplyScope["kind"], id };
 }

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { normalizeAgentApiKeyScope, type AgentApiKeyScope } from "@outpost/shared";
-import { resolvePaperclipInstanceId } from "./home-paths.js";
+import { resolveOutpostInstanceId } from "./home-paths.js";
 
 interface JwtHeader {
   alg: string;
@@ -9,7 +9,7 @@ interface JwtHeader {
 
 export interface LocalAgentJwtClaims {
   sub: string;
-  company_id: string;
+  space_id: string;
   adapter_type: string;
   run_id: string;
   responsible_user_id?: string | null;
@@ -50,25 +50,25 @@ function jwtConfig() {
     // closed fire during ~2s dark wakes, and the spawned session can then sit
     // frozen for over an hour before it first executes.
     ttlSeconds: parseNumber(process.env.OUTPOST_AGENT_JWT_TTL_SECONDS, 60 * 60 * 48),
-    issuer: process.env.OUTPOST_AGENT_JWT_ISSUER ?? "paperclip",
-    audience: process.env.OUTPOST_AGENT_JWT_AUDIENCE ?? "paperclip-api",
+    issuer: process.env.OUTPOST_AGENT_JWT_ISSUER ?? "outpost",
+    audience: process.env.OUTPOST_AGENT_JWT_AUDIENCE ?? "outpost-api",
     // The control-plane instance this process belongs to. The live plane runs as
     // "default"; every worktree/fork instance gets a distinct id (its worktree
     // name) even though it deliberately shares OUTPOST_AGENT_JWT_SECRET with
     // the source instance. Folding this into the signing-key derivation is what
     // prevents a fork-minted token from authenticating against the live plane.
-    instanceId: resolvePaperclipInstanceId(),
+    instanceId: resolveOutpostInstanceId(),
     disableLegacyFallback: parseBooleanEnv(process.env.OUTPOST_AGENT_JWT_DISABLE_LEGACY_FALLBACK),
   };
 }
 
 /**
- * Derive a per-instance, per-company signing key from the master JWT secret,
- * the control-plane instanceId, and a companyId.
+ * Derive a per-instance, per-space signing key from the master JWT secret,
+ * the control-plane instanceId, and a spaceId.
  *
  * Two isolation properties fall out of this derivation:
- *  - Per-company: a JWT signed for company A cannot be reused to authenticate
- *    as an agent in company B, even if the raw token leaks.
+ *  - Per-space: a JWT signed for space A cannot be reused to authenticate
+ *    as an agent in space B, even if the raw token leaks.
  *  - Per-instance: a JWT minted by a worktree/fork control-plane instance
  *    cannot authenticate against the live plane, even though forks
  *    deliberately share the same master secret (it is copied into worktree
@@ -88,8 +88,8 @@ function jwtConfig() {
  * The derivation domain-separates with the `jwt:` prefix so the same master
  * secret can safely be reused for other HMAC purposes without key reuse.
  */
-function deriveCompanySigningKey(masterSecret: string, companyId: string, instanceId: string): string {
-  return createHmac("sha256", masterSecret).update(`jwt:${instanceId}:${companyId}`).digest("hex");
+function deriveSpaceSigningKey(masterSecret: string, spaceId: string, instanceId: string): string {
+  return createHmac("sha256", masterSecret).update(`jwt:${instanceId}:${spaceId}`).digest("hex");
 }
 
 function base64UrlEncode(value: string) {
@@ -122,7 +122,7 @@ function safeCompare(a: string, b: string) {
 
 export function createLocalAgentJwt(
   agentId: string,
-  companyId: string,
+  spaceId: string,
   adapterType: string,
   runId: string,
   responsibleUserId?: string | null,
@@ -135,7 +135,7 @@ export function createLocalAgentJwt(
   const now = Math.floor(Date.now() / 1000);
   const claims: LocalAgentJwtClaims = {
     sub: agentId,
-    company_id: companyId,
+    space_id: spaceId,
     adapter_type: adapterType,
     run_id: runId,
     responsible_user_id: responsibleUserId?.trim() || null,
@@ -154,10 +154,10 @@ export function createLocalAgentJwt(
   };
 
   const signingInput = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(claims))}`;
-  // Sign with the per-instance, per-company derived key so a leaked token
+  // Sign with the per-instance, per-space derived key so a leaked token
   // cannot be reused across tenants and a fork-minted token cannot authenticate
   // against a different control-plane instance.
-  const signingKey = deriveCompanySigningKey(config.secret, companyId, config.instanceId);
+  const signingKey = deriveSpaceSigningKey(config.secret, spaceId, config.instanceId);
   const signature = signPayload(signingKey, signingInput);
 
   return `${signingInput}.${signature}`;
@@ -178,30 +178,30 @@ export function verifyLocalAgentJwt(token: string, options: { strictRunAuthority
   const claims = parseJson(base64UrlDecode(claimsB64));
   if (!claims) return null;
 
-  const claimedCompanyId = typeof claims.company_id === "string" ? claims.company_id : null;
-  if (!claimedCompanyId) return null;
+  const claimedSpaceId = typeof claims.space_id === "string" ? claims.space_id : null;
+  if (!claimedSpaceId) return null;
 
   const signingInput = `${headerB64}.${claimsB64}`;
-  // Try the per-instance, per-company derived key first (current tokens),
+  // Try the per-instance, per-space derived key first (current tokens),
   // deriving under THIS control plane's own instanceId. A token minted by a
   // worktree/fork instance was signed under a different instanceId, so it will
   // not match here — that is the boundary that keeps fork tokens out of the
   // live plane (PAP-12896/PAP-12899). Fall back to the raw master secret so
-  // tokens issued before per-company derivation existed continue to verify —
+  // tokens issued before per-space derivation existed continue to verify —
   // this preserves backward compatibility for any outstanding tokens (TTL
   // bounds the legacy window naturally).
   //
   // Operators should set `OUTPOST_AGENT_JWT_DISABLE_LEGACY_FALLBACK=true`
   // approximately one JWT TTL (~48h by default, see OUTPOST_AGENT_JWT_TTL_SECONDS)
-  // after deploying per-company signing. Once set, the master-secret fallback
-  // is disabled and only tokens validating under the per-instance/per-company
+  // after deploying per-space signing. Once set, the master-secret fallback
+  // is disabled and only tokens validating under the per-instance/per-space
   // derived key are accepted — closing the window in which a leaked master
   // secret could be used to forge tokens with arbitrary future `exp` values for
   // any tenant, and completing cryptographic isolation between control-plane
   // instances (the raw-secret fallback is instance-agnostic).
-  const perCompanyKey = deriveCompanySigningKey(config.secret, claimedCompanyId, config.instanceId);
-  const perCompanySig = signPayload(perCompanyKey, signingInput);
-  let signatureOk = safeCompare(signature, perCompanySig);
+  const perSpaceKey = deriveSpaceSigningKey(config.secret, claimedSpaceId, config.instanceId);
+  const perSpaceSig = signPayload(perSpaceKey, signingInput);
+  let signatureOk = safeCompare(signature, perSpaceSig);
   if (!signatureOk && !config.disableLegacyFallback && !options.strictRunAuthority) {
     const legacySig = signPayload(config.secret, signingInput);
     signatureOk = safeCompare(signature, legacySig);
@@ -225,7 +225,7 @@ export function verifyLocalAgentJwt(token: string, options: { strictRunAuthority
   const iat = typeof claims.iat === "number" ? claims.iat : null;
   const exp = typeof claims.exp === "number" ? claims.exp : null;
   if (!sub || !adapterType || !runId || !iat || !exp) return null;
-  const companyId = claimedCompanyId;
+  const spaceId = claimedSpaceId;
 
   const now = Math.floor(Date.now() / 1000);
   if (exp < now) return null;
@@ -255,7 +255,7 @@ export function verifyLocalAgentJwt(token: string, options: { strictRunAuthority
 
   return {
     sub,
-    company_id: companyId,
+    space_id: spaceId,
     adapter_type: adapterType,
     run_id: runId,
     ...(responsibleUserClaim !== undefined ? { responsible_user_id: responsibleUserClaim } : {}),

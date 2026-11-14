@@ -134,12 +134,12 @@ export function MuseConnectionDetails({ connection, pairing, busy, error, offlin
   </div>;
 }
 
-export function MuseRunnerConnection({ companyId, agentId }: { companyId?: string; agentId?: string }) {
+export function MuseRunnerConnection({ spaceId, agentId }: { spaceId?: string; agentId?: string }) {
   const cache = useQueryClient();
-  const muse = useMuseConnection(companyId, agentId);
-  const pause = useMutation({ mutationFn: () => agentsApi.pause(agentId!, companyId), onSuccess: () => {
+  const muse = useMuseConnection(spaceId, agentId);
+  const pause = useMutation({ mutationFn: () => agentsApi.pause(agentId!, spaceId), onSuccess: () => {
     void muse.refresh(); void cache.invalidateQueries({ queryKey: queryKeys.agents.detail(agentId!) });
-    if (companyId) void cache.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+    if (spaceId) void cache.invalidateQueries({ queryKey: queryKeys.agents.list(spaceId) });
   } });
   if (!agentId) return <p className="text-sm text-muted-foreground">Save the agent, then connect your personal Muse here.</p>;
   const error = muse.state.error ?? muse.pair.error ?? muse.verify.error ?? muse.revoke.error ?? muse.attest.error ?? muse.attestDetector.error ?? pause.error;

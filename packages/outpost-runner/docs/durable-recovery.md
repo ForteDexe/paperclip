@@ -120,7 +120,7 @@ or Runner dies while the start is in flight. Resending the prompt could
 duplicate it, and a continuation could lose it.
 
 The sidecar's runtime port keeps a prompt-dispatch journal,
-`paperclip-turn-dispatch.jsonl`, in the session's private runtime directory
+`outpost-turn-dispatch.jsonl`, in the session's private runtime directory
 (`turnDispatchJournalFile` and `turnDispatchJournalRecord` in the sidecar
 schema). When it starts a turn, before any provider work, it truncates the file
 and writes a `received` record. Immediately before ACPX writes the turn's first
@@ -459,7 +459,7 @@ pending. An already queued authoritative result is replayed without resolving
 its business outcome again. Failed or unknown outcomes retain the existing
 reconciliation and authority rules.
 
-Pending completion inputs (`paperclip_finish` and `paperclip_block`) use the
+Pending completion inputs (`outpost_finish` and `outpost_block`) use the
 driver's existing completion handler even when its caller supplies no recovery
 lookup for ordinary tools. Codex transport waits for both authenticated startup
 and handler installation; the external driver waits for session opening.
@@ -727,7 +727,7 @@ other indeterminate commands remain non-reexecutable. This change does not
 repair legacy journals already containing contradictory or failed receipts.
 
 `update_agent_instructions` and `restore_agent_instructions` use a durable,
-company/run-scoped mutation receipt keyed by call ID. Before attempting a file
+space/run-scoped mutation receipt keyed by call ID. Before attempting a file
 write, the authority commits an `instructionToolAttempts` record and an
 `agent.instruction_write_attempted` activity row with the call ID, operation ID,
 and input digest. This evidence survives a later filesystem or database failure.

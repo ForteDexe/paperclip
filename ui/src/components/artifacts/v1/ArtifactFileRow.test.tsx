@@ -16,7 +16,7 @@ vi.mock("@/lib/artifact-card-data", async () => {
   const actual = await vi.importActual<typeof import("@/lib/artifact-card-data")>("@/lib/artifact-card-data");
   return { ...actual, loadArtifactCsv: csvLoader };
 });
-vi.mock("@/context/CompanyContext", () => ({ useCompany: () => ({ selectedCompany: null, selectedCompanyId: null, companies: [] }) }));
+vi.mock("@/context/SpaceContext", () => ({ useSpace: () => ({ selectedSpace: null, selectedSpaceId: null, spaces: [] }) }));
 
 const ATTACHMENT_ID = "00000000-0000-4000-8000-000000000001";
 const source = (overrides: Partial<Parameters<typeof ArtifactFileRow>[0]["source"]> = {}) => ({

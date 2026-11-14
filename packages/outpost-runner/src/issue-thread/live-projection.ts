@@ -614,9 +614,9 @@ function composerModel(
 /**
  * The real-API block, rendered as a record rather than a claim in prose.
  *
- * Both the clean-room chat and the scenario path route every Paperclip
+ * Both the clean-room chat and the scenario path route every Outpost
  * operation through the in-process mock port, so "no request reached a real
- * Paperclip API" is a fact the session already carries. Projecting it into the
+ * Outpost API" is a fact the session already carries. Projecting it into the
  * Control plane section is what makes it inspectable in the drawer instead of
  * something a reader has to take on trust.
  */
@@ -624,14 +624,14 @@ function networkGuardRecord(
   snapshot: CapabilityLiveSessionSnapshot,
   state: CapabilityFixtureState | null,
 ): CapabilityEvidenceControlPlaneRecord {
-  const { realPaperclipRequests, childOutpostEnvironmentKeys } = snapshot.networkEvidence;
+  const { realOutpostRequests, childOutpostEnvironmentKeys } = snapshot.networkEvidence;
   return {
     id: `network-guard-${snapshot.sessionId}`,
     turnId: "turn-0",
     category: "session",
-    outcome: realPaperclipRequests === 0 ? "no_real_paperclip_request" : "real_paperclip_request",
+    outcome: realOutpostRequests === 0 ? "no_real_outpost_request" : "real_outpost_request",
     reason:
-      `Real Outpost API requests: ${realPaperclipRequests}. ` +
+      `Real Outpost API requests: ${realOutpostRequests}. ` +
       `Child OUTPOST_* environment keys: ${
         childOutpostEnvironmentKeys.length === 0
           ? "none"
@@ -802,7 +802,7 @@ export function projectCapabilityIssueThread(
         kind: "user_message",
         id: entry.id,
         at: entry.at,
-        author: "You (board user)",
+        author: "You (operator)",
         body: entry.text,
       });
     } else if (entry.role === "assistant") {

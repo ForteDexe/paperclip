@@ -9,7 +9,7 @@ import { attentionApi } from "../api/attention";
 import { agentsApi } from "../api/agents";
 import { authApi } from "../api/auth";
 import { decisionsApi } from "../api/decisions";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useToastActions } from "../context/ToastContext";
 import { useInboxDismissals } from "../hooks/useInboxBadge";
@@ -65,8 +65,8 @@ const ATTENTION_SCROLL_LOAD_THRESHOLD_PX = 480;
 const DECISION_HISTORY_VISIBLE_LIMIT = 50;
 const DECISION_HISTORY_QUERY_LIMIT = DECISION_HISTORY_VISIBLE_LIMIT + 1;
 
-export function decisionHistoryQueryEnabled(companyId: string | null | undefined, open: boolean) {
-  return Boolean(companyId && open);
+export function decisionHistoryQueryEnabled(spaceId: string | null | undefined, open: boolean) {
+  return Boolean(spaceId && open);
 }
 
 export function decisionHistoryCount(count: number | undefined) {
@@ -93,7 +93,7 @@ export function WhatNeedsMe() {
 }
 
 function ClassicWhatNeedsMe() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedAttentionId, setSelectedAttentionId] = useState<string | null>(null);
@@ -132,7 +132,7 @@ function ClassicWhatNeedsMe() {
   const [pendingHide, setPendingHide] = useState<Set<string>>(() => new Set());
   const [pendingRestore, setPendingRestore] = useState<Set<string>>(() => new Set());
 
-  const { dismiss, snooze, restore } = useInboxDismissals(selectedCompanyId);
+  const { dismiss, snooze, restore } = useInboxDismissals(selectedSpaceId);
   const { pushToast } = useToastActions();
   const navigate = useNavigate();
 
@@ -148,50 +148,50 @@ function ClassicWhatNeedsMe() {
     setBreadcrumbs([{ label: "Decisions" }]);
   }, [setBreadcrumbs]);
 
-  // Re-hydrate per-company preferences when the company changes.
+  // Re-hydrate per-space preferences when the space changes.
   useEffect(() => {
-    setFilters(loadAttentionFilters(selectedCompanyId));
-    setCollapsedGroupKeys(loadCollapsedAttentionGroupKeys(selectedCompanyId));
-  }, [selectedCompanyId]);
+    setFilters(loadAttentionFilters(selectedSpaceId));
+    setCollapsedGroupKeys(loadCollapsedAttentionGroupKeys(selectedSpaceId));
+  }, [selectedSpaceId]);
 
   const feedQuery = useQuery({
     // Distinct from the sidebar badge's `queryKeys.attention` so dismissed rows
     // (needed for the curtains) never inflate the badge count. Invalidating the
-    // `["attention", companyId]` prefix still cascades to this query.
+    // `["attention", spaceId]` prefix still cascades to this query.
     queryKey: [
-      ...queryKeys.attention(selectedCompanyId!),
+      ...queryKeys.attention(selectedSpaceId!),
       "with-dismissed",
       activityBounds.activitySince ?? null,
       activityBounds.activityUntil ?? null,
     ],
-    queryFn: () => attentionApi.list(selectedCompanyId!, {
+    queryFn: () => attentionApi.list(selectedSpaceId!, {
       includeDismissed: true,
       all: true,
       ...activityBounds,
     }),
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
     refetchOnWindowFocus: true,
   });
   const { data: feed, isLoading } = feedQuery;
   const feedView = useQueryView(feedQuery);
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   // Decision history — decided / expired decisions leave the open attention
   // feed (entryRule = open only), so we fetch them directly for the curtains.
   const { data: decidedDecisions, isLoading: decidedDecisionsLoading } = useQuery({
-    queryKey: queryKeys.decisions.list(selectedCompanyId!, "decided"),
-    queryFn: () => decisionsApi.list(selectedCompanyId!, { status: "decided", limit: DECISION_HISTORY_QUERY_LIMIT }),
-    enabled: decisionHistoryQueryEnabled(selectedCompanyId, decidedOpen),
+    queryKey: queryKeys.decisions.list(selectedSpaceId!, "decided"),
+    queryFn: () => decisionsApi.list(selectedSpaceId!, { status: "decided", limit: DECISION_HISTORY_QUERY_LIMIT }),
+    enabled: decisionHistoryQueryEnabled(selectedSpaceId, decidedOpen),
   });
   const { data: expiredDecisions, isLoading: expiredDecisionsLoading } = useQuery({
-    queryKey: queryKeys.decisions.list(selectedCompanyId!, "expired"),
-    queryFn: () => decisionsApi.list(selectedCompanyId!, { status: "expired", limit: DECISION_HISTORY_QUERY_LIMIT }),
-    enabled: decisionHistoryQueryEnabled(selectedCompanyId, expiredOpen),
+    queryKey: queryKeys.decisions.list(selectedSpaceId!, "expired"),
+    queryFn: () => decisionsApi.list(selectedSpaceId!, { status: "expired", limit: DECISION_HISTORY_QUERY_LIMIT }),
+    enabled: decisionHistoryQueryEnabled(selectedSpaceId, expiredOpen),
   });
 
   const { data: session } = useQuery({
@@ -276,12 +276,12 @@ function ClassicWhatNeedsMe() {
   );
 
   // Rendered-row budget: only ratchets up (a hard reset mid-scroll would yank
-  // the DOM out from under the user), and resets when the company changes.
+  // the DOM out from under the user), and resets when the space changes.
   const [renderedRowLimit, setRenderedRowLimit] = useState(INITIAL_ATTENTION_ROW_RENDER_LIMIT);
   const rootRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     setRenderedRowLimit(INITIAL_ATTENTION_ROW_RENDER_LIMIT);
-  }, [selectedCompanyId]);
+  }, [selectedSpaceId]);
 
   // Keyboard selection may point past the budget (e.g. wrapping to the last
   // row), so the effective limit is derived to always cover it — the selected
@@ -405,14 +405,14 @@ function ClassicWhatNeedsMe() {
   };
   const updateFilters = (next: AttentionFilterState) => {
     setFilters(next);
-    saveAttentionFilters(selectedCompanyId, next);
+    saveAttentionFilters(selectedSpaceId, next);
   };
   const toggleGroupCollapse = (key: string) => {
     setCollapsedGroupKeys((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
-      saveCollapsedAttentionGroupKeys(selectedCompanyId, next);
+      saveCollapsedAttentionGroupKeys(selectedSpaceId, next);
       return next;
     });
   };
@@ -514,7 +514,7 @@ function ClassicWhatNeedsMe() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleDismiss, keyboardItems, navigate, selectedAttentionId]);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <p className="text-sm text-muted-foreground">Select an outpost first.</p>;
   }
 
@@ -556,9 +556,9 @@ function ClassicWhatNeedsMe() {
       </div>
 
       {/* Queue quicklinks + date-range chips (§4.1–§4.2). The rail self-hides
-          when the company has no queues; the chips filter the desk server-side. */}
+          when the space has no queues; the chips filter the desk server-side. */}
       <div className="space-y-2">
-        <DecisionQueueRail companyId={selectedCompanyId} activeQueueKey={null} />
+        <DecisionQueueRail spaceId={selectedSpaceId} activeQueueKey={null} />
         <DecisionDateChips
           value={dateRange}
           custom={customRange}
@@ -627,7 +627,7 @@ function ClassicWhatNeedsMe() {
                               <div className={bundleId ? "border-l-2 border-violet-500/40 pl-3" : undefined}>
                                 <AttentionQueueRow
                                   item={item}
-                                  companyId={selectedCompanyId}
+                                  spaceId={selectedSpaceId}
                                   expanded={expandedId === item.id}
                                   onToggleExpand={handleToggleExpand}
                                   onDismiss={handleDismiss}
@@ -662,7 +662,7 @@ function ClassicWhatNeedsMe() {
                 <AttentionQueueRow
                   key={item.id}
                   item={item}
-                  companyId={selectedCompanyId}
+                  spaceId={selectedSpaceId}
                   variant="hidden"
                   expanded={false}
                   onToggleExpand={noopToggleExpand}
@@ -686,7 +686,7 @@ function ClassicWhatNeedsMe() {
                 <AttentionQueueRow
                   key={item.id}
                   item={item}
-                  companyId={selectedCompanyId}
+                  spaceId={selectedSpaceId}
                   variant="hidden"
                   expanded={false}
                   onToggleExpand={noopToggleExpand}
@@ -713,7 +713,7 @@ function ClassicWhatNeedsMe() {
                 <AgingItemRow
                   key={item.id}
                   item={item}
-                  companyId={selectedCompanyId}
+                  spaceId={selectedSpaceId}
                   now={now}
                   agentMap={agentMap}
                   agents={agents}
@@ -743,7 +743,7 @@ function ClassicWhatNeedsMe() {
             decidedDecisions!.slice(0, DECISION_HISTORY_VISIBLE_LIMIT).map((decision) => (
               <DecisionResolver
                 key={decision.id}
-                companyId={selectedCompanyId}
+                spaceId={selectedSpaceId}
                 decisionId={decision.id}
                 agentMap={agentMap}
                 initialDecision={{ ...decision, executions: decision.executions ?? [] }}
@@ -766,7 +766,7 @@ function ClassicWhatNeedsMe() {
             expiredDecisions!.slice(0, DECISION_HISTORY_VISIBLE_LIMIT).map((decision) => (
               <DecisionResolver
                 key={decision.id}
-                companyId={selectedCompanyId}
+                spaceId={selectedSpaceId}
                 decisionId={decision.id}
                 agentMap={agentMap}
                 initialDecision={{ ...decision, executions: decision.executions ?? [] }}

@@ -4,7 +4,7 @@ import type { PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { nativeProviderLifecycle, type LifecycleRecord } from "./provider-lifecycle.js";
 
 const record = (value: unknown): Record<string, any> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {};
-type Binding = { companyId: string; runId: string; agentId: string };
+type Binding = { spaceId: string; runId: string; agentId: string };
 const TYPES = ["runtime_request.created", "runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired", "turn.completed"];
 
 export class NativePermissionDeclinedError extends Error {
@@ -21,7 +21,7 @@ export function hasCompletedNativePermissionDecline(rows: readonly unknown[], bi
   if (!adapter) return false;
   if (terminal.eventType !== "turn.completed" || !terminal.turnId || !terminal.normalizedSessionId || !terminal.sourceInstanceId) return false;
   const selected = rows.map(record).map(row => ({ row, event: record(record(row.payload).orpEvent) })).filter(({ row, event }) =>
-    row.companyId === binding.companyId && row.agentId === binding.agentId && row.runId === binding.runId
+    row.spaceId === binding.spaceId && row.agentId === binding.agentId && row.runId === binding.runId
     && row.protocolSchemaVersion === 1 && event.schema === "outpost.orp.event.v1" && event.schemaVersion === 1
     && event.sourceKind === "runner" && event.runId === binding.runId && event.turnId === terminal.turnId
     && event.normalizedSessionId === terminal.normalizedSessionId && event.sourceInstanceId === terminal.sourceInstanceId
@@ -50,7 +50,7 @@ export function hasCompletedNativePermissionDecline(rows: readonly unknown[], bi
 export async function readCompletedNativePermissionDecline(db: Db, binding: Binding, terminal: PrpEvent, provider: LifecycleRecord) {
   if (!nativeProviderLifecycle(provider)) return false;
   const rows = await db.select().from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, binding.companyId), eq(heartbeatRunEvents.runId, binding.runId), eq(heartbeatRunEvents.agentId, binding.agentId),
+    eq(heartbeatRunEvents.spaceId, binding.spaceId), eq(heartbeatRunEvents.runId, binding.runId), eq(heartbeatRunEvents.agentId, binding.agentId),
     sql`${heartbeatRunEvents.payload}->'orpEvent'->>'turnId' = ${terminal.turnId}`,
     sql`${heartbeatRunEvents.payload}->'orpEvent'->>'normalizedSessionId' = ${terminal.normalizedSessionId}`,
     eq(heartbeatRunEvents.sourceInstanceId, terminal.sourceInstanceId),

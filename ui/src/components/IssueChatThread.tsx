@@ -63,9 +63,9 @@ import { findUIAdapter } from "../adapters/registry";
 import { useLiveRunTranscripts } from "./transcript/useLiveRunTranscripts";
 import { useSecondTick } from "../hooks/useSecondTick";
 import {
-  usePaperclipIssueRuntime,
-  type PaperclipIssueRuntimeReassignment,
-} from "../hooks/usePaperclipIssueRuntime";
+  useOutpostIssueRuntime,
+  type OutpostIssueRuntimeReassignment,
+} from "../hooks/useOutpostIssueRuntime";
 import { useOptionalToastActions } from "../context/ToastContext";
 import { copyTextToClipboard } from "../lib/clipboard";
 import {
@@ -194,7 +194,7 @@ import {
   shouldPreserveComposerViewport,
 } from "../lib/issue-chat-scroll";
 import { formatAssigneeUserLabel } from "../lib/assignees";
-import type { CompanyUserProfile } from "../lib/company-members";
+import type { SpaceUserProfile } from "../lib/space-members";
 import { timeAgo } from "../lib/timeAgo";
 import {
   isSuccessfulRunHandoffComment,
@@ -285,7 +285,7 @@ interface IssueChatMessageContext {
   agentMap?: Map<string, Agent>;
   currentUserId?: string | null;
   userLabelMap?: ReadonlyMap<string, string> | null;
-  userProfileMap?: ReadonlyMap<string, CompanyUserProfile> | null;
+  userProfileMap?: ReadonlyMap<string, SpaceUserProfile> | null;
   onVote?: (
     commentId: string,
     vote: FeedbackVoteValue,
@@ -537,7 +537,7 @@ interface IssueChatComposerProps {
   enableReassign?: boolean;
   reassignOptions?: InlineEntityOption[];
   currentAssigneeValue?: string;
-  companyId?: string | null;
+  spaceId?: string | null;
   assigneeAdapterOverrides?: IssueAssigneeAdapterOverrides | null;
   suggestedAssigneeValue?: string;
   mentions?: MentionOption[];
@@ -584,10 +584,10 @@ interface IssueChatThreadProps {
   activeRun?: ActiveRunForIssue | null;
   issueId?: string | null;
   blockedBy?: IssueRelationIssueSummary[];
-  /** Company-wide set of issue ids with a live (queued/running) run. */
+  /** Space-wide set of issue ids with a live (queued/running) run. */
   liveIssueIds?: ReadonlySet<string>;
   blockerAttention?: IssueBlockerAttention | null;
-  /** Children and blockers stalled on the board (`stalledDependencies` on the issue). */
+  /** Children and blockers stalled on the operator (`stalledDependencies` on the issue). */
   stalledDependencies?: IssueBlockerStalledWakeContext[];
   successfulRunHandoff?: SuccessfulRunHandoffState | null;
   scheduledRetry?: IssueScheduledRetry | null;
@@ -621,13 +621,13 @@ interface IssueChatThreadProps {
   /** Starts a fresh on-demand run for the selected failed run. */
   onRetryFailedRun?: (runId: string) => Promise<void> | void;
   retryFailedRunId?: string | null;
-  companyId?: string | null;
+  spaceId?: string | null;
   projectId?: string | null;
   issueStatus?: string;
   agentMap?: Map<string, Agent>;
   currentUserId?: string | null;
   userLabelMap?: ReadonlyMap<string, string> | null;
-  userProfileMap?: ReadonlyMap<string, CompanyUserProfile> | null;
+  userProfileMap?: ReadonlyMap<string, SpaceUserProfile> | null;
   onVote?: (
     commentId: string,
     vote: FeedbackVoteValue,
@@ -873,15 +873,15 @@ export function IssueAssigneePausedNotice({
         ? "It arrived paused from an outpost import — imported agents stay parked until you resume them."
         : agent.pauseReason === "system"
           ? "It was paused by the system."
-          : agent.pauseReason === "company_archived"
+          : agent.pauseReason === "space_archived"
             ? "It was paused because its outpost is archived."
             : agent.pauseReason === "manual"
               ? "It was paused manually."
               : "";
   // Legacy policy pauses clear on their own when the old policy resets and archive pauses
-  // clear when the company is restored; resuming by hand would fight either, so
+  // clear when the space is restored; resuming by hand would fight either, so
   // the action is only offered for the rest.
-  const canResume = Boolean(onResume) && agent.pauseReason !== "budget" && agent.pauseReason !== "company_archived";
+  const canResume = Boolean(onResume) && agent.pauseReason !== "budget" && agent.pauseReason !== "space_archived";
 
   return (
     <div data-testid="issue-assignee-paused-notice" className="mb-3">
@@ -1088,7 +1088,7 @@ function toValidIsoString(
 
 function parseReassignment(
   target: string,
-): PaperclipIssueRuntimeReassignment | null {
+): OutpostIssueRuntimeReassignment | null {
   if (!target || target === "__none__") {
     return { assigneeAgentId: null, assigneeUserId: null };
   }
@@ -1151,7 +1151,7 @@ const IssueChatTextPart = memo(function IssueChatTextPart({
     <WorkspaceFileMarkdownBody
       className={cn(
         "text-sm leading-6",
-        onAccent && "paperclip-markdown-on-accent",
+        onAccent && "outpost-markdown-on-accent",
       )}
       style={recessed ? { opacity: 0.55 } : undefined}
       softBreaks
@@ -1650,7 +1650,7 @@ const TOOL_ICON_MAP: Record<
   string,
   React.ComponentType<{ className?: string }>
 > = {
-  paperclip_provider_activity: ClipboardList,
+  outpost_provider_activity: ClipboardList,
 };
 
 function getToolIcon(
@@ -1673,7 +1673,7 @@ function IssueChatToolPart({
   isError?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  if (toolName === "paperclip_provider_activity") {
+  if (toolName === "outpost_provider_activity") {
     return (
       <IssueChatProviderActivity
         args={args}
@@ -4633,7 +4633,7 @@ const IssueChatComposer = forwardRef<
     enableReassign = false,
     reassignOptions = [],
     currentAssigneeValue = "",
-    companyId,
+    spaceId,
     assigneeAdapterOverrides,
     suggestedAssigneeValue,
     mentions = [],
@@ -5108,7 +5108,7 @@ const IssueChatComposer = forwardRef<
         pendingDraftRef.current = { draftKey, attemptId, submittedBody: trimmed, submittedAttachmentIds: attachmentIds, request, requestOwner };
         changeBody(bodyRef.current);
       }
-      // assistant-ui thread.append is fire-and-forget. Await the actual Board
+      // assistant-ui thread.append is fire-and-forget. Await the actual Operator
       // mutation; it already owns optimistic echo and durable error handling.
       const sendPromise = runSettings
         ? onSend(submittedBody, reopen, reassignment,
@@ -5635,9 +5635,9 @@ const IssueChatComposer = forwardRef<
             testId="issue-chat-composer-work-mode-chip" />
         </div>
 
-        {enableReassign && reassignOptions.length > 0 && companyId && agentMap ? (
+        {enableReassign && reassignOptions.length > 0 && spaceId && agentMap ? (
           <ComposerRunSettingsPicker
-            companyId={companyId}
+            spaceId={spaceId}
             assigneeValue={reassignTarget}
             currentAssigneeValue={currentAssigneeValue}
             options={reassignOptions}
@@ -5808,7 +5808,7 @@ export function IssueChatThread({
   reconcileRecoveryActionPending = false,
   canFalsePositiveRecoveryAction = false,
   legacyRecoverySourceIssue = null,
-  companyId,
+  spaceId,
   assigneeAdapterOverrides,
   projectId,
   issueStatus,
@@ -5983,7 +5983,7 @@ export function IssueChatThread({
 
   const { transcriptByRun, hasOutputForRun } = useLiveRunTranscripts({
     runs: enableLiveTranscriptPolling ? transcriptRuns : [],
-    companyId,
+    spaceId,
   });
   const resolvedTranscriptByRun = transcriptsByRunId ?? transcriptByRun;
   const resolvedHasOutputForRun = hasOutputForRunOverride ?? hasOutputForRun;
@@ -5999,7 +5999,7 @@ export function IssueChatThread({
         transcriptsByRunId: resolvedTranscriptByRun,
         hasOutputForRun: resolvedHasOutputForRun,
         includeSucceededRunsWithoutOutput,
-        companyId,
+        spaceId,
         projectId,
         agentMap,
         currentUserId,
@@ -6016,7 +6016,7 @@ export function IssueChatThread({
       resolvedTranscriptByRun,
       resolvedHasOutputForRun,
       includeSucceededRunsWithoutOutput,
-      companyId,
+      spaceId,
       projectId,
       agentMap,
       currentUserId,
@@ -6151,7 +6151,7 @@ export function IssueChatThread({
     },
     [onAdd, beginSubmission, rejectSubmission],
   );
-  const runtime = usePaperclipIssueRuntime({
+  const runtime = useOutpostIssueRuntime({
     messages,
     isRunning,
     onSend: ({ body, reopen, reassignment, attachmentIds }) =>
@@ -6828,7 +6828,7 @@ export function IssueChatThread({
                 enableReassign={enableReassign}
                 reassignOptions={reassignOptions}
                 currentAssigneeValue={currentAssigneeValue}
-                companyId={companyId}
+                spaceId={spaceId}
                 assigneeAdapterOverrides={assigneeAdapterOverrides}
                 suggestedAssigneeValue={suggestedAssigneeValue}
                 mentions={mentions}

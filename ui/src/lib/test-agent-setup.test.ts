@@ -6,7 +6,7 @@ import { queryKeys } from "./queryKeys";
 const testEnvironment = vi.hoisted(() => vi.fn());
 vi.mock("../api/agents", () => ({ agentsApi: { testEnvironment } }));
 const input = {
-  companyId: "company-1",
+  spaceId: "space-1",
   agentId: "agent-1",
   adapterType: "outpost_runner",
   providerAdapter: "claude_local",
@@ -62,7 +62,7 @@ it("does not report a connection when runtime readiness passes but provider auth
   expect(result.status).toBe("fail");
   expect(result.adapterType).toBe("outpost_runner");
   expect(testEnvironment).toHaveBeenLastCalledWith(
-    "company-1",
+    "space-1",
     "claude_local",
     {
       agentId: "agent-1",
@@ -83,9 +83,9 @@ it("probes native Grok credentials with the pinned prerequisite in the selected 
   const result = await testAgentSetup({ ...input, providerAdapter: "grok_local",
     adapterConfig: { provider: "acpx", acpxAgent: "grok", model: "grok-4.7" },
   });
-  expect(testEnvironment).toHaveBeenLastCalledWith("company-1", "grok_local", {
+  expect(testEnvironment).toHaveBeenLastCalledWith("space-1", "grok_local", {
     agentId: "agent-1", environmentId: "sandbox-1", runner: "legacy",
-    adapterConfig: { provider: "acpx", acpxAgent: "grok", model: "grok-4.7", engine: "cli", command: "/opt/paperclip/providers/grok/1.0.13/grok" },
+    adapterConfig: { provider: "acpx", acpxAgent: "grok", model: "grok-4.7", engine: "cli", command: "/opt/outpost/providers/grok/1.0.13/grok" },
   });
   expect(result.checks.some((check) => check.code === "grok_hello_probe_passed")).toBe(true);
 });
@@ -120,26 +120,26 @@ it("preserves runtime warnings after a successful provider request", async () =>
 
 it("keeps the resolved native identity and explicitly bounds the supplementary Codex CLI probe to legacy", async () => {
   testEnvironment.mockResolvedValueOnce(ready).mockResolvedValueOnce({ ...ready, adapterType: "codex_local" });
-  const result = await testAgentSetup({ ...input, adapterType: "codex_local", providerAdapter: "codex_local", runner: "paperclip" });
+  const result = await testAgentSetup({ ...input, adapterType: "codex_local", providerAdapter: "codex_local", runner: "outpost" });
   expect(result.adapterType).toBe("outpost_runner");
-  expect(testEnvironment.mock.calls[0][2].runner).toBe("paperclip");
+  expect(testEnvironment.mock.calls[0][2].runner).toBe("outpost");
   expect(testEnvironment.mock.calls[1][2].runner).toBe("legacy");
 });
 
 describe("adapter availability discovery", () => {
-  it("keeps inventory unscoped and sends the selected company and target", async () => {
+  it("keeps inventory unscoped and sends the selected space and target", async () => {
     const get = vi.spyOn(api, "get").mockResolvedValue([]);
     await adaptersApi.list();
-    await adaptersApi.list({ companyId: "company-1", environmentId: "linux ssh" });
-    await adaptersApi.list({ companyId: "company-2", environmentId: null });
+    await adaptersApi.list({ spaceId: "space-1", environmentId: "linux ssh" });
+    await adaptersApi.list({ spaceId: "space-2", environmentId: null });
     expect(get.mock.calls.map(([path]) => path)).toEqual([
-      "/adapters", "/adapters?companyId=company-1&environmentId=linux+ssh", "/adapters?companyId=company-2",
+      "/adapters", "/adapters?spaceId=space-1&environmentId=linux+ssh", "/adapters?spaceId=space-2",
     ]);
   });
-  it("isolates target availability from inventory, other targets, and other companies", () => {
-    const selected = queryKeys.adapters.availability("company-1", "linux");
+  it("isolates target availability from inventory, other targets, and other spaces", () => {
+    const selected = queryKeys.adapters.availability("space-1", "linux");
     expect(selected).not.toEqual(queryKeys.adapters.all);
-    expect(selected).not.toEqual(queryKeys.adapters.availability("company-1", "mac"));
-    expect(selected).not.toEqual(queryKeys.adapters.availability("company-2", "linux"));
+    expect(selected).not.toEqual(queryKeys.adapters.availability("space-1", "mac"));
+    expect(selected).not.toEqual(queryKeys.adapters.availability("space-2", "linux"));
   });
 });

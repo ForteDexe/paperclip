@@ -7,7 +7,7 @@ Primary issue: `PAP-448`
 
 ## Summary
 
-Add first-class **documents** to Paperclip as editable, revisioned, company-scoped text artifacts that can be linked to issues.
+Add first-class **documents** to Outpost as editable, revisioned, space-scoped text artifacts that can be linked to issues.
 
 The first required convention is a document with key `plan`.
 
@@ -39,7 +39,7 @@ This keeps `PAP-448` focused while still fitting the larger artifact direction.
 ## Goals
 
 1. Give issues first-class keyed documents, starting with `plan`.
-2. Make documents editable by board users and same-company agents with issue access.
+2. Make documents editable by board users and same-space agents with issue access.
 3. Preserve change history with append-only revisions.
 4. Make the `plan` document automatically available in the normal issue fetch used by agents/heartbeats.
 5. Replace the current `<plan>`-in-description convention in skills/docs.
@@ -72,7 +72,7 @@ Key rules:
 - machine-oriented and stable
 - title is separate and user-facing
 
-The `plan` key is conventional and reserved by Paperclip workflow/docs.
+The `plan` key is conventional and reserved by Outpost workflow/docs.
 
 ### 2. Text-first v1
 
@@ -137,7 +137,7 @@ Recommendation:
 
 Recommendation: make documents first-class, but keep issue linkage explicit via a join table.
 
-This preserves foreign keys today and gives a clean path to future `project_documents` or `company_documents` tables later.
+This preserves foreign keys today and gives a clean path to future `project_documents` or `space_documents` tables later.
 
 ## Tables
 
@@ -148,7 +148,7 @@ Canonical text document record.
 Suggested columns:
 
 - `id`
-- `company_id`
+- `space_id`
 - `title`
 - `format`
 - `latest_body`
@@ -168,7 +168,7 @@ Append-only history.
 Suggested columns:
 
 - `id`
-- `company_id`
+- `space_id`
 - `document_id`
 - `revision_number`
 - `body`
@@ -188,7 +188,7 @@ Issue relation + workflow key.
 Suggested columns:
 
 - `id`
-- `company_id`
+- `space_id`
 - `issue_id`
 - `document_id`
 - `key`
@@ -197,7 +197,7 @@ Suggested columns:
 
 Constraints:
 
-- unique `(company_id, issue_id, key)`
+- unique `(space_id, issue_id, key)`
 - unique `(document_id)` to keep one issue relation per document in v1
 
 ## Why not use `assets` for this?
@@ -230,7 +230,7 @@ type DocumentFormat = "markdown" | "plain_text" | "json" | "html";
 
 interface IssueDocument {
   id: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   key: string;
   title: string | null;
@@ -310,10 +310,10 @@ Behavior:
 
 ## Authorization and invariants
 
-- all document records are company-scoped
-- issue relation must belong to same company
+- all document records are space-scoped
+- issue relation must belong to same space
 - board access follows existing issue access rules
-- agent access follows existing same-company issue access rules
+- agent access follows existing same-space issue access rules
 - every mutation writes activity log entries
 
 Recommended delete rule for v1:
@@ -370,11 +370,11 @@ If there is no stored `plan` document but legacy `<plan>` exists:
 
 ## Agent Protocol and Skills
 
-Update the Paperclip agent workflow so planning no longer edits the issue description.
+Update the Outpost agent workflow so planning no longer edits the issue description.
 
 Required changes:
 
-- update `skills/paperclip/SKILL.md`
+- update `skills/outpost/SKILL.md`
 - replace the `<plan>` instructions with document creation/update instructions
 - document the new endpoints in `docs/api/issues.md`
 - update any internal planning docs that still teach inline `<plan>` blocks
@@ -446,11 +446,11 @@ Behavior:
 - list/get/upsert/delete documents
 - revision listing
 - `GET /issues/:id` returns `planDocument` + `documentSummaries`
-- company boundary checks match issue routes
+- space boundary checks match issue routes
 
 Acceptance:
 
-- agents and board can fetch/update same-company issue documents
+- agents and board can fetch/update same-space issue documents
 - stale edits return `409`
 - activity timeline shows document changes
 
@@ -480,7 +480,7 @@ Acceptance:
 
 Files:
 
-- `skills/paperclip/SKILL.md`
+- `skills/outpost/SKILL.md`
 - `docs/api/issues.md`
 - `doc/SPEC-implementation.md`
 - relevant plan/docs that mention `<plan>`
@@ -500,7 +500,7 @@ Behavior:
 Follow-up, not required for first merge:
 
 - deliverables/artifact read-model
-- project/company documents
+- project/space documents
 - comment-linked documents
 - diff view between revisions
 
@@ -511,7 +511,7 @@ Follow-up, not required for first merge:
 - document create/read/update/delete lifecycle
 - revision numbering
 - `baseRevisionId` conflict handling
-- company boundary enforcement
+- space boundary enforcement
 - agent vs board authorization
 - issue fetch includes `planDocument` and document summaries
 - legacy `<plan>` fallback behavior

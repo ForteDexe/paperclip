@@ -1,6 +1,6 @@
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -37,14 +37,14 @@ describeEmbeddedPostgres(
   () => {
     it("preserves each profile-tagged canonical discriminator and identity through storage and sanitization", async () => {
       const temporary = await startEmbeddedPostgresTestDatabase(
-        "paperclip-native-boundary-",
+        "outpost-native-boundary-",
       );
       const db = createDb(temporary.connectionString);
-      const companyId = "73000000-0000-4000-8000-000000000001";
+      const spaceId = "73000000-0000-4000-8000-000000000001";
 
       try {
-        await db.insert(companies).values({
-          id: companyId,
+        await db.insert(spaces).values({
+          id: spaceId,
           name: "Native boundary fixture",
           issuePrefix: "NBG",
         });
@@ -53,12 +53,12 @@ describeEmbeddedPostgres(
           const agentId = `73000000-0000-4000-8000-${String(profileIndex + 201).padStart(12, "0")}`;
           await db.insert(agents).values({
             id: agentId,
-            companyId,
+            spaceId,
             name: profile.id,
           });
           await db.insert(heartbeatRuns).values({
             id: profile.runId,
-            companyId,
+            spaceId,
             agentId,
             status: "running",
           });
@@ -71,7 +71,7 @@ describeEmbeddedPostgres(
               issues: [],
             });
             await appendHeartbeatRunEvent(db, {
-              companyId,
+              spaceId,
               runId: profile.runId,
               agentId,
               eventType: event.eventType,

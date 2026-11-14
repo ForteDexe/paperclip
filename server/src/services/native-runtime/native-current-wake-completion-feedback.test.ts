@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRuns, issueComments, issues, nativeRunResults } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, issueComments, issues, nativeRunResults } from "@outpost/db";
 import { createNativeSessionBackend, type NativeExecutionInput, type PrpEvent, type PrpStructuredRunResult } from "../../vendor/outpost-runner/index.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { assertCurrentWakeCommentsRead, READ_CURRENT_WAKE_COMMENTS_TOOL_DEFINITION, resolveCurrentWakeCommentsBinding, type CurrentWakeCommentsPage } from "./current-wake-comments.js";
 import { nativeCompletionFeedback } from "./native-completion-feedback.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 const support = await getEmbeddedPostgresTestSupport();
 const report: PrpStructuredRunResult = {
@@ -22,30 +22,30 @@ describe.skipIf(!support.supported)("current-wake completion feedback", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-wake-feedback-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-wake-feedback-");
     db = createDb(temporary.connectionString);
   }, 120_000);
   afterAll(async () => { await db?.$client.end({ timeout: 0 }); await temporary?.cleanup(); });
 
   async function seed(bodies = ["Read this complete accepted message."], fallbackFetchNeeded = true) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Wake feedback", issuePrefix: `WF${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Reader", adapterType: "outpost_runner", status: "running" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Answer the accepted message", status: "in_progress", assigneeAgentId: agentId });
-    const comments = await db.insert(issueComments).values(bodies.map(body => ({ companyId, issueId, body, authorType: "user" as const, authorUserId: "local-board" }))).returning();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Wake feedback", issuePrefix: `WF${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Reader", adapterType: "outpost_runner", status: "running" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Answer the accepted message", status: "in_progress", assigneeAgentId: agentId });
+    const comments = await db.insert(issueComments).values(bodies.map(body => ({ spaceId, issueId, body, authorType: "user" as const, authorUserId: "local-operator" }))).returning();
     const commentIds = comments.map(comment => comment.id);
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId,
       runtimeMode: "native", status: "running", resultJson: { existingEvidence: "keep" }, contextSnapshot: {
-        issueId, paperclipExternalChatExecutionBound: true, paperclipWake: {
+        issueId, outpostExternalChatExecutionBound: true, outpostWake: {
           externalChatProvider: "github", checkedOutByHarness: false, externalChatExecutionBound: true,
           fallbackFetchNeeded, truncated: fallbackFetchNeeded, commentIds, latestCommentId: commentIds.at(-1),
           commentWindow: { requestedCount: commentIds.length, includedCount: commentIds.length, missingCount: 0 },
         },
       } });
     await db.update(issues).set({ executionRunId: runId, executionLockedAt: new Date() }).where(eq(issues.id, issueId));
-    const binding = { companyId, agentId, issueId, runId };
+    const binding = { spaceId, agentId, issueId, runId };
     const wake = await resolveCurrentWakeCommentsBinding(db, binding);
-    const authority = new PaperclipRunnerToolAuthority(db, { ...binding, currentWakeComments: wake ?? undefined });
+    const authority = new OutpostRunnerToolAuthority(db, { ...binding, currentWakeComments: wake ?? undefined });
     let reads = 0;
     const read = async (cursor?: string | null) => authority.execute({ tool: "read_current_wake_comments", callId: `read-${++reads}`, arguments: { cursor } }) as Promise<CurrentWakeCommentsPage>;
     return { ...binding, comments, wake, read, authority };
@@ -58,10 +58,10 @@ describe.skipIf(!support.supported)("current-wake completion feedback", () => {
     return db.select({ result: heartbeatRuns.resultJson }).from(heartbeatRuns).where(eq(heartbeatRuns.id, value.runId)).then(rows => rows[0]!.result);
   }
   async function assertSameRunningTurn(value: Awaited<ReturnType<typeof seed>>) {
-    const runs = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, value.companyId), eq(heartbeatRuns.agentId, value.agentId)));
+    const runs = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, value.spaceId), eq(heartbeatRuns.agentId, value.agentId)));
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({ id: value.runId, status: "running", resultJson: { existingEvidence: "keep" } });
-    expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.companyId, value.companyId))).toHaveLength(0);
+    expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.spaceId, value.spaceId))).toHaveLength(0);
   }
 
   it("corrects an unread finish before settlement, then accepts the actual reader in the same turn", async () => {
@@ -130,7 +130,7 @@ describe.skipIf(!support.supported)("current-wake completion feedback", () => {
       error => (error as Error).message,
     );
     expect(correction).toContain("If the reader reports that the snapshot changed, restart without a cursor");
-    await expect(value.read(second.nextCursor)).rejects.toThrow("paperclip_current_wake_comments_snapshot_changed");
+    await expect(value.read(second.nextCursor)).rejects.toThrow("outpost_current_wake_comments_snapshot_changed");
     const restarted = await value.read();
     expect(restarted).toMatchObject({ complete: true, nextCursor: null });
     expect(restarted.comments[0]?.bodyChunk).toBe("A revised request");
@@ -138,7 +138,7 @@ describe.skipIf(!support.supported)("current-wake completion feedback", () => {
     await assertSameRunningTurn(value);
   });
 
-  it("does not accept another company's complete read receipt", async () => {
+  it("does not accept another space's complete read receipt", async () => {
     const foreign = await seed(), value = await seed();
     await foreign.read();
     const foreignReceipt = (await receipt(foreign))!.currentWakeCommentsReceipt;
@@ -168,7 +168,7 @@ describe.skipIf(!support.supported)("current-wake completion feedback", () => {
 
   it("delivers corrective MCP feedback and completes one OpenCode turn after the real paginated reader", async () => {
     const value = await seed(["A".repeat(16_001)]);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-wake-feedback-provider-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-wake-feedback-provider-"));
     const command = join(root, "fake-opencode-server.mjs");
     await copyFile(new URL("../../../../packages/outpost-runner/test/fixtures/fake-opencode-server.mjs", import.meta.url), command);
     await chmod(command, 0o755);
@@ -176,7 +176,7 @@ describe.skipIf(!support.supported)("current-wake completion feedback", () => {
     const sessionId = randomUUID();
     const execution: NativeExecutionInput = {
       schema: "outpost.native-execution-input.v1",
-      binding: { companyId: value.companyId, issueId: value.issueId, runId: value.runId, agentId: value.agentId, executionWorkspaceId: randomUUID() },
+      binding: { spaceId: value.spaceId, issueId: value.issueId, runId: value.runId, agentId: value.agentId, executionWorkspaceId: randomUUID() },
       task: { identifier: "WF-1", title: "Read and answer the accepted message", description: null, prompt: "current-wake-completion-feedback", workMode: "standard" },
       workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: sessionId, driverKind: "opencode_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
@@ -200,7 +200,7 @@ describe.skipIf(!support.supported)("current-wake completion feedback", () => {
         } catch (error) { order.push("finish-refused"); throw error; }
       },
     });
-    const session = await backend.openSession({ identity: { companyId: value.companyId, runId: value.runId, sessionId, issueId: value.issueId, agentId: value.agentId }, workingDirectory: root });
+    const session = await backend.openSession({ identity: { spaceId: value.spaceId, runId: value.runId, sessionId, issueId: value.issueId, agentId: value.agentId }, workingDirectory: root });
     try {
       const collected = (async () => {
         const events: PrpEvent[] = [];

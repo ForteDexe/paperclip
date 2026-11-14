@@ -1,5 +1,5 @@
 import { markdownReplyContent } from "../../ui/src/lib/markdown-reply-content.js";
-import { applyCompanyPrefix, extractCompanyPrefixFromPath } from "../../ui/src/lib/company-routes.js";
+import { applySpacePrefix, extractSpacePrefixFromPath } from "../../ui/src/lib/space-routes.js";
 import { parseIssueReferenceFromHref } from "../../ui/src/lib/issue-reference.js";
 
 export type ReplyContentPart = { text: string } | { href: string; label?: string; decorated?: boolean } | { checked: boolean };
@@ -13,7 +13,7 @@ function normalized(parts: ReplyContentPart[], pageUrl: string, source = false) 
     } else if ("href" in part) {
       try {
         const issueRef = source ? parseIssueReferenceFromHref(part.href) : null;
-        const href = issueRef ? applyCompanyPrefix(issueRef.href, extractCompanyPrefixFromPath(new URL(pageUrl).pathname)) : part.href;
+        const href = issueRef ? applySpacePrefix(issueRef.href, extractSpacePrefixFromPath(new URL(pageUrl).pathname)) : part.href;
         result.push({ href: new URL(href, pageUrl).href, label: part.label?.replace(/\s+/g, " ").trim(), decorated: part.decorated });
       } catch { return null; }
     } else {
@@ -33,7 +33,7 @@ function normalized(parts: ReplyContentPart[], pageUrl: string, source = false) 
  * with an issue/document chip. Its exact destination still has to match.
  * Unsupported Markdown fails closed rather than stripping arbitrary syntax. */
 export function taskReplyContentMatches(
-  observation: { body: string; content?: ReplyContentPart[]; origin?: string; pageUrl?: string; knownCompanyPrefixes?: string[] },
+  observation: { body: string; content?: ReplyContentPart[]; origin?: string; pageUrl?: string; knownSpacePrefixes?: string[] },
   markdown: string,
 ) {
   if (observation.content) {
@@ -43,7 +43,7 @@ export function taskReplyContentMatches(
     const displayed = observation.content.map(part => "text" in part ? part.text : "href" in part ? part.label! : "").join("").replace(/\s+/g, " ").trim();
     if (displayed !== observation.body.replace(/\s+/g, " ").trim()) return false;
   }
-  const parts = markdownReplyContent(markdown, observation.knownCompanyPrefixes);
+  const parts = markdownReplyContent(markdown, observation.knownSpacePrefixes);
   if (!parts) return false;
   const pageUrl = observation.pageUrl ?? observation.origin ?? "https://reply.invalid";
   const expected = normalized(parts, pageUrl, true);

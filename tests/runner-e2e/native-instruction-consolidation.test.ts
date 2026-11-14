@@ -34,7 +34,7 @@ describe("native instruction comparison admission", () => {
       fixtureGit(temporary, ["clone", "--quiet", "--depth=1", "--branch=fixture", pathToFileURL(source).href, checkout]);
       const run = (...args: string[]) => fixtureGit(checkout, ["--no-replace-objects", ...args.map(value =>
         value === NATIVE_INSTRUCTION_BASE_SHA ? base
-          : value === "https://github.com/paperclipai/outpost.git" ? pathToFileURL(source).href : value)]);
+          : value === "https://github.com/example/outpost.git" ? pathToFileURL(source).href : value)]);
       expect(() => run("merge-base", "--is-ancestor", NATIVE_INSTRUCTION_BASE_SHA, head)).toThrow();
       expect(() => assertNativeInstructionLineage(head, run, true)).not.toThrow();
       expect(run("rev-parse", "HEAD")).toBe(head);
@@ -63,7 +63,7 @@ describe("native instruction comparison admission", () => {
       const fetches = calls.filter(args => args.includes("fetch"));
       const depths = ["local", "not-shallow"].includes(scenario) ? [] : scenario === "no-base" ? [8, 32, 128] : [8];
       expect(fetches).toEqual(depths.map(depth => ["-c", "credential.helper=", "-c", "core.hooksPath=/dev/null",
-        "fetch", "--no-tags", `--depth=${depth}`, "https://github.com/paperclipai/outpost.git", head]));
+        "fetch", "--no-tags", `--depth=${depth}`, "https://github.com/example/outpost.git", head]));
     }
   });
   it("accepts each complete source variant and rejects a mixed variant", () => {
@@ -101,14 +101,14 @@ describe("native instruction comparison admission", () => {
   });
 
   it("uses the new common production default without qualifying old default evidence", () => {
-    const receipt = { schema: "outpost.native-completion-default.v1" as const, companyId: "company", agentId: "agent", entryFile: "AGENTS.md",
-      files: [{ path: "AGENTS.md", sha256: NATIVE_INSTRUCTION_DEFAULT_SHA256, bytes: 40 }], budgets: { company: 1000, agent: 1000 } };
+    const receipt = { schema: "outpost.native-completion-default.v1" as const, spaceId: "space", agentId: "agent", entryFile: "AGENTS.md",
+      files: [{ path: "AGENTS.md", sha256: NATIVE_INSTRUCTION_DEFAULT_SHA256, bytes: 40 }], budgets: { space: 1000, agent: 1000 } };
     expect(gradeNativeDefault(receipt, NATIVE_INSTRUCTION_DEFAULT_SHA256).passed).toBe(true);
     expect(gradeNativeDefault(receipt).passed).toBe(false);
     receipt.files[0]!.sha256 = NATIVE_MASTER_DEFAULT_SHA256;
     expect(gradeNativeDefault(receipt, NATIVE_INSTRUCTION_DEFAULT_SHA256).passed).toBe(false);
     receipt.files[0]!.sha256 = NATIVE_INSTRUCTION_DEFAULT_SHA256;
-    receipt.budgets.company = 0;
+    receipt.budgets.space = 0;
     expect(gradeNativeDefault(receipt, NATIVE_INSTRUCTION_DEFAULT_SHA256).passed).toBe(false);
   });
 

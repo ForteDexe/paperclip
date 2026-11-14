@@ -2,7 +2,7 @@ import { createCipheriv, createHash, diffieHellman, generateKeyPairSync, hkdfSyn
 import { createServer } from "node:http";
 import { Socket } from "node:net";
 import { once } from "node:events";
-import { agents, agentApiKeys, agentSessionGoalActions, agentTaskSessions, authUsers, companies, companyMemberships, connectionGrants, createDb, heartbeatRuns, issues, issueThreadInteractions, toolApplications, toolConnections } from "@outpost/db";
+import { agents, agentApiKeys, agentSessionGoalActions, agentTaskSessions, authUsers, spaces, spaceMemberships, connectionGrants, createDb, heartbeatRuns, issues, issueThreadInteractions, toolApplications, toolConnections } from "@outpost/db";
 import { access, mkdir, readdir, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -64,12 +64,12 @@ describeDatabase("assembled maintenance server production wiring", () => {
   maintenanceTest.concurrent.for(["empty", "configured terminal history"] as const)("keeps enabled %s quiet for 90 real seconds and two qualified hourly windows", { timeout: 240_000 }, async (state, { databaseUrl, expect }) => {
     const fixture = createDb(databaseUrl, { maxConnections: 1 });
     if (state !== "empty") {
-      const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-      await fixture.insert(companies).values({ id: companyId, name: "Retained idle history", issuePrefix: "MIH" });
-      await fixture.insert(agents).values({ id: agentId, companyId, name: "Idle retained agent", status: "idle", adapterType: "process",
+      const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+      await fixture.insert(spaces).values({ id: spaceId, name: "Retained idle history", issuePrefix: "MIH" });
+      await fixture.insert(agents).values({ id: agentId, spaceId, name: "Idle retained agent", status: "idle", adapterType: "process",
         adapterConfig: { command: process.execPath, args: ["-e", "process.exit(0)"] }, runtimeConfig: { heartbeat: { enabled: true, intervalSec: 0, wakeOnDemand: true } } });
-      await fixture.insert(issues).values({ id: issueId, companyId, title: "Retained terminal task", status: "done", assigneeAgentId: agentId });
-      await fixture.insert(heartbeatRuns).values({ companyId, agentId, issueId, status: "succeeded", finishedAt: new Date(), contextSnapshot: { issueId } });
+      await fixture.insert(issues).values({ id: issueId, spaceId, title: "Retained terminal task", status: "done", assigneeAgentId: agentId });
+      await fixture.insert(heartbeatRuns).values({ spaceId, agentId, issueId, status: "succeeded", finishedAt: new Date(), contextSnapshot: { issueId } });
     }
     const server = await startMaintenanceServer(databaseUrl, { clock: true });
     try {
@@ -123,14 +123,14 @@ describeDatabase("assembled maintenance server production wiring", () => {
     const fixture = createDb(databaseUrl, { maxConnections: 1 });
     try {
       await settleClock(server);
-      const company = await server.api<{ id: string }>("POST", "/companies", { name: "Receipt ingress" });
-      await fixture.insert(authUsers).values({ id: "local-board", name: "Local operator", email: "maintenance-local@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-      await fixture.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: "local-board", status: "active", membershipRole: "owner" }).onConflictDoNothing();
-      const [agent] = await fixture.insert(agents).values({ companyId: company.id, name: "Receipt process", adapterType: "process", status: "idle", lifecycleState: "ready",
+      const space = await server.api<{ id: string }>("POST", "/spaces", { name: "Receipt ingress" });
+      await fixture.insert(authUsers).values({ id: "local-operator", name: "Local operator", email: "maintenance-local@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
+      await fixture.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: "local-operator", status: "active", membershipRole: "owner" }).onConflictDoNothing();
+      const [agent] = await fixture.insert(agents).values({ spaceId: space.id, name: "Receipt process", adapterType: "process", status: "idle", lifecycleState: "ready",
         adapterConfig: { command: process.execPath, args: ["-e", "console.log('assembled-receipt-proof')"], cwd: process.cwd() },
         runtimeConfig: { heartbeat: { enabled: true, intervalSec: 0, wakeOnDemand: true } } }).returning();
-      const [issue] = await fixture.insert(issues).values({ companyId: company.id, title: "Resume saved task", status: "todo", assigneeAgentId: agent!.id, responsibleUserId: "local-board" }).returning();
-      const [source] = await fixture.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent!.id, issueId: issue!.id, status: "failed", finishedAt: new Date(), responsibleUserId: "local-board", errorCode: "process_failed",
+      const [issue] = await fixture.insert(issues).values({ spaceId: space.id, title: "Resume saved task", status: "todo", assigneeAgentId: agent!.id, responsibleUserId: "local-operator" }).returning();
+      const [source] = await fixture.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent!.id, issueId: issue!.id, status: "failed", finishedAt: new Date(), responsibleUserId: "local-operator", errorCode: "process_failed",
         contextSnapshot: { issueId: issue!.id }, resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } }).returning();
       const hold = await server.api<{ hold: { id: string } }>("POST", `/issues/${issue!.id}/tree-holds`, { mode: "pause", reason: "Retain ordinary Retry" });
       const retry = await server.api<{ accepted: boolean; requestId: string }>("POST", `/issues/${issue!.id}/retry`, { observedRunId: source!.id, idempotencyKey: randomUUID() });
@@ -167,7 +167,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
       const leaseIdle = server.proxy.queries.length;
       for (let step = 0; step < 2; step++) { await server.advance(30_000); await settleClock(server); }
       expect(server.proxy.queries.length).toBe(leaseIdle);
-      await writeFile(path.join(server.directory, "receipt-measurement.json"), JSON.stringify({ phase: "ordinary-held-task-retry", companyId: company.id, issueId: issue!.id,
+      await writeFile(path.join(server.directory, "receipt-measurement.json"), JSON.stringify({ phase: "ordinary-held-task-retry", spaceId: space.id, issueId: issue!.id,
         requestId: retry.requestId, waiting, grace, parked, executed, count: count!.count, parkedRealMs: 30_000, parkedQueries: 0, settledClockMs: 120_000, settledQueries: 0,
         boundary: "actual Retry and subtree release HTTP, wakeAgents false, real clock through process/controller authority, real local process, no outcome seeded", frames: server.proxy.frames }, null, 2));
     } finally { await server.stop(); await fixture.$client.end(); }
@@ -178,8 +178,8 @@ describeDatabase("assembled maintenance server production wiring", () => {
     const fixture = createDb(databaseUrl, { maxConnections: 1 });
     try {
       await server.settled();
-      const company = await server.api<{ id: string }>("POST", "/companies", { name: "Admission reconstruction" });
-      const { leaseId } = await server.createOrphanLease(company.id);
+      const space = await server.api<{ id: string }>("POST", "/spaces", { name: "Admission reconstruction" });
+      const { leaseId } = await server.createOrphanLease(space.id);
       await server.advance(1_000); await settleClock(server);
       const [suppressed] = await fixture.$client`select status, cleanup_status from environment_leases where id=${leaseId}`;
       expect(suppressed).toMatchObject({ status: "active", cleanup_status: null });
@@ -198,7 +198,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
       const [cleaned] = await fixture.$client`select status, cleanup_status from environment_leases where id=${leaseId}`;
       expect(cleaned).toMatchObject({ status: "expired", cleanup_status: "success" });
       await writeFile(path.join(server.directory, "admission-measurement.json"), JSON.stringify({ phase: "ordinary-settings-admission-reconstruction",
-        companyId: company.id, leaseId, suppressed, suppressedClockMs: 120_000, suppressedQueries: 0,
+        spaceId: space.id, leaseId, suppressed, suppressedClockMs: 120_000, suppressedQueries: 0,
         admitted: admitted!.experimental, reconstructed, cleaned, frames: server.proxy.frames,
         boundary: "actual suppressed runtime, committed environment-cleanup ingress, normal operator activation; no direct worker wake or safety-gate bypass",
       }, null, 2));
@@ -207,14 +207,14 @@ describeDatabase("assembled maintenance server production wiring", () => {
 
   maintenanceTest.concurrent("isolates a real goal-startup write failure and still registers residual and attention owners", async ({ databaseUrl, expect }) => {
     const fixture = createDb(databaseUrl, { maxConnections: 1 });
-    const companyId = randomUUID(), agentId = randomUUID(), userId = randomUUID(), issueId = randomUUID(), requestId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), userId = randomUUID(), issueId = randomUUID(), requestId = randomUUID();
     await fixture.insert(authUsers).values({ id: userId, name: "Goal control owner", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await fixture.insert(companies).values({ id: companyId, name: "Startup failure isolation", issuePrefix: "MFI", defaultResponsibleUserId: userId });
-    await fixture.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
-    await fixture.insert(agents).values({ id: agentId, companyId, name: "Goal owner", adapterType: "codex_local", status: "idle", lifecycleState: "ready" });
-    await fixture.insert(issues).values({ id: issueId, companyId, title: "Retained terminal goal task", status: "done", assigneeAgentId: agentId, responsibleUserId: userId });
-    const [session] = await fixture.insert(agentTaskSessions).values({ companyId, agentId, taskKey: issueId, adapterType: "codex_local" }).returning();
-    const [action] = await fixture.insert(agentSessionGoalActions).values({ companyId, sessionId: session!.id, requestId,
+    await fixture.insert(spaces).values({ id: spaceId, name: "Startup failure isolation", issuePrefix: "MFI", defaultResponsibleUserId: userId });
+    await fixture.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
+    await fixture.insert(agents).values({ id: agentId, spaceId, name: "Goal owner", adapterType: "codex_local", status: "idle", lifecycleState: "ready" });
+    await fixture.insert(issues).values({ id: issueId, spaceId, title: "Retained terminal goal task", status: "done", assigneeAgentId: agentId, responsibleUserId: userId });
+    const [session] = await fixture.insert(agentTaskSessions).values({ spaceId, agentId, taskKey: issueId, adapterType: "codex_local" }).returning();
+    const [action] = await fixture.insert(agentSessionGoalActions).values({ spaceId, sessionId: session!.id, requestId,
       action: "clear", payloadJson: { requestId, action: "clear" }, status: "pending" }).returning();
     await fixture.$client.unsafe(`create or replace function maintenance_fail_goal_startup() returns trigger language plpgsql as $$begin
       if new.reason = 'goal_control' then raise exception 'maintenance_goal_startup_injected'; end if; return new; end$$`);
@@ -230,7 +230,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
       const [failedWake] = await fixture.$client`select count(*)::integer as count from agent_wakeup_requests where reason='goal_control'`;
       expect(failedWake!.count).toBe(0);
       const start = (await server.snapshot()).now;
-      const { leaseId } = await server.createOrphanLease(companyId);
+      const { leaseId } = await server.createOrphanLease(spaceId);
       let discovered: Record<string, unknown> | undefined;
       for (let step = 0; step < 10; step++) {
         await server.advance(1_000); await delay(50);
@@ -246,14 +246,14 @@ describeDatabase("assembled maintenance server production wiring", () => {
       await fixture.$client.unsafe(`create or replace function maintenance_age_isolation_attention() returns trigger language plpgsql as $$begin
         if new.title = 'Attention after goal failure' then new.updated_at = now() - interval '91 days'; end if; return new; end$$`);
       await fixture.$client.unsafe(`create trigger maintenance_age_isolation_attention before insert on issue_thread_interactions for each row execute function maintenance_age_isolation_attention()`);
-      const issue = await server.api<{ id: string }>("POST", `/companies/${companyId}/issues`, { title: "Independent attention owner", status: "todo" });
+      const issue = await server.api<{ id: string }>("POST", `/spaces/${spaceId}/issues`, { title: "Independent attention owner", status: "todo" });
       const card = await server.api<{ id: string }>("POST", `/issues/${issue.id}/interactions`, { kind: "request_confirmation", title: "Attention after goal failure",
         resolverPolicy: "human_only", continuationPolicy: "none", payload: { version: 1, prompt: "Choose a color?" } });
       await server.advance(1_000); await settleClock(server);
       const [archived] = await fixture.$client`select archived_reason, archived_at is not null as archived from decision_retention where source_id=${card.id}`;
       expect(archived).toMatchObject({ archived_reason: "idle_ttl", archived: true });
       await writeFile(path.join(server.directory, "startup-failure-measurement.json"), JSON.stringify({ phase: "actual-goal-startup-failure-isolation",
-        companyId, actionId: action!.id, retained, failedWake, leaseId, discovered, lease, elapsedClockMs, archived, frames: server.proxy.frames,
+        spaceId, actionId: action!.id, retained, failedWake, leaseId, discovered, lease, elapsedClockMs, archived, frames: server.proxy.frames,
         boundary: "fixture-only conditional goal_control INSERT failure; actual native classification untouched; actual environment cleanup ingress and ordinary attention HTTP producer",
       }, null, 2));
     } finally {
@@ -269,10 +269,10 @@ describeDatabase("assembled maintenance server production wiring", () => {
 
   maintenanceTest.concurrent("exposes readiness while real deferred housekeeping is held and settles its work after release", async ({ databaseUrl, expect }) => {
     const fixture = createDb(databaseUrl, { maxConnections: 1 });
-    const companyId = randomUUID(), issueId = randomUUID(), interactionId = randomUUID();
-    await fixture.insert(companies).values({ id: companyId, name: "Readiness fixture", issuePrefix: "MRD" });
-    await fixture.insert(issues).values({ id: issueId, companyId, title: "Historical human decision", status: "todo" });
-    await fixture.insert(issueThreadInteractions).values({ id: interactionId, companyId, issueId, kind: "request_confirmation",
+    const spaceId = randomUUID(), issueId = randomUUID(), interactionId = randomUUID();
+    await fixture.insert(spaces).values({ id: spaceId, name: "Readiness fixture", issuePrefix: "MRD" });
+    await fixture.insert(issues).values({ id: issueId, spaceId, title: "Historical human decision", status: "todo" });
+    await fixture.insert(issueThreadInteractions).values({ id: interactionId, spaceId, issueId, kind: "request_confirmation",
       title: "Historical human choice", continuationPolicy: "none", payload: { version: 1, prompt: "Choose a color?" },
       updatedAt: new Date(Date.now() - 91 * 86_400_000) });
     await fixture.$client.unsafe(`create or replace function maintenance_hold_startup_archive() returns trigger language plpgsql as $$begin
@@ -295,7 +295,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
       const [archived] = await fixture.$client`select archived_reason, archived_at is not null as archived from decision_retention where source_id=${interactionId}`;
       expect(archived).toMatchObject({ archived_reason: "idle_ttl", archived: true });
       await writeFile(path.join(server.directory, "readiness-measurement.json"), JSON.stringify({ phase: "real-housekeeping-held-after-readiness",
-        companyId, issueId, interactionId, beforeRelease: { startup: snapshot.startup, idle: snapshot.idle }, afterRelease: await server.snapshot(),
+        spaceId, issueId, interactionId, beforeRelease: { startup: snapshot.startup, idle: snapshot.idle }, afterRelease: await server.snapshot(),
         archived, boundary: "fixture owns advisory lock on actual startup archive INSERT; no startup/DB/service mocks", frames: server.proxy.frames,
       }, null, 2));
     } finally {
@@ -370,15 +370,15 @@ describeDatabase("assembled maintenance server production wiring", () => {
         clockAdvanceMs: after.now - start, stepMs: 30_000, ioSettledBetweenSteps: true,
         startupQueries: baseline, startup: receipt(server.proxy.queries), frames: server.proxy.frames, network: after.network, measuredQueries: 0, outgoingHttpRequests: 0 }, null, 2));
 
-      const company = await server.api<{ id: string }>("POST", "/companies", { name: "Configured idle maintenance fixture" });
+      const space = await server.api<{ id: string }>("POST", "/spaces", { name: "Configured idle maintenance fixture" });
       await server.api("PATCH", "/instance/settings/experimental", { enableExternalObjects: true, enableStatusCards: true });
-      const history = await server.api<{ id: string }>("POST", `/companies/${company.id}/issues`, { title: "Retained completed history", status: "done" });
+      const history = await server.api<{ id: string }>("POST", `/spaces/${space.id}/issues`, { title: "Retained completed history", status: "done" });
       await server.advance(30_000);
       await server.settled();
       const persisted = createDb(databaseUrl, { maxConnections: 1 });
       try {
-        const [saved] = await persisted.$client`select company_id, status from issues where id=${history.id}`;
-        expect(saved).toMatchObject({ company_id: company.id, status: "done" });
+        const [saved] = await persisted.$client`select space_id, status from issues where id=${history.id}`;
+        expect(saved).toMatchObject({ space_id: space.id, status: "done" });
       } finally { await persisted.$client.end(); }
       const historyBaseline = server.proxy.queries.length;
       await server.drain();
@@ -389,7 +389,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
       expect(server.proxy.queries.length).toBe(resumed);
       expect((await server.snapshot()).outgoingHttpRequests).toBe(0);
       await writeFile(path.join(server.directory, "history-measurement.json"), JSON.stringify({ phase: "disabled-configured-history-drain",
-        companyId: company.id, issueId: history.id, historyBaseline, resumedQueries: resumed,
+        spaceId: space.id, issueId: history.id, historyBaseline, resumedQueries: resumed,
         postResumeClockMs: 2 * 60 * 60_000, measuredQueries: server.proxy.queries.length - resumed,
         frames: server.proxy.frames, outgoingHttpRequests: 0 }, null, 2));
     } finally { await server.stop(); }
@@ -413,27 +413,27 @@ describeDatabase("assembled maintenance server production wiring", () => {
       try {
         server = await startMaintenanceServer(databaseUrl, options);
         await server.settled();
-        const company = await server.api<{ id: string }>("POST", "/companies", { name: "Shutdown recovery" });
+        const space = await server.api<{ id: string }>("POST", "/spaces", { name: "Shutdown recovery" });
         await server.api("PATCH", "/instance/settings/experimental", { enableExternalObjects: true });
-        const issue = await server.api<{ id: string }>("POST", `/companies/${company.id}/issues`, {
+        const issue = await server.api<{ id: string }>("POST", `/spaces/${space.id}/issues`, {
           title: "Object survives shutdown", status: "done", description: "https://github.com/maintenance/example/pull/8",
         });
         await server.advance(1_000);
         await Promise.race([firstRequest, delay(10_000).then(() => { throw new Error("Provider claim did not arrive"); })]);
         const [claimed] = await fixture.$client`select is_terminal, refresh_started_at is not null as claimed from external_objects
-          where company_id=${company.id}`;
+          where space_id=${space.id}`;
         expect(claimed).toMatchObject({ is_terminal: false, claimed: true });
         await server.stop(); server = undefined;
         expect(cancelled).toBe(true);
-        const [stopped] = await fixture.$client`select is_terminal, refresh_started_at, refresh_token from external_objects where company_id=${company.id}`;
+        const [stopped] = await fixture.$client`select is_terminal, refresh_started_at, refresh_token from external_objects where space_id=${space.id}`;
         expect(stopped).toMatchObject({ is_terminal: false, refresh_started_at: null, refresh_token: null });
         server = await startMaintenanceServer(databaseUrl, options);
         await settleClock(server);
-        const [recovered] = await fixture.$client`select is_terminal, status_key from external_objects where company_id=${company.id}`;
+        const [recovered] = await fixture.$client`select is_terminal, status_key from external_objects where space_id=${space.id}`;
         expect(recovered).toMatchObject({ is_terminal: true, status_key: "merged" });
         expect(providerRequests).toEqual(["/repos/maintenance/example/pulls/8", "/repos/maintenance/example/pulls/8"]);
         await writeFile(path.join(server.directory, "shutdown-measurement.json"), JSON.stringify({ phase: "actual-shutdown-inflight-and-restart",
-          companyId: company.id, issueId: issue.id, claimed, cancelled, stopped, recovered, providerRequests,
+          spaceId: space.id, issueId: issue.id, claimed, cancelled, stopped, recovered, providerRequests,
           boundary: "first simulated HTTP response deliberately withheld; actual shutdown abort/settlement and real restart reconstruction",
           frames: server.proxy.frames,
         }, null, 2));
@@ -465,7 +465,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
         const server = runtime = await startMaintenanceServer(databaseUrl, { enabled: false, clock: true,
         githubOrigin: origin });
         await server.settled();
-        const company = await server.api<{ id: string }>("POST", "/companies", { name: "Drain activation" });
+        const space = await server.api<{ id: string }>("POST", "/spaces", { name: "Drain activation" });
         await server.api("PATCH", "/instance/settings/experimental", { enableExternalObjects: true });
         await server.advance(30_000); await server.settled();
         await fixture.$client.unsafe(`create or replace function maintenance_hold_issue() returns trigger language plpgsql as $$begin
@@ -475,7 +475,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
         reserved = await fixture.$client.reserve();
         await reserved`select pg_advisory_lock(913701)`;
         const before = server.proxy.queries.length;
-        pendingIssue = server.api<{ id: string }>("POST", `/companies/${company.id}/issues`, {
+        pendingIssue = server.api<{ id: string }>("POST", `/spaces/${space.id}/issues`, {
           title: "First write during idle drain", description: "https://github.com/maintenance/example/pull/1", status: "done",
         });
         void pendingIssue.catch(() => {});
@@ -485,16 +485,16 @@ describeDatabase("assembled maintenance server production wiring", () => {
         const issue = await pendingIssue;
         await server.settled();
         expect(providerRequests).toEqual([]);
-        const [waiting] = await fixture.$client`select eo.company_id, eo.is_terminal, eo.last_resolved_at from external_objects eo
+        const [waiting] = await fixture.$client`select eo.space_id, eo.is_terminal, eo.last_resolved_at from external_objects eo
           join external_object_mentions em on em.object_id=eo.id where em.source_issue_id=${issue.id}`;
-        expect(waiting).toMatchObject({ company_id: company.id, is_terminal: false, last_resolved_at: null });
+        expect(waiting).toMatchObject({ space_id: space.id, is_terminal: false, last_resolved_at: null });
         const draining = server.proxy.queries.length;
         for (let step = 0; step < 4; step++) { await server.advance(30_000); await server.settled(10); }
         expect(server.proxy.queries.length).toBe(draining);
         await server.resume(); await server.advance(30_000); await server.settled();
-        const [resolved] = await fixture.$client`select eo.company_id, eo.is_terminal, eo.status_key, floor(extract(epoch from eo.last_resolved_at) * 1000)::float8 as resolved_ms from external_objects eo
+        const [resolved] = await fixture.$client`select eo.space_id, eo.is_terminal, eo.status_key, floor(extract(epoch from eo.last_resolved_at) * 1000)::float8 as resolved_ms from external_objects eo
           join external_object_mentions em on em.object_id=eo.id where em.source_issue_id=${issue.id}`;
-        expect(resolved).toMatchObject({ company_id: company.id, is_terminal: true, status_key: "merged", resolved_ms: expect.any(Number) });
+        expect(resolved).toMatchObject({ space_id: space.id, is_terminal: true, status_key: "merged", resolved_ms: expect.any(Number) });
         expect(resolved!.resolved_ms).toBeGreaterThan(0);
         expect(resolved!.resolved_ms).toBeLessThanOrEqual((await server.snapshot()).now);
         expect(providerRequests).toEqual(["/repos/maintenance/example/pulls/1"]);
@@ -505,11 +505,11 @@ describeDatabase("assembled maintenance server production wiring", () => {
         expect((await server.snapshot()).outgoingHttpRequests).toBe(network.outgoingHttpRequests);
         await writeFile(path.join(server.directory, "external-object-measurement.json"), JSON.stringify({
           phase: "ordinary-issue-producer-commit-during-drain", providerBoundary: "simulated GitHub HTTP; real application/database/transactions",
-          companyId: company.id, issueId: issue.id, resolved, drainedClockMs: 120_000, drainedQueries: 0,
+          spaceId: space.id, issueId: issue.id, resolved, drainedClockMs: 120_000, drainedQueries: 0,
           postResolveClockMs: 7_200_000, postResolveQueries: 0, providerRequests, frames: server.proxy.frames, network,
         }, null, 2));
 
-        const retryIssue = await server.api<{ id: string }>("POST", `/companies/${company.id}/issues`, {
+        const retryIssue = await server.api<{ id: string }>("POST", `/spaces/${space.id}/issues`, {
           title: "Retry after idle drain", description: "https://github.com/maintenance/example/pull/2", status: "done",
         });
         await server.advance(1_000); await server.settled(100);
@@ -581,13 +581,13 @@ describeDatabase("assembled maintenance server production wiring", () => {
         sealPrivateKey: sealing.privateKey.export({ format: "jwk" }).d!,
       } });
         await server.settled(); expect(requests).toEqual([]);
-        const company = await server.api<{ id: string }>("POST", "/companies", { name: "GitHub event ingress" });
-        const [application] = await fixture.insert(toolApplications).values({ companyId: company.id, applicationKey: randomUUID(), name: "GitHub", type: "mcp_http", status: "active" }).returning();
-        const [connection] = await fixture.insert(toolConnections).values({ companyId: company.id, applicationId: application!.id,
+        const space = await server.api<{ id: string }>("POST", "/spaces", { name: "GitHub event ingress" });
+        const [application] = await fixture.insert(toolApplications).values({ spaceId: space.id, applicationKey: randomUUID(), name: "GitHub", type: "mcp_http", status: "active" }).returning();
+        const [connection] = await fixture.insert(toolConnections).values({ spaceId: space.id, applicationId: application!.id,
           uid: randomUUID(), name: "GitHub", status: "active", enabled: false, transport: "mcp_remote", authKind: "oauth", credentialPolicy: "per_user",
           config: { url: "https://api.github.com/mcp", sourceTemplateKey: "github", oauth: { connectorProfile: "github.code" } }, transportConfig: {} }).returning();
         const now = (await server.snapshot()).now;
-        const [grant] = await fixture.insert(connectionGrants).values({ companyId: company.id, connectionId: connection!.id,
+        const [grant] = await fixture.insert(connectionGrants).values({ spaceId: space.id, connectionId: connection!.id,
           kind: "user", subjectUserId: "maintenance-owner", status: "active", providerTenant: {
             oauth: { accessTokenExpiresAt: new Date(now + 8 * 3_600_000).toISOString(), refreshedAt: new Date(now).toISOString() },
             github: { userId: "42", login: "fixture", installationIds: ["101"], installationCount: 1, repositoryCount: 1,
@@ -598,16 +598,16 @@ describeDatabase("assembled maintenance server production wiring", () => {
             url: "https://github.com/maintenance/example/pull/7", state: "closed", merged: true, mergedAt: new Date(now).toISOString() } };
         await server.api("PATCH", `/tool-connections/${connection!.id}`, { enabled: true });
         await server.advance(5_000); await settleClock(server);
-        const [delivery] = await fixture.$client`select company_id, status, attempts, processed_at is not null as processed, normalized_payload
+        const [delivery] = await fixture.$client`select space_id, status, attempts, processed_at is not null as processed, normalized_payload
           from connection_event_deliveries where provider_delivery_id='maintenance-delivery'`;
-        expect(delivery).toMatchObject({ company_id: company.id, status: "processed", attempts: 1, processed: true,
+        expect(delivery).toMatchObject({ space_id: space.id, status: "processed", attempts: 1, processed: true,
           normalized_payload: expect.objectContaining({ repository: "maintenance/example", number: 7, merged: true }) });
         expect(acknowledgements).toHaveLength(1);
         const baseline = server.proxy.queries.length, requestCount = requests.length;
         for (let step = 0; step < 4; step++) { await server.advance(30_000); await server.settled(10); }
         expect(server.proxy.queries.length).toBe(baseline); expect(requests).toHaveLength(requestCount);
         await writeFile(path.join(server.directory, "github-measurement.json"), JSON.stringify({ phase: "ordinary-connection-activation-sealed-event",
-          companyId: company.id, connectionId: connection!.id, grantId: grant!.id, delivery, requests, acknowledgements,
+          spaceId: space.id, connectionId: connection!.id, grantId: grant!.id, delivery, requests, acknowledgements,
           quietClockMs: 120_000, quietQueries: 0, frames: server.proxy.frames,
           providerBoundary: "simulated Cloud HTTP validates real Ed25519 request and seals X25519/AES-GCM event; actual runtime decrypts/persists/acks",
         }, null, 2));
@@ -622,24 +622,24 @@ describeDatabase("assembled maintenance server production wiring", () => {
     const fixture = createDb(databaseUrl, { maxConnections: 1 });
     try {
       await server.settled();
-      const company = await server.api<{ id: string }>("POST", "/companies", { name: "Status-card ingress" });
-      const [agent] = await fixture.insert(agents).values({ companyId: company.id, name: "Controlled summarizer",
+      const space = await server.api<{ id: string }>("POST", "/spaces", { name: "Status-card ingress" });
+      const [agent] = await fixture.insert(agents).values({ spaceId: space.id, name: "Controlled summarizer",
         status: "idle", adapterType: "process", adapterConfig: { command: "/usr/bin/false" } }).returning();
       const userId = randomUUID();
       await fixture.insert(authUsers).values({ id: userId, name: "Controlled writer owner", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-      await fixture.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
+      await fixture.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
       const token = randomUUID();
-      await fixture.insert(agentApiKeys).values({ companyId: company.id, agentId: agent!.id, name: "Controlled writer", responsibleUserId: userId,
+      await fixture.insert(agentApiKeys).values({ spaceId: space.id, agentId: agent!.id, name: "Controlled writer", responsibleUserId: userId,
         keyHash: createHash("sha256").update(token).digest("hex") });
       await server.api("PATCH", "/instance/settings/experimental", { enableStatusCards: true });
-      const card = await server.api<{ id: string; generatingIssueId: string }>("POST", `/companies/${company.id}/status-cards`, {
+      const card = await server.api<{ id: string; generatingIssueId: string }>("POST", `/spaces/${space.id}/status-cards`, {
         interestPrompt: "Blocked tasks", agentId: agent!.id, refreshPolicy: { mode: "reactive", debounceSeconds: 60 },
       });
       async function writeback(generationIssueId: string, compile: boolean) {
-        const [run] = await fixture.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent!.id,
+        const [run] = await fixture.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent!.id,
           status: "running", responsibleUserId: userId, contextSnapshot: { issueId: generationIssueId } }).returning();
         await fixture.$client`update issues set checkout_run_id=${run!.id} where id=${generationIssueId}`;
-        const headers = { authorization: `Bearer ${token}`, "x-paperclip-run-id": run!.id };
+        const headers = { authorization: `Bearer ${token}`, "x-outpost-run-id": run!.id };
         if (compile) await server.api("PUT", `/status-cards/${card.id}/query`, { queries: [{ scope: "issues", status: ["blocked"] }],
           title: "Blocked tasks", changeSummary: "Controlled compilation", generationIssueId }, headers);
         await server.api("PUT", `/status-cards/${card.id}/summary`, { markdown: "Controlled current blockers",
@@ -650,7 +650,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
       await writeback(card.generatingIssueId, true); await server.advance(30_000); await settleClock(server);
       const [compiled] = await fixture.$client`select state, query_version, generating_issue_id from status_cards where id=${card.id}`;
       expect(compiled).toMatchObject({ state: "active", query_version: 1, generating_issue_id: null });
-      const changed = await server.api<{ id: string }>("POST", `/companies/${company.id}/issues`, {
+      const changed = await server.api<{ id: string }>("POST", `/spaces/${space.id}/issues`, {
         title: "Ordinary new blocker", status: "blocked",
       });
       await server.advance(1_000); await settleClock(server);
@@ -667,7 +667,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
       const [saved] = await fixture.$client`select pending_change_count, generating_issue_id, state from status_cards where id=${card.id}`;
       expect(saved).toMatchObject({ pending_change_count: 0, generating_issue_id: null, state: "active" });
       await writeFile(path.join(server.directory, "status-card-measurement.json"), JSON.stringify({
-        phase: "ordinary-reactive-card-source-and-authorized-writeback", companyId: company.id, cardId: card.id, issueId: changed.id,
+        phase: "ordinary-reactive-card-source-and-authorized-writeback", spaceId: space.id, cardId: card.id, issueId: changed.id,
         compiled, pending, generating, result, saved, frames: server.proxy.frames,
         executionBoundary: "controlled summarizer execution rows/key only; real authenticated query/summary routes; production execution suppressed; no model provider",
       }, null, 2));
@@ -679,13 +679,13 @@ describeDatabase("assembled maintenance server production wiring", () => {
     const fixture = createDb(databaseUrl, { maxConnections: 1 });
     try {
       await server.settled();
-      const company = await server.api<{ id: string }>("POST", "/companies", { name: "Backup ingress" });
-      const [agent] = await fixture.insert(agents).values({ companyId: company.id, name: "Backup owner", status: "paused" }).returning();
-      const issue = await server.api<{ id: string }>("POST", `/companies/${company.id}/issues`, { title: "Close aged backup work", status: "todo" });
+      const space = await server.api<{ id: string }>("POST", "/spaces", { name: "Backup ingress" });
+      const [agent] = await fixture.insert(agents).values({ spaceId: space.id, name: "Backup owner", status: "paused" }).returning();
+      const issue = await server.api<{ id: string }>("POST", `/spaces/${space.id}/issues`, { title: "Close aged backup work", status: "todo" });
       const sessionId = randomUUID(), scopeDigest = "b".repeat(64);
-      const [run] = await fixture.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent!.id,
+      const [run] = await fixture.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent!.id,
         status: "succeeded", issueId: issue.id, nativeIssueId: issue.id, nativeSessionId: sessionId, finishedAt: new Date() }).returning();
-      await fixture.insert(agentTaskSessions).values({ companyId: company.id, agentId: agent!.id, adapterType: "outpost_runner",
+      await fixture.insert(agentTaskSessions).values({ spaceId: space.id, agentId: agent!.id, adapterType: "outpost_runner",
         taskKey: issue.id, sessionParamsJson: { sessionId }, lastRunId: run!.id });
       const root = path.join(server.directory, "durable-sessions", scopeDigest), backupRoot = path.join(root, "failover-backups");
       const pendingRoot = path.join(backupRoot, "pending-publication"), current = path.join(backupRoot, "current");
@@ -693,7 +693,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
       await writeFile(path.join(root, "control-plane", "control-plane-state.json"), JSON.stringify({ identity: { runId: run!.id, normalizedSessionId: sessionId } }));
       await writeFile(path.join(pendingRoot, "manifest.json"), "{}"); await writeFile(path.join(pendingRoot, "session-bytes"), "retained session bytes");
       const old = new Date((await server.snapshot()).now - 10 * 86_400_000); await utimes(pendingRoot, old, old);
-      await server.publishBackup({ companyId: company.id, scopeDigest, backupRoot, pendingRoot });
+      await server.publishBackup({ spaceId: space.id, scopeDigest, backupRoot, pendingRoot });
       await settleClock(server); await access(current);
       await fixture.$client.unsafe(`create or replace function maintenance_age_close() returns trigger language plpgsql as $$begin
         if new.title = 'Close aged backup work' and new.status = 'done' then new.completed_at = now() - interval '10 days'; end if;
@@ -707,7 +707,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
       const [history] = await fixture.$client`select status from heartbeat_runs where id=${run!.id}`;
       expect(pointers!.count).toBe(0); expect(history!.status).toBe("succeeded");
       await writeFile(path.join(server.directory, "backup-measurement.json"), JSON.stringify({ phase: "ordinary-publication-and-task-close",
-        companyId: company.id, issueId: issue.id, runId: run!.id, scopeDigest, pointers: pointers!.count, history,
+        spaceId: space.id, issueId: issue.id, runId: run!.id, scopeDigest, pointers: pointers!.count, history,
         timestampBoundary: "fixture ages backup mtime and ordinary close timestamp10days; cleanup outcome not seeded",
         publicationBoundary: "actual publishNativeHarnessBackup with actual runtime-owned DB; no provider execution", frames: server.proxy.frames,
       }, null, 2));
@@ -723,8 +723,8 @@ describeDatabase("assembled maintenance server production wiring", () => {
     const fixture = createDb(databaseUrl, { maxConnections: 1 });
     try {
       await server.settled();
-      const company = await server.api<{ id: string }>("POST", "/companies", { name: "Attention ingress" });
-      const issue = await server.api<{ id: string }>("POST", `/companies/${company.id}/issues`, { title: "Await human decision", status: "todo" });
+      const space = await server.api<{ id: string }>("POST", "/spaces", { name: "Attention ingress" });
+      const issue = await server.api<{ id: string }>("POST", `/spaces/${space.id}/issues`, { title: "Await human decision", status: "todo" });
       await fixture.$client.unsafe(`create or replace function maintenance_age_attention() returns trigger language plpgsql as $$begin
         if new.title = 'Overdue ordinary human decision' then new.updated_at = now() - interval '91 days'; end if;
         return new; end$$`);
@@ -734,17 +734,17 @@ describeDatabase("assembled maintenance server production wiring", () => {
         continuationPolicy: "none", payload: { version: 1, prompt: "Choose the preferred color?" },
       });
       await server.advance(30_000); await settleClock(server);
-      const [archived] = await fixture.$client`select company_id, source_kind, archived_reason, archived_by_type,
+      const [archived] = await fixture.$client`select space_id, source_kind, archived_reason, archived_by_type,
         archived_at is not null as archived, archive_version from decision_retention where source_id=${card.id}`;
-      expect(archived).toMatchObject({ company_id: company.id, source_kind: "issue_thread_interaction", archived_reason: "idle_ttl",
+      expect(archived).toMatchObject({ space_id: space.id, source_kind: "issue_thread_interaction", archived_reason: "idle_ttl",
         archived_by_type: "system", archived: true, archive_version: 1 });
       const [source] = await fixture.$client`select status, updated_at < now() - interval '90 days' as aged from issue_thread_interactions where id=${card.id}`;
       expect(source).toMatchObject({ status: "pending", aged: true });
-      const audit = await fixture.$client`select actor_id, details from activity_log where company_id=${company.id}
+      const audit = await fixture.$client`select actor_id, details from activity_log where space_id=${space.id}
         and action='decision_retention.auto_archived'`;
       expect(audit).toHaveLength(1);
       await writeFile(path.join(server.directory, "attention-measurement.json"), JSON.stringify({
-        phase: "ordinary-overdue-attention-ingress", companyId: company.id, issueId: issue.id, interactionId: card.id,
+        phase: "ordinary-overdue-attention-ingress", spaceId: space.id, issueId: issue.id, interactionId: card.id,
         timestampBoundary: "fixture-only INSERT trigger ages source activity91days; no retention/outcome rows seeded",
         archived, source, audit, frames: server.proxy.frames,
       }, null, 2));
@@ -770,22 +770,22 @@ describeDatabase("assembled maintenance server production wiring", () => {
         const server = runtime = await startMaintenanceServer(databaseUrl, { clock: true, suppressed: true,
         githubOrigin: origin });
         await server.settled();
-        const company = await server.api<{ id: string }>("POST", "/companies", { name: "Merge ingress" });
-        const issue = await server.api<{ id: string }>("POST", `/companies/${company.id}/issues`, { title: "Merge task", status: "todo" });
+        const space = await server.api<{ id: string }>("POST", "/spaces", { name: "Merge ingress" });
+        const issue = await server.api<{ id: string }>("POST", `/spaces/${space.id}/issues`, { title: "Merge task", status: "todo" });
         const card = await server.api<{ id: string }>("POST", `/issues/${issue.id}/interactions`, {
           kind: "request_confirmation", title: "Merge maintenance/example#39?", resolverPolicy: "human_only",
           continuationPolicy: "none", payload: { version: 1, prompt: "Merge the PR?" },
         });
         await server.advance(30_000); await settleClock(server);
-        const [accepted] = await fixture.$client`select company_id, status, resolved_at is not null as resolved
+        const [accepted] = await fixture.$client`select space_id, status, resolved_at is not null as resolved
           from issue_thread_interactions where id=${card.id}`;
-        expect(accepted).toMatchObject({ company_id: company.id, status: "accepted", resolved: true });
-        const audit = await fixture.$client`select actor_id, details from activity_log where company_id=${company.id}
+        expect(accepted).toMatchObject({ space_id: space.id, status: "accepted", resolved: true });
+        const audit = await fixture.$client`select actor_id, details from activity_log where space_id=${space.id}
           and action='issue.thread_interaction_accepted'`;
         expect(audit).toEqual([expect.objectContaining({ actor_id: "system:pr-merged", details: expect.objectContaining({ interactionId: card.id }) })]);
         expect(providerRequests).toEqual(["/repos/maintenance/example/pulls/39"]);
         await writeFile(path.join(server.directory, "confirmation-measurement.json"), JSON.stringify({
-          phase: "ordinary-merge-confirmation", companyId: company.id, issueId: issue.id, interactionId: card.id,
+          phase: "ordinary-merge-confirmation", spaceId: space.id, issueId: issue.id, interactionId: card.id,
           accepted, audit, providerRequests, frames: server.proxy.frames,
           providerBoundary: "simulated GitHub HTTP; actual production worker and interaction acceptance",
         }, null, 2));
@@ -796,7 +796,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
   }, 150_000);
 
   maintenanceTest.concurrent("projects the first ordinary routine completion in the actual suppressed Cloud runtime", async ({ databaseUrl, expect }) => {
-    const companyId = randomUUID(), agentId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID();
     const pair = generateKeyPairSync("ed25519");
     const publicJwk = { ...pair.publicKey.export({ format: "jwk" }), kid: "maintenance-routine-key", use: "sig", alg: "EdDSA" };
     const storageRequests: string[] = [];
@@ -805,14 +805,14 @@ describeDatabase("assembled maintenance server production wiring", () => {
       const fixture = createDb(databaseUrl, { maxConnections: 1 });
       let runtime: Awaited<ReturnType<typeof startMaintenanceServer>> | undefined;
       try {
-        await fixture.insert(companies).values({ id: companyId, name: "Routine ingress", issuePrefix: "MRT",
-          defaultResponsibleUserId: "maintenance-board", requireBoardApprovalForNewAgents: false });
-        await fixture.insert(agents).values({ id: agentId, companyId, name: "Suppressed routine worker", status: "active",
+        await fixture.insert(spaces).values({ id: spaceId, name: "Routine ingress", issuePrefix: "MRT",
+          defaultResponsibleUserId: "maintenance-operator", requireOperatorApprovalForNewAgents: false });
+        await fixture.insert(agents).values({ id: agentId, spaceId, name: "Suppressed routine worker", status: "active",
           lifecycleState: "ready", adapterType: "process", adapterConfig: { command: "/usr/bin/false" } });
         const server = runtime = await startMaintenanceServer(databaseUrl, { clock: true, suppressed: true,
         cloud: { jwks: JSON.stringify({ keys: [publicJwk] }), s3Origin: origin, standby: false } });
         await server.settled();
-        const routine = await server.api<{ id: string }>("POST", `/companies/${companyId}/routines`, {
+        const routine = await server.api<{ id: string }>("POST", `/spaces/${spaceId}/routines`, {
           title: "Ordinary projected routine", assigneeAgentId: agentId, concurrencyPolicy: "always_enqueue",
         });
         const run = await server.api<{ id: string; linkedIssueId: string; status: string }>("POST", `/routines/${routine.id}/run`, {
@@ -838,9 +838,9 @@ describeDatabase("assembled maintenance server production wiring", () => {
         const [drained] = await fixture.$client`select status, completed_at from routine_runs where id=${run.id}`;
         expect(drained).toMatchObject({ status: "issue_created", completed_at: null });
         await server.resume(); await server.advance(30_000); await settleClock(server);
-        const [projected] = await fixture.$client`select rr.company_id, rr.status, rr.completed_at is not null as completed,
+        const [projected] = await fixture.$client`select rr.space_id, rr.status, rr.completed_at is not null as completed,
           i.status as issue_status from routine_runs rr join issues i on i.id=rr.linked_issue_id where rr.id=${run.id}`;
-        expect(projected).toMatchObject({ company_id: companyId, status: "completed", completed: true, issue_status: "done" });
+        expect(projected).toMatchObject({ space_id: spaceId, status: "completed", completed: true, issue_status: "done" });
         const restoredRun = await server.api<{ id: string; linkedIssueId: string }>("POST", `/routines/${routine.id}/run`, {
           source: "manual", idempotencyKey: randomUUID(),
         });
@@ -855,11 +855,11 @@ describeDatabase("assembled maintenance server production wiring", () => {
         expect(restored).toMatchObject({ status: "issue_created", completed_at: null, failure_reason: null, issue_status: "todo" });
         const [cancelHold] = await fixture.$client`select status from issue_tree_holds where id=${cancel.hold.id}`;
         expect(cancelHold!.status).toBe("released");
-        const [executions] = await fixture.$client`select count(*)::integer as count from heartbeat_runs where company_id=${companyId}`;
+        const [executions] = await fixture.$client`select count(*)::integer as count from heartbeat_runs where space_id=${spaceId}`;
         expect(executions!.count).toBe(0);
         expect(storageRequests).toEqual([]);
         await writeFile(path.join(server.directory, "routine-measurement.json"), JSON.stringify({
-          phase: "ordinary-routine-service-completion-during-drain", completionBoundary: "actual issueService.update with runtime-owned DB; excludes redundant route projection hook", companyId, routineId: routine.id, runId: run.id,
+          phase: "ordinary-routine-service-completion-during-drain", completionBoundary: "actual issueService.update with runtime-owned DB; excludes redundant route projection hook", spaceId, routineId: routine.id, runId: run.id,
           before, drained, projected, restoredRun, cancelled, restored, cancelHold, executions: executions!.count, storageRequests,
           suppression: "OUTPOST_IN_WORKTREE; actual production policy", frames: server.proxy.frames,
         }, null, 2));
@@ -897,7 +897,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
           canonicalOrigin: "https://claimed-maintenance.staging.outpost.app", stackSlug: "claimed-maintenance", iat: now, exp: now + 300 })).toString("base64url");
         const assertion = `${header}.${payload}.${sign(null, Buffer.from(`${header}.${payload}`, "ascii"), pair.privateKey).toString("base64url")}`;
         const claimed = await fetch(`http://127.0.0.1:${server.port}/api/health`, {
-          headers: { "x-paperclip-cloud-runtime-identity": assertion }, signal: AbortSignal.timeout(10_000),
+          headers: { "x-outpost-cloud-runtime-identity": assertion }, signal: AbortSignal.timeout(10_000),
         });
         expect(claimed.status).toBe(200); expect((await claimed.json()).warmStandby).toBeUndefined();
         await server.advance(30_000); const afterClaim = await server.settled();
@@ -905,7 +905,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
         expect(server.proxy.queries.length).toBeGreaterThan(before);
         const fixture = createDb(databaseUrl, { maxConnections: 1 });
         try {
-          const [transfers] = await fixture.$client`select count(*)::integer as count from company_transfer_runs`;
+          const [transfers] = await fixture.$client`select count(*)::integer as count from space_transfer_runs`;
           expect(transfers!.count).toBe(0);
           const [identity] = await fixture.$client`select general from instance_settings where singleton_key='cloud-runtime-identity/v1'`;
           expect(identity!.general).toMatchObject({ stackId: "maintenance-stack", claimId: "maintenance-claim", canonicalOrigin: "https://claimed-maintenance.staging.outpost.app" });
@@ -913,7 +913,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
         await writeFile(path.join(server.directory, "standby-measurement.json"), JSON.stringify({ phase: "real-cloud-standby-signed-claim",
           cloudBoundary: "actual managed configuration, local S3 HTTP guard, generated Ed25519 trust root; no production Cloud claim",
           clockMs: 7_200_000, standbyQueries: 0,
-          deferredStartupIntent: { count: 1, queue: "import-spool-cleanup", producer: "companyTransferRunService.recoverStrandedApplyingRuns",
+          deferredStartupIntent: { count: 1, queue: "import-spool-cleanup", producer: "spaceTransferRunService.recoverStrandedApplyingRuns",
             reason: "Cloud standby disables both reconciliation and dispatch", releasedAfterSignedClaim: true, boundedResumeMs: 30_000, sleepEligibleWhileHeld: false }, storageRequests, beforeClaimQueries: before, afterClaimQueries: server.proxy.queries.length,
           frames: server.proxy.frames, network: await server.snapshot() }, null, 2));
       } finally {

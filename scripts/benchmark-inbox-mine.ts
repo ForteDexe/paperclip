@@ -1,10 +1,10 @@
-// Local SQL benchmark for the Mine inbox list (GET /api/companies/:id/inbox/mine).
+// Local SQL benchmark for the Mine inbox list (GET /api/spaces/:id/inbox/mine).
 //
 //   pnpm --filter @outpost/server exec tsx ../scripts/benchmark-inbox-mine.ts \
 //     --baseline-ref=<pre-fix commit> [--issues=30000] [--activity-per-issue=12]
 //     [--comments-per-issue=6] [--touch-density=1] [--samples=7] [--evidence-dir=<dir>]
 //
-// Seeds one disposable embedded-PostgreSQL company with tens of thousands of
+// Seeds one disposable embedded-PostgreSQL space with tens of thousands of
 // issues (most of them `done`), comments, activity, archives, read states,
 // pending interactions and live runs, plus a user who touched a few hundred.
 // It then runs the baseline (from --baseline-ref) and the working-tree
@@ -69,14 +69,14 @@ try {
   await client.unsafe("set client_min_messages = warning");
   const [settings] = await client.unsafe("select version(), current_setting('shared_buffers') shared_buffers, current_setting('work_mem') work_mem, current_setting('jit') jit");
 
-  const companyId = randomUUID(), userId = "synthetic-mine-user", otherUserId = "synthetic-other-human";
+  const spaceId = randomUUID(), userId = "synthetic-mine-user", otherUserId = "synthetic-other-human";
   const seedStart = performance.now();
-  await client.unsafe(`insert into companies(id,name,issue_prefix) values($1,'Synthetic Mine','MINE')`, [companyId]);
+  await client.unsafe(`insert into spaces(id,name,issue_prefix) values($1,'Synthetic Mine','MINE')`, [spaceId]);
   const agentIds = [randomUUID(), randomUUID(), randomUUID()];
-  for (const agentId of agentIds) await client.unsafe(`insert into agents(id,company_id,name,adapter_type,status) values($1,$2,$3,'process','active')`, [agentId, companyId, `Agent ${agentId.slice(0, 8)}`]);
+  for (const agentId of agentIds) await client.unsafe(`insert into agents(id,space_id,name,adapter_type,status) values($1,$2,$3,'process','active')`, [agentId, spaceId, `Agent ${agentId.slice(0, 8)}`]);
   // h(n, salt) is a deterministic 0..99 bucket so the fixture is reproducible.
   await client.unsafe(`create or replace function bench_h(n int, salt text) returns int language sql immutable as $$ select abs(hashtext(n::text || salt)) % 100 $$`);
-  await client.unsafe(`insert into issues(id,company_id,title,status,created_by_user_id,created_by_agent_id,assignee_user_id,origin_kind,hidden_at,harness_kind,completed_at,created_at,updated_at)
+  await client.unsafe(`insert into issues(id,space_id,title,status,created_by_user_id,created_by_agent_id,assignee_user_id,origin_kind,hidden_at,harness_kind,completed_at,created_at,updated_at)
     select gen_random_uuid(),$1::uuid,'Synthetic '||n,
       case when bench_h(n,'s')<55 then 'done' when bench_h(n,'s')<60 then 'cancelled' when bench_h(n,'s')<70 then 'backlog'
            when bench_h(n,'s')<82 then 'todo' when bench_h(n,'s')<90 then 'in_progress' when bench_h(n,'s')<95 then 'in_review' else 'blocked' end,
@@ -88,58 +88,58 @@ try {
       case when n%1777=0 then 'synthetic' else null end,
       case when bench_h(n,'s')<55 then '2026-01-01'::timestamptz+n*interval '1 second' else null end,
       '2026-01-01'::timestamptz,'2026-01-01'::timestamptz+n*interval '1 second'
-    from generate_series(1,$5::int) n`, [companyId, userId, otherUserId, agentIds, issueCount]);
-  await client.unsafe(`create table bench_fixture_issues as select id, row_number() over (order by updated_at)::int n, status from issues where company_id=$1`, [companyId]);
+    from generate_series(1,$5::int) n`, [spaceId, userId, otherUserId, agentIds, issueCount]);
+  await client.unsafe(`create table bench_fixture_issues as select id, row_number() over (order by updated_at)::int n, status from issues where space_id=$1`, [spaceId]);
   await client.unsafe(`update issues i set parent_id=p.id from bench_fixture_issues c join bench_fixture_issues p on p.n=c.n/2 where i.id=c.id and c.n>100 and bench_h(c.n,'p')<35`);
   // Agent comments on every issue, an outside human on some, and the user's own direct comments.
-  await client.unsafe(`insert into issue_comments(company_id,issue_id,author_agent_id,body,created_at)
+  await client.unsafe(`insert into issue_comments(space_id,issue_id,author_agent_id,body,created_at)
     select $1::uuid,f.id,($2::uuid[])[1+k%3],'Agent progress '||f.n||'/'||k,'2026-02-01'::timestamptz+(f.n*$3::int+k)*interval '1 second'
-    from bench_fixture_issues f cross join generate_series(0,$3::int-1) k`, [companyId, agentIds, commentsPerIssue]);
-  await client.unsafe(`insert into issue_comments(company_id,issue_id,author_user_id,body,created_at)
-    select $1::uuid,id,$2,'Outside human note','2026-03-01'::timestamptz+n*interval '1 second' from bench_fixture_issues where n%7=0`, [companyId, otherUserId]);
-  await client.unsafe(`insert into issue_comments(company_id,issue_id,author_user_id,body,created_at)
-    select $1::uuid,id,$2,'My note','2026-01-15'::timestamptz+n*interval '1 second' from bench_fixture_issues where n%${every(97)}=0`, [companyId, userId]);
+    from bench_fixture_issues f cross join generate_series(0,$3::int-1) k`, [spaceId, agentIds, commentsPerIssue]);
+  await client.unsafe(`insert into issue_comments(space_id,issue_id,author_user_id,body,created_at)
+    select $1::uuid,id,$2,'Outside human note','2026-03-01'::timestamptz+n*interval '1 second' from bench_fixture_issues where n%7=0`, [spaceId, otherUserId]);
+  await client.unsafe(`insert into issue_comments(space_id,issue_id,author_user_id,body,created_at)
+    select $1::uuid,id,$2,'My note','2026-01-15'::timestamptz+n*interval '1 second' from bench_fixture_issues where n%${every(97)}=0`, [spaceId, userId]);
   // Mention-only: the user is named in a comment but never participated.
-  await client.unsafe(`insert into issue_comments(company_id,issue_id,author_user_id,body,created_at)
-    select $1::uuid,id,$2,'@synthetic-mine-user can you look?','2026-03-02'::timestamptz+n*interval '1 second' from bench_fixture_issues where n%113=0`, [companyId, otherUserId]);
-  await client.unsafe(`insert into activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
+  await client.unsafe(`insert into issue_comments(space_id,issue_id,author_user_id,body,created_at)
+    select $1::uuid,id,$2,'@synthetic-mine-user can you look?','2026-03-02'::timestamptz+n*interval '1 second' from bench_fixture_issues where n%113=0`, [spaceId, otherUserId]);
+  await client.unsafe(`insert into activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
     select $1::uuid,'issue',f.id::text,'agent',($2::uuid[])[1+k%3]::text,
       case when k%2=0 then 'issue.updated' else 'issue.comment_added' end,
       jsonb_build_object('status',f.status,'_previous',jsonb_build_object('status','todo')),
       '2026-01-20'::timestamptz+(f.n*$3::int+k)*interval '1 second'
-    from bench_fixture_issues f cross join generate_series(0,$3::int-1) k`, [companyId, agentIds, activityPerIssue]);
-  await client.unsafe(`insert into activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
-    select $1::uuid,'issue',id::text,'user',$2,'issue.updated','{}'::jsonb,'2026-01-25'::timestamptz+n*interval '1 second' from bench_fixture_issues where n%${every(89)}=0`, [companyId, userId]);
+    from bench_fixture_issues f cross join generate_series(0,$3::int-1) k`, [spaceId, agentIds, activityPerIssue]);
+  await client.unsafe(`insert into activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
+    select $1::uuid,'issue',id::text,'user',$2,'issue.updated','{}'::jsonb,'2026-01-25'::timestamptz+n*interval '1 second' from bench_fixture_issues where n%${every(89)}=0`, [spaceId, userId]);
   // Reads are audited but are not participation.
-  await client.unsafe(`insert into activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
-    select $1::uuid,'issue',id::text,'user',$2,'issue.read_marked','{}'::jsonb,'2026-01-26'::timestamptz+n*interval '1 second' from bench_fixture_issues where n%13=0`, [companyId, userId]);
-  await client.unsafe(`insert into activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
-    select $1::uuid,'heartbeat_run',gen_random_uuid()::text,'agent',($2::uuid[])[1],'heartbeat.run.created','{}'::jsonb,'2026-01-01'::timestamptz+n*interval '1 second' from generate_series(1,$3::int) n`, [companyId, agentIds, issueCount * 2]);
+  await client.unsafe(`insert into activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
+    select $1::uuid,'issue',id::text,'user',$2,'issue.read_marked','{}'::jsonb,'2026-01-26'::timestamptz+n*interval '1 second' from bench_fixture_issues where n%13=0`, [spaceId, userId]);
+  await client.unsafe(`insert into activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
+    select $1::uuid,'heartbeat_run',gen_random_uuid()::text,'agent',($2::uuid[])[1],'heartbeat.run.created','{}'::jsonb,'2026-01-01'::timestamptz+n*interval '1 second' from generate_series(1,$3::int) n`, [spaceId, agentIds, issueCount * 2]);
   // Archives: some stay archived, some are reactivated by later outside comments (n%7=0).
-  await client.unsafe(`insert into issue_inbox_archives(company_id,issue_id,user_id,archived_at)
-    select $1::uuid,id,$2,'2026-02-15'::timestamptz from bench_fixture_issues where n%3=0 and (n%${every(75)}=0 or n%${every(89)}=0 or n%${every(97)}=0 or n%${every(311)}=0)`, [companyId, userId]);
-  await client.unsafe(`insert into issue_read_states(company_id,issue_id,user_id,last_read_at)
-    select $1::uuid,id,$2,'2026-02-20'::timestamptz from bench_fixture_issues where n%40=0`, [companyId, userId]);
-  await client.unsafe(`insert into issue_thread_interactions(company_id,issue_id,kind,status,addressee_user_id,payload,created_at)
-    select $1::uuid,id,'request_confirmation','pending',$2,'{"version":1,"prompt":"Confirm?"}'::jsonb,'2026-03-05'::timestamptz+n*interval '1 second' from bench_fixture_issues where n%503=0`, [companyId, userId]);
-  await client.unsafe(`insert into heartbeat_runs(id,company_id,agent_id,status,context_snapshot)
+  await client.unsafe(`insert into issue_inbox_archives(space_id,issue_id,user_id,archived_at)
+    select $1::uuid,id,$2,'2026-02-15'::timestamptz from bench_fixture_issues where n%3=0 and (n%${every(75)}=0 or n%${every(89)}=0 or n%${every(97)}=0 or n%${every(311)}=0)`, [spaceId, userId]);
+  await client.unsafe(`insert into issue_read_states(space_id,issue_id,user_id,last_read_at)
+    select $1::uuid,id,$2,'2026-02-20'::timestamptz from bench_fixture_issues where n%40=0`, [spaceId, userId]);
+  await client.unsafe(`insert into issue_thread_interactions(space_id,issue_id,kind,status,addressee_user_id,payload,created_at)
+    select $1::uuid,id,'request_confirmation','pending',$2,'{"version":1,"prompt":"Confirm?"}'::jsonb,'2026-03-05'::timestamptz+n*interval '1 second' from bench_fixture_issues where n%503=0`, [spaceId, userId]);
+  await client.unsafe(`insert into heartbeat_runs(id,space_id,agent_id,status,context_snapshot)
     select gen_random_uuid(),$1::uuid,($2::uuid[])[1+n%3],case when n%2=0 then 'running' else 'queued' end,
       jsonb_build_object('issueId',(select id from bench_fixture_issues where bench_fixture_issues.n=g.n*97))
-    from generate_series(1,150) g(n)`, [companyId, agentIds]);
-  await client.unsafe(`insert into heartbeat_runs(company_id,agent_id,status) select $1::uuid,($2::uuid[])[1],'succeeded' from generate_series(1,$3::int)`, [companyId, agentIds, issueCount]);
+    from generate_series(1,150) g(n)`, [spaceId, agentIds]);
+  await client.unsafe(`insert into heartbeat_runs(space_id,agent_id,status) select $1::uuid,($2::uuid[])[1],'succeeded' from generate_series(1,$3::int)`, [spaceId, agentIds, issueCount]);
   await client.unsafe("ANALYZE");
   const [counts] = await client.unsafe(`select
-    (select count(*)::int from issues where company_id=$1) issues,
-    (select count(*)::int from issues where company_id=$1 and status='done') done,
-    (select count(*)::int from issue_comments where company_id=$1) comments,
-    (select count(*)::int from activity_log where company_id=$1) activity,
-    (select count(*)::int from issue_inbox_archives where company_id=$1) archives,
-    (select count(*)::int from issue_read_states where company_id=$1) read_states,
-    (select count(*)::int from issue_thread_interactions where company_id=$1) interactions,
-    (select count(*)::int from heartbeat_runs where company_id=$1 and status in ('queued','running')) live_runs`, [companyId]);
+    (select count(*)::int from issues where space_id=$1) issues,
+    (select count(*)::int from issues where space_id=$1 and status='done') done,
+    (select count(*)::int from issue_comments where space_id=$1) comments,
+    (select count(*)::int from activity_log where space_id=$1) activity,
+    (select count(*)::int from issue_inbox_archives where space_id=$1) archives,
+    (select count(*)::int from issue_read_states where space_id=$1) read_states,
+    (select count(*)::int from issue_thread_interactions where space_id=$1) interactions,
+    (select count(*)::int from heartbeat_runs where space_id=$1 and status in ('queued','running')) live_runs`, [spaceId]);
   const fixtureMs = performance.now() - seedStart;
 
-  const readCondition = await issueReadSqlCondition(db, { type: "board", source: "session", userId, authorizingUserId: userId } as never);
+  const readCondition = await issueReadSqlCondition(db, { type: "operator", source: "session", userId, authorizingUserId: userId } as never);
   const filters: IssueFilters = {
     // The route's exact filters. Baselines that predate touchedCandidates ignore it.
     readCondition, touchedByUserId: userId, touchedCandidates: "participation", inboxArchivedByUserId: userId,
@@ -153,7 +153,7 @@ try {
   for (let iteration = -2; iteration < samples; iteration++) {
     for (const arm of (iteration % 2 === 0 ? ["baseline", "treatment"] : ["treatment", "baseline"]) as Array<keyof typeof arms>) {
       const started = performance.now();
-      const rows = await arms[arm].list(companyId, filters);
+      const rows = await arms[arm].list(spaceId, filters);
       const elapsed = performance.now() - started;
       if (iteration >= 0) times[arm].push(elapsed);
       const serialized = JSON.parse(JSON.stringify(rows));
@@ -167,7 +167,7 @@ try {
   const phaseTimes: Record<string, Record<string, number[]>> = { baseline: {}, treatment: {} };
   for (let iteration = 0; iteration < samples; iteration++) {
     for (const arm of ["baseline", "treatment"] as const) {
-      await arms[arm].list(companyId, filters, {
+      await arms[arm].list(spaceId, filters, {
         timePhase: async (phase, read) => {
           const started = performance.now();
           try { return await read(); } finally { (phaseTimes[arm]![phase] ??= []).push(performance.now() - started); }
@@ -180,7 +180,7 @@ try {
   const plans: Record<string, unknown> = {};
   for (const arm of ["baseline", "treatment"] as const) {
     capture = [];
-    await arms[arm].list(companyId, filters);
+    await arms[arm].list(spaceId, filters);
     const captured = capture;
     capture = null;
     const ranked = [];

@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { parseSlackFormPublicEnrollment } from "./cloud-forms.js";
 import { slackFormEnrollmentActionId, slackFormEnrollmentCompatibleActionIds, isSlackFormEnrollmentActionId } from "./form-enrollment-identity.js";
 
-const enrollment = parseSlackFormPublicEnrollment({ version: 1, instanceId: "instance", companyId: "company", endpointId: "endpoint",
+const enrollment = parseSlackFormPublicEnrollment({ version: 1, instanceId: "instance", spaceId: "space", endpointId: "endpoint",
   publicId: "p".repeat(43), connectionId: "connection", runtimeGeneration: 1, bindingId: "slack-event:" + "a".repeat(64), teamId: "TTEST", appId: "ATEST" });
 const legacyId = (value: unknown) => `slack-form-owner:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
 it("uses a complete typed tuple independent of input and JSONB object order", () => {
@@ -15,9 +15,9 @@ it("uses a complete typed tuple independent of input and JSONB object order", ()
 });
 it("recognizes only the exact known legacy producer orders for the same full authority tuple", () => {
   const e = enrollment;
-  const connectionFirst = { version: e.version, instanceId: e.instanceId, companyId: e.companyId, endpointId: e.endpointId,
+  const connectionFirst = { version: e.version, instanceId: e.instanceId, spaceId: e.spaceId, endpointId: e.endpointId,
     connectionId: e.connectionId, publicId: e.publicId, runtimeGeneration: e.runtimeGeneration, teamId: e.teamId, appId: e.appId, bindingId: e.bindingId };
-  const publicFirst = { version: e.version, instanceId: e.instanceId, companyId: e.companyId, endpointId: e.endpointId,
+  const publicFirst = { version: e.version, instanceId: e.instanceId, spaceId: e.spaceId, endpointId: e.endpointId,
     publicId: e.publicId, connectionId: e.connectionId, runtimeGeneration: e.runtimeGeneration, teamId: e.teamId, appId: e.appId, bindingId: e.bindingId };
   for (const previous of [enrollment, connectionFirst, publicFirst])
     expect(isSlackFormEnrollmentActionId(legacyId(previous), parseSlackFormPublicEnrollment(Object.fromEntries(Object.entries(previous).reverse())))).toBe(true);
@@ -26,7 +26,7 @@ it("recognizes only the exact known legacy producer orders for the same full aut
   expect(isSlackFormEnrollmentActionId("slack-form-owner:" + "0".repeat(64), enrollment)).toBe(false);
 });
 it("every authority field is bound for canonical and compatible identities", () => {
-  const variants = { instanceId: "other-instance", companyId: "other-company", endpointId: "other-endpoint", publicId: "q".repeat(43),
+  const variants = { instanceId: "other-instance", spaceId: "other-space", endpointId: "other-endpoint", publicId: "q".repeat(43),
     connectionId: "other-connection", runtimeGeneration: 2, bindingId: "slack-event:" + "b".repeat(64), teamId: "TOTHER", appId: "AOTHER" };
   for (const [key, value] of Object.entries(variants)) {
     const changed = parseSlackFormPublicEnrollment({ ...enrollment, [key]: value });

@@ -4,7 +4,7 @@ status: planned
 default_context:
   surface: >-
     A signed-in person, Alex, is using the production in-app Agent Chat with the
-    CEO of the selected synthetic company Acorn. Chat is enabled. The standing
+    CEO of the selected synthetic space Acorn. Chat is enabled. The standing
     conversation already exists and is distinct from ordinary delegated work tasks.
   people_and_resources: >-
     Names are fixture aliases, not real user data. Morgan is a prospective or
@@ -13,10 +13,10 @@ default_context:
     A mentioned task, account, document or attachment exists only when the
     scenario says it does; do not seed the requested outcome in advance.
   authority: >-
-    The human is an active company operator and the CEO has the effective
+    The human is an active space operator and the CEO has the effective
     agent grants needed for the scenario's permitted agent operations. Neither
     identity implies instance administration. The CEO remains an agent, not a
-    board session. Responsible-user, company, private-resource, ownership, work
+    operator session. Responsible-user, space, private-resource, ownership, work
     mode, budget, approval and runtime admission rules still apply. Scenario
     denials and narrower authority override these defaults.
   runtime: >-

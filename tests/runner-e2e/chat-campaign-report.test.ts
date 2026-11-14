@@ -9,7 +9,7 @@ function fixture() {
     "chat-catalog-definition.json": { scenarioId: scenario.id, definitionDigest: "definition", graderDigest: "grader", journeyKind: "agent-chat" },
     "chat-catalog-query-binding.json": { scenarioId: scenario.id, originalQuery: scenario.query, renderedQuery: scenario.query, bindings: [] },
     "chat-catalog-setup-boundary.json": { humanCommentIds: ["setup-human"], runIds: ["setup-run"] },
-    "chat-catalog-conversation.json": { issue: { id: "standing", companyId: "company", conversationUserId: "person", conversationAgentId: "lead" }, comments: [{ id: "canonical", body: scenario.query, authorUserId: "person", issueId: "standing", companyId: "company" }], runs: [{ id: "canonical-run", companyId: "company", agentId: "lead", runtimeMode: "native", contextSnapshot: { issueId: "standing", commentId: "canonical" } }] },
+    "chat-catalog-conversation.json": { issue: { id: "standing", spaceId: "space", conversationUserId: "person", conversationAgentId: "lead" }, comments: [{ id: "canonical", body: scenario.query, authorUserId: "person", issueId: "standing", spaceId: "space" }], runs: [{ id: "canonical-run", spaceId: "space", agentId: "lead", runtimeMode: "native", contextSnapshot: { issueId: "standing", commentId: "canonical" } }] },
     "chat-catalog-observation.json": { scenarioId: scenario.id, grade: { checks: [{ id: "independent-state", passed: true }] } },
   };
   const documents = (): Record<string, RetainedReportDocument> => Object.fromEntries(Object.entries(values).map(([name, value]) => [name, { path: `tests/runner-e2e/results/synthetic/${name}`, sha256: "a".repeat(64), value }]));
@@ -24,7 +24,7 @@ describe("conservative retained campaign stage projection", () => {
     expect(f.extract().canonicalDispatch.state).toBe("unknown"); expect(f.extract().featureGradingReturned.state).toBe("unknown");
   });
   it("separates saved request from failed wake409 and setup native tokens", () => {
-    const f = fixture(); const c = f.values["chat-catalog-conversation.json"] as { runs: unknown[] }; c.runs = [{ id: "setup-run", companyId: "company", runtimeMode: "native", contextSnapshot: { issueId: "primary", commentId: "setup-human" } }];
+    const f = fixture(); const c = f.values["chat-catalog-conversation.json"] as { runs: unknown[] }; c.runs = [{ id: "setup-run", spaceId: "space", runtimeMode: "native", contextSnapshot: { issueId: "primary", commentId: "setup-human" } }];
     expect(f.extract().canonicalPersisted.state).toBe("proven"); expect(f.extract().canonicalNativeAdmission.state).toBe("unknown");
   });
   it("does not count finally observation as normal returned grading", () => {
@@ -36,7 +36,7 @@ describe("conservative retained campaign stage projection", () => {
       (f: ReturnType<typeof fixture>) => { (f.values["result.json"] as { source: unknown }).source = { sha: "other" }; },
       (f: ReturnType<typeof fixture>) => { (f.values["chat-catalog-definition.json"] as { scenarioId: string }).scenarioId = "other"; },
       (f: ReturnType<typeof fixture>) => { (f.values["chat-catalog-definition.json"] as { graderDigest: string }).graderDigest = "other"; },
-      (f: ReturnType<typeof fixture>) => { (f.values["chat-catalog-conversation.json"] as { comments: unknown[] }).comments = [{ id: "canonical", body: scenario.query, companyId: "foreign", issueId: "standing", authorUserId: "person" }]; },
+      (f: ReturnType<typeof fixture>) => { (f.values["chat-catalog-conversation.json"] as { comments: unknown[] }).comments = [{ id: "canonical", body: scenario.query, spaceId: "foreign", issueId: "standing", authorUserId: "person" }]; },
     ]) { const f = fixture(); mutate(f); expect(f.extract().canonicalPersisted.state).toBe("unknown"); }
   });
   it("uses declared exact production attachment suffix, never arbitrary appended instructions", () => {

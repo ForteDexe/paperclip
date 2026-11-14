@@ -27,7 +27,7 @@ export function gradePauseAgent(value: unknown) {
   c.add("reply-links-morgan-profile", !!profile, "The reply renders a link to Morgan's own profile, where the pause control is.");
   c.add("human-followed-reply-link", !!profile && o.state.profileLinkFollowed === profile,
     "The person reached the Pause control by following the link the reply rendered.");
-  c.add("exact-agent-identity", !!current && current.companyId === o.companyId, "The actual human control affects the same saved Morgan identity.");
+  c.add("exact-agent-identity", !!current && current.spaceId === o.spaceId, "The actual human control affects the same saved Morgan identity.");
   return c.result();
 }
 export const runtimeLifecycleCases = [runtimeDefinition("agents.pause-agent", ctx => busyRuntimeWorker(ctx, { observationDeadlineAt: chatCatalogOriginalPhaseDeadline(ctx) }), gradePauseAgent, {
@@ -43,8 +43,8 @@ export const runtimeLifecycleCases = [runtimeDefinition("agents.pause-agent", ct
     c.add("real-busy-worker", saved.lifecycleState === "ready" && ["running", "active"].includes(saved.status ?? "")
       && run?.status === "running" && state.workerWasReallyWaiting === true, "Morgan remains genuinely active rather than being forced idle by shared setup.");
     const task = state.task as { id: string };
-    c.add("worker-task-scope", run?.agentId === worker.id && run.companyId === ctx.input.fixtures.company.id
-      && [run.contextSnapshot?.issueId, (run as typeof run & { nativeIssueId?: string })?.nativeIssueId].includes(task.id), "The actual native worker run belongs to this exact company and Website task.");
+    c.add("worker-task-scope", run?.agentId === worker.id && run.spaceId === ctx.input.fixtures.space.id
+      && [run.contextSnapshot?.issueId, (run as typeof run & { nativeIssueId?: string })?.nativeIssueId].includes(task.id), "The actual native worker run belongs to this exact space and Website task.");
     return c.result();
   },
   runPolicy: { kind: "terminal-counts", terminalStatusCounts: { succeeded: 1, cancelled: 1 } },

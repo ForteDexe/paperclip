@@ -16,7 +16,7 @@ Agent access: [companion](../agent-access-map/documents-artifacts.md).
 
 - `documents`: `documents-artifacts/documents` — edit versioned task documents and inspect or restore revisions.
 - `annotations`: `documents-artifacts/annotations` — attach feedback to document content and inspect resolution state.
-- `attachments`: `documents-artifacts/attachments` — upload, preview, and download allowed files with company access checks.
+- `attachments`: `documents-artifacts/attachments` — upload, preview, and download allowed files with space access checks.
 - `work-products`: `documents-artifacts/work-products` — link deliverables to their source task, resource, and review context.
 - `library`: `documents-artifacts/library` — search, filter, group, and open artifact stacks.
 
@@ -57,7 +57,7 @@ Upload files** or drop files anywhere in that panel. On mobile, open
 
 Open `/artifacts` and its grouping, search, and media controls.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a task with a text document, a small attachment, and a generated work product. Use nonsensitive fixture files.
 
@@ -87,7 +87,7 @@ download the CSV and compare bytes, then reload. Upload the same Markdown filena
 again and verify a separate suffixed document without overwriting the original.
 On a paused unassigned task, confirm upload does not start work or add comments.
 Verify agent-produced work products separately using an eligible test run.
-Test an inaccessible user/company and explicit missing workspace-only resources.
+Test an inaccessible user/space and explicit missing workspace-only resources.
 
 ### `artifact-library`
 
@@ -109,7 +109,7 @@ Capability ID: `documents-artifacts/documents`.
 
 Scope: ui
 Storybook: Writable/read-only document, save pending/failure/conflict, revision history/historical preview and restore confirmation.
-Production: Persist edited body and reload; append-only restore creates new revision; reject stale writes and inaccessible company/task.
+Production: Persist edited body and reload; append-only restore creates new revision; reject stale writes and inaccessible space/task.
 Sources: Source: [IssueDocumentsSection.tsx](../../ui/src/components/IssueDocumentsSection.tsx), [TaskDocumentPanel.tsx](../../ui/src/components/task-side-panel/TaskDocumentPanel.tsx), [documents.ts](../../server/src/services/documents.ts). Tests: [IssueDocumentsSection.test.tsx](../../ui/src/components/IssueDocumentsSection.test.tsx), [document-revisions.test.ts](../../ui/src/lib/document-revisions.test.ts), [documents-service.test.ts](../../server/src/__tests__/documents-service.test.ts), [issue-document-restore-routes.test.ts](../../server/src/__tests__/issue-document-restore-routes.test.ts)
 
 ### Documentation scope: Artifacts and work products

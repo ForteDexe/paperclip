@@ -1,4 +1,4 @@
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useAgentAppearanceDraft } from "@/hooks/useAgentAppearanceDraft";
 import { AdapterMark } from "../AdapterMark";
 import { AgentCharacter } from "../AgentCharacter";
@@ -33,8 +33,8 @@ export type AgentBasics = {
 export { AdapterMark } from "../AdapterMark";
 
 function AgentBasicsCharacter() {
-  const { selectedCompanyId } = useCompany();
-  const { appearance } = useAgentAppearanceDraft(`${selectedCompanyId}:new-agent`);
+  const { selectedSpaceId } = useSpace();
+  const { appearance } = useAgentAppearanceDraft(`${selectedSpaceId}:new-agent`);
   return <AgentCharacter appearance={appearance} state="sleepy" muted size={256} className="size-48" trackingScope="page" />;
 }
 
@@ -54,9 +54,9 @@ export function AgentBasicsDialog({
   setupAgentId?: string;
 }) {
   const id = useId();
-  const { selectedCompanyId: companyId } = useCompany();
+  const { selectedSpaceId: spaceId } = useSpace();
   const cache = useQueryClient();
-  const appearanceDraft = useAgentAppearanceDraft(`${companyId}:new-agent`);
+  const appearanceDraft = useAgentAppearanceDraft(`${spaceId}:new-agent`);
   const setupId = useRef(setupAgentId ?? crypto.randomUUID());
   const saved = useRef<Agent | null>(null);
   const busy = useRef(false);
@@ -68,9 +68,9 @@ export function AgentBasicsDialog({
   const [adapterType, setAdapterType] = useState(initialAdapter);
   const [step, setStep] = useState<"name" | "adapter">(setupAgentId ? "adapter" : "name");
   const adaptersQuery = useQuery({
-    queryKey: queryKeys.adapters.availability(companyId ?? "none", null),
-    queryFn: () => adaptersApi.list({ companyId: companyId! }),
-    enabled: open && Boolean(companyId),
+    queryKey: queryKeys.adapters.availability(spaceId ?? "none", null),
+    queryFn: () => adaptersApi.list({ spaceId: spaceId! }),
+    enabled: open && Boolean(spaceId),
   });
   const adaptersView = useQueryView(adaptersQuery);
   const adapters = adaptersView.data;
@@ -88,15 +88,15 @@ export function AgentBasicsDialog({
     setSaving(true);
     setSaveError(null);
     try {
-      if (!companyId) throw new Error("Select an outpost to create an agent.");
+      if (!spaceId) throw new Error("Select an outpost to create an agent.");
       let agent = saved.current;
-      if (!agent && setupAgentId) agent = await agentsApi.get(setupId.current, companyId);
+      if (!agent && setupAgentId) agent = await agentsApi.get(setupId.current, spaceId);
       const creatingRecord = !agent;
       if (!agent) {
         const provisionalAdapter = choices[0]?.type;
         if (!provisionalAdapter) throw new Error("No agent adapters are available on this instance.");
         // This adapter is provisional; the setup hold prevents execution.
-        agent = await agentsApi.create(companyId, {
+        agent = await agentsApi.create(spaceId, {
           setupId: setupId.current, name: name.trim(), appearance: appearanceDraft.appearance,
           role: "general",
           adapterType: provisionalAdapter,
@@ -118,11 +118,11 @@ export function AgentBasicsDialog({
             adapterConfig: {},
             metadata: { ...metadata, setupAdapterPending: false },
           } : {}),
-        }, companyId);
+        }, spaceId);
         saved.current = agent;
       }
       cache.setQueryData(queryKeys.agents.detail(agent.id), agent);
-      void cache.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+      void cache.invalidateQueries({ queryKey: queryKeys.agents.list(spaceId) });
       if (!active.current) return;
       if (step === "name") setStep("adapter");
       else onContinue({ name: agent.name, adapterType: nextAdapter, runnerProvider: nextProvider,

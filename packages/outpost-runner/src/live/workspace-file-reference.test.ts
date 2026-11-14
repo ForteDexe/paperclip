@@ -5,17 +5,17 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  discoverPaperclipWorkspaceFileReferences,
-  paperclipWorkspaceFileReferencesFromText,
+  discoverOutpostWorkspaceFileReferences,
+  outpostWorkspaceFileReferencesFromText,
 } from "./workspace-file-reference.js";
 
 describe("workspace file references", () => {
   it("normalizes Markdown links without retaining unproven file bytes", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-file-reference-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-file-reference-"));
     try {
       await writeFile(join(root, "guide.md"), "# Guide\n\nSafe content.\n");
       const canonicalRoot = await realpath(root);
-      const references = await discoverPaperclipWorkspaceFileReferences(
+      const references = await discoverOutpostWorkspaceFileReferences(
         root,
         `Read [the guide](${join(canonicalRoot, "guide.md")}:2).`,
         "turn-1",
@@ -37,7 +37,7 @@ describe("workspace file references", () => {
   });
 
   it("rejects external URLs and paths outside the authorized workspace", () => {
-    const references = paperclipWorkspaceFileReferencesFromText(
+    const references = outpostWorkspaceFileReferencesFromText(
       "/workspace",
       "[external](https://example.com/file.md) [outside](/etc/passwd) [safe](docs/safe.md)",
       "turn-1",
@@ -46,14 +46,14 @@ describe("workspace file references", () => {
   });
 
   it("does not verify a symlink that resolves outside the workspace", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-file-reference-root-"));
-    const outside = await mkdtemp(join(tmpdir(), "paperclip-file-reference-outside-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-file-reference-root-"));
+    const outside = await mkdtemp(join(tmpdir(), "outpost-file-reference-outside-"));
     try {
       const protectedPath = join(outside, "protected.md");
       await writeFile(protectedPath, "must not be disclosed");
       await symlink(protectedPath, join(root, "linked.md"));
 
-      await expect(discoverPaperclipWorkspaceFileReferences(
+      await expect(discoverOutpostWorkspaceFileReferences(
         root,
         "[linked](linked.md)",
         "turn-1",
@@ -67,7 +67,7 @@ describe("workspace file references", () => {
   });
 
   it("anchors parsing and verification to a canonical workspace root", async () => {
-    const parent = await mkdtemp(join(tmpdir(), "paperclip-file-reference-parent-"));
+    const parent = await mkdtemp(join(tmpdir(), "outpost-file-reference-parent-"));
     const root = join(parent, "workspace");
     const alias = join(parent, "workspace-alias");
     try {
@@ -76,7 +76,7 @@ describe("workspace file references", () => {
       await symlink(root, alias);
       const canonicalRoot = await realpath(root);
 
-      await expect(discoverPaperclipWorkspaceFileReferences(
+      await expect(discoverOutpostWorkspaceFileReferences(
         alias,
         `[guide](${join(canonicalRoot, "guide.md")})`,
         "turn-1",
@@ -92,14 +92,14 @@ describe("workspace file references", () => {
   });
 
   it("does not expose bytes through an in-workspace hard link", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-file-reference-root-"));
-    const outside = await mkdtemp(join(tmpdir(), "paperclip-file-reference-outside-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-file-reference-root-"));
+    const outside = await mkdtemp(join(tmpdir(), "outpost-file-reference-outside-"));
     try {
       const protectedPath = join(outside, "protected.md");
       await writeFile(protectedPath, "must not be disclosed");
       await link(protectedPath, join(root, "linked.md"));
 
-      await expect(discoverPaperclipWorkspaceFileReferences(
+      await expect(discoverOutpostWorkspaceFileReferences(
         root,
         "[linked](linked.md)",
         "turn-1",
@@ -119,15 +119,15 @@ describe("workspace file references", () => {
   });
 
   it("does not expose bytes after an outside hard link is removed", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-file-reference-root-"));
-    const outside = await mkdtemp(join(tmpdir(), "paperclip-file-reference-outside-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-file-reference-root-"));
+    const outside = await mkdtemp(join(tmpdir(), "outpost-file-reference-outside-"));
     try {
       const protectedPath = join(outside, "protected.md");
       await writeFile(protectedPath, "must not be disclosed");
       await link(protectedPath, join(root, "linked.md"));
       await unlink(protectedPath);
 
-      await expect(discoverPaperclipWorkspaceFileReferences(
+      await expect(discoverOutpostWorkspaceFileReferences(
         root,
         "[linked](linked.md)",
         "turn-1",

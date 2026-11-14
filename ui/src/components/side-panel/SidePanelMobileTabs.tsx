@@ -93,7 +93,7 @@ export function SidePanelMobileTabs({ tabs, activeTabId, onActiveTabChange, onCl
                     disabled={tab.disabled}
                     onClick={() => {
                       // Focus the neighboring selector before removing the
-                      // close button, so keyboard users stay in the overview.
+                      // close button, so keyoperators stay in the overview.
                       const buttons = Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>("[data-mobile-tab-select]:not(:disabled)") ?? []);
                       const index = buttons.findIndex((button) => button.dataset.mobileTabSelect === tab.id);
                       (buttons[index + 1] ?? buttons[index - 1])?.focus();

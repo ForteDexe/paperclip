@@ -18,8 +18,8 @@ const PROVIDER_AUTH_ENV_KEYS: Record<AiProvider, readonly string[]> = {
   xai: ["XAI_API_KEY", "GROK_API_KEY", "GROK_HOME", "XAI_BASE_URL"],
 };
 
-/** A hire inherits a connection choice, never its manager's credentials or identity. */
-export function defaultAiConnectionForHire(
+/** A create inherits a connection choice, never its manager's credentials or identity. */
+export function defaultAiConnectionForCreate(
   adapterType: string,
   config: Record<string, unknown>,
   managerBinding: unknown,

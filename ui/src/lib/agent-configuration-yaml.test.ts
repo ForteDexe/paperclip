@@ -14,7 +14,7 @@ export const configuration: AgentConfigurationSource = {
 describe("agent configuration YAML", () => {
   it("round trips the full configuration, multiline text, redactions and adapter extensions", () => {
     const text = serializeAgentConfiguration(configuration);
-    expect(text).toContain("apiVersion: paperclip/v1");
+    expect(text).toContain("apiVersion: outpost/v1");
     expect(text).toContain("capabilities: |");
     expect(agentConfigurationPatch(parseAgentConfigurationYaml(text), configuration)).toEqual({});
   });
@@ -35,7 +35,7 @@ describe("agent configuration YAML", () => {
   });
 
   it.each([
-    ["unknown version", (text: string) => text.replace("paperclip/v1", "paperclip/v2")],
+    ["unknown version", (text: string) => text.replace("outpost/v1", "outpost/v2")],
     ["unknown field", (text: string) => `${text}  typo: true\n`],
     ["invalid budget", (text: string) => text.replace("budgetMonthlyCents: 12000", "budgetMonthlyCents: -1")],
     ["invalid environment", (text: string) => text.replace("defaultEnvironmentId: null", "defaultEnvironmentId: unknown")],

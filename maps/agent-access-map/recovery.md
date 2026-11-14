@@ -33,7 +33,7 @@ conversation and task checks. Pending input takes precedence over the older
 failed request and transfers once to the retry owner. This grants no new agent
 Retry API or stale webhook authority. Legacy input can use a server-owned,
 processed earlier response ledger to prove the same endpoint's App claim before
-that input. Company, conversation, agent and prior delivery/source linkage remain
+that input. Space, conversation, agent and prior delivery/source linkage remain
 required. Explicit conflicting App IDs cannot use that fallback. Local PostgreSQL and HTTP-route regressions
 cover these transitions; hosted execution and delivery remain separate acceptance.
 Dispatch validates the exact claimed wake and resolved user-continuation receipt
@@ -62,11 +62,11 @@ API: `present` — GET /api/issues/{id}/recovery-actions, GET /api/issues/{id}, 
 
 Agent access: `available` — permitted agent REST/native call_api reads and CLI issue recovery-actions for that operation; actual native rollout/run binding required.
 
-Policy: Same-company task read authorization, private-task/responsible-user scope and run privacy where run detail is used. Related diagnostics omit unauthorized resource details. Recovery action response includes active plus supported retained settled replay-blocked/native export holds, not unrestricted history. Read revalidation may retire stale action through system lifecycle; no reader participation/physical copyback.
+Policy: Same-space task read authorization, private-task/responsible-user scope and run privacy where run detail is used. Related diagnostics omit unauthorized resource details. Recovery action response includes active plus supported retained settled replay-blocked/native export holds, not unrestricted history. Read revalidation may retire stale action through system lifecycle; no reader participation/physical copyback.
 
 Evidence: `source-only` — [recovery routes](../../server/src/routes/issues.ts), [source actions](../../server/src/services/issue-recovery-actions.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live provider proof.
 
-Verification: `not-run` — Compare exact company/task/action/source run/owner/attempts/next-action across views and reload. Private/foreign read denied. Repeated Done/cancelled read retains exact unresolved physical owner hold.
+Verification: `not-run` — Compare exact space/task/action/source run/owner/attempts/next-action across views and reload. Private/foreign read denied. Repeated Done/cancelled read retains exact unresolved physical owner hold.
 
 Gaps: Recorded cause or successful GET isn't a running retry or restored files.
 
@@ -76,7 +76,7 @@ API: `present` — GET /api/issues/{id}/diagnostics/blockers, /diagnostics/wakes
 
 Agent access: `available` — permitted REST or native call_api; no dedicated CLI issue diagnostics command confirmed.
 
-Policy: Same-company task read authorization, private-task/responsible-user scope and run privacy where run detail is used. Related diagnostics omit unauthorized resource details. Wake internal IDs depend on company-scope read; linked blocker/child/wake detail filtered. Diagnostics bounded/read-only.
+Policy: Same-space task read authorization, private-task/responsible-user scope and run privacy where run detail is used. Related diagnostics omit unauthorized resource details. Wake internal IDs depend on space-scope read; linked blocker/child/wake detail filtered. Diagnostics bounded/read-only.
 
 Evidence: `source-only` — [recovery routes](../../server/src/routes/issues.ts), [diagnostic discovery](../../server/src/services/native-runtime/runner-api-reference.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live provider proof.
 
@@ -90,7 +90,7 @@ API: `present` — GET /api/issues/{id}/recovery-actions; GET /api/issues/{id}; 
 
 Agent access: `available` — permitted agent REST/native call_api reads and CLI issue recovery-actions for that operation; actual native rollout/run binding required.
 
-Policy: Same-company task read authorization, private-task/responsible-user scope and run privacy where run detail is used. Related diagnostics omit unauthorized resource details. Run workspace controls only for failed workspace_validation_failed run linked to source task with live workspace_validation action; other failures use source task.
+Policy: Same-space task read authorization, private-task/responsible-user scope and run privacy where run detail is used. Related diagnostics omit unauthorized resource details. Run workspace controls only for failed workspace_validation_failed run linked to source task with live workspace_validation action; other failures use source task.
 
 Evidence: `source-only` — [run host](../../ui/src/components/RunWorkspaceRecoverySurface.tsx), [recovery routes](../../server/src/routes/issues.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live provider proof.
 
@@ -102,7 +102,7 @@ Gaps: Component host test doesn't prove actual filesystem/provider repair.
 
 Original-host Native controller containment requires board-only
 `runtime:confirm_owner_stop` authority on the existing recovery resolution route:
-a company owner, company administrator, or instance administrator. Agents cannot submit it.
+a space owner, space administrator, or instance administrator. Agents cannot submit it.
 It requires separate controller/provider stop confirmations, reviewed outcomes,
 a server-bound exact authority digest, elapsed lease and unchanged locked
 source/assignee/cleanup fences. It records containment without queuing work; a
@@ -183,7 +183,7 @@ Agent access: `partial` — eligible REST/CLI issue recovery:resolve; native cal
 
 Policy: Agent needs issue:mutate, authenticated run, low-trust exclusion and cross-issue allowance; source assignee/action owner or admitted active-checkout management override. Action ownership does not itself grant source-task mutation rights. Board and agent route policies remain distinct. Status changes separately require source owner/current execution participant/management grant or guarded exact-owner handback. blocked needs unresolved first-class blocker. Restored todo cannot bypass task/project/subtree/budget/review/approval/competing-run gates. Dedicated workspace causes reject generic retry.
 
-A running native owner cannot change its own task status through recovery resolution. It reports the outcome with `paperclip_finish` or `paperclip_block`. An unchanged-status resolution retains the normal recovery permissions. Board recovery and legacy-agent status changes keep their existing rules.
+A running native owner cannot change its own task status through recovery resolution. It reports the outcome with `outpost_finish` or `outpost_block`. An unchanged-status resolution retains the normal recovery permissions. Board recovery and legacy-agent status changes keep their existing rules.
 
 Evidence: `source-only` — [recovery routes](../../server/src/routes/issues.ts), [resolution schema](../../packages/shared/src/validators/issue.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live provider proof.
 
@@ -221,7 +221,7 @@ API: `present` — GET /api/issues/{id}/recovery-actions; GET /api/issues/{id}; 
 
 Agent access: `available` — permitted agent REST/native call_api reads and CLI issue recovery-actions for that operation; actual native rollout/run binding required.
 
-Policy: Same-company task read authorization, private-task/responsible-user scope and run privacy where run detail is used. Related diagnostics omit unauthorized resource details. Original assignee, recovery owner and return owner remain distinct. Completion/cancellation doesn't remove physical workspace hold; retired notices shouldn't hide retained obligation.
+Policy: Same-space task read authorization, private-task/responsible-user scope and run privacy where run detail is used. Related diagnostics omit unauthorized resource details. Original assignee, recovery owner and return owner remain distinct. Completion/cancellation doesn't remove physical workspace hold; retired notices shouldn't hide retained obligation.
 
 Evidence: `source-only` — [recovery routes](../../server/src/routes/issues.ts), [source actions](../../server/src/services/issue-recovery-actions.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live provider proof.
 
@@ -330,7 +330,7 @@ or execution authority is created by registration; connected Retry still waits
 behind recovery and rechecks its existing external identity.
 
 The internal preservation resume path grants no board or agent execution API.
-It requires the exact source action, company, run, lease and environment, a
+It requires the exact source action, space, run, lease and environment, a
 held physical workspace owner, and its current stop-only cleanup claim. The
 ordinary resume and destruction fences still apply to protected sources. The
 assembled-runtime regression checks this separation before any provider call.
@@ -338,7 +338,7 @@ assembled-runtime regression checks this separation before any provider call.
 Managed missing-source reconciliation uses the server-only Cloud
 `POST /v1/tenant/sandbox-absence` protocol. A host-bound capability authenticates
 the stack; board and agent credentials cannot call it. Core requires a fresh
-Cloud signature for the exact company, issue, run, lease, allocation and physical
+Cloud signature for the exact space, issue, run, lease, allocation and physical
 owner. This can establish execution absence, never recovered files or successful
 task completion. Normal Retry admission and external-effect fences still apply.
 Signature and PostgreSQL regressions are local evidence, not deployed acceptance.
@@ -359,11 +359,11 @@ writer exclusion and bounded maintenance budget. It does not change the newer
 task workspace or recovery owner, apply an older result over newer execution,
 or admit a provider turn. A cancelled record without that request is ineligible.
 
-Policy: Exact terminal retained source/lease/reference; independent stop and physical ownership checks; no newer writer. Bounded queued repair preserves newer files and has retry state. Matching key/recovered state dedupes; permanent blocked source refuses. Recovery starts no provider turn. For native export repair, a reusable lease is eligible only with its exact descriptor and the finalizer-selected accepted successful result under the same company/task/run/completion contract. This does not change actor access or permit another allocation owner or host writer. Invalid Git metadata is a non-retryable persistence failure requiring service repair; it cannot use unsafe-archive omission to complete the result. Run-detail/activity projections retain the allowlisted code, including bounded large-result retrieval, and cancelled-preservation discovery honors the same hold.
+Policy: Exact terminal retained source/lease/reference; independent stop and physical ownership checks; no newer writer. Bounded queued repair preserves newer files and has retry state. Matching key/recovered state dedupes; permanent blocked source refuses. Recovery starts no provider turn. For native export repair, a reusable lease is eligible only with its exact descriptor and the finalizer-selected accepted successful result under the same space/task/run/completion contract. This does not change actor access or permit another allocation owner or host writer. Invalid Git metadata is a non-retryable persistence failure requiring service repair; it cannot use unsafe-archive omission to complete the result. Run-detail/activity projections retain the allowlisted code, including bounded large-result retrieval, and cancelled-preservation discovery honors the same hold.
 
 Evidence: `source-only` — [recovery routes](../../server/src/routes/issues.ts), [retained recovery](../../server/src/services/workspace-recovery.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live provider proof.
 
-Verification: `not-run` — Allowed board requests exact source, inspect persisted copied files/artifact and cleanup. Repeat key/transient retry bounded. Agent/wrong company/newer writer/uncertain owner/no stop denied.
+Verification: `not-run` — Allowed board requests exact source, inspect persisted copied files/artifact and cleanup. Repeat key/transient retry bounded. Agent/wrong space/newer writer/uncertain owner/no stop denied.
 
 Gaps: Client never certifies recovered files by posting this request; hosted recovery separately not-run.
 
@@ -385,7 +385,7 @@ Gaps: Provider stop/probe/export must be actual evidence, not inferred from 202.
 
 API: `present` — POST /api/issues/{id}/recovery-actions/resume-workspace-finalization with actionId/runId/ownerToken/stopped flag/stopEvidence.
 
-Agent access: `restricted` — board task read + runtime:confirm_owner_stop; active company owner/admin, trusted local board or current instance admin. Ordinary runtime manager/agent denied.
+Agent access: `restricted` — board task read + runtime:confirm_owner_stop; active space owner/admin, trusted local board or current instance admin. Ordinary runtime manager/agent denied.
 
 Policy: Exact native owner/result/task/run; independent platform verification all controller+copyback children stopped. Lease expiry/advisory disconnect not proof. Active lock/local writer/newer run blocks. Exact replay dedupes; reconciler exports/commits saved result and retains approval/monitor waits without fresh provider turn.
 
@@ -477,7 +477,7 @@ Gaps: Unknown stays unknown until corroborated. Evidence text alone can't overri
 
 API: `present` — POST /api/chat-endpoints/{endpointId}/publications/{publicationId}/resolve action mark_delivered/retry_anyway/cancel, optional fileTransfer phase/version.
 
-Agent access: `restricted` — board endpoint/company + tools:manage_connections (local implicit/instance-admin exceptions) and board user ID.
+Agent access: `restricted` — board endpoint/space + tools:manage_connections (local implicit/instance-admin exceptions) and board user ID.
 
 Policy: Only current delivery_unknown; credential lease/exact publication; stage-specific Teams/Slack/Photon rules and current phase apply. mark delivered/cancel settle; retry_anyway explicitly records duplicate risk and schedules bounded send. Terminal interaction prompt can't retry stale actions.
 
@@ -491,7 +491,7 @@ Gaps: Accepted send request isn't recipient receipt; per-provider live proof req
 
 API: `present` — POST /api/chat-endpoints/{endpointId}/publications/{publicationId}/replay; POST /api/chat-endpoints/{endpointId}/actions/{actionId}/resolve.
 
-Agent access: `restricted` — endpoint-management board/company/tools:manage_connections; resolve requires board user ID.
+Agent access: `restricted` — endpoint-management board/space/tools:manage_connections; resolve requires board user ID.
 
 Policy: Replay only failed state, expected attempt generation, live pending interaction prompt; delivery_unknown and stage-owned file transfer reject generic replay. Action resolution dispatches authoritative provider_effect or Slack task-start contract with mark_delivered/retry_anyway/cancel; no arbitrary execution retry.
 
@@ -503,11 +503,11 @@ Gaps: No dedicated agent/CLI decision path; provider-specific stage semantics re
 
 ### `resolve-uncertain-email`
 
-API: `present` — POST /api/companies/{companyId}/email/deliveries/{publicationId}/resolve outcome sent/failed plus providerMessageId.
+API: `present` — POST /api/spaces/{spaceId}/email/deliveries/{publicationId}/resolve outcome sent/failed plus providerMessageId.
 
-Agent access: `restricted` — board company + tools:manage_connections (local implicit/instance-admin exceptions).
+Agent access: `restricted` — board space + tools:manage_connections (local implicit/instance-admin exceptions).
 
-Policy: Only current uncertain send under endpoint/thread lease. sent requires live provider read proving exact inbox, x-paperclip-publication-id and sent label; failed marks provider-not-sent and requires new explicit send. Repeat settled request conflicts; never auto-resend unknown email.
+Policy: Only current uncertain send under endpoint/thread lease. sent requires live provider read proving exact inbox, x-outpost-publication-id and sent label; failed marks provider-not-sent and requires new explicit send. Repeat settled request conflicts; never auto-resend unknown email.
 
 Evidence: `source-only` — [email manager](../../server/src/routes/email.ts), [provider proof](../../server/src/services/email-channels.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live provider proof.
 
@@ -529,7 +529,7 @@ API: `present` — POST /api/issues/{id}/comments; GET /api/issues/{id}; GET /ap
 
 Agent access: `partial` — human author creates own instruction; agent REST/CLI/native report_progress creates attributed agent content, never human identity.
 
-Policy: Ordinary source-task comment/steering company/privacy/responsible-user policy; saved message independent of provider stop. Existing operator Stop with no new instruction respected. No new client API to manufacture saved-human provenance.
+Policy: Ordinary source-task comment/steering space/privacy/responsible-user policy; saved message independent of provider stop. Existing operator Stop with no new instruction respected. No new client API to manufacture saved-human provenance.
 
 Evidence: `source-only` — [recovery routes](../../server/src/routes/issues.ts), [saved continuation](../../server/src/services/conversation-continuation.ts), [waiting messages](../../ui/src/components/task-chat/TaskChatQueuedMessages.tsx); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live provider proof.
 
@@ -572,11 +572,11 @@ Browser transport recovery refetches persisted state without implying runner rec
 
 ### `subscribe-and-filter`
 
-API: `present` — GET /api/companies/{companyId}/events/ws with WebSocket Upgrade; GET /api/issues/{id} and GET /api/heartbeat-runs/{runId} remain separate REST reads.
+API: `present` — GET /api/spaces/{spaceId}/events/ws with WebSocket Upgrade; GET /api/issues/{id} and GET /api/heartbeat-runs/{runId} remain separate REST reads.
 
-Agent access: `partial` — browser session/trusted Cloud identity or local implicit board; standard unrevoked same-company agent API key via actual WS client. Native call_api cannot Upgrade; scoped keys/native JWT/personal MCP bearer not this path.
+Agent access: `partial` — browser session/trusted Cloud identity or local implicit board; standard unrevoked same-space agent API key via actual WS client. Native call_api cannot Upgrade; scoped keys/native JWT/personal MCP bearer not this path.
 
-Policy: Upgrade membership/company checks; scoped key scopeConfig rejected. Delivery-time key/member and issue/project/run/skill/case privacy rechecks; redacted invalidation payload doesn't confer detail read. Personal MCP Events is a distinct protocol/authority.
+Policy: Upgrade membership/space checks; scoped key scopeConfig rejected. Delivery-time key/member and issue/project/run/skill/case privacy rechecks; redacted invalidation payload doesn't confer detail read. Personal MCP Events is a distinct protocol/authority.
 
 Evidence: `source-only` — [WS admission/filter](../../server/src/realtime/live-events-ws.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live provider proof.
 

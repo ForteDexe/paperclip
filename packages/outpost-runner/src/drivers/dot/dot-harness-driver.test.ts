@@ -9,8 +9,8 @@ const result = { schema: "outpost.run_result.v1", reportedWorkDisposition: "done
   evidence: [], verification: [], attentionRequests: [], artifacts: [] };
 
 async function fixture(overrides: Partial<DotDriverOptions> = {}) {
-  const identity = { companyId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(), runId: randomUUID(), sessionId: randomUUID() };
-  const principal = { companyId: identity.companyId, grantId: randomUUID() };
+  const identity = { spaceId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(), runId: randomUUID(), sessionId: randomUUID() };
+  const principal = { spaceId: identity.spaceId, grantId: randomUUID() };
   const publish = vi.fn<DotDriverOptions["publish"]>(async () => {});
   const executeTool = vi.fn(async () => ({ saved: true }));
   const assertAuthority = vi.fn(async () => {});
@@ -72,9 +72,9 @@ describe("Dot runner provider prototype", () => {
     f.driver.revoke();
   });
 
-  it("enforces company, grant, turn, tool, expiry and live admission authority", async () => {
+  it("enforces space, grant, turn, tool, expiry and live admission authority", async () => {
     let now = Date.now(); const f = await fixture({ now: () => now, expiresAt: now + 1000 });
-    await expect(f.driver.inbox({ ...f.principal, companyId: randomUUID() })).rejects.toThrow("not bound");
+    await expect(f.driver.inbox({ ...f.principal, spaceId: randomUUID() })).rejects.toThrow("not bound");
     await expect(f.driver.inbox({ ...f.principal, grantId: randomUUID() })).rejects.toThrow("not bound");
     await expect(f.driver.command(f.principal, { operation: "accept", requestId: randomUUID(), turnId: randomUUID() })).rejects.toThrow("Stale");
     await f.call({ operation: "accept" });
@@ -97,7 +97,7 @@ describe("Dot runner provider prototype", () => {
 
   it("rejects a malformed result and cannot execute after completion", async () => {
     const f = await fixture(); await f.call({ operation: "accept" });
-    await expect(f.call({ operation: "finish", result: { summary: "done" } })).rejects.toThrow("Invalid Paperclip");
+    await expect(f.call({ operation: "finish", result: { summary: "done" } })).rejects.toThrow("Invalid Outpost");
     await f.call({ operation: "finish", result });
     await expect(f.call({ operation: "tool", name: "write_document", arguments: {} })).rejects.toThrow("already completed");
     expect(f.executeTool).not.toHaveBeenCalled(); f.driver.revoke();
@@ -120,8 +120,8 @@ describe("Dot runner provider prototype", () => {
 
   it("reserves admission before awaiting authority and fences concurrent revocation", async () => {
     let release!: () => void;
-    const identity = { companyId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(), runId: randomUUID(), sessionId: randomUUID() };
-    const driver = new DotHarnessDriver({ identity, principal: { companyId: identity.companyId, grantId: randomUUID() },
+    const identity = { spaceId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(), runId: randomUUID(), sessionId: randomUUID() };
+    const driver = new DotHarnessDriver({ identity, principal: { spaceId: identity.spaceId, grantId: randomUUID() },
       expiresAt: Date.now() + 10_000, tools: [], publish: async () => {}, executeTool: async () => {},
       assertAuthority: () => new Promise<void>(resolve => { release = resolve; }) });
     const input = { runId: identity.runId, normalizedSessionId: identity.sessionId, workingDirectory: "/unused" };

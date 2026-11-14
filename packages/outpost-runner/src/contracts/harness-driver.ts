@@ -7,10 +7,10 @@ import type {
 import type { NativeSessionCapabilities, NativeTurnControlCapabilities, NativeUserMessage } from "./types.js";
 import {
   OUTPOST_RUNTIME_REQUEST_SCHEMA_V2,
-  parsePaperclipQuestionResponse,
-  type PaperclipQuestionResponse,
-  type PaperclipQuestionSet,
-  type PaperclipRuntimeRequestOrigin,
+  parseOutpostQuestionResponse,
+  type OutpostQuestionResponse,
+  type OutpostQuestionSet,
+  type OutpostRuntimeRequestOrigin,
 } from "./question-set.js";
 
 export * from "./question-set.js";
@@ -128,9 +128,9 @@ export interface HarnessRuntimeRequest {
   prompt: string;
   details: Record<string, unknown>;
   /** Provider-neutral presentation model for structured input requests. */
-  input?: PaperclipQuestionSet;
+  input?: OutpostQuestionSet;
   /** Diagnostic origin only; provider response shapes never enter ORP. */
-  origin?: PaperclipRuntimeRequestOrigin;
+  origin?: OutpostRuntimeRequestOrigin;
 }
 
 export type HarnessRuntimeRequestResolution =
@@ -145,7 +145,7 @@ export type HarnessRuntimeRequestResolution =
     }
   | {
       action: "submit";
-      response: PaperclipQuestionResponse;
+      response: OutpostQuestionResponse;
     };
 
 export type HarnessRuntimeRequestAction =
@@ -213,7 +213,7 @@ function parseAnswers(
 export function parseHarnessRuntimeRequestResolution(
   requestKind: HarnessRuntimeRequestKind,
   value: unknown,
-  questionSet?: PaperclipQuestionSet,
+  questionSet?: OutpostQuestionSet,
 ): HarnessRuntimeRequestResolution {
   const candidate = plainRecord(value) ?? {};
   const rawAction = candidate.action;
@@ -261,7 +261,7 @@ export function parseHarnessRuntimeRequestResolution(
     try {
       return {
         action,
-        response: parsePaperclipQuestionResponse(
+        response: parseOutpostQuestionResponse(
           questionSet,
           candidate.response,
         ),
@@ -348,7 +348,7 @@ export type HarnessRuntimeRequestOutcome = {
   adapter?: string;
   requestType?: "input" | "permission";
   /** Canonical submitted answers retained for durable replay and audit UI. */
-  response?: PaperclipQuestionResponse;
+  response?: OutpostQuestionResponse;
 };
 
 export function harnessRuntimeRequestOutcome(
@@ -359,7 +359,7 @@ export function harnessRuntimeRequestOutcome(
   outcome: {
     action?: HarnessRuntimeRequestAction | null;
     reason?: string | null;
-    response?: PaperclipQuestionResponse | null;
+    response?: OutpostQuestionResponse | null;
   } = {},
 ): HarnessRuntimeRequestOutcome {
   return {
@@ -466,7 +466,7 @@ export interface AcpxSessionIdentity {
   requestedModel: string;
   effectiveModel: string;
   /** Missing on legacy snapshots; those used the historical approve-reads behavior. */
-  permissionMode?: "approve-all" | "approve-paperclip" | "approve-reads" | "deny-all";
+  permissionMode?: "approve-all" | "approve-outpost" | "approve-reads" | "deny-all";
   /** Effective provider mode identifier, bound to the session identity. */
   mode?: string;
   piThinkingLevel?: "off" | "low" | "high" | "max";
@@ -503,7 +503,7 @@ export interface PersistedHarnessSession {
   /** Narrow escape hatch for a durable response-wake when a provider cannot reload its prior native session. */
   providerRecoveryPolicy?:
     | "same_session_only"
-    | "allow_replacement_after_governed_wait"
+    | "allow_replacement_after_controlled_wait"
     | "allow_replacement_after_resume_failure";
 }
 
@@ -621,7 +621,7 @@ export interface HarnessSession {
      * submitting `message`. Only for a resumed session with prior context.
      */
     compact?: true;
-    /** Last context occupancy Paperclip recorded before a compaction turn. */
+    /** Last context occupancy Outpost recorded before a compaction turn. */
     contextTokensBefore?: number;
   }): Promise<{
     turnId: string;

@@ -100,7 +100,7 @@ export function createCodexJsonlParser() {
     return {
       sessionId,
       summary: finalMessage?.trim() ?? "",
-      // Codex includes cache hits in input_tokens; Paperclip stores them separately.
+      // Codex includes cache hits in input_tokens; Outpost stores them separately.
       usage: { ...usage, inputTokens: Math.max(0, usage.inputTokens - usage.cachedInputTokens) },
       usageBasis: "per_run" as const,
       errorMessage,

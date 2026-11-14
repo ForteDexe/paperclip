@@ -6,7 +6,7 @@ relocation or the unqualified runtime repairs.**
 The final PR keeps production agent behavior byte-identical to master
 `a65ca0950834a85bb93bcc4b4042ecacdebfef53`. Its changes are limited to the
 measurement test, explicit eval selection, correct hiring credential selection,
-company/lead budget stops, test-runner configuration, and retained reports.
+space/lead budget stops, test-runner configuration, and retained reports.
 No production prompt, tool description, tool schema, session catalog, dependency
 mutation or status-transition code changes are included in the final diff.
 
@@ -42,7 +42,7 @@ OpenCode MCP declaration list. These are provider-free measurements.
 The two original Everyday Workflows stories remain explicit-only and keep their
 independent artifact and ordering oracles. OpenCode is added only to the local
 hiring/reuse and delegation/feedback cells. These stories use one attempt per
-cell and actual company and lead-agent budget stops. Managed hiring selects
+cell and actual space and lead-agent budget stops. Managed hiring selects
 the credential provider from the chosen profile, including OpenRouter. Existing
 Node test files run under Node's test runner instead of being misclassified as
 empty Vitest suites.
@@ -145,10 +145,10 @@ runtime/artifact hashes. Never label a later source revision as the measured
 revision without showing its delta.
 
 The plan has six cells per variant, one attempt per cell, a 12-minute cell
-deadline, at most 12 story run records per cell, and a 1,000-cent company and
-lead-agent hard stop per cell. The original campaign applied the company cap
+deadline, at most 12 story run records per cell, and a 1,000-cent space and
+lead-agent hard stop per cell. The original campaign applied the space cap
 but mistakenly left the lead budget at 0; the corrected common setup verifies
-both actual API payloads. All worker runs count toward the company budget;
+both actual API payloads. All worker runs count toward the space budget;
 individual worker caps are not asserted.
 Count every actual run, including notifications and failed attempts. No broad
 matrix, automatic retries or baseline rerolls are part of this comparison.
@@ -212,7 +212,7 @@ and unmetered host runtime prevent any claim about actual cost savings.
 The candidate Claude hire created Morgan and a child task, then ended with a
 waiting message without recording dependencies or using a terminal tool. The
 lead failed with `native_finalization_missing`. The corrected v7 prompt keeps
-explicit `set_dependencies` and `paperclip_block` discovery. This is a concrete
+explicit `set_dependencies` and `outpost_block` discovery. This is a concrete
 missing behavior; a single trial does not establish causation.
 
 The candidate Codex delegate failed in Riley's worker turn with the provider
@@ -224,7 +224,7 @@ Both original grades and classifiers remain unchanged.
 Both OpenCode hire cells failed common setup requesting an OpenAI credential
 although OpenRouter was selected, before any agent run. Shared setup now uses
 the profile's actual credential. A separate nonce/cell-ID bug left original
-lead budgets at 0; six nonce-based setup tests now verify company and lead caps
+lead budgets at 0; six nonce-based setup tests now verify space and lead caps
 using only the selected provider credential. These common control changes are
 why the corrected campaign uses a newly matched baseline.
 

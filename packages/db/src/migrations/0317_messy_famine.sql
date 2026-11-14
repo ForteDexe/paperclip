@@ -1,7 +1,7 @@
 -- Dot-only additions after the merged public MCP gateway. Safe to reapply to a prototype schema.
 CREATE TABLE IF NOT EXISTS "dot_agent_bindings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"operator_id" text NOT NULL,
 	"grant_id" uuid,
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS "dot_agent_bindings" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "dot_mailbox_items" (
 	"id" bigserial PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"binding_id" uuid NOT NULL,
 	"binding_generation" integer NOT NULL,
 	"assignment_id" uuid,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS "dot_mailbox_items" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "dot_runner_assignments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"binding_id" uuid NOT NULL,
 	"binding_generation" integer NOT NULL,
 	"run_id" uuid NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS "dot_runner_assignments" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "dot_runner_operations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"assignment_id" uuid NOT NULL,
 	"request_id" uuid NOT NULL,
 	"digest" text NOT NULL,
@@ -79,8 +79,8 @@ ALTER TABLE "mcp_oauth_grants" ADD COLUMN IF NOT EXISTS "purpose" text DEFAULT '
 ALTER TABLE "mcp_oauth_grants" ADD COLUMN IF NOT EXISTS "agent_id" uuid;
 --> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'dot_agent_bindings_company_id_companies_id_fk' AND conrelid = 'public.dot_agent_bindings'::regclass) THEN
-    ALTER TABLE "dot_agent_bindings" ADD CONSTRAINT "dot_agent_bindings_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'dot_agent_bindings_space_id_spaces_id_fk' AND conrelid = 'public.dot_agent_bindings'::regclass) THEN
+    ALTER TABLE "dot_agent_bindings" ADD CONSTRAINT "dot_agent_bindings_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;
 --> statement-breakpoint
@@ -97,8 +97,8 @@ DO $$ BEGIN
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'dot_mailbox_items_company_id_companies_id_fk' AND conrelid = 'public.dot_mailbox_items'::regclass) THEN
-    ALTER TABLE "dot_mailbox_items" ADD CONSTRAINT "dot_mailbox_items_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'dot_mailbox_items_space_id_spaces_id_fk' AND conrelid = 'public.dot_mailbox_items'::regclass) THEN
+    ALTER TABLE "dot_mailbox_items" ADD CONSTRAINT "dot_mailbox_items_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;
 --> statement-breakpoint
@@ -115,8 +115,8 @@ DO $$ BEGIN
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'dot_runner_assignments_company_id_companies_id_fk' AND conrelid = 'public.dot_runner_assignments'::regclass) THEN
-    ALTER TABLE "dot_runner_assignments" ADD CONSTRAINT "dot_runner_assignments_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'dot_runner_assignments_space_id_spaces_id_fk' AND conrelid = 'public.dot_runner_assignments'::regclass) THEN
+    ALTER TABLE "dot_runner_assignments" ADD CONSTRAINT "dot_runner_assignments_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;
 --> statement-breakpoint
@@ -139,8 +139,8 @@ DO $$ BEGIN
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'dot_runner_operations_company_id_companies_id_fk' AND conrelid = 'public.dot_runner_operations'::regclass) THEN
-    ALTER TABLE "dot_runner_operations" ADD CONSTRAINT "dot_runner_operations_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'dot_runner_operations_space_id_spaces_id_fk' AND conrelid = 'public.dot_runner_operations'::regclass) THEN
+    ALTER TABLE "dot_runner_operations" ADD CONSTRAINT "dot_runner_operations_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;
 --> statement-breakpoint
@@ -150,7 +150,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 --> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "dot_bindings_active_agent_uq" ON "dot_agent_bindings" USING btree ("company_id","agent_id") WHERE "dot_agent_bindings"."revoked_at" IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS "dot_bindings_active_agent_uq" ON "dot_agent_bindings" USING btree ("space_id","agent_id") WHERE "dot_agent_bindings"."revoked_at" IS NULL;
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "dot_bindings_active_grant_uq" ON "dot_agent_bindings" USING btree ("grant_id") WHERE "dot_agent_bindings"."revoked_at" IS NULL AND "dot_agent_bindings"."grant_id" IS NOT NULL;
 --> statement-breakpoint
@@ -164,7 +164,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "dot_assignments_turn_uq" ON "dot_runner_assig
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "dot_assignments_active_binding_uq" ON "dot_runner_assignments" USING btree ("binding_id") WHERE "dot_runner_assignments"."status" IN ('offered', 'accepted');
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "dot_assignments_company_idx" ON "dot_runner_assignments" USING btree ("company_id");
+CREATE INDEX IF NOT EXISTS "dot_assignments_space_idx" ON "dot_runner_assignments" USING btree ("space_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "dot_operations_request_uq" ON "dot_runner_operations" USING btree ("assignment_id","request_id");
 --> statement-breakpoint

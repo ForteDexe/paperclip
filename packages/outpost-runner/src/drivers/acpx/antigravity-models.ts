@@ -95,7 +95,7 @@ export async function discoverAntigravityModels(home: string, options: { signal?
       signal.addEventListener("abort", abort, { once: true });
       const send = (id: 1 | 2) => peer.stdin.write(`${JSON.stringify(id === 1
         ? { jsonrpc: "2.0", id, method: "initialize", params: { protocolVersion: 1, clientInfo: { name: "outpost-runner", version: "1" }, clientCapabilities: {} } }
-        : { jsonrpc: "2.0", id, method: "_paperclip/models", params: { schema: SCHEMA, nonce, authMethod: "oauth-personal" } })}\n`);
+        : { jsonrpc: "2.0", id, method: "_outpost/models", params: { schema: SCHEMA, nonce, authMethod: "oauth-personal" } })}\n`);
       peer.stdout.on("data", (chunk: Buffer) => {
         outputBytes += chunk.length;
         if (outputBytes > MAX_WIRE_BYTES) { fail(); return; }
@@ -109,7 +109,7 @@ export async function discoverAntigravityModels(home: string, options: { signal?
           if (phase === 1) {
             const initialized = record(message.result), info = record(initialized.agentInfo), capabilities = record(record(record(initialized.agentCapabilities)._meta).antigravity);
             if (initialized.protocolVersion !== 1 || info.name !== "antigravity-acp" || info.version !== "1.4.3"
-              || capabilities.paperclipAdmission !== 1 || capabilities.paperclipModels !== 1
+              || capabilities.outpostAdmission !== 1 || capabilities.outpostModels !== 1
               || !Array.isArray(initialized.authMethods) || !initialized.authMethods.some(value => record(value).id === "oauth-personal")) { fail(); return; }
             phase = 2; send(2);
           } else {

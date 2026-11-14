@@ -18,7 +18,7 @@ function createAgent(
   const now = new Date("2026-04-06T12:00:00.000Z");
   return {
     id,
-    companyId: "company-ux",
+    spaceId: "space-ux",
     name,
     urlKey,
     role: "engineer",
@@ -45,7 +45,7 @@ function createAgent(
 function createComment(overrides: Partial<IssueChatComment>): IssueChatComment {
   const merged: IssueChatComment = {
     id: "comment-default",
-    companyId: "company-ux",
+    spaceId: "space-ux",
     issueId: "issue-ux",
     authorType: overrides.authorAgentId ? "agent" : "user",
     authorAgentId: null,
@@ -85,7 +85,7 @@ export const issueChatUxMentions: MentionOption[] = [
   },
   {
     id: "mention-project-1",
-    name: "Outpost Board UI",
+    name: "Outpost Operator UI",
     kind: "project",
     projectId: "project-1",
     projectColor: "#0f766e",
@@ -105,8 +105,8 @@ export const issueChatUxReassignOptions: InlineEntityOption[] = [
   },
   {
     id: "user:user-1",
-    label: "Board",
-    searchText: "board user",
+    label: "Operator",
+    searchText: "operator user",
   },
 ];
 
@@ -341,7 +341,7 @@ export const issueChatUxReviewEvents: IssueTimelineEvent[] = [
 export const issueChatUxFeedbackVotes: FeedbackVote[] = [
   {
     id: "feedback-1",
-    companyId: "company-ux",
+    spaceId: "space-ux",
     issueId: "issue-ux",
     targetType: "issue_comment",
     targetId: "comment-review-agent",

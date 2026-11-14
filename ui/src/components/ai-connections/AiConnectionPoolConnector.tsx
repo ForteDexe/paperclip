@@ -8,7 +8,7 @@ import { aiConnectionPoolsApi, type PoolInspection } from "@/api/ai-connection-p
 import { describeError } from "@/api/errors";
 import { toolsApi } from "@/api/tools";
 import { agentsApi } from "@/api/agents";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useToast } from "@/context/ToastContext";
 import { Link, useNavigate } from "@/lib/router";
@@ -39,17 +39,17 @@ function memberOf(account: AiManagedConnectionSummary): AiConnectionPoolMember {
 
 /** Native connector surface shared by all plugins implementing the pool contract. */
 export function AiConnectionPoolConnector({ pluginKey, connection }: { pluginKey: string; connection?: ToolConnection }) {
-  const { selectedCompanyId } = useCompany();
-  return selectedCompanyId ? <PoolConnector key={`${selectedCompanyId}:${connection?.id ?? pluginKey}`} companyId={selectedCompanyId} pluginKey={pluginKey} connection={connection} /> : <p>Select a outpost to continue.</p>;
+  const { selectedSpaceId } = useSpace();
+  return selectedSpaceId ? <PoolConnector key={`${selectedSpaceId}:${connection?.id ?? pluginKey}`} spaceId={selectedSpaceId} pluginKey={pluginKey} connection={connection} /> : <p>Select a outpost to continue.</p>;
 }
-function PoolConnector({ companyId, pluginKey, connection }: { companyId: string; pluginKey: string; connection?: ToolConnection }) {
+function PoolConnector({ spaceId, pluginKey, connection }: { spaceId: string; pluginKey: string; connection?: ToolConnection }) {
   const navigate = useNavigate();
   const client = useQueryClient();
   const { pushToast } = useToast();
   const { setBreadcrumbs } = useBreadcrumbs();
-  const accountsQuery = useQuery({ queryKey: ["pool-accounts", companyId], queryFn: () => aiConnectionsApi.list(companyId) });
-  const poolsQuery = useQuery({ queryKey: ["ai-connection-pools", companyId], queryFn: () => aiConnectionPoolsApi.list(companyId), enabled: accountsQuery.data?.canManageConnections === true });
-  const galleryQuery = useQuery({ queryKey: queryKeys.apps.gallery(companyId), queryFn: () => toolsApi.listGallery(companyId) });
+  const accountsQuery = useQuery({ queryKey: ["pool-accounts", spaceId], queryFn: () => aiConnectionsApi.list(spaceId) });
+  const poolsQuery = useQuery({ queryKey: ["ai-connection-pools", spaceId], queryFn: () => aiConnectionPoolsApi.list(spaceId), enabled: accountsQuery.data?.canManageConnections === true });
+  const galleryQuery = useQuery({ queryKey: queryKeys.apps.gallery(spaceId), queryFn: () => toolsApi.listGallery(spaceId) });
   const accountsView = useQueryView(accountsQuery);
   const poolsView = useQueryView(poolsQuery);
   const galleryView = useQueryView(galleryQuery);
@@ -70,7 +70,7 @@ function PoolConnector({ companyId, pluginKey, connection }: { companyId: string
   const unavailable = galleryQuery.isSuccess && (!entry || entry.availability?.available === false);
   const canManage = Boolean(accountsQuery.data?.canManageConnections);
   const disabled = busy || !canManage || unavailable;
-  const agentsQuery = useQuery({ queryKey: queryKeys.agents.list(companyId), queryFn: () => agentsApi.list(companyId), enabled: Boolean(connection) && canManage });
+  const agentsQuery = useQuery({ queryKey: queryKeys.agents.list(spaceId), queryFn: () => agentsApi.list(spaceId), enabled: Boolean(connection) && canManage });
   const agentsView = useQueryView(agentsQuery);
   const usingAgents = (agentsQuery.data ?? []).filter(agent => agent.status !== "terminated" && agent.runtimeConfig?.aiConnection?.mode === "router" && agent.runtimeConfig.aiConnection.connectionId === connection?.id).sort((a, b) => a.name.localeCompare(b.name));
   useEffect(() => {
@@ -86,21 +86,21 @@ function PoolConnector({ companyId, pluginKey, connection }: { companyId: string
   useEffect(() => {
     if (!editing || !canManage) return;
     let alive = true;
-    void aiConnectionPoolsApi.inspect(companyId, editing.id).then(value => { if (alive) setInspection(value); }).catch(() => { if (alive) setInspectionError("Usage unavailable."); });
+    void aiConnectionPoolsApi.inspect(spaceId, editing.id).then(value => { if (alive) setInspection(value); }).catch(() => { if (alive) setInspectionError("Usage unavailable."); });
     return () => { alive = false; };
-  }, [companyId, editing, canManage]);
+  }, [spaceId, editing, canManage]);
   async function invalidate() {
     await Promise.all([
-      client.invalidateQueries({ queryKey: ["ai-connection-pools", companyId] }),
-      client.invalidateQueries({ queryKey: queryKeys.tools.connections(companyId) }),
-      client.invalidateQueries({ queryKey: queryKeys.tools.applications(companyId) }),
+      client.invalidateQueries({ queryKey: ["ai-connection-pools", spaceId] }),
+      client.invalidateQueries({ queryKey: queryKeys.tools.connections(spaceId) }),
+      client.invalidateQueries({ queryKey: queryKeys.tools.applications(spaceId) }),
       ...(connection ? [client.invalidateQueries({ queryKey: queryKeys.tools.connection(connection.id) })] : []),
     ]);
   }
   async function save(config = draft) {
     setBusy(true); setError("");
     try {
-      const saved = await aiConnectionPoolsApi.save(companyId, { pluginKey, ...(editing ? { id: editing.id, expectedRevision: editing.revision } : {}), config });
+      const saved = await aiConnectionPoolsApi.save(spaceId, { pluginKey, ...(editing ? { id: editing.id, expectedRevision: editing.revision } : {}), config });
       setEditing(saved); setDraft(configOf(saved)); setRenaming(false);
       await invalidate();
       pushToast({ title: connection ? "Connection pool saved" : "Connection pool created", tone: "success" });
@@ -111,7 +111,7 @@ function PoolConnector({ companyId, pluginKey, connection }: { companyId: string
   async function remove() {
     if (!editing) return;
     setBusy(true); setError("");
-    try { await aiConnectionPoolsApi.remove(companyId, editing.id, editing.revision); await invalidate(); navigate("/apps"); }
+    try { await aiConnectionPoolsApi.remove(spaceId, editing.id, editing.revision); await invalidate(); navigate("/apps"); }
     catch (cause) { setError(describeError(cause).body); }
     finally { setBusy(false); }
   }

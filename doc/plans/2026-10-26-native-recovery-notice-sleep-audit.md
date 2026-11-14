@@ -25,12 +25,12 @@ still runs when notice resolution is delegated.
 
 ## Pending predicate and quiet states
 
-A candidate binds company, issue and run across the native coordinator, heartbeat
+A candidate binds space, issue and run across the native coordinator, heartbeat
 run and issue. The coordinator must be committed and have a result. Discovery
 excludes held runner ownership, pending status effects and unfinished run
 projection. A correlated notice lookup requires:
 
-- The same company, source issue and `evidence.runId`.
+- The same space, source issue and `evidence.runId`.
 - Kind `active_run_watchdog` and status `active` or `escalated`.
 - `wakePolicy.kind = resume_native_run`, or the existing special cause
   `native_workspace_finalization_owner_unverified`.
@@ -38,7 +38,7 @@ projection. A correlated notice lookup requires:
 An exhausted owner-verification notice can still need resolution even after its
 retry policy is cleared. Unrelated notices, uncommitted runs, resolved history,
 and otherwise idle configuration do not arm a recurring scan. Discovery reads
-IDs in keyset pages of 100 and the shared worker executes company-fair batches of
+IDs in keyset pages of 100 and the shared worker executes space-fair batches of
 25. Real resolution failures retain shared per-entry backoff, starting at 30
 seconds and bounded at five minutes. A successful attempt with remaining work
 retains a scoped 30-second retry. Startup reconstructs durable unfinished notices.
@@ -96,7 +96,7 @@ protocol. Process-local signals cover instrumented writers in this process;
 independent SQL writers and replicas without supported ingress are not newly
 supported. No database LISTEN connection is added.
 
-The notification boundary explicitly copies only company, issue and run IDs. A
+The notification boundary explicitly copies only space, issue and run IDs. A
 structurally compatible caller can carry additional internal fields; serializing
 its entire object is not safe. A real finalization regression exposed this during
 implementation when a caller's database object caused circular JSON serialization.
@@ -188,7 +188,7 @@ The fixture now uses the existing accepted-result and finalization setup. It
 retains a future retry while comparing narrow and full-row reads, so both paths
 observe the same state without publishing between comparisons. The selected
 answer guard, typed context flags, non-object result evidence, payload byte
-limits, unchanged-row assertions, company/issue scope checks, and separate real
+limits, unchanged-row assertions, space/issue scope checks, and separate real
 publication comparison remain. All 17 cases now pass; server typechecking also
 passes. The existing external-test-database convention permits a real database
 replay without requiring another embedded PostgreSQL instance. No production
@@ -222,7 +222,7 @@ coordinator, issue, run and action lock ordering; exact current incident matchin
 existing action-resolution side effects; and the separate status/effect/resource
 owners. A discovered action ID alone is not authority to resolve a later incident.
 
-The new real-database regression submits three routine company-only finalization
+The new real-database regression submits three routine space-only finalization
 hints after startup becomes quiet. A controlled baseline moves only notice fanout
 outside the guard and keeps every other parent guard. It issues three candidate
 SELECTs and fails the zero-query assertion. Restoring production bytes passes the

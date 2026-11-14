@@ -47,7 +47,7 @@ export const BLOCKED_VARIANT_LABELS: Record<BlockedReasonVariant, string> = {
 };
 
 const REASON_LABELS: Record<IssueBlockedInboxReason, string> = {
-  pending_board_decision: "Pending board decision",
+  pending_board_decision: "Pending operator decision",
   pending_user_decision: "Pending user decision",
   missing_successful_run_disposition: "Pick disposition",
   blocked_chain_stalled: "Blocked chain stalled",

@@ -7,9 +7,9 @@ import { describe, expect, it } from "vitest";
 
 import { OUTPOST_RUNNERD_BUILD_METADATA_SCHEMA } from "./build-metadata.js";
 import {
-  PaperclipRunnerdArtifactError,
-  parsePaperclipRunnerdBuildMetadata,
-  resolvePaperclipRunnerdArtifact,
+  OutpostRunnerdArtifactError,
+  parseOutpostRunnerdBuildMetadata,
+  resolveOutpostRunnerdArtifact,
 } from "./runnerd-artifact.js";
 
 const valid = {
@@ -25,23 +25,23 @@ const valid = {
 
 describe("runnerd artifact metadata", () => {
   it("parses the exact runnerd identity", () => {
-    expect(parsePaperclipRunnerdBuildMetadata(valid)).toEqual(valid);
+    expect(parseOutpostRunnerdBuildMetadata(valid)).toEqual(valid);
   });
 
   it("accepts private host-control metadata without changing ordinary artifact admission", () => {
-    expect(parsePaperclipRunnerdBuildMetadata({ ...valid, privateHostControlVersion: 1 }))
+    expect(parseOutpostRunnerdBuildMetadata({ ...valid, privateHostControlVersion: 1 }))
       .toEqual(valid);
   });
 
   it("rejects an unknown binary metadata schema", () => {
-    expect(() => parsePaperclipRunnerdBuildMetadata({ ...valid, schema: "runnerd/v2" }))
-      .toThrow(PaperclipRunnerdArtifactError);
-    expect(() => parsePaperclipRunnerdBuildMetadata({ ...valid, schema: "runnerd/v2" }))
+    expect(() => parseOutpostRunnerdBuildMetadata({ ...valid, schema: "runnerd/v2" }))
+      .toThrow(OutpostRunnerdArtifactError);
+    expect(() => parseOutpostRunnerdBuildMetadata({ ...valid, schema: "runnerd/v2" }))
       .toThrow(/unsupported/);
   });
 
   it("rejects an invalid or mismatched explicit artifact digest before execution", async () => {
-    await expect(resolvePaperclipRunnerdArtifact({
+    await expect(resolveOutpostRunnerdArtifact({
       executablePath: "/does/not/matter",
       expectedSha256: "not-a-digest",
     })).rejects.toMatchObject({ issue: "digest_invalid" });
@@ -50,7 +50,7 @@ describe("runnerd artifact metadata", () => {
     const executablePath = join(root, "outpost-runnerd");
     try {
       await writeFile(executablePath, "not the expected binary");
-      await expect(resolvePaperclipRunnerdArtifact({
+      await expect(resolveOutpostRunnerdArtifact({
         executablePath,
         expectedSha256: `sha256:${"0".repeat(64)}`,
       })).rejects.toMatchObject({
@@ -83,7 +83,7 @@ describe("runnerd artifact metadata", () => {
           },
         };
 
-        await expect(resolvePaperclipRunnerdArtifact(input)).resolves.toMatchObject({
+        await expect(resolveOutpostRunnerdArtifact(input)).resolves.toMatchObject({
           executablePath: canonicalExecutablePath,
           sha256: expectedSha256,
           byteSize: Buffer.byteLength(verifiedScript),

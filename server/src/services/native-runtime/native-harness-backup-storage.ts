@@ -28,21 +28,21 @@ import type { SettledNativeHarnessBackupOwner } from "./native-harness-preservat
 import { logActivity, publishActivity, type ActivityPublication } from "../activity-log.js";
 
 const SCHEMA = "outpost.native-harness-object.v1";
-type Binding = { companyId: string; scopeDigest: string; id: string };
+type Binding = { spaceId: string; scopeDigest: string; id: string };
 type Reference = Binding & {
   schema: typeof SCHEMA; objectKey: string; sha256: string; byteSize: number;
   material: Record<string, unknown>; manifestSha256: string;
   providerArtifacts?: NativeProviderArtifactReceipt;
 };
 type Row = typeof nativeHarnessBackups.$inferSelect;
-type OfflineOwner = { kind: "offline_migration"; companyId: string; issueId: string; runId: string;
+type OfflineOwner = { kind: "offline_migration"; spaceId: string; issueId: string; runId: string;
   writersStopped: true; terminalFailureOnly?: true };
 type InactiveSource = { root: string; manifestSha256: string; scopeDigest: string;
   normalizedSessionId: string; runnerInstanceId: string; providerLeaseId: string };
 function fail(reason: string): never { throw new Error(`native_harness_storage_${reason}`); }
-const aad = (binding: Binding) => Buffer.from(JSON.stringify([SCHEMA, binding.companyId, binding.scopeDigest, binding.id]));
-const scope = (binding: Pick<Binding, "companyId" | "scopeDigest">) => and(
-  eq(nativeHarnessBackups.companyId, binding.companyId), eq(nativeHarnessBackups.scopeDigest, binding.scopeDigest));
+const aad = (binding: Binding) => Buffer.from(JSON.stringify([SCHEMA, binding.spaceId, binding.scopeDigest, binding.id]));
+const scope = (binding: Pick<Binding, "spaceId" | "scopeDigest">) => and(
+  eq(nativeHarnessBackups.spaceId, binding.spaceId), eq(nativeHarnessBackups.scopeDigest, binding.scopeDigest));
 
 export function durableNativeHarnessStorage(): StorageService | null {
   if (loadConfig().storageProvider === "s3") return getStorageService();
@@ -51,22 +51,22 @@ export function durableNativeHarnessStorage(): StorageService | null {
 }
 
 export async function verifyRecoverableNativeHarnessBackup(input: {
-  db: Db; companyId: string; stamp: unknown; providerLeaseId: string;
+  db: Db; spaceId: string; stamp: unknown; providerLeaseId: string;
 }): Promise<boolean> {
   const stamp = readNativeHarnessBackupStamp(input.stamp, input.providerLeaseId);
   if (!stamp) return false;
   const storage = durableNativeHarnessStorage();
   if (!storage) return verifyNativeHarnessBackupStamp(stamp, input.providerLeaseId);
-  const durable = await verifyDurableNativeHarnessBackup({ db: input.db, storage, companyId: input.companyId,
+  const durable = await verifyDurableNativeHarnessBackup({ db: input.db, storage, spaceId: input.spaceId,
     scopeDigest: stamp.sessionScopeSha256, manifestSha256: stamp.manifestSha256, downloadIdleTimeoutMs: NATIVE_HARNESS_DOWNLOAD_IDLE_TIMEOUT_MS });
   return durable || process.env.OUTPOST_EPHEMERAL_SERVER !== "true" && verifyNativeHarnessBackupStamp(stamp, input.providerLeaseId);
 }
 function reference(row: Row): Reference {
   const ref = row.reference as Reference;
-  if (ref.schema !== SCHEMA || ref.id !== row.id || ref.companyId !== row.companyId || ref.scopeDigest !== row.scopeDigest
+  if (ref.schema !== SCHEMA || ref.id !== row.id || ref.spaceId !== row.spaceId || ref.scopeDigest !== row.scopeDigest
     || !/^[a-f0-9]{64}$/.test(ref.scopeDigest) || !/^[a-f0-9]{64}$/.test(ref.sha256)
     || ref.manifestSha256 !== row.manifestSha256 || !/^sha256:[a-f0-9]{64}$/.test(ref.manifestSha256)
-    || ref.objectKey !== `${row.companyId}/native-harness-backups/${row.scopeDigest}/${row.id}.pchn`
+    || ref.objectKey !== `${row.spaceId}/native-harness-backups/${row.scopeDigest}/${row.id}.pchn`
     || !Number.isSafeInteger(ref.byteSize) || ref.byteSize <= 0 || ref.byteSize > MAX_NATIVE_HARNESS_OBJECT_BYTES
     || !ref.material || typeof ref.material !== "object") fail("reference_invalid");
   return ref;
@@ -77,7 +77,7 @@ async function digest(file: string, signal?: AbortSignal) {
   return { sha256: hash.digest("hex"), byteSize };
 }
 async function receive(storage: StorageService, ref: Reference, target?: string, signal?: AbortSignal) {
-  const object = await storage.getObject(ref.companyId, ref.objectKey, { signal });
+  const object = await storage.getObject(ref.spaceId, ref.objectKey, { signal });
   const hash = createHash("sha256"); let byteSize = 0;
   const observed = new Transform({ transform(bytes, _encoding, callback) {
     hash.update(bytes); byteSize += bytes.length;
@@ -93,9 +93,9 @@ async function receive(storage: StorageService, ref: Reference, target?: string,
   } finally { object.stream.destroy(); }
 }
 
-export async function nativeHarnessBackupOwner(db: Db, input: { companyId: string; issueId: string; runId: string; bootId: string }) {
+export async function nativeHarnessBackupOwner(db: Db, input: { spaceId: string; issueId: string; runId: string; bootId: string }) {
   const [row] = await db.select().from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.issueId, input.issueId),
+    eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.issueId, input.issueId),
     eq(nativeRunFinalizations.runId, input.runId), eq(nativeRunFinalizations.controllerBootId, input.bootId)));
   if (!row || !row.leaseOwner && (row.phase !== "committed" || !row.resultId)) fail("owner_missing");
   return { ...input, authorityRunId: input.runId, leaseOwner: row!.leaseOwner, generation: row!.controllerGeneration } satisfies NativeRunnerCheckpointFenceOwner;
@@ -113,7 +113,7 @@ async function fence(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], owner:
   }
   const checkpointOwner = "kind" in owner ? null : await lockNativeRunnerCheckpointOwner(tx, owner);
   const [task] = await tx.select({ executionRunId: issues.executionRunId, checkoutRunId: issues.checkoutRunId }).from(issues)
-    .where(and(eq(issues.companyId, owner.companyId), eq(issues.id, owner.issueId))).for("share");
+    .where(and(eq(issues.spaceId, owner.spaceId), eq(issues.id, owner.issueId))).for("share");
   const authorityRunId = "kind" in owner ? owner.runId : owner.authorityRunId;
   if (!task) fail("owner_superseded");
   if ("kind" in owner) {
@@ -121,7 +121,7 @@ async function fence(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], owner:
     const [active] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(offlineMigrationExecutionWhere()).limit(1);
     if (active) fail("offline_writers_required");
     const [run] = await tx.select({ finishedAt: heartbeatRuns.finishedAt, startedAt: heartbeatRuns.startedAt, createdAt: heartbeatRuns.createdAt, status: heartbeatRuns.status }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, owner.runId), eq(heartbeatRuns.companyId, owner.companyId),
+      eq(heartbeatRuns.id, owner.runId), eq(heartbeatRuns.spaceId, owner.spaceId),
       eq(heartbeatRuns.nativeIssueId, owner.issueId), eq(heartbeatRuns.runtimeMode, "native"))).for("share");
     const [coordinator] = await tx.select({ leaseOwner: nativeRunFinalizations.leaseOwner,
       leaseExpiresAt: nativeRunFinalizations.leaseExpiresAt, phase: nativeRunFinalizations.phase,
@@ -141,7 +141,7 @@ async function fence(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], owner:
         if (coordinator.phase !== "observed" || coordinator.resultId || coordinator.nextAttemptAt
           || task.executionRunId === owner.runId) fail("offline_owner_unsettled");
         const leases = await tx.select().from(environmentLeases).where(and(
-          eq(environmentLeases.companyId, owner.companyId), eq(environmentLeases.heartbeatRunId, owner.runId))).for("share");
+          eq(environmentLeases.spaceId, owner.spaceId), eq(environmentLeases.heartbeatRunId, owner.runId))).for("share");
         const stopped = await Promise.all(leases.map(lease => resolveRemoteTerminationLease(tx as unknown as Db, lease)));
         if (!stopped.length || stopped.some(lease => {
           const receipt = lease.metadata?.remoteExecutionTermination as { confirmedAt?: unknown } | undefined;
@@ -162,17 +162,17 @@ async function fence(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], owner:
   if (inactiveSource) {
     if (!committed || task.executionRunId || task.checkoutRunId) fail("prestage_source_active");
     const [active] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, owner.companyId), inArray(heartbeatRuns.status, ["queued", "running"]),
+      eq(heartbeatRuns.spaceId, owner.spaceId), inArray(heartbeatRuns.status, ["queued", "running"]),
       or(eq(heartbeatRuns.nativeIssueId, owner.issueId), eq(heartbeatRuns.issueId, owner.issueId),
         eq(heartbeatRuns.nativeSessionId, inactiveSource.normalizedSessionId)))).limit(1);
     if (active) fail("prestage_source_active");
     const [binding] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, owner.authorityRunId), eq(heartbeatRuns.companyId, owner.companyId),
+      eq(heartbeatRuns.id, owner.authorityRunId), eq(heartbeatRuns.spaceId, owner.spaceId),
       eq(heartbeatRuns.nativeIssueId, owner.issueId), eq(heartbeatRuns.nativeSessionId, inactiveSource.normalizedSessionId),
       eq(heartbeatRuns.runnerInstanceId, inactiveSource.runnerInstanceId), eq(heartbeatRuns.status, "succeeded"),
       isNotNull(heartbeatRuns.finishedAt)));
     const [lease] = await tx.select({ stamp: sql<unknown>`${environmentLeases.metadata}->'nativeHarnessBackup'` })
-      .from(environmentLeases).where(and(eq(environmentLeases.companyId, owner.companyId),
+      .from(environmentLeases).where(and(eq(environmentLeases.spaceId, owner.spaceId),
         eq(environmentLeases.issueId, owner.issueId), eq(environmentLeases.providerLeaseId, inactiveSource.providerLeaseId),
         sql`${environmentLeases.metadata}->'nativeHarnessBackup'->>'manifestSha256' = ${inactiveSource.manifestSha256}`)).limit(1);
     const stamp = readNativeHarnessBackupStamp(lease?.stamp, inactiveSource.providerLeaseId);
@@ -224,7 +224,7 @@ async function persistNativeHarnessBackupOnce(input: PersistNativeHarnessBackupI
   if ("kind" in input.owner && input.owner.kind === "settled_native_harness_backup"
     && manifestSha256 !== input.owner.manifestSha256) fail("preservation_source_changed");
   const inactiveSource = input.inactiveSource ? { ...input.inactiveSource, root: input.root, manifestSha256, scopeDigest: input.scopeDigest } : undefined;
-  const binding = { companyId: input.owner.companyId, scopeDigest: input.scopeDigest, id: randomUUID() };
+  const binding = { spaceId: input.owner.spaceId, scopeDigest: input.scopeDigest, id: randomUUID() };
   const scratch = await mkdtemp(join(os.tmpdir(), "pc-harness-upload-"));
   const key = randomBytes(32);
   const publications: ActivityPublication[] = [];
@@ -235,7 +235,7 @@ async function persistNativeHarnessBackupOnce(input: PersistNativeHarnessBackupI
     const cipher = createCipheriv("aes-256-gcm", key, iv); cipher.setAAD(aad(binding));
     await pipeline(createReadStream(archive), cipher, createWriteStream(encrypted, { flags: "wx", mode: 0o600 }), { signal: input.signal });
     const ref: Reference = { schema: SCHEMA, ...binding, manifestSha256, ...(providerArtifacts ? { providerArtifacts } : {}),
-      objectKey: `${binding.companyId}/native-harness-backups/${binding.scopeDigest}/${binding.id}.pchn`,
+      objectKey: `${binding.spaceId}/native-harness-backups/${binding.scopeDigest}/${binding.id}.pchn`,
       ...await digest(encrypted, input.signal),
       material: createLocalEncryptedCipher("write").encrypt(JSON.stringify({ schema: SCHEMA, ...binding,
         key: key.toString("base64"), iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), plaintext })) };
@@ -244,10 +244,10 @@ async function persistNativeHarnessBackupOnce(input: PersistNativeHarnessBackupI
       await fence(tx, input.owner, inactiveSource, input.signal);
       await tx.insert(nativeHarnessBackups).values({ ...binding, issueId: input.owner.issueId, runId: input.owner.runId,
         manifestSha256, reference: ref });
-      if (providerArtifacts) await pinNativeProviderArtifactsForBackup(tx, { companyId: input.owner.companyId,
+      if (providerArtifacts) await pinNativeProviderArtifactsForBackup(tx, { spaceId: input.owner.spaceId,
         runId: input.owner.runId, backupId: binding.id, receipt: providerArtifacts });
     });
-    await input.storage.putFile({ companyId: ref.companyId, namespace: "native-harness-backups", objectKey: ref.objectKey,
+    await input.storage.putFile({ spaceId: ref.spaceId, namespace: "native-harness-backups", objectKey: ref.objectKey,
       originalFilename: null, contentType: "application/octet-stream", body: createReadStream(encrypted),
       // The file source lets a request-rate limit (503 SlowDown) or a dropped
       // connection resend the upload; a stream body can be sent only once.
@@ -255,7 +255,7 @@ async function persistNativeHarnessBackupOnce(input: PersistNativeHarnessBackupI
     await receive(input.storage, ref, undefined, input.signal);
     await input.db.transaction(async tx => {
       await fence(tx, input.owner, inactiveSource, input.signal);
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${ref.companyId}:${ref.scopeDigest}`}, 0))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${ref.spaceId}:${ref.scopeDigest}`}, 0))`);
       const [pending] = await tx.select({ status: nativeHarnessBackups.status }).from(nativeHarnessBackups)
         .where(eq(nativeHarnessBackups.id, ref.id)).for("update");
       if (pending?.status !== "pending") fail("publication_retired");
@@ -280,13 +280,13 @@ async function persistNativeHarnessBackupOnce(input: PersistNativeHarnessBackupI
       await tx.update(nativeHarnessBackups).set({ status: "current", updatedAt: new Date() })
         .where(and(eq(nativeHarnessBackups.id, ref.id), eq(nativeHarnessBackups.status, "pending")));
       if ("kind" in input.owner && input.owner.kind === "settled_native_harness_backup") {
-        await logActivity(tx as unknown as Db, { companyId: input.owner.companyId, actorType: "system", actorId: "native-harness-preservation",
+        await logActivity(tx as unknown as Db, { spaceId: input.owner.spaceId, actorType: "system", actorId: "native-harness-preservation",
           action: "native_harness_backup_preserved", entityType: "heartbeat_run", entityId: input.owner.runId,
           agentId: input.owner.agentId, runId: input.owner.runId,
           details: { scopeDigest: ref.scopeDigest, manifestSha256, backupId: ref.id, originalFilesRetained: true } }, publications);
       }
       if ("kind" in input.owner && input.owner.kind === "settled_controller_archive" && input.owner.filesystemIndependence) {
-        await logActivity(tx as unknown as Db, { companyId: input.owner.companyId, actorType: "system", actorId: "native-harness-preservation",
+        await logActivity(tx as unknown as Db, { spaceId: input.owner.spaceId, actorType: "system", actorId: "native-harness-preservation",
           action: "native_controller_source_evidence_preserved", entityType: "heartbeat_run", entityId: input.owner.runId,
           agentId: input.owner.agentId, runId: input.owner.runId, details: { scopeDigest: ref.scopeDigest, manifestSha256,
             backupId: ref.id, sourceCapabilityFingerprint: input.owner.filesystemIndependence.source.fingerprint } }, publications);
@@ -323,7 +323,7 @@ async function withDownloadProgressDeadline<T>(
   outer.unref?.();
   const signal = input.signal ? AbortSignal.any([input.signal, stall.signal]) : stall.signal;
   const base = input.storage;
-  const getObject: StorageService["getObject"] = async (companyId, objectKey, options) => {
+  const getObject: StorageService["getObject"] = async (spaceId, objectKey, options) => {
     let timer: NodeJS.Timeout | undefined;
     const disarm = () => { if (timer) clearTimeout(timer); timer = undefined; };
     const arm = () => {
@@ -334,7 +334,7 @@ async function withDownloadProgressDeadline<T>(
     arm();
     let object: Awaited<ReturnType<StorageService["getObject"]>>;
     try {
-      object = await base.getObject(companyId, objectKey, {
+      object = await base.getObject(spaceId, objectKey, {
         ...options, signal: options?.signal ? AbortSignal.any([options.signal, signal]) : signal });
     } catch (error) { disarm(); throw error; }
     arm();
@@ -365,21 +365,21 @@ async function withDownloadProgressDeadline<T>(
 }
 
 export async function restoreDurableNativeHarnessBackup(input: {
-  db: Db; storage: StorageService; companyId: string; scopeDigest: string;
+  db: Db; storage: StorageService; spaceId: string; scopeDigest: string;
   backupRoot: string; signal?: AbortSignal; downloadIdleTimeoutMs?: number; restoreMaxMs?: number;
 }): Promise<boolean> {
   return withDownloadProgressDeadline(input, (storage, signal) => restoreCurrentNativeHarnessBackup({ ...input, storage, signal }));
 }
 
 async function restoreCurrentNativeHarnessBackup(input: {
-  db: Db; storage: StorageService; companyId: string; scopeDigest: string;
+  db: Db; storage: StorageService; spaceId: string; scopeDigest: string;
   backupRoot: string; signal?: AbortSignal;
 }): Promise<boolean> {
   const [row] = await input.db.select().from(nativeHarnessBackups).where(and(scope(input), eq(nativeHarnessBackups.status, "current")));
   if (!row) return false;
   const ref = reference(row);
   const wrapped = JSON.parse(createLocalEncryptedCipher("read").decrypt(ref.material));
-  if (wrapped.schema !== SCHEMA || wrapped.id !== ref.id || wrapped.companyId !== ref.companyId
+  if (wrapped.schema !== SCHEMA || wrapped.id !== ref.id || wrapped.spaceId !== ref.spaceId
     || wrapped.scopeDigest !== ref.scopeDigest) fail("binding_mismatch");
   const current = join(input.backupRoot, "current");
   const localManifest = await readFile(join(current, "manifest.json")).catch((error: NodeJS.ErrnoException) => {
@@ -418,7 +418,7 @@ async function restoreCurrentNativeHarnessBackup(input: {
       await cp(restored, pending, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true, errorOnExist: true, force: false });
       // A deadline or Stop that fired during the local copy must not publish.
       input.signal?.throwIfAborted();
-      await publishNativeHarnessBackup({ db: input.db, companyId: input.companyId, scopeDigest: input.scopeDigest,
+      await publishNativeHarnessBackup({ db: input.db, spaceId: input.spaceId, scopeDigest: input.scopeDigest,
         backupRoot: input.backupRoot, pendingRoot: pending });
     } finally { await removeNativeHarnessBackup(pending); }
     return true;
@@ -426,7 +426,7 @@ async function restoreCurrentNativeHarnessBackup(input: {
 }
 
 export async function verifyDurableNativeHarnessBackup(input: {
-  db: Db; storage: StorageService; companyId: string; scopeDigest: string; manifestSha256: string; backupId?: string;
+  db: Db; storage: StorageService; spaceId: string; scopeDigest: string; manifestSha256: string; backupId?: string;
   signal?: AbortSignal; downloadIdleTimeoutMs?: number;
 }): Promise<boolean> {
   const [row] = await input.db.select().from(nativeHarnessBackups).where(and(scope(input),
@@ -442,9 +442,9 @@ export async function deleteRetiredNativeHarnessBackup(db: Db, storage: StorageS
     eq(nativeHarnessBackups.id, id), eq(nativeHarnessBackups.status, "retired")));
   if (!row) return false;
   const ref = reference(row);
-  if (ref.providerArtifacts) await releaseRetiredNativeProviderArtifacts({ db, storage, companyId: row.companyId,
+  if (ref.providerArtifacts) await releaseRetiredNativeProviderArtifacts({ db, storage, spaceId: row.spaceId,
     runId: row.runId, backupId: row.id, receipt: ref.providerArtifacts, signal });
-  await storage.deleteObject(ref.companyId, ref.objectKey, { allVersions: true, signal });
+  await storage.deleteObject(ref.spaceId, ref.objectKey, { allVersions: true, signal });
   await db.delete(nativeHarnessBackups).where(and(eq(nativeHarnessBackups.id, id), eq(nativeHarnessBackups.status, "retired")));
   return true;
 }

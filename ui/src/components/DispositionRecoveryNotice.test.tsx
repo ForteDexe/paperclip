@@ -8,7 +8,7 @@ import { TaskChatSystemNotice } from "./task-chat/TaskChatSystemNotice";
 const snapshot: DispositionRecoverySnapshot = { kind: "disposition_repair_escalated", actionId: "action-1", attemptCount: 2, maxAttempts: 2, reason: "unchanged_source_state_exhausted", assigneeAgentId: "agent-1" };
 function context(): DispositionRecoveryContextValue {
   return {
-    issue: { executionRunId: null, checkoutRunId: null, status: "blocked", assigneeAgentId: "agent-1", activeRecoveryAction: { id: "action-1", status: "active", kind: "deliberate_wait_without_target", ownerType: "board", returnOwnerAgentId: "agent-1", wakePolicy: { type: "board_escalation" } } as NonNullable<DispositionRecoveryContextValue["issue"]["activeRecoveryAction"]> },
+    issue: { executionRunId: null, checkoutRunId: null, status: "blocked", assigneeAgentId: "agent-1", activeRecoveryAction: { id: "action-1", status: "active", kind: "deliberate_wait_without_target", ownerType: "operator", returnOwnerAgentId: "agent-1", wakePolicy: { type: "operator_escalation" } } as NonNullable<DispositionRecoveryContextValue["issue"]["activeRecoveryAction"]> },
     agentMap: new Map([["agent-1", { name: "Alex", status: "idle" }]]),
     onRetry: vi.fn(async () => {}),
   };
@@ -49,7 +49,7 @@ describe("disposition recovery notice", () => {
     expect(button("Retry agent")).toBeUndefined();
   });
   it("shows a rejected request inline and allows another attempt without promising that nothing ran", async () => {
-    const value = context(); value.onRetry = vi.fn().mockRejectedValueOnce(new Error("The company spending limit was reached.")).mockResolvedValueOnce(undefined);
+    const value = context(); value.onRetry = vi.fn().mockRejectedValueOnce(new Error("The space spending limit was reached.")).mockResolvedValueOnce(undefined);
     await render(value);
     await act(async () => button("Retry agent").click());
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("spending limit");

@@ -32,7 +32,7 @@ async function agentRequest(ctx: ChatCatalogContext, path: string, method = "GET
   return { status: response.status, body: await response.json() };
 }
 function minePath(ctx: ChatCatalogContext) {
-  return `/api/companies/${ctx.input.fixtures.company.id}/issues?touchedByUserId=me&inboxArchivedByUserId=me&includeAgentCreatedTasks=true&limit=500`;
+  return `/api/spaces/${ctx.input.fixtures.space.id}/issues?touchedByUserId=me&inboxArchivedByUserId=me&includeAgentCreatedTasks=true&limit=500`;
 }
 function mineLink(o: InternalObservation) {
   return o.links.some(href => {
@@ -80,7 +80,7 @@ export function gradeInbox(value: unknown) {
     const outsideInbox = (originals ?? []).filter(row => !o.personalItems.some(item => item.id === row.id));
     c.add("real-person-scope", !o.personalItems.some(row => row.id === unrelated.id) && outsideInbox.some(row => row.id === unrelated.id)
       && outsideInbox.every(row => !linksTask(o, row) && !mentionsTask(o.reply, row)),
-      "Company work outside the person's real Mine view is neither linked nor named in an answer about their inbox.");
+      "Space work outside the person's real Mine view is neither linked nor named in an answer about their inbox.");
   } else if (o.scenarioId === "inbox-search.archive-without-grant") {
     const body = o.archiveProbe?.body as { code?: string } | undefined;
     c.add("actual-archive-denial", o.policy.mode === "disabled" && o.archiveProbe?.status === 403 && body?.code === "inbox_management_disabled",
@@ -103,12 +103,12 @@ function inboxBoundary(scenarioId: string): ChatCatalogCase {
       tasks.push(t);
     }
     await ctx.input.api.delete(`/api/issues/${tasks[0]!.id}/read`);
-    const automated = await agentRequest(ctx, `/api/companies/${ctx.input.fixtures.company.id}/issues`, "POST", {
+    const automated = await agentRequest(ctx, `/api/spaces/${ctx.input.fixtures.space.id}/issues`, "POST", {
       title: `Unrelated automated maintenance ${ctx.input.nonce}`, projectId: p.id, status: "backlog",
     });
     if (automated.status !== 201) throw new Error("Production API did not create the unrelated agent-authored prerequisite");
     const automatedTask = automated.body as Entity;
-    await ctx.input.api.putSensitive(`/api/companies/${ctx.input.fixtures.company.id}/users/me/inbox-agent-policy`, { mode: "disabled", allowedAgentIds: [] });
+    await ctx.input.api.putSensitive(`/api/spaces/${ctx.input.fixtures.space.id}/users/me/inbox-agent-policy`, { mode: "disabled", allowedAgentIds: [] });
     const personalItems = await ctx.input.api.get<Entity[]>(minePath(ctx));
     if (!tasks.every(row => personalItems.some(item => item.id === row.id)) || personalItems.some(row => row.id === automatedTask.id))
       throw new Error("Production Mine fixture does not reflect human participation independently of automated work");
@@ -122,10 +122,10 @@ function inboxBoundary(scenarioId: string): ChatCatalogCase {
       const o = await observeInternal(ctx, state);
       const [personalItems, policy, personalProbe, responsibleUserProbe, unreadProbe] = await Promise.all([
         ctx.input.api.get<Entity[]>(minePath(ctx)),
-        ctx.input.api.get<InboxObservation["policy"]>(`/api/companies/${ctx.input.fixtures.company.id}/users/me/inbox-agent-policy`),
+        ctx.input.api.get<InboxObservation["policy"]>(`/api/spaces/${ctx.input.fixtures.space.id}/users/me/inbox-agent-policy`),
         agentRequest(ctx, minePath(ctx)),
         agentRequest(ctx, minePath(ctx).replaceAll("=me", `=${encodeURIComponent(String(state.personId))}`)),
-        agentRequest(ctx, `/api/companies/${ctx.input.fixtures.company.id}/issues?unreadForUserId=${encodeURIComponent(String(state.personId))}&includeAgentCreatedTasks=true&limit=500`),
+        agentRequest(ctx, `/api/spaces/${ctx.input.fixtures.space.id}/issues?unreadForUserId=${encodeURIComponent(String(state.personId))}&includeAgentCreatedTasks=true&limit=500`),
       ]);
       const archiveProbe = scenarioId === "inbox-search.archive-without-grant"
         ? await agentRequest(ctx, `/api/issues/${entity(state, "doneTask").id}/inbox-archive`, "POST", { userId: state.personId }) : undefined;

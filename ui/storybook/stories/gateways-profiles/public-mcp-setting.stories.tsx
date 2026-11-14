@@ -5,8 +5,8 @@ import { installPublicMcpFixture } from "../../fixtures/publicMcp";
 const meta = {
   id: "assistant-connections-experimental-setting",
   title: "Apps, channels, and extensions/Tool gateways and access profiles/Assistant connections/Experimental setting", component: InstanceExperimentalSettings,
-  parameters: { layout: "padded", initialEntries: ["/PAP/company/settings/instance/experimental"], docs: { description: { component: "The production Experimental page, including surrounding settings. Changes are local to this story." } },
-    paperclip: {
+  parameters: { layout: "padded", initialEntries: ["/PAP/space/settings/instance/experimental"], docs: { description: { component: "The production Experimental page, including surrounding settings. Changes are local to this story." } },
+    outpost: {
       "capabilities": [
         "gateways-profiles/client-connect",
         "instance-operations/configuration"

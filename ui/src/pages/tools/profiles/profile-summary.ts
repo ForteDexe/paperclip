@@ -33,7 +33,7 @@ export interface AssignedLabel {
 
 /** "Outpost default" / "2 agents" / "Not assigned yet". */
 export function assignedLabel(summary: ToolProfileSummary): AssignedLabel {
-  if (summary.isCompanyDefault) return { text: "Outpost default", unassigned: false };
+  if (summary.isSpaceDefault) return { text: "Outpost default", unassigned: false };
   if (summary.appliesToAgentCount > 0) {
     return { text: plural(summary.appliesToAgentCount, "agent"), unassigned: false };
   }

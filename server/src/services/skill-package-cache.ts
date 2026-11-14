@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { and, eq, inArray } from "drizzle-orm";
-import { companySkillRepositorySnapshots as snapshots, type Db } from "@outpost/db";
+import { spaceSkillRepositorySnapshots as snapshots, type Db } from "@outpost/db";
 import { ensureSkillCacheDirectory } from "./skill-version-cache.js";
 
 const MAX_BYTES = 512 * 1024 * 1024;
@@ -12,9 +12,9 @@ export function touchSkillPackage(directory: string) {
   used.set(directory, Date.now());
 }
 
-/** Called only after a cold fill, under the company cache lock. Never on a warm
+/** Called only after a cold fill, under the space cache lock. Never on a warm
  * check. Version projections and run pins have their own existing retention. */
-export async function trimSkillPackageCache(db: Db, companyId: string, directory: string,
+export async function trimSkillPackageCache(db: Db, spaceId: string, directory: string,
   verifyDurable: (id: string, signal: AbortSignal) => Promise<boolean>,
   removeVerified: (action: () => Promise<void>) => Promise<void> = action => action(), cancellation?: AbortSignal) {
   cancellation?.throwIfAborted();
@@ -35,7 +35,7 @@ export async function trimSkillPackageCache(db: Db, companyId: string, directory
   const names = contents.filter(entry => entry.isDirectory() && /^[a-f0-9-]{36}$/i.test(entry.name)).map(entry => entry.name);
   if (!names.length) return;
   const rows = await db.select({ id: snapshots.id, storage: snapshots.storage }).from(snapshots)
-    .where(and(eq(snapshots.companyId, companyId), inArray(snapshots.id, names)));
+    .where(and(eq(snapshots.spaceId, spaceId), inArray(snapshots.id, names)));
   const byId = new Map(rows.map(row => [row.id, row.storage]));
   const candidates = await Promise.all(names.map(async id => {
     const location = path.join(parent, id);

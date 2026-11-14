@@ -12,7 +12,7 @@ import { kimiMetadataProbeNodeDigest, probeKimiMetadata, validateKimiMetadata } 
 const model = "selected-model";
 const apiKey = "selected-secret-canary";
 const target = `${process.platform}-${process.arch}` as keyof typeof KIMI_DISTRIBUTION_CLOSURE_SHA256;
-const admissionSource = () => ({ schema: "outpost.acpx-candidate-admission.v1", companyId: "metadata-company", agent: "kimi", model,
+const admissionSource = () => ({ schema: "outpost.acpx-candidate-admission.v1", spaceId: "metadata-space", agent: "kimi", model,
   profileDigest: QUALIFIED_ACPX_PROFILES.kimi.commandDigest,
   nativeClosureDigest: `sha256:${KIMI_DISTRIBUTION_CLOSURE_SHA256[target]}`,
   platform: process.platform, architecture: process.arch, expiresAt: Date.now() + 60_000 } as AcpxCandidateAdmission);

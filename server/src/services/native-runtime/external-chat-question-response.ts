@@ -32,9 +32,9 @@ import { EXTERNAL_CHAT_ANSWER_ADMISSION_KEYS, resolveQuestionResponseRetryAdmiss
 import { INTERACTION_CONTINUATION_INFRA_RETRY_REASON } from "../../modules/run-dispatch/index.js";
 
 export const EXTERNAL_CHAT_QUESTION_RESPONSE_KEY =
-  "paperclipExternalChatQuestionResponse";
+  "outpostExternalChatQuestionResponse";
 type Binding = {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   agentId: string;
@@ -178,7 +178,7 @@ function completedQuestionFormMatchesInteraction(
 }
 
 /**
- * Resolve a durable provider answer or an authenticated Board fallback,
+ * Resolve a durable provider answer or an authenticated Operator fallback,
  * never a caller-supplied wake marker. This
  * is routing/reading authority only: it never checks out a task or resolves a
  * review. Callers retain their issue/run/actor and current destination checks.
@@ -242,7 +242,7 @@ async function resolveQuestionResponseChain(
     .where(
       and(
         eq(heartbeatRuns.id, binding.runId),
-        eq(heartbeatRuns.companyId, binding.companyId),
+        eq(heartbeatRuns.spaceId, binding.spaceId),
         eq(heartbeatRuns.agentId, binding.agentId),
       ),
     );
@@ -278,8 +278,8 @@ async function resolveQuestionResponseChain(
           issueThreadInteractions.id,
         ),
         eq(
-          issueQuestionResponseDeliveries.companyId,
-          issueThreadInteractions.companyId,
+          issueQuestionResponseDeliveries.spaceId,
+          issueThreadInteractions.spaceId,
         ),
         eq(
           issueQuestionResponseDeliveries.issueId,
@@ -295,14 +295,14 @@ async function resolveQuestionResponseChain(
       heartbeatRuns,
       and(
         eq(heartbeatRuns.id, issueThreadInteractions.sourceRunId),
-        eq(heartbeatRuns.companyId, issueThreadInteractions.companyId),
+        eq(heartbeatRuns.spaceId, issueThreadInteractions.spaceId),
       ),
     )
     .innerJoin(
       agentWakeupRequests,
       and(
         eq(agentWakeupRequests.id, admission.wakeupRequestId),
-        eq(agentWakeupRequests.companyId, issueThreadInteractions.companyId),
+        eq(agentWakeupRequests.spaceId, issueThreadInteractions.spaceId),
         eq(agentWakeupRequests.agentId, binding.agentId),
         eq(agentWakeupRequests.runId, admission.id),
       ),
@@ -310,7 +310,7 @@ async function resolveQuestionResponseChain(
     .where(
       and(
         eq(issueThreadInteractions.id, context.interactionId),
-        eq(issueThreadInteractions.companyId, binding.companyId),
+        eq(issueThreadInteractions.spaceId, binding.spaceId),
         eq(issueThreadInteractions.issueId, binding.issueId),
         eq(issueThreadInteractions.sourceRunId, context.sourceRunId),
       ),
@@ -331,7 +331,7 @@ async function resolveQuestionResponseChain(
   chain.interactionIds.add(interaction.id);
   chain.deliveryIds.add(delivery.id);
   const sourceContext = record(source.contextSnapshot);
-  const sourceWake = record(sourceContext.paperclipWake);
+  const sourceWake = record(sourceContext.outpostWake);
   // A follow-up question inherits no authority from its marker alone. Rebuild
   // every parent proof from current durable state until the direct-chat root.
   const parent =
@@ -339,7 +339,7 @@ async function resolveQuestionResponseChain(
       ? await resolveQuestionResponseChain(
           tx,
           {
-            companyId: binding.companyId,
+            spaceId: binding.spaceId,
             agentId: binding.agentId,
             issueId: binding.issueId,
             runId: source.id,
@@ -383,9 +383,9 @@ async function resolveQuestionResponseChain(
       )) ||
     sourceWake.externalChatProvider !== provider ||
     !(
-      (sourceContext.paperclipHarnessCheckedOut === true &&
+      (sourceContext.outpostHarnessCheckedOut === true &&
         sourceWake.checkedOutByHarness === true) ||
-      (sourceContext.paperclipExternalChatExecutionBound === true &&
+      (sourceContext.outpostExternalChatExecutionBound === true &&
         sourceWake.externalChatExecutionBound === true)
     ) ||
     sourceIds.length !== 1 ||
@@ -441,13 +441,13 @@ async function resolveQuestionResponseChain(
     const proofs = await tx.select({ receipt: chatVoiceToolCalls, session: chatVoiceSessions,
       reply: chatVoiceReplies, publication: chatPublications, endpoint: chatEndpoints, connection: toolConnections,
       conversation: chatConversations }).from(chatVoiceToolCalls)
-      .innerJoin(chatVoiceSessions, and(eq(chatVoiceSessions.id, chatVoiceToolCalls.sessionId), eq(chatVoiceSessions.companyId, binding.companyId)))
-      .innerJoin(chatVoiceReplies, and(eq(chatVoiceReplies.sessionId, chatVoiceSessions.id), eq(chatVoiceReplies.companyId, binding.companyId)))
-      .innerJoin(chatPublications, and(eq(chatPublications.id, chatVoiceReplies.publicationId), eq(chatPublications.companyId, binding.companyId)))
-      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.companyId, binding.companyId)))
-      .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, binding.companyId)))
-      .innerJoin(chatConversations, and(eq(chatConversations.id, chatVoiceSessions.conversationId), eq(chatConversations.companyId, binding.companyId)))
-      .where(and(eq(chatVoiceToolCalls.companyId, binding.companyId), eq(chatVoiceToolCalls.tool, "answer_question"),
+      .innerJoin(chatVoiceSessions, and(eq(chatVoiceSessions.id, chatVoiceToolCalls.sessionId), eq(chatVoiceSessions.spaceId, binding.spaceId)))
+      .innerJoin(chatVoiceReplies, and(eq(chatVoiceReplies.sessionId, chatVoiceSessions.id), eq(chatVoiceReplies.spaceId, binding.spaceId)))
+      .innerJoin(chatPublications, and(eq(chatPublications.id, chatVoiceReplies.publicationId), eq(chatPublications.spaceId, binding.spaceId)))
+      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.spaceId, binding.spaceId)))
+      .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, binding.spaceId)))
+      .innerJoin(chatConversations, and(eq(chatConversations.id, chatVoiceSessions.conversationId), eq(chatConversations.spaceId, binding.spaceId)))
+      .where(and(eq(chatVoiceToolCalls.spaceId, binding.spaceId), eq(chatVoiceToolCalls.tool, "answer_question"),
         sql`${chatVoiceToolCalls.response}->>'interactionId' = ${interaction.id}`,
         sql`${chatPublications.payload}->>'interactionId' = ${interaction.id}`,
         eq(chatVoiceSessions.issueId, binding.issueId),
@@ -461,14 +461,14 @@ async function resolveQuestionResponseChain(
       const origins = await tx.select({ session: chatVoiceSessions, endpoint: chatEndpoints,
         connection: toolConnections, conversation: chatConversations, comment: issueComments,
         inbound: chatDeliveries, link: chatMessageLinks }).from(chatMessageLinks)
-        .innerJoin(issueComments, and(eq(issueComments.id, chatMessageLinks.commentId), eq(issueComments.companyId, binding.companyId), eq(issueComments.issueId, binding.issueId)))
-        .innerJoin(chatDeliveries, and(eq(chatDeliveries.id, chatMessageLinks.deliveryId), eq(chatDeliveries.companyId, binding.companyId), eq(chatDeliveries.endpointId, chatMessageLinks.endpointId), eq(chatDeliveries.conversationId, chatMessageLinks.conversationId)))
-        .innerJoin(chatExternalPrincipals, and(eq(chatExternalPrincipals.id, chatDeliveries.principalId), eq(chatExternalPrincipals.companyId, binding.companyId), eq(chatExternalPrincipals.provider, "speko")))
-        .innerJoin(chatVoiceSessions, and(sql`${chatExternalPrincipals.externalId} = 'voice:' || ${chatVoiceSessions.id}::text`, eq(chatVoiceSessions.companyId, binding.companyId), eq(chatVoiceSessions.endpointId, chatMessageLinks.endpointId), eq(chatVoiceSessions.conversationId, chatMessageLinks.conversationId), eq(chatVoiceSessions.issueId, binding.issueId)))
-        .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.companyId, binding.companyId)))
-        .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, binding.companyId)))
-        .innerJoin(chatConversations, and(eq(chatConversations.id, chatVoiceSessions.conversationId), eq(chatConversations.companyId, binding.companyId), eq(chatConversations.endpointId, chatEndpoints.id)))
-        .where(and(eq(chatMessageLinks.companyId, binding.companyId), eq(chatMessageLinks.commentId, context.sourceCommentId), eq(chatMessageLinks.direction, "inbound")));
+        .innerJoin(issueComments, and(eq(issueComments.id, chatMessageLinks.commentId), eq(issueComments.spaceId, binding.spaceId), eq(issueComments.issueId, binding.issueId)))
+        .innerJoin(chatDeliveries, and(eq(chatDeliveries.id, chatMessageLinks.deliveryId), eq(chatDeliveries.spaceId, binding.spaceId), eq(chatDeliveries.endpointId, chatMessageLinks.endpointId), eq(chatDeliveries.conversationId, chatMessageLinks.conversationId)))
+        .innerJoin(chatExternalPrincipals, and(eq(chatExternalPrincipals.id, chatDeliveries.principalId), eq(chatExternalPrincipals.spaceId, binding.spaceId), eq(chatExternalPrincipals.provider, "speko")))
+        .innerJoin(chatVoiceSessions, and(sql`${chatExternalPrincipals.externalId} = 'voice:' || ${chatVoiceSessions.id}::text`, eq(chatVoiceSessions.spaceId, binding.spaceId), eq(chatVoiceSessions.endpointId, chatMessageLinks.endpointId), eq(chatVoiceSessions.conversationId, chatMessageLinks.conversationId), eq(chatVoiceSessions.issueId, binding.issueId)))
+        .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.spaceId, binding.spaceId)))
+        .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, binding.spaceId)))
+        .innerJoin(chatConversations, and(eq(chatConversations.id, chatVoiceSessions.conversationId), eq(chatConversations.spaceId, binding.spaceId), eq(chatConversations.endpointId, chatEndpoints.id)))
+        .where(and(eq(chatMessageLinks.spaceId, binding.spaceId), eq(chatMessageLinks.commentId, context.sourceCommentId), eq(chatMessageLinks.direction, "inbound")));
       if (origins.length !== 1) return null;
       const { session, endpoint, connection, conversation, comment, inbound, link } = origins[0]!;
       if (comment.deletedAt || inbound.state !== "processed" || comment.authorUserId !== interaction.resolvedByUserId
@@ -477,12 +477,12 @@ async function resolveQuestionResponseChain(
         || endpoint.provider !== "speko" || !["active", "verifying"].includes(endpoint.status)
         || !connection.enabled || connection.status !== "active" || connection.transport !== "voice"
         || session.generation !== record(endpoint.setup).runtimeGeneration
-        || session.credentialFingerprint !== await currentVoiceCredentialFingerprint(tx, binding.companyId, connection.credentialSecretRefs)
+        || session.credentialFingerprint !== await currentVoiceCredentialFingerprint(tx, binding.spaceId, connection.credentialSecretRefs)
         || !["active", "waiting"].includes(conversation.state) || conversation.issueId !== binding.issueId
         || (parent && (parent.marker.endpointId !== endpoint.id || parent.marker.conversationId !== conversation.id))) return null;
       try {
         const store = voiceSessionStore(tx, { allowLocalBoard: session.callerAuthority === "local_board" });
-        await store.authorizePrincipal(tx as unknown as VoiceTransaction, binding.companyId, endpoint.id, `voice:${session.id}`);
+        await store.authorizePrincipal(tx as unknown as VoiceTransaction, binding.spaceId, endpoint.id, `voice:${session.id}`);
       } catch (error) {
         if (error && typeof error === "object" && "code" in error && error.code === "55P03") throw error;
         return null;
@@ -491,19 +491,19 @@ async function resolveQuestionResponseChain(
         schema: "outpost.external_chat_question_response.v1", interactionId: interaction.id,
         responseDeliveryId: delivery.id, sourceRunId: source.id, sourceCommentId: context.sourceCommentId,
         endpointId: endpoint.id, conversationId: conversation.id,
-        bindingSha256: nativeSha256({ binding: {companyId: binding.companyId, issueId: binding.issueId, runId: binding.runId, agentId: binding.agentId}, responseDeliveryId: delivery.id, payloadSha256: delivery.payloadSha256,
+        bindingSha256: nativeSha256({ binding: {spaceId: binding.spaceId, issueId: binding.issueId, runId: binding.runId, agentId: binding.agentId}, responseDeliveryId: delivery.id, payloadSha256: delivery.payloadSha256,
           sourceRunId: source.id, sourceCommentId: context.sourceCommentId, sourceOrigin: sourceContext.source,
           ...(parent ? { sourceQuestionResponseSha256: parent.marker.bindingSha256 } : {}),
           interaction: { id: interaction.id, payload: interaction.payload, result: interaction.result,
             resolvedAt: interaction.resolvedAt.toISOString(), resolvedByUserId: interaction.resolvedByUserId },
-          boardResponse: { sessionId: session.id, callerId: session.callerId, generation: session.generation,
+          operatorResponse: { sessionId: session.id, callerId: session.callerId, generation: session.generation,
             credentialFingerprint: session.credentialFingerprint, inboundId: inbound.id, linkId: link.id },
           conversationGeneration: conversation.sessionGeneration, wakeId: wake.id }),
       };
       if (!mint && nativeSha256(record(context[EXTERNAL_CHAT_QUESTION_RESPONSE_KEY])) !== nativeSha256(marker)) return null;
       return { marker, provider, answeredAtMs: interaction.resolvedAt.getTime(),
         interactionIds: [...(parent?.interactionIds ?? []), interaction.id],
-        authorizationContext: { ...context, source: "chat:speko", paperclipHarnessCheckedOut: false, paperclipExternalChatExecutionBound: true } };
+        authorizationContext: { ...context, source: "chat:speko", outpostHarnessCheckedOut: false, outpostExternalChatExecutionBound: true } };
     }
     if (proofs.length !== 1) return null;
     const proof = proofs[0]!;
@@ -511,10 +511,10 @@ async function resolveQuestionResponseChain(
     const [original] = await tx.select({ comment: issueComments, inbound: chatDeliveries, link: chatMessageLinks })
       .from(chatMessageLinks).innerJoin(issueComments, eq(issueComments.id, chatMessageLinks.commentId))
       .innerJoin(chatDeliveries, eq(chatDeliveries.id, chatMessageLinks.deliveryId))
-      .where(and(eq(chatMessageLinks.companyId, binding.companyId), eq(chatMessageLinks.endpointId, endpoint.id),
+      .where(and(eq(chatMessageLinks.spaceId, binding.spaceId), eq(chatMessageLinks.endpointId, endpoint.id),
         eq(chatMessageLinks.conversationId, conversation.id), eq(chatMessageLinks.direction, "inbound"),
-        eq(chatMessageLinks.commentId, context.sourceCommentId), eq(issueComments.companyId, binding.companyId),
-        eq(issueComments.issueId, binding.issueId), eq(chatDeliveries.companyId, binding.companyId)));
+        eq(chatMessageLinks.commentId, context.sourceCommentId), eq(issueComments.spaceId, binding.spaceId),
+        eq(issueComments.issueId, binding.issueId), eq(chatDeliveries.spaceId, binding.spaceId)));
     if (!original || original.comment.deletedAt || original.inbound.state !== "processed"
       || original.comment.authorUserId !== interaction.resolvedByUserId
       || session.callerId !== interaction.resolvedByUserId || !["member", "instance_admin", "local_board"].includes(session.callerAuthority)
@@ -522,7 +522,7 @@ async function resolveQuestionResponseChain(
       || endpoint.provider !== "speko" || !["active", "verifying"].includes(endpoint.status)
       || !connection.enabled || connection.status !== "active" || connection.transport !== "voice"
       || session.generation !== record(endpoint.setup).runtimeGeneration
-      || session.credentialFingerprint !== await currentVoiceCredentialFingerprint(tx, binding.companyId, connection.credentialSecretRefs)
+      || session.credentialFingerprint !== await currentVoiceCredentialFingerprint(tx, binding.spaceId, connection.credentialSecretRefs)
       || !["active", "waiting"].includes(conversation.state) || conversation.issueId !== binding.issueId
       || publication.conversationId !== conversation.id || publication.endpointId !== endpoint.id || publication.issueId !== binding.issueId
       || publication.state !== "published" || !publication.providerMessageId || !reply.deliveredAt
@@ -533,7 +533,7 @@ async function resolveQuestionResponseChain(
       schema: "outpost.external_chat_question_response.v1", interactionId: interaction.id,
       responseDeliveryId: delivery.id, sourceRunId: source.id, sourceCommentId: context.sourceCommentId,
       endpointId: endpoint.id, conversationId: conversation.id,
-      bindingSha256: nativeSha256({ binding: { companyId: binding.companyId, issueId: binding.issueId, runId: binding.runId, agentId: binding.agentId }, responseDeliveryId: delivery.id, payloadSha256: delivery.payloadSha256,
+      bindingSha256: nativeSha256({ binding: { spaceId: binding.spaceId, issueId: binding.issueId, runId: binding.runId, agentId: binding.agentId }, responseDeliveryId: delivery.id, payloadSha256: delivery.payloadSha256,
         sourceRunId: source.id, sourceCommentId: context.sourceCommentId, sourceOrigin: sourceContext.source,
         ...(parent ? { sourceQuestionResponseSha256: parent.marker.bindingSha256 } : {}),
         interaction: { id: interaction.id, payload: interaction.payload, result: interaction.result,
@@ -546,7 +546,7 @@ async function resolveQuestionResponseChain(
     if (!mint && nativeSha256(record(context[EXTERNAL_CHAT_QUESTION_RESPONSE_KEY])) !== nativeSha256(marker)) return null;
     return { marker, provider, answeredAtMs: interaction.resolvedAt.getTime(),
       interactionIds: [...(parent?.interactionIds ?? []), interaction.id],
-      authorizationContext: { ...context, source: "chat:speko", paperclipHarnessCheckedOut: false, paperclipExternalChatExecutionBound: true } };
+      authorizationContext: { ...context, source: "chat:speko", outpostHarnessCheckedOut: false, outpostExternalChatExecutionBound: true } };
   }
 
   const actionQuery = tx
@@ -565,7 +565,7 @@ async function resolveQuestionResponseChain(
       chatPublications,
       and(
         sql`${chatActions.payload}->>'publicationId' = ${chatPublications.id}::text`,
-        eq(chatPublications.companyId, chatActions.companyId),
+        eq(chatPublications.spaceId, chatActions.spaceId),
         eq(chatPublications.endpointId, chatActions.endpointId),
         eq(chatPublications.conversationId, chatActions.conversationId),
       ),
@@ -573,7 +573,7 @@ async function resolveQuestionResponseChain(
     .innerJoin(
       chatMessageLinks,
       and(
-        eq(chatMessageLinks.companyId, chatActions.companyId),
+        eq(chatMessageLinks.spaceId, chatActions.spaceId),
         eq(chatMessageLinks.endpointId, chatActions.endpointId),
         eq(chatMessageLinks.conversationId, chatActions.conversationId),
         eq(chatMessageLinks.commentId, context.sourceCommentId),
@@ -584,7 +584,7 @@ async function resolveQuestionResponseChain(
       chatDeliveries,
       and(
         eq(chatDeliveries.id, chatMessageLinks.deliveryId),
-        eq(chatDeliveries.companyId, chatActions.companyId),
+        eq(chatDeliveries.spaceId, chatActions.spaceId),
         eq(chatDeliveries.endpointId, chatActions.endpointId),
         eq(chatDeliveries.conversationId, chatActions.conversationId),
         or(eq(chatActions.kind, "photon_interaction"), eq(chatDeliveries.principalId, chatActions.principalId)),
@@ -594,7 +594,7 @@ async function resolveQuestionResponseChain(
       issueComments,
       and(
         eq(issueComments.id, chatMessageLinks.commentId),
-        eq(issueComments.companyId, chatActions.companyId),
+        eq(issueComments.spaceId, chatActions.spaceId),
         eq(issueComments.issueId, binding.issueId),
       ),
     )
@@ -602,7 +602,7 @@ async function resolveQuestionResponseChain(
       chatConversations,
       and(
         eq(chatConversations.id, chatActions.conversationId),
-        eq(chatConversations.companyId, chatActions.companyId),
+        eq(chatConversations.spaceId, chatActions.spaceId),
         eq(chatConversations.endpointId, chatActions.endpointId),
       ),
     )
@@ -610,20 +610,20 @@ async function resolveQuestionResponseChain(
       chatEndpoints,
       and(
         eq(chatEndpoints.id, chatActions.endpointId),
-        eq(chatEndpoints.companyId, chatActions.companyId),
+        eq(chatEndpoints.spaceId, chatActions.spaceId),
       ),
     )
     .innerJoin(
       chatIdentityLinks,
       and(
-        eq(chatIdentityLinks.companyId, chatActions.companyId),
+        eq(chatIdentityLinks.spaceId, chatActions.spaceId),
         eq(chatIdentityLinks.endpointId, chatActions.endpointId),
         eq(chatIdentityLinks.principalId, chatActions.principalId),
       ),
     )
     .where(
       and(
-        eq(chatActions.companyId, binding.companyId),
+        eq(chatActions.spaceId, binding.spaceId),
         inArray(chatActions.kind, ["question_answer", "question_form_submit", "photon_interaction"]),
         eq(chatActions.status, "processed"),
         sql`${chatActions.payload}->>'interactionId' = ${interaction.id}`,
@@ -631,10 +631,10 @@ async function resolveQuestionResponseChain(
       ),
     );
   // GitHub and Slack forms without native controls use the ordinary
-  // authenticated Board answer route, whose pending→answered CAS
+  // authenticated Operator answer route, whose pending→answered CAS
   // creates the response delivery above atomically. Do not fabricate a provider
   // action: bind that distinct receipt to the original linked person instead.
-  const boardQuery = tx
+  const operatorQuery = tx
     .select({
       action: sql<null>`null`,
       publication: chatPublications,
@@ -649,7 +649,7 @@ async function resolveQuestionResponseChain(
     .innerJoin(
       chatMessageLinks,
       and(
-        eq(chatMessageLinks.companyId, chatPublications.companyId),
+        eq(chatMessageLinks.spaceId, chatPublications.spaceId),
         eq(chatMessageLinks.endpointId, chatPublications.endpointId),
         eq(chatMessageLinks.conversationId, chatPublications.conversationId),
         eq(chatMessageLinks.commentId, context.sourceCommentId),
@@ -660,7 +660,7 @@ async function resolveQuestionResponseChain(
       chatDeliveries,
       and(
         eq(chatDeliveries.id, chatMessageLinks.deliveryId),
-        eq(chatDeliveries.companyId, chatMessageLinks.companyId),
+        eq(chatDeliveries.spaceId, chatMessageLinks.spaceId),
         eq(chatDeliveries.endpointId, chatMessageLinks.endpointId),
         eq(chatDeliveries.conversationId, chatMessageLinks.conversationId),
       ),
@@ -669,7 +669,7 @@ async function resolveQuestionResponseChain(
       issueComments,
       and(
         eq(issueComments.id, chatMessageLinks.commentId),
-        eq(issueComments.companyId, chatMessageLinks.companyId),
+        eq(issueComments.spaceId, chatMessageLinks.spaceId),
         eq(issueComments.issueId, binding.issueId),
       ),
     )
@@ -677,7 +677,7 @@ async function resolveQuestionResponseChain(
       chatConversations,
       and(
         eq(chatConversations.id, chatPublications.conversationId),
-        eq(chatConversations.companyId, chatPublications.companyId),
+        eq(chatConversations.spaceId, chatPublications.spaceId),
         eq(chatConversations.endpointId, chatPublications.endpointId),
       ),
     )
@@ -685,21 +685,21 @@ async function resolveQuestionResponseChain(
       chatEndpoints,
       and(
         eq(chatEndpoints.id, chatPublications.endpointId),
-        eq(chatEndpoints.companyId, chatPublications.companyId),
+        eq(chatEndpoints.spaceId, chatPublications.spaceId),
         eq(chatEndpoints.provider, provider),
       ),
     )
     .innerJoin(
       chatIdentityLinks,
       and(
-        eq(chatIdentityLinks.companyId, chatDeliveries.companyId),
+        eq(chatIdentityLinks.spaceId, chatDeliveries.spaceId),
         eq(chatIdentityLinks.endpointId, chatDeliveries.endpointId),
         eq(chatIdentityLinks.principalId, chatDeliveries.principalId),
       ),
     )
     .where(
       and(
-        eq(chatPublications.companyId, binding.companyId),
+        eq(chatPublications.spaceId, binding.spaceId),
         eq(chatPublications.issueId, binding.issueId),
         sql`${chatPublications.idempotencyKey} = 'interaction:' || ${interaction.id} || ':' || ${chatEndpoints.id}::text`,
         notExists(
@@ -708,7 +708,7 @@ async function resolveQuestionResponseChain(
             .from(chatActions)
             .where(
               and(
-                eq(chatActions.companyId, binding.companyId),
+                eq(chatActions.spaceId, binding.spaceId),
                 sql`${chatActions.payload}->>'interactionId' = ${interaction.id}`,
                 inArray(chatActions.kind, [
                   "question_answer",
@@ -719,12 +719,12 @@ async function resolveQuestionResponseChain(
         ),
       ),
     );
-  // Slack native actions remain authoritative when present. The Board query
+  // Slack native actions remain authoritative when present. The Operator query
   // excludes every native answer token, including unfinished ones; its result
   // is re-read under the same identity and row locks below.
-  const boardAnswer = provider === "github" ||
-    (provider === "slack" && (await boardQuery).length === 1);
-  const evidenceQuery = boardAnswer ? boardQuery : actionQuery;
+  const operatorAnswer = provider === "github" ||
+    (provider === "slack" && (await operatorQuery).length === 1);
+  const evidenceQuery = operatorAnswer ? operatorQuery : actionQuery;
   let expectedPrincipalId: string | null = null;
   if (lockMode !== "read") {
     // Identity changes take this advisory lock before their row lock. Resolve
@@ -734,7 +734,7 @@ async function resolveQuestionResponseChain(
     if (candidates.length !== 1 || !candidates[0]!.inbound.principalId)
       return null;
     expectedPrincipalId = candidates[0]!.inbound.principalId;
-    const key = `chat-identity:${binding.companyId}:${expectedPrincipalId}`;
+    const key = `chat-identity:${binding.spaceId}:${expectedPrincipalId}`;
     if (lockMode === "blocking") {
       await tx.execute(
         sql`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`,
@@ -745,7 +745,7 @@ async function resolveQuestionResponseChain(
       );
       if (!lock?.acquired)
         throw Object.assign(
-          new Error("paperclip_external_chat_wait_authorization_contended"),
+          new Error("outpost_external_chat_wait_authorization_contended"),
           { code: "55P03" },
         );
     }
@@ -782,13 +782,13 @@ async function resolveQuestionResponseChain(
       parent.marker.conversationId !== conversation.id)
   )
     return null;
-  const boardRuntime = record(record(inbound.normalizedEvent).runtimeContext);
-  const boardGeneration = record(endpoint.setup).runtimeGeneration;
+  const operatorRuntime = record(record(inbound.normalizedEvent).runtimeContext);
+  const operatorGeneration = record(endpoint.setup).runtimeGeneration;
   if (!action) {
     const card = record(record(publication.payload).card);
     const links = Array.isArray(card.actions) ? card.actions.map(record) : [];
     if (
-      !boardAnswer ||
+      !operatorAnswer ||
       interaction.resolvedByRunId !== null ||
       publication.payload.progressState !== "waiting_for_input" ||
       card.kind !== "question" ||
@@ -797,12 +797,12 @@ async function resolveQuestionResponseChain(
       !publication.publishedAt ||
       publication.publishedAt > interaction.resolvedAt ||
       (provider === "github" && (
-        typeof boardGeneration !== "number" ||
-        !Number.isSafeInteger(boardGeneration) ||
-        boardGeneration < 0 ||
-        boardRuntime.generation !== boardGeneration ||
-        typeof boardRuntime.credentialFingerprint !== "string" ||
-        !/^[a-f0-9]{64}$/.test(boardRuntime.credentialFingerprint)
+        typeof operatorGeneration !== "number" ||
+        !Number.isSafeInteger(operatorGeneration) ||
+        operatorGeneration < 0 ||
+        operatorRuntime.generation !== operatorGeneration ||
+        typeof operatorRuntime.credentialFingerprint !== "string" ||
+        !/^[a-f0-9]{64}$/.test(operatorRuntime.credentialFingerprint)
       ))
     )
       return null;
@@ -860,7 +860,7 @@ async function resolveQuestionResponseChain(
     publication.issueId !== binding.issueId ||
     record(publication.payload).interactionId !== interaction.id ||
     identity.status !== "linked" ||
-    identity.paperclipUserId !== interaction.resolvedByUserId
+    identity.outpostUserId !== interaction.resolvedByUserId
   )
     return null;
   const marker: Marker = {
@@ -873,7 +873,7 @@ async function resolveQuestionResponseChain(
     conversationId: conversation.id,
     bindingSha256: nativeSha256({
       binding: {
-        companyId: binding.companyId,
+        spaceId: binding.spaceId,
         issueId: binding.issueId,
         runId: binding.runId,
         agentId: binding.agentId,
@@ -911,12 +911,12 @@ async function resolveQuestionResponseChain(
             },
           }
         : {
-            boardResponse: {
+            operatorResponse: {
               schema: `outpost.${provider}_board_question_response.v1`,
               principalId: inbound.principalId,
               ...(provider === "github" ? {
-                runtimeGeneration: boardGeneration,
-                credentialFingerprint: boardRuntime.credentialFingerprint,
+                runtimeGeneration: operatorGeneration,
+                credentialFingerprint: operatorRuntime.credentialFingerprint,
               } : {}),
             },
           }),
@@ -949,8 +949,8 @@ async function resolveQuestionResponseChain(
     authorizationContext: {
       ...context,
       source: `chat:${provider}`,
-      paperclipHarnessCheckedOut: false,
-      paperclipExternalChatExecutionBound: true,
+      outpostHarnessCheckedOut: false,
+      outpostExternalChatExecutionBound: true,
     },
   };
 }

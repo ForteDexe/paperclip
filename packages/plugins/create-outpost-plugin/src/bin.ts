@@ -29,7 +29,7 @@ export function runCli(argv = process.argv, deps: RunCliDeps = {}): string | und
   const exit = deps.exit ?? process.exit;
 
   if (!pluginName) {
-    stderr("Usage: create-outpost-plugin <name> [--template default|connector|workspace] [--output <dir>] [--sdk-path <paperclip-sdk-path>]");
+    stderr("Usage: create-outpost-plugin <name> [--template default|connector|workspace] [--output <dir>] [--sdk-path <outpost-sdk-path>]");
     exit(1);
   }
 

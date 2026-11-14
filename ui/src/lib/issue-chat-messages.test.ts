@@ -81,7 +81,7 @@ describe("connection intents in the task feed", () => {
 function createAgent(id: string, name: string): Agent {
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     name,
     role: "engineer",
     title: null,
@@ -111,7 +111,7 @@ function createComment(
   const authorAgentId = overrides.authorAgentId ?? null;
   return {
     id: "comment-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     authorAgentId: null,
     authorUserId: "user-1",
@@ -131,7 +131,7 @@ function createInteraction(
 ): SuggestTasksInteraction {
   return {
     id: "interaction-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     kind: "suggest_tasks",
     title: "Suggested follow-up work",
@@ -163,8 +163,8 @@ function createInteraction(
     effectiveResolverPolicySource:
       overrides.effectiveResolverPolicySource ?? "requested",
     legacyResolverPolicyAliases: overrides.legacyResolverPolicyAliases ?? {
-      requested: "board_or_agents",
-      effective: "board_or_agents",
+      requested: "operator_or_agents",
+      effective: "operator_or_agents",
     },
   };
 }
@@ -174,7 +174,7 @@ function createRequestConfirmation(
 ): RequestConfirmationInteraction {
   return {
     id: "confirmation-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     kind: "request_confirmation",
     title: "Approve the plan",
@@ -201,8 +201,8 @@ function createRequestConfirmation(
     effectiveResolverPolicySource:
       overrides.effectiveResolverPolicySource ?? "requested",
     legacyResolverPolicyAliases: overrides.legacyResolverPolicyAliases ?? {
-      requested: "board_or_agents",
-      effective: "board_or_agents",
+      requested: "operator_or_agents",
+      effective: "operator_or_agents",
     },
   };
 }
@@ -222,7 +222,7 @@ describe("buildAssistantPartsFromTranscript", () => {
     expect(result.parts).toHaveLength(1);
     expect(result.parts[0]).toMatchObject({
       type: "tool-call",
-      toolName: "paperclip_provider_activity",
+      toolName: "outpost_provider_activity",
       args: {
         family: "plan",
         eventType: "plan.updated",
@@ -369,7 +369,7 @@ describe("buildAssistantPartsFromTranscript", () => {
         ts: "2026-04-06T12:00:01.000Z",
         name: "search",
         toolUseId: "tool-1",
-        input: { query: "paperclip" },
+        input: { query: "outpost" },
       },
       {
         kind: "tool_result",
@@ -513,7 +513,7 @@ describe("buildAssistantPartsFromTranscript", () => {
 });
 
 describe("buildIssueChatMessages", () => {
-  it("uses the company user label for current-user comments instead of collapsing to You", () => {
+  it("uses the space user label for current-user comments instead of collapsing to You", () => {
     const messages = buildIssueChatMessages({
       comments: [createComment({ authorUserId: "user-1" })],
       timelineEvents: [],
@@ -632,7 +632,7 @@ describe("buildIssueChatMessages", () => {
     });
   });
 
-  it("prefers derived agent attribution when a board-authored comment is proven to come from a run", () => {
+  it("prefers derived agent attribution when a operator-authored comment is proven to come from a run", () => {
     const agentMap = new Map<string, Agent>([
       ["agent-1", createAgent("agent-1", "Claude")],
     ]);
@@ -667,16 +667,16 @@ describe("buildIssueChatMessages", () => {
     });
   });
 
-  it("does not reattribute a genuine board/user comment that has no derived agent", () => {
+  it("does not reattribute a genuine operator/user comment that has no derived agent", () => {
     const agentMap = new Map<string, Agent>([
       ["agent-1", createAgent("agent-1", "Claude")],
     ]);
     const messages = buildIssueChatMessages({
       comments: [
         createComment({
-          authorUserId: "local-board",
+          authorUserId: "local-operator",
           authorType: "user",
-          // No agent ever resolved for this comment — a real board action.
+          // No agent ever resolved for this comment — a real operator action.
           derivedAuthorAgentId: null,
           derivedCreatedByRunId: null,
           runId: null,
@@ -688,7 +688,7 @@ describe("buildIssueChatMessages", () => {
       liveRuns: [],
       agentMap,
       currentUserId: "user-1",
-      userLabelMap: new Map([["local-board", "Board"]]),
+      userLabelMap: new Map([["local-operator", "Operator"]]),
     });
 
     expect(messages[0]).toMatchObject({
@@ -697,7 +697,7 @@ describe("buildIssueChatMessages", () => {
         custom: {
           authorType: "user",
           authorAgentId: null,
-          authorUserId: "local-board",
+          authorUserId: "local-operator",
         },
       },
     });
@@ -810,7 +810,7 @@ describe("buildIssueChatMessages", () => {
         ],
       ]),
       hasOutputForRun: (runId) => runId === "run-live-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       projectId: "project-1",
       agentMap,
       currentUserId: "user-1",
@@ -950,7 +950,7 @@ describe("buildIssueChatMessages", () => {
     ): AskUserQuestionsInteraction {
       return {
         id,
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         kind: "ask_user_questions",
         title: null,
@@ -970,8 +970,8 @@ describe("buildIssueChatMessages", () => {
         resolverPolicyProvenance: "inherited",
         effectiveResolverPolicySource: "requested",
         legacyResolverPolicyAliases: {
-          requested: "board_or_agents",
-          effective: "board_or_agents",
+          requested: "operator_or_agents",
+          effective: "operator_or_agents",
         },
         payload: { version: 1, questions },
         result: null,
@@ -1558,7 +1558,7 @@ describe("buildIssueChatMessages", () => {
     });
   });
 
-  it("labels pause-caused cancelled runs as paused by board", () => {
+  it("labels pause-caused cancelled runs as paused by operator", () => {
     const messages = buildIssueChatMessages({
       comments: [],
       timelineEvents: [],
@@ -1593,12 +1593,12 @@ describe("buildIssueChatMessages", () => {
 
     expect(messages).toHaveLength(1);
     expect(messages[0]?.metadata.custom).toMatchObject({
-      chainOfThoughtLabel: "Paused by board after 1 minute",
+      chainOfThoughtLabel: "Paused by operator after 1 minute",
       runStatus: "cancelled",
     });
   });
 
-  it("labels error-code-only operator interruptions as interrupted by board", () => {
+  it("labels error-code-only operator interruptions as interrupted by operator", () => {
     const messages = buildIssueChatMessages({
       comments: [],
       timelineEvents: [],
@@ -1634,7 +1634,7 @@ describe("buildIssueChatMessages", () => {
 
     expect(messages).toHaveLength(1);
     expect(messages[0]?.metadata.custom).toMatchObject({
-      chainOfThoughtLabel: "Interrupted by board after 1 minute",
+      chainOfThoughtLabel: "Interrupted by operator after 1 minute",
       runOperatorInterrupted: true,
       runStatus: "cancelled",
     });

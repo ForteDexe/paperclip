@@ -29,7 +29,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-  companies,
+  spaces,
   createDb,
   projectWorkspaces,
   projects,
@@ -48,7 +48,7 @@ import {
   type RealizedExecutionWorkspace,
 } from "../services/workspace-runtime.ts";
 
-const DEFAULT_BROKER_SOCKET = "/run/paperclip-tailscale-broker/broker.sock";
+const DEFAULT_BROKER_SOCKET = "/run/outpost-tailscale-broker/broker.sock";
 const brokerSocketPath = process.env.OUTPOST_TAILSCALE_BROKER_SOCKET ?? DEFAULT_BROKER_SOCKET;
 
 async function brokerSocketPresent() {
@@ -86,11 +86,11 @@ if (optedIn && !live) {
 
   it("upgrades a pre-existing HTTP workspace in place to a browser-trusted HTTPS URL", async () => {
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pap17158-live-"));
-    const paperclipHome = await fs.mkdtemp(path.join(os.tmpdir(), "pap17158-live-home-"));
+    const outpostHome = await fs.mkdtemp(path.join(os.tmpdir(), "pap17158-live-home-"));
     const previousHome = process.env.OUTPOST_HOME;
     const previousInstance = process.env.OUTPOST_INSTANCE_ID;
     const previousMode = process.env.OUTPOST_MANAGED_RUNTIME_HTTPS;
-    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_HOME = outpostHome;
     process.env.OUTPOST_INSTANCE_ID = `pap17158-live-${randomUUID()}`;
 
     // An ephemeral legacy port rather than the real template's 45439, so this
@@ -107,7 +107,7 @@ if (optedIn && !live) {
       throw new Error("failed to reserve a legacy port outside the broker range");
     };
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const legacyPort = await reservePort();
@@ -120,7 +120,7 @@ if (optedIn && !live) {
     const workspaceRuntime = {
       services: [
         {
-          name: "paperclip-dev",
+          name: "outpost-dev",
           command,
           port: legacyPort,
           // Pre-feature block: backend URL only, no exposure declaration.
@@ -138,21 +138,21 @@ if (optedIn && !live) {
       ],
     };
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `L${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `L${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "PAP-17158 live exercise",
       status: "in_progress",
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       sourceType: "local_path",
@@ -169,7 +169,7 @@ if (optedIn && !live) {
       process.env.OUTPOST_MANAGED_RUNTIME_HTTPS = "off";
       const before = await startRuntimeServicesForWorkspaceControl({
         db,
-        actor: { id: null, name: "Paperclip", companyId },
+        actor: { id: null, name: "Outpost", spaceId },
         issue: null,
         workspace: {
           baseCwd: workspaceRoot,
@@ -246,7 +246,7 @@ if (optedIn && !live) {
         projectWorkspaceId,
       }).catch((error) => console.error("[PAP-17158] teardown failed", error));
       await resetRuntimeServicesForTests();
-      await fs.rm(paperclipHome, { recursive: true, force: true });
+      await fs.rm(outpostHome, { recursive: true, force: true });
       await fs.rm(workspaceRoot, { recursive: true, force: true });
       if (previousHome === undefined) delete process.env.OUTPOST_HOME;
       else process.env.OUTPOST_HOME = previousHome;

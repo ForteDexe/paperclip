@@ -10,7 +10,7 @@ import { parseConnectionConfig } from "./connection-config.js";
 import type { APIRequestContext } from "@playwright/test";
 import { captureOwnedGitHubApp, readOwnedGitHubReviewRuns, stopOwnedGitHubReviewRun, type GitHubJourneyResources } from "./github-review-ownership.js";
 import type { ChatEndpoint } from "../../packages/shared/src/types/chat-channels.js";
-import { enterGitHubJourneyCompany, isGitHubJourneyEvidencePage, waitForGitHubRegistrationControl } from "./github-review-browser.js";
+import { enterGitHubJourneySpace, isGitHubJourneyEvidencePage, waitForGitHubRegistrationControl } from "./github-review-browser.js";
 import { attendGitHubJourneyAction } from "./github-review-attendance.js";
 import { PassThrough } from "node:stream";
 import type { Locator, Page } from "@playwright/test";
@@ -71,7 +71,7 @@ describe("GitHub registration handoff", () => {
 
 describe("reused target ownership", () => {
   it("stops a scheduled legacy retry and waits until its cancellation finishes", async () => {
-    const scope = { companyId: 'company', agentId: 'agent', issueId: 'issue' };
+    const scope = { spaceId: 'space', agentId: 'agent', issueId: 'issue' };
     const scheduled = { ...scope, id: 'run', status: 'scheduled_retry', runtimeMode: 'legacy' };
     const get = vi.fn().mockResolvedValueOnce(scheduled).mockResolvedValueOnce(scheduled)
       .mockResolvedValue({ ...scheduled, status: 'cancelled' });
@@ -81,7 +81,7 @@ describe("reused target ownership", () => {
     expect(get).toHaveBeenCalledTimes(3);
   });
   it.each(['legacy', undefined])("stops a queued %s run without a native-only cancellation request", async runtimeMode => {
-    const scope = { companyId: 'company', agentId: 'agent', issueId: 'issue' };
+    const scope = { spaceId: 'space', agentId: 'agent', issueId: 'issue' };
     const queued = { ...scope, id: 'run', status: 'queued', runtimeMode };
     const get = vi.fn().mockResolvedValueOnce(queued).mockResolvedValue({ ...queued, status: 'cancelled' });
     const post = vi.fn(async (_route: string, body: Record<string, unknown>) => {
@@ -93,10 +93,10 @@ describe("reused target ownership", () => {
     expect(get).toHaveBeenCalledTimes(2);
   });
   it.each([true, false])("stops a failed native retry and verifies its audited acknowledgement (dispatched=%s)", async dispatched => {
-    const scope = { companyId: 'company', agentId: 'agent', issueId: 'issue' };
+    const scope = { spaceId: 'space', agentId: 'agent', issueId: 'issue' };
     const failed = { ...scope, id: 'run', status: 'failed', runtimeMode: 'native', nativePhase: 'retryable_failure' };
     const get = vi.fn().mockResolvedValueOnce(failed).mockResolvedValue({ ...failed, status: 'cancelled', costAccountingPending: true,
-      resultJson: { nativeCancellation: { schema: 'outpost.native-cancellation.v1', runId: 'run', companyId: 'company', issueId: 'issue', scope: 'run', reasonCode: 'cancellation_run_only', dispatched, dispatchState: 'acknowledged', intentAuditId: 'intent', acknowledgementAuditId: 'ack' } } });
+      resultJson: { nativeCancellation: { schema: 'outpost.native-cancellation.v1', runId: 'run', spaceId: 'space', issueId: 'issue', scope: 'run', reasonCode: 'cancellation_run_only', dispatched, dispatchState: 'acknowledged', intentAuditId: 'intent', acknowledgementAuditId: 'ack' } } });
     const post = vi.fn().mockResolvedValue({});
     await stopOwnedGitHubReviewRun({ get, post } as unknown as ConnectionApi, 'run', scope, new AbortController().signal);
     expect(post).toHaveBeenCalledExactlyOnceWith('/api/heartbeat-runs/run/cancel', { cancellationRequestId: expect.any(String) });
@@ -104,13 +104,13 @@ describe("reused target ownership", () => {
   });
   it("refuses to stop a related run belonging to a different task", async () => {
     const post = vi.fn();
-    const api = { get: async () => ({ id: 'run', companyId: 'company', agentId: 'agent', issueId: 'other', status: 'running' }), post };
-    await expect(stopOwnedGitHubReviewRun(api as unknown as ConnectionApi, 'run', { companyId: 'company', agentId: 'agent', issueId: 'issue' }, new AbortController().signal))
+    const api = { get: async () => ({ id: 'run', spaceId: 'space', agentId: 'agent', issueId: 'other', status: 'running' }), post };
+    await expect(stopOwnedGitHubReviewRun(api as unknown as ConnectionApi, 'run', { spaceId: 'space', agentId: 'agent', issueId: 'issue' }, new AbortController().signal))
       .rejects.toThrow('cleanup_run_owner_mismatch');
     expect(post).not.toHaveBeenCalled();
   });
   it("does not accept cancelled status as native Stop acknowledgement", async () => {
-    const scope = { companyId: 'company', agentId: 'agent', issueId: 'issue' };
+    const scope = { spaceId: 'space', agentId: 'agent', issueId: 'issue' };
     const get = vi.fn().mockResolvedValueOnce({ ...scope, id: 'run', status: 'running', runtimeMode: 'native' })
       .mockResolvedValue({ ...scope, id: 'run', status: 'cancelled', runtimeMode: 'native' });
     await expect(stopOwnedGitHubReviewRun({ get, post: async () => ({}) } as unknown as ConnectionApi, 'run', scope, new AbortController().signal, 1))
@@ -119,44 +119,44 @@ describe("reused target ownership", () => {
   });
   it("admits an inherited environment before setup and still leaves actual-run verification mandatory", async () => {
     const setup = parseGitHubReviewJourneyConfig(config());
-    const company = { id: setup.target.companyId, issuePrefix: "QA" };
+    const space = { id: setup.target.spaceId, issuePrefix: "QA" };
     const rows: Record<string, unknown> = {
       "/api/instance/settings/experimental": { enableGitHubReviewBots: true },
-      [`/api/companies/${company.id}`]: company,
-      [`/api/agents/${setup.agent.id}`]: { companyId: company.id, name: setup.agent.name, status: "idle", defaultEnvironmentId: null, adapterConfig: { model: setup.agent.model } },
+      [`/api/spaces/${space.id}`]: space,
+      [`/api/agents/${setup.agent.id}`]: { spaceId: space.id, name: setup.agent.name, status: "idle", defaultEnvironmentId: null, adapterConfig: { model: setup.agent.model } },
       [`/api/environments/${setup.target.environmentId}`]: { id: setup.target.environmentId, driver: "local", status: "active", config: {} },
-      [`/api/companies/${company.id}/budgets/overview`]: { policies: [] },
+      [`/api/spaces/${space.id}/budgets/overview`]: { policies: [] },
     };
     const api = { origin: setup.target.baseURL, get: async (route: string) => rows[route] };
     const page = { goto: async () => {}, waitForURL: async () => {} };
     await expect(runGitHubReviewFlow({ api: api as unknown as ConnectionApi, page: page as unknown as Page, github: {} as Page,
       githubUsername: "fixture", config: setup, resources: { branch: "owned", appName: "owned", runIds: [] },
-      evidence: { version: 1, setupId: "qa", hosting: "paperclip-cloud", targetCommit: null, assisted: false, outcome: "running", phase: "setup", dependencies: [], checkpoints: {}, cleanup: { endpoint: true, app: true, pullRequest: true, branch: true } },
+      evidence: { version: 1, setupId: "qa", hosting: "outpost-cloud", targetCommit: null, assisted: false, outcome: "running", phase: "setup", dependencies: [], checkpoints: {}, cleanup: { endpoint: true, app: true, pullRequest: true, branch: true } },
       signal: new AbortController().signal, phase: async () => {}, persistResources: async () => {},
       checkpoint: async id => { if (id === "agent") throw new Error("preflight_admitted"); },
     })).rejects.toThrow("preflight_admitted");
   });
-  it("enters the configured company before using its navigation despite remembered browser state", async () => {
+  it("enters the configured space before using its navigation despite remembered browser state", async () => {
     let current = new URL("https://qa.example.test/OTHER/dashboard");
     const page = { goto: vi.fn(async (url: string) => { current = new URL(url); }),
       waitForURL: vi.fn(async (predicate: (url: URL) => boolean) => { expect(predicate(current)).toBe(true); }) };
-    await enterGitHubJourneyCompany(page as unknown as Page, current.origin, { issuePrefix: "QA" });
+    await enterGitHubJourneySpace(page as unknown as Page, current.origin, { issuePrefix: "QA" });
     expect(current.pathname).toBe("/QA/dashboard");
   });
-  it("finds the owned run outside company history windows and excludes related foreign-task activity", async () => {
+  it("finds the owned run outside space history windows and excludes related foreign-task activity", async () => {
     const get = vi.fn(async (route: string) => {
       if (route === "/api/issues/issue/runs") return [{ runId: "old-owned" }, { runId: "related" }, { runId: "old-owned" }];
-      if (route === "/api/heartbeat-runs/old-owned") return { id: "old-owned", companyId: "company", agentId: "agent", issueId: "issue" };
-      if (route === "/api/heartbeat-runs/related") return { id: "related", companyId: "company", agentId: "agent", issueId: "other-issue" };
-      throw new Error("company_history_must_not_be_used");
+      if (route === "/api/heartbeat-runs/old-owned") return { id: "old-owned", spaceId: "space", agentId: "agent", issueId: "issue" };
+      if (route === "/api/heartbeat-runs/related") return { id: "related", spaceId: "space", agentId: "agent", issueId: "other-issue" };
+      throw new Error("space_history_must_not_be_used");
     });
-    const runs = await readOwnedGitHubReviewRuns({ get } as unknown as Pick<ConnectionApi, "get">, { companyId: "company", agentId: "agent", issueId: "issue" });
+    const runs = await readOwnedGitHubReviewRuns({ get } as unknown as Pick<ConnectionApi, "get">, { spaceId: "space", agentId: "agent", issueId: "issue" });
     expect(runs.map(run => run.id)).toEqual(["old-owned"]);
     expect(get).toHaveBeenCalledTimes(3);
   });
-  it("rejects a foreign company in hydrated run inventory", async () => {
-    const get = vi.fn(async (route: string) => route.endsWith("/runs") ? [{ runId: "foreign" }] : { id: "foreign", companyId: "other", agentId: "agent", issueId: "issue" });
-    await expect(readOwnedGitHubReviewRuns({ get } as unknown as Pick<ConnectionApi, "get">, { companyId: "company", agentId: "agent", issueId: "issue" })).rejects.toThrow("issue_run_company_mismatch");
+  it("rejects a foreign space in hydrated run inventory", async () => {
+    const get = vi.fn(async (route: string) => route.endsWith("/runs") ? [{ runId: "foreign" }] : { id: "foreign", spaceId: "other", agentId: "agent", issueId: "issue" });
+    await expect(readOwnedGitHubReviewRuns({ get } as unknown as Pick<ConnectionApi, "get">, { spaceId: "space", agentId: "agent", issueId: "issue" })).rejects.toThrow("issue_run_space_mismatch");
   });
 });
 
@@ -185,7 +185,7 @@ describe("automatic review event policy", () => {
 
 describe("retained journey metadata", () => {
   it("accepts actual budget/execution fields while rejecting unrelated private metadata", () => {
-    const evidence: GitHubReviewJourneyEvidence = { version: 1, outcome: "failed", phase: "review_execution_completion", setupId: "qa", hosting: "paperclip-cloud", targetCommit: "a".repeat(40), assisted: true,
+    const evidence: GitHubReviewJourneyEvidence = { version: 1, outcome: "failed", phase: "review_execution_completion", setupId: "qa", hosting: "outpost-cloud", targetCommit: "a".repeat(40), assisted: true,
       dependencies: [], checkpoints: { automatic_task: true }, cleanup: { endpoint: true, app: true, branch: true, pullRequest: true }, budgetPolicyRead: "verified",
       budgetPolicies: [{ scopeType: "agent", amount: 100, hardStopEnabled: true, unpricedUsagePolicy: "allow" }],
       execution: { reviewId: "review", issueId: "issue", runId: "run", runStatus: "failed", issueStatus: "in_progress", runtimeMode: "native", environmentId: "sandbox", provider: "opencode", model: "configured-model" } };
@@ -199,9 +199,9 @@ describe("retained journey metadata", () => {
 });
 
 describe("review execution attribution", () => {
-  const expected = { runId: "run", companyId: "company", agentId: "agent", issueId: "issue", runtimeMode: "native", environmentId: "sandbox", executionEnvironment: "daytona" as const,
+  const expected = { runId: "run", spaceId: "space", agentId: "agent", issueId: "issue", runtimeMode: "native", environmentId: "sandbox", executionEnvironment: "daytona" as const,
     environment: { id: "sandbox", driver: "sandbox", config: { provider: "daytona" } }, provider: "opencode", model: "configured-model" };
-  const run = () => ({ id: "run", companyId: "company", agentId: "agent", issueId: "issue", status: "succeeded", runtimeMode: "native",
+  const run = () => ({ id: "run", spaceId: "space", agentId: "agent", issueId: "issue", status: "succeeded", runtimeMode: "native",
     contextSnapshot: { outpostEnvironment: { id: "sandbox", driver: "sandbox" } }, runnerProfileJson: { nativeExecutionInput: { provider: { kind: "opencode", model: "configured-model" } } } });
   it("rejects a mismatched environment kind or provider even when the ID matches", () => {
     expect(verifyGitHubReviewRun(run(), { ...expected, executionEnvironment: "local" })).toBe(false);
@@ -220,7 +220,7 @@ describe("review execution attribution", () => {
   it.each(["queued", "running", "failed", "cancelled"])("does not accept a %s run merely because a review record completed", status => {
     expect(verifyGitHubReviewRun({ ...run(), status }, expected)).toBe(false);
   });
-  it.each(["runId", "companyId", "agentId", "issueId"] as const)("rejects foreign %s attribution", key => {
+  it.each(["runId", "spaceId", "agentId", "issueId"] as const)("rejects foreign %s attribution", key => {
     expect(verifyGitHubReviewRun(run(), { ...expected, [key]: "foreign" })).toBe(false);
   });
 });
@@ -296,7 +296,7 @@ describe("durable journey credential references", () => {
   });
 });
 
-const config = () => ({ version: 1, setupId: "qa-test", hosting: "paperclip-cloud", target: { mode: "attach", baseURL: "https://qa.example.test", expectedCommit: "a".repeat(40), deploymentMode: "authenticated", companyId: "11111111-1111-4111-8111-111111111111", environmentId: "22222222-2222-4222-8222-222222222222" },
+const config = () => ({ version: 1, setupId: "qa-test", hosting: "outpost-cloud", target: { mode: "attach", baseURL: "https://qa.example.test", expectedCommit: "a".repeat(40), deploymentMode: "authenticated", spaceId: "11111111-1111-4111-8111-111111111111", environmentId: "22222222-2222-4222-8222-222222222222" },
   browser: { headed: true, channel: "chrome", profileDir: "/private/qa-browser", accountAlias: "ralph-qa", freshness: "signed-in" },
   agent: { id: "22222222-2222-4222-8222-222222222222", name: "Ponytail QA", skill: "ponytail-review", model: "configured-model", provider: "openai", runtimeMode: "native" },
   github: { repository: "fixture/ponytail-evals", ownerType: "personal", appOwner: "fixture", login: "passkey", username: { source: "onepassword", reference: "op://vault/item/username" } } });
@@ -315,7 +315,7 @@ describe("setup profiles and selection", () => {
     await expect(verifyConnectionTarget("https://qa.example.test", parseConnectionConfig({ target: config().target }), { get } as unknown as APIRequestContext)).rejects.toThrow("target_health_unavailable_or_redirected");
   });
   it("keeps Cloud hosting separate from agent execution and declares passkey without requiring an exported password", () => {
-    expect(parseGitHubReviewJourneyConfig(config())).toMatchObject({ hosting: "paperclip-cloud", github: { login: "passkey" } });
+    expect(parseGitHubReviewJourneyConfig(config())).toMatchObject({ hosting: "outpost-cloud", github: { login: "passkey" } });
     expect(parseGitHubReviewJourneyConfig({ ...config(), hosting: "self-hosted" }).hosting).toBe("self-hosted");
     expect(parseGitHubReviewJourneyConfig({ ...config(), executionEnvironment: "daytona" }).executionEnvironment).toBe("daytona");
     expect(parseGitHubReviewJourneyConfig(config()).github.account).toBe("fixture");
@@ -337,7 +337,7 @@ describe("GitHub App cleanup ownership", () => {
   const fixture = () => {
     const profile = parseGitHubReviewJourneyConfig(config());
     const resources: GitHubJourneyResources = { endpointId: "endpoint", appName: "Ponytail QA nonce", branch: "owned", runIds: [] };
-    const endpoint = { id: "endpoint", companyId: profile.target.companyId, provider: "github", assignedAgentId: profile.agent.id,
+    const endpoint = { id: "endpoint", spaceId: profile.target.spaceId, provider: "github", assignedAgentId: profile.agent.id,
       botExternalId: "12345", botUsername: "ponytail-qa-nonce[bot]", botLabel: resources.appName,
       setup: { step: "provider_setup", github: { registrationStatus: "completed", appOwnerType: "personal", appOwnerLogin: "fixture", appSlug: "ponytail-qa-nonce", managementUrl: "https://github.com/settings/installations/67890" } } } as ChatEndpoint;
     return { profile, resources, endpoint };
@@ -348,8 +348,8 @@ describe("GitHub App cleanup ownership", () => {
     expect(f.resources).toMatchObject({ appId: "12345", appSlug: "ponytail-qa-nonce", appSettingsUrl: "https://github.com/settings/apps/ponytail-qa-nonce", installationSettingsUrl: "https://github.com/settings/installations/67890" });
   });
   it("cannot adopt the shared testing App, a foreign endpoint, or a renamed App", () => {
-    for (const mutate of [(e: ChatEndpoint) => { e.setup.github!.appOwnerLogin = "paperclipai"; }, (e: ChatEndpoint) => { e.id = "foreign"; },
-      (e: ChatEndpoint) => { e.botLabel = "[Test] Paperclip"; }, (e: ChatEndpoint) => { e.botUsername = "foreign[bot]"; }]) {
+    for (const mutate of [(e: ChatEndpoint) => { e.setup.github!.appOwnerLogin = "@outpost/cli"; }, (e: ChatEndpoint) => { e.id = "foreign"; },
+      (e: ChatEndpoint) => { e.botLabel = "[Test] Outpost"; }, (e: ChatEndpoint) => { e.botUsername = "foreign[bot]"; }]) {
       const f = fixture(); mutate(f.endpoint);
       expect(() => captureOwnedGitHubApp(f.resources, f.endpoint, f.profile)).toThrow("owned_github_app_binding_mismatch");
       expect(f.resources.appSettingsUrl).toBeUndefined();
@@ -369,15 +369,15 @@ describe("GitHub App cleanup ownership", () => {
 
 const head = "d".repeat(40);
 function oracleInput() {
-  const review = { id: "review", companyId: "company", endpointId: "endpoint", issueId: "issue", runId: "run", repositoryId: "repo", repository: "fixture/repo", pullNumber: 7, headSha: head,
+  const review = { id: "review", spaceId: "space", endpointId: "endpoint", issueId: "issue", runId: "run", repositoryId: "repo", repository: "fixture/repo", pullNumber: 7, headSha: head,
     event: { event: "opened", headSha: head, repository: "fixture/repo" }, state: "completed", conclusion: "failure", summaryUrl: "https://github.com/fixture/repo/pull/7#issuecomment-1", checkUrl: "https://github.com/fixture/repo/runs/1",
     assessment: { complete: true, reviewedCommit: head, score: 3, summary: "Decimal prices lose precision.", rationale: "Reproduced currency error", coverage: { reviewedPaths: ["cart-total.js"], omittedPaths: [], limitations: [] }, findings: [{ path: "cart-total.js", side: "RIGHT", line: 5, body: "Decimal price precision fails", severity: "warning", category: "correctness" }] } } as unknown as GitHubTaskReview;
-  return { review, companyId: "company", endpointId: "endpoint", issueId: "issue", repository: "fixture/repo", pullNumber: 7, headSha: head, agentId: "agent", issue: { id: "issue", companyId: "company", assigneeAgentId: "agent", status: "done" } };
+  return { review, spaceId: "space", endpointId: "endpoint", issueId: "issue", repository: "fixture/repo", pullNumber: 7, headSha: head, agentId: "agent", issue: { id: "issue", spaceId: "space", assigneeAgentId: "agent", status: "done" } };
 }
 
 describe("independent GitHub review oracle", () => {
   it("accepts a useful 3/5 review with a correctly failed check", () => expect(verifyGitHubReview(oracleInput())).toBe(true));
-  it.each(["headSha", "repository", "issueId", "endpointId", "companyId"] as const)("rejects a stale or foreign %s", key => {
+  it.each(["headSha", "repository", "issueId", "endpointId", "spaceId"] as const)("rejects a stale or foreign %s", key => {
     const input = oracleInput(); input.review[key] = "foreign";
     expect(verifyGitHubReview(input)).toBe(false);
   });
@@ -395,7 +395,7 @@ describe("independent GitHub review oracle", () => {
     }
   });
   it("fails missing checkpoint or cleanup evidence even when every other gate passed", () => {
-    const evidence: GitHubReviewJourneyEvidence = { version: 1, outcome: "passed", phase: "finished", hosting: "paperclip-cloud", setupId: "qa", targetCommit: head, assisted: true, dependencies: [],
+    const evidence: GitHubReviewJourneyEvidence = { version: 1, outcome: "passed", phase: "finished", hosting: "outpost-cloud", setupId: "qa", targetCommit: head, assisted: true, dependencies: [],
       checkpoints: Object.fromEntries(githubJourneyCheckpoints.map(id => [id, true])), cleanup: { endpoint: true, app: true, pullRequest: true, branch: true } };
     expect(gradeGitHubReviewJourney(evidence).every(c => c.passed)).toBe(true);
     delete evidence.checkpoints.github_delivery;

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { CompanySkillVersionFileInventoryEntry, SkillSourceUpdateDiffFile, SkillSourcePackageMode } from '@outpost/shared';
+import type { SpaceSkillVersionFileInventoryEntry, SkillSourceUpdateDiffFile, SkillSourcePackageMode } from '@outpost/shared';
 import { unprocessable } from '../errors.js';
 import { scanGitHubSkillsWithPackageFallback, type GitHubRead, type ScannedSkillSource } from './github-skill-source.js';
 
@@ -71,7 +71,7 @@ export function unifiedLineDiff(before: string, after: string): string | null {
   return lineDiff(before, after, MAX_DIFF_CELLS).diff;
 }
 
-type DiffFile = Pick<CompanySkillVersionFileInventoryEntry, 'path' | 'content' | 'encoding' | 'executable'>;
+type DiffFile = Pick<SpaceSkillVersionFileInventoryEntry, 'path' | 'content' | 'encoding' | 'executable'>;
 /** Paths that a source scan left out of each snapshot (too large, a symlink, or rejected by the audit). */
 export type OmittedPaths = { installed: ReadonlySet<string>; latest: ReadonlySet<string> };
 export type SkillPackageDiff = { files: SkillSourceUpdateDiffFile[]; truncated: boolean };

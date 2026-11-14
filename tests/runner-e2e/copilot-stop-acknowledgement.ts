@@ -5,7 +5,7 @@ type Row = Record<string, any>;
 /** Denial can prove the native turn completed before Stop. Active-permission
  * Stop continues to require dispatch to the provider. */
 export type CopilotStopDispatchRequirement = "active-provider" | "provider-completed-before-stop";
-export interface CopilotStopScope { companyId: string; runId: string; issueId: string; callerUserId: string }
+export interface CopilotStopScope { spaceId: string; runId: string; issueId: string; callerUserId: string }
 export interface CopilotStopAcknowledgement extends CopilotStopScope {
   schema: "outpost.e2e.copilot-stop-acknowledgement.v1";
   fixtureCorrelationId: string; dispatchMonotonicNs: string; apiResponseObservedMonotonicNs: string;
@@ -26,17 +26,17 @@ export function readCopilotStopAcknowledgement(runInput: unknown, scope: Copilot
   const run = rec(runInput), result = rec(run.resultJson), stop = rec(result.nativeCancellation), startup = rec(result.startupCancellation), cancellation = rec(result.cancellation);
   if (!Object.values(scope).every(id) || !uuid(fixtureCorrelationId) || !mono(dispatchMonotonicNs) || !mono(apiResponseObservedMonotonicNs)
     || BigInt(apiResponseObservedMonotonicNs) <= BigInt(dispatchMonotonicNs)
-    || run.id !== scope.runId || run.companyId !== scope.companyId || run.nativeIssueId !== scope.issueId || run.runtimeMode !== "native" || run.status !== "cancelled"
+    || run.id !== scope.runId || run.spaceId !== scope.spaceId || run.nativeIssueId !== scope.issueId || run.runtimeMode !== "native" || run.status !== "cancelled"
     || result.cancelledByActorType !== "user" || result.cancelledByUserId !== scope.callerUserId
     || cancellation.source !== "operator" || cancellation.expected !== true || rec(cancellation.initiator).type !== "user" || rec(cancellation.initiator).id !== scope.callerUserId
     || typeof startup.requestedAt !== "string" || !Number.isFinite(Date.parse(startup.requestedAt)) || startup.beforeNativeSelection !== false
-    || stop.schema !== "outpost.native-cancellation.v1" || stop.runId !== scope.runId || stop.companyId !== scope.companyId || stop.issueId !== scope.issueId
+    || stop.schema !== "outpost.native-cancellation.v1" || stop.runId !== scope.runId || stop.spaceId !== scope.spaceId || stop.issueId !== scope.issueId
     || typeof stop.intentId !== "string" || !stop.intentId.startsWith("native-cancellation:") || !uuid(stop.intentId.slice("native-cancellation:".length))
     || stop.scope !== "run" || typeof stop.dispatched !== "boolean"
     || (!stop.dispatched && dispatchRequirement !== "provider-completed-before-stop") || stop.dispatchState !== "acknowledged" || stop.reasonCode !== "cancellation_run_only"
     || !Array.isArray(stop.effects) || stop.effects.length !== 1 || stop.effects[0] !== "release_run_resources"
     || !id(stop.intentAuditId) || !id(stop.acknowledgementAuditId) || stop.intentAuditId === stop.acknowledgementAuditId) throw invalid();
-  const metadata = { id: run.id, companyId: run.companyId, nativeIssueId: run.nativeIssueId, runtimeMode: run.runtimeMode, status: run.status,
+  const metadata = { id: run.id, spaceId: run.spaceId, nativeIssueId: run.nativeIssueId, runtimeMode: run.runtimeMode, status: run.status,
     cancelledByActorType: result.cancelledByActorType, cancelledByUserId: result.cancelledByUserId, cancellation, startupCancellation: startup, nativeCancellation: stop };
   return { schema: "outpost.e2e.copilot-stop-acknowledgement.v1", ...scope, fixtureCorrelationId, dispatchMonotonicNs, apiResponseObservedMonotonicNs,
     intentId: stop.intentId, intentAuditId: stop.intentAuditId, acknowledgementAuditId: stop.acknowledgementAuditId,

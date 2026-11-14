@@ -26,7 +26,7 @@ describe("connection grants phase 2 migration", () => {
   });
 
   it("is safe to replay when schema state is ahead of the migration journal", () => {
-    expect(sql).toContain(`DROP CONSTRAINT IF EXISTS "connection_grant_members_company_grant_fk"`);
+    expect(sql).toContain(`DROP CONSTRAINT IF EXISTS "connection_grant_members_space_grant_fk"`);
     expect(sql).toContain(`DROP CONSTRAINT IF EXISTS "tool_connections_credential_policy_check"`);
     expect(sql).toContain(`CREATE UNIQUE INDEX IF NOT EXISTS "connection_grants_default_uq"`);
     expect(sql).toContain(`IF NOT EXISTS (\n\t\tSELECT 1\n\t\tFROM pg_constraint`);

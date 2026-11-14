@@ -191,7 +191,7 @@ describe.each(["legacy", "native"] as const)("historical %s system status", (run
     finishedAt: `2025-01-01T10:0${minute}:30Z`,
   });
   const comment = (id: string, body: string, runId?: string) => ({
-    id, body, runId, companyId: "company", issueId: "issue", authorType: "agent" as const,
+    id, body, runId, spaceId: "space", issueId: "issue", authorType: "agent" as const,
     authorAgentId: "agent", authorUserId: null, presentation: null, metadata: null,
     createdAt: new Date("2025-01-01T10:00:20Z"), updatedAt: new Date("2025-01-01T10:00:20Z"),
   });
@@ -217,7 +217,7 @@ describe.each(["legacy", "native"] as const)("historical %s system status", (run
         comment("response", "Saved the useful response.", "failed"),
         { ...comment("notice", "The previous execution needs to be checked.", "failed"), authorType: "system" as const,
           presentation: { kind: "system_notice" as const, tone: "warning" as const, title: "Recovery pending", detailsDefaultOpen: true } },
-        { ...comment("human", "Please keep this message."), authorType: "user" as const, authorAgentId: null, authorUserId: "board" },
+        { ...comment("human", "Please keep this message."), authorType: "user" as const, authorAgentId: null, authorUserId: "operator" },
         { ...comment("session", "/new"), conversationSessionGeneration: 1 },
       ],
       linkedRuns: [run("failed", "failed", 0), run("stopped", "cancelled", 1),
@@ -254,7 +254,7 @@ describe.each(["legacy", "native"] as const)("historical %s system status", (run
 
   it.runIf(runtimeMode === "native")("keeps a failed MCP start on a historical settled run while hiding other notices", () => {
     const orp = (seq: number, eventType: string, payload: Record<string, unknown>) => ({
-      id: seq, companyId: "company", runId: "mcp", agentId: "agent", seq, eventType, stream: "system", level: "info",
+      id: seq, spaceId: "space", runId: "mcp", agentId: "agent", seq, eventType, stream: "system", level: "info",
       color: null, message: null, createdAt: new Date(`2025-01-01T10:00:0${seq}Z`),
       payload: { orpEvent: { schema: "outpost.orp.event.v1", sourceEventId: `event-${seq}`, sourceSeq: seq,
         sourceInstanceId: "runner", sourceKind: "runner", runId: "mcp", normalizedSessionId: "session", eventType,
@@ -351,8 +351,8 @@ it.each([true, false])("interleaves browser sessions with their requests and pre
   streamlinedState.enabled = streamlined;
   const onOpenBrowser = vi.fn();
   const comments = [0, 2, 4].map((minute) => ({
-    id: `comment-${minute}`, companyId: "company", issueId: "issue",
-    authorType: "user" as const, authorAgentId: null, authorUserId: "board",
+    id: `comment-${minute}`, spaceId: "space", issueId: "issue",
+    authorType: "user" as const, authorAgentId: null, authorUserId: "operator",
     body: `Request at minute ${minute}`, presentation: null, metadata: null,
     createdAt: new Date(`2026-09-29T12:0${minute}:00Z`), updatedAt: new Date(`2026-09-29T12:0${minute}:00Z`),
   }));
@@ -534,7 +534,7 @@ it.each([0, 32_000, 100_000])("offers earlier output only when a single legacy r
 
 it("defers initial history for a saved conversation with its own draft key", () => {
   render(<TaskChatThread comments={[]} onAdd={async () => {}} issueId="saved-chat"
-    conversationMode draftKey="agent-chat:company:saved-agent" initialHistoryPending />);
+    conversationMode draftKey="agent-chat:space:saved-agent" initialHistoryPending />);
   expect(container.querySelector('[data-testid="mock-editor"]')).toBeNull();
   expect(container.querySelector('[data-testid="task-chat-composer-dock"]')?.hasAttribute("inert")).toBe(true);
 });
@@ -544,7 +544,7 @@ it.each([true, false])("keeps an upload attached when a conversation draft becom
   const onAdd = vi.fn().mockResolvedValue(undefined);
   let resolveUpload!: (receipt: { id: string; contentPath: string; originalFilename: string }) => void;
   const onAttachImage = vi.fn().mockReturnValue(new Promise(resolve => { resolveUpload = resolve; }));
-  const props = { comments: [], onAdd, onAttachImage, conversationMode: true, draftKey: "agent-chat:company:agent" };
+  const props = { comments: [], onAdd, onAttachImage, conversationMode: true, draftKey: "agent-chat:space:agent" };
   render(<TaskChatThread {...props} issueId="" />);
   await settleThreadLayout();
   const composer = container.querySelector('[data-testid="mock-editor"]');
@@ -574,8 +574,8 @@ it.each([true, false])("keeps an upload attached when a conversation draft becom
 });
 
 it("shows activity during admission and clears it when the saved follow-up enters backoff", async () => {
-  const pending = { id: "optimistic-recovery", companyId: "company", issueId: "issue", authorType: "user" as const,
-    authorAgentId: null, authorUserId: "board", body: "Confirm the existing result.", presentation: null, metadata: null,
+  const pending = { id: "optimistic-recovery", spaceId: "space", issueId: "issue", authorType: "user" as const,
+    authorAgentId: null, authorUserId: "operator", body: "Confirm the existing result.", presentation: null, metadata: null,
     createdAt: new Date(), updatedAt: new Date(), clientStatus: "pending" as const };
   const show = (accepted: boolean) => render(<TaskChatThread issueId="issue" issueStatus="blocked" executionBlocked
     comments={[{ ...pending, clientStatus: accepted ? "queued" : "pending" }]}
@@ -658,8 +658,8 @@ it.each((["task", "legacy"] as const).flatMap(surface =>
   expect(onAdd).toHaveBeenCalledTimes(1);
   const identity = container.querySelector('[data-testid="task-chat-agent-identity"]');
   expect(identity?.textContent).toBe("Worker");
-  const saved = { id: "saved-message", companyId: "company", issueId: "issue", authorType: "user" as const,
-    authorUserId: "board", authorAgentId: null, body: "Please check again.", presentation: null, metadata: null,
+  const saved = { id: "saved-message", spaceId: "space", issueId: "issue", authorType: "user" as const,
+    authorUserId: "operator", authorAgentId: null, body: "Please check again.", presentation: null, metadata: null,
     clientRequestId: onAdd.mock.calls[0]?.[4], createdAt: new Date(), updatedAt: new Date() };
   render(<Component {...props} comments={[saved]}
     interruption={previous === "old-intent" ? { ...interruption, state: "resolved" } : null} />);
@@ -681,10 +681,10 @@ it.each((["task", "legacy"] as const).flatMap(surface =>
   const Component = surface === "task" ? TaskChatThread : IssueChatThread;
   let acknowledge!: () => void;
   const onAdd = vi.fn<ComponentProps<typeof TaskChatThread>["onAdd"]>(() => new Promise<void>(resolve => { acknowledge = resolve; }));
-  const prior = { id: "prior-reply", companyId: "company", issueId: "issue", authorType: "agent" as const,
+  const prior = { id: "prior-reply", spaceId: "space", issueId: "issue", authorType: "agent" as const,
     authorAgentId: "agent", authorUserId: null, body: "Here is the previous answer.", presentation: null, metadata: null,
     createdAt: new Date("2026-01-01"), updatedAt: new Date("2026-01-01") };
-  const props = { issueId: "issue", issueStatus: "in_progress", currentUserId: "board", issueAssigneeAgentId: "agent", onAdd,
+  const props = { issueId: "issue", issueStatus: "in_progress", currentUserId: "operator", issueAssigneeAgentId: "agent", onAdd,
     comments: [prior], agentMap: new Map([["agent", { id: "agent", name: "Worker", adapterType: "outpost_runner" } as Agent]]) };
   render(<Component {...props} />);
   await act(async () => { editorCallbacks.change("Please check again."); });
@@ -697,7 +697,7 @@ it.each((["task", "legacy"] as const).flatMap(surface =>
   const avatar = responder?.querySelector("img");
   expect(responder?.textContent).toBe("Worker");
   expect(avatar).not.toBeNull();
-  const saved = { ...prior, id: "saved-message", authorType: "user" as const, authorAgentId: null, authorUserId: "board",
+  const saved = { ...prior, id: "saved-message", authorType: "user" as const, authorAgentId: null, authorUserId: "operator",
     body: "Please check again.", clientRequestId: onAdd.mock.calls[0]?.[4], createdAt: new Date(serverTime), updatedAt: new Date(serverTime) };
   render(<Component {...props} comments={[prior, saved]} />);
   await act(async () => { acknowledge(); });
@@ -737,7 +737,7 @@ it.each([null, "previous-agent"].flatMap(previousAgentId => ["outpost_runner", "
   let acknowledge!: () => void;
   const onAdd = vi.fn<ComponentProps<typeof TaskChatThread>["onAdd"]>(() => new Promise<void>(resolve => { acknowledge = resolve; }));
   const props = {
-    issueId: "issue", issueStatus: "in_review", currentUserId: "board", comments: [], onAdd, enableReassign: true,
+    issueId: "issue", issueStatus: "in_review", currentUserId: "operator", comments: [], onAdd, enableReassign: true,
     suggestedAssigneeValue: "agent:next-agent",
     reassignOptions: [{ id: "agent:next-agent", label: "Next worker" }, { id: "agent:previous-agent", label: "Previous worker" }],
     agentMap: new Map([
@@ -745,7 +745,7 @@ it.each([null, "previous-agent"].flatMap(previousAgentId => ["outpost_runner", "
       ["next-agent", { id: "next-agent", name: "Next worker", adapterType } as Agent],
     ]),
   };
-  render(<TaskChatThread {...props} issueAssigneeAgentId={previousAgentId} currentAssigneeValue={previousAgentId ? `agent:${previousAgentId}` : "user:board"} />);
+  render(<TaskChatThread {...props} issueAssigneeAgentId={previousAgentId} currentAssigneeValue={previousAgentId ? `agent:${previousAgentId}` : "user:operator"} />);
   if (previousAgentId) {
     await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="task-chat-composer-assignee"]')!.click());
     await act(async () => document.querySelector('[data-assignee-identity="agent:next-agent"]')!.closest("button")!.click());
@@ -755,8 +755,8 @@ it.each([null, "previous-agent"].flatMap(previousAgentId => ["outpost_runner", "
   expect(onAdd.mock.calls[0]?.[2]).toEqual({ assigneeAgentId: "next-agent", assigneeUserId: null });
   const identity = container.querySelector('[data-testid="task-chat-agent-identity"]');
   expect(identity?.textContent).toBe("Next worker");
-  const saved = { id: "saved-message", companyId: "company", issueId: "issue", authorType: "user" as const,
-    authorAgentId: null, authorUserId: "board", body: "Please check this.", presentation: null, metadata: null,
+  const saved = { id: "saved-message", spaceId: "space", issueId: "issue", authorType: "user" as const,
+    authorAgentId: null, authorUserId: "operator", body: "Please check this.", presentation: null, metadata: null,
     clientRequestId: onAdd.mock.calls[0]?.[4], createdAt: new Date(), updatedAt: new Date() };
   render(<TaskChatThread {...props} comments={[saved]} issueAssigneeAgentId="next-agent" currentAssigneeValue="agent:next-agent" />);
   await act(async () => acknowledge());
@@ -830,7 +830,7 @@ it.each([true, false])("reveals saved conversation when initial history stalls (
       issueId: "stalled-issue",
       comments: [{
         id: "saved-comment", body: "An already saved reply.", runId: null,
-        companyId: "company", issueId: "stalled-issue", authorType: "agent" as const,
+        spaceId: "space", issueId: "stalled-issue", authorType: "agent" as const,
         authorAgentId: "agent", authorUserId: null, presentation: null, metadata: null,
         createdAt: new Date("2025-01-01T10:00:20Z"), updatedAt: new Date("2025-01-01T10:00:20Z"),
       }],
@@ -1187,7 +1187,7 @@ describe.each(["legacy", "native"] as const)("%s task history readiness", (runti
 it("preserves the typed disposition notice through the task-chat adapter", () => {
   renderThread({
     comments: [{
-      id: "typed-recovery", companyId: "company", issueId: "issue", authorType: "system", authorAgentId: null, authorUserId: null,
+      id: "typed-recovery", spaceId: "space", issueId: "issue", authorType: "system", authorAgentId: null, authorUserId: null,
       body: "Unrelated prose", createdAt: new Date(), updatedAt: new Date(),
       presentation: { kind: "system_notice", title: "Different wording", tone: "warning", detailsDefaultOpen: false, density: "compact" },
       metadata: { version: 1, sections: [], recovery: { kind: "disposition_repair_escalated", actionId: "action", assigneeAgentId: "agent", attemptCount: 2, maxAttempts: 2, reason: "unchanged_source_state_exhausted" } },
@@ -1202,7 +1202,7 @@ it("preserves the typed disposition notice through the task-chat adapter", () =>
 
 it("keeps an acknowledged optimistic bubble mounted with its canonical comment target", () => {
   const comment = {
-    companyId: "company",
+    spaceId: "space",
     issueId: "issue",
     authorAgentId: null,
     presentation: null,
@@ -1212,7 +1212,7 @@ it("keeps an acknowledged optimistic bubble mounted with its canonical comment t
     clientId: "optimistic-one",
     body: "Keep this message in place",
     authorType: "user" as const,
-    authorUserId: "board",
+    authorUserId: "operator",
     createdAt: new Date("2026-09-09T12:00:00Z"),
   };
   render(<TaskChatThread comments={[comment]} onAdd={async () => {}} />);
@@ -1256,7 +1256,7 @@ function fakeScrollGeometry(
 function planDocument(overrides: Partial<IssueDocument> = {}): IssueDocument {
   return {
     id: "document-plan",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     key: "plan",
     title: "Plan",
@@ -1285,7 +1285,7 @@ function planReviewInteraction(
   const isResolved = status !== "pending";
   return {
     id: "plan-review",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     kind: "request_confirmation",
     title: "Review the Plan",
@@ -1298,8 +1298,8 @@ function planReviewInteraction(
     resolverPolicyProvenance: "inherited",
     effectiveResolverPolicySource: "requested",
     legacyResolverPolicyAliases: {
-      requested: "board_or_agents",
-      effective: "board_or_agents",
+      requested: "operator_or_agents",
+      effective: "operator_or_agents",
     },
     createdByAgentId: "agent-1",
     createdByUserId: null,
@@ -1341,7 +1341,7 @@ function questionInteraction(
 ): IssueThreadInteraction {
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     kind: "ask_user_questions",
     title: prompt,
@@ -1353,8 +1353,8 @@ function questionInteraction(
     resolverPolicyProvenance: "inherited",
     effectiveResolverPolicySource: "requested",
     legacyResolverPolicyAliases: {
-      requested: "board_or_agents",
-      effective: "board_or_agents",
+      requested: "operator_or_agents",
+      effective: "operator_or_agents",
     },
     createdByAgentId: "agent-1",
     createdByUserId: null,
@@ -1385,7 +1385,7 @@ function questionInteraction(
 function createLongThreadComments() {
   return Array.from({ length: 4 }, (_, index) => ({
     id: `comment-${index + 1}`,
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     authorType: "user" as const,
     authorAgentId: null,
@@ -1446,13 +1446,13 @@ function renderThread(props: ComponentProps<typeof TaskChatThread>) {
 describe("TaskChatThread draft pass-through", () => {
   it.each(["original", "changed"])("groups PAP-2525 native image uploads with %s receipt wording", async (wording) => {
     const comment = (id: string, body: string, runId?: string) => ({
-      id, body, companyId: "company", issueId: "issue", authorType: "agent" as const, authorAgentId: "agent", authorUserId: null,
+      id, body, spaceId: "space", issueId: "issue", authorType: "agent" as const, authorAgentId: "agent", authorUserId: null,
       createdByRunId: runId ?? null, createdAt: new Date("2026-11-06T13:32:00Z"), updatedAt: new Date("2026-11-06T13:32:00Z"),
       metadata: null, presentation: null,
     });
     type Props = ComponentProps<typeof TaskChatThread>;
     const workProducts = [1, 2].map(n => ({
-      id: `image-${n}`, type: "artifact", provider: "paperclip", title: `Screen ${n}`, status: "active", reviewState: "none", healthStatus: "unknown",
+      id: `image-${n}`, type: "artifact", provider: "outpost", title: `Screen ${n}`, status: "active", reviewState: "none", healthStatus: "unknown",
       createdByRunId: "images-run", createdAt: new Date(`2026-11-06T13:31:0${n}Z`), updatedAt: new Date(`2026-11-06T13:31:0${n}Z`),
       metadata: { attachmentId: `00000000-0000-4000-8000-00000000000${n}`, originalFilename: `screen-${n}.png`, contentType: "image/png", byteSize: 2048, contentPath: `/api/attachments/00000000-0000-4000-8000-00000000000${n}/content`, openPath: `/api/attachments/00000000-0000-4000-8000-00000000000${n}/content`, downloadPath: `/api/attachments/00000000-0000-4000-8000-00000000000${n}/content?download=1` },
     })) as unknown as NonNullable<Props["workProducts"]>;
@@ -1485,7 +1485,7 @@ describe("TaskChatThread draft pass-through", () => {
       comments: [
         {
           id: "comment-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorType: "user",
           authorAgentId: null,
@@ -1511,7 +1511,7 @@ describe("TaskChatThread draft pass-through", () => {
       comments: [
         {
           id: "comment-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorType: "user",
           authorAgentId: null,
@@ -1562,10 +1562,10 @@ describe("TaskChatThread draft pass-through", () => {
       comments: [],
       onAdd: async () => {},
       enableReassign: true,
-      reassignOptions: [{ id: "user:user-1", label: "Riley Board" }],
+      reassignOptions: [{ id: "user:user-1", label: "Riley Operator" }],
       currentAssigneeValue: "user:user-1",
       userProfileMap: new Map([
-        ["user-1", { label: "Riley Board", image: "/riley-avatar.png" }],
+        ["user-1", { label: "Riley Operator", image: "/riley-avatar.png" }],
       ]),
     });
 
@@ -1665,15 +1665,15 @@ describe("TaskChatThread runtime transcript selection", () => {
     sidebarState.isMobile = mobile;
     const run = nativeRunningRun();
     const comment = {
-      id: "startup-message", companyId: "company", issueId: "issue",
-      authorType: "user" as const, authorUserId: "board", authorAgentId: null,
+      id: "startup-message", spaceId: "space", issueId: "issue",
+      authorType: "user" as const, authorUserId: "operator", authorAgentId: null,
       body: "Check the sandbox configuration.",
       presentation: null, metadata: null,
       createdAt: new Date(), updatedAt: new Date(),
     };
     const props = {
       comments: [comment], onAdd: async () => {}, issueStatus: "in_progress",
-      currentUserId: "board", issueAssigneeAgentId: "agent-1",
+      currentUserId: "operator", issueAssigneeAgentId: "agent-1",
       agentMap: new Map([["agent-1", { id: "agent-1", name: "Runner", adapterType: "outpost_runner", icon: "code" } as Agent]]),
     };
     renderThread({ ...props, comments: [] });
@@ -1735,7 +1735,7 @@ describe("TaskChatThread runtime transcript selection", () => {
         const seq = events.length + 1;
         events.push({
           id: seq, runId: run.id, seq, eventType,
-          companyId: "company", agentId: run.agentId, stream: "system", level: "info", color: null, message: null,
+          spaceId: "space", agentId: run.agentId, stream: "system", level: "info", color: null, message: null,
           createdAt: new Date(`2026-08-25T18:00:0${seq}.000Z`),
           payload: { orpEvent: {
             schema: "outpost.orp.event.v1", schemaVersion: 1,
@@ -1781,7 +1781,7 @@ describe("TaskChatThread runtime transcript selection", () => {
 
       renderThread({
         ...props, linkedRuns: [linkedRun], comments: [{
-          id: "saved-response", companyId: "company", issueId: "issue", runId: run.id,
+          id: "saved-response", spaceId: "space", issueId: "issue", runId: run.id,
           authorType: "agent", authorAgentId: run.agentId, authorUserId: null,
           body: displayed, presentation: null, metadata: null,
           createdAt: new Date("2026-08-25T18:00:10.000Z"), updatedAt: new Date("2026-08-25T18:00:10.000Z"),
@@ -1884,7 +1884,7 @@ describe("TaskChatThread runtime transcript selection", () => {
         runId: "restore-run", runtimeMode: "legacy", status: "failed", errorCode: "workspace_restore_failed",
         agentId: "agent-1", agentName: "Runner", adapterType: "grok_local",
         createdAt: "2026-08-25T18:00:00.000Z", startedAt: "2026-08-25T18:00:00.000Z", finishedAt: "2026-08-25T18:00:02.000Z",
-        resultJson: { workspaceRestoreFailure: code, workspaceRestorePath: ".claude/skills/paperclip", finalResponseRecorded: false,
+        resultJson: { workspaceRestoreFailure: code, workspaceRestorePath: ".claude/skills/outpost", finalResponseRecorded: false,
           ...(evidence === "document_only" ? { savedPlanRevisionId: "revision-3" } : {}),
         },
       }],
@@ -1894,7 +1894,7 @@ describe("TaskChatThread runtime transcript selection", () => {
     flushSync(() => marker!.querySelector<HTMLButtonElement>('button[aria-expanded]')!.click());
     expect(marker?.textContent).toContain("Workspace files need recovery");
     expect(marker?.textContent).toContain("No final response was recorded");
-    expect(marker?.textContent).toContain(".claude/skills/paperclip");
+    expect(marker?.textContent).toContain(".claude/skills/outpost");
     expect(marker?.querySelector('a[href*="/runs/restore-run"]')).not.toBeNull();
     expect(marker?.textContent.includes("after the plan was saved")).toBe(evidence === "matching" || evidence === "document_only");
     expect(Boolean(marker?.querySelector('a[href*="document-plan"]'))).toBe(evidence === "matching" || evidence === "document_only");
@@ -2051,13 +2051,13 @@ describe("TaskChatThread runtime transcript selection", () => {
 
   it.each([
     { name: "write_document", anchored: true },
-    { name: "mcp__paperclip__write_document", anchored: false },
+    { name: "mcp__outpost__write_document", anchored: false },
   ])("anchors a settled ACP Plan only at the normalized display name $name", ({ name, anchored }) => {
     const runId = "acpx-plan";
     planState.data = planDocument({ updatedAt: new Date("2026-08-25T18:00:02.000Z") });
     const events = ["started", "completed"].map((phase, index) => ({
       id: index + 1,
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "agent-1",
       stream: "system",
       level: "info",
@@ -2083,7 +2083,7 @@ describe("TaskChatThread runtime transcript selection", () => {
             schema: "outpost.tool.execution.v1",
             executionId: "write-plan",
             transport: anchored ? "mcp" : "builtin",
-            namespace: anchored ? "paperclip" : null,
+            namespace: anchored ? "outpost" : null,
             name,
             operation: "execute",
             readOnly: false,
@@ -2796,7 +2796,7 @@ describe("TaskChatThread runtime transcript selection", () => {
       comments: [
         {
           id: "progress-comment",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorType: "agent",
           authorAgentId: "agent-1",
@@ -2862,7 +2862,7 @@ describe("TaskChatThread runtime transcript selection", () => {
       comments: [
         {
           id: "native-repeated-final-comment",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorType: "agent",
           authorAgentId: "agent-1",
@@ -2924,7 +2924,7 @@ describe("TaskChatThread runtime transcript selection", () => {
       comments: [
         {
           id: "steering-comment",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorType: "user",
           authorAgentId: null,
@@ -2942,7 +2942,7 @@ describe("TaskChatThread runtime transcript selection", () => {
         },
         {
           id: "native-steered-repetition-final",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorType: "agent",
           authorAgentId: "agent-1",
@@ -3014,7 +3014,7 @@ describe("TaskChatThread runtime transcript selection", () => {
     const resolve = vi.spyOn(heartbeatsApi, "resolveRuntimeRequest").mockResolvedValue({} as never);
     renderThread({
       comments: [{
-        id: "pending-steering-comment", companyId: "company-1", issueId: "issue-1", authorType: "user",
+        id: "pending-steering-comment", spaceId: "space-1", issueId: "issue-1", authorType: "user",
         authorAgentId: null, authorUserId: "user-1", body: "Change course.", presentation: null, metadata: null,
         runId: null, consumedByRunId: runId, steeredIntoRunId: runId,
         conversationAnchorAt: new Date("2026-08-25T18:00:02.000Z"),
@@ -3046,7 +3046,7 @@ describe("TaskChatThread runtime transcript selection", () => {
     ]);
     const resolve = vi.spyOn(heartbeatsApi, "resolveRuntimeRequest").mockResolvedValue({} as never);
     const show = () => renderThread({
-      issueId: "issue-1", currentUserId: "user-board", comments: [], onAdd: async () => {}, issueStatus: "in_progress",
+      issueId: "issue-1", currentUserId: "user-operator", comments: [], onAdd: async () => {}, issueStatus: "in_progress",
       activeRun: { id: runId, runtimeMode: "native", status: "running", invocationSource: "issue", triggerDetail: null,
         startedAt: "2026-08-25T18:00:00.000Z", finishedAt: null, createdAt: "2026-08-25T18:00:00.000Z",
         agentId: "agent-1", agentName: "Runner", adapterType: "outpost_runner" },
@@ -3084,7 +3084,7 @@ describe("TaskChatThread runtime transcript selection", () => {
       comments: [
         {
           id: "live-steering-comment",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorType: "user",
           authorAgentId: null,
@@ -3176,7 +3176,7 @@ describe("TaskChatThread runtime transcript selection", () => {
     ) =>
       ({
         id: seq,
-        companyId: "company-1",
+        spaceId: "space-1",
         agentId: "agent-1",
         stream: "system",
         level: "info",
@@ -3236,7 +3236,7 @@ describe("TaskChatThread runtime transcript selection", () => {
       ? [
           {
             id: "response-wake-steering",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorType: "user",
             authorAgentId: null,
@@ -3256,8 +3256,8 @@ describe("TaskChatThread runtime transcript selection", () => {
       : mode === "persisted_response_comment"
         ? [
             {
-              id: "private-board-response",
-              companyId: "company-1",
+              id: "private-operator-response",
+              spaceId: "space-1",
               issueId: "issue-1",
               authorType: "agent",
               authorAgentId: "agent-1",
@@ -3317,7 +3317,7 @@ describe("TaskChatThread runtime transcript selection", () => {
                       presentationDecision: {
                         schema: "outpost.run_presentation_decision.v1",
                         chosenSource: "existing_issue_comment",
-                        commentId: "private-board-response",
+                        commentId: "private-operator-response",
                       },
                     }
                   : {}),
@@ -3368,7 +3368,7 @@ describe("TaskChatThread runtime transcript selection", () => {
     ) =>
       ({
         id: seq,
-        companyId: "company-1",
+        spaceId: "space-1",
         agentId: "agent-1",
         stream: "system",
         level: "info",
@@ -3537,7 +3537,7 @@ describe("TaskChatThread runtime transcript selection", () => {
       comments: [
         {
           id: "steer",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorType: "user",
           authorAgentId: null,
@@ -3604,7 +3604,7 @@ describe("TaskChatThread runtime transcript selection", () => {
       comments: [
         {
           id: "native-question-placeholder",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorType: "agent",
           authorAgentId: "agent-1",
@@ -3750,7 +3750,7 @@ describe("TaskChatThread runtime transcript selection", () => {
       renderThread({
         comments: [{
           id: "failure-comment",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorAgentId: "agent-1",
           authorUserId: null,
@@ -3940,9 +3940,9 @@ describe("TaskChatThread runtime transcript selection", () => {
     const recoveryRetry = vi.fn();
     renderThread({
       comments: testCase.withRecoveryNotice ? [{
-        id: "recovery-after-stop", companyId: "company", issueId: "issue", metadata: null,
+        id: "recovery-after-stop", spaceId: "space", issueId: "issue", metadata: null,
         authorType: "system", authorAgentId: null, authorUserId: null,
-        body: "Paperclip retried continuation, but it still has no live execution path.",
+        body: "Outpost retried continuation, but it still has no live execution path.",
         presentation: { kind: "system_notice", title: "No live execution path", tone: "danger", detailsDefaultOpen: false },
         createdAt: new Date("2026-08-25T18:00:03.000Z"), updatedAt: new Date("2026-08-25T18:00:03.000Z"),
       }] : [],
@@ -4172,7 +4172,7 @@ describe.each([true, false])("Unanswered question history (conversationMode=%s)"
   const old = questionInteraction("old", "Which color?", "2026-08-15T12:00:01Z");
   const newer = questionInteraction("new", "Which tone?", "2026-08-15T12:05:00Z");
   const movedOn = createLongThreadComments();
-  const props = { conversationMode, issueId: "issue-1", currentUserId: "user-board", onAdd: async () => {}, onSubmitInteractionAnswers: vi.fn() };
+  const props = { conversationMode, issueId: "issue-1", currentUserId: "user-operator", onAdd: async () => {}, onSubmitInteractionAnswers: vi.fn() };
   const takeover = () => container.querySelector('[data-testid="task-chat-composer-takeover"]');
   const pendingIndicator = () => container.querySelector<HTMLButtonElement>('[data-testid="task-chat-pending-input-indicator"]');
   it.each([false, true])("removes an old plan approval as soon as the newer document arrives (coordinator=%s)", coordinator => {
@@ -4554,7 +4554,7 @@ describe.each([true, false])("Unanswered question history (conversationMode=%s)"
   it("preserves a question dismissal saved by another tab", async () => {
     render(<TaskChatThread {...props} comments={[]} interactions={[old]} />);
     // The other tab saves after this thread has loaded its dismissal state.
-    localStorage.setItem("paperclip:task-question-dismissals:user-board:issue-1", JSON.stringify([newer.id]));
+    localStorage.setItem("outpost:task-question-dismissals:user-operator:issue-1", JSON.stringify([newer.id]));
     await dismiss();
     flushSync(() => root!.unmount());
     root = createRoot(container);
@@ -4566,7 +4566,7 @@ describe.each([true, false])("Unanswered question history (conversationMode=%s)"
 
   it("scopes dismissal to the person and task", async () => {
     const show = (userId: string, issueId: string) => render(<TaskChatThread {...props} currentUserId={userId} issueId={issueId} comments={[]} interactions={[old]} />);
-    show("user-board", "issue-1");
+    show("user-operator", "issue-1");
     await dismiss();
     flushSync(() => root!.unmount());
     root = createRoot(container);
@@ -4574,7 +4574,7 @@ describe.each([true, false])("Unanswered question history (conversationMode=%s)"
     expect(takeover()).not.toBeNull();
     flushSync(() => root!.unmount());
     root = createRoot(container);
-    show("user-board", "issue-2");
+    show("user-operator", "issue-2");
     expect(takeover()).not.toBeNull();
   });
 });
@@ -4599,7 +4599,7 @@ describe("TaskChatThread composer alignment", () => {
     const dock = container.querySelector(
       '[data-testid="task-chat-composer-dock"]',
     );
-    const composer = container.querySelector(".paperclip-task-chat-composer");
+    const composer = container.querySelector(".outpost-task-chat-composer");
     const send = container.querySelector(
       '[data-testid="task-chat-composer-send"]',
     );
@@ -4619,12 +4619,12 @@ describe("TaskChatThread composer alignment", () => {
 describe("TaskChatThread no-live-execution-path recovery", () => {
   const noLivePathComment = {
     id: "comment-no-live-path",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     authorType: "system" as const,
     authorAgentId: null,
     authorUserId: null,
-    body: "Paperclip retried continuation, but it still has no live execution path.",
+    body: "Outpost retried continuation, but it still has no live execution path.",
     presentation: {
       kind: "system_notice" as const,
       tone: "danger" as const,
@@ -5086,7 +5086,7 @@ describe("TaskChatThread queued message actions", () => {
     const onInterruptQueued = vi.fn(async () => {});
     const queuedComment = {
       id: "comment-queued",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       authorType: "user" as const,
       authorAgentId: null,
@@ -5122,7 +5122,7 @@ describe("TaskChatThread queued message actions", () => {
       comments: [
         {
           id: "comment-queued",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorType: "user",
           authorAgentId: null,
@@ -5152,7 +5152,7 @@ describe("TaskChatThread queued message actions", () => {
 describe("TaskChatThread Outpost Runner queue", () => {
   const queuedComment = {
     id: "queued-orp-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     authorType: "user" as const,
     authorAgentId: null,
@@ -5543,7 +5543,7 @@ describe("TaskChatThread live transcript", () => {
     ]);
     const comment = {
       id: "comment-runner",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       authorType: "agent" as const,
       authorAgentId: "agent-1",
@@ -5912,7 +5912,7 @@ describe("TaskChatThread live transcript", () => {
         comments: [
           {
             id: "delayed-comment",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorType: "agent",
             authorAgentId: "agent-1",
@@ -6023,17 +6023,17 @@ describe("TaskChatThread live transcript", () => {
 });
 
 describe("TaskChatThread composer execution controls", () => {
-  it("reconciles a timed-out Stop from exact company-bound historical proof after its live action disappears", async () => {
+  it("reconciles a timed-out Stop from exact space-bound historical proof after its live action disappears", async () => {
     vi.useFakeTimers();
     try {
       const run = { id: "stopped-run", status: "running", runtimeMode: "native" as const, invocationSource: "issue", triggerDetail: null,
         startedAt: "2026-11-03T15:00:00Z", finishedAt: null, createdAt: "2026-11-03T15:00:00Z", agentId: "agent-1", agentName: "Alex", adapterType: "outpost_runner" };
       const requested: Partial<HeartbeatRun> & { runtimeMode: "native" } = {
-        id: run.id, companyId: "company", status: "cancelled", runtimeMode: "native",
+        id: run.id, spaceId: "space", status: "cancelled", runtimeMode: "native",
         resultJson: { executionCancellation: { state: "requested" } },
       };
       const onStop = () => waitForStoppedRuns([run.id], { timeoutMs: 1000, getRun: async () => requested as HeartbeatRun });
-      const base = { comments: [], onAdd: async () => {}, issueStatus: "in_progress", companyId: "company" };
+      const base = { comments: [], onAdd: async () => {}, issueStatus: "in_progress", spaceId: "space" };
       render(<TaskChatThread {...base} activeRun={run} onCancelRun={onStop} />);
       await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="task-chat-composer-stop"]')!.click(); });
       await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
@@ -6041,13 +6041,13 @@ describe("TaskChatThread composer execution controls", () => {
       const historical = { runId: run.id, agentId: run.agentId, adapterType: run.adapterType, createdAt: run.createdAt,
         startedAt: run.startedAt, finishedAt: run.startedAt, status: "cancelled", runtimeMode: "native" as const,
         resultJson: { executionCancellation: { state: "acknowledged" }, nativeCancellation: {
-          schema: "outpost.native-cancellation.v1", runId: run.id, companyId: "company", dispatchState: "acknowledged" } } };
+          schema: "outpost.native-cancellation.v1", runId: run.id, spaceId: "space", dispatchState: "acknowledged" } } };
       render(<TaskChatThread {...base} linkedRuns={[{ ...historical, runtimeMode: undefined }]} />);
       await act(async () => {}); expect(container.querySelector('[role="alert"]')).not.toBeNull();
       render(<TaskChatThread {...base} linkedRuns={[{ ...historical, resultJson: { executionCancellation: { state: "acknowledged" } } }]} />);
       await act(async () => {}); expect(container.querySelector('[role="alert"]')).not.toBeNull();
       render(<TaskChatThread {...base} linkedRuns={[{ ...historical, resultJson: { ...historical.resultJson,
-        nativeCancellation: { ...historical.resultJson.nativeCancellation, companyId: "foreign" } } }]} />);
+        nativeCancellation: { ...historical.resultJson.nativeCancellation, spaceId: "foreign" } } }]} />);
       await act(async () => {}); expect(container.querySelector('[role="alert"]')).not.toBeNull();
       render(<TaskChatThread {...base} linkedRuns={[historical]} />);
       await act(async () => {}); expect(container.querySelector('[role="alert"]')).toBeNull();

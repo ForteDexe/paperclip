@@ -1,6 +1,6 @@
 # Run identity reads
 
-`captureRunIdentity` locks the task before the run. It validates company, agent,
+`captureRunIdentity` locks the task before the run. It validates space, agent,
 and active status. Pending steering still requires its durable acknowledgement.
 The accepted requester is read for each operation. No scope adds a cache or skips
 these checks.

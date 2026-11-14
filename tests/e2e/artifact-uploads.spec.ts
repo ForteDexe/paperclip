@@ -12,14 +12,14 @@ async function json(response: APIResponse) {
 
 async function setup(page: Page, request: APIRequestContext, mobile = false) {
   await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1440, height: 960 });
-  await page.addInitScript(() => localStorage.setItem("paperclip:panel-visible", "true"));
-  const companies = await json(await request.get("/api/companies"));
-  const company = companies.find((row: { name: string }) => row.name === "Artifact Upload Review") ?? await json(await request.post("/api/companies", { data: { name: `Artifact uploads ${randomUUID()}` } }));
-  const issue = await json(await request.post(`/api/companies/${company.id}/issues`, {
+  await page.addInitScript(() => localStorage.setItem("outpost:panel-visible", "true"));
+  const spaces = await json(await request.get("/api/spaces"));
+  const space = spaces.find((row: { name: string }) => row.name === "Artifact Upload Review") ?? await json(await request.post("/api/spaces", { data: { name: `Artifact uploads ${randomUUID()}` } }));
+  const issue = await json(await request.post(`/api/spaces/${space.id}/issues`, {
     data: { title: `Upload handoff files ${randomUUID().slice(0, 8)}`, status: "backlog", assigneeAgentId: null, assigneeUserId: null },
   }));
   await json(await request.post(`/api/issues/${issue.id}/tree-holds`, { data: { mode: "pause" } }));
-  await page.goto(`/${company.issuePrefix}/issues/${issue.identifier}${mobile ? "?from=inbox&fromHref=%2Finbox%2Fmine" : ""}`);
+  await page.goto(`/${space.issuePrefix}/issues/${issue.identifier}${mobile ? "?from=inbox&fromHref=%2Finbox%2Fmine" : ""}`);
   await expect(page.getByRole("heading", { name: issue.title, exact: true })).toBeVisible();
   if (mobile) {
     await page.getByRole("button", { name: "More actions", exact: true }).click();
@@ -31,7 +31,7 @@ async function setup(page: Page, request: APIRequestContext, mobile = false) {
   await panel.getByRole("option", { name: "Artifacts", exact: true }).click();
   await expectTaskPanelTab(panel, mobile, "Artifacts");
   await expect(panel.getByRole("button", { name: "Upload files", exact: true })).toBeVisible();
-  return { company, issue, panel };
+  return { space, issue, panel };
 }
 
 async function chooseFiles(page: Page, panel: Locator, files: { name: string; mimeType: string; buffer: Buffer }[]) {
@@ -138,7 +138,7 @@ test("the entire populated panel accepts a drop and preserves an existing docume
 test("a failed upload stays local and retry preserves the successful files", async ({ page, request }) => {
   const { issue, panel } = await setup(page, request);
   let fail = true;
-  await page.route(`**/api/companies/*/issues/${issue.id}/attachments`, async route => {
+  await page.route(`**/api/spaces/*/issues/${issue.id}/attachments`, async route => {
     if (fail) { fail = false; await route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ error: "Upload failed. Try again." }) }); }
     else await route.continue();
   });

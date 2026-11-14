@@ -59,7 +59,7 @@ export async function runGitHubReviewCampaign(input: { executions: readonly Matr
       evidence.setupId = config.setupId; evidence.hosting = config.hosting;
       result.provider = config.agent.provider; result.model = config.agent.model; result.runtimeMode = config.agent.runtimeMode;
       evidence.definitionHash = createHash("sha256").update(execution.suiteDefinitionHash).update(JSON.stringify({ setup: config.setupId, hosting: config.hosting, agent: config.agent, repository: config.github.repository, login: config.github.login })).digest("hex");
-      const common = { ...config, models: {}, routes: {}, credentials: {}, budgetCents: 1, maxRuns: config.maximumRuns, turnTimeoutMs: config.deadlineMs, retainCompany: true };
+      const common = { ...config, models: {}, routes: {}, credentials: {}, budgetCents: 1, maxRuns: config.maximumRuns, turnTimeoutMs: config.deadlineMs, retainSpace: true };
       const username = await resolveJourneyCredential(config.github.username, { signal, registerSecret: value => secrets.push(value) });
       evidence.dependencies.push({ alias: "github-user", consumer: "browser", status: "ready", source: config.github.username.source });
       evidence.dependencies.push({ alias: "review-agent-provider", consumer: "product-agent", status: "unverified", source: "product-connection" });
@@ -88,7 +88,7 @@ export async function runGitHubReviewCampaign(input: { executions: readonly Matr
       await checkpoint("github_repository");
       await github.goto(`https://github.com/${config.github.repository}`);
       await expect(github.getByText("Private", { exact: true }).first()).toBeVisible();
-      await checkpoint("paperclip_authentication");
+      await checkpoint("outpost_authentication");
       await page.goto(config.target.baseURL);
       if (config.authentication) {
         if (typeof authentication?.authenticateGitHubJourney !== "function") throw new ConnectionBlock("blocked_target", "invalid_journey_authentication_adapter");
@@ -97,7 +97,7 @@ export async function runGitHubReviewCampaign(input: { executions: readonly Matr
       }
       api = new ConnectionApi(browser.context.request, config.target.baseURL);
       await checkpoint("awaiting_board_login");
-      await awaitJourneyCondition(async () => { try { await api!.get(`/api/companies/${config!.target.companyId}`); return true; } catch { return false; } }, config.browser.loginTimeoutMs, "paperclip_login_required", signal);
+      await awaitJourneyCondition(async () => { try { await api!.get(`/api/spaces/${config!.target.spaceId}`); return true; } catch { return false; } }, config.browser.loginTimeoutMs, "outpost_login_required", signal);
       const identity = await verifyConnectionTarget(config.target.baseURL, common, browser.context.request);
       evidence.targetCommit = identity.commit; evidence.checkpoints.target = true;
       await runGitHubReviewFlow({ page, github, githubUsername: config.github.account, api, config, resources, evidence, signal,
@@ -171,7 +171,7 @@ export async function runGitHubReviewCampaign(input: { executions: readonly Matr
         evidence.cleanup.endpoint = false;
         try {
           const owned = await api.get(`/api/chat-endpoints/${resources.endpointId}`);
-          if (owned.companyId !== config!.target.companyId || owned.assignedAgentId !== config!.agent.id) throw new ConnectionFailure("cleanup_endpoint_owner_mismatch");
+          if (owned.spaceId !== config!.target.spaceId || owned.assignedAgentId !== config!.agent.id) throw new ConnectionFailure("cleanup_endpoint_owner_mismatch");
           if (owned.botExternalId) {
             evidence.cleanup.app = false;
             try {
@@ -180,19 +180,19 @@ export async function runGitHubReviewCampaign(input: { executions: readonly Matr
           }
           if (resources.issueId) {
             const issue = await api.get(`/api/issues/${resources.issueId}`);
-            if (issue.companyId !== config!.target.companyId || issue.assigneeAgentId !== config!.agent.id) throw new ConnectionFailure("cleanup_issue_owner_mismatch");
-            const boundRuns = await readOwnedGitHubReviewRuns(api, { companyId: config!.target.companyId, agentId: config!.agent.id, issueId: resources.issueId });
+            if (issue.spaceId !== config!.target.spaceId || issue.assigneeAgentId !== config!.agent.id) throw new ConnectionFailure("cleanup_issue_owner_mismatch");
+            const boundRuns = await readOwnedGitHubReviewRuns(api, { spaceId: config!.target.spaceId, agentId: config!.agent.id, issueId: resources.issueId });
             resources.runIds = [...new Set([...resources.runIds, ...boundRuns.map(run => run.id)])];
           }
           await save("owned-resources.json", resources);
           await api.post(`/api/chat-endpoints/${resources.endpointId}/setup`, { action: "remove" });
           for (const runId of resources.runIds) {
             if (!resources.issueId) throw new ConnectionFailure("cleanup_run_issue_missing");
-            await stopOwnedGitHubReviewRun(api, runId, { companyId: config!.target.companyId, agentId: config!.agent.id, issueId: resources.issueId }, cleanupSignal);
+            await stopOwnedGitHubReviewRun(api, runId, { spaceId: config!.target.spaceId, agentId: config!.agent.id, issueId: resources.issueId }, cleanupSignal);
           }
           if (resources.issueId && result.status !== "passed") {
             const issue = await api.get(`/api/issues/${resources.issueId}`);
-            if (issue.companyId !== config!.target.companyId || issue.assigneeAgentId !== config!.agent.id) throw new ConnectionFailure("cleanup_issue_owner_mismatch");
+            if (issue.spaceId !== config!.target.spaceId || issue.assigneeAgentId !== config!.agent.id) throw new ConnectionFailure("cleanup_issue_owner_mismatch");
             if (!["done", "cancelled"].includes(issue.status)) {
               await api.patch(`/api/issues/${issue.id}`, { status: "cancelled" });
               if ((await api.get(`/api/issues/${issue.id}`)).status !== "cancelled") throw new ConnectionFailure("owned_task_settlement_unconfirmed");
@@ -245,7 +245,7 @@ export async function runGitHubReviewCampaign(input: { executions: readonly Matr
       await save("owned-resources.json", resources);
       if (api && resources.issueId && config) {
         try {
-          const runs = await readOwnedGitHubReviewRuns(api, { companyId: config.target.companyId, agentId: config.agent.id, issueId: resources.issueId });
+          const runs = await readOwnedGitHubReviewRuns(api, { spaceId: config.target.spaceId, agentId: config.agent.id, issueId: resources.issueId });
           result.runtimeUsage = buildRuntimeUsage({ environmentId: execution.environment.id, runs, fallbackFinishedAt: new Date().toISOString() });
           result.billing = summarizeExecutionBilling({ ...result, usage: { runs: runs.map(r => ({ usage: r.usageJson })) } });
         } catch { /* Missing billing remains unavailable; never substitute zero. */ }

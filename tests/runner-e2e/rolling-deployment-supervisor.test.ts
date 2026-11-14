@@ -7,11 +7,11 @@ const mocks = vi.hoisted(() => ({
 vi.mock("node:fs/promises", () => ({ mkdir: async () => {}, rename: async () => {}, writeFile: mocks.writeFile,
   readFile: async () => JSON.stringify({ database: { mode: "postgres", connectionString: "postgres://fixture" },
     secrets: { localEncrypted: { keyFilePath: "/fixture/secrets/master.key" } } }) }));
-vi.mock("../../packages/shared/src/config-schema.js", () => ({ paperclipConfigSchema: { parse: (value: unknown) => value } }));
+vi.mock("../../packages/shared/src/config-schema.js", () => ({ outpostConfigSchema: { parse: (value: unknown) => value } }));
 vi.mock("./rolling-deployment-process.js", () => ({ startRollingDeploymentProcess: mocks.start }));
 vi.mock("./rolling-deployment-proxy.js", () => ({ startRollingDeploymentProxy: async () => ({ origin: "http://127.0.0.1:1", routeTo() {}, close: mocks.close }) }));
 vi.mock("./controller-recovery-observer.js", () => ({ createControllerRecoveryObserver: mocks.observer }));
-vi.mock("./server-restart-request.js", () => ({ readRestartRequest: async () => ({ requestId: "key-check", rollingDeployment: true, recoveryBinding: { companyId: "business-company" } }) }));
+vi.mock("./server-restart-request.js", () => ({ readRestartRequest: async () => ({ requestId: "key-check", rollingDeployment: true, recoveryBinding: { spaceId: "business-space" } }) }));
 import { superviseRollingDeployment } from "./rolling-deployment-supervisor.js";
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
@@ -42,7 +42,7 @@ it.each([undefined, "prior-disposable-key"])("shares the server key with checkpo
 });
 
 
-it("keeps open deployment probe tasks out of the agent workflow's company", async () => {
+it("keeps open deployment probe tasks out of the agent workflow's space", async () => {
   mocks.start.mockResolvedValue({ child: { exitCode: null, signalCode: null }, configPath: "/fixture/config.json",
     origin: "http://127.0.0.1:2", waitForReady: async () => {}, stop: mocks.stop });
   mocks.observer.mockResolvedValue(undefined);
@@ -50,14 +50,14 @@ it("keeps open deployment probe tasks out of the agent workflow's company", asyn
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     const route = new URL(url).pathname;
     routes.push(route);
-    if (route === "/api/companies") return new Response(JSON.stringify({ id: "probe-company" }));
-    if (route === "/api/companies/probe-company/issues") throw new Error("probe fixture boundary reached");
+    if (route === "/api/spaces") return new Response(JSON.stringify({ id: "probe-space" }));
+    if (route === "/api/spaces/probe-space/issues") throw new Error("probe fixture boundary reached");
     throw new Error(`Probe modified business workflow: ${route}`);
   }));
   await expect(superviseRollingDeployment({ temporaryRoot: "/fixture", repositoryRoot: "/fixture",
     configPath: "/fixture/config.json", port: 1, executionIds: ["rolling"], cancelled: () => false,
     environment: { OUTPOST_STORAGE_PROVIDER: "s3" },
   })).rejects.toThrow("probe fixture boundary reached");
-  expect(routes).toEqual(["/api/companies", "/api/companies/probe-company/issues"]);
+  expect(routes).toEqual(["/api/spaces", "/api/spaces/probe-space/issues"]);
   expect(mocks.stop).toHaveBeenCalledOnce();
 });

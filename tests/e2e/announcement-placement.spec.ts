@@ -17,7 +17,7 @@ const CONNECTORS_ANNOUNCEMENT = {
     "Connect Gmail, GitHub, Notion, and more. Choose which agents get access, which accounts they use, and which actions they can take.",
   image: {
     path: "assets/59dd6169b4f7a0e3af527801853abac554e80c59519f556c9d234385682a65ee.png",
-    alt: "Paperclip agents with their own sets of connected apps.",
+    alt: "Outpost agents with their own sets of connected apps.",
   },
   primaryAction: { kind: "route", label: "Explore connectors", path: "/apps" },
 };
@@ -66,9 +66,9 @@ async function serveConnectorsAnnouncement(page: Page, announcement: object = CO
 }
 
 async function firstTask(request: APIRequestContext, name: string) {
-  const company = await json(await request.post("/api/companies", { data: { name: `${name} ${Date.now()}` } }));
+  const space = await json(await request.post("/api/spaces", { data: { name: `${name} ${Date.now()}` } }));
   const lead = await json(
-    await request.post(`/api/companies/${company.id}/agents`, {
+    await request.post(`/api/spaces/${space.id}/agents`, {
       data: {
         name: "Team Lead",
         role: "ceo",
@@ -79,25 +79,25 @@ async function firstTask(request: APIRequestContext, name: string) {
     }),
   );
   const issue = await json(
-    await request.post(`/api/companies/${company.id}/issues`, {
-      data: { title: "Paperclip onboarding", status: "backlog", assigneeAgentId: lead.id },
+    await request.post(`/api/spaces/${space.id}/issues`, {
+      data: { title: "Outpost onboarding", status: "backlog", assigneeAgentId: lead.id },
     }),
   );
-  return { company, issue };
+  return { space, issue };
 }
 
-test.describe("Announcement placement on a new company's first task", () => {
+test.describe("Announcement placement on a new space's first task", () => {
   test("the announcement does not cover the task thread or composer", async ({ page, request }, testInfo) => {
-    const { company, issue } = await firstTask(request, "Announcement Placement");
+    const { space, issue } = await firstTask(request, "Announcement Placement");
     await serveConnectorsAnnouncement(page);
 
     for (const viewport of VIEWPORTS) {
       await page.setViewportSize(viewport);
-      await page.goto(`/${company.issuePrefix}/issues/${issue.identifier}`);
+      await page.goto(`/${space.issuePrefix}/issues/${issue.identifier}`);
 
       const composer = page.getByTestId("task-chat-composer-dock");
       await expect(composer).toBeVisible({ timeout: 30_000 });
-      const announcement = page.getByRole("complementary", { name: "Paperclip announcements" });
+      const announcement = page.getByRole("complementary", { name: "Outpost announcements" });
       await expect(announcement.getByRole("heading", { name: CONNECTORS_ANNOUNCEMENT.title })).toBeVisible({
         timeout: 15_000,
       });
@@ -128,7 +128,7 @@ test.describe("Announcement placement on a new company's first task", () => {
   });
 
   test("a long announcement docked in a narrow sidebar keeps navigation and the account menu usable", async ({ page, request }) => {
-    const { company, issue } = await firstTask(request, "Announcement Long");
+    const { space, issue } = await firstTask(request, "Announcement Long");
     const long = {
       ...CONNECTORS_ANNOUNCEMENT,
       title: "Give your agents the access they need to finish real work across every tool your team uses daily",
@@ -143,9 +143,9 @@ test.describe("Announcement placement on a new company's first task", () => {
     });
     const viewport = { width: 1280, height: 720 };
     await page.setViewportSize(viewport);
-    await page.goto(`/${company.issuePrefix}/issues/${issue.identifier}`);
+    await page.goto(`/${space.issuePrefix}/issues/${issue.identifier}`);
 
-    const announcement = page.getByRole("complementary", { name: "Paperclip announcements" });
+    const announcement = page.getByRole("complementary", { name: "Outpost announcements" });
     await expect(announcement.getByRole("heading", { name: long.title })).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(500);
 

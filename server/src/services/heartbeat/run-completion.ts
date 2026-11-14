@@ -30,7 +30,7 @@ import { isStorageUnavailableError, STORAGE_CREDENTIALS_REJECTED_MESSAGE, STORAG
 import { type RunSessionOutcome, resolveNextSessionState, normalizeUsageTotals, resolveCacheAdjustedCostUsd, resolveLedgerBiller, resolveLedgerCostStatus, normalizeLedgerBillingType } from "./run-state.js";
 import { readGitConnectionFailure } from "../git-connection-failure.js";
 import { CONFIGURATION_INCOMPLETE_FAILURE_CODE, ConfigurationIncompleteFailure } from "./run-preparation.js";
-import { isWorkspaceValidationFailedRun, isWorkspaceValidationFailure, attachPaperclipSessionMetadataToSessionParams } from "./workspaces.js";
+import { isWorkspaceValidationFailedRun, isWorkspaceValidationFailure, attachOutpostSessionMetadataToSessionParams } from "./workspaces.js";
 import { preserveWorkspaceRestoreRecoveryMetadataSql } from "../legacy-workspace-restore-recovery.js";
 import { cancellationResultJson, controllerLeaseLossCancellation, readRunCancellation } from "../run-cancellation.js";
 import { CONTROLLER_LEASE_LOST_FAILURE_CODE, LegacyControllerLeaseLostError } from "../legacy-controller-lease.js";
@@ -54,7 +54,7 @@ import { isUnresolvedWorkspaceBaseRefError, readUnresolvedWorkspaceBaseRefDiagno
 import { runnerGoalService } from "../runner-goals.js";
 import { resolveChatRunPresentationAuthorizationReason } from "../chat-run-publications.js";
 import { hasChatRunOwnedProviderInteraction } from "../chat-interaction-arbitration.js";
-import { conversationTurnPresentsAnswer } from "../native-runtime/native-governance.js";
+import { conversationTurnPresentsAnswer } from "../native-runtime/native-policy.js";
 import { readAcceptedTaskContinuationSummary } from "../heartbeat-run-summary.js";
 import { SANDBOX_PROVIDER_PLUGIN_NOT_READY_REASON } from "../recovery/stranded-notice.js";
 import { MAX_TURN_CONTINUATION_RETRY_REASON, isResolvedInteractionContinuationWakeContext } from "../../modules/run-dispatch/index.js";
@@ -222,7 +222,7 @@ function buildSandboxProviderPluginNotReadyResultJson(
   return {
     configurationIncomplete: {
       reason: SANDBOX_PROVIDER_PLUGIN_NOT_READY_REASON,
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       agentId: run.agentId,
       issueId: readNonEmptyString(context.issueId) ?? null,
       projectId: readNonEmptyString(context.projectId) ?? null,
@@ -245,7 +245,7 @@ function buildUnresolvedWorkspaceBaseRefResultJson(
     configurationIncomplete: {
       reason: "workspace_base_ref_unresolved",
       ...(diagnostic ? { baseRefDiagnostic: diagnostic } : {}),
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       agentId: run.agentId,
       issueId: readNonEmptyString(context.issueId) ?? null,
       projectId: readNonEmptyString(context.projectId) ?? null,
@@ -385,10 +385,10 @@ function controllerLeaseLossResultJson(signal: AbortSignal) {
 
 /** Persist the resolved presentation and wake dependents in its committing transaction. */
 export async function recordRunPresentationDecision(db: Db, input: {
-  companyId: string; runId: string; issueId?: string; decision: RunPresentationDecision;
+  spaceId: string; runId: string; issueId?: string; decision: RunPresentationDecision;
 }) {
   await db.transaction(async tx => {
-    await notifyChatRunMilestones(tx, { companyId: input.companyId, runId: input.runId, issueId: input.issueId });
+    await notifyChatRunMilestones(tx, { spaceId: input.spaceId, runId: input.runId, issueId: input.issueId });
     await tx.update(heartbeatRuns).set({
       resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) || ${JSON.stringify({ presentationDecision: input.decision })}::jsonb
         || ${typeof input.decision.commentId === "string" ? settledResponsePublicationSql() : sql`'{}'::jsonb`}`,
@@ -535,7 +535,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
       if (!taskKey) return;
       if (nativeTaskSessionPublicationHandled(finalizedRun.runnerProfileJson, {
         runId: finalizedRun.id,
-        companyId: finalizedRun.companyId,
+        spaceId: finalizedRun.spaceId,
         agentId: agent.id,
         taskKey,
         adapterType: agent.adapterType,
@@ -544,18 +544,18 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
         adapterResult.clearSession ||
         (!nextSessionState.params && !nextSessionState.displayId)
       ) {
-        await clearTaskSessions(agent.companyId, agent.id, {
+        await clearTaskSessions(agent.spaceId, agent.id, {
           taskKey,
           adapterType: agent.adapterType,
           expectedRunId: finalizedRun.id,
         });
       } else {
         await upsertTaskSession({
-          companyId: agent.companyId,
+          spaceId: agent.spaceId,
           agentId: agent.id,
           adapterType: agent.adapterType,
           taskKey,
-          sessionParamsJson: attachPaperclipSessionMetadataToSessionParams(
+          sessionParamsJson: attachOutpostSessionMetadataToSessionParams(
             nextSessionState.params,
             configuredModel,
             sessionConfigMetadata,
@@ -583,7 +583,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
 
     if (providerTraceCapture) {
       try {
-        await traceStore.finalize(run.id, run.companyId);
+        await traceStore.finalize(run.id, run.spaceId);
         onProviderTraceFinalized();
       } catch (error) {
         logger.warn(
@@ -831,7 +831,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
       }
       const livenessRun = finalizedRun;
       await measureRunPhase("completion.summary", () => refreshContinuationSummaryForRun(livenessRun, agent));
-      if (await pendingCaseHandoffForRun(db, livenessRun.id, livenessRun.companyId)) {
+      if (await pendingCaseHandoffForRun(db, livenessRun.id, livenessRun.spaceId)) {
         // The returning agent must resume its own settled session with the
         // configuration metadata used for this run. Persist before release,
         // which can make a same-agent successor eligible immediately.
@@ -848,7 +848,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
         const existingRunComment = issueId
           ? await measureRunPhase("response.resolve", () => findRunIssueComment(
               livenessRun.id,
-              livenessRun.companyId,
+              livenessRun.spaceId,
               issueId,
               persistedResultJson,
             ))
@@ -856,13 +856,13 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
         const finalAgentMessage =
           await measureRunPhase("response.resolve", () => findLatestCompletedFinalAgentMessage(
             livenessRun.id,
-            livenessRun.companyId,
+            livenessRun.spaceId,
           ));
         const externalChatPresentationCandidate = isChatOriginPublicationCandidate(livenessRun.contextSnapshot);
         const externalChatPresentationAuthorization =
           issueId && externalChatPresentationCandidate
             ? await measureRunPhase("response.authorize", () => resolveChatRunPresentationAuthorizationReason(db, {
-                companyId: livenessRun.companyId,
+                spaceId: livenessRun.spaceId,
                 issueId,
                 runId: livenessRun.id,
               }))
@@ -874,10 +874,10 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
         const resolved = resolveHeartbeatRunResponse({
           resultJson: persistedResultJson,
           interactionOwnsResponse: Boolean(issueId && readAcceptedTaskContinuationSummary(persistedResultJson) &&
-            await hasChatRunOwnedProviderInteraction(db, { companyId: livenessRun.companyId, issueId, runId: livenessRun.id })),
+            await hasChatRunOwnedProviderInteraction(db, { spaceId: livenessRun.spaceId, issueId, runId: livenessRun.id })),
           conversationTurnFinished: Boolean(issueId) && isConversation(issueContext) && livenessRun.status === "succeeded"
             && await measureRunPhase("response.resolve", () => conversationTurnPresentsAnswer({
-              db, companyId: livenessRun.companyId, issueId: issueId!, runId: livenessRun.id,
+              db, spaceId: livenessRun.spaceId, issueId: issueId!, runId: livenessRun.id,
               finalizationPhase: persistedResultJson?.finalizationPhase,
               finalizationReasonCode: persistedResultJson?.finalizationReasonCode,
             })),
@@ -888,7 +888,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
             externalChatPresentationContext,
           externalChatReviewResponseSummaryAuthorized:
             persistedResultJson?.finalizationReasonCode ===
-              "governed_response_waiting" &&
+              "controlled_response_waiting" &&
             externalChatPresentationAuthorization ===
               CHAT_RUN_PRESENTATION_AUTHORIZATION_REASON,
           externalChatResponseWakeSummaryAuthorized:
@@ -912,7 +912,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
           // ordinary internal runs retain the private default.
           const presentationAuthorizationReason =
             await measureRunPhase("response.authorize", () => resolveChatRunPresentationAuthorizationReason(db, {
-              companyId: livenessRun.companyId,
+              spaceId: livenessRun.spaceId,
               issueId,
               runId: livenessRun.id,
             }));
@@ -931,7 +931,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
             ],
           };
           await measureRunPhase("response.activity", () => logActivity(db, {
-            companyId: livenessRun.companyId,
+            spaceId: livenessRun.spaceId,
             actorType: "agent",
             actorId: agent.id,
             agentId: agent.id,
@@ -963,7 +963,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
           };
         }
 
-        await recordRunPresentationDecision(db, { companyId: livenessRun.companyId,
+        await recordRunPresentationDecision(db, { spaceId: livenessRun.spaceId,
           runId: livenessRun.id, issueId: issueId ?? undefined, decision: presentationDecision });
         await appendRunEvent(livenessRun, {
           eventType: "run.presentation.resolved",
@@ -1051,7 +1051,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
         parseObject(adapterResult.resultJson).goalRolloverRequired === true
       ) {
         const rolloverProjection = await runnerGoalService(db).projection(
-          livenessRun.companyId,
+          livenessRun.spaceId,
           issueId,
           agent.id,
         );
@@ -1093,7 +1093,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
           if (blockerIssueStatus === "done") {
             await recovery.reconcileResolvedDependencyWakeBackstop({
               runId: finalizedRun.id,
-              companyId: finalizedRun.companyId,
+              spaceId: finalizedRun.spaceId,
               blockerIssueId: issueId,
               source: "workspace.finalize",
             });
@@ -1121,7 +1121,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
   async function nativePreDispatchFailureResult(runId: string, dispatchMayHaveStarted: boolean | undefined) {
     if (dispatchMayHaveStarted !== false) return null;
     try {
-      const [row] = await db.select({ companyId: heartbeatRuns.companyId, runtimeMode: heartbeatRuns.runtimeMode,
+      const [row] = await db.select({ spaceId: heartbeatRuns.spaceId, runtimeMode: heartbeatRuns.runtimeMode,
         processPid: heartbeatRuns.processPid, processGroupId: heartbeatRuns.processGroupId,
         processStartedAt: heartbeatRuns.processStartedAt, sessionIdAfter: heartbeatRuns.sessionIdAfter,
         inheritedProcessIdentityRunId: sql<unknown>`${heartbeatRuns.runnerProfileJson}->>'inheritedProcessIdentityRunId'`,
@@ -1130,7 +1130,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
           controllerBootId: nativeRunFinalizations.controllerBootId, resultId: nativeRunFinalizations.resultId } })
         .from(heartbeatRuns)
         .leftJoin(nativeRunFinalizations, and(eq(nativeRunFinalizations.runId, heartbeatRuns.id),
-          eq(nativeRunFinalizations.companyId, heartbeatRuns.companyId)))
+          eq(nativeRunFinalizations.spaceId, heartbeatRuns.spaceId)))
         .where(eq(heartbeatRuns.id, runId)).limit(1);
       if (!row || row.runtimeMode !== "native") return null;
       // A recorded process or provider session also means work may have run.
@@ -1150,9 +1150,9 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
       // may spawn a runner; runner events carry a source event ID. Any of them,
       // in this or an earlier controller generation, means work may have run.
       // Restart recovery uses the same canonical proof.
-      if (await hasNativeExecutionStartEvidence(db, { companyId: row.companyId, id: runId })) return null;
+      if (await hasNativeExecutionStartEvidence(db, { spaceId: row.spaceId, id: runId })) return null;
       const [result] = await db.select({ id: nativeRunResults.id }).from(nativeRunResults)
-        .where(and(eq(nativeRunResults.companyId, row.companyId), eq(nativeRunResults.runId, runId))).limit(1);
+        .where(and(eq(nativeRunResults.spaceId, row.spaceId), eq(nativeRunResults.runId, runId))).limit(1);
       if (result) return null;
       return { [NATIVE_PRE_DISPATCH_FAILURE_KEY]: NATIVE_PRE_DISPATCH_FAILURE_RECORD };
     } catch (error) {
@@ -1167,9 +1167,9 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
    * failure proven to start no provider work closes it as a terminal failure.
    * The guard matches only an unclaimed row; a claimed one keeps its owner.
    */
-  async function settleUnclaimedNativeCoordinator(run: Pick<Run, "id" | "companyId">) {
+  async function settleUnclaimedNativeCoordinator(run: Pick<Run, "id" | "spaceId">) {
     await db.update(nativeRunFinalizations).set({ phase: "terminal_failure", failureCode: NATIVE_PRE_DISPATCH_FAILURE_CODE,
-      updatedAt: new Date() }).where(and(eq(nativeRunFinalizations.companyId, run.companyId),
+      updatedAt: new Date() }).where(and(eq(nativeRunFinalizations.spaceId, run.spaceId),
       eq(nativeRunFinalizations.runId, run.id), eq(nativeRunFinalizations.phase, "observed"), eq(nativeRunFinalizations.attempt, 0),
       isNull(nativeRunFinalizations.leaseOwner), isNull(nativeRunFinalizations.controllerBootId), isNull(nativeRunFinalizations.resultId)));
   }
@@ -1215,12 +1215,12 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
       if (!readPredecessorRetirementFallback(run.resultJson)) {
         const record = { [PREDECESSOR_RETIREMENT_FALLBACK_KEY]: fallback, executionRecovery: { kind: "bootstrap", providerWorkStarted: false } };
         await db.update(heartbeatRuns).set({ resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) || ${JSON.stringify(record)}::jsonb` })
-          .where(and(eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.status, "failed")));
+          .where(and(eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.status, "failed")));
         run = { ...run, resultJson: { ...parseObject(run.resultJson), ...record } };
       }
       await db.update(nativeRunFinalizations).set({ phase: "terminal_failure", failureCode: NATIVE_PRE_DISPATCH_FAILURE_CODE,
         leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: null, updatedAt: new Date() })
-        .where(and(eq(nativeRunFinalizations.companyId, run.companyId), eq(nativeRunFinalizations.runId, run.id),
+        .where(and(eq(nativeRunFinalizations.spaceId, run.spaceId), eq(nativeRunFinalizations.runId, run.id),
           isNull(nativeRunFinalizations.resultId), inArray(nativeRunFinalizations.phase, ["observed", "retryable_failure", "terminal_failure"])));
     } catch (error) {
       logger.warn({ err: error, runId: run.id }, "could not close the native coordinator of a run that did no provider work");
@@ -1449,7 +1449,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
         );
       }
       await measureRunPhase("completion.summary", () => refreshContinuationSummaryForRun(livenessRun, agent));
-      if (await pendingCaseHandoffForRun(db, livenessRun.id, livenessRun.companyId)) {
+      if (await pendingCaseHandoffForRun(db, livenessRun.id, livenessRun.spaceId)) {
         await settleStorageWaitMessage(livenessRun, null, err);
         await releaseIssueExecutionAndPromote(livenessRun, { suppressImmediateRecovery: true });
         await settleAgent();
@@ -1516,13 +1516,13 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
           taskSession)
       ) {
         await upsertTaskSession({
-          companyId: agent.companyId,
+          spaceId: agent.spaceId,
           agentId: agent.id,
           adapterType: agent.adapterType,
           taskKey,
           sessionParamsJson:
             goalCheckpointSession.current?.params ??
-            attachPaperclipSessionMetadataToSessionParams(
+            attachOutpostSessionMetadataToSessionParams(
               previousSessionParams,
               configuredModel,
               sessionConfigMetadata,
@@ -1562,7 +1562,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
     // The failure's error event was written before the retry decision. Its
     // transcript text must not keep a promise that this run no longer makes.
     await db.update(heartbeatRunEvents).set({ message: error })
-      .where(and(eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+      .where(and(eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
         eq(heartbeatRunEvents.eventType, "error"),
         inArray(heartbeatRunEvents.message, [STORAGE_UNAVAILABLE_MESSAGE, STORAGE_CREDENTIALS_REJECTED_MESSAGE])))
       .catch((writeError: unknown) => logger.warn({ err: writeError, runId: run.id }, "failed to correct the storage failure event"));
@@ -1631,7 +1631,7 @@ export function createHeartbeatRunCompletion(db: Db, dependencies: HeartbeatRunC
     // A saved workspace that could not be restored before provider dispatch
     // keeps its saved version. Retry it within the bootstrap budget only when
     // the owner proved the same clean writer and saved version; otherwise, and
-    // on exhaustion, the board gets a named recovery action.
+    // on exhaustion, the operator gets a named recovery action.
     const remoteWorkspaceRestoreFailure = !providerDispatchStarted && run.runtimeMode === "legacy"
       && run.nativeSessionId === null && run.runnerInstanceId === null ? findRemoteWorkspaceRestoreError(outerErr) : null;
     // A plugin worker that was not running refused the call before sending it,

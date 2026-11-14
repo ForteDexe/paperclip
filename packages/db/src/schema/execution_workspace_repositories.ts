@@ -1,11 +1,11 @@
 import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { executionWorkspaces } from "./execution_workspaces.js";
 import { issues } from "./issues.js";
 
 export const executionWorkspaceRepositories = pgTable("execution_workspace_repositories", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   executionWorkspaceId: uuid("execution_workspace_id").notNull().references(() => executionWorkspaces.id, { onDelete: "cascade" }),
   requestedByIssueId: uuid("requested_by_issue_id").references(() => issues.id, { onDelete: "set null" }),
   repositoryIdentity: text("repository_identity").notNull(),
@@ -25,5 +25,5 @@ export const executionWorkspaceRepositories = pgTable("execution_workspace_repos
   identityIdx: uniqueIndex("execution_workspace_repositories_identity_idx").on(table.executionWorkspaceId, table.repositoryIdentity),
   pathIdx: uniqueIndex("execution_workspace_repositories_path_idx").on(table.executionWorkspaceId, table.relativePath),
   requestIdx: uniqueIndex("execution_workspace_repositories_request_idx").on(table.executionWorkspaceId, table.requestKey),
-  companyWorkspaceIdx: index("execution_workspace_repositories_company_workspace_idx").on(table.companyId, table.executionWorkspaceId),
+  spaceWorkspaceIdx: index("execution_workspace_repositories_space_workspace_idx").on(table.spaceId, table.executionWorkspaceId),
 }));

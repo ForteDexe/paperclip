@@ -82,7 +82,7 @@ export interface EverydayEvidence {
   fixtureConfiguration?: {
     apiToolsEnabled: boolean;
     aiConnection?: LiveFixtureValues["aiConnection"];
-    connectionGuidanceBudgets?: { companyMonthlyCents: unknown; agentMonthlyCents: unknown };
+    connectionGuidanceBudgets?: { spaceMonthlyCents: unknown; agentMonthlyCents: unknown };
   };
   documents?: Row[];
   declineGradeEvidence?: { capturedAt: string; input: ConnectionGuidanceDeclineInput; checks: StoryCheck[] };
@@ -156,13 +156,13 @@ function runCommand(
 /** No DB writes, fabricated tool receipts, or corrective messages after a failed check. */
 export async function runEverydayFlow(input: Input) {
   const { page, api, fixtures, execution, nonce } = input;
-  const prefix = fixtures.company.issuePrefix!;
+  const prefix = fixtures.space.issuePrefix!;
   const ev: EverydayEvidence = {
     schema: "outpost.everyday-workflow.v1",
     caseId: execution.task.id,
     prompt: execution.task.buildPrompt(nonce),
     fixtureConfiguration: {
-      apiToolsEnabled: runnerApiToolsEnabled(fixtures.company.id),
+      apiToolsEnabled: runnerApiToolsEnabled(fixtures.space.id),
       aiConnection: fixtures.aiConnection,
     },
     checks: [],
@@ -254,13 +254,13 @@ export async function runEverydayFlow(input: Input) {
   }
   async function refresh() {
     const listed = await api.get<StoryRun[]>(
-      `/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100`,
+      `/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100`,
     );
     ev.runs = await Promise.all(
       listed.map((r) => api.get<StoryRun>(`/api/heartbeat-runs/${r.id}`)),
     );
     const issues = await api.get<StoryIssue[]>(
-      `/api/companies/${fixtures.company.id}/issues`,
+      `/api/spaces/${fixtures.space.id}/issues`,
     );
     ev.issues = await Promise.all(
       issues.map(async (issue) => ({
@@ -573,13 +573,13 @@ export async function runEverydayFlow(input: Input) {
       collectRunEvents<Row>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=${limit}`)),
       api.get<Row[]>(`/api/environments/${fixtures.environment.id}/leases`),
     ]);
-    return observeRemoteRestartBoundary(run, rows, leases, { companyId: fixtures.company.id,
+    return observeRemoteRestartBoundary(run, rows, leases, { spaceId: fixtures.space.id,
       agentId: fixtures.agent.id, issueId: parent!.id, environmentId: fixtures.environment.id }, recovered);
   }
   async function remoteWorkspaceStorageCheckpoint(phase: "initial" | "final") {
     const point = await pollUntil({
       label: `remote workspace ${phase} saved version`, deadlineAt: input.deadlineAt,
-      load: () => readRemoteWorkspaceStorageCheckpoint({ api, companyId: fixtures.company.id,
+      load: () => readRemoteWorkspaceStorageCheckpoint({ api, spaceId: fixtures.space.id,
         agentId: fixtures.agent.id, issueId: parent!.id, environmentId: fixtures.environment.id,
         expectedFileSource: ev.remoteWorkspaceStorage!.expectedFileSource,
         expectedLocation: ev.remoteWorkspaceStorage!.expectedLocation }),
@@ -658,16 +658,16 @@ export async function runEverydayFlow(input: Input) {
     ];
     if (execution.suite.id === CONNECTION_GUIDANCE_SUITE) {
       harnessFiles.push("connection-guidance-cases.ts", "connection-guidance-evidence.ts");
-      const [company, agent] = await Promise.all([
-        api.get<Row>("/api/companies/" + fixtures.company.id),
+      const [space, agent] = await Promise.all([
+        api.get<Row>("/api/spaces/" + fixtures.space.id),
         api.get<Row>("/api/agents/" + fixtures.agent.id),
       ]);
       ev.fixtureConfiguration!.connectionGuidanceBudgets = {
-        companyMonthlyCents: company.budgetMonthlyCents, agentMonthlyCents: agent.budgetMonthlyCents,
+        spaceMonthlyCents: space.budgetMonthlyCents, agentMonthlyCents: agent.budgetMonthlyCents,
       };
-      const budgetsMatch = company.budgetMonthlyCents === CONNECTION_GUIDANCE_BUDGET_CENTS &&
+      const budgetsMatch = space.budgetMonthlyCents === CONNECTION_GUIDANCE_BUDGET_CENTS &&
         agent.budgetMonthlyCents === CONNECTION_GUIDANCE_BUDGET_CENTS;
-      check("guidance-budget-hard-stops", budgetsMatch, "Public company and lead records retain both 1,000-cent hard stops before task creation.");
+      check("guidance-budget-hard-stops", budgetsMatch, "Public space and lead records retain both 1,000-cent hard stops before task creation.");
       if (!budgetsMatch) throw new Error("Connection guidance budget admission failed before task creation");
     }
     ev.harnessDigest = createHash("sha256")
@@ -707,7 +707,7 @@ export async function runEverydayFlow(input: Input) {
     }
     if (!remoteWorkspaceStorage && !project && !caseId.startsWith("service-") && !decliningConnection && !providerChoice) {
       project = await api.post(
-        `/api/companies/${fixtures.company.id}/projects`,
+        `/api/spaces/${fixtures.space.id}/projects`,
         {
           name: `Studio project ${nonce}`,
           description: "Small software project",
@@ -741,7 +741,7 @@ export async function runEverydayFlow(input: Input) {
         secretRefs: fixtures.secretRefs,
         executionId: nonce,
       });
-      helperAgentId = (await api.post<Row>(`/api/companies/${fixtures.company.id}/agents`, {
+      helperAgentId = (await api.post<Row>(`/api/spaces/${fixtures.space.id}/agents`, {
         ...config,
         name: "Riley Builder",
         role: "engineer",
@@ -761,38 +761,38 @@ export async function runEverydayFlow(input: Input) {
         page,
         api,
         prefix,
-        companyId: fixtures.company.id,
+        spaceId: fixtures.space.id,
         agentId: fixtures.agent.id,
         marker: `Pages: Roadmap, Meeting notes. Verification code: SERVICE_${nonce}`,
         authenticated: true,
       });
     if (providerChoice || nativeProviderCase || (execution.suite.id === CONNECTION_GUIDANCE_SUITE && Boolean(review))) {
-      if (caseId === "provider-second" || (execution.suite.id === CONNECTION_GUIDANCE_SUITE && caseId === "provider-decline")) aggregatorFixture = await setupAggregatorFixture(api, fixtures.company.id, fixtures.agent.id, `CONTACTS_${nonce}`, execution.suite.id === CONNECTION_GUIDANCE_SUITE);
-      const state = await api.get<{connections:Row[]}>(`/api/companies/${fixtures.company.id}/tools/connections`);
+      if (caseId === "provider-second" || (execution.suite.id === CONNECTION_GUIDANCE_SUITE && caseId === "provider-decline")) aggregatorFixture = await setupAggregatorFixture(api, fixtures.space.id, fixtures.agent.id, `CONTACTS_${nonce}`, execution.suite.id === CONNECTION_GUIDANCE_SUITE);
+      const state = await api.get<{connections:Row[]}>(`/api/spaces/${fixtures.space.id}/tools/connections`);
       initialConnections = state.connections.map(c=>c.id);
       if (aggregatorFixture && execution.suite.id === CONNECTION_GUIDANCE_SUITE) {
         await input.evidence("provider-initial-access.json", aggregatorFixture.initialAccess);
         check("provider-not-installed-before-choice", !aggregatorFixture.initialAccess.installed && aggregatorFixture.initialAccess.allowedToolIds.length === 0,
-          "The company connection is configured, but this agent has no installed or allowed HubSpot tool before the decision.");
+          "The space connection is configured, but this agent has no installed or allowed HubSpot tool before the decision.");
       }
     }
     if (agentmailSetup) await api.patch("/api/instance/settings/experimental", { enableChatConnectors: true });
     if (decliningConnection) {
       const state = await api.get<{ connections: Row[] }>(
-        `/api/companies/${fixtures.company.id}/tools/connections`,
+        `/api/spaces/${fixtures.space.id}/tools/connections`,
       );
       initialConnections = state.connections.map((c) => c.id);
       check(
         "connection-starts-unconfigured",
         state.connections.length === 0,
-        "This isolated company has no service connection before the request.",
+        "This isolated space has no service connection before the request.",
       );
       if (state.connections.length)
-        throw new Error("New-connection story requires an unconnected company");
+        throw new Error("New-connection story requires an unconnected space");
     }
     const created = await createTaskFromPromptThroughUi({
       page,
-      companyId: fixtures.company.id,
+      spaceId: fixtures.space.id,
       issuePrefix: prefix,
       agentName: fixtures.agent.name,
       prompt: ev.prompt,
@@ -1026,7 +1026,7 @@ export async function runEverydayFlow(input: Input) {
             const upgrade = gradeRemoteWorkspaceStorage(ev.remoteWorkspaceStorage!).find(item => item.id === "remote-workspace-upgrade-recoverable")!;
             if (!upgrade.passed) throw new Error(upgrade.detail);
           }
-          const outage = await input.restart(requireRemoteRestart ? { companyId: fixtures.company.id, issueId: parent!.id, runId: active.id } : undefined, controllerOutage?.holdMs);
+          const outage = await input.restart(requireRemoteRestart ? { spaceId: fixtures.space.id, issueId: parent!.id, runId: active.id } : undefined, controllerOutage?.holdMs);
           if (requireRemoteRestart) ev.remoteRestart!.outage = outage || undefined;
           note("controller-restarted");
           await openParent();
@@ -1168,7 +1168,7 @@ export async function runEverydayFlow(input: Input) {
         const rows = await api.get<Parameters<typeof gradeAgentmailSetup>[0]["interactions"]>(`/api/issues/${parent!.id}/interactions`);
         const checks = gradeAgentmailSetup({
           // This harness boots a dedicated local_trusted instance.
-          interactions: rows, agentId: fixtures.agent.id, userId: "local-board",
+          interactions: rows, agentId: fixtures.agent.id, userId: "local-operator",
           visible: await form.isVisible(),
           inputTypes: await card.locator("input").evaluateAll(inputs => inputs.map(input => input.getAttribute("type") ?? "text")),
           keyLink: await form.getByRole("link", { name: "Get an AgentMail API key" }).getAttribute("href"),
@@ -1240,7 +1240,7 @@ export async function runEverydayFlow(input: Input) {
     if (reliability) ev.checks.push(...await reliability.checks());
     if (caseId === "create-skill-studio") {
       const createdSkills = await api.get<Row[]>(
-        `/api/companies/${fixtures.company.id}/skills`,
+        `/api/spaces/${fixtures.space.id}/skills`,
       );
       const created = createdSkills.find(
         (skill) => skill.slug === "release-readiness-checklist",
@@ -1248,13 +1248,13 @@ export async function runEverydayFlow(input: Input) {
       check(
         "skill-persisted",
         Boolean(created && String(created.name) === "release-readiness-checklist"),
-        "The runner-created skill is present in the company library after the run.",
+        "The runner-created skill is present in the space library after the run.",
       );
       if (created) {
         await openParent();
         await editCreatedSkillThroughStudio({ page, skillId: created.id, skillName: created.name,
           marker: "Studio edit marker: verified", deadlineAt: input.deadlineAt,
-          read: () => api.get(`/api/companies/${fixtures.company.id}/skills/${created.id}`) });
+          read: () => api.get(`/api/spaces/${fixtures.space.id}/skills/${created.id}`) });
         check("feed-card-opened", true, "The task activity card opens the created skill.");
         check("studio-opened", true, "The skill opens in Skill Studio.");
         check("studio-edit-persisted", true, "The Studio edit persists across reload.");
@@ -1263,7 +1263,7 @@ export async function runEverydayFlow(input: Input) {
     }
     if (providerChoice) {
       const issue = ev.issues.find(i=>i.id===parent!.id)!;
-      const state = await api.get<{connections:Row[]}>(`/api/companies/${fixtures.company.id}/tools/connections`);
+      const state = await api.get<{connections:Row[]}>(`/api/spaces/${fixtures.space.id}/tools/connections`);
       ev.checks.push(...gradeProviderOutcome({rows:issue.interactions as any, decisionId:decisionId!, accessDecision:providerAccessDecision,
         selected:caseId === "provider-decline" ? "none" : "via:arcade:hubspot", calls:aggregatorFixture?.invocationCount() ?? 0,
         response: (issue.comments ?? []).filter((c:Row)=>c.authorAgentId).map((c:Row)=>c.body).join("\n"), marker:`CONTACTS_${nonce}`,
@@ -1272,7 +1272,7 @@ export async function runEverydayFlow(input: Input) {
     }
     if (execution.suite.id === CONNECTION_GUIDANCE_SUITE &&
       (caseId === "service-decline" || caseId === "connection-decline" || caseId === "provider-decline")) {
-      const state = await api.get<{ connections: Row[] }>("/api/companies/" + fixtures.company.id + "/tools/connections");
+      const state = await api.get<{ connections: Row[] }>("/api/spaces/" + fixtures.space.id + "/tools/connections");
       const gradeInput = structuredClone({
         ...declineInput(ev)!,
         calls: review?.invocationCount() ?? aggregatorFixture?.invocationCount(),
@@ -1313,7 +1313,7 @@ export async function runEverydayFlow(input: Input) {
       );
       if (decliningConnection) {
         const state = await api.get<{ connections: Row[] }>(
-          `/api/companies/${fixtures.company.id}/tools/connections`,
+          `/api/spaces/${fixtures.space.id}/tools/connections`,
         );
         check(
           "decline-no-connection-created",
@@ -1352,7 +1352,7 @@ export async function runEverydayFlow(input: Input) {
       }
     } else if (caseId === "hire-reuse") {
       let agents = await api.get<Row[]>(
-        `/api/companies/${fixtures.company.id}/agents`,
+        `/api/spaces/${fixtures.space.id}/agents`,
       );
       const hires = agents.filter((a) => a.name === "Morgan QA");
       check(
@@ -1398,7 +1398,7 @@ export async function runEverydayFlow(input: Input) {
       note("reuse-requested");
       await settled();
       agents = await api.get<Row[]>(
-        `/api/companies/${fixtures.company.id}/agents`,
+        `/api/spaces/${fixtures.space.id}/agents`,
       );
       check(
         "hire-reused",
@@ -1670,7 +1670,7 @@ export async function runEverydayFlow(input: Input) {
           ]);
           if (!Array.isArray(operationRows) || !Array.isArray(recovery.actions) || !("active" in recovery)) throw new Error("Remote restart finalization evidence is incomplete");
           const final = { observedAt: new Date().toISOString(), run: projectRemoteRestartRun(run), events: projectRemoteRestartEvents(run, rows),
-            operations: operationRows.map(operation => ({ companyId: operation.companyId, heartbeatRunId: operation.heartbeatRunId,
+            operations: operationRows.map(operation => ({ spaceId: operation.spaceId, heartbeatRunId: operation.heartbeatRunId,
               issueId: operation.issueId, executionWorkspaceId: operation.executionWorkspaceId, phase: operation.phase, status: operation.status })),
             scheduledRetry: issue.scheduledRetry,
             recoveryActions: [recovery.active, ...recovery.actions].filter((action): action is Row => action !== null).map(action => ({ status: action.status })) };
@@ -1750,7 +1750,7 @@ export async function runEverydayFlow(input: Input) {
     try {
       await refresh();
       ev.agents = await api.get<Row[]>(
-        `/api/companies/${fixtures.company.id}/agents`,
+        `/api/spaces/${fixtures.space.id}/agents`,
       );
       if (ev.documents && parent)
         ev.issues.find((i) => i.id === parent!.id)!.documents = ev.documents;

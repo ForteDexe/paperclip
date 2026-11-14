@@ -20,8 +20,8 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 type Catalog = { agent: Agent; accounts: AiConnectionList; binding: AiConnectionBinding | undefined; models: AdapterModel[]; restricted: boolean };
 type Failure = { agent: Agent; message: string };
 
-export function AgentBulkSettingsSheet({ companyId, agents, totalSelected, onClose }: {
-  companyId: string; agents: Agent[]; totalSelected: number; onClose: (updatedIds: string[], complete?: boolean) => void;
+export function AgentBulkSettingsSheet({ spaceId, agents, totalSelected, onClose }: {
+  spaceId: string; agents: Agent[]; totalSelected: number; onClose: (updatedIds: string[], complete?: boolean) => void;
 }) {
   const client = useQueryClient();
   const harness = bulkAgentHarness(agents[0]);
@@ -38,11 +38,11 @@ export function AgentBulkSettingsSheet({ companyId, agents, totalSelected, onClo
   const [failures, setFailures] = useState<Failure[] | null>(null);
   const targets = failures ? failures.map(f => f.agent) : agents;
   const catalogs = useQuery({
-    queryKey: ["bulk-agent-models", companyId, targets.map(a => [a.id, a.defaultEnvironmentId ?? null, nativeTaskModelCatalogOptions(a) ?? null]), changeConnection ? binding : null],
+    queryKey: ["bulk-agent-models", spaceId, targets.map(a => [a.id, a.defaultEnvironmentId ?? null, nativeTaskModelCatalogOptions(a) ?? null]), changeConnection ? binding : null],
     queryFn: async () => {
       const modelRequests = new Map<string, Promise<AdapterModel[]>>();
       const results = await mapBulkAgents(targets, async agent => {
-        const accounts = await aiConnectionsApi.list(companyId, agent.id);
+        const accounts = await aiConnectionsApi.list(spaceId, agent.id);
         const current = agentConnection(agent);
         const effective = changeConnection && binding ? binding : current?.mode !== "router" ? current : undefined;
         const connection = resolveBulkConnection(effective, accounts);
@@ -64,7 +64,7 @@ export function AgentBulkSettingsSheet({ companyId, agents, totalSelected, onClo
             : { environmentId: agent.defaultEnvironmentId };
           const key = JSON.stringify([type, options]);
           let request = modelRequests.get(key);
-          if (!request) { request = agentsApi.adapterModels(companyId, type, options); modelRequests.set(key, request); }
+          if (!request) { request = agentsApi.adapterModels(spaceId, type, options); modelRequests.set(key, request); }
           models = await request;
           if (openRouter && !["opencode_local", "pi_local"].includes(harness)) models = models.map(m => ({ ...m, id: m.id.replace(/^openrouter\//, "") }));
         }
@@ -87,7 +87,7 @@ export function AgentBulkSettingsSheet({ companyId, agents, totalSelected, onClo
     const nextModel = changeModel ? model : agentDefaultModel(agent);
     let problem: string | null = null;
     if (row.binding) {
-      problem = bindingProblem(row.binding, { companyId, provider: row.binding.provider }, row.accounts.connections, row.accounts.currentUserId, agent.id);
+      problem = bindingProblem(row.binding, { spaceId, provider: row.binding.provider }, row.accounts.connections, row.accounts.currentUserId, agent.id);
       if (!problem && !isAiConnectionCompatible(row.binding, harness, nextModel)) problem = "Choose a model compatible with this connection.";
     }
     if (!problem && row.restricted && !row.models.some(m => m.id === nextModel)) problem = `${nextModel ?? "Harness default"} isn’t available on this connection. Choose a different connection or change the default model.`;
@@ -109,10 +109,10 @@ export function AgentBulkSettingsSheet({ companyId, agents, totalSelected, onClo
       // A lost response may hide a successful commit. Re-read before retrying so
       // an acknowledged or already-applied edit never creates a second write.
       if (failures) {
-        const latest = await agentsApi.get(agent.id, companyId);
+        const latest = await agentsApi.get(agent.id, spaceId);
         if (bulkAgentHarness(latest) === harness && (!changeConnection || sameBinding(binding, agentConnection(latest))) && (!changeModel || agentDefaultModel(latest) === model)) return latest;
       }
-      return agentsApi.updateRuntimeSettings(agent.id, patch, companyId);
+      return agentsApi.updateRuntimeSettings(agent.id, patch, spaceId);
     });
     const nextFailures: Failure[] = [];
     const successes: Agent[] = [];
@@ -122,9 +122,9 @@ export function AgentBulkSettingsSheet({ companyId, agents, totalSelected, onClo
     });
     const allUpdated = [...updatedIds, ...successes.map(a => a.id)];
     setUpdatedIds(allUpdated);
-    client.setQueryData<Agent[]>(queryKeys.agents.list(companyId), current => current?.map(a => successes.find(updated => updated.id === a.id) ?? a));
+    client.setQueryData<Agent[]>(queryKeys.agents.list(spaceId), current => current?.map(a => successes.find(updated => updated.id === a.id) ?? a));
     await Promise.all(successes.map(a => client.invalidateQueries({ queryKey: queryKeys.agents.detail(a.id) })));
-    void client.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+    void client.invalidateQueries({ queryKey: queryKeys.agents.list(spaceId) });
     savingRef.current = false;
     setSaving(false);
     if (nextFailures.length) setFailures(nextFailures);
@@ -138,7 +138,7 @@ export function AgentBulkSettingsSheet({ companyId, agents, totalSelected, onClo
       {failures && <div role="alert" className="space-y-2 rounded-md border border-destructive/30 p-3 text-sm"><p className="font-medium">{updatedIds.length} updated · {failures.length} couldn’t be saved</p>{failures.map(f => <p key={f.agent.id} className="text-muted-foreground">{f.agent.name}: {f.message}</p>)}<p className="text-xs text-muted-foreground">Retry updates only the remaining agents. Close and reopen to review changed settings.</p></div>}
       <fieldset disabled={saving || failures !== null} className="flex flex-col gap-6 disabled:opacity-60">
         <section className="space-y-3"><label className="flex cursor-pointer items-start gap-3"><Checkbox checked={changeConnection} disabled={!aiProviderForAdapter(harness)} onCheckedChange={value => setChangeConnection(value === true)} aria-label="Change connection" className="mt-0.5" /><span className="space-y-1"><span className="block text-sm font-medium">Change connection</span><span className="block text-xs text-muted-foreground">{currentConnections.length === 1 ? currentConnections[0] : `${currentConnections.length} different connections`}{!changeConnection && " · Keep current"}</span></span></label>
-          {changeConnection && <div className="pl-7"><AiConnectionField companyId={companyId} agentId={agents[0].id} agentName={`${agents.length} agents`} adapterType={harness} model={changeModel ? model : undefined} value={binding} readOnly={saving || failures !== null} onChange={value => {
+          {changeConnection && <div className="pl-7"><AiConnectionField spaceId={spaceId} agentId={agents[0].id} agentName={`${agents.length} agents`} adapterType={harness} model={changeModel ? model : undefined} value={binding} readOnly={saving || failures !== null} onChange={value => {
             if (value.mode === "router") { setSelectionError("Configure connection pools on each agent’s configuration page."); return; }
             setSelectionError(""); setBinding(value);
           }} /></div>}

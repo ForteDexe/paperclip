@@ -10,37 +10,37 @@ function valid(): CaseReceiptObservation {
   const agents = { triage: "triage", implementation: "builder", verification: "verifier" };
   const targets = [agents.triage, agents.implementation, agents.verification, agents.implementation];
   const phases = ["triage", "implementation", "verification", "revision"];
-  const issue = { id: "task", companyId: "company", status: "done", assigneeAgentId: agents.implementation };
-  const caseRecord = { id: "case", companyId: "company", workIssueId: "task", status: "done", phase: "done", handoffVersion: 5, completedAt: at(4600),
+  const issue = { id: "task", spaceId: "space", status: "done", assigneeAgentId: agents.implementation };
+  const caseRecord = { id: "case", spaceId: "space", workIssueId: "task", status: "done", phase: "done", handoffVersion: 5, completedAt: at(4600),
     pendingHandoff: null, fields: { nonce: "fixture", items: [{ quantity: 2, unitPrice: 3 }], currency: "USD", inputsValidated: true } };
-  const runs = targets.map((agentId, index) => ({ id: `run-${index}`, agentId, companyId: "company", nativeIssueId: "task",
+  const runs = targets.map((agentId, index) => ({ id: `run-${index}`, agentId, spaceId: "space", nativeIssueId: "task",
     runtimeMode: "native", status: "succeeded", startedAt: at(1000 + index * 1000), finishedAt: at(1700 + index * 1000),
-    contextSnapshot: { paperclipCase: { id: "case", taskId: "task", phase: phases[index], handoffVersion: index + 1,
+    contextSnapshot: { outpostCase: { id: "case", taskId: "task", phase: phases[index], handoffVersion: index + 1,
       issueStatusVersion: index * 2 + 1, incomingHandoff: { id: `handoff-${index}`, instructions: `fixture: ${phases[index]}` } } },
   }));
   const first = { id: "receipt-1", revisionNumber: 1, body: JSON.stringify({ total: 6 }), createdByAgentId: agents.implementation,
     createdByRunId: "run-1", createdAt: at(2200) };
   const last = { id: "receipt-2", revisionNumber: 2, body: JSON.stringify({ total: 6, currency: "USD" }), createdByAgentId: agents.implementation,
     createdByRunId: "run-3", createdAt: at(4200) };
-  const review = { id: "review", companyId: "company", latestRevisionId: "review-1", latestRevisionNumber: 1,
+  const review = { id: "review", spaceId: "space", latestRevisionId: "review-1", latestRevisionNumber: 1,
     createdByAgentId: agents.verification, updatedByAgentId: agents.verification, body: JSON.stringify({ totalCorrect: true, missing: ["currency"] }),
     revision: { id: "review-1", revisionNumber: 1, body: JSON.stringify({ totalCorrect: true, missing: ["currency"] }),
       createdByAgentId: agents.verification, createdByRunId: "run-2", createdAt: at(3200) } };
   return {
-    nonce: "fixture", companyId: "company", taskId: "task", caseId: "case", agents, issue, caseRecord, tasks: [issue],
-    cases: [caseRecord, ...["draft", "done"].map((status, index) => ({ id: `passive-${index}`, companyId: "company", caseType: "receipt-research",
+    nonce: "fixture", spaceId: "space", taskId: "task", caseId: "case", agents, issue, caseRecord, tasks: [issue],
+    cases: [caseRecord, ...["draft", "done"].map((status, index) => ({ id: `passive-${index}`, spaceId: "space", caseType: "receipt-research",
       workIssueId: null, phase: null, handoffVersion: 0, status, fields: { nonce: "fixture" } }))],
-    handoffs: [...phases.map((phase, index) => ({ id: `handoff-${index}`, companyId: "company", caseId: "case", issueId: "task", phase, destinationKind: "agent",
+    handoffs: [...phases.map((phase, index) => ({ id: `handoff-${index}`, spaceId: "space", caseId: "case", issueId: "task", phase, destinationKind: "agent",
       version: index + 1, state: "delivered", fromAgentId: targets[index - 1] ?? targets[0], toAgentId: targets[index],
       sourceRunId: index ? `run-${index - 1}` : null, appliedIssueStatusVersion: index * 2,
       assignmentAppliedAt: at(index ? 750 + index * 1000 : 900), deliveredAt: at(1000 + index * 1000) })),
-      { id: "handoff-done", companyId: "company", caseId: "case", issueId: "task", phase: "done", destinationKind: "done",
+      { id: "handoff-done", spaceId: "space", caseId: "case", issueId: "task", phase: "done", destinationKind: "done",
         version: 5, state: "completed", fromAgentId: agents.implementation, toAgentId: null, sourceRunId: "run-3", completedAt: at(4600) }],
-    runs, receipt: { id: "receipt", companyId: "company", latestRevisionId: "receipt-2", latestRevisionNumber: 2,
+    runs, receipt: { id: "receipt", spaceId: "space", latestRevisionId: "receipt-2", latestRevisionNumber: 2,
       createdByAgentId: agents.implementation, updatedByAgentId: agents.implementation, body: last.body },
     receiptRevisions: [last, first], review,
     handoffToolRunIds: ["run-0", "run-1", "run-2", "run-3"], verifierReadReceipt: true, builderReadReview: true, kickoffReplayed: true, pendingInteractions: 0, initialBrief: { issueId:"task", key:"brief", latestRevisionNumber:1, latestBody:"Receipt fixture: total and currency are required." }, triageReadBrief: true,
-    budgets: { company: { budgetMonthlyCents: 100 }, agents: Object.values(agents).map(id => ({ id, budgetMonthlyCents: 100 })) },
+    budgets: { space: { budgetMonthlyCents: 100 }, agents: Object.values(agents).map(id => ({ id, budgetMonthlyCents: 100 })) },
     configuredLimits: { maxRuns: 4, runTimeoutMs: 90_000, attemptTimeoutMs: 300_000, automaticRetryPolicy: "single_attempt",
       agents: Object.values(agents).map((id, index) => ({ id, maxDailyRuns: [1, 2, 1][index], maxConcurrentRuns: 1,
         heartbeatEnabled: false, timeoutSec: 90, modelReasoningEffort: "low" })) },
@@ -110,9 +110,9 @@ describe("receipt smoke fixture", () => {
     ["overlapping provider runs", o => { o.runs[2]!.startedAt = at(2500); }],
     ["unsettled run", o => { o.runs[3]!.status = "running"; }],
     ["missing timing evidence", o => { delete o.runs[1]!.finishedAt; }],
-    ["stale returning-agent context", o => { o.runs[3]!.contextSnapshot.paperclipCase.handoffVersion = 2; }],
-    ["wrong incoming handoff", o => { o.runs[3]!.contextSnapshot.paperclipCase.incomingHandoff.id = "handoff-1"; }],
-    ["no admitted case context", o => { delete o.runs[0]!.contextSnapshot.paperclipCase; }],
+    ["stale returning-agent context", o => { o.runs[3]!.contextSnapshot.outpostCase.handoffVersion = 2; }],
+    ["wrong incoming handoff", o => { o.runs[3]!.contextSnapshot.outpostCase.incomingHandoff.id = "handoff-1"; }],
+    ["no admitted case context", o => { delete o.runs[0]!.contextSnapshot.outpostCase; }],
     ["case left open after explicit completion", o => { o.caseRecord.status = "draft"; }],
     ["terminal handoff never completed", o => { o.handoffs[4]!.state = "awaiting_completion"; }],
     ["terminal handoff attributed to another run", o => { o.handoffs[4]!.sourceRunId = "run-2"; }],

@@ -1,6 +1,6 @@
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { agents, approvals, companies, costEvents, heartbeatRuns, issues } from "@outpost/db";
+import { agents, approvals, spaces, costEvents, heartbeatRuns, issues } from "@outpost/db";
 import { notFound } from "../errors.js";
 import { budgetService } from "./budgets.js";
 import { executionIssueCondition } from "./issue-visibility.js";
@@ -27,33 +27,33 @@ function getRecentUtcDateKeys(now: Date, days: number): string[] {
 export function dashboardService(db: Db) {
   const budgets = budgetService(db);
   return {
-    summary: async (companyId: string) => {
-      // This lookup only reads the company row. Rebuild it after a transient
+    summary: async (spaceId: string) => {
+      // This lookup only reads the space row. Rebuild it after a transient
       // disconnect; do not replay the later summary or budget workflows.
-      const company = await retryIdempotentDatabaseOperation(() => db
+      const space = await retryIdempotentDatabaseOperation(() => db
         .select()
-        .from(companies)
-        .where(eq(companies.id, companyId))
+        .from(spaces)
+        .where(eq(spaces.id, spaceId))
         .then((rows) => rows[0] ?? null));
 
-      if (!company) throw notFound("Outpost not found");
+      if (!space) throw notFound("Outpost not found");
 
       const agentRows = await retryIdempotentDatabaseOperation(() => db
         .select({ status: agents.status, count: sql<number>`count(*)` })
         .from(agents)
-        .where(eq(agents.companyId, companyId))
+        .where(eq(agents.spaceId, spaceId))
         .groupBy(agents.status));
 
       const taskRows = await retryIdempotentDatabaseOperation(() => db
         .select({ status: issues.status, count: sql<number>`count(*)` })
         .from(issues)
-        .where(and(eq(issues.companyId, companyId), executionIssueCondition()))
+        .where(and(eq(issues.spaceId, spaceId), executionIssueCondition()))
         .groupBy(issues.status));
 
       const pendingApprovals = await retryIdempotentDatabaseOperation(() => db
         .select({ count: sql<number>`count(*)` })
         .from(approvals)
-        .where(and(eq(approvals.companyId, companyId), eq(approvals.status, "pending")))
+        .where(and(eq(approvals.spaceId, spaceId), eq(approvals.status, "pending")))
         .then((rows) => Number(rows[0]?.count ?? 0)));
 
       const agentCounts: Record<string, number> = {
@@ -94,7 +94,7 @@ export function dashboardService(db: Db) {
         .from(costEvents)
         .where(
           and(
-            eq(costEvents.companyId, companyId),
+            eq(costEvents.spaceId, spaceId),
             gte(costEvents.occurredAt, monthStart),
             lte(costEvents.occurredAt, now),
           ),
@@ -110,13 +110,13 @@ export function dashboardService(db: Db) {
       // Both recursive arms are bounded to the chart window: a retry is always
       // created after the run it retries, so ancestors of an out-of-window
       // child are themselves out of window and invisible to the membership
-      // test below. Unbounded, the seed walks every run the company ever had.
+      // test below. Unbounded, the seed walks every run the space ever had.
       const runActivityRows = (await retryIdempotentDatabaseOperation(() => db.execute(sql`
         WITH RECURSIVE recovered_runs(id) AS (
           SELECT parent.id
           FROM ${heartbeatRuns} AS child
           JOIN ${heartbeatRuns} AS parent ON parent.id = child.retry_of_run_id
-          WHERE child.company_id = ${companyId}
+          WHERE child.space_id = ${spaceId}
             AND child.status = 'succeeded'
             AND child.created_at >= ${runActivityStart.toISOString()}::timestamptz
           UNION
@@ -133,7 +133,7 @@ export function dashboardService(db: Db) {
           (run.id IN (SELECT id FROM recovered_runs)) AS recovered,
           count(*)::double precision AS count
         FROM ${heartbeatRuns} AS run
-        WHERE run.company_id = ${companyId}
+        WHERE run.space_id = ${spaceId}
           AND run.created_at >= ${runActivityStart.toISOString()}::timestamptz
         GROUP BY date, run.status, run.error_code, recovered
       `))) as unknown as Iterable<{
@@ -189,13 +189,13 @@ export function dashboardService(db: Db) {
       }
 
       const utilization =
-        company.budgetMonthlyCents > 0
-          ? (monthSpendCents / company.budgetMonthlyCents) * 100
+        space.budgetMonthlyCents > 0
+          ? (monthSpendCents / space.budgetMonthlyCents) * 100
           : 0;
-      const budgetOverview = await budgets.overview(companyId);
+      const budgetOverview = await budgets.overview(spaceId);
 
       return {
-        companyId,
+        spaceId,
         agents: {
           active: agentCounts.active,
           running: agentCounts.running,
@@ -205,7 +205,7 @@ export function dashboardService(db: Db) {
         tasks: taskCounts,
         costs: {
           monthSpendCents,
-          monthBudgetCents: company.budgetMonthlyCents,
+          monthBudgetCents: space.budgetMonthlyCents,
           monthUtilizationPercent: Number(utilization.toFixed(2)),
         },
         pendingApprovals,

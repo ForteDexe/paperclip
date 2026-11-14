@@ -26,13 +26,13 @@ function committedDb(f: PlanWaitFacts, source: unknown, result: unknown, legacy 
 }
 
 function fixture(): PlanWaitFacts {
-  const b = { companyId: "company", issueId: "issue", agentId: "agent", runId: "run" };
+  const b = { spaceId: "space", issueId: "issue", agentId: "agent", runId: "run" };
   const contract = { revision: "revision", criteria: [{ id: "criterion" }] };
   const contractMetadata = { schemaVersion: NATIVE_COMPLETION_CONTRACT_SCHEMA, policyVersion: NATIVE_COMPLETION_POLICY_VERSION, risk: "low", completionAuthority: "agent_claim_policy" };
   const contractSha = nativeSha256({ ...contractMetadata, contract });
   const planId = `plan-${"a".repeat(64)}`;
   const input = { schema: "outpost.question_set.v1", title: "Plan", description: "Exact revised plan text", questions: [{ id: planId, prompt: "Proceed?", required: true, answerMode: "single_select", options: [{ id: "accept", label: "Accept" }, { id: "reject", label: "Reject" }, { id: "cancel", label: "Cancel" }] }] };
-  const i = { id: "interaction", ...b, sourceRunId: b.runId, createdByAgentId: b.agentId, resolvedByUserId: "board", resolvedByAgentId: null, resolvedAt: new Date(0),
+  const i = { id: "interaction", ...b, sourceRunId: b.runId, createdByAgentId: b.agentId, resolvedByUserId: "operator", resolvedByAgentId: null, resolvedAt: new Date(0),
     kind: "ask_user_questions", status: "answered", continuationPolicy: "none", idempotencyKey: "outpost-runner-question:run:request",
     payload: { runtimeRequestId: "request", questionSet: input }, result: { version: 1, answers: [{ questionId: planId, optionIds: ["accept"] }] } };
   const envelope = buildQuestionResponseDeliveryEnvelope(i as never);
@@ -43,7 +43,7 @@ function fixture(): PlanWaitFacts {
   };
   return {
     binding: b,
-    run: { id: b.runId, companyId: b.companyId, agentId: b.agentId, nativeIssueId: b.issueId, runtimeMode: "native", runnerInstanceId: "instance", status: "running", completionContractId: "contract", completionContractSha256: contractSha, runnerProfileJson: { nativeExecutionInput: { binding: b, provider: { kind: "acpx", agent: "cursor", mode: "plan", model: "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]", profile: resolveQualifiedAcpxProfile("cursor", "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]") }, session: { normalizedSessionId: "session" }, completionContract: { id: "contract", sha256: contractSha, contract } } } },
+    run: { id: b.runId, spaceId: b.spaceId, agentId: b.agentId, nativeIssueId: b.issueId, runtimeMode: "native", runnerInstanceId: "instance", status: "running", completionContractId: "contract", completionContractSha256: contractSha, runnerProfileJson: { nativeExecutionInput: { binding: b, provider: { kind: "acpx", agent: "cursor", mode: "plan", model: "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]", profile: resolveQualifiedAcpxProfile("cursor", "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]") }, session: { normalizedSessionId: "session" }, completionContract: { id: "contract", sha256: contractSha, contract } } } },
     contract: { id: "contract", ...contractMetadata, canonicalSha256: contractSha, contractJson: contract },
     events: [
       event(275, "runtime_request.created", { request: { schema: "outpost.runtime_request.v2", status: "pending", type: "input", requestKind: "runtime", requestId: "request", turnId: "turn", itemId: "native-plan-tool", origin: { provider: "cursor", method: "cursor/create_plan", adapter: "acpx-runtime-sidecar" }, input } }),
@@ -289,7 +289,7 @@ describe("accepted Cursor plan passive-wait authority", () => {
   it.each([
     ["foreign runner", (f: PlanWaitFacts) => { f.run.runnerInstanceId = "other"; }],
     ["changed admission binding", (f: PlanWaitFacts) => { (f.run.runnerProfileJson as any).nativeExecutionInput.binding = { ...f.binding, runId: "other" }; }],
-    ["wrong company", (f: PlanWaitFacts) => { f.run.companyId = "other"; }],
+    ["wrong space", (f: PlanWaitFacts) => { f.run.spaceId = "other"; }],
     ["wrong task", (f: PlanWaitFacts) => { f.run.nativeIssueId = "other"; }],
     ["failed run", (f: PlanWaitFacts) => { f.run.status = "failed"; }],
     ["cancelled run", (f: PlanWaitFacts) => { f.run.status = "cancelled"; }],

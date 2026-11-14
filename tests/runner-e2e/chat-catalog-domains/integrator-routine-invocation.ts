@@ -103,12 +103,12 @@ export function launchSummaryRoutineInput(projectId: string, assigneeAgentId: st
 }
 export const integratorRoutineInvocationCases = [integratorDefinition("routines", "routines.run-now", async ctx => {
   const p = await project(ctx, "Launch", { description: "Synthetic Launch project. Payment approval is pending; no approval has been received." });
-  const routine = await ctx.input.api.post<RoutineDetail>(`/api/companies/${ctx.input.fixtures.company.id}/routines`, launchSummaryRoutineInput(p.id, ctx.input.fixtures.agent.id));
+  const routine = await ctx.input.api.post<RoutineDetail>(`/api/spaces/${ctx.input.fixtures.space.id}/routines`, launchSummaryRoutineInput(p.id, ctx.input.fixtures.agent.id));
   return { project: p, routine };
 }, (ctx, state) => observeInvocation(ctx, state, true), gradeIntegratorRoutineInvocation, async (ctx, _state, value) => {
   const o = invocationObservation(value); const task = o?.tasks.find(row => row.id === o.invocations[0]?.linkedIssueId);
   if (!o || !task) throw new Error("Missing actual routine result task");
-  await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, task.title!, resultHref(o, task.identifier ?? task.id, "issues") ?? resultHref(o, task.id, "issues"));
+  await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, task.title!, resultHref(o, task.identifier ?? task.id, "issues") ?? resultHref(o, task.id, "issues"));
 }, {
   oracleVersion: "outpost.chat-catalog.integrator.routine-invocation.v4",
   sourceFiles: ["chat-catalog-domains/integrator-routine-invocation.ts", "chat-catalog-domains/api-read-receipts.ts", "run-observations.ts", "chat-catalog-domains/integrator-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/routines.yaml"],

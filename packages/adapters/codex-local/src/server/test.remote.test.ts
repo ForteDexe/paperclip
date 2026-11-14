@@ -62,10 +62,10 @@ const {
       }
       return {
         target: null,
-        workspaceRemoteDir: "/remote/workspace/.paperclip-runtime/runs/test/workspace",
-        runtimeRootDir: "/remote/workspace/.paperclip-runtime/runs/test/workspace/.paperclip-runtime/codex",
+        workspaceRemoteDir: "/remote/workspace/.outpost-runtime/runs/test/workspace",
+        runtimeRootDir: "/remote/workspace/.outpost-runtime/runs/test/workspace/.outpost-runtime/codex",
         assetDirs: {
-          home: "/remote/workspace/.paperclip-runtime/runs/test/workspace/.paperclip-runtime/codex/home",
+          home: "/remote/workspace/.outpost-runtime/runs/test/workspace/.outpost-runtime/codex/home",
         },
         restoreWorkspace,
       };
@@ -73,7 +73,7 @@ const {
     prepareManagedCodexHome: vi.fn(async () => {
       // Return a real managed home seeded with credentials so the probe's
       // minimal-home copy step (auth.json/config.toml) has something to read.
-      const dir = await fs.mkdtemp(`${os.tmpdir()}/paperclip-managed-codex-home-`);
+      const dir = await fs.mkdtemp(`${os.tmpdir()}/outpost-managed-codex-home-`);
       await fs.writeFile(`${dir}/auth.json`, JSON.stringify({ OPENAI_API_KEY: "sk-managed" }));
       await fs.writeFile(`${dir}/config.toml`, "model = \"gpt-5\"\n");
       return dir;
@@ -122,8 +122,8 @@ describe("codex remote environment diagnostics", () => {
     // source home and the auth cache from `process.env`. Pin both to empty
     // scratch locations so no test ever reads or writes the real ~/.codex or
     // the real instance tree.
-    vi.stubEnv("CODEX_HOME", await makeScratchDir("paperclip-test-shared-codex-"));
-    vi.stubEnv("OUTPOST_HOME", await makeScratchDir("paperclip-test-instance-"));
+    vi.stubEnv("CODEX_HOME", await makeScratchDir("outpost-test-shared-codex-"));
+    vi.stubEnv("OUTPOST_HOME", await makeScratchDir("outpost-test-instance-"));
     vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
   });
 
@@ -157,7 +157,7 @@ describe("codex remote environment diagnostics", () => {
     };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: {
         engine: "cli",
@@ -183,9 +183,9 @@ describe("codex remote environment diagnostics", () => {
     // The probe must upload only a minimal credentials-only home, never the
     // full managed CODEX_HOME (which can be hundreds of MB of session history).
     const homeAsset = runtimeInput?.assets?.find((asset) => asset.key === "home");
-    expect(homeAsset?.localDir).toContain(`${os.tmpdir()}/paperclip-codex-probe-home-`);
+    expect(homeAsset?.localDir).toContain(`${os.tmpdir()}/outpost-codex-probe-home-`);
     expect(capturedHomeAssetFiles.value).toEqual(["auth.json", "config.toml"]);
-    expect(runtimeInput?.workspaceLocalDir).toContain(`${os.tmpdir()}/paperclip-codex-envtest-`);
+    expect(runtimeInput?.workspaceLocalDir).toContain(`${os.tmpdir()}/outpost-codex-envtest-`);
     expect(runtimeInput?.workspaceLocalDir).not.toBe("/remote/workspace");
     expect(await fs.stat(runtimeInput!.workspaceLocalDir).catch(() => null)).toBeNull();
     expect(runtimeInput?.target?.remoteCwd).toBe("/remote/workspace");
@@ -205,7 +205,7 @@ describe("codex remote environment diagnostics", () => {
     expect(probeCall?.[4]).toMatchObject({
       cwd: "/remote/workspace",
       env: expect.objectContaining({
-        CODEX_HOME: "/remote/workspace/.paperclip-runtime/runs/test/workspace/.paperclip-runtime/codex/home",
+        CODEX_HOME: "/remote/workspace/.outpost-runtime/runs/test/workspace/.outpost-runtime/codex/home",
       }),
     });
     expect(restoreWorkspace).toHaveBeenCalledTimes(1);
@@ -231,7 +231,7 @@ describe("codex remote environment diagnostics", () => {
     };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: {
         engine: "cli",
@@ -248,7 +248,7 @@ describe("codex remote environment diagnostics", () => {
     const probeCall = runAdapterExecutionTargetProcess.mock.calls[0] as unknown as
       | [string, AdapterExecutionTarget, string, string[], { cwd: string; env: Record<string, string> }]
       | undefined;
-    expect(probeCall?.[4].env.CODEX_HOME).toContain("/remote/workspace/.paperclip-runtime/codex/probe-home-codex-envtest-");
+    expect(probeCall?.[4].env.CODEX_HOME).toContain("/remote/workspace/.outpost-runtime/codex/probe-home-codex-envtest-");
     expect(probeCall?.[4].env.CODEX_HOME?.startsWith("/tmp/")).toBe(false);
     expect(probeCall?.[3]).toContain("--skip-git-repo-check");
   });
@@ -275,7 +275,7 @@ describe("codex remote environment diagnostics", () => {
     runAdapterExecutionTargetProcess.mockResolvedValueOnce(versionProbeResult("codex-cli 0.156.0\n"));
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: { engine: "cli", command: "codex", model: "gpt-6.1-sol" },
       executionTarget: sandboxTarget(),
@@ -303,7 +303,7 @@ describe("codex remote environment diagnostics", () => {
     runAdapterExecutionTargetProcess.mockResolvedValueOnce(versionProbeResult("codex-cli 0.160.0\n"));
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: { engine: "cli", command: "codex", model: "gpt-6.1-sol" },
       executionTarget: sandboxTarget(),
@@ -321,7 +321,7 @@ describe("codex remote environment diagnostics", () => {
 
   it("skips the version probe for models without a verified floor", async () => {
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: { engine: "cli", command: "codex", model: "gpt-5.6-sol" },
       executionTarget: sandboxTarget(),
@@ -351,7 +351,7 @@ describe("codex remote environment diagnostics", () => {
     });
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: { engine: "cli", command: "codex", model: "gpt-6.1-sol" },
       executionTarget: sandboxTarget(),
@@ -384,7 +384,7 @@ describe("codex remote environment diagnostics", () => {
     });
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: { engine: "cli", command: "codex", model: "gpt-5.5" },
       executionTarget: sandboxTarget(),
@@ -407,7 +407,7 @@ describe("codex remote environment diagnostics", () => {
     // check code. The user interface reads this code to decide login
     // eligibility; it does not parse the message text or the top-level status.
     prepareManagedCodexHome.mockImplementationOnce(async () => {
-      const dir = await fs.mkdtemp(`${os.tmpdir()}/paperclip-managed-codex-home-noauth-`);
+      const dir = await fs.mkdtemp(`${os.tmpdir()}/outpost-managed-codex-home-noauth-`);
       await fs.writeFile(`${dir}/config.toml`, "model = \"gpt-5\"\n");
       return dir;
     });
@@ -440,7 +440,7 @@ describe("codex remote environment diagnostics", () => {
     };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: { engine: "cli", command: "codex" },
       executionTarget: remoteTarget,
@@ -460,7 +460,7 @@ describe("codex remote environment diagnostics", () => {
     // host has no Codex auth.json. The probe must not upload an empty home or
     // set CODEX_HOME, so Codex falls back to the sandbox's baked-in login.
     prepareManagedCodexHome.mockImplementationOnce(async () => {
-      const dir = await fs.mkdtemp(`${os.tmpdir()}/paperclip-managed-codex-home-noauth-`);
+      const dir = await fs.mkdtemp(`${os.tmpdir()}/outpost-managed-codex-home-noauth-`);
       // No auth.json — only a config file.
       await fs.writeFile(`${dir}/config.toml`, "model = \"gpt-5\"\n");
       return dir;
@@ -485,7 +485,7 @@ describe("codex remote environment diagnostics", () => {
     };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: { engine: "cli", command: "codex" },
       executionTarget: remoteTarget,
@@ -532,7 +532,7 @@ describe("codex remote environment diagnostics", () => {
     };
   }
 
-  it("stages a configured managed per-agent CODEX_HOME instead of the company default home", async () => {
+  it("stages a configured managed per-agent CODEX_HOME instead of the space default home", async () => {
     // Execute honors env.CODEX_HOME, so the probe must exercise that same home
     // — otherwise the Test and real runs authenticate with different
     // credentials and can disagree in both directions.
@@ -540,8 +540,8 @@ describe("codex remote environment diagnostics", () => {
       process.env.OUTPOST_HOME!,
       "instances",
       "default",
-      "companies",
-      "company-1",
+      "spaces",
+      "space-1",
       "agents",
       "agent-x",
       "codex-home",
@@ -552,7 +552,7 @@ describe("codex remote environment diagnostics", () => {
     await fs.writeFile(path.join(perAgentHome, "config.toml"), 'model = "gpt-5"\n', "utf8");
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: {
         engine: "cli",
@@ -564,7 +564,7 @@ describe("codex remote environment diagnostics", () => {
     });
 
     expect(result.status).toBe("pass");
-    // The company default home preparation never ran; the configured managed
+    // The space default home preparation never ran; the configured managed
     // home was seeded in place and its credential is what got staged.
     expect(prepareManagedCodexHome).not.toHaveBeenCalled();
     expect(capturedHomeAssetAuthJson.value).toBe(promoted);
@@ -576,7 +576,7 @@ describe("codex remote environment diagnostics", () => {
   });
 
   it("stages an external CODEX_HOME's credentials as-is and never seeds or mutates it", async () => {
-    const externalHome = await makeScratchDir("paperclip-test-external-codex-");
+    const externalHome = await makeScratchDir("outpost-test-external-codex-");
     const external = subscriptionAuth("acct-ext", "external", "2026-07-09T01:00:00Z");
     await fs.writeFile(path.join(externalHome, "auth.json"), external, "utf8");
     // Plant a same-identity, strictly-fresher credential in the shared source
@@ -590,7 +590,7 @@ describe("codex remote environment diagnostics", () => {
     );
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: {
         engine: "cli",

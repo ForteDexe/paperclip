@@ -33,7 +33,7 @@ import {
   caseIssueLinks,
   caseLabels,
   cases,
-  companies,
+  spaces,
   documents,
   documentRevisions,
   heartbeatRuns,
@@ -63,7 +63,7 @@ import { listCaseTaskDocuments } from "../services/case-task-documents.js";
 import { authorizeCaseCreation, authorizeCaseMutation } from "../services/case-mutation-authorization.js";
 import { assertCaseStatusWriteAuthority } from "../services/case-handoffs.js";
 import { logger } from "../middleware/logger.js";
-import { assertCompanyAccess, getActorInfo, hasCompanyAccess } from "./authz.js";
+import { assertSpaceAccess, getActorInfo, hasSpaceAccess } from "./authz.js";
 
 type CaseRouteTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type CaseRouteDb = Db | CaseRouteTransaction;
@@ -85,18 +85,18 @@ async function assertCasesEnabled(db: Db) {
   }
 }
 
-async function lockCaseUpsertKey(db: CaseRouteDb, input: { companyId: string; caseType: string; key: string | null | undefined }) {
-  const lockKey = `paperclip:case-upsert:${input.companyId}:${input.caseType}:${input.key ?? "<null>"}`;
+async function lockCaseUpsertKey(db: CaseRouteDb, input: { spaceId: string; caseType: string; key: string | null | undefined }) {
+  const lockKey = `outpost:case-upsert:${input.spaceId}:${input.caseType}:${input.key ?? "<null>"}`;
   await db.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
 }
 
-async function lockCaseDocumentKey(db: CaseRouteDb, input: { companyId: string; caseId: string; key: string }) {
-  const lockKey = `paperclip:case-document:${input.companyId}:${input.caseId}:${input.key}`;
+async function lockCaseDocumentKey(db: CaseRouteDb, input: { spaceId: string; caseId: string; key: string }) {
+  const lockKey = `outpost:case-document:${input.spaceId}:${input.caseId}:${input.key}`;
   await db.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
 }
 
-async function lockCaseLabels(db: CaseRouteDb, input: { companyId: string; caseId: string }) {
-  const lockKey = `paperclip:case-labels:${input.companyId}:${input.caseId}`;
+async function lockCaseLabels(db: CaseRouteDb, input: { spaceId: string; caseId: string }) {
+  const lockKey = `outpost:case-labels:${input.spaceId}:${input.caseId}`;
   await db.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
 }
 
@@ -129,49 +129,49 @@ function annotationActorInput(req: Request) {
   };
 }
 
-async function loadCaseByIdOrIdentifier(db: CaseRouteDb, idOrIdentifier: string, companyIds?: string[]) {
-  if (companyIds && companyIds.length === 0) return null;
+async function loadCaseByIdOrIdentifier(db: CaseRouteDb, idOrIdentifier: string, spaceIds?: string[]) {
+  if (spaceIds && spaceIds.length === 0) return null;
   const normalizedIdentifier = idOrIdentifier.trim().toUpperCase();
   const identityWhere = isUuidLike(idOrIdentifier)
     ? or(eq(cases.id, idOrIdentifier), eq(cases.identifier, normalizedIdentifier))
     : eq(cases.identifier, normalizedIdentifier);
-  const where = companyIds
-    ? and(identityWhere, inArray(cases.companyId, companyIds))
+  const where = spaceIds
+    ? and(identityWhere, inArray(cases.spaceId, spaceIds))
     : identityWhere;
   return db.select().from(cases).where(where).limit(1).then((rows) => rows[0] ?? null);
 }
 
-async function loadIssueByIdOrIdentifier(db: CaseRouteDb, idOrIdentifier: string, companyIds?: string[]) {
-  if (companyIds && companyIds.length === 0) return null;
+async function loadIssueByIdOrIdentifier(db: CaseRouteDb, idOrIdentifier: string, spaceIds?: string[]) {
+  if (spaceIds && spaceIds.length === 0) return null;
   const normalizedIdentifier = idOrIdentifier.trim().toUpperCase();
   const identityWhere = isUuidLike(idOrIdentifier)
     ? or(eq(issues.id, idOrIdentifier), eq(issues.identifier, normalizedIdentifier))
     : eq(issues.identifier, normalizedIdentifier);
-  const where = companyIds
-    ? and(identityWhere, inArray(issues.companyId, companyIds))
+  const where = spaceIds
+    ? and(identityWhere, inArray(issues.spaceId, spaceIds))
     : identityWhere;
   return db
-    .select({ id: issues.id, companyId: issues.companyId })
+    .select({ id: issues.id, spaceId: issues.spaceId })
     .from(issues)
     .where(where)
     .limit(1)
     .then((rows) => rows[0] ?? null);
 }
 
-function caseLookupCompanyIds(req: Request) {
-  if (req.actor.type === "agent") return req.actor.companyId ? [req.actor.companyId] : [];
-  if (req.actor.type === "board" && req.actor.source === "local_implicit") return undefined;
-  if (req.actor.type === "board" && Array.isArray(req.actor.companyIds) && req.actor.companyIds.length > 0) {
-    return req.actor.companyIds;
+function caseLookupSpaceIds(req: Request) {
+  if (req.actor.type === "agent") return req.actor.spaceId ? [req.actor.spaceId] : [];
+  if (req.actor.type === "operator" && req.actor.source === "local_implicit") return undefined;
+  if (req.actor.type === "operator" && Array.isArray(req.actor.spaceIds) && req.actor.spaceIds.length > 0) {
+    return req.actor.spaceIds;
   }
-  if (req.actor.type === "board" && req.actor.isInstanceAdmin) return undefined;
+  if (req.actor.type === "operator" && req.actor.isInstanceAdmin) return undefined;
   return [];
 }
 
 async function assertCaseAccess(db: Db, req: Request, idOrIdentifier: string) {
-  const row = await loadCaseByIdOrIdentifier(db, idOrIdentifier, caseLookupCompanyIds(req));
-  if (!row || !hasCompanyAccess(req, row.companyId)) throw notFound("Case not found");
-  assertCompanyAccess(req, row.companyId);
+  const row = await loadCaseByIdOrIdentifier(db, idOrIdentifier, caseLookupSpaceIds(req));
+  if (!row || !hasSpaceAccess(req, row.spaceId)) throw notFound("Case not found");
+  assertSpaceAccess(req, row.spaceId);
   await assertActorCanReadCase(db, req.actor, row);
   if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     await assertActorCanWriteCase(db, req.actor, row);
@@ -179,19 +179,19 @@ async function assertCaseAccess(db: Db, req: Request, idOrIdentifier: string) {
   return row;
 }
 
-async function assertProjectBelongsToCompany(db: CaseRouteDb, input: { companyId: string; projectId: string | null }) {
+async function assertProjectBelongsToSpace(db: CaseRouteDb, input: { spaceId: string; projectId: string | null }) {
   if (!input.projectId) return;
   const row = await db
     .select({ id: projects.id })
     .from(projects)
-    .where(and(eq(projects.id, input.projectId), eq(projects.companyId, input.companyId)))
+    .where(and(eq(projects.id, input.projectId), eq(projects.spaceId, input.spaceId)))
     .limit(1)
     .then((rows) => rows[0] ?? null);
-  if (!row) throw unprocessable("Project does not belong to company");
+  if (!row) throw unprocessable("Project does not belong to space");
 }
 
-async function assertParentCaseBelongsToCompany(db: CaseRouteDb, input: {
-  companyId: string;
+async function assertParentCaseBelongsToSpace(db: CaseRouteDb, input: {
+  spaceId: string;
   caseId?: string;
   parentCaseId: string | null;
 }) {
@@ -202,26 +202,26 @@ async function assertParentCaseBelongsToCompany(db: CaseRouteDb, input: {
   const row = await db
     .select({ id: cases.id })
     .from(cases)
-    .where(and(eq(cases.id, input.parentCaseId), eq(cases.companyId, input.companyId)))
+    .where(and(eq(cases.id, input.parentCaseId), eq(cases.spaceId, input.spaceId)))
     .limit(1)
     .then((rows) => rows[0] ?? null);
-  if (!row) throw unprocessable("Parent case does not belong to company");
+  if (!row) throw unprocessable("Parent case does not belong to space");
 }
 
-async function assertLabelsBelongToCompany(db: CaseRouteDb, companyId: string, labelIds: string[]) {
+async function assertLabelsBelongToSpace(db: CaseRouteDb, spaceId: string, labelIds: string[]) {
   if (labelIds.length === 0) return;
   const uniqueIds = [...new Set(labelIds)];
   const rows = await db
     .select({ id: labels.id })
     .from(labels)
-    .where(and(eq(labels.companyId, companyId), inArray(labels.id, uniqueIds)));
+    .where(and(eq(labels.spaceId, spaceId), inArray(labels.id, uniqueIds)));
   if (rows.length !== uniqueIds.length) {
-    throw unprocessable("One or more labels do not belong to company");
+    throw unprocessable("One or more labels do not belong to space");
   }
 }
 
 async function insertCaseEvent(db: CaseRouteDb, input: {
-  companyId: string;
+  spaceId: string;
   caseId: string;
   kind: typeof caseEvents.$inferInsert["kind"];
   actor: CaseActor;
@@ -229,7 +229,7 @@ async function insertCaseEvent(db: CaseRouteDb, input: {
 }) {
   const now = new Date();
   const [event] = await db.insert(caseEvents).values({
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     caseId: input.caseId,
     kind: input.kind,
     ...eventActorValues(input.actor),
@@ -240,18 +240,18 @@ async function insertCaseEvent(db: CaseRouteDb, input: {
   return event!;
 }
 
-async function resolveIssueForRun(db: CaseRouteDb, companyId: string, runId: string | null | undefined) {
+async function resolveIssueForRun(db: CaseRouteDb, spaceId: string, runId: string | null | undefined) {
   if (!runId || !isUuidLike(runId)) return null;
   const [source] = await db.select({ id: heartbeatRuns.issueId }).from(heartbeatRuns)
     .innerJoin(issues, eq(issues.id, heartbeatRuns.issueId))
-    .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId), eq(issues.companyId, companyId)))
+    .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId), eq(issues.spaceId, spaceId)))
     .limit(1);
   if (source?.id) return { id: source.id };
   return db
     .select({ id: issues.id })
     .from(issues)
     .where(and(
-      eq(issues.companyId, companyId),
+      eq(issues.spaceId, spaceId),
       or(
         eq(issues.executionRunId, runId),
         eq(issues.checkoutRunId, runId),
@@ -277,8 +277,8 @@ async function resolveAgentNames(db: CaseRouteDb, agentIds: (string | null)[]) {
 type CaseAttributedIssue = { id: string; identifier: string; title: string; status: string; blockerAttention?: IssueBlockerAttention };
 
 /** Glyph-only blocker state so a case activity row draws the same status glyph as the task pane. */
-async function withStatusBlockerAttention(db: CaseRouteDb, companyId: string, map: Map<string, CaseAttributedIssue>) {
-  const attention = await listIssueStatusBlockerAttention(db as Db, companyId, [...map.values()]);
+async function withStatusBlockerAttention(db: CaseRouteDb, spaceId: string, map: Map<string, CaseAttributedIssue>) {
+  const attention = await listIssueStatusBlockerAttention(db as Db, spaceId, [...map.values()]);
   if (attention.size === 0) return map;
   for (const [key, issue] of map) {
     const item = attention.get(issue.id);
@@ -292,7 +292,7 @@ async function withStatusBlockerAttention(db: CaseRouteDb, companyId: string, ma
  * (latest-updated issue whose execution/checkout/origin run matches), but for a
  * whole set of runs at once so the activity feed / revisions rail avoid N+1s.
  */
-async function resolveIssuesForRuns(db: CaseRouteDb, companyId: string, runIds: (string | null)[], actor: AuthorizationActor) {
+async function resolveIssuesForRuns(db: CaseRouteDb, spaceId: string, runIds: (string | null)[], actor: AuthorizationActor) {
   const valid = [...new Set(runIds.filter((id): id is string => !!id && isUuidLike(id)))];
   const map = new Map<string, CaseAttributedIssue>();
   if (valid.length === 0) return map;
@@ -310,7 +310,7 @@ async function resolveIssuesForRuns(db: CaseRouteDb, companyId: string, runIds: 
     })
     .from(issues)
     .where(and(
-      eq(issues.companyId, companyId),
+      eq(issues.spaceId, spaceId),
       await issueReadSqlCondition(db, actor),
       or(
         inArray(issues.executionRunId, valid),
@@ -320,7 +320,7 @@ async function resolveIssuesForRuns(db: CaseRouteDb, companyId: string, runIds: 
     ))
     .orderBy(desc(issues.updatedAt), desc(issues.createdAt));
   const readDecisions = await authorizationService(db).decideReads(actor, rows.map(row => ({
-    type: "issue" as const, companyId, issueId: row.id,
+    type: "issue" as const, spaceId, issueId: row.id,
   })));
   const visibleRows = rows.filter((_, index) => readDecisions[index]?.allowed);
   for (const runId of valid) {
@@ -331,7 +331,7 @@ async function resolveIssuesForRuns(db: CaseRouteDb, companyId: string, runIds: 
       map.set(runId, { id: match.id, identifier: match.identifier ?? match.id, title: match.title, status: match.status });
     }
   }
-  return withStatusBlockerAttention(db, companyId, map);
+  return withStatusBlockerAttention(db, spaceId, map);
 }
 
 function payloadIssueIdForEvent(kind: string, payload: Record<string, unknown> | null | undefined) {
@@ -340,7 +340,7 @@ function payloadIssueIdForEvent(kind: string, payload: Record<string, unknown> |
   return typeof issueId === "string" && isUuidLike(issueId) ? issueId : null;
 }
 
-async function resolveIssuesByIds(db: CaseRouteDb, companyId: string, issueIds: (string | null)[], actor: AuthorizationActor) {
+async function resolveIssuesByIds(db: CaseRouteDb, spaceId: string, issueIds: (string | null)[], actor: AuthorizationActor) {
   const valid = [...new Set(issueIds.filter((id): id is string => !!id && isUuidLike(id)))];
   const map = new Map<string, CaseAttributedIssue>();
   if (valid.length === 0) return map;
@@ -352,28 +352,28 @@ async function resolveIssuesByIds(db: CaseRouteDb, companyId: string, issueIds: 
       status: issues.status,
     })
     .from(issues)
-    .where(and(eq(issues.companyId, companyId), inArray(issues.id, valid), await issueReadSqlCondition(db, actor)));
+    .where(and(eq(issues.spaceId, spaceId), inArray(issues.id, valid), await issueReadSqlCondition(db, actor)));
   const readDecisions = await authorizationService(db).decideReads(actor, rows.map(row => ({
-    type: "issue" as const, companyId, issueId: row.id,
+    type: "issue" as const, spaceId, issueId: row.id,
   })));
   for (const [index, row] of rows.entries()) {
     if (readDecisions[index]?.allowed) map.set(row.id, { id: row.id, identifier: row.identifier ?? row.id, title: row.title, status: row.status });
   }
-  return withStatusBlockerAttention(db, companyId, map);
+  return withStatusBlockerAttention(db, spaceId, map);
 }
 
 async function autoLinkRunIssue(db: CaseRouteDb, input: {
-  companyId: string;
+  spaceId: string;
   caseId: string;
   actor: CaseActor;
   role: "origin" | "work";
 }) {
-  const issue = await resolveIssueForRun(db, input.companyId, input.actor.runId);
+  const issue = await resolveIssueForRun(db, input.spaceId, input.actor.runId);
   if (!issue) return null;
-  await retainCaseAccessSource(db, { companyId: input.companyId, caseId: input.caseId, sourceKind: "issue", sourceId: issue.id });
+  await retainCaseAccessSource(db, { spaceId: input.spaceId, caseId: input.caseId, sourceKind: "issue", sourceId: issue.id });
   const now = new Date();
   const [link] = await db.insert(caseIssueLinks).values({
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     caseId: input.caseId,
     issueId: issue.id,
     role: input.role,
@@ -385,7 +385,7 @@ async function autoLinkRunIssue(db: CaseRouteDb, input: {
   }).returning();
   if (!link) return null;
   await insertCaseEvent(db, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     caseId: input.caseId,
     kind: "issue_linked",
     actor: input.actor,
@@ -394,22 +394,22 @@ async function autoLinkRunIssue(db: CaseRouteDb, input: {
   return link;
 }
 
-async function nextCaseIdentity(db: CaseRouteDb, companyId: string) {
-  await db.execute(sql`select pg_advisory_xact_lock(hashtext(${`paperclip:cases:${companyId}`}))`);
-  const [company] = await db
-    .select({ issuePrefix: companies.issuePrefix })
-    .from(companies)
-    .where(eq(companies.id, companyId))
+async function nextCaseIdentity(db: CaseRouteDb, spaceId: string) {
+  await db.execute(sql`select pg_advisory_xact_lock(hashtext(${`outpost:cases:${spaceId}`}))`);
+  const [space] = await db
+    .select({ issuePrefix: spaces.issuePrefix })
+    .from(spaces)
+    .where(eq(spaces.id, spaceId))
     .limit(1);
-  if (!company) throw notFound("Outpost not found");
+  if (!space) throw notFound("Outpost not found");
   const [maxRow] = await db
     .select({ maxNum: sql<number>`coalesce(max(${cases.caseNumber}), 0)` })
     .from(cases)
-    .where(eq(cases.companyId, companyId));
+    .where(eq(cases.spaceId, spaceId));
   const caseNumber = (maxRow?.maxNum ?? 0) + 1;
   return {
     caseNumber,
-    identifier: `${company.issuePrefix.toUpperCase()}-C${caseNumber}`,
+    identifier: `${space.issuePrefix.toUpperCase()}-C${caseNumber}`,
   };
 }
 
@@ -444,27 +444,27 @@ async function loadCaseDetail(db: CaseRouteDb, row: typeof cases.$inferSelect, a
       .select({ label: labels })
       .from(caseLabels)
       .innerJoin(labels, eq(caseLabels.labelId, labels.id))
-      .where(and(eq(caseLabels.companyId, row.companyId), eq(caseLabels.caseId, row.id)))
+      .where(and(eq(caseLabels.spaceId, row.spaceId), eq(caseLabels.caseId, row.id)))
       .orderBy(asc(labels.name)),
     db
       .select({ link: caseIssueLinks, issue: issues })
       .from(caseIssueLinks)
       .innerJoin(issues, eq(caseIssueLinks.issueId, issues.id))
-      .where(and(eq(caseIssueLinks.companyId, row.companyId), eq(caseIssueLinks.caseId, row.id), await issueReadSqlCondition(db, actor)))
+      .where(and(eq(caseIssueLinks.spaceId, row.spaceId), eq(caseIssueLinks.caseId, row.id), await issueReadSqlCondition(db, actor)))
       .orderBy(asc(caseIssueLinks.createdAt)),
     db
       .select({ link: caseDocuments, document: options.includeDocumentBodies === false ? documentMetadata : getTableColumns(documents) })
       .from(caseDocuments)
       .innerJoin(documents, eq(caseDocuments.documentId, documents.id))
-      .where(and(eq(caseDocuments.companyId, row.companyId), eq(caseDocuments.caseId, row.id)))
+      .where(and(eq(caseDocuments.spaceId, row.spaceId), eq(caseDocuments.caseId, row.id)))
       .orderBy(asc(caseDocuments.key)),
     db
       .select({ link: caseAttachments, asset: assets })
       .from(caseAttachments)
       .innerJoin(assets, eq(caseAttachments.assetId, assets.id))
-      .where(and(eq(caseAttachments.companyId, row.companyId), eq(caseAttachments.caseId, row.id)))
+      .where(and(eq(caseAttachments.spaceId, row.spaceId), eq(caseAttachments.caseId, row.id)))
       .orderBy(asc(caseAttachments.createdAt)),
-    listCaseTaskDocuments(db, { companyId: row.companyId, caseId: row.id, workIssueId: row.workIssueId, actor }),
+    listCaseTaskDocuments(db, { spaceId: row.spaceId, caseId: row.id, workIssueId: row.workIssueId, actor }),
   ]);
   const parent = row.parentCaseId
     ? await db
@@ -482,11 +482,11 @@ async function loadCaseDetail(db: CaseRouteDb, row: typeof cases.$inferSelect, a
     : null;
   const visibleParent = parent && (await filterCasesForActor(db, actor, [parent])).length ? parent : null;
   const linkDecisions = await authorizationService(db).decideReads(actor, linkRows.map(item => ({
-    type: "issue" as const, companyId: row.companyId, issueId: item.issue.id,
+    type: "issue" as const, spaceId: row.spaceId, issueId: item.issue.id,
   })));
-  const [workSummary] = await enrichCaseWork(db, row.companyId, [row], actor);
+  const [workSummary] = await enrichCaseWork(db, row.spaceId, [row], actor);
   const visibleLinks = linkRows.filter((_, index) => linkDecisions[index]?.allowed);
-  const linkBlockerAttention = await listIssueStatusBlockerAttention(db as Db, row.companyId, visibleLinks.map((item) => item.issue));
+  const linkBlockerAttention = await listIssueStatusBlockerAttention(db as Db, row.spaceId, visibleLinks.map((item) => item.issue));
   return {
     ...workSummary!,
     ...taskDocumentRollup,
@@ -515,13 +515,13 @@ async function loadCaseDetail(db: CaseRouteDb, row: typeof cases.$inferSelect, a
   };
 }
 
-async function loadCaseDocumentLink(db: CaseRouteDb, input: { companyId: string; caseId: string; key: string }) {
+async function loadCaseDocumentLink(db: CaseRouteDb, input: { spaceId: string; caseId: string; key: string }) {
   return db
     .select({ link: caseDocuments, document: documents })
     .from(caseDocuments)
     .innerJoin(documents, eq(caseDocuments.documentId, documents.id))
     .where(and(
-      eq(caseDocuments.companyId, input.companyId),
+      eq(caseDocuments.spaceId, input.spaceId),
       eq(caseDocuments.caseId, input.caseId),
       eq(caseDocuments.key, input.key),
     ))
@@ -531,7 +531,7 @@ async function loadCaseDocumentLink(db: CaseRouteDb, input: { companyId: string;
 
 async function includeCaseAncestors(
   db: CaseRouteDb,
-  companyId: string,
+  spaceId: string,
   baseRows: Array<typeof cases.$inferSelect>,
   actor: AuthorizationActor,
 ) {
@@ -551,7 +551,7 @@ async function includeCaseAncestors(
     const ancestors = await filterCasesForActor(db, actor, await db
       .select()
       .from(cases)
-      .where(and(eq(cases.companyId, companyId), inArray(cases.id, pending), await caseReadSqlCondition(db, actor))));
+      .where(and(eq(cases.spaceId, spaceId), inArray(cases.id, pending), await caseReadSqlCondition(db, actor))));
     const nextPending = new Set<string>();
     for (const row of ancestors) {
       if (rowsById.has(row.id)) continue;
@@ -600,7 +600,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
   function mutateCase<T>(req: Request, record: typeof cases.$inferSelect,
     write: (tx: CaseRouteTransaction, current: typeof cases.$inferSelect) => Promise<T>) {
     return db.transaction(async tx => {
-      const current = await authorizeCaseMutation(tx as unknown as Db, req.actor, record.id, record.companyId);
+      const current = await authorizeCaseMutation(tx as unknown as Db, req.actor, record.id, record.spaceId);
       return write(tx, current);
     });
   }
@@ -614,7 +614,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
     restoredFromRevisionNumber?: number;
   }) {
     await logActivity(db, {
-      companyId: input.caseRow.companyId,
+      spaceId: input.caseRow.spaceId,
       actorType: input.actor.actorType,
       actorId: input.actor.actorId,
       agentId: input.actor.agentId,
@@ -646,7 +646,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
   }) {
     for (const remap of input.remapped) {
       await logActivity(db, {
-        companyId: input.caseRow.companyId,
+        spaceId: input.caseRow.spaceId,
         actorType: input.actor.actorType,
         actorId: input.actor.actorId,
         agentId: input.actor.agentId,
@@ -668,38 +668,38 @@ export function caseRoutes(db: Db, storage: StorageService) {
     }
   }
 
-  router.post("/companies/:companyId/cases", validate(createCaseSchema), async (req, res) => {
+  router.post("/spaces/:spaceId/cases", validate(createCaseSchema), async (req, res) => {
     await assertCasesEnabled(db);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const actor = getActorInfo(req);
     const body = req.body as z.infer<typeof createCaseSchema>;
-    await assertActorCanWriteCase(db, req.actor, { companyId, projectId: body.projectId });
+    await assertActorCanWriteCase(db, req.actor, { spaceId, projectId: body.projectId });
 
     const result = await db.transaction(async (tx) => {
-      const sourceIssueId = await authorizeCaseCreation(tx as unknown as Db, req.actor, { companyId, projectId: body.projectId });
-      await assertProjectBelongsToCompany(tx, { companyId, projectId: body.projectId ?? null });
+      const sourceIssueId = await authorizeCaseCreation(tx as unknown as Db, req.actor, { spaceId, projectId: body.projectId });
+      await assertProjectBelongsToSpace(tx, { spaceId, projectId: body.projectId ?? null });
       if (body.projectId && !(await authorizationService(tx).decide({ actor: req.actor, action: "project:read", resource: {
-        type: "project", companyId, projectId: body.projectId,
+        type: "project", spaceId, projectId: body.projectId,
       } })).allowed) throw notFound("Project not found");
-      if (body.parentCaseId) await assertActorCanReadCase(tx, req.actor, { id: body.parentCaseId, companyId });
-      await assertParentCaseBelongsToCompany(tx, { companyId, parentCaseId: body.parentCaseId ?? null });
-      await lockCaseUpsertKey(tx, { companyId, caseType: body.caseType, key: body.key });
+      if (body.parentCaseId) await assertActorCanReadCase(tx, req.actor, { id: body.parentCaseId, spaceId });
+      await assertParentCaseBelongsToSpace(tx, { spaceId, parentCaseId: body.parentCaseId ?? null });
+      await lockCaseUpsertKey(tx, { spaceId, caseType: body.caseType, key: body.key });
       const keyFilter = body.key ? eq(cases.key, body.key) : isNull(cases.key);
 
       const now = new Date();
       const existing = await tx
         .select()
         .from(cases)
-        .where(and(eq(cases.companyId, companyId), eq(cases.caseType, body.caseType), keyFilter))
+        .where(and(eq(cases.spaceId, spaceId), eq(cases.caseType, body.caseType), keyFilter))
         .limit(1)
         .then((rows) => rows[0] ?? null);
 
       if (existing) {
-        const current = await authorizeCaseMutation(tx as unknown as Db, req.actor, existing.id, companyId);
+        const current = await authorizeCaseMutation(tx as unknown as Db, req.actor, existing.id, spaceId);
         await assertCaseStatusWriteAuthority(tx as unknown as Db, req.actor, current, body.status);
         if (body.projectId) await retainCaseAccessSource(tx, {
-          companyId, caseId: existing.id, sourceKind: "project", sourceId: body.projectId,
+          spaceId, caseId: existing.id, sourceKind: "project", sourceId: body.projectId,
         });
         // Fall back to the locked row so a concurrent close or reopen is not undone.
         const status = body.status ?? current.status;
@@ -714,20 +714,20 @@ export function caseRoutes(db: Db, storage: StorageService) {
           updatedAt: now,
         }).where(eq(cases.id, existing.id)).returning();
         await insertCaseEvent(tx, {
-          companyId,
+          spaceId,
           caseId: existing.id,
           kind: "updated",
           actor,
           payload: { upsert: true },
         });
-        await autoLinkRunIssue(tx, { companyId, caseId: existing.id, actor, role: "origin" });
+        await autoLinkRunIssue(tx, { spaceId, caseId: existing.id, actor, role: "origin" });
         return { created: false, row: updated! };
       }
 
-      const identity = await nextCaseIdentity(tx, companyId);
+      const identity = await nextCaseIdentity(tx, spaceId);
       const status = body.status ?? "draft";
       const [created] = await tx.insert(cases).values({
-        companyId,
+        spaceId,
         projectId: body.projectId ?? null,
         ...identity,
         caseType: body.caseType,
@@ -743,17 +743,17 @@ export function caseRoutes(db: Db, storage: StorageService) {
         createdAt: now,
         updatedAt: now,
       }).returning();
-      if (sourceIssueId) await retainCaseAccessSource(tx, { companyId, caseId: created!.id, sourceKind: "issue", sourceId: sourceIssueId });
+      if (sourceIssueId) await retainCaseAccessSource(tx, { spaceId, caseId: created!.id, sourceKind: "issue", sourceId: sourceIssueId });
       await insertCaseEvent(tx, {
-        companyId,
+        spaceId,
         caseId: created!.id,
         kind: "created",
         actor,
         payload: { caseType: body.caseType, key: body.key ?? null },
       });
-      const sourceLink = await autoLinkRunIssue(tx, { companyId, caseId: created!.id, actor, role: "origin" });
+      const sourceLink = await autoLinkRunIssue(tx, { spaceId, caseId: created!.id, actor, role: "origin" });
       if (!sourceLink && body.projectId) await retainCaseAccessSource(tx, {
-        companyId, caseId: created!.id, sourceKind: "project", sourceId: body.projectId,
+        spaceId, caseId: created!.id, sourceKind: "project", sourceId: body.projectId,
       });
       return { created: true, row: created! };
     });
@@ -761,11 +761,11 @@ export function caseRoutes(db: Db, storage: StorageService) {
     res.status(result.created ? 201 : 200).json(await loadCaseDetail(db, result.row, req.actor));
   });
 
-  router.get("/companies/:companyId/cases/types", async (req, res) => {
+  router.get("/spaces/:spaceId/cases/types", async (req, res) => {
     await assertCasesEnabled(db);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const filters = and(eq(cases.companyId, companyId), await caseReadSqlCondition(db, req.actor));
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const filters = and(eq(cases.spaceId, spaceId), await caseReadSqlCondition(db, req.actor));
     const types = new Set<string>();
     // Select identities only. Canonical scope checks still run before a type is
     // counted, so a hidden case cannot reveal even its type through this picker.
@@ -778,14 +778,14 @@ export function caseRoutes(db: Db, storage: StorageService) {
     res.json([...types].sort());
   });
 
-  router.get("/companies/:companyId/cases", async (req, res) => {
+  router.get("/spaces/:spaceId/cases", async (req, res) => {
     await assertCasesEnabled(db);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const parsed = listCasesQuerySchema.safeParse(req.query);
     if (!parsed.success) throw badRequest("Invalid case list query", parsed.error.issues);
     const query = parsed.data;
-    const filters = [eq(cases.companyId, companyId), await caseReadSqlCondition(db, req.actor)];
+    const filters = [eq(cases.spaceId, spaceId), await caseReadSqlCondition(db, req.actor)];
     const typeFilters = parseQueryList(query.types ?? query.type);
     if (typeFilters.length === 1) filters.push(eq(cases.caseType, typeFilters[0]!));
     else if (typeFilters.length > 1) filters.push(inArray(cases.caseType, typeFilters));
@@ -821,7 +821,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
     if (labelId) {
       filters.push(sql`${cases.id} in (
         select ${caseLabels.caseId} from ${caseLabels}
-        where ${caseLabels.companyId} = ${companyId} and ${caseLabels.labelId} = ${labelId}
+        where ${caseLabels.spaceId} = ${spaceId} and ${caseLabels.labelId} = ${labelId}
       )`);
     }
     if (query.q) {
@@ -868,15 +868,15 @@ export function caseRoutes(db: Db, storage: StorageService) {
       if (candidates.length < 200) break;
     }
     const page = rows.slice(0, query.limit);
-    const visibleRows = parseBooleanQuery(query.includeAncestors) ? await includeCaseAncestors(db, companyId, page, req.actor) : page;
-    res.json(await enrichCaseWork(db, companyId, visibleRows, req.actor));
+    const visibleRows = parseBooleanQuery(query.includeAncestors) ? await includeCaseAncestors(db, spaceId, page, req.actor) : page;
+    res.json(await enrichCaseWork(db, spaceId, visibleRows, req.actor));
   });
 
   router.get("/cases/:id/documents/:key", async (req, res) => {
     await assertCasesEnabled(db);
     const caseRow = await assertCaseAccess(db, req, req.params.id as string);
     const key = parseDocumentKey(req.params.key as string);
-    const link = await loadCaseDocumentLink(db, { companyId: caseRow.companyId, caseId: caseRow.id, key });
+    const link = await loadCaseDocumentLink(db, { spaceId: caseRow.spaceId, caseId: caseRow.id, key });
     if (!link) throw notFound("Case document not found");
     res.json(caseDocumentResponse({ key, document: link.document }));
   });
@@ -922,7 +922,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
       ));
       const firstComment = thread.comments[0];
       await logActivity(db, {
-        companyId: caseRow.companyId,
+        spaceId: caseRow.spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         agentId: actor.agentId,
@@ -961,7 +961,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
         annotationActor,
       ));
       await logActivity(db, {
-        companyId: caseRow.companyId,
+        spaceId: caseRow.spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         agentId: actor.agentId,
@@ -998,7 +998,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
         annotationActor,
       ));
       await logActivity(db, {
-        companyId: caseRow.companyId,
+        spaceId: caseRow.spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         agentId: actor.agentId,
@@ -1029,14 +1029,14 @@ export function caseRoutes(db: Db, storage: StorageService) {
     const body = upsertCaseDocumentSchema.parse(req.body);
 
     const result = await mutateCase(req, caseRow, async (tx) => {
-      await lockCaseDocumentKey(tx, { companyId: caseRow.companyId, caseId: caseRow.id, key });
+      await lockCaseDocumentKey(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, key });
       const existing = await tx
         .select({ link: caseDocuments, document: documents, revision: documentRevisions })
         .from(caseDocuments)
         .innerJoin(documents, eq(caseDocuments.documentId, documents.id))
         .leftJoin(documentRevisions, eq(documents.latestRevisionId, documentRevisions.id))
         .where(and(
-          eq(caseDocuments.companyId, caseRow.companyId),
+          eq(caseDocuments.spaceId, caseRow.spaceId),
           eq(caseDocuments.caseId, caseRow.id),
           eq(caseDocuments.key, key),
         ))
@@ -1083,7 +1083,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
           updatedByUserId: actor.actorType === "user" ? actor.actorId : null,
         }).where(eq(documents.id, existing.document.id)).returning()
         : await tx.insert(documents).values({
-          companyId: caseRow.companyId,
+          spaceId: caseRow.spaceId,
           title: body.title ?? key,
           format: body.format,
           latestBody: body.body,
@@ -1097,7 +1097,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
         }).returning();
       const nextRevisionNumber = existing ? existing.document.latestRevisionNumber + 1 : 1;
       const [revision] = await tx.insert(documentRevisions).values({
-        companyId: caseRow.companyId,
+        spaceId: caseRow.spaceId,
         documentId: document!.id,
         revisionNumber: nextRevisionNumber,
         title: body.title ?? document!.title,
@@ -1121,7 +1121,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
       }).where(eq(documents.id, document!.id));
       if (!existing) {
         await tx.insert(caseDocuments).values({
-          companyId: caseRow.companyId,
+          spaceId: caseRow.spaceId,
           caseId: caseRow.id,
           documentId: document!.id,
           key,
@@ -1132,13 +1132,13 @@ export function caseRoutes(db: Db, storage: StorageService) {
         await tx.update(caseDocuments).set({ updatedAt: now }).where(eq(caseDocuments.documentId, document!.id));
       }
       await insertCaseEvent(tx, {
-        companyId: caseRow.companyId,
+        spaceId: caseRow.spaceId,
         caseId: caseRow.id,
         kind: "document_revised",
         actor,
         payload: { key, documentId: document!.id, revisionId: revision!.id, revisionNumber: revision!.revisionNumber },
       });
-      await autoLinkRunIssue(tx, { companyId: caseRow.companyId, caseId: caseRow.id, actor, role: "work" });
+      await autoLinkRunIssue(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, actor, role: "work" });
       const remapped = await documentAnnotationService(tx as unknown as Db).remapOpenThreadsForCaseDocument({
         caseId: caseRow.id, key, documentId: document!.id, nextRevisionId: revision!.id,
         nextRevisionNumber: revision!.revisionNumber, nextBody: body.body,
@@ -1175,8 +1175,8 @@ export function caseRoutes(db: Db, storage: StorageService) {
     const key = parseDocumentKey(req.params.key as string);
     const actor = getActorInfo(req);
     const result = await mutateCase(req, caseRow, async (tx) => {
-      await lockCaseDocumentKey(tx, { companyId: caseRow.companyId, caseId: caseRow.id, key });
-      const link = await loadCaseDocumentLink(tx, { companyId: caseRow.companyId, caseId: caseRow.id, key });
+      await lockCaseDocumentKey(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, key });
+      const link = await loadCaseDocumentLink(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, key });
       if (!link) throw notFound("Case document not found");
       if (link.document.lockedAt) return caseDocumentResponse({ key, document: link.document });
       const now = new Date();
@@ -1197,8 +1197,8 @@ export function caseRoutes(db: Db, storage: StorageService) {
     const caseRow = await assertCaseAccess(db, req, req.params.id as string);
     const key = parseDocumentKey(req.params.key as string);
     const result = await mutateCase(req, caseRow, async (tx) => {
-      await lockCaseDocumentKey(tx, { companyId: caseRow.companyId, caseId: caseRow.id, key });
-      const link = await loadCaseDocumentLink(tx, { companyId: caseRow.companyId, caseId: caseRow.id, key });
+      await lockCaseDocumentKey(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, key });
+      const link = await loadCaseDocumentLink(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, key });
       if (!link) throw notFound("Case document not found");
       if (!link.document.lockedAt) return caseDocumentResponse({ key, document: link.document });
       const now = new Date();
@@ -1222,8 +1222,8 @@ export function caseRoutes(db: Db, storage: StorageService) {
     const actor = getActorInfo(req);
 
     const result = await mutateCase(req, caseRow, async (tx) => {
-      await lockCaseDocumentKey(tx, { companyId: caseRow.companyId, caseId: caseRow.id, key });
-      const existing = await loadCaseDocumentLink(tx, { companyId: caseRow.companyId, caseId: caseRow.id, key });
+      await lockCaseDocumentKey(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, key });
+      const existing = await loadCaseDocumentLink(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, key });
       if (!existing) throw notFound("Case document not found");
       if (existing.document.lockedAt) {
         throw conflict("Document is locked", {
@@ -1248,7 +1248,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
       const now = new Date();
       const nextRevisionNumber = existing.document.latestRevisionNumber + 1;
       const [restoredRevision] = await tx.insert(documentRevisions).values({
-        companyId: caseRow.companyId,
+        spaceId: caseRow.spaceId,
         documentId: existing.document.id,
         revisionNumber: nextRevisionNumber,
         title: sourceRevision.title ?? null,
@@ -1272,7 +1272,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
       }).where(eq(documents.id, existing.document.id)).returning();
       await tx.update(caseDocuments).set({ updatedAt: now }).where(eq(caseDocuments.documentId, existing.document.id));
       await insertCaseEvent(tx, {
-        companyId: caseRow.companyId,
+        spaceId: caseRow.spaceId,
         caseId: caseRow.id,
         kind: "document_revised",
         actor,
@@ -1285,7 +1285,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
           restoredFromRevisionNumber: sourceRevision.revisionNumber,
         },
       });
-      await autoLinkRunIssue(tx, { companyId: caseRow.companyId, caseId: caseRow.id, actor, role: "work" });
+      await autoLinkRunIssue(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, actor, role: "work" });
       const remapped = await documentAnnotationService(tx as unknown as Db).remapOpenThreadsForCaseDocument({
         caseId: caseRow.id, key, documentId: document!.id, nextRevisionId: restoredRevision!.id,
         nextRevisionNumber: restoredRevision!.revisionNumber, nextBody: sourceRevision.body,
@@ -1317,8 +1317,8 @@ export function caseRoutes(db: Db, storage: StorageService) {
     const caseRow = await assertCaseAccess(db, req, req.params.id as string);
     const key = parseDocumentKey(req.params.key as string);
     await mutateCase(req, caseRow, async (tx) => {
-      await lockCaseDocumentKey(tx, { companyId: caseRow.companyId, caseId: caseRow.id, key });
-      const link = await loadCaseDocumentLink(tx, { companyId: caseRow.companyId, caseId: caseRow.id, key });
+      await lockCaseDocumentKey(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, key });
+      const link = await loadCaseDocumentLink(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, key });
       if (!link) return;
       if (link.document.lockedAt) {
         throw conflict("Document is locked", {
@@ -1343,19 +1343,19 @@ export function caseRoutes(db: Db, storage: StorageService) {
       const issue = await tx
         .select({ id: issues.id })
         .from(issues)
-        .where(and(eq(issues.id, body.issueId), eq(issues.companyId, caseRow.companyId)))
+        .where(and(eq(issues.id, body.issueId), eq(issues.spaceId, caseRow.spaceId)))
         .limit(1)
         .then((rows) => rows[0] ?? null);
-      if (!issue) throw unprocessable("Issue does not belong to case company");
+      if (!issue) throw unprocessable("Issue does not belong to case space");
       if (!(await authorizationService(tx).decide({ actor: req.actor, action: "issue:read", resource: {
-        type: "issue", companyId: caseRow.companyId, issueId: issue.id,
+        type: "issue", spaceId: caseRow.spaceId, issueId: issue.id,
       } })).allowed) throw notFound("Issue not found");
       if (body.role !== "reference") await retainCaseAccessSource(tx, {
-        companyId: caseRow.companyId, caseId: caseRow.id, sourceKind: "issue", sourceId: issue.id,
+        spaceId: caseRow.spaceId, caseId: caseRow.id, sourceKind: "issue", sourceId: issue.id,
       });
       const now = new Date();
       const [link] = await tx.insert(caseIssueLinks).values({
-        companyId: caseRow.companyId,
+        spaceId: caseRow.spaceId,
         caseId: caseRow.id,
         issueId: body.issueId,
         role: body.role,
@@ -1367,7 +1367,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
       }).returning();
       if (link) {
         await insertCaseEvent(tx, {
-          companyId: caseRow.companyId,
+          spaceId: caseRow.spaceId,
           caseId: caseRow.id,
           kind: "issue_linked",
           actor,
@@ -1407,7 +1407,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
     if (file.buffer.length <= 0) throw unprocessable("Attachment is empty");
 
     const stored = await storage.putFile({
-      companyId: caseRow.companyId,
+      spaceId: caseRow.spaceId,
       namespace: `cases/${caseRow.id}`,
       originalFilename: file.originalname || null,
       contentType: normalizeContentType(file.mimetype),
@@ -1416,7 +1416,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
     const result = await mutateCase(req, caseRow, async (tx) => {
       const now = new Date();
       const [asset] = await tx.insert(assets).values({
-        companyId: caseRow.companyId,
+        spaceId: caseRow.spaceId,
         provider: stored.provider,
         objectKey: stored.objectKey,
         contentType: stored.contentType,
@@ -1429,27 +1429,27 @@ export function caseRoutes(db: Db, storage: StorageService) {
         updatedAt: now,
       }).returning();
       const [attachment] = await tx.insert(caseAttachments).values({
-        companyId: caseRow.companyId,
+        spaceId: caseRow.spaceId,
         caseId: caseRow.id,
         assetId: asset!.id,
         createdAt: now,
         updatedAt: now,
       }).returning();
       await insertCaseEvent(tx, {
-        companyId: caseRow.companyId,
+        spaceId: caseRow.spaceId,
         caseId: caseRow.id,
         kind: "attachment_added",
         actor,
         payload: { attachmentId: attachment!.id, assetId: asset!.id, originalFilename: asset!.originalFilename },
       });
-      await autoLinkRunIssue(tx, { companyId: caseRow.companyId, caseId: caseRow.id, actor, role: "work" });
+      await autoLinkRunIssue(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, actor, role: "work" });
       return { ...attachment!, asset };
     }).catch(async error => {
       // A denied transaction rolls back before publishing an asset. Do not
       // delete on an unknown database/commit outcome that may have succeeded.
       if (error instanceof HttpError && [403, 404].includes(error.status)) {
-        await storage.deleteObject(caseRow.companyId, stored.objectKey).catch(cleanupError => {
-          logger.warn({ err: cleanupError, companyId: caseRow.companyId, objectKey: stored.objectKey }, "Failed to remove rejected case attachment");
+        await storage.deleteObject(caseRow.spaceId, stored.objectKey).catch(cleanupError => {
+          logger.warn({ err: cleanupError, spaceId: caseRow.spaceId, objectKey: stored.objectKey }, "Failed to remove rejected case attachment");
         });
       }
       throw error;
@@ -1465,7 +1465,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
     const rows = await db
       .select()
       .from(caseEvents)
-      .where(and(eq(caseEvents.companyId, caseRow.companyId), eq(caseEvents.caseId, caseRow.id)))
+      .where(and(eq(caseEvents.spaceId, caseRow.spaceId), eq(caseEvents.caseId, caseRow.id)))
       .orderBy(desc(caseEvents.createdAt), desc(caseEvents.id))
       .limit(parsed.data.limit);
     // Enrich each row with its actor's display name, run→issue attribution,
@@ -1473,8 +1473,8 @@ export function caseRoutes(db: Db, storage: StorageService) {
     const payloadIssueIds = rows.map((row) => payloadIssueIdForEvent(row.kind, row.payload));
     const [agentNames, issueMap, payloadIssueMap] = await Promise.all([
       resolveAgentNames(db, rows.map((row) => row.actorAgentId)),
-      resolveIssuesForRuns(db, caseRow.companyId, rows.map((row) => row.runId), req.actor),
-      resolveIssuesByIds(db, caseRow.companyId, payloadIssueIds, req.actor),
+      resolveIssuesForRuns(db, caseRow.spaceId, rows.map((row) => row.runId), req.actor),
+      resolveIssuesByIds(db, caseRow.spaceId, payloadIssueIds, req.actor),
     ]);
     res.json(rows.map((row) => ({
       ...row,
@@ -1493,7 +1493,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
       .from(caseDocuments)
       .innerJoin(documents, eq(caseDocuments.documentId, documents.id))
       .where(and(
-        eq(caseDocuments.companyId, caseRow.companyId),
+        eq(caseDocuments.spaceId, caseRow.spaceId),
         eq(caseDocuments.caseId, caseRow.id),
         eq(caseDocuments.key, key),
       ))
@@ -1504,13 +1504,13 @@ export function caseRoutes(db: Db, storage: StorageService) {
       .select()
       .from(documentRevisions)
       .where(and(
-        eq(documentRevisions.companyId, caseRow.companyId),
+        eq(documentRevisions.spaceId, caseRow.spaceId),
         eq(documentRevisions.documentId, link.documentId),
       ))
       .orderBy(desc(documentRevisions.revisionNumber));
     const [agentNames, issueMap] = await Promise.all([
       resolveAgentNames(db, revisions.map((rev) => rev.createdByAgentId)),
-      resolveIssuesForRuns(db, caseRow.companyId, revisions.map((rev) => rev.createdByRunId), req.actor),
+      resolveIssuesForRuns(db, caseRow.spaceId, revisions.map((rev) => rev.createdByRunId), req.actor),
     ]);
     res.json({
       key,
@@ -1541,17 +1541,17 @@ export function caseRoutes(db: Db, storage: StorageService) {
   router.get("/issues/:issueId/cases", async (req, res) => {
     await assertCasesEnabled(db);
     const issueIdOrIdentifier = (req.params.issueId as string).trim();
-    const issue = await loadIssueByIdOrIdentifier(db, issueIdOrIdentifier, caseLookupCompanyIds(req));
-    if (!issue || !hasCompanyAccess(req, issue.companyId)) throw notFound("Issue not found");
-    assertCompanyAccess(req, issue.companyId);
+    const issue = await loadIssueByIdOrIdentifier(db, issueIdOrIdentifier, caseLookupSpaceIds(req));
+    if (!issue || !hasSpaceAccess(req, issue.spaceId)) throw notFound("Issue not found");
+    assertSpaceAccess(req, issue.spaceId);
     if (!(await authorizationService(db).decide({ actor: req.actor, action: "issue:read", resource: {
-      type: "issue", companyId: issue.companyId, issueId: issue.id,
+      type: "issue", spaceId: issue.spaceId, issueId: issue.id,
     } })).allowed) throw notFound("Issue not found");
     const rows = await db
       .select({ link: caseIssueLinks, caseRow: cases })
       .from(caseIssueLinks)
       .innerJoin(cases, eq(caseIssueLinks.caseId, cases.id))
-      .where(and(eq(caseIssueLinks.companyId, issue.companyId), eq(caseIssueLinks.issueId, issue.id), await caseReadSqlCondition(db, req.actor)))
+      .where(and(eq(caseIssueLinks.spaceId, issue.spaceId), eq(caseIssueLinks.issueId, issue.id), await caseReadSqlCondition(db, req.actor)))
       .orderBy(asc(caseIssueLinks.createdAt));
     const visibleCaseIds = new Set((await filterCasesForActor(db, req.actor, rows.map(row => row.caseRow))).map(row => row.id));
     res.json(rows.filter(row => visibleCaseIds.has(row.caseRow.id)).map((row) => ({
@@ -1597,30 +1597,30 @@ export function caseRoutes(db: Db, storage: StorageService) {
 
     const updated = await mutateCase(req, caseRow, async (tx, currentCase) => {
       await assertCaseStatusWriteAuthority(tx as unknown as Db, req.actor, currentCase, body.status);
-      await assertProjectBelongsToCompany(tx, { companyId: caseRow.companyId, projectId: body.projectId ?? null });
+      await assertProjectBelongsToSpace(tx, { spaceId: caseRow.spaceId, projectId: body.projectId ?? null });
       if (body.projectId) {
         if (!(await authorizationService(tx).decide({ actor: req.actor, action: "project:read", resource: {
-          type: "project", companyId: caseRow.companyId, projectId: body.projectId,
+          type: "project", spaceId: caseRow.spaceId, projectId: body.projectId,
         } })).allowed) throw notFound("Project not found");
-        await retainCaseAccessSource(tx, { companyId: caseRow.companyId, caseId: caseRow.id, sourceKind: "project", sourceId: body.projectId });
+        await retainCaseAccessSource(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, sourceKind: "project", sourceId: body.projectId });
       }
-      if (body.parentCaseId) await assertActorCanReadCase(tx, req.actor, { id: body.parentCaseId, companyId: caseRow.companyId });
-      await assertParentCaseBelongsToCompany(tx, {
-        companyId: caseRow.companyId,
+      if (body.parentCaseId) await assertActorCanReadCase(tx, req.actor, { id: body.parentCaseId, spaceId: caseRow.spaceId });
+      await assertParentCaseBelongsToSpace(tx, {
+        spaceId: caseRow.spaceId,
         caseId: caseRow.id,
         parentCaseId: body.parentCaseId ?? null,
       });
-      if (nextLabelIds) await assertLabelsBelongToCompany(tx, caseRow.companyId, nextLabelIds);
+      if (nextLabelIds) await assertLabelsBelongToSpace(tx, caseRow.spaceId, nextLabelIds);
 
       const now = new Date();
       const [row] = await tx.update(cases).set(buildCasePatchUpdateValues(body, currentCase, now)).where(eq(cases.id, caseRow.id)).returning();
 
       if (nextLabelIds) {
-        await lockCaseLabels(tx, { companyId: caseRow.companyId, caseId: caseRow.id });
+        await lockCaseLabels(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id });
         const current = await tx
           .select({ labelId: caseLabels.labelId })
           .from(caseLabels)
-          .where(and(eq(caseLabels.companyId, caseRow.companyId), eq(caseLabels.caseId, caseRow.id)));
+          .where(and(eq(caseLabels.spaceId, caseRow.spaceId), eq(caseLabels.caseId, caseRow.id)));
         const currentIds = new Set(current.map((item) => item.labelId));
         const desiredIds = new Set(nextLabelIds);
         const added = [...desiredIds].filter((id) => !currentIds.has(id));
@@ -1629,7 +1629,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
           await tx.delete(caseLabels).where(and(eq(caseLabels.caseId, caseRow.id), inArray(caseLabels.labelId, removed)));
           for (const labelId of removed) {
             await insertCaseEvent(tx, {
-              companyId: caseRow.companyId,
+              spaceId: caseRow.spaceId,
               caseId: caseRow.id,
               kind: "label_removed",
               actor,
@@ -1639,7 +1639,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
         }
         if (added.length > 0) {
           await tx.insert(caseLabels).values(added.map((labelId) => ({
-            companyId: caseRow.companyId,
+            spaceId: caseRow.spaceId,
             caseId: caseRow.id,
             labelId,
             createdAt: now,
@@ -1647,7 +1647,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
           }))).onConflictDoNothing();
           for (const labelId of added) {
             await insertCaseEvent(tx, {
-              companyId: caseRow.companyId,
+              spaceId: caseRow.spaceId,
               caseId: caseRow.id,
               kind: "label_added",
               actor,
@@ -1665,7 +1665,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
             ? "child_linked"
             : "updated";
       await insertCaseEvent(tx, {
-        companyId: caseRow.companyId,
+        spaceId: caseRow.spaceId,
         caseId: caseRow.id,
         kind,
         actor,
@@ -1675,7 +1675,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
           parentCaseId: body.parentCaseId,
         },
       });
-      await autoLinkRunIssue(tx, { companyId: caseRow.companyId, caseId: caseRow.id, actor, role: "work" });
+      await autoLinkRunIssue(tx, { spaceId: caseRow.spaceId, caseId: caseRow.id, actor, role: "work" });
       return row!;
     });
     res.json(await loadCaseDetail(db, updated, req.actor, { includeDocumentBodies: query.includeDocumentBodies === undefined || parseBooleanQuery(query.includeDocumentBodies) }));

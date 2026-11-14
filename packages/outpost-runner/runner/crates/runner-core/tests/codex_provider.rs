@@ -586,7 +586,7 @@ fn ordinary_recovery_preserves_command_replay_and_collision_checks() {
         "recorded-attach",
         1,
         "run.attach",
-        json!({"paperclipNextAuthority":{}}),
+        json!({"outpostNextAuthority":{}}),
     );
     assert!(matches!(
         runner.begin_command(&recorded).unwrap(),
@@ -933,7 +933,7 @@ fn hosted_park_rejects_reconciled_finish_without_a_live_completion() {
         ],
     );
     let operation = AuthorizedTool {
-        operation_id: "paperclip_finish".to_owned(),
+        operation_id: "outpost_finish".to_owned(),
         version: 1,
         description: "Report completed work.".to_owned(),
         input_schema: result_schema,
@@ -974,7 +974,7 @@ fn hosted_park_rejects_reconciled_finish_without_a_live_completion() {
             4,
             "semantic_tool.result",
             json!({"callId":"terminal-result-call",
-        "operationId":"paperclip_finish", "result":{"accepted":true}, "isError":false}),
+        "operationId":"outpost_finish", "result":{"accepted":true}, "isError":false}),
         ))
         .unwrap();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
@@ -1805,7 +1805,7 @@ fn helper_tool_requests_do_not_terminate_or_borrow_root_authority() {
         let mut provider =
             CodexProvider::start_with_tools(&config, [task_context_tool()], None).unwrap();
         provider
-            .start_turn("Hire a persistent teammate.", &config.cwd)
+            .start_turn("Create a persistent teammate.", &config.cwd)
             .unwrap();
         let deadline = event_deadline();
         let mut completed = false;
@@ -2030,7 +2030,7 @@ fn codex_completion_cancels_pending_tool_request_before_releasing_capacity() {
     assert_eq!(
         call_count(&directory, "tool-response:failure"),
         1,
-        "Paperclip explicitly resolves the provider RPC as cancelled",
+        "Outpost explicitly resolves the provider RPC as cancelled",
     );
     assert!(provider
         .deliver_tool_result(&ToolResult {
@@ -2396,7 +2396,7 @@ fn durable_backend_closes_when_identity_rollover_resumes_unowned_work() {
         .as_u64()
         .expect("attached provider generation is persisted");
 
-    // Race the provider's idle snapshot with work Paperclip never dispatched.
+    // Race the provider's idle snapshot with work Outpost never dispatched.
     // The replacement process observes this turn during thread/resume and must
     // close the durable run instead of leaving a quarantined session open.
     fs::write(directory.join("resume-unowned-turn"), b"armed")
@@ -2433,7 +2433,7 @@ fn durable_backend_closes_when_identity_rollover_resumes_unowned_work() {
     assert!(events.iter().any(|event| {
         event.event_type == "harness.diagnostic"
             && event.payload["code"] == "provider_turn_identity_invalid"
-            && event.payload["paperclipAccepted"] == false
+            && event.payload["outpostAccepted"] == false
             && event.payload["providerAccepted"] == true
     }));
 
@@ -3568,7 +3568,7 @@ fn ambiguous_turn_start_that_created_an_unsettled_turn_still_fails_closed() {
     let mut recovered = CodexCommandExecutor::new(&directory);
     let error = recovered
         .execute(&command("snapshot", 5, "session.snapshot", json!({})))
-        .expect_err("a recorded turn Paperclip never settled may have done work");
+        .expect_err("a recorded turn Outpost never settled may have done work");
     assert!(
         error
             .to_string()
@@ -4204,7 +4204,7 @@ fn codex_facade_bridges_opencode_native_questions_instead_of_rejecting_the_metho
                 _ => None,
             },
         )
-        .expect("the provider-native paperclip/runtimeRequest reaches runnerd");
+        .expect("the provider-native outpost/runtimeRequest reaches runnerd");
     assert_eq!(question_set["schema"], "outpost.question_set.v1");
     assert_eq!(question_set["questions"][0]["id"], "environment");
 
@@ -4672,7 +4672,7 @@ fn restart_lost_turn_preserves_rejected_completion_without_changing_ordinary_rec
             &["--durable-turn-ids", "--linger-after-turn-start"],
         );
         let operation = AuthorizedTool {
-            operation_id: "paperclip_finish".to_owned(),
+            operation_id: "outpost_finish".to_owned(),
             version: 1,
             description: "Report completed work.".to_owned(),
             input_schema: json!({"type": "object"}),
@@ -7827,7 +7827,7 @@ fn rejected_declared_completion_stays_failed_when_the_provider_completes() {
             input_path.to_string_lossy().into_owned(),
         ]);
         let operation = AuthorizedTool {
-            operation_id: "paperclip_finish".to_owned(),
+            operation_id: "outpost_finish".to_owned(),
             version: 1,
             description: "Report completed work.".to_owned(),
             input_schema: result_schema.clone(),
@@ -7865,7 +7865,7 @@ fn rejected_declared_completion_stays_failed_when_the_provider_completes() {
                     input_calls += 1;
                     assert!(scenario.starts_with("controller"));
                     executor.execute(&command("reject", 4, "semantic_tool.result", json!({
-                        "callId": "terminal-result-call", "operationId": "paperclip_finish", "isError": true,
+                        "callId": "terminal-result-call", "operationId": "outpost_finish", "isError": true,
                         "result": {"error": {"code": "deliverable_missing"}} }))).unwrap();
                 }
             }

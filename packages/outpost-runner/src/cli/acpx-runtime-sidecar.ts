@@ -30,10 +30,10 @@ import type {
 } from "acpx/runtime";
 
 import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "../drivers/acpx/profile-extensions.js";
-import type { PaperclipQuestionSet } from "../contracts/question-set.js";
+import type { OutpostQuestionSet } from "../contracts/question-set.js";
 import { acpxToolDetailFromRuntimeEvent, acpxToolInputPath, boundedAcpMeta, canonicalProviderEventsFromAcpxRuntimeEvent, claudePlanProposalEvent, type AcpRuntimeEventShape, createAcpxToolEventNormalizer, createGrokMessageNormalizer } from "../provider-events.js";
 import { acpxOpaqueToolItemId, createClaudeSubagentLineageTracker } from "../claude-subagent-lineage.js";
-import { claudeHookCanonicalEvent } from "../governance-events.js";
+import { claudeHookCanonicalEvent } from "../approval-events.js";
 import { createPiMessageProjection, type PiProjectedMessageEvent } from "../drivers/acpx/pi-message-projection.js";
 import { createKimiMessageProjection, type KimiProjectedMessageEvent } from "../drivers/acpx/kimi-message-boundary.js";
 import { parseNativeRuntimeContext } from "../contracts/runtime-context.js";
@@ -145,7 +145,7 @@ function reportRetainedAcpxCleanupFailure(
     }),
     {
       code: "OUTPOST_ACPX_RETAINED_CLEANUP_FAILURE",
-      type: "PaperclipRunnerCleanupWarning",
+      type: "OutpostRunnerCleanupWarning",
     },
   );
 }
@@ -161,7 +161,7 @@ interface PendingTool {
 interface PendingInput {
   turnId: string;
   responseDelivery: Promise<void>;
-  questionSet: PaperclipQuestionSet;
+  questionSet: OutpostQuestionSet;
   prepareResolution(resolution: HarnessRuntimeRequestResolution): () => void;
   cancel(): void;
   cleanup(): void;
@@ -757,9 +757,9 @@ async function pumpTurn(
             _meta: boundedAcpMeta((event as { _meta?: unknown })._meta),
           })
         : null;
-      if (lineage?.paperclipParentToolCallId) sanitized.parentToolCallId = lineage.paperclipParentToolCallId;
+      if (lineage?.outpostParentToolCallId) sanitized.parentToolCallId = lineage.outpostParentToolCallId;
       emit("runtime.event", sanitized, currentTurnId);
-      if (lineage?.paperclipSubagent) {
+      if (lineage?.outpostSubagent) {
         // Rust names the tool call (and each child's parentItemId) with
         // acpx_opaque_item_id; the delegation must use the same identity.
         const delegationId = acpxOpaqueToolItemId(String(sanitized.toolCallId));
@@ -1122,10 +1122,10 @@ function rejectTurnWaiters(terminalTurnId: string, message: string): void {
 }
 
 type BoundedRuntimeToolEvent = AcpRuntimeEvent & {
-  paperclipBoundedTool: true;
+  outpostBoundedTool: true;
   inputUpdated: boolean;
-  paperclipOutput: Record<string, unknown>;
-  paperclipFileChanges: ToolFileChange[] | null;
+  outpostOutput: Record<string, unknown>;
+  outpostFileChanges: ToolFileChange[] | null;
 };
 
 /**
@@ -1143,7 +1143,7 @@ function withSidecarToolDetail(raw: AcpRuntimeEvent, bounded: AcpRuntimeEvent): 
   return {
     ...bounded,
     ...(locations?.length ? { locations } : {}),
-    paperclipToolDetail: detail,
+    outpostToolDetail: detail,
   } as AcpRuntimeEvent;
 }
 
@@ -1194,11 +1194,11 @@ function boundRuntimeEventForNormalization(
     tag: boundedOptionalText(event.tag, "", 160),
     // Keep only whether this update carried input; rawInput is intentionally dropped.
     inputUpdated: Object.prototype.hasOwnProperty.call(event, "rawInput") && event.rawInput !== undefined,
-    paperclipBoundedTool: true,
-    paperclipOutput: safeOutput(event.rawOutput),
+    outpostBoundedTool: true,
+    outpostOutput: safeOutput(event.rawOutput),
     // ACP `diff` content (Claude Edit/Write) as bounded workspace-relative
     // patches; runner-core re-validates them before the canonical event.
-    paperclipFileChanges: toolFileChangesFromAcpContent(
+    outpostFileChanges: toolFileChangesFromAcpContent(
       event.content,
       event.locations,
       sidecarWorkspaceRoots(),
@@ -1283,7 +1283,7 @@ function sanitizeRuntimeEvent(event: PiProjectedMessageEvent<AcpRuntimeEvent> & 
       title: toolTitle,
       text: boundedOptionalText(event.text, "", 4_000) || null,
       // Preserve only the presence bit; rawInput itself never crosses the sidecar boundary.
-      inputUpdated: boundedTool.paperclipBoundedTool === true
+      inputUpdated: boundedTool.outpostBoundedTool === true
         ? boundedTool.inputUpdated
         : Object.prototype.hasOwnProperty.call(event, "rawInput") && event.rawInput !== undefined,
       ...toolClassification,
@@ -1292,7 +1292,7 @@ function sanitizeRuntimeEvent(event: PiProjectedMessageEvent<AcpRuntimeEvent> & 
       {
         ...toolCallIdentity,
         locations:
-          boundedTool.paperclipBoundedTool === true
+          boundedTool.outpostBoundedTool === true
             ? (event.locations ?? [])
             : safeAcpxLocations(
                 event.locations,
@@ -1300,12 +1300,12 @@ function sanitizeRuntimeEvent(event: PiProjectedMessageEvent<AcpRuntimeEvent> & 
                 event.kind,
                 toolTitle,
               ),
-        ...(boundedTool.paperclipBoundedTool === true
-          ? boundedTool.paperclipOutput
+        ...(boundedTool.outpostBoundedTool === true
+          ? boundedTool.outpostOutput
           : safeOutput(event.rawOutput)),
-        ...sidecarToolDetail(record(event).paperclipToolDetail),
-        ...(boundedTool.paperclipBoundedTool === true && boundedTool.paperclipFileChanges
-          ? { fileChanges: boundedTool.paperclipFileChanges }
+        ...sidecarToolDetail(record(event).outpostToolDetail),
+        ...(boundedTool.outpostBoundedTool === true && boundedTool.outpostFileChanges
+          ? { fileChanges: boundedTool.outpostFileChanges }
           : {}),
       },
       128 * 1024,
@@ -1621,14 +1621,14 @@ function requiredPermissionMode(
 ): AcpxSidecarOpenParams["permissionMode"] {
   if (
     value === "approve-all" ||
-    value === "approve-paperclip" ||
+    value === "approve-outpost" ||
     value === "approve-reads" ||
     value === "deny-all"
   ) {
     return value;
   }
   throw new Error(
-    "permissionMode must be approve-all, approve-paperclip, approve-reads, or deny-all",
+    "permissionMode must be approve-all, approve-outpost, approve-reads, or deny-all",
   );
 }
 
@@ -1655,7 +1655,7 @@ function emit(
 
 function diagnostic(code: string, message: string): void {
   const safe = safeText(message);
-  process.stderr.write(`[paperclip-acpx-sidecar] ${code}: ${safe}\n`);
+  process.stderr.write(`[outpost-acpx-sidecar] ${code}: ${safe}\n`);
   emit("runtime.diagnostic", { code: code.slice(0, 160), message: safe });
 }
 
@@ -1679,12 +1679,12 @@ function writeFrame(value: AcpxSidecarEvent | AcpxSidecarResponse): boolean {
   const line = stringifyAcpxSidecarFrame(value);
   const bytes = Buffer.byteLength(line);
   if (bytes > ACPX_SIDECAR_MAX_FRAME_BYTES) {
-    process.stderr.write("[paperclip-acpx-sidecar] output_frame_too_large\n");
+    process.stderr.write("[outpost-acpx-sidecar] output_frame_too_large\n");
     return false;
   }
   if (process.stdout.writableLength + bytes + 1 > MAX_BUFFERED_OUTPUT_BYTES) {
     outputFailed = true;
-    process.stderr.write("[paperclip-acpx-sidecar] output_buffer_limit_exceeded\n");
+    process.stderr.write("[outpost-acpx-sidecar] output_buffer_limit_exceeded\n");
     requestShutdown("ACPX sidecar output buffer limit exceeded");
     return false;
   }

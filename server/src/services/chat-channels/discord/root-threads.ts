@@ -24,7 +24,7 @@ import {
   chatEndpointResources,
   chatEndpoints,
   chatExternalPrincipals,
-  companyMemberships,
+  spaceMemberships,
 } from "@outpost/db";
 
 import {
@@ -164,7 +164,7 @@ export function createDiscordRootThreads(db: Db, options: DiscordRootThreadsOpti
               .from(chatExternalPrincipals)
               .where(
                 and(
-                  eq(chatExternalPrincipals.companyId, endpoint.companyId),
+                  eq(chatExternalPrincipals.spaceId, endpoint.spaceId),
                   eq(chatExternalPrincipals.provider, "discord"),
                   eq(chatExternalPrincipals.providerAccountId, event.guildId),
                   eq(chatExternalPrincipals.externalId, event.userId),
@@ -188,15 +188,15 @@ export function createDiscordRootThreads(db: Db, options: DiscordRootThreadsOpti
             } else {
               const sponsor = await tx
                 .select({
-                  status: companyMemberships.status,
-                  membershipRole: companyMemberships.membershipRole,
+                  status: spaceMemberships.status,
+                  membershipRole: spaceMemberships.membershipRole,
                 })
-                .from(companyMemberships)
+                .from(spaceMemberships)
                 .where(
                   and(
-                    eq(companyMemberships.companyId, endpoint.companyId),
-                    eq(companyMemberships.principalType, "user"),
-                    eq(companyMemberships.principalId, endpoint.sponsorUserId),
+                    eq(spaceMemberships.spaceId, endpoint.spaceId),
+                    eq(spaceMemberships.principalType, "user"),
+                    eq(spaceMemberships.principalId, endpoint.sponsorUserId),
                   ),
                 )
                 .for("update")
@@ -235,7 +235,7 @@ export function createDiscordRootThreads(db: Db, options: DiscordRootThreadsOpti
           await tx
             .insert(chatDeliveries)
             .values({
-              companyId: configuredEndpoint.companyId,
+              spaceId: configuredEndpoint.spaceId,
               endpointId: configuredEndpoint.id,
               providerEventId,
               deduplicationKey: createHash("sha256")
@@ -323,7 +323,7 @@ export function createDiscordRootThreads(db: Db, options: DiscordRootThreadsOpti
         } catch (error) {
           // The durable provisional receipt owns recovery. Do not let a
           // transient REST failure escape the Gateway event handler or ask the
-          // adapter to create the same thread outside Paperclip's lifecycle
+          // adapter to create the same thread outside Outpost's lifecycle
           // fence.
           logger.warn(
             {
@@ -368,7 +368,7 @@ export function createDiscordRootThreads(db: Db, options: DiscordRootThreadsOpti
         });
         if (promoted)
           scheduleConversationDrain(configuredEndpoint.id, threadId);
-        // Paperclip created the provider thread inside its credential/reach
+        // Outpost created the provider thread inside its credential/reach
         // lease. Returning false prevents the adapter from creating it again;
         // the durable drain owns the remaining task mutation.
         return false;
@@ -511,7 +511,7 @@ export function createDiscordRootThreads(db: Db, options: DiscordRootThreadsOpti
                   .from(chatEndpointResources)
                   .where(
                     and(
-                      eq(chatEndpointResources.companyId, current.companyId),
+                      eq(chatEndpointResources.spaceId, current.spaceId),
                       eq(chatEndpointResources.endpointId, current.id),
                       eq(
                         chatEndpointResources.providerResourceId,
@@ -532,7 +532,7 @@ export function createDiscordRootThreads(db: Db, options: DiscordRootThreadsOpti
               .set({ state: "unavailable", updatedAt: now })
               .where(
                 and(
-                  eq(chatConversations.companyId, current!.companyId),
+                  eq(chatConversations.spaceId, current!.spaceId),
                   eq(chatConversations.endpointId, current!.id),
                   eq(chatConversations.resourceId, resource.id),
                   inArray(chatConversations.state, ["active", "waiting"]),

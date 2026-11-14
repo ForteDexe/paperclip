@@ -14,7 +14,7 @@ vi.mock("@/api/agents", () => ({ agentsApi: api }));
 vi.mock("./AgentBulkSettingsSheet", () => ({ AgentBulkSettingsSheet: ({ agents }: { agents: Agent[] }) => <div data-testid="bulk-editor">{JSON.stringify(agents.map(a => a.runtimeConfig))}</div> }));
 
 vi.mock("@/api/ai-connections", () => ({ aiConnectionsApi: {
-  list: vi.fn(async () => ({ currentUserId: "board", connections: [] })),
+  list: vi.fn(async () => ({ currentUserId: "operator", connections: [] })),
 } }));
 
 describe("pending agent roster display", () => {
@@ -41,15 +41,15 @@ describe("pending agent roster display", () => {
     const agent = { id: "draft", name: "Atlas", adapterType: "process", adapterConfig: {}, runtimeConfig: {},
       pauseReason: "setup", status: "paused", metadata } as unknown as Agent;
     flushSync(() => root.render(<QueryClientProvider client={client}>
-      <AgentBulkRoster companyId="company" agents={[agent]} visibleAgents={[agent]} renderAgent={item => <span>{item.name}</span>} />
+      <AgentBulkRoster spaceId="space" agents={[agent]} visibleAgents={[agent]} renderAgent={item => <span>{item.name}</span>} />
     </QueryClientProvider>));
     return [...container.querySelectorAll("tbody tr")][0] as HTMLTableRowElement;
   }
 
   function renderEditable() {
-    const agent = { id: "agent-one", companyId: "company", name: "Atlas", adapterType: "codex_local", adapterConfig: { model: "old-model" }, runtimeConfig: {}, status: "idle" } as unknown as Agent;
+    const agent = { id: "agent-one", spaceId: "space", name: "Atlas", adapterType: "codex_local", adapterConfig: { model: "old-model" }, runtimeConfig: {}, status: "idle" } as unknown as Agent;
     flushSync(() => root.render(<QueryClientProvider client={client}>
-      <AgentBulkRoster companyId="company" agents={[agent]} visibleAgents={[agent]} renderAgent={item => <span>{item.name}</span>} />
+      <AgentBulkRoster spaceId="space" agents={[agent]} visibleAgents={[agent]} renderAgent={item => <span>{item.name}</span>} />
     </QueryClientProvider>));
     flushSync(() => container.querySelector<HTMLButtonElement>('[aria-label="Select Atlas"]')!.click());
     return agent;
@@ -62,7 +62,7 @@ describe("pending agent roster display", () => {
     let finish!: (value: Agent) => void;
     api.get.mockImplementation(() => new Promise<Agent>(resolve => { finish = resolve; }));
     await act(async () => editButton().click());
-    expect(api.get).toHaveBeenCalledWith("agent-one", "company", { cache: "no-store", fresh: true });
+    expect(api.get).toHaveBeenCalledWith("agent-one", "space", { cache: "no-store", fresh: true });
     expect(container.querySelector('[data-testid="bulk-editor"]')).toBeNull();
     expect(container.textContent).toContain("Loading current agent settings");
     const runtimeConfig: Agent["runtimeConfig"] = { aiConnection: { provider: "openai", method: "api_key", mode: "shared", connectionId: "connection-one", grantId: "grant-one" } };

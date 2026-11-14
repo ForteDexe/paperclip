@@ -9,21 +9,21 @@ import { ExternallyConnectedTaskBanner } from "@/components/chat/ExternallyConne
 import { useQueryClient } from "@tanstack/react-query";
 import { useLayoutEffect, useState } from "react";
 import { chatEndpointsApi } from "@/api/chatEndpoints";
-import { SpekoQueryFixture, spekoAgent, spekoCompanyId, spekoEndpoint } from "../../../support/speko/spekoNative";
+import { SpekoQueryFixture, spekoAgent, spekoSpaceId, spekoEndpoint } from "../../../support/speko/spekoNative";
 import { voiceStoryLifecycle } from "../../../support/speko/voiceStoryLifecycle";
-const props = { companyId: spekoCompanyId, issueId: "task-fixture", agentId: spekoAgent.id };
-const meta: Meta<typeof TaskVoiceLauncher> = { ...voiceStoryLifecycle, id: "connections-speko-task-launcher", title: "Apps, channels, and extensions/External chat and email/Speko/Task launcher", component: TaskVoiceLauncher, parameters: { layout: "padded", paperclip: {"capabilities": ["chat-channels/conversation", "chat-channels/lifecycle"], "status": "current", "implementation": "production", "boundary": "fixtures", "notes": "Production task launcher and connection surfaces with fixture endpoints. Persona recovery uses a simulated call-host transition; it never opens media or creates a call."} } };
+const props = { spaceId: spekoSpaceId, issueId: "task-fixture", agentId: spekoAgent.id };
+const meta: Meta<typeof TaskVoiceLauncher> = { ...voiceStoryLifecycle, id: "connections-speko-task-launcher", title: "Apps, channels, and extensions/External chat and email/Speko/Task launcher", component: TaskVoiceLauncher, parameters: { layout: "padded", outpost: {"capabilities": ["chat-channels/conversation", "chat-channels/lifecycle"], "status": "current", "implementation": "production", "boundary": "fixtures", "notes": "Production task launcher and connection surfaces with fixture endpoints. Persona recovery uses a simulated call-host transition; it never opens media or creates a call."} } };
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const ExistingAgent: Story = { render: () => <SpekoQueryFixture><TaskVoiceLauncher {...props} /></SpekoQueryFixture> };
 export const MultiplePersonas: Story = { render: () => <SpekoQueryFixture endpoints={[spekoEndpoint, { ...spekoEndpoint, id: "second", botLabel: "International customer reception and technical escalation" }]}><TaskVoiceLauncher {...props} /></SpekoQueryFixture> };
 export const UnavailableAgent: Story = { render: () => <SpekoQueryFixture endpoints={[]}><TaskVoiceLauncher {...props} boundEndpointId={spekoEndpoint.id} /></SpekoQueryFixture> };
-export const AgentChannels: Story = { render: () => <SpekoQueryFixture><AgentChannelsPanel companyId={spekoCompanyId} agentId={spekoAgent.id} /></SpekoQueryFixture> };
-export const ConnectionLifecycle: Story = { render: () => <SpekoQueryFixture endpoints={["active", "paused", "attention", "verifying", "revoked"].map((status) => ({ ...spekoEndpoint, id: status, status: status as typeof spekoEndpoint.status, botLabel: `Company reception · ${status}` }))}><AgentChannelsPanel companyId={spekoCompanyId} agentId={spekoAgent.id} /></SpekoQueryFixture> };
+export const AgentChannels: Story = { render: () => <SpekoQueryFixture><AgentChannelsPanel spaceId={spekoSpaceId} agentId={spekoAgent.id} /></SpekoQueryFixture> };
+export const ConnectionLifecycle: Story = { render: () => <SpekoQueryFixture endpoints={["active", "paused", "attention", "verifying", "revoked"].map((status) => ({ ...spekoEndpoint, id: status, status: status as typeof spekoEndpoint.status, botLabel: `Space reception · ${status}` }))}><AgentChannelsPanel spaceId={spekoSpaceId} agentId={spekoAgent.id} /></SpekoQueryFixture> };
 function BoundTask() {
   const client = useQueryClient();
-  useState(() => client.setQueryData(["issue-chat-binding", spekoCompanyId, props.issueId], { endpointId: spekoEndpoint.id, provider: "speko", externalLabel: "Voice conversation", conversationId: "conversation", assignedAgentLocked: true }));
-  return <ExternallyConnectedTaskBanner companyId={spekoCompanyId} issueId={props.issueId} assigneeAgentId={spekoAgent.id} />;
+  useState(() => client.setQueryData(["issue-chat-binding", spekoSpaceId, props.issueId], { endpointId: spekoEndpoint.id, provider: "speko", externalLabel: "Voice conversation", conversationId: "conversation", assignedAgentLocked: true }));
+  return <ExternallyConnectedTaskBanner spaceId={spekoSpaceId} issueId={props.issueId} assigneeAgentId={spekoAgent.id} />;
 }
 export const BoundTaskBanner: Story = { render: () => <SpekoQueryFixture><BoundTask /></SpekoQueryFixture> };
 export const KeyboardOpen: Story = {
@@ -45,7 +45,7 @@ function TaskConnectionFailure({ bound = false }: { bound?: boolean }) {
   useLayoutEffect(() => {
     const original = chatEndpointsApi.list;
     chatEndpointsApi.list = async () => [spekoEndpoint];
-    const queryKey = queryKeys.chatEndpoints.list(spekoCompanyId);
+    const queryKey = queryKeys.chatEndpoints.list(spekoSpaceId);
     client.removeQueries({ queryKey });
     client.setQueryDefaults(queryKey, { retryOnMount: false });
     client.getQueryCache().build(client, { queryKey }).setState({ status: "error", error: new Error("Fixture connection failure"), fetchStatus: "idle" });
@@ -91,8 +91,8 @@ export const PersonaAfterPanelClose: Story = {
 function SharedConnectionState() {
   const client = useQueryClient();
   return <><TaskVoiceLauncher {...props} boundEndpointId={spekoEndpoint.id} />
-    <Button onClick={() => client.setQueryData(queryKeys.chatEndpoints.list(spekoCompanyId), [{...spekoEndpoint, status: "paused"}])}>Pause fixture connection</Button>
-    <Button onClick={() => client.setQueryData(queryKeys.chatEndpoints.list(spekoCompanyId), [spekoEndpoint])}>Resume fixture connection</Button>
+    <Button onClick={() => client.setQueryData(queryKeys.chatEndpoints.list(spekoSpaceId), [{...spekoEndpoint, status: "paused"}])}>Pause fixture connection</Button>
+    <Button onClick={() => client.setQueryData(queryKeys.chatEndpoints.list(spekoSpaceId), [spekoEndpoint])}>Resume fixture connection</Button>
   </>;
 }
 export const SharedPauseResume: Story = {

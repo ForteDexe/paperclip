@@ -13,7 +13,7 @@ import type { ToolConnection, AiConnectionMetadata } from "@outpost/shared";
 import { aiMethodLabel } from "./model";
 import { queryKeys } from "@/lib/queryKeys";
 import { retryTransientOnly } from "@/lib/query-client";
-import { useAccountSessionQuery } from "@/api/companies-query";
+import { useAccountSessionQuery } from "@/api/spaces-query";
 import { useAiConnectionDefaults } from "./useAiConnectionDefaults";
 import { AiDefaultError } from "./AiConnectionDefault";
 import { AI_PROVIDERS } from "./model";
@@ -44,10 +44,10 @@ export function ManagedAiConnectionDetails({
   const runs = useQuery({
     queryKey: ["ai-connection-active-runs", connection.id],
     queryFn: () =>
-      aiConnectionsApi.activeRuns(connection.companyId, connection.id),
+      aiConnectionsApi.activeRuns(connection.spaceId, connection.id),
   });
   const session = useAccountSessionQuery();
-  const defaults = useAiConnectionDefaults(connection.companyId, {
+  const defaults = useAiConnectionDefaults(connection.spaceId, {
     userId: session.data?.user.id ?? null,
     settled: session.isSuccess,
   });
@@ -72,7 +72,7 @@ export function ManagedAiConnectionDetails({
     onSuccess: refresh,
   });
   const visibleGrants = new Set(grants.data?.grants.map(grant => grant.id));
-  const candidates = defaults.data?.connections.filter(account => account.id === connection.id && account.companyId === connection.companyId && visibleGrants.has(account.grantId)) ?? [];
+  const candidates = defaults.data?.connections.filter(account => account.id === connection.id && account.spaceId === connection.spaceId && visibleGrants.has(account.grantId)) ?? [];
   // Routed personal accounts also need details; default eligibility excludes them.
   const ownPersonal = (account: (typeof candidates)[number]) => account.ownership === "personal" && account.ownerUserId === defaults.data?.currentUserId;
   const account = candidates.find(account => ownPersonal(account) && account.isDefault)

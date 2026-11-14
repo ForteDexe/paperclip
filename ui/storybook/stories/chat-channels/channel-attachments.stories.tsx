@@ -4,12 +4,12 @@ import { TaskChatBubble } from "@/components/task-chat/TaskChatBubble";
 import { expect, within, waitFor } from "storybook/test";
 const attachment: IssueAttachment = {
   id: "attachment-gap",
-  companyId: "company-storybook",
+  spaceId: "space-storybook",
   issueId: "task-gap",
   issueCommentId: "message-gap",
   assetId: "asset-gap",
   contentPath: "/api/assets/asset-gap/content",
-  provider: "paperclip",
+  provider: "outpost",
   objectKey: "fixture/report.txt",
   contentType: "text/plain",
   byteSize: 42,
@@ -43,7 +43,7 @@ const meta = {
           "Production task bubble with the saved attachment receipt and channel attribution. Provider upload, delivery, download authority and replay require production tests.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "chat-channels/attachments"
       ],

@@ -9,7 +9,7 @@ import {
 } from "./test-embedded-postgres.js";
 
 const MIGRATION_FILE = "0195_built_in_agent_unique_marker.sql";
-const UNIQUE_INDEX = "agents_company_built_in_agent_key_unique_idx";
+const UNIQUE_INDEX = "agents_space_built_in_agent_key_unique_idx";
 const cleanups: Array<() => Promise<void>> = [];
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
@@ -22,7 +22,7 @@ async function migrationHash() {
 function markerObj(key: string) {
   // Return a plain object (not a JSON string) so `sql.json` stores it as a jsonb
   // object; a JSON string param + `::jsonb` would double-encode into a scalar.
-  return { paperclipBuiltInAgent: { key, featureKeys: [key] } };
+  return { outpostBuiltInAgent: { key, featureKeys: [key] } };
 }
 
 describeEmbeddedPostgres("built-in agent unique marker migration", () => {
@@ -31,7 +31,7 @@ describeEmbeddedPostgres("built-in agent unique marker migration", () => {
   });
 
   it("resolves pre-existing duplicates and enforces uniqueness going forward", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-built-in-unique-marker-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-built-in-unique-marker-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1 });
     cleanups.push(async () => sql.end());
@@ -40,8 +40,8 @@ describeEmbeddedPostgres("built-in agent unique marker migration", () => {
     await sql`DELETE FROM "drizzle"."__drizzle_migrations" WHERE "hash" = ${await migrationHash()}`;
     await sql`DROP INDEX IF EXISTS ${sql(UNIQUE_INDEX)}`;
 
-    const affectedCompanyId = randomUUID();
-    const cleanCompanyId = randomUUID();
+    const affectedSpaceId = randomUUID();
+    const cleanSpaceId = randomUUID();
     const olderId = randomUUID();
     const newerId = randomUUID();
     const terminatedDupeId = randomUUID();
@@ -50,26 +50,26 @@ describeEmbeddedPostgres("built-in agent unique marker migration", () => {
     const apiKeyId = randomUUID();
 
     await sql`
-      INSERT INTO "companies" ("id", "name", "issue_prefix")
+      INSERT INTO "spaces" ("id", "name", "issue_prefix")
       VALUES
-        (${affectedCompanyId}, 'Affected', 'AFF'),
-        (${cleanCompanyId}, 'Clean', 'CLN')
+        (${affectedSpaceId}, 'Affected', 'AFF'),
+        (${cleanSpaceId}, 'Clean', 'CLN')
     `;
     await sql`
-      INSERT INTO "agents" ("id", "company_id", "name", "status", "created_at", "metadata")
+      INSERT INTO "agents" ("id", "space_id", "name", "status", "created_at", "metadata")
       VALUES
-        (${olderId}, ${affectedCompanyId}, 'Summarizer One', 'idle', '2026-07-18T00:00:00.000Z', ${sql.json(markerObj("summarizer"))}),
-        (${newerId}, ${affectedCompanyId}, 'Summarizer Two', 'pending_approval', '2026-07-18T00:00:00.025Z', ${sql.json(markerObj("summarizer"))}),
-        (${terminatedDupeId}, ${affectedCompanyId}, 'Summarizer Old', 'terminated', '2026-07-17T00:00:00.000Z', ${sql.json(markerObj("summarizer"))}),
-        (${cleanSummarizerId}, ${cleanCompanyId}, 'Summarizer', 'idle', '2026-07-18T00:00:00.000Z', ${sql.json(markerObj("summarizer"))})
+        (${olderId}, ${affectedSpaceId}, 'Summarizer One', 'idle', '2026-07-18T00:00:00.000Z', ${sql.json(markerObj("summarizer"))}),
+        (${newerId}, ${affectedSpaceId}, 'Summarizer Two', 'pending_approval', '2026-07-18T00:00:00.025Z', ${sql.json(markerObj("summarizer"))}),
+        (${terminatedDupeId}, ${affectedSpaceId}, 'Summarizer Old', 'terminated', '2026-07-17T00:00:00.000Z', ${sql.json(markerObj("summarizer"))}),
+        (${cleanSummarizerId}, ${cleanSpaceId}, 'Summarizer', 'idle', '2026-07-18T00:00:00.000Z', ${sql.json(markerObj("summarizer"))})
     `;
     await sql`
-      INSERT INTO "approvals" ("id", "company_id", "type", "status", "payload")
-      VALUES (${approvalId}, ${affectedCompanyId}, 'hire_agent', 'pending', ${sql.json({ agentId: newerId, sourceBuiltInAgentKey: "summarizer" })})
+      INSERT INTO "approvals" ("id", "space_id", "type", "status", "payload")
+      VALUES (${approvalId}, ${affectedSpaceId}, 'create_agent', 'pending', ${sql.json({ agentId: newerId, sourceBuiltInAgentKey: "summarizer" })})
     `;
     await sql`
-      INSERT INTO "agent_api_keys" ("id", "agent_id", "company_id", "name", "key_hash")
-      VALUES (${apiKeyId}, ${newerId}, ${affectedCompanyId}, 'dupe-key', 'hash')
+      INSERT INTO "agent_api_keys" ("id", "agent_id", "space_id", "name", "key_hash")
+      VALUES (${apiKeyId}, ${newerId}, ${affectedSpaceId}, 'dupe-key', 'hash')
     `;
 
     // Re-run the migration: it should clean up the duplicates, then recreate the index.
@@ -77,19 +77,19 @@ describeEmbeddedPostgres("built-in agent unique marker migration", () => {
 
     const agentRows = await sql<{ id: string; status: string }[]>`
       SELECT "id", "status" FROM "agents"
-      WHERE "company_id" IN (${affectedCompanyId}, ${cleanCompanyId})
+      WHERE "space_id" IN (${affectedSpaceId}, ${cleanSpaceId})
     `;
     const statusById = new Map(agentRows.map((row) => [row.id, row.status]));
-    // Oldest active row kept; newer duplicate terminated; the clean company untouched.
+    // Oldest active row kept; newer duplicate terminated; the clean space untouched.
     expect(statusById.get(olderId)).toBe("idle");
     expect(statusById.get(newerId)).toBe("terminated");
     expect(statusById.get(cleanSummarizerId)).toBe("idle");
 
     const activeMarked = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM "agents"
-      WHERE "company_id" = ${affectedCompanyId}
+      WHERE "space_id" = ${affectedSpaceId}
         AND "status" <> 'terminated'
-        AND ("metadata" -> 'paperclipBuiltInAgent' ->> 'key') = 'summarizer'
+        AND ("metadata" -> 'outpostBuiltInAgent' ->> 'key') = 'summarizer'
     `;
     expect(activeMarked[0]!.count).toBe("1");
 
@@ -111,8 +111,8 @@ describeEmbeddedPostgres("built-in agent unique marker migration", () => {
     expect(indexes).toHaveLength(1);
     await expect(
       sql`
-        INSERT INTO "agents" ("id", "company_id", "name", "status", "metadata")
-        VALUES (${randomUUID()}, ${affectedCompanyId}, 'Summarizer Dupe', 'idle', ${sql.json(markerObj("summarizer"))})
+        INSERT INTO "agents" ("id", "space_id", "name", "status", "metadata")
+        VALUES (${randomUUID()}, ${affectedSpaceId}, 'Summarizer Dupe', 'idle', ${sql.json(markerObj("summarizer"))})
       `,
     ).rejects.toMatchObject({ code: "23505", constraint_name: UNIQUE_INDEX });
   }, 30_000);

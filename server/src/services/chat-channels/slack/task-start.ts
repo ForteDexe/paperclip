@@ -32,7 +32,7 @@ import {
   chatEndpoints,
   chatExternalPrincipals,
   chatIdentityLinks,
-  companyMemberships,
+  spaceMemberships,
   issues,
   toolConnections,
 } from "@outpost/db";
@@ -163,7 +163,7 @@ export function createSlackTaskStart(db: Db, options: SlackTaskStartOptions) {
       .innerJoin(
         issues,
         and(
-          eq(issues.companyId, chatConversations.companyId),
+          eq(issues.spaceId, chatConversations.spaceId),
           eq(issues.id, chatConversations.issueId),
         ),
       )
@@ -412,7 +412,7 @@ export function createSlackTaskStart(db: Db, options: SlackTaskStartOptions) {
         );
       } else {
         // The provider-visible send is already confirmed. Wait for an
-        // operator to repair/resume the endpoint, then continue Paperclip-only
+        // operator to repair/resume the endpoint, then continue Outpost-only
         // admission without sending another Slack message.
         await db.transaction(async (tx) => {
           await notifyChatActionWork(tx, "slash_task_start");
@@ -434,7 +434,7 @@ export function createSlackTaskStart(db: Db, options: SlackTaskStartOptions) {
       .where(
         and(
           eq(chatExternalPrincipals.id, action.principalId),
-          eq(chatExternalPrincipals.companyId, record.endpoint.companyId),
+          eq(chatExternalPrincipals.spaceId, record.endpoint.spaceId),
           eq(chatExternalPrincipals.provider, "slack"),
           eq(
             chatExternalPrincipals.providerAccountId,
@@ -499,7 +499,7 @@ export function createSlackTaskStart(db: Db, options: SlackTaskStartOptions) {
       return true;
     } catch (error) {
       // The provider post is already confirmed, so this retry is strictly a
-      // Paperclip admission retry. Preserve the root tuple and let the durable
+      // Outpost admission retry. Preserve the root tuple and let the durable
       // reconciler resume without ever posting to Slack again.
       await db.transaction(async (tx) => {
         await notifyChatActionWork(tx, "slash_task_start");
@@ -765,8 +765,8 @@ export function createSlackTaskStart(db: Db, options: SlackTaskStartOptions) {
                   and(
                     eq(chatExternalPrincipals.id, action.principalId),
                     eq(
-                      chatExternalPrincipals.companyId,
-                      record.endpoint.companyId,
+                      chatExternalPrincipals.spaceId,
+                      record.endpoint.spaceId,
                     ),
                     eq(chatExternalPrincipals.provider, "slack"),
                     eq(
@@ -781,7 +781,7 @@ export function createSlackTaskStart(db: Db, options: SlackTaskStartOptions) {
           if (principal && !principal.isBot && principal.kind === "user") {
             const link = await db
               .select({
-                paperclipUserId: chatIdentityLinks.paperclipUserId,
+                outpostUserId: chatIdentityLinks.outpostUserId,
                 status: chatIdentityLinks.status,
               })
               .from(chatIdentityLinks)
@@ -792,17 +792,17 @@ export function createSlackTaskStart(db: Db, options: SlackTaskStartOptions) {
                 ),
               )
               .then((rows) => rows[0] ?? null);
-            if (link?.status === "linked" && link.paperclipUserId) {
+            if (link?.status === "linked" && link.outpostUserId) {
               principalAllowed = await db
-                .select({ id: companyMemberships.id })
-                .from(companyMemberships)
+                .select({ id: spaceMemberships.id })
+                .from(spaceMemberships)
                 .where(
                   and(
-                    eq(companyMemberships.companyId, record.endpoint.companyId),
-                    eq(companyMemberships.principalType, "user"),
-                    eq(companyMemberships.principalId, link.paperclipUserId),
-                    eq(companyMemberships.status, "active"),
-                    ne(companyMemberships.membershipRole, "viewer"),
+                    eq(spaceMemberships.spaceId, record.endpoint.spaceId),
+                    eq(spaceMemberships.principalType, "user"),
+                    eq(spaceMemberships.principalId, link.outpostUserId),
+                    eq(spaceMemberships.status, "active"),
+                    ne(spaceMemberships.membershipRole, "viewer"),
                   ),
                 )
                 .then((rows) => rows.length > 0);
@@ -868,8 +868,8 @@ export function createSlackTaskStart(db: Db, options: SlackTaskStartOptions) {
                   .where(
                     and(
                       eq(
-                        chatEndpointResources.companyId,
-                        currentEndpoint.companyId,
+                        chatEndpointResources.spaceId,
+                        currentEndpoint.spaceId,
                       ),
                       eq(chatEndpointResources.endpointId, currentEndpoint.id),
                       eq(
@@ -1008,7 +1008,7 @@ export function createSlackTaskStart(db: Db, options: SlackTaskStartOptions) {
             );
           }
           // Provider transport and its durable confirmation remain fenced by
-          // the credential lease. Paperclip-only task admission happens after
+          // the credential lease. Outpost-only task admission happens after
           // this callback returns and releases that lease: normal admission
           // stages a receipt reaction, whose independently fenced worker must
           // acquire the same lease and would otherwise self-deadlock here.
@@ -1046,7 +1046,7 @@ export function createSlackTaskStart(db: Db, options: SlackTaskStartOptions) {
 
   async function processPendingSlackTaskStarts(limit = 25) {
     const actions = await db.select({ id: chatActions.id }).from(chatActions)
-      .leftJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.companyId, chatActions.companyId)))
+      .leftJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.spaceId, chatActions.spaceId)))
       .where(dueChatAction("slash_task_start"))
       .orderBy(asc(chatActions.createdAt)).limit(limit);
     let processed = 0;

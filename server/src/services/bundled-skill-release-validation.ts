@@ -1,23 +1,23 @@
-import { companySkillVersions, type Db } from "@outpost/db";
+import { spaceSkillVersions, type Db } from "@outpost/db";
 import { and, eq, getTableColumns, sql } from "drizzle-orm";
 
-type Version = typeof companySkillVersions.$inferSelect;
+type Version = typeof spaceSkillVersions.$inferSelect;
 type Verification = { inventorySha256: string; expectedInventoryHash: string };
 const verifiedInventories = new WeakMap<Db, Map<string, Verification>>();
-const inventorySha256 = sql<string>`encode(sha256(convert_to(${companySkillVersions.fileInventory}::text, 'UTF8')), 'hex')`;
+const inventorySha256 = sql<string>`encode(sha256(convert_to(${spaceSkillVersions.fileInventory}::text, 'UTF8')), 'hex')`;
 
 export async function verifyExistingBundledSkillRelease(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   skillId: string;
   releaseId: string;
   expectedInventoryHash: string;
   validateInventory: (version: Version) => void | Promise<void>;
 }): Promise<boolean> {
-  const scope = and(eq(companySkillVersions.companyId, input.companyId),
-    eq(companySkillVersions.companySkillId, input.skillId), eq(companySkillVersions.releaseId, input.releaseId));
-  const [current] = await input.db.select({ id: companySkillVersions.id, inventorySha256 })
-    .from(companySkillVersions).where(scope).limit(1);
+  const scope = and(eq(spaceSkillVersions.spaceId, input.spaceId),
+    eq(spaceSkillVersions.spaceSkillId, input.skillId), eq(spaceSkillVersions.releaseId, input.releaseId));
+  const [current] = await input.db.select({ id: spaceSkillVersions.id, inventorySha256 })
+    .from(spaceSkillVersions).where(scope).limit(1);
   if (!current) return false;
   let verified = verifiedInventories.get(input.db);
   if (!verified) {
@@ -31,8 +31,8 @@ export async function verifyExistingBundledSkillRelease(input: {
     verified.set(current.id, previous);
     return true;
   }
-  const [version] = await input.db.select({ ...getTableColumns(companySkillVersions), inventorySha256 })
-    .from(companySkillVersions).where(scope).limit(1);
+  const [version] = await input.db.select({ ...getTableColumns(spaceSkillVersions), inventorySha256 })
+    .from(spaceSkillVersions).where(scope).limit(1);
   if (!version) return false;
   await input.validateInventory(version);
   verified.delete(version.id);

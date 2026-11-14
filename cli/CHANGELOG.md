@@ -1,4 +1,4 @@
-# paperclipai
+# @outpost/cli
 
 ## 0.3.1
 

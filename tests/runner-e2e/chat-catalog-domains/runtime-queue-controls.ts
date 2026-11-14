@@ -17,7 +17,7 @@ const blueText = "Make the website blue. Keep the existing note about accessible
 type State = Record<string, unknown>;
 function endpoint(state: State) { return `/api/issues/${(state.task as Entity).id}/queued-comments`; }
 async function queue(ctx: ChatCatalogContext, state: State) { return ctx.input.api.get<IssueQueuedCommentQueue>(endpoint(state)); }
-function taskUrl(ctx: ChatCatalogContext, state: State) { const task = state.task as Entity; return `/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`; }
+function taskUrl(ctx: ChatCatalogContext, state: State) { const task = state.task as Entity; return `/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`; }
 export async function humanQueuedRuntime(ctx: ChatCatalogContext, targetText = redText): Promise<State> {
   const state: State = await busyRuntimeWorker(ctx); const source = ctx.input.page.url();
   await ctx.input.page.goto(taskUrl(ctx, state), { waitUntil: "domcontentloaded" });

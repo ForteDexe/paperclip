@@ -19,7 +19,7 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `POST /api/companies/{companyId}/status-cards`.
+- `POST /api/spaces/{spaceId}/status-cards`.
 - `PATCH /api/status-cards/{id}`.
 
 Agent access: `available` — REST / native call_api.
@@ -32,7 +32,7 @@ at the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Real agent create/update permission branch exists; not inherently a board-only
@@ -59,7 +59,7 @@ at the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Execution result must be checked. Agent-authored prompt length and tasks:assign
@@ -87,7 +87,7 @@ at the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Read/history/debug APIs exist; a rendered compiling state is not evidence of
@@ -113,7 +113,7 @@ at the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Archive/restore is represented by card state, separate from delete; check exact

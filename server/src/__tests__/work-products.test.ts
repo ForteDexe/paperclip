@@ -12,7 +12,7 @@ function createWorkProductRow(overrides: Partial<Record<string, unknown>> = {}) 
   const now = new Date("2026-03-17T00:00:00.000Z");
   return {
     id: "work-product-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     issueId: "issue-1",
     executionWorkspaceId: null,
@@ -39,7 +39,7 @@ function retentionReads(insideTransaction: () => boolean) {
   return vi.fn(async (query: SQL) => {
     const statement = new PgDialect().sqlToQuery(query);
     expect(insideTransaction()).toBe(true);
-    expect(statement.params).toContain("company-1");
+    expect(statement.params).toContain("space-1");
     expect(statement.params).toContain("issue-1");
     if (statement.sql.includes("origin_kind")) return [{ id: "issue-1", originKind: null, originId: null }];
     if (statement.sql.includes("with recursive affected")) return [{ issueId: "issue-1" }];
@@ -80,7 +80,7 @@ describe("workProductService", () => {
 
   it("refreshes pull-request state without mutating the stored work product", async () => {
     const product = createWorkProductRow({
-      companyId: "company-1",
+      spaceId: "space-1",
       url: "https://github.com/paperclipai/paperclip/pull/42",
       metadata: {
         repo: "paperclipai/paperclip",
@@ -106,10 +106,10 @@ describe("workProductService", () => {
 
     const [refreshed] = await refreshPullRequestWorkProductMetadata([product], resolve);
 
-    expect(resolve).toHaveBeenCalledWith("company-1", {
+    expect(resolve).toHaveBeenCalledWith("space-1", {
       host: "github.com",
-      owner: "paperclipai",
-      repo: "paperclip",
+      owner: "outpost",
+      repo: "outpost",
       number: 42,
     });
     expect(refreshed?.metadata).toMatchObject({
@@ -131,7 +131,7 @@ describe("workProductService", () => {
     const product = createWorkProductRow({ url: null, metadata }) as any;
     const resolve = vi.fn(async () => ({ state: "merged" as const, workProductState: "merged" as const, headRef: null, headSha: null }));
     const [refreshed] = await refreshPullRequestWorkProductMetadata([product], resolve);
-    expect(resolve).toHaveBeenCalledWith("company-1", {
+    expect(resolve).toHaveBeenCalledWith("space-1", {
       host: "github.com", owner: "example", repo: "private-repo", number: 42,
     });
     expect(refreshed.metadata).toMatchObject({ state: "merged" });
@@ -149,15 +149,15 @@ describe("workProductService", () => {
     const resolveCommitDetails = vi.fn(async () => ({ additions: 13, deletions: 2, changedFiles: 3 }));
     const svc = workProductService({} as any, { resolveCommitDetails });
 
-    await expect(svc.resolveCommitDiffSummary("company-1", {
+    await expect(svc.resolveCommitDiffSummary("space-1", {
       provider: "github",
       url: "https://github.com/paperclipai/paperclip/commit/9c12ae7b41e5",
       metadata: null,
     })).resolves.toEqual({ additions: 13, deletions: 2, changedFiles: 3 });
-    expect(resolveCommitDetails).toHaveBeenCalledWith("company-1", {
+    expect(resolveCommitDetails).toHaveBeenCalledWith("space-1", {
       host: "github.com",
-      owner: "paperclipai",
-      repo: "paperclip",
+      owner: "outpost",
+      repo: "outpost",
       sha: "9c12ae7b41e5",
     });
   });
@@ -184,7 +184,7 @@ describe("workProductService", () => {
     });
 
     const svc = workProductService({ transaction } as any);
-    const result = await svc.createForIssue("issue-1", "company-1", {
+    const result = await svc.createForIssue("issue-1", "space-1", {
       type: "pull_request",
       provider: "github",
       title: "PR 1",

@@ -41,11 +41,11 @@ function fixture(wrongDispatch = false) {
     if (path.endsWith("/interactions")) return cards();
     if (path.includes("/decisions")) {
       const n = Number(path.match(/ask(\d+)/)![1]);
-      return { runId: `ask${n}`, decisions: [{ invocation: { id: `inv${n}`, companyId: "company", agentId: "ceo", issueId: "source", runId: `ask${n}`, connectionId: "connection", catalogEntryId: "write", argumentsHash: hash, status: resolved.has(n) ? ["denied", "failed", "succeeded"][n] : "awaiting_approval" }, actionRequest: { id: `action${n}`, canonicalArgumentsHash: hash, status: resolved.has(n) ? kinds[n] : "pending" } }] };
+      return { runId: `ask${n}`, decisions: [{ invocation: { id: `inv${n}`, spaceId: "space", agentId: "ceo", issueId: "source", runId: `ask${n}`, connectionId: "connection", catalogEntryId: "write", argumentsHash: hash, status: resolved.has(n) ? ["denied", "failed", "succeeded"][n] : "awaiting_approval" }, actionRequest: { id: `action${n}`, canonicalArgumentsHash: hash, status: resolved.has(n) ? kinds[n] : "pending" } }] };
     }
     throw Error("Unexpected fixture API");
   });
-  const ctx = { scenario: { query: "Add this launch update to our notes app." }, input: { fixtures: { company: { id: "company" }, agent: { id: "ceo" } }, evidence: vi.fn(async () => {}), api: { get, post: async () => ({ id: "project" }), patch: async (path: string, body: { runtimeConfig: typeof runtimeConfig }) => { if (path === "/api/agents/ceo") runtimeConfig = body.runtimeConfig; return {}; } },
+  const ctx = { scenario: { query: "Add this launch update to our notes app." }, input: { fixtures: { space: { id: "space" }, agent: { id: "ceo" } }, evidence: vi.fn(async () => {}), api: { get, post: async () => ({ id: "project" }), patch: async (path: string, body: { runtimeConfig: typeof runtimeConfig }) => { if (path === "/api/agents/ceo") runtimeConfig = body.runtimeConfig; return {}; } },
     page: { evaluate: async () => {}, locator: () => ({ visible: () => true, getByRole: () => ({ click: async () => { opened = true; } }) }), getByTestId: () => view,
       getByRole: () => ({ getAttribute: async () => scope, click: async () => decide() }) } },
     refreshIssue: async () => {}, issue: () => ({ id: "source", conversationState: "waiting" }), allRuns: async () => runs() } as unknown as ChatCatalogContext;

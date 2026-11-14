@@ -8,9 +8,9 @@ export const commentOnApprovalAction = {
       "live"
     ],
     "placement": "optional_agent_tool",
-    "optionalGroup": "governance",
+    "optionalGroup": "approvals",
     "requiredClaims": [
-      "governance:approvals:comment"
+      "approvals:approvals:comment"
     ],
     "taskModes": [
       "standard",
@@ -18,12 +18,12 @@ export const commentOnApprovalAction = {
       "planning",
       "skill_test"
     ],
-    "sideEffectClass": "governance",
+    "sideEffectClass": "approvals",
     "idempotency": "required",
     "disabledByDefault": false,
     "realBindingStatus": "live_codex",
     "realServiceBinding": "unbound",
-    "orpEvidence": "approval lifecycle plus governed-wait continuation and audit events",
+    "orpEvidence": "approval lifecycle plus controlled-wait continuation and audit events",
     "orpBindingStatus": "audit_pending",
     "legacyAliases": []
   },
@@ -75,7 +75,7 @@ export const commentOnApprovalAction = {
       "description": "Add a durable comment to an approval.",
       "exposure": "optional",
       "requiredClaims": [
-        "governance:approvals:comment"
+        "approvals:approvals:comment"
       ],
       "allowedModes": [
         "standard",
@@ -169,7 +169,7 @@ export const commentOnApprovalAction = {
       "operationId": "comment_on_approval",
       "version": 1,
       "title": "Comment On Approval",
-      "description": "Comment On Approval through the Capability governance capability set.",
+      "description": "Comment On Approval through the Capability approvals capability set.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -223,9 +223,9 @@ export const commentOnApprovalAction = {
         "additionalProperties": false
       },
       "disposition": "optional_agent_tool",
-      "optionalGroup": "governance",
+      "optionalGroup": "approvals",
       "requiredClaims": [
-        "governance:approvals:comment"
+        "approvals:approvals:comment"
       ],
       "taskModes": [
         "standard",
@@ -233,7 +233,7 @@ export const commentOnApprovalAction = {
         "planning",
         "skill_test"
       ],
-      "sideEffectClass": "governance",
+      "sideEffectClass": "approvals",
       "idempotency": "required",
       "redaction": [],
       "mockCommandMapping": {

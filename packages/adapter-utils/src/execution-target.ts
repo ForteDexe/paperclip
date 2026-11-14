@@ -304,13 +304,13 @@ export interface AdapterExecutionTargetProcessOptions {
   onProcessStopped?: () => void;
   terminalResultCleanup?: TerminalResultCleanupOptions;
   /**
-   * Sandbox-only: factory from the Paperclip bridge handle that streams the
+   * Sandbox-only: factory from the Outpost bridge handle that streams the
    * CLI's stdout/stderr during the run. When provided, the batched provider
    * onLog is suppressed and incremental chunks flow through `onLog` instead.
    */
   runLogTail?: SandboxRunLogTailFactory | null;
   /**
-   * Sandbox-only: the atomic run-disposition settle from the Paperclip bridge
+   * Sandbox-only: the atomic run-disposition settle from the Outpost bridge
    * handle. When provided, `runAdapterExecutionTargetProcess` calls it once at
    * the clean-completion boundary of the process, synchronously and before the
    * run-log tail finishes. The call reads the disposition and marks the
@@ -332,7 +332,7 @@ export interface AdapterExecutionTargetShellOptions {
   onLog?: (stream: "stdout" | "stderr", chunk: string) => Promise<void>;
 }
 
-export interface AdapterExecutionTargetPaperclipBridgeHandle {
+export interface AdapterExecutionTargetOutpostBridgeHandle {
   env: Record<string, string>;
   /**
    * Present when the sandbox target opted into run-log streaming
@@ -453,11 +453,11 @@ function resolveHostForUrl(rawHost: string): string {
   return host;
 }
 
-function resolveDefaultPaperclipApiUrl(): string {
+function resolveDefaultOutpostApiUrl(): string {
   const runtimeHost = resolveHostForUrl(
     process.env.OUTPOST_LISTEN_HOST ?? process.env.HOST ?? "localhost",
   );
-  // 3100 matches the default Paperclip dev server port when the runtime does not provide one.
+  // 3100 matches the default Outpost dev server port when the runtime does not provide one.
   const runtimePort = process.env.OUTPOST_LISTEN_PORT ?? process.env.PORT ?? "3100";
   return `http://${runtimeHost}:${runtimePort}`;
 }
@@ -569,7 +569,7 @@ export function resolveAdapterExecutionTargetCwd(
   return adapterExecutionTargetRemoteCwd(target, localFallbackCwd);
 }
 
-export function adapterExecutionTargetUsesPaperclipBridge(
+export function adapterExecutionTargetUsesOutpostBridge(
   target: AdapterExecutionTarget | null | undefined,
 ): boolean {
   return target?.kind === "remote";
@@ -1316,7 +1316,7 @@ export async function ensureAdapterExecutionTargetFile(
  * For local targets this delegates to the local `ensureAbsoluteDirectory` helper
  * (Node fs). For remote (SSH/sandbox) targets it shells out and runs
  * `mkdir -p` (when allowed) followed by a `[ -d ]` check so the result reflects
- * the directory state inside the environment, not on the Paperclip host.
+ * the directory state inside the environment, not on the Outpost host.
  *
  * Throws an Error with a human-readable message on failure. Temporary target
  * failures carry a typed code so adapters can retain them as retryable checks.
@@ -1499,8 +1499,8 @@ export async function prepareAdapterExecutionTargetRuntime(input: {
   workspaceCheckpoint?: boolean;
   onWorkspaceCheckpoint?: (metrics: WorkspaceCheckpointMetrics) => Promise<void>;
   workspaceSeedCacheDirectory?: string;
-  workspaceSeedCacheCompanyDirectory?: string;
-  workspaceSeedCacheScope?: "workspace" | "company";
+  workspaceSeedCacheSpaceDirectory?: string;
+  workspaceSeedCacheScope?: "workspace" | "space";
   workspaceBaseline?: DirectorySnapshot;
   workspaceGitSnapshot?: GitWorkspaceSnapshot | null;
   workspaceRepositories?: NonNullable<GitWorkspaceSnapshot["repositories"]>;
@@ -1596,7 +1596,7 @@ export async function prepareAdapterExecutionTargetRuntime(input: {
     workspaceCheckpoint: input.workspaceCheckpoint,
     onWorkspaceCheckpoint: input.onWorkspaceCheckpoint,
     workspaceSeedCacheDirectory: input.workspaceSeedCacheDirectory,
-    workspaceSeedCacheCompanyDirectory: input.workspaceSeedCacheCompanyDirectory,
+    workspaceSeedCacheSpaceDirectory: input.workspaceSeedCacheSpaceDirectory,
     workspaceSeedCacheScope: input.workspaceSeedCacheScope,
     workspaceBaseline: input.workspaceBaseline,
     workspaceGitSnapshot: input.workspaceGitSnapshot,
@@ -1631,7 +1631,7 @@ export function runtimeAssetDir(
   key: string,
   fallbackRemoteCwd: string,
 ): string {
-  return prepared.assetDirs[key] ?? path.posix.join(fallbackRemoteCwd, ".paperclip-runtime", key);
+  return prepared.assetDirs[key] ?? path.posix.join(fallbackRemoteCwd, ".outpost-runtime", key);
 }
 
 type GitHubLauncherLocation = {
@@ -1643,9 +1643,9 @@ export function githubOperationLauncherDirectory(input: GitHubLauncherLocation):
   // Only controller-generated run IDs may name a removable directory.
   if (!/^[a-zA-Z0-9_-]+$/.test(input.runId)) throw new Error("Invalid GitHub launcher run ID");
   return input.target?.kind === "remote"
-    ? path.posix.join(input.target.remoteCwd, ".paperclip-runtime",
+    ? path.posix.join(input.target.remoteCwd, ".outpost-runtime",
         ...(input.target.transport === "sandbox" ? ["outpost-runner"] : []), "github", input.runId)
-    : path.join(os.tmpdir(), "paperclip-github-runtime", input.runId);
+    : path.join(os.tmpdir(), "outpost-github-runtime", input.runId);
 }
 
 /** Call only after execution settles, before releasing its remote environment lease. */
@@ -1768,7 +1768,7 @@ fi
 printf '\0OUTPOST_GIT_CONTEXT_END\0'
 `;
     const result = await adapterExecutionTargetCommandRunner(remote).execute({
-      command: "sh", args: ["-c", probe, "paperclip-git-context", input.hostCredentials ? "host" : "managed"],
+      command: "sh", args: ["-c", probe, "outpost-git-context", input.hostCredentials ? "host" : "managed"],
       // The caller's cwd belongs to the controller. Copied sandbox/SSH
       // workspaces can live at a different path on the execution target.
       cwd: remote.remoteCwd, timeoutMs: 15_000,
@@ -1853,12 +1853,12 @@ export async function prepareGitHubOperationLaunchers(input: {
 
 function buildBridgeResponseHeaders(response: Response): Record<string, string> {
   const out: Record<string, string> = {};
-  // Keep `x-paperclip-bridge-outcome` in this list. The host marks a
+  // Keep `x-outpost-bridge-outcome` in this list. The host marks a
   // possibly-committed mutation with the `indeterminate` outcome. The in-sandbox
   // server reads that header to map the 504 to a terminal 409. If the forward
   // drops the header, the server keeps the retryable 504 and a caller that
   // retries 5xx can repeat a mutation that already committed.
-  for (const key of ["content-type", "etag", "last-modified", "x-paperclip-bridge-outcome"]) {
+  for (const key of ["content-type", "etag", "last-modified", "x-outpost-bridge-outcome"]) {
     const value = response.headers.get(key);
     if (value && value.trim().length > 0) out[key] = value.trim();
   }
@@ -1939,12 +1939,12 @@ async function readBridgeForwardResponseBody(
   return Buffer.concat(chunks, totalBytes);
 }
 
-const PROCESS_SESSION_PROXY_SCRIPT = "paperclip-process-session-proxy.mjs";
-const PROCESS_SESSION_REMOTE_SCRIPT = "paperclip-process-session-remote.mjs";
+const PROCESS_SESSION_PROXY_SCRIPT = "outpost-process-session-proxy.mjs";
+const PROCESS_SESSION_REMOTE_SCRIPT = "outpost-process-session-remote.mjs";
 // The streamed variant writes its output frames to stdout, so it rides a
 // separate remote path. A sandbox can hold both scripts without the content
 // hash-skip gate thrashing when a run switches output mode.
-const PROCESS_SESSION_REMOTE_STREAM_SCRIPT = "paperclip-process-session-remote-stream.mjs";
+const PROCESS_SESSION_REMOTE_STREAM_SCRIPT = "outpost-process-session-remote-stream.mjs";
 const PROCESS_SESSION_AUTH_TIMEOUT_MS = 5_000;
 // The bounded budget `stop()` waits for the wrapper's `shutdownAck` event
 // before it removes `sessionDir` unconditionally. The wrapper writes the
@@ -1971,7 +1971,7 @@ async function writeProcessSessionProxyScript(dir: string, port: number, token: 
 
 // Content-hash-skip the process-session remote script write, mirroring the
 // sandbox callback bridge entrypoint sha256 gate. The script is a static
-// Paperclip-authored `.mjs` that only changes when the build changes, so on a
+// Outpost-authored `.mjs` that only changes when the build changes, so on a
 // warm start (same sandbox, script already present) the single sha-gate exec
 // skips the ~3-exec base64 upload entirely. `syncRemoteTextFileWithHashSkip`
 // fails loud on a check error rather than silently re-uploading.
@@ -1992,7 +1992,7 @@ async function syncProcessSessionRemoteScript(input: {
     body: getProcessSessionRemoteSource({ outputToStdout: input.outputToStdout === true }),
     label: "Process session remote script",
     action: "sync process session remote script",
-    lockDir: path.posix.join(input.remoteScriptDir, ".paperclip-process-session-script.lock"),
+    lockDir: path.posix.join(input.remoteScriptDir, ".outpost-process-session-script.lock"),
     timeoutMs: input.timeoutMs,
     shellCommand: input.shellCommand,
   });
@@ -2048,7 +2048,7 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
   // The launch env is consumed ONLY when building the base64 `commandPayload`
   // below — never during the env-INDEPENDENT dir/script setup. Accepting a
   // resolver (in addition to a plain object) lets a caller overlap that setup
-  // with other work — e.g. starting the paperclip callback bridge — and hand the
+  // with other work — e.g. starting the outpost callback bridge — and hand the
   // merged env in right before the launch.
   env: Record<string, string> | (() => Promise<Record<string, string>>);
   timeoutSec?: number | null;
@@ -2097,7 +2097,7 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
       ? Math.trunc(input.timeoutSec * 1000)
       : target.timeoutMs ?? undefined;
   const bridgeRuntimeDir = path.posix.join(
-    input.runtimeRootDir?.trim() || path.posix.join(target.remoteCwd, ".paperclip-runtime", input.adapterKey),
+    input.runtimeRootDir?.trim() || path.posix.join(target.remoteCwd, ".outpost-runtime", input.adapterKey),
     "process-sessions",
   );
   const sessionId = randomUUID();
@@ -2133,7 +2133,7 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
   });
 
   // Resolve the launch env AFTER the env-independent setup above, so a caller
-  // can defer it until an upstream dependency (e.g. the paperclip bridge's env)
+  // can defer it until an upstream dependency (e.g. the outpost bridge's env)
   // is ready without blocking the dir/script setup.
   const launchEnv = typeof input.env === "function" ? await input.env() : input.env;
   const commandPayload = Buffer.from(JSON.stringify({
@@ -2281,7 +2281,7 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
     message?: string;
   }> = [];
   const token = createSandboxCallbackBridgeToken(18);
-  const proxyDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-process-session-proxy-"));
+  const proxyDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-process-session-proxy-"));
   // `stop()` waits on this promise, bounded, for the wrapper's `shutdownAck`
   // event. `deliverRemoteEvent` resolves it below and never forwards the
   // event further: it is a host-internal control ack, not part of the ACP
@@ -2925,7 +2925,7 @@ let probeSeq = 0;
 // a poll cycle ever lists the directory during the probe's short window.
 function nextProbeFileName() {
   probeSeq += 1;
-  return ".paperclip-birthtime-probe-" + process.pid + "-" + probeSeq;
+  return ".outpost-birthtime-probe-" + process.pid + "-" + probeSeq;
 }
 
 // Proves a directory's reported birthtimeMs is a real creation time, not a
@@ -4375,7 +4375,7 @@ async function closeDuplexChannelWithinBudget(
   }
 }
 
-export async function startAdapterExecutionTargetPaperclipBridge(input: {
+export async function startAdapterExecutionTargetOutpostBridge(input: {
   runId: string;
   target: AdapterExecutionTarget | null | undefined;
   runtimeRootDir: string | null | undefined;
@@ -4417,8 +4417,8 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
   // default is a no-op recorder, so the surface stays inert until the host injects
   // a real recorder.
   duplexObservabilityRecorder?: DuplexObservabilityRecorder | null;
-}): Promise<AdapterExecutionTargetPaperclipBridgeHandle | null> {
-  if (!adapterExecutionTargetUsesPaperclipBridge(input.target)) {
+}): Promise<AdapterExecutionTargetOutpostBridgeHandle | null> {
+  if (!adapterExecutionTargetUsesOutpostBridge(input.target)) {
     return null;
   }
   if (!input.target || input.target.kind !== "remote") {
@@ -4439,8 +4439,8 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
   const runtimeRootDir =
     input.runtimeRootDir?.trim().length
       ? input.runtimeRootDir.trim()
-      : path.posix.join(target.remoteCwd, ".paperclip-runtime", input.adapterKey);
-  const bridgeRuntimeDir = path.posix.join(runtimeRootDir, "paperclip-bridge");
+      : path.posix.join(target.remoteCwd, ".outpost-runtime", input.adapterKey);
+  const bridgeRuntimeDir = path.posix.join(runtimeRootDir, "outpost-bridge");
   const queueDir = path.posix.join(bridgeRuntimeDir, "queue");
   const assetRemoteDir = path.posix.join(bridgeRuntimeDir, "server");
   const bridgeToken = createSandboxCallbackBridgeToken();
@@ -4454,7 +4454,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
     typeof input.maxBodyBytes === "number" && Number.isFinite(input.maxBodyBytes) && input.maxBodyBytes > 0
       ? Math.trunc(input.maxBodyBytes)
       : defaultBodyBytes;
-  // The bridge worker runs inside the same process that serves the Paperclip
+  // The bridge worker runs inside the same process that serves the Outpost
   // API, so forwarded sandbox calls must target the LOCAL listen origin. The
   // OUTPOST_RUNTIME_API_URL / OUTPOST_API_URL exports now prefer a
   // configured public base URL, which is the origin browsers and external
@@ -4462,11 +4462,11 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
   // breaks deployments whose public origin sits behind a session-gated proxy
   // (every forwarded agent API call is rejected at the edge). Server boot
   // exports OUTPOST_LISTEN_HOST / OUTPOST_LISTEN_PORT before any run
-  // executes, and resolveDefaultPaperclipApiUrl() maps wildcard listen hosts
+  // executes, and resolveDefaultOutpostApiUrl() maps wildcard listen hosts
   // to the loopback address of the same family (0.0.0.0 -> 127.0.0.1,
   // :: -> [::1]), so the fallback is always loopback-reachable.
   // input.hostApiUrl stays available as an explicit override seam.
-  const hostApiUrl = input.hostApiUrl?.trim() || resolveDefaultPaperclipApiUrl();
+  const hostApiUrl = input.hostApiUrl?.trim() || resolveDefaultOutpostApiUrl();
   const shellCommand = adapterExecutionTargetShellCommand(target);
   const runner = adapterExecutionTargetCommandRunner(target);
   const bridgeTimeoutMs =
@@ -4502,7 +4502,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
   // Only intended for active debugging in trusted environments.
   const bridgeDebugEnabled = isBridgeDebugEnabled(process.env);
 
-  // One forward of a relayed sandbox request onto the existing Paperclip API
+  // One forward of a relayed sandbox request onto the existing Outpost API
   // path. The forward applies the real host token and the signed run id, so the
   // token replacement and the run attribution stay in one place for both the
   // file bridge and the duplex broker. The sandbox request carries only the
@@ -4543,7 +4543,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
       headers.set(key, value);
     }
     headers.set("authorization", `Bearer ${hostApiToken}`);
-    headers.set("x-paperclip-run-id", input.runId);
+    headers.set("x-outpost-run-id", input.runId);
     // Abort the forward when the caller aborts the request (its per-iteration
     // timeout or watchdog fired, or the broker's forward budget ended), or after
     // the forward budget here, whichever comes first.
@@ -4619,7 +4619,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
         status: 504,
         headers: {
           "content-type": "application/json",
-          "x-paperclip-bridge-outcome": "indeterminate",
+          "x-outpost-bridge-outcome": "indeterminate",
         },
         body: Buffer.from(
           JSON.stringify({

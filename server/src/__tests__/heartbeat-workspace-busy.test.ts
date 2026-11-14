@@ -13,9 +13,9 @@ import {
   agentWakeupRequests,
   activityLog,
   budgetPolicies,
-  companies,
-  companyMemberships,
-  companySkills,
+  spaces,
+  spaceMemberships,
+  spaceSkills,
   createDb,
   closeRegisteredClients,
   environments,
@@ -108,11 +108,11 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
   beforeAll(async () => {
     if (externalTestDatabaseUrl) db = createDb(externalTestDatabaseUrl);
     else {
-      tempDb = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-workspace-busy-");
+      tempDb = await startEmbeddedPostgresTestDatabase("outpost-heartbeat-workspace-busy-");
       db = createDb(tempDb.connectionString);
     }
     heartbeat = heartbeatService(db);
-    workspaceCwd = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-workspace-busy-"));
+    workspaceCwd = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-workspace-busy-"));
     registerServerAdapter({
       type: WORKSPACE_BUSY_TEST_ADAPTER,
       execute: async (input) => {
@@ -204,9 +204,9 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     await db.delete(budgetPolicies);
     await db.delete(agents);
     await db.delete(environments);
-    await db.delete(companySkills);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceSkills);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
   }
 
   async function waitForRunToLeaveActiveStates(runId: string) {
@@ -224,7 +224,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
   }
 
   interface WorkspaceFixture {
-    companyId: string;
+    spaceId: string;
     projectId: string;
     projectWorkspaceId: string;
     holderAgentId: string;
@@ -251,7 +251,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     agentEnvironmentDriver?: "local" | "ssh" | "sandbox";
   }): Promise<WorkspaceFixture> {
     await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const holderAgentId = randomUUID();
@@ -265,35 +265,35 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     // must remain concurrent even when an older policy requests serialization.
     const agentEnvironmentDriver = input?.agentEnvironmentDriver ?? "sandbox";
     const agentEnvironmentId = agentEnvironmentDriver === "local" ? null : randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
     const now = new Date();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "responsible-user",
     });
     await db.insert(authUsers).values({
       id: "responsible-user", name: "Responsible user", email: "workspace-busy@example.test",
       createdAt: now, updatedAt: now,
     }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({
-      companyId, principalType: "user", principalId: "responsible-user",
+    await db.insert(spaceMemberships).values({
+      spaceId, principalType: "user", principalId: "responsible-user",
       status: "active", membershipRole: "member",
     });
 
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Workspace Busy Project",
       executionWorkspacePolicy: input?.projectWorkspacePolicy ?? null,
     });
 
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary workspace",
       sourceType: "local_path",
@@ -317,7 +317,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     if (holderProjectWorkspaceId !== projectWorkspaceId) {
       await db.insert(projectWorkspaces).values({
         id: holderProjectWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         name: "Secondary workspace",
         sourceType: "local_path",
@@ -332,7 +332,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     ] as const) {
       await db.insert(agents).values({
         id,
-        companyId,
+        spaceId,
         name,
         role: "engineer",
         status: id === holderAgentId ? "running" : "idle",
@@ -352,7 +352,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     if (sharedExecutionWorkspaceId) {
       await db.insert(executionWorkspaces).values({
         id: sharedExecutionWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         mode: "shared_workspace",
         strategyType: "project_primary",
@@ -367,7 +367,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     const holderActivityAt = input?.holderActivityAt ?? now;
     await db.insert(heartbeatRuns).values({
       id: holderRunId,
-      companyId,
+      spaceId,
       agentId: holderAgentId,
       invocationSource: "assignment",
       triggerDetail: "system",
@@ -384,7 +384,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
 
     await db.insert(issues).values({
       id: holderIssueId,
-      companyId,
+      spaceId,
       title: "Holder issue",
       status: "in_progress",
       priority: "medium",
@@ -410,7 +410,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
 
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       ...(input?.childOfHolder ? { parentId: holderIssueId } : {}),
       title: "Deferred issue",
       status: "in_progress",
@@ -431,7 +431,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     });
 
     return {
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       holderAgentId,
@@ -461,10 +461,10 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     const finishedRun = await waitForRunToLeaveActiveStates(run!.id);
     expect(finishedRun?.status).toBe("succeeded");
     expect(executedRunIds).toContain(run!.id);
-    expect(executedInputs.get(run!.id)?.context.paperclipTaskMarkdown).toContain(
+    expect(executedInputs.get(run!.id)?.context.outpostTaskMarkdown).toContain(
       `shared workspace is concurrently held by run ${fixture.holderRunId}`,
     );
-    expect(executedInputs.get(run!.id)?.context.paperclipTaskMarkdown).toContain(
+    expect(executedInputs.get(run!.id)?.context.outpostTaskMarkdown).toContain(
       "expect concurrent mutations, coordinate via commits",
     );
   });
@@ -495,7 +495,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     });
     await db.insert(environments).values({
       id: randomUUID(),
-      name: `Managed Kubernetes ${fixture.companyId}`,
+      name: `Managed Kubernetes ${fixture.spaceId}`,
       driver: "sandbox",
       status: "active",
       config: { provider: "kubernetes" },
@@ -564,7 +564,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     if (state === "archived") {
       await db.insert(environments).values({
         name: "Unavailable managed sandbox", driver: "sandbox", status: "archived",
-        config: { provider: "fake" }, metadata: { managedByPaperclip: true },
+        config: { provider: "fake" }, metadata: { managedByOutpost: true },
       });
     }
     await instanceSettingsService(db).updateExperimental({ enableManagedSandboxOnly: true });
@@ -585,7 +585,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     const fixture = await seedWorkspaceFixture({ agentEnvironmentDriver: "local" });
     await db.insert(environments).values({
       name: "Managed sandbox", driver: "sandbox", status: "active",
-      config: { provider: "fake" }, metadata: { managedByPaperclip: true },
+      config: { provider: "fake" }, metadata: { managedByOutpost: true },
     });
     await instanceSettingsService(db).updateExperimental({ enableManagedSandboxOnly: true });
 
@@ -626,12 +626,12 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     expect(finishedRun?.status).toBe("succeeded");
     expect(finishedRun?.errorCode).not.toBe(WORKSPACE_BUSY_ERROR_CODE);
     expect(executedRunIds).toContain(run!.id);
-    expect(executedInputs.get(run!.id)?.context.paperclipTaskMarkdown).toContain(
+    expect(executedInputs.get(run!.id)?.context.outpostTaskMarkdown).toContain(
       `shared workspace is concurrently held by run ${fixture.holderRunId}`,
     );
     expect((await heartbeat.getRun(fixture.holderRunId))?.status).toBe("running");
     const retryRuns = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(
-      and(eq(heartbeatRuns.companyId, fixture.companyId), eq(heartbeatRuns.scheduledRetryReason, WORKSPACE_BUSY_RETRY_REASON)),
+      and(eq(heartbeatRuns.spaceId, fixture.spaceId), eq(heartbeatRuns.scheduledRetryReason, WORKSPACE_BUSY_RETRY_REASON)),
     );
     expect(retryRuns).toHaveLength(0);
   });
@@ -760,7 +760,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
 
       expect((await waitForRunToLeaveActiveStates(retryRun!.id))?.status).toBe("succeeded");
       expect(executedRunIds).toContain(retryRun!.id);
-      expect(executedInputs.get(retryRun!.id)?.context.paperclipWorkspace).toMatchObject({
+      expect(executedInputs.get(retryRun!.id)?.context.outpostWorkspace).toMatchObject({
         cwd: workspaceCwd,
         mode: "shared_workspace",
       });
@@ -771,9 +771,9 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
       expect(issueRow?.executionWorkspaceId).toBe(fixture.sharedExecutionWorkspaceId);
     });
 
-    async function countWorkspaceBusyCancellations(companyId: string) {
+    async function countWorkspaceBusyCancellations(spaceId: string) {
       return (await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, companyId),
+        eq(heartbeatRuns.spaceId, spaceId),
         eq(heartbeatRuns.status, "cancelled"),
         eq(heartbeatRuns.errorCode, WORKSPACE_BUSY_ERROR_CODE),
       ))).length;
@@ -803,9 +803,9 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
         expect(parked?.status).toBe("scheduled_retry");
         expect(new Date(parked!.scheduledRetryAt!).getTime()).toBeGreaterThan(checkAt.getTime());
       }
-      expect(await countWorkspaceBusyCancellations(fixture.companyId)).toBe(1);
+      expect(await countWorkspaceBusyCancellations(fixture.spaceId)).toBe(1);
       expect(await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, fixture.companyId),
+        eq(heartbeatRuns.spaceId, fixture.spaceId),
         eq(heartbeatRuns.agentId, fixture.agentId),
       ))).toHaveLength(2);
 
@@ -818,7 +818,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
 
       expect((await waitForRunToLeaveActiveStates(retryRun.id))?.status).toBe("succeeded");
       expect(executedRunIds.filter((id) => id === retryRun.id)).toHaveLength(1);
-      expect(await countWorkspaceBusyCancellations(fixture.companyId)).toBe(1);
+      expect(await countWorkspaceBusyCancellations(fixture.spaceId)).toBe(1);
     });
 
     it("lets a stale holder reach the existing quiet-holder failure instead of parking forever", async () => {
@@ -844,7 +844,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
 
       const movedWorkspaceId = randomUUID();
       await db.insert(executionWorkspaces).values({
-        id: movedWorkspaceId, companyId: fixture.companyId, projectId: fixture.projectId, mode: "shared_workspace",
+        id: movedWorkspaceId, spaceId: fixture.spaceId, projectId: fixture.projectId, mode: "shared_workspace",
         strategyType: "project_primary", name: "Moved workspace", status: "active", cwd: workspaceCwd,
         providerType: "local_fs", providerRef: workspaceCwd,
       });
@@ -875,13 +875,13 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
       const retryRun = await deferredRetryFor(fixture.agentId, fixture.issueId);
       const otherProjectWorkspaceId = randomUUID();
       await db.insert(projectWorkspaces).values({
-        id: otherProjectWorkspaceId, companyId: fixture.companyId, projectId: fixture.projectId,
+        id: otherProjectWorkspaceId, spaceId: fixture.spaceId, projectId: fixture.projectId,
         name: "Other workspace", sourceType: "local_path", cwd: workspaceCwd,
       });
       await db.update(issues).set({ projectWorkspaceId: otherProjectWorkspaceId }).where(eq(issues.id, fixture.issueId));
       const dueAt = new Date(new Date(retryRun.scheduledRetryAt!).getTime() + 1_000);
       expect((await heartbeat.promoteDueScheduledRetries(dueAt)).runIds).not.toContain(retryRun.id);
-      expect(await countWorkspaceBusyCancellations(fixture.companyId)).toBe(1);
+      expect(await countWorkspaceBusyCancellations(fixture.spaceId)).toBe(1);
     });
 
     it("still lets the user stop a parked waiter", async () => {
@@ -934,7 +934,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
       }
       expect(order).toEqual(waiters.map((waiter) => waiter.id));
       for (const waiter of waiters) expect(executedRunIds.filter((id) => id === waiter.id)).toHaveLength(1);
-      expect(await countWorkspaceBusyCancellations(fixture.companyId)).toBe(3);
+      expect(await countWorkspaceBusyCancellations(fixture.spaceId)).toBe(3);
     });
 
     it("still rejects an explicit allow policy that requires concurrent physical sharing", async () => {
@@ -955,7 +955,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
       expect(finishedRun?.error).toContain("cannot place concurrent agents in one physical shared folder");
       expect(executedRunIds).not.toContain(run!.id);
       expect(await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, fixture.companyId),
+        eq(heartbeatRuns.spaceId, fixture.spaceId),
         eq(heartbeatRuns.scheduledRetryReason, WORKSPACE_BUSY_RETRY_REASON),
       ))).toHaveLength(0);
     });
@@ -982,7 +982,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
       });
       expect(executedRunIds).not.toContain(run!.id);
       expect(await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, fixture.companyId),
+        eq(heartbeatRuns.spaceId, fixture.spaceId),
         eq(heartbeatRuns.scheduledRetryReason, WORKSPACE_BUSY_RETRY_REASON),
       ))).toHaveLength(0);
       expect((await heartbeat.getRun(fixture.holderRunId))?.status).toBe("running");
@@ -1161,7 +1161,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
     // Existing queued work can contain coalesced assignment or feedback.
     // Only new mention requests are ignored; keep accepted work's rules.
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId: fixture.companyId, agentId: fixture.nonAssigneeAgentId,
+      spaceId: fixture.spaceId, agentId: fixture.nonAssigneeAgentId,
       invocationSource: "on_demand", status: "queued", responsibleUserId: "responsible-user",
       contextSnapshot: {
         issueId: fixture.issueId, wakeReason: "issue_comment_mentioned", commentId: randomUUID(),
@@ -1266,7 +1266,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
         .from(heartbeatRuns)
         .where(
           and(
-            eq(heartbeatRuns.companyId, fixture.companyId),
+            eq(heartbeatRuns.spaceId, fixture.spaceId),
             eq(heartbeatRuns.scheduledRetryReason, WORKSPACE_BUSY_RETRY_REASON),
           ),
         )
@@ -1295,7 +1295,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
       .from(heartbeatRuns)
       .where(
         and(
-          eq(heartbeatRuns.companyId, fixture.companyId),
+          eq(heartbeatRuns.spaceId, fixture.spaceId),
           eq(heartbeatRuns.scheduledRetryReason, WORKSPACE_BUSY_RETRY_REASON),
         ),
       )
@@ -1349,7 +1349,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
 
     const executionWorkspaceId = randomUUID();
     await db.insert(executionWorkspaces).values({
-      id: executionWorkspaceId, companyId: fixture.companyId, projectId: fixture.projectId, mode: "isolated_workspace",
+      id: executionWorkspaceId, spaceId: fixture.spaceId, projectId: fixture.projectId, mode: "isolated_workspace",
       strategyType: "project_primary", name: "Own workspace", status: "active", cwd: workspaceCwd,
       providerType: "local_fs", providerRef: workspaceCwd,
     });
@@ -1372,7 +1372,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
 
     await db.insert(heartbeatRuns).values({
       id: priorRunId,
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       agentId: fixture.agentId,
       invocationSource: "assignment",
       triggerDetail: "system",
@@ -1391,7 +1391,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
 
     await db.insert(agentWakeupRequests).values({
       id: wakeupId,
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       agentId: fixture.agentId,
       source: "automation",
       triggerDetail: "system",
@@ -1408,7 +1408,7 @@ describeEmbeddedPostgres("shared-workspace run serialization", () => {
 
     await db.insert(heartbeatRuns).values({
       id: retryRunId,
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       agentId: fixture.agentId,
       invocationSource: "automation",
       triggerDetail: "system",

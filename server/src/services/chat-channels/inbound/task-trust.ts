@@ -33,7 +33,7 @@ export async function applyChatTaskReviewContainment(taskTx: DbOrTransaction, en
           reviewPreset,
           trustBoundary: {
             mode: LOW_TRUST_REVIEW_PRESET,
-            companyId: endpoint.companyId,
+            spaceId: endpoint.spaceId,
             rootIssueId: issue.id,
             issueIds: [issue.id],
             allowedAgentIds: [endpoint.assignedAgentId],
@@ -51,7 +51,7 @@ export async function applyChatTaskReviewContainment(taskTx: DbOrTransaction, en
     .where(
       and(
         eq(issues.id, issue.id),
-        eq(issues.companyId, endpoint.companyId),
+        eq(issues.spaceId, endpoint.spaceId),
       ),
     );
 }

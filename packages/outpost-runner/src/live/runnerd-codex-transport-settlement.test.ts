@@ -381,7 +381,7 @@ it.each([
       const input = {
         requestId: "maintenance-fixture-request",
         binding: {
-          companyId: "company-maintenance",
+          spaceId: "space-maintenance",
           issueId: "issue-maintenance",
           agentId: "agent-maintenance",
           runId: identity.runId,
@@ -448,7 +448,7 @@ it.each([
       const nativeInput: NativeExecutionInputV1 = {
         schema: "outpost.native-execution-input.v1",
         binding: {
-          companyId: input.binding.companyId,
+          spaceId: input.binding.spaceId,
           issueId: input.binding.issueId,
           agentId: input.binding.agentId,
           runId: input.binding.runId,

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, applyPendingMigrations, companies, createDb, heartbeatRuns, issues, type Db } from "@outpost/db";
+import { agents, applyPendingMigrations, spaces, createDb, heartbeatRuns, issues, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../__tests__/helpers/external-test-database.js";
 import { buildExecutionContinuation } from "./execution-continuation.js";
@@ -22,13 +22,13 @@ describe.skipIf(!support.supported)("continuation history PostgreSQL projection"
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
   async function fixture(result: unknown) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "History", issuePrefix: `H${companyId.replaceAll("-", "")}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Executor", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Continue", status: "in_progress", assigneeAgentId: agentId });
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "failed", errorCode: "adapter_failed",
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "History", issuePrefix: `H${spaceId.replaceAll("-", "")}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Executor", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Continue", status: "in_progress", assigneeAgentId: agentId });
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "failed", errorCode: "adapter_failed",
       contextSnapshot: { issueId }, createdAt: new Date("2020-01-01T00:00:00Z"), resultJson: result as Record<string, unknown> | null }).returning();
-    return { companyId, agentId, issueId, run };
+    return { spaceId, agentId, issueId, run };
   }
 
   async function invoke(f: Awaited<ReturnType<typeof fixture>>, fullResult: boolean, context: Record<string, unknown> = {}) {
@@ -50,7 +50,7 @@ describe.skipIf(!support.supported)("continuation history PostgreSQL projection"
         return builder;
       };
     }});
-    const result = await buildExecutionContinuation({ db: recorded, companyId: f.companyId, agentId: f.agentId,
+    const result = await buildExecutionContinuation({ db: recorded, spaceId: f.spaceId, agentId: f.agentId,
       issueId: f.issueId, context, summary: null, exposeLowTrustRaw: false });
     return { result, reads };
   }
@@ -103,18 +103,18 @@ describe.skipIf(!support.supported)("continuation history PostgreSQL projection"
     expect(after.result.completedActions).toEqual([]);
   });
 
-  it("keeps full ordered history and source-agent scope without cross-company or cross-task receipts", async () => {
+  it("keeps full ordered history and source-agent scope without cross-space or cross-task receipts", async () => {
     const completed = (operationId: string) => ({ apiToolReceipts: { saved: { state: "completed", operationId, result: { operationId } } } });
     const f = await fixture({ ...completed("first"), conversationContinuation: "continue_conversation_v1" });
     const otherAgentId = randomUUID();
-    await db.insert(agents).values({ id: otherAgentId, companyId: f.companyId, name: "Previous owner", adapterType: "outpost_runner" });
-    const [source] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: otherAgentId, status: "succeeded",
+    await db.insert(agents).values({ id: otherAgentId, spaceId: f.spaceId, name: "Previous owner", adapterType: "outpost_runner" });
+    const [source] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: otherAgentId, status: "succeeded",
       contextSnapshot: { issueId: f.issueId }, resultJson: completed("other-agent"), createdAt: new Date("2020-01-01T00:01:00Z") }).returning();
-    await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "cancelled", errorCode: "execution_reconciliation_required",
+    await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "cancelled", errorCode: "execution_reconciliation_required",
       contextSnapshot: { issueId: f.issueId }, resultJson: completed("cancelled"), createdAt: new Date("2020-01-01T00:02:00Z") });
-    await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "failed",
+    await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "failed",
       contextSnapshot: { issueId: randomUUID() }, resultJson: completed("foreign-task") });
-    const foreign = await fixture(completed("foreign-company"));
+    const foreign = await fixture(completed("foreign-space"));
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId } }).where(eq(heartbeatRuns.id, foreign.run.id));
     const ordinary = await compare(f);
     assert.ok(ordinary.after.result.completedActions);

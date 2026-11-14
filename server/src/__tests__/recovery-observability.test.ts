@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issueRecoveryActions,
@@ -122,7 +122,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
   const latestWeek = new Date("2026-07-14T12:00:00.000Z"); // in week 2026-07-13
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-recovery-observability-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-recovery-observability-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -131,7 +131,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
     await db.delete(heartbeatRuns);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -139,22 +139,22 @@ describeEmbeddedPostgres("recovery observability report", () => {
   });
 
   async function seedBaseline() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const managerId = randomUUID();
     const coderId = randomUUID();
     const otherId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values(
       [managerId, coderId, otherId].map((id, index) => ({
         id,
-        companyId,
+        spaceId,
         name: `agent-${index}`,
         role: "engineer",
         status: "running",
@@ -169,7 +169,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
     await db.insert(heartbeatRuns).values([
       ...Array.from({ length: 100 }, () => ({
         id: randomUUID(),
-        companyId,
+        spaceId,
         agentId: coderId,
         invocationSource: "assignment",
         status: "succeeded",
@@ -177,7 +177,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
       })),
       ...Array.from({ length: 100 }, () => ({
         id: randomUUID(),
-        companyId,
+        spaceId,
         agentId: coderId,
         invocationSource: "assignment",
         status: "succeeded",
@@ -185,11 +185,11 @@ describeEmbeddedPostgres("recovery observability report", () => {
       })),
     ]);
 
-    return { companyId, managerId, coderId, otherId };
+    return { spaceId, managerId, coderId, otherId };
   }
 
   async function seedRecoveryAction(input: {
-    companyId: string;
+    spaceId: string;
     n: number;
     createdAt: Date;
     cause: string;
@@ -204,7 +204,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
     const sourceIssueId = randomUUID();
     await db.insert(issues).values({
       id: sourceIssueId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       title: `Source ${input.n}`,
       status: input.finalIssueStatus,
       priority: "medium",
@@ -214,11 +214,11 @@ describeEmbeddedPostgres("recovery observability report", () => {
     });
     await db.insert(issueRecoveryActions).values({
       id: randomUUID(),
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       sourceIssueId,
       kind: "stranded_assigned_issue",
       status: input.status,
-      ownerType: input.ownerAgentId ? "agent" : "board",
+      ownerType: input.ownerAgentId ? "agent" : "operator",
       ownerAgentId: input.ownerAgentId,
       returnOwnerAgentId: input.returnOwnerAgentId,
       previousOwnerAgentId: input.returnOwnerAgentId,
@@ -233,12 +233,12 @@ describeEmbeddedPostgres("recovery observability report", () => {
   }
 
   it("fires the threshold alert on synthetic data crossing 2% of runs", async () => {
-    const { companyId, managerId, coderId } = await seedBaseline();
+    const { spaceId, managerId, coderId } = await seedBaseline();
 
     // Regression week: 3 recovery actions against 100 runs => 3% > 2%.
     for (let i = 0; i < 3; i += 1) {
       await seedRecoveryAction({
-        companyId,
+        spaceId,
         n: i + 1,
         createdAt: regressionWeek,
         cause: "stranded_assigned_issue",
@@ -253,7 +253,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
     }
     // Latest week: 1 recovery action against 100 runs => 1% (under threshold).
     await seedRecoveryAction({
-      companyId,
+      spaceId,
       n: 99,
       createdAt: latestWeek,
       cause: "stranded_assigned_issue",
@@ -266,7 +266,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
       finalIssueStatus: "done",
     });
 
-    const report = await recoveryObservabilityService(db).report(companyId, {
+    const report = await recoveryObservabilityService(db).report(spaceId, {
       now,
       weeks: 8,
       thresholdPercent: 2,
@@ -282,12 +282,12 @@ describeEmbeddedPostgres("recovery observability report", () => {
   });
 
   it("computes the handed_back vs owner_completed ratio and per-cause routing", async () => {
-    const { companyId, managerId, coderId, otherId } = await seedBaseline();
+    const { spaceId, managerId, coderId, otherId } = await seedBaseline();
 
     // Two manager takeovers where the manager kept and completed the work.
     for (let i = 0; i < 2; i += 1) {
       await seedRecoveryAction({
-        companyId,
+        spaceId,
         n: i + 1,
         createdAt: regressionWeek,
         cause: "stranded_assigned_issue",
@@ -302,7 +302,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
     }
     // One takeover handed back to the original assignee.
     await seedRecoveryAction({
-      companyId,
+      spaceId,
       n: 3,
       createdAt: regressionWeek,
       cause: "stranded_assigned_issue",
@@ -316,7 +316,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
     });
     // One handed to a different specialist (still counts as handed back).
     await seedRecoveryAction({
-      companyId,
+      spaceId,
       n: 4,
       createdAt: regressionWeek,
       cause: "stranded_assigned_issue",
@@ -330,7 +330,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
     });
     // Original agent recovered its own process_lost issue (self recovery).
     await seedRecoveryAction({
-      companyId,
+      spaceId,
       n: 5,
       createdAt: regressionWeek,
       cause: "process_lost",
@@ -344,7 +344,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
     });
     // Escalated actions are still active, but they need their own routing counter.
     await seedRecoveryAction({
-      companyId,
+      spaceId,
       n: 6,
       createdAt: regressionWeek,
       cause: "stranded_assigned_issue",
@@ -357,7 +357,7 @@ describeEmbeddedPostgres("recovery observability report", () => {
       finalIssueStatus: "in_progress",
     });
 
-    const report = await recoveryObservabilityService(db).report(companyId, { now, weeks: 8 });
+    const report = await recoveryObservabilityService(db).report(spaceId, { now, weeks: 8 });
 
     expect(report.handoff.ownerCompleted).toBe(2);
     expect(report.handoff.handedBack).toBe(2);
@@ -383,9 +383,9 @@ describeEmbeddedPostgres("recovery observability report", () => {
   });
 
   it("caps the reporting window so a huge `weeks` value can't over-allocate", async () => {
-    const { companyId } = await seedBaseline();
+    const { spaceId } = await seedBaseline();
 
-    const report = await recoveryObservabilityService(db).report(companyId, {
+    const report = await recoveryObservabilityService(db).report(spaceId, {
       now,
       weeks: 100_000,
     });
@@ -396,10 +396,10 @@ describeEmbeddedPostgres("recovery observability report", () => {
     expect(report.weekly).toHaveLength(MAX_WINDOW_WEEKS);
   });
 
-  it("counts an active board recovery action without reporting an active takeover", async () => {
-    const { companyId, coderId } = await seedBaseline();
+  it("counts an active operator recovery action without reporting an active takeover", async () => {
+    const { spaceId, coderId } = await seedBaseline();
     await seedRecoveryAction({
-      companyId,
+      spaceId,
       n: 101,
       createdAt: latestWeek,
       cause: "process_lost",
@@ -412,9 +412,9 @@ describeEmbeddedPostgres("recovery observability report", () => {
       finalIssueStatus: "blocked",
     });
 
-    const report = await recoveryObservabilityService(db).report(companyId, { now, weeks: 8 });
+    const report = await recoveryObservabilityService(db).report(spaceId, { now, weeks: 8 });
 
-    expect(report.handoff).toMatchObject({ boardOwned: 1, activeTakeovers: 0 });
+    expect(report.handoff).toMatchObject({ operatorOwned: 1, activeTakeovers: 0 });
     expect(report.perCauseRouting.find((entry) => entry.cause === "process_lost")).toMatchObject({
       active: 1,
     });

@@ -51,7 +51,7 @@ function ConnectedLinkPreview({ context, target, children }: {
     get contextElement() { return triggerRef.current ?? undefined; },
   }), []);
   const query = useQuery({
-    queryKey: queryKeys.linkPreview(context.companyId, context.userId, target.canonicalUrl),
+    queryKey: queryKeys.linkPreview(context.spaceId, context.userId, target.canonicalUrl),
     // Optional enrichment: a failed read is a cached absence, not a global error.
     queryFn: async (): Promise<LinkPreviewResult> => {
       try { return await context.load(target); } catch { return { preview: null, maxAgeMs: 60_000 }; }
@@ -81,5 +81,5 @@ export function LinkPreview({ target, children }: {
   children: (preview: Preview | null, describedBy?: string) => ReactElement;
 }) {
   const context = useLinkPreviewContext();
-  return context ? <ConnectedLinkPreview key={`${context.companyId}:${context.userId}:${target.canonicalUrl}`} context={context} target={target}>{children}</ConnectedLinkPreview> : children(null);
+  return context ? <ConnectedLinkPreview key={`${context.spaceId}:${context.userId}:${target.canonicalUrl}`} context={context} target={target}>{children}</ConnectedLinkPreview> : children(null);
 }

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerClientAuthCommands } from "../commands/client/auth.js";
 
 describe("registerClientAuthCommands", () => {
-  it("registers auth commands without duplicate company-id flags", () => {
+  it("registers auth commands without duplicate space-id flags", () => {
     const program = new Command();
     const auth = program.command("auth");
 
@@ -11,7 +11,7 @@ describe("registerClientAuthCommands", () => {
 
     const login = auth.commands.find((command) => command.name() === "login");
     expect(login).toBeDefined();
-    expect(login?.options.filter((option) => option.long === "--company-id")).toHaveLength(1);
+    expect(login?.options.filter((option) => option.long === "--space-id")).toHaveLength(1);
   });
 
   it("registers the --no-browser flag on login", () => {
@@ -51,7 +51,7 @@ describe("client auth API commands", () => {
         "auth",
         ...args,
         "--api-base", "http://localhost:3100",
-        "--api-key", "board-token",
+        "--api-key", "operator-token",
       ], { from: "user" });
     }
 

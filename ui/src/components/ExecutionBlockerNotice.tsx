@@ -35,9 +35,9 @@ const blockerAction: Record<string, string> = {
 };
 
 /** One ordinary interruption surface. Technical records remain in diagnostics. */
-export function ExecutionBlockerNotice({ presentation, canRetry, onRetry, optimistic, takingLonger, error, className, issueId, companyId, agentName, projectName, blockers }: {
+export function ExecutionBlockerNotice({ presentation, canRetry, onRetry, optimistic, takingLonger, error, className, issueId, spaceId, agentName, projectName, blockers }: {
   presentation: TaskInterruptionPresentation | null | undefined;
-  companyId?: string;
+  spaceId?: string;
   blockers?: IssueRelationIssueSummary[];
   canRetry: boolean;
   onRetry: () => void;
@@ -91,9 +91,9 @@ export function ExecutionBlockerNotice({ presentation, canRetry, onRetry, optimi
       </ul> : null}
     </div>;
   }
-  if (!optimistic && presentation?.userAction === "confirm_run_stopped" && presentation.observedRunId && issueId && companyId) {
+  if (!optimistic && presentation?.userAction === "confirm_run_stopped" && presentation.observedRunId && issueId && spaceId) {
     const runId = presentation.observedRunId;
-    return <PreviousServerStopConfirmation key={`${issueId}:${runId}`} runId={runId} formId={runId} issueId={issueId} companyId={companyId}
+    return <PreviousServerStopConfirmation key={`${issueId}:${runId}`} runId={runId} formId={runId} issueId={issueId} spaceId={spaceId}
       className={className} confirmStop={stopEvidence => issuesApi.confirmRunStopped(issueId, { runId, stopEvidence })}
       copy={{ waiting: presentation.retryWait?.message ?? "Outpost can't confirm that the previous run stopped. Your message is saved.",
         question: "How did you confirm that no agent is still working on this task?",

@@ -1,7 +1,7 @@
 import { Router, type Request } from "express";
 import { z } from "zod";
 import type { Db } from "@outpost/db";
-import { assertBoard, assertCompanyAccess } from "./authz.js";
+import { assertOperator, assertSpaceAccess } from "./authz.js";
 import { forbidden, notFound } from "../errors.js";
 import { accessService } from "../services/access.js";
 import { agentService } from "../services/agents.js";
@@ -14,19 +14,19 @@ const startQualification = qualificationIdentity.extend({ generation: z.number()
 export function museQualificationRoutes(db: Db) {
   const router = Router();
   const broker = museRunnerBroker(db);
-  const path = "/companies/:companyId/agents/:agentId/muse-binding/qualification";
+  const path = "/spaces/:spaceId/agents/:agentId/muse-binding/qualification";
   async function operator(req: Request) {
-    const companyId = z.uuid().parse(req.params.companyId), agentId = z.uuid().parse(req.params.agentId);
-    assertBoard(req); assertCompanyAccess(req, companyId);
-    if (!req.actor.userId || !["session", "cloud_tenant", "board_key"].includes(req.actor.source ?? "")) {
+    const spaceId = z.uuid().parse(req.params.spaceId), agentId = z.uuid().parse(req.params.agentId);
+    assertOperator(req); assertSpaceAccess(req, spaceId);
+    if (!req.actor.userId || !["session", "cloud_tenant", "operator_key"].includes(req.actor.source ?? "")) {
       throw forbidden("Sign in as an operator to manage a Muse qualification.");
     }
     const agent = await agentService(db).getById(agentId);
-    if (!agent || agent.companyId !== companyId) throw notFound("Agent not found");
+    if (!agent || agent.spaceId !== spaceId) throw notFound("Agent not found");
     const decision = await accessService(db).decide({ actor: req.actor, action: "agent_config:update",
-      resource: { type: "agent", companyId, agentId }, scope: { requiresChangeGrant: true } });
+      resource: { type: "agent", spaceId, agentId }, scope: { requiresChangeGrant: true } });
     if (!decision.allowed) throw forbidden(decision.explanation);
-    return { companyId, agentId, operatorId: req.actor.userId };
+    return { spaceId, agentId, operatorId: req.actor.userId };
   }
   router.post(path, async (req, res) => {
     const scope = await operator(req);
@@ -38,9 +38,9 @@ export function museQualificationRoutes(db: Db) {
     }));
   });
   router.get(path, async (req, res) => {
-    const { companyId, agentId } = await operator(req);
+    const { spaceId, agentId } = await operator(req);
     const { bindingId, qualificationId } = qualificationIdentity.parse(req.query);
-    res.set("Cache-Control", "no-store").json(await broker.readQualificationEvidence(companyId, agentId, bindingId, qualificationId));
+    res.set("Cache-Control", "no-store").json(await broker.readQualificationEvidence(spaceId, agentId, bindingId, qualificationId));
   });
   router.delete(path, async (req, res) => {
     const scope = await operator(req);

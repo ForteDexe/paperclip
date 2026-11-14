@@ -11,7 +11,7 @@ import {
 import { sql } from "drizzle-orm";
 import {
   agents,
-  companies,
+  spaces,
   completionContracts,
   createDb,
   heartbeatRuns,
@@ -116,9 +116,9 @@ describeEmbeddedPostgres("direct adapter native-runner isolation", () => {
         "heartbeat_runs",
         "agent_wakeup_requests",
         "agent_runtime_state",
-        "company_skills",
+        "space_skills",
         "agents",
-        "companies"
+        "spaces"
       RESTART IDENTITY CASCADE
     `),
     );
@@ -135,7 +135,7 @@ describeEmbeddedPostgres("direct adapter native-runner isolation", () => {
   it.each(DIRECT_ADAPTERS)(
     "executes flag-off %s once without creating native records",
     async (adapterType, provider) => {
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const agentId = randomUUID();
       const directProofJson =
         '{"schema":"direct-proof.v1","value":"byte-stable"}';
@@ -149,16 +149,16 @@ describeEmbeddedPostgres("direct adapter native-runner isolation", () => {
         resultJson: { directProofJson },
       });
 
-      await db.insert(companies).values({
-        id: companyId,
+      await db.insert(spaces).values({
+        id: spaceId,
         name: "Direct compatibility",
-        issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-        requireBoardApprovalForNewAgents: false,
+        issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+        requireOperatorApprovalForNewAgents: false,
         defaultResponsibleUserId: "responsible-user",
       });
       await db.insert(agents).values({
         id: agentId,
-        companyId,
+        spaceId,
         name: `Direct ${provider}`,
         role: "engineer",
         status: "idle",
@@ -198,16 +198,16 @@ describeEmbeddedPostgres("direct adapter native-runner isolation", () => {
   );
 
   it("retains an unsolicited provider cancellation through finalization", async () => {
-    const companyId = randomUUID(), agentId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID();
     execute.mockImplementation(async (context) => {
       expect(context.signal?.aborted).toBe(false);
       return { exitCode: 1, signal: null, timedOut: false, errorMessage: "ACP turn cancelled",
         resultJson: { status: "cancelled", acpToolInventoryComplete: true, acpPendingToolCount: 0 } };
     });
-    await db.insert(companies).values({ id: companyId, name: "Provider stop",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false, defaultResponsibleUserId: "responsible-user" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Claude", role: "engineer", status: "idle",
+    await db.insert(spaces).values({ id: spaceId, name: "Provider stop",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false, defaultResponsibleUserId: "responsible-user" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Claude", role: "engineer", status: "idle",
       adapterType: "claude_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
     const queued = await heartbeat.invoke(agentId, "on_demand", {}, "manual");
     const finished = await waitForRunToFinish(heartbeat, queued!.id);

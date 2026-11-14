@@ -14,7 +14,7 @@ test("installed controller serves health and UI without creating provider work",
   });
   const health = await request.get(`${baseURL}/api/health`);
   expect(health.ok()).toBe(true);
-  const before = await request.get(`${baseURL}/api/companies`);
+  const before = await request.get(`${baseURL}/api/spaces`);
   expect(before.ok()).toBe(true); expect(await before.json()).toEqual([]);
   const response = await page.goto(baseURL!);
   expect(response?.ok()).toBe(true);
@@ -22,9 +22,9 @@ test("installed controller serves health and UI without creating provider work",
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeDisabled();
   expect(errors).toEqual([]);
-  const after = await request.get(`${baseURL}/api/companies`);
+  const after = await request.get(`${baseURL}/api/spaces`);
   expect(after.ok()).toBe(true); expect(await after.json()).toEqual([]);
   const output = process.env.OUTPOST_RUNNER_E2E_PRIVATE_DIR!;
   await page.screenshot({ path: path.join(output, "installed-startup-only.png"), fullPage: true });
-  await writeFile(path.join(output, "installed-startup-only.json"), `${JSON.stringify({ status: "health_ui_zero_company_passed", qualified: false, providerCalls: 0, healthStatus: health.status(), uiStatus: response!.status(), companiesBefore: 0, companiesAfter: 0, pageErrors: errors }, null, 2)}\n`, { mode: 0o600 });
+  await writeFile(path.join(output, "installed-startup-only.json"), `${JSON.stringify({ status: "health_ui_zero_space_passed", qualified: false, providerCalls: 0, healthStatus: health.status(), uiStatus: response!.status(), spacesBefore: 0, spacesAfter: 0, pageErrors: errors }, null, 2)}\n`, { mode: 0o600 });
 });

@@ -3,9 +3,9 @@ import express from "express";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, environments, principalPermissionGrants, activityLog, instanceSettings, builtInManagedResources, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
+import { agents, authUsers, spaces, spaceMemberships, createDb, environments, principalPermissionGrants, activityLog, instanceSettings, builtInManagedResources, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { grantsForHumanRole } from "../services/company-member-roles.js";
+import { grantsForHumanRole } from "../services/space-member-roles.js";
 import { agentRoutes } from "../routes/agents.js";
 import { environmentRoutes } from "../routes/environments.js";
 import { errorHandler } from "../middleware/error-handler.js";
@@ -22,7 +22,7 @@ const support = await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("agent-scoped runner qualification", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  let companyId: string;
+  let spaceId: string;
   let agentId: string;
   let environmentId: string;
   let userId: string;
@@ -38,18 +38,18 @@ describe.skipIf(!support.supported)("agent-scoped runner qualification", () => {
     await db.delete(environments);
     probe.mockReset().mockResolvedValue({ ok: true, driver: "sandbox", summary: "Connected",
       details: { platformQualificationRecorded: true, leaseId: "probe-lease", metadata: { private: "provider-secret" }, providerLeaseId: "private-id" } });
-    companyId = randomUUID(); agentId = randomUUID(); environmentId = randomUUID(); userId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Qualification", issuePrefix: `Q${companyId.slice(0, 7)}` });
-    await db.insert(authUsers).values({ id: userId, name: "Company owner", email: `${userId}@example.test`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
-    await db.insert(principalPermissionGrants).values(grantsForHumanRole("owner").map(grant => ({ ...grant, companyId, principalType: "user" as const, principalId: userId })));
-    await db.insert(environments).values({ id: environmentId, name: `Paperclip Sandbox ${environmentId}`, driver: "sandbox", status: "active", config: { provider: "daytona", snapshot: "managed-snapshot", reuseLease: false } });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Amy fixture", adapterType: "claude_local", defaultEnvironmentId: environmentId,
+    spaceId = randomUUID(); agentId = randomUUID(); environmentId = randomUUID(); userId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Qualification", issuePrefix: `Q${spaceId.slice(0, 7)}` });
+    await db.insert(authUsers).values({ id: userId, name: "Space owner", email: `${userId}@example.test`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
+    await db.insert(principalPermissionGrants).values(grantsForHumanRole("owner").map(grant => ({ ...grant, spaceId, principalType: "user" as const, principalId: userId })));
+    await db.insert(environments).values({ id: environmentId, name: `Outpost Sandbox ${environmentId}`, driver: "sandbox", status: "active", config: { provider: "daytona", snapshot: "managed-snapshot", reuseLease: false } });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Amy fixture", adapterType: "claude_local", defaultEnvironmentId: environmentId,
       adapterConfig: { model: "claude-opus-5-5", effort: "high", maxTurnsPerRun: 1000, dangerouslySkipPermissions: true } });
     app = express(); app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", userId, companyIds: [companyId], source: "cloud_tenant", isInstanceAdmin: false,
-        memberships: [{ companyId, membershipRole: "owner", status: "active" }] };
+      req.actor = { type: "operator", userId, spaceIds: [spaceId], source: "cloud_tenant", isInstanceAdmin: false,
+        memberships: [{ spaceId, membershipRole: "owner", status: "active" }] };
       next();
     });
     app.use("/api", agentRoutes(db));
@@ -58,18 +58,18 @@ describe.skipIf(!support.supported)("agent-scoped runner qualification", () => {
   });
   const qualify = () => request(app).post(`/api/agents/${agentId}/qualify-runner`).send({ expectedEnvironmentId: environmentId });
 
-  it.each(["claude_local", "grok_local"])("allows the company owner to qualify %s without instance admin and keeps the generic probe restricted", async adapterType => {
+  it.each(["claude_local", "grok_local"])("allows the space owner to qualify %s without instance admin and keeps the generic probe restricted", async adapterType => {
     await db.update(agents).set({ adapterType }).where(eq(agents.id, agentId));
     const before = await db.select().from(agents).where(eq(agents.id, agentId));
     const res = await qualify();
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ ok: true, details: { platformQualificationRecorded: true, leaseId: "probe-lease" } });
     expect(JSON.stringify(res.body)).not.toMatch(/provider-secret|private-id/);
-    expect(probe).toHaveBeenCalledWith(db, expect.objectContaining({ id: environmentId }), expect.objectContaining({ companyId, assertCompanyBinding: true, acquireSandboxRuntimeLease: true, applyCustomImageTemplate: true }));
+    expect(probe).toHaveBeenCalledWith(db, expect.objectContaining({ id: environmentId }), expect.objectContaining({ spaceId, assertSpaceBinding: true, acquireSandboxRuntimeLease: true, applyCustomImageTemplate: true }));
     expect(await db.select().from(agents).where(eq(agents.id, agentId))).toEqual(before);
     const audit = await db.select().from(activityLog).where(eq(activityLog.entityId, agentId));
-    expect(audit).toEqual([expect.objectContaining({ companyId, actorId: userId, action: "agent.runner_qualification_tested" })]);
-    const generic = await request(app).post(`/api/environments/${environmentId}/probe?companyId=${companyId}`).send({});
+    expect(audit).toEqual([expect.objectContaining({ spaceId, actorId: userId, action: "agent.runner_qualification_tested" })]);
+    const generic = await request(app).post(`/api/environments/${environmentId}/probe?spaceId=${spaceId}`).send({});
     expect(generic.status).toBe(403);
     expect(probe).toHaveBeenCalledTimes(1);
   });
@@ -81,10 +81,10 @@ describe.skipIf(!support.supported)("agent-scoped runner qualification", () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ ok: true, details: { platformQualificationRecorded: true } });
     expect(probe).toHaveBeenCalledWith(db, expect.objectContaining({ id: environmentId }),
-      expect.objectContaining({ companyId, assertCompanyBinding: true, acquireSandboxRuntimeLease: true }));
+      expect.objectContaining({ spaceId, assertSpaceBinding: true, acquireSandboxRuntimeLease: true }));
     expect(await db.select().from(agents).where(eq(agents.id, agentId))).toEqual(before);
     expect(JSON.stringify(response.body)).not.toMatch(/provider-secret|private-id/);
-    expect((await request(app).post(`/api/environments/${environmentId}/probe?companyId=${companyId}`).send({})).status).toBe(403);
+    expect((await request(app).post(`/api/environments/${environmentId}/probe?spaceId=${spaceId}`).send({})).status).toBe(403);
   });
 
   it("reuses a current native snapshot proof without invalidating it or allocating another probe", async () => {
@@ -92,10 +92,10 @@ describe.skipIf(!support.supported)("agent-scoped runner qualification", () => {
     const config = { provider: "daytona", snapshot: "managed-snapshot", reuseLease: false };
     const fingerprint = fingerprintEnvironmentSandboxProviderConfig(config);
     const saved = (await environmentService(db).getById(environmentId))!;
-    const runtime = await resolveEnvironmentDriverConfigForRuntime(db, companyId, saved, { applyCustomImageTemplate: true, readOnlyCustomImageTemplate: true });
+    const runtime = await resolveEnvironmentDriverConfigForRuntime(db, spaceId, saved, { applyCustomImageTemplate: true, readOnlyCustomImageTemplate: true });
     const runtimeFingerprint = fingerprintEnvironmentSandboxProviderConfig(runtime.config as typeof config);
-    const metadata = { [SANDBOX_PLATFORM_PROBE_METADATA_KEY]: { [companyId]: {
-      v: 2, companyId, baseConfigFingerprint: fingerprint, runtimeConfigFingerprint: runtimeFingerprint,
+    const metadata = { [SANDBOX_PLATFORM_PROBE_METADATA_KEY]: { [spaceId]: {
+      v: 2, spaceId, baseConfigFingerprint: fingerprint, runtimeConfigFingerprint: runtimeFingerprint,
       snapshot: config.snapshot, template: null,
       snapshotIdentity: { provider: "daytona", requestedRef: config.snapshot, id: randomUUID(), name: config.snapshot,
         organizationId: "fixture-organization", createdAt: new Date().toISOString() },
@@ -113,8 +113,8 @@ describe.skipIf(!support.supported)("agent-scoped runner qualification", () => {
     if (state === "changed-computer") await db.update(agents).set({ defaultEnvironmentId: null }).where(eq(agents.id, agentId));
     if (state === "foreign-computer") {
       const other = randomUUID();
-      await db.insert(companies).values({ id: other, name: "Other", issuePrefix: `F${other.slice(0, 7)}` });
-      await db.insert(builtInManagedResources).values({ companyId: other, bundleKey: "test", resourceKind: "environment", resourceKey: "computer", resourceId: environmentId, stockVersion: "test", stockHash: "test" });
+      await db.insert(spaces).values({ id: other, name: "Other", issuePrefix: `F${other.slice(0, 7)}` });
+      await db.insert(builtInManagedResources).values({ spaceId: other, bundleKey: "test", resourceKind: "environment", resourceKey: "computer", resourceId: environmentId, stockVersion: "test", stockHash: "test" });
     }
     expect((await qualify()).status).toBe(state === "changed-computer" ? 409 : 403);
     expect(probe).not.toHaveBeenCalled();
@@ -127,8 +127,8 @@ describe.skipIf(!support.supported)("agent-scoped runner qualification", () => {
   });
   it("hides a foreign agent before any provider work", async () => {
     const other = randomUUID();
-    await db.insert(companies).values({ id: other, name: "Other", issuePrefix: `F${other.slice(0, 7)}` });
-    await db.update(agents).set({ companyId: other }).where(eq(agents.id, agentId));
+    await db.insert(spaces).values({ id: other, name: "Other", issuePrefix: `F${other.slice(0, 7)}` });
+    await db.update(agents).set({ spaceId: other }).where(eq(agents.id, agentId));
     expect((await qualify()).status).toBe(404);
     expect(probe).not.toHaveBeenCalled();
   });
@@ -137,16 +137,16 @@ describe.skipIf(!support.supported)("agent-scoped runner qualification", () => {
     expect(res.status).toBe(409);
     expect(probe).not.toHaveBeenCalled();
   });
-  it("rejects a managed computer bound to a different company", async () => {
+  it("rejects a managed computer bound to a different space", async () => {
     const other = randomUUID();
-    await db.insert(companies).values({ id: other, name: "Other", issuePrefix: `F${other.slice(0, 7)}` });
-    await db.insert(builtInManagedResources).values({ companyId: other, bundleKey: "test", resourceKind: "environment", resourceKey: "computer", resourceId: environmentId, stockVersion: "test", stockHash: "test" });
+    await db.insert(spaces).values({ id: other, name: "Other", issuePrefix: `F${other.slice(0, 7)}` });
+    await db.insert(builtInManagedResources).values({ spaceId: other, bundleKey: "test", resourceKind: "environment", resourceKey: "computer", resourceId: environmentId, stockVersion: "test", stockHash: "test" });
     expect((await qualify()).status).toBe(403);
     expect(probe).not.toHaveBeenCalled();
   });
   it.each(["instance", "managed", "kubernetes"])("resolves the %s computer with the same policy as runner saving", async mode => {
     await db.update(agents).set({ defaultEnvironmentId: null }).where(eq(agents.id, agentId));
-    await db.update(environments).set({ metadata: { managedByPaperclip: true, managedKubernetesSandbox: mode === "kubernetes" },
+    await db.update(environments).set({ metadata: { managedByOutpost: true, managedKubernetesSandbox: mode === "kubernetes" },
       ...(mode === "kubernetes" ? { config: { provider: "kubernetes" } } : {}) }).where(eq(environments.id, environmentId));
     await db.insert(instanceSettings).values({ defaultEnvironmentId: mode === "instance" ? environmentId : null,
       experimental: { enableManagedSandboxOnly: mode === "managed" }, general: { executionMode: mode === "kubernetes" ? "kubernetes" : "local" } });

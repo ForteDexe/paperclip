@@ -79,7 +79,7 @@ for (const direct of [false, true])
         card.getByRole("link", { name: "octocat/Spoon-Knife" }),
       ).toBeVisible();
       const projects = await json(
-        await request.get(`/api/companies/${f.company.id}/projects`),
+        await request.get(`/api/spaces/${f.space.id}/projects`),
       );
       expect(projects).toHaveLength(1);
       expect(projects[0].workspaces).toHaveLength(2);
@@ -135,7 +135,7 @@ test("split handoff commits relevant plans before execution and never creates ch
       .poll(
         async () => {
           const tasks = await json(
-            await request.get(`/api/companies/${f.company.id}/issues`),
+            await request.get(`/api/spaces/${f.space.id}/issues`),
           );
           return (
             tasks.length === 2 &&
@@ -146,7 +146,7 @@ test("split handoff commits relevant plans before execution and never creates ch
       )
       .toBe(true);
     const tasks = await json(
-      await request.get(`/api/companies/${f.company.id}/issues`),
+      await request.get(`/api/spaces/${f.space.id}/issues`),
     );
     for (const task of tasks) {
       expect(task.parentId).toBeNull();
@@ -160,7 +160,7 @@ test("split handoff commits relevant plans before execution and never creates ch
       );
       expect(output.body).toContain(plan.body);
       const runs = await json(
-        await request.get(`/api/companies/${f.company.id}/heartbeat-runs`),
+        await request.get(`/api/spaces/${f.space.id}/heartbeat-runs`),
       );
       const taskRuns = runs.filter(
         (run: any) => run.contextSnapshot?.issueId === task.id,
@@ -183,7 +183,7 @@ test("split handoff commits relevant plans before execution and never creates ch
     ).toContain("Welcome plan");
     expect(
       (
-        await request.post(`/api/companies/${f.company.id}/issues`, {
+        await request.post(`/api/spaces/${f.space.id}/issues`, {
           data: { title: "Invalid child", parentId: chat.id },
         })
       ).status(),
@@ -201,9 +201,9 @@ test("split handoff commits relevant plans before execution and never creates ch
         comment.body.startsWith("Delegated work completed:"));
       return tasks.every((task: any) => completed.some((comment: any) => comment.body.includes(task.identifier)));
     }, { timeout: 30_000 }).toBe(true);
-    await expect.poll(async () => await json(await request.get(`/api/companies/${f.company.id}/live-runs`)),
+    await expect.poll(async () => await json(await request.get(`/api/spaces/${f.space.id}/live-runs`)),
       { timeout: 30_000 }).toEqual([]);
-    const settledTasks = await json(await request.get(`/api/companies/${f.company.id}/issues`));
+    const settledTasks = await json(await request.get(`/api/spaces/${f.space.id}/issues`));
     expect(settledTasks.map((task: any) => ({ id: task.id, status: task.status, parentId: task.parentId }))
       .sort((a: any, b: any) => a.id.localeCompare(b.id))).toEqual(tasks.map((task: any) => ({
         id: task.id, status: "done", parentId: null,
@@ -236,11 +236,11 @@ for (const bad of [
       ).toHaveCount(0);
       expect(
         await json(
-          await request.get(`/api/companies/${f.company.id}/projects`),
+          await request.get(`/api/spaces/${f.space.id}/projects`),
         ),
       ).toHaveLength(0);
       expect(
-        await json(await request.get(`/api/companies/${f.company.id}/issues`)),
+        await json(await request.get(`/api/spaces/${f.space.id}/issues`)),
       ).toHaveLength(0);
     } finally {
       await f.restore();
@@ -272,7 +272,7 @@ test("first upload creates the chat without invoking its agent; shared attachmen
     expect(chat.id).toBeTruthy();
     expect(
       await json(
-        await request.get(`/api/companies/${f.company.id}/heartbeat-runs`),
+        await request.get(`/api/spaces/${f.space.id}/heartbeat-runs`),
       ),
     ).toHaveLength(0);
     await expect
@@ -310,7 +310,7 @@ for (const mode of ["Ask", "Plan"])
       await idle(request, f.chatPath);
       expect(
         await json(
-          await request.get(`/api/companies/${f.company.id}/projects`),
+          await request.get(`/api/spaces/${f.space.id}/projects`),
         ),
       ).toHaveLength(0);
       await expect(
@@ -339,7 +339,7 @@ for (const mode of ["Ask", "Plan"])
         await expect(page.getByRole("tab", { name: "Plan", exact: true })).toBeVisible();
       }
       expect(
-        await json(await request.get(`/api/companies/${f.company.id}/issues`)),
+        await json(await request.get(`/api/spaces/${f.space.id}/issues`)),
       ).toHaveLength(0);
     } finally {
       await f.restore();
@@ -364,15 +364,15 @@ for (const selection of [
     const f = await setup(request);
     try {
       const secret = await json(
-        await request.post(`/api/companies/${f.company.id}/secrets`, {
+        await request.post(`/api/spaces/${f.space.id}/secrets`, {
           data: {
             name: "Deterministic GitHub credential",
-            value: "paperclip-e2e-repository-fixture",
+            value: "outpost-e2e-repository-fixture",
           },
         }),
       );
       await json(
-        await request.post(`/api/companies/${f.company.id}/tools/connections`, {
+        await request.post(`/api/spaces/${f.space.id}/tools/connections`, {
           data: {
             name: "Fixture GitHub",
             applicationName: "Fixture GitHub",
@@ -397,7 +397,7 @@ for (const selection of [
       );
       const repos = await json(
         await request.get(
-          `/api/companies/${f.company.id}/project-repositories`,
+          `/api/spaces/${f.space.id}/project-repositories`,
         ),
       );
       expect(repos.repositories.map((repo: any) => repo.id).sort()).toEqual([
@@ -412,7 +412,7 @@ for (const selection of [
       });
       await idle(request, f.chatPath);
       const project = (
-        await json(await request.get(`/api/companies/${f.company.id}/projects`))
+        await json(await request.get(`/api/spaces/${f.space.id}/projects`))
       )[0];
       expect(project).toBeTruthy();
       expect(
@@ -453,7 +453,7 @@ test("plan approval hands the preserved revision to an assigned project task", a
       await request.get(`/api/issues/${chat.id}/documents/plan`),
     );
     expect(
-      await json(await request.get(`/api/companies/${f.company.id}/issues`)),
+      await json(await request.get(`/api/spaces/${f.space.id}/issues`)),
     ).toHaveLength(0);
     await page
       .getByRole("button", { name: "Approve handoff", exact: true })
@@ -465,7 +465,7 @@ test("plan approval hands the preserved revision to an assigned project task", a
         async () =>
           (
             await json(
-              await request.get(`/api/companies/${f.company.id}/issues`),
+              await request.get(`/api/spaces/${f.space.id}/issues`),
             )
           ).filter((task: any) => task.status === "done").length,
         { timeout: 60_000 },
@@ -474,14 +474,14 @@ test("plan approval hands the preserved revision to an assigned project task", a
     // Task completion is delivered back to the chat as another real turn.
     await idle(request, f.chatPath, 3);
     const task = (
-      await json(await request.get(`/api/companies/${f.company.id}/issues`))
+      await json(await request.get(`/api/spaces/${f.space.id}/issues`))
     )[0];
     expect(task.parentId).toBeNull();
     expect(task.projectId).toBeTruthy();
     expect(task.assigneeAgentId).toBe(f.agent.id);
     const completion = page.getByText("Delegated work completed:", { exact: false });
     await expect(completion.getByRole("link").and(page.locator(
-      `a[href="/${f.company.issuePrefix}/issues/${task.identifier}"]`,
+      `a[href="/${f.space.issuePrefix}/issues/${task.identifier}"]`,
     ))).toBeVisible();
     const plan = await json(
       await request.get(`/api/issues/${task.id}/documents/plan`),
@@ -512,7 +512,7 @@ test("shared questions resume and existing project reuse creates no project card
   const f = await setup(request);
   try {
     const project = await json(
-      await request.post(`/api/companies/${f.company.id}/projects`, {
+      await request.post(`/api/spaces/${f.space.id}/projects`, {
         data: { name: "Garden club" },
       }),
     );
@@ -543,24 +543,24 @@ test("shared questions resume and existing project reuse creates no project card
         async () =>
           (
             await json(
-              await request.get(`/api/companies/${f.company.id}/issues`),
+              await request.get(`/api/spaces/${f.space.id}/issues`),
             )
           ).length,
       )
       .toBe(1);
     const task = (
-      await json(await request.get(`/api/companies/${f.company.id}/issues`))
+      await json(await request.get(`/api/spaces/${f.space.id}/issues`))
     )[0];
     expect(task.projectId).toBe(project.id);
     expect(task.parentId).toBeNull();
     expect(
-      await json(await request.get(`/api/companies/${f.company.id}/projects`)),
+      await json(await request.get(`/api/spaces/${f.space.id}/projects`)),
     ).toHaveLength(1);
     await expect(
       page.getByRole("article", { name: /Project created:/ }),
     ).toHaveCount(0);
     const ordinaryChild = await json(
-      await request.post(`/api/companies/${f.company.id}/issues`, {
+      await request.post(`/api/spaces/${f.space.id}/issues`, {
         data: { title: "Ordinary delegation still works", parentId: task.id },
       }),
     );
@@ -653,7 +653,7 @@ test("retired Chat opt-outs do not interrupt active turns or hide existing histo
       .toBe("waiting");
     const before = (
       await json(
-        await request.get(`/api/companies/${f.company.id}/heartbeat-runs`),
+        await request.get(`/api/spaces/${f.space.id}/heartbeat-runs`),
       )
     ).length;
     await page.reload();
@@ -661,7 +661,7 @@ test("retired Chat opt-outs do not interrupt active turns or hide existing histo
     expect(
       (
         await json(
-          await request.get(`/api/companies/${f.company.id}/heartbeat-runs`),
+          await request.get(`/api/spaces/${f.space.id}/heartbeat-runs`),
         )
       ).length,
     ).toBe(before);

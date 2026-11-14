@@ -22,11 +22,11 @@ describe("inbound queue discovery", () => {
     await f.action(unowned.id, { endpointId: await f.anotherEndpoint() });
     await f.action(unowned.id, { kind: "other" });
     await f.action(unowned.id, { status: "processed" });
-    const oracle = sql`exists (select 1 from chat_actions a where a.delivery_id = chat_deliveries.id and a.endpoint_id = chat_deliveries.endpoint_id and a.company_id = chat_deliveries.company_id and a.kind = 'inbound_wakeup' and a.status in ('issued', 'processing'))`;
-    const booleans = await db.select({ pending: pendingInboundWakeupCondition(), oracle }).from(chatDeliveries).where(eq(chatDeliveries.companyId, f.companyId));
+    const oracle = sql`exists (select 1 from chat_actions a where a.delivery_id = chat_deliveries.id and a.endpoint_id = chat_deliveries.endpoint_id and a.space_id = chat_deliveries.space_id and a.kind = 'inbound_wakeup' and a.status in ('issued', 'processing'))`;
+    const booleans = await db.select({ pending: pendingInboundWakeupCondition(), oracle }).from(chatDeliveries).where(eq(chatDeliveries.spaceId, f.spaceId));
     expect(booleans.every(row => typeof row.pending === "boolean" && row.pending === row.oracle)).toBe(true);
-    expect(await pendingIds(db, pendingInboundWakeupCondition(), f.companyId)).toEqual(await pendingIds(db, oracle, f.companyId));
-    expect((await pendingIds(db, pendingInboundWakeupCondition(), f.companyId)).map(row => row.id).sort()).toEqual([f.pending.id, duplicate.id].sort());
+    expect(await pendingIds(db, pendingInboundWakeupCondition(), f.spaceId)).toEqual(await pendingIds(db, oracle, f.spaceId));
+    expect((await pendingIds(db, pendingInboundWakeupCondition(), f.spaceId)).map(row => row.id).sort()).toEqual([f.pending.id, duplicate.id].sort());
   });
 
   it("selects the same open conversation work as the endpoint state predicate", async () => {
@@ -83,11 +83,11 @@ describe("inbound queue discovery", () => {
     const f = await seedInboundDiscovery(db);
     const other = await seedInboundDiscovery(db, 0);
     const unrelated = await f.delivery({ state: "filtered" });
-    const oracle = sql`exists (select 1 from chat_actions a where a.delivery_id = chat_deliveries.id and a.endpoint_id = chat_deliveries.endpoint_id and a.company_id = chat_deliveries.company_id and a.kind = 'inbound_wakeup' and a.status in ('issued', 'processing') and ((a.status = 'issued' and (a.result->>'retryAt' is null or (a.result->>'retryAt')::timestamptz <= now())) or (a.status = 'processing' and a.updated_at <= ${new Date(Date.now() - 60_000).toISOString()}::timestamptz)))`;
+    const oracle = sql`exists (select 1 from chat_actions a where a.delivery_id = chat_deliveries.id and a.endpoint_id = chat_deliveries.endpoint_id and a.space_id = chat_deliveries.space_id and a.kind = 'inbound_wakeup' and a.status in ('issued', 'processing') and ((a.status = 'issued' and (a.result->>'retryAt' is null or (a.result->>'retryAt')::timestamptz <= now())) or (a.status = 'processing' and a.updated_at <= ${new Date(Date.now() - 60_000).toISOString()}::timestamptz)))`;
     for (const input of [
-      { companyId: f.companyId, endpointId: f.endpointId, deliveryId: unrelated.id },
-      { companyId: other.companyId, endpointId: other.endpointId, deliveryId: other.pending.id },
-      { companyId: f.companyId, endpointId: f.endpointId, deliveryId: null },
+      { spaceId: f.spaceId, endpointId: f.endpointId, deliveryId: unrelated.id },
+      { spaceId: other.spaceId, endpointId: other.endpointId, deliveryId: other.pending.id },
+      { spaceId: f.spaceId, endpointId: f.endpointId, deliveryId: null },
     ]) {
       const [action] = await db.insert(chatActions).values({ ...input, kind: "inbound_wakeup", providerActionId: randomUUID(), status: "issued", result: { retryAt: "invalid timestamp" } }).returning();
       try {
@@ -134,8 +134,8 @@ describe("inbound queue discovery", () => {
 
   it("keeps provider sequence and final receipt ties for the actual head query", async () => {
     const f = await seedInboundDiscovery(db);
-    await db.update(chatActions).set({ status: "processed" }).where(eq(chatActions.companyId, f.companyId));
-    await db.update(chatDeliveries).set({ state: "filtered" }).where(eq(chatDeliveries.companyId, f.companyId));
+    await db.update(chatActions).set({ status: "processed" }).where(eq(chatActions.spaceId, f.spaceId));
+    await db.update(chatDeliveries).set({ state: "filtered" }).where(eq(chatDeliveries.spaceId, f.spaceId));
     const later = await f.delivery({ normalizedEvent: { conversation: { externalThreadId: f.threadId }, message: { providerSentAt: "2026-01-01T12:00:00Z", providerMessageSequence: "10" } } });
     const first = await f.delivery({ normalizedEvent: { conversation: { externalThreadId: f.threadId }, message: { providerSentAt: "2026-01-01T12:00:00Z", providerMessageSequence: "2" } } });
     const rows = await runQuery(db, await captureInboundQuery(db, f, "head"));

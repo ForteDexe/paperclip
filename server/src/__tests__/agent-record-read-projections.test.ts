@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { agents, companies, costEvents, createDb } from "@outpost/db";
+import { agents, spaces, costEvents, createDb } from "@outpost/db";
 import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } from "./helpers/full-database-response-capture.js";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -31,32 +31,32 @@ describe.skipIf(!support.supported)("agent roster read projections", () => {
   });
 
   async function fixture() {
-    const companyId = randomUUID(), foreignCompanyId = randomUUID();
+    const spaceId = randomUUID(), foreignSpaceId = randomUUID();
     const managerId = randomUUID(), workerId = randomUUID(), unrelatedId = randomUUID(), archivedId = randomUUID(), foreignId = randomUUID();
-    await db.insert(companies).values([
-      { id: companyId, name: "Roster fixture", issuePrefix: `R${companyId.slice(0, 7).toUpperCase()}` },
-      { id: foreignCompanyId, name: "Foreign roster", issuePrefix: `F${foreignCompanyId.slice(0, 7).toUpperCase()}` },
+    await db.insert(spaces).values([
+      { id: spaceId, name: "Roster fixture", issuePrefix: `R${spaceId.slice(0, 7).toUpperCase()}` },
+      { id: foreignSpaceId, name: "Foreign roster", issuePrefix: `F${foreignSpaceId.slice(0, 7).toUpperCase()}` },
     ]);
     const bulk = "retained-other-agent-configuration🙂".repeat(32_768);
     await db.insert(agents).values([
-      { id: managerId, companyId, name: "Manager", status: "terminated", adapterType: "process", adapterConfig: { instructions: bulk } },
-      { id: unrelatedId, companyId, name: "Other worker", status: "idle", adapterType: "process", adapterConfig: { instructions: bulk } },
-      { id: archivedId, companyId, name: "Archived worker", status: "terminated", adapterType: "process", runtimeConfig: { retained: bulk } },
-      { id: foreignId, companyId: foreignCompanyId, name: "Foreign manager", status: "idle", adapterType: "process", adapterConfig: { instructions: bulk } },
+      { id: managerId, spaceId, name: "Manager", status: "terminated", adapterType: "process", adapterConfig: { instructions: bulk } },
+      { id: unrelatedId, spaceId, name: "Other worker", status: "idle", adapterType: "process", adapterConfig: { instructions: bulk } },
+      { id: archivedId, spaceId, name: "Archived worker", status: "terminated", adapterType: "process", runtimeConfig: { retained: bulk } },
+      { id: foreignId, spaceId: foreignSpaceId, name: "Foreign manager", status: "idle", adapterType: "process", adapterConfig: { instructions: bulk } },
     ]);
-    const [worker] = await db.insert(agents).values({ id: workerId, companyId, name: "Selected worker", status: "idle",
+    const [worker] = await db.insert(agents).values({ id: workerId, spaceId, name: "Selected worker", status: "idle",
       reportsTo: managerId, adapterType: "process", adapterConfig: { instructions: "selected instructions", model: "fixture-model" },
       runtimeConfig: { heartbeat: { enabled: false } }, metadata: { retained: "selected metadata" },
       permissions: { canCreateAgents: true }, spentMonthlyCents: 999,
     }).returning();
     const now = new Date();
     await db.insert(costEvents).values([
-      { companyId, agentId: workerId, provider: "fixture", model: "fixture-model", costCents: 19.5, occurredAt: now },
-      { companyId, agentId: workerId, provider: "fixture", model: "fixture-model", costCents: 50,
+      { spaceId, agentId: workerId, provider: "fixture", model: "fixture-model", costCents: 19.5, occurredAt: now },
+      { spaceId, agentId: workerId, provider: "fixture", model: "fixture-model", costCents: 50,
         occurredAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15)) },
-      { companyId: foreignCompanyId, agentId: foreignId, provider: "fixture", model: "fixture-model", costCents: 100, occurredAt: now },
+      { spaceId: foreignSpaceId, agentId: foreignId, provider: "fixture", model: "fixture-model", costCents: 100, occurredAt: now },
     ]);
-    return { companyId, foreignCompanyId, managerId, workerId, unrelatedId, archivedId, foreignId, worker, bulk };
+    return { spaceId, foreignSpaceId, managerId, workerId, unrelatedId, archivedId, foreignId, worker, bulk };
   }
 
   async function observe<T>(run: (observed: ReturnType<typeof createDb>) => Promise<T>) {
@@ -77,7 +77,7 @@ describe.skipIf(!support.supported)("agent roster read projections", () => {
 
   it.each([false, true])("reads one full roster for list, preserving terminated-manager evidence and configurations (includeTerminated=%s)", async includeTerminated => {
     const f = await fixture();
-    const captured = await observe(observed => agentService(observed).list(f.companyId, { includeTerminated }));
+    const captured = await observe(observed => agentService(observed).list(f.spaceId, { includeTerminated }));
     expect(captured.calls).toBe(1);
     expect(captured.result.map(row => row.id).sort()).toEqual((includeTerminated
       ? [f.workerId, f.managerId, f.archivedId, f.unrelatedId] : [f.workerId, f.unrelatedId]).sort());
@@ -96,23 +96,23 @@ describe.skipIf(!support.supported)("agent roster read projections", () => {
     const captured = await observe(observed => agentRecordQueries(observed).getById(f.workerId));
     expect(captured.calls).toBe(2);
     expect(captured.bytes).toBeLessThan(8192);
-    expect(captured.result).toMatchObject({ id: f.workerId, companyId: f.companyId, adapterConfig: f.worker.adapterConfig,
+    expect(captured.result).toMatchObject({ id: f.workerId, spaceId: f.spaceId, adapterConfig: f.worker.adapterConfig,
       runtimeConfig: f.worker.runtimeConfig, metadata: f.worker.metadata, permissions: { canCreateAgents: true }, spentMonthlyCents: 19.5,
       orgChainHealth: { reason: "terminated_ancestor", firstInvalidAncestor: { id: f.managerId, name: "Manager" } } });
     expect((await db.select().from(agents).where(eq(agents.id, f.workerId)))[0]).toEqual(f.worker);
   });
 
-  it("projects only current company chain fields for plugin normalization", async () => {
+  it("projects only current space chain fields for plugin normalization", async () => {
     const f = await fixture();
-    const captured = await observe(observed => agentRecordQueries(observed).listCompanyAgentEligibilityRows(f.companyId));
+    const captured = await observe(observed => agentRecordQueries(observed).listSpaceAgentEligibilityRows(f.spaceId));
     expect(captured.calls).toBe(1);
     expect(captured.bytes).toBeLessThan(4096);
     expect(captured.result.map(row => row.id).sort()).toEqual([f.workerId, f.managerId, f.unrelatedId, f.archivedId].sort());
-    for (const row of captured.result) expect(Object.keys(row).sort()).toEqual(["companyId", "id", "name", "reportsTo", "status"]);
+    for (const row of captured.result) expect(Object.keys(row).sort()).toEqual(["spaceId", "id", "name", "reportsTo", "status"]);
     const normalized = agentRecordQueries(db).normalizeAgentRow(f.worker, captured.result);
     expect(normalized).toMatchObject({ adapterConfig: f.worker.adapterConfig, metadata: f.worker.metadata,
       orgChainHealth: { reason: "terminated_ancestor", firstInvalidAncestor: { id: f.managerId } } });
-    expect(await agentRecordQueries(db).listCompanyAgentEligibilityRows(randomUUID())).toEqual([]);
+    expect(await agentRecordQueries(db).listSpaceAgentEligibilityRows(randomUUID())).toEqual([]);
     expect(await agentRecordQueries(db).getById(randomUUID())).toBeNull();
   });
 

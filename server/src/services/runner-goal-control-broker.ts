@@ -10,7 +10,7 @@ export interface RunnerSessionGoalControlInput {
 }
 
 interface GoalControllerBinding {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   agentId: string;
   runId: string;
@@ -23,8 +23,8 @@ interface RegisteredGoalController extends GoalControllerBinding {
 
 const registrations = new Map<string, RegisteredGoalController>();
 
-function bindingKey(input: Pick<GoalControllerBinding, "companyId" | "issueId" | "agentId">): string {
-  return `${input.companyId}:${input.issueId}:${input.agentId}`;
+function bindingKey(input: Pick<GoalControllerBinding, "spaceId" | "issueId" | "agentId">): string {
+  return `${input.spaceId}:${input.issueId}:${input.agentId}`;
 }
 
 export function registerLiveRunnerGoalController(
@@ -40,7 +40,7 @@ export function registerLiveRunnerGoalController(
 }
 
 export function dispatchLiveRunnerGoalControl(
-  binding: Pick<GoalControllerBinding, "companyId" | "issueId" | "agentId">,
+  binding: Pick<GoalControllerBinding, "spaceId" | "issueId" | "agentId">,
   control: RunnerSessionGoalControlInput,
 ): { runId: string; completion: Promise<void> } | null {
   const registered = registrations.get(bindingKey(binding));

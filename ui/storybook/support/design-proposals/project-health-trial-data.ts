@@ -2,8 +2,8 @@ import type { Issue, Project } from "@outpost/shared";
 import {
   createIssue,
   storybookAuthSession,
-  storybookCompanies,
-} from "../../fixtures/paperclipData";
+  storybookSpaces,
+} from "../../fixtures/outpostData";
 
 export const projectHealthProjectIds = {
   onboarding: "project-health-trial-onboarding",
@@ -14,51 +14,51 @@ export const projectHealthProjectIds = {
   launch: "project-health-trial-launch",
 } as const;
 
-const companyId = storybookCompanies[0]!.id;
+const spaceId = storybookSpaces[0]!.id;
 const authorId = storybookAuthSession.user.id;
 
 export const projectHealthProjects: Pick<
   Project,
-  "id" | "companyId" | "name" | "description" | "status"
+  "id" | "spaceId" | "name" | "description" | "status"
 >[] = [
   {
     id: projectHealthProjectIds.onboarding,
-    companyId,
+    spaceId,
     name: "Customer onboarding",
     description: "Help new teams reach their first successful workflow with fewer handoffs.",
     status: "in_progress",
   },
   {
     id: projectHealthProjectIds.international,
-    companyId,
+    spaceId,
     name: "International expansion and multi-region billing infrastructure",
     description: "Prepare regional invoicing, local currencies and a reliable rollout for new markets.",
     status: "in_progress",
   },
   {
     id: projectHealthProjectIds.knowledge,
-    companyId,
+    spaceId,
     name: "Knowledge base refresh",
     description: "Turn recurring support questions into clear, searchable product guidance.",
     status: "in_progress",
   },
   {
     id: projectHealthProjectIds.partners,
-    companyId,
+    spaceId,
     name: "Partner integrations",
     description: "Scope the first partner workflows before planning the implementation.",
     status: "planned",
   },
   {
     id: projectHealthProjectIds.developer,
-    companyId,
+    spaceId,
     name: "Developer experience",
     description: "Reduce setup friction and make everyday development feedback faster.",
     status: "backlog",
   },
   {
     id: projectHealthProjectIds.launch,
-    companyId,
+    spaceId,
     name: "Autumn launch",
     description: "Ship the autumn release with a coordinated announcement and support handoff.",
     status: "completed",
@@ -78,7 +78,7 @@ function task(
   const updatedAt = new Date(fixtureNow.getTime() - minutesAgo * 60_000);
   return createIssue({
     id: `project-health-trial-task-${number}`,
-    companyId,
+    spaceId,
     projectId,
     projectWorkspaceId: null,
     project: null,

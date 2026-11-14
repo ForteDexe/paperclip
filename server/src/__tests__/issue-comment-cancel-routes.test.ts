@@ -42,7 +42,7 @@ const mockInstanceSettingsService = vi.hoisted(() => ({
   getExperimental: vi.fn(async () => ({
     enableExternalObjects: false,
   })),
-  listCompanyIds: vi.fn(async () => ["company-1"]),
+  listSpaceIds: vi.fn(async () => ["space-1"]),
 }));
 const mockIssueThreadInteractionService = vi.hoisted(() => ({
   expirePendingInteractionsForTerminalIssue: vi.fn(async () => []),
@@ -132,12 +132,12 @@ function registerModuleMocks() {
   }));
 
   vi.doMock("../services/index.js", () => ({
-    companyService: () => ({
-      getById: vi.fn(async () => ({ id: "company-1" })),
+    spaceService: () => ({
+      getById: vi.fn(async () => ({ id: "space-1" })),
     }),
     accessService: () => mockAccessService,
     agentService: () => ({ getById: vi.fn(async () => null) }),
-    companySkillService: () => ({
+    spaceSkillService: () => ({
       completeTestRunForIssue: vi.fn(async () => null),
     }),
     documentAnnotationService: () => mockDocumentAnnotationService,
@@ -171,7 +171,7 @@ function describeResponse(res: request.Response) {
 function makeIssue() {
   return {
     id: "11111111-1111-4111-8111-111111111111",
-    companyId: "company-1",
+    spaceId: "space-1",
     status: "in_progress",
     assigneeAgentId: "22222222-2222-4222-8222-222222222222",
     assigneeUserId: null,
@@ -182,15 +182,15 @@ function makeIssue() {
 }
 
 const finalDenial = "Only the author of a queued comment can discard it, from that queued message's menu on [PAP-1353](/PAP/issues/PAP-1353). "
-  + "This denial is final: no board, admin or agent override exists, so do not try other routes. Tell the author to discard it there.";
+  + "This denial is final: no operator, admin or agent override exists, so do not try other routes. Tell the author to discard it there.";
 
 function makeComment(overrides: Record<string, unknown> = {}) {
   return {
     id: "comment-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "11111111-1111-4111-8111-111111111111",
     authorAgentId: null,
-    authorUserId: "local-board",
+    authorUserId: "local-operator",
     body: "Queued follow-up",
     createdAt: new Date("2026-04-11T15:01:00.000Z"),
     updatedAt: new Date("2026-04-11T15:01:00.000Z"),
@@ -215,9 +215,9 @@ describe("issue comment cancel routes", () => {
         lastErrorContext = (res as any).__errorContext ?? null;
       });
       (req as any).actor = actor ?? {
-        type: "board",
-        userId: "local-board",
-        companyIds: ["company-1"],
+        type: "operator",
+        userId: "local-operator",
+        spaceIds: ["space-1"],
         source: "local_implicit",
         isInstanceAdmin: false,
       };
@@ -260,7 +260,7 @@ describe("issue comment cancel routes", () => {
         deletedAt: new Date("2026-04-11T15:05:00.000Z"),
         deletedByType: "user",
         deletedByAgentId: null,
-        deletedByUserId: "local-board",
+        deletedByUserId: "local-operator",
         deletedByRunId: null,
       });
       await options?.afterTombstone?.(deleted, "tx");
@@ -279,7 +279,7 @@ describe("issue comment cancel routes", () => {
     });
     mockHeartbeatService.getRun.mockResolvedValue({
       id: "run-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "22222222-2222-4222-8222-222222222222",
       status: "running",
       startedAt: new Date("2026-04-11T15:00:00.000Z"),
@@ -297,7 +297,7 @@ describe("issue comment cancel routes", () => {
     mockInstanceSettingsService.getExperimental.mockResolvedValue({
       enableExternalObjects: false,
     });
-    mockInstanceSettingsService.listCompanyIds.mockResolvedValue(["company-1"]);
+    mockInstanceSettingsService.listSpaceIds.mockResolvedValue(["space-1"]);
     mockLogActivity.mockResolvedValue(undefined);
     mockDocumentAnnotationService.cleanupForIssueCommentDeletion.mockResolvedValue({
       deletedCommentIds: [],
@@ -380,14 +380,14 @@ describe("issue comment cancel routes", () => {
   });
 
   it("tells an agent that discarding a person's queued comment is author-only and final, with the task link", async () => {
-    const agent = { type: "agent", agentId: "22222222-2222-4222-8222-222222222222", companyId: "company-1", runId: "run-1", source: "agent_key" };
+    const agent = { type: "agent", agentId: "22222222-2222-4222-8222-222222222222", spaceId: "space-1", runId: "run-1", source: "agent_key" };
     const res = await request(await installActor(createApp(), agent))
       .delete("/api/issues/11111111-1111-4111-8111-111111111111/queued-comments/comment-1")
       .send({ queueId: "queue-1", revision: "revision-1" });
 
     expect(res.status).toBe(403);
     expect(res.body.error).toBe(finalDenial);
-    expect(res.body.error).not.toBe("Board access required");
+    expect(res.body.error).not.toBe("Operator access required");
     expect(mockIssueService.removeComment).not.toHaveBeenCalled();
   });
 
@@ -395,7 +395,7 @@ describe("issue comment cancel routes", () => {
     mockAccessService.decide.mockImplementation(async ({ action }: { action: string }) => ({
       action, allowed: false, reason: "deny_issue_private", explanation: "Private task",
     }));
-    const agent = { type: "agent", agentId: "33333333-3333-4333-8333-333333333333", companyId: "company-1", runId: "run-9", source: "agent_key" };
+    const agent = { type: "agent", agentId: "33333333-3333-4333-8333-333333333333", spaceId: "space-1", runId: "run-9", source: "agent_key" };
     const res = await request(await installActor(createApp(), agent))
       .delete("/api/issues/11111111-1111-4111-8111-111111111111/queued-comments/comment-1")
       .send({ queueId: "queue-1", revision: "revision-1" });
@@ -406,7 +406,7 @@ describe("issue comment cancel routes", () => {
 
   it("points an author agent at the cancel route it can use instead of claiming no route exists", async () => {
     mockIssueService.getComment.mockResolvedValue(makeComment({ authorUserId: null, authorAgentId: "33333333-3333-4333-8333-333333333333" }));
-    const agent = { type: "agent", agentId: "33333333-3333-4333-8333-333333333333", companyId: "company-1", runId: "run-9", source: "agent_key" };
+    const agent = { type: "agent", agentId: "33333333-3333-4333-8333-333333333333", spaceId: "space-1", runId: "run-9", source: "agent_key" };
     const res = await request(await installActor(createApp(), agent))
       .delete("/api/issues/11111111-1111-4111-8111-111111111111/queued-comments/comment-1")
       .send({ queueId: "queue-1", revision: "revision-1" });
@@ -423,7 +423,7 @@ describe("issue comment cancel routes", () => {
     }));
     mockIssueService.getComment.mockResolvedValue(makeComment({ authorUserId: null, authorAgentId: "33333333-3333-4333-8333-333333333333" }));
     mockIssueService.removeComment.mockResolvedValue(makeComment({ authorUserId: null, authorAgentId: "33333333-3333-4333-8333-333333333333" }));
-    const agent = { type: "agent", agentId: "33333333-3333-4333-8333-333333333333", companyId: "company-1", runId: "run-9", source: "agent_key" };
+    const agent = { type: "agent", agentId: "33333333-3333-4333-8333-333333333333", spaceId: "space-1", runId: "run-9", source: "agent_key" };
     const res = await request(await installActor(createApp(), agent))
       .delete("/api/issues/11111111-1111-4111-8111-111111111111/comments/comment-1?mode=cancel");
 
@@ -444,9 +444,9 @@ describe("issue comment cancel routes", () => {
     expect(mockIssueService.removeComment).not.toHaveBeenCalled();
   });
 
-  it("does not reveal another company's task through the agent queued-comment denial", async () => {
-    mockIssueService.getById.mockResolvedValue({ ...makeIssue(), companyId: "company-2" });
-    const agent = { type: "agent", agentId: "22222222-2222-4222-8222-222222222222", companyId: "company-1", runId: "run-1", source: "agent_key" };
+  it("does not reveal another space's task through the agent queued-comment denial", async () => {
+    mockIssueService.getById.mockResolvedValue({ ...makeIssue(), spaceId: "space-2" });
+    const agent = { type: "agent", agentId: "22222222-2222-4222-8222-222222222222", spaceId: "space-1", runId: "run-1", source: "agent_key" };
     const res = await request(await installActor(createApp(), agent))
       .delete("/api/issues/11111111-1111-4111-8111-111111111111/queued-comments/comment-1")
       .send({ queueId: "queue-1", revision: "revision-1" });
@@ -478,7 +478,7 @@ describe("issue comment cancel routes", () => {
       body: "",
       metadata: null,
       deletedByType: "user",
-      deletedByUserId: "local-board",
+      deletedByUserId: "local-operator",
     });
     expect(JSON.stringify(res.body)).not.toContain("Sensitive original comment body");
     expect(JSON.stringify(res.body)).not.toContain("Sensitive metadata copy");
@@ -488,7 +488,7 @@ describe("issue comment cancel routes", () => {
       {
         actorType: "user",
         agentId: null,
-        userId: "local-board",
+        userId: "local-operator",
         runId: null,
       },
       expect.objectContaining({ afterTombstone: expect.any(Function) }),
@@ -500,14 +500,14 @@ describe("issue comment cancel routes", () => {
       "comment-1",
       expect.objectContaining({
         actorType: "user",
-        userId: "local-board",
+        userId: "local-operator",
       }),
       "tx",
     );
     expect(mockIssueReferenceService.deleteCommentSource).toHaveBeenCalledWith("annotation-comment-1", "tx");
     expect(mockExternalObjectService.syncCommentSafely).toHaveBeenCalledWith("annotation-comment-1", "tx");
     expect(mockDecisionTrainingService.scrubDeletedComments).toHaveBeenCalledWith({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "11111111-1111-4111-8111-111111111111",
       commentIds: ["comment-1", "annotation-comment-1"],
       deletedAt: new Date("2026-04-11T15:05:00.000Z"),
@@ -531,13 +531,13 @@ describe("issue comment cancel routes", () => {
     mockHeartbeatService.getRun.mockResolvedValue(null);
     mockAuthoritativeQueueWakes.push({
       id: "wake-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "22222222-2222-4222-8222-222222222222",
       runId: "run-1",
       status: "succeeded",
       payload: {
         issueId: "11111111-1111-4111-8111-111111111111",
-        _paperclipWakeContext: {
+        _outpostWakeContext: {
           wakeCommentIds: ["comment-1"],
         },
       },

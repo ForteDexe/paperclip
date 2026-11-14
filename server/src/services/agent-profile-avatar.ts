@@ -2,7 +2,7 @@ import { updateAgentConfigurationInTransaction } from "./agent-configuration-tra
 import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import sharp from "sharp";
-import { agents, assets, companies, type Db } from "@outpost/db";
+import { agents, assets, spaces, type Db } from "@outpost/db";
 import { MAX_AGENT_AVATAR_BYTES, resolveAgentAppearance, agentAvatarUrl, setAgentAvatarSchema, type SetAgentAvatarInput } from "@outpost/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
 import type { StorageService } from "../storage/types.js";
@@ -29,10 +29,10 @@ export async function normalizeAgentAvatar(input: string) {
 }
 
 type AvatarActor = Pick<LogActivityInput, "actorType" | "actorId" | "agentId" | "runId" | "agentApiKeyId">;
-export async function setAgentProfileAvatar(db: Db, storage: StorageService, companyId: string, agentId: string, input: SetAgentAvatarInput, actor: AvatarActor) {
+export async function setAgentProfileAvatar(db: Db, storage: StorageService, spaceId: string, agentId: string, input: SetAgentAvatarInput, actor: AvatarActor) {
   const parsed = setAgentAvatarSchema.parse(input);
   // Authorization belongs to the REST/MCP boundary. Validate scope and eligibility before decoding.
-  const [target] = await db.select().from(agents).where(and(eq(agents.id, agentId), eq(agents.companyId, companyId)));
+  const [target] = await db.select().from(agents).where(and(eq(agents.id, agentId), eq(agents.spaceId, spaceId)));
   if (!target) throw notFound("Agent not found");
   if (["terminated", "pending_approval"].includes(target.status)) throw conflict("Agent avatar cannot be updated in its current state");
   const png = parsed.imageBase64 === null ? null : await normalizeAgentAvatar(parsed.imageBase64);
@@ -42,35 +42,35 @@ export async function setAgentProfileAvatar(db: Db, storage: StorageService, com
   try {
     const result = await db.transaction(async tx => {
       const txDb = tx as unknown as Db;
-      const [agent] = await tx.select().from(agents).where(and(eq(agents.id, agentId), eq(agents.companyId, companyId))).for("update");
-      const [company] = await tx.select().from(companies).where(eq(companies.id, companyId));
-      if (!agent || company?.status !== "active" || ["terminated", "pending_approval"].includes(agent.status)) throw conflict("Agent avatar cannot be updated in its current state");
+      const [agent] = await tx.select().from(agents).where(and(eq(agents.id, agentId), eq(agents.spaceId, spaceId))).for("update");
+      const [space] = await tx.select().from(spaces).where(eq(spaces.id, spaceId));
+      if (!agent || space?.status !== "active" || ["terminated", "pending_approval"].includes(agent.status)) throw conflict("Agent avatar cannot be updated in its current state");
       const appearance = resolveAgentAppearance(agent.appearance, agent.id);
       const current = appearance.customAvatarAssetId
-        ? (await tx.select().from(assets).where(and(eq(assets.id, appearance.customAvatarAssetId), eq(assets.companyId, companyId))))[0]
+        ? (await tx.select().from(assets).where(and(eq(assets.id, appearance.customAvatarAssetId), eq(assets.spaceId, spaceId))))[0]
         : null;
       if ((png && current?.sha256 === digest) || (!png && !appearance.customAvatarAssetId)) {
         return { agentId, appearance, avatarUrl: agentAvatarUrl(appearance) };
       }
       delete appearance.customAvatarAssetId;
       if (png) {
-        const stored = await storage.putFile({ companyId, namespace: `agent-avatars/${agentId}`, originalFilename: "avatar.png", contentType: "image/png", body: png });
+        const stored = await storage.putFile({ spaceId, namespace: `agent-avatars/${agentId}`, originalFilename: "avatar.png", contentType: "image/png", body: png });
         newObjectKey = stored.objectKey;
-        const [asset] = await tx.insert(assets).values({ ...stored, companyId, createdByAgentId: agentId,
+        const [asset] = await tx.insert(assets).values({ ...stored, spaceId, createdByAgentId: agentId,
           createdByUserId: actor.actorType === "user" ? actor.actorId : null }).returning();
         appearance.customAvatarAssetId = asset!.id;
       }
       await updateAgentConfigurationInTransaction(txDb, agentId, { appearance }, { recordRevision: {
         createdByAgentId: actor.agentId, createdByUserId: actor.actorType === "user" ? actor.actorId : null, source: "avatar-upload",
       } });
-      await logActivity(txDb, { ...actor, companyId, action: "agent.avatar_updated", entityType: "agent", entityId: agentId,
+      await logActivity(txDb, { ...actor, spaceId, action: "agent.avatar_updated", entityType: "agent", entityId: agentId,
         details: { assetId: appearance.customAvatarAssetId ?? null, byteSize: png?.length ?? 0 } }, publications);
       return { agentId, appearance, avatarUrl: agentAvatarUrl(appearance) };
     });
     publications.forEach(publishActivity);
     return result;
   } catch (error) {
-    if (newObjectKey) await storage.deleteObject(companyId, newObjectKey).catch(() => {});
+    if (newObjectKey) await storage.deleteObject(spaceId, newObjectKey).catch(() => {});
     throw error;
   }
 }

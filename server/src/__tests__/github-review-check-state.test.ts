@@ -24,32 +24,32 @@ describe("GitHub review lookups by source comment and delivery", () => {
     const f = await seedGitHubReviewCheck(db);
     const other = await seedGitHubReviewWait(db);
     const otherAgentId = randomUUID(), at = (seconds: number) => new Date(Date.now() + seconds * 1_000);
-    await db.insert(agents).values({ id: otherAgentId, companyId: f.companyId, name: "Other", adapterType: "process" });
+    await db.insert(agents).values({ id: otherAgentId, spaceId: f.spaceId, name: "Other", adapterType: "process" });
     // A delivery link without a comment cannot select a run.
-    await db.insert(chatMessageLinks).values({ companyId: f.companyId, endpointId: f.endpointId,
+    await db.insert(chatMessageLinks).values({ spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: f.conversationId, deliveryId: f.chatDeliveryId, providerMessageId: "outbound-reply", direction: "outbound" });
     await db.insert(heartbeatRuns).values([
-      // Same comment, but another agent or company: never the review's run.
-      { companyId: f.companyId, agentId: otherAgentId, status: "succeeded", createdAt: at(60),
+      // Same comment, but another agent or space: never the review's run.
+      { spaceId: f.spaceId, agentId: otherAgentId, status: "succeeded", createdAt: at(60),
         contextSnapshot: { wakeCommentId: f.commentId } },
-      { companyId: other.companyId, agentId: other.agentId, status: "succeeded", createdAt: at(60),
+      { spaceId: other.spaceId, agentId: other.agentId, status: "succeeded", createdAt: at(60),
         contextSnapshot: { wakeCommentId: f.commentId } },
       // Text comparison: noncanonical, non-string and list-only values do not match.
-      { companyId: f.companyId, agentId: f.agentId, status: "failed", createdAt: at(60),
+      { spaceId: f.spaceId, agentId: f.agentId, status: "failed", createdAt: at(60),
         contextSnapshot: { wakeCommentId: f.commentId.toUpperCase() } },
-      { companyId: f.companyId, agentId: f.agentId, status: "failed", createdAt: at(60),
+      { spaceId: f.spaceId, agentId: f.agentId, status: "failed", createdAt: at(60),
         contextSnapshot: { wakeCommentId: [f.commentId] } },
-      { companyId: f.companyId, agentId: f.agentId, status: "failed", createdAt: at(60),
+      { spaceId: f.spaceId, agentId: f.agentId, status: "failed", createdAt: at(60),
         contextSnapshot: { wakeCommentIds: [f.commentId] } },
-      { companyId: f.companyId, agentId: f.agentId, status: "failed", createdAt: at(60), contextSnapshot: null },
-      { companyId: f.companyId, agentId: f.agentId, status: "succeeded", createdAt: at(-60),
+      { spaceId: f.spaceId, agentId: f.agentId, status: "failed", createdAt: at(60), contextSnapshot: null },
+      { spaceId: f.spaceId, agentId: f.agentId, status: "succeeded", createdAt: at(-60),
         contextSnapshot: { wakeCommentId: f.commentId } },
     ]);
     expect(await githubReviewCheckState(db, f.action)).toMatchObject({
       disposition: "publish", run: { id: f.wakeRunId, status: "running" }, state: "running", status: "in_progress",
     });
 
-    const [newest] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+    const [newest] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
       status: "succeeded", createdAt: at(120), contextSnapshot: { wakeCommentId: f.commentId } }).returning();
     expect(await githubReviewCheckState(db, f.action)).toMatchObject({
       run: { id: newest!.id, status: "succeeded" }, state: "incomplete", status: "completed",
@@ -67,9 +67,9 @@ describe("GitHub review lookups by source comment and delivery", () => {
     // A run history in which each run was woken by another comment. With its
     // statistics, the planner must prefer the wake-comment index to walking
     // the history by creation time.
-    await db.$client.unsafe(`insert into heartbeat_runs (company_id, agent_id, status, context_snapshot, created_at)
+    await db.$client.unsafe(`insert into heartbeat_runs (space_id, agent_id, status, context_snapshot, created_at)
       select $1::uuid, $2::uuid, 'succeeded', jsonb_build_object('wakeCommentId', gen_random_uuid()::text),
-        now() + make_interval(secs => g) from generate_series(1, 2000) g`, [f.companyId, f.agentId]);
+        now() + make_interval(secs => g) from generate_series(1, 2000) g`, [f.spaceId, f.agentId]);
     await db.$client.unsafe("analyze heartbeat_runs");
     const queries: CapturedReviewWaitQuery[] = [];
     await githubReviewCheckState(captureReviewWaitQueries(db, queries), f.action);
@@ -87,7 +87,7 @@ describe("GitHub review lookups by source comment and delivery", () => {
     const commentsPlan = await plan(comments!), wakeRunPlan = await plan(wakeRun!), inheritedPlan = await plan(inherited!);
     expect(commentsPlan).toContain("chat_deliveries_github_automatic_delivery_idx");
     expect(commentsPlan).toContain("chat_message_links_delivery_idx");
-    expect(wakeRunPlan).toContain("heartbeat_runs_company_wake_comment_idx");
-    expect(inheritedPlan).toContain("chat_message_links_company_comment_idx");
+    expect(wakeRunPlan).toContain("heartbeat_runs_space_wake_comment_idx");
+    expect(inheritedPlan).toContain("chat_message_links_space_comment_idx");
   });
 });

@@ -17,7 +17,7 @@ bash -n scripts/smoke/hermes-gateway-join.sh scripts/smoke/hermes-gateway-e2e.sh
 pnpm test:hermes-gateway-smoke
 ```
 
-`pnpm test:hermes-gateway-smoke` does not start Docker, Hermes, or Paperclip. It
+`pnpm test:hermes-gateway-smoke` does not start Docker, Hermes, or Outpost. It
 checks script help output, shell syntax, redaction helpers, URL slash handling,
 and the non-loopback HTTP guard.
 
@@ -51,7 +51,7 @@ and the non-loopback HTTP guard.
 - Board/operator auth is required through `OUTPOST_AUTH_HEADER`,
   `OUTPOST_COOKIE`, or a board-capable `OUTPOST_API_KEY`.
 - Diagnostic files are redacted before they are written, except the join output
-  file intentionally contains the claimed Paperclip agent key and is written
+  file intentionally contains the claimed Outpost agent key and is written
   `chmod 600`.
 - Successful runs remove the smoke issue, smoke agent, join request, Docker
   container, and per-run local state.
@@ -62,11 +62,11 @@ and the non-loopback HTTP guard.
 
 The smoke has three URLs because different processes need different routes:
 
-- `OUTPOST_API_URL`: Paperclip URL used by the operator shell.
-- `OUTPOST_API_URL_FOR_HERMES`: Paperclip URL used from inside the Hermes
+- `OUTPOST_API_URL`: Outpost URL used by the operator shell.
+- `OUTPOST_API_URL_FOR_HERMES`: Outpost URL used from inside the Hermes
   container or remote Hermes host.
-- `HERMES_GATEWAY_API_BASE_URL`: Hermes gateway URL stored on the Paperclip
-  adapter, reachable by the Paperclip server.
+- `HERMES_GATEWAY_API_BASE_URL`: Hermes gateway URL stored on the Outpost
+  adapter, reachable by the Outpost server.
 - `HERMES_GATEWAY_PROBE_URL`: Hermes gateway URL used by the operator shell for
   direct `/health`, `/v1/capabilities`, `/v1/runs`, and SSE checks.
 
@@ -74,9 +74,9 @@ Loopback HTTP gateway URLs are allowed. Non-loopback HTTP gateway URLs require
 `HERMES_GATEWAY_ALLOW_INSECURE_HTTP=1` and should only be used on local/private
 development networks. Use HTTPS for real remote gateways.
 
-## Docker Desktop or Linux host Paperclip
+## Docker Desktop or Linux host Outpost
 
-Use this when Paperclip runs on the host at `127.0.0.1:3100` and Docker can
+Use this when Outpost runs on the host at `127.0.0.1:3100` and Docker can
 reach the host through `host.docker.internal`.
 
 ```sh
@@ -89,32 +89,32 @@ Linux uses `--add-host=host.docker.internal:host-gateway` by default through
 `HERMES_DOCKER_ADD_HOST=1`. If your Docker setup already provides
 `host.docker.internal`, the same command works.
 
-## Same Docker network as Paperclip
+## Same Docker network as Outpost
 
-Use this when Paperclip is a container on a Docker network and the Hermes smoke
+Use this when Outpost is a container on a Docker network and the Hermes smoke
 container should be reachable by container DNS. The operator shell still probes
 the host-published loopback port.
 
 ```sh
 OUTPOST_API_URL=http://127.0.0.1:3100 \
 OUTPOST_AUTH_HEADER='Bearer <board-token>' \
-HERMES_CONTAINER_NAME=paperclip-hermes-gateway-smoke \
-HERMES_SMOKE_NETWORK=paperclip_default \
+HERMES_CONTAINER_NAME=outpost-hermes-gateway-smoke \
+HERMES_SMOKE_NETWORK=outpost_default \
 HERMES_DOCKER_ADD_HOST=0 \
-HERMES_GATEWAY_API_BASE_URL=http://paperclip-hermes-gateway-smoke:8642 \
+HERMES_GATEWAY_API_BASE_URL=http://outpost-hermes-gateway-smoke:8642 \
 HERMES_GATEWAY_PROBE_URL=http://127.0.0.1:8642 \
-OUTPOST_API_URL_FOR_HERMES=http://paperclip:3100 \
+OUTPOST_API_URL_FOR_HERMES=http://outpost:3100 \
 HERMES_GATEWAY_ALLOW_INSECURE_HTTP=1 \
 pnpm smoke:hermes-gateway-e2e
 ```
 
-Change `paperclip_default` and `paperclip` to your Compose network and service
-name. The unsafe HTTP flag is required because Paperclip stores a non-loopback
+Change `outpost_default` and `outpost` to your Compose network and service
+name. The unsafe HTTP flag is required because Outpost stores a non-loopback
 `http://` gateway URL for private Docker DNS.
 
-## LAN or private-network Paperclip
+## LAN or private-network Outpost
 
-Use this when Paperclip is exposed on a private IP or tailnet address and the
+Use this when Outpost is exposed on a private IP or tailnet address and the
 Hermes container can reach that address.
 
 ```sh
@@ -132,7 +132,7 @@ development, put the Hermes gateway behind TLS and use the reverse-proxy mode.
 
 ## Reverse proxy / TLS
 
-Use this when Paperclip should talk to Hermes through a TLS hostname. The smoke
+Use this when Outpost should talk to Hermes through a TLS hostname. The smoke
 container still publishes a local port, and your reverse proxy forwards the TLS
 hostname to that port.
 
@@ -165,4 +165,4 @@ pnpm smoke:hermes-gateway-join
 For non-loopback private HTTP join-only runs, set
 `HERMES_GATEWAY_ALLOW_INSECURE_HTTP=1`. For Docker DNS or reverse-proxy setups,
 set `HERMES_GATEWAY_PROBE_URL` to the URL reachable from the operator shell and
-`HERMES_GATEWAY_API_BASE_URL` to the URL Paperclip should store on the adapter.
+`HERMES_GATEWAY_API_BASE_URL` to the URL Outpost should store on the adapter.

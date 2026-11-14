@@ -24,7 +24,7 @@ export const connections: Connection[] = [
     repos: [repo("101", "dotta/papercool"), repo("102", "dotta/experiments"), repo("201", "papercool/web")],
   },
   {
-    id: "company", label: "Company GitHub · connected by Sam", usable: true,
+    id: "space", label: "Space GitHub · connected by Sam", usable: true,
     repos: [repo("201", "papercool/web"), repo("202", "papercool/api"), repo("203", "papercool/docs", false),
       ...["design-system", "mobile", "infrastructure", "integrations", "cli", "analytics", "templates", "status", "website", "sdk"].map((name, i) => repo(String(300 + i), `papercool/${name}`)),
       ...Array.from({ length: 48 }, (_, i) => repo(String(400 + i), `papercool/service-${String(i + 1).padStart(2, "0")}`))],

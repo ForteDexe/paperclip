@@ -298,7 +298,7 @@ export const notionExpiredExternalCases = [
         ).connections.length
       )
         throw new Error(
-          "Expired Notion fixture requires a fresh disposable company",
+          "Expired Notion fixture requires a fresh disposable space",
         );
       const pages = await readNotionFixturePages(ctx),
         old = await probeNotionAuthorization(ctx, binding);
@@ -486,7 +486,7 @@ export const notionExpiredExternalCases = [
           String(state.connectionId),
           ctx.issue()!.id,
         );
-        const path = `/${ctx.input.fixtures.company.issuePrefix}/apps/connect`,
+        const path = `/${ctx.input.fixtures.space.issuePrefix}/apps/connect`,
           correct = (href: string) => {
             try {
               const u = new URL(href, ctx.input.api.baseURL);

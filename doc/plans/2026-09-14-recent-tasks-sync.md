@@ -29,7 +29,7 @@ The stored status repeatedly alternated between two values.
   then persist it once in an effect. Preserve an empty migrated list too. Leave
   the independent restart-wake retry key unchanged across the upgrade.
 
-The server and API contracts do not change. The list remains scoped to company
+The server and API contracts do not change. The list remains scoped to space
 and user. This is a local browser cache, not a transactional activity ledger:
 simultaneous read-modify-write operations can still race. Avoiding feedback is
 essential even when such a race delivers an older snapshot to a newer cache.

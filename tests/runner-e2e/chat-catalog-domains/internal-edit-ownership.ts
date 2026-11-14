@@ -18,19 +18,19 @@ export function expectedEditReassignmentCancellation(value: unknown): { runId: s
   const initialRuns = new Set(first.runs.map(run => run.id));
   const source = o.runs.find(run => run.agentId === o.leadId && run.status === "succeeded" && !initialRuns.has(run.id)
     && (run.contextSnapshot?.wakeCommentId === request.id || Array.isArray(run.contextSnapshot?.wakeCommentIds) && run.contextSnapshot.wakeCommentIds.includes(request.id)));
-  const cancelled = o.runs.find(run => run.id === prior.id && run.agentId === riley.id && run.companyId === o.companyId && run.status === "cancelled" && run.errorCode === "issue_reassigned"
+  const cancelled = o.runs.find(run => run.id === prior.id && run.agentId === riley.id && run.spaceId === o.spaceId && run.status === "cancelled" && run.errorCode === "issue_reassigned"
     && (run.contextSnapshot?.issueId === held.id || run.contextSnapshot?.taskId === held.id));
   if (!source || !cancelled || held.assigneeAgentId !== riley.id || held.executionRunId !== prior.id) return;
   const result = record(cancelled.resultJson); const stop = record(result.nativeCancellation); const stoppedAt = Date.parse(String(stop.acknowledgedAt ?? ""));
   if (result.reassignmentStopConfirmed !== true || stop.schema !== "outpost.native-cancellation.v1" || stop.dispatchState !== "acknowledged"
-    || stop.runId !== cancelled.id || stop.issueId !== held.id || stop.companyId !== o.companyId || !Number.isFinite(requestAt) || !Number.isFinite(stoppedAt) || stoppedAt < requestAt) return;
+    || stop.runId !== cancelled.id || stop.issueId !== held.id || stop.spaceId !== o.spaceId || !Number.isFinite(requestAt) || !Number.isFinite(stoppedAt) || stoppedAt < requestAt) return;
   const mutation = o.activity.find(row => row.entityId === held.id && row.agentId === o.leadId && (row as Entity & { runId?: string }).runId === source.id
-    && row.companyId === o.companyId && row.actorType === "agent" && row.actorId === o.leadId
+    && row.spaceId === o.spaceId && row.actorType === "agent" && row.actorId === o.leadId
     && (row.action === "issue.reassigned" && row.details?.changed === true && row.details?.previousAssigneeAgentId === riley.id && row.details?.assigneeAgentId === morgan.id
       || row.action === "issue.updated" && record(row.details?._previous).assigneeAgentId === riley.id && row.details?.assigneeAgentId === morgan.id)
     && Date.parse(row.createdAt ?? "") >= stoppedAt);
   const priority = o.activity.some(row => row.entityId === held.id && row.agentId === o.leadId && (row as Entity & { runId?: string }).runId === source.id && row.action === "issue.updated"
-    && row.companyId === o.companyId && row.actorType === "agent" && row.actorId === o.leadId
+    && row.spaceId === o.spaceId && row.actorType === "agent" && row.actorId === o.leadId
     && row.details?.priority === "high" && Date.parse(row.createdAt ?? "") >= requestAt);
   if (!mutation || !priority || o.currentTask.id !== held.id || o.currentTask.priority !== "high" || o.currentTask.assigneeAgentId !== morgan.id
     || o.currentTask.executionRunId === cancelled.id || o.currentTask.checkoutRunId === cancelled.id || o.tasks.length !== 1 || o.tasks[0]?.id !== held.id
@@ -105,7 +105,7 @@ export function withEditOwnership(primary: ChatCatalogCase): ChatCatalogCase {
       const first = await pollUntil({ label: "Fully validated initial permitted property edit", deadlineAt: chatCatalogNativePhaseDeadline(ctx, Date.now() + 150000),
         load: () => observeInternal(ctx, state), accept: o => chatCatalogNativePhaseIsTimely(ctx) && (o.runs.length === 1 && o.runs[0]?.status === "succeeded" && ctx.issue()?.conversationState === "waiting" && primary.grade(o).passed) });
       state.firstEdit = { ...first, state: structuredClone(state) }; const riley = entity(state, "riley"); const t = entity(state, "task");
-      await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/budgets/policies`, { scopeType: "agent", scopeId: riley.id, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+      await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/policies`, { scopeType: "agent", scopeId: riley.id, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
       gate = await startRunBriefGate(ctx, riley.id);
       try {
         await ctx.input.api.patch(`/api/issues/${t.id}`, { assigneeAgentId: riley.id, priority: "medium", status: "todo",

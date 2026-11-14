@@ -10,10 +10,10 @@ const require = createRequire(path.resolve(import.meta.dirname, "../../server/pa
 const { Client } = await import(require.resolve("@modelcontextprotocol/sdk/client/index.js"));
 const { StreamableHTTPClientTransport } = await import(require.resolve("@modelcontextprotocol/sdk/client/streamableHttp.js"));
 export const origin = `http://127.0.0.1:${process.env.OUTPOST_RUNNER_E2E_PORT ?? process.env.OUTPOST_PUBLIC_MCP_EVAL_PORT ?? 3298}`;
-export const resource = origin + "/mcp/paperclip";
+export const resource = origin + "/mcp/outpost";
 export interface Team { id: string; name: string; issuePrefix: string }
 export interface Agent { id: string; name: string; status: string }
-export interface Task { id: string; companyId: string; title: string; status: string; assigneeAgentId: string | null }
+export interface Task { id: string; spaceId: string; title: string; status: string; assigneeAgentId: string | null }
 export interface Run { id: string; agentId: string; status: string }
 export interface Document { body: string; createdByAgentId: string | null; latestRevisionId: string }
 export interface Comment { id: string; body: string; authorUserId: string | null; authorAgentId: string | null }
@@ -30,14 +30,14 @@ export async function oauthPost(route: string, body: unknown) {
   return fetch(origin + "/mcp/oauth/" + route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 }
 
-export async function beginConnection(write = true, redirect = origin + "/eval-client-callback", configure = false, clientName = "Paperclip acceptance client") {
+export async function beginConnection(write = true, redirect = origin + "/eval-client-callback", configure = false, clientName = "Outpost acceptance client") {
   if (!clientName.trim() || clientName.length > 160 || /[\u0000-\u001f\u007f]/.test(clientName)) throw new Error("Disposable client label is invalid");
   const registration = await oauthPost("register", { client_name: clientName, redirect_uris: [redirect] });
   expect(registration.status, "public client registration").toBe(201);
   const { client_id: clientId } = await registration.json() as { client_id: string };
   const verifier = randomBytes(32).toString("base64url");
   const state = randomBytes(32).toString("base64url");
-  const params = new URLSearchParams({ client_id: clientId, redirect_uri: redirect, response_type: "code", resource, code_challenge: createHash("sha256").update(verifier).digest("base64url"), code_challenge_method: "S256", state, scope: `paperclip:read ${write ? "paperclip:write " : ""}${configure ? "paperclip:configure " : ""}offline_access` });
+  const params = new URLSearchParams({ client_id: clientId, redirect_uri: redirect, response_type: "code", resource, code_challenge: createHash("sha256").update(verifier).digest("base64url"), code_challenge_method: "S256", state, scope: `outpost:read ${write ? "outpost:write " : ""}${configure ? "outpost:configure " : ""}offline_access` });
   const response = await fetch(origin + "/mcp/oauth/authorize?" + params, { redirect: "manual" });
   expect(response.status, "authorization request").toBe(303);
   const consentUrl = response.headers.get("location")!;
@@ -47,7 +47,7 @@ export async function beginConnection(write = true, redirect = origin + "/eval-c
 export async function connect(context: BrowserContext, team: Team, write = true, page?: Page, secrets: string[] = [], configure = false,
   options: { requestedWrite?: boolean; inspectConsent?: (page: Page) => Promise<void> } = {}) {
   // A real assistant callback has its own origin. A same-origin fake callback
-  // would be intercepted by Paperclip's service worker and render the board.
+  // would be intercepted by Outpost's service worker and render the board.
   const callbackServer = page ? createServer((_req, res) => { res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" }); res.end("<h1>Assistant connected</h1>"); }) : undefined;
   if (callbackServer) { callbackServer.listen(0, "127.0.0.1"); await once(callbackServer, "listening"); }
   const address = callbackServer?.address();
@@ -57,11 +57,11 @@ export async function connect(context: BrowserContext, team: Team, write = true,
   let redirectUrl: string;
   if (page) {
     await page.goto(request.consentUrl);
-    await expect(page.getByRole("heading", { name: /^Connect .+ to Paperclip$/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Connect .+ to Outpost$/ })).toBeVisible();
     await page.getByRole("radio", { name: team.name, exact: true }).check();
-    if (write || configure) await page.getByRole("checkbox", { name: "Write all of your Paperclip data", exact: true }).check();
+    if (write || configure) await page.getByRole("checkbox", { name: "Write all of your Outpost data", exact: true }).check();
     if (!write && !configure && options.requestedWrite) {
-      const writes = page.getByRole("checkbox", { name: "Write all of your Paperclip data", exact: true });
+      const writes = page.getByRole("checkbox", { name: "Write all of your Outpost data", exact: true });
       if (await writes.isEnabled()) await writes.uncheck();
     }
     await options.inspectConsent?.(page);
@@ -71,7 +71,7 @@ export async function connect(context: BrowserContext, team: Team, write = true,
     // Leave the secret-bearing callback before any later assertions/evidence.
     await page.goto(origin + "/assistant-connections");
   } else {
-    ({ redirectUrl } = await api<{ redirectUrl: string }>(context, "POST", `/api/mcp/requests/${request.requestId}/consent`, { decision: "approve", companyId: team.id, allowWrites: write, allowConfiguration: configure }));
+    ({ redirectUrl } = await api<{ redirectUrl: string }>(context, "POST", `/api/mcp/requests/${request.requestId}/consent`, { decision: "approve", spaceId: team.id, allowWrites: write, allowConfiguration: configure }));
   }
   const callback = new URL(redirectUrl);
   secrets.push(request.verifier, callback.searchParams.get("code") ?? "");
@@ -88,7 +88,7 @@ export async function connect(context: BrowserContext, team: Team, write = true,
 }
 
 export async function mcp(tokens: Tokens) {
-  const client = new Client({ name: "paperclip-product-eval", version: "1.0.0" });
+  const client = new Client({ name: "outpost-product-eval", version: "1.0.0" });
   await client.connect(new StreamableHTTPClientTransport(new URL(resource), { requestInit: { headers: { Authorization: `Bearer ${tokens.access_token}` } } }));
   return {
     list: async (options?: { signal?: AbortSignal }) => await client.listTools({}, options) as { tools: Array<{ name: string; description: string; inputSchema: Record<string, unknown>; annotations: { readOnlyHint: boolean } }> },
@@ -112,7 +112,7 @@ export async function mcpEventRpc(tokens: Tokens, method: string, args: Record<s
   return body.result;
 }
 
-export interface ReceivedTaskEvent { eventId: string; name: string; timestamp: string; data: { companyId: string; taskId: string; status?: string }; cursor: null }
+export interface ReceivedTaskEvent { eventId: string; name: string; timestamp: string; data: { spaceId: string; taskId: string; status?: string }; cursor: null }
 interface EventReceiver {
   url: string; secret: string; events: ReceivedTaskEvent[]; readonly verified: number;
   readonly duplicateCount: number; startupAttempts: number; startupFailures: string[]; close: () => Promise<void>;

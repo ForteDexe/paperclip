@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } from "./helpers/full-database-response-capture.js";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -17,48 +17,48 @@ import {
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
 const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_EVENT_SEQUENCING_TEST_DATABASE_URL");
-async function clearExternalFixture(db: ReturnType<typeof createDb>, companyId: string) {
+async function clearExternalFixture(db: ReturnType<typeof createDb>, spaceId: string) {
   if (!externalUrl) return;
-  await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.companyId, companyId));
-  await db.delete(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
-  await db.delete(agents).where(eq(agents.companyId, companyId));
-  await db.delete(companies).where(eq(companies.id, companyId));
+  await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.spaceId, spaceId));
+  await db.delete(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId));
+  await db.delete(agents).where(eq(agents.spaceId, spaceId));
+  await db.delete(spaces).where(eq(spaces.id, spaceId));
 }
 
 describe("P6-11..13 / P6-17 canonical event allocator", () => {
   it("keeps native cursor responses bounded with long histories and a late gap fill", async () => {
-    const temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-cursor-budget-");
+    const temporary = await startEmbeddedPostgresTestDatabase("outpost-native-cursor-budget-");
     const db = createDb(temporary.connectionString);
-    const companyId = "20000000-0000-4000-8000-000000000001";
+    const spaceId = "20000000-0000-4000-8000-000000000001";
     const agentId = "20000000-0000-4000-8000-000000000002";
     const runId = "20000000-0000-4000-8000-000000000003";
     const otherRunId = "20000000-0000-4000-8000-000000000004";
     try {
-      await db.insert(companies).values({ id: companyId, name: "Cursor budget", issuePrefix: "CBG" });
-      await db.insert(agents).values({ id: agentId, companyId, name: "Cursor agent" });
+      await db.insert(spaces).values({ id: spaceId, name: "Cursor budget", issuePrefix: "CBG" });
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Cursor agent" });
       await db.insert(heartbeatRuns).values([
-        { id: runId, companyId, agentId, status: "running", nextEventSeq: 5005 },
-        { id: otherRunId, companyId, agentId, status: "running" },
+        { id: runId, spaceId, agentId, status: "running", nextEventSeq: 5005 },
+        { id: otherRunId, spaceId, agentId, status: "running" },
       ]);
       for (let batch = 0; batch < 10; batch += 1) {
         await db.insert(heartbeatRunEvents).values(Array.from({ length: 500 }, (_, index) => {
           const seq = batch * 500 + index + 1;
-          return { companyId, agentId, runId, seq, eventType: "item.delta", sourceInstanceId: "runner-a",
+          return { spaceId, agentId, runId, seq, eventType: "item.delta", sourceInstanceId: "runner-a",
             sourceSeq: seq, sourceEventId: `seed:${seq}` };
         }));
       }
       await db.insert(heartbeatRunEvents).values([
         ...[-1, 0, null].map((sourceSeq, index) => ({
-          companyId, agentId, runId, seq: 5001 + index, eventType: "item.delta",
+          spaceId, agentId, runId, seq: 5001 + index, eventType: "item.delta",
           sourceInstanceId: "runner-a", sourceSeq, sourceEventId: `legacy:${index}`,
         })),
-        { companyId, agentId, runId, seq: 5004, eventType: "item.delta", sourceInstanceId: "runner-b",
+        { spaceId, agentId, runId, seq: 5004, eventType: "item.delta", sourceInstanceId: "runner-b",
           sourceSeq: 5001, sourceEventId: "other-source:5001" },
-        { companyId, agentId, runId: otherRunId, seq: 1, eventType: "item.delta", sourceInstanceId: "runner-a",
+        { spaceId, agentId, runId: otherRunId, seq: 1, eventType: "item.delta", sourceInstanceId: "runner-a",
           sourceSeq: 5001, sourceEventId: "other-run:5001" },
       ]);
       const append = (sourceSeq: number) => appendHeartbeatRunEvent(db, {
-        companyId, agentId, runId, eventType: "item.delta", payload: { sourceSeq },
+        spaceId, agentId, runId, eventType: "item.delta", payload: { sourceSeq },
         nativeSource: { sourceInstanceId: "runner-a", sourceSeq, sourceEventId: `runner-a:${sourceSeq}`,
           protocolSchemaVersion: 1, canonicalPayload: { sourceSeq } },
       });
@@ -83,24 +83,24 @@ describe("P6-11..13 / P6-17 canonical event allocator", () => {
   }, 60_000);
 
   it.each([false, true])("deduplicates concurrent retry exhaustion (historical receipt: %s)", async (historical) => {
-    const temporary = externalUrl ? undefined : await startEmbeddedPostgresTestDatabase("paperclip-exhaustion-events-");
+    const temporary = externalUrl ? undefined : await startEmbeddedPostgresTestDatabase("outpost-exhaustion-events-");
     const db = createDb(externalUrl ?? temporary!.connectionString);
     const otherDb = createDb(externalUrl ?? temporary!.connectionString);
-    const companyId = "20000000-0000-4000-8000-000000000001";
+    const spaceId = "20000000-0000-4000-8000-000000000001";
     const agentId = "20000000-0000-4000-8000-000000000002";
     const runId = "20000000-0000-4000-8000-000000000003";
     const otherRunId = "20000000-0000-4000-8000-000000000004";
     const exhaustion = { retryReason: "transient_failure", scheduledRetryAttempt: 2, maxAttempts: 2 };
     const event = {
-      companyId, agentId, runId, eventType: "lifecycle",
+      spaceId, agentId, runId, eventType: "lifecycle",
       message: "Bounded retry exhausted after 2 scheduled attempts; no further automatic retry will be queued",
       payload: exhaustion,
     };
     try {
-      await db.insert(companies).values({ id: companyId, name: "Exhaustion fixture", issuePrefix: "EXH" });
-      await db.insert(agents).values({ id: agentId, companyId, name: "Exhaustion agent" });
+      await db.insert(spaces).values({ id: spaceId, name: "Exhaustion fixture", issuePrefix: "EXH" });
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Exhaustion agent" });
       await db.insert(heartbeatRuns).values([runId, otherRunId].map((id) => ({
-        id, companyId, agentId, status: "failed",
+        id, spaceId, agentId, status: "failed",
       })));
       if (historical) {
         // Old builds wrote ordinary lifecycle rows with no new idempotency field.
@@ -136,10 +136,10 @@ describe("P6-11..13 / P6-17 canonical event allocator", () => {
         .where(eq(heartbeatRunEvents.runId, runId)).orderBy(heartbeatRunEvents.seq);
       expect(rows.map((row) => row.seq)).toEqual([1, 2, 3, 4]);
       await expect(appendHeartbeatRunEvent(db, {
-        ...event, companyId: "20000000-0000-4000-8000-000000000099", retryExhaustion: exhaustion,
+        ...event, spaceId: "20000000-0000-4000-8000-000000000099", retryExhaustion: exhaustion,
       })).rejects.toThrow("heartbeat_run_event_binding_mismatch");
     } finally {
-      await clearExternalFixture(db, companyId);
+      await clearExternalFixture(db, spaceId);
       await otherDb.$client.end({ timeout: 1 });
       await db.$client.end({ timeout: 1 });
       await temporary?.cleanup();
@@ -147,18 +147,18 @@ describe("P6-11..13 / P6-17 canonical event allocator", () => {
   }, 60_000);
 
   it("serializes concurrent writers and rejects conflicting replay without cursor drift", async () => {
-    const temporary = externalUrl ? undefined : await startEmbeddedPostgresTestDatabase("paperclip-native-events-");
+    const temporary = externalUrl ? undefined : await startEmbeddedPostgresTestDatabase("outpost-native-events-");
     const db = createDb(externalUrl ?? temporary!.connectionString);
-    const companyId = "20000000-0000-4000-8000-000000000001";
+    const spaceId = "20000000-0000-4000-8000-000000000001";
     const agentId = "20000000-0000-4000-8000-000000000002";
     const runId = "20000000-0000-4000-8000-000000000003";
     try {
-      await db.insert(companies).values({ id: companyId, name: "Allocator fixture", issuePrefix: "SEQ" });
-      await db.insert(agents).values({ id: agentId, companyId, name: "Allocator agent" });
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running" });
+      await db.insert(spaces).values({ id: spaceId, name: "Allocator fixture", issuePrefix: "SEQ" });
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Allocator agent" });
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running" });
       const eventTypes = ["heartbeat.started", "run.cancel.requested", "item.completed", "stdout"];
       const writes = Array.from({ length: 32 }, (_, index) => appendHeartbeatRunEvent(db, {
-        companyId,
+        spaceId,
         runId,
         agentId,
         eventType: eventTypes[index % eventTypes.length]!,
@@ -185,7 +185,7 @@ describe("P6-11..13 / P6-17 canonical event allocator", () => {
       const legacyWrites = Array.from({ length: 16 }, (_, index) => (async () => {
         const seq = await allocateHeartbeatRunEventSeq(db, runId);
         await db.insert(heartbeatRunEvents).values({
-          companyId,
+          spaceId,
           runId,
           agentId,
           seq,
@@ -203,7 +203,7 @@ describe("P6-11..13 / P6-17 canonical event allocator", () => {
 
       const original = rows.find((row) => row.sourceEventId === "source-event-1")!;
       await expect(appendHeartbeatRunEvent(db, {
-        companyId,
+        spaceId,
         runId,
         agentId,
         eventType: original.eventType,
@@ -218,7 +218,7 @@ describe("P6-11..13 / P6-17 canonical event allocator", () => {
         },
       })).resolves.toEqual(expect.objectContaining({ disposition: "duplicate" }));
       await expect(appendHeartbeatRunEvent(db, {
-        companyId,
+        spaceId,
         runId,
         agentId,
         eventType: "item.failed",
@@ -232,24 +232,24 @@ describe("P6-11..13 / P6-17 canonical event allocator", () => {
       })).rejects.toBeInstanceOf(HeartbeatRunEventConflictError);
       expect(await db.select().from(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, runId))).toHaveLength(48);
     } finally {
-      await clearExternalFixture(db, companyId);
+      await clearExternalFixture(db, spaceId);
       await db.$client.end({ timeout: 1 });
       await temporary?.cleanup();
     }
   }, 60_000);
 
   it("reports the highest contiguous source seq per source instance across gaps and late arrivals", async () => {
-    const temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-cursor-");
+    const temporary = await startEmbeddedPostgresTestDatabase("outpost-native-cursor-");
     const db = createDb(temporary.connectionString);
-    const companyId = "20000000-0000-4000-8000-000000000001";
+    const spaceId = "20000000-0000-4000-8000-000000000001";
     const agentId = "20000000-0000-4000-8000-000000000002";
     const runId = "20000000-0000-4000-8000-000000000003";
     try {
-      await db.insert(companies).values({ id: companyId, name: "Cursor fixture", issuePrefix: "CUR" });
-      await db.insert(agents).values({ id: agentId, companyId, name: "Cursor agent" });
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running" });
+      await db.insert(spaces).values({ id: spaceId, name: "Cursor fixture", issuePrefix: "CUR" });
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Cursor agent" });
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running" });
       const append = async (sourceInstanceId: string, sourceSeq: number) => (await appendHeartbeatRunEvent(db, {
-        companyId,
+        spaceId,
         runId,
         agentId,
         eventType: "item.delta",

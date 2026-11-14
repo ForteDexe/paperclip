@@ -6,7 +6,7 @@ import { environmentLeases, executionWorkspaceRestorePoints, executionWorkspaces
   projectWorkspaces, withDedicatedDbConnection, workspaceRuntimeServices, type Db } from "@outpost/db";
 import type { StoredSecretVersionMaterial } from "../secrets/types.js";
 import type { StorageService } from "../storage/types.js";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 import { openRestorePoint, sealRestorePoint, verifyRestorePointPayloadCandidate } from "./git-restore-point.js";
 import { notifyGitRestorePointWork } from "./git-restore-point-ledger.js";
 import { abandonGitRestorePoint, activateGitRestorePoints, readRestorePointObject, storeSealedRestorePoint } from "./git-restore-point-storage.js";
@@ -95,7 +95,7 @@ export function isRetryableTaskDirectorySkip(reason: string | null) {
 }
 
 async function instanceRoot() {
-  return fs.realpath(resolvePaperclipInstanceRoot()).catch(() => null);
+  return fs.realpath(resolveOutpostInstanceRoot()).catch(() => null);
 }
 
 export async function isolatedTaskDirectoriesRoot() {
@@ -103,10 +103,10 @@ export async function isolatedTaskDirectoriesRoot() {
   return root ? path.join(root, "isolated-workspaces") : null;
 }
 
-export async function canonicalTaskDirectory(companyId: string, issueId: string) {
-  if (!IDENTITY.test(companyId) || !IDENTITY.test(issueId)) return null;
+export async function canonicalTaskDirectory(spaceId: string, issueId: string) {
+  if (!IDENTITY.test(spaceId) || !IDENTITY.test(issueId)) return null;
   const root = await isolatedTaskDirectoriesRoot();
-  return root ? path.join(root, companyId, issueId) : null;
+  return root ? path.join(root, spaceId, issueId) : null;
 }
 
 export function mayBeIsolatedTaskDirectoryWorkspace(workspace: Pick<Workspace, "sourceIssueId" | "strategyType" | "providerType" | "repoUrl" | "branchName" | "cwd" | "providerRef" | "mode">) {
@@ -116,19 +116,19 @@ export function mayBeIsolatedTaskDirectoryWorkspace(workspace: Pick<Workspace, "
     && (workspace.mode === "isolated_workspace" || workspace.mode === "shared_workspace");
 }
 
-export async function isIsolatedTaskDirectoryWorkspace(workspace: Pick<Workspace, "companyId" | "sourceIssueId" | "strategyType" | "providerType" | "repoUrl" | "branchName" | "cwd" | "providerRef" | "mode">) {
+export async function isIsolatedTaskDirectoryWorkspace(workspace: Pick<Workspace, "spaceId" | "sourceIssueId" | "strategyType" | "providerType" | "repoUrl" | "branchName" | "cwd" | "providerRef" | "mode">) {
   if (!mayBeIsolatedTaskDirectoryWorkspace(workspace)) return false;
-  return workspace.cwd === await canonicalTaskDirectory(workspace.companyId, workspace.sourceIssueId!);
+  return workspace.cwd === await canonicalTaskDirectory(workspace.spaceId, workspace.sourceIssueId!);
 }
 
-function restorePointObjectKey(companyId: string, workspaceId: string, generation: number, id: string) {
-  return `${companyId}/${NAMESPACE}/${workspaceId}/${generation}/task-directory/${id}.pcrp`;
+function restorePointObjectKey(spaceId: string, workspaceId: string, generation: number, id: string) {
+  return `${spaceId}/${NAMESPACE}/${workspaceId}/${generation}/task-directory/${id}.pcrp`;
 }
 
-export function validateTaskDirectoryRestorePointRef(ref: TaskDirectoryRestorePointRef | null | undefined, workspace: { companyId: string; id: string }) {
+export function validateTaskDirectoryRestorePointRef(ref: TaskDirectoryRestorePointRef | null | undefined, workspace: { spaceId: string; id: string }) {
   if (!ref || ref.schema !== TASK_DIRECTORY_RESTORE_POINT_SCHEMA || typeof ref.id !== "string" || !UUID.test(ref.id)
     || !Number.isSafeInteger(ref.generation) || ref.generation < 1
-    || ref.objectKey !== restorePointObjectKey(workspace.companyId, workspace.id, ref.generation, ref.id)
+    || ref.objectKey !== restorePointObjectKey(workspace.spaceId, workspace.id, ref.generation, ref.id)
     || !/^[0-9a-f]{64}$/.test(ref.sha256) || !/^[0-9a-f]{64}$/.test(ref.digest)
     || !Number.isSafeInteger(ref.byteSize) || ref.byteSize <= 0 || ref.byteSize > MAX_RESTORE_POINT_BYTES
     || !ref.key || typeof ref.key !== "object" || Array.isArray(ref.key)) {
@@ -142,18 +142,18 @@ export function validateTaskDirectoryRestorePointRef(ref: TaskDirectoryRestorePo
  * as ordinary restore, and never treats an expired object as an empty folder. */
 export async function loadTaskDirectoryRestorePoint(input: {
   storage: StorageService;
-  workspace: { companyId: string; id: string };
+  workspace: { spaceId: string; id: string };
   ref: TaskDirectoryRestorePointRef;
   recoverMissingEmpty?: boolean;
   signal?: AbortSignal;
 }) {
   const ref = validateTaskDirectoryRestorePointRef(input.ref, input.workspace);
   if (ref.expiredAt) throw new TaskDirectoryRestoreFailure("restore_point_expired");
-  const identity = { companyId: input.workspace.companyId, workspaceId: input.workspace.id, restorePointId: ref.id, generation: ref.generation };
-  const ciphertext = await readRestorePointObject(input.storage, input.workspace.companyId, ref.objectKey, input.signal).catch(async () => {
+  const identity = { spaceId: input.workspace.spaceId, workspaceId: input.workspace.id, restorePointId: ref.id, generation: ref.generation };
+  const ciphertext = await readRestorePointObject(input.storage, input.workspace.spaceId, ref.objectKey, input.signal).catch(async () => {
     input.signal?.throwIfAborted();
     if (!input.recoverMissingEmpty || ref.files !== 0 || ref.excluded !== 0) throw new TaskDirectoryRestoreFailure("restore_point_unavailable");
-    const head = await input.storage.headObject(input.workspace.companyId, ref.objectKey, { signal: input.signal }).catch(() => null);
+    const head = await input.storage.headObject(input.workspace.spaceId, ref.objectKey, { signal: input.signal }).catch(() => null);
     input.signal?.throwIfAborted();
     if (head?.exists !== false) throw new TaskDirectoryRestoreFailure("restore_point_unavailable");
     const candidate = createEmptyTaskDirectorySnapshot();
@@ -196,7 +196,7 @@ async function exists(target: string) {
 }
 
 async function issueBoundToWorkspace(db: Db | Parameters<Parameters<Db["transaction"]>[0]>[0], workspace: Workspace) {
-  const [bound] = await db.select({ id: issues.id }).from(issues).where(and(eq(issues.companyId, workspace.companyId),
+  const [bound] = await db.select({ id: issues.id }).from(issues).where(and(eq(issues.spaceId, workspace.spaceId),
     eq(issues.id, workspace.sourceIssueId!), eq(issues.executionWorkspaceId, workspace.id)));
   return Boolean(bound);
 }
@@ -204,9 +204,9 @@ async function issueBoundToWorkspace(db: Db | Parameters<Parameters<Db["transact
 async function storeTaskDirectoryRestorePoint(db: Db, storage: StorageService, workspace: Workspace, generation: number,
   captured: Awaited<ReturnType<typeof captureTaskDirectorySnapshot>>, signal?: AbortSignal) {
   const id = randomUUID();
-  const sealed = await sealRestorePoint(captured.payload, { companyId: workspace.companyId, workspaceId: workspace.id, restorePointId: id, generation });
-  const objectKey = restorePointObjectKey(workspace.companyId, workspace.id, generation, id);
-  const ledgerId = await storeSealedRestorePoint({ db, storage, workspace: { companyId: workspace.companyId, id: workspace.id,
+  const sealed = await sealRestorePoint(captured.payload, { spaceId: workspace.spaceId, workspaceId: workspace.id, restorePointId: id, generation });
+  const objectKey = restorePointObjectKey(workspace.spaceId, workspace.id, generation, id);
+  const ledgerId = await storeSealedRestorePoint({ db, storage, workspace: { spaceId: workspace.spaceId, id: workspace.id,
     sourceIssueId: workspace.sourceIssueId }, generation, checkoutName: "", objectKey, sealed, signal });
   const ref: TaskDirectoryRestorePointRef = { schema: TASK_DIRECTORY_RESTORE_POINT_SCHEMA, id, objectKey, sha256: sealed.sha256,
     byteSize: sealed.ciphertext.length, key: sealed.key, generation, digest: captured.digest, files: captured.files, excluded: captured.excluded };
@@ -233,12 +233,12 @@ export async function expireIsolatedTaskDirectory(db: Db, snapshot: Workspace, o
     if (!options.restorePoint.keyDurable) return { ...result, skipReason: "restore_point_key_not_durable" };
   }
   try {
-    return await withIsolatedRepositorySourceLock(db, snapshot.companyId, snapshot.sourceIssueId!, () =>
+    return await withIsolatedRepositorySourceLock(db, snapshot.spaceId, snapshot.sourceIssueId!, () =>
       withDedicatedDbConnection(db, connection => connection.transaction(async tx => {
         const acquired = await tx.execute<{ locked: boolean }>(sql`select pg_try_advisory_xact_lock(hashtextextended(${`execution_workspace_lifecycle:${snapshot.id}`}, 0)) as locked`);
         if (!acquired[0]?.locked) throw new Error("lifecycle_busy");
         let [workspace] = await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, snapshot.id),
-          eq(executionWorkspaces.companyId, snapshot.companyId)));
+          eq(executionWorkspaces.spaceId, snapshot.spaceId)));
         if (!workspace || workspace.updatedAt.getTime() !== snapshot.updatedAt.getTime()) throw new Error("workspace_changed");
         if (!await issueBoundToWorkspace(tx, workspace)) throw new Error("issue_not_bound");
         if (!await isGitWorkspaceExpirationEligible(tx, workspace, options.now, undefined, { closedSiblingsAllowed: true })) {
@@ -271,7 +271,7 @@ export async function expireIsolatedTaskDirectory(db: Db, snapshot: Workspace, o
           pending = null;
           if (!closed) {
             await logActivity(db, {
-              companyId: workspace!.companyId,
+              spaceId: workspace!.spaceId,
               actorType: "system",
               actorId: "workspace_terminality_reaper",
               action: "execution_workspace.task_directory_archived",
@@ -325,7 +325,7 @@ export async function expireIsolatedTaskDirectory(db: Db, snapshot: Workspace, o
         }).where(and(eq(executionWorkspaces.id, workspace.id),
           sql`${executionWorkspaces.metadata}->${TASK_DIRECTORY_RETENTION_KEY}->'restorePoint'->>'objectKey' = ${state.restorePoint.objectKey}`));
         await logActivity(db, {
-          companyId: workspace.companyId,
+          spaceId: workspace.spaceId,
           actorType: "system",
           actorId: "workspace_terminality_reaper",
           action: "execution_workspace.task_directory_removed",
@@ -361,7 +361,7 @@ export async function supersedeTaskDirectoryRestorePoint(tx: Parameters<Paramete
 
 export async function restoreIsolatedTaskDirectory(input: {
   storage: StorageService;
-  workspace: Pick<Workspace, "id" | "companyId" | "sourceIssueId" | "strategyType" | "providerType" | "repoUrl" | "branchName" | "cwd" | "providerRef" | "mode" | "metadata">;
+  workspace: Pick<Workspace, "id" | "spaceId" | "sourceIssueId" | "strategyType" | "providerType" | "repoUrl" | "branchName" | "cwd" | "providerRef" | "mode" | "metadata">;
   signal?: AbortSignal;
 }): Promise<{ restored: boolean; expired: boolean }> {
   const state = readTaskDirectoryRetention(input.workspace);
@@ -397,7 +397,7 @@ export async function restoreIsolatedTaskDirectory(input: {
 }
 
 export type TaskDirectoryFolderResult = {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   outcome: "removed" | "preserved_and_removed" | "dry_run" | "skipped";
   reason: string | null;
@@ -411,14 +411,14 @@ export type TaskDirectoryFolderResult = {
 
 type IssueTree = { exists: boolean; open: boolean; closedAt: Date | null };
 
-async function issueTreeState(db: Db, companyId: string, issueId: string): Promise<IssueTree> {
+async function issueTreeState(db: Db, spaceId: string, issueId: string): Promise<IssueTree> {
   const rows = await db.execute<{ total: number; open: number; closed_at: string | Date | null }>(sql`
     WITH RECURSIVE tree AS (
       SELECT id, status, completed_at, cancelled_at, updated_at FROM ${issues}
-      WHERE company_id = ${companyId} AND id = ${issueId}
+      WHERE space_id = ${spaceId} AND id = ${issueId}
       UNION
       SELECT c.id, c.status, c.completed_at, c.cancelled_at, c.updated_at FROM ${issues} c
-      JOIN tree p ON c.parent_id = p.id WHERE c.company_id = ${companyId}
+      JOIN tree p ON c.parent_id = p.id WHERE c.space_id = ${spaceId}
     )
     SELECT count(*)::int AS total,
       count(*) FILTER (WHERE status NOT IN ('done', 'cancelled'))::int AS open,
@@ -436,8 +436,8 @@ async function folderRows(db: Db, folder: string) {
     sql`left(${executionWorkspaces.providerRef}, length(${folder}) + 1) = ${folder} || '/'`));
 }
 
-async function orphanConsumer(db: Db, companyId: string, issueId: string, folder: string) {
-  const scope = { companyId, sourceIssueId: issueId, id: "00000000-0000-0000-0000-000000000000", cwd: folder } as Workspace;
+async function orphanConsumer(db: Db, spaceId: string, issueId: string, folder: string) {
+  const scope = { spaceId, sourceIssueId: issueId, id: "00000000-0000-0000-0000-000000000000", cwd: folder } as Workspace;
   const rows = await db.execute<{ reason: string | null }>(sql`${expirationScope(scope)}
     SELECT CASE
       WHEN EXISTS (SELECT 1 FROM ${projectWorkspaces} WHERE cwd = ${folder} OR left(cwd, length(${folder}) + 1) = ${folder} || '/') THEN 'project_workspace'
@@ -445,16 +445,16 @@ async function orphanConsumer(db: Db, companyId: string, issueId: string, folder
         AND (cwd = ${folder} OR left(cwd, length(${folder}) + 1) = ${folder} || '/')) THEN 'live_runtime_service'
       WHEN EXISTS (SELECT 1 FROM relevant_runs WHERE status NOT IN ('succeeded', 'failed', 'timed_out', 'cancelled', 'interrupted')
         OR finished_at IS NULL OR controller_lease_expires_at > now()) THEN 'live_run'
-      WHEN EXISTS (SELECT 1 FROM ${nativeRunFinalizations} f WHERE f.company_id = ${companyId}
+      WHEN EXISTS (SELECT 1 FROM ${nativeRunFinalizations} f WHERE f.space_id = ${spaceId}
         AND (f.issue_id IN (SELECT id FROM tree) OR f.run_id IN (SELECT id FROM relevant_runs))
         AND (f.lease_owner IS NOT NULL OR f.phase NOT IN ('committed', 'terminal_failure'))) THEN 'unsettled_finalization'
-      WHEN EXISTS (SELECT 1 FROM ${environmentLeases} l WHERE l.company_id = ${companyId}
+      WHEN EXISTS (SELECT 1 FROM ${environmentLeases} l WHERE l.space_id = ${spaceId}
         AND (l.heartbeat_run_id IN (SELECT id FROM relevant_runs) OR l.issue_id IN (SELECT id FROM tree)
           OR l.execution_workspace_id IN (SELECT w.id FROM ${executionWorkspaces} w WHERE w.cwd = ${folder} OR w.provider_ref = ${folder}
             OR left(w.cwd, length(${folder}) + 1) = ${folder} || '/' OR left(w.provider_ref, length(${folder}) + 1) = ${folder} || '/'))
         AND (l.status = 'pending_cleanup' OR l.cleanup_status = 'failed' OR l.metadata ? 'nativeWorkspaceExportResume'
           OR (l.released_at IS NULL AND NOT coalesce(l.status = 'retained' AND l.lease_policy = 'reuse_by_environment' AND l.cleanup_status = 'success', false)))) THEN 'live_lease'
-      WHEN EXISTS (SELECT 1 FROM ${issueRecoveryActions} WHERE company_id = ${companyId}
+      WHEN EXISTS (SELECT 1 FROM ${issueRecoveryActions} WHERE space_id = ${spaceId}
         AND source_issue_id IN (SELECT id FROM tree) AND status IN ('active', 'escalated')) THEN 'recovery_action'
       ELSE NULL END AS reason`);
   return rows[0]?.reason ?? null;
@@ -479,16 +479,16 @@ type FolderSweepOptions = {
 const CONSUMER_SKIPS = new Set(["live_workspace", "retention_pending", "project_workspace", "live_runtime_service", "live_run",
   "unsettled_finalization", "live_lease", "recovery_action"]);
 
-async function inspectTaskDirectoryFolder(db: Db, companyId: string, name: string, options: FolderSweepOptions): Promise<TaskDirectoryFolderResult | null> {
+async function inspectTaskDirectoryFolder(db: Db, spaceId: string, name: string, options: FolderSweepOptions): Promise<TaskDirectoryFolderResult | null> {
   const nowMs = options.now.getTime();
   const root = await isolatedTaskDirectoriesRoot();
   if (!root) return null;
-  const companyDir = path.join(root, companyId);
-  const folder = path.join(companyDir, name);
-  const result: TaskDirectoryFolderResult = { companyId, issueId: name, outcome: "skipped", reason: null, candidateBytes: 0, reclaimedBytes: 0 };
+  const spaceDir = path.join(root, spaceId);
+  const folder = path.join(spaceDir, name);
+  const result: TaskDirectoryFolderResult = { spaceId, issueId: name, outcome: "skipped", reason: null, candidateBytes: 0, reclaimedBytes: 0 };
   const retry = (at: number) => { result.retryAt = result.retryAt === undefined ? at : Math.min(result.retryAt, at); };
   try {
-    if (!UUID.test(name) || !UUID.test(companyId)) throw new Error("unrecognized_task_directory_name");
+    if (!UUID.test(name) || !UUID.test(spaceId)) throw new Error("unrecognized_task_directory_name");
     const stat = await fs.lstat(folder).catch((error: NodeJS.ErrnoException) => {
       if (error.code === "ENOENT") return null;
       throw error;
@@ -499,8 +499,8 @@ async function inspectTaskDirectoryFolder(db: Db, companyId: string, name: strin
     if (rows.some(row => !["archived", "cleanup_failed"].includes(row.status) || row.closedAt === null)) return null;
     if (rows.some(row => hasPendingTaskDirectoryRetention(row))) throw new Error("retention_pending");
     const [issue] = await db.select({ id: issues.id, executionWorkspaceId: issues.executionWorkspaceId }).from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.id, name)));
-    const tree = issue ? await issueTreeState(db, companyId, name) : { exists: false, open: false, closedAt: null };
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.id, name)));
+    const tree = issue ? await issueTreeState(db, spaceId, name) : { exists: false, open: false, closedAt: null };
     if (tree.exists && (tree.open || !tree.closedAt)) throw new Error("issue_open");
     const bound = issue ? rows.find(row => row.id === issue.executionWorkspaceId) : undefined;
     if (bound) {
@@ -527,20 +527,20 @@ async function inspectTaskDirectoryFolder(db: Db, companyId: string, name: strin
       retry(newest + options.orphanGraceMs);
       throw new Error("recently_modified");
     }
-    await withIsolatedRepositorySourceLock(db, companyId, name, async () => {
+    await withIsolatedRepositorySourceLock(db, spaceId, name, async () => {
       if (await directoryState(folder) !== "present") throw new Error("task_directory_changed");
       const current = await folderRows(db, folder);
       if (current.some(row => !["archived", "cleanup_failed"].includes(row.status) || row.closedAt === null)) throw new Error("live_workspace");
       if (current.some(row => hasPendingTaskDirectoryRetention(row))) throw new Error("retention_pending");
       const [currentIssue] = await db.select({ executionWorkspaceId: issues.executionWorkspaceId }).from(issues)
-        .where(and(eq(issues.companyId, companyId), eq(issues.id, name)));
+        .where(and(eq(issues.spaceId, spaceId), eq(issues.id, name)));
       if (Boolean(currentIssue) !== Boolean(issue) || (currentIssue && currentIssue.executionWorkspaceId !== issue!.executionWorkspaceId)) {
         throw new Error("task_directory_changed");
       }
-      const consumer = await orphanConsumer(db, companyId, name, folder);
+      const consumer = await orphanConsumer(db, spaceId, name, folder);
       if (consumer) throw new Error(consumer);
       if (tree.exists) {
-        const latest = await issueTreeState(db, companyId, name);
+        const latest = await issueTreeState(db, spaceId, name);
         if (latest.open || !latest.closedAt || latest.closedAt.getTime() + options.orphanGraceMs > nowMs) throw new Error("issue_open");
       }
       result.candidateBytes = await allocatedBytes(folder, () => { options.signal?.throwIfAborted(); return true; }).catch(() => 0);
@@ -566,12 +566,12 @@ async function inspectTaskDirectoryFolder(db: Db, companyId: string, name: strin
   return result;
 }
 
-export async function inspectIsolatedTaskDirectoryFolders(db: Db, folders: Array<{ companyId: string; issueId: string }>, options: FolderSweepOptions) {
+export async function inspectIsolatedTaskDirectoryFolders(db: Db, folders: Array<{ spaceId: string; issueId: string }>, options: FolderSweepOptions) {
   const results: TaskDirectoryFolderResult[] = [];
   for (const folder of folders) {
     options.signal?.throwIfAborted();
-    if (!IDENTITY.test(folder.companyId) || !IDENTITY.test(folder.issueId)) continue;
-    const result = await inspectTaskDirectoryFolder(db, folder.companyId, folder.issueId, options);
+    if (!IDENTITY.test(folder.spaceId) || !IDENTITY.test(folder.issueId)) continue;
+    const result = await inspectTaskDirectoryFolder(db, folder.spaceId, folder.issueId, options);
     if (result) results.push(result);
   }
   return results;
@@ -588,20 +588,20 @@ export async function sweepIsolatedTaskDirectories(db: Db, options: FolderSweepO
   if (!root) return { results, next: null, retryAt };
   const rootStat = await fs.lstat(root).catch(() => null);
   if (!rootStat || !rootStat.isDirectory() || rootStat.isSymbolicLink()) return { results, next: null, retryAt };
-  const [afterCompany, afterIssue] = options.after?.split("/") ?? [];
+  const [afterSpace, afterIssue] = options.after?.split("/") ?? [];
   let inspected = 0;
   let lastPosition: string | null = null;
-  for (const companyId of await listDirectory(root)) {
-    if (!IDENTITY.test(companyId)) continue;
-    const companyDir = path.join(root, companyId);
-    for (const name of await listDirectory(companyDir)) {
+  for (const spaceId of await listDirectory(root)) {
+    if (!IDENTITY.test(spaceId)) continue;
+    const spaceDir = path.join(root, spaceId);
+    for (const name of await listDirectory(spaceDir)) {
       options.signal?.throwIfAborted();
-      if (afterCompany !== undefined && (companyId < afterCompany || (companyId === afterCompany && name <= afterIssue!))) continue;
+      if (afterSpace !== undefined && (spaceId < afterSpace || (spaceId === afterSpace && name <= afterIssue!))) continue;
       if (inspected >= limit) return { results, next: lastPosition, retryAt };
       inspected += 1;
-      lastPosition = `${companyId}/${name}`;
+      lastPosition = `${spaceId}/${name}`;
       if (TRASH.test(name)) {
-        const folder = path.join(companyDir, name);
+        const folder = path.join(spaceDir, name);
         const stat = await fs.lstat(folder).catch(() => null);
         if (!stat || options.dryRun) continue;
         const touched = Math.max(stat.mtimeMs, stat.ctimeMs);
@@ -609,7 +609,7 @@ export async function sweepIsolatedTaskDirectories(db: Db, options: FolderSweepO
         await removeTaskDirectoryTree(folder).catch(() => retry(nowMs + TASK_DIRECTORY_RETRY_MS));
         continue;
       }
-      const result = await inspectTaskDirectoryFolder(db, companyId, name, options);
+      const result = await inspectTaskDirectoryFolder(db, spaceId, name, options);
       if (result) results.push(result);
     }
   }
@@ -617,30 +617,30 @@ export async function sweepIsolatedTaskDirectories(db: Db, options: FolderSweepO
 }
 
 export async function taskDirectoryFoldersForHints(db: Db, hints: { workspaceIds: string[]; issueIds: string[] }) {
-  const folders = new Map<string, { companyId: string; issueId: string }>();
+  const folders = new Map<string, { spaceId: string; issueId: string }>();
   const workspaceIds = hints.workspaceIds.filter(id => UUID.test(id));
   const issueIds = hints.issueIds.filter(id => UUID.test(id));
   if (workspaceIds.length > 0) {
-    const rows = await db.select({ companyId: executionWorkspaces.companyId, sourceIssueId: executionWorkspaces.sourceIssueId })
+    const rows = await db.select({ spaceId: executionWorkspaces.spaceId, sourceIssueId: executionWorkspaces.sourceIssueId })
       .from(executionWorkspaces).where(and(inArray(executionWorkspaces.id, workspaceIds),
         inArray(executionWorkspaces.status, ["archived", "cleanup_failed"]), eq(executionWorkspaces.strategyType, "project_primary")));
-    for (const row of rows) if (row.sourceIssueId) folders.set(`${row.companyId}/${row.sourceIssueId}`, { companyId: row.companyId, issueId: row.sourceIssueId });
+    for (const row of rows) if (row.sourceIssueId) folders.set(`${row.spaceId}/${row.sourceIssueId}`, { spaceId: row.spaceId, issueId: row.sourceIssueId });
   }
   if (issueIds.length > 0) {
-    const rows = await db.execute<{ id: string; company_id: string }>(sql`
+    const rows = await db.execute<{ id: string; space_id: string }>(sql`
       WITH RECURSIVE closed_up AS (
-        SELECT id, parent_id, company_id, 0 AS depth FROM ${issues}
+        SELECT id, parent_id, space_id, 0 AS depth FROM ${issues}
         WHERE id IN (${sql.join(issueIds.map(id => sql`${id}::uuid`), sql`, `)}) AND status IN ('done', 'cancelled')
         UNION
-        SELECT p.id, p.parent_id, p.company_id, c.depth + 1 FROM ${issues} p
-        JOIN closed_up c ON p.id = c.parent_id AND p.company_id = c.company_id WHERE c.depth < 64
+        SELECT p.id, p.parent_id, p.space_id, c.depth + 1 FROM ${issues} p
+        JOIN closed_up c ON p.id = c.parent_id AND p.space_id = c.space_id WHERE c.depth < 64
       )
-      SELECT DISTINCT id, company_id FROM closed_up`);
-    for (const row of rows) folders.set(`${row.company_id}/${row.id}`, { companyId: row.company_id, issueId: row.id });
+      SELECT DISTINCT id, space_id FROM closed_up`);
+    for (const row of rows) folders.set(`${row.space_id}/${row.id}`, { spaceId: row.space_id, issueId: row.id });
   }
-  const present: Array<{ companyId: string; issueId: string }> = [];
+  const present: Array<{ spaceId: string; issueId: string }> = [];
   for (const folder of folders.values()) {
-    const target = await canonicalTaskDirectory(folder.companyId, folder.issueId);
+    const target = await canonicalTaskDirectory(folder.spaceId, folder.issueId);
     if (target && await exists(target)) present.push(folder);
   }
   return present;

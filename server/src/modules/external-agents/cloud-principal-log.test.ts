@@ -126,7 +126,7 @@ describe("Dot private principal actual HTTP logger boundary", () => {
               headers: {
                 "content-type": "application/json",
                 "content-length": String(wire.length),
-                "x-paperclip-cloud-control": assertion,
+                "x-outpost-cloud-control": assertion,
                 "x-sdk-private": bearer,
               },
             },
@@ -171,7 +171,7 @@ describe("Dot private principal actual HTTP logger boundary", () => {
     },
   );
 
-  it.each(["/mcp/oauth/token", "/mcp/paperclip"])(
+  it.each(["/mcp/oauth/token", "/mcp/outpost"])(
     "preserves existing MCP raw failure redaction at %s",
     async (path) => {
       const chunks: string[] = [];

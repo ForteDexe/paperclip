@@ -225,7 +225,7 @@ async function assertActiveExpiry(candidate = false) {
   // session.open before the provider admission deadline it exercises.
   // Never renew this authority after setup or the active-turn witness.
   const lifetimeMs = 45_000;
-  const candidateAdmission = candidate ? bindAcpxCandidateAdmission({ schema: "outpost.acpx-candidate-admission.v1", companyId: "company-expiry",
+  const candidateAdmission = candidate ? bindAcpxCandidateAdmission({ schema: "outpost.acpx-candidate-admission.v1", spaceId: "space-expiry",
     agent: "antigravity", model: "gemini-3.8-flash-low", profileDigest: profiles.profiles.antigravity.commandDigest,
     nativeClosureDigest: `sha256:${ANTIGRAVITY_DISTRIBUTION_PINS["darwin-arm64"].closureSha256}`,
     platform: "darwin", architecture: "arm64", expiresAt: Date.now() + lifetimeMs }, identity) : undefined;

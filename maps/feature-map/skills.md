@@ -29,7 +29,7 @@ Open `/skills`, Discover, or `/skills/sources`; project import is available thro
 Agent API discovery distinguishes importing existing SKILL.md content from
 creating newly authored content. The source-import entry documents allowed local
 skill directories and supported remote sources without changing source checks or
-company skill policy. Its [protocol regression](../../server/src/__tests__/skill-import-discovery.test.ts)
+space skill policy. Its [protocol regression](../../server/src/__tests__/skill-import-discovery.test.ts)
 checks discovery and metadata delivery, not a completed agent import journey.
 
 ### `studio`
@@ -43,7 +43,7 @@ Studio test is separate.
 
 Use skill policy/agent selection in the library or an agent’s Skills tab.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a harmless skill fixture and test agent with skill support. Record whether the source is local, bundled, project, or remote.
 
@@ -61,7 +61,7 @@ Manual: Create or fork a disposable skill, edit instructions, save, and reload. 
 
 ### `agent-enablement`
 
-Automated: [policy service](../../server/src/__tests__/company-skill-policy-service.test.ts) and [agent skill routes](../../server/src/__tests__/agent-skills-routes.test.ts) cover the retained compatibility contracts.
+Automated: [policy service](../../server/src/__tests__/space-skill-policy-service.test.ts) and [agent skill routes](../../server/src/__tests__/agent-skills-routes.test.ts) cover the retained compatibility contracts.
 
 The [version-cache regression](../../server/src/__tests__/skill-version-cache.test.ts)
 checks that listing assignments does not create repository caches, validate every
@@ -76,14 +76,14 @@ checks this round trip and retention of explicit historical pins.
 Manual: Enable the skill for one test agent and leave another without access. Run a small task on each, inspect the available skill context, then change the release/policy and verify the next eligible run uses the intended version.
 
 A Outpost Runner run with no selected skills must proceed while another run
-holds the company skill-cache lock. A saved empty selection remains empty after
+holds the space skill-cache lock. A saved empty selection remains empty after
 later assignments. Selected skills and the legacy operational skill retain cache
 exclusion through version pinning. The [configuration regression](../../server/src/__tests__/heartbeat-execution-configuration.test.ts)
 uses a real PostgreSQL lock; live provider latency remains a separate check.
 
-Concurrent selected-skill preparations share one in-flight company inventory
+Concurrent selected-skill preparations share one in-flight space inventory
 refresh before cache locking. Each run retains its own selection and durable
-version pins. The [concurrency regression](../../server/src/__tests__/company-skills-runtime-concurrency.test.ts)
+version pins. The [concurrency regression](../../server/src/__tests__/space-skills-runtime-concurrency.test.ts)
 checks shared work and separate actor access; the cache tests check that cleanup
 cannot remove a snapshot before the run stores its pins.
 
@@ -142,7 +142,7 @@ Capability ID: `skills/testing`.
 Scope: ui
 Storybook: Studio test inputs/configuration, running, question/approval, result and failed test states.
 Production: Run bounded test of actual saved version with correct selected account/environment; inspect persisted test detail and eligible interaction response.
-Sources: Source: [SkillStudio.tsx](../../ui/src/pages/SkillStudio.tsx), [companySkills.ts](../../ui/src/api/companySkills.ts). Tests: [SkillStudio.test.tsx](../../ui/src/pages/SkillStudio.test.tsx), [company-skill-test-runs-service.test.ts](../../server/src/__tests__/company-skill-test-runs-service.test.ts)
+Sources: Source: [SkillStudio.tsx](../../ui/src/pages/SkillStudio.tsx), [spaceSkills.ts](../../ui/src/api/spaceSkills.ts). Tests: [SkillStudio.test.tsx](../../ui/src/pages/SkillStudio.test.tsx), [space-skill-test-runs-service.test.ts](../../server/src/__tests__/space-skill-test-runs-service.test.ts)
 
 ### Documentation scope: Skills, Skill Studio, and teams
 

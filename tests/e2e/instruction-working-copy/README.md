@@ -19,6 +19,6 @@ pnpm exec playwright test --config tests/e2e/instruction-working-copy/playwright
 The browser checks completed tasks across two turns, exact saved bytes through
 the agent-file API, the next process's restored contents, each run's save receipt,
 and private-copy cleanup. The fixture refuses non-loopback servers and requires
-its dedicated company. Screenshots and failure traces are in
+its dedicated space. Screenshots and failure traces are in
 `test-results/instruction-working-copy`. Stop the launcher with Ctrl-C; its
 isolated data remains available for inspection.

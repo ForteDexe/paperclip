@@ -51,12 +51,12 @@ export function runEndedOnCard(run: RunLike): boolean {
  * answer or at least two choices, or an ordinary accept/decline confirmation). Governed tool,
  * secret and connection approvals are excluded; their cases grade those workflows directly.
  */
-export function turnResponseCards(input: { companyId: string; leadId: string; runs: readonly RunLike[]; interactions: readonly unknown[] }): TurnResponseCard[] {
+export function turnResponseCards(input: { spaceId: string; leadId: string; runs: readonly RunLike[]; interactions: readonly unknown[] }): TurnResponseCard[] {
   const runs = new Set(input.runs.filter(run => run.agentId === input.leadId && runEndedOnCard(run)).map(run => run.id));
   const cards: TurnResponseCard[] = [];
   for (const value of input.interactions) {
     const row = record(value);
-    if (!row || typeof row.id !== "string" || row.status !== "pending" || row.companyId !== input.companyId
+    if (!row || typeof row.id !== "string" || row.status !== "pending" || row.spaceId !== input.spaceId
       || row.createdByAgentId !== input.leadId || row.createdByUserId || typeof row.sourceRunId !== "string" || !runs.has(row.sourceRunId)
       || row.dismissedAt || !chatCatalogHumanQuestionPolicies(row)) continue;
     const payload = record(row.payload);

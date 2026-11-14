@@ -17,22 +17,22 @@ afterEach(async () => {
 });
 
 async function seed(sql: postgres.Sql) {
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   const issueId = randomUUID();
   const commentId = randomUUID();
   const userId = `chat-user-${randomUUID()}`;
-  await sql`INSERT INTO companies (id, name, issue_prefix) VALUES (${companyId}, 'Chat migration', 'CHM')`;
-  await sql`INSERT INTO agents (id, company_id, name, role, adapter_type) VALUES (${agentId}, ${companyId}, 'Chat agent', 'engineer', 'process')`;
+  await sql`INSERT INTO spaces (id, name, issue_prefix) VALUES (${spaceId}, 'Chat migration', 'CHM')`;
+  await sql`INSERT INTO agents (id, space_id, name, role, adapter_type) VALUES (${agentId}, ${spaceId}, 'Chat agent', 'engineer', 'process')`;
   await sql`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
     VALUES (${userId}, 'Chat user', ${`${userId}@example.test`}, true, now(), now())`;
-  await sql`INSERT INTO issues (id, company_id, title, assignee_agent_id, status,
+  await sql`INSERT INTO issues (id, space_id, title, assignee_agent_id, status,
     conversation_agent_id, conversation_user_id, conversation_state, conversation_session_generation, conversation_boundary_comment_id)
-    VALUES (${issueId}, ${companyId}, 'Preserved chat', ${agentId}, 'in_review',
+    VALUES (${issueId}, ${spaceId}, 'Preserved chat', ${agentId}, 'in_review',
       ${agentId}, ${userId}, 'waiting', 7, ${commentId})`;
-  await sql`INSERT INTO issue_comments (id, company_id, issue_id, author_user_id, body, client_request_id, conversation_session_generation)
-    VALUES (${commentId}, ${companyId}, ${issueId}, ${userId}, 'Preserved conversation history', 'first-message', 7)`;
-  return { companyId, agentId, issueId, commentId, userId };
+  await sql`INSERT INTO issue_comments (id, space_id, issue_id, author_user_id, body, client_request_id, conversation_session_generation)
+    VALUES (${commentId}, ${spaceId}, ${issueId}, ${userId}, 'Preserved conversation history', 'first-message', 7)`;
+  return { spaceId, agentId, issueId, commentId, userId };
 }
 
 async function assertConstraints(sql: postgres.Sql, row: Awaited<ReturnType<typeof seed>>) {
@@ -46,20 +46,20 @@ async function assertConstraints(sql: postgres.Sql, row: Awaited<ReturnType<type
     await expect(sql`UPDATE issues SET ${sql(update)} WHERE id = ${row.issueId}`)
       .rejects.toMatchObject({ code: "23514", constraint_name: "issues_conversation_identity_check" });
   }
-  await expect(sql`INSERT INTO issues (company_id, title, assignee_agent_id, status, conversation_agent_id, conversation_user_id, conversation_state)
-    VALUES (${row.companyId}, 'Duplicate conversation', ${row.agentId}, 'in_review', ${row.agentId}, ${row.userId}, 'waiting')`)
+  await expect(sql`INSERT INTO issues (space_id, title, assignee_agent_id, status, conversation_agent_id, conversation_user_id, conversation_state)
+    VALUES (${row.spaceId}, 'Duplicate conversation', ${row.agentId}, 'in_review', ${row.agentId}, ${row.userId}, 'waiting')`)
     .rejects.toMatchObject({ code: "23505", constraint_name: "issues_conversation_identity_idx" });
-  await expect(sql`INSERT INTO issue_comments (company_id, issue_id, author_user_id, body, client_request_id)
-    VALUES (${row.companyId}, ${row.issueId}, ${row.userId}, 'Duplicate message', 'first-message')`)
+  await expect(sql`INSERT INTO issue_comments (space_id, issue_id, author_user_id, body, client_request_id)
+    VALUES (${row.spaceId}, ${row.issueId}, ${row.userId}, 'Duplicate message', 'first-message')`)
     .rejects.toMatchObject({ code: "23505", constraint_name: "issue_comments_client_request_uq" });
-  await sql`INSERT INTO issues (company_id, title, assignee_agent_id, status, conversation_agent_id, conversation_user_id, conversation_state)
-    VALUES (${row.companyId}, 'Other person conversation', ${row.agentId}, 'in_review', ${row.agentId}, 'other-person', 'waiting')`;
-  await sql`INSERT INTO issues (company_id, title, status) VALUES (${row.companyId}, 'Ordinary completed task', 'done')`;
+  await sql`INSERT INTO issues (space_id, title, assignee_agent_id, status, conversation_agent_id, conversation_user_id, conversation_state)
+    VALUES (${row.spaceId}, 'Other person conversation', ${row.agentId}, 'in_review', ${row.agentId}, 'other-person', 'waiting')`;
+  await sql`INSERT INTO issues (space_id, title, status) VALUES (${row.spaceId}, 'Ordinary completed task', 'done')`;
 }
 
 describePostgres("persistent agent chat migration", () => {
   it("applies to a fresh database and enforces conversation identity and message retry uniqueness", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-chat-migration-fresh-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-chat-migration-fresh-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     try {
@@ -70,7 +70,7 @@ describePostgres("persistent agent chat migration", () => {
   }, 30_000);
 
   it("replays over pre-release columns and constraints without losing history or weakening the state guard", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-chat-migration-replay-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-chat-migration-replay-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     try {
@@ -85,8 +85,8 @@ describePostgres("persistent agent chat migration", () => {
       await sql.unsafe(legacyGuard);
       const legacyNullIds = [randomUUID(), randomUUID()];
       for (const [index, status] of ["in_review", "in_progress"].entries()) {
-        await sql`INSERT INTO issues (id, company_id, title, assignee_agent_id, status, conversation_agent_id, conversation_user_id, conversation_state)
-          VALUES (${legacyNullIds[index]!}, ${row.companyId}, 'Legacy null state', ${row.agentId}, ${status}, ${row.agentId}, ${`legacy-null-${index}`}, NULL)`;
+        await sql`INSERT INTO issues (id, space_id, title, assignee_agent_id, status, conversation_agent_id, conversation_user_id, conversation_state)
+          VALUES (${legacyNullIds[index]!}, ${row.spaceId}, 'Legacy null state', ${row.agentId}, ${status}, ${row.agentId}, ${`legacy-null-${index}`}, NULL)`;
       }
 
       await sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash = ${migrationHash}`;

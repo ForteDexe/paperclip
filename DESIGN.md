@@ -22,7 +22,7 @@ Existing tiers already in index.css (~80+ tokens) — extraction maps to these o
 
 1. **Semantic tier** — shadcn core set: `--background`, `--foreground`, `--card`, `--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`, `--border`, `--input`, `--ring`, `--sidebar-*`, `--chart-1..5` (OKLCH, light/dark overrides).
 2. **Brand tier** — agent gradients `--agent-1a/1b..10a/10b` (fixed hex) and status hues `--status-task-*` / `--status-agent-*` (WCAG-tuned; see inline comments).
-3. **Domain tier** — match-chip tokens `--chip-match-*`, annotation highlights `--paperclip-doc-annotation-highlight-*`, plus motion/typography tokens.
+3. **Domain tier** — match-chip tokens `--chip-match-*`, annotation highlights `--outpost-doc-annotation-highlight-*`, plus motion/typography tokens.
 
 ## Principles
 
@@ -585,7 +585,7 @@ and full page consume the same `TaskList` collection.
 - Sidebar navigation labels use `sm` (14px). Icons match Paper and the existing
   sidebar mappings: CircleCheck, MessageCircle, FolderOpen, Repeat, Package,
   Users, Boxes, Unplug and History. The Space and account controls mount
-  `SidebarCompanyMenu` and `SidebarAccountMenu` directly, preserving their
+  `SidebarSpaceMenu` and `SidebarAccountMenu` directly, preserving their
   production keyboard behavior and actions, with the shared refreshed flyout
   appearance. Switching fixture
   Spaces changes the selection and never shows another Space's tasks.
@@ -675,10 +675,10 @@ Recents appears only when it contains entries, without an empty state.
 
 `useTaskListCollection` in `ui/src/hooks/` is the shared presentation controller
 for the proposed task page and reproduction trial. Supply accessible `items`,
-the selected `companyId`, current `userId`, an isolated `viewStorageKey`, and
+the selected `spaceId`, current `userId`, an isolated `viewStorageKey`, and
 optionally `initialQuery`. Feed its query/view/layout/filter handlers to
 `TaskListToolbar`, its `creators` directly to the Creator filter, and its
-`visibleItems`, `companyItems` and expansion state to `TaskList`. Boards consume
+`visibleItems`, `spaceItems` and expansion state to `TaskList`. Boards consume
 `matchingItems`: contextual parents belong in the hierarchical list only.
 The caller owns data loading and mutations; this hook does not authorize data
 access, define server permissions, or integrate production persistence.
@@ -688,7 +688,7 @@ and agent IDs coincide. Search includes task IDs, titles, creator, assignee,
 project and tags. Changing query, view or filters expands matching families so
 results cannot remain hidden behind collapsed ancestors. Clear resets search,
 filters and view, while keeping the chosen layout. View storage remains isolated
-by the caller's scope/user key. Company changes scope tasks and creator options
+by the caller's scope/user key. Space changes scope tasks and creator options
 and start with expanded families.
 
 The reproduction story now uses this controller too. It is a repaired regression
@@ -875,8 +875,8 @@ Use the worktree-local isolated config and database. For a desktop visual review
 without building the agent runner, the documented direct API/UI dev path is:
 
 ```sh
-OUTPOST_CONFIG="$PWD/.paperclip/config.json" \
-OUTPOST_HOME="$PWD/.paperclip-local" \
+OUTPOST_CONFIG="$PWD/.outpost/config.json" \
+OUTPOST_HOME="$PWD/.outpost-local" \
 OUTPOST_INSTANCE_ID=design-system-sandbox \
 OUTPOST_UI_DEV_MIDDLEWARE=true \
 VITE_OUTPOST_DESIGN_SANDBOX=true \
@@ -1073,7 +1073,7 @@ header controls. Sources is a separate destination available through the Skills
 New menu's Manage sources action; it is not a tab. The main Space navigation
 stays visible. Legacy Skills navigation retains its existing sidebar.
 
-The streamlined My Skills landing (`/skills/studio`) mounts the same CompanySkills
+The streamlined My Skills landing (`/skills/studio`) mounts the same SpaceSkills
 collection, SkillsToolbar and DiscoveryGrid/SkillCard as Installed and Discover.
 It keeps the existing installed-skill collection, defaults to Recently updated,
 and opens cards directly in Studio. Search, source filtering, scanning, import,

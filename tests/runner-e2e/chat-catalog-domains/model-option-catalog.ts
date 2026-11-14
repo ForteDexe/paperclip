@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { RuntimeAgent } from "./runtime-support.js";
 export interface DiscoveredModel { id: string; label: string }
-export interface OpenRouterCatalogScope { companyId: string; leadId: string; workerId: string; environmentId: string; currentModel: string; credentialReferenceSha256: string }
+export interface OpenRouterCatalogScope { spaceId: string; leadId: string; workerId: string; environmentId: string; currentModel: string; credentialReferenceSha256: string }
 function credentialReference(agent: RuntimeAgent) {
   const env = agent.adapterConfig?.env as Record<string, unknown> | undefined;
   const value = env?.OPENROUTER_API_KEY as { type?: unknown; secretId?: unknown; version?: unknown; projectionClass?: unknown; projectionAllowlistKey?: unknown } | undefined;
@@ -13,17 +13,17 @@ function credentialReference(agent: RuntimeAgent) {
     ...(value.projectionClass !== undefined ? { projectionClass: value.projectionClass } : {}),
     ...(value.projectionAllowlistKey !== undefined ? { projectionAllowlistKey: value.projectionAllowlistKey } : {}) };
 }
-export function openRouterCatalogScope(companyId: string, leadId: string, worker: RuntimeAgent, lead: RuntimeAgent): OpenRouterCatalogScope | undefined {
+export function openRouterCatalogScope(spaceId: string, leadId: string, worker: RuntimeAgent, lead: RuntimeAgent): OpenRouterCatalogScope | undefined {
   const a = credentialReference(worker), b = credentialReference(lead), environmentId = worker.defaultEnvironmentId;
-  if (worker.companyId !== companyId || lead.companyId !== companyId || lead.id !== leadId || worker.id === leadId
+  if (worker.spaceId !== spaceId || lead.spaceId !== spaceId || lead.id !== leadId || worker.id === leadId
     || worker.adapterType !== "outpost_runner" || lead.adapterType !== "outpost_runner" || worker.adapterConfig?.provider !== "opencode" || lead.adapterConfig?.provider !== "opencode"
     || !environmentId || environmentId !== lead.defaultEnvironmentId || typeof worker.adapterConfig.model !== "string" || !worker.adapterConfig.model.startsWith("openrouter/")
     || worker.adapterConfig.model !== lead.adapterConfig.model || !a || !b || JSON.stringify(a) !== JSON.stringify(b)) return;
-  return { companyId, leadId, workerId: worker.id, environmentId, currentModel: worker.adapterConfig.model,
+  return { spaceId, leadId, workerId: worker.id, environmentId, currentModel: worker.adapterConfig.model,
     credentialReferenceSha256: createHash("sha256").update(JSON.stringify(a)).digest("hex") };
 }
-export function publicOpenRouterCatalogEndpoint(companyId: string) {
-  return `/api/companies/${encodeURIComponent(companyId)}/adapters/opencode_local/models?provider=openrouter`;
+export function publicOpenRouterCatalogEndpoint(spaceId: string) {
+  return `/api/spaces/${encodeURIComponent(spaceId)}/adapters/opencode_local/models?provider=openrouter`;
 }
 function normalized(id: string) { return id.toLowerCase().replace(/^openrouter\//, ""); }
 export function observedModelChoices(reply: string) {

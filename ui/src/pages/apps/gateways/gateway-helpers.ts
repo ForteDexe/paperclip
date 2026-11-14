@@ -72,7 +72,7 @@ function shortId(value: string | null | undefined): string | null {
   return value.length > 12 ? `${value.slice(0, 8)}…` : value;
 }
 
-/** Prosumer "Scope" label — Company / Project · X / Agent · X. */
+/** Prosumer "Scope" label — Space / Project · X / Agent · X. */
 export function formatScope(
   gateway: ToolMcpGatewayWithTokens,
   projectNames: Map<string, string>,
@@ -126,7 +126,7 @@ export type GatewayAppRow = {
 
 /**
  * Derive the "Apps in this gateway" list from the bound profile's include
- * entries, joined to the company's applications and connections. Missing
+ * entries, joined to the space's applications and connections. Missing
  * credentials / unreachable servers surface through the connection health
  * status, mirroring the connection-level "Needs attention" contract — the
  * gateway does not own a separate credential store.

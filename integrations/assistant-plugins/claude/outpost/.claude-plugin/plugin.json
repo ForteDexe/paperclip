@@ -1,0 +1,14 @@
+{
+  "name": "outpost",
+  "version": "0.1.0",
+  "description": "Review your team, delegate work and retrieve durable results in Outpost.",
+  "author": {
+    "name": "Outpost",
+    "url": "https://outpost.ing"
+  },
+  "homepage": "https://outpost.ing",
+  "repository": "https://github.com/paperclipai/paperclip",
+  "license": "MIT",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}

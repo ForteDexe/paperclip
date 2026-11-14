@@ -167,7 +167,7 @@ describe("FileContentViewer", () => {
 
 describe("FileViewerMetadataRow", () => {
   const state: FileViewerUrlState = {
-    path: "videos/90-days-paperclip/tweet.md",
+    path: "videos/90-days-outpost/tweet.md",
     workspace: "auto",
     line: null,
     column: null,

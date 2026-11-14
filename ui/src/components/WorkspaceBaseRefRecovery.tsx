@@ -45,18 +45,18 @@ export function WorkspaceBaseRefRecoveryProvider({ issue, agentMap, unavailableR
   const recordedRunId = action?.evidence?.latestRunId ?? action?.evidence?.runId;
   const runId = typeof recordedRunId === "string" ? recordedRunId : null;
   const { data: run } = useQuery({
-    queryKey: ["workspace-base-ref-recovery", issue.companyId, issue.id, runId],
+    queryKey: ["workspace-base-ref-recovery", issue.spaceId, issue.id, runId],
     queryFn: () => heartbeatsApi.get(runId!), enabled: Boolean(runId), staleTime: Infinity, retry: retryTransientOnly(0),
   });
   const failure = record(record(run?.resultJson).configurationIncomplete);
   const execution = record(record(run?.resultJson).executionRecovery);
   let retry: RetryValue | null = null;
-  if (action && runId && run?.status === "failed" && run.companyId === issue.companyId
+  if (action && runId && run?.status === "failed" && run.spaceId === issue.spaceId
     && record(run.contextSnapshot).issueId === issue.id && execution.kind === "bootstrap" && execution.providerWorkStarted === false
     && (failure.reason === "workspace_source_restricted"
       || (run.errorCode === "setup_failed" && run.error === "Task workspace access is no longer available"))) {
     const agent = issue.assigneeAgentId ? agentMap.get(issue.assigneeAgentId) : undefined;
-    const stale = action.status !== "active" || issue.status !== "blocked" || action.ownerType !== "board"
+    const stale = action.status !== "active" || issue.status !== "blocked" || action.ownerType !== "operator"
       || !issue.assigneeAgentId || issue.assigneeAgentId !== action.returnOwnerAgentId || run.agentId !== issue.assigneeAgentId;
     retry = { actionId: action.id, runId,
       unavailableReason: stale ? "Refresh the task to retry."
@@ -76,7 +76,7 @@ export function WorkspaceBaseRefRecoveryProvider({ issue, agentMap, unavailableR
     };
   }
   let value: RecoveryValue | null = null;
-  if (action && runId && run?.companyId === issue.companyId && record(run.contextSnapshot).issueId === issue.id
+  if (action && runId && run?.spaceId === issue.spaceId && record(run.contextSnapshot).issueId === issue.id
     && failure.reason === "workspace_base_ref_unresolved" && typeof failure.requestedRef === "string") {
     const agent = issue.assigneeAgentId ? agentMap.get(issue.assigneeAgentId) : undefined;
     const requestedRef = failure.requestedRef;

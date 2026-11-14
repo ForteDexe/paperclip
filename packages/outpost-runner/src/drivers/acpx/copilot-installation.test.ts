@@ -704,7 +704,7 @@ describe("Copilot build-owned installation", () => {
       const result = await verifyCopilotInstallation(QUALIFIED_ACPX_PROFILES.copilot);
       const root = fileURLToPath(new URL(`../../../provider-assets/copilot/${process.platform}-${process.arch}`, import.meta.url));
       expect(verifyNativeAcpxInstallation).toHaveBeenCalledWith({
-        distributionRoot: root, manifestPath: `${root}/.paperclip-copilot-closure.json`,
+        distributionRoot: root, manifestPath: `${root}/.outpost-copilot-closure.json`,
         expectedClosureSha256: COPILOT_CLOSURE_SHA256[`${process.platform}-${process.arch}` as keyof typeof COPILOT_CLOSURE_SHA256],
         executable: "copilot", fixedArguments: COPILOT_LAUNCH_ARGUMENTS, isolatedCacheEnvironmentName: "COPILOT_PKG_CACHE_HOME",
         copilotDistributionDirectory: "distribution",

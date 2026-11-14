@@ -5,7 +5,7 @@ import { connectionHealthSchedule } from "../../services/tool-access/catalog/hea
 import { registerToolConnectionHealthWork } from "../../services/tool-connection-health-work.js";
 import { idleWorkSnapshot } from "../../services/task-admission.js";
 
-export async function startToolHealthWorker(db: Db, companyId: string, now = new Date(), probe?: Parameters<typeof connectionHealthSchedule>[1]) {
+export async function startToolHealthWorker(db: Db, spaceId: string, now = new Date(), probe?: Parameters<typeof connectionHealthSchedule>[1]) {
   vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"], shouldAdvanceTime: true });
   vi.setSystemTime(now);
   const errors: unknown[] = [];
@@ -16,7 +16,7 @@ export async function startToolHealthWorker(db: Db, companyId: string, now = new
   });
   try {
     await registerToolConnectionHealthWork(coordinator, {
-      load: (scope, connectionId, applicationId, signal) => schedule.load(scope ?? companyId, connectionId, applicationId, signal), check: schedule.check,
+      load: (scope, connectionId, applicationId, signal) => schedule.load(scope ?? spaceId, connectionId, applicationId, signal), check: schedule.check,
     }, () => true).ready;
   } catch (error) {
     await coordinator.stop();

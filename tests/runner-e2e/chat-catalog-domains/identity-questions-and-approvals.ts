@@ -54,7 +54,7 @@ async function answerText(ctx: ChatCatalogContext, answer: string) {
 }
 async function beforeAnswer(ctx: ChatCatalogContext, state: Record<string, unknown>) {
   state.beforeAnswerCommentIds = (await ctx.input.api.get<Array<{ id: string }>>(`/api/issues/${ctx.issue()!.id}/comments`)).map(row => row.id);
-  state.beforeAnswerTasks = (await ctx.input.api.get<Array<{ id: string; title: string; description?: string; updatedAt: string }>>(`/api/companies/${ctx.input.fixtures.company.id}/issues?includeAgentCreatedTasks=true`)).filter(row => row.id !== ctx.issue()!.id)
+  state.beforeAnswerTasks = (await ctx.input.api.get<Array<{ id: string; title: string; description?: string; updatedAt: string }>>(`/api/spaces/${ctx.input.fixtures.space.id}/issues?includeAgentCreatedTasks=true`)).filter(row => row.id !== ctx.issue()!.id)
     .map(row => ({ id: row.id, title: row.title, description: row.description, updatedAt: row.updatedAt }));
 }
 async function observeQuestion(ctx: ChatCatalogContext, state: Record<string, unknown>) {
@@ -91,10 +91,10 @@ export function multipartVisibleSummaries(value: unknown) {
 }
 function multipartContinuationCards(o: NonNullable<ReturnType<typeof identityObservation>>) {
   const original = o.state.original as Interaction | undefined;
-  return o.interactions.filter(card => card.id !== original?.id && card.companyId === o.companyId && card.issueId === original?.issueId
+  return o.interactions.filter(card => card.id !== original?.id && card.spaceId === o.spaceId && card.issueId === original?.issueId
     && card.createdByAgentId === o.leadId && card.kind === "ask_user_questions" && card.status === "pending"
     && typeof card.payload.questionSet?.description === "string" && card.payload.questionSet.description.trim().length > 0 && o.runs.some(run => run.id === card.sourceRunId
-      && run.companyId === o.companyId && run.agentId === o.leadId && run.status === "succeeded"
+      && run.spaceId === o.spaceId && run.agentId === o.leadId && run.status === "succeeded"
       && run.contextSnapshot?.interactionId === original?.id && run.contextSnapshot?.issueId === original?.issueId));
 }
 export function gradeQuestions(value: unknown) {
@@ -157,13 +157,13 @@ export function gradeQuestions(value: unknown) {
       && comment.body?.trim() === o.humanQueries[0]?.trim());
     const initialRuns = queryComments.length === 1 ? o.runs.filter(run => {
       const finishedAt = (run as typeof run & { finishedAt?: string | null }).finishedAt;
-      return run.companyId === o.companyId && run.agentId === o.leadId
+      return run.spaceId === o.spaceId && run.agentId === o.leadId
         && run.contextSnapshot?.issueId === original?.issueId && run.contextSnapshot?.commentId === queryComments[0]!.id
         && run.status === "succeeded" && Number.isFinite(Date.parse(finishedAt ?? ""))
         && Date.parse(finishedAt!) <= Date.parse(String(current?.resolvedAt));
     }) : [];
     c.add("existing-form-not-replaced-before-answer", initialRuns.length === 1 && !o.interactions.some(card => card.id !== original?.id
-      && card.companyId === o.companyId && card.issueId === original?.issueId && card.createdByAgentId === o.leadId
+      && card.spaceId === o.spaceId && card.issueId === original?.issueId && card.createdByAgentId === o.leadId
       && card.sourceRunId === initialRuns[0]!.id && card.kind === "ask_user_questions"),
       "The completed native turn bound to the actual human query walks through the supplied form instead of creating another before its answer; later bound follow-up questions remain allowed.");
     c.add("no-default-consent", o.state.unsubmittedPending === true && o.state.validationObserved === true && o.state.retainedAudience === true,
@@ -185,22 +185,22 @@ export function gradeQuestions(value: unknown) {
         && String(o.state.afterAnswerReply).includes(String(o.state.answer)), "Only the later submitted answer causes one continuation and is used in its actual response.");
     } else {
       c.add("agent-created-essential-question", original?.createdByAgentId === o.leadId && !!original.sourceRunId
-        && o.runs.some(run => run.id === original.sourceRunId && run.agentId === o.leadId && run.companyId === o.companyId && run.status === "succeeded") && original.payload.questionSet?.questions.length === 1
+        && o.runs.some(run => run.id === original.sourceRunId && run.agentId === o.leadId && run.spaceId === o.spaceId && run.status === "succeeded") && original.payload.questionSet?.questions.length === 1
         && (original.payload.questionSet.questions[0]!.answerMode === "text" || original.payload.questionSet.questions[0]!.customAnswer?.enabled === true)
         && original.payload.questionSet.questions[0]!.required === true
         && /\b(?:product|name)\b/i.test(original.payload.questionSet.questions[0]!.prompt)
         && !/model|runtime|adapter|framework|deployment|database|hosting/i.test(original.payload.questionSet.questions[0]!.prompt), "The agent itself asks exactly one necessary free-text product-name question tied to its actual completed run, excluding incidental implementation settings.");
-      c.add("answer-in-saved-brief", o.tasks.some(row => `${row.title}\n${row.description}`.includes(String(o.state.answer)) && row.companyId === o.companyId && hasLink(o, "issues", row)),
+      c.add("answer-in-saved-brief", o.tasks.some(row => `${row.title}\n${row.description}`.includes(String(o.state.answer)) && row.spaceId === o.spaceId && hasLink(o, "issues", row)),
         "A saved, linked task brief uses the actual answer rather than merely acknowledging it in chat.");
       c.add("one-bound-continuation", o.runs.filter(run => run.contextSnapshot?.interactionId === original?.id).length === 1
         || !!original?.payload.runtimeRequestId && original.idempotencyKey === `outpost-runner-question:${original.sourceRunId}:${original.payload.runtimeRequestId}`
           && o.runs.filter(run => run.id === original.sourceRunId && run.status === "succeeded").length === 1,
         "Exactly one semantic continuation or the same verified native provider request resumes.");
-      const brief = o.state.taskBrief as { id?: string; companyId?: string; createdAt?: string; updatedAt?: string; description?: string; title?: string } | undefined;
+      const brief = o.state.taskBrief as { id?: string; spaceId?: string; createdAt?: string; updatedAt?: string; description?: string; title?: string } | undefined;
       const beforeBriefs = o.state.beforeAnswerTasks as Array<{ id: string; title: string; description?: string }> | undefined;
       const beforeBrief = Array.isArray(beforeBriefs) ? beforeBriefs.find(row => row.id === brief?.id) : undefined;
       const savedAt = beforeBrief ? brief?.updatedAt : brief?.createdAt;
-      c.add("actual-answer-brief-provenance", !!brief?.id && brief.companyId === o.companyId && Array.isArray(beforeBriefs) && typeof current?.resolvedAt === "string" && typeof savedAt === "string"
+      c.add("actual-answer-brief-provenance", !!brief?.id && brief.spaceId === o.spaceId && Array.isArray(beforeBriefs) && typeof current?.resolvedAt === "string" && typeof savedAt === "string"
         && Date.parse(savedAt) >= Date.parse(current.resolvedAt) && (!beforeBrief || !`${beforeBrief.title}\n${beforeBrief.description}`.includes(String(o.state.answer)))
         && `${brief.title}\n${brief.description}`.includes(String(o.state.answer)) && o.activity.some(row => row.entityId === brief.id && row.action === (beforeBrief ? "issue.updated" : "issue.created") && row.agentId === o.leadId),
         "Before/after public brief snapshots and mutation attribution prove the actual agent saved the real answer only after the human resolved this question, including an eligible pre-existing draft.");
@@ -213,7 +213,7 @@ export const questionIdentityCases = [
     const browser = ctx.input.page.context().browser(); const secrets = ctx.input.privateSecrets;
     if (!browser || !secrets) throw new Error("Wrong-reviewer requires isolated real-user browser and private redaction ownership");
     const session = await ctx.input.api.get<{ user: { id: string; name: string } }>("/api/auth/get-session");
-    if (!session.user?.id || session.user.id === "local-board") throw new Error("Wrong-reviewer cannot use implicit administrator identity");
+    if (!session.user?.id || session.user.id === "local-operator") throw new Error("Wrong-reviewer cannot use implicit administrator identity");
     // Set the synthetic fixture person's name through their own supported profile API.
     const renamed = await ctx.input.page.context().request.patch(`${ctx.input.api.baseURL}/api/auth/profile`, { data: { name: "Alex" }, headers: { Origin: ctx.input.api.baseURL } });
     if (!renamed.ok()) throw new Error("Synthetic Alex profile setup failed");
@@ -253,12 +253,12 @@ export const questionIdentityCases = [
     observe: observeQuestion,
     async verifySetup(ctx, state) {
       const visible = await readAgentResource(ctx, `/api/issues/${state.sourceId}`);
-      const source = visible.data as { id?: string; companyId?: string; description?: string } | undefined;
+      const source = visible.data as { id?: string; spaceId?: string; description?: string } | undefined;
       const c = checks();
-      c.add("accessible-existing-site-brief", visible.status === 200 && !!source && source.id === state.sourceId && source.companyId === ctx.input.fixtures.company.id
+      c.add("accessible-existing-site-brief", visible.status === 200 && !!source && source.id === state.sourceId && source.spaceId === ctx.input.fixtures.space.id
         && source.description === state.existingBrief, "The actual speaking agent can read the ordinary source brief with purpose, audience and signup intent before its question.");
       c.add("product-name-not-supplied", typeof source?.description === "string" && !source.description.includes("Acorn") && !source.description.includes(ctx.input.nonce)
-        && !(await ctx.input.api.get<Array<{ title: string }>>(`/api/companies/${ctx.input.fixtures.company.id}/issues`)).some(row => row.title.includes(String(state.answer))),
+        && !(await ctx.input.api.get<Array<{ title: string }>>(`/api/spaces/${ctx.input.fixtures.space.id}/issues`)).some(row => row.title.includes(String(state.answer))),
         "Neither the source brief nor a pre-created result task supplies the later human product name.");
       return c.result();
     },
@@ -294,7 +294,7 @@ export const questionIdentityCases = [
       await waitForReply(ctx, ctx.observationDeadlineAt);
       remaining();
       const source = ctx.issue(), original = entity(state, "original") as Interaction;
-      if (!source || source.id !== state.sourceId || original.companyId !== ctx.input.fixtures.company.id
+      if (!source || source.id !== state.sourceId || original.spaceId !== ctx.input.fixtures.space.id
         || original.issueId !== source.id || original.kind !== "ask_user_questions" || original.status !== "pending")
         throw new Error("Multipart initial response does not match its saved question source");
       const [runs, comments] = await Promise.all([
@@ -305,7 +305,7 @@ export const questionIdentityCases = [
       const canonical = comments.filter(comment => comment.authorUserId && !comment.createdByRunId && comment.body?.trim() === ctx.scenario.query.trim());
       const run = runs[0];
       if (ctx.issue()?.id !== source.id || source.conversationState !== "waiting"
-        || runs.length !== 1 || !run || run.status !== "succeeded" || run.companyId !== ctx.input.fixtures.company.id
+        || runs.length !== 1 || !run || run.status !== "succeeded" || run.spaceId !== ctx.input.fixtures.space.id
         || run.agentId !== ctx.input.fixtures.agent.id || run.contextSnapshot?.issueId !== source.id
         || canonical.length !== 1 || run.contextSnapshot?.commentId !== canonical[0]?.id)
         throw new Error("Multipart initial response does not match the saved question and canonical source run");
@@ -316,7 +316,7 @@ export const questionIdentityCases = [
       if (!firstQuestion?.required) throw new Error("Multipart first question must retain its saved required contract");
       const before = (await cards(ctx)).find(card => card.id === original.id);
       const beforeRuns = (await ctx.allRuns()).map(run => ({ id: run.id, status: run.status }));
-      const tasksPath = `/api/companies/${ctx.input.fixtures.company.id}/issues?includeAgentCreatedTasks=true`;
+      const tasksPath = `/api/spaces/${ctx.input.fixtures.space.id}/issues?includeAgentCreatedTasks=true`;
       const beforeTasks = (await ctx.input.api.get<Entity[]>(tasksPath)).filter(task => task.id !== ctx.issue()!.id);
       await expect(form.getByText(firstQuestion.prompt, { exact: true })).toBeVisible();
       const next = form.getByRole("button", { name: "Next", exact: true });

@@ -1,6 +1,6 @@
 import type {
   ApproveSecretProposalInput,
-  CompanySecret,
+  SpaceSecret,
   RejectSecretProposalInput,
   SecretManagedMode,
   SecretProposalStatus,
@@ -14,7 +14,7 @@ import { api } from "./client";
 /** One compatibility row: a legacy user-secret definition and its value. */
 export interface MyUserSecretEntry {
   definition: UserSecretDefinition;
-  secret: CompanySecret | null;
+  secret: SpaceSecret | null;
 }
 
 export interface CreateUserSecretDefinitionInput {
@@ -73,41 +73,41 @@ export interface RotateSecretInput {
  * Settings > Secrets page; new local Codex/Claude agents do not need them.
  */
 export const secretsApi = {
-  list: (companyId: string) => api.get<CompanySecret[]>(`/companies/${companyId}/secrets`),
-  create: (companyId: string, data: CreateSecretInput) =>
-    api.post<CompanySecret>(`/companies/${companyId}/secrets`, data),
+  list: (spaceId: string) => api.get<SpaceSecret[]>(`/spaces/${spaceId}/secrets`),
+  create: (spaceId: string, data: CreateSecretInput) =>
+    api.post<SpaceSecret>(`/spaces/${spaceId}/secrets`, data),
   update: (id: string, data: UpdateSecretInput) =>
-    api.patch<CompanySecret>(`/secrets/${id}`, data),
+    api.patch<SpaceSecret>(`/secrets/${id}`, data),
   rotate: (id: string, data: RotateSecretInput) =>
-    api.post<CompanySecret>(`/secrets/${id}/rotate`, data),
+    api.post<SpaceSecret>(`/secrets/${id}/rotate`, data),
   remove: (id: string) => api.delete<{ ok: true }>(`/secrets/${id}`),
 
-  listUserSecretDefinitions: (companyId: string) =>
-    api.get<UserSecretDefinition[]>(`/companies/${companyId}/user-secret-definitions`),
-  createUserSecretDefinition: (companyId: string, data: CreateUserSecretDefinitionInput) =>
-    api.post<UserSecretDefinition>(`/companies/${companyId}/user-secret-definitions`, data),
-  removeUserSecretDefinition: (companyId: string, definitionId: string) =>
-    api.delete<{ ok: true }>(`/companies/${companyId}/user-secret-definitions/${definitionId}`),
+  listUserSecretDefinitions: (spaceId: string) =>
+    api.get<UserSecretDefinition[]>(`/spaces/${spaceId}/user-secret-definitions`),
+  createUserSecretDefinition: (spaceId: string, data: CreateUserSecretDefinitionInput) =>
+    api.post<UserSecretDefinition>(`/spaces/${spaceId}/user-secret-definitions`, data),
+  removeUserSecretDefinition: (spaceId: string, definitionId: string) =>
+    api.delete<{ ok: true }>(`/spaces/${spaceId}/user-secret-definitions/${definitionId}`),
 
-  listMyUserSecrets: (companyId: string) =>
-    api.get<MyUserSecretEntry[]>(`/companies/${companyId}/me/user-secrets`),
-  createMyUserSecret: (companyId: string, data: UpsertMyUserSecretInput) =>
-    api.post<CompanySecret>(`/companies/${companyId}/me/user-secrets`, data),
-  rotateMyUserSecret: (companyId: string, secretId: string, data: UpsertMyUserSecretInput) =>
-    api.post<CompanySecret>(`/companies/${companyId}/me/user-secrets/${secretId}/rotate`, data),
+  listMyUserSecrets: (spaceId: string) =>
+    api.get<MyUserSecretEntry[]>(`/spaces/${spaceId}/me/user-secrets`),
+  createMyUserSecret: (spaceId: string, data: UpsertMyUserSecretInput) =>
+    api.post<SpaceSecret>(`/spaces/${spaceId}/me/user-secrets`, data),
+  rotateMyUserSecret: (spaceId: string, secretId: string, data: UpsertMyUserSecretInput) =>
+    api.post<SpaceSecret>(`/spaces/${spaceId}/me/user-secrets/${secretId}/rotate`, data),
 
-  listProposals: (companyId: string, status: SecretProposalStatus = "pending") =>
+  listProposals: (spaceId: string, status: SecretProposalStatus = "pending") =>
     api.get<SecretProposalView[]>(
-      `/companies/${companyId}/secret-proposals?status=${encodeURIComponent(status)}`,
+      `/spaces/${spaceId}/secret-proposals?status=${encodeURIComponent(status)}`,
     ),
-  approveProposal: (companyId: string, proposalId: string, data: ApproveSecretProposalInput = {}) =>
+  approveProposal: (spaceId: string, proposalId: string, data: ApproveSecretProposalInput = {}) =>
     api.post<SecretProposalView>(
-      `/companies/${companyId}/secret-proposals/${proposalId}/approve`,
+      `/spaces/${spaceId}/secret-proposals/${proposalId}/approve`,
       data,
     ),
-  rejectProposal: (companyId: string, proposalId: string, data: RejectSecretProposalInput) =>
+  rejectProposal: (spaceId: string, proposalId: string, data: RejectSecretProposalInput) =>
     api.post<SecretProposalView>(
-      `/companies/${companyId}/secret-proposals/${proposalId}/reject`,
+      `/spaces/${spaceId}/secret-proposals/${proposalId}/reject`,
       data,
     ),
 };

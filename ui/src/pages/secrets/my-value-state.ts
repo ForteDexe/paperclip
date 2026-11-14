@@ -1,4 +1,4 @@
-import type { CompanySecret, UserSecretDefinition } from "@outpost/shared";
+import type { SpaceSecret, UserSecretDefinition } from "@outpost/shared";
 import { type MyValueState, myValueLabel, myValueTone } from "./user-secret-presentation";
 
 export type { MyValueState };
@@ -12,7 +12,7 @@ export { myValueLabel, myValueTone };
  */
 export function myValueState(
   _definition: UserSecretDefinition,
-  secret: CompanySecret | null | undefined,
+  secret: SpaceSecret | null | undefined,
 ): MyValueState {
   if (!secret) return "not_set";
   if (secret.status === "active") return "set";

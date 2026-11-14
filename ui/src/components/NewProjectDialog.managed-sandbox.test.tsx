@@ -30,10 +30,10 @@ vi.mock("../context/DialogContext", () => ({
   useDialog: () => ({ newProjectOpen: true, closeNewProject: vi.fn() }),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({
-    selectedCompanyId: "company-1",
-    selectedCompany: { id: "company-1", name: "Outpost" },
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({
+    selectedSpaceId: "space-1",
+    selectedSpace: { id: "space-1", name: "Outpost" },
   }),
 }));
 

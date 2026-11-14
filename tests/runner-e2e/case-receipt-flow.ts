@@ -18,7 +18,7 @@ const roles = ["triage", "implementation", "verification"] as const;
 /** A real-provider smoke with tiny work products and ordinary production APIs. */
 export async function runCaseReceiptFlow(input: Input) {
   const { api, page, fixtures, execution, nonce } = input;
-  const companyPath = `/api/companies/${fixtures.company.id}`;
+  const spacePath = `/api/spaces/${fixtures.space.id}`;
   const agents = { triage: fixtures.agent.id, implementation: "", verification: "" };
   const configuredAgents: Row[] = [];
   const setupObservations: Row[] = [];
@@ -68,7 +68,7 @@ export async function runCaseReceiptFlow(input: Input) {
     if (!issue || !caseRecord) return;
     const [currentIssue, currentCase, listed, history] = await Promise.all([
       api.get<Row>(`/api/issues/${issue.id}`), api.get<Row>(`/api/cases/${caseRecord.id}`),
-      api.get<Row[]>(`${companyPath}/heartbeat-runs?limit=20`),
+      api.get<Row[]>(`${spacePath}/heartbeat-runs?limit=20`),
       api.get<Row>(`/api/cases/${caseRecord.id}/handoffs?limit=20`),
     ]);
     issue = currentIssue; caseRecord = currentCase;
@@ -84,11 +84,11 @@ export async function runCaseReceiptFlow(input: Input) {
   async function save(stage: string, failure?: unknown) {
     if (!issue || !caseRecord) return [];
     const [tasks, records, interactions] = await Promise.all([
-      api.get<Row[]>(`${companyPath}/issues?limit=20&includeAgentCreatedTasks=true`),
-      api.get<Row[]>(`${companyPath}/cases?limit=20`), api.get<Row[]>(`/api/issues/${issue.id}/interactions`),
+      api.get<Row[]>(`${spacePath}/issues?limit=20&includeAgentCreatedTasks=true`),
+      api.get<Row[]>(`${spacePath}/cases?limit=20`), api.get<Row[]>(`/api/issues/${issue.id}/interactions`),
     ]);
     const observation: CaseReceiptObservation = {
-      nonce, companyId: fixtures.company.id, taskId: issue.id, caseId: caseRecord.id, agents,
+      nonce, spaceId: fixtures.space.id, taskId: issue.id, caseId: caseRecord.id, agents,
       issue, caseRecord, tasks, cases: records, handoffs, runs, receipt, receiptRevisions, review,
       handoffToolRunIds, verifierReadReceipt, builderReadReview, kickoffReplayed,
       initialBrief, triageReadBrief, pendingInteractions: interactions.filter(row => row.status === "pending").length,
@@ -97,35 +97,35 @@ export async function runCaseReceiptFlow(input: Input) {
     const checks = gradeCaseReceipt(observation);
     input.observe(issue, runs, checks, caseRecord);
     const projectDocument = (value: Row | null): Row | null => value ? {
-      id: value.id, issueId: value.issueId, companyId: value.companyId, key: value.key, body: value.body ?? value.latestBody,
+      id: value.id, issueId: value.issueId, spaceId: value.spaceId, key: value.key, body: value.body ?? value.latestBody,
       latestRevisionId: value.latestRevisionId, latestRevisionNumber: value.latestRevisionNumber,
       createdByAgentId: value.createdByAgentId, updatedByAgentId: value.updatedByAgentId,
       ...(value.revision ? { revision: value.revision } : {}),
     } : null;
     const publicObservation: CaseReceiptObservation = {
-      nonce, companyId: fixtures.company.id, taskId: issue.id, caseId: caseRecord.id, agents,
-      issue: { id: issue.id, companyId: issue.companyId, status: issue.status, assigneeAgentId: issue.assigneeAgentId },
-      caseRecord: { id: caseRecord.id, identifier: caseRecord.identifier, companyId: caseRecord.companyId,
+      nonce, spaceId: fixtures.space.id, taskId: issue.id, caseId: caseRecord.id, agents,
+      issue: { id: issue.id, spaceId: issue.spaceId, status: issue.status, assigneeAgentId: issue.assigneeAgentId },
+      caseRecord: { id: caseRecord.id, identifier: caseRecord.identifier, spaceId: caseRecord.spaceId,
         workIssueId: caseRecord.workIssueId, status: caseRecord.status, phase: caseRecord.phase,
         handoffVersion: caseRecord.handoffVersion, completedAt: caseRecord.completedAt, fields: caseRecord.fields,
         pendingHandoff: caseRecord.pendingHandoff ? { id: caseRecord.pendingHandoff.id, state: caseRecord.pendingHandoff.state } : null },
-      cases: records.map(row => ({ id: row.id, companyId: row.companyId, workIssueId: row.workIssueId,
+      cases: records.map(row => ({ id: row.id, spaceId: row.spaceId, workIssueId: row.workIssueId,
         caseType: row.caseType, status: row.status, phase: row.phase, handoffVersion: row.handoffVersion, fields: { nonce: row.fields?.nonce } })),
       tasks: tasks.map(row => ({ id: row.id, status: row.status })),
-      handoffs: handoffs.map(row => ({ id: row.id, companyId: row.companyId, caseId: row.caseId,
+      handoffs: handoffs.map(row => ({ id: row.id, spaceId: row.spaceId, caseId: row.caseId,
         issueId: row.issueId, version: row.version, phase: row.phase, state: row.state, destinationKind: row.destinationKind, fromAgentId: row.fromAgentId,
         toAgentId: row.toAgentId, sourceRunId: row.sourceRunId, expectedIssueStatusVersion: row.expectedIssueStatusVersion,
         appliedIssueStatusVersion: row.appliedIssueStatusVersion, assignmentAppliedAt: row.assignmentAppliedAt,
         deliveredAt: row.deliveredAt, completedAt: row.completedAt, lastErrorCode: row.lastErrorCode })),
-      runs: runs.map(row => ({ id: row.id, companyId: row.companyId, agentId: row.agentId, status: row.status,
+      runs: runs.map(row => ({ id: row.id, spaceId: row.spaceId, agentId: row.agentId, status: row.status,
         runtimeMode: row.runtimeMode, issueId: row.issueId, nativeIssueId: row.nativeIssueId,
         startedAt: row.startedAt, finishedAt: row.finishedAt, errorCode: row.errorCode,
         contextSnapshot: { issueId: row.contextSnapshot?.issueId, taskId: row.contextSnapshot?.taskId,
-          paperclipCase: row.contextSnapshot?.paperclipCase ? {
-            id: row.contextSnapshot.paperclipCase.id, taskId: row.contextSnapshot.paperclipCase.taskId,
-            phase: row.contextSnapshot.paperclipCase.phase, handoffVersion: row.contextSnapshot.paperclipCase.handoffVersion,
-            issueStatusVersion: row.contextSnapshot.paperclipCase.issueStatusVersion,
-            incomingHandoff: row.contextSnapshot.paperclipCase.incomingHandoff,
+          outpostCase: row.contextSnapshot?.outpostCase ? {
+            id: row.contextSnapshot.outpostCase.id, taskId: row.contextSnapshot.outpostCase.taskId,
+            phase: row.contextSnapshot.outpostCase.phase, handoffVersion: row.contextSnapshot.outpostCase.handoffVersion,
+            issueStatusVersion: row.contextSnapshot.outpostCase.issueStatusVersion,
+            incomingHandoff: row.contextSnapshot.outpostCase.incomingHandoff,
           } : undefined } })),
       receipt: projectDocument(receipt), receiptRevisions, review: projectDocument(review),
       handoffToolRunIds, verifierReadReceipt, builderReadReview, kickoffReplayed,
@@ -149,8 +149,8 @@ export async function runCaseReceiptFlow(input: Input) {
       const original = execution.profile.buildAgent({ environmentId: fixtures.environment.id, environmentFixtureId: "local",
         workspacePath: input.workspacePath, secretRefs: fixtures.secretRefs, executionId: `${nonce}-${role}` });
       const configured = agentConfig(role, execution.profile.credential === "CODEX_AUTH_JSON"
-        ? codexSubscriptionAgentConfig(original, process.env, fixtures.company.id) : original);
-      const agent = await api.post<Row>(`${companyPath}/agents`, { ...configured, name: `Receipt ${role} ${nonce}`, role: "engineer" });
+        ? codexSubscriptionAgentConfig(original, process.env, fixtures.space.id) : original);
+      const agent = await api.post<Row>(`${spacePath}/agents`, { ...configured, name: `Receipt ${role} ${nonce}`, role: "engineer" });
       agents[role] = agent.id;
       await waitForReady(role);
     }
@@ -170,12 +170,12 @@ export async function runCaseReceiptFlow(input: Input) {
         productionInstructionsSha256: createHash("sha256").update(detail.content).digest("hex"), appendixBytes: Buffer.byteLength(appendix) });
       await waitForReady(role);
     }
-    const [company, ...persistedAgents] = await Promise.all([
-      api.get<Row>(companyPath), ...roles.map(role => api.get<Row>(`/api/agents/${agents[role]}`)),
+    const [space, ...persistedAgents] = await Promise.all([
+      api.get<Row>(spacePath), ...roles.map(role => api.get<Row>(`/api/agents/${agents[role]}`)),
     ]);
-    budgetEvidence = { company: { budgetMonthlyCents: company.budgetMonthlyCents },
+    budgetEvidence = { space: { budgetMonthlyCents: space.budgetMonthlyCents },
       agents: persistedAgents.map(agent => ({ id: agent.id, budgetMonthlyCents: agent.budgetMonthlyCents })) };
-    if (company.budgetMonthlyCents !== CASE_RECEIPT_BUDGET_CENTS
+    if (space.budgetMonthlyCents !== CASE_RECEIPT_BUDGET_CENTS
       || persistedAgents.some(agent => agent.budgetMonthlyCents !== CASE_RECEIPT_BUDGET_CENTS)) {
       throw new Error("Receipt smoke budget readback failed before provider admission");
     }
@@ -187,8 +187,8 @@ export async function runCaseReceiptFlow(input: Input) {
         throw new Error(`Receipt ${role} limits readback failed before provider admission`);
       }
     }
-    const project = await api.post<Row>(`${companyPath}/projects`, { name: `Receipts ${nonce}` });
-    for (const [index, status] of ["draft", "done"].entries()) await api.post(`${companyPath}/cases`, {
+    const project = await api.post<Row>(`${spacePath}/projects`, { name: `Receipts ${nonce}` });
+    for (const [index, status] of ["draft", "done"].entries()) await api.post(`${spacePath}/cases`, {
       caseType: "receipt-research", key: `passive-${nonce}-${index}`, title: `Receipt notes ${index + 1} ${nonce}`,
       summary: "Passive filter fixture; no work requested.", status, fields: { nonce },
     });
@@ -204,16 +204,16 @@ Revision (${agents.implementation}) reads review and receipt, preserves the veri
 Use observed case/task versions, persist findings before each handoff, and obey existing completion gates. Exactly four runs; no additional tasks or cases.`,
       initialDocuments: [{ key: "brief", title: "Receipt brief", body: `Receipt ${nonce}: total and currency are required.` }],
       toAgentId: agents.triage, phase: "triage", instructions: `${nonce}: Read the primary task document workflow, inspect the saved receipt inputs and hand this same task to the builder, following your receipt role instructions.` };
-    const started = await api.post<Row>(`${companyPath}/case-handoffs`, kickoff);
+    const started = await api.post<Row>(`${spacePath}/case-handoffs`, kickoff);
     // Set observable identities immediately so partial failures still retain their provenance.
     issue = { id: started.taskId }; caseRecord = { id: started.caseId };
     await refresh();
-    const replay = await api.post<Row>(`${companyPath}/case-handoffs`, kickoff);
+    const replay = await api.post<Row>(`${spacePath}/case-handoffs`, kickoff);
     kickoffReplayed = replay.replayed === true && replay.handoffId === started.handoffId
       && replay.taskId === started.taskId && replay.caseId === started.caseId;
     if (!kickoffReplayed) throw new Error("Receipt kickoff replay did not return the original handoff/task/case");
     await save("accepted");
-    await page.goto(`/${fixtures.company.issuePrefix}/cases/${caseRecord!.identifier}`);
+    await page.goto(`/${fixtures.space.issuePrefix}/cases/${caseRecord!.identifier}`);
     await expect(page.getByRole("heading", { name: execution.task.buildTitle(nonce), exact: true })).toBeVisible();
     await input.capture("case-kickoff", "Receipt case with one primary task", "case-kickoff.png");
     await pollUntil({ label: "four-turn receipt smoke", deadlineAt: input.deadlineAt, intervalMs: 1000,
@@ -238,7 +238,7 @@ Use observed case/task versions, persist findings before each handoff, and obey 
       if (hasNativeHandoffReceipt(events)) handoffToolRunIds.push(run.id);
       if (run.agentId === agents.triage) triageReadBrief ||= hasTaskDocumentRead(events, issue!.id, "brief");
       if (run.agentId === agents.verification) verifierReadReceipt ||= hasTaskDocumentRead(events, issue!.id, "receipt", true);
-      if (run.agentId === agents.implementation && run.contextSnapshot?.paperclipCase?.phase === "revision") {
+      if (run.agentId === agents.implementation && run.contextSnapshot?.outpostCase?.phase === "revision") {
         builderReadReview ||= hasTaskDocumentRead(events, issue!.id, "review", true);
       }
     }
@@ -264,7 +264,7 @@ Use observed case/task versions, persist findings before each handoff, and obey 
 
 export async function verifyReceiptBrowser(input: Pick<Input, "page" | "fixtures" | "execution" | "nonce" | "capture">, workflowCase: Row, task: Row, receipt: Row) {
   const { page, fixtures, nonce, execution } = input;
-  const prefix = fixtures.company.issuePrefix!;
+  const prefix = fixtures.space.issuePrefix!;
   await page.goto(`/${prefix}/cases`);
   const cases = () => page.getByRole("region", { name: "Case list" });
   await expect(cases().getByRole("link")).toHaveCount(3);

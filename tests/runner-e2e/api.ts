@@ -102,10 +102,10 @@ export class RunnerApi {
     return response.json() as Promise<T>;
   }
 
-  async getSkillSourceUpdateStatus<T>(companyId: string, skillId: string, options?: { timeout: number }): Promise<T> {
+  async getSkillSourceUpdateStatus<T>(spaceId: string, skillId: string, options?: { timeout: number }): Promise<T> {
     const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-    if (!this.browserCookie || !uuid.test(companyId) || !uuid.test(skillId)) throw new Error("Skill source update prerequisite requires the exact owned human-session endpoint");
-    const response = await this.authenticatedResponse("GET", `/api/companies/${companyId}/skills/${skillId}/update-status`, undefined, options);
+    if (!this.browserCookie || !uuid.test(spaceId) || !uuid.test(skillId)) throw new Error("Skill source update prerequisite requires the exact owned human-session endpoint");
+    const response = await this.authenticatedResponse("GET", `/api/spaces/${spaceId}/skills/${skillId}/update-status`, undefined, options);
     if (!response.ok) {
       const closed = await closedSkillUpdateFailure(response);
       throw new SkillSourceUpdateReadError(response.status, closed.reason, closed.providerStatus);
@@ -124,19 +124,19 @@ export class RunnerApi {
   async getRunObservation<T>(path: string, options?: { timeout: number }): Promise<T> {
     const url = new URL(path, this.baseURL);
     const uuid = "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}";
-    const companyRuns = new RegExp(`^/api/companies/${uuid}/heartbeat-runs$`, "i").test(url.pathname)
+    const spaceRuns = new RegExp(`^/api/spaces/${uuid}/heartbeat-runs$`, "i").test(url.pathname)
       && [...url.searchParams.keys()].every(key => key === "limit") && url.searchParams.get("limit") === "100";
     const run = new RegExp(`^/api/heartbeat-runs/${uuid}$`, "i").test(url.pathname) && !url.search;
     const events = new RegExp(`^/api/heartbeat-runs/${uuid}/events$`, "i").test(url.pathname)
       && [...url.searchParams.keys()].every(key => ["afterSeq", "limit"].includes(key))
       && /^\d+$/.test(url.searchParams.get("afterSeq") ?? "") && /^[1-9]\d*$/.test(url.searchParams.get("limit") ?? "");
-    // Catalog observers re-read the full company inventory and activity on every poll; tracing those bodies
+    // Catalog observers re-read the full space inventory and activity on every poll; tracing those bodies
     // made large-fixture failure evidence exceed the private archive allowance, so they share this untraced path.
     const exactQuery = (expected: Record<string, string>) => [...url.searchParams.keys()].length === Object.keys(expected).length
       && Object.entries(expected).every(([key, value]) => url.searchParams.getAll(key).length === 1 && url.searchParams.get(key) === value);
-    const companyIssues = new RegExp(`^/api/companies/${uuid}/issues$`, "i").test(url.pathname) && exactQuery({ includeAgentCreatedTasks: "true", limit: "1000" });
-    const companyActivity = new RegExp(`^/api/companies/${uuid}/activity$`, "i").test(url.pathname) && exactQuery({ limit: "1000" });
-    if (url.origin !== this.baseURL || url.username || url.password || url.hash || !(companyRuns || run || events || companyIssues || companyActivity)) throw new Error("Run observation requires an allowlisted same-origin GET endpoint");
+    const spaceIssues = new RegExp(`^/api/spaces/${uuid}/issues$`, "i").test(url.pathname) && exactQuery({ includeAgentCreatedTasks: "true", limit: "1000" });
+    const spaceActivity = new RegExp(`^/api/spaces/${uuid}/activity$`, "i").test(url.pathname) && exactQuery({ limit: "1000" });
+    if (url.origin !== this.baseURL || url.username || url.password || url.hash || !(spaceRuns || run || events || spaceIssues || spaceActivity)) throw new Error("Run observation requires an allowlisted same-origin GET endpoint");
     return this.authenticatedJson<T>("GET", path, undefined, options);
   }
 
@@ -163,7 +163,7 @@ export class RunnerApi {
   /**
    * Playwright traces APIRequestContext request bodies. Secret creation must
    * still use the public API, but it goes through Node fetch so plaintext is
-   * never serialized into trace/blob evidence before Paperclip encrypts it.
+   * never serialized into trace/blob evidence before Outpost encrypts it.
    */
   async postSensitive<T>(path: string, data: unknown): Promise<T> {
     return this.sensitive<T>("POST", path, data);

@@ -8,8 +8,8 @@ const noop = () => {};
 const meta = { ...voiceStoryLifecycle,
   id: "connections-speko-voice-controls", title: "Apps, channels, and extensions/External chat and email/Speko/Voice controls",
   component: VoiceControls,
-  args: { state: "idle", agentName: "Speko Company Phone Agent", onStart: noop, onMute: noop, onEnd: noop, onResumeAudio: noop },
-  parameters: { layout: "padded", paperclip: {"capabilities": ["chat-channels/conversation", "chat-channels/lifecycle"], "status": "current", "implementation": "production", "boundary": "fixtures", "notes": "Production voice controls rendered from fixture states. Keyboard and control actions are local; no real microphone, playback, cancellation or hangup proof."} },
+  args: { state: "idle", agentName: "Speko Space Phone Agent", onStart: noop, onMute: noop, onEnd: noop, onResumeAudio: noop },
+  parameters: { layout: "padded", outpost: {"capabilities": ["chat-channels/conversation", "chat-channels/lifecycle"], "status": "current", "implementation": "production", "boundary": "fixtures", "notes": "Production voice controls rendered from fixture states. Keyboard and control actions are local; no real microphone, playback, cancellation or hangup proof."} },
 } satisfies Meta<typeof VoiceControls>;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -27,12 +27,12 @@ export const Ended: Story = { args: { state: "ended" } };
 export const Failed: Story = { args: { state: "failed", error: "Speko could not connect. Check your connection and try again." } };
 export const MicrophoneDenied: Story = { args: { state: "failed", error: "Microphone access was denied. Allow microphone access in your browser, then try again." } };
 export const PlaybackBlocked: Story = { args: { state: "listening", playbackBlocked: true } };
-export const LongName: Story = { args: { state: "working", agentName: "Company phone agent for international customer support and implementation scheduling" } };
+export const LongName: Story = { args: { state: "working", agentName: "Space phone agent for international customer support and implementation scheduling" } };
 export const StateMatrix: Story = { render: (args) => <div className="flex flex-col gap-8">{VOICE_CONTROL_STATES.map((state) => <VoiceControls key={state} {...args} state={state} />)}</div> };
 function Interactive() {
   const [state, setState] = useState<VoiceControlState>("idle");
   const [muted, setMuted] = useState(false);
-  return <VoiceControls state={state} muted={muted} agentName="Company Phone Agent" onStart={() => setState("listening")} onMute={() => setMuted((value) => !value)} onEnd={() => setState("ended")} onResumeAudio={noop} />;
+  return <VoiceControls state={state} muted={muted} agentName="Space Phone Agent" onStart={() => setState("listening")} onMute={() => setMuted((value) => !value)} onEnd={() => setState("ended")} onResumeAudio={noop} />;
 }
 export const KeyboardMuteAndEnd: Story = {
   render: () => <Interactive />,
@@ -53,7 +53,7 @@ export const KeyboardMuteAndEnd: Story = {
 
 function RepeatFixture() {
   const [announcement, setAnnouncement] = useState("");
-  return <VoiceControls state="speaking" agentName="Company Phone Agent" canRepeat announcement={announcement}
+  return <VoiceControls state="speaking" agentName="Space Phone Agent" canRepeat announcement={announcement}
     onStart={noop} onMute={noop} onEnd={noop} onResumeAudio={noop} onRepeat={() => setAnnouncement("Repeat requested")} />;
 }
 export const RepeatAnswer: Story = { render: () => <RepeatFixture />, play: async ({ canvasElement }) => {

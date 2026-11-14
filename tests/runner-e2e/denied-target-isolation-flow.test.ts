@@ -32,7 +32,7 @@ it.each(["copilot", "cursor"] as const)("arms an isolated %s target before dispa
     if (path === "/api/agents/agent") return { adapterConfig: { lifecycleMode: "per_turn" } };
     throw new Error(`Unexpected API call ${path}`);
   }, patch: async (_path: string, value: unknown) => value, post: async () => ({ name: "fixture project" }) };
-  const input = { page: {}, api, fixtures: { company: { id: "company", issuePrefix: "FIX" }, agent: { id: "agent", name: "Fixture" }, environment: { id: "environment" } }, execution, nonce: "nonce", workspacePath, deadlineAt: Date.now() + 2000,
+  const input = { page: {}, api, fixtures: { space: { id: "space", issuePrefix: "FIX" }, agent: { id: "agent", name: "Fixture" }, environment: { id: "environment" } }, execution, nonce: "nonce", workspacePath, deadlineAt: Date.now() + 2000,
     observe: () => {}, capture: async () => {}, evidence: async (name: string, value: unknown) => { receipts.set(name, value); }, registerCleanupAssertion: (callback: () => Promise<unknown>) => cleanup.push(callback) };
   try {
     await expect((candidate === "copilot" ? runCopilotProtectionFlow : runCursorNativeFlow)(input as any)).rejects.toThrow("stop-before-provider-dispatch");

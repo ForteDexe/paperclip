@@ -28,7 +28,7 @@ const MANAGED_ROUTINE_RESOURCE_KIND = "routine";
 interface PluginManagedRoutineServiceOptions {
   pluginId: string;
   pluginKey: string;
-  manifest?: import("@outpost/shared").PaperclipPluginManifestV1 | null;
+  manifest?: import("@outpost/shared").OutpostPluginManifestV1 | null;
   pluginWorkerManager?: PluginWorkerManager;
 }
 
@@ -50,7 +50,7 @@ function buildRoutineDefaults(declaration: PluginManagedRoutineDeclaration) {
     concurrencyPolicy: declaration.concurrencyPolicy ?? "coalesce_if_active",
     catchUpPolicy: declaration.catchUpPolicy ?? "skip_missed",
     activityGatePolicy: declaration.activityGatePolicy ?? "always",
-    activityGateScope: declaration.activityGateScope ?? "company",
+    activityGateScope: declaration.activityGateScope ?? "space",
     variables: declaration.variables ?? [],
     triggers: declaration.triggers ?? [],
     issueTemplate: declaration.issueTemplate ?? null,
@@ -140,11 +140,11 @@ export function pluginManagedRoutineService(
     return declaration;
   }
 
-  async function getBinding(companyId: string, routineKey: string) {
+  async function getBinding(spaceId: string, routineKey: string) {
     return db
       .select({
         id: pluginManagedResources.id,
-        companyId: pluginManagedResources.companyId,
+        spaceId: pluginManagedResources.spaceId,
         pluginId: pluginManagedResources.pluginId,
         pluginKey: pluginManagedResources.pluginKey,
         resourceKind: pluginManagedResources.resourceKind,
@@ -159,7 +159,7 @@ export function pluginManagedRoutineService(
       .innerJoin(plugins, eq(pluginManagedResources.pluginId, plugins.id))
       .where(
         and(
-          eq(pluginManagedResources.companyId, companyId),
+          eq(pluginManagedResources.spaceId, spaceId),
           eq(pluginManagedResources.pluginId, options.pluginId),
           eq(pluginManagedResources.resourceKind, MANAGED_ROUTINE_RESOURCE_KIND),
           eq(pluginManagedResources.resourceKey, routineKey),
@@ -169,12 +169,12 @@ export function pluginManagedRoutineService(
   }
 
   async function upsertBinding(
-    companyId: string,
+    spaceId: string,
     declaration: PluginManagedRoutineDeclaration,
     routineId: string,
   ) {
     const defaultsJson = buildRoutineDefaults(declaration);
-    const existing = await getBinding(companyId, declaration.routineKey);
+    const existing = await getBinding(spaceId, declaration.routineKey);
     if (existing) {
       return db
         .update(pluginManagedResources)
@@ -190,7 +190,7 @@ export function pluginManagedRoutineService(
     return db
       .insert(pluginManagedResources)
       .values({
-        companyId,
+        spaceId,
         pluginId: options.pluginId,
         pluginKey: options.pluginKey,
         resourceKind: MANAGED_ROUTINE_RESOURCE_KIND,
@@ -202,13 +202,13 @@ export function pluginManagedRoutineService(
       .then((rows) => rows[0]);
   }
 
-  async function getRoutineWithManagedBy(companyId: string, declaration: PluginManagedRoutineDeclaration) {
-    const binding = await getBinding(companyId, declaration.routineKey);
+  async function getRoutineWithManagedBy(spaceId: string, declaration: PluginManagedRoutineDeclaration) {
+    const binding = await getBinding(spaceId, declaration.routineKey);
     if (!binding) return null;
     const routine = await db
       .select()
       .from(routines)
-      .where(and(eq(routines.companyId, companyId), eq(routines.id, binding.resourceId)))
+      .where(and(eq(routines.spaceId, spaceId), eq(routines.id, binding.resourceId)))
       .then((rows) => rows[0] ?? null);
     if (!routine) return null;
     return {
@@ -218,7 +218,7 @@ export function pluginManagedRoutineService(
   }
 
   async function resolveAgentId(
-    companyId: string,
+    spaceId: string,
     declaration: PluginManagedRoutineDeclaration,
     overrides?: RoutineOverrides,
   ) {
@@ -227,7 +227,7 @@ export function pluginManagedRoutineService(
       const row = await db
         .select({ id: agents.id })
         .from(agents)
-        .where(and(eq(agents.companyId, companyId), eq(agents.id, overrides.assigneeAgentId)))
+        .where(and(eq(agents.spaceId, spaceId), eq(agents.id, overrides.assigneeAgentId)))
         .then((rows) => rows[0] ?? null);
       if (!row) throw notFound("Assignee agent not found");
       return { agentId: row.id, missingRef: null };
@@ -240,7 +240,7 @@ export function pluginManagedRoutineService(
       .from(pluginManagedResources)
       .where(
         and(
-          eq(pluginManagedResources.companyId, companyId),
+          eq(pluginManagedResources.spaceId, spaceId),
           eq(pluginManagedResources.pluginId, options.pluginId),
           eq(pluginManagedResources.resourceKind, "agent"),
           eq(pluginManagedResources.resourceKey, ref.resourceKey),
@@ -251,13 +251,13 @@ export function pluginManagedRoutineService(
     const row = await db
       .select({ id: agents.id })
       .from(agents)
-      .where(and(eq(agents.companyId, companyId), eq(agents.id, binding.resourceId)))
+      .where(and(eq(agents.spaceId, spaceId), eq(agents.id, binding.resourceId)))
       .then((rows) => rows[0] ?? null);
     return row ? { agentId: row.id, missingRef: null } : { agentId: null, missingRef: ref };
   }
 
   async function resolveProjectId(
-    companyId: string,
+    spaceId: string,
     declaration: PluginManagedRoutineDeclaration,
     overrides?: RoutineOverrides,
   ) {
@@ -266,7 +266,7 @@ export function pluginManagedRoutineService(
       const row = await db
         .select({ id: projects.id })
         .from(projects)
-        .where(and(eq(projects.companyId, companyId), eq(projects.id, overrides.projectId)))
+        .where(and(eq(projects.spaceId, spaceId), eq(projects.id, overrides.projectId)))
         .then((rows) => rows[0] ?? null);
       if (!row) throw notFound("Project not found");
       return { projectId: row.id, missingRef: null };
@@ -279,7 +279,7 @@ export function pluginManagedRoutineService(
       .from(pluginManagedResources)
       .where(
         and(
-          eq(pluginManagedResources.companyId, companyId),
+          eq(pluginManagedResources.spaceId, spaceId),
           eq(pluginManagedResources.pluginId, options.pluginId),
           eq(pluginManagedResources.resourceKind, "project"),
           eq(pluginManagedResources.resourceKey, ref.resourceKey),
@@ -290,19 +290,19 @@ export function pluginManagedRoutineService(
     const row = await db
       .select({ id: projects.id })
       .from(projects)
-      .where(and(eq(projects.companyId, companyId), eq(projects.id, binding.resourceId)))
+      .where(and(eq(projects.spaceId, spaceId), eq(projects.id, binding.resourceId)))
       .then((rows) => rows[0] ?? null);
     return row ? { projectId: row.id, missingRef: null } : { projectId: null, missingRef: ref };
   }
 
   async function resolveRefs(
-    companyId: string,
+    spaceId: string,
     declaration: PluginManagedRoutineDeclaration,
     overrides?: RoutineOverrides,
   ) {
     const [agent, project] = await Promise.all([
-      resolveAgentId(companyId, declaration, overrides),
-      resolveProjectId(companyId, declaration, overrides),
+      resolveAgentId(spaceId, declaration, overrides),
+      resolveProjectId(spaceId, declaration, overrides),
     ]);
     const missingRefs: PluginManagedResourceRef[] = [];
     if (agent.missingRef) missingRefs.push(agent.missingRef);
@@ -315,7 +315,7 @@ export function pluginManagedRoutineService(
   }
 
   function resolution(
-    companyId: string,
+    spaceId: string,
     declaration: PluginManagedRoutineDeclaration,
     routine: Routine | null,
     status: PluginManagedRoutineResolution["status"],
@@ -325,7 +325,7 @@ export function pluginManagedRoutineService(
       pluginKey: options.pluginKey,
       resourceKind: "routine",
       resourceKey: declaration.routineKey,
-      companyId,
+      spaceId,
       routineId: routine?.id ?? null,
       routine,
       status,
@@ -353,16 +353,16 @@ export function pluginManagedRoutineService(
   }
 
   async function createManagedRoutine(
-    companyId: string,
+    spaceId: string,
     declaration: PluginManagedRoutineDeclaration,
     overrides?: RoutineOverrides,
   ) {
-    const refs = await resolveRefs(companyId, declaration, overrides);
+    const refs = await resolveRefs(spaceId, declaration, overrides);
     if (refs.missingRefs.length > 0) {
-      return resolution(companyId, declaration, null, "missing_refs", refs.missingRefs);
+      return resolution(spaceId, declaration, null, "missing_refs", refs.missingRefs);
     }
 
-    const created = await routinesSvc.create(companyId, {
+    const created = await routinesSvc.create(spaceId, {
       projectId: refs.projectId,
       goalId: declaration.goalId ?? null,
       title: declaration.title,
@@ -373,14 +373,14 @@ export function pluginManagedRoutineService(
       concurrencyPolicy: declaration.concurrencyPolicy ?? "coalesce_if_active",
       catchUpPolicy: declaration.catchUpPolicy ?? "skip_missed",
       activityGatePolicy: declaration.activityGatePolicy ?? "always",
-      activityGateScope: declaration.activityGateScope ?? "company",
+      activityGateScope: declaration.activityGateScope ?? "space",
       variables: declaration.variables ?? [],
     }, { agentId: null, userId: null });
-    await upsertBinding(companyId, declaration, created.id);
+    await upsertBinding(spaceId, declaration, created.id);
     await ensureDefaultTriggers(created.id, declaration);
-    const routine = await getRoutineWithManagedBy(companyId, declaration);
+    const routine = await getRoutineWithManagedBy(spaceId, declaration);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "plugin",
       actorId: options.pluginId,
       action: "plugin.managed_routine.created",
@@ -393,36 +393,36 @@ export function pluginManagedRoutineService(
         projectId: refs.projectId,
       },
     });
-    return resolution(companyId, declaration, routine, "created");
+    return resolution(spaceId, declaration, routine, "created");
   }
 
-  async function get(routineKey: string, companyId: string) {
+  async function get(routineKey: string, spaceId: string) {
     const declaration = declarationFor(routineKey);
-    const routine = await getRoutineWithManagedBy(companyId, declaration);
-    return resolution(companyId, declaration, routine, routine ? "resolved" : "missing");
+    const routine = await getRoutineWithManagedBy(spaceId, declaration);
+    return resolution(spaceId, declaration, routine, routine ? "resolved" : "missing");
   }
 
-  async function reconcile(routineKey: string, companyId: string, overrides?: RoutineOverrides) {
+  async function reconcile(routineKey: string, spaceId: string, overrides?: RoutineOverrides) {
     const declaration = declarationFor(routineKey);
-    const current = await get(routineKey, companyId);
+    const current = await get(routineKey, spaceId);
     if (current.routine) {
-      await upsertBinding(companyId, declaration, current.routine.id);
+      await upsertBinding(spaceId, declaration, current.routine.id);
       await ensureDefaultTriggers(current.routine.id, declaration);
       return current;
     }
-    return createManagedRoutine(companyId, declaration, overrides);
+    return createManagedRoutine(spaceId, declaration, overrides);
   }
 
-  async function reset(routineKey: string, companyId: string, overrides?: RoutineOverrides) {
+  async function reset(routineKey: string, spaceId: string, overrides?: RoutineOverrides) {
     const declaration = declarationFor(routineKey);
-    const current = await get(routineKey, companyId);
+    const current = await get(routineKey, spaceId);
     if (!current.routine) {
-      return createManagedRoutine(companyId, declaration, overrides);
+      return createManagedRoutine(spaceId, declaration, overrides);
     }
 
-    const refs = await resolveRefs(companyId, declaration, overrides);
+    const refs = await resolveRefs(spaceId, declaration, overrides);
     if (refs.missingRefs.length > 0) {
-      return resolution(companyId, declaration, current.routine, "missing_refs", refs.missingRefs);
+      return resolution(spaceId, declaration, current.routine, "missing_refs", refs.missingRefs);
     }
     const updated = await routinesSvc.update(current.routine.id, {
       projectId: refs.projectId,
@@ -435,15 +435,15 @@ export function pluginManagedRoutineService(
       concurrencyPolicy: declaration.concurrencyPolicy ?? "coalesce_if_active",
       catchUpPolicy: declaration.catchUpPolicy ?? "skip_missed",
       activityGatePolicy: declaration.activityGatePolicy ?? "always",
-      activityGateScope: declaration.activityGateScope ?? "company",
+      activityGateScope: declaration.activityGateScope ?? "space",
       variables: declaration.variables ?? [],
     }, { agentId: null, userId: null });
     if (!updated) throw notFound("Managed routine not found");
-    await upsertBinding(companyId, declaration, updated.id);
+    await upsertBinding(spaceId, declaration, updated.id);
     await ensureDefaultTriggers(updated.id, declaration);
-    const routine = await getRoutineWithManagedBy(companyId, declaration);
+    const routine = await getRoutineWithManagedBy(spaceId, declaration);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "plugin",
       actorId: options.pluginId,
       action: "plugin.managed_routine.reset",
@@ -456,16 +456,16 @@ export function pluginManagedRoutineService(
         projectId: refs.projectId,
       },
     });
-    return resolution(companyId, declaration, routine, "reset");
+    return resolution(spaceId, declaration, routine, "reset");
   }
 
   async function update(
     routineKey: string,
-    companyId: string,
+    spaceId: string,
     patch: { status?: string },
   ) {
     const declaration = declarationFor(routineKey);
-    const current = await get(routineKey, companyId);
+    const current = await get(routineKey, spaceId);
     if (!current.routine) throw notFound("Managed routine not found");
     const updatePatch: { status?: RoutineStatus } = {};
     if (patch.status !== undefined) {
@@ -477,7 +477,7 @@ export function pluginManagedRoutineService(
     const updated = await routinesSvc.update(current.routine.id, updatePatch, { agentId: null, userId: null });
     if (!updated) throw notFound("Managed routine not found");
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "plugin",
       actorId: options.pluginId,
       action: "plugin.managed_routine.updated",
@@ -489,13 +489,13 @@ export function pluginManagedRoutineService(
         status: updated.status,
       },
     });
-    const routine = await getRoutineWithManagedBy(companyId, declaration);
+    const routine = await getRoutineWithManagedBy(spaceId, declaration);
     return routine ?? updated;
   }
 
-  async function run(routineKey: string, companyId: string, overrides?: RoutineOverrides) {
+  async function run(routineKey: string, spaceId: string, overrides?: RoutineOverrides) {
     const declaration = declarationFor(routineKey);
-    const current = await get(routineKey, companyId);
+    const current = await get(routineKey, spaceId);
     if (!current.routine) throw notFound("Managed routine not found");
     const run = await routinesSvc.runRoutine(current.routine.id, {
       source: "manual",
@@ -503,7 +503,7 @@ export function pluginManagedRoutineService(
       projectId: overrides?.projectId,
     }, { agentId: null, userId: null });
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "plugin",
       actorId: options.pluginId,
       action: "plugin.managed_routine.run_triggered",

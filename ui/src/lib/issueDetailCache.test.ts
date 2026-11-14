@@ -41,7 +41,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
   return {
     id: "issue-1",
     identifier: "PAP-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     projectWorkspaceId: null,
     goalId: null,
@@ -227,7 +227,7 @@ describe("task navigation prefetch", () => {
       }] });
       try {
         await prefetchIssueDetailForNavigation(client, ref, { issue, history: true });
-        expect(issuesApi.chatBootstrap).toHaveBeenCalledWith(issue.companyId, [ref]);
+        expect(issuesApi.chatBootstrap).toHaveBeenCalledWith(issue.spaceId, [ref]);
         expect(client.getQueryData(recentIssueActivityQueryKey(ref))).toEqual([{ id: "event-1" }]);
         expect(client.getQueryData(recentIssueRunWindowQueryKey(ref))).toEqual({ runs: [run("run-2", "failed")], hasEarlierRuns: true });
         expect(client.getQueryData(queryKeys.issues.liveRuns(ref))).toEqual([]);

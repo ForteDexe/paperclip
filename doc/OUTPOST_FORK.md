@@ -1,13 +1,13 @@
 # Outpost fork policy
 
-Outpost is the user-facing product name. It keeps Paperclip's internal package names, command name, API paths and fields, database tables, environment variables, migrations, and data-directory layout so existing installations remain readable and upgradeable.
+Outpost is the user-facing product name. It keeps Outpost's internal package names, command name, API paths and fields, database tables, environment variables, migrations, and data-directory layout so existing installations remain readable and upgradeable.
 
 ## Visible terminology
 
 | Upstream wording | Outpost wording |
 | --- | --- |
-| Paperclip | Outpost |
-| organization / company | outpost |
+| Outpost | Outpost |
+| organization / space | outpost |
 | organization members | crew |
 | org chart | crew map |
 | CEO | Outpost Lead |

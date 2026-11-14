@@ -7,7 +7,7 @@ import {
   grantsForHumanRole,
   normalizeHumanRole,
   resolveHumanInviteRole,
-} from "../services/company-member-roles.js";
+} from "../services/space-member-roles.js";
 import { NEW_STANDARD_AGENT_DEFAULT_GRANT_KEYS, newStandardAgentGrantScope } from "../lib/agent-permissions.js";
 
 const invitedAgentId = "agent-1";
@@ -100,7 +100,7 @@ describe("human invite roles", () => {
     ]);
   });
 
-  it("maps operator to company editing grants without join approval or member permissions", () => {
+  it("maps operator to space editing grants without join approval or member permissions", () => {
     expect(grantsForHumanRole("operator")).toEqual([
       { permissionKey: "agents:create", scope: null },
       { permissionKey: "agents:configure", scope: null },
@@ -163,7 +163,7 @@ describe("human invite roles", () => {
             grants: [
               {
                 permissionKey: "users:invite",
-                scope: { companyId: "company-1" },
+                scope: { spaceId: "space-1" },
               },
             ],
           },
@@ -173,7 +173,7 @@ describe("human invite roles", () => {
     ).toEqual([
       {
         permissionKey: "users:invite",
-        scope: { companyId: "company-1" },
+        scope: { spaceId: "space-1" },
       },
       { permissionKey: "commentary:view", scope: null },
     ]);

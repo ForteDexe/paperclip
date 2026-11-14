@@ -17,7 +17,7 @@ So even though the CEO has hire permission, the route still enforces old self-on
 
 ## 1.2 Why comment quality felt wrong
 
-- `skills/paperclip/SKILL.md` and `skills/paperclip/references/api-reference.md` do not currently require markdown formatting quality for status comments (links, structure, readable updates).
+- `skills/outpost/SKILL.md` and `skills/outpost/references/api-reference.md` do not currently require markdown formatting quality for status comments (links, structure, readable updates).
 - Agents therefore produce plain prose comments with raw IDs, not linked entities.
 
 ## 1.3 Issue↔Approval linkage gap
@@ -33,17 +33,17 @@ So even though the CEO has hire permission, the route still enforces old self-on
 
 ## 2. Product/Behavior Changes
 
-## 2.1 Allow CEO to patch other same-company agents
+## 2.1 Allow CEO to patch other same-space agents
 
 Target behavior:
 
 - Board: full patch rights.
-- CEO: can patch agents in same company.
+- CEO: can patch agents in same space.
 - Other agents: self-only patch unless explicitly granted future permission.
 
 Note:
 
-- Keep company boundary checks strict.
+- Keep space boundary checks strict.
 - Keep privileged fields separately governed.
 
 ## 2.2 Add first-class agent configuration revision log + rollback
@@ -77,7 +77,7 @@ Implement canonical join model so one issue can link many approvals and one appr
 Columns:
 
 - `id` uuid pk
-- `company_id` uuid fk
+- `space_id` uuid fk
 - `agent_id` uuid fk
 - `revision_number` int (monotonic per agent)
 - `reason` text null
@@ -90,7 +90,7 @@ Columns:
 
 Indexes:
 
-- `(company_id, agent_id, revision_number desc)`
+- `(space_id, agent_id, revision_number desc)`
 - `(agent_id, created_at desc)`
 
 ## 3.2 New table: `issue_approvals`
@@ -98,7 +98,7 @@ Indexes:
 Columns:
 
 - `id` uuid pk
-- `company_id` uuid fk
+- `space_id` uuid fk
 - `issue_id` uuid fk
 - `approval_id` uuid fk
 - `relationship` text default `context`
@@ -108,12 +108,12 @@ Columns:
 
 Constraints:
 
-- unique `(company_id, issue_id, approval_id)`
+- unique `(space_id, issue_id, approval_id)`
 
 Indexes:
 
-- `(company_id, issue_id)`
-- `(company_id, approval_id)`
+- `(space_id, issue_id)`
+- `(space_id, approval_id)`
 
 ## 4. API Plan
 
@@ -122,7 +122,7 @@ Indexes:
 Update `PATCH /api/agents/:id` authz matrix:
 
 - board: allow
-- agent role `ceo` in same company: allow
+- agent role `ceo` in same space: allow
 - otherwise: self only
 
 ## 4.2 Separate privileged patch fields
@@ -160,8 +160,8 @@ Add:
 
 Extend create payloads to optionally include issue context:
 
-- `POST /api/companies/:companyId/approvals` supports `issueId` or `issueIds`
-- `POST /api/companies/:companyId/agent-hires` supports `sourceIssueId` or `sourceIssueIds`
+- `POST /api/spaces/:spaceId/approvals` supports `issueId` or `issueIds`
+- `POST /api/spaces/:spaceId/agent-hires` supports `sourceIssueId` or `sourceIssueIds`
 
 Server behavior:
 
@@ -190,7 +190,7 @@ No hard editor enforcement initially; update helper text and templates to encour
 
 ## 6. Skill Updates
 
-## 6.1 `skills/paperclip/SKILL.md`
+## 6.1 `skills/outpost/SKILL.md`
 
 Add comment standard:
 
@@ -200,7 +200,7 @@ Add comment standard:
   - agent: `/agents/{id}`
   - issue: `/issues/{id}`
 
-## 6.2 `skills/paperclip-create-agent/SKILL.md`
+## 6.2 `skills/outpost-create-agent/SKILL.md`
 
 Require:
 
@@ -233,7 +233,7 @@ Require:
 
 ## 8. Acceptance Criteria
 
-- CEO can patch CTO (same company) successfully.
+- CEO can patch CTO (same space) successfully.
 - Every config change creates a retrievable revision.
 - Rollback restores prior config in one action and creates a new revision record.
 - Issue and approval pages show stable bidirectional links from canonical DB relation.

@@ -50,7 +50,7 @@ const mockInstanceSettingsService = vi.hoisted(() => ({
       feedbackDataSharingPreference: "prompt",
     },
   })),
-  listCompanyIds: vi.fn(async () => ["company-1"]),
+  listSpaceIds: vi.fn(async () => ["space-1"]),
 }));
 const mockRoutineService = vi.hoisted(() => ({
   syncRunStatusForIssue: vi.fn(async () => undefined),
@@ -96,14 +96,14 @@ function registerModuleMocks() {
   }));
 
   vi.doMock("../services/index.js", () => ({
-    companyService: () => ({
-      getById: vi.fn(async () => ({ id: "company-1" })),
+    spaceService: () => ({
+      getById: vi.fn(async () => ({ id: "space-1" })),
     }),
     accessService: () => mockAccessService,
     agentService: () => ({
       getById: vi.fn(async () => null),
     }),
-    companySkillService: () => ({
+    spaceSkillService: () => ({
       completeTestRunForIssue: vi.fn(async () => null),
     }),
     documentAnnotationService: () => ({ remapOpenThreadsForDocument: async () => [] }),
@@ -164,9 +164,9 @@ async function createApp(db: unknown = createEmptyRelationReadDb()) {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = {
-      type: "board",
-      userId: "local-board",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "local-operator",
+      spaceIds: ["space-1"],
       source: "local_implicit",
       isInstanceAdmin: false,
     };
@@ -180,11 +180,11 @@ async function createApp(db: unknown = createEmptyRelationReadDb()) {
 function makeIssue() {
   return {
     id: "11111111-1111-4111-8111-111111111111",
-    companyId: "company-1",
+    spaceId: "space-1",
     status: "todo",
     assigneeAgentId: "22222222-2222-4222-8222-222222222222",
     assigneeUserId: null,
-    createdByUserId: "local-board",
+    createdByUserId: "local-operator",
     identifier: "PAP-580",
     title: "Activity event issue",
     description: null as string | null,
@@ -258,7 +258,7 @@ describe("issue activity event routes", () => {
         feedbackDataSharingPreference: "prompt",
       },
     });
-    mockInstanceSettingsService.listCompanyIds.mockResolvedValue(["company-1"]);
+    mockInstanceSettingsService.listSpaceIds.mockResolvedValue(["space-1"]);
     mockRoutineService.syncRunStatusForIssue.mockResolvedValue(undefined);
   });
 
@@ -402,8 +402,8 @@ describe("issue activity event routes", () => {
           },
         },
         "comment": null,
-        "companyId": "company-1",
-        "createdByUserId": "local-board",
+        "spaceId": "space-1",
+        "createdByUserId": "local-operator",
         "description": null,
         "executionPolicy": null,
         "executionState": null,
@@ -676,7 +676,7 @@ describe("issue activity event routes", () => {
         {
           id: "22222222-2222-4222-8222-222222222222",
           type: "approval",
-          participants: [{ type: "user", userId: "local-board" }],
+          participants: [{ type: "user", userId: "local-operator" }],
         },
       ],
     })!;
@@ -714,8 +714,8 @@ describe("issue activity event routes", () => {
         expect.objectContaining({
           action: "issue.approvers_updated",
           details: expect.objectContaining({
-            participants: [{ type: "user", agentId: null, userId: "local-board" }],
-            addedParticipants: [{ type: "user", agentId: null, userId: "local-board" }],
+            participants: [{ type: "user", agentId: null, userId: "local-operator" }],
+            addedParticipants: [{ type: "user", agentId: null, userId: "local-operator" }],
             removedParticipants: [{ type: "agent", agentId: "66666666-7777-4888-8999-aaaaaaaaaaaa", userId: null }],
           }),
         }),

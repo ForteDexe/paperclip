@@ -28,53 +28,53 @@ UPDATE "environment_custom_image_templates"
 SET
   "metadata" = jsonb_set(
     COALESCE("metadata", '{}'::jsonb),
-    '{setupRpcCompanyId}',
-    to_jsonb("company_id"::text),
+    '{setupRpcSpaceId}',
+    to_jsonb("space_id"::text),
     true
   ),
   "updated_at" = now()
-WHERE "company_id" IS NOT NULL
-  AND COALESCE("metadata" ->> 'setupRpcCompanyId', '') = '';
+WHERE "space_id" IS NOT NULL
+  AND COALESCE("metadata" ->> 'setupRpcSpaceId', '') = '';
 --> statement-breakpoint
 UPDATE "environment_custom_image_setup_sessions"
 SET
   "metadata" = jsonb_set(
     COALESCE("metadata", '{}'::jsonb),
-    '{setupRpcCompanyId}',
-    to_jsonb("company_id"::text),
+    '{setupRpcSpaceId}',
+    to_jsonb("space_id"::text),
     true
   ),
   "updated_at" = now()
-WHERE "company_id" IS NOT NULL
-  AND COALESCE("metadata" ->> 'setupRpcCompanyId', '') = '';
+WHERE "space_id" IS NOT NULL
+  AND COALESCE("metadata" ->> 'setupRpcSpaceId', '') = '';
 --> statement-breakpoint
-DROP INDEX IF EXISTS "environment_custom_image_templates_company_environment_status_idx";
+DROP INDEX IF EXISTS "environment_custom_image_templates_space_environment_status_idx";
 --> statement-breakpoint
-DROP INDEX IF EXISTS "environment_custom_image_templates_company_provider_status_idx";
+DROP INDEX IF EXISTS "environment_custom_image_templates_space_provider_status_idx";
 --> statement-breakpoint
-DROP INDEX IF EXISTS "environment_custom_image_templates_company_environment_active_uq";
+DROP INDEX IF EXISTS "environment_custom_image_templates_space_environment_active_uq";
 --> statement-breakpoint
-DROP INDEX IF EXISTS "environment_custom_image_templates_company_last_used_idx";
+DROP INDEX IF EXISTS "environment_custom_image_templates_space_last_used_idx";
 --> statement-breakpoint
-DROP INDEX IF EXISTS "environment_custom_image_setup_sessions_company_environment_status_idx";
+DROP INDEX IF EXISTS "environment_custom_image_setup_sessions_space_environment_status_idx";
 --> statement-breakpoint
-DROP INDEX IF EXISTS "environment_custom_image_setup_sessions_company_environment_active_uq";
+DROP INDEX IF EXISTS "environment_custom_image_setup_sessions_space_environment_active_uq";
 --> statement-breakpoint
-DROP INDEX IF EXISTS "environment_custom_image_setup_sessions_company_template_idx";
+DROP INDEX IF EXISTS "environment_custom_image_setup_sessions_space_template_idx";
 --> statement-breakpoint
-DROP INDEX IF EXISTS "environment_custom_image_setup_sessions_company_promoted_template_idx";
+DROP INDEX IF EXISTS "environment_custom_image_setup_sessions_space_promoted_template_idx";
 --> statement-breakpoint
-DROP INDEX IF EXISTS "environment_custom_image_setup_sessions_company_expires_idx";
+DROP INDEX IF EXISTS "environment_custom_image_setup_sessions_space_expires_idx";
 --> statement-breakpoint
 ALTER TABLE "environment_custom_image_templates"
-  DROP CONSTRAINT IF EXISTS "environment_custom_image_templates_company_id_companies_id_fk";
+  DROP CONSTRAINT IF EXISTS "environment_custom_image_templates_space_id_spaces_id_fk";
 --> statement-breakpoint
 ALTER TABLE "environment_custom_image_setup_sessions"
-  DROP CONSTRAINT IF EXISTS "environment_custom_image_setup_sessions_company_id_companies_id_fk";
+  DROP CONSTRAINT IF EXISTS "environment_custom_image_setup_sessions_space_id_spaces_id_fk";
 --> statement-breakpoint
-ALTER TABLE "environment_custom_image_templates" DROP COLUMN IF EXISTS "company_id";
+ALTER TABLE "environment_custom_image_templates" DROP COLUMN IF EXISTS "space_id";
 --> statement-breakpoint
-ALTER TABLE "environment_custom_image_setup_sessions" DROP COLUMN IF EXISTS "company_id";
+ALTER TABLE "environment_custom_image_setup_sessions" DROP COLUMN IF EXISTS "space_id";
 --> statement-breakpoint
 CREATE INDEX "environment_custom_image_templates_environment_status_idx"
   ON "environment_custom_image_templates" USING btree ("environment_id", "status");

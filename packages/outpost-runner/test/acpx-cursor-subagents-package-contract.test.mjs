@@ -39,9 +39,9 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
 `;
 
 async function withClient(options, run) {
-  const cwd = await mkdtemp(join(tmpdir(), "paperclip-cursor-child-"));
+  const cwd = await mkdtemp(join(tmpdir(), "outpost-cursor-child-"));
   const client = new AcpClient({
-    agentCommand: "paperclip-verified-cursor-fixture", cwd,
+    agentCommand: "outpost-verified-cursor-fixture", cwd,
     permissionMode: "approve-all", fs: false, terminal: false, authPolicy: "skip",
     suppressSdkConsoleErrors: true,
     extensionMethods: ["cursor/subagent_update"], clientCapabilities: { _meta: { subagents: true } },

@@ -70,7 +70,7 @@ export interface IssueForRun {
 
 export const activityApi = {
   list: (
-    companyId: string,
+    spaceId: string,
     filters?: { entityType?: string; entityId?: string; agentId?: string; limit?: number },
     options?: RequestOptions,
   ) => {
@@ -80,7 +80,7 @@ export const activityApi = {
     if (filters?.agentId) params.set("agentId", filters.agentId);
     if (filters?.limit) params.set("limit", String(filters.limit));
     const qs = params.toString();
-    return api.get<ActivityEvent[]>(`/companies/${companyId}/activity${qs ? `?${qs}` : ""}`, options);
+    return api.get<ActivityEvent[]>(`/spaces/${spaceId}/activity${qs ? `?${qs}` : ""}`, options);
   },
   recentForIssue: (issueId: string) => api.get<ActivityEvent[]>(`/issues/${issueId}/activity?view=recent`),
   inputFactsForIssue: async (issueId: string, commentIds: string[]) => {

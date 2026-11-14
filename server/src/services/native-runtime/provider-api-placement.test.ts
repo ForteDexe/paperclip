@@ -5,12 +5,12 @@ import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
 import { resolveProviderApiPlacement } from "./provider-api-placement.js";
 import { evaluateExecutionAllowlist } from "../execution-allowlist.js";
 
-const placement = { kind: "provider_api", provider: "cursor_cloud", controller: "paperclip" };
+const placement = { kind: "provider_api", provider: "cursor_cloud", controller: "outpost" };
 const agent = { adapterType: "outpost_runner", adapterConfig: {
   provider: "cursor_cloud", model: "caller-model", repoUrl: "https://github.com/example/qualification",
 } };
 function execution(provider: "cursor_cloud" | "codex") {
-  return buildNativeExecutionInput({ companyId: randomUUID(), agentId: randomUUID(), runId: randomUUID(), provider,
+  return buildNativeExecutionInput({ spaceId: randomUUID(), agentId: randomUUID(), runId: randomUUID(), provider,
     model: "caller-model", ...(provider === "cursor_cloud" ? { cursorCloud: { schema: "outpost.cursor-cloud.config.v1" as const, repos: [{ url: "https://github.com/example/qualification" }] } } : {}),
     issue: { id: randomUUID(), identifier: "API-1", title: "Bound task", description: null, workMode: "standard" },
     taskPrompt: "Complete the task", normalizedSessionId: randomUUID(),

@@ -21,7 +21,7 @@ import { notifyToolConnectionHealth } from "./tool-connection-health-notificatio
 import { notifyExternalObjectRefresh } from "./external-object-refresh-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import type { Db } from "@outpost/db";
-import { companies, instanceSettings } from "@outpost/db";
+import { spaces, instanceSettings } from "@outpost/db";
 
 /**
  * A `Db` or an open transaction handle — the subset of query builders the
@@ -263,7 +263,7 @@ export function normalizeExperimentalSettings(raw: unknown): InstanceExperimenta
       enableChatConnectors: parsed.data.enableChatConnectors ?? false,
       enableGitHubReviewBots: parsed.data.enableGitHubReviewBots ?? false,
       enableMemoryConnectors: parsed.data.enableMemoryConnectors ?? false,
-      enablePaperclipNotebook: parsed.data.enablePaperclipNotebook ?? false,
+      enableOutpostNotebook: parsed.data.enableOutpostNotebook ?? false,
       enableGoogleWorkspaceConnector: parsed.data.enableGoogleWorkspaceConnector ?? false,
       enableCases: parsed.data.enableCases ?? false,
       enableAgentChat: true,
@@ -283,7 +283,7 @@ export function normalizeExperimentalSettings(raw: unknown): InstanceExperimenta
       enableFastResponses: parsed.data.enableFastResponses ?? false,
       enableGoalsSidebarLink: parsed.data.enableGoalsSidebarLink ?? false,
       enableServerInfoDebugView: parsed.data.enableServerInfoDebugView ?? false,
-      enablePaperclipDeveloperMode: parsed.data.enablePaperclipDeveloperMode ?? false,
+      enableOutpostDeveloperMode: parsed.data.enableOutpostDeveloperMode ?? false,
       enableSimplifiedEnglishInteractions: parsed.data.enableSimplifiedEnglishInteractions ?? false,
       enableFirstTaskPlanProposal: parsed.data.enableFirstTaskPlanProposal ?? false,
       autoRestartDevServerWhenIdle: parsed.data.autoRestartDevServerWhenIdle ?? false,
@@ -321,7 +321,7 @@ export function normalizeExperimentalSettings(raw: unknown): InstanceExperimenta
     enableChatConnectors: false,
     enableGitHubReviewBots: false,
     enableMemoryConnectors: false,
-    enablePaperclipNotebook: false,
+    enableOutpostNotebook: false,
     enableGoogleWorkspaceConnector: false,
     enableCases: false,
     enableAgentChat: true,
@@ -341,7 +341,7 @@ export function normalizeExperimentalSettings(raw: unknown): InstanceExperimenta
     enableFastResponses: false,
     enableGoalsSidebarLink: false,
     enableServerInfoDebugView: false,
-    enablePaperclipDeveloperMode: false,
+    enableOutpostDeveloperMode: false,
     enableSimplifiedEnglishInteractions: false,
     enableFirstTaskPlanProposal: false,
     autoRestartDevServerWhenIdle: false,
@@ -691,10 +691,10 @@ export function instanceSettingsService(db: Db, options: InstanceSettingsService
       return toInstanceSettings(updated ?? current);
     },
 
-    listCompanyIds: async (): Promise<string[]> =>
+    listSpaceIds: async (): Promise<string[]> =>
       db
-        .select({ id: companies.id })
-        .from(companies)
+        .select({ id: spaces.id })
+        .from(spaces)
         .then((rows) => rows.map((row) => row.id)),
   };
 }

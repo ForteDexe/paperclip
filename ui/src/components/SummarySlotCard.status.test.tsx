@@ -6,7 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { BuiltInAgentState } from "@/api/builtInAgents";
 import type {
-  CompanyLiveEventHandler,
+  SpaceLiveEventHandler,
 } from "@/context/LiveUpdatesProvider";
 import type {
   GetSummarySlotResponse,
@@ -86,7 +86,7 @@ function readySummarizer(): BuiltInAgentState {
 function slot(overrides: Partial<SummarySlot> = {}): SummarySlot {
   return {
     id: "slot-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     scopeKind: "project",
     scopeId: "project-1",
     slotKey: "header",
@@ -116,18 +116,18 @@ function issue(overrides: Partial<SummarySlotIssueRef> = {}): SummarySlotIssueRe
 function progressEvent(payload: Record<string, unknown>): LiveEvent {
   return {
     id: 1,
-    companyId: "company-1",
+    spaceId: "space-1",
     type: "heartbeat.run.progress",
     createdAt: "2026-07-15T00:00:00.000Z",
     payload,
   };
 }
 
-function renderCard(container: HTMLDivElement, subscribers: Set<CompanyLiveEventHandler>) {
+function renderCard(container: HTMLDivElement, subscribers: Set<SpaceLiveEventHandler>) {
   const root = createRoot(container);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const subscription = {
-    subscribe: (fn: CompanyLiveEventHandler) => {
+    subscribe: (fn: SpaceLiveEventHandler) => {
       subscribers.add(fn);
       return () => {
         subscribers.delete(fn);
@@ -139,7 +139,7 @@ function renderCard(container: HTMLDivElement, subscribers: Set<CompanyLiveEvent
       <QueryClientProvider client={queryClient}>
         <LiveEventSubscriptionContext.Provider value={subscription}>
           <SummarySlotCard
-            companyId="company-1"
+            spaceId="space-1"
             scopeKind="project"
             scopeId="project-1"
             title="Project summary"
@@ -209,7 +209,7 @@ describe("SummarySlotCard live status line", () => {
   });
 
   it("renders a live status line from a matching progress event", async () => {
-    const subscribers = new Set<CompanyLiveEventHandler>();
+    const subscribers = new Set<SpaceLiveEventHandler>();
     root = renderCard(container, subscribers);
     await flushQueries();
 
@@ -220,7 +220,7 @@ describe("SummarySlotCard live status line", () => {
     await act(async () => {
       dispatchLiveEventToSubscribers(
         subscribers,
-        "company-1",
+        "space-1",
         progressEvent({ issueId: "issue-1", message: "reviewing 14 open issues" }),
       );
     });
@@ -232,14 +232,14 @@ describe("SummarySlotCard live status line", () => {
   });
 
   it("ignores progress events for a different generating issue", async () => {
-    const subscribers = new Set<CompanyLiveEventHandler>();
+    const subscribers = new Set<SpaceLiveEventHandler>();
     root = renderCard(container, subscribers);
     await flushQueries();
 
     await act(async () => {
       dispatchLiveEventToSubscribers(
         subscribers,
-        "company-1",
+        "space-1",
         progressEvent({ issueId: "issue-999", message: "unrelated run" }),
       );
     });

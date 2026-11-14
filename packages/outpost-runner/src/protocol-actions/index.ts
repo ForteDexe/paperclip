@@ -17,7 +17,7 @@ import { createProjectAction } from "./create-project.js";
 import { listProjectRepositoriesAction } from "./list-project-repositories.js";
 import { searchApiAction } from "./search-api.js";
 import { callApiAction } from "./call-api.js";
-import { administerCompanyAction } from "./administer-company.js";
+import { administerSpaceAction } from "./administer-space.js";
 import { answerStatusQuestionAction } from "./answer-status-question.js";
 import { blockTaskAction } from "./block-task.js";
 import { commentOnApprovalAction } from "./comment-on-approval.js";
@@ -27,7 +27,7 @@ import { handoffCaseAction } from "./handoff-case.js";
 import { createCaseAction, readCaseAction, updateCaseAction } from "./case-data.js";
 import { listWorkflowsAction, readWorkflowAction, createWorkflowAction, updateWorkflowAction } from "./workflows.js";
 import { decideApprovalAction } from "./decide-approval.js";
-import { exportCompanyAction } from "./export-company.js";
+import { exportSpaceAction } from "./export-space.js";
 import { finishTaskAction } from "./finish-task.js";
 import { genericApiRequestAction } from "./generic-api-request.js";
 import { getAgentAction } from "./get-agent.js";
@@ -38,10 +38,10 @@ import { getTaskHistoryAction } from "./get-task-history.js";
 import { getWorkspaceRuntimeAction } from "./get-workspace-runtime.js";
 import { inspectOperationResultAction } from "./inspect-operation-result.js";
 import { listAgentsAction } from "./list-agents.js";
-import { hireAgentAction } from "./hire-agent.js";
+import { createAgentAction } from "./create-agent.js";
 import { listApprovalsAction } from "./list-approvals.js";
 import { listCasesAction } from "./list-cases.js";
-import { listCompanySkillsAction } from "./list-company-skills.js";
+import { listSpaceSkillsAction } from "./list-space-skills.js";
 import { listDocumentRevisionsAction } from "./list-document-revisions.js";
 import { listDocumentsAction } from "./list-documents.js";
 import { listGoalsAction } from "./list-goals.js";
@@ -59,7 +59,7 @@ import { requestReviewAction } from "./request-review.js";
 import { scheduleWakeAction } from "./schedule-wake.js";
 import { searchTasksAction } from "./search-tasks.js";
 import { setDependenciesAction } from "./set-dependencies.js";
-import { syncCompanySkillsAction } from "./sync-company-skills.js";
+import { syncSpaceSkillsAction } from "./sync-space-skills.js";
 import { upsertCaseAction } from "./upsert-case.js";
 import { writeDocumentAction } from "./write-document.js";
 import { deepFreezeProtocolAction } from "./freeze.js";
@@ -86,7 +86,7 @@ export const OUTPOST_PROTOCOL_ACTIONS = deepFreezeProtocolAction([
   listProjectRepositoriesAction,
   searchApiAction,
   callApiAction,
-  administerCompanyAction,
+  administerSpaceAction,
   answerStatusQuestionAction,
   blockTaskAction,
   commentOnApprovalAction,
@@ -98,7 +98,7 @@ export const OUTPOST_PROTOCOL_ACTIONS = deepFreezeProtocolAction([
   createCaseAction,
   listWorkflowsAction, readWorkflowAction, createWorkflowAction, updateWorkflowAction,
   decideApprovalAction,
-  exportCompanyAction,
+  exportSpaceAction,
   finishTaskAction,
   genericApiRequestAction,
   getAgentAction,
@@ -109,10 +109,10 @@ export const OUTPOST_PROTOCOL_ACTIONS = deepFreezeProtocolAction([
   getWorkspaceRuntimeAction,
   inspectOperationResultAction,
   listAgentsAction,
-  hireAgentAction,
+  createAgentAction,
   listApprovalsAction,
   listCasesAction,
-  listCompanySkillsAction,
+  listSpaceSkillsAction,
   listDocumentRevisionsAction,
   listDocumentsAction,
   listGoalsAction,
@@ -131,11 +131,11 @@ export const OUTPOST_PROTOCOL_ACTIONS = deepFreezeProtocolAction([
   searchTasksAction,
   setDependenciesAction,
   reassignTaskAction,
-  syncCompanySkillsAction,
+  syncSpaceSkillsAction,
   upsertCaseAction,
   writeDocumentAction,
 ] as const);
 
-export function paperclipProtocolAction(operationId: string) {
+export function outpostProtocolAction(operationId: string) {
   return OUTPOST_PROTOCOL_ACTIONS.find((action) => action.id === operationId);
 }

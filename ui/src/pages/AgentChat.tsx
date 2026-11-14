@@ -4,7 +4,7 @@ import { agentChatsApi } from "@/api/agentChats";
 import { agentsApi } from "@/api/agents";
 import { authApi } from "@/api/auth";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useAgentChatEnabled } from "@/hooks/useAgentChatEnabled";
 import { recordAgentChatVisit } from "@/lib/recent-agent-chats";
 import { queryKeys } from "@/lib/queryKeys";
@@ -15,13 +15,13 @@ import { isUuidLike, type Issue } from "@outpost/shared";
 
 export function AgentChat() {
   const { agentRef = "" } = useParams<{ agentRef: string }>();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { enabled, loaded } = useAgentChatEnabled();
   const client = useQueryClient();
   const agents = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const session = useQuery({
     queryKey: queryKeys.auth.session,
@@ -35,21 +35,21 @@ export function AgentChat() {
   );
   const historyAgent = useQuery({
     queryKey: queryKeys.agents.detail(agentRef),
-    queryFn: () => agentsApi.get(agentRef, selectedCompanyId!),
-    enabled: enabled && !!selectedCompanyId && (agentsView.kind === "ready" || agentsView.kind === "stale")
+    queryFn: () => agentsApi.get(agentRef, selectedSpaceId!),
+    enabled: enabled && !!selectedSpaceId && (agentsView.kind === "ready" || agentsView.kind === "stale")
       && !rosterAgent && isUuidLike(agentRef),
   });
-  const agent = rosterAgent ?? (historyAgent.data?.companyId === selectedCompanyId ? historyAgent.data : undefined);
-  const chatKey = queryKeys.agentChats.detail(selectedCompanyId, userId, agent?.id);
+  const agent = rosterAgent ?? (historyAgent.data?.spaceId === selectedSpaceId ? historyAgent.data : undefined);
+  const chatKey = queryKeys.agentChats.detail(selectedSpaceId, userId, agent?.id);
   const chat = useQuery({
     queryKey: chatKey,
-    queryFn: () => agentChatsApi.get(selectedCompanyId!, agent!.id),
+    queryFn: () => agentChatsApi.get(selectedSpaceId!, agent!.id),
     initialData: () => enabled && agent && session.isSuccess
-      ? client.getQueryData<Issue[]>(queryKeys.agentChats.list(selectedCompanyId, userId))
-        ?.find(issue => issue.companyId === selectedCompanyId && issue.conversationAgentId === agent?.id)
+      ? client.getQueryData<Issue[]>(queryKeys.agentChats.list(selectedSpaceId, userId))
+        ?.find(issue => issue.spaceId === selectedSpaceId && issue.conversationAgentId === agent?.id)
       : undefined,
     initialDataUpdatedAt: () => {
-      const state = client.getQueryState(queryKeys.agentChats.list(selectedCompanyId, userId));
+      const state = client.getQueryState(queryKeys.agentChats.list(selectedSpaceId, userId));
       return state?.isInvalidated ? 0 : state?.dataUpdatedAt;
     },
     enabled: enabled && !!agent && session.isFetched,
@@ -60,29 +60,29 @@ export function AgentChat() {
   const creating = useRef<Promise<Issue> | null>(null);
   useEffect(() => {
     creating.current = null;
-  }, [selectedCompanyId, userId, agent?.id]);
+  }, [selectedSpaceId, userId, agent?.id]);
   useEffect(() => {
     if (enabled && agent && session.isSuccess && chat.isSuccess)
-      recordAgentChatVisit(agent.companyId, userId, agent.id, chat.data?.id ?? null);
-  }, [enabled, agent?.id, agent?.companyId, userId, session.isSuccess, chat.isSuccess, chat.data?.id]);
+      recordAgentChatVisit(agent.spaceId, userId, agent.id, chat.data?.id ?? null);
+  }, [enabled, agent?.id, agent?.spaceId, userId, session.isSuccess, chat.isSuccess, chat.data?.id]);
   const ensureIssue = useCallback(async () => {
-    if (!agent || !selectedCompanyId) throw new Error("Agent not found");
+    if (!agent || !selectedSpaceId) throw new Error("Agent not found");
     if (chat.data) return chat.data;
     const promise = (creating.current ??= agentChatsApi.ensure(
-      selectedCompanyId,
+      selectedSpaceId,
       agent.id,
     ));
     try {
       const issue = await promise;
       client.setQueryData(queryKeys.issues.detail(issue.id), issue);
       client.setQueryData(chatKey, issue);
-      void client.invalidateQueries({ queryKey: queryKeys.agentChats.list(selectedCompanyId, userId) });
+      void client.invalidateQueries({ queryKey: queryKeys.agentChats.list(selectedSpaceId, userId) });
       return issue;
     } catch (error) {
       creating.current = null;
       throw error;
     }
-  }, [agent, selectedCompanyId, chat.data, client, userId]);
+  }, [agent, selectedSpaceId, chat.data, client, userId]);
   // An outage before anything loaded keeps the quiet loading copy; loaded
   // data renders through it.
   const reconnecting = agentsView.kind === "reconnecting" || sessionView.kind === "reconnecting"
@@ -95,7 +95,7 @@ export function AgentChat() {
     return (
       <p className="text-sm text-muted-foreground">
         Agent Chat is disabled for this instance. An administrator can enable it in{" "}
-        <Link className="underline underline-offset-4" to="/company/settings/instance/experimental#experimental-enableAgentChat">Experimental settings</Link>.
+        <Link className="underline underline-offset-4" to="/space/settings/instance/experimental#experimental-enableAgentChat">Experimental settings</Link>.
         {" "}Your workspace preference does not change Chat availability. Existing history remains available through task links.
       </p>
     );

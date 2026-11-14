@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, timestamp, integer, numeric, index, uniqueIndex, boolean, jsonb } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { agents } from "./agents.js";
 import { issues } from "./issues.js";
 import { projects } from "./projects.js";
@@ -11,7 +11,7 @@ export const financeEvents = pgTable(
   "finance_events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     agentId: uuid("agent_id").references(() => agents.id),
     issueId: uuid("issue_id").references(() => issues.id, { onDelete: "set null" }),
     projectId: uuid("project_id").references(() => projects.id),
@@ -41,29 +41,29 @@ export const financeEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    receiptUniqueIdx: uniqueIndex("finance_events_company_receipt_idx").on(table.companyId, table.idempotencyKey),
-    companyOccurredIdx: index("finance_events_company_occurred_idx").on(table.companyId, table.occurredAt),
-    companyBillerOccurredIdx: index("finance_events_company_biller_occurred_idx").on(
-      table.companyId,
+    receiptUniqueIdx: uniqueIndex("finance_events_space_receipt_idx").on(table.spaceId, table.idempotencyKey),
+    spaceOccurredIdx: index("finance_events_space_occurred_idx").on(table.spaceId, table.occurredAt),
+    spaceBillerOccurredIdx: index("finance_events_space_biller_occurred_idx").on(
+      table.spaceId,
       table.biller,
       table.occurredAt,
     ),
-    companyKindOccurredIdx: index("finance_events_company_kind_occurred_idx").on(
-      table.companyId,
+    spaceKindOccurredIdx: index("finance_events_space_kind_occurred_idx").on(
+      table.spaceId,
       table.eventKind,
       table.occurredAt,
     ),
-    companyDirectionOccurredIdx: index("finance_events_company_direction_occurred_idx").on(
-      table.companyId,
+    spaceDirectionOccurredIdx: index("finance_events_space_direction_occurred_idx").on(
+      table.spaceId,
       table.direction,
       table.occurredAt,
     ),
-    companyHeartbeatRunIdx: index("finance_events_company_heartbeat_run_idx").on(
-      table.companyId,
+    spaceHeartbeatRunIdx: index("finance_events_space_heartbeat_run_idx").on(
+      table.spaceId,
       table.heartbeatRunId,
     ),
-    companyCostEventIdx: index("finance_events_company_cost_event_idx").on(
-      table.companyId,
+    spaceCostEventIdx: index("finance_events_space_cost_event_idx").on(
+      table.spaceId,
       table.costEventId,
     ),
   }),

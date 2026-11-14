@@ -8,19 +8,19 @@ import { createInviteRateLimiter } from "../services/invite-rate-limit.js";
 import { SpekoProtocolError } from "../services/voice/speko-protocol.js";
 import type { VoiceSessionService } from "../services/voice/voice-session-service.js";
 import type { VoiceCaller } from "../services/voice/voice-session-store.js";
-import { assertBoard, assertCompanyAccess } from "./authz.js";
+import { assertOperator, assertSpaceAccess } from "./authz.js";
 
 function caller(req: Request): VoiceCaller {
-  assertBoard(req);
-  if (req.actor.source === "local_implicit") return { id: "local-board", authority: "local_board" };
+  assertOperator(req);
+  if (req.actor.source === "local_implicit") return { id: "local-operator", authority: "local_board" };
   if (!req.actor.userId || !["session", "cloud_tenant"].includes(req.actor.source ?? "")) throw forbidden("Sign in to start a private voice conversation");
   return { id: req.actor.userId, authority: req.actor.source === "session" && req.actor.isInstanceAdmin ? "instance_admin" : "member" };
 }
-function company(req: Request, requireAccess = true) {
-  const id = req.params.companyId as string;
-  if (!isUuidLike(id)) throw badRequest("Invalid company id");
-  assertBoard(req);
-  if (requireAccess) assertCompanyAccess(req, id);
+function space(req: Request, requireAccess = true) {
+  const id = req.params.spaceId as string;
+  if (!isUuidLike(id)) throw badRequest("Invalid space id");
+  assertOperator(req);
+  if (requireAccess) assertSpaceAccess(req, id);
   return id;
 }
 function session(req: Request) {
@@ -34,60 +34,60 @@ export function voiceSessionRoutes(db: Db, service: VoiceSessionService) {
   async function enabled() {
     if (!(await settings.getExperimental()).enableChatConnectors) throw forbidden("Enable experimental chat connectors to use voice");
   }
-  router.use("/companies/:companyId/voice-sessions", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
-  router.get("/companies/:companyId/voice-callbacks/:endpointId", async (req, res) => {
+  router.use("/spaces/:spaceId/voice-sessions", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
+  router.get("/spaces/:spaceId/voice-callbacks/:endpointId", async (req, res) => {
     res.setHeader("Cache-Control", "no-store"); await enabled();
     if (!isUuidLike(req.params.endpointId as string)) throw badRequest("Invalid voice endpoint id");
-    res.json(await service.callbackPreference(company(req), req.params.endpointId as string, caller(req)));
+    res.json(await service.callbackPreference(space(req), req.params.endpointId as string, caller(req)));
   });
-  router.put("/companies/:companyId/voice-callbacks/:endpointId", validate(voiceCallbackPreferenceSchema), async (req, res) => {
+  router.put("/spaces/:spaceId/voice-callbacks/:endpointId", validate(voiceCallbackPreferenceSchema), async (req, res) => {
     res.setHeader("Cache-Control", "no-store"); await enabled();
     if (!isUuidLike(req.params.endpointId as string)) throw badRequest("Invalid voice endpoint id");
-    res.json(await service.saveCallbackPreference(company(req), req.params.endpointId as string, caller(req), req.body));
+    res.json(await service.saveCallbackPreference(space(req), req.params.endpointId as string, caller(req), req.body));
   });
-  router.use("/companies/:companyId/voice-phone/:endpointId", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
+  router.use("/spaces/:spaceId/voice-phone/:endpointId", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
   function endpoint(req: Request) { const id = req.params.endpointId as string; if (!isUuidLike(id)) throw badRequest("Invalid voice endpoint id"); return id; }
-  router.get("/companies/:companyId/voice-phone/:endpointId", async (req, res) => { res.json(await service.inbound.configuration(company(req), endpoint(req), caller(req))); });
-  router.put("/companies/:companyId/voice-phone/:endpointId", validate(voicePhoneConfigurationSchema), async (req, res) => { res.json(await service.inbound.saveConfiguration(company(req), endpoint(req), caller(req), req.body)); });
-  router.get("/companies/:companyId/voice-phone/:endpointId/incoming", async (req, res) => { res.json(await service.inbound.list(company(req), endpoint(req), caller(req))); });
-  router.get("/companies/:companyId/voice-phone/:endpointId/history", async (req, res) => { res.json(await service.inbound.history(company(req), endpoint(req), caller(req))); });
-  router.post("/companies/:companyId/voice-phone/:endpointId/incoming/:callId", validate(voiceInboundDecisionSchema), async (req, res) => {
+  router.get("/spaces/:spaceId/voice-phone/:endpointId", async (req, res) => { res.json(await service.inbound.configuration(space(req), endpoint(req), caller(req))); });
+  router.put("/spaces/:spaceId/voice-phone/:endpointId", validate(voicePhoneConfigurationSchema), async (req, res) => { res.json(await service.inbound.saveConfiguration(space(req), endpoint(req), caller(req), req.body)); });
+  router.get("/spaces/:spaceId/voice-phone/:endpointId/incoming", async (req, res) => { res.json(await service.inbound.list(space(req), endpoint(req), caller(req))); });
+  router.get("/spaces/:spaceId/voice-phone/:endpointId/history", async (req, res) => { res.json(await service.inbound.history(space(req), endpoint(req), caller(req))); });
+  router.post("/spaces/:spaceId/voice-phone/:endpointId/incoming/:callId", validate(voiceInboundDecisionSchema), async (req, res) => {
     if (!isUuidLike(req.params.callId as string)) throw badRequest("Invalid incoming call id");
-    const companyId = company(req), actor = caller(req);
-    if (!starts.consume(`inbound:${companyId}:${actor.id}`).allowed) throw tooManyRequests("Too many incoming call approval attempts");
-    res.json(await service.inbound.decide(companyId, endpoint(req), req.params.callId as string, actor, req.body));
+    const spaceId = space(req), actor = caller(req);
+    if (!starts.consume(`inbound:${spaceId}:${actor.id}`).allowed) throw tooManyRequests("Too many incoming call approval attempts");
+    res.json(await service.inbound.decide(spaceId, endpoint(req), req.params.callId as string, actor, req.body));
   });
-  router.get("/companies/:companyId/voice-history/:endpointId", async (req, res) => {
+  router.get("/spaces/:spaceId/voice-history/:endpointId", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     if (!isUuidLike(req.params.endpointId as string)) throw badRequest("Invalid voice endpoint id");
-    res.json(await service.history(company(req), req.params.endpointId as string, caller(req)));
+    res.json(await service.history(space(req), req.params.endpointId as string, caller(req)));
   });
-  router.get("/companies/:companyId/voice-sessions/:sessionId/report", async (req, res) => {
-    res.json(await service.callDetail(company(req), session(req), caller(req)));
+  router.get("/spaces/:spaceId/voice-sessions/:sessionId/report", async (req, res) => {
+    res.json(await service.callDetail(space(req), session(req), caller(req)));
   });
-  router.post("/companies/:companyId/voice-sessions", validate(startVoiceSessionSchema), async (req, res) => {
-    const companyId = company(req), actor = caller(req);
+  router.post("/spaces/:spaceId/voice-sessions", validate(startVoiceSessionSchema), async (req, res) => {
+    const spaceId = space(req), actor = caller(req);
     await enabled();
-    const limit = starts.consume(`${companyId}:${actor.id}`);
+    const limit = starts.consume(`${spaceId}:${actor.id}`);
     if (!limit.allowed) throw tooManyRequests("Too many voice session attempts");
-    const result = await service.start({ ...req.body, companyId, caller: actor });
+    const result = await service.start({ ...req.body, spaceId, caller: actor });
     res.status(result.media ? 201 : 200).json(result);
   });
-  router.get("/companies/:companyId/voice-sessions/:sessionId", async (req, res) => {
-    res.json(await service.inspect(company(req), session(req), caller(req)));
+  router.get("/spaces/:spaceId/voice-sessions/:sessionId", async (req, res) => {
+    res.json(await service.inspect(space(req), session(req), caller(req)));
   });
-  router.post("/companies/:companyId/voice-sessions/:sessionId/end", async (req, res) => {
-    res.json(await service.end(company(req, false), session(req), caller(req)));
+  router.post("/spaces/:spaceId/voice-sessions/:sessionId/end", async (req, res) => {
+    res.json(await service.end(space(req, false), session(req), caller(req)));
   });
-  router.get("/companies/:companyId/voice-sessions/:sessionId/notification", async (req, res) => {
-    const companyId = company(req), actor = caller(req);
+  router.get("/spaces/:spaceId/voice-sessions/:sessionId/notification", async (req, res) => {
+    const spaceId = space(req), actor = caller(req);
     await enabled();
-    res.json(await service.notification(companyId, session(req), actor.id));
+    res.json(await service.notification(spaceId, session(req), actor.id));
   });
   return router;
 }
 
-/** Original bytes + provider signature + per-session capability; no board bypass. */
+/** Original bytes + provider signature + per-session capability; no operator bypass. */
 export function voiceWebhookRoutes(db: Db, service: VoiceSessionService) {
   const router = Router(), settings = instanceSettingsService(db);
   const limiter = createInviteRateLimiter({ windowMs: 60_000, maxRequests: 600 });

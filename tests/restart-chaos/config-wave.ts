@@ -116,21 +116,21 @@ async function createTaskResources(api: ChaosApi, lab: ChaosLab, task: ConfigTas
   const runtimeConfig = { ...((source.runtimeConfig ?? {}) as Json) };
   let secretId: string | null = null;
   if (task.reference === "ai_default") {
-    // The responsible user's personal default; the fresh company has no OpenRouter account at all.
+    // The responsible user's personal default; the fresh space has no OpenRouter account at all.
     delete env[credentialKey];
     runtimeConfig.aiConnection = { provider: "openrouter", method: "api_key", mode: "responsible_user" };
   } else {
-    const secret = await api.post<{ id: string }>(`/api/companies/${lab.companyId}/secrets`, {
-      // Secret keys are unique per company; the agent's env var name stays the provider's.
+    const secret = await api.post<{ id: string }>(`/api/spaces/${lab.spaceId}/secrets`, {
+      // Secret keys are unique per space; the agent's env var name stays the provider's.
       name: `Chaos ${credentialKey} ${task.taskId}-${task.nonce}`, key: `${credentialKey}_${task.taskId}_${task.nonce}`, value: process.env[credentialKey],
       description: `Restart chaos config fault ${task.taskId}` });
     secretId = secret.id;
     env[credentialKey] = secretRef(secret.id);
   }
   const agentBody: Json = { ...source, name: `Chaos ${task.adapter} ${task.taskId}`, adapterConfig: { ...adapterConfig, env }, runtimeConfig };
-  const agent = await api.post<{ id: string }>(`/api/companies/${lab.companyId}/agents`, agentBody);
+  const agent = await api.post<{ id: string }>(`/api/spaces/${lab.spaceId}/agents`, agentBody);
   const policy = basePolicy(lab);
-  const project = await api.post<{ id: string }>(`/api/companies/${lab.companyId}/projects`, {
+  const project = await api.post<{ id: string }>(`/api/spaces/${lab.spaceId}/projects`, {
     name: `cf-${task.taskId}-${task.nonce}`, description: `Restart chaos config fault ${task.fault}/${task.reference}`,
     executionWorkspacePolicy: policy,
     workspace: { name: "Primary", sourceType: "local_path", cwd: lab.fixtureRepositoryPath, isPrimary: true },
@@ -165,7 +165,7 @@ async function breakReference(api: ChaosApi, lab: ChaosLab, task: ConfigTaskPlan
         await api.patch(`/api/agents/${resources.agentId}`, { adapterConfig: { model: `chaos-missing-model-${task.nonce}` } });
         return null;
       case "ai_default":
-        // Broken at creation: the binding selects a personal default the company never had.
+        // Broken at creation: the binding selects a personal default the space never had.
         return null;
     }
   } catch (error) {
@@ -186,7 +186,7 @@ async function repairReference(api: ChaosApi, lab: ChaosLab, task: ConfigTaskPla
       await api.patch(`/api/projects/${resources.projectId}/workspaces/${resources.workspaceId}`, { cwd: lab.fixtureRepositoryPath });
       return "restored the project workspace path";
     case "agent_secret": {
-      const secret = await api.post<{ id: string }>(`/api/companies/${lab.companyId}/secrets`, {
+      const secret = await api.post<{ id: string }>(`/api/spaces/${lab.spaceId}/secrets`, {
         name: `Chaos ${resources.credentialKey} ${task.taskId}-${task.nonce} repaired`, key: `${resources.credentialKey}_${task.taskId}_${task.nonce}_repaired`,
         value: process.env[resources.credentialKey], description: "Restart chaos config fault repair" });
       await api.patch(`/api/agents/${resources.agentId}`, { adapterConfig: { env: { [resources.credentialKey]: secretRef(secret.id) } } });
@@ -196,7 +196,7 @@ async function repairReference(api: ChaosApi, lab: ChaosLab, task: ConfigTaskPla
       await api.patch(`/api/agents/${resources.agentId}`, { adapterConfig: { model: resources.agentBody.adapterConfig?.model } });
       return `restored model ${String(resources.agentBody.adapterConfig?.model)}`;
     case "ai_default": {
-      const created = await api.post<{ connectionId: string; grantId: string }>(`/api/companies/${lab.companyId}/ai-connections`, {
+      const created = await api.post<{ connectionId: string; grantId: string }>(`/api/spaces/${lab.spaceId}/ai-connections`, {
         provider: "openrouter", method: "api_key", name: `Chaos OpenRouter ${task.nonce}`, ownership: "personal",
         // The account must be installed for the agent; without it selection refuses "not permitted for this agent".
         apiKey: process.env.OPENROUTER_API_KEY, agentIds: [resources.agentId], allAgents: false }, 60_000);
@@ -310,7 +310,7 @@ async function runTask(input: TaskInput): Promise<ConfigTaskRecord> {
     timeline.add("cf_broken", { taskId: task.taskId, fault: task.fault, reference: task.reference, refusedOnWrite: record.refusedOnWrite });
     if (record.refusedOnWrite) return record;
     const a1 = workloadDefinitions.A1;
-    const issue = await gate.write(() => api.post<Json>(`/api/companies/${lab.companyId}/issues`, {
+    const issue = await gate.write(() => api.post<Json>(`/api/spaces/${lab.spaceId}/issues`, {
       title: `Chaos ${task.fault} ${task.reference} ${task.nonce}`, description: a1.description(task.nonce), status: "todo", priority: "medium",
       assigneeAgentId: resources.agentId, projectId: resources.projectId }));
     record.issueId = String(issue.id);

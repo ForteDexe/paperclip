@@ -5,7 +5,7 @@
 Implementation is in [PR #18334](https://github.com/paperclipai/paperclip/pull/18334).
 Hosted qualification uses the owned disposable
 [test tenant](https://ephemeral-skills-qa-oct-30.test.outpost.app), external
-Postgres, S3, and a real remote Paperclip Computer. Cloud policy reserves the
+Postgres, S3, and a real remote Outpost Computer. Cloud policy reserves the
 staging domain for master; the rejected staging branch request below made no
 deployment.
 
@@ -64,7 +64,7 @@ handoff, and production volume removal are outside this slice.
 
 ## Canonical work and progress
 
-- Worktree: `/Users/dotta/.codex/worktrees/d084/paperclip`
+- Worktree: `/Users/dotta/.codex/worktrees/d084/outpost`
 - Branch: `codex/skills-ephemeral-web`
 - Draft PR: https://github.com/paperclipai/paperclip/pull/18334
 - Approved plan: this chat, “Skills on ephemeral web servers,” nine sections.
@@ -86,8 +86,8 @@ handoff, and production volume removal are outside this slice.
 - One-connection tests now exercise package acquisition before the publication
   transaction. Fork reassignment also uses the transaction's database handle.
 - Host embedded Postgres cannot initialize: exhausted kernel semaphore pool.
-  Owned Docker fixtures are `paperclip-skills-ephemeral-pg` (port 61006) and
-  `paperclip-skills-ephemeral-s3` (port 61007). No unrelated databases changed.
+  Owned Docker fixtures are `outpost-skills-ephemeral-pg` (port 61006) and
+  `outpost-skills-ephemeral-s3` (port 61007). No unrelated databases changed.
 - Disposable staging tenant created through normal onboarding:
   https://ephemeral-skills-qa-oct-30.staging.outpost.app
   Agent `dfd238b5-5e5d-43ef-b34a-cb5bff2267f3` (Skills Qualification), paused.
@@ -100,7 +100,7 @@ handoff, and production volume removal are outside this slice.
 - Greptile's first review found root-package path truncation, linked-local fork
   and restore regressions, and a concurrent receipt replay race. Fixed all four;
   focused review checks passed 76 server and 16 Studio tests. CI also exposed
-  obsolete host-path fixtures and a company-deletion/publication race. Updated
+  obsolete host-path fixtures and a space-deletion/publication race. Updated
   those fixtures and publication locking; 20 targeted integration tests passed.
   Skill detail now resolves existing metadata without seeding the entire library.
 - Remaining: finish repository checks and PR review, candidate deployment and
@@ -150,7 +150,7 @@ handoff, and production volume removal are outside this slice.
   Deploy request `19c33461-d232-453a-bdd1-ba357459be48`, campaign
   `fleet-campaign-1793366873548`, Cloud run `41094804453`: one target succeeded.
   The user approved saving the same OpenAI key to this test tenant; its remote
-  Codex environment verification succeeded on a Paperclip Computer.
+  Codex environment verification succeeded on a Outpost Computer.
 - Studio created unassigned managed skill `3ade7878-8aaf-47c7-aebd-7da23a8afb5d`
   (Ephemeral Skills Proof), with instructions, `references/value.txt`, and
   `scripts/prove.sh`. Remote agent `300911d4-590d-4a26-b1c0-c80db14fa072` is
@@ -162,7 +162,7 @@ handoff, and production volume removal are outside this slice.
 - Remote preparation task EPH-1 saved revision 6, version
   `1abec28d-dd4a-4763-acd4-5a67af874911`, with the script executable. All three
   reported file digests match hashes independently computed from the Studio
-  inputs. Company: `16cfa89e-f159-5040-927e-aca46ee87c2f`.
+  inputs. Space: `16cfa89e-f159-5040-927e-aca46ee87c2f`.
 - Baseline Studio test `81951c91-ec59-4eae-b5c5-c0083119f6ae` failed before
   execution (`b326a961-c1b8-43ad-b38b-7f6424939ee3`): its route constructed
   heartbeat without the existing plugin worker manager. This is a route wiring
@@ -305,7 +305,7 @@ handoff, and production volume removal are outside this slice.
   remained v1 while its current head remained v2.
 - Review of `8821b040` found that native task creation omitted the admitted
   skill-test scope. Image build `41108317938` was cancelled before deployment.
-  Native authorization now carries the saved scope, denies company/peer tools,
+  Native authorization now carries the saved scope, denies space/peer tools,
   task creation and external tools, and checks the scope before mutation receipt
   replay. Task context contains only the harness task. Real database regressions
   exercise both fresh tests and persisted tests after their task mode changes.

@@ -18,12 +18,12 @@ vi.mock("../native-runtime/index.js", async (importOriginal) => ({
 
 describe.skipIf(!runControlPostgresSupport.supported)("native Stop while the provider session is still starting", () => {
   let db: Db;
-  const { fixture } = setupRunControlDatabase("paperclip-heartbeat-native-stop-pending", value => { db = value; });
+  const { fixture } = setupRunControlDatabase("outpost-heartbeat-native-stop-pending", value => { db = value; });
 
   async function startingNativeRun() {
-    const { company, agent } = await fixture();
+    const { space, agent } = await fixture();
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId: company.id, agentId: agent.id, status: "running", runtimeMode: "native", runtimeModeResolvedAt: new Date(),
+      spaceId: space.id, agentId: agent.id, status: "running", runtimeMode: "native", runtimeModeResolvedAt: new Date(),
     }).returning();
     return run;
   }
@@ -39,7 +39,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("native Stop while the pro
     const deps = callbacks(db);
     vi.mocked(cancelNativeSession).mockRejectedValueOnce(failure());
     const error = await createHeartbeatRunControl(db, deps)
-      .cancelRunInternal(run.id, "Cancelled by a board operator", { resultJson: { cancelledByActorType: "user", cancelledByUserId: "user-1" } })
+      .cancelRunInternal(run.id, "Cancelled by a operator operator", { resultJson: { cancelledByActorType: "user", cancelledByUserId: "user-1" } })
       .catch((err: unknown) => err);
     expect(error).toBeInstanceOf(HttpError);
     expect(error).toMatchObject({ status: 409, details: { code: "native_stop_pending", runId: run.id } });

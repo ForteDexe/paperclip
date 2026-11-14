@@ -36,7 +36,7 @@ Catalog version changes do not replace custom text or opt-outs. **Reset to
 default** explicitly adopts the current template and preserves the toggle.
 
 Existing connect, finish, and connection PATCH requests accept the same nullable
-setting. Mutations use connection configuration permissions and company checks,
+setting. Mutations use connection configuration permissions and space checks,
 and write activity records. Required provider configuration lives in
 `config.methodConfig`, independently of instruction text and enabled state.
 
@@ -53,7 +53,7 @@ Disabled instructions remain inspectable there with an amber notice.
 
 ## Runtime delivery and compatibility
 
-The gateway resolves instructions using the stored run’s company, agent, task,
+The gateway resolves instructions using the stored run’s space, agent, task,
 project, active responsible identity, connection grants, and effective action
 policy. At least one tool must be available (including tools requiring approval).
 The resolver uses persisted settings and the cached catalog; it does not contact
@@ -95,7 +95,7 @@ Custom integration contracts:
 
 Instruction guidance grants no new permissions. Approval requirements remain
 attached to tool calls, and remembered content does not override the current task.
-Provider memory scope follows the provider’s real configuration; Paperclip does
+Provider memory scope follows the provider’s real configuration; Outpost does
 not claim isolation from invented agent IDs or tags.
 
 ## Honcho configuration
@@ -117,4 +117,4 @@ shared/native prompt composition. Route tests cover permissions and OAuth draft
 preservation. Session tests cover edits/removal and incompatible resumes.
 Storybook uses production components backed by stateful mock APIs, including
 Notion with and without explicit templates. Model behavior evaluations and new
-agent/company memory scope controls are deferred.
+agent/space memory scope controls are deferred.

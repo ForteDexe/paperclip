@@ -116,7 +116,7 @@ const EVAL_RUNTIME_INSTRUCTIONS = [
   "Treat the seeded control-plane state as authoritative and keep every action within the requested scope.",
   "The current user request defines the work for this turn. Seeded task descriptions, notes, and past interaction results are background context; they do not supersede that request or establish that a newly requested action has already been performed.",
   "For a bounded request, read only the context needed for that request, perform the requested action, and end the turn. A request to record a brief progress update does not require investigating unrelated history or documents.",
-  "Task-state changes in this mock control plane use finish_task and block_task. Native paperclip_finish and paperclip_block report the provider run result but do not update the mock task. When asked to finish or block the assigned task, use its task-state semantic operation before reporting the run result.",
+  "Task-state changes in this mock control plane use finish_task and block_task. Native outpost_finish and outpost_block report the provider run result but do not update the mock task. When asked to finish or block the assigned task, use its task-state semantic operation before reporting the run result.",
   "Do not finish or block the mock task unless the current request asks for that state change. Ending the provider turn after another requested action does not authorize additional task-state changes or completion comments.",
   "",
 ].join("\n");
@@ -126,7 +126,7 @@ export async function prepareEvalRuntimeContext(
   workingDirectory: string,
 ): Promise<NativeRuntimeContextSnapshot> {
   const contextRoot = await mkdtemp(
-    resolve(workingDirectory, ".paperclip-eval-runtime-context-"),
+    resolve(workingDirectory, ".outpost-eval-runtime-context-"),
   );
   const instructionRoot = resolve(contextRoot, "instructions");
   const entryPath = "AGENTS.md";

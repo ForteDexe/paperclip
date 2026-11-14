@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { doctor } from "../commands/doctor.js";
 import { writeConfig } from "../config/store.js";
-import type { PaperclipConfig } from "../config/schema.js";
+import type { OutpostConfig } from "../config/schema.js";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -21,11 +21,11 @@ async function availablePort(): Promise<number> {
 }
 
 function createTempConfig(serverPort: number): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-doctor-"));
-  const configPath = path.join(root, ".paperclip", "config.json");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-doctor-"));
+  const configPath = path.join(root, ".outpost", "config.json");
   const runtimeRoot = path.join(root, "runtime");
 
-  const config: PaperclipConfig = {
+  const config: OutpostConfig = {
     $meta: {
       version: 1,
       updatedAt: "2026-03-10T00:00:00.000Z",
@@ -67,7 +67,7 @@ function createTempConfig(serverPort: number): string {
         baseDir: path.join(runtimeRoot, "storage"),
       },
       s3: {
-        bucket: "paperclip",
+        bucket: "outpost",
         region: "us-east-1",
         prefix: "",
         forcePathStyle: false,

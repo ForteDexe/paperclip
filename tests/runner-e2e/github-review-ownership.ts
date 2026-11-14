@@ -7,23 +7,23 @@ import { awaitJourneyCondition } from "./github-review-browser.js";
 
 const liveRunStatuses = new Set(["queued", "running", "scheduled_retry"]);
 
-/** The issue run source includes history beyond company list windows. Related
+/** The issue run source includes history beyond space list windows. Related
  * activity can name a run for another task, so hydrate and check direct ownership. */
-export async function readOwnedGitHubReviewRuns(api: Pick<ConnectionApi, "get">, scope: { companyId: string; agentId: string; issueId: string }) {
+export async function readOwnedGitHubReviewRuns(api: Pick<ConnectionApi, "get">, scope: { spaceId: string; agentId: string; issueId: string }) {
   const rows = await api.get<Array<{ runId: string }>>(`/api/issues/${scope.issueId}/runs`);
   if (!Array.isArray(rows) || rows.some(row => typeof row.runId !== "string" || !row.runId)) throw new ConnectionFailure("invalid_issue_run_inventory");
   const runs = await Promise.all([...new Set(rows.map(row => row.runId))].map(id => api.get<Record<string, any>>(`/api/heartbeat-runs/${id}`)));
-  if (runs.some(run => run.companyId !== scope.companyId)) throw new ConnectionFailure("issue_run_company_mismatch");
+  if (runs.some(run => run.spaceId !== scope.spaceId)) throw new ConnectionFailure("issue_run_space_mismatch");
   return runs.filter(run => run.issueId === scope.issueId && run.agentId === scope.agentId);
 }
 
 /** A failed native run can still own a durable retry. Stop it through the
  * normal audited route and require acknowledgement, not just terminal status. */
 export async function stopOwnedGitHubReviewRun(api: Pick<ConnectionApi, "get" | "post">, runId: string,
-  scope: { companyId: string; agentId: string; issueId: string }, signal: AbortSignal, timeoutMs = 30_000) {
+  scope: { spaceId: string; agentId: string; issueId: string }, signal: AbortSignal, timeoutMs = 30_000) {
   const read = async () => {
     const run = await api.get<Record<string, any>>(`/api/heartbeat-runs/${runId}`);
-    if (run.id !== runId || run.companyId !== scope.companyId || run.agentId !== scope.agentId || run.issueId !== scope.issueId) {
+    if (run.id !== runId || run.spaceId !== scope.spaceId || run.agentId !== scope.agentId || run.issueId !== scope.issueId) {
       throw new ConnectionFailure("cleanup_run_owner_mismatch");
     }
     return run;
@@ -37,7 +37,7 @@ export async function stopOwnedGitHubReviewRun(api: Pick<ConnectionApi, "get" | 
     if (run.runtimeMode !== "native") return !liveRunStatuses.has(stopped.status);
     const intent = stopped.resultJson?.nativeCancellation;
     return stopped.status === "cancelled" && intent?.schema === "outpost.native-cancellation.v1"
-      && intent.runId === runId && intent.companyId === scope.companyId && intent.issueId === scope.issueId
+      && intent.runId === runId && intent.spaceId === scope.spaceId && intent.issueId === scope.issueId
       && intent.scope === "run" && intent.reasonCode === "cancellation_run_only" && typeof intent.dispatched === "boolean"
       && intent.dispatchState === "acknowledged" && typeof intent.intentAuditId === "string" && intent.intentAuditId.length > 0
       && typeof intent.acknowledgementAuditId === "string" && intent.acknowledgementAuditId.length > 0;
@@ -54,7 +54,7 @@ export interface GitHubJourneyResources {
 export function captureOwnedGitHubApp(resources: GitHubJourneyResources, endpoint: ChatEndpoint, config: GitHubReviewJourneyConfig) {
   if (!endpoint.botExternalId || endpoint.setup.github?.registrationStatus !== "completed") return false;
   const app = endpoint.setup.github;
-  if (endpoint.id !== resources.endpointId || endpoint.companyId !== config.target.companyId || endpoint.provider !== "github"
+  if (endpoint.id !== resources.endpointId || endpoint.spaceId !== config.target.spaceId || endpoint.provider !== "github"
     || endpoint.assignedAgentId !== config.agent.id || endpoint.botLabel !== resources.appName
     || !/^[1-9][0-9]*$/.test(endpoint.botExternalId) || !app.appSlug || !/^[a-z0-9-]+$/.test(app.appSlug)
     || endpoint.botUsername !== `${app.appSlug}[bot]` || app.appOwnerType !== config.github.ownerType

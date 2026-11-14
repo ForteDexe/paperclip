@@ -4,9 +4,9 @@ import { recoveryRunResultColumn } from "./run-result-read.js";
 
 export async function readLegacyDispositionSource(
   db: Db,
-  scope: { companyId: string; issueId: string; runId: string },
+  scope: { spaceId: string; issueId: string; runId: string },
 ) {
-  const where = and(eq(heartbeatRuns.id, scope.runId), eq(heartbeatRuns.companyId, scope.companyId));
+  const where = and(eq(heartbeatRuns.id, scope.runId), eq(heartbeatRuns.spaceId, scope.spaceId));
   const [native] = await db.select({
     issueId: sql<unknown>`${heartbeatRuns.contextSnapshot}->'issueId'`,
     taskId: sql<unknown>`${heartbeatRuns.contextSnapshot}->'taskId'`,

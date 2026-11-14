@@ -11,11 +11,11 @@ function sendNestedHostRequest(originalRequest, invocationId) {
   const nestedId = `nested-${nextRequestId++}`;
   const params = originalRequest.params?.params ?? originalRequest.params?.parameters ?? {};
   const mode = params.mode;
-  const requestedCompanyId = params.requestedCompanyId;
-  const hostMethod = params.hostMethod || "companies.get";
+  const requestedSpaceId = params.requestedSpaceId;
+  const hostMethod = params.hostMethod || "spaces.get";
   const nestedParams = hostMethod === "secrets.resolve"
     ? {
-        companyId: requestedCompanyId,
+        spaceId: requestedSpaceId,
         secretRef: {
           type: "secret_ref",
           secretId: params.secretId || "11111111-1111-4111-8111-111111111111",
@@ -24,25 +24,25 @@ function sendNestedHostRequest(originalRequest, invocationId) {
       }
     : hostMethod === "state.get"
     ? {
-        // Company-scoped state key — the shape a proactive gateway loop uses
-        // (ctx.state.get with scopeKind "company"). The host derives the
-        // requested company from scopeId, not companyId.
-        scopeKind: "company",
-        scopeId: requestedCompanyId,
+        // Space-scoped state key — the shape a proactive gateway loop uses
+        // (ctx.state.get with scopeKind "space"). The host derives the
+        // requested space from scopeId, not spaceId.
+        scopeKind: "space",
+        scopeId: requestedSpaceId,
         namespace: params.namespace || "ns",
         stateKey: params.stateKey || "key",
       }
     : hostMethod === "events.subscribe"
     ? {
         // The subscribe shape the SDK issues from setup() via
-        // ctx.events.on(name, { companyId }, fn): the requested company lives in
-        // filter.companyId, NOT a top-level companyId. The host resolver must
+        // ctx.events.on(name, { spaceId }, fn): the requested space lives in
+        // filter.spaceId, NOT a top-level spaceId. The host resolver must
         // mirror the SDK gate and read it from there (LOOA-695).
         eventPattern: params.eventPattern || "issue.updated",
-        filter: { companyId: requestedCompanyId },
+        filter: { spaceId: requestedSpaceId },
       }
     : {
-        companyId: requestedCompanyId,
+        spaceId: requestedSpaceId,
       };
   const nestedRequest = {
     jsonrpc: "2.0",
@@ -52,9 +52,9 @@ function sendNestedHostRequest(originalRequest, invocationId) {
   };
 
   if (mode === "echo") {
-    nestedRequest.paperclipInvocationId = invocationId;
+    nestedRequest.outpostInvocationId = invocationId;
   } else if (mode === "unknown") {
-    nestedRequest.paperclipInvocationId = "unknown-invocation";
+    nestedRequest.outpostInvocationId = "unknown-invocation";
   }
 
   pendingNested.set(nestedId, originalRequest.id);
@@ -105,7 +105,7 @@ rl.on("line", (line) => {
   }
 
   if (["getData", "performAction", "resourceLifecycle", "workspaceOperation", "executeTool"].includes(method)) {
-    sendNestedHostRequest(message, message.paperclipInvocation?.id);
+    sendNestedHostRequest(message, message.outpostInvocation?.id);
     return;
   }
 

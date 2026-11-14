@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRunEvents, heartbeatRuns } from "@outpost/db";
 import type { PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { appendHeartbeatRunEvent } from "../heartbeat-run-events.js";
@@ -9,7 +9,7 @@ import { appendNativeCredentialUpdate } from "./native-credential-updates.js";
 
 let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
 let db: ReturnType<typeof createDb>;
-const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
+const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
 const runnerInstanceId = randomUUID(), normalizedSessionId = randomUUID();
 const event: PrpEvent = {
   schema: "outpost.orp.event.v3", schemaVersion: 3, eventType: "auth.credentials.updated",
@@ -18,19 +18,19 @@ const event: PrpEvent = {
   payload: { schema: "outpost.auth.credentials.updated.v1", provider: "codex",
     bindingId: "harness-auth", revision: 1, detection: "credential_store" },
 };
-const binding = { companyId, agentId, runnerInstanceId, normalizedSessionId };
+const binding = { spaceId, agentId, runnerInstanceId, normalizedSessionId };
 beforeAll(async () => {
-  database = await startEmbeddedPostgresTestDatabase("paperclip-credential-updates-");
+  database = await startEmbeddedPostgresTestDatabase("outpost-credential-updates-");
   db = createDb(database.connectionString);
-  await db.insert(companies).values({ id: companyId, name: "Credential delivery", issuePrefix: "CRED" });
-  await db.insert(agents).values({ id: agentId, companyId, name: "Observer", adapterType: "codex_local" });
-  await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "succeeded", runtimeMode: "native",
+  await db.insert(spaces).values({ id: spaceId, name: "Credential delivery", issuePrefix: "CRED" });
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Observer", adapterType: "codex_local" });
+  await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "succeeded", runtimeMode: "native",
     nativeSessionId: normalizedSessionId, runnerInstanceId });
 }, 60_000);
 afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
 it("persists idle updates idempotently without colliding with normalized events", async () => {
-  await appendHeartbeatRunEvent(db, { companyId, agentId, runId, eventType: "item.completed", nativeSource: {
+  await appendHeartbeatRunEvent(db, { spaceId, agentId, runId, eventType: "item.completed", nativeSource: {
     sourceInstanceId: runnerInstanceId, sourceEventId: "normalized-event", sourceSeq: event.sourceSeq,
     protocolSchemaVersion: 3, canonicalPayload: { normalized: true },
   } });
@@ -47,7 +47,7 @@ it("persists idle updates idempotently without colliding with normalized events"
   } })).rejects.toThrow("native_event_replay_conflict");
 });
 
-it.each(["companyId", "agentId", "runnerInstanceId", "normalizedSessionId"] as const)(
+it.each(["spaceId", "agentId", "runnerInstanceId", "normalizedSessionId"] as const)(
   "rejects credential updates outside the bound %s", async field => {
     await expect(appendNativeCredentialUpdate(db, { ...binding, [field]: randomUUID(), event }))
       .rejects.toThrow("native_credential_update_binding_mismatch");
@@ -73,7 +73,7 @@ it("retries credential writeback after the event is durably recorded", async () 
   const rows = await db.select().from(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, runId));
   expect(rows.filter(row => row.sourceEventId === `credentials:${update.sourceEventId}`)).toHaveLength(1);
   synchronizeCredentials.mockClear();
-  await expect(appendNativeCredentialUpdate(db, { ...binding, companyId: randomUUID(), event: update, synchronizeCredentials }))
+  await expect(appendNativeCredentialUpdate(db, { ...binding, spaceId: randomUUID(), event: update, synchronizeCredentials }))
     .rejects.toThrow("binding_mismatch");
   expect(synchronizeCredentials).not.toHaveBeenCalled();
 });

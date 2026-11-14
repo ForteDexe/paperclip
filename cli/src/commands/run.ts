@@ -4,17 +4,17 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as p from "@clack/prompts";
 import pc from "picocolors";
-import { bootstrapCeoInvite } from "./auth-bootstrap-ceo.js";
+import { bootstrapDefaultAgentInvite } from "./auth-bootstrap-default-agent.js";
 import { onboard } from "./onboard.js";
 import { doctor } from "./doctor.js";
 import { loadOutpostEnvFile } from "../config/env.js";
 import { configExists, resolveConfigPath } from "../config/store.js";
-import type { PaperclipConfig } from "../config/schema.js";
+import type { OutpostConfig } from "../config/schema.js";
 import { readConfig } from "../config/store.js";
 import {
   describeLocalInstancePaths,
-  resolvePaperclipHomeDir,
-  resolvePaperclipInstanceId,
+  resolveOutpostHomeDir,
+  resolveOutpostInstanceId,
 } from "../config/home.js";
 import { assertForegroundRunAllowed } from "../services/service-manager.js";
 import { removeRuntimeInfoForPid, writeRuntimeInfo } from "../runtime-info.js";
@@ -47,13 +47,13 @@ export interface StartedServer {
 }
 
 export async function runCommand(opts: RunOptions): Promise<void> {
-  const instanceId = resolvePaperclipInstanceId(opts.instance);
+  const instanceId = resolveOutpostInstanceId(opts.instance);
   process.env.OUTPOST_INSTANCE_ID = instanceId;
   if (!opts.skipServiceManagerCheck) {
     await assertForegroundRunAllowed(instanceId, opts.force);
   }
 
-  const homeDir = resolvePaperclipHomeDir();
+  const homeDir = resolveOutpostHomeDir();
   fs.mkdirSync(homeDir, { recursive: true });
 
   const paths = describeLocalInstancePaths(instanceId);
@@ -64,7 +64,7 @@ export async function runCommand(opts: RunOptions): Promise<void> {
   loadOutpostEnvFile(configPath);
   await printUpdateNotice(configPath);
 
-  p.intro(pc.bgCyan(pc.black(` ${opts.introLabel ?? "paperclipai run"} `)));
+  p.intro(pc.bgCyan(pc.black(` ${opts.introLabel ?? "outpost run"} `)));
   p.log.message(pc.dim(`Home: ${paths.homeDir}`));
   p.log.message(pc.dim(`Instance: ${paths.instanceId}`));
   p.log.message(pc.dim(`Config: ${configPath}`));
@@ -72,7 +72,7 @@ export async function runCommand(opts: RunOptions): Promise<void> {
   if (!configExists(configPath)) {
     if ((!process.stdin.isTTY || !process.stdout.isTTY) && !opts.yes) {
       p.log.error("No config found and terminal is non-interactive.");
-      p.log.message(`Run ${pc.cyan("paperclipai onboard")} once, then retry ${pc.cyan("paperclipai run")}.`);
+      p.log.message(`Run ${pc.cyan("outpost onboard")} once, then retry ${pc.cyan("outpost run")}.`);
       process.exit(1);
     }
 
@@ -123,8 +123,8 @@ export async function runCommand(opts: RunOptions): Promise<void> {
   process.once("exit", () => removeRuntimeInfoForPid(process.pid, instanceId));
 
   if (shouldGenerateBootstrapInviteAfterStart(config)) {
-    p.log.step("Generating bootstrap Outpost Lead invite");
-    await bootstrapCeoInvite({
+    p.log.step("Generating bootstrap Default agent invite");
+    await bootstrapDefaultAgentInvite({
       config: configPath,
       dbUrl: startedServer.databaseUrl,
       baseUrl: resolveBootstrapInviteBaseUrl(config, startedServer),
@@ -142,7 +142,7 @@ export async function runCommand(opts: RunOptions): Promise<void> {
 }
 
 function resolveBootstrapInviteBaseUrl(
-  config: PaperclipConfig,
+  config: OutpostConfig,
   startedServer: StartedServer,
 ): string {
   const explicitBaseUrl =
@@ -254,7 +254,7 @@ async function importServerEntry(): Promise<StartedServer> {
   }
 }
 
-function shouldGenerateBootstrapInviteAfterStart(config: PaperclipConfig): boolean {
+function shouldGenerateBootstrapInviteAfterStart(config: OutpostConfig): boolean {
   return config.server.deploymentMode === "authenticated" && config.database.mode === "embedded-postgres";
 }
 

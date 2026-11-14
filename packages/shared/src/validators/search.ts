@@ -2,22 +2,22 @@ import { z } from "zod";
 import { ISSUE_DISPLAY_STATUSES, ISSUE_PRIORITIES, ISSUE_STATUSES } from "../constants.js";
 import { isUuidLike } from "../agent-url-key.js";
 import {
-  COMPANY_SEARCH_EXTRACT_KINDS,
-  COMPANY_SEARCH_EXTRACT_SCOPES,
-  COMPANY_SEARCH_SCOPES,
-  COMPANY_SEARCH_SORTS,
+  SPACE_SEARCH_EXTRACT_KINDS,
+  SPACE_SEARCH_EXTRACT_SCOPES,
+  SPACE_SEARCH_SCOPES,
+  SPACE_SEARCH_SORTS,
 } from "../types/search.js";
 
-export const COMPANY_SEARCH_MAX_QUERY_LENGTH = 200;
-export const COMPANY_SEARCH_MAX_TOKENS = 8;
-export const COMPANY_SEARCH_DEFAULT_LIMIT = 20;
-export const COMPANY_SEARCH_MAX_LIMIT = 50;
-export const COMPANY_SEARCH_MAX_OFFSET = 200;
-export const COMPANY_SEARCH_EXTRACT_DEFAULT_LIMIT = 100;
-export const COMPANY_SEARCH_EXTRACT_MAX_LIMIT = 200;
-export const COMPANY_SEARCH_EXTRACT_MAX_OFFSET = 5_000;
-export const COMPANY_SEARCH_EXTRACT_DEFAULT_MATCHES_PER_ISSUE = 20;
-export const COMPANY_SEARCH_EXTRACT_MAX_MATCHES_PER_ISSUE = 200;
+export const SPACE_SEARCH_MAX_QUERY_LENGTH = 200;
+export const SPACE_SEARCH_MAX_TOKENS = 8;
+export const SPACE_SEARCH_DEFAULT_LIMIT = 20;
+export const SPACE_SEARCH_MAX_LIMIT = 50;
+export const SPACE_SEARCH_MAX_OFFSET = 200;
+export const SPACE_SEARCH_EXTRACT_DEFAULT_LIMIT = 100;
+export const SPACE_SEARCH_EXTRACT_MAX_LIMIT = 200;
+export const SPACE_SEARCH_EXTRACT_MAX_OFFSET = 5_000;
+export const SPACE_SEARCH_EXTRACT_DEFAULT_MATCHES_PER_ISSUE = 20;
+export const SPACE_SEARCH_EXTRACT_MAX_MATCHES_PER_ISSUE = 200;
 
 const UPDATED_WITHIN_RE = /^[1-9]\d{0,2}(h|d|w|m)$/;
 
@@ -133,26 +133,26 @@ function parseUpdatedWithin(value: unknown, ctx: z.RefinementCtx): string | unde
   return normalized;
 }
 
-export const companySearchQuerySchema = z.object({
+export const spaceSearchQuerySchema = z.object({
   q: z.unknown()
     .optional()
-    .transform((value, ctx) => (parseOptionalString(value, ctx, "q") ?? "").slice(0, COMPANY_SEARCH_MAX_QUERY_LENGTH)),
+    .transform((value, ctx) => (parseOptionalString(value, ctx, "q") ?? "").slice(0, SPACE_SEARCH_MAX_QUERY_LENGTH)),
   scope: z.unknown()
     .optional()
     .transform((value, ctx) => {
       const normalized = parseOptionalString(value, ctx, "scope") ?? "all";
-      if (!(COMPANY_SEARCH_SCOPES as readonly string[]).includes(normalized)) {
+      if (!(SPACE_SEARCH_SCOPES as readonly string[]).includes(normalized)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "scope must be a supported search scope" });
         return "all";
       }
-      return normalized as (typeof COMPANY_SEARCH_SCOPES)[number];
+      return normalized as (typeof SPACE_SEARCH_SCOPES)[number];
     }),
   limit: z.unknown()
     .optional()
-    .transform((value, ctx) => parseIntegerQuery(value, ctx, "limit", COMPANY_SEARCH_DEFAULT_LIMIT, 1, COMPANY_SEARCH_MAX_LIMIT)),
+    .transform((value, ctx) => parseIntegerQuery(value, ctx, "limit", SPACE_SEARCH_DEFAULT_LIMIT, 1, SPACE_SEARCH_MAX_LIMIT)),
   offset: z.unknown()
     .optional()
-    .transform((value, ctx) => parseIntegerQuery(value, ctx, "offset", 0, 0, COMPANY_SEARCH_MAX_OFFSET)),
+    .transform((value, ctx) => parseIntegerQuery(value, ctx, "offset", 0, 0, SPACE_SEARCH_MAX_OFFSET)),
   status: z.unknown()
     .optional()
     .transform((value, ctx) => parseEnumList(value, ctx, "status", ISSUE_STATUSES)),
@@ -184,50 +184,50 @@ export const companySearchQuerySchema = z.object({
     .optional()
     .transform((value, ctx) => {
       const normalized = parseOptionalString(value, ctx, "sort") ?? "relevance";
-      if (!(COMPANY_SEARCH_SORTS as readonly string[]).includes(normalized)) {
+      if (!(SPACE_SEARCH_SORTS as readonly string[]).includes(normalized)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "sort must be relevance, updated, created, or priority" });
         return "relevance";
       }
-      return normalized as (typeof COMPANY_SEARCH_SORTS)[number];
+      return normalized as (typeof SPACE_SEARCH_SORTS)[number];
     }),
 });
 
-export type CompanySearchQuery = z.infer<typeof companySearchQuerySchema>;
+export type SpaceSearchQuery = z.infer<typeof spaceSearchQuerySchema>;
 
-export const companySearchExtractQuerySchema = z.object({
+export const spaceSearchExtractQuerySchema = z.object({
   contains: z.unknown().transform((value, ctx) => {
     const normalized = parseOptionalString(value, ctx, "contains");
     if (!normalized || normalized.length < 2) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "contains must be at least 2 characters" });
       return "";
     }
-    if (normalized.length > COMPANY_SEARCH_MAX_QUERY_LENGTH) {
+    if (normalized.length > SPACE_SEARCH_MAX_QUERY_LENGTH) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `contains must be at most ${COMPANY_SEARCH_MAX_QUERY_LENGTH} characters`,
+        message: `contains must be at most ${SPACE_SEARCH_MAX_QUERY_LENGTH} characters`,
       });
     }
-    return normalized.slice(0, COMPANY_SEARCH_MAX_QUERY_LENGTH);
+    return normalized.slice(0, SPACE_SEARCH_MAX_QUERY_LENGTH);
   }),
   kind: z.unknown()
     .optional()
     .transform((value, ctx) => {
       const normalized = parseOptionalString(value, ctx, "kind") ?? "literal";
-      if (!(COMPANY_SEARCH_EXTRACT_KINDS as readonly string[]).includes(normalized)) {
+      if (!(SPACE_SEARCH_EXTRACT_KINDS as readonly string[]).includes(normalized)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "kind must be literal or url" });
         return "literal";
       }
-      return normalized as (typeof COMPANY_SEARCH_EXTRACT_KINDS)[number];
+      return normalized as (typeof SPACE_SEARCH_EXTRACT_KINDS)[number];
     }),
   scope: z.unknown()
     .optional()
     .transform((value, ctx) => {
       const normalized = parseOptionalString(value, ctx, "scope") ?? "all";
-      if (!(COMPANY_SEARCH_EXTRACT_SCOPES as readonly string[]).includes(normalized)) {
+      if (!(SPACE_SEARCH_EXTRACT_SCOPES as readonly string[]).includes(normalized)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "scope must be all, issues, comments, or documents" });
         return "all";
       }
-      return normalized as (typeof COMPANY_SEARCH_EXTRACT_SCOPES)[number];
+      return normalized as (typeof SPACE_SEARCH_EXTRACT_SCOPES)[number];
     }),
   limit: z.unknown()
     .optional()
@@ -235,22 +235,22 @@ export const companySearchExtractQuerySchema = z.object({
       value,
       ctx,
       "limit",
-      COMPANY_SEARCH_EXTRACT_DEFAULT_LIMIT,
+      SPACE_SEARCH_EXTRACT_DEFAULT_LIMIT,
       1,
-      COMPANY_SEARCH_EXTRACT_MAX_LIMIT,
+      SPACE_SEARCH_EXTRACT_MAX_LIMIT,
     )),
   offset: z.unknown()
     .optional()
-    .transform((value, ctx) => parseIntegerQuery(value, ctx, "offset", 0, 0, COMPANY_SEARCH_EXTRACT_MAX_OFFSET)),
+    .transform((value, ctx) => parseIntegerQuery(value, ctx, "offset", 0, 0, SPACE_SEARCH_EXTRACT_MAX_OFFSET)),
   matchesPerIssue: z.unknown()
     .optional()
     .transform((value, ctx) => parseIntegerQuery(
       value,
       ctx,
       "matchesPerIssue",
-      COMPANY_SEARCH_EXTRACT_DEFAULT_MATCHES_PER_ISSUE,
+      SPACE_SEARCH_EXTRACT_DEFAULT_MATCHES_PER_ISSUE,
       1,
-      COMPANY_SEARCH_EXTRACT_MAX_MATCHES_PER_ISSUE,
+      SPACE_SEARCH_EXTRACT_MAX_MATCHES_PER_ISSUE,
     )),
   status: z.unknown()
     .optional()
@@ -270,4 +270,4 @@ export const companySearchExtractQuerySchema = z.object({
   }
 });
 
-export type CompanySearchExtractQuery = z.infer<typeof companySearchExtractQuerySchema>;
+export type SpaceSearchExtractQuery = z.infer<typeof spaceSearchExtractQuerySchema>;

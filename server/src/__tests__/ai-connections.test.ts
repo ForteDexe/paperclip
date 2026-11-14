@@ -17,9 +17,9 @@ import { mkdtemp, realpath, rm, access, readFile, writeFile, stat } from "node:f
 import os from "node:os";
 import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
-import { createDb, type Db, companies, agents, agentTaskSessions, heartbeatRuns, companyMemberships, connectionGrants, toolApplications, connectionGrantDelegations, connectionGrantMembers, toolConnections, toolConnectionInstalls, aiConnectionDefaults, aiProviderDefaults, adapterAuthSessions, environments, plugins, issues, issueThreadInteractions, issueRecoveryActions, connectionIntentDeliveries, agentWakeupRequests, companySecrets, companySecretVersions, userSecretDefinitions, principalPermissionGrants } from "@outpost/db";
+import { createDb, type Db, spaces, agents, agentTaskSessions, heartbeatRuns, spaceMemberships, connectionGrants, toolApplications, connectionGrantDelegations, connectionGrantMembers, toolConnections, toolConnectionInstalls, aiConnectionDefaults, aiProviderDefaults, adapterAuthSessions, environments, plugins, issues, issueThreadInteractions, issueRecoveryActions, connectionIntentDeliveries, agentWakeupRequests, spaceSecrets, spaceSecretVersions, userSecretDefinitions, principalPermissionGrants } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "@outpost/db/test-embedded-postgres";
-import { fetchCompanyQuotaWindows } from "../services/quota-windows.js";
+import { fetchSpaceQuotaWindows } from "../services/quota-windows.js";
 import { quotaCredentialRecoveryPath, quotaCredentialRecovery, quotaCredentialHash } from "../services/quota-credential-recovery.js";
 import { reconcileRetainedAiCleanup, retainAiCredentialCleanup } from "../services/retained-ai-credential-cleanup.js";
 import { readAiConnectionConfigurationFailure } from "../services/ai-connection-configuration-failure.js";
@@ -56,24 +56,24 @@ vi.mock("../services/local-ai-browser-login.js", () => ({
 let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
 let db: ReturnType<typeof createDb>;
 let home: string;
-const companyId = randomUUID();
-const otherCompanyId = randomUUID();
+const spaceId = randomUUID();
+const otherSpaceId = randomUUID();
 const agentId = randomUUID();
 let service: ReturnType<typeof aiConnectionService>;
 const binding = { provider: "anthropic", method: "api_key", mode: "responsible_user" } as const;
-const input = { companyId, agentId, adapterType: "claude_local", binding };
-const create = (userId: string, name: string, ownership: "personal" | "shared" = "personal") => service.save(companyId, userId, { provider: "anthropic", method: "api_key", ownership, name, apiKey: "fixture", agentIds: [], allAgents: true }, `fixture-${name}`);
+const input = { spaceId, agentId, adapterType: "claude_local", binding };
+const create = (userId: string, name: string, ownership: "personal" | "shared" = "personal") => service.save(spaceId, userId, { provider: "anthropic", method: "api_key", ownership, name, apiKey: "fixture", agentIds: [], allAgents: true }, `fixture-${name}`);
 
 beforeAll(async () => {
-  home = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-ai-tests-")));
+  home = await realpath(await mkdtemp(path.join(os.tmpdir(), "outpost-ai-tests-")));
   vi.stubEnv("OUTPOST_HOME", home);
   vi.stubEnv("OUTPOST_INSTANCE_ID", "ai-connection-fixture");
-  database = await startEmbeddedPostgresTestDatabase("paperclip-ai-db-");
+  database = await startEmbeddedPostgresTestDatabase("outpost-ai-db-");
   db = createDb(database.connectionString);
   service = aiConnectionService(db);
-  await db.insert(companies).values([{ id: companyId, name: "AI connection tests", issuePrefix: "AIT" }, { id: otherCompanyId, name: "Other", issuePrefix: "AIO" }]);
-  await db.insert(agents).values({ id: agentId, companyId, name: "Nova", adapterType: "claude_local" });
-  await db.insert(companyMemberships).values(["alice", "bob"].map(principalId => ({ companyId, principalId, principalType: "user", status: "active", membershipRole: "member" })));
+  await db.insert(spaces).values([{ id: spaceId, name: "AI connection tests", issuePrefix: "AIT" }, { id: otherSpaceId, name: "Other", issuePrefix: "AIO" }]);
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Nova", adapterType: "claude_local" });
+  await db.insert(spaceMemberships).values(["alice", "bob"].map(principalId => ({ spaceId, principalId, principalType: "user", status: "active", membershipRole: "member" })));
 }, 90000);
 afterAll(async () => { await database?.cleanup(); vi.unstubAllEnvs(); if (home) await rm(home, { recursive: true, force: true }); });
 
@@ -86,15 +86,15 @@ describe("managed AI connections", () => {
     { provider: "google", envKey: "GEMINI_API_KEY", routed: false },
   ] as const)("prepares native Pi with isolated $provider credentials (routing=$routed)", async ({ provider, envKey, routed }) => {
     const owner = `pi-managed-${provider}-${routed}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const token = "fixture-pi-provider-key";
-    const account = await service.save(companyId, owner, { provider, method: "api_key", ownership: "personal", name: owner, apiKey: token, allAgents: true, agentIds: [],
+    const account = await service.save(spaceId, owner, { provider, method: "api_key", ownership: "personal", name: owner, apiKey: token, allAgents: true, agentIds: [],
       ...(routed ? { routing: { kind: "openrouter" as const, protocol: "chat" as const, auth: "bearer" as const, models: [] } } : {}) }, token);
-    if (!routed) await service.setDefault(companyId, owner, account.grantId);
+    if (!routed) await service.setDefault(spaceId, owner, account.grantId);
     const selected = routed
       ? { provider, method: "api_key" as const, mode: "delegated" as const, ...account }
       : { provider, method: "api_key" as const, mode: "responsible_user" as const };
-    const piInput = { companyId, agentId, responsibleUserId: owner, adapterType: "outpost_runner", binding: selected,
+    const piInput = { spaceId, agentId, responsibleUserId: owner, adapterType: "outpost_runner", binding: selected,
       config: { provider: "acpx", acpxAgent: "pi", model: `${provider}/provider-model`, piThinkingLevel: "low", env: { OPENAI_API_KEY: "stale-openai", ANTHROPIC_API_KEY: "stale-anthropic" } } };
     const runtime = await prepareManagedAiRuntime(db, piInput);
     try {
@@ -107,18 +107,18 @@ describe("managed AI connections", () => {
 
   it.each([200, 401])("reverifies native Pi OpenRouter keys without requiring the Legacy Pi CLI (HTTP %s)", async status => {
     const owner = `pi-adoption-${status}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const token = `fixture-pi-adoption-${status}`;
-    const account = await service.save(companyId, owner, { provider: "openrouter", method: "api_key", ownership: "personal", name: owner, apiKey: token, allAgents: true, agentIds: [], routing: { kind: "openrouter", protocol: "chat", auth: "bearer", models: [] } }, token);
+    const account = await service.save(spaceId, owner, { provider: "openrouter", method: "api_key", ownership: "personal", name: owner, apiKey: token, allAgents: true, agentIds: [], routing: { kind: "openrouter", protocol: "chat", auth: "bearer", models: [] } }, token);
     const selected = { provider: "openrouter", method: "api_key", mode: "delegated", ...account } as const;
-    const runtime = await prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "outpost_runner", binding: selected, config: { provider: "acpx", acpxAgent: "pi", model: "openrouter/anthropic/claude-sonnet-4.5" } });
+    const runtime = await prepareManagedAiRuntime(db, { spaceId, agentId, responsibleUserId: owner, adapterType: "outpost_runner", binding: selected, config: { provider: "acpx", acpxAgent: "pi", model: "openrouter/anthropic/claude-sonnet-4.5" } });
     const { requireServerAdapter } = await import("../adapters/index.js");
     const { agentEnvironmentTestService } = await import("../services/agent-environment-test.js");
     const native = vi.spyOn(requireServerAdapter("outpost_runner"), "testEnvironment").mockResolvedValue({ adapterType: "outpost_runner", status: "pass", testedAt: new Date().toISOString(), checks: [{ code: "acpx_runtime_ready", level: "info", message: "Pinned Pi runtime verified" }] });
     const legacy = vi.spyOn(requireServerAdapter("pi_local"), "testEnvironment").mockRejectedValue(new Error("Legacy Pi CLI must not be required"));
     const request = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ data: {} }), { status }));
     try {
-      const result = await agentEnvironmentTestService(db).testManagedEnvironment("outpost_runner", { companyId, adapterType: "outpost_runner", config: runtime.config }, selected, runtime, agentId);
+      const result = await agentEnvironmentTestService(db).testManagedEnvironment("outpost_runner", { spaceId, adapterType: "outpost_runner", config: runtime.config }, selected, runtime, agentId);
       expect(result.status).toBe(status === 200 ? "pass" : "fail");
       expect(result.checks).toContainEqual(expect.objectContaining({ code: status === 200 ? "ai_connection_api_key_reverified" : "ai_connection_api_key_rejected" }));
       expect(legacy).not.toHaveBeenCalled();
@@ -130,7 +130,7 @@ describe("managed AI connections", () => {
     const { errorHandler } = await import("../middleware/index.js");
     const owner = "copilot-plugin-bootstrap", pluginId = randomUUID();
     const pluginKey = `test.bootstrap.${pluginId}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     await db.insert(plugins).values({ id: pluginId, pluginKey, packageName: "@test/bootstrap", version: "1.0.0", apiVersion: 1,
       categories: ["automation"], status: "ready", manifestJson: { id: pluginKey, apiVersion: 1, version: "1.0.0",
         displayName: "Bootstrap", description: "Bootstrap fixture", author: "Test", categories: ["automation"],
@@ -139,14 +139,14 @@ describe("managed AI connections", () => {
     const [environment] = await db.insert(environments).values({ name: "Agent computer", driver: "plugin",
       config: { pluginKey, driverKey: "tasks", driverConfig: {} } }).returning();
     const token = "github_pat_fixture_plugin_bootstrap";
-    const account = await service.save(companyId, owner, { provider: "github", method: "api_key", ownership: "personal", name: "Bootstrap", apiKey: token, agentIds: [], allAgents: false }, token);
-    await service.setDefault(companyId, owner, account.grantId);
+    const account = await service.save(spaceId, owner, { provider: "github", method: "api_key", ownership: "personal", name: "Bootstrap", apiKey: token, agentIds: [], allAgents: false }, token);
+    await service.setDefault(spaceId, owner, account.grantId);
     const probe = vi.spyOn(copilotProbe, "probeCopilotExecutionTarget").mockRejectedValue(new Error("No computer exists before the agent is saved"));
     const app = express(); app.use(express.json());
-    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", userId: owner, companyIds: [companyId], isInstanceAdmin: true }; next(); });
+    app.use((req, _res, next) => { req.actor = { type: "operator", source: "local_implicit", userId: owner, spaceIds: [spaceId], isInstanceAdmin: true }; next(); });
     app.use("/api", agentRoutes(db)); app.use(errorHandler);
     try {
-      const response = await request(app).post(`/api/companies/${companyId}/agents`).send({ name: "Plugin bootstrap", role: "general",
+      const response = await request(app).post(`/api/spaces/${spaceId}/agents`).send({ name: "Plugin bootstrap", role: "general",
         adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.6-luna" },
         defaultEnvironmentId: environment.id, runtimeConfig: { aiConnection: { provider: "github", method: "api_key", mode: "responsible_user" } } });
       expect(response.status, JSON.stringify(response.body)).toBe(201);
@@ -156,18 +156,18 @@ describe("managed AI connections", () => {
     } finally { probe.mockRestore(); }
   });
 
-  it.each(["create", "hire", "edit"])("refuses Copilot %s before probing or persisting when forced Kubernetes is missing", async action => {
+  it.each(["create", "create", "edit"])("refuses Copilot %s before probing or persisting when forced Kubernetes is missing", async action => {
     const { errorHandler } = await import("../middleware/index.js");
     const owner = `copilot-kubernetes-${action}`, id = randomUUID();
     const config = { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.6-luna" };
     const aiConnection = { provider: "github", method: "api_key", mode: "responsible_user" } as const;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id, companyId, name: "Kubernetes fixture", adapterType: "outpost_runner", adapterConfig: config, runtimeConfig: { aiConnection } });
-    const account = await service.save(companyId, owner, { provider: "github", method: "api_key", ownership: "personal", name: "Kubernetes fixture", apiKey: "github_pat_fixture_kubernetes", agentIds: [id], allAgents: false }, "github_pat_fixture_kubernetes");
-    await service.setDefault(companyId, owner, account.grantId);
-    const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
-    await db.update(companies).set({ requireBoardApprovalForNewAgents: false }).where(eq(companies.id, companyId));
-    const before = await db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, companyId));
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id, spaceId, name: "Kubernetes fixture", adapterType: "outpost_runner", adapterConfig: config, runtimeConfig: { aiConnection } });
+    const account = await service.save(spaceId, owner, { provider: "github", method: "api_key", ownership: "personal", name: "Kubernetes fixture", apiKey: "github_pat_fixture_kubernetes", agentIds: [id], allAgents: false }, "github_pat_fixture_kubernetes");
+    await service.setDefault(spaceId, owner, account.grantId);
+    const [space] = await db.select().from(spaces).where(eq(spaces.id, spaceId));
+    await db.update(spaces).set({ requireOperatorApprovalForNewAgents: false }).where(eq(spaces.id, spaceId));
+    const before = await db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, spaceId));
     const originalSettings = settingsModule.instanceSettingsService;
     const settings = vi.spyOn(settingsModule, "instanceSettingsService").mockImplementation(database => {
       const service = originalSettings(database);
@@ -175,56 +175,56 @@ describe("managed AI connections", () => {
     });
     const probe = vi.spyOn(copilotProbe, "probeCopilotExecutionTarget");
     const app = express(); app.use(express.json());
-    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", userId: owner, companyIds: [companyId], isInstanceAdmin: true }; next(); });
+    app.use((req, _res, next) => { req.actor = { type: "operator", source: "local_implicit", userId: owner, spaceIds: [spaceId], isInstanceAdmin: true }; next(); });
     app.use("/api", agentRoutes(db)); app.use(errorHandler);
     try {
       const changedConfig = { ...config, model: "prospective-model" };
       const response = action === "edit"
         ? await request(app).patch(`/api/agents/${id}`).send({ adapterConfig: changedConfig })
-        : await request(app).post(`/api/companies/${companyId}/${action === "hire" ? "agent-hires" : "agents"}`).send({ name: "Forced Kubernetes", role: "general", adapterType: "outpost_runner", adapterConfig: changedConfig, runtimeConfig: { aiConnection } });
+        : await request(app).post(`/api/spaces/${spaceId}/${action === "create" ? "agent-creations" : "agents"}`).send({ name: "Forced Kubernetes", role: "general", adapterType: "outpost_runner", adapterConfig: changedConfig, runtimeConfig: { aiConnection } });
       expect(response.status, JSON.stringify(response.body)).toBe(422);
       expect(response.body.details.code).toBe("copilot_environment_unavailable");
       expect(probe).not.toHaveBeenCalled();
       expect((await db.select().from(agents).where(eq(agents.id, id)))[0].adapterConfig).toEqual(config);
-      expect(await db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, companyId))).toHaveLength(before.length);
+      expect(await db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, spaceId))).toHaveLength(before.length);
     } finally {
       probe.mockRestore(); settings.mockRestore();
-      await db.update(companies).set({ requireBoardApprovalForNewAgents: company.requireBoardApprovalForNewAgents }).where(eq(companies.id, companyId));
+      await db.update(spaces).set({ requireOperatorApprovalForNewAgents: space.requireOperatorApprovalForNewAgents }).where(eq(spaces.id, spaceId));
     }
   });
-  it.each(["create", "hire", "edit"].flatMap(action => [true, false].map(connectionProvided => ({ action, connectionProvided }))))(
+  it.each(["create", "create", "edit"].flatMap(action => [true, false].map(connectionProvided => ({ action, connectionProvided }))))(
     "refuses unavailable Copilot models before $action persists configuration (connection binding: $connectionProvided)", async ({ action, connectionProvided }) => {
     const { unprocessable } = await import("../errors.js");
     const { errorHandler } = await import("../middleware/index.js");
     const owner = `copilot-model-${action}-${connectionProvided}`, id = randomUUID();
     const savedConfig = { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.6-luna" };
     const aiConnection = { provider: "github", method: "api_key", mode: "responsible_user" } as const;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id, companyId, name: `Copilot ${action} fixture`, adapterType: "outpost_runner", adapterConfig: savedConfig, runtimeConfig: connectionProvided ? { aiConnection } : {} });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id, spaceId, name: `Copilot ${action} fixture`, adapterType: "outpost_runner", adapterConfig: savedConfig, runtimeConfig: connectionProvided ? { aiConnection } : {} });
     const token = `github_pat_fixture_model_${action}`;
-    const account = await service.save(companyId, owner, { provider: "github", method: "api_key", ownership: "personal", name: `Model ${action}`, apiKey: token, agentIds: [id], allAgents: false }, token);
-    await service.setDefault(companyId, owner, account.grantId);
-    const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
-    await db.update(companies).set({ requireBoardApprovalForNewAgents: false }).where(eq(companies.id, companyId));
-    const before = await db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, companyId));
+    const account = await service.save(spaceId, owner, { provider: "github", method: "api_key", ownership: "personal", name: `Model ${action}`, apiKey: token, agentIds: [id], allAgents: false }, token);
+    await service.setDefault(spaceId, owner, account.grantId);
+    const [space] = await db.select().from(spaces).where(eq(spaces.id, spaceId));
+    await db.update(spaces).set({ requireOperatorApprovalForNewAgents: false }).where(eq(spaces.id, spaceId));
+    const before = await db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, spaceId));
     const probe = vi.spyOn(copilotProbe, "probeCopilotExecutionTarget").mockRejectedValue(unprocessable("The selected Copilot model is unavailable for this account.", { code: "COPILOT_MODEL_UNAVAILABLE" }));
     const app = express(); app.use(express.json());
-    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", userId: owner, companyIds: [companyId], isInstanceAdmin: true }; next(); });
+    app.use((req, _res, next) => { req.actor = { type: "operator", source: "local_implicit", userId: owner, spaceIds: [spaceId], isInstanceAdmin: true }; next(); });
     app.use("/api", agentRoutes(db)); app.use(errorHandler);
     const config = { ...savedConfig, model: "unavailable-copilot-model" };
     try {
       const response = action === "edit"
         ? await request(app).patch(`/api/agents/${id}`).send({ adapterConfig: config })
-        : await request(app).post(`/api/companies/${companyId}/${action === "hire" ? "agent-hires" : "agents"}`).send({ name: `Unavailable ${action}`, role: "general", adapterType: "outpost_runner", adapterConfig: config, ...(connectionProvided ? { runtimeConfig: { aiConnection } } : {}) });
+        : await request(app).post(`/api/spaces/${spaceId}/${action === "create" ? "agent-creations" : "agents"}`).send({ name: `Unavailable ${action}`, role: "general", adapterType: "outpost_runner", adapterConfig: config, ...(connectionProvided ? { runtimeConfig: { aiConnection } } : {}) });
       expect(response.status, JSON.stringify(response.body)).toBe(422);
       expect(response.body).toMatchObject({ error: "The selected Copilot model is unavailable for this account." });
       expect(probe).toHaveBeenCalledExactlyOnceWith(token, null, "unavailable-copilot-model");
       expect((await db.select().from(agents).where(eq(agents.id, id)))[0].adapterConfig).toEqual(savedConfig);
-      expect(await db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, companyId))).toHaveLength(before.length);
+      expect(await db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, spaceId))).toHaveLength(before.length);
       expect(JSON.stringify(response.body)).not.toContain(token);
     } finally {
       probe.mockRestore();
-      await db.update(companies).set({ requireBoardApprovalForNewAgents: company.requireBoardApprovalForNewAgents }).where(eq(companies.id, companyId));
+      await db.update(spaces).set({ requireOperatorApprovalForNewAgents: space.requireOperatorApprovalForNewAgents }).where(eq(spaces.id, spaceId));
     }
   });
 
@@ -233,14 +233,14 @@ describe("managed AI connections", () => {
     const owner = "copilot-model-valid", id = randomUUID();
     const aiConnection = { provider: "github", method: "api_key", mode: "responsible_user" } as const;
     const config = { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.6-luna" };
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id, companyId, name: "Copilot available model", adapterType: "outpost_runner", adapterConfig: { ...config, model: "previous-model" }, runtimeConfig: { aiConnection } });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id, spaceId, name: "Copilot available model", adapterType: "outpost_runner", adapterConfig: { ...config, model: "previous-model" }, runtimeConfig: { aiConnection } });
     const token = "github_pat_fixture_model_valid";
-    const account = await service.save(companyId, owner, { provider: "github", method: "api_key", ownership: "personal", name: "Valid model", apiKey: token, agentIds: [id], allAgents: false }, token);
-    await service.setDefault(companyId, owner, account.grantId);
+    const account = await service.save(spaceId, owner, { provider: "github", method: "api_key", ownership: "personal", name: "Valid model", apiKey: token, agentIds: [id], allAgents: false }, token);
+    await service.setDefault(spaceId, owner, account.grantId);
     const probe = vi.spyOn(copilotProbe, "probeCopilotExecutionTarget").mockResolvedValue({ status: "verified", version: "1.0.88", profileDigest: "fixture-profile", promptSent: false, models: [{ id: config.model, label: "GPT" }] });
     const app = express(); app.use(express.json());
-    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", userId: owner, companyIds: [companyId], isInstanceAdmin: true }; next(); });
+    app.use((req, _res, next) => { req.actor = { type: "operator", source: "local_implicit", userId: owner, spaceIds: [spaceId], isInstanceAdmin: true }; next(); });
     app.use("/api", agentRoutes(db)); app.use(errorHandler);
     try {
       const response = await request(app).patch(`/api/agents/${id}`).send({ adapterConfig: config });
@@ -259,17 +259,17 @@ describe("managed AI connections", () => {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "local_implicit", userId: "alice", companyIds: [companyId] };
+      req.actor = { type: "operator", source: "local_implicit", userId: "alice", spaceIds: [spaceId] };
       next();
     });
     app.use("/api", aiConnectionRoutes(db, { pluginWorkerManager }));
     try {
-      const response = await request(app).post(`/api/companies/${companyId}/ai-connections`).send({
+      const response = await request(app).post(`/api/spaces/${spaceId}/ai-connections`).send({
         provider: "github", method: "api_key", name: "Copilot remote route", ownership: "personal",
         apiKey: "github_pat_fixture_remote", agentIds: [], allAgents: false,
       });
       expect(response.status).toBe(201);
-      expect(probe).toHaveBeenCalledWith(db, companyId, "github_pat_fixture_remote", undefined, undefined, { pluginWorkerManager });
+      expect(probe).toHaveBeenCalledWith(db, spaceId, "github_pat_fixture_remote", undefined, undefined, { pluginWorkerManager });
     } finally { probe.mockRestore(); }
   });
 
@@ -277,18 +277,18 @@ describe("managed AI connections", () => {
     const pluginWorkerManager = {} as PluginWorkerManager;
     const [environment] = await db.insert(environments).values({ name: "Copilot model discovery", driver: "sandbox", config: { provider: "daytona" } }).returning();
     const token = "github_pat_fixture_model_discovery";
-    const account = await service.save(companyId, "alice", { provider: "github", method: "api_key", ownership: "personal", name: "Model discovery account", apiKey: token, agentIds: [agentId], allAgents: false }, token);
-    await service.setDefault(companyId, "alice", account.grantId);
+    const account = await service.save(spaceId, "alice", { provider: "github", method: "api_key", ownership: "personal", name: "Model discovery account", apiKey: token, agentIds: [agentId], allAgents: false }, token);
+    await service.setDefault(spaceId, "alice", account.grantId);
     const probe = vi.spyOn(copilotProbe, "probeCopilotConnection").mockResolvedValue({ status: "verified", version: "1.0.88", profileDigest: "fixture-profile", promptSent: false, models: [{ id: "gpt-5.6-luna", label: "GPT" }] });
     const app = express(); app.use(express.json());
-    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", userId: "alice", companyIds: [companyId] }; next(); });
+    app.use((req, _res, next) => { req.actor = { type: "operator", source: "local_implicit", userId: "alice", spaceIds: [spaceId] }; next(); });
     app.use("/api", agentRoutes(db, { pluginWorkerManager }));
     try {
-      const response = await request(app).get(`/api/companies/${companyId}/adapters/outpost_runner/models`).query({ provider: "acpx", acpxAgent: "copilot", environmentId: environment.id, agentId, aiConnection: JSON.stringify({ provider: "github", method: "api_key", mode: "responsible_user" }) });
+      const response = await request(app).get(`/api/spaces/${spaceId}/adapters/outpost_runner/models`).query({ provider: "acpx", acpxAgent: "copilot", environmentId: environment.id, agentId, aiConnection: JSON.stringify({ provider: "github", method: "api_key", mode: "responsible_user" }) });
       expect(response.status).toBe(200);
       expect(response.headers["cache-control"]).toBe("no-store");
       expect(response.body).toEqual([{ id: "gpt-5.6-luna", label: "GPT" }]);
-      expect(probe).toHaveBeenCalledWith(db, companyId, token, environment.id, undefined, { pluginWorkerManager, targetAgentId: agentId });
+      expect(probe).toHaveBeenCalledWith(db, spaceId, token, environment.id, undefined, { pluginWorkerManager, targetAgentId: agentId });
       expect(JSON.stringify(response.body)).not.toContain(token);
     } finally { probe.mockRestore(); }
   });
@@ -296,17 +296,17 @@ describe("managed AI connections", () => {
   it("keeps Copilot model discovery behind shared installation and agent configuration authority", async () => {
     const { errorHandler } = await import("../middleware/index.js");
     const owner = "copilot-discovery-owner", audience = "copilot-discovery-audience";
-    await db.insert(companyMemberships).values([owner, audience].map(principalId => ({ companyId, principalId, principalType: "user", status: "active", membershipRole: "member" })));
-    await db.insert(principalPermissionGrants).values([owner, audience].map(principalId => ({ companyId, principalId, principalType: "user", permissionKey: "agents:create" })));
+    await db.insert(spaceMemberships).values([owner, audience].map(principalId => ({ spaceId, principalId, principalType: "user", status: "active", membershipRole: "member" })));
+    await db.insert(principalPermissionGrants).values([owner, audience].map(principalId => ({ spaceId, principalId, principalType: "user", permissionKey: "agents:create" })));
     const token = "github_pat_fixture_shared_discovery";
-    const account = await service.save(companyId, owner, { provider: "github", method: "api_key", ownership: "shared", name: "Shared discovery", apiKey: token, agentIds: [], allAgents: false }, token);
-    await db.insert(connectionGrantMembers).values([owner, audience].map(subjectId => ({ companyId, grantId: account.grantId, subjectType: "user" as const, subjectId })));
+    const account = await service.save(spaceId, owner, { provider: "github", method: "api_key", ownership: "shared", name: "Shared discovery", apiKey: token, agentIds: [], allAgents: false }, token);
+    await db.insert(connectionGrantMembers).values([owner, audience].map(subjectId => ({ spaceId, grantId: account.grantId, subjectType: "user" as const, subjectId })));
     const binding = { provider: "github", method: "api_key", mode: "shared", ...account };
     const probe = vi.spyOn(copilotProbe, "probeCopilotConnection").mockResolvedValue({ status: "verified", version: "1.0.88", profileDigest: "fixture-profile", promptSent: false, models: [{ id: "gpt-5.6-luna", label: "GPT" }] });
     const app = express(); app.use(express.json());
-    app.use((req, _res, next) => { req.actor = { type: "board", source: "session", userId: String(req.headers["x-test-user"] ?? audience), companyIds: [companyId], memberships: [{ companyId, membershipRole: "member", status: "active" }] }; next(); });
+    app.use((req, _res, next) => { req.actor = { type: "operator", source: "session", userId: String(req.headers["x-test-user"] ?? audience), spaceIds: [spaceId], memberships: [{ spaceId, membershipRole: "member", status: "active" }] }; next(); });
     app.use("/api", agentRoutes(db)); app.use(errorHandler);
-    const url = `/api/companies/${companyId}/adapters/outpost_runner/models`;
+    const url = `/api/spaces/${spaceId}/adapters/outpost_runner/models`;
     const query = { provider: "acpx", acpxAgent: "copilot", aiConnection: JSON.stringify(binding) };
     try {
       const denied = await request(app).get(url).query(query);
@@ -315,7 +315,7 @@ describe("managed AI connections", () => {
       expect(probe).not.toHaveBeenCalled();
       const allowed = await request(app).get(url).set("x-test-user", owner).query(query);
       expect(allowed.status, JSON.stringify(allowed.body)).toBe(200);
-      expect(probe).toHaveBeenCalledExactlyOnceWith(db, companyId, token, null, undefined, { pluginWorkerManager: undefined });
+      expect(probe).toHaveBeenCalledExactlyOnceWith(db, spaceId, token, null, undefined, { pluginWorkerManager: undefined });
       probe.mockClear();
       const foreign = await request(app).get(url).set("x-test-user", owner).query({ ...query, agentId: randomUUID() });
       expect(foreign.status).toBe(404);
@@ -326,7 +326,7 @@ describe("managed AI connections", () => {
 
   it("preserves repository GitHub credentials for managed non-Copilot execution", async () => {
     const owner = "repo-github-owner";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     await create(owner, owner);
     for (const configured of [{ GH_TOKEN: "repo-gh-fixture", GITHUB_TOKEN: "repo-github-fixture" }, {}]) {
       const runtime = await prepareManagedAiRuntime(db, { ...input, responsibleUserId: owner, config: { env: configured } });
@@ -343,14 +343,14 @@ describe("managed AI connections", () => {
   it("uses a vaulted Copilot token with GitHub attribution and refuses revoked or foreign grants", async () => {
     const owner = "copilot-owner";
     const token = "github_pat_fixture_copilot";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
-    const account = await service.save(companyId, owner, { provider: "github", method: "api_key", ownership: "personal", name: "Copilot", apiKey: token, agentIds: [agentId], allAgents: false }, token);
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const account = await service.save(spaceId, owner, { provider: "github", method: "api_key", ownership: "personal", name: "Copilot", apiKey: token, agentIds: [agentId], allAgents: false }, token);
     const selectedBinding = { provider: "github", method: "api_key", mode: "responsible_user" } as const;
     const config = { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.6-luna", env: { COPILOT_GITHUB_TOKEN: "ambient-never-use", GH_TOKEN: "project-never-use" } };
-    const runInput = { companyId, agentId, responsibleUserId: owner, adapterType: "outpost_runner", binding: selectedBinding, config };
+    const runInput = { spaceId, agentId, responsibleUserId: owner, adapterType: "outpost_runner", binding: selectedBinding, config };
     const selected = await service.select({ ...runInput, userId: owner, runnerProvider: "acpx", acpxAgent: "copilot", model: config.model });
     expect(await service.credential(selected)).toBe(token);
-    expect(JSON.stringify(await service.list(companyId, owner))).not.toContain(token);
+    expect(JSON.stringify(await service.list(spaceId, owner))).not.toContain(token);
     const runtime = await prepareManagedAiRuntime(db, runInput);
     try {
       expect(runtime.config).toMatchObject({ provider: "acpx", acpxAgent: "copilot", model: config.model, env: { COPILOT_GITHUB_TOKEN: token, GH_TOKEN: "", GITHUB_TOKEN: "", OPENAI_API_KEY: "", ANTHROPIC_API_KEY: "" } });
@@ -359,10 +359,10 @@ describe("managed AI connections", () => {
     } finally { await runtime.cleanup(); }
     await expect(access(runtime.home!)).rejects.toThrow();
     await expect(service.select({ ...runInput, userId: "bob", runnerProvider: "acpx", acpxAgent: "copilot" })).rejects.toThrow();
-    await expect(service.select({ ...runInput, companyId: otherCompanyId, userId: owner, binding: { ...selectedBinding, mode: "shared", ...account }, runnerProvider: "acpx", acpxAgent: "copilot" })).rejects.toThrow();
+    await expect(service.select({ ...runInput, spaceId: otherSpaceId, userId: owner, binding: { ...selectedBinding, mode: "shared", ...account }, runnerProvider: "acpx", acpxAgent: "copilot" })).rejects.toThrow();
     const network = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("usage must not send credentials"));
     try {
-      expect(await service.probeUsage(companyId, owner, account.connectionId, account.grantId)).toMatchObject({ provider: "github", status: "unsupported", limits: [] });
+      expect(await service.probeUsage(spaceId, owner, account.connectionId, account.grantId)).toMatchObject({ provider: "github", status: "unsupported", limits: [] });
       expect(network).not.toHaveBeenCalled();
     } finally { network.mockRestore(); }
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, account.grantId));
@@ -371,7 +371,7 @@ describe("managed AI connections", () => {
 
   it("marks explicit AI selection rejections without changing their HTTP contract", async () => {
     const owner = "selection-blocker-owner";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const expectSelectionFailure = async (promise: Promise<unknown>, reason: string) => {
       const error = await promise.catch((error: unknown) => error);
       expect(error).toMatchObject({ status: 422, details: { code: reason } });
@@ -390,11 +390,11 @@ describe("managed AI connections", () => {
 
   it("commits one exchanged token without writable credential recovery storage", async () => {
     const owner = "quota-database-first";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { account_id: owner, access_token: "expired", refresh_token: "single-use" } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
-    const [row] = await service.quotaAccounts(companyId, owner);
-    const file = quotaCredentialRecoveryPath(companyId, row.grant.id);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(spaceId, owner);
+    const file = quotaCredentialRecoveryPath(spaceId, row.grant.id);
     const recoveryRoot = path.dirname(path.dirname(file));
     await expect(access(recoveryRoot)).rejects.toMatchObject({ code: "ENOENT" });
     const writes: string[] = [];
@@ -427,12 +427,12 @@ describe("managed AI connections", () => {
 
   it("starts a second run while the same account has unfinished credential cleanup", async () => {
     const owner = "concurrent-retained-cleanup";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const auth = JSON.stringify({ tokens: { account_id: owner, access_token: "valid-access", refresh_token: "valid-refresh" } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
-    const [row] = await service.quotaAccounts(companyId, owner);
-    const scope = { companyId, accountKey: row.grant.id }, retired = deferredSignal(), cleanup = vi.fn(async () => {});
-    const input = { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local",
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
+    const [row] = await service.quotaAccounts(spaceId, owner);
+    const scope = { spaceId, accountKey: row.grant.id }, retired = deferredSignal(), cleanup = vi.fn(async () => {});
+    const input = { spaceId, agentId, responsibleUserId: owner, adapterType: "codex_local",
       binding: { provider: "openai", method: "subscription", mode: "responsible_user" } as const, config: {} };
     retainAiCredentialCleanup({ scope, retired: retired.promise, cleanup });
     let runtime: Awaited<ReturnType<typeof prepareManagedAiRuntime>> | undefined;
@@ -445,12 +445,12 @@ describe("managed AI connections", () => {
     } finally { retired.resolve(); await reconcileRetainedAiCleanup(scope); await runtime?.cleanup(); }
   });
 
-  it("runs concurrent probes of the same account without holding the company credential mutex", async () => {
+  it("runs concurrent probes of the same account without holding the space credential mutex", async () => {
     const owner = "concurrent-account-probes";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const auth = JSON.stringify({ tokens: { account_id: owner, access_token: "valid-access", refresh_token: "valid-refresh" } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
-    const input = { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local",
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
+    const input = { spaceId, agentId, responsibleUserId: owner, adapterType: "codex_local",
       binding: { provider: "openai", method: "subscription", mode: "responsible_user" } as const, config: {} };
     const entered = deferredSignal(), release = deferredSignal(), secondEntered = vi.fn();
     const first = withManagedAiProbe(db, input, async () => { entered.resolve(); await release.promise; });
@@ -465,15 +465,15 @@ describe("managed AI connections", () => {
 
   it("prepares a run without waiting for another runtime's active cleanup", async () => {
     const owner = "concurrent-active-cleanup";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const auth = JSON.stringify({ tokens: { account_id: owner, access_token: "valid-access", refresh_token: "valid-refresh" } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
-    const [row] = await service.quotaAccounts(companyId, owner);
-    const scope = { companyId, accountKey: row.grant.id }, entered = deferredSignal(), release = deferredSignal();
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
+    const [row] = await service.quotaAccounts(spaceId, owner);
+    const scope = { spaceId, accountKey: row.grant.id }, entered = deferredSignal(), release = deferredSignal();
     retainAiCredentialCleanup({ scope, retired: Promise.resolve(), cleanup: async () => { entered.resolve(); await release.promise; } });
     await entered.promise;
     let runtime: Awaited<ReturnType<typeof prepareManagedAiRuntime>> | undefined;
-    const preparing = prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local",
+    const preparing = prepareManagedAiRuntime(db, { spaceId, agentId, responsibleUserId: owner, adapterType: "codex_local",
       binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} }).then(value => { runtime = value; });
     try {
       await vi.waitFor(() => expect(runtime).toBeDefined(), { timeout: 1000 });
@@ -481,14 +481,14 @@ describe("managed AI connections", () => {
     } finally { release.resolve(); await preparing; await reconcileRetainedAiCleanup(scope); await runtime?.cleanup(); }
   });
 
-  it.each(["timeout", "unexpected"] as const)("does not acquire a company credential lock for an ordinary probe (%s)", async (kind) => {
+  it.each(["timeout", "unexpected"] as const)("does not acquire a space credential lock for an ordinary probe (%s)", async (kind) => {
     const owner = `manual-probe-lock-${kind}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const auth = JSON.stringify({ tokens: { account_id: owner, access_token: "valid-access", refresh_token: "valid-refresh" } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
-    const [row] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const probe = vi.fn().mockResolvedValue("ok");
-    const input = { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local",
+    const input = { spaceId, agentId, responsibleUserId: owner, adapterType: "codex_local",
       binding: { provider: "openai", method: "subscription", mode: "responsible_user" } as const, config: {} };
     const failure = Object.assign(new Error("injected private lock diagnostic"), { code: kind === "timeout" ? WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE : "EACCES" });
     const lock = vi.spyOn(codexAdapter, "withAccountHomeSecretMutationLock").mockRejectedValueOnce(failure);
@@ -505,15 +505,15 @@ describe("managed AI connections", () => {
 
   it("reads OpenAI credentials independently of another runtime cleanup or mutation lock", async () => {
     const owner = "retained-openai-read-fence";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const auth = JSON.stringify({ tokens: { account_id: owner, access_token: "valid-access", refresh_token: "valid-refresh" } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
-    const [row] = await service.quotaAccounts(companyId, owner);
-    const scope = { companyId, accountKey: row.grant.id }, retired = deferredSignal(), cleanup = vi.fn(async () => {});
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
+    const [row] = await service.quotaAccounts(spaceId, owner);
+    const scope = { spaceId, accountKey: row.grant.id }, retired = deferredSignal(), cleanup = vi.fn(async () => {});
     retainAiCredentialCleanup({ scope, retired: retired.promise, cleanup });
     try {
       await expect(service.runtimeCredential(row)).resolves.toBe(auth);
-      await codexAdapter.withAccountHomeSecretMutationLock(undefined, companyId, async () => {
+      await codexAdapter.withAccountHomeSecretMutationLock(undefined, spaceId, async () => {
         await expect(service.runtimeCredential(row)).resolves.toBe(auth);
       });
       expect(cleanup).not.toHaveBeenCalled();
@@ -527,11 +527,11 @@ describe("managed AI connections", () => {
     const owner = "retired-probe-retry", otherOwner = "retired-probe-other";
     const auth = (user: string, hour: string) => JSON.stringify({ tokens: { account_id: user, id_token: "identity", access_token: `access-${hour}`, refresh_token: `refresh-${hour}` }, last_refresh: `2026-09-10T${hour}:00:00Z` });
     for (const user of [owner, otherOwner]) {
-      await db.insert(companyMemberships).values({ companyId, principalId: user, principalType: "user", status: "active", membershipRole: "member" });
-      await service.save(companyId, user, { provider: "openai", method: "subscription", ownership: "personal", name: user, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth(user, "10"));
+      await db.insert(spaceMemberships).values({ spaceId, principalId: user, principalType: "user", status: "active", membershipRole: "member" });
+      await service.save(spaceId, user, { provider: "openai", method: "subscription", ownership: "personal", name: user, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth(user, "10"));
     }
-    const [row] = await service.quotaAccounts(companyId, owner);
-    const input = { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local",
+    const [row] = await service.quotaAccounts(spaceId, owner);
+    const input = { spaceId, agentId, responsibleUserId: owner, adapterType: "codex_local",
       binding: { provider: "openai", method: "subscription", mode: "responsible_user" } as const, config: {} };
     const stopped = deferredSignal();
     const provider = vi.fn(async runtime => readFile(path.join(String(runtime.config.env.CODEX_HOME), "auth.json"), "utf8"));
@@ -552,7 +552,7 @@ describe("managed AI connections", () => {
       await expect(withManagedAiProbe(db, { ...input, responsibleUserId: otherOwner }, provider)).resolves.toBe(auth(otherOwner, "10"));
       expect(await readFile(path.join(String(retained!.config.env.CODEX_HOME), "auth.json"), "utf8")).toBe(auth(owner, "11"));
       merge.mockRestore();
-      await reconcileRetainedAiCleanup({ companyId, accountKey: row.grant.id });
+      await reconcileRetainedAiCleanup({ spaceId, accountKey: row.grant.id });
       await expect(withManagedAiProbe(db, input, provider)).resolves.toBe(auth(owner, "11"));
       expect(await service.credential(row)).toBe(auth(owner, "11"));
       await expect(access(retained!.home!)).rejects.toMatchObject({ code: "ENOENT" });
@@ -561,13 +561,13 @@ describe("managed AI connections", () => {
 
   it("allows quota refresh alongside a manual probe and keeps the freshest saved credential", async () => {
     const owner = "manual-probe-race";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const auth = (hour: string) => JSON.stringify({ tokens: { account_id: owner, id_token: "identity", access_token: `access-${hour}`, refresh_token: `refresh-${hour}` }, last_refresh: `2026-09-10T${hour}:00:00Z` });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("10"));
-    const [row] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("10"));
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const entered = deferredSignal(), release = deferredSignal();
     const request = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ access_token: "quota-access", refresh_token: "quota-refresh" }));
-    const probing = withManagedAiProbe(db, { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local",
+    const probing = withManagedAiProbe(db, { spaceId, agentId, responsibleUserId: owner, adapterType: "codex_local",
       binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} }, async runtime => {
       entered.resolve(); await release.promise;
       await writeFile(path.join(String(runtime.config.env.CODEX_HOME), "auth.json"), auth("11"));
@@ -590,13 +590,13 @@ describe("managed AI connections", () => {
 
   it("persists native Codex setup's refreshed selected login without changing existing agents", async () => {
     const owner = "native-codex-setup-refresh";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const auth = (hour: string) => JSON.stringify({ tokens: { account_id: owner, id_token: "identity", access_token: `access-${hour}`, refresh_token: `refresh-${hour}` }, last_refresh: `2026-09-10T${hour}:00:00Z` });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("10"));
-    const [row] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("10"));
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const [before] = await db.select({ adapterType: agents.adapterType, adapterConfig: agents.adapterConfig }).from(agents).where(eq(agents.id, agentId));
     const runnerBinary = path.join(home, "fixture-runnerd");
-    const resolveBinary = vi.spyOn(nativeCodexRunner, "resolvePaperclipRunnerBinary").mockReturnValue(runnerBinary);
+    const resolveBinary = vi.spyOn(nativeCodexRunner, "resolveOutpostRunnerBinary").mockReturnValue(runnerBinary);
     const probe = vi.spyOn(runnerProbe, "probeNativeRunnerEnvironment").mockImplementation(async input => {
       expect(input.transportOptions?.runnerBinary).toBe(runnerBinary);
       expect(input.transportOptions?.sourceCodexHome).toContain("/provider");
@@ -611,10 +611,10 @@ describe("managed AI connections", () => {
     });
     let managedHome: string | undefined;
     try {
-      const result = await withManagedAiProbe(db, { companyId, agentId, responsibleUserId: owner, adapterType: "outpost_runner",
+      const result = await withManagedAiProbe(db, { spaceId, agentId, responsibleUserId: owner, adapterType: "outpost_runner",
         binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: { provider: "codex" } }, async runtime => {
         managedHome = runtime.home;
-        return testNativeRunnerAuthentication({ companyId, adapterType: "outpost_runner", config: runtime.config, managedAiCredentialHome: path.join(runtime.home!, "provider") }, "codex", "gpt-5.6-sol");
+        return testNativeRunnerAuthentication({ spaceId, adapterType: "outpost_runner", config: runtime.config, managedAiCredentialHome: path.join(runtime.home!, "provider") }, "codex", "gpt-5.6-sol");
       });
       expect(result.status, JSON.stringify(result)).toBe("pass"); expect(probe).toHaveBeenCalledOnce();
       expect(await service.credential(row)).toBe(auth("11"));
@@ -627,10 +627,10 @@ describe("managed AI connections", () => {
   it("preserves the original Codex setup cleanup while another probe can run", async () => {
     const owner = "native-codex-setup-retirement-retry";
     const auth = (hour: string) => JSON.stringify({ tokens: { account_id: owner, id_token: "identity", access_token: `access-${hour}`, refresh_token: `refresh-${hour}` }, last_refresh: `2026-09-10T${hour}:00:00Z` });
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("10"));
-    const [row] = await service.quotaAccounts(companyId, owner);
-    const input = { companyId, agentId, responsibleUserId: owner, adapterType: "outpost_runner",
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("10"));
+    const [row] = await service.quotaAccounts(spaceId, owner);
+    const input = { spaceId, agentId, responsibleUserId: owner, adapterType: "outpost_runner",
       binding: { provider: "openai", method: "subscription", mode: "responsible_user" } as const, config: { provider: "codex" } };
     let rejectRetirement!: (error: Error) => void, physical = false;
     const retired = new Promise<void>((_resolve, reject) => { rejectRetirement = reject; });
@@ -642,7 +642,7 @@ describe("managed AI connections", () => {
       await original.onCodexCredentialRefresh!(path.join(original.runtimeDirectory, "codex-home", "auth.json"));
       await original.onCleanupConfirmed!();
     });
-    const binary = vi.spyOn(nativeCodexRunner, "resolvePaperclipRunnerBinary").mockReturnValue(path.join(home, "fixture-runnerd"));
+    const binary = vi.spyOn(nativeCodexRunner, "resolveOutpostRunnerBinary").mockReturnValue(path.join(home, "fixture-runnerd"));
     const probe = vi.spyOn(runnerProbe, "probeNativeRunnerEnvironment").mockImplementationOnce(async options => {
       original = options; directories.push(options.runtimeDirectory);
       await fs.mkdir(path.join(options.runtimeDirectory, "codex-home"), { mode: 0o700 });
@@ -656,7 +656,7 @@ describe("managed AI connections", () => {
     });
     const invoke = () => withManagedAiProbe(db, input, runtime => {
       retainedHome ??= runtime.home;
-      return testNativeRunnerAuthentication({ companyId, adapterType: "outpost_runner", config: runtime.config,
+      return testNativeRunnerAuthentication({ spaceId, adapterType: "outpost_runner", config: runtime.config,
         managedAiCredentialHome: path.join(runtime.home!, "provider") }, "codex", "gpt-5.6-sol");
     });
     try {
@@ -668,14 +668,14 @@ describe("managed AI connections", () => {
       expect(probe).toHaveBeenCalledTimes(2); expect(retry).toHaveBeenCalledOnce();
       await expect(access(retainedHome!)).resolves.toBeUndefined();
       physical = true;
-      await reconcileRetainedAiCleanup({ companyId, accountKey: row.grant.id });
+      await reconcileRetainedAiCleanup({ spaceId, accountKey: row.grant.id });
       expect((await invoke()).status).toBe("pass");
       expect(retry).toHaveBeenCalledTimes(2); expect(probe).toHaveBeenCalledTimes(3);
       expect(await service.credential(row)).toBe(auth("11"));
       await expect(access(retainedHome!)).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       physical = true; rejectRetirement(new Error("fixture teardown"));
-      await reconcileRetainedAiCleanup({ companyId, accountKey: row.grant.id }).catch(() => {});
+      await reconcileRetainedAiCleanup({ spaceId, accountKey: row.grant.id }).catch(() => {});
       probe.mockRestore(); binary.mockRestore();
       await Promise.all(directories.map(directory => rm(directory, { recursive: true, force: true })));
     }
@@ -683,13 +683,13 @@ describe("managed AI connections", () => {
 
   it("rejects preparation when reconnect replaces the selected credential reference", async () => {
     const owner = "replaced-ref-owner";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const auth = (id: string) => JSON.stringify({ tokens: { account_id: id, access_token: id, refresh_token: id } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("old-account"));
-    const [row] = await service.quotaAccounts(companyId, owner);
-    const definition = await secretService(db).createUserSecretDefinition(companyId, { key: "replacement_credential", name: "Replacement", provider: "local_encrypted" }, { userId: owner });
-    const replacement = await secretService(db).createCurrentUserSecretValue(companyId, owner, { definitionId: definition.id, value: auth("new-account") }, { userId: owner });
-    const prepare = () => prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local",
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("old-account"));
+    const [row] = await service.quotaAccounts(spaceId, owner);
+    const definition = await secretService(db).createUserSecretDefinition(spaceId, { key: "replacement_credential", name: "Replacement", provider: "local_encrypted" }, { userId: owner });
+    const replacement = await secretService(db).createCurrentUserSecretValue(spaceId, owner, { definitionId: definition.id, value: auth("new-account") }, { userId: owner });
+    const prepare = () => prepareManagedAiRuntime(db, { spaceId, agentId, responsibleUserId: owner, adapterType: "codex_local",
       binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
     const original = localEncryptedProvider.resolveVersion;
     const lock = vi.spyOn(localEncryptedProvider, "resolveVersion").mockImplementationOnce(async options => {
@@ -708,35 +708,35 @@ describe("managed AI connections", () => {
 
   it("caches quota after a real secret read but invalidates credential rotation and revocation", async () => {
     const owner = "quota-cache-owner";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
-    const account = await service.save(companyId, owner, { provider: "anthropic", method: "subscription", ownership: "personal", name: "Quota cache account", loginSessionId: "fixture", agentIds: [], allAgents: true }, "quota-cache-original");
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const account = await service.save(spaceId, owner, { provider: "anthropic", method: "subscription", ownership: "personal", name: "Quota cache account", loginSessionId: "fixture", agentIds: [], allAgents: true }, "quota-cache-original");
     const [grant] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, account.grantId));
     const secretId = grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!.secretId;
-    const [before] = await db.select().from(companySecrets).where(eq(companySecrets.id, secretId));
+    const [before] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, secretId));
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ five_hour: { utilization: 42 } })));
     try {
-      const first = await fetchCompanyQuotaWindows(db, companyId, owner);
-      const [after] = await db.select().from(companySecrets).where(eq(companySecrets.id, secretId));
+      const first = await fetchSpaceQuotaWindows(db, spaceId, owner);
+      const [after] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, secretId));
       expect(after.lastResolvedAt).not.toBeNull();
       expect(after.updatedAt.getTime()).toBeGreaterThan(before.updatedAt.getTime());
       expect(first[0].ok).toBe(true);
-      expect(await fetchCompanyQuotaWindows(db, companyId, owner)).toEqual(first);
+      expect(await fetchSpaceQuotaWindows(db, spaceId, owner)).toEqual(first);
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       await secretService(db).rotate(secretId, { value: "quota-cache-rotated" });
-      const rotated = await fetchCompanyQuotaWindows(db, companyId, owner);
+      const rotated = await fetchSpaceQuotaWindows(db, spaceId, owner);
       expect(rotated[0].ok).toBe(true);
       expect(rotated[0].accountKey).not.toBe(first[0].accountKey);
       expect(fetchSpy).toHaveBeenCalledTimes(2);
       expect(fetchSpy).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer quota-cache-rotated" }) }));
       await db.update(userSecretDefinitions).set({ status: "disabled" }).where(eq(userSecretDefinitions.id, before.userSecretDefinitionId!));
-      const disabled = await fetchCompanyQuotaWindows(db, companyId, owner);
+      const disabled = await fetchSpaceQuotaWindows(db, spaceId, owner);
       expect(disabled[0]).toMatchObject({ ok: false, errorFamily: "credentials_unavailable", windows: [] });
       expect(disabled[0].accountKey).not.toBe(rotated[0].accountKey);
       expect(fetchSpy).toHaveBeenCalledTimes(2);
       await db.update(userSecretDefinitions).set({ status: "active" }).where(eq(userSecretDefinitions.id, before.userSecretDefinitionId!));
-      expect((await fetchCompanyQuotaWindows(db, companyId, owner))[0].ok).toBe(true);
-      await db.update(companySecretVersions).set({ status: "disabled", revokedAt: new Date() }).where(and(eq(companySecretVersions.secretId, secretId), eq(companySecretVersions.version, 2)));
-      const revoked = await fetchCompanyQuotaWindows(db, companyId, owner);
+      expect((await fetchSpaceQuotaWindows(db, spaceId, owner))[0].ok).toBe(true);
+      await db.update(spaceSecretVersions).set({ status: "disabled", revokedAt: new Date() }).where(and(eq(spaceSecretVersions.secretId, secretId), eq(spaceSecretVersions.version, 2)));
+      const revoked = await fetchSpaceQuotaWindows(db, spaceId, owner);
       expect(revoked[0].ok).toBe(false);
       expect(revoked[0].windows).toEqual([]);
       expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -745,37 +745,37 @@ describe("managed AI connections", () => {
 
   it("caches refreshed quota under the saved grant and secret revision", async () => {
     const owner = "quota-refreshed-cache-owner";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { access_token: "expired-cache", refresh_token: "single-use", account_id: "cache-account" } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: "Refreshed cache", loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: "Refreshed cache", loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
     const request = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
       if (String(url).endsWith("/oauth/token")) return Response.json({ access_token: "fresh-cache", refresh_token: "replacement" });
       if (new Headers(options?.headers).get("authorization") === "Bearer expired-cache") return new Response("Expired", { status: 401 });
       return Response.json({ rate_limit: { primary_window: { used_percent: 42 } } });
     });
     try {
-      const first = await fetchCompanyQuotaWindows(db, companyId, owner);
+      const first = await fetchSpaceQuotaWindows(db, spaceId, owner);
       expect(first[0]).toMatchObject({ ok: true, windows: [{ usedPercent: 42 }] });
-      expect(await fetchCompanyQuotaWindows(db, companyId, owner)).toEqual(first);
+      expect(await fetchSpaceQuotaWindows(db, spaceId, owner)).toEqual(first);
       expect(request).toHaveBeenCalledTimes(3); // rejected quota, OAuth, refreshed quota
     } finally { request.mockRestore(); }
   });
 
   it.each(["rotation", "secret_metadata", "activity", "commit"] as const)("fails truthfully after %s persistence failure and permits sign-in recovery without a journal", async (failure) => {
     const owner = `quota-rollback-${failure}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { access_token: `expired-${failure}`, refresh_token: "single-use", account_id: owner } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
-    const [row] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const ref = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!;
-    const table = failure === "secret_metadata" ? "company_secrets" : failure === "activity" ? "activity_log" : "company_secret_versions";
+    const table = failure === "secret_metadata" ? "space_secrets" : failure === "activity" ? "activity_log" : "space_secret_versions";
     const condition = failure === "secret_metadata" ? `new.id = '${ref.secretId}'::uuid and new.latest_version > old.latest_version` : failure === "activity" ? `new.action = 'ai_connection.credential_refreshed'` : `new.secret_id = '${ref.secretId}'::uuid`;
     await db.execute(sql.raw(`create function quota_save_failure() returns trigger language plpgsql as $$ begin
       if ${condition} then raise exception 'injected quota save failure'; end if; return new; end $$;
       create ${failure === "commit" ? "constraint " : ""}trigger quota_save_failure ${failure === "commit" ? "after" : "before"} ${failure === "secret_metadata" ? "update" : "insert"} on ${table}
       ${failure === "commit" ? "deferrable initially deferred" : ""} for each row execute function quota_save_failure();`));
     const request = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ access_token: `fresh-${failure}`, refresh_token: `replacement-${failure}` }));
-    const file = quotaCredentialRecoveryPath(companyId, row.grant.id);
+    const file = quotaCredentialRecoveryPath(spaceId, row.grant.id);
     let triggerDropped = false;
     try {
       await expect(service.refreshQuotaCredential(row, original, new AbortController().signal)).rejects.toThrow();
@@ -788,44 +788,44 @@ describe("managed AI connections", () => {
       // existing sign-in flow, rather than claiming the failed save succeeded.
       const receiver = aiConnectionService(db);
       const generation = createHash("sha256").update(original).digest("hex").slice(0, 16);
-      await receiver.markAuthenticationFailed({ companyId, runStartedAt: new Date(), attribution: {
+      await receiver.markAuthenticationFailed({ spaceId, runStartedAt: new Date(), attribution: {
         provider: "openai", method: "subscription", connectionId: row.connection.id, grantId: row.grant.id,
         mode: "responsible_user", responsibleUserId: owner, identity: `${row.grant.id}:${owner}:${generation}`,
       } });
       expect((await db.select().from(connectionGrants).where(eq(connectionGrants.id, row.grant.id)))[0].status).toBe("needs_reauthorization");
       const signedIn = JSON.stringify({ tokens: { access_token: "signed-in", refresh_token: "new-login" } });
-      await receiver.save(companyId, owner, { connectionId: row.connection.id, provider: "openai", method: "subscription",
+      await receiver.save(spaceId, owner, { connectionId: row.connection.id, provider: "openai", method: "subscription",
         ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, signedIn);
-      const [current] = await receiver.quotaAccounts(companyId, owner);
+      const [current] = await receiver.quotaAccounts(spaceId, owner);
       expect(current.grant.status).toBe("active");
       expect(await receiver.runtimeCredential(current)).toBe(signedIn);
       expect(request).toHaveBeenCalledTimes(1);
-      expect((await db.select().from(companySecretVersions).where(eq(companySecretVersions.secretId, ref.secretId))).map(version => version.version).sort()).toEqual([1, 2]);
+      expect((await db.select().from(spaceSecretVersions).where(eq(spaceSecretVersions.secretId, ref.secretId))).map(version => version.version).sort()).toEqual([1, 2]);
     } finally {
       request.mockRestore();
       if (!triggerDropped) await db.execute(sql.raw(`drop trigger quota_save_failure on ${table}; drop function quota_save_failure();`));
     }
   });
 
-  it.each(["company_file", "grant_row"] as const)("reads runtime credentials without an execution lock while a %s writer is active", async (kind) => {
+  it.each(["space_file", "grant_row"] as const)("reads runtime credentials without an execution lock while a %s writer is active", async (kind) => {
     const owner = `runtime-lock-${kind}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const auth = JSON.stringify({ tokens: { access_token: "valid-access", refresh_token: "valid-refresh", account_id: owner } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
-    const [row] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const ref = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!;
-    const prepare = () => prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local",
+    const prepare = () => prepareManagedAiRuntime(db, { spaceId, agentId, responsibleUserId: owner, adapterType: "codex_local",
       binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
     const held = deferredSignal(), release = deferredSignal();
-    const lock = kind === "company_file" ? vi.spyOn(codexAdapter, "withAccountHomeSecretMutationLock")
-      .mockRejectedValueOnce(Object.assign(new Error("company lock held by another account"), { code: WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE })) : undefined;
-    const holding = kind === "company_file" ? Promise.resolve() : db.transaction(async tx => {
+    const lock = kind === "space_file" ? vi.spyOn(codexAdapter, "withAccountHomeSecretMutationLock")
+      .mockRejectedValueOnce(Object.assign(new Error("space lock held by another account"), { code: WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE })) : undefined;
+    const holding = kind === "space_file" ? Promise.resolve() : db.transaction(async tx => {
       if (kind === "grant_row") await tx.select().from(connectionGrants).where(eq(connectionGrants.id, row.grant.id)).for("update");
-      else await tx.select().from(companySecrets).where(eq(companySecrets.id, ref.secretId)).for("update");
+      else await tx.select().from(spaceSecrets).where(eq(spaceSecrets.id, ref.secretId)).for("update");
       held.resolve(); await release.promise;
     });
     try {
-      if (kind !== "company_file") await held.promise;
+      if (kind !== "space_file") await held.promise;
       expect(await service.runtimeCredential(row)).toBe(auth);
       expect(lock?.mock.calls ?? []).toHaveLength(0);
       expect((await db.select().from(connectionGrants).where(eq(connectionGrants.id, row.grant.id)))[0].status).toBe("active");
@@ -839,22 +839,22 @@ describe("managed AI connections", () => {
     ["runtime", "rotation"], ["runtime", "commit"], ["failed_run", "rotation"], ["failed_run", "commit"],
   ] as const)("recovers pending quota credentials before %s can reuse or invalidate the consumed token after %s failure", async (consumer, failure) => {
     const owner = `quota-consumer-${consumer}-${failure}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const auth = (marker: string) => JSON.stringify({ tokens: { access_token: `${marker}-access`, refresh_token: `${marker}-refresh`, account_id: owner } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("old"));
-    const [row] = await service.quotaAccounts(companyId, owner);
-    const prepare = () => prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local",
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("old"));
+    const [row] = await service.quotaAccounts(spaceId, owner);
+    const prepare = () => prepareManagedAiRuntime(db, { spaceId, agentId, responsibleUserId: owner, adapterType: "codex_local",
       binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
     const oldRun = await prepare();
     const ref = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!;
-    const journal = quotaCredentialRecovery(companyId, row.grant.id);
-    await journal.write({ companyId, grantId: row.grant.id, connectionId: row.connection.id, secretId: ref.secretId,
+    const journal = quotaCredentialRecovery(spaceId, row.grant.id);
+    await journal.write({ spaceId, grantId: row.grant.id, connectionId: row.connection.id, secretId: ref.secretId,
       baseHash: quotaCredentialHash(auth("old")), value: auth("new") });
-    const fail = () => service.markAuthenticationFailed({ companyId, agentId, runStartedAt: new Date(),
+    const fail = () => service.markAuthenticationFailed({ spaceId, agentId, runStartedAt: new Date(),
       attribution: { ...oldRun.attribution, identity: oldRun.identity } });
     await db.execute(sql.raw(`create function reject_consumer_recovery() returns trigger language plpgsql as $$ begin
       if new.secret_id = '${ref.secretId}'::uuid then raise exception 'recovery unavailable'; end if; return new; end $$;
-      create ${failure === "commit" ? "constraint " : ""}trigger reject_consumer_recovery ${failure === "commit" ? "after" : "before"} insert on company_secret_versions
+      create ${failure === "commit" ? "constraint " : ""}trigger reject_consumer_recovery ${failure === "commit" ? "after" : "before"} insert on space_secret_versions
       ${failure === "commit" ? "deferrable initially deferred" : ""} for each row execute function reject_consumer_recovery();`));
     try {
       if (consumer === "runtime") {
@@ -866,7 +866,7 @@ describe("managed AI connections", () => {
       expect(await service.credential(row)).toBe(auth("old"));
       expect(await journal.read()).not.toBeNull();
     } finally {
-      await db.execute(sql`drop trigger reject_consumer_recovery on company_secret_versions; drop function reject_consumer_recovery()`);
+      await db.execute(sql`drop trigger reject_consumer_recovery on space_secret_versions; drop function reject_consumer_recovery()`);
     }
     const request = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Recovery must not exchange again"));
     let nextRun: Awaited<ReturnType<typeof prepare>> | undefined;
@@ -880,16 +880,16 @@ describe("managed AI connections", () => {
       expect(await service.credential(row)).toBe(auth("new"));
       expect(await journal.read()).toBeNull();
       expect(request).not.toHaveBeenCalled();
-      expect(await db.select().from(companySecretVersions).where(eq(companySecretVersions.secretId, ref.secretId))).toHaveLength(2);
+      expect(await db.select().from(spaceSecretVersions).where(eq(spaceSecretVersions.secretId, ref.secretId))).toHaveLength(2);
     } finally { request.mockRestore(); await oldRun.cleanup(); await nextRun?.cleanup(); await journal.clear(); }
   });
 
   it("requires sign-in after the receiver process dies with an exchanged but unsaved token", async () => {
     const owner = "quota-receiver-process-loss";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { access_token: "expired-process", refresh_token: "single-use-process" } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
-    const [row] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const ref = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!;
     const held = deferredSignal(), release = deferredSignal();
     const lockKey = 7192031;
@@ -900,7 +900,7 @@ describe("managed AI connections", () => {
     await held.promise;
     await db.execute(sql.raw(`create function hold_receiver_save() returns trigger language plpgsql as $$ begin
       if new.secret_id = '${ref.secretId}'::uuid then perform pg_advisory_xact_lock(${lockKey}); end if; return new; end $$;
-      create trigger hold_receiver_save before insert on company_secret_versions for each row execute function hold_receiver_save();`));
+      create trigger hold_receiver_save before insert on space_secret_versions for each row execute function hold_receiver_save();`));
     let exchanges = 0;
     const provider = createServer((req, res) => {
       exchanges++; req.resume();
@@ -911,7 +911,7 @@ describe("managed AI connections", () => {
     const address = provider.address() as { port: number };
     const child = spawn(process.execPath, ["--import", createRequire(import.meta.url).resolve("tsx"), new URL("./helpers/quota-credential-process.ts", import.meta.url).pathname], {
       env: { ...process.env, CREDENTIAL_TEST_DATABASE_URL: database.connectionString,
-        CREDENTIAL_TEST_PROVIDER_URL: `http://127.0.0.1:${address.port}`, CREDENTIAL_TEST_COMPANY_ID: companyId, CREDENTIAL_TEST_OWNER: owner },
+        CREDENTIAL_TEST_PROVIDER_URL: `http://127.0.0.1:${address.port}`, CREDENTIAL_TEST_SPACE_ID: spaceId, CREDENTIAL_TEST_OWNER: owner },
       stdio: "ignore",
     });
     const exited = once(child, "exit");
@@ -929,31 +929,31 @@ describe("managed AI connections", () => {
     } finally {
       if (child.exitCode === null && child.signalCode === null) { child.kill("SIGKILL"); await exited; }
       release.resolve(); await holder;
-      await db.execute(sql`drop trigger hold_receiver_save on company_secret_versions; drop function hold_receiver_save()`);
+      await db.execute(sql`drop trigger hold_receiver_save on space_secret_versions; drop function hold_receiver_save()`);
       await new Promise<void>(resolve => provider.close(() => resolve()));
     }
     expect(exchanges).toBe(1);
     expect(await service.credential(row)).toBe(original);
-    await expect(access(quotaCredentialRecoveryPath(companyId, row.grant.id))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(quotaCredentialRecoveryPath(spaceId, row.grant.id))).rejects.toMatchObject({ code: "ENOENT" });
     const receiver = aiConnectionService(db);
     const generation = createHash("sha256").update(original).digest("hex").slice(0, 16);
-    await receiver.markAuthenticationFailed({ companyId, runStartedAt: new Date(), attribution: {
+    await receiver.markAuthenticationFailed({ spaceId, runStartedAt: new Date(), attribution: {
       provider: "openai", method: "subscription", connectionId: row.connection.id, grantId: row.grant.id,
       mode: "responsible_user", responsibleUserId: owner, identity: `${row.grant.id}:${owner}:${generation}`,
     } });
     expect((await db.select().from(connectionGrants).where(eq(connectionGrants.id, row.grant.id)))[0].status).toBe("needs_reauthorization");
     const signedIn = JSON.stringify({ tokens: { access_token: "process-sign-in", refresh_token: "process-new-login" } });
-    await receiver.save(companyId, owner, { connectionId: row.connection.id, provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, signedIn);
-    const [current] = await receiver.quotaAccounts(companyId, owner);
+    await receiver.save(spaceId, owner, { connectionId: row.connection.id, provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, signedIn);
+    const [current] = await receiver.quotaAccounts(spaceId, owner);
     expect(await receiver.runtimeCredential(current)).toBe(signedIn);
   }, 40_000);
 
   it("does not exchange a token when a required database transaction fails", async () => {
     const owner = "quota-db-prerequisite";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { access_token: "expired", refresh_token: "single-use" } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
-    const [row] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const request = vi.spyOn(globalThis, "fetch");
     const unavailableUrl = new URL(database.connectionString);
     unavailableUrl.port = "1";
@@ -961,16 +961,16 @@ describe("managed AI connections", () => {
     try {
       await expect(aiConnectionService(unavailable).refreshQuotaCredential(row, original, new AbortController().signal)).rejects.toThrow();
       expect(request).not.toHaveBeenCalled();
-      await expect(access(quotaCredentialRecoveryPath(companyId, row.grant.id))).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(access(quotaCredentialRecoveryPath(spaceId, row.grant.id))).rejects.toMatchObject({ code: "ENOENT" });
     } finally { await unavailable.$client.end(); request.mockRestore(); }
   });
 
   it.each(["reconnect", "same_value_new_epoch", "revoked"] as const)("lets %s win after a returned token's save rolls back", async change => {
     const owner = `quota-delayed-save-${change}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { access_token: "expired", refresh_token: "single-use" } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
-    const [row] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const ref = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!;
     const transaction = db.transaction.bind(db);
     const interrupted = vi.spyOn(db, "transaction").mockImplementationOnce(async (work, config) => {
@@ -986,16 +986,16 @@ describe("managed AI connections", () => {
       else expect(await refresh).toBe(change === "reconnect" ? "new-login" : original);
       expect(await service.credential(row)).toBe(change === "reconnect" ? "new-login" : original);
       expect(request).toHaveBeenCalledTimes(1);
-      await expect(access(quotaCredentialRecoveryPath(companyId, row.grant.id))).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(access(quotaCredentialRecoveryPath(spaceId, row.grant.id))).rejects.toMatchObject({ code: "ENOENT" });
     } finally { interrupted.mockRestore(); request.mockRestore(); }
   });
 
   it.each(["rollback", "lost_commit_reply"] as const)("automatically saves one exchanged token across %s", async (failure) => {
     const owner = `quota-once-${failure}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { access_token: "expired", refresh_token: "single-use", account_id: owner } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
-    const [row] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const transaction = db.transaction.bind(db);
     const interrupted = vi.spyOn(db, "transaction").mockImplementationOnce(async (work, config) => {
       await transaction(async (tx) => {
@@ -1009,18 +1009,18 @@ describe("managed AI connections", () => {
       await service.refreshQuotaCredential(row, original, new AbortController().signal);
       expect(JSON.parse(await service.credential(row))).toMatchObject({ tokens: { access_token: "fresh-once", refresh_token: "replacement-once" } });
       expect(request).toHaveBeenCalledTimes(1);
-      await expect(access(quotaCredentialRecoveryPath(companyId, row.grant.id))).rejects.toThrow();
+      await expect(access(quotaCredentialRecoveryPath(spaceId, row.grant.id))).rejects.toThrow();
     } finally { interrupted.mockRestore(); request.mockRestore(); }
   });
 
   it("recovers the current credential's pending replacement before answering a delayed older poll", async () => {
     const owner = "delayed-quota-poll";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { access_token: "A", refresh_token: "refresh-A", account_id: owner } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
-    const [row] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const ref = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!;
-    const journal = quotaCredentialRecovery(companyId, row.grant.id);
+    const journal = quotaCredentialRecovery(spaceId, row.grant.id);
     const request = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({ access_token: "B", refresh_token: "refresh-B" }))
       .mockResolvedValueOnce(Response.json({ access_token: "C", refresh_token: "refresh-C" }));
@@ -1029,16 +1029,16 @@ describe("managed AI connections", () => {
       const current = await service.refreshQuotaCredential(row, original, new AbortController().signal);
       await db.execute(sql.raw(`create function delayed_quota_commit_failure() returns trigger language plpgsql as $$ begin
         if new.secret_id = '${ref.secretId}'::uuid then raise exception 'injected delayed quota commit failure'; end if; return new; end $$;
-        create constraint trigger delayed_quota_commit_failure after insert on company_secret_versions deferrable initially deferred
+        create constraint trigger delayed_quota_commit_failure after insert on space_secret_versions deferrable initially deferred
         for each row execute function delayed_quota_commit_failure();`));
       triggerInstalled = true;
       await expect(service.refreshQuotaCredential(row, current, new AbortController().signal)).rejects.toThrow();
       expect(await service.credential(row)).toBe(current);
       expect(await journal.read()).toBeNull();
       // Only observed records from the earlier release use the legacy reader.
-      await journal.write({ companyId, grantId: row.grant.id, connectionId: row.connection.id, secretId: ref.secretId,
+      await journal.write({ spaceId, grantId: row.grant.id, connectionId: row.connection.id, secretId: ref.secretId,
         baseHash: quotaCredentialHash(current), value: JSON.stringify({ tokens: { access_token: "C", refresh_token: "refresh-C" } }) });
-      await db.execute(sql`drop trigger delayed_quota_commit_failure on company_secret_versions; drop function delayed_quota_commit_failure()`);
+      await db.execute(sql`drop trigger delayed_quota_commit_failure on space_secret_versions; drop function delayed_quota_commit_failure()`);
       triggerInstalled = false;
       const recovered = await service.refreshQuotaCredential(row, original, new AbortController().signal);
       expect(JSON.parse(recovered).tokens).toMatchObject({ access_token: "C", refresh_token: "refresh-C" });
@@ -1046,20 +1046,20 @@ describe("managed AI connections", () => {
       expect(await journal.read()).toBeNull();
       expect(request).toHaveBeenCalledTimes(2);
     } finally {
-      if (triggerInstalled) await db.execute(sql`drop trigger delayed_quota_commit_failure on company_secret_versions; drop function delayed_quota_commit_failure()`);
+      if (triggerInstalled) await db.execute(sql`drop trigger delayed_quota_commit_failure on space_secret_versions; drop function delayed_quota_commit_failure()`);
       request.mockRestore(); await journal.clear();
     }
   });
 
   it.each(["reconnected", "expired_reconnect", "revoked"] as const)("does not apply a pending refresh over a %s identity", async (change) => {
     const owner = `quota-replay-${change}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { access_token: "expired", refresh_token: "single-use", account_id: owner } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
-    const [row] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const ref = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!;
-    const journal = quotaCredentialRecovery(companyId, row.grant.id);
-    await journal.write({ companyId, grantId: row.grant.id, connectionId: row.connection.id, secretId: ref.secretId, baseHash: quotaCredentialHash(original), value: "old-pending-replacement" });
+    const journal = quotaCredentialRecovery(spaceId, row.grant.id);
+    await journal.write({ spaceId, grantId: row.grant.id, connectionId: row.connection.id, secretId: ref.secretId, baseHash: quotaCredentialHash(original), value: "old-pending-replacement" });
     const request = vi.spyOn(globalThis, "fetch");
     try {
       if (change === "reconnected") {
@@ -1087,10 +1087,10 @@ describe("managed AI connections", () => {
 
   it("saves exchanged tokens when the quota deadline expires during response-body reading", async () => {
     const owner = "quota-body-deadline-owner";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { access_token: "expired", refresh_token: "single-use", account_id: "deadline-account" } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: "Slow token body", loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
-    const [row] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: "Slow token body", loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const reading = deferredSignal(), releaseBody = deferredSignal(), quotaDeadline = new AbortController();
     let refreshSignal: AbortSignal | null | undefined;
     const request = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, options) => {
@@ -1114,15 +1114,15 @@ describe("managed AI connections", () => {
     } finally { releaseBody.resolve(); await saving.catch(() => {}); request.mockRestore(); }
   });
 
-  it("retries another account's token write-back while a slow quota exchange holds the company lock", async () => {
+  it("retries another account's token write-back while a slow quota exchange holds the space lock", async () => {
     const auth = (account: string, marker: string) => JSON.stringify({ tokens: { account_id: account, id_token: `id-${marker}`, access_token: `access-${marker}`, refresh_token: `refresh-${marker}` }, last_refresh: marker === "old" ? "2026-09-10T10:00:00Z" : "2026-09-10T11:00:00Z" });
     const quotaOwner = "slow-quota-owner", runOwner = "slow-quota-other-run";
-    await db.insert(companyMemberships).values([quotaOwner, runOwner].map(principalId => ({ companyId, principalId, principalType: "user" as const, status: "active" as const, membershipRole: "member" as const })));
-    for (const owner of [quotaOwner, runOwner]) await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth(owner, "old"));
-    const [quotaRow] = await service.quotaAccounts(companyId, quotaOwner);
+    await db.insert(spaceMemberships).values([quotaOwner, runOwner].map(principalId => ({ spaceId, principalId, principalType: "user" as const, status: "active" as const, membershipRole: "member" as const })));
+    for (const owner of [quotaOwner, runOwner]) await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth(owner, "old"));
+    const [quotaRow] = await service.quotaAccounts(spaceId, quotaOwner);
     // Runtime credential reads now serialize with quota exchanges. Prepare this
     // already-running, different account before testing its contended write-back.
-    const preparedRun = await prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: runOwner, adapterType: "codex_local", binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
+    const preparedRun = await prepareManagedAiRuntime(db, { spaceId, agentId, responsibleUserId: runOwner, adapterType: "codex_local", binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
     const started = deferredSignal(), release = deferredSignal();
     const request = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
       started.resolve(); await release.promise;
@@ -1147,7 +1147,7 @@ describe("managed AI connections", () => {
       expect(await readFile(authFile, "utf8")).toBe(auth(runOwner, "replacement"));
       release.resolve();
       await Promise.all([refreshing, cleaning]);
-      const [runRow] = await service.quotaAccounts(companyId, runOwner);
+      const [runRow] = await service.quotaAccounts(spaceId, runOwner);
       expect(await service.credential(runRow)).toBe(auth(runOwner, "replacement"));
       expect(JSON.parse(await service.credential(quotaRow))).toMatchObject({ tokens: { access_token: "quota-fresh", refresh_token: "quota-replacement" } });
       await expect(access(run.home!)).rejects.toMatchObject({ code: "ENOENT" });
@@ -1156,14 +1156,14 @@ describe("managed AI connections", () => {
 
   it.each(["new", "reconnect"])("retains a completed %s sign-in across two lock waits behind a quota refresh", async kind => {
     const owner = `slow-quota-login-${kind}`, loginOwner = kind === "reconnect" ? owner : "contended-login-owner";
-    await db.insert(companyMemberships).values([...new Set([owner, loginOwner])].map(principalId => ({ companyId, principalId, principalType: "user", status: "active", membershipRole: "member" })));
+    await db.insert(spaceMemberships).values([...new Set([owner, loginOwner])].map(principalId => ({ spaceId, principalId, principalType: "user", status: "active", membershipRole: "member" })));
     const original = JSON.stringify({ tokens: { account_id: owner, access_token: "old", refresh_token: "old-refresh" } });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
-    const [quotaRow] = await service.quotaAccounts(companyId, owner);
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [quotaRow] = await service.quotaAccounts(spaceId, owner);
     const [environment] = await db.insert(environments).values({ name: "Contended AI login", driver: "sandbox" }).returning();
     const intent = { provider: "openai", method: "subscription", ownership: "personal", name: "Contended sign-in", agentIds: [], allAgents: true, ...(kind === "reconnect" ? { connectionId: quotaRow.connection.id } : {}) } as const;
     const sessionId = randomUUID();
-    await db.insert(adapterAuthSessions).values({ id: sessionId, publicSessionId: randomUUID(), companyId, environmentId: environment.id, adapterType: "codex_local", startedByUserId: loginOwner, status: "promoting", aiConnection: { ...intent, agentIds: [] }, expiresAt: new Date(Date.now() + 600_000) });
+    await db.insert(adapterAuthSessions).values({ id: sessionId, publicSessionId: randomUUID(), spaceId, environmentId: environment.id, adapterType: "codex_local", startedByUserId: loginOwner, status: "promoting", aiConnection: { ...intent, agentIds: [] }, expiresAt: new Date(Date.now() + 600_000) });
     const started = deferredSignal(), release = deferredSignal();
     const request = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
       started.resolve(); await release.promise;
@@ -1180,15 +1180,15 @@ describe("managed AI connections", () => {
       lock = vi.spyOn(codexAdapter, "withAccountHomeSecretMutationLock")
         .mockRejectedValueOnce(Object.assign(new Error("lock timeout"), { code: WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE }))
         .mockRejectedValueOnce(Object.assign(new Error("lock timeout"), { code: WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE }));
-      saving = service.save(companyId, loginOwner, { ...intent, agentIds: [] }, credential, { id: sessionId });
+      saving = service.save(spaceId, loginOwner, { ...intent, agentIds: [] }, credential, { id: sessionId });
       void saving.catch(() => {});
       await vi.waitFor(() => expect(lock).toHaveBeenCalledTimes(3));
       expect((await db.select().from(adapterAuthSessions).where(eq(adapterAuthSessions.id, sessionId)))[0].connectionId).toBeNull();
       release.resolve();
       const [, saved] = await Promise.all([refreshing, saving]);
-      const [row] = (await service.quotaAccounts(companyId, loginOwner)).filter(row => row.connection.id === saved.connectionId);
+      const [row] = (await service.quotaAccounts(spaceId, loginOwner)).filter(row => row.connection.id === saved.connectionId);
       expect(await service.credential(row)).toBe(credential);
-      expect(await service.save(companyId, loginOwner, { ...intent, agentIds: [] }, credential, { id: sessionId })).toEqual(saved);
+      expect(await service.save(spaceId, loginOwner, { ...intent, agentIds: [] }, credential, { id: sessionId })).toEqual(saved);
       if (kind === "new") expect(JSON.parse(await service.credential(quotaRow))).toMatchObject({ tokens: { access_token: "quota-fresh", refresh_token: "quota-replacement" } });
     } finally {
       release.resolve(); await Promise.allSettled([refreshing, saving]); lock?.mockRestore(); request.mockRestore();
@@ -1199,45 +1199,45 @@ describe("managed AI connections", () => {
 
   it.each(["quota", "recovery", "runtime"])("allows an in-flight reconnect after automatic %s credential rotation", async kind => {
     const owner = `reconnect-refresh-${kind}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const auth = (label: string, hour: number) => JSON.stringify({ tokens: { account_id: owner, id_token: "identity", access_token: `access-${label}`, refresh_token: `refresh-${label}` }, last_refresh: `2026-09-10T${hour}:00:00Z` });
     const intent = { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true } as const;
-    const account = await service.save(companyId, owner, { ...intent, agentIds: [] }, auth("old", 10));
-    const [row] = await service.quotaAccounts(companyId, owner);
+    const account = await service.save(spaceId, owner, { ...intent, agentIds: [] }, auth("old", 10));
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const ref = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!;
-    const before = (await db.select().from(companySecrets).where(eq(companySecrets.id, ref.secretId)))[0];
+    const before = (await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, ref.secretId)))[0];
     const started = new Date();
     if (kind === "quota") {
       const request = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ access_token: "access-fresh", refresh_token: "refresh-fresh" }));
       try { await service.refreshQuotaCredential(row, auth("old", 10), new AbortController().signal); }
       finally { request.mockRestore(); }
     } else if (kind === "recovery") {
-      const recovery = quotaCredentialRecovery(companyId, row.grant.id);
-      await recovery.write({ companyId, grantId: row.grant.id, connectionId: row.connection.id, secretId: ref.secretId, baseHash: quotaCredentialHash(auth("old", 10)), value: auth("fresh", 11) });
+      const recovery = quotaCredentialRecovery(spaceId, row.grant.id);
+      await recovery.write({ spaceId, grantId: row.grant.id, connectionId: row.connection.id, secretId: ref.secretId, baseHash: quotaCredentialHash(auth("old", 10)), value: auth("fresh", 11) });
       expect(await service.runtimeCredential(row)).toBe(auth("fresh", 11));
     } else {
-      const runtime = await prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local", binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
+      const runtime = await prepareManagedAiRuntime(db, { spaceId, agentId, responsibleUserId: owner, adapterType: "codex_local", binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
       await writeFile(path.join(String(runtime.config.env.CODEX_HOME), "auth.json"), auth("fresh", 11));
       await runtime.cleanup();
     }
-    const after = (await db.select().from(companySecrets).where(eq(companySecrets.id, ref.secretId)))[0];
+    const after = (await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, ref.secretId)))[0];
     expect(after.latestVersion).toBeGreaterThan(before.latestVersion);
     expect(after.aiSessionEpoch).toBe(before.aiSessionEpoch);
-    const saved = await service.save(companyId, owner, { ...intent, agentIds: [], connectionId: account.connectionId }, auth("reconnected", 12), undefined, started);
+    const saved = await service.save(spaceId, owner, { ...intent, agentIds: [], connectionId: account.connectionId }, auth("reconnected", 12), undefined, started);
     expect(saved).toEqual(account);
     expect(await service.credential(row)).toBe(auth("reconnected", 12));
-    await expect(service.save(companyId, owner, { ...intent, agentIds: [], connectionId: account.connectionId }, auth("older-login", 13), undefined, started)).rejects.toThrow("changed");
+    await expect(service.save(spaceId, owner, { ...intent, agentIds: [], connectionId: account.connectionId }, auth("older-login", 13), undefined, started)).rejects.toThrow("changed");
     // A real later revocation still fences this same old reconnect attempt.
     await db.update(connectionGrants).set({ status: "revoked", updatedAt: new Date() }).where(eq(connectionGrants.id, account.grantId));
-    await expect(service.save(companyId, owner, { ...intent, agentIds: [], connectionId: account.connectionId }, auth("stale", 13), undefined, started)).rejects.toThrow("changed");
+    await expect(service.save(spaceId, owner, { ...intent, agentIds: [], connectionId: account.connectionId }, auth("stale", 13), undefined, started)).rejects.toThrow("changed");
   });
 
   it.each(["lock", "database"])("preserves replacement tokens after exhausted %s write-back and permits a later retry", async failure => {
     const owner = `retained-writeback-${failure}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const auth = (hour: string) => JSON.stringify({ tokens: { account_id: owner, id_token: "identity", access_token: `access-${hour}`, refresh_token: `refresh-${hour}` }, last_refresh: `2026-09-10T${hour}:00:00Z` });
-    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("10"));
-    const run = await prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local", binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
+    await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("10"));
+    const run = await prepareManagedAiRuntime(db, { spaceId, agentId, responsibleUserId: owner, adapterType: "codex_local", binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
     const authFile = path.join(String(run.config.env.CODEX_HOME), "auth.json");
     await writeFile(authFile, auth("11"));
     const injected = failure === "lock"
@@ -1249,17 +1249,17 @@ describe("managed AI connections", () => {
       expect(await readFile(authFile, "utf8")).toBe(auth("11"));
     } finally { injected.mockRestore(); }
     await run.cleanup();
-    const [row] = await service.quotaAccounts(companyId, owner);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     expect(await service.credential(row)).toBe(auth("11"));
     await expect(access(run.home!)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("rereads committed quota rotation without taking an account execution mutex", async () => {
     const owner = "quota-race-owner";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { access_token: "old-access", refresh_token: "single-use", id_token: "identity", account_id: "race-account" } });
-    const account = await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: "Racing refresh", loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
-    const [row] = await service.quotaAccounts(companyId, owner);
+    const account = await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: "Racing refresh", loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const secretId = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!.secretId;
     const exchangeStarted = deferredSignal();
     const releaseExchange = deferredSignal();
@@ -1273,12 +1273,12 @@ describe("managed AI connections", () => {
     try {
       await exchangeStarted.promise;
       lock = vi.spyOn(codexAdapter, "withAccountHomeSecretMutationLock");
-      const preparing = prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local", binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
+      const preparing = prepareManagedAiRuntime(db, { spaceId, agentId, responsibleUserId: owner, adapterType: "codex_local", binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
       let prepared = false;
       void preparing.then(() => { prepared = true; });
       await vi.waitFor(async () => {
         const waiting = await db.execute(sql`select pid from pg_stat_activity
-          where datname = current_database() and wait_event_type = 'Lock' and query like '%company_secrets%'`);
+          where datname = current_database() and wait_event_type = 'Lock' and query like '%space_secrets%'`);
         expect(waiting.length).toBeGreaterThan(0);
       });
       expect(prepared).toBe(false);
@@ -1295,23 +1295,23 @@ describe("managed AI connections", () => {
 
   it("serializes quota credential refresh, persists rotation, and defers while the provider is active", async () => {
     const owner = "quota-refresh-owner";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { access_token: "expired-access", refresh_token: "single-use", id_token: "identity", account_id: null } });
-    const account = await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: "Refresh account", loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
-    const [row] = await service.quotaAccounts(companyId, owner);
+    const account = await service.save(spaceId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: "Refresh account", loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(spaceId, owner);
     const request = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ access_token: "fresh-access", refresh_token: "rotated-once" })));
     const signal = new AbortController().signal;
     try {
       // A pre-existing transaction may own a secret row before asking for the
-      // company file lock. Refresh must defer before exchanging its token.
+      // space file lock. Refresh must defer before exchanging its token.
       await db.transaction(async tx => {
         const secretId = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!.secretId;
-        await tx.select().from(companySecrets).where(eq(companySecrets.id, secretId)).for("update");
+        await tx.select().from(spaceSecrets).where(eq(spaceSecrets.id, secretId)).for("update");
         await expect(service.refreshQuotaCredential(row, original, signal)).rejects.toThrow();
         expect(request).not.toHaveBeenCalled();
       });
       const activeId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: activeId, companyId, agentId, invocationSource: "on_demand", status: "running", contextSnapshot: { aiConnection: { grantId: account.grantId } } });
+      await db.insert(heartbeatRuns).values({ id: activeId, spaceId, agentId, invocationSource: "on_demand", status: "running", contextSnapshot: { aiConnection: { grantId: account.grantId } } });
       await expect(service.refreshQuotaCredential(row, original, signal)).rejects.toThrow("provider_unavailable");
       expect(request).not.toHaveBeenCalled();
       await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, activeId));
@@ -1333,7 +1333,7 @@ describe("managed AI connections", () => {
     ["anthropic", "claude_local", "messages"],
     ["openai", "opencode_local", "chat"],
   ] as const)("prepares a no-auth %s endpoint without a vault secret", async (provider, adapterType, protocol) => {
-    const account = await service.save(companyId, "alice", {
+    const account = await service.save(spaceId, "alice", {
       provider, method: "api_key", ownership: "personal", name: `No-auth ${adapterType}`,
       agentIds: [], allAgents: true,
       routing: { kind: "local", protocol, baseUrl: "http://127.0.0.1:9000/v1", auth: "none", models: [] },
@@ -1351,7 +1351,7 @@ describe("managed AI connections", () => {
     } finally { await Promise.all([first.cleanup(), second.cleanup()]); }
   });
   it("never restores retained Grok transcripts into same-user runtime homes", async () => {
-    const account = await service.save(companyId, "alice", {
+    const account = await service.save(spaceId, "alice", {
       provider: "xai", method: "api_key", ownership: "personal",
       name: "Grok history isolation", agentIds: [], allAgents: true,
     }, "fixture-grok-key");
@@ -1360,7 +1360,7 @@ describe("managed AI connections", () => {
       binding: { provider: "xai", method: "api_key", mode: "delegated", connectionId: account.connectionId, grantId: account.grantId } as const };
     const first = await prepareManagedAiRuntime(db, runInput);
     const scope = createHash("sha256").update(JSON.stringify([
-      companyId, agentId, taskKey, first.sessionIdentity,
+      spaceId, agentId, taskKey, first.sessionIdentity,
     ])).digest("hex");
     await first.cleanup();
     // Seed a valid archive from the earlier implementation. Runtime preparation
@@ -1368,8 +1368,8 @@ describe("managed AI connections", () => {
     const retained = await localEncryptedProvider.createVersion({ value: JSON.stringify({
       scope, entries: [{ name: "history.json", bytes: Buffer.from("previous-task-private-transcript").toString("base64") }],
     }) });
-    await db.insert(agentTaskSessions).values({ companyId, agentId, adapterType: "grok_local", taskKey,
-      sessionParamsJson: { sessionId: "history", paperclipGrokHistory: { scope, material: retained.material } } });
+    await db.insert(agentTaskSessions).values({ spaceId, agentId, adapterType: "grok_local", taskKey,
+      sessionParamsJson: { sessionId: "history", outpostGrokHistory: { scope, material: retained.material } } });
     const resumed = await prepareManagedAiRuntime(db, runInput);
     const peer = await prepareManagedAiRuntime(db, { ...runInput, agentId: randomUUID() });
     try {
@@ -1391,11 +1391,11 @@ describe("managed AI connections", () => {
   it("isolates the selected Google AI credential for pending native Antigravity preparation", async () => {
     const owner = "antigravity-managed-key";
     const token = "saved-antigravity-key";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
-    const saved = await service.save(companyId, owner, { provider: "google", method: "api_key", ownership: "personal",
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const saved = await service.save(spaceId, owner, { provider: "google", method: "api_key", ownership: "personal",
       name: "Antigravity Google AI", apiKey: token, allAgents: true, agentIds: [] }, token);
-    await service.setDefault(companyId, owner, saved.grantId);
-    const input = { companyId, agentId, responsibleUserId: owner, adapterType: "outpost_runner",
+    await service.setDefault(spaceId, owner, saved.grantId);
+    const input = { spaceId, agentId, responsibleUserId: owner, adapterType: "outpost_runner",
       binding: { provider: "google", method: "api_key", mode: "responsible_user" } as const,
       config: { provider: "acpx", acpxAgent: "antigravity", model: "exact-antigravity-model", env: {
         GEMINI_API_KEY: "ambient-key", GOOGLE_API_KEY: "ambient-other-key", GEMINI_HOME: "/ambient/home",
@@ -1438,14 +1438,14 @@ console.log(JSON.stringify({ type: "system", subtype: "init", session_id: "gemin
 console.log(JSON.stringify({ type: "assistant", message: { content: [{ type: "output_text", text: "hello" }] } }));
 console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello", session_id: "gemini-managed" }));
 `, { mode: 0o700 });
-    const saved = await service.save(companyId, "alice", {
+    const saved = await service.save(spaceId, "alice", {
       provider: "google", method: "api_key", ownership: "personal", name: "Saved Google",
       apiKey: "fixture", allAgents: true, agentIds: [],
     }, "saved-google-key");
     const runtime = await prepareManagedAiRuntime(db, {
-      companyId, agentId, responsibleUserId: "alice", adapterType: "gemini_local",
+      spaceId, agentId, responsibleUserId: "alice", adapterType: "gemini_local",
       binding: { provider: "google", method: "api_key", mode: "responsible_user" },
-      config: { engine: "cli", command, cwd: root, promptTemplate: "Say hello.", paperclipRuntimeSkills: [], env: { GEMINI_API_KEY: "ambient-google-key" } },
+      config: { engine: "cli", command, cwd: root, promptTemplate: "Say hello.", outpostRuntimeSkills: [], env: { GEMINI_API_KEY: "ambient-google-key" } },
     });
     try {
       expect(runtime.attribution.grantId).toBe(saved.grantId);
@@ -1453,12 +1453,12 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       const settingsFile = path.join(runtime.home!, ".gemini/settings.json");
       expect(await readFile(settingsFile, "utf8")).not.toContain("saved-google-key");
       expect((await stat(settingsFile)).mode & 0o777).toBe(0o600);
-      const probe = await testGeminiEnvironment({ companyId, adapterType: "gemini_local", config: runtime.config });
+      const probe = await testGeminiEnvironment({ spaceId, adapterType: "gemini_local", config: runtime.config });
       expect(probe.status).toBe("pass");
       expect(probe.checks).toContainEqual(expect.objectContaining({ code: "gemini_hello_probe_passed" }));
       const result = await executeGemini({
         runId: randomUUID(),
-        agent: { id: agentId, companyId, name: "Gemini", adapterType: "gemini_local", adapterConfig: { engine: "cli" } },
+        agent: { id: agentId, spaceId, name: "Gemini", adapterType: "gemini_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: runtime.config, context: {}, onLog: async () => {},
       });
@@ -1472,16 +1472,16 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   });
 
   it("preserves Google and Copilot account defaults when the current provider constraint migration is reapplied", async () => {
-    const saved = await service.save(companyId, "bob", {
+    const saved = await service.save(spaceId, "bob", {
       provider: "google", method: "api_key", ownership: "personal", name: "Google migration",
       apiKey: "fixture", allAgents: true, agentIds: [],
     }, "google-migration-key");
-    await db.insert(companyMemberships).values({ companyId, principalId: "migration-copilot", principalType: "user", status: "active", membershipRole: "member" });
-    const copilot = await service.save(companyId, "migration-copilot", {
+    await db.insert(spaceMemberships).values({ spaceId, principalId: "migration-copilot", principalType: "user", status: "active", membershipRole: "member" });
+    const copilot = await service.save(spaceId, "migration-copilot", {
       provider: "github", method: "api_key", ownership: "personal", name: "Copilot migration",
       apiKey: "fixture", allAgents: true, agentIds: [],
     }, "github_pat_fixture_migration");
-    await service.setDefault(companyId, "migration-copilot", copilot.grantId);
+    await service.setDefault(spaceId, "migration-copilot", copilot.grantId);
     const migration = await readFile(new URL("../../../packages/db/src/migrations/0361_mighty_dracula.sql", import.meta.url), "utf8");
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await db.transaction(async (tx) => {
@@ -1491,12 +1491,12 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       });
     }
     const selected = await service.select({
-      companyId, agentId, userId: "bob", adapterType: "gemini_local",
+      spaceId, agentId, userId: "bob", adapterType: "gemini_local",
       binding: { provider: "google", method: "api_key", mode: "responsible_user" },
     });
     expect(selected.grant.id).toBe(saved.grantId);
     const selectedCopilot = await service.select({
-      companyId, agentId, userId: "migration-copilot", adapterType: "outpost_runner",
+      spaceId, agentId, userId: "migration-copilot", adapterType: "outpost_runner",
       runnerProvider: "acpx", acpxAgent: "copilot", model: "gpt-5.6-luna",
       binding: { provider: "github", method: "api_key", mode: "responsible_user" },
     });
@@ -1505,34 +1505,34 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
 
   it.each([false, true])("reports the authoritative connection-manager capability for custom grants (manager: %s)", async (manager) => {
     const userId = `custom-manager-${manager}`;
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
-    if (manager) await db.insert(principalPermissionGrants).values({ companyId, principalType: "user", principalId: userId, permissionKey: "tools:manage_connections" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
+    if (manager) await db.insert(principalPermissionGrants).values({ spaceId, principalType: "user", principalId: userId, permissionKey: "tools:manage_connections" });
     const app = express();
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "session", userId, companyIds: [companyId], memberships: [{ companyId, status: "active", membershipRole: "member" }] };
+      req.actor = { type: "operator", source: "session", userId, spaceIds: [spaceId], memberships: [{ spaceId, status: "active", membershipRole: "member" }] };
       next();
     });
     app.use("/api", aiConnectionRoutes(db));
-    const response = await request(app).get(`/api/companies/${companyId}/ai-connections`);
+    const response = await request(app).get(`/api/spaces/${spaceId}/ai-connections`);
     expect(response.status).toBe(200);
     expect(response.body.canManageConnections).toBe(manager);
   });
 
   it("probes only the requested authorized grant using its vaulted subscription token", async () => {
     const owner = "usage-probe-owner";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
-    const account = await service.save(companyId, owner, { provider: "anthropic", method: "subscription", ownership: "personal", name: "Usage probe account", loginSessionId: "fixture", agentIds: [], allAgents: true }, "usage-selected-secret");
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const account = await service.save(spaceId, owner, { provider: "anthropic", method: "subscription", ownership: "personal", name: "Usage probe account", loginSessionId: "fixture", agentIds: [], allAgents: true }, "usage-selected-secret");
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ five_hour: { utilization: 42 }, seven_day: { utilization: 15 } })));
     const app = express();
     app.use((req, _res, next) => {
       req.actor = req.header("x-agent")
-        ? { type: "agent", agentId, companyId, companyIds: [companyId], onBehalfOfUserId: owner }
-        : { type: "board", userId: req.header("x-test-user") ?? owner, companyIds: [companyId] };
+        ? { type: "agent", agentId, spaceId, spaceIds: [spaceId], onBehalfOfUserId: owner }
+        : { type: "operator", userId: req.header("x-test-user") ?? owner, spaceIds: [spaceId] };
       next();
     });
     app.use("/api", aiConnectionRoutes(db));
     app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
-    const url = `/api/companies/${companyId}/ai-connections/${account.connectionId}/usage?grantId=${account.grantId}`;
+    const url = `/api/spaces/${spaceId}/ai-connections/${account.connectionId}/usage?grantId=${account.grantId}`;
     try {
       const result = await request(app).get(url);
       expect(result.status).toBe(200);
@@ -1542,7 +1542,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       expect(JSON.stringify(result.body)).not.toContain("usage-selected-secret");
       fetchSpy.mockClear();
       expect((await request(app).get(url).set("x-test-user", "bob")).status).toBe(404);
-      expect((await request(app).get(url.replace(companyId, otherCompanyId))).status).toBe(403);
+      expect((await request(app).get(url.replace(spaceId, otherSpaceId))).status).toBe(403);
       expect((await request(app).get(url.replace(account.grantId, randomUUID()))).status).toBe(404);
       expect((await request(app).get(url).set("x-agent", "yes")).status).toBe(403);
       expect(fetchSpy).not.toHaveBeenCalled();
@@ -1555,19 +1555,19 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
 
   it("reads provider identity only for an authorized credential and preserves connected state when profile access is denied", async () => {
     const owner = "identity-owner";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
-    const account = await service.save(companyId, owner, { provider: "anthropic", method: "subscription", ownership: "personal", name: "Identity account", loginSessionId: "fixture", agentIds: [], allAgents: true }, "identity-selected-secret");
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const account = await service.save(spaceId, owner, { provider: "anthropic", method: "subscription", ownership: "personal", name: "Identity account", loginSessionId: "fixture", agentIds: [], allAgents: true }, "identity-selected-secret");
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ account: { email: "avery@example.test", uuid: "private-account-id" }, organization: { name: "Example team", uuid: "private-org-id" } }));
     const app = express();
     app.use((req, _res, next) => {
       req.actor = req.header("x-test-anonymous") ? { type: "none" }
-        : req.header("x-agent") ? { type: "agent", agentId, companyId, companyIds: [companyId], onBehalfOfUserId: owner }
-          : { type: "board", source: "session", userId: req.header("x-test-user") ?? owner, companyIds: [companyId] };
+        : req.header("x-agent") ? { type: "agent", agentId, spaceId, spaceIds: [spaceId], onBehalfOfUserId: owner }
+          : { type: "operator", source: "session", userId: req.header("x-test-user") ?? owner, spaceIds: [spaceId] };
       next();
     });
     app.use("/api", aiConnectionRoutes(db));
     app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
-    const url = `/api/companies/${companyId}/ai-connections/${account.connectionId}/identity?grantId=${account.grantId}`;
+    const url = `/api/spaces/${spaceId}/ai-connections/${account.connectionId}/identity?grantId=${account.grantId}`;
     try {
       const result = await request(app).get(url);
       expect(result.status).toBe(200);
@@ -1577,7 +1577,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       for (const value of ["identity-selected-secret", "private-account-id", "private-org-id"]) expect(JSON.stringify(result.body)).not.toContain(value);
       fetchSpy.mockReset();
       expect((await request(app).get(url).set("x-test-user", "bob")).status).toBe(404);
-      expect((await request(app).get(url.replace(companyId, otherCompanyId))).status).toBe(403);
+      expect((await request(app).get(url.replace(spaceId, otherSpaceId))).status).toBe(403);
       expect((await request(app).get(url.replace(account.grantId, randomUUID()))).status).toBe(404);
       expect((await request(app).get(url).set("x-test-anonymous", "yes")).status).toBe(401);
       expect((await request(app).get(url).set("x-agent", "yes")).status).toBe(403);
@@ -1585,7 +1585,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       expect(fetchSpy).not.toHaveBeenCalled();
       fetchSpy.mockResolvedValue(Response.json({ error: "private-provider-error" }, { status: 403 }));
       expect((await request(app).get(url)).body).toMatchObject({ status: "unavailable", errorCode: "permission_denied", accountLabel: null });
-      expect((await service.list(companyId, owner)).find(item => item.id === account.connectionId)?.status).toBe("connected");
+      expect((await service.list(spaceId, owner)).find(item => item.id === account.connectionId)?.status).toBe("connected");
       fetchSpy.mockClear();
       await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, account.grantId));
       expect((await request(app).get(url)).body).toMatchObject({ status: "unavailable", errorCode: "connection_unavailable" });
@@ -1594,40 +1594,40 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   });
 
   it("uses the same usage probe for shared accounts across legacy and native runner selections", async () => {
-    const account = await service.save(companyId, "alice", { provider: "anthropic", method: "subscription", ownership: "shared", name: "Shared usage account", loginSessionId: "fixture", agentIds: [], allAgents: true }, "shared-usage-secret");
+    const account = await service.save(spaceId, "alice", { provider: "anthropic", method: "subscription", ownership: "shared", name: "Shared usage account", loginSessionId: "fixture", agentIds: [], allAgents: true }, "shared-usage-secret");
     const selected = { provider: "anthropic", method: "subscription", mode: "shared", ...account } as const;
     const tools = toolAccessService(db);
     await tools.replaceConnectionGrantMembers(account.connectionId, account.grantId, ["alice"], { actorType: "user", actorId: "alice" });
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ five_hour: { utilization: 100 }, extra_usage: { is_enabled: false } })));
     try {
-      await expect(service.probeUsage(companyId, "bob", account.connectionId)).rejects.toThrow("not found");
+      await expect(service.probeUsage(spaceId, "bob", account.connectionId)).rejects.toThrow("not found");
       expect(fetchSpy).not.toHaveBeenCalled();
       await tools.replaceConnectionGrantMembers(account.connectionId, account.grantId, ["bob"], { actorType: "user", actorId: "alice" });
       for (const config of [{ adapterType: "claude_local" }, { adapterType: "outpost_runner", runnerProvider: "acpx", acpxAgent: "claude" }]) {
-        const row = await service.select({ companyId, userId: "bob", agentId, binding: selected, ...config });
-        expect(await service.probeUsage(companyId, "bob", row.connection.id, row.grant.id)).toMatchObject({ status: "ok", overage: { available: false }, limits: [{ limitReached: true }, { allowed: false }] });
+        const row = await service.select({ spaceId, userId: "bob", agentId, binding: selected, ...config });
+        expect(await service.probeUsage(spaceId, "bob", row.connection.id, row.grant.id)).toMatchObject({ status: "ok", overage: { available: false }, limits: [{ limitReached: true }, { allowed: false }] });
       }
       // Unsupported methods do not resolve or send secrets.
       const owner = "usage-api-owner";
-      await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+      await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
       const apiAccount = await create(owner, "Unsupported usage method");
       fetchSpy.mockClear();
-      expect(await service.probeUsage(companyId, owner, apiAccount.connectionId)).toMatchObject({ status: "unsupported" });
+      expect(await service.probeUsage(spaceId, owner, apiAccount.connectionId)).toMatchObject({ status: "unsupported" });
       expect(fetchSpy).not.toHaveBeenCalled();
     } finally { fetchSpy.mockRestore(); }
   });
 
   it("vaults routed credentials, enforces compatibility and access, and configures both Codex runners", async () => {
     const routing = { kind: "openrouter", protocol: "responses", auth: "bearer", models: [{ id: "openai/gpt-5.4" }] } as const;
-    const saved = await service.save(companyId, "alice", { provider: "openrouter", method: "api_key", name: "Routed test", ownership: "personal", apiKey: "fixture", allAgents: true, agentIds: [], routing: { ...routing, models: [...routing.models] } }, "fixture-routed-credential");
+    const saved = await service.save(spaceId, "alice", { provider: "openrouter", method: "api_key", name: "Routed test", ownership: "personal", apiKey: "fixture", allAgents: true, agentIds: [], routing: { ...routing, models: [...routing.models] } }, "fixture-routed-credential");
     const selected = { provider: "openrouter", method: "api_key", mode: "delegated", ...saved } as const;
-    expect(JSON.stringify(await service.list(companyId, "alice"))).not.toContain("fixture-routed-credential");
-    expect(await service.list(companyId, "alice")).toEqual(expect.arrayContaining([expect.objectContaining({ id: saved.connectionId, routing, isDefault: false })]));
-    await expect(service.setDefault(companyId, "alice", saved.grantId)).rejects.toThrow("explicit connection");
+    expect(JSON.stringify(await service.list(spaceId, "alice"))).not.toContain("fixture-routed-credential");
+    expect(await service.list(spaceId, "alice")).toEqual(expect.arrayContaining([expect.objectContaining({ id: saved.connectionId, routing, isDefault: false })]));
+    await expect(service.setDefault(spaceId, "alice", saved.grantId)).rejects.toThrow("explicit connection");
     await expect(service.select({ ...input, binding: selected, userId: "bob", adapterType: "codex_local", model: "openai/gpt-5.4" })).rejects.toThrow("not shared");
-    await expect(service.select({ ...input, companyId: otherCompanyId, binding: selected, userId: "alice", adapterType: "codex_local" })).rejects.toThrow();
+    await expect(service.select({ ...input, spaceId: otherSpaceId, binding: selected, userId: "alice", adapterType: "codex_local" })).rejects.toThrow();
     for (const adapterType of ["codex_local", "outpost_runner"]) {
-      const runtime = await prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: "alice", binding: selected, adapterType, config: { provider: "codex", model: "openai/gpt-5.4", env: { OPENAI_API_KEY: "ambient" } } });
+      const runtime = await prepareManagedAiRuntime(db, { spaceId, agentId, responsibleUserId: "alice", binding: selected, adapterType, config: { provider: "codex", model: "openai/gpt-5.4", env: { OPENAI_API_KEY: "ambient" } } });
       try {
         expect(runtime.config.env.OPENAI_API_KEY).toBe("");
         expect(runtime.config.env.OUTPOST_AI_PROVIDER_KEY).toBe("fixture-routed-credential");
@@ -1637,14 +1637,14 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
         expect(toml).not.toContain("fixture-routed-credential");
       } finally { await runtime.cleanup(); }
     }
-    await expect(service.save(companyId, "alice", { provider: "openrouter", method: "api_key", name: "Routed test", ownership: "personal", apiKey: "fixture", connectionId: saved.connectionId, allAgents: true, agentIds: [], routing: { ...routing, kind: "gateway", baseUrl: "https://other.example/v1", models: [] } }, "fixture-replacement")).rejects.toThrow("retain");
+    await expect(service.save(spaceId, "alice", { provider: "openrouter", method: "api_key", name: "Routed test", ownership: "personal", apiKey: "fixture", connectionId: saved.connectionId, allAgents: true, agentIds: [], routing: { ...routing, kind: "gateway", baseUrl: "https://other.example/v1", models: [] } }, "fixture-replacement")).rejects.toThrow("retain");
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, saved.grantId));
     await expect(service.select({ ...input, binding: selected, userId: "alice", adapterType: "codex_local", model: "openai/gpt-5.4" })).rejects.toThrow("Reconnect");
   });
   it.each(["openrouter", "gateway"] as const)("preserves Claude custom headers for managed %s connections", async (kind) => {
     const provider = kind === "openrouter" ? "openrouter" : "anthropic";
     const routing = { kind, protocol: "messages", auth: "bearer", ...(kind === "gateway" ? { baseUrl: "https://gateway.example/v1" } : {}), models: [] } as const;
-    const saved = await service.save(companyId, "alice", { provider, method: "api_key", name: `Headers ${kind}`, ownership: "personal", allAgents: true, agentIds: [], routing: { ...routing, models: [] } }, "fixture-credential");
+    const saved = await service.save(spaceId, "alice", { provider, method: "api_key", name: `Headers ${kind}`, ownership: "personal", allAgents: true, agentIds: [], routing: { ...routing, models: [] } }, "fixture-credential");
     const selected = { provider, method: "api_key", mode: "delegated", ...saved } as const;
     const customHeaders = "X-Gateway-Route: account-route\nx-title: Previous harness";
     const reference = { type: "secret_ref", secretId: randomUUID(), version: "latest" };
@@ -1653,7 +1653,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     try {
       for (const adapterType of ["claude_local", "outpost_runner"]) {
         for (const configured of [customHeaders, reference, undefined]) {
-          const runtime = await prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: "alice", binding: selected, adapterType,
+          const runtime = await prepareManagedAiRuntime(db, { spaceId, agentId, responsibleUserId: "alice", binding: selected, adapterType,
             config: { provider: "acpx", acpxAgent: "claude", env: configured === undefined ? {} : { ANTHROPIC_CUSTOM_HEADERS: configured } } });
           try {
             const effective = configured ?? process.env.ANTHROPIC_CUSTOM_HEADERS;
@@ -1673,7 +1673,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   it("reconnects JSONB routing without changing its identity or access", async () => {
     const routing = { kind: "gateway", protocol: "responses", auth: "bearer", baseUrl: "https://gateway.example/v1", models: [{ id: "gateway-model" }] } as const;
     const input = { provider: "openai", method: "api_key", name: "Reconnect gateway", ownership: "personal", allAgents: false, agentIds: [agentId], routing: { ...routing, models: [...routing.models] } } as const;
-    const saved = await service.save(companyId, "alice", { ...input, agentIds: [...input.agentIds], routing: { ...routing, models: [...routing.models] } }, "old-gateway-credential");
+    const saved = await service.save(spaceId, "alice", { ...input, agentIds: [...input.agentIds], routing: { ...routing, models: [...routing.models] } }, "old-gateway-credential");
     const [stored] = await db.select().from(toolConnections).where(eq(toolConnections.id, saved.connectionId));
     expect(stored!.config.ai).toMatchObject({ routing });
     expect(stored!.config.sourceTemplateKey).toBe("responses-api");
@@ -1681,19 +1681,19 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect(application).toMatchObject({ applicationKey: "app-gallery:responses-api", metadata: { sourceTemplateKey: "responses-api" } });
     // PostgreSQL JSONB reorders object keys; compare values, not serialization.
     const reordered = { models: [...routing.models], auth: routing.auth, baseUrl: routing.baseUrl, protocol: routing.protocol, kind: routing.kind };
-    expect(await service.save(companyId, "alice", { ...input, agentIds: [], allAgents: true, connectionId: saved.connectionId, routing: reordered }, "new-gateway-credential")).toEqual(saved);
-    const selection = { companyId, agentId, userId: "alice", adapterType: "codex_local", binding: { provider: "openai", method: "api_key", mode: "delegated", ...saved } } as const;
+    expect(await service.save(spaceId, "alice", { ...input, agentIds: [], allAgents: true, connectionId: saved.connectionId, routing: reordered }, "new-gateway-credential")).toEqual(saved);
+    const selection = { spaceId, agentId, userId: "alice", adapterType: "codex_local", binding: { provider: "openai", method: "api_key", mode: "delegated", ...saved } } as const;
     const selected = await service.select(selection);
     expect(await service.credential(selected)).toBe("new-gateway-credential");
     const installs = await db.select().from(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, saved.connectionId));
     expect(installs).toEqual([expect.objectContaining({ targetType: "agent", targetId: agentId })]);
-    await expect(service.save(companyId, "alice", { ...input, agentIds: [agentId], connectionId: saved.connectionId, routing: { ...reordered, baseUrl: "https://different.example/v1" } }, "rejected-credential")).rejects.toThrow("retain");
+    await expect(service.save(spaceId, "alice", { ...input, agentIds: [agentId], connectionId: saved.connectionId, routing: { ...reordered, baseUrl: "https://different.example/v1" } }, "rejected-credential")).rejects.toThrow("retain");
     expect(await service.credential(await service.select(selection))).toBe("new-gateway-credential");
   });
 
   it("saves no-auth endpoints without a secret and refuses protocol mismatches", async () => {
     const routing = { kind: "local", protocol: "chat", auth: "none", baseUrl: "http://localhost:11434/v1", models: [] } as const;
-    const saved = await service.save(companyId, "alice", { provider: "openai", method: "api_key", name: "Local", ownership: "personal", allAgents: true, agentIds: [], routing: { ...routing, models: [] } }, "");
+    const saved = await service.save(spaceId, "alice", { provider: "openai", method: "api_key", name: "Local", ownership: "personal", allAgents: true, agentIds: [], routing: { ...routing, models: [] } }, "");
     const selected = { provider: "openai", method: "api_key", mode: "delegated", ...saved } as const;
     await expect(service.select({ ...input, binding: selected, userId: "alice", adapterType: "codex_local" })).rejects.toThrow("incompatible");
     const row = await service.select({ ...input, binding: selected, userId: "alice", adapterType: "opencode_local", model: "qwen" });
@@ -1710,12 +1710,12 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     const runId = randomUUID();
     const adapterType = provider === "openai" ? "codex_local" : "claude_local";
     const selectedBinding = { provider, method: "api_key", mode: "responsible_user" } as const;
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id, companyId, name: "Auth recovery", adapterType, runtimeConfig: { aiConnection: selectedBinding } });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Fix provider login", status: "in_progress", assigneeAgentId: id });
-    const account = await service.save(companyId, userId, { provider, method: "api_key", ownership: "personal", name: "Recovery account", apiKey: "fixture", agentIds: [id], allAgents: false }, "fixture-recovery-key");
-    const runtime = await prepareManagedAiRuntime(db, { companyId, agentId: id, responsibleUserId: userId, adapterType, binding: selectedBinding, config: {} });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId: id, status: "failed", errorCode: "acpx_auth_required", responsibleUserId: userId,
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id, spaceId, name: "Auth recovery", adapterType, runtimeConfig: { aiConnection: selectedBinding } });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Fix provider login", status: "in_progress", assigneeAgentId: id });
+    const account = await service.save(spaceId, userId, { provider, method: "api_key", ownership: "personal", name: "Recovery account", apiKey: "fixture", agentIds: [id], allAgents: false }, "fixture-recovery-key");
+    const runtime = await prepareManagedAiRuntime(db, { spaceId, agentId: id, responsibleUserId: userId, adapterType, binding: selectedBinding, config: {} });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId: id, status: "failed", errorCode: "acpx_auth_required", responsibleUserId: userId,
       contextSnapshot: { issueId, aiConnection: { ...runtime.attribution, identity: runtime.identity } } });
     await runtime.cleanup();
     const intents = connectionIntentService(db);
@@ -1727,22 +1727,22 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect(setup.aiRepair).toMatchObject({ canReconnect: true, connection: { id: account.connectionId, status: "needs_attention" } });
     await expect(intents.complete(card!.interactionId!, account.connectionId, userId)).rejects.toThrow();
     // A stopped run's token cannot call the public request path.
-    await expect(intents.request({ sub: id, company_id: companyId, run_id: runId, responsible_user_id: userId }, provider, { purpose: "ai" })).rejects.toThrow("no longer active");
+    await expect(intents.request({ sub: id, space_id: spaceId, run_id: runId, responsible_user_id: userId }, provider, { purpose: "ai" })).rejects.toThrow("no longer active");
     // Reverification can keep the same credential bytes; it still supersedes the failure.
     let repaired = account;
     if (switchMethod) {
       const token = provider === "openai" ? JSON.stringify({ tokens: { access_token: "fixture-subscription", refresh_token: "fixture-refresh", id_token: "fixture-id", account_id: "fixture-account" } }) : "fixture-subscription";
-      repaired = await service.save(companyId, userId, { provider, method: "subscription", ownership: "personal", name: "Recovery subscription", loginSessionId: "fixture", agentIds: [id], allAgents: false }, token);
-      await service.setDefault(companyId, userId, repaired.grantId);
+      repaired = await service.save(spaceId, userId, { provider, method: "subscription", ownership: "personal", name: "Recovery subscription", loginSessionId: "fixture", agentIds: [id], allAgents: false }, token);
+      await service.setDefault(spaceId, userId, repaired.grantId);
       const [original] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, account.grantId));
       expect(original.status).toBe("needs_reauthorization");
     } else {
-      await service.save(companyId, userId, { provider, method: "api_key", ownership: "personal", name: "Recovery account", connectionId: account.connectionId, apiKey: "fixture", agentIds: [id], allAgents: false }, provider === "openai" ? "fixture-recovery-key" : "fixture-repaired-key");
+      await service.save(spaceId, userId, { provider, method: "api_key", ownership: "personal", name: "Recovery account", connectionId: account.connectionId, apiKey: "fixture", agentIds: [id], allAgents: false }, provider === "openai" ? "fixture-recovery-key" : "fixture-repaired-key");
     }
     expect((await intents.setupOptions(card!.interactionId!)).existingConnections.map(connection => connection.id)).toEqual([repaired.connectionId]);
     await intents.complete(card!.interactionId!, repaired.connectionId, userId);
     const wakeup = vi.fn(async (_agentId, opts) => {
-      await db.insert(agentWakeupRequests).values({ companyId, agentId: id, source: "automation", status: "queued", idempotencyKey: opts.idempotencyKey });
+      await db.insert(agentWakeupRequests).values({ spaceId, agentId: id, source: "automation", status: "queued", idempotencyKey: opts.idempotencyKey });
       return null;
     });
     await connectionIntentDeliveryService(db, { wakeup } as never).deliver(card!.interactionId!);
@@ -1750,35 +1750,35 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect(wakeup).toHaveBeenCalledWith(id, expect.objectContaining({ contextSnapshot: expect.objectContaining({ forceFreshSession: true }) }));
     // Reprocessing an old failure cannot invalidate the newly saved credential.
     await intents.requestForRunAuthFailure(runId);
-    expect((await service.select({ companyId, agentId: id, userId, adapterType, binding: selectedBinding })).grant.status).toBe("active");
+    expect((await service.select({ spaceId, agentId: id, userId, adapterType, binding: selectedBinding })).grant.status).toBe("active");
   });
 
   it("offers a compatible connection for legacy auth failures without silently adopting it", async () => {
     const id = randomUUID();
     const issueId = randomUUID();
     const runId = randomUUID();
-    await db.insert(agents).values({ id, companyId, name: "Legacy Codex", adapterType: "outpost_runner", adapterConfig: { provider: "codex" } });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Legacy auth", status: "in_progress", assigneeAgentId: id });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId: id, nativeIssueId: issueId, status: "failed", errorCode: "acpx_auth_required", responsibleUserId: "alice", contextSnapshot: {} });
+    await db.insert(agents).values({ id, spaceId, name: "Legacy Codex", adapterType: "outpost_runner", adapterConfig: { provider: "codex" } });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Legacy auth", status: "in_progress", assigneeAgentId: id });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId: id, nativeIssueId: issueId, status: "failed", errorCode: "acpx_auth_required", responsibleUserId: "alice", contextSnapshot: {} });
     const intents = connectionIntentService(db);
     const card = await intents.requestForRunAuthFailure(runId);
     expect(card).toMatchObject({ service: "openai", state: "needs_user_action" });
     expect(await intents.setupOptions(card!.interactionId!)).toMatchObject({ aiConnectionRequiresAdoption: true, aiConnection: { provider: "openai", mode: "responsible_user" } });
     const [unchanged] = await db.select().from(agents).where(eq(agents.id, id));
     expect(unchanged.runtimeConfig.aiConnection).toBeUndefined();
-    await db.insert(heartbeatRuns).values({ companyId, agentId: id, status: "succeeded", responsibleUserId: "alice", contextSnapshot: { issueId }, createdAt: new Date(Date.now() + 1000) });
+    await db.insert(heartbeatRuns).values({ spaceId, agentId: id, status: "succeeded", responsibleUserId: "alice", contextSnapshot: { issueId }, createdAt: new Date(Date.now() + 1000) });
     expect(await intents.requestForRunAuthFailure(runId)).toBeNull();
   });
 
   it("lists quotas only for the current member's accessible subscription accounts", async () => {
     const user = `quota-${randomUUID()}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: user, principalType: "user", status: "active", membershipRole: "member" });
-    const subscription = await service.save(companyId, user, { provider: "openai", method: "subscription", ownership: "personal", name: "Private quota", loginSessionId: "fixture", allAgents: true, agentIds: [] }, JSON.stringify({ tokens: { access_token: "fixture", account_id: "fixture", refresh_token: "fixture" } }));
-    expect((await service.quotaAccounts(companyId, user)).some(row => row.connection.id === subscription.connectionId)).toBe(true);
-    expect((await service.quotaAccounts(companyId, "bob")).some(row => row.connection.id === subscription.connectionId)).toBe(false);
-    expect(await service.quotaAccounts(otherCompanyId, user)).toEqual([]);
-    await db.update(companyMemberships).set({ status: "inactive" }).where(and(eq(companyMemberships.companyId, companyId), eq(companyMemberships.principalId, user)));
-    expect(await service.quotaAccounts(companyId, user)).toEqual([]);
+    await db.insert(spaceMemberships).values({ spaceId, principalId: user, principalType: "user", status: "active", membershipRole: "member" });
+    const subscription = await service.save(spaceId, user, { provider: "openai", method: "subscription", ownership: "personal", name: "Private quota", loginSessionId: "fixture", allAgents: true, agentIds: [] }, JSON.stringify({ tokens: { access_token: "fixture", account_id: "fixture", refresh_token: "fixture" } }));
+    expect((await service.quotaAccounts(spaceId, user)).some(row => row.connection.id === subscription.connectionId)).toBe(true);
+    expect((await service.quotaAccounts(spaceId, "bob")).some(row => row.connection.id === subscription.connectionId)).toBe(false);
+    expect(await service.quotaAccounts(otherSpaceId, user)).toEqual([]);
+    await db.update(spaceMemberships).set({ status: "inactive" }).where(and(eq(spaceMemberships.spaceId, spaceId), eq(spaceMemberships.principalId, user)));
+    expect(await service.quotaAccounts(spaceId, user)).toEqual([]);
   });
 
   it("repairs a teammate's missing onboarding key with their own inline AI connection", async () => {
@@ -1787,21 +1787,21 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     const issueId = randomUUID();
     const runId = randomUUID();
     const vault = secretService(db);
-    const definition = await vault.createUserSecretDefinition(companyId, {
+    const definition = await vault.createUserSecretDefinition(spaceId, {
       key: `ANTHROPIC_API_KEY.${randomUUID()}`, name: "ANTHROPIC_API_KEY for onboarding", provider: "local_encrypted",
     }, { userId: "alice" });
-    const ownerSecret = await vault.createCurrentUserSecretValue(companyId, "alice", {
+    const ownerSecret = await vault.createCurrentUserSecretValue(spaceId, "alice", {
       definitionId: definition.id, value: "fixture-original-owner-key",
     }, { userId: "alice" });
     const adapterConfig = { env: { ANTHROPIC_API_KEY: {
       type: "user_secret_ref", key: definition.key, version: "latest", required: true,
     } } };
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
-    const [agent] = await db.insert(agents).values({ id, companyId, name: "Chief of Staff", adapterType: "claude_local", adapterConfig }).returning();
-    await vault.syncEnvBindingsForTarget(companyId, { targetType: "agent", targetId: id }, adapterConfig.env);
-    await db.insert(issues).values({ id: issueId, companyId, title: "Chat with Chief of Staff", status: "blocked", assigneeAgentId: id, responsibleUserId: userId });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    const [agent] = await db.insert(agents).values({ id, spaceId, name: "Chief of Staff", adapterType: "claude_local", adapterConfig }).returning();
+    await vault.syncEnvBindingsForTarget(spaceId, { targetType: "agent", targetId: id }, adapterConfig.env);
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Chat with Chief of Staff", status: "blocked", assigneeAgentId: id, responsibleUserId: userId });
     const failure = await resolveExecutionRunAdapterConfig({
-      companyId, agentId: id, adapterType: "claude_local", issueId,
+      spaceId, agentId: id, adapterType: "claude_local", issueId,
       responsibleUserId: userId, executionRunConfig: adapterConfig, projectEnv: null, secretsSvc: vault,
     }).catch(error => error);
     expect(failure).toMatchObject({ code: "configuration_incomplete", resultJson: {
@@ -1809,11 +1809,11 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
         expect.objectContaining({ bindingType: "user_secret_ref", envKey: "ANTHROPIC_API_KEY", errorCode: "user_secret_missing", responsibleUserId: userId }),
       ] },
     } });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId: id, status: "failed",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId: id, status: "failed",
       errorCode: failure.code, resultJson: failure.resultJson, responsibleUserId: userId, contextSnapshot: { issueId } });
-    await issueRecoveryActionService(db).upsertSourceScoped({ companyId, sourceIssueId: issueId,
+    await issueRecoveryActionService(db).upsertSourceScoped({ spaceId, sourceIssueId: issueId,
       kind: "configuration_validation", cause: "configuration_incomplete", fingerprint: `missing-key:${issueId}`,
-      nextAction: "Connect your AI account", ownerType: "board", evidence: { latestRunId: runId } });
+      nextAction: "Connect your AI account", ownerType: "operator", evidence: { latestRunId: runId } });
     const intents = connectionIntentService(db);
     const card = await intents.requestForRunAuthFailure(runId);
     expect(card).toMatchObject({ service: "anthropic", state: "needs_user_action" });
@@ -1830,7 +1830,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       validatedAdoption: { agentUpdatedAt: agent.updatedAt, binding: setup.aiConnection! },
     });
     const wakeup = vi.fn(async (_agentId, opts) => {
-      await db.insert(agentWakeupRequests).values({ companyId, agentId: id, source: "automation", status: "queued", idempotencyKey: opts.idempotencyKey });
+      await db.insert(agentWakeupRequests).values({ spaceId, agentId: id, source: "automation", status: "queued", idempotencyKey: opts.idempotencyKey });
       return null;
     });
     const delivery = connectionIntentDeliveryService(db, { wakeup } as never);
@@ -1839,9 +1839,9 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect((await db.select().from(issues).where(eq(issues.id, issueId)))[0].status).toBe("in_progress");
     expect(wakeup).toHaveBeenCalledTimes(1);
     expect(wakeup).toHaveBeenCalledWith(id, expect.objectContaining({ contextSnapshot: expect.objectContaining({ forceFreshSession: true }) }));
-    expect(await issueRecoveryActionService(db).getActiveForIssue(companyId, issueId)).toBeNull();
-    expect((await db.select().from(companySecrets).where(eq(companySecrets.id, ownerSecret.id)))[0]).toMatchObject({ ownerUserId: "alice", latestVersion: 1, status: "active" });
-    const runtime = await prepareManagedAiRuntime(db, { companyId, agentId: id, responsibleUserId: userId, adapterType: "claude_local", binding: setup.aiConnection!, config: adapterConfig });
+    expect(await issueRecoveryActionService(db).getActiveForIssue(spaceId, issueId)).toBeNull();
+    expect((await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, ownerSecret.id)))[0]).toMatchObject({ ownerUserId: "alice", latestVersion: 1, status: "active" });
+    const runtime = await prepareManagedAiRuntime(db, { spaceId, agentId: id, responsibleUserId: userId, adapterType: "claude_local", binding: setup.aiConnection!, config: adapterConfig });
     try {
       expect(runtime.config.env).toMatchObject({ ANTHROPIC_API_KEY: "fixture-Teammate's Claude" });
       expect(runtime.attribution.grantId).toBe(account.grantId);
@@ -1853,10 +1853,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   ] as const)("runs the same %s agent with each responsible user's subscription or API key", async (provider, adapterType, subscriptionEnv, apiEnv) => {
     const subscriptionUser = `${provider}-subscription-user`;
     const apiUser = `${provider}-api-user`;
-    await db.insert(companyMemberships).values([subscriptionUser, apiUser].map(principalId => ({ companyId, principalId, principalType: "user", status: "active", membershipRole: "member" })));
+    await db.insert(spaceMemberships).values([subscriptionUser, apiUser].map(principalId => ({ spaceId, principalId, principalType: "user", status: "active", membershipRole: "member" })));
     const token = provider === "openai" ? JSON.stringify({ tokens: { access_token: "fixture-subscription", refresh_token: "fixture-refresh", id_token: "fixture-id", account_id: "fixture-account" } }) : "fixture-subscription";
-    const subscription = await service.save(companyId, subscriptionUser, { provider, method: "subscription", ownership: "personal", name: "Subscription", loginSessionId: "fixture", allAgents: true, agentIds: [] }, token);
-    const api = await service.save(companyId, apiUser, { provider, method: "api_key", ownership: "personal", name: "API", apiKey: "fixture", allAgents: true, agentIds: [] }, "fixture-api");
+    const subscription = await service.save(spaceId, subscriptionUser, { provider, method: "subscription", ownership: "personal", name: "Subscription", loginSessionId: "fixture", allAgents: true, agentIds: [] }, token);
+    const api = await service.save(spaceId, apiUser, { provider, method: "api_key", ownership: "personal", name: "API", apiKey: "fixture", allAgents: true, agentIds: [] }, "fixture-api");
     // This is the exact same saved bot config, including a legacy setup method.
     const bot = { ...input, adapterType, binding: { provider, method: "subscription", mode: "responsible_user" } as const, config: { model: "unchanged-model", env: { [apiEnv]: "ambient", CLAUDE_CODE_OAUTH_TOKEN: "ambient" } } };
     const original = structuredClone(bot);
@@ -1886,49 +1886,49 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
 
   it("has one provider default across methods, retains unavailable defaults and honors explicit account methods", async () => {
     const userId = "provider-default-user";
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
     const api = await create(userId, "Provider API");
-    const subscription = await service.save(companyId, userId, { provider: "anthropic", method: "subscription", ownership: "personal", name: "Provider subscription", loginSessionId: "fixture", allAgents: true, agentIds: [] }, "fixture-provider-subscription");
+    const subscription = await service.save(spaceId, userId, { provider: "anthropic", method: "subscription", ownership: "personal", name: "Provider subscription", loginSessionId: "fixture", allAgents: true, agentIds: [] }, "fixture-provider-subscription");
     expect((await service.select({ ...input, userId })).grant.id).toBe(api.grantId);
-    expect((await service.list(companyId, userId)).filter(account => account.isDefault).map(account => account.grantId)).toEqual([api.grantId]);
+    expect((await service.list(spaceId, userId)).filter(account => account.isDefault).map(account => account.grantId)).toEqual([api.grantId]);
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, api.grantId));
     await expect(service.select({ ...input, userId })).rejects.toThrow("Reconnect");
     await create(userId, "Another API");
     await expect(service.select({ ...input, userId })).rejects.toThrow("Reconnect");
-    await service.setDefault(companyId, userId, subscription.grantId);
+    await service.setDefault(spaceId, userId, subscription.grantId);
     expect((await service.select({ ...input, userId })).attribution).toMatchObject({ method: "subscription", grantId: subscription.grantId });
-    expect((await service.list(companyId, userId)).filter(account => account.isDefault)).toHaveLength(1);
+    expect((await service.list(spaceId, userId)).filter(account => account.isDefault)).toHaveLength(1);
     await expect(service.select({ ...input, userId, binding: { ...binding, mode: "delegated", ...subscription } })).rejects.toThrow("incompatible");
   });
 
   it("backfills provider defaults repeatably without deleting old preferences or replacing an unavailable choice", async () => {
     const userId = "provider-default-migration-user";
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
     const api = await create(userId, "Migration API");
-    const subscription = await service.save(companyId, userId, { provider: "anthropic", method: "subscription", ownership: "personal", name: "Migration subscription", loginSessionId: "fixture", allAgents: true, agentIds: [] }, "fixture-migration-subscription");
+    const subscription = await service.save(spaceId, userId, { provider: "anthropic", method: "subscription", ownership: "personal", name: "Migration subscription", loginSessionId: "fixture", allAgents: true, agentIds: [] }, "fixture-migration-subscription");
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, api.grantId));
     await db.update(aiConnectionDefaults).set({ updatedAt: new Date("2030-01-01") }).where(eq(aiConnectionDefaults.grantId, api.grantId));
-    await db.delete(aiProviderDefaults).where(and(eq(aiProviderDefaults.companyId, companyId), eq(aiProviderDefaults.userId, userId)));
+    await db.delete(aiProviderDefaults).where(and(eq(aiProviderDefaults.spaceId, spaceId), eq(aiProviderDefaults.userId, userId)));
     const legacyRows = await db.select().from(aiConnectionDefaults).where(eq(aiConnectionDefaults.userId, userId));
     const migration = await readFile(new URL("../../../packages/db/src/migrations/0277_uneven_lady_deathstrike.sql", import.meta.url), "utf8");
     for (let pass = 0; pass < 2; pass++) for (const statement of migration.split("--> statement-breakpoint").filter(value => value.trim())) await db.execute(sql.raw(statement));
     expect(await db.select().from(aiConnectionDefaults).where(eq(aiConnectionDefaults.userId, userId))).toEqual(legacyRows);
     await expect(service.select({ ...input, userId })).rejects.toThrow("Reconnect");
-    await service.setDefault(companyId, userId, subscription.grantId);
+    await service.setDefault(spaceId, userId, subscription.grantId);
     for (const statement of migration.split("--> statement-breakpoint").filter(value => value.trim())) await db.execute(sql.raw(statement));
     expect((await service.select({ ...input, userId })).grant.id).toBe(subscription.grantId);
   });
   it("observes old-server default changes during rolling upgrades without treating new accounts as default changes", async () => {
     const userId = "rolling-upgrade-user";
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
     const api = await create(userId, "Rolling API");
-    const subscription = await service.save(companyId, userId, { provider: "anthropic", method: "subscription", ownership: "personal", name: "Rolling subscription", loginSessionId: "fixture", allAgents: true, agentIds: [] }, "fixture-rolling-subscription");
+    const subscription = await service.save(spaceId, userId, { provider: "anthropic", method: "subscription", ownership: "personal", name: "Rolling subscription", loginSessionId: "fixture", allAgents: true, agentIds: [] }, "fixture-rolling-subscription");
     expect((await service.select({ ...input, userId })).grant.id).toBe(api.grantId);
     // An older server updates only the legacy per-method row on Make default.
     await db.update(aiConnectionDefaults).set({ grantId: subscription.grantId, updatedAt: new Date() })
       .where(and(eq(aiConnectionDefaults.userId, userId), eq(aiConnectionDefaults.method, "subscription")));
     expect((await service.select({ ...input, userId })).attribution).toMatchObject({ grantId: subscription.grantId, method: "subscription" });
-    expect((await service.list(companyId, userId)).filter(account => account.isDefault).map(account => account.grantId)).toEqual([subscription.grantId]);
+    expect((await service.list(spaceId, userId)).filter(account => account.isDefault).map(account => account.grantId)).toEqual([subscription.grantId]);
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, subscription.grantId));
     await create(userId, "Rolling second API");
     await expect(service.select({ ...input, userId })).rejects.toThrow("Reconnect");
@@ -1992,20 +1992,20 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect(a.grant.id).toBe(first.grantId); expect(b.grant.id).toBe(bob.grantId);
     expect(await service.credential(a)).toBe("fixture-Alice first");
     expect(await service.credential(b)).toBe("fixture-Bob first");
-    expect(JSON.stringify(await service.list(companyId, "alice"))).not.toContain("fixture-");
-    expect(await service.list(otherCompanyId, "alice")).toEqual([]);
+    expect(JSON.stringify(await service.list(spaceId, "alice"))).not.toContain("fixture-");
+    expect(await service.list(otherSpaceId, "alice")).toEqual([]);
   });
   it("retains a revoked default without automatic fallback", async () => {
     const selected = await service.select({ ...input, userId: "alice" });
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, selected.grant.id));
     await create("alice", "Alice third");
-    expect(await toolAccessService(db).getConnection(selected.connection.id, companyId)).toMatchObject({ healthStatus: "missing_secret", requiresReauthorization: true });
-    expect((await toolAccessService(db).listConnections(companyId)).find(connection => connection.id === selected.connection.id)?.healthStatus).toBe("missing_secret");
+    expect(await toolAccessService(db).getConnection(selected.connection.id, spaceId)).toMatchObject({ healthStatus: "missing_secret", requiresReauthorization: true });
+    expect((await toolAccessService(db).listConnections(spaceId)).find(connection => connection.id === selected.connection.id)?.healthStatus).toBe("missing_secret");
     await expect(service.select({ ...input, userId: "alice" })).rejects.toThrow("Reconnect");
-    const second = (await service.list(companyId, "alice")).find(a => a.name === "Alice second")!;
-    await service.setDefault(companyId, "alice", second.grantId);
+    const second = (await service.list(spaceId, "alice")).find(a => a.name === "Alice second")!;
+    await service.setDefault(spaceId, "alice", second.grantId);
     expect((await service.select({ ...input, userId: "alice" })).grant.id).toBe(second.grantId);
-    await expect(service.setDefault(companyId, "bob", second.grantId)).rejects.toThrow("owner");
+    await expect(service.setDefault(spaceId, "bob", second.grantId)).rejects.toThrow("owner");
   });
   it("uses human access for every selection; an agent delegation cannot override Just me", async () => {
     const personal = await service.select({ ...input, userId: "alice" });
@@ -2015,10 +2015,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect(rejection.details).toBeUndefined();
     expect(readAiConnectionConfigurationFailure(rejection)).toBe("ai_connection_credential_not_shared");
     // Existing delegation records no longer confer an independent AI permission.
-    await db.insert(connectionGrantDelegations).values({ companyId, grantId: personal.grant.id, agentId, createdByUserId: "alice" });
+    await db.insert(connectionGrantDelegations).values({ spaceId, grantId: personal.grant.id, agentId, createdByUserId: "alice" });
     await expect(service.select({ ...input, userId: "bob", binding: delegated })).rejects.toThrow("not shared");
     expect((await service.select({ ...input, userId: "alice", binding: delegated })).grant.id).toBe(personal.grant.id);
-    expect((await service.list(companyId, "bob", agentId)).some(account => account.id === personal.connection.id)).toBe(false);
+    expect((await service.list(spaceId, "bob", agentId)).some(account => account.id === personal.connection.id)).toBe(false);
     await expect(toolAccessService(db).createConnectionGrantDelegation(personal.connection.id, personal.grant.id, agentId, "alice")).rejects.toThrow("human access settings");
   });
   it("applies the existing human audience editor to AI listing and execution without a second authorization", async () => {
@@ -2029,10 +2029,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     const rejection = await service.select({ ...input, userId: "bob", binding: sharedBinding }).catch(error => error);
     expect(rejection).toMatchObject({ status: 403, message: "This credential is not shared with the responsible user" });
     expect(readAiConnectionConfigurationFailure(rejection)).toBe("ai_connection_credential_not_shared");
-    expect((await service.list(companyId, "bob", agentId)).some(account => account.id === shared.connectionId)).toBe(false);
+    expect((await service.list(spaceId, "bob", agentId)).some(account => account.id === shared.connectionId)).toBe(false);
     await tools.replaceConnectionGrantMembers(shared.connectionId, shared.grantId, ["bob"], { actorType: "user", actorId: "alice" });
     expect((await service.select({ ...input, userId: "bob", binding: sharedBinding })).grant.id).toBe(shared.grantId);
-    expect((await service.list(companyId, "bob", agentId)).some(account => account.id === shared.connectionId)).toBe(true);
+    expect((await service.list(spaceId, "bob", agentId)).some(account => account.id === shared.connectionId)).toBe(true);
     await expect(service.select({ ...input, userId: "alice", binding: sharedBinding })).rejects.toThrow("not shared");
     await tools.replaceConnectionGrantMembers(shared.connectionId, shared.grantId, [], { actorType: "user", actorId: "alice" });
     for (const userId of ["alice", "bob"]) {
@@ -2042,7 +2042,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect(missingIdentity).toMatchObject({ status: 403, message: "This credential is not shared with the responsible user" });
     expect(readAiConnectionConfigurationFailure(missingIdentity)).toBeNull();
     const inactiveMember = await service.select({ ...input, userId: "inactive-user", binding: sharedBinding }).catch(error => error);
-    expect(inactiveMember).toMatchObject({ status: 403, message: "The responsible user is not an active company member" });
+    expect(inactiveMember).toMatchObject({ status: 403, message: "The responsible user is not an active space member" });
     expect(readAiConnectionConfigurationFailure(inactiveMember)).toBeNull();
     // Human permission still cannot bypass the separate agent-access setting.
     await db.delete(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, shared.connectionId));
@@ -2052,25 +2052,25 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect(readAiConnectionConfigurationFailure(missingAgentPermission)).toBeNull();
     expect(sharedBinding).toEqual({ ...binding, mode: "shared", ...shared });
   });
-  it.each(["inactive_owner", "wrong_binding_kind", "wrong_company_membership"] as const)(
+  it.each(["inactive_owner", "wrong_binding_kind", "wrong_space_membership"] as const)(
     "does not classify other credential authorization denials as sharing configuration: %s", async (cause) => {
       const owner = `sharing-${cause}-owner`;
-      await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+      await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
       const account = await create(owner, "Sharing permission fixture");
       const selected = { ...binding, mode: cause === "wrong_binding_kind" ? "shared" as const : "delegated" as const, ...account };
       let userId = "bob";
       if (cause === "inactive_owner") {
-        await db.update(companyMemberships).set({ status: "inactive" }).where(and(eq(companyMemberships.companyId, companyId), eq(companyMemberships.principalId, owner)));
+        await db.update(spaceMemberships).set({ status: "inactive" }).where(and(eq(spaceMemberships.spaceId, spaceId), eq(spaceMemberships.principalId, owner)));
       }
-      if (cause === "wrong_company_membership") {
-        userId = "other-company-sharing-user";
-        await db.insert(companyMemberships).values({ companyId: otherCompanyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+      if (cause === "wrong_space_membership") {
+        userId = "other-space-sharing-user";
+        await db.insert(spaceMemberships).values({ spaceId: otherSpaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
       }
       const error = await service.select({ ...input, userId, binding: selected }).catch(error => error);
       expect(error).toMatchObject({ status: 403, message: cause === "inactive_owner"
-        ? "The account owner is no longer an active company member"
-        : cause === "wrong_binding_kind" ? "Select a company-shared account"
-        : "The responsible user is not an active company member" });
+        ? "The account owner is no longer an active space member"
+        : cause === "wrong_binding_kind" ? "Select a space-shared account"
+        : "The responsible user is not an active space member" });
       expect(readAiConnectionConfigurationFailure(error)).toBeNull();
     },
   );
@@ -2085,11 +2085,11 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect((a.config as Record<string, unknown>).model).toBe("unchanged-model"); expect(config.env.ANTHROPIC_API_KEY).toBe("project-never-use");
     await Promise.all([a.cleanup(), b.cleanup()]); await expect(access(ae.HOME)).rejects.toThrow();
   });
-  it("blocks missing identity, incompatible providers, and cross-company explicit selections", async () => {
+  it("blocks missing identity, incompatible providers, and cross-space explicit selections", async () => {
     await expect(service.select({ ...input, userId: null })).rejects.toThrow("responsible user");
     await expect(service.select({ ...input, userId: "alice", adapterType: "codex_local" })).rejects.toThrow("compatible");
     const account = await service.select({ ...input, userId: "alice" });
-    await expect(service.select({ ...input, companyId: otherCompanyId, userId: "alice", binding: { ...binding, mode: "shared", connectionId: account.connection.id, grantId: account.grant.id } })).rejects.toThrow();
+    await expect(service.select({ ...input, spaceId: otherSpaceId, userId: "alice", binding: { ...binding, mode: "shared", connectionId: account.connection.id, grantId: account.grant.id } })).rejects.toThrow();
   });
   it("resolves shared encrypted credentials through the existing secret binding system", async () => {
     const created = await create("alice", "Shared credential proof", "shared");
@@ -2100,20 +2100,20 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     const [environment] = await db.insert(environments).values({ name: "AI login test", driver: "sandbox" }).returning();
     const intent = { provider: "anthropic", method: "subscription", ownership: "personal", name: "Claude subscription", agentIds: [], allAgents: true } as const;
     const sessionId = randomUUID();
-    await db.insert(adapterAuthSessions).values({ companyId, environmentId: environment.id, adapterType: "claude_local", startedByUserId: "alice", publicSessionId: sessionId, status: "submitting", aiConnection: { ...intent, agentIds: [] }, expiresAt: new Date(Date.now() + 60000) });
-    const first = await completeSetupTokenAiConnection(db, { scope: { companyId, ownerUserId: "alice", environmentId: environment.id, adapterType: "claude_local", aiConnection: { ...intent, agentIds: [] } }, token: "fixture-subscription", sessionId });
-    expect(await completeSetupTokenAiConnection(db, { scope: { companyId, ownerUserId: "alice", environmentId: environment.id, adapterType: "claude_local", aiConnection: { ...intent, agentIds: [] } }, token: "fixture-subscription", sessionId })).toEqual(first);
+    await db.insert(adapterAuthSessions).values({ spaceId, environmentId: environment.id, adapterType: "claude_local", startedByUserId: "alice", publicSessionId: sessionId, status: "submitting", aiConnection: { ...intent, agentIds: [] }, expiresAt: new Date(Date.now() + 60000) });
+    const first = await completeSetupTokenAiConnection(db, { scope: { spaceId, ownerUserId: "alice", environmentId: environment.id, adapterType: "claude_local", aiConnection: { ...intent, agentIds: [] } }, token: "fixture-subscription", sessionId });
+    expect(await completeSetupTokenAiConnection(db, { scope: { spaceId, ownerUserId: "alice", environmentId: environment.id, adapterType: "claude_local", aiConnection: { ...intent, agentIds: [] } }, token: "fixture-subscription", sessionId })).toEqual(first);
     expect((await db.select().from(adapterAuthSessions).where(eq(adapterAuthSessions.publicSessionId, sessionId)))[0]).toMatchObject({ status: "stored", connectionId: first.connectionId, connectionGrantId: first.grantId });
     const cancelled = randomUUID();
-    await db.insert(adapterAuthSessions).values({ companyId, environmentId: environment.id, adapterType: "claude_local", startedByUserId: "alice", publicSessionId: cancelled, status: "cancelled", expiresAt: new Date(Date.now() + 60000) });
-    await expect(completeSetupTokenAiConnection(db, { scope: { companyId, ownerUserId: "alice", environmentId: environment.id, adapterType: "claude_local", aiConnection: { ...intent, agentIds: [] } }, token: "fixture-never-save", sessionId: cancelled })).rejects.toThrow("no longer active");
+    await db.insert(adapterAuthSessions).values({ spaceId, environmentId: environment.id, adapterType: "claude_local", startedByUserId: "alice", publicSessionId: cancelled, status: "cancelled", expiresAt: new Date(Date.now() + 60000) });
+    await expect(completeSetupTokenAiConnection(db, { scope: { spaceId, ownerUserId: "alice", environmentId: environment.id, adapterType: "claude_local", aiConnection: { ...intent, agentIds: [] } }, token: "fixture-never-save", sessionId: cancelled })).rejects.toThrow("no longer active");
   });
   it.each(["anthropic", "openai"] as const)("binds %s by internal session ID without choosing its completion state", async provider => {
     const owner = `session-owner-${provider}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const [environment] = await db.insert(environments).values({ name: `Session identity ${provider}`, driver: "sandbox" }).returning();
     const intent = { provider, method: "subscription", ownership: "personal", name: `Session identity ${provider}`, allAgents: false, agentIds: [] } as const;
-    const [session] = await db.insert(adapterAuthSessions).values({ companyId, environmentId: environment.id,
+    const [session] = await db.insert(adapterAuthSessions).values({ spaceId, environmentId: environment.id,
       adapterType: provider === "anthropic" ? "claude_local" : "codex_local", startedByUserId: owner,
       publicSessionId: randomUUID(), status: "promoting", aiConnection: { ...intent, agentIds: [] },
       expiresAt: new Date(Date.now() + 60_000),
@@ -2128,15 +2128,15 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       expect(setupWake).not.toHaveBeenCalled();
     });
     try {
-      await expect(service.save(companyId, owner, { ...intent, agentIds: [] }, "fixture", { id: session.publicSessionId, complete })).rejects.toThrow("ownership mismatch");
-      await expect(service.save(companyId, "bob", { ...intent, agentIds: [] }, "fixture", { id: session.id, complete })).rejects.toThrow("ownership mismatch");
-      await expect(service.save(companyId, owner, { ...intent, agentIds: [], ownership: "shared" }, "fixture", { id: session.id, complete })).rejects.toThrow("target mismatch");
+      await expect(service.save(spaceId, owner, { ...intent, agentIds: [] }, "fixture", { id: session.publicSessionId, complete })).rejects.toThrow("ownership mismatch");
+      await expect(service.save(spaceId, "bob", { ...intent, agentIds: [] }, "fixture", { id: session.id, complete })).rejects.toThrow("ownership mismatch");
+      await expect(service.save(spaceId, owner, { ...intent, agentIds: [], ownership: "shared" }, "fixture", { id: session.id, complete })).rejects.toThrow("target mismatch");
       expect(complete).not.toHaveBeenCalled();
-      const saved = await service.save(companyId, owner, { ...intent, agentIds: [] }, "fixture", { id: session.id, complete });
+      const saved = await service.save(spaceId, owner, { ...intent, agentIds: [] }, "fixture", { id: session.id, complete });
       expect((await db.select().from(adapterAuthSessions).where(eq(adapterAuthSessions.id, session.id)))[0]).toMatchObject({
         connectionId: saved.connectionId, connectionGrantId: saved.grantId, status: "promoting",
       });
-      expect(await service.save(companyId, owner, { ...intent, agentIds: [] }, "replacement", { id: session.id, complete })).toEqual(saved);
+      expect(await service.save(spaceId, owner, { ...intent, agentIds: [] }, "replacement", { id: session.id, complete })).toEqual(saved);
       expect(complete).toHaveBeenCalledTimes(1);
       expect(adapterWake).toHaveBeenCalledTimes(1);
       expect(setupWake).toHaveBeenCalledTimes(1);
@@ -2147,34 +2147,34 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   });
   it("rolls back credential and connection writes if setup-token completion loses its claim", async () => {
     const owner = "lost-setup-token-claim";
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const [environment] = await db.insert(environments).values({ name: "Lost setup claim", driver: "sandbox" }).returning();
     const intent = { provider: "anthropic", method: "subscription", ownership: "personal", name: "Lost setup claim", allAgents: false, agentIds: [] } as const;
-    const [session] = await db.insert(adapterAuthSessions).values({ companyId, environmentId: environment.id,
+    const [session] = await db.insert(adapterAuthSessions).values({ spaceId, environmentId: environment.id,
       adapterType: "claude_local", startedByUserId: owner, publicSessionId: randomUUID(), status: "submitting",
       aiConnection: { ...intent, agentIds: [] }, expiresAt: new Date(Date.now() + 60_000), boundAt: new Date(),
     }).returning();
     try {
-      await expect(completeSetupTokenAiConnection(db, { scope: { companyId, ownerUserId: owner,
+      await expect(completeSetupTokenAiConnection(db, { scope: { spaceId, ownerUserId: owner,
         environmentId: environment.id, adapterType: "claude_local", aiConnection: { ...intent, agentIds: [] } },
         sessionId: session.publicSessionId, token: "must-rollback",
       })).rejects.toThrow();
       expect((await db.select().from(adapterAuthSessions).where(eq(adapterAuthSessions.id, session.id)))[0]).toMatchObject({
         connectionId: null, connectionGrantId: null, status: "submitting",
       });
-      expect(await db.select().from(toolConnections).where(and(eq(toolConnections.companyId, companyId), eq(toolConnections.name, intent.name)))).toEqual([]);
-      expect(await db.select().from(companySecrets).where(eq(companySecrets.ownerUserId, owner))).toEqual([]);
+      expect(await db.select().from(toolConnections).where(and(eq(toolConnections.spaceId, spaceId), eq(toolConnections.name, intent.name)))).toEqual([]);
+      expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.ownerUserId, owner))).toEqual([]);
     } finally { await db.delete(adapterAuthSessions).where(eq(adapterAuthSessions.id, session.id)); }
   });
   it("preserves connection identity and defaults through reconnect; revocation wins over older attempts", async () => {
     const current = await service.select({ ...input, userId: "bob" });
     const reconnect = { ...binding, ownership: "personal" as const, name: current.connection.name, apiKey: "fixture", agentIds: [], allAgents: true, connectionId: current.connection.id };
-    const result = await service.save(companyId, "bob", reconnect, "fixture-reconnected");
+    const result = await service.save(spaceId, "bob", reconnect, "fixture-reconnected");
     expect(result.grantId).toBe(current.grant.id);
     expect(await service.credential(await service.select({ ...input, userId: "bob" }))).toBe("fixture-reconnected");
     const beforeRevocation = new Date(Date.now() - 1000);
     await db.update(connectionGrants).set({ status: "revoked", updatedAt: new Date() }).where(eq(connectionGrants.id, current.grant.id));
-    await expect(service.save(companyId, "bob", reconnect, "fixture-stale", undefined, beforeRevocation)).rejects.toThrow("changed");
+    await expect(service.save(spaceId, "bob", reconnect, "fixture-stale", undefined, beforeRevocation)).rejects.toThrow("changed");
     await expect(service.select({ ...input, userId: "bob" })).rejects.toThrow("Reconnect");
   });
   it("rejects invalid purpose/transport combinations in the database", async () => {
@@ -2185,7 +2185,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   it("indexes only known user credentials, retains references, and is repeatable without adopting agents", async () => {
     const selected = await service.select({ ...input, userId: "alice" });
     const [emailConnection] = await db.insert(toolConnections).values({
-      companyId,
+      spaceId,
       applicationId: selected.connection.applicationId,
       name: "Existing AgentMail inbox",
       uid: `agentmail-migration-${randomUUID()}`,
@@ -2195,15 +2195,15 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       config: { provider: "agentmail" },
     }).returning();
     const vault = secretService(db);
-    const definition = await vault.createUserSecretDefinition(companyId, { key: "legacy_claude", name: "Existing owned Claude key", provider: "local_encrypted" }, { userId: "alice" });
-    const secret = await vault.createCurrentUserSecretValue(companyId, "alice", { definitionId: definition.id, value: "fixture-legacy" }, { userId: "alice" });
-    await vault.syncUserSecretDeclarationsForTarget(companyId, { targetType: "agent", targetId: agentId }, [{ definitionKey: definition.key, configPath: "env.ANTHROPIC_API_KEY", envKey: "ANTHROPIC_API_KEY", required: true }]);
+    const definition = await vault.createUserSecretDefinition(spaceId, { key: "legacy_claude", name: "Existing owned Claude key", provider: "local_encrypted" }, { userId: "alice" });
+    const secret = await vault.createCurrentUserSecretValue(spaceId, "alice", { definitionId: definition.id, value: "fixture-legacy" }, { userId: "alice" });
+    await vault.syncUserSecretDeclarationsForTarget(spaceId, { targetType: "agent", targetId: agentId }, [{ definitionKey: definition.key, configPath: "env.ANTHROPIC_API_KEY", envKey: "ANTHROPIC_API_KEY", required: true }]);
     const migration = await readFile(new URL("../../../packages/db/src/migrations/0276_hard_mandroid.sql", import.meta.url), "utf8");
     const adoption = migration.slice(migration.indexOf("DO $$", migration.indexOf("-- Only declared")));
     await db.execute(sql.raw(adoption));
-    const before = await service.list(companyId, "alice");
+    const before = await service.list(spaceId, "alice");
     for (const statement of migration.split("--> statement-breakpoint").filter(value => value.trim())) await db.execute(sql.raw(statement));
-    expect(await service.list(companyId, "alice")).toEqual(before);
+    expect(await service.list(spaceId, "alice")).toEqual(before);
     const [preservedEmail] = await db.select().from(toolConnections).where(eq(toolConnections.id, emailConnection.id));
     expect(preservedEmail).toEqual(emailConnection);
     const indexed = before.find(account => account.name === secret.name)!;
@@ -2214,12 +2214,12 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect(agent.runtimeConfig.aiConnection).toBeUndefined();
   });
   it("keeps account summaries ordered across sequential scans and repeat migration", async () => {
-    const orderedCompanyId = randomUUID(), userId = "stable-list-owner";
-    await db.insert(companies).values({ id: orderedCompanyId, name: "Stable account list", issuePrefix: `O${orderedCompanyId.slice(0, 5)}` });
-    await db.insert(companyMemberships).values({ companyId: orderedCompanyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    const orderedSpaceId = randomUUID(), userId = "stable-list-owner";
+    await db.insert(spaces).values({ id: orderedSpaceId, name: "Stable account list", issuePrefix: `O${orderedSpaceId.slice(0, 5)}` });
+    await db.insert(spaceMemberships).values({ spaceId: orderedSpaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
     const accounts = [];
     for (const name of ["First account", "Second account", "Third account"]) {
-      accounts.push(await service.save(orderedCompanyId, userId, { provider: "anthropic", method: "api_key", ownership: "personal", name, apiKey: "fixture-stable-list", agentIds: [], allAgents: false }, "fixture-stable-list"));
+      accounts.push(await service.save(orderedSpaceId, userId, { provider: "anthropic", method: "api_key", ownership: "personal", name, apiKey: "fixture-stable-list", agentIds: [], allAgents: false }, "fixture-stable-list"));
     }
     const expected = accounts.map(({ connectionId: id, grantId }) => ({ id, grantId }))
       .sort((a, b) => a.id.localeCompare(b.id) || a.grantId.localeCompare(b.grantId));
@@ -2233,19 +2233,19 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
         await tx.update(connectionGrants).set({ status: sql`${connectionGrants.status}` }).where(eq(connectionGrants.id, account.grantId));
       }
       const transactionalService = aiConnectionService(tx as unknown as Db);
-      const before = await transactionalService.list(orderedCompanyId, userId);
+      const before = await transactionalService.list(orderedSpaceId, userId);
       expect(before.map(({ id, grantId }) => ({ id, grantId }))).toEqual(expected);
       const migration = await readFile(new URL("../../../packages/db/src/migrations/0276_hard_mandroid.sql", import.meta.url), "utf8");
       for (const statement of migration.split("--> statement-breakpoint").filter(value => value.trim())) await tx.execute(sql.raw(statement));
-      expect(await transactionalService.list(orderedCompanyId, userId)).toEqual(before);
+      expect(await transactionalService.list(orderedSpaceId, userId)).toEqual(before);
     });
   });
   it("runs two Claude subscription executions for the same grant at the same time", async () => {
     // Claude writes no auth file back to the grant, so two runs share no
     // mutable state and must not wait for each other.
     const subscription = { ...input, binding: { ...binding, method: "subscription" as const }, responsibleUserId: "alice", config: { model: "same-model" } };
-    const account = (await service.list(companyId, "alice")).find(account => account.provider === "anthropic" && account.method === "subscription")!;
-    await service.setDefault(companyId, "alice", account.grantId);
+    const account = (await service.list(spaceId, "alice")).find(account => account.provider === "anthropic" && account.method === "subscription")!;
+    await service.setDefault(spaceId, "alice", account.grantId);
     const [first, second] = await Promise.all([prepareManagedAiRuntime(db, subscription), prepareManagedAiRuntime(db, subscription)]);
     try {
       expect(second.identity).toBe(first.identity);
@@ -2255,11 +2255,11 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   });
   it("runs a same-agent OpenAI subscription child alongside a still-open parent", async () => {
     const userId = "subscription-contention-user";
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
     const credential = JSON.stringify({ tokens: { access_token: "fixture-access", refresh_token: "fixture-refresh", id_token: "fixture-id", account_id: "fixture-account" } });
-    const account = await service.save(companyId, userId, { provider: "openai", method: "subscription", ownership: "personal", name: "Contention fixture", loginSessionId: "fixture", allAgents: true, agentIds: [] }, credential);
+    const account = await service.save(spaceId, userId, { provider: "openai", method: "subscription", ownership: "personal", name: "Contention fixture", loginSessionId: "fixture", allAgents: true, agentIds: [] }, credential);
     const runInput = {
-      companyId,
+      spaceId,
       agentId,
       adapterType: "codex_local",
       responsibleUserId: userId,
@@ -2283,7 +2283,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   it("persists the freshest refreshed credential to its original grant across a same-account reconnect", async () => {
     const auth = (marker: string, hour: number) => JSON.stringify({ tokens: { account_id: "fixture-account", id_token: `id-${marker}`, access_token: `access-${marker}`, refresh_token: `refresh-${marker}` }, last_refresh: `2026-09-10T${hour}:00:00Z` });
     const intent = { provider: "openai" as const, method: "subscription" as const, name: "Refresh test", ownership: "personal" as const, agentIds: [], allAgents: true, loginSessionId: "fixture" };
-    const saved = await service.save(companyId, "alice", intent, auth("first", 10));
+    const saved = await service.save(spaceId, "alice", intent, auth("first", 10));
     const runInput = { ...input, adapterType: "codex_local", responsibleUserId: "alice", binding: { provider: "openai", method: "subscription", mode: "responsible_user" } as const, config: { model: "same-model" } };
     const first = await prepareManagedAiRuntime(db, runInput);
     await writeFile(path.join(String(first.config.env.CODEX_HOME), "auth.json"), auth("refreshed", 11));
@@ -2294,7 +2294,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect(second.identity).not.toBe(first.identity);
     // A same-account reconnect writes an older last_refresh than the run
     // that is still open.
-    await service.save(companyId, "alice", { ...intent, connectionId: saved.connectionId }, auth("reconnect", 12));
+    await service.save(spaceId, "alice", { ...intent, connectionId: saved.connectionId }, auth("reconnect", 12));
     await writeFile(path.join(String(second.config.env.CODEX_HOME), "auth.json"), auth("later-refresh", 13));
     await second.cleanup();
     // The newer refresh persists to the grant it started from.
@@ -2302,9 +2302,9 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   });
   it("resolves two concurrent OpenAI subscription write-backs by freshness, not by order", async () => {
     const userId = "concurrent-freshness-user";
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
     const auth = (marker: string, hour: number) => JSON.stringify({ tokens: { account_id: "fixture-account", id_token: `id-${marker}`, access_token: `access-${marker}`, refresh_token: `refresh-${marker}` }, last_refresh: `2026-09-10T${hour}:00:00Z` });
-    await service.save(companyId, userId, { provider: "openai", method: "subscription", ownership: "personal", name: "Freshness fixture", loginSessionId: "fixture", allAgents: true, agentIds: [] }, auth("start", 10));
+    await service.save(spaceId, userId, { provider: "openai", method: "subscription", ownership: "personal", name: "Freshness fixture", loginSessionId: "fixture", allAgents: true, agentIds: [] }, auth("start", 10));
     const runInput = { ...input, adapterType: "codex_local", responsibleUserId: userId, binding: { provider: "openai", method: "subscription", mode: "responsible_user" } as const, config: { model: "same-model" } };
     // Two runs use the same OpenAI subscription grant at the same time.
     // Neither call below throws ai_connection_busy.
@@ -2321,9 +2321,9 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   });
   it("resolves two concurrent OpenAI subscription write-backs by freshness in reverse arrival order", async () => {
     const userId = "concurrent-freshness-reverse-user";
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
     const auth = (marker: string, hour: number) => JSON.stringify({ tokens: { account_id: "fixture-account", id_token: `id-${marker}`, access_token: `access-${marker}`, refresh_token: `refresh-${marker}` }, last_refresh: `2026-09-10T${hour}:00:00Z` });
-    await service.save(companyId, userId, { provider: "openai", method: "subscription", ownership: "personal", name: "Reverse freshness fixture", loginSessionId: "fixture", allAgents: true, agentIds: [] }, auth("start", 10));
+    await service.save(spaceId, userId, { provider: "openai", method: "subscription", ownership: "personal", name: "Reverse freshness fixture", loginSessionId: "fixture", allAgents: true, agentIds: [] }, auth("start", 10));
     const runInput = { ...input, adapterType: "codex_local", responsibleUserId: userId, binding: { provider: "openai", method: "subscription", mode: "responsible_user" } as const, config: { model: "same-model" } };
     // Two runs use the same OpenAI subscription grant at the same time.
     // Neither call below throws ai_connection_busy.
@@ -2340,11 +2340,11 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   });
   it("resolves two concurrent xAI subscription write-backs by freshness, not by order", async () => {
     const userId = "concurrent-freshness-xai-user";
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
     const identityKey = "https://auth.x.ai::33333333-3333-3333-3333-333333333333";
     const auth = (marker: string, expiresAtMs: number) => JSON.stringify({ [identityKey]: { key: `key-${marker}`, refresh_token: `refresh-${marker}`, expires_at: new Date(expiresAtMs).toISOString() } });
     const now = Date.now();
-    await service.save(companyId, userId, { provider: "xai", method: "subscription", ownership: "personal", name: "Grok freshness fixture", loginSessionId: "fixture", allAgents: true, agentIds: [] }, auth("start", now));
+    await service.save(spaceId, userId, { provider: "xai", method: "subscription", ownership: "personal", name: "Grok freshness fixture", loginSessionId: "fixture", allAgents: true, agentIds: [] }, auth("start", now));
     const runInput = { ...input, adapterType: "grok_local", responsibleUserId: userId, binding: { provider: "xai", method: "subscription", mode: "responsible_user" } as const, config: { model: "same-model" } };
     // Two runs use the same xAI subscription grant at the same time.
     // Neither call below throws ai_connection_busy.
@@ -2361,34 +2361,34 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   });
   it("discards a credential write-back when the grant is revoked while the run is open", async () => {
     const userId = "revoked-write-back-user";
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
     const auth = (marker: string, hour: number) => JSON.stringify({ tokens: { account_id: "fixture-account", id_token: `id-${marker}`, access_token: `access-${marker}`, refresh_token: `refresh-${marker}` }, last_refresh: `2026-09-10T${hour}:00:00Z` });
-    const saved = await service.save(companyId, userId, { provider: "openai", method: "subscription", ownership: "personal", name: "Revocation fixture", loginSessionId: "fixture", allAgents: true, agentIds: [] }, auth("start", 10));
+    const saved = await service.save(spaceId, userId, { provider: "openai", method: "subscription", ownership: "personal", name: "Revocation fixture", loginSessionId: "fixture", allAgents: true, agentIds: [] }, auth("start", 10));
     const runInput = { ...input, adapterType: "codex_local", responsibleUserId: userId, binding: { provider: "openai", method: "subscription", mode: "responsible_user" } as const, config: { model: "same-model" } };
     const run = await prepareManagedAiRuntime(db, runInput);
     const [grantBeforeCleanup] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, saved.grantId));
     const ref = grantBeforeCleanup.credentialSecretRefs.find(r => r.configPath === "ai.credential")!;
-    const [secretBefore] = await db.select().from(companySecrets).where(eq(companySecrets.id, ref.secretId));
+    const [secretBefore] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, ref.secretId));
     // A newer last_refresh would win the freshness merge if the grant stayed
     // active. The revoked grant must discard the write-back before that merge
     // decides anything.
     await writeFile(path.join(String(run.config.env.CODEX_HOME), "auth.json"), auth("revoked-run", 11));
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, saved.grantId));
     await run.cleanup();
-    const [secretAfter] = await db.select().from(companySecrets).where(eq(companySecrets.id, ref.secretId));
+    const [secretAfter] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, ref.secretId));
     // service.select rejects a revoked grant, so it cannot read the stored
     // credential here. Compare the stored secret version directly instead.
     expect(secretAfter.latestVersion).toBe(secretBefore.latestVersion);
   });
   it("does not let a stale write-back overwrite an authorized secret rotation that commits while cleanup waits on the credential lock", async () => {
     const userId = "credential-lock-race-user";
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
     const auth = (marker: string, hour: number) => JSON.stringify({ tokens: { account_id: "fixture-account", id_token: `id-${marker}`, access_token: `access-${marker}`, refresh_token: `refresh-${marker}` }, last_refresh: `2026-09-10T${hour}:00:00Z` });
-    const saved = await service.save(companyId, userId, { provider: "openai", method: "subscription", ownership: "personal", name: "Credential lock race fixture", loginSessionId: "fixture", allAgents: true, agentIds: [] }, auth("start", 10));
+    const saved = await service.save(spaceId, userId, { provider: "openai", method: "subscription", ownership: "personal", name: "Credential lock race fixture", loginSessionId: "fixture", allAgents: true, agentIds: [] }, auth("start", 10));
     const runInput = { ...input, adapterType: "codex_local", responsibleUserId: userId, binding: { provider: "openai", method: "subscription", mode: "responsible_user" } as const, config: { model: "same-model" } };
     const run = await prepareManagedAiRuntime(db, runInput);
     // The run's own refresh looks newer than the value it started with, but
-    // it must lose to a company-authorized rotation that commits while
+    // it must lose to a space-authorized rotation that commits while
     // cleanup is still waiting on the credential secret's row lock.
     await writeFile(path.join(String(run.config.env.CODEX_HOME), "auth.json"), auth("run-refresh", 11));
     const [grant] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, saved.grantId));
@@ -2432,15 +2432,15 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   it("does not let a forged delegation bypass human access or accept an expired subscription attempt", async () => {
     const selected = await service.select({ ...input, userId: "alice" });
     const otherAgent = randomUUID();
-    await db.insert(agents).values({ id: otherAgent, companyId, name: "Other" });
-    await db.insert(connectionGrantDelegations).values({ companyId, grantId: selected.grant.id, agentId: otherAgent, createdByUserId: "bob" });
+    await db.insert(agents).values({ id: otherAgent, spaceId, name: "Other" });
+    await db.insert(connectionGrantDelegations).values({ spaceId, grantId: selected.grant.id, agentId: otherAgent, createdByUserId: "bob" });
     await expect(service.select({ ...input, agentId: otherAgent, userId: "bob", binding: { ...binding, method: selected.attribution.method, mode: "delegated", connectionId: selected.connection.id, grantId: selected.grant.id } })).rejects.toThrow("not shared");
     const [environment] = await db.select().from(environments).limit(1);
     const sessionId = randomUUID();
     const intent = { provider: "anthropic", method: "subscription", ownership: "personal", name: "Expired", agentIds: [], allAgents: true } as const;
-    await db.insert(adapterAuthSessions).values({ companyId, environmentId: environment.id, adapterType: "claude_local", startedByUserId: "alice", publicSessionId: sessionId, status: "submitting", aiConnection: { ...intent, agentIds: [] }, expiresAt: new Date(Date.now() - 1000) });
-    await expect(completeSetupTokenAiConnection(db, { scope: { companyId, ownerUserId: "alice", environmentId: environment.id, adapterType: "claude_local", aiConnection: { ...intent, agentIds: [] } }, token: "fixture-never-save", sessionId })).rejects.toThrow("no longer active");
-    expect((await service.list(companyId, "alice")).some(account => account.name === "Expired")).toBe(false);
+    await db.insert(adapterAuthSessions).values({ spaceId, environmentId: environment.id, adapterType: "claude_local", startedByUserId: "alice", publicSessionId: sessionId, status: "submitting", aiConnection: { ...intent, agentIds: [] }, expiresAt: new Date(Date.now() - 1000) });
+    await expect(completeSetupTokenAiConnection(db, { scope: { spaceId, ownerUserId: "alice", environmentId: environment.id, adapterType: "claude_local", aiConnection: { ...intent, agentIds: [] } }, token: "fixture-never-save", sessionId })).rejects.toThrow("no longer active");
+    expect((await service.list(spaceId, "alice")).some(account => account.name === "Expired")).toBe(false);
   });
   it("authorizes account creation, reconnect and defaults at the HTTP boundary before provider calls", async () => {
     const app = express();
@@ -2448,13 +2448,13 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     app.use((req, _res, next) => {
       const userId = String(req.headers["x-test-user"] ?? "alice");
       const role = req.headers["x-test-role"] === "viewer" ? "viewer" : "member";
-      req.actor = { type: "board", source: "session", userId, companyIds: [companyId], memberships: [{ companyId, membershipRole: role, status: "active" }] };
+      req.actor = { type: "operator", source: "session", userId, spaceIds: [spaceId], memberships: [{ spaceId, membershipRole: role, status: "active" }] };
       next();
     });
     app.use("/api", aiConnectionRoutes(db));
     app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
     const personal = await service.select({ ...input, userId: "alice" });
-    const base = `/api/companies/${companyId}/ai-connections`;
+    const base = `/api/spaces/${spaceId}/ai-connections`;
     const ownerList = await request(app).get(base);
     expect(ownerList.status).toBe(200);
     expect(ownerList.body.connections.find((account: { grantId: string }) => account.grantId === personal.grant.id)?.canSetDefault).toBe(true);
@@ -2464,7 +2464,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     const otherUserList = await request(app).get(base).set("x-test-user", "bob");
     expect(otherUserList.status).toBe(200);
     expect(otherUserList.body.connections.some((account: { grantId: string; canSetDefault: boolean }) => account.grantId === personal.grant.id && account.canSetDefault)).toBe(false);
-    expect((await request(app).get(`/api/companies/${otherCompanyId}/ai-connections`)).status).toBe(403);
+    expect((await request(app).get(`/api/spaces/${otherSpaceId}/ai-connections`)).status).toBe(403);
     expect((await request(app).put(`${base}/default`).set("x-test-user", "bob").send({ grantId: personal.grant.id })).status).toBe(403);
     expect((await request(app).put(`${base}/default`).set("x-test-role", "viewer").send({ grantId: personal.grant.id })).status).toBe(403);
     const payload = { provider: "anthropic", method: "api_key", name: "Fixture", ownership: "personal", apiKey: "fixture", allAgents: false, agentIds: [] };
@@ -2477,18 +2477,18 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     } finally { network.mockRestore(); }
   });
   it("keeps personal-default list queries constant and other reads responsive with a blocked membership read", async () => {
-    const testCompany = randomUUID(), owner = "default-list-cost";
-    await db.insert(companies).values({ id: testCompany, name: "Default list cost", issuePrefix: "DLC" });
-    await db.insert(companyMemberships).values({ companyId: testCompany, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
-    const first = await service.save(testCompany, owner, { provider: "openai", method: "api_key", ownership: "personal", name: "Default cost", agentIds: [], allAgents: false }, "fixture-cost");
+    const testSpace = randomUUID(), owner = "default-list-cost";
+    await db.insert(spaces).values({ id: testSpace, name: "Default list cost", issuePrefix: "DLC" });
+    await db.insert(spaceMemberships).values({ spaceId: testSpace, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const first = await service.save(testSpace, owner, { provider: "openai", method: "api_key", ownership: "personal", name: "Default cost", agentIds: [], allAgents: false }, "fixture-cost");
     const app = express();
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "session", userId: owner, companyIds: [testCompany], memberships: [{ companyId: testCompany, membershipRole: "member", status: "active" }] };
+      req.actor = { type: "operator", source: "session", userId: owner, spaceIds: [testSpace], memberships: [{ spaceId: testSpace, membershipRole: "member", status: "active" }] };
       next();
     });
     app.get("/probe", async (_req, res) => { await db.execute(sql`select 1`); res.sendStatus(200); });
     app.use("/api", aiConnectionRoutes(db));
-    const url = `/api/companies/${testCompany}/ai-connections`;
+    const url = `/api/spaces/${testSpace}/ai-connections`;
     const selects = vi.spyOn(db, "select");
     let smallQueries: number, largeQueries: number;
     try {
@@ -2511,7 +2511,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
 
     const held = deferredSignal(), release = deferredSignal();
     const holder = db.transaction(async tx => {
-      await tx.execute(sql`lock table company_memberships in access exclusive mode`);
+      await tx.execute(sql`lock table space_memberships in access exclusive mode`);
       held.resolve(); await release.promise;
     });
     await held.promise;
@@ -2520,7 +2520,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       let blocked = false;
       const deadline = Date.now() + 5_000;
       while (!blocked && Date.now() < deadline) {
-        const rows = await db.execute(sql`select pid from pg_stat_activity where wait_event_type = 'Lock' and query like '%company_memberships%'`);
+        const rows = await db.execute(sql`select pid from pg_stat_activity where wait_event_type = 'Lock' and query like '%space_memberships%'`);
         blocked = rows.length > 0;
         if (!blocked) await new Promise(resolve => setTimeout(resolve, 10));
       }
@@ -2535,14 +2535,14 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     const id = randomUUID();
     const owner = `restart-${provider}`;
     const intent = { provider, method: "subscription", ownership: "personal", name: "Interrupted sign-in", allAgents: false, agentIds: [] } as const;
-    await db.insert(adapterAuthSessions).values({ id, publicSessionId: id, companyId, environmentId: environment.id, startedByUserId: owner, adapterType: provider === "anthropic" ? "claude_local" : "codex_local", aiConnection: { ...intent, agentIds: [] }, connectionMethod: "local_subscription", status: "waiting_for_user", expiresAt: new Date(Date.now() + 60_000) });
+    await db.insert(adapterAuthSessions).values({ id, publicSessionId: id, spaceId, environmentId: environment.id, startedByUserId: owner, adapterType: provider === "anthropic" ? "claude_local" : "codex_local", aiConnection: { ...intent, agentIds: [] }, connectionMethod: "local_subscription", status: "waiting_for_user", expiresAt: new Date(Date.now() + 60_000) });
     const reader = vi.spyOn(localCredentials, "readVerifiedLocalAiCredentialDetails").mockRejectedValue(new Error("No credential yet"));
     try {
       const login = localAiLoginService(db);
-      await expect(login.check(companyId, owner, { ...intent, agentIds: [] }, id)).resolves.toEqual({ status: "sign_in_required", error: "The server restarted during sign-in. Start sign-in again." });
-      await expect(login.check(companyId, "bob", { ...intent, agentIds: [] }, id)).rejects.toThrow("not found");
+      await expect(login.check(spaceId, owner, { ...intent, agentIds: [] }, id)).resolves.toEqual({ status: "sign_in_required", error: "The server restarted during sign-in. Start sign-in again." });
+      await expect(login.check(spaceId, "bob", { ...intent, agentIds: [] }, id)).rejects.toThrow("not found");
       reader.mockResolvedValue({ credential: "completed-before-restart", accountLabel: undefined });
-      await expect(login.check(companyId, owner, { ...intent, agentIds: [] }, id)).resolves.toEqual({ status: "ready" });
+      await expect(login.check(spaceId, owner, { ...intent, agentIds: [] }, id)).resolves.toEqual({ status: "ready" });
     } finally { reader.mockRestore(); await db.delete(adapterAuthSessions).where(eq(adapterAuthSessions.id, id)); }
   });
   it("requires an owned browser sign-in attempt for local subscriptions", async () => {
@@ -2550,12 +2550,12 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: req.headers["x-local"] === "yes" ? "local_implicit" : "session", userId: String(req.headers["x-test-user"] ?? "alice"), companyIds: [companyId], memberships: [{ companyId, status: "active", membershipRole: "member" }] };
+      req.actor = { type: "operator", source: req.headers["x-local"] === "yes" ? "local_implicit" : "session", userId: String(req.headers["x-test-user"] ?? "alice"), spaceIds: [spaceId], memberships: [{ spaceId, status: "active", membershipRole: "member" }] };
       next();
     });
     app.use("/api", aiConnectionRoutes(db));
     app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
-    const url = `/api/companies/${companyId}/ai-connections/local`;
+    const url = `/api/spaces/${spaceId}/ai-connections/local`;
     const payload = { provider: "anthropic", method: "subscription", name: "Local account test", ownership: "personal", agentIds: [agentId], allAgents: false };
     try {
       expect((await request(app).post(url).send(payload)).status).toBe(403);
@@ -2564,7 +2564,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       expect(reader).not.toHaveBeenCalled();
       const checked = await request(app).post(`${url}/check`).set("x-local", "yes").send(payload);
       expect(checked.status).toBe(422);
-      expect((await service.list(companyId, "alice")).some(c => c.name === payload.name)).toBe(false);
+      expect((await service.list(spaceId, "alice")).some(c => c.name === payload.name)).toBe(false);
       const connected = await request(app).post(url).set("x-local", "yes").send(payload);
       expect(connected.status).toBe(422);
       expect(reader).not.toHaveBeenCalled();
@@ -2586,12 +2586,12 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "session", userId: "alice", companyIds: [companyId], memberships: [{ companyId, status: "active", membershipRole: "member" }] };
+      req.actor = { type: "operator", source: "session", userId: "alice", spaceIds: [spaceId], memberships: [{ spaceId, status: "active", membershipRole: "member" }] };
       next();
     });
     app.use("/api", aiConnectionRoutes(db, { deploymentMode: "authenticated", deploymentExposure: "public", trustedLocalStdioRuntimeHost: "" }));
     app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
-    const base = `/api/companies/${companyId}/ai-connections/local`;
+    const base = `/api/spaces/${spaceId}/ai-connections/local`;
     const intent = { provider, method: "subscription", ownership: "personal", name: "Hosted account", allAgents: false, agentIds: [] };
     try {
       for (const endpoint of [base, `${base}/attempts`, `${base}/check`]) {
@@ -2604,17 +2604,17 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   });
   it.each(["anthropic", "openai"] as const)("lets authenticated users connect only their own isolated %s login", async provider => {
     const owner = `self-hosted-${provider}`;
-    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const reader = vi.spyOn(localCredentials, "readVerifiedLocalAiCredentialDetails").mockResolvedValue({ credential: "isolated-fixture-token", accountLabel: undefined });
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "session", userId: String(req.headers["x-test-user"] ?? owner), companyIds: [companyId], memberships: [{ companyId, status: "active", membershipRole: req.headers["x-viewer"] ? "viewer" : "member" }] };
+      req.actor = { type: "operator", source: "session", userId: String(req.headers["x-test-user"] ?? owner), spaceIds: [spaceId], memberships: [{ spaceId, status: "active", membershipRole: req.headers["x-viewer"] ? "viewer" : "member" }] };
       next();
     });
     app.use("/api", aiConnectionRoutes(db));
     app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
-    const base = `/api/companies/${companyId}/ai-connections/local`;
+    const base = `/api/spaces/${spaceId}/ai-connections/local`;
     const intent = { provider, method: "subscription", ownership: "personal", name: `Self-hosted ${provider}`, allAgents: false, agentIds: [] };
     try {
       expect((await request(app).post(`${base}/attempts`).set("x-viewer", "yes").send(intent)).status).toBe(403);
@@ -2627,7 +2627,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       const input = { ...intent, localSessionId: started.body.sessionId };
       for (const endpoint of [base, `${base}/check`]) {
         expect((await request(app).post(endpoint).set("x-test-user", "bob").send(input)).status).toBe(404);
-        expect((await request(app).post(endpoint.replace(companyId, otherCompanyId)).send(input)).status).toBe(403);
+        expect((await request(app).post(endpoint.replace(spaceId, otherSpaceId)).send(input)).status).toBe(403);
       }
       if (provider === "anthropic") {
         const codeUrl = `${base}/attempts/${started.body.sessionId}/code`;
@@ -2642,7 +2642,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       expect(saved.status).toBe(201);
       expect((await request(app).post(base).send(input)).body).toEqual(saved.body);
       expect(JSON.stringify(saved.body)).not.toContain("isolated-fixture-token");
-      expect((await service.list(companyId, owner)).filter(c => c.name === intent.name)).toHaveLength(1);
+      expect((await service.list(spaceId, owner)).filter(c => c.name === intent.name)).toHaveLength(1);
     } finally { reader.mockRestore(); }
   });
   it("rejects invalid credentials without exposing the provider response", async () => {
@@ -2662,46 +2662,46 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   it("protects active-run attribution with the connection human audience", async () => {
     const account = await create("alice", "Private run attribution");
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", contextSnapshot: { aiConnection: { connectionId: account.connectionId, grantId: account.grantId } } });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", contextSnapshot: { aiConnection: { connectionId: account.connectionId, grantId: account.grantId } } });
     const app = express();
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "session", userId: String(req.headers["x-test-user"] ?? "alice"), companyIds: [companyId] };
+      req.actor = { type: "operator", source: "session", userId: String(req.headers["x-test-user"] ?? "alice"), spaceIds: [spaceId] };
       next();
     });
     app.use("/api", aiConnectionRoutes(db));
     app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
-    const url = `/api/companies/${companyId}/ai-connections/${account.connectionId}/active-runs`;
+    const url = `/api/spaces/${spaceId}/ai-connections/${account.connectionId}/active-runs`;
     const own = await request(app).get(url);
     expect(own.status).toBe(200);
     expect(own.headers["cache-control"]).toBe("no-store");
     expect(own.body).toEqual([expect.objectContaining({ id: runId, agentId })]);
     expect((await request(app).get(url).set("x-test-user", "bob")).status).toBe(404);
     await db.update(connectionGrants).set({ kind: "organization", subjectUserId: null }).where(eq(connectionGrants.id, account.grantId));
-    await db.insert(connectionGrantMembers).values({ companyId, grantId: account.grantId, subjectType: "user", subjectId: "alice" });
+    await db.insert(connectionGrantMembers).values({ spaceId, grantId: account.grantId, subjectType: "user", subjectId: "alice" });
     expect((await request(app).get(url).set("x-test-user", "bob")).status).toBe(404);
-    await db.insert(connectionGrantMembers).values({ companyId, grantId: account.grantId, subjectType: "user", subjectId: "bob" });
+    await db.insert(connectionGrantMembers).values({ spaceId, grantId: account.grantId, subjectType: "user", subjectId: "bob" });
     expect((await request(app).get(url).set("x-test-user", "bob")).body).toEqual(own.body);
-    expect((await request(app).get(url.replace(companyId, otherCompanyId))).status).toBe(403);
+    expect((await request(app).get(url.replace(spaceId, otherSpaceId))).status).toBe(403);
   });
   it("permits new-agent shared installation only for a connection configurator, without bypassing audience", async () => {
-    const account = await service.save(companyId, "alice", { provider: "anthropic", method: "api_key", ownership: "shared", name: "Restricted shared", apiKey: "fixture", agentIds: [], allAgents: false }, "fixture-restricted");
+    const account = await service.save(spaceId, "alice", { provider: "anthropic", method: "api_key", ownership: "shared", name: "Restricted shared", apiKey: "fixture", agentIds: [], allAgents: false }, "fixture-restricted");
     const selected = { provider: "anthropic", method: "api_key", mode: "shared", ...account } as const;
     const futureAgentId = randomUUID();
-    const req = (userId: string, role = "member") => ({ actor: { type: "board", source: "session", userId, companyIds: [companyId], memberships: [{ companyId, membershipRole: role, status: "active" }] } }) as express.Request;
-    expect(await canInstallSharedAiConnectionForNewAgent(db, req("alice"), companyId, selected)).toBe(true);
-    expect(await canInstallSharedAiConnectionForNewAgent(db, req("bob"), companyId, selected)).toBe(false);
-    expect(await canInstallSharedAiConnectionForNewAgent(db, req("alice", "viewer"), companyId, selected)).toBe(false);
-    expect(await canInstallSharedAiConnectionForNewAgent(db, { actor: { type: "agent", onBehalfOfUserId: "alice" } } as express.Request, companyId, selected)).toBe(false);
+    const req = (userId: string, role = "member") => ({ actor: { type: "operator", source: "session", userId, spaceIds: [spaceId], memberships: [{ spaceId, membershipRole: role, status: "active" }] } }) as express.Request;
+    expect(await canInstallSharedAiConnectionForNewAgent(db, req("alice"), spaceId, selected)).toBe(true);
+    expect(await canInstallSharedAiConnectionForNewAgent(db, req("bob"), spaceId, selected)).toBe(false);
+    expect(await canInstallSharedAiConnectionForNewAgent(db, req("alice", "viewer"), spaceId, selected)).toBe(false);
+    expect(await canInstallSharedAiConnectionForNewAgent(db, { actor: { type: "agent", onBehalfOfUserId: "alice" } } as express.Request, spaceId, selected)).toBe(false);
     const selectionInput = { ...input, agentId: futureAgentId, userId: "alice", binding: selected };
     await expect(service.select(selectionInput)).rejects.toThrow("not permitted for this agent");
-    const run = await prepareManagedAiRuntime(db, { companyId, agentId: futureAgentId, responsibleUserId: "alice", adapterType: "claude_local", binding: selected, config: { cwd: home, model: "same-model" }, allowUninstalledShared: true });
+    const run = await prepareManagedAiRuntime(db, { spaceId, agentId: futureAgentId, responsibleUserId: "alice", adapterType: "claude_local", binding: selected, config: { cwd: home, model: "same-model" }, allowUninstalledShared: true });
     expect((run.config as Record<string, unknown>).model).toBe("same-model");
     await run.cleanup();
-    await db.insert(connectionGrantMembers).values({ companyId, grantId: account.grantId, subjectType: "user", subjectId: "bob" });
+    await db.insert(connectionGrantMembers).values({ spaceId, grantId: account.grantId, subjectType: "user", subjectId: "bob" });
     await expect(service.select({ ...selectionInput, allowUninstalledShared: true })).rejects.toThrow("not shared with the responsible user");
     await db.delete(connectionGrantMembers).where(eq(connectionGrantMembers.grantId, account.grantId));
-    await db.insert(agents).values({ id: futureAgentId, companyId, name: "New shared agent", adapterType: "claude_local" });
-    await db.insert(toolConnectionInstalls).values({ companyId, connectionId: account.connectionId, targetType: "agent", targetId: futureAgentId, createdByUserId: "alice" });
+    await db.insert(agents).values({ id: futureAgentId, spaceId, name: "New shared agent", adapterType: "claude_local" });
+    await db.insert(toolConnectionInstalls).values({ spaceId, connectionId: account.connectionId, targetType: "agent", targetId: futureAgentId, createdByUserId: "alice" });
     expect((await service.select(selectionInput)).grant.id).toBe(account.grantId);
   });
 
@@ -2716,9 +2716,9 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     const [environment] = await db.insert(environments).values({ name: `Adoption sandbox ${inline}`, driver: "sandbox", config: { provider: "daytona" } }).returning();
     await settings.update({ defaultEnvironmentId: environment.id });
     const id = randomUUID();
-    await db.insert(agents).values({ id, companyId, name: "Runner adoption", adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-sol" } });
-    const account = await service.save(companyId, "alice", { provider: "openai", method: "api_key", ownership: "personal", name: "Runner adoption account", apiKey: "fixture-adoption-key", agentIds: inline ? [] : [id], allAgents: false }, "fixture-adoption-key");
-    await service.setDefault(companyId, "alice", account.grantId);
+    await db.insert(agents).values({ id, spaceId, name: "Runner adoption", adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-sol" } });
+    const account = await service.save(spaceId, "alice", { provider: "openai", method: "api_key", ownership: "personal", name: "Runner adoption account", apiKey: "fixture-adoption-key", agentIds: inline ? [] : [id], allAgents: false }, "fixture-adoption-key");
+    await service.setDefault(spaceId, "alice", account.grantId);
     if (!inline) {
       const [connection] = await db.select().from(toolConnections).where(eq(toolConnections.id, account.connectionId));
       await db.update(toolConnections).set({ healthStatus: "unknown", config: { ...connection.config, aiLegacyAdoption: true } })
@@ -2735,8 +2735,8 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     if (inline) {
       const issueId = randomUUID();
       const runId = randomUUID();
-      await db.insert(issues).values({ id: issueId, companyId, title: "Atomic adoption", status: "in_progress", assigneeAgentId: id });
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId: id, status: "failed", errorCode: "acpx_auth_required", responsibleUserId: "alice", contextSnapshot: { issueId } });
+      await db.insert(issues).values({ id: issueId, spaceId, title: "Atomic adoption", status: "in_progress", assigneeAgentId: id });
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId: id, status: "failed", errorCode: "acpx_auth_required", responsibleUserId: "alice", contextSnapshot: { issueId } });
       interactionId = (await connectionIntentService(db).requestForRunAuthFailure(runId))!.interactionId!;
     }
     const target = { kind: "remote", transport: "sandbox", remoteCwd: "/workspace", providerKey: "daytona", runner: { execute: vi.fn(async () => ({ exitCode: 0, signal: null, stdout: "", stderr: "", timedOut: false, pid: null, startedAt: null })) } } as const;
@@ -2747,7 +2747,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     const probe = vi.spyOn(requireServerAdapter("outpost_runner"), "testEnvironment").mockImplementation(async context => ({ adapterType: "outpost_runner", status: context.executionTarget ? "pass" : "fail", testedAt: new Date().toISOString(), checks: [{ code: context.executionTarget ? "codex_hello_probe_passed" : "host_probe_failed", level: context.executionTarget ? "info" : "error", message: "fixture" }] }));
     const app = express();
     app.use(express.json());
-    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", userId: "alice", companyIds: [companyId] }; next(); });
+    app.use((req, _res, next) => { req.actor = { type: "operator", source: "local_implicit", userId: "alice", spaceIds: [spaceId] }; next(); });
     app.use("/api", agentRoutes(db));
     app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
     const selected = { provider: "openai", method: "api_key", mode: "responsible_user" } as const;
@@ -2797,7 +2797,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
         expect(tryDeliver).toHaveBeenCalledTimes(2);
         expect(tryDeliver).toHaveBeenCalledWith(interactionId);
       }
-      expect(acquire).toHaveBeenCalledWith(expect.objectContaining({ companyId, environment: expect.objectContaining({ id: environment.id }) }));
+      expect(acquire).toHaveBeenCalledWith(expect.objectContaining({ spaceId, environment: expect.objectContaining({ id: environment.id }) }));
       expect(probe).toHaveBeenCalledWith(expect.objectContaining({ executionTarget: target, config: expect.objectContaining({ provider: "codex", model: "gpt-5.6-sol", managedAiConnection: expect.any(Object) }) }));
       expect(providerRequest).toHaveBeenCalledWith("https://api.openai.com/v1/models", expect.objectContaining({
         headers: { Authorization: "Bearer fixture-adoption-key" },
@@ -2814,13 +2814,13 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   it("saves a restricted shared connection during setup and installs it only when setup finishes", async () => {
     const { requireServerAdapter } = await import("../adapters/index.js");
     const setupId = randomUUID();
-    const account = await service.save(companyId, "alice", { provider: "anthropic", method: "api_key", ownership: "shared", name: "Shared setup", apiKey: "fixture", agentIds: [], allAgents: false }, "fixture-setup-key");
+    const account = await service.save(spaceId, "alice", { provider: "anthropic", method: "api_key", ownership: "shared", name: "Shared setup", apiKey: "fixture", agentIds: [], allAgents: false }, "fixture-setup-key");
     const selected = { provider: "anthropic", method: "api_key", mode: "shared", ...account } as const;
     const app = express(); app.use(express.json());
-    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", userId: "alice", companyIds: [companyId] }; next(); });
+    app.use((req, _res, next) => { req.actor = { type: "operator", source: "local_implicit", userId: "alice", spaceIds: [spaceId] }; next(); });
     app.use("/api", agentRoutes(db));
     app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
-    const initial = await request(app).post(`/api/companies/${companyId}/agents`).send({ setupId, name: "Shared setup agent", adapterType: "claude_local", runner: "legacy" });
+    const initial = await request(app).post(`/api/spaces/${spaceId}/agents`).send({ setupId, name: "Shared setup agent", adapterType: "claude_local", runner: "legacy" });
     expect(initial.status, JSON.stringify(initial.body)).toBe(201);
     const probe = vi.spyOn(requireServerAdapter("claude_local"), "testEnvironment");
     const providerRequest = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
@@ -2830,13 +2830,13 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       expect(saved.body).toMatchObject({ pauseReason: "setup", runtimeConfig: { aiConnection: selected } });
       expect(probe).not.toHaveBeenCalled();
       probe.mockResolvedValue({ adapterType: "claude_local", status: "pass", checks: [], testedAt: new Date().toISOString() });
-      const tested = await request(app).post(`/api/companies/${companyId}/adapters/claude_local/test-environment`).send({
+      const tested = await request(app).post(`/api/spaces/${spaceId}/adapters/claude_local/test-environment`).send({
         agentId: setupId, runner: "legacy", adapterConfig: {}, aiConnection: selected,
       });
       expect(tested.status, JSON.stringify(tested.body)).toBe(200);
       expect(probe).toHaveBeenCalledTimes(1);
       expect(await db.select().from(toolConnectionInstalls).where(eq(toolConnectionInstalls.targetId, setupId))).toHaveLength(0);
-      const finished = await request(app).post(`/api/companies/${companyId}/agent-hires`).send({
+      const finished = await request(app).post(`/api/spaces/${spaceId}/agent-creations`).send({
         setupAgentId: setupId, name: "Shared setup agent", adapterType: "claude_local", runner: "legacy", runtimeConfig: { aiConnection: selected },
       });
       expect(finished.status, JSON.stringify(finished.body)).toBe(201);
@@ -2847,14 +2847,14 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
 
   it.each([["responsible_user", "codex_local"], ["shared", "codex_local"], ["responsible_user", "claude_local"]] as const)("drops a superseded saved %s connection when %s setup changes authentication", async (mode, adapterType) => {
     const setupId = randomUUID();
-    await db.insert(agents).values({ id: setupId, companyId, name: "Switch provider", createdByUserId: "alice",
+    await db.insert(agents).values({ id: setupId, spaceId, name: "Switch provider", createdByUserId: "alice",
       adapterType, status: "paused", lifecycleState: "paused", pauseReason: "setup", lifecycleHolds: ["setup"],
       runtimeConfig: { aiConnection: mode === "shared"
         ? { provider: "openai", method: "api_key", mode, connectionId: randomUUID(), grantId: randomUUID() }
         : { provider: adapterType === "claude_local" ? "anthropic" : "openai", method: "subscription", mode } },
     });
     const app = express(); app.use(express.json());
-    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", userId: "alice", companyIds: [companyId] }; next(); });
+    app.use((req, _res, next) => { req.actor = { type: "operator", source: "local_implicit", userId: "alice", spaceIds: [spaceId] }; next(); });
     app.use("/api", agentRoutes(db));
     app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
     const saved = await request(app).patch(`/api/agents/${setupId}`).send({ adapterType: "claude_local", runner: "legacy",
@@ -2866,21 +2866,21 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect(row.runtimeConfig).not.toHaveProperty("aiConnection");
   });
 
-  it("creates and hires agents with an authorized restricted shared connection", async () => {
+  it("creates and creations agents with an authorized restricted shared connection", async () => {
     const { agentRoutes } = await import("../routes/agents.js");
-    await db.update(companies).set({ requireBoardApprovalForNewAgents: false }).where(eq(companies.id, companyId));
-    const account = await service.save(companyId, "alice", { provider: "anthropic", method: "api_key", ownership: "shared", name: "Shared creation routes", apiKey: "fixture", agentIds: [], allAgents: false }, "fixture-create-routes");
+    await db.update(spaces).set({ requireOperatorApprovalForNewAgents: false }).where(eq(spaces.id, spaceId));
+    const account = await service.save(spaceId, "alice", { provider: "anthropic", method: "api_key", ownership: "shared", name: "Shared creation routes", apiKey: "fixture", agentIds: [], allAgents: false }, "fixture-create-routes");
     const selected = { ...binding, mode: "shared", ...account } as const;
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "local_implicit", userId: "alice", companyIds: [companyId] };
+      req.actor = { type: "operator", source: "local_implicit", userId: "alice", spaceIds: [spaceId] };
       next();
     });
     app.use("/api", agentRoutes(db));
     app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
-    for (const endpoint of ["agents", "agent-hires"]) {
-      const response = await request(app).post(`/api/companies/${companyId}/${endpoint}`).send({ name: `Shared ${endpoint}`, role: "general", adapterType: "claude_local", adapterConfig: { model: "claude-sonnet-4-6" }, runtimeConfig: { aiConnection: selected } });
+    for (const endpoint of ["agents", "agent-creations"]) {
+      const response = await request(app).post(`/api/spaces/${spaceId}/${endpoint}`).send({ name: `Shared ${endpoint}`, role: "general", adapterType: "claude_local", adapterConfig: { model: "claude-sonnet-4-6" }, runtimeConfig: { aiConnection: selected } });
       expect(response.status, JSON.stringify(response.body)).toBe(201);
       const agent = endpoint === "agents" ? response.body : response.body.agent;
       expect(agent.adapterConfig.model).toBe("claude-sonnet-4-6");
@@ -2893,11 +2893,11 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     await db.execute(sql`CREATE FUNCTION reject_test_ai_install() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture install failure'; END $$`);
     await db.execute(sql`CREATE TRIGGER reject_test_ai_install BEFORE INSERT ON tool_connection_installs FOR EACH ROW EXECUTE FUNCTION reject_test_ai_install()`);
     try {
-      for (const endpoint of ["agents", "agent-hires"]) {
+      for (const endpoint of ["agents", "agent-creations"]) {
         const name = `Rollback ${endpoint}`;
-        const response = await request(app).post(`/api/companies/${companyId}/${endpoint}`).send({ name, role: "general", adapterType: "claude_local", adapterConfig: { model: "claude-sonnet-4-6" }, runtimeConfig: { aiConnection: selected } });
+        const response = await request(app).post(`/api/spaces/${spaceId}/${endpoint}`).send({ name, role: "general", adapterType: "claude_local", adapterConfig: { model: "claude-sonnet-4-6" }, runtimeConfig: { aiConnection: selected } });
         expect(response.status).toBe(500);
-        expect(await db.select().from(agents).where(and(eq(agents.companyId, companyId), eq(agents.name, name)))).toEqual([]);
+        expect(await db.select().from(agents).where(and(eq(agents.spaceId, spaceId), eq(agents.name, name)))).toEqual([]);
       }
     } finally {
       await db.execute(sql`DROP TRIGGER reject_test_ai_install ON tool_connection_installs`);
@@ -2917,21 +2917,21 @@ describe("AI connection recovery delivery", () => {
       const recoveringAgentId = randomUUID();
       const issueId = randomUUID();
       const failedRunId = randomUUID();
-      await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
-      await db.insert(agents).values({ id: recoveringAgentId, companyId, name: "Recovery agent", status: "active", adapterType: "claude_local", runtimeConfig: { aiConnection: binding } });
-      await db.insert(issues).values({ id: issueId, companyId, title: "Restore selected account", status: "in_progress", assigneeAgentId: recoveringAgentId });
-      await db.insert(heartbeatRuns).values({ id: failedRunId, companyId, agentId: recoveringAgentId, status: "running", responsibleUserId: userId, contextSnapshot: { issueId } });
+      await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
+      await db.insert(agents).values({ id: recoveringAgentId, spaceId, name: "Recovery agent", status: "active", adapterType: "claude_local", runtimeConfig: { aiConnection: binding } });
+      await db.insert(issues).values({ id: issueId, spaceId, title: "Restore selected account", status: "in_progress", assigneeAgentId: recoveringAgentId });
+      await db.insert(heartbeatRuns).values({ id: failedRunId, spaceId, agentId: recoveringAgentId, status: "running", responsibleUserId: userId, contextSnapshot: { issueId } });
       const intents = connectionIntentService(db);
-      const pending = await intents.request({ sub: recoveringAgentId, company_id: companyId, run_id: failedRunId, responsible_user_id: userId }, "anthropic", { purpose: "ai" });
+      const pending = await intents.request({ sub: recoveringAgentId, space_id: spaceId, run_id: failedRunId, responsible_user_id: userId }, "anthropic", { purpose: "ai" });
       const account = await create(userId, `Recovered ${scenario}`);
       expect((await intents.setupOptions(pending.interactionId!)).existingConnections.map(connection => connection.id)).toEqual([account.connectionId]);
       await db.update(heartbeatRuns).set({ status: "failed", errorCode: "configuration_incomplete", resultJson: { configurationIncomplete: { reason,
         ...(reason === "secret_binding_missing" ? { agentId: recoveringAgentId, missingBindings: [{ bindingType: "user_secret_ref", consumerType: "agent", consumerId: recoveringAgentId, envKey: "ANTHROPIC_API_KEY", configPath: "env.ANTHROPIC_API_KEY", errorCode: "user_secret_missing" }] } : {}),
       } } }).where(eq(heartbeatRuns.id, failedRunId));
       await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, issueId));
-      await issueRecoveryActionService(db).upsertSourceScoped({ companyId, sourceIssueId: issueId, kind: "configuration_validation", cause: "configuration_incomplete", fingerprint: `ai:${issueId}`, nextAction: "Reconnect", ownerType: "board", evidence: { latestRunId: failedRunId } });
+      await issueRecoveryActionService(db).upsertSourceScoped({ spaceId, sourceIssueId: issueId, kind: "configuration_validation", cause: "configuration_incomplete", fingerprint: `ai:${issueId}`, nextAction: "Reconnect", ownerType: "operator", evidence: { latestRunId: failedRunId } });
       await intents.complete(pending.interactionId!, account.connectionId, userId);
-      if (scenario === "newer failure") await db.insert(heartbeatRuns).values({ companyId, agentId: recoveringAgentId, status: "failed", contextSnapshot: { issueId }, createdAt: new Date(Date.now() + 1000) });
+      if (scenario === "newer failure") await db.insert(heartbeatRuns).values({ spaceId, agentId: recoveringAgentId, status: "failed", contextSnapshot: { issueId }, createdAt: new Date(Date.now() + 1000) });
       if (scenario === "different blocker") await db.update(issueRecoveryActions).set({ cause: "workspace_validation_failed" }).where(eq(issueRecoveryActions.sourceIssueId, issueId));
       if (scenario === "closed task") await db.update(issues).set({ status: "done" }).where(eq(issues.id, issueId));
       if (scenario === "revoked again") {
@@ -2941,7 +2941,7 @@ describe("AI connection recovery delivery", () => {
         expect(repairOptions.aiRepair).toMatchObject({ canReconnect: true, connection: { id: account.connectionId, grantId: account.grantId, isDefault: true, status: "revoked" } });
       }
       const wakeup = vi.fn(async (_agentId, opts) => {
-        await db.insert(agentWakeupRequests).values({ companyId, agentId: recoveringAgentId, source: "automation", status: "queued", idempotencyKey: opts.idempotencyKey });
+        await db.insert(agentWakeupRequests).values({ spaceId, agentId: recoveringAgentId, source: "automation", status: "queued", idempotencyKey: opts.idempotencyKey });
         return null;
       });
       const delivery = connectionIntentDeliveryService(db, { wakeup } as never);
@@ -2952,7 +2952,7 @@ describe("AI connection recovery delivery", () => {
         expect(issue.status).toBe("in_progress");
         expect(wakeup).toHaveBeenCalledTimes(1);
         expect(wakeup).toHaveBeenCalledWith(recoveringAgentId, expect.objectContaining({ contextSnapshot: expect.objectContaining({ forceFreshSession: true }) }));
-        expect(await issueRecoveryActionService(db).getActiveForIssue(companyId, issueId)).toBeNull();
+        expect(await issueRecoveryActionService(db).getActiveForIssue(spaceId, issueId)).toBeNull();
         const [receipt] = await db.select().from(connectionIntentDeliveries).where(eq(connectionIntentDeliveries.interactionId, pending.interactionId!));
         expect(receipt.deliveredAt).not.toBeNull();
       } else {

@@ -147,7 +147,7 @@ export function SkillFolderRail({
   onCreateFolder: (parentId: string | null) => void;
   onRenameFolder: (folder: FolderListItem, name: string) => void;
   onEditFolder: (folder: FolderListItem) => void;
-  onMoveFolder: (folder: FolderListItem, destination: "my" | "company") => void;
+  onMoveFolder: (folder: FolderListItem, destination: "my" | "space") => void;
   onDeleteFolder: (folder: FolderListItem) => void;
   onEnsureMyFolder?: () => void;
 }) {
@@ -310,10 +310,10 @@ export function SkillFolderRail({
             />
           ) : null}
 
-          {/* Company — plain top-level company folders */}
+          {/* Space — plain top-level space folders */}
           <RailHeading label="Outpost" onCreate={() => onCreateFolder(null)} />
-          {model.company.length > 0 ? (
-            model.company.map((node) => (
+          {model.space.length > 0 ? (
+            model.space.map((node) => (
               <TreeBranch
                 key={node.folder.id}
                 node={node}
@@ -556,7 +556,7 @@ function TreeBranch({
   onSelect: (selection: FolderSelection) => void;
   onCreateFolder: (parentId: string | null) => void;
   onEditFolder: (folder: FolderListItem) => void;
-  onMoveFolder: (folder: FolderListItem, destination: "my" | "company") => void;
+  onMoveFolder: (folder: FolderListItem, destination: "my" | "space") => void;
   onDeleteFolder: (folder: FolderListItem) => void;
   onStartRename: (folder: FolderListItem) => void;
   onRenameDraftChange: (value: string) => void;
@@ -647,7 +647,7 @@ function TreeBranch({
                 <>
                   <DropdownMenuItem onSelect={() => onStartRename(folder)}>Rename</DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => onEditFolder(folder)}>Edit color</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => onMoveFolder(folder, isInMySkills ? "company" : "my")}>
+                  <DropdownMenuItem onSelect={() => onMoveFolder(folder, isInMySkills ? "space" : "my")}>
                     <MoveRight className="h-3.5 w-3.5" />
                     Move to {isInMySkills ? "Outpost" : "My Skills"}
                   </DropdownMenuItem>

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chatConversations, chatDeliveries, chatEndpointResources, chatEndpoints, chatExternalPrincipals,
-  chatIdentityLinks, chatMessageLinks, companyMemberships, createDb, issueComments, type Db } from "@outpost/db";
+  chatIdentityLinks, chatMessageLinks, spaceMemberships, createDb, issueComments, type Db } from "@outpost/db";
 import { seedBoundChatAuthorization } from "./helpers/bound-chat-authorization.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { authorizeChatConversationForBoundRun, authorizeChatConversationsForBoundRuns,
@@ -14,7 +14,7 @@ describe("batched bound-chat authorization", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
   let f: Awaited<ReturnType<typeof seedBoundChatAuthorization>>;
-  // A second conversation of the same company and endpoint, on another issue,
+  // A second conversation of the same space and endpoint, on another issue,
   // from another person who has no identity link.
   let other: { conversationId: string; commentId: string; principalId: string };
 
@@ -27,7 +27,7 @@ describe("batched bound-chat authorization", () => {
     });
   const expectSameOutcomes = async (runs: Run[]) => {
     const separate = await Promise.all(runs.map(single));
-    const batched = await authorizeChatConversationsForBoundRuns(db, f.companyId, runs);
+    const batched = await authorizeChatConversationsForBoundRuns(db, f.spaceId, runs);
     expect(batched).toEqual(separate);
     return batched;
   };
@@ -44,17 +44,17 @@ describe("batched bound-chat authorization", () => {
     f = await seedBoundChatAuthorization(db);
     other = { conversationId: randomUUID(), commentId: randomUUID(), principalId: randomUUID() };
     const deliveryId = randomUUID();
-    await db.insert(chatConversations).values({ id: other.conversationId, companyId: f.companyId,
+    await db.insert(chatConversations).values({ id: other.conversationId, spaceId: f.spaceId,
       endpointId: f.endpointId, resourceId: f.resourceId, issueId: f.otherIssueId,
       externalConversationId: "channel-1", externalThreadId: "thread-2", externalLabel: "Other thread", state: "waiting" });
-    await db.insert(chatExternalPrincipals).values({ id: other.principalId, companyId: f.companyId,
+    await db.insert(chatExternalPrincipals).values({ id: other.principalId, spaceId: f.spaceId,
       provider: "slack", providerAccountId: "guild-1", externalId: "user-2", kind: "user" });
-    await db.insert(issueComments).values({ id: other.commentId, companyId: f.companyId, issueId: f.otherIssueId,
+    await db.insert(issueComments).values({ id: other.commentId, spaceId: f.spaceId, issueId: f.otherIssueId,
       authorType: "user", authorUserId: "other-user", body: "Another request" });
-    await db.insert(chatDeliveries).values({ id: deliveryId, companyId: f.companyId, endpointId: f.endpointId,
+    await db.insert(chatDeliveries).values({ id: deliveryId, spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: other.conversationId, principalId: other.principalId, providerEventId: deliveryId,
       deduplicationKey: deliveryId, eventKind: "message", normalizedEvent: {}, state: "processed", processedAt: new Date() });
-    await db.insert(chatMessageLinks).values({ companyId: f.companyId, endpointId: f.endpointId,
+    await db.insert(chatMessageLinks).values({ spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: other.conversationId, deliveryId, commentId: other.commentId,
       providerMessageId: other.commentId, direction: "inbound" });
   });
@@ -70,8 +70,8 @@ describe("batched bound-chat authorization", () => {
       run({ context: { wakeCommentIds: [f.commentId, f.commentId] } }),
       run({ context: { wakeCommentIds: [f.commentId, randomUUID()] } }),
       run({ context: { wakeCommentIds: [] } }),
-      run({ context: { paperclipHarnessCheckedOut: false } }),
-      run({ context: { paperclipHarnessCheckedOut: false, paperclipExternalChatExecutionBound: true } }),
+      run({ context: { outpostHarnessCheckedOut: false } }),
+      run({ context: { outpostHarnessCheckedOut: false, outpostExternalChatExecutionBound: true } }),
       run({ context: { source: "chat:discord" } }),
       run({ context: { source: "not-a-chat" } }),
       run({ binding: { agentId: randomUUID() } }),
@@ -90,19 +90,19 @@ describe("batched bound-chat authorization", () => {
   });
 
   it("does not share a principal decision between the people of different runs", async () => {
-    await db.insert(chatIdentityLinks).values({ companyId: f.companyId, endpointId: f.endpointId,
-      principalId: other.principalId, paperclipUserId: "other-user", status: "linked" });
+    await db.insert(chatIdentityLinks).values({ spaceId: f.spaceId, endpointId: f.endpointId,
+      principalId: other.principalId, outpostUserId: "other-user", status: "linked" });
     const otherAuthorized = { conversationId: other.conversationId, endpointId: f.endpointId };
     try {
       // No membership yet: the first person is authorized and the second is not.
       expect(await expectSameOutcomes([run(), otherRun(), run()]))
         .toEqual([{ conversationId: f.conversationId, endpointId: f.endpointId }, null,
           { conversationId: f.conversationId, endpointId: f.endpointId }]);
-      await db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user",
+      await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user",
         principalId: "other-user", status: "active", membershipRole: "viewer" });
       expect((await expectSameOutcomes([otherRun(), run()]))[0]).toBeNull();
-      await db.update(companyMemberships).set({ membershipRole: "member" })
-        .where(and(eq(companyMemberships.companyId, f.companyId), eq(companyMemberships.principalId, "other-user")));
+      await db.update(spaceMemberships).set({ membershipRole: "member" })
+        .where(and(eq(spaceMemberships.spaceId, f.spaceId), eq(spaceMemberships.principalId, "other-user")));
       expect(await expectSameOutcomes([otherRun(), run()]))
         .toEqual([otherAuthorized, { conversationId: f.conversationId, endpointId: f.endpointId }]);
       await db.update(chatIdentityLinks).set({ status: "revoked" })
@@ -111,7 +111,7 @@ describe("batched bound-chat authorization", () => {
     } finally {
       await db.update(chatIdentityLinks).set({ status: "linked" }).where(eq(chatIdentityLinks.principalId, f.principalId));
       await db.delete(chatIdentityLinks).where(eq(chatIdentityLinks.principalId, other.principalId));
-      await db.delete(companyMemberships).where(eq(companyMemberships.principalId, "other-user"));
+      await db.delete(spaceMemberships).where(eq(spaceMemberships.principalId, "other-user"));
     }
   });
 
@@ -158,9 +158,9 @@ describe("batched bound-chat authorization", () => {
   it("throws the errors that a separate read throws", async () => {
     const invalid = run({ context: { wakeCommentIds: ["not-a-uuid"] } });
     await expect(single(invalid)).rejects.toThrow();
-    await expect(authorizeChatConversationsForBoundRuns(db, f.companyId, [run(), invalid])).rejects.toThrow();
+    await expect(authorizeChatConversationsForBoundRuns(db, f.spaceId, [run(), invalid])).rejects.toThrow();
     await expect(authorizeChatConversationsForBoundRuns(db, randomUUID(), [run()]))
-      .rejects.toThrow("outpost_runner_chat_authorization_batch_company_mismatch");
+      .rejects.toThrow("outpost_runner_chat_authorization_batch_space_mismatch");
   });
 
   it("reads the messages of all runs with one statement", async () => {
@@ -176,11 +176,11 @@ describe("batched bound-chat authorization", () => {
         return builder;
       };
     } }) as Db;
-    await db.insert(chatIdentityLinks).values({ companyId: f.companyId, endpointId: f.endpointId,
-      principalId: other.principalId, paperclipUserId: f.userId, status: "linked" });
+    await db.insert(chatIdentityLinks).values({ spaceId: f.spaceId, endpointId: f.endpointId,
+      principalId: other.principalId, outpostUserId: f.userId, status: "linked" });
     try {
       const runs = [run(), otherRun(), run(), otherRun(), run()];
-      const outcomes = await authorizeChatConversationsForBoundRuns(counting, f.companyId, runs);
+      const outcomes = await authorizeChatConversationsForBoundRuns(counting, f.spaceId, runs);
       expect(outcomes.every(outcome => outcome !== null)).toBe(true);
       // One message read; one resource read; per person a principal, link
       // and membership read.

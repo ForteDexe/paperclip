@@ -61,8 +61,8 @@ The producer audit found only these two copy-table owners. Directory preparation
 inserts preparing rows; warm handoff inserts prepared successors and supersedes
 prior warm rows. Direct adoption requires `unchanged_turn` and no stop proof.
 Those direct writes cannot create this post-save obligation. Eligible transitions
-use the shared patch. Agent/company deletion invalidates the corresponding
-company before run cascades. Worktree execution policy changes reactivate the
+use the shared patch. Agent/space deletion invalidates the corresponding
+space before run cascades. Worktree execution policy changes reactivate the
 worker through the existing settings transaction. Changes to remote termination
 proof can make existing pending cleanup executable; the pending row's retry
 retains coverage without requiring an independent lease-table scan.
@@ -216,7 +216,7 @@ with the original embedded fixture. The actual database build, server types and
 build, boundaries, and exact current migration-order check pass.
 
 A populated 0406-to0407 upgrade preserves every one of the 405 prior migration
-receipts and all 38 companies, adds exactly one receipt, and adds none on replay.
+receipts and all 38 spaces, adds exactly one receipt, and adds none on replay.
 The cleanup index is valid and ready on both fresh and upgraded databases. These
 results supersede the earlier local 0405 preparation after master's migration
 history advanced. No new published head or current-head review pass is implied;

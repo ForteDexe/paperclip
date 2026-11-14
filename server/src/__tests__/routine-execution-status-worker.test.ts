@@ -7,7 +7,7 @@ import { registerRoutineExecutionStatusWork } from "../services/routine-executio
 let coordinator: ReturnType<typeof createDeliveryWorkCoordinator>;
 let canRun = true;
 const errors: unknown[] = [];
-const entry = { id: "run", companyId: "company", routineId: "routine", issueId: "issue" };
+const entry = { id: "run", spaceId: "space", routineId: "routine", issueId: "issue" };
 beforeEach(() => {
   vi.useFakeTimers(); canRun = true; errors.length = 0;
   const owner = installDatabaseWorkSignals({ execute: vi.fn(async () => []), transaction: vi.fn(async () => undefined) });

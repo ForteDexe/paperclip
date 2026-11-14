@@ -11,7 +11,7 @@ const {
   restoreWorkspaceFromSshExecution,
   runSshCommand,
   syncDirectoryToSsh,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
 } = vi.hoisted(() => ({
   runChildProcess: vi.fn(async () => ({
     exitCode: 0,
@@ -41,7 +41,7 @@ const {
     exitCode: 0,
   })),
   syncDirectoryToSsh: vi.fn(async () => undefined),
-  startAdapterExecutionTargetPaperclipBridge: vi.fn(async () => ({
+  startAdapterExecutionTargetOutpostBridge: vi.fn(async () => ({
     env: {
       OUTPOST_API_URL: "http://127.0.0.1:4310",
       OUTPOST_API_KEY: "bridge-token",
@@ -82,7 +82,7 @@ vi.mock("@outpost/adapter-utils/execution-target", async () => {
   );
   return {
     ...actual,
-    startAdapterExecutionTargetPaperclipBridge,
+    startAdapterExecutionTargetOutpostBridge,
   };
 });
 
@@ -101,11 +101,11 @@ describe("gemini remote execution", () => {
   });
 
   it("prepares the workspace, syncs Gemini skills, and restores workspace changes for remote SSH execution", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-gemini-remote-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-gemini-remote-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     const alternateWorkspaceDir = path.join(rootDir, "workspace-other");
-    const managedRemoteWorkspace = "/remote/workspace/.paperclip-runtime/runs/run-1/workspace";
+    const managedRemoteWorkspace = "/remote/workspace/.outpost-runtime/runs/run-1/workspace";
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(alternateWorkspaceDir, { recursive: true });
 
@@ -113,7 +113,7 @@ describe("gemini remote execution", () => {
       runId: "run-1",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Gemini Builder",
         adapterType: "gemini_local",
         adapterConfig: {},
@@ -133,21 +133,21 @@ describe("gemini remote execution", () => {
         },
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
-        paperclipWorkspaces: [
+        outpostWorkspaces: [
           {
             workspaceId: "workspace-1",
             cwd: workspaceDir,
-            repoUrl: "https://github.com/paperclipai/outpost.git",
+            repoUrl: "https://github.com/example/outpost.git",
             repoRef: "main",
           },
           {
             workspaceId: "workspace-2",
             cwd: alternateWorkspaceDir,
-            repoUrl: "https://github.com/paperclipai/outpost.git",
+            repoUrl: "https://github.com/example/outpost.git",
             repoRef: "feature/other",
           },
         ],
@@ -181,7 +181,7 @@ describe("gemini remote execution", () => {
     expect(prepareWorkspaceForSshExecution).toHaveBeenCalledTimes(1);
     expect(syncDirectoryToSsh).toHaveBeenCalledTimes(1);
     expect(syncDirectoryToSsh).toHaveBeenCalledWith(expect.objectContaining({
-      remoteDir: `${managedRemoteWorkspace}/.paperclip-runtime/gemini/skills`,
+      remoteDir: `${managedRemoteWorkspace}/.outpost-runtime/gemini/skills`,
       followSymlinks: true,
     }));
     expect(runSshCommand).toHaveBeenCalledWith(
@@ -210,12 +210,12 @@ describe("gemini remote execution", () => {
       {
         workspaceId: "workspace-1",
         cwd: managedRemoteWorkspace,
-        repoUrl: "https://github.com/paperclipai/outpost.git",
+        repoUrl: "https://github.com/example/outpost.git",
         repoRef: "main",
       },
       {
         workspaceId: "workspace-2",
-        repoUrl: "https://github.com/paperclipai/outpost.git",
+        repoUrl: "https://github.com/example/outpost.git",
         repoRef: "feature/other",
       },
     ]);
@@ -227,12 +227,12 @@ describe("gemini remote execution", () => {
     expect(call?.[3].env.NO_BROWSER).toBe("1");
     expect(call?.[3].env).not.toHaveProperty("NO_COLOR");
     expect(call?.[3].remoteExecution?.remoteCwd).toBe(managedRemoteWorkspace);
-    expect(startAdapterExecutionTargetPaperclipBridge).toHaveBeenCalledTimes(1);
+    expect(startAdapterExecutionTargetOutpostBridge).toHaveBeenCalledTimes(1);
     expect(restoreWorkspaceFromSshExecution).toHaveBeenCalledTimes(1);
   });
 
   it("pre-selects gemini-api-key auth in the managed HOME for sandbox execution", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-gemini-sandbox-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-gemini-sandbox-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     await mkdir(workspaceDir, { recursive: true });
@@ -266,7 +266,7 @@ describe("gemini remote execution", () => {
       runId: "run-sandbox-1",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Gemini Builder",
         adapterType: "gemini_local",
         adapterConfig: {},
@@ -285,7 +285,7 @@ describe("gemini remote execution", () => {
         env: { GEMINI_API_KEY: "test-key" },
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -307,21 +307,21 @@ describe("gemini remote execution", () => {
     expect(settingsWrite).toBeDefined();
     expect(settingsWrite).toContain("gemini-api-key");
     // The managed HOME lives under the per-run runtime root, never a real home.
-    expect(settingsWrite).toContain(".paperclip-runtime");
+    expect(settingsWrite).toContain(".outpost-runtime");
   });
 
   it("resumes saved Gemini sessions for remote SSH execution only when the identity matches", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-gemini-remote-resume-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-gemini-remote-resume-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
-    const managedRemoteWorkspace = "/remote/workspace/.paperclip-runtime/runs/run-ssh-resume/workspace";
+    const managedRemoteWorkspace = "/remote/workspace/.outpost-runtime/runs/run-ssh-resume/workspace";
     await mkdir(workspaceDir, { recursive: true });
 
     await execute({
       runId: "run-ssh-resume",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Gemini Builder",
         adapterType: "gemini_local",
         adapterConfig: {},
@@ -347,7 +347,7 @@ describe("gemini remote execution", () => {
         command: "gemini",
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -373,7 +373,7 @@ describe("gemini remote execution", () => {
   });
 
   it("restores the remote workspace if skills sync fails after workspace prep", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-gemini-remote-sync-fail-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-gemini-remote-sync-fail-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     await mkdir(workspaceDir, { recursive: true });
@@ -383,7 +383,7 @@ describe("gemini remote execution", () => {
       runId: "run-sync-fail",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Gemini Builder",
         adapterType: "gemini_local",
         adapterConfig: {},
@@ -399,7 +399,7 @@ describe("gemini remote execution", () => {
         command: "gemini",
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },

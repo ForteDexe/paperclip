@@ -82,7 +82,7 @@ const ACTIVE_TASK_ID = "task-1";
 function actor(grants: readonly string[]): CapabilityFixtureActor {
   return {
     id: "actor-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Eval approver",
     role: "approver",
     status: "active",
@@ -94,7 +94,7 @@ function actor(grants: readonly string[]): CapabilityFixtureActor {
 function task(overrides: Partial<CapabilityFixtureTask> = {}): CapabilityFixtureTask {
   return {
     id: ACTIVE_TASK_ID,
-    companyId: "company-1",
+    spaceId: "space-1",
     identifier: "MCK-1",
     title: "Eval behavior fixture",
     description: null,
@@ -133,7 +133,7 @@ function approvalSeed(bundle: EvalBundle): CapabilityFixtureSeed {
       actor(bundle.grants),
       {
         id: "actor-2",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Eval requester",
         role: "engineer",
         status: "active",
@@ -143,7 +143,7 @@ function approvalSeed(bundle: EvalBundle): CapabilityFixtureSeed {
     ],
     approvals: [{
       id: "approval-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       taskIds: [ACTIVE_TASK_ID],
       type: "eval",
       status: "pending",
@@ -512,7 +512,7 @@ async function runBehaviorCase(bundle: EvalBundle, spec: BehaviorCase): Promise<
     identity: {
       runId: RUN_ID,
       sessionId: SESSION_ID,
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: ACTIVE_TASK_ID,
       agentId: "actor-1",
     },

@@ -3,8 +3,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import {
-  agents, chatEndpoints, chatExternalPrincipals, chatIdentityLinks, companies,
-  companyMemberships, createDb, heartbeatRuns, issues, toolApplications, toolConnections,
+  agents, chatEndpoints, chatExternalPrincipals, chatIdentityLinks, spaces,
+  spaceMemberships, createDb, heartbeatRuns, issues, toolApplications, toolConnections,
 } from "@outpost/db";
 import type { ToolCredentialSecretRef } from "@outpost/shared";
 import { createChatCredentials } from "../services/chat-channels/credentials.js";
@@ -31,37 +31,37 @@ describeDatabase("Slack tool preparation", () => {
   let db: ReturnType<typeof createDb>;
 
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-slack-preparation-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-slack-preparation-");
     db = createDb(database.connectionString, { maxConnections: 1 });
     await instanceSettingsService(db).updateExperimental({ enableChatConnectors: true });
   });
   afterAll(async () => { await database?.cleanup(); });
 
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), userId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Slack preparation", issuePrefix: randomUUID().slice(0, 8).toUpperCase() });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Slack agent" });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "owner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Briefing", assigneeAgentId: agentId, responsibleUserId: userId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", responsibleUserId: userId, contextSnapshot: { issueId, source: "routine" } });
-    await initializeRunIdentity(db, { companyId, issueId, runId, responsibleUserId: userId, cause: "routine" });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), userId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Slack preparation", issuePrefix: randomUUID().slice(0, 8).toUpperCase() });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Slack agent" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "owner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Briefing", assigneeAgentId: agentId, responsibleUserId: userId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", responsibleUserId: userId, contextSnapshot: { issueId, source: "routine" } });
+    await initializeRunIdentity(db, { spaceId, issueId, runId, responsibleUserId: userId, cause: "routine" });
     const refs: ToolCredentialSecretRef[] = [];
     const endpoints: Array<typeof chatEndpoints.$inferSelect> = [];
     const links: Array<typeof chatIdentityLinks.$inferSelect> = [];
     for (let i = 0; i < 2; i++) {
-      const [application] = await db.insert(toolApplications).values({ companyId, name: `Slack ${i}`, type: "mcp_http" }).returning();
+      const [application] = await db.insert(toolApplications).values({ spaceId, name: `Slack ${i}`, type: "mcp_http" }).returning();
       const credentialSecretRefs = ["botToken", "signingSecret", "appToken"].map(key => ({ secretId: randomUUID(), configPath: `credentials.${key}`, versionSelector: "latest" as const, required: true }));
       refs.push(...credentialSecretRefs);
-      const [connection] = await db.insert(toolConnections).values({ companyId, applicationId: application.id, name: `Slack ${i}`, uid: randomUUID(), transport: "mcp_remote", credentialSecretRefs }).returning();
-      const [endpoint] = await db.insert(chatEndpoints).values({ companyId, connectionId: connection.id, assignedAgentId: agentId, provider: "slack", publicId: randomUUID(), providerAccountId: `T${i}`, status: "active" }).returning();
+      const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId: application.id, name: `Slack ${i}`, uid: randomUUID(), transport: "mcp_remote", credentialSecretRefs }).returning();
+      const [endpoint] = await db.insert(chatEndpoints).values({ spaceId, connectionId: connection.id, assignedAgentId: agentId, provider: "slack", publicId: randomUUID(), providerAccountId: `T${i}`, status: "active" }).returning();
       endpoints.push(endpoint);
-      const [principal] = await db.insert(chatExternalPrincipals).values({ companyId, provider: "slack", providerAccountId: `T${i}`, externalId: `U${i}`, isBot: false }).returning();
-      const [link] = await db.insert(chatIdentityLinks).values({ companyId, endpointId: endpoint.id, principalId: principal.id, paperclipUserId: userId, status: "linked" }).returning();
+      const [principal] = await db.insert(chatExternalPrincipals).values({ spaceId, provider: "slack", providerAccountId: `T${i}`, externalId: `U${i}`, isBot: false }).returning();
+      const [link] = await db.insert(chatIdentityLinks).values({ spaceId, endpointId: endpoint.id, principalId: principal.id, outpostUserId: userId, status: "linked" }).returning();
       links.push(link);
       await db.transaction(tx => syncSlackBotTools(tx, endpoint, userId, true));
     }
     const token = "current-bot-token";
-    const resolveSecretValue = vi.fn(async (_companyId: string, secretId: string): Promise<string> => {
+    const resolveSecretValue = vi.fn(async (_spaceId: string, secretId: string): Promise<string> => {
       const ref = refs.find(ref => ref.secretId === secretId)!;
       return ref.configPath === "credentials.botToken" ? token : "webhook-secret";
     });
@@ -70,14 +70,14 @@ describeDatabase("Slack tool preparation", () => {
       resolveCredentials: credentials.resolveCredentials,
       authorizeInboundWakeup: async () => { throw new Error("This is an ordinary task"); },
     });
-    return { binding: { companyId, agentId, issueId, runId }, endpoints, links, refs, resolveSecretValue,
+    return { binding: { spaceId, agentId, issueId, runId }, endpoints, links, refs, resolveSecretValue,
       ...registration };
   }
 
   const paths = {
-    assignments: async (binding: { companyId: string; agentId: string; runId: string; issueId: string }) =>
+    assignments: async (binding: { spaceId: string; agentId: string; runId: string; issueId: string }) =>
       (await slackAssignedResource(db, binding)).map(resource => resource.id),
-    tools: async (binding: { companyId: string; agentId: string; runId: string; issueId: string }) =>
+    tools: async (binding: { spaceId: string; agentId: string; runId: string; issueId: string }) =>
       [...new Set((await slackToolsForSession(db, binding)).map(tool => String(endpointIdOf(tool))))],
   };
 
@@ -113,7 +113,7 @@ describeDatabase("Slack tool preparation", () => {
     const f = await fixture();
     const gate = deferred();
     let active = 0, peak = 0;
-    f.resolveSecretValue.mockImplementation(async (_companyId, secretId) => {
+    f.resolveSecretValue.mockImplementation(async (_spaceId, secretId) => {
       if (f.refs.find(ref => ref.secretId === secretId)!.configPath === "credentials.botToken") {
         active++; peak = Math.max(peak, active);
         await gate.promise;
@@ -134,7 +134,7 @@ describeDatabase("Slack tool preparation", () => {
 
   it("resolves only current bot credentials and observes rotation without a cache", async () => {
     const f = await fixture();
-    f.resolveSecretValue.mockImplementation(async (_companyId, secretId) => {
+    f.resolveSecretValue.mockImplementation(async (_spaceId, secretId) => {
       const ref = f.refs.find(ref => ref.secretId === secretId)!;
       if (ref.configPath !== "credentials.botToken") throw new Error("Webhook credential is unavailable");
       return f.resolveSecretValue.mock.calls.length === 1 ? "old-bot-token" : "rotated-bot-token";
@@ -178,7 +178,7 @@ describeDatabase("Slack tool preparation", () => {
     } finally { f.unregisterSlackTaskAuthority(); }
   });
 
-  it.each(Object.entries(paths))("rechecks identity revocation for %s without touching another company", async (_name, prepare) => {
+  it.each(Object.entries(paths))("rechecks identity revocation for %s without touching another space", async (_name, prepare) => {
     const f = await fixture();
     const foreign = await fixture();
     foreign.unregisterSlackTaskAuthority();
@@ -192,7 +192,7 @@ describeDatabase("Slack tool preparation", () => {
       f.resolveSecretValue.mockClear();
       expect(await prepare(f.binding)).toEqual([f.endpoints[1].id]);
       expect(f.resolveSecretValue).toHaveBeenCalledTimes(1);
-      expect(f.resolveSecretValue.mock.calls[0][0]).toBe(f.binding.companyId);
+      expect(f.resolveSecretValue.mock.calls[0][0]).toBe(f.binding.spaceId);
     } finally { registration.unregisterSlackTaskAuthority(); }
   });
 });

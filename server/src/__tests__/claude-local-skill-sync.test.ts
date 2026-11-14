@@ -19,7 +19,7 @@ async function createSkillDir(root: string, name: string) {
 }
 
 describe("claude local skill sync", () => {
-  const paperclipKey = "paperclipai/paperclip/paperclip";
+  const outpostKey = "outpost/outpost/outpost";
   const cleanupDirs = new Set<string>();
 
   afterEach(async () => {
@@ -27,18 +27,18 @@ describe("claude local skill sync", () => {
     cleanupDirs.clear();
   });
 
-  it("keeps the operational Paperclip skill configured when no explicit selection exists", async () => {
+  it("keeps the operational Outpost skill configured when no explicit selection exists", async () => {
     const snapshot = await listClaudeSkills({
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {},
     });
 
     expect(snapshot.mode).toBe("ephemeral");
     expect(snapshot.supported).toBe(true);
-    expect(snapshot.desiredSkills).toEqual([paperclipKey]);
-    expect(snapshot.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("configured");
+    expect(snapshot.desiredSkills).toEqual([outpostKey]);
+    expect(snapshot.entries.find((entry) => entry.key === outpostKey)?.state).toBe("configured");
     expect(snapshot.entries.some((entry) =>
       entry.runtimeName !== null && ["complain", "suggestion-box"].includes(entry.runtimeName)
     )).toBe(false);
@@ -47,49 +47,49 @@ describe("claude local skill sync", () => {
   it("respects an explicit desired skill list without mutating a persistent home", async () => {
     const snapshot = await syncClaudeSkills({
       agentId: "agent-2",
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {
-        paperclipSkillSync: {
-          desiredSkills: [paperclipKey],
+        outpostSkillSync: {
+          desiredSkills: [outpostKey],
         },
       },
-    }, [paperclipKey]);
+    }, [outpostKey]);
 
-    expect(snapshot.desiredSkills).toContain(paperclipKey);
-    expect(snapshot.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("configured");
+    expect(snapshot.desiredSkills).toContain(outpostKey);
+    expect(snapshot.entries.find((entry) => entry.key === outpostKey)?.state).toBe("configured");
     expect(snapshot.entries.some((entry) =>
       entry.runtimeName !== null && ["complain", "suggestion-box"].includes(entry.runtimeName)
     )).toBe(false);
   });
 
-  it("normalizes legacy flat Paperclip skill refs to canonical keys", async () => {
+  it("normalizes legacy flat Outpost skill refs to canonical keys", async () => {
     const snapshot = await listClaudeSkills({
       agentId: "agent-3",
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {
-        paperclipSkillSync: {
-          desiredSkills: ["paperclip"],
+        outpostSkillSync: {
+          desiredSkills: ["outpost"],
         },
       },
     });
 
     expect(snapshot.warnings).toEqual([]);
-    expect(snapshot.desiredSkills).toContain(paperclipKey);
-    expect(snapshot.desiredSkills).not.toContain("paperclip");
-    expect(snapshot.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("configured");
-    expect(snapshot.entries.find((entry) => entry.key === "paperclip")).toBeUndefined();
+    expect(snapshot.desiredSkills).toContain(outpostKey);
+    expect(snapshot.desiredSkills).not.toContain("outpost");
+    expect(snapshot.entries.find((entry) => entry.key === outpostKey)?.state).toBe("configured");
+    expect(snapshot.entries.find((entry) => entry.key === "outpost")).toBeUndefined();
   });
 
   it("shows host-level user-installed Claude skills as read-only external entries", async () => {
-    const home = await makeTempDir("paperclip-claude-user-skills-");
+    const home = await makeTempDir("outpost-claude-user-skills-");
     cleanupDirs.add(home);
     await createSkillDir(path.join(home, ".claude", "skills"), "crack-python");
 
     const snapshot = await listClaudeSkills({
       agentId: "agent-4",
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {
         env: {
@@ -107,7 +107,7 @@ describe("claude local skill sync", () => {
       originLabel: "User-installed",
       locationLabel: "~/.claude/skills",
       readOnly: true,
-      detail: "Installed outside Paperclip management in the Claude skills home.",
+      detail: "Installed outside Outpost management in the Claude skills home.",
     }));
   });
 });

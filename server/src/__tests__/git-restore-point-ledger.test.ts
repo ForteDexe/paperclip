@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, companies, createDb, executionWorkspaceRestorePoints, issues } from "@outpost/db";
+import { agents, spaces, createDb, executionWorkspaceRestorePoints, issues } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -13,7 +13,7 @@ import {
   requestRestorePointDeletion,
 } from "../services/git-restore-point-ledger.ts";
 import { issueService } from "../services/issues.ts";
-import { deleteCompany } from "../services/company-deletion.ts";
+import { deleteSpace } from "../services/space-deletion.ts";
 import type { StorageService } from "../storage/types.ts";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
@@ -35,15 +35,15 @@ describeEmbeddedPostgres("git restore point retention", () => {
   let failDeletes = false;
   let silentlyKeep = false;
   const storage = {
-    deleteObject: async (_companyId: string, objectKey: string) => {
+    deleteObject: async (_spaceId: string, objectKey: string) => {
       if (failDeletes) throw new Error("storage unavailable");
       if (!silentlyKeep) deleted.push(objectKey);
     },
-    headObject: async (_companyId: string, objectKey: string) => ({ exists: silentlyKeep && !deleted.includes(objectKey) }),
+    headObject: async (_spaceId: string, objectKey: string) => ({ exists: silentlyKeep && !deleted.includes(objectKey) }),
   } as unknown as StorageService;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-git-restore-point-ledger-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-git-restore-point-ledger-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -54,7 +54,7 @@ describeEmbeddedPostgres("git restore point retention", () => {
     await db.delete(executionWorkspaceRestorePoints);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -69,31 +69,31 @@ describeEmbeddedPostgres("git restore point retention", () => {
     createdHoursAgo?: number;
     withoutIssue?: boolean;
     deleteAfter?: Date | null;
-    companyId?: string;
+    spaceId?: string;
   } = {}) {
-    const companyId = input.companyId ?? randomUUID();
-    if (!input.companyId) {
-      await db.insert(companies).values({ id: companyId, name: "Restore", issuePrefix: `R${companyId.replaceAll("-", "")}` });
+    const spaceId = input.spaceId ?? randomUUID();
+    if (!input.spaceId) {
+      await db.insert(spaces).values({ id: spaceId, name: "Restore", issuePrefix: `R${spaceId.replaceAll("-", "")}` });
     }
     const issueStatus = input.issueStatus ?? "done";
     const closedAt = new Date(now.getTime() - (input.closedDaysAgo ?? 10) * DAY_MS);
     const [issue] = await db.insert(issues).values({
-      companyId,
+      spaceId,
       title: "Work",
       status: issueStatus,
       completedAt: issueStatus === "done" ? closedAt : null,
       cancelledAt: issueStatus === "cancelled" ? closedAt : null,
     }).returning();
     if (input.openChild) {
-      await db.insert(issues).values({ companyId, title: "Child", status: "blocked", parentId: issue!.id });
+      await db.insert(issues).values({ spaceId, title: "Child", status: "blocked", parentId: issue!.id });
     }
     const workspaceId = randomUUID();
     const [row] = await db.insert(executionWorkspaceRestorePoints).values({
-      companyId,
+      spaceId,
       executionWorkspaceId: workspaceId,
       sourceIssueId: input.withoutIssue ? randomUUID() : issue!.id,
       generation: 1,
-      objectKey: `${companyId}/git-restore-points/${workspaceId}/1/${randomUUID()}.pcrp`,
+      objectKey: `${spaceId}/git-restore-points/${workspaceId}/1/${randomUUID()}.pcrp`,
       sha256: "a".repeat(64),
       byteSize: 1024,
       status: input.status ?? "active",
@@ -244,11 +244,11 @@ describeEmbeddedPostgres("git restore point retention", () => {
     expect(deleted).toEqual([removed.objectKey]);
   });
 
-  it("marks every restore point of a deleted company", async () => {
+  it("marks every restore point of a deleted space", async () => {
     const first = await seed({ deleteAfter: new Date(now.getTime() + 80 * DAY_MS) });
-    const second = await seed({ companyId: first.companyId, status: "pending" });
+    const second = await seed({ spaceId: first.spaceId, status: "pending" });
     const other = await seed({ deleteAfter: new Date(now.getTime() + 80 * DAY_MS) });
-    await deleteCompany(db, first.companyId);
+    await deleteSpace(db, first.spaceId);
     expect(await reload(first.id)).toMatchObject({ status: "delete_requested" });
     expect(await reload(second.id)).toMatchObject({ status: "delete_requested" });
     expect(await reload(other.id)).toMatchObject({ status: "active" });
@@ -288,14 +288,14 @@ describeEmbeddedPostgres("git restore point retention", () => {
   });
 
   describe("issue tree trigger", () => {
-    async function child(parentId: string, companyId: string, status = "blocked") {
-      const [row] = await db.insert(issues).values({ companyId, title: "Child", status, parentId }).returning();
+    async function child(parentId: string, spaceId: string, status = "blocked") {
+      const [row] = await db.insert(issues).values({ spaceId, title: "Child", status, parentId }).returning();
       return row!;
     }
 
     it("marks a parent's restore point due when its last open child closes", async () => {
       const row = await seed();
-      const open = await child(row.sourceIssueId!, row.companyId);
+      const open = await child(row.sourceIssueId!, row.spaceId);
       await db.update(executionWorkspaceRestorePoints).set({ deleteAfter: null }).where(eq(executionWorkspaceRestorePoints.id, row.id));
       await db.update(issues).set({ status: "done", completedAt: new Date() }).where(eq(issues.id, open.id));
       expect((await reload(row.id)).deleteAfter!.getTime()).toBeLessThanOrEqual(Date.now());
@@ -304,9 +304,9 @@ describeEmbeddedPostgres("git restore point retention", () => {
     it("marks the former parent when a child is deleted or moved", async () => {
       const deletedFrom = await seed();
       const movedFrom = await seed();
-      const deleting = await child(deletedFrom.sourceIssueId!, deletedFrom.companyId);
-      const moving = await child(movedFrom.sourceIssueId!, movedFrom.companyId);
-      const [elsewhere] = await db.insert(issues).values({ companyId: movedFrom.companyId, title: "Other", status: "todo" }).returning();
+      const deleting = await child(deletedFrom.sourceIssueId!, deletedFrom.spaceId);
+      const moving = await child(movedFrom.sourceIssueId!, movedFrom.spaceId);
+      const [elsewhere] = await db.insert(issues).values({ spaceId: movedFrom.spaceId, title: "Other", status: "todo" }).returning();
       await db.update(executionWorkspaceRestorePoints).set({ deleteAfter: null });
       await db.delete(issues).where(eq(issues.id, deleting.id));
       await db.update(issues).set({ parentId: elsewhere!.id }).where(eq(issues.id, moving.id));
@@ -324,7 +324,7 @@ describeEmbeddedPostgres("git restore point retention", () => {
       const unrelated = await seed({ issueStatus: "in_progress" });
       const superseded = await seed({ status: "superseded", issueStatus: "in_progress" });
       const alreadyDue = await seed({ issueStatus: "in_progress", deleteAfter: new Date(now.getTime() - DAY_MS) });
-      const [other] = await db.insert(issues).values({ companyId: unrelated.companyId, title: "Other", status: "todo" }).returning();
+      const [other] = await db.insert(issues).values({ spaceId: unrelated.spaceId, title: "Other", status: "todo" }).returning();
       await db.update(issues).set({ status: "done", completedAt: new Date() }).where(eq(issues.id, other!.id));
       await db.update(issues).set({ status: "done", completedAt: new Date() }).where(eq(issues.id, superseded.sourceIssueId!));
       await db.update(issues).set({ status: "done", completedAt: new Date() }).where(eq(issues.id, alreadyDue.sourceIssueId!));
@@ -335,7 +335,7 @@ describeEmbeddedPostgres("git restore point retention", () => {
 
     it("keeps a restore point due when its tree closes between the worker's read and write", async () => {
       const row = await seed({ deleteAfter: due() });
-      const open = await child(row.sourceIssueId!, row.companyId);
+      const open = await child(row.sourceIssueId!, row.spaceId);
       const racing = gitRestorePointRetentionService(db, {
         storage,
         afterTreeRead: async () => {
@@ -367,7 +367,7 @@ describeEmbeddedPostgres("git restore point retention", () => {
 
     it("lets the worker schedule expiry once an open tree closes", async () => {
       const row = await seed();
-      const open = await child(row.sourceIssueId!, row.companyId);
+      const open = await child(row.sourceIssueId!, row.spaceId);
       await db.update(executionWorkspaceRestorePoints).set({ deleteAfter: due() }).where(eq(executionWorkspaceRestorePoints.id, row.id));
       const live = gitRestorePointRetentionService(db, { storage });
       await live.tick();

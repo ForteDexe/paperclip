@@ -9,7 +9,7 @@ import {
 } from "./slack-authority.js";
 
 const binding: SlackTaskBinding = {
-  companyId: "company",
+  spaceId: "space",
   agentId: "agent",
   issueId: "issue",
   runId: "run",

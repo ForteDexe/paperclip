@@ -32,7 +32,7 @@ export interface CodexCodexTracerInput {
   message?: NativeUserMessage;
   runId?: string;
   normalizedSessionId?: string;
-  companyId?: string;
+  spaceId?: string;
   issueId?: string;
   environmentLeaseId?: string;
   runnerInstanceId?: string;
@@ -341,7 +341,7 @@ export async function runCodexCodexTracer(input: CodexCodexTracerInput): Promise
     fixtureName: "codex-safe-codex-task",
     identity: {
       schema: "outpost.orp.identity.v1",
-      companyId: input.companyId ?? "mock-company",
+      spaceId: input.spaceId ?? "mock-space",
       issueId: input.issueId ?? "mock-issue",
       runId,
       environmentLeaseId: input.environmentLeaseId ?? "mock-lease",
@@ -574,7 +574,7 @@ export async function runCodexCodexTracer(input: CodexCodexTracerInput): Promise
           context.modelInputKinds.length === 1 &&
           context.modelInputKinds[0] === "text",
         credentialsAbsent:
-          !serialized.includes("paperclip_api_key") &&
+          !serialized.includes("outpost_api_key") &&
           !serialized.includes("authorization: bearer") &&
           !serialized.includes("/api/issues/"),
       },

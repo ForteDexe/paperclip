@@ -9,8 +9,8 @@ import {
   browserUseViewerSchema,
 } from "@outpost/shared";
 import {
-  assertBoard,
-  assertCompanyAccess,
+  assertOperator,
+  assertSpaceAccess,
   getActorInfo,
   getAccessibleResource,
 } from "./authz.js";
@@ -21,7 +21,7 @@ const issueIdSchema = z.string().uuid();
 export function browserUseRoutes(db: Db, service = browserUseService(db)) {
   const router = Router();
   router.use("/issues/:issueId/browsers", async (req, res, next) => {
-    assertBoard(req);
+    assertOperator(req);
     if (
       req.params.issueId !== req.params.issueId.trim() ||
       !issueIdSchema.safeParse(req.params.issueId).success
@@ -30,20 +30,20 @@ export function browserUseRoutes(db: Db, service = browserUseService(db)) {
       return;
     }
     const [issue] = await db
-      .select({ companyId: issues.companyId })
+      .select({ spaceId: issues.spaceId })
       .from(issues)
       .where(eq(issues.id, req.params.issueId))
       .limit(1);
     if (!(await getAccessibleResource(req, res, issue, "Task not found")))
       return;
-    res.locals.browserCompanyId = issue.companyId;
+    res.locals.browserSpaceId = issue.spaceId;
     res.setHeader("Cache-Control", "no-store");
     next();
   });
   router.get("/issues/:issueId/browsers", async (req, res) => {
     res.json(
       await service.list(
-        res.locals.browserCompanyId,
+        res.locals.browserSpaceId,
         req.params.issueId,
         getActorInfo(req).actorId,
       ),
@@ -55,7 +55,7 @@ export function browserUseRoutes(db: Db, service = browserUseService(db)) {
       res.setHeader("Referrer-Policy", "no-referrer");
       res.json(
         await service.viewer(
-          res.locals.browserCompanyId,
+          res.locals.browserSpaceId,
           req.params.issueId,
           req.params.browserId,
           getActorInfo(req).actorId,
@@ -72,7 +72,7 @@ export function browserUseRoutes(db: Db, service = browserUseService(db)) {
     async (req, res) => {
       res.json(
         await service.presence(
-          res.locals.browserCompanyId,
+          res.locals.browserSpaceId,
           req.params.issueId,
           req.params.browserId,
           getActorInfo(req).actorId,
@@ -86,7 +86,7 @@ export function browserUseRoutes(db: Db, service = browserUseService(db)) {
       const viewport = browserUseViewportSchema.parse(req.body);
       res.json(
         await service.resize(
-          res.locals.browserCompanyId,
+          res.locals.browserSpaceId,
           req.params.issueId,
           req.params.browserId,
           getActorInfo(req).actorId,
@@ -101,7 +101,7 @@ export function browserUseRoutes(db: Db, service = browserUseService(db)) {
       const { viewerId } = browserUseViewerSchema.parse(req.body);
       res.json(
         await service.releaseViewport(
-          res.locals.browserCompanyId,
+          res.locals.browserSpaceId,
           req.params.issueId,
           req.params.browserId,
           getActorInfo(req).actorId,
@@ -115,7 +115,7 @@ export function browserUseRoutes(db: Db, service = browserUseService(db)) {
     async (req, res) => {
       const { action } = browserUseControlSchema.parse(req.body);
       const { s } = await service.humanSession(
-        res.locals.browserCompanyId,
+        res.locals.browserSpaceId,
         req.params.issueId,
         req.params.browserId,
         getActorInfo(req).actorId,
@@ -125,14 +125,14 @@ export function browserUseRoutes(db: Db, service = browserUseService(db)) {
     },
   );
   router.get(
-    "/companies/:companyId/browser-use-cloud/grants/:grantId/profiles",
+    "/spaces/:spaceId/browser-use-cloud/grants/:grantId/profiles",
     async (req, res) => {
-      assertBoard(req);
-      assertCompanyAccess(req, req.params.companyId);
+      assertOperator(req);
+      assertSpaceAccess(req, req.params.spaceId);
       res.setHeader("Cache-Control", "no-store");
       res.json(
         await service.availableProfiles(
-          req.params.companyId,
+          req.params.spaceId,
           req.params.grantId,
           getActorInfo(req).actorId,
         ),
@@ -140,28 +140,28 @@ export function browserUseRoutes(db: Db, service = browserUseService(db)) {
     },
   );
   router.get(
-    "/companies/:companyId/browser-use-cloud/grants/:grantId/settings",
+    "/spaces/:spaceId/browser-use-cloud/grants/:grantId/settings",
     async (req, res) => {
-      assertBoard(req);
-      assertCompanyAccess(req, req.params.companyId);
+      assertOperator(req);
+      assertSpaceAccess(req, req.params.spaceId);
       await service.humanGrant(
-        req.params.companyId,
+        req.params.spaceId,
         req.params.grantId,
         getActorInfo(req).actorId,
       );
       res.json(
-        await service.getSettings(req.params.companyId, req.params.grantId),
+        await service.getSettings(req.params.spaceId, req.params.grantId),
       );
     },
   );
   router.put(
-    "/companies/:companyId/browser-use-cloud/grants/:grantId/settings",
+    "/spaces/:spaceId/browser-use-cloud/grants/:grantId/settings",
     async (req, res) => {
-      assertBoard(req);
-      assertCompanyAccess(req, req.params.companyId);
+      assertOperator(req);
+      assertSpaceAccess(req, req.params.spaceId);
       res.json(
         await service.saveSettings(
-          req.params.companyId,
+          req.params.spaceId,
           req.params.grantId,
           getActorInfo(req).actorId,
           browserUseSettingsSchema.parse(req.body),

@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { CompanySecret, UserSecretDefinition } from "@outpost/shared";
+import type { SpaceSecret, UserSecretDefinition } from "@outpost/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MissingUserSecretsBanner } from "./MissingUserSecretsBanner";
 import type { MyUserSecretEntry } from "../../api/secrets";
@@ -27,13 +27,13 @@ vi.mock("../../context/ToastContext", () => ({
 function definition(overrides: Partial<UserSecretDefinition> = {}): UserSecretDefinition {
   return {
     id: "def-1",
-    companyId: "c1",
+    spaceId: "c1",
     key: "PERSONAL_GH_TOKEN",
     name: "Personal GitHub token",
     description: "Used for private repo access",
     status: "active",
     provider: "local_encrypted",
-    managedMode: "paperclip_managed",
+    managedMode: "outpost_managed",
     providerConfigId: null,
     providerMetadata: null,
     usageGuidance: null,
@@ -48,10 +48,10 @@ function definition(overrides: Partial<UserSecretDefinition> = {}): UserSecretDe
   };
 }
 
-function secret(): CompanySecret {
+function secret(): SpaceSecret {
   return {
     id: "sec-1",
-    companyId: "c1",
+    spaceId: "c1",
     scope: "user",
     ownerUserId: "u1",
     userSecretDefinitionId: "def-1",
@@ -59,7 +59,7 @@ function secret(): CompanySecret {
     name: "Personal GitHub token",
     provider: "local_encrypted",
     status: "active",
-    managedMode: "paperclip_managed",
+    managedMode: "outpost_managed",
     externalRef: null,
     providerConfigId: null,
     providerMetadata: null,
@@ -113,7 +113,7 @@ function render() {
     root.render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>
-          <MissingUserSecretsBanner companyId="c1" />
+          <MissingUserSecretsBanner spaceId="c1" />
         </MemoryRouter>
       </QueryClientProvider>,
     );

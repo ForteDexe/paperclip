@@ -19,7 +19,7 @@ describeEmbeddedPostgres("connections v3 schema core migration", () => {
   afterEach(async () => Promise.all(cleanups.splice(0).map((cleanup) => cleanup())));
 
   it("backfills a workspace grant and rolls back without losing the connection", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-connections-v3-migration-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-connections-v3-migration-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1 });
     cleanups.push(async () => sql.end());
@@ -30,10 +30,10 @@ describeEmbeddedPostgres("connections v3 schema core migration", () => {
     const [chatForeignKey] = await sql<{ definition: string }[]>`
       SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint
       WHERE conrelid = 'chat_endpoints'::regclass
-        AND conname = 'chat_endpoints_company_connection_fk'
+        AND conname = 'chat_endpoints_space_connection_fk'
     `;
     expect(chatForeignKey?.definition).toBeTruthy();
-    await sql`ALTER TABLE "chat_endpoints" DROP CONSTRAINT "chat_endpoints_company_connection_fk"`;
+    await sql`ALTER TABLE "chat_endpoints" DROP CONSTRAINT "chat_endpoints_space_connection_fk"`;
     // Project consent is another later grant consumer; rewind only its known FK.
     const [projectForeignKey] = await sql<{ definition: string }[]>`
       SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint
@@ -67,8 +67,8 @@ describeEmbeddedPostgres("connections v3 schema core migration", () => {
     // fixture table before recreating grants, preserving production FK checks.
     await sql`DROP TABLE IF EXISTS "ai_subscription_connections"`;
     await sql`DROP TABLE IF EXISTS "connection_grants"`;
-    await sql`DROP INDEX IF EXISTS "tool_connections_company_uid_uq"`;
-    await sql`ALTER TABLE "tool_connections" DROP CONSTRAINT IF EXISTS "tool_connections_company_id_uq"`;
+    await sql`DROP INDEX IF EXISTS "tool_connections_space_uid_uq"`;
+    await sql`ALTER TABLE "tool_connections" DROP CONSTRAINT IF EXISTS "tool_connections_space_id_uq"`;
     await sql`ALTER TABLE "tool_connections" DROP CONSTRAINT IF EXISTS "tool_connections_ownership_check"`;
     await sql`ALTER TABLE "tool_connections" DROP CONSTRAINT IF EXISTS "tool_connections_transport_check"`;
     await sql`ALTER TABLE "tool_connections" DROP CONSTRAINT IF EXISTS "tool_connections_auth_kind_check"`;
@@ -76,20 +76,20 @@ describeEmbeddedPostgres("connections v3 schema core migration", () => {
     await sql`ALTER TABLE "tool_connections" DROP COLUMN IF EXISTS "ownership"`;
     await sql`ALTER TABLE "tool_connections" DROP COLUMN IF EXISTS "auth_kind"`;
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const applicationId = randomUUID();
     const connectionId = randomUUID();
     const secretId = randomUUID();
-    await sql`INSERT INTO "companies" ("id", "name", "issue_prefix") VALUES (${companyId}, 'Paperclip', 'PAP')`;
-    await sql`INSERT INTO "tool_applications" ("id", "company_id", "application_key", "name", "type") VALUES (${applicationId}, ${companyId}, 'linear', 'Linear', 'mcp_http')`;
+    await sql`INSERT INTO "spaces" ("id", "name", "issue_prefix") VALUES (${spaceId}, 'Outpost', 'PAP')`;
+    await sql`INSERT INTO "tool_applications" ("id", "space_id", "application_key", "name", "type") VALUES (${applicationId}, ${spaceId}, 'linear', 'Linear', 'mcp_http')`;
     await sql`
-      INSERT INTO "tool_connections" ("id", "company_id", "application_id", "name", "connection_kind", "transport", "config", "credential_secret_refs")
-      VALUES (${connectionId}, ${companyId}, ${applicationId}, 'Production', 'managed', 'remote_http', '{"oauth":{"provider":"linear"}}'::jsonb, ${sql.json([{ secretId, configPath: "oauth.refresh_token" }])})
+      INSERT INTO "tool_connections" ("id", "space_id", "application_id", "name", "connection_kind", "transport", "config", "credential_secret_refs")
+      VALUES (${connectionId}, ${spaceId}, ${applicationId}, 'Production', 'managed', 'remote_http', '{"oauth":{"provider":"linear"}}'::jsonb, ${sql.json([{ secretId, configPath: "oauth.refresh_token" }])})
     `;
 
     await applyPendingMigrations(database.connectionString);
     await sql.unsafe(
-      `ALTER TABLE "chat_endpoints" ADD CONSTRAINT "chat_endpoints_company_connection_fk" ${chatForeignKey!.definition}`,
+      `ALTER TABLE "chat_endpoints" ADD CONSTRAINT "chat_endpoints_space_connection_fk" ${chatForeignKey!.definition}`,
     );
     await sql.unsafe(
       `ALTER TABLE "projects" ADD CONSTRAINT "projects_git_authorization_grant_id_connection_grants_id_fk" ${projectForeignKey!.definition}`,
@@ -107,23 +107,23 @@ describeEmbeddedPostgres("connections v3 schema core migration", () => {
     expect(grant).toMatchObject({ kind: "workspace", is_default: true });
     expect(grant?.credential_secret_refs).toEqual([{ secretId, configPath: "oauth.refresh_token" }]);
 
-    const otherCompanyId = randomUUID();
-    await sql`INSERT INTO "companies" ("id", "name", "issue_prefix") VALUES (${otherCompanyId}, 'Other', 'OTH')`;
+    const otherSpaceId = randomUUID();
+    await sql`INSERT INTO "spaces" ("id", "name", "issue_prefix") VALUES (${otherSpaceId}, 'Other', 'OTH')`;
     await expect(sql`
-      INSERT INTO "connection_grants" ("company_id", "connection_id", "kind")
-      VALUES (${otherCompanyId}, ${connectionId}, 'workspace')
+      INSERT INTO "connection_grants" ("space_id", "connection_id", "kind")
+      VALUES (${otherSpaceId}, ${connectionId}, 'workspace')
     `).rejects.toMatchObject({ code: "23503" });
     await expect(sql`
-      INSERT INTO "connection_grants" ("company_id", "connection_id", "kind", "subject_user_id", "is_default")
-      VALUES (${companyId}, ${connectionId}, 'user', 'user-1', true)
+      INSERT INTO "connection_grants" ("space_id", "connection_id", "kind", "subject_user_id", "is_default")
+      VALUES (${spaceId}, ${connectionId}, 'user', 'user-1', true)
     `).rejects.toMatchObject({ code: "23514" });
 
-    await sql`ALTER TABLE "chat_endpoints" DROP CONSTRAINT "chat_endpoints_company_connection_fk"`;
+    await sql`ALTER TABLE "chat_endpoints" DROP CONSTRAINT "chat_endpoints_space_connection_fk"`;
     await sql`ALTER TABLE "projects" DROP CONSTRAINT "projects_git_authorization_grant_id_connection_grants_id_fk"`;
     await sql`DROP TABLE IF EXISTS "connection_grant_members"`;
     await sql`DROP TABLE "connection_grants"`;
-    await sql`DROP INDEX "tool_connections_company_uid_uq"`;
-    await sql`ALTER TABLE "tool_connections" DROP CONSTRAINT "tool_connections_company_id_uq"`;
+    await sql`DROP INDEX "tool_connections_space_uid_uq"`;
+    await sql`ALTER TABLE "tool_connections" DROP CONSTRAINT "tool_connections_space_id_uq"`;
     await sql`ALTER TABLE "tool_connections" DROP CONSTRAINT "tool_connections_ownership_check"`;
     await sql`ALTER TABLE "tool_connections" DROP CONSTRAINT "tool_connections_transport_check"`;
     await sql`ALTER TABLE "tool_connections" DROP CONSTRAINT "tool_connections_auth_kind_check"`;

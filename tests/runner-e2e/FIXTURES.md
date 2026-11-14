@@ -9,11 +9,11 @@ run version must agree. Skill ownership is journaled before creation and cleaned
 provider with the other owned resources.
 
 [Chat feature evals](CHAT-FEATURES.md) load two authored YAML requests and seed
-only company, agents and project context through public APIs. Both agents use
+only space, agents and project context through public APIs. Both agents use
 production role instructions; evaluator outcomes are never injected. Real browser
 submission, task audits, worker document provenance, completion delivery and
 reload readback establish the outcome. The existing fixture registry, subscription
-credential staging and whole-company cleanup own setup and teardown. The explicit
+credential staging and whole-space cleanup own setup and teardown. The explicit
 OpenCode backlog cell instead uses an encrypted OpenRouter profile secret
 reference. It preserves the same fixture and oracle without registering
 OpenCode delegation or changing the other suites' model.
@@ -37,7 +37,7 @@ profiles, credential handoffs, private evidence, and cleanup contract.
 an existing same-user personal default Google subscription on an attached local
 macOS ARM64 candidate. That prerequisite does not seed the measured new agent or
 task: both are created through ordinary visible controls. The attempt journals
-owned resources before task dispatch, preserves the supplied company/account/grant,
+owned resources before task dispatch, preserves the supplied space/account/grant,
 and exposes bounded read-only preflight and ownership-checked recovery. Native
 Test is prompt-free; exactly two work turns are admitted. Independent actual
 downloaded bytes, effective model/conversation, accepted/committed Done lineage
@@ -58,7 +58,7 @@ typed, deterministic, and free of raw credentials.
 The explicit local `cursor-cloud` suite reuses the ordinary
 `plan_revision_acceptance` flow with three expected runs and one attempt. It
 checks the initial Plan, the requested revision and browser approval of that
-exact revision before completion. This is Paperclip semantic planning through
+exact revision before completion. This is Outpost semantic planning through
 the Cloud default harness; Cursor's native Plan API is outside this cell.
 Its ownership oracle requires draft/revision continuity followed by the exact
 accepted confirmation's explicit fresh-session transition, three distinct native
@@ -72,11 +72,11 @@ retain their original definition and do not qualify the added Plan cell.
 `onboarding-approval-history` uses the existing first-task fixture registry path
 with the production wizard and native Codex/ACPX Claude profiles. Its explicit
 `interview-hire-execute` case has seven expected work turns, one attempt, a $5
-company task budget, twelve total run records, and a fifteen-minute deadline.
+space task budget, twelve total run records, and a fifteen-minute deadline.
 The model creates its plan, approval cards, writer, child task, and saved output
 through production tools; the harness answers the interview and clicks normal
 approval controls. Fixture code does not insert approval rows or hire the writer.
-The ordinary first-task cleanup owns the complete disposable company, including
+The ordinary first-task cleanup owns the complete disposable space, including
 the new writer. See [the journey contract](README.md#first-task-onboarding).
 
 A `RunnerSuiteFixture` declares one durable testing purpose: stable ID, label,
@@ -153,10 +153,10 @@ a raw secret-looking value is rejected by catalog validation.
 
 The manual Grok subscription profile uses `GROK_AUTH_JSON` as an explicit login
 fixture. It does not put this credential in agent configuration or substitute an
-API key. Setup seeds a new company-scoped Grok home inside the disposable instance
+API key. Setup seeds a new space-scoped Grok home inside the disposable instance
 with mode 0700 and an exclusive mode-0600 auth file. Setup rejects redirected,
 occupied, or nonisolated homes. Production runner discovery and refresh operate on
-that company login; teardown destroys it after the remote environment is removed.
+that space login; teardown destroys it after the remote environment is removed.
 This fixture tests subscription execution, not the interactive browser login flow.
 
 ## Environments
@@ -165,10 +165,10 @@ An `EnvironmentFixture` declares driver/provider, credential requirements,
 attempt deadline, lifecycle behavior, expected execution target, and a payload
 factory validated by the shared environment schema.
 
-The local environment is instance-managed: company creation ensures it exists,
+The local environment is instance-managed: space creation ensures it exists,
 and the public API intentionally rejects a second local environment. The setup
 registry therefore discovers that row through the public environments API.
-This still provides full isolation because every cell starts a new Paperclip
+This still provides full isolation because every cell starts a new Outpost
 instance and database.
 
 
@@ -189,7 +189,7 @@ The manual managed first-task cell is the exception to fixture prequalification:
 environment unqualified until the ordinary onboarding Connect action. It
 observes exactly one platform response and one selected-runtime response, fresh
 scoped native discovery and the saved automatic choice. Both setup leases must
-have authoritative response IDs, match this company/environment, and reach
+have authoritative response IDs, match this space/environment, and reach
 released/success before setup is accepted. Exact IDs join the existing task-run
 lease collector and runtime estimate, including failed setup. New uncorrelated
 or response-less leases remain unknown and unattributed; incomplete coverage
@@ -274,11 +274,11 @@ provider retirement before collection. Pi's separate `agent-files-fresh-run`
 case retains changed-home save and fresh-task restoration coverage. This split
 does not weaken the stable-process oracle or change the Codex checkpoint fixture.
 
-Native turns 1 and 2 include an actionable human review in the completion report's `attentionRequests`. Paperclip creates the review gate from that report. An explicit question-tool wait yields the turn and suppresses its final prose, so it is not interchangeable with this completion-review fixture. Turn 3 reports Done without another review.
+Native turns 1 and 2 include an actionable human review in the completion report's `attentionRequests`. Outpost creates the review gate from that report. An explicit question-tool wait yields the turn and suppresses its final prose, so it is not interchangeable with this completion-review fixture. Turn 3 reports Done without another review.
 
-Every selected case runs in its own isolated Paperclip process, and independent
+Every selected case runs in its own isolated Outpost process, and independent
 cases may run concurrently. Follow-up turns inside one case retain their shared
-task state. Each case creates and tears down its own company, secrets,
+task state. Each case creates and tears down its own space, secrets,
 environment selection, agent, and browser-created task. Strict Copilot command,
 denial, pending-permission Stop and provider-death fixtures create an explicit
 title through the production search composer and bind the task to the public
@@ -308,8 +308,8 @@ explicit control title. The harness captures the exact browser creation response
 instead of searching by a title that the agent may already have changed. It
 never patches the title itself. Normal production instructions own the early
 naming behavior; fixture prompts and agent instruction bundles contain no naming
-hints. Existing company/secret/environment/agent registry dependencies are reused,
-with 500-cent company and agent budgets and normal instance teardown.
+hints. Existing space/secret/environment/agent registry dependencies are reused,
+with 500-cent space and agent budgets and normal instance teardown.
 
 Keep the call input, successful result, execution receipt, saved task, and
 agent/run-attributed audit correlated. Missing evidence must fail. The first-five
@@ -320,7 +320,7 @@ The source digest versions the grader and request in catalog metadata. See
 [Automatic task titles](README.md#automatic-task-titles) for live selectors,
 coverage limits, evidence, and calibration.
 
-## New Paperclip object fixtures
+## New Outpost object fixtures
 
 The explicit-only `lifecycle-baseline` suite reuses this registry and existing
 continuation, chat and governed-action flows. Its narrative pairs require actual
@@ -335,7 +335,7 @@ test-only runner endpoints are prohibited.
 The expected dependency shape is:
 
 ```text
-company
+space
 └── encrypted secrets
     └── environment
         └── agent
@@ -366,7 +366,7 @@ manual or scheduled campaign, not a PR requirement.
 production composer, plan revision/approval controls, questions, reset command,
 and project cards. Keep its 28 local cells intentional. `expectedRunCount`
 counts provider turns, including cancelled and handed-off task runs, but excludes
-synthetic `/new` runs. Assertions must inspect all company runs because ordinary
+synthetic `/new` runs. Assertions must inspect all space runs because ordinary
 issue lists exclude the source conversation. `assertChatHandoff` rejects missing
 projects/plans, chat children, wrong assignees, and execution before plan commit.
 
@@ -374,7 +374,7 @@ Retained `api-state.json`, `chat-handoff.json`, and plan-revision evidence
 include persisted comments, session generations, run context and logs, project
 workspaces, task documents, and ordering. They pass through the normal sanitizer.
 Screenshots are allowlisted to the exact disposable agent chat. Cleanup cancels
-all active runs in the isolated company, including handed-off work; usage from
+all active runs in the isolated space, including handed-off work; usage from
 failed and cancelled runs must not disappear from campaign totals.
 
 
@@ -439,7 +439,7 @@ The explicit-only `kimi-qualification` suite reuses eight established user
 journeys and adds native pending-permission Stop and native worker-loss journeys
 in each local/Daytona environment, with one attempt per cell. The
 `runner-acpx-kimi` profile selects the exact candidate/model pair in the isolated
-server, and receives only an encrypted `KIMI_API_KEY` secret reference. No native question/plan or usage/cost support is inferred from these fixtures. Semantic Paperclip interaction cards retain their
+server, and receives only an encrypted `KIMI_API_KEY` secret reference. No native question/plan or usage/cost support is inferred from these fixtures. Semantic Outpost interaction cards retain their
 existing browser, durable revision, and continuation assertions.
 
 The file cell creates its project/workspace through the public fixture registry
@@ -546,11 +546,11 @@ artifact check. Definition 3 attempts retain their original definitions and
 grades; its Pi prompt requested a different title. The real
 `register_deliverable` receipt, attachment metadata, publication activity,
 visible task attachment and authenticated public download must all agree on the
-file's bytes, hash, company, issue, agent and originating run. A file on disk or a
+file's bytes, hash, space, issue, agent and originating run. A file on disk or a
 model completion claim cannot substitute for publication. Daytona additionally
 requires the public run's finalized `nativeWorkspaceSync` descriptor, baseline and
 final-host hashes, bound workspace and public environment lease to match this
-run/company/environment/provider lease and remote root. The checked host bytes
+run/space/environment/provider lease and remote root. The checked host bytes
 come through production stage-in/copy-back; this is explicitly `product_copyback`
 provenance, not a sealed guest observation or an independently recomputed whole
 host-workspace snapshot. Downloaded artifact bytes remain independently checked.
@@ -624,7 +624,7 @@ answer controls; any supersession must name the separate fallback card.
 Both public stale-response APIs must reject the old answer. Any production-created
 `wake_assignee` fallback is separately identified and remains unanswered; it is not
 a restored native callback. The sealed observer proves no continuation marker was
-created and all owned processes retired before public lease deletion. The company
+created and all owned processes retired before public lease deletion. The space
 must retain exactly the original run through cleanup.
 
 Local provider-death remains excluded. The Python admission tests include a
@@ -792,7 +792,7 @@ post-deletion RPC or host-copy-back evidence may satisfy remote no-effect or
 retirement checks. Runtime-internal files are an explicit scoped exclusion.
 `human-permission-denial` requires native request/tool correlation, the browser's
 exact Decline, delivered denial and failed write, and unchanged file evidence
-through retirement. All normal project and company boundaries apply.
+through retirement. All normal project and space boundaries apply.
 
 Cursor and Copilot may exempt a bootstrap read only when every native notice for
 that completed tool origin carries the single-path attestation matching the
@@ -818,13 +818,13 @@ async-command oracle is unchanged by this denial-only correction.
 ### Correlated native Stop API
 
 The board-only `POST /api/heartbeat-runs/:runId/cancel` accepts an optional
-`cancellationRequestId` UUID for native runs. Company access checks still apply.
+`cancellationRequestId` UUID for native runs. Space access checks still apply.
 The server reserves it under the run-row lock before dispatch, uses
 `native-cancellation:<UUID>` as the durable intent ID, and returns HTTP409 for
 an earlier or different caller intent, an earlier uncorrelated Stop, or a
 terminal run without that same reserved intent. Malformed UUIDs return HTTP400.
 Repeating the same UUID from the same board actor is idempotent. A different
-actor receives HTTP409; local trusted board uses the `local-board` user ID.
+actor receives HTTP409; local trusted board uses the `local-operator` user ID.
 Default clients may omit the field; they preserve and join an existing reserved
 intent rather than overwrite it.
 
@@ -843,7 +843,7 @@ terminal retained before Stop; only that branch can accept an acknowledgement
 with no provider dispatch. Active-permission Stop still requires dispatch.
 The unfinished task may be blocked only when its exact missing-result lifecycle
 row was retained before Stop and matches the final rows, and its recovery action
-is bound to the same company, issue and cancelled run. A late row, foreign action,
+is bound to the same space, issue and cancelled run. A late row, foreign action,
 missing hash or cancelled/interrupted-provider branch cannot use this exception.
 The observer refreshes and retains completion or missing-result evidence that
 arrives while an earlier receipt is being written. Scope, no-extra-run, no-effect
@@ -916,8 +916,8 @@ process death is not simulated by substituting the chat runner-worker crash hook
 
 ### Copilot attached semantic completion evidence (suite 8)
 
-Attached settlement now requires one native `paperclip_finish` lifecycle joined
-to an invocation-captured, bounded Paperclip bridge receipt by exact call, input
+Attached settlement now requires one native `outpost_finish` lifecycle joined
+to an invocation-captured, bounded Outpost bridge receipt by exact call, input
 and result digests in the same run/turn/native session and durable source stream.
 A matching display title is not authority. The exact proposed completion input
 must match a control-plane `run.result.accepted` body and the requested summary.
@@ -942,7 +942,7 @@ Exactly one proposed body must hash to that normalized digest and equal exactly
 one accepted body; identical duplicate proposals or receipts still fail.
 
 Suite 8 writes `outpost.e2e.copilot-semantic-completion.v2` and requires
-`outpost.semantic_tool_receipt.v2` under `paperclip_semantic_tool_receipt_v2`.
+`outpost.semantic_tool_receipt.v2` under `outpost_semantic_tool_receipt_v2`.
 The authority has exactly eight bounded details. An explicit null normalized
 digest is diagnostic only and cannot qualify a successful finish. Legacy v1
 receipts do not qualify fresh runs. This fixture depends on the corresponding
@@ -959,7 +959,7 @@ settlement is schema v4; historical v3 receipts are not relabelled.
 `blocker-cases.ts`, `blocker-fixtures.ts`, `blocker-flow.ts`, and
 `blocker-scoring.ts` define the explicit local legacy `blocker-guidance` suite.
 Its fixture registry creates a manager through the public API and assigns the
-production operational skill to worker and manager. Company-wide evidence and
+production operational skill to worker and manager. Space-wide evidence and
 cleanup include unexpected manager runs. The grader checks saved human input,
 requester identity for scope questions, ownership history, no additional work or
 hires, and the browser-answer continuation. See [Direct blocker guidance](README.md#direct-blocker-guidance)
@@ -970,7 +970,7 @@ Cursor native denial qualification requires one exact absolute-target command, a
 correlated browser Reject once delivered after reconnect, six independent absence
 samples, a complete continuous mutation watcher, and retirement of the actual
 run-owned process tree. The pinned Cursor transport may report the rejected call
-as completed and end the native turn; Paperclip must retain a failed run with
+as completed and end the native turn; Outpost must retain a failed run with
 missing semantic finalization and an unfinished task. That is a denial outcome,
 not task success or operator cancellation. Stop during an unresolved permission
 remains a separate `native-active-stop/pending-permission-stop` gate.
@@ -980,7 +980,7 @@ Pi controls definition 9 and native definition 16 create an explicit title throu
 ## Projectless task files and repository admission
 
 The explicit `task_workspaces` flow supplies no project and strips the legacy
-profile's operator cwd. It retains the ordinary company, encrypted credentials,
+profile's operator cwd. It retains the ordinary space, encrypted credentials,
 environment and agent fixtures. All mutations use production browser/API/semantic
 surfaces; the oracle never inserts database rows or prepares a replacement checkout.
 The passive public Git source is `https://github.com/octocat/Hello-World`.
@@ -989,7 +989,7 @@ No GitHub credentials, remote repository creation or push is used.
 Three user-requested turns test pending idempotent preparation, controller restart,
 next-admission realization and later nested Git/dirty-file persistence. The source
 pin is observed from the real checkout rather than assumed from a mutable branch.
-Host Git inspection is limited to the verified isolated company/task root. Public
+Host Git inspection is limited to the verified isolated space/task root. Public
 execution-workspace file reads and run-attributed artifact downloads verify bytes.
 Calibration rejects wrong roots, missing history, changed pins, duplicate receipts,
 extra wakes, incomplete persistence, tool bypass and missing remote leases. Partial
@@ -1015,7 +1015,7 @@ each phase. The final builder requests `to: "done"` before normal task completio
 the fifth handoff becomes `completed` and the case closes atomically with the task.
 This terminal destination does not create another run or bypass completion gates.
 
-Before kickoff, its isolated company and every agent have 100-cent budgets,
+Before kickoff, its isolated space and every agent have 100-cent budgets,
 90-second native Codex work-run timeouts and low reasoning effort. Daily task-run limits
 are triage one, builder two and verifier one. Setup applies the initial triage
 limits before creating that agent; the flow applies and reads back every role's
@@ -1053,14 +1053,14 @@ The original arithmetic `case-handoffs` fixture uses ordinary agent creation and
 public case-handoff API for initial kickoff. Subsequent routing is performed by
 the agents through the production native tool. Four phase documents record
 fresh case/task/version observations; the oracle checks these against the
-public ledger and independently specified arithmetic result. Its company-wide run
+public ledger and independently specified arithmetic result. Its space-wide run
 collection accounts for all three agents and fails above six turns. Only
 allowlisted state, the synthetic document contents and correlated tool-presence
 booleans enter the workflow snapshot; provider event bodies are not republished.
 Final UI screenshots cover the persistent case history and original task.
 
 The `runner-codex-subscription` profile consumes explicit `CODEX_AUTH_JSON` and
-never creates a fake API key. Login setup uses the production company Codex
+never creates a fake API key. Login setup uses the production space Codex
 home, refuses nonisolated or redirected roots and occupied auth files, and
 registers cleanup before agent setup. It copies no operator config, sessions,
 plugins or unrelated files. The shared fixture registry owns that dependency;
@@ -1088,7 +1088,7 @@ Each creates one standard task through the browser, asks for two distinct
 synthetic feedback items, and requires the real `submit_complaint` and
 `submit_suggestion` tools. The case expects one task work run and disables
 automatic retries. Local attempts have five minutes; Daytona inherits the
-15-minute remote deadline. Company and agent accounted-work budgets are $10.
+15-minute remote deadline. Space and agent accounted-work budgets are $10.
 Setup probes and any background work must also pass through the separately
 budgeted gateway when using an operations manifest. Local compute is unmetered.
 Daytona cells require an immutable image and the existing provider credential.
@@ -1098,7 +1098,7 @@ These registrations do not qualify remote behavior or change daily/weekly select
 The runner E2E maintainers own this manual case; `--all` excludes it.
 
 After collection and fixture teardown, the oracle reads the retained evidence
-file and requires exact nonce-bearing bodies, the original company/agent/task
+file and requires exact nonce-bearing bodies, the original space/agent/task
 and observed run, plus one completed native receipt for each tool. Missing or
 partial collection, prose-only claims, foreign attribution, duplicate records,
 and failed submissions cannot pass. Full bodies stay in private evidence;

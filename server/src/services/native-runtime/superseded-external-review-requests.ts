@@ -7,7 +7,7 @@ import { enqueueTerminalIssueInteractionChatPublications } from "../chat-interac
 import { persistActivity, type ActivityPublication } from "../activity-log.js";
 
 type ReviewBinding = {
-  companyId: string; issueId: string; runId: string; agentId: string;
+  spaceId: string; issueId: string; runId: string; agentId: string;
 };
 
 /** Read-only: a proposed finish report must never withdraw a pending card. */
@@ -15,36 +15,36 @@ export async function findSupersededExternalReviewRequests(db: Db, binding: Revi
   if (!await hasPublishedGitHubReview(db, binding)) return [];
   const [current] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
     .innerJoin(completionContracts, and(eq(completionContracts.id, heartbeatRuns.completionContractId),
-      eq(completionContracts.companyId, binding.companyId), eq(completionContracts.issueId, binding.issueId),
+      eq(completionContracts.spaceId, binding.spaceId), eq(completionContracts.issueId, binding.issueId),
       eq(completionContracts.risk, "low"), eq(completionContracts.completionAuthority, "agent_claim_policy")))
-    .where(and(eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.companyId, binding.companyId),
+    .where(and(eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.spaceId, binding.spaceId),
       eq(heartbeatRuns.nativeIssueId, binding.issueId), eq(heartbeatRuns.agentId, binding.agentId)));
   if (!current) return [];
   const candidates = await db.select({ interaction: issueThreadInteractions })
     .from(issueThreadInteractions)
     .innerJoin(heartbeatRuns, and(
       eq(heartbeatRuns.id, issueThreadInteractions.sourceRunId),
-      eq(heartbeatRuns.companyId, binding.companyId),
+      eq(heartbeatRuns.spaceId, binding.spaceId),
       eq(heartbeatRuns.nativeIssueId, binding.issueId),
       eq(heartbeatRuns.agentId, binding.agentId),
     ))
-    .innerJoin(issues, and(eq(issues.id, binding.issueId), eq(issues.companyId, binding.companyId),
+    .innerJoin(issues, and(eq(issues.id, binding.issueId), eq(issues.spaceId, binding.spaceId),
       eq(issues.assigneeAgentId, binding.agentId), eq(issues.executionRunId, binding.runId)))
     .innerJoin(statusDecisionEffects, and(
-      eq(statusDecisionEffects.companyId, binding.companyId), eq(statusDecisionEffects.issueId, binding.issueId),
+      eq(statusDecisionEffects.spaceId, binding.spaceId), eq(statusDecisionEffects.issueId, binding.issueId),
       eq(statusDecisionEffects.effectKind, "bind_reviewer"), eq(statusDecisionEffects.targetType, "issue_thread_interaction"),
       sql`${statusDecisionEffects.targetId} = ${issueThreadInteractions.id}::text`))
     .innerJoin(statusDecisions, and(eq(statusDecisions.id, statusDecisionEffects.decisionId),
-      eq(statusDecisions.companyId, binding.companyId), eq(statusDecisions.issueId, binding.issueId),
+      eq(statusDecisions.spaceId, binding.spaceId), eq(statusDecisions.issueId, binding.issueId),
       eq(statusDecisions.runId, issueThreadInteractions.sourceRunId), eq(statusDecisions.applicationState, "applied"),
       eq(statusDecisions.reasonCode, "actionable_attention_pending")))
     .innerJoin(workAssessments, and(eq(workAssessments.id, statusDecisions.assessmentId),
-      eq(workAssessments.companyId, binding.companyId), eq(workAssessments.issueId, binding.issueId)))
+      eq(workAssessments.spaceId, binding.spaceId), eq(workAssessments.issueId, binding.issueId)))
     .innerJoin(completionContracts, and(eq(completionContracts.id, workAssessments.contractId),
-      eq(completionContracts.companyId, binding.companyId), eq(completionContracts.issueId, binding.issueId),
+      eq(completionContracts.spaceId, binding.spaceId), eq(completionContracts.issueId, binding.issueId),
       eq(completionContracts.risk, "low"), eq(completionContracts.completionAuthority, "agent_claim_policy")))
     .where(and(
-      eq(issueThreadInteractions.companyId, binding.companyId), eq(issueThreadInteractions.issueId, binding.issueId),
+      eq(issueThreadInteractions.spaceId, binding.spaceId), eq(issueThreadInteractions.issueId, binding.issueId),
       eq(issueThreadInteractions.status, "pending"), eq(issueThreadInteractions.kind, "request_confirmation"),
       ne(issueThreadInteractions.sourceRunId, binding.runId),
       or(isNull(issueThreadInteractions.createdByAgentId), eq(issueThreadInteractions.createdByAgentId, heartbeatRuns.agentId)),
@@ -72,17 +72,17 @@ export async function supersedeExternalReviewRequestsInTransaction(
   publications: ActivityPublication[],
 ) {
   for (const { interaction } of candidates) {
-    await notifyAttentionRetentionWork(tx, { companyId: binding.companyId });
+    await notifyAttentionRetentionWork(tx, { spaceId: binding.spaceId });
     const reason = "A later published review no longer requests human input.";
     const [retired] = await tx.update(issueThreadInteractions).set({ status: "cancelled",
       result: { version: 1, outcome: "withdrawn", reason }, resolvedAt: new Date(), updatedAt: new Date(),
       resolvedByAgentId: binding.agentId, resolvedByRunId: binding.runId,
-    }).where(and(eq(issueThreadInteractions.id, interaction.id), eq(issueThreadInteractions.companyId, binding.companyId),
+    }).where(and(eq(issueThreadInteractions.id, interaction.id), eq(issueThreadInteractions.spaceId, binding.spaceId),
       eq(issueThreadInteractions.status, "pending"), eq(issueThreadInteractions.payload, interaction.payload))).returning();
     if (!retired) throw new Error("external_review_request_changed");
     const projected = await issueThreadInteractionService(tx).getById(retired.id);
     if (projected) await enqueueTerminalIssueInteractionChatPublications(tx, projected);
-    const { publication } = await persistActivity(tx, { companyId: binding.companyId,
+    const { publication } = await persistActivity(tx, { spaceId: binding.spaceId,
       actorType: "system", actorId: "native-status-committer", runId: binding.runId,
       action: "issue.interaction.withdrawn", entityType: "issue", entityId: binding.issueId, issueId: binding.issueId,
       details: { interactionId: interaction.id, reason },

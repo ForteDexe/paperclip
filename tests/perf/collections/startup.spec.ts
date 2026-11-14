@@ -2,41 +2,41 @@ import { expect, test } from "@playwright/test";
 import { collectionFixture, coordinatorPreference, type CollectionFixture } from "./fixture";
 
 let fixture: CollectionFixture;
-let otherCompanyId: string;
+let otherSpaceId: string;
 test.beforeAll(async ({ request }) => {
   fixture = await collectionFixture(request);
-  expect(fixture.otherCompanyId).toBeTruthy();
-  otherCompanyId = fixture.otherCompanyId!;
+  expect(fixture.otherSpaceId).toBeTruthy();
+  otherSpaceId = fixture.otherSpaceId!;
 });
 
-test("repeated fixture setup retains both companies without growing the instance", async ({ request }) => {
-  const before = await (await request.get("/api/companies")).json();
+test("repeated fixture setup retains both spaces without growing the instance", async ({ request }) => {
+  const before = await (await request.get("/api/spaces")).json();
   const again = await collectionFixture(request);
-  const after = await (await request.get("/api/companies")).json();
-  expect(again.company.id).toBe(fixture.company.id);
-  expect(again.otherCompanyId).toBe(otherCompanyId);
-  expect(after.map((company: { id: string }) => company.id).sort()).toEqual(before.map((company: { id: string }) => company.id).sort());
+  const after = await (await request.get("/api/spaces")).json();
+  expect(again.space.id).toBe(fixture.space.id);
+  expect(again.otherSpaceId).toBe(otherSpaceId);
+  expect(after.map((space: { id: string }) => space.id).sort()).toEqual(before.map((space: { id: string }) => space.id).sort());
 });
 for (const route of ["issues", "inbox/mine"]) test(`${route} leaves task-detail code out of collection startup`, async ({ page }) => {
   await coordinatorPreference(page);
-  await page.addInitScript(id => localStorage.setItem("outpost.selectedCompanyId", id), otherCompanyId);
+  await page.addInitScript(id => localStorage.setItem("outpost.selectedSpaceId", id), otherSpaceId);
   const detailReads: string[] = [];
-  const companyReads: string[] = [];
+  const spaceReads: string[] = [];
   page.on("request", request => {
     if (/\/assets\/issue-detail-[^/]+\.js$/.test(request.url())) detailReads.push(request.url());
-    const companyId = new URL(request.url()).pathname.match(/^\/api\/companies\/([^/]+)\//)?.[1];
-    if (companyId) companyReads.push(companyId);
+    const spaceId = new URL(request.url()).pathname.match(/^\/api\/spaces\/([^/]+)\//)?.[1];
+    if (spaceId) spaceReads.push(spaceId);
   });
   let release!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
   const isCollectionSource = (url: URL) => route === "inbox/mine"
-    ? url.pathname === `/api/companies/${fixture.company.id}/inbox/mine`
-    : url.pathname === `/api/companies/${fixture.company.id}/issues` && url.searchParams.get("view") === "index";
+    ? url.pathname === `/api/spaces/${fixture.space.id}/inbox/mine`
+    : url.pathname === `/api/spaces/${fixture.space.id}/issues` && url.searchParams.get("view") === "index";
   await page.route(isCollectionSource, async request => { await held; await request.continue(); });
   const sourceRequest = page.waitForRequest(request => isCollectionSource(new URL(request.url())));
   const warmed = page.waitForResponse(response => /\/assets\/issue-detail-[^/]+\.js$/.test(response.url()));
   try {
-    await page.goto(`/${fixture.company.issuePrefix}/${route}`);
+    await page.goto(`/${fixture.space.issuePrefix}/${route}`);
     await sourceRequest;
     expect(detailReads).toEqual([]);
     await expect(page.getByRole("main").locator("[data-inbox-issue-link]")).toHaveCount(0);
@@ -50,7 +50,7 @@ for (const route of ["issues", "inbox/mine"]) test(`${route} leaves task-detail 
   expect(await node!.evaluate(element => element.isConnected)).toBe(true);
   expect(Math.abs(before!.y - after!.y)).toBeLessThan(1);
   expect(Math.abs(before!.height - after!.height)).toBeLessThan(1);
-  expect(new Set(companyReads)).toEqual(new Set([fixture.company.id]));
+  expect(new Set(spaceReads)).toEqual(new Set([fixture.space.id]));
   await first.focus();
   await first.press("Enter");
   await expect(page.getByTestId("task-chat-thread").locator(':scope > [aria-busy="false"]')).toBeVisible();
@@ -63,7 +63,7 @@ for (const mobile of [false, true]) test(`Tasks use a bounded render and a share
   await coordinatorPreference(page);
   const reads: string[] = [];
   page.on("request", request => { if (request.url().includes("/api/")) reads.push(request.url()); });
-  await page.goto(`/${fixture.company.issuePrefix}/issues`);
+  await page.goto(`/${fixture.space.issuePrefix}/issues`);
   const rows = page.locator('[data-slot="task-row"][data-issue-id]');
   await expect(rows).toHaveCount(100);
   await expect(page.getByText("Rendering 100 of 200 tasks")).toBeVisible();
@@ -88,7 +88,7 @@ test("a failed speculative preload keeps the collection usable and permits task 
   const pattern = /\/assets\/issue-detail-[^/]+\.js$/;
   await page.route(pattern, route => route.abort("failed"));
   const failure = page.waitForEvent("requestfailed", request => pattern.test(request.url()));
-  await page.goto(`/${fixture.company.issuePrefix}/issues`);
+  await page.goto(`/${fixture.space.issuePrefix}/issues`);
   const first = page.getByRole("main").locator("[data-inbox-issue-link]").first();
   await expect(first).toBeVisible();
   await first.focus();
@@ -108,7 +108,7 @@ test("direct task opens preload their code while identity is still loading", asy
   await page.route("**/api/auth/get-session", async route => { await held; await route.continue(); });
   try {
     const detailRequest = page.waitForRequest(request => /\/assets\/issue-detail-[^/]+\.js$/.test(request.url()));
-    await page.goto(`/${fixture.company.issuePrefix}/issues/${fixture.taskIds[0]}`);
+    await page.goto(`/${fixture.space.issuePrefix}/issues/${fixture.taskIds[0]}`);
     await detailRequest;
   } finally { release(); }
   await expect(page.getByTestId("task-chat-composer-stack").locator('[contenteditable="true"]')).toBeEditable();
@@ -118,10 +118,10 @@ test("Coordinator Inbox retains aggregate Mine reads when Streamlined UI is disa
   await coordinatorPreference(page, false);
   const reads: URL[] = [];
   page.on("request", request => { if (request.url().includes("/api/")) reads.push(new URL(request.url())); });
-  await page.goto(`/${fixture.company.issuePrefix}/inbox/mine`);
+  await page.goto(`/${fixture.space.issuePrefix}/inbox/mine`);
   await expect(page.locator("[data-inbox-issue-link]").first()).toBeVisible();
-  expect(reads.filter(url => url.pathname === `/api/companies/${fixture.company.id}/inbox/mine`)).toHaveLength(1);
-  expect(reads.filter(url => /\/companies\/[^/]+\/issues$/.test(url.pathname) && url.searchParams.get("view") !== "rows")).toEqual([]);
+  expect(reads.filter(url => url.pathname === `/api/spaces/${fixture.space.id}/inbox/mine`)).toHaveLength(1);
+  expect(reads.filter(url => /\/spaces\/[^/]+\/issues$/.test(url.pathname) && url.searchParams.get("view") !== "rows")).toEqual([]);
   expect(reads.filter(url => url.pathname.endsWith("/dashboard"))).toEqual([]);
   expect(reads.filter(url => url.pathname.endsWith("/attention") && url.searchParams.get("all") === "true")).toEqual([]);
 });
@@ -130,7 +130,7 @@ test("Inbox owns one complete feed and no redundant summary read", async ({ page
   await coordinatorPreference(page);
   const reads: URL[] = [];
   page.on("request", request => { if (request.url().includes("/api/")) reads.push(new URL(request.url())); });
-  await page.goto(`/${fixture.company.issuePrefix}/decisions`);
+  await page.goto(`/${fixture.space.issuePrefix}/decisions`);
   await expect(page.getByRole("main").getByRole("heading", { name: "Inbox", exact: true })).toBeVisible();
   await expect.poll(() => reads.filter(url => url.pathname.endsWith("/attention") && url.searchParams.get("all") === "true").length).toBe(1);
   expect(reads.filter(url => url.pathname.endsWith("/attention/summary"))).toEqual([]);
@@ -140,7 +140,7 @@ test("Needs attention reads task membership without downloading decision cards",
   await coordinatorPreference(page);
   const reads: URL[] = [];
   page.on("request", request => { if (request.url().includes("/api/")) reads.push(new URL(request.url())); });
-  await page.goto(`/${fixture.company.issuePrefix}/issues?view=needs_attention`);
+  await page.goto(`/${fixture.space.issuePrefix}/issues?view=needs_attention`);
   await expect(page.getByText("No tasks need a decision.", { exact: true })).toBeVisible();
   expect(reads.filter(url => url.pathname.endsWith("/attention/tasks"))).toHaveLength(1);
   expect(reads.filter(url => url.pathname.endsWith("/attention/summary"))).toEqual([]);
@@ -149,7 +149,7 @@ test("Needs attention reads task membership without downloading decision cards",
 
 test("older pages and Back keep revealed task rows and the reading position", async ({ page }) => {
   await coordinatorPreference(page);
-  await page.goto(`/${fixture.company.issuePrefix}/issues`);
+  await page.goto(`/${fixture.space.issuePrefix}/issues`);
   const rows = page.locator('[data-slot="task-row"][data-issue-id]');
   await expect(rows).toHaveCount(100);
   const loadPage = page.getByRole("button", { name: "Load more tasks", exact: true });

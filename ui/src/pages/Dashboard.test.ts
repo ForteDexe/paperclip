@@ -13,7 +13,7 @@ function agent(overrides: Partial<Agent>): Agent {
 }
 
 describe("derivePausedAgentBanner", () => {
-  it("returns null with no agents loaded or an empty company", () => {
+  it("returns null with no agents loaded or an empty space", () => {
     expect(derivePausedAgentBanner(undefined)).toBeNull();
     expect(derivePausedAgentBanner([])).toBeNull();
   });

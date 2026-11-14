@@ -20,13 +20,13 @@ export async function runAgentSettings(context: JourneyContext, session: TargetS
   if (!agent || agent.runtimeMode !== "native" || !context.environmentId || !context.capabilities.includes("agent-settings-write")) {
     throw new JourneyError("unsupported", "owned_agent_settings_capability_required");
   }
-  const scope: AgentSettingsScope = { campaignId, companyId: context.company.id, userId: context.user.id,
+  const scope: AgentSettingsScope = { campaignId, spaceId: context.space.id, userId: context.user.id,
     agentId: agent.id, agentName: agent.name, provider: agent.provider, model: agent.model,
     environmentId: context.environmentId, reference: randomBytes(16).toString("hex") };
   const observations: AgentSettingsEvidence = {};
   const read = createObservedReader(context.api, options.deadlineAt), agentRoute = `/api/agents/${agent.id}`;
-  const agentRunsRoute = `/api/companies/${scope.companyId}/heartbeat-runs?agentId=${agent.id}&limit=100`;
-  const activityRoute = `/api/companies/${scope.companyId}/activity?entityType=agent&entityId=${agent.id}&limit=200`;
+  const agentRunsRoute = `/api/spaces/${scope.spaceId}/heartbeat-runs?agentId=${agent.id}&limit=100`;
+  const activityRoute = `/api/spaces/${scope.spaceId}/activity?entityType=agent&entityId=${agent.id}&limit=200`;
   const snapshot = async (): Promise<SettingsSnapshot> => {
     const [current, bundle, runs, activity] = await Promise.all([
       read.get<Row>(agentRoute), read.get<Row>(`${agentRoute}/instructions-bundle`),
@@ -34,14 +34,14 @@ export async function runAgentSettings(context: JourneyContext, session: TargetS
     ]);
     if (typeof bundle?.entryFile !== "string" || !bundle.entryFile || !Array.isArray(runs) || runs.length >= 100
       || !Array.isArray(activity) || activity.length >= 200
-      || activity.some(row => row.companyId !== scope.companyId || row.entityType !== "agent" || row.entityId !== agent.id)) {
+      || activity.some(row => row.spaceId !== scope.spaceId || row.entityType !== "agent" || row.entityId !== agent.id)) {
       throw new JourneyError("failed", "agent_settings_read_coverage_unavailable");
     }
     const file = await read.get<Row>(`${agentRoute}/instructions-bundle/file?path=${encodeURIComponent(bundle.entryFile)}`);
     return { agent: current, bundle, file, runs, activity };
   };
   const openInstructions = async (entry: string, expectedContent: string, reload = false) => {
-    await context.page.goto(`${context.api.origin}/${context.company.issuePrefix}/agents/${agent.id}/instructions`, { waitUntil: "domcontentloaded" });
+    await context.page.goto(`${context.api.origin}/${context.space.issuePrefix}/agents/${agent.id}/instructions`, { waitUntil: "domcontentloaded" });
     if (reload) await context.page.reload();
     const segments = entry.split("/");
     const treeRow = (filePath: string) => context.page.locator(`[role="treeitem"][data-file-tree-path=${JSON.stringify(filePath)}]`);
@@ -94,7 +94,7 @@ export async function runAgentSettings(context: JourneyContext, session: TargetS
   try {
     observations.original = await snapshot();
     const original = observations.original, entry = original.bundle.entryFile;
-    if (original.agent.id !== agent.id || original.agent.companyId !== scope.companyId || original.agent.name !== agent.name
+    if (original.agent.id !== agent.id || original.agent.spaceId !== scope.spaceId || original.agent.name !== agent.name
       || !agent.name.includes(campaignId) || original.agent.adapterType !== "outpost_runner"
       || original.agent.adapterConfig?.provider !== agent.provider || original.agent.adapterConfig?.model !== agent.model
       || original.bundle.mode !== "managed" || original.bundle.editable !== true || original.file.editable !== true
@@ -110,7 +110,7 @@ export async function runAgentSettings(context: JourneyContext, session: TargetS
     check("agent-settings-reload-persisted");
 
     const title = `Journey QA agent settings ${campaignId}`;
-    const task = await createTaskThroughUi({ page: context.page, origin: context.api.origin, issuePrefix: context.company.issuePrefix,
+    const task = await createTaskThroughUi({ page: context.page, origin: context.api.origin, issuePrefix: context.space.issuePrefix,
       agentName: agent.name, title, prompt: settingsTaskPrompt, workMode: "standard", requireExplicitTitle: true,
       beforeDispatch: () => session.own({ kind: "issue", name: title, journeyId: id }) });
     await session.own({ kind: "issue", name: title, id: task.issueId, journeyId: id });
@@ -132,7 +132,7 @@ export async function runAgentSettings(context: JourneyContext, session: TargetS
     check("agent-settings-instruction-only-input");
     check("configured-model-and-environment");
     check("agent-settings-result-attributed");
-    await context.page.goto(`${context.api.origin}/${context.company.issuePrefix}/issues/${state.issue.identifier ?? task.issueId}`, { waitUntil: "domcontentloaded" });
+    await context.page.goto(`${context.api.origin}/${context.space.issuePrefix}/issues/${state.issue.identifier ?? task.issueId}`, { waitUntil: "domcontentloaded" });
     await context.page.reload();
     await openDocumentAuthoring(context);
     const displayed = context.page.locator(`#document-${settingsDocumentKey}`);
@@ -147,7 +147,7 @@ export async function runAgentSettings(context: JourneyContext, session: TargetS
     observations.restored = { ...await snapshot(), renderedContent: restoredSource.renderedContent };
     check("agent-settings-original-restored");
     // The shared screenshot policy permits only the task result, not settings.
-    await context.page.goto(`${context.api.origin}/${context.company.issuePrefix}/issues/${state.issue.identifier ?? task.issueId}`, { waitUntil: "domcontentloaded" });
+    await context.page.goto(`${context.api.origin}/${context.space.issuePrefix}/issues/${state.issue.identifier ?? task.issueId}`, { waitUntil: "domcontentloaded" });
     await openDocumentAuthoring(context);
     await expect(context.page.locator(`#document-${settingsDocumentKey}`)).toContainText(scope.reference);
   } catch (error) { failed = true; throw error; }
@@ -156,7 +156,7 @@ export async function runAgentSettings(context: JourneyContext, session: TargetS
       await read.preserve(options.directory);
       await mkdir(options.directory, { recursive: true, mode: 0o700 });
       await writeFile(path.join(options.directory, "agent-settings-observations.json"), JSON.stringify({
-        companyId: scope.companyId, agentId: scope.agentId, reference: scope.reference,
+        spaceId: scope.spaceId, agentId: scope.agentId, reference: scope.reference,
         checkpoints: Object.fromEntries(["original", "saved", "reloaded", "afterWork", "restored"].map(key => {
           const point = observations[key as Exclude<keyof AgentSettingsEvidence, "task">];
           return [key, point ? { entryFile: point.file.path, contentHash: point.file.contentHash,

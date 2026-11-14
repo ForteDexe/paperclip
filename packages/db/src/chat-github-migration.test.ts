@@ -8,7 +8,7 @@ const describePostgres = support.supported ? describe : describe.skip;
 
 describePostgres("GitHub preview migration replay", () => {
   it("preserves existing relations and constraints when the renumbered migration runs again", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-github-migration-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-github-migration-");
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     try {
       const relations = () => sql`SELECT oid::text, relname FROM pg_class WHERE relname IN ('chat_github_configurations', 'chat_github_registrations', 'chat_github_reviews') ORDER BY relname`;
@@ -16,7 +16,7 @@ describePostgres("GitHub preview migration replay", () => {
       const beforeRelations = await relations();
       const beforeConstraints = await constraints();
       expect(beforeRelations).toHaveLength(3);
-      expect(beforeConstraints.some((row) => row.definition.includes("FOREIGN KEY (company_id, endpoint_id)"))).toBe(true);
+      expect(beforeConstraints.some((row) => row.definition.includes("FOREIGN KEY (space_id, endpoint_id)"))).toBe(true);
       const migration = await readFile(new URL("./migrations/0283_jittery_psynapse.sql", import.meta.url), "utf8");
       for (let attempt = 0; attempt < 2; attempt += 1) {
         for (const statement of migration.split("--> statement-breakpoint")) {

@@ -1,11 +1,11 @@
 # Low-Trust Presets
 
-Paperclip ships core trust preset names so containment decisions are enforced in
+Outpost ships core trust preset names so containment decisions are enforced in
 Community Edition even when EE policy editing is unavailable.
 
 ## Presets
 
-- `standard`: the default V1 company-visible collaboration model. This preserves
+- `standard`: the default V1 space-visible collaboration model. This preserves
   existing behavior for normal agents.
 - `low_trust_review`: an opt-in containment preset for automated work that may
   consume hostile or prompt-injected input, such as untrusted pull requests,
@@ -22,22 +22,22 @@ Community Edition even when EE policy editing is unavailable.
 - issue/run policy: `executionPolicy.authorizationPolicy.trustBoundary`
 
 The resolver intersects those sources. Narrower wins. A low-trust preset must
-resolve to a concrete company-local project, root issue, or issue-id scope. If a
-policy source names another company, uses an unsupported preset, or lacks that
-scope for risky access, Paperclip fails closed.
+resolve to a concrete space-local project, root issue, or issue-id scope. If a
+policy source names another space, uses an unsupported preset, or lacks that
+scope for risky access, Outpost fails closed.
 
 ## Containment, Not Privacy
 
 This is containment for hostile automated work. It is not a general project,
 issue, or human privacy system.
 
-V1 standard work remains company-visible by default: board users and in-company
-actors can inspect company work objects unless a separate access-control feature
+V1 standard work remains space-visible by default: board users and in-space
+actors can inspect space work objects unless a separate access-control feature
 changes that behavior. Low-trust containment instead limits what the low-trust
-agent can read or mutate through the Paperclip API and prevents raw untrusted
+agent can read or mutate through the Outpost API and prevents raw untrusted
 output from being automatically promoted into higher-trust agent context.
 
-Low-trust agents cannot read or mutate privileged agent configuration or company
+Low-trust agents cannot read or mutate privileged agent configuration or space
 skill configuration through direct grants. Persistent instruction edits are also
 restricted, except for the direct-chat self-edit described below. Configuration
 changes from outside-triggered work must go through higher-trust review and
@@ -109,7 +109,7 @@ request with no run, so it authorizes the later system launch without starting
 work prematurely. No separate permission table or client-supplied human identity is needed. Responsible-user
 attribution, external connector sender attribution, and agent claims do not qualify.
 
-At dispatch and API authorization, Paperclip checks the live run and current
+At dispatch and API authorization, Outpost checks the live run and current
 assignment in one database snapshot. The exception permits reading, commenting
 on, and updating only that run's exact task. It does not extend to another task,
 a child, a whole project, configuration, instructions, secrets, or runtime
@@ -117,12 +117,12 @@ management. Normal responsible-user checks still apply. The exception is never
 stored in the inherited trust boundary.
 
 Automatic retries and continuations follow the existing `retryOfRunId` database
-links, checking the same company, agent, and task at every step. Cancelled runs
+links, checking the same space, agent, and task at every step. Cancelled runs
 cannot authorize a retry. The common assignment transaction cancels prior human
 requests, including plugin and service reassignments. Assigning the task back
 cannot revive those requests, and late run settlement cannot undo cancellation. Sandbox and
 isolated workspace requirements still apply, as do malformed-policy and
-company-boundary checks.
+space-boundary checks.
 
 ## Child→Parent Reporting Under Containment
 
@@ -137,7 +137,7 @@ Never instruct a contained delegate to comment on its parent issue.
 
 ## Runtime Containment
 
-Managed `low_trust_review` runs fail closed unless Paperclip can enforce the
+Managed `low_trust_review` runs fail closed unless Outpost can enforce the
 runtime boundary:
 
 - the selected execution environment must use the `sandbox` driver
@@ -150,12 +150,12 @@ runtime boundary:
   grants the `runtime.manage` tool class
 
 When the task's project has no configured workspace and no layer specifies a
-workspace strategy, sandbox execution uses a private directory for that company
+workspace strategy, sandbox execution uses a private directory for that space
 and task. The directory persists across turns and reassignment and never imports the shared
 project directory or agent home. No Git repository is required for this case.
 Configured workspaces and explicit Git strategies keep their existing validation;
 a missing or broken checkout does not fall back to an empty directory.
 
 The Docker workflow in `doc/UNTRUSTED-PR-REVIEW.md` remains useful for manual
-local review, but Paperclip-managed low-trust execution requires a sandboxed
+local review, but Outpost-managed low-trust execution requires a sandboxed
 environment instead of a host-local adapter process.

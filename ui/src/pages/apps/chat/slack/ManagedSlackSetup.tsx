@@ -15,7 +15,7 @@ import { sanitizedSetupErrorMessage } from "../chat-setup-error";
 
 export function ManagedSlackSetup({ endpoint, disabled, saveDetails, onSaved, onBusy, onSaveExit, autoStart = false, reconnect = false }: ComponentProps<typeof OwnSlackAppSetup> & { autoStart?: boolean; reconnect?: boolean }) {
   const client = useQueryClient();
-  const choices = useQuery({ queryKey: ["slack-managed-workspaces", endpoint.companyId], queryFn: () => chatEndpointsApi.slackSetupOptions(endpoint.companyId) });
+  const choices = useQuery({ queryKey: ["slack-managed-workspaces", endpoint.spaceId], queryFn: () => chatEndpointsApi.slackSetupOptions(endpoint.spaceId) });
   const choicesView = useQueryView(choices);
   const [selectedGrant, setSelectedGrant] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

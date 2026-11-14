@@ -24,7 +24,7 @@ export function caseDataAction<const Id extends string, const Schema, const Inpu
     id: input.id,
     canonical: {
       operationId: input.id, surfaces: ["live"], placement: "optional_agent_tool", optionalGroup: "cases",
-      requiredClaims: [], taskModes: ["standard"], sideEffectClass: input.write ? "company_write" : "read",
+      requiredClaims: [], taskModes: ["standard"], sideEffectClass: input.write ? "space_write" : "read",
       idempotency: input.write ? "required" : "none", disabledByDefault: false,
       realBindingStatus: "live_codex", realServiceBinding: input.binding,
       orpEvidence: input.write ? "Authorized case mutation and durable operation receipt" : "Authorized case read projection",
@@ -153,7 +153,7 @@ export const createCaseAction = caseDataAction({
         instructions: { type: "string", minLength: 1, maxLength: 20000 },
       } },
       workflow_document_text: workflowDocumentTextSchema,
-      workflowId: { type: "string", pattern: uuidPattern, description: "Adopt this company workflow’s latest prompt." },
+      workflowId: { type: "string", pattern: uuidPattern, description: "Adopt this space workflow’s latest prompt." },
       initialDocuments: initialDocumentsSchema,
     },
     oneOf: [{ properties: { workflowId: {} }, required: ["workflowId"] },

@@ -113,7 +113,7 @@ export async function exportPilotAllure(root, output, context, selection) {
       statusDetails: { message: status === 'passed' ? 'Real Product E2E assertions and cleanup passed' : 'Original evaluation or cleanup failed' },
       labels: [{ name: 'AS_ID', value: String(selectedCase.caseId) }, { name: 'parentSuite', value: 'Product E2E' },
         { name: 'suite', value: 'chat-features' }, { name: 'area', value: 'Chat and collaboration' },
-        { name: 'framework', value: 'Paperclip Evals' }, { name: 'tag', value: 'chat-completion-testops' }],
+        { name: 'framework', value: 'Outpost Evals' }, { name: 'tag', value: 'chat-completion-testops' }],
       parameters: [{ name: 'canonicalScenario', value: selectedCase.canonicalScenario ?? selectedCase.scenario }, { name: 'model', value: model },
         { name: 'environment', value: 'GitHub Actions / AWS' }],
       links: [{ name: 'GitHub Actions run', type: 'custom', url: `https://github.com/paperclipai/paperclip/actions/runs/${context.runId}` },

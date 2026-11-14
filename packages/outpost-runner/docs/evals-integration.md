@@ -17,13 +17,13 @@ relevant entry points:
   negotiation, semantic receipts/catalog, and explicit runnerd resolution;
 - `./testing`: deterministic driver/control-plane fakes and conformance kits.
 
-`resolvePaperclipRunnerdArtifact` resolves only the supplied path, verifies its
+`resolveOutpostRunnerdArtifact` resolves only the supplied path, verifies its
 bytes against the supplied digest, and invokes that exact executable with
 `--build-metadata`. It never searches `PATH` or the App repository.
 
 ## Versioned join
 
-`assertPaperclipRunnerEvalCompatibility` checks the complete join before any
+`assertOutpostRunnerEvalCompatibility` checks the complete join before any
 provider process starts:
 
 | Dimension | V1 rule |
@@ -56,7 +56,7 @@ run mismatch, missing or conflicting terminal, semantic indexes that omit or
 reinterpret their ORP tool envelopes, denied results without matching denial
 receipts, inconsistent token totals, or ambiguous incomplete transcripts.
 Unknown additive fields are retained at nested contract objects as well as the
-bundle root. The seeded fixture deliberately preserves a rejected governed
+bundle root. The seeded fixture deliberately preserves a rejected controlled
 tool effect as `denied`; it never turns that effect into a successful mutation.
 
 Evals owns conversion of this bundle into Evalbook ledger, scores, and reports.

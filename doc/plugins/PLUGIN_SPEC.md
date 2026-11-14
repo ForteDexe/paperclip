@@ -1,8 +1,8 @@
-# Paperclip Plugin System Specification
+# Outpost Plugin System Specification
 
 Status: proposed complete spec for the post-V1 plugin system
 
-This document is the complete specification for Paperclip's plugin and extension architecture.
+This document is the complete specification for Outpost's plugin and extension architecture.
 It should be read alongside the comparative analysis in [doc/plugins/ideas-from-opencode.md](./ideas-from-opencode.md).
 
 This is not part of the V1 implementation contract.
@@ -20,8 +20,8 @@ Today, the practical deployment model is:
 
 Current limitations to keep in mind:
 
-- Plugin UI bundles currently run as same-origin JavaScript inside the main Paperclip app. Treat plugin UI as trusted code, not a sandboxed frontend capability boundary.
-- Manifest capabilities currently gate worker-side host RPC calls. They do not prevent plugin UI code from calling ordinary Paperclip HTTP APIs directly.
+- Plugin UI bundles currently run as same-origin JavaScript inside the main Outpost app. Treat plugin UI as trusted code, not a sandboxed frontend capability boundary.
+- Manifest capabilities currently gate worker-side host RPC calls. They do not prevent plugin UI code from calling ordinary Outpost HTTP APIs directly.
 - Runtime installs assume a writable local filesystem for the plugin package directory and plugin data directory.
 - Runtime npm installs assume `npm` is available in the running environment and that the host can reach the configured package registry.
 - Published npm packages are the intended install artifact for deployed plugins.
@@ -55,7 +55,7 @@ links outside the release's CLI or root `node_modules` fail activation. This
 loads image-supplied code without installing dependencies or building packages.
 
 Equivalent packages at different image roots reuse the existing registration,
-configuration, approval status and company scopes without rewriting its stored
+configuration, approval status and space scopes without rewriting its stored
 path. Concurrent first registration of the same package retains one plugin ID.
 Conflicting package identities fail explicitly. Normal maintenance boot retains
 the existing bundled manifest/version reconciliation and approval gates.
@@ -101,12 +101,12 @@ This spec does not cover:
 
 ## 2. Core Assumptions
 
-Paperclip plugin design is based on the following assumptions:
+Outpost plugin design is based on the following assumptions:
 
-1. Paperclip is single-tenant and self-hosted.
+1. Outpost is single-tenant and self-hosted.
 2. Plugin installation is global to the instance.
-3. "Companies" remain core Paperclip business objects, but they are not plugin trust boundaries.
-4. Board governance, approval gates, budget hard-stops, and core task invariants remain owned by Paperclip core.
+3. "Spaces" remain core Outpost business objects, but they are not plugin trust boundaries.
+4. Board governance, approval gates, budget hard-stops, and core task invariants remain owned by Outpost core.
 5. Projects already have a real workspace model via `project_workspaces`, and local/runtime plugins should build on that instead of inventing a separate workspace abstraction.
 
 ## 3. Goals
@@ -114,7 +114,7 @@ Paperclip plugin design is based on the following assumptions:
 The plugin system must:
 
 1. Let operators install global instance-wide plugins.
-2. Let plugins add major capabilities without editing Paperclip core.
+2. Let plugins add major capabilities without editing Outpost core.
 3. Keep core governance and auditing intact.
 4. Support both local/runtime plugins and external SaaS connectors.
 5. Support future plugin categories such as:
@@ -134,18 +134,18 @@ The first plugin system must not:
 1. Allow arbitrary plugins to override core routes or core invariants.
 2. Allow arbitrary plugins to mutate approval, auth, issue checkout, or budget enforcement logic.
 3. Allow arbitrary third-party plugins to run free-form DB migrations.
-4. Depend on project-local plugin folders such as `.paperclip/plugins`.
+4. Depend on project-local plugin folders such as `.outpost/plugins`.
 5. Depend on automatic install-and-execute behavior at server startup from arbitrary config files.
 
 ## 5. Terminology
 
 ### 5.1 Instance
 
-The single Paperclip deployment an operator installs and controls.
+The single Outpost deployment an operator installs and controls.
 
-### 5.2 Company
+### 5.2 Space
 
-A first-class Paperclip business object inside the instance.
+A first-class Outpost business object inside the instance.
 
 ### 5.3 Project Workspace
 
@@ -154,7 +154,7 @@ Plugins resolve workspace paths from this model to locate local directories for 
 
 ### 5.4 Platform Module
 
-A trusted in-process extension loaded directly by Paperclip core.
+A trusted in-process extension loaded directly by Outpost core.
 
 Examples:
 
@@ -165,7 +165,7 @@ Examples:
 
 ### 5.5 Plugin
 
-An installable instance-wide extension package loaded through the Paperclip plugin runtime.
+An installable instance-wide extension package loaded through the Outpost plugin runtime.
 
 Examples:
 
@@ -189,7 +189,7 @@ Plugins may only call host APIs that are covered by granted capabilities.
 
 ## 6. Extension Classes
 
-Paperclip has two extension classes.
+Outpost has two extension classes.
 
 ## 6.1 Platform Modules
 
@@ -237,7 +237,7 @@ A plugin may declare more than one category.
 
 ## 7. Project Workspaces
 
-Paperclip already has a concrete workspace model:
+Outpost already has a concrete workspace model:
 
 - projects expose `workspaces`
 - projects expose `primaryWorkspace`
@@ -250,27 +250,27 @@ Plugins that need local tooling (file browsing, git, terminals, process tracking
 
 Plugin installation is global and operator-driven.
 
-There is no per-company install table and no per-company enable/disable switch.
+There is no per-space install table and no per-space enable/disable switch.
 
 If a plugin needs business-object-specific mappings, those are stored as plugin configuration or plugin state.
 
 Examples:
 
 - one global Linear plugin install
-- mappings from company A to Linear team X and company B to Linear team Y
+- mappings from space A to Linear team X and space B to Linear team Y
 - one global git plugin install
 - per-project workspace state stored under `project_workspace`
 
 ## 8.1 On-Disk Layout
 
-Plugins live under the Paperclip instance directory.
+Plugins live under the Outpost instance directory.
 
 Suggested layout:
 
-- `~/.paperclip/instances/default/plugins/package.json`
-- `~/.paperclip/instances/default/plugins/node_modules/`
-- `~/.paperclip/instances/default/plugins/.cache/`
-- `~/.paperclip/instances/default/data/plugins/<plugin-id>/`
+- `~/.outpost/instances/default/plugins/package.json`
+- `~/.outpost/instances/default/plugins/node_modules/`
+- `~/.outpost/instances/default/plugins/.cache/`
+- `~/.outpost/instances/default/data/plugins/<plugin-id>/`
 
 The package install directory and the plugin data directory are separate.
 
@@ -278,13 +278,13 @@ This on-disk model is the reason the current implementation expects a persistent
 
 ## 8.2 Operator Commands
 
-Paperclip should add CLI commands:
+Outpost should add CLI commands:
 
-- `pnpm paperclipai plugin list`
-- `npx paperclipai plugin install <package[@version]>`
-- `npx paperclipai plugin uninstall <plugin-id>`
-- `npx paperclipai plugin upgrade <plugin-id> [version]`
-- `npx paperclipai plugin doctor <plugin-id>`
+- `pnpm outpost plugin list`
+- `npx @outpost/cli plugin install <package[@version]>`
+- `npx @outpost/cli plugin uninstall <plugin-id>`
+- `npx @outpost/cli plugin upgrade <plugin-id> [version]`
+- `npx @outpost/cli plugin doctor <plugin-id>`
 
 These commands are instance-level operations.
 
@@ -317,7 +317,7 @@ Rules:
 
 - plugin contributions are additive by default
 - plugins may not override core routes or core actions by name collision
-- UI slot IDs are automatically namespaced by plugin ID (e.g. `@paperclip/plugin-linear:sync-health-widget`), so cross-plugin collisions are structurally impossible
+- UI slot IDs are automatically namespaced by plugin ID (e.g. `@outpost/plugin-linear:sync-health-widget`), so cross-plugin collisions are structurally impossible
 - if a single plugin declares duplicate slot IDs within its own manifest, the host must reject at install time
 
 ## 10. Package Contract
@@ -334,9 +334,9 @@ Suggested `package.json` keys:
 
 ```json
 {
-  "name": "@paperclip/plugin-linear",
+  "name": "@outpost/plugin-linear",
   "version": "0.1.0",
-  "paperclipPlugin": {
+  "outpostPlugin": {
     "manifest": "./dist/manifest.js",
     "worker": "./dist/worker.js",
     "ui": "./dist/ui/"
@@ -349,7 +349,7 @@ Suggested `package.json` keys:
 Normative manifest shape:
 
 ```ts
-export interface PaperclipPluginManifestV1 {
+export interface OutpostPluginManifestV1 {
   id: string;
   apiVersion: 1;
   version: string;
@@ -359,7 +359,7 @@ export interface PaperclipPluginManifestV1 {
   categories: Array<"connector" | "workspace" | "automation" | "ui">;
   minimumHostVersion?: string;
   /** @deprecated Use `minimumHostVersion` instead. Retained for backwards compatibility. */
-  minimumPaperclipVersion?: string;
+  minimumOutpostVersion?: string;
   capabilities: string[];
   entrypoints: {
     worker: string;
@@ -402,7 +402,7 @@ export interface PaperclipPluginManifestV1 {
         | "commentAnnotation"
         | "commentContextMenuItem"
         | "settingsPage"
-        | "companySettingsPage";
+        | "spaceSettingsPage";
       id: string;
       displayName: string;
       /** Which export name in the UI bundle provides this component */
@@ -419,7 +419,7 @@ export interface PaperclipPluginManifestV1 {
         /** Match runtime.activity.recorded for automatic opening; manual views need no mapping. */
         activation?: { namespace: string; activityKey: string };
       };
-      /** For page and companySettingsPage: single route segment */
+      /** For page and spaceSettingsPage: single route segment */
       routePath?: string;
     }>;
   };
@@ -439,7 +439,7 @@ Rules:
 - `id` must be globally unique
 - `id` should normally equal the npm package name
 - `apiVersion` must match the host-supported plugin API version
-- `minimumHostVersion` is preferred, with `minimumPaperclipVersion` retained for
+- `minimumHostVersion` is preferred, with `minimumOutpostVersion` retained for
   backwards compatibility
 - `capabilities` must be static and install-time visible
 - config schema must be JSON Schema compatible
@@ -458,7 +458,7 @@ Rules:
 
 ## 11. Agent Tools
 
-Plugins may contribute tools that Paperclip agents can use during runs.
+Plugins may contribute tools that Outpost agents can use during runs.
 
 ### 11.1 Tool Declaration
 
@@ -479,7 +479,7 @@ Tool names are automatically namespaced by plugin ID at runtime (e.g. `linear:se
 
 When an agent invokes a plugin tool during a run, the host routes the call to the plugin worker via a `executeTool` RPC method:
 
-- `executeTool(input)` — receives tool name, parsed parameters, and run context (agent ID, run ID, company ID, project ID)
+- `executeTool(input)` — receives tool name, parsed parameters, and run context (agent ID, run ID, space ID, project ID)
 
 The worker executes the tool logic and returns a typed result. The host enforces capability gates — a plugin must declare `agent.tools.register` to contribute tools, and individual tools may require additional capabilities (e.g. `http.outbound` for tools that call external APIs).
 
@@ -504,7 +504,7 @@ Third-party plugins run out-of-process by default.
 
 Default runtime:
 
-- Paperclip server starts one worker process per installed plugin
+- Outpost server starts one worker process per installed plugin
 - the worker process is a Node process
 - host and worker communicate over JSON-RPC on stdio
 
@@ -617,18 +617,18 @@ Returns:
 
 ### 13.4 `configChanged`
 
-Called when the operator updates a plugin config for a specific company at runtime.
+Called when the operator updates a plugin config for a specific space at runtime.
 
 Input includes:
 
 - new resolved config
-- `companyId` for the company-scoped config row
+- `spaceId` for the space-scoped config row
 
 If the worker implements this method, it applies the new config without restarting. If the worker does not implement this method, the host restarts the worker process with the new config (graceful shutdown then restart).
 
 ### 13.5 `onEvent`
 
-Receives one typed Paperclip domain event.
+Receives one typed Outpost domain event.
 
 Delivery semantics:
 
@@ -669,7 +669,7 @@ The plugin UI calls the host bridge, which forwards the request to the worker. T
 Input includes:
 
 - data key (plugin-defined, e.g. `"sync-health"`, `"issue-detail"`)
-- context (company id, project id, entity id, etc.)
+- context (space id, project id, entity id, etc.)
 - optional query parameters
 
 ### 13.9 `performAction`
@@ -691,7 +691,7 @@ The host provides:
 
 - tool name (without plugin namespace prefix)
 - parsed parameters matching the tool's declared schema
-- run context: agent ID, run ID, company ID, project ID
+- run context: agent ID, run ID, space ID, project ID
   (the project ID is an empty string when the run has no project)
 
 The worker executes the tool and returns a typed result (string content, structured data, or error).
@@ -729,9 +729,9 @@ Plugins that need filesystem, git, terminal, or process operations handle those 
 
 ## 14.1 Issue Orchestration APIs
 
-Trusted orchestration plugins can create and update Paperclip issues through `ctx.issues` instead of importing server internals. The public issue contract includes parent/project/goal links, board or agent assignees, blocker IDs, labels, billing code, request depth, execution workspace inheritance, and plugin origin metadata.
+Trusted orchestration plugins can create and update Outpost issues through `ctx.issues` instead of importing server internals. The public issue contract includes parent/project/goal links, board or agent assignees, blocker IDs, labels, billing code, request depth, execution workspace inheritance, and plugin origin metadata.
 
-Plugins that perform durable work should declare managed Paperclip resources rather than using private plugin state:
+Plugins that perform durable work should declare managed Outpost resources rather than using private plugin state:
 
 - `agents` + `ctx.agents.managed.*` for named, invokable operators (`agents.managed` required)
 - `projects` + `ctx.projects.managed.*` for stable, scoped issue/workspace ownership (`projects.managed` required)
@@ -739,7 +739,7 @@ Plugins that perform durable work should declare managed Paperclip resources rat
 - `skills` + `ctx.skills.managed.*` for reusable agent capabilities (`skills.managed` required)
 
 The LLM Wiki plugin is the current reference for this pattern: it declares managed
-agents, projects, routines, and skills in manifest, reconciles them per company,
+agents, projects, routines, and skills in manifest, reconciles them per space,
 and uses managed routines for periodic wiki maintenance and ingest operations.
 Content-oriented plugins should follow the same model instead of running
 unmanaged background loops: make the LLM-facing worker an operator-visible
@@ -756,27 +756,27 @@ Origin rules:
 
 Relation and read helpers:
 
-- `ctx.issues.relations.get(issueId, companyId)`
-- `ctx.issues.relations.setBlockedBy(issueId, blockerIssueIds, companyId)`
-- `ctx.issues.relations.addBlockers(issueId, blockerIssueIds, companyId)`
-- `ctx.issues.relations.removeBlockers(issueId, blockerIssueIds, companyId)`
-- `ctx.issues.getSubtree(issueId, companyId, options)`
-- `ctx.issues.summaries.getOrchestration({ issueId, companyId, includeSubtree, billingCode })`
+- `ctx.issues.relations.get(issueId, spaceId)`
+- `ctx.issues.relations.setBlockedBy(issueId, blockerIssueIds, spaceId)`
+- `ctx.issues.relations.addBlockers(issueId, blockerIssueIds, spaceId)`
+- `ctx.issues.relations.removeBlockers(issueId, blockerIssueIds, spaceId)`
+- `ctx.issues.getSubtree(issueId, spaceId, options)`
+- `ctx.issues.summaries.getOrchestration({ issueId, spaceId, includeSubtree, billingCode })`
 
 Governance helpers:
 
-- `ctx.issues.assertCheckoutOwner({ issueId, companyId, actorAgentId, actorRunId })` lets plugin actions preserve agent-run checkout ownership.
-- `ctx.issues.requestWakeup(issueId, companyId, options)` requests assignment wakeups through host heartbeat semantics, including terminal-status, blocker, assignee, and budget hard-stop checks.
-- `ctx.issues.requestWakeups(issueIds, companyId, options)` applies the same host-owned wakeup semantics to a batch and may use an idempotency key prefix for stable coordinator retries.
-- `ctx.issues.createComment(issueId, body, companyId, options)` posts a comment attributed to the plugin's own agent by default (`options.authorAgentId`). Passing `options.actorUserId` instead attributes the comment to that human company member — this requires `issue.comments.create_human_attributed` in addition to `issue.comments.create`, and the host independently verifies `actorUserId` is an active human member of the company before applying it, so a plugin can never forge attribution to an arbitrary or inactive user. A human-attributed comment on a non-terminal-status issue with an assignee also triggers the same assignee wakeup a board user's comment gets.
+- `ctx.issues.assertCheckoutOwner({ issueId, spaceId, actorAgentId, actorRunId })` lets plugin actions preserve agent-run checkout ownership.
+- `ctx.issues.requestWakeup(issueId, spaceId, options)` requests assignment wakeups through host heartbeat semantics, including terminal-status, blocker, assignee, and budget hard-stop checks.
+- `ctx.issues.requestWakeups(issueIds, spaceId, options)` applies the same host-owned wakeup semantics to a batch and may use an idempotency key prefix for stable coordinator retries.
+- `ctx.issues.createComment(issueId, body, spaceId, options)` posts a comment attributed to the plugin's own agent by default (`options.authorAgentId`). Passing `options.actorUserId` instead attributes the comment to that human space member — this requires `issue.comments.create_human_attributed` in addition to `issue.comments.create`, and the host independently verifies `actorUserId` is an active human member of the space before applying it, so a plugin can never forge attribution to an arbitrary or inactive user. A human-attributed comment on a non-terminal-status issue with an assignee also triggers the same assignee wakeup a board user's comment gets.
 
 Plugin-originated issue, relation, document, comment, and wakeup mutations must write activity entries with `actorType: "plugin"` and details fields for `sourcePluginId`, `sourcePluginKey`, `initiatingActorType`, `initiatingActorId`, and `initiatingRunId` when a user or agent run initiated the plugin work.
 
 Scoped API routes:
 
 - `apiRoutes[]` declares `routeKey`, `method`, plugin-local `path`, `auth`,
-  `capability`, optional checkout policy, and company resolution.
-- The host enforces auth, company access, `api.routes.register`, route matching,
+  `capability`, optional checkout policy, and space resolution.
+- The host enforces auth, space access, `api.routes.register`, route matching,
   and checkout policy before worker dispatch.
 - The worker implements `onApiRequest(input)` and returns a JSON response shape
   `{ status?, headers?, body? }`.
@@ -787,18 +787,18 @@ Scoped API routes:
 
 ```ts
 /** Top-level helper for defining a plugin with type checking */
-export function definePlugin(definition: PluginDefinition): PaperclipPlugin;
+export function definePlugin(definition: PluginDefinition): OutpostPlugin;
 
 /** Re-exported from Zod for config schema definitions */
 export { z } from "zod";
 
 export interface PluginContext {
-  manifest: PaperclipPluginManifestV1;
+  manifest: OutpostPluginManifestV1;
   config: {
-    get(companyId: string): Promise<Record<string, unknown>>;
+    get(spaceId: string): Promise<Record<string, unknown>>;
   };
   secrets: {
-    resolve(secretRef: { type: "secret_ref"; secretId: string; version?: number | "latest" }, options: { companyId: string; configPath?: string }): Promise<string>;
+    resolve(secretRef: { type: "secret_ref"; secretId: string; version?: number | "latest" }, options: { spaceId: string; configPath?: string }): Promise<string>;
   };
   events: {
     on(name: string, fn: (event: unknown) => Promise<void>): void;
@@ -836,7 +836,7 @@ export interface PluginContext {
 
 export interface EventFilter {
   projectId?: string;
-  companyId?: string;
+  spaceId?: string;
   agentId?: string;
   [key: string]: unknown;
 }
@@ -853,7 +853,7 @@ The host enforces capabilities in the SDK layer and refuses calls outside the gr
 
 ### Data Read
 
-- `companies.read`
+- `spaces.read`
 - `projects.read`
 - `project.workspaces.read`
 - `issues.read`
@@ -954,8 +954,8 @@ The host must emit typed domain events that plugins may subscribe to.
 
 Minimum event set:
 
-- `company.created`
-- `company.updated`
+- `space.created`
+- `space.updated`
 - `project.created`
 - `project.updated`
 - `project.workspace_created`
@@ -1001,10 +1001,10 @@ Plugins may provide an optional filter when subscribing to events. The filter is
 Supported filter fields:
 
 - `projectId` — only receive events for a specific project
-- `companyId` — only receive events for a specific company
+- `spaceId` — only receive events for a specific space
 - `agentId` — only receive events for a specific agent
 
-Filters are optional. If omitted, the plugin receives all events of the subscribed type. Filters may be combined (e.g. filter by both company and project).
+Filters are optional. If omitted, the plugin receives all events of the subscribed type. Filters may be combined (e.g. filter by both space and project).
 
 ### 16.2 Plugin-to-Plugin Events
 
@@ -1013,7 +1013,7 @@ Plugins may emit custom events using `ctx.events.emit(name, payload)`. Plugin-em
 Other plugins may subscribe to these events using the same `ctx.events.on()` API:
 
 ```ts
-ctx.events.on("plugin.@paperclip/plugin-git.push-detected", async (event) => {
+ctx.events.on("plugin.@outpost/plugin-git.push-detected", async (event) => {
   // react to the git plugin detecting a push
 });
 ```
@@ -1036,7 +1036,7 @@ Job rules:
 3. The host prevents overlapping execution of the same plugin/job combination unless explicitly allowed later.
 4. Every job run is recorded in Postgres.
 5. Failed jobs are retryable.
-6. For recurring business workflows that should create visible Paperclip work, prefer managed routines and managed resources over jobs. Jobs remain useful for private plugin-runtime maintenance tasks.
+6. For recurring business workflows that should create visible Outpost work, prefer managed routines and managed resources over jobs. Jobs remain useful for private plugin-runtime maintenance tasks.
 
 ## 18. Webhooks
 
@@ -1067,7 +1067,7 @@ A plugin's `dist/ui/` directory contains a built React bundle. The host serves t
 1. The host defines **extension slots** — designated mount points in the UI where plugin components can appear (pages, tabs, widgets, sidebar entries, action bars).
 2. The plugin's UI bundle exports named components for each slot it wants to fill.
 3. The host mounts the plugin component into the slot, passing it a **host bridge** object.
-4. The plugin component uses the bridge to fetch data from its own worker (via `getData`), call actions (via `performAction`), read host context (current company, project, entity), and use shared host UI primitives (design tokens, common components).
+4. The plugin component uses the bridge to fetch data from its own worker (via `getData`), call actions (via `performAction`), read host context (current space, project, entity), and use shared host UI primitives (design tokens, common components).
 
 **Concrete example: a Linear plugin ships a dashboard widget.**
 
@@ -1078,7 +1078,7 @@ The plugin's UI bundle exports:
 import { usePluginData, usePluginAction, MetricCard, StatusBadge } from "@outpost/plugin-sdk/ui";
 
 export function DashboardWidget({ context }: PluginWidgetProps) {
-  const { data, loading } = usePluginData("sync-health", { companyId: context.companyId });
+  const { data, loading } = usePluginData("sync-health", { spaceId: context.spaceId });
   const resync = usePluginAction("resync");
 
   if (loading) return <Spinner />;
@@ -1089,7 +1089,7 @@ export function DashboardWidget({ context }: PluginWidgetProps) {
       {data.mappings.map(m => (
         <StatusBadge key={m.id} label={m.label} status={m.status} />
       ))}
-      <button onClick={() => resync({ companyId: context.companyId })}>Resync Now</button>
+      <button onClick={() => resync({ spaceId: context.spaceId })}>Resync Now</button>
     </div>
   );
 }
@@ -1098,7 +1098,7 @@ export function DashboardWidget({ context }: PluginWidgetProps) {
 **What happens at runtime:**
 
 1. User opens the dashboard. The host sees that the Linear plugin registered a `DashboardWidget` export.
-2. The host mounts the plugin's `DashboardWidget` component into the dashboard widget slot, passing `context` (current company, user, etc.) and the bridge.
+2. The host mounts the plugin's `DashboardWidget` component into the dashboard widget slot, passing `context` (current space, user, etc.) and the bridge.
 3. `usePluginData("sync-health", ...)` calls through the bridge → host → plugin worker's `getData` RPC → returns JSON → the plugin component renders it however it wants.
 4. When the user clicks "Resync Now", `usePluginAction("resync")` calls through the bridge → host → plugin worker's `performAction` RPC.
 
@@ -1127,14 +1127,14 @@ The SDK includes a `ui` subpath export that plugin frontends import. This subpat
 Plugins are encouraged but not required to use the shared components. A plugin may render entirely custom UI as long as it communicates through the bridge.
 
 `useHostNavigation()` is the supported way for plugin UI to navigate to
-Paperclip-internal pages. It exposes `resolveHref(to)`, `navigate(to,
+Outpost-internal pages. It exposes `resolveHref(to)`, `navigate(to,
 options?)`, and `linkProps(to, options?)`. Plugin links should prefer
 `linkProps()` so anchors keep real `href` values for copy-link, modifier-click,
 middle-click, and open-in-new-tab behavior while plain left-clicks route through
-the host SPA router. The host resolves company-scoped paths against the active
-company prefix without double-prefixing already-prefixed paths. Plugin UI should
+the host SPA router. The host resolves space-scoped paths against the active
+space prefix without double-prefixing already-prefixed paths. Plugin UI should
 not use raw same-origin `href`s or `window.location.assign()` for internal
-Paperclip navigation because those can force a full document reload.
+Outpost navigation because those can force a full document reload.
 
 ### 19.0.2 Bundle Isolation
 
@@ -1168,11 +1168,11 @@ In development, the host may support a `devUiUrl` override in plugin config that
 
 These routes are instance-level.
 
-## 19.2 Company-Context Routes
+## 19.2 Space-Context Routes
 
-- `/:companyPrefix/plugins/:pluginId`
+- `/:spacePrefix/plugins/:pluginId`
 
-These routes exist because the board UI is organized around companies even though plugin installation is global.
+These routes exist because the board UI is organized around spaces even though plugin installation is global.
 
 ## 19.3 Detail Tabs
 
@@ -1186,7 +1186,7 @@ Plugins may add tabs to:
 
 Recommended route pattern:
 
-- `/:companyPrefix/<entity>/:id?tab=<plugin-tab-id>`
+- `/:spacePrefix/<entity>/:id?tab=<plugin-tab-id>`
 
 ## 19.4 Dashboard Widgets
 
@@ -1197,7 +1197,7 @@ Plugins may add cards or sections to the dashboard.
 Plugins may add sidebar links to:
 
 - global plugin settings
-- company-context plugin pages
+- space-context plugin pages
 
 ### 19.5.1 Route Sidebars (`routeSidebar`)
 
@@ -1207,7 +1207,7 @@ replacing it: while the route is active the host collapses the app `<Sidebar/>`
 to its 64px icon rail (still hover/peek-able) and renders the plugin's
 `routeSidebar` in a secondary pane, producing the layout
 `[ app rail ][ route sidebar ][ content ]`. The same model applies to the
-host's own company-settings sidebar.
+host's own space-settings sidebar.
 
 The host owns the collapse. Plugins must not mount `RequestCollapsedSidebar` or
 otherwise attempt to collapse the app sidebar from a `routeSidebar` — the host
@@ -1283,14 +1283,14 @@ The `@outpost/plugin-sdk/ui` subpath should also export an `ErrorBoundary` compo
 
 ## 19.8 Plugin Settings UI
 
-Each plugin that declares an `instanceConfigSchema` in its manifest gets an auto-generated company-scoped settings form at `/settings/plugins/:pluginId`. The host renders the form from the JSON Schema for the selected company.
+Each plugin that declares an `instanceConfigSchema` in its manifest gets an auto-generated space-scoped settings form at `/settings/plugins/:pluginId`. The host renders the form from the JSON Schema for the selected space.
 
 The auto-generated form supports:
 
 - text inputs, number inputs, toggles, select dropdowns derived from schema types and enums
 - nested objects rendered as fieldsets
 - arrays rendered as repeatable field groups with add/remove controls
-- secret ref fields: any schema property annotated with `"format": "secret-ref"` renders as a secret picker that stores the shared `{ type: "secret_ref", secretId, version? }` object shape and resolves through the Paperclip secret provider system rather than a plain text input
+- secret ref fields: any schema property annotated with `"format": "secret-ref"` renders as a secret picker that stores the shared `{ type: "secret_ref", secretId, version? }` object shape and resolves through the Outpost secret provider system rather than a plain text input
 - validation messages derived from schema constraints (`required`, `minLength`, `pattern`, `minimum`, etc.)
 - a "Test Connection" action if the plugin declares a `validateConfig` RPC method — the host calls it and displays the result inline
 
@@ -1298,7 +1298,7 @@ For plugins that need richer settings UX beyond what JSON Schema can express, th
 
 Both approaches coexist: a plugin can use the auto-generated form for simple config and add a custom settings page slot for advanced configuration or operational dashboards.
 
-For plugins that need a company-scoped settings surface, declare a `companySettingsPage` slot with a `routePath`. The host renders a sidebar item under Company Settings and mounts the component at `/:companyPrefix/company/settings/:routePath`. The page receives `companyId` and `companyPrefix` in its host context. Core settings routes such as `access`, `invites`, `environments`, and `secrets` are reserved and cannot be shadowed by plugin declarations.
+For plugins that need a space-scoped settings surface, declare a `spaceSettingsPage` slot with a `routePath`. The host renders a sidebar item under Space Settings and mounts the component at `/:spacePrefix/space/settings/:routePath`. The page receives `spaceId` and `spacePrefix` in its host context. Core settings routes such as `access`, `invites`, `environments`, and `secrets` are reserved and cannot be shadowed by plugin declarations.
 
 ## 20. Local Tooling
 
@@ -1312,19 +1312,19 @@ This keeps the host lean — it does not need to maintain a parallel API surface
 
 ## 21.1 Database Principles
 
-1. Core Paperclip data stays in first-party tables.
+1. Core Outpost data stays in first-party tables.
 2. Most plugin-owned data starts in generic extension tables.
-3. Plugin data should scope to existing Paperclip objects before new tables are introduced.
+3. Plugin data should scope to existing Outpost objects before new tables are introduced.
 4. Arbitrary third-party schema migrations are out of scope for the first plugin system.
 
 ## 21.2 Core Table Reuse
 
-If data becomes part of the actual Paperclip product model, it should become a first-party table.
+If data becomes part of the actual Outpost product model, it should become a first-party table.
 
 Examples:
 
 - `project_workspaces` is already first-party
-- if Paperclip later decides git state is core product data, it should become a first-party table too
+- if Outpost later decides git state is core product data, it should become a first-party table too
 
 ## 21.3 Required Tables
 
@@ -1352,7 +1352,7 @@ Indexes:
 
 - `id` uuid pk
 - `plugin_id` uuid fk `plugins.id` not null
-- `company_id` uuid fk `companies.id` not null
+- `space_id` uuid fk `spaces.id` not null
 - `config_json` jsonb not null
 - `created_at` timestamptz not null
 - `updated_at` timestamptz not null
@@ -1360,13 +1360,13 @@ Indexes:
 
 Constraints:
 
-- unique `(plugin_id, company_id)`
+- unique `(plugin_id, space_id)`
 
 ### `plugin_state`
 
 - `id` uuid pk
 - `plugin_id` uuid fk `plugins.id` not null
-- `scope_kind` enum: `instance | company | project | project_workspace | agent | issue | goal | run`
+- `scope_kind` enum: `instance | space | project | project_workspace | agent | issue | goal | run`
 - `scope_id` uuid/text null
 - `namespace` text not null
 - `state_key` text not null
@@ -1499,8 +1499,8 @@ Plugin config must never persist raw secret values.
 Rules:
 
 1. Plugin config stores shared `{ type: "secret_ref", secretId, version? }` refs only. Legacy UUID string refs are rejected.
-2. Save-time validation rejects refs to secrets outside the selected company.
-3. Secret refs resolve through the existing Paperclip secret provider system using explicit `companyId`.
+2. Save-time validation rejects refs to secrets outside the selected space.
+3. Secret refs resolve through the existing Outpost secret provider system using explicit `spaceId`.
 4. Plugin workers receive resolved secrets only at execution time, and resolution writes `secret_access_events` with `consumerType: "plugin_worker"`.
 5. Secret values must never be written to:
    - plugin config JSON
@@ -1547,21 +1547,21 @@ Route:
 
 - `/settings/plugins/:pluginId`
 
-## 24.3 Company-Context Plugin Page
+## 24.3 Space-Context Plugin Page
 
-Each plugin may expose a company-context main page:
+Each plugin may expose a space-context main page:
 
-- `/:companyPrefix/plugins/:pluginId`
+- `/:spacePrefix/plugins/:pluginId`
 
 This page is where board users do most day-to-day work.
 
-## 24.4 Company Settings Plugin Page
+## 24.4 Space Settings Plugin Page
 
-Each ready plugin may expose a company settings page:
+Each ready plugin may expose a space settings page:
 
-- `/:companyPrefix/company/settings/:routePath`
+- `/:spacePrefix/space/settings/:routePath`
 
-The host adds a matching Company Settings sidebar item using the slot `displayName`. Plugin settings route segments are single-segment slugs and must not collide with core company settings pages.
+The host adds a matching Space Settings sidebar item using the slot `displayName`. Plugin settings route segments are single-segment slugs and must not collide with core space settings pages.
 
 ## 25. Uninstall And Data Lifecycle
 
@@ -1574,7 +1574,7 @@ When a plugin is uninstalled, the host must handle plugin-owned data explicitly.
 3. Plugin-owned data (`plugin_state`, `plugin_entities`, `plugin_jobs`, `plugin_job_runs`, `plugin_webhook_deliveries`, `plugin_config`) is retained for a configurable grace period (default: 30 days).
 4. During the grace period, the operator can reinstall the same plugin and recover its state.
 5. After the grace period, the host purges all plugin-owned data for the uninstalled plugin.
-6. The operator may force-purge immediately via CLI: `npx paperclipai plugin purge <plugin-id>`.
+6. The operator may force-purge immediately via CLI: `npx @outpost/cli plugin purge <plugin-id>`.
 
 ### 25.2 Upgrade Data Considerations
 
@@ -1596,7 +1596,7 @@ When upgrading a plugin:
 
 ### 25.4 Hot Plugin Lifecycle
 
-Plugin install, uninstall, upgrade, and config changes **must** take effect without restarting the Paperclip server. This is a normative requirement, not optional.
+Plugin install, uninstall, upgrade, and config changes **must** take effect without restarting the Outpost server. This is a normative requirement, not optional.
 
 The architecture already supports this — plugins run as out-of-process workers with dynamic ESM imports, IPC bridges, and host-managed routing tables. This section makes the requirement explicit so implementations do not regress.
 
@@ -1634,13 +1634,13 @@ When a plugin is upgraded at runtime:
 
 #### 25.4.4 Hot Config Change
 
-When an operator updates a plugin config for a company at runtime:
+When an operator updates a plugin config for a space at runtime:
 
-1. The host validates that any shared `{ type: "secret_ref", secretId, version? }` refs belong to that company, then writes the new config to `plugin_config`.
-2. The host syncs plugin secret bindings in `company_secret_bindings` under `(company_id, target_type = "plugin", target_id = plugin_id)`.
-3. The host sends a `configChanged` notification with `companyId` to the running worker via IPC.
-4. The worker reads the config through `ctx.config.get(companyId)` and applies it without restarting. If the plugin needs to re-initialize connections (e.g. a new API token), it does so internally.
-5. If the plugin does not handle `configChanged`, the host restarts the worker process; the worker must still request company-scoped config explicitly.
+1. The host validates that any shared `{ type: "secret_ref", secretId, version? }` refs belong to that space, then writes the new config to `plugin_config`.
+2. The host syncs plugin secret bindings in `space_secret_bindings` under `(space_id, target_type = "plugin", target_id = plugin_id)`.
+3. The host sends a `configChanged` notification with `spaceId` to the running worker via IPC.
+4. The worker reads the config through `ctx.config.get(spaceId)` and applies it without restarting. If the plugin needs to re-initialize connections (e.g. a new API token), it does so internally.
+5. If the plugin does not handle `configChanged`, the host restarts the worker process; the worker must still request space-scoped config explicitly.
 
 #### 25.4.5 Frontend Cache Invalidation
 
@@ -1730,15 +1730,15 @@ const state = await harness.state.get({ pluginId: manifest.id, scopeKind: "issue
 expect(state).toBeDefined();
 
 // Simulate a UI data request
-const data = await harness.getData("sync-health", { companyId: "comp-1" });
+const data = await harness.getData("sync-health", { spaceId: "comp-1" });
 expect(data.syncedCount).toBeGreaterThan(0);
 ```
 
 ### 27.2 Local Plugin Development
 
-For developing a plugin against a running Paperclip instance:
+For developing a plugin against a running Outpost instance:
 
-- The operator installs the plugin from a local path: `npx paperclipai plugin install ./path/to/plugin`
+- The operator installs the plugin from a local path: `npx @outpost/cli plugin install ./path/to/plugin`
 - The host watches the plugin directory for changes and restarts the worker on rebuild.
 - `devUiUrl` in plugin config can point to a local Vite dev server for UI hot-reload.
 - The plugin settings page shows real-time logs from the worker for debugging.
@@ -1747,7 +1747,7 @@ For developing a plugin against a running Paperclip instance:
 
 The host should publish a starter template (`create-outpost-plugin`) that scaffolds:
 
-- `package.json` with correct `paperclipPlugin` keys
+- `package.json` with correct `outpostPlugin` keys
 - manifest with placeholder values
 - worker entry with SDK type imports and example event handler
 - UI entry with example `DashboardWidget` using bridge hooks
@@ -1759,14 +1759,14 @@ The host should publish a starter template (`create-outpost-plugin`) that scaffo
 
 This spec directly supports the following plugin types:
 
-- `@paperclip/plugin-workspace-files`
-- `@paperclip/plugin-terminal`
-- `@paperclip/plugin-git`
-- `@paperclip/plugin-linear`
-- `@paperclip/plugin-github-issues`
-- `@paperclip/plugin-grafana`
-- `@paperclip/plugin-runtime-processes`
-- `@paperclip/plugin-stripe`
+- `@outpost/plugin-workspace-files`
+- `@outpost/plugin-terminal`
+- `@outpost/plugin-git`
+- `@outpost/plugin-linear`
+- `@outpost/plugin-github-issues`
+- `@outpost/plugin-grafana`
+- `@outpost/plugin-runtime-processes`
+- `@outpost/plugin-stripe`
 
 ## 29. Compatibility And Versioning
 
@@ -1879,9 +1879,9 @@ Workspace plugins (file browser, terminal, git, process tracking) do not require
 
 ## 31. Final Design Decision
 
-Paperclip should not implement a generic in-process hook bag modeled directly after local coding tools.
+Outpost should not implement a generic in-process hook bag modeled directly after local coding tools.
 
-Paperclip should implement:
+Outpost should implement:
 
 - trusted platform modules for low-level host integration
 - globally installed out-of-process plugins for additive instance-wide capabilities
@@ -1898,14 +1898,14 @@ Paperclip should implement:
 - test harness and starter template for low authoring friction
 - strict preservation of core governance and audit rules
 
-That is the complete target design for the Paperclip plugin system.
+That is the complete target design for the Outpost plugin system.
 
 ### Browser WebSocket API routes
 
 A scoped API route may declare `transport: "websocket"` with `method: "GET"`
-and `auth: "board"`. Its upgrade runs through the ordinary HTTP authentication
-and company checks and requires a trusted browser Origin. Use
-`companyResolution: { from: "agent", param: "agentId" }` to apply the existing
+and `auth: "operator"`. Its upgrade runs through the ordinary HTTP authentication
+and space checks and requires a trusted browser Origin. Use
+`spaceResolution: { from: "agent", param: "agentId" }` to apply the existing
 `agent:read` decision to the agent selected by the path.
 
 The worker's `onApiRequest` returns `{ websocket: { url, headers } }` for an
@@ -1925,7 +1925,7 @@ The transport carries opaque text and binary WebSocket frames. For example,
 a plugin can declare `/channels/:channelId` for build output, metrics, or a
 remote tool protocol. The worker receives the route key and parameters and
 selects the upstream; Core does not interpret channel contents or require an
-agent resource. WebSocket routes support query or entity-based company
+agent resource. WebSocket routes support query or entity-based space
 resolution; body-based resolution is rejected because browser upgrade requests
 cannot send a request body. Ordinary HTTP routes retain body-based resolution.
 

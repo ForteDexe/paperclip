@@ -12,7 +12,7 @@ async function makeTempDir(prefix: string): Promise<string> {
 }
 
 describe("kimi local skill sync", () => {
-  const paperclipKey = "paperclipai/paperclip/paperclip";
+  const outpostKey = "outpost/outpost/outpost";
   const cleanupDirs = new Set<string>();
 
   afterEach(async () => {
@@ -20,13 +20,13 @@ describe("kimi local skill sync", () => {
     cleanupDirs.clear();
   });
 
-  it("defaults and installs the operational Paperclip skill in the Kimi skills home", async () => {
-    const kimiCodeHome = await makeTempDir("paperclip-kimi-skill-sync-");
+  it("defaults and installs the operational Outpost skill in the Kimi skills home", async () => {
+    const kimiCodeHome = await makeTempDir("outpost-kimi-skill-sync-");
     cleanupDirs.add(kimiCodeHome);
 
     const ctx = {
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "kimi_local",
       config: {
         env: {
@@ -38,11 +38,11 @@ describe("kimi local skill sync", () => {
     const before = await listKimiSkills(ctx);
     expect(before.adapterType).toBe("kimi_local");
     expect(before.mode).toBe("persistent");
-    expect(before.desiredSkills).toContain(paperclipKey);
-    expect(before.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("missing");
+    expect(before.desiredSkills).toContain(outpostKey);
+    expect(before.entries.find((entry) => entry.key === outpostKey)?.state).toBe("missing");
 
-    const after = await syncKimiSkills(ctx, [paperclipKey]);
-    expect(after.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("installed");
-    expect((await fs.lstat(path.join(kimiCodeHome, "skills", "paperclip"))).isSymbolicLink()).toBe(true);
+    const after = await syncKimiSkills(ctx, [outpostKey]);
+    expect(after.entries.find((entry) => entry.key === outpostKey)?.state).toBe("installed");
+    expect((await fs.lstat(path.join(kimiCodeHome, "skills", "outpost"))).isSymbolicLink()).toBe(true);
   });
 });

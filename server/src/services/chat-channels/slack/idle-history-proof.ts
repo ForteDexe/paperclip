@@ -2,11 +2,11 @@
  * own downstream publication, interaction and run rows keep independent gates. */
 function completedSlackConnectorAction(a: string): string {
   const principal = `EXISTS (SELECT 1 FROM chat_external_principals principal WHERE principal.id = ${a}.principal_id
-    AND principal.company_id = ${a}.company_id AND principal.provider = 'slack')`;
+    AND principal.space_id = ${a}.space_id AND principal.provider = 'slack')`;
   const issue = `EXISTS (SELECT 1 FROM issues issue WHERE issue.id::text = ${a}.payload->>'issueId'
-    AND issue.company_id = ${a}.company_id AND (${a}.conversation_id IS NULL OR EXISTS (
+    AND issue.space_id = ${a}.space_id AND (${a}.conversation_id IS NULL OR EXISTS (
       SELECT 1 FROM chat_conversations conversation WHERE conversation.id = ${a}.conversation_id
-        AND conversation.company_id = issue.company_id AND conversation.issue_id = issue.id
+        AND conversation.space_id = issue.space_id AND conversation.issue_id = issue.id
         AND conversation.endpoint_id = ${a}.endpoint_id)))`;
   return `(${a}.kind = 'slack_private_source' AND ${a}.status = 'processed' AND ${a}.result IS NULL
       AND ${issue} AND ${principal} AND length(${a}.payload->>'channelId') > 0
@@ -26,7 +26,7 @@ function completedSlackConnectorAction(a: string): string {
       AND ${a}.provider_action_id LIKE 'slack_managed_reconnect:%'
       AND length(${a}.payload->>'registrationRequestId') > 0
       AND EXISTS (SELECT 1 FROM chat_slack_manager_grants grant_record WHERE grant_record.id::text = ${a}.payload->>'grantId'
-        AND grant_record.company_id = ${a}.company_id))
+        AND grant_record.space_id = ${a}.space_id))
     OR (${a}.kind = 'slack_tool_write' AND ${a}.status = 'processed' AND jsonb_typeof(${a}.result) = 'object'
       AND ${a}.payload->>'name' IN ('slack_open_dm', 'slack_post_message', 'slack_update_message', 'slack_delete_message',
         'slack_add_reaction', 'slack_remove_reaction', 'slack_add_pin', 'slack_remove_pin', 'slack_add_bookmark',
@@ -37,24 +37,24 @@ function completedSlackConnectorAction(a: string): string {
       AND length(${a}.payload->>'userId') > 0 AND length(${a}.payload->>'revision') > 0
       AND ${a}.provider_action_id = 'slack-tool:' || (${a}.payload->'binding'->>'issueId') || ':' || (${a}.payload->'args'->>'idempotencyKey')
       AND EXISTS (SELECT 1 FROM tool_invocations invocation JOIN heartbeat_runs run ON run.id = invocation.run_id
-        AND run.company_id = invocation.company_id AND run.agent_id = invocation.agent_id
-        WHERE invocation.id::text = ${a}.payload->>'invocationId' AND invocation.company_id = ${a}.company_id
+        AND run.space_id = invocation.space_id AND run.agent_id = invocation.agent_id
+        WHERE invocation.id::text = ${a}.payload->>'invocationId' AND invocation.space_id = ${a}.space_id
           AND invocation.run_id::text = ${a}.payload->'binding'->>'runId'
           AND invocation.agent_id::text = ${a}.payload->'binding'->>'agentId'
           AND invocation.issue_id::text = ${a}.payload->'binding'->>'issueId'
-          AND ${a}.payload->'binding'->>'companyId' = ${a}.company_id::text))
+          AND ${a}.payload->'binding'->>'spaceId' = ${a}.space_id::text))
     OR (${a}.kind = 'slack_board_message' AND ${issue} AND EXISTS (
       SELECT 1 FROM issue_comments comment JOIN chat_publications publication
-        ON publication.comment_id = comment.id AND publication.company_id = comment.company_id
-      WHERE comment.id::text = ${a}.payload->>'commentId' AND comment.company_id = ${a}.company_id
+        ON publication.comment_id = comment.id AND publication.space_id = comment.space_id
+      WHERE comment.id::text = ${a}.payload->>'commentId' AND comment.space_id = ${a}.space_id
         AND comment.issue_id::text = ${a}.payload->>'issueId' AND comment.author_user_id = ${a}.payload->>'userId'
         AND publication.endpoint_id = ${a}.endpoint_id AND publication.conversation_id = ${a}.conversation_id
         AND ((publication.state = 'published' AND publication.published_at IS NOT NULL)
           OR (publication.state IN ('failed', 'cancelled') AND publication.next_attempt_at IS NULL)))
       AND ((${a}.status = 'cancelled' AND ${a}.result->>'code' = 'slack_board_work_not_authorized')
         OR (${a}.status = 'processed' AND (${a}.result IS NULL OR (${a}.result->>'resumeApplied' = 'true'
-          AND EXISTS (SELECT 1 FROM agent_wakeup_requests wake WHERE wake.company_id = ${a}.company_id
-            AND wake.idempotency_key = 'slack-board-comment:' || ${a}.id::text AND wake.finished_at IS NOT NULL
+          AND EXISTS (SELECT 1 FROM agent_wakeup_requests wake WHERE wake.space_id = ${a}.space_id
+            AND wake.idempotency_key = 'slack-operator-comment:' || ${a}.id::text AND wake.finished_at IS NOT NULL
             AND wake.status IN ('completed', 'failed', 'cancelled', 'skipped', 'timed_out')))))))`;
 }
 
@@ -71,7 +71,7 @@ export function completedSlackAction(a: string): string {
     OR (${a}.kind = 'slack_session_stop' AND ${a}.status IN ('processed', 'cancelled')
       AND ${a}.result->>'code' IN ('slack_session_stop_cancelled', 'slack_session_stop_target_superseded', 'slack_session_stop_no_current_work')
       AND NOT EXISTS (SELECT 1 FROM heartbeat_runs r WHERE r.id::text = ${a}.result->>'runId'
-        AND (r.company_id <> ${a}.company_id OR r.status NOT IN ('succeeded', 'failed', 'cancelled', 'timed_out', 'interrupted')
+        AND (r.space_id <> ${a}.space_id OR r.status NOT IN ('succeeded', 'failed', 'cancelled', 'timed_out', 'interrupted')
           OR r.finished_at IS NULL OR r.cost_accounting_pending)))
     OR (${completedSlackConnectorAction(a)})`;
 }

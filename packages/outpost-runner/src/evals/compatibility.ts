@@ -5,14 +5,14 @@ import {
   OUTPOST_RUNNER_BUILD_METADATA,
   OUTPOST_RUNNER_EVAL_INTEGRATION_SCHEMA,
 } from "./build-metadata.js";
-import type { PaperclipRunnerdBuildMetadata } from "./runnerd-artifact.js";
+import type { OutpostRunnerdBuildMetadata } from "./runnerd-artifact.js";
 
 export type RequiredHarnessDriverCapability = Exclude<
   keyof NativeSessionCapabilities,
   "unsupported"
 >;
 
-export type PaperclipRunnerEvalCompatibilityIssueCode =
+export type OutpostRunnerEvalCompatibilityIssueCode =
   | "package_version_mismatch"
   | "binary_package_version_mismatch"
   | "binary_contract_version_mismatch"
@@ -25,18 +25,18 @@ export type PaperclipRunnerEvalCompatibilityIssueCode =
   | "driver_protocol_version_mismatch"
   | "driver_capability_unsupported";
 
-export interface PaperclipRunnerEvalCompatibilityIssue {
-  code: PaperclipRunnerEvalCompatibilityIssueCode;
+export interface OutpostRunnerEvalCompatibilityIssue {
+  code: OutpostRunnerEvalCompatibilityIssueCode;
   component: "package" | "binary" | "nativeExecution" | "orp" | "catalog" | "driver";
   expected: string;
   received: string;
   message: string;
 }
 
-export interface PaperclipRunnerEvalCompatibilityRequirement {
+export interface OutpostRunnerEvalCompatibilityRequirement {
   consumer: string;
   packageVersion: string;
-  runnerd: PaperclipRunnerdBuildMetadata;
+  runnerd: OutpostRunnerdBuildMetadata;
   nativeExecutionVersion: number;
   orp: { minimumVersion: number; maximumVersion: number };
   catalog: { version: number; sha256: string };
@@ -47,7 +47,7 @@ export interface PaperclipRunnerEvalCompatibilityRequirement {
   };
 }
 
-export interface PaperclipRunnerEvalCompatibilityReceipt {
+export interface OutpostRunnerEvalCompatibilityReceipt {
   schema: typeof OUTPOST_RUNNER_EVAL_INTEGRATION_SCHEMA;
   consumer: string;
   packageVersion: string;
@@ -58,19 +58,19 @@ export interface PaperclipRunnerEvalCompatibilityReceipt {
   driverVersion: string;
 }
 
-export class PaperclipRunnerEvalCompatibilityError extends Error {
+export class OutpostRunnerEvalCompatibilityError extends Error {
   readonly code = "outpost_runner_eval_incompatible" as const;
 
   constructor(
     readonly consumer: string,
-    readonly issues: readonly PaperclipRunnerEvalCompatibilityIssue[],
+    readonly issues: readonly OutpostRunnerEvalCompatibilityIssue[],
   ) {
     super(
       `Outpost runner eval compatibility check failed for ${consumer}: ${issues
         .map((issue) => `${issue.code}: ${issue.message}`)
         .join("; ")}`,
     );
-    this.name = "PaperclipRunnerEvalCompatibilityError";
+    this.name = "OutpostRunnerEvalCompatibilityError";
     this.issues = Object.freeze(issues.map((issue) => Object.freeze({ ...issue })));
   }
 }
@@ -80,14 +80,14 @@ export class PaperclipRunnerEvalCompatibilityError extends Error {
  * Every independently versioned input is checked and all mismatches are
  * returned together so remediation is actionable.
  */
-export function assertPaperclipRunnerEvalCompatibility(
-  requirement: PaperclipRunnerEvalCompatibilityRequirement,
-): PaperclipRunnerEvalCompatibilityReceipt {
+export function assertOutpostRunnerEvalCompatibility(
+  requirement: OutpostRunnerEvalCompatibilityRequirement,
+): OutpostRunnerEvalCompatibilityReceipt {
   const expected = OUTPOST_RUNNER_BUILD_METADATA;
-  const issues: PaperclipRunnerEvalCompatibilityIssue[] = [];
+  const issues: OutpostRunnerEvalCompatibilityIssue[] = [];
   const issue = (
-    code: PaperclipRunnerEvalCompatibilityIssueCode,
-    component: PaperclipRunnerEvalCompatibilityIssue["component"],
+    code: OutpostRunnerEvalCompatibilityIssueCode,
+    component: OutpostRunnerEvalCompatibilityIssue["component"],
     expectedValue: string | number,
     receivedValue: string | number,
     message: string,
@@ -228,7 +228,7 @@ export function assertPaperclipRunnerEvalCompatibility(
   }
 
   if (issues.length > 0) {
-    throw new PaperclipRunnerEvalCompatibilityError(requirement.consumer, issues);
+    throw new OutpostRunnerEvalCompatibilityError(requirement.consumer, issues);
   }
 
   return {

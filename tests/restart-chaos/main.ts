@@ -263,7 +263,7 @@ async function main(): Promise<number> {
   }
   let sweeper: DaytonaWaveSweeper | null = null;
   let sandboxSweep: DaytonaSweepResult | null = null;
-  let runnerLogTarget: { companyId: string; environmentId: string } | null = null;
+  let runnerLogTarget: { spaceId: string; environmentId: string } | null = null;
   // CR1–CR3 get the class R hooks (class-r.ts). Every Daytona wave captures its sandboxes with the class R probe
   // (daytona-runner-logs.ts): staging's Runner loss also reproduces with no fault at all (W2 re-wake).
   const classRWave = plan.tasks.some(task => isClassRFault(task.fault) || (task.replayFaults?.some(fault => isClassRFault(fault.kind)) ?? false));
@@ -317,20 +317,20 @@ async function main(): Promise<number> {
     interrupted = true;
   });
   // Spend is read once per wave: after the tasks, or during cleanup when the wave stopped early.
-  let spendTarget: { api: ChaosApi; companyId: string } | null = null;
+  let spendTarget: { api: ChaosApi; spaceId: string } | null = null;
   let spendRecorded = false;
   const recordWaveSpend = async () => {
     if (!spendTarget || spendRecorded) return;
     spendRecorded = true;
-    // Each wave owns its company, so all-time spend is exactly this wave, even across a month boundary.
-    const spend = await spendTarget.api.get<Record<string, unknown>>(`/api/companies/${spendTarget.companyId}/costs/summary?period=all`)
+    // Each wave owns its space, so all-time spend is exactly this wave, even across a month boundary.
+    const spend = await spendTarget.api.get<Record<string, unknown>>(`/api/spaces/${spendTarget.spaceId}/costs/summary?period=all`)
       .catch(error => ({ error: String(error) }));
     timeline.add("wave_spend", { spend });
     console.info(`Wave spend: ${JSON.stringify(spend)}`);
   };
   // CR2 and the class R watch read the task's latest run from the observers (set once they exist).
   let classRObservers: TaskObserver[] = [];
-  const killTaskProvider = async (owned: { companyId: string; environmentId: string }, taskId: string): Promise<ProviderKillRecord> => {
+  const killTaskProvider = async (owned: { spaceId: string; environmentId: string }, taskId: string): Promise<ProviderKillRecord> => {
     const observer = classRObservers.find(candidate => candidate.plan.taskId === taskId);
     const adapter = observer?.plan.adapter ?? "claude";
     // The latest sample was taken just before the fault (snapshotBeforeFault); the server may already be down.
@@ -443,10 +443,10 @@ async function main(): Promise<number> {
       workspaceCommit: plan.options.workspaceCommit, workspaceGitUrl: plan.options.workspaceGitUrl, waveId: plan.waveId, timeline,
       adapterConfigOverrides: chaosLifecycleOverrides(plan.options.lifecycle),
       onEnvironment: owned => {
-        sweeper = new DaytonaWaveSweeper({ apiKey: process.env.DAYTONA_API_KEY!, companyId: owned.companyId, environmentId: owned.environmentId, api });
+        sweeper = new DaytonaWaveSweeper({ apiKey: process.env.DAYTONA_API_KEY!, spaceId: owned.spaceId, environmentId: owned.environmentId, api });
         // K15 on Daytona: the remote Runner's logs, identity and state while the controller is down (daytona-runner-logs.ts).
         if (sandboxEvidence) {
-          runnerLogTarget = { companyId: owned.companyId, environmentId: owned.environmentId };
+          runnerLogTarget = { spaceId: owned.spaceId, environmentId: owned.environmentId };
           if (redeployWave(plan)) supervisor.redeployEvidence = (faultId, phase) => captureRunnerLogs(`${faultId}-${phase}`);
           // `--sandbox-watch-seconds`: capture on a clock too, for Runner exits that no fault announces (W2 re-wake).
           if (plan.options.sandboxWatchMs) faultWork.push(watchSandboxes(plan.options.sandboxWatchMs));
@@ -457,10 +457,10 @@ async function main(): Promise<number> {
           watchAfterReady: receipt => { faultWork.push(watchClassR(receipt)); },
         };
       } });
-    spendTarget = { api, companyId: lab.companyId };
+    spendTarget = { api, spaceId: lab.spaceId };
     // --db-pressure: contend with the wave's running run rows from outside the server (contention.ts).
     if (plan.options.dbPressure) {
-      pressure = new RunRowPressure(waveDatabaseUrl(), lab.companyId, plan.options.dbPressure).start();
+      pressure = new RunRowPressure(waveDatabaseUrl(), lab.spaceId, plan.options.dbPressure).start();
       timeline.add("db_pressure_started", { writers: plan.options.dbPressure });
     }
     // The instance root holds the secrets master key and the database: oracle code may not read it.
@@ -587,8 +587,8 @@ async function main(): Promise<number> {
     };
 
     const invariantsNow = async () => {
-      return checkPlanInvariants({ connectionString: waveDatabaseUrl(), companyId: lab.companyId,
-        paperclipHome: supervisor.paths.home, instanceId: "default" });
+      return checkPlanInvariants({ connectionString: waveDatabaseUrl(), spaceId: lab.spaceId,
+        outpostHome: supervisor.paths.home, instanceId: "default" });
     };
     const startCrashPoint = async (batch: TaskObserver[]) => {
       const index = pointResults.length;
@@ -755,11 +755,11 @@ async function main(): Promise<number> {
     const secrets = knownSecretValues();
     // U3 and L1 read the wave database once, before the instance is removed.
     const evidenceDb = createDb(waveDatabaseUrl());
-    const universalByIssue = await readUniversalDbEvidence(evidenceDb, lab.companyId).catch(error => {
+    const universalByIssue = await readUniversalDbEvidence(evidenceDb, lab.spaceId).catch(error => {
       timeline.add("universal_db_evidence_failed", { error: String(error) }); return null; });
     const allRunMessages = new Map([...(universalByIssue?.values() ?? [])].flatMap(entry => [...entry.runMessages]));
     const costSummary = launched.some(observer => observer.plan.workload === "L1")
-      ? await api.get<Record<string, unknown>>(`/api/companies/${lab.companyId}/costs/summary?period=all`)
+      ? await api.get<Record<string, unknown>>(`/api/spaces/${lab.spaceId}/costs/summary?period=all`)
         .then(summary => typeof summary.spendCents === "number"
           ? { spendCents: summary.spendCents, pendingRunCount: Number(summary.pendingRunCount ?? 0) } : null).catch(() => null) : null;
     for (const observer of launched) {
@@ -775,7 +775,7 @@ async function main(): Promise<number> {
       if (artifacts && providerFaults && observer.plan.providerFault) artifacts.providerFaultEvents = await providerFaults.eventsFor(observer.plan.nonce);
       if (artifacts && observer.plan.workload === "L1") {
         const runIds = [...new Set(observer.record.samples.flatMap(sample => (sample.runs ?? []).map(run => run.id)))];
-        artifacts.contention = await collectContentionEvidence(evidenceDb, lab.companyId, runIds, costSummary);
+        artifacts.contention = await collectContentionEvidence(evidenceDb, lab.spaceId, runIds, costSummary);
       }
       const graded = artifacts ? observer.definition.grade(observer.plan.nonce, artifacts, observer.workloadAgents())
         : { verdict: "fail" as const, checks: [{ name: "artifacts_collected", ok: false, detail: observer.record.launchError ?? "collection failed" }] };
@@ -813,7 +813,7 @@ async function main(): Promise<number> {
     }
     // MS1–MS3: the cross-server invariant over the whole wave (multi-server.ts).
     if (faults.some(receipt => receipt.multiServer)) {
-      const crossServer = await readCrossServerEvidence(evidenceDb, lab.companyId)
+      const crossServer = await readCrossServerEvidence(evidenceDb, lab.spaceId)
         .then(evidence => checkCrossServer({ ...evidence, windows: supervisor.serverWindows }))
         .catch(error => { harnessError ??= new Error(`Cross-server invariant check failed: ${String(error)}`); return null; });
       if (crossServer) {
@@ -826,7 +826,7 @@ async function main(): Promise<number> {
     if (storageAuditor) {
       storageChaos?.stop();
       await credentialRotation?.settled();
-      await storageAuditor.checkSnapshots(evidenceDb, lab.companyId);
+      await storageAuditor.checkSnapshots(evidenceDb, lab.spaceId);
     }
     await evidenceDb.$client.end({ timeout: 5 }).catch(() => undefined);
     await writeFile(path.join(waveDir, "faults.json"), `${JSON.stringify(faults, null, 2)}\n`, { mode: 0o600 });
@@ -886,7 +886,7 @@ async function main(): Promise<number> {
       const owned = sweeper as DaytonaWaveSweeper;
       // An interrupted wave still reports what it leaked before cleanup.
       sandboxSweep ??= await owned.sweep(0);
-      // Cleanup only through Paperclip; the harness never changes a sandbox.
+      // Cleanup only through Outpost; the harness never changes a sandbox.
       const cleanup = await owned.cleanUp();
       daytonaCleanup = cleanup;
       timeline.add("daytona_cleanup", cleanup);

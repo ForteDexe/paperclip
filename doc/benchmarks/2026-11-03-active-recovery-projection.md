@@ -4,7 +4,7 @@ An active recovery check needs a current durable-wait reason. It previously buil
 
 ## Local evidence
 
-Baseline: `a497bae83a128feae8206f27e4930e6407a67630`. Node24.22.2, macOS arm64, source Vitest and disposable PostgreSQL. The actual `recoveryService.reconcileActiveRecoveryActions` ran against synthetic cohorts with mostly empty wait facts, approximately75%board and25%legacy agent recovery owners. A second company's records stayed unchanged. The live company/owner/cohort mix is unknown.
+Baseline: `a497bae83a128feae8206f27e4930e6407a67630`. Node24.22.2, macOS arm64, source Vitest and disposable PostgreSQL. The actual `recoveryService.reconcileActiveRecoveryActions` ran against synthetic cohorts with mostly empty wait facts, approximately75%board and25%legacy agent recovery owners. A second space's records stayed unchanged. The live space/owner/cohort mix is unknown.
 
 Nine alternating pairs per cohort follow three warmup pairs. The timed database client has no SQL debug or row-transform observer. Count proof uses separate warmed clients outside timing. Node process CPU includes JIT/GC/driver work and excludes PostgreSQL process CPU. The [data file](2026-11-03-active-recovery-projection.json) contains all72retained primary timing samples, independent count proof and raw-file hashes.
 

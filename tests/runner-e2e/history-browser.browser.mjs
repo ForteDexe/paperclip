@@ -1,4 +1,4 @@
-// Explicit browser regression; synthetic history only, with no Paperclip/model runs.
+// Explicit browser regression; synthetic history only, with no Outpost/model runs.
 import { createServer } from 'node:http';
 import { readFile, mkdir } from 'node:fs/promises';
 import { parseArgs } from 'node:util';

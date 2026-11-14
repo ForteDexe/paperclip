@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createDb } from "./client.js";
 import {
-  __setEmbeddedPostgresCtorProviderForTests,
+  __setEmbeddedPostgresEngineeringLeadrProviderForTests,
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
   type EmbeddedPostgresTestDatabase,
@@ -16,12 +16,12 @@ const support = await getEmbeddedPostgresTestSupport();
 
 describe.skipIf(!support.supported)("shared PostgreSQL fixtures", () => {
   beforeAll(async () => {
-    server = await startEmbeddedPostgresTestDatabase("paperclip-admin-regression-");
+    server = await startEmbeddedPostgresTestDatabase("outpost-admin-regression-");
     process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL = server.connectionString;
   }, 90_000);
 
   afterEach(async () => {
-    __setEmbeddedPostgresCtorProviderForTests(null);
+    __setEmbeddedPostgresEngineeringLeadrProviderForTests(null);
     process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL = server.connectionString;
     if (previousTemplate === undefined) delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
     else process.env.OUTPOST_TEST_POSTGRES_TEMPLATE = previousTemplate;
@@ -37,7 +37,7 @@ describe.skipIf(!support.supported)("shared PostgreSQL fixtures", () => {
   });
 
   it("uses one server for isolated databases and closes clients before dropping them", async () => {
-    __setEmbeddedPostgresCtorProviderForTests(async () => { throw new Error("Must not start another PostgreSQL server"); });
+    __setEmbeddedPostgresEngineeringLeadrProviderForTests(async () => { throw new Error("Must not start another PostgreSQL server"); });
     expect(await getEmbeddedPostgresTestSupport()).toEqual({ supported: true });
     const first = await startEmbeddedPostgresTestDatabase("ignored-"); databases.push(first);
     const second = await startEmbeddedPostgresTestDatabase("ignored-"); databases.push(second);
@@ -56,7 +56,7 @@ describe.skipIf(!support.supported)("shared PostgreSQL fixtures", () => {
   }, 90_000);
 
   it("rejects unavailable configured servers rather than reporting support", async () => {
-    process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL = "postgres://paperclip:paperclip@127.0.0.1:1/postgres";
+    process.env.OUTPOST_TEST_POSTGRES_ADMIN_URL = "postgres://outpost:outpost@127.0.0.1:1/postgres";
     await expect(getEmbeddedPostgresTestSupport()).rejects.toThrow();
   });
 
@@ -68,7 +68,7 @@ describe.skipIf(!support.supported)("shared PostgreSQL fixtures", () => {
   }, 90_000);
 
   it("applies pending migrations when a supplied database template is not current", async () => {
-    const template = `paperclip_test_template_${randomUUID().replaceAll("-", "")}`;
+    const template = `outpost_test_template_${randomUUID().replaceAll("-", "")}`;
     const control = createDb(server.connectionString);
     await control.$client.unsafe(`CREATE DATABASE "${template}"`);
     try {
@@ -76,7 +76,7 @@ describe.skipIf(!support.supported)("shared PostgreSQL fixtures", () => {
       const database = await startEmbeddedPostgresTestDatabase("ignored-");
       databases.push(database);
       const db = createDb(database.connectionString);
-      expect((await db.$client`SELECT to_regclass('companies') AS name`)[0]?.name).toBe("companies");
+      expect((await db.$client`SELECT to_regclass('spaces') AS name`)[0]?.name).toBe("spaces");
     } finally {
       await control.$client.unsafe(`DROP DATABASE "${template}"`);
       await control.$client.end();

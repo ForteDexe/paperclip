@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createDecisionWakeOriginAgent } from "../services/decision-wakeup.js";
 
 const input = {
-  companyId: "company-1",
+  spaceId: "space-1",
   agentId: "agent-1",
   issueId: "issue-1",
   decisionId: "decision-1",

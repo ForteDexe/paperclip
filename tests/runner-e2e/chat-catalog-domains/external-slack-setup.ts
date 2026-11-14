@@ -149,7 +149,7 @@ export function gradeSlackSetup(value: unknown) {
   c.add(
     "real-private-credential-form-and-normal-wizard-activation",
     !!e &&
-      e.companyId === o.companyId &&
+      e.spaceId === o.spaceId &&
       e.provider === "slack" &&
       e.assignedAgentId === represented?.id &&
       e.providerAccountId === o.state.workspaceId &&
@@ -179,17 +179,17 @@ export function gradeSlackSetup(value: unknown) {
       Date.parse(t.lastConnectAt!) <= Date.parse(e.activatedAt!) &&
       t.principalStatus === "linked" &&
       t.principalUserId === o.state.currentHumanId &&
-      t.identityUi?.paperclipUserId === o.state.currentHumanId &&
+      t.identityUi?.outpostUserId === o.state.currentHumanId &&
       t.identityUi?.processIsolation === true &&
       t.identityUi?.testRunnerAttached === false,
-    "Only a real named Slack browser human, independently copied member ID, genuinely provider-signed connect command and persisted processed principal receipt authorize the same actual signed-in Paperclip person.",
+    "Only a real named Slack browser human, independently copied member ID, genuinely provider-signed connect command and persisted processed principal receipt authorize the same actual signed-in Outpost person.",
   );
   c.add(
     "two-way-message-after-actual-activation",
     !!s &&
       t.sourceBound &&
       !!run &&
-      run.companyId === o.companyId &&
+      run.spaceId === o.spaceId &&
       run.agentId === represented?.id &&
       run.contextSnapshot?.issueId === s.issueId &&
       run.runtimeMode === "native" &&
@@ -210,7 +210,7 @@ export function gradeSlackSetup(value: unknown) {
           message.ts > s.provider.canonicalMessageId &&
           (message.text ?? "").includes(represented.name!),
       ),
-    "An actual subsequent synthetic human message persists under the right company/sender/thread; the genuine represented-agent native reply is independently read back from that same provider thread.",
+    "An actual subsequent synthetic human message persists under the right space/sender/thread; the genuine represented-agent native reply is independently read back from that same provider thread.",
   );
   c.add(
     "separate-truthful-ready-confirmation-and-no-extra-work",
@@ -222,7 +222,7 @@ export function gradeSlackSetup(value: unknown) {
       o.runs.length === 3 &&
       o.runs.every(
         (row) =>
-          row.companyId === o.companyId &&
+          row.spaceId === o.spaceId &&
           row.runtimeMode === "native" &&
           row.status === "succeeded" &&
           (row.id === t.sourceRunId ||
@@ -259,12 +259,12 @@ function setupCase(
       );
       if (endpoints.length)
         throw new Error(
-          "Slack setup requires an initially unconfigured disposable company",
+          "Slack setup requires an initially unconfigured disposable space",
         );
       fixtures.set(ctx, { represented });
       const chat = await openStandingChat(ctx);
       await ctx.input.api.patch(`/api/issues/${chat.id}`, {
-        description: `Slack chat is enabled, but this company has no chat endpoint or linked sender. The requested represented agent is ${represented.name} (${represented.id}); that agent already has an eligible runtime. The signed-in human must connect their authorized disposable existing Slack app through supported chat setup.`,
+        description: `Slack chat is enabled, but this space has no chat endpoint or linked sender. The requested represented agent is ${represented.name} (${represented.id}); that agent already has an eligible runtime. The signed-in human must connect their authorized disposable existing Slack app through supported chat setup.`,
       });
       return {
         represented,
@@ -328,7 +328,7 @@ function setupCase(
               id: "real-unconfigured-Slack-context",
               passed: ready,
               detail:
-                "Actual available provider and company endpoint inventory have no configured route or native work.",
+                "Actual available provider and space endpoint inventory have no configured route or native work.",
             },
           ],
         };
@@ -366,7 +366,7 @@ function setupCase(
             return (
               u.origin === initial.origin &&
               u.pathname ===
-                `/${ctx.input.fixtures.company.issuePrefix}/apps/chat/connect` &&
+                `/${ctx.input.fixtures.space.issuePrefix}/apps/chat/connect` &&
               u.searchParams.get("provider") === "slack" &&
               (!u.searchParams.has("agentId") ||
                 u.searchParams.get("agentId") === local.represented.id) &&
@@ -463,12 +463,12 @@ function setupCase(
             endpoint = (await response.json()) as ChatEndpoint;
           local.createdEndpointId = endpoint.id;
           if (
-            endpoint.companyId !== ctx.input.fixtures.company.id ||
+            endpoint.spaceId !== ctx.input.fixtures.space.id ||
             endpoint.provider !== "slack" ||
             endpoint.assignedAgentId !== local.represented.id
           )
             throw new Error(
-              "Actual UI created another represented-agent/company endpoint",
+              "Actual UI created another represented-agent/space endpoint",
             );
           const existing = page.getByRole("button", {
             name: "Use an existing app",
@@ -511,7 +511,7 @@ function setupCase(
           )
         ).user.id;
         const query =
-          "Please say your exact Paperclip agent name and confirm you can reply in this same Slack conversation. Do not start a separate task.";
+          "Please say your exact Outpost agent name and confirm you can reply in this same Slack conversation. Do not start a separate task.";
         f.relay.expectCanonical(query, f.threadId);
         const start = f.provider.receipts.length;
         const sent = await f.provider.call<{
@@ -633,7 +633,7 @@ function setupCase(
             sourceBound = slackIngressReceiptMatches({
               receipt: local.source,
               query: local.source.query,
-              companyId: ctx.input.fixtures.company.id,
+              spaceId: ctx.input.fixtures.space.id,
               agentId: local.represented.id,
               endpoint,
               conversation: conversations.find(
@@ -663,7 +663,7 @@ function setupCase(
             humanCommand: f?.humanCommandReceipt,
             signedConnect: f?.relay.receipt().humanConnectCaptured === true,
             lastConnectAt: principal?.lastConnectAt,
-            principalUserId: principal?.paperclipUserId,
+            principalUserId: principal?.outpostUserId,
             principalStatus: principal?.status,
           },
         } satisfies Observation;
@@ -676,7 +676,7 @@ function setupCase(
         const page = await ctx.input.page.context().newPage();
         try {
           await page.goto(
-            `${o.origin}/${ctx.input.fixtures.company.issuePrefix}/apps/chat/${o.slackSetup.endpoint.id}/settings`,
+            `${o.origin}/${ctx.input.fixtures.space.issuePrefix}/apps/chat/${o.slackSetup.endpoint.id}/settings`,
             { waitUntil: "domcontentloaded" },
           );
           await expect(page.getByRole("main")).toContainText(

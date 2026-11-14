@@ -4,7 +4,7 @@ navigation: {"section":"Oversight and operation","sectionOrder":70,"order":10}
 
 # Costs and budgets
 
-Operators inspect recorded spend and configure budget controls for the company, projects, and agents. Hard stops pause or prevent eligible work until the governing incident is resolved.
+Operators inspect recorded spend and configure budget controls for the space, projects, and agents. Hard stops pause or prevent eligible work until the governing incident is resolved.
 
 Feature ID: `budgets-costs`.
 
@@ -20,7 +20,7 @@ that hold. See [accounting behavior](../../doc/prompt-injection-prevention.md).
 ## Sub-features
 
 - `cost-reporting`: `budgets-costs/cost-reporting` — inspect spend by the offered time range and resource dimensions.
-- `budgets`: `budgets-costs/budgets` — configure supported company/project/agent limits and inspect usage.
+- `budgets`: `budgets-costs/budgets` — configure supported space/project/agent limits and inspect usage.
 - `incidents`: `budgets-costs/incidents` — distinguish warnings, hard stops, and manual pauses.
 - `resolution`: `budgets-costs/resolution` — raise or resolve a budget incident through authorized controls and verify resumption.
 - `subscriptions`: `budgets-costs/subscriptions` — inspect subscription fees separately from API usage, edit owned prices, link duplicate accounts, and end or exclude tracking.
@@ -44,7 +44,7 @@ Open Activity → Costs (or `/costs` in the production shell), then Subscription
 
 Open the Costs overview and expand **run costs unavailable** or **billing types unknown**. Follow **View run** or the agent configuration link for context. **Retry cost recording** appears only for retryable entries and an eligible board user.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use synthetic low-cost events and small disposable budgets. Do not buy model usage merely to hit a threshold.
 
@@ -53,7 +53,7 @@ Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use 
 Automated: [costs service](../../server/src/__tests__/costs-service.test.ts) covers historical cost contracts. The retired costs UI is no longer part of Outpost.
 
 Manual: Inspect a known fixture run and reconcile recorded spend with the chosen
-period and resource. Switch the report period/company and inspect the **By
+period and resource. Switch the report period/space and inspect the **By
 project** breakdown; it is not a project-selector filter. Reload and check empty
 or unavailable cost data without treating missing data as zero spend.
 
@@ -89,10 +89,10 @@ Sources: [Cost notice](../../ui/src/components/CostDataQualityNotice.tsx), [cost
 
 - Retry cost recording consumes saved usage evidence. It does not rerun the agent, recover missing historical model metadata, or prove that a provider invoice is reconciled.
 
-- A subscription fee is the full account or seat cost, including use outside Paperclip. Linking is for the same paid subscription; ending tracking does not cancel it at the provider.
+- A subscription fee is the full account or seat cost, including use outside Outpost. Linking is for the same paid subscription; ending tracking does not cancel it at the provider.
 
-- Paperclip cost accounting is not a provider invoice or a promise about externally billed spend.
-- Company, project, and agent gates can overlap; fixing one may leave another active.
+- Outpost cost accounting is not a provider invoice or a promise about externally billed spend.
+- Space, project, and agent gates can overlap; fixing one may leave another active.
 - A successful retry must not bypass an unresolved budget hold.
 
 ### Storybook verification
@@ -103,5 +103,5 @@ Capability ID: `budgets-costs/resolution`.
 
 Scope: ui
 Storybook: Mount BudgetIncidentCard with entered raised limit, invalid limit, keep-paused, applying, authorized/blocked and error states wired through actual host. Existing matrix handlers are no-ops.
-Production: POST /companies/{id}/budget-incidents/{id}/resolve must authorize scope-specific raise, persist resolution and resume eligible work while retaining overlapping budget/manual holds.
+Production: POST /spaces/{id}/budget-incidents/{id}/resolve must authorize scope-specific raise, persist resolution and resume eligible work while retaining overlapping budget/manual holds.
 Sources: [costs.ts](../../server/src/routes/costs.ts), [budgets.ts](../../server/src/services/budgets.ts). Tests: [budgets-service.test.ts](../../server/src/__tests__/budgets-service.test.ts)

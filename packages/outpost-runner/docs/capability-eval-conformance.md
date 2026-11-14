@@ -46,7 +46,7 @@ control-plane-owned rows remain absent in every configuration; and
 
 The fake-agent surface is 14 always-agent tools plus 4 optional tools unlocked
 by four seed grants (`discovery:tasks:read`, `discovery:agents:read`,
-`delegation:tasks:create`, `governance:approvals:request`) — **18 operations**.
+`delegation:tasks:create`, `approvals:approvals:request`) — **18 operations**.
 The suite binds that surface through both the fake-agent and Codex bindings and
 asserts the two operation lists are byte-identical (**18/18**).
 
@@ -68,7 +68,7 @@ pnpm --filter @outpost/outpost-runner test:capability-evals
 pnpm --filter @outpost/outpost-runner report:capability-evals
 ```
 
-The reporter writes `.paperclip-local/evidence/capability/eval-parity-report.{json,md}`.
+The reporter writes `.outpost-local/evidence/capability/eval-parity-report.{json,md}`.
 
 Run the bounded provider conformance matrix separately. It creates exactly one
 real Codex turn for each of the 16 checked-in eval groups while retaining the

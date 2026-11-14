@@ -3,9 +3,9 @@
 This fixture uses a real Git repository with a `master` branch and no `main`
 branch. It runs a deterministic process adapter, with no external model calls.
 Use a disposable local-trusted instance. The seed changes that instance's
-experimental workspace and task-interface flags and creates a test company.
+experimental workspace and task-interface flags and creates a test space.
 
-1. Start a disposable Paperclip instance from this checkout. Set a separate
+1. Start a disposable Outpost instance from this checkout. Set a separate
    `OUTPOST_HOME` and port. Keep it bound to loopback in `local_trusted` mode.
 2. Run `node tests/e2e/workspace-base-ref/seed.mjs http://127.0.0.1:PORT`.
 3. Open the returned issue in the browser. Wait for it to become blocked.
@@ -18,7 +18,7 @@ experimental workspace and task-interface flags and creates a test company.
    and its recovery action is resolved. There should be exactly two runs: the
    initial configuration failure and a successful process run.
 
-To test custom input, seed another company and task. Choose **Choose another
+To test custom input, seed another space and task. Choose **Choose another
 branch**. Enter `bad..branch` and submit: the inline error must keep the task
 blocked. Change it to `master` and submit. Verify the same durable result.
 

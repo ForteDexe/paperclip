@@ -1,12 +1,12 @@
 # Cloud customer-success inspection support
 
-Paperclip exposes `/api/customer-success/v1/run-authority` and `/read` for the
+Outpost exposes `/api/customer-success/v1/run-authority` and `/read` for the
 coordinated Cloud inspection broker. This foundation supports one registered
-Paperclip agent; bot creation, scheduling, scoring and reporting are separate.
+Outpost agent; bot creation, scheduling, scoring and reporting are separate.
 
 The authority endpoint is disabled unless
 `OUTPOST_CUSTOMER_SUCCESS_AUTHORITY_ENABLED=true`. It accepts only a strict,
-current instance/company-derived managed-run JWT. It requires the authenticated
+current instance/space-derived managed-run JWT. It requires the authenticated
 agent's existing provisioned Ed25519 identity and an active running heartbeat;
 paused, cancelled/stopped, finished and unsupported-runtime agents are rejected.
 No identity GET provisions keys. Normal API JWT compatibility remains unchanged;
@@ -35,7 +35,7 @@ explicit catalog avoids existing GET side effects such as skill reconciliation,
 instruction recovery/adoption and provider-trace cleanup. There is no arbitrary
 GET proxy, write operation or credential-resolution operation.
 
-The catalog in `services/customer-success-inspection.ts` covers companies,
+The catalog in `services/customer-success-inspection.ts` covers spaces,
 directory/membership/permission metadata, agents/config/instruction revisions and
 public identity, tasks/comments/documents/interactions, approvals/decisions,
 routines/schedules, projects/workspaces/stored repository assignments, skill
@@ -44,10 +44,10 @@ assets/attachments, and existing readable connections/installs/grants/catalogs.
 `packages/shared/src/customer-success.ts` is the versioned wire contract and is
 mirrored byte-for-byte in the private Cloud broker; update both together.
 
-`list`/`get` readers enforce company scope and bounded pagination. Special
+`list`/`get` readers enforce space scope and bounded pagination. Special
 operations read instruction files without repair, installed skill snapshots,
 existing run logs, workspace files through the current file-resource service,
-and company-scoped storage assets. Workspace context uses an owning task and
+and space-scoped storage assets. Workspace context uses an owning task and
 existing project/workspace checks. Binary envelopes and inclusive byte ranges
 pass through Cloud; ranges cap at 1 MiB, JSON at 2 MiB, and lists at 100 rows.
 Remote or unsnapshotted resources report unavailable; large content requires
@@ -71,7 +71,7 @@ Focused verification:
 pnpm exec vitest run server/src/__tests__/customer-success.test.ts \
   server/src/__tests__/agent-auth-jwt.test.ts server/src/__tests__/agent-identity.test.ts
 # Coordinated qualification, with the sibling Cloud build:
-OUTPOST_INSPECTION_CLOUD_DIST=/absolute/path/paperclip-cloud/dist \
+OUTPOST_INSPECTION_CLOUD_DIST=/absolute/path/outpost-cloud/dist \
   pnpm exec vitest run server/src/__tests__/customer-success-cloud.test.ts
 ```
 

@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { activityLog, companies, companyMemberships, createDb, environments, projectAccessMembers, projects } from "@outpost/db";
+import { activityLog, spaces, spaceMemberships, createDb, environments, projectAccessMembers, projects } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -22,14 +22,14 @@ if (!embeddedPostgresSupport.supported) {
   );
 }
 
-function boardActor(companyId: string): Express.Request["actor"] {
+function operatorActor(spaceId: string): Express.Request["actor"] {
   return {
-    type: "board",
+    type: "operator",
     userId: "user-1",
     source: "session",
     isInstanceAdmin: true,
-    companyIds: [companyId],
-    memberships: [{ companyId, membershipRole: "admin", status: "active" }],
+    spaceIds: [spaceId],
+    memberships: [{ spaceId, membershipRole: "admin", status: "active" }],
   };
 }
 
@@ -50,15 +50,15 @@ describeEmbeddedPostgres("project list archived route defaults", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-projects-list-archived-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-projects-list-archived-");
     db = createDb(tempDb.connectionString);
   }, 120_000);
 
   afterEach(async () => {
     await db.delete(activityLog);
-    await db.delete(companyMemberships);
+    await db.delete(spaceMemberships);
     await db.delete(projects);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -66,35 +66,35 @@ describeEmbeddedPostgres("project list archived route defaults", () => {
   });
 
   async function seed() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const activeProjectId = randomUUID();
     const archivedProjectId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values([
-      { id: activeProjectId, companyId, name: "Active Project", status: "in_progress" },
+      { id: activeProjectId, spaceId, name: "Active Project", status: "in_progress" },
       {
         id: archivedProjectId,
-        companyId,
+        spaceId,
         name: "Archived Project",
         status: "completed",
         archivedAt: new Date(),
       },
     ]);
 
-    return { activeProjectId, archivedProjectId, companyId };
+    return { activeProjectId, archivedProjectId, spaceId };
   }
 
   it("omits archived projects by default", async () => {
-    const { activeProjectId, archivedProjectId, companyId } = await seed();
-    const app = createApp(db, boardActor(companyId));
+    const { activeProjectId, archivedProjectId, spaceId } = await seed();
+    const app = createApp(db, operatorActor(spaceId));
 
-    const res = await request(app).get(`/api/companies/${companyId}/projects`);
+    const res = await request(app).get(`/api/spaces/${spaceId}/projects`);
 
     expect(res.status).toBe(200);
     expect(res.body.map((project: { id: string }) => project.id)).toEqual([activeProjectId]);
@@ -102,22 +102,22 @@ describeEmbeddedPostgres("project list archived route defaults", () => {
   });
 
   it("includes archived projects when includeArchived is true", async () => {
-    const { activeProjectId, archivedProjectId, companyId } = await seed();
-    const app = createApp(db, boardActor(companyId));
+    const { activeProjectId, archivedProjectId, spaceId } = await seed();
+    const app = createApp(db, operatorActor(spaceId));
 
-    const res = await request(app).get(`/api/companies/${companyId}/projects?includeArchived=true`);
+    const res = await request(app).get(`/api/spaces/${spaceId}/projects?includeArchived=true`);
 
     expect(res.status).toBe(200);
     expect(res.body.map((project: { id: string }) => project.id).sort()).toEqual([activeProjectId, archivedProjectId].sort());
   });
 
   it("omits the database-only legacy environment from the DELETE response", async () => {
-    const { activeProjectId, companyId } = await seed();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "user-1",
+    const { activeProjectId, spaceId } = await seed();
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "user-1",
       status: "active", membershipRole: "operator" });
     const [environment] = await db.insert(environments).values({ name: randomUUID(), driver: "ssh" }).returning();
     await db.update(projects).set({ legacyEnvironmentId: environment.id }).where(eq(projects.id, activeProjectId));
-    const app = createApp(db, boardActor(companyId));
+    const app = createApp(db, operatorActor(spaceId));
     const res = await request(app).delete(`/api/projects/${activeProjectId}`);
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(activeProjectId);
@@ -132,15 +132,15 @@ describeEmbeddedPostgres("private project route visibility", { concurrent: false
   const previousPrivacyMode = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-private-project-routes-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-private-project-routes-");
     db = createDb(tempDb.connectionString);
     process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
   }, 20_000);
 
   afterEach(async () => {
-    await db.delete(companyMemberships);
+    await db.delete(spaceMemberships);
     await db.delete(projects);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -150,48 +150,48 @@ describeEmbeddedPostgres("private project route visibility", { concurrent: false
   });
 
   it("omits private projects from non-member lists and returns 404 on direct fetch", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const privateProjectId = randomUUID();
     const memberUserId = "project-member";
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Private projects",
-      issuePrefix: `P${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      issuePrefix: `P${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
     });
     await db.insert(projects).values([
-      { companyId, name: "Open project", visibility: "open" },
-      { id: privateProjectId, companyId, name: "Secret project", visibility: "private" },
+      { spaceId, name: "Open project", visibility: "open" },
+      { id: privateProjectId, spaceId, name: "Secret project", visibility: "private" },
     ]);
-    await db.insert(companyMemberships).values([memberUserId, "project-outsider"].map((principalId) => ({
-      companyId,
+    await db.insert(spaceMemberships).values([memberUserId, "project-outsider"].map((principalId) => ({
+      spaceId,
       principalType: "user" as const,
       principalId,
       status: "active",
       membershipRole: "admin",
     })));
     await db.insert(projectAccessMembers).values({
-      companyId,
+      spaceId,
       projectId: privateProjectId,
       subjectType: "user",
       subjectId: memberUserId,
     });
     const actorFor = (userId: string): Express.Request["actor"] => ({
-      type: "board",
+      type: "operator",
       userId,
       source: "session",
       isInstanceAdmin: false,
-      companyIds: [companyId],
-      memberships: [{ companyId, membershipRole: "admin", status: "active" }],
+      spaceIds: [spaceId],
+      memberships: [{ spaceId, membershipRole: "admin", status: "active" }],
     });
 
     const outsiderApp = createApp(db, actorFor("project-outsider"));
-    const outsiderList = await request(outsiderApp).get(`/api/companies/${companyId}/projects`);
+    const outsiderList = await request(outsiderApp).get(`/api/spaces/${spaceId}/projects`);
     expect(outsiderList.status).toBe(200);
     expect(outsiderList.body.map((project: { id: string }) => project.id)).not.toContain(privateProjectId);
     await request(outsiderApp).get(`/api/projects/${privateProjectId}`).expect(404);
 
     const memberApp = createApp(db, actorFor(memberUserId));
-    const memberList = await request(memberApp).get(`/api/companies/${companyId}/projects`);
+    const memberList = await request(memberApp).get(`/api/spaces/${spaceId}/projects`);
     expect(memberList.body.map((project: { id: string }) => project.id)).toContain(privateProjectId);
     await request(memberApp).get(`/api/projects/${privateProjectId}`).expect(200);
   });

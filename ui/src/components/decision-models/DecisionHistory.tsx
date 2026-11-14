@@ -13,7 +13,7 @@ export function DecisionHistoryTable({ entries, fastResponse = false }: { entrie
       <thead><tr className="border-b border-border text-muted-foreground">{["When / feature", "Responsible", "Task", ...(fastResponse ? ["Connection"] : []), "Model", "Status", "Duration", "Tokens in / out", "Cost"].map(label => <th key={label} className="px-3 py-2 text-left font-medium">{label}</th>)}</tr></thead>
       <tbody>{entries.map(row => <tr key={row.id} className="border-b border-border last:border-0">
         <td className="px-3 py-3"><div className="whitespace-nowrap">{formatDateTime(row.startedAt)}</div><div className="text-xs text-muted-foreground">{row.feature === "settings.test" ? "Setup test" : row.feature}</div></td>
-        <td className="px-3 py-3">{row.actorType === "system" ? "Outpost services" : row.userName ?? (row.responsibleUserId === "local-board" ? "You" : "Former user")}</td>
+        <td className="px-3 py-3">{row.actorType === "system" ? "Outpost services" : row.userName ?? (row.responsibleUserId === "local-operator" ? "You" : "Former user")}</td>
         <td className="px-3 py-3">{row.issueId ? <Link className="underline underline-offset-4" to={`/issues/${row.issueIdentifier ?? row.issueId}`}>{row.issueIdentifier ?? "View task"}</Link> : "—"}</td>
         {fastResponse && <td className="px-3 py-3">{row.connectionName ?? (row.connectionId ? "Removed connection" : "—")}</td>}
         <td className="px-3 py-3 font-mono text-xs">{row.model}</td>
@@ -25,8 +25,8 @@ export function DecisionHistoryTable({ entries, fastResponse = false }: { entrie
     </table></div>
   </div>;
 }
-export function DecisionHistory({ companyId, from, to }: { companyId: string; from?: string | null; to?: string | null }) {
-  const query = useQuery({ queryKey: ["decision-history", companyId, from, to], queryFn: () => decisionModelsApi.history(companyId, from, to), refetchInterval: q => q.state.data?.some(row => row.status === "running") ? 5000 : false });
+export function DecisionHistory({ spaceId, from, to }: { spaceId: string; from?: string | null; to?: string | null }) {
+  const query = useQuery({ queryKey: ["decision-history", spaceId, from, to], queryFn: () => decisionModelsApi.history(spaceId, from, to), refetchInterval: q => q.state.data?.some(row => row.status === "running") ? 5000 : false });
   if (query.isPending) return <p className="text-sm text-muted-foreground">Loading decision requests…</p>;
   if (query.error) return <div role="alert" className="space-y-2"><p className="text-sm text-destructive">Could not load decision requests.</p><Button variant="outline" onClick={() => void query.refetch()}>Try again</Button></div>;
   return <DecisionHistoryTable entries={query.data ?? []} />;

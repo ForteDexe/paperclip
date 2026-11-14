@@ -28,7 +28,7 @@ const mockEnvironmentService = vi.hoisted(() => ({
   getById: vi.fn(),
 }));
 
-const mockCompanyService = vi.hoisted(() => ({
+const mockSpaceService = vi.hoisted(() => ({
   getById: vi.fn(),
 }));
 
@@ -47,7 +47,7 @@ const mockIssueReferenceService = vi.hoisted(() => ({
 }));
 
 const mockSecretService = vi.hoisted(() => ({
-  normalizeEnvBindingsForPersistence: vi.fn(async (_companyId: string, env: Record<string, unknown>) => env),
+  normalizeEnvBindingsForPersistence: vi.fn(async (_spaceId: string, env: Record<string, unknown>) => env),
 }));
 
 const mockLogActivity = vi.hoisted(() => vi.fn());
@@ -55,7 +55,7 @@ const mockLogActivity = vi.hoisted(() => vi.fn());
 vi.mock("../services/index.js", () => ({
   projectService: () => mockProjectService,
   issueService: () => mockIssueService,
-  companyService: () => mockCompanyService,
+  spaceService: () => mockSpaceService,
   environmentService: () => mockEnvironmentService,
   issueReferenceService: () => mockIssueReferenceService,
   logActivity: mockLogActivity,
@@ -73,13 +73,13 @@ vi.mock("../services/index.js", () => ({
   agentService: () => ({
     getById: vi.fn(),
   }),
-  companySkillService: () => ({
+  spaceSkillService: () => ({
     completeTestRunForIssue: vi.fn(async () => null),
   }),
   executionWorkspaceService: () => ({}),
   goalService: () => ({
     getById: vi.fn(),
-    getDefaultCompanyGoal: vi.fn(),
+    getDefaultSpaceGoal: vi.fn(),
   }),
   heartbeatService: () => ({
     getRun: vi.fn(),
@@ -134,7 +134,7 @@ function buildApp(routerFactory: (app: express.Express) => void) {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = {
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "local_implicit",
     };
@@ -195,9 +195,9 @@ describe("execution environment route guards", () => {
     mockIssueService.update.mockReset();
     mockIssueService.getByIdentifier.mockReset();
     mockIssueService.assertCheckoutOwner.mockReset();
-    mockCompanyService.getById.mockReset();
-    mockCompanyService.getById.mockResolvedValue({
-      id: "company-1",
+    mockSpaceService.getById.mockReset();
+    mockSpaceService.getById.mockResolvedValue({
+      id: "space-1",
     });
     mockEnvironmentService.getById.mockReset();
     mockIssueReferenceService.deleteDocumentSource.mockClear();
@@ -215,14 +215,14 @@ describe("execution environment route guards", () => {
     mockEnvironmentService.getById.mockResolvedValue(null);
     mockProjectService.create.mockResolvedValue({
       id: "project-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Legacy Project",
       status: "backlog",
     });
     const app = createProjectApp();
 
     const res = await request(app)
-      .post("/api/companies/company-1/projects")
+      .post("/api/spaces/space-1/projects")
       .send({
         name: "Legacy Project",
         executionWorkspacePolicy: {
@@ -239,7 +239,7 @@ describe("execution environment route guards", () => {
   it("ignores a stale legacy policy environment on project update", async () => {
     mockProjectService.getById.mockResolvedValue({
       id: "project-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Legacy Project",
       status: "backlog",
       archivedAt: null,
@@ -247,7 +247,7 @@ describe("execution environment route guards", () => {
     mockEnvironmentService.getById.mockResolvedValue(null);
     mockProjectService.update.mockResolvedValue({
       id: "project-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Legacy Project",
       status: "backlog",
     });
@@ -270,13 +270,13 @@ describe("execution environment route guards", () => {
   it("accepts sandbox environments on issue create", async () => {
     mockEnvironmentService.getById.mockResolvedValue({
       id: sandboxEnvironmentId,
-      companyId: "company-1",
+      spaceId: "space-1",
       driver: "sandbox",
       config: { provider: "fake-plugin" },
     });
     mockIssueService.create.mockResolvedValue({
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       title: "Sandboxed Issue",
       status: "todo",
       identifier: "PAPA-999",
@@ -284,7 +284,7 @@ describe("execution environment route guards", () => {
     const app = createIssueApp();
 
     const res = await request(app)
-      .post("/api/companies/company-1/issues")
+      .post("/api/spaces/space-1/issues")
       .send({
         title: "Sandboxed Issue",
         executionWorkspaceSettings: {
@@ -299,14 +299,14 @@ describe("execution environment route guards", () => {
   it("rejects unsupported driver environments on issue create", async () => {
     mockEnvironmentService.getById.mockResolvedValue({
       id: sandboxEnvironmentId,
-      companyId: "company-1",
+      spaceId: "space-1",
       driver: "unsupported_driver",
       config: {},
     });
     const app = createIssueApp();
 
     const res = await request(app)
-      .post("/api/companies/company-1/issues")
+      .post("/api/spaces/space-1/issues")
       .send({
         title: "Unsupported Driver Issue",
         executionWorkspaceSettings: {
@@ -322,14 +322,14 @@ describe("execution environment route guards", () => {
   it("rejects built-in fake sandbox environments on issue create", async () => {
     mockEnvironmentService.getById.mockResolvedValue({
       id: sandboxEnvironmentId,
-      companyId: "company-1",
+      spaceId: "space-1",
       driver: "sandbox",
       config: { provider: "fake" },
     });
     const app = createIssueApp();
 
     const res = await request(app)
-      .post("/api/companies/company-1/issues")
+      .post("/api/spaces/space-1/issues")
       .send({
         title: "Fake Sandbox Issue",
         executionWorkspaceSettings: {
@@ -345,13 +345,13 @@ describe("execution environment route guards", () => {
   it("accepts plugin-backed sandbox environments on issue create", async () => {
     mockEnvironmentService.getById.mockResolvedValue({
       id: sandboxEnvironmentId,
-      companyId: "company-1",
+      spaceId: "space-1",
       driver: "sandbox",
       config: { provider: "fake-plugin" },
     });
     mockIssueService.create.mockResolvedValue({
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       title: "Plugin Sandbox Issue",
       status: "todo",
       identifier: "PAPA-999",
@@ -359,7 +359,7 @@ describe("execution environment route guards", () => {
     const app = createIssueApp();
 
     const res = await request(app)
-      .post("/api/companies/company-1/issues")
+      .post("/api/spaces/space-1/issues")
       .send({
         title: "Plugin Sandbox Issue",
         executionWorkspaceSettings: {
@@ -374,7 +374,7 @@ describe("execution environment route guards", () => {
   it("accepts sandbox environments on issue update", async () => {
     mockIssueService.getById.mockResolvedValue({
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "todo",
       assigneeAgentId: null,
       assigneeUserId: null,
@@ -383,13 +383,13 @@ describe("execution environment route guards", () => {
     });
     mockEnvironmentService.getById.mockResolvedValue({
       id: sandboxEnvironmentId,
-      companyId: "company-1",
+      spaceId: "space-1",
       driver: "sandbox",
       config: { provider: "fake-plugin" },
     });
     mockIssueService.update.mockResolvedValue({
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "todo",
       identifier: "PAPA-999",
     });

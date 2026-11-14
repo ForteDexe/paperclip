@@ -140,7 +140,7 @@ const journeys = [
   [
     "Project owner · Add a member",
     "owner-adds-project-member",
-    "Find Sam in the company directory and grant project access.",
+    "Find Sam in the space directory and grant project access.",
   ],
 ];
 function Overview() {
@@ -242,7 +242,7 @@ function Overview() {
             </li>
             <li>
               Reload a story to reset its in-memory changes. No story connects
-              to Gmail or changes a real company's data.
+              to Gmail or changes a real space's data.
             </li>
           </ol>
           <p>
@@ -261,7 +261,7 @@ export default {
   id: "private-tasks-00-review-guide",
   title: "Getting started and access/Login, invitations, and access/Private tasks/00 Review guide",
   parameters: { layout: "fullscreen", docs: { story: { inline: false } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "access/resources",
         "tasks/properties"

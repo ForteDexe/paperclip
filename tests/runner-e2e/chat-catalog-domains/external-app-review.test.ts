@@ -40,7 +40,7 @@ function valid() {
   const factualContextAttachment = { id: "draft", originalFilename: "launch-update.md", contentPath: "/api/attachments/draft/content" };
   return {
     scenarioId: "app-permissions.ask-before-action",
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     reply: "The launch update was applied.",
     phaseReplies: phases.map((phase, index) => ({
@@ -99,7 +99,7 @@ function valid() {
       phases,
       factualContextAttachment,
       factualContextVerified: true,
-      companyId: "company",
+      spaceId: "space",
       leadId: "ceo",
       personId: "person",
       projectId: "project",
@@ -121,7 +121,7 @@ function valid() {
           {
             invocation: {
               id: phase.invocationId,
-              companyId: "company",
+              spaceId: "space",
               toolName: phase.toolName,
               runId: phase.requestRunId,
               agentId: "ceo",
@@ -143,7 +143,7 @@ function valid() {
       trustRules: [
         {
           id: "rule",
-          companyId: "company",
+          spaceId: "space",
           policyType: "trust_rule",
           enabled: true,
           selectors: {

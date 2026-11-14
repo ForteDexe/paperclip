@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, wr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolveRemotePaperclipRunnerBinary } from "./native-codex-runner.js";
+import { resolveRemoteOutpostRunnerBinary } from "./native-codex-runner.js";
 import { stageRemoteRunnerDirectory, syncRemoteRunnerDirectoryOut } from "./native-session-executor.js";
 import {
   binaryTargetFromHeader,
@@ -53,7 +53,7 @@ describe.skipIf(process.platform === "win32")("run-path file work stays off the 
   let originalPath: string | undefined;
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), "paperclip-off-loop-"));
+    root = mkdtempSync(join(tmpdir(), "outpost-off-loop-"));
     originalPath = process.env.PATH;
     clearCachedFileSha256();
   });
@@ -83,7 +83,7 @@ describe.skipIf(process.platform === "win32")("run-path file work stays off the 
 
     let resolved = "";
     const gap = await longestTimerGapDuring(async () => {
-      resolved = await resolveRemotePaperclipRunnerBinary({ runner: runner as never, remoteCwd: "/workspace", configuredPath: binary });
+      resolved = await resolveRemoteOutpostRunnerBinary({ runner: runner as never, remoteCwd: "/workspace", configuredPath: binary });
     });
     writer.kill();
 
@@ -141,7 +141,7 @@ describe.skipIf(process.platform === "win32")("run-path file work stays off the 
 describe.skipIf(process.platform === "win32")("off-loop file helpers", () => {
   let root: string;
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), "paperclip-off-loop-helpers-"));
+    root = mkdtempSync(join(tmpdir(), "outpost-off-loop-helpers-"));
     clearCachedFileSha256();
   });
   afterEach(() => rmSync(root, { recursive: true, force: true }));

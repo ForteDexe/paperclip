@@ -27,11 +27,11 @@ import type {
   AttentionItem,
 } from "@outpost/shared";
 import type {
-  PaperclipQuestionResponse,
-  PaperclipQuestionSet,
+  OutpostQuestionResponse,
+  OutpostQuestionSet,
 } from "@outpost/adapter-utils";
 
-export type { PaperclipQuestionResponse, PaperclipQuestionSet };
+export type { OutpostQuestionResponse, OutpostQuestionSet };
 
 export type TaskChatProviderActivityFamily =
   | "plan"
@@ -130,7 +130,7 @@ export interface TaskChatMessageItem {
   kind: "message";
   author: TaskChatAuthorKind;
   authorName?: string;
-  /** Human identity comes from the company directory, matched by stored user ID. */
+  /** Human identity comes from the space directory, matched by stored user ID. */
   authorUserId?: string | null;
   authorAvatarUrl?: string | null;
   isCurrentUser?: boolean;
@@ -527,15 +527,15 @@ export interface TaskChatRuntimeRequestItem {
   prompt: string;
   choices: Array<{ key: string; label: string }>;
   fields: Array<{ name: string; label: string; placeholder: string | null }>;
-  questionSet?: PaperclipQuestionSet | null;
+  questionSet?: OutpostQuestionSet | null;
   resolvedAction?: string | null;
-  response?: PaperclipQuestionResponse | null;
+  response?: OutpostQuestionResponse | null;
 }
 
 export type TaskChatRuntimeRequestDecision =
   | { action: "accept" | "accept_for_session" | "decline" | "cancel" }
   | { action: "submit"; values: Record<string, string> }
-  | { action: "submit"; response: PaperclipQuestionResponse };
+  | { action: "submit"; response: OutpostQuestionResponse };
 
 export interface TaskChatRunResultItem {
   id: string;

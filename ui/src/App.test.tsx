@@ -107,7 +107,7 @@ describe("CloudAccessGate", () => {
   });
 
   it("renews a missing Cloud instance session without opening local auth", async () => {
-    mockHealthApi.get.mockResolvedValue({ deploymentMode: "authenticated", cloud: { managed: true, managedBy: "paperclip-cloud", cloudBaseUrl: "https://my-staging.outpost.app", stackSlug: "team" } });
+    mockHealthApi.get.mockResolvedValue({ deploymentMode: "authenticated", cloud: { managed: true, managedBy: "outpost-cloud", cloudBaseUrl: "https://my-staging.outpost.app", stackSlug: "team" } });
     mockAuthApi.getSession.mockResolvedValue(null);
     beginCloudSignInMock.mockReturnValue(true);
     const root = renderGate(container);
@@ -129,7 +129,7 @@ describe("CloudAccessGate", () => {
     unmountRoot(root);
   });
 
-  it.each([undefined, { managed: true, managedBy: "paperclip-cloud", cloudBaseUrl: "https://my.outpost.app", stackSlug: "team" }])(
+  it.each([undefined, { managed: true, managedBy: "outpost-cloud", cloudBaseUrl: "https://my.outpost.app", stackSlug: "team" }])(
     "does not require a session in local trusted mode, including with Cloud metadata %j", async (cloud) => {
     mockHealthApi.get.mockResolvedValue({ deploymentMode: "local_trusted", cloud });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -152,7 +152,7 @@ describe("CloudAccessGate", () => {
       user: { id: "user-1", email: "user@example.com", name: "User", image: null },
       userId: "user-1",
       isInstanceAdmin: false,
-      companyIds: [],
+      spaceIds: [],
       source: "session",
       keyId: null,
     });
@@ -168,7 +168,7 @@ describe("CloudAccessGate", () => {
 
   it("admits signed-in nonmembers only for the private invitation landing page", async () => {
     mockAuthApi.getSession.mockResolvedValue({ user: { id: "invitee" } });
-    mockAccessApi.getCurrentBoardAccess.mockResolvedValue({ userId: "invitee", isInstanceAdmin: false, companyIds: [] });
+    mockAccessApi.getCurrentBoardAccess.mockResolvedValue({ userId: "invitee", isInstanceAdmin: false, spaceIds: [] });
     const root = renderGate(container, true);
     await waitForText(container, "Outlet content");
     unmountRoot(root);
@@ -201,7 +201,7 @@ describe("CloudAccessGate", () => {
     unmountRoot(root);
   });
 
-  it("allows authenticated users with company access through to the board", async () => {
+  it("allows authenticated users with space access through to the operator", async () => {
     mockAuthApi.getSession.mockResolvedValue({
       session: { id: "session-1", userId: "user-1" },
       user: { id: "user-1", email: "user@example.com", name: "User", image: null },
@@ -210,7 +210,7 @@ describe("CloudAccessGate", () => {
       user: { id: "user-1", email: "user@example.com", name: "User", image: null },
       userId: "user-1",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
       source: "session",
       keyId: null,
     });
@@ -239,7 +239,7 @@ describe("CloudAccessGate", () => {
 
     expect(container.textContent).toContain("Finish setting up this Outpost");
     expect(container.textContent).toContain("Sign in / Create account");
-    expect(container.textContent).toContain("npx paperclipai auth bootstrap-ceo");
+    expect(container.textContent).toContain("npx @outpost/cli auth bootstrap-lead");
     expect(mockAccessApi.getCurrentBoardAccess).not.toHaveBeenCalled();
 
     unmountRoot(root);
@@ -321,7 +321,7 @@ describe("Apps routes", () => {
   it("redirects the retired Connectors and Tools surfaces to the dashboard", () => {
     expect(appSource).toContain('<Route path="apps/*" element={<Navigate to="/dashboard" replace />} />');
     expect(appSource).toContain('<Route path="tools/*" element={<Navigate to="/dashboard" replace />} />');
-    expect(appSource).toContain('<Route path="company/settings/tools/*" element={<Navigate to="/dashboard" replace />} />');
+    expect(appSource).toContain('<Route path="space/settings/tools/*" element={<Navigate to="/dashboard" replace />} />');
     expect(appSource).not.toContain('<Route path="apps" element={<Browse />} />');
   });
 });
@@ -329,7 +329,7 @@ describe("Apps routes", () => {
 describe("Retired settings routes", () => {
   it("redirects the removed heartbeats page to the settings root instead of dropping the route", () => {
     expect(appSource).toContain(
-      '<Route path="company/settings/instance/heartbeats" element={<Navigate to="/company/settings" replace />} />',
+      '<Route path="space/settings/instance/heartbeats" element={<Navigate to="/space/settings" replace />} />',
     );
     expect(appSource).not.toContain("<InstanceSettings");
     expect(appSource).not.toContain('"./pages/InstanceSettings"');

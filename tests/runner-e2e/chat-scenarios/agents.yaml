@@ -11,7 +11,7 @@ scenarios:
       - runs-adapters/validation
     context: >-
       No agent named Morgan exists. The CEO has hiring and configuration grants, an eligible
-      Claude Code account and computer are ready, and company policy does not require approval
+      Claude Code account and computer are ready, and space policy does not require approval
       for this hire.
     query: >-
       Hire Morgan as a frontend engineer using Claude Code, reporting to you.
@@ -39,7 +39,7 @@ scenarios:
       - agents/hire
       - questions-and-approvals/governance
     context: >-
-      The CEO may propose hires, but company policy requires board approval. The account and
+      The CEO may propose hires, but space policy requires board approval. The account and
       runtime are ready.
     query: >-
       Hire a QA engineer named Morgan.
@@ -92,13 +92,13 @@ scenarios:
     capabilities:
       - agents/instructions
     context: >-
-      Someone just added an unwanted rule to Morgan's instructions. Paperclip keeps only the
+      Someone just added an unwanted rule to Morgan's instructions. Outpost keeps only the
       current instruction files: saving does not record earlier versions, so Morgan's history
       is empty and no other saved copy of the earlier text exists.
     query: >-
       Undo Morgan's last instruction change.
     expected_outcome: >-
-      The agent checks what Paperclip actually retains instead of guessing. With no saved earlier
+      The agent checks what Outpost actually retains instead of guessing. With no saved earlier
       version, it leaves Morgan's instructions unchanged, does not reconstruct or invent a
       previous revision, says plainly that no instruction history exists to undo from, and asks
       the person for the text they want (or which rule to remove). If a real retained copy of the
@@ -112,7 +112,7 @@ scenarios:
       Have Morgan report to Riley from now on.
     expected_outcome: >-
       Morgan's saved manager becomes Riley and the org view agrees after reload. The agent
-      checks that the result remains a valid company reporting tree and does not change Morgan's
+      checks that the result remains a valid space reporting tree and does not change Morgan's
       account, task ownership or permissions just because the manager changed.
   - id: agents.choose-primary
     capabilities:
@@ -120,13 +120,13 @@ scenarios:
       - agent-chat/discovery
     context: >-
       The person has a primary agent already and wants Morgan instead. Primary-agent preferences
-      require the person's board session.
+      require the person's operator session.
     query: >-
       Make Morgan my go-to agent when I open Chat.
     expected_outcome: >-
       The agent explains the personal primary-agent choice and directs the person to Morgan's
       supported profile control, including the replacement confirmation. After the human action,
-      the preference belongs only to that person and company; a valid recent chat can still
+      the preference belongs only to that person and space; a valid recent chat can still
       reopen first. Chat does not falsely report a preference write by the agent.
   - id: agents.pause-agent
     capabilities:
@@ -145,7 +145,7 @@ scenarios:
       - agents/lifecycle
     context: >-
       Morgan is manually paused, the CEO has agent_config:update, and no budget, approval or
-      company hold remains.
+      space hold remains.
     query: >-
       Resume Morgan so they can pick up their work.
     expected_outcome: >-
@@ -170,7 +170,7 @@ scenarios:
     capabilities:
       - agents/built-in
     context: >-
-      The company has a built-in summarizer whose configuration is editable by the current actor
+      The space has a built-in summarizer whose configuration is editable by the current actor
       but whose identity is protected.
     query: >-
       Tune our summarizer to write shorter updates.
@@ -198,12 +198,12 @@ scenarios:
       - connection-setup/handoff
     context: >-
       The Grok Bot experiment is enabled and the person owns an existing Bot but has not
-      authorized Paperclip.
+      authorized Outpost.
     query: >-
       Connect my existing Grok Bot as an agent here.
     expected_outcome: >-
       The agent starts or points to the supported human authorization flow and preserves the
-      chosen company and Bot. Setup is complete only after the authenticated two-way challenge
+      chosen space and Bot. Setup is complete only after the authenticated two-way challenge
       succeeds. Chat states any unsupported workspace, usage or termination capability instead
       of promising parity with a local coding agent.
   - id: agents.managed-profile
@@ -213,7 +213,7 @@ scenarios:
       The person asks from ordinary Agent Chat; no qualified Anthropic managed-agent profile
       exists.
     query: >-
-      Set up an Anthropic managed agent for this company.
+      Set up an Anthropic managed agent for this space.
     expected_outcome: >-
       The agent explains that qualification and provider provisioning require the operator setup
       path, including the locked environment and retention acknowledgement. It identifies the

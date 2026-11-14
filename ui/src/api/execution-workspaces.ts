@@ -40,7 +40,7 @@ function normalizeWorkspaceOverview(response: WorkspaceOverviewResponse): Worksp
 }
 
 export const executionWorkspacesApi = {
-  listOverview: async (companyId: string, filters?: WorkspaceOverviewFilters) => {
+  listOverview: async (spaceId: string, filters?: WorkspaceOverviewFilters) => {
     const params = new URLSearchParams();
     if (filters?.projectId) params.set("projectId", filters.projectId);
     if (filters?.status?.length) params.set("status", filters.status.join(","));
@@ -48,12 +48,12 @@ export const executionWorkspacesApi = {
     if (filters?.offset !== undefined) params.set("offset", String(filters.offset));
     const qs = params.toString();
     const response = await api.get<WorkspaceOverviewResponse>(
-      `/companies/${companyId}/workspace-overview${qs ? `?${qs}` : ""}`,
+      `/spaces/${spaceId}/workspace-overview${qs ? `?${qs}` : ""}`,
     );
     return normalizeWorkspaceOverview(response);
   },
   listSummaries: (
-    companyId: string,
+    spaceId: string,
     filters?: {
       projectId?: string;
       projectWorkspaceId?: string;
@@ -75,22 +75,22 @@ export const executionWorkspacesApi = {
     params.set("summary", "true");
     const qs = params.toString();
     return api.get<ExecutionWorkspaceSummary[]>(
-      `/companies/${companyId}/execution-workspaces${qs ? `?${qs}` : ""}`,
+      `/spaces/${spaceId}/execution-workspaces${qs ? `?${qs}` : ""}`,
     );
   },
   /** Summaries for specific workspaces, read in server-sized chunks of ids. */
-  listSummariesByIds: async (companyId: string, ids: readonly string[]) => {
+  listSummariesByIds: async (spaceId: string, ids: readonly string[]) => {
     const chunks: string[][] = [];
     for (let index = 0; index < ids.length; index += EXECUTION_WORKSPACE_SUMMARY_IDS_MAX) {
       chunks.push(ids.slice(index, index + EXECUTION_WORKSPACE_SUMMARY_IDS_MAX));
     }
     const pages = await Promise.all(
-      chunks.map((chunk) => executionWorkspacesApi.listSummaries(companyId, { ids: chunk })),
+      chunks.map((chunk) => executionWorkspacesApi.listSummaries(spaceId, { ids: chunk })),
     );
     return pages.flat();
   },
   list: (
-    companyId: string,
+    spaceId: string,
     filters?: {
       projectId?: string;
       projectWorkspaceId?: string;
@@ -106,7 +106,7 @@ export const executionWorkspacesApi = {
     if (filters?.status) params.set("status", filters.status);
     if (filters?.reuseEligible) params.set("reuseEligible", "true");
     const qs = params.toString();
-    return api.get<ExecutionWorkspace[]>(`/companies/${companyId}/execution-workspaces${qs ? `?${qs}` : ""}`);
+    return api.get<ExecutionWorkspace[]>(`/spaces/${spaceId}/execution-workspaces${qs ? `?${qs}` : ""}`);
   },
   get: (id: string) => api.get<ExecutionWorkspace>(`/execution-workspaces/${id}`),
   getCloseReadiness: (id: string) =>

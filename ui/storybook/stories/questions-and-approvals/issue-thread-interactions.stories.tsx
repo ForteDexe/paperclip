@@ -29,7 +29,7 @@ import {
   expiredSecretProposalInteraction,
   genericPendingRequestConfirmationInteraction,
   agentAddressedRequestConfirmationInteraction,
-  companyCappedRequestConfirmationInteraction,
+  spaceCappedRequestConfirmationInteraction,
   humanOnlyRequestConfirmationInteraction,
   legacyRestrictedRequestConfirmationInteraction,
   notCreatorRequestConfirmationInteraction,
@@ -80,7 +80,7 @@ import type {
   RequestItemVerdictValue,
   SuggestTasksInteraction,
 } from "@/lib/issue-thread-interactions";
-import { storybookAgentMap } from "../../fixtures/paperclipData";
+import { storybookAgentMap } from "../../fixtures/outpostData";
 
 const boardUserLabels = new Map<string, string>([
   [issueThreadInteractionFixtureMeta.currentUserId, "Riley Board"],
@@ -89,8 +89,8 @@ const boardUserLabels = new Map<string, string>([
 
 function StoryFrame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="paperclip-story">
-      <main className="paperclip-story__inner space-y-6">{children}</main>
+    <div className="outpost-story">
+      <main className="outpost-story__inner space-y-6">{children}</main>
     </div>
   );
 }
@@ -105,10 +105,10 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="paperclip-story__frame overflow-hidden">
+    <section className="outpost-story__frame overflow-hidden">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div>
-          <div className="paperclip-story__label">{eyebrow}</div>
+          <div className="outpost-story__label">{eyebrow}</div>
           <h2 className="mt-1 text-xl font-semibold">{title}</h2>
         </div>
       </div>
@@ -442,7 +442,7 @@ const meta = {
           "Interaction cards for `suggest_tasks`, `ask_user_questions`, `request_confirmation`, and `request_checkbox_confirmation`, shown both in isolation and inside the real `IssueChatThread` feed.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "questions-and-approvals/questions",
         "questions-and-approvals/confirmations",
@@ -788,7 +788,7 @@ export const ConnectionIntentStates: Story = {
           </ScenarioCard>
           <ScenarioCard
             title="Other viewer"
-            description="Other viewers see who Paperclip is waiting for and receive no connection controls."
+            description="Other viewers see who Outpost is waiting for and receive no connection controls."
           >
             <IssueThreadInteractionCard
               interaction={pendingConnectionIntentInteraction}
@@ -1180,7 +1180,7 @@ export const SecretProposalAllStates: Story = {
 /**
  * PAP-17280: the audience row every pending card now carries. `Anyone` is the
  * default a requester gets by omitting `resolverPolicy`; the rest are the
- * narrowings a requester, a company cap, or a governed action asks for.
+ * narrowings a requester, a space cap, or a governed action asks for.
  */
 export const ResolverAudienceStates: Story = {
   render: () => (
@@ -1189,7 +1189,7 @@ export const ResolverAudienceStates: Story = {
         <div className="grid gap-6 xl:grid-cols-2">
           <ScenarioCard
             title="Default · Anyone"
-            description="No resolverPolicy was requested, so the card is open company attention — the board or any agent, including the one that asked."
+            description="No resolverPolicy was requested, so the card is open space attention — the board or any agent, including the one that asked."
           >
             <AudienceCard interaction={pendingRequestConfirmationInteraction} />
           </ScenarioCard>
@@ -1218,11 +1218,11 @@ export const ResolverAudienceStates: Story = {
             />
           </ScenarioCard>
           <ScenarioCard
-            title="Narrowed by a company cap"
-            description="The request asked for Anyone; company interaction governance capped the kind, and the card explains the narrowing."
+            title="Narrowed by a space cap"
+            description="The request asked for Anyone; space interaction governance capped the kind, and the card explains the narrowing."
           >
             <AudienceCard
-              interaction={companyCappedRequestConfirmationInteraction}
+              interaction={spaceCappedRequestConfirmationInteraction}
             />
           </ScenarioCard>
           <ScenarioCard
@@ -1534,8 +1534,8 @@ export const ItemVerdictsManyItems: Story = {
 export const ReviewSurface: Story = {
   render: () => (
     <StoryFrame>
-      <section className="paperclip-story__frame p-6">
-        <div className="paperclip-story__label">Thread interactions</div>
+      <section className="outpost-story__frame p-6">
+        <div className="outpost-story__label">Thread interactions</div>
         <div className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
           This review surface pressure-tests the thread interaction kinds
           directly inside the issue chat surface. The card language leans closer
@@ -1676,7 +1676,7 @@ export const ReviewSurface: Story = {
               liveRuns={issueThreadInteractionLiveRuns}
               transcriptsByRunId={issueThreadInteractionTranscriptsByRunId}
               hasOutputForRun={(runId) => runId === "run-thread-live"}
-              companyId={issueThreadInteractionFixtureMeta.companyId}
+              spaceId={issueThreadInteractionFixtureMeta.spaceId}
               projectId={issueThreadInteractionFixtureMeta.projectId}
               currentUserId={issueThreadInteractionFixtureMeta.currentUserId}
               userLabelMap={boardUserLabels}

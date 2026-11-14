@@ -66,7 +66,7 @@ describe("Cloudflare sandbox provider plugin", () => {
         normalizeId: false,
         requestedCwd: "/workspace/custom",
         sessionStrategy: "default",
-        sessionId: "paperclip",
+        sessionId: "outpost",
         timeoutMs: 450000,
         bridgeRequestTimeoutMs: 40000,
         previewHostname: null,
@@ -100,7 +100,7 @@ describe("Cloudflare sandbox provider plugin", () => {
         providerLeaseId: "pc-run-1-abcd1234",
         metadata: {
           provider: "cloudflare",
-          remoteCwd: "/workspace/paperclip",
+          remoteCwd: "/workspace/outpost",
           resumedLease: false,
         },
       }),
@@ -108,11 +108,11 @@ describe("Cloudflare sandbox provider plugin", () => {
 
     const lease = await plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "cloudflare",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       issueId: "issue-1",
       runId: "run-1",
-      requestedCwd: "/workspace/paperclip",
+      requestedCwd: "/workspace/outpost",
       config: {
         bridgeBaseUrl: "https://bridge.example.workers.dev",
         bridgeAuthToken: "resolved-token",
@@ -123,25 +123,25 @@ describe("Cloudflare sandbox provider plugin", () => {
       providerLeaseId: "pc-run-1-abcd1234",
       metadata: {
         provider: "cloudflare",
-        remoteCwd: "/workspace/paperclip",
+        remoteCwd: "/workspace/outpost",
         resumedLease: false,
       },
     });
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://bridge.example.workers.dev/api/paperclip-sandbox/v1/leases/acquire",
+      "https://bridge.example.workers.dev/api/outpost-sandbox/v1/leases/acquire",
       expect.objectContaining({
         method: "POST",
         headers: expect.any(Headers),
       }),
     );
-    expect(requestHeadersAt().get("X-Paperclip-Run-Id")).toBe("run-1");
-    expect(requestHeadersAt().get("X-Paperclip-Environment-Id")).toBe("env-1");
-    expect(requestHeadersAt().get("X-Paperclip-Issue-Id")).toBe("issue-1");
+    expect(requestHeadersAt().get("X-Outpost-Run-Id")).toBe("run-1");
+    expect(requestHeadersAt().get("X-Outpost-Environment-Id")).toBe("env-1");
+    expect(requestHeadersAt().get("X-Outpost-Issue-Id")).toBe("issue-1");
     expect(requestBodyAt()).toMatchObject({
       environmentId: "env-1",
       runId: "run-1",
       issueId: "issue-1",
-      requestedCwd: "/workspace/paperclip",
+      requestedCwd: "/workspace/outpost",
     });
   });
 
@@ -149,16 +149,16 @@ describe("Cloudflare sandbox provider plugin", () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         providerLeaseId: "pc-run-1-abcd1234",
-        metadata: { provider: "cloudflare", remoteCwd: "/workspace/paperclip", resumedLease: false },
+        metadata: { provider: "cloudflare", remoteCwd: "/workspace/outpost", resumedLease: false },
       }),
     );
 
     await plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "cloudflare",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
-      requestedCwd: "/workspace/paperclip",
+      requestedCwd: "/workspace/outpost",
       config: {
         bridgeBaseUrl: "https://bridge.example.workers.dev",
         bridgeAuthToken: "resolved-token",
@@ -181,10 +181,10 @@ describe("Cloudflare sandbox provider plugin", () => {
 
     const lease = await plugin.definition.onEnvironmentResumeLease?.({
       driverKey: "cloudflare",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "pc-env-env-1",
-      leaseMetadata: { remoteCwd: "/workspace/paperclip" },
+      leaseMetadata: { remoteCwd: "/workspace/outpost" },
       config: {
         bridgeBaseUrl: "https://bridge.example.workers.dev",
         bridgeAuthToken: "resolved-token",
@@ -206,19 +206,19 @@ describe("Cloudflare sandbox provider plugin", () => {
         exitCode: 0,
         signal: null,
         timedOut: false,
-        stdout: "/workspace/paperclip\n",
+        stdout: "/workspace/outpost\n",
         stderr: "",
       }),
     );
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "cloudflare",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       lease: { providerLeaseId: "pc-run-1-abcd1234", metadata: {} },
       command: "pwd",
       args: [],
-      cwd: "/workspace/paperclip",
+      cwd: "/workspace/outpost",
       config: {
         bridgeBaseUrl: "https://bridge.example.workers.dev",
         bridgeAuthToken: "resolved-token",
@@ -229,7 +229,7 @@ describe("Cloudflare sandbox provider plugin", () => {
       exitCode: 0,
       signal: null,
       timedOut: false,
-      stdout: "/workspace/paperclip\n",
+      stdout: "/workspace/outpost\n",
       stderr: "",
     });
   });
@@ -253,12 +253,12 @@ describe("Cloudflare sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentExecute?.({
       driverKey: "cloudflare",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       lease: { providerLeaseId: "pc-run-1-abcd1234", metadata: {} },
       command: "sh",
       args: ["-lc", "ls"],
-      cwd: "/workspace/paperclip",
+      cwd: "/workspace/outpost",
       env: {
         OUTPOST_SANDBOX_EXEC_CHANNEL: "bridge",
         KEEP_ME: "visible",
@@ -267,13 +267,13 @@ describe("Cloudflare sandbox provider plugin", () => {
         bridgeBaseUrl: "https://bridge.example.workers.dev",
         bridgeAuthToken: "resolved-token",
         sessionStrategy: "default",
-        sessionId: "paperclip",
+        sessionId: "outpost",
       },
     });
 
     expect(requestBodyAt()).toMatchObject({
       sessionStrategy: "named",
-      sessionId: "paperclip-bridge",
+      sessionId: "outpost-bridge",
       env: {
         KEEP_ME: "visible",
       },
@@ -306,18 +306,18 @@ describe("Cloudflare sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentExecute?.({
       driverKey: "cloudflare",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       lease: { providerLeaseId: "pc-run-1-abcd1234", metadata: {} },
       command: "echo",
       args: ["hello"],
-      cwd: "/workspace/paperclip",
+      cwd: "/workspace/outpost",
       env: { KEEP_ME: "visible" },
       config: {
         bridgeBaseUrl: "https://bridge.example.workers.dev",
         bridgeAuthToken: "resolved-token",
         sessionStrategy: "named",
-        sessionId: "paperclip",
+        sessionId: "outpost",
       },
     });
 
@@ -337,12 +337,12 @@ describe("Cloudflare sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "cloudflare",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       lease: { providerLeaseId: "pc-run-1-abcd1234", metadata: {} },
       command: "pwd",
       args: [],
-      cwd: "/workspace/paperclip",
+      cwd: "/workspace/outpost",
       config: {
         bridgeBaseUrl: "https://bridge.example.workers.dev",
         bridgeAuthToken: "resolved-token",
@@ -371,12 +371,12 @@ describe("Cloudflare sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentRealizeWorkspace?.({
       driverKey: "cloudflare",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       issueId: "issue-1",
       lease: {
         providerLeaseId: "pc-run-1-abcd1234",
-        metadata: { remoteCwd: "/workspace/paperclip" },
+        metadata: { remoteCwd: "/workspace/outpost" },
       },
       workspace: {
         localPath: "/tmp/project",
@@ -390,8 +390,8 @@ describe("Cloudflare sandbox provider plugin", () => {
         bridgeBaseUrl: "https://bridge.example.workers.dev",
         bridgeAuthToken: "resolved-token",
       },
-    })).rejects.toThrow("Failed to prepare Cloudflare sandbox workspace at /workspace/paperclip: mkdir: permission denied");
+    })).rejects.toThrow("Failed to prepare Cloudflare sandbox workspace at /workspace/outpost: mkdir: permission denied");
 
-    expect(requestHeadersAt().get("X-Paperclip-Issue-Id")).toBe("issue-1");
+    expect(requestHeadersAt().get("X-Outpost-Issue-Id")).toBe("issue-1");
   });
 });

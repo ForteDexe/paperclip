@@ -183,22 +183,22 @@ it.each([
   if (remote) vi.stubEnv("OUTPOST_E2E_REMOTE_GATEWAY_ORIGIN", origin);
   vi.stubEnv("OUTPOST_E2E_GATEWAY_TOKEN", "ephemeral-fixture-token");
   const id = "11111111-1111-4111-8111-111111111111", grantId = "22222222-2222-4222-8222-222222222222";
-  let connection: unknown, agent: Record<string, any> | undefined, company: Record<string, unknown> | undefined;
+  let connection: unknown, agent: Record<string, any> | undefined, space: Record<string, unknown> | undefined;
   const api = {
     async get() { return [{ id, driver: "local" }]; },
     async postSensitive(url: string, body: unknown) { if (url.endsWith("/ai-connections")) { connection = body; return { connectionId: id, grantId }; } return { id }; },
-    async post(url: string, body: Record<string, unknown>) { if (url.endsWith("/agents")) agent = body; if (url === "/api/companies") company = body; return { id, name: "fixture" }; },
+    async post(url: string, body: Record<string, unknown>) { if (url.endsWith("/agents")) agent = body; if (url === "/api/spaces") space = body; return { id, name: "fixture" }; },
     async delete() {},
   } as unknown as RunnerApi;
   const fixtures = await setupLiveFixtures({ api, execution: selected, executionNonce: "fixture", workspacePath: "/tmp/fixture", credentials: { [selected.profile.credential]: "ephemeral-fixture-token", ...(remote ? { DAYTONA_API_KEY: "fixture-daytona" } : {}) },
-    ...(remote ? { daytonaImage: `ghcr.io/paperclip/image@sha256:${"a".repeat(64)}` } : {}) });
+    ...(remote ? { daytonaImage: `ghcr.io/outpost/image@sha256:${"a".repeat(64)}` } : {}) });
   await fixtures.teardown();
   expect(createAiConnectionSchema.parse(connection)).toMatchObject({ ownership: "shared", apiKey: "ephemeral-fixture-token", routing: { kind: "gateway", protocol: anthropic ? "messages" : "responses", baseUrl: `${origin}${anthropic ? "" : "/v1"}`, auth: "bearer" } });
   expect(aiConnectionBindingSchema.parse(agent!.runtimeConfig.aiConnection)).toEqual({ provider: anthropic ? "anthropic" : "openai", method: "api_key", mode: "shared", connectionId: id, grantId });
   expect(agent!.adapterConfig.env).toBeUndefined();
   expect(agent!.adapterConfig.helloProbeTimeoutSec).toBe(remote ? 300 : undefined);
   if (selected.suite.id === "feedback-persistence") {
-    expect(company!.budgetMonthlyCents).toBe(1_000);
+    expect(space!.budgetMonthlyCents).toBe(1_000);
     expect(agent!.budgetMonthlyCents).toBe(1_000);
   }
 });

@@ -405,11 +405,11 @@ function HumanAccessCards({
     <div className="space-y-3">
       <RadioCardGroup
         ariaLabel="Which humans can use this credential"
-        value={personal ? "personal" : restricted ? "selected" : "company"}
+        value={personal ? "personal" : restricted ? "selected" : "space"}
         className="sm:grid-cols-2"
         onValueChange={(next) => {
           if (!canEditAudience || personal) return;
-          if (next === "company") onChooseAll();
+          if (next === "space") onChooseAll();
           if (next === "selected") onChooseSelected();
         }}
         options={personal ? [
@@ -428,7 +428,7 @@ function HumanAccessCards({
             disabled: !canEditAudience,
           },
           {
-            value: "company",
+            value: "space",
             title: "Any human in the outpost",
             description: "Anyone in your outpost can use this connection.",
             icon: <Building2 className="h-4 w-4" />,

@@ -61,7 +61,7 @@ export type NativeWorkspaceSyncRetentionResult = {
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 type RunRow = {
-  company_id: string;
+  space_id: string;
   status: string;
   finished_at: string | Date | null;
   process_pid: number | null;
@@ -166,36 +166,36 @@ async function retentionBlocker(
     select
       exists(
         select 1 from issue_recovery_actions
-        where company_id = ${run.company_id} and evidence->>'runId' = ${runId}
+        where space_id = ${run.space_id} and evidence->>'runId' = ${runId}
           and status in ('active', 'escalated')
           and cause in (${sql.join(workspaceExportCauses.map((cause) => sql`${cause}`), sql`, `)})
       ) as export_recovery,
       exists(
         select 1 from issue_recovery_actions
-        where company_id = ${run.company_id} and evidence->>'runId' = ${runId}
+        where space_id = ${run.space_id} and evidence->>'runId' = ${runId}
           and status in ('active', 'escalated') and cause = ${NATIVE_WORKSPACE_OWNER_UNVERIFIED}
       ) as owner_unverified,
       exists(
         select 1 from environment_leases
-        where company_id = ${run.company_id}
+        where space_id = ${run.space_id}
           and (heartbeat_run_id = ${runId} or id::text = ${reference.leaseId})
           and (coalesce(metadata, '{}'::jsonb) ? 'nativeWorkspaceExportResume'
             or metadata->>'pendingCleanupInFlight' = 'true')
       ) as export_resume,
       exists(
         select 1 from environment_leases
-        where company_id = ${run.company_id} and id::text = ${reference.leaseId}
+        where space_id = ${run.space_id} and id::text = ${reference.leaseId}
           and metadata->'remoteExecutionTermination'->>'state' = 'destroyed'
       ) as lease_destroyed,
       exists(
         select 1 from issue_recovery_actions
-        where company_id = ${run.company_id} and evidence->>'runId' = ${runId}
+        where space_id = ${run.space_id} and evidence->>'runId' = ${runId}
           and (evidence->'systemRecovery'->>'state' in (${sql.join(RETAINED_RECOVERY_STATES.map((state) => sql`${state}`), sql`, `)})
             or evidence->'workspaceRecovery'->>'status' in (${sql.join(RETAINED_WORKSPACE_RECOVERY_STATUSES.map((status) => sql`${status}`), sql`, `)}))
       ) as retained_recovery,
       exists(
         select 1 from issue_recovery_actions
-        where company_id = ${run.company_id} and evidence->>'runId' = ${runId}
+        where space_id = ${run.space_id} and evidence->>'runId' = ${runId}
           and not (evidence ? 'systemRecovery')
           and (evidence->'workspaceRestoreRecovery'->>'schema' = ${RESTORE_RECOVERY_SCHEMA}
             or cause in (${sql.join(workspaceExportCauses.map((cause) => sql`${cause}`), sql`, `)}))
@@ -238,7 +238,7 @@ async function runProcessMayBeLive(
   const { run } = input;
   if (run.process_pid === null && run.process_group_id === null) return false;
   const leases = (await _tx.execute(sql`
-    select provider from environment_leases where company_id = ${run.company_id} and heartbeat_run_id = ${input.runId}
+    select provider from environment_leases where space_id = ${run.space_id} and heartbeat_run_id = ${input.runId}
   `)) as unknown as Array<{ provider: string }>;
   if (leases.length > 0 && leases.every((lease) => lease.provider !== "local")) return false;
   const proof = await proveRunProcessGone({
@@ -258,7 +258,7 @@ function sharedProbe(probe: ProcessProbe): OwnerProcessProbe | undefined {
 
 async function readRun(tx: Tx, runId: string): Promise<RunRow | undefined> {
   const [run] = (await tx.execute(sql`
-    select company_id, status, finished_at, process_pid, process_group_id, process_started_at, process_host_hash,
+    select space_id, status, finished_at, process_pid, process_group_id, process_started_at, process_host_hash,
       (controller_lease_expires_at is not null and controller_lease_expires_at >= now()) as controller_live,
       (runner_profile_json->>'nativeWorkspaceFinalizationOwner' is not null) as owner_present,
       runner_profile_json->'nativeWorkspaceSync' as reference
@@ -313,7 +313,7 @@ export function nativeWorkspaceSyncRetentionService(
       const initial = await readRun(tx, name);
       if (initial) {
         const [lock] = (await tx.execute(sql`
-          select pg_try_advisory_xact_lock(hashtextextended(${nativeWorkspaceFinalizationLockKey(initial.company_id, name)}, 0)) as acquired
+          select pg_try_advisory_xact_lock(hashtextextended(${nativeWorkspaceFinalizationLockKey(initial.space_id, name)}, 0)) as acquired
         `)) as unknown as Array<{ acquired: boolean }>;
         if (lock?.acquired !== true) return { reason: "finalization_locked" };
       }

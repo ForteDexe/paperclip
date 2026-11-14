@@ -250,8 +250,8 @@ function AgentRoutingFields({
           {denied && (
             <Notice error>
               {scenario === "missing-personal"
-                ? "Sam has no credential for Engineering gateway. Sam needs to connect to this destination, or choose an authorized company credential."
-                : "You don’t have access to this company credential. Ask its owner for access or choose another connection."}
+                ? "Sam has no credential for Engineering gateway. Sam needs to connect to this destination, or choose an authorized space credential."
+                : "You don’t have access to this space credential. Ask its owner for access or choose another connection."}
             </Notice>
           )}
         </>
@@ -351,7 +351,7 @@ function AgentRoutingFields({
               change();
             }}
             options={[
-              { value: "cloud", label: "Company AWS workspace" },
+              { value: "cloud", label: "Space AWS workspace" },
               { value: "local", label: "Local machine" },
             ]}
           />
@@ -393,7 +393,7 @@ function AgentRoutingFields({
                       {
                         code: "environment",
                         level: "info",
-                        message: `Tested in ${environment === "cloud" ? "Company AWS workspace" : "Local machine"}`,
+                        message: `Tested in ${environment === "cloud" ? "Space AWS workspace" : "Local machine"}`,
                       },
                       {
                         code: "tools",

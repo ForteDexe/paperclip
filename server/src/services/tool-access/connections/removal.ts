@@ -15,7 +15,7 @@ import { browserUseService } from "../../browser-use.js";
 import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { connectionGrants, connectionTokenIssuances, companySecretBindings, companySecrets, userSecretDefinitions, userSecretDeclarations, toolApplications, toolCatalogEntries, toolConnectionInstalls, toolConnections, toolOauthStates, toolGatewaySessions, toolMcpGateways, toolMcpGatewayTokens, toolProfileBindings, toolProfileEntries, toolProfiles, toolRuntimeSlots } from "@outpost/db";
+import { connectionGrants, connectionTokenIssuances, spaceSecretBindings, spaceSecrets, userSecretDefinitions, userSecretDeclarations, toolApplications, toolCatalogEntries, toolConnectionInstalls, toolConnections, toolOauthStates, toolGatewaySessions, toolMcpGateways, toolMcpGatewayTokens, toolProfileBindings, toolProfileEntries, toolProfiles, toolRuntimeSlots } from "@outpost/db";
 import type { ToolConnectionRemovalResult, ToolConnectionRemovalSummary } from "@outpost/shared";
 import { notFound } from "../../../errors.js";
 import { logger } from "../../../middleware/logger.js";
@@ -81,7 +81,7 @@ type RemovalDependencies = {
   secrets: ReturnType<typeof secretService>;
   runtimeSupervisor: Pick<ReturnType<typeof createToolRuntimeSupervisor>, "stopSlot">;
   vercelConnect: VercelConnectClient | null;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
 };
 
 export function createConnectionRemoval(db: Db, { options, secrets, runtimeSupervisor, vercelConnect, getConnectionRow }: RemovalDependencies) {
@@ -97,7 +97,7 @@ export function createConnectionRemoval(db: Db, { options, secrets, runtimeSuper
    *    connect/reconnect/OAuth paths mint, or its user-secret definition does.
    *    Personal definitions must also have no declarations on other targets.
    * 2. Exclusivity — nothing outside this connection references it: no
-   *    `company_secret_bindings` row from another target, and no other
+   *    `space_secret_bindings` row from another target, and no other
    *    connection or connection grant naming the same secret id.
    *
    * A secret failing either test is reported as retained; removal still drops
@@ -119,29 +119,29 @@ async function classifyConnectionSecrets(
 
     const secretRows = await db
       .select({
-        id: companySecrets.id,
-        key: companySecrets.key,
-        scope: companySecrets.scope,
-        userSecretDefinitionId: companySecrets.userSecretDefinitionId,
+        id: spaceSecrets.id,
+        key: spaceSecrets.key,
+        scope: spaceSecrets.scope,
+        userSecretDefinitionId: spaceSecrets.userSecretDefinitionId,
       })
-      .from(companySecrets)
+      .from(spaceSecrets)
       .where(
         and(
-          eq(companySecrets.companyId, connection.companyId),
-          inArray(companySecrets.id, unique),
+          eq(spaceSecrets.spaceId, connection.spaceId),
+          inArray(spaceSecrets.id, unique),
         ),
       );
     const byId = new Map(secretRows.map((row) => [row.id, row]));
 
     const referencedElsewhere = await connectionSecretsUsedByOtherConsumers(db, unique);
     const foreignBindings = await db
-      .select({ secretId: companySecretBindings.secretId })
-      .from(companySecretBindings)
+      .select({ secretId: spaceSecretBindings.secretId })
+      .from(spaceSecretBindings)
       .where(
         and(
-          eq(companySecretBindings.companyId, connection.companyId),
-          inArray(companySecretBindings.secretId, unique),
-          sql`not (${companySecretBindings.targetType} = 'tool_connection' and ${companySecretBindings.targetId} = ${connection.id})`,
+          eq(spaceSecretBindings.spaceId, connection.spaceId),
+          inArray(spaceSecretBindings.secretId, unique),
+          sql`not (${spaceSecretBindings.targetType} = 'tool_connection' and ${spaceSecretBindings.targetId} = ${connection.id})`,
         ),
       );
     for (const row of foreignBindings) referencedElsewhere.add(row.secretId);
@@ -157,7 +157,7 @@ async function classifyConnectionSecrets(
       .from(toolConnections)
       .where(
         and(
-          eq(toolConnections.companyId, connection.companyId),
+          eq(toolConnections.spaceId, connection.spaceId),
           ne(toolConnections.id, connection.id),
         ),
       );
@@ -172,7 +172,7 @@ async function classifyConnectionSecrets(
       .from(connectionGrants)
       .where(
         and(
-          eq(connectionGrants.companyId, connection.companyId),
+          eq(connectionGrants.spaceId, connection.spaceId),
           ne(connectionGrants.connectionId, connection.id),
         ),
       );
@@ -183,7 +183,7 @@ async function classifyConnectionSecrets(
 
     const definitionIds = secretRows.flatMap((row) => row.userSecretDefinitionId ? [row.userSecretDefinitionId] : []);
     const definitions = definitionIds.length ? await db.select().from(userSecretDefinitions)
-      .where(and(eq(userSecretDefinitions.companyId, connection.companyId), inArray(userSecretDefinitions.id, definitionIds))) : [];
+      .where(and(eq(userSecretDefinitions.spaceId, connection.spaceId), inArray(userSecretDefinitions.id, definitionIds))) : [];
     const dedicatedDefinitions = new Set(definitions.filter((row) => row.key.startsWith(CONNECTION_OWNED_SECRET_KEY_PREFIX) || row.key.startsWith(`tool_oauth.${connection.id}.`)).map((row) => row.id));
     const foreignDeclarations = definitionIds.length ? await db.select().from(userSecretDeclarations).where(and(
       inArray(userSecretDeclarations.userSecretDefinitionId, definitionIds),
@@ -203,7 +203,7 @@ async function classifyConnectionSecrets(
       }
       const dedicated = row.scope === "user" && row.userSecretDefinitionId
         ? dedicatedDefinitions.has(row.userSecretDefinitionId) && !sharedDefinitions.has(row.userSecretDefinitionId)
-        : row.scope === "company" && row.userSecretDefinitionId === null
+        : row.scope === "space" && row.userSecretDefinitionId === null
           && row.key.startsWith(CONNECTION_OWNED_SECRET_KEY_PREFIX);
       if (dedicated && !referencedElsewhere.has(secretId)) owned.push(secretId);
       else retained.push(secretId);
@@ -230,13 +230,13 @@ async function classifyConnectionSecrets(
    */
 async function removeConnection(
     connectionId: string,
-    companyId?: string,
+    spaceId?: string,
     actor?: ActorInfo,
   ): Promise<ToolConnectionRemovalResult> {
     await actor?.managementContext?.reauthorize();
-    const connection = await getConnectionRow(connectionId, companyId);
-    const [endpoint] = await db.select().from(chatEndpoints).where(and(eq(chatEndpoints.connectionId, connection.id), eq(chatEndpoints.companyId, connection.companyId), eq(chatEndpoints.provider, "slack")));
-    if (!endpoint) return removeConnectionUnlocked(connectionId, companyId, actor);
+    const connection = await getConnectionRow(connectionId, spaceId);
+    const [endpoint] = await db.select().from(chatEndpoints).where(and(eq(chatEndpoints.connectionId, connection.id), eq(chatEndpoints.spaceId, connection.spaceId), eq(chatEndpoints.provider, "slack")));
+    if (!endpoint) return removeConnectionUnlocked(connectionId, spaceId, actor);
     return chatCredentialMutationLease(db)(endpoint, async lease => {
       await db.transaction(async tx => {
         await lease.assertOwned(tx);
@@ -246,13 +246,13 @@ async function removeConnection(
         await lease.assertOwned(tx);
       });
       await removeSlackRegistration(db, endpoint.id, lease);
-      return removeConnectionUnlocked(connectionId, companyId, actor);
+      return removeConnectionUnlocked(connectionId, spaceId, actor);
     });
   }
 
-  async function removeConnectionUnlocked(connectionId: string, companyId?: string, actor?: ActorInfo): Promise<ToolConnectionRemovalResult> {
+  async function removeConnectionUnlocked(connectionId: string, spaceId?: string, actor?: ActorInfo): Promise<ToolConnectionRemovalResult> {
     await actor?.managementContext?.reauthorize();
-    const connection = await getConnectionRow(connectionId, companyId);
+    const connection = await getConnectionRow(connectionId, spaceId);
     forgetMcpHttpSessions(connection.id);
     const now = new Date();
     const binding = actorBinding(actor);
@@ -271,7 +271,7 @@ async function removeConnection(
       .from(connectionGrants)
       .where(
         and(
-          eq(connectionGrants.companyId, connection.companyId),
+          eq(connectionGrants.spaceId, connection.spaceId),
           eq(connectionGrants.connectionId, connection.id),
         ),
       );
@@ -312,7 +312,7 @@ async function removeConnection(
           credential: connection.externalCredential,
           grant,
           connectionId: connection.id,
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           resources: vercelConnectResourcesFor(connection),
         });
         vercelConnect?.evict(request);
@@ -345,21 +345,21 @@ async function removeConnection(
     // finish the job: the refs on the connection row are what a resumed removal
     // reads to find the secrets it still owes a revocation.
     const removedSecretBindings = await db
-      .delete(companySecretBindings)
+      .delete(spaceSecretBindings)
       .where(
         and(
-          eq(companySecretBindings.companyId, connection.companyId),
-          eq(companySecretBindings.targetType, "tool_connection"),
-          eq(companySecretBindings.targetId, connection.id),
+          eq(spaceSecretBindings.spaceId, connection.spaceId),
+          eq(spaceSecretBindings.targetType, "tool_connection"),
+          eq(spaceSecretBindings.targetId, connection.id),
         ),
       )
-      .returning({ id: companySecretBindings.id });
+      .returning({ id: spaceSecretBindings.id });
 
     const removedInstalls = await db
       .delete(toolConnectionInstalls)
       .where(
         and(
-          eq(toolConnectionInstalls.companyId, connection.companyId),
+          eq(toolConnectionInstalls.spaceId, connection.spaceId),
           eq(toolConnectionInstalls.connectionId, connection.id),
         ),
       )
@@ -374,7 +374,7 @@ async function removeConnection(
       .from(toolProfiles)
       .where(
         and(
-          eq(toolProfiles.companyId, connection.companyId),
+          eq(toolProfiles.spaceId, connection.spaceId),
           eq(toolProfiles.profileKey, `app:${connection.id}`),
         ),
       )
@@ -388,10 +388,10 @@ async function removeConnection(
     if (appProfile) {
       appProfileEntriesRemoved = await db.transaction(async tx => {
         await tx.select({ id: toolProfiles.id }).from(toolProfiles)
-          .where(and(eq(toolProfiles.companyId, connection.companyId), eq(toolProfiles.id, appProfile.id)))
+          .where(and(eq(toolProfiles.spaceId, connection.spaceId), eq(toolProfiles.id, appProfile.id)))
           .for("no key update");
         return (await tx.delete(toolProfileEntries)
-          .where(and(eq(toolProfileEntries.companyId, connection.companyId), eq(toolProfileEntries.profileId, appProfile.id)))
+          .where(and(eq(toolProfileEntries.spaceId, connection.spaceId), eq(toolProfileEntries.profileId, appProfile.id)))
           .returning({ id: toolProfileEntries.id })).length;
       });
       appProfileBindingsRemoved = (
@@ -399,7 +399,7 @@ async function removeConnection(
           .delete(toolProfileBindings)
           .where(
             and(
-              eq(toolProfileBindings.companyId, connection.companyId),
+              eq(toolProfileBindings.spaceId, connection.spaceId),
               eq(toolProfileBindings.profileId, appProfile.id),
             ),
           )
@@ -411,7 +411,7 @@ async function removeConnection(
         .from(toolMcpGateways)
         .where(
           and(
-            eq(toolMcpGateways.companyId, connection.companyId),
+            eq(toolMcpGateways.spaceId, connection.spaceId),
             eq(toolMcpGateways.profileId, appProfile.id),
           ),
         );
@@ -434,7 +434,7 @@ async function removeConnection(
           .set({ revokedAt: now, updatedAt: now })
           .where(
             and(
-              eq(toolMcpGatewayTokens.companyId, connection.companyId),
+              eq(toolMcpGatewayTokens.spaceId, connection.spaceId),
               inArray(
                 toolMcpGatewayTokens.gatewayId,
                 gatewayRows.map((row) => row.id),
@@ -451,7 +451,7 @@ async function removeConnection(
               .set({ revokedAt: now, updatedAt: now })
               .where(
                 and(
-                  eq(toolGatewaySessions.companyId, connection.companyId),
+                  eq(toolGatewaySessions.spaceId, connection.spaceId),
                   inArray(
                     toolGatewaySessions.gatewayTokenId,
                     revokedTokens.map((row) => row.id),
@@ -476,7 +476,7 @@ async function removeConnection(
       .from(toolRuntimeSlots)
       .where(
         and(
-          eq(toolRuntimeSlots.companyId, connection.companyId),
+          eq(toolRuntimeSlots.spaceId, connection.spaceId),
           eq(toolRuntimeSlots.connectionId, connection.id),
         ),
       );
@@ -484,7 +484,7 @@ async function removeConnection(
       if (slot.status === "stopped") continue;
       try {
         await runtimeSupervisor.stopSlot({
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           slotId: slot.id,
           reason: "connection_removed",
         });
@@ -493,7 +493,7 @@ async function removeConnection(
         logger.warn(
           {
             err: error,
-            companyId: connection.companyId,
+            spaceId: connection.spaceId,
             connectionId: connection.id,
             slotId: slot.id,
           },
@@ -509,7 +509,7 @@ async function removeConnection(
       .set({ status: "removed", updatedAt: now })
       .where(
         and(
-          eq(toolCatalogEntries.companyId, connection.companyId),
+          eq(toolCatalogEntries.spaceId, connection.spaceId),
           eq(toolCatalogEntries.connectionId, connection.id),
           ne(toolCatalogEntries.status, "removed"),
         ),
@@ -522,7 +522,7 @@ async function removeConnection(
       .delete(toolOauthStates)
       .where(
         and(
-          eq(toolOauthStates.companyId, connection.companyId),
+          eq(toolOauthStates.spaceId, connection.spaceId),
           eq(toolOauthStates.connectionId, connection.id),
         ),
       )
@@ -537,7 +537,7 @@ async function removeConnection(
       .set({ tokenHash: null })
       .where(
         and(
-          eq(connectionTokenIssuances.companyId, connection.companyId),
+          eq(connectionTokenIssuances.spaceId, connection.spaceId),
           eq(connectionTokenIssuances.connectionId, connection.id),
           sql`${connectionTokenIssuances.tokenHash} is not null`,
         ),
@@ -545,12 +545,12 @@ async function removeConnection(
       .returning({ id: connectionTokenIssuances.id });
 
     const archived = await db.transaction(async (tx) => {
-      if (connection.transport === "chat_sdk") await notifyChatEndpointWork(tx, connection.id, connection.companyId);
+      if (connection.transport === "chat_sdk") await notifyChatEndpointWork(tx, connection.id, connection.spaceId);
           if (connection.transport === "voice") await notifyVoiceChange(tx, { kind: "connection", id: connection.id });
       await notifyGitHubCredentialChange(tx, connection);
       await notifyToolConnectionHealth(tx, connection);
       await tx.select({ id: toolApplications.id }).from(toolApplications)
-        .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.companyId, connection.companyId)))
+        .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.spaceId, connection.spaceId)))
         .for("update");
       const [updatedConnection] = await tx
         .update(toolConnections)
@@ -592,7 +592,7 @@ async function removeConnection(
     // Hosted work needs its credential to stop. Agent/viewer access is already
     // revoked above; retain cleanup authority until provider shutdown confirms.
     if (isBrowserUseConnection(connection)) {
-      await browserUseService(db, options.remoteHttpRequest).stopBeforeCredentialRemoval(connection.companyId, connection.id);
+      await browserUseService(db, options.remoteHttpRequest).stopBeforeCredentialRemoval(connection.spaceId, connection.id);
     }
 
     // Only now, with every access path closed, revoke the credentials. Each
@@ -638,7 +638,7 @@ async function removeConnection(
         .set({ credentialSecretRefs: [], updatedAt: now })
         .where(
           and(
-            eq(connectionGrants.companyId, connection.companyId),
+            eq(connectionGrants.spaceId, connection.spaceId),
             eq(connectionGrants.connectionId, connection.id),
           ),
         );

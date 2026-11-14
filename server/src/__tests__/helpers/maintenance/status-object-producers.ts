@@ -13,7 +13,7 @@ async function assertManagedOwnerFeature(server: Server, chosen: 'enableStatusCa
   assert.equal(settings[unchosen], INSTANCE_FEATURE_CATALOG[unchosen].cloudDefault);
   assert.equal(settings.managedKeys?.[unchosen], undefined);
 }
-export async function prepareStatusInterval(server: Server, companyId: string, statePath: string) {
+export async function prepareStatusInterval(server: Server, spaceId: string, statePath: string) {
   const writeState = async (value: { cardId?: string; revision: number }) => {
     await writeFile(statePath + '.pending', JSON.stringify(value), { mode: 0o600 });
     await rename(statePath + '.pending', statePath);
@@ -26,14 +26,14 @@ export async function prepareStatusInterval(server: Server, companyId: string, s
   await writeExpectedApiOrigin(server);
   await writeState({ revision: 1 });
   await assertManagedOwnerFeature(server, 'enableStatusCards');
-  const agent = await server.api<{ id: string }>('POST', `/companies/${companyId}/agents`, {
+  const agent = await server.api<{ id: string }>('POST', `/spaces/${spaceId}/agents`, {
     name: 'Controlled interval summarizer', adapterType: 'process', runner: 'legacy',
     adapterConfig: { env: { STATUS_OBJECT_EXPECTED_API_ORIGIN_FILE: originPath, DATABASE_URL: '', OUTPOST_SKILL_DEFAULT_CADENCE_GUARD_LOG: process.env.OUTPOST_SKILL_DEFAULT_CADENCE_GUARD_LOG }, command: process.execPath, args: ['--require',
       fileURLToPath(new URL('../../../../../scripts/fixtures/skill-default-cadence-network-guard.cjs', import.meta.url)),
       fileURLToPath(new URL('./status-interval-agent.mjs', import.meta.url)), statePath], timeoutSec: 30, graceSec: 5 },
   });
-  const blocker = await server.api<{ id: string }>('POST', `/companies/${companyId}/issues`, { title: 'A real persisted blocker', status: 'blocked', priority: 'medium' });
-  const card = await server.api<{ id: string }>('POST', `/companies/${companyId}/status-cards`, {
+  const blocker = await server.api<{ id: string }>('POST', `/spaces/${spaceId}/issues`, { title: 'A real persisted blocker', status: 'blocked', priority: 'medium' });
+  const card = await server.api<{ id: string }>('POST', `/spaces/${spaceId}/status-cards`, {
     interestPrompt: 'Summarize current blocked issues', agentId: agent.id,
     refreshPolicy: { mode: 'interval', intervalMinutes: 15 },
   });
@@ -61,18 +61,18 @@ export function statusObjectGitHubBoundary() {
   });
   return { server, requests, revision(value: number) { assert(Number.isSafeInteger(value) && value > revision); revision = value; } };
 }
-export async function prepareGitHubObject(server: Server, companyId: string) {
+export async function prepareGitHubObject(server: Server, spaceId: string) {
   await assertManagedOwnerFeature(server, 'enableExternalObjects');
-  const issue = await server.api<{ id: string; companyId: string; description: string | null }>('POST', `/companies/${companyId}/issues`, {
+  const issue = await server.api<{ id: string; spaceId: string; description: string | null }>('POST', `/spaces/${spaceId}/issues`, {
     title: 'Track the ordinary supported GitHub issue', status: 'todo', priority: 'medium',
   });
-  assert.equal(issue.companyId, companyId);
+  assert.equal(issue.spaceId, spaceId);
   assert(!issue.description?.includes('https://github.com/acme/sleep-object/issues/7'));
   return { issueId: issue.id, async addReference() {
     const description = 'Reference https://github.com/acme/sleep-object/issues/7';
-    const updated = await server.api<{ id: string; companyId: string; description: string }>('PATCH', `/issues/${issue.id}`, { description });
+    const updated = await server.api<{ id: string; spaceId: string; description: string }>('PATCH', `/issues/${issue.id}`, { description });
     assert.equal(updated.id, issue.id);
-    assert.equal(updated.companyId, companyId);
+    assert.equal(updated.spaceId, spaceId);
     assert.equal(updated.description, description);
     return updated;
   } };

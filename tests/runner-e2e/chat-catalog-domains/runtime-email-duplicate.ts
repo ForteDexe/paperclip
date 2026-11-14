@@ -25,7 +25,7 @@ export function emailDuplicateRequestMatches(r: EmailDuplicateRequest, expected:
 }
 export function matchesDuplicateSend(r: EmailDuplicateRequest, url: URL, init?: RequestInit) {
  if (url.origin !== "https://api.agentmail.to" || url.pathname !== `/v0/inboxes/${encodeURIComponent(r.inboxId)}/messages/send` || url.search || init?.method !== "POST" || typeof init.body !== "string" || Buffer.byteLength(init.body) > 131072) return undefined;
- try { const body = JSON.parse(init.body), pub = new Headers(init.headers).get("Idempotency-Key"); return uuid(pub) && body.headers?.["X-Paperclip-Publication-Id"] === pub && JSON.stringify(body.to) === JSON.stringify([r.inboxId]) && !body.cc?.length && !body.bcc?.length && typeof body.text === "string" && body.text.includes(r.marker) ? pub! : undefined; } catch { return undefined; }
+ try { const body = JSON.parse(init.body), pub = new Headers(init.headers).get("Idempotency-Key"); return uuid(pub) && body.headers?.["X-Outpost-Publication-Id"] === pub && JSON.stringify(body.to) === JSON.stringify([r.inboxId]) && !body.cc?.length && !body.bcc?.length && typeof body.text === "string" && body.text.includes(r.marker) ? pub! : undefined; } catch { return undefined; }
 }
 export async function installOwnedEmailReceiptDuplicate(input: { executionIds: string[]; attemptId: string; temporaryRoot: string }) {
  if (!input.executionIds.some(id => id.endsWith(`.local.${duplicateEmailScenario}`))) return undefined;

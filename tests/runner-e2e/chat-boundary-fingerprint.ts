@@ -41,7 +41,7 @@ export function chatBoundaryFingerprint(descriptor: ChatCatalogDescriptor, execu
     const serverEntry = path.join(path.dirname(serverManifestPath), "dist/index.js");
     const digest = (name: string) => createHash("sha256").update(readFileSync(name)).digest("hex");
     const cliSha256 = digest(cli); const serverSha256 = digest(serverEntry);
-    if (cliManifest.name !== "paperclipai" || serverManifest.name !== "@outpost/server" || cliManifest.version !== serverManifest.version
+    if (cliManifest.name !== "@outpost/cli" || serverManifest.name !== "@outpost/server" || cliManifest.version !== serverManifest.version
       || cliSha256 !== expectedCli || serverSha256 !== expectedServer) throw new Error("Boundary installed CLI/server differ from their declared pins");
     installedIdentity = { version: cliManifest.version, cliSha256, serverSha256 };
   } else if (descriptor.boundaryTarget !== "authenticated-harness") throw new Error("Boundary target identity is undeclared");

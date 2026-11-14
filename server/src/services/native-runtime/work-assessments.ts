@@ -7,7 +7,7 @@ import type { NativeMonitorDelivery, NativePreservedMonitorWait, NativeSupersede
 
 export async function recordNativeWorkAssessment(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   turnId: string | null;
@@ -47,7 +47,7 @@ export async function recordNativeWorkAssessment(input: {
     priorDecisionId: input.priorDecisionId,
     triggerKind: "native_result",
     triggerRef: input.resultId,
-    triggerActorCompanyId: input.companyId,
+    triggerActorSpaceId: input.spaceId,
     triggerCapability: "server_native_finalizer",
     policyVersion: input.policyVersion,
     assessment: assessmentJson,
@@ -59,7 +59,7 @@ export async function recordNativeWorkAssessment(input: {
   )).limit(1).then((rows) => rows[0] ?? null);
   if (existing) return existing;
   const [row] = await input.db.insert(workAssessments).values({
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     issueId: input.issueId,
     runId: input.runId,
     turnId: input.turnId,
@@ -68,7 +68,7 @@ export async function recordNativeWorkAssessment(input: {
     triggerKind: "native_result",
     triggerRef: input.resultId,
     triggerCapability: "server_native_finalizer",
-    triggerActorCompanyId: input.companyId,
+    triggerActorSpaceId: input.spaceId,
     priorIssueStatus: input.priorIssueStatus,
     priorStatusVersion: input.priorStatusVersion,
     priorDecisionId: input.priorDecisionId,
@@ -83,7 +83,7 @@ export async function recordNativeWorkAssessment(input: {
 
 export async function recordNativeAttentionAssessment(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   turnId: string | null;
@@ -104,7 +104,7 @@ export async function recordNativeAttentionAssessment(input: {
     routingFacts: input.routingFacts,
   };
   const inputDigest = nativeSha256({
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     issueId: input.issueId,
     runId: input.runId,
     resultId: input.resultId,
@@ -117,7 +117,7 @@ export async function recordNativeAttentionAssessment(input: {
     policyVersion: "phase6-v2",
   });
   const existing = await input.db.select().from(workAssessments).where(and(
-    eq(workAssessments.companyId, input.companyId),
+    eq(workAssessments.spaceId, input.spaceId),
     eq(workAssessments.issueId, input.issueId),
     eq(workAssessments.runId, input.runId),
     eq(workAssessments.triggerKind, "native_attention"),
@@ -125,7 +125,7 @@ export async function recordNativeAttentionAssessment(input: {
   )).limit(1).then((rows) => rows[0] ?? null);
   if (existing) return existing;
   const [row] = await input.db.insert(workAssessments).values({
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     issueId: input.issueId,
     runId: input.runId,
     turnId: input.turnId,
@@ -134,7 +134,7 @@ export async function recordNativeAttentionAssessment(input: {
     triggerKind: "native_attention",
     triggerRef: input.requestId,
     triggerCapability: "server_native_attention_router",
-    triggerActorCompanyId: input.companyId,
+    triggerActorSpaceId: input.spaceId,
     priorIssueStatus: input.priorIssueStatus,
     priorStatusVersion: input.priorStatusVersion,
     priorDecisionId: input.priorDecisionId,
@@ -150,7 +150,7 @@ export async function recordNativeAttentionAssessment(input: {
 
 
 export async function lockCurrentNativeWorkAssessmentEvidence(db: Db, input: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   resultId: string;
@@ -162,16 +162,16 @@ export async function lockCurrentNativeWorkAssessmentEvidence(db: Db, input: {
     envelope: nativeRunResults.resultJson,
   }).from(workAssessments)
     .innerJoin(completionContracts, and(eq(completionContracts.id, workAssessments.contractId),
-      eq(completionContracts.companyId, input.companyId), eq(completionContracts.issueId, input.issueId)))
+      eq(completionContracts.spaceId, input.spaceId), eq(completionContracts.issueId, input.issueId)))
     .innerJoin(nativeRunResults, and(eq(nativeRunResults.id, workAssessments.resultId),
-      eq(nativeRunResults.companyId, input.companyId), eq(nativeRunResults.issueId, input.issueId),
+      eq(nativeRunResults.spaceId, input.spaceId), eq(nativeRunResults.issueId, input.issueId),
       eq(nativeRunResults.runId, input.runId)))
-    .where(and(eq(workAssessments.id, input.assessmentId), eq(workAssessments.companyId, input.companyId),
+    .where(and(eq(workAssessments.id, input.assessmentId), eq(workAssessments.spaceId, input.spaceId),
       eq(workAssessments.issueId, input.issueId), eq(workAssessments.runId, input.runId),
       eq(workAssessments.resultId, input.resultId)))
     .limit(1).for("share", { noWait: true });
   if (!row) return false;
-  const current = await classifyNativeEvidence({ db, companyId: input.companyId,
+  const current = await classifyNativeEvidence({ db, spaceId: input.spaceId,
     issueId: input.issueId, runId: input.runId, contract: row.contract,
     result: row.envelope.result as Record<string, unknown>, lockSources: true });
   return nativeSha256(current) === nativeSha256(row.assessment);

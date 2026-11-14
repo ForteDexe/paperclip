@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import { CompanyProvider } from "./context/CompanyContext";
+import { SpaceProvider } from "./context/SpaceContext";
 import { DialogProvider, useDialog } from "./context/DialogContext";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import "./index.css";
@@ -24,9 +24,9 @@ import "./index.css";
  * that ships.
  */
 
-const COMPANY = { id: "outpost-preview", name: "Initech", issuePrefix: "INI" };
+const SPACE = { id: "outpost-preview", name: "Initech", issuePrefix: "INI" };
 const SESSION_ID = "preview-session";
-const AUTH_URL = "https://claude.ai/oauth/authorize?code=true&client=paperclip";
+const AUTH_URL = "https://claude.ai/oauth/authorize?code=true&client=outpost";
 const OPENAI_URL = "https://auth.openai.com/codex/device";
 
 /** How long the fake server takes to produce a prompt. */
@@ -173,9 +173,9 @@ function respond(pathname: string, method: string): Response {
       checks: [],
       testedAt: new Date().toISOString(),
     });
-  if (has("/agent-hires")) return json({ agent: { id: "agent-preview" }, approval: null });
+  if (has("/agent-creations")) return json({ agent: { id: "agent-preview" }, approval: null });
   if (has("/goals")) return json([]);
-  if (has("/companies")) return json(method === "POST" ? COMPANY : [COMPANY]);
+  if (has("/spaces")) return json(method === "POST" ? SPACE : [SPACE]);
 
   return json({});
 }
@@ -198,7 +198,7 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 function OpenOnConnectStep() {
   const { openOnboarding } = useDialog();
   useEffect(() => {
-    openOnboarding({ initialStep: 4, companyId: COMPANY.id });
+    openOnboarding({ initialStep: 4, spaceId: SPACE.id });
   }, [openOnboarding]);
   return null;
 }
@@ -209,12 +209,12 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
-        <CompanyProvider>
+        <SpaceProvider>
           <DialogProvider>
             <OpenOnConnectStep />
             <OnboardingWizard />
           </DialogProvider>
-        </CompanyProvider>
+        </SpaceProvider>
       </QueryClientProvider>
     </MemoryRouter>
   </StrictMode>,

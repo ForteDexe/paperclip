@@ -1,6 +1,6 @@
 # Plugins supplied by an application distribution
 
-A downstream image can add prebuilt plugins without changing Paperclip's
+A downstream image can add prebuilt plugins without changing Outpost's
 built-in catalog. The operator owns the image and trusts its plugin code.
 This is packaging and activation policy, not a sandbox or entitlement system.
 Ordinary self-hosted images need no catalog and keep their existing behavior.
@@ -67,19 +67,19 @@ variable. Only the plugin with that catalog key receives the variables. A manage
 instance runs a selected plugin only from the current image, so an install from
 another source does not start.
 
-A grant does not give access to any company. To let a plugin serve a company with
-no saved configuration, name the company in `plugins.enabledCompanies`:
+A grant does not give access to any space. To let a plugin serve a space with
+no saved configuration, name the space in `plugins.enabledSpaces`:
 
 ```json
 { "plugins": {
   "autoInstall": ["example-extension"],
-  "enabledCompanies": { "example-extension": ["<company-uuid>"] }
+  "enabledSpaces": { "example-extension": ["<space-uuid>"] }
 } }
 ```
 
-The plugin then receives resource lifecycle events for that company and can use
-project instance secrets there. A company can still disable the plugin. This does
-not give access for background worker calls. Those still need a saved company
+The plugin then receives resource lifecycle events for that space and can use
+project instance secrets there. A space can still disable the plugin. This does
+not give access for background worker calls. Those still need a saved space
 configuration. Core reads the list from the document on each use and does not save
 it, so a database restore cannot bring back access that the document removed.
 
@@ -124,7 +124,7 @@ new activation guard.
 
 The `appShellOverlay` slot requires `ui.action.register`. It receives the usual
 `PluginWidgetProps` context. It mounts once in both application shells and
-survives route navigation. It is disposed when the account or selected company
+survives route navigation. It is disposed when the account or selected space
 changes, during onboarding, and on sign-out. It is not mounted on login pages.
 Local-trusted mode has no login requirement: its sessionless board may mount
 overlays, but transitions to or from an account still dispose the prior state.
@@ -138,7 +138,7 @@ error boundary.
 
 UI code is trusted browser code. Host context is display context, never proof
 of server authorization. A distribution backend must independently validate
-the signed-in session and enforce company, tenant and user access rules for
+the signed-in session and enforce space, tenant and user access rules for
 every read and mutation. Keep provider secrets out of plugin UI and manifests.
 The service worker's offline cache accepts only same-origin, hashed build assets
 under `/assets/`. It does not store or replay application HTML, extension routes

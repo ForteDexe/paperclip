@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { APIRequestContext } from "@playwright/test";
 import { RunnerApi, SkillSourceUpdateReadError } from "./api.js";
-const company = "11111111-1111-4111-8111-111111111111", skill = "22222222-2222-4222-8222-222222222222";
+const space = "11111111-1111-4111-8111-111111111111", skill = "22222222-2222-4222-8222-222222222222";
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 function fixture() {
   vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100"); const traced = { get: vi.fn() };
@@ -11,13 +11,13 @@ function fixture() {
 it("uses the exact authenticated update endpoint and returns real successful prerequisite bytes unchanged", async () => {
   const { api, traced } = fixture(); const data = { supported: true, currentRef: "old", latestRef: "new", hasUpdate: true };
   const fetcher = vi.fn(async (_url: URL, _options: RequestInit) => Response.json(data)); vi.stubGlobal("fetch", fetcher);
-  await expect(api.getSkillSourceUpdateStatus(company, skill)).resolves.toEqual(data);
-  expect(fetcher.mock.calls[0]?.[0]).toEqual(new URL(`/api/companies/${company}/skills/${skill}/update-status`, api.baseURL));
+  await expect(api.getSkillSourceUpdateStatus(space, skill)).resolves.toEqual(data);
+  expect(fetcher.mock.calls[0]?.[0]).toEqual(new URL(`/api/spaces/${space}/skills/${skill}/update-status`, api.baseURL));
   expect(traced.get).not.toHaveBeenCalled();
 });
 it.each(["skill_source_ref_unavailable", "skill_source_github_rate_limited", "skill_source_github_read_failed"])("retains only the supported closed %s/status while withholding private body fields", async code => {
   const { api } = fixture(); vi.stubGlobal("fetch", vi.fn(async () => Response.json({ code, error: "Bearer private-error-canary", details: { code, status: 429, token: "secret-value", repository: "private-origin" } }, { status: 422 })));
-  const error = await api.getSkillSourceUpdateStatus(company, skill).catch(error => error);
+  const error = await api.getSkillSourceUpdateStatus(space, skill).catch(error => error);
   expect(error).toBeInstanceOf(SkillSourceUpdateReadError); if (!(error instanceof SkillSourceUpdateReadError)) throw error; expect(error).toMatchObject({ status: 422, reason: code, providerStatus: 429 });
   expect(JSON.stringify(error)).not.toMatch(/private-error|secret-value|private-origin|Bearer/); expect(error.message).not.toMatch(/private-error|secret-value|private-origin|Bearer/);
 });
@@ -31,7 +31,7 @@ it.each(["unknown code", "mismatched code", "oversized", "invalid JSON", "missin
   if (fault === "missing code") body = JSON.stringify({ error: "private-error-canary", details: { status: 429 } });
   if (fault === "invalid provider status") body = JSON.stringify({ code, details: { status: "private-error-canary" } });
   vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 422 })));
-  const error = await api.getSkillSourceUpdateStatus(company, skill).catch(error => error);
+  const error = await api.getSkillSourceUpdateStatus(space, skill).catch(error => error);
   expect(error).toBeInstanceOf(SkillSourceUpdateReadError); if (!(error instanceof SkillSourceUpdateReadError)) throw error;
   expect(error.reason).toBe(fault === "invalid provider status" ? code : "unclassified"); expect(error.providerStatus).toBeNull();
   expect(JSON.stringify(error)).not.toContain("private-error-canary"); expect(error.message).not.toContain("private-error-canary");
@@ -39,12 +39,12 @@ it.each(["unknown code", "mismatched code", "oversized", "invalid JSON", "missin
 it("cancels an oversized error stream at the bound and never reads its trailing private data", async () => {
   const { api } = fixture(); let cancelled = false; const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(16_385)); }, cancel() { cancelled = true; } });
   vi.stubGlobal("fetch", vi.fn(async () => new Response(stream, { status: 422 })));
-  await expect(api.getSkillSourceUpdateStatus(company, skill)).rejects.toMatchObject({ reason: "unclassified" }); expect(cancelled).toBe(true);
+  await expect(api.getSkillSourceUpdateStatus(space, skill)).rejects.toMatchObject({ reason: "unclassified" }); expect(cancelled).toBe(true);
 });
 it("refuses missing human auth or malformed identities before any request", async () => {
   const { api } = fixture(); const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
   await expect(api.getSkillSourceUpdateStatus("https://foreign.invalid", skill)).rejects.toThrow("exact owned");
-  await expect(api.getSkillSourceUpdateStatus(company, "../other")).rejects.toThrow("exact owned");
-  const noSession = new RunnerApi({} as APIRequestContext); await expect(noSession.getSkillSourceUpdateStatus(company, skill)).rejects.toThrow("human-session");
+  await expect(api.getSkillSourceUpdateStatus(space, "../other")).rejects.toThrow("exact owned");
+  const noSession = new RunnerApi({} as APIRequestContext); await expect(noSession.getSkillSourceUpdateStatus(space, skill)).rejects.toThrow("human-session");
   expect(fetcher).not.toHaveBeenCalled();
 });

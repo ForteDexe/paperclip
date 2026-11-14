@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
+import { agents, spaces, spaceMemberships, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
 import type { NativeExecutionInputV1 } from "@outpost/outpost-runner";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 
@@ -11,7 +11,7 @@ vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => ({
   executeNativeSession: provider.execute,
 }));
 
-import { executePaperclipNativeSession, NATIVE_PROVIDER_SESSION_CLOSED } from "./native-session-executor.js";
+import { executeOutpostNativeSession, NATIVE_PROVIDER_SESSION_CLOSED } from "./native-session-executor.js";
 import { buildNativeCompletionContract } from "./completion-contracts.js";
 import { prepareNativeHeartbeatRun } from "./prepare-native-run.js";
 import { heartbeatService } from "../heartbeat.js";
@@ -20,22 +20,22 @@ import { taskInterruptionPresentation } from "../task-interruption-presentation.
 
 // Chaos w-20261111T011704-s9107/t05 (claude, TM2): a cut-off ACPX turn start
 // left this run's session closed with the prompt possibly sent. Every same-run
-// resume got "ACPX session is not open"; the board offered Retry only after
+// resume got "ACPX session is not open"; the operator offered Retry only after
 // three attempts (about 95 s). The Runner now classifies that refusal, and
 // Retry starts a new run with a fresh provider session.
 describe("native turn start refused on a closed provider session", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
 
   beforeAll(async () => {
     temporary = await startEmbeddedPostgresTestDatabase("native-closed-session-");
     db = createDb(temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Closed session", issuePrefix: "NCS" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Claude agent", status: "active", adapterType: "outpost_runner",
+    await db.insert(spaces).values({ id: spaceId, name: "Closed session", issuePrefix: "NCS" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Claude agent", status: "active", adapterType: "outpost_runner",
       adapterConfig: { provider: "acpx", agent: "claude", model: "claude-test" } });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "board-user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "operator-user", status: "active", membershipRole: "member" });
   });
   afterAll(async () => { await temporary?.cleanup(); });
 
@@ -47,20 +47,20 @@ describe("native turn start refused on a closed provider session", () => {
 
   async function refuseTurnStart(failure: Error) {
     const issueId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Write the brief", status: "in_progress", workMode: "standard",
-      assigneeAgentId: agentId, createdByUserId: "board-user", responsibleUserId: "board-user" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Write the brief", status: "in_progress", workMode: "standard",
+      assigneeAgentId: agentId, createdByUserId: "operator-user", responsibleUserId: "operator-user" });
     const [issue] = await db.select().from(issues).where(eq(issues.id, issueId));
     const runId = randomUUID();
-    const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native",
-      nativeIssueId: issueId, responsibleUserId: "board-user", invocationSource: "automation", triggerDetail: "system",
+    const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
+      nativeIssueId: issueId, responsibleUserId: "operator-user", invocationSource: "automation", triggerDetail: "system",
       contextSnapshot: { issueId } }).returning();
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     const native = await prepareNativeHeartbeatRun({ db, run, issue, environmentLeaseId: randomUUID() });
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issueId));
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed" });
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed" });
     const execution: NativeExecutionInputV1 = {
       schema: "outpost.native-execution-input.v1",
-      binding: { companyId, runId, issueId, agentId, executionWorkspaceId: runId },
+      binding: { spaceId, runId, issueId, agentId, executionWorkspaceId: runId },
       provider: { kind: "opencode", model: "openrouter/test-model" },
       task: { identifier: issueId, title: issue.title, description: null, prompt: "Write the brief.", workMode: "standard" },
       workspace: { cwd: "/tmp", repoUrl: null, repoRef: null, branchName: null },
@@ -73,7 +73,7 @@ describe("native turn start refused on a closed provider session", () => {
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: execution,
       sessionCheckpoint: { backendKind: "mock", providerSessionId: "claude-session" } } }).where(eq(heartbeatRuns.id, runId));
     provider.execute.mockReset().mockRejectedValue(failure);
-    await executePaperclipNativeSession({ db, execution, runnerInstanceId: native.runnerInstanceId, backend: {
+    await executeOutpostNativeSession({ db, execution, runnerInstanceId: native.runnerInstanceId, backend: {
       descriptor: async () => { throw new Error("Unexpected provider call"); },
       openSession: async () => { throw new Error("Unexpected provider call"); },
     } }).catch(() => undefined);
@@ -87,11 +87,11 @@ describe("native turn start refused on a closed provider session", () => {
     expect(coordinator).toMatchObject({ phase: "terminal_failure", failureCode: NATIVE_PROVIDER_SESSION_CLOSED, nextAttemptAt: null });
     const [issue] = await db.select().from(issues).where(eq(issues.id, issueId));
     await expect(taskInterruptionPresentation(db, issue)).resolves.toMatchObject({ state: "failed", canRetry: true });
-    const receipt = await requestTaskRetry({ db, companyId, issueId, actorId: "board-user", actorSource: "session",
+    const receipt = await requestTaskRetry({ db, spaceId, issueId, actorId: "operator-user", actorSource: "session",
       idempotencyKey: randomUUID(), observedRunId: runId });
     expect(receipt).toMatchObject({ accepted: true, stale: false });
     const heartbeat = heartbeatService(db);
-    await heartbeat.resumeTaskRetry(companyId, receipt.requestId!);
+    await heartbeat.resumeTaskRetry(spaceId, receipt.requestId!);
     const retried = (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, agentId)))
       .filter(r => r.contextSnapshot?.issueId === issueId && r.contextSnapshot?.taskRetryRequestId === receipt.requestId);
     expect(retried).toHaveLength(1);

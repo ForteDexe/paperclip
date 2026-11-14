@@ -63,7 +63,7 @@ describe("InstructionsBundleSettings", () => {
     await act(() =>
       root.render(
         <QueryClientProvider client={queryClient}>
-          <InstructionsBundleSettings agentId="agent-1" companyId="company-1" mode="managed" rootPath="" entryFile="AGENTS.md" blocked={false} onSwitched={onSwitched} />
+          <InstructionsBundleSettings agentId="agent-1" spaceId="space-1" mode="managed" rootPath="" entryFile="AGENTS.md" blocked={false} onSwitched={onSwitched} />
         </QueryClientProvider>,
       ),
     );
@@ -84,7 +84,7 @@ describe("InstructionsBundleSettings", () => {
     expect(mockAgentsApi.updateInstructionsBundle).toHaveBeenCalledWith(
       "agent-1",
       { mode: "external", rootPath: "/srv/prompts/atlas", entryFile: "AGENTS", requireExistingEntry: true },
-      "company-1",
+      "space-1",
     );
     expect(container.querySelector('[role="status"]')?.textContent).toContain("Loaded AGENTS from /srv/prompts/atlas");
     expect(onSwitched).toHaveBeenCalledTimes(1);

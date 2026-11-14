@@ -118,10 +118,10 @@ describe("readRecoveryRetryLineage", () => {
     expect(lineage!.hasDurablePath).toBe(true);
   });
 
-  it("treats a board escalation from this contract as an exhausted lane", () => {
+  it("treats a operator escalation from this contract as an exhausted lane", () => {
     const lineage = readRecoveryRetryLineage({
       wakePolicy: {
-        type: "board_escalation",
+        type: "operator_escalation",
         reason: "recovery_owner_retry_exhausted",
         attempt: 3,
         maxAttempts: 3,
@@ -129,17 +129,17 @@ describe("readRecoveryRetryLineage", () => {
       },
       evidence: { sourceAttemptCount: 5, sourceMaxAttempts: 5 },
     });
-    expect(lineage!.lane).toBe("board");
+    expect(lineage!.lane).toBe("operator");
     expect(lineage!.exhausted).toBe(true);
     expect(lineage!.nextRetryAt).toBeNull();
     expect(lineage!.hasDurablePath).toBe(false);
     expect(lineage!.sourceMaxAttempts).toBe(5);
   });
 
-  it("ignores an unrelated board escalation that is not part of the owner-sticky contract", () => {
+  it("ignores an unrelated operator escalation that is not part of the owner-sticky contract", () => {
     expect(
       readRecoveryRetryLineage({
-        wakePolicy: { type: "board_escalation", reason: "provider_quota" },
+        wakePolicy: { type: "operator_escalation", reason: "provider_quota" },
         evidence: {},
       }),
     ).toBeNull();
@@ -402,7 +402,7 @@ describe("recovery lineage formatting", () => {
   it("says retries are used up when a lane is exhausted", () => {
     const lineage = readRecoveryRetryLineage({
       wakePolicy: {
-        type: "board_escalation",
+        type: "operator_escalation",
         reason: "recovery_owner_retry_exhausted",
         attempt: 3,
         maxAttempts: 3,

@@ -12,7 +12,7 @@ export function runtimeActivity(payload: Record<string, unknown> | null): { name
 }
 
 /** Core maps authenticated runtime facts to installed UI declarations. */
-export async function readTaskPanelActivations(db: Db, companyId: string, runId: string): Promise<TaskPanelActivation[]> {
+export async function readTaskPanelActivations(db: Db, spaceId: string, runId: string): Promise<TaskPanelActivation[]> {
   const rows = await db.selectDistinct({
     payload: sql<Record<string, unknown>>`${heartbeatRunEvents.payload}->'orpEvent'->'payload'`, manifest: plugins.manifestJson, pluginKey: plugins.pluginKey,
   }).from(heartbeatRunEvents)
@@ -20,7 +20,7 @@ export async function readTaskPanelActivations(db: Db, companyId: string, runId:
       SELECT 1 FROM jsonb_array_elements(${plugins.manifestJson}->'ui'->'slots') AS declared_slot
       WHERE declared_slot->'taskSidePanel'->'activation' = ${heartbeatRunEvents.payload}->'orpEvent'->'payload'
     )`)
-    .where(and(eq(heartbeatRunEvents.companyId, companyId), eq(heartbeatRunEvents.runId, runId),
+    .where(and(eq(heartbeatRunEvents.spaceId, spaceId), eq(heartbeatRunEvents.runId, runId),
       eq(heartbeatRunEvents.eventType, RUNTIME_ACTIVITY_EVENT), ne(plugins.status, "uninstalled"),
       sql`${heartbeatRunEvents.payload}->'orpEvent'->>'sourceKind' = 'runner'`,
       sql`${heartbeatRunEvents.payload}->'orpEvent'->>'eventType' = ${RUNTIME_ACTIVITY_EVENT}`)).limit(128);

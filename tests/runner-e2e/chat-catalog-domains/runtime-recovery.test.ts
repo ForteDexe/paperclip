@@ -3,7 +3,7 @@ import { gradeControllerRestart } from "./runtime-recovery.js";
 function valid() {
   const initial = { contentVerified: true, content: "<h1>Unpredictable Orchid header</h1>", attachmentId: "initial", workProductId: "initial-product" };
   const final = { contentVerified: true, content: "<h1>Unpredictable Orchid header</h1><section>Contact hello@acorn.example</section>", attachmentId: "final", workProductId: "final-product" };
-  return { scenarioId: "recovery.controller-restart", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  return { scenarioId: "recovery.controller-restart", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { initialArtifact: initial, finalArtifact: final, fileBeforeRestart: initial.content, fileAfterRestart: initial.content, restarted: true,
       headerMarker: "Unpredictable Orchid header", finalFile: final.content, initialRunId: "first", sourceIssueBefore: "chat", sourceIssueAfter: "chat", priorHistoryRetained: true },
     agents: [], tasks: [], links: ["/api/attachments/final/content?download=1"], reply: "The website is ready.", activity: [], humanQueries: [],

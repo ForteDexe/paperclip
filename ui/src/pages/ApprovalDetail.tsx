@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "@/lib/router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { approvalsApi } from "../api/approvals";
 import { agentsApi } from "../api/agents";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { StatusBadge } from "../components/StatusBadge";
@@ -20,7 +20,7 @@ import { MarkdownBody } from "../components/MarkdownBody";
 
 export function ApprovalDetail() {
   const { approvalId } = useParams<{ approvalId: string }>();
-  const { selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { selectedSpaceId, setSelectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -34,7 +34,7 @@ export function ApprovalDetail() {
     queryFn: () => approvalsApi.get(approvalId!),
     enabled: !!approvalId,
   });
-  const resolvedCompanyId = approval?.companyId ?? selectedCompanyId;
+  const resolvedSpaceId = approval?.spaceId ?? selectedSpaceId;
 
   const { data: comments } = useQuery({
     queryKey: queryKeys.approvals.comments(approvalId!),
@@ -49,15 +49,15 @@ export function ApprovalDetail() {
   });
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(resolvedCompanyId ?? ""),
-    queryFn: () => agentsApi.list(resolvedCompanyId ?? ""),
-    enabled: !!resolvedCompanyId,
+    queryKey: queryKeys.agents.list(resolvedSpaceId ?? ""),
+    queryFn: () => agentsApi.list(resolvedSpaceId ?? ""),
+    enabled: !!resolvedSpaceId,
   });
 
   useEffect(() => {
-    if (!approval?.companyId || approval.companyId === selectedCompanyId) return;
-    setSelectedCompanyId(approval.companyId, { source: "route_sync" });
-  }, [approval?.companyId, selectedCompanyId, setSelectedCompanyId]);
+    if (!approval?.spaceId || approval.spaceId === selectedSpaceId) return;
+    setSelectedSpaceId(approval.spaceId, { source: "route_sync" });
+  }, [approval?.spaceId, selectedSpaceId, setSelectedSpaceId]);
 
   const agentNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -77,12 +77,12 @@ export function ApprovalDetail() {
     queryClient.invalidateQueries({ queryKey: queryKeys.approvals.detail(approvalId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.approvals.comments(approvalId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.approvals.issues(approvalId) });
-    if (approval?.companyId) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(approval.companyId) });
+    if (approval?.spaceId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(approval.spaceId) });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.list(approval.companyId, "pending"),
+        queryKey: queryKeys.approvals.list(approval.spaceId, "pending"),
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(approval.companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(approval.spaceId) });
     }
   };
 
@@ -164,7 +164,7 @@ export function ApprovalDetail() {
         }
       : linkedAgentId
         ? {
-            label: "Open hired agent",
+            label: "Open created agent",
             to: `/agents/${linkedAgentId}`,
           }
         : {
@@ -308,7 +308,7 @@ export function ApprovalDetail() {
               Mark resubmitted
             </Button>
           )}
-          {approval.status === "rejected" && approval.type === "hire_agent" && linkedAgentId && (
+          {approval.status === "rejected" && approval.type === "create_agent" && linkedAgentId && (
             <Button
               size="sm"
               variant="outline"

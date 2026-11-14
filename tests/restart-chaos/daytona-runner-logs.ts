@@ -5,7 +5,7 @@
  * mid-turn outage; this captures its stderr log, process identity, durable state and the sandbox's
  * process, memory, disk and OOM evidence so the exit reason is visible in the wave folder.
  *
- * Read-only by construction: it lists this wave's sandboxes by their company and environment labels
+ * Read-only by construction: it lists this wave's sandboxes by their space and environment labels
  * (the same selection as daytona-sweep.ts) and runs one fixed probe that only reads (`ps`, `tail`, `stat`,
  * `find`, `free`, `df`, `dmesg`). It never stops, starts, archives or deletes a sandbox, and never runs a
  * command derived from wave data.
@@ -33,7 +33,7 @@ export const RUNNER_LOG_PROBE = [
  * Class R (class-r.ts): what killed or wedged the provider. On top of the Runner probe:
  * - every process with its start time (`lstart`) and what it is blocked on (`wchan`), so a replaced process
  *   shows a new start time and a wedged one shows its wait;
- * - TCP sockets with their owners, so a provider blocked on a Paperclip callback shows an open connection;
+ * - TCP sockets with their owners, so a provider blocked on a Outpost callback shows an open connection;
  * - the Runner's runtime directory listing (size and last write of each file);
  * - the tail of every log, transcript or state file the Runner and the provider keep under the runtime root and
  *   the usual provider log homes (OpenCode `opencode/log`, Claude `debug` and `projects` transcripts, ACPX state).
@@ -47,8 +47,8 @@ export const CLASS_R_PROBE = [
   'echo "== memory"; free -m 2>/dev/null',
   'echo "== disk"; df -h / /tmp 2>/dev/null',
   'echo "== oom"; dmesg 2>/dev/null | grep -iE "oom|killed process" | tail -n 20',
-  // Every Runner runtime root: the shared checkout's and each isolated task workspace's (`.paperclip-workspaces/<id>`).
-  'roots=$(find /home/daytona -xdev -maxdepth 5 -type d -name .paperclip-runtime -prune -print 2>/dev/null | head -n 20)',
+  // Every Runner runtime root: the shared checkout's and each isolated task workspace's (`.outpost-workspaces/<id>`).
+  'roots=$(find /home/daytona -xdev -maxdepth 5 -type d -name .outpost-runtime -prune -print 2>/dev/null | head -n 20)',
   'echo "== runtime roots"; echo "$roots"',
   'echo "== runtime files"; for root in $roots; do find "$root" -xdev -maxdepth 9 \\( -name node_modules -o -name provider-pack \\) -prune -o -type f'
     + ' -printf "%TY-%Tm-%TdT%TH:%TM:%TS %10s %p\\n" 2>/dev/null; done | sort | tail -n 200',
@@ -94,7 +94,7 @@ export function probeableSandbox(sandbox: DaytonaSandboxRow): boolean {
  * Failures are recorded, never thrown: evidence capture must not fail or delay a wave beyond its timeout.
  */
 export async function captureWaveRunnerLogs(input: {
-  apiKey: string; companyId: string; environmentId: string; outDir: string; label: string; secrets: readonly string[];
+  apiKey: string; spaceId: string; environmentId: string; outDir: string; label: string; secrets: readonly string[];
   client?: ProbeClient; timeoutSeconds?: number; deadlineMs?: number;
   /** The fixed probe to run: the Runner probe (default) or the class R probe. */
   probe?: "runner" | "class_r";
@@ -136,9 +136,9 @@ export async function captureWaveRunnerLogs(input: {
       await mkdir(directory, { recursive: true, mode: 0o700 });
       const client = input.client ?? await createRemoteFixtureClient(input.apiKey) as unknown as ProbeClient;
       if (!live()) return;
-      const wave = { companyId: input.companyId, environmentId: input.environmentId };
+      const wave = { spaceId: input.spaceId, environmentId: input.environmentId };
       const rows: DaytonaSandboxRow[] = [];
-      for await (const row of client.list({ labels: { "paperclip-company-id": wave.companyId, "paperclip-environment-id": wave.environmentId } })) rows.push(row);
+      for await (const row of client.list({ labels: { "outpost-space-id": wave.spaceId, "outpost-environment-id": wave.environmentId } })) rows.push(row);
       if (!live()) return;
       // Every wave sandbox gets its entry before any probe, so a deadline marks the ones it never reached.
       const targets = selectWaveSandboxes(rows, wave).map(row => ({ row,
@@ -182,7 +182,7 @@ export interface SandboxCommandAttempt { sandboxId: string; exitCode: number | n
  * controller is down. Once the deadline passes no new command starts, and the result reports `deadline`.
  */
 export async function executeInWaveSandboxes(input: {
-  apiKey: string; companyId: string; environmentId: string; command: string; secrets: readonly string[];
+  apiKey: string; spaceId: string; environmentId: string; command: string; secrets: readonly string[];
   done: (attempt: SandboxCommandAttempt) => boolean;
   client?: ProbeClient; timeoutSeconds?: number; deadlineMs?: number;
 }): Promise<{ attempts: SandboxCommandAttempt[]; error: string | null }> {
@@ -195,9 +195,9 @@ export async function executeInWaveSandboxes(input: {
   let expired = false;
   const search = async (): Promise<string | null> => {
     const client = input.client ?? await createRemoteFixtureClient(input.apiKey) as unknown as ProbeClient;
-    const wave = { companyId: input.companyId, environmentId: input.environmentId };
+    const wave = { spaceId: input.spaceId, environmentId: input.environmentId };
     const rows: DaytonaSandboxRow[] = [];
-    for await (const row of client.list({ labels: { "paperclip-company-id": wave.companyId, "paperclip-environment-id": wave.environmentId } })) rows.push(row);
+    for await (const row of client.list({ labels: { "outpost-space-id": wave.spaceId, "outpost-environment-id": wave.environmentId } })) rows.push(row);
     for (const row of selectWaveSandboxes(rows, wave).filter(probeableSandbox)) {
       // Never start a command (a kill) after the deadline.
       if (expired || remainingSeconds() < 1) return `deadline ${deadlineMs} ms exceeded`;

@@ -6,7 +6,7 @@ import { validateLocaleMessages } from "./locale-validation";
 
 describe("locale validation", () => {
   it("resolves English messages with key and default fallbacks", () => {
-    expect(t("app.noCompanies.title")).toBe(en.app.noCompanies.title);
+    expect(t("app.noSpaces.title")).toBe(en.app.noSpaces.title);
     expect(t("app.missing", { defaultValue: "Fallback" })).toBe("Fallback");
     expect(t("app.missing")).toBe("app.missing");
   });
@@ -22,17 +22,17 @@ describe("locale validation", () => {
     expect(
       validateLocaleMessages({
         app: {
-          noCompanies: {
-            title: en.app.noCompanies.title,
-            description: en.app.noCompanies.description,
+          noSpaces: {
+            title: en.app.noSpaces.title,
+            description: en.app.noSpaces.description,
             unexpected: "Unexpected",
           },
         },
       }),
     ).toEqual(
       expect.arrayContaining([
-        "app.noCompanies.newCompany is missing",
-        "app.noCompanies.unexpected is not defined in English",
+        "app.noSpaces.newSpace is missing",
+        "app.noSpaces.unexpected is not defined in English",
       ]),
     );
   });
@@ -41,33 +41,33 @@ describe("locale validation", () => {
     expect(
       validateLocaleMessages({
         app: {
-          noCompanies: {
-            ...en.app.noCompanies,
-            title: ["Create your first company"],
+          noSpaces: {
+            ...en.app.noSpaces,
+            title: ["Create your first space"],
           },
         },
       }),
-    ).toEqual(expect.arrayContaining(["app.noCompanies.title must be a string"]));
+    ).toEqual(expect.arrayContaining(["app.noSpaces.title must be a string"]));
   });
 
   it("requires interpolation placeholders to match English", () => {
     const reference = {
-      message: "Invite {{name}} to {{company}}",
+      message: "Invite {{name}} to {{space}}",
     };
 
     expect(validateLocaleMessages({ message: "Invite {{name}}" }, reference)).toEqual([
-      'message interpolation placeholders must match English exactly: expected ["company","name"], received ["name"]',
+      'message interpolation placeholders must match English exactly: expected ["space","name"], received ["name"]',
     ]);
   });
 
   it("rejects executable, raw HTML, and unexpected link payloads not present in English", () => {
     const reference = {
-      script: "Create company",
-      handler: "Create company",
-      js: "Create company",
-      data: "Create company",
-      url: "Create company",
-      html: "Create company",
+      script: "Create space",
+      handler: "Create space",
+      js: "Create space",
+      data: "Create space",
+      url: "Create space",
+      html: "Create space",
     };
 
     expect(
@@ -78,7 +78,7 @@ describe("locale validation", () => {
           js: "javascript:alert(1)",
           data: "data:text/html,hello",
           url: "https://example.test",
-          html: "<strong>Create company</strong>",
+          html: "<strong>Create space</strong>",
         },
         reference,
       ),

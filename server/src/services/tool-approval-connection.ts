@@ -14,7 +14,7 @@ export function isToolApprovalConnectionError(error: unknown): boolean {
 }
 
 /** Read metadata only. A waiting approval retries on a committed repair, not a timer. */
-export async function toolApprovalConnectionRevision(db: Db, companyId: string,
+export async function toolApprovalConnectionRevision(db: Db, spaceId: string,
   connectionId: string | null, snapshot: unknown): Promise<string | null> {
   if (!connectionId) return null;
   const grantId = snapshot && typeof snapshot === "object" && "credentialGrantId" in snapshot &&
@@ -24,14 +24,14 @@ export async function toolApprovalConnectionRevision(db: Db, companyId: string,
     connectionUpdatedAt: toolConnections.updatedAt, grantStatus: connectionGrants.status,
     grantUpdatedAt: connectionGrants.updatedAt }).from(toolConnections)
     .leftJoin(connectionGrants, and(eq(connectionGrants.connectionId, toolConnections.id),
-      eq(connectionGrants.companyId, companyId), grantId ? eq(connectionGrants.id, grantId) : sql`false`))
-    .where(and(eq(toolConnections.id, connectionId), eq(toolConnections.companyId, companyId))).limit(1);
+      eq(connectionGrants.spaceId, spaceId), grantId ? eq(connectionGrants.id, grantId) : sql`false`))
+    .where(and(eq(toolConnections.id, connectionId), eq(toolConnections.spaceId, spaceId))).limit(1);
   return JSON.stringify(state ?? null);
 }
 
-export async function toolApprovalConnectionCanResume(db: Db, companyId: string,
+export async function toolApprovalConnectionCanResume(db: Db, spaceId: string,
   connectionId: string | null, snapshot: unknown, previousRevision: unknown) {
-  const revision = await toolApprovalConnectionRevision(db, companyId, connectionId, snapshot);
+  const revision = await toolApprovalConnectionRevision(db, spaceId, connectionId, snapshot);
   if (revision === previousRevision) return false;
   const state = revision === null ? null : JSON.parse(revision) as { connectionStatus: string; enabled: boolean } | null;
   // Missing connections reach normal target rejection. Draft or disabled

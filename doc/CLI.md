@@ -1,6 +1,6 @@
 # CLI Reference
 
-Paperclip CLI now supports both:
+Outpost CLI now supports both:
 
 - installation and lifecycle management (`install`, `uninstall`, `update`, `upgrade`, `service`)
 - instance setup/diagnostics (`onboard`, `doctor`, `configure`, `env`, `allowed-hostname`, `env-lab`)
@@ -8,18 +8,18 @@ Paperclip CLI now supports both:
 
 ## Browser-approved Board authentication
 
-`npx paperclipai auth login --api-base <instance-url>` creates a ten-minute
+`npx @outpost/cli auth login --api-base <instance-url>` creates a ten-minute
 challenge and prints a browser approval link. The link uses the instance's
 canonical public origin when configured, so reverse proxies do not send the
 browser to an internal upstream hostname. Sign in to the instance, review
 the requesting command and full Board access, then approve. The pending token
 cannot authenticate before approval. The CLI verifies its resulting identity
 before storing its credential in its private auth store. The default Board key
-expires after thirty days; `npx paperclipai auth logout` attempts server-side revocation and removes the
+expires after thirty days; `npx @outpost/cli auth logout` attempts server-side revocation and removes the
 local credential; check its `revoked` result.
 
-A requested company supplies audit context, not a restriction on the key's
-access. Approval requires current access to that company (active membership or
+A requested space supplies audit context, not a restriction on the key's
+access. Approval requires current access to that space (active membership or
 instance-admin authority). A different person cannot take over an approved
 challenge. Cancellation and approval serialize on the same challenge; cancelling
 an already approved challenge does not revoke its key.
@@ -44,15 +44,15 @@ no Cloud user identity is synthesized for the CLI's unauthenticated requests.
 
 ## Security: safe invocation for content-bearing arguments
 
-Use `npx paperclipai` for any command whose argument can hold untrusted or
+Use `npx @outpost/cli` for any command whose argument can hold untrusted or
 semi-trusted content. Untrusted content includes issue text, comment bodies,
 Markdown, pasted snippets, and model output. `npx` runs the CLI binary directly.
 It passes the argument as an inert `argv` value. It does not run a shell over the
-value. `npx paperclipai` works on any machine with Node: it runs a local install
-of the `paperclipai` package, and it fetches the published package when no local
+value. `npx @outpost/cli` works on any machine with Node: it runs a local install
+of the `@outpost/cli` package, and it fetches the published package when no local
 install is present.
 
-Do not use `pnpm paperclipai` for a content-bearing argument. `pnpm paperclipai`
+Do not use `pnpm outpost` for a content-bearing argument. `pnpm outpost`
 is a `package.json` script. `pnpm` builds a `/bin/sh` command string and appends
 the argument to it, so the shell reads the argument first. The shell interprets
 these spans before the CLI starts:
@@ -68,23 +68,23 @@ re-evaluates the value in its own shell.
 
 Safe forms:
 
-- `npx paperclipai <command> <args>` — the documented default. It passes an inert
+- `npx @outpost/cli <command> <args>` — the documented default. It passes an inert
   `argv` value and runs on any machine.
 - `node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts <command> <args>` —
   the safe form to run the local source from a monorepo checkout. It is the exact
-  command that the `pnpm paperclipai` script wraps, but it runs directly, so no
+  command that the `pnpm outpost` script wraps, but it runs directly, so no
   shell reads the argument. Use it when you must test your local `cli/src`
   changes with a content-bearing argument.
 
 Unsafe or broken forms:
 
-- `pnpm paperclipai <command> <args>` — unsafe. `pnpm` runs the argument through a
+- `pnpm outpost <command> <args>` — unsafe. `pnpm` runs the argument through a
   shell first.
 - `pnpm run <script> -- <args>`, or any `package.json` script that wraps the CLI —
   unsafe for the same reason.
-- `pnpm exec paperclipai <command> <args>` — broken. The root workspace does not
-  depend on the `paperclipai` package, so `pnpm` does not link its binary into
-  `node_modules/.bin`. The command fails with `Command "paperclipai" not found`,
+- `pnpm exec outpost <command> <args>` — broken. The root workspace does not
+  depend on the `@outpost/cli` package, so `pnpm` does not link its binary into
+  `node_modules/.bin`. The command fails with `Command "outpost" not found`,
   even after a build. Do not use it.
 
 Static placeholders only: a document must show a static placeholder such as
@@ -92,7 +92,7 @@ Static placeholders only: a document must show a static placeholder such as
 own shell expands such a span on paste, before any CLI or `npx` receives argv, so
 a direct-exec form does not stop it.
 
-`pnpm paperclipai` stays acceptable only for a fully literal local lifecycle or
+`pnpm outpost` stays acceptable only for a fully literal local lifecycle or
 setup command. A fully literal command carries no substitutable value. It has no
 placeholder, no example value the reader replaces, no interpolation, no path, no
 ref, no id, and no name. It holds the subcommand and, at most, flags that take no
@@ -100,21 +100,21 @@ value.
 
 The allowlist of literal commands lives in one place:
 `server/src/__tests__/cli-invocation-safety.test.ts`. A guard test enforces it
-fail-closed. Any `pnpm paperclipai` line whose command string is not an exact
+fail-closed. Any `pnpm outpost` line whose command string is not an exact
 allowlist entry is an offender. The allowlist holds commands such as `run`,
 `onboard`, `onboard --yes`, `doctor`, `configure --section <name>`, `connect`,
 `env-lab up`, `env-lab down`, `context show`, `context list`,
 `worktree ensure-seeded`, and `worktree env`.
 
 Every invocation that carries a positional value or an option value uses
-`npx paperclipai` instead. This covers a hostname (`allowed-hostname`), an import
-URL or folder (`company import`), an identifier or secret (`--company-id`,
+`npx @outpost/cli` instead. This covers a hostname (`allowed-hostname`), an import
+URL or folder (`space import`), an identifier or secret (`--space-id`,
 `--agent-id`, `--claim-secret`), a payload (`--payload-json`), free text
 (`--body`, `--title`, `--comment`), a data directory (`--data-dir`), an instance
 (`--instance`), a bind preset (`--bind`), a context-profile name, and every
 worktree path, ref, id, or name option. A runtime value counts as non-fixed even
 when it looks safe. The private-hostname guard builds `allowed-hostname <value>`
-from the request Host header, so it uses `npx paperclipai`.
+from the request Host header, so it uses `npx @outpost/cli`.
 
 For a command that must run the local checked-out source with a value, use the
 direct-exec form: `node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts
@@ -125,24 +125,24 @@ invocation. They do not change.
 
 ### Offline and air-gapped use
 
-`npx paperclipai` runs offline when the `paperclipai` package is already in a
+`npx @outpost/cli` runs offline when the `@outpost/cli` package is already in a
 local install or in the npm cache. It reaches the network only when the package
 is in neither place.
 
 To force cache-only resolution and block any network attempt, run
-`npx --offline paperclipai <command> <args>`. Use `npx --prefer-offline
-paperclipai` when you accept a fetch only for a missing package.
+`npx --offline @outpost/cli <command> <args>`. Use `npx --prefer-offline
+@outpost/cli` when you accept a fetch only for a missing package.
 
 To prepare an air-gapped host, install the package one time while the host is
-online. Run `npm install -g paperclipai`, or run the documented `install.sh`
-path. After that step, both `npx paperclipai` and the installed `paperclipai`
+online. Run `npm install -g @outpost/cli`, or run the documented `install.sh`
+path. After that step, both `npx @outpost/cli` and the installed `outpost`
 binary run offline. Both pass an inert `argv` value.
 
-To move the package without a registry, run `npm pack paperclipai` on an online
+To move the package without a registry, run `npm pack @outpost/cli` on an online
 host. Copy the tarball to the air-gapped host. Run `npm install -g
-./paperclipai-<version>.tgz`.
+./outpost-cli-<version>.tgz`.
 
-Do not use `pnpm paperclipai` as an offline fallback for a content-bearing
+Do not use `pnpm outpost` as an offline fallback for a content-bearing
 argument. It runs the argument through a shell first, offline or online. It also
 resolves only inside a monorepo checkout.
 
@@ -156,7 +156,7 @@ local source.
 Use repo script in development:
 
 ```sh
-pnpm paperclipai --help
+pnpm outpost --help
 ```
 
 Recommended installation and interactive onboarding:
@@ -181,27 +181,27 @@ allowing it to bootstrap Node.js with privileged package-manager commands.
 First-time local bootstrap from a source checkout:
 
 ```sh
-pnpm paperclipai run
+pnpm outpost run
 ```
 
 Choose local instance:
 
 ```sh
-npx paperclipai run --instance dev
+npx @outpost/cli run --instance dev
 ```
 
 ## Isolated Manual Test Drives
 
-`paperclipai test-drive` creates or reuses an isolated local data directory,
-ensures one usable CEO agent exists in a fresh database, starts Paperclip in the
+`outpost test-drive` creates or reuses an isolated local data directory,
+ensures one usable CEO agent exists in a fresh database, starts Outpost in the
 foreground, and opens the browser after initialization succeeds. It never
 installs a background service and never creates a goal, project, issue, task,
 or heartbeat.
 
 ```sh
-npx paperclipai test-drive \
+npx @outpost/cli test-drive \
   [-d, --data-dir <path>] \
-  [--company-name <name>] \
+  [--space-name <name>] \
   [--agent-name <name>] \
   [--harness <claude|codex|opencode>] \
   [--model <model-id>] \
@@ -209,18 +209,18 @@ npx paperclipai test-drive \
   [--no-browser]
 ```
 
-Defaults are `Test Company`, a `CEO` agent with the `ceo` role, and the Claude
+Defaults are `Test Space`, a `CEO` agent with the `ceo` role, and the Claude
 harness. Without `--data-dir`, every invocation creates a unique OS temporary
 directory and prints its absolute path. The directory is retained after exit
 for inspection. An explicit data directory is reused and is never reset. The
-reused directory must use Paperclip's embedded database; `DATABASE_URL`,
+reused directory must use Outpost's embedded database; `DATABASE_URL`,
 `DATABASE_MIGRATION_URL`, and configs with `database.mode: postgres` are
 rejected so test-drive cannot mutate an external database. The server also
 ignores the invocation directory's `.env` for test-drive launches, while still
 loading the selected instance's own environment file. Reused directories also
-retain the normal guard against colliding with a managed Paperclip service. The
+retain the normal guard against colliding with a managed Outpost service. The
 server uses the first available loopback port at or above `3100`, so an
-unrelated local Paperclip process can remain running.
+unrelated local Outpost process can remain running.
 
 Harness configuration:
 
@@ -234,7 +234,7 @@ OpenCode model references retain their complete path, including additional
 slashes:
 
 ```sh
-OPENROUTER_API_KEY=... npx paperclipai test-drive \
+OPENROUTER_API_KEY=... npx @outpost/cli test-drive \
   --harness opencode \
   --model openrouter/anthropic/claude-sonnet-4.5
 ```
@@ -245,16 +245,16 @@ and `--api-key-env` are mutually exclusive. A custom source variable is still
 stored and projected under the canonical target variable:
 
 ```sh
-MY_ROUTER_KEY=... npx paperclipai test-drive \
+MY_ROUTER_KEY=... npx @outpost/cli test-drive \
   --harness opencode \
   --model openrouter/openai/gpt-5.4 \
   --api-key-env MY_ROUTER_KEY
 ```
 
-Credentials are stored through Paperclip's user-secret reference path and are
-redacted from Paperclip command output. Paperclip does not print `--api-key`,
+Credentials are stored through Outpost's user-secret reference path and are
+redacted from Outpost command output. Outpost does not print `--api-key`,
 and it removes the value from its JavaScript argument view immediately after
-Commander parses it. Paperclip does not put the raw argument list in telemetry,
+Commander parses it. Outpost does not put the raw argument list in telemetry,
 API metadata, or diagnostics. Command wrappers, operating-system process
 listings, and shell history can still expose values passed in arguments. This
 is an explicit tradeoff for the local test-drive workflow. Prefer an exported
@@ -266,8 +266,8 @@ When invoked inside a linked Git worktree, the command ignores inherited
 `OUTPOST_IN_WORKTREE` state, launches in worktree mode, and verifies **Run
 tasks in this worktree** is armed for the current instance before opening the
 browser. In a primary checkout or non-Git directory it launches without
-worktree mode and does not alter the setting. On reuse, if any company already
-exists, all bootstrap flags are ignored and companies, agents, and secrets are
+worktree mode and does not alter the setting. On reuse, if any space already
+exists, all bootstrap flags are ignored and spaces, agents, and secrets are
 left untouched; worktree-setting reconciliation is the only permitted
 mutation.
 
@@ -276,24 +276,24 @@ opening it.
 
 ## Install, Update, And Uninstall
 
-Managed installs keep CLI payloads under `~/.paperclip/cli`, expose a stable
-`~/.local/bin/paperclipai` shim, switch versions atomically, and retain two
+Managed installs keep CLI payloads under `~/.outpost/cli`, expose a stable
+`~/.local/bin/outpost` shim, switch versions atomically, and retain two
 previous payloads for rollback.
 
 ```sh
-paperclipai install
-paperclipai install --canary
-paperclipai install --version <version>
-paperclipai install --ref <branch|tag|sha> [--repo owner/repo]
-paperclipai update
-paperclipai update --latest|--canary|--version <version>
-paperclipai update --rollback
-paperclipai upgrade
-paperclipai uninstall
+outpost install
+outpost install --canary
+outpost install --version <version>
+outpost install --ref <branch|tag|sha> [--repo owner/repo]
+outpost update
+outpost update --latest|--canary|--version <version>
+outpost update --rollback
+outpost upgrade
+outpost uninstall
 ```
 
 `upgrade` aliases `update`. `uninstall` removes managed code and the shim but
-preserves instance data under `~/.paperclip/instances/`. See
+preserves instance data under `~/.outpost/instances/`. See
 `doc/INSTALLING.md` for installation methods, security notes, PATH setup, and
 the complete update and rollback behavior.
 
@@ -303,29 +303,29 @@ Interactive onboarding offers to install a background service on supported
 platforms. `--yes` never installs it implicitly; automation must opt in.
 
 ```sh
-paperclipai onboard
-paperclipai onboard --yes
-paperclipai onboard --yes --install-service
-paperclipai onboard --yes --no-install-service
+outpost onboard
+outpost onboard --yes
+outpost onboard --yes --install-service
+outpost onboard --yes --no-install-service
 ```
 
 Service lifecycle commands remain under the `service` namespace:
 
 ```sh
-paperclipai service install [--no-start-now] [--no-start-on-login]
-paperclipai service uninstall
-paperclipai service start
-paperclipai service stop
-paperclipai service restart [--wait]
-paperclipai service status [--json]
-paperclipai service logs [-f]
+outpost service install [--no-start-now] [--no-start-on-login]
+outpost service uninstall
+outpost service start
+outpost service stop
+outpost service restart [--wait]
+outpost service status [--json]
+outpost service logs [-f]
 ```
 
 Every service verb supports `--instance <id>` and `--json`. Linux and WSL2 use
 a systemd user unit when available; macOS uses a LaunchAgent. Unsupported
-environments receive foreground `paperclipai run` guidance.
+environments receive foreground `outpost run` guidance.
 
-`paperclipai doctor` includes managed-install and service-health diagnostics in
+`outpost doctor` includes managed-install and service-health diagnostics in
 addition to configuration, storage, database, logging, and port checks.
 
 ## Deployment Modes
@@ -334,27 +334,27 @@ Mode taxonomy and design intent are documented in `doc/DEPLOYMENT-MODES.md`.
 
 Current CLI behavior:
 
-- `paperclipai onboard` and `paperclipai configure --section server` set deployment mode in config
+- `outpost onboard` and `outpost configure --section server` set deployment mode in config
 - server onboarding/configure ask for reachability intent and write `server.bind`
-- `paperclipai run --bind <loopback|lan|tailnet>` passes a quickstart bind preset into first-run onboarding when config is missing
+- `outpost run --bind <loopback|lan|tailnet>` passes a quickstart bind preset into first-run onboarding when config is missing
 - runtime can override mode with `OUTPOST_DEPLOYMENT_MODE`
-- `paperclipai run` and `paperclipai doctor` still do not expose a direct low-level `--mode` flag
+- `outpost run` and `outpost doctor` still do not expose a direct low-level `--mode` flag
 
 Canonical behavior is documented in `doc/DEPLOYMENT-MODES.md`.
 
 Allow an authenticated/private hostname (for example custom Tailscale DNS):
 
 ```sh
-npx paperclipai allowed-hostname dotta-macbook-pro
+npx @outpost/cli allowed-hostname dotta-macbook-pro
 ```
 
 Bring up the default local SSH fixture for environment testing:
 
 ```sh
-pnpm paperclipai env-lab up
-pnpm paperclipai env-lab doctor
-pnpm paperclipai env-lab status --json
-pnpm paperclipai env-lab down
+pnpm outpost env-lab up
+pnpm outpost env-lab doctor
+pnpm outpost env-lab status --json
+pnpm outpost env-lab down
 ```
 
 All client commands support:
@@ -366,14 +366,14 @@ All client commands support:
 - `--profile <name>`
 - `--json`
 
-Company-scoped commands also support `--company-id <id>`.
+Space-scoped commands also support `--space-id <id>`.
 
 API base resolution order:
 
 1. `--api-base <url>`
 2. `OUTPOST_API_URL`
 3. selected context profile `apiBase`
-4. local Paperclip config server port
+4. local Outpost config server port
 5. `http://localhost:3100`
 
 Connection failures include the attempted URL and a `GET /api/health` check hint.
@@ -381,7 +381,7 @@ Connection failures include the attempted URL and a `GET /api/health` check hint
 ## Connect Wizard
 
 ```sh
-pnpm paperclipai connect
+pnpm outpost connect
 ```
 
 `connect` confirms the resolved API base, verifies `GET /api/health`, authenticates board access when needed, and saves a persona-aware profile:
@@ -391,374 +391,374 @@ pnpm paperclipai connect
 
 Profiles store token env-var names, not plaintext tokens. The wizard prints shell exports for the newly created token.
 
-Use `--data-dir` on any CLI command to isolate all default local state (config/context/db/logs/storage/secrets) away from `~/.paperclip`:
+Use `--data-dir` on any CLI command to isolate all default local state (config/context/db/logs/storage/secrets) away from `~/.outpost`:
 
 ```sh
-npx paperclipai run --data-dir ./tmp/paperclip-dev
-npx paperclipai issue list --data-dir ./tmp/paperclip-dev
+npx @outpost/cli run --data-dir ./tmp/outpost-dev
+npx @outpost/cli issue list --data-dir ./tmp/outpost-dev
 ```
 
 ## Context Profiles
 
-Store local defaults in `~/.paperclip/context.json`:
+Store local defaults in `~/.outpost/context.json`:
 
 ```sh
-npx paperclipai context set --api-base http://localhost:3100 --company-id <company-id>
-npx paperclipai context set --persona agent --agent-id <agent-id> --api-key-env-var-name OUTPOST_API_KEY
-pnpm paperclipai context show
-pnpm paperclipai context list
-npx paperclipai context use default
+npx @outpost/cli context set --api-base http://localhost:3100 --space-id <space-id>
+npx @outpost/cli context set --persona agent --agent-id <agent-id> --api-key-env-var-name OUTPOST_API_KEY
+pnpm outpost context show
+pnpm outpost context list
+npx @outpost/cli context use default
 ```
 
 To avoid storing secrets in context, set `apiKeyEnvVarName` and keep the key in env:
 
 ```sh
-npx paperclipai context set --api-key-env-var-name OUTPOST_API_KEY
+npx @outpost/cli context set --api-key-env-var-name OUTPOST_API_KEY
 export OUTPOST_API_KEY=...
 ```
 
 ## Organization Commands
 
 ```sh
-npx paperclipai company list
-npx paperclipai company get <company-id>
-npx paperclipai company current [--company-id <company-id>]
-npx paperclipai company stats
-npx paperclipai company create --payload-json '{...}'
-npx paperclipai company update <company-id> --payload-json '{...}'
-npx paperclipai company branding:update <company-id> --payload-json '{...}'
-npx paperclipai company archive <company-id>
-npx paperclipai company export <company-id> --out ./company --include company,agents,projects,issues,skills
-npx paperclipai company export:preview <company-id> --payload-json '{...}'
-npx paperclipai company export:api <company-id> --payload-json '{...}'
-npx paperclipai company import ./company --target new --new-company-name "Imported Company"
-npx paperclipai company import:preview <company-id> --payload-json '{...}'
-npx paperclipai company import:apply <company-id> --payload-json '{...}'
-npx paperclipai company delete <company-id-or-prefix> --yes --confirm <same-id-or-prefix>
+npx @outpost/cli space list
+npx @outpost/cli space get <space-id>
+npx @outpost/cli space current [--space-id <space-id>]
+npx @outpost/cli space stats
+npx @outpost/cli space create --payload-json '{...}'
+npx @outpost/cli space update <space-id> --payload-json '{...}'
+npx @outpost/cli space branding:update <space-id> --payload-json '{...}'
+npx @outpost/cli space archive <space-id>
+npx @outpost/cli space export <space-id> --out ./space --include space,agents,projects,issues,skills
+npx @outpost/cli space export:preview <space-id> --payload-json '{...}'
+npx @outpost/cli space export:api <space-id> --payload-json '{...}'
+npx @outpost/cli space import ./space --target new --new-space-name "Imported Space"
+npx @outpost/cli space import:preview <space-id> --payload-json '{...}'
+npx @outpost/cli space import:apply <space-id> --payload-json '{...}'
+npx @outpost/cli space delete <space-id-or-prefix> --yes --confirm <same-id-or-prefix>
 ```
 
 Examples:
 
 ```sh
-npx paperclipai company delete PAP --yes --confirm PAP
-npx paperclipai company delete 5cbe79ee-acb3-4597-896e-7662742593cd --yes --confirm 5cbe79ee-acb3-4597-896e-7662742593cd
+npx @outpost/cli space delete PAP --yes --confirm PAP
+npx @outpost/cli space delete 5cbe79ee-acb3-4597-896e-7662742593cd --yes --confirm 5cbe79ee-acb3-4597-896e-7662742593cd
 ```
 
 Notes:
 
-- With agent authentication, `company list` and `company current` are
-  agent-safe company selectors. `company list` first tries the board-wide list;
-  if that is forbidden, it uses `--company-id`, `OUTPOST_COMPANY_ID`, context,
-  or `/api/agents/me` and then reads only that scoped company.
-- `company create` requires board/instance-admin authentication because it is
+- With agent authentication, `space list` and `space current` are
+  agent-safe space selectors. `space list` first tries the board-wide list;
+  if that is forbidden, it uses `--space-id`, `OUTPOST_SPACE_ID`, context,
+  or `/api/agents/me` and then reads only that scoped space.
+- `space create` requires board/instance-admin authentication because it is
   an instance-wide setup command.
-- Deletion is server-gated by `OUTPOST_ENABLE_COMPANY_DELETION`.
-- With agent authentication, company deletion is company-scoped. Use the current company ID/prefix (for example via `--company-id` or `OUTPOST_COMPANY_ID`), not another company.
+- Deletion is server-gated by `OUTPOST_ENABLE_SPACE_DELETION`.
+- With agent authentication, space deletion is space-scoped. Use the current space ID/prefix (for example via `--space-id` or `OUTPOST_SPACE_ID`), not another space.
 
 ## Issue Commands
 
 ```sh
-npx paperclipai issue list --company-id <company-id> [--status todo,in_progress] [--assignee-agent-id <agent-id>] [--match text]
-npx paperclipai issue get <issue-id-or-identifier>
-npx paperclipai issue create --company-id <company-id> --title "..." [--description "..."] [--status todo] [--priority high] [--parent-id <issue-id> | --standalone]
-npx paperclipai issue update <issue-id> [--status in_progress] [--comment "..."]
-npx paperclipai issue delete <issue-id> --yes
-npx paperclipai issue comment <issue-id> --body "..." [--attachment-id <id...>] [--reopen]
-npx paperclipai issue comments <issue-id> [--limit 50]
-npx paperclipai issue comment:get <issue-id> <comment-id>
-npx paperclipai issue comment:delete <issue-id> <comment-id>
-npx paperclipai issue runs <issue-id-or-identifier>
-npx paperclipai issue live-runs <issue-id-or-identifier>
-npx paperclipai issue active-run <issue-id-or-identifier>
-npx paperclipai issue heartbeat-context <issue-id>
-npx paperclipai issue checkout <issue-id> --agent-id <agent-id> [--expected-statuses todo,backlog,blocked]
-npx paperclipai issue release <issue-id>
-npx paperclipai issue force-release <issue-id>
+npx @outpost/cli issue list --space-id <space-id> [--status todo,in_progress] [--assignee-agent-id <agent-id>] [--match text]
+npx @outpost/cli issue get <issue-id-or-identifier>
+npx @outpost/cli issue create --space-id <space-id> --title "..." [--description "..."] [--status todo] [--priority high] [--parent-id <issue-id> | --standalone]
+npx @outpost/cli issue update <issue-id> [--status in_progress] [--comment "..."]
+npx @outpost/cli issue delete <issue-id> --yes
+npx @outpost/cli issue comment <issue-id> --body "..." [--attachment-id <id...>] [--reopen]
+npx @outpost/cli issue comments <issue-id> [--limit 50]
+npx @outpost/cli issue comment:get <issue-id> <comment-id>
+npx @outpost/cli issue comment:delete <issue-id> <comment-id>
+npx @outpost/cli issue runs <issue-id-or-identifier>
+npx @outpost/cli issue live-runs <issue-id-or-identifier>
+npx @outpost/cli issue active-run <issue-id-or-identifier>
+npx @outpost/cli issue heartbeat-context <issue-id>
+npx @outpost/cli issue checkout <issue-id> --agent-id <agent-id> [--expected-statuses todo,backlog,blocked]
+npx @outpost/cli issue release <issue-id>
+npx @outpost/cli issue force-release <issue-id>
 ```
 
 `issue create` sent from an agent run bound to an ordinary execution task is parented under that task when `--parent-id` is omitted; pass `--standalone` to create intentionally top-level work (`parentId: null`). The two flags are mutually exclusive.
 
-Issue subresources are exposed as Paperclip API wrappers. Commands that map to broad server schemas accept JSON payloads and validate them with shared schemas before sending.
+Issue subresources are exposed as Outpost API wrappers. Commands that map to broad server schemas accept JSON payloads and validate them with shared schemas before sending.
 
 ```sh
-npx paperclipai issue child:create <issue-id> --payload-json '{"title":"Child task"}'
-npx paperclipai issue approvals <issue-id>
-npx paperclipai issue approval:link <issue-id> <approval-id>
-npx paperclipai issue approval:unlink <issue-id> <approval-id>
-npx paperclipai issue read <issue-id>
-npx paperclipai issue unread <issue-id>
-npx paperclipai issue archive <issue-id>
-npx paperclipai issue unarchive <issue-id>
-npx paperclipai issue recovery-actions <issue-id>
-npx paperclipai issue recovery:resolve <issue-id> --outcome restored --source-issue-status todo
+npx @outpost/cli issue child:create <issue-id> --payload-json '{"title":"Child task"}'
+npx @outpost/cli issue approvals <issue-id>
+npx @outpost/cli issue approval:link <issue-id> <approval-id>
+npx @outpost/cli issue approval:unlink <issue-id> <approval-id>
+npx @outpost/cli issue read <issue-id>
+npx @outpost/cli issue unread <issue-id>
+npx @outpost/cli issue archive <issue-id>
+npx @outpost/cli issue unarchive <issue-id>
+npx @outpost/cli issue recovery-actions <issue-id>
+npx @outpost/cli issue recovery:resolve <issue-id> --outcome restored --source-issue-status todo
 ```
 
 ```sh
-npx paperclipai issue documents <issue-id> [--include-system]
-npx paperclipai issue document:get <issue-id> <key>
-npx paperclipai issue document:put <issue-id> <key> --body-file ./plan.md [--title Plan]
-npx paperclipai issue document:lock <issue-id> <key>
-npx paperclipai issue document:unlock <issue-id> <key>
-npx paperclipai issue document:revisions <issue-id> <key>
-npx paperclipai issue document:restore <issue-id> <key> <revision-id>
-npx paperclipai issue document:delete <issue-id> <key>
+npx @outpost/cli issue documents <issue-id> [--include-system]
+npx @outpost/cli issue document:get <issue-id> <key>
+npx @outpost/cli issue document:put <issue-id> <key> --body-file ./plan.md [--title Plan]
+npx @outpost/cli issue document:lock <issue-id> <key>
+npx @outpost/cli issue document:unlock <issue-id> <key>
+npx @outpost/cli issue document:revisions <issue-id> <key>
+npx @outpost/cli issue document:restore <issue-id> <key> <revision-id>
+npx @outpost/cli issue document:delete <issue-id> <key>
 ```
 
 ```sh
-npx paperclipai issue work-products <issue-id>
-npx paperclipai issue work-product:create <issue-id> --payload-json '{"type":"pull_request","provider":"github","title":"PR"}'
-npx paperclipai issue work-product:update <work-product-id> --payload-json '{"status":"archived"}'
-npx paperclipai issue work-product:delete <work-product-id>
-npx paperclipai issue interactions <issue-id>
-npx paperclipai issue interaction:create <issue-id> --payload-json '{"kind":"request_confirmation","payload":{"version":1,"prompt":"Continue?"}}'
-npx paperclipai issue interaction:accept <issue-id> <interaction-id> [--selected-client-keys key1,key2]
-npx paperclipai issue interaction:reject <issue-id> <interaction-id> [--reason "..."]
-npx paperclipai issue interaction:respond <issue-id> <interaction-id> --answers-json '[{"questionId":"q1","optionIds":["yes"]}]'
-npx paperclipai issue interaction:cancel <issue-id> <interaction-id> [--reason "..."]
+npx @outpost/cli issue work-products <issue-id>
+npx @outpost/cli issue work-product:create <issue-id> --payload-json '{"type":"pull_request","provider":"github","title":"PR"}'
+npx @outpost/cli issue work-product:update <work-product-id> --payload-json '{"status":"archived"}'
+npx @outpost/cli issue work-product:delete <work-product-id>
+npx @outpost/cli issue interactions <issue-id>
+npx @outpost/cli issue interaction:create <issue-id> --payload-json '{"kind":"request_confirmation","payload":{"version":1,"prompt":"Continue?"}}'
+npx @outpost/cli issue interaction:accept <issue-id> <interaction-id> [--selected-client-keys key1,key2]
+npx @outpost/cli issue interaction:reject <issue-id> <interaction-id> [--reason "..."]
+npx @outpost/cli issue interaction:respond <issue-id> <interaction-id> --answers-json '[{"questionId":"q1","optionIds":["yes"]}]'
+npx @outpost/cli issue interaction:cancel <issue-id> <interaction-id> [--reason "..."]
 ```
 
 ```sh
-npx paperclipai issue tree-state <issue-id>
-npx paperclipai issue tree-preview <issue-id> --payload-json '{"mode":"pause"}'
-npx paperclipai issue tree-holds <issue-id> [--status active] [--include-members]
-npx paperclipai issue tree-hold:create <issue-id> --payload-json '{"mode":"pause","reason":"review"}'
-npx paperclipai issue tree-hold:get <issue-id> <hold-id>
-npx paperclipai issue tree-hold:release <issue-id> <hold-id> [--payload-json '{"reason":"done"}']
-npx paperclipai issue attachments <issue-id>
-npx paperclipai issue attachment:upload <issue-id> --company-id <company-id> --file ./artifact.txt
-npx paperclipai issue attachment:download <attachment-id> [--out ./artifact.txt]
-npx paperclipai issue attachment:delete <attachment-id>
-npx paperclipai issue label:list --company-id <company-id>
-npx paperclipai issue label:create --company-id <company-id> --name bug --color '#ff0000'
-npx paperclipai issue label:delete <label-id>
-npx paperclipai issue feedback:votes <issue-id>
-npx paperclipai issue feedback:vote <issue-id> --payload-json '{"targetType":"issue_comment","targetId":"...","vote":"up"}'
+npx @outpost/cli issue tree-state <issue-id>
+npx @outpost/cli issue tree-preview <issue-id> --payload-json '{"mode":"pause"}'
+npx @outpost/cli issue tree-holds <issue-id> [--status active] [--include-members]
+npx @outpost/cli issue tree-hold:create <issue-id> --payload-json '{"mode":"pause","reason":"review"}'
+npx @outpost/cli issue tree-hold:get <issue-id> <hold-id>
+npx @outpost/cli issue tree-hold:release <issue-id> <hold-id> [--payload-json '{"reason":"done"}']
+npx @outpost/cli issue attachments <issue-id>
+npx @outpost/cli issue attachment:upload <issue-id> --space-id <space-id> --file ./artifact.txt
+npx @outpost/cli issue attachment:download <attachment-id> [--out ./artifact.txt]
+npx @outpost/cli issue attachment:delete <attachment-id>
+npx @outpost/cli issue label:list --space-id <space-id>
+npx @outpost/cli issue label:create --space-id <space-id> --name bug --color '#ff0000'
+npx @outpost/cli issue label:delete <label-id>
+npx @outpost/cli issue feedback:votes <issue-id>
+npx @outpost/cli issue feedback:vote <issue-id> --payload-json '{"targetType":"issue_comment","targetId":"...","vote":"up"}'
 ```
 
 ## Project Commands
 
 ```sh
-npx paperclipai project list --company-id <company-id>
-npx paperclipai project get <project-id-or-shortname> [--company-id <company-id>]
-npx paperclipai project create --company-id <company-id> --name "Launch Site" [--goal-ids <id1,id2>] [--lead-agent-id <id>]
-npx paperclipai project update <project-id-or-shortname> [--status in_progress] [--company-id <company-id>]
-npx paperclipai project delete <project-id-or-shortname> --yes [--company-id <company-id>]
+npx @outpost/cli project list --space-id <space-id>
+npx @outpost/cli project get <project-id-or-shortname> [--space-id <space-id>]
+npx @outpost/cli project create --space-id <space-id> --name "Launch Site" [--goal-ids <id1,id2>] [--lead-agent-id <id>]
+npx @outpost/cli project update <project-id-or-shortname> [--status in_progress] [--space-id <space-id>]
+npx @outpost/cli project delete <project-id-or-shortname> --yes [--space-id <space-id>]
 ```
 
 Advanced project fields accept JSON:
 
 ```sh
-npx paperclipai project create --company-id <company-id> --name "Ops" --env-json '{"OPENAI_API_KEY":{"kind":"secret","secretName":"openai-api-key"}}'
-npx paperclipai project update <project-id> --execution-workspace-policy-json '{"enabled":true,"defaultMode":"shared_workspace"}'
+npx @outpost/cli project create --space-id <space-id> --name "Ops" --env-json '{"OPENAI_API_KEY":{"kind":"secret","secretName":"openai-api-key"}}'
+npx @outpost/cli project update <project-id> --execution-workspace-policy-json '{"enabled":true,"defaultMode":"shared_workspace"}'
 ```
 
 ## Goal Commands
 
 ```sh
-npx paperclipai goal list --company-id <company-id>
-npx paperclipai goal get <goal-id>
-npx paperclipai goal create --company-id <company-id> --title "Grow revenue" [--level company] [--status active]
-npx paperclipai goal update <goal-id> [--title "..."] [--status achieved]
-npx paperclipai goal delete <goal-id> --yes
+npx @outpost/cli goal list --space-id <space-id>
+npx @outpost/cli goal get <goal-id>
+npx @outpost/cli goal create --space-id <space-id> --title "Grow revenue" [--level space] [--status active]
+npx @outpost/cli goal update <goal-id> [--title "..."] [--status achieved]
+npx @outpost/cli goal delete <goal-id> --yes
 ```
 
 ## Agent Commands
 
 ```sh
-npx paperclipai agent list --company-id <company-id>
-npx paperclipai agent get <agent-id>
-npx paperclipai agent create --company-id <company-id> --payload-json '{"name":"Builder","adapterType":"codex_local"}'
-npx paperclipai agent hire --company-id <company-id> --payload-json '{...}'
-npx paperclipai agent update <agent-id> --payload-json '{"title":"Senior Builder"}'
-npx paperclipai agent delete <agent-id> --yes
-npx paperclipai agent me
-npx paperclipai agent inbox
-npx paperclipai agent inbox-mine --user-id <board-user-id>
-npx paperclipai agent wake <agent-id-or-shortname> [--company-id <company-id>] [--reason "..."] [--payload '{"issueId":"..."}']
-npx paperclipai agent pause <agent-id>
-npx paperclipai agent resume <agent-id>
-npx paperclipai agent approve <agent-id>
-npx paperclipai agent terminate <agent-id>
-npx paperclipai agent heartbeat:invoke <agent-id>
-npx paperclipai agent claude-login <agent-id>
-npx paperclipai agent local-cli <agent-id-or-shortname> --company-id <company-id>
+npx @outpost/cli agent list --space-id <space-id>
+npx @outpost/cli agent get <agent-id>
+npx @outpost/cli agent create --space-id <space-id> --payload-json '{"name":"Builder","adapterType":"codex_local"}'
+npx @outpost/cli agent hire --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli agent update <agent-id> --payload-json '{"title":"Senior Builder"}'
+npx @outpost/cli agent delete <agent-id> --yes
+npx @outpost/cli agent me
+npx @outpost/cli agent inbox
+npx @outpost/cli agent inbox-mine --user-id <board-user-id>
+npx @outpost/cli agent wake <agent-id-or-shortname> [--space-id <space-id>] [--reason "..."] [--payload '{"issueId":"..."}']
+npx @outpost/cli agent pause <agent-id>
+npx @outpost/cli agent resume <agent-id>
+npx @outpost/cli agent approve <agent-id>
+npx @outpost/cli agent terminate <agent-id>
+npx @outpost/cli agent heartbeat:invoke <agent-id>
+npx @outpost/cli agent claude-login <agent-id>
+npx @outpost/cli agent local-cli <agent-id-or-shortname> --space-id <space-id>
 ```
 
 Agent configuration and runtime endpoints:
 
 ```sh
-npx paperclipai agent permissions:update <agent-id> --payload-json '{"canCreateAgents":true,"canCreateSkills":true,"canAssignTasks":true}'
-npx paperclipai agent permission:grant <agent-id> commentary:view
-npx paperclipai agent permission:revoke <agent-id> commentary:view
-npx paperclipai agent configuration <agent-id>
-npx paperclipai agent config-revisions <agent-id>
-npx paperclipai agent config-revision:get <agent-id> <revision-id>
-npx paperclipai agent config-revision:rollback <agent-id> <revision-id>
-npx paperclipai agent runtime-state <agent-id>
-npx paperclipai agent runtime-state:reset-session <agent-id> [--task-key <key>]
-npx paperclipai agent task-sessions <agent-id>
-npx paperclipai agent skills <agent-id>
-npx paperclipai agent skills:sync <agent-id> --desired-skills paperclip,github --mode add
-npx paperclipai agent instructions-path:update <agent-id> --payload-json '{"path":"/path/to/AGENTS.md"}'
-npx paperclipai agent instructions-bundle <agent-id>
-npx paperclipai agent instructions-bundle:update <agent-id> --payload-json '{"mode":"managed"}'
-npx paperclipai agent instructions-file:get <agent-id> --path AGENTS.md
-npx paperclipai agent instructions-file:put <agent-id> --path AGENTS.md --content-file ./AGENTS.md
-npx paperclipai agent instructions-file:delete <agent-id> --path AGENTS.md --yes
+npx @outpost/cli agent permissions:update <agent-id> --payload-json '{"canCreateAgents":true,"canCreateSkills":true,"canAssignTasks":true}'
+npx @outpost/cli agent permission:grant <agent-id> commentary:view
+npx @outpost/cli agent permission:revoke <agent-id> commentary:view
+npx @outpost/cli agent configuration <agent-id>
+npx @outpost/cli agent config-revisions <agent-id>
+npx @outpost/cli agent config-revision:get <agent-id> <revision-id>
+npx @outpost/cli agent config-revision:rollback <agent-id> <revision-id>
+npx @outpost/cli agent runtime-state <agent-id>
+npx @outpost/cli agent runtime-state:reset-session <agent-id> [--task-key <key>]
+npx @outpost/cli agent task-sessions <agent-id>
+npx @outpost/cli agent skills <agent-id>
+npx @outpost/cli agent skills:sync <agent-id> --desired-skills outpost,github --mode add
+npx @outpost/cli agent instructions-path:update <agent-id> --payload-json '{"path":"/path/to/AGENTS.md"}'
+npx @outpost/cli agent instructions-bundle <agent-id>
+npx @outpost/cli agent instructions-bundle:update <agent-id> --payload-json '{"mode":"managed"}'
+npx @outpost/cli agent instructions-file:get <agent-id> --path AGENTS.md
+npx @outpost/cli agent instructions-file:put <agent-id> --path AGENTS.md --content-file ./AGENTS.md
+npx @outpost/cli agent instructions-file:delete <agent-id> --path AGENTS.md --yes
 ```
 
 `permission:grant` and `permission:revoke` require a Board login with
-`users:manage_permissions` in the agent's company. They change one permission
+`users:manage_permissions` in the agent's space. They change one permission
 key and preserve all other grants. A grant applies without starting a new run.
-Granting a key replaces that key's scope with an unscoped company grant;
+Granting a key replaces that key's scope with an unscoped space grant;
 revoking removes the key. Use `agent get <agent-id> --json` to inspect
 `access.grants`. These commands do not reactivate an inactive membership.
 
-Agent config, instructions, skills, project env, environment, secret, and workspace edits affect the next run. Active runs finish with the config they started with. When a saved session, reused workspace, or sandbox lease no longer matches the effective next-run config, Paperclip may start fresh execution and records non-sensitive freshness categories in run result JSON and workspace operation logs.
+Agent config, instructions, skills, project env, environment, secret, and workspace edits affect the next run. Active runs finish with the config they started with. When a saved session, reused workspace, or sandbox lease no longer matches the effective next-run config, Outpost may start fresh execution and records non-sensitive freshness categories in run result JSON and workspace operation logs.
 
-`agent local-cli` is the quickest way to run local Claude/Codex manually as a Paperclip agent:
+`agent local-cli` is the quickest way to run local Claude/Codex manually as a Outpost agent:
 
 - creates a new long-lived agent API key
-- installs missing Paperclip skills into `~/.codex/skills` and `~/.claude/skills`
-- prints `export ...` lines for `OUTPOST_API_URL`, `OUTPOST_COMPANY_ID`, `OUTPOST_AGENT_ID`, and `OUTPOST_API_KEY`
+- installs missing Outpost skills into `~/.codex/skills` and `~/.claude/skills`
+- prints `export ...` lines for `OUTPOST_API_URL`, `OUTPOST_SPACE_ID`, `OUTPOST_AGENT_ID`, and `OUTPOST_API_KEY`
 
 Example for shortname-based local setup:
 
 ```sh
-npx paperclipai agent local-cli codexcoder --company-id <company-id>
-npx paperclipai agent local-cli claudecoder --company-id <company-id>
+npx @outpost/cli agent local-cli codexcoder --space-id <space-id>
+npx @outpost/cli agent local-cli claudecoder --space-id <space-id>
 ```
 
 ## Token Commands
 
-Agent API keys are scoped to one company and one agent. Plaintext tokens are printed once at creation.
+Agent API keys are scoped to one space and one agent. Plaintext tokens are printed once at creation.
 
 ```sh
-npx paperclipai token agent create --company-id <company-id> --agent <agent-id-or-name> --name external-worker
-npx paperclipai token agent list --company-id <company-id> --agent <agent-id-or-name>
-npx paperclipai token agent revoke --company-id <company-id> --agent <agent-id-or-name> <key-id>
+npx @outpost/cli token agent create --space-id <space-id> --agent <agent-id-or-name> --name external-worker
+npx @outpost/cli token agent list --space-id <space-id> --agent <agent-id-or-name>
+npx @outpost/cli token agent revoke --space-id <space-id> --agent <agent-id-or-name> <key-id>
 ```
 
 Named board API keys use the board authorization model, support revocation and expiration metadata, and are audited server-side.
 
 ```sh
-npx paperclipai token board create --company-id <company-id> --name external-admin
-npx paperclipai token board create --name short-lived --ttl-days 7
-npx paperclipai token board list
-npx paperclipai token board revoke <key-id>
+npx @outpost/cli token board create --space-id <space-id> --name external-admin
+npx @outpost/cli token board create --name short-lived --ttl-days 7
+npx @outpost/cli token board list
+npx @outpost/cli token board revoke <key-id>
 ```
 
 ## Run Commands
 
-`paperclipai run` without a subcommand still bootstraps and starts a local Paperclip instance. The subcommands below inspect and control API heartbeat runs.
+`outpost run` without a subcommand still bootstraps and starts a local Outpost instance. The subcommands below inspect and control API heartbeat runs.
 
 ```sh
-npx paperclipai run list --company-id <company-id> [--agent-id <agent-id>] [--limit 50]
-npx paperclipai run live --company-id <company-id> [--limit 50] [--min-count 0]
-npx paperclipai run get <run-id>
-npx paperclipai run events <run-id> [--after-seq 0] [--limit 200]
-npx paperclipai run log <run-id> [--offset 0] [--limit-bytes 16384] [--text]
-npx paperclipai run cancel <run-id>
-npx paperclipai run issues <run-id>
-npx paperclipai run workspace-operations <run-id>
-npx paperclipai run workspace-log <operation-id> [--offset 0] [--limit-bytes 16384] [--text]
-npx paperclipai run watchdog-decision <run-id> --decision continue [--reason "..."]
+npx @outpost/cli run list --space-id <space-id> [--agent-id <agent-id>] [--limit 50]
+npx @outpost/cli run live --space-id <space-id> [--limit 50] [--min-count 0]
+npx @outpost/cli run get <run-id>
+npx @outpost/cli run events <run-id> [--after-seq 0] [--limit 200]
+npx @outpost/cli run log <run-id> [--offset 0] [--limit-bytes 16384] [--text]
+npx @outpost/cli run cancel <run-id>
+npx @outpost/cli run issues <run-id>
+npx @outpost/cli run workspace-operations <run-id>
+npx @outpost/cli run workspace-log <operation-id> [--offset 0] [--limit-bytes 16384] [--text]
+npx @outpost/cli run watchdog-decision <run-id> --decision continue [--reason "..."]
 ```
 
 ## Routine Commands
 
-`paperclipai routines disable-all` remains the local maintenance command. The singular `routine` group maps to the REST API.
+`outpost routines disable-all` remains the local maintenance command. The singular `routine` group maps to the REST API.
 
 ```sh
-npx paperclipai routine list --company-id <company-id> [--project-id <project-id>]
-npx paperclipai routine create --company-id <company-id> --payload-json '{...}'
-npx paperclipai routine get <routine-id>
-npx paperclipai routine update <routine-id> --payload-json '{...}'
-npx paperclipai routine revisions <routine-id>
-npx paperclipai routine revision:restore <routine-id> <revision-id>
-npx paperclipai routine runs <routine-id> [--limit 50]
-npx paperclipai routine run <routine-id> [--payload-json '{...}']
-npx paperclipai routine trigger:create <routine-id> --payload-json '{...}'
-npx paperclipai routine trigger:update <trigger-id> --payload-json '{...}'
-npx paperclipai routine trigger:delete <trigger-id>
-npx paperclipai routine trigger:rotate-secret <trigger-id>
-npx paperclipai routine trigger:fire <public-id> [--payload-json '{...}']
+npx @outpost/cli routine list --space-id <space-id> [--project-id <project-id>]
+npx @outpost/cli routine create --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli routine get <routine-id>
+npx @outpost/cli routine update <routine-id> --payload-json '{...}'
+npx @outpost/cli routine revisions <routine-id>
+npx @outpost/cli routine revision:restore <routine-id> <revision-id>
+npx @outpost/cli routine runs <routine-id> [--limit 50]
+npx @outpost/cli routine run <routine-id> [--payload-json '{...}']
+npx @outpost/cli routine trigger:create <routine-id> --payload-json '{...}'
+npx @outpost/cli routine trigger:update <trigger-id> --payload-json '{...}'
+npx @outpost/cli routine trigger:delete <trigger-id>
+npx @outpost/cli routine trigger:rotate-secret <trigger-id>
+npx @outpost/cli routine trigger:fire <public-id> [--payload-json '{...}']
 ```
 
 ## Prompt Handoff
 
-Prompt handoff creates Paperclip work. It does not create a chat session.
+Prompt handoff creates Outpost work. It does not create a chat session.
 
 ```sh
-npx paperclipai agent-prompt <agent-name-or-id> <agent-api-key> "Prompt here"
-npx paperclipai agent prompt --agent <agent-name-or-id> --api-key-env OUTPOST_API_KEY "Prompt here"
-npx paperclipai agent prompt --profile my-agent "Prompt here"
-npx paperclipai board prompt --company-id <company-id> --agent <agent-name-or-id> "Prompt here"
+npx @outpost/cli agent-prompt <agent-name-or-id> <agent-api-key> "Prompt here"
+npx @outpost/cli agent prompt --agent <agent-name-or-id> --api-key-env OUTPOST_API_KEY "Prompt here"
+npx @outpost/cli agent prompt --profile my-agent "Prompt here"
+npx @outpost/cli board prompt --space-id <space-id> --agent <agent-name-or-id> "Prompt here"
 ```
 
 By default the command creates a `todo` issue assigned to the target agent and wakes the agent. Use `--issue <issue-id>` to add a comment to existing work, and `--no-wake` to skip the wakeup.
 
 ## Skills Commands
 
-`paperclipai skills` covers three distinct operations:
+`outpost skills` covers three distinct operations:
 
-1. **Company install** — adds or updates a row in `company_skills` for the
-   whole company. This is what `skills install`, `skills import`, `skills create`,
+1. **Space install** — adds or updates a row in `space_skills` for the
+   whole space. This is what `skills install`, `skills import`, `skills create`,
    and `skills scan-projects` do.
-2. **Agent attach** — merges an agent's *desired* company skill set with an
+2. **Agent attach** — merges an agent's *desired* space skill set with an
    explicit `add`, `remove`, or `replace` mode (`skills agent sync`/`clear`).
    This is a desired-state operation on the agent's adapter config; it does not
-   change the company library.
+   change the space library.
 3. **Adapter runtime sync** — the adapter reconciles the desired skill set
    with files on disk and reports an `AgentSkillSnapshot` (`skills agent list`).
    `skills agent sync` triggers this automatically after updating desired state.
 
-Required Paperclip runtime skills (heartbeat, etc.) remain server-enforced and
+Required Outpost runtime skills (heartbeat, etc.) remain server-enforced and
 are added on top of whatever the desired set names.
 
-Company skill mutations (`skills install`, `skills import`, `skills create`, and
-`skills scan-projects`) are open to same-company actors by default. Missing
+Space skill mutations (`skills install`, `skills import`, `skills create`, and
+`skills scan-projects`) are open to same-space actors by default. Missing
 `skills:create` grants and `canCreateSkills` settings do not deny these commands;
-only an explicit company skill policy restriction does. Core safety and company
+only an explicit space skill policy restriction does. Core safety and space
 boundary checks still apply, and `agents:create` remains required when a command
 also creates agents.
 
 ### Catalog (app-shipped skills)
 
-The Paperclip app ships a curated catalog under `@outpost/skills-catalog`.
-Browse and inspect commands never mutate company state; `install` adds a catalog
-skill to the company library.
+The Outpost app ships a curated catalog under `@outpost/skills-catalog`.
+Browse and inspect commands never mutate space state; `install` adds a catalog
+skill to the space library.
 
 ```sh
-npx paperclipai skills browse [--kind bundled|optional] [--category <slug>] [--query <text>]
-npx paperclipai skills search "<text>" [--kind bundled|optional] [--category <slug>]
-npx paperclipai skills inspect <catalog-id-or-key-or-slug>
-npx paperclipai skills install <catalog-id-or-key-or-slug> [--as <slug>] [--force] --company-id <company-id>
+npx @outpost/cli skills browse [--kind bundled|optional] [--category <slug>] [--query <text>]
+npx @outpost/cli skills search "<text>" [--kind bundled|optional] [--category <slug>]
+npx @outpost/cli skills inspect <catalog-id-or-key-or-slug>
+npx @outpost/cli skills install <catalog-id-or-key-or-slug> [--as <slug>] [--force] --space-id <space-id>
 ```
 
 Catalog semantics:
 
 - **Bundled** skills live in `packages/skills-catalog/catalog/bundled/<category>/<slug>`
-  and are recommended defaults for most companies. They use canonical key
-  `paperclipai/bundled/<category>/<slug>`.
+  and are recommended defaults for most spaces. They use canonical key
+  `outpost/bundled/<category>/<slug>`.
 - **Optional** skills live in `packages/skills-catalog/catalog/optional/<category>/<slug>`
   and are role-specific or domain-specific (browser, AWS ops, etc.). Same key
   shape with `optional` in place of `bundled`.
-- `skills install` materializes the catalog files into a company-managed skill
+- `skills install` materializes the catalog files into a space-managed skill
   directory and records provenance (`catalogId`, `catalogKey`, `packageVersion`,
   `originHash`, …) so future updates and audit decisions stay consistent.
-- `--as <slug>` overrides the company skill slug. `--force` may replace a
+- `--as <slug>` overrides the space skill slug. `--force` may replace a
   same-key catalog-managed skill but never bypasses hard validation or hard-stop
   audit findings.
 
 Examples:
 
 ```sh
-npx paperclipai skills browse --kind bundled --company-id <company-id>
-npx paperclipai skills search "pull request" --kind bundled
-npx paperclipai skills inspect github-pr-workflow
-npx paperclipai skills install github-pr-workflow --company-id <company-id>
-npx paperclipai skills install paperclipai:optional:browser:agent-browser --company-id <company-id>
+npx @outpost/cli skills browse --kind bundled --space-id <space-id>
+npx @outpost/cli skills search "pull request" --kind bundled
+npx @outpost/cli skills inspect github-pr-workflow
+npx @outpost/cli skills install github-pr-workflow --space-id <space-id>
+npx @outpost/cli skills install outpost:optional:browser:agent-browser --space-id <space-id>
 ```
 
 External GitHub, skills.sh, local-path, and URL sources still go through
@@ -767,23 +767,23 @@ External GitHub, skills.sh, local-path, and URL sources still go through
 ### Organization library
 
 ```sh
-npx paperclipai skills list --company-id <company-id>
-npx paperclipai skills show <skill-id-or-key-or-slug> --company-id <company-id>
-npx paperclipai skills file <skill-id-or-key-or-slug> [--path SKILL.md] --company-id <company-id>
-npx paperclipai skills import <source> --company-id <company-id>
-npx paperclipai skills create --name "Review PRs" [--slug review-prs] [--description "..."] [--body-file SKILL.md] --company-id <company-id>
-npx paperclipai skills scan-projects [--project-id <id>...] [--workspace-id <id>...] --company-id <company-id>
-npx paperclipai skills check [skill-id-or-key-or-slug] --company-id <company-id>
-npx paperclipai skills update <skill-id-or-key-or-slug> [--force] --company-id <company-id>
-npx paperclipai skills update --all [--force] --company-id <company-id>
-npx paperclipai skills audit [skill-id-or-key-or-slug] --company-id <company-id>
-npx paperclipai skills reset <skill-id-or-key-or-slug> [--yes] [--force] --company-id <company-id>
-npx paperclipai skills remove <skill-id-or-key-or-slug> --yes --company-id <company-id>
+npx @outpost/cli skills list --space-id <space-id>
+npx @outpost/cli skills show <skill-id-or-key-or-slug> --space-id <space-id>
+npx @outpost/cli skills file <skill-id-or-key-or-slug> [--path SKILL.md] --space-id <space-id>
+npx @outpost/cli skills import <source> --space-id <space-id>
+npx @outpost/cli skills create --name "Review PRs" [--slug review-prs] [--description "..."] [--body-file SKILL.md] --space-id <space-id>
+npx @outpost/cli skills scan-projects [--project-id <id>...] [--workspace-id <id>...] --space-id <space-id>
+npx @outpost/cli skills check [skill-id-or-key-or-slug] --space-id <space-id>
+npx @outpost/cli skills update <skill-id-or-key-or-slug> [--force] --space-id <space-id>
+npx @outpost/cli skills update --all [--force] --space-id <space-id>
+npx @outpost/cli skills audit [skill-id-or-key-or-slug] --space-id <space-id>
+npx @outpost/cli skills reset <skill-id-or-key-or-slug> [--yes] [--force] --space-id <space-id>
+npx @outpost/cli skills remove <skill-id-or-key-or-slug> --yes --space-id <space-id>
 ```
 
 `skills import <source>` accepts a skills.sh URL, the equivalent
 `<owner>/<repo>/<skill>` shorthand, a GitHub URL, a local path, or an
-`npx skills add …` command. See `references/company-skills.md` in the agent
+`npx skills add …` command. See `references/space-skills.md` in the agent
 skill bundle for the source-type table.
 
 `skills check`, `skills update`, `skills audit`, and `skills reset` are the
@@ -793,7 +793,7 @@ maintenance loop for catalog-installed skills:
   (`hasUpdate`, `installedHash`, `originHash`, `updateHoldReason`,
   `auditVerdict`).
 - `update` installs the pinned update through the existing install-update API.
-  `--all` checks every company skill and updates only those with
+  `--all` checks every space skill and updates only those with
   `hasUpdate=true`. `--force` discards local-modification or soft-audit holds;
   hard-stop audit findings still block the update.
 - `audit` re-scans installed bytes and reports findings without executing
@@ -804,21 +804,21 @@ maintenance loop for catalog-installed skills:
 ### Agent attach
 
 ```sh
-npx paperclipai skills agent list <agent-id-or-shortname> --company-id <company-id>
-npx paperclipai skills agent sync <agent-id-or-shortname> --skill <skill-id-or-key-or-slug> [--skill <skill-id-or-key-or-slug>...] --mode <add|remove|replace> --company-id <company-id>
-npx paperclipai skills agent clear <agent-id-or-shortname> --yes --company-id <company-id>
+npx @outpost/cli skills agent list <agent-id-or-shortname> --space-id <space-id>
+npx @outpost/cli skills agent sync <agent-id-or-shortname> --skill <skill-id-or-key-or-slug> [--skill <skill-id-or-key-or-slug>...] --mode <add|remove|replace> --space-id <space-id>
+npx @outpost/cli skills agent clear <agent-id-or-shortname> --yes --space-id <space-id>
 ```
 
 `skills agent sync` requires a merge mode and returns the resulting adapter
 `AgentSkillSnapshot`. `add` preserves all unnamed assignments, `remove` deletes
 only named assignments, and `replace` destructively overwrites the complete
 non-required desired skill set.
-`skills agent clear` sends an empty desired list. Required Paperclip skills are
+`skills agent clear` sends an empty desired list. Required Outpost skills are
 still enforced by the server in both cases.
 
 ### Notes
 
-- Skill references accept company skill `id`, canonical `key`, or unique
+- Skill references accept space skill `id`, canonical `key`, or unique
   `slug`; catalog references accept catalog `id`, `key`, or unique `slug`.
 - `skills file` prints raw file content in human mode so it can be piped.
 - `skills create --body-file -` reads the skill markdown body from stdin.
@@ -828,24 +828,24 @@ still enforced by the server in both cases.
 
 ## Teams Commands
 
-`paperclipai teams` works with the app-shipped team catalog in
+`outpost teams` works with the app-shipped team catalog in
 `@outpost/teams-catalog`. Browse, search, inspect, and file reads do not
-change company state. `preview` runs the company import planner, and `install`
-imports the catalog team into an existing company.
+change space state. `preview` runs the space import planner, and `install`
+imports the catalog team into an existing space.
 
 ```sh
-npx paperclipai teams browse [--kind bundled|optional] [--category <slug>] [--query <text>]
-npx paperclipai teams search "<text>" [--kind bundled|optional] [--category <slug>]
-npx paperclipai teams inspect <catalog-id-or-key-or-slug> [--file TEAM.md]
-npx paperclipai teams preview <catalog-id-or-key-or-slug> --company-id <company-id>
-npx paperclipai teams install <catalog-id-or-key-or-slug> --company-id <company-id>
+npx @outpost/cli teams browse [--kind bundled|optional] [--category <slug>] [--query <text>]
+npx @outpost/cli teams search "<text>" [--kind bundled|optional] [--category <slug>]
+npx @outpost/cli teams inspect <catalog-id-or-key-or-slug> [--file TEAM.md]
+npx @outpost/cli teams preview <catalog-id-or-key-or-slug> --space-id <space-id>
+npx @outpost/cli teams install <catalog-id-or-key-or-slug> --space-id <space-id>
 ```
 
 Preview/install options:
 
-- Under agent authentication, use `paperclipai company list --json`,
-  `paperclipai company current --json`, or `OUTPOST_COMPANY_ID` to select the
-  target company. `company list` falls back to the scoped current company when
+- Under agent authentication, use `outpost space list --json`,
+  `outpost space current --json`, or `OUTPOST_SPACE_ID` to select the
+  target space. `space list` falls back to the scoped current space when
   board-wide listing is forbidden. `teams install` creates agents and therefore
   requires board authentication, an `agents:create` grant, or an agent with the
   `canCreateAgents` permission (enabled by default for newly created
@@ -853,7 +853,7 @@ Preview/install options:
   explicit value stay disabled).
 - `--request-approval-on-forbidden` turns a 403 install denial into a linked
   board approval request instead of a raw failed command; use
-  `--approval-issue-id <id>` to attach it to a specific issue. During Paperclip
+  `--approval-issue-id <id>` to attach it to a specific issue. During Outpost
   task runs with `OUTPOST_TASK_ID` set, this fallback is automatic so
   agent-run walkthroughs leave a pending approval path instead of a raw 403.
 - `--target-manager-agent-id <id>` or `--target-manager-slug <slug>` reparents
@@ -868,32 +868,32 @@ Preview/install options:
 ## Secrets Commands
 
 ```sh
-npx paperclipai secrets list --company-id <company-id>
-npx paperclipai secrets declarations --company-id <company-id> [--include agents,projects] [--kind secret]
-npx paperclipai secrets create --company-id <company-id> --name anthropic-api-key --value-env ANTHROPIC_API_KEY
-npx paperclipai secrets link --company-id <company-id> --name prod-stripe-key --provider aws_secrets_manager --external-ref <provider-ref>
-npx paperclipai secrets doctor --company-id <company-id>
-npx paperclipai secrets provider-configs --company-id <company-id>
-npx paperclipai secrets provider-config:create --company-id <company-id> --payload-json '{...}'
-npx paperclipai secrets provider-config:discovery-preview --company-id <company-id> --payload-json '{...}'
-npx paperclipai secrets provider-config:get <config-id>
-npx paperclipai secrets provider-config:update <config-id> --payload-json '{...}'
-npx paperclipai secrets provider-config:default <config-id>
-npx paperclipai secrets provider-config:health <config-id>
-npx paperclipai secrets provider-config:delete <config-id>
-npx paperclipai secrets remote-import:preview --company-id <company-id> --payload-json '{...}'
-npx paperclipai secrets remote-import --company-id <company-id> --payload-json '{...}'
-npx paperclipai secrets migrate-inline-env --company-id <company-id> [--apply]
+npx @outpost/cli secrets list --space-id <space-id>
+npx @outpost/cli secrets declarations --space-id <space-id> [--include agents,projects] [--kind secret]
+npx @outpost/cli secrets create --space-id <space-id> --name anthropic-api-key --value-env ANTHROPIC_API_KEY
+npx @outpost/cli secrets link --space-id <space-id> --name prod-stripe-key --provider aws_secrets_manager --external-ref <provider-ref>
+npx @outpost/cli secrets doctor --space-id <space-id>
+npx @outpost/cli secrets provider-configs --space-id <space-id>
+npx @outpost/cli secrets provider-config:create --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli secrets provider-config:discovery-preview --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli secrets provider-config:get <config-id>
+npx @outpost/cli secrets provider-config:update <config-id> --payload-json '{...}'
+npx @outpost/cli secrets provider-config:default <config-id>
+npx @outpost/cli secrets provider-config:health <config-id>
+npx @outpost/cli secrets provider-config:delete <config-id>
+npx @outpost/cli secrets remote-import:preview --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli secrets remote-import --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli secrets migrate-inline-env --space-id <space-id> [--apply]
 ```
 
 Secret listing and declarations never print secret values. `create` accepts
 `--value-env` so shell history does not capture the value. `link` records
-provider-owned references without copying the secret value into Paperclip.
+provider-owned references without copying the secret value into Outpost.
 For AWS-backed secrets, `secrets doctor` reports missing non-secret provider
 env and the expected AWS SDK runtime credential source; do not store AWS
-bootstrap credentials in Paperclip secrets.
+bootstrap credentials in Outpost secrets.
 
-Per-company provider vaults (multiple vault instances per provider, default
+Per-space provider vaults (multiple vault instances per provider, default
 vault selection, coming-soon GCP/Vault) can be configured from the board UI under
 `Organization Settings → Secrets → Provider vaults` or through the provider-config CLI
 commands above. See the
@@ -903,78 +903,78 @@ commands above. See the
 ## Approval Commands
 
 ```sh
-npx paperclipai approval list --company-id <company-id> [--status pending]
-npx paperclipai approval get <approval-id>
-npx paperclipai approval create --company-id <company-id> --type hire_agent --payload '{"name":"..."}' [--issue-ids <id1,id2>]
-npx paperclipai approval approve <approval-id> [--decision-note "..."]
-npx paperclipai approval reject <approval-id> [--decision-note "..."]
-npx paperclipai approval request-revision <approval-id> [--decision-note "..."]
-npx paperclipai approval resubmit <approval-id> [--payload '{"...":"..."}']
-npx paperclipai approval comment <approval-id> --body "..."
+npx @outpost/cli approval list --space-id <space-id> [--status pending]
+npx @outpost/cli approval get <approval-id>
+npx @outpost/cli approval create --space-id <space-id> --type hire_agent --payload '{"name":"..."}' [--issue-ids <id1,id2>]
+npx @outpost/cli approval approve <approval-id> [--decision-note "..."]
+npx @outpost/cli approval reject <approval-id> [--decision-note "..."]
+npx @outpost/cli approval request-revision <approval-id> [--decision-note "..."]
+npx @outpost/cli approval resubmit <approval-id> [--payload '{"...":"..."}']
+npx @outpost/cli approval comment <approval-id> --body "..."
 ```
 
 ## Activity Commands
 
 ```sh
-npx paperclipai activity list --company-id <company-id> [--agent-id <agent-id>] [--entity-type issue] [--entity-id <id>]
-npx paperclipai activity create --company-id <company-id> --payload-json '{...}'
-npx paperclipai activity issue <issue-id>
+npx @outpost/cli activity list --space-id <space-id> [--agent-id <agent-id>] [--entity-type issue] [--entity-id <id>]
+npx @outpost/cli activity create --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli activity issue <issue-id>
 ```
 
 ## Dashboard Commands
 
 ```sh
-npx paperclipai dashboard get --company-id <company-id>
+npx @outpost/cli dashboard get --space-id <space-id>
 ```
 
 ## Org And Agent Config Commands
 
 ```sh
-npx paperclipai whoami
-npx paperclipai openapi
-npx paperclipai org get --company-id <company-id>
-npx paperclipai org svg --company-id <company-id> [--out org.svg]
-npx paperclipai org png --company-id <company-id> [--out org.png]
-npx paperclipai agent-config list --company-id <company-id>
+npx @outpost/cli whoami
+npx @outpost/cli openapi
+npx @outpost/cli org get --space-id <space-id>
+npx @outpost/cli org svg --space-id <space-id> [--out org.svg]
+npx @outpost/cli org png --space-id <space-id> [--out org.png]
+npx @outpost/cli agent-config list --space-id <space-id>
 ```
 
 ## Access, Profile, And Instance Commands
 
 ```sh
-npx paperclipai profile session
-npx paperclipai profile get
-npx paperclipai profile update --payload-json '{...}'
-npx paperclipai profile company-user <user-slug> --company-id <company-id>
-npx paperclipai invite list --company-id <company-id>
-npx paperclipai invite create --company-id <company-id> --payload-json '{...}'
-npx paperclipai invite revoke <invite-id>
-npx paperclipai invite show <token>
-npx paperclipai invite accept <token> [--payload-json '{...}']
-npx paperclipai invite onboarding:text <token>
-npx paperclipai join list --company-id <company-id> [--status pending_approval]
-npx paperclipai join approve <request-id> --company-id <company-id>
-npx paperclipai join reject <request-id> --company-id <company-id>
-npx paperclipai join claim-key <request-id> --claim-secret <secret>
-npx paperclipai member list --company-id <company-id>
-npx paperclipai member update <member-id> --company-id <company-id> --payload-json '{...}'
-npx paperclipai member role-and-grants <member-id> --company-id <company-id> --payload-json '{...}'
-npx paperclipai member permissions <member-id> --company-id <company-id> --payload-json '{...}'
-npx paperclipai member archive <member-id> --company-id <company-id> [--payload-json '{...}']
-npx paperclipai admin user list [--query <text>]
-npx paperclipai admin user promote <user-id>
-npx paperclipai admin user demote <user-id>
-npx paperclipai admin user company-access <user-id>
-npx paperclipai admin user company-access:update <user-id> --payload-json '{...}'
+npx @outpost/cli profile session
+npx @outpost/cli profile get
+npx @outpost/cli profile update --payload-json '{...}'
+npx @outpost/cli profile space-user <user-slug> --space-id <space-id>
+npx @outpost/cli invite list --space-id <space-id>
+npx @outpost/cli invite create --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli invite revoke <invite-id>
+npx @outpost/cli invite show <token>
+npx @outpost/cli invite accept <token> [--payload-json '{...}']
+npx @outpost/cli invite onboarding:text <token>
+npx @outpost/cli join list --space-id <space-id> [--status pending_approval]
+npx @outpost/cli join approve <request-id> --space-id <space-id>
+npx @outpost/cli join reject <request-id> --space-id <space-id>
+npx @outpost/cli join claim-key <request-id> --claim-secret <secret>
+npx @outpost/cli member list --space-id <space-id>
+npx @outpost/cli member update <member-id> --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli member role-and-grants <member-id> --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli member permissions <member-id> --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli member archive <member-id> --space-id <space-id> [--payload-json '{...}']
+npx @outpost/cli admin user list [--query <text>]
+npx @outpost/cli admin user promote <user-id>
+npx @outpost/cli admin user demote <user-id>
+npx @outpost/cli admin user space-access <user-id>
+npx @outpost/cli admin user space-access:update <user-id> --payload-json '{...}'
 ```
 
 CLI auth challenge endpoints are also exposed for tooling that needs the raw challenge lifecycle:
 
 ```sh
-npx paperclipai auth challenge create --payload-json '{...}'
-OUTPOST_CHALLENGE_SECRET=<challenge-secret> npx paperclipai auth challenge get <challenge-id> --token-env OUTPOST_CHALLENGE_SECRET
-OUTPOST_CHALLENGE_SECRET=<challenge-secret> npx paperclipai auth challenge approve <challenge-id> --token-env OUTPOST_CHALLENGE_SECRET
-OUTPOST_CHALLENGE_SECRET=<challenge-secret> npx paperclipai auth challenge cancel <challenge-id> --token-env OUTPOST_CHALLENGE_SECRET
-npx paperclipai auth revoke-current
+npx @outpost/cli auth challenge create --payload-json '{...}'
+OUTPOST_CHALLENGE_SECRET=<challenge-secret> npx @outpost/cli auth challenge get <challenge-id> --token-env OUTPOST_CHALLENGE_SECRET
+OUTPOST_CHALLENGE_SECRET=<challenge-secret> npx @outpost/cli auth challenge approve <challenge-id> --token-env OUTPOST_CHALLENGE_SECRET
+OUTPOST_CHALLENGE_SECRET=<challenge-secret> npx @outpost/cli auth challenge cancel <challenge-id> --token-env OUTPOST_CHALLENGE_SECRET
+npx @outpost/cli auth revoke-current
 ```
 
 `--token <challenge-secret>` is still supported for compatibility, but `--token-env` avoids putting challenge secrets in shell history or process arguments.
@@ -988,33 +988,33 @@ HTTP 404. Approval requires board authentication, checked before ID validation.
 ## Instance Settings Commands
 
 ```sh
-npx paperclipai instance scheduler-heartbeats
-npx paperclipai instance settings:general
-npx paperclipai instance settings:general:update --payload-json '{...}'
-npx paperclipai instance settings:experimental
-npx paperclipai instance settings:experimental:update --payload-json '{...}'
-npx paperclipai instance database-backup
+npx @outpost/cli instance scheduler-heartbeats
+npx @outpost/cli instance settings:general
+npx @outpost/cli instance settings:general:update --payload-json '{...}'
+npx @outpost/cli instance settings:experimental
+npx @outpost/cli instance settings:experimental:update --payload-json '{...}'
+npx @outpost/cli instance database-backup
 ```
 
 Experimental features are opt-in and are provided without compatibility guarantees. They may break, change, or be removed at any time. Use them at your own risk.
 
 ```sh
-npx paperclipai sidebar preferences
-npx paperclipai sidebar preferences:update --payload-json '{...}'
-npx paperclipai sidebar project-preferences --company-id <company-id>
-npx paperclipai sidebar project-preferences:update --company-id <company-id> --payload-json '{...}'
-npx paperclipai sidebar badges --company-id <company-id>
-npx paperclipai inbox dismissals --company-id <company-id>
-npx paperclipai inbox dismiss --company-id <company-id> --payload-json '{"itemKey":"run:<run-id>"}'
-npx paperclipai board-claim show <token>
-npx paperclipai board-claim claim <token> [--payload-json '{...}']
-npx paperclipai openclaw invite-prompt --company-id <company-id> --payload-json '{...}'
-npx paperclipai available-skill list
-npx paperclipai available-skill index
-npx paperclipai available-skill get <skill-name>
-npx paperclipai llm agent-configuration
-npx paperclipai llm agent-configuration:adapter <adapter-type>
-npx paperclipai llm agent-icons
+npx @outpost/cli sidebar preferences
+npx @outpost/cli sidebar preferences:update --payload-json '{...}'
+npx @outpost/cli sidebar project-preferences --space-id <space-id>
+npx @outpost/cli sidebar project-preferences:update --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli sidebar badges --space-id <space-id>
+npx @outpost/cli inbox dismissals --space-id <space-id>
+npx @outpost/cli inbox dismiss --space-id <space-id> --payload-json '{"itemKey":"run:<run-id>"}'
+npx @outpost/cli board-claim show <token>
+npx @outpost/cli board-claim claim <token> [--payload-json '{...}']
+npx @outpost/cli openclaw invite-prompt --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli available-skill list
+npx @outpost/cli available-skill index
+npx @outpost/cli available-skill get <skill-name>
+npx @outpost/cli llm agent-configuration
+npx @outpost/cli llm agent-configuration:adapter <adapter-type>
+npx @outpost/cli llm agent-icons
 ```
 
 Hermes gateway uses the generic invite/join commands above rather than
@@ -1027,100 +1027,100 @@ commands. See [HERMES_GATEWAY_ONBOARDING.md](./HERMES_GATEWAY_ONBOARDING.md).
 ## Adapter, Asset, And Skill Commands
 
 ```sh
-npx paperclipai adapter list
-npx paperclipai adapter install --payload-json '{"packageName":"@scope/adapter","version":"1.2.3"}'
-npx paperclipai adapter get <adapter-type>
-npx paperclipai adapter update <adapter-type> --payload-json '{"disabled":true}'
-npx paperclipai adapter override <adapter-type> --payload-json '{"paused":true}'
-npx paperclipai adapter reload <adapter-type>
-npx paperclipai adapter reinstall <adapter-type>
-npx paperclipai adapter delete <adapter-type>
-npx paperclipai adapter config-schema <adapter-type>
-npx paperclipai adapter ui-parser <adapter-type>
-npx paperclipai adapter models <adapter-type> --company-id <company-id> [--refresh] [--environment-id <id>]
-npx paperclipai adapter detect-model <adapter-type> --company-id <company-id>
-npx paperclipai adapter test-environment <adapter-type> --company-id <company-id> --payload-json '{...}'
+npx @outpost/cli adapter list
+npx @outpost/cli adapter install --payload-json '{"packageName":"@scope/adapter","version":"1.2.3"}'
+npx @outpost/cli adapter get <adapter-type>
+npx @outpost/cli adapter update <adapter-type> --payload-json '{"disabled":true}'
+npx @outpost/cli adapter override <adapter-type> --payload-json '{"paused":true}'
+npx @outpost/cli adapter reload <adapter-type>
+npx @outpost/cli adapter reinstall <adapter-type>
+npx @outpost/cli adapter delete <adapter-type>
+npx @outpost/cli adapter config-schema <adapter-type>
+npx @outpost/cli adapter ui-parser <adapter-type>
+npx @outpost/cli adapter models <adapter-type> --space-id <space-id> [--refresh] [--environment-id <id>]
+npx @outpost/cli adapter detect-model <adapter-type> --space-id <space-id>
+npx @outpost/cli adapter test-environment <adapter-type> --space-id <space-id> --payload-json '{...}'
 ```
 
 ```sh
-npx paperclipai asset image:upload --company-id <company-id> --file ./image.png [--namespace docs] [--alt "..."]
-npx paperclipai asset logo:upload --company-id <company-id> --file ./logo.svg
-npx paperclipai asset content <asset-id> --out ./asset.bin
+npx @outpost/cli asset image:upload --space-id <space-id> --file ./image.png [--namespace docs] [--alt "..."]
+npx @outpost/cli asset logo:upload --space-id <space-id> --file ./logo.svg
+npx @outpost/cli asset content <asset-id> --out ./asset.bin
 ```
 
 ```sh
-npx paperclipai skill list --company-id <company-id>
-npx paperclipai skill get <skill-id> --company-id <company-id>
-npx paperclipai skill file <skill-id> --company-id <company-id> [--path SKILL.md]
-npx paperclipai skill create --company-id <company-id> --payload-json '{...}'
-npx paperclipai skill file:update <skill-id> --company-id <company-id> --payload-json '{...}'
-npx paperclipai skill import --company-id <company-id> --payload-json '{"source":"github:owner/repo/path"}'
-npx paperclipai skill scan-projects --company-id <company-id> --payload-json '{...}'
-npx paperclipai skill update-status <skill-id> --company-id <company-id>
-npx paperclipai skill install-update <skill-id> --company-id <company-id>
-npx paperclipai skill delete <skill-id> --company-id <company-id>
+npx @outpost/cli skill list --space-id <space-id>
+npx @outpost/cli skill get <skill-id> --space-id <space-id>
+npx @outpost/cli skill file <skill-id> --space-id <space-id> [--path SKILL.md]
+npx @outpost/cli skill create --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli skill file:update <skill-id> --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli skill import --space-id <space-id> --payload-json '{"source":"github:owner/repo/path"}'
+npx @outpost/cli skill scan-projects --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli skill update-status <skill-id> --space-id <space-id>
+npx @outpost/cli skill install-update <skill-id> --space-id <space-id>
+npx @outpost/cli skill delete <skill-id> --space-id <space-id>
 ```
 
 ## Cost, Finance, And Budget Commands
 
 ```sh
-npx paperclipai cost summary --company-id <company-id>
-npx paperclipai cost by-agent --company-id <company-id>
-npx paperclipai cost by-agent-model --company-id <company-id>
-npx paperclipai cost by-provider --company-id <company-id>
-npx paperclipai cost by-biller --company-id <company-id>
-npx paperclipai cost by-project --company-id <company-id>
-npx paperclipai cost window-spend --company-id <company-id>
-npx paperclipai cost quota-windows --company-id <company-id>
-npx paperclipai cost issue <issue-id>
-npx paperclipai cost event:create --company-id <company-id> --payload-json '{...}'
+npx @outpost/cli cost summary --space-id <space-id>
+npx @outpost/cli cost by-agent --space-id <space-id>
+npx @outpost/cli cost by-agent-model --space-id <space-id>
+npx @outpost/cli cost by-provider --space-id <space-id>
+npx @outpost/cli cost by-biller --space-id <space-id>
+npx @outpost/cli cost by-project --space-id <space-id>
+npx @outpost/cli cost window-spend --space-id <space-id>
+npx @outpost/cli cost quota-windows --space-id <space-id>
+npx @outpost/cli cost issue <issue-id>
+npx @outpost/cli cost event:create --space-id <space-id> --payload-json '{...}'
 ```
 
 ```sh
-npx paperclipai finance event:create --company-id <company-id> --payload-json '{...}'
-npx paperclipai finance events --company-id <company-id>
-npx paperclipai finance summary --company-id <company-id>
-npx paperclipai finance by-biller --company-id <company-id>
-npx paperclipai finance by-kind --company-id <company-id>
-npx paperclipai budget overview --company-id <company-id>
-npx paperclipai budget policy:upsert --company-id <company-id> --payload-json '{...}'
-npx paperclipai budget company:update --company-id <company-id> --payload-json '{...}'
-npx paperclipai budget agent:update <agent-id> --payload-json '{...}'
-npx paperclipai budget incident:resolve <incident-id> --company-id <company-id> [--payload-json '{...}']
+npx @outpost/cli finance event:create --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli finance events --space-id <space-id>
+npx @outpost/cli finance summary --space-id <space-id>
+npx @outpost/cli finance by-biller --space-id <space-id>
+npx @outpost/cli finance by-kind --space-id <space-id>
+npx @outpost/cli budget overview --space-id <space-id>
+npx @outpost/cli budget policy:upsert --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli budget space:update --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli budget agent:update <agent-id> --payload-json '{...}'
+npx @outpost/cli budget incident:resolve <incident-id> --space-id <space-id> [--payload-json '{...}']
 ```
 
 ## Workspace And Environment Commands
 
 ```sh
-npx paperclipai workspace list --company-id <company-id>
-npx paperclipai workspace get <execution-workspace-id>
-npx paperclipai workspace close-readiness <execution-workspace-id>
-npx paperclipai workspace operations <execution-workspace-id>
-npx paperclipai workspace update <execution-workspace-id> --payload-json '{...}'
-npx paperclipai workspace runtime-service <execution-workspace-id> start --payload-json '{...}'
-npx paperclipai workspace runtime-command <execution-workspace-id> run --payload-json '{...}'
+npx @outpost/cli workspace list --space-id <space-id>
+npx @outpost/cli workspace get <execution-workspace-id>
+npx @outpost/cli workspace close-readiness <execution-workspace-id>
+npx @outpost/cli workspace operations <execution-workspace-id>
+npx @outpost/cli workspace update <execution-workspace-id> --payload-json '{...}'
+npx @outpost/cli workspace runtime-service <execution-workspace-id> start --payload-json '{...}'
+npx @outpost/cli workspace runtime-command <execution-workspace-id> run --payload-json '{...}'
 ```
 
 ```sh
-npx paperclipai environment list --company-id <company-id>
-npx paperclipai environment capabilities --company-id <company-id>
-npx paperclipai environment create --company-id <company-id> --payload-json '{...}'
-npx paperclipai environment get <environment-id>
-npx paperclipai environment leases <environment-id>
-npx paperclipai environment lease <lease-id>
-npx paperclipai environment update <environment-id> --payload-json '{...}'
-npx paperclipai environment delete <environment-id>
-npx paperclipai environment probe <environment-id>
-npx paperclipai environment probe-config --company-id <company-id> --payload-json '{...}'
+npx @outpost/cli environment list --space-id <space-id>
+npx @outpost/cli environment capabilities --space-id <space-id>
+npx @outpost/cli environment create --space-id <space-id> --payload-json '{...}'
+npx @outpost/cli environment get <environment-id>
+npx @outpost/cli environment leases <environment-id>
+npx @outpost/cli environment lease <lease-id>
+npx @outpost/cli environment update <environment-id> --payload-json '{...}'
+npx @outpost/cli environment delete <environment-id>
+npx @outpost/cli environment probe <environment-id>
+npx @outpost/cli environment probe-config --space-id <space-id> --payload-json '{...}'
 ```
 
 ```sh
-npx paperclipai project-workspace list <project-id>
-npx paperclipai project-workspace create <project-id> --payload-json '{...}'
-npx paperclipai project-workspace update <project-id> <workspace-id> --payload-json '{...}'
-npx paperclipai project-workspace delete <project-id> <workspace-id>
-npx paperclipai project-workspace runtime-service <project-id> <workspace-id> restart --payload-json '{...}'
-npx paperclipai project-workspace runtime-command <project-id> <workspace-id> run --payload-json '{...}'
+npx @outpost/cli project-workspace list <project-id>
+npx @outpost/cli project-workspace create <project-id> --payload-json '{...}'
+npx @outpost/cli project-workspace update <project-id> <workspace-id> --payload-json '{...}'
+npx @outpost/cli project-workspace delete <project-id> <workspace-id>
+npx @outpost/cli project-workspace runtime-service <project-id> <workspace-id> restart --payload-json '{...}'
+npx @outpost/cli project-workspace runtime-command <project-id> <workspace-id> run --payload-json '{...}'
 ```
 
 ## Plugin Commands
@@ -1128,36 +1128,36 @@ npx paperclipai project-workspace runtime-command <project-id> <workspace-id> ru
 Existing plugin lifecycle commands remain available: `plugin init`, `list`, `install`, `uninstall`, `enable`, `disable`, `inspect`, and `examples`.
 
 ```sh
-npx paperclipai plugin ui-contributions
-npx paperclipai plugin tools
-npx paperclipai plugin tool:execute --payload-json '{...}'
-npx paperclipai plugin health <plugin-id>
-npx paperclipai plugin logs <plugin-id>
-npx paperclipai plugin upgrade <plugin-id>
-npx paperclipai plugin config <plugin-id> --company-id <company-id>
-npx paperclipai plugin config:set <plugin-id> --company-id <company-id> --payload-json '{"configJson":{...}}'
-npx paperclipai plugin config:test <plugin-id> --company-id <company-id> --payload-json '{"configJson":{...}}'
-npx paperclipai plugin jobs <plugin-id>
-npx paperclipai plugin job:runs <plugin-id> <job-id>
-npx paperclipai plugin job:trigger <plugin-id> <job-id> [--payload-json '{...}']
-npx paperclipai plugin webhook <plugin-id> <endpoint-key> [--payload-json '{...}']
-npx paperclipai plugin dashboard <plugin-id>
-npx paperclipai plugin bridge:data <plugin-id> --payload-json '{...}'
-npx paperclipai plugin bridge:action <plugin-id> --payload-json '{...}'
-npx paperclipai plugin bridge:stream <plugin-id> <channel> [--duration-ms 10000]
-npx paperclipai plugin data <plugin-id> <key> --payload-json '{...}'
-npx paperclipai plugin action <plugin-id> <key> --payload-json '{...}'
-npx paperclipai plugin local-folders <plugin-id> --company-id <company-id>
-npx paperclipai plugin local-folder:status <plugin-id> <folder-key> --company-id <company-id>
-npx paperclipai plugin local-folder:validate <plugin-id> <folder-key> --company-id <company-id> [--payload-json '{...}']
-npx paperclipai plugin local-folder:set <plugin-id> <folder-key> --company-id <company-id> --payload-json '{...}'
+npx @outpost/cli plugin ui-contributions
+npx @outpost/cli plugin tools
+npx @outpost/cli plugin tool:execute --payload-json '{...}'
+npx @outpost/cli plugin health <plugin-id>
+npx @outpost/cli plugin logs <plugin-id>
+npx @outpost/cli plugin upgrade <plugin-id>
+npx @outpost/cli plugin config <plugin-id> --space-id <space-id>
+npx @outpost/cli plugin config:set <plugin-id> --space-id <space-id> --payload-json '{"configJson":{...}}'
+npx @outpost/cli plugin config:test <plugin-id> --space-id <space-id> --payload-json '{"configJson":{...}}'
+npx @outpost/cli plugin jobs <plugin-id>
+npx @outpost/cli plugin job:runs <plugin-id> <job-id>
+npx @outpost/cli plugin job:trigger <plugin-id> <job-id> [--payload-json '{...}']
+npx @outpost/cli plugin webhook <plugin-id> <endpoint-key> [--payload-json '{...}']
+npx @outpost/cli plugin dashboard <plugin-id>
+npx @outpost/cli plugin bridge:data <plugin-id> --payload-json '{...}'
+npx @outpost/cli plugin bridge:action <plugin-id> --payload-json '{...}'
+npx @outpost/cli plugin bridge:stream <plugin-id> <channel> [--duration-ms 10000]
+npx @outpost/cli plugin data <plugin-id> <key> --payload-json '{...}'
+npx @outpost/cli plugin action <plugin-id> <key> --payload-json '{...}'
+npx @outpost/cli plugin local-folders <plugin-id> --space-id <space-id>
+npx @outpost/cli plugin local-folder:status <plugin-id> <folder-key> --space-id <space-id>
+npx @outpost/cli plugin local-folder:validate <plugin-id> <folder-key> --space-id <space-id> [--payload-json '{...}']
+npx @outpost/cli plugin local-folder:set <plugin-id> <folder-key> --space-id <space-id> --payload-json '{...}'
 ```
 
 Feedback traces can be fetched directly by ID when automating export workflows:
 
 ```sh
-npx paperclipai feedback trace <trace-id>
-npx paperclipai feedback bundle <trace-id>
+npx @outpost/cli feedback trace <trace-id>
+npx @outpost/cli feedback bundle <trace-id>
 ```
 
 ## Heartbeat Command
@@ -1165,15 +1165,15 @@ npx paperclipai feedback bundle <trace-id>
 `heartbeat run` now also supports context/api-key options and uses the shared client stack:
 
 ```sh
-npx paperclipai heartbeat run --agent-id <agent-id> [--api-base http://localhost:3100] [--api-key <token>]
+npx @outpost/cli heartbeat run --agent-id <agent-id> [--api-base http://localhost:3100] [--api-key <token>]
 ```
 
 ## Local Storage Defaults
 
-Local Paperclip data lives under the selected instance root. `OUTPOST_HOME` chooses the home directory and `OUTPOST_INSTANCE_ID` chooses the instance.
+Local Outpost data lives under the selected instance root. `OUTPOST_HOME` chooses the home directory and `OUTPOST_INSTANCE_ID` chooses the instance.
 
 ```text
-~/.paperclip/                                     # OUTPOST_HOME
+~/.outpost/                                     # OUTPOST_HOME
 └── instances/
     └── default/                                  # instance root (OUTPOST_INSTANCE_ID)
         ├── config.json                           # runtime config
@@ -1187,22 +1187,22 @@ Local Paperclip data lives under the selected instance root. `OUTPOST_HOME` choo
         │   └── master.key                        # local_encrypted master key
         ├── workspaces/                           # default agent workspaces
         ├── projects/                             # project execution workspaces
-        ├── companies/                            # per-company adapter homes (e.g. codex-home)
-        └── codex-home/                           # per-instance codex home (when not company-scoped)
+        ├── spaces/                            # per-space adapter homes (e.g. codex-home)
+        └── codex-home/                           # per-instance codex home (when not space-scoped)
 ```
 
 Default paths for the canonical install:
 
-- config: `~/.paperclip/instances/default/config.json`
-- embedded db: `~/.paperclip/instances/default/db`
-- logs: `~/.paperclip/instances/default/logs`
-- storage: `~/.paperclip/instances/default/data/storage`
-- secrets key: `~/.paperclip/instances/default/secrets/master.key`
+- config: `~/.outpost/instances/default/config.json`
+- embedded db: `~/.outpost/instances/default/db`
+- logs: `~/.outpost/instances/default/logs`
+- storage: `~/.outpost/instances/default/data/storage`
+- secrets key: `~/.outpost/instances/default/secrets/master.key`
 
 Override base home or instance with env vars:
 
 ```sh
-OUTPOST_HOME=/custom/home OUTPOST_INSTANCE_ID=dev pnpm paperclipai run
+OUTPOST_HOME=/custom/home OUTPOST_INSTANCE_ID=dev pnpm outpost run
 ```
 
 ## Storage Configuration
@@ -1210,7 +1210,7 @@ OUTPOST_HOME=/custom/home OUTPOST_INSTANCE_ID=dev pnpm paperclipai run
 Configure storage provider and settings:
 
 ```sh
-pnpm paperclipai configure --section storage
+pnpm outpost configure --section storage
 ```
 
 Supported providers:
@@ -1225,10 +1225,10 @@ creates another challenge or key. This allows concurrent logins on a shared IP
 to complete after the process-local limit clears.
 
 Revocation records use the current key owner and trusted original creation or
-approved-challenge company context. Removing a company membership does not
+approved-challenge space context. Removing a space membership does not
 remove that audit history. Revocation and its audit records commit together;
 an audit failure leaves the key unchanged so the operation can be retried.
 Historical creation rows with a NULL responsible user do not provide trusted
 revocation context. The original approved challenge or current authorized
-company context can still provide that destination. Client-supplied activity
+space context can still provide that destination. Client-supplied activity
 rows cannot establish key ownership or a revocation audit destination.

@@ -52,7 +52,7 @@ export function buildPermissionsForTrustPreset(
   if (preset === LOW_TRUST_REVIEW_PRESET) {
     return {
       ...current,
-      // Hire authority is default-on for standard-trust agents, so demoting
+      // Create authority is default-on for standard-trust agents, so demoting
       // to low-trust must drop it rather than carry the old value forward.
       // Operators can re-enable it explicitly afterwards.
       canCreateAgents: false,
@@ -108,7 +108,7 @@ export function isCeLowTrustBoundaryEditable(boundary: LowTrustBoundary | null |
 
 export function setSingleLowTrustBoundaryTarget(
   permissions: Partial<AgentPermissions> | null | undefined,
-  companyId: string,
+  spaceId: string,
   target: LowTrustBoundaryTarget,
 ): Partial<AgentPermissions> {
   const current = buildPermissionsForTrustPreset(permissions, LOW_TRUST_REVIEW_PRESET);
@@ -118,7 +118,7 @@ export function setSingleLowTrustBoundaryTarget(
   const trustBoundary: LowTrustBoundary = {
     ...nonScopeBoundary,
     mode: LOW_TRUST_REVIEW_PRESET,
-    companyId,
+    spaceId,
     ...(target.type === "project" ? { projectIds: [target.id] } : {}),
     ...(target.type === "root_issue" ? { rootIssueId: target.id } : {}),
     ...(target.type === "issue" ? { issueIds: [target.id] } : {}),

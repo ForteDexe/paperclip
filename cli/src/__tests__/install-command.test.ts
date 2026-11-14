@@ -14,7 +14,7 @@ import {
   runCommandWithDiagnostics,
 } from "../commands/install.js";
 import { uninstallCommand } from "../commands/uninstall.js";
-import { resolvePaperclipInstanceId } from "../config/home.js";
+import { resolveOutpostInstanceId } from "../config/home.js";
 import {
   INSTALL_MANIFEST_VERSION,
   flipCurrentAtomic,
@@ -34,11 +34,11 @@ describe("managed install commands", () => {
   let root: string;
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-install-command-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-install-command-"));
     process.env = {
       ...ORIGINAL_ENV,
       HOME: path.join(root, "home"),
-      OUTPOST_HOME: path.join(root, "home", ".paperclip"),
+      OUTPOST_HOME: path.join(root, "home", ".outpost"),
       PATH: "/usr/bin:/bin",
       SHELL: "/bin/bash",
     };
@@ -87,15 +87,15 @@ describe("managed install commands", () => {
   });
 
   it("supports fork overrides and classifies SHA refs as pinned", () => {
-    expect(resolveGitInstallRequest({ ref: "feature/test", repo: "HenkDz/paperclip" })).toEqual({ repo: "HenkDz/paperclip", ref: "feature/test", pinned: false });
+    expect(resolveGitInstallRequest({ ref: "feature/test", repo: "HenkDz/outpost" })).toEqual({ repo: "HenkDz/outpost", ref: "feature/test", pinned: false });
     expect(resolveGitInstallRequest({ ref: "abcdef1" })).toEqual({ repo: "paperclipai/paperclip", ref: "abcdef1", pinned: true });
-    expect(() => resolveGitInstallRequest({ repo: "HenkDz/paperclip" })).toThrow("requires --ref");
+    expect(() => resolveGitInstallRequest({ repo: "HenkDz/outpost" })).toThrow("requires --ref");
   });
 
   it("requires explicit non-interactive consent before resolving git refs", async () => {
     const runCommand = vi.fn();
 
-    await expect(installCommand({ ref: "master", repo: "HenkDz/paperclip" }, { runCommand }))
+    await expect(installCommand({ ref: "master", repo: "HenkDz/outpost" }, { runCommand }))
       .rejects.toThrow("Re-run with --yes");
 
     expect(runCommand).not.toHaveBeenCalled();
@@ -105,7 +105,7 @@ describe("managed install commands", () => {
     const sha = "b".repeat(40);
     const paths = resolveInstallStorePaths();
     const payloadPath = payloadPathFor(paths, "git", sha.slice(0, 12));
-    const packageRoot = path.join(payloadPath, "node_modules", "paperclipai");
+    const packageRoot = path.join(payloadPath, "node_modules", "outpost");
     fs.mkdirSync(path.join(packageRoot, "dist"), { recursive: true });
     fs.writeFileSync(path.join(packageRoot, "package.json"), JSON.stringify({ version: "0.3.1" }));
     fs.writeFileSync(path.join(packageRoot, "dist", "index.js"), "#!/usr/bin/env node\n");
@@ -140,18 +140,18 @@ describe("managed install commands", () => {
         if (args.includes("pack")) {
           const destination = args[args.indexOf("--pack-destination") + 1];
           const packageDir = args[args.indexOf("--dir") + 1];
-          const packageName = packageDir === "server" ? "paperclipai-server" : "paperclipai-shared";
+          const packageName = packageDir === "server" ? "@outpost/server" : "@outpost/shared";
           fs.writeFileSync(path.join(destination, `${packageName}-0.3.1.tgz`), "package");
         }
         return { stdout: "", stderr: "" };
       }
       if (file === "bash") return { stdout: "", stderr: "" };
       if (file === "npm" && args[0] === "pack") {
-        const packageName = args[1]?.includes("workspace-package-") ? "paperclipai-db" : "paperclipai";
+        const packageName = args[1]?.includes("workspace-package-") ? "@outpost/db" : "@outpost/cli";
         fs.writeFileSync(path.join(args[args.indexOf("--pack-destination") + 1], `${packageName}-0.3.1.tgz`), "package");
         return { stdout: "", stderr: "" };
       }
-      if (file === "npm" && args[0] === "install") { const prefix = args[args.indexOf("--prefix") + 1]; const packageRoot = path.join(prefix, "node_modules", "paperclipai"); fs.mkdirSync(path.join(packageRoot, "dist"), { recursive: true }); fs.writeFileSync(path.join(packageRoot, "package.json"), JSON.stringify({ version: "0.3.1" })); fs.writeFileSync(path.join(packageRoot, "dist", "index.js"), "#!/usr/bin/env node\n"); return { stdout: "", stderr: "" }; }
+      if (file === "npm" && args[0] === "install") { const prefix = args[args.indexOf("--prefix") + 1]; const packageRoot = path.join(prefix, "node_modules", "outpost"); fs.mkdirSync(path.join(packageRoot, "dist"), { recursive: true }); fs.writeFileSync(path.join(packageRoot, "package.json"), JSON.stringify({ version: "0.3.1" })); fs.writeFileSync(path.join(packageRoot, "dist", "index.js"), "#!/usr/bin/env node\n"); return { stdout: "", stderr: "" }; }
       if (file === process.execPath && args[0]?.endsWith("prepare-bundled-package.mjs")) {
         fs.mkdirSync(args[2], { recursive: true });
         fs.writeFileSync(path.join(args[2], "package.json"), JSON.stringify({ name: "@outpost/db", version: "0.3.1" }));
@@ -164,10 +164,10 @@ describe("managed install commands", () => {
   it("installs a GitHub branch through codeload and reuses the resolved SHA", async () => {
     const sha = "c".repeat(40);
     const runCommand = createGitCheckoutRunCommand(sha);
-    await installCommand({ ref: "master", repo: "HenkDz/paperclip", yes: true }, { runCommand });
-    await installCommand({ ref: "master", repo: "HenkDz/paperclip", yes: true }, { runCommand });
+    await installCommand({ ref: "master", repo: "HenkDz/outpost", yes: true }, { runCommand });
+    await installCommand({ ref: "master", repo: "HenkDz/outpost", yes: true }, { runCommand });
     const manifest = readInstallManifest(resolveInstallStorePaths());
-    expect(manifest).toMatchObject({ source: "git", repo: "HenkDz/paperclip", ref: "master", sha });
+    expect(manifest).toMatchObject({ source: "git", repo: "HenkDz/outpost", ref: "master", sha });
     expect(manifest?.payloadPath).toContain(path.join("git", sha.slice(0, 12)));
     expect(runCommand.mock.calls.filter(([command, args]) => command === "curl" && args.includes("--output"))).toHaveLength(1);
     expect(runCommand.mock.calls.filter(([command, args]) => command === "corepack" && args[1] === "install")).toHaveLength(1);
@@ -230,7 +230,7 @@ describe("managed install commands", () => {
       if (file === "npm" && args[0] === "view") return { stdout: JSON.stringify(version), stderr: "" };
       if (file === "npm" && args[0] === "install") {
         const prefix = args[args.indexOf("--prefix") + 1];
-        const entrypoint = path.join(prefix, "node_modules", "paperclipai", "dist", "index.js");
+        const entrypoint = path.join(prefix, "node_modules", "@outpost", "cli", "dist", "index.js");
         fs.mkdirSync(path.dirname(entrypoint), { recursive: true });
         fs.writeFileSync(entrypoint, "#!/usr/bin/env node\n");
         return { stdout: "", stderr: "" };
@@ -252,10 +252,10 @@ describe("managed install commands", () => {
     const installCall = runCommand.mock.calls.find(
       ([file, args]) => file === "npm" && args[0] === "install",
     );
-    expect(installCall?.[1]).toContain("--@paperclipai:registry=https://registry.npmjs.org");
+    expect(installCall?.[1]).toContain("--@outpost:registry=https://registry.npmjs.org");
     const installOptions = installCall?.[2] as { env?: NodeJS.ProcessEnv } | undefined;
     expect(installOptions?.env?.npm_config_userconfig).toContain(".npmrc-");
-    const entrypoint = path.join(manifest!.payloadPath, "node_modules", "paperclipai", "dist", "index.js");
+    const entrypoint = path.join(manifest!.payloadPath, "node_modules", "@outpost", "cli", "dist", "index.js");
     expect(resolveCliVersion(entrypoint)).toContain(`managed npm latest; payload ${manifest!.payloadPath}`);
 
     const userData = path.join(process.env.OUTPOST_HOME!, "instances", "default", "keep.txt");
@@ -308,7 +308,7 @@ describe("managed install commands", () => {
       ".config",
       "systemd",
       "user",
-      systemdServiceName(resolvePaperclipInstanceId()),
+      systemdServiceName(resolveOutpostInstanceId()),
     );
     fs.mkdirSync(path.dirname(unitPath), { recursive: true });
     fs.writeFileSync(unitPath, "unit");

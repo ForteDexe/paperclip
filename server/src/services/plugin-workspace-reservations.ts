@@ -15,14 +15,14 @@ export async function retireAbandonedPluginWorkspaceReservation(db: Db, workspac
   const operationId = createHash("sha256").update(JSON.stringify([workspace.id, generation, operation])).digest("hex");
   const abandoned = and(
     eq(executionWorkspaces.id, workspace.id),
-    eq(executionWorkspaces.companyId, workspace.companyId),
+    eq(executionWorkspaces.spaceId, workspace.spaceId),
     isNull(executionWorkspaces.providerRef),
     sql`coalesce((${executionWorkspaces.metadata}->>'lifecycleGeneration')::int, 0) = ${previous}`,
-    sql`EXISTS (SELECT 1 FROM ${issues} WHERE ${issues.companyId} = ${workspace.companyId}
+    sql`EXISTS (SELECT 1 FROM ${issues} WHERE ${issues.spaceId} = ${workspace.spaceId}
       AND ${issues.id} = ${workspace.sourceIssueId} AND ${issues.status} IN ('done', 'cancelled'))`,
-    sql`NOT EXISTS (SELECT 1 FROM ${issues} WHERE ${issues.companyId} = ${workspace.companyId}
+    sql`NOT EXISTS (SELECT 1 FROM ${issues} WHERE ${issues.spaceId} = ${workspace.spaceId}
       AND ${issues.executionWorkspaceId} = ${workspace.id})`,
-    sql`NOT EXISTS (SELECT 1 FROM ${heartbeatRuns} WHERE ${heartbeatRuns.companyId} = ${workspace.companyId}
+    sql`NOT EXISTS (SELECT 1 FROM ${heartbeatRuns} WHERE ${heartbeatRuns.spaceId} = ${workspace.spaceId}
       AND ${heartbeatRuns.issueId} = ${workspace.sourceIssueId} AND ${heartbeatRuns.status} IN ('queued', 'running'))`,
   );
   const [candidate] = await db.select({ id: executionWorkspaces.id }).from(executionWorkspaces).where(abandoned);

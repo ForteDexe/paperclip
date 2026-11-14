@@ -257,7 +257,7 @@ export async function materializeNativeRuntimeSkills(
 
   const parent = dirname(skillsHome);
   const nonce = randomUUID();
-  const stagingHome = join(parent, `.paperclip-skills-staging-${nonce}`);
+  const stagingHome = join(parent, `.outpost-skills-staging-${nonce}`);
   await mkdir(parent, { recursive: true, mode: 0o700 });
   await chmod(parent, 0o700);
   await mkdir(stagingHome, { mode: 0o700 });
@@ -309,16 +309,16 @@ async function readSourceCodexAuth(sourceAuth: string): Promise<Buffer | null> {
   }
 }
 
-/** Copy only Paperclip's value-free provider projection, never host tools or hooks. */
+/** Copy only Outpost's value-free provider projection, never host tools or hooks. */
 async function managedCodexProviderConfig(sourceHome?: string | null): Promise<string> {
   if (!sourceHome?.trim()) return "";
   const source = await readSourceCodexAuth(join(sourceHome, "config.toml"));
   if (!source) return "";
   let parsed;
   try { parsed = parseToml(source.toString("utf8")); } catch { return ""; }
-  if (parsed.model_provider !== "paperclip") return "";
+  if (parsed.model_provider !== "outpost") return "";
   const providers = parsed.model_providers as Record<string, unknown> | undefined;
-  const provider = providers?.paperclip as Record<string, unknown> | undefined;
+  const provider = providers?.outpost as Record<string, unknown> | undefined;
   if (!provider || typeof provider.base_url !== "string" || provider.wire_api !== "responses"
     || provider.requires_openai_auth !== false
     || (provider.env_key !== undefined && provider.env_key !== "OUTPOST_AI_PROVIDER_KEY")) {
@@ -329,7 +329,7 @@ async function managedCodexProviderConfig(sourceHome?: string | null): Promise<s
     || (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)))) {
     throw new Error("Invalid managed Codex provider URL");
   }
-  return `model_provider = "paperclip"\n[model_providers.paperclip]\nname = "Outpost connection"\nbase_url = ${JSON.stringify(provider.base_url)}\nwire_api = "responses"\nrequires_openai_auth = false\n${provider.env_key ? 'env_key = "OUTPOST_AI_PROVIDER_KEY"\n' : ""}${isOpenRouterUrl(provider.base_url) ? openRouterCodexHeaders() : ""}`;
+  return `model_provider = "outpost"\n[model_providers.outpost]\nname = "Outpost connection"\nbase_url = ${JSON.stringify(provider.base_url)}\nwire_api = "responses"\nrequires_openai_auth = false\n${provider.env_key ? 'env_key = "OUTPOST_AI_PROVIDER_KEY"\n' : ""}${isOpenRouterUrl(provider.base_url) ? openRouterCodexHeaders() : ""}`;
 }
 
 export async function prepareIsolatedCodexHome(input: {
@@ -370,7 +370,7 @@ async function writeIsolatedCodexConfig(input: CodexAuthInput & { nativeMcp?: Na
         ? [
             `[mcp_servers.${JSON.stringify(input.nativeMcp.name)}]`,
             `url = ${JSON.stringify(input.nativeMcp.url)}`,
-            // This endpoint is Paperclip's authenticated policy gateway, not an
+            // This endpoint is Outpost's authenticated policy gateway, not an
             // upstream server. It enforces connection grants and human approvals
             // for every operation; the provider must deliver calls to that gate.
             'default_tools_approval_mode = "approve"',

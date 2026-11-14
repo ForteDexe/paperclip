@@ -3,20 +3,20 @@
  *
  * PREREQUISITES (operator must perform before running this test):
  *   1. Create the kind cluster:
- *        kind create cluster --name paperclip
+ *        kind create cluster --name outpost
  *   2. Pre-load the alpine image so the Job can start without network access:
  *        docker pull alpine:3.20
- *        docker tag alpine:3.20 localhost/paperclip-agent:latest
- *        kind load docker-image localhost/paperclip-agent:latest --name paperclip
+ *        docker tag alpine:3.20 localhost/outpost-agent:latest
+ *        kind load docker-image localhost/outpost-agent:latest --name outpost
  *   3. For the sandbox-cr backend test, the agent-sandbox controller must be installed:
  *        kubectl apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/latest/download/install.yaml
- *      And a tini-bearing image pre-loaded (e.g. the same localhost/paperclip-agent:latest
+ *      And a tini-bearing image pre-loaded (e.g. the same localhost/outpost-agent:latest
  *      if it includes /usr/bin/tini and /bin/sh).
  *   4. Set the env var and run:
  *        RUN_K8S_INTEGRATION_TESTS=1 pnpm test
  *
- * The namespace is derived from companySlug ("spike-e2e") + namespacePrefix
- * ("paperclip-"), resolving to "paperclip-spike-e2e".
+ * The namespace is derived from spaceSlug ("spike-e2e") + namespacePrefix
+ * ("outpost-"), resolving to "outpost-spike-e2e".
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -26,7 +26,7 @@ import { execInPod } from "../../src/pod-exec.js";
 import { sandboxCrOrchestrator } from "../../src/sandbox-cr-orchestrator.js";
 import { deleteNamespaceIfExists, kubectl, readKindKubeconfig } from "./_kind-harness.js";
 
-const NAMESPACE = "paperclip-spike-e2e";
+const NAMESPACE = "outpost-spike-e2e";
 
 describe("plugin-kubernetes end-to-end", () => {
   beforeAll(() => {
@@ -48,7 +48,7 @@ describe("plugin-kubernetes end-to-end", () => {
       const config = {
         inCluster: false,
         kubeconfig,
-        companySlug: "spike-e2e",
+        spaceSlug: "spike-e2e",
         adapterType: "claude_local",
         backend: "job",
         imageAllowList: [] as string[],
@@ -60,7 +60,7 @@ describe("plugin-kubernetes end-to-end", () => {
         driverKey: "kubernetes",
         config,
         runId: "r-test-e2e-job",
-        companyId: "11111111-1111-1111-1111-111111111111",
+        spaceId: "11111111-1111-1111-1111-111111111111",
         environmentId: "env-test",
       });
 
@@ -75,13 +75,13 @@ describe("plugin-kubernetes end-to-end", () => {
       const all = kubectl(
         `get sa,role,rolebinding,resourcequota,limitrange,networkpolicy -n ${NAMESPACE} -o name`,
       );
-      expect(all).toContain("serviceaccount/paperclip-tenant-sa");
-      expect(all).toContain("role.rbac.authorization.k8s.io/paperclip-tenant-role");
-      expect(all).toContain("rolebinding.rbac.authorization.k8s.io/paperclip-tenant-rb");
-      expect(all).toContain("resourcequota/paperclip-quota");
-      expect(all).toContain("limitrange/paperclip-limits");
-      expect(all).toContain("networkpolicy.networking.k8s.io/paperclip-deny-all");
-      expect(all).toContain("networkpolicy.networking.k8s.io/paperclip-egress-allow");
+      expect(all).toContain("serviceaccount/outpost-tenant-sa");
+      expect(all).toContain("role.rbac.authorization.k8s.io/outpost-tenant-role");
+      expect(all).toContain("rolebinding.rbac.authorization.k8s.io/outpost-tenant-rb");
+      expect(all).toContain("resourcequota/outpost-quota");
+      expect(all).toContain("limitrange/outpost-limits");
+      expect(all).toContain("networkpolicy.networking.k8s.io/outpost-deny-all");
+      expect(all).toContain("networkpolicy.networking.k8s.io/outpost-egress-allow");
 
       // Verify the namespace has PSS-restricted labels
       const ns = kubectl(`get namespace ${NAMESPACE} -o jsonpath='{.metadata.labels}'`);
@@ -99,7 +99,7 @@ describe("plugin-kubernetes end-to-end", () => {
         config,
         providerLeaseId: lease.providerLeaseId,
         leaseMetadata: lease.metadata,
-        companyId: "11111111-1111-1111-1111-111111111111",
+        spaceId: "11111111-1111-1111-1111-111111111111",
         environmentId: "env-test",
       });
 
@@ -121,7 +121,7 @@ describe("plugin-kubernetes end-to-end", () => {
       const config = {
         inCluster: false,
         kubeconfig,
-        companySlug: "spike-e2e",
+        spaceSlug: "spike-e2e",
         adapterType: "claude_local",
         backend: "sandbox-cr",
         imageAllowList: [] as string[],
@@ -133,7 +133,7 @@ describe("plugin-kubernetes end-to-end", () => {
         driverKey: "kubernetes",
         config,
         runId: "r-test-e2e-sandbox-cr",
-        companyId: "22222222-2222-2222-2222-222222222222",
+        spaceId: "22222222-2222-2222-2222-222222222222",
         environmentId: "env-test-cr",
       });
 
@@ -188,7 +188,7 @@ describe("plugin-kubernetes end-to-end", () => {
         config,
         providerLeaseId: lease.providerLeaseId,
         leaseMetadata: lease.metadata,
-        companyId: "22222222-2222-2222-2222-222222222222",
+        spaceId: "22222222-2222-2222-2222-222222222222",
         environmentId: "env-test-cr",
       });
 

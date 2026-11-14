@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  agents, agentWakeupRequests, budgetIncidents, budgetPolicies, budgetResumeClaims, companies, createDb, heartbeatRuns, issues,
+  agents, agentWakeupRequests, budgetIncidents, budgetPolicies, budgetResumeClaims, spaces, createDb, heartbeatRuns, issues,
 } from "@outpost/db";
 import { budgetService } from "./budgets.js";
 import { heartbeatService } from "./heartbeat.js";
@@ -23,7 +23,7 @@ vi.mock("./activity-log.js", async (importOriginal) => ({
 const support = await getEmbeddedPostgresTestSupport();
 
 // H1 (restart chaos): a budget hard stop cancelled a run mid-task. After the
-// board raised the budget and resumed, the task stayed stopped until someone
+// operator raised the budget and resumed, the task stayed stopped until someone
 // clicked Retry. Resuming must continue that work, exactly once.
 describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
   let db!: ReturnType<typeof createDb>;
@@ -31,7 +31,7 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
 
   beforeAll(async () => {
     await import("./agent-lifecycle.js");
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-budget-resume-continuation-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-budget-resume-continuation-");
     db = createDb(tempDb.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => {
@@ -39,53 +39,53 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
     await tempDb?.cleanup();
   });
 
-  async function seedScope(label: string, scopeType: "company" | "agent" = "company") {
-    const [company] = await db.insert(companies).values({ name: `Budget ${label}`,
+  async function seedScope(label: string, scopeType: "space" | "agent" = "space") {
+    const [space] = await db.insert(spaces).values({ name: `Budget ${label}`,
       issuePrefix: `B${randomUUID().slice(0, 4).toUpperCase()}` }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Worker" }).returning();
-    const scopeId = scopeType === "agent" ? agent.id : company.id;
-    const [policy] = await db.insert(budgetPolicies).values({ companyId: company.id, scopeType,
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Worker" }).returning();
+    const scopeId = scopeType === "agent" ? agent.id : space.id;
+    const [policy] = await db.insert(budgetPolicies).values({ spaceId: space.id, scopeType,
       scopeId, windowKind: "calendar_month_utc", amount: 1, hardStopEnabled: true, isActive: true }).returning();
-    const [incident] = await db.insert(budgetIncidents).values({ companyId: company.id, policyId: policy.id,
+    const [incident] = await db.insert(budgetIncidents).values({ spaceId: space.id, policyId: policy.id,
       scopeType, scopeId, metric: "billed_cents", windowKind: "calendar_month_utc",
       windowStart: new Date(Date.now() - 86_400_000), windowEnd: new Date(Date.now() + 86_400_000),
       thresholdType: "hard", amountLimit: 1, amountObserved: 0, createdAt: new Date(Date.now() - 60_000) }).returning();
-    return { company, agent, policy, incident };
+    return { space, agent, policy, incident };
   }
 
   async function seedTask(scope: Awaited<ReturnType<typeof seedScope>>, options: {
     budgetStop?: boolean; lifecycleStop?: "budget" | "agentBudget" | "manual"; issueStatus?: string; runStatus?: string; laterRun?: boolean;
   } = {}) {
-    const { company, agent, policy } = scope;
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Long task",
+    const { space, agent, policy } = scope;
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Long task",
       status: options.issueStatus ?? "in_progress", assigneeAgentId: agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       issueId: issue.id, status: options.runStatus ?? "cancelled", runtimeMode: "legacy",
       contextSnapshot: { issueId: issue.id }, createdAt: new Date(Date.now() - 50_000),
       resultJson: options.lifecycleStop ? {
         // H1: the agent's budget hold paused it, and the lifecycle stop cancelled the run.
         cancellation: { reason: "Agent lifecycle stop requested", source: "control_plane", expected: true,
           initiator: { type: "system" } },
-        pauseStop: options.lifecycleStop === "budget" ? { holds: ["company_paused"], companyPauseReason: "budget" }
-          : options.lifecycleStop === "agentBudget" ? { holds: ["budget"], companyPauseReason: null }
-          : { holds: ["manual"], companyPauseReason: null },
+        pauseStop: options.lifecycleStop === "budget" ? { holds: ["space_paused"], spacePauseReason: "budget" }
+          : options.lifecycleStop === "agentBudget" ? { holds: ["budget"], spacePauseReason: null }
+          : { holds: ["manual"], spacePauseReason: null },
         startupCancellation: { requestedAt: new Date(Date.now() - 40_000).toISOString(), errorCode: "cancelled" },
       } : options.budgetStop === false ? { stopReason: "cancelled" } : { startupCancellation: {
         requestedAt: new Date(Date.now() - 40_000).toISOString(), errorCode: "cancelled",
-        budgetEnforcement: { companyId: company.id, scopeType: "company", scopeId: company.id,
+        budgetEnforcement: { spaceId: space.id, scopeType: "space", scopeId: space.id,
           policyId: policy.id, version: 1 } } },
     }).returning();
-    if (options.laterRun) await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    if (options.laterRun) await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       issueId: issue.id, status: "succeeded", runtimeMode: "legacy", contextSnapshot: { issueId: issue.id },
       createdAt: new Date(Date.now() - 20_000) });
     return { issue, run };
   }
 
   const resume = (scope: Awaited<ReturnType<typeof seedScope>>) => budgetService(db).resolveIncident(
-    scope.company.id, scope.incident.id, { action: "raise_budget_and_resume", amount: 500 }, "local-board",
+    scope.space.id, scope.incident.id, { action: "raise_budget_and_resume", amount: 500 }, "local-operator",
     "local_implicit");
-  const continuations = (companyId: string) => db.select().from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.companyId, companyId), like(agentWakeupRequests.idempotencyKey, "task-retry:budget-resume:%")));
+  const continuations = (spaceId: string) => db.select().from(agentWakeupRequests).where(and(
+    eq(agentWakeupRequests.spaceId, spaceId), like(agentWakeupRequests.idempotencyKey, "task-retry:budget-resume:%")));
   const claimOf = async (runId: string) => (await db.select().from(budgetResumeClaims)
     .where(eq(budgetResumeClaims.runId, runId)))[0] as Record<string, unknown> | undefined;
 
@@ -95,31 +95,31 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
     const blocked = await seedTask(scope, { issueStatus: "blocked" });
     await resume(scope);
     expect(await claimOf(working.run.id)).toMatchObject({ state: "pending", incidentId: scope.incident.id,
-      actorUserId: "local-board", actorSource: "local_implicit" });
+      actorUserId: "local-operator", actorSource: "local_implicit" });
     expect(await hasPendingBudgetResume(db)).toBe(true);
     await deliverBudgetResumeContinuations(db);
-    const saved = await continuations(scope.company.id);
+    const saved = await continuations(scope.space.id);
     expect(saved.map(wake => wake.payload?.issueId).sort()).toEqual([working.issue.id, blocked.issue.id].sort());
-    expect(saved.every(wake => wake.reason === "task_retry" && wake.requestedByActorId === "local-board")).toBe(true);
+    expect(saved.every(wake => wake.reason === "task_retry" && wake.requestedByActorId === "local-operator")).toBe(true);
     expect(await claimOf(working.run.id)).toMatchObject({ state: "delivered", requestId: expect.any(String) });
     expect(await hasPendingBudgetResume(db)).toBe(false);
     expect(mockLogActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      action: "budget.cancelled_work_continued", entityId: working.issue.id, actorId: "local-board" }), expect.anything());
+      action: "budget.cancelled_work_continued", entityId: working.issue.id, actorId: "local-operator" }), expect.anything());
     // Delivering or resolving again files nothing new.
     await deliverBudgetResumeContinuations(db);
-    await markBudgetCancelledWorkForResume(db, { companyId: scope.company.id, scopeType: "company",
-      scopeId: scope.company.id, incidentId: scope.incident.id, incidentOpenedAt: scope.incident.createdAt,
-      actorUserId: "local-board" });
+    await markBudgetCancelledWorkForResume(db, { spaceId: scope.space.id, scopeType: "space",
+      scopeId: scope.space.id, incidentId: scope.incident.id, incidentOpenedAt: scope.incident.createdAt,
+      actorUserId: "local-operator" });
     await deliverBudgetResumeContinuations(db);
-    expect(await continuations(scope.company.id)).toHaveLength(2);
+    expect(await continuations(scope.space.id)).toHaveLength(2);
   });
 
-  it("continues a run whose stop was still being delivered when the board resumed", async () => {
+  it("continues a run whose stop was still being delivered when the operator resumed", async () => {
     const scope = await seedScope("in-flight");
     const task = await seedTask(scope, { runStatus: "running" });
     await resume(scope);
     await deliverBudgetResumeContinuations(db);
-    expect(await continuations(scope.company.id)).toEqual([]);
+    expect(await continuations(scope.space.id)).toEqual([]);
     expect(await claimOf(task.run.id)).toMatchObject({ state: "pending" });
     // The committed Stop lands after the resume. Its terminal write replaces
     // the run's result JSON with a copy built before the claim was saved; the
@@ -127,7 +127,7 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
     await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date(),
       resultJson: { ...(task.run.resultJson ?? {}), stopReason: "cancelled" } }).where(eq(heartbeatRuns.id, task.run.id));
     await deliverBudgetResumeContinuations(db);
-    expect(await continuations(scope.company.id)).toEqual([expect.objectContaining({
+    expect(await continuations(scope.space.id)).toEqual([expect.objectContaining({
       payload: expect.objectContaining({ issueId: task.issue.id }) })]);
   });
 
@@ -136,16 +136,16 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
     const task = await seedTask(scope, { issueStatus: "blocked" });
     // Keep the new run queued: one run slot, already taken.
     await db.update(agents).set({ runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } }).where(eq(agents.id, scope.agent.id));
-    await db.insert(heartbeatRuns).values({ companyId: scope.company.id, agentId: scope.agent.id, status: "running" });
+    await db.insert(heartbeatRuns).values({ spaceId: scope.space.id, agentId: scope.agent.id, status: "running" });
     await resume(scope);
     const heartbeat = heartbeatService(db);
     await deliverBudgetResumeContinuations(db, {
-      resumeTaskRetry: (companyId, requestId) => heartbeat.resumeTaskRetry(companyId, requestId) });
-    const queued = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, scope.company.id),
+      resumeTaskRetry: (spaceId, requestId) => heartbeat.resumeTaskRetry(spaceId, requestId) });
+    const queued = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, scope.space.id),
       eq(heartbeatRuns.status, "queued")));
     expect(queued, JSON.stringify(await db.select({ status: agentWakeupRequests.status, error: agentWakeupRequests.error,
       reason: agentWakeupRequests.reason, payload: agentWakeupRequests.payload }).from(agentWakeupRequests)
-      .where(eq(agentWakeupRequests.companyId, scope.company.id)))).toHaveLength(1);
+      .where(eq(agentWakeupRequests.spaceId, scope.space.id)))).toHaveLength(1);
     expect(queued[0]).toMatchObject({ agentId: scope.agent.id });
     expect(queued[0].contextSnapshot).toMatchObject({ issueId: task.issue.id });
   });
@@ -155,7 +155,7 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
     for (let index = 0; index < 30; index += 1) await seedTask(scope);
     await resume(scope);
     await deliverBudgetResumeContinuations(db);
-    expect(await continuations(scope.company.id)).toHaveLength(30);
+    expect(await continuations(scope.space.id)).toHaveLength(30);
   });
 
   it.each([
@@ -166,7 +166,7 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
     const task = await seedTask(scope, options);
     await resume(scope);
     await deliverBudgetResumeContinuations(db);
-    expect(await continuations(scope.company.id)).toEqual([]);
+    expect(await continuations(scope.space.id)).toEqual([]);
     expect(await claimOf(task.run.id)).toMatchObject({ state: "abandoned", reason });
   });
 
@@ -176,7 +176,7 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
     await resume(scope);
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, task.run.id));
     await deliverBudgetResumeContinuations(db);
-    expect(await continuations(scope.company.id)).toEqual([]);
+    expect(await continuations(scope.space.id)).toEqual([]);
     expect(await claimOf(task.run.id)).toMatchObject({ state: "abandoned", reason: "run_not_cancelled" });
   });
 
@@ -186,7 +186,7 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
     await resume(scope);
     expect(await claimOf(task.run.id)).toMatchObject({ state: "pending" });
     await deliverBudgetResumeContinuations(db);
-    expect(await continuations(scope.company.id)).toEqual([expect.objectContaining({
+    expect(await continuations(scope.space.id)).toEqual([expect.objectContaining({
       payload: expect.objectContaining({ issueId: task.issue.id }) })]);
   });
 
@@ -195,25 +195,25 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
     const task = await seedTask(scope, { lifecycleStop: "agentBudget" });
     await resume(scope);
     await deliverBudgetResumeContinuations(db);
-    expect(await continuations(scope.company.id)).toEqual([expect.objectContaining({
+    expect(await continuations(scope.space.id)).toEqual([expect.objectContaining({
       payload: expect.objectContaining({ issueId: task.issue.id }) })]);
   });
 
   it("continues a run whose budget pause Stop lands after the resume", async () => {
     const scope = await seedScope("late-pause-stop", "agent");
     // The budget pause started (its cause is on the lifecycle operation), but
-    // the lifecycle worker has not stopped the run yet when the board resumes.
+    // the lifecycle worker has not stopped the run yet when the operator resumes.
     await db.update(agents).set({ lifecycleState: "pausing", lifecycleHolds: [],
       lifecycleOperation: { id: randomUUID(), hostComplete: false, completedPluginIds: [], attempts: 0,
-        pauseCause: { holds: ["budget"], companyPauseReason: null } } }).where(eq(agents.id, scope.agent.id));
+        pauseCause: { holds: ["budget"], spacePauseReason: null } } }).where(eq(agents.id, scope.agent.id));
     const task = await seedTask(scope, { budgetStop: false, runStatus: "running" });
     await resume(scope);
     expect(await claimOf(task.run.id)).toMatchObject({ state: "pending" });
     await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date(), resultJson: {
       cancellation: { reason: "Agent lifecycle stop requested", source: "control_plane", expected: true, initiator: { type: "system" } },
-      pauseStop: { holds: ["budget"], companyPauseReason: null } } }).where(eq(heartbeatRuns.id, task.run.id));
+      pauseStop: { holds: ["budget"], spacePauseReason: null } } }).where(eq(heartbeatRuns.id, task.run.id));
     await deliverBudgetResumeContinuations(db);
-    expect(await continuations(scope.company.id)).toHaveLength(1);
+    expect(await continuations(scope.space.id)).toHaveLength(1);
   });
 
   it("does not continue a run a person stopped after the resume claimed it", async () => {
@@ -223,10 +223,10 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
     expect(await claimOf(task.run.id)).toMatchObject({ state: "pending" });
     await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date(), resultJson: {
       ...(task.run.resultJson ?? {}),
-      cancellation: { reason: "Stopped by board", source: "operator", expected: true, initiator: { type: "user", id: "board-user" } } },
+      cancellation: { reason: "Stopped by operator", source: "operator", expected: true, initiator: { type: "user", id: "operator-user" } } },
     }).where(eq(heartbeatRuns.id, task.run.id));
     await deliverBudgetResumeContinuations(db);
-    expect(await continuations(scope.company.id)).toEqual([]);
+    expect(await continuations(scope.space.id)).toEqual([]);
     expect(await claimOf(task.run.id)).toMatchObject({ state: "abandoned", reason: "stopped_by_person" });
   });
 
@@ -246,20 +246,20 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
   async function admissionStopped(label: string, cancellationReason: string) {
     const scope = await seedScope(label);
     const task = await seedTask(scope, { budgetStop: false });
-    const reason = "Company cannot start work because its budget hard-stop is still exceeded.";
+    const reason = "Space cannot start work because its budget hard-stop is still exceeded.";
     await db.update(heartbeatRuns).set({ resultJson: { stopReason: "cancelled",
       cancellation: { reason: cancellationReason, source: "control_plane", expected: true, initiator: { type: "system" } },
       startupCancellation: { requestedAt: new Date(Date.now() - 30_000).toISOString(), errorCode: "cancelled" },
-      budgetAdmissionStop: { scopeType: "company", scopeId: scope.company.id, reason } } }).where(eq(heartbeatRuns.id, task.run.id));
+      budgetAdmissionStop: { scopeType: "space", scopeId: scope.space.id, reason } } }).where(eq(heartbeatRuns.id, task.run.id));
     return { scope, task, reason };
   }
 
   it("continues a queued run that admission cancelled for this budget", async () => {
     const { scope, task } = await admissionStopped("admission-stop",
-      "Company cannot start work because its budget hard-stop is still exceeded.");
+      "Space cannot start work because its budget hard-stop is still exceeded.");
     await resume(scope);
     await deliverBudgetResumeContinuations(db);
-    expect(await continuations(scope.company.id)).toEqual([expect.objectContaining({
+    expect(await continuations(scope.space.id)).toEqual([expect.objectContaining({
       payload: expect.objectContaining({ issueId: task.issue.id }) })]);
   });
 
@@ -273,7 +273,7 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
 
   it("claims a queued run admission stamped, then follows how it was cancelled", async () => {
     // Admission saved its stamp, and the resume ran before its cancel landed.
-    const reason = "Company cannot start work because its budget hard-stop is still exceeded.";
+    const reason = "Space cannot start work because its budget hard-stop is still exceeded.";
     for (const [label, cancelledFor, expected] of [
       ["admission-pending", reason, "delivered"],
       ["admission-pending-other", "Cancelled because the agent no longer exists", "abandoned"],
@@ -281,11 +281,11 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
       const scope = await seedScope(label);
       const task = await seedTask(scope, { budgetStop: false, runStatus: "queued" });
       await db.update(heartbeatRuns).set({ resultJson: {
-        budgetAdmissionStop: { scopeType: "company", scopeId: scope.company.id, reason } } }).where(eq(heartbeatRuns.id, task.run.id));
+        budgetAdmissionStop: { scopeType: "space", scopeId: scope.space.id, reason } } }).where(eq(heartbeatRuns.id, task.run.id));
       await resume(scope);
       expect(await claimOf(task.run.id)).toMatchObject({ state: "pending" });
       await db.update(heartbeatRuns).set({ status: "cancelled", resultJson: {
-        budgetAdmissionStop: { scopeType: "company", scopeId: scope.company.id, reason },
+        budgetAdmissionStop: { scopeType: "space", scopeId: scope.space.id, reason },
         cancellation: { reason: cancelledFor, source: "control_plane", expected: true, initiator: { type: "system" } } } })
         .where(eq(heartbeatRuns.id, task.run.id));
       await deliverBudgetResumeContinuations(db);
@@ -338,7 +338,7 @@ describe.skipIf(!support.supported)("resuming after a budget hard stop", () => {
     const scope = await seedScope("person-and-budget");
     const task = await seedTask(scope);
     await db.update(heartbeatRuns).set({ resultJson: { ...(task.run.resultJson ?? {}),
-      cancellation: { reason: "Stopped by board", source: "operator", expected: true, initiator: { type: "user", id: "board-user" } },
+      cancellation: { reason: "Stopped by operator", source: "operator", expected: true, initiator: { type: "user", id: "operator-user" } },
       cancelledByActorType: "user" } }).where(eq(heartbeatRuns.id, task.run.id));
     await resume(scope);
     expect(await claimOf(task.run.id)).toBeUndefined();

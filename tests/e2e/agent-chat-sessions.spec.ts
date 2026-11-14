@@ -63,7 +63,7 @@ test("chat first open is read-only; concurrent first sends and retries share one
     expect(await json(await request.get(f.chatPath))).toBeNull();
     expect(
       await json(
-        await request.get(`/api/companies/${f.company.id}/heartbeat-runs`),
+        await request.get(`/api/spaces/${f.space.id}/heartbeat-runs`),
       ),
     ).toHaveLength(0);
     const other = await context.newPage();
@@ -97,10 +97,10 @@ test("chat first open is read-only; concurrent first sends and retries share one
       page.getByText("Reply generation 0: Retry once", { exact: true }),
     ).toBeVisible();
     expect(
-      await json(await request.get(`/api/companies/${f.company.id}/issues`)),
+      await json(await request.get(`/api/spaces/${f.space.id}/issues`)),
     ).toHaveLength(0);
     const dashboard = await json(
-      await request.get(`/api/companies/${f.company.id}/dashboard`),
+      await request.get(`/api/spaces/${f.space.id}/dashboard`),
     );
     expect(dashboard.tasks).toEqual({
       open: 0,
@@ -110,14 +110,14 @@ test("chat first open is read-only; concurrent first sends and retries share one
     });
     const count = (
       await json(
-        await request.get(`/api/companies/${f.company.id}/heartbeat-runs`),
+        await request.get(`/api/spaces/${f.space.id}/heartbeat-runs`),
       )
     ).length;
-    await page.goto(`/${f.company.issuePrefix}/issues/${issue.identifier}`);
+    await page.goto(`/${f.space.issuePrefix}/issues/${issue.identifier}`);
     await page.goto(f.route);
     expect(
       await json(
-        await request.get(`/api/companies/${f.company.id}/heartbeat-runs`),
+        await request.get(`/api/spaces/${f.space.id}/heartbeat-runs`),
       ),
     ).toHaveLength(count);
     await other.close();
@@ -196,7 +196,7 @@ test("Stop then queued /new resets unpause the conversation without losing histo
       .toBe("cancelled");
     const staleToken = createLocalAgentJwt(
       f.agent.id,
-      f.company.id,
+      f.space.id,
       "process",
       active.id,
     );
@@ -207,7 +207,7 @@ test("Stop then queued /new resets unpause the conversation without losing histo
     });
     expect([403, 409]).toContain(late.status());
     const mutation = await request.post(
-      `/api/companies/${f.company.id}/projects`,
+      `/api/spaces/${f.space.id}/projects`,
       {
         headers: { Authorization: `Bearer ${staleToken}` },
         data: { name: "Cancelled project" },
@@ -215,7 +215,7 @@ test("Stop then queued /new resets unpause the conversation without losing histo
     );
     expect([403, 409]).toContain(mutation.status());
     expect(
-      await json(await request.get(`/api/companies/${f.company.id}/projects`)),
+      await json(await request.get(`/api/spaces/${f.space.id}/projects`)),
     ).toHaveLength(0);
     await send(page, "/new");
     await send(page, "/new");
@@ -233,7 +233,7 @@ test("Stop then queued /new resets unpause the conversation without losing histo
       page.getByRole("separator", { name: "Run completed", exact: true }),
     ).toHaveCount(0);
     const runs = await json(
-      await request.get(`/api/companies/${f.company.id}/heartbeat-runs`),
+      await request.get(`/api/spaces/${f.space.id}/heartbeat-runs`),
     );
     const detailed = await Promise.all(
       runs.map((run: any) =>
@@ -270,7 +270,7 @@ test("Coordinator agent switching preserves drafts and opens one conversation on
     await editor.fill("Unsent Coordinator draft for Alpha");
     await switchTo("Beta");
     await expect(editor).toHaveText("");
-    expect(await json(await request.get(`/api/companies/${f.company.id}/chats/${f.agents[1].id}`))).toBeNull();
+    expect(await json(await request.get(`/api/spaces/${f.space.id}/chats/${f.agents[1].id}`))).toBeNull();
     await switchTo("Alpha");
     await expect(editor).toContainText("Unsent Coordinator draft for Alpha");
     await page.reload();
@@ -284,7 +284,7 @@ test("Coordinator agent switching preserves drafts and opens one conversation on
     await switchTo("Alpha");
     await expect(page.getByText("Coordinator conversation acceptance", { exact: true })).toBeVisible();
     expect((await json(await request.get(f.chatPath))).id).toBe(chat.id);
-    expect(await json(await request.get(`/api/companies/${f.company.id}/chats`))).toHaveLength(1);
+    expect(await json(await request.get(`/api/spaces/${f.space.id}/chats`))).toHaveLength(1);
   } finally {
     await f.restore();
   }
@@ -297,17 +297,17 @@ test("secondary chat navigation preserves layout, unique conversations, history,
   const originalExperimental = await json(await request.get("/api/instance/settings/experimental"));
   const f = await setup(request);
   const originalWorkspace = await json(await request.get("/api/workspace-preferences/me"));
-  const workspacePath = `/api/companies/${f.company.id}/workspace-preferences/me`;
+  const workspacePath = `/api/spaces/${f.space.id}/workspace-preferences/me`;
   try {
     await json(await request.put(workspacePath, { data: { coordinatorWorkspaceEnabled: false } }));
     await json(await request.patch("/api/instance/settings/experimental", {
       data: { enableStreamlinedUi: true },
     }));
-    await page.goto(`/${f.company.issuePrefix}/dashboard`);
+    await page.goto(`/${f.space.issuePrefix}/dashboard`);
     await page.getByRole("link", { name: /^Chat(?:\s|$)/ }).click();
     // With no recent conversation, Chat opens the first human-created primary.
     // Navigation alone must not create a conversation or start execution.
-    expect(await json(await request.get(`/api/companies/${f.company.id}/primary-agent/me`))).toMatchObject({
+    expect(await json(await request.get(`/api/spaces/${f.space.id}/primary-agent/me`))).toMatchObject({
       primaryAgentId: f.agents[0].id, initialized: true,
     });
     const sidebar = page.getByRole("complementary", { name: "Chat contacts", exact: true });
@@ -316,17 +316,17 @@ test("secondary chat navigation preserves layout, unique conversations, history,
     const betaLink = nav.getByRole("link", { name: /^Beta/ });
     await expect(alphaLink).toHaveAttribute("aria-current", "page");
     expect(await json(await request.get(f.chatPath))).toBeNull();
-    expect(await json(await request.get(`/api/companies/${f.company.id}/heartbeat-runs`))).toHaveLength(0);
+    expect(await json(await request.get(`/api/spaces/${f.space.id}/heartbeat-runs`))).toHaveLength(0);
     await expect(nav.getByRole("link")).toHaveText([/^Alpha/, /^Beta/, /^Delta/, /^Epsilon/, /^Gamma/, /^Zeta/]);
     const landingBounds = await sidebar.boundingBox();
-    const chatListPath = `/api/companies/${f.company.id}/chats`;
+    const chatListPath = `/api/spaces/${f.space.id}/chats`;
     const betaPath = `${chatListPath}/${f.agents[1].id}`;
     await betaLink.click();
     await expect(betaLink).toHaveAttribute("aria-current", "page");
     expect(await sidebar.boundingBox()).toEqual(landingBounds);
     expect(await json(await request.get(betaPath))).toBeNull();
     expect(await json(await request.get(chatListPath))).toHaveLength(0);
-    expect(await json(await request.get(`/api/companies/${f.company.id}/heartbeat-runs`))).toHaveLength(0);
+    expect(await json(await request.get(`/api/spaces/${f.space.id}/heartbeat-runs`))).toHaveLength(0);
     await betaLink.click();
     expect(await json(await request.get(betaPath))).toBeNull();
     await send(page, "Beta conversation acceptance");
@@ -365,7 +365,7 @@ test("secondary chat navigation preserves layout, unique conversations, history,
     await expect(alphaLink).toHaveAttribute("aria-current", "page");
     await expect(editor).toContainText("Unsent draft for Alpha");
     expect(await sidebar.boundingBox()).toEqual(landingBounds);
-    await page.goto(`/${f.company.issuePrefix}/dashboard`);
+    await page.goto(`/${f.space.issuePrefix}/dashboard`);
     await expect(page).toHaveURL(/\/dashboard$/);
     await json(await request.post(`/api/issues/${beta.id}/comments`, {
       data: {
@@ -382,7 +382,7 @@ test("secondary chat navigation preserves layout, unique conversations, history,
     expect((await json(await request.get(betaPath))).id).toBe(beta.id);
     expect(await json(await request.get(chatListPath))).toHaveLength(1);
     await json(await request.post(`/api/agents/${f.agents[1].id}/terminate`));
-    await page.goto(`/${f.company.issuePrefix}/chats`);
+    await page.goto(`/${f.space.issuePrefix}/chats`);
     await expect(betaLink).toContainText("Terminated");
     await betaLink.click();
     await expect(page).toHaveURL(new RegExp(`/chats/${f.agents[1].id}$`));

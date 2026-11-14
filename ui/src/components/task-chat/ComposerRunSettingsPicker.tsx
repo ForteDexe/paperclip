@@ -19,7 +19,7 @@ import {
 import "./composer-run-settings.css";
 
 interface Props {
-  companyId: string;
+  spaceId: string;
   assigneeValue: string;
   currentAssigneeValue: string;
   options: InlineEntityOption[];
@@ -85,7 +85,7 @@ function AnimatedBody({ children }: { children: ReactNode }) {
 }
 
 export function ComposerRunSettingsPicker({
-  companyId, assigneeValue, currentAssigneeValue, options, agents, overrides,
+  spaceId, assigneeValue, currentAssigneeValue, options, agents, overrides,
   settings, onSettingsChange, onAssigneeChange, allowAssigneeChange = true, disabled = false, mobile: mobileProp, triggerRef, modelOptionsOverride, renderAssigneeIdentity,
   initialOpen = false, initialView = "settings", initialModelSearch = "", initialAssigneeSearch = "",
 }: Props) {
@@ -123,9 +123,9 @@ export function ComposerRunSettingsPicker({
   const requestNativeModels = Boolean(nativeCatalog && open && view !== "agents" && !modelOptionsOverride);
   const { data: fetchedModels = [], isPending: modelsPending, refetch: refreshModels } = useQuery({
     queryKey: agent && modelSupported
-      ? [...queryKeys.agents.adapterModels(companyId, agent.adapterType, agent.defaultEnvironmentId ?? null, provider), poolId ?? null, nativeCatalog ?? null, acpxAgent ?? null]
+      ? [...queryKeys.agents.adapterModels(spaceId, agent.adapterType, agent.defaultEnvironmentId ?? null, provider), poolId ?? null, nativeCatalog ?? null, acpxAgent ?? null]
       : ["agents", "composer-models", "none"],
-    queryFn: () => agentsApi.adapterModels(companyId, agent!.adapterType, {
+    queryFn: () => agentsApi.adapterModels(spaceId, agent!.adapterType, {
       environmentId: agent!.defaultEnvironmentId ?? null, provider, poolId, acpxAgent, ...nativeCatalog,
     }),
     ...(nativeCatalog ? ACCOUNT_BOUND_MODEL_DISCOVERY_QUERY_OPTIONS : {}),
@@ -133,7 +133,7 @@ export function ComposerRunSettingsPicker({
   });
   useEffect(() => {
     if (requestNativeModels) void refreshModels();
-  }, [requestNativeModels, nativeCatalogScope, companyId, agent?.defaultEnvironmentId, refreshModels]);
+  }, [requestNativeModels, nativeCatalogScope, spaceId, agent?.defaultEnvironmentId, refreshModels]);
   // The server resolves instance-declared models first and otherwise returns the
   // adapter's curated catalog. Do not replace a declared Codex list locally.
   const models: readonly (AdapterModel & { detail?: string })[] = modelOptionsOverride
@@ -155,11 +155,11 @@ export function ComposerRunSettingsPicker({
   useEffect(() => {
     // Explicit drafts and task overrides take precedence over remembered effort.
     if (settings !== null || base.effort || !modelSupported) return;
-    const remembered = getLastComposerEffort(companyId);
+    const remembered = getLastComposerEffort(spaceId);
     if (remembered && effortChoicesKey.split(",").includes(remembered)) {
       onSettingsChange({ ...base, effort: remembered });
     }
-  }, [companyId, agentId, model, modelSupported, settings, base.model, base.effort, base.fast, effortChoicesKey, onSettingsChange]);
+  }, [spaceId, agentId, model, modelSupported, settings, base.model, base.effort, base.fast, effortChoicesKey, onSettingsChange]);
   const changed = Boolean(selected.model || selected.effort || selected.fast);
   const assigneeOptions = [{ id: "", label: "No assignee", searchText: "Unassigned" }, ...options.filter((item) => item.id !== "")];
   const filteredAgents = assigneeOptions.filter((item) => {
@@ -196,13 +196,13 @@ export function ComposerRunSettingsPicker({
   };
   const chooseModel = (value: string | null) => {
     const nextChoices = composerEfforts(agent, value ?? configuredModel, models.map((item) => item.id));
-    const preferred = selected.effort ?? getLastComposerEffort(companyId);
+    const preferred = selected.effort ?? getLastComposerEffort(spaceId);
     onSettingsChange({ model: value, effort: preferred && nextChoices.includes(preferred) ? preferred : null, fast: false });
     setView("settings");
     setModelSearch("");
   };
   const reset = () => {
-    rememberComposerEffort(companyId, null);
+    rememberComposerEffort(spaceId, null);
     onSettingsChange(DEFAULT_COMPOSER_RUN_SETTINGS);
   };
   const closeButton = mobile ? <DialogClose asChild><button type="button" aria-label="Close picker" className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent"><X className="size-4" /></button></DialogClose> : null;
@@ -251,7 +251,7 @@ export function ComposerRunSettingsPicker({
         <input id="composer-run-effort" type="range" min={0} max={choices.length} step={1} value={effortIndex} aria-label={agent?.adapterType === "pi_local" ? "Thinking" : "Effort"} aria-valuetext={effortLabel}
           onChange={(event) => {
             const nextEffort = Number(event.target.value) === 0 ? null : choices[Number(event.target.value) - 1]!;
-            rememberComposerEffort(companyId, nextEffort);
+            rememberComposerEffort(spaceId, nextEffort);
             onSettingsChange({ ...selected, effort: nextEffort });
           }}
           className="composer-run-effort-range mt-3 w-full" style={{ "--fill": `${effortIndex / choices.length * 100}%` } as CSSProperties} />

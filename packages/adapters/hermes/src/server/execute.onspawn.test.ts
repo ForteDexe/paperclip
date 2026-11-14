@@ -48,7 +48,7 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
       runId: "test-run-1",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Hermes",
         adapterType: "hermes_local",
         adapterConfig: {},
@@ -68,7 +68,7 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
       context: {
         issueId: "issue-1",
         wakeReason: "manual",
-        paperclipWake: null,
+        outpostWake: null,
       },
       onLog: vi.fn(async () => undefined),
       onMeta: vi.fn(async () => undefined),
@@ -107,7 +107,7 @@ describe("hermes-local adapter onSpawn forwarding", () => {
   it("keeps wake data in the prompt and drops configured JSON env copies", async () => {
     const { ctx } = makeCtx({ env: { OUTPOST_WAKE_PAYLOAD_JSON: "stale configured wake" } });
     const wake = { reason: "issue_assigned", issue: { id: "issue-1", description: "Current task brief" } };
-    await execute({ ...ctx, context: { ...ctx.context, paperclipWake: wake } } as any);
+    await execute({ ...ctx, context: { ...ctx.context, outpostWake: wake } } as any);
     const call = vi.mocked(serverUtils.runChildProcess).mock.calls.at(-1)!;
     expect(call[3].env).not.toHaveProperty("OUTPOST_WAKE_PAYLOAD_JSON");
     expect(call[2]).toContainEqual(expect.stringContaining("Current task brief"));
@@ -115,13 +115,13 @@ describe("hermes-local adapter onSpawn forwarding", () => {
 
   it("launches in the assigned task workspace when no cwd was configured", async () => {
     const { ctx } = makeCtx();
-    await execute({ ...ctx, context: { ...ctx.context, paperclipWorkspace: { cwd: "/private/qa/agent-workspace" } } } as any);
+    await execute({ ...ctx, context: { ...ctx.context, outpostWorkspace: { cwd: "/private/qa/agent-workspace" } } } as any);
     expect(vi.mocked(serverUtils.runChildProcess).mock.calls.at(-1)![3].cwd).toBe("/private/qa/agent-workspace");
   });
 
   it("preserves an explicitly configured cwd", async () => {
     const { ctx } = makeCtx({ cwd: "/private/qa/configured-workspace" });
-    await execute({ ...ctx, context: { ...ctx.context, paperclipWorkspace: { cwd: "/private/qa/agent-workspace" } } } as any);
+    await execute({ ...ctx, context: { ...ctx.context, outpostWorkspace: { cwd: "/private/qa/agent-workspace" } } } as any);
     expect(vi.mocked(serverUtils.runChildProcess).mock.calls.at(-1)![3].cwd).toBe("/private/qa/configured-workspace");
   });
 

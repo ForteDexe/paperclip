@@ -1,6 +1,6 @@
 ---
-name: paperclip-muse
-description: Handle Outpost invitations, tasks, and OUTPOST_MUSE wakes through the installed governed client.
+name: outpost-muse
+description: Handle Outpost invitations, tasks, and OUTPOST_MUSE wakes through the installed controlled client.
 ---
 
 # Outpost for personal Muse — protocol v1, assets v2
@@ -12,20 +12,20 @@ Read this file when a user mentions Outpost, Outpost tasks, an assigned Outpost 
 ## Install once; make it discoverable
 
 1. Use the current setup prompt from Outpost and approve its HTTPS hostname through Muse's permission UI. Never ask the user to paste a durable credential.
-2. Download the exact immutable asset2 `client.py`, `detector.sh`, and this instructions file. Verify each SHA-256 digest against the pinned manifest. Store the source files under `~/.config/paperclip-muse/` with private modes; they contain no credentials.
+2. Download the exact immutable asset2 `client.py`, `detector.sh`, and this instructions file. Verify each SHA-256 digest against the pinned manifest. Store the source files under `~/.config/outpost-muse/` with private modes; they contain no credentials.
 3. Run `client.py --binding <binding UUID> configure --origin <approved HTTPS origin>`. This writes only `connection.json` with public origin/binding, the binding-specific Secure Vault credential name, and later the authenticated generation. It also writes `receiver.json` containing exactly public `version`, `origin`, and `bindingId`, plus a public-only executable hook wrapper. It does not pair, exchange tokens, or read old `worker.json`/credential journals.
-4. Invoke `credentials.request_api_access` using the exact setup values: binding-specific `provider`, `api_hosts`, `auth_scheme: oauth2_code`, ticket-bearing `authorization_url`, bare-hostname `issuer_domain`, `token_url`, `token_endpoint_auth_method: none`, `registration_url`, and `scopes: paperclip:agent offline_access`. Show the returned Connect link. The user completes Muse's supported OAuth consent; authd chooses its actual callback, performs public-client registration and S256 PKCE, stores secrets in Secure Vault, and rotates refresh automatically. Never invent a callback or perform a raw pairing/token exchange. Never inspect, copy, print, or persist access tokens, refresh tokens, or surrogate headers.
-5. After consent, run the client `status` command and verify its scoped identity. Only after this authenticated read succeeds, register the generated expanded path `~/hooks/scripts/paperclip-muse-<binding UUID>.sh` through `hooks.add` `script_path` with no arguments. The managed runtime supplies `HATCH_HOOK_RUNTIME`. Request five-second checks and inspect the actual installed schedule. The detector uses only public `/api/muse/v1/signal` with `X-Paperclip-Muse-Binding`, without Authorization or any secret. Empty/failed checks stay silent; never substitute sixty seconds.
-6. Install this verified skill at `~/workspace/skills/paperclip-muse/SKILL.md`. Fresh conversations discover it with `muse.skill_search`; no registration is required. Record only the nonsecret current binding UUID and public client path, never the ticket or any credential. Keep the same instructions beside the client for `help`.
+4. Invoke `credentials.request_api_access` using the exact setup values: binding-specific `provider`, `api_hosts`, `auth_scheme: oauth2_code`, ticket-bearing `authorization_url`, bare-hostname `issuer_domain`, `token_url`, `token_endpoint_auth_method: none`, `registration_url`, and `scopes: outpost:agent offline_access`. Show the returned Connect link. The user completes Muse's supported OAuth consent; authd chooses its actual callback, performs public-client registration and S256 PKCE, stores secrets in Secure Vault, and rotates refresh automatically. Never invent a callback or perform a raw pairing/token exchange. Never inspect, copy, print, or persist access tokens, refresh tokens, or surrogate headers.
+5. After consent, run the client `status` command and verify its scoped identity. Only after this authenticated read succeeds, register the generated expanded path `~/hooks/scripts/outpost-muse-<binding UUID>.sh` through `hooks.add` `script_path` with no arguments. The managed runtime supplies `HATCH_HOOK_RUNTIME`. Request five-second checks and inspect the actual installed schedule. The detector uses only public `/api/muse/v1/signal` with `X-Outpost-Muse-Binding`, without Authorization or any secret. Empty/failed checks stay silent; never substitute sixty seconds.
+6. Install this verified skill at `~/workspace/skills/outpost-muse/SKILL.md`. Fresh conversations discover it with `muse.skill_search`; no registration is required. Record only the nonsecret current binding UUID and public client path, never the ticket or any credential. Keep the same instructions beside the client for `help`.
 
-The client loads the supported `/opt/hatch/skills/skill-creator/bin/dynamic_credentials.py` helper. It calls `add_surrogate_to_request(req, credential_name='custom.paperclip-muse-<binding UUID>', entry_name='access_token', allowed_hosts=[approved hostname])` and `read_json_response(resp)`, with bounded HTTPS responses and no redirects. It never reads or caches real tokens or surrogate headers. Private operation/answer/mailbox journals can contain authorized task data, and remain separate from Secure Vault credentials.
+The client loads the supported `/opt/hatch/skills/skill-creator/bin/dynamic_credentials.py` helper. It calls `add_surrogate_to_request(req, credential_name='custom.outpost-muse-<binding UUID>', entry_name='access_token', allowed_hosts=[approved hostname])` and `read_json_response(resp)`, with bounded HTTPS responses and no redirects. It never reads or caches real tokens or surrogate headers. Private operation/answer/mailbox journals can contain authorized task data, and remain separate from Secure Vault credentials.
 
 Use these shell variables in the following examples, replacing the binding with the UUID in the successful pairing receipt:
 
 ```sh
 MUSE_BINDING='<binding UUID>'
-MUSE_CLIENT="$HOME/.config/paperclip-muse/client.py"
-MUSE_STATE="$HOME/.config/paperclip-muse/$MUSE_BINDING"
+MUSE_CLIENT="$HOME/.config/outpost-muse/client.py"
+MUSE_STATE="$HOME/.config/outpost-muse/$MUSE_BINDING"
 ```
 
 Keep all mailbox pages, assignment snapshots, command files, receipts, and continuation files in this private state directory with mode `0600`. They can contain task data. The client uses an exclusive OS lock, atomic writes, and durable journals. Use its supported authd helper path for every authenticated request; never reconstruct bearer HTTP calls or secret injection in model-visible commands.
@@ -43,7 +43,7 @@ python3 "$MUSE_CLIENT" --binding "$MUSE_BINDING" help
 python3 "$MUSE_CLIENT" --binding "$MUSE_BINDING" status
 ```
 
-`help` reads this installed instructions file. `status` reports identity and local pending counts without exposing credentials. Check the returned company/agent/binding/generation. Do not reuse an old binding after repair. Repair creates a new binding generation; old normal credentials are fenced, and its bounded cleanup lane remains distinct.
+`help` reads this installed instructions file. `status` reports identity and local pending counts without exposing credentials. Check the returned space/agent/binding/generation. Do not reuse an old binding after repair. Repair creates a new binding generation; old normal credentials are fenced, and its bounded cleanup lane remains distinct.
 
 ## Background readiness and the mailbox
 
@@ -218,7 +218,7 @@ This helper uses the persisted digest and continuation receipt; it must follow a
 
 ## Finish through the native completion contract
 
-Use `assignment.completionContract` and the exact schema of its projected `paperclip_finish` or `paperclip_block`. Call that native completion tool through a normal `tool` operation. Use `paperclip_block` for a blocked disposition when admitted; do not convert a blocker into successful completion. Pending semantic operations and unanswered/unconsumed questions must be settled first.
+Use `assignment.completionContract` and the exact schema of its projected `outpost_finish` or `outpost_block`. Call that native completion tool through a normal `tool` operation. Use `outpost_block` for a blocked disposition when admitted; do not convert a blocker into successful completion. Pending semantic operations and unanswered/unconsumed questions must be settled first.
 
 Wait for the native completion tool's accepted receipt. Extract its exact canonical `completionReport`; do not manufacture a report from a progress message or paraphrase/normalize the accepted report. Save this transport command privately, inserting that exact object as `result`:
 

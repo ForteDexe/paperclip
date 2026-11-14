@@ -49,7 +49,7 @@ it("checks after an awaited native observation before probing the human accept r
 });
 it("still requires actual audience denial, a pending unchanged request and no unapproved work", () => {
   const original = { id: "riley-card", payload: { prompt: "Riley's request" }, status: "pending", kind: "request_confirmation" };
-  const valid = () => ({ scenarioId: "questions-and-approvals.wrong-reviewer", companyId: "acorn", leadId: "ceo", company: {}, companies: [], agents: [],
+  const valid = () => ({ scenarioId: "questions-and-approvals.wrong-reviewer", spaceId: "acorn", leadId: "ceo", space: {}, spaces: [], agents: [],
     interactions: [structuredClone(original)], tasks: [], projects: [], goals: [], activity: [], documents: [], links: [], runs: [],
     reply: "Only Riley, the addressed reviewer, can approve this request.",
     state: { original, alexId: "alex", rileyId: "riley", realHumanIdentities: true, visibleToAlex: true, humanAcceptStatus: 403 } });

@@ -27,7 +27,7 @@ const OPEN = {
   identity: {
     runId: "run-tools",
     sessionId: "session-tools",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "task-1",
     agentId: "actor-1",
   },
@@ -48,7 +48,7 @@ async function runtimeFor(options: {
 } = {}) {
   const actor = {
     id: "actor-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Fixture Actor",
     role: options.role ?? "engineer",
     status: "active" as const,
@@ -61,7 +61,7 @@ async function runtimeFor(options: {
       actors: [actor],
       tasks: options.seed?.tasks ?? [{
         id: "task-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         identifier: "MCK-1",
         title: "Tool boundary fixture",
         description: "Protected task details",
@@ -109,10 +109,10 @@ describe("Capability semantic tool catalog", () => {
 
     expect(Object.keys(CAPABILITY_OPTIONAL_TOOL_CATALOGS).sort()).toEqual([
       "cases",
-      "company_skills",
+      "space_skills",
       "delegation_dependencies",
       "discovery",
-      "governance",
+      "approvals",
       "portability_admin",
       "routines",
       "secrets",
@@ -166,7 +166,7 @@ describe("Capability exposure and authorization", () => {
     expect(askIds).not.toContain("write_document");
 
     const granted = await runtimeFor({
-      scenarioGrants: ["discovery:tasks:read", "governance:approvals:decide"],
+      scenarioGrants: ["discovery:tasks:read", "approvals:approvals:decide"],
       role: "approver",
       policy: { deniedOperationIds: ["search_tasks"] },
     });
@@ -182,9 +182,9 @@ describe("Capability exposure and authorization", () => {
     const protectedValue = "protected-approval-payload";
     const approval: CapabilityFixtureApproval = {
       id: "approval-protected",
-      companyId: "company-1",
+      spaceId: "space-1",
       taskIds: ["task-1"],
-      type: "request_board_approval",
+      type: "request_operator_approval",
       status: "pending",
       requestedByActorId: null,
       payload: { private: protectedValue },
@@ -339,14 +339,14 @@ describe("Capability exposure and authorization", () => {
   });
 
   it.each([
-    ["sync_company_skills", "company_skills:write", {}, { synced: true }, "engineer"],
+    ["sync_space_skills", "space_skills:write", {}, { synced: true }, "engineer"],
     ["manage_routine", "routines:write", {}, { managed: true }, "engineer"],
     ["upsert_case", "cases:write", { key: "case-1", body: "Case body" }, {
       key: "case-1",
       body: "Case body",
       upserted: true,
     }, "engineer"],
-    ["administer_company", "company:admin", { action: "refresh" }, {
+    ["administer_space", "space:admin", { action: "refresh" }, {
       action: "refresh",
       applied: true,
     }, "admin"],
@@ -1293,7 +1293,7 @@ describe("Capability exposure and authorization", () => {
   it("recovers an expired built-in extension from its prepared receipt", async () => {
     const observedExport = {
       schema: "outpost.capability.mock-export.v1",
-      company: { id: "company-1", name: "Previously Exported Company" },
+      space: { id: "space-1", name: "Previously Exported Space" },
       taskCount: 1,
       actorCount: 1,
     };
@@ -1302,7 +1302,7 @@ describe("Capability exposure and authorization", () => {
       resultSequence: 0,
       operationResults: {},
       extensions: [{
-        key: `${OPEN.identity.runId}:export_company:prepared-export`,
+        key: `${OPEN.identity.runId}:export_space:prepared-export`,
         input: "{}",
         status: "pending",
         ownerId: "terminated-exporter",
@@ -1332,7 +1332,7 @@ describe("Capability exposure and authorization", () => {
     const resolveExpiredExtensionReceipt = vi.fn(async () => ({
       value: {
         ...observedExport,
-        company: { id: "company-1", name: "Conflicting Resolver Company" },
+        space: { id: "space-1", name: "Conflicting Resolver Space" },
       },
     }));
     const restored = new CapabilitySemanticToolRuntime({
@@ -1344,7 +1344,7 @@ describe("Capability exposure and authorization", () => {
     });
 
     await expect(restored.invoke({
-      operationId: "export_company",
+      operationId: "export_space",
       input: {},
       idempotencyKey: "prepared-export",
     })).resolves.toMatchObject({
@@ -1366,7 +1366,7 @@ describe("Capability exposure and authorization", () => {
       resultSequence: 0,
       operationResults: {},
       extensions: [{
-        key: `${OPEN.identity.runId}:export_company:expired-export`,
+        key: `${OPEN.identity.runId}:export_space:expired-export`,
         input: "{}",
         status: "pending",
         ownerId: "terminated-exporter",
@@ -1389,7 +1389,7 @@ describe("Capability exposure and authorization", () => {
     };
     const base = await runtimeFor({
       scenarioGrants: ["portability:export"],
-      seed: { company: { name: "Company State Changed After Execution" } },
+      seed: { space: { name: "Space State Changed After Execution" } },
     });
     const restoredAdapter = CapabilityMockControlPlaneAdapter.restore(
       base.adapter.serialize(),
@@ -1403,7 +1403,7 @@ describe("Capability exposure and authorization", () => {
     });
 
     await expect(restored.invoke({
-      operationId: "export_company",
+      operationId: "export_space",
       input: {},
       idempotencyKey: "expired-export",
     })).resolves.toMatchObject({
@@ -1414,7 +1414,7 @@ describe("Capability exposure and authorization", () => {
       },
     });
     expect(durableSnapshot.extensions).toEqual([{
-      key: `${OPEN.identity.runId}:export_company:expired-export`,
+      key: `${OPEN.identity.runId}:export_space:expired-export`,
       input: "{}",
       status: "indeterminate",
       reason: "idempotency_receipt_unavailable",
@@ -1432,7 +1432,7 @@ describe("Capability exposure and authorization", () => {
       now: () => 2_001,
     });
     await expect(retried.invoke({
-      operationId: "export_company",
+      operationId: "export_space",
       input: {},
       idempotencyKey: "expired-export",
     })).resolves.toMatchObject({
@@ -1446,7 +1446,7 @@ describe("Capability exposure and authorization", () => {
 
     const authoritativeExport = {
       schema: "outpost.capability.mock-export.v1",
-      company: { id: "company-1", name: "Originally Exported Company" },
+      space: { id: "space-1", name: "Originally Exported Space" },
       taskCount: 1,
       actorCount: 1,
     };
@@ -1462,7 +1462,7 @@ describe("Capability exposure and authorization", () => {
       now: () => 3_001,
     });
     await expect(resolving.invoke({
-      operationId: "export_company",
+      operationId: "export_space",
       input: {},
       idempotencyKey: "expired-export",
     })).resolves.toMatchObject({
@@ -1546,7 +1546,7 @@ describe("Capability exposure and authorization", () => {
   it("resolves an expired mutable export receipt during a restored retry", async () => {
     const observedExport = {
       schema: "outpost.capability.mock-export.v1",
-      company: { id: "company-1", name: "Previously Exported Company" },
+      space: { id: "space-1", name: "Previously Exported Space" },
       taskCount: 1,
       actorCount: 1,
     };
@@ -1555,7 +1555,7 @@ describe("Capability exposure and authorization", () => {
       resultSequence: 0,
       operationResults: {},
       extensions: [{
-        key: `${OPEN.identity.runId}:export_company:recovered-export`,
+        key: `${OPEN.identity.runId}:export_space:recovered-export`,
         input: "{}",
         status: "pending",
         ownerId: "terminated-exporter",
@@ -1587,7 +1587,7 @@ describe("Capability exposure and authorization", () => {
     });
 
     await expect(restored.invoke({
-      operationId: "export_company",
+      operationId: "export_space",
       input: {},
       idempotencyKey: "recovered-export",
     })).resolves.toMatchObject({
@@ -1602,7 +1602,7 @@ describe("Capability exposure and authorization", () => {
     });
 
     await restored.invoke({
-      operationId: "export_company",
+      operationId: "export_space",
       input: {},
       idempotencyKey: "recovered-export",
     });
@@ -1939,9 +1939,9 @@ describe("Capability security policy", () => {
   it("prohibits self approval even with the role and explicit decision claim", async () => {
     const approval: CapabilityFixtureApproval = {
       id: "approval-self",
-      companyId: "company-1",
+      spaceId: "space-1",
       taskIds: ["task-1"],
-      type: "request_board_approval",
+      type: "request_operator_approval",
       status: "pending",
       requestedByActorId: "actor-1",
       payload: { summary: "self requested" },
@@ -1952,7 +1952,7 @@ describe("Capability security policy", () => {
     };
     const { adapter, runtime } = await runtimeFor({
       role: "approver",
-      scenarioGrants: ["governance:approvals:decide"],
+      scenarioGrants: ["approvals:approvals:decide"],
       seed: { approvals: [approval] },
     });
     const result = await runtime.invoke({
@@ -1990,7 +1990,7 @@ describe("Capability security policy", () => {
 
     const blocked = await runtime.invoke({
       operationId: "generic_api_request",
-      input: { method: "POST", path: "/api/companies" },
+      input: { method: "POST", path: "/api/spaces" },
       idempotencyKey: "escape-2",
     });
     expect(blocked).toMatchObject({

@@ -7,7 +7,7 @@ Companion records: [Capability contract](../capability-contract.md),
 `spec/capability/eval-traceability.yaml`, the Capability plan (TASK-16897),
 [Live console interaction map](live-console-interaction-map.md),
 [SDK component decisions](sdk-component-decisions.md).
-(annotated desktop + mobile renders in `.paperclip-local/evidence/capability/`).
+(annotated desktop + mobile renders in `.outpost-local/evidence/capability/`).
 
 This map is the interaction contract for the Capability browser scenario
 explorer. The explorer is a **read surface over records the runtime already
@@ -260,7 +260,7 @@ The eval acceptance surface:
   missing claim, and the denial reason — and never any protected state. An
   **absent** tool simply does not appear in exposure lists; the Context tab’s
   control-plane section is the affordance proving absence is intentional.
-- The generic escape hatch (`paperclipApiRequest` successor), when a test
+- The generic escape hatch (`outpostApiRequest` successor), when a test
   scenario grants it, renders with a persistent `--pcr-warning-surface`
   “test-only escape hatch” banner on every call card (plan §4: visually
   flagged).
@@ -385,7 +385,7 @@ Determinism contract for screenshot/CI use:
 
 ## 9. Screenshot acceptance matrix
 
-Evidence lands in `.paperclip-local/evidence/capability/` as
+Evidence lands in `.outpost-local/evidence/capability/` as
 `<slug>-<viewport>.png`, at both **1440×900** and **390×844**, captured from
 the §7 routes after `data-run-state="settled"`. These twelve shots are the
 UX acceptance set for 7F (they also cover the plan’s human-checkpoint

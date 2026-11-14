@@ -45,7 +45,7 @@ export function createDatabaseBackupOwner(options: {
         connectionString: options.connectionString,
         backupDir: options.backupDir,
         retention,
-        filenamePrefix: "paperclip",
+        filenamePrefix: "outpost",
         verifyBeforePrune: verifyCheckpoint ? verifyIdleDatabaseBackup : undefined,
       });
       if (verifyCheckpoint) {

@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { MAX_REPOSITORY_BYTES, MAX_REPOSITORY_FILES, repositoryPackageInspection } from './skill-repository-package.js';
-import type { CompanySkillVersionFileInventoryEntry, SkillSourceCandidate, SkillSourceDiscovery, SkillSourcePreviewRequest, SkillSourceFilePreview, SkillSourceScanUpdate, SkillSourceScanProgress } from '@outpost/shared';
+import type { SpaceSkillVersionFileInventoryEntry, SkillSourceCandidate, SkillSourceDiscovery, SkillSourcePreviewRequest, SkillSourceFilePreview, SkillSourceScanUpdate, SkillSourceScanProgress } from '@outpost/shared';
 import { parseFrontmatterMarkdown, parseGitHubSkillRepositoryUrl } from '@outpost/shared';
 import { notFound, unprocessable } from '../errors.js';
 import { assertSkillSnapshotPath, snapshotFile, skillFileBytes, MAX_SKILL_SNAPSHOT_BYTES, MAX_SKILL_SNAPSHOT_FILES } from './skill-snapshot.js';
 import { indexSkillPackagePaths, inspectSkillPackage } from './skill-package-inspection.js';
-import { auditSkillSnapshot, classifyInventoryKind } from './company-skills.js';
+import { auditSkillSnapshot, classifyInventoryKind } from './space-skills.js';
 import { skillRepositoryDependencies } from './skill-repository-dependencies.js';
 
 import type { GitSkillSnapshot, GitSkillSnapshotOptions, GitSkillTreeEntry as TreeEntry } from './skill-source-git-snapshot.js';
@@ -17,8 +17,8 @@ export interface GitHubRead {
   readonly connectionId?: string | null;
   readonly grantId?: string | null;
 }
-export type DiscoveredSkill = SkillSourceCandidate & { files: CompanySkillVersionFileInventoryEntry[] };
-export type ScannedSkillSource = SkillSourceDiscovery & { skills: DiscoveredSkill[]; defaultBranch: string; treeSha?: string; downloadBytes?: number; scanBytes?: number; repositoryFiles?: CompanySkillVersionFileInventoryEntry[]; repositorySubset?: boolean };
+export type DiscoveredSkill = SkillSourceCandidate & { files: SpaceSkillVersionFileInventoryEntry[] };
+export type ScannedSkillSource = SkillSourceDiscovery & { skills: DiscoveredSkill[]; defaultBranch: string; treeSha?: string; downloadBytes?: number; scanBytes?: number; repositoryFiles?: SpaceSkillVersionFileInventoryEntry[]; repositorySubset?: boolean };
 const MAX_FILE_BYTES = 1024 * 1024;
 const MAX_SCAN_BYTES = MAX_SKILL_SNAPSHOT_BYTES;
 const MAX_SCAN_PACKAGES = 1_000;
@@ -204,7 +204,7 @@ async function scanRepository(input: SkillScanInput, providerRead: GitHubRead, o
       const inventory = inventories.get(dir) ?? [];
       Object.assign(progress, { currentPath: root.path, checkedFiles: 0, totalFiles: inventory.length });
       await report();
-      const files: CompanySkillVersionFileInventoryEntry[] = [];
+      const files: SpaceSkillVersionFileInventoryEntry[] = [];
       const fileWarnings: string[] = [];
       let error: string | null = rootsByDirectory.get(dir)!.length > 1 ? 'Multiple SKILL.md entrypoints share this package directory.' : null;
       for (const entry of inventory) {
@@ -234,7 +234,7 @@ async function scanRepository(input: SkillScanInput, providerRead: GitHubRead, o
       progress.checkedSkills++;
       await report();
     }
-    let repositoryFiles: CompanySkillVersionFileInventoryEntry[] | undefined;
+    let repositoryFiles: SpaceSkillVersionFileInventoryEntry[] | undefined;
     let repositoryPackage: ReturnType<typeof repositoryPackageInspection> | undefined;
     if (input.packageMode === 'repository') {
       const inventory = repositoryInventory!;

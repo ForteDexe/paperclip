@@ -30,7 +30,7 @@ export function githubInboundCommentText(input: {
 
 export async function githubAssignedAgentRequiresLowTrust(taskTx: DbOrTransaction, taskEndpoint: EndpointRow): Promise<boolean> {
   const [assignedAgentTrust] = await taskTx.select({ permissions: agents.permissions }).from(agents)
-    .where(and(eq(agents.companyId, taskEndpoint.companyId), eq(agents.id, taskEndpoint.assignedAgentId)));
+    .where(and(eq(agents.spaceId, taskEndpoint.spaceId), eq(agents.id, taskEndpoint.assignedAgentId)));
   return assignedAgentTrust?.permissions?.trustPreset === LOW_TRUST_REVIEW_PRESET;
 }
 
@@ -43,11 +43,11 @@ export async function retainGitHubDeliveryAuthority(
 }
 
 export async function retainGitHubReviewReceipt(taskTx: DbOrTransaction, endpoint: EndpointRow, issueId: string, deliveryId: string, githubAutomatic: AutomaticRequest): Promise<void> {
-          await notifyGitHubReviewChecks(taskTx, { companyId: endpoint.companyId, endpointId: endpoint.id,
+          await notifyGitHubReviewChecks(taskTx, { spaceId: endpoint.spaceId, endpointId: endpoint.id,
             repositoryId: githubAutomatic.context.repositoryId, number: githubAutomatic.context.pullNumber });
-          await notifyGitHubReviewProjection(taskTx, { companyId: endpoint.companyId, endpointId: endpoint.id });
+          await notifyGitHubReviewProjection(taskTx, { spaceId: endpoint.spaceId, endpointId: endpoint.id });
           await taskTx.insert(chatGitHubReviews).values({
-            companyId: endpoint.companyId, endpointId: endpoint.id, issueId: issueId,
+            spaceId: endpoint.spaceId, endpointId: endpoint.id, issueId: issueId,
             repositoryId: githubAutomatic.context.repositoryId, repository: githubAutomatic.context.repository,
             pullNumber: githubAutomatic.context.pullNumber, headSha: githubAutomatic.context.headSha,
             deliveryId: deliveryId, configurationRevision: githubAutomatic.revision,

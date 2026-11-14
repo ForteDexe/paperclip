@@ -3,7 +3,7 @@ import { agentWakeupRequests, heartbeatRuns, issueRecoveryActions, type Db } fro
 import { canonicalExecutionUuid } from "./execution-identity.js";
 
 export async function taskRetryRunAncestry(input: {
-  db: Db; companyId: string; issueId: string; agentId: string; sourceRunId: string;
+  db: Db; spaceId: string; issueId: string; agentId: string; sourceRunId: string;
 }): Promise<string[] | null> {
   const rows = await input.db.execute<{ id: string | null; status: string | null; valid: boolean; cycle: boolean; depth: number }>(sql`
     with recursive ancestry as (
@@ -14,7 +14,7 @@ export async function taskRetryRunAncestry(input: {
           and (r.issue_id is null or r.issue_id::text = ${input.issueId})
           and coalesce(r.native_issue_id::text, r.issue_id::text, r.context_snapshot->>'issueId') = ${input.issueId}) as valid
       from ${heartbeatRuns} r
-      where r.company_id = ${input.companyId} and r.id = ${input.sourceRunId}::uuid
+      where r.space_id = ${input.spaceId} and r.id = ${input.sourceRunId}::uuid
       union all
       select predecessor.id, predecessor.status, predecessor.retry_of_run_id, predecessor.created_at,
         current.path || predecessor.id, coalesce(predecessor.id = any(current.path), false), current.depth + 1,
@@ -27,7 +27,7 @@ export async function taskRetryRunAncestry(input: {
             predecessor.context_snapshot->>'issueId') = ${input.issueId})
       from ancestry current
       left join ${heartbeatRuns} predecessor on predecessor.id = current.retry_of_run_id
-        and predecessor.company_id = ${input.companyId} and predecessor.created_at <= current.created_at
+        and predecessor.space_id = ${input.spaceId} and predecessor.created_at <= current.created_at
       where current.retry_of_run_id is not null and current.valid and not current.cycle and current.depth <= 32
     ) select id, status, valid, cycle, depth from ancestry
   `);
@@ -37,14 +37,14 @@ export async function taskRetryRunAncestry(input: {
 
 /** Only committed predecessor edges can carry preserved work into a retry. */
 export async function recoveryRunAncestry(input: {
-  db: Db; companyId: string; issueId: string; sourceRunIds: string[];
+  db: Db; spaceId: string; issueId: string; sourceRunIds: string[];
 }) {
   // Follow committed predecessor receipts, not transcript paths. UNION makes
-  // cycles and duplicate receipts finite; every edge retains company/task scope.
+  // cycles and duplicate receipts finite; every edge retains space/task scope.
   return input.db.execute<{ id: string }>(sql`
     with recursive sources(id) as (
       select r.id from ${heartbeatRuns} r
-      where r.company_id = ${input.companyId}
+      where r.space_id = ${input.spaceId}
         and coalesce(r.native_issue_id::text, r.issue_id::text, r.context_snapshot->>'issueId') = ${input.issueId}
         and r.id in (select ${canonicalExecutionUuid(sql`value`)}
           from jsonb_array_elements_text(${JSON.stringify(input.sourceRunIds)}::jsonb))
@@ -55,18 +55,18 @@ export async function recoveryRunAncestry(input: {
         select current_run.retry_of_run_id::text as id
         union
         select w.payload#>>'{taskRetry,sourceRunId}' from ${agentWakeupRequests} w
-        where w.company_id = ${input.companyId} and w.run_id = s.id
+        where w.space_id = ${input.spaceId} and w.run_id = s.id
           and w.reason = 'task_retry' and w.status = 'coalesced'
           and w.requested_by_actor_type = 'user' and w.payload->>'issueId' = ${input.issueId}
           and w.payload#>>'{taskRetry,schema}' = 'outpost.task-retry.v1'
           and w.payload#>>'{taskRetry,generationId}' = w.id::text
         union
         select a.evidence->>'runId' from ${issueRecoveryActions} a
-        where a.company_id = ${input.companyId} and a.source_issue_id = ${input.issueId}
+        where a.space_id = ${input.spaceId} and a.source_issue_id = ${input.issueId}
           and a.evidence#>>'{explicitUserContinuation,runId}' = s.id::text
       ) edge
       join ${heartbeatRuns} predecessor on predecessor.id = ${canonicalExecutionUuid(sql`edge.id`)}
-        and predecessor.company_id = ${input.companyId}
+        and predecessor.space_id = ${input.spaceId}
         and coalesce(predecessor.native_issue_id::text, predecessor.issue_id::text,
           predecessor.context_snapshot->>'issueId') = ${input.issueId}
     ) select id from sources

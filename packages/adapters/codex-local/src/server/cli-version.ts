@@ -17,7 +17,7 @@ export const CODEX_HELLO_PROBE_MODEL_REJECTED_CHECK_CODE = "codex_hello_probe_mo
 /**
  * Run `codex --version` where the run would execute it. Never cached: an
  * operator may upgrade Codex, or promote a new sandbox image, while the
- * Paperclip server keeps running, and the next Test should see the change.
+ * Outpost server keeps running, and the next Test should see the change.
  */
 export async function readCodexCommandVersion(input: {
   runId: string;

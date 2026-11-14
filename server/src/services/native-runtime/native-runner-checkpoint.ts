@@ -9,7 +9,7 @@ import { legacyControllerBootId } from "../legacy-controller-lease.js";
 import { assertNativeSourceCheckpointConsumer, lockSourceRecoveryCoordinators } from "./native-source-recovery-ownership.js";
 import { runnerdStateHasNoProviderTurn, runnerdStateIsIncompleteBootstrap } from "./native-bootstrap-proof.js";
 
-type Binding = { companyId: string; issueId: string; runId: string };
+type Binding = { spaceId: string; issueId: string; runId: string };
 export const NATIVE_CHECKPOINT_HEADER_INSPECTION_MAX_BYTES = 1024 * 1024;
 export const NATIVE_CHECKPOINT_INSPECTION_TOTAL_MAX_BYTES = 8 * 1024 * 1024;
 export type NativeRunnerCheckpointOwner = Binding & { bootId: string; leaseOwner: string; generation: number; authorityRunId: string };
@@ -18,8 +18,8 @@ function encryptParts(binding: Binding, records: ReadonlyMap<string, string>) {
   if (!records.size) return [];
   const cipher = createLocalEncryptedCipher("write");
   return [...records].map(([part, contents]) => ({
-    companyId: binding.companyId, issueId: binding.issueId, runId: binding.runId, part,
-    material: cipher.encrypt(JSON.stringify({ companyId: binding.companyId, issueId: binding.issueId, runId: binding.runId, part, contents })),
+    spaceId: binding.spaceId, issueId: binding.issueId, runId: binding.runId, part,
+    material: cipher.encrypt(JSON.stringify({ spaceId: binding.spaceId, issueId: binding.issueId, runId: binding.runId, part, contents })),
   }));
 }
 
@@ -43,7 +43,7 @@ export async function insertMigratedNativeRunnerCheckpoint(tx: CheckpointTransac
 function decryptPart(cipher: ReturnType<typeof createLocalEncryptedCipher>, binding: Binding,
   part: string, material: Record<string, unknown>): string {
   const envelope = JSON.parse(cipher.decrypt(material));
-  if (envelope.companyId !== binding.companyId || envelope.issueId !== binding.issueId
+  if (envelope.spaceId !== binding.spaceId || envelope.issueId !== binding.issueId
     || envelope.runId !== binding.runId || envelope.part !== part || typeof envelope.contents !== "string") {
     throw new Error("native_runner_checkpoint_binding_mismatch");
   }
@@ -61,7 +61,7 @@ export function nativeRunnerCheckpointOwnerLock(tx: CheckpointTransaction, owner
     resultId: nativeRunFinalizations.resultId,
     phase: nativeRunFinalizations.phase,
   }).from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, owner.companyId), eq(nativeRunFinalizations.issueId, owner.issueId),
+    eq(nativeRunFinalizations.spaceId, owner.spaceId), eq(nativeRunFinalizations.issueId, owner.issueId),
     eq(nativeRunFinalizations.runId, owner.authorityRunId), eq(nativeRunFinalizations.controllerBootId, owner.bootId),
     eq(nativeRunFinalizations.controllerGeneration, owner.generation))).for("update"));
 }
@@ -91,15 +91,15 @@ export async function validateNativeRunnerCheckpointOwner(
   if (!activeOwner) {
     await assertNativeSourceCheckpointConsumer(tx, owner);
     const [task] = await tx.select({ executionRunId: issues.executionRunId }).from(issues)
-      .where(and(eq(issues.companyId, owner.companyId), eq(issues.id, owner.issueId)));
+      .where(and(eq(issues.spaceId, owner.spaceId), eq(issues.id, owner.issueId)));
     const [successor] = task?.executionRunId && task.executionRunId !== owner.runId
       ? await tx.select({ runId: nativeRunFinalizations.runId }).from(nativeRunFinalizations).where(and(
-          eq(nativeRunFinalizations.runId, task.executionRunId), eq(nativeRunFinalizations.companyId, owner.companyId),
+          eq(nativeRunFinalizations.runId, task.executionRunId), eq(nativeRunFinalizations.spaceId, owner.spaceId),
           eq(nativeRunFinalizations.issueId, owner.issueId), eq(nativeRunFinalizations.controllerBootId, owner.bootId),
           gt(nativeRunFinalizations.leaseExpiresAt, sql`clock_timestamp()`))) : [];
     const [preparingSuccessor] = !successor && task?.executionRunId && task.executionRunId !== owner.runId
       ? await tx.select({ runId: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-          eq(heartbeatRuns.id, task.executionRunId), eq(heartbeatRuns.companyId, owner.companyId),
+          eq(heartbeatRuns.id, task.executionRunId), eq(heartbeatRuns.spaceId, owner.spaceId),
           eq(heartbeatRuns.issueId, owner.issueId), eq(heartbeatRuns.runtimeMode, "legacy"),
           eq(heartbeatRuns.status, "running"), eq(heartbeatRuns.executionStage, "preparing"),
           eq(heartbeatRuns.controllerBootId, legacyControllerBootId),
@@ -125,28 +125,28 @@ export function nativeRunnerCheckpointWriter(db: Db, owner: NativeRunnerCheckpoi
     const changed = encryptParts(owner, checkpoint.changedRecords);
     await persistenceDb.transaction(async tx => {
       if (owner.runId !== owner.authorityRunId) {
-        await lockSourceRecoveryCoordinators(tx, owner.companyId, [owner.runId, owner.authorityRunId]);
+        await lockSourceRecoveryCoordinators(tx, owner.spaceId, [owner.runId, owner.authorityRunId]);
         await assertNativeSourceCheckpointConsumer(tx, owner, checkpoint);
       }
       await assertNativeRunnerCheckpointOwner(tx, owner, checkpoint.workCommandIds.some(id => !previousWork.has(id)));
       if (checkpoint.reset || checkpoint.changedRecords.has("header") || checkpoint.removedRecords.includes("header")) {
         const [header] = await tx.select({ material: nativeRunnerCheckpoints.material }).from(nativeRunnerCheckpoints).where(and(
-          eq(nativeRunnerCheckpoints.companyId, owner.companyId), eq(nativeRunnerCheckpoints.runId, owner.runId),
+          eq(nativeRunnerCheckpoints.spaceId, owner.spaceId), eq(nativeRunnerCheckpoints.runId, owner.runId),
           eq(nativeRunnerCheckpoints.part, "header"))).for("share").limit(1);
         if (header && readNativeCheckpointRetirement(header.material, owner)) throw new Error("native_runner_checkpoint_retired");
       }
       if (checkpoint.predecessor) {
         const [prior] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-          eq(heartbeatRuns.id, checkpoint.predecessor.runId), eq(heartbeatRuns.companyId, owner.companyId),
+          eq(heartbeatRuns.id, checkpoint.predecessor.runId), eq(heartbeatRuns.spaceId, owner.spaceId),
           eq(heartbeatRuns.nativeIssueId, owner.issueId),
           eq(heartbeatRuns.nativeSessionId, checkpoint.predecessor.normalizedSessionId)));
         if (!prior) throw new Error("native_runner_checkpoint_binding_mismatch");
       }
-      await notifyLiveRunRecovery(tx, { companyId: owner.companyId, runId: owner.runId });
+      await notifyLiveRunRecovery(tx, { spaceId: owner.spaceId, runId: owner.runId });
       if (checkpoint.reset) await tx.delete(nativeRunnerCheckpoints).where(and(
-        eq(nativeRunnerCheckpoints.companyId, owner.companyId), eq(nativeRunnerCheckpoints.runId, owner.runId)));
+        eq(nativeRunnerCheckpoints.spaceId, owner.spaceId), eq(nativeRunnerCheckpoints.runId, owner.runId)));
       else if (checkpoint.removedRecords.length) await tx.delete(nativeRunnerCheckpoints).where(and(
-        eq(nativeRunnerCheckpoints.companyId, owner.companyId), eq(nativeRunnerCheckpoints.runId, owner.runId),
+        eq(nativeRunnerCheckpoints.spaceId, owner.spaceId), eq(nativeRunnerCheckpoints.runId, owner.runId),
         inArray(nativeRunnerCheckpoints.part, [...checkpoint.removedRecords])));
       if (changed.length) await tx.insert(nativeRunnerCheckpoints).values(changed)
         .onConflictDoUpdate({ target: [nativeRunnerCheckpoints.runId, nativeRunnerCheckpoints.part],
@@ -186,7 +186,7 @@ export async function registerNativeRunnerCheckpoint(input: {
   const authorityRunId = typeof input.authorityRunId === "function"
     ? input.authorityRunId() : input.authorityRunId ?? input.binding.runId;
   const [owner] = await input.db.select().from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, input.binding.companyId),
+    eq(nativeRunFinalizations.spaceId, input.binding.spaceId),
     eq(nativeRunFinalizations.issueId, input.binding.issueId),
     eq(nativeRunFinalizations.runId, authorityRunId),
     eq(nativeRunFinalizations.controllerBootId, input.bootId),
@@ -222,7 +222,7 @@ export async function registerNativeRunnerCheckpoint(input: {
 /** Exact-run bounded metadata read; never loads command/event payload records. */
 export async function loadNativeRunnerCheckpointHeader(db: Pick<Db, "select">, binding: Binding): Promise<string | null> {
   const [row] = await db.select({ material: nativeRunnerCheckpoints.material }).from(nativeRunnerCheckpoints).where(and(
-    eq(nativeRunnerCheckpoints.companyId, binding.companyId), eq(nativeRunnerCheckpoints.issueId, binding.issueId),
+    eq(nativeRunnerCheckpoints.spaceId, binding.spaceId), eq(nativeRunnerCheckpoints.issueId, binding.issueId),
     eq(nativeRunnerCheckpoints.runId, binding.runId), eq(nativeRunnerCheckpoints.part, "header"))).limit(1);
   if (!row) return null;
   if (readNativeCheckpointRetirement(row.material, binding)) throw new Error("native_runner_checkpoint_retired");
@@ -232,7 +232,7 @@ export async function loadNativeRunnerCheckpointHeader(db: Pick<Db, "select">, b
 
 export async function loadNativeRunnerCheckpoint(db: Pick<Db, "select">, binding: Binding): Promise<DurablePrpCheckpoint | null> {
   const rows = await db.select().from(nativeRunnerCheckpoints).where(and(
-    eq(nativeRunnerCheckpoints.companyId, binding.companyId), eq(nativeRunnerCheckpoints.issueId, binding.issueId),
+    eq(nativeRunnerCheckpoints.spaceId, binding.spaceId), eq(nativeRunnerCheckpoints.issueId, binding.issueId),
     eq(nativeRunnerCheckpoints.runId, binding.runId)));
   if (!rows.length) return null;
   const header = rows.find(row => row.part === "header");
@@ -251,7 +251,7 @@ export async function loadNativeUnclaimedBootstrapCheckpoint(
   try {
     if (binding.runId !== identity.runId) return null;
     const rows = await db.select().from(nativeRunnerCheckpoints).where(and(
-      eq(nativeRunnerCheckpoints.companyId, binding.companyId), eq(nativeRunnerCheckpoints.issueId, binding.issueId),
+      eq(nativeRunnerCheckpoints.spaceId, binding.spaceId), eq(nativeRunnerCheckpoints.issueId, binding.issueId),
       eq(nativeRunnerCheckpoints.runId, binding.runId))).limit(5);
     if (rows.length !== 4 || rows.reduce((bytes, row) => bytes + Buffer.byteLength(JSON.stringify(row.material)), 0)
       > 2 * NATIVE_CHECKPOINT_INSPECTION_TOTAL_MAX_BYTES) return null;
@@ -286,7 +286,7 @@ export async function nativeRunnerCheckpointRemoteBootstrapProof(
   try {
     const limit = BOOTSTRAP_CHECKPOINT_PARTS.size + MAX_BOOTSTRAP_CHECKPOINT_COMMANDS + MAX_BOOTSTRAP_CHECKPOINT_EVENTS;
     const parts = await db.select({ part: nativeRunnerCheckpoints.part }).from(nativeRunnerCheckpoints).where(and(
-      eq(nativeRunnerCheckpoints.companyId, binding.companyId), eq(nativeRunnerCheckpoints.issueId, binding.issueId),
+      eq(nativeRunnerCheckpoints.spaceId, binding.spaceId), eq(nativeRunnerCheckpoints.issueId, binding.issueId),
       eq(nativeRunnerCheckpoints.runId, binding.runId))).limit(limit + 1);
     const eventParts = parts.map(row => row.part).filter(part => /^event:\d+$/.test(part));
     const commandParts = parts.map(row => row.part).filter(part => /^command:\d+$/.test(part));
@@ -335,7 +335,7 @@ export async function restoreNativeRunnerCheckpoint(db: Db, binding: Binding, ro
 
 export async function hasNativeRunnerCheckpoint(db: Pick<Db, "select">, binding: Binding): Promise<boolean> {
   const [row] = await db.select({ runId: nativeRunnerCheckpoints.runId }).from(nativeRunnerCheckpoints).where(and(
-    eq(nativeRunnerCheckpoints.companyId, binding.companyId), eq(nativeRunnerCheckpoints.issueId, binding.issueId),
+    eq(nativeRunnerCheckpoints.spaceId, binding.spaceId), eq(nativeRunnerCheckpoints.issueId, binding.issueId),
     eq(nativeRunnerCheckpoints.runId, binding.runId))).limit(1);
   return row !== undefined;
 }
@@ -353,7 +353,7 @@ export async function listExpiredNativeRunnerAuthorities(db: Db, now: Date, runI
       or(exists(db.select({ runId: nativeRunnerCheckpoints.runId }).from(nativeRunnerCheckpoints).where(and(
         eq(nativeRunnerCheckpoints.runId, nativeRunFinalizations.runId),
         eq(nativeRunnerCheckpoints.issueId, nativeRunFinalizations.issueId),
-        eq(nativeRunnerCheckpoints.companyId, nativeRunFinalizations.companyId)))),
+        eq(nativeRunnerCheckpoints.spaceId, nativeRunFinalizations.spaceId)))),
         and(sql`${heartbeatRuns.runnerProfileJson}->'nativePreparationFencingVersion' = ${JSON.stringify(NATIVE_PREPARATION_FENCING_VERSION)}::jsonb`,
           isNull(heartbeatRuns.processPid), isNull(heartbeatRuns.processGroupId), isNull(heartbeatRuns.processStartedAt)))));
   return rows.map(row => row.runId);

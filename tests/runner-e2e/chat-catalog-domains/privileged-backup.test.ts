@@ -1,8 +1,8 @@
 import { expect, it } from "vitest";
 import { gradeBackupRestore } from "./privileged-backup.js";
 function valid() {
-  const marker = { id: "canary", companyId: "owned", title: "Backup restore canary", description: "exact recovery marker", projectId: "project", status: "backlog", priority: "medium", assigneeAgentId: null, goalId: null };
-  return { scenarioId: "instance-operations.backup-and-restore", origin: "http://owned.invalid", companyId: "owned", leadId: "lead",
+  const marker = { id: "canary", spaceId: "owned", title: "Backup restore canary", description: "exact recovery marker", projectId: "project", status: "backlog", priority: "medium", assigneeAgentId: null, goalId: null };
+  return { scenarioId: "instance-operations.backup-and-restore", origin: "http://owned.invalid", spaceId: "owned", leadId: "lead",
     tasks: [marker], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [], links: [], humanQueries: ["canonical", "receipt"], runs: [{ id: "run", agentId: "lead", status: "succeeded" }, { id: "report", agentId: "lead", status: "succeeded" }],
     reply: "The human instance admin must create a backup, then restore only into a separate empty target to verify recovery.",
     state: { task: marker, sourceOwned: true, agentBackupStatus: 403, archiveSha256: "a".repeat(64), archiveBytes: 1024,

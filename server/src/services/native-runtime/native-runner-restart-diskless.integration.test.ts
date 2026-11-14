@@ -34,16 +34,16 @@ describeEmbeddedPostgres("native runner restart recovery: diskless", () => {
   const environment = nativeRestartFixture();
   const { seedRun, transportOptions } = environment;
   let runtimeRoot: typeof environment.current.runtimeRoot;
-  let companyId: typeof environment.current.companyId;
+  let spaceId: typeof environment.current.spaceId;
   let agentId: typeof environment.current.agentId;
   let successor: typeof environment.current.successor;
-  beforeAll(() => { ({ runtimeRoot, companyId, agentId, successor } = environment.current); });
+  beforeAll(() => { ({ runtimeRoot, spaceId, agentId, successor } = environment.current); });
 
   realProcessIt.each([false, true])("adopts the same runner from Postgres after losing the controller filesystem (prepared task: %s)", async preparedTask => {
     const fixture = await seedRun(`EMPTY-CONTROLLER-DISK-${preparedTask}`);
     const controllerRoot = resolve(runtimeRoot, `${fixture.runId}-controller`);
     const sandboxRoot = resolve(runtimeRoot, `${fixture.runId}-sandbox`);
-    const binding = { companyId, issueId: fixture.issueId, runId: fixture.runId };
+    const binding = { spaceId, issueId: fixture.issueId, runId: fixture.runId };
     const outageMs = Number(process.env.OUTPOST_TEST_CONTROLLER_OUTAGE_MS ?? 1000);
     if (!Number.isFinite(outageMs) || outageMs < 0 || outageMs > 300_000) throw new Error("Invalid controller outage duration");
     await mkdir(sandboxRoot, { recursive: true });
@@ -52,7 +52,7 @@ describeEmbeddedPostgres("native runner restart recovery: diskless", () => {
     const taskLeaseId = randomUUID();
     if (preparedTask) {
       const [environment] = await fixture.db.insert(environments).values({ name: "Surviving plugin task", driver: "plugin", status: "active", config: {} }).returning();
-      await fixture.db.insert(environmentLeases).values({ id: taskLeaseId, companyId, environmentId: environment.id,
+      await fixture.db.insert(environmentLeases).values({ id: taskLeaseId, spaceId, environmentId: environment.id,
         heartbeatRunId: fixture.runId, issueId: fixture.issueId, status: "active", leasePolicy: "ephemeral",
         provider: "plugin", providerLeaseId: "saved-task", metadata: { agentId, runnerTaskLease: true, runnerTaskDispatched: true } });
     }

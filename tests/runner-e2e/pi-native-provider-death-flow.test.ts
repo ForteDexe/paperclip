@@ -12,14 +12,14 @@ function fixture(fallback = true) {
   const question = { schema: "outpost.question_set.v1", questions: [{ id: "answer", header: "Pi native provider death", prompt: "Answer", answerMode: "text", required: true }] };
   const request = { schema: "outpost.runtime_request.v2", requestKind: "runtime", type: "input", status: "pending", requestId: "request", turnId: "turn", itemId: "request", input: question,
     origin: { adapter: "acpx-runtime-sidecar", provider: "pi", method: "elicitation/create" } };
-  const wrap = (eventType: string, sourceSeq: number, payload: Row): Row => ({ companyId: "company", runId: "run", seq: sourceSeq, protocolSchemaVersion: 1, eventType,
+  const wrap = (eventType: string, sourceSeq: number, payload: Row): Row => ({ spaceId: "space", runId: "run", seq: sourceSeq, protocolSchemaVersion: 1, eventType,
     payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn", itemId: "request",
       normalizedSessionId: "session", sourceInstanceId: "runner", sourceSeq, sourceEventId: `runner:run:${sourceSeq}`, payload } } });
-  const state = { issue: { id: "issue", companyId: "company", status: "in_progress" }, runs: [{ id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "running", nativeSessionId: "session", runnerInstanceId: "runner" } as Row],
-    interactions: [{ id: "original", companyId: "company", issueId: "issue", kind: "ask_user_questions", sourceRunId: "run", status: "pending", result: null,
+  const state = { issue: { id: "issue", spaceId: "space", status: "in_progress" }, runs: [{ id: "run", spaceId: "space", nativeIssueId: "issue", runtimeMode: "native", status: "running", nativeSessionId: "session", runnerInstanceId: "runner" } as Row],
+    interactions: [{ id: "original", spaceId: "space", issueId: "issue", kind: "ask_user_questions", sourceRunId: "run", status: "pending", result: null,
       continuationPolicy: "none", resolverPolicy: "human_only", idempotencyKey: "outpost-runner-question:run:request", payload: { runtimeRequestId: "request", questionSet: question } } as Row] };
   const events = [wrap("turn.started", 1, {}), wrap("runtime_request.created", 2, { request })];
-  const pending = observePiPendingNativeInput(state, events, "company", "Pi native provider death");
+  const pending = observePiPendingNativeInput(state, events, "space", "Pi native provider death");
   const before = structuredClone({ state, events });
   state.runs[0]!.status = "failed"; state.issue.status = "blocked"; state.interactions[0]!.status = "expired";
   events.push(wrap("runtime_request.expired", 3, { requestId: "request", requestKind: "runtime", requestType: "input", turnId: "turn", itemId: "request", reason: "provider_process_lost", replayAllowed: false, request }),
@@ -58,7 +58,7 @@ it.each([
   ["terminal before expiry", f => { f.events[3]!.seq = 0; }],
   ["second run", f => { f.state.runs.push({ ...f.state.runs[0], id: "other" }); }],
   ["restored session", f => { f.state.runs[0]!.nativeSessionId = "restored"; }],
-  ["foreign company", f => { f.events[2]!.companyId = "foreign"; }],
+  ["foreign space", f => { f.events[2]!.spaceId = "foreign"; }],
   ["foreign source", f => { f.events[2]!.payload.orpEvent.sourceInstanceId = "foreign"; }],
   ["original still pending", f => { f.state.interactions[0]!.status = "pending"; }],
   ["answered original", f => { f.state.interactions[0]!.status = "answered"; }],
@@ -82,12 +82,12 @@ async function journey(staleStatus = 409, markerEffect = false) {
     expect(options).toEqual({ name: "Change status (current: Blocked", exact: false }); return { count: () => 1 };
   } } : composer, reload: async () => { expect(retired).toBe(true); },
     locator: (selector: string) => { expect(selector).toBe("#interaction-original"); return { count: () => 1, locator: () => ({ count: () => 0 }) }; } };
-  const remoteFixture: any = { binding: { companyId: "company", runId: "run", leaseId: "lease" }, baseline: { scope: { observedPrpEnvironmentLeaseId: "workspace" } },
+  const remoteFixture: any = { binding: { spaceId: "space", runId: "run", leaseId: "lease" }, baseline: { scope: { observedPrpEnvironmentLeaseId: "workspace" } },
     terminatePiProvider: async (lease: string) => { expect(lease).toBe("workspace"); expect(lost).toBe(false); signals++; lost = true; return { targetKind: "pi_native_child", signalled: true }; },
     finish: async () => { expect(lost).toBe(true); retired = true; return { complete: true, observedAtMs: 1, watcher: { complete: true },
       processes: { captured: true, root, journal: [root], live: [] }, targets: { [PI_DEATH_MARKER]: { absent: !markerEffect, complete: true, mutationCount: markerEffect ? 1 : 0 } } }; } };
   const result = runPiPendingProviderDeath({ page, api: { request: { post: async (path: string) => { expect(retired).toBe(true); posted.push(path); return { status: () => staleStatus }; } } } as any,
-    companyId: "company", deadlineAt: Date.now() + 1000, fixture: remoteFixture,
+    spaceId: "space", deadlineAt: Date.now() + 1000, fixture: remoteFixture,
     load: async () => structuredClone(lost ? f.state : f.before.state), events: async () => structuredClone(lost ? f.events : f.before.events),
     capture: async () => {}, evidence: async (name, value) => { evidence.set(name, value); } });
   return { result, evidence, posted, signalCount: () => signals };

@@ -4,12 +4,12 @@ import { PassThrough } from "node:stream";
 import { setTimeout as delay } from "node:timers/promises";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, environments, heartbeatRuns, plugins, projects } from "@outpost/db";
+import { agents, spaces, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, environments, heartbeatRuns, plugins, projects } from "@outpost/db";
 import { definePlugin } from "../../../packages/plugins/sdk/src/define-plugin.js";
 import { startWorkerRpcHost } from "../../../packages/plugins/sdk/src/worker-rpc-host.js";
 import { createRequest, parseMessage, serializeMessage, isJsonRpcResponse, isJsonRpcSuccessResponse, JsonRpcCallError } from "../../../packages/plugins/sdk/src/protocol.js";
 import { environmentTaskOperationSchema, environmentTaskResultSchema, readEnvironmentTaskErrorDiagnostic, type PluginEnvironmentTaskOperation } from "@outpost/plugin-sdk";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import { agentEnvironmentTestService } from "../services/agent-environment-test.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { remoteExecutionHasStopped, remoteTerminationReceipt } from "../services/remote-execution-termination.js";
@@ -26,7 +26,7 @@ vi.mock("../realtime/runner-orp-outbound.js", () => ({ connectRunnerPrpIngress: 
 const databaseSuite = support.supported ? describe : describe.skip;
 
 /** Real SDK serialization and dispatch with synthetic provider resources. */
-function workerHarness(plugin: ReturnType<typeof definePlugin>, manifest: PaperclipPluginManifestV1) {
+function workerHarness(plugin: ReturnType<typeof definePlugin>, manifest: OutpostPluginManifestV1) {
   const stdin = new PassThrough(), stdout = new PassThrough();
   const host = startWorkerRpcHost({ plugin, stdin, stdout });
   const pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>();
@@ -65,28 +65,28 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
 
   it.each(["unresolved_operation", "source_state_unverified", "malformed_rpc", "extra_rpc_fields"] as const)("relays only the closed source refusal through Core (%s)", async mode => {
     const reason = mode === "source_state_unverified" ? mode : "unresolved_operation";
-    const companyId = randomUUID(), agentId = randomUUID(), pluginId = randomUUID(), environmentId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), pluginId = randomUUID(), environmentId = randomUUID();
     const sourceRunId = randomUUID(), runId = randomUUID(), sourceLeaseId = randomUUID(), leaseId = randomUUID();
-    const manifest: PaperclipPluginManifestV1 = { id: pluginId, apiVersion: 1, version: "1.0.0", displayName: "Task diagnostics",
-      description: "Synthetic task provider", author: "Paperclip", categories: ["automation"],
+    const manifest: OutpostPluginManifestV1 = { id: pluginId, apiVersion: 1, version: "1.0.0", displayName: "Task diagnostics",
+      description: "Synthetic task provider", author: "Outpost", categories: ["automation"],
       capabilities: ["environment.drivers.register"], entrypoints: { worker: "fixture" },
       environmentDrivers: [{ driverKey: "tasks", displayName: "Tasks", supportsTasks: true, configSchema: { type: "object" } }] };
-    await db.insert(companies).values({ id: companyId, name: "Diagnostic fixture", issuePrefix: `D${companyId.slice(0, 7).replace(/-/g, "").toUpperCase()}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Diagnostic fixture", issuePrefix: `D${spaceId.slice(0, 7).replace(/-/g, "").toUpperCase()}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "outpost_runner" });
     await db.insert(environments).values({ id: environmentId, name: `Diagnostic ${environmentId}`, driver: "plugin", config: {} });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "fixture", version: "1.0.0", status: "ready", manifestJson: manifest });
     await db.insert(heartbeatRuns).values([
-      { id: sourceRunId, companyId, agentId, invocationSource: "manual", status: "succeeded", resultJson: { outcome: "preserved" } },
-      { id: runId, companyId, agentId, invocationSource: "manual", status: "running" },
+      { id: sourceRunId, spaceId, agentId, invocationSource: "manual", status: "succeeded", resultJson: { outcome: "preserved" } },
+      { id: runId, spaceId, agentId, invocationSource: "manual", status: "running" },
     ]);
     const pin = { driver: "plugin", pluginId, driverKey: "tasks", runnerTaskLease: true,
       runnerTaskProjectAuthValidation: { configurationId: "fixture", provider: "openai", projectIds: [] } };
-    const source = { id: sourceLeaseId, companyId, environmentId, heartbeatRunId: sourceRunId, provider: "plugin:fixture:tasks", providerLeaseId: "source-task" };
+    const source = { id: sourceLeaseId, spaceId, environmentId, heartbeatRunId: sourceRunId, provider: "plugin:fixture:tasks", providerLeaseId: "source-task" };
     await db.insert(environmentLeases).values([
       { ...source, status: "released", leasePolicy: "ephemeral", cleanupStatus: "success", releasedAt: new Date(), metadata: { ...pin,
         runnerTaskSessionRetained: true, runnerTaskIdentity: { runnerId: "runner", leaseId: sourceLeaseId, runId: sourceRunId, sessionId: "session", turnId: "old-turn", itemId: "old-item" },
         remoteExecutionTermination: remoteTerminationReceipt(source, { providerLeaseId: "source-task", state: "stopped" }) } },
-      { id: leaseId, companyId, environmentId, heartbeatRunId: runId, provider: source.provider, providerLeaseId: "current-task", status: "active", metadata: pin },
+      { id: leaseId, spaceId, environmentId, heartbeatRunId: runId, provider: source.provider, providerLeaseId: "current-task", status: "active", metadata: pin },
     ]);
     const dispatched: string[] = [];
     const rpc = workerHarness(definePlugin({ async setup() {}, async onEnvironmentTask(params) {
@@ -97,7 +97,7 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
     const workers = { getWorker: () => ({ supportedMethods: ["environmentTask"] }),
       call: (_id: string, method: string, params: unknown) => {
         if (mode === "malformed_rpc" || mode === "extra_rpc_fields") throw new JsonRpcCallError({ code: -32000,
-          message: "synthetic-private-provider-text", data: { schema: "paperclip/environment-task-error/v1", diagnostic: {
+          message: "synthetic-private-provider-text", data: { schema: "outpost/environment-task-error/v1", diagnostic: {
             httpStatus: 409, errorCode: "SESSION_STATE_UNAVAILABLE", reason: mode === "malformed_rpc" ? "provider text" : reason,
             operationId: "forged-operation", callId: "forged-call", taskId: "foreign-task",
           } } });
@@ -105,7 +105,7 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
       } } as unknown as PluginWorkerManager;
     try {
       const runtime = environmentRuntimeService(db, { pluginWorkerManager: workers });
-      const error = await runtime.task({ companyId, leaseId, operation: { kind: "submit", resumeFrom: "source-task", preparedLaunchId: "fixture",
+      const error = await runtime.task({ spaceId, leaseId, operation: { kind: "submit", resumeFrom: "source-task", preparedLaunchId: "fixture",
         projectIds: [], bootstrapTicket: "fixture-ticket", runner: { runnerId: "runner", leaseId: sourceLeaseId, runId, sessionId: "session",
           turnId: "turn", itemId: "item", harness: "codex", protocolMin: 1, protocolMax: 3 } } }).catch(error => error);
       expect(readEnvironmentTaskErrorDiagnostic(error)).toEqual(mode === "malformed_rpc" ? null : { httpStatus: 409, errorCode: "SESSION_STATE_UNAVAILABLE", reason });
@@ -122,8 +122,8 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
   });
 
   it("does not allocate agent-dependent setup leases before the agent is prepared", async () => {
-    const companyId = randomUUID(), pluginId = randomUUID(), environmentId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Setup lease fixture", issuePrefix: "SETUP" });
+    const spaceId = randomUUID(), pluginId = randomUUID(), environmentId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Setup lease fixture", issuePrefix: "SETUP" });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "@test/agent-owned-tasks", version: "1.0.0", status: "ready",
       manifestJson: { agentLifecycle: true, capabilities: ["agents.lifecycle.manage", "environment.drivers.register"],
         environmentDrivers: [{ driverKey: "tasks", supportsTasks: true, requiresAgent: true }] } as never });
@@ -131,34 +131,34 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
       config: { pluginKey: pluginId, driverKey: "tasks", driverConfig: {} } });
     const call = vi.fn();
     const setup = agentEnvironmentTestService(db, { call } as never);
-    const input = { companyId, environmentId, adapterType: "outpost_runner" };
+    const input = { spaceId, environmentId, adapterType: "outpost_runner" };
     expect((await setup.resolveAdapterTestExecutionContext(input)).fallbackChecks).toMatchObject([{ code: "environment_agent_required", level: "warn" }]);
-    await db.insert(agents).values({ id: agentId, companyId, name: "Draft", lifecycleState: "preparing", lifecycleHolds: ["setup"], status: "paused" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Draft", lifecycleState: "preparing", lifecycleHolds: ["setup"], status: "paused" });
     expect((await setup.resolveAdapterTestExecutionContext({ ...input, agentId })).fallbackChecks).toMatchObject([{ code: "environment_agent_preparing", level: "warn" }]);
-    await db.update(companies).set({ requireBoardApprovalForNewAgents: true }).where(eq(companies.id, companyId));
+    await db.update(spaces).set({ requireOperatorApprovalForNewAgents: true }).where(eq(spaces.id, spaceId));
     await db.update(agents).set({ lifecycleState: "paused", pauseReason: "setup" }).where(eq(agents.id, agentId));
     expect((await setup.resolveAdapterTestExecutionContext({ ...input, agentId })).fallbackChecks).toMatchObject([{ code: "environment_agent_approval_required", level: "warn" }]);
     const foreign = randomUUID();
-    await db.insert(companies).values({ id: foreign, name: "Other company", issuePrefix: "OTHER" });
-    expect((await setup.resolveAdapterTestExecutionContext({ ...input, companyId: foreign, agentId })).fallbackChecks).toMatchObject([{ code: "environment_agent_preparing" }]);
+    await db.insert(spaces).values({ id: foreign, name: "Other space", issuePrefix: "OTHER" });
+    expect((await setup.resolveAdapterTestExecutionContext({ ...input, spaceId: foreign, agentId })).fallbackChecks).toMatchObject([{ code: "environment_agent_preparing" }]);
     expect(call).not.toHaveBeenCalled();
     expect(await db.select().from(environmentLeases).where(eq(environmentLeases.environmentId, environmentId))).toEqual([]);
   });
 
   it("uses an acquired lease through SDK RPC, native dispatch, connection, stop proof and release", async () => {
-    const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
     const environmentId = randomUUID(), pluginId = randomUUID(), projectId = randomUUID();
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: "test.runner-tasks", apiVersion: 1, version: "1.0.0", displayName: "Runner tasks",
-      description: "Synthetic task provider", author: "Paperclip", categories: ["automation"],
+      description: "Synthetic task provider", author: "Outpost", categories: ["automation"],
       capabilities: ["environment.drivers.register"], entrypoints: { worker: "dist/worker.js" },
       environmentDrivers: [{ driverKey: "tasks", displayName: "Tasks", supportsTasks: true, configSchema: { type: "object" } }],
     };
-    await db.insert(companies).values({ id: companyId, name: "Fixture", status: "active" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", role: "engineer", status: "active",
+    await db.insert(spaces).values({ id: spaceId, name: "Fixture", status: "active" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", role: "engineer", status: "active",
       adapterType: "outpost_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "manual", status: "running" });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Fixture", status: "active" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "manual", status: "running" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Fixture", status: "active" });
     const [environment] = await db.insert(environments).values({ id: environmentId, name: "Fixture", driver: "plugin", status: "active",
       config: { pluginKey: manifest.id, driverKey: "tasks", driverConfig: {} } }).returning();
     await db.insert(plugins).values({ id: pluginId, pluginKey: manifest.id, packageName: "@test/runner-tasks",
@@ -206,8 +206,8 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
       call: (_id: string, method: string, params: unknown) => harness.call(method, params) } as unknown as PluginWorkerManager;
     const runtime = environmentRuntimeService(db, { pluginWorkerManager: workers });
     const setup = agentEnvironmentTestService(db, workers);
-    await setup.assertAdapterTestEnvironmentForCompany(companyId, environmentId, "outpost_runner");
-    const probe = await setup.resolveAdapterTestExecutionContext({ companyId, agentId, adapterType: "outpost_runner", environmentId });
+    await setup.assertAdapterTestEnvironmentForSpace(spaceId, environmentId, "outpost_runner");
+    const probe = await setup.resolveAdapterTestExecutionContext({ spaceId, agentId, adapterType: "outpost_runner", environmentId });
     expect(probe.fallbackChecks).toEqual([]);
     expect(probe.executionTarget).toMatchObject({ runnerTaskProbe: { runId: expect.any(String), sessionId: expect.any(String) } });
     if (probe.executionTarget?.kind !== "remote" || probe.executionTarget.transport !== "sandbox" || !probe.executionTarget.runnerTaskProbe) throw new Error("Probe task target unavailable");
@@ -218,13 +218,13 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
       const selected = { identity: "core-selected-revision", sessionIdentity: "core-selected-account", home: "/core-owned-home" };
       const verify = vi.spyOn(pluginProbe, "probePluginRunnerEnvironment").mockResolvedValue({ adapterType: "outpost_runner", status: "pass", testedAt: new Date().toISOString(), checks: [] });
       try {
-        await setup.testManagedEnvironment("outpost_runner", { companyId, adapterType: "outpost_runner", config: {}, executionTarget: probe.executionTarget },
+        await setup.testManagedEnvironment("outpost_runner", { spaceId, adapterType: "outpost_runner", config: {}, executionTarget: probe.executionTarget },
           { provider: "openai" } as any, selected as any);
         expect(verify).toHaveBeenCalledWith(expect.anything(), { identity: selected.identity, accountIdentity: selected.sessionIdentity, home: "/core-owned-home/provider" });
         verify.mockClear();
         // A preconfigured Runner home does not use the selected connection, so the probe refuses it.
         const operationsBefore = calls.length;
-        await expect(setup.testManagedEnvironment("outpost_runner", { companyId, adapterType: "outpost_runner", config: { homeMode: "preconfigured" }, executionTarget: probe.executionTarget },
+        await expect(setup.testManagedEnvironment("outpost_runner", { spaceId, adapterType: "outpost_runner", config: { homeMode: "preconfigured" }, executionTarget: probe.executionTarget },
           { provider: "openai" } as any, selected as any)).resolves.toMatchObject({ status: "fail",
           checks: [{ code: "ai_connection_required", message: expect.stringContaining("isolated Runner home") }] });
         expect(verify).not.toHaveBeenCalled();
@@ -244,10 +244,10 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
     executionStopped = true;
     await probe.release(); released.mockClear(); complete.mockClear(); calls.length = 0;
     const orchestrator = environmentRunOrchestrator(db, { environmentRuntime: runtime });
-    const acquired = await orchestrator.acquireForRun({ companyId, selectedEnvironmentId: environmentId, localEnvironmentId: randomUUID(),
+    const acquired = await orchestrator.acquireForRun({ spaceId, selectedEnvironmentId: environmentId, localEnvironmentId: randomUUID(),
       agentId, issueId: null, heartbeatRunId: runId, persistedExecutionWorkspace: null,
       executionWorkspaceSettings: null, adapterType: "outpost_runner" });
-    const realization = await orchestrator.realizeForRun({ companyId, environment: acquired.environment, lease: acquired.lease,
+    const realization = await orchestrator.realizeForRun({ spaceId, environment: acquired.environment, lease: acquired.lease,
       adapterType: "outpost_runner", issueId: null, heartbeatRunId: runId,
       executionWorkspace: { baseCwd: "/local/project", cwd: "/local/project", source: "project_primary", projectId,
         workspaceId: null, repoUrl: null, repoRef: null, strategy: "project_primary", branchName: null, worktreePath: null,
@@ -272,10 +272,10 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
     const prepared = await owner.driver.prepareLaunch!(requirements);
     expect(calls).toContainEqual(expect.objectContaining({kind:"prepare",accountIdentity:"account"}));
     // Re-preparation invalidates the old credential validation before the worker reply.
-    await runtime.task({ companyId, leaseId: acquired.lease.id, operation: environmentTaskOperationSchema.parse({
+    await runtime.task({ spaceId, leaseId: acquired.lease.id, operation: environmentTaskOperationSchema.parse({
       kind: "prepare", requirements, projectIds: [projectId],
     }) });
-    await expect(runtime.task({ companyId, leaseId: acquired.lease.id, operation: {
+    await expect(runtime.task({ spaceId, leaseId: acquired.lease.id, operation: {
       kind: "submit", projectIds: [projectId], preparedLaunchId: prepared.configurationId, bootstrapTicket: "synthetic-ticket",
       accountIdentity: "account", credential: { type: "codex-auth-json", authJson: '{"OPENAI_API_KEY":"never-transfer-stale-proof"}' },
       runner: { protocolMin: 1, protocolMax: 3, harness: "codex", runnerId: identity.runnerInstanceId,
@@ -304,7 +304,7 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
       const acquisitionBefore = acquisition;
       const callsBefore = calls.length;
       const recovered = await environmentRunOrchestrator(db, { environmentRuntime: environmentRuntimeService(db, { pluginWorkerManager: workers }) }).acquireForRun({
-        companyId, selectedEnvironmentId: environmentId, localEnvironmentId: randomUUID(), agentId,
+        spaceId, selectedEnvironmentId: environmentId, localEnvironmentId: randomUUID(), agentId,
         issueId: null, heartbeatRunId: runId, persistedExecutionWorkspace: null,
         executionWorkspaceSettings: null, adapterType: "outpost_runner",
         reattachRemoteLease: { kind: "plugin_task", leaseId: saved.id },
@@ -330,9 +330,9 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
       }));
       projectAuthAllowed = true;
       close.mockClear();
-      await expect(runtime.task({ companyId: randomUUID(), leaseId: acquired.lease.id, operation: { kind: "stop" } })).rejects.toThrow("lease unavailable");
+      await expect(runtime.task({ spaceId: randomUUID(), leaseId: acquired.lease.id, operation: { kind: "stop" } })).rejects.toThrow("lease unavailable");
       const before = calls.filter(value => value.kind === "submit").length;
-      await expect(runtime.task({ companyId, leaseId: acquired.lease.id, operation: { ...submit!, projectIds: [randomUUID()] } as never })).rejects.toThrow("project unavailable");
+      await expect(runtime.task({ spaceId, leaseId: acquired.lease.id, operation: { ...submit!, projectIds: [randomUUID()] } as never })).rejects.toThrow("project unavailable");
       expect(calls.filter(value => value.kind === "submit")).toHaveLength(before);
       handle.child.kill("SIGTERM");
       await vi.waitFor(() => expect(stopRequested).toBe(true));
@@ -343,17 +343,17 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
       expect(checkpoint).toHaveBeenCalledOnce(); expect(complete).toHaveBeenCalledOnce();
       await runtime.releaseRunLeases(runId, "released");
       expect(released).toHaveBeenCalledOnce(); expect(close).toHaveBeenCalledOnce();
-      expect(await remoteExecutionHasStopped(db, companyId, runId)).toBe(true);
+      expect(await remoteExecutionHasStopped(db, spaceId, runId)).toBe(true);
 
       // A controller that dies after dispatch leaves only the lease marker.
-      const second = await runtime.acquireRunLease({ companyId, environment: environment as never, agentId,
+      const second = await runtime.acquireRunLease({ spaceId, environment: environment as never, agentId,
         issueId: null, heartbeatRunId: runId, persistedExecutionWorkspace: null, adapterType: "outpost_runner" });
       if (submit?.kind !== "submit") throw new Error("Missing submit fixture");
-      await runtime.task({ companyId, leaseId: second.lease.id, operation: { kind: "check_project_auth", configurationId: "second-config", provider: "openai", projectIds: [projectId] } });
-      await runtime.task({ companyId, leaseId: second.lease.id,
+      await runtime.task({ spaceId, leaseId: second.lease.id, operation: { kind: "check_project_auth", configurationId: "second-config", provider: "openai", projectIds: [projectId] } });
+      await runtime.task({ spaceId, leaseId: second.lease.id,
         operation: { ...submit, credential: undefined, accountIdentity: undefined, credentialIdentity: undefined,
           preparedLaunchId: "second-config", runner: { ...submit.runner, leaseId: second.lease.id } } });
-      await runtime.task({ companyId, leaseId: second.lease.id, operation: { kind: "complete" } });
+      await runtime.task({ spaceId, leaseId: second.lease.id, operation: { kind: "complete" } });
       const errors = vi.fn();
       await runtime.releaseRunLeases(runId, "released", errors);
       expect(errors).toHaveBeenCalledOnce();
@@ -379,24 +379,24 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
   it.each([false, true])("replaces a same-run task only after the provider confirms termination (%s)", async stopped => {
-    const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), pluginId = randomUUID(), environmentId = randomUUID(), oldLeaseId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Task recovery", issuePrefix: `R${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "outpost_runner" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "manual", status: "running" });
+    const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), pluginId = randomUUID(), environmentId = randomUUID(), oldLeaseId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Task recovery", issuePrefix: `R${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "outpost_runner" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "manual", status: "running" });
     await db.insert(environments).values({ id: environmentId, name: `Recovery ${environmentId}`, driver: "plugin", status: "active", config: { pluginKey: pluginId, driverKey: "tasks", driverConfig: {} } });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "fixture-recovery", version: "1.0.0", status: "ready", manifestJson: {
       capabilities: ["environment.drivers.register"], environmentDrivers: [{ driverKey: "tasks", supportsTasks: true }],
     } as never });
     const priorIdentity = { runnerInstanceId: "runner", environmentLeaseId: oldLeaseId, runId, normalizedSessionId: "session" };
     const runner = { runnerId: "runner", leaseId: oldLeaseId, runId, sessionId: "session", turnId: "turn", itemId: "item", harness: "codex", protocolMin: 1, protocolMax: 3 };
-    await db.insert(environmentLeases).values({ id: oldLeaseId, companyId, environmentId, heartbeatRunId: runId, status: "active", provider: `plugin:${pluginId}:tasks`, providerLeaseId: "old-task",
+    await db.insert(environmentLeases).values({ id: oldLeaseId, spaceId, environmentId, heartbeatRunId: runId, status: "active", provider: `plugin:${pluginId}:tasks`, providerLeaseId: "old-task",
       metadata: { driver: "plugin", pluginId, pluginKey: pluginId, driverKey: "tasks", agentId, runnerTaskLease: true, runnerTaskDispatched: true, runnerTaskIdentity: runner } });
     const operations: string[] = [];
     const workers = { isRunning: () => true, getWorker: () => ({ supportedMethods: ["environmentTask", "environmentReleaseLease", "environmentAcquireLease"] }),
       call: async (_id: string, method: string, params: any) => {
         operations.push(method === "environmentTask" ? params.operation.kind : method);
         if (method === "environmentAcquireLease") {
-          expect(await remoteExecutionHasStopped(db, companyId, runId)).toBe(true);
+          expect(await remoteExecutionHasStopped(db, spaceId, runId)).toBe(true);
           return { providerLeaseId: "new-task", metadata: {} };
         }
         if (method === "environmentReleaseLease") return;
@@ -406,7 +406,7 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
       } } as unknown as PluginWorkerManager;
     const runtime = environmentRuntimeService(db, { pluginWorkerManager: workers });
     const acquire = environmentRunOrchestrator(db, { environmentRuntime: runtime }).acquireForRun({
-      companyId, selectedEnvironmentId: environmentId, localEnvironmentId: randomUUID(), adapterType: "outpost_runner", agentId,
+      spaceId, selectedEnvironmentId: environmentId, localEnvironmentId: randomUUID(), adapterType: "outpost_runner", agentId,
       issueId: null, heartbeatRunId: runId, persistedExecutionWorkspace: null, executionWorkspaceSettings: null, recoverPluginTask: true,
     });
     if (!stopped) {
@@ -418,16 +418,16 @@ databaseSuite("Core plugin Runner task lifecycle", () => {
     const next = await acquire;
     expect(operations).toEqual(["stop", "status", "complete", "environmentAcquireLease"]);
     expect(next.lease.id).not.toBe(oldLeaseId);
-    await expect(resolvePluginTaskResume(db, { companyId, leaseId: next.lease.id, priorIdentity })).resolves.toBe("old-task");
-    await expect(runtime.task({ companyId, leaseId: next.lease.id, operation: { kind: "submit", projectIds: [], bootstrapTicket: "fixture", runner } })).rejects.toThrow("identity mismatch");
-    await runtime.task({ companyId, leaseId: next.lease.id, operation: { kind: "check_project_auth", configurationId: "recovery-config", provider: "openai", projectIds: [] } });
-    await expect(runtime.task({ companyId, leaseId: next.lease.id, operation: { kind: "submit", preparedLaunchId: "recovery-config", projectIds: [], bootstrapTicket: "fixture", runner, resumeFrom: "old-task" } })).resolves.toMatchObject({ kind: "accepted" });
+    await expect(resolvePluginTaskResume(db, { spaceId, leaseId: next.lease.id, priorIdentity })).resolves.toBe("old-task");
+    await expect(runtime.task({ spaceId, leaseId: next.lease.id, operation: { kind: "submit", projectIds: [], bootstrapTicket: "fixture", runner } })).rejects.toThrow("identity mismatch");
+    await runtime.task({ spaceId, leaseId: next.lease.id, operation: { kind: "check_project_auth", configurationId: "recovery-config", provider: "openai", projectIds: [] } });
+    await expect(runtime.task({ spaceId, leaseId: next.lease.id, operation: { kind: "submit", preparedLaunchId: "recovery-config", projectIds: [], bootstrapTicket: "fixture", runner, resumeFrom: "old-task" } })).resolves.toMatchObject({ kind: "accepted" });
     const competingId = randomUUID();
-    await db.insert(environmentLeases).values({ id: competingId, companyId, environmentId, heartbeatRunId: runId, status: "active", provider: `plugin:${pluginId}:tasks`, providerLeaseId: "competing-task" });
-    await expect(resolvePluginTaskResume(db, { companyId, leaseId: next.lease.id, priorIdentity })).rejects.toThrow("not authorized");
+    await db.insert(environmentLeases).values({ id: competingId, spaceId, environmentId, heartbeatRunId: runId, status: "active", provider: `plugin:${pluginId}:tasks`, providerLeaseId: "competing-task" });
+    await expect(resolvePluginTaskResume(db, { spaceId, leaseId: next.lease.id, priorIdentity })).rejects.toThrow("not authorized");
     await db.delete(environmentLeases).where(eq(environmentLeases.id, competingId));
     await db.update(environmentLeases).set({ cleanupStatus: "failed" }).where(eq(environmentLeases.id, oldLeaseId));
-    await expect(resolvePluginTaskResume(db, { companyId, leaseId: next.lease.id, priorIdentity })).rejects.toThrow("not authorized");
+    await expect(resolvePluginTaskResume(db, { spaceId, leaseId: next.lease.id, priorIdentity })).rejects.toThrow("not authorized");
   });
 
 });

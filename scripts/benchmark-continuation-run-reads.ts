@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { agents, applyPendingMigrations, companies, createDb, heartbeatRuns, issueComments, issueRecoveryActions, issues,
+import { agents, applyPendingMigrations, spaces, createDb, heartbeatRuns, issueComments, issueRecoveryActions, issues,
   nativeRunFinalizations, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
 import { admitExplicitNativeContinuation } from "../server/src/services/explicit-native-continuation.js";
 import { resolveExternalTestDatabaseUrl } from "../server/src/__tests__/helpers/external-test-database.js";
@@ -33,23 +33,23 @@ try {
   await fs.writeFile(path.join(baselineDir, "continuation.ts"), baselineSource.replace(/(from |import\()"(\.{1,2}\/[^\"]+)"/g,
     (_match, prefix: string, specifier: string) => `${prefix}${JSON.stringify(fileURLToPath(new URL(specifier, original)))}`));
   const baseline = await import(pathToFileURL(path.join(baselineDir, "continuation.ts")).href) as { admitExplicitNativeContinuation: typeof admitExplicitNativeContinuation };
-  const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), commentId = randomUUID();
-  await db.insert(companies).values({ id: companyId, name: "Synthetic continuation", issuePrefix: `B${companyId.replaceAll("-", "")}` });
-  await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "outpost_runner" });
-  await db.insert(issues).values({ id: issueId, companyId, title: "Continue", status: "blocked", assigneeAgentId: agentId });
+  const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), commentId = randomUUID();
+  await db.insert(spaces).values({ id: spaceId, name: "Synthetic continuation", issuePrefix: `B${spaceId.replaceAll("-", "")}` });
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "outpost_runner" });
+  await db.insert(issues).values({ id: issueId, spaceId, title: "Continue", status: "blocked", assigneeAgentId: agentId });
   const contextBytes = randomBytes(144 * 1024).toString("base64");
   const profileBytes = randomBytes(72 * 1024).toString("base64");
-  await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId,
+  await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId,
     status: "failed", runtimeMode: "native", processPid: 999999999,
     finishedAt: new Date("2020-01-01T00:00:00Z"), contextSnapshot: { issueId, prompt: contextBytes },
     runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner", adapterConfig: { instructions: profileBytes } },
       nativeExecutionInput: { task: { description: profileBytes } } },
   });
-  await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "terminal_failure", attempt: 3 });
-  await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId, kind: "active_run_watchdog",
+  await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "terminal_failure", attempt: 3 });
+  await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId, kind: "active_run_watchdog",
     cause: "uncertain_external_action", fingerprint: runId, status: "resolved", outcome: "blocked", nextAction: "Inspect",
     evidence: { runId, automaticRecovery: { replay: "blocked", actionOutcome: "unknown" } } });
-  await db.insert(issueComments).values({ id: commentId, companyId, issueId, authorType: "user", authorUserId: "board",
+  await db.insert(issueComments).values({ id: commentId, spaceId, issueId, authorType: "user", authorUserId: "operator",
     body: "Continue with new instructions.", createdAt: new Date("2020-01-01T01:00:00Z") });
   await db.$client.unsafe("ANALYZE");
   async function capture(invoke: typeof admitExplicitNativeContinuation) {
@@ -75,8 +75,8 @@ try {
       };
     }});
     const blocked: string[] = [];
-    const result = await invoke({ db: recorded, companyId, agentId, issueId, commentId,
-      actorType: "user", actorId: "board", reason: "issue_commented", successorRunId: randomUUID(), dryRun: true,
+    const result = await invoke({ db: recorded, spaceId, agentId, issueId, commentId,
+      actorType: "user", actorId: "operator", reason: "issue_commented", successorRunId: randomUUID(), dryRun: true,
       onBlocked: reason => blocked.push(reason) });
     assert.equal(queries.length, 2);
     return { queries, reads, result, blocked };

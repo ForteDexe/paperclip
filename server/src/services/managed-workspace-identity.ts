@@ -13,13 +13,13 @@
 
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
-import { authUsers, companyMemberships, type Db } from "@outpost/db";
+import { authUsers, spaceMemberships, type Db } from "@outpost/db";
 import type { WorkspaceReadiness, WorkspaceReadinessProbeResult } from "@outpost/shared";
 import {
   deriveWorkspaceHandoffKey,
   deriveWorkspaceReadinessToken,
   resolveWorkspaceHandoffRootSecret,
-  WORKSPACE_EXECUTION_WORKSPACE_COMPANY_ID_ENV_KEY,
+  WORKSPACE_EXECUTION_WORKSPACE_SPACE_ID_ENV_KEY,
   WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY,
   WORKSPACE_HANDOFF_KEY_ENV_KEY,
   WORKSPACE_READINESS_TOKEN_ENV_KEY,
@@ -43,7 +43,7 @@ export const WORKSPACE_READINESS_PROBE_TIMEOUT_MS = 2_000;
 export type ManagedWorkspaceIdentity = {
   instanceId: string;
   executionWorkspaceId: string;
-  companyId: string;
+  spaceId: string;
   handoffKey: string;
   readinessToken: string;
   /** Whether the root secret was configured explicitly or derived. */
@@ -53,10 +53,10 @@ export type ManagedWorkspaceIdentity = {
 /**
  * Resolve the isolated instance id a worktree actually runs as.
  *
- * The worktree's `.paperclip/.env` pointer is authoritative because it is what
+ * The worktree's `.outpost/.env` pointer is authoritative because it is what
  * the guest process itself loads. The path-derived id is only a fallback for a
  * worktree provisioned before the pointer existed, and the two agree by
- * construction for anything Paperclip provisioned.
+ * construction for anything Outpost provisioned.
  */
 export function resolveManagedWorkspaceInstanceId(workspaceCwd: string): string | null {
   const recorded = readWorktreeInstanceId(workspaceCwd);
@@ -68,13 +68,13 @@ export function resolveManagedWorkspaceInstanceId(workspaceCwd: string): string 
 export function resolveManagedWorkspaceIdentity(input: {
   workspaceCwd: string | null | undefined;
   executionWorkspaceId: string | null | undefined;
-  companyId: string | null | undefined;
+  spaceId: string | null | undefined;
   env?: NodeJS.ProcessEnv;
 }): ManagedWorkspaceIdentity | null {
   const workspaceCwd = input.workspaceCwd?.trim();
   const executionWorkspaceId = input.executionWorkspaceId?.trim();
-  const companyId = input.companyId?.trim();
-  if (!workspaceCwd || !executionWorkspaceId || !companyId) return null;
+  const spaceId = input.spaceId?.trim();
+  if (!workspaceCwd || !executionWorkspaceId || !spaceId) return null;
 
   const root = resolveWorkspaceHandoffRootSecret(input.env ?? process.env);
   if (!root) return null;
@@ -85,7 +85,7 @@ export function resolveManagedWorkspaceIdentity(input: {
   return {
     instanceId,
     executionWorkspaceId,
-    companyId,
+    spaceId,
     handoffKey: deriveWorkspaceHandoffKey({ rootSecret: root.secret, instanceId, executionWorkspaceId }),
     readinessToken: deriveWorkspaceReadinessToken({ rootSecret: root.secret, instanceId, executionWorkspaceId }),
     secretSource: root.source,
@@ -104,7 +104,7 @@ export function buildManagedWorkspaceGuestEnv(identity: ManagedWorkspaceIdentity
     [WORKSPACE_HANDOFF_KEY_ENV_KEY]: identity.handoffKey,
     [WORKSPACE_READINESS_TOKEN_ENV_KEY]: identity.readinessToken,
     [WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY]: identity.executionWorkspaceId,
-    [WORKSPACE_EXECUTION_WORKSPACE_COMPANY_ID_ENV_KEY]: identity.companyId,
+    [WORKSPACE_EXECUTION_WORKSPACE_SPACE_ID_ENV_KEY]: identity.spaceId,
   };
 }
 
@@ -118,7 +118,7 @@ function isWorkspaceReadinessShape(value: unknown): value is WorkspaceReadiness 
     && typeof candidate.authHandoffReady === "boolean"
     && (typeof candidate.authHandoffUserId === "string" || candidate.authHandoffUserId === null)
     && typeof candidate.seedState === "string"
-    && (typeof candidate.companyId === "string" || candidate.companyId === null)
+    && (typeof candidate.spaceId === "string" || candidate.spaceId === null)
   );
 }
 
@@ -174,16 +174,16 @@ export async function probeManagedWorkspaceReadiness(input: {
   if (
     payload.workspace
     && typeof payload.workspace === "object"
-    && !("companyId" in payload.workspace)
+    && !("spaceId" in payload.workspace)
   ) {
-    // A guest that implements readiness but predates the company binding is not
+    // A guest that implements readiness but predates the space binding is not
     // a legacy transport-only guest. Treat the partial contract as an identity
     // disagreement so auto compatibility mode cannot publish an unopenable clone.
     return {
       ok: false,
       reason: "identity_mismatch",
       readiness: null,
-      detail: `expected company ${input.identity.companyId}, got missing`,
+      detail: `expected space ${input.identity.spaceId}, got missing`,
     };
   }
   if (
@@ -209,13 +209,13 @@ export async function probeManagedWorkspaceReadiness(input: {
   if (
     readiness.instanceId !== input.identity.instanceId
     || readiness.executionWorkspaceId !== input.identity.executionWorkspaceId
-    || readiness.companyId !== input.identity.companyId
+    || readiness.spaceId !== input.identity.spaceId
   ) {
     return {
       ok: false,
       reason: "identity_mismatch",
       readiness,
-      detail: `expected ${input.identity.instanceId}/${input.identity.executionWorkspaceId}/${input.identity.companyId}, got ${readiness.instanceId}/${readiness.executionWorkspaceId}/${readiness.companyId}`,
+      detail: `expected ${input.identity.instanceId}/${input.identity.executionWorkspaceId}/${input.identity.spaceId}, got ${readiness.instanceId}/${readiness.executionWorkspaceId}/${readiness.spaceId}`,
     };
   }
   if (!readiness.databaseReady || !readiness.cloneDataReady || !readiness.authHandoffReady) {
@@ -233,21 +233,21 @@ export async function probeManagedWorkspaceReadiness(input: {
   return { ok: true, readiness };
 }
 
-/** Current board identities that must survive the clone for it to publish ready. */
+/** Current operator identities that must survive the clone for it to publish ready. */
 export async function listManagedWorkspaceHandoffSubjects(
   db: Db,
-  companyId: string,
+  spaceId: string,
 ): Promise<Array<{ userId: string; email: string }>> {
   const rows = await db
     .select({ userId: authUsers.id, email: authUsers.email })
     .from(authUsers)
     .innerJoin(
-      companyMemberships,
+      spaceMemberships,
       and(
-        eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.principalId, authUsers.id),
-        eq(companyMemberships.companyId, companyId),
-        eq(companyMemberships.status, "active"),
+        eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.principalId, authUsers.id),
+        eq(spaceMemberships.spaceId, spaceId),
+        eq(spaceMemberships.status, "active"),
       ),
     );
   return rows.flatMap((row) => {
@@ -257,20 +257,20 @@ export async function listManagedWorkspaceHandoffSubjects(
   });
 }
 
-/** Prove that every current board member can use the advertised handoff. */
+/** Prove that every current operator member can use the advertised handoff. */
 export async function probeManagedWorkspaceHandoffSubjects(input: {
   db: Db;
   healthUrl: string;
   identity: ManagedWorkspaceIdentity;
   fetchImpl?: typeof fetch;
 }): Promise<WorkspaceReadinessProbeResult> {
-  const subjects = await listManagedWorkspaceHandoffSubjects(input.db, input.identity.companyId);
+  const subjects = await listManagedWorkspaceHandoffSubjects(input.db, input.identity.spaceId);
   if (subjects.length === 0) {
     return {
       ok: false,
       reason: "not_ready",
       readiness: null,
-      detail: "no active board user is eligible for workspace login handoff",
+      detail: "no active operator user is eligible for workspace login handoff",
     };
   }
   const results = await Promise.all(subjects.map((handoffSubject) => probeManagedWorkspaceReadiness({

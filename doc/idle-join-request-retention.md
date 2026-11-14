@@ -11,8 +11,8 @@ join requests. This changes automatic retention discovery, not access approval.
 deadline. `decision-retention-sweep.ts` shares bounded paging, per-row retention
 transactions and failure handling with the approval-retention owner. The shared
 sweep consumes normalized candidates; each owner retains its table/query policy.
-A candidate is a pending_approval request belonging to an active company, with
-an invite whose company matches the request. Kept and already archived items do
+A candidate is a pending_approval request belonging to an active space, with
+an invite whose space matches the request. Kept and already archived items do
 not schedule work. Invite expiration or revocation does not remove the existing
 attention item and therefore does not disable its retention. No provider policy
 is interpreted by the worker or shared scheduler.
@@ -36,7 +36,7 @@ a future producer that needs to reappear after archival must request revival.
 The shared retention owner still controls keep, archive/revive, version checks,
 activity logging, and notification creation. Archiving does not approve or reject a join.
 Join requests have no origin agent, so their archival creates no agent delivery.
-Company and invite joins preserve existing visibility policy; this does not add
+Space and invite joins preserve existing visibility policy; this does not add
 cross-table serializability beyond the existing retention contract.
 
 ## Producer audit
@@ -48,8 +48,8 @@ cross-table serializability beyond the existing retention contract.
 | Automatic human approval after acceptance | Same helper around the status update |
 | Explicit approval and rejection | Same helper around the status update |
 | Slack self-service access request | Existing platform transaction, before the request insert |
-| Company pause, resume, archive, or deletion | Company-level retention notification inside the existing transaction |
-| Budget-driven company pause or resume | Same company notification in the accounting transaction |
+| Space pause, resume, archive, or deletion | Space-level retention notification inside the existing transaction |
+| Budget-driven space pause or resume | Same space notification in the accounting transaction |
 | Keep/unkeep, manual archive/revive, accepted archive proposal | Existing typed retention notification now routes join_request to its worker |
 
 Provider calls, membership grants, and unrelated route behavior stay outside the
@@ -60,8 +60,8 @@ root database connection; it is not wrapped in a caller transaction.
 API-key consumption only permits an already-approved request. It cannot create
 pending retention work and does not acquire a new wrapper or signal. Invite
 acceptance that reuses a human request does not update that request. Revocation,
-expiry, and acceptedAt changes do not change the feed predicate. Invite/company
-identity is immutable in supported routes; company deletion is the invite delete
+expiry, and acceptedAt changes do not change the feed predicate. Invite/space
+identity is immutable in supported routes; space deletion is the invite delete
 owner. A future producer that changes these facts must join the same contract.
 Process-local signals do not cover independent SQL writers or another instance.
 
@@ -80,7 +80,7 @@ sleep blockers remain in place.
 Seventeen new real-PostgreSQL cases pass. They cover actual invite acceptance,
 rejection, human approval, gateway replay, and Slack access requests; empty and
 resolved-history quiet; saved deadlines; startup reconstruction; keep and manual
-archival controls; company pause/resume; unchanged expired/revoked invite policy;
+archival controls; space pause/resume; unchanged expired/revoked invite policy;
 normal versus maintenance feeds; nested commit/rollback; first writes and failed
 work during drain; concurrent source updates; 101-row microsecond paging with a
 full failed page; and shutdown/restart.
@@ -113,14 +113,14 @@ required before readiness.
 
 The duplicate approval/join archive loop is now one `createDecisionRetentionSweep`
 implementation. Each owner supplies its candidate ordering boundary, page, locked current-state
-lookup and next deadline. This keeps eligibility, company/invite joins and
+lookup and next deadline. This keeps eligibility, space/invite joins and
 source-row locks with their owner while sharing cursor/error/retention behavior.
 The existing 100-row budget, PostgreSQL text cursor and failure rotation remain.
 Both workers coalesce notification-driven global reads under a thirty-second
 aggregate budget; saved deadlines preempt it and no idle scan is scheduled.
 
 Manual keep/archive/revive can materialize an unseen join request in the existing
-retention write transaction, as approvals already can. The company-scoped source
+retention write transaction, as approvals already can. The space-scoped source
 is locked, its real activity is read, and existing versioned state is synchronized.
 Authorization, archive choices and other source kinds retain their contracts.
 No route bookkeeping, queue table, permanent listener or Cloud exemption is added.

@@ -7,7 +7,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { createCapturedOutputBuffer, parseJsonResponseWithLimit } from "./dev-runner-output.ts";
 import {
-  paperclipRunnerBinaryNeedsBuild,
+  outpostRunnerBinaryNeedsBuild,
   resolveNativeRunnerDevBinary,
   resolveNativeRunnerRequirement,
 } from "./dev-runner-native-binary.mjs";
@@ -46,13 +46,13 @@ try {
 const worktreeEnvBootstrap = bootstrapDevRunnerWorktreeEnv(repoRoot, process.env);
 if (worktreeEnvBootstrap.missingEnv) {
   console.error(
-    `[outpost] linked git worktree at ${repoRoot} is missing ${path.relative(repoRoot, worktreeEnvBootstrap.envPath)}. Run \`paperclipai worktree init\` in this worktree before \`pnpm dev\`.`,
+    `[outpost] linked git worktree at ${repoRoot} is missing ${path.relative(repoRoot, worktreeEnvBootstrap.envPath)}. Run \`outpost worktree init\` in this worktree before \`pnpm dev\`.`,
   );
   process.exit(1);
 }
 if (isWorktreeSeedPending(repoRoot)) {
   console.error(
-    "[outpost] this worktree database is seed-pending. Run `pnpm paperclipai worktree ensure-seeded` before `pnpm dev`.",
+    "[outpost] this worktree database is seed-pending. Run `pnpm outpost worktree ensure-seeded` before `pnpm dev`.",
   );
   process.exit(1);
 }
@@ -61,10 +61,10 @@ const scanIntervalMs = 1500;
 const autoRestartPollIntervalMs = 2500;
 const gracefulShutdownTimeoutMs = 10_000;
 const changedPathSampleLimit = 5;
-const devServerStatusFilePath = path.join(repoRoot, ".paperclip", "dev-server-status.json");
-const devServerRestartRequestFilePath = path.join(repoRoot, ".paperclip", "dev-server-restart-request.json");
+const devServerStatusFilePath = path.join(repoRoot, ".outpost", "dev-server-status.json");
+const devServerRestartRequestFilePath = path.join(repoRoot, ".outpost", "dev-server-restart-request.json");
 const devServerStatusToken = mode === "dev" ? randomUUID() : null;
-const devServerStatusTokenHeader = "x-paperclip-dev-server-status-token";
+const devServerStatusTokenHeader = "x-outpost-dev-server-status-token";
 
 const watchedDirectories = [
   "cli",
@@ -98,8 +98,8 @@ const ignoredDirectoryNames = new Set([
 ]);
 
 const ignoredRelativePaths = new Set([
-  ".paperclip/dev-server-restart-request.json",
-  ".paperclip/dev-server-status.json",
+  ".outpost/dev-server-restart-request.json",
+  ".outpost/dev-server-status.json",
 ]);
 
 const tailscaleAuthFlagNames = new Set([
@@ -346,7 +346,7 @@ async function updateDevServiceRecord(extra?: Record<string, unknown>) {
   await writeLocalServiceRegistryRecord({
     version: 1,
     serviceKey: devService.serviceKey,
-    profileKind: "paperclip-dev",
+    profileKind: "outpost-dev",
     serviceName: devService.serviceName,
     command: "dev-runner.ts",
     cwd: repoRoot,
@@ -560,7 +560,7 @@ async function getNativeRunnerRequired(): Promise<boolean> {
   return requirement.nativeRunnerRequired;
 }
 
-async function buildPaperclipRunner() {
+async function buildOutpostRunner() {
   console.log("[outpost] building outpost runner...");
   const typescriptResult = await runPnpm(
     ["--filter", "@outpost/outpost-runner", "build:typescript"],
@@ -577,7 +577,7 @@ async function buildPaperclipRunner() {
 
   const nativeRunnerRequired = await getNativeRunnerRequired();
   if (
-    paperclipRunnerBinaryNeedsBuild({
+    outpostRunnerBinaryNeedsBuild({
       repoRoot,
       nativeRunnerRequired,
       configuredBinary: configuredRunnerBinary,
@@ -713,7 +713,7 @@ async function stopChildForRestart() {
 }
 
 async function startServerChild() {
-  await buildPaperclipRunner();
+  await buildOutpostRunner();
   await buildPluginSdk();
 
   const serverScript = mode === "watch" ? "dev:watch" : "dev";

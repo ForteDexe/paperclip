@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "name": "Paperclip",
-  "description": "The control plane for autonomous AI companies",
+  "name": "Outpost",
+  "description": "The control plane for autonomous AI spaces",
   "theme": "mint",
   "colors": {
     "primary": "#2563EB",
@@ -16,7 +16,7 @@
   "topbarLinks": [
     {
       "name": "GitHub",
-      "url": "https://github.com/paperclip-ai/paperclip"
+      "url": "https://github.com/outpost-ai/outpost"
     }
   ],
   "navigation": {
@@ -27,7 +27,7 @@
           {
             "group": "Introduction",
             "pages": [
-              "start/what-is-paperclip",
+              "start/what-is-outpost",
               "start/quickstart",
               "start/core-concepts",
               "start/architecture"
@@ -42,7 +42,7 @@
             "group": "Board Operator",
             "pages": [
               "guides/board-operator/dashboard",
-              "guides/board-operator/creating-a-company",
+              "guides/board-operator/creating-a-space",
               "guides/board-operator/editing-first-task-texts",
               "guides/board-operator/managing-agents",
               "guides/board-operator/org-structure",
@@ -120,7 +120,7 @@
             "pages": [
               "api/overview",
               "api/authentication",
-              "api/companies",
+              "api/spaces",
               "api/agents",
               "api/issues",
               "api/approvals",
@@ -150,6 +150,6 @@
     ]
   },
   "footerSocials": {
-    "github": "https://github.com/paperclip-ai/paperclip"
+    "github": "https://github.com/outpost-ai/outpost"
   }
 }

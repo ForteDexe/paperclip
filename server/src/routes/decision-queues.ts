@@ -21,7 +21,7 @@ import {
   decisionQueueService,
   type DecisionMutationActor,
 } from "../services/decision-queues.js";
-import { assertBoardOrAgent, assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertOperatorOrAgent, assertSpaceAccess, getActorInfo } from "./authz.js";
 import { decisionRetentionService } from "../services/decision-retention.js";
 
 function mutationActor(req: Parameters<typeof getActorInfo>[0]): DecisionMutationActor {
@@ -40,15 +40,15 @@ function mutationActor(req: Parameters<typeof getActorInfo>[0]): DecisionMutatio
 async function assertDecisionAccess(
   db: Db,
   req: Parameters<typeof getActorInfo>[0],
-  companyId: string,
+  spaceId: string,
   action: Extract<AuthorizationAction, "decision_queue:read" | "decision_queue:manage" | "decision_triage:manage">,
 ) {
-  assertBoardOrAgent(req);
-  assertCompanyAccess(req, companyId);
+  assertOperatorOrAgent(req);
+  assertSpaceAccess(req, spaceId);
   const decision = await authorizationService(db).decide({
     actor: req.actor,
     action,
-    resource: { type: "company", companyId },
+    resource: { type: "space", spaceId },
   });
   if (!decision.allowed) {
     throw forbidden(decision.explanation, authorizationDeniedDetails(decision));
@@ -68,23 +68,23 @@ export function decisionQueueRoutes(db: Db) {
   const svc = decisionQueueService(db);
   const retention = decisionRetentionService(db);
 
-  router.get("/companies/:companyId/decision-queue-seed-rules", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertDecisionAccess(db, req, companyId, "decision_queue:read");
+  router.get("/spaces/:spaceId/decision-queue-seed-rules", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertDecisionAccess(db, req, spaceId, "decision_queue:read");
     res.json(DECISION_QUEUE_SEEDS);
   });
 
-  router.get("/companies/:companyId/decision-queues", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertDecisionAccess(db, req, companyId, "decision_queue:read");
-    res.json(await svc.list(companyId, req.actor));
+  router.get("/spaces/:spaceId/decision-queues", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertDecisionAccess(db, req, spaceId, "decision_queue:read");
+    res.json(await svc.list(spaceId, req.actor));
   });
 
-  router.post("/companies/:companyId/decision-queues", validate(createDecisionQueueSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertDecisionAccess(db, req, companyId, "decision_queue:manage");
+  router.post("/spaces/:spaceId/decision-queues", validate(createDecisionQueueSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertDecisionAccess(db, req, spaceId, "decision_queue:manage");
     const result = await svc.create({
-      companyId,
+      spaceId,
       authActor: req.actor,
       actor: mutationActor(req),
       ...req.body,
@@ -92,11 +92,11 @@ export function decisionQueueRoutes(db: Db) {
     res.status(result.created ? 201 : 200).json(result.queue);
   });
 
-  router.patch("/companies/:companyId/decision-queues/:key", validate(updateDecisionQueueSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertDecisionAccess(db, req, companyId, "decision_queue:manage");
+  router.patch("/spaces/:spaceId/decision-queues/:key", validate(updateDecisionQueueSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertDecisionAccess(db, req, spaceId, "decision_queue:manage");
     res.json(await svc.update({
-      companyId,
+      spaceId,
       key: req.params.key as string,
       patch: req.body,
       authActor: req.actor,
@@ -104,20 +104,20 @@ export function decisionQueueRoutes(db: Db) {
     }));
   });
 
-  router.get("/companies/:companyId/decision-queues/:key/items", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertDecisionAccess(db, req, companyId, "decision_queue:read");
-    res.json(await svc.listItems(companyId, req.params.key as string, req.actor));
+  router.get("/spaces/:spaceId/decision-queues/:key/items", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertDecisionAccess(db, req, spaceId, "decision_queue:read");
+    res.json(await svc.listItems(spaceId, req.params.key as string, req.actor));
   });
 
   router.post(
-    "/companies/:companyId/decision-queues/:key/items",
+    "/spaces/:spaceId/decision-queues/:key/items",
     validate(addDecisionQueueItemSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      await assertDecisionAccess(db, req, companyId, "decision_queue:manage");
+      const spaceId = req.params.spaceId as string;
+      await assertDecisionAccess(db, req, spaceId, "decision_queue:manage");
       const result = await svc.addItem({
-        companyId,
+        spaceId,
         key: req.params.key as string,
         sourceKind: req.body.sourceKind,
         sourceId: req.body.sourceId,
@@ -129,18 +129,18 @@ export function decisionQueueRoutes(db: Db) {
   );
 
   router.delete(
-    "/companies/:companyId/decision-queues/:key/items/:sourceKind/:sourceId",
+    "/spaces/:spaceId/decision-queues/:key/items/:sourceKind/:sourceId",
     validate(removeDecisionQueueItemSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      await assertDecisionAccess(db, req, companyId, "decision_queue:manage");
+      const spaceId = req.params.spaceId as string;
+      await assertDecisionAccess(db, req, spaceId, "decision_queue:manage");
       const source = sourceParams(req);
       if (!source) {
         res.status(400).json({ error: "Invalid attention source identity" });
         return;
       }
       res.json(await svc.removeItem({
-        companyId,
+        spaceId,
         key: req.params.key as string,
         ...source,
         reason: req.body.reason,
@@ -150,30 +150,30 @@ export function decisionQueueRoutes(db: Db) {
     },
   );
 
-  router.get("/companies/:companyId/decision-triage/:sourceKind/:sourceId", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertDecisionAccess(db, req, companyId, "decision_queue:read");
+  router.get("/spaces/:spaceId/decision-triage/:sourceKind/:sourceId", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertDecisionAccess(db, req, spaceId, "decision_queue:read");
     const source = sourceParams(req);
     if (!source) {
       res.status(400).json({ error: "Invalid attention source identity" });
       return;
     }
-    res.json(await svc.getTriage(companyId, source.sourceKind, source.sourceId, req.actor));
+    res.json(await svc.getTriage(spaceId, source.sourceKind, source.sourceId, req.actor));
   });
 
   router.put(
-    "/companies/:companyId/decision-triage/:sourceKind/:sourceId",
+    "/spaces/:spaceId/decision-triage/:sourceKind/:sourceId",
     validate(updateDecisionTriageSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      await assertDecisionAccess(db, req, companyId, "decision_triage:manage");
+      const spaceId = req.params.spaceId as string;
+      await assertDecisionAccess(db, req, spaceId, "decision_triage:manage");
       const source = sourceParams(req);
       if (!source) {
         res.status(400).json({ error: "Invalid attention source identity" });
         return;
       }
       res.json(await svc.updateTriage({
-        companyId,
+        spaceId,
         ...source,
         ...req.body,
         authActor: req.actor,
@@ -183,18 +183,18 @@ export function decisionQueueRoutes(db: Db) {
   );
 
   router.patch(
-    "/companies/:companyId/decision-retention/:sourceKind/:sourceId",
+    "/spaces/:spaceId/decision-retention/:sourceKind/:sourceId",
     validate(updateDecisionRetentionSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      await assertDecisionAccess(db, req, companyId, "decision_triage:manage");
+      const spaceId = req.params.spaceId as string;
+      await assertDecisionAccess(db, req, spaceId, "decision_triage:manage");
       const source = sourceParams(req);
       if (!source) {
         res.status(400).json({ error: "Invalid attention source identity" });
         return;
       }
       res.json(await retention.setKeep({
-        companyId,
+        spaceId,
         ...source,
         keep: req.body.keep,
         authActor: req.actor,
@@ -203,26 +203,26 @@ export function decisionQueueRoutes(db: Db) {
     },
   );
 
-  router.post("/companies/:companyId/decision-retention/:sourceKind/:sourceId/archive", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertDecisionAccess(db, req, companyId, "decision_triage:manage");
+  router.post("/spaces/:spaceId/decision-retention/:sourceKind/:sourceId/archive", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertDecisionAccess(db, req, spaceId, "decision_triage:manage");
     const source = sourceParams(req);
     if (!source) {
       res.status(400).json({ error: "Invalid attention source identity" });
       return;
     }
-    res.json(await retention.archive({ companyId, ...source, authActor: req.actor, actor: mutationActor(req) }));
+    res.json(await retention.archive({ spaceId, ...source, authActor: req.actor, actor: mutationActor(req) }));
   });
 
-  router.post("/companies/:companyId/decision-retention/:sourceKind/:sourceId/revive", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertDecisionAccess(db, req, companyId, "decision_triage:manage");
+  router.post("/spaces/:spaceId/decision-retention/:sourceKind/:sourceId/revive", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertDecisionAccess(db, req, spaceId, "decision_triage:manage");
     const source = sourceParams(req);
     if (!source) {
       res.status(400).json({ error: "Invalid attention source identity" });
       return;
     }
-    res.json(await retention.revive({ companyId, ...source, authActor: req.actor, actor: mutationActor(req) }));
+    res.json(await retention.revive({ spaceId, ...source, authActor: req.actor, actor: mutationActor(req) }));
   });
 
   return router;

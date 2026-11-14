@@ -32,7 +32,7 @@ afterEach(async () => {
 
 it("spawns a real Node ACP agent with per-session env on this platform", async () => {
   const root = await fs.mkdtemp(
-    path.join(os.tmpdir(), "paperclip-acpx-spawn-smoke-"),
+    path.join(os.tmpdir(), "outpost-acpx-spawn-smoke-"),
   );
   tempRoots.push(root);
   const stateDir = path.join(root, "state");
@@ -41,7 +41,7 @@ it("spawns a real Node ACP agent with per-session env on this platform", async (
 
   const result = await execute({
     runId: "spawn-smoke",
-    agent: { id: "spawn-agent", companyId: "spawn-company" },
+    agent: { id: "spawn-agent", spaceId: "spawn-space" },
     runtime: {},
     config: {
       agent: "custom",
@@ -64,12 +64,12 @@ it("spawns a real Node ACP agent with per-session env on this platform", async (
     "utf8",
   );
   expect(stderr).toContain("nes/close");
-  expect(stderr).toContain("paperclip-acp-echo-agent started");
+  expect(stderr).toContain("outpost-acp-echo-agent started");
 });
 
 it("retains a typed ACP failure as diagnostics without making it assistant output", async () => {
   const root = await fs.mkdtemp(
-    path.join(os.tmpdir(), "paperclip-acpx-typed-failure-"),
+    path.join(os.tmpdir(), "outpost-acpx-typed-failure-"),
   );
   tempRoots.push(root);
   const logs: string[] = [];
@@ -78,7 +78,7 @@ it("retains a typed ACP failure as diagnostics without making it assistant outpu
 
   const result = await execute({
     runId: "typed-failure-smoke",
-    agent: { id: "spawn-agent", companyId: "spawn-company" },
+    agent: { id: "spawn-agent", spaceId: "spawn-space" },
     runtime: {},
     config: {
       agent: "custom",
@@ -104,7 +104,7 @@ it("retains a typed ACP failure as diagnostics without making it assistant outpu
 
 it("fails closed on a typed ACP session failure in persistent mode", async () => {
   const root = await fs.mkdtemp(
-    path.join(os.tmpdir(), "paperclip-acpx-persistent-typed-failure-"),
+    path.join(os.tmpdir(), "outpost-acpx-persistent-typed-failure-"),
   );
   tempRoots.push(root);
   const providerText = "persistent-provider-error-canary-must-not-escape";
@@ -113,7 +113,7 @@ it("fails closed on a typed ACP session failure in persistent mode", async () =>
 
   const result = await execute({
     runId: "persistent-typed-failure-smoke",
-    agent: { id: "spawn-agent", companyId: "spawn-company" },
+    agent: { id: "spawn-agent", spaceId: "spawn-space" },
     runtime: {},
     config: {
       agent: "custom",
@@ -140,7 +140,7 @@ it("fails closed on a typed ACP session failure in persistent mode", async () =>
 
 it("preserves ordinary assistant text even when it resembles a provider error", async () => {
   const root = await fs.mkdtemp(
-    path.join(os.tmpdir(), "paperclip-acpx-error-shaped-answer-"),
+    path.join(os.tmpdir(), "outpost-acpx-error-shaped-answer-"),
   );
   tempRoots.push(root);
   const answer =
@@ -149,7 +149,7 @@ it("preserves ordinary assistant text even when it resembles a provider error", 
 
   const result = await execute({
     runId: "error-shaped-answer-smoke",
-    agent: { id: "spawn-agent", companyId: "spawn-company" },
+    agent: { id: "spawn-agent", spaceId: "spawn-space" },
     runtime: {},
     config: {
       agent: "custom",
@@ -170,7 +170,7 @@ it("preserves ordinary assistant text even when it resembles a provider error", 
 
 it("keeps a typed retry warning nonfatal when the turn produces an answer", async () => {
   const root = await fs.mkdtemp(
-    path.join(os.tmpdir(), "paperclip-acpx-typed-warning-"),
+    path.join(os.tmpdir(), "outpost-acpx-typed-warning-"),
   );
   tempRoots.push(root);
   const answer = "Recovered after the transient connection warning.";
@@ -181,7 +181,7 @@ it("keeps a typed retry warning nonfatal when the turn produces an answer", asyn
 
   const result = await execute({
     runId: "typed-warning-smoke",
-    agent: { id: "spawn-agent", companyId: "spawn-company" },
+    agent: { id: "spawn-agent", spaceId: "spawn-space" },
     runtime: {},
     config: {
       agent: "custom",
@@ -214,7 +214,7 @@ it("captures the Node error shape for a host-invalid spawn cwd", async () => {
   // when it host-spawns the relay proxy with the in-sandbox `remoteCwd`.
   const missingCwd = path.join(
     os.tmpdir(),
-    "paperclip-acpx-missing-spawn-cwd",
+    "outpost-acpx-missing-spawn-cwd",
     "nested",
     "does-not-exist",
   );

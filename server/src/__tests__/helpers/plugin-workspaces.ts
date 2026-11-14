@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issues,
@@ -14,24 +14,24 @@ import type { WorkspaceWorkers } from "../../services/plugin-workspaces.js";
 
 export async function createPluginWorkspaceFixture(
   db: ReturnType<typeof createDb>,
-  existingCompanyId?: string,
+  existingSpaceId?: string,
 ) {
-  const companyId = existingCompanyId ?? randomUUID(),
+  const spaceId = existingSpaceId ?? randomUUID(),
     agentId = randomUUID(),
     projectId = randomUUID(),
     sourceId = randomUUID(),
     pluginId = randomUUID(),
     issueId = randomUUID(),
     runId = randomUUID();
-  if (!existingCompanyId)
-    await db.insert(companies).values({
-      id: companyId,
+  if (!existingSpaceId)
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Storage fixture",
-      issuePrefix: companyId.slice(0, 8).toUpperCase(),
+      issuePrefix: spaceId.slice(0, 8).toUpperCase(),
     });
   await db.insert(agents).values({
     id: agentId,
-    companyId,
+    spaceId,
     name: "Worker",
     role: "engineer",
     status: "idle",
@@ -64,7 +64,7 @@ export async function createPluginWorkspaceFixture(
   });
   await db.insert(projects).values({
     id: projectId,
-    companyId,
+    spaceId,
     name: "Project",
     status: "in_progress",
     executionWorkspacePolicy: {
@@ -74,7 +74,7 @@ export async function createPluginWorkspaceFixture(
   });
   await db.insert(projectWorkspaces).values({
     id: sourceId,
-    companyId,
+    spaceId,
     projectId,
     name: "Repository",
     sourceType: "remote_managed",
@@ -84,7 +84,7 @@ export async function createPluginWorkspaceFixture(
   });
   await db.insert(issues).values({
     id: issueId,
-    companyId,
+    spaceId,
     projectId,
     projectWorkspaceId: sourceId,
     title: "Task",
@@ -93,7 +93,7 @@ export async function createPluginWorkspaceFixture(
   });
   await db.insert(heartbeatRuns).values({
     id: runId,
-    companyId,
+    spaceId,
     agentId,
     issueId,
     invocationSource: "manual",
@@ -160,7 +160,7 @@ export async function createPluginWorkspaceFixture(
     },
   } as unknown as WorkspaceWorkers;
   const input = {
-    companyId,
+    spaceId,
     projectId,
     projectWorkspaceId: sourceId,
     issueId,
@@ -173,7 +173,7 @@ export async function createPluginWorkspaceFixture(
     branchName: "work",
   };
   return {
-    companyId,
+    spaceId,
     pluginId,
     issueId,
     runId,

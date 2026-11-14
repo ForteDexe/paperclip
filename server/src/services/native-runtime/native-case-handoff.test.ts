@@ -4,12 +4,12 @@ import { once } from "node:events";
 import { rm } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, caseEvents, caseHandoffs, cases, companies, createDb, heartbeatRuns, issues } from "@outpost/db";
+import { agents, caseEvents, caseHandoffs, cases, spaces, createDb, heartbeatRuns, issues } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { assertAgentRunWriteAllowed } from "../../agent-run-cancellation.js";
 import { assertNoCaseHandoffMutation, isCaseHandoffSourceReleased, pendingCaseHandoffForRun, recordCaseHandoffExecutionReleased } from "../heartbeat/case-handoff-lifecycle.js";
 import { nativeCaseHandoffResult, assertNativeCaseHandoffResult } from "./native-case-handoff.js";
-import { createGovernedWaitEventObservation } from "./native-session-executor.js";
+import { createControlledWaitEventObservation } from "./native-session-executor.js";
 import type { PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { recordNativeLocalProcessStop } from "../native-local-process-stop.js";
 import { issueService } from "../issues.js";
@@ -21,21 +21,21 @@ describe("native persisted case handoff runtime", () => {
   beforeAll(async () => { temporary = await startEmbeddedPostgresTestDatabase("case-handoff-runtime-"); db = createDb(temporary.connectionString); });
   afterAll(async () => { await temporary?.cleanup(); });
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), recipient = randomUUID(), issueId = randomUUID(), runId = randomUUID(), caseId = randomUUID(), handoffId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Factory", issuePrefix: `H${companyId.slice(0, 6)}` });
-    await db.insert(agents).values([{ id: agentId, companyId, name: "Triage", role: "ceo", status: "active" }, { id: recipient, companyId, name: "Builder", role: "engineer", status: "active" }]);
-    await db.insert(issues).values({ id: issueId, companyId, title: "Build", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "legacy", contextSnapshot: { issueId } });
-    await db.insert(cases).values({ id: caseId, companyId, caseNumber: 1, identifier: `CASE-${caseId}`, caseType: "work", title: "Build", workIssueId: issueId, handoffVersion: 1 });
-    await db.insert(caseHandoffs).values({ id: handoffId, companyId, caseId, issueId, version: 1, fromAgentId: agentId, toAgentId: recipient,
+    const spaceId = randomUUID(), agentId = randomUUID(), recipient = randomUUID(), issueId = randomUUID(), runId = randomUUID(), caseId = randomUUID(), handoffId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Factory", issuePrefix: `H${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values([{ id: agentId, spaceId, name: "Triage", role: "lead", status: "active" }, { id: recipient, spaceId, name: "Builder", role: "engineer", status: "active" }]);
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Build", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "legacy", contextSnapshot: { issueId } });
+    await db.insert(cases).values({ id: caseId, spaceId, caseNumber: 1, identifier: `CASE-${caseId}`, caseType: "work", title: "Build", workIssueId: issueId, handoffVersion: 1 });
+    await db.insert(caseHandoffs).values({ id: handoffId, spaceId, caseId, issueId, version: 1, fromAgentId: agentId, toAgentId: recipient,
       phase: "implementation", instructions: "Implement the saved specification", actorType: "agent", actorId: agentId, sourceRunId: runId,
       wakeupRequestId: randomUUID(), idempotencyKey: "phase-1", inputFingerprint: "test", state: "awaiting_release" });
     const input = { runId, issueId, completionContract: { revision: "revision-1", criteria: [{ id: "objective" }] } };
-    return { companyId, agentId, issueId, runId, handoffId, input };
+    return { spaceId, agentId, issueId, runId, handoffId, input };
   }
   it("uses persisted intent to yield after the accepted tool response, without a finish call", async () => {
     const f = await fixture();
-    const observation = createGovernedWaitEventObservation(() => nativeCaseHandoffResult(db, f.input));
+    const observation = createControlledWaitEventObservation(() => nativeCaseHandoffResult(db, f.input));
     const event = { schema: "outpost.orp.event.v1", sourceEventId: "tool-result", sourceInstanceId: "provider", sourceSeq: 2,
       runId: f.runId, eventType: "item.completed", itemId: "handoff-tool", payload: { kind: "dynamicToolCall" },
       sourceKind: "provider", normalizedSessionId: "session", schemaVersion: 1, priority: "normal", emittedAt: new Date().toISOString() } as unknown as PrpEvent;
@@ -51,7 +51,7 @@ describe("native persisted case handoff runtime", () => {
   });
   it("fences late writes and requires executor settlement beyond terminal task status", async () => {
     const f = await fixture();
-    await expect(db.transaction(tx => assertAgentRunWriteAllowed(tx as unknown as typeof db, f.companyId, { agentId: f.agentId, runId: f.runId }))).rejects.toThrow("handed off");
+    await expect(db.transaction(tx => assertAgentRunWriteAllowed(tx as unknown as typeof db, f.spaceId, { agentId: f.agentId, runId: f.runId }))).rejects.toThrow("handed off");
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.runId));
     expect(await isCaseHandoffSourceReleased(db, f.input)).toBe(false);
     await db.update(caseHandoffs).set({ nextAttemptAt: new Date(Date.now() + 60_000) }).where(eq(caseHandoffs.id, f.handoffId));
@@ -69,8 +69,8 @@ describe("native persisted case handoff runtime", () => {
     // when the execution actually transferred work to another phase.
     expect(await pendingCaseHandoffForRun(db, f.runId)).toBeNull();
     await expect(assertNoCaseHandoffMutation(db, f.runId, f.issueId)).resolves.toBeUndefined();
-    await expect(db.transaction(tx => assertAgentRunWriteAllowed(tx as unknown as typeof db, f.companyId,
-      { agentId: f.agentId, runId: f.runId }))).resolves.toMatchObject({ status: "running", companyId: f.companyId });
+    await expect(db.transaction(tx => assertAgentRunWriteAllowed(tx as unknown as typeof db, f.spaceId,
+      { agentId: f.agentId, runId: f.runId }))).resolves.toMatchObject({ status: "running", spaceId: f.spaceId });
     const forged = { continuation: { kind: "case_handoff", handoffId: f.handoffId } };
     await expect(assertNativeCaseHandoffResult(db, f.runId, f.issueId, forged)).rejects.toThrow("exact persisted");
     await db.update(caseHandoffs).set({ state: "cancelled", cancelledAt: new Date() }).where(eq(caseHandoffs.id, f.handoffId));
@@ -91,7 +91,7 @@ describe("native persisted case handoff runtime", () => {
   });
   it("withholds release when the main process exited but its grandchild still owns the process group", async () => {
     const f = await fixture();
-    const scratch = await prepareHeartbeatRunScratch({ companyId: f.companyId, agentId: f.agentId, runId: f.runId, issueId: f.issueId });
+    const scratch = await prepareHeartbeatRunScratch({ spaceId: f.spaceId, agentId: f.agentId, runId: f.runId, issueId: f.issueId });
     const parent = spawn(process.execPath, ["-e", "const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});process.stdout.write(String(child.pid));setTimeout(()=>process.exit(0),100);"],
       { detached: true, stdio: ["ignore", "pipe", "ignore"] });
     const groupId = parent.pid!;
@@ -114,7 +114,7 @@ describe("native persisted case handoff runtime", () => {
   });
   it("manual reassignment invalidates pending intent and appends case history", async () => {
     const f = await fixture(), next = randomUUID();
-    await db.insert(agents).values({ id: next, companyId: f.companyId, name: "Other", role: "engineer", status: "active" });
+    await db.insert(agents).values({ id: next, spaceId: f.spaceId, name: "Other", role: "engineer", status: "active" });
     await issueService(db).update(f.issueId, { assigneeAgentId: next });
     expect((await db.select().from(caseHandoffs).where(eq(caseHandoffs.id, f.handoffId)))[0]?.state).toBe("cancelled");
     expect(await db.select().from(caseEvents).where(eq(caseEvents.caseId, (await db.select().from(caseHandoffs).where(eq(caseHandoffs.id, f.handoffId)))[0]!.caseId))).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "handoff_cancelled" })]));

@@ -19,7 +19,7 @@ const request = () => ({
   toolCommit: "a".repeat(40),
   toolRoot: "/private/reviewed-core",
   source: { commit: "b".repeat(40), deploymentId: "11111111-1111-4111-8111-111111111111" },
-  companyId: "22222222-2222-4222-8222-222222222222",
+  spaceId: "22222222-2222-4222-8222-222222222222",
   workspaceIds: ["33333333-3333-4333-8333-333333333333"],
   mode: "single",
   deadlineMs: 720_000,
@@ -101,13 +101,13 @@ describe("online migration manifest and output", () => {
   });
 
   it("reports authority IDs and a source digest without paths, credentials or repository URLs", () => {
-    const receipt = onlineWorkspaceMigrationReceipt({ companyId: request().companyId, workspaceId: request().workspaceIds[0],
+    const receipt = onlineWorkspaceMigrationReceipt({ spaceId: request().spaceId, workspaceId: request().workspaceIds[0],
       snapshotId: "55555555-5555-4555-8555-555555555555", applied: true, replayed: false,
       localPath: "/private/user-files", source: { kind: "git", repoUrl: "https://private-token@example.test/repo" } });
     expect(receipt.members?.[0]?.sourceSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(JSON.stringify(receipt)).not.toContain("private-token");
     expect(JSON.stringify(receipt)).not.toContain("user-files");
-    const preflight = onlineWorkspaceMigrationReceipt({ companyId: request().companyId, cohortId: "not-an-apply-token",
+    const preflight = onlineWorkspaceMigrationReceipt({ spaceId: request().spaceId, cohortId: "not-an-apply-token",
       applied: false, eligible: true, workspaceIds: request().workspaceIds });
     expect(preflight).toMatchObject({ eligible: true, noAdmissionProof: true, workspaceIds: request().workspaceIds });
     expect(preflight.cohortId).toBeUndefined();

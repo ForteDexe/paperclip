@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { agents, authUsers, companies, createDb, executionWorkspaces, heartbeatRuns, issueComments, issues, projects, projectWorkspaces, type Db } from "@outpost/db";
+import { agents, authUsers, spaces, createDb, executionWorkspaces, heartbeatRuns, issueComments, issues, projects, projectWorkspaces, type Db } from "@outpost/db";
 import { buildProjectMentionHref } from "@outpost/shared";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -19,7 +19,7 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("remote-project-reference-");
     db = createDb(database.connectionString);
-    home = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-task-anchor-")));
+    home = await realpath(await mkdtemp(path.join(os.tmpdir(), "outpost-task-anchor-")));
     vi.stubEnv("OUTPOST_HOME", home);
     vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC", "true");
     vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE", "true");
@@ -27,22 +27,22 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); if (home) await rm(home, { recursive: true, force: true }); vi.unstubAllEnvs(); });
 
   async function fixture(repository: boolean) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     const projectId = randomUUID(), userId = `fixture-${randomUUID()}`;
     await db.insert(authUsers).values({ id: userId, name: "Project reference owner", email: `${userId}@example.test`,
       createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companies).values({ id: companyId, name: "Referenced project fixture", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Lead", status: "running", adapterType: "outpost_runner" });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Delegate work here" });
-    if (repository) await db.insert(projectWorkspaces).values({ companyId, projectId,
+    await db.insert(spaces).values({ id: spaceId, name: "Referenced project fixture", issuePrefix: spaceId.slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Lead", status: "running", adapterType: "outpost_runner" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Delegate work here" });
+    if (repository) await db.insert(projectWorkspaces).values({ spaceId, projectId,
       name: "Repository", sourceType: "git", repoUrl: "https://example.test/team/repository.git" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Chat with lead", assigneeAgentId: agentId,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Chat with lead", assigneeAgentId: agentId,
       conversationAgentId: agentId, conversationUserId: userId, conversationState: "active", status: "in_progress" });
-    await db.insert(issueComments).values({ companyId, issueId, authorUserId: userId,
+    await db.insert(issueComments).values({ spaceId, issueId, authorUserId: userId,
       body: `Create the teammate's task in [@Delegate work here](${buildProjectMentionHref(projectId)}).` });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId,
       nativeIssueId: issueId, runtimeMode: "native", status: "running" });
-    return { companyId, agentId, issueId, runId, projectId };
+    return { spaceId, agentId, issueId, runId, projectId };
   }
 
   async function assignedTask(repository = false) {
@@ -67,7 +67,7 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
     expect(result.authority === "remote" && result.source.repositories).toBeUndefined();
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]!.projectId).toBe(f.projectId);
     expect(await readFile(sentinel, "utf8")).toBe("Preserve this unselected managed folder.");
-    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.spaceId, f.spaceId))).toEqual([]);
   });
 
   it("retains a configured anchor repository instead of substituting private scratch", async () => {
@@ -81,7 +81,7 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
 
   it("does not replace a configured anchor without a repository URL", async () => {
     const f = await assignedTask();
-    await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: f.projectId, name: "Required source" });
+    await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: f.projectId, name: "Required source" });
     await expect(resolveRemoteWorkspaceSource(db, { ...f, responsibleUserId: null,
       projectId: f.projectId, projectWorkspaceId: null })).rejects.toMatchObject({
       resultJson: { reason: "remote_workspace_source_unavailable" },
@@ -102,7 +102,7 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
     } else if (kind === "required-git") input.branchName = "required-task-branch";
     else input.configuredCwd = home;
     await expect(resolveRemoteWorkspaceSource(db, input)).rejects.toThrow();
-    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.spaceId, f.spaceId))).toEqual([]);
   });
 
   it.each([
@@ -117,9 +117,9 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
   });
 
   it("does not use a foreign organizational project as private scratch authority", async () => {
-    const f = await assignedTask(), foreignCompanyId = randomUUID(), foreignProjectId = randomUUID();
-    await db.insert(companies).values({ id: foreignCompanyId, name: "Foreign owner", issuePrefix: foreignCompanyId.slice(0, 8) });
-    await db.insert(projects).values({ id: foreignProjectId, companyId: foreignCompanyId, name: "Foreign project" });
+    const f = await assignedTask(), foreignSpaceId = randomUUID(), foreignProjectId = randomUUID();
+    await db.insert(spaces).values({ id: foreignSpaceId, name: "Foreign owner", issuePrefix: foreignSpaceId.slice(0, 8) });
+    await db.insert(projects).values({ id: foreignProjectId, spaceId: foreignSpaceId, name: "Foreign project" });
     await db.update(issues).set({ projectId: foreignProjectId }).where(eq(issues.id, f.issueId));
     await expect(resolveRemoteWorkspaceSource(db, { ...f, responsibleUserId: null,
       projectId: foreignProjectId, projectWorkspaceId: null })).rejects.toThrow();
@@ -135,7 +135,7 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
         projectWorkspaceId: null, referencedProjectFailures: [{ projectId: f.projectId, reason: "resolution" }] });
       expect(result.authority === "remote" && result.source.repositories).toBeUndefined();
       expect(result.authority === "remote" && result.warnings?.length).toBe(1);
-      expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.companyId, f.companyId))).toEqual([]);
+      expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.spaceId, f.spaceId))).toEqual([]);
     } finally {
       vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE", "true");
     }
@@ -143,7 +143,7 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
 
   it("attaches a referenced project's repositories as editable task copies", async () => {
     const f = await fixture(true);
-    await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: f.projectId,
+    await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: f.projectId,
       name: "Second repository", sourceType: "git_repo", repoUrl: "https://example.test/team/second.git", repoRef: "release" });
     const result = await resolveRemoteWorkspaceSource(db, { ...f, responsibleUserId: null,
       projectId: null, projectWorkspaceId: null, taskDirectory: true });
@@ -155,19 +155,19 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
     expect(result.source.repositories).toHaveLength(2);
     for (const repository of result.source.repositories!) {
       expect(repository.readOnly).not.toBe(true);
-      expect(repository.relativePath).toMatch(/^\.paperclip-repositories\/[^/]+$/);
+      expect(repository.relativePath).toMatch(/^\.outpost-repositories\/[^/]+$/);
       expect(repository.projectWorkspaceId).toBe(repository.id);
     }
     expect(new Set(result.source.repositories!.map(repository => repository.relativePath)).size).toBe(2);
-    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.spaceId, f.spaceId))).toEqual([]);
   });
 
   it("keeps the selected anchor and adds the other project's writable repository", async () => {
     const f = await assignedTask(true), referencedProjectId = randomUUID();
-    await db.insert(projects).values({ id: referencedProjectId, companyId: f.companyId, name: "Skill sources" });
-    const [repository] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: referencedProjectId,
+    await db.insert(projects).values({ id: referencedProjectId, spaceId: f.spaceId, name: "Skill sources" });
+    const [repository] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: referencedProjectId,
       name: "Skills", sourceType: "git_repo", repoUrl: "https://example.test/team/skills.git" }).returning();
-    await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+    await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
       body: `Write a skill in [@Skill sources](${buildProjectMentionHref(referencedProjectId)}).` });
     const result = await resolveRemoteWorkspaceSource(db, { ...f, responsibleUserId: null,
       projectId: f.projectId, projectWorkspaceId: null });
@@ -189,12 +189,12 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
 
   it("does not treat a configured source without a repository URL as metadata-only", async () => {
     const f = await fixture(false);
-    await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: f.projectId, name: "Configured source" });
+    await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: f.projectId, name: "Configured source" });
     await expect(resolveRemoteWorkspaceSource(db, { ...f, responsibleUserId: null,
       projectId: null, projectWorkspaceId: null, taskDirectory: true })).rejects.toMatchObject({
       resultJson: { reason: "remote_workspace_source_unavailable", projectId: f.projectId },
     });
-    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.spaceId, f.spaceId))).toEqual([]);
   });
 
   it("preserves the disabled remote-source gate for a configured repository", async () => {
@@ -205,7 +205,7 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
         projectId: null, projectWorkspaceId: null, taskDirectory: true })).rejects.toMatchObject({
         resultJson: { reason: "remote_referenced_workspace_disabled" },
       });
-      expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.companyId, f.companyId))).toEqual([]);
+      expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.spaceId, f.spaceId))).toEqual([]);
     } finally {
       vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC_REMOTE", "true");
     }
@@ -213,8 +213,8 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
 
   it("attaches a repository when a source-less project is also mentioned", async () => {
     const f = await fixture(true), metadataProjectId = randomUUID();
-    await db.insert(projects).values({ id: metadataProjectId, companyId: f.companyId, name: "Metadata" });
-    await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+    await db.insert(projects).values({ id: metadataProjectId, spaceId: f.spaceId, name: "Metadata" });
+    await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
       body: `Also mention [@Metadata](${buildProjectMentionHref(metadataProjectId)}).` });
     const result = await resolveRemoteWorkspaceSource(db, { ...f, responsibleUserId: null,
       projectId: null, projectWorkspaceId: null, taskDirectory: true });
@@ -222,24 +222,24 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
       { projectId: f.projectId, repoUrl: "https://example.test/team/repository.git" },
     ] }, referencedProjectFailures: [{ projectId: metadataProjectId, reason: "resolution" }] });
     expect(result.authority === "remote" && result.source.repositories).toHaveLength(1);
-    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.spaceId, f.spaceId))).toEqual([]);
   });
 
-  it("does not expose a source-less project from a different company", async () => {
-    const f = await fixture(false), foreignCompanyId = randomUUID();
-    await db.insert(companies).values({ id: foreignCompanyId, name: "Foreign", issuePrefix: foreignCompanyId.slice(0, 8) });
-    await db.update(projects).set({ companyId: foreignCompanyId }).where(eq(projects.id, f.projectId));
+  it("does not expose a source-less project from a different space", async () => {
+    const f = await fixture(false), foreignSpaceId = randomUUID();
+    await db.insert(spaces).values({ id: foreignSpaceId, name: "Foreign", issuePrefix: foreignSpaceId.slice(0, 8) });
+    await db.update(projects).set({ spaceId: foreignSpaceId }).where(eq(projects.id, f.projectId));
     const result = await resolveRemoteWorkspaceSource(db, { ...f, responsibleUserId: null,
       projectId: null, projectWorkspaceId: null, taskDirectory: true });
     expect(result).toMatchObject({ authority: "remote", source: { kind: "empty" },
       referencedProjectFailures: [], warnings: [] });
-    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.spaceId, f.spaceId))).toEqual([]);
   });
 
   it("does not attach a project outside the run's low-trust boundary", async () => {
     const f = await fixture(true);
     const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustPreset: "low_trust_review",
-      trustBoundary: { mode: "low_trust_review", companyId: f.companyId, rootIssueId: f.issueId, projectIds: [] } } };
+      trustBoundary: { mode: "low_trust_review", spaceId: f.spaceId, rootIssueId: f.issueId, projectIds: [] } } };
     await db.update(agents).set({ permissions: policy }).where(eq(agents.id, f.agentId));
     await db.update(issues).set({ executionPolicy: policy }).where(eq(issues.id, f.issueId));
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, executionPolicy: policy } }).where(eq(heartbeatRuns.id, f.runId));
@@ -253,18 +253,18 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
   it("does not apply a referenced project's restricted trust policy to an ordinary task", async () => {
     const f = await fixture(true);
     await db.update(projects).set({ executionWorkspacePolicy: { trustPreset: "low_trust_review", authorizationPolicy: {
-      trustPreset: "low_trust_review", trustBoundary: { mode: "low_trust_review", companyId: f.companyId,
+      trustPreset: "low_trust_review", trustBoundary: { mode: "low_trust_review", spaceId: f.spaceId,
         rootIssueId: f.issueId, projectIds: [f.projectId] },
     } } }).where(eq(projects.id, f.projectId));
     await expect(resolveRemoteWorkspaceSource(db, { ...f, responsibleUserId: null,
       projectId: null, projectWorkspaceId: null, taskDirectory: true })).rejects.toMatchObject({ status: 403 });
-    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.spaceId, f.spaceId))).toEqual([]);
   });
 
   it("preserves an enrolled workspace's saved source for a metadata-only project mention", async () => {
     const f = await fixture(false), snapshotId = randomUUID();
     const source = { kind: "git" as const, repoUrl: "https://example.test/team/saved.git", ref: "saved-branch" };
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId,
       sourceIssueId: f.issueId, mode: "shared_workspace", strategyType: "project_primary",
       name: "Saved task workspace", providerType: "cloud_sandbox", cwd: "/workspaces/saved",
       metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 3, snapshotId,
@@ -277,7 +277,7 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
       referencedProjectFailures: [{ projectId: f.projectId, reason: "resolution" }] });
     expect(result.authority === "remote" && result.source.repositories).toBeUndefined();
     expect(result.authority === "remote" && result.warnings?.length).toBe(1);
-    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.companyId, f.companyId)))
+    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.spaceId, f.spaceId)))
       .toEqual([workspace]);
   });
 
@@ -285,10 +285,10 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
     const f = await fixture(true);
     const [repository] = await db.select().from(projectWorkspaces).where(eq(projectWorkspaces.projectId, f.projectId));
     const savedRepository = { id: repository.id, projectWorkspaceId: repository.id, projectId: f.projectId,
-      relativePath: ".paperclip-repositories/saved-skills", repoUrl: repository.repoUrl!, ref: "saved-branch",
+      relativePath: ".outpost-repositories/saved-skills", repoUrl: repository.repoUrl!, ref: "saved-branch",
       pinnedCommit: "a".repeat(40), ...(scenario === "read-only" ? { readOnly: true } : {}) };
     const source = { kind: "empty" as const, repositories: [savedRepository] };
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId,
       sourceIssueId: f.issueId, mode: "isolated_workspace", strategyType: "project_primary",
       name: "Saved task copies", providerType: "cloud_sandbox", cwd: "/workspaces/saved",
       metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 2, snapshotId: randomUUID(),
@@ -296,21 +296,21 @@ describe.skipIf(!support.supported)("remote referenced project sources", () => {
     }).returning();
     await db.update(issues).set({ executionWorkspaceId: workspace.id }).where(eq(issues.id, f.issueId));
     if (scenario === "foreign-project") {
-      const companyId = randomUUID();
-      await db.insert(companies).values({ id: companyId, name: "Other company", issuePrefix: companyId.slice(0, 8) });
-      await db.update(projects).set({ companyId }).where(eq(projects.id, f.projectId));
+      const spaceId = randomUUID();
+      await db.insert(spaces).values({ id: spaceId, name: "Other space", issuePrefix: spaceId.slice(0, 8) });
+      await db.update(projects).set({ spaceId }).where(eq(projects.id, f.projectId));
     } else {
       await db.update(projectWorkspaces).set({ repoRef: "new-default" }).where(eq(projectWorkspaces.id, repository.id));
       await db.delete(issueComments).where(eq(issueComments.issueId, f.issueId));
     }
     if (scenario === "restricted-trust") {
       await db.update(projects).set({ executionWorkspacePolicy: { trustPreset: "low_trust_review", authorizationPolicy: {
-        trustPreset: "low_trust_review", trustBoundary: { mode: "low_trust_review", companyId: f.companyId,
+        trustPreset: "low_trust_review", trustBoundary: { mode: "low_trust_review", spaceId: f.spaceId,
           rootIssueId: f.issueId, projectIds: [f.projectId] },
       } } }).where(eq(projects.id, f.projectId));
     } else if (scenario === "low-trust-boundary") {
       const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustPreset: "low_trust_review",
-        trustBoundary: { mode: "low_trust_review", companyId: f.companyId, rootIssueId: f.issueId, projectIds: [] } } };
+        trustBoundary: { mode: "low_trust_review", spaceId: f.spaceId, rootIssueId: f.issueId, projectIds: [] } } };
       await db.update(agents).set({ permissions: policy }).where(eq(agents.id, f.agentId));
       await db.update(issues).set({ executionPolicy: policy }).where(eq(issues.id, f.issueId));
       await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, executionPolicy: policy } }).where(eq(heartbeatRuns.id, f.runId));

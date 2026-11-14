@@ -92,7 +92,7 @@ export const appCatalogExternalCases = [
         const configured = await enableOwnedCatalogQuarantine(
           ctx.input.api,
           connection.connectionId,
-          ctx.input.fixtures.company.id,
+          ctx.input.fixtures.space.id,
           provider.url,
         );
         const before = await ctx.input.api.get<{ catalog: CatalogEntry[] }>(
@@ -130,7 +130,7 @@ export const appCatalogExternalCases = [
           catalogBefore: before.catalog,
           exportEntryId: action.id,
           quarantinedBeforeQuery: true,
-          resultPath: `/${ctx.input.fixtures.company.issuePrefix}/apps/${connection.connectionId}/permissions`,
+          resultPath: `/${ctx.input.fixtures.space.issuePrefix}/apps/${connection.connectionId}/permissions`,
           resultLabel: "Export launch notes",
         };
       } catch (error) {

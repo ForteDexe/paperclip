@@ -19,7 +19,7 @@ export async function captureVoiceDeliveryDiagnostics(db: Db, session: VoiceSess
   busy.add(session.id);
   try {
     const actions = await db.select().from(chatActions).where(and(
-      eq(chatActions.companyId, session.companyId), eq(chatActions.endpointId, session.endpointId),
+      eq(chatActions.spaceId, session.spaceId), eq(chatActions.endpointId, session.endpointId),
       eq(chatActions.kind, "speko_voice_reply_push"), eq(chatActions.status, "completed"),
       sql`${chatActions.payload}->>'sessionId' = ${session.id}`,
     )).orderBy(asc(chatActions.createdAt)).limit(100);
@@ -42,13 +42,13 @@ export async function captureVoiceDeliveryDiagnostics(db: Db, session: VoiceSess
       const attempt = {state: "collecting", attempts: Number(record(action.result?.deliveryDiagnostics).attempts ?? 0) + 1,
         acceptedAt: deliveries[index]!.acceptedAt, sampledAt, final: false};
       await db.update(chatActions).set({result: sql`${chatActions.result} || ${JSON.stringify({deliveryDiagnostics: attempt})}::jsonb`})
-        .where(and(eq(chatActions.companyId, session.companyId), eq(chatActions.id, action.id), eq(chatActions.status, "completed")));
+        .where(and(eq(chatActions.spaceId, session.spaceId), eq(chatActions.id, action.id), eq(chatActions.status, "completed")));
     }
     let summary;
     let failure: {errorCode: string; httpStatus: number | null} | undefined;
     try { summary = await client.callDeliveryDiagnostics(session.providerSessionId, deliveries); }
     catch (error) { failure = {errorCode: error instanceof SpekoProviderError ? error.code : "diagnostics_unavailable", httpStatus: error instanceof SpekoProviderError ? error.httpStatus ?? null : null}; }
-    const common = {companyId: session.companyId, endpointId: session.endpointId, issueId: session.issueId,
+    const common = {spaceId: session.spaceId, endpointId: session.endpointId, issueId: session.issueId,
       sessionId: session.id, providerSessionId: session.providerSessionId, sessionState: session.state, generation: session.generation};
     for (const [index, action] of pending.entries()) {
       const attempts = Number(record(action.result?.deliveryDiagnostics).attempts ?? 0) + 1;
@@ -57,7 +57,7 @@ export async function captureVoiceDeliveryDiagnostics(db: Db, session: VoiceSess
         acceptedAt: deliveries[index]!.acceptedAt, final: !failure && reportComplete && summary?.transcriptComplete === true,
         ...(failure ?? {}), ...callSummary, message: summary?.messages[index] ?? null};
       await db.update(chatActions).set({result: sql`${chatActions.result} || ${JSON.stringify({deliveryDiagnostics: snapshot})}::jsonb`})
-        .where(and(eq(chatActions.companyId, session.companyId), eq(chatActions.id, action.id), eq(chatActions.status, "completed")));
+        .where(and(eq(chatActions.spaceId, session.spaceId), eq(chatActions.id, action.id), eq(chatActions.status, "completed")));
       const fields = {...common, actionId: action.id, publicationId: action.payload.publicationId,
         replyId: action.payload.replyId, messageId: deliveries[index]!.messageId, diagnostics: snapshot};
       if (failure) logger.warn({event: "voice.reply.push.diagnostics_failed", ...fields}, "Speko post-call diagnostic read failed; reply acceptance is unchanged");
@@ -65,7 +65,7 @@ export async function captureVoiceDeliveryDiagnostics(db: Db, session: VoiceSess
     }
   } catch {
     // Diagnostics must never prevent transcript/history reconciliation.
-    logger.warn({event: "voice.reply.push.diagnostics_failed", companyId: session.companyId, endpointId: session.endpointId,
+    logger.warn({event: "voice.reply.push.diagnostics_failed", spaceId: session.spaceId, endpointId: session.endpointId,
       sessionId: session.id, providerSessionId: session.providerSessionId, errorCode: "diagnostics_persistence_unavailable"}, "Could not retain Speko delivery diagnostics");
   } finally { busy.delete(session.id); }
 }

@@ -47,7 +47,7 @@ export function createConnectionCredentialAccess(db: Db, { secrets, audit, verce
         .from(connectionGrants)
         .where(
           and(
-            eq(connectionGrants.companyId, connection.companyId),
+            eq(connectionGrants.spaceId, connection.spaceId),
             eq(connectionGrants.connectionId, connection.id),
             eq(connectionGrants.kind, "user"),
             eq(connectionGrants.subjectUserId, actorUserId),
@@ -75,7 +75,7 @@ export function createConnectionCredentialAccess(db: Db, { secrets, audit, verce
         .from(connectionGrants)
         .where(
           and(
-            eq(connectionGrants.companyId, connection.companyId),
+            eq(connectionGrants.spaceId, connection.spaceId),
             eq(connectionGrants.connectionId, connection.id),
             eq(connectionGrants.kind, "user"),
             eq(connectionGrants.status, "active"),
@@ -99,7 +99,7 @@ export function createConnectionCredentialAccess(db: Db, { secrets, audit, verce
       .from(connectionGrants)
       .where(
         and(
-          eq(connectionGrants.companyId, connection.companyId),
+          eq(connectionGrants.spaceId, connection.spaceId),
           eq(connectionGrants.connectionId, connection.id),
           eq(connectionGrants.kind, "organization"),
           eq(connectionGrants.isDefault, true),
@@ -129,7 +129,7 @@ export function createConnectionCredentialAccess(db: Db, { secrets, audit, verce
       }
       if (connection.authKind === "oauth" && grant) {
         grant = await refreshOAuthGrantCredentials({
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           connectionId: connection.id,
           grantId: grant.id,
           forceRefresh: options.forceRefresh,
@@ -141,7 +141,7 @@ export function createConnectionCredentialAccess(db: Db, { secrets, audit, verce
     } catch (error) {
       const scope = credentialScope(connection);
       await audit({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         action: "tool_connection.credential_resolution",
         outcome: "failure",
@@ -183,7 +183,7 @@ export function createConnectionCredentialAccess(db: Db, { secrets, audit, verce
                 )
               ).value
             : await secrets.resolveSecretValue(
-                connection.companyId,
+                connection.spaceId,
                 ref.secretId,
                 ref.version ?? "latest",
                 {
@@ -195,7 +195,7 @@ export function createConnectionCredentialAccess(db: Db, { secrets, audit, verce
               );
       } catch (error) {
         await audit({
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           connectionId: connection.id,
           action: "tool_connection.credential_resolution",
           outcome: "failure",
@@ -239,7 +239,7 @@ export function createConnectionCredentialAccess(db: Db, { secrets, audit, verce
       Object.keys(oauthConfig(connection)).length > 0
     ) {
       await audit({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         action: "tool_connection.credential_resolution",
         outcome: "success",
@@ -272,7 +272,7 @@ export function createConnectionCredentialAccess(db: Db, { secrets, audit, verce
       });
       value = grant && grantRef
         ? (await resolveOAuthGrantSecret(connection, grant, grantRef, actor, undefined)).value
-        : await secrets.resolveSecretValue(connection.companyId, ref.secretId, ref.version ?? "latest", {
+        : await secrets.resolveSecretValue(connection.spaceId, ref.secretId, ref.version ?? "latest", {
             consumerType: "tool_connection", consumerId: connection.id,
             configPath: REMOTE_URL_SECRET_CONFIG_PATH,
             actorType: actor?.actorType ?? "system", actorId: actor?.actorId ?? null,

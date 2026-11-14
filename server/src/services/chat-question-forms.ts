@@ -7,7 +7,7 @@ import type {
   AskUserQuestionsAnswer,
   AskUserQuestionsInteraction,
   AskUserQuestionsQuestion,
-  PaperclipQuestionSetQuestion,
+  OutpostQuestionSetQuestion,
 } from "@outpost/shared";
 import {
   Modal,
@@ -91,7 +91,7 @@ export interface ChatQuestionFormSubmitTokenPayload {
 }
 
 export interface ChatQuestionFormActionRecordContext {
-  companyId: string;
+  spaceId: string;
   conversationId: string;
   endpointId: string;
   publicationId: string;
@@ -140,7 +140,7 @@ const CHAT_QUESTION_FORM_DENIAL_MESSAGE =
   "This form is no longer authorized. Close it and open the linked Outpost task.";
 
 /**
- * Provider callbacks must be acknowledged after Paperclip has durably denied a
+ * Provider callbacks must be acknowledged after Outpost has durably denied a
  * stale or unauthorized submission. When the opaque form token is known, keep
  * the modal open with a safe field-level explanation; otherwise clear the
  * untrusted view without reflecting any callback details.
@@ -205,7 +205,7 @@ function canonicalQuestion(
 function questionSetQuestion(
   interaction: AskUserQuestionsInteraction,
   questionId: string,
-): PaperclipQuestionSetQuestion | null {
+): OutpostQuestionSetQuestion | null {
   return (
     interaction.payload.questionSet?.questions.find(
       (question) => question.id === questionId,
@@ -222,7 +222,7 @@ function formKind(
   if (source) {
     if (nativeProvider === "slack" && source.answerMode === "single_select" && source.customAnswer && interaction.payload.questions.length === 1) {
       // The text modal is the Other action beside native choices. Without all
-      // listed choices, keep the complete response path in Paperclip.
+      // listed choices, keep the complete response path in Outpost.
       const choiceCount = question.options.filter(option => !option.freeText).length;
       return choiceCount > 0 && choiceCount <= MAX_NATIVE_SELECT_OPTIONS ? "text" : null;
     }
@@ -365,7 +365,7 @@ export function chatQuestionFormActionRecords(
   context: ChatQuestionFormActionRecordContext,
 ) {
   const shared = {
-    companyId: context.companyId,
+    spaceId: context.spaceId,
     endpointId: context.endpointId,
     conversationId: context.conversationId,
     status: "issued",
@@ -658,7 +658,7 @@ function invalid(
 }
 
 /**
- * Converts opaque submitted values to canonical Paperclip answers. Provider
+ * Converts opaque submitted values to canonical Outpost answers. Provider
  * labels, question ids, option ids, private metadata, and extra form fields are
  * never trusted as canonical identifiers.
  */
@@ -853,7 +853,7 @@ export function chatQuestionFormValidationResponse(
 export async function resolveChatQuestionFormOpen(
   db: ChatQuestionFormDb,
   args: {
-    companyId: string;
+    spaceId: string;
     conversationId: string;
     endpointId: string;
     interaction: AskUserQuestionsInteraction;
@@ -867,7 +867,7 @@ export async function resolveChatQuestionFormOpen(
     .from(chatActions)
     .where(
       and(
-        eq(chatActions.companyId, args.companyId),
+        eq(chatActions.spaceId, args.spaceId),
         eq(chatActions.endpointId, args.endpointId),
         eq(chatActions.conversationId, args.conversationId),
         eq(chatActions.kind, "question_form_open"),
@@ -890,7 +890,7 @@ export async function resolveChatQuestionFormOpen(
     .from(chatActions)
     .where(
       and(
-        eq(chatActions.companyId, args.companyId),
+        eq(chatActions.spaceId, args.spaceId),
         eq(chatActions.endpointId, args.endpointId),
         eq(chatActions.conversationId, args.conversationId),
         eq(chatActions.kind, "question_form_submit"),
@@ -940,7 +940,7 @@ export async function resolveChatQuestionFormSubmission(
   db: ChatQuestionFormDb,
   args: {
     callbackId: string;
-    companyId: string;
+    spaceId: string;
     conversationId?: string;
     endpointId: string;
     interaction: AskUserQuestionsInteraction;
@@ -951,7 +951,7 @@ export async function resolveChatQuestionFormSubmission(
 ): Promise<ResolvedChatQuestionFormSubmission | null> {
   const loaded = await loadChatQuestionFormSubmissionToken(db, {
     callbackId: args.callbackId,
-    companyId: args.companyId,
+    spaceId: args.spaceId,
     endpointId: args.endpointId,
   });
   if (
@@ -984,7 +984,7 @@ export async function loadChatQuestionFormSubmissionToken(
   db: ChatQuestionFormDb,
   args: {
     callbackId: string;
-    companyId: string;
+    spaceId: string;
     endpointId: string;
     includeProcessed?: boolean;
   },
@@ -995,7 +995,7 @@ export async function loadChatQuestionFormSubmissionToken(
     .from(chatActions)
     .where(
       and(
-        eq(chatActions.companyId, args.companyId),
+        eq(chatActions.spaceId, args.spaceId),
         eq(chatActions.endpointId, args.endpointId),
         eq(chatActions.kind, "question_form_submit"),
         eq(chatActions.providerActionId, args.callbackId),

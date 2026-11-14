@@ -86,7 +86,7 @@ export function InstanceExperimentalSettings() {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: "Settings", href: "/company/settings" },
+      { label: "Settings", href: "/space/settings" },
       { label: "Experimental" },
     ]);
   }, [setBreadcrumbs]);
@@ -167,13 +167,13 @@ export function InstanceExperimentalSettings() {
   const enableGoalsSidebarLink = experimentalQuery.data?.enableGoalsSidebarLink === true;
   const enableCases = experimentalQuery.data?.enableCases === true;
   const enableServerInfoDebugView = experimentalQuery.data?.enableServerInfoDebugView === true;
-  const enablePaperclipDeveloperMode =
-    experimentalQuery.data?.enablePaperclipDeveloperMode === true;
+  const enableOutpostDeveloperMode =
+    experimentalQuery.data?.enableOutpostDeveloperMode === true;
   const autoRestartDevServerWhenIdle = experimentalQuery.data?.autoRestartDevServerWhenIdle === true;
   const isVisible = (key: InstanceFeatureKey) => !hiddenSettings.has(experimentalSettingKey(key));
   const showDeveloperSection = ([
     "autoRestartDevServerWhenIdle",
-    "enablePaperclipDeveloperMode",
+    "enableOutpostDeveloperMode",
     "enableServerInfoDebugView",
   ] satisfies InstanceFeatureKey[]).some(isVisible);
   return (
@@ -284,13 +284,13 @@ export function InstanceExperimentalSettings() {
           <ExperimentalToggleCard
             title="Outpost Developer Mode"
             description="Show internal Outpost maintainer tools and observability links, including Honeycomb trace queries on run pages."
-            checked={enablePaperclipDeveloperMode}
+            checked={enableOutpostDeveloperMode}
             onCheckedChange={(checked) =>
-              toggleMutation.mutate({ enablePaperclipDeveloperMode: checked })
+              toggleMutation.mutate({ enableOutpostDeveloperMode: checked })
             }
             disabled={toggleMutation.isPending}
-            settingKey="enablePaperclipDeveloperMode"
-            managed={managedKeys.enablePaperclipDeveloperMode}
+            settingKey="enableOutpostDeveloperMode"
+            managed={managedKeys.enableOutpostDeveloperMode}
             ariaLabel="Toggle Outpost developer mode experimental setting"
           />
 

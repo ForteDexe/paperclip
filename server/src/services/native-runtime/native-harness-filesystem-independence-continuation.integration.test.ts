@@ -9,7 +9,7 @@ import { describeEmbeddedPostgres, nativeRestartFixture } from "../../__tests__/
 import { DurablePrpControlPlane, parseNativeExecutionInput, QUALIFIED_ACPX_PROFILES, QUALIFIED_ACPX_VERSION, type NativeSessionBackend, type PersistedNativeSession } from "../../vendor/outpost-runner/index.js";
 import { createNativeControllerRecovery } from "./native-controller-recovery.js";
 import { nativeRunnerCheckpointWriter } from "./native-runner-checkpoint.js";
-import { createRunnerdBackend, executePaperclipNativeSession, nativeControllerMigrationDescriptor, scopedRunnerdStateRoot } from "./native-session-executor.js";
+import { createRunnerdBackend, executeOutpostNativeSession, nativeControllerMigrationDescriptor, scopedRunnerdStateRoot } from "./native-session-executor.js";
 import { nativeToolContractFingerprintForTarget, rebindNativeSessionCheckpoint } from "./native-session-resume.js";
 import { prepareNativeHeartbeatRun } from "./prepare-native-run.js";
 import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
@@ -27,7 +27,7 @@ vi.mock("../../vendor/outpost-runner/index.js", async importOriginal => ({
   bundledRemoteProviderPackManifestPath: () => remoteBoundary.packPath,
   bundledRemoteRunnerBinary: () => remoteBoundary.binaryPath,
 }));
-vi.mock("./outpost-runner-tool-authority.js", () => ({ PaperclipRunnerToolAuthority: class {
+vi.mock("./outpost-runner-tool-authority.js", () => ({ OutpostRunnerToolAuthority: class {
   readonly binding = {};
   async definitions() { return []; }
   close() {}
@@ -39,12 +39,12 @@ describeEmbeddedPostgres("legacy harness continuation without provider-home file
   afterEach(async () => { vi.unstubAllEnvs(); for (const home of homes.splice(0)) await rm(home, { recursive: true, force: true }); });
 
   it.each([["codex", "per_turn"], ["opencode", "per_turn"], ["codex", "warm"]] as const)("preserves explicit %s %s recovery policy through server and Runner on both homes", async (provider, lifecycle) => {
-    for (const policy of ["allow_replacement_after_resume_failure", "allow_replacement_after_governed_wait"] as const) {
+    for (const policy of ["allow_replacement_after_resume_failure", "allow_replacement_after_controlled_wait"] as const) {
       const observations = [];
       for (const pose of ["original", "empty"] as const) {
         vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "61".repeat(32));
         const f = await environment.seedRun(randomUUID());
-        const { companyId, agentId, runtimeRoot } = environment.current;
+        const { spaceId, agentId, runtimeRoot } = environment.current;
         const home = await mkdtemp(join(tmpdir(), "native-harness-independence-")); homes.push(home);
         vi.stubEnv("OUTPOST_HOME", home);
         const workspaceId = randomUUID();
@@ -53,15 +53,15 @@ describeEmbeddedPostgres("legacy harness continuation without provider-home file
         const execution = parseNativeExecutionInput({
           schema: "outpost.native-execution-input.v5", executionMode: "default", planningContext: null,
           provider: provider === "codex" ? { kind: "codex", model: null, approvalPolicy: "never" } : { kind: "opencode", model: "fixture/model", permissionMode: "allow" },
-          binding: { companyId, agentId, issueId: f.issueId, runId: f.runId, executionWorkspaceId: workspaceId },
+          binding: { spaceId, agentId, issueId: f.issueId, runId: f.runId, executionWorkspaceId: workspaceId },
           task: { identifier: "LHI-1", title: "Retained provider work", description: null, prompt: "Continue the saved work.", workMode: "standard" },
           workspace: { cwd: runtimeRoot, repoUrl: null, repoRef: null, branchName: null },
           session: { normalizedSessionId: f.native.normalizedSessionId, driverKind: provider === "codex" ? "codex_app_server" : "opencode_server", protocolVersion: 1, lifecyclePolicy: lifecycle === "per_turn" ? { mode: "per_turn", idleTimeoutMs: null } : { mode: "warm", idleTimeoutMs: 60_000 } },
           completionContract: { id: contract!.id, sha256: contract!.canonicalSha256, schemaVersion: contract!.schemaVersion, contract: contract!.contractJson },
           runtimeContext: nativeRuntimeContextFixture(), credentialBindings: [], interactionResponses: [],
         });
-        const semanticResult = { schema: "outpost.run_result.v1", reportedWorkDisposition: policy === "allow_replacement_after_governed_wait" ? "yielded" : "done", summary: "Prior provider result", completionClaim: { contractRevision: "1", objectiveSatisfied: policy !== "allow_replacement_after_governed_wait", criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: [] }], remainingWork: [] }, evidence: [], verification: [], attentionRequests: [], artifacts: [], ...(policy === "allow_replacement_after_governed_wait" ? { continuation: { kind: "response_wake", summary: "Continue after the answer", idempotencyKey: "fixture-answer" } } : {}) };
-        const snapshot: PersistedNativeSession = { backendKind: "runner", driverKind: execution.session.driverKind, sessionId: "retained-driver-session", providerSessionId: "retained-provider-session", identity: { companyId, agentId, issueId: f.issueId, runId: f.runId, sessionId: f.native.normalizedSessionId }, cursor: "0", activeTurnId: null, pendingRuntimeRequests: [], terminalTurns: [], lineage: [], semanticResult: semanticResult as never, goal: null };
+        const semanticResult = { schema: "outpost.run_result.v1", reportedWorkDisposition: policy === "allow_replacement_after_controlled_wait" ? "yielded" : "done", summary: "Prior provider result", completionClaim: { contractRevision: "1", objectiveSatisfied: policy !== "allow_replacement_after_controlled_wait", criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: [] }], remainingWork: [] }, evidence: [], verification: [], attentionRequests: [], artifacts: [], ...(policy === "allow_replacement_after_controlled_wait" ? { continuation: { kind: "response_wake", summary: "Continue after the answer", idempotencyKey: "fixture-answer" } } : {}) };
+        const snapshot: PersistedNativeSession = { backendKind: "runner", driverKind: execution.session.driverKind, sessionId: "retained-driver-session", providerSessionId: "retained-provider-session", identity: { spaceId, agentId, issueId: f.issueId, runId: f.runId, sessionId: f.native.normalizedSessionId }, cursor: "0", activeTurnId: null, pendingRuntimeRequests: [], terminalTurns: [], lineage: [], semanticResult: semanticResult as never, goal: null };
         const fingerprint = nativeToolContractFingerprintForTarget("remote", provider);
         const descriptor = nativeControllerMigrationDescriptor(execution, fingerprint);
         const bootId = randomUUID(), leaseOwner = randomUUID();
@@ -70,28 +70,28 @@ describeEmbeddedPostgres("legacy harness continuation without provider-home file
         for (const type of ["run.prepare", "session.open", "turn.start", "runner.suspend"]) Object.assign(core.queueCommand(type), { status: "completed", result: { status: "completed" } });
         core.store.state.committedEvents.push({ sourceSeq: 1, sourceEventId: "fixture-terminal", eventType: "run.terminal", priority: 0, envelope: { ...core.store.state.identity }, deliveryCount: 1, logicalEffectCount: 1 });
         core.store.state.ackedSourceSeq = 1;
-        core.setCheckpointPersistence(nativeRunnerCheckpointWriter(f.db, { companyId, issueId: f.issueId, runId: f.runId, authorityRunId: f.runId, bootId, generation: 1, leaseOwner }));
+        core.setCheckpointPersistence(nativeRunnerCheckpointWriter(f.db, { spaceId, issueId: f.issueId, runId: f.runId, authorityRunId: f.runId, bootId, generation: 1, leaseOwner }));
         await core.flushCheckpoint(); await core.stop();
-        const [result] = await f.db.insert(nativeRunResults).values({ companyId, issueId: f.issueId, runId: f.runId, completionContractId: (await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]!.completionContractId!, serverFingerprint: randomUUID(), schemaStatus: "accepted", resultJson: semanticResult, canonicalSha256: "a".repeat(64) }).returning();
+        const [result] = await f.db.insert(nativeRunResults).values({ spaceId, issueId: f.issueId, runId: f.runId, completionContractId: (await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]!.completionContractId!, serverFingerprint: randomUUID(), schemaStatus: "accepted", resultJson: semanticResult, canonicalSha256: "a".repeat(64) }).returning();
         const sourceProfile = { ...f.preparedProfile, nativeExecutionInput: execution, nativeToolContractFingerprint: fingerprint, sessionCheckpoint: snapshot, nativeControllerRecovery: createNativeControllerRecovery(snapshot, { configDigest: descriptor.configDigest, processConfigDigest: null }, { runId: f.runId, runnerInstanceId: f.native.runnerInstanceId, normalizedSessionId: f.native.normalizedSessionId }) };
         await f.db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date(), runnerProfileJson: sourceProfile }).where(eq(heartbeatRuns.id, f.runId));
         await f.db.update(nativeRunFinalizations).set({ phase: "committed", resultId: result!.id, leaseOwner: null, leaseExpiresAt: null }).where(eq(nativeRunFinalizations.runId, f.runId));
         if (pose === "original") { await mkdir(join(scopedRunnerdStateRoot(execution), "codex-home", "skills"), { recursive: true, mode: 0o700 }); await writeFile(join(home, "retained-unrelated-file"), "preserve"); }
         const runId = randomUUID();
-        const [run] = await f.db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: f.issueId, issueId: f.issueId, status: "running", runtimeMode: "native", nativeSessionId: f.native.normalizedSessionId, runnerInstanceId: f.native.runnerInstanceId, completionContractId: sourceRun!.completionContractId, completionContractSha256: sourceRun!.completionContractSha256 }).returning();
+        const [run] = await f.db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: f.issueId, issueId: f.issueId, status: "running", runtimeMode: "native", nativeSessionId: f.native.normalizedSessionId, runnerInstanceId: f.native.runnerInstanceId, completionContractId: sourceRun!.completionContractId, completionContractSha256: sourceRun!.completionContractSha256 }).returning();
         const native = await prepareNativeHeartbeatRun({ db: f.db, run: run!, issue: { id: f.issueId, title: "Retained provider work", description: null }, environmentLeaseId: randomUUID() });
         const current = { ...execution, binding: { ...execution.binding, runId } };
-        const rebound = rebindNativeSessionCheckpoint({ previousRun: { id: f.runId, companyId, agentId, nativeSessionId: f.native.normalizedSessionId, runnerProfileJson: sourceProfile }, currentExecution: current, executionTargetKind: "remote" });
+        const rebound = rebindNativeSessionCheckpoint({ previousRun: { id: f.runId, spaceId, agentId, nativeSessionId: f.native.normalizedSessionId, runnerProfileJson: sourceProfile }, currentExecution: current, executionTargetKind: "remote" });
         expect(rebound?.providerRecoveryPolicy).toBe(policy);
         const [prepared] = await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
         await f.db.update(heartbeatRuns).set({ runnerProfileJson: { ...prepared!.runnerProfileJson, nativeExecutionInput: current, sessionCheckpoint: rebound } }).where(eq(heartbeatRuns.id, runId));
-        await f.db.insert(nativeRunFinalizations).values({ runId, companyId, issueId: f.issueId, phase: "observed" });
+        await f.db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId: f.issueId, phase: "observed" });
         await f.db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, f.issueId));
         const recover = vi.fn(async (saved: PersistedNativeSession) => ({ recovered: false as const, reason: "fixture provider source is absent" }));
         const fresh = vi.fn(async () => { throw new Error("fixture replacement observed before provider turn"); });
         const describe = vi.fn<NativeSessionBackend["descriptor"]>(async () => ({ kind: "runner", name: "controlled provider boundary", version: "fixture", capabilities: { resume: true, typedEvents: true, steering: false, interruption: true, structuredResult: true }, runtimeContextCapabilities: { instructions: "native", skills: "native", mcp: "native" } }));
         const backend: NativeSessionBackend = { descriptor: describe, recoverSession: recover, openSession: fresh, openReplacementSession: fresh };
-        const failure = await executePaperclipNativeSession({ db: f.db, execution: current, runnerInstanceId: native.runnerInstanceId, useRunnerd: true, backend, runnerExecutionTarget: { kind: "remote", transport: "sandbox", remoteCwd: runtimeRoot, environmentId: randomUUID(), leaseId: randomUUID(), providerKey: "fixture", reusableLeaseConfigured: true, runner: { execute: async () => { throw new Error("unexpected remote process execution"); } }, sandboxLeaseAcquisition: { outcome: "created", providerLeaseId: "new-fixture-sandbox" } } as never }).catch(error => error);
+        const failure = await executeOutpostNativeSession({ db: f.db, execution: current, runnerInstanceId: native.runnerInstanceId, useRunnerd: true, backend, runnerExecutionTarget: { kind: "remote", transport: "sandbox", remoteCwd: runtimeRoot, environmentId: randomUUID(), leaseId: randomUUID(), providerKey: "fixture", reusableLeaseConfigured: true, runner: { execute: async () => { throw new Error("unexpected remote process execution"); } }, sandboxLeaseAcquisition: { outcome: "created", providerLeaseId: "new-fixture-sandbox" } } as never }).catch(error => error);
         // A warm owner whose controller a restart replaced, on a newly created
         // sandbox, is retired like a per-turn owner and resumes the same way.
         expect(recover, String(failure)).toHaveBeenCalledOnce();

@@ -108,7 +108,7 @@ Current assembled cases cover:
   activation reconstructs that obligation and produces a durable cleanup result.
   Activation uses the stored instance identity and timestamp; no direct worker
   wake or safety-gate bypass is used.
-- Ordinary HTTP company/settings/completed-task creation, independent durable
+- Ordinary HTTP space/settings/completed-task creation, independent durable
   inspection, drain/resume and two additional hourly windows without owner work.
 - An ordinary HTTP issue insertion held by an isolated PostgreSQL lock while
   idle drain starts, followed by its actual commit and external-object source
@@ -143,7 +143,7 @@ Current assembled cases cover:
   ten days; cleanup results are created only by the production owner.
 
 Warm standby retains exactly one identified startup intent: the committed
-`companyTransferRunService.recoverStrandedApplyingRuns` notification to import
+`spaceTransferRunService.recoverStrandedApplyingRuns` notification to import
 spool cleanup. The Cloud coordinator deliberately disables both dispatch and
 reconciliation before claim, so the hold remains even with zero transfer rows.
 The test qualifies SQL/network quiet with that explicit deferred intent, then

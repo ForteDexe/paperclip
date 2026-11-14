@@ -156,7 +156,7 @@ function safeCardForPublication(
     const inserted = await tx
       .insert(chatMessageLinks)
       .values({
-        companyId: input.publication.companyId,
+        spaceId: input.publication.spaceId,
         endpointId: input.publication.endpointId,
         conversationId: input.publication.conversationId,
         publicationId: input.publication.id,
@@ -172,7 +172,7 @@ function safeCardForPublication(
       .from(chatMessageLinks)
       .where(
         and(
-          eq(chatMessageLinks.companyId, input.publication.companyId),
+          eq(chatMessageLinks.spaceId, input.publication.spaceId),
           eq(chatMessageLinks.endpointId, input.publication.endpointId),
           eq(chatMessageLinks.conversationId, input.publication.conversationId),
           eq(chatMessageLinks.publicationId, input.publication.id),
@@ -189,17 +189,17 @@ function safeCardForPublication(
 
   async function postSafePublication(input: PublicationTransportInput) {
     if (input.endpoint.provider === "speko") {
-      const receipt = await voiceStore.enqueuePublication(input.endpoint.companyId, input.publication.id);
+      const receipt = await voiceStore.enqueuePublication(input.endpoint.spaceId, input.publication.id);
       return receipt;
     }
     if (input.endpoint.provider === "github" && ["failed", "completed"].includes(input.payload.progressState ?? "") &&
         !input.payload.interactionId && !isExplicitOperatorPublication(input.publication) &&
         (await db.select({ endpointId: chatGitHubConfigurations.endpointId }).from(chatGitHubConfigurations).where(and(
-          eq(chatGitHubConfigurations.companyId, input.endpoint.companyId), eq(chatGitHubConfigurations.endpointId, input.endpoint.id))).limit(1)).length > 0) {
+          eq(chatGitHubConfigurations.spaceId, input.endpoint.spaceId), eq(chatGitHubConfigurations.endpointId, input.endpoint.id))).limit(1)).length > 0) {
       const runId = runIdFromMilestonePublication(input.publication);
       if (!runId) throw forbidden("GitHub failure has no run binding");
       const receipt = await githubResponseCommentService(db, fetchImpl).failRun({
-        companyId: input.publication.companyId, endpointId: input.endpoint.id,
+        spaceId: input.publication.spaceId, endpointId: input.endpoint.id,
         issueId: input.publication.issueId, runId, body: input.payload.progressState === "completed"
           ? "This turn ended without publishing a final response. See the Outpost task for details."
           : renderPublicationTransportText(input.payload),

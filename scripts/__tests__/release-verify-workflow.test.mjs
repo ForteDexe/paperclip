@@ -83,7 +83,7 @@ test("source proof gates publication without occupying a publication runner", ()
     ["refs/heads/master", "false", "success", true],
     ["refs/heads/master", "false", "failure", false],
     ["refs/tags/v1", undefined, "skipped", true],
-    ["refs/heads/master", undefined, "skipped", true, "fork/paperclip", "123"],
+    ["refs/heads/master", undefined, "skipped", true, "fork/outpost", "123"],
     ["refs/heads/master", undefined, "skipped", true, "paperclipai/paperclip", "123"],
   ]) {
     const canonical = repository === "paperclipai/paperclip" && repository_id === "1170821064" && ref === "refs/heads/master";
@@ -209,7 +209,7 @@ test("canary publisher attaches the exact source while local and remote master a
 });
 
 for (const [name, overrides] of [
-  ["fork repository", { GITHUB_REPOSITORY: "example/paperclip" }],
+  ["fork repository", { GITHUB_REPOSITORY: "example/outpost" }],
   ["manual dispatch", { GITHUB_EVENT_NAME: "workflow_dispatch" }],
   ["scheduled release", { GITHUB_EVENT_NAME: "schedule" }],
   ["non-master push", { GITHUB_REF: "refs/heads/topic" }],
@@ -357,7 +357,7 @@ test("published canaries are gated by the exact-version onboarding browser smoke
   }
   assert.match(
     releaseWorkflow,
-    /PAPERCLIPAI_VERSION: \$\{\{ needs\.publish_canary\.outputs\.canary_version \}\}/,
+    /OUTPOST_VERSION: \$\{\{ needs\.publish_canary\.outputs\.canary_version \}\}/,
   );
   assert.match(releaseWorkflow, /test:canary-onboarding-smoke/);
   assert.match(
@@ -500,7 +500,7 @@ test("release smoke workflow extends the container readiness budget for CI", () 
     "utf8",
   );
 
-  // CI containers cold-install paperclipai and embedded postgres, so the
+  // CI containers cold-install outpost and embedded postgres, so the
   // workflow must extend the harness's local-default readiness budget.
   assert.match(smokeWorkflow, /SMOKE_READY_TIMEOUT_SECONDS=\d+/);
   const ciBudget = Number(
@@ -536,7 +536,7 @@ test("release verify workflow covers the same split test surface as stable PR ve
     .flatMap(([, checks]) => checks.split(" "));
   assert.deepEqual(runnerChecks, runnerScripts["check:all"].split(" && ")
     .map((command) => command.replace(/^pnpm run /, "")));
-  assert.match(verifyWorkflow, /pnpm --filter @paperclipai\/outpost-runner "\$check"/);
+  assert.match(verifyWorkflow, /pnpm --filter @outpost\/outpost-runner "\$check"/);
   assert.match(verifyWorkflow, /runner_workflow_evals:/);
   assert.match(verifyWorkflow, /runner_chaos_evals:/);
   assert.match(
@@ -608,7 +608,7 @@ test("chaos verification prepares native Runner binaries before fault suites", (
   const workflow = readWorkflow("runner-chaos-evals.yml");
   const steps = workflow.split(/\n(?=      - )/);
   const install = steps.find(step => /run:\s*pnpm install\b/.test(step));
-  const prepare = steps.find(step => /run:\s*pnpm --filter @paperclipai\/outpost-runner build:rust\b/.test(step));
+  const prepare = steps.find(step => /run:\s*pnpm --filter @outpost\/outpost-runner build:rust\b/.test(step));
   const faults = steps.find(step => /src\/native-session-runtime\.test\.ts/.test(step));
   assert.ok(install && prepare && faults, "the real Runner fault suite needs its native build prerequisite");
   assert.ok(steps.indexOf(install) < steps.indexOf(prepare));
@@ -879,7 +879,7 @@ test("direct Grok qualification installs the pinned binary and scopes the select
   const workflow = readWorkflow("runner-protocol-live-evals.yml");
   assert.ok(workflow.includes("XAI_API_KEY: ${{ matrix.credentialName == 'XAI_API_KEY' && secrets.XAI_API_KEY || '' }}"));
   assert.ok(workflow.includes("if [ -f packages/outpost-runner/scripts/provision-grok.mjs ]; then"));
-  assert.ok(workflow.indexOf("sudo node packages/outpost-runner/scripts/provision-grok.mjs /opt/paperclip/providers/grok/1.0.13/grok") < workflow.indexOf("pnpm --filter @outpost/outpost-runner deploy --prod"));
+  assert.ok(workflow.indexOf("sudo node packages/outpost-runner/scripts/provision-grok.mjs /opt/outpost/providers/grok/1.0.13/grok") < workflow.indexOf("pnpm --filter @outpost/outpost-runner deploy --prod"));
   assert.ok(workflow.includes("OUTPOST_ACPX_GROK_AUTH_JSON_SECRET: ${{ matrix.credentialName == 'OUTPOST_ACPX_GROK_AUTH_JSON_SECRET' && secrets.GROK_AUTH_JSON || '' }}"));
   assert.equal((workflow.match(/secrets\.GROK_AUTH_JSON/gu) ?? []).length, 1);
 });
@@ -997,7 +997,7 @@ test('native dependency caches are target-bound and unmerged master callers cann
     [{ event_name: 'workflow_dispatch' }, 'b'.repeat(40)],
     [{ event_name: 'pull_request', ref: 'refs/pull/123/merge' }, github.sha],
     [{ ref: 'refs/heads/topic' }, github.sha],
-    [{ repository: 'fork/paperclip' }, github.sha],
+    [{ repository: 'fork/outpost' }, github.sha],
     [{ repository_id: '1' }, github.sha],
   ]) assert.equal(canSave({ ...github, ...overrides }, { ref: input }), false);
   assert.match(producer, /pinned="\$HOME\/outpost-runner-rust"/);
@@ -1167,7 +1167,7 @@ test("native ARM qualification prepares its scoped distro sandbox before the exi
   assert.doesNotMatch(tooling + preparation, /github\.workflow_sha|github\.sha|ref: (?:master|main)|ref: \$\{\{ inputs\.qualification_source_sha/);
   assert.ok(native.indexOf("Checkout immutable ARM qualification tooling") < native.indexOf("Prepare Linux ARM sandbox prerequisites"));
   assert.ok(native.indexOf("Prepare Linux ARM sandbox prerequisites") < native.indexOf("Verify host identity and actual clean npm consumer"));
-  assert.match(native, /path: \|\n\s+\$\{\{ runner\.temp \}\}\/native-public-install\.json\n\s+\$\{\{ runner\.temp \}\}\/paperclip-arm-bwrap-prerequisite\//);
+  assert.match(native, /path: \|\n\s+\$\{\{ runner\.temp \}\}\/native-public-install\.json\n\s+\$\{\{ runner\.temp \}\}\/outpost-arm-bwrap-prerequisite\//);
   assert.doesNotMatch(smoke.split("  qualification_daemons:\n")[0], /prepare-linux-arm64-qualification/,
     "ordinary service and Docker smoke keep their existing setup");
 });
@@ -1200,7 +1200,7 @@ test("ARM qualification binds separate product and reusable-workflow revisions e
       assert.equal(existsSync(prepared), expectedStatus === 0);
       if (expectedStatus === 0) {
         assert.equal(readFileSync(prepared, "utf8").trim(), toolingSha);
-        const identity = JSON.parse(readFileSync(path.join(report, "paperclip-arm-bwrap-prerequisite", "qualification-identity.json"), "utf8"));
+        const identity = JSON.parse(readFileSync(path.join(report, "outpost-arm-bwrap-prerequisite", "qualification-identity.json"), "utf8"));
         assert.equal(identity.productSourceSha, productSha);
         assert.equal(identity.toolingSourceSha, toolingSha);
         assert.equal(identity.toolingRepository, "paperclipai/paperclip");
@@ -1230,7 +1230,7 @@ test("Linux ARM prerequisite setup rejects other hosts before invoking tools and
       assert.equal(result.status, 1);
       assert.match(result.stderr, /requires a GitHub Actions Linux runner/);
       assert.equal(existsSync(sentinel), false, "host guard must precede every external tool");
-      assert.equal(existsSync(path.join(root, "paperclip-arm-bwrap-prerequisite")), false);
+      assert.equal(existsSync(path.join(root, "outpost-arm-bwrap-prerequisite")), false);
     }
     assert.ok(source.indexOf('"${GITHUB_ACTIONS:-}" != true') < source.indexOf(". /etc/os-release"));
     assert.match(source, /-o Acquire::AllowInsecureRepositories=false/);
@@ -1275,7 +1275,7 @@ test("exact-source daemon matrices read inert data and never execute preview run
     const historical = ['darwin-arm64', 'darwin-x64', 'linux-x64'];
     const current = [...historical, 'linux-arm64'];
     const contract = targets => JSON.stringify({ schema: 'outpost.runner.release-targets.v1', targets });
-    const malicious = `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'executed');\nwriteFileSync(process.env.GITHUB_OUTPUT, 'matrix={"include":[{"target":"linux-x64","host":"runs-on/fleet=paperclip-post-merge-x64/env=public-ci"}]}\\n');\nprocess.exit(0);\n`;
+    const malicious = `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'executed');\nwriteFileSync(process.env.GITHUB_OUTPUT, 'matrix={"include":[{"target":"linux-x64","host":"runs-on/fleet=outpost-post-merge-x64/env=public-ci"}]}\\n');\nprocess.exit(0);\n`;
     const pin = (module, data) => {
       rmSync(dataFile, { force: true });
       writeFileSync(source, module);
@@ -1314,7 +1314,7 @@ test("exact-source daemon matrices read inert data and never execute preview run
       assertMatrix(targets);
     }
     const sha = pin(malicious, contract(current));
-    writeFileSync(dataFile, contract(['runs-on/fleet=paperclip-post-merge-x64/env=public-ci']));
+    writeFileSync(dataFile, contract(['runs-on/fleet=outpost-post-merge-x64/env=public-ci']));
     assert.equal(run(sha).status, 0, 'Read the immutable git blob, not a changed checkout file');
     assertMatrix(current);
     assert.equal(run('a'.repeat(40)).status, 1, 'Wrong checked-out source must fail before output');
@@ -1392,7 +1392,7 @@ test("canary startup refreshes an incomplete dependency publication, then onboar
   assert.equal(onboarding.length, 1);
   for (const call of installs) {
     assert.equal(call.args[0], "install");
-    assert.ok(call.args.includes("paperclipai@2026.1009.0-canary.1"));
+    assert.ok(call.args.includes("@outpost/cli@2026.1009.0-canary.1"));
     assert.ok(call.args.includes("--no-package-lock"));
     assert.ok(call.args.includes("--no-save"));
   }
@@ -1484,7 +1484,7 @@ function tarballProof({ config = {}, manifest = {}, status = 200, redirected = f
     signal: new AbortController().signal, prefix: "/fixture/install", env: {},
     runConfig: async (command, args, options) => {
       calls.push({ kind: "config", command, args, options });
-      return { code: 0, stdout: "registry=https://registry.npmjs.org/\n@paperclipai:registry=undefined\n", ...config };
+      return { code: 0, stdout: "registry=https://registry.npmjs.org/\n@outpost:registry=undefined\n", ...config };
     },
     fetchMetadata: async (url, options) => {
       calls.push({ kind: "metadata", url, options });
@@ -1498,13 +1498,13 @@ test("exact published tarball proof uses quiet effective config and fresh public
     const fixture = tarballProof();
     assert.equal(await canRetryPublishedTarball404(tarballFailure(canaryTarball, prefix), exactCanary, fixture.options), true);
     const [config, metadata] = fixture.calls;
-    assert.deepEqual(config.args, ["config", "get", "registry", "@paperclipai:registry", "--prefix", "/fixture/install"]);
+    assert.deepEqual(config.args, ["config", "get", "registry", "@outpost:registry", "--prefix", "/fixture/install"]);
     assert.equal(config.options.env, fixture.options.env);
     assert.equal(config.options.quiet, true);
     assert.equal(config.options.captureStdout, true);
     assert.equal(config.options.captureStderr, true);
     assert.equal(config.options.outputLimit, 4096);
-    assert.equal(metadata.url, `https://registry.npmjs.org/%40paperclipai%2Fserver/${exactCanary}`);
+    assert.equal(metadata.url, `https://registry.npmjs.org/%40outpost%2Fserver/${exactCanary}`);
     assert.equal(metadata.options.signal, config.options.signal);
     assert.equal(metadata.options.redirect, "error");
     assert.equal(metadata.options.credentials, "omit");
@@ -1523,11 +1523,11 @@ test("mixed npm errors and noncanonical or unreleased tarballs never read config
     ...[
       canaryTarball + "?token=fixture", canaryTarball + "#fragment", canaryTarball.replace("npmjs.org/", "npmjs.org:443/"),
       canaryTarball.replace("npmjs.org/", "npmjs.org.example.invalid/"), canaryTarball.replace("npmjs.org/", "fixture@npmjs.org/"),
-      canaryTarball.replace("https:", "http:"), canaryTarball.replace("@outpost/server", "%40paperclipai%2Fserver"),
+      canaryTarball.replace("https:", "http:"), canaryTarball.replace("@outpost/server", "%40outpost%2Fserver"),
       canaryTarball.replace("@outpost/server", "@outpost/../server"), canaryTarball.replace(exactCanary, "2026.1009.0-canary.2"),
       "https://registry.npmjs.org/@outpost/not-released/-/not-released-2026.1009.0-canary.1.tgz",
       "https://registry.npmjs.org/@outpost/plugin-createos/-/plugin-createos-2026.1009.0-canary.1.tgz",
-      "https://registry.npmjs.org/%40paperclipai%2Fserver/2026.1009.0-canary.1",
+      "https://registry.npmjs.org/%40outpost%2Fserver/2026.1009.0-canary.1",
     ].map((url) => tarballFailure(url)),
   ];
   for (const error of errors) {
@@ -1544,13 +1544,13 @@ test("mixed npm errors and noncanonical or unreleased tarballs never read config
 
 test("effective registry authority respects scope precedence and rejects unknown or private config", async () => {
   const configs = [
-    [{ stdout: "registry=https://registry.example.invalid/\n@paperclipai:registry=https://registry.npmjs.org/\n" }, true],
-    [{ stdout: "registry=undefined\n@paperclipai:registry=https://registry.npmjs.org/\n" }, true],
-    [{ stdout: "registry=https://registry.npmjs.org/\n@paperclipai:registry=https://registry.example.invalid/\n" }, false],
-    [{ stdout: "registry=https://registry.example.invalid/\n@paperclipai:registry=undefined\n" }, false],
-    [{ stdout: "registry=undefined\n@paperclipai:registry=undefined\n" }, false],
-    [{ stdout: "registry=https://registry.npmjs.org/\n@paperclipai:registry=\n" }, false],
-    [{ stdout: "registry=https://fixture:secret@registry.npmjs.org/\n@paperclipai:registry=undefined\n" }, false],
+    [{ stdout: "registry=https://registry.example.invalid/\n@outpost:registry=https://registry.npmjs.org/\n" }, true],
+    [{ stdout: "registry=undefined\n@outpost:registry=https://registry.npmjs.org/\n" }, true],
+    [{ stdout: "registry=https://registry.npmjs.org/\n@outpost:registry=https://registry.example.invalid/\n" }, false],
+    [{ stdout: "registry=https://registry.example.invalid/\n@outpost:registry=undefined\n" }, false],
+    [{ stdout: "registry=undefined\n@outpost:registry=undefined\n" }, false],
+    [{ stdout: "registry=https://registry.npmjs.org/\n@outpost:registry=\n" }, false],
+    [{ stdout: "registry=https://fixture:secret@registry.npmjs.org/\n@outpost:registry=undefined\n" }, false],
     [{ stdout: "unexpected output\n" }, false], [{ code: 1 }, false], [{ signal: "SIGTERM" }, false], [{ outputTruncated: true }, false],
   ];
   for (const [config, expected] of configs) {
@@ -1642,8 +1642,8 @@ test("real npm effective registry reads isolated prefix, user, and environment c
   try {
     for (const [user, project, override, expected] of [
       ["registry=https://registry.npmjs.org/\n", "", undefined, true],
-      ["registry=https://registry.example.invalid/\n", "@paperclipai:registry=https://registry.npmjs.org/\n", undefined, true],
-      ["registry=https://registry.npmjs.org/\n", "@paperclipai:registry=https://registry.example.invalid/\n", undefined, false],
+      ["registry=https://registry.example.invalid/\n", "@outpost:registry=https://registry.npmjs.org/\n", undefined, true],
+      ["registry=https://registry.npmjs.org/\n", "@outpost:registry=https://registry.example.invalid/\n", undefined, false],
       ["registry=https://registry.npmjs.org/\n", "", "https://registry.example.invalid/", false],
     ]) {
       writeFileSync(path.join(root, "user.npmrc"), user);

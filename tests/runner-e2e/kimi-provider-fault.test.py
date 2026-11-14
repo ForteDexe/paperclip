@@ -22,8 +22,8 @@ BOOT = '12345678-1234-1234-1234-123456789abc'
 ROOT = {'pid': 21, 'ppid': 1, 'startTicks': '100', 'bootId': BOOT}
 PARENT = {'pid': 22, 'ppid': 21, 'startTicks': '101', 'bootId': BOOT}
 TARGET = {'pid': 23, 'ppid': 22, 'startTicks': '102', 'bootId': BOOT}
-DIST = '/tmp/paperclip-acpx-native-fixture/distribution'
-RUNTIME = '/workspace/.paperclip-runtime/outpost-runner'
+DIST = '/tmp/outpost-acpx-native-fixture/distribution'
+RUNTIME = '/workspace/.outpost-runtime/outpost-runner'
 HOST_NODE = fault.PACK + '/node_modules/node/bin/node'
 LOADER = 'admitted guarded loader'
 CANCELLED = False
@@ -77,12 +77,12 @@ class IdentityTests(unittest.TestCase):
                 return metadata(self.stats[path][0])
             return original_stat(path)
         kernel = SimpleNamespace(F_GET_SEALS=1034, F_SEAL_SEAL=1, F_SEAL_SHRINK=2, F_SEAL_GROW=4, F_SEAL_WRITE=8, fcntl=lambda fd, op: 15)
-        with patch.object(os, 'open', return_value=42), patch.object(os, 'close'), patch.object(os, 'fstat', side_effect=lambda fd: metadata()), patch.object(os, 'read', side_effect=[content, b'']), patch.object(os, 'stat', side_effect=proc_stat), patch.object(os, 'readlink', side_effect=lambda path: '/memfd:paperclip-verified-launch (deleted)' if path == '/proc/self/fd/42' else '/workspace'), patch.object(fault, 'fcntl', kernel, create=True):
+        with patch.object(os, 'open', return_value=42), patch.object(os, 'close'), patch.object(os, 'fstat', side_effect=lambda fd: metadata()), patch.object(os, 'read', side_effect=[content, b'']), patch.object(os, 'stat', side_effect=proc_stat), patch.object(os, 'readlink', side_effect=lambda path: '/memfd:outpost-verified-launch (deleted)' if path == '/proc/self/fd/42' else '/workspace'), patch.object(fault, 'fcntl', kernel, create=True):
             yield
 
     def test_memfd_parent_uses_the_live_descriptor_without_reopening_deleted_alias(self):
         self.args[22][0] = '/proc/self/fd/10'
-        with patch.object(os.path, 'realpath', side_effect=lambda name: '/memfd:paperclip-verified-launch (deleted)' if name == '/proc/22/exe' else name), self.parent_descriptor(True):
+        with patch.object(os.path, 'realpath', side_effect=lambda name: '/memfd:outpost-verified-launch (deleted)' if name == '/proc/22/exe' else name), self.parent_descriptor(True):
             receipt = fault.inspect(self.config)
         self.assertEqual(receipt['target'], TARGET)
         self.assertFalse(any('/memfd:' in str(call) for call in fault.checked_file.call_args_list))
@@ -179,7 +179,7 @@ class ParentDescriptorTests(unittest.TestCase):
         self.closed = Mock()
         self.fstat = Mock(side_effect=lambda fd: self.before)
         self.read = Mock(side_effect=[self.content, b''])
-        self.readlink = Mock(return_value='/memfd:paperclip-verified-launch (deleted)')
+        self.readlink = Mock(return_value='/memfd:outpost-verified-launch (deleted)')
         self.kernel = SimpleNamespace(F_GET_SEALS=1034, F_SEAL_SEAL=1, F_SEAL_SHRINK=2, F_SEAL_GROW=4, F_SEAL_WRITE=8, fcntl=Mock(return_value=15))
         patches = [patch.object(os, 'open', self.opened), patch.object(os, 'close', self.closed), patch.object(os, 'fstat', self.fstat), patch.object(os, 'read', self.read), patch.object(os, 'stat', side_effect=lambda path: self.stats[path]), patch.object(os, 'readlink', self.readlink), patch.object(fault, 'fcntl', self.kernel, create=True)]
         for mocked in patches:
@@ -315,10 +315,10 @@ class PidfdTests(unittest.TestCase):
         node = shutil.which('node')
         self.assertIsNotNone(node)
         base = Path(tempfile.mkdtemp(prefix='kimi-fault-calibration-', dir='/tmp'))
-        snapshot = Path(tempfile.mkdtemp(prefix='paperclip-acpx-native-', dir='/tmp'))
+        snapshot = Path(tempfile.mkdtemp(prefix='outpost-acpx-native-', dir='/tmp'))
         distribution = snapshot / 'distribution'
         workspace = base / 'workspace'
-        runtime = workspace / '.paperclip-runtime/outpost-runner'
+        runtime = workspace / '.outpost-runtime/outpost-runner'
         pack = base / 'pack'
         host_node = pack / 'node_modules/node/bin/node'
         root_child = None

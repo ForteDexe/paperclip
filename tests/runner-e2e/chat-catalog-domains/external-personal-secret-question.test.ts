@@ -7,7 +7,7 @@ vi.mock("./external-support.js", async original => ({ ...await original<typeof i
 import { personalSecretExternalCases, personalSecretQuestionHandoff, personalSecretSavedAcknowledgement } from "./external-personal-secret.js";
 afterEach(() => { vi.useRealTimers(); });
 export function question() {
-  return { id: "question", companyId: "company", issueId: "source", sourceRunId: "initial", createdByAgentId: "ceo",
+  return { id: "question", spaceId: "space", issueId: "source", sourceRunId: "initial", createdByAgentId: "ceo",
     addresseeUserId: "person", resolverPolicy: "human_only", continuationPolicy: "wake_assignee", kind: "ask_user_questions", status: "pending",
     payload: questionSetToAskUserQuestionsPayload({ schema: "outpost.question_set.v1", title: "Personal publishing credential",
       description: "Set your own personal publishing value securely in My secrets. Never paste the credential in chat.", questions: [{ id: "saved", prompt: "Have you set your own value?", answerMode: "single_select", required: true,
@@ -29,29 +29,29 @@ function measuredQuestion() {
 it.each(["question", "confirmation"])("actual personal-secret act admits a bound secure-entry %s before any private human action", async kind => {
   vi.useFakeTimers(); vi.setSystemTime(10_000);
   const query = "Set up my personal publishing credential for this task.";
-  const run = { id: "initial", companyId: "company", agentId: "ceo", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: "source", commentId: "human" } };
-  const human = { id: "human", companyId: "company", issueId: "source", authorUserId: "person", body: query };
-  const confirmation = { id: "confirmation", companyId: "company", issueId: "source", sourceRunId: "initial", createdByAgentId: "ceo", originCommentIds: ["human"], resolverPolicy: "anyone", continuationPolicy: "wake_assignee", kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Set your personal publishing credential in Settings Secrets, My secrets, Set my value, PERSONAL_PUBLISHING_KEY definition definition. Never paste credentials in chat. When you have saved it, confirm this card.", acceptLabel: "Confirm" } };
-  port.observation = { companyId: "company", phaseReplies: [], links: [], interactions: [kind === "confirmation" ? confirmation : measuredQuestion()] };
+  const run = { id: "initial", spaceId: "space", agentId: "ceo", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: "source", commentId: "human" } };
+  const human = { id: "human", spaceId: "space", issueId: "source", authorUserId: "person", body: query };
+  const confirmation = { id: "confirmation", spaceId: "space", issueId: "source", sourceRunId: "initial", createdByAgentId: "ceo", originCommentIds: ["human"], resolverPolicy: "anyone", continuationPolicy: "wake_assignee", kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Set your personal publishing credential in Settings Secrets, My secrets, Set my value, PERSONAL_PUBLISHING_KEY definition definition. Never paste credentials in chat. When you have saved it, confirm this card.", acceptLabel: "Confirm" } };
+  port.observation = { spaceId: "space", phaseReplies: [], links: [], interactions: [kind === "confirmation" ? confirmation : measuredQuestion()] };
   let reached = false;
-  const ctx = { observationDeadlineAt: 640_000, scenario: { query }, input: { fixtures: { company: { id: "company", issuePrefix: "ACORN" }, agent: { id: "ceo" } }, api: { get: async (path: string) => {
+  const ctx = { observationDeadlineAt: 640_000, scenario: { query }, input: { fixtures: { space: { id: "space", issuePrefix: "ACORN" }, agent: { id: "ceo" } }, api: { get: async (path: string) => {
     if (path.endsWith("/comments?order=asc")) return [human];
     if (path.endsWith("/me/user-secrets")) { reached = true; throw Error("NEXT_REAL_HUMAN_PHASE"); }
     throw Error("Unexpected API read");
-  } } }, refreshIssue: async () => {}, issue: () => ({ id: "source", companyId: "company", conversationState: "waiting" }), allRuns: async () => [run] } as unknown as ChatCatalogContext;
+  } } }, refreshIssue: async () => {}, issue: () => ({ id: "source", spaceId: "space", conversationState: "waiting" }), allRuns: async () => [run] } as unknown as ChatCatalogContext;
   const pending = personalSecretExternalCases[0]!.act!(ctx, { sourceIssueId: "source", currentPersonId: "person", definitionId: "definition" }).catch((error: Error) => error);
   await vi.advanceTimersByTimeAsync(1000);
   const result = await pending; expect(result?.message).toBe("NEXT_REAL_HUMAN_PHASE"); expect(reached).toBe(true);
 });
 
-const binding = { companyId: "company", issueId: "source", agentId: "ceo", userId: "person", runId: "initial", definitionId: "definition" };
-it.each(["foreign key", "owner", "run", "actor", "company", "source", "unsafe chat", "text value"] as const)("rejects %s question handoffs", fault => {
+const binding = { spaceId: "space", issueId: "source", agentId: "ceo", userId: "person", runId: "initial", definitionId: "definition" };
+it.each(["foreign key", "owner", "run", "actor", "space", "source", "unsafe chat", "text value"] as const)("rejects %s question handoffs", fault => {
   const row = question();
   if (fault === "foreign key") row.payload.questionSet!.questions[0]!.helpText = "Settings Secrets My secrets Set my value definition OTHER_PUBLISHING_KEY";
   if (fault === "owner") row.addresseeUserId = "other-person";
   if (fault === "run") row.sourceRunId = "other-run";
   if (fault === "actor") row.createdByAgentId = "other-agent";
-  if (fault === "company") row.companyId = "other-company";
+  if (fault === "space") row.spaceId = "other-space";
   if (fault === "source") row.issueId = "other-source";
   if (fault === "unsafe chat") row.payload.questionSet!.description = "Enter your personal publishing credential here in chat.";
   if (fault === "text value") row.payload.questionSet!.questions[0]!.customAnswer = { enabled: true, label: "Paste your credential here in chat" };
@@ -99,7 +99,7 @@ it("accepts explicit own-value completion and contextual Yes while rejecting for
   expect(choose("Is your personal value saved?", "Yes")).toMatchObject({ optionId: "yes" });
   expect(choose("Confirm your setup", "Yes", undefined, "Have you saved your own value?")).toMatchObject({ optionId: "yes" });
   expect(choose("Confirm your setup", "Yes", undefined, undefined, "Did you save your own value?")).toMatchObject({ optionId: "yes" });
-  expect(choose("Have you saved your own value?", "Added to company secrets")).toBeUndefined();
+  expect(choose("Have you saved your own value?", "Added to space secrets")).toBeUndefined();
   expect(choose("May I save the value for you?", "Yes, saved", "My personal value is saved.")).toBeUndefined();
 });
 

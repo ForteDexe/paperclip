@@ -7,7 +7,7 @@ import {
 
 it.each([
   "invalid_uuid",
-  "foreign_company",
+  "foreign_space",
   "foreign_run",
   "duplicate",
   "overflow",
@@ -16,16 +16,16 @@ it.each([
   "invalid_time",
   "unknown_key",
 ])("refuses malformed or foreign checkpoint retirement: %s", (kind) => {
-  const companyId = randomUUID(),
+  const spaceId = randomUUID(),
     runId = randomUUID();
   const value: Record<string, unknown> = nativeCheckpointRetirement({
-    companyId,
+    spaceId,
     runIds: [runId],
     agentId: randomUUID(),
     sessionId: randomUUID(),
   });
   if (kind === "invalid_uuid") value.agentId = "------------------------------------";
-  if (kind === "foreign_company") value.companyId = randomUUID();
+  if (kind === "foreign_space") value.spaceId = randomUUID();
   if (kind === "foreign_run") value.runIds = [randomUUID()];
   if (kind === "duplicate") value.runIds = [runId, runId];
   if (kind === "overflow")
@@ -36,14 +36,14 @@ it.each([
   if (kind === "invalid_time") value.retiredAt = "not a timestamp";
   if (kind === "unknown_key") value.extra = true;
   expect(() =>
-    readNativeCheckpointRetirement(value, { companyId, runId }),
+    readNativeCheckpointRetirement(value, { spaceId, runId }),
   ).toThrow("native_runner_checkpoint_retirement_invalid");
 });
 it("keeps ordinary encrypted checkpoint materials outside the retirement contract", () => {
   expect(
     readNativeCheckpointRetirement(
       { provider: "local_encrypted", ciphertext: "existing material" },
-      { companyId: randomUUID(), runId: randomUUID() },
+      { spaceId: randomUUID(), runId: randomUUID() },
     ),
   ).toBeNull();
 });

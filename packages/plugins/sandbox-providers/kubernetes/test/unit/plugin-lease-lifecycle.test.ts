@@ -15,7 +15,7 @@ const CONFIG = { inCluster: true, backend: "sandbox-cr" };
 
 function leaseMetadata(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    namespace: "paperclip-acme",
+    namespace: "outpost-acme",
     jobName: "pc-abc",
     podName: "pc-abc-pod",
     secretName: "pc-abc-env",
@@ -64,7 +64,7 @@ describe("onEnvironmentResumeLease", () => {
 
     const lease = await plugin.definition.onEnvironmentResumeLease!({
       driverKey: "kubernetes",
-      companyId: "acme",
+      spaceId: "acme",
       environmentId: "env-1",
       config: CONFIG,
       providerLeaseId: "pc-abc",
@@ -74,7 +74,7 @@ describe("onEnvironmentResumeLease", () => {
     expect(lease.providerLeaseId).toBe("pc-abc");
     expect(lease.metadata).toEqual(
       expect.objectContaining({
-        namespace: "paperclip-acme",
+        namespace: "outpost-acme",
         jobName: "pc-abc",
         podName: "pc-abc-pod",
         secretName: "pc-abc-env",
@@ -101,7 +101,7 @@ describe("onEnvironmentResumeLease", () => {
 
     const lease = await plugin.definition.onEnvironmentResumeLease!({
       driverKey: "kubernetes",
-      companyId: "acme",
+      spaceId: "acme",
       environmentId: "env-1",
       config: { inCluster: true, backend: "job" },
       providerLeaseId: "pc-job",
@@ -127,7 +127,7 @@ describe("onEnvironmentResumeLease", () => {
 
     const lease = await plugin.definition.onEnvironmentResumeLease!({
       driverKey: "kubernetes",
-      companyId: "acme",
+      spaceId: "acme",
       environmentId: "env-1",
       config: CONFIG,
       providerLeaseId: "pc-abc",
@@ -149,7 +149,7 @@ describe("onEnvironmentResumeLease", () => {
 
     const lease = await plugin.definition.onEnvironmentResumeLease!({
       driverKey: "kubernetes",
-      companyId: "acme",
+      spaceId: "acme",
       environmentId: "env-1",
       config: CONFIG,
       providerLeaseId: "pc-abc",
@@ -174,7 +174,7 @@ describe("onEnvironmentDestroyLease", () => {
 
     await plugin.definition.onEnvironmentDestroyLease!({
       driverKey: "kubernetes",
-      companyId: "acme",
+      spaceId: "acme",
       environmentId: "env-1",
       config: CONFIG,
       providerLeaseId: "pc-abc",
@@ -182,14 +182,14 @@ describe("onEnvironmentDestroyLease", () => {
     });
 
     expect(deleteCr).toHaveBeenCalledWith(
-      expect.objectContaining({ namespace: "paperclip-acme", name: "pc-abc" }),
+      expect.objectContaining({ namespace: "outpost-acme", name: "pc-abc" }),
     );
     expect(deletePod).toHaveBeenCalledWith({
-      namespace: "paperclip-acme",
+      namespace: "outpost-acme",
       name: "pc-abc-pod",
     });
     expect(deleteSecret).toHaveBeenCalledWith({
-      namespace: "paperclip-acme",
+      namespace: "outpost-acme",
       name: "pc-abc-env",
     });
   });
@@ -207,7 +207,7 @@ describe("onEnvironmentDestroyLease", () => {
     await expect(
       plugin.definition.onEnvironmentDestroyLease!({
         driverKey: "kubernetes",
-        companyId: "acme",
+        spaceId: "acme",
         environmentId: "env-1",
         config: CONFIG,
         providerLeaseId: "pc-abc",
@@ -226,7 +226,7 @@ describe("onEnvironmentDestroyLease", () => {
 
     await plugin.definition.onEnvironmentDestroyLease!({
       driverKey: "kubernetes",
-      companyId: "acme",
+      spaceId: "acme",
       environmentId: "env-1",
       config: CONFIG,
       providerLeaseId: null,
@@ -250,7 +250,7 @@ describe("onEnvironmentDestroyLease", () => {
 
     await plugin.definition.onEnvironmentDestroyLease!({
       driverKey: "kubernetes",
-      companyId: "acme",
+      spaceId: "acme",
       environmentId: "env-1",
       config: { inCluster: true, backend: "job" },
       providerLeaseId: "pc-job",
@@ -258,7 +258,7 @@ describe("onEnvironmentDestroyLease", () => {
     });
 
     expect(deleteJob).toHaveBeenCalledWith(
-      expect.objectContaining({ namespace: "paperclip-acme", name: "pc-job" }),
+      expect.objectContaining({ namespace: "outpost-acme", name: "pc-job" }),
     );
     expect(deleteCr).not.toHaveBeenCalled();
   });

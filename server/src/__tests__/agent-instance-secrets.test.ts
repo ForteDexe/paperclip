@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { agents, companies, companySecrets, companySecretVersions, activityLog, plugins, secretAccessEvents, toolApplications, toolConnections, createDb, type Db } from "@outpost/db";
+import { agents, spaces, spaceSecrets, spaceSecretVersions, activityLog, plugins, secretAccessEvents, toolApplications, toolConnections, createDb, type Db } from "@outpost/db";
 import type { AgentLifecycleRequest } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { pluginAgentRuntimeIdentity } from "../services/plugin-agent-runtime-state.js";
@@ -20,15 +20,15 @@ const support = await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("agent instance secrets use the tenant secret system", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
-  let companyId: string;
+  let spaceId: string;
   let pluginId: string;
   const runtime = JSON.stringify({ url: "https://runtime.example.test", token: "e".repeat(64) });
   beforeAll(async () => {
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
-    database = await startEmbeddedPostgresTestDatabase("paperclip-instance-secrets-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-instance-secrets-");
     db = createDb(database.connectionString);
-    companyId = randomUUID(); pluginId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Secret fixture", issuePrefix: "SCR" });
+    spaceId = randomUUID(); pluginId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Secret fixture", issuePrefix: "SCR" });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "fixture-lifecycle", version: "1.0.0", status: "ready",
       manifestJson: { agentLifecycle: true, resourceLifecycle: ["agent_runtime"], capabilities: ["agents.lifecycle.manage"] } as never });
   }, 90_000);
@@ -37,45 +37,45 @@ const support = await getEmbeddedPostgresTestSupport();
     const operationId = randomUUID();
     const owner = randomUUID();
     const now = new Date();
-    const [agent] = await db.insert(agents).values({ id: agentId, companyId, name: "Secret owner", lifecycleState: "preparing", lifecycleVersion: 1,
+    const [agent] = await db.insert(agents).values({ id: agentId, spaceId, name: "Secret owner", lifecycleState: "preparing", lifecycleVersion: 1,
       lifecycleRequiredPluginIds: [ownerPluginId], lifecycleOperation: { id: operationId, hostComplete: true, completedPluginIds: [], attempts: 0,
         leaseOwner: owner, leaseUntil: new Date(now.getTime() + 120_000).toISOString() } }).returning();
-    const request: AgentLifecycleRequest = { companyId, agentId: agent.id, operationId, version: 1, phase: "preparing" };
-    const scope = { companyId, agentId: agent.id, pluginId: ownerPluginId };
+    const request: AgentLifecycleRequest = { spaceId, agentId: agent.id, operationId, version: 1, phase: "preparing" };
+    const scope = { spaceId, agentId: agent.id, pluginId: ownerPluginId };
     const native = agentInstanceSecretService(db);
     const service = { read: native.read, apply: (input: AgentLifecycleRequest, id: string, changes: unknown, attemptOwner = owner) => native.apply(input, id, changes, attemptOwner) };
     return { agent, request, scope, service, owner };
   }
 
-  it("persists and rotates native secret versions, survives restart, and isolates agent, company and plugin", async () => {
+  it("persists and rotates native secret versions, survives restart, and isolates agent, space and plugin", async () => {
     const f = await fixture();
     await f.service.apply(f.request, pluginId, { runtime });
-    const [stored] = await db.select().from(companySecrets).where(eq(companySecrets.ownerAgentId, f.agent.id));
+    const [stored] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.ownerAgentId, f.agent.id));
     expect(stored).toMatchObject({ scope: "instance", ownerPluginId: pluginId, provider: "local_encrypted", latestVersion: 1 });
-    const versions = await db.select().from(companySecretVersions).where(eq(companySecretVersions.secretId, stored.id));
+    const versions = await db.select().from(spaceSecretVersions).where(eq(spaceSecretVersions.secretId, stored.id));
     expect(versions).toHaveLength(1);
     expect(JSON.stringify(versions)).not.toContain("e".repeat(64));
     expect(JSON.stringify(versions)).not.toContain("runtime.example.test");
     expect(await agentInstanceSecretService(createDb(database.connectionString)).read(f.scope)).toEqual({ runtime });
-    expect((await pluginAgentRuntimeIdentity(db, pluginId, companyId, f.agent.id))!.instanceSecrets).toEqual({ runtime });
-    for (const scope of [{ ...f.scope, companyId: randomUUID() }, { ...f.scope, agentId: randomUUID() }, { ...f.scope, pluginId: randomUUID() }]) {
+    expect((await pluginAgentRuntimeIdentity(db, pluginId, spaceId, f.agent.id))!.instanceSecrets).toEqual({ runtime });
+    for (const scope of [{ ...f.scope, spaceId: randomUUID() }, { ...f.scope, agentId: randomUUID() }, { ...f.scope, pluginId: randomUUID() }]) {
       expect(await f.service.read(scope)).toEqual({});
     }
     const replacement = runtime.replace("e".repeat(64), "f".repeat(64));
     await f.service.apply(f.request, pluginId, { runtime: replacement });
-    expect((await pluginAgentRuntimeIdentity(db, pluginId, companyId, f.agent.id))!.instanceSecrets).toEqual({ runtime: replacement });
+    expect((await pluginAgentRuntimeIdentity(db, pluginId, spaceId, f.agent.id))!.instanceSecrets).toEqual({ runtime: replacement });
     expect(await f.service.read(f.scope)).toEqual({ runtime: replacement });
     expect((await secretService(db).getById(stored.id))!.latestVersion).toBe(2);
     expect(JSON.stringify(await db.select().from(activityLog).where(eq(activityLog.entityId, f.agent.id)))).not.toContain(replacement);
   });
 
-  it("removes a plugin instance secret while a company connection save waits for its owner", async () => {
+  it("removes a plugin instance secret while a space connection save waits for its owner", async () => {
     const [lower, higher] = [randomUUID(), randomUUID()].sort();
-    await db.insert(agents).values({ id: lower, companyId, name: "Unrelated lower agent" });
+    await db.insert(agents).values({ id: lower, spaceId, name: "Unrelated lower agent" });
     const f = await fixture(pluginId, higher);
     await f.service.apply(f.request, pluginId, { runtime });
-    const [application] = await db.insert(toolApplications).values({ companyId, name: "Instance removal fixture", type: "mcp_http" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId, applicationId: application.id, name: "Instance removal fixture", uid: randomUUID(), transport: "mcp_remote", authKind: "none", status: "active" }).returning();
+    const [application] = await db.insert(toolApplications).values({ spaceId, name: "Instance removal fixture", type: "mcp_http" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId: application.id, name: "Instance removal fixture", uid: randomUUID(), transport: "mcp_remote", authKind: "none", status: "active" }).returning();
     let paused!: () => void; let resume!: () => void; let started!: (pid: number) => void;
     const held = new Promise<void>(resolve => { paused = resolve; });
     const mayRemove = new Promise<void>(resolve => { resume = resolve; });
@@ -107,22 +107,22 @@ const support = await getEmbeddedPostgresTestSupport();
     expect((await db.select().from(toolConnections).where(eq(toolConnections.id, connection.id)))[0].name).toBe("Saved during instance removal");
   }, 15000);
 
-  it("excludes instance secrets from company catalogs, ordinary resolution, bindings and agent access", async () => {
+  it("excludes instance secrets from space catalogs, ordinary resolution, bindings and agent access", async () => {
     const f = await fixture(); await f.service.apply(f.request, pluginId, { runtime });
-    const [stored] = await db.select().from(companySecrets).where(eq(companySecrets.ownerAgentId, f.agent.id));
+    const [stored] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.ownerAgentId, f.agent.id));
     const secrets = secretService(db);
-    expect((await secrets.list(companyId)).some(secret => secret.id === stored.id)).toBe(false);
-    expect(await secrets.getByName(companyId, "runtime")).toBeNull();
-    expect(await secrets.getByKey(companyId, "runtime")).toBeNull();
-    await expect(secrets.resolveSecretValue(companyId, stored.id, "latest")).rejects.toThrow("secret declarations");
-    await expect(secrets.createBinding({ companyId, secretId: stored.id, targetType: "agent", targetId: f.agent.id, configPath: "env.RUNTIME" })).rejects.toThrow("company-scoped");
+    expect((await secrets.list(spaceId)).some(secret => secret.id === stored.id)).toBe(false);
+    expect(await secrets.getByName(spaceId, "runtime")).toBeNull();
+    expect(await secrets.getByKey(spaceId, "runtime")).toBeNull();
+    await expect(secrets.resolveSecretValue(spaceId, stored.id, "latest")).rejects.toThrow("secret declarations");
+    await expect(secrets.createBinding({ spaceId, secretId: stored.id, targetType: "agent", targetId: f.agent.id, configPath: "env.RUNTIME" })).rejects.toThrow("space-scoped");
   });
 
   it("reads each secret with its latest version in one statement, auditing every read and keeping version failures", async () => {
     const f = await fixture(); onTestFinished(async () => { await db.delete(agents).where(eq(agents.id, f.agent.id)); });
     await f.service.apply(f.request, pluginId, { runtime, launcher: "launcher value" });
     await f.service.apply(f.request, pluginId, { launcher: "rotated launcher" });
-    const [stored] = await db.select().from(companySecrets).where(and(eq(companySecrets.ownerAgentId, f.agent.id), eq(companySecrets.name, "launcher")));
+    const [stored] = await db.select().from(spaceSecrets).where(and(eq(spaceSecrets.ownerAgentId, f.agent.id), eq(spaceSecrets.name, "launcher")));
     expect(stored.latestVersion).toBe(2);
     const audit = () => db.select().from(secretAccessEvents).where(eq(secretAccessEvents.secretId, stored.id)).orderBy(secretAccessEvents.createdAt);
     const selects = vi.spyOn(db, "select");
@@ -133,17 +133,17 @@ const support = await getEmbeddedPostgresTestSupport();
     const audited = (await audit()).length;
     expect(await f.service.read(f.scope)).toEqual({ runtime, launcher: "rotated launcher" });
     expect(await audit()).toHaveLength(audited + 1);
-    await db.update(companySecretVersions).set({ revokedAt: new Date() }).where(and(eq(companySecretVersions.secretId, stored.id), eq(companySecretVersions.version, 2)));
+    await db.update(spaceSecretVersions).set({ revokedAt: new Date() }).where(and(eq(spaceSecretVersions.secretId, stored.id), eq(spaceSecretVersions.version, 2)));
     await expect(f.service.read(f.scope)).rejects.toThrow("Agent instance secret unavailable");
     expect((await audit()).at(-1)).toMatchObject({ outcome: "failure", errorCode: "version_inactive", version: 2 });
-    await db.delete(companySecretVersions).where(and(eq(companySecretVersions.secretId, stored.id), eq(companySecretVersions.version, 2)));
+    await db.delete(spaceSecretVersions).where(and(eq(spaceSecretVersions.secretId, stored.id), eq(spaceSecretVersions.version, 2)));
     await expect(f.service.read(f.scope)).rejects.toThrow("Agent instance secret unavailable");
     expect((await audit()).at(-1)).toMatchObject({ outcome: "failure", errorCode: "version_missing", version: 2 });
   });
 
   it("fences stale writes and removals, and cascades credentials when the owning agent is deleted", async () => {
     const f = await fixture(); await f.service.apply(f.request, pluginId, { runtime });
-    for (const patch of [{ version: 2 }, { operationId: randomUUID() }, { phase: "cleaning_up" }, { companyId: randomUUID() }, { agentId: randomUUID() }]) {
+    for (const patch of [{ version: 2 }, { operationId: randomUUID() }, { phase: "cleaning_up" }, { spaceId: randomUUID() }, { agentId: randomUUID() }]) {
       await expect(f.service.apply({ ...f.request, ...patch } as AgentLifecycleRequest, pluginId, { runtime: null })).rejects.toThrow("stale or outside scope");
     }
     await expect(f.service.apply(f.request, randomUUID(), { runtime })).rejects.toThrow("stale or outside scope");
@@ -154,7 +154,7 @@ const support = await getEmbeddedPostgresTestSupport();
     await f.service.apply(cleanup, pluginId, { runtime: null });
     expect(await f.service.read(f.scope)).toEqual({});
     await db.delete(agents).where(eq(agents.id, f.agent.id));
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.ownerAgentId, f.agent.id))).toEqual([]);
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.ownerAgentId, f.agent.id))).toEqual([]);
   });
 
   it("fails without acknowledging storage errors and validates changes before writes", async () => {
@@ -192,7 +192,7 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("preserves the native guard against missing account-home directories", async () => {
     const f = await fixture();
-    const missing = path.join(resolveCodexAuthCacheDir(undefined, companyId), "missing-instance-secret-fixture");
+    const missing = path.join(resolveCodexAuthCacheDir(undefined, spaceId), "missing-instance-secret-fixture");
     await expect(f.service.apply(f.request, pluginId, { runtime: missing })).rejects.toThrow("storage unavailable");
     expect(await f.service.read(f.scope)).toEqual({});
   });
@@ -220,12 +220,12 @@ const support = await getEmbeddedPostgresTestSupport();
         manifestJson: { agentLifecycle: true, capabilities: ["agents.lifecycle.manage"] } as never });
       const f = await fixture(ownerPluginId);
       await f.service.apply(f.request, ownerPluginId, { runtime });
-      const [stored] = await db.select().from(companySecrets).where(eq(companySecrets.ownerAgentId, f.agent.id));
-      expect(await db.select().from(companySecretVersions).where(eq(companySecretVersions.secretId, stored.id))).toHaveLength(1);
+      const [stored] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.ownerAgentId, f.agent.id));
+      expect(await db.select().from(spaceSecretVersions).where(eq(spaceSecretVersions.secretId, stored.id))).toHaveLength(1);
       if (deleting === "agent") await db.delete(agents).where(eq(agents.id, f.agent.id));
       else await db.delete(plugins).where(eq(plugins.id, ownerPluginId));
       expect(await secretService(db).getById(stored.id)).toBeNull();
-      expect(await db.select().from(companySecretVersions).where(eq(companySecretVersions.secretId, stored.id))).toEqual([]);
+      expect(await db.select().from(spaceSecretVersions).where(eq(spaceSecretVersions.secretId, stored.id))).toEqual([]);
     }
   });
 
@@ -245,11 +245,11 @@ const support = await getEmbeddedPostgresTestSupport();
     } finally { vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", masterKey); }
   });
 
-  it("allows company vault imports with the same name and key as an instance secret", async () => {
+  it("allows space vault imports with the same name and key as an instance secret", async () => {
     const f = await fixture();
     await f.service.apply(f.request, pluginId, { runtime });
     const secrets = secretService(db);
-    const vault = await secrets.createProviderConfig(companyId, {
+    const vault = await secrets.createProviderConfig(spaceId, {
       provider: "aws_secrets_manager", displayName: "Import fixture", config: { region: "us-east-1" },
     });
     const externalRef = "arn:aws:secretsmanager:us-east-1:123456789012:secret:runtime";
@@ -257,48 +257,48 @@ const support = await getEmbeddedPostgresTestSupport();
       secrets: [{ externalRef, name: "runtime", providerVersionRef: null, metadata: {} }],
     });
     try {
-      const preview = await secrets.previewRemoteImport(companyId, { providerConfigId: vault.id });
+      const preview = await secrets.previewRemoteImport(spaceId, { providerConfigId: vault.id });
       expect(preview.candidates[0]).toMatchObject({ status: "ready", importable: true, conflicts: [] });
-      const result = await secrets.importRemoteSecrets(companyId, {
+      const result = await secrets.importRemoteSecrets(spaceId, {
         providerConfigId: vault.id, secrets: [{ externalRef, name: "runtime", key: "runtime" }],
       });
       expect(result).toMatchObject({ importedCount: 1, skippedCount: 0, errorCount: 0 });
       expect(await f.service.read(f.scope)).toEqual({ runtime });
-      const imported = await secrets.getByName(companyId, "runtime");
-      expect(imported).toMatchObject({ scope: "company", externalRef });
+      const imported = await secrets.getByName(spaceId, "runtime");
+      expect(imported).toMatchObject({ scope: "space", externalRef });
       await secrets.remove(imported!.id);
     } finally { list.mockRestore(); }
   });
 
-  it("protects instance-owned account homes without exposing their values in the company catalog", async () => {
+  it("protects instance-owned account homes without exposing their values in the space catalog", async () => {
     const f = await fixture();
-    const accountHome = path.join(resolveCodexAuthCacheDir(undefined, companyId), randomUUID());
+    const accountHome = path.join(resolveCodexAuthCacheDir(undefined, spaceId), randomUUID());
     await mkdir(accountHome, { recursive: true });
     const secrets = secretService(db);
     try {
       await f.service.apply(f.request, pluginId, { account_home: accountHome });
-      expect(await secrets.hasInstanceAccountHomeClaim(companyId, accountHome)).toBe(true);
+      expect(await secrets.hasInstanceAccountHomeClaim(spaceId, accountHome)).toBe(true);
       expect(await secrets.hasInstanceAccountHomeClaim(randomUUID(), accountHome)).toBe(false);
-      expect(await secrets.hasInstanceAccountHomeClaim(companyId, accountHome + "-other")).toBe(false);
-      expect((await secrets.list(companyId)).some(secret => secret.ownerAgentId === f.agent.id)).toBe(false);
+      expect(await secrets.hasInstanceAccountHomeClaim(spaceId, accountHome + "-other")).toBe(false);
+      expect((await secrets.list(spaceId)).some(secret => secret.ownerAgentId === f.agent.id)).toBe(false);
       const resolve = vi.spyOn(localEncryptedProvider, "resolveVersion").mockRejectedValueOnce(new Error("unavailable"));
-      try { expect(await secrets.hasInstanceAccountHomeClaim(companyId, accountHome)).toBe(true); }
+      try { expect(await secrets.hasInstanceAccountHomeClaim(spaceId, accountHome)).toBe(true); }
       finally { resolve.mockRestore(); }
       await f.service.apply(f.request, pluginId, { account_home: null });
-      expect(await secrets.hasInstanceAccountHomeClaim(companyId, accountHome)).toBe(false);
+      expect(await secrets.hasInstanceAccountHomeClaim(spaceId, accountHome)).toBe(false);
     } finally { await rm(accountHome, { recursive: true, force: true }); }
   });
 
-  it("keeps same-named company and other-agent secrets independent", async () => {
+  it("keeps same-named space and other-agent secrets independent", async () => {
     const f = await fixture(); const other = await fixture();
-    const companySecret = await secretService(db).create(companyId, { name: "runtime", provider: "local_encrypted", value: "ordinary company secret" });
+    const spaceSecret = await secretService(db).create(spaceId, { name: "runtime", provider: "local_encrypted", value: "ordinary space secret" });
     await f.service.apply(f.request, pluginId, { runtime });
     await other.service.apply(other.request, pluginId, { runtime: "other agent connection" });
     expect(await f.service.read(f.scope)).toEqual({ runtime });
     expect(await other.service.read(other.scope)).toEqual({ runtime: "other agent connection" });
-    expect(await secretService(db).resolveSecretValue(companyId, companySecret.id, "latest")).toBe("ordinary company secret");
+    expect(await secretService(db).resolveSecretValue(spaceId, spaceSecret.id, "latest")).toBe("ordinary space secret");
     await f.service.apply(f.request, pluginId, { runtime: null });
     expect(await other.service.read(other.scope)).toEqual({ runtime: "other agent connection" });
-    expect(await secretService(db).getByName(companyId, "runtime")).toMatchObject({ id: companySecret.id });
+    expect(await secretService(db).getByName(spaceId, "runtime")).toMatchObject({ id: spaceSecret.id });
   });
 });

@@ -8,7 +8,7 @@ import { META_TEXT } from "./MetaLine";
 import { StackTile } from "./StackTile";
 
 /**
- * GALLERY — the company Artifacts page, below its toolbar.
+ * GALLERY — the space Artifacts page, below its toolbar.
  *
  * The product's grid (1 / 2 / 3 columns at <768 / 768 / 1280px, 24px gutters
  * both ways, inside the page's 1152px column), with the direction's mono

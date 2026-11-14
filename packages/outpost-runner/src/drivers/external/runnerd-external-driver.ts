@@ -12,7 +12,7 @@ import type { DurableRecoveryIdentity } from "../../contracts/durable-recovery.j
 import { authorizedToolSetForProvider, defaultCapabilityRunnerdBinary, readRunnerdArtifactBinding, type CapabilityRunnerdCodexTransportOptions } from "../../live/runnerd-codex-transport.js";
 import { codexSemanticToolSpecs } from "../codex/codex-driver-values.js";
 import { nativeSystemInstructions } from "../../backends/runtime-context.js";
-import { parsePaperclipQuestionSet } from "../../contracts/question-set.js";
+import { parseOutpostQuestionSet } from "../../contracts/question-set.js";
 import type { CodexNativeSessionBackendOptions } from "../../backends/codex-native-backend.js";
 
 export interface RunnerdExternalDriverOptions {
@@ -50,12 +50,12 @@ export interface ExternalProviderCodec {
 export const DOT_EXTERNAL_CODEC: ExternalProviderCodec = {
   provider: "openai_dot", driverKind: "openai_dot_mcp", displayName: "OpenAI Dot", revision: "dot-mcp-v1",
   checkpointFile: "dot-provider-state.json", checkpointSchema: "outpost.runner.dot-provider-state.v1", commandPrefix: "dot",
-  completionGuidance: "paperclip_dot_finish", runtimeRequestResolution: false,
+  completionGuidance: "outpost_dot_finish", runtimeRequestResolution: false,
 };
 export const GROK_EXTERNAL_CODEC: ExternalProviderCodec = {
   provider: "grok_bot", driverKind: "grok_bot_mcp", displayName: "Grok Bot", revision: "grok-bot-mcp-v1",
   checkpointFile: "dot-provider-state.json", checkpointSchema: "outpost.runner.dot-provider-state.v1", commandPrefix: "dot",
-  completionGuidance: "paperclip_grok_finish", runtimeRequestResolution: false,
+  completionGuidance: "outpost_grok_finish", runtimeRequestResolution: false,
 };
 export const MUSE_EXTERNAL_CODEC: ExternalProviderCodec = {
   provider: "muse", driverKind: "muse_external", displayName: "Muse", revision: "muse-v1",
@@ -71,7 +71,7 @@ const capabilities = {
 /** The admission path can inspect Dot without allocating a broker port or Runner. */
 export function describeRunnerdExternalDriver(codec: ExternalProviderCodec): HarnessDriverDescriptor {
   return { kind: codec.driverKind, displayName: codec.displayName, version: codec.revision, protocolVersion: "orp.v3",
-    capabilities: { ...structuredClone(capabilities), completionBoundary: "paperclip_work_session", providerTermination: "unavailable", providerTranscriptStreaming: false, runtimeRequestResolution: codec.runtimeRequestResolution,
+    capabilities: { ...structuredClone(capabilities), completionBoundary: "outpost_work_session", providerTermination: "unavailable", providerTranscriptStreaming: false, runtimeRequestResolution: codec.runtimeRequestResolution,
       ...(codec.runtimeRequestResolution ? { runtimeRequestHandoff: true } : {}),
       unsupported: capabilities.unsupported.filter(name => !codec.runtimeRequestResolution || name !== "runtimeRequestResolution") }, runtimeContextCapabilities: { instructions: "native", skills: "native", mcp: "native" } };
 }
@@ -177,7 +177,7 @@ class RunnerdExternalSession implements HarnessSession {
     const binary = o.runnerBinary ?? defaultCapabilityRunnerdBinary();
     const artifact = o.runnerArtifact ?? readRunnerdArtifactBinding(binary);
     const handleSemanticInput: NonNullable<DurablePrpControlPlaneOptions["onSemanticToolInput"]> = async call => {
-      if (call.operationId === "paperclip_finish" || call.operationId === "paperclip_block") {
+      if (call.operationId === "outpost_finish" || call.operationId === "outpost_block") {
         let completionInput: unknown;
         try {
           completionInput = await resolveCompletionContinuation(call.input, o.identity.runId,
@@ -189,7 +189,7 @@ class RunnerdExternalSession implements HarnessSession {
           return { result: { error: error instanceof Error ? error.message : "Completion rejected" }, isError: true };
         }
         const result = validatePrpStructuredRunResult(completionInput);
-        if (!result.ok || (call.operationId === "paperclip_block") !== (result.ok && result.result.reportedWorkDisposition === "blocked")) {
+        if (!result.ok || (call.operationId === "outpost_block") !== (result.ok && result.result.reportedWorkDisposition === "blocked")) {
           return { result: { error: "Invalid completion report. Use the admitted completion contract and the correct completion tool." }, isError: true };
         }
         try { return { result: { accepted: true, completionReport: result.result, feedback: await o.completionFeedback?.(result.result) ?? "Completion accepted; finish the external turn." } }; }
@@ -218,7 +218,7 @@ class RunnerdExternalSession implements HarnessSession {
       },
       onSemanticToolInput: handleSemanticInput,
       recoverSemanticToolInput: async call =>
-        call.operationId === "paperclip_finish" || call.operationId === "paperclip_block"
+        call.operationId === "outpost_finish" || call.operationId === "outpost_block"
           ? handleSemanticInput(call) : o.recoverSemanticToolInput?.(call) ?? null,
     });
     // Rehydrate the projection from the authenticated transport journal. Broker
@@ -278,7 +278,7 @@ class RunnerdExternalSession implements HarnessSession {
     }, () => this.interrupt(), !!checkpoint);
     await this.#command("run.prepare", {
       provider: { kind: this.codec.provider, ...o.execution.provider.binding,
-        instructions: `${nativeSystemInstructions(o.execution)}\n\nAccept the assignment before calling tools. Invoke paperclip_finish or paperclip_block, then submit the same structured result with ${this.codec.completionGuidance}. Keep request IDs stable across retries.` },
+        instructions: `${nativeSystemInstructions(o.execution)}\n\nAccept the assignment before calling tools. Invoke outpost_finish or outpost_block, then submit the same structured result with ${this.codec.completionGuidance}. Keep request IDs stable across retries.` },
       authorizedTools: authorizedToolSetForProvider(undefined, [...o.dynamicTools ?? [], ...codexSemanticToolSpecs()]),
       completionContract: { revision: o.execution.completionContract.contract.revision,
         criterionIds: o.execution.completionContract.contract.criteria.map(c => c.id) },
@@ -329,7 +329,7 @@ class RunnerdExternalSession implements HarnessSession {
       return [{ requestId: request.requestId, requestKind: "user_input" as const, method: "request_user_input",
         turnId: this.options.identity.turnId, itemId: this.options.identity.itemId,
         status: "pending" as const, prompt: String(request.prompt ?? "Muse requests user input."), details: {},
-        input: parsePaperclipQuestionSet(request.input), origin: { adapter: this.codec.revision, provider: this.codec.provider, method: "request_user_input" } }];
+        input: parseOutpostQuestionSet(request.input), origin: { adapter: this.codec.revision, provider: this.codec.provider, method: "request_user_input" } }];
     });
   }
   async resolveRuntimeRequest(input: { commandId?: string; requestId: string; turnId: string; resolution: HarnessRuntimeRequestResolution }): Promise<void> {

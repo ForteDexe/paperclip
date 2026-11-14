@@ -34,7 +34,7 @@ describe("canonical operation-groups specification", () => {
           ...input,
           sourceContractToolMappings: {
             ...input.sourceContractToolMappings,
-            paperclipMe: ["control_plane_owned", "unreviewed_target"] as const,
+            outpostMe: ["control_plane_owned", "unreviewed_target"] as const,
           },
         },
       },
@@ -77,7 +77,7 @@ describe("canonical operation-groups specification", () => {
 
   it("keeps the checked-in Markdown byte-identical to the generated contract", () => {
     const current = readFileSync(
-      resolve(operationGroupsPackageRoot(), "spec/paperclip-agent-operation-groups.md"),
+      resolve(operationGroupsPackageRoot(), "spec/outpost-agent-operation-groups.md"),
       "utf8",
     );
     expect(current).toBe(renderOperationGroupsDocument(input));

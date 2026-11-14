@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, agentWakeupRequests, applyPendingMigrations, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRunEvents, heartbeatRuns, issues, environmentLeases, nativeRunFinalizations, nativeRunnerCheckpoints } from "@outpost/db";
+import { agents, agentWakeupRequests, applyPendingMigrations, spaces, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRunEvents, heartbeatRuns, issues, environmentLeases, nativeRunFinalizations, nativeRunnerCheckpoints } from "@outpost/db";
 import type { Db } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -114,22 +114,22 @@ postgresTests("upgrade readiness persisted execution evidence", () => {
     if (externalUrl) {
       await applyPendingMigrations(externalUrl);
       database = { connectionString: externalUrl, cleanup: async () => {} };
-    } else database = await startEmbeddedPostgresTestDatabase("paperclip-upgrade-readiness-");
+    } else database = await startEmbeddedPostgresTestDatabase("outpost-upgrade-readiness-");
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "a".repeat(64));
     db = createDb(database.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); vi.unstubAllEnvs(); });
   it("keeps an old unowned preparation visible without making it a live upgrade blocker", async () => {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     const owner = await currentNativeControllerIdentity();
-    await db.insert(companies).values({ id: companyId, name: "Retained preparation", issuePrefix: `R${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Retained preparation", role: "engineer", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Interrupted preparation", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId,
+    await db.insert(spaces).values({ id: spaceId, name: "Retained preparation", issuePrefix: `R${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Retained preparation", role: "engineer", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Interrupted preparation", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, nativeIssueId: issueId,
       status: "running", runtimeMode: "native", nativePhase: "observed", runnerInstanceId: randomUUID(), nativeSessionId: randomUUID() });
     const retained = { controllerBootId: "previous-controller", leaseOwner: "previous-controller-lease", controllerGeneration: 1,
       leaseExpiresAt: new Date(0), recoveryState: "awaiting_evidence", phase: "observed", failureCode: null };
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, ...retained });
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, ...retained });
     const input = { activeRunIds: new Set<string>(), counters: () => idle };
     try {
       const savedRun = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
@@ -143,7 +143,7 @@ postgresTests("upgrade readiness persisted execution evidence", () => {
       const app = express();
       let isInstanceAdmin = false;
       app.use((req, _res, next) => {
-        req.actor = { type: "board", userId: "readiness-test", source: "session", isInstanceAdmin };
+        req.actor = { type: "operator", userId: "readiness-test", source: "session", isInstanceAdmin };
         next();
       });
       app.use("/api", instanceSettingsRoutes(db));
@@ -174,7 +174,7 @@ postgresTests("upgrade readiness persisted execution evidence", () => {
         await db.update(heartbeatRuns).set({ runtimeMode: "native", nativePhase: "observed", processPid: null, processStartedAt: null })
           .where(eq(heartbeatRuns.id, runId));
       }
-      await db.insert(nativeRunnerCheckpoints).values({ runId, companyId, issueId, part: "header", material: {} });
+      await db.insert(nativeRunnerCheckpoints).values({ runId, spaceId, issueId, part: "header", material: {} });
       expect(await readUpgradeReadiness(db, input)).toMatchObject({ ready: false, blockingRuns: 1, retainedBlockedRuns: 0 });
       await db.delete(nativeRunnerCheckpoints).where(eq(nativeRunnerCheckpoints.runId, runId));
       await db.update(agents).set({ adapterType: "process" }).where(eq(agents.id, agentId));
@@ -194,21 +194,21 @@ postgresTests("upgrade readiness persisted execution evidence", () => {
     }
   });
   it("requires a bound checkpoint and current owner rather than a native label or live process alone", async () => {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     const owner = await currentNativeControllerIdentity();
-    await db.insert(companies).values({ id: companyId, name: "Upgrade", issuePrefix: `U${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Upgrade", role: "engineer", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Synthetic upgrade", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(spaces).values({ id: spaceId, name: "Upgrade", issuePrefix: `U${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Upgrade", role: "engineer", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Synthetic upgrade", status: "in_progress", assigneeAgentId: agentId });
     const workspace = { schema: "outpost.native-workspace-sync/v1", state: "prepared",
       descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), workspaceId: randomUUID(),
       leaseId: randomUUID(), providerLeaseId: "synthetic-sandbox", remoteCwd: "/workspace" };
     const execution = { runnerProfileJson: { nativeWorkspaceSync: workspace }, runtimeMode: "native", runnerInstanceId: randomUUID(), nativeSessionId: randomUUID(), processPid: process.pid, processStartedAt: new Date() };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId, status: "running", ...execution });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, nativeIssueId: issueId, status: "running", ...execution });
     const lease = { controllerBootId: owner.bootId, leaseOwner: "current-lease", controllerGeneration: 1, leaseExpiresAt: new Date(Date.now() + 60_000) };
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed", ...lease });
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed", ...lease });
     const input = { activeRunIds: new Set([runId]), counters: () => ({ ...idle, activeRuns: 1 }) };
     expect((await readUpgradeReadiness(db, input)).ready).toBe(false);
-    const binding = { runId, companyId, issueId };
+    const binding = { runId, spaceId, issueId };
     await db.insert(nativeRunnerCheckpoints).values({ ...binding, part: "header", material: {} });
     expect((await readUpgradeReadiness(db, input)).ready).toBe(false);
     const root = await mkdtemp(join(tmpdir(), "upgrade-checkpoint-"));
@@ -283,7 +283,7 @@ postgresTests("upgrade readiness persisted execution evidence", () => {
     await db.update(heartbeatRuns).set({ runnerProfileJson: execution.runnerProfileJson }).where(eq(heartbeatRuns.id, runId));
     // Plugin task admission owns an environment lease identity and deliberately has no workspace-sync record.
     const pluginLeaseId = randomUUID();
-    await db.insert(environmentLeases).values({ id: pluginLeaseId, companyId, heartbeatRunId: runId, issueId,
+    await db.insert(environmentLeases).values({ id: pluginLeaseId, spaceId, heartbeatRunId: runId, issueId,
       provider: "plugin", providerLeaseId: "synthetic-task", metadata: { agentId, runnerTaskLease: true, runnerTaskDispatched: true } });
     await db.update(heartbeatRuns).set({ runnerProfileJson: remoteProfile }).where(eq(heartbeatRuns.id, runId));
     expect((await readUpgradeReadiness(db, input)).ready).toBe(false); // contradictory task authorities cannot be adopted
@@ -314,19 +314,19 @@ postgresTests("upgrade readiness persisted execution evidence", () => {
     expect(await readUpgradeReadiness(db, { activeRunIds: new Set(), counters: () => idle })).toMatchObject({ ready: true, activeRuns: 0 });
   });
   it("classifies a run with no launched agent work as restartable, and any started work as a blocker", async () => {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     const owner = await currentNativeControllerIdentity();
-    await db.insert(companies).values({ id: companyId, name: "Restartable", issuePrefix: `S${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Restartable", role: "engineer", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Preparing", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(spaces).values({ id: spaceId, name: "Restartable", issuePrefix: `S${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Restartable", role: "engineer", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Preparing", status: "in_progress", assigneeAgentId: agentId });
     const unlaunched = { runtimeMode: "native", nativePhase: "observed", processPid: null, processGroupId: null,
       processStartedAt: null, sessionIdBefore: null, sessionIdAfter: null, executionStage: null, controllerBootId: null,
       runnerProfileJson: { nativePreparationFencingVersion: 1 } };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId, status: "running",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, nativeIssueId: issueId, status: "running",
       runnerInstanceId: randomUUID(), nativeSessionId: randomUUID(), ...unlaunched });
     const claimed = { controllerBootId: owner.bootId, leaseOwner: "controller-lease", controllerGeneration: 1,
       leaseExpiresAt: new Date(Date.now() + 60_000), phase: "observed", failureCode: null };
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, ...claimed });
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, ...claimed });
     const input = { activeRunIds: new Set([runId]), counters: () => ({ ...idle, activeRuns: 1, pendingWakes: 1, unsavedWakes: 0 }) };
     const restartable = { ready: false, activeRuns: 1, recoverableRuns: 0, blockingRuns: 1, pendingWakes: 1,
       handoff: { version: 1, ready: true, recoverableRuns: 0, restartableRuns: 1, blockingRuns: 0, pendingWakes: 1 } };
@@ -348,18 +348,18 @@ postgresTests("upgrade readiness persisted execution evidence", () => {
       await db.update(agents).set({ adapterType: "process" }).where(eq(agents.id, agentId));
       expect(await readUpgradeReadiness(db, input)).toMatchObject(blocking);
       await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, agentId));
-      await db.insert(nativeRunnerCheckpoints).values({ runId, companyId, issueId, part: "header", material: {} });
+      await db.insert(nativeRunnerCheckpoints).values({ runId, spaceId, issueId, part: "header", material: {} });
       expect(await readUpgradeReadiness(db, input)).toMatchObject(blocking);
       await db.delete(nativeRunnerCheckpoints).where(eq(nativeRunnerCheckpoints.runId, runId));
       // The executor records this request before any backend may start a runner.
       for (const event of [{ eventType: "native.process_start_requested" }, { eventType: "adapter.invoke" },
         { eventType: "lifecycle", sourceEventId: "runner-event-1" }]) {
-        const [{ id }] = await db.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: 1, ...event })
+        const [{ id }] = await db.insert(heartbeatRunEvents).values({ spaceId, runId, agentId, seq: 1, ...event })
           .returning({ id: heartbeatRunEvents.id });
         expect(await readUpgradeReadiness(db, input), event.eventType).toMatchObject(blocking);
         await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.id, id));
       }
-      await db.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: 1, eventType: "lifecycle" });
+      await db.insert(heartbeatRunEvents).values({ spaceId, runId, agentId, seq: 1, eventType: "lifecycle" });
       expect(await readUpgradeReadiness(db, input)).toMatchObject(restartable);
       // A direct-adapter preparation that has not reached dispatch is requeued by process-loss recovery.
       const legacyPreparing = { runtimeMode: "legacy", nativePhase: null, executionStage: "preparing", controllerBootId: randomUUID() };
@@ -376,9 +376,9 @@ postgresTests("upgrade readiness persisted execution evidence", () => {
     }
   });
   it("blocks the handoff while a wake admission waits on the agent lock with nothing saved", async () => {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Unsaved wake", issuePrefix: `W${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Unsaved wake", role: "engineer", adapterType: "process",
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Unsaved wake", issuePrefix: `W${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Unsaved wake", role: "engineer", adapterType: "process",
       status: "idle", adapterConfig: { command: "true" } });
     const { heartbeatService } = await import("../heartbeat.js");
     const heartbeat = heartbeatService(db);

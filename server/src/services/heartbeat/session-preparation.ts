@@ -14,7 +14,7 @@ import {
 import {
   buildEffectiveRunSessionConfigMetadata, readConfigFingerprintFromSessionParams,
   readConfiguredModelFromAdapterConfig, resolveTaskSessionConfigFreshness,
-  stripPaperclipSessionMetadataFromSessionParams, type EffectiveRunSessionConfigMetadata,
+  stripOutpostSessionMetadataFromSessionParams, type EffectiveRunSessionConfigMetadata,
 } from "./workspaces.js";
 import type { HeartbeatWorkspacePreparationInput, prepareHeartbeatWorkspace } from "./workspace-preparation.js";
 import type { prepareHeartbeatTaskContext } from "./task-context.js";
@@ -81,7 +81,7 @@ export async function prepareHeartbeatSession(db: Db, input: HeartbeatSessionPre
   const { requestedExecutionWorkspaceMode, effectiveExecutionWorkspaceMode, projectExecutionWorkspacePolicy, issueExecutionWorkspaceSettings, executionPolicy, requestedReusableExecutionWorkspaceConfig, reusableExistingExecutionWorkspace } = input.workspace;
   const { environmentResolution, selectedEnvironmentId, selectedEnvironmentForConfig } = input.environment;
   const latestAgentConfigRevision = await getLatestAgentConfigRevision(
-    agent.companyId,
+    agent.spaceId,
     agent.id,
   );
   const sessionConfigMetadataInput = {
@@ -163,14 +163,14 @@ export async function prepareHeartbeatSession(db: Db, input: HeartbeatSessionPre
   if (managedAiRuntime && aiBinding && taskSession &&
     readConfigFingerprintFromSessionParams(taskSession.sessionParamsJson)?.fingerprint !== sessionConfigMetadata.fingerprint) {
     const revisions = requestedAiBinding?.mode === "router"
-      ? await db.select().from(agentConfigRevisions).where(and(eq(agentConfigRevisions.companyId, agent.companyId), eq(agentConfigRevisions.agentId, agent.id))).orderBy(desc(agentConfigRevisions.createdAt), desc(agentConfigRevisions.id)).limit(21)
+      ? await db.select().from(agentConfigRevisions).where(and(eq(agentConfigRevisions.spaceId, agent.spaceId), eq(agentConfigRevisions.agentId, agent.id))).orderBy(desc(agentConfigRevisions.createdAt), desc(agentConfigRevisions.id)).limit(21)
       : [];
     const candidates = aiConnectionSessionCompatibilityInputs({
       effectiveAdapterConfig: runtimeConfig, agentRuntimeConfig: agent.runtimeConfig,
       agentConfigRevision: sessionConfigMetadataInput.agentConfigRevision,
       issueOverrides: issueAssigneeOverrides, originalIssueOverrides: originalAiIssueOverrides,
       binding: aiBinding, router: requestedAiBinding?.mode === "router",
-      storedIdentity: taskSession.sessionParamsJson?.paperclipAiCredentialIdentity,
+      storedIdentity: taskSession.sessionParamsJson?.outpostCredentialIdentity,
       sessionIdentity: managedAiRuntime.sessionIdentity, credentialIdentity: managedAiRuntime.identity, revisions,
     });
     compatibleConfigMetadata.push(...await Promise.all(candidates.flatMap(candidate => [
@@ -205,7 +205,7 @@ export async function prepareHeartbeatSession(db: Db, input: HeartbeatSessionPre
     sessionConfigFreshness.reasons.join("; ") || null;
   const taskSessionForRun = resetTaskSession ? null : taskSession;
   const getFreshSessionHandoff = issueRef ? createNativeSessionHandoffLoader({
-    db, companyId: agent.companyId, issueId: issueRef.id, agentId: agent.id, before: run.createdAt,
+    db, spaceId: agent.spaceId, issueId: issueRef.id, agentId: agent.id, before: run.createdAt,
     throughCommentId: readNonEmptyString(context.conversationReplayThroughCommentId) ?? (context.interactionKind ? null : wakeCommentId),
   }) : undefined;
   const previousSessionParams =
@@ -218,7 +218,7 @@ export async function prepareHeartbeatSession(db: Db, input: HeartbeatSessionPre
       : null) ??
     normalizeResumeParamsForAdapter(
       agent.adapterType,
-      stripPaperclipSessionMetadataFromSessionParams(
+      stripOutpostSessionMetadataFromSessionParams(
         sessionCodec.deserialize(
           taskSessionForRun?.sessionParamsJson ?? null,
         ),
@@ -228,7 +228,7 @@ export async function prepareHeartbeatSession(db: Db, input: HeartbeatSessionPre
   // dispatch. Built-ins also load lazily if their resume attempt fails.
   if (agent.adapterType !== "outpost_runner" && !previousSessionParams && getFreshSessionHandoff) {
     const handoff = await getFreshSessionHandoff();
-    if (handoff) context.paperclipFreshSessionHandoffMarkdown = handoff;
+    if (handoff) context.outpostFreshSessionHandoffMarkdown = handoff;
   }
   return { sessionConfigMetadata, configuredModel, sessionConfigFreshness, resetTaskSession, sessionResetReason, taskSessionForRun, getFreshSessionHandoff, previousSessionParams };
 }
@@ -299,7 +299,7 @@ export async function resolveHeartbeatAdapterSession(input: HeartbeatAdapterSess
     readNonEmptyString(runtimeSessionParams?.sessionId) ??
     runtimeSessionFallback;
   let runtimeSessionParamsForAdapter = normalizeSessionParams(
-    stripPaperclipSessionMetadataFromSessionParams(runtimeSessionParams),
+    stripOutpostSessionMetadataFromSessionParams(runtimeSessionParams),
   );
 
   const sessionCompaction = await evaluateSessionCompaction({
@@ -309,10 +309,10 @@ export async function resolveHeartbeatAdapterSession(input: HeartbeatAdapterSess
     continuationSummaryBody: continuationSummary?.body ?? null,
   });
   if (sessionCompaction.rotate) {
-    context.paperclipSessionHandoffMarkdown =
+    context.outpostSessionHandoffMarkdown =
       sessionCompaction.handoffMarkdown;
-    context.paperclipSessionRotationReason = sessionCompaction.reason;
-    context.paperclipPreviousSessionId =
+    context.outpostSessionRotationReason = sessionCompaction.reason;
+    context.outpostPreviousSessionId =
       previousSessionDisplayId ?? runtimeSessionIdForAdapter;
     runtimeSessionIdForAdapter = null;
     runtimeSessionParamsForAdapter = null;
@@ -323,13 +323,13 @@ export async function resolveHeartbeatAdapterSession(input: HeartbeatAdapterSess
       );
     }
   } else {
-    delete context.paperclipSessionHandoffMarkdown;
-    delete context.paperclipSessionRotationReason;
-    delete context.paperclipPreviousSessionId;
+    delete context.outpostSessionHandoffMarkdown;
+    delete context.outpostSessionRotationReason;
+    delete context.outpostPreviousSessionId;
   }
 
   const taskSessionCredentialCompatible = !managedAiRuntime || managedAiSessionIdentityCompatible(
-    taskSession?.sessionParamsJson?.paperclipAiCredentialIdentity,
+    taskSession?.sessionParamsJson?.outpostCredentialIdentity,
     managedAiRuntime.sessionIdentity,
     managedAiRuntime.identity,
   );

@@ -5,13 +5,13 @@ import { reconcileRuntimeServiceWorkProducts } from "../services/work-products.j
 function workProduct(overrides: Partial<IssueWorkProduct> = {}): IssueWorkProduct {
   return {
     id: "wp-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     issueId: "issue-1",
     executionWorkspaceId: "ews-1",
     runtimeServiceId: "runtime-1",
     type: "runtime_service",
-    provider: "paperclip",
+    provider: "outpost",
     externalId: null,
     title: "Workspace preview",
     url: "https://workspace.example.ts.net:42013/",

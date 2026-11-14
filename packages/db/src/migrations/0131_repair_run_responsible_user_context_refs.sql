@@ -1,7 +1,7 @@
 WITH extracted_run_refs AS (
   SELECT
     h."id" AS "run_id",
-    h."company_id",
+    h."space_id",
     NULLIF(h."context_snapshot" ->> 'issueId', '') AS "issue_ref",
     1 AS "ref_priority"
   FROM "heartbeat_runs" AS h
@@ -12,7 +12,7 @@ WITH extracted_run_refs AS (
 
   SELECT
     h."id" AS "run_id",
-    h."company_id",
+    h."space_id",
     NULLIF(h."context_snapshot" ->> 'taskId', '') AS "issue_ref",
     2 AS "ref_priority"
   FROM "heartbeat_runs" AS h
@@ -22,7 +22,7 @@ WITH extracted_run_refs AS (
 uuid_run_refs AS (
   SELECT
     "run_id",
-    "company_id",
+    "space_id",
     "issue_ref"::uuid AS "issue_id",
     "ref_priority"
   FROM extracted_run_refs
@@ -41,7 +41,7 @@ resolved_run_users AS (
     FROM uuid_run_refs AS refs
     JOIN "issues" AS i
       ON i."id" = refs."issue_id"
-     AND i."company_id" = refs."company_id"
+     AND i."space_id" = refs."space_id"
     WHERE i."responsible_user_id" IS NOT NULL
 
     UNION ALL
@@ -54,7 +54,7 @@ resolved_run_users AS (
     FROM extracted_run_refs AS refs
     JOIN "issues" AS i
       ON i."identifier" = refs."issue_ref"
-     AND i."company_id" = refs."company_id"
+     AND i."space_id" = refs."space_id"
     WHERE i."responsible_user_id" IS NOT NULL
   ) AS candidates
   ORDER BY "run_id", "ref_priority" ASC, "match_priority" ASC

@@ -65,7 +65,7 @@ function parseState(serialized: string): CapabilityFixtureState {
 }
 
 /** Field-by-field browser projection. Raw provider payloads cross only through the opt-in trace channel. */
-function publicCompanyState(serialized: string): CapabilityJsonValue {
+function publicSpaceState(serialized: string): CapabilityJsonValue {
   const state = parseState(serialized);
   return safe({
     schema: state.schema,
@@ -74,7 +74,7 @@ function publicCompanyState(serialized: string): CapabilityJsonValue {
     counters: state.counters,
     lifecycle: state.lifecycle,
     activeRunId: state.activeRunId,
-    company: state.company,
+    space: state.space,
     actors: state.actors,
     tasks: state.tasks,
     outOfScopeTaskIds: state.outOfScopeTaskIds,
@@ -94,7 +94,7 @@ function publicCompanyState(serialized: string): CapabilityJsonValue {
     budgets: state.budgets,
     runs: state.runs.map((run) => ({
       id: run.id,
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       actorId: run.actorId,
       taskId: run.taskId,
       sessionId: run.sessionId,
@@ -167,7 +167,7 @@ export function projectCapabilityDevtools(
       at: entry.at,
       turnId: entry.turnId,
       operationId: entry.operationId,
-      state: publicCompanyState(entry.state),
+      state: publicSpaceState(entry.state),
     })),
     protocol: snapshot.evidence.map((entry) => ({
       id: entry.id,

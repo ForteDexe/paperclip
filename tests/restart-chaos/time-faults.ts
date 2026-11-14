@@ -250,17 +250,17 @@ export type AgingColumn = { table: string; column: string; kind: "timestamp" | "
  * (`processStartedAt`, any spelling) is identity, not a time: see `isProcessIdentityTime`.
  */
 export const SHIFT_JSON_FUNCTION = [
-  "create or replace function pg_temp.paperclip_shift_json(v jsonb, age_ms bigint, lo bigint, hi bigint)",
+  "create or replace function pg_temp.outpost_shift_json(v jsonb, age_ms bigint, lo bigint, hi bigint)",
   "returns jsonb language plpgsql immutable as $fn$",
   "declare t text; m text[]; r jsonb; shifted timestamp;",
   "begin",
   "  case jsonb_typeof(v)",
   "  when 'object' then",
   "    select coalesce(jsonb_object_agg(e.key, case when replace(lower(e.key), '_', '') like '%processstartedat%' then e.value",
-  "      else pg_temp.paperclip_shift_json(e.value, age_ms, lo, hi) end), '{}'::jsonb) into r from jsonb_each(v) e;",
+  "      else pg_temp.outpost_shift_json(e.value, age_ms, lo, hi) end), '{}'::jsonb) into r from jsonb_each(v) e;",
   "    return r;",
   "  when 'array' then",
-  "    select coalesce(jsonb_agg(pg_temp.paperclip_shift_json(e.value, age_ms, lo, hi) order by e.ord), '[]'::jsonb) into r",
+  "    select coalesce(jsonb_agg(pg_temp.outpost_shift_json(e.value, age_ms, lo, hi) order by e.ord), '[]'::jsonb) into r",
   "      from jsonb_array_elements(v) with ordinality e(value, ord);",
   "    return r;",
   "  when 'string' then",
@@ -302,7 +302,7 @@ export function agingStatements(columns: ReadonlyArray<AgingColumn>, ageMs: numb
   for (const column of columns) if (!isProcessIdentityTime(column.column)) byTable.set(column.table, [...(byTable.get(column.table) ?? []), column]);
   const shift = (column: AgingColumn) => column.kind === "timestamp"
     ? `${quote(column.column)} - interval '${ageMs} milliseconds'`
-    : `pg_temp.paperclip_shift_json(${quote(column.column)}, ${ageMs}, ${Math.trunc(epochWindow.lo)}, ${Math.trunc(epochWindow.hi)})`;
+    : `pg_temp.outpost_shift_json(${quote(column.column)}, ${ageMs}, ${Math.trunc(epochWindow.lo)}, ${Math.trunc(epochWindow.hi)})`;
   return [...byTable.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([table, cols]) => {
     const present = cols.map(col => `${quote(col.column)} is not null`).join(" or ");
     return { table, columns: cols.map(col => col.column),
@@ -445,7 +445,7 @@ export function unshiftJson<T>(value: T, shifts: readonly AgingShift[]): T {
 }
 
 /**
- * The board API as the grader should read it in a wave with aged rows: run and
+ * The operator API as the grader should read it in a wave with aged rows: run and
  * event times come back at their real times. Writes are unchanged.
  */
 export class TimeShiftedApi extends ChaosApi {

@@ -17,7 +17,7 @@ async function fixture() {
   const receipt: DockerDatabaseReceipt = {
     schemaVersion: 1, lane: "owned-docker-postgres", temporaryRoot: root, nonce,
     engine: { context: "offline", endpoint: "unix:///offline.sock", engineId: "owned-engine", operatingSystem: "offline Linux" },
-    containerId: "3".repeat(64), containerName: `paperclip-e2e-pg-${nonce}`, volumeName: `paperclip-e2e-pg-data-${nonce}`,
+    containerId: "3".repeat(64), containerName: `outpost-e2e-pg-${nonce}`, volumeName: `outpost-e2e-pg-data-${nonce}`,
     image: POSTGRES_IMAGE, imageId: POSTGRES_IMAGE_ID, imageVersion: POSTGRES_VERSION, username: "owned_user", database: "owned_db",
     connectionString: `postgresql://owned_user:${password}@127.0.0.1:55432/owned_db`, port: 55432, status: "ready", artifactVerified: true,
     startedAt: "2026-10-27T00:00:00Z", cluster: { version: "18.6 (offline control)", username: "owned_user", database: "owned_db", systemIdentifier: "12345" },

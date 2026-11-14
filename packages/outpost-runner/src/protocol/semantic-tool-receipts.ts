@@ -7,11 +7,11 @@ import type {
 } from "./replay-contract.js";
 
 export type PrpSemanticAuthorizationBoundary =
-  | "company"
+  | "space"
   | "actor"
   | "active_task"
   | "grant"
-  | "governed_action"
+  | "controlled_action"
   | "lock"
   | "revision";
 
@@ -148,7 +148,7 @@ export function createPrpBudgetStopReason(input: {
   code: string;
   retryable: boolean;
   decisionId: string;
-  limitClass: "company_monthly" | "actor_monthly" | "project_monthly" | "run_cost" | "provider_quota";
+  limitClass: "space_monthly" | "actor_monthly" | "project_monthly" | "run_cost" | "provider_quota";
   aggregate: {
     unit: "cents" | "usd_micros" | "tokens";
     observed: number;
@@ -193,13 +193,13 @@ export function orpSemanticToolResultReceipts(
 export function semanticAuthorizationBoundaryForCode(
   code: string,
 ): PrpSemanticAuthorizationBoundary {
-  if (code.includes("company")) return "company";
+  if (code.includes("space")) return "space";
   if (code.includes("actor") || code.includes("role")) return "actor";
   if (code.includes("claim") || code.includes("exposed")) return "grant";
   if (code.includes("revision") || code.includes("idempotency_conflict")) return "revision";
   if (code.includes("lock") || code.includes("ownership")) return "lock";
-  if (code.includes("approval") || code.includes("interaction") || code.includes("governed")) {
-    return "governed_action";
+  if (code.includes("approval") || code.includes("interaction") || code.includes("controlled")) {
+    return "controlled_action";
   }
   return "active_task";
 }

@@ -4,7 +4,7 @@ import { gitExpirationSkipReason, withAnonymousGitFallback } from "../services/g
 import { GitCacheRestorationFailure } from "../services/git-workspace-restoration.js";
 
 describe("Git expiration upstream access", () => {
-  it("falls back to anonymous access when the company identity cannot be resolved", async () => {
+  it("falls back to anonymous access when the space identity cannot be resolved", async () => {
     const unavailable = withAnonymousGitFallback(async () => {
       throw new Error("No managed GitHub identity is available for this run");
     });

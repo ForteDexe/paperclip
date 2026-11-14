@@ -3,7 +3,7 @@ title: Deployment Modes
 summary: local_trusted vs authenticated (private/public)
 ---
 
-Paperclip supports two runtime modes with different security profiles. Reachability is configured separately with `bind`.
+Outpost supports two runtime modes with different security profiles. Reachability is configured separately with `bind`.
 
 ## `local_trusted`
 
@@ -17,7 +17,7 @@ The default mode. Optimized for single-operator local use.
 
 ```sh
 # Set during onboard
-pnpm paperclipai onboard
+pnpm outpost onboard
 # Choose "local_trusted"
 ```
 
@@ -35,14 +35,14 @@ For private network access (Tailscale, VPN, LAN).
 - **Bind**: choose `loopback`, `lan`, `tailnet`, or `custom`
 
 ```sh
-pnpm paperclipai onboard
+pnpm outpost onboard
 # Choose "authenticated" -> "private"
 ```
 
 Allow custom Tailscale hostnames:
 
 ```sh
-npx paperclipai allowed-hostname my-machine
+npx @outpost/cli allowed-hostname my-machine
 ```
 
 ### `authenticated` + `public`
@@ -55,13 +55,13 @@ For internet-facing deployment.
 - **Bind**: usually `loopback` behind a reverse proxy; `lan/custom` is advanced
 
 ```sh
-pnpm paperclipai onboard
+pnpm outpost onboard
 # Choose "authenticated" -> "public"
 ```
 
 ## Board Claim Flow
 
-When migrating from `local_trusted` to `authenticated`, Paperclip emits a one-time claim URL at startup:
+When migrating from `local_trusted` to `authenticated`, Outpost emits a one-time claim URL at startup:
 
 ```
 /board-claim/<token>?code=<code>
@@ -71,18 +71,18 @@ A signed-in user visits this URL to claim board ownership. This:
 
 - Promotes the current user to instance admin
 - Demotes the auto-created local board admin
-- Ensures active company membership for the claiming user
+- Ensures active space membership for the claiming user
 
 ## Changing Modes
 
 Update the deployment mode:
 
 ```sh
-pnpm paperclipai configure --section server
+pnpm outpost configure --section server
 ```
 
 Runtime override via environment variable:
 
 ```sh
-OUTPOST_DEPLOYMENT_MODE=authenticated OUTPOST_BIND=lan pnpm paperclipai run
+OUTPOST_DEPLOYMENT_MODE=authenticated OUTPOST_BIND=lan pnpm outpost run
 ```

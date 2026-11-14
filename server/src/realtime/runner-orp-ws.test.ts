@@ -34,7 +34,7 @@ describe("runner ORP websocket route", () => {
     const handleUpgrade = vi.fn();
     const runId = "00000000-0000-4000-8000-000000000777";
     const registration = await registerRunnerPrpAuthority({
-      companyId: "company-1",
+      spaceId: "space-1",
       runId,
       authority: { handleUpgrade } as unknown as DurablePrpControlPlane,
     });
@@ -44,7 +44,7 @@ describe("runner ORP websocket route", () => {
     );
     expect(
       runnerPrpWebSocketInternals.activeRegistration({
-        companyId: "company-1",
+        spaceId: "space-1",
         runId,
       }),
     ).toBe(true);
@@ -52,7 +52,7 @@ describe("runner ORP websocket route", () => {
     const socket = new PassThrough();
     const request = { url: `/api/runner/v1/connect/${runId}`, headers: {} };
     server.emit("upgrade", request, socket, Buffer.alloc(0));
-    expect(request).toMatchObject({ paperclipWebSocketHandled: true });
+    expect(request).toMatchObject({ outpostWebSocketHandled: true });
     expect(handleUpgrade).toHaveBeenCalledWith(
       expect.objectContaining({ url: `/api/runner/v1/connect/${runId}` }),
       socket,
@@ -63,7 +63,7 @@ describe("runner ORP websocket route", () => {
     await registration.release();
     expect(
       runnerPrpWebSocketInternals.activeRegistration({
-        companyId: "company-1",
+        spaceId: "space-1",
         runId,
       }),
     ).toBe(false);
@@ -93,12 +93,12 @@ describe("runner ORP websocket route", () => {
       handleUpgrade: vi.fn(),
     } as unknown as DurablePrpControlPlane;
     const first = await registerRunnerPrpAuthority({
-      companyId: "company-1",
+      spaceId: "space-1",
       runId,
       authority,
     });
     await expect(
-      registerRunnerPrpAuthority({ companyId: "company-2", runId, authority }),
+      registerRunnerPrpAuthority({ spaceId: "space-2", runId, authority }),
     ).rejects.toThrow("runner_orp_authority_already_registered");
     await first.release();
     server.close();
@@ -117,7 +117,7 @@ describe("runner ORP websocket route", () => {
       controllerSeq: 2,
     }));
     const oldRegistration = await registerRunnerPrpAuthority({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       agentId: "agent-1",
       runId: oldRunId,
@@ -127,7 +127,7 @@ describe("runner ORP websocket route", () => {
       } as unknown as DurablePrpControlPlane,
     });
     const newRegistration = await registerRunnerPrpAuthority({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       agentId: "agent-1",
       runId: newRunId,
@@ -139,7 +139,7 @@ describe("runner ORP websocket route", () => {
 
     expect(
       queueLiveRunnerPrpCommand({
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         agentId: "agent-1",
         type: "session.goal.get",
@@ -151,7 +151,7 @@ describe("runner ORP websocket route", () => {
     await oldRegistration.release();
     expect(
       queueLiveRunnerPrpCommand({
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         agentId: "agent-1",
         type: "session.goal.get",
@@ -162,7 +162,7 @@ describe("runner ORP websocket route", () => {
     await newRegistration.release();
     expect(
       queueLiveRunnerPrpCommand({
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         agentId: "agent-1",
         type: "session.goal.get",
@@ -171,12 +171,12 @@ describe("runner ORP websocket route", () => {
     server.close();
   });
 
-  it("queues one company-bound, idempotent runtime request resolution", async () => {
+  it("queues one space-bound, idempotent runtime request resolution", async () => {
     const server = createBoundServer(3213);
     const queueCommand = vi.fn(() => ({ commandId: "command-resolution-1" }));
     const runId = "00000000-0000-4000-8000-000000000780";
     const registration = await registerRunnerPrpAuthority({
-      companyId: "company-1",
+      spaceId: "space-1",
       runId,
       authority: {
         queueCommand,
@@ -184,10 +184,10 @@ describe("runner ORP websocket route", () => {
       } as unknown as DurablePrpControlPlane,
     });
     const input = {
-      companyId: "company-1",
+      spaceId: "space-1",
       runId,
       pendingRequest: {
-        companyId: "company-1",
+        spaceId: "space-1",
         runId,
         requestId: "request-1",
         requestKind: "command_approval" as const,
@@ -229,7 +229,7 @@ describe("runner ORP websocket route", () => {
     expect(() =>
       queueRunnerPrpRuntimeRequestResolution({
         ...input,
-        companyId: "company-2",
+        spaceId: "space-2",
       }),
     ).toThrowError("runner_orp_authority_not_active");
     expect(() =>
@@ -250,7 +250,7 @@ describe("runner ORP websocket route", () => {
       }),
     ).toThrowError("native_runtime_request_resolver_denied");
     for (const pendingRequest of [
-      { ...input.pendingRequest, companyId: "company-2" },
+      { ...input.pendingRequest, spaceId: "space-2" },
       { ...input.pendingRequest, runId: "00000000-0000-4000-8000-000000000783" },
     ]) {
       expect(() => queueRunnerPrpRuntimeRequestResolution({
@@ -294,21 +294,21 @@ describe("runner ORP websocket route", () => {
           expectedRunnerDigest: `sha256:${"a".repeat(64)}`,
         });
         const oldRoute = await registerRunnerPrpAuthority({
-          companyId: "company-1",
+          spaceId: "space-1",
           runId: identity.runId,
           authority,
         });
         // Warm attach registers the next route before rotating the same core.
         const nextRoute = await registerRunnerPrpAuthority({
-          companyId: "company-1",
+          spaceId: "space-1",
           runId: nextIdentity.runId,
           authority,
         });
         const input = {
-          companyId: "company-1",
+          spaceId: "space-1",
           runId: identity.runId,
           pendingRequest: {
-            companyId: "company-1",
+            spaceId: "space-1",
             runId: identity.runId,
             requestId: "request-old",
             requestKind: "command_approval" as const,
@@ -371,7 +371,7 @@ describe("runner ORP websocket route", () => {
         await oldRoute.release();
         expect(
           runnerPrpWebSocketInternals.activeRegistration({
-            companyId: "company-1",
+            spaceId: "space-1",
             runId: nextIdentity.runId,
           }),
         ).toBe(true);

@@ -15,11 +15,11 @@ export function gradeModelOptions(value: unknown) {
   c.add("at-least-one-current-discovered-option", Array.isArray(models) && models.length > 0 && o.state.discoveryStatus === 200
     && Number(o.state.agentDiscoveryReads) > 0 && o.reply.trim().length > 0, "The answering run read the current authorized model discovery route.");
   const publicCatalog = o.state.publicOpenRouterCatalog as Model[] | undefined, savedScope = o.state.publicCatalogScope as OpenRouterCatalogScope | undefined;
-  const lead = o.agents.find(row => row.id === o.leadId), currentScope = current && lead ? openRouterCatalogScope(o.companyId, o.leadId, current, lead) : undefined;
+  const lead = o.agents.find(row => row.id === o.leadId), currentScope = current && lead ? openRouterCatalogScope(o.spaceId, o.leadId, current, lead) : undefined;
   const catalogBound = Array.isArray(publicCatalog) && publicCatalog.length > 0 && publicCatalog.every(model => typeof model.id === "string" && model.id.startsWith("openrouter/"))
     && o.state.publicCatalogStatus === 200 && !!savedScope && !!currentScope && JSON.stringify(savedScope) === JSON.stringify(currentScope);
   c.add("same-binding-public-catalog-provenance", publicCatalog === undefined || catalogBound,
-    "Public catalog choices require the actual unchanged company/CEO/Morgan/environment/OpenCode/OpenRouter key-reference binding; metadata never proves entitlement.");
+    "Public catalog choices require the actual unchanged space/CEO/Morgan/environment/OpenCode/OpenRouter key-reference binding; metadata never proves entitlement.");
   const known = [...(models ?? []), ...(catalogBound ? publicCatalog! : [])], mentionedIds = observedModelChoices(o.reply);
   // Model IDs are product output copied into the reply, so they are graded
   // exactly. Whether the reply separates a listed model from a working account
@@ -36,16 +36,16 @@ export function gradeModelOptions(value: unknown) {
 }
 export const runtimeRunsAdaptersCases = [runtimeDefinition("runs-adapters.list-model-options", async ctx => {
   const worker = await runtimeWorker(ctx);
-  const endpoint = modelDiscoveryEndpoint(ctx.input.fixtures.company.id, worker);
+  const endpoint = modelDiscoveryEndpoint(ctx.input.fixtures.space.id, worker);
   const discovered = await readAgentResource(ctx, endpoint);
   const restricted = await readAgentResource(ctx, `/api/agents/${worker.id}/runtime-state`);
   if (discovered.status !== 200 || !Array.isArray(discovered.data)) throw new Error("Scenario requires admitted real coding model discovery");
   let publicOpenRouterCatalog: Model[] | undefined, publicCatalogScope: OpenRouterCatalogScope | undefined, publicCatalogStatus: number | undefined;
   if (worker.adapterType === "outpost_runner" && worker.adapterConfig?.provider === "opencode" && String(worker.adapterConfig.model).startsWith("openrouter/")) {
     const lead = await ctx.input.api.get<RuntimeAgent>(`/api/agents/${ctx.input.fixtures.agent.id}`);
-    publicCatalogScope = openRouterCatalogScope(ctx.input.fixtures.company.id, ctx.input.fixtures.agent.id, worker, lead);
-    if (!publicCatalogScope) throw new Error("Model catalog setup requires the actual same-company OpenRouter account reference and native environment binding");
-    const catalog = await readAgentResource(ctx, publicOpenRouterCatalogEndpoint(ctx.input.fixtures.company.id));
+    publicCatalogScope = openRouterCatalogScope(ctx.input.fixtures.space.id, ctx.input.fixtures.agent.id, worker, lead);
+    if (!publicCatalogScope) throw new Error("Model catalog setup requires the actual same-space OpenRouter account reference and native environment binding");
+    const catalog = await readAgentResource(ctx, publicOpenRouterCatalogEndpoint(ctx.input.fixtures.space.id));
     publicCatalogStatus = catalog.status;
     if (catalog.status !== 200 || !Array.isArray(catalog.data) || !catalog.data.length || !catalog.data.every((row: Model) => typeof row.id === "string" && row.id.startsWith("openrouter/") && typeof row.label === "string")) throw new Error("Official public OpenRouter model metadata unavailable; no model options were invented");
     publicOpenRouterCatalog = catalog.data;
@@ -74,7 +74,7 @@ export const runtimeRunsAdaptersCases = [runtimeDefinition("runs-adapters.list-m
   },
 })];
 
-const MODEL_DISCOVERY_OPERATION = "GET /api/companies/{companyId}/adapters/{type}/models";
+const MODEL_DISCOVERY_OPERATION = "GET /api/spaces/{spaceId}/adapters/{type}/models";
 /** Successful model discovery results recorded in the answering runs' own tool events. */
 export function countModelDiscoveryReads(events: Record<string, unknown>[], runIds: string[]) {
   const record = (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -85,8 +85,8 @@ export function countModelDiscoveryReads(events: Record<string, unknown>[], runI
   }).length;
 }
 
-export function modelDiscoveryEndpoint(companyId: string, worker: RuntimeAgent) {
+export function modelDiscoveryEndpoint(spaceId: string, worker: RuntimeAgent) {
   if (worker.adapterType !== "outpost_runner" || !["codex", "opencode"].includes(String(worker.adapterConfig?.provider)) || !worker.defaultEnvironmentId)
     throw new Error("Model discovery requires the actually selected native provider and environment");
-  return `/api/companies/${encodeURIComponent(companyId)}/adapters/outpost_runner/models?provider=${worker.adapterConfig!.provider}&environmentId=${encodeURIComponent(worker.defaultEnvironmentId)}`;
+  return `/api/spaces/${encodeURIComponent(spaceId)}/adapters/outpost_runner/models?provider=${worker.adapterConfig!.provider}&environmentId=${encodeURIComponent(worker.defaultEnvironmentId)}`;
 }

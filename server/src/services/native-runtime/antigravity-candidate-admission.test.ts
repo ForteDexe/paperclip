@@ -2,15 +2,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { QUALIFIED_ACPX_PROFILES } from "../../vendor/outpost-runner/index.js";
 import { ANTIGRAVITY_CANDIDATE_ADMISSION_ENV, resolveAntigravityCandidateAdmission } from "./acpx-qualification.js";
-import { resolvePaperclipRunnerNativeProviderInput, resolvePaperclipRunnerProviderProfile } from "./provider-profile.js";
+import { resolveOutpostRunnerNativeProviderInput, resolveOutpostRunnerProviderProfile } from "./provider-profile.js";
 import { resolveNativeRuntimeMode } from "./runtime-mode.js";
 
-const companyId = "candidate-company";
+const spaceId = "candidate-space";
 const model = "gemini-3.8-flash-low";
 const config = { provider: "acpx", acpxAgent: "antigravity", model };
 const localHost = process.platform === "darwin" && process.arch === "arm64";
 const distributions = JSON.parse(readFileSync(new URL("../../../../packages/outpost-runner/antigravity-distributions.json", import.meta.url), "utf8"));
-const admission = () => ({ schema: "outpost.acpx-candidate-admission.v1", companyId,
+const admission = () => ({ schema: "outpost.acpx-candidate-admission.v1", spaceId,
   agent: "antigravity", model, profileDigest: QUALIFIED_ACPX_PROFILES.antigravity.commandDigest,
   nativeClosureDigest: `sha256:${distributions.platforms["darwin-arm64"].closureSha256}`,
   platform: "darwin", architecture: "arm64", expiresAt: Date.now() + 60_000 });
@@ -22,16 +22,16 @@ describe("Antigravity operator candidate admission", () => {
     vi.stubEnv(ANTIGRAVITY_CANDIDATE_ADMISSION_ENV, undefined);
     const injected = { ...config, candidateAdmission: admission(),
       env: { [ANTIGRAVITY_CANDIDATE_ADMISSION_ENV]: JSON.stringify(admission()) } };
-    expect(() => resolvePaperclipRunnerProviderProfile(injected, { companyId }))
+    expect(() => resolveOutpostRunnerProviderProfile(injected, { spaceId }))
       .toThrow(expect.objectContaining({ code: "outpost_runner_acpx_agent_unavailable" }));
   });
 
-  it("requires explicit company authority and never projects it to another company", () => {
+  it("requires explicit space authority and never projects it to another space", () => {
     vi.stubEnv(ANTIGRAVITY_CANDIDATE_ADMISSION_ENV, JSON.stringify(admission()));
     expect(resolveAntigravityCandidateAdmission({})).toBeUndefined();
-    expect(resolveAntigravityCandidateAdmission({ companyId: "another-company", model })).toBeUndefined();
-    expect(() => resolvePaperclipRunnerProviderProfile(config)).toThrow(/awaiting native Runner acceptance/);
-    expect(() => resolvePaperclipRunnerProviderProfile(config, { companyId: "another-company" }))
+    expect(resolveAntigravityCandidateAdmission({ spaceId: "another-space", model })).toBeUndefined();
+    expect(() => resolveOutpostRunnerProviderProfile(config)).toThrow(/awaiting native Runner acceptance/);
+    expect(() => resolveOutpostRunnerProviderProfile(config, { spaceId: "another-space" }))
       .toThrow(/awaiting native Runner acceptance/);
   });
 
@@ -39,17 +39,17 @@ describe("Antigravity operator candidate admission", () => {
     vi.stubEnv(ANTIGRAVITY_CANDIDATE_ADMISSION_ENV, JSON.stringify(admission()));
     expect(QUALIFIED_ACPX_PROFILES.antigravity.qualificationStatus).toBe("pending");
     if (!localHost) {
-      expect(resolveAntigravityCandidateAdmission({ companyId, model })).toBeUndefined();
+      expect(resolveAntigravityCandidateAdmission({ spaceId, model })).toBeUndefined();
       return;
     }
-    expect(resolveAntigravityCandidateAdmission({ companyId })).toMatchObject({ companyId, model, agent: "antigravity" });
-    expect(resolvePaperclipRunnerProviderProfile(config, { companyId })).toMatchObject(config);
-    expect(resolvePaperclipRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig: config, companyId }))
+    expect(resolveAntigravityCandidateAdmission({ spaceId })).toMatchObject({ spaceId, model, agent: "antigravity" });
+    expect(resolveOutpostRunnerProviderProfile(config, { spaceId })).toMatchObject(config);
+    expect(resolveOutpostRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig: config, spaceId }))
       .toMatchObject({ ...config, acpxPermissionMode: "approve-all" });
-    expect(() => resolvePaperclipRunnerProviderProfile({ ...config, model: "different-model" }, { companyId }))
+    expect(() => resolveOutpostRunnerProviderProfile({ ...config, model: "different-model" }, { spaceId }))
       .toThrow(expect.objectContaining({ code: "outpost_runner_acpx_qualification_invalid" }));
     expect(resolveNativeRuntimeMode({ enabled: false, runtimeConfig: {}, adapterConfig: config,
-      agent: { id: "candidate-agent", companyId, adapterType: "outpost_runner", status: "active" },
+      agent: { id: "candidate-agent", spaceId, adapterType: "outpost_runner", status: "active" },
       issue: { id: "candidate-task", workMode: "standard" }, target: { kind: "local" }, workspaceId: null }))
       .toMatchObject({ kind: "native", profile: { backend: "acpx_runtime" } });
   });
@@ -60,8 +60,8 @@ describe("Antigravity operator candidate admission", () => {
     { architecture: "x64" }, { allowAll: true },
   ])("rejects expired, changed or broad operator authorization %j", changes => {
     vi.stubEnv(ANTIGRAVITY_CANDIDATE_ADMISSION_ENV, JSON.stringify({ ...admission(), ...changes }));
-    expect(() => resolveAntigravityCandidateAdmission({ companyId, model })).toThrow();
-    expect(() => resolvePaperclipRunnerProviderProfile(config, { companyId }))
+    expect(() => resolveAntigravityCandidateAdmission({ spaceId, model })).toThrow();
+    expect(() => resolveOutpostRunnerProviderProfile(config, { spaceId }))
       .toThrow(expect.objectContaining({ code: "outpost_runner_acpx_qualification_invalid" }));
   });
 });

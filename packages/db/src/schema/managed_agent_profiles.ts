@@ -12,12 +12,12 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { companies } from "./companies.js";
-import { companySecrets } from "./company_secrets.js";
+import { spaces } from "./spaces.js";
+import { spaceSecrets } from "./space_secrets.js";
 
 /**
- * Company-scoped, non-secret snapshots of qualified Claude Managed Agent
- * resources. Credentials remain in the company secret store and are linked by
+ * Space-scoped, non-secret snapshots of qualified Claude Managed Agent
+ * resources. Credentials remain in the space secret store and are linked by
  * id only. Runtime inputs copy the immutable public resource identity from this
  * row rather than accepting it from an agent's editable adapter config.
  */
@@ -25,9 +25,9 @@ export const managedAgentProfiles = pgTable(
   "managed_agent_profiles",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     profileKey: text("profile_key").notNull(),
     displayName: text("display_name").notNull(),
     service: text("service").notNull().default("anthropic_managed_agents"),
@@ -39,7 +39,7 @@ export const managedAgentProfiles = pgTable(
     defaultMaxListCostCents: integer("default_max_list_cost_cents").notNull().default(100),
     apiKeySecretId: uuid("api_key_secret_id")
       .notNull()
-      .references(() => companySecrets.id, { onDelete: "restrict" }),
+      .references(() => spaceSecrets.id, { onDelete: "restrict" }),
     enabled: boolean("enabled").notNull().default(false),
     retentionAcknowledged: boolean("retention_acknowledged").notNull().default(false),
     qualification: jsonb("qualification").$type<Record<string, unknown>>().notNull().default({}),
@@ -49,13 +49,13 @@ export const managedAgentProfiles = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyIdx: index("managed_agent_profiles_company_idx").on(table.companyId),
-    companyKeyUq: uniqueIndex("managed_agent_profiles_company_key_uq").on(
-      table.companyId,
+    spaceIdx: index("managed_agent_profiles_space_idx").on(table.spaceId),
+    spaceKeyUq: uniqueIndex("managed_agent_profiles_space_key_uq").on(
+      table.spaceId,
       table.profileKey,
     ),
-    resourceUq: uniqueIndex("managed_agent_profiles_company_resource_uq").on(
-      table.companyId,
+    resourceUq: uniqueIndex("managed_agent_profiles_space_resource_uq").on(
+      table.spaceId,
       table.anthropicAgentId,
       table.agentVersion,
       table.environmentId,

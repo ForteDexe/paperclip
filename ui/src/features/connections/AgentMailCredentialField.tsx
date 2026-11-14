@@ -7,16 +7,16 @@ import { formatDateTime } from "@/lib/utils";
 import { ApiKeyCredentialField } from "./ApiKeyCredentialField";
 import { AGENTMAIL_API_KEYS_URL } from "./AgentMailApiKeyField";
 
-export function AgentMailCredentialField({ companyId, connectionId, onConnectionChange, value, onChange, disabled }: {
-  companyId: string;
+export function AgentMailCredentialField({ spaceId, connectionId, onConnectionChange, value, onChange, disabled }: {
+  spaceId: string;
   connectionId: string | null;
   onConnectionChange(id: string): void;
   value: string;
   onChange(value: string): void;
   disabled?: boolean;
 }) {
-  const saved = useQuery({ queryKey: ["email-credentials", companyId],
-    queryFn: () => emailApi.credentials(companyId), staleTime: 60_000 });
+  const saved = useQuery({ queryKey: ["email-credentials", spaceId],
+    queryFn: () => emailApi.credentials(spaceId), staleTime: 60_000 });
   const savedView = useQueryView(saved);
   useEffect(() => {
     // Null means untouched; an explicit new-key choice must survive refreshes

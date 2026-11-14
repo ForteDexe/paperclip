@@ -1,6 +1,6 @@
 import { Boxes, Folder, Link2, Paperclip, type LucideIcon } from "lucide-react";
 import { GithubIcon } from "@/components/icons/github-icon";
-import type { CompanySkillListItem } from "@outpost/shared";
+import type { SpaceSkillListItem } from "@outpost/shared";
 
 export interface AgentSkillSourceMeta {
   icon: LucideIcon;
@@ -8,7 +8,7 @@ export interface AgentSkillSourceMeta {
 }
 
 type SourceSkill = Pick<
-  CompanySkillListItem,
+  SpaceSkillListItem,
   "sourceBadge" | "sourceLabel" | "sourceLocator" | "sourceType"
 >;
 
@@ -103,7 +103,7 @@ export function buildAgentSkillSourceMeta(skill: SourceSkill): AgentSkillSourceM
     return { icon: Link2, label: hostLabel(skill.sourceLabel) ?? hostLabel(skill.sourceLocator) ?? "URL" };
   }
 
-  if (skill.sourceBadge === "paperclip") {
+  if (skill.sourceBadge === "outpost") {
     return { icon: Paperclip, label: skill.sourceLabel?.trim() || "Outpost managed" };
   }
 

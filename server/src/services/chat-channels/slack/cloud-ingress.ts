@@ -48,12 +48,12 @@ export function createSlackCloudEventIngress(db: Db, options: {
     if (!initial || initial.provider !== "slack" || ["archived", "paused", "revoked"].includes(initial.status)) return;
     const binding = await options.withCredentialMutationLease(initial, async (lease): Promise<CurrentSlackCloudBinding | null> => {
       const [current] = await db.select({ endpoint: chatEndpoints, connection: toolConnections }).from(chatEndpoints)
-        .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, chatEndpoints.companyId)))
+        .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, chatEndpoints.spaceId)))
         .where(eq(chatEndpoints.id, initial.id)).limit(1);
       if (!current || current.endpoint.provider !== "slack" || ["archived", "paused", "revoked"].includes(current.endpoint.status)
         || current.connection.status !== "active" || !current.connection.enabled) return null;
       const endpoint = current.endpoint;
-      if (packet.companyId !== endpoint.companyId || packet.publicId !== endpoint.publicId
+      if (packet.spaceId !== endpoint.spaceId || packet.publicId !== endpoint.publicId
         || packet.connectionId !== endpoint.connectionId || packet.runtimeGeneration !== options.runtimeGeneration(endpoint)) return null;
       const setup = endpoint.setup as InternalSetupState;
       if (callback && setup.slackCloudInstanceId !== identity?.instanceId) throw new SlackCloudReceiptError("callback_instance_changed", "attention");
@@ -64,7 +64,7 @@ export function createSlackCloudEventIngress(db: Db, options: {
         || enrolled.teamId !== endpoint.providerAccountId) throw new Error("Slack Cloud enrollment is unsettled");
       const signingSecret = await resolveSlackCloudSigningSecret(options.resolveCredentials, endpoint, db, ["signingSecret"]);
       await lease.assertOwned();
-      return { companyId: endpoint.companyId, endpointId: endpoint.id,
+      return { spaceId: endpoint.spaceId, endpointId: endpoint.id,
         publicId: endpoint.publicId, connectionId: endpoint.connectionId, runtimeGeneration: options.runtimeGeneration(endpoint),
         bindingId: enrolled.bindingId, teamId: enrolled.teamId, appId: enrolled.appId, signingSecret };
     });

@@ -28,14 +28,14 @@ require_cmd shasum
 OUTPOST_API_URL="${OUTPOST_API_URL:-http://127.0.0.1:3100}"
 API_BASE="${OUTPOST_API_URL%/}/api"
 
-COMPANY_SELECTOR="${COMPANY_SELECTOR:-CLA}"
+SPACE_SELECTOR="${SPACE_SELECTOR:-CLA}"
 OPENCLAW_AGENT_NAME="${OPENCLAW_AGENT_NAME:-OpenClaw Gateway Smoke Agent}"
 OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-ws://127.0.0.1:18789}"
 OPENCLAW_GATEWAY_TOKEN="${OPENCLAW_GATEWAY_TOKEN:-}"
 OPENCLAW_TMP_DIR="${OPENCLAW_TMP_DIR:-${TMPDIR:-/tmp}}"
 OPENCLAW_TMP_DIR="${OPENCLAW_TMP_DIR%/}"
 OPENCLAW_TMP_DIR="${OPENCLAW_TMP_DIR:-/tmp}"
-OPENCLAW_CONFIG_DIR="${OPENCLAW_CONFIG_DIR:-${OPENCLAW_TMP_DIR}/openclaw-paperclip-smoke}"
+OPENCLAW_CONFIG_DIR="${OPENCLAW_CONFIG_DIR:-${OPENCLAW_TMP_DIR}/openclaw-outpost-smoke}"
 OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-${OPENCLAW_CONFIG_DIR}/workspace}"
 OPENCLAW_CONTAINER_NAME="${OPENCLAW_CONTAINER_NAME:-openclaw-docker-openclaw-gateway-1}"
 OPENCLAW_IMAGE="${OPENCLAW_IMAGE:-openclaw:local}"
@@ -68,7 +68,7 @@ fi
 
 RESPONSE_CODE=""
 RESPONSE_BODY=""
-COMPANY_ID=""
+SPACE_ID=""
 AGENT_ID=""
 AGENT_API_KEY=""
 JOIN_REQUEST_ID=""
@@ -175,12 +175,12 @@ assert_status() {
 
 require_board_auth() {
   if [[ ${#AUTH_HEADERS[@]} -eq 0 ]]; then
-    fail "board auth required. Set OUTPOST_COOKIE or OUTPOST_AUTH_HEADER."
+    fail "operator auth required. Set OUTPOST_COOKIE or OUTPOST_AUTH_HEADER."
   fi
-  api_request "GET" "/companies"
+  api_request "GET" "/spaces"
   if [[ "$RESPONSE_CODE" != "200" ]]; then
     echo "$RESPONSE_BODY" >&2
-    fail "board auth invalid for /api/companies (HTTP ${RESPONSE_CODE})"
+    fail "operator auth invalid for /api/spaces (HTTP ${RESPONSE_CODE})"
   fi
 }
 
@@ -313,14 +313,14 @@ ws.on("error", (err) => {
 NODE
 }
 
-resolve_company_id() {
-  api_request "GET" "/companies"
+resolve_space_id() {
+  api_request "GET" "/spaces"
   assert_status "200"
 
   local selector
-  selector="$(printf "%s" "$COMPANY_SELECTOR" | tr '[:lower:]' '[:upper:]')"
+  selector="$(printf "%s" "$SPACE_SELECTOR" | tr '[:lower:]' '[:upper:]')"
 
-  COMPANY_ID="$(jq -r --arg sel "$selector" '
+  SPACE_ID="$(jq -r --arg sel "$selector" '
     map(select(
       ((.id // "") | ascii_upcase) == $sel or
       ((.name // "") | ascii_upcase) == $sel or
@@ -329,18 +329,18 @@ resolve_company_id() {
     | .[0].id // empty
   ' <<<"$RESPONSE_BODY")"
 
-  if [[ -z "$COMPANY_ID" ]]; then
+  if [[ -z "$SPACE_ID" ]]; then
     local available
     available="$(jq -r '.[] | "- id=\(.id) issuePrefix=\(.issuePrefix // "") name=\(.name // "")"' <<<"$RESPONSE_BODY")"
     echo "$available" >&2
-    fail "could not find company for selector '${COMPANY_SELECTOR}'"
+    fail "could not find space for selector '${SPACE_SELECTOR}'"
   fi
 
-  log "resolved company ${COMPANY_ID} from selector ${COMPANY_SELECTOR}"
+  log "resolved space ${SPACE_ID} from selector ${SPACE_SELECTOR}"
 }
 
 cleanup_openclaw_agents() {
-  api_request "GET" "/companies/${COMPANY_ID}/agents"
+  api_request "GET" "/spaces/${SPACE_ID}/agents"
   assert_status "200"
 
   local ids
@@ -366,7 +366,7 @@ cleanup_openclaw_agents() {
 }
 
 cleanup_pending_join_requests() {
-  api_request "GET" "/companies/${COMPANY_ID}/join-requests?status=pending_approval"
+  api_request "GET" "/spaces/${SPACE_ID}/join-requests?status=pending_approval"
   if [[ "$RESPONSE_CODE" != "200" ]]; then
     warn "join-request cleanup skipped (HTTP ${RESPONSE_CODE})"
     return
@@ -381,7 +381,7 @@ cleanup_pending_join_requests() {
   while IFS= read -r request_id; do
     [[ -n "$request_id" ]] || continue
     log "rejecting stale pending join request ${request_id}"
-    api_request "POST" "/companies/${COMPANY_ID}/join-requests/${request_id}/reject" "{}"
+    api_request "POST" "/spaces/${SPACE_ID}/join-requests/${request_id}/reject" "{}"
     if [[ "$RESPONSE_CODE" != "200" && "$RESPONSE_CODE" != "404" && "$RESPONSE_CODE" != "409" ]]; then
       warn "reject ${request_id} returned HTTP ${RESPONSE_CODE}"
     fi
@@ -393,7 +393,7 @@ create_and_approve_gateway_join() {
 
   local invite_payload
   invite_payload="$(jq -nc '{allowedJoinTypes:"agent"}')"
-  api_request "POST" "/companies/${COMPANY_ID}/invites" "$invite_payload"
+  api_request "POST" "/spaces/${SPACE_ID}/invites" "$invite_payload"
   assert_status "201"
 
   local invite_token
@@ -406,7 +406,7 @@ create_and_approve_gateway_join() {
     --arg name "$OPENCLAW_AGENT_NAME" \
     --arg url "$OPENCLAW_GATEWAY_URL" \
     --arg token "$gateway_token" \
-    --arg paperclipApiUrl "$OUTPOST_API_URL_FOR_OPENCLAW" \
+    --arg outpostApiUrl "$OUTPOST_API_URL_FOR_OPENCLAW" \
     --argjson timeoutSec "$OPENCLAW_ADAPTER_TIMEOUT_SEC" \
     --argjson waitTimeoutMs "$OPENCLAW_ADAPTER_WAIT_TIMEOUT_MS" \
     '{
@@ -420,10 +420,10 @@ create_and_approve_gateway_join() {
         role: "operator",
         scopes: ["operator.admin"],
         sessionKeyStrategy: "fixed",
-        sessionKey: "paperclip",
+        sessionKey: "outpost",
         timeoutSec: $timeoutSec,
         waitTimeoutMs: $waitTimeoutMs,
-        paperclipApiUrl: $paperclipApiUrl
+        outpostApiUrl: $outpostApiUrl
       }
     }')"
 
@@ -438,7 +438,7 @@ create_and_approve_gateway_join() {
   [[ -n "$JOIN_REQUEST_ID" && -n "$claim_secret" && -n "$claim_path" ]] || fail "join accept missing claim metadata"
 
   log "approving join request ${JOIN_REQUEST_ID}"
-  api_request "POST" "/companies/${COMPANY_ID}/join-requests/${JOIN_REQUEST_ID}/approve" "{}"
+  api_request "POST" "/spaces/${SPACE_ID}/join-requests/${JOIN_REQUEST_ID}/approve" "{}"
   assert_status "200"
 
   AGENT_ID="$(jq -r '.createdAgentId // empty' <<<"$RESPONSE_BODY")"
@@ -460,9 +460,9 @@ create_and_approve_gateway_join() {
 persist_claimed_key_artifacts() {
   local claim_json="$1"
   local workspace_dir="${OPENCLAW_CONFIG_DIR%/}/workspace"
-  local skill_dir="${OPENCLAW_CONFIG_DIR%/}/skills/paperclip"
-  local claimed_file="${workspace_dir}/paperclip-claimed-api-key.json"
-  local claimed_raw_file="${workspace_dir}/paperclip-claimed-api-key.raw.json"
+  local skill_dir="${OPENCLAW_CONFIG_DIR%/}/skills/outpost"
+  local claimed_file="${workspace_dir}/outpost-claimed-api-key.json"
+  local claimed_raw_file="${workspace_dir}/outpost-claimed-api-key.raw.json"
 
   mkdir -p "$workspace_dir" "$skill_dir"
   local token
@@ -480,12 +480,12 @@ persist_claimed_key_artifacts() {
   container="$(detect_openclaw_container || true)"
   if [[ -n "$container" ]]; then
     docker exec "$container" sh -lc "mkdir -p /home/node/.openclaw/workspace" >/dev/null 2>&1 || true
-    docker cp "$claimed_file" "${container}:/home/node/.openclaw/workspace/paperclip-claimed-api-key.json" >/dev/null 2>&1 || true
-    docker exec "$container" sh -lc "chmod 644 /home/node/.openclaw/workspace/paperclip-claimed-api-key.json" >/dev/null 2>&1 || true
+    docker cp "$claimed_file" "${container}:/home/node/.openclaw/workspace/outpost-claimed-api-key.json" >/dev/null 2>&1 || true
+    docker exec "$container" sh -lc "chmod 644 /home/node/.openclaw/workspace/outpost-claimed-api-key.json" >/dev/null 2>&1 || true
   fi
 
   if [[ "$AUTO_INSTALL_SKILL" == "1" ]]; then
-    api_request "GET" "/skills/paperclip"
+    api_request "GET" "/skills/outpost"
     assert_status "200"
     {
       echo "OUTPOST_API_URL=${OUTPOST_API_URL_FOR_OPENCLAW}"
@@ -506,7 +506,7 @@ inject_agent_api_key_payload_template() {
   assert_status "200"
 
   local base_message
-  base_message="Set OUTPOST_API_KEY=${AGENT_API_KEY} in your run context before running Paperclip heartbeat steps."
+  base_message="Set OUTPOST_API_KEY=${AGENT_API_KEY} in your run context before running Outpost heartbeat steps."
   if [[ -n "$PAYLOAD_TEMPLATE_MESSAGE_APPEND" ]]; then
     base_message="${base_message}\n\n${PAYLOAD_TEMPLATE_MESSAGE_APPEND}"
   fi
@@ -616,7 +616,7 @@ trigger_wakeup() {
 
 get_run_status() {
   local run_id="$1"
-  api_request "GET" "/companies/${COMPANY_ID}/heartbeat-runs?agentId=${AGENT_ID}&limit=200"
+  api_request "GET" "/spaces/${SPACE_ID}/heartbeat-runs?agentId=${AGENT_ID}&limit=200"
   if [[ "$RESPONSE_CODE" != "200" ]]; then
     echo ""
     return 0
@@ -710,7 +710,7 @@ create_issue_for_case() {
     --arg priority "$priority" \
     '{title:$title,description:$description,status:"todo",priority:$priority,assigneeAgentId:$assignee}')"
 
-  api_request "POST" "/companies/${COMPANY_ID}/issues" "$payload"
+  api_request "POST" "/spaces/${SPACE_ID}/issues" "$payload"
   assert_status "201"
 
   local issue_id issue_identifier
@@ -735,7 +735,7 @@ find_issue_by_query() {
   local query="$1"
   local encoded_query
   encoded_query="$(jq -rn --arg q "$query" '$q|@uri')"
-  api_request "GET" "/companies/${COMPANY_ID}/issues?q=${encoded_query}"
+  api_request "GET" "/spaces/${SPACE_ID}/issues?q=${encoded_query}"
   if [[ "$RESPONSE_CODE" != "200" ]]; then
     echo ""
     return 0
@@ -787,7 +787,7 @@ run_case_b() {
   local marker="OPENCLAW_CASE_B_OK_$(date +%s)"
   local message_text="${marker}"
   local description
-  description="Case B validation.\n\nUse the message tool to send this exact text to the user's main chat session in webchat:\n${message_text}\n\nAfter sending, post a Paperclip issue comment containing exactly: ${marker}\nThen mark this issue done."
+  description="Case B validation.\n\nUse the message tool to send this exact text to the user's main chat session in webchat:\n${message_text}\n\nAfter sending, post a Outpost issue comment containing exactly: ${marker}\nThen mark this issue done."
 
   local created
   created="$(create_issue_for_case "[OpenClaw Gateway Smoke] Case B" "$description")"
@@ -833,7 +833,7 @@ run_case_c() {
   local ack_marker="OPENCLAW_CASE_C_ACK_$(date +%s)"
   local original_issue_reference="the original case issue you are currently reading"
   local description
-  description="Case C validation.\n\nTreat this run as a fresh/new session.\nCreate a NEW Paperclip issue in this same company with title exactly:\n${marker}\nUse description: 'created by case C smoke'.\n\nThen post a comment on ${original_issue_reference} containing exactly: ${ack_marker}\nDo NOT post the ACK comment on the newly created issue.\nThen mark the original case issue done."
+  description="Case C validation.\n\nTreat this run as a fresh/new session.\nCreate a NEW Outpost issue in this same space with title exactly:\n${marker}\nUse description: 'created by case C smoke'.\n\nThen post a comment on ${original_issue_reference} containing exactly: ${ack_marker}\nDo NOT post the ACK comment on the newly created issue.\nThen mark the original case issue done."
 
   local created
   created="$(create_issue_for_case "[OpenClaw Gateway Smoke] Case C" "$description")"
@@ -884,13 +884,13 @@ main() {
   mkdir -p "$OPENCLAW_DIAG_DIR"
   log "diagnostics dir: ${OPENCLAW_DIAG_DIR}"
 
-  wait_http_ready "${OUTPOST_API_URL%/}/api/health" 15 || fail "Paperclip API health endpoint not reachable"
+  wait_http_ready "${OUTPOST_API_URL%/}/api/health" 15 || fail "Outpost API health endpoint not reachable"
   api_request "GET" "/health"
   assert_status "200"
-  log "paperclip health deploymentMode=$(jq -r '.deploymentMode // "unknown"' <<<"$RESPONSE_BODY") exposure=$(jq -r '.deploymentExposure // "unknown"' <<<"$RESPONSE_BODY")"
+  log "outpost health deploymentMode=$(jq -r '.deploymentMode // "unknown"' <<<"$RESPONSE_BODY") exposure=$(jq -r '.deploymentExposure // "unknown"' <<<"$RESPONSE_BODY")"
 
   require_board_auth
-  resolve_company_id
+  resolve_space_id
   cleanup_openclaw_agents
   cleanup_pending_join_requests
 
@@ -940,7 +940,7 @@ main() {
   run_case_c
 
   log "success"
-  log "companyId=${COMPANY_ID}"
+  log "spaceId=${SPACE_ID}"
   log "agentId=${AGENT_ID}"
   log "inviteId=${INVITE_ID}"
   log "joinRequestId=${JOIN_REQUEST_ID}"

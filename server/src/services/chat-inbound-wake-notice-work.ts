@@ -5,7 +5,7 @@ import { DELIVERY_QUEUES } from "./delivery-work-notifications.js";
 import { registerScopedDeadlineWork } from "./scoped-deadline-work.js";
 
 type Entry = {
-  id: string; companyId: string; issueId: string; dueAt: number;
+  id: string; spaceId: string; issueId: string; dueAt: number;
   cursor: InboundWakeNoticeCursor | null; contended: boolean;
 };
 const batchSize = 100;
@@ -17,12 +17,12 @@ export function chatInboundWakeNoticeWork(service: Pick<ChatChannelService,
   "loadInboundWakeNoticeScopes" | "reconcileInboundWakeNotices">) {
   async function load(scope?: InboundWakeNoticeScope, signal?: AbortSignal): Promise<Entry[]> {
     return (await service.loadInboundWakeNoticeScopes(scope, signal)).map(row => ({
-      ...row, id: `${row.companyId}:${row.issueId}`, dueAt: 0, cursor: null, contended: false,
+      ...row, id: `${row.spaceId}:${row.issueId}`, dueAt: 0, cursor: null, contended: false,
     }));
   }
   async function check(entry: Entry, signal?: AbortSignal): Promise<Entry | null> {
     const result = await service.reconcileInboundWakeNotices({
-      scope: { companyId: entry.companyId, issueId: entry.issueId },
+      scope: { spaceId: entry.spaceId, issueId: entry.issueId },
       limit: batchSize, cursor: entry.cursor, signal,
     });
     const contended = entry.contended || result.contended;
@@ -36,7 +36,7 @@ export function chatInboundWakeNoticeWork(service: Pick<ChatChannelService,
       queue: DELIVERY_QUEUES.chatInboundWakeNotices,
       decodeScope: (hint: string): InboundWakeNoticeScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
       matches: (entry: Entry, scope?: InboundWakeNoticeScope) => !scope ||
-        (entry.companyId === scope.companyId && (!scope.issueId || entry.issueId === scope.issueId)),
+        (entry.spaceId === scope.spaceId && (!scope.issueId || entry.issueId === scope.issueId)),
       load, check,
     }, canRun);
   }

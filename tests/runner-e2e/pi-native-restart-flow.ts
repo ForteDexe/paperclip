@@ -18,30 +18,30 @@ const terminals = new Set(["turn.completed", "turn.failed", "turn.cancelled", "t
 function requireProof(value: unknown, reason: string): asserts value { if (!value) throw new Error(`Pi native restart: ${reason}`); }
 
 export interface PiRestartPending {
-  companyId: string; issueId: string; runId: string; interactionId: string; requestId: string;
+  spaceId: string; issueId: string; runId: string; interactionId: string; requestId: string;
   turnId: string; itemId: string; nativeSessionId: string; sourceInstanceId: string; questionId: string;
   createdSourceSeq: number; createdRowSha256: string; interactionBindingSha256: string;
 }
 
 function interactionBinding(card: Row) {
-  return { id: card.id, companyId: card.companyId, issueId: card.issueId, kind: card.kind,
+  return { id: card.id, spaceId: card.spaceId, issueId: card.issueId, kind: card.kind,
     sourceRunId: card.sourceRunId, idempotencyKey: card.idempotencyKey,
     continuationPolicy: card.continuationPolicy, resolverPolicy: card.resolverPolicy, payload: card.payload };
 }
 
-function inspect(state: State, events: readonly Row[], companyId: string, header = "Pi native restart") {
-  requireProof(id(companyId) && id(state.issue.id) && state.issue.companyId === companyId && state.runs.length === 1 && state.interactions.length === 1,
-    "one company-scoped task, run and question required");
+function inspect(state: State, events: readonly Row[], spaceId: string, header = "Pi native restart") {
+  requireProof(id(spaceId) && id(state.issue.id) && state.issue.spaceId === spaceId && state.runs.length === 1 && state.interactions.length === 1,
+    "one space-scoped task, run and question required");
   const run = state.runs[0]!, card = state.interactions[0]!;
-  requireProof(id(run.id) && run.companyId === companyId && run.nativeIssueId === state.issue.id && run.runtimeMode === "native"
+  requireProof(id(run.id) && run.spaceId === spaceId && run.nativeIssueId === state.issue.id && run.runtimeMode === "native"
     && id(run.nativeSessionId) && id(run.runnerInstanceId), "native run/session identity missing");
-  requireProof(id(card.id) && card.companyId === companyId && card.issueId === state.issue.id && card.kind === "ask_user_questions"
+  requireProof(id(card.id) && card.spaceId === spaceId && card.issueId === state.issue.id && card.kind === "ask_user_questions"
     && card.sourceRunId === run.id && card.continuationPolicy === "none" && card.resolverPolicy === "human_only", "question is not the native callback");
   requireProof(Array.isArray(events) && events.length > 0 && events.length <= 20_000, "bounded durable events required");
   const rows = events.filter(row => rec(row.payload).orpEvent !== undefined).map(row => ({ row, event: rec(rec(row.payload).orpEvent) })).sort((a, b) => a.row.seq - b.row.seq);
   const seenRows = new Set<number>(), seenSources = new Set<string>(), cursors = new Map<string, number>();
   for (const { row, event } of rows) {
-    requireProof(row.companyId === companyId && row.runId === run.id && isValidNativePrpEnvelope(event, row.protocolSchemaVersion)
+    requireProof(row.spaceId === spaceId && row.runId === run.id && isValidNativePrpEnvelope(event, row.protocolSchemaVersion)
       && event.runId === run.id && event.eventType === row.eventType && ["runner", "control_plane"].includes(event.sourceKind)
       && Number.isSafeInteger(row.seq) && row.seq > 0 && !seenRows.has(row.seq)
       && id(event.sourceInstanceId) && Number.isSafeInteger(event.sourceSeq) && event.sourceSeq > (cursors.get(event.sourceInstanceId) ?? 0)
@@ -83,27 +83,27 @@ function inspect(state: State, events: readonly Row[], companyId: string, header
     && event.normalizedSessionId === run.nativeSessionId
     && event.sourceInstanceId === (event.sourceKind === "runner" ? run.runnerInstanceId : `${run.runnerInstanceId}:control`)), "turn, native session or producer was replaced");
   requireProof(rows.filter(x => x.event.sourceKind === "control_plane").every(x => x.event.turnId === request.turnId), "control-plane result belongs to another turn");
-  const binding: PiRestartPending = { companyId, issueId: state.issue.id, runId: run.id, interactionId: card.id, requestId: request.requestId,
+  const binding: PiRestartPending = { spaceId, issueId: state.issue.id, runId: run.id, interactionId: card.id, requestId: request.requestId,
     turnId: request.turnId, itemId: request.itemId, nativeSessionId: run.nativeSessionId, sourceInstanceId: run.runnerInstanceId, questionId: question.id,
     createdSourceSeq: opening.event.sourceSeq, createdRowSha256: digest(opening.row), interactionBindingSha256: digest(interactionBinding(card)) };
   return { run, card, rows, binding };
 }
 
 /** Grade public state and ORP receipts; assistant prose is never restart proof. */
-export function observePiPendingNativeInput(state: State, events: readonly Row[], companyId: string, header: string): PiRestartPending {
-  const { run, card, rows, binding } = inspect(state, events, companyId, header);
+export function observePiPendingNativeInput(state: State, events: readonly Row[], spaceId: string, header: string): PiRestartPending {
+  const { run, card, rows, binding } = inspect(state, events, spaceId, header);
   requireProof(state.issue.status === "in_progress" && run.status === "running" && card.status === "pending" && card.result == null
     && run.resultJson?.nativeCancellation == null && run.resultJson?.startupCancellation == null
     && !rows.some(x => closures.has(x.event.eventType) || terminals.has(x.event.eventType) || x.event.sourceKind === "control_plane"), "question is no longer unanswered in a live run");
   return binding;
 }
 
-export function observePiRestartPending(state: State, events: readonly Row[], companyId: string): PiRestartPending {
-  return observePiPendingNativeInput(state, events, companyId, "Pi native restart");
+export function observePiRestartPending(state: State, events: readonly Row[], spaceId: string): PiRestartPending {
+  return observePiPendingNativeInput(state, events, spaceId, "Pi native restart");
 }
 
 export function gradePiRestartCompletion(state: State, events: readonly Row[], pending: PiRestartPending, answer: string, proof: unknown): boolean {
-  const { run, card, rows, binding } = inspect(state, events, pending.companyId);
+  const { run, card, rows, binding } = inspect(state, events, pending.spaceId);
   requireProof(digest(binding) === digest(pending), "original request/run/source identity changed");
   const resolved = rows.filter(x => closures.has(x.event.eventType)), terminal = rows.filter(x => terminals.has(x.event.eventType));
   requireProof(resolved.length === 1 && resolved[0]!.event.eventType === "runtime_request.resolved", "exactly one durable native resolution required");
@@ -132,7 +132,7 @@ export function gradePiRestartCompletion(state: State, events: readonly Row[], p
 }
 
 export async function runPiPendingControllerRestart(input: {
-  page: Page; companyId: string; deadlineAt: number; load(): Promise<State>; events(runId: string): Promise<Row[]>;
+  page: Page; spaceId: string; deadlineAt: number; load(): Promise<State>; events(runId: string): Promise<Row[]>;
   preserveLocalRunner?: boolean; restart(preserveRunner?: RestartRunnerIdentity): Promise<void>; settle(): Promise<State>; readProof(): Promise<unknown>;
   capture(id: string, label: string, file: string): Promise<void>; evidence(name: string, data: unknown): Promise<void>;
 }): Promise<Check[]> {
@@ -146,7 +146,7 @@ export async function runPiPendingControllerRestart(input: {
     await pollUntil({ label: "Pi pending native restart question", deadlineAt: input.deadlineAt, load: input.load,
       accept: state => state.interactions.some(card => card.status === "pending"),
       reject: state => state.runs.length > 1 || state.runs.some(run => ["failed", "cancelled", "timed_out", "succeeded"].includes(run.status)) ? "Pi ended or created another run before the pending restart boundary" : undefined });
-    const before = await snapshot("pi-native-restart-before.json"), pending = observePiRestartPending(before.state, before.events, input.companyId);
+    const before = await snapshot("pi-native-restart-before.json"), pending = observePiRestartPending(before.state, before.events, input.spaceId);
     check("restart-pending-native-identity", true, "One unanswered native Pi callback belongs to the original running turn and session");
     const composer = () => input.page.getByTestId("question-text-answer-composer").filter({ visible: true });
     await expect(composer()).toHaveCount(1);
@@ -154,7 +154,7 @@ export async function runPiPendingControllerRestart(input: {
     const runnerIdentity = input.preserveLocalRunner === false ? undefined : parseRestartRunnerIdentity(before.state.runs[0]);
     await input.restart(runnerIdentity);
     await input.page.reload();
-    const after = await snapshot("pi-native-restart-after.json"), resumed = observePiRestartPending(after.state, after.events, input.companyId);
+    const after = await snapshot("pi-native-restart-after.json"), resumed = observePiRestartPending(after.state, after.events, input.spaceId);
     check("restart-same-pending-native-request", digest(resumed) === digest(pending), "Controller restart retained the same unanswered request, run, turn, native session and producer");
     if (runnerIdentity) check("restart-same-live-runner-identity", digest(parseRestartRunnerIdentity(after.state.runs[0])) === digest(runnerIdentity),
       "The original durable runner PID, process group and start identity survived the controller restart");

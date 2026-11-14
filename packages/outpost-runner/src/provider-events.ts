@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { redactCodexDiagnostic } from "./drivers/codex/diagnostic-redaction.js";
-import { claudeHookCanonicalEvent, codexHookPayload, codexSafetyReviewPayload } from "./governance-events.js";
+import { claudeHookCanonicalEvent, codexHookPayload, codexSafetyReviewPayload } from "./approval-events.js";
 import type { AcpxSubagentAnnotations, AcpxSubagentIdentity } from "./claude-subagent-lineage.js";
 import { acpxPlanSnapshot } from "./drivers/acpx/sidecar-protocol.js";
 import {
@@ -556,7 +556,7 @@ export function createAcpxToolEventNormalizer<
     // A sidecar computes the detail before rawInput is dropped; an in-process
     // driver hands over the raw event. Later updates refine earlier facts.
     const incomingDetail = boundedToolDetail(
-      event.paperclipToolDetail ?? acpxToolDetailFromRuntimeEvent(event),
+      event.outpostToolDetail ?? acpxToolDetailFromRuntimeEvent(event),
     );
     const detail: AcpxToolDetail = { ...previous.detail, ...incomingDetail };
     if (status !== "running") {
@@ -571,7 +571,7 @@ export function createAcpxToolEventNormalizer<
       status: boundedStatus,
       tag: boundedTag,
       text: progress && status === "running" ? progress : boundedText,
-      ...(Object.keys(detail).length > 0 ? { paperclipToolDetail: detail } : {}),
+      ...(Object.keys(detail).length > 0 ? { outpostToolDetail: detail } : {}),
     } as T;
     if (status === "running") {
       if (
@@ -1665,16 +1665,16 @@ export function canonicalProviderEventsFromAcpxRuntimeEvent(
   }
   if (event.type === "tool_call") {
     const status = canonicalStatus(event.status, "running");
-    const subagent = (event as AcpxSubagentAnnotations).paperclipSubagent;
+    const subagent = (event as AcpxSubagentAnnotations).outpostSubagent;
     if (subagent) return [acpxSubagentDelegationEvent(event, subagent, status, itemId)];
-    const parentToolCallId = (event as AcpxSubagentAnnotations).paperclipParentToolCallId;
+    const parentToolCallId = (event as AcpxSubagentAnnotations).outpostParentToolCallId;
     const output =
       typeof event.rawOutput === "string"
         ? event.rawOutput
         : event.rawOutput === undefined
           ? ""
           : JSON.stringify(event.rawOutput);
-    const detail = boundedToolDetail(event.paperclipToolDetail) ?? {};
+    const detail = boundedToolDetail(event.outpostToolDetail) ?? {};
     const title = isGenericAcpToolName(event.title)
       ? ""
       : text(event.title).trim();
@@ -1845,12 +1845,12 @@ export function canonicalOpenCodeDisplayToolName(
     );
     if (qualified?.[1]) name = qualified[1];
   }
-  // OpenCode exposes MCP tools as `<server>_<tool>`. Paperclip's semantic
-  // tools already carry the paperclip prefix, producing names such as
-  // `paperclip_paperclip_finish` in native events. Keep the transport-native
+  // OpenCode exposes MCP tools as `<server>_<tool>`. Outpost's semantic
+  // tools already carry the outpost prefix, producing names such as
+  // `outpost_outpost_finish` in native events. Keep the transport-native
   // name in the raw trace, while presenting the stable protocol operation.
-  while (name.startsWith("paperclip_paperclip_")) {
-    name = name.slice("paperclip_".length);
+  while (name.startsWith("outpost_outpost_")) {
+    name = name.slice("outpost_".length);
   }
   return name;
 }

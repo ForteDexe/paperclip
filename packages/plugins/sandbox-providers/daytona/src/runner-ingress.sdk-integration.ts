@@ -11,7 +11,7 @@ describe("Daytona ingress SDK failure over worker RPC", () => {
     vi.stubEnv("DAYTONA_API_KEY", "");
     try {
       const error = await plugin.definition.onEnvironmentRunnerIngressEndpoint!({
-        companyId: "fixture-company", environmentId: "fixture-environment", driverKey: "daytona",
+        spaceId: "fixture-space", environmentId: "fixture-environment", driverKey: "daytona",
         runId: "fixture-run", port: 43127, path: "/api/runner/v1/connect/fixture-run",
         lease: { providerLeaseId: "fixture-sandbox" }, config: {},
       } as never).catch(error => error);
@@ -53,7 +53,7 @@ describe("Daytona ingress SDK failure over worker RPC", () => {
         if (isJsonRpcResponse(message)) resolve(message);
       }));
       stdin.write(serializeMessage(createRequest("environmentRunnerIngressEndpoint", {
-        companyId: "fixture-company", environmentId: "fixture-environment", driverKey: "daytona",
+        spaceId: "fixture-space", environmentId: "fixture-environment", driverKey: "daytona",
         runId: "fixture-run", port: 43127, path: "/api/runner/v1/connect/fixture-run",
         lease: { providerLeaseId: "fixture-sandbox" },
         config: { apiKey: "fixture-private-key", apiUrl, timeoutMs: 2000 },
@@ -65,7 +65,7 @@ describe("Daytona ingress SDK failure over worker RPC", () => {
         .toEqual({ phase, httpStatus: status });
       expect(result.error.message).toContain(String(status));
       expect(JSON.stringify(result)).not.toContain("fixture-private");
-      expect(result.error.data).toEqual({ schema: "paperclip/environment-runner-ingress-error/v1",
+      expect(result.error.data).toEqual({ schema: "outpost/environment-runner-ingress-error/v1",
         failure: { phase, httpStatus: status } });
     } finally {
       worker.stop(); lines.close(); stdin.destroy(); stdout.destroy();

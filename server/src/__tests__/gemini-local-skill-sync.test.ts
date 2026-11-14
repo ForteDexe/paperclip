@@ -12,7 +12,7 @@ async function makeTempDir(prefix: string): Promise<string> {
 }
 
 describe("gemini local skill sync", () => {
-  const paperclipKey = "paperclipai/paperclip/paperclip";
+  const outpostKey = "outpost/outpost/outpost";
   const cleanupDirs = new Set<string>();
 
   afterEach(async () => {
@@ -20,13 +20,13 @@ describe("gemini local skill sync", () => {
     cleanupDirs.clear();
   });
 
-  it("defaults and installs the operational Paperclip skill in the Gemini skills home", async () => {
-    const home = await makeTempDir("paperclip-gemini-skill-sync-");
+  it("defaults and installs the operational Outpost skill in the Gemini skills home", async () => {
+    const home = await makeTempDir("outpost-gemini-skill-sync-");
     cleanupDirs.add(home);
 
     const ctx = {
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "gemini_local",
       config: {
         env: {
@@ -37,11 +37,11 @@ describe("gemini local skill sync", () => {
 
     const before = await listGeminiSkills(ctx);
     expect(before.mode).toBe("persistent");
-    expect(before.desiredSkills).toContain(paperclipKey);
-    expect(before.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("missing");
+    expect(before.desiredSkills).toContain(outpostKey);
+    expect(before.entries.find((entry) => entry.key === outpostKey)?.state).toBe("missing");
 
-    const after = await syncGeminiSkills(ctx, [paperclipKey]);
-    expect(after.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("installed");
-    expect((await fs.lstat(path.join(home, ".gemini", "skills", "paperclip"))).isSymbolicLink()).toBe(true);
+    const after = await syncGeminiSkills(ctx, [outpostKey]);
+    expect(after.entries.find((entry) => entry.key === outpostKey)?.state).toBe("installed");
+    expect((await fs.lstat(path.join(home, ".gemini", "skills", "outpost"))).isSymbolicLink()).toBe(true);
   });
 });

@@ -22,7 +22,7 @@ vi.mock("./environment-execution-target.js", async importOriginal => {
 
 /**
  * Staging (Nov 11): 36 minutes after #20680 shipped, the
- * worker had still re-armed none of the company's 29 exhausted holds, not even
+ * worker had still re-armed none of the space's 29 exhausted holds, not even
  * one whose id sorts in the first percent. It did run manual Retries, which
  * its unfinished lane selects. Discovery is instance-wide: unfinished work
  * had strict priority over every obligation, and the obligation pass mixed due
@@ -50,13 +50,13 @@ describe("the workspace recovery worker reaches every due hold whatever its othe
     return { ...f, actionId: id };
   }
 
-  /** A board-owned save of Nov 10, exhausted after 6 attempts under capture policy 1 (no version saved). */
+  /** A operator-owned save of Nov 10, exhausted after 6 attempts under capture policy 1 (no version saved). */
   async function capturePolicyHold(id: string) {
     const f = await acceptedRemoteExport("retained");
     const prior = await action(f.actionId);
     const { capturePolicyVersion: _omitted, ...saved } = readSystemRecovery(prior.evidence)! as ReturnType<typeof readSystemRecovery> & { capturePolicyVersion?: number };
     const firstFailureAt = Date.parse("2026-11-10T13:58:11Z");
-    await db.update(issueRecoveryActions).set({ id, ownerType: "board", evidence: { ...prior.evidence,
+    await db.update(issueRecoveryActions).set({ id, ownerType: "operator", evidence: { ...prior.evidence,
       systemRecovery: { ...saved, revision: 18, phase: "preserve_files", state: "exhausted", attempts: 6, retriesUsed: 5,
         attemptId: randomUUID(), firstFailureAt, deadlineAt: firstFailureAt + 30 * 60_000, nextAttemptAt: null,
         failure: { code: "export_interrupted", retryClass: "retry_transient", evidenceFingerprint: "9483".repeat(16),
@@ -78,8 +78,8 @@ describe("the workspace recovery worker reaches every due hold whatever its othe
           attempt: 1, attemptLimit: 6, retryable: false, requestIds: [] },
         automaticRecovery: { runId: f.runId, policy: "preserve_without_replay_v1", replay: "blocked" } } })
       .where(eq(issueRecoveryActions.id, f.actionId));
-    await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: (await run(f.runId)).agentId, source: "on_demand",
-      reason: "issue_commented", status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: "board",
+    await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: (await run(f.runId)).agentId, source: "on_demand",
+      reason: "issue_commented", status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: "operator",
       payload: { issueId: f.issueId } });
     return f;
   }
@@ -96,7 +96,7 @@ describe("the workspace recovery worker reaches every due hold whatever its othe
     await adoptSystemRecovery(db, busy);
     expect(readSystemRecovery((await action(busy.actionId)).evidence)?.state).toBe("scheduled");
     const owner = createDb(connectionString);
-    await owner.execute(sql`select pg_advisory_lock(hashtextextended(${nativeWorkspaceFinalizationLockKey(busy.companyId, busy.runId)}, 0))`);
+    await owner.execute(sql`select pg_advisory_lock(hashtextextended(${nativeWorkspaceFinalizationLockKey(busy.spaceId, busy.runId)}, 0))`);
     const capture = await capturePolicyHold(randomUUID());
     const stop = await stopProofHold(randomUUID());
     const onError = vi.fn();
@@ -132,7 +132,7 @@ describe("the workspace recovery worker reaches every due hold whatever its othe
     const busy = await seed("native", true);
     await adoptSystemRecovery(db, busy);
     const owner = createDb(connectionString);
-    await owner.execute(sql`select pg_advisory_lock(hashtextextended(${nativeWorkspaceFinalizationLockKey(busy.companyId, busy.runId)}, 0))`);
+    await owner.execute(sql`select pg_advisory_lock(hashtextextended(${nativeWorkspaceFinalizationLockKey(busy.spaceId, busy.runId)}, 0))`);
     const capture = await capturePolicyHold(randomUUID());
     const stop = await stopProofHold(randomUUID());
     try {

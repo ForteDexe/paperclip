@@ -15,7 +15,7 @@ export async function lockWorkspaceRecoveryTestDatabase(url: string) {
   const lock = createDb(url, { maxConnections: 1, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
   for (;;) {
     const [row] = await lock.execute<{ locked: boolean }>(
-      sql`SELECT pg_try_advisory_lock(hashtext('paperclip:workspace-recovery-tests')) AS locked`);
+      sql`SELECT pg_try_advisory_lock(hashtext('outpost:workspace-recovery-tests')) AS locked`);
     if (row?.locked) return lock;
     await delay(500);
   }

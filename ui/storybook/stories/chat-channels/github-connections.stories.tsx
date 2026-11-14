@@ -10,9 +10,9 @@ import { queryKeys } from "@/lib/queryKeys";
 import { Browse } from "@/pages/apps/Browse";
 import { AppsConnect } from "@/pages/apps/AppsConnect";
 import { ChatEndpointSetup } from "@/pages/apps/chat/ChatEndpointSetup";
-import { storybookAgents } from "../../fixtures/paperclipData";
+import { storybookAgents } from "../../fixtures/outpostData";
 
-const companyId = "company-storybook";
+const spaceId = "space-storybook";
 // Hosted Storybooks live below a branch path; reuse their bundled GitHub marks.
 const githubBranding = {
   logoUrl: "./brands/apps/github.svg",
@@ -26,30 +26,30 @@ function GitHubConnections({ saved = false, chatEnabled = true }) {
       defaultOptions: { queries: { staleTime: Infinity, retry: false, refetchOnMount: false } },
     });
     const github = getAppStoreDefinition("github")!;
-    result.setQueryData(queryKeys.apps.gallery(companyId), {
+    result.setQueryData(queryKeys.apps.gallery(spaceId), {
       apps: [
         { ...github, branding: githubBranding, ownershipAvailability: { platform_shared: true, customer: true } },
         { ...getAppStoreDefinition("github-code-review-bot"), branding: githubBranding },
       ],
-      capabilities: { canSetCompanyInstall: true, canCreatePersonalConnection: true, canCreateOrganizationConnection: true },
+      capabilities: { canSetSpaceInstall: true, canCreatePersonalConnection: true, canCreateOrganizationConnection: true },
     });
     result.setQueryData(queryKeys.instance.experimentalSettings, { enableChatConnectors: false, enableGitHubReviewBots: chatEnabled });
-    result.setQueryData(queryKeys.tools.applications(companyId), { applications: saved ? [
-      { id: "github-tools", companyId, name: "GitHub", status: "active", metadata: { sourceTemplateKey: "github" } },
+    result.setQueryData(queryKeys.tools.applications(spaceId), { applications: saved ? [
+      { id: "github-tools", spaceId, name: "GitHub", status: "active", metadata: { sourceTemplateKey: "github" } },
       // Existing bots retain their provider/source identity after the catalog split.
-      { id: "github-bot", companyId, name: "Review bot", status: "active", type: "chat", metadata: { sourceTemplateKey: "github", purpose: "channel" } },
+      { id: "github-bot", spaceId, name: "Review bot", status: "active", type: "chat", metadata: { sourceTemplateKey: "github", purpose: "channel" } },
     ] : [] });
-    result.setQueryData(queryKeys.tools.connections(companyId), { connections: saved ? [{
-      id: "github-account", applicationId: "github-tools", companyId, name: "octocat",
+    result.setQueryData(queryKeys.tools.connections(spaceId), { connections: saved ? [{
+      id: "github-account", applicationId: "github-tools", spaceId, name: "octocat",
       status: "active", enabled: true, healthStatus: "healthy", transport: "mcp_remote",
       authKind: "oauth", config: { sourceTemplateKey: "github" }, transportConfig: {},
     }] : [] });
-    result.setQueryData(queryKeys.chatEndpoints.list(companyId), saved ? [
-      { id: "github-review", companyId, provider: "github", status: "active", assignedAgentId: "reviewer", assignedAgentName: "Reviewer", botLabel: "Paperclip Review", allowUnlinkedPeople: false },
-      { id: "github-draft", companyId, provider: "github", status: "draft", assignedAgentId: "backup", assignedAgentName: "Backup reviewer", allowUnlinkedPeople: false },
+    result.setQueryData(queryKeys.chatEndpoints.list(spaceId), saved ? [
+      { id: "github-review", spaceId, provider: "github", status: "active", assignedAgentId: "reviewer", assignedAgentName: "Reviewer", botLabel: "Outpost Review", allowUnlinkedPeople: false },
+      { id: "github-draft", spaceId, provider: "github", status: "draft", assignedAgentId: "backup", assignedAgentName: "Backup reviewer", allowUnlinkedPeople: false },
     ] : []);
-    result.setQueryData(queryKeys.access.companyUserDirectory(companyId), { users: [] });
-    result.setQueryData(["github-setup-agents", companyId], storybookAgents);
+    result.setQueryData(queryKeys.access.spaceUserDirectory(spaceId), { users: [] });
+    result.setQueryData(["github-setup-agents", spaceId], storybookAgents);
     return result;
   });
   return (
@@ -66,8 +66,8 @@ function GitHubConnections({ saved = false, chatEnabled = true }) {
               Connectors
             </Link>
             <Routes>
-              <Route path="/:companyPrefix/apps/connect" element={<AppsConnect />} />
-              <Route path="/:companyPrefix/apps/chat/connect" element={<ChatEndpointSetup />} />
+              <Route path="/:spacePrefix/apps/connect" element={<AppsConnect />} />
+              <Route path="/:spacePrefix/apps/chat/connect" element={<ChatEndpointSetup />} />
               <Route path="*" element={<Browse />} />
             </Routes>
           </main>
@@ -87,7 +87,7 @@ const meta = {
   parameters: {
     layout: "fullscreen",
     docs: { description: { component: "Production catalog cards and setup pages with local API query fixtures. GitHub opens account/tool access; GitHub Code Review Bot opens Choose agent. These stories cover discovery and entry into setup, without live GitHub consent or app installation." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "chat-channels/providers",
         "connection-setup/channel-setup"

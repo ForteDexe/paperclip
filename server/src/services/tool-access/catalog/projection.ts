@@ -6,7 +6,7 @@ export function toCatalogEntry(
 ): ToolCatalogEntry {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     applicationId: row.applicationId,
     connectionId: row.connectionId,
     entryKind: row.entryKind,

@@ -4,9 +4,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { Project } from "@outpost/shared";
 import { ProjectProperties, type ProjectConfigFieldKey, type ProjectFieldSaveState } from "@/components/ProjectProperties";
 import { queryKeys } from "@/lib/queryKeys";
-import { storybookProjects } from "../../fixtures/paperclipData";
+import { storybookProjects } from "../../fixtures/outpostData";
 
-const COMPANY_ID = "company-storybook";
+const SPACE_ID = "space-storybook";
 const boardProject = storybookProjects.find((project) => project.id === "project-board-ui") ?? storybookProjects[0]!;
 
 function fieldState(field: ProjectConfigFieldKey): ProjectFieldSaveState {
@@ -21,7 +21,7 @@ function Hydrate({ children }: { children: ReactNode }) {
       enableRoutineTriggers: true,
       enableEnvironments: false,
     });
-    queryClient.setQueryData(queryKeys.secrets.list(COMPANY_ID), []);
+    queryClient.setQueryData(queryKeys.secrets.list(SPACE_ID), []);
     return true;
   });
   return children;
@@ -32,7 +32,7 @@ const meta: Meta<typeof ProjectProperties> = {
   title: "Projects and execution/Projects and repositories/Workspaces/Project runtime provision command",
   component: ProjectProperties,
   parameters: { layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "projects/defaults",
         "workspaces/provisioning"

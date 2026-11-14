@@ -38,7 +38,7 @@ const {
       };
     }),
     describeAdapterExecutionTarget: vi.fn(() => "Daytona"),
-    resolveAdapterExecutionTargetCwd: vi.fn(() => "/home/daytona/paperclip-workspace"),
+    resolveAdapterExecutionTargetCwd: vi.fn(() => "/home/daytona/outpost-workspace"),
   };
 });
 
@@ -63,7 +63,7 @@ const sandboxTarget: AdapterExecutionTarget = {
   kind: "remote",
   transport: "sandbox",
   providerKey: "daytona",
-  remoteCwd: "/home/daytona/paperclip-workspace",
+  remoteCwd: "/home/daytona/outpost-workspace",
   runner: {
     execute: async () => ({
       exitCode: 0,
@@ -78,7 +78,7 @@ const sandboxTarget: AdapterExecutionTarget = {
 };
 
 const initLine =
-  '{"type":"system","subtype":"init","cwd":"/home/daytona/paperclip-workspace","session_id":"abc","tools":["Bash","Read"]}';
+  '{"type":"system","subtype":"init","cwd":"/home/daytona/outpost-workspace","session_id":"abc","tools":["Bash","Read"]}';
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -101,7 +101,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { engine: "cli", command: "claude", model: "claude-opus-4-8" },
       executionTarget: sandboxTarget,
@@ -137,7 +137,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sandboxTarget,
@@ -168,7 +168,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sandboxTarget,
@@ -200,7 +200,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sandboxTarget,
@@ -237,7 +237,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sandboxTarget,
@@ -267,7 +267,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sandboxTarget,
@@ -294,7 +294,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sandboxTarget,
@@ -321,7 +321,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sandboxTarget,
@@ -359,7 +359,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sandboxTarget,
@@ -399,7 +399,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     // Test-result check from the error, so the raw text cannot reach a check.
     await expect(
       testEnvironment({
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType: "claude_local",
         config: { model: "claude-opus-5", engine: "cli", command: "claude" },
         executionTarget: sandboxTarget,
@@ -426,7 +426,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sandboxTarget,
@@ -449,7 +449,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sandboxTarget,
@@ -469,7 +469,7 @@ describe("claude sandbox hello probe diagnostics", () => {
     };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sandboxTarget,
@@ -492,7 +492,7 @@ describe("claude auth mode hints", () => {
     probeResult.value = { exitCode: 0, stdout: successStdout, stderr: "" };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5",
         engine: "cli",
@@ -514,7 +514,7 @@ describe("claude auth mode hints", () => {
 
   it("reports an intentionally selected managed API account without a subscription warning", async () => {
     probeResult.value = { exitCode: 0, stdout: successStdout, stderr: "" };
-    const result = await testEnvironment({ companyId: "company-1", adapterType: "claude_local",
+    const result = await testEnvironment({ spaceId: "space-1", adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude", managedAiConnection: { provider: "anthropic", method: "api_key" }, env: { ANTHROPIC_API_KEY: "api-test-key" } },
       executionTarget: sandboxTarget, environmentName: "Daytona",
     });
@@ -526,7 +526,7 @@ describe("claude auth mode hints", () => {
     probeResult.value = { exitCode: 0, stdout: successStdout, stderr: "" };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5",
         engine: "cli",
@@ -573,7 +573,7 @@ describe("claude CLI local hello probe hardening", () => {
   let savedEnv: Record<string, string | undefined> = {};
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-cli-localprobe-"));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), "outpost-cli-localprobe-"));
     claudePath = path.join(tempDir, "claude");
     await writeFile(claudePath, "#!/bin/sh\nexit 0\n");
     await chmod(claudePath, 0o755);
@@ -586,7 +586,7 @@ describe("claude CLI local hello probe hardening", () => {
     }
     // The mocked cwd resolver returns a sandbox path; the local probe reads it
     // as the cwd, so no host directory is touched.
-    resolveAdapterExecutionTargetCwd.mockReturnValue("/home/daytona/paperclip-workspace");
+    resolveAdapterExecutionTargetCwd.mockReturnValue("/home/daytona/outpost-workspace");
   });
 
   afterEach(async () => {
@@ -604,7 +604,7 @@ describe("claude CLI local hello probe hardening", () => {
     process.env.HTTPS_PROXY = "http://trusted-proxy:8443";
 
     await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5",
         engine: "cli",
@@ -644,7 +644,7 @@ describe("claude CLI local hello probe hardening", () => {
     ["claude-opus-5-5", "2.1.280"],
     ["claude-sonnet-5-5", "2.1.284"],
   ])("warns without executing %s when runtime PATH selects a different executable", async (model, minimumVersion) => {
-    const runtimeDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-cli-runtime-path-"));
+    const runtimeDir = await mkdtemp(path.join(os.tmpdir(), "outpost-cli-runtime-path-"));
     const runtimeClaudePath = path.join(runtimeDir, "claude");
     await writeFile(runtimeClaudePath, "#!/bin/sh\nexit 0\n");
     await chmod(runtimeClaudePath, 0o755);
@@ -653,7 +653,7 @@ describe("claude CLI local hello probe hardening", () => {
       probeResult.value = { exitCode: 0, stdout: `${minimumVersion} (Claude Code)\n`, stderr: "" };
 
       const result = await testEnvironment({
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType: "claude_local",
         config: {
           engine: "cli",
@@ -681,7 +681,7 @@ describe("claude CLI local hello probe hardening", () => {
     probeResult.value = { exitCode: 0, stdout: successStdout, stderr: "" };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: null,
@@ -690,6 +690,6 @@ describe("claude CLI local hello probe hardening", () => {
 
     const targetCheck = result.checks.find((check) => check.code === "claude_environment_target");
     expect(targetCheck).toBeTruthy();
-    expect(targetCheck?.message).toContain("Paperclip host");
+    expect(targetCheck?.message).toContain("Outpost host");
   });
 });

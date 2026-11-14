@@ -57,7 +57,7 @@ describe("copyBackCodexAuth", () => {
   }
 
   async function makeHostDir(): Promise<string> {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "paperclip-codex-copyback-"));
+    const dir = await mkdtemp(path.join(os.tmpdir(), "outpost-codex-copyback-"));
     cleanupDirs.push(dir);
     return dir;
   }
@@ -328,7 +328,7 @@ describe("copyBackCodexAuth", () => {
 // filesystem.
 describe("copyBackCodexAuth identity-keyed cache write", () => {
   const cleanupDirs: string[] = [];
-  const COMPANY_ID = "company-a";
+  const SPACE_ID = "space-a";
 
   afterEach(async () => {
     while (cleanupDirs.length > 0) {
@@ -363,7 +363,7 @@ describe("copyBackCodexAuth identity-keyed cache write", () => {
     sharedHomeAuthPath: string;
     sharedHome: string;
   }> {
-    const home = await mkdtemp(path.join(os.tmpdir(), "paperclip-codex-copyback-cache-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "outpost-codex-copyback-cache-"));
     cleanupDirs.push(home);
     const env: NodeJS.ProcessEnv = {
       OUTPOST_HOME: home,
@@ -398,7 +398,7 @@ describe("copyBackCodexAuth identity-keyed cache write", () => {
         logs.push(line);
       },
       resolveCacheEntryPath: (accountId) =>
-        ensureCodexAuthCacheEntryDir(input.env, accountId, COMPANY_ID),
+        ensureCodexAuthCacheEntryDir(input.env, accountId, SPACE_ID),
       env: input.cacheEnabledEnv ?? input.env,
     });
     const finalHostAuth = await readFile(input.sharedHomeAuthPath, "utf8").catch(
@@ -408,7 +408,7 @@ describe("copyBackCodexAuth identity-keyed cache write", () => {
   }
 
   async function readCacheSlot(env: NodeJS.ProcessEnv, accountId: string): Promise<string | null> {
-    const entryPath = resolveCodexAuthCacheEntryPath(env, accountId, COMPANY_ID);
+    const entryPath = resolveCodexAuthCacheEntryPath(env, accountId, SPACE_ID);
     return readFile(entryPath, "utf8").catch((error: NodeJS.ErrnoException) =>
       error.code === "ENOENT" ? null : Promise.reject(error),
     );
@@ -457,7 +457,7 @@ describe("copyBackCodexAuth identity-keyed cache write", () => {
       const result = await runWithCache({ sandboxAuth, hostAuth, env, sharedHomeAuthPath });
       expect(result.outcome).toBe("kept-host");
       expect(result.finalHostAuth).toBe(hostAuth);
-      const cacheDir = resolveCodexAuthCacheDir(env, COMPANY_ID);
+      const cacheDir = resolveCodexAuthCacheDir(env, SPACE_ID);
       // No cache slot directory is created at all for a credential with no identity.
       await expect(readdir(cacheDir)).rejects.toThrow();
     }
@@ -480,7 +480,7 @@ describe("copyBackCodexAuth identity-keyed cache write", () => {
     expect(result.outcome).toBe("copied");
     expect(result.finalHostAuth).toBe(sandboxAuth);
     // No cache slot is written.
-    const cacheDir = resolveCodexAuthCacheDir(env, COMPANY_ID);
+    const cacheDir = resolveCodexAuthCacheDir(env, SPACE_ID);
     await expect(readdir(cacheDir)).rejects.toThrow();
   });
 
@@ -497,12 +497,12 @@ describe("copyBackCodexAuth identity-keyed cache write", () => {
           Buffer.from(subscriptionAuth({ accountId: "acct-x", lastRefresh: NEWER, marker }), "utf8"),
         hostAuthPath: sharedHomeAuthPath,
         log: () => {},
-        resolveCacheEntryPath: (accountId) => ensureCodexAuthCacheEntryDir(env, accountId, COMPANY_ID),
+        resolveCacheEntryPath: (accountId) => ensureCodexAuthCacheEntryDir(env, accountId, SPACE_ID),
         env,
       });
     await Promise.all([run("a"), run("b")]);
 
-    const entryPath = resolveCodexAuthCacheEntryPath(env, "acct-x", COMPANY_ID);
+    const entryPath = resolveCodexAuthCacheEntryPath(env, "acct-x", SPACE_ID);
     const slotDir = path.dirname(entryPath);
     // Exactly one valid slot file, no leftover staging temp.
     expect(await readdir(slotDir)).toEqual(["auth.json"]);
@@ -534,7 +534,7 @@ describe("copyBackCodexAuth identity-keyed cache write", () => {
     // Pre-create the entry directory, then make it read-only so the cache-slot
     // temp create fails. The host overwrite runs first and must stay intact. The
     // additive cache write is best-effort, so its failure must not throw.
-    const entryPath = await ensureCodexAuthCacheEntryDir(env, "acct-x", COMPANY_ID);
+    const entryPath = await ensureCodexAuthCacheEntryDir(env, "acct-x", SPACE_ID);
     const slotDir = path.dirname(entryPath);
     const logs: string[] = [];
     await chmod(slotDir, 0o500);
@@ -546,7 +546,7 @@ describe("copyBackCodexAuth identity-keyed cache write", () => {
         log: (line) => {
           logs.push(line);
         },
-        resolveCacheEntryPath: (accountId) => ensureCodexAuthCacheEntryDir(env, accountId, COMPANY_ID),
+        resolveCacheEntryPath: (accountId) => ensureCodexAuthCacheEntryDir(env, accountId, SPACE_ID),
         env,
       });
     } finally {
@@ -574,7 +574,7 @@ describe("copyBackCodexAuth identity-keyed cache write", () => {
 
     // Force the additive cache write to fail: pre-create the slot directory,
     // then make it read-only so the slot temp create fails with EACCES.
-    const entryPath = await ensureCodexAuthCacheEntryDir(env, "acct-x", COMPANY_ID);
+    const entryPath = await ensureCodexAuthCacheEntryDir(env, "acct-x", SPACE_ID);
     const slotDir = path.dirname(entryPath);
     await chmod(slotDir, 0o500);
 
@@ -594,7 +594,7 @@ describe("copyBackCodexAuth identity-keyed cache write", () => {
             return Promise.reject(new Error("log sink boom"));
           }
         },
-        resolveCacheEntryPath: (accountId) => ensureCodexAuthCacheEntryDir(env, accountId, COMPANY_ID),
+        resolveCacheEntryPath: (accountId) => ensureCodexAuthCacheEntryDir(env, accountId, SPACE_ID),
         env,
       }).catch((error: unknown) => {
         thrown = error;

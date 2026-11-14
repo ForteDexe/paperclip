@@ -19,7 +19,7 @@ import { UNMANAGED_BACKGROUND_TASK_LIVENESS_REASON } from "@outpost/adapter-util
 
 const run = {
   id: "run-1",
-  companyId: "company-1",
+  spaceId: "space-1",
   agentId: "agent-1",
   status: "succeeded",
   contextSnapshot: { issueId: "issue-1" },
@@ -27,7 +27,7 @@ const run = {
 
 const issue = {
   id: "issue-1",
-  companyId: "company-1",
+  spaceId: "space-1",
   identifier: "PAP-1",
   title: "Finish backend handoff",
   description: "Implement and verify the backend handoff behavior.",
@@ -39,7 +39,7 @@ const issue = {
 
 const agent = {
   id: "agent-1",
-  companyId: "company-1",
+  spaceId: "space-1",
   status: "idle",
 } as any;
 
@@ -573,7 +573,7 @@ describe("successful run handoff decision", () => {
         status: "todo",
       } as any,
       recoveryActionId: "77777777-7777-4777-8777-777777777777",
-      recoveryOwner: { id: "66666666-6666-4666-8666-666666666666", name: "CTO" } as any,
+      recoveryOwner: { id: "66666666-6666-4666-8666-666666666666", name: "Engineering Lead" } as any,
       latestIssueStatus: "in_progress",
       latestHandoffRunStatus: "failed",
       missingDisposition: "clear_next_step",
@@ -591,7 +591,7 @@ describe("successful run handoff decision", () => {
         title: "Recovery",
         rows: expect.arrayContaining([
           expect.objectContaining({ type: "key_value", label: "Recovery action", value: "77777777-7777-4777-8777-777777777777" }),
-          expect.objectContaining({ type: "agent_link", label: "Recovery owner", name: "CTO" }),
+          expect.objectContaining({ type: "agent_link", label: "Recovery owner", name: "Engineering Lead" }),
         ]),
       }),
       expect.objectContaining({

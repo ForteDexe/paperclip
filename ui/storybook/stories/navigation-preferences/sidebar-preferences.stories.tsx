@@ -26,7 +26,7 @@ const meta = {
           "Production sidebar with isolated saved order responses. Section collapse is session-local; recents are browser-local. No server persistence is claimed.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "navigation-preferences/preferences"
       ],
@@ -41,10 +41,10 @@ const meta = {
       [
         {
           path: "/api/sidebar-preferences/me",
-          read: () => ({ orderedIds: ["company-storybook"], updatedAt: null }),
+          read: () => ({ orderedIds: ["space-storybook"], updatedAt: null }),
         },
         {
-          path: "/api/companies/company-storybook/sidebar-preferences/me",
+          path: "/api/spaces/space-storybook/sidebar-preferences/me",
           read: () => ({ orderedIds: [], updatedAt: null }),
         },
       ],

@@ -36,8 +36,8 @@ vi.mock("@/lib/chunk-load-recovery", async (importOriginal) => {
 
 function seedReloadAttempts(attempts: number) {
   const startedAt = Date.now();
-  window.sessionStorage.setItem("paperclip:chunk-load-reload-at", String(startedAt));
-  window.sessionStorage.setItem("paperclip:chunk-load-reload-attempts", `${startedAt}:${attempts}`);
+  window.sessionStorage.setItem("outpost:chunk-load-reload-at", String(startedAt));
+  window.sessionStorage.setItem("outpost:chunk-load-reload-attempts", `${startedAt}:${attempts}`);
 }
 
 function Boom(): never {

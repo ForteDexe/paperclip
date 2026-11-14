@@ -6,7 +6,7 @@
   "materialization": [
     {
       "version": "2026.09.26-dd393fe",
-      "patchVersion": "paperclip-cursor-instructions-v2",
+      "patchVersion": "outpost-cursor-instructions-v2",
       "platform": "darwin",
       "architecture": "arm64",
       "archiveSha256": "538827d96a779bab854a865c8e42859e8e87db34b5f69770261b90fc8cfff191",
@@ -14,7 +14,7 @@
     },
     {
       "version": "2026.09.26-dd393fe",
-      "patchVersion": "paperclip-cursor-instructions-v2",
+      "patchVersion": "outpost-cursor-instructions-v2",
       "platform": "darwin",
       "architecture": "x64",
       "archiveSha256": "ed1771c44cbf0f8059c67cac0d939e6a60eb730bd066d7dc4cbb14de314cfb6e",
@@ -22,7 +22,7 @@
     },
     {
       "version": "2026.09.26-dd393fe",
-      "patchVersion": "paperclip-cursor-instructions-v2",
+      "patchVersion": "outpost-cursor-instructions-v2",
       "platform": "linux",
       "architecture": "x64",
       "archiveSha256": "8085fd120f5c71f4eae7fea26a043718e5644e3071e4fab3220a0e58c51f9593",

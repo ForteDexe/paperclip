@@ -24,16 +24,16 @@ use the same AWS SDK chain. Local-disk instances keep `local_file` logs and trac
 The instance's existing S3 prefix is preserved. The folders underneath it are:
 
 ```text
-<existing-prefix>/run-logs/segments-v1/<company>/<agent>/<run>/
-<existing-prefix>/provider-traces/segments-v1/<company>/<run>/<trace>/<channel>/
-<existing-prefix>/<company>/...    existing product files
+<existing-prefix>/run-logs/segments-v1/<space>/<agent>/<run>/
+<existing-prefix>/provider-traces/segments-v1/<space>/<run>/<trace>/<channel>/
+<existing-prefix>/<space>/...    existing product files
 ```
 
 Cloud's existing provisioning supplies a separate bucket and bucket-scoped
 credentials for each stack, plus the stack's encryption key. The app reuses that
 boundary rather than selecting a global customer bucket. Within a stack, journal
-keys remain company/run scoped. Cleanup lists only the resource's own prefix;
-it cannot sweep other companies, other stacks' prefixes, or product files.
+keys remain space/run scoped. Cleanup lists only the resource's own prefix;
+it cannot sweep other spaces, other stacks' prefixes, or product files.
 Folders are organization, not a substitute for bucket permissions or API access
 checks. Shared-bucket self-hosted deployments must retain their existing distinct
 instance prefixes and appropriate storage credentials.
@@ -57,9 +57,9 @@ trace key is introduced, and a missing vault key fails rather than creating a
 replacement. Disposable deployments must preserve the existing vault key along
 with their other secrets.
 Raw payload and index objects
-use AES-GCM with a key derived for the particular company/run/trace/channel.
+use AES-GCM with a key derived for the particular space/run/trace/channel.
 The bounded head holds only ownership, range, digest, and publication metadata.
-Existing capture opt-in, redaction, instance-admin access, task/company access,
+Existing capture opt-in, redaction, instance-admin access, task/space access,
 reveal/download auditing, and the 24-hour capture expiry remain in effect.
 
 The provider must enforce `If-None-Match: *` and ETag `If-Match`, return ETags,
@@ -219,7 +219,7 @@ reads pass. Automatic copying cannot recover a file after its only copy is lost.
 
 `server/scripts/migrate-run-evidence.ts` remains an optional diagnostic and repair
 tool. Its default is a read-only inventory; `--apply` runs the same verified
-importer used by the automatic worker. `--company`, `--after-run`, `--after-trace`
+importer used by the automatic worker. `--space`, `--after-run`, `--after-trace`
 and `--limit` allow scoped investigation against an explicitly selected
 `DATABASE_URL`. Normal upgrades do not require this tool. It does not stop agents,
 select a production target, delete source files, or certify volume removal.
@@ -256,7 +256,7 @@ size/digest mismatch.
 
 For online preservation of settled native files, use
 `server/scripts/migrate-run-evidence.ts --preserve-settled-native-files` with
-the existing company, cursor, limit and apply options. This separate mode does
+the existing space, cursor, limit and apply options. This separate mode does
 not require global idle. It requires a native run with a finished status and
 an explicitly released finalizer in `committed` or `terminal_failure`, no pending
 attempt, no physical finalization owner, no retained allocation for that run,
@@ -266,7 +266,7 @@ blocked; a terminal failure's existing blocked warning remains unchanged.
 
 The online path locks the native finalization scope and rechecks the source
 row, owner generation and reference before publication. The source must use its
-canonical company/agent/run filename, with no aliases, symlinks or hard links.
+canonical space/agent/run filename, with no aliases, symlinks or hard links.
 It streams and verifies the exact local bytes, then publishes the read-only
 archive and an activity receipt in one guarded transaction. Originals remain
 on disk. A changed source or owner leaves the original reference unchanged.

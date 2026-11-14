@@ -33,7 +33,7 @@ export const CHAT_INSTALL_RECEIPT = "OUTPOST_CHAT_OPERATOR_INSTALL_RECEIPT";
 export const installedChatScenarioIds = ["instance-operations.update-instance", "instance-operations.provision-runtime"] as const;
 interface PublishedPin { version: string; integrity: string }
 export interface ChatInstallConfiguration { schemaVersion: 1; disposable: true; source: PublishedPin; target?: PublishedPin; piCredentialEnv?: "OPENROUTER_API_KEY" }
-export interface PublishedArtifact { package: "paperclipai" | "@outpost/server"; version: string; integrity: string; archiveSha512: string; entrySha256: string }
+export interface PublishedArtifact { package: "@outpost/cli" | "@outpost/server"; version: string; integrity: string; archiveSha512: string; entrySha256: string }
 interface InstallPlan { schemaVersion: 1; executionId: string; temporaryRoot: string; prefix: string; cli: string; serverRoot: string;
   sourceVersion: string; artifacts: PublishedArtifact[]; targetVersion?: string; targetIntegrity?: string; piCredentialEnv?: string }
 const hash = (bytes: Buffer | string, algorithm = "sha256") => createHash(algorithm).update(bytes).digest("hex");
@@ -90,10 +90,10 @@ export async function stagePublishedChatInstall(input: { execution: MatrixExecut
     return runOwnedInstalledPreparation(name, args, { cwd: root, env, timeout });
   }
   for (const pin of [config.source, ...(config.target ? [config.target] : [])]) {
-    for (const name of ["paperclipai", "@outpost/server"] as const) {
+    for (const name of ["@outpost/cli", "@outpost/server"] as const) {
       const dist = JSON.parse(await command("npm", ["view", `${name}@${pin.version}`, "dist", "--json", "--registry=https://registry.npmjs.org"], 30000));
       if (typeof dist.integrity !== "string" || !/^sha512-[A-Za-z0-9+/]+=*$/.test(dist.integrity) || !String(dist.tarball).startsWith("https://registry.npmjs.org/")
-        || name === "paperclipai" && dist.integrity !== pin.integrity) throw new Error("Published source metadata differs from the exact public registry pin");
+        || name === "@outpost/cli" && dist.integrity !== pin.integrity) throw new Error("Published source metadata differs from the exact public registry pin");
       const packed = JSON.parse(await command("npm", ["pack", `${name}@${pin.version}`, "--ignore-scripts", "--json", "--pack-destination", artifactsDir, "--registry=https://registry.npmjs.org"]));
       const archive = realpathSync(path.join(artifactsDir, packed[0]?.filename ?? "missing"));
       if (!archive.startsWith(artifactsDir + path.sep)) throw new Error("Published tarball escaped its owned artifact folder");
@@ -103,8 +103,8 @@ export async function stagePublishedChatInstall(input: { execution: MatrixExecut
       artifacts.push({ package: name, version: pin.version, integrity: dist.integrity, archiveSha512: hash(bytes, "sha512"), entrySha256: hash(entry) });
     }
   }
-  await command("npm", ["install", "--global", "--prefix", prefix, `paperclipai@${config.source.version}`, "--registry=https://registry.npmjs.org"], 600000);
-  const cli = realpathSync(path.join(prefix, "lib/node_modules/paperclipai/dist/index.js"));
+  await command("npm", ["install", "--global", "--prefix", prefix, `@outpost/cli@${config.source.version}`, "--registry=https://registry.npmjs.org"], 600000);
+  const cli = realpathSync(path.join(prefix, "lib/node_modules/@outpost/cli/dist/index.js"));
   // Resolve using the installed CLI's own public dependency graph, never the source checkout.
   const { findPackageJSON } = await import("node:module"); const { pathToFileURL } = await import("node:url");
   const manifest = findPackageJSON("@outpost/server", pathToFileURL(cli));
@@ -126,10 +126,10 @@ export function refreshInstalledChatPins(env: NodeJS.ProcessEnv, executionId: st
     || ![plan.cli, plan.serverRoot, plan.prefix].every(filename => realpathSync(filename).startsWith(realpathSync(root) + path.sep))) throw new Error("Installed source plan belongs to another target");
   const server = path.join(plan.serverRoot, "dist/index.js"), cliManifest = JSON.parse(readFileSync(path.resolve(plan.cli, "../../package.json"), "utf8")), serverManifest = JSON.parse(readFileSync(path.join(plan.serverRoot, "package.json"), "utf8"));
   const version = cliManifest.version;
-  if (cliManifest.name !== "paperclipai" || serverManifest.name !== "@outpost/server" || version !== serverManifest.version
+  if (cliManifest.name !== "@outpost/cli" || serverManifest.name !== "@outpost/server" || version !== serverManifest.version
     || ![plan.sourceVersion, plan.targetVersion].filter(Boolean).includes(version)) throw new Error("Installed source version is not a declared publication transition");
   const cliSha256 = hash(readFileSync(plan.cli)), serverSha256 = hash(readFileSync(server));
-  if (!plan.artifacts.some(a => a.package === "paperclipai" && a.version === version && a.entrySha256 === cliSha256)
+  if (!plan.artifacts.some(a => a.package === "@outpost/cli" && a.version === version && a.entrySha256 === cliSha256)
     || !plan.artifacts.some(a => a.package === "@outpost/server" && a.version === version && a.entrySha256 === serverSha256)) throw new Error("Actual installed CLI/server bytes differ from their independently downloaded published tarballs");
   destination.OUTPOST_RUNNER_E2E_INSTALLED_CLI_SHA256 = cliSha256;
   destination.OUTPOST_RUNNER_E2E_INSTALLED_SERVER_SHA256 = serverSha256;

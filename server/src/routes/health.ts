@@ -43,11 +43,11 @@ import {
 } from "../services/hot-restart.js";
 
 function shouldExposeFullHealthDetails(
-  actorType: "none" | "board" | "agent" | null | undefined,
+  actorType: "none" | "operator" | "agent" | null | undefined,
   deploymentMode: DeploymentMode,
 ) {
   if (deploymentMode !== "authenticated") return true;
-  return actorType === "board" || actorType === "agent";
+  return actorType === "operator" || actorType === "agent";
 }
 
 function matchesSharedToken(expectedToken: string | undefined | null, providedToken: string | undefined) {
@@ -69,7 +69,7 @@ function hasDevServerStatusToken(providedToken: string | undefined) {
  * Whether the caller may read this instance's workspace readiness.
  *
  * A managed workspace runs in `authenticated` mode, so its own control plane has
- * no board session against it. The runtime injects a derived probe token into the
+ * no operator session against it. The runtime injects a derived probe token into the
  * guest and presents it here — the same shared-secret shape the dev-server
  * supervisor already uses, and never a browser-supplied identity header.
  */
@@ -105,7 +105,7 @@ function getCloudHealthStatus(env: CloudInstanceEnv) {
 
   return {
     managed: true as const,
-    managedBy: "paperclip-cloud" as const,
+    managedBy: "outpost-cloud" as const,
     stackSlug: context.stackSlug,
     cloudBaseUrl: context.cloudOrigin,
     ...(runtimeIdentity ? {
@@ -123,7 +123,7 @@ export function healthRoutes(
     deploymentMode: DeploymentMode;
     deploymentExposure: DeploymentExposure;
     authReady: boolean;
-    companyDeletionEnabled: boolean;
+    spaceDeletionEnabled: boolean;
     serverInfo?: ServerInfoSnapshot;
     databaseBackupHealth?: InspectDatabaseBackupHealthOptions;
     runtimeEnv?: CloudInstanceEnv;
@@ -132,15 +132,15 @@ export function healthRoutes(
     deploymentMode: "local_trusted",
     deploymentExposure: "private",
     authReady: true,
-    companyDeletionEnabled: true,
+    spaceDeletionEnabled: true,
   },
 ) {
   const router = Router();
 
   router.post("/dev-server/restart", async (req, res) => {
     const actorType = "actor" in req ? req.actor?.type : null;
-    if (opts.deploymentMode === "authenticated" && actorType !== "board") {
-      res.status(403).json({ error: "board_access_required" });
+    if (opts.deploymentMode === "authenticated" && actorType !== "operator") {
+      res.status(403).json({ error: "operator_access_required" });
       return;
     }
 
@@ -247,7 +247,7 @@ export function healthRoutes(
     // deployments without the env var keep today's byte-identical responses.
     const hiddenSettings = [...getHiddenSettings(runtimeEnv)];
     // serverInfo (git SHA + process start) rides on the full-details responses
-    // only, so it reaches board/agent actors in authenticated mode or any caller
+    // only, so it reaches operator/agent actors in authenticated mode or any caller
     // in local_trusted dev — never anonymous authenticated callers. The
     // enableServerInfoDebugView experimental flag gates the UI surface, not this
     // already access-controlled field.
@@ -258,7 +258,7 @@ export function healthRoutes(
     // can read which commit this server is running without authenticating.
     const commit = serverInfo.git.available ? serverInfo.git.fullSha : null;
     const exposeDevServerDetails =
-      exposeFullDetails || hasDevServerStatusToken(req.get("x-paperclip-dev-server-status-token"));
+      exposeFullDetails || hasDevServerStatusToken(req.get("x-outpost-dev-server-status-token"));
     // Workspace readiness names the instance and execution workspace that
     // answered, so it rides the protected responses only. Public health stays
     // redacted: an anonymous caller still learns liveness and nothing else.
@@ -357,7 +357,7 @@ export function healthRoutes(
           .from(invites)
           .where(
             and(
-              eq(invites.inviteType, "bootstrap_ceo"),
+              eq(invites.inviteType, "bootstrap_lead"),
               isNull(invites.revokedAt),
               isNull(invites.acceptedAt),
               gt(invites.expiresAt, now),
@@ -418,7 +418,7 @@ export function healthRoutes(
         ...(redactedWarnings ? { warnings: redactedWarnings } : {}),
         ...(devServer ? { devServer } : {}),
         // Token-authorized probe on an otherwise redacted response: the control
-        // plane needs readiness without a board session, and nothing else about
+        // plane needs readiness without a operator session, and nothing else about
         // this instance becomes visible.
         ...(workspaceReadiness ? { workspace: workspaceReadiness } : {}),
         ...(cloud ? { cloud } : {}),
@@ -439,7 +439,7 @@ export function healthRoutes(
       bootstrapStatus,
       bootstrapInviteActive,
       features: {
-        companyDeletionEnabled: opts.companyDeletionEnabled,
+        spaceDeletionEnabled: opts.spaceDeletionEnabled,
       },
       serverInfo,
       startupRecovery,

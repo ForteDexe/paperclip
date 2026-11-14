@@ -30,7 +30,7 @@ admission rules. No provider protocol belongs in index.ts or the generic schedul
 ## Current implementation checkpoint
 
 - Extracted existing bounded, joined discovery without changing its behavior.
-- Added company/run/task/agent-scoped, keyset-paged candidate discovery. It returns
+- Added space/run/task/agent-scoped, keyset-paged candidate discovery. It returns
   existing lease metadata. Scheduled reconstruction can include future leases;
   ordinary sweep callers still exclude an unexpired claim.
 - Candidate discovery still excludes nonterminal runs, unaccepted results,
@@ -58,7 +58,7 @@ admission rules. No provider protocol belongs in index.ts or the generic schedul
 | Coordinator claim expires or clears | Native finalization row | Reconstruct its actual lease deadline; recheck claim ownership at execution; wake on early release |
 | Active/pending-cleanup environment lease releases | Environment runtime, workspace settlement and cleanup writers | Audit release/deletion writers, not only pending-cleanup notifications; wake affected runs after commit |
 | Process identity is cleared after verified stop | `native-local-process-stop.ts`, recovery and executor | Retain server-authored stop evidence and same-transaction notification; absence alone never authorizes replay |
-| Same session is active, initializing or warm | Executor-owned maps and release/close paths | Use local completion/release signals with company/agent or narrower scope; a different run can own the same session |
+| Same session is active, initializing or warm | Executor-owned maps and release/close paths | Use local completion/release signals with space/agent or narrower scope; a different run can own the same session |
 | Prior retained callback is still running | Runner maintenance operation registry and drain function | Preserve original promise ownership and reactivate after settlement; a timeout is not proof the callback stopped |
 | Relevant PID is still live without a controllable local owner | Exact cleanup's process check | Decide the explicit scoped probe contract; if needed, retain only a concrete unresolved obligation, with stop condition and documented sleep impact |
 | Database failure or NOWAIT contention before claim | Executor now propagates operational failures; real lock regression passes | Shared worker must retain recovery and reconstruct durable state, especially after an unknown commit; it must not blindly replay physical effects |
@@ -113,7 +113,7 @@ semaphore limit. No shared OS semaphore was removed.
   executor tests were intentionally not selected (733 skipped).
   `/tmp/sleep51-physical.log` and `.status` (0).
 - Scoped discovery adds three database tests: future lease reconstruction without
-  early legacy execution; company/run/task/agent isolation with a real second
+  early legacy execution; space/run/task/agent isolation with a real second
   tenant; bounded keyset traversal excluding already-attempted maintenance.
   All 35 finalization/discovery cases pass on a third fresh database.
   `/tmp/sleep51-discovery.log` and `.status` (0).
@@ -153,7 +153,7 @@ Regression evidence:
   acknowledgement) and the existing rolled-back source-claim commit failure all
   incorrectly returned `not_eligible` before repair. Four expected failures in
   `/tmp/sleep51-outcome-before.log` / `.status` (1); 73 other selected cases passed.
-- The first real lock invocation reused a database with company prefix `NCS` and
+- The first real lock invocation reused a database with space prefix `NCS` and
   failed fixture setup with unique violation 23505. All 36 tests were skipped;
   this was not product evidence. `/tmp/sleep51-lock-before.log` / `.status` (1).
 - On a fresh dedicated database the real competing run-row lock reproduced the
@@ -259,7 +259,7 @@ and the rest of the recurring-server stack. No new PR or merge is claimed.
 The environment service owns lease release and its existing transaction wrapper.
 It now signals the affected run before single/run-wide release commits. Metadata
 updates and still-pending cleanup do not activate retained-session cleanup. The
-run-wide API resolves company scope from its authoritative run rather than an
+run-wide API resolves space scope from its authoritative run rather than an
 unscoped notification. It has no production call sites in the inspected checkout;
 its public service behavior remains covered.
 
@@ -317,7 +317,7 @@ publication and full PR acceptance are still open. No polling removal is claimed
 
 ## Local session-owner release checkpoint
 
-The executor now signals company/agent scope after its execution scope and
+The executor now signals space/agent scope after its execution scope and
 startup ownership settle, and after backend initialization relinquishes its claim.
 An older retained run can share the physical session with a newer run, so a
 run-only hint would miss supported waiters. Durable candidate discovery and all
@@ -455,7 +455,7 @@ until both original preparation operations settle, on success and failure.
 
 The query-cost probe cloned 10,000 settled retained sessions, with real result,
 assessment, decision and finalization foreign keys, in an isolated database.
-EXPLAIN ANALYZE measured startup at 29.764 ms/62,266 shared-hit blocks, company
+EXPLAIN ANALYZE measured startup at 29.764 ms/62,266 shared-hit blocks, space
 scope at 27.731 ms/63,190 blocks, agent-release scope at 27.672 ms/63,190 blocks,
 and run scope at 0.030 ms/6 blocks. All return zero candidates. Broad discovery
 still grows with retained history; these local warm-cache measurements are not a
@@ -554,9 +554,9 @@ reviewed parent #17709 is merged. Its exact reviewed tree is unchanged in the
 landed squash. A normal merge adopts that ancestry without altering this child’s
 complete tree. This slice is now prepared directly for master.
 
-Routine company-only finalization hints do not reconstruct retained cleanup.
+Routine space-only finalization hints do not reconstruct retained cleanup.
 Ordinary fanout requires an issue or run identity; pending-effects serialization
-retains its existing company/run contract. Cleanup producers allocate their run
+retains its existing space/run contract. Cleanup producers allocate their run
 identity before registering transaction intent and before writing work. The
 local release path can still wake a dormant candidate. A controlled regression
 removed only the scope guard and failed; restoring that guard passed the same

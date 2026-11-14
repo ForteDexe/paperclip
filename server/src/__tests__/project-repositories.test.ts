@@ -8,7 +8,7 @@ describe("project repository access", () => {
   const shared = { ...own, kind: "organization", subjectUserId: null };
   const allowed = (grant: { status: string; kind: string; subjectUserId: string | null } = own, userId: string | null = "alice", activeMember = true, audience: string[] = []) =>
     canBrowseProjectRepositoryGrant({ grant, userId, activeMember, audience });
-  it("includes only the caller's personal identity and active company membership", () => {
+  it("includes only the caller's personal identity and active space membership", () => {
     expect(allowed()).toBe(true);
     expect(allowed(own, "bob")).toBe(false);
     expect(allowed(own, null)).toBe(false);
@@ -21,15 +21,15 @@ describe("project repository access", () => {
     expect(allowed(shared, "alice", true, ["alice"])).toBe(true);
     expect(allowed(shared, "alice", true, ["bob"])).toBe(false);
     expect(allowed(shared, "alice", false)).toBe(false);
-    expect(allowed(shared, null, false)).toBe(true); // local trusted board
+    expect(allowed(shared, null, false)).toBe(true); // local trusted operator
     expect(allowed(shared, null, false, ["alice"])).toBe(false);
   });
   it("deduplicates by provider id across personal and shared connections", () => {
     const repos = new Map<string, ProjectRepository>();
     mergeProjectRepository(repos, { id: "10", fullName: "org/old", ownerType: "organization", private: true }, "Personal");
-    mergeProjectRepository(repos, { id: "10", fullName: "org/renamed", ownerType: "organization", private: true }, "Company");
-    mergeProjectRepository(repos, { id: "10", fullName: "org/renamed", ownerType: "organization", private: true }, "Company");
-    expect([...repos.values()]).toEqual([{ id: "10", fullName: "org/renamed", ownerType: "organization", url: "https://github.com/org/renamed", private: true, connections: ["Personal", "Company"] }]);
+    mergeProjectRepository(repos, { id: "10", fullName: "org/renamed", ownerType: "organization", private: true }, "Space");
+    mergeProjectRepository(repos, { id: "10", fullName: "org/renamed", ownerType: "organization", private: true }, "Space");
+    expect([...repos.values()]).toEqual([{ id: "10", fullName: "org/renamed", ownerType: "organization", url: "https://github.com/org/renamed", private: true, connections: ["Personal", "Space"] }]);
   });
   it("refreshes retained selections from discovery, falls back only for unavailable existing IDs, and rejects new unavailable IDs", () => {
     const existing = [{ name: "old/name", repoUrl: "https://github.com/old/name", metadata: { githubRepositoryId: "1" } }];

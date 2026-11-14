@@ -73,9 +73,9 @@ export function useSignOut({ onSignedOut }: UseSignOutOptions = {}) {
       // leave the previous account's data readable for the whole of the *next*
       // account's session.
       //
-      // The company list is no longer the example: it is keyed by account, so
+      // The space list is no longer the example: it is keyed by account, so
       // the next account reads a different entry regardless of what happens
-      // here. Everything else still is — the board-access gate, per-company
+      // here. Everything else still is — the operator-access gate, per-space
       // details and stats, and every account-scoped key added since — which is
       // why this sweeps by predicate rather than naming the keys it knows.
       //
@@ -83,7 +83,7 @@ export function useSignOut({ onSignedOut }: UseSignOutOptions = {}) {
       // but does not notify the observers already subscribed to those entries,
       // so a mounted `useQuery` keeps returning its last result until some
       // unrelated re-render happens to rebuild the query. That is not a corner
-      // case here — CompanyProvider sits above the router and stays mounted
+      // case here — SpaceProvider sits above the router and stays mounted
       // across the whole sign-out/sign-in cycle. Reset notifies them, so the
       // old data is gone from the cache *and* from everything reading it.
       //

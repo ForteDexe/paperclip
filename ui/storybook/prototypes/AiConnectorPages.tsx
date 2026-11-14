@@ -14,12 +14,12 @@ import { AiConnectionAuth, type AiAuthState } from "@/components/ai-connections/
 import { CredentialModeLink } from "@/components/onboarding/CredentialModeLink";
 import { AI_PROVIDERS, aiMethodLabel, type AiConnectionSummary, type AiProvider, type AiAuthMethod } from "@/components/ai-connections/model";
 import { AI_REVIEW_CONNECTIONS } from "../fixtures/aiConnections";
-import { storybookAgents, storybookAuthSession } from "../fixtures/paperclipData";
+import { storybookAgents, storybookAuthSession } from "../fixtures/outpostData";
 
-const companyId = "company-storybook";
+const spaceId = "space-storybook";
 const date = new Date("2026-09-10T12:00:00Z");
 const agents = storybookAgents.slice(0, 2).map((agent, index) => ({ ...agent, id: index ? "atlas" : "nova", name: index ? "Atlas" : "Nova" }));
-const capabilities = { canConfigure: true, canCreateOrganizationGrant: true, canSetCompanyInstall: true, canConnectAsCurrentUser: true, canManageAgentInstalls: true, canViewOtherPersonalIdentities: true, editableAgentIds: ["nova", "atlas"] };
+const capabilities = { canConfigure: true, canCreateOrganizationGrant: true, canSetSpaceInstall: true, canConnectAsCurrentUser: true, canManageAgentInstalls: true, canViewOtherPersonalIdentities: true, editableAgentIds: ["nova", "atlas"] };
 const members = [{ userId: "dotta", name: "Dotta", email: "dotta@example.test" }, { userId: "sam", name: "Sam", email: "sam@example.test" }];
 
 /** Use the production provider catalog; only accounts and actions are simulated. */
@@ -30,9 +30,9 @@ for (const slug of ["github", "gmail"]) {
 }
 function asConnection(account: AiConnectionSummary): ToolConnection {
   return {
-    id: account.id, companyId, applicationId: `app-${account.provider}`, name: account.name, uid: account.id,
+    id: account.id, spaceId, applicationId: `app-${account.provider}`, name: account.name, uid: account.id,
     connectionKind: "managed", ownership: "customer", connectionPurpose: "ai", transport: "runtime_auth", authKind: account.method === "subscription" ? "oauth" : "api_key",
-    credentialSource: "paperclip_vault", credentialPolicy: account.ownership === "shared" ? "shared" : "per_user",
+    credentialSource: "outpost_vault", credentialPolicy: account.ownership === "shared" ? "shared" : "per_user",
     status: account.status === "revoked" ? "disabled" : "active", enabled: account.status !== "revoked",
     transportConfig: {}, config: { sourceTemplateKey: account.provider, ai: { provider: account.provider, method: account.method }, aiIsolatedSubscription: true }, credentialSecretRefs: [],
     healthStatus: account.status === "connected" ? "ok" : "error", healthCheckedAt: date,
@@ -44,7 +44,7 @@ function asConnection(account: AiConnectionSummary): ToolConnection {
 function grantsFor(account: AiConnectionSummary, readOnly: boolean): ConnectionGrantsResponse {
   return { connection: { id: account.id, uid: account.id }, currentUserId: "dotta", members,
     capabilities: Object.fromEntries(Object.entries(capabilities).map(([key, value]) => [key, typeof value === "boolean" ? !readOnly && value : value])) as typeof capabilities,
-    grants: [{ id: account.grantId, companyId, connectionId: account.id,
+    grants: [{ id: account.grantId, spaceId, connectionId: account.id,
       kind: account.ownership === "shared" ? "organization" : "user", subjectUserId: account.ownerUserId ?? null,
       providerTenant: { name: account.accountLabel ?? account.name }, credentialSecretRefs: [],
       status: account.status === "connected" ? "active" : account.status === "revoked" ? "revoked" : "expired",
@@ -61,14 +61,14 @@ export function AiConnectorPages({ initialConnections = AI_REVIEW_CONNECTIONS, d
 }) {
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 0, refetchOnWindowFocus: false }, mutations: { retry: false } } }));
   const [store] = useState(() => ({ profiles: new Map<string, unknown>(initialConnections.filter((row) => row.id === "claude-dotta").map((row) => [row.id, {
-    id: `profile-${row.id}`, companyId, profileKey: `app:${row.id}`, entries: [], bindings: ["nova"].map((targetId) => ({ targetType: "agent", targetId })),
-  }])), accounts: initialConnections.map((row) => ({ ...row, companyId, canSetDefault: !readOnly && row.ownership === "personal" && row.ownerUserId === "dotta" && !row.routing })) as AiConnectionSummary[],
+    id: `profile-${row.id}`, spaceId, profileKey: `app:${row.id}`, entries: [], bindings: ["nova"].map((targetId) => ({ targetType: "agent", targetId })),
+  }])), accounts: initialConnections.map((row) => ({ ...row, spaceId, canSetDefault: !readOnly && row.ownership === "personal" && row.ownerUserId === "dotta" && !row.routing })) as AiConnectionSummary[],
     failedDefault: false, removed: new Set<string>(), installs: new Map<string, unknown[]>(), audience: new Map<string, string[]>() }));
   const [ready, setReady] = useState(false);
   const [, render] = useState(0);
   const navigate = useNavigate();
   function update(account: AiConnectionSummary) {
-    account = { ...account, companyId, canSetDefault: !readOnly && account.ownership === "personal" && account.ownerUserId === "dotta" && !account.routing };
+    account = { ...account, spaceId, canSetDefault: !readOnly && account.ownership === "personal" && account.ownerUserId === "dotta" && !account.routing };
     store.accounts = store.accounts.some((row) => row.id === account.id) ? store.accounts.map((row) => row.id === account.id ? account : row) : [...store.accounts, account];
     void client.invalidateQueries(); render((n) => n + 1);
   }
@@ -81,26 +81,26 @@ export function AiConnectorPages({ initialConnections = AI_REVIEW_CONNECTIONS, d
       const payload = typeof init?.body === "string" ? JSON.parse(init.body) : {};
       const path = url.pathname;
       const rows = store.accounts.filter((row) => !store.removed.has(row.id));
-      const applications: ToolApplication[] = gallery.map((app) => ({ id: `app-${app.slug}`, companyId, applicationKey: `app-gallery:${app.slug}:review`, name: app.name, description: app.description, type: "mcp_http", status: "active", pluginId: null, ownerAgentId: null, ownerUserId: "dotta", metadata: { sourceTemplateKey: app.slug }, archivedAt: null, createdAt: date, updatedAt: date }));
+      const applications: ToolApplication[] = gallery.map((app) => ({ id: `app-${app.slug}`, spaceId, applicationKey: `app-gallery:${app.slug}:review`, name: app.name, description: app.description, type: "mcp_http", status: "active", pluginId: null, ownerAgentId: null, ownerUserId: "dotta", metadata: { sourceTemplateKey: app.slug }, archivedAt: null, createdAt: date, updatedAt: date }));
       const reply = (value: unknown) => Promise.resolve(Response.json(value));
       if (path === "/api/auth/get-session") return reply({ ...storybookAuthSession, user: { ...storybookAuthSession.user, id: "dotta", name: "Dotta" } });
-      if (path === `/api/companies/${companyId}/ai-connections`) return reply({ currentUserId: "dotta", canManageConnections: !readOnly, connections: rows });
-      if (path === `/api/companies/${companyId}/ai-connections/default` && method === "PUT") {
+      if (path === `/api/spaces/${spaceId}/ai-connections`) return reply({ currentUserId: "dotta", canManageConnections: !readOnly, connections: rows });
+      if (path === `/api/spaces/${spaceId}/ai-connections/default` && method === "PUT") {
         const target = rows.find(row => row.grantId === payload.grantId);
         if (!target?.canSetDefault || target.status !== "connected") return Response.json({ error: "This account cannot be selected as your default." }, { status: 403 });
         if (failDefaultOnce && !store.failedDefault) { store.failedDefault = true; return Response.json({ error: "The default could not be saved. Try again." }, { status: 503 }); }
         store.accounts = store.accounts.map(row => row.provider === target.provider && row.ownerUserId === "dotta" ? { ...row, isDefault: row.grantId === target.grantId } : row);
         return reply({ ok: true });
       }
-      if (path === `/api/companies/${companyId}/tools/gallery`) return reply({ apps: gallery, capabilities: { canCreateOrganizationGrant: !readOnly, organizationGrantReason: null, canSetCompanyInstall: !readOnly, companyInstallReason: null } });
-      if (path === `/api/companies/${companyId}/tools/applications`) return reply({ applications });
-      if (path === `/api/companies/${companyId}/tools/connections`) return reply({ connections: rows.map(asConnection) });
-      if (path === `/api/companies/${companyId}/chat-endpoints`) return reply([]);
+      if (path === `/api/spaces/${spaceId}/tools/gallery`) return reply({ apps: gallery, capabilities: { canCreateOrganizationGrant: !readOnly, organizationGrantReason: null, canSetSpaceInstall: !readOnly, spaceInstallReason: null } });
+      if (path === `/api/spaces/${spaceId}/tools/applications`) return reply({ applications });
+      if (path === `/api/spaces/${spaceId}/tools/connections`) return reply({ connections: rows.map(asConnection) });
+      if (path === `/api/spaces/${spaceId}/chat-endpoints`) return reply([]);
       if (path === "/api/mcp/connections") return reply([]);
-      if (path === `/api/companies/${companyId}/tools/profiles`) return reply({ profiles: [...store.profiles.values()] });
-      if (path === `/api/companies/${companyId}/tools/policies`) return reply({ policies: [] });
-      if (path === `/api/companies/${companyId}/agents`) return reply(agents);
-      if (path === `/api/companies/${companyId}/user-directory`) return reply({ users: members.map((member) => ({ principalId: member.userId, status: "active", user: { name: member.name, email: member.email } })) });
+      if (path === `/api/spaces/${spaceId}/tools/profiles`) return reply({ profiles: [...store.profiles.values()] });
+      if (path === `/api/spaces/${spaceId}/tools/policies`) return reply({ policies: [] });
+      if (path === `/api/spaces/${spaceId}/agents`) return reply(agents);
+      if (path === `/api/spaces/${spaceId}/user-directory`) return reply({ users: members.map((member) => ({ principalId: member.userId, status: "active", user: { name: member.name, email: member.email } })) });
       const match = path.match(/^\/api\/tool-connections\/([^/]+)(.*)$/);
       if (match) {
         const row = store.accounts.find((candidate) => candidate.id === match[1]);
@@ -113,7 +113,7 @@ export function AiConnectorPages({ initialConnections = AI_REVIEW_CONNECTIONS, d
         }
         if (suffix === "/grants") {
           const result = grantsFor(row, readOnly);
-          result.grants[0].members = (store.audience.get(row.id) ?? []).map((userId) => ({ id: `member-${userId}`, companyId, grantId: row.grantId, subjectType: "user" as const, subjectId: userId, createdAt: date }));
+          result.grants[0].members = (store.audience.get(row.id) ?? []).map((userId) => ({ id: `member-${userId}`, spaceId, grantId: row.grantId, subjectType: "user" as const, subjectId: userId, createdAt: date }));
           return reply(result);
         }
         if (method === "DELETE" && /^\/grants\/[^/]+$/.test(suffix)) { update({ ...row, status: "revoked" }); return reply(grantsFor({ ...row, status: "revoked" }, readOnly).grants[0]); }
@@ -129,9 +129,9 @@ export function AiConnectorPages({ initialConnections = AI_REVIEW_CONNECTIONS, d
         }
         return Response.json({ error: `Unsupported review operation: ${suffix}` }, { status: 400 });
       }
-      if (path.startsWith(`/api/companies/${companyId}/tools/apps/`) && path.endsWith("/finish")) {
+      if (path.startsWith(`/api/spaces/${spaceId}/tools/apps/`) && path.endsWith("/finish")) {
         const id = path.split("/").at(-2)!;
-        const profile = { id: `profile-${id}`, companyId, profileKey: `app:${id}`, entries: [], bindings: payload.access === "all_agents" ? [{ targetType: "company", targetId: companyId }] : (payload.access?.agentIds ?? []).map((targetId: string) => ({ targetType: "agent", targetId })) };
+        const profile = { id: `profile-${id}`, spaceId, profileKey: `app:${id}`, entries: [], bindings: payload.access === "all_agents" ? [{ targetType: "space", targetId: spaceId }] : (payload.access?.agentIds ?? []).map((targetId: string) => ({ targetType: "agent", targetId })) };
         store.profiles.set(id, profile);
         return reply({ connection: asConnection(rows.find((row) => row.id === id)!), profile, policy: null });
       }
@@ -150,12 +150,12 @@ export function AiConnectorPages({ initialConnections = AI_REVIEW_CONNECTIONS, d
       <BreadcrumbBar />
       <div className="pt-6">
       <Routes>
-        <Route path="/:companyPrefix/apps" element={<Browse renderAccountDetails={(connection) => {
+        <Route path="/:spacePrefix/apps" element={<Browse renderAccountDetails={(connection) => {
           const row = store.accounts.find((account) => account.id === connection.id);
-          return row ? <p className="text-xs text-muted-foreground">{aiMethodLabel(row.provider, row.method)} · {row.ownership === "shared" ? "Company shared" : "Personal"}{row.accountLabel ? ` · ${row.accountLabel}` : ""}</p> : null;
+          return row ? <p className="text-xs text-muted-foreground">{aiMethodLabel(row.provider, row.method)} · {row.ownership === "shared" ? "Space shared" : "Personal"}{row.accountLabel ? ` · ${row.accountLabel}` : ""}</p> : null;
         }} />} />
-        <Route path="/:companyPrefix/apps/connect" element={<Setup accounts={store.accounts} onSave={update} />} />
-        <Route path="/:companyPrefix/apps/:connectionId/:tab" element={<AppDetail onReconnect={(connection) => navigate(`/apps/connect?source=${connection.config?.sourceTemplateKey}&stage=setup&reconnect=${connection.id}`)} renderActions={(connection) => {
+        <Route path="/:spacePrefix/apps/connect" element={<Setup accounts={store.accounts} onSave={update} />} />
+        <Route path="/:spacePrefix/apps/:connectionId/:tab" element={<AppDetail onReconnect={(connection) => navigate(`/apps/connect?source=${connection.config?.sourceTemplateKey}&stage=setup&reconnect=${connection.id}`)} renderActions={(connection) => {
           const account = store.accounts.find((row) => row.id === connection.id);
           return account ? <AiReviewBoundary label="App component: AI account controls inside existing AppDetail"><AiConnectionAccountControls account={account} currentUserId="dotta" grant={grantsFor(account, readOnly).grants[0]} readOnly={readOnly}
             onMakeDefault={() => {
@@ -183,8 +183,8 @@ function Setup({ accounts, onSave }: { accounts: AiConnectionSummary[]; onSave: 
   function complete(grantKind: string, agentIds: string[], allAgents: boolean) {
     const id = reconnect?.id ?? `review-${provider}-${accounts.length}`;
     const personal = reconnect ? reconnect.ownership === "personal" : grantKind === "user";
-    onSave(reconnect ? { ...reconnect, status: "connected" } : { id, grantId: `grant-${id}`, companyId, provider, method, name, ownership: personal ? "personal" : "shared", ownerUserId: personal ? "dotta" : undefined, ownerName: personal ? "Dotta" : undefined, status: "connected", isDefault: personal && !accounts.some((row) => row.ownerUserId === "dotta" && row.provider === provider && row.method === method && row.isDefault) });
-    if (!reconnect) void fetch(`/api/companies/${companyId}/tools/apps/${id}/finish`, { method: "POST", body: JSON.stringify({ access: allAgents ? "all_agents" : { agentIds } }) });
+    onSave(reconnect ? { ...reconnect, status: "connected" } : { id, grantId: `grant-${id}`, spaceId, provider, method, name, ownership: personal ? "personal" : "shared", ownerUserId: personal ? "dotta" : undefined, ownerName: personal ? "Dotta" : undefined, status: "connected", isDefault: personal && !accounts.some((row) => row.ownerUserId === "dotta" && row.provider === provider && row.method === method && row.isDefault) });
+    if (!reconnect) void fetch(`/api/spaces/${spaceId}/tools/apps/${id}/finish`, { method: "POST", body: JSON.stringify({ access: allAgents ? "all_agents" : { agentIds } }) });
     setSavedId(id); setState({ phase: "connected" });
   }
   if (!(provider in AI_PROVIDERS)) return <><p className="text-sm">This review focuses on AI authentication. The existing connector remains in the same list.</p><Button onClick={() => navigate("/apps")}>Back to Connectors</Button></>;

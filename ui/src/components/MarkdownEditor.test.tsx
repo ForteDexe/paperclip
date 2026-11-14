@@ -1887,7 +1887,7 @@ describe("MarkdownEditor", () => {
     const handleChange = vi.fn();
     const { option, root } = await openMentionMenuFor(handleChange);
 
-    const menu = option.closest("[data-paperclip-floating-ui]");
+    const menu = option.closest("[data-outpost-floating-ui]");
     expect(menu).toBeTruthy();
     expect(menu?.className).toContain("pointer-events-auto");
 

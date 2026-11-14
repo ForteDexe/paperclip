@@ -16,14 +16,14 @@ describe("invitation bearer HTTP logs", () => {
     const router = express.Router();
     router.post("/invites/:token/accept", (_req, res) => res.status(status).end());
     app.use("/api", router);
-    const response = await request(app).post(`/api/invites/${canary}/accept`).set(header, `https://board.example/invite/${canary}?source=email`);
+    const response = await request(app).post(`/api/invites/${canary}/accept`).set(header, `https://operator.example/invite/${canary}?source=email`);
     expect(response.status).toBe(status);
     const output = chunks.join("");
     expect(output).not.toContain(canary);
     const record = JSON.parse(output.trim());
     expect(record.req.method).toBe("POST");
     expect(record.req.url).toBe("/api/invites/[REDACTED]/accept");
-    expect(record.req.headers[header.toLowerCase()]).toBe("https://board.example/invite/[REDACTED]");
+    expect(record.req.headers[header.toLowerCase()]).toBe("https://operator.example/invite/[REDACTED]");
     expect(record.res.statusCode).toBe(status);
     expect(record.msg).toContain(`POST /invites/[REDACTED]/accept ${status}`);
   });

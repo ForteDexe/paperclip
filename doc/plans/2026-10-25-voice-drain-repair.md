@@ -23,13 +23,13 @@ an idle-snapshot change; resume processes the one retained session exactly once.
 - /tmp/sleep21-drain-before.log: original worker fails, active is 1 instead of 0.
 - /tmp/sleep21-drain-tests.log: all 11 voice recovery lifecycle tests pass.
 - /tmp/sleep21-drain-typecheck.log: production server typecheck passes.
-- Dedicated migrated database: paperclip_sleep21_drain_20261025_test.
+- Dedicated migrated database: outpost_sleep21_drain_20261025_test.
 
 Propagate this predicate into slice 22's extracted scoped-deadline worker and
 all descendants, then rerun its existing consumers. The earlier tool-health,
 Discord command, and receiver workers have the same predicate pattern; audit
 and repair those at their own parent PRs as a separate propagation pass. Do not
-report all stack drain behavior fixed from the voice test alone. The company
+report all stack drain behavior fixed from the voice test alone. The space
 inbound cleanup/deletion policy, older E2E failure, current chat milestone audit,
 and full original inventory remain outstanding.
 

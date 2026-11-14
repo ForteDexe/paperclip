@@ -7,7 +7,7 @@ import { describeError } from "@/api/errors";
 import { inboxAgentPolicyApi } from "@/api/inbox-agent-policy";
 import { queryKeys } from "@/lib/queryKeys";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
-import { isAgentTaskTarget } from "@/lib/company-members";
+import { isAgentTaskTarget } from "@/lib/space-members";
 import { AgentMultiSelect } from "@/components/AgentMultiSelect";
 import { Button } from "@/components/ui/button";
 import { RadioCardGroup, type RadioCardOption } from "@/components/ui/radio-card";
@@ -46,23 +46,23 @@ interface Draft {
  * of their agents may archive. The one-click Undo/Unarchive affordance and the
  * "Archived by …" attribution live elsewhere (inbox rows / properties pane).
  */
-export function InboxAgentPolicyControl({ companyId }: { companyId: string | null | undefined }) {
+export function InboxAgentPolicyControl({ spaceId }: { spaceId: string | null | undefined }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Draft | null>(null);
   const lastServerKeyRef = useRef<string | null>(null);
 
   const policyQuery = useQuery({
-    queryKey: companyId ? queryKeys.inboxAgentPolicy.mine(companyId) : ["inbox-agent-policy", "none"],
-    queryFn: () => inboxAgentPolicyApi.getMine(companyId!),
-    enabled: !!companyId,
+    queryKey: spaceId ? queryKeys.inboxAgentPolicy.mine(spaceId) : ["inbox-agent-policy", "none"],
+    queryFn: () => inboxAgentPolicyApi.getMine(spaceId!),
+    enabled: !!spaceId,
   });
   const policyView = useQueryView(policyQuery);
   const policy = policyQuery.data;
 
   const agentsQuery = useQuery({
-    queryKey: companyId ? queryKeys.agents.list(companyId) : ["agents", "none"],
-    queryFn: () => agentsApi.list(companyId!),
-    enabled: !!companyId,
+    queryKey: spaceId ? queryKeys.agents.list(spaceId) : ["agents", "none"],
+    queryFn: () => agentsApi.list(spaceId!),
+    enabled: !!spaceId,
   });
   const selectableAgents = useMemo(
     () => (agentsQuery.data ?? []).filter(isAgentTaskTarget),
@@ -99,12 +99,12 @@ export function InboxAgentPolicyControl({ companyId }: { companyId: string | nul
 
   const updateMutation = useMutation({
     mutationFn: (next: Draft) =>
-      inboxAgentPolicyApi.updateMine(companyId!, {
+      inboxAgentPolicyApi.updateMine(spaceId!, {
         mode: next.mode,
         allowedAgentIds: next.mode === "allowlist" ? next.allowedAgentIds : [],
       }),
     onSuccess: (saved) => {
-      queryClient.setQueryData<InboxAgentPolicy>(queryKeys.inboxAgentPolicy.mine(companyId!), saved);
+      queryClient.setQueryData<InboxAgentPolicy>(queryKeys.inboxAgentPolicy.mine(spaceId!), saved);
     },
   });
 

@@ -12,7 +12,7 @@ const contextRoots: string[] = [];
 afterEach(() => { for (const root of contextRoots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 function preparedExecution(base: NativeExecutionInput, version: "v5" | "v7" | "v9" = "v5"): NativeExecutionInput {
-  const root = mkdtempSync(join(tmpdir(), "paperclip-prepared-backend-"));
+  const root = mkdtempSync(join(tmpdir(), "outpost-prepared-backend-"));
   contextRoots.push(root);
   writeFileSync(join(root, "AGENTS.md"), "Keep assigned instructions.");
   const digest = "0".repeat(64);
@@ -46,7 +46,7 @@ function execution(
   return {
     schema: "outpost.native-execution-input.v1",
     binding: {
-      companyId: "company",
+      spaceId: "space",
       runId: "run",
       issueId: "issue",
       agentId: "agent",
@@ -202,7 +202,7 @@ function managedExecution(
         memoryId: "memory",
         invocationRoleArn: "arn:aws:iam::123456789012:role/runner",
         contextBucket: "context-bucket",
-        contextPrefix: "companies/company/profiles/profile",
+        contextPrefix: "spaces/space/profiles/profile",
         contextKmsKeyArn: "arn:aws:kms:us-east-1:123456789012:key/test",
         qualificationRevision: "aws-agentcore-harness-context-v2",
         eventExpiryDays: 90,
@@ -224,7 +224,7 @@ describe("native backend factory", () => {
     });
     try {
       const backend = createNativeSessionBackend(input, { environment: {} });
-      await expect(backend.openSession({ identity: { runId: "run", sessionId: "session", companyId: "company", issueId: "issue", agentId: "agent" },
+      await expect(backend.openSession({ identity: { runId: "run", sessionId: "session", spaceId: "space", issueId: "issue", agentId: "agent" },
         workingDirectory: WORKSPACE })).rejects.toThrow("offline-stop-before-process-spawn");
       expect(generated).toBeDefined();
       if (webSearch) expect(generated?.slice(-3)).toEqual(["-c", 'web_search="disabled"', "app-server"]);
@@ -311,7 +311,7 @@ describe("native backend factory", () => {
   });
 
   it("defers remote ACPX workspace admission to the runner filesystem", async () => {
-    const remoteWorkspace = "/home/daytona/paperclip-workspace";
+    const remoteWorkspace = "/home/daytona/outpost-workspace";
     const transport = new FakeCodexTransport();
     const request = transport.request.bind(transport);
     transport.request = async (method, params) => {
@@ -342,7 +342,7 @@ describe("native backend factory", () => {
       identity: {
         runId: "run",
         sessionId: "session",
-        companyId: "company",
+        spaceId: "space",
         issueId: "issue",
         agentId: "agent",
       },
@@ -371,7 +371,7 @@ describe("native backend factory", () => {
       environment: { ...process.env, OUTPOST_WORKSPACE_CWD: WORKSPACE },
     });
     const session = await backend.openSession({
-      identity: { runId: "run", sessionId: "session", companyId: "company", issueId: "issue", agentId: "agent" },
+      identity: { runId: "run", sessionId: "session", spaceId: "space", issueId: "issue", agentId: "agent" },
       workingDirectory: WORKSPACE,
     });
     expect(captured).toBe(composeNativeSystemInstructions(input.runtimeContext, "Updated custom entry."));
@@ -386,7 +386,7 @@ describe("native backend factory", () => {
       codexTransportFactory: () => new FakeCodexTransport(),
       environment: { ...process.env, OUTPOST_WORKSPACE_CWD: WORKSPACE },
     }).openSession({
-      identity: { runId: "run", sessionId: "session", companyId: "company", agentId: "agent", issueId: "issue" },
+      identity: { runId: "run", sessionId: "session", spaceId: "space", agentId: "agent", issueId: "issue" },
       workingDirectory: WORKSPACE,
     });
     const snapshot = await original.snapshot();
@@ -409,7 +409,7 @@ describe("native backend factory", () => {
   });
 
   // An abandoned remote workspace epoch is restored into a new sibling root
-  // under `.paperclip-workspaces`, while the follow-up inherits a checkpoint
+  // under `.outpost-workspaces`, while the follow-up inherits a checkpoint
   // that names the old root. Resume there is impossible, and retrying cannot
   // move the saved session: the runner reports provider state incompatible.
   // The runtime then replaces the session when the checkpoint allows it, and
@@ -457,7 +457,7 @@ describe("native backend factory", () => {
   // run's result was accepted but its harness backup failed to save, and its
   // per-turn sandbox was destroyed. The follow-up's new sandbox holds no Runner
   // control-plane state for the saved session, so every resume reads the same
-  // empty state. That failure was untyped, so a governed-wait or same-session
+  // empty state. That failure was untyped, so a controlled-wait or same-session
   // checkpoint ended in a generic interruption, and each new message resumed
   // the same session and failed again.
   describe("a Runner that has no saved state for the session", () => {
@@ -471,7 +471,7 @@ describe("native backend factory", () => {
       const snapshot = {
         schema: "outpost.native-session.v1", backendKind: "codex_app_server", driverKind: "codex_app_server",
         sessionId: transport.threadId, providerSessionId: transport.providerSessionId, workingDirectory: WORKSPACE,
-        identity: { runId: "run", sessionId: "session", companyId: "company", issueId: "issue", agentId: "agent" },
+        identity: { runId: "run", sessionId: "session", spaceId: "space", issueId: "issue", agentId: "agent" },
         activeTurnId: null, terminalTurns: [], pendingRuntimeRequests: [], lastCursor: null,
       };
       return { backend, snapshot };
@@ -521,8 +521,8 @@ describe("native backend factory", () => {
   it("names the agent generically when a remote Claude session opens outside its workspace", async () => {
     const { factory, backend } = movedRootRecovery(acpxExecution("claude"));
     const failure = await backend.openSession({
-      identity: { runId: "run", sessionId: "session", companyId: "company", issueId: "issue", agentId: "agent" },
-      workingDirectory: "/home/daytona/paperclip-workspace/.paperclip-workspaces/elsewhere",
+      identity: { runId: "run", sessionId: "session", spaceId: "space", issueId: "issue", agentId: "agent" },
+      workingDirectory: "/home/daytona/outpost-workspace/.outpost-workspaces/elsewhere",
     }).catch((error: unknown) => error);
     // A Claude run must not be told its working directory is a Codex one.
     expect((failure as Error).message).toBe("Remote agent working directory does not match the assigned workspace");
@@ -540,7 +540,7 @@ describe("native backend factory", () => {
   });
 
   function movedRootRecovery(input: NativeExecutionInputV1) {
-    const parent = "/home/daytona/paperclip-workspace/.paperclip-workspaces";
+    const parent = "/home/daytona/outpost-workspace/.outpost-workspaces";
     const workspaceId = "a5a34403-04fe-4e7e-97cf-d8f371a802a4";
     const savedRoot = `${parent}/${workspaceId}-1-80214561-2151-4112-a43a-7d65f3071b56`;
     const assignedRoot = `${parent}/${workspaceId}-5-ef79592c-6784-438f-8a17-9800dd2fa2fc`;
@@ -553,7 +553,7 @@ describe("native backend factory", () => {
     const snapshot = {
       schema: "outpost.native-session.v1", backendKind: "codex_app_server", driverKind: "codex_app_server",
       sessionId: transport.threadId, providerSessionId: transport.providerSessionId, workingDirectory: savedRoot,
-      identity: { runId: "run", sessionId: "session", companyId: "company", issueId: "issue", agentId: "agent" },
+      identity: { runId: "run", sessionId: "session", spaceId: "space", issueId: "issue", agentId: "agent" },
       activeTurnId: null, terminalTurns: [], pendingRuntimeRequests: [], lastCursor: null,
     };
     return { transport, factory, backend, snapshot };
@@ -572,7 +572,7 @@ describe("native backend factory", () => {
         return response;
       }
     }
-    const identity = { runId: "run", sessionId: "session", companyId: "company", issueId: "issue", agentId: "agent" };
+    const identity = { runId: "run", sessionId: "session", spaceId: "space", issueId: "issue", agentId: "agent" };
     const providers = [
       ["Codex", execution()],
       ["OpenCode", opencodeExecution()],
@@ -658,7 +658,7 @@ describe("native backend factory", () => {
       createNativeSessionBackend(execution(), {
         workingDirectoryAuthority: "remote_runner",
         environment: {
-          OUTPOST_WORKSPACE_CWD: "/home/daytona/paperclip-workspace",
+          OUTPOST_WORKSPACE_CWD: "/home/daytona/outpost-workspace",
         },
       }),
     ).toThrow("requires a runnerd transport");
@@ -687,7 +687,7 @@ describe("native backend factory", () => {
         identity: {
           runId: "run",
           sessionId: "session",
-          companyId: "company",
+          spaceId: "space",
           issueId: "issue",
           agentId: "agent",
         },
@@ -920,7 +920,7 @@ describe("native backend factory", () => {
 
     await backend.openSession({
       identity: {
-        companyId: "company",
+        spaceId: "space",
         issueId: "issue",
         agentId: "agent",
         runId: "run",
@@ -960,11 +960,11 @@ describe("native backend factory", () => {
       environment: { OUTPOST_WORKSPACE_CWD: WORKSPACE },
     });
     const session = await backend.openSession({
-      identity: { companyId: "company", issueId: "issue", agentId: "agent", runId: "run", sessionId: "session" },
+      identity: { spaceId: "space", issueId: "issue", agentId: "agent", runId: "run", sessionId: "session" },
       workingDirectory: WORKSPACE,
     });
     const first = JSON.stringify(buildNativeModelEnvelope(input));
-    const completion = "Call paperclip_finish with the result of the work already completed.";
+    const completion = "Call outpost_finish with the result of the work already completed.";
     try {
       for (const [index, text] of [first, completion].entries()) {
         transport.turnStartResponse = Promise.resolve({ turn: { id: `turn-${index + 1}`, status: "inProgress", items: [] } });
@@ -985,7 +985,7 @@ describe("native backend factory", () => {
   it.each(["v5", "v7", "v9"] as const)("projects %s OpenCode constraints to the prepared runtime boundary", version => {
     const input = preparedExecution(opencodeExecution(), version);
     const backend = createOpenCodeNativeSessionBackend(input, {
-      runtimeDirectory: "/tmp/paperclip-opencode-prepared-factory",
+      runtimeDirectory: "/tmp/outpost-opencode-prepared-factory",
     });
     expect(backend.preparedTaskConstraints).toEqual(
       expect.arrayContaining([

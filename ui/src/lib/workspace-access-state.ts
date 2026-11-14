@@ -8,7 +8,7 @@ import type {
 /**
  * Derives the workspace access state the UI shows (PAP-17572).
  *
- * The board cannot read a cloned workspace's protected health directly, so state
+ * The operator cannot read a cloned workspace's protected health directly, so state
  * comes from three server-side facts it *can* see: the live runtime rows, the
  * workspace operation log, and the readiness the control plane reported when it
  * last tried to mint a login handoff.
@@ -98,9 +98,9 @@ function failedProvisionNotice(provision: WorkspaceOperation): WorkspaceAccessNo
 
 const HANDOFF_REASON_COPY: Record<string, string> = {
   handoff_not_configured:
-    "This instance has no workspace login handoff configured, so opening the board falls back to snapshot-local credentials.",
-  no_board_identity:
-    "Your session has no cloned user to sign in as, so opening the board falls back to snapshot-local credentials.",
+    "This instance has no workspace login handoff configured, so opening the operator falls back to snapshot-local credentials.",
+  no_operator_identity:
+    "Your session has no cloned user to sign in as, so opening the operator falls back to snapshot-local credentials.",
   runtime_not_running: "No healthy runtime service is publishing a URL for this workspace yet.",
   runtime_url_unusable: "The runtime row is publishing a URL Outpost cannot open.",
   workspace_not_ready: "The cloned database is not ready to accept a login yet.",
@@ -145,7 +145,7 @@ export function resolveWorkspaceAccessState(input: {
     ?? latestOperation(operations, "workspace_provision");
   const failure = input.handoffFailure ?? null;
   const cause = describeWorkspaceReadinessCause(failure);
-  const handoffAvailable = failure?.reason !== "handoff_not_configured" && failure?.reason !== "no_board_identity";
+  const handoffAvailable = failure?.reason !== "handoff_not_configured" && failure?.reason !== "no_operator_identity";
   const servingService = runtimeServices.find(
     (service) => service.status === "running" && service.healthStatus === "healthy" && service.url,
   );
@@ -236,7 +236,7 @@ export function resolveWorkspaceAccessState(input: {
       return {
         state: "stopped",
         title: "Workspace is not running",
-        description: "Start the workspace runtime to publish its board.",
+        description: "Start the workspace runtime to publish its operator.",
         action: { kind: "start", label: "Start workspace" },
         handoffAvailable,
       };
@@ -261,7 +261,7 @@ export function resolveWorkspaceAccessState(input: {
       return {
         state: servingService ? "ready" : "degraded",
         title: servingService ? "Ready — snapshot-local sign-in" : "Workspace is degraded",
-        description: cause ?? "Opening the board will ask for the credentials captured in this snapshot.",
+        description: cause ?? "Opening the operator will ask for the credentials captured in this snapshot.",
         action: servingService
           ? { kind: "open", label: "Open workspace" }
           : { kind: "start", label: "Start workspace" },
@@ -275,7 +275,7 @@ export function resolveWorkspaceAccessState(input: {
     return {
       state: "provisioning",
       title: "Workspace is starting",
-      description: "Outpost is starting the workspace runtime and waiting for its board URL.",
+      description: "Outpost is starting the workspace runtime and waiting for its operator URL.",
       action: { kind: "wait", label: "Starting workspace" },
       handoffAvailable,
     };
@@ -285,7 +285,7 @@ export function resolveWorkspaceAccessState(input: {
     return {
       state: "ready",
       title: "Ready",
-      description: "Opening the workspace signs you in to the cloned board without a password.",
+      description: "Opening the workspace signs you in to the cloned operator without a password.",
       action: { kind: "open", label: "Open workspace" },
       handoffAvailable,
       secondaryNotice,
@@ -309,7 +309,7 @@ export function resolveWorkspaceAccessState(input: {
   return {
     state: "stopped",
     title: "Workspace is not running",
-    description: "Start the workspace runtime to publish its board.",
+    description: "Start the workspace runtime to publish its operator.",
     action: { kind: "start", label: "Start workspace" },
     handoffAvailable,
   };

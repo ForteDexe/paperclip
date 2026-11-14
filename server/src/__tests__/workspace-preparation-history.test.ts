@@ -55,7 +55,7 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("admits the current task despite private sources, deleted readers and a sticky root classification", async () => {
     const { queries, recorded, service } = record();
-    await expect(assertTaskWorkspaceExecutionAccess(recorded, fixture.actor, fixture.companyId, {
+    await expect(assertTaskWorkspaceExecutionAccess(recorded, fixture.actor, fixture.spaceId, {
       issueId: fixture.issueId, workspaceId: fixture.workspaceId,
     })).resolves.toMatchObject({ task: { id: fixture.issueId }, workspace: { id: fixture.workspaceId } });
     await expect(service.prepareForAdmission(fixture.input)).resolves.toEqual([]);
@@ -70,10 +70,10 @@ const support = await getEmbeddedPostgresTestSupport();
   it("keeps historical task content and full workspace records private", async () => {
     const authorization = authorizationService(db);
     const decision = await authorization.decide({ actor: fixture.actor, action: "issue:read",
-      resource: { type: "issue", companyId: fixture.companyId, issueId: fixture.historyTaskIds[0] } });
+      resource: { type: "issue", spaceId: fixture.spaceId, issueId: fixture.historyTaskIds[0] } });
     expect(decision.allowed).toBe(false);
     expect(await canActorReadExecutionWorkspace(db, fixture.actor, fixture.workspaceId)).toBe(false);
-    await expect(assertExecutionWorkspaceRecordAccess(db, fixture.actor, fixture.companyId, fixture.workspaceId)).rejects.toThrow();
+    await expect(assertExecutionWorkspaceRecordAccess(db, fixture.actor, fixture.spaceId, fixture.workspaceId)).rejects.toThrow();
   });
 
   it.each(["task_directory", "configured_source", "existing"] as const)("applies a saved %s selection after the old workspace source becomes private", async kind => {
@@ -81,25 +81,25 @@ const support = await getEmbeddedPostgresTestSupport();
       workspaces: 0, sharedRoots: 0, sources: 0, readers: 0,
     });
     const [oldProject, nextProject] = await db.insert(projects).values([
-      { companyId: current.companyId, name: "Old source" }, { companyId: current.companyId, name: "New source" },
+      { spaceId: current.spaceId, name: "Old source" }, { spaceId: current.spaceId, name: "New source" },
     ]).returning();
     const [oldSource, nextSource] = await db.insert(projectWorkspaces).values([
-      { companyId: current.companyId, projectId: oldProject.id, name: "Old source", cwd: current.cwd },
-      { companyId: current.companyId, projectId: nextProject.id, name: "New source", cwd: current.cwd },
+      { spaceId: current.spaceId, projectId: oldProject.id, name: "Old source", cwd: current.cwd },
+      { spaceId: current.spaceId, projectId: nextProject.id, name: "New source", cwd: current.cwd },
     ]).returning();
     await db.update(issues).set({ projectWorkspaceId: oldSource.id }).where(eq(issues.id, current.issueId));
     await db.update(executionWorkspaces).set({ projectId: oldProject.id, projectWorkspaceId: oldSource.id })
       .where(eq(executionWorkspaces.id, current.workspaceId));
-    const [nextWorkspace] = await db.insert(executionWorkspaces).values({ companyId: current.companyId, name: "New workspace",
+    const [nextWorkspace] = await db.insert(executionWorkspaces).values({ spaceId: current.spaceId, name: "New workspace",
       sourceIssueId: current.issueId, cwd: current.cwd, mode: "shared_workspace", strategyType: "task_directory" }).returning();
     const selection = kind === "task_directory" ? { kind } : kind === "existing" ? { kind, workspaceId: nextWorkspace.id }
       : { kind, projectWorkspaceId: nextSource.id, mode: "shared" as const };
     const service = executionWorkspaceService(db);
-    await service.selectTaskWorkspace({ companyId: current.companyId, issueId: current.issueId, actor: current.actor,
+    await service.selectTaskWorkspace({ spaceId: current.spaceId, issueId: current.issueId, actor: current.actor,
       selection, expectedBindingRevision: 0, requestKey: randomUUID() });
     await db.update(projects).set({ visibility: "private", privacyOwnerUserId: current.principals[1].userId })
       .where(eq(projects.id, oldProject.id));
-    await expect(assertTaskWorkspaceExecutionAccess(db, current.actor, current.companyId, {
+    await expect(assertTaskWorkspaceExecutionAccess(db, current.actor, current.spaceId, {
       issueId: current.issueId, projectWorkspaceId: null,
     })).rejects.toThrow();
     await expect(service.applyPendingTaskWorkspaceSelection({ ...current.input, actor: current.actor })).resolves.toBe(true);
@@ -115,25 +115,25 @@ const support = await getEmbeddedPostgresTestSupport();
     });
     const taskDirectory = { kind: "task_directory" as const };
     const context = { issueId: current.issueId, persistedSelection: taskDirectory };
-    await expect(assertTaskWorkspaceExecutionAccess(db, current.actor, current.companyId, context))
+    await expect(assertTaskWorkspaceExecutionAccess(db, current.actor, current.spaceId, context))
       .rejects.toThrow("not a current persisted intent");
     await db.update(issues).set({ workspacePendingSelection: { version: 1, requestKey: "stale", expectedBindingRevision: 1,
       intent: { version: 1, source: "explicit", selection: taskDirectory } } }).where(eq(issues.id, current.issueId));
-    await expect(assertTaskWorkspaceExecutionAccess(db, current.actor, current.companyId, context))
+    await expect(assertTaskWorkspaceExecutionAccess(db, current.actor, current.spaceId, context))
       .rejects.toThrow("not a current persisted intent");
     await db.update(issues).set({ workspacePendingSelection: null }).where(eq(issues.id, current.issueId));
     const service = executionWorkspaceService(db);
-    await service.selectTaskWorkspace({ companyId: current.companyId, issueId: current.issueId, actor: current.actor,
+    await service.selectTaskWorkspace({ spaceId: current.spaceId, issueId: current.issueId, actor: current.actor,
       selection: taskDirectory, expectedBindingRevision: 0, requestKey: randomUUID() });
     await db.update(issues).set({ visibility: "private", privacyRootIssueId: current.issueId,
       responsibleUserId: current.principals[1].userId }).where(eq(issues.id, current.issueId));
     await expect(service.applyPendingTaskWorkspaceSelection({ ...current.input, actor: current.actor })).rejects.toThrow();
     await db.update(issues).set({ visibility: "open", privacyRootIssueId: null, responsibleUserId: current.userId })
       .where(eq(issues.id, current.issueId));
-    const [project] = await db.insert(projects).values({ companyId: current.companyId, name: "Next source" }).returning();
-    const [source] = await db.insert(projectWorkspaces).values({ companyId: current.companyId, projectId: project.id,
+    const [project] = await db.insert(projects).values({ spaceId: current.spaceId, name: "Next source" }).returning();
+    const [source] = await db.insert(projectWorkspaces).values({ spaceId: current.spaceId, projectId: project.id,
       name: "Next source", cwd: current.cwd }).returning();
-    await service.selectTaskWorkspace({ companyId: current.companyId, issueId: current.issueId, actor: current.actor,
+    await service.selectTaskWorkspace({ spaceId: current.spaceId, issueId: current.issueId, actor: current.actor,
       selection: { kind: "configured_source", projectWorkspaceId: source.id, mode: "shared" },
       expectedBindingRevision: 1, requestKey: randomUUID() });
     await db.update(projects).set({ visibility: "private", privacyOwnerUserId: current.principals[1].userId })
@@ -145,7 +145,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "session", userId: fixture.userId, companyIds: [fixture.companyId] };
+      req.actor = { type: "operator", source: "session", userId: fixture.userId, spaceIds: [fixture.spaceId] };
       next();
     });
     app.use("/api", taskWorkspaceRoutes(db));
@@ -158,7 +158,7 @@ const support = await getEmbeddedPostgresTestSupport();
     let repositoryId: string | undefined;
     try {
       const repository = await request(app).post(`${endpoint}/repositories`).send({
-        repository: { kind: "url", url: "https://github.com/paperclip-synthetic/route-request" }, requestKey: randomUUID(),
+        repository: { kind: "url", url: "https://github.com/outpost-synthetic/route-request" }, requestKey: randomUUID(),
       }).expect(200);
       repositoryId = repository.body.operationId;
       expect(repository.body.kind).toBe("requires_next_admission");
@@ -175,11 +175,11 @@ const support = await getEmbeddedPostgresTestSupport();
     }
   });
 
-  it("rejects invalid current run, company and workspace bindings without consulting history", async () => {
+  it("rejects invalid current run, space and workspace bindings without consulting history", async () => {
     for (const change of [
       { runId: randomUUID() },
       { workspaceId: fixture.foreignWorkspaceId },
-      { companyId: fixture.foreignCompanyId },
+      { spaceId: fixture.foreignSpaceId },
       { responsibleUserId: fixture.principals[1].userId },
       { responsibleUserId: null },
     ]) {
@@ -190,7 +190,7 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("requires access to the directly selected private project", async () => {
-    const [project] = await db.insert(projects).values({ companyId: fixture.companyId, name: "Private selected configuration",
+    const [project] = await db.insert(projects).values({ spaceId: fixture.spaceId, name: "Private selected configuration",
       visibility: "private", privacyOwnerUserId: fixture.principals[1].userId }).returning();
     await db.update(issues).set({ projectId: project.id }).where(eq(issues.id, fixture.issueId));
     try {
@@ -215,20 +215,20 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("permits a current trusted repository request despite a historical anonymous-only root", async () => {
     const { queries, service } = record();
-    const intent = await service.request({ companyId: fixture.companyId, issueId: fixture.issueId, actor: fixture.actor,
-      request: { repository: { kind: "url", url: "https://github.com/paperclip-synthetic/new-current-request" }, requestKey: randomUUID() } });
+    const intent = await service.request({ spaceId: fixture.spaceId, issueId: fixture.issueId, actor: fixture.actor,
+      request: { repository: { kind: "url", url: "https://github.com/outpost-synthetic/new-current-request" }, requestKey: randomUUID() } });
     expect(intent.kind).toBe("requires_next_admission");
     expectNoHistory(queries);
     await db.delete(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.id, intent.operationId));
   });
 
   it("keeps current low-trust acquisition restrictions even though directory policy is retired", async () => {
-    const intent = await executionWorkspaceRepositoryService(db).request({ companyId: fixture.companyId, issueId: fixture.issueId,
-      actor: fixture.actor, request: { repository: { kind: "url", url: "https://github.com/paperclip-synthetic/low-trust-request" },
+    const intent = await executionWorkspaceRepositoryService(db).request({ spaceId: fixture.spaceId, issueId: fixture.issueId,
+      actor: fixture.actor, request: { repository: { kind: "url", url: "https://github.com/outpost-synthetic/low-trust-request" },
         requestKey: randomUUID() } });
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: fixture.issueId, executionPolicy: {
       trustPreset: "low_trust_review", authorizationPolicy: { trustPreset: "low_trust_review", trustBoundary: {
-        mode: "low_trust_review", companyId: fixture.companyId, rootIssueId: fixture.issueId,
+        mode: "low_trust_review", spaceId: fixture.spaceId, rootIssueId: fixture.issueId,
       } },
     } } }).where(eq(heartbeatRuns.id, fixture.runId));
     try {
@@ -243,10 +243,10 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("admits current low-trust execution with no acquisition despite a historical managed directory", async () => {
     await db.update(executionWorkspaceRepositoryRoots).set({ mode: "managed" })
-      .where(eq(executionWorkspaceRepositoryRoots.companyId, fixture.companyId));
+      .where(eq(executionWorkspaceRepositoryRoots.spaceId, fixture.spaceId));
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: fixture.issueId, executionPolicy: {
       trustPreset: "low_trust_review", authorizationPolicy: { trustPreset: "low_trust_review", trustBoundary: {
-        mode: "low_trust_review", companyId: fixture.companyId, rootIssueId: fixture.issueId,
+        mode: "low_trust_review", spaceId: fixture.spaceId, rootIssueId: fixture.issueId,
       } },
     } } }).where(eq(heartbeatRuns.id, fixture.runId));
     try {
@@ -256,7 +256,7 @@ const support = await getEmbeddedPostgresTestSupport();
     } finally {
       await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: fixture.issueId } }).where(eq(heartbeatRuns.id, fixture.runId));
       await db.update(executionWorkspaceRepositoryRoots).set({ mode: "anonymous_only" })
-        .where(eq(executionWorkspaceRepositoryRoots.companyId, fixture.companyId));
+        .where(eq(executionWorkspaceRepositoryRoots.spaceId, fixture.spaceId));
     }
   });
 

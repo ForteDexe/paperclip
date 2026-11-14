@@ -30,8 +30,8 @@ it("waits for eventual current response hydration within the original deadline o
   const evaluate = vi.fn(async () => readVisibleSkillReview(input));
   const ctx = { observationDeadlineAt: 2_000, input: { page: { evaluate } } } as unknown as Parameters<typeof waitForVisibleSkillReview>[0];
   const summary = "Installed 0.4. Regression tests and forms split into small steps.";
-  const base = { reply: "See the complete diff above. No update applied yet.", companyId: "company", leadId: "ceo",
-    runs: [{ id: "run", companyId: "company", agentId: "ceo", status: "succeeded", runtimeMode: "native", nativeIssueId: "source",
+  const base = { reply: "See the complete diff above. No update applied yet.", spaceId: "space", leadId: "ceo",
+    runs: [{ id: "run", spaceId: "space", agentId: "ceo", status: "succeeded", runtimeMode: "native", nativeIssueId: "source",
       contextSnapshot: { issueId: "source", commentId: "human" }, resultJson: { summary, finalizationPhase: "committed", finalizationReasonCode: "conversation_turn_finished",
         orpRunTerminalState: "succeeded", orpTurnTerminalState: "completed", nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary } } }] } as unknown as Parameters<typeof collectVisibleSkillReviewFallback>[1];
   const pending = collectVisibleSkillReviewFallback(ctx, base, "source");

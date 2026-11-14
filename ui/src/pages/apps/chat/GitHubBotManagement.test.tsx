@@ -63,8 +63,8 @@ vi.mock("@/api/agents", () => ({ agentsApi: { get: vi.fn() } }));
 vi.mock("@/context/BreadcrumbContext", () => ({
   useBreadcrumbs: () => ({ setBreadcrumbs: mocks.setBreadcrumbs }),
 }));
-vi.mock("@/context/CompanyContext", () => ({
-  useOptionalCompany: () => ({ companies: [{ id: "company", name: "Acme Research" }], selectedCompany: { id: "other", name: "Wrong company" } }),
+vi.mock("@/context/SpaceContext", () => ({
+  useOptionalSpace: () => ({ spaces: [{ id: "space", name: "Acme Research" }], selectedSpace: { id: "other", name: "Wrong space" } }),
 }));
 vi.mock("@/context/ToastContext", () => ({
   useToast: () => ({ pushToast: vi.fn() }),
@@ -103,7 +103,7 @@ vi.mock("@/lib/router", () => ({
 }));
 const endpoint = {
   id: "bot",
-  companyId: "company",
+  spaceId: "space",
   provider: "github",
   assignedAgentId: "agent",
   assignedAgentName: "Maya",
@@ -169,8 +169,8 @@ describe("GitHub bot management", () => {
         status: "linked",
         githubUserId: "42",
         githubLogin: "maya",
-        paperclipUserId: "member",
-        paperclipUserLabel: "Maya",
+        outpostUserId: "member",
+        outpostUserLabel: "Maya",
       },
     ]);
     mocks.members.mockResolvedValue({
@@ -324,8 +324,8 @@ describe("GitHub bot management", () => {
     const editor = container.querySelector('[role="region"] form')!;
     const [project, workspace] = [...editor.querySelectorAll("select")];
     await vi.waitFor(() => expect(workspace.disabled).toBe(false));
-    expect(mocks.projects).toHaveBeenCalledWith("company", { includeArchived: true });
-    expect(mocks.workspaces).toHaveBeenCalledWith("company", { selectableForTask: true });
+    expect(mocks.projects).toHaveBeenCalledWith("space", { includeArchived: true });
+    expect(mocks.workspaces).toHaveBeenCalledWith("space", { selectableForTask: true });
     expect(project.value).toBe("inherit");
     expect(workspace.value).toBe("inherit");
     expect(editor.textContent).toContain("Use connection defaults");
@@ -555,12 +555,12 @@ describe("GitHub bot management", () => {
     expect(saved.defaults.instructions).toBe("Updated default instructions");
     expect(saved.repositories).toEqual(overrides);
   });
-  it("names the endpoint company and omits per-person automatic switches", async () => {
+  it("names the endpoint space and omits per-person automatic switches", async () => {
     mocks.config.mockResolvedValue({ revision: 4, configuration: { ...base, memberAccess: "all_linked", people: [] } });
     await render("access");
     await vi.waitFor(() => expect(container.textContent).toContain("@maya"));
     expect(container.textContent).toContain("Includes members from Acme Research who link their GitHub account later.");
-    expect(container.textContent).not.toContain("Wrong company");
+    expect(container.textContent).not.toContain("Wrong space");
     expect(container.querySelector('[aria-label="Run automatically for @maya"]')).toBeNull();
     await click("Allow mentions from all linked members");
     await click("Allow mentions from @maya");

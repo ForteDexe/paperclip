@@ -1,4 +1,4 @@
-import type { AiConnectionBinding, AiManagedConnectionSummary, AiProvider, CompanySecret, EnvBinding } from "@outpost/shared";
+import type { AiConnectionBinding, AiManagedConnectionSummary, AiProvider, SpaceSecret, EnvBinding } from "@outpost/shared";
 import type { MyUserSecretEntry } from "../api/secrets";
 
 export type SavedProviderKey = { id: string; label: string } & (
@@ -7,11 +7,11 @@ export type SavedProviderKey = { id: string; label: string } & (
 );
 
 export function savedManagedProviderAccounts(
-  companyId: string, provider: AiProvider, currentUserId: string,
+  spaceId: string, provider: AiProvider, currentUserId: string,
   connections: AiManagedConnectionSummary[],
 ): SavedProviderKey[] {
   return connections.flatMap<SavedProviderKey>((account) => {
-    if (account.companyId !== companyId || account.provider !== provider || account.status !== "connected") return [];
+    if (account.spaceId !== spaceId || account.provider !== provider || account.status !== "connected") return [];
     if (account.ownership === "personal" && account.ownerUserId === currentUserId && account.isDefault) {
       return [{ id: `ai:${account.grantId}`, label: `${account.name} (Your default)`, aiConnection: { provider, method: account.method, mode: "responsible_user" as const } }];
     }
@@ -24,19 +24,19 @@ export function savedManagedProviderAccounts(
 
 /** Match the canonical onboarding key and distinct keys created by agent setup. */
 export function savedProviderKeys(
-  companyId: string,
+  spaceId: string,
   envKey: string,
   personal: MyUserSecretEntry[],
-  organization: CompanySecret[],
+  organization: SpaceSecret[],
 ): SavedProviderKey[] {
   const matches = (key: string | null) =>
     key?.toUpperCase() === envKey ||
     key?.toUpperCase().startsWith(`${envKey}.SETUP.`);
   return [
     ...personal.flatMap(({ definition, secret }) =>
-      definition.companyId === companyId &&
+      definition.spaceId === spaceId &&
       definition.status === "active" &&
-      secret?.companyId === companyId &&
+      secret?.spaceId === spaceId &&
       secret.status === "active" &&
       matches(definition.key)
         ? [
@@ -53,13 +53,13 @@ export function savedProviderKeys(
         : [],
     ),
     ...organization.flatMap((secret) =>
-      secret.companyId === companyId &&
-      secret.scope === "company" &&
+      secret.spaceId === spaceId &&
+      secret.scope === "space" &&
       secret.status === "active" &&
       matches(secret.key)
         ? [
             {
-              id: `company:${secret.id}`,
+              id: `space:${secret.id}`,
               label: `${secret.name} (Outpost key)`,
               binding: {
                 type: "secret_ref" as const,
@@ -73,21 +73,21 @@ export function savedProviderKeys(
   ];
 }
 
-/** Codex device login creates one reusable company secret per account home. */
+/** Codex device login creates one reusable space secret per account home. */
 export function savedCodexSubscriptions(
-  companyId: string,
-  organization: CompanySecret[],
+  spaceId: string,
+  organization: SpaceSecret[],
 ): SavedProviderKey[] {
   return organization
     .filter(
       (secret) =>
-        secret.companyId === companyId &&
-        secret.scope === "company" &&
+        secret.spaceId === spaceId &&
+        secret.scope === "space" &&
         secret.status === "active" &&
         secret.name.startsWith("CODEX_HOME_"),
     )
     .map((secret) => ({
-      id: `company:${secret.id}`,
+      id: `space:${secret.id}`,
       label: secret.name.replace("CODEX_HOME_", "ChatGPT account · "),
       binding: { type: "secret_ref", secretId: secret.id, version: "latest" },
     }));

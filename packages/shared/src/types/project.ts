@@ -19,7 +19,7 @@ export type ProjectAccessSubjectType = "user" | "agent";
 
 export interface ProjectAccessMember {
   id: string;
-  companyId: string;
+  spaceId: string;
   projectId: string;
   subjectType: ProjectAccessSubjectType;
   subjectId: string;
@@ -46,7 +46,7 @@ export interface ProjectBudgetSummary {
 
 export interface ProjectWorkspace {
   id: string;
-  companyId: string;
+  spaceId: string;
   projectId: string;
   name: string;
   sourceType: ProjectWorkspaceSourceType;
@@ -127,7 +127,7 @@ export interface ProjectWorkspaceProviderConfiguration {
 
 export interface Project {
   id: string;
-  companyId: string;
+  spaceId: string;
   urlKey: string;
   /** @deprecated Use goalIds / goals instead */
   goalId: string | null;

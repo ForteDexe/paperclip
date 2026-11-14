@@ -9,7 +9,7 @@ function valid() {
     "Use the deployment secret from our vault instead of pasting a key.";
   const run = (id: string, agentId: string, issueId: string) => ({
     id,
-    companyId: "company",
+    spaceId: "space",
     agentId,
     runtimeMode: "native",
     status: "succeeded",
@@ -17,7 +17,7 @@ function valid() {
   });
   return {
     scenarioId: "secrets.vault-reference",
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     origin: "http://127.0.0.1:3399",
     reply: "",
@@ -72,7 +72,7 @@ function valid() {
       importUiCompleted: true,
       importedReferenceCount: 1,
       importedSecret: {
-        companyId: "company",
+        spaceId: "space",
         provider: "aws_secrets_manager",
         managedMode: "external_reference",
         externalRef:
@@ -150,7 +150,7 @@ it("rejects another provider/reference/person/consumer, plaintext copies, false 
       o.state.importedSecret.provider = "local_encrypted";
     },
     (o) => {
-      o.state.importedSecret.managedMode = "paperclip_managed";
+      o.state.importedSecret.managedMode = "outpost_managed";
     },
     (o) => {
       o.state.importedSecret.externalRef = "another-reference";
@@ -192,7 +192,7 @@ it("rejects another provider/reference/person/consumer, plaintext copies, false 
       o.state.privateLeakFound = true;
     },
     (o) => {
-      o.runs[1]!.companyId = "another-company";
+      o.runs[1]!.spaceId = "another-space";
     },
     (o) => {
       o.phaseReplies[1]!.runId = "initial";

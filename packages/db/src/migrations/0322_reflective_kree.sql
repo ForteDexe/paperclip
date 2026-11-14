@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "ai_subscription_connections" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"connection_id" uuid NOT NULL,
 	"grant_id" uuid NOT NULL,
 	"credential_key" text NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS "ai_subscription_connections" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "ai_subscription_prices" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"subscription_id" uuid NOT NULL,
 	"revision" integer NOT NULL,
 	"plan" text NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS "ai_subscription_prices" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "ai_subscriptions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"provider" text NOT NULL,
 	"account_key" text NOT NULL,
 	"identity_verified" boolean DEFAULT false NOT NULL,
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS "ai_subscriptions" (
 --> statement-breakpoint
 ALTER TABLE "cost_events" ADD COLUMN IF NOT EXISTS "subscription_id" uuid;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ai_subscription_connections_company_id_companies_id_fk' AND conrelid = 'ai_subscription_connections'::regclass) THEN
-    ALTER TABLE "ai_subscription_connections" ADD CONSTRAINT "ai_subscription_connections_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ai_subscription_connections_space_id_spaces_id_fk' AND conrelid = 'ai_subscription_connections'::regclass) THEN
+    ALTER TABLE "ai_subscription_connections" ADD CONSTRAINT "ai_subscription_connections_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -64,8 +64,8 @@ DO $$ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ai_subscription_prices_company_id_companies_id_fk' AND conrelid = 'ai_subscription_prices'::regclass) THEN
-    ALTER TABLE "ai_subscription_prices" ADD CONSTRAINT "ai_subscription_prices_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ai_subscription_prices_space_id_spaces_id_fk' AND conrelid = 'ai_subscription_prices'::regclass) THEN
+    ALTER TABLE "ai_subscription_prices" ADD CONSTRAINT "ai_subscription_prices_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -74,8 +74,8 @@ DO $$ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ai_subscriptions_company_id_companies_id_fk' AND conrelid = 'ai_subscriptions'::regclass) THEN
-    ALTER TABLE "ai_subscriptions" ADD CONSTRAINT "ai_subscriptions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ai_subscriptions_space_id_spaces_id_fk' AND conrelid = 'ai_subscriptions'::regclass) THEN
+    ALTER TABLE "ai_subscriptions" ADD CONSTRAINT "ai_subscriptions_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -83,16 +83,16 @@ DO $$ BEGIN
     ALTER TABLE "ai_subscriptions" ADD CONSTRAINT "ai_subscriptions_merged_into_id_ai_subscriptions_id_fk" FOREIGN KEY ("merged_into_id") REFERENCES "public"."ai_subscriptions"("id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "ai_subscription_connections_grant_idx" ON "ai_subscription_connections" USING btree ("company_id","grant_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "ai_subscription_connections_credential_idx" ON "ai_subscription_connections" USING btree ("company_id","credential_key");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "ai_subscription_connections_account_idx" ON "ai_subscription_connections" USING btree ("company_id","subscription_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "ai_subscription_connections_grant_idx" ON "ai_subscription_connections" USING btree ("space_id","grant_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ai_subscription_connections_credential_idx" ON "ai_subscription_connections" USING btree ("space_id","credential_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ai_subscription_connections_account_idx" ON "ai_subscription_connections" USING btree ("space_id","subscription_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "ai_subscription_prices_revision_idx" ON "ai_subscription_prices" USING btree ("subscription_id","revision");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "ai_subscription_prices_company_idx" ON "ai_subscription_prices" USING btree ("company_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "ai_subscriptions_identity_idx" ON "ai_subscriptions" USING btree ("company_id","provider","account_key");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "ai_subscriptions_company_idx" ON "ai_subscriptions" USING btree ("company_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ai_subscription_prices_space_idx" ON "ai_subscription_prices" USING btree ("space_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "ai_subscriptions_identity_idx" ON "ai_subscriptions" USING btree ("space_id","provider","account_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ai_subscriptions_space_idx" ON "ai_subscriptions" USING btree ("space_id");--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cost_events_subscription_id_ai_subscriptions_id_fk' AND conrelid = 'cost_events'::regclass) THEN
     ALTER TABLE "cost_events" ADD CONSTRAINT "cost_events_subscription_id_ai_subscriptions_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."ai_subscriptions"("id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "cost_events_company_subscription_occurred_idx" ON "cost_events" USING btree ("company_id","subscription_id","occurred_at");
+CREATE INDEX IF NOT EXISTS "cost_events_space_subscription_occurred_idx" ON "cost_events" USING btree ("space_id","subscription_id","occurred_at");

@@ -1,4 +1,4 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { NativeControllerContainmentRecovery } from "../components/IssueRecoveryActionCard";
 import { useIssueIdBatches } from "@/hooks/useIssueIdBatches";
 import { TaskChatLoadingShell } from "@/components/task-chat/TaskChatLoadingShell";
@@ -106,7 +106,7 @@ import {
 import { agentsApi } from "../api/agents";
 import { authApi } from "../api/auth";
 import { executionWorkspacesApi } from "../api/execution-workspaces";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useDialogActions } from "../context/DialogContext";
 import { usePanel } from "../context/PanelContext";
 import { useSidebar } from "../context/SidebarContext";
@@ -119,12 +119,12 @@ import {
   suggestedCommentAssigneeValue,
 } from "../lib/assignees";
 import {
-  buildCompanyUserInlineOptions,
-  buildCompanyUserLabelMap,
-  buildCompanyUserProfileMap,
+  buildSpaceUserInlineOptions,
+  buildSpaceUserLabelMap,
+  buildSpaceUserProfileMap,
   buildMarkdownMentionOptions,
   isAgentTaskTarget,
-} from "../lib/company-members";
+} from "../lib/space-members";
 import {
   extractIssueTimelineEvents,
   extractIssueWorkModeChanges,
@@ -490,7 +490,7 @@ const JUMP_TO_LATEST_MAX_COMMENT_PAGES = 10;
 function treeControlPreviewErrorCopy(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 403)
-      return "Only board users can preview subtree controls.";
+      return "Only operator users can preview subtree controls.";
     if (error.status === 409)
       return "Preview is stale because subtree hold state changed. Retry to refresh.";
     if (error.status === 422)
@@ -658,7 +658,7 @@ function mergeOptimisticFeedbackVote(
     ...existingVotes,
     {
       id: `optimistic:${nextVote.targetType}:${nextVote.targetId}`,
-      companyId: "",
+      spaceId: "",
       issueId: nextVote.issueId,
       targetType: nextVote.targetType,
       targetId: nextVote.targetId,
@@ -680,7 +680,7 @@ function ActorIdentity({
   agentMap: Map<string, Agent>;
   userProfileMap?: Map<
     string,
-    import("../lib/company-members").CompanyUserProfile
+    import("../lib/space-members").SpaceUserProfile
   >;
 }) {
   const id = evt.actorId;
@@ -783,7 +783,7 @@ function IssueAttributionByline({
   agentMap: Map<string, Agent>;
   userProfileMap: ReadonlyMap<
     string,
-    import("../lib/company-members").CompanyUserProfile
+    import("../lib/space-members").SpaceUserProfile
   >;
   userLabelMap: ReadonlyMap<string, string>;
 }) {
@@ -1187,7 +1187,7 @@ type IssueDetailChatTabProps = {
   onOpenBrowser?: (browserId: string) => void;
   onOpenSkill?: (skillId: string, name: string) => void;
   issueId: string;
-  companyId: string;
+  spaceId: string;
   projectId: string | null;
   issueStatus: Issue["status"];
   /** Marks cross-issue agent comments in the thread (the open cross-task write design (attribution)). */
@@ -1264,7 +1264,7 @@ type IssueDetailChatTabProps = {
   userLabelMap: ReadonlyMap<string, string> | null;
   userProfileMap: ReadonlyMap<
     string,
-    import("../lib/company-members").CompanyUserProfile
+    import("../lib/space-members").SpaceUserProfile
   > | null;
   draftKey: string;
   reassignOptions: Array<{ id: string; label: string; searchText?: string }>;
@@ -1355,7 +1355,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
   onOpenBrowser,
   onOpenSkill,
   issueId,
-  companyId,
+  spaceId,
   projectId,
   issueWorkMode,
   issueStatus,
@@ -1533,7 +1533,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
       resolveIssueActiveRun({ status: issueStatus, executionRunId }, activeRun, liveRuns),
     [activeRun, executionRunId, issueStatus, liveRuns],
   );
-  const assigneeUsesPaperclipRunner = Boolean(
+  const assigneeUsesOutpostRunner = Boolean(
     issueAssigneeAgentId &&
     agentMap.get(issueAssigneeAgentId)?.adapterType === "outpost_runner",
   );
@@ -1545,7 +1545,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
     null;
   // Do not briefly select queue behavior from the current assignee while the
   // authoritative active-run lookup is still loading. The active runtime owns
-  // the protocol: native Paperclip turns can steer in place, while legacy
+  // the protocol: native Outpost turns can steer in place, while legacy
   // adapters expose the same composer queue with an interrupt fallback.
   const runtimeSelectionKnown =
     liveRunsFetched && (!activeRunQueryEnabled || activeRunFetched);
@@ -1645,7 +1645,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
       return agentsApi.retryFailedRun(
         failedRun.agentId,
         failedRun.runId,
-        companyId,
+        spaceId,
       );
     },
     onSuccess: (result) => {
@@ -1684,11 +1684,11 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
   const currentRunAgent = interruptibleIssueRun ? agentMap.get(interruptibleIssueRun.agentId) : null;
   const grokWork = currentRunAgent?.adapterType === "outpost_runner" && currentRunAgent.adapterConfig.provider === "grok_bot";
   const stopGrokWork = useMutation({
-    mutationFn: (run: { id: string; agentId: string }) => grokBotApi.stop(companyId, run.agentId, run.id),
+    mutationFn: (run: { id: string; agentId: string }) => grokBotApi.stop(spaceId, run.agentId, run.id),
     onSettled: (_data, _error, run) => Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.runs(issueId) }),
-      queryClient.invalidateQueries({ queryKey: ["grok-binding", companyId, run.agentId] }),
+      queryClient.invalidateQueries({ queryKey: ["grok-binding", spaceId, run.agentId] }),
     ]),
   });
   const liveRunIds = useMemo(() => {
@@ -2110,7 +2110,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
           return [
             {
               id: `interaction-response:${interaction.id}`,
-              companyId: interaction.companyId,
+              spaceId: interaction.spaceId,
               issueId: interaction.issueId,
               authorType: interaction.resolvedByAgentId ? "agent" : "user",
               authorAgentId: interaction.resolvedByAgentId ?? null,
@@ -2207,7 +2207,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
     });
     const fallbackProtocol =
       liveRuntimeRun?.adapterType === "outpost_runner" ||
-      (!liveRuntimeRun && assigneeUsesPaperclipRunner)
+      (!liveRuntimeRun && assigneeUsesOutpostRunner)
         ? "outpost_runner_v1"
         : "legacy";
     return mergePendingIssueQueuedComments({
@@ -2224,7 +2224,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
     issueId,
     liveRunIds,
     liveRuntimeRun,
-    assigneeUsesPaperclipRunner,
+    assigneeUsesOutpostRunner,
     locallyQueuedCommentRunIds,
     queuedCommentQueueEnabled,
   ]);
@@ -2612,7 +2612,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
             restore: scrollNavigationType === "POP",
           }}
         >
-          <EmailThreadProvider companyId={companyId} issueId={issueId}>
+          <EmailThreadProvider spaceId={spaceId} issueId={issueId}>
           <ThreadComponent
             {...(!classicTaskInterfaceEnabled ? {
               compactHistory: !historyExpanded,
@@ -2722,7 +2722,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
             reconcileRecoveryActionPending={reconcileRecoveryActionPending}
             canFalsePositiveRecoveryAction={canFalsePositiveRecoveryAction}
             legacyRecoverySourceIssue={legacyRecoverySourceIssue ?? null}
-            companyId={companyId}
+            spaceId={spaceId}
             projectId={projectId}
             issueStatus={issueStatus}
             issueAssigneeAgentId={issueAssigneeAgentId}
@@ -2839,7 +2839,7 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
 type IssueDetailActivityTabProps = {
   issue: Issue;
   issueId: string;
-  companyId: string;
+  spaceId: string;
   issueStatus: Issue["status"];
   childIssues: Issue[];
   agentMap: Map<string, Agent>;
@@ -2847,7 +2847,7 @@ type IssueDetailActivityTabProps = {
   currentUserId: string | null;
   userProfileMap: Map<
     string,
-    import("../lib/company-members").CompanyUserProfile
+    import("../lib/space-members").SpaceUserProfile
   >;
   pendingApprovalAction: {
     approvalId: string;
@@ -2861,7 +2861,7 @@ type IssueDetailActivityTabProps = {
 function IssueDetailActivityTab({
   issue,
   issueId,
-  companyId,
+  spaceId,
   issueStatus,
   childIssues,
   agentMap,
@@ -2924,7 +2924,7 @@ function IssueDetailActivityTab({
       <div className="mb-3">
         <IssueRunLedger
           issueId={issueId}
-          companyId={companyId}
+          spaceId={spaceId}
           issueStatus={issueStatus}
           childIssues={childIssues}
           agentMap={agentMap}
@@ -2968,7 +2968,7 @@ function IssueDetailActivityTab({
                   </span>
                 </div>
                 <IssueReferenceActivitySummary event={evt} />
-                {/* Field-level who/what/why receipt for agent and board edits alike. */}
+                {/* Field-level who/what/why receipt for agent and operator edits alike. */}
                 <IssueFieldChangeReceipt
                   event={evt}
                   resolveAgentLabel={(agentId) =>
@@ -3049,14 +3049,14 @@ export function IssueDetail({ tasksTab }: { tasksTab?: TaskSidePanelProps["tasks
 export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskSidePanelProps["tasksTab"]; conversation?: {
   agent: Agent; issue: Issue | null; ensureIssue: () => Promise<Issue>;
 } }) {
-  const { issueId: routeIssueId, companyPrefix } = useParams<{ issueId: string; companyPrefix: string }>();
+  const { issueId: routeIssueId, spacePrefix } = useParams<{ issueId: string; spacePrefix: string }>();
   const issueId = conversation ? conversation.issue?.id : routeIssueId;
   const [loadingTitleIssueId, setLoadingTitleIssueId] = useState<string | null>(null);
-  useEffect(() => setLoadingTitleIssueId(null), [issueId, companyPrefix]);
+  useEffect(() => setLoadingTitleIssueId(null), [issueId, spacePrefix]);
   const [draftWorkMode, setDraftWorkMode] = useState<IssueWorkMode>("standard");
   const draftIssue = useMemo(() => conversation ? agentChatDraft(conversation.agent, draftWorkMode) : undefined, [conversation?.agent, draftWorkMode]);
   const pendingDraftWorkMode = useRef<IssueWorkMode | null>(null);
-  const { companies, selectedCompanyId } = useCompany();
+  const { spaces, selectedSpaceId } = useSpace();
   // Classic Task Interface remains the sole task-chat-vs-pre-chat switch from
   // master. Streamlined UI only layers the new task-detail presentation onto
   // master's default task-chat shell.
@@ -3190,9 +3190,9 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   // A cold open sends one bootstrap request for everything the chat's first
   // frame needs; the reads below wait for its answer instead of fanning out.
   // A task preloaded by the list is already cached, so this is a no-op.
-  const bootstrapCompanyId = companies.find((company) => company.issuePrefix === companyPrefix?.toUpperCase())?.id ?? selectedCompanyId;
+  const bootstrapSpaceId = spaces.find((space) => space.issuePrefix === spacePrefix?.toUpperCase())?.id ?? selectedSpaceId;
   if (issueId && !conversation && queryClient.getQueryData([...queryKeys.issues.detail(issueId), "core"]) === undefined) {
-    startIssueChatBootstrap(queryClient, bootstrapCompanyId, issueId);
+    startIssueChatBootstrap(queryClient, bootstrapSpaceId, issueId);
   }
   // The core issue keeps its own small, fast read so the header never waits
   // for the larger chat bootstrap; a preloaded task already has it cached.
@@ -3266,17 +3266,17 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       issue.identifier?.toLowerCase() === issueId.toLowerCase())
       ? issue
       : null;
-  const loadedIssueCompany = loadedIssue
-    ? companies.find((company) => company.id === loadedIssue.companyId)
+  const loadedIssueSpace = loadedIssue
+    ? spaces.find((space) => space.id === loadedIssue.spaceId)
     : undefined;
   const taskRouteReady = Boolean(conversation || (
     loadedIssue &&
     issueId === (loadedIssue.identifier ?? loadedIssue.id) &&
-    (!loadedIssueCompany || companyPrefix === loadedIssueCompany.issuePrefix) &&
+    (!loadedIssueSpace || spacePrefix === loadedIssueSpace.issuePrefix) &&
     !hasLegacyIssueDetailQuery(location.search)
   ));
-  const resolvedCompanyId = issue?.companyId ?? selectedCompanyId;
-  const hasLiveConnection = useTaskRunLiveUpdates({ companyId: resolvedCompanyId, issueId: issue?.id ?? issueId, issueQueryRef: issueId ?? "pending", assigneeAgentId: issue?.assigneeAgentId });
+  const resolvedSpaceId = issue?.spaceId ?? selectedSpaceId;
+  const hasLiveConnection = useTaskRunLiveUpdates({ spaceId: resolvedSpaceId, issueId: issue?.id ?? issueId, issueQueryRef: issueId ?? "pending", assigneeAgentId: issue?.assigneeAgentId });
   const externalObjectsState = useIssueExternalObjects(conversation && !conversation.issue ? null : issue?.id ?? null);
   // A closed isolated workspace no longer blocks the composer. The server reopens
   // the workspace when the next comment or resume arrives, so the composer stays
@@ -3491,15 +3491,15 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     refetch: refetchChildIssues,
   } = useQuery({
     queryKey:
-      issue?.id && resolvedCompanyId
-        ? queryKeys.issues.listByDescendantRoot(resolvedCompanyId, issue.id)
+      issue?.id && resolvedSpaceId
+        ? queryKeys.issues.listByDescendantRoot(resolvedSpaceId, issue.id)
         : ["issues", "parent", "pending"],
     queryFn: () =>
-      issuesApi.listAll(resolvedCompanyId!, {
+      issuesApi.listAll(resolvedSpaceId!, {
         descendantOf: issue!.id,
         includeBlockedBy: true,
       }),
-    enabled: !!resolvedCompanyId && !!issue?.id && !issue.id.startsWith("chat:"),
+    enabled: !!resolvedSpaceId && !!issue?.id && !issue.id.startsWith("chat:"),
     placeholderData: keepPreviousDataForSameQueryTail<Issue[]>(
       issue?.id ?? "pending",
     ),
@@ -3507,14 +3507,14 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   const rawChildIssues: Issue[] = rawChildIssuesData ?? EMPTY_ISSUES;
   const createdTasksQuery = useQuery({
     queryKey: queryKeys.issues.listCreatedFromIssue(
-      resolvedCompanyId ?? "pending",
+      resolvedSpaceId ?? "pending",
       issue?.id ?? "pending",
     ),
-    queryFn: () => issuesApi.listAll(resolvedCompanyId!, {
+    queryFn: () => issuesApi.listAll(resolvedSpaceId!, {
       createdFromIssueId: issue!.id,
       includeRoutineExecutions: true,
     }),
-    enabled: !!resolvedCompanyId && !!issue?.id && !issue.id.startsWith("chat:") && (
+    enabled: !!resolvedSpaceId && !!issue?.id && !issue.id.startsWith("chat:") && (
       (taskChatShellEnabled && !conversation) || (streamlinedTaskDetailEnabled && !tasksTab)
     ),
   });
@@ -3525,71 +3525,71 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     isError: siblingIssuesError,
   } = useQuery({
     queryKey:
-      issue?.parentId && resolvedCompanyId
-        ? queryKeys.issues.listByParent(resolvedCompanyId, issue.parentId)
+      issue?.parentId && resolvedSpaceId
+        ? queryKeys.issues.listByParent(resolvedSpaceId, issue.parentId)
         : ["issues", "siblings", "pending"],
     queryFn: () =>
-      issuesApi.list(resolvedCompanyId!, {
+      issuesApi.list(resolvedSpaceId!, {
         parentId: issue!.parentId!,
         includeBlockedBy: true,
       }),
-    enabled: !!resolvedCompanyId && !!issue?.parentId,
+    enabled: !!resolvedSpaceId && !!issue?.parentId,
   });
   const rawSiblingIssues: Issue[] = rawSiblingIssuesData ?? EMPTY_ISSUES;
-  const companyLiveRunsQueryKey = resolvedCompanyId
-    ? queryKeys.liveRuns(resolvedCompanyId)
+  const spaceLiveRunsQueryKey = resolvedSpaceId
+    ? queryKeys.liveRuns(resolvedSpaceId)
     : (["live-runs", "pending"] as const);
-  const sharedCompanyLiveRuns = useSharedPollingQuery<LiveRunForIssue[]>({
-    companyId: resolvedCompanyId,
+  const sharedSpaceLiveRuns = useSharedPollingQuery<LiveRunForIssue[]>({
+    spaceId: resolvedSpaceId,
     resourceKey: "live-runs",
-    queryKey: companyLiveRunsQueryKey,
-    enabled: !!resolvedCompanyId,
+    queryKey: spaceLiveRunsQueryKey,
+    enabled: !!resolvedSpaceId,
     // Event-sourced via LiveUpdatesProvider (GitHub issue 9627); no interval poll needed.
     refetchInterval: false,
     leaderOnly: true,
   });
-  const { data: companyLiveRuns, dataUpdatedAt: companyLiveRunsUpdatedAt } =
+  const { data: spaceLiveRuns, dataUpdatedAt: spaceLiveRunsUpdatedAt } =
     useQuery({
-      queryKey: companyLiveRunsQueryKey,
-      queryFn: () => heartbeatsApi.liveRunsForCompany(resolvedCompanyId!),
-      enabled: sharedCompanyLiveRuns.enabled,
-      refetchInterval: sharedCompanyLiveRuns.refetchInterval,
+      queryKey: spaceLiveRunsQueryKey,
+      queryFn: () => heartbeatsApi.liveRunsForSpace(resolvedSpaceId!),
+      enabled: sharedSpaceLiveRuns.enabled,
+      refetchInterval: sharedSpaceLiveRuns.refetchInterval,
       placeholderData: keepPreviousDataForSameQueryTail<LiveRunForIssue[]>(
-        resolvedCompanyId ?? "pending",
+        resolvedSpaceId ?? "pending",
       ),
     });
   usePublishSharedQueryData(
-    sharedCompanyLiveRuns,
-    companyLiveRuns,
-    companyLiveRunsUpdatedAt,
+    sharedSpaceLiveRuns,
+    spaceLiveRuns,
+    spaceLiveRunsUpdatedAt,
   );
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
-  const { data: companyMembers } = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(selectedCompanyId!),
-    queryFn: () => accessApi.listUserDirectory(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+  const { data: spaceMembers } = useQuery({
+    queryKey: queryKeys.access.spaceUserDirectory(selectedSpaceId!),
+    queryFn: () => accessApi.listUserDirectory(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   // Bounded pool of recently-updated issues to back the `@task` reference picker.
   // The picker filters this list client-side by identifier/title.
   const { data: mentionIssues = EMPTY_ISSUES } = useQuery({
-    queryKey: resolvedCompanyId
-      ? queryKeys.issues.mentionPool(resolvedCompanyId)
+    queryKey: resolvedSpaceId
+      ? queryKeys.issues.mentionPool(resolvedSpaceId)
       : ["issues", "mention-pool", "pending"],
     queryFn: () =>
-      issuesApi.list(resolvedCompanyId!, {
+      issuesApi.list(resolvedSpaceId!, {
         limit: 100,
         sortField: "updated",
         sortDir: "desc",
       }),
-    enabled: !!resolvedCompanyId,
+    enabled: !!resolvedSpaceId,
     staleTime: 60_000,
     placeholderData: keepPreviousDataForSameQueryTail<Issue[]>(
-      resolvedCompanyId ?? "pending",
+      resolvedSpaceId ?? "pending",
     ),
   });
 
@@ -3599,35 +3599,35 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   });
 
   const { data: projects = EMPTY_PROJECTS } = useQuery({
-    ...companyProjectsQuery(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    ...spaceProjectsQuery(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const currentUserId = session?.user?.id ?? session?.session?.userId ?? null;
   useEffect(() => {
     if (!streamlinedUiEnabled || !issue || !sessionResolved) return;
     recordRecentTask(issue, currentUserId);
   }, [issue, currentUserId, sessionResolved, streamlinedUiEnabled]);
-  const { data: boardAccess } = useQuery({
+  const { data: operatorAccess } = useQuery({
     queryKey: queryKeys.access.currentBoardAccess,
     queryFn: () => accessApi.getCurrentBoardAccess(),
     enabled: !!session?.user?.id,
   });
   const canManageTreeControl = Boolean(
-    selectedCompanyId && boardAccess?.companyIds?.includes(selectedCompanyId),
+    selectedSpaceId && operatorAccess?.spaceIds?.includes(selectedSpaceId),
   );
   const canResolveBoardRecoveryAction = canBoardResolveRecoveryAction(
-    selectedCompanyId,
-    boardAccess,
+    selectedSpaceId,
+    operatorAccess,
   );
-  const canConfirmOwnerStop = canBoardConfirmOwnerStop(selectedCompanyId, boardAccess);
+  const canConfirmOwnerStop = canBoardConfirmOwnerStop(selectedSpaceId, operatorAccess);
   // Retained-file recovery reports whether it offers its own control. The task's
   // Retry stays visible whenever it does not, so a retryable hold never dead-ends.
   const [retainedRecoveryOwnsRetry, setRetainedRecoveryOwnsRetry] = useState(true);
   // The break-glass override reconcile is `runtime:manage`-gated server-side, not gated on the
   // recovery-resolution permission — so hide its affordance behind the matching client check.
   const canManageBoardRuntime = canBoardManageRuntime(
-    selectedCompanyId,
-    boardAccess,
+    selectedSpaceId,
+    operatorAccess,
   );
   const { data: feedbackVotes } = useQuery({
     queryKey: queryKeys.issues.feedbackVotes(issueId!),
@@ -3654,14 +3654,14 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     instanceExperimentalSettings?.enableExperimentalFileViewer === true;
   const { orderedProjects } = useProjectOrder({
     projects,
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     userId: currentUserId,
   });
   const { slots: issuePluginDetailSlots } = usePluginSlots({
     slotTypes: ["detailTab"],
     entityType: "issue",
-    companyId: resolvedCompanyId,
-    enabled: !!resolvedCompanyId,
+    spaceId: resolvedSpaceId,
+    enabled: !!resolvedSpaceId,
   });
   const issuePluginTabItems = useMemo(
     () =>
@@ -3732,14 +3732,14 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     return map;
   }, [agents]);
   const userProfileMap = useMemo(
-    () => buildCompanyUserProfileMap(companyMembers?.users),
-    [companyMembers?.users],
+    () => buildSpaceUserProfileMap(spaceMembers?.users),
+    [spaceMembers?.users],
   );
   const userLabelMap = useMemo(
-    () => buildCompanyUserLabelMap(companyMembers?.users),
-    [companyMembers?.users],
+    () => buildSpaceUserLabelMap(spaceMembers?.users),
+    [spaceMembers?.users],
   );
-  const canManagePrivacy = canManageIssuePrivacy(issue, currentUserId, boardAccess);
+  const canManagePrivacy = canManageIssuePrivacy(issue, currentUserId, operatorAccess);
   // Role-based principals for the share sheet's implicit rows (no revoke).
   const privacyImplicitPrincipals = useMemo<ShareSheetImplicitPrincipal[]>(() => {
     if (!issue) return [];
@@ -3775,10 +3775,10 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     return buildMarkdownMentionOptions({
       agents,
       projects: orderedProjects,
-      members: companyMembers?.users,
+      members: spaceMembers?.users,
       issues: mentionIssues,
     });
-  }, [agents, companyMembers?.users, orderedProjects, mentionIssues]);
+  }, [agents, spaceMembers?.users, orderedProjects, mentionIssues]);
 
   const resolvedProject = useMemo(
     () =>
@@ -3852,10 +3852,10 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   const liveIssueIds = useMemo(
     () =>
       collectLiveIssueIds(
-        companyLiveRuns,
+        spaceLiveRuns,
         issue ? [issue, ...childIssues] : childIssues,
       ),
-    [childIssues, companyLiveRuns, issue],
+    [childIssues, spaceLiveRuns, issue],
   );
   const issuePanelKey = useMemo(
     () => buildIssuePropertiesPanelKey(issue ?? null, childIssues),
@@ -3960,8 +3960,8 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       openTaskSidePanel();
       if (isMobile) setMobilePropsOpen(true);
     }
-  }, [pluginPanels, taskPanelAccountScope, issue?.companyId, issue?.id, openTaskSidePanel, isMobile]);
-  const browserQuery = useTaskBrowsers(issue?.id, issue?.companyId);
+  }, [pluginPanels, taskPanelAccountScope, issue?.spaceId, issue?.id, openTaskSidePanel, isMobile]);
+  const browserQuery = useTaskBrowsers(issue?.id, issue?.spaceId);
   const { openBrowserId, openBrowser: setOpenBrowserId, acknowledgeBrowserOpened: handleBrowserOpened } =
     useBrowserArrivals(currentUserId ?? "anonymous", issue?.id, browserQuery.data);
   useEffect(() => {
@@ -4039,7 +4039,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     const options: Array<{ id: string; label: string; searchText?: string }> =
       [];
     options.push(
-      ...buildCompanyUserInlineOptions(companyMembers?.users, {
+      ...buildSpaceUserInlineOptions(spaceMembers?.users, {
         excludeUserIds: [currentUserId],
       }),
     );
@@ -4053,7 +4053,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       options.push({ id: `user:${currentUserId}`, label: "Me" });
     }
     return options;
-  }, [agents, companyMembers?.users, currentUserId]);
+  }, [agents, spaceMembers?.users, currentUserId]);
 
   const actualAssigneeValue = useMemo(
     () => assigneeValueFromSelection(issue ?? {}),
@@ -4274,33 +4274,33 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   }, []);
 
   const invalidateIssueCollections = useCallback(() => {
-    if (selectedCompanyId) {
+    if (selectedSpaceId) {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.issues.list(selectedCompanyId),
+        queryKey: queryKeys.issues.list(selectedSpaceId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.issues.listMineByMe(selectedCompanyId),
+        queryKey: queryKeys.issues.listMineByMe(selectedSpaceId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.issues.listTouchedByMe(selectedCompanyId),
+        queryKey: queryKeys.issues.listTouchedByMe(selectedSpaceId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.issues.listUnreadTouchedByMe(selectedCompanyId),
+        queryKey: queryKeys.issues.listUnreadTouchedByMe(selectedSpaceId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.sidebarBadges(selectedCompanyId),
+        queryKey: queryKeys.sidebarBadges(selectedSpaceId),
       });
     }
-  }, [queryClient, selectedCompanyId]);
+  }, [queryClient, selectedSpaceId]);
   const undoInboxArchive = useCallback(
     async (
       id: string,
-      companyId: string | undefined,
+      spaceId: string | undefined,
       previousData: InboxIssueCacheSnapshot,
     ) => {
-      if (companyId) {
-        await cancelInboxIssueQueries(queryClient, companyId);
-        clearLocalInboxArchive(companyId, id);
+      if (spaceId) {
+        await cancelInboxIssueQueries(queryClient, spaceId);
+        clearLocalInboxArchive(spaceId, id);
         restoreIssueToInboxCaches(queryClient, previousData, id);
       }
 
@@ -4308,10 +4308,10 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         await issuesApi.unarchiveFromInbox(id);
         pushToast({ title: "Task restored to inbox", tone: "success" });
       } catch (error) {
-        if (companyId) {
-          beginLocalInboxArchive(companyId, id);
-          removeIssueFromInboxCaches(queryClient, companyId, id);
-          boundLocalInboxArchive(companyId, id);
+        if (spaceId) {
+          beginLocalInboxArchive(spaceId, id);
+          removeIssueFromInboxCaches(queryClient, spaceId, id);
+          boundLocalInboxArchive(spaceId, id);
         }
         pushToast({
           title: "Undo failed",
@@ -4322,8 +4322,8 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
           tone: "error",
         });
       } finally {
-        if (companyId) {
-          await invalidateInboxIssueQueries(queryClient, companyId);
+        if (spaceId) {
+          await invalidateInboxIssueQueries(queryClient, spaceId);
         }
       }
     },
@@ -4350,7 +4350,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       );
       queryClient.invalidateQueries({ queryKey: ["issues", "pending-questions"] });
       queryClient.invalidateQueries({ queryKey: ["issues", "decision-receipts"] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.attention(interaction.companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.attention(interaction.spaceId) });
     },
     [issueId, queryClient],
   );
@@ -4365,16 +4365,16 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
             : cached,
       );
 
-      if (!selectedCompanyId) return;
+      if (!selectedSpaceId) return;
       queryClient.setQueryData<Issue[] | undefined>(
-        queryKeys.issues.list(selectedCompanyId),
+        queryKeys.issues.list(selectedSpaceId),
         (cached) =>
           cached?.map((item) =>
             matchesIssueRef(item, refs) ? { ...item, ...nextIssue } : item,
           ),
       );
     },
-    [queryClient, selectedCompanyId],
+    [queryClient, selectedSpaceId],
   );
 
   const markIssueRead = useAccountBoundMutation({
@@ -4384,18 +4384,18 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     },
     onSuccess: (_data, receipt) => {
       receipt.confirmed = true;
-      if (selectedCompanyId) {
+      if (selectedSpaceId) {
         queryClient.invalidateQueries({
-          queryKey: queryKeys.issues.listMineByMe(selectedCompanyId),
+          queryKey: queryKeys.issues.listMineByMe(selectedSpaceId),
         });
         queryClient.invalidateQueries({
-          queryKey: queryKeys.issues.listTouchedByMe(selectedCompanyId),
+          queryKey: queryKeys.issues.listTouchedByMe(selectedSpaceId),
         });
         queryClient.invalidateQueries({
-          queryKey: queryKeys.issues.listUnreadTouchedByMe(selectedCompanyId),
+          queryKey: queryKeys.issues.listUnreadTouchedByMe(selectedSpaceId),
         });
         queryClient.invalidateQueries({
-          queryKey: queryKeys.sidebarBadges(selectedCompanyId),
+          queryKey: queryKeys.sidebarBadges(selectedSpaceId),
         });
       }
     },
@@ -4407,7 +4407,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   });
 
   const updateIssueMutation = useUpdateIssueMutation({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     onSuccess: ({
       comment: _comment,
       changes: _changes,
@@ -4415,7 +4415,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       ...nextIssue
     }, { data }) => {
       if (Object.prototype.hasOwnProperty.call(data, "projectId")) {
-        trackRecentProject(nextIssue.projectId ?? "", nextIssue.companyId);
+        trackRecentProject(nextIssue.projectId ?? "", nextIssue.spaceId);
       }
       const issueRefs = new Set<string>([issueId!, nextIssue.id]);
       if (nextIssue.identifier) issueRefs.add(nextIssue.identifier);
@@ -4468,9 +4468,9 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       queryClient.invalidateQueries({
         queryKey: queryKeys.issues.detail(issueId!),
       });
-      if (selectedCompanyId) {
+      if (selectedSpaceId) {
         queryClient.invalidateQueries({
-          queryKey: queryKeys.issues.list(selectedCompanyId),
+          queryKey: queryKeys.issues.list(selectedSpaceId),
         });
       }
     },
@@ -4608,22 +4608,22 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
           queryKey: ["issues", "tree-control-preview", issueId ?? "pending"],
         }),
       ]);
-      if (selectedCompanyId) {
+      if (selectedSpaceId) {
         await Promise.all([
           queryClient.invalidateQueries({
-            queryKey: queryKeys.issues.list(selectedCompanyId),
+            queryKey: queryKeys.issues.list(selectedSpaceId),
           }),
           ...(issue?.id
             ? [
                 queryClient.invalidateQueries({
                   queryKey: queryKeys.issues.listByParent(
-                    selectedCompanyId,
+                    selectedSpaceId,
                     issue.id,
                   ),
                 }),
                 queryClient.invalidateQueries({
                   queryKey: queryKeys.issues.listByDescendantRoot(
-                    selectedCompanyId,
+                    selectedSpaceId,
                     issue.id,
                   ),
                 }),
@@ -4695,9 +4695,9 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         queryKey: queryKeys.issues.detail(issueId!),
       });
       if (err) invalidateIssueRunState();
-      if (selectedCompanyId) {
+      if (selectedSpaceId) {
         queryClient.invalidateQueries({
-          queryKey: queryKeys.issues.list(selectedCompanyId),
+          queryKey: queryKeys.issues.list(selectedSpaceId),
         });
       }
     },
@@ -4713,12 +4713,12 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       issuesApi.update(id, data),
     onSuccess: () => {
-      if (resolvedCompanyId) {
+      if (resolvedSpaceId) {
         queryClient.invalidateQueries({
-          queryKey: ["issues", resolvedCompanyId],
+          queryKey: ["issues", resolvedSpaceId],
         });
         queryClient.invalidateQueries({
-          queryKey: queryKeys.sidebarBadges(resolvedCompanyId),
+          queryKey: queryKeys.sidebarBadges(resolvedSpaceId),
         });
       }
     },
@@ -4753,7 +4753,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
           projects={projects}
           liveIssueIds={liveIssueIds}
           projectId={issue.projectId ?? undefined}
-          viewStateKey={`paperclip:issue-detail:${issue.id}:subissues-view`}
+          viewStateKey={`outpost:issue-detail:${issue.id}:subissues-view`}
           issueLinkState={resolvedIssueDetailState ?? location.state}
           searchFilters={{ descendantOf: issue.id, includeBlockedBy: true }}
           searchWithinLoadedIssues
@@ -4856,9 +4856,9 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       queryClient.invalidateQueries({
         queryKey: queryKeys.approvals.detail(variables.approvalId),
       });
-      if (resolvedCompanyId) {
+      if (resolvedSpaceId) {
         queryClient.invalidateQueries({
-          queryKey: queryKeys.approvals.list(resolvedCompanyId),
+          queryKey: queryKeys.approvals.list(resolvedSpaceId),
         });
       }
       pushToast({
@@ -4888,7 +4888,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     mutationFn: async ({ body, reopen, interrupt, attachmentIds, clientRequestId, runSettings }: {
       body: string; reopen?: boolean; interrupt?: boolean; attachmentIds?: string[]; clientRequestId?: string; runSettings?: ComposerRunSettings;
     }, { assertCurrentAccount }) => {
-      if (issue?.conversationAgentId) clearLegacyChatMessageRequests(`${issue.companyId}:${currentUserId}:${issue.conversationAgentId}`);
+      if (issue?.conversationAgentId) clearLegacyChatMessageRequests(`${issue.spaceId}:${currentUserId}:${issue.conversationAgentId}`);
       const writableIssueId = await resolveWritableIssueId();
       assertCurrentAccount();
       // Conversation messages use the ordered, idempotent comments endpoint.
@@ -4931,7 +4931,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         : null;
       const optimisticComment = issue
         ? createOptimisticIssueComment({
-            companyId: issue.companyId,
+            spaceId: issue.spaceId,
             issueId: issue.id,
             body,
             authorUserId: currentUserId,
@@ -5108,11 +5108,11 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       upsertInteractionInCache(interaction);
       if (
         interaction.kind === "suggest_tasks" &&
-        resolvedCompanyId &&
+        resolvedSpaceId &&
         issue?.id
       ) {
         queryClient.invalidateQueries({
-          queryKey: queryKeys.issues.listByParent(resolvedCompanyId, issue.id),
+          queryKey: queryKeys.issues.listByParent(resolvedSpaceId, issue.id),
         });
       }
       invalidateIssueDetail();
@@ -5358,7 +5358,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         : null;
       const optimisticComment = issue
         ? createOptimisticIssueComment({
-            companyId: issue.companyId,
+            spaceId: issue.spaceId,
             issueId: issue.id,
             body,
             authorUserId: currentUserId,
@@ -5643,7 +5643,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       queryClient.invalidateQueries({
         queryKey: queryKeys.issues.feedbackVotes(issueId!),
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all });
       queryClient.invalidateQueries({
         queryKey: queryKeys.instance.generalSettings,
       });
@@ -5677,12 +5677,12 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   const uploadAttachment = useMutation({
     mutationFn: async (file: File) => {
       if (conversation) {
-        return issuesApi.uploadAttachment(conversation.agent.companyId, await resolveWritableIssueId(), file);
+        return issuesApi.uploadAttachment(conversation.agent.spaceId, await resolveWritableIssueId(), file);
       }
       if (!loadedIssue)
         throw new Error("Task details are still loading. Please try again.");
       return issuesApi.uploadAttachment(
-        loadedIssue.companyId,
+        loadedIssue.spaceId,
         loadedIssue.id,
         file,
       );
@@ -5749,30 +5749,30 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   const archiveFromInbox = useAccountBoundMutation({
     mutationFn: (id: string) => issuesApi.archiveFromInbox(id),
     onMutate: async (id) => {
-      if (!selectedCompanyId)
+      if (!selectedSpaceId)
         return { previousData: [] as InboxIssueCacheSnapshot };
       const account = bindAccount(queryClient);
-      const release = beginLocalInboxArchive(selectedCompanyId, id);
+      const release = beginLocalInboxArchive(selectedSpaceId, id);
       try {
-        await cancelInboxIssueQueries(queryClient, selectedCompanyId);
+        await cancelInboxIssueQueries(queryClient, selectedSpaceId);
       } catch (error) {
         release();
         throw error;
       }
       if (!account.isCurrentScope()) {
         release();
-        return { companyId: selectedCompanyId, previousData: [] as InboxIssueCacheSnapshot, account, release };
+        return { spaceId: selectedSpaceId, previousData: [] as InboxIssueCacheSnapshot, account, release };
       }
       const previousData = snapshotInboxIssueCaches(
         queryClient,
-        selectedCompanyId,
+        selectedSpaceId,
       );
-      removeIssueFromInboxCaches(queryClient, selectedCompanyId, id);
-      return { companyId: selectedCompanyId, previousData, account, release };
+      removeIssueFromInboxCaches(queryClient, selectedSpaceId, id);
+      return { spaceId: selectedSpaceId, previousData, account, release };
     },
     onSuccess: (_data, id, context) => {
-      if (selectedCompanyId) {
-        removeIssueFromInboxCaches(queryClient, selectedCompanyId, id);
+      if (selectedSpaceId) {
+        removeIssueFromInboxCaches(queryClient, selectedSpaceId, id);
       }
       invalidateIssueCollections();
       navigate(
@@ -5789,7 +5789,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
           onClick: () => {
             void undoInboxArchive(
               id,
-              context?.companyId,
+              context?.spaceId,
               context?.previousData ?? [],
             );
           },
@@ -5814,18 +5814,18 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       if (context?.account && !context.account.isCurrentScope()) context.release();
     },
     onSettled: async (_data, error, id, context) => {
-      if (!context?.companyId) return;
-      if (!error) boundLocalInboxArchive(context.companyId, id);
+      if (!context?.spaceId) return;
+      if (!error) boundLocalInboxArchive(context.spaceId, id);
       try {
-        await invalidateInboxIssueQueries(queryClient, context.companyId);
+        await invalidateInboxIssueQueries(queryClient, context.spaceId);
         if (!error && context.account?.isCurrentScope()) {
           const presence = getIssuePresenceInActiveInboxCaches(
             queryClient,
-            context.companyId,
+            context.spaceId,
             id,
           );
           if (presence !== "unknown")
-            confirmLocalInboxArchive(context.companyId, id);
+            confirmLocalInboxArchive(context.spaceId, id);
         }
       } finally {
         if (context.account && !context.account.isCurrentScope()) context.release();
@@ -5964,16 +5964,16 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   }, [issueId, navigationType]);
 
   // Resolve external UUID links and wrong-prefix task links from the loaded
-  // task's company, not the organization that happened to be selected first.
+  // task's space, not the organization that happened to be selected first.
   useEffect(() => {
     if (conversation || !loadedIssue) return;
     const nextState = resolvedIssueDetailState ?? location.state;
-    const taskCompany = loadedIssueCompany;
+    const taskSpace = loadedIssueSpace;
     const canonicalRef = loadedIssue.identifier ?? loadedIssue.id;
-    const companyMismatch =
-      taskCompany && companyPrefix !== taskCompany.issuePrefix;
+    const spaceMismatch =
+      taskSpace && spacePrefix !== taskSpace.issuePrefix;
     const legacyQuery = hasLegacyIssueDetailQuery(location.search);
-    if (issueId !== canonicalRef || companyMismatch || legacyQuery) {
+    if (issueId !== canonicalRef || spaceMismatch || legacyQuery) {
       rememberIssueDetailLocationState(
         canonicalRef,
         nextState,
@@ -5982,8 +5982,8 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       const taskPath = createIssueDetailPath(canonicalRef);
       navigate(
         {
-          pathname: taskCompany
-            ? `/${taskCompany.issuePrefix}${taskPath}`
+          pathname: taskSpace
+            ? `/${taskSpace.issuePrefix}${taskPath}`
             : taskPath,
           search: legacyQuery ? "" : location.search,
           hash: location.hash,
@@ -5997,8 +5997,8 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   }, [
     conversation,
     loadedIssue,
-    loadedIssueCompany,
-    companyPrefix,
+    loadedIssueSpace,
+    spacePrefix,
     issueId,
     navigate,
     location.state,
@@ -6517,7 +6517,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   ]);
 
   // Scroll + briefly highlight work-product / direct-attachment anchors so the
-  // company Artifacts page (PAP-10359) can deep-link to a specific artifact in
+  // space Artifacts page (PAP-10359) can deep-link to a specific artifact in
   // its issue context. Retries while the section data loads in.
   useEffect(() => {
     const match = location.hash.match(/^#(work-product|attachment)-(.+)$/);
@@ -6567,12 +6567,12 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       setFileViewerPromptOpen(true);
     };
     window.addEventListener(
-      "paperclip:open-file-viewer",
+      "outpost:open-file-viewer",
       handleOpenFileViewer as EventListener,
     );
     return () => {
       window.removeEventListener(
-        "paperclip:open-file-viewer",
+        "outpost:open-file-viewer",
         handleOpenFileViewer as EventListener,
       );
     };
@@ -6908,7 +6908,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   // assignee silently drops every assignment wake, so the fix belongs next to
   // the explanation.
   const issueAssigneeAgentIdForResume = issue?.assigneeAgentId ?? null;
-  const issueCompanyIdForResume = issue?.companyId ?? null;
+  const issueSpaceIdForResume = issue?.spaceId ?? null;
   const issueStatusForResume = issue?.status ?? null;
   const issueIdForResume = issue?.id ?? null;
   const resumeAssigneeAgent = useMutation({
@@ -6916,7 +6916,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       if (!issueAssigneeAgentIdForResume) throw new Error("No assignee agent");
       await agentsApi.resume(
         issueAssigneeAgentIdForResume,
-        issueCompanyIdForResume ?? undefined,
+        issueSpaceIdForResume ?? undefined,
       );
       // The pause silently dropped this issue's assignment wake, so resuming
       // alone would leave the task idle until some other trigger fires.
@@ -6938,7 +6938,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                 mutation: "assignee_resumed",
               },
             },
-            issueCompanyIdForResume ?? undefined,
+            issueSpaceIdForResume ?? undefined,
           );
         } catch {
           // Non-fatal: the resume succeeded; the wake retries on the next trigger.
@@ -6946,9 +6946,9 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       }
     },
     onSuccess: async () => {
-      if (issueCompanyIdForResume) {
+      if (issueSpaceIdForResume) {
         await queryClient.invalidateQueries({
-          queryKey: queryKeys.agents.list(issueCompanyIdForResume),
+          queryKey: queryKeys.agents.list(issueSpaceIdForResume),
         });
       }
     },
@@ -7028,7 +7028,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         "",
         issue.description ?? "",
       ];
-      return issuesApi.create(issue.companyId, {
+      return issuesApi.create(issue.spaceId, {
         title: `Re-issue (isolated): ${issue.title ?? sourceLabel}`,
         description: descriptionLines.join("\n"),
         priority: issue.priority,
@@ -7268,7 +7268,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     }
   }
   if (!issue) return null;
-  // Do not expose a file chooser on the outgoing UUID/company/interface
+  // Do not expose a file chooser on the outgoing UUID/space/interface
   // branch: its input can be detached before the chosen file is returned.
   // Keep the existing metadata/header skeleton until the canonical view owns
   // the interaction; comments may then load without another route-key change.
@@ -7773,7 +7773,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
           >
             <IssuePrivacyActions
                 issue={issue}
-                companyId={issue.companyId}
+                spaceId={issue.spaceId}
                 canManage={canManagePrivacy}
                 closeMenu={() => setMoreOpen(false)}
                 implicitPrincipals={privacyImplicitPrincipals}
@@ -7981,7 +7981,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         slotTypes={["toolbarButton", "contextMenuItem"]}
         entityType="issue"
         context={{
-          companyId: issue.companyId,
+          spaceId: issue.spaceId,
           projectId: issue.projectId ?? null,
           entityId: issue.id,
           entityType: "issue",
@@ -7995,7 +7995,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         placementZones={["toolbarButton"]}
         entityType="issue"
         context={{
-          companyId: issue.companyId,
+          spaceId: issue.spaceId,
           projectId: issue.projectId ?? null,
           entityId: issue.id,
           entityType: "issue",
@@ -8008,7 +8008,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         slotTypes={["taskDetailView"]}
         entityType="issue"
         context={{
-          companyId: issue.companyId,
+          spaceId: issue.spaceId,
           projectId: issue.projectId ?? null,
           entityId: issue.id,
           entityType: "issue",
@@ -8025,14 +8025,14 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       {ancestorsNav}
       {createdFromNote}
       {issueHeaderBlock}
-      <TaskDecisionRecord companyId={issue.companyId} issueId={issue.id} viewerId={currentUserId} agentMap={agentMap} />
+      <TaskDecisionRecord spaceId={issue.spaceId} issueId={issue.id} viewerId={currentUserId} agentMap={agentMap} />
       {pluginOutletsBlock}
     </>
   ) : undefined;
 
   return (
     <FileViewerProvider issueId={conversation && !conversation.issue ? "" : issue.id} enabled={fileViewerEnabled}>
-      <AgentChatReadProvider issueId={issue.conversationAgentId && issue.conversationUserId === (currentUserId ?? "local-board") && (!conversation || conversation.issue) ? issue.id : undefined} companyId={issue.companyId} userId={currentUserId}>
+      <AgentChatReadProvider issueId={issue.conversationAgentId && issue.conversationUserId === (currentUserId ?? "local-operator") && (!conversation || conversation.issue) ? issue.id : undefined} spaceId={issue.spaceId} userId={currentUserId}>
       <TextAttachmentContext.Provider value={taskChatShellEnabled ? handleOpenTextAttachment : null}><IssueGalleryContext.Provider value={openIssueGallery}>
         <div
           data-task-chat-shell={taskChatShellEnabled ? "" : undefined}
@@ -8062,7 +8062,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
             key={issue.id}
             assigneeAgentId={issue.assigneeAgentId}
             attachments={attachments ?? []}
-            companyId={issue.companyId}
+            spaceId={issue.spaceId}
             issueId={issue.id}
             issueCacheRefs={issueCacheRefs}
           />
@@ -8070,14 +8070,14 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
           {resolvedDetailTab === "chat" && (
             <WorkspaceExportRecovery key={`workspace-export:${issue.activeRecoveryAction?.id ?? issue.id}`}
               className={shellSectionClass}
-              issueId={issue.id} companyId={issue.companyId}
+              issueId={issue.id} spaceId={issue.spaceId}
               showStatus={!issue.interruption && !issue.executionBlocker?.workspaceRecovery}
               onRecoveryControlChange={setRetainedRecoveryOwnsRetry}
               action={issue.activeRecoveryAction ?? null} />
           )}
           {resolvedDetailTab === "chat" && (
             <ExecutionBlockerNotice className={shellSectionClass} presentation={issue.interruption} blockers={issue.blockedBy}
-              issueId={issue.id} companyId={issue.companyId} agentName={agentMap.get(issue.assigneeAgentId ?? "")?.name} projectName={issue.project?.name}
+              issueId={issue.id} spaceId={issue.spaceId} agentName={agentMap.get(issue.assigneeAgentId ?? "")?.name} projectName={issue.project?.name}
               canRetry={canResolveBoardRecoveryAction && !(issue.executionBlocker?.workspaceRepairRequired
                 && isRetainedWorkspaceExportCause(issue.executionBlocker.cause) && retainedRecoveryOwnsRetry)} onRetry={taskRetry.retry}
               optimistic={taskRetry.optimistic} takingLonger={taskRetry.takingLonger} error={taskRetry.error} />
@@ -8119,7 +8119,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
             )}
 
           {taskChatShellEnabled ? null : issueHeaderBlock}
-          {taskChatShellEnabled ? null : <TaskDecisionRecord companyId={issue.companyId} issueId={issue.id} viewerId={currentUserId} agentMap={agentMap} />}
+          {taskChatShellEnabled ? null : <TaskDecisionRecord spaceId={issue.spaceId} issueId={issue.id} viewerId={currentUserId} agentMap={agentMap} />}
 
           {taskChatShellEnabled ? null : pluginOutletsBlock}
 
@@ -8139,7 +8139,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                 mutedIssueIds={mutedChildIssueIds}
                 issueBadgeById={childPauseBadgeById}
                 projectId={issue.projectId ?? undefined}
-                viewStateKey={`paperclip:issue-detail:${issue.id}:subissues-view`}
+                viewStateKey={`outpost:issue-detail:${issue.id}:subissues-view`}
                 issueLinkState={resolvedIssueDetailState ?? location.state}
                 searchFilters={{
                   descendantOf: issue.id,
@@ -8373,7 +8373,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                   issue,
                   agentMap,
                   hasPendingInteraction,
-                  unavailableReason: boardAccess && !canResolveBoardRecoveryAction
+                  unavailableReason: operatorAccess && !canResolveBoardRecoveryAction
                     ? "You don’t have permission to retry this recovery action."
                     : treeControlStateError
                     ? "Couldn’t check whether this task is paused. Refresh to try again."
@@ -8399,7 +8399,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                   onOpenSkill={handleOpenSkill}
                   browsers={browserQuery.data}
                   onOpenBrowser={(id) => { setOpenBrowserId(id); if (isMobile) setMobilePropsOpen(true); else openTaskSidePanel(); }}
-                  threadHeader={<>{taskChatThreadHeader}<EmailTaskActivity key={issue.id} companyId={issue.companyId} issueId={issue.id} />
+                  threadHeader={<>{taskChatThreadHeader}<EmailTaskActivity key={issue.id} spaceId={issue.spaceId} issueId={issue.id} />
                     {(childIssuesError || createdTasksQuery.isError) && (
                       <div role="alert" className="flex items-center gap-2 px-4 text-sm text-destructive">
                         <span>Could not load created tasks.</span>
@@ -8446,7 +8446,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                       : undefined
                   }
                   issueId={conversation && !conversation.issue ? "" : issue.id}
-                  companyId={issue.companyId}
+                  spaceId={issue.spaceId}
                   projectId={issue.projectId ?? null}
                   issueStatus={issue.status}
                   issueAssigneeAgentId={issue.assigneeAgentId}
@@ -8550,7 +8550,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                   currentUserId={currentUserId}
                   userLabelMap={userLabelMap}
                   userProfileMap={userProfileMap}
-                  draftKey={conversationAgent ? `paperclip:agent-chat-draft:${issue.companyId}:${currentUserId}:${conversationAgent.id}` : `paperclip:issue-comment-draft:${issue.id}`}
+                  draftKey={conversationAgent ? `outpost:agent-chat-draft:${issue.spaceId}:${currentUserId}:${conversationAgent.id}` : `outpost:issue-comment-draft:${issue.id}`}
                   reassignOptions={commentReassignOptions}
                   currentAssigneeValue={actualAssigneeValue}
                   suggestedAssigneeValue={suggestedAssigneeValue}
@@ -8672,7 +8672,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                 <IssueDetailActivityTab
                   issue={issue}
                   issueId={issue.id}
-                  companyId={issue.companyId}
+                  spaceId={issue.spaceId}
                   issueStatus={issue.status}
                   childIssues={childIssues}
                   agentMap={agentMap}
@@ -8728,7 +8728,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                 <PluginSlotMount
                   slot={activePluginTab.slot}
                   context={{
-                    companyId: issue.companyId,
+                    spaceId: issue.spaceId,
                     projectId: issue.projectId ?? null,
                     entityId: issue.id,
                     entityType: "issue",
@@ -8933,7 +8933,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
           {fileViewerEnabled ? (
             <IssueFileViewer
               issueId={issue.id}
-              companyId={issue.companyId}
+              spaceId={issue.spaceId}
               promptOpen={fileViewerPromptOpen}
               onPromptOpenChange={setFileViewerPromptOpen}
               useSidePanel={taskChatShellEnabled}
@@ -8949,13 +8949,13 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
 
 function IssueFileViewer({
   issueId,
-  companyId,
+  spaceId,
   promptOpen,
   onPromptOpenChange,
   useSidePanel = false,
 }: {
   issueId: string;
-  companyId: string;
+  spaceId: string;
   promptOpen: boolean;
   onPromptOpenChange: (next: boolean) => void;
   useSidePanel?: boolean;
@@ -8990,7 +8990,7 @@ function IssueFileViewer({
   return (
     <FileViewerSheet
       issueId={issueId}
-      companyId={companyId}
+      spaceId={spaceId}
       open={open}
       showPromptWhenEmpty={showPromptWhenEmpty}
       onOpenChange={(next) => {

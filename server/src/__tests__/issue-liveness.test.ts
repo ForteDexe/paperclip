@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { classifyIssueGraphLiveness } from "../services/issue-liveness.ts";
 
-const companyId = "company-1";
+const spaceId = "space-1";
 const managerId = "manager-1";
 const coderId = "coder-1";
 const blockerId = "blocker-1";
@@ -10,7 +10,7 @@ const blockedId = "blocked-1";
 function issue(overrides: Record<string, unknown> = {}) {
   return {
     id: blockedId,
-    companyId,
+    spaceId,
     identifier: "PAP-1703",
     title: "Parent work",
     status: "blocked",
@@ -26,7 +26,7 @@ function issue(overrides: Record<string, unknown> = {}) {
 function agent(overrides: Record<string, unknown> = {}) {
   return {
     id: coderId,
-    companyId,
+    spaceId,
     name: "Coder",
     role: "engineer",
     title: null,
@@ -38,12 +38,12 @@ function agent(overrides: Record<string, unknown> = {}) {
 
 const manager = agent({
   id: managerId,
-  name: "CTO",
-  role: "cto",
+  name: "Engineering Lead",
+  role: "engineering_lead",
   reportsTo: null,
 });
 
-const blocks = [{ companyId, blockerIssueId: blockerId, blockedIssueId: blockedId }];
+const blocks = [{ spaceId, blockerIssueId: blockerId, blockedIssueId: blockedId }];
 
 describe("issue graph liveness classifier", () => {
   it("detects a PAP-1703-style blocked chain with an unassigned blocker and stable incident key", () => {
@@ -73,13 +73,13 @@ describe("issue graph liveness classifier", () => {
         expect.objectContaining({ issueId: blockedId }),
         expect.objectContaining({ issueId: blockerId }),
       ],
-      incidentKey: `harness_liveness:${companyId}:${blockedId}:blocked_by_unassigned_issue:${blockerId}`,
+      incidentKey: `harness_liveness:${spaceId}:${blockedId}:blocked_by_unassigned_issue:${blockerId}`,
     });
   });
 
-  it("does not use free-form executive role or name matching for recovery ownership", () => {
+  it("does not use free-form leadership role or name matching for recovery ownership", () => {
     const rootAgentId = "root-agent";
-    const spoofedExecutiveId = "spoofed-executive";
+    const spoofedLeadershipId = "spoofed-leadership";
 
     const findings = classifyIssueGraphLiveness({
       issues: [
@@ -99,10 +99,10 @@ describe("issue graph liveness classifier", () => {
       relations: blocks,
       agents: [
         agent({
-          id: spoofedExecutiveId,
-          name: "Chief Executive Recovery",
-          role: "cto",
-          title: "CEO",
+          id: spoofedLeadershipId,
+          name: "Default agent Recovery",
+          role: "engineering_lead",
+          title: "Default agent",
           reportsTo: rootAgentId,
         }),
         agent({
@@ -124,7 +124,7 @@ describe("issue graph liveness classifier", () => {
     });
     expect(findings[0]?.recommendedOwnerCandidateAgentIds).toEqual([
       rootAgentId,
-      spoofedExecutiveId,
+      spoofedLeadershipId,
     ]);
   });
 
@@ -146,7 +146,7 @@ describe("issue graph liveness classifier", () => {
         manager,
         agent({ id: "blocker-agent", name: "Blocker Agent", reportsTo: managerId }),
       ],
-      queuedWakeRequests: [{ companyId, issueId: blockerId, agentId: "blocker-agent", status: "queued" }],
+      queuedWakeRequests: [{ spaceId, issueId: blockerId, agentId: "blocker-agent", status: "queued" }],
     });
 
     expect(findings).toEqual([]);
@@ -183,7 +183,7 @@ describe("issue graph liveness classifier", () => {
         expect.objectContaining({ issueId: blockedId }),
         expect.objectContaining({ issueId: blockerId, status: "backlog" }),
       ],
-      incidentKey: `harness_liveness:${companyId}:${blockedId}:blocked_by_assigned_backlog_issue:${blockerId}`,
+      incidentKey: `harness_liveness:${spaceId}:${blockedId}:blocked_by_assigned_backlog_issue:${blockerId}`,
     });
   });
 
@@ -207,15 +207,15 @@ describe("issue graph liveness classifier", () => {
 
     expect(classifyIssueGraphLiveness({
       ...baseInput,
-      issues: [issue(), { ...backlogBlocker, assigneeAgentId: null, assigneeUserId: "board-user-1" }],
+      issues: [issue(), { ...backlogBlocker, assigneeAgentId: null, assigneeUserId: "operator-user-1" }],
     })).toEqual([]);
     expect(classifyIssueGraphLiveness({
       ...baseInput,
-      activeRuns: [{ companyId, issueId: blockerId, agentId: "blocker-agent", status: "running" }],
+      activeRuns: [{ spaceId, issueId: blockerId, agentId: "blocker-agent", status: "running" }],
     })).toEqual([]);
     expect(classifyIssueGraphLiveness({
       ...baseInput,
-      openRecoveryIssues: [{ companyId, issueId: blockerId, status: "todo" }],
+      openRecoveryIssues: [{ spaceId, issueId: blockerId, status: "todo" }],
     })).toEqual([]);
   });
 
@@ -233,7 +233,7 @@ describe("issue graph liveness classifier", () => {
       ],
       relations: blocks,
       agents: [agent(), manager],
-      activeRuns: [{ companyId, issueId: blockerId, agentId: coderId, status: "running" }],
+      activeRuns: [{ spaceId, issueId: blockerId, agentId: coderId, status: "running" }],
     });
 
     expect(findings).toEqual([]);
@@ -333,9 +333,9 @@ describe("issue graph liveness classifier", () => {
       agents: [
         agent(),
         manager,
-        agent({ id: "qa-2", name: "QA 2", status: "active", reportsTo: "cto-2" }),
-        agent({ id: "cto-2", name: "CTO 2", status: "terminated", reportsTo: "ceo-2" }),
-        agent({ id: "ceo-2", name: "CEO 2", status: "terminated", reportsTo: null }),
+        agent({ id: "qa-2", name: "QA 2", status: "active", reportsTo: "engineering_lead-2" }),
+        agent({ id: "engineering_lead-2", name: "Engineering Lead 2", status: "terminated", reportsTo: "lead-2" }),
+        agent({ id: "lead-2", name: "Default agent 2", status: "terminated", reportsTo: null }),
       ],
     });
 
@@ -372,7 +372,7 @@ describe("issue graph liveness classifier", () => {
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
       state: "invalid_review_participant",
-      incidentKey: `harness_liveness:${companyId}:${blockedId}:invalid_review_participant:missing-agent`,
+      incidentKey: `harness_liveness:${spaceId}:${blockedId}:invalid_review_participant:missing-agent`,
     });
   });
 
@@ -405,8 +405,8 @@ describe("issue graph liveness classifier", () => {
         }),
       ],
       relations: [
-        { companyId, blockerIssueId: phaseIssueId, blockedIssueId: "pap-2239" },
-        { companyId, blockerIssueId: reviewLeafId, blockedIssueId: phaseIssueId },
+        { spaceId, blockerIssueId: phaseIssueId, blockedIssueId: "pap-2239" },
+        { spaceId, blockerIssueId: reviewLeafId, blockedIssueId: phaseIssueId },
       ],
       agents: [agent(), manager],
     });
@@ -423,7 +423,7 @@ describe("issue graph liveness classifier", () => {
         expect.objectContaining({ issueId: phaseIssueId }),
         expect.objectContaining({ issueId: reviewLeafId }),
       ],
-      incidentKey: `harness_liveness:${companyId}:pap-2239:in_review_without_action_path:${reviewLeafId}`,
+      incidentKey: `harness_liveness:${spaceId}:pap-2239:in_review_without_action_path:${reviewLeafId}`,
     });
   });
 
@@ -487,38 +487,38 @@ describe("issue graph liveness classifier", () => {
           ...baseReviewIssue,
           executionState: {
             status: "pending",
-            currentParticipant: { type: "user", userId: "board-user-1" },
+            currentParticipant: { type: "user", userId: "operator-user-1" },
           },
         },
       },
       {
         name: "user owner",
-        issue: { ...baseReviewIssue, assigneeAgentId: null, assigneeUserId: "board-user-1" },
+        issue: { ...baseReviewIssue, assigneeAgentId: null, assigneeUserId: "operator-user-1" },
       },
       {
         name: "active run",
         issue: baseReviewIssue,
-        activeRuns: [{ companyId, issueId: reviewIssueId, agentId: coderId, status: "running" }],
+        activeRuns: [{ spaceId, issueId: reviewIssueId, agentId: coderId, status: "running" }],
       },
       {
         name: "queued wake",
         issue: baseReviewIssue,
-        queuedWakeRequests: [{ companyId, issueId: reviewIssueId, agentId: coderId, status: "queued" }],
+        queuedWakeRequests: [{ spaceId, issueId: reviewIssueId, agentId: coderId, status: "queued" }],
       },
       {
         name: "pending interaction",
         issue: baseReviewIssue,
-        pendingInteractions: [{ companyId, issueId: reviewIssueId, status: "pending" }],
+        pendingInteractions: [{ spaceId, issueId: reviewIssueId, status: "pending" }],
       },
       {
         name: "pending approval",
         issue: baseReviewIssue,
-        pendingApprovals: [{ companyId, issueId: reviewIssueId, status: "pending" }],
+        pendingApprovals: [{ spaceId, issueId: reviewIssueId, status: "pending" }],
       },
       {
         name: "open recovery issue",
         issue: baseReviewIssue,
-        openRecoveryIssues: [{ companyId, issueId: reviewIssueId, status: "todo" }],
+        openRecoveryIssues: [{ spaceId, issueId: reviewIssueId, status: "todo" }],
       },
     ];
 
@@ -588,9 +588,9 @@ describe("issue graph liveness classifier", () => {
           assigneeAgentId: coderId,
         }),
       ],
-      relations: [{ companyId, blockerIssueId: activeBlockerId, blockedIssueId: reviewIssueId }],
+      relations: [{ spaceId, blockerIssueId: activeBlockerId, blockedIssueId: reviewIssueId }],
       agents: [agent(), manager],
-      activeRuns: [{ companyId, issueId: activeBlockerId, agentId: coderId, status: "running" }],
+      activeRuns: [{ spaceId, issueId: activeBlockerId, agentId: coderId, status: "running" }],
     });
 
     expect(findings).toHaveLength(1);
@@ -601,7 +601,7 @@ describe("issue graph liveness classifier", () => {
     });
   });
 
-  it("ignores cross-company waiting paths for stalled in_review issues", () => {
+  it("ignores cross-space waiting paths for stalled in_review issues", () => {
     const reviewIssueId = "review-1";
 
     const findings = classifyIssueGraphLiveness({
@@ -617,8 +617,8 @@ describe("issue graph liveness classifier", () => {
       ],
       relations: [],
       agents: [agent(), manager],
-      pendingInteractions: [{ companyId: "other-company", issueId: reviewIssueId, status: "pending" }],
-      openRecoveryIssues: [{ companyId: "other-company", issueId: reviewIssueId, status: "todo" }],
+      pendingInteractions: [{ spaceId: "other-space", issueId: reviewIssueId, status: "pending" }],
+      openRecoveryIssues: [{ spaceId: "other-space", issueId: reviewIssueId, status: "todo" }],
     });
 
     expect(findings).toHaveLength(1);

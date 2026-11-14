@@ -1,7 +1,7 @@
 import { and, eq, gt, inArray, sql, type SQL } from "drizzle-orm";
 import { heartbeatRuns, issueRecoveryActions, issueThreadInteractions, type Db } from "@outpost/db";
 
-export const HUMAN_RECOVERY_OWNER_TYPES = ["user", "board"] as const;
+export const HUMAN_RECOVERY_OWNER_TYPES = ["user", "operator"] as const;
 const OPEN_RECOVERY_ATTENTION_STATUSES = ["active", "escalated"] as const;
 
 export function recoveryActionAttentionCondition() {
@@ -20,12 +20,12 @@ function payloadFlag(payload: unknown, key: string) {
 }
 
 /** Payload keys that bind a confirmation to one specific action (tool call, secret, app connection). */
-const GOVERNED_CONFIRMATION_PAYLOAD_KEYS = ["toolAction", "secretProposal", "connectionAuthorization"] as const;
+const CONTROLLED_CONFIRMATION_PAYLOAD_KEYS = ["toolAction", "secretProposal", "connectionAuthorization"] as const;
 
-/** Governed confirmations gate one action; answering one never answers an ordinary ask, and vice versa. */
-function governedAction(payload: unknown) {
+/** Controlled confirmations gate one action; answering one never answers an ordinary ask, and vice versa. */
+function controlledAction(payload: unknown) {
   // Truthy, not key presence: the summary read projects absent keys as JSON null.
-  return GOVERNED_CONFIRMATION_PAYLOAD_KEYS.some((key) => payloadFlag(payload, key));
+  return CONTROLLED_CONFIRMATION_PAYLOAD_KEYS.some((key) => payloadFlag(payload, key));
 }
 
 /**
@@ -66,7 +66,7 @@ export function collapsePendingConfirmationsToNewest<T extends {
   return rows.filter((row) => {
     if (row.kind !== "request_confirmation" || independent(row)) return true;
     if (newestByGroup.get(`${row.issueId}:${row.kind}`)?.id !== row.id) return false;
-    const settledAt = governedAction(row.payload) ? undefined : newestSettledConfirmationAt.get(confirmationAudienceKey(row));
+    const settledAt = controlledAction(row.payload) ? undefined : newestSettledConfirmationAt.get(confirmationAudienceKey(row));
     return !settledAt || settledAt.getTime() <= row.createdAt.getTime();
   });
 }
@@ -75,7 +75,7 @@ export function collapsePendingConfirmationsToNewest<T extends {
 const SETTLED_CONFIRMATION_STATUSES = ["accepted", "rejected", "answered", "expired"] as const;
 
 /** Newest answered/expired ordinary confirmation per issue and recipient (see the collapse above). */
-export async function loadNewestSettledConfirmationAt(db: Db, companyId: string, issueIds: string[]) {
+export async function loadNewestSettledConfirmationAt(db: Db, spaceId: string, issueIds: string[]) {
   const ids = [...new Set(issueIds)];
   if (ids.length === 0) return new Map<string, Date>();
   const rows = await db.select({
@@ -84,7 +84,7 @@ export async function loadNewestSettledConfirmationAt(db: Db, companyId: string,
     addresseeAgentId: issueThreadInteractions.addresseeAgentId,
     createdAt: sql<string>`max(${issueThreadInteractions.createdAt})::text`,
   }).from(issueThreadInteractions).where(and(
-    eq(issueThreadInteractions.companyId, companyId),
+    eq(issueThreadInteractions.spaceId, spaceId),
     inArray(issueThreadInteractions.issueId, ids),
     eq(issueThreadInteractions.kind, "request_confirmation"),
     inArray(issueThreadInteractions.status, [...SETTLED_CONFIRMATION_STATUSES]),
@@ -103,12 +103,12 @@ type FailedRunProbe = { id: string; agentId: string; issueId: string | null; cre
 
 const FAILED_RUN_PROBE_BATCH_SIZE = 1000;
 
-export async function listFailedRunsWithNewerRun(db: Db, companyId: string, failedRuns: FailedRunProbe[]) {
+export async function listFailedRunsWithNewerRun(db: Db, spaceId: string, failedRuns: FailedRunProbe[]) {
   const withNewerRun = new Set<string>();
   const keyed = failedRuns.filter(run => run.issueId !== null);
   for (let start = 0; start < keyed.length; start += FAILED_RUN_PROBE_BATCH_SIZE) {
     const batch = keyed.slice(start, start + FAILED_RUN_PROBE_BATCH_SIZE);
-    for (const id of await listFailedRunBatchWithNewerRun(db, companyId, batch)) withNewerRun.add(id);
+    for (const id of await listFailedRunBatchWithNewerRun(db, spaceId, batch)) withNewerRun.add(id);
   }
   const unkeyed = failedRuns.filter(run => run.issueId === null);
   if (unkeyed.length === 0) return withNewerRun;
@@ -121,7 +121,7 @@ export async function listFailedRunsWithNewerRun(db: Db, companyId: string, fail
       agentId: heartbeatRuns.agentId,
       createdAt: sql<Date>`max(${heartbeatRuns.createdAt})`.mapWith(heartbeatRuns.createdAt),
     }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, companyId),
+      eq(heartbeatRuns.spaceId, spaceId),
       inArray(heartbeatRuns.agentId, agentIds.slice(start, start + FAILED_RUN_PROBE_BATCH_SIZE)),
       gt(heartbeatRuns.createdAt, oldestCreatedAt),
       sql`coalesce(${heartbeatRuns.contextSnapshot} ->> 'issueId', ${heartbeatRuns.contextSnapshot} ->> 'taskId', '') = ''`,
@@ -134,7 +134,7 @@ export async function listFailedRunsWithNewerRun(db: Db, companyId: string, fail
   return withNewerRun;
 }
 
-async function listFailedRunBatchWithNewerRun(db: Db, companyId: string, failedRuns: FailedRunProbe[]) {
+async function listFailedRunBatchWithNewerRun(db: Db, spaceId: string, failedRuns: FailedRunProbe[]) {
   if (failedRuns.length === 0) return [];
   const failed = sql.join(
     failedRuns.map((run) => sql`(${run.id}::uuid, ${run.agentId}::uuid, ${run.issueId}::text, ${new Date(run.createdAt.getTime() + 1).toISOString()}::timestamptz)`),
@@ -144,7 +144,7 @@ async function listFailedRunBatchWithNewerRun(db: Db, companyId: string, failedR
   const runTaskId = sql`(${heartbeatRuns.contextSnapshot} ->> 'taskId')`;
   const newerRunExists = (match: SQL) => sql`exists (
     select 1 from ${heartbeatRuns}
-    where ${heartbeatRuns.companyId} = ${companyId}
+    where ${heartbeatRuns.spaceId} = ${spaceId}
       and ${heartbeatRuns.agentId} = failed.agent_id
       and ${heartbeatRuns.createdAt} >= failed.newer_from
       and ${match}

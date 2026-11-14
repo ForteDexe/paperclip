@@ -1,4 +1,4 @@
-import { notifyChatCompanyAuthorityChange } from "../chat-run-milestone-notifications.js";
+import { notifyChatSpaceAuthorityChange } from "../chat-run-milestone-notifications.js";
 import { chatConnectionTransport } from "./provider-catalog.js";
 import type { ConnectionManagementContext } from "../connection-management.js";
 import { slackSetupState } from "./slack/setup.js";
@@ -143,7 +143,7 @@ function providerSetupState(
     const endpoint = row.endpoint;
     return {
       id: endpoint.id,
-      companyId: endpoint.companyId,
+      spaceId: endpoint.spaceId,
       connectionId: endpoint.connectionId,
       publicationMode: endpoint.publicationMode,
       externalExecutionPolicy: endpoint.externalExecutionPolicy,
@@ -197,7 +197,7 @@ function providerSetupState(
     };
   }
 
-  async function list(companyId: string) {
+  async function list(spaceId: string) {
     const rows = await db
       .select({
         endpoint: chatEndpoints,
@@ -211,19 +211,19 @@ function providerSetupState(
         agents,
         and(
           eq(agents.id, chatEndpoints.assignedAgentId),
-          eq(agents.companyId, chatEndpoints.companyId),
+          eq(agents.spaceId, chatEndpoints.spaceId),
         ),
       )
       .innerJoin(
         toolConnections,
         and(
           eq(toolConnections.id, chatEndpoints.connectionId),
-          eq(toolConnections.companyId, chatEndpoints.companyId),
+          eq(toolConnections.spaceId, chatEndpoints.spaceId),
         ),
       )
       .where(
         and(
-          eq(chatEndpoints.companyId, companyId),
+          eq(chatEndpoints.spaceId, spaceId),
           ne(chatEndpoints.status, "archived"),
         ),
       )
@@ -243,7 +243,7 @@ function providerSetupState(
   }
 
   async function create(
-    companyId: string,
+    spaceId: string,
     input: CreateChatEndpointInput,
     actorUserId?: string | null,
     managementContext?: ConnectionManagementContext,
@@ -257,13 +257,13 @@ function providerSetupState(
       .from(agents)
       .where(
         and(
-          eq(agents.companyId, companyId),
+          eq(agents.spaceId, spaceId),
           eq(agents.id, input.assignedAgentId),
         ),
       )
       .then((rows) => rows[0] ?? null);
     if (!agent)
-      throw unprocessable("The selected agent does not belong to this company");
+      throw unprocessable("The selected agent does not belong to this space");
     if (!isAgentStatusInvokable(agent.status)) {
       throw unprocessable(
         "The selected agent must be active before it can be connected to chat",
@@ -294,7 +294,7 @@ function providerSetupState(
           .from(toolApplications)
           .where(
             and(
-              eq(toolApplications.companyId, companyId),
+              eq(toolApplications.spaceId, spaceId),
               eq(toolApplications.id, input.applicationId),
             ),
           )
@@ -316,7 +316,7 @@ function providerSetupState(
       } else {
         await tx.insert(toolApplications).values({
           id: applicationId,
-          companyId,
+          spaceId,
           applicationKey: `chat:${input.provider}:${endpointId}`,
           name: `${name} ${suffix}`,
           description: `People talk to ${agent.name} through ${PROVIDER_LABELS[input.provider]}.`,
@@ -328,7 +328,7 @@ function providerSetupState(
       }
       await tx.insert(toolConnections).values({
         id: connectionId,
-        companyId,
+        spaceId,
         applicationId,
         name,
         uid: `chat-${input.provider}-${endpointId}`,
@@ -346,7 +346,7 @@ function providerSetupState(
       });
       await tx.insert(chatEndpoints).values({
         id: endpointId,
-        companyId,
+        spaceId,
         connectionId,
         provider: input.provider,
         publicId,
@@ -370,8 +370,8 @@ function providerSetupState(
       });
     });
     await logActivity(db, {
-      companyId,
-      ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "board" }),
+      spaceId,
+      ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "operator" }),
       action: "chat_endpoint.created",
       entityType: "tool_connection",
       entityId: connectionId,
@@ -458,13 +458,13 @@ function providerSetupState(
           if ((input.allowDirectMessages === true && !existing.endpoint.allowDirectMessages)
             || (input.allowGroupChats === true && !existing.endpoint.allowGroupChats)
             || (input.allowUnlinkedPeople === true && !existing.endpoint.allowUnlinkedPeople)) {
-            await notifyChatCompanyAuthorityChange(tx, { companyId: existing.endpoint.companyId });
+            await notifyChatSpaceAuthorityChange(tx, { spaceId: existing.endpoint.spaceId });
           }
           if (input.executionDefaults !== undefined) {
             await assertChatExecutionDefaultsAccess(db, {
-              companyId: existing.endpoint.companyId,
+              spaceId: existing.endpoint.spaceId,
               assigneeAgentId: values.assignedAgentId ?? existing.endpoint.assignedAgentId,
-              actor: managementContext?.actor ?? { type: "board", userId: actorUserId, source: actorUserId ? "session" : "local_implicit" },
+              actor: managementContext?.actor ?? { type: "operator", userId: actorUserId, source: actorUserId ? "session" : "local_implicit" },
               defaults: input.executionDefaults,
             }, tx);
             values.executionDefaults = input.executionDefaults;
@@ -474,8 +474,8 @@ function providerSetupState(
             .set(values)
             .where(eq(chatEndpoints.id, endpointId));
           await logActivity(tx as unknown as Db, {
-            companyId: existing.endpoint.companyId,
-            ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "board" }),
+            spaceId: existing.endpoint.spaceId,
+            ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "operator" }),
             action: "chat_endpoint.updated",
             entityType: "tool_connection",
             entityId: existing.endpoint.connectionId,

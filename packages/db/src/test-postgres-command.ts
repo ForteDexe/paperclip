@@ -16,14 +16,14 @@ try {
   let adminUrl = testPostgresAdminUrl();
   if (adminUrl) await checkTestPostgresAdmin(adminUrl);
   else {
-    server = await startEmbeddedPostgresTestDatabase("paperclip-test-command-");
+    server = await startEmbeddedPostgresTestDatabase("outpost-test-command-");
     const url = new URL(server.connectionString);
     url.pathname = "/postgres";
     adminUrl = url.toString();
     if (env.OUTPOST_TEST_POSTGRES_TEMPLATE !== "0") {
-      const template = `paperclip_test_template_${computeEmbeddedPostgresTemplateKey()}`;
+      const template = `outpost_test_template_${computeEmbeddedPostgresTemplateKey()}`;
       const admin = createDb(adminUrl, { maxConnections: 1 });
-      try { await admin.$client.unsafe(`CREATE DATABASE "${template}" TEMPLATE "paperclip"`); }
+      try { await admin.$client.unsafe(`CREATE DATABASE "${template}" TEMPLATE "outpost"`); }
       finally { await admin.$client.end({ timeout: 1 }); }
       env.OUTPOST_TEST_POSTGRES_TEMPLATE = template;
     }

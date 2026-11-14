@@ -8,7 +8,7 @@ This change owns only `server/src/__tests__/pipelines-routes.test.ts` and this r
 
 `bulk reviews partial successes without aborting stale items` previously created 50 independent cases and transitioned each to review. Rows 0–2 then received stale versions. Row 3 requested changes. Rows 4–49 all approved an otherwise identical case.
 
-Keep rows 0–4. Change the fixture bound from 50 to 5 and the successful result count from 47 to 2. Preserve the HTTP 200 response, all three failures, every failure's `version_conflict` code, and the persisted request-changes stage `in_progress`. Add a persisted `done` stage assertion for row 4 after the bulk response. Thus both success paths still execute after multiple stale failures. The same actor, company, pipeline stages, versions, and complete request shape are retained.
+Keep rows 0–4. Change the fixture bound from 50 to 5 and the successful result count from 47 to 2. Preserve the HTTP 200 response, all three failures, every failure's `version_conflict` code, and the persisted request-changes stage `in_progress`. Add a persisted `done` stage assertion for row 4 after the bulk response. Thus both success paths still execute after multiple stale failures. The same actor, space, pipeline stages, versions, and complete request shape are retained.
 
 This removes 90 setup HTTP mutations and 45 per-item review service calls. The new approval-detail read makes the net difference 134 operations. This is an operation count, not a measured time saving. The owner retains all 19 test cases. Test source changes by four inserted and two deleted lines; it gains two net lines.
 

@@ -11,7 +11,7 @@ import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { crashPoint } from "@outpost/shared/crash-points";
 import { sandboxDiskFullFaultTarget } from "./sandbox-disk-full-fault.js";
 import {
-  companies, environmentLeases, executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, issues, workspaceOperations, type Db,
+  spaces, environmentLeases, executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, issues, workspaceOperations, type Db,
 } from "@outpost/db";
 import {
   readRemoteWorkspaceAuthority, remoteWorkspaceSourceSchema,
@@ -54,7 +54,7 @@ import { wakeWorkspaceBusyWaitersInTx } from "../modules/run-dispatch/index.js";
 export { readRemoteWorkspaceAuthority, type RemoteWorkspaceAuthority, type RemoteWorkspaceSource } from "@outpost/shared";
 export { remoteWorkspaceRepositoryPath } from "./remote-workspace-transport.js";
 export { clearRemoteWorkspaceLocationForReleasedLease } from "./remote-workspace-snapshot-retention.js";
-type Workspace = Pick<typeof executionWorkspaces.$inferSelect, "id" | "companyId" | "metadata" | "sourceIssueId" | "projectId" | "projectWorkspaceId">;
+type Workspace = Pick<typeof executionWorkspaces.$inferSelect, "id" | "spaceId" | "metadata" | "sourceIssueId" | "projectId" | "projectWorkspaceId">;
 type Transaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const SAVE_WORK_SCHEMA = "outpost.remote-workspace-save-work.v1";
@@ -153,30 +153,30 @@ function reference(workspaceId: string, authority: RemoteWorkspaceAuthority, sta
     remoteCwd: authority.location.remoteCwd, state, snapshotId: authority.snapshotId };
 }
 
-async function currentWorkspace(tx: Transaction, companyId: string, workspaceId: string) {
+async function currentWorkspace(tx: Transaction, spaceId: string, workspaceId: string) {
   const [workspace] = await tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, workspaceId),
-    eq(executionWorkspaces.companyId, companyId))).for("update");
+    eq(executionWorkspaces.spaceId, spaceId))).for("update");
   if (!workspace) throw new Error("remote_workspace_missing");
   return workspace;
 }
 
-async function lockWorkspaceRunParents(tx: Transaction, companyId: string, runId: string, expectedIssueId?: string | null) {
+async function lockWorkspaceRunParents(tx: Transaction, spaceId: string, runId: string, expectedIssueId?: string | null) {
   const fields = { nativeIssueId: heartbeatRuns.nativeIssueId, issueId: heartbeatRuns.issueId,
     contextIssueId: sql<unknown>`${heartbeatRuns.contextSnapshot}->'issueId'` };
   const [selected] = await tx.select(fields).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId)));
+    eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId)));
   if (!selected) throw new Error("remote_workspace_run_missing");
   const issueId = selected.nativeIssueId ?? selected.issueId ?? (typeof selected.contextIssueId === "string" ? selected.contextIssueId : null);
   if (expectedIssueId !== undefined && issueId !== expectedIssueId) throw new Error("remote_workspace_run_binding_changed");
-  const [company] = await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId)).for("key share");
-  if (!company) throw new Error("remote_workspace_run_missing");
+  const [space] = await tx.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, spaceId)).for("key share");
+  if (!space) throw new Error("remote_workspace_run_missing");
   if (issueId) {
     const [issue] = await tx.select({ id: issues.id }).from(issues).where(and(
-      eq(issues.companyId, companyId), eq(issues.id, issueId))).for("update");
+      eq(issues.spaceId, spaceId), eq(issues.id, issueId))).for("update");
     if (!issue) throw new Error("remote_workspace_run_binding_changed");
   }
   const [current] = await tx.select(fields).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId))).for("update");
+    eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId))).for("update");
   const currentIssueId = current?.nativeIssueId ?? current?.issueId ?? (typeof current?.contextIssueId === "string" ? current.contextIssueId : null);
   if (!current || currentIssueId !== issueId) throw new Error("remote_workspace_run_binding_changed");
   return issueId;
@@ -192,7 +192,7 @@ export class RemoteWorkspaceWriterActiveError extends HttpError {
 }
 
 export async function reserveRemoteWorkspace(input: {
-  db: Db; companyId: string; issueId: string; runId: string; agentId: string; environmentId: string;
+  db: Db; spaceId: string; issueId: string; runId: string; agentId: string; environmentId: string;
   projectId: string | null; projectWorkspaceId: string | null; existingWorkspaceId: string | null;
   source: RemoteWorkspaceSource; storage?: StorageService;
   mode?: string;
@@ -205,9 +205,9 @@ export async function reserveRemoteWorkspace(input: {
   // check (such as a live writer hold) rejects this attempt.
   const provenProvisions: string[] = [];
   return input.db.transaction(async tx => {
-    await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, input.companyId)).for("key share");
-    const [issue] = await tx.select().from(issues).where(and(eq(issues.companyId, input.companyId), eq(issues.id, input.issueId))).for("update");
-    const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId))).for("update");
+    await tx.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, input.spaceId)).for("key share");
+    const [issue] = await tx.select().from(issues).where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, input.issueId))).for("update");
+    const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId))).for("update");
     if (!issue || !run || run.agentId !== input.agentId || run.status !== "running" ||
       ![run.nativeIssueId, run.issueId, object(run.contextSnapshot).issueId].includes(input.issueId)) throw forbidden("Workspace preparation requires its current task execution.");
     if (input.fresh && (issue.executionWorkspaceId !== input.fresh.previousWorkspaceId
@@ -215,16 +215,16 @@ export async function reserveRemoteWorkspace(input: {
     let selected = input.fresh ? input.fresh.attemptId : input.existingWorkspaceId ?? issue.executionWorkspaceId;
     let selectedSharedSource = false;
     if (!selected && input.mode === "shared_workspace" && input.projectWorkspaceId) {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`remote-shared-workspace:${input.companyId}:${input.projectWorkspaceId}`}, 0))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`remote-shared-workspace:${input.spaceId}:${input.projectWorkspaceId}`}, 0))`);
       const [shared] = await tx.select({ id: executionWorkspaces.id }).from(executionWorkspaces).where(and(
-        eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.projectWorkspaceId, input.projectWorkspaceId),
+        eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.projectWorkspaceId, input.projectWorkspaceId),
         eq(executionWorkspaces.mode, "shared_workspace"), eq(executionWorkspaces.status, "active"),
         sql`${executionWorkspaces.metadata}->'remoteWorkspace'->>'schema' = 'outpost.remote-workspace.v1'`,
       )).limit(1);
       selected = shared?.id ?? null;
       selectedSharedSource = selected !== null;
     }
-    const [selectedRow] = selected ? await tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.id, selected))).for("update") : [];
+    const [selectedRow] = selected ? await tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.id, selected))).for("update") : [];
     let existing = selectedRow ?? null;
     if (selected && !existing && !input.fresh) throw new Error("remote_workspace_missing");
     let authority = readRemoteWorkspaceAuthority(existing?.metadata);
@@ -232,16 +232,16 @@ export async function reserveRemoteWorkspace(input: {
     if (existing && authority) {
       if (["archived", "cleanup_failed"].includes(existing.status)) throw conflict("Workspace ownership changed.");
       if (existing.sourceIssueId !== input.issueId) {
-        const actor = { type: "agent", source: "agent_jwt", companyId: input.companyId,
+        const actor = { type: "agent", source: "agent_jwt", spaceId: input.spaceId,
           agentId: input.agentId, runId: input.runId,
-          onBehalfOfUserId: run.responsibleUserId === "local-board" ? null : run.responsibleUserId } as const;
-        await assertTaskWorkspaceExecutionAccess(tx, actor, input.companyId, selectedSharedSource
+          onBehalfOfUserId: run.responsibleUserId === "local-operator" ? null : run.responsibleUserId } as const;
+        await assertTaskWorkspaceExecutionAccess(tx, actor, input.spaceId, selectedSharedSource
           ? { issueId: input.issueId, projectWorkspaceId: input.projectWorkspaceId }
           : { issueId: input.issueId, workspaceId: existing.id });
-        await assertExecutionWorkspaceRecordAccess(tx, actor, input.companyId, existing.id);
+        await assertExecutionWorkspaceRecordAccess(tx, actor, input.spaceId, existing.id);
       }
       const uncertain = await tx.select().from(workspaceOperations).where(and(
-        eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.executionWorkspaceId, existing.id),
+        eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.executionWorkspaceId, existing.id),
         eq(workspaceOperations.phase, "remote_workspace_provision"), sql`${workspaceOperations.metadata}->>'uncertain' = 'true'`,
         sql`${workspaceOperations.heartbeatRunId} is distinct from ${input.runId}::uuid`,
       )).for("update");
@@ -261,7 +261,7 @@ export async function reserveRemoteWorkspace(input: {
         const released = await releaseUnchangedRemoteWorkspaceWriter(tx, { workspace: existing, authority, wakeWaiters: false });
         if (released) ({ workspace: existing, authority } = released);
       }
-      const hold = await readRemoteWorkspaceWriterHold(tx as unknown as Db, { companyId: input.companyId, authority, runId: input.runId });
+      const hold = await readRemoteWorkspaceWriterHold(tx as unknown as Db, { spaceId: input.spaceId, authority, runId: input.runId });
       if (hold.kind === "held") throw new RemoteWorkspaceWriterActiveError(existing.id, hold.writer);
       if (hold.kind === "unattributed") throw conflict(REMOTE_WORKSPACE_WRITER_PENDING_MESSAGE, { code: "remote_workspace_writer_pending" });
       if (authority.writerRunId === input.runId) return existing;
@@ -279,7 +279,7 @@ export async function reserveRemoteWorkspace(input: {
     const id = input.fresh?.attemptId ?? randomUUID();
     const initial: RemoteWorkspaceAuthority = { schema: "outpost.remote-workspace.v1", epoch: 1,
       snapshotId: null, source, location: null, writerRunId: input.runId, dirty: false };
-    const [workspace] = await tx.insert(executionWorkspaces).values({ id, companyId: input.companyId, sourceIssueId: input.issueId,
+    const [workspace] = await tx.insert(executionWorkspaces).values({ id, spaceId: input.spaceId, sourceIssueId: input.issueId,
       projectId: input.projectId, projectWorkspaceId: input.projectWorkspaceId, mode: input.mode ?? "isolated_workspace",
       strategyType: source.kind === "git" ? "git_worktree" : "project_primary", name: "Task workspace", status: "active",
       providerType: "cloud_sandbox", cwd: `/workspaces/${id}`, repoUrl: source.kind === "git" ? source.repoUrl : null,
@@ -289,35 +289,35 @@ export async function reserveRemoteWorkspace(input: {
     }).returning();
     await tx.update(issues).set({ executionWorkspaceId: id, executionWorkspacePreference: "reuse_existing",
       workspaceBindingRevision: issue.workspaceBindingRevision + 1, updatedAt: new Date() }).where(eq(issues.id, issue.id));
-    await persistActivity(tx as unknown as Db, { companyId: input.companyId, actorType: "system", actorId: "remote-workspaces",
+    await persistActivity(tx as unknown as Db, { spaceId: input.spaceId, actorType: "system", actorId: "remote-workspaces",
       action: "workspace.remote_created", entityType: "execution_workspace", entityId: id, runId: input.runId,
       issueId: input.issueId, details: { authority: "sandbox", epoch: initial.epoch } });
     return workspace!;
   }).catch(async (error: unknown) => {
-    if (provenProvisions.length > 0) await settleProvenProvisions(input.db, input.companyId, provenProvisions, input.runId);
+    if (provenProvisions.length > 0) await settleProvenProvisions(input.db, input.spaceId, provenProvisions, input.runId);
     throw error;
   });
 }
 
-async function persistRunReference(tx: Transaction, companyId: string, runId: string, value: RemoteWorkspaceRunReference) {
+async function persistRunReference(tx: Transaction, spaceId: string, runId: string, value: RemoteWorkspaceRunReference) {
   const [run] = await tx.select({ profile: heartbeatRuns.runnerProfileJson, nativeIssueId: heartbeatRuns.nativeIssueId,
     issueId: heartbeatRuns.issueId, contextIssueId: sql<unknown>`${heartbeatRuns.contextSnapshot}->'issueId'` }).from(heartbeatRuns)
-    .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId))).for("update");
+    .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId))).for("update");
   if (!run) throw new Error("remote_workspace_run_missing");
-  await notifyCancelledWorkspacePreservation(tx, { companyId, runId });
+  await notifyCancelledWorkspacePreservation(tx, { spaceId, runId });
   await tx.update(heartbeatRuns).set({ runnerProfileJson: { ...run.profile, remoteWorkspace: value }, updatedAt: new Date() })
-    .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId)));
+    .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId)));
   return run.nativeIssueId ?? run.issueId ?? (typeof run.contextIssueId === "string" ? run.contextIssueId : null);
 }
 
 /** Retry acknowledged or explicitly retired exports, never active captures. */
-async function cleanupSavedExports(input: { db: Db; companyId: string; workspaceId: string;
+async function cleanupSavedExports(input: { db: Db; spaceId: string; workspaceId: string;
   location: NonNullable<RemoteWorkspaceAuthority["location"]>; target: ReturnType<typeof requireRemoteWorkspaceTarget>;
   assertOwned: () => Promise<void> }) {
   for (;;) {
     const rows = await input.db.select({ id: workspaceOperations.id, metadata: workspaceOperations.metadata,
       phase: workspaceOperations.phase }).from(workspaceOperations).where(and(
-      eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.executionWorkspaceId, input.workspaceId),
+      eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.executionWorkspaceId, input.workspaceId),
       inArray(workspaceOperations.phase, ["remote_workspace_snapshot", "remote_workspace_restore"]),
       sql`(${workspaceOperations.status} = 'succeeded' or (${workspaceOperations.status} = 'failed'
         and ${workspaceOperations.metadata}->'retiredSave'->>'schema' = ${RETIRED_SAVE_SCHEMA}))`,
@@ -347,7 +347,7 @@ async function cleanupSavedExports(input: { db: Db; companyId: string; workspace
         '{exportCleanup}', coalesce(${workspaceOperations.metadata}->'exportCleanup', '{}'::jsonb) ||
         ${JSON.stringify({ state: cleaned ? "cleaned" : "pending", lastError })}::jsonb)`,
         updatedAt: new Date() })
-        .where(and(eq(workspaceOperations.id, row.id), eq(workspaceOperations.companyId, input.companyId),
+        .where(and(eq(workspaceOperations.id, row.id), eq(workspaceOperations.spaceId, input.spaceId),
           inArray(workspaceOperations.status, ["succeeded", "failed"])));
       if (!cleaned) return false;
     }
@@ -377,7 +377,7 @@ function publishedWorkspaceDirectory(workspace: Workspace & Pick<typeof executio
   if (!publishedRoot) return null;
   const directory = path.posix.basename(publishedRoot);
   const suffix = directory.slice(workspace.id.length);
-  if (!path.posix.isAbsolute(publishedRoot) || path.posix.basename(path.posix.dirname(publishedRoot)) !== ".paperclip-workspaces"
+  if (!path.posix.isAbsolute(publishedRoot) || path.posix.basename(path.posix.dirname(publishedRoot)) !== ".outpost-workspaces"
     || !directory.startsWith(workspace.id) || (suffix !== "" && !/^-[1-9][0-9]*-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(suffix))) {
     throw new Error("remote_workspace_published_path_invalid");
   }
@@ -395,7 +395,7 @@ async function isRetiredOwnAllocation(db: Db, workspace: Workspace, lease: Envir
   if (!lease.environmentId || !lease.providerLeaseId) return false;
   const rows = await db.select({ id: workspaceOperations.id, phase: workspaceOperations.phase, status: workspaceOperations.status,
     metadata: workspaceOperations.metadata }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, workspace.companyId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
+    eq(workspaceOperations.spaceId, workspace.spaceId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
     inArray(workspaceOperations.phase, ["remote_workspace_snapshot", "remote_workspace_restore"]),
     sql`${workspaceOperations.metadata}->'exportCleanup'->>'environmentId' = ${lease.environmentId}`,
     sql`${workspaceOperations.metadata}->'exportCleanup'->>'providerLeaseId' = ${lease.providerLeaseId}`,
@@ -414,7 +414,7 @@ async function isRetiredOwnAllocation(db: Db, workspace: Workspace, lease: Envir
   if (!final || final.metadata?.boundary !== "final" || !work || work.unknown || work.activeIds.length
     || saves.some(row => row !== final && !(generation(row) < generation(final)))) return false;
   const [snapshot] = await db.select({ status: executionWorkspaceSnapshots.status }).from(executionWorkspaceSnapshots).where(and(
-    eq(executionWorkspaceSnapshots.companyId, workspace.companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
+    eq(executionWorkspaceSnapshots.spaceId, workspace.spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
     eq(executionWorkspaceSnapshots.sourceOperationId, final.id)));
   return Boolean(snapshot && !["pending", "uploaded"].includes(snapshot.status));
 }
@@ -432,7 +432,7 @@ export async function prepareRemoteWorkspace(input: {
       { code: "remote_workspace_readonly_sources_unsupported" });
   }
   if (!initial || initial.writerRunId !== input.runId || !input.lease.environmentId || !input.lease.providerLeaseId
-    || input.lease.companyId !== input.workspace.companyId || input.lease.heartbeatRunId !== input.runId) throw new Error("remote_workspace_binding_mismatch");
+    || input.lease.spaceId !== input.workspace.spaceId || input.lease.heartbeatRunId !== input.runId) throw new Error("remote_workspace_binding_mismatch");
   await input.assertOwned?.();
   const sameAllocation = initial.location?.providerLeaseId === input.lease.providerLeaseId
     && initial.location?.environmentId === input.lease.environmentId;
@@ -440,21 +440,21 @@ export async function prepareRemoteWorkspace(input: {
   const migration = input.workspace.metadata?.nativeWorkspaceMigration
     ? await readNativeWorkspaceMigration(input.db, input.workspace) : null;
   if (migration && migration.remoteCwd !== target.remoteCwd) throw new Error("native_workspace_migration_target_changed");
-  const remoteRoot = sameAllocation ? initial.location!.remoteCwd : migration?.remoteCwd ?? path.posix.join(target.remoteCwd, ".paperclip-workspaces",
+  const remoteRoot = sameAllocation ? initial.location!.remoteCwd : migration?.remoteCwd ?? path.posix.join(target.remoteCwd, ".outpost-workspaces",
     publishedWorkspaceDirectory(input.workspace, initial) ?? `${input.workspace.id}-${initial.epoch}-${input.lease.id}`);
-  const preparationIdentity = createHash("sha256").update(JSON.stringify([input.workspace.companyId, input.workspace.id,
+  const preparationIdentity = createHash("sha256").update(JSON.stringify([input.workspace.spaceId, input.workspace.id,
     input.runId, initial.epoch, input.lease.id, input.lease.providerLeaseId, remoteRoot, initial.source])).digest("hex");
   let restoredExport: Awaited<ReturnType<typeof restoreRemoteWorkspaceDirectory>> | null = null;
   // Where the restore spent its time and the storage requests it sent.
   const restoreTiming = newWorkspaceSnapshotStorageTiming();
-  if (sameAllocation && !await cleanupSavedExports({ db: input.db, companyId: input.workspace.companyId,
+  if (sameAllocation && !await cleanupSavedExports({ db: input.db, spaceId: input.workspace.spaceId,
     workspaceId: input.workspace.id, location: initial.location!, target,
     assertOwned: input.assertOwned ?? (async () => undefined) })) throw new Error("remote_workspace_export_cleanup_pending");
   if (!sameAllocation) {
     if (initial.snapshotId) {
       let step: RemoteWorkspaceRestoreStep = "snapshot_lookup";
       try {
-        const snapshot = await getWorkspaceSnapshot(input.db, { companyId: input.workspace.companyId, workspaceId: input.workspace.id, snapshotId: initial.snapshotId });
+        const snapshot = await getWorkspaceSnapshot(input.db, { spaceId: input.workspace.spaceId, workspaceId: input.workspace.id, snapshotId: initial.snapshotId });
         if (!snapshot) throw new Error("remote_workspace_snapshot_missing");
         const replaceRetiredRoot = migration === null && !initial.dirty
           && await isRetiredOwnAllocation(input.db, input.workspace, input.lease, remoteRoot, initial.epoch);
@@ -480,13 +480,13 @@ export async function prepareRemoteWorkspace(input: {
         // is offered only while this run still owns the same unchanged, clean
         // saved version; a failed restore never publishes over existing files.
         // A sandbox refusal that names its reason (an occupied folder, a changed
-        // owner, a rejected archive) repeats on retry, so it goes to the board.
+        // owner, a rejected archive) repeats on retry, so it goes to the operator.
         let retryable = false;
         const refused = error instanceof Error && / (?:reason|archive)=[a-z_]+/.test(error.message)
           && !(step === "sandbox_restore" && /; remote_workspace_restore_failed: stage=restore_lock reason=restore_lock_busy$/.test(error.message));
         if (step !== "snapshot_lookup" && !refused) {
           const [latest] = await input.db.select({ metadata: executionWorkspaces.metadata }).from(executionWorkspaces)
-            .where(and(eq(executionWorkspaces.companyId, input.workspace.companyId), eq(executionWorkspaces.id, input.workspace.id)));
+            .where(and(eq(executionWorkspaces.spaceId, input.workspace.spaceId), eq(executionWorkspaces.id, input.workspace.id)));
           const current = readRemoteWorkspaceAuthority(latest?.metadata);
           retryable = Boolean(current && current.epoch === initial.epoch && current.writerRunId === input.runId
             && !current.dirty && current.snapshotId === initial.snapshotId);
@@ -497,12 +497,12 @@ export async function prepareRemoteWorkspace(input: {
       try {
         await prepareRemoteWorkspaceDirectory({ target, remoteCwd: remoteRoot, source: initial.source,
           preparationIdentity,
-          resolveGitAuth: await createRemoteWorkspaceGitAuth(input.db, input.workspace.companyId, input.runId) });
+          resolveGitAuth: await createRemoteWorkspaceGitAuth(input.db, input.workspace.spaceId, input.runId) });
       } catch (error) {
         if (error instanceof RemoteWorkspaceOperationTimeoutError && error.operation === "prepare"
           && !initial.dirty && !initial.location) {
           const [latest] = await input.db.select({ metadata: executionWorkspaces.metadata }).from(executionWorkspaces)
-            .where(and(eq(executionWorkspaces.companyId, input.workspace.companyId), eq(executionWorkspaces.id, input.workspace.id)));
+            .where(and(eq(executionWorkspaces.spaceId, input.workspace.spaceId), eq(executionWorkspaces.id, input.workspace.id)));
           const current = readRemoteWorkspaceAuthority(latest?.metadata);
           if (current && current.epoch === initial.epoch && current.writerRunId === input.runId
             && !current.dirty && !current.location && !current.snapshotId) {
@@ -521,7 +521,7 @@ export async function prepareRemoteWorkspace(input: {
     await prepareRemoteRepository({ target, remoteCwd: remoteWorkspaceRepositoryPath(remoteRoot, repository),
       repoUrl: repository.repoUrl, ref: repository.ref, pinnedCommit: repository.pinnedCommit,
       savedArchive: isSavedWorkspaceRepository(input.workspace, initial, repository),
-      resolveGitAuth: await createRemoteWorkspaceGitAuth(input.db, input.workspace.companyId, input.runId) });
+      resolveGitAuth: await createRemoteWorkspaceGitAuth(input.db, input.workspace.spaceId, input.runId) });
   }
   const recoveredFiles: Array<{ operationId: string; sourceRunId: string; path: string; provenance: string; retired?: true }> = [];
   // A copy that was shown to a run that then succeeded is removed and never attached again.
@@ -532,7 +532,7 @@ export async function prepareRemoteWorkspace(input: {
     // preserved files recorded during migration of an ancestor's workspace.
     const [run] = await input.db.select({ nativeIssueId: heartbeatRuns.nativeIssueId, issueId: heartbeatRuns.issueId,
       context: heartbeatRuns.contextSnapshot }).from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, input.workspace.companyId), eq(heartbeatRuns.id, input.runId)));
+      .where(and(eq(heartbeatRuns.spaceId, input.workspace.spaceId), eq(heartbeatRuns.id, input.runId)));
     const retainedSources = input.workspace.metadata?.remoteWorkspaceRecoverySourceRunIds;
     const recoverySourceRunIds = [...new Set([
       ...(Array.isArray(retainedSources) ? retainedSources.filter((id): id is string => typeof id === "string") : []),
@@ -544,14 +544,14 @@ export async function prepareRemoteWorkspace(input: {
     if (recoverySourceRunIds.length) {
       const scratch = await mkdtemp(path.join(os.tmpdir(), "pc-workspace-recovery-import-"));
       try {
-        const scope = { db: input.db, companyId: input.workspace.companyId, issueId, sourceRunIds: recoverySourceRunIds,
+        const scope = { db: input.db, spaceId: input.workspace.spaceId, issueId, sourceRunIds: recoverySourceRunIds,
           cwd: scratch, storage: input.storage, retiredOperationIds };
         const recovered = [
           ...await attachPreservedWorkspaceSnapshots(scope),
           ...await attachPreservedRemoteWorkspaceSnapshots({ ...scope, runId: input.runId, workspaceId: input.workspace.id }),
         ];
         for (const item of recovered) {
-          const relative = `.paperclip-recovered/${item.operationId}`;
+          const relative = `.outpost-recovered/${item.operationId}`;
           await input.assertOwned?.();
           const provenance = await readFile(path.join(item.path, "provenance.json"), "utf8");
           const exists = await hasRemoteRecoveryAttachment({ target, remoteCwd: remoteRoot, operationId: item.operationId,
@@ -568,8 +568,8 @@ export async function prepareRemoteWorkspace(input: {
     remoteRoot, target, recoveredFiles, retiredOperationIds, assertOwned: input.assertOwned, storage: input.storage });
   await input.assertOwned?.();
   const prepared = await input.db.transaction(async tx => {
-    await lockWorkspaceRunParents(tx, input.workspace.companyId, input.runId);
-    const workspace = await currentWorkspace(tx, input.workspace.companyId, input.workspace.id);
+    await lockWorkspaceRunParents(tx, input.workspace.spaceId, input.runId);
+    const workspace = await currentWorkspace(tx, input.workspace.spaceId, input.workspace.id);
     const current = readRemoteWorkspaceAuthority(workspace.metadata);
     if (!current || current.epoch !== initial.epoch || current.writerRunId !== input.runId) throw new Error("remote_workspace_authority_changed");
     // The same run can retry with a different allocation and stale preparation
@@ -587,7 +587,7 @@ export async function prepareRemoteWorkspace(input: {
       && ((input.source ?? initial.source).repositories ?? []).every(repository => isSavedWorkspaceRepository(input.workspace, initial, repository))
       ? { schema: UNCHANGED_BASELINE_SCHEMA, epoch: authority.epoch, runId: input.runId, snapshotId: initial.snapshotId } : undefined;
     const [lease] = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.id, input.lease.id),
-      eq(environmentLeases.companyId, workspace.companyId))).for("update");
+      eq(environmentLeases.spaceId, workspace.spaceId))).for("update");
     if (!lease || lease.status !== "active" || lease.environmentId !== input.lease.environmentId
       || lease.providerLeaseId !== authority.location!.providerLeaseId || lease.heartbeatRunId !== input.runId
       || (lease.executionWorkspaceId && lease.executionWorkspaceId !== workspace.id)) throw new Error("remote_workspace_lease_changed");
@@ -602,10 +602,10 @@ export async function prepareRemoteWorkspace(input: {
           ? { remoteWorkspaceRecoveredFiles: recoveredFiles.map(item => item.retired ? item : { ...item, presentedToRunId: input.runId }) } : {}) },
       updatedAt: new Date() }).where(eq(executionWorkspaces.id, workspace.id)).returning();
     const runReference = reference(workspace.id, authority, "prepared");
-    const issueId = await persistRunReference(tx, workspace.companyId, input.runId, runReference);
+    const issueId = await persistRunReference(tx, workspace.spaceId, input.runId, runReference);
     if (restoredExport) {
       const [existing] = await tx.select().from(workspaceOperations).where(eq(workspaceOperations.id, restoredExport.operationId)).for("update");
-      if (existing && (existing.companyId !== workspace.companyId || existing.executionWorkspaceId !== workspace.id
+      if (existing && (existing.spaceId !== workspace.spaceId || existing.executionWorkspaceId !== workspace.id
         || existing.heartbeatRunId !== input.runId || existing.phase !== "remote_workspace_restore")) throw new Error("remote_workspace_restore_receipt_changed");
       const metadata = { epoch: authority.epoch, snapshotId: initial.snapshotId,
         exportCleanup: { ...authority.location, stagingRoot: restoredExport.stagingRoot,
@@ -613,7 +613,7 @@ export async function prepareRemoteWorkspace(input: {
         restoreTiming: { schema: "outpost.remote-workspace-restore-timing.v1", ...restoreTiming } };
       if (existing) await tx.update(workspaceOperations).set({ status: "succeeded", metadata, finishedAt: new Date(), updatedAt: new Date() })
         .where(eq(workspaceOperations.id, existing.id));
-      else await tx.insert(workspaceOperations).values({ id: restoredExport.operationId, companyId: workspace.companyId,
+      else await tx.insert(workspaceOperations).values({ id: restoredExport.operationId, spaceId: workspace.spaceId,
         executionWorkspaceId: workspace.id, heartbeatRunId: input.runId, issueId,
         phase: "remote_workspace_restore", status: "succeeded", metadata, finishedAt: new Date() });
     }
@@ -626,17 +626,17 @@ export async function prepareRemoteWorkspace(input: {
   if (publishedBaseline?.runId === input.runId && publishedBaseline.epoch === prepared.reference.epoch && !publishedBaseline.releasedAt) {
     crashPoint("remote_workspace.prepare.after_publish_before_provision");
   }
-  if (restoredExport?.cleanupPending) await cleanupSavedExports({ db: input.db, companyId: input.workspace.companyId,
+  if (restoredExport?.cleanupPending) await cleanupSavedExports({ db: input.db, spaceId: input.workspace.spaceId,
     workspaceId: input.workspace.id, location: readRemoteWorkspaceAuthority(prepared.workspace.metadata)!.location!, target,
     assertOwned: input.assertOwned ?? (async () => undefined) });
   try {
-    await provisionRemoteWorkspace({ db: input.db, companyId: input.workspace.companyId, workspaceId: input.workspace.id,
+    await provisionRemoteWorkspace({ db: input.db, spaceId: input.workspace.spaceId, workspaceId: input.workspace.id,
       runId: input.runId, epoch: initial.epoch, remoteCwd: remoteRoot, target, assertOwned: input.assertOwned,
       commands: [!initial.snapshotId ? input.provisionCommand : null, input.runtimeProvisionCommand] });
     if (!initial.snapshotId) {
       await saveRemoteWorkspace({ ...input, workspace: prepared.workspace, lease: prepared.lease, target,
         assertOwned: input.assertOwned ?? (async () => undefined), boundary: "initial" });
-      const [workspace] = await input.db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.workspace.id), eq(executionWorkspaces.companyId, input.workspace.companyId)));
+      const [workspace] = await input.db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.workspace.id), eq(executionWorkspaces.spaceId, input.workspace.spaceId)));
       prepared.workspace = workspace!;
       prepared.reference = reference(workspace!.id, readRemoteWorkspaceAuthority(workspace!.metadata)!, "prepared");
     }
@@ -661,11 +661,11 @@ async function retireQuiescedSaves(tx: Transaction, workspace: Workspace, runId:
     operationId: workspaceOperations.id, metadata: workspaceOperations.metadata }).from(executionWorkspaceSnapshots)
     .innerJoin(workspaceOperations, and(or(eq(workspaceOperations.id, executionWorkspaceSnapshots.sourceOperationId),
       sql`${workspaceOperations.metadata}->>'reusedSnapshotId' = ${executionWorkspaceSnapshots.id}::text`),
-      eq(workspaceOperations.companyId, workspace.companyId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
+      eq(workspaceOperations.spaceId, workspace.spaceId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
       eq(workspaceOperations.heartbeatRunId, runId), eq(workspaceOperations.phase, "remote_workspace_snapshot"),
       eq(workspaceOperations.status, "succeeded"), sql`${workspaceOperations.metadata}->>'boundary' = 'final'`,
       sql`${workspaceOperations.metadata}->>'epoch' = ${String(epoch)}`))
-    .where(and(eq(executionWorkspaceSnapshots.companyId, workspace.companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
+    .where(and(eq(executionWorkspaceSnapshots.spaceId, workspace.spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
       eq(executionWorkspaceSnapshots.id, authority.snapshotId),
       or(and(eq(executionWorkspaceSnapshots.sourceRunId, runId), eq(executionWorkspaceSnapshots.epoch, epoch)),
         sql`${workspaceOperations.metadata}->>'reusedSnapshotId' = ${executionWorkspaceSnapshots.id}::text`),
@@ -674,7 +674,7 @@ async function retireQuiescedSaves(tx: Transaction, workspace: Workspace, runId:
   const finalGeneration = final.metadata?.reusedSnapshotId === final.id ? Number(final.metadata.generation) : final.generation;
   if (!Number.isSafeInteger(finalGeneration) || finalGeneration < final.generation) return;
   const candidates = await tx.select().from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, workspace.companyId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
+    eq(workspaceOperations.spaceId, workspace.spaceId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
     eq(workspaceOperations.heartbeatRunId, runId), eq(workspaceOperations.phase, "remote_workspace_snapshot"),
     // A save that already ended as failed is retired the same way, so its
     // export staging is still cleaned once the final save commits.
@@ -688,7 +688,7 @@ async function retireQuiescedSaves(tx: Transaction, workspace: Workspace, runId:
       || !sameExportLocation(candidate.metadata?.exportCleanup, location)) continue;
     const [snapshot] = await tx.select({ status: executionWorkspaceSnapshots.status, generation: executionWorkspaceSnapshots.generation,
       epoch: executionWorkspaceSnapshots.epoch, runId: executionWorkspaceSnapshots.sourceRunId }).from(executionWorkspaceSnapshots).where(and(
-      eq(executionWorkspaceSnapshots.companyId, workspace.companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
+      eq(executionWorkspaceSnapshots.spaceId, workspace.spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
       eq(executionWorkspaceSnapshots.sourceOperationId, candidate.id))).for("update");
     if (snapshot && (!["pending", "uploaded"].includes(snapshot.status) || snapshot.generation !== generation
       || snapshot.epoch !== epoch || snapshot.runId !== runId)) continue;
@@ -721,9 +721,9 @@ async function settleSaveInvocation(input: { db: Db; workspace: Workspace; runId
   location: NonNullable<RemoteWorkspaceAuthority["location"]>; operationId: string; invocationId: string;
   failure?: { code: string; cause?: string }; timing?: RemoteWorkspaceSaveTiming & { startedAt: number } }) {
   return input.db.transaction(async tx => {
-    const workspace = await currentWorkspace(tx, input.workspace.companyId, input.workspace.id);
+    const workspace = await currentWorkspace(tx, input.workspace.spaceId, input.workspace.id);
     const [operation] = await tx.select().from(workspaceOperations).where(and(eq(workspaceOperations.id, input.operationId),
-      eq(workspaceOperations.companyId, workspace.companyId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
+      eq(workspaceOperations.spaceId, workspace.spaceId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
       eq(workspaceOperations.heartbeatRunId, input.runId), sql`${workspaceOperations.metadata}->>'epoch' = ${String(input.epoch)}`)).for("update");
     const work = readSaveWork(operation?.metadata);
     if (!operation || !work || !work.activeIds.includes(input.invocationId)) return false;
@@ -763,7 +763,7 @@ export async function releaseUnchangedRemoteWorkspaceWriter(tx: Transaction, inp
   if (!runId || !authority.dirty || !authority.snapshotId || !readUnchangedBaseline(workspace.metadata)) return null;
   // Never wait on a writer run another transaction holds; that owner settles it.
   const [writer] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, workspace.companyId), eq(heartbeatRuns.id, runId))).for("update", { skipLocked: true });
+    eq(heartbeatRuns.spaceId, workspace.spaceId), eq(heartbeatRuns.id, runId))).for("update", { skipLocked: true });
   if (!writer) return null;
   const proof = await proveRemoteWorkspaceUnchanged(tx as unknown as Db, { workspace, authority,
     callerOwnsWriter: input.callerOwnsWriter, isSavedRepository: repository => isSavedWorkspaceRepository(workspace, authority, repository) });
@@ -776,13 +776,13 @@ export async function releaseUnchangedRemoteWorkspaceWriter(tx: Transaction, inp
   const [saved] = await tx.update(executionWorkspaces).set({ metadata: { ...workspace.metadata, remoteWorkspace: released,
     [UNCHANGED_BASELINE_KEY]: { ...proof.baseline, releasedAt: at.toISOString() } }, updatedAt: at })
     .where(eq(executionWorkspaces.id, workspace.id)).returning();
-  await persistRunReference(tx, workspace.companyId, runId, reference(workspace.id, released, "saved"));
+  await persistRunReference(tx, workspace.spaceId, runId, reference(workspace.id, released, "saved"));
   await notifyRemoteWorkspaceSnapshots(tx, `workspace:${workspace.id}`);
   await notifyTerminalWorkspaceWork(tx, `workspace:${workspace.id}`);
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionReplacement);
-  if (input.wakeWaiters !== false) await wakeWorkspaceBusyWaitersInTx(tx as unknown as Db, { companyId: workspace.companyId,
+  if (input.wakeWaiters !== false) await wakeWorkspaceBusyWaitersInTx(tx as unknown as Db, { spaceId: workspace.spaceId,
     runId, contextSnapshot: null, scheduledRetryReason: null, now: at });
-  await persistActivity(tx as unknown as Db, { companyId: workspace.companyId, actorType: "system", actorId: "remote-workspaces",
+  await persistActivity(tx as unknown as Db, { spaceId: workspace.spaceId, actorType: "system", actorId: "remote-workspaces",
     action: "workspace.snapshot_skipped_unchanged", entityType: "execution_workspace", entityId: workspace.id, runId,
     details: { snapshotId: authority.snapshotId, epoch: authority.epoch } });
   return { workspace: saved!, authority: released };
@@ -790,9 +790,9 @@ export async function releaseUnchangedRemoteWorkspaceWriter(tx: Transaction, inp
 
 /** Locks the workspace and releases `runId` as its unchanged ended writer, if provable. */
 export async function releaseUnchangedRemoteWorkspaceWriterById(tx: Transaction, input: {
-  companyId: string; workspaceId: string; runId: string;
+  spaceId: string; workspaceId: string; runId: string;
 }) {
-  const [workspace] = await tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.companyId, input.companyId),
+  const [workspace] = await tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.spaceId, input.spaceId),
     eq(executionWorkspaces.id, input.workspaceId))).for("update");
   const authority = readRemoteWorkspaceAuthority(workspace?.metadata);
   if (!workspace || !authority || authority.writerRunId !== input.runId) return null;
@@ -813,8 +813,8 @@ export async function saveRemoteWorkspace(input: {
   const owner = { [invocationId]: currentControllerProcessStamp() };
   liveSaveInvocationIds.add(invocationId);
   const reserved = await input.db.transaction(async tx => {
-    const issueId = await lockWorkspaceRunParents(tx, input.workspace.companyId, input.runId);
-    const workspace = await currentWorkspace(tx, input.workspace.companyId, input.workspace.id);
+    const issueId = await lockWorkspaceRunParents(tx, input.workspace.spaceId, input.runId);
+    const workspace = await currentWorkspace(tx, input.workspace.spaceId, input.workspace.id);
     const current = readRemoteWorkspaceAuthority(workspace.metadata);
     if (!current || current.epoch !== expected.epoch || (current.writerRunId !== input.runId && current.dirty)) throw new Error("remote_workspace_authority_changed");
     // A writer that ended without changing its files keeps its saved version.
@@ -827,14 +827,14 @@ export async function saveRemoteWorkspace(input: {
         ? await releaseUnchangedRemoteWorkspaceWriter(tx, { workspace, authority: current, callerOwnsWriter: true }) : null;
       if (released?.authority.snapshotId) {
         const [snapshot] = await tx.select().from(executionWorkspaceSnapshots).where(and(
-          eq(executionWorkspaceSnapshots.companyId, workspace.companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
+          eq(executionWorkspaceSnapshots.spaceId, workspace.spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
           eq(executionWorkspaceSnapshots.id, released.authority.snapshotId)));
         if (!snapshot?.sha256) throw new Error("remote_workspace_snapshot_missing");
         return { kind: "unchanged" as const, saved: { snapshotId: snapshot.id, generation: snapshot.generation, sha256: snapshot.sha256,
           savedAt: snapshot.updatedAt.toISOString(), unchanged: true as const } };
       }
     }
-    const [previous] = await tx.select().from(workspaceOperations).where(and(eq(workspaceOperations.companyId, workspace.companyId),
+    const [previous] = await tx.select().from(workspaceOperations).where(and(eq(workspaceOperations.spaceId, workspace.spaceId),
       eq(workspaceOperations.executionWorkspaceId, workspace.id), eq(workspaceOperations.heartbeatRunId, input.runId),
       eq(workspaceOperations.phase, "remote_workspace_snapshot"), sql`${workspaceOperations.metadata}->>'boundary' = ${boundary}`,
       sql`${workspaceOperations.metadata}->>'epoch' = ${String(current.epoch)}`)).limit(1).for("update");
@@ -856,17 +856,17 @@ export async function saveRemoteWorkspace(input: {
     // across epochs while retaining the last committed snapshot as the parent.
     const [reservation] = await tx.execute(sql`select greatest(
       coalesce((select max(${executionWorkspaceSnapshots.generation}) from ${executionWorkspaceSnapshots}
-        where ${executionWorkspaceSnapshots.companyId} = ${workspace.companyId}
+        where ${executionWorkspaceSnapshots.spaceId} = ${workspace.spaceId}
           and ${executionWorkspaceSnapshots.executionWorkspaceId} = ${workspace.id}), 0),
       coalesce((select max(case when ${workspaceOperations.metadata}->>'generation' ~ '^[0-9]+$'
         then (${workspaceOperations.metadata}->>'generation')::numeric else 0 end) from ${workspaceOperations}
-        where ${workspaceOperations.companyId} = ${workspace.companyId}
+        where ${workspaceOperations.spaceId} = ${workspace.spaceId}
           and ${workspaceOperations.executionWorkspaceId} = ${workspace.id}
           and ${workspaceOperations.phase} = 'remote_workspace_snapshot'), 0)
     ) as generation`);
     const generation = Number(reservation?.generation) + 1;
     if (!Number.isSafeInteger(generation) || generation < 1) throw new Error("remote_workspace_snapshot_generation_invalid");
-    const [created] = await tx.insert(workspaceOperations).values({ companyId: workspace.companyId, executionWorkspaceId: workspace.id,
+    const [created] = await tx.insert(workspaceOperations).values({ spaceId: workspace.spaceId, executionWorkspaceId: workspace.id,
       heartbeatRunId: input.runId, issueId, phase: "remote_workspace_snapshot", status: "running",
       metadata: { boundary, epoch: current.epoch, parentSnapshotId: current.snapshotId, generation,
         saveWork: { schema: SAVE_WORK_SCHEMA, activeIds: [invocationId], unknown: false, quiescedAt: null, owners: owner },
@@ -884,7 +884,7 @@ export async function saveRemoteWorkspace(input: {
   // original save's timing instead of overwriting it with an empty record.
   let replayedCommittedSave = false;
   try {
-    const snapshot = await beginWorkspaceSnapshot(input.db, { companyId: input.workspace.companyId, workspaceId: input.workspace.id,
+    const snapshot = await beginWorkspaceSnapshot(input.db, { spaceId: input.workspace.spaceId, workspaceId: input.workspace.id,
       operationId: operation.id, runId: input.runId, parentSnapshotId: operation.metadata?.parentSnapshotId as string | null,
       generation: operation.metadata?.generation as number, epoch: expected.epoch });
     if (operation.status === "succeeded" && ["committed", "superseded"].includes(snapshot.status)) {
@@ -893,7 +893,7 @@ export async function saveRemoteWorkspace(input: {
     }
     if (snapshot.status === "deleted" && snapshot.parentSnapshotId) {
       const [completed] = await input.db.select().from(workspaceOperations).where(and(
-        eq(workspaceOperations.id, operation.id), eq(workspaceOperations.companyId, snapshot.companyId),
+        eq(workspaceOperations.id, operation.id), eq(workspaceOperations.spaceId, snapshot.spaceId),
         eq(workspaceOperations.executionWorkspaceId, snapshot.executionWorkspaceId),
         eq(workspaceOperations.heartbeatRunId, input.runId), eq(workspaceOperations.phase, "remote_workspace_snapshot"),
         eq(workspaceOperations.status, "succeeded"),
@@ -901,7 +901,7 @@ export async function saveRemoteWorkspace(input: {
         sql`${workspaceOperations.metadata}->>'epoch' = ${String(expected.epoch)}`,
         sql`${workspaceOperations.metadata}->>'reusedSnapshotId' = ${snapshot.parentSnapshotId}`));
       if (completed?.finishedAt) {
-        const saved = await getWorkspaceSnapshot(input.db, { companyId: snapshot.companyId,
+        const saved = await getWorkspaceSnapshot(input.db, { spaceId: snapshot.spaceId,
           workspaceId: snapshot.executionWorkspaceId, snapshotId: snapshot.parentSnapshotId });
         if (!saved || completed.metadata?.snapshotId !== saved.id || completed.metadata?.sha256 !== saved.sha256)
           throw new Error("remote_workspace_snapshot_missing");
@@ -910,7 +910,7 @@ export async function saveRemoteWorkspace(input: {
           savedAt: completed.finishedAt.toISOString(), unchanged: true as const };
       }
     }
-    const existingUpload = snapshot.status === "uploaded" ? await getWorkspaceSnapshot(input.db, { companyId: input.workspace.companyId,
+    const existingUpload = snapshot.status === "uploaded" ? await getWorkspaceSnapshot(input.db, { spaceId: input.workspace.spaceId,
       workspaceId: input.workspace.id, snapshotId: snapshot.id }) : null;
     if (existingUpload) timing.reusedUpload = true;
     captured = existingUpload ? null : await captureRemoteWorkspaceArchive({ remoteCwd: expected.location.remoteCwd,
@@ -925,7 +925,7 @@ export async function saveRemoteWorkspace(input: {
       ? await findUnchangedWorkspaceSnapshot({ db: input.db, storage, snapshot, manifestDigest: captured.manifestDigest,
         archiveSha256: captured.sha256, archiveBytes: captured.byteSize, timing: storageTiming }) : null;
     const saved = unchanged ?? await uploadWorkspaceSnapshot({ db: input.db, storage, snapshotId: snapshot.id,
-      companyId: input.workspace.companyId, workspaceId: input.workspace.id, archivePath: captured?.archivePath ?? "",
+      spaceId: input.workspace.spaceId, workspaceId: input.workspace.id, archivePath: captured?.archivePath ?? "",
       manifestDigest: existingUpload?.manifestDigest ?? captured!.manifestDigest, timing: storageTiming });
     timing.uploadMs = Math.max(0, Math.round(performance.now() - uploadStarted));
     await input.assertOwned();
@@ -939,12 +939,12 @@ export async function saveRemoteWorkspace(input: {
     const capturedDirectories = await readRemoteWorkspaceArchiveDirectories(publicationArchive, saved.manifestDigest);
     const at = new Date();
     await input.db.transaction(async tx => {
-      await lockWorkspaceRunParents(tx, input.workspace.companyId, input.runId, operation.issueId);
-      const workspace = await currentWorkspace(tx, input.workspace.companyId, input.workspace.id);
+      await lockWorkspaceRunParents(tx, input.workspace.spaceId, input.runId, operation.issueId);
+      const workspace = await currentWorkspace(tx, input.workspace.spaceId, input.workspace.id);
       const current = readRemoteWorkspaceAuthority(workspace.metadata);
       if (unchanged) {
         const [published] = await tx.select().from(workspaceOperations).where(and(eq(workspaceOperations.id, operation.id),
-          eq(workspaceOperations.companyId, workspace.companyId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
+          eq(workspaceOperations.spaceId, workspace.spaceId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
           eq(workspaceOperations.heartbeatRunId, input.runId))).for("update");
         if (published?.status === "succeeded" && published.metadata?.reusedSnapshotId === saved.id) return;
       }
@@ -955,7 +955,7 @@ export async function saveRemoteWorkspace(input: {
       }
       if (unchanged) {
         const [parent] = await tx.select({ id: executionWorkspaceSnapshots.id }).from(executionWorkspaceSnapshots).where(and(
-          eq(executionWorkspaceSnapshots.id, saved.id), eq(executionWorkspaceSnapshots.companyId, workspace.companyId),
+          eq(executionWorkspaceSnapshots.id, saved.id), eq(executionWorkspaceSnapshots.spaceId, workspace.spaceId),
           eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id), eq(executionWorkspaceSnapshots.status, "committed"),
           eq(executionWorkspaceSnapshots.manifestDigest, saved.manifestDigest), eq(executionWorkspaceSnapshots.objectKey, saved.objectKey),
           eq(executionWorkspaceSnapshots.sha256, saved.sha256), eq(executionWorkspaceSnapshots.byteSize, saved.byteSize),
@@ -966,14 +966,14 @@ export async function saveRemoteWorkspace(input: {
         dirty: boundary !== "final", writerRunId: boundary !== "final" ? input.runId : null };
       const [committed] = unchanged
         ? await tx.update(executionWorkspaceSnapshots).set({ status: "deleted", deleteAfter: null, updatedAt: at }).where(and(
-          eq(executionWorkspaceSnapshots.id, snapshot.id), eq(executionWorkspaceSnapshots.companyId, workspace.companyId),
+          eq(executionWorkspaceSnapshots.id, snapshot.id), eq(executionWorkspaceSnapshots.spaceId, workspace.spaceId),
           eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id), eq(executionWorkspaceSnapshots.status, "pending"),
           isNull(executionWorkspaceSnapshots.objectKey), isNull(executionWorkspaceSnapshots.sha256),
           isNull(executionWorkspaceSnapshots.byteSize), isNull(executionWorkspaceSnapshots.key), isNull(executionWorkspaceSnapshots.manifestDigest),
           sql`coalesce(${executionWorkspaceSnapshots.metadata}->'uploads', '[]'::jsonb) = '[]'::jsonb`
         )).returning({ id: executionWorkspaceSnapshots.id })
         : await tx.update(executionWorkspaceSnapshots).set({ status: "committed", updatedAt: at }).where(and(
-          eq(executionWorkspaceSnapshots.id, saved.id), eq(executionWorkspaceSnapshots.companyId, workspace.companyId),
+          eq(executionWorkspaceSnapshots.id, saved.id), eq(executionWorkspaceSnapshots.spaceId, workspace.spaceId),
           eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id), eq(executionWorkspaceSnapshots.status, "uploaded"))).returning({ id: executionWorkspaceSnapshots.id });
       if (!committed) throw new Error("remote_workspace_snapshot_publication_changed");
       await notifyRemoteWorkspaceSnapshots(tx, `workspace:${workspace.id}`);
@@ -981,7 +981,7 @@ export async function saveRemoteWorkspace(input: {
         await notifyTerminalWorkspaceWork(tx, `workspace:${workspace.id}`);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionReplacement);
         // The hold ends with this commit; runs parked behind it start now.
-        await wakeWorkspaceBusyWaitersInTx(tx as unknown as Db, { companyId: workspace.companyId, runId: input.runId,
+        await wakeWorkspaceBusyWaitersInTx(tx as unknown as Db, { spaceId: workspace.spaceId, runId: input.runId,
           contextSnapshot: null, scheduledRetryReason: null, now: at });
       }
       const receipt = object(workspace.metadata?.remoteWorkspaceSnapshotRepositories);
@@ -998,13 +998,13 @@ export async function saveRemoteWorkspace(input: {
         metadata: sql`coalesce(${workspaceOperations.metadata}, '{}'::jsonb) || ${JSON.stringify({ snapshotId: saved.id, sha256: saved.sha256,
           ...(unchanged ? { reusedSnapshotId: saved.id } : {}) })}::jsonb` })
         .where(eq(workspaceOperations.id, operation.id));
-      await persistRunReference(tx, workspace.companyId, input.runId, reference(workspace.id, authority, boundary === "final" ? "saved" : "prepared"));
-      await persistActivity(tx as unknown as Db, { companyId: workspace.companyId, actorType: "system", actorId: "remote-workspaces",
+      await persistRunReference(tx, workspace.spaceId, input.runId, reference(workspace.id, authority, boundary === "final" ? "saved" : "prepared"));
+      await persistActivity(tx as unknown as Db, { spaceId: workspace.spaceId, actorType: "system", actorId: "remote-workspaces",
         action: unchanged ? "workspace.snapshot_skipped_unchanged" : "workspace.snapshot_saved", entityType: "execution_workspace", entityId: workspace.id, runId: input.runId,
         details: { snapshotId: saved.id, generation: saved.generation, epoch: current.epoch, boundary } });
       if (snapshot.parentSnapshotId && !unchanged) await tx.update(executionWorkspaceSnapshots).set({ status: "superseded",
         deleteAfter: new Date(at.getTime() + 7 * 86400_000), updatedAt: at }).where(and(eq(executionWorkspaceSnapshots.id, snapshot.parentSnapshotId),
-        eq(executionWorkspaceSnapshots.companyId, workspace.companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id)));
+        eq(executionWorkspaceSnapshots.spaceId, workspace.spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id)));
     });
     timing.publishMs = Math.max(0, Math.round(performance.now() - publishStarted));
     return { snapshotId: saved.id, generation: saved.generation, sha256: saved.sha256, savedAt: at.toISOString(),
@@ -1024,7 +1024,7 @@ export async function saveRemoteWorkspace(input: {
       timing: replayedCommittedSave ? undefined : timing });
     try {
       if (await settle()) {
-        await cleanupSavedExports({ db: input.db, companyId: input.workspace.companyId, workspaceId: input.workspace.id,
+        await cleanupSavedExports({ db: input.db, spaceId: input.workspace.spaceId, workspaceId: input.workspace.id,
           location: expected.location, target, assertOwned: input.assertOwned });
       }
     } catch { logger.warn({ runId: input.runId, operationId: operation.id }, "Remote workspace save settlement or export cleanup remains pending"); }
@@ -1037,7 +1037,7 @@ export async function prepareRemoteWorkspaceRepository(input: {
   repository: { id: string; relativePath: string; repoUrl: string; ref: string | null; pinnedCommit?: string; readOnly?: boolean };
   assertOwned?: () => Promise<void>; resolveGitAuth?: ReturnType<typeof createGitRemoteAuthProvider>; verifyOnly?: boolean; storage?: StorageService; deferSave?: boolean;
 }) {
-  input = { ...input, workspace: await input.db.transaction(tx => currentWorkspace(tx, input.workspace.companyId, input.workspace.id)) };
+  input = { ...input, workspace: await input.db.transaction(tx => currentWorkspace(tx, input.workspace.spaceId, input.workspace.id)) };
   const authority = readRemoteWorkspaceAuthority(input.workspace.metadata);
   if (!authority?.location || authority.writerRunId !== input.runId || authority.location.leaseId !== input.lease.id
     || authority.location.providerLeaseId !== input.lease.providerLeaseId) throw new Error("remote_workspace_repository_binding_mismatch");
@@ -1045,7 +1045,7 @@ export async function prepareRemoteWorkspaceRepository(input: {
   const target = requireRemoteWorkspaceTarget(input.target);
   const result = await prepareRemoteRepository({ target, remoteCwd: remoteWorkspaceRepositoryPath(authority.location.remoteCwd, input.repository),
     ...input.repository, verifyOnly: input.verifyOnly, savedArchive: isSavedWorkspaceRepository(input.workspace, authority, input.repository),
-    resolveGitAuth: input.resolveGitAuth ?? await createRemoteWorkspaceGitAuth(input.db, input.workspace.companyId, input.runId) });
+    resolveGitAuth: input.resolveGitAuth ?? await createRemoteWorkspaceGitAuth(input.db, input.workspace.spaceId, input.runId) });
   await input.assertOwned?.();
   const descriptor = { ...input.repository, pinnedCommit: result.pinnedCommit };
   const requiresSave = !isSavedWorkspaceRepository(input.workspace, authority, descriptor);
@@ -1082,9 +1082,9 @@ export function createSavedWorkspaceLoader(db: Db, storage: StorageService = get
     const disk = await statfs(os.tmpdir(), { bigint: true });
     return disk.bavail * disk.bsize;
   });
-  return async (input: { companyId: string; workspaceId: string; snapshotId: string; signal?: AbortSignal }) => {
+  return async (input: { spaceId: string; workspaceId: string; snapshotId: string; signal?: AbortSignal }) => {
     input.signal?.throwIfAborted();
-    const [row] = await db.select().from(executionWorkspaceSnapshots).where(and(eq(executionWorkspaceSnapshots.companyId, input.companyId),
+    const [row] = await db.select().from(executionWorkspaceSnapshots).where(and(eq(executionWorkspaceSnapshots.spaceId, input.spaceId),
       eq(executionWorkspaceSnapshots.executionWorkspaceId, input.workspaceId), eq(executionWorkspaceSnapshots.id, input.snapshotId),
       eq(executionWorkspaceSnapshots.status, "committed")));
     const saved = row ? await getWorkspaceSnapshot(db, input) : null;
@@ -1134,17 +1134,17 @@ export function createSavedWorkspaceLoader(db: Db, storage: StorageService = get
 }
 
 /** Bind credentials to the current run's identity, including shared workspace users. */
-export async function createRemoteWorkspaceGitAuth(db: Db, companyId: string, runId: string,
+export async function createRemoteWorkspaceGitAuth(db: Db, spaceId: string, runId: string,
   create: typeof createGitRemoteAuthProvider = createGitRemoteAuthProvider) {
   const [run] = await db.select({ agentId: heartbeatRuns.agentId, responsibleUserId: heartbeatRuns.responsibleUserId,
     nativeIssueId: heartbeatRuns.nativeIssueId, issueId: heartbeatRuns.issueId, status: heartbeatRuns.status,
     contextIssueId: sql<unknown>`${heartbeatRuns.contextSnapshot}->'issueId'`,
-  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId)));
+  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId)));
   const issueId = run?.nativeIssueId ?? run?.issueId ?? run?.contextIssueId;
   if (!run || run.status !== "running" || typeof issueId !== "string"
     || !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(issueId)) throw new Error("remote_workspace_git_run_unavailable");
-  return create(db, companyId, { issueId, heartbeatRunId: runId, agentId: run.agentId,
-    responsibleUserId: run.responsibleUserId === "local-board" ? null : run.responsibleUserId });
+  return create(db, spaceId, { issueId, heartbeatRunId: runId, agentId: run.agentId,
+    responsibleUserId: run.responsibleUserId === "local-operator" ? null : run.responsibleUserId });
 }
 
 const TERMINAL_RUN_STATUSES = ["succeeded", "failed", "cancelled", "timed_out", "interrupted"];
@@ -1159,10 +1159,10 @@ const TERMINAL_RUN_STATUSES = ["succeeded", "failed", "cancelled", "timed_out", 
 async function provisionOwnerProvenStopped(db: Db, operation: typeof workspaceOperations.$inferSelect): Promise<boolean> {
   if (!operation.heartbeatRunId) return false;
   const [run] = await db.select({ status: heartbeatRuns.status }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, operation.companyId), eq(heartbeatRuns.id, operation.heartbeatRunId)));
+    eq(heartbeatRuns.spaceId, operation.spaceId), eq(heartbeatRuns.id, operation.heartbeatRunId)));
   if (!run || !TERMINAL_RUN_STATUSES.includes(run.status)) return false;
   const leases = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, operation.companyId), eq(environmentLeases.heartbeatRunId, operation.heartbeatRunId)));
+    eq(environmentLeases.spaceId, operation.spaceId), eq(environmentLeases.heartbeatRunId, operation.heartbeatRunId)));
   return leases.length > 0 && leases.every(lease => hasRemoteTerminationReceipt(lease) || hasRecoveredCleanupStopReceipt(lease));
 }
 
@@ -1173,7 +1173,7 @@ async function settleUnverifiedProvision(db: Db, operation: typeof workspaceOper
   await db.update(workspaceOperations).set({ status: "failed", finishedAt: now, updatedAt: now,
     metadata: { ...operation.metadata, uncertain: false, settledBy: "owner_sandbox_stopped" } })
     .where(eq(workspaceOperations.id, operation.id));
-  await persistActivity(db, { companyId: operation.companyId, actorType: "system", actorId: "remote-workspaces",
+  await persistActivity(db, { spaceId: operation.spaceId, actorType: "system", actorId: "remote-workspaces",
     action: "workspace.remote_provision_settled", entityType: "execution_workspace",
     entityId: operation.executionWorkspaceId ?? operation.id, runId: reservingRunId, issueId: operation.issueId ?? undefined,
     details: { operationId: operation.id, ownerRunId: operation.heartbeatRunId,
@@ -1182,10 +1182,10 @@ async function settleUnverifiedProvision(db: Db, operation: typeof workspaceOper
 
 /** Re-proves and settles provisioning rows after the reservation that found
  * them rolled back, so a proven row never blocks again. */
-async function settleProvenProvisions(db: Db, companyId: string, operationIds: string[], reservingRunId: string) {
+async function settleProvenProvisions(db: Db, spaceId: string, operationIds: string[], reservingRunId: string) {
   try {
     await db.transaction(async tx => {
-      const rows = await tx.select().from(workspaceOperations).where(and(eq(workspaceOperations.companyId, companyId),
+      const rows = await tx.select().from(workspaceOperations).where(and(eq(workspaceOperations.spaceId, spaceId),
         inArray(workspaceOperations.id, operationIds), sql`${workspaceOperations.metadata}->>'uncertain' = 'true'`)).for("update");
       for (const operation of rows) {
         if (await provisionOwnerProvenStopped(tx as unknown as Db, operation)) {
@@ -1195,13 +1195,13 @@ async function settleProvenProvisions(db: Db, companyId: string, operationIds: s
     });
   } catch (error) {
     // The next reservation proves and settles them again.
-    logger.warn({ err: error, companyId, operationIds }, "remote workspace provisioning settlement will retry");
+    logger.warn({ err: error, spaceId, operationIds }, "remote workspace provisioning settlement will retry");
   }
 }
 
 /** Arbitrary provisioning commands cannot be replayed after an ambiguous reply. */
 export async function provisionRemoteWorkspace(input: {
-  db: Db; companyId: string; workspaceId: string; runId: string; epoch: number;
+  db: Db; spaceId: string; workspaceId: string; runId: string; epoch: number;
   remoteCwd: string; target: ReturnType<typeof requireRemoteWorkspaceTarget>; commands: Array<string | null | undefined>;
   assertOwned?: () => Promise<void>;
 }) {
@@ -1210,12 +1210,12 @@ export async function provisionRemoteWorkspace(input: {
     await input.assertOwned?.();
     const digest = createHash("sha256").update(command).digest("hex");
     const operation = await input.db.transaction(async tx => {
-      const issueId = await lockWorkspaceRunParents(tx, input.companyId, input.runId);
-      const [workspace] = await tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.id, input.workspaceId))).for("update");
+      const issueId = await lockWorkspaceRunParents(tx, input.spaceId, input.runId);
+      const [workspace] = await tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.id, input.workspaceId))).for("update");
       const authority = readRemoteWorkspaceAuthority(workspace?.metadata);
-      const [run] = await tx.select({ status: heartbeatRuns.status }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId)));
+      const [run] = await tx.select({ status: heartbeatRuns.status }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId)));
       if (!authority || authority.epoch !== input.epoch || authority.writerRunId !== input.runId || run?.status !== "running") throw new Error("remote_workspace_provision_fenced");
-      const [existing] = await tx.select().from(workspaceOperations).where(and(eq(workspaceOperations.companyId, input.companyId),
+      const [existing] = await tx.select().from(workspaceOperations).where(and(eq(workspaceOperations.spaceId, input.spaceId),
         eq(workspaceOperations.executionWorkspaceId, input.workspaceId), eq(workspaceOperations.heartbeatRunId, input.runId),
         eq(workspaceOperations.phase, "remote_workspace_provision"), sql`${workspaceOperations.metadata}->>'index' = ${String(index)}`,
         sql`${workspaceOperations.metadata}->>'epoch' = ${String(input.epoch)}`)).limit(1);
@@ -1223,7 +1223,7 @@ export async function provisionRemoteWorkspace(input: {
         if (existing.metadata?.commandSha256 !== digest || existing.status !== "succeeded") throw new Error("remote_workspace_provision_unverified");
         return null;
       }
-      const [created] = await tx.insert(workspaceOperations).values({ companyId: input.companyId, executionWorkspaceId: input.workspaceId,
+      const [created] = await tx.insert(workspaceOperations).values({ spaceId: input.spaceId, executionWorkspaceId: input.workspaceId,
         heartbeatRunId: input.runId, issueId, phase: "remote_workspace_provision", status: "running",
         metadata: { epoch: input.epoch, index, commandSha256: digest, uncertain: true } }).returning();
       return created!;
@@ -1243,7 +1243,7 @@ export async function provisionRemoteWorkspace(input: {
     await input.assertOwned?.();
     await input.db.transaction(async tx => {
       const [workspace] = await tx.select({ metadata: executionWorkspaces.metadata }).from(executionWorkspaces)
-        .where(and(eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.id, input.workspaceId))).for("update");
+        .where(and(eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.id, input.workspaceId))).for("update");
       const authority = readRemoteWorkspaceAuthority(workspace?.metadata);
       if (authority?.epoch !== input.epoch || authority.writerRunId !== input.runId) throw new Error("remote_workspace_provision_fenced");
       await tx.update(workspaceOperations).set({ status: "succeeded", finishedAt: new Date(), updatedAt: new Date(),

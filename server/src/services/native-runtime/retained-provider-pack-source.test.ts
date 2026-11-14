@@ -172,7 +172,7 @@ it("keeps a matching current pack on its existing path without registry or cache
   const input = await fixture();
   await upload(input, { root: input.selected.pack, sourceDigest: input.selected.manifest.digest });
   expect(input.requests).toEqual([]);
-  await expect(fs.stat(path.join(input.temporary, `paperclip-provider-pack-sources-${process.getuid?.()}`))).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(fs.stat(path.join(input.temporary, `outpost-provider-pack-sources-${process.getuid?.()}`))).rejects.toMatchObject({ code: "ENOENT" });
   expect(await fs.readFile(path.join(input.targetPath, "bin/tool"), "utf8")).toBe("retained provider code");
 });
 
@@ -250,7 +250,7 @@ it("cancels a stalled source body and removes only the unfinished private import
   await rejected;
   expect(input.runner.execute).not.toHaveBeenCalled();
   expect(input.runner.syncIn).not.toHaveBeenCalled();
-  const cache = path.join(input.temporary, `paperclip-provider-pack-sources-${process.getuid?.()}`);
+  const cache = path.join(input.temporary, `outpost-provider-pack-sources-${process.getuid?.()}`);
   await vi.waitFor(async () => expect(await fs.readdir(cache)).toEqual([]));
 });
 
@@ -273,7 +273,7 @@ it("reuses a verified derived cache without registry reads and reconstructs it a
   const first = input.requests.length;
   await upload(input, { targetPath: input.targetPath + "-cached" });
   expect(input.requests).toHaveLength(first);
-  await fs.rm(path.join(input.temporary, `paperclip-provider-pack-sources-${process.getuid?.()}`), { recursive: true });
+  await fs.rm(path.join(input.temporary, `outpost-provider-pack-sources-${process.getuid?.()}`), { recursive: true });
   await upload(input, { targetPath: input.targetPath + "-empty" });
   expect(input.requests.length).toBeGreaterThan(first);
   expect(await fs.readFile(path.join(input.targetPath + "-empty", "bin/tool"), "utf8")).toBe("retained provider code");
@@ -334,7 +334,7 @@ it("shares warm-cache verification while a stopped caller leaves another waiter 
 it("rejects a changed cached archive before any remote command or transfer", async () => {
   const input = await fixture();
   await upload(input);
-  const cache = path.join(input.temporary, `paperclip-provider-pack-sources-${process.getuid?.()}`);
+  const cache = path.join(input.temporary, `outpost-provider-pack-sources-${process.getuid?.()}`);
   const publication = JSON.parse(await fs.readFile(path.join(cache, input.selected.manifest.digest.slice(7) + ".json"), "utf8"));
   await fs.appendFile(path.join(cache, publication.entry, "provider-pack.archives/overlay.tar.zst"), "changed");
   input.runner.execute.mockClear();
@@ -349,7 +349,7 @@ it("refuses an unsafe cache directory instead of following it", async () => {
   const input = await fixture();
   const outside = path.join(input.root, "outside");
   await fs.mkdir(outside);
-  await fs.symlink(outside, path.join(input.temporary, `paperclip-provider-pack-sources-${process.getuid?.()}`));
+  await fs.symlink(outside, path.join(input.temporary, `outpost-provider-pack-sources-${process.getuid?.()}`));
   await expect(upload(input)).rejects.toThrow("runner_remote_provider_source_invalid");
   expect(await fs.readdir(outside)).toEqual([]);
   expect(input.requests).toEqual([]);

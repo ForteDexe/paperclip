@@ -7,10 +7,10 @@
 import { extractWakeCommentIds, WAKE_COMMENT_IDS_KEY, wakeChatConversationsConflict } from "../../run-dispatch/index.js";
 import { parseObject, readNonEmptyString } from "./values.js";
 
-const OUTPOST_WAKE_PAYLOAD_KEY = "paperclipWake";
-const OUTPOST_WAKE_COMMENT_KEY = "paperclipWakeComment";
-const OUTPOST_TASK_MARKDOWN_KEY = "paperclipTaskMarkdown";
-const OUTPOST_TASK_MARKDOWN_COMPACT_KEY = "paperclipTaskMarkdownCompact";
+const OUTPOST_WAKE_PAYLOAD_KEY = "outpostWake";
+const OUTPOST_WAKE_COMMENT_KEY = "outpostWakeComment";
+const OUTPOST_TASK_MARKDOWN_KEY = "outpostTaskMarkdown";
+const OUTPOST_TASK_MARKDOWN_COMPACT_KEY = "outpostTaskMarkdownCompact";
 
 const INTERACTION_CONTINUATION_CONTEXT_KEYS = [
   "interactionId",
@@ -144,7 +144,7 @@ export function enrichPromotedWakeContext(
   if (!readNonEmptyString(contextSnapshot["wakeReason"]) && reason) {
     contextSnapshot.wakeReason = reason;
   }
-  // Some durable receipts, such as a board Retry, store only the payload and
+  // Some durable receipts, such as a operator Retry, store only the payload and
   // never had a queued context snapshot. Keep their issue scope.
   if (!readNonEmptyString(contextSnapshot["issueId"]) && issueIdFromPayload) {
     contextSnapshot.issueId = issueIdFromPayload;

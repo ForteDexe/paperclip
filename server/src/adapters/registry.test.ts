@@ -106,7 +106,7 @@ describe("built-in runtime connection tool delivery", () => {
 
 describe("native Cursor Cloud environment checks", () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
-  const context = { companyId: "company-test", adapterType: "outpost_runner",
+  const context = { spaceId: "space-test", adapterType: "outpost_runner",
     config: { provider: "cursor_cloud", model: "caller-model", repoUrl: "https://github.com/acme/repo", env: { CURSOR_API_KEY: "bound-cloud-key" } } };
 
   it("checks account access without a prompt and makes unavailable model attestation explicit", async () => {
@@ -162,7 +162,7 @@ describe("native ACPX environment checks", () => {
   afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
   const context = {
-    companyId: "company-test",
+    spaceId: "space-test",
     adapterType: "outpost_runner",
     config: { provider: "acpx", acpxAgent: "claude", model: "claude-sonnet-5" },
   };
@@ -178,7 +178,7 @@ describe("native ACPX environment checks", () => {
 
     const ready = await requireServerAdapter("outpost_runner").testEnvironment!({ ...context, config: { ...config, env: { KIMI_API_KEY: "fixture-key" } } });
     expect(ready.status).toBe("pass");
-    expect(probeKimiRemote).toHaveBeenCalledExactlyOnceWith("fixture-key", undefined, model, { companyId: context.companyId });
+    expect(probeKimiRemote).toHaveBeenCalledExactlyOnceWith("fixture-key", undefined, model, { spaceId: context.spaceId });
     expect(probeKimiInstallation).not.toHaveBeenCalled();
     expect(probeKimiModels).not.toHaveBeenCalled();
     expect(probeInstallation).not.toHaveBeenCalled();
@@ -208,7 +208,7 @@ describe("native ACPX environment checks", () => {
     });
     expect(result.status).toBe("pass");
     expect(result.checks[0]).toMatchObject({ code: "kimi_metadata_verified" });
-    expect(probeKimiRemote).toHaveBeenCalledExactlyOnceWith("fixture-key", target, model, { companyId: context.companyId });
+    expect(probeKimiRemote).toHaveBeenCalledExactlyOnceWith("fixture-key", target, model, { spaceId: context.spaceId });
     expect(runner.execute).not.toHaveBeenCalled();
     expect(probeKimiInstallation).not.toHaveBeenCalled();
     expect(probeKimiModels).not.toHaveBeenCalled();
@@ -286,7 +286,7 @@ describe("native ACPX environment checks", () => {
   });
 
   it("identifies an incomplete installation and gives the operator a repair", async () => {
-    probeInstallation.mockRejectedValue(Object.assign(new Error("The Claude ACP runtime package is missing. Reinstall or rebuild Paperclip."), { code: "ACPX_RUNTIME_PACKAGE_MISSING" }));
+    probeInstallation.mockRejectedValue(Object.assign(new Error("The Claude ACP runtime package is missing. Reinstall or rebuild Outpost."), { code: "ACPX_RUNTIME_PACKAGE_MISSING" }));
     const result = await requireServerAdapter("outpost_runner").testEnvironment!(context);
     expect(result.status).toBe("fail");
     expect(result.checks[0]).toMatchObject({ code: "acpx_runtime_package_missing", message: expect.stringContaining("Reinstall or rebuild") });
@@ -380,7 +380,7 @@ describe("native ACPX environment checks", () => {
 
 function authorizeKimi(model: string) {
   vi.stubEnv("OUTPOST_ACPX_CANDIDATE_ADMISSION", JSON.stringify({ schema: "outpost.acpx-candidate-admission.v1",
-    companyId: "company-test", agent: "kimi", model, profileDigest: QUALIFIED_ACPX_PROFILES.kimi.commandDigest,
+    spaceId: "space-test", agent: "kimi", model, profileDigest: QUALIFIED_ACPX_PROFILES.kimi.commandDigest,
     platform: "linux", architecture: "x64", nativeClosureDigest: `sha256:${KIMI_DISTRIBUTION_CLOSURE_SHA256["linux-x64"]}`,
     expiresAt: Date.now() + 60_000 }));
 }
@@ -391,7 +391,7 @@ describe("plugin Runner-task environment checks", () => {
     { provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5" },
   ])("requires a managed AI connection before any task operation: %j", async config => {
     const runnerTask = vi.fn();
-    const result = await requireServerAdapter("outpost_runner").testEnvironment!({ companyId: "company-test", adapterType: "outpost_runner", config,
+    const result = await requireServerAdapter("outpost_runner").testEnvironment!({ spaceId: "space-test", adapterType: "outpost_runner", config,
       executionTarget: { kind: "remote", transport: "sandbox", remoteCwd: ".", leaseId: "probe-lease",
         runnerTaskProbe: { runId: "probe-run", sessionId: "probe-session" }, runnerTask } as never });
     expect(result).toMatchObject({ adapterType: "outpost_runner", status: "fail",

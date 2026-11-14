@@ -1,7 +1,7 @@
 import { artifactReviewDocumentKey } from "@outpost/shared";
 import type { LabArtifact } from "../../kit";
 import { registerApiRoute } from "../../api-stub";
-import { COMPANY } from "../../fixtures";
+import { SPACE } from "../../fixtures";
 import { agentId, guid, isTaskDocument, toIssueDocument, toWorkProduct } from "./adapters";
 
 /**
@@ -73,8 +73,8 @@ function annotations(artifacts: LabArtifact[], reviewKey: string) {
 }
 
 registerApiRoute((pathname) => {
-  if (pathname === `/api/companies/${COMPANY.id}/agents`) {
-    return [...agents].map((name) => ({ id: agentId(name), companyId: COMPANY.id, name }));
+  if (pathname === `/api/spaces/${SPACE.id}/agents`) {
+    return [...agents].map((name) => ({ id: agentId(name), spaceId: SPACE.id, name }));
   }
   const match = /^\/api\/issues\/([^/]+)\/(.+)$/.exec(pathname);
   const artifacts = match ? panels.get(match[1]) : undefined;

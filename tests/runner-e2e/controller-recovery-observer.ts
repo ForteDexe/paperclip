@@ -6,11 +6,11 @@ import { createRequire } from "node:module";
 const { sql }: typeof import("../../packages/db/node_modules/drizzle-orm/index.js") =
   createRequire(new URL("../../packages/db/package.json", import.meta.url))("drizzle-orm");
 import { createDb, type Db } from "../../packages/db/src/index.js";
-import { paperclipConfigSchema } from "../../packages/shared/src/config-schema.js";
+import { outpostConfigSchema } from "../../packages/shared/src/config-schema.js";
 import { loadNativeRunnerCheckpoint } from "../../server/src/services/native-runtime/native-runner-checkpoint.js";
 import type { ControllerReplacementReceipt } from "./controller-replacement.js";
 
-export interface RecoveryBinding { companyId: string; issueId: string; runId: string }
+export interface RecoveryBinding { spaceId: string; issueId: string; runId: string }
 export interface RecoverySnapshot {
   runId: string; runnerInstanceId: string; nativeSessionId: string;
   status: string; phase: string; resultId: string | null;
@@ -48,7 +48,7 @@ export interface ControllerRecoveryReceipt {
 export function parseRecoveryBinding(value: unknown): RecoveryBinding {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid controller recovery binding");
   const row = value as Record<string, unknown>;
-  if (Object.keys(row).length !== 3 || !["companyId", "issueId", "runId"].every(key =>
+  if (Object.keys(row).length !== 3 || !["spaceId", "issueId", "runId"].every(key =>
     typeof row[key] === "string" && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(row[key] as string))) {
     throw new Error("Invalid controller recovery binding");
   }
@@ -110,9 +110,9 @@ export async function readControllerRecoverySnapshot(db: Db, binding: RecoveryBi
       r.native_session_id as "nativeSessionId", f.controller_boot_id as "bootId", f.controller_generation as generation,
       f.attempt, f.lease_expires_at::text as "leaseExpiresAt", f.recovery_history as history,
       coalesce((select max(e.source_seq) from heartbeat_run_events e where e.run_id = r.id
-        and e.company_id = r.company_id and e.source_instance_id = r.runner_instance_id::text), 0)::float8 as "sourceSeq"
-      from heartbeat_runs r join native_run_finalizations f on f.run_id = r.id and f.company_id = r.company_id
-      where r.id = ${binding.runId} and r.company_id = ${binding.companyId} and r.native_issue_id = ${binding.issueId}`);
+        and e.space_id = r.space_id and e.source_instance_id = r.runner_instance_id::text), 0)::float8 as "sourceSeq"
+      from heartbeat_runs r join native_run_finalizations f on f.run_id = r.id and f.space_id = r.space_id
+      where r.id = ${binding.runId} and r.space_id = ${binding.spaceId} and r.native_issue_id = ${binding.issueId}`);
     if (!row?.runnerInstanceId || !row.nativeSessionId || !row.bootId) throw new Error("Recovery binding has no admitted native owner");
     if (!Array.isArray(row.history) || row.history.some(entry => entry === null
       || typeof entry !== "object" || Array.isArray(entry))) {
@@ -131,9 +131,9 @@ export async function readControllerRecoverySnapshot(db: Db, binding: RecoveryBi
 }
 
 export async function createControllerRecoveryObserver(configPath: string, binding: RecoveryBinding) {
-  const config = paperclipConfigSchema.parse(JSON.parse(await readFile(configPath, "utf8")));
+  const config = outpostConfigSchema.parse(JSON.parse(await readFile(configPath, "utf8")));
   const url = config.database.mode === "postgres" ? config.database.connectionString
-    : `postgres://paperclip:paperclip@127.0.0.1:${config.database.embeddedPostgresPort}/paperclip`;
+    : `postgres://outpost:outpost@127.0.0.1:${config.database.embeddedPostgresPort}/outpost`;
   if (!url) throw new Error("Qualification database is unavailable");
   const db = createDb(url);
   let before: RecoverySnapshot | undefined;

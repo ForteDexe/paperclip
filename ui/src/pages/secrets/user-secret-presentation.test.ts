@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CompanySecret, UserSecretDefinition } from "@outpost/shared";
+import type { SpaceSecret, UserSecretDefinition } from "@outpost/shared";
 import {
   coverageSummaryLabel,
   myValueLabel,
@@ -7,10 +7,10 @@ import {
 } from "./user-secret-presentation";
 import { myValueState } from "./my-value-state";
 
-function makeSecret(status: CompanySecret["status"]): CompanySecret {
+function makeSecret(status: SpaceSecret["status"]): SpaceSecret {
   return {
     id: "sec-1",
-    companyId: "c1",
+    spaceId: "c1",
     scope: "user",
     ownerUserId: "u1",
     userSecretDefinitionId: "def-1",
@@ -18,7 +18,7 @@ function makeSecret(status: CompanySecret["status"]): CompanySecret {
     name: "Personal GH token",
     provider: "local_encrypted",
     status,
-    managedMode: "paperclip_managed",
+    managedMode: "outpost_managed",
     externalRef: null,
     providerConfigId: null,
     providerMetadata: null,

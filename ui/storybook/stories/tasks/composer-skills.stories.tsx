@@ -6,30 +6,30 @@ import { buildSkillMentionHref } from "@outpost/shared";
 import { TaskChatComposer } from "@/components/task-chat/TaskChatComposer";
 import { TaskChatComposerDock } from "@/components/task-chat/TaskChatComposerDock";
 import { TaskChatThreadView } from "@/components/task-chat/TaskChatThreadView";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { composerSkills } from "../../support/composerSkills";
 
 function TaskSkillsStory() {
   const client = useQueryClient();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { isMobile } = useSidebar();
   const [sent, setSent] = useState<string | null>(null);
 
   useLayoutEffect(() => {
-    if (!selectedCompanyId) return;
+    if (!selectedSpaceId) return;
     const originalFetch = window.fetch;
     window.fetch = async (input, init) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin);
-      if (url.pathname === `/api/companies/${selectedCompanyId}/skills`) return Response.json(composerSkills);
-      if (url.pathname === `/api/companies/${selectedCompanyId}/routines`) return Response.json([]);
+      if (url.pathname === `/api/spaces/${selectedSpaceId}/skills`) return Response.json(composerSkills);
+      if (url.pathname === `/api/spaces/${selectedSpaceId}/routines`) return Response.json([]);
       return originalFetch(input, init);
     };
-    client.setQueryData(queryKeys.companySkills.list(selectedCompanyId), composerSkills);
-    client.setQueryData(queryKeys.routines.list(selectedCompanyId), []);
+    client.setQueryData(queryKeys.spaceSkills.list(selectedSpaceId), composerSkills);
+    client.setQueryData(queryKeys.routines.list(selectedSpaceId), []);
     return () => { window.fetch = originalFetch; };
-  }, [client, selectedCompanyId]);
+  }, [client, selectedSpaceId]);
 
   return <div className="flex min-h-dvh flex-col bg-background text-foreground">
     <header className="flex h-12 items-center border-b border-border px-6 text-sm">Tasks / Fix the sign-in redirect</header>
@@ -55,7 +55,7 @@ const meta = {
   component: TaskSkillsStory,
   parameters: {
     layout: "fullscreen",
-    paperclip: {
+    outpost: {
       capabilities: ["tasks/discussion", "tasks/create"],
       status: "current",
       implementation: "production",

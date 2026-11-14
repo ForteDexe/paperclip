@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { IssueAttachment } from "@outpost/shared";
 import { TaskSidePanel } from "@/components/task-side-panel/TaskSidePanel";
 import { queryKeys } from "@/lib/queryKeys";
-import { createIssue } from "../../fixtures/paperclipData";
+import { createIssue } from "../../fixtures/outpostData";
 
 const markdown = "# Account review charter\n\nInvestigate whether new and active accounts succeeded.\n\n## Rules\n\n- Read customer data only.\n- Keep private information out of reports.\n- Report failures with evidence.\n\n```text\nReview → Evidence → Report\n```";
 const plain = "Daily review summary\n\nAccounts reviewed: 20\nCompleted successfully: 18\nNeeds investigation: 2\n\n<This is plain text, not HTML.>";
@@ -17,15 +17,15 @@ function TextFilesStory({ initial = "list", width = 640 }: { initial?: "list" | 
       { id: "summary", originalFilename: "summary.txt", contentType: "text/plain", byteSize: 160 },
       { id: "empty", originalFilename: "empty.txt", contentType: "text/plain", byteSize: 0 },
       { id: "large", originalFilename: "large.log", contentType: "text/plain", byteSize: 600000 },
-    ].map((file) => ({ ...file, issueId: issue.id, companyId: issue.companyId, createdByAgentId: "reviewer", createdByUserId: null, issueCommentId: null, objectKey: file.originalFilename, contentPath: `/api/attachments/${file.id}/content`, downloadPath: `data:text/plain;charset=utf-8,${encodeURIComponent(file.id === "charter" ? markdown : plain)}`, createdAt: new Date("2026-09-27T00:00:00Z"), updatedAt: new Date("2026-09-27T00:00:00Z") } as IssueAttachment));
+    ].map((file) => ({ ...file, issueId: issue.id, spaceId: issue.spaceId, createdByAgentId: "reviewer", createdByUserId: null, issueCommentId: null, objectKey: file.originalFilename, contentPath: `/api/attachments/${file.id}/content`, downloadPath: `data:text/plain;charset=utf-8,${encodeURIComponent(file.id === "charter" ? markdown : plain)}`, createdAt: new Date("2026-09-27T00:00:00Z"), updatedAt: new Date("2026-09-27T00:00:00Z") } as IssueAttachment));
     client.setQueryData(queryKeys.issues.attachments(issue.id), files);
     client.setQueryData(queryKeys.issues.workProducts(issue.id), []);
     client.setQueryData([...queryKeys.issues.documents(issue.id), "list"], []);
     client.setQueryData([...queryKeys.issues.documents(issue.id), "plan"], null);
     client.setQueryData(queryKeys.issues.runs(issue.id), []);
-    client.setQueryData(queryKeys.agents.list(issue.companyId), []);
+    client.setQueryData(queryKeys.agents.list(issue.spaceId), []);
     for (const [id, text] of [["charter", markdown], ["summary", plain], ["empty", ""]]) client.setQueryData(["task-text-attachment", issue.id, id], text);
-    window.localStorage.removeItem(`paperclip:task-side-panel:v1:storybook-text-files:${issue.companyId}`);
+    window.localStorage.removeItem(`outpost:task-side-panel:v1:storybook-text-files:${issue.spaceId}`);
     return { client, issue };
   });
   const id = initial === "markdown" ? "charter" : initial === "text" ? "summary" : initial;
@@ -42,7 +42,7 @@ function TextFilesStory({ initial = "list", width = 640 }: { initial?: "list" | 
 }
 const meta = { id: "tasks-text-file-tabs",
   title: "Tasks and conversations/Documents, attachments, and work products/Tasks/Text file tabs", component: TextFilesStory, parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "documents-artifacts/attachments"
       ],

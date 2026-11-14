@@ -6,28 +6,28 @@ import {
   ONBOARDING_STORAGE_KEY,
 } from "@/components/OnboardingWizard";
 import { useDialog } from "@/context/DialogContext";
-import { useCompanyListQuery } from "@/api/companies-query";
+import { useSpaceListQuery } from "@/api/spaces-query";
 import { Button } from "@/components/ui/button";
 import {
   seedOnboardingDraft,
   clearOnboardingDraft,
 } from "../../fixtures/onboardingDraft";
 function Resume() {
-  const companies = useCompanyListQuery();
+  const spaces = useSpaceListQuery();
   const { openOnboarding } = useDialog();
   const [generation, setGeneration] = useState(0);
   useEffect(() => {
-    if (companies.isSuccess)
-      openOnboarding({ initialStep: 3, companyId: "company-storybook" });
-  }, [companies.isSuccess, openOnboarding]);
+    if (spaces.isSuccess)
+      openOnboarding({ initialStep: 3, spaceId: "space-storybook" });
+  }, [spaces.isSuccess, openOnboarding]);
   return (
     <>
-      {companies.isSuccess ? <OnboardingWizard key={generation} /> : null}
+      {spaces.isSuccess ? <OnboardingWizard key={generation} /> : null}
       <Button
         className="fixed bottom-4 right-4 z-50"
         onClick={() => {
           setGeneration((n) => n + 1);
-          openOnboarding({ initialStep: 3, companyId: "company-storybook" });
+          openOnboarding({ initialStep: 3, spaceId: "space-storybook" });
         }}
       >
         Reopen saved draft
@@ -41,26 +41,26 @@ const meta = {
     "Getting started and access/Onboarding and first work/Resume a saved draft",
   component: Resume,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "onboarding/resume"
       ],
       "status": "current",
       "implementation": "production",
       "boundary": "fixtures",
-      "notes": "OnboardingWizard restores a seeded draft, malformed/unavailable-company handling and draft retention across a fixture remount. The reopen button belongs to the fixture host; real reload, account switch and storage failure remain separate checks."
+      "notes": "OnboardingWizard restores a seeded draft, malformed/unavailable-space handling and draft retention across a fixture remount. The reopen button belongs to the fixture host; real reload, account switch and storage failure remain separate checks."
     },
   },
   beforeEach: ({ parameters }) => {
     seedOnboardingDraft();
     if (parameters.invalid)
       localStorage.setItem(ONBOARDING_STORAGE_KEY, "invalid JSON");
-    if (parameters.otherCompany)
+    if (parameters.otherSpace)
       localStorage.setItem(
         ONBOARDING_STORAGE_KEY,
         JSON.stringify({
           step: 3,
-          createdCompanyId: "unavailable-company",
+          createdSpaceId: "unavailable-space",
           agentName: "Another account's draft",
         }),
       );
@@ -104,8 +104,8 @@ export const DraftAfterRemount: Story = {
   },
 };
 export const MalformedDraft: Story = { parameters: { invalid: true } };
-export const UnavailableCompanyDraft: Story = {
-  parameters: { otherCompany: true },
+export const UnavailableSpaceDraft: Story = {
+  parameters: { otherSpace: true },
   play: async () => {
     const body = within(document.body);
     await expect(await body.findByTestId("onboarding-wizard")).toBeVisible();

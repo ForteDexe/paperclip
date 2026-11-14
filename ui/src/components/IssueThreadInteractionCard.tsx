@@ -56,7 +56,7 @@ import { CoordinatorTaskCommitment } from "./coordinator/CoordinatorTaskCommitme
 import { DecisionCardFooter } from "./DecisionCardFooter";
 import { ToolActionAuditHashCopy } from "./ToolActionAuditHashCopy";
 
-const OTHER_ANSWER_ID = "__paperclip_other__";
+const OTHER_ANSWER_ID = "__outpost_other__";
 
 /**
  * The card's server-evaluated audience, shared with the per-kind subcards below
@@ -160,7 +160,7 @@ function resolveActorLabel(args: {
 
 /**
  * Administrative terminal outcomes (P1): an interaction that was withdrawn by
- * its board/agent, or auto-expired when its issue reached a terminal state.
+ * its operator/agent, or auto-expired when its issue reached a terminal state.
  * Both are stored as `status="cancelled"|"expired"` with the distinguishing
  * fact carried on `result.outcome` (there is no dedicated `withdrawn` status).
  */
@@ -337,7 +337,7 @@ function planStatusClasses(
  * A `request_confirmation` that carries a `payload.toolAction` block gates a
  * write/destructive MCP tool call (PAP-13726 §D1). It renders as a dedicated
  * tool-approval card (PAP-13745) instead of the generic confirmation rendering.
- * The governing rule: approve = run, so the card never terminally reads
+ * The controlling rule: approve = run, so the card never terminally reads
  * "Accepted" — terminal states are Executed / Failed / Declined / Expired.
  */
 function toolActionPayload(
@@ -1235,7 +1235,7 @@ function AskUserQuestionsCard({
           id={interaction.id}
           presentation={compact ? "decision" : "default"}
           questionSet={interaction.payload.questionSet}
-          draftKey={`issue-question:${interaction.companyId}:${interaction.id}`}
+          draftKey={`issue-question:${interaction.spaceId}:${interaction.id}`}
           disabled={!onSubmitInteractionAnswers}
           initialResponse={interaction.result?.answers ? {
             schema: "outpost.question_response.v1",
@@ -1467,7 +1467,7 @@ function AskUserQuestionsCard({
           <p className="mt-1">
             {interaction.result?.outcome === "issue_closed"
               ? "This question request expired automatically when the issue reached a terminal state."
-              : "A later board/user comment superseded this question request. Create a fresh request if answers are still needed."}
+              : "A later operator/user comment superseded this question request. Create a fresh request if answers are still needed."}
           </p>
           {interaction.result?.commentId ? (
             <a
@@ -1693,7 +1693,7 @@ function RequestConfirmationResolution({
         )}
         <p className="leading-6">
           {expiredByComment
-            ? "A board comment superseded this confirmation before it was resolved."
+            ? "A operator comment superseded this confirmation before it was resolved."
             : expiredByIssueClosed
               ? "This confirmation expired automatically when the issue reached a terminal state."
               : "The requested target changed before this confirmation was resolved."}
@@ -2000,7 +2000,7 @@ function SecretProposalResolution({
   resolvedByLabel: string | null;
 }) {
   const result = interaction.result?.secretProposal ?? null;
-  const who = resolvedByLabel ?? "the board";
+  const who = resolvedByLabel ?? "the operator";
   const when = interaction.resolvedAt
     ? formatDateTime(interaction.resolvedAt)
     : result?.updatedAt
@@ -2464,7 +2464,7 @@ function connectionAuthorizationStatusClasses(
  * This is deliberately *not* the generic Approve / Revise… / Reject grammar it
  * used to fall through to. Authorization is not a review: there is nothing to
  * revise, "Reject" is the wrong word for declining to link your own account,
- * and only one person in the company can answer at all. So the card composes
+ * and only one person in the space can answer at all. So the card composes
  * one title, one body, and exactly the affordances the reader legitimately has:
  *
  * - the addressed person gets the single primary **Connect <Provider>** target
@@ -2626,7 +2626,7 @@ function RequestConnectionAuthorizationCard({
       ) : (
         // Declined or expired. No Connect action: the authorization target this
         // card carried is spent, and the agent asks again with a fresh one
-        // rather than the board replaying a dead URL.
+        // rather than the operator replaying a dead URL.
         <ConnectionAuthorizationStatusLine
           Icon={state === "declined" ? MinusCircle : CircleDashed}
           testId={state === "declined" ? "connection-authorization-declined" : "connection-authorization-expired"}
@@ -2700,7 +2700,7 @@ function RequestConfirmationCard({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // Screenshots ride along in the revise note as markdown image refs so the
-  // board can attach images when sending a plan back — no schema change needed.
+  // operator can attach images when sending a plan back — no schema change needed.
   const allowScreenshots = isPlan && Boolean(onUploadImage);
   const rejectRequiresReason = interaction.payload.rejectRequiresReason === true;
   const allowRevise = interaction.payload.allowDeclineReason !== false;
@@ -3799,7 +3799,7 @@ export function IssueThreadInteractionCard({
         interaction.result && "outcome" in interaction.result ? interaction.result.outcome : null,
       )
     : null;
-  // Interactions can be directed at a specific agent or board user. Resolved
+  // Interactions can be directed at a specific agent or operator user. Resolved
   // before the status styling because the connection-authorization badge names
   // the addressee ("Waiting for Carol").
   const addresseeLabel = interaction.addresseeAgentId || interaction.addresseeUserId
@@ -3822,7 +3822,7 @@ export function IssueThreadInteractionCard({
   const adminOutcome = getAdministrativeOutcome(interaction);
   const adminReason = adminOutcome ? getAdministrativeReason(interaction) : null;
   // P4 (design review R2): a withdrawal is a neutral administrative retraction by
-  // the requester — NOT a board "no". It must not inherit the `cancelled` card's
+  // the requester — NOT a operator "no". It must not inherit the `cancelled` card's
   // rose/red border + XCircle, which is pixel-identical to a rejected plan and
   // mis-signals a denial to anyone scanning the thread. Give withdrawn its own
   // inert lane (sibling to the calm `expired` state): muted border/badge +
@@ -4163,7 +4163,7 @@ export function IssueThreadInteractionCard({
 
 /**
  * Small audit chip marking that an interaction was resolved by an agent (rather
- * than a human user) — governed agent resolution introduced in P2.
+ * than a human user) — controlled agent resolution introduced in P2.
  */
 function ResolvedByAgentChip() {
   return (
@@ -4179,7 +4179,7 @@ function ResolvedByAgentChip() {
         </Badge>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="max-w-xs text-xs">
-        Resolved by an agent under the outpost's interaction governance policy — audit-distinct from a human board resolution.
+        Resolved by an agent under the outpost's interaction policy policy — audit-distinct from a human operator resolution.
       </TooltipContent>
     </Tooltip>
   );

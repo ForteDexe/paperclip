@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, companies, completionContracts, createDb, environmentLeases, environments, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
+import { agents, spaces, completionContracts, createDb, environmentLeases, environments, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
 import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } from "./helpers/full-database-response-capture.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { heartbeatService } from "../services/heartbeat.js";
@@ -19,7 +19,7 @@ import { environmentService } from "../services/environments.js";
 import { nativeEnvironmentSettlementDisposition, nativeEnvironmentSettlementWork } from "../services/native-runtime/native-environment-settlement-work.js";
 import { notifyNativeEnvironmentSettlement } from "../services/native-environment-settlement-notifications.js";
 import { finalizeNativeRun } from "../services/native-runtime/native-run-finalizer.js";
-import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "../services/native-runtime/outpost-control-plane-port.js";
 import { NativeRunCoordinatorStore } from "../services/native-runtime/native-run-coordinator-store.js";
 import { workspaceOperationService } from "../services/workspace-operations.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
@@ -56,7 +56,7 @@ describe("native environment release scheduling", () => {
   let release: ReturnType<typeof vi.fn<EnvironmentRuntimeDriver["releaseRunLease"]>>;
   let failing = false, admitted = true;
   let stopOnly: ReturnType<typeof vi.fn>;
-  const companyId = randomUUID(), agentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID();
   let environmentId: string;
   const priorLogs = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH;
   const errors: unknown[] = [];
@@ -66,8 +66,8 @@ describe("native environment release scheduling", () => {
     const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_ENVIRONMENT_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("native-environment-");
     db = createDb(external ?? temporary!.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Environment settlement", issuePrefix: `NE${randomUUID().slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Release owner", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Environment settlement", issuePrefix: `NE${randomUUID().slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Release owner", adapterType: "outpost_runner" });
     environmentId = (await db.select({ id: environments.id }).from(environments).where(eq(environments.driver, "local")))[0].id;
   }, 30_000);
   beforeEach(() => {
@@ -82,7 +82,7 @@ describe("native environment release scheduling", () => {
   afterEach(async () => {
     await coordinator?.stop(); coordinator = undefined; worker = undefined;
     vi.useRealTimers(); vi.restoreAllMocks();
-    await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, companyId));
+    await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, spaceId));
     expect(errors).toEqual([]);
   });
   afterAll(async () => {
@@ -114,21 +114,21 @@ describe("native environment release scheduling", () => {
   }
   async function seed() {
     const runId = randomUUID(), issueId = randomUUID(), contractId = randomUUID(), sourceInstanceId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Commit accepted work", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Commit accepted work", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "result-worker-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "result-worker-v1", objective: "Finish", criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, runtimeMode: "native", status: "running",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, runtimeMode: "native", status: "running",
       nativeIssueId: issueId, nativeSessionId: runId, runnerInstanceId: sourceInstanceId,
       completionContractId: contractId, completionContractSha256: contractId, contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    return { companyId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
+    return { spaceId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
       completionContractSha256: contractId, sourceInstanceId, controlPlaneSourceInstanceId: "result-worker-test" };
   }
   async function complete(binding: Awaited<ReturnType<typeof seed>>, producer: "control_plane" | "coordinator", writer: Db = db, terminalStatus: "succeeded" | "failed" | "cancelled" = "succeeded") {
-    const port = producer === "control_plane" ? new PaperclipControlPlanePort(writer, binding)
+    const port = producer === "control_plane" ? new OutpostControlPlanePort(writer, binding)
       : new NativeRunCoordinatorStore(writer, { ...binding, normalizedSessionId: binding.sessionId,
         runnerSourceInstanceId: binding.sourceInstanceId,
         completionContractRevision: CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim.contractRevision,
@@ -137,7 +137,7 @@ describe("native environment release scheduling", () => {
       callerResultId: `${binding.runId}:result` });
   }
   async function barrier(binding: Awaited<ReturnType<typeof seed>>) {
-    await workspaceOperationService(db).createRecorder({ companyId, issueId: binding.issueId, heartbeatRunId: binding.runId })
+    await workspaceOperationService(db).createRecorder({ spaceId, issueId: binding.issueId, heartbeatRunId: binding.runId })
       .recordOperation({ phase: "workspace_finalize", cwd: root, run: async () => ({ status: "succeeded", exitCode: 0 }) });
   }
   async function state(runId: string) {
@@ -156,7 +156,7 @@ describe("native environment release scheduling", () => {
     return binding;
   }
   async function lease(binding: Awaited<ReturnType<typeof seed>>, writer: Db = db) {
-    return environmentService(writer).acquireLease({ companyId, environmentId, heartbeatRunId: binding.runId,
+    return environmentService(writer).acquireLease({ spaceId, environmentId, heartbeatRunId: binding.runId,
       issueId: binding.issueId, leasePolicy: "ephemeral", provider: "local", providerLeaseId: randomUUID() });
   }
   it("discovers and rechecks cleanup without loading unrelated saved run payloads", async () => {
@@ -185,7 +185,7 @@ describe("native environment release scheduling", () => {
     const settle = vi.fn(async () => {});
     const work = nativeEnvironmentSettlementWork(db, settle);
     try {
-      const entries = await work.load({ companyId });
+      const entries = await work.load({ spaceId });
 
 
       expect(entries.map(entry => entry.id)).toEqual([fixtures[0].runId]);
@@ -202,13 +202,13 @@ describe("native environment release scheduling", () => {
     expect(stored.resultJson?.savedOutput).toBe(payload);
   });
 
-  it("ignores routine company-only finalization hints and still releases a real native lease", async () => {
+  it("ignores routine space-only finalization hints and still releases a real native lease", async () => {
     await start(); await quiet();
     const previous = db.$client.options.debug, queries: string[] = [];
     db.$client.options.debug = (_id, query) => queries.push(query);
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
-        await db.transaction(tx => notifyNativeFinalizationWork(tx, { companyId }));
+        await db.transaction(tx => notifyNativeFinalizationWork(tx, { spaceId }));
         await flush();
       }
       expect(queries.filter(query => query.startsWith("select") && query.includes('"environment_leases"'))).toEqual([]);
@@ -338,13 +338,13 @@ describe("native environment release scheduling", () => {
     await environmentService(db).releaseLease(cleanup.id, "pending_cleanup", { cleanupStatus: "failed" });
     await start(); await quiet(); expect(release).not.toHaveBeenCalled();
   });
-  it("honors the saved pending-cleanup deadline and the exact company scope", async () => {
+  it("honors the saved pending-cleanup deadline and the exact space scope", async () => {
     const binding = await committed(), acquired = await lease(binding);
     await environmentService(db).updateLeaseMetadata(acquired.id, { nativeWorkspaceExportResume: {}, pendingCleanupRetryAfterMs: Date.now() + 600_000 });
     await environmentService(db).releaseLease(acquired.id, "pending_cleanup", { cleanupStatus: "failed" });
     const work = nativeEnvironmentSettlementWork(db, async () => undefined);
-    expect(await work.load({ companyId: randomUUID(), runId: binding.runId })).toEqual([]);
-    const [pending] = await work.load({ companyId, runId: binding.runId });
+    expect(await work.load({ spaceId: randomUUID(), runId: binding.runId })).toEqual([]);
+    const [pending] = await work.load({ spaceId, runId: binding.runId });
     expect(pending.dueAt).toBeGreaterThanOrEqual(Date.now() + 599_000);
     await start(); expect(release).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(120_000); expect(release).not.toHaveBeenCalled();
@@ -380,7 +380,7 @@ describe("native environment release scheduling", () => {
       finalHostSha256: "c".repeat(64), workspaceId: randomUUID(), leaseId: randomUUID(), providerLeaseId: "kept", remoteCwd: "/workspace",
       resourceDisposition: "keep_running",
     } } }).where(eq(heartbeatRuns.id, binding.runId));
-    const acquired = await environmentService(db).acquireLease({ companyId, environmentId, heartbeatRunId: binding.runId,
+    const acquired = await environmentService(db).acquireLease({ spaceId, environmentId, heartbeatRunId: binding.runId,
       issueId: binding.issueId, leasePolicy: "reuse_by_environment", provider: "local", providerLeaseId: "kept" });
     await start(); await flush(); expect(release).not.toHaveBeenCalled();
     expect((await environmentService(db).getLeaseById(acquired.id))?.status).toBe("retained"); await quiet();
@@ -389,7 +389,7 @@ describe("native environment release scheduling", () => {
     const binding = await committed();
     await db.update(heartbeatRuns).set({ status, runnerProfileJson: { nativeResourceDisposition: "keep_running" } })
       .where(eq(heartbeatRuns.id, binding.runId));
-    const acquired = await environmentService(db).acquireLease({ companyId, environmentId, heartbeatRunId: binding.runId,
+    const acquired = await environmentService(db).acquireLease({ spaceId, environmentId, heartbeatRunId: binding.runId,
       issueId: binding.issueId, leasePolicy: "reuse_by_environment", provider: "local", providerLeaseId: randomUUID() });
     await start(); await flush();
     expect(release).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ resourceDisposition: "stop_and_retain" }));
@@ -469,7 +469,7 @@ describe("native environment release scheduling", () => {
   it("permits the first attempt for a freshly prepared stop without bypassing an old retry", async () => {
     const binding = await committed(), sandboxId = randomUUID();
     await db.insert(environments).values({ id: sandboxId, name: `Fresh stop ${sandboxId}`, driver: "sandbox" });
-    const acquired = await environmentService(db).acquireLease({ companyId, environmentId: sandboxId,
+    const acquired = await environmentService(db).acquireLease({ spaceId, environmentId: sandboxId,
       heartbeatRunId: binding.runId, issueId: binding.issueId, leasePolicy: "ephemeral", provider: "e2b", providerLeaseId: "fresh-stop" });
     await start(); expect(stopOnly).toHaveBeenCalledTimes(1);
 

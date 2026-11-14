@@ -2,14 +2,14 @@ import { expect } from "@playwright/test";
 import { JourneyError, type JourneyContext, type JourneyEvidence, type TargetSession } from "./types.js";
 
 export async function taskProperties(context: JourneyContext, _session: TargetSession, _campaignId: string, evidence: JourneyEvidence) {
-  for (const capability of ["company", "board-user", "task-write"]) {
+  for (const capability of ["space", "board-user", "task-write"]) {
     if (!context.capabilities.includes(capability)) throw new JourneyError("unsupported", `missing_${capability}`);
   }
-  const { api, page, company, user } = context;
+  const { api, page, space, user } = context;
   const issue = context.fixtures?.backlogTask;
   if (!issue?.id || !issue.title || !issue.identifier) throw new JourneyError("blocked", "missing_prepared_backlog_task");
   // The declared starting point is the task list. Navigation to the task is a user action.
-  await page.goto(`${api.origin}/${company.issuePrefix}/issues`);
+  await page.goto(`${api.origin}/${space.issuePrefix}/issues`);
   await page.getByRole("link").filter({ hasText: issue.title }).first().click();
   const properties = page.getByRole("button", { name: /^(Show properties|Properties)$/ }).first();
   if (await properties.isVisible()) await properties.click();

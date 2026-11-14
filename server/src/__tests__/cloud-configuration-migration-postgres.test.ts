@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyPendingMigrations, closeRegisteredClients, createDb, instanceSettings, plugins, type Db } from "@outpost/db";
 import { eq, inArray, sql } from "drizzle-orm";
-import { paperclipConfigSchema } from "@outpost/shared";
+import { outpostConfigSchema } from "@outpost/shared";
 import { adapterSettingsService, initializeAdapterSettings } from "../services/adapter-settings.js";
 import { cloudRuntimeConfigService, initializeCloudRuntimeConfig } from "../services/cloud-runtime-config.js";
 import { cloudConfigurationMigrationService } from "../services/cloud-configuration-migration.js";
@@ -52,7 +52,7 @@ const keys = ["adapter-settings:v1", "cloud-runtime-config:v1", "cloud-configura
   afterAll(async () => { await database?.cleanup(); });
 
   async function legacy() {
-    const config = paperclipConfigSchema.parse({
+    const config = outpostConfigSchema.parse({
       $meta: { version: 1, updatedAt: "2026-10-30T00:00:00.000Z", source: "configure" },
       database: { mode: "postgres" }, logging: { mode: "cloud" },
       storage: { provider: "s3", s3: { bucket: "migration-bucket" } },

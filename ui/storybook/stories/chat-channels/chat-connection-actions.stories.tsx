@@ -4,8 +4,8 @@ import { ConnectorCard } from "@/pages/apps/Browse";
 import type { ChatEndpoint } from "@/api/chatEndpoints";
 
 const endpoint: ChatEndpoint = {
-  id: "slack-active", companyId: "demo", provider: "slack", status: "active",
-  assignedAgentId: "ceo", assignedAgentName: "CEO", providerAccountLabel: "Paperclip",
+  id: "slack-active", spaceId: "demo", provider: "slack", status: "active",
+  assignedAgentId: "ceo", assignedAgentName: "CEO", providerAccountLabel: "Outpost",
   allowUnlinkedPeople: false,
 };
 
@@ -14,7 +14,7 @@ const meta = {
   title: "Apps, channels, and extensions/External chat and email/Connections/Chat connection actions",
   component: ConnectorCard,
   parameters: { layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "chat-channels/providers"
       ],
@@ -25,7 +25,7 @@ const meta = {
   args: {
     row: {
       key: "slack", slug: "slack", name: "Slack", brandKey: "slack",
-      description: "Give agents Slack tools or let people start and continue Paperclip work from Slack.",
+      description: "Give agents Slack tools or let people start and continue Outpost work from Slack.",
       entry: null, applications: [], connections: [],
       chatEndpoints: [endpoint, { ...endpoint, id: "slack-draft", status: "draft", assignedAgentName: "Carl" }],
     },

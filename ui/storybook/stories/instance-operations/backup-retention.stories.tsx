@@ -19,7 +19,7 @@ const meta = {
           "Shipped general settings. Retention changes persist within this fixture; database backup and restoration require operator verification.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "instance-operations/backup",
         "instance-operations/configuration"

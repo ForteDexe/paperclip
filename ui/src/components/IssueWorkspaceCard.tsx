@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { executionWorkspacesApi } from "../api/execution-workspaces";
 import { environmentsApi } from "../api/environments";
 import { instanceSettingsApi } from "../api/instanceSettings";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { queryKeys } from "../lib/queryKeys";
 import { copyTextToClipboard } from "../lib/clipboard";
 import {
@@ -152,16 +152,16 @@ interface IssueWorkspaceCardProps {
   issue: Omit<
     Pick<
       Issue,
-      | "companyId"
+      | "spaceId"
       | "projectId"
       | "projectWorkspaceId"
       | "executionWorkspaceId"
       | "executionWorkspacePreference"
       | "executionWorkspaceSettings"
     >,
-    "companyId"
+    "spaceId"
   > & {
-    companyId: string | null;
+    spaceId: string | null;
     currentExecutionWorkspace?: ExecutionWorkspace | null;
   };
   project: {
@@ -195,8 +195,8 @@ export function IssueWorkspaceCard({
   onOpenFileByPath,
 }: IssueWorkspaceCardProps) {
   const { visible: workspaceIsolationControlsVisible } = useWorkspaceIsolationControls();
-  const { selectedCompanyId } = useCompany();
-  const companyId = issue.companyId ?? selectedCompanyId;
+  const { selectedSpaceId } = useSpace();
+  const spaceId = issue.spaceId ?? selectedSpaceId;
   const [editing, setEditing] = useState(initialEditing);
 
   const { data: experimentalSettings } = useQuery({
@@ -217,9 +217,9 @@ export function IssueWorkspaceCard({
 
   const workspace = issue.currentExecutionWorkspace as ExecutionWorkspace | null | undefined;
   const { data: environments } = useQuery({
-    queryKey: queryKeys.environments.list(companyId!),
-    queryFn: () => environmentsApi.list(companyId!),
-    enabled: Boolean(companyId) && environmentsEnabled,
+    queryKey: queryKeys.environments.list(spaceId!),
+    queryFn: () => environmentsApi.list(spaceId!),
+    enabled: Boolean(spaceId) && environmentsEnabled,
   });
 
   const {
@@ -227,18 +227,18 @@ export function IssueWorkspaceCard({
     isLoading: reusableExecutionWorkspacesLoading,
     isError: reusableExecutionWorkspacesError,
   } = useQuery({
-    queryKey: queryKeys.executionWorkspaces.list(companyId!, {
+    queryKey: queryKeys.executionWorkspaces.list(spaceId!, {
       projectId: issue.projectId ?? undefined,
       projectWorkspaceId: issue.projectWorkspaceId ?? undefined,
       reuseEligible: true,
     }),
     queryFn: () =>
-      executionWorkspacesApi.list(companyId!, {
+      executionWorkspacesApi.list(spaceId!, {
         projectId: issue.projectId ?? undefined,
         projectWorkspaceId: issue.projectWorkspaceId ?? undefined,
         reuseEligible: true,
       }),
-    enabled: Boolean(companyId) && Boolean(issue.projectId) && editing && workspaceIsolationControlsVisible,
+    enabled: Boolean(spaceId) && Boolean(issue.projectId) && editing && workspaceIsolationControlsVisible,
   });
 
   const selectableReusableWorkspaces = reusableExecutionWorkspaces ?? [];

@@ -14,14 +14,14 @@ suite("MCP discovery over HTTP", () => {
   let db!: ReturnType<typeof createDb>;
   let temp!: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   beforeAll(async () => {
-    temp = await startEmbeddedPostgresTestDatabase("paperclip-discovery-http-");
+    temp = await startEmbeddedPostgresTestDatabase("outpost-discovery-http-");
     db = createDb(temp.connectionString);
   });
   afterAll(async () => { await temp?.cleanup(); });
 
   it("finishes an admitted provider call when token cleanup runs during dispatch", async () => {
     const fixture = await createListingFixture(db, 6);
-    await db.insert(connectionGrants).values({ companyId: fixture.company.id, connectionId: fixture.connection.id,
+    await db.insert(connectionGrants).values({ spaceId: fixture.space.id, connectionId: fixture.connection.id,
       kind: "organization", status: "active", isDefault: true });
     let calls = 0;
     const gateway = createToolGatewayService(db, { remoteHttpRequest: async (_url, init) => {
@@ -52,7 +52,7 @@ suite("MCP discovery over HTTP", () => {
   it("discovers a large catalog concurrently, calls a tool, and rechecks changed policy", async () => {
     const fixture = await createListingFixture(db, 500);
     await db.insert(connectionGrants).values({
-      companyId: fixture.company.id, connectionId: fixture.connection.id,
+      spaceId: fixture.space.id, connectionId: fixture.connection.id,
       kind: "organization", status: "active", isDefault: true,
     });
     const calls: string[] = [];
@@ -86,7 +86,7 @@ suite("MCP discovery over HTTP", () => {
     expect(called.status, JSON.stringify(called.body)).toBe(200);
     expect(calls).toEqual(["tool_0004"]);
     await db.insert(toolPolicies).values({
-      companyId: fixture.company.id, name: `Revoke ${randomUUID()}`, policyType: "block", priority: 0,
+      spaceId: fixture.space.id, name: `Revoke ${randomUUID()}`, policyType: "block", priority: 0,
       selectors: { catalogEntryId: fixture.entries[4]!.id },
     });
     await post("tools/call", { name: read.name, arguments: {} }).expect(403);

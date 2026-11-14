@@ -1,19 +1,19 @@
 import { parseGitHubSkillRepositoryUrl } from "@outpost/shared";
-import type { AgentDesiredSkillEntry, CompanySkillDetail, CompanySkillListItem, CompanySkillVersion, CompanySkill, SkillSource, SkillPackageInspection, SkillSourceCandidate, SkillSourceEntry, SkillSourceRefreshResult, SkillRepositoryPackage } from "@outpost/shared";
-import { companySkillsApi } from "@/api/companySkills";
+import type { AgentDesiredSkillEntry, SpaceSkillDetail, SpaceSkillListItem, SpaceSkillVersion, SpaceSkill, SkillSource, SkillPackageInspection, SkillSourceCandidate, SkillSourceEntry, SkillSourceRefreshResult, SkillRepositoryPackage } from "@outpost/shared";
+import { spaceSkillsApi } from "@/api/spaceSkills";
 import { agentsApi } from "@/api/agents";
 import { foldersApi } from "@/api/folders";
-import { storybookAgents } from "./paperclipData";
+import { storybookAgents } from "./outpostData";
 import { skillSourcesApi } from "@/api/skillSources";
 
-export const COMPANY_ID = "company-storybook";
+export const SPACE_ID = "space-storybook";
 export const SOURCE_ID = "source-team-skills";
 export const COMMIT = "a17d36c9e4521f06b932ac670854d1293f24bc18";
 const fixtureSkillId = (entryId: string) => `00000000-0000-4000-8000-${entryId.replace('entry-', '').padStart(12, '0')}`;
 const packageContents: Record<string, Record<string, string | null>> = {
-  'SKILL.md': { 'SKILL.md': '---\nname: Team handbook\ndescription: Shared team conventions\n---\nRead [team conventions](references/conventions.md) before starting.\n', 'references/conventions.md': '# Team conventions\n\nKeep changes company-scoped. Report evidence with each review.\n', 'LICENSE': 'Example license text' },
-  '.agents/skills/review/SKILL.md': { 'SKILL.md': '---\nname: Code review\ndescription: Review code changes\ncompatibility: Requires Python 3.11 and git.\n---\nRead [the checklist](references/checklist.md). Run `scripts/review.py` when a diff is ready.\n', 'references/checklist.md': '# Review checklist\n\n- Check company boundaries.\n- Test failure handling.\n- Verify migrations.\n', 'scripts/review.py': '#!/usr/bin/env python3\nprint("Ready to review the diff")\n', 'assets/diagram.png': null, 'LICENSE': 'Example license text' },
-  '.agents/skills/review/security/SKILL.md': { 'SKILL.md': '---\nname: Security review\ndescription: Review authentication boundaries\ncompatibility: Requires Python 3.11.\n---\nRead [policy](../../shared/policy.md) and [threat model](references/threat-model.md).\n', 'scripts/check.py': '#!/usr/bin/env python3\nprint("Check company boundaries")\n', 'references/checklist.md': '# Security checklist\n\n- Validate caller access.\n- Preserve company boundaries.\n' },
+  'SKILL.md': { 'SKILL.md': '---\nname: Team handbook\ndescription: Shared team conventions\n---\nRead [team conventions](references/conventions.md) before starting.\n', 'references/conventions.md': '# Team conventions\n\nKeep changes space-scoped. Report evidence with each review.\n', 'LICENSE': 'Example license text' },
+  '.agents/skills/review/SKILL.md': { 'SKILL.md': '---\nname: Code review\ndescription: Review code changes\ncompatibility: Requires Python 3.11 and git.\n---\nRead [the checklist](references/checklist.md). Run `scripts/review.py` when a diff is ready.\n', 'references/checklist.md': '# Review checklist\n\n- Check space boundaries.\n- Test failure handling.\n- Verify migrations.\n', 'scripts/review.py': '#!/usr/bin/env python3\nprint("Ready to review the diff")\n', 'assets/diagram.png': null, 'LICENSE': 'Example license text' },
+  '.agents/skills/review/security/SKILL.md': { 'SKILL.md': '---\nname: Security review\ndescription: Review authentication boundaries\ncompatibility: Requires Python 3.11.\n---\nRead [policy](../../shared/policy.md) and [threat model](references/threat-model.md).\n', 'scripts/check.py': '#!/usr/bin/env python3\nprint("Check space boundaries")\n', 'references/checklist.md': '# Security checklist\n\n- Validate caller access.\n- Preserve space boundaries.\n' },
   'skills/research/SKILL.md': { 'SKILL.md': '---\nname: Research\ndescription: Gather primary sources\n---\nRead [method](references/method.md).\n', 'references/method.md': '# Research method\n\nStart with primary sources.\n' },
   'experimental/deploy/SKILL.md': { 'SKILL.md': '---\nname: Deploy preview\n---\nDeploy the app.', 'README.md': '# Deployment notes' },
 };
@@ -32,7 +32,7 @@ function inspection(skillPath: string): SkillPackageInspection {
 export const candidates: SkillSourceCandidate[] = [
   { path: "SKILL.md", name: "Team handbook", description: "Shared conventions and context for every agent.", error: null },
   { path: ".agents/skills/review/SKILL.md", name: "Code review", description: "Review changes for correctness and maintainability.", error: null },
-  { path: ".agents/skills/review/security/SKILL.md", name: "Security review", description: "Inspect authentication and company boundaries.", error: null },
+  { path: ".agents/skills/review/security/SKILL.md", name: "Security review", description: "Inspect authentication and space boundaries.", error: null },
   { path: "skills/research/SKILL.md", name: "Research", description: "Gather primary sources and write a concise brief.", error: null },
   { path: "experimental/deploy/SKILL.md", name: "Deploy preview", description: null, error: "Missing required description in SKILL.md frontmatter." },
 ].map(candidate => ({ ...candidate, inspection: inspection(candidate.path), fileCount: Object.keys(packageContents[candidate.path]!).length, warnings: [] }));
@@ -42,7 +42,7 @@ export const repositoryContents: Record<string, string | null> = Object.fromEntr
     Object.entries(files).map(([file, content]) => [root.replace(/SKILL.md$/, '') + file, content])),
 );
 Object.assign(repositoryContents, {
-  '.agents/skills/shared/policy.md': '# Shared policy\n\nCheck company boundaries before changing access.',
+  '.agents/skills/shared/policy.md': '# Shared policy\n\nCheck space boundaries before changing access.',
   '.agents/skills/review/security/references/threat-model.md': '# Threat model\n\nReview caller authorization.',
   'NOTICE.md': 'Example upstream credits are preserved with this repository.',
   'outpost.skills.json': JSON.stringify({ version: 1, skills: ['.agents/skills/review/SKILL.md', 'skills/research/SKILL.md'], requirements: 'Python 3.11 and Git. Configure GitHub access for agents that review pull requests.' }, null, 2),
@@ -61,7 +61,7 @@ export function repositoryCandidates(scenario: PackageScenario = 'ready'): Skill
 
 export function sourceFixture(): SkillSource {
   return {
-    id: SOURCE_ID, companyId: COMPANY_ID, repositoryId: "123456",
+    id: SOURCE_ID, spaceId: SPACE_ID, repositoryId: "123456",
     repositoryUrl: "https://github.com/acme/team-skills", fullName: "acme/team-skills",
     trackingRef: "main", connectionId: "github-storybook", excludedFolders: ["experimental"],
     enabled: true, revision: 1, lastAttemptAt: new Date(), lastSuccessAt: new Date(),
@@ -75,15 +75,15 @@ export function sourceFixture(): SkillSource {
   };
 }
 
-export function importedSkill(source: SkillSource, entry: SkillSourceEntry): CompanySkill {
+export function importedSkill(source: SkillSource, entry: SkillSourceEntry): SpaceSkill {
   return {
-    id: entry.skillId!, companyId: COMPANY_ID, key: `github/${source.id}/${entry.path}`,
+    id: entry.skillId!, spaceId: SPACE_ID, key: `github/${source.id}/${entry.path}`,
     slug: entry.name.toLowerCase().replaceAll(" ", "-"), name: entry.name, description: entry.description,
     markdown: `---\nname: ${entry.name}\ndescription: ${entry.description}\n---\n\n# ${entry.name}\n\n${entry.description}\n\n## Workflow\n\n1. Read the task and the relevant project context.\n2. Follow the checklist in references/checklist.md.\n3. Report findings with evidence and clear next steps.\n`, sourceType: "github", sourceLocator: source.repositoryUrl, sourceRef: COMMIT,
     trustLevel: source.packageMode === "repository" || entry.inspection?.files.some(file => file.kind === "script" || file.executable) ? "scripts_executables" : "markdown_only", compatibility: "compatible", fileInventory: [{ path: "SKILL.md", kind: "skill" }, { path: "references/checklist.md", kind: "reference" }],
     iconUrl: null, color: null, tagline: null, authorName: null, homepageUrl: null,
-    categories: [], sharingScope: "company", publicShareToken: null, forkedFromSkillId: null,
-    forkedFromCompanyId: null, starCount: 0, installCount: 0, forkCount: 0,
+    categories: [], sharingScope: "space", publicShareToken: null, forkedFromSkillId: null,
+    forkedFromSpaceId: null, starCount: 0, installCount: 0, forkCount: 0,
     currentVersionId: `version-${entry.id}`, metadata: { skillSourceId: source.id, skillSourcePath: entry.path, skillSourceState: "synced" }, createdAt: new Date(), updatedAt: new Date(),
   };
 }
@@ -101,7 +101,7 @@ export function installFixtures(empty: boolean, needsConnection: boolean, option
   });
   const original = { ...skillSourcesApi };
   const sources = empty ? [] : [sourceFixture()];
-  const originalSkills = { ...companySkillsApi };
+  const originalSkills = { ...spaceSkillsApi };
   const originalAgents = { ...agentsApi };
   const originalFolders = { ...foldersApi };
   const discoveryCandidates = options.packageScenario ? repositoryCandidates() : options.journey ? candidates.filter(candidate => !candidate.path.includes('/security/')) : candidates;
@@ -119,7 +119,7 @@ export function installFixtures(empty: boolean, needsConnection: boolean, option
     const review = sourceSkills().find(skill => skill.slug === 'code-review');
     if (review) assigned.set(demoAgents[0].id, [{ key: review.key, versionId: null }]);
   }
-  function detail(id: string): CompanySkillDetail {
+  function detail(id: string): SpaceSkillDetail {
     const skill = sourceSkills().find(skill => skill.id === id);
     if (!skill) throw new Error('This skill is not installed in the preview.');
     const usedByAgents = demoAgents.filter(agent => assigned.get(agent.id)?.some(entry => entry.key === skill.key)).map(agent => ({
@@ -130,27 +130,27 @@ export function installFixtures(empty: boolean, needsConnection: boolean, option
       editableReason: 'This skill is synced from GitHub. Make a copy to edit it.', sourceLabel: 'GitHub', sourceBadge: 'github',
       sourcePath: String(skill.metadata?.skillSourcePath), currentVersion: version(skill), starredByCurrentActor: false };
   }
-  function version(skill: CompanySkill): CompanySkillVersion {
-    return { id: skill.currentVersionId!, companyId: COMPANY_ID, companySkillId: skill.id, revisionNumber: 1,
+  function version(skill: SpaceSkill): SpaceSkillVersion {
+    return { id: skill.currentVersionId!, spaceId: SPACE_ID, spaceSkillId: skill.id, revisionNumber: 1,
       label: null, releaseId: null, releaseName: null, releasedAt: null, authorAgentId: null, authorUserId: 'user-board', createdAt: skill.createdAt,
-      fileInventory: [{ path: 'SKILL.md', kind: 'skill', content: skill.markdown }, { path: 'references/checklist.md', kind: 'reference', content: '# Checklist\n\n- Check company boundaries.\n- Verify failure handling.\n- Include evidence in the review.' }],
+      fileInventory: [{ path: 'SKILL.md', kind: 'skill', content: skill.markdown }, { path: 'references/checklist.md', kind: 'reference', content: '# Checklist\n\n- Check space boundaries.\n- Verify failure handling.\n- Include evidence in the review.' }],
     };
   }
   if (options.journey) {
-    companySkillsApi.list = async () => sourceSkills().map(skill => ({ ...detail(skill.id), catalogKind: null, originHash: null, packageName: null, packageVersion: null } satisfies CompanySkillListItem));
-    companySkillsApi.detail = async (_companyId, id) => detail(id);
-    companySkillsApi.categories = async () => [];
-    companySkillsApi.catalogList = async () => [];
-    companySkillsApi.versions = async (_companyId, id) => [version(detail(id))];
-    companySkillsApi.file = async (_companyId, id, path) => ({ skillId: id, path, kind: path === 'SKILL.md' ? 'skill' : 'reference',
+    spaceSkillsApi.list = async () => sourceSkills().map(skill => ({ ...detail(skill.id), catalogKind: null, originHash: null, packageName: null, packageVersion: null } satisfies SpaceSkillListItem));
+    spaceSkillsApi.detail = async (_spaceId, id) => detail(id);
+    spaceSkillsApi.categories = async () => [];
+    spaceSkillsApi.catalogList = async () => [];
+    spaceSkillsApi.versions = async (_spaceId, id) => [version(detail(id))];
+    spaceSkillsApi.file = async (_spaceId, id, path) => ({ skillId: id, path, kind: path === 'SKILL.md' ? 'skill' : 'reference',
       content: version(detail(id)).fileInventory.find(file => file.path === path)?.content ?? '', language: 'markdown', markdown: true, editable: false });
-    companySkillsApi.updateStatus = async () => ({ supported: true, reason: null, trackingRef: 'main', currentRef: COMMIT, latestRef: COMMIT,
+    spaceSkillsApi.updateStatus = async () => ({ supported: true, reason: null, trackingRef: 'main', currentRef: COMMIT, latestRef: COMMIT,
       hasUpdate: false, installedHash: null, originHash: null, userModifiedAt: null, updateHoldReason: null, auditVerdict: null, auditCodes: [] });
-    companySkillsApi.comments = async () => [];
-    companySkillsApi.testInputs = async () => [];
-    companySkillsApi.testRuns = async () => [];
-    companySkillsApi.testRunTemplates = async () => [];
-    companySkillsApi.forkPrecheck = async (_companyId, id) => {
+    spaceSkillsApi.comments = async () => [];
+    spaceSkillsApi.testInputs = async () => [];
+    spaceSkillsApi.testRuns = async () => [];
+    spaceSkillsApi.testRunTemplates = async () => [];
+    spaceSkillsApi.forkPrecheck = async (_spaceId, id) => {
       const skill = detail(id);
       return { skillId: id, original: { id, name: skill.name, slug: skill.slug, sourceType: skill.sourceType, sourceLocator: skill.sourceLocator, sourceRef: skill.sourceRef }, agentUsageCount: skill.attachedAgentCount, usedByAgents: skill.usedByAgents, existingForks: [] };
     };
@@ -164,7 +164,7 @@ export function installFixtures(empty: boolean, needsConnection: boolean, option
   }
   if (needsConnection && sources[0]) sources[0].lastError = "GitHub access is no longer available. Reconnect GitHub or choose another connection.";
   function save(source: SkillSource, selectedPaths: string[], excludedFolders: string[]): SkillSourceRefreshResult {
-    const imported: CompanySkill[] = [];
+    const imported: SpaceSkill[] = [];
     const warnings: string[] = [...(source.repositoryPackage?.warnings ?? [])];
     let unchanged = 0;
     source.entries = source.entries.map(entry => {
@@ -182,7 +182,7 @@ export function installFixtures(empty: boolean, needsConnection: boolean, option
   }
   skillSourcesApi.list = async () => structuredClone(sources);
   skillSourcesApi.projectRepositories = async () => [];
-  skillSourcesApi.settings = async (_companyId, id, input) => {
+  skillSourcesApi.settings = async (_spaceId, id, input) => {
     const source = sources.find(item => item.id === id)!;
     Object.assign(source, { automaticUpdates: input.automaticUpdates ?? source.automaticUpdates ?? true,
       importNewSkills: input.importNewSkills ?? source.importNewSkills ?? false, revision: source.revision + 1 });
@@ -212,7 +212,7 @@ export function installFixtures(empty: boolean, needsConnection: boolean, option
       ] : [repo('123456', 'acme/team-skills', true)],
     };
   };
-  skillSourcesApi.discover = async (_companyId, input) => {
+  skillSourcesApi.discover = async (_spaceId, input) => {
     const parsed = parseGitHubSkillRepositoryUrl(input.repositoryUrl);
     if (!parsed) throw new Error('Enter an HTTPS GitHub repository or branch URL.');
     return {
@@ -221,9 +221,9 @@ export function installFixtures(empty: boolean, needsConnection: boolean, option
       packageMode: input.packageMode, ...(input.packageMode === 'repository' ? { repositoryPackage: repositoryFixture(options.packageScenario) } : {}),
     };
   };
-  skillSourcesApi.discoverStream = async (companyId, input, onProgress, signal) => {
+  skillSourcesApi.discoverStream = async (spaceId, input, onProgress, signal) => {
     const active = signal ? AbortSignal.any([signal, fixtureController.signal]) : fixtureController.signal;
-    const result = await skillSourcesApi.discover(companyId, input);
+    const result = await skillSourcesApi.discover(spaceId, input);
     const progress = { type: 'progress' as const, phase: 'connecting' as 'connecting' | 'downloading' | 'listing' | 'checking', totalSkills: null as number | null, checkedSkills: 0, currentPath: null as string | null, checkedFiles: 0, totalFiles: null as number | null };
     onProgress({ ...progress });
     await wait(options.scan ? 900 : 100, active);
@@ -260,12 +260,12 @@ export function installFixtures(empty: boolean, needsConnection: boolean, option
     }
     return result;
   };
-  skillSourcesApi.preview = async (_companyId, input) => {
+  skillSourcesApi.preview = async (_spaceId, input) => {
     const file = (input.packageMode === 'repository' ? repositoryFixture(options.packageScenario).files : inspection(input.skillPath).files).find(file => file.path === input.filePath);
     if (!file) throw new Error('File is not included in this package.');
     return { file, content: input.packageMode === 'repository' ? repositoryContents[input.filePath]! : packageContents[input.skillPath]![input.filePath]!, truncated: false, commitSha: input.commitSha };
   };
-  skillSourcesApi.create = async (_companyId, input) => {
+  skillSourcesApi.create = async (_spaceId, input) => {
     if (options.saving) await wait(3600000);
     const source = sourceFixture();
     Object.assign(source, { id: `source-${sources.length + 1}`, packageMode: input.packageMode, repositoryPackage: input.packageMode === 'repository' ? repositoryFixture(options.packageScenario) : null, repositoryUrl: input.repositoryUrl, fullName: input.repositoryUrl.replace("https://github.com/", ""), trackingRef: input.trackingRef || "main", connectionId: input.connectionId ?? null });
@@ -273,14 +273,14 @@ export function installFixtures(empty: boolean, needsConnection: boolean, option
     sources.push(source);
     return save(source, input.selectedPaths, input.excludedFolders ?? []);
   };
-  skillSourcesApi.select = async (_companyId, id, input) => {
+  skillSourcesApi.select = async (_spaceId, id, input) => {
     const source = sources.find(item => item.id === id)!;
     source.connectionId = input.connectionId ?? null;
     source.packageMode = input.packageMode ?? source.packageMode;
     source.repositoryPackage = source.packageMode === 'repository' ? repositoryFixture(options.packageScenario) : null;
     return save(source, input.selectedPaths, input.excludedFolders);
   };
-  skillSourcesApi.refresh = async (_companyId, id) => {
+  skillSourcesApi.refresh = async (_spaceId, id) => {
     const source = sources.find(item => item.id === id)!;
     if (needsConnection) throw new Error(source.lastError ?? "Reconnect GitHub to refresh this source.");
     if (options.journey && !source.entries.some(entry => entry.path.includes('/security/'))) {
@@ -292,7 +292,7 @@ export function installFixtures(empty: boolean, needsConnection: boolean, option
     return structuredClone({ source, imported: [], updated: [], unchanged: source.entries.filter(entry => entry.selection === "selected").length, warnings: [] });
   };
   if (options.disconnected) sources.forEach(source => { source.enabled = false; });
-  skillSourcesApi.disconnect = async (_companyId, id, input) => {
+  skillSourcesApi.disconnect = async (_spaceId, id, input) => {
     const source = sources.find(item => item.id === id)!;
     const count = source.entries.filter(entry => entry.skillId).length;
     sources.splice(sources.findIndex(item => item.id === id), 1);
@@ -301,7 +301,7 @@ export function installFixtures(empty: boolean, needsConnection: boolean, option
   return () => {
     fixtureController.abort();
     Object.assign(skillSourcesApi, original);
-    Object.assign(companySkillsApi, originalSkills);
+    Object.assign(spaceSkillsApi, originalSkills);
     Object.assign(agentsApi, originalAgents);
     Object.assign(foldersApi, originalFolders);
   };

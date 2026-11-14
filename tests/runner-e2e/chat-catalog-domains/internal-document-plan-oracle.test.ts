@@ -29,9 +29,9 @@ it.each([
 });
 
 it("retains real task, saved revision and run-attributed creation requirements", () => {
-  const task = { id: "task", companyId: "company", title: "Website task", status: "backlog", projectId: "project" };
+  const task = { id: "task", spaceId: "space", title: "Website task", status: "backlog", projectId: "project" };
   const body = "Implement Orchid in a single responsive page with accessible signup. Verify keyboard navigation and mobile layout.";
-  const o = { scenarioId: "documents-artifacts.write-plan", companyId: "company", origin: "https://fixture.test", leadId: "ceo",
+  const o = { scenarioId: "documents-artifacts.write-plan", spaceId: "space", origin: "https://fixture.test", leadId: "ceo",
     state: { task }, tasks: [task], projects: [], goals: [], comments: [],
     documents: [{ id: "document", key: "plan", latestRevisionId: "revision", body }],
     revisions: [{ id: "revision", body, createdByAgentId: "ceo", createdByRunId: "run" }],

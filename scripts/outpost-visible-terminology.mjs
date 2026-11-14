@@ -7,20 +7,12 @@ const ignored = /(?:^|[\\/])(?:node_modules|dist|generated|fixtures|__tests__|te
 
 function visibleTerminology(value) {
   return value
-    .replace(/\bPaperclip\b/g, "Outpost")
-    .replace(/X-Outpost/g, "X-Paperclip")
-    .replace(/\bCompanies\b/g, "Outposts")
-    .replace(/\bCompany\b/g, "Outpost")
-    .replace(/\bCEOs\b/g, "Outpost Leads")
-    .replace(/\bCEO\b/g, "Outpost Lead")
-    .replace(/\bCTOs\b/g, "Engineering Leads")
-    .replace(/\bCTO\b/g, "Engineering Lead")
+    .replace(/\bOutpost\b/g, "Outpost")
+    .replace(/X-Outpost/g, "X-Outpost")
     .replace(/\bGoals\b/g, "North Stars")
     .replace(/\bGoal\b/g, "North Star")
     .replace(/\bA Outpost\b/g, "An Outpost")
-    .replace(/\ba Outpost\b/g, "an Outpost")
-    .replace(/\bA Engineering Lead\b/g, "An Engineering Lead")
-    .replace(/\ba Engineering Lead\b/g, "an Engineering Lead");
+    .replace(/\ba Outpost\b/g, "an Outpost");
 }
 
 const sourceKind = (file) => /\.[cm]?[jt]sx?$/.test(file);
@@ -112,7 +104,7 @@ function mapJsonStrings(value, transform) {
 }
 
 const appDefinitionTerminology = (value) => visibleTerminology(value)
-  .replace(/\bOutpost\b(?= Domain\b)/g, "Company");
+  .replace(/\bOutpost\b(?= Domain\b)/g, "Space");
 for (const file of walkFiles("packages/shared/src/app-definitions", (name) => name.endsWith(".json"))) {
   const before = fs.readFileSync(file, "utf8");
   const parsed = JSON.parse(before);
@@ -124,7 +116,7 @@ for (const file of walkFiles("packages", (name) => path.basename(name) === "pack
   const before = fs.readFileSync(file, "utf8");
   const parsed = JSON.parse(before);
   if (typeof parsed.description === "string") parsed.description = visibleTerminology(parsed.description);
-  if (parsed.author === "Paperclip") parsed.author = "Outpost";
+  if (parsed.author === "Outpost") parsed.author = "Outpost";
   const after = `${JSON.stringify(parsed, null, 2)}\n`;
   if (after !== before) fs.writeFileSync(file, after, "utf8");
 }

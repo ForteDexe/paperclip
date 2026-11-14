@@ -52,7 +52,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Agents can read eligible queue state; sending/steering the person's queued
@@ -147,7 +147,7 @@ API: `present` — representative operation IDs:
 - `POST /api/issues/{id}/tree-holds`.
 - `POST /api/agents/{id}/pause`.
 
-Agent access: `restricted` — Board control APIs; agent paperclip_finish/paperclip_block
+Agent access: `restricted` — Board control APIs; agent outpost_finish/outpost_block
 for its own turn.
 
 Policy: Queue inspection follows task visibility; queued user-message mutation and run
@@ -211,7 +211,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Resolving as a human and controlling queued wakes is separate from seeing the

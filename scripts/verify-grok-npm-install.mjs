@@ -30,9 +30,9 @@ async function verifyMacConsumer(packageDirectory, sourceRevision, receiptPath) 
   assert.equal(manifest.schema, 'outpost.runner.public-packages/v1');
   assert.equal(manifest.sourceRevision, sourceRevision);
   assert.ok(manifest.archives.some(entry => entry.name === '@outpost/server'));
-  assert.ok(manifest.archives.some(entry => entry.name === 'paperclipai'));
+  assert.ok(manifest.archives.some(entry => entry.name === '@outpost/cli'));
   assert.equal(new Set(manifest.archives.map(entry => entry.name)).size, manifest.archives.length);
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'paperclip-mac-public-install-')));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'outpost-mac-public-install-')));
   try {
     const consumer = join(root, 'consumer'), home = join(root, 'home'), tools = join(root, 'tools');
     for (const directory of [consumer, home, tools, join(root, 'tmp'), join(root, 'cache')]) mkdirSync(directory);
@@ -52,13 +52,13 @@ async function verifyMacConsumer(packageDirectory, sourceRevision, receiptPath) 
     });
     writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
     const sentinelSource = join(root, 'lifecycle-sentinel'); mkdirSync(sentinelSource);
-    writeFileSync(join(sentinelSource, 'package.json'), JSON.stringify({ name: 'paperclip-verification-lifecycle-sentinel', version: '1.0.0',
+    writeFileSync(join(sentinelSource, 'package.json'), JSON.stringify({ name: 'outpost-verification-lifecycle-sentinel', version: '1.0.0',
       scripts: { postinstall: 'node -e "require(\'node:fs\').writeFileSync(\'lifecycle-ran\', \'ok\')"' } }));
     run(process.execPath, [npmCli, 'pack', '--ignore-scripts', '--pack-destination', root], sentinelSource);
     const sentinelTar = join(root, readdirSync(root).find(name => name.endsWith('.tgz')));
     runMacInitialInstallWithDiagnostics(() => run(process.execPath, [npmCli, 'install', '--ignore-scripts', '--omit=dev', '--timing', ...tarballs, sentinelTar]),
       { sourceRevision, platform: process.platform, architecture: process.arch, cacheDirectory: join(root, 'cache'), receiptPath });
-    const sentinel = join(consumer, 'node_modules/paperclip-verification-lifecycle-sentinel/lifecycle-ran');
+    const sentinel = join(consumer, 'node_modules/outpost-verification-lifecycle-sentinel/lifecycle-ran');
     assert.equal(existsSync(sentinel), false);
     const lock = readFileSync(join(consumer, 'package-lock.json'), 'utf8');
     const profile = join(root, 'lifecycle.sb'); writeFileSync(profile, macPublicInstallLifecycleProfile(root));
@@ -108,9 +108,9 @@ async function verifyLinuxArmConsumer(packageDirectory, sourceRevision, receiptP
   assert.equal(manifest.schema, 'outpost.runner.public-packages/v1');
   assert.equal(manifest.sourceRevision, sourceRevision);
   assert.ok(manifest.archives.some(entry => entry.name === '@outpost/server'));
-  assert.ok(manifest.archives.some(entry => entry.name === 'paperclipai'));
+  assert.ok(manifest.archives.some(entry => entry.name === '@outpost/cli'));
   assert.equal(new Set(manifest.archives.map(entry => entry.name)).size, manifest.archives.length);
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'paperclip-arm-public-install-')));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'outpost-arm-public-install-')));
   try {
     const assets = join(root, 'assets'), consumer = join(root, 'consumer'), cache = join(root, 'cache');
     for (const directory of [assets, consumer, cache]) mkdirSync(directory);
@@ -131,11 +131,11 @@ async function verifyLinuxArmConsumer(packageDirectory, sourceRevision, receiptP
     }
     writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
     const sentinelSource = join(root, 'lifecycle-sentinel'); mkdirSync(sentinelSource);
-    writeFileSync(join(sentinelSource, 'package.json'), JSON.stringify({ name: 'paperclip-verification-lifecycle-sentinel', version: '1.0.0',
+    writeFileSync(join(sentinelSource, 'package.json'), JSON.stringify({ name: 'outpost-verification-lifecycle-sentinel', version: '1.0.0',
       scripts: { postinstall: 'node -e "require(\'node:fs\').writeFileSync(\'lifecycle-ran\', \'ok\')"' } }));
     run('npm', ['pack', '--ignore-scripts', '--pack-destination', assets], sentinelSource);
     isolated(['npm', 'install', '--ignore-scripts', '--omit=dev', ...readdirSync(assets).filter(file => file.endsWith('.tgz')).map(file => `/packages/${file}`)], { download: true });
-    const sentinel = join(consumer, 'node_modules/paperclip-verification-lifecycle-sentinel/lifecycle-ran');
+    const sentinel = join(consumer, 'node_modules/outpost-verification-lifecycle-sentinel/lifecycle-ran');
     assert.equal(existsSync(sentinel), false);
     const lock = readFileSync(join(consumer, 'package-lock.json'), 'utf8');
     isolated(GROK_PUBLIC_INSTALL_LIFECYCLE);
@@ -197,7 +197,7 @@ if (process.argv[2] === '--linux-arm64-consumer') {
   await verifyMacConsumer(process.argv[3], process.argv[4], process.argv[5]);
 } else {
 assert.equal(process.platform, 'linux', 'Run this verification on disposable EC2 Linux, not a developer host');
-const root = mkdtempSync(join(tmpdir(), 'paperclip-grok-public-install-'));
+const root = mkdtempSync(join(tmpdir(), 'outpost-grok-public-install-'));
 const prerequisite = join(root, 'native/grok');
 const cache = process.env.OUTPOST_PUBLIC_INSTALL_NPM_CACHE ? resolve(process.env.OUTPOST_PUBLIC_INSTALL_NPM_CACHE) : join(root, 'cache');
 mkdirSync(cache, { recursive: true });
@@ -219,7 +219,7 @@ const stagedGrok = join(prefetched, 'grok');
 const prefetches = [];
 const downloads = [];
 const timing = {};
-const piSetupContainer = `paperclip-pi-setup-${basename(root)}`;
+const piSetupContainer = `outpost-pi-setup-${basename(root)}`;
 let piSetupStarted = false;
 // A prefetch failure surfaces where its result is awaited, never as an
 // unhandled rejection that would mask an earlier staging error.
@@ -352,11 +352,11 @@ try {
   // Prove lifecycle execution is real even if npm changes its script defaults.
   const sentinelSource = join(root, 'lifecycle-sentinel'); mkdirSync(sentinelSource);
   writeFileSync(join(sentinelSource, 'package.json'), JSON.stringify({
-    name: 'paperclip-verification-lifecycle-sentinel', version: '1.0.0', private: true,
+    name: 'outpost-verification-lifecycle-sentinel', version: '1.0.0', private: true,
     scripts: { postinstall: 'node -e "require(\'node:fs\').writeFileSync(\'lifecycle-ran\', \'ok\')"' },
   }));
   run('npm', ['pack', '--ignore-scripts', '--pack-destination', assets], sentinelSource);
-  const sentinel = join(consumer, 'node_modules/paperclip-verification-lifecycle-sentinel/lifecycle-ran');
+  const sentinel = join(consumer, 'node_modules/outpost-verification-lifecycle-sentinel/lifecycle-ran');
   const consumerUid = process.getuid();
   const isolated = (command, options = {}) => run('docker', grokConsumerDockerArgs({ assets, consumer, cache, uid: consumerUid, gid: process.getgid(), command, ...options }));
   phase('stage_packages');
@@ -378,9 +378,9 @@ try {
   assert.equal(readFileSync(sentinel, 'utf8'), 'ok', 'Offline lifecycle scripts must actually execute');
   assert.equal(readFileSync(join(consumer, 'package-lock.json'), 'utf8'), consumerLock, 'Lifecycle execution must preserve the resolved consumer lock');
   phase('lifecycle_rebuild');
-  const piSetupReceipt = join(consumer, '.paperclip-pi-setup.json');
+  const piSetupReceipt = join(consumer, '.outpost-pi-setup.json');
   const piSetupArgs = grokConsumerDockerArgs({ assets, consumer, cache, uid: consumerUid, gid: process.getgid(),
-    command: ['sh', '-c', 'exec node /consumer/node_modules/paperclipai/dist/index.js runtime setup pi > /consumer/.paperclip-pi-setup.json'],
+    command: ['sh', '-c', 'exec node /consumer/node_modules/@outpost/cli/dist/index.js runtime setup pi > /consumer/.outpost-pi-setup.json'],
     download: true, temporarySizeMiB: 2048 });
   piSetupArgs.splice(1, 0, '--name', piSetupContainer);
   const piSetupReady = prefetch('pi_setup', 'docker', piSetupArgs);

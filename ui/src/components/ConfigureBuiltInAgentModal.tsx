@@ -35,7 +35,7 @@ function defaultAdapterType(state: BuiltInAgentState): string {
 }
 
 export interface ConfigureBuiltInAgentModalProps {
-  companyId: string;
+  spaceId: string;
   state: BuiltInAgentState;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -49,7 +49,7 @@ export interface ConfigureBuiltInAgentModalProps {
  * and submits to the provision endpoint.
  */
 export function ConfigureBuiltInAgentModal({
-  companyId,
+  spaceId,
   state,
   open,
   onOpenChange,
@@ -88,9 +88,9 @@ export function ConfigureBuiltInAgentModal({
   const setupSupportedInModal = isModelBasedAdapter(adapterType);
 
   const { data: fetchedModels } = useQuery({
-    queryKey: queryKeys.agents.adapterModels(companyId, adapterType, null),
-    queryFn: () => agentsApi.adapterModels(companyId, adapterType, {}),
-    enabled: open && Boolean(companyId) && setupSupportedInModal,
+    queryKey: queryKeys.agents.adapterModels(spaceId, adapterType, null),
+    queryFn: () => agentsApi.adapterModels(spaceId, adapterType, {}),
+    enabled: open && Boolean(spaceId) && setupSupportedInModal,
   });
   const models = fetchedModels ?? [];
 
@@ -121,14 +121,14 @@ export function ConfigureBuiltInAgentModal({
       const adapterInput = alreadyConfigured && sameHarness && normalizedModel === savedModel ? {}
         : sameHarness ? { adapterType: existing.adapterType, adapterConfig: { ...existing.adapterConfig, ...adapterConfig } }
         : { adapterType, adapterConfig };
-      const result = await builtInAgentsApi.provision(companyId, definition.key, {
+      const result = await builtInAgentsApi.provision(spaceId, definition.key, {
         ...adapterInput,
       });
       return result;
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.builtInAgents.list(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.builtInAgents.list(spaceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(spaceId) });
       if (result.agentId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(result.agentId) });
       }
@@ -151,8 +151,8 @@ export function ConfigureBuiltInAgentModal({
         <div className="space-y-4">
           <InlineBanner tone="info" compact>
             Creates <strong>{definition.displayName}</strong> in your roster, badged{" "}
-            <strong>Built-in</strong>. Outposts that require hire approval will queue this for the
-            board.
+            <strong>Built-in</strong>. Outposts that require create approval will queue this for the
+            operator.
           </InlineBanner>
 
           <Field label="Harness">

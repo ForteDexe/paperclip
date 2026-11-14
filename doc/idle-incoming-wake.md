@@ -23,7 +23,7 @@ DELETE do not gain this wake path.
 
 The Cloud capability authenticates the **host's ability to receive work**. Opaque
 tenant keys are authenticated only by the awakened tenant, under current key,
-expiry, user, membership, company, agent and resource permissions. No raw key or original
+expiry, user, membership, space, agent and resource permissions. No raw key or original
 credential hash is copied into Cloud. A signed final-drain projection supplies
 only per-cycle derived wake fingerprints. Unknown inputs cannot consume
 provider-start quota. Tenant authentication still rejects any later revocation.
@@ -105,7 +105,7 @@ Cloud stores the final receipt in one internal stack column under the sleep oper
 
 Removed GitHub endpoints are retained history only after the ordinary removal
 writer archives the endpoint with its timestamp and generation, archives and
-disables the same-company channel connection, clears its credential references,
+disables the same-space channel connection, clears its credential references,
 and releases endpoint leases. Any retained lease, incomplete registration or
 malformed cleanup state still blocks. This exemption covers only GitHub; archived
 persistent transports remain blocked. Actions, deliveries and publications keep

@@ -10,12 +10,12 @@ import { chatTasks } from "../../../tests/runner-e2e/chat-cases.js";
 function completionRecording(id = "multi-repository", ordinaryRunCount = 2) {
   const task = chatTasks.find(task => task.id === id);
   if (!task) throw new Error("Completion recording must bind an actual catalog task");
-  const companyId = "company", agentId = "agent", sourceId = "chat", childId = "child";
+  const spaceId = "space", agentId = "agent", sourceId = "chat", childId = "child";
   const completedAt = "2026-11-04T21:35:52.000Z";
-  const issue = { id: sourceId, companyId, conversationAgentId: agentId, conversationSessionGeneration: 0 };
-  const child = { id: childId, companyId, assigneeAgentId: agentId, status: "done", completedAt, identifier: "RUN-2" };
+  const issue = { id: sourceId, spaceId, conversationAgentId: agentId, conversationSessionGeneration: 0 };
+  const child = { id: childId, spaceId, assigneeAgentId: agentId, status: "done", completedAt, identifier: "RUN-2" };
   const ordinary = Array.from({ length: ordinaryRunCount }, (_, index) => ({
-    id: `ordinary-${index}`, companyId, agentId, status: "succeeded", runtimeMode: "native",
+    id: `ordinary-${index}`, spaceId, agentId, status: "succeeded", runtimeMode: "native",
     issueId: index === ordinaryRunCount - 1 ? childId : sourceId, nativeIssueId: index === ordinaryRunCount - 1 ? childId : sourceId,
     contextSnapshot: { issueId: index === ordinaryRunCount - 1 ? childId : sourceId },
     startedAt: "2026-11-04T21:35:00.000Z", processStartedAt: "2026-11-04T21:35:01.000Z",
@@ -23,7 +23,7 @@ function completionRecording(id = "multi-repository", ordinaryRunCount = 2) {
     nativeSessionId: `native-${index}`, usageJson: { accountingReceiptReady: true, outputTokens: 10 },
   }));
   const notification = {
-    id: "notification", companyId, agentId, issueId: sourceId, nativeIssueId: sourceId,
+    id: "notification", spaceId, agentId, issueId: sourceId, nativeIssueId: sourceId,
     status: "succeeded", runtimeMode: "native", invocationSource: "automation", triggerDetail: "system",
     startedAt: "2026-11-04T21:35:53.000Z", processStartedAt: "2026-11-04T21:35:54.000Z",
     finishedAt: "2026-11-04T21:36:15.000Z", nativeSessionId: "native-chat-session",
@@ -33,20 +33,20 @@ function completionRecording(id = "multi-repository", ordinaryRunCount = 2) {
     usageJson: { inputTokens: 40_178, outputTokens: 2071, cachedInputTokens: 222_147,
       costUsdExact: "0.290990800", costStatus: "estimated", accountingReceiptReady: true },
   };
-  const comments = [{ id: "reply", companyId, issueId: sourceId, authorAgentId: agentId, authorType: "agent",
+  const comments = [{ id: "reply", spaceId, issueId: sourceId, authorAgentId: agentId, authorType: "agent",
     createdByRunId: notification.id, conversationSessionGeneration: 0,
     createdAt: "2026-11-04T21:36:15.100Z", deletedAt: null,
     body: "[RUN-2](/issues/RUN-2) is complete. Its requested document is saved on the task." }];
   const events: ChatCompletionEvidence["runEvidence"][number]["events"] = ["tool.execution.started", "tool.execution.completed", "run.result.accepted"].map((eventType, index) => ({
-    companyId, runId: notification.id, agentId, eventType, seq: index + 1,
+    spaceId, runId: notification.id, agentId, eventType, seq: index + 1,
     payload: { orpEvent: { schema: "outpost.orp.event.v1", runId: notification.id, eventType,
-      payload: eventType.startsWith("tool.") ? { schema: "outpost.tool.execution.v1", name: "paperclip_finish",
+      payload: eventType.startsWith("tool.") ? { schema: "outpost.tool.execution.v1", name: "outpost_finish",
         executionId: "finish", status: index === 0 ? "running" : "completed" } : {} } },
   }));
   const runs = [...ordinary, notification];
   return { suiteId: "agent-chat", profileId: "runner-codex", environmentId: "local", notification,
     task: { ...task }, runs,
-    completionEvidence: { companyId, agentId, companyPrefix: "RUN", baseURL: "http://fixture.invalid", issue, child,
+    completionEvidence: { spaceId, agentId, spacePrefix: "RUN", baseURL: "http://fixture.invalid", issue, child,
       tasks: [child], comments, runEvidence: [{ runId: notification.id, events,
         workspaceOperations: [] as Array<Record<string, unknown>> }],
       renderedLinks: [{ commentId: "reply", href: "/RUN/issues/RUN-2" }] } };
@@ -85,7 +85,7 @@ describe("delegated chat completion provider accounting", () => {
   it("collects the live run API evidence before proving a completion", async () => {
     const input = completionRecording();
     const recorded = input.completionEvidence.runEvidence[0]!;
-    const native = (eventType: string, payload: Record<string, unknown>) => ({ companyId: "company", agentId: "agent",
+    const native = (eventType: string, payload: Record<string, unknown>) => ({ spaceId: "space", agentId: "agent",
       runId: input.notification.id, eventType,
       payload: { orpEvent: { schema: "outpost.orp.event.v1", runId: input.notification.id, eventType, payload } } });
     // The native item/tool shapes come from the retained completion stream.
@@ -101,7 +101,7 @@ describe("delegated chat completion provider accounting", () => {
       ...recorded.events,
       native("item.completed", { kind: "usage", usage: input.notification.usageJson }),
     ].map((event, index) => ({ ...event, seq: index + 1 }));
-    const workspaceOperations = [{ companyId: "company", heartbeatRunId: input.notification.id,
+    const workspaceOperations = [{ spaceId: "space", heartbeatRunId: input.notification.id,
       phase: "workspace_finalize", status: "succeeded", command: null }];
     const requested: string[] = [];
     async function read<T>(path: string): Promise<T> {
@@ -133,9 +133,9 @@ describe("delegated chat completion provider accounting", () => {
     ["item.completed", { kind: "unknown_provider_work" }],
     ["item.completed", { kind: "agentMessage", item: { type: "fileChange" } }],
     ["unrecognized.provider.work", {}],
-  ] as const) it(`rejects native work without a Paperclip tool event: ${eventType}/${"kind" in payload ? payload.kind : "event"}`, () => {
+  ] as const) it(`rejects native work without a Outpost tool event: ${eventType}/${"kind" in payload ? payload.kind : "event"}`, () => {
     const input = completionRecording();
-    input.completionEvidence.runEvidence[0]!.events.push({ companyId: "company", agentId: "agent",
+    input.completionEvidence.runEvidence[0]!.events.push({ spaceId: "space", agentId: "agent",
       runId: input.notification.id, eventType, seq: 4,
       payload: { orpEvent: { schema: "outpost.orp.event.v1", runId: input.notification.id, eventType, payload } } });
     expect(() => verifyChatCompletion(input.runs, input.completionEvidence)).toThrow(/Chat completion proof:/);
@@ -159,9 +159,9 @@ describe("delegated chat completion provider accounting", () => {
   const invalid: Array<[string, (input: ReturnType<typeof completionRecording>) => void]> = [
     ["missing required notification", f => { f.runs.pop(); }],
     ["duplicate paid notification", f => { f.runs.push({ ...f.notification, id: "duplicate" }); }],
-    ["wrong source company", f => { f.completionEvidence.issue.companyId = "other-company"; }],
-    ["wrong child company", f => { f.completionEvidence.child.companyId = "other-company"; }],
-    ["cross-scope notification", f => { f.notification.companyId = "other-company"; }],
+    ["wrong source space", f => { f.completionEvidence.issue.spaceId = "other-space"; }],
+    ["wrong child space", f => { f.completionEvidence.child.spaceId = "other-space"; }],
+    ["cross-scope notification", f => { f.notification.spaceId = "other-space"; }],
     ["old conversation generation", f => { f.notification.contextSnapshot.conversationSessionGeneration = 1; }],
     ["unknown automatic work", f => { f.notification.contextSnapshot.wakeReason = "unrelated_automation"; }],
     ["two delivery receipts", f => { f.notification.contextSnapshot.chatCompletionDeliveryIds.push("other-delivery"); }],
@@ -176,10 +176,10 @@ describe("delegated chat completion provider accounting", () => {
     ["cross-generation reply", f => { f.completionEvidence.comments[0]!.conversationSessionGeneration = 1; }],
     ["missing rendered result access", f => { f.completionEvidence.renderedLinks.length = 0; }],
     ["foreign-origin task link", f => { f.completionEvidence.renderedLinks[0]!.href = "https://other.invalid/RUN/issues/RUN-2"; }],
-    ["foreign-company task route", f => { f.completionEvidence.renderedLinks[0]!.href = "/OTHER/issues/RUN-2"; }],
+    ["foreign-space task route", f => { f.completionEvidence.renderedLinks[0]!.href = "/OTHER/issues/RUN-2"; }],
     ["extra delegated work", f => { f.completionEvidence.tasks.push({ ...f.completionEvidence.child, id: "extra-child" }); }],
     ["missing native result stream", f => { f.completionEvidence.runEvidence[0]!.events.length = 0; }],
-    ["cross-scope native events", f => { f.completionEvidence.runEvidence[0]!.events[0]!.companyId = "other-company"; }],
+    ["cross-scope native events", f => { f.completionEvidence.runEvidence[0]!.events[0]!.spaceId = "other-space"; }],
     ["accepted result for another native run", f => { f.completionEvidence.runEvidence[0]!.events[2]!.payload.orpEvent.runId = "other-run"; }],
     ["unfinished native tool", f => { f.completionEvidence.runEvidence[0]!.events.splice(1, 1); }],
     ["tool completion before execution", f => { f.completionEvidence.runEvidence[0]!.events.reverse(); }],
@@ -188,7 +188,7 @@ describe("delegated chat completion provider accounting", () => {
       for (const e of f.completionEvidence.runEvidence[0]!.events.slice(0, 2)) e.payload.orpEvent.payload.name = "create_task";
     }],
     ["additional workspace command", f => { f.completionEvidence.runEvidence[0]!.workspaceOperations.push({
-      companyId: "company", heartbeatRunId: "notification", phase: "command", status: "succeeded", command: "unexpected work" }); }],
+      spaceId: "space", heartbeatRunId: "notification", phase: "command", status: "succeeded", command: "unexpected work" }); }],
   ];
   for (const [name, mutate] of invalid) it(`rejects ${name}`, () => {
     const input = completionRecording(); mutate(input);

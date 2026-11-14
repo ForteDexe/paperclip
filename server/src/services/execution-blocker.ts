@@ -47,7 +47,7 @@ const blockerProfileColumn = sql<Record<string, unknown> | null>`case
   ) end`;
 const blockerRunFields = {
   id: heartbeatRuns.id,
-  companyId: heartbeatRuns.companyId,
+  spaceId: heartbeatRuns.spaceId,
   agentId: heartbeatRuns.agentId,
   status: heartbeatRuns.status,
   startedAt: heartbeatRuns.startedAt,
@@ -76,22 +76,22 @@ const blockerRunFields = {
 export const EXECUTION_BLOCKER_PERSON_RETRY_ACTION =
   "A person can use Retry on this task, or send it a new message, to continue once the previous execution has stopped. Agents cannot retry it for them.";
 
-export async function hasPendingRunCleanup(db: Db, companyId: string, runId: string): Promise<boolean> {
-  if (await nativeManualAdmissionHoldsExecution(db, { companyId, runId })) return true;
+export async function hasPendingRunCleanup(db: Db, spaceId: string, runId: string): Promise<boolean> {
+  if (await nativeManualAdmissionHoldsExecution(db, { spaceId, runId })) return true;
   // Recovery saved the files and re-stopped this sandbox before queueing its
   // destroy. That destroy is resource cleanup, not a live owner of the run.
   const recoveredStopped = (await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, companyId), eq(environmentLeases.heartbeatRunId, runId),
+    eq(environmentLeases.spaceId, spaceId), eq(environmentLeases.heartbeatRunId, runId),
     sql`${environmentLeases.metadata}->'workspaceRecoveryCleanup' is not null`,
   ))).filter(hasRecoveredCleanupStopReceipt).map(lease => lease.id);
   // A missing predecessor row owns nothing: deleting a run nulls its leases'
   // run reference and removes its finalization coordinator. Failing closed on
   // absence stranded the successor with no next action (invariants 3 and 7).
   const [state] = await db.execute<{ pending: boolean }>(sql`SELECT EXISTS (SELECT 1 FROM ${heartbeatRuns}
-    WHERE ${heartbeatRuns.companyId} = ${companyId} AND ${heartbeatRuns.id} = ${runId} AND (
+    WHERE ${heartbeatRuns.spaceId} = ${spaceId} AND ${heartbeatRuns.id} = ${runId} AND (
     ${heartbeatRuns.runnerProfileJson}->>'nativeWorkspaceFinalizationOwner' IS NOT NULL
     OR EXISTS (SELECT 1 FROM ${environmentLeases}
-      WHERE ${environmentLeases.companyId} = ${companyId} AND ${environmentLeases.heartbeatRunId} = ${runId}
+      WHERE ${environmentLeases.spaceId} = ${spaceId} AND ${environmentLeases.heartbeatRunId} = ${runId}
         ${recoveredStopped.length ? sql`AND ${environmentLeases.id}::text NOT IN (${sql.join(recoveredStopped.map(id => sql`${id}`), sql`, `)})` : sql``}
         AND (( ${environmentLeases.releasedAt} IS NULL AND NOT COALESCE(
             ${environmentLeases.status} = 'retained' AND ${environmentLeases.leasePolicy} = 'reuse_by_environment'
@@ -108,7 +108,7 @@ export async function hasPendingRunCleanup(db: Db, companyId: string, runId: str
             OR (${environmentLeases.status} = 'retained' AND ${environmentLeases.leasePolicy} = 'reuse_by_environment'
               AND ${environmentLeases.cleanupStatus} = 'success'), false))))))
     OR EXISTS (SELECT 1 FROM ${nativeRunFinalizations}
-      WHERE ${nativeRunFinalizations.companyId} = ${companyId} AND ${nativeRunFinalizations.runId} = ${runId}
+      WHERE ${nativeRunFinalizations.spaceId} = ${spaceId} AND ${nativeRunFinalizations.runId} = ${runId}
         AND (${nativeRunFinalizations.leaseOwner} IS NOT NULL
           OR ${nativeRunFinalizations.phase} NOT IN ('committed', 'applied', 'terminal_failure'))) AS pending`);
   return state?.pending === true;
@@ -123,7 +123,7 @@ export function executionBlockerPredicate() {
     // the same row proof; they have no unknown outcome to reconcile.
     sql`not (${issueRecoveryActions.cause} = 'legacy_execution_requires_reconciliation' and exists (
       select 1 from ${heartbeatRuns}
-      where ${heartbeatRuns.companyId} = ${issueRecoveryActions.companyId}
+      where ${heartbeatRuns.spaceId} = ${issueRecoveryActions.spaceId}
         and ${heartbeatRuns.id} = ${canonicalExecutionUuid(sql`coalesce(${issueRecoveryActions.evidence}->>'runId', ${issueRecoveryActions.evidence}->>'sourceRunId')`)}
         and ${issueRecoveryActions.sourceIssueId} = ${canonicalExecutionUuid(sql`${heartbeatRuns.contextSnapshot}->>'issueId'`)}
         and ${legacyShutdownBeforeDispatchCondition()}
@@ -132,7 +132,7 @@ export function executionBlockerPredicate() {
     ))`,
     sql`not (${issueRecoveryActions.cause} = 'legacy_execution_requires_reconciliation' and exists (
       select 1 from ${heartbeatRuns}
-      where ${heartbeatRuns.companyId} = ${issueRecoveryActions.companyId}
+      where ${heartbeatRuns.spaceId} = ${issueRecoveryActions.spaceId}
         and ${heartbeatRuns.id} = ${canonicalExecutionUuid(sql`coalesce(${issueRecoveryActions.evidence}->>'runId', ${issueRecoveryActions.evidence}->>'sourceRunId')`)}
         and ${issueRecoveryActions.sourceIssueId} = ${canonicalExecutionUuid(sql`${heartbeatRuns.contextSnapshot}->>'issueId'`)}
         and (${heartbeatRuns.issueId} is null or ${heartbeatRuns.issueId} = ${issueRecoveryActions.sourceIssueId})
@@ -151,7 +151,7 @@ export function executionBlockerPredicate() {
 
 export function nativeExecutionRecoveryActionPredicate() {
   return sql`exists (select 1 from ${heartbeatRuns}
-    where ${heartbeatRuns.companyId} = ${issueRecoveryActions.companyId}
+    where ${heartbeatRuns.spaceId} = ${issueRecoveryActions.spaceId}
       and ${heartbeatRuns.id}::text = coalesce(${issueRecoveryActions.evidence}->>'runId', ${issueRecoveryActions.evidence}->>'sourceRunId')
       and ${heartbeatRuns.runtimeMode} = 'native')`;
 }
@@ -196,10 +196,10 @@ export function stoppedBeforeProviderTurnCondition() {
     and stopped.result_json->'nativeCancellation'->>'dispatchState' = 'acknowledged'
     and stopped.result_json->'nativeCancellation'->'beforeProviderTurn' = 'true'::jsonb
     and not exists (select 1 from ${heartbeatRunEvents} work
-      where work.company_id = stopped.company_id and work.run_id = stopped.id
+      where work.space_id = stopped.space_id and work.run_id = stopped.id
         and ${providerTurnWorkEventCondition(sql`work.event_type`, sql`work.source_event_id`)})
     and not exists (select 1 from ${nativeRunResults} result
-      where result.company_id = stopped.company_id and result.run_id = stopped.id))`;
+      where result.space_id = stopped.space_id and result.run_id = stopped.id))`;
 }
 
 export function interruptedPreparationBeforeProviderWorkCondition() {
@@ -214,7 +214,7 @@ export function interruptedPreparationBeforeProviderWorkCondition() {
       select 1 from jsonb_array_elements_text(case when jsonb_typeof(${issueRecoveryActions.evidence}#>'{systemRecovery,preservationOperationIds}') = 'array'
         then ${issueRecoveryActions.evidence}#>'{systemRecovery,preservationOperationIds}' else '[]'::jsonb end) saved(id)
       join ${workspaceOperations} op on op.id::text = saved.id
-      where op.company_id = stopped.company_id and op.heartbeat_run_id = stopped.id and op.status = 'succeeded'
+      where op.space_id = stopped.space_id and op.heartbeat_run_id = stopped.id and op.status = 'succeeded'
         and op.metadata->>'snapshotId' = stopped.runner_profile_json#>>'{remoteWorkspace,snapshotId}'))
     and coalesce(stopped.result_json#>'{executionRecovery,providerWorkStarted}', 'false'::jsonb) = 'false'::jsonb
     and case when stopped.result_json->'cancellation' is null then stopped.error_code = 'server_shutdown_interrupted'
@@ -223,22 +223,22 @@ export function interruptedPreparationBeforeProviderWorkCondition() {
         and (stopped.result_json#>>'{cancellation,source}' = 'shutdown'
           or stopped.result_json#>'{cancellation,expected}' = 'false'::jsonb) end
     and not exists (select 1 from ${heartbeatRunEvents} work
-      where work.company_id = stopped.company_id and work.run_id = stopped.id
+      where work.space_id = stopped.space_id and work.run_id = stopped.id
         and (work.source_event_id is not null
           or work.event_type in ('adapter.invoke', ${PROCESS_START_REQUESTED}, ${PROCESS_IDENTITY_RECORDED})
           or ${providerTurnWorkEventCondition(sql`work.event_type`, sql`work.source_event_id`)}))
     and not exists (select 1 from ${nativeRunFinalizations} coordinator
-      where coordinator.company_id = stopped.company_id and coordinator.run_id = stopped.id)
+      where coordinator.space_id = stopped.space_id and coordinator.run_id = stopped.id)
     and not exists (select 1 from ${nativeRunResults} result
-      where result.company_id = stopped.company_id and result.run_id = stopped.id)
+      where result.space_id = stopped.space_id and result.run_id = stopped.id)
     and not exists (select 1 from ${environmentLeases} lease
-      where lease.company_id = stopped.company_id and lease.heartbeat_run_id = stopped.id
+      where lease.space_id = stopped.space_id and lease.heartbeat_run_id = stopped.id
         and not coalesce(lease.released_at is not null and lease.cleanup_status = 'success'
           and lease.status in ('released', 'expired', 'failed')
           and coalesce(lease.metadata->>'pendingCleanupInFlight', 'false') = 'false'
           and (lease.provider = 'local' or (
             lease.metadata#>>'{remoteExecutionTermination,schema}' = 'outpost.remote-termination.v1'
-            and lease.metadata#>>'{remoteExecutionTermination,companyId}' = lease.company_id::text
+            and lease.metadata#>>'{remoteExecutionTermination,spaceId}' = lease.space_id::text
             and lease.metadata#>>'{remoteExecutionTermination,runId}' = stopped.id::text
             and lease.metadata#>>'{remoteExecutionTermination,leaseId}' = lease.id::text
             and lease.metadata#>>'{remoteExecutionTermination,provider}' = lease.provider
@@ -268,8 +268,8 @@ export function restoreHoldReleasedForCurrentOwnerPredicate() {
     sql`${issueRecoveryActions.evidence}->'workspaceRestoreRecovery'->>'schema' = ${LEGACY_WORKSPACE_RECOVERY_SCHEMA}`,
     sql`coalesce(${issueRecoveryActions.evidence}->>'workspaceRestoreFailure', '') <> 'restore_unsafe_archive'`,
     sql`exists (select 1 from ${heartbeatRuns} stopped
-      join ${issues} task on task.company_id = stopped.company_id and task.id = ${issueRecoveryActions.sourceIssueId}
-      where stopped.company_id = ${issueRecoveryActions.companyId}
+      join ${issues} task on task.space_id = stopped.space_id and task.id = ${issueRecoveryActions.sourceIssueId}
+      where stopped.space_id = ${issueRecoveryActions.spaceId}
         and stopped.id::text = ${sourceRunId}
         and stopped.status in ('failed', 'timed_out', 'interrupted', 'cancelled')
         and stopped.finished_at is not null
@@ -293,7 +293,7 @@ export function restoreHoldReleasedForCurrentOwnerPredicate() {
     // to attach it, so that hold stays until such a request or a repair.
     sql`not exists (select 1 from jsonb_array_elements_text(${operationIds}) saved(id)
       join ${workspaceOperations} op on op.id::text = saved.id
-      where op.company_id = ${issueRecoveryActions.companyId} and op.phase <> 'workspace_recovery')`,
+      where op.space_id = ${issueRecoveryActions.spaceId} and op.phase <> 'workspace_recovery')`,
   )}), false)`;
 }
 
@@ -301,7 +301,7 @@ export function restoreHoldReleasedForCurrentOwnerPredicate() {
  * The coordinator's own scheduled resume of one native run: the active action
  * that its failure wrote for that run and whose wake policy resumes that same
  * run. It is the authority for that resume, not a hold against it. A saved
- * governed wait whose shutdown confirmation is still pending records a
+ * controlled wait whose shutdown confirmation is still pending records a
  * reconciliation cause here, and its same-run resume is what settles it.
  * Strictly true or false, because callers negate it.
  */
@@ -312,7 +312,7 @@ function ownNativeResumePredicate(runId: string) {
     and ${issueRecoveryActions.evidence}->>'runId' = ${runId}), false)`;
 }
 
-export async function getExecutionBlocker(db: Db, companyId: string, issueId: string, options?: {
+export async function getExecutionBlocker(db: Db, spaceId: string, issueId: string, options?: {
   conversationResetCommentId?: string | null;
   /** The native run being dispatched; its own scheduled resume does not block it. */
   resumingNativeRunId?: string | null;
@@ -321,12 +321,12 @@ export async function getExecutionBlocker(db: Db, companyId: string, issueId: st
     boundaryId: issues.conversationBoundaryCommentId, status: issues.status,
     assigneeAgentId: issues.assigneeAgentId, statusVersion: issues.statusVersion,
     executionRunId: issues.executionRunId, checkoutRunId: issues.checkoutRunId }).from(issues).where(and(
-    eq(issues.companyId, companyId), eq(issues.id, issueId),
+    eq(issues.spaceId, spaceId), eq(issues.id, issueId),
   )).limit(1);
   // Resetting model context cannot repair or recover a workspace. This hold
   // survives conversation boundaries until the existing repair/reconciliation path clears it.
   const [restoreHold] = await db.select().from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, companyId),
+    eq(issueRecoveryActions.spaceId, spaceId),
     eq(issueRecoveryActions.sourceIssueId, issueId),
     executionBlockerPredicate(),
     not(restoreHoldReleasedForCurrentOwnerPredicate()),
@@ -340,21 +340,21 @@ export async function getExecutionBlocker(db: Db, companyId: string, issueId: st
   // The normal issue execution lock still serializes it behind any active turn.
   if (!restoreHold && conversation?.agentId && options?.conversationResetCommentId) {
     const [command] = await db.select().from(issueComments).where(and(
-      eq(issueComments.companyId, companyId), eq(issueComments.issueId, issueId),
+      eq(issueComments.spaceId, spaceId), eq(issueComments.issueId, issueId),
       eq(issueComments.id, options.conversationResetCommentId),
     )).limit(1);
     if (command?.authorUserId && !command.deletedAt && command.body.trim() === "/new") return null;
   }
   const [boundary] = conversation?.agentId && conversation.boundaryId
     ? await db.select({ createdAt: issueComments.createdAt }).from(issueComments).where(and(
-      eq(issueComments.companyId, companyId), eq(issueComments.issueId, issueId),
+      eq(issueComments.spaceId, spaceId), eq(issueComments.issueId, issueId),
       eq(issueComments.id, conversation.boundaryId),
     )).limit(1) : [];
 
-  const ownership = await getConversationOwnershipBlocker(db, companyId, issueId);
+  const ownership = await getConversationOwnershipBlocker(db, spaceId, issueId);
   if (ownership) return { ...ownership, recoveryActionId: null };
   const [action] = restoreHold ? [restoreHold] : await db.select().from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, companyId),
+    eq(issueRecoveryActions.spaceId, spaceId),
     eq(issueRecoveryActions.sourceIssueId, issueId),
     executionBlockerPredicate(),
     not(restoreHoldReleasedForCurrentOwnerPredicate()),
@@ -365,7 +365,7 @@ export async function getExecutionBlocker(db: Db, companyId: string, issueId: st
   const parsedRunId = z.string().guid().safeParse(action.evidence.runId ?? action.evidence.sourceRunId);
   const runId = parsedRunId.success ? parsedRunId.data : null;
   const [run] = runId ? await db.select(blockerRunFields).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId),
+    eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId),
   )).limit(1) : [];
   const withoutWorkspace = Boolean(run?.driverKind === "grok_bot_mcp" && nativeRunHasNoWorkspaceAccess(run));
   const workspaceRepairRequired = Boolean(restoreHold && !withoutWorkspace && (!run || !await hasVerifiedWorkspaceRepair(db, run)));
@@ -373,7 +373,7 @@ export async function getExecutionBlocker(db: Db, companyId: string, issueId: st
   const reconstructableExport = ["native_workspace_sync_out_unrecoverable", "native_workspace_sync_out_retry_exhausted"].includes(action.cause);
   const exportSource = reconstructableExport ? readNativeWorkspaceSyncReference(run?.runnerProfileJson?.nativeWorkspaceSync) : null;
   const [exportLease] = exportSource ? await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, companyId), eq(environmentLeases.heartbeatRunId, run!.id), eq(environmentLeases.id, exportSource.leaseId),
+    eq(environmentLeases.spaceId, spaceId), eq(environmentLeases.heartbeatRunId, run!.id), eq(environmentLeases.id, exportSource.leaseId),
     eq(environmentLeases.providerLeaseId, exportSource.providerLeaseId),
   )).limit(1) : [];
   const canReconstructWorkspace = Boolean(exportLease && hasRemoteTerminationReceipt(exportLease)
@@ -383,21 +383,21 @@ export async function getExecutionBlocker(db: Db, companyId: string, issueId: st
   const reconstructionPending = Boolean((action.evidence.executionReconciliation as { workspaceReconstruction?: unknown } | undefined)?.workspaceReconstruction
     && action.evidence.continuationDelivery === "pending");
   const queue = await db.select({ payload: agentWakeupRequests.payload }).from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
+    eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
     sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
   ));
   const savedIds = [...new Set(queue.flatMap(entry => {
-    const context = entry.payload?._paperclipWakeContext as Record<string, unknown> | undefined;
+    const context = entry.payload?._outpostWakeContext as Record<string, unknown> | undefined;
     return [...queuedCommentIdsFromWakePayload(entry.payload), entry.payload?.commentId, context?.wakeCommentId]
       .filter((id): id is string => z.string().guid().safeParse(id).success);
   }))];
   const saved = savedIds.length ? await db.select({ id: issueComments.id }).from(issueComments).where(and(
-    eq(issueComments.companyId, companyId), eq(issueComments.issueId, issueId),
+    eq(issueComments.spaceId, spaceId), eq(issueComments.issueId, issueId),
     inArray(issueComments.id, savedIds), eq(issueComments.authorType, "user"), sql`${issueComments.deletedAt} is null`,
     sql`not exists (select 1 from (
       select consumed.context_snapshot->>'wakeCommentId' as comment_id,
         consumed.context_snapshot->'wakeCommentIds' as comment_ids
-      from ${heartbeatRuns} consumed where consumed.company_id = ${companyId}
+      from ${heartbeatRuns} consumed where consumed.space_id = ${spaceId}
         and consumed.context_snapshot->>'issueId' = ${issueId}
         and not (consumed.status = 'cancelled' and consumed.started_at is null)
       offset 0
@@ -429,11 +429,11 @@ export async function getExecutionBlocker(db: Db, companyId: string, issueId: st
     state: chatConversations.state, endpointStatus: chatEndpoints.status,
     connectionStatus: toolConnections.status, connectionEnabled: toolConnections.enabled,
   }).from(chatConversations).leftJoin(chatEndpoints, and(
-    eq(chatEndpoints.companyId, companyId), eq(chatEndpoints.id, chatConversations.endpointId),
+    eq(chatEndpoints.spaceId, spaceId), eq(chatEndpoints.id, chatConversations.endpointId),
   )).leftJoin(toolConnections, and(
-    eq(toolConnections.companyId, companyId), eq(toolConnections.id, chatEndpoints.connectionId),
+    eq(toolConnections.spaceId, spaceId), eq(toolConnections.id, chatEndpoints.connectionId),
   )).where(and(
-    eq(chatConversations.companyId, companyId), eq(chatConversations.issueId, issueId),
+    eq(chatConversations.spaceId, spaceId), eq(chatConversations.issueId, issueId),
   )).limit(1) : [];
   let nextAction = action.status === "active" && action.cause === EXECUTION_FINALIZATION_DEADLINE_EXCEEDED
     ? EXECUTION_FINALIZATION_DEADLINE_MESSAGE : action.nextAction;

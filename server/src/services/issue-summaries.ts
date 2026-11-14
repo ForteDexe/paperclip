@@ -7,7 +7,7 @@ import { externalConversationStateSql } from "./slack-conversation-state.js";
 /** A bounded projection with the columns needed by task-read authorization. */
 export async function listIssueSummaries(
   db: Db,
-  companyId: string,
+  spaceId: string,
   ids: readonly string[],
   readCondition: SQL<boolean>,
 ) {
@@ -15,7 +15,7 @@ export async function listIssueSummaries(
   if (ids.length === 0) return [];
   const rows = await db.select({
     id: issues.id,
-    companyId: issues.companyId,
+    spaceId: issues.spaceId,
     title: issues.title,
     identifier: issues.identifier,
     status: issues.status,
@@ -27,7 +27,7 @@ export async function listIssueSummaries(
     assigneeAgentId: issues.assigneeAgentId,
     assigneeUserId: issues.assigneeUserId,
   }).from(issues).where(and(
-    eq(issues.companyId, companyId),
+    eq(issues.spaceId, spaceId),
     inArray(issues.id, [...ids]),
     isNull(issues.hiddenAt),
     readCondition,

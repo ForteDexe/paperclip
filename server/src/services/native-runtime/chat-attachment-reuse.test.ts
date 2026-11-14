@@ -18,8 +18,8 @@ import {
   chatIdentityLinks,
   chatMessageLinks,
   chatPublications,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   heartbeatRuns,
   issueAttachments,
@@ -43,7 +43,7 @@ import {
   resolveExternalChatResponseWaitAuthorization,
   type ChatAttachmentReuseSource,
 } from "./chat-attachment-reuse.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { validateNativeDeliverableEvidence } from "./native-deliverable-feedback.js";
 
 describe("native same-conversation chat attachment reuse", () => {
@@ -53,7 +53,7 @@ describe("native same-conversation chat attachment reuse", () => {
   let db: ReturnType<typeof createDb>;
   let storage: ReturnType<typeof createStorageService>;
 
-  const companyId = "10000000-0000-4000-8000-000000000101";
+  const spaceId = "10000000-0000-4000-8000-000000000101";
   const agentId = "10000000-0000-4000-8000-000000000102";
   const issueId = "10000000-0000-4000-8000-000000000103";
   const runId = "10000000-0000-4000-8000-000000000104";
@@ -75,19 +75,19 @@ describe("native same-conversation chat attachment reuse", () => {
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("native-chat-reuse-");
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 6 });
     const storageRoot = await mkdtemp(
-      path.join(tmpdir(), "paperclip-chat-reuse-"),
+      path.join(tmpdir(), "outpost-chat-reuse-"),
     );
     await mkdir(storageRoot, { recursive: true });
     storage = createStorageService(createLocalDiskStorageProvider(storageRoot));
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Native chat attachment reuse",
       issuePrefix: "NCR",
       issueCounter: 1,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Native chat agent",
       adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" },
@@ -96,7 +96,7 @@ describe("native same-conversation chat attachment reuse", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       issueNumber: 1,
       identifier: "NCR-1",
       title: "Reuse the earlier file",
@@ -106,7 +106,7 @@ describe("native same-conversation chat attachment reuse", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       runtimeMode: "native",
@@ -124,7 +124,7 @@ describe("native same-conversation chat attachment reuse", () => {
     const connectionId = randomUUID();
     await db.insert(toolApplications).values({
       id: applicationId,
-      companyId,
+      spaceId,
       applicationKey: `chat:discord:${endpointId}`,
       name: "Discord reuse",
       type: "chat",
@@ -132,7 +132,7 @@ describe("native same-conversation chat attachment reuse", () => {
     });
     await db.insert(toolConnections).values({
       id: connectionId,
-      companyId,
+      spaceId,
       applicationId,
       name: "Discord reuse",
       uid: `chat-discord-${endpointId}`,
@@ -143,7 +143,7 @@ describe("native same-conversation chat attachment reuse", () => {
     });
     await db.insert(chatEndpoints).values({
       id: endpointId,
-      companyId,
+      spaceId,
       connectionId,
       provider: "discord",
       publicId: randomUUID(),
@@ -154,7 +154,7 @@ describe("native same-conversation chat attachment reuse", () => {
     });
     await db.insert(chatEndpointResources).values({
       id: resourceId,
-      companyId,
+      spaceId,
       endpointId,
       type: "channel",
       providerResourceId: "channel-1",
@@ -164,7 +164,7 @@ describe("native same-conversation chat attachment reuse", () => {
     });
     await db.insert(chatConversations).values({
       id: conversationId,
-      companyId,
+      spaceId,
       endpointId,
       resourceId,
       issueId,
@@ -175,21 +175,21 @@ describe("native same-conversation chat attachment reuse", () => {
     });
     await db.insert(chatExternalPrincipals).values({
       id: principalId,
-      companyId,
+      spaceId,
       provider: "discord",
       providerAccountId: "guild-1",
       externalId: "discord-user-1",
       kind: "user",
     });
     await db.insert(chatIdentityLinks).values({
-      companyId,
+      spaceId,
       endpointId,
       principalId,
-      paperclipUserId: userId,
+      outpostUserId: userId,
       status: "linked",
     });
-    await db.insert(companyMemberships).values({
-      companyId,
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "user",
       principalId: userId,
       status: "active",
@@ -203,7 +203,7 @@ describe("native same-conversation chat attachment reuse", () => {
     );
     sourceCommentId = sourceComment.id;
     const stored = await storage.putFile({
-      companyId,
+      spaceId,
       namespace: `issues/${issueId}`,
       originalFilename: "earlier.txt",
       contentType: "text/plain",
@@ -224,7 +224,7 @@ describe("native same-conversation chat attachment reuse", () => {
     const sourceDeliveryId = randomUUID();
     await db.insert(chatDeliveries).values({
       id: sourceDeliveryId,
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       principalId,
@@ -237,7 +237,7 @@ describe("native same-conversation chat attachment reuse", () => {
       processedAt: new Date(),
     });
     await db.insert(chatMessageLinks).values({
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       deliveryId: sourceDeliveryId,
@@ -255,7 +255,7 @@ describe("native same-conversation chat attachment reuse", () => {
     const currentDeliveryId = randomUUID();
     await db.insert(chatDeliveries).values({
       id: currentDeliveryId,
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       principalId,
@@ -268,7 +268,7 @@ describe("native same-conversation chat attachment reuse", () => {
       processedAt: new Date(),
     });
     await db.insert(chatMessageLinks).values({
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       deliveryId: currentDeliveryId,
@@ -281,10 +281,10 @@ describe("native same-conversation chat attachment reuse", () => {
       .set({
         contextSnapshot: {
           source: "chat:discord",
-          paperclipHarnessCheckedOut: true,
+          outpostHarnessCheckedOut: true,
           wakeCommentIds: [currentCommentId],
           commentId: currentCommentId,
-          paperclipWake: {
+          outpostWake: {
             reason: "External chat message received",
             externalChatProvider: "discord",
             checkedOutByHarness: true,
@@ -302,8 +302,8 @@ describe("native same-conversation chat attachment reuse", () => {
   });
 
   function authority() {
-    return new PaperclipRunnerToolAuthority(db, {
-      companyId,
+    return new OutpostRunnerToolAuthority(db, {
+      spaceId,
       agentId,
       issueId,
       runId,
@@ -313,7 +313,7 @@ describe("native same-conversation chat attachment reuse", () => {
   }
 
   it("bounds current authorization reads without loading unrelated chat content", async () => {
-    const binding = { companyId, agentId, issueId, runId };
+    const binding = { spaceId, agentId, issueId, runId };
     const [run] = await db.select({ contextSnapshot: heartbeatRuns.contextSnapshot })
       .from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
     const [endpoint] = await db.select().from(chatEndpoints).where(eq(chatEndpoints.id, endpointId));
@@ -337,7 +337,7 @@ describe("native same-conversation chat attachment reuse", () => {
       const now = Date.now();
       capture = createFullDatabaseResponseCapture({ start: now - 100, end: now + 59_000 }, event => events.push(event));
       installDatabaseResponseCapture(db, { chatMessageLinks, chatDeliveries, chatConversations, chatEndpoints,
-        chatEndpointResources, chatExternalPrincipals, chatIdentityLinks, companyMemberships }, capture);
+        chatEndpointResources, chatExternalPrincipals, chatIdentityLinks, spaceMemberships }, capture);
       for (const lockMode of ["read", "blocking", "nonblocking"] as const) {
         await expect(db.transaction(tx => authorizeChatConversationForBoundRun(tx as unknown as typeof db,
           binding, run.contextSnapshot, lockMode))).resolves.toEqual({ conversationId, endpointId });
@@ -387,7 +387,7 @@ describe("native same-conversation chat attachment reuse", () => {
           .where(eq(chatDeliveries.id, delivery.id));
       }
       const result = db.transaction(tx => authorizeChatConversationForBoundRun(tx as unknown as typeof db,
-        { companyId, agentId, issueId, runId }, run.contextSnapshot));
+        { spaceId, agentId, issueId, runId }, run.contextSnapshot));
       if (allowed) await expect(result).resolves.toEqual({ conversationId, endpointId });
       else await expect(result).rejects.toThrow("outpost_runner_chat_attachment_binding_denied");
     } finally {
@@ -401,7 +401,7 @@ describe("native same-conversation chat attachment reuse", () => {
   });
 
   it("authorizes an external-chat response wait only from current durable policy", async () => {
-    const binding = { companyId, agentId, issueId, runId };
+    const binding = { spaceId, agentId, issueId, runId };
     const alternateRunId = randomUUID();
     const [run] = await db
       .select({ contextSnapshot: heartbeatRuns.contextSnapshot })
@@ -409,7 +409,7 @@ describe("native same-conversation chat attachment reuse", () => {
       .where(eq(heartbeatRuns.id, runId));
     await db.insert(heartbeatRuns).values({
       id: alternateRunId,
-      companyId,
+      spaceId,
       agentId,
       status: "succeeded",
       runtimeMode: "native",
@@ -454,21 +454,21 @@ describe("native same-conversation chat attachment reuse", () => {
         .where(eq(heartbeatRuns.id, runId));
 
       await db
-        .update(companyMemberships)
+        .update(spaceMemberships)
         .set({ status: "suspended", updatedAt: new Date() })
-        .where(eq(companyMemberships.principalId, userId));
+        .where(eq(spaceMemberships.principalId, userId));
       await expect(
         resolveExternalChatResponseWaitAuthorization({ db, binding }),
       ).resolves.toBe("revoked");
       await db
-        .update(companyMemberships)
+        .update(spaceMemberships)
         .set({ status: "active", updatedAt: new Date() })
-        .where(eq(companyMemberships.principalId, userId));
+        .where(eq(spaceMemberships.principalId, userId));
 
       const spoofedContext = {
         ...((run?.contextSnapshot as Record<string, unknown> | null) ?? {}),
       };
-      delete spoofedContext.paperclipWake;
+      delete spoofedContext.outpostWake;
       await db
         .update(heartbeatRuns)
         .set({
@@ -493,9 +493,9 @@ describe("native same-conversation chat attachment reuse", () => {
         })
         .where(eq(heartbeatRuns.id, runId));
       await db
-        .update(companyMemberships)
+        .update(spaceMemberships)
         .set({ status: "active", updatedAt: new Date() })
-        .where(eq(companyMemberships.principalId, userId));
+        .where(eq(spaceMemberships.principalId, userId));
       await db
         .delete(heartbeatRuns)
         .where(eq(heartbeatRuns.id, alternateRunId));
@@ -583,7 +583,7 @@ describe("native same-conversation chat attachment reuse", () => {
       sha256: createHash("sha256").update(sourceBody).digest("hex"),
     });
     const prepared = attachments.find((row) => row.id === preparedId)!;
-    const object = await storage.getObject(companyId, prepared.objectKey);
+    const object = await storage.getObject(spaceId, prepared.objectKey);
     const chunks: Buffer[] = [];
     for await (const chunk of object.stream) chunks.push(Buffer.from(chunk));
     expect(Buffer.concat(chunks)).toEqual(sourceBody);
@@ -622,7 +622,7 @@ describe("native same-conversation chat attachment reuse", () => {
     expect(receipts["reuse-earlier-v1"]?.result).toEqual(first);
     expect(receipts["reuse-earlier-v2"]?.result).toEqual(duplicate);
     const verifyReceipt = (semanticToolReceipts: unknown) => validateNativeDeliverableEvidence(db, {
-      companyId, issueId, runId, objective: "Send me that file again.", semanticToolReceipts,
+      spaceId, issueId, runId, objective: "Send me that file again.", semanticToolReceipts,
     }, {
       schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Prepared the requested existing file.",
       completionClaim: { contractRevision: "test", objectiveSatisfied: true, criteria: [], remainingWork: [] },
@@ -645,28 +645,28 @@ describe("native same-conversation chat attachment reuse", () => {
     await expect(verifyReceipt(legacy)).resolves.toBeUndefined();
     const [sourceRow] = await db.select({ attachment: issueAttachments, asset: assets }).from(issueAttachments)
       .innerJoin(assets, eq(assets.id, issueAttachments.assetId)).where(eq(issueAttachments.id, sourceAttachmentId));
-    const foreignCompanyId = randomUUID();
-    await db.insert(companies).values({ id: foreignCompanyId, name: "Unrelated receipt source" });
+    const foreignSpaceId = randomUUID();
+    await db.insert(spaces).values({ id: foreignSpaceId, name: "Unrelated receipt source" });
     try {
-      for (const mutation of ["missing", "filename", "size", "hash", "foreign company"]) {
+      for (const mutation of ["missing", "filename", "size", "hash", "foreign space"]) {
         if (mutation === "missing") await db.delete(issueAttachments).where(eq(issueAttachments.id, sourceAttachmentId));
         if (mutation === "filename") await db.update(assets).set({ originalFilename: "different.txt" }).where(eq(assets.id, sourceRow.asset.id));
         if (mutation === "size") await db.update(assets).set({ byteSize: sourceBody.length + 1 }).where(eq(assets.id, sourceRow.asset.id));
         if (mutation === "hash") await db.update(assets).set({ sha256: "0".repeat(64) }).where(eq(assets.id, sourceRow.asset.id));
-        if (mutation === "foreign company") await db.update(issueAttachments).set({ companyId: foreignCompanyId }).where(eq(issueAttachments.id, sourceAttachmentId));
+        if (mutation === "foreign space") await db.update(issueAttachments).set({ spaceId: foreignSpaceId }).where(eq(issueAttachments.id, sourceAttachmentId));
         try {
           await expect(verifyReceipt(legacy)).rejects.toThrow("this run's requested output");
           // New receipts preserve the verified tuple even after the source is removed.
           await expect(verifyReceipt(receipts)).resolves.toBeUndefined();
         } finally {
           if (mutation === "missing") await db.insert(issueAttachments).values(sourceRow.attachment);
-          else await db.update(issueAttachments).set({ companyId }).where(eq(issueAttachments.id, sourceAttachmentId));
+          else await db.update(issueAttachments).set({ spaceId }).where(eq(issueAttachments.id, sourceAttachmentId));
           await db.update(assets).set({ originalFilename: sourceRow.asset.originalFilename,
             byteSize: sourceRow.asset.byteSize, sha256: sourceRow.asset.sha256 }).where(eq(assets.id, sourceRow.asset.id));
         }
       }
     } finally {
-      await db.delete(companies).where(eq(companies.id, foreignCompanyId));
+      await db.delete(spaces).where(eq(spaces.id, foreignSpaceId));
     }
     const completedResult = mergeHeartbeatRunResultJson(
       {
@@ -740,8 +740,8 @@ describe("native same-conversation chat attachment reuse", () => {
         await writeGate;
         return stored;
       },
-      deleteObject: async (targetCompanyId, objectKey) => {
-        await storage.deleteObject(targetCompanyId, objectKey);
+      deleteObject: async (targetSpaceId, objectKey) => {
+        await storage.deleteObject(targetSpaceId, objectKey);
         resolveDeleted(objectKey);
       },
     };
@@ -752,7 +752,7 @@ describe("native same-conversation chat attachment reuse", () => {
     await expect(
       prepareReusedChatAttachment({
         db,
-        binding: { companyId, issueId, runId, agentId },
+        binding: { spaceId, issueId, runId, agentId },
         source: source as ChatAttachmentReuseSource,
         title: "Must time out",
         storage: delayedStorage,
@@ -768,7 +768,7 @@ describe("native same-conversation chat attachment reuse", () => {
         setTimeout(() => reject(new Error("late object was not removed")), 500),
       ),
     ]);
-    expect((await storage.headObject(companyId, deletedObjectKey)).exists).toBe(
+    expect((await storage.headObject(spaceId, deletedObjectKey)).exists).toBe(
       false,
     );
     expect(
@@ -790,7 +790,7 @@ describe("native same-conversation chat attachment reuse", () => {
       );
       const body = Buffer.from(`historical-${index}\n`, "utf8");
       const stored = await storage.putFile({
-        companyId,
+        spaceId,
         namespace: `issues/${issueId}`,
         originalFilename: `historical-${index}.txt`,
         contentType: "text/plain",
@@ -815,7 +815,7 @@ describe("native same-conversation chat attachment reuse", () => {
       const deliveryId = randomUUID();
       await db.insert(chatDeliveries).values({
         id: deliveryId,
-        companyId,
+        spaceId,
         endpointId,
         conversationId,
         principalId,
@@ -828,7 +828,7 @@ describe("native same-conversation chat attachment reuse", () => {
         processedAt: new Date(),
       });
       await db.insert(chatMessageLinks).values({
-        companyId,
+        spaceId,
         endpointId,
         conversationId,
         deliveryId,
@@ -846,7 +846,7 @@ describe("native same-conversation chat attachment reuse", () => {
       publicationCommentB,
     ].entries()) {
       await db.insert(chatPublications).values({
-        companyId,
+        spaceId,
         endpointId,
         conversationId,
         issueId,
@@ -905,7 +905,7 @@ describe("native same-conversation chat attachment reuse", () => {
 
   it("keeps an older confirmed lineage when a newer publication was deleted", async () => {
     const stored = await storage.putFile({
-      companyId,
+      spaceId,
       namespace: `issues/${issueId}`,
       originalFilename: "published-twice.txt",
       contentType: "text/plain",
@@ -932,7 +932,7 @@ describe("native same-conversation chat attachment reuse", () => {
     await db.insert(issueComments).values([
       {
         id: olderCommentId,
-        companyId,
+        spaceId,
         issueId,
         authorType: "user",
         authorUserId: userId,
@@ -940,7 +940,7 @@ describe("native same-conversation chat attachment reuse", () => {
       },
       {
         id: newerCommentId,
-        companyId,
+        spaceId,
         issueId,
         authorType: "user",
         authorUserId: userId,
@@ -949,7 +949,7 @@ describe("native same-conversation chat attachment reuse", () => {
     ]);
     await db.insert(chatPublications).values([
       {
-        companyId,
+        spaceId,
         endpointId,
         conversationId,
         issueId,
@@ -961,7 +961,7 @@ describe("native same-conversation chat attachment reuse", () => {
         publishedAt: new Date("2026-09-07T18:01:00.000Z"),
       },
       {
-        companyId,
+        spaceId,
         endpointId,
         conversationId,
         issueId,
@@ -974,7 +974,7 @@ describe("native same-conversation chat attachment reuse", () => {
       },
     ]);
     await db.insert(chatDeliveries).values({
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       principalId,
@@ -1027,7 +1027,7 @@ describe("native same-conversation chat attachment reuse", () => {
     ).resolves.toMatchObject({ disposition: "applied" });
 
     const unconfirmedStored = await storage.putFile({
-      companyId,
+      spaceId,
       namespace: `issues/${issueId}`,
       originalFilename: "unconfirmed.txt",
       contentType: "text/plain",
@@ -1055,7 +1055,7 @@ describe("native same-conversation chat attachment reuse", () => {
       { userId },
     );
     await db.insert(chatPublications).values({
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       issueId,
@@ -1093,7 +1093,7 @@ describe("native same-conversation chat attachment reuse", () => {
   it("rejects forged source pairs, stale reach, and deleted historical sources", async () => {
     const runner = authority();
     const stored = await storage.putFile({
-      companyId,
+      spaceId,
       namespace: `issues/${issueId}`,
       originalFilename: "internal-only.txt",
       contentType: "text/plain",
@@ -1161,9 +1161,9 @@ describe("native same-conversation chat attachment reuse", () => {
       .where(eq(chatEndpoints.id, endpointId));
 
     await db
-      .update(companyMemberships)
+      .update(spaceMemberships)
       .set({ status: "suspended" })
-      .where(eq(companyMemberships.principalId, userId));
+      .where(eq(spaceMemberships.principalId, userId));
     await expect(
       runner.execute({
         tool: "reuse_chat_attachment",
@@ -1177,9 +1177,9 @@ describe("native same-conversation chat attachment reuse", () => {
       }),
     ).rejects.toThrow("outpost_runner_chat_attachment_principal_denied");
     await db
-      .update(companyMemberships)
+      .update(spaceMemberships)
       .set({ status: "active" })
-      .where(eq(companyMemberships.principalId, userId));
+      .where(eq(spaceMemberships.principalId, userId));
 
     await db
       .update(issues)
@@ -1247,7 +1247,7 @@ describe("native same-conversation chat attachment reuse", () => {
       .set({ deletedAt: null })
       .where(eq(issueComments.id, sourceCommentId));
     await db.insert(chatDeliveries).values({
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       principalId,

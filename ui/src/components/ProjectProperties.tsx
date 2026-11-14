@@ -12,7 +12,7 @@ import { cn, formatDate } from "../lib/utils";
 import { instanceSettingsApi } from "../api/instanceSettings";
 import { projectsApi } from "../api/projects";
 import { secretsApi } from "../api/secrets";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { queryKeys } from "../lib/queryKeys";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -213,7 +213,7 @@ function ArchiveDangerZone({
 
 export function ProjectProperties({ project, repositories, onUpdate, onFieldUpdate, getFieldSaveState, onArchive, archivePending }: ProjectPropertiesProps) {
   const { visible: workspaceIsolationControlsVisible } = useWorkspaceIsolationControls();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { data: privacySession } = useQuery({ queryKey: queryKeys.auth.session, queryFn: () => authApi.getSession() });
   const { data: privacyAccess } = useQuery({ queryKey: queryKeys.access.currentBoardAccess, queryFn: () => accessApi.getCurrentBoardAccess() });
   const canManagePrivacy = canManageProjectPrivacy(project, privacySession?.user?.id ?? privacySession?.session?.userId ?? null, privacyAccess);
@@ -238,25 +238,25 @@ export function ProjectProperties({ project, repositories, onUpdate, onFieldUpda
     queryFn: () => instanceSettingsApi.getExperimental(),
   });
   const { data: availableSecrets = [] } = useQuery({
-    queryKey: selectedCompanyId ? queryKeys.secrets.list(selectedCompanyId) : ["secrets", "none"],
-    queryFn: () => secretsApi.list(selectedCompanyId!),
-    enabled: Boolean(selectedCompanyId),
+    queryKey: selectedSpaceId ? queryKeys.secrets.list(selectedSpaceId) : ["secrets", "none"],
+    queryFn: () => secretsApi.list(selectedSpaceId!),
+    enabled: Boolean(selectedSpaceId),
   });
   const { data: userSecretDefinitions = [] } = useQuery({
-    queryKey: selectedCompanyId
-      ? queryKeys.secrets.userDefinitions(selectedCompanyId)
+    queryKey: selectedSpaceId
+      ? queryKeys.secrets.userDefinitions(selectedSpaceId)
       : ["user-secret-definitions", "none"],
-    queryFn: () => secretsApi.listUserSecretDefinitions(selectedCompanyId!),
-    enabled: Boolean(selectedCompanyId),
+    queryFn: () => secretsApi.listUserSecretDefinitions(selectedSpaceId!),
+    enabled: Boolean(selectedSpaceId),
   });
   const createSecret = useMutation({
     mutationFn: (input: { name: string; value: string }) => {
-      if (!selectedCompanyId) throw new Error("Select an outpost to create secrets");
-      return secretsApi.create(selectedCompanyId, input);
+      if (!selectedSpaceId) throw new Error("Select an outpost to create secrets");
+      return secretsApi.create(selectedSpaceId, input);
     },
     onSuccess: () => {
-      if (!selectedCompanyId) return;
-      queryClient.invalidateQueries({ queryKey: queryKeys.secrets.list(selectedCompanyId) });
+      if (!selectedSpaceId) return;
+      queryClient.invalidateQueries({ queryKey: queryKeys.secrets.list(selectedSpaceId) });
     },
   });
   const providerConfiguration = project.workspaceProvider;
@@ -265,9 +265,9 @@ export function ProjectProperties({ project, repositories, onUpdate, onFieldUpda
   const storagePluginUnavailable = Boolean(projectStoragePluginId
     && !providerConfiguration?.providers.some(provider => provider.id === projectStoragePluginId));
   const projectEnvironments = useQuery({
-    queryKey: queryKeys.projects.environments(project.companyId),
-    queryFn: () => projectsApi.environmentOptions(project.companyId),
-    enabled: Boolean(project.companyId) && showStorageAvailability && !storagePluginUnavailable,
+    queryKey: queryKeys.projects.environments(project.spaceId),
+    queryFn: () => projectsApi.environmentOptions(project.spaceId),
+    enabled: Boolean(project.spaceId) && showStorageAvailability && !storagePluginUnavailable,
   });
   const projectEnvironmentView = useQueryView(projectEnvironments);
 
@@ -307,8 +307,8 @@ export function ProjectProperties({ project, repositories, onUpdate, onFieldUpda
     if (project.urlKey !== project.id) {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(project.urlKey) });
     }
-    if (selectedCompanyId) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(selectedCompanyId) });
+    if (selectedSpaceId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(selectedSpaceId) });
     }
   };
 
@@ -950,7 +950,7 @@ export function ProjectProperties({ project, repositories, onUpdate, onFieldUpda
                               })}
                             immediate
                             className="w-full rounded border border-border bg-transparent px-2 py-1 text-xs font-mono outline-none"
-                            placeholder=".paperclip/worktrees"
+                            placeholder=".outpost/worktrees"
                           />
                         </div>
                         <div>

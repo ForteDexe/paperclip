@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { companies, createDb, environmentLeases, environments } from "@outpost/db";
+import { spaces, createDb, environmentLeases, environments } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { currentControllerProcess, currentControllerProcessStamp, currentProcessSpaceHash, readControllerProcess } from "../services/controller-process-identity.js";
 import { ENVIRONMENT_LEASE_CONTROLLER_KEY } from "../services/environment-lease-controller.js";
@@ -26,16 +26,16 @@ async function exitedPid(): Promise<number> {
 suite("environment_login_probe_lease on the shared ownership path", () => {
   let db!: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId = "";
+  let spaceId = "";
   let environmentId = "";
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-login-probe-lease-ownership-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-login-probe-lease-ownership-");
     db = createDb(temporary.connectionString);
-    companyId = randomUUID();
+    spaceId = randomUUID();
     environmentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "LPL",
-      requireBoardApprovalForNewAgents: false });
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "LPL",
+      requireOperatorApprovalForNewAgents: false });
     await db.insert(environments).values({ id: environmentId, name: "Fake Sandbox", driver: "sandbox",
       status: "active", config: { provider: "fake", image: "ubuntu:24.04" } });
   }, 30_000);
@@ -45,7 +45,7 @@ suite("environment_login_probe_lease on the shared ownership path", () => {
 
   async function lease(holder: Record<string, unknown> | null, providerLeaseId?: string) {
     const id = randomUUID();
-    await db.insert(environmentLeases).values({ id, companyId, environmentId, heartbeatRunId: null, status: "active",
+    await db.insert(environmentLeases).values({ id, spaceId, environmentId, heartbeatRunId: null, status: "active",
       leasePolicy: "ephemeral", provider: "fake", providerLeaseId: providerLeaseId ?? `sandbox://fake/${id}`,
       updatedAt: new Date(Date.now() - 60 * 60_000),
       metadata: holder ? { [ENVIRONMENT_LEASE_CONTROLLER_KEY]: holder } : {} });

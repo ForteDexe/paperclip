@@ -7,7 +7,7 @@ const meta: Meta<typeof CloudAccessError> = {
   title: "Projects and execution/Recovery/App/Connection recovery",
   component: CloudAccessError,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "recovery/reconnect"
       ],

@@ -21,9 +21,9 @@ async function run(afterText = rendered, beforeText = rendered, afterVisible = t
   const ctx = { input: { nonce: "nonce", fixtures: { agent: { id: "lead" } },
     api: { get: async () => [{ ...comment, ...(restarted && changedStoredBody ? { body: "Changed persisted reply" } : {}) }] },
     page: { url: () => "https://fixture.test/RUN/chats/lead", goto: async () => {}, getByTestId: () => ({ visible: true }),
-      locator: (selector: string) => { expect(selector).toBe('[id="comment-reply"]'); return { get text() { return "CEO" + body.text + "10:00 AM"; }, visible: true, locator: (nested: string) => { expect(nested).toBe(".paperclip-markdown"); return body; } }; } },
+      locator: (selector: string) => { expect(selector).toBe('[id="comment-reply"]'); return { get text() { return "CEO" + body.text + "10:00 AM"; }, visible: true, locator: (nested: string) => { expect(nested).toBe(".outpost-markdown"); return body; } }; } },
     restart: async () => { restarted = true; body.text = afterText; body.visible = afterVisible;
-      fixture.log = "Restart request chat-nonce: stopping Paperclip\nRestart request chat-nonce: starting Paperclip\nRestart request chat-nonce: Paperclip is healthy";
+      fixture.log = "Restart request chat-nonce: stopping Outpost\nRestart request chat-nonce: starting Outpost\nRestart request chat-nonce: Outpost is healthy";
       fixture.receipt = { requestId: "chat-nonce", status: "ready", completedAt: new Date().toISOString() }; }, evidence: vi.fn(),
   }, issue: () => ({ id: "source" }), refreshIssue: async () => {} } as unknown as ChatCatalogContext;
   const state: Record<string, unknown> = {};
@@ -44,6 +44,6 @@ it("requires a visible nonempty body before restart and a visible body afterward
 it("keeps independently changed persisted bytes failing despite unchanged rendered text", async () => {
   const state = await run(rendered, rendered, true, true);
   expect(state).toMatchObject({ persistedHistoryRetained: false, browserHistoryVisible: true });
-  expect(gradeRestartService({ state, origin: "https://fixture.test", companyId: "company", leadId: "lead", reply: "The operator should restart the server.",
+  expect(gradeRestartService({ state, origin: "https://fixture.test", spaceId: "space", leadId: "lead", reply: "The operator should restart the server.",
     tasks: [], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [], links: [], humanQueries: [], runs: [{ id: "run", status: "succeeded" }] }).passed).toBe(false);
 });

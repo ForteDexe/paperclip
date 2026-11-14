@@ -9,12 +9,12 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import type { ToolCredentialSecretRef } from "@outpost/shared";
 import { expect, it, vi } from "vitest";
-import { activityLog, agentRuntimeState, agentTaskSessions, agentWakeupRequests, agents, applyPendingMigrations, authUsers, chatConversations, chatDeliveries, chatExternalPrincipals, chatIdentityLinks, chatEndpointResources, chatEndpoints, chatMessageLinks, chatSlackRegistrations, heartbeatRunEvents, heartbeatRuns, companies, companyMemberships, companySecrets, companySkills, costEvents, financeEvents, closeCheckpointDb, closeFileStorageDb, closeLivenessDb, createDb, issueComments, issues, toolApplications, toolConnections } from "@outpost/db";
+import { activityLog, agentRuntimeState, agentTaskSessions, agentWakeupRequests, agents, applyPendingMigrations, authUsers, chatConversations, chatDeliveries, chatExternalPrincipals, chatIdentityLinks, chatEndpointResources, chatEndpoints, chatMessageLinks, chatSlackRegistrations, heartbeatRunEvents, heartbeatRuns, spaces, spaceMemberships, spaceSecrets, spaceSkills, costEvents, financeEvents, closeCheckpointDb, closeFileStorageDb, closeLivenessDb, createDb, issueComments, issues, toolApplications, toolConnections } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "../../../lib/dedicated-test-database-url.js";
 import { subscribeDatabaseWork } from "@outpost/db/work-signals";
 import { DELIVERY_QUEUES } from "../../delivery-work-notifications.js";
 import { chatCredentialMutationLease } from "../../chat-credential-mutation-lease.js";
-import { createPaperclipCloudConnector, outpostCloudConnectorConfigFromEnv } from "../../paperclip-cloud-connector.js";
+import { createOutpostCloudConnector, outpostCloudConnectorConfigFromEnv } from "../../outpost-cloud-connector.js";
 import { chatChannelService } from "../../chat-channels.js";
 import { ChatRuntime } from "../../chat-runtime.js";
 import { heartbeatService } from "../../heartbeat.js";
@@ -54,7 +54,7 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("signed Slack enrollment and actua
   }
   catch (error) { await db.$client.end({ timeout: 1 }); await registry.close(); throw error; }
   const store = new PostgresConnectorStore(pool), secrets = new InMemoryProviderSecretStore();
-  const id = randomUUID(), companyId = randomUUID(), endpointId = randomUUID(), agentId = randomUUID(), connectionId = randomUUID(), applicationId = randomUUID();
+  const id = randomUUID(), spaceId = randomUUID(), endpointId = randomUUID(), agentId = randomUUID(), connectionId = randomUUID(), applicationId = randomUUID();
   const actorId = `slack-owner-${id}`;
   const instanceId = `instance-${id}`, stackId = `slack-${id}`, publicId = "a".repeat(43), signingSecret = "0123456789abcdef0123456789abcdef";
   const signing = generateKeyPairSync("ed25519"), sealing = generateKeyPairSync("x25519"), now = new Date();
@@ -86,9 +86,9 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("signed Slack enrollment and actua
       owner: { id: actorId, email: `${id}@example.test` },
       stack: { stackId, accountGroupId: `account-${id}`, stackSlug: stackId, displayName: "Slack fixture", kind: "demo", primaryHost: `${stackId}.example.test`, region: "us-east-1" },
       versionPlan: { appVersion: "fixture", schemaVersion: "fixture", rolloutTrack: "stable" },
-      sleepPolicy: { desiredState: "awake" }, primaryCompany: { paperclipCompanyId: companyId, displayName: "Fixture", defaultBudgetCents: 0 },
+      sleepPolicy: { desiredState: "awake" }, primarySpace: { outpostSpaceId: spaceId, displayName: "Fixture", defaultBudgetCents: 0 },
     });
-    await store.putCloudStackInstance({ id: instanceId, kind: "cloud_stack", companyStackId: stackId, environment: "test",
+    await store.putCloudStackInstance({ id: instanceId, kind: "cloud_stack", spaceStackId: stackId, environment: "test",
       signPublicKey: signing.publicKey.export({ format: "jwk" }).x!, sealPublicKey: sealing.publicKey.export({ format: "jwk" }).x!,
       origins: ["https://tenant.example"], activeOrigin: "https://tenant.example", label: "Fixture", status: "active", createdAt: now, updatedAt: now });
     server.listen(0, "127.0.0.1"); await once(server, "listening");
@@ -105,17 +105,17 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("signed Slack enrollment and actua
     vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY", sealing.privateKey.export({ format: "jwk" }).d!);
     vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT", "test");
     vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_BASE_URL", base);
-    await db.insert(companies).values({ id: companyId, name: "Slack", issuePrefix: `S${id.slice(0, 7)}` });
+    await db.insert(spaces).values({ id: spaceId, name: "Slack", issuePrefix: `S${id.slice(0, 7)}` });
     await db.insert(authUsers).values({ id: actorId, name: "Slack owner", email: `${id}@owner.example.test`, emailVerified: true, createdAt: now, updatedAt: now });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: actorId, status: "active", membershipRole: "operator" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Slack", adapterType: "process", status: "idle", runtimeConfig: { heartbeat: { wakeOnDemand: true, intervalSec: 0 } } });
-    await db.insert(companyMemberships).values({ companyId, principalType: "agent", principalId: agentId, status: "active", membershipRole: "member" });
-    await db.insert(toolApplications).values({ id: applicationId, companyId, name: "Slack", type: "chat" });
-    await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "Slack", uid: id,
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: actorId, status: "active", membershipRole: "operator" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Slack", adapterType: "process", status: "idle", runtimeConfig: { heartbeat: { wakeOnDemand: true, intervalSec: 0 } } });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "agent", principalId: agentId, status: "active", membershipRole: "member" });
+    await db.insert(toolApplications).values({ id: applicationId, spaceId, name: "Slack", type: "chat" });
+    await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "Slack", uid: id,
       transport: "chat_sdk", connectionPurpose: "channel", enabled: true, status: "active" });
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId, connectionId, assignedAgentId: agentId,
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId, assignedAgentId: agentId,
       publicId, provider: "slack", status: "active", providerAccountId: "TTEST", setup: { runtimeGeneration: 1 } as InternalSetupState });
-    await db.insert(chatSlackRegistrations).values({ companyId, endpointId, requestId: randomUUID(), status: "configured",
+    await db.insert(chatSlackRegistrations).values({ spaceId, endpointId, requestId: randomUUID(), status: "configured",
       manifest: {}, manifestHash: "fixture", callbackUri: "https://tenant.example/callback", appId: "ATEST", createdByUserId: actorId });
     const withLease = chatCredentialMutationLease(db);
     const resolveCredentials = vi.fn(async () => ({ signingSecret }));
@@ -133,19 +133,19 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("signed Slack enrollment and actua
     const request = { rawBody, timestamp, signature: `v0=${createHmac("sha256", signingSecret).update(`v0:${timestamp}:`).update(rawBody).digest("hex")}` };
     const current = await broker.slackEvents.current(instanceId, publicId);
     await expect(broker.slackEvents.receive(current, request)).rejects.toThrow("SLACK_DURABLE_WAKE_UNAVAILABLE");
-    const connector = createPaperclipCloudConnector({ config: outpostCloudConnectorConfigFromEnv()! });
-    expect(await connector.leaseEvents({ subject: actorId, companyId, eventWakeVersion: 1 })).toBeNull();
+    const connector = createOutpostCloudConnector({ config: outpostCloudConnectorConfigFromEnv()! });
+    expect(await connector.leaseEvents({ subject: actorId, spaceId, eventWakeVersion: 1 })).toBeNull();
     expect(await broker.slackEvents.receive(current, request)).toEqual({ status: 200, duplicate: false });
     await vi.waitFor(() => expect(wake).toHaveBeenCalledOnce());
-    const leased = await connector.leaseEvents({ subject: actorId, companyId, eventWakeVersion: 1 });
+    const leased = await connector.leaseEvents({ subject: actorId, spaceId, eventWakeVersion: 1 });
     expect(leased?.failedEventIds).toBeUndefined(); expect(leased?.events).toHaveLength(1);
     const event = leased!.events[0]!; deliveryIds.push(event.id);
     if (event.provider !== "slack") throw new Error("Unexpected event owner");
     await expect(dispatchSlackCloudEvent(db, event)).rejects.toThrow("not ready");
     const onMessage = vi.fn(async (_event: ChatSdkMessageCallbackEvent) => {});
-    runtime = createChatSdkEndpointRuntime({ companyId, endpointId, logger: "silent", callbacks: { onMessage },
+    runtime = createChatSdkEndpointRuntime({ spaceId, endpointId, logger: "silent", callbacks: { onMessage },
       persistence: { read: async () => null, compareAndSet: async () => true, deleteIfVersion: async () => true },
-      providerConfig: { provider: "slack", userName: "paperclip-agent", credentials: { apiUrl: "http://127.0.0.1:1/api/", botToken: "xoxb-fixture", botUserId: "UBOT", signingSecret } } });
+      providerConfig: { provider: "slack", userName: "outpost-agent", credentials: { apiUrl: "http://127.0.0.1:1/api/", botToken: "xoxb-fixture", botUserId: "UBOT", signingSecret } } });
     await runtime.initialize();
     const transport = stubSlackFixtureTransport(runtime.getProviderAdapter());
     unregister = createSlackCloudEventIngress(db, { withCredentialMutationLease: withLease, resolveCredentials,
@@ -161,8 +161,8 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("signed Slack enrollment and actua
     expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ message: expect.objectContaining({ author: expect.objectContaining({ userId: "UOPERATOR", userName: "Operator" }) }) }));
     expect(transport).toHaveBeenCalled();
     await transport.assertNoErrors();
-    expect(await connector.acknowledgeEvents({ subject: actorId, companyId, leaseId: leased!.leaseId, deliveryIds: [event.id] })).toBe(1);
-    expect(await connector.leaseEvents({ subject: actorId, companyId, eventWakeVersion: 1 })).toBeNull();
+    expect(await connector.acknowledgeEvents({ subject: actorId, spaceId, leaseId: leased!.leaseId, deliveryIds: [event.id] })).toBe(1);
+    expect(await connector.leaseEvents({ subject: actorId, spaceId, eventWakeVersion: 1 })).toBeNull();
     await db.update(chatEndpoints).set({ setup: { ...saved, runtimeGeneration: 2 } as InternalSetupState }).where(eq(chatEndpoints.id, endpointId));
     await dispatchSlackCloudEvent(db, event);
     expect(onMessage).toHaveBeenCalledOnce();
@@ -171,11 +171,11 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("signed Slack enrollment and actua
     const replacement = ((await endpoint()).setup as InternalSetupState).slackCloudEvents!;
     expect(replacement.runtimeGeneration).toBe(2); expect(replacement.bindingId).not.toBe(saved.slackCloudEvents!.bindingId);
     const firstMessage = onMessage.mock.calls[0]![0];
-    const [task] = await db.insert(issues).values({ companyId, title: "Existing Slack conversation", status: "in_progress",
+    const [task] = await db.insert(issues).values({ spaceId, title: "Existing Slack conversation", status: "in_progress",
       assigneeAgentId: agentId, createdByUserId: actorId, identifier: `S${id.slice(0, 7)}-1`, issueNumber: 1 }).returning();
-    const [resource] = await db.insert(chatEndpointResources).values({ companyId, endpointId, type: "channel",
+    const [resource] = await db.insert(chatEndpointResources).values({ spaceId, endpointId, type: "channel",
       providerResourceId: firstMessage.thread.channelId, label: "Slack fixture", availability: "available", enabled: true }).returning();
-    await db.insert(chatConversations).values({ companyId, endpointId, issueId: task!.id, resourceId: resource!.id,
+    await db.insert(chatConversations).values({ spaceId, endpointId, issueId: task!.id, resourceId: resource!.id,
       externalConversationId: firstMessage.thread.channelId, externalThreadId: firstMessage.thread.id,
       externalLabel: "Slack fixture", isDirectMessage: firstMessage.thread.isDM });
     secretDirectory = await mkdtemp(path.join(os.tmpdir(), "slack-owner-secrets-"));
@@ -187,14 +187,14 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("signed Slack enrollment and actua
       timeoutSec: 10, graceSec: 1 } }).where(eq(agents.id, agentId));
     const vault = secretService(db), refs: ToolCredentialSecretRef[] = [];
     for (const [key, value] of Object.entries({ botToken: "xoxb-fixture", signingSecret })) {
-      const secret = await vault.create(companyId, { name: `slack-${key}-${id}`, provider: "local_encrypted", value }, { userId: actorId });
-      await vault.createBinding({ companyId, secretId: secret.id, targetType: "tool_connection", targetId: connectionId, configPath: `credentials.${key}` });
+      const secret = await vault.create(spaceId, { name: `slack-${key}-${id}`, provider: "local_encrypted", value }, { userId: actorId });
+      await vault.createBinding({ spaceId, secretId: secret.id, targetType: "tool_connection", targetId: connectionId, configPath: `credentials.${key}` });
       refs.push({ secretId: secret.id, versionSelector: "latest", configPath: `credentials.${key}`, required: true, projectionClass: "unclassified" });
     }
     await db.update(toolConnections).set({ credentialSecretRefs: refs }).where(eq(toolConnections.id, connectionId));
-    const [linkedPrincipal] = await db.insert(chatExternalPrincipals).values({ companyId, provider: "slack", providerAccountId: "TTEST",
+    const [linkedPrincipal] = await db.insert(chatExternalPrincipals).values({ spaceId, provider: "slack", providerAccountId: "TTEST",
       externalId: "UOPERATOR", kind: "user", displayName: "Operator" }).returning();
-    await db.insert(chatIdentityLinks).values({ companyId, endpointId, principalId: linkedPrincipal!.id, paperclipUserId: actorId,
+    await db.insert(chatIdentityLinks).values({ spaceId, endpointId, principalId: linkedPrincipal!.id, outpostUserId: actorId,
       status: "linked", confirmedAt: now });
     const canonicalCallback = "https://tenant.example/api/chat-webhooks/" + publicId + "/slack";
     await db.update(chatEndpoints).set({ botExternalId: "UBOT", sponsorUserId: actorId, allowGroupChats: true,
@@ -239,9 +239,9 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("signed Slack enrollment and actua
       return connector.acknowledgeEvents(input);
     } };
     const busyEndpointId = randomUUID(), busyConnectionId = randomUUID();
-    await db.insert(toolConnections).values({ id: busyConnectionId, companyId, applicationId, name: "Retirement waiting for credential mutation", uid: busyEndpointId,
+    await db.insert(toolConnections).values({ id: busyConnectionId, spaceId, applicationId, name: "Retirement waiting for credential mutation", uid: busyEndpointId,
       transport: "chat_sdk", connectionPurpose: "channel", enabled: false, status: "disabled" });
-    await db.insert(chatEndpoints).values({ id: busyEndpointId, companyId, connectionId: busyConnectionId, assignedAgentId: agentId,
+    await db.insert(chatEndpoints).values({ id: busyEndpointId, spaceId, connectionId: busyConnectionId, assignedAgentId: agentId,
       publicId: "f".repeat(43), provider: "slack", status: "archived", setup: { runtimeGeneration: 1 } as InternalSetupState });
     await db.transaction(tx => stageSlackCloudEnrollmentIntent(tx as unknown as typeof db, busyEndpointId, actorId));
     const [busyEndpoint] = await db.select().from(chatEndpoints).where(eq(chatEndpoints.id, busyEndpointId));
@@ -318,7 +318,7 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("signed Slack enrollment and actua
       expect(sdkCallbacks).toHaveLength(2);
     } finally { await vault.update(signingRef.secretId, { status: "active" }); }
 
-    expect(await connector.leaseEvents({ subject: actorId, companyId, eventWakeVersion: 1 })).toBeNull();
+    expect(await connector.leaseEvents({ subject: actorId, spaceId, eventWakeVersion: 1 })).toBeNull();
     for (const transport of transports) await transport.assertNoErrors();
     await normalService.shutdown(); normalService = undefined;
     let rejectAfterIntent = false;
@@ -385,30 +385,30 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("signed Slack enrollment and actua
     expect(((await endpoint()).setup as InternalSetupState).slackCloudRetiredGeneration).toBe(6);
     expect(await broker.slackEvents.current(instanceId, publicId)).toBeUndefined();
     expect((await store.listWebhookBindings(instanceId)).find((value: { receivesEvents?: boolean }) => value.receivesEvents === false).providerMetadata.retirement.runtimeGeneration).toBe(6);
-    await expect(broker.slackEvents.enroll(await store.getInstance(instanceId), actorId, { companyId, endpointId, publicId, connectionId,
+    await expect(broker.slackEvents.enroll(await store.getInstance(instanceId), actorId, { spaceId, endpointId, publicId, connectionId,
       runtimeGeneration: 3, teamId: "TTEST", appId: "ATEST", signingSecret })).rejects.toThrow("GENERATION_CHANGED");
 
     const pendingIds = [randomUUID(), randomUUID()];
     vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_BASE_URL", "");
     for (const [index, pendingId] of pendingIds.entries()) {
       const pendingConnectionId = randomUUID();
-      await db.insert(toolConnections).values({ id: pendingConnectionId, companyId, applicationId, name: "Retired Slack", uid: pendingId,
+      await db.insert(toolConnections).values({ id: pendingConnectionId, spaceId, applicationId, name: "Retired Slack", uid: pendingId,
         transport: "chat_sdk", connectionPurpose: "channel", enabled: false, status: "disabled" });
-      await db.insert(chatEndpoints).values({ id: pendingId, companyId, connectionId: pendingConnectionId, assignedAgentId: agentId,
+      await db.insert(chatEndpoints).values({ id: pendingId, spaceId, connectionId: pendingConnectionId, assignedAgentId: agentId,
         publicId: (index === 0 ? "d" : "e").repeat(43), provider: "slack", status: "archived", providerAccountId: "TTEST",
         setup: { runtimeGeneration: 1, slackCloudInstanceId: instanceId, slackCloudSubject: actorId } as InternalSetupState });
       await db.transaction(tx => stageSlackCloudEnrollmentIntent(tx as unknown as typeof db, pendingId, actorId));
     }
     vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_BASE_URL", base);
     await reconstructedOwner.pollOnce({ forDelivery: true });
-    const remaining = await db.select().from(chatEndpoints).where(and(eq(chatEndpoints.companyId, companyId),
+    const remaining = await db.select().from(chatEndpoints).where(and(eq(chatEndpoints.spaceId, spaceId),
       sql`${chatEndpoints.setup}->'slackCloudIntent' is not null`));
     expect(remaining).toHaveLength(1);
     expect(pendingIds).toContain(remaining[0]!.id);
     expect(reconstructedOwner.nextPollAt()).not.toBeNull();
     expect(reconstructedOwner.nextPollAt()!).toBeLessThanOrEqual(Date.now());
     await reconstructedOwner.pollOnce({ forDelivery: true });
-    expect(await db.select().from(chatEndpoints).where(and(eq(chatEndpoints.companyId, companyId),
+    expect(await db.select().from(chatEndpoints).where(and(eq(chatEndpoints.spaceId, spaceId),
       sql`${chatEndpoints.setup}->'slackCloudIntent' is not null`))).toHaveLength(0);
     expect(reconstructedOwner.nextPollAt()).toBeNull();
 
@@ -423,22 +423,22 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("signed Slack enrollment and actua
     if (server.listening) { server.close(); await once(server, "close"); }
     vi.unstubAllEnvs();
     try {
-      await db.delete(chatEndpoints).where(eq(chatEndpoints.companyId, companyId));
-      await db.delete(financeEvents).where(eq(financeEvents.companyId, companyId));
-      await db.delete(costEvents).where(eq(costEvents.companyId, companyId));
-      await db.delete(activityLog).where(eq(activityLog.companyId, companyId));
-      await db.delete(agentTaskSessions).where(eq(agentTaskSessions.companyId, companyId));
-      await db.delete(agentRuntimeState).where(eq(agentRuntimeState.companyId, companyId));
-      await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.companyId, companyId));
-      await db.delete(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
-      await db.delete(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId));
-      await db.delete(issueComments).where(eq(issueComments.companyId, companyId));
-      await db.delete(issues).where(eq(issues.companyId, companyId));
-      await db.delete(agents).where(eq(agents.companyId, companyId));
-      await db.delete(companyMemberships).where(eq(companyMemberships.companyId, companyId));
-      await db.delete(companySecrets).where(eq(companySecrets.companyId, companyId));
-      await db.delete(companySkills).where(eq(companySkills.companyId, companyId));
-      await db.delete(companies).where(eq(companies.id, companyId));
+      await db.delete(chatEndpoints).where(eq(chatEndpoints.spaceId, spaceId));
+      await db.delete(financeEvents).where(eq(financeEvents.spaceId, spaceId));
+      await db.delete(costEvents).where(eq(costEvents.spaceId, spaceId));
+      await db.delete(activityLog).where(eq(activityLog.spaceId, spaceId));
+      await db.delete(agentTaskSessions).where(eq(agentTaskSessions.spaceId, spaceId));
+      await db.delete(agentRuntimeState).where(eq(agentRuntimeState.spaceId, spaceId));
+      await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.spaceId, spaceId));
+      await db.delete(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId));
+      await db.delete(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId));
+      await db.delete(issueComments).where(eq(issueComments.spaceId, spaceId));
+      await db.delete(issues).where(eq(issues.spaceId, spaceId));
+      await db.delete(agents).where(eq(agents.spaceId, spaceId));
+      await db.delete(spaceMemberships).where(eq(spaceMemberships.spaceId, spaceId));
+      await db.delete(spaceSecrets).where(eq(spaceSecrets.spaceId, spaceId));
+      await db.delete(spaceSkills).where(eq(spaceSkills.spaceId, spaceId));
+      await db.delete(spaces).where(eq(spaces.id, spaceId));
       await db.delete(authUsers).where(eq(authUsers.id, actorId));
       await pool.query("DELETE FROM cloud_harness.connector_instances WHERE id=$1", [instanceId]);
       await pool.query("DELETE FROM cloud_harness.connector_webhook_deliveries WHERE id=ANY($1::text[])", [deliveryIds]);

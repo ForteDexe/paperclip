@@ -46,18 +46,18 @@ without this capability leaves managed setup unavailable. Do not enable the tena
 gate until real Slack qualification has passed; fixture coverage does not prove
 Marketplace eligibility or a workspace's approval policy.
 
-Self-hosted instances do not need a Paperclip account, broker enrollment, manager
+Self-hosted instances do not need a Outpost account, broker enrollment, manager
 credentials, or hosted-service calls. They continue using the own-app flow.
 
 ## Personal workspace authorization
 
-Manager grants belong to a company **and one Paperclip user**, and bind a verified
-Slack user, workspace, and manager app. Another company member must authorize their
+Manager grants belong to a space **and one Outpost user**, and bind a verified
+Slack user, workspace, and manager app. Another space member must authorize their
 own account, even for the same workspace. Access and rotating refresh tokens are
 user-scoped vault entries. Refreshes serialize across connections, persist the new
 refresh token, and require fresh authorization after an ambiguous exchange.
 Managed provisioning resolves the submitted grant from the Slack manager-grant
-registry. Both provisioning and revocation check its company and current user;
+registry. Both provisioning and revocation check its space and current user;
 these IDs are separate from tool-connection grants.
 
 Revoking a grant requests provider revocation, removes its local credentials, invalidates pending manager
@@ -86,11 +86,11 @@ Provider-side app removal remains explicit through the saved Slack management UR
   workspace** on Connect, even before its app has been created. This button
   opens Slack authorization and returns to the same saved agent setup.
 - Slack rate limits are grouped by manager/workspace/method. Provider `Retry-After`
-  is persisted across matching grants in the company, survives restarts, and blocks
+  is persisted across matching grants in the space, survives restarts, and blocks
   early retries. Other tenant instances must observe Slack's limits independently;
   no background loop retries app creation.
 
-All OAuth attempts bind company, actor/session, endpoint, registration revision,
+All OAuth attempts bind space, actor/session, endpoint, registration revision,
 and configured origins, expire after ten minutes, and are claimed once before
 exchange. HTTP diagnostics redact manager tokens, refresh tokens, codes, and sealed
 handoffs. Local activity records contain only IDs and safe outcome codes. This adds
@@ -106,7 +106,7 @@ selection live in `ui/src/pages/apps/chat/slack/`.
 
 Inbound workspace checks and authenticated setup evidence resolve only the current
 signing secret. They do not read bot or app tokens for signature checks. Runtime
-setup still resolves its full credential set. Each check uses the saved company
+setup still resolves its full credential set. Each check uses the saved space
 and connection, current secret version, and normal secret access audit path.
 
 Production Storybook journeys: **Connections / Slack / Managed setup** and
@@ -139,7 +139,7 @@ Set `NODE_ENV=development`, `OUTPOST_SLACK_MANAGED_SETUP_ENABLED=true`, and
 `OUTPOST_SLACK_MANAGER_DEVELOPMENT_CONFIG` to an absolute path outside the
 checkout containing a mode-0600 JSON file with `appId`, `clientId`, and
 `clientSecret`. Use only an authorized qualification manager app. No credentials
-are shipped with Paperclip. Production ignores this development configuration,
+are shipped with Outpost. Production ignores this development configuration,
 and Cloud runtime identity continues to select the Cloud broker.
 
 Configure the local instance for authenticated public access, with its public
@@ -159,12 +159,12 @@ used by other bots.
 
 **Send me a test message** sends a DM to the signed-in connection manager,
 using their linked identity in this workspace. If this bot is not linked yet,
-Paperclip can reuse that user's verified manager grant or another bot's linked
-identity in the same company and workspace. Otherwise, the user selects their
+Outpost can reuse that user's verified manager grant or another bot's linked
+identity in the same space and workspace. Otherwise, the user selects their
 Slack account and receives a private connection invitation in Slack. They must
-open that invitation, sign in, and confirm before Paperclip links the account and
+open that invitation, sign in, and confirm before Outpost links the account and
 sends the test DM. The account picker loads further workspace pages on request. Existing revoked or conflicting identity links are not overwritten.
-Direct messages must be enabled, and the user must be an active company operator.
+Direct messages must be enabled, and the user must be an active space operator.
 
 The action records a durable request before sending. Repeating the same request
 returns its saved result; an uncertain delivery is never automatically resent.
@@ -209,7 +209,7 @@ A busy credential lease or enrollment failure retains a bounded retry without
 aborting that event drain. Rollback leaves no committed intent to run.
 
 Retirement sends the original responsible subject and the exact instance,
-company, endpoint, public ID, connection and monotonic generation. Cloud can
+space, endpoint, public ID, connection and monotonic generation. Cloud can
 publish a nonreceiving generation floor without a signing key, live descriptor
 or previously returned binding ID. This fences delayed enrollment after local
 removal. Normal current broker authority still applies; the subject alone does

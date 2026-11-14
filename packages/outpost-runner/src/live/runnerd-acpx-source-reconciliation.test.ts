@@ -42,9 +42,9 @@ async function fixture(agent: "codex" | "claude" = "codex", nativeSource = false
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); if (!address || typeof address === "string") throw new Error("missing fixture listener");
   const identity = { runnerInstanceId: "runner-source", environmentLeaseId: "lease-source", runId: "run-source", normalizedSessionId: "session-source", turnId: "turn-source", itemId: "item-source" };
-  const nativeIdentity = { companyId: "company", agentId: "agent", issueId: "issue", runId: identity.runId, sessionId: identity.normalizedSessionId };
+  const nativeIdentity = { spaceId: "space", agentId: "agent", issueId: "issue", runId: identity.runId, sessionId: identity.normalizedSessionId };
   const execution: NativeExecutionInput = { schema: "outpost.native-execution-input.v1",
-    binding: { companyId: nativeIdentity.companyId, agentId: nativeIdentity.agentId, issueId: nativeIdentity.issueId, runId: identity.runId, executionWorkspaceId: "workspace" },
+    binding: { spaceId: nativeIdentity.spaceId, agentId: nativeIdentity.agentId, issueId: nativeIdentity.issueId, runId: identity.runId, executionWorkspaceId: "workspace" },
     task: { identifier: "TASK-1", title: "Complete fake work", description: null, prompt: "Complete fake work", workMode: "standard" },
     workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },
     session: { normalizedSessionId: identity.normalizedSessionId, driverKind: "acpx_runtime", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
@@ -305,7 +305,7 @@ it.skipIf(process.platform === "win32").each(["before", "after"] as const)("rese
     expect((await source.transport.request("thread/read", {})).thread).toMatchObject(f.thread);
     await f.settle();
     await writeFile(f.fault, stage === "before" ? "hang-before-dispatch" : "hang-after-dispatch");
-    const journal = join(f.root, "acpx", "paperclip-turn-dispatch.jsonl");
+    const journal = join(f.root, "acpx", "outpost-turn-dispatch.jsonl");
     const sidecar = (await f.calls()).filter(entry => entry.processStart).at(-1)!.processStart as number;
     const cut = source.transport.request("turn/start", { input: [{ type: "text", text: "Write the brief." }] })
       .then(() => null, (error: unknown) => error);

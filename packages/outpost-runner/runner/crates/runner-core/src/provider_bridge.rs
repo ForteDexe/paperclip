@@ -39,10 +39,10 @@ const MAX_SETTLED_CALL_IDS: usize = 65_536;
 const REPLAY_FILTER_WORDS: usize = 32_768;
 const ACTIVE_TURN_RECEIPT_LIMIT_MESSAGE: &str =
     "durable provider tool receipt limit reached for the active turn";
-const COMPLETION_INPUT_SCHEMA_HINT: &str = "Invalid paperclip_finish arguments. Required fields: reportedWorkDisposition, summary, completionClaim, evidence, and verification. When reportedWorkDisposition is yielded, continuation must include kind=response_wake or monitor, summary, and idempotencyKey.";
+const COMPLETION_INPUT_SCHEMA_HINT: &str = "Invalid outpost_finish arguments. Required fields: reportedWorkDisposition, summary, completionClaim, evidence, and verification. When reportedWorkDisposition is yielded, continuation must include kind=response_wake or monitor, summary, and idempotencyKey.";
 const HUMAN_INPUT_SCHEMA_HINT: &str = "Invalid request_human_input arguments. Put version and supersedeOnUserComment at payload.version and payload.supersedeOnUserComment, never at the root. For questions, use payload.version=1 and a complete payload.questionSet. Preserve question and option IDs. Correct the arguments and retry.";
 const APPROVAL_INPUT_SCHEMA_HINT: &str = "Invalid request_human_input arguments. Put version and supersedeOnUserComment at payload.version and payload.supersedeOnUserComment, never at the root. Keep approval requests in their confirmation or checkbox interactionKind; do not replace them with questions. Correct the arguments and retry.";
-const BLOCK_INPUT_SCHEMA_HINT: &str = "Invalid paperclip_block arguments. Required fields: reportedWorkDisposition=blocked, summary, completionClaim, evidence, verification, and blocker. blocker must include reasonCode, owner, unblockAction, and scope.";
+const BLOCK_INPUT_SCHEMA_HINT: &str = "Invalid outpost_block arguments. Required fields: reportedWorkDisposition=blocked, summary, completionClaim, evidence, verification, and blocker. blocker must include reasonCode, owner, unblockAction, and scope.";
 const MONITOR_INPUT_SCHEMA_HINT: &str = "Invalid set_task_monitor arguments. Supply idempotencyKey and monitor: {nextCheckAt: <future UTC timestamp>, notes: <next check>}. Put all scheduling fields inside monitor, or use monitor: null to clear. Omit taskId for the current task. Correct the arguments and retry.";
 const API_INPUT_SCHEMA_HINT: &str = "Invalid call_api arguments. For responseText, use GET with offsetBytes >= 0 and responseText.limitBytes from 4 through 24576 bytes (default 24576). Follow nextOffsetBytes; null means complete. Correct the arguments and retry.";
 const TOOL_INPUT_SCHEMA_HINT: &str = "Invalid tool arguments. The tool was not executed. Match its authorized input schema. Correct the arguments and retry.";
@@ -245,8 +245,8 @@ impl ProviderBridgeError {
 
     fn input_schema_validation(operation_id: &str, input: &Value) -> Self {
         let safe_provider_message = match operation_id {
-            "paperclip_finish" => Some(COMPLETION_INPUT_SCHEMA_HINT),
-            "paperclip_block" => Some(BLOCK_INPUT_SCHEMA_HINT),
+            "outpost_finish" => Some(COMPLETION_INPUT_SCHEMA_HINT),
+            "outpost_block" => Some(BLOCK_INPUT_SCHEMA_HINT),
             "request_human_input" => {
                 Some(match input.get("interactionKind").and_then(Value::as_str) {
                     Some("confirmation" | "checkbox") => APPROVAL_INPUT_SCHEMA_HINT,
@@ -683,7 +683,7 @@ impl ProviderToolBridge {
         }
         if matches!(
             operation_id.as_str(),
-            "paperclip_finish" | "paperclip_block"
+            "outpost_finish" | "outpost_block"
         ) && input
             .get("summary")
             .and_then(Value::as_str)
@@ -839,7 +839,7 @@ impl ProviderToolBridge {
         })?;
         let response = semantic_response_value(&result)?;
         if !result.is_error {
-            // Paperclip semantic dispatchers return an authoritative envelope;
+            // Outpost semantic dispatchers return an authoritative envelope;
             // provider contracts describe the operation-specific value inside
             // `result`. Direct values remain valid for compatibility with v1
             // peers that do not wrap their semantic result.
@@ -1091,7 +1091,7 @@ fn validate_tool_result_contract(
     })?;
     let response = semantic_response_value(result)?;
     if !result.is_error {
-        // Paperclip semantic dispatchers return an authoritative envelope;
+        // Outpost semantic dispatchers return an authoritative envelope;
         // provider contracts describe the operation-specific value inside
         // `result`. Direct values remain valid for compatibility with v1
         // peers that do not wrap their semantic result.
@@ -1547,7 +1547,7 @@ mod tests {
 
     fn completion_bridge() -> ProviderToolBridge {
         let operation = AuthorizedTool {
-            operation_id: "paperclip_finish".to_owned(),
+            operation_id: "outpost_finish".to_owned(),
             version: 1,
             description: "Report the completed turn.".to_owned(),
             input_schema: json!({
@@ -1576,7 +1576,7 @@ mod tests {
         within_limit
             .begin_call(
                 "call-within-limit".to_owned(),
-                "paperclip_finish".to_owned(),
+                "outpost_finish".to_owned(),
                 json!({"summary": "🛰".repeat(MAX_COMPLETION_SUMMARY_CHARS)}),
             )
             .unwrap();
@@ -1585,7 +1585,7 @@ mod tests {
         let error = over_limit
             .begin_call(
                 "call-over-limit".to_owned(),
-                "paperclip_finish".to_owned(),
+                "outpost_finish".to_owned(),
                 json!({"summary": "🛰".repeat(MAX_COMPLETION_SUMMARY_CHARS + 1)}),
             )
             .expect_err("an over-limit completion summary must fail before durable emission");
@@ -1602,7 +1602,7 @@ mod tests {
         let error = bridge
             .begin_call(
                 "bad-summary".to_owned(),
-                "paperclip_finish".to_owned(),
+                "outpost_finish".to_owned(),
                 json!({"summary": {"PRIVATE_FIELD": "PRIVATE_VALUE"}}),
             )
             .unwrap_err();
@@ -1614,7 +1614,7 @@ mod tests {
         bridge
             .begin_call(
                 "corrected-summary".to_owned(),
-                "paperclip_finish".to_owned(),
+                "outpost_finish".to_owned(),
                 json!({"summary": "Saved the requested output."}),
             )
             .unwrap();
@@ -1626,7 +1626,7 @@ mod tests {
         let error = bridge
             .begin_call(
                 "missing-summary".to_owned(),
-                "paperclip_finish".to_owned(),
+                "outpost_finish".to_owned(),
                 json!({}),
             )
             .unwrap_err();
@@ -1640,7 +1640,7 @@ mod tests {
             "c": {"type": "string"}, "d": {"type": "string"},
         }});
         let validator = jsonschema::validator_for(&schema).unwrap();
-        let error = ProviderBridgeError::input_schema_validation("paperclip_finish", &json!({}))
+        let error = ProviderBridgeError::input_schema_validation("outpost_finish", &json!({}))
             .with_schema_locations(&validator, &json!({"a": 1, "b": 2, "c": 3, "d": 4}));
         assert_eq!(
             error
@@ -2268,7 +2268,7 @@ mod tests {
         bridge
             .begin_call(
                 "stuck-call".to_owned(),
-                "paperclip_finish".to_owned(),
+                "outpost_finish".to_owned(),
                 json!({"summary": "private summary text"}),
             )
             .unwrap();
@@ -2278,14 +2278,14 @@ mod tests {
             .expect_err("a pending call blocks the next turn")
             .to_string();
         assert!(message.contains("tool calls are active"));
-        assert!(message.contains("pending: 1 [paperclip_finish:stuck-call]"));
+        assert!(message.contains("pending: 1 [outpost_finish:stuck-call]"));
         assert!(message.contains("completed: 0"));
         assert!(!message.contains("private summary text"));
 
         bridge
             .apply_result(ToolResult {
                 call_id: "stuck-call".to_owned(),
-                operation_id: "paperclip_finish".to_owned(),
+                operation_id: "outpost_finish".to_owned(),
                 result: json!({"ok": true}),
                 is_error: false,
             })
@@ -2295,7 +2295,7 @@ mod tests {
             .expect_err("an unsettled completed call blocks the next turn")
             .to_string();
         assert!(message.contains("pending: 0;"));
-        assert!(message.contains("completed: 1 [paperclip_finish:stuck-call]"));
+        assert!(message.contains("completed: 1 [outpost_finish:stuck-call]"));
 
         bridge.settle_turn("provider_turn_terminated").unwrap();
         bridge

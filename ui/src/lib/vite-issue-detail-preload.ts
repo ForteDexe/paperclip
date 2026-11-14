@@ -3,7 +3,7 @@ import { EARLY_CHAT_BOOTSTRAP_GLOBAL, TASK_COLLECTION_PAINTED_EVENT } from "./is
 
 export function preloadIssueDetail(): Plugin {
   return {
-    name: "paperclip-preload-issue-detail",
+    name: "outpost-preload-issue-detail",
     apply: "build",
     transformIndexHtml(_html, { bundle }) {
       const issueDetail = Object.values(bundle ?? {}).find((chunk) =>

@@ -2,7 +2,7 @@
 
 The implementation is ready for final review and an opt-in rollout after the
 remaining release checks pass. General release is not yet approved. The tools
-are disabled by default and can be enabled for selected companies.
+are disabled by default and can be enabled for selected spaces.
 
 ## Implemented safeguards
 
@@ -22,7 +22,7 @@ are disabled by default and can be enabled for selected companies.
 ## Qualification evidence
 
 Sonnet 5 through OpenCode 1.18.17 and OpenRouter passed the read, mutation and
-cross-company denial smoke cases after fixes. It also passed eight additional
+cross-space denial smoke cases after fixes. It also passed eight additional
 cases covering files, Ask/Plan modes, API-only options and a mixed workflow.
 The initial malformed-JSON failure remains in the report. The corrected tool
 schema tells models to pass structured JSON directly, and invalid string-encoded
@@ -72,7 +72,7 @@ paid-model results after the campaign time limit.
 1. Preserve the completed paired comparison and its investigated threshold flags.
 2. Record final costs, latency, source revisions, failures and unrun operations.
 3. Require green current-head CI and completed security/code review before merging.
-4. Keep API tools disabled until an operator selects the first rollout companies.
+4. Keep API tools disabled until an operator selects the first rollout spaces.
 5. Inspect task correctness, fallback frequency, cost, latency, denials and unknown
    mutation outcomes before expanding access.
 

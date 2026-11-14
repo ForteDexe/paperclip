@@ -5,13 +5,13 @@ import { chooseTickStepMs, computeLayout, issueColor, shortLabel, type LayoutOpt
 const DAY = "2026-07-02";
 const t = (hhmm: string) => `${DAY}T${hhmm}:00.000Z`;
 
-// A trimmed version of the board's locked-design sample (PAP-12422), expressed
+// A trimmed version of the operator's locked-design sample (PAP-12422), expressed
 // in the real endpoint contract: actor→actor edges rather than run→run.
 function sample(): WorkTimelineResult {
   const actors = [
     { id: "user:dotta", type: "user" as const, name: "dotta" },
-    { id: "agent:ceo", type: "agent" as const, name: "CEO" },
-    { id: "agent:cto", type: "agent" as const, name: "CTO Architect" },
+    { id: "agent:lead", type: "agent" as const, name: "Default agent" },
+    { id: "agent:engineering_lead", type: "agent" as const, name: "Engineering Lead Architect" },
     { id: "agent:ux", type: "agent" as const, name: "UXDesigner" },
     { id: "agent:senior", type: "agent" as const, name: "SeniorEngineer" },
     { id: "agent:codex", type: "agent" as const, name: "CodexCoder" },
@@ -40,8 +40,8 @@ function sample(): WorkTimelineResult {
     retryOfRunId,
   });
   const spans = [
-    span("r1", "agent:ceo", "i-405", "PAP-12405", "09:02", "09:10", "completed"),
-    span("r2", "agent:cto", "i-405", "PAP-12405", "09:14", "09:52", "completed"),
+    span("r1", "agent:lead", "i-405", "PAP-12405", "09:02", "09:10", "completed"),
+    span("r2", "agent:engineering_lead", "i-405", "PAP-12405", "09:14", "09:52", "completed"),
     span("r3", "agent:senior", "i-075", "PAP-12075", "09:58", "10:20", "completed"),
     span("r4", "agent:ux", "i-422", "PAP-12422", "10:10", "11:34", "running"),
     span("r5", "agent:codex", "i-423", "PAP-12423", "10:10", "10:56", "completed"),
@@ -58,10 +58,10 @@ function sample(): WorkTimelineResult {
     kind: "delegation",
   });
   const edges = [
-    edge("user:dotta", "agent:ceo", "i-405", "09:01"), // human kickoff → chip only, no line
-    edge("agent:ceo", "agent:cto", "i-405", "09:13"),
-    edge("agent:cto", "agent:ux", "i-422", "10:09"),
-    edge("agent:cto", "agent:codex", "i-423", "10:09"),
+    edge("user:dotta", "agent:lead", "i-405", "09:01"), // human kickoff → chip only, no line
+    edge("agent:lead", "agent:engineering_lead", "i-405", "09:13"),
+    edge("agent:engineering_lead", "agent:ux", "i-422", "10:09"),
+    edge("agent:engineering_lead", "agent:codex", "i-423", "10:09"),
     edge("agent:senior", "agent:codex", "i-075", "10:21"),
     edge("agent:codex", "agent:qa", "i-423", "11:39"),
     edge("agent:qa", "agent:codex", "i-423", "12:19"), // → retry r8 (dashed)
@@ -96,7 +96,7 @@ describe("computeLayout", () => {
 
   it("orders rows by first activity", () => {
     const layout = computeLayout(sample(), OPTS);
-    expect(layout.rows[0].actor.id).toBe("agent:ceo");
+    expect(layout.rows[0].actor.id).toBe("agent:lead");
     expect(layout.rows[layout.rows.length - 1].actor.id).toBe("system:routine");
   });
 
@@ -113,16 +113,16 @@ describe("computeLayout", () => {
     const codexApi = layout.rows
       .find((r) => r.actor.id === "agent:codex")!
       .bars.find((b) => b.span.runId === "r5")!;
-    expect(codexApi.kickoff?.id).toBe("agent:cto");
+    expect(codexApi.kickoff?.id).toBe("agent:engineering_lead");
 
-    const ceoRun = layout.rows.find((r) => r.actor.id === "agent:ceo")!.bars[0];
-    expect(ceoRun.kickoff?.id).toBe("user:dotta"); // human kickoff shown as chip
+    const leadRun = layout.rows.find((r) => r.actor.id === "agent:lead")!.bars[0];
+    expect(leadRun.kickoff?.id).toBe("user:dotta"); // human kickoff shown as chip
   });
 
-  it("does not reuse a board-created assignment edge on later automation runs", () => {
+  it("does not reuse a operator-created assignment edge on later automation runs", () => {
     const data = sample();
     data.spans.push({
-      actorId: "agent:ceo",
+      actorId: "agent:lead",
       laneHint: null,
       runId: "r1-later-automation",
       issueId: "i-405",
@@ -136,9 +136,9 @@ describe("computeLayout", () => {
     });
 
     const layout = computeLayout(data, OPTS);
-    const ceoRuns = layout.rows.find((r) => r.actor.id === "agent:ceo")!.bars;
-    expect(ceoRuns.find((b) => b.span.runId === "r1")?.kickoff?.id).toBe("user:dotta");
-    expect(ceoRuns.find((b) => b.span.runId === "r1-later-automation")?.kickoff).toBeNull();
+    const leadRuns = layout.rows.find((r) => r.actor.id === "agent:lead")!.bars;
+    expect(leadRuns.find((b) => b.span.runId === "r1")?.kickoff?.id).toBe("user:dotta");
+    expect(leadRuns.find((b) => b.span.runId === "r1-later-automation")?.kickoff).toBeNull();
   });
 
   it("prefers the nearest post-start kickoff edge when no prior edge exists", () => {
@@ -157,19 +157,19 @@ describe("computeLayout", () => {
     });
     data.edges.push(
       { fromActorId: "agent:qa", toActorId: "agent:ux", issueId: "i-late", at: t("14:30"), kind: "delegation" },
-      { fromActorId: "agent:cto", toActorId: "agent:ux", issueId: "i-late", at: t("14:02"), kind: "delegation" },
+      { fromActorId: "agent:engineering_lead", toActorId: "agent:ux", issueId: "i-late", at: t("14:02"), kind: "delegation" },
     );
 
     const layout = computeLayout(data, OPTS);
     const lateRun = layout.rows
       .find((r) => r.actor.id === "agent:ux")!
       .bars.find((b) => b.span.runId === "late-edge-run")!;
-    expect(lateRun.kickoff?.id).toBe("agent:cto");
+    expect(lateRun.kickoff?.id).toBe("agent:engineering_lead");
   });
 
   it("draws agent→agent connectors only, dashing retries, never from a human", () => {
     const layout = computeLayout(sample(), OPTS);
-    // 6 agent→agent edges resolve to bars; the dotta→ceo human edge draws no line.
+    // 6 agent→agent edges resolve to bars; the dotta→lead human edge draws no line.
     expect(layout.connectors.length).toBe(6);
     const dashed = layout.connectors.filter((c) => c.dashed);
     expect(dashed).toHaveLength(1); // only the QA→codex retry hop
@@ -216,7 +216,7 @@ describe("human activity markers", () => {
 
   it("keeps human events visual-only as kickoff chips, not connector targets", () => {
     const layout = computeLayout(withUserEvents(), OPTS);
-    // dotta→ceo human kickoff still draws no line; agent→agent count unchanged.
+    // dotta→lead human kickoff still draws no line; agent→agent count unchanged.
     expect(layout.connectors.length).toBe(6);
   });
 
@@ -229,7 +229,7 @@ describe("human activity markers", () => {
 describe("helpers", () => {
   it("shortLabel builds 2-char initials", () => {
     expect(shortLabel("CodexCoder")).toBe("CO");
-    expect(shortLabel("CTO Architect")).toBe("CA");
+    expect(shortLabel("Engineering Lead Architect")).toBe("CA");
   });
 
   it("chooseTickStepMs grows the step as the view zooms out", () => {

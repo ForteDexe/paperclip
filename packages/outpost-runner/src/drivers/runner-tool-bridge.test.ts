@@ -44,10 +44,10 @@ describe("runner semantic MCP bridge", () => {
   it.each([false, true])("preloads only essential public Claude task tools when opted in (%s)", async preloadClaudeTaskTools => {
     const bridge = await startRunnerToolBridge({
       preloadClaudeTaskTools,
-      tools: [tool("paperclip__set_task_title"), {
+      tools: [tool("outpost__set_task_title"), {
         ...tool("documents.read"), _meta: { "anthropic/alwaysLoad": true },
       }],
-      privateTools: [tool("__paperclip_permission")],
+      privateTools: [tool("__outpost_permission")],
       handler: async () => ({ ok: true }),
     });
     bridges.push(bridge);
@@ -55,10 +55,10 @@ describe("runner semantic MCP bridge", () => {
       result: { tools: Array<{ name: string; _meta?: Record<string, unknown> }> };
     };
     expect(listed.result.tools.map(({ name }) => name)).toEqual([
-      "set_task_title", "documents.read", "paperclip_finish", "paperclip_block",
+      "set_task_title", "documents.read", "outpost_finish", "outpost_block",
     ]);
     expect(listed.result.tools.filter(tool => tool._meta?.["anthropic/alwaysLoad"] === true).map(({ name }) => name))
-      .toEqual(preloadClaudeTaskTools ? ["set_task_title", "paperclip_finish", "paperclip_block"] : []);
+      .toEqual(preloadClaudeTaskTools ? ["set_task_title", "outpost_finish", "outpost_block"] : []);
     expect(listed.result.tools.find(tool => tool.name === "documents.read")?._meta).toBeUndefined();
   });
 
@@ -80,8 +80,8 @@ describe("runner semantic MCP bridge", () => {
       result: {
         tools: [
           { name: "documents.read" },
-          { name: "paperclip_finish", description: ORP_COMPLETION_TOOL_DESCRIPTION, inputSchema: ORP_COMPLETION_RESULT_PROVIDER_INPUT_SCHEMA },
-          { name: "paperclip_block", description: ORP_BLOCK_TOOL_DESCRIPTION, inputSchema: ORP_BLOCK_RESULT_PROVIDER_INPUT_SCHEMA },
+          { name: "outpost_finish", description: ORP_COMPLETION_TOOL_DESCRIPTION, inputSchema: ORP_COMPLETION_RESULT_PROVIDER_INPUT_SCHEMA },
+          { name: "outpost_block", description: ORP_BLOCK_TOOL_DESCRIPTION, inputSchema: ORP_BLOCK_RESULT_PROVIDER_INPUT_SCHEMA },
         ],
       },
     });
@@ -118,7 +118,7 @@ describe("runner semantic MCP bridge", () => {
     const handler = vi.fn(async ({ tool: name }) => ({ name }));
     const bridge = await startRunnerToolBridge({
       tools: [tool("documents.read")],
-      privateTools: [tool("__paperclip_permission")],
+      privateTools: [tool("__outpost_permission")],
       handler,
     });
     bridges.push(bridge);
@@ -126,19 +126,19 @@ describe("runner semantic MCP bridge", () => {
       await rpc(bridge, { id: 1, method: "tools/list" })
     ).json()) as { result: { tools: Array<{ name: string }> } };
     expect(listed.result.tools.map(({ name }) => name)).not.toContain(
-      "__paperclip_permission",
+      "__outpost_permission",
     );
     expect(
       await (
         await rpc(bridge, {
           id: "private-1",
           method: "tools/call",
-          params: { name: "__paperclip_permission", arguments: {} },
+          params: { name: "__outpost_permission", arguments: {} },
         })
       ).json(),
     ).toMatchObject({
       result: {
-        content: [{ text: expect.stringContaining("__paperclip_permission") }],
+        content: [{ text: expect.stringContaining("__outpost_permission") }],
       },
     });
   });
@@ -154,7 +154,7 @@ describe("runner semantic MCP bridge", () => {
       id: "call-1",
       method: "tools/call",
       params: {
-        name: "paperclip_documents.read",
+        name: "outpost_documents.read",
         arguments: { id: "doc" },
       },
     };
@@ -271,7 +271,7 @@ describe("runner semantic MCP bridge", () => {
     ).toMatchObject({
       result: {
         isError: true,
-        content: [{ text: "Paperclip tool call timed out" }],
+        content: [{ text: "Outpost tool call timed out" }],
       },
     });
   });
@@ -315,7 +315,7 @@ describe("runner semantic MCP bridge", () => {
     expect(await (await pending).json()).toMatchObject({
       result: {
         isError: true,
-        content: [{ text: "Paperclip tool call cancelled" }],
+        content: [{ text: "Outpost tool call cancelled" }],
       },
     });
     expect(aborted).toHaveBeenCalledOnce();
@@ -334,7 +334,7 @@ describe("runner semantic MCP bridge", () => {
     await bridge.close();
     expect(signal?.aborted).toBe(true);
     expect(await (await pending).json()).toMatchObject({ result: { isError: true,
-      content: [{ text: "Paperclip tool call cancelled" }],
+      content: [{ text: "Outpost tool call cancelled" }],
     } });
   });
 
@@ -486,13 +486,13 @@ describe("runner semantic MCP bridge", () => {
   it("prevents catalog ambiguity and reserved schema replacement", async () => {
     await expect(
       startRunnerToolBridge({
-        tools: [tool("documents.read"), tool("paperclip_documents.read")],
+        tools: [tool("documents.read"), tool("outpost_documents.read")],
         handler: async () => null,
       }),
     ).rejects.toThrow("duplicated");
     await expect(
       startRunnerToolBridge({
-        tools: [tool("paperclip_finish")],
+        tools: [tool("outpost_finish")],
         handler: async () => null,
       }),
     ).rejects.toThrow("reserved by the protocol");
@@ -526,10 +526,10 @@ describe("runner semantic MCP bridge", () => {
   });
 
   it("normalizes every supported provider prefix", () => {
-    expect(canonicalRunnerToolName("paperclip_documents.read")).toBe(
+    expect(canonicalRunnerToolName("outpost_documents.read")).toBe(
       "documents.read",
     );
-    expect(canonicalRunnerToolName("paperclip__documents.read")).toBe(
+    expect(canonicalRunnerToolName("outpost__documents.read")).toBe(
       "documents.read",
     );
     expect(canonicalRunnerToolName("outpost.documents.read")).toBe(
@@ -564,7 +564,7 @@ describe("Copilot semantic receipt opt-in", () => {
         return { accepted: true };
       } });
       bridges.push(bridge);
-      const request = { id: 3, method: "tools/call", params: { name: "paperclip_finish", arguments: rawFinish } };
+      const request = { id: 3, method: "tools/call", params: { name: "outpost_finish", arguments: rawFinish } };
       const body = await (await rpc(bridge, request)).json() as ToolCallBody;
       expect(receipts).toHaveLength(1);
       expect(readNativeSemanticReceipt({ contents: body.result.content })).toEqual(receipts[0]);
@@ -582,9 +582,9 @@ describe("Copilot semantic receipt opt-in", () => {
       pending.set(call.callId, { capture: call.captureNormalizedInput!, settle: () => resolve({ accepted: true }) });
     }) });
     bridges.push(bridge);
-    const first = rpc(bridge, { id: "first", method: "tools/call", params: { name: "paperclip_finish", arguments: rawFinish } });
+    const first = rpc(bridge, { id: "first", method: "tools/call", params: { name: "outpost_finish", arguments: rawFinish } });
     const secondInput = { ...rawFinish, summary: "Second call" };
-    const second = rpc(bridge, { id: "second", method: "tools/call", params: { name: "paperclip_finish", arguments: secondInput } });
+    const second = rpc(bridge, { id: "second", method: "tools/call", params: { name: "outpost_finish", arguments: secondInput } });
     await vi.waitFor(() => expect(pending.size).toBe(2));
     const normalizedFirst = validatePrpStructuredRunResult(rawFinish); const normalizedSecond = validatePrpStructuredRunResult(secondInput);
     if (!normalizedFirst.ok || !normalizedSecond.ok) throw new Error("Invalid fixture");
@@ -605,7 +605,7 @@ describe("Copilot semantic receipt opt-in", () => {
     const body = await (await rpc(withEvidence, { id: 1, method: "tools/call", params: { name: "documents.read", arguments: modelMetadata } })).json() as ToolCallBody;
     expect(readNativeSemanticReceipt({ contents: body.result.content })).toHaveProperty("normalizedInputSha256", null);
     const plain = await startRunnerToolBridge({ handler: async call => { expect(call.captureNormalizedInput).toBeUndefined(); return { accepted: true }; } }); bridges.push(plain);
-    const plainBody = await (await rpc(plain, { id: 2, method: "tools/call", params: { name: "paperclip_finish", arguments: rawFinish } })).json() as ToolCallBody;
+    const plainBody = await (await rpc(plain, { id: 2, method: "tools/call", params: { name: "outpost_finish", arguments: rawFinish } })).json() as ToolCallBody;
     expect(readNativeSemanticReceipt({ contents: plainBody.result.content })).toBeNull();
   });
   it.each(["small", "chunked", "tagged", "error"])("preserves %s result encoding and captures scope before dispatch", async encoding => {

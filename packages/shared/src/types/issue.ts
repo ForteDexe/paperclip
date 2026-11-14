@@ -126,7 +126,7 @@ export interface IssueAncestor {
 
 export interface IssueLabel {
   id: string;
-  companyId: string;
+  spaceId: string;
   name: string;
   color: string;
   createdAt: Date;
@@ -175,7 +175,7 @@ export type DocumentFormat = "markdown";
 
 export interface IssueDocumentSummary {
   id: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   key: string;
   title: string | null;
@@ -200,7 +200,7 @@ export interface IssueDocument extends IssueDocumentSummary {
 
 export interface DocumentRevision {
   id: string;
-  companyId: string;
+  spaceId: string;
   documentId: string;
   issueId: string;
   key: string;
@@ -258,7 +258,7 @@ export interface AcceptedPlanDecompositionChild {
 
 export interface AcceptedPlanDecomposition {
   id: string;
-  companyId: string;
+  spaceId: string;
   sourceIssueId: string;
   acceptedPlanRevisionId: string;
   acceptedInteractionId: string | null;
@@ -574,7 +574,7 @@ export type IssueBlockedInboxReason =
   | "external_owner_action"
   | "open_recovery_issue";
 
-export type IssueBlockedInboxOwnerType = "agent" | "user" | "board" | "external" | "unknown";
+export type IssueBlockedInboxOwnerType = "agent" | "user" | "operator" | "external" | "unknown";
 
 export interface IssueBlockedInboxIssueRef {
   id: string;
@@ -618,7 +618,7 @@ export interface IssueBlockedInboxAttention {
   };
 }
 
-export type IssueUnblockOwner = { agentId: string } | { userId: string } | "board";
+export type IssueUnblockOwner = { agentId: string } | { userId: string } | "operator";
 
 export interface IssueUnblockDescriptor {
   owner: IssueUnblockOwner;
@@ -650,7 +650,7 @@ export interface IssueRecoveryAction {
     workspaceOperationId: string | null;
   } | null;
   id: string;
-  companyId: string;
+  spaceId: string;
   sourceIssueId: string;
   recoveryIssueId: string | null;
   kind: IssueRecoveryActionKind;
@@ -722,7 +722,7 @@ export interface IssueRetryNowResponse {
 
 export interface IssueRelation {
   id: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   relatedIssueId: string;
   type: "blocks";
@@ -843,7 +843,7 @@ export interface IssueExecutionState {
 
 export interface IssueExecutionDecision {
   id: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   stageId: string;
   stageType: IssueExecutionStageType;
@@ -860,7 +860,7 @@ export type IssueWatchdogStatus = "active" | "disabled";
 
 export interface IssueWatchdogSummary {
   id: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   watchdogAgentId: string;
   instructions: string | null;
@@ -894,7 +894,7 @@ export type IssueChanges = Record<string, IssueChangeReceiptEntry>;
 
 export type IssueSummary = Pick<
   Issue,
-  "id" | "companyId" | "title" | "identifier" | "status" | "displayStatus" | "updatedAt"
+  "id" | "spaceId" | "title" | "identifier" | "status" | "displayStatus" | "updatedAt"
 > & {
   externalConversationState: "active" | "waiting" | null;
   /** Present for blocked tasks so summary views resolve the same status glyph as detail views. */
@@ -920,7 +920,7 @@ export interface Issue {
     triggerDetail: string | null; startedAt: Date | string | null; finishedAt: Date | string | null;
     createdAt: Date | string; execution?: ExecutionProjection } | null;
   id: string;
-  companyId: string;
+  spaceId: string;
   projectId: string | null;
   projectWorkspaceId: string | null;
   goalId: string | null;
@@ -993,7 +993,7 @@ export interface Issue {
   blockedTransitionAt?: Date | null;
   blockedOwnerNotifiedAt?: Date | null;
   activeRecoveryAction?: IssueRecoveryAction | null;
-  /** Children and blockers stalled on a recovery action that needs the board (issue detail only). */
+  /** Children and blockers stalled on a recovery action that needs the operator (issue detail only). */
   stalledDependencies?: IssueBlockerStalledWakeContext[];
   successfulRunHandoff?: SuccessfulRunHandoffState | null;
   executionBlocker?: ExecutionBlocker | null;
@@ -1031,7 +1031,7 @@ export type CompactIssue = Pick<
   | "listProjection"
   | "externalConversationState"
   | "id"
-  | "companyId"
+  | "spaceId"
   | "projectId"
   | "projectWorkspaceId"
   | "goalId"
@@ -1097,7 +1097,7 @@ export type CompactIssue = Pick<
  *   `comment id: {id}` post marker (lossless: the run recorded posting it).
  *
  * Only lossless signals are used. Pure run-window timing overlap is NOT a
- * source — it cannot distinguish an agent comment from a human board comment
+ * source — it cannot distinguish an agent comment from a human operator comment
  * that coincided with a run (Option A).
  */
 export type IssueCommentDerivedAuthorSource =
@@ -1108,7 +1108,7 @@ export interface IssueComment {
   clientRequestId?: string | null;
   conversationSessionGeneration?: number | null;
   id: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   authorType: IssueCommentAuthorType;
   /** Server-generated receipt provenance; not writable by comment callers. */
@@ -1380,14 +1380,14 @@ export interface AskUserQuestionsQuestion {
  * mirrors `outpost.question_set.v1` without making the shared package depend
  * on a particular runner implementation.
  */
-export interface PaperclipQuestionSetOption {
+export interface OutpostQuestionSetOption {
   id: string;
   label: string;
   description?: string;
   recommended?: boolean;
 }
 
-export interface PaperclipQuestionSetQuestion {
+export interface OutpostQuestionSetQuestion {
   id: string;
   header?: string;
   prompt: string;
@@ -1396,7 +1396,7 @@ export interface PaperclipQuestionSetQuestion {
   answerMode: "single_select" | "multi_select" | "text";
   /** Editable starting text, never an implicit or submitted answer. Text mode only. */
   initialText?: string;
-  options?: PaperclipQuestionSetOption[];
+  options?: OutpostQuestionSetOption[];
   customAnswer?: {
     enabled: true;
     label?: string;
@@ -1412,12 +1412,12 @@ export interface PaperclipQuestionSetQuestion {
   };
 }
 
-export interface PaperclipQuestionSetPayload {
+export interface OutpostQuestionSetPayload {
   schema: "outpost.question_set.v1";
   title?: string;
   description?: string;
   submitLabel?: string;
-  questions: PaperclipQuestionSetQuestion[];
+  questions: OutpostQuestionSetQuestion[];
 }
 
 export interface AskUserQuestionsPayload {
@@ -1427,7 +1427,7 @@ export interface AskUserQuestionsPayload {
   supersedeOnUserComment?: boolean;
   questions: AskUserQuestionsQuestion[];
   /** Exact presentation for a recovered harness request. */
-  questionSet?: PaperclipQuestionSetPayload;
+  questionSet?: OutpostQuestionSetPayload;
   /** Correlates a recovered interaction with the live runtime request it replaces. */
   runtimeRequestId?: string | null;
 }
@@ -1569,7 +1569,7 @@ export type ConnectionIntentPhase = "requested" | "authorizing" | "needs_retry";
 /**
  * Server-authored request for a responsible user to connect a first-party app.
  * It intentionally contains presentation-safe identifiers only; credentials and
- * authorization URLs are returned solely from addressed board endpoints.
+ * authorization URLs are returned solely from addressed operator endpoints.
  */
 export interface ConnectionIntentPayload {
   /** Controller-created repair for a queued turn awaiting agent verification. */
@@ -1739,7 +1739,7 @@ export interface RequestItemVerdictsResult {
 
 export interface IssueThreadInteractionBase extends IssueThreadInteractionActorFields {
   id: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   kind: IssueThreadInteractionKind;
   idempotencyKey?: string | null;
@@ -1835,7 +1835,7 @@ export type IssueThreadInteractionResult =
 
 export interface IssueAttachment {
   id: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   issueCommentId: string | null;
   /** Immutable run attribution recorded when an agent uploads the attachment. */
@@ -1886,7 +1886,7 @@ export interface IssueChatBootstrapItem<TRun = unknown, TLiveRun = unknown, TAct
   activeRun: TActiveRun | null;
 }
 
-/** `GET /companies/:companyId/issues/chat-bootstrap?ids=`; unreadable or missing tasks are omitted. */
+/** `GET /spaces/:spaceId/issues/chat-bootstrap?ids=`; unreadable or missing tasks are omitted. */
 export interface IssueChatBootstrap<TRun = unknown, TLiveRun = unknown, TActiveRun = unknown> {
   items: IssueChatBootstrapItem<TRun, TLiveRun, TActiveRun>[];
 }

@@ -9,7 +9,7 @@ import { assertPiNodeSystemDependencies, downloadPinnedPiNodeArchive, PI_BRACE_S
 import { verifyPiRuntimeManifest } from "../src/drivers/acpx/pi-verified-runtime.ts";
 
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-pi-distribution-test-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-pi-distribution-test-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const write = async (path, data) => { await mkdir(dirname(join(root, path)), { recursive: true }); await writeFile(join(root, path), data); };
   return { root, write };
@@ -94,7 +94,7 @@ test("manifest includes resources and emitted extension and rejects byte changes
   await write("node/bin/node", "verified-node");
   await write("node_modules/@earendil-works/pi-coding-agent/dist/cli.js", "verified-pi");
   await write("node_modules/pi-acp/dist/index.js", "verified-wrapper");
-  await write("node_modules/pi-acp/dist/paperclip-runtime.js", "verified-helper");
+  await write("node_modules/pi-acp/dist/outpost-runtime.js", "verified-helper");
   await write("extensions/outpost.js", "verified-extension");
   await write("node_modules/native/runtime.node", Buffer.from([0, 1, 2]));
   await write("node_modules/native/image.wasm", Buffer.from([4, 5, 6]));

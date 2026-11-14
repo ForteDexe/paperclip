@@ -60,9 +60,9 @@ export const integratorCaseHistoryCases = [integratorDefinition("cases", "cases.
     await ctx.input.api.patch(`/api/agents/${reviewer.id}`, { name: "Riley" });
     await grantCaseTaskAssignment(ctx, reviewer.id);
     await grantCaseTaskAssignment(ctx, worker.id);
-    for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, ...[worker.id, reviewer.id].map(scopeId => ({ scopeType: "agent", scopeId }))])
-      await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
-    const kickoff = await ctx.input.api.post<HandoffCaseResult>(`/api/companies/${ctx.input.fixtures.company.id}/case-handoffs`, {
+    for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, ...[worker.id, reviewer.id].map(scopeId => ({ scopeType: "agent", scopeId }))])
+      await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+    const kickoff = await ctx.input.api.post<HandoffCaseResult>(`/api/spaces/${ctx.input.fixtures.space.id}/case-handoffs`, {
       idempotencyKey: `history-${ctx.input.nonce}`, case: { create: { caseType: "customer", title: "Checkout diagnosis history", projectId: p.id, fields: { diagnosis: "Awaiting investigation", customer: "Acorn Test Shop" } } }, toAgentId: worker.id, phase: "investigation",
       instructions: `Read the saved customer brief and save your initial diagnosis in an ordinary task document with key diagnosis. Treat the event-handler hypothesis as preliminary. Then hand this same primary task to Riley (${reviewer.id}) for the review phase under the saved workflow. Do not close the case.`,
       workflow_document_text: `# Diagnosis review\nMorgan (${worker.id}) saves the initial event-handler binding hypothesis in the task-owned diagnosis document, then hands this same primary to Riley (${reviewer.id}). Riley reviews the actual synthetic browser evidence in the brief, revises that same diagnosis document to explain the touch overlay intercepting taps, updates the case diagnosis fact accordingly, then hands this same primary back to Morgan for final recording. Morgan's final-recording phase reads the preserved revisions, saves a task comment and completes this ordinary task without another handoff or case closure.`,
@@ -76,8 +76,8 @@ export const integratorCaseHistoryCases = [integratorDefinition("cases", "cases.
   } catch (error) { await cleanup(ctx); throw error; }
 }, observeHistory, gradeIntegratorCaseHistory, async (ctx, state) => {
   const row = state.case as CaseRecord; const task = state.task as Issue;
-  await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/cases/${row.identifier}`, row.title);
-  await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier}`, task.title);
+  await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/cases/${row.identifier}`, row.title);
+  await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier}`, task.title);
 }, { expectedRunCount: 5, expectedHumanMessageCount: 2, attemptTimeoutMs: 1_200_000, cleanup, oracleVersion: "outpost.chat-catalog.integrator.case-history.v3",
   sourceFiles: ["chat-catalog-domains/integrator-case-history.ts", "chat-catalog-domains/integrator-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/internal-definition.ts", "chat-scenarios/cases.yaml"],
   async act(ctx, state) {

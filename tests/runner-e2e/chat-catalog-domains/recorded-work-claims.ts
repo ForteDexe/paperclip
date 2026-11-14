@@ -10,9 +10,9 @@ export function recordedTaskUnits(reply: string, target: Entity, knownTasks: Ent
     if (/^\s*(?:[-*]|\d+\.|#{1,6})\s/.test(line)) current = undefined;
     for (const sentence of line.split(/(?<=[.!?;])\s+/)) {
       const prose = sentence.replace(/(?:https?:\/\/|(?<![\w])\/)[^\s)\x60\]>]+/gi, "");
-      const companyPrefixes = knownTasks.flatMap(task => task.identifier?.match(/^(.+-)\d+$/)?.[1]?.toLowerCase() ?? []);
+      const spacePrefixes = knownTasks.flatMap(task => task.identifier?.match(/^(.+-)\d+$/)?.[1]?.toLowerCase() ?? []);
       const explicitIdentifiers = (prose.match(/(?<![\w-])[A-Z][A-Z0-9]*-\d+(?![\w-])/gi) ?? [])
-        .filter(value => companyPrefixes.some(prefix => value.toLowerCase().startsWith(prefix)));
+        .filter(value => spacePrefixes.some(prefix => value.toLowerCase().startsWith(prefix)));
       const textIdentifiers = knownTasks.filter(task => mentions(prose, task.identifier));
       const urlIdentifiers = knownTasks.filter(task => [task.id, task.identifier].some(id => !!id && new RegExp(`/issues/${escape(id)}(?![\\w-])`, "i").test(sentence)));
       const unknownIssueResource = /\/issues\/(?:[a-f0-9]{8}-[a-f0-9-]{27}|[A-Z][A-Z0-9]*-\d+)(?![\w-])/i.test(sentence) && !urlIdentifiers.length;

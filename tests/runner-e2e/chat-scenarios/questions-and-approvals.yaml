@@ -109,7 +109,7 @@ scenarios:
     expected_outcome: >-
       The attempted resolution is rejected or routed to Riley without changing the request. The
       response explains the required resolver and preserves the existing work state. Visibility,
-      company membership and a chat message do not by themselves confer approval authority.
+      space membership and a chat message do not by themselves confer approval authority.
   - id: questions-and-approvals.formal-hire-revision
     capabilities:
       - questions-and-approvals/governance

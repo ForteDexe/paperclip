@@ -88,7 +88,7 @@ export async function reconcileCodexLocalManagedHomesOnStartup(
   const rows = await db
     .select({
       id: agents.id,
-      companyId: agents.companyId,
+      spaceId: agents.spaceId,
       adapterConfig: agents.adapterConfig,
       runtimeConfig: agents.runtimeConfig,
     })
@@ -104,7 +104,7 @@ export async function reconcileCodexLocalManagedHomesOnStartup(
 
     try {
       const result = await reconcileManagedCodexHome({
-        companyId: row.companyId,
+        spaceId: row.spaceId,
         configuredCodexHome,
         apiKey: apiKeyBinding.kind === "plain" ? apiKeyBinding.value : null,
         apiKeySecretBound: apiKeyBinding.kind === "secret",
@@ -114,7 +114,7 @@ export async function reconcileCodexLocalManagedHomesOnStartup(
           summary.seeded += 1;
           summary.seededAgentIds.push(row.id);
           logger.info(
-            { agentId: row.id, companyId: row.companyId, home: result.home },
+            { agentId: row.id, spaceId: row.spaceId, home: result.home },
             "seeded auth into already-isolated codex_local managed home",
           );
           break;
@@ -136,7 +136,7 @@ export async function reconcileCodexLocalManagedHomesOnStartup(
       logger.warn(
         {
           agentId: row.id,
-          companyId: row.companyId,
+          spaceId: row.spaceId,
           home: configuredCodexHome,
           err: err instanceof Error ? err.message : String(err),
         },

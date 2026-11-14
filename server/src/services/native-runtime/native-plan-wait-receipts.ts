@@ -1,5 +1,5 @@
 /** Private persisted receipt codecs. Legacy fields are read only after the
- * caller establishes an applied, company-scoped finalization; never rewritten. */
+ * caller establishes an applied, space-scoped finalization; never rewritten. */
 const record = (v: unknown): Record<string, any> => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, any> : {};
 export const PLAN_WAIT_RECEIPT = {
   schema: "outpost.native_plan_wait.v1", prefix: "native-plan-wait:", legacy: false,

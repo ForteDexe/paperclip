@@ -46,13 +46,13 @@ const PROVIDER_TURN_ACTIVITY_EVENTS = [...TURN_STARTED_EVENTS, ...TURN_SETTLED_E
  * (`providerTurnIssued: false`, recorded by the executor). No turn or tool
  * event may exist either.
  */
-async function hasProvenNoProviderTurn(db: Db, run: { companyId: string; id: string }) {
+async function hasProvenNoProviderTurn(db: Db, run: { spaceId: string; id: string }) {
   const [activity] = await db.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     inArray(heartbeatRunEvents.eventType, PROVIDER_TURN_ACTIVITY_EVENTS))).limit(1);
   if (activity) return false;
   const [refusal] = await db.select({ payload: heartbeatRunEvents.payload }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     eq(heartbeatRunEvents.eventType, "native.remote_runner_recovery_failed"),
   )).orderBy(desc(heartbeatRunEvents.seq)).limit(1);
   const proof = asRecord(asRecord(refusal?.payload).remoteRunnerRecovery);
@@ -89,12 +89,12 @@ export async function requestInterruptedNativeTurnRetry(db: Db, runId: string): 
   if (!issueId || !run.wakeupRequestId) return { requested: false, reason: "source_missing" };
   const [lastTurn] = await db.select({ eventType: heartbeatRunEvents.eventType, payload: heartbeatRunEvents.payload })
     .from(heartbeatRunEvents).where(and(
-      eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+      eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
       inArray(heartbeatRunEvents.eventType, [...TURN_STARTED_EVENTS, ...TURN_SETTLED_EVENTS]),
     )).orderBy(desc(heartbeatRunEvents.seq)).limit(1);
   if (lastTurn && !isProvenTurnSettlement(lastTurn)) return { requested: false, reason: "provider_turn_unsettled" };
   const [wake] = await db.select().from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+    eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
     eq(agentWakeupRequests.id, run.wakeupRequestId), eq(agentWakeupRequests.runId, run.id)));
   const userActorId = wake?.requestedByActorType === "user" ? wake.requestedByActorId : null;
   const reason = typeof context.wakeReason === "string" ? context.wakeReason : wake?.reason;
@@ -112,14 +112,14 @@ export async function requestInterruptedNativeTurnRetry(db: Db, runId: string): 
     // A Retry this hook already requested gets no second automatic attempt.
     const retryId = typeof context.taskRetryRequestId === "string" ? context.taskRetryRequestId : null;
     const [receipt] = retryId ? await db.select({ key: agentWakeupRequests.idempotencyKey }).from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, run.companyId), sql`${agentWakeupRequests.id}::text = ${retryId}`)) : [];
+      eq(agentWakeupRequests.spaceId, run.spaceId), sql`${agentWakeupRequests.id}::text = ${retryId}`)) : [];
     if (!receipt) return { requested: false, reason: "retry_source_missing" };
     if (receipt.key?.startsWith(`task-retry:${RESTART_RETRY_KEY_PREFIX}`)) return { requested: false, reason: "automatic_retry_used" };
   } else if (isUserCommentContinuationReason(reason)) {
     const commentId = typeof context.wakeCommentId === "string" ? context.wakeCommentId
       : typeof wake!.payload?.commentId === "string" ? wake!.payload.commentId : null;
     const [comment] = commentId ? await db.select({ id: issueComments.id }).from(issueComments).where(and(
-      eq(issueComments.companyId, run.companyId), eq(issueComments.issueId, issueId),
+      eq(issueComments.spaceId, run.spaceId), eq(issueComments.issueId, issueId),
       sql`${issueComments.id}::text = ${commentId}`, eq(issueComments.authorType, "user"),
       eq(issueComments.authorUserId, userActorId), isNull(issueComments.deletedAt), isNull(issueComments.createdByRunId),
     )) : [];
@@ -127,12 +127,12 @@ export async function requestInterruptedNativeTurnRetry(db: Db, runId: string): 
   } else return { requested: false, reason: "not_user_request" };
   if (!actorId) return { requested: false, reason: "not_user_request" };
   const [issue] = await db.select({ status: issues.status, assigneeAgentId: issues.assigneeAgentId }).from(issues)
-    .where(and(eq(issues.companyId, run.companyId), eq(issues.id, issueId)));
+    .where(and(eq(issues.spaceId, run.spaceId), eq(issues.id, issueId)));
   if (!issue || issue.assigneeAgentId !== run.agentId || ["done", "cancelled"].includes(issue.status))
     return { requested: false, reason: "task_changed" };
   try {
-    const receipt = await requestTaskRetry({ db, companyId: run.companyId, issueId, actorId,
-      actorSource: actorId === "local-board" ? "local_implicit" : "session",
+    const receipt = await requestTaskRetry({ db, spaceId: run.spaceId, issueId, actorId,
+      actorSource: actorId === "local-operator" ? "local_implicit" : "session",
       idempotencyKey: `${RESTART_RETRY_KEY_PREFIX}${run.id}`, observedRunId: run.id, initiatedBy: "restart_recovery" });
     return receipt.accepted && receipt.requestId
       ? { requested: true, requestId: receipt.requestId } : { requested: false, reason: "retry_stale" };

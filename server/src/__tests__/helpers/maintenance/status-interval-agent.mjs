@@ -18,10 +18,10 @@ assert(base.protocol === 'http:' && base.hostname === '127.0.0.1' && base.pathna
   && !base.username && !base.password && !base.search && !base.hash);
 assert.equal(base.origin, expected.origin, 'Product-provided API origin must match the actual fixture server port');
 const token = process.env.OUTPOST_API_KEY, runId = process.env.OUTPOST_RUN_ID;
-assert(token && runId && process.env.OUTPOST_AGENT_ID && process.env.OUTPOST_COMPANY_ID);
+assert(token && runId && process.env.OUTPOST_AGENT_ID && process.env.OUTPOST_SPACE_ID);
 guard.allowOrigin(base.origin);
 const receipt = async event => appendFile(statePath + '.runs.jsonl', JSON.stringify({ event, at: Date.now(), pid: process.pid, runId, providedApiOrigin: base.origin, expectedApiOrigin: expected.origin,
-  companyId: process.env.OUTPOST_COMPANY_ID, agentId: process.env.OUTPOST_AGENT_ID, guard: guard.stats() }) + '\n');
+  spaceId: process.env.OUTPOST_SPACE_ID, agentId: process.env.OUTPOST_AGENT_ID, guard: guard.stats() }) + '\n');
 await receipt('started');
 let state;
 const readyBy = Date.now() + 10_000;
@@ -34,14 +34,14 @@ assert(state?.cardId && Number.isSafeInteger(state.revision) && state.revision >
 async function api(method, route, body) {
   const response = await fetch(new URL('/api' + route, base), {
     method, signal: AbortSignal.timeout(10_000),
-    headers: { Authorization: `Bearer ${token}`, 'X-Paperclip-Run-Id': runId, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'X-Outpost-Run-Id': runId, 'Content-Type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   assert(response.ok, `Authorized status writer API ${method} returned ${response.status}`);
   return response.json();
 }
 const card = await api('GET', `/status-cards/${state.cardId}`);
-assert.equal(card.companyId, process.env.OUTPOST_COMPANY_ID);
+assert.equal(card.spaceId, process.env.OUTPOST_SPACE_ID);
 assert.equal(card.agentId, process.env.OUTPOST_AGENT_ID);
 assert(card.generatingIssueId);
 const generation = await api('GET', `/issues/${card.generatingIssueId}`);
@@ -63,7 +63,7 @@ const facts = preview.queries.flatMap(page => {
   assert(typeof result.issue.identifier === 'string');
   return `${result.issue.identifier}: ${result.issue.title}`;
 });
-assert(facts.length > 0, 'Useful summary must describe actual normal company-search results');
+assert(facts.length > 0, 'Useful summary must describe actual normal space-search results');
 const markdown = `Useful status revision ${state.revision}.\n\n${facts.join('\n')}`;
 const summary = await api('PUT', `/status-cards/${card.id}/summary`, {
   markdown,
@@ -71,13 +71,13 @@ const summary = await api('PUT', `/status-cards/${card.id}/summary`, {
   generationIssueId: generation.id, model: 'controlled-local-status-model',
 });
 assert.equal(summary.card.id, card.id);
-assert.equal(summary.card.companyId, process.env.OUTPOST_COMPANY_ID);
+assert.equal(summary.card.spaceId, process.env.OUTPOST_SPACE_ID);
 assert.equal(summary.card.state, 'active');
 assert.equal(summary.card.generatingIssueId, null);
 assert.equal(summary.document.latestBody, markdown);
 const completed = await api('PATCH', `/issues/${generation.id}`, { status: 'done' });
 assert.equal(completed.id, generation.id);
-assert.equal(completed.companyId, process.env.OUTPOST_COMPANY_ID);
+assert.equal(completed.spaceId, process.env.OUTPOST_SPACE_ID);
 assert.equal(completed.status, 'done');
 await receipt('completed');
 console.log(JSON.stringify({ event: 'status-interval-agent-completed', at: Date.now(), pid: process.pid,

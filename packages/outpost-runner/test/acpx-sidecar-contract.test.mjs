@@ -79,7 +79,7 @@ test("failed responses accept the bounded provider cause and reject extra diagno
 });
 
 test("candidate startup and sidecar admission share one strict identity-bound JSON record", () => {
-  const candidateAdmission = { schema: "outpost.acpx-candidate-admission.v1", companyId: "company-1", agent: "antigravity", model: "gemini-3.8-flash-low",
+  const candidateAdmission = { schema: "outpost.acpx-candidate-admission.v1", spaceId: "space-1", agent: "antigravity", model: "gemini-3.8-flash-low",
     profileDigest: `sha256:${"a".repeat(64)}`, nativeClosureDigest: `sha256:${"b".repeat(64)}`, platform: "darwin", architecture: "arm64",
     expiresAt: 1800000060000, runId: "run-1", normalizedSessionId: "session-1" };
   const startup = compileSidecarSchema({ ...schema, oneOf: undefined, $ref: "#/$defs/candidateAdmission" });
@@ -138,7 +138,7 @@ test("the runtime context schema closes every nested object", async () => {
   const hex = "a".repeat(64);
   const asset = { schema: "outpost.runtime-asset.v1", digest: hex, manifestDigest: hex, rootPath: "/bundle", fileCount: 1, totalBytes: 2 };
   const context = {
-    prompt: { revision: "paperclip-execution.v8", text: "prompt", digest: hex },
+    prompt: { revision: "outpost-execution.v8", text: "prompt", digest: hex },
     instructions: { entryPath: "AGENTS.md", bundle: asset, workingCopy: { rootPath: "/work", entryPath: "AGENTS.md", kind: "agent_files" } },
     skills: [{ key: "skill", runtimeName: "skill", versionId: null, bundle: asset }],
     mcp: { assignmentSetId: "set", digest: hex, bindingId: null },

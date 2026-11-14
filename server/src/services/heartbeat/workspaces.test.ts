@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { companies, type agents, type Db, type projectWorkspaces } from "@outpost/db";
+import { spaces, type agents, type Db, type projectWorkspaces } from "@outpost/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ensureManagedProjectWorkspace as legacyEnsureManagedProjectWorkspace,
@@ -32,12 +32,12 @@ afterEach(async () => {
 });
 
 function agent(id = "agent-one") {
-  return { id, companyId: "company-one" } as typeof agents.$inferSelect;
+  return { id, spaceId: "space-one" } as typeof agents.$inferSelect;
 }
 
 function workspace(id: string, projectId: string, cwd: string) {
   return {
-    id, projectId, companyId: "company-one", cwd,
+    id, projectId, spaceId: "space-one", cwd,
     repoUrl: null, repoRef: null, sourceType: "local_path",
   } as typeof projectWorkspaces.$inferSelect;
 }
@@ -53,7 +53,7 @@ function databaseWithSpaceRoot(spaceRoot: string | null, ...results: unknown[][]
     let rows: unknown[] = [];
     const query = {
       from: (table: unknown) => {
-        rows = table === companies
+        rows = table === spaces
           ? spaceRoot ? [{ workspaceRoot: spaceRoot }] : []
           : (results.shift() ?? []);
         return query;
@@ -184,7 +184,7 @@ describe("heartbeat workspace module", () => {
       expect(mkdir).not.toHaveBeenCalled();
     } finally { mkdir.mockRestore(); }
   });
-  it("rejects plugin project scope outside the company", async () => {
+  it("rejects plugin project scope outside the space", async () => {
     const database = databaseWithResults([], []);
     await expect(createHeartbeatWorkspaceResolver(database.db).resolveWorkspaceForRun(
       { ...agent(), adapterType: "outpost_runner" }, { projectId: "foreign" }, null,
@@ -245,7 +245,7 @@ describe("heartbeat workspace module", () => {
       await release.promise;
       return null;
     });
-    const input = { companyId: "company-one", projectId: "shared-project", repoUrl, resolveGitAuth };
+    const input = { spaceId: "space-one", projectId: "shared-project", repoUrl, resolveGitAuth };
     const attempts = Array.from({ length: 8 }, (_, index) =>
       (index % 2 ? legacyEnsureManagedProjectWorkspace : ensureManagedProjectWorkspace)(input),
     );
@@ -264,7 +264,7 @@ describe("heartbeat workspace module", () => {
       createRepository("second-source", "second repository\n"),
     ]);
     const [first, second] = await Promise.all([firstRepo, secondRepo].map(repoUrl =>
-      ensureManagedProjectWorkspace({ companyId: "company-one", projectId: "shared-project", repoUrl }),
+      ensureManagedProjectWorkspace({ spaceId: "space-one", projectId: "shared-project", repoUrl }),
     ));
     expect(first!.cwd).not.toBe(second!.cwd);
     expect((await fs.readFile(path.join(first!.cwd, "README.md"), "utf8")).replace(/\r\n/g, "\n")).toBe("first repository\n");
@@ -276,7 +276,7 @@ describe("heartbeat workspace module", () => {
     const resolveGitAuth = vi.fn()
       .mockRejectedValueOnce(new Error("credential lookup failed"))
       .mockResolvedValue(null);
-    const input = { companyId: "company-one", projectId: "retry-project", repoUrl, resolveGitAuth };
+    const input = { spaceId: "space-one", projectId: "retry-project", repoUrl, resolveGitAuth };
     await expect(ensureManagedProjectWorkspace(input)).rejects.toThrow("credential lookup failed");
     const result = await legacyEnsureManagedProjectWorkspace(input);
     expect(resolveGitAuth).toHaveBeenCalledTimes(2);

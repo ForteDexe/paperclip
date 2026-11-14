@@ -2,11 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import * as p from "@clack/prompts";
 import pc from "picocolors";
-import type { PaperclipConfig } from "./config/schema.js";
-import { openUrl } from "./client/board-auth.js";
+import type { OutpostConfig } from "./config/schema.js";
+import { openUrl } from "./client/operator-auth.js";
 import { installCommand, runCommandWithDiagnostics, smokePayload } from "./commands/install.js";
-import { resolvePaperclipInstanceId } from "./config/home.js";
-import { readRuntimeInfo, type PaperclipRuntimeInfo } from "./runtime-info.js";
+import { resolveOutpostInstanceId } from "./config/home.js";
+import { readRuntimeInfo, type OutpostRuntimeInfo } from "./runtime-info.js";
 import {
   readInstallManifest,
   resolveInstallStorePaths,
@@ -29,13 +29,13 @@ export type OnboardServiceOptions = {
 
 type EnsureShimResult = { ok: boolean; installedNow: boolean; reason?: string };
 type OnboardServiceDashboardConfig = {
-  auth: Pick<PaperclipConfig["auth"], "baseUrlMode" | "publicBaseUrl">;
-  server: Pick<PaperclipConfig["server"], "host" | "port">;
+  auth: Pick<OutpostConfig["auth"], "baseUrlMode" | "publicBaseUrl">;
+  server: Pick<OutpostConfig["server"], "host" | "port">;
 };
 
 type OnboardServiceDashboardDependencies = {
   isInteractive: () => boolean;
-  waitUntilReady: () => Promise<PaperclipRuntimeInfo | null>;
+  waitUntilReady: () => Promise<OutpostRuntimeInfo | null>;
   openDashboard: (url: string) => Promise<boolean>;
   info: (message: string) => void;
   success: (message: string) => void;
@@ -47,8 +47,8 @@ function envDisablesBrowser(value = process.env.OUTPOST_NO_BROWSER): boolean {
   return normalized === "1" || normalized === "true" || normalized === "yes";
 }
 
-async function waitUntilDashboardReady(timeoutMs = 60_000): Promise<PaperclipRuntimeInfo | null> {
-  const instanceId = resolvePaperclipInstanceId();
+async function waitUntilDashboardReady(timeoutMs = 60_000): Promise<OutpostRuntimeInfo | null> {
+  const instanceId = resolveOutpostInstanceId();
   const detection = await detectServiceManager({ instanceId });
   if (!detection.supported) return null;
   const deadline = Date.now() + timeoutMs;
@@ -82,7 +82,7 @@ const defaultDashboardDependencies: OnboardServiceDashboardDependencies = {
 
 export function resolveOnboardServiceDashboardUrl(
   config: OnboardServiceDashboardConfig,
-  runtime?: Pick<PaperclipRuntimeInfo, "dashboardUrl"> | null,
+  runtime?: Pick<OutpostRuntimeInfo, "dashboardUrl"> | null,
 ): string {
   if (runtime?.dashboardUrl.trim()) return runtime.dashboardUrl.trim().replace(/\/+$/, "");
   if (config.auth.baseUrlMode === "explicit" && config.auth.publicBaseUrl?.trim()) {
@@ -103,7 +103,7 @@ export async function handoffToOnboardedService(
   if (!runtime) {
     deps.warn(
       `The background service started, but the dashboard is not ready yet. ` +
-        `Open ${dashboardUrl} after checking \`paperclipai service logs\`.`,
+        `Open ${dashboardUrl} after checking \`outpost service logs\`.`,
     );
     return;
   }
@@ -161,7 +161,7 @@ export async function ensureServiceShim(options: { installIfMissing?: boolean } 
   try {
     if (
       manifest &&
-      fs.existsSync(path.join(resolveInstallStorePaths().currentPath, "node_modules", "paperclipai", "dist", "index.js"))
+      fs.existsSync(path.join(resolveInstallStorePaths().currentPath, "node_modules", "@outpost", "cli", "dist", "index.js"))
     ) {
       // Only the shim is missing: smoke-test and restore it for the recorded payload,
       // keeping its version and update channel instead of reinstalling.
@@ -181,7 +181,7 @@ export async function ensureServiceShim(options: { installIfMissing?: boolean } 
         installedNow: false,
         reason:
           `this build reports version ${packageVersion}, which is not an installable release; ` +
-          "run `paperclipai install` (or `paperclipai install --repo <repo> --ref <ref>` for source builds) first",
+          "run `outpost install` (or `outpost install --repo <repo> --ref <ref>` for source builds) first",
       };
     }
   } catch (error) {
@@ -235,12 +235,12 @@ export async function handleOnboardService(
   const canPrompt = options.yes !== true && deps.isInteractive();
   if (!explicitlyRequested && !canPrompt) {
     deps.info(
-      "Background service not installed. Use `paperclipai onboard --install-service` or `paperclipai service install` to opt in.",
+      "Background service not installed. Use `outpost onboard --install-service` or `outpost service install` to opt in.",
     );
     return false;
   }
 
-  const instanceId = resolvePaperclipInstanceId();
+  const instanceId = resolveOutpostInstanceId();
   const detection = await deps.detect(instanceId);
   if (!detection.supported) {
     if (explicitlyRequested) deps.warn(detection.reason);
@@ -257,12 +257,12 @@ export async function handleOnboardService(
   if (!shim.ok) {
     deps.warn(
       `Background service not installed: ${shim.reason ?? "the managed install could not be completed"}. ` +
-        "Run `paperclipai install`, then `paperclipai service install`.",
+        "Run `outpost install`, then `outpost service install`.",
     );
     return false;
   }
   if (shim.installedNow) {
-    deps.success("Installed the managed paperclipai payload and command shim for the service.");
+    deps.success("Installed the managed outpost payload and command shim for the service.");
   }
 
   await detection.manager.install({ startNow: true, startOnLogin: true });

@@ -6,7 +6,7 @@ import pino, { type Logger } from "pino";
 import request from "supertest";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { activityLog, agents, companies, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
+import { activityLog, agents, spaces, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import { errorHandler } from "../middleware/index.js";
 import { issueRoutes } from "../routes/issues.js";
 import { createHttpLogger } from "../middleware/logger.js";
@@ -20,7 +20,7 @@ describePostgres("issue PATCH response under PostgreSQL lock contention", () => 
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-issue-write-lock-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-issue-write-lock-");
     db = createDb(temporary.connectionString);
   }, 90_000);
 
@@ -30,22 +30,22 @@ describePostgres("issue PATCH response under PostgreSQL lock contention", () => 
   });
 
   async function fixture(options: { httpLogger?: Logger; onError?: () => void } = {}) {
-    const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
     const sourceIssueId = randomUUID(), targetIssueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Synthetic lock test", issuePrefix: `L${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Synthetic worker", role: "engineer",
+    await db.insert(spaces).values({ id: spaceId, name: "Synthetic lock test", issuePrefix: `L${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Synthetic worker", role: "engineer",
       adapterType: "process", adapterConfig: {}, runtimeConfig: { heartbeat: { enabled: false } }, permissions: {} });
     await db.insert(issues).values([
-      { id: sourceIssueId, companyId, title: "Source task", status: "in_progress", assigneeAgentId: agentId },
-      { id: targetIssueId, companyId, title: "Target task", status: "blocked", assigneeAgentId: agentId },
+      { id: sourceIssueId, spaceId, title: "Source task", status: "in_progress", assigneeAgentId: agentId },
+      { id: targetIssueId, spaceId, title: "Target task", status: "blocked", assigneeAgentId: agentId },
     ]);
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running",
       contextSnapshot: { issueId: sourceIssueId } });
     const app = express();
     if (options.httpLogger) app.use(createHttpLogger(options.httpLogger));
     app.use(express.json());
     app.use((req, _res, next) => {
-      (req as any).actor = { type: "agent", source: "agent_key", companyId, agentId, runId };
+      (req as any).actor = { type: "agent", source: "agent_key", spaceId, agentId, runId };
       next();
     });
     app.use("/api", issueRoutes(db, {} as any, {}));
@@ -54,13 +54,13 @@ describePostgres("issue PATCH response under PostgreSQL lock contention", () => 
       next(error);
     }) as ErrorRequestHandler);
     app.use(errorHandler);
-    return { app, companyId, agentId, runId, targetIssueId };
+    return { app, spaceId, agentId, runId, targetIssueId };
   }
 
   const body = { status: "in_review", executionPolicy: { monitor: {
     nextCheckAt: "2099-12-01T12:00:00.000Z", notes: "Synthetic monitor" } }, comment: "Synthetic check complete" };
 
-  it.each(["issue", "company"])("returns 200 only for persisted writes while the %s row is locked", async lockedTable => {
+  it.each(["issue", "space"])("returns 200 only for persisted writes while the %s row is locked", async lockedTable => {
     const f = await fixture();
     const locked = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     let blockerPid = 0;
@@ -70,7 +70,7 @@ describePostgres("issue PATCH response under PostgreSQL lock contention", () => 
       if (lockedTable === "issue") {
         await tx.select().from(issues).where(eq(issues.id, f.targetIssueId)).for("no key update");
       } else {
-        await tx.select().from(companies).where(eq(companies.id, f.companyId)).for("no key update");
+        await tx.select().from(spaces).where(eq(spaces.id, f.spaceId)).for("no key update");
       }
       locked.resolve();
       await release.promise;

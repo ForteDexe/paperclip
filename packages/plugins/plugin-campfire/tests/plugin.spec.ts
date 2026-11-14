@@ -11,13 +11,13 @@ import plugin, {
 } from "../src/worker.js";
 
 describe("Campfire plugin", () => {
-  it("declares a company-scoped database, page, sidebar, and persistent sessions", () => {
+  it("declares a space-scoped database, page, sidebar, and persistent sessions", () => {
     expect(pluginManifestV1Schema.parse(manifest)).toMatchObject({
       id: "forted.campfire",
       database: {
         namespaceSlug: "campfire",
         migrationsDir: "migrations",
-        coreReadTables: ["companies", "agents", "projects"],
+        coreReadTables: ["spaces", "agents", "projects"],
       },
       capabilities: expect.arrayContaining([
         "agent.sessions.create",
@@ -42,7 +42,7 @@ describe("Campfire plugin", () => {
     await plugin.definition.setup(harness.ctx);
 
     const result = await harness.performAction<{ roomId: string }>("create-room", {
-      companyId: "4ab1fb3f-cc8f-41d2-bb32-f0be3cc46ae1",
+      spaceId: "4ab1fb3f-cc8f-41d2-bb32-f0be3cc46ae1",
       projectId: "a8c982f5-52c8-4c44-bdc9-94ce47fe82f5",
       name: "Backend",
     });
@@ -62,7 +62,7 @@ describe("Campfire plugin", () => {
     const prompt = agentPrompt(
       {
         id: "room-1",
-        company_id: "company-1",
+        space_id: "space-1",
         project_id: null,
         name: "Backend",
         created_at: "2026-11-12T00:00:00.000Z",
@@ -87,7 +87,7 @@ describe("Campfire plugin", () => {
   });
 
   it("reuses the same native agent session across room turns", async () => {
-    const companyId = "4ab1fb3f-cc8f-41d2-bb32-f0be3cc46ae1";
+    const spaceId = "4ab1fb3f-cc8f-41d2-bb32-f0be3cc46ae1";
     const roomId = "a8c982f5-52c8-4c44-bdc9-94ce47fe82f5";
     const agentId = "05f13867-3484-4316-b4e5-1b1382ed559d";
     const harness = createTestHarness({ manifest });
@@ -103,7 +103,7 @@ describe("Campfire plugin", () => {
       if (sql.includes("FROM test_forted_campfire.rooms") && sql.includes("WHERE id =")) {
         return [{
           id: roomId,
-          company_id: companyId,
+          space_id: spaceId,
           project_id: null,
           name: "Backend",
           created_at: "2026-11-12T00:00:00.000Z",
@@ -147,12 +147,12 @@ describe("Campfire plugin", () => {
       return {
         sessionId: "persistent-session-1",
         agentId,
-        companyId,
+        spaceId,
         status: "active",
         createdAt: "2026-11-12T00:00:00.000Z",
       };
     };
-    harness.ctx.agents.sessions.sendMessage = async (_sessionId, _companyId, options) => {
+    harness.ctx.agents.sessions.sendMessage = async (_sessionId, _spaceId, options) => {
       sendCalls += 1;
       sessionCallback = options.onEvent;
       return { runId: `run-${sendCalls}` };
@@ -160,7 +160,7 @@ describe("Campfire plugin", () => {
 
     await plugin.definition.setup(harness.ctx);
     await harness.performAction("send-message", {
-      companyId,
+      spaceId,
       roomId,
       body: "First turn",
     });
@@ -176,7 +176,7 @@ describe("Campfire plugin", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     await harness.performAction("send-message", {
-      companyId,
+      spaceId,
       roomId,
       body: "Second turn",
     });

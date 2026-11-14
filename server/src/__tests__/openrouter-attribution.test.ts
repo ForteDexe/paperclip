@@ -4,7 +4,7 @@ import type { AiProviderRouting } from "@outpost/shared";
 import { OPENROUTER_ATTRIBUTION_HEADERS } from "@outpost/shared/openrouter-attribution";
 import { managedProviderRouting } from "../services/ai-provider-routing.js";
 
-describe("Paperclip OpenRouter connection attribution", () => {
+describe("Outpost OpenRouter connection attribution", () => {
   it("keeps the standalone Runner policy identical to the control-plane policy", async () => {
     const shared = await readFile(new URL("../../../packages/shared/src/openrouter-attribution.ts", import.meta.url), "utf8");
     const runner = await readFile(new URL("../../../packages/outpost-runner/src/drivers/openrouter-attribution.ts", import.meta.url), "utf8");

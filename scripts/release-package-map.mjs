@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
 const manifestPath = join(repoRoot, "scripts", "release-package-manifest.json");
 const roots = ["packages", "server", "ui", "cli"];
-const CHANNEL_ENTRYPOINT_PACKAGE = "paperclipai";
+const CHANNEL_ENTRYPOINT_PACKAGE = "@outpost/cli";
 
 function readJson(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
@@ -80,7 +80,7 @@ function loadReleaseManifest() {
   });
 }
 
-// Sections whose @paperclipai workspace deps are rewritten to the calver release
+// Sections whose @outpost workspace deps are rewritten to the calver release
 // version by replaceWorkspaceDeps() and that consumers resolve at install time.
 const RESOLVED_DEP_SECTIONS = ["dependencies", "optionalDependencies", "peerDependencies"];
 

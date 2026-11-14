@@ -87,7 +87,7 @@ if (process.argv.includes("--pre-index")) {
   assert.ok(process.argv.includes("--seed-only") && !process.argv.includes("--reuse") && !arg("treatment-db-name"), "Pre-index restoration is only for a new seed-only fixture");
   const migration = await fs.readFile(path.join(root, "packages/db/src/migrations/0414_closed_edwin_jarvis.sql"));
   const hash = createHash("sha256").update(migration).digest("hex");
-  await db.$client.unsafe("drop index activity_log_company_entity_created_idx");
+  await db.$client.unsafe("drop index activity_log_space_entity_created_idx");
   const removed = await db.$client.unsafe("delete from drizzle.__drizzle_migrations where hash=$1 returning id", [hash]);
   assert.equal(removed.length, 1, "Restore only the new index and its exact migration receipt");
 }
@@ -135,8 +135,8 @@ try {
       where permitted.id = ${issues.id}::text)`;
     await db.$client.unsafe(`set jit=${jit}`);
     if (treatmentDb !== db) await treatmentDb.$client.unsafe(`set jit=${jit}`);
-    const before = await captureTaskListQuery(db, baseline.issueService, fixture.companyId, filters);
-    const after = await captureTaskListQuery(treatmentDb, issueService, fixture.companyId, filters);
+    const before = await captureTaskListQuery(db, baseline.issueService, fixture.spaceId, filters);
+    const after = await captureTaskListQuery(treatmentDb, issueService, fixture.spaceId, filters);
     if (treatmentDb !== db) assert.deepEqual(after, before, "Index-only comparison must generate identical SQL and parameters");
     const beforeRows = await execute(before), afterRows = await execute(after, treatmentDb);
     assert.deepEqual(afterRows, beforeRows, "Every positional SQL column and ordered row must match");
@@ -147,10 +147,10 @@ try {
       await execute(arm === "baseline" ? before : after, arm === "baseline" ? db : treatmentDb);
       if (round >= 2) samples[arm].push(performance.now() - start);
       start = performance.now();
-      await (arm === "baseline" ? baseline.issueService : issueService)(arm === "baseline" ? db : treatmentDb).list(fixture.companyId, filters);
+      await (arm === "baseline" ? baseline.issueService : issueService)(arm === "baseline" ? db : treatmentDb).list(fixture.spaceId, filters);
       if (round >= 2) serviceSamples[arm].push(performance.now() - start);
     }
-    assert.deepEqual(await issueService(treatmentDb).list(fixture.companyId, filters), await baseline.issueService(db).list(fixture.companyId, filters), "Complete list response must match");
+    assert.deepEqual(await issueService(treatmentDb).list(fixture.spaceId, filters), await baseline.issueService(db).list(fixture.spaceId, filters), "Complete list response must match");
     const explain = async (query: ProjectionQuery, target = db) => (await target.$client.unsafe(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query.sql}`, query.params as never[]))[0]!["QUERY PLAN"];
     results.push({ filters: rawFilters, readMode: readMode + (process.argv.includes("--read-one") ? "-one" : ""), jit, rows: afterRows.length, completePositionalEquality: true, serviceEquality: true,
       baseline: { ...stats(samples.baseline), service: stats(serviceSamples.baseline), query: before, plan: await explain(before) },

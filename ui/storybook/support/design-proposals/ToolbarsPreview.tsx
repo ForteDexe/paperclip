@@ -10,10 +10,10 @@ import { ArtifactsToolbar } from "@/components/artifacts/ArtifactsToolbar";
 import type { ArtifactGroupBy, ArtifactKindFilter } from "@/api/artifacts";
 import { Button } from "@/components/ui/button";
 import { FlyoutAppearanceProvider } from "@/components/ui/flyout";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useTaskListCollection } from "@/hooks/useTaskListCollection";
 import { defaultAttentionFilterState, countActiveAttentionFilters, filterAttentionItems, type AttentionFilterOptions, type AttentionGroupBy, type AttentionSortOrder } from "@/lib/attention";
-import { storybookAgents, storybookAuthSession, storybookIssueLabels, storybookProjects } from "../../fixtures/paperclipData";
+import { storybookAgents, storybookAuthSession, storybookIssueLabels, storybookProjects } from "../../fixtures/outpostData";
 import { DesignProposalAccess } from "./DesignProposalAccess";
 import { initialItems } from "./task-page-data";
 
@@ -33,7 +33,7 @@ const decisionItems = [
   { id: "approval", sourceKind: "approval" as const, severity: "critical" as const, subject: { title: "Approve workspace access", identifier: "DES-8" }, whyNow: "Agent needs approval", originAgentName: "Design reviewer" },
 ].map((item): AttentionItem => ({
   ...item,
-  companyId: "storybook-company", subject: { ...item.subject, kind: "issue", id: item.id, companyId: "storybook-company", status: "in_review", href: null },
+  spaceId: "storybook-space", subject: { ...item.subject, kind: "issue", id: item.id, spaceId: "storybook-space", status: "in_review", href: null },
   decisionVerbs: [], inlineResolvable: false, entryRule: "", exitRule: "", dedupKey: item.id, dismissalKey: item.id,
   dismissal: null, rank: 0, activityAt: "2026-10-16T12:00:00Z", createdAt: "2026-10-16T12:00:00Z", updatedAt: "2026-10-16T12:00:00Z",
   project: null, workspace: null, relatedIssue: null, detail: null, expiresAt: null, ruleKey: null, queues: [], shelf: false,
@@ -48,8 +48,8 @@ function Specimen({ title, source, children }: { title: string; source: string; 
 }
 
 function TaskToolbarSpecimen() {
-  const { selectedCompanyId } = useCompany();
-  const collection = useTaskListCollection({ items: initialItems, companyId: selectedCompanyId, userId: storybookAuthSession.user.id, viewStorageKey: "paperclip:design-proposals:toolbars:task-view" });
+  const { selectedSpaceId } = useSpace();
+  const collection = useTaskListCollection({ items: initialItems, spaceId: selectedSpaceId, userId: storybookAuthSession.user.id, viewStorageKey: "outpost:design-proposals:toolbars:task-view" });
   const [action, setAction] = useState("");
   return <Specimen title="Task toolbar" source="TaskListToolbar · canonical task controls used by Pages / Tasks and the sandbox Tasks page">
     <TaskListToolbar view={collection.view} onViewChange={collection.setView} query={collection.query} onQueryChange={collection.setQuery}
@@ -79,7 +79,7 @@ function SkillsToolbarSpecimen() {
   const [selectMode, setSelectMode] = useState(false);
   const [action, setAction] = useState("");
   const report = (label: string) => () => setAction(`${label} requested · local preview only`);
-  return <Specimen title="Skills toolbar" source="SkillsToolbar · extracted from CompanySkills and reused by the sandbox. Original search, sort, source, scan and creation controls.">
+  return <Specimen title="Skills toolbar" source="SkillsToolbar · extracted from SpaceSkills and reused by the sandbox. Original search, sort, source, scan and creation controls.">
     <SkillsToolbar navigation={<SkillsNavigationTabs activeView="installed" />} viewTitle="Installed skills" viewDescription="Skills available to this organization." searchLabel="Search installed skills"
       search={search} onSearchChange={setSearch} sort={sort} onSortChange={setSort}
       availableSources={[{ value: "github", label: "GitHub" }, { value: "local", label: "Local" }]} sourceBadgeFilter={source} setSourceBadgeFilter={setSource}

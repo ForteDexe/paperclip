@@ -39,7 +39,7 @@ export function withAnonymousGitFallback(provider: GitRemoteAuthProvider): GitRe
 }
 
 function expirationGitAuth(db: Db, workspace: Workspace) {
-  return withAnonymousGitFallback(createIssueGitRemoteAuthProvider(db, workspace.companyId, workspace.sourceIssueId!));
+  return withAnonymousGitFallback(createIssueGitRemoteAuthProvider(db, workspace.spaceId, workspace.sourceIssueId!));
 }
 
 const EXPIRATION_KEY = "gitCacheExpiration";
@@ -105,7 +105,7 @@ async function restorePointBoundary(cwd: string, repoUrl: string, headOnRemote: 
 /** Re-read the whole tree and every runtime/recovery consumer immediately before deletion. */
 export function expirationScope(workspace: Workspace) {
   // Each binding is a separate index probe. A single OR over all bindings made
-  // PostgreSQL read every company run and decode its context JSON. Each key set
+  // PostgreSQL read every space run and decode its context JSON. Each key set
   // is passed as an array so the planner probes the index instead of hashing a
   // full scan; it does not count the cost of reading TOASTed contexts. The legacy
   // context expressions match the heartbeat_runs expression indexes exactly,
@@ -113,26 +113,26 @@ export function expirationScope(workspace: Workspace) {
   // ->> yields NULL for non-object contexts, so those rows stay unmatched there
   // and can still match through an independent native binding. The UNION
   // removes duplicate IDs, so the outer primary-key probe keeps each run once.
-  const companyRuns = sql`SELECT id FROM ${heartbeatRuns} WHERE company_id = ${workspace.companyId}`;
+  const spaceRuns = sql`SELECT id FROM ${heartbeatRuns} WHERE space_id = ${workspace.spaceId}`;
   return sql`
     WITH RECURSIVE tree AS (
       SELECT id, status, completed_at, cancelled_at, updated_at FROM ${issues}
-      WHERE company_id = ${workspace.companyId} AND id = ${workspace.sourceIssueId}
+      WHERE space_id = ${workspace.spaceId} AND id = ${workspace.sourceIssueId}
       UNION
       SELECT c.id, c.status, c.completed_at, c.cancelled_at, c.updated_at FROM ${issues} c
-      JOIN tree p ON c.parent_id = p.id WHERE c.company_id = ${workspace.companyId}
+      JOIN tree p ON c.parent_id = p.id WHERE c.space_id = ${workspace.spaceId}
     ), bound AS (
       SELECT id, updated_at, checkout_run_id, execution_run_id FROM ${issues}
-      WHERE company_id = ${workspace.companyId} AND execution_workspace_id = ${workspace.id}
+      WHERE space_id = ${workspace.spaceId} AND execution_workspace_id = ${workspace.id}
     ), relevant_runs AS (
       SELECT r.id, r.status, r.created_at, r.started_at, r.finished_at, r.controller_lease_expires_at
-      FROM ${heartbeatRuns} r WHERE r.company_id = ${workspace.companyId} AND r.id = ANY(ARRAY(
-        ${companyRuns} AND issue_id = ANY(ARRAY(SELECT id FROM tree UNION SELECT id FROM bound))
-        UNION ${companyRuns} AND native_issue_id = ANY(ARRAY(SELECT id FROM tree UNION SELECT id FROM bound))
+      FROM ${heartbeatRuns} r WHERE r.space_id = ${workspace.spaceId} AND r.id = ANY(ARRAY(
+        ${spaceRuns} AND issue_id = ANY(ARRAY(SELECT id FROM tree UNION SELECT id FROM bound))
+        UNION ${spaceRuns} AND native_issue_id = ANY(ARRAY(SELECT id FROM tree UNION SELECT id FROM bound))
         UNION SELECT unnest(ARRAY[checkout_run_id, execution_run_id]) FROM bound
-        UNION ${companyRuns} AND (context_snapshot ->> 'issueId') = ANY(ARRAY(SELECT id::text FROM tree))
-        UNION ${companyRuns} AND (context_snapshot ->> 'taskId') = ANY(ARRAY(SELECT id::text FROM tree))
-        UNION ${companyRuns} AND context_snapshot ? 'executionWorkspaceId'
+        UNION ${spaceRuns} AND (context_snapshot ->> 'issueId') = ANY(ARRAY(SELECT id::text FROM tree))
+        UNION ${spaceRuns} AND (context_snapshot ->> 'taskId') = ANY(ARRAY(SELECT id::text FROM tree))
+        UNION ${spaceRuns} AND context_snapshot ? 'executionWorkspaceId'
           AND (context_snapshot ->> 'executionWorkspaceId') = ${workspace.id}
       ))
     )`;
@@ -146,10 +146,10 @@ function issueUsesWorkspace(workspace: Pick<Workspace, "id" | "sourceIssueId">) 
       AND ${issues.workspacePendingSelection}->'intent'->'selection'->>'workspaceId' = ${workspace.id}))`;
 }
 
-export async function listIssuesUsingGitWorkspace(db: Db | Tx, workspace: Pick<Workspace, "id" | "companyId" | "sourceIssueId">, issueIds: string[]) {
+export async function listIssuesUsingGitWorkspace(db: Db | Tx, workspace: Pick<Workspace, "id" | "spaceId" | "sourceIssueId">, issueIds: string[]) {
   if (issueIds.length === 0) return new Set<string>();
   const rows = await db.select({ id: issues.id }).from(issues)
-    .where(and(eq(issues.companyId, workspace.companyId), inArray(issues.id, issueIds), issueUsesWorkspace(workspace)));
+    .where(and(eq(issues.spaceId, workspace.spaceId), inArray(issues.id, issueIds), issueUsesWorkspace(workspace)));
   return new Set(rows.map(row => row.id));
 }
 
@@ -176,11 +176,11 @@ export async function isGitWorkspaceExpirationEligible(tx: Tx, workspace: Worksp
       NOT EXISTS (SELECT 1 FROM tree WHERE updated_at > ${idleCutoff.toISOString()}::timestamptz)
       AND NOT EXISTS (SELECT 1 FROM bound WHERE updated_at > ${idleCutoff.toISOString()}::timestamptz)
       AND NOT EXISTS (SELECT 1 FROM relevant_runs WHERE greatest(created_at, started_at, finished_at) > ${idleCutoff.toISOString()}::timestamptz)` : sql`
-      NOT EXISTS (SELECT 1 FROM ${issues} WHERE ${issues.companyId} = ${workspace.companyId}
+      NOT EXISTS (SELECT 1 FROM ${issues} WHERE ${issues.spaceId} = ${workspace.spaceId}
         AND ${issues.id} IN (SELECT id FROM tree) AND ${issueUsesWorkspace(workspace)}
         AND (${issues.status} NOT IN ('done', 'cancelled')
           OR coalesce(CASE WHEN ${issues.status} = 'done' THEN ${issues.completedAt} ELSE ${issues.cancelledAt} END, ${issues.updatedAt}) > ${new Date(now.getTime() - DAY_MS).toISOString()}::timestamptz))
-      AND NOT EXISTS (SELECT 1 FROM ${issues} WHERE company_id = ${workspace.companyId}
+      AND NOT EXISTS (SELECT 1 FROM ${issues} WHERE space_id = ${workspace.spaceId}
         AND execution_workspace_id = ${workspace.id} AND status NOT IN ('done', 'cancelled'))`;
   const recoveryActionBlocks = idleCutoff ? sql`true` : sql`(cause = 'native_workspace_finalization_owner_unverified'
           OR evidence->'systemRecovery'->>'state' IN ('scheduled', 'running', 'awaiting_evidence'))`;
@@ -199,21 +199,21 @@ export async function isGitWorkspaceExpirationEligible(tx: Tx, workspace: Worksp
       AND ${closedTree}
       AND NOT EXISTS (SELECT 1 FROM relevant_runs WHERE status NOT IN ('succeeded', 'failed', 'timed_out', 'cancelled', 'interrupted')
         OR finished_at IS NULL OR controller_lease_expires_at > now())
-      AND NOT EXISTS (SELECT 1 FROM ${issueRecoveryActions} WHERE company_id = ${workspace.companyId}
+      AND NOT EXISTS (SELECT 1 FROM ${issueRecoveryActions} WHERE space_id = ${workspace.spaceId}
         AND source_issue_id IN (SELECT id FROM tree) AND status IN ('active', 'escalated')
         AND ${recoveryActionBlocks})
-      AND NOT EXISTS (SELECT 1 FROM ${nativeRunFinalizations} f WHERE f.company_id = ${workspace.companyId}
+      AND NOT EXISTS (SELECT 1 FROM ${nativeRunFinalizations} f WHERE f.space_id = ${workspace.spaceId}
         AND (f.issue_id IN (SELECT id FROM tree) OR f.run_id IN (SELECT id FROM relevant_runs))
         AND ${finalizationBlocks})
-      AND NOT EXISTS (SELECT 1 FROM ${environmentLeases} l WHERE l.company_id = ${workspace.companyId}
+      AND NOT EXISTS (SELECT 1 FROM ${environmentLeases} l WHERE l.space_id = ${workspace.spaceId}
         AND (l.execution_workspace_id = ${workspace.id} OR l.heartbeat_run_id IN (SELECT id FROM relevant_runs))
         AND (l.status = 'pending_cleanup' OR l.cleanup_status = 'failed' OR l.metadata ? 'nativeWorkspaceExportResume'
           OR (l.released_at IS NULL AND NOT coalesce(l.status = 'retained' AND l.lease_policy = 'reuse_by_environment' AND l.cleanup_status = 'success', false))))
-      AND NOT EXISTS (SELECT 1 FROM ${workspaceOperations} o WHERE o.company_id = ${workspace.companyId}
+      AND NOT EXISTS (SELECT 1 FROM ${workspaceOperations} o WHERE o.space_id = ${workspace.spaceId}
         AND o.execution_workspace_id = ${workspace.id} AND o.phase = 'remote_workspace_migration'
         AND (o.status IN ('running', 'pending') OR o.metadata->>'uncertain' = 'true'
           OR (o.status = 'failed' AND o.metadata ? 'lastFailure' AND o.metadata->'retiredSave' IS NULL)))
-      AND NOT EXISTS (SELECT 1 FROM ${workspaceRuntimeServices} WHERE company_id = ${workspace.companyId}
+      AND NOT EXISTS (SELECT 1 FROM ${workspaceRuntimeServices} WHERE space_id = ${workspace.spaceId}
         AND (execution_workspace_id = ${workspace.id} OR cwd = ${workspace.cwd}
           OR left(cwd, length(${workspace.cwd}) + 1) = ${workspace.cwd} || '/') AND status <> 'stopped')
 
@@ -235,7 +235,7 @@ async function inspectBase(db: Db, workspace: Workspace, signal?: AbortSignal, a
   const recipe = readGitCacheRestoration(workspace)!;
   if (recipe.sourceKind !== "isolated_remote") throw new Error("shared_base_preserved");
   const other = await db.select().from(executionWorkspaces).where(and(ne(executionWorkspaces.id, workspace.id),
-    sql`(${executionWorkspaces.metadata}->'isolatedRemoteSource'->>'companyId' = ${workspace.companyId}
+    sql`(${executionWorkspaces.metadata}->'isolatedRemoteSource'->>'spaceId' = ${workspace.spaceId}
       AND ${executionWorkspaces.metadata}->'isolatedRemoteSource'->>'issueId' = ${workspace.sourceIssueId})
       OR ${executionWorkspaces.cwd} = ${recipe.sourcePath} OR ${executionWorkspaces.providerRef} = ${recipe.sourcePath}`));
   if (other.some(row => !["archived", "cleanup_failed"].includes(row.status)
@@ -273,11 +273,11 @@ function managedCheckoutProver(db: Db, workspace: Workspace, auth: GitRemoteAuth
     if (!workspace.projectId) throw new Error("unknown_managed_checkout");
     rows ??= db.select({ id: projectWorkspaces.id, repoUrl: projectWorkspaces.repoUrl, repoRef: projectWorkspaces.repoRef,
       cwd: projectWorkspaces.cwd }).from(projectWorkspaces)
-      .where(and(eq(projectWorkspaces.companyId, workspace.companyId), eq(projectWorkspaces.projectId, workspace.projectId)));
+      .where(and(eq(projectWorkspaces.spaceId, workspace.spaceId), eq(projectWorkspaces.projectId, workspace.projectId)));
     const source = selectRestoredProjectRepositories(await rows, readGitCacheRestoration(workspace)?.contents).find(row => row.repoUrl
       && managedProjectCheckoutName({ id: row.id, repoUrl: row.repoUrl, repoRef: row.repoRef, cwd: row.cwd }) === name);
     if (!source?.repoUrl) throw new Error("unknown_managed_checkout");
-    const baseCandidates = nestedRepositoryBaseCandidates({ companyId: workspace.companyId, projectId: workspace.projectId, repoUrl: source.repoUrl });
+    const baseCandidates = nestedRepositoryBaseCandidates({ spaceId: workspace.spaceId, projectId: workspace.projectId, repoUrl: source.repoUrl });
     try { await assertReproducibleManagedCheckout(checkoutPath, { repoUrl: source.repoUrl, resolveGitAuth: auth, signal, baseCandidates }); }
     catch (error) {
       if (!restorePoints || !CHECKOUT_RESTORE_POINT_RELAXABLE.has(skipReason(error))) throw error;
@@ -299,14 +299,14 @@ export async function expireReconstructableGitWorkspace(db: Db, snapshot: Worksp
   let pendingRestorePoints: string[] = [];
   if (!snapshot.sourceIssueId) return { ...result, skipReason: "missing_source_issue" };
   try {
-    return await withIsolatedRepositorySourceLock(db, snapshot.companyId, snapshot.sourceIssueId, async () => {
+    return await withIsolatedRepositorySourceLock(db, snapshot.spaceId, snapshot.sourceIssueId, async () => {
       for (const cwd of localWorkspaceSourcePaths(snapshot)) await retainCurrentWorkspaceSource(cwd);
       const retainedSource = readGitCacheRestoration(snapshot)?.sourcePath;
       if (retainedSource) await retainCurrentWorkspaceSource(retainedSource);
       return withDedicatedDbConnection(db, connection => connection.transaction(async tx => {
         const acquired = await tx.execute<{ locked: boolean }>(sql`select pg_try_advisory_xact_lock(hashtextextended(${`execution_workspace_lifecycle:${snapshot.id}`}, 0)) as locked`);
         if (!acquired[0]?.locked) throw new Error("lifecycle_busy");
-        let workspace = (await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, snapshot.id), eq(executionWorkspaces.companyId, snapshot.companyId))))[0];
+        let workspace = (await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, snapshot.id), eq(executionWorkspaces.spaceId, snapshot.spaceId))))[0];
         if (!workspace || workspace.updatedAt.getTime() !== snapshot.updatedAt.getTime()) throw new Error("workspace_changed");
         if (!await isGitWorkspaceExpirationEligible(tx, workspace, options.now, options.idleCutoff)) throw new Error("live_or_unresolved_consumer");
         let state = ["active", "idle", "in_review"].includes(workspace.status) ? null : readGitCacheExpiration(workspace);
@@ -315,7 +315,7 @@ export async function expireReconstructableGitWorkspace(db: Db, snapshot: Worksp
         if (["active", "idle", "in_review"].includes(workspace.status)) state = null;
         const auth = expirationGitAuth(db, workspace);
         const checkouts = new Map<string, ManagedCheckoutContents>();
-        const identity = { companyId: workspace.companyId, workspaceId: workspace.id };
+        const identity = { spaceId: workspace.spaceId, workspaceId: workspace.id };
         const proveManagedCheckout = managedCheckoutProver(db, workspace, auth, checkouts);
         const checkoutRestorePoints = new Map<string, CheckoutRestorePointNeed>();
         let headOnRemote = true;
@@ -360,7 +360,7 @@ export async function expireReconstructableGitWorkspace(db: Db, snapshot: Worksp
             throw new Error("unproven_worktree_admin");
           }
           if (needsRestorePoint) {
-            const owner = { companyId: workspace.companyId, id: workspace.id, sourceIssueId: workspace.sourceIssueId };
+            const owner = { spaceId: workspace.spaceId, id: workspace.id, sourceIssueId: workspace.sourceIssueId };
             const stored = await storeGitRestorePoint({ db, storage: options.restorePoint!.storage, workspace: owner,
               cwd: recipe.worktreePath, generation, headOnRemote, limits: options.restorePoint!.limits, signal: options.signal,
               upstreamCommits: await restorePointBoundary(recipe.worktreePath, recipe.repoUrl, headOnRemote, auth, options.signal) });
@@ -437,7 +437,7 @@ export async function expireReconstructableGitWorkspace(db: Db, snapshot: Worksp
                 await currentRestorePointSnapshot(recipe.worktreePath, options.signal))
                 || !await restorePointHistoryUnchanged(recipe.restorePoint, recipe.worktreePath, options.signal))) throw new Error("restore_point_contents_changed");
               for (const checkout of checkouts.values()) {
-                const cwd = path.join(recipe.worktreePath, ".paperclip-repositories", checkout.name);
+                const cwd = path.join(recipe.worktreePath, ".outpost-repositories", checkout.name);
                 locks.push(await acquireGitExpirationLocks(lockLocations.filter(location => location.checkout === checkout.name), state.lockToken));
                 const savedCheckout = savedCheckoutRestorePoints.get(checkout.name);
                 if (savedCheckout) {

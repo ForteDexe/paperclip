@@ -1,10 +1,10 @@
 import { pgTable, uuid, text, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { plugins } from "./plugins.js";
 
 /**
  * `plugin_config` table — stores operator-provided configuration for each
- * plugin within a company (one row per plugin/company pair).
+ * plugin within a space (one row per plugin/space pair).
  *
  * The `config_json` column holds the values that the operator enters in the
  * plugin settings UI. These values are validated at runtime against the
@@ -19,18 +19,18 @@ export const pluginConfig = pgTable(
     pluginId: uuid("plugin_id")
       .notNull()
       .references(() => plugins.id, { onDelete: "cascade" }),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     configJson: jsonb("config_json").$type<Record<string, unknown>>().notNull().default({}),
     lastError: text("last_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    pluginCompanyIdx: uniqueIndex("plugin_config_plugin_company_idx").on(
+    pluginSpaceIdx: uniqueIndex("plugin_config_plugin_space_idx").on(
       table.pluginId,
-      table.companyId,
+      table.spaceId,
     ),
   }),
 );

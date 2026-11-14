@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Infrastructure tracing providers and exporters remain optional peers.
- * Company connection tests use the resource utility and OTLP serializers as
+ * Space connection tests use the resource utility and OTLP serializers as
  * regular dependencies, without creating a provider or enabling tracing.
  * `instrumentation.test.ts` guards opt-in provider initialization and fail-open
  * bootstrap when the optional provider packages are absent.
@@ -51,7 +51,7 @@ describe("server package OpenTelemetry peer metadata", () => {
   });
 
   it.each(["@opentelemetry/resources", "@opentelemetry/otlp-transformer"])(
-    "provides %s for explicit company connection tests",
+    "provides %s for explicit space connection tests",
     (packageName) => {
       expect(packageJson.dependencies?.[packageName]).toBeDefined();
     },

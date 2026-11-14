@@ -166,18 +166,18 @@ const support = await getEmbeddedPostgresTestSupport();
       "repairs deployed provenance without replaying historical SQL or changing wake execution state",
       async () => {
         const database = await startEmbeddedPostgresTestDatabase(
-          "paperclip-chat-provenance-",
+          "outpost-chat-provenance-",
         );
         const sql = postgres(database.connectionString, {
           max: 1,
           onnotice: () => {},
         });
         try {
-          const companyId = randomUUID(),
+          const spaceId = randomUUID(),
             agentId = randomUUID(),
             retainedId = randomUUID();
-          await sql`INSERT INTO companies (id,name,issue_prefix) VALUES (${companyId},'Provenance upgrade','PRV')`;
-          await sql`INSERT INTO agents (id,company_id,name) VALUES (${agentId},${companyId},'Upgrade agent')`;
+          await sql`INSERT INTO spaces (id,name,issue_prefix) VALUES (${spaceId},'Provenance upgrade','PRV')`;
+          await sql`INSERT INTO agents (id,space_id,name) VALUES (${agentId},${spaceId},'Upgrade agent')`;
           const originalKey = `interaction:${randomUUID()}`;
           const oldLine = `Safely retired duplicate by migration 0245; retained wake request ${retainedId}`;
           const newLine = `Safely retired duplicate by migration 0251; retained wake request ${retainedId}`;
@@ -307,8 +307,8 @@ const support = await getEmbeddedPostgresTestSupport();
             },
           ];
           // More than one keyset batch, including an unrelated-only middle batch.
-          await sql`INSERT INTO agent_wakeup_requests (id,company_id,agent_id,source,payload)
-        SELECT ('00000000-0000-0000-0001-' || lpad(n::text,12,'0'))::uuid, ${companyId}, ${agentId}, 'timer', '{"unrelated":true}'::jsonb
+          await sql`INSERT INTO agent_wakeup_requests (id,space_id,agent_id,source,payload)
+        SELECT ('00000000-0000-0000-0001-' || lpad(n::text,12,'0'))::uuid, ${spaceId}, ${agentId}, 'timer', '{"unrelated":true}'::jsonb
         FROM generate_series(1,1001) AS n`;
           const expectedChanges = new Map<
             string,
@@ -326,8 +326,8 @@ const support = await getEmbeddedPostgresTestSupport();
             };
             const error = fixture.error ?? null;
             await sql`INSERT INTO agent_wakeup_requests
-          (id,company_id,agent_id,source,reason,status,idempotency_key,run_id,payload,error,requested_at,claimed_at,finished_at,created_at,updated_at)
-          VALUES (${id},${companyId},${agentId},'automation',${fixture.name},${fixture.status ?? "skipped"},${key},${fixture.status === "failed" ? randomUUID() : null},${sql.json(payload)},${error},'2026-09-01T00:00:00Z','2026-09-01T00:00:01Z','2026-09-01T00:00:02Z','2026-09-01T00:00:00Z','2026-09-01T00:00:02Z')`;
+          (id,space_id,agent_id,source,reason,status,idempotency_key,run_id,payload,error,requested_at,claimed_at,finished_at,created_at,updated_at)
+          VALUES (${id},${spaceId},${agentId},'automation',${fixture.name},${fixture.status ?? "skipped"},${key},${fixture.status === "failed" ? randomUUID() : null},${sql.json(payload)},${error},'2026-09-01T00:00:00Z','2026-09-01T00:00:01Z','2026-09-01T00:00:02Z','2026-09-01T00:00:00Z','2026-09-01T00:00:02Z')`;
             if (fixture.correct)
               expectedChanges.set(id, {
                 payload: {
@@ -349,7 +349,7 @@ const support = await getEmbeddedPostgresTestSupport();
             historyBefore.filter((row) => row.hash === legacyHash),
           ).toHaveLength(1);
           const rowsBefore =
-            await sql`SELECT row_to_json(w) AS row FROM agent_wakeup_requests w WHERE company_id = ${companyId} ORDER BY id`;
+            await sql`SELECT row_to_json(w) AS row FROM agent_wakeup_requests w WHERE space_id = ${spaceId} ORDER BY id`;
           const expected = rowsBefore.map(({ row }) => ({
             row: { ...row, ...expectedChanges.get(row.id) },
           }));
@@ -361,7 +361,7 @@ const support = await getEmbeddedPostgresTestSupport();
           });
           await applyPendingMigrations(database.connectionString);
           expect(
-            await sql`SELECT row_to_json(w) AS row FROM agent_wakeup_requests w WHERE company_id = ${companyId} ORDER BY id`,
+            await sql`SELECT row_to_json(w) AS row FROM agent_wakeup_requests w WHERE space_id = ${spaceId} ORDER BY id`,
           ).toEqual(expected);
           expect(
             await sql`SELECT id,hash,created_at::text FROM drizzle.__drizzle_migrations WHERE id <= ${historyBefore.at(-1)!.id} ORDER BY id`,
@@ -372,7 +372,7 @@ const support = await getEmbeddedPostgresTestSupport();
           await executeMigration(sql, provenanceMigration);
           await applyPendingMigrations(database.connectionString);
           expect(
-            await sql`SELECT row_to_json(w) AS row FROM agent_wakeup_requests w WHERE company_id = ${companyId} ORDER BY id`,
+            await sql`SELECT row_to_json(w) AS row FROM agent_wakeup_requests w WHERE space_id = ${spaceId} ORDER BY id`,
           ).toEqual(expected);
           expect(
             await sql`SELECT id,hash,created_at::text FROM drizzle.__drizzle_migrations ORDER BY id`,
@@ -389,20 +389,20 @@ const support = await getEmbeddedPostgresTestSupport();
       "corrects both original repair resolutions on a fresh migration path",
       async () => {
         const database = await startEmbeddedPostgresTestDatabase(
-          "paperclip-chat-provenance-fresh-",
+          "outpost-chat-provenance-fresh-",
         );
         const sql = postgres(database.connectionString, {
           max: 1,
           onnotice: () => {},
         });
         try {
-          const companyId = randomUUID(),
+          const spaceId = randomUUID(),
             agentId = randomUUID(),
             retainedId = randomUUID(),
             queuedId = randomUUID(),
             activeId = randomUUID();
-          await sql`INSERT INTO companies (id,name,issue_prefix) VALUES (${companyId},'Fresh provenance','FPV')`;
-          await sql`INSERT INTO agents (id,company_id,name) VALUES (${agentId},${companyId},'Fresh agent')`;
+          await sql`INSERT INTO spaces (id,name,issue_prefix) VALUES (${spaceId},'Fresh provenance','FPV')`;
+          await sql`INSERT INTO agents (id,space_id,name) VALUES (${agentId},${spaceId},'Fresh agent')`;
           await sql`DROP INDEX agent_wakeup_requests_question_response_delivery_idempotency_uq`;
           const key = `interaction:${randomUUID()}`;
           for (const [id, status, runId] of [
@@ -410,12 +410,12 @@ const support = await getEmbeddedPostgresTestSupport();
             [queuedId, "queued", null],
             [activeId, "running", randomUUID()],
           ] as const) {
-            await sql`INSERT INTO agent_wakeup_requests (id,company_id,agent_id,source,status,run_id,idempotency_key,payload,error)
-          VALUES (${id},${companyId},${agentId},'automation',${status},${runId},${key},'{"preserved":true}'::jsonb,'Prior audit')`;
+            await sql`INSERT INTO agent_wakeup_requests (id,space_id,agent_id,source,status,run_id,idempotency_key,payload,error)
+          VALUES (${id},${spaceId},${agentId},'automation',${status},${runId},${key},'{"preserved":true}'::jsonb,'Prior audit')`;
           }
           await executeMigration(sql, `${chatMigrations[5][0]}.sql`);
           const before =
-            await sql`SELECT row_to_json(w) AS row FROM agent_wakeup_requests w WHERE company_id = ${companyId} ORDER BY id`;
+            await sql`SELECT row_to_json(w) AS row FROM agent_wakeup_requests w WHERE space_id = ${spaceId} ORDER BY id`;
           expect(
             before.filter(
               ({ row }) =>
@@ -450,11 +450,11 @@ const support = await getEmbeddedPostgresTestSupport();
                 },
           );
           expect(
-            await sql`SELECT row_to_json(w) AS row FROM agent_wakeup_requests w WHERE company_id = ${companyId} ORDER BY id`,
+            await sql`SELECT row_to_json(w) AS row FROM agent_wakeup_requests w WHERE space_id = ${spaceId} ORDER BY id`,
           ).toEqual(expected);
           await executeMigration(sql, provenanceMigration);
           expect(
-            await sql`SELECT row_to_json(w) AS row FROM agent_wakeup_requests w WHERE company_id = ${companyId} ORDER BY id`,
+            await sql`SELECT row_to_json(w) AS row FROM agent_wakeup_requests w WHERE space_id = ${spaceId} ORDER BY id`,
           ).toEqual(expected);
         } finally {
           await sql.end();
@@ -473,14 +473,14 @@ const support = await getEmbeddedPostgresTestSupport();
       "upgrades the actual prior chat schema through the new upstream chain without replaying chat effects",
       async () => {
         const database = await startEmbeddedPostgresTestDatabase(
-          "paperclip-chat-upstream-upgrade-",
+          "outpost-chat-upstream-upgrade-",
         );
         const source = postgres(database.connectionString, {
           max: 1,
           onnotice: () => {},
         });
         const directory = await mkdtemp(
-          join(tmpdir(), "paperclip-chat-old-migrations-"),
+          join(tmpdir(), "outpost-chat-old-migrations-"),
         );
         const name = `legacy_chat_${randomUUID().replaceAll("-", "")}`;
         const legacyUrl = new URL(database.connectionString);
@@ -538,7 +538,7 @@ const support = await getEmbeddedPostgresTestSupport();
           // Run the real migration engine over the prior schema, not a current
           // schema with fabricated applied-history rows or dropped columns.
           await migrate(drizzle(legacy), { migrationsFolder: directory });
-          const companyId = randomUUID(),
+          const spaceId = randomUUID(),
             agentId = randomUUID(),
             applicationId = randomUUID(),
             connectionId = randomUUID(),
@@ -546,14 +546,14 @@ const support = await getEmbeddedPostgresTestSupport();
             issueId = randomUUID(),
             conversationId = randomUUID(),
             publicationId = randomUUID();
-          await legacy`INSERT INTO companies (id,name,issue_prefix) VALUES (${companyId},'Prior chat schema','OLD')`;
-          await legacy`INSERT INTO agents (id,company_id,name) VALUES (${agentId},${companyId},'Prior agent')`;
-          await legacy`INSERT INTO tool_applications (id,company_id,name,type) VALUES (${applicationId},${companyId},'Slack','rest_api')`;
-          await legacy`INSERT INTO tool_connections (id,company_id,application_id,name,uid,connection_purpose,transport) VALUES (${connectionId},${companyId},${applicationId},'Slack','old-chat','channel','chat_sdk')`;
-          await legacy`INSERT INTO chat_endpoints (id,company_id,connection_id,provider,public_id,assigned_agent_id) VALUES (${endpointId},${companyId},${connectionId},'slack',${randomUUID()},${agentId})`;
-          await legacy`INSERT INTO issues (id,company_id,title) VALUES (${issueId},${companyId},'Retained source')`;
-          await legacy`INSERT INTO chat_conversations (id,company_id,endpoint_id,issue_id,external_conversation_id,external_thread_id,external_label) VALUES (${conversationId},${companyId},${endpointId},${issueId},'COLD','slack:COLD:1700.1','Retained thread')`;
-          await legacy`INSERT INTO chat_publications (id,company_id,endpoint_id,conversation_id,issue_id,idempotency_key,payload,state,attempts) VALUES (${publicationId},${companyId},${endpointId},${conversationId},${issueId},'retained-unknown','{"text":"Do not resend"}'::jsonb,'delivery_unknown',1)`;
+          await legacy`INSERT INTO spaces (id,name,issue_prefix) VALUES (${spaceId},'Prior chat schema','OLD')`;
+          await legacy`INSERT INTO agents (id,space_id,name) VALUES (${agentId},${spaceId},'Prior agent')`;
+          await legacy`INSERT INTO tool_applications (id,space_id,name,type) VALUES (${applicationId},${spaceId},'Slack','rest_api')`;
+          await legacy`INSERT INTO tool_connections (id,space_id,application_id,name,uid,connection_purpose,transport) VALUES (${connectionId},${spaceId},${applicationId},'Slack','old-chat','channel','chat_sdk')`;
+          await legacy`INSERT INTO chat_endpoints (id,space_id,connection_id,provider,public_id,assigned_agent_id) VALUES (${endpointId},${spaceId},${connectionId},'slack',${randomUUID()},${agentId})`;
+          await legacy`INSERT INTO issues (id,space_id,title) VALUES (${issueId},${spaceId},'Retained source')`;
+          await legacy`INSERT INTO chat_conversations (id,space_id,endpoint_id,issue_id,external_conversation_id,external_thread_id,external_label) VALUES (${conversationId},${spaceId},${endpointId},${issueId},'COLD','slack:COLD:1700.1','Retained thread')`;
+          await legacy`INSERT INTO chat_publications (id,space_id,endpoint_id,conversation_id,issue_id,idempotency_key,payload,state,attempts) VALUES (${publicationId},${spaceId},${endpointId},${conversationId},${issueId},'retained-unknown','{"text":"Do not resend"}'::jsonb,'delivery_unknown',1)`;
           const before =
             await legacy`SELECT row_to_json(p) AS row FROM chat_publications p ORDER BY id`;
           const historyBefore =
@@ -630,7 +630,7 @@ const support = await getEmbeddedPostgresTestSupport();
       "migrates a fresh database and upgrades deployed chat history without replaying chat SQL",
       async () => {
         const database = await startEmbeddedPostgresTestDatabase(
-          "paperclip-chat-identity-migration-",
+          "outpost-chat-identity-migration-",
         );
         const sql = postgres(database.connectionString, {
           max: 1,
@@ -664,7 +664,7 @@ const support = await getEmbeddedPostgresTestSupport();
             await sql`UPDATE drizzle.__drizzle_migrations SET created_at = ${timestamp} WHERE hash = ${hash}`;
           }
 
-          const companyId = randomUUID(),
+          const spaceId = randomUUID(),
             agentId = randomUUID(),
             applicationId = randomUUID(),
             connectionId = randomUUID(),
@@ -672,14 +672,14 @@ const support = await getEmbeddedPostgresTestSupport();
             issueId = randomUUID(),
             conversationId = randomUUID(),
             publicationId = randomUUID();
-          await sql`INSERT INTO companies (id,name,issue_prefix) VALUES (${companyId},'Chat upgrade','CUP')`;
-          await sql`INSERT INTO agents (id,company_id,name) VALUES (${agentId},${companyId},'Chat agent')`;
-          await sql`INSERT INTO tool_applications (id,company_id,name,type) VALUES (${applicationId},${companyId},'Slack','rest_api')`;
-          await sql`INSERT INTO tool_connections (id,company_id,application_id,name,uid,connection_purpose,transport) VALUES (${connectionId},${companyId},${applicationId},'Slack','slack-upgrade','channel','chat_sdk')`;
-          await sql`INSERT INTO chat_endpoints (id,company_id,connection_id,provider,public_id,assigned_agent_id) VALUES (${endpointId},${companyId},${connectionId},'slack',${randomUUID()},${agentId})`;
-          await sql`INSERT INTO issues (id,company_id,title) VALUES (${issueId},${companyId},'Existing chat task')`;
-          await sql`INSERT INTO chat_conversations (id,company_id,endpoint_id,issue_id,external_conversation_id,external_thread_id,external_label) VALUES (${conversationId},${companyId},${endpointId},${issueId},'CUPGRADE','slack:CUPGRADE:1700.1','Existing Slack thread')`;
-          await sql`INSERT INTO chat_publications (id,company_id,endpoint_id,conversation_id,issue_id,idempotency_key,payload,state,attempts) VALUES (${publicationId},${companyId},${endpointId},${conversationId},${issueId},'existing-unknown-file','{"attachmentIds":["existing-attachment"]}'::jsonb,'delivery_unknown',1)`;
+          await sql`INSERT INTO spaces (id,name,issue_prefix) VALUES (${spaceId},'Chat upgrade','CUP')`;
+          await sql`INSERT INTO agents (id,space_id,name) VALUES (${agentId},${spaceId},'Chat agent')`;
+          await sql`INSERT INTO tool_applications (id,space_id,name,type) VALUES (${applicationId},${spaceId},'Slack','rest_api')`;
+          await sql`INSERT INTO tool_connections (id,space_id,application_id,name,uid,connection_purpose,transport) VALUES (${connectionId},${spaceId},${applicationId},'Slack','slack-upgrade','channel','chat_sdk')`;
+          await sql`INSERT INTO chat_endpoints (id,space_id,connection_id,provider,public_id,assigned_agent_id) VALUES (${endpointId},${spaceId},${connectionId},'slack',${randomUUID()},${agentId})`;
+          await sql`INSERT INTO issues (id,space_id,title) VALUES (${issueId},${spaceId},'Existing chat task')`;
+          await sql`INSERT INTO chat_conversations (id,space_id,endpoint_id,issue_id,external_conversation_id,external_thread_id,external_label) VALUES (${conversationId},${spaceId},${endpointId},${issueId},'CUPGRADE','slack:CUPGRADE:1700.1','Existing Slack thread')`;
+          await sql`INSERT INTO chat_publications (id,space_id,endpoint_id,conversation_id,issue_id,idempotency_key,payload,state,attempts) VALUES (${publicationId},${spaceId},${endpointId},${conversationId},${issueId},'existing-unknown-file','{"attachmentIds":["existing-attachment"]}'::jsonb,'delivery_unknown',1)`;
           const rowsBefore =
             await sql`SELECT row_to_json(p) AS row FROM chat_publications p WHERE id = ${publicationId}`;
           const historyBefore =

@@ -29,7 +29,7 @@ export function BuiltInLifecycleChip({
       )}
       title={
         isPendingApproval
-          ? "Waiting on board hire approval before the feature can run"
+          ? "Waiting on operator create approval before the feature can run"
           : "Needs adapter/model setup before the feature can run"
       }
     >

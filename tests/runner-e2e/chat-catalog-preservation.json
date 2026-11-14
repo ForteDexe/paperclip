@@ -43,7 +43,7 @@
       "sourceRevision": "f09af3cdebd58376d095d6f49d53aae80b635b6e"
     },
     {
-      "name": "new-company",
+      "name": "new-space",
       "sourceRevision": "6726c40f01342081557c265944ab8783f9ee82b4"
     },
     {
@@ -55,7 +55,7 @@
       "sourceRevision": "73856cebe07cab32df42fdec7ff6ea7192cdd474"
     },
     {
-      "name": "new-company-original-clock",
+      "name": "new-space-original-clock",
       "sourceRevision": "7c846a27a0b1ac1908d929209b60d7942f4246fb"
     },
     {
@@ -77,7 +77,7 @@
   ],
   "productionPrerequisites": [
     {
-      "scenarioId": "onboarding.new-company",
+      "scenarioId": "onboarding.new-space",
       "corePullRequest": 18103,
       "reason": "Actual local OpenCode native authentication/hello probe, absent from frozen production baseline."
     },
@@ -120,7 +120,7 @@
     ],
     "currentProfileOrPublicCapabilityGaps": [
       "assistant-connections.use-scoped-client",
-      "companies.configure-decision-model",
+      "spaces.configure-decision-model",
       "steering.steer-active"
     ],
     "otherRequirements": "Official provider resources, selected credentials, authorized operators and actual remote targets still require their declared public prerequisites. Importability is not runtime readiness.",

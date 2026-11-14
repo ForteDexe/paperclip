@@ -1,6 +1,6 @@
 # GitHub managed connection
 
-GitHub is a Paperclip Cloud-managed GitHub App connection with an advanced PAT
+GitHub is a Outpost Cloud-managed GitHub App connection with an advanced PAT
 compatibility method. Cloud owns the fixed public OAuth callback and signed
 webhook inbox; provider tokens are sealed to the enrolled instance and stored
 only in its existing encrypted secret system.
@@ -23,17 +23,17 @@ repository and MCP URLs still resolve to the ordinary GitHub tool connection.
 ## Bot instructions and triggers
 
 Bot Settings uses the shared Markdown editor for common and event-specific
-instructions. Type `/` and select a company skill to insert a saved skill link.
+instructions. Type `/` and select a space skill to insert a saved skill link.
 Common instructions accompany every admitted GitHub task; event-specific
 instructions accompany that event. Selected skills are materialized for the run
 and explicitly invoked by the native Runner, subject to existing tool and
 isolation restrictions. The admitted configuration snapshot determines skill
 selection for each wake, including queued events. GitHub messages, repository
-content and other companies' skills cannot assign skills to the run.
+content and other spaces' skills cannot assign skills to the run.
 
 Authorized @mentions remain available when **Run automatically** is on or off.
 The switch in Settings reveals the PR and issue event checkboxes. Access lists
-company members and external contributors separately. Author include/exclude filters
+space members and external contributors separately. Author include/exclude filters
 in Settings control whose activity starts automatic work; there is no per-person
 automatic-run switch. Automatic events still require an authorized author and an
 enabled event. Legacy `people[].automaticReviews` values are accepted but ignored.
@@ -41,7 +41,7 @@ External contributors additionally need **Allow automatic runs for external cont
 Their restricted guest profile and sponsor requirements are unchanged.
 
 The passing-score number field accepts a whole number from 1 to 5, defaulting to 5.
-Paperclip publishes a successful **Paperclip Review** check only after a complete
+Outpost publishes a successful **Outpost Review** check only after a complete
 assessment of the current commit meets the threshold; lower scores fail and
 incomplete assessments require action. To block merging, separately require this
 check from the dedicated App in GitHub branch protection or a ruleset. A new head
@@ -55,7 +55,7 @@ and inline-comment options have separate disclosures. The header shows the App
 identity, copyable mention, avatar download, and GitHub branding settings.
 
 Published review summaries use the GitHub bot's display name in their heading.
-The check name remains **Paperclip Review**. Multiple bots can review the same
+The check name remains **Outpost Review**. Multiple bots can review the same
 PR through separate GitHub Apps: each keeps its own task, summary, findings, and
 check. Check updates match both the App ID and the endpoint/PR/commit identity.
 Repository branch rules decide separately which App's check is required to merge.
@@ -66,12 +66,12 @@ The setup screen states the default access in one line, with **Change** for
 other choices. **Continue to GitHub** on that screen starts the provider
 handoff.
 
-A self-hosted instance needs one Paperclip Cloud approval before its first
+A self-hosted instance needs one Outpost Cloud approval before its first
 managed connection. After approval, setup returns to the connect screen and continues to
 GitHub without another instance approval or a service restart.
 
 If an unapproved enrollment link expires, return to setup and select
-**Continue**. Paperclip asks the server for a valid link. The server reuses a
+**Continue**. Outpost asks the server for a valid link. The server reuses a
 live pending enrollment or replaces an expired one; this does not revoke or
 repeat an existing instance approval.
 
@@ -91,20 +91,20 @@ and webhook binding uses the same order:
 3. For automated work without a responsible user, a personal grant only when
    an existing standing delegation names the agent.
 4. Legacy `GH_TOKEN`/`GITHUB_TOKEN` only when no managed GitHub connection is
-   configured for the company.
+   configured for the space.
 
 An unavailable or ambiguous managed identity fails visibly. It never falls
 through to another person, an organization credential, or a legacy token.
-Agent grants are company-scoped, have exactly one `subjectAgentId`, cannot be
+Agent grants are space-scoped, have exactly one `subjectAgentId`, cannot be
 organization defaults, and are installed only for that agent.
 
 The connection installation is the credential owner's consent boundary. A
 personal setup may target every agent or a selected set, and runtime resolution
 considers only an enabled, active connection installed for the current agent.
-Within that boundary, Paperclip treats the run's server-resolved
+Within that boundary, Outpost treats the run's server-resolved
 `responsibleUserId` as its credential principal, including for automated work;
 agents cannot choose or spoof this field. The owner must still be an active
-non-viewer company member at each use. A standing delegation is needed only
+non-viewer space member at each use. A standing delegation is needed only
 when a run genuinely has no responsible user.
 
 ## Credential lifecycle
@@ -115,7 +115,7 @@ checked with GitHub's `/user` endpoint every 30 days, together with installation
 and repository summary refresh. Routine continuity requires no browser visit.
 
 If GitHub returns an expiring access token and rotating refresh token instead,
-Paperclip stores both encrypted and:
+Outpost stores both encrypted and:
 
 - refreshes at least one hour before access expiry;
 - forces a rotation at least every 30 days while the instance is active;
@@ -135,7 +135,7 @@ error even when the connection itself is healthy. A failed tool approval shows
 **GitHub access needed** and **Manage GitHub access**, which opens that connection's
 Permissions page. Check the connected account and the App's access to the intended
 account and repository there. The original provider error remains in the action's
-error details and diagnostic record. Paperclip does not replay the write or hide
+error details and diagnostic record. Outpost does not replay the write or hide
 other working tools. Saved GitHub approval errors receive the same presentation.
 The agent's continuation wake carries server-written next steps and tells it
 not to retry until access is repaired. It must never automatically replay a
@@ -146,7 +146,7 @@ steps. A GitHub provider denial is an MCP tool error result, not an HTTP
 authentication failure for the gateway. Invalid gateway credentials still fail
 authentication before any provider call.
 Repair steps are attached after provider output passes content checks, so model
-checks inspect the provider's text without treating Paperclip's own instructions
+checks inspect the provider's text without treating Outpost's own instructions
 as untrusted output. Unsafe provider responses still fail those checks.
 
 For an App connection's `create_repository`, the agent checks the intended
@@ -157,7 +157,7 @@ needs App access to that personal account; organization creation needs App acces
 to that organization and the tool's `organization` argument. When the App is
 installed on exactly one account, and its access snapshot identifies that
 account as an organization, `create_repository` and `fork_repository` calls that omit `organization` use
-that organization, because the personal account is unavailable. Paperclip fills
+that organization, because the personal account is unavailable. Outpost fills
 it in before policy, approval, and audit, so approval cards and test results
 show the owner. An explicit owner is unchanged, and any other installation set
 keeps GitHub's personal-account default. The agent must
@@ -172,7 +172,7 @@ untrusted result.
 
 OAuth completion verifies `/user`, every page of `/user/installations`, and every
 page of each installation's accessible repositories. Setup remains incomplete
-until at least one installation and repository are available. Paperclip stores
+until at least one installation and repository are available. Outpost stores
 the authenticated username and a grant-scoped display snapshot containing only
 repository IDs, full names, installation IDs, and private-repository flags. GitHub stays authoritative:
 this snapshot never authorizes repository access.
@@ -194,7 +194,7 @@ refresh instead of presenting a stale list. The page links to GitHub's
 installation management page. Selected repositories are recommended; all-
 repository access retains its warning.
 
-Fresh local test-drives use production Paperclip Cloud. Instance enrollment
+Fresh local test-drives use production Outpost Cloud. Instance enrollment
 and provider enablement are separate: enrollment alone does not enable GitHub
 OAuth. Production must advertise the `github.code` profile (see Cloud's
 `docs/github-connector-deploy-bootstrap.md`). If it is unavailable, setup
@@ -215,7 +215,7 @@ and any workflow `inputs`. The workflow must declare `workflow_dispatch`.
 The GitHub App installation or fine-grained PAT needs **Actions: Read and
 write** for the repository. App owners set that permission on the GitHub App
 registration; installation owners must approve an increase before it takes
-effect. Paperclip's action controls do not grant GitHub permissions.
+effect. Outpost's action controls do not grant GitHub permissions.
 
 The tool also supports rerunning and cancelling runs and deleting run logs.
 It retains GitHub's destructive classification. Read tools include
@@ -226,7 +226,7 @@ and [workflow dispatch permissions](https://docs.github.com/en/rest/actions/work
 
 GitHub response reconciliation reads run status and request identity without
 loading prompts, runtime profiles, results, or log excerpts. Request ownership
-checks still use current company, agent, task, and accepted message provenance.
+checks still use current space, agent, task, and accepted message provenance.
 The run context projection retains `issueId`, `taskId`, `wakeCommentId`, and
 `wakeCommentIds`; larger runtime data stays in its owning reads.
 
@@ -244,21 +244,21 @@ its normal lease and retention policy; this does not recover a lost old key.
 
 ## Webhooks
 
-For the shared GitHub account connector, Paperclip Cloud verifies
+For the shared GitHub account connector, Outpost Cloud verifies
 `X-Hub-Signature-256` against the exact bounded request
 body before parsing, deduplicates by `X-GitHub-Delivery`, and persists a minimal
 normalized event before returning `202`. Raw webhook payloads are discarded.
-When registering an active binding, Paperclip sends the current user token only
+When registering an active binding, Outpost sends the current user token only
 inside the signed, payload-bound broker request so Cloud can verify access to
 that exact installation; Cloud neither logs nor persists that proof token.
 Deliveries fan out independently to every enrolled instance bound to the GitHub
 installation and are sealed to each instance's public key.
 
-The instance polls with backoff, stores a company-scoped idempotency receipt,
+The instance polls with backoff, stores a space-scoped idempotency receipt,
 and acknowledges only successful applications. A merged pull request updates
 its matching external-object snapshot and immediately runs the existing merge-
 confirmation resolver. It wakes the assignee only when that interaction's
-continuation policy requests it; unrelated Paperclip issues are not closed.
+continuation policy requests it; unrelated Outpost issues are not closed.
 The periodic GitHub merge sweep remains the reconciliation fallback.
 
 Installation lifecycle events refresh or invalidate installation summaries and
@@ -332,11 +332,11 @@ The `comment` tool replaces that same comment with the final answer.
 `submit_review` replaces it with the allowed review summary; checks, inline
 findings and explicitly permitted formal reviews remain separate. Corrected
 assessments can update the summary again. Delayed progress cannot overwrite a
-final answer. Native final text stays in Paperclip and creates no extra comment.
+final answer. Native final text stays in Outpost and creates no extra comment.
 Legacy connections without a saved review configuration retain automatic run
 progress and final replies until upgraded to this tool-owned response model.
 
-Receipts are bound to the company, App, task, accepted request and original
+Receipts are bound to the space, App, task, accepted request and original
 runtime generation. The existing publication lease serializes edits, and
 App-owned markers recover uncertain creation without posting duplicates.
 Deleted or no-longer-owned comments are not recreated or edited. Coalesced runs
@@ -351,7 +351,7 @@ that ends without a final reply clears a remaining working state honestly.
 Repository restrictions, person authorization and governed tool checks remain
 in effect for edits. Existing disabled or quarantined tools stay disabled.
 Existing native sessions refresh incompatible tool checkpoints so the agent
-can see `update_comment`. The same Paperclip task and saved history remain.
+can see `update_comment`. The same Outpost task and saved history remain.
 
 ### Explicit bot mentions and subscriptions
 
@@ -362,9 +362,9 @@ repository/thread identity and body hashes remain bound across restarts. Signed
 image URLs and credentials are never added to durable attachment descriptors.
 
 A manual message beginning with another recipient's @mention does not wake this
-bot through its thread subscription, including Apps outside Paperclip such as
+bot through its thread subscription, including Apps outside Outpost such as
 `@greptile review`. Mentions of other connected GitHub bots are also filtered
-elsewhere in the body. Paperclip filters that
+elsewhere in the body. Outpost filters that
 delivery before creating task work or adding an acknowledgement. Explicitly
 mentioning both bots allows both to receive the request, subject to their normal
 authorization and repository checks.
@@ -372,7 +372,7 @@ authorization and repository checks.
 Unaddressed follow-ups and incidental human or unknown mentions retain the existing
 subscription behavior. Explicitly mentioning this bot admits a request even when
 another recipient is named. The routing rule does not change automatic issue or PR
-event policies. Archived bots and identities from other companies or providers
+event policies. Archived bots and identities from other spaces or providers
 are excluded from the routing lookup.
 
 ## Retrying a saved request
@@ -422,4 +422,4 @@ Tokens never appear in arguments, URLs, files, logs, events, or model context,
 and the projection never replaces `HOME`.
 
 Cloud deployment and exact GitHub App registration settings live in
-`paperclip-cloud/docs/github-connector-deploy-bootstrap.md`.
+`outpost-cloud/docs/github-connector-deploy-bootstrap.md`.

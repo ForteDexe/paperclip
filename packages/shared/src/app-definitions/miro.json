@@ -27,8 +27,8 @@
       "defaults": {
         "serverUrl": "https://mcp.miro.com/",
         "scopesHint": [
-          "boards:read",
-          "boards:write",
+          "operators:read",
+          "operators:write",
           "openid",
           "email"
         ]

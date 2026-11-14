@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { activityLog, agentCommentary, agents, companies, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
+import { activityLog, agentCommentary, agents, spaces, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 describe("tool receipt recovery through the mutation owner", () => {
   let temporary: Awaited<ReturnType<typeof startRecoveryPostgres>>;
@@ -15,24 +15,24 @@ describe("tool receipt recovery through the mutation owner", () => {
   afterAll(async () => { await temporary?.cleanup(); });
 
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), nextId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Receipt recovery", issuePrefix: `R${companyId.slice(0, 6)}` });
+    const spaceId = randomUUID(), agentId = randomUUID(), nextId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Receipt recovery", issuePrefix: `R${spaceId.slice(0, 6)}` });
     await db.insert(agents).values([
-      { id: agentId, companyId, name: "Manager", role: "ceo", status: "active", adapterType: "outpost_runner" },
-      { id: nextId, companyId, name: "Engineer", role: "engineer", status: "active", adapterType: "outpost_runner" },
+      { id: agentId, spaceId, name: "Manager", role: "lead", status: "active", adapterType: "outpost_runner" },
+      { id: nextId, spaceId, name: "Engineer", role: "engineer", status: "active", adapterType: "outpost_runner" },
     ]);
-    await db.insert(issues).values({ id: issueId, companyId, title: "Coordinate", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, contextSnapshot: { issueId } });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Coordinate", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     const enqueueWakeup = vi.fn().mockResolvedValue(null);
     const stopTaskForReassignment = vi.fn().mockResolvedValue(undefined);
-    const binding = { companyId, agentId, issueId, runId, enqueueWakeup, stopTaskForReassignment, syncIssueExternalObjects: vi.fn().mockResolvedValue(undefined) };
-    const replacement = () => new PaperclipRunnerToolAuthority(db, binding);
+    const binding = { spaceId, agentId, issueId, runId, enqueueWakeup, stopTaskForReassignment, syncIssueExternalObjects: vi.fn().mockResolvedValue(undefined) };
+    const replacement = () => new OutpostRunnerToolAuthority(db, binding);
     const effects = async () => ({
-      activity: await db.select().from(activityLog).where(eq(activityLog.companyId, companyId)),
-      comments: await db.select().from(issueComments).where(eq(issueComments.companyId, companyId)),
-      commentary: await db.select().from(agentCommentary).where(eq(agentCommentary.companyId, companyId)),
-      tasks: await db.select().from(issues).where(eq(issues.companyId, companyId)),
+      activity: await db.select().from(activityLog).where(eq(activityLog.spaceId, spaceId)),
+      comments: await db.select().from(issueComments).where(eq(issueComments.spaceId, spaceId)),
+      commentary: await db.select().from(agentCommentary).where(eq(agentCommentary.spaceId, spaceId)),
+      tasks: await db.select().from(issues).where(eq(issues.spaceId, spaceId)),
     });
     return { ...binding, nextId, replacement, effects };
   }
@@ -83,7 +83,7 @@ describe("tool receipt recovery through the mutation owner", () => {
   it.each(["create_task", "reassign_task"])("repairs %s's dispatch after commit without repeating the business mutation", async tool => {
     const f = await fixture();
     const targetId = randomUUID();
-    if (tool === "reassign_task") await db.insert(issues).values({ id: targetId, companyId: f.companyId, title: "Existing task", status: "todo", assigneeAgentId: f.agentId });
+    if (tool === "reassign_task") await db.insert(issues).values({ id: targetId, spaceId: f.spaceId, title: "Existing task", status: "todo", assigneeAgentId: f.agentId });
     const args = tool === "create_task"
       ? { title: "Delegate implementation", assigneeActorId: f.nextId, idempotencyKey: " dispatch-1 " }
       : { taskId: targetId, assigneeActorId: f.nextId, expectedAssigneeActorId: f.agentId, expectedStatusVersion: 0, reason: "Delegate implementation", idempotencyKey: " dispatch-1 " };
@@ -104,7 +104,7 @@ describe("tool receipt recovery through the mutation owner", () => {
     expect(f.enqueueWakeup).toHaveBeenCalledTimes(2);
     expect(f.stopTaskForReassignment).toHaveBeenCalledTimes(stopCount);
     expect(await f.effects()).toEqual(before);
-    expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.companyId),
+    expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.spaceId),
       eq(activityLog.action, tool === "create_task" ? "issue.created" : "issue.reassigned")))).toHaveLength(1);
   });
 });

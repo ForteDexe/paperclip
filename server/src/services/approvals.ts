@@ -1,7 +1,7 @@
 import { notifyToolReviewChange } from "./tool-review-work-notifications.js";
 import { writeApprovalChange } from "./approval-work-notifications.js";
 import { approvalResolutionRecords, resolvableApprovalStatuses as resolvableStatuses } from "../lib/approval-records.js";
-import { notifyHireApproved } from "./hire-hook.js";
+import { notifyCreateApproved } from "./create-hook.js";
 
 import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@outpost/db";
@@ -25,8 +25,8 @@ export function approvalRecords(db: Db) {
 
   return {
     getExistingApproval, resolveApproval,
-    list: (companyId: string, status?: string, readCondition?: SQL<boolean>) => {
-      const conditions = [eq(approvals.companyId, companyId)];
+    list: (spaceId: string, status?: string, readCondition?: SQL<boolean>) => {
+      const conditions = [eq(approvals.spaceId, spaceId)];
       if (status) conditions.push(eq(approvals.status, status));
       if (readCondition) conditions.push(readCondition);
       return db.select().from(approvals).where(and(...conditions));
@@ -39,14 +39,14 @@ export function approvalRecords(db: Db) {
         .where(eq(approvals.id, id))
         .then((rows) => rows[0] ?? null),
 
-    findOpenHireApprovalForAgent: async (companyId: string, agentId: string) => {
+    findOpenCreationApprovalForAgent: async (spaceId: string, agentId: string) => {
       const rows = await db
         .select()
         .from(approvals)
         .where(
           and(
-            eq(approvals.companyId, companyId),
-            eq(approvals.type, "hire_agent"),
+            eq(approvals.spaceId, spaceId),
+            eq(approvals.type, "create_agent"),
             inArray(approvals.status, resolvableStatuses),
             sql`${approvals.payload} ->> 'agentId' = ${agentId}`,
           ),
@@ -54,22 +54,22 @@ export function approvalRecords(db: Db) {
       return rows[0] ?? null;
     },
 
-    create: (companyId: string, data: Omit<typeof approvals.$inferInsert, "companyId">) =>
-      writeApprovalChange(db, companyId, tx => tx
+    create: (spaceId: string, data: Omit<typeof approvals.$inferInsert, "spaceId">) =>
+      writeApprovalChange(db, spaceId, tx => tx
         .insert(approvals)
-        .values({ ...data, companyId })
+        .values({ ...data, spaceId })
         .returning()
         .then((rows) => rows[0])),
 
-    // Cancel an open (pending/revision_requested) approval without a board
+    // Cancel an open (pending/revision_requested) approval without a operator
     // decision — e.g. when its paired agent is terminated during duplicate
     // cleanup. Idempotent: a no-op on already-resolved approvals.
     cancel: async (id: string, reason?: string | null) => {
       const now = new Date();
-      const [existing] = await db.select({ companyId: approvals.companyId }).from(approvals).where(eq(approvals.id, id));
+      const [existing] = await db.select({ spaceId: approvals.spaceId }).from(approvals).where(eq(approvals.id, id));
       if (!existing) return null;
-      const updated = await writeApprovalChange(db, existing.companyId, async tx => {
-        await notifyToolReviewChange(tx, existing.companyId);
+      const updated = await writeApprovalChange(db, existing.spaceId, async tx => {
+        await notifyToolReviewChange(tx, existing.spaceId);
         return tx.update(approvals)
         .set({
           status: "cancelled",
@@ -91,7 +91,7 @@ export function approvalRecords(db: Db) {
       }
 
       const now = new Date();
-      return writeApprovalChange(db, existing.companyId, tx => tx
+      return writeApprovalChange(db, existing.spaceId, tx => tx
         .update(approvals)
         .set({
           status: "revision_requested",
@@ -112,7 +112,7 @@ export function approvalRecords(db: Db) {
       }
 
       const now = new Date();
-      return writeApprovalChange(db, existing.companyId, tx => tx
+      return writeApprovalChange(db, existing.spaceId, tx => tx
         .update(approvals)
         .set({
           status: "pending",
@@ -136,7 +136,7 @@ export function approvalRecords(db: Db) {
         .where(
           and(
             eq(approvalComments.approvalId, approvalId),
-            eq(approvalComments.companyId, existing.companyId),
+            eq(approvalComments.spaceId, existing.spaceId),
           ),
         )
         .orderBy(asc(approvalComments.createdAt))
@@ -156,7 +156,7 @@ export function approvalRecords(db: Db) {
       return db
         .insert(approvalComments)
         .values({
-          companyId: existing.companyId,
+          spaceId: existing.spaceId,
           approvalId,
           authorAgentId: actor.agentId ?? null,
           authorUserId: actor.userId ?? null,
@@ -170,19 +170,19 @@ export function approvalRecords(db: Db) {
 
 export function approvalService(db: Db) {
   const { getExistingApproval, resolveApproval, ...records } = approvalRecords(db);
-  async function reconcileApprovedBuiltInAgent(companyId: string, payload: Record<string, unknown>, database: Db) {
+  async function reconcileApprovedBuiltInAgent(spaceId: string, payload: Record<string, unknown>, database: Db) {
     const sourceBuiltInAgentKey = typeof payload.sourceBuiltInAgentKey === "string" ? payload.sourceBuiltInAgentKey : null;
     if (!sourceBuiltInAgentKey) return;
     const { builtInAgentService } = await import("./built-in-agents.js");
-    await builtInAgentService(database).ensure(companyId, sourceBuiltInAgentKey);
+    await builtInAgentService(database).ensure(spaceId, sourceBuiltInAgentKey);
   }
 
-  async function decideHire(target: string | { approvalId: string }, status: "approved" | "rejected", userId: string, note?: string | null) {
+  async function decideCreate(target: string | { approvalId: string }, status: "approved" | "rejected", userId: string, note?: string | null) {
     const lifecycle = createAgentLifecycle(db);
-    const result = await (status === "approved" ? lifecycle.approveHire : lifecycle.rejectHire)(target, userId, note);
-    if (result?.hireApprovedAgentId && result.approval) {
-      await reconcileApprovedBuiltInAgent(result.approval.companyId, result.approval.payload, db);
-      void notifyHireApproved(db, { companyId: result.approval.companyId, agentId: result.hireApprovedAgentId,
+    const result = await (status === "approved" ? lifecycle.approveCreation : lifecycle.rejectCreation)(target, userId, note);
+    if (result?.createApprovedAgentId && result.approval) {
+      await reconcileApprovedBuiltInAgent(result.approval.spaceId, result.approval.payload, db);
+      void notifyCreateApproved(db, { spaceId: result.approval.spaceId, agentId: result.createApprovedAgentId,
         source: "approval", sourceId: result.approval.id, approvedAt: result.approval.decidedAt ?? new Date() }).catch(() => {});
     }
     return result;
@@ -190,15 +190,15 @@ export function approvalService(db: Db) {
 
   async function decide(id: string, status: "approved" | "rejected", userId: string, note?: string | null) {
     const approval = await getExistingApproval(id);
-    if (approval.type === "hire_agent") {
-      const result = await decideHire({ approvalId: id }, status, userId, note);
+    if (approval.type === "create_agent") {
+      const result = await decideCreate({ approvalId: id }, status, userId, note);
       return { approval: result!.approval!, applied: result!.applied };
     }
     return resolveApproval(id, status, userId, note);
   }
   return { ...records,
-    approveHire: (agentId: string, userId: string, note?: string | null) => decideHire(agentId, "approved", userId, note),
-    rejectHire: (agentId: string, userId: string, note?: string | null) => decideHire(agentId, "rejected", userId, note),
+    approveCreation: (agentId: string, userId: string, note?: string | null) => decideCreate(agentId, "approved", userId, note),
+    rejectCreation: (agentId: string, userId: string, note?: string | null) => decideCreate(agentId, "rejected", userId, note),
     approve: (id: string, userId: string, note?: string | null) => decide(id, "approved", userId, note),
     reject: (id: string, userId: string, note?: string | null) => decide(id, "rejected", userId, note),
   };

@@ -14,7 +14,7 @@ import { Card } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { FlyoutHeader, FlyoutOptions } from "@/components/ui/flyout";
 import { Input } from "@/components/ui/input";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useDialogActions } from "@/context/DialogContext";
 import { matchesTaskListView } from "@/lib/task-list-views";
 import { DesignProposalAccess } from "./DesignProposalAccess";
@@ -38,7 +38,7 @@ const projectStatusLabels = {
 
 /** Trial-only project composition. Shared task semantics and UI remain unchanged. */
 function ProjectHealthContent({ initialQuery = "", initialView = "all", initialProjectId, emptyOrganization = false }: ProjectHealthTrialProps) {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { openNewIssue } = useDialogActions();
   const [query, setQuery] = useState(initialQuery);
   const [view, setView] = useState<ProjectView>(initialView);
@@ -46,8 +46,8 @@ function ProjectHealthContent({ initialQuery = "", initialView = "all", initialP
   const searchRef = useRef<HTMLInputElement>(null);
   const projectButtons = useRef(new Map<string, HTMLButtonElement>());
 
-  const projects = emptyOrganization ? [] : projectHealthProjects.filter(project => project.companyId === selectedCompanyId);
-  const tasks = projectHealthTasks.filter(task => task.companyId === selectedCompanyId && projects.some(project => project.id === task.projectId));
+  const projects = emptyOrganization ? [] : projectHealthProjects.filter(project => project.spaceId === selectedSpaceId);
+  const tasks = projectHealthTasks.filter(task => task.spaceId === selectedSpaceId && projects.some(project => project.id === task.projectId));
   const needsAttention = (task: typeof tasks[number]) => matchesTaskListView("blocked", task, false, null);
   const projectsWithCounts = projects.map(project => {
     const projectTasks = tasks.filter(task => task.projectId === project.id);
@@ -155,6 +155,6 @@ function ProjectHealthContent({ initialQuery = "", initialView = "all", initialP
 }
 
 export function ProjectHealthTrial(props: ProjectHealthTrialProps) {
-  const { selectedCompanyId } = useCompany();
-  return <DesignProposalAccess><ProjectHealthContent key={selectedCompanyId} {...props} /></DesignProposalAccess>;
+  const { selectedSpaceId } = useSpace();
+  return <DesignProposalAccess><ProjectHealthContent key={selectedSpaceId} {...props} /></DesignProposalAccess>;
 }

@@ -7,15 +7,15 @@ async function json(response: APIResponse) {
 }
 
 test("a task title survives an outage and saves after server recovery", async ({ page, request }) => {
-  const company = await json(await request.post("/api/companies", { data: { name: `Write recovery ${Date.now()}` } }));
+  const space = await json(await request.post("/api/spaces", { data: { name: `Write recovery ${Date.now()}` } }));
   try {
-    const issue = await json(await request.post(`/api/companies/${company.id}/issues`, {
+    const issue = await json(await request.post(`/api/spaces/${space.id}/issues`, {
       data: { title: "Original task title", status: "backlog" },
     }));
-    const other = await json(await request.post(`/api/companies/${company.id}/issues`, {
+    const other = await json(await request.post(`/api/spaces/${space.id}/issues`, {
       data: { title: "Another task stays unchanged", status: "backlog" },
     }));
-    await page.goto(`/${company.issuePrefix}/issues/${issue.identifier}`);
+    await page.goto(`/${space.issuePrefix}/issues/${issue.identifier}`);
     await expect(page.getByTestId("task-chat-history-content")).toBeVisible({ timeout: 30_000 });
     const header = page.getByTestId("issue-detail-header");
     await expect(header.getByRole("heading", { name: issue.title, exact: true })).toBeVisible();
@@ -48,17 +48,17 @@ test("a task title survives an outage and saves after server recovery", async ({
     await expect(header.getByRole("heading", { name: "A title retained through the outage", exact: true })).toBeVisible();
     expect((await json(await request.get(`/api/issues/${issue.id}`))).status).toBe("backlog");
   } finally {
-    await request.patch(`/api/companies/${company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${space.id}`, { data: { status: "archived" } });
   }
 });
 
 test("two cached tasks keep separate title saves while the browser is offline", async ({ page, request }) => {
   test.setTimeout(120_000);
-  const company = await json(await request.post("/api/companies", { data: { name: `Queued writes ${Date.now()}` } }));
+  const space = await json(await request.post("/api/spaces", { data: { name: `Queued writes ${Date.now()}` } }));
   try {
-    const first = await json(await request.post(`/api/companies/${company.id}/issues`, { data: { title: "First queued task", status: "todo" } }));
-    const second = await json(await request.post(`/api/companies/${company.id}/issues`, { data: { title: "Second queued task", status: "todo" } }));
-    await page.goto(`/${company.issuePrefix}/issues/${second.id}`);
+    const first = await json(await request.post(`/api/spaces/${space.id}/issues`, { data: { title: "First queued task", status: "todo" } }));
+    const second = await json(await request.post(`/api/spaces/${space.id}/issues`, { data: { title: "Second queued task", status: "todo" } }));
+    await page.goto(`/${space.issuePrefix}/issues/${second.id}`);
     await expect(page.getByRole("heading", { name: second.title, exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Tasks", exact: true }).first().click();
     await page.getByRole("link").filter({ hasText: first.title }).first().click();
@@ -93,19 +93,19 @@ test("two cached tasks keep separate title saves while the browser is offline", 
     await expect(header.getByRole("heading", { name: "Second title retained offline", exact: true })).toBeVisible();
   } finally {
     await page.context().setOffline(false).catch(() => {});
-    await request.patch(`/api/companies/${company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${space.id}`, { data: { status: "archived" } });
   }
 });
 
 test("a cold task waits for the first session and retains a title saved during an API outage", async ({ page, request }) => {
-  const company = await json(await request.post("/api/companies", { data: { name: `Startup recovery ${Date.now()}` } }));
+  const space = await json(await request.post("/api/spaces", { data: { name: `Startup recovery ${Date.now()}` } }));
   const session = await json(await request.get("/api/auth/get-session"));
   let releaseSession!: () => void;
   const sessionReady = new Promise<void>(resolve => { releaseSession = resolve; });
   const savedTitle = "Saved through first session lookup";
   let apiUnavailable = false;
   try {
-    const issue = await json(await request.post(`/api/companies/${company.id}/issues`, {
+    const issue = await json(await request.post(`/api/spaces/${space.id}/issues`, {
       data: { title: "Startup original title", status: "backlog" },
     }));
     await page.route("**/api/**", async route => {
@@ -128,7 +128,7 @@ test("a cold task waits for the first session and retains a title saved during a
         || url.pathname === `/api/issues/${issue.identifier}/chat-bootstrap`
       );
     });
-    await page.goto(`/${company.issuePrefix}/issues/${issue.identifier}`);
+    await page.goto(`/${space.issuePrefix}/issues/${issue.identifier}`);
     await coreReady;
     const header = page.getByTestId("issue-detail-header");
     await expect(page.getByTestId("shell-configuration-loading")).toBeVisible();
@@ -144,7 +144,7 @@ test("a cold task waits for the first session and retains a title saved during a
     await header.locator("textarea").press("Enter");
     expect((await json(await request.get(`/api/issues/${issue.id}`))).title).toBe(issue.title);
     await expect.poll(() => page.evaluate(({ owner, title }) => Object.keys(localStorage).some(key =>
-      key.startsWith(`paperclip:inline-draft:v2:${owner}:`) && JSON.parse(localStorage.getItem(key) ?? "null")?.draft === title),
+      key.startsWith(`outpost:inline-draft:v2:${owner}:`) && JSON.parse(localStorage.getItem(key) ?? "null")?.draft === title),
     { owner: session.user.id, title: savedTitle })).toBe(true);
     apiUnavailable = false;
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
@@ -157,20 +157,20 @@ test("a cold task waits for the first session and retains a title saved during a
     releaseSession();
     apiUnavailable = false;
     await page.evaluate(() => window.dispatchEvent(new Event("online"))).catch(() => {});
-    await request.patch(`/api/companies/${company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${space.id}`, { data: { status: "archived" } });
   }
 });
 
 test("replaying an accepted comment does not reopen completed work", async ({ page, request }) => {
-  const company = await json(await request.post("/api/companies", { data: { name: `Comment recovery ${Date.now()}` } }));
+  const space = await json(await request.post("/api/spaces", { data: { name: `Comment recovery ${Date.now()}` } }));
   try {
-    const issue = await json(await request.post(`/api/companies/${company.id}/issues`, {
+    const issue = await json(await request.post(`/api/spaces/${space.id}/issues`, {
       data: { title: "Completed work stays completed", status: "backlog", assigneeAgentId: null, assigneeUserId: null },
     }));
     const body = "A comment whose response was lost";
     const clientRequestId = crypto.randomUUID();
     const first = await json(await request.post(`/api/issues/${issue.id}/comments`, { data: { body, clientRequestId } }));
-    const agent = await json(await request.post(`/api/companies/${company.id}/agents`, {
+    const agent = await json(await request.post(`/api/spaces/${space.id}/agents`, {
       data: { name: "Completed comment worker", role: "engineer", adapterType: "process", runner: "legacy",
         adapterConfig: { command: "/usr/bin/true" }, runtimeConfig: { heartbeat: { enabled: false } } },
     }));
@@ -186,19 +186,19 @@ test("replaying an accepted comment does not reopen completed work", async ({ pa
     const activity = await json(await request.get(`/api/issues/${issue.id}/activity`));
     expect(activity.filter((entry: { action: string; details?: { commentId?: string } }) =>
       entry.action === "issue.comment_added" && entry.details?.commentId === first.id)).toHaveLength(1);
-    await page.goto(`/${company.issuePrefix}/issues/${issue.identifier}`);
+    await page.goto(`/${space.issuePrefix}/issues/${issue.identifier}`);
     await expect(page.getByTestId("task-chat-history-content")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("issue-detail-header").getByRole("heading", { name: issue.title, exact: true })).toBeVisible();
     await expect(page.getByText(body, { exact: true })).toBeVisible();
   } finally {
-    await request.patch(`/api/companies/${company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${space.id}`, { data: { status: "archived" } });
   }
 });
 
 for (const delayWorkspacePreference of [false, true]) test(delayWorkspacePreference
   ? "startup title survives session recovery while workspace preferences remount the editor"
   : "startup work retries a failed session lookup while other APIs stay healthy", async ({ page, request }) => {
-  const company = await json(await request.post("/api/companies", { data: { name: `Session recovery ${Date.now()}` } }));
+  const space = await json(await request.post("/api/spaces", { data: { name: `Session recovery ${Date.now()}` } }));
   const session = await json(await request.get("/api/auth/get-session"));
   let healthy = false, saving = false, failedAfterSave = 0;
   let releasePreference!: () => void;
@@ -209,7 +209,7 @@ for (const delayWorkspacePreference of [false, true]) test(delayWorkspacePrefere
     sawPreference(); await preferenceGate; await route.continue();
   });
   try {
-    const issue = await json(await request.post(`/api/companies/${company.id}/issues`, {
+    const issue = await json(await request.post(`/api/spaces/${space.id}/issues`, {
       data: { title: "Before session recovery", status: "backlog" },
     }));
     await page.route("**/api/auth/get-session", async route => {
@@ -217,7 +217,7 @@ for (const delayWorkspacePreference of [false, true]) test(delayWorkspacePrefere
       if (saving) failedAfterSave += 1;
       await route.fulfill({ status: 500, json: { error: "session_lookup_failed" } });
     });
-    await page.goto(`/${company.issuePrefix}/issues/${issue.id}`);
+    await page.goto(`/${space.issuePrefix}/issues/${issue.id}`);
     await expect(page.getByTestId("task-chat-history-content")).toBeVisible({ timeout: 30_000 });
     const header = page.getByTestId("issue-detail-header");
     await header.getByRole("heading", { name: issue.title, exact: true }).click();
@@ -247,6 +247,6 @@ for (const delayWorkspacePreference of [false, true]) test(delayWorkspacePrefere
     await expect(header.getByRole("heading", { name: "Saved after session recovery", exact: true })).toBeVisible();
   } finally {
     releasePreference();
-    await request.patch(`/api/companies/${company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${space.id}`, { data: { status: "archived" } });
   }
 });

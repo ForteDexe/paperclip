@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { agents, companies, environmentLeases, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
+import { agents, spaces, environmentLeases, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
 import { environmentTaskOperationSchema, type PluginEnvironmentTaskOperation } from "@outpost/plugin-sdk";
 import { createRunnerProviderLaunch, parseNativeExecutionInput, parseNativeRuntimeContext, QUALIFIED_ACPX_PROFILES, inspectDurablePrpCheckpointHeader, type NativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 import { resolvePluginTaskResume } from "../plugin-task-resume.js";
@@ -85,23 +85,23 @@ function pinnedSource(recovery: PluginTaskSourceRecovery) {
 }
 
 async function inspect(tx: Transaction, input: {
-  companyId: string; leaseId: string; context: NativeExecutionContext; identity: Identity; resumeFrom: string; accountIdentity: string;
+  spaceId: string; leaseId: string; context: NativeExecutionContext; identity: Identity; resumeFrom: string; accountIdentity: string;
 }, expected?: PluginTaskSourceRecovery) {
   input.context.assertOpen();
   const binding = input.context.execution.binding;
-  if (binding.companyId !== input.companyId || input.identity.runId === binding.runId) return deny();
+  if (binding.spaceId !== input.spaceId || input.identity.runId === binding.runId) return deny();
   await tx.execute(sql`select set_config('statement_timeout', '15000', true), set_config('lock_timeout', '1000', true)`);
-  const owners = await lockSourceRecoveryCoordinators(tx, input.companyId, [input.identity.runId, binding.runId]);
+  const owners = await lockSourceRecoveryCoordinators(tx, input.spaceId, [input.identity.runId, binding.runId]);
   const owner = owners.find(value => value.runId === binding.runId), prior = owners.find(value => value.runId === input.identity.runId);
   // NOWAIT preserves the established coordinator-first order without waiting
   // behind a workspace-maintenance path which already holds the issue.
-  const [issue] = await tx.select().from(issues).where(and(eq(issues.companyId, input.companyId), eq(issues.id, binding.issueId))).for("update", { noWait: true });
-  const runs = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId),
+  const [issue] = await tx.select().from(issues).where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, binding.issueId))).for("update", { noWait: true });
+  const runs = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId),
     inArray(heartbeatRuns.id, [input.identity.runId, binding.runId])));
   const current = runs.find(value => value.id === binding.runId), source = runs.find(value => value.id === input.identity.runId);
-  const [lease] = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId), eq(environmentLeases.id, input.leaseId))).for("update");
-  const [agent] = await tx.select().from(agents).where(and(eq(agents.companyId, input.companyId), eq(agents.id, binding.agentId)));
-  const [company] = await tx.select().from(companies).where(eq(companies.id, input.companyId));
+  const [lease] = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId), eq(environmentLeases.id, input.leaseId))).for("update");
+  const [agent] = await tx.select().from(agents).where(and(eq(agents.spaceId, input.spaceId), eq(agents.id, binding.agentId)));
+  const [space] = await tx.select().from(spaces).where(eq(spaces.id, input.spaceId));
   if (!owner || !owner.leaseOwner || !owner.leaseExpiresAt || owner.leaseExpiresAt.getTime() <= Date.now() ||
       !isCurrentNativeControllerProcess(owner) || owner.resultId || ["committed", "applied", "terminal_failure"].includes(owner.phase) ||
       !prior || prior.phase !== "committed" || !prior.resultId || prior.leaseOwner ||
@@ -109,25 +109,25 @@ async function inspect(tx: Transaction, input: {
       !source || source.status !== "succeeded" || !source.finishedAt || source.runtimeMode !== "native" || source.agentId !== binding.agentId || source.nativeIssueId !== binding.issueId ||
       source.runnerInstanceId !== input.identity.runnerInstanceId || source.nativeSessionId !== input.identity.normalizedSessionId ||
       !issue || issue.executionRunId !== binding.runId || issue.assigneeAgentId !== binding.agentId || issue.status !== "in_progress" ||
-      company?.status !== "active" || agent?.lifecycleState !== "ready" || ["paused", "terminated", "pending_approval"].includes(agent.status) ||
+      space?.status !== "active" || agent?.lifecycleState !== "ready" || ["paused", "terminated", "pending_approval"].includes(agent.status) ||
       !lease || lease.heartbeatRunId !== binding.runId || lease.issueId !== binding.issueId || lease.status !== "active" || lease.releasedAt ||
       lease.expiresAt && lease.expiresAt.getTime() <= Date.now() || lease.metadata?.runnerTaskRetiring === true) return deny();
   input.context.assertNativeLease({ bootId: owner.controllerBootId!, leaseOwner: owner.leaseOwner, generation: owner.controllerGeneration });
-  const header = await loadNativeRunnerCheckpointHeader(tx, { companyId: input.companyId, issueId: binding.issueId, runId: source.id });
+  const header = await loadNativeRunnerCheckpointHeader(tx, { spaceId: input.spaceId, issueId: binding.issueId, runId: source.id });
   const protocolIdentity = header ? inspectDurablePrpCheckpointHeader(header) : null;
   if (!protocolIdentity || keys.some(key => protocolIdentity[key] !== input.identity[key])) return deny();
   const sourceExecution = parseNativeExecutionInput(source.runnerProfileJson?.nativeExecutionInput);
   const consumerExecution = parseNativeExecutionInput(current.runnerProfileJson?.nativeExecutionInput);
   const harness = sourceHarness(sourceExecution);
   if (!harness || harness !== sourceHarness(consumerExecution) ||
-      sourceExecution.binding.companyId !== input.companyId || sourceExecution.binding.issueId !== binding.issueId ||
+      sourceExecution.binding.spaceId !== input.spaceId || sourceExecution.binding.issueId !== binding.issueId ||
       sourceExecution.binding.agentId !== binding.agentId || sourceExecution.binding.runId !== source.id ||
       sourceExecution.session.normalizedSessionId !== input.identity.normalizedSessionId ||
       fingerprint(consumerExecution) !== fingerprint(input.context.execution)) return deny();
-  const sourceTask = await resolvePluginTaskResume(tx as unknown as Db, { companyId: input.companyId, leaseId: input.leaseId,
+  const sourceTask = await resolvePluginTaskResume(tx as unknown as Db, { spaceId: input.spaceId, leaseId: input.leaseId,
     priorIdentity: input.identity, inspectCheckpoint: true });
   if (sourceTask !== input.resumeFrom) return deny();
-  const sources = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId),
+  const sources = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId),
     eq(environmentLeases.heartbeatRunId, source.id), eq(environmentLeases.providerLeaseId, sourceTask))).for("update");
   if (sources.length !== 1) return deny();
   const sourceLease = sources[0]!;
@@ -138,7 +138,7 @@ async function inspect(tx: Transaction, input: {
       await legacyShutdownWorkspaceResourceProtected(tx as unknown as Db, sourceLease)) return deny();
   const allocations = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.provider, sourceLease.provider!),
     eq(environmentLeases.providerLeaseId, sourceTask)));
-  if (allocations.some(value => value.companyId !== input.companyId ||
+  if (allocations.some(value => value.spaceId !== input.spaceId ||
       value.id !== sourceLease.id && value.id !== lease.id && ["active", "retained", "pending_cleanup"].includes(value.status))) return deny();
   const recovery: PluginTaskSourceRecovery = { schema: "outpost.runner.source-recovery.v1", identity: input.identity,
     resumeFrom: sourceTask, sourceLeaseId: sourceLease.id, consumerLeaseId: lease.id, consumerRunId: binding.runId,
@@ -152,7 +152,7 @@ async function inspect(tx: Transaction, input: {
 
 /** Only current B's native authority can consume succeeded A for maintenance. */
 export async function claimPluginTaskSourceRecovery(db: Db, input: {
-  companyId: string; leaseId: string; context: NativeExecutionContext; identity: Identity; resumeFrom: string; accountIdentity: string;
+  spaceId: string; leaseId: string; context: NativeExecutionContext; identity: Identity; resumeFrom: string; accountIdentity: string;
   codexSourceRecoveryVersion?: 1; acpxSourceRecoveryVersion?: 1;
   matchesExecution(source: NativeExecutionInput): boolean;
 }): Promise<PluginTaskSourceRecovery> {
@@ -171,7 +171,7 @@ export async function claimPluginTaskSourceRecovery(db: Db, input: {
     const existing = sourceLease.metadata?.runnerTaskSourceConsumer;
     if (existing && fingerprint(existing) !== fingerprint(consumer)) return deny();
     const others = await tx.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, input.companyId), eq(environmentLeases.provider, sourceLease.provider!),
+      eq(environmentLeases.spaceId, input.spaceId), eq(environmentLeases.provider, sourceLease.provider!),
       sql`${environmentLeases.id} <> ${lease.id}`,
       sql`${environmentLeases.metadata}->>'runnerTaskResumeFrom' = ${input.resumeFrom}`));
     if (others.length) return deny();
@@ -186,14 +186,14 @@ export async function claimPluginTaskSourceRecovery(db: Db, input: {
 }
 
 async function assertSourceIdentity(db: Db, input: {
-  companyId: string; leaseId: string; context: NativeExecutionContext | undefined;
+  spaceId: string; leaseId: string; context: NativeExecutionContext | undefined;
   identity: Identity; harness: Harness; requirements?: Requirements; accountIdentity?: string; resumeFrom?: string; requireDispatched?: boolean;
 }): Promise<PluginTaskSourceRecovery> {
   if (!input.context) return deny();
   const { identity } = input;
   return db.transaction(async tx => {
     const [lease] = await tx.select({ metadata: environmentLeases.metadata }).from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, input.companyId), eq(environmentLeases.id, input.leaseId)));
+      eq(environmentLeases.spaceId, input.spaceId), eq(environmentLeases.id, input.leaseId)));
     const expected = readRecovery(lease?.metadata?.runnerTaskSourceRecovery);
     if (!expected || keys.some(key => expected.identity[key] !== identity[key]) ||
         input.resumeFrom !== undefined && expected.resumeFrom !== input.resumeFrom || expected.accountIdentity !== input.accountIdentity) return deny();
@@ -215,7 +215,7 @@ async function assertSourceIdentity(db: Db, input: {
 
 /** The worker never derives this exception from an arbitrary mismatched run ID. */
 export async function assertPluginTaskSourceRecovery(db: Db, input: {
-  companyId: string; leaseId: string; context: NativeExecutionContext | undefined;
+  spaceId: string; leaseId: string; context: NativeExecutionContext | undefined;
   operation: Extract<PluginEnvironmentTaskOperation, { kind: "prepare" | "submit" }>;
 }): Promise<PluginTaskSourceRecovery> {
   const operation = input.operation;
@@ -233,7 +233,7 @@ export async function assertPluginTaskSourceRecovery(db: Db, input: {
 
 /** A fresh source incarnation can attach B without pretending it was warm reuse. */
 export async function assertPluginTaskSourceAttachment(db: Db, input: {
-  companyId: string; leaseId: string; context: NativeExecutionContext | undefined;
+  spaceId: string; leaseId: string; context: NativeExecutionContext | undefined;
   operation: Extract<PluginEnvironmentTaskOperation, { kind: "prepare" }>;
 }): Promise<PluginTaskSourceRecovery> {
   const { operation } = input, target = operation.requirements.identity;

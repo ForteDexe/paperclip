@@ -1,11 +1,11 @@
 /**
  * @fileoverview Classifies a failed skill mutation into the four visual states
- * from the Phase 3 UX spec (PAP-13865 / `doc/company-skill-policy.md`).
+ * from the Phase 3 UX spec (PAP-13865 / `doc/space-skill-policy.md`).
  *
  * The contract inverts the old model: **skill permissions are opt-in
  * restrictions, not opt-in capabilities.** Under the open default there is no
  * permission chrome at all — install / edit / update / test / reset / remove
- * are just live buttons. A denial notice only appears when an explicit company
+ * are just live buttons. A denial notice only appears when an explicit space
  * policy (State B) or a non-configurable platform invariant (State C) actually
  * denied the action. Everything else (network, 409 conflict, 5xx) is a
  * transient error (State D) that keeps the existing toast path.
@@ -22,13 +22,13 @@ import { ApiError } from "../api/client";
 export const SKILL_POLICY_DENIAL_CODE = "skill_policy_denied";
 
 /**
- * Non-configurable platform-invariant failure codes (`doc/company-skill-policy.md`). Policy can never
+ * Non-configurable platform-invariant failure codes (`doc/space-skill-policy.md`). Policy can never
  * loosen these — the remediation is always to fix the artifact/source/input,
  * never to change a permission.
  */
 export const SKILL_PLATFORM_INVARIANT_CODES = [
   "skill_authentication_required",
-  "skill_company_boundary_denied",
+  "skill_space_boundary_denied",
   "skill_workspace_boundary_denied",
   "skill_source_validation_failed",
   "skill_unsafe_content_blocked",
@@ -37,7 +37,7 @@ export const SKILL_PLATFORM_INVARIANT_CODES = [
 ] as const;
 
 /**
- * Requires board-administration authority (`users:manage_permissions`). This is
+ * Requires operator-administration authority (`users:manage_permissions`). This is
  * a platform boundary — not something the current agent can self-serve — so we
  * treat it as State C but with admin-oriented remediation.
  */
@@ -66,7 +66,7 @@ const DEFAULT_ADMIN_REMEDIATION =
 /** Human-readable titles for the platform-invariant codes (State C). */
 const PLATFORM_TITLES: Record<string, string> = {
   skill_authentication_required: "Sign in to manage skills.",
-  skill_company_boundary_denied: "This skill belongs to another outpost.",
+  skill_space_boundary_denied: "This skill belongs to another outpost.",
   skill_workspace_boundary_denied: "This skill source is outside an allowed workspace.",
   skill_source_validation_failed: "This skill source failed validation.",
   skill_unsafe_content_blocked: "This skill contains unsafe content.",
@@ -77,7 +77,7 @@ const PLATFORM_TITLES: Record<string, string> = {
 /** Default remediation copy per platform-invariant code — framed as a fix, never a grant. */
 const PLATFORM_REMEDIATIONS: Record<string, string> = {
   skill_authentication_required: "Sign in and try again.",
-  skill_company_boundary_denied: "Open the skill from the outpost that owns it.",
+  skill_space_boundary_denied: "Open the skill from the outpost that owns it.",
   skill_workspace_boundary_denied:
     "Import from a configured Outpost workspace or the outpost managed-skill directory.",
   skill_source_validation_failed: "Fix the flagged source and retry.",
@@ -112,7 +112,7 @@ export function classifySkillDenial(
   const reason = asString(body?.reason);
   const remediation = asString(body?.remediation);
 
-  // State B — explicit company-policy denial. Resolvable by an administrator.
+  // State B — explicit space-policy denial. Resolvable by an administrator.
   const isPolicyDenial =
     code === SKILL_POLICY_DENIAL_CODE
     || reason === "explicit_rule"

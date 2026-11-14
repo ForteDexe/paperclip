@@ -1,4 +1,4 @@
-# Paperclip agent access map
+# Outpost agent access map
 
 This map accompanies the [feature map](../feature-map/README.md). It records APIs,
 agent entry points, permission boundaries and verification for the same capability IDs.
@@ -10,7 +10,7 @@ the access boundaries here; neither a CEO role nor a planned scenario grants
 board authority or establishes a working production tool binding.
 
 Use full capability IDs when referring to access contracts outside their file:
-`onboarding/company` means the `company` capability in `onboarding.md` in both maps.
+`onboarding/space` means the `space` capability in `onboarding.md` in both maps.
 The [feature index](../feature-map/README.md#browse-features) lists feature and
 capability IDs; [IDs and references](../feature-map/README.md#ids-and-references)
 explains entry-point references and stable naming.
@@ -40,7 +40,7 @@ discovery drift. For `not-applicable`, retain the concrete exception and local
 path. Split shared business operations from client-only presentation.
 
 Use `maintain-verification-skill` to reconcile changed source and both maps.
-Use `verify-paperclip` and existing API/runner/MCP fixtures to collect the
+Use `verify-outpost` and existing API/runner/MCP fixtures to collect the
 permitted-agent and denial evidence; report blocked/not-run coverage honestly.
 Run `node scripts/check-maps.mjs` after editing. The structural check does not
 certify permissions, API catalog coverage, tool admission or live behavior.
@@ -54,8 +54,8 @@ tools remain optional for those operations; protocol endpoints still need their
 existing clients. Board-only routes remain restricted for agent identity.
 
 Native `search_api` / `call_api` is enabled by default, but explicit server,
-company-allowlist and binding settings can narrow admission. It requires a running
-authorized native run, current task assignment and execution-run binding, company
+space-allowlist and binding settings can narrow admission. It requires a running
+authorized native run, current task assignment and execution-run binding, space
 and budget authority, task privacy, and a permitted work mode. Ask and Plan retain
 mutation restrictions, and runs retain their admitted JWT scope during restart
 recovery even when task mode changes. A waiting
@@ -67,17 +67,17 @@ and target scope, and responsible-user authority. See the
 [rollout policy](../../server/src/services/native-runtime/runner-api-rollout.ts)
 and [connection authorization](../../server/src/services/connection-management.ts).
 
-Credential-bearing replies, including company exports and their legacy alias,
+Credential-bearing replies, including space exports and their legacy alias,
 stay inline under a 10 MiB limit and use encrypted mutation receipts. Other saved
 API snapshots are limited to the issuing actor and responsible user, plus authorized
 administrators. Artifact uploads enforce the same access checks as downloads;
-private snapshots are excluded from company exports and public company logos.
+private snapshots are excluded from space exports and public space logos.
 Explicit deliverables use the existing sharing path. Native event history,
 checkpoints and completion records omit API bodies while preserving receipt
 metadata and replay digests. Restored webhook secrets use the same encrypted
 receipt and inline response policy as newly created webhook secrets.
-Task image access requires the company boundary and the task permission;
-skill-test and low-trust agents do not need company-wide browsing authority.
+Task image access requires the space boundary and the task permission;
+skill-test and low-trust agents do not need space-wide browsing authority.
 Completion replay applies the same idempotent projection to stored and expected
 payloads; [the run-log guide](../../doc/run-log-events.md) describes its fields.
 

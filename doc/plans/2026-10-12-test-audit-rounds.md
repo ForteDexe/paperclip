@@ -31,7 +31,7 @@ Each retained declaration is its own keeper for setup-only consolidation. The fo
 | --- | --- |
 | Managed-sandbox duplicate DELETE rejection | Same owner/admin, platform row, DELETE, 403 and code; stronger keeper also forbids blast-radius/removal calls. |
 | Agent-skills duplicate GET/POST secret-context check | Mandatory resolver callbacks in both successful route keepers check the same actor/user/source/responsible literal context, adapter type, skip-user-secrets and filtered environment. |
-| Company-skills open-default legacy-consent duplicate | Same actor/company/run, deny-missing-consent decision and POST input; successful write keeper checks no consent-gate invocation and the actual write. |
+| Space-skills open-default legacy-consent duplicate | Same actor/space/run, deny-missing-consent decision and POST input; successful write keeper checks no consent-gate invocation and the actual write. |
 | Two extra missing/wrong-run influence table rows | All three ran the identical zero-argument callback. One retains both POST/PATCH errors, details, two propagation calls and no writes. The identity-variant service sibling and real PostgreSQL race sibling remain. |
 | Onboarding missing-auth/no-stored-login duplicate | Warning text moves into `blocks the hire on a warn result that holds adapter_auth_missing, and shows the returned checks`. |
 | Interaction connection controls for another viewer | `shows another viewer only who it is waiting for` retains waiting copy, zero buttons, no actions/auth URL and absence of Not now. |

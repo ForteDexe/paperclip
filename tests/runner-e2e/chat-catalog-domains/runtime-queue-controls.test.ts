@@ -5,7 +5,7 @@ function valid() {
     { position: 0, canEdit: true, comment: { id: "font", body: "Use a readable font with accessible labels.", authorUserId: "human", authorAgentId: null } },
     { position: 1, canEdit: true, comment: { id: "color", body: "Make the website red. Keep the existing note about accessible labels.", authorUserId: "human", authorAgentId: null } },
   ] };
-  return { scenarioId: "steering.edit-queued-message", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo", agents: [], tasks: [], activity: [], links: [], humanQueries: [], reply: "",
+  return { scenarioId: "steering.edit-queued-message", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo", agents: [], tasks: [], activity: [], links: [], humanQueries: [], reply: "",
     runs: [{ id: "prior", status: "succeeded" }, { id: "guide", status: "succeeded" }, { id: "consumer", status: "succeeded" }],
     state: { task: { id: "website" }, queueBefore: before, targetId: "color", workerRunId: "prior", humanId: "human", concurrentMarker: "Preserve the human note.",
       queueAfter: { ...before, entries: [{ ...before.entries[1]!, position: 0, comment: { ...before.entries[1]!.comment,

@@ -159,7 +159,7 @@ keys. The server environment strips the gateway token and upstream credentials.
 Every upstream attempt reserves its maximum estimated charge in an fsynced
 journal before dispatch. Requests, retries, and cancelled calls retain distinct
 IDs. Braintrust gateway requests include the reserved request ID, campaign,
-execution, attempt and phase as allowlisted `paperclip_eval_*` metadata in the
+execution, attempt and phase as allowlisted `outpost_eval_*` metadata in the
 SDK-compatible parent context. The private receipt saves that context before
 dispatch. A live hosted probe did not retain the propagated metadata, so this
 header alone does not prove lookup by request ID after a pre-header cancellation.
@@ -726,11 +726,11 @@ receives SIGTERM and owns its server's shutdown. Both paths retain the existing
 bounded grace period and forced cleanup for surviving owned processes.
 When a worker exits without a result, the launcher also recovers its original
 trace identity from the private fixture snapshots. The supervisor can finalize
-that trace with the failed outcome. A mismatched project, execution or company
+that trace with the failed outcome. A mismatched project, execution or space
 is rejected. Recovered identity does not prove native export or complete phases.
 
 If a worker exits before writing its result, the server supervisor spends at
-most five seconds collecting feedback from that attempt's saved company before
+most five seconds collecting feedback from that attempt's saved space before
 stopping the isolated server. Recovery snapshots remain private and are kept
 separate from the worker's original evidence. The failed result includes any
 recovered counts and review fingerprints; active runs or missing reads remain
@@ -865,7 +865,7 @@ separate remaining integration work.
 
 Each admitted attempt creates a private phase checkpoint under
 `<ledgerPath>.attempts/`. The launcher passes its path only to the test worker;
-the Paperclip server does not inherit it. Before fixture setup finishes,
+the Outpost server does not inherit it. Before fixture setup finishes,
 requests are recorded as `setup`, including connection checks and hello probes.
 The worker atomically advances the checkpoint to `agent` immediately after
 fixture creation and before task execution. Cleanup does not reset this phase,

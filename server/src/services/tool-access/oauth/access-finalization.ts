@@ -6,7 +6,7 @@ import { connectionMethodForConnection } from "../connection-methods.js";
 import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, inArray, or } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { connectionGrantMembers, connectionGrantDelegations, connectionGrants, companySecrets, toolApplications, toolCatalogEntries, toolConnectionInstalls, toolConnections } from "@outpost/db";
+import { connectionGrantMembers, connectionGrantDelegations, connectionGrants, spaceSecrets, toolApplications, toolCatalogEntries, toolConnectionInstalls, toolConnections } from "@outpost/db";
 import type { FinishToolApp, FinishToolAppResult, FinalizeOAuthAccess, ToolCredentialSecretRef } from "@outpost/shared";
 import { getConnectableAppDefinition, recommendedDefaultsForApp } from "@outpost/shared";
 import { badRequest, conflict, forbidden, unprocessable } from "../../../errors.js";
@@ -17,25 +17,25 @@ import type { OAuthCredentialStore } from "./credential-store.js";
 import type { FinishConnectionSetup } from "../catalog/contracts.js";
 
 type Dependencies = {
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   secrets: ReturnType<typeof secretService>;
   store: Pick<OAuthCredentialStore, "createOrRotateOAuthSecret" | "syncCredentialBindings">;
-  assertAgentsInCompany(companyId: string, agentIds: string[]): Promise<void>;
+  assertAgentsInSpace(spaceId: string, agentIds: string[]): Promise<void>;
   finishGalleryAppConnection: FinishConnectionSetup;
 };
 
 export function createOAuthAccessFinalization(db: Db, dependencies: Dependencies) {
-  const { getConnectionRow, secrets, store, assertAgentsInCompany, finishGalleryAppConnection } = dependencies;
+  const { getConnectionRow, secrets, store, assertAgentsInSpace, finishGalleryAppConnection } = dependencies;
   const { createOrRotateOAuthSecret, syncCredentialBindings } = store;
   /**
    * Finish the one decision that cannot safely be guessed for a browser OAuth
    * connection: whether the consenting identity stays personal or becomes the
-   * company's shared identity. The provider callback always writes a fresh
+   * space's shared identity. The provider callback always writes a fresh
    * token to the consenting user's grant first. Only this explicit endpoint may
-   * promote it to company-scoped secrets.
+   * promote it to space-scoped secrets.
    */
 async function finalizeOAuthAccess(
-    companyId: string,
+    spaceId: string,
     connectionId: string,
     input: FinalizeOAuthAccess,
     actor?: ActorInfo,
@@ -44,8 +44,8 @@ async function finalizeOAuthAccess(
   ): Promise<FinishToolAppResult> {
     await actor?.managementContext?.reauthorize();
     if (requestingAgentId)
-      await assertAgentsInCompany(companyId, [requestingAgentId]);
-    let connection = await getConnectionRow(connectionId, companyId);
+      await assertAgentsInSpace(spaceId, [requestingAgentId]);
+    let connection = await getConnectionRow(connectionId, spaceId);
     const preFinalizeLifecycle = {
       status: connection.status,
       enabled: connection.enabled,
@@ -63,7 +63,7 @@ async function finalizeOAuthAccess(
       .from(connectionGrants)
       .where(
         and(
-          eq(connectionGrants.companyId, companyId),
+          eq(connectionGrants.spaceId, spaceId),
           eq(connectionGrants.connectionId, connection.id),
           eq(connectionGrants.kind, "user"),
           eq(connectionGrants.subjectUserId, actorUserId),
@@ -77,7 +77,7 @@ async function finalizeOAuthAccess(
         .from(connectionGrants)
         .where(
           and(
-            eq(connectionGrants.companyId, companyId),
+            eq(connectionGrants.spaceId, spaceId),
             eq(connectionGrants.connectionId, connection.id),
             eq(connectionGrants.kind, "organization"),
             eq(connectionGrants.isDefault, true),
@@ -115,7 +115,7 @@ async function finalizeOAuthAccess(
         connection.credentialPolicy === "shared" &&
         connection.credentialSecretRefs.length > 0
       ) {
-        throw conflict("This connection already uses a company identity");
+        throw conflict("This connection already uses a space identity");
       }
       connection = await writeToolConnectionHealthChange(db, connection, async tx => {
         await notifyGitHubCredentialChange(tx, connection);
@@ -138,7 +138,7 @@ async function finalizeOAuthAccess(
           .where(
             and(
               eq(toolConnections.id, connection.id),
-              eq(toolConnections.companyId, companyId),
+              eq(toolConnections.spaceId, spaceId),
             ),
           )
           .returning();
@@ -168,16 +168,16 @@ async function finalizeOAuthAccess(
       );
       const personalSecretRows = await db
         .select({
-          id: companySecrets.id,
-          scope: companySecrets.scope,
-          ownerUserId: companySecrets.ownerUserId,
-          userSecretDefinitionId: companySecrets.userSecretDefinitionId,
+          id: spaceSecrets.id,
+          scope: spaceSecrets.scope,
+          ownerUserId: spaceSecrets.ownerUserId,
+          userSecretDefinitionId: spaceSecrets.userSecretDefinitionId,
         })
-        .from(companySecrets)
+        .from(spaceSecrets)
         .where(
           and(
-            eq(companySecrets.companyId, companyId),
-            inArray(companySecrets.id, personalSecretIds),
+            eq(spaceSecrets.spaceId, spaceId),
+            inArray(spaceSecrets.id, personalSecretIds),
           ),
         );
       const personalSecretById = new Map(
@@ -194,7 +194,7 @@ async function finalizeOAuthAccess(
             !secretRow.userSecretDefinitionId
           ) {
             throw forbidden(
-              "Only your own connected identity can be shared with the company",
+              "Only your own connected identity can be shared with the space",
             );
           }
           if (
@@ -207,7 +207,7 @@ async function finalizeOAuthAccess(
             );
           }
           const resolved = await secrets.resolveUserSecretValue(
-            companyId,
+            spaceId,
             {
               definitionId: secretRow.userSecretDefinitionId,
               responsibleUserId: actorUserId,
@@ -224,7 +224,7 @@ async function finalizeOAuthAccess(
           if (!resolved)
             throw unprocessable("The connected identity could not be read");
           const promoted = await createOrRotateOAuthSecret({
-            companyId,
+            spaceId,
             connection,
             configPath: ref.configPath,
             label: ref.label ?? "OAuth credential",
@@ -253,21 +253,21 @@ async function finalizeOAuthAccess(
         const nowAt = new Date();
         await db.transaction(async (tx) => {
           await tx.select({ id: connectionGrants.id }).from(connectionGrants)
-            .where(and(eq(connectionGrants.companyId, companyId), eq(connectionGrants.connectionId, connection.id),
+            .where(and(eq(connectionGrants.spaceId, spaceId), eq(connectionGrants.connectionId, connection.id),
               or(eq(connectionGrants.id, personalGrant.id), and(eq(connectionGrants.kind, "organization"), eq(connectionGrants.isDefault, true)))))
             .orderBy(connectionGrants.id).for("update");
           await tx.select({ id: toolApplications.id }).from(toolApplications)
-            .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.companyId, companyId)))
+            .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.spaceId, spaceId)))
             .for("update");
           await tx.select({ id: toolConnections.id }).from(toolConnections)
-            .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.companyId, companyId)))
+            .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, spaceId)))
             .for("update");
           const [existingOrganizationGrant] = await tx
             .select()
             .from(connectionGrants)
             .where(
               and(
-                eq(connectionGrants.companyId, companyId),
+                eq(connectionGrants.spaceId, spaceId),
                 eq(connectionGrants.connectionId, connection.id),
                 eq(connectionGrants.kind, "organization"),
                 eq(connectionGrants.isDefault, true),
@@ -293,7 +293,7 @@ async function finalizeOAuthAccess(
             const [createdOrganizationGrant] = await tx
               .insert(connectionGrants)
               .values({
-                companyId,
+                spaceId,
                 connectionId: connection.id,
                 kind: "organization",
                 subjectUserId: null,
@@ -306,12 +306,12 @@ async function finalizeOAuthAccess(
               .returning({ id: connectionGrants.id });
             organizationGrantId = createdOrganizationGrant.id;
           }
-          // Empty audience rows are the canonical "everyone in the company".
+          // Empty audience rows are the canonical "everyone in the space".
           await tx
             .delete(connectionGrantMembers)
             .where(
               and(
-                eq(connectionGrantMembers.companyId, companyId),
+                eq(connectionGrantMembers.spaceId, spaceId),
                 eq(connectionGrantMembers.grantId, organizationGrantId),
               ),
             );
@@ -319,7 +319,7 @@ async function finalizeOAuthAccess(
             .delete(connectionGrantDelegations)
             .where(
               and(
-                eq(connectionGrantDelegations.companyId, companyId),
+                eq(connectionGrantDelegations.spaceId, spaceId),
                 eq(connectionGrantDelegations.grantId, personalGrant.id),
               ),
             );
@@ -356,7 +356,7 @@ async function finalizeOAuthAccess(
             .where(
               and(
                 eq(toolConnections.id, connection.id),
-                eq(toolConnections.companyId, companyId),
+                eq(toolConnections.spaceId, spaceId),
               ),
             )
             .returning();
@@ -386,7 +386,7 @@ async function finalizeOAuthAccess(
       .from(toolCatalogEntries)
       .where(
         and(
-          eq(toolCatalogEntries.companyId, companyId),
+          eq(toolCatalogEntries.spaceId, spaceId),
           eq(toolCatalogEntries.connectionId, connection.id),
           eq(toolCatalogEntries.status, "active"),
         ),
@@ -412,7 +412,7 @@ async function finalizeOAuthAccess(
         : [],
     );
     const finished = await finishGalleryAppConnection(
-      companyId,
+      spaceId,
       connection.id,
       {
         enabledCatalogEntryIds: catalog.map((entry) => entry.id),
@@ -429,10 +429,10 @@ async function finalizeOAuthAccess(
     if (!setupAccess) await db
       .insert(toolConnectionInstalls)
       .values({
-        companyId,
+        spaceId,
         connectionId: connection.id,
-        targetType: requestingAgentId ? "agent" : "company",
-        targetId: requestingAgentId ?? companyId,
+        targetType: requestingAgentId ? "agent" : "space",
+        targetId: requestingAgentId ?? spaceId,
         createdByUserId: actorUserId,
       })
       .onConflictDoNothing();

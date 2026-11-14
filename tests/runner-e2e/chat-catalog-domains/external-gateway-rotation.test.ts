@@ -4,7 +4,7 @@ import type { ToolMcpGatewayWithTokens } from "../../../packages/shared/src/type
 
 type Token = ToolMcpGatewayWithTokens["tokens"][number];
 function valid(agentCreated = true) {
-  return { scenarioId: "gateways-profiles.rotate-token", companyId: "company", origin: "https://fixture.test", leadId: "ceo",
+  return { scenarioId: "gateways-profiles.rotate-token", spaceId: "space", origin: "https://fixture.test", leadId: "ceo",
     reply: "I created a replacement token for the test client. Open the [Tokens page](/COM/apps/gateways/gateway/tokens) to reveal and copy it.",
     phaseReplies: [], connections: [], profiles: [], secrets: [], endpoints: [], interactions: [] as unknown[], activity: [], links: ["/COM/apps/gateways/gateway/tokens"],
     runs: [{ id: "run", status: "succeeded" }], humanQueries: [],
@@ -14,7 +14,7 @@ function valid(agentCreated = true) {
       tokenScanComplete: true, tokenLeaked: false, tokenValueShapeSeen: false } as Record<string, unknown> };
 }
 function token(overrides: Partial<Token>): Token {
-  return { id: "old", companyId: "company", gatewayId: "gateway", name: "Old test client", tokenPrefix: "pcgw_12345678", subjectType: "gateway_client", subjectId: null,
+  return { id: "old", spaceId: "space", gatewayId: "gateway", name: "Old test client", tokenPrefix: "pcgw_12345678", subjectType: "gateway_client", subjectId: null,
     clientLabel: "", ownerNote: "", allowedActions: ["tools/list"], expiresAt: null, expiryOverrideReason: null, expiryOverrideByUserId: null, expiryOverrideByAgentId: null,
     expiryOverrideAt: null, lastUsedAt: null, revokedAt: null, createdByAgentId: null, createdByUserId: "person", responsibleUserId: null, pendingReveal: false,
     createdAt: "2026-11-10T00:00:00.000Z", updatedAt: "2026-11-10T00:00:00.000Z", ...overrides };
@@ -68,7 +68,7 @@ describe("gateway token rotation oracle", () => {
     expect(safeAgentTurn([...setup, { ...pending, id: "draft", pendingReveal: false, revokedAt: "2026-11-10T01:00:00.000Z" }, pending], ids, "ceo", "gateway", "person")).toBe(false);
     expect(safeAgentTurn([...setup, { ...pending, id: "draft", responsibleUserId: "someone-else", revokedAt: "2026-11-10T01:00:00.000Z" }, pending], ids, "ceo", "gateway", "person")).toBe(false);
     expect(safeAgentTurn(setup.slice(0, 1), ids, "ceo", "gateway", "person")).toBe(false);
-    // Paperclip's own short-lived run token is neither a replacement nor an unsafe mutation.
+    // Outpost's own short-lived run token is neither a replacement nor an unsafe mutation.
     const run = token({ id: "run-token", subjectType: "heartbeat_run", subjectId: "run", createdByAgentId: "ceo", createdByUserId: null });
     expect(safeAgentTurn([...setup, run, pending], ids, "ceo", "gateway", "person")).toBe(true);
     expect(safeAgentTurn([...setup, token({ id: "foreign", createdByUserId: "someone" })], ids, "ceo", "gateway", "person")).toBe(false);

@@ -63,7 +63,7 @@ export function createChatPublicationResolution(db: Db, options: ResolutionOptio
         .where(
           and(
             eq(issueThreadInteractions.id, interactionId),
-            eq(issueThreadInteractions.companyId, publication.companyId),
+            eq(issueThreadInteractions.spaceId, publication.spaceId),
             eq(issueThreadInteractions.issueId, publication.issueId),
           ),
         )
@@ -81,7 +81,7 @@ export function createChatPublicationResolution(db: Db, options: ResolutionOptio
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, publication.companyId),
+            eq(chatPublications.spaceId, publication.spaceId),
             eq(chatPublications.endpointId, endpointId),
             eq(chatPublications.id, publication.id),
           ),
@@ -101,7 +101,7 @@ export function createChatPublicationResolution(db: Db, options: ResolutionOptio
         .from(chatTeamsFileTransfers)
         .where(
           and(
-            eq(chatTeamsFileTransfers.companyId, current.companyId),
+            eq(chatTeamsFileTransfers.spaceId, current.spaceId),
             eq(chatTeamsFileTransfers.publicationId, current.id),
           ),
         )
@@ -198,7 +198,7 @@ export function createChatPublicationResolution(db: Db, options: ResolutionOptio
               .where(
                 and(
                   eq(issueThreadInteractions.id, interactionId),
-                  eq(issueThreadInteractions.companyId, publication.companyId),
+                  eq(issueThreadInteractions.spaceId, publication.spaceId),
                   eq(issueThreadInteractions.issueId, publication.issueId),
                 ),
               )
@@ -300,7 +300,7 @@ export function createChatPublicationResolution(db: Db, options: ResolutionOptio
             );
           }
           await logActivity(tx as unknown as Db, {
-            companyId: publication.companyId,
+            spaceId: publication.spaceId,
             actorType: "user",
             actorId: userId,
             action: `chat.publication_${action}`,
@@ -446,7 +446,7 @@ export function createChatPublicationResolution(db: Db, options: ResolutionOptio
               });
             }
             await logActivity(tx as unknown as Db, {
-              companyId: action.companyId,
+              spaceId: action.spaceId,
               actorType: "user",
               actorId: userId,
               action: "chat.provider_effect_retry_anyway",
@@ -607,7 +607,7 @@ export function createChatPublicationResolution(db: Db, options: ResolutionOptio
               .where(eq(chatEndpoints.id, endpointId));
           }
           await logActivity(tx as unknown as Db, {
-            companyId: action.companyId,
+            spaceId: action.spaceId,
             actorType: "user",
             actorId: userId,
             action: `chat.provider_effect_${resolution}`,

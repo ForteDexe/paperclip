@@ -4,7 +4,7 @@ import { SidebarNavExpandedProvider } from "./SidebarNavItem.production";
 
 /**
  * Fixed-width contextual pane that sits between the collapsed app rail and the
- * main content on takeover routes (company settings, plugin `routeSidebar`).
+ * main content on takeover routes (space settings, plugin `routeSidebar`).
  *
  * The takeover model (PAP-10695) no longer *replaces* the app `<Sidebar/>`:
  * the host collapses it to its 64px rail (still peek-able) and renders the

@@ -8,12 +8,12 @@ import { RESTRICTED_WORKSPACE_SOURCE_REASON } from "./workspace-source-restricti
 export async function prepareRestrictedWorkspaceRetry(db: Db, issue: typeof issues.$inferSelect,
   action: IssueRecoveryAction): Promise<{ selection: TaskWorkspaceSelection | null } | null> {
   const sourceRunId = action.evidence?.latestRunId ?? action.evidence?.runId;
-  if (action.ownerType !== "board" || typeof sourceRunId !== "string" || !isUuidLike(sourceRunId)) return null;
+  if (action.ownerType !== "operator" || typeof sourceRunId !== "string" || !isUuidLike(sourceRunId)) return null;
   const [run] = await db.select({ id: heartbeatRuns.id, agentId: heartbeatRuns.agentId, status: heartbeatRuns.status,
     contextSnapshot: heartbeatRuns.contextSnapshot, resultJson: heartbeatRuns.resultJson,
     errorCode: heartbeatRuns.errorCode, error: heartbeatRuns.error,
   }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, issue.companyId), eq(heartbeatRuns.id, sourceRunId),
+    eq(heartbeatRuns.spaceId, issue.spaceId), eq(heartbeatRuns.id, sourceRunId),
   ));
   if (!run) return null;
   const result = parseObject(run.resultJson);
@@ -22,7 +22,7 @@ export async function prepareRestrictedWorkspaceRetry(db: Db, issue: typeof issu
   if (!restricted) return null;
   const context = parseObject(run.contextSnapshot);
   const execution = parseObject(result.executionRecovery);
-  if (issue.status !== "blocked" || action.status !== "active" || action.ownerType !== "board"
+  if (issue.status !== "blocked" || action.status !== "active" || action.ownerType !== "operator"
     || !issue.assigneeAgentId || issue.assigneeAgentId !== action.returnOwnerAgentId
     || run.agentId !== issue.assigneeAgentId || run.status !== "failed"
     || context.issueId !== issue.id || (context.projectId ?? null) !== issue.projectId
@@ -30,14 +30,14 @@ export async function prepareRestrictedWorkspaceRetry(db: Db, issue: typeof issu
     throw conflict("This retry no longer matches the task. Refresh and try again.");
   }
   const [latest] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, issue.companyId),
+    eq(heartbeatRuns.spaceId, issue.spaceId),
     or(eq(heartbeatRuns.issueId, issue.id), eq(heartbeatRuns.nativeIssueId, issue.id),
       sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${issue.id}`),
   )).orderBy(desc(heartbeatRuns.createdAt), desc(heartbeatRuns.id)).limit(1);
   if (latest?.id !== run.id) throw conflict("A newer attempt exists. Refresh and try again.");
   if (issue.workspacePendingSelection) return { selection: null };
   const [source] = await db.select({ id: projectWorkspaces.id, repoUrl: projectWorkspaces.repoUrl })
-    .from(projectWorkspaces).where(and(eq(projectWorkspaces.companyId, issue.companyId),
+    .from(projectWorkspaces).where(and(eq(projectWorkspaces.spaceId, issue.spaceId),
       issue.projectWorkspaceId ? eq(projectWorkspaces.id, issue.projectWorkspaceId)
         : issue.projectId ? and(eq(projectWorkspaces.projectId, issue.projectId), eq(projectWorkspaces.isPrimary, true)) : sql`false`,
     )).limit(1);

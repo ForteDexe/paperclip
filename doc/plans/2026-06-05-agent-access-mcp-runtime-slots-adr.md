@@ -13,16 +13,16 @@ Source issues:
 
 ## Context
 
-Paperclip needs governed MCP/tool access for agents. The product should not become a raw `mcp.json` editor or an adapter prompt convention. The control plane must own which tools an agent can discover, which calls can run, which credentials are available, which calls need review, and how every decision is audited.
+Outpost needs governed MCP/tool access for agents. The product should not become a raw `mcp.json` editor or an adapter prompt convention. The control plane must own which tools an agent can discover, which calls can run, which credentials are available, which calls need review, and how every decision is audited.
 
-Paperclip already has useful primitives:
+Outpost already has useful primitives:
 
-- Company-scoped records and company-boundary checks.
+- Space-scoped records and space-boundary checks.
 - Agent API keys and heartbeat run identity.
 - Issues, comments, issue documents, interactions, approvals, and work products.
 - Secret-backed environment bindings and secret access events.
 - Plugin tool discovery/execution routes that accept board and agent actors.
-- A Paperclip MCP server package that exposes Paperclip REST operations outward as MCP tools.
+- A Outpost MCP server package that exposes Outpost REST operations outward as MCP tools.
 - Execution workspaces and runtime service concepts.
 
 The gap is the governed access layer between agents and external tool/application capabilities. Current plugin/MCP surfaces are useful, but they do not provide a single default-deny policy engine, durable invocation ledger, runtime-slot supervisor, redacted audit model, or approval-safe tool execution path.
@@ -33,26 +33,26 @@ Build the MVP as **Agent Access**, exposed in the product as **Tools & Access**.
 
 The CTO accepts the default-deny gateway architecture from PAP-10341 with these MVP decisions:
 
-1. MVP clients are Paperclip agents only. External human AI clients are out of scope.
-2. MVP connections are managed company connections only. Personal/user-owned OAuth connections are deferred.
+1. MVP clients are Outpost agents only. External human AI clients are out of scope.
+2. MVP connections are managed space connections only. Personal/user-owned OAuth connections are deferred.
 3. External tools are default deny. No profile or explicit allow means no discovery and no execution.
-4. Paperclip is the enforcement gateway. Agents connect to Paperclip, not directly to upstream MCP credentials or ungoverned upstream configs.
-5. The gateway governs Paperclip plugin tools, Paperclip self-MCP tools, and upstream MCP tools through one policy/audit/invocation model.
+4. Outpost is the enforcement gateway. Agents connect to Outpost, not directly to upstream MCP credentials or ungoverned upstream configs.
+5. The gateway governs Outpost plugin tools, Outpost self-MCP tools, and upstream MCP tools through one policy/audit/invocation model.
 6. Remote HTTP MCP is preferred for MVP examples and customer-facing usage.
-7. Local stdio MCP is allowed only from board/admin-created command templates, through supervised runtime slots with pooling, idle TTL, per-company/per-host caps, and no agent-supplied command strings.
+7. Local stdio MCP is allowed only from board/admin-created command templates, through supervised runtime slots with pooling, idle TTL, per-space/per-host caps, and no agent-supplied command strings.
 8. Ordinary write/destructive tool calls use issue-thread action cards with stored reviewed arguments. Broad trust or policy changes use formal approvals.
-9. First examples are synthetic fixtures, then Paperclip self-read, GitHub triage, and approval-gated outbox/social examples.
-10. The UI home is Company Settings > Tools & Access, with effective tools visible on agent details and runtime slots visible in settings.
+9. First examples are synthetic fixtures, then Outpost self-read, GitHub triage, and approval-gated outbox/social examples.
+10. The UI home is Space Settings > Tools & Access, with effective tools visible on agent details and runtime slots visible in settings.
 
 ## Product Concepts
 
 `Tool Application`
 
-A company-visible tool source. MVP types are `mcp_http`, `mcp_stdio`, `paperclip_plugin`, and `paperclip_self`. Future types such as `a2a` can be added behind the same concepts.
+A space-visible tool source. MVP types are `mcp_http`, `mcp_stdio`, `outpost_plugin`, and `outpost_self`. Future types such as `a2a` can be added behind the same concepts.
 
 `Connection`
 
-An admin-managed access instance for an application. It stores transport configuration and secret references, not raw secret values. MVP supports managed company connections only.
+An admin-managed access instance for an application. It stores transport configuration and secret references, not raw secret values. MVP supports managed space connections only.
 
 `Tool Catalog Entry`
 
@@ -60,19 +60,19 @@ A snapshot of a discoverable tool/resource/prompt from a connection, including s
 
 `Access Profile`
 
-A reusable bundle assigned to company defaults, agents, projects, routines, or issues. Profiles select which applications, connections, and tools may become visible/callable.
+A reusable bundle assigned to space defaults, agents, projects, routines, or issues. Profiles select which applications, connections, and tools may become visible/callable.
 
 `Policy`
 
-Server-evaluated rule that can allow, block, require approval, redact, rate-limit, or defer because runtime capacity is unavailable. Policies are evaluated from authoritative Paperclip state, not model-provided context.
+Server-evaluated rule that can allow, block, require approval, redact, rate-limit, or defer because runtime capacity is unavailable. Policies are evaluated from authoritative Outpost state, not model-provided context.
 
 `Gateway Session`
 
-A short-lived per-run session minted by Paperclip. It exposes only allowed tools for that run and prevents upstream credentials from reaching the agent process.
+A short-lived per-run session minted by Outpost. It exposes only allowed tools for that run and prevents upstream credentials from reaching the agent process.
 
 `Invocation`
 
-Durable ledger row for every tool attempt. It records idempotency identity, policy decision, approval state, execution status, argument/result hashes or safe summaries, and links to run/issue/agent/company.
+Durable ledger row for every tool attempt. It records idempotency identity, policy decision, approval state, execution status, argument/result hashes or safe summaries, and links to run/issue/agent/space.
 
 `Tool Call Audit Event`
 
@@ -84,20 +84,20 @@ Managed lifecycle unit for a local stdio MCP process or remote session handle. R
 
 ## Data Model Boundary
 
-Add company-scoped storage under a Tools & Access namespace. Names are provisional, but the contracts are not:
+Add space-scoped storage under a Tools & Access namespace. Names are provisional, but the contracts are not:
 
-- `tool_applications`: company, app identity, type, status, owner/admin metadata.
-- `tool_connections`: company, application, managed connection kind, transport config, secret refs, enabled flag, health.
-- `tool_catalog_entries`: company, connection, tool name, schema, risk tags, version/hash, review/quarantine state.
-- `tool_profiles`: company, profile name, description, status.
-- `tool_profile_entries`: company, profile selectors for app/connection/tool/risk.
-- `tool_profile_bindings`: company, profile binding target: company, agent, project, routine, or issue.
-- `tool_policies`: company, rule type, priority, selectors, condition JSON, effect, enabled flag.
-- `tool_invocations`: company, run, issue, actor, connection, tool, args hash, idempotency key, approval state, execution status.
-- `tool_action_requests`: company, invocation, issue interaction/approval links, canonical signed reviewed args, preview.
-- `tool_call_events`: company, invocation/run/issue/agent links, decision, reason code, redacted summaries, result size, latency.
-- `tool_runtime_slots`: company, connection, workspace scope, credential scope, trust scope, status, provider ref/process id, idle TTL, caps, last error.
-- `tool_rate_limit_counters`: company-scoped counters by policy window.
+- `tool_applications`: space, app identity, type, status, owner/admin metadata.
+- `tool_connections`: space, application, managed connection kind, transport config, secret refs, enabled flag, health.
+- `tool_catalog_entries`: space, connection, tool name, schema, risk tags, version/hash, review/quarantine state.
+- `tool_profiles`: space, profile name, description, status.
+- `tool_profile_entries`: space, profile selectors for app/connection/tool/risk.
+- `tool_profile_bindings`: space, profile binding target: space, agent, project, routine, or issue.
+- `tool_policies`: space, rule type, priority, selectors, condition JSON, effect, enabled flag.
+- `tool_invocations`: space, run, issue, actor, connection, tool, args hash, idempotency key, approval state, execution status.
+- `tool_action_requests`: space, invocation, issue interaction/approval links, canonical signed reviewed args, preview.
+- `tool_call_events`: space, invocation/run/issue/agent links, decision, reason code, redacted summaries, result size, latency.
+- `tool_runtime_slots`: space, connection, workspace scope, credential scope, trust scope, status, provider ref/process id, idle TTL, caps, last error.
+- `tool_rate_limit_counters`: space-scoped counters by policy window.
 
 Do not overload `principal_permission_grants` as the tool-resource policy store. Use it only for administrator capabilities such as:
 
@@ -108,17 +108,17 @@ Do not overload `principal_permission_grants` as the tool-resource policy store.
 - `tools:use`
 - `tools:manage_runtime`
 
-All foreign keys must enforce company boundaries. Raw secrets must not be copied into these tables. Secret values resolve only at gateway/runtime execution time.
+All foreign keys must enforce space boundaries. Raw secrets must not be copied into these tables. Secret values resolve only at gateway/runtime execution time.
 
 ## Gateway and Session Model
 
-At heartbeat invocation time, Paperclip resolves the authoritative agent, issue, project, routine, workspace, adapter, and run records. It then creates a gateway session tied to that run.
+At heartbeat invocation time, Outpost resolves the authoritative agent, issue, project, routine, workspace, adapter, and run records. It then creates a gateway session tied to that run.
 
-The adapter receives only Paperclip gateway configuration:
+The adapter receives only Outpost gateway configuration:
 
 - gateway base URL;
 - short-lived session token;
-- optional generated MCP config pointing at Paperclip;
+- optional generated MCP config pointing at Outpost;
 - no upstream MCP server credentials;
 - no unfiltered upstream tool config.
 
@@ -138,7 +138,7 @@ For `tools/call`, the gateway:
 10. validates/redacts result before returning it to the agent;
 11. writes result/failure audit events and updates the invocation.
 
-Agent-supplied `runContext` may remain for compatibility, but it is never authoritative. It must be checked against the authenticated run, agent, project, and company before use.
+Agent-supplied `runContext` may remain for compatibility, but it is never authoritative. It must be checked against the authenticated run, agent, project, and space before use.
 
 ## Policy Engine Shape
 
@@ -156,7 +156,7 @@ Implement `toolAccessPolicyService` as a deterministic service that returns:
 Inputs are:
 
 - authenticated actor principal;
-- authoritative run, agent, issue, project, routine, workspace, and company records;
+- authoritative run, agent, issue, project, routine, workspace, and space records;
 - adapter/client type;
 - requested application, connection, catalog entry, and tool;
 - normalized arguments;
@@ -165,7 +165,7 @@ Inputs are:
 
 Precedence:
 
-1. hard safety denies: company mismatch, archived app, disabled connection, missing secret, invalid run/session, unsafe command template;
+1. hard safety denies: space mismatch, archived app, disabled connection, missing secret, invalid run/session, unsafe command template;
 2. explicit block policies;
 3. approval-required policies;
 4. profile membership and explicit allow policies;
@@ -180,7 +180,7 @@ Policy decisions must be unit-tested with stable fixtures. Discovery and executi
 
 Every call attempt creates or resolves an invocation. The ledger is required for all tools, not only write tools, because denied reads and approval waits must be auditable.
 
-For write/destructive tools, idempotency identity must include company, connection, tool, canonical args hash, issue/run context, and a policy-provided idempotency key when available. Retries must not duplicate external side effects.
+For write/destructive tools, idempotency identity must include space, connection, tool, canonical args hash, issue/run context, and a policy-provided idempotency key when available. Retries must not duplicate external side effects.
 
 Approval-required calls store canonical reviewed arguments. Approval execution must use exactly those stored arguments, not a fresh model-provided payload.
 
@@ -193,7 +193,7 @@ Audit is a first-class feature, separate from generic activity logging. Activity
 Audit events must include enough to answer:
 
 - who requested the tool;
-- which company, run, issue, project, routine, and workspace were involved;
+- which space, run, issue, project, routine, and workspace were involved;
 - which application, connection, and tool were targeted;
 - what policy decision was made and why;
 - whether approval was requested or used;
@@ -207,15 +207,15 @@ Audit reads require `tools:view_audit` or board/admin access. Agent-facing trans
 
 The runtime-slot strategy is explicit:
 
-- Remote HTTP MCP is preferred. It uses no local process. Paperclip proxies requests with timeouts, retries where safe, auth, and audit.
+- Remote HTTP MCP is preferred. It uses no local process. Outpost proxies requests with timeouts, retries where safe, auth, and audit.
 - Local stdio MCP runs only from board/admin-created command templates stored in managed connections.
 - Agents never provide raw commands, args, cwd, env, or secret refs for stdio runtime creation.
-- Default slot identity is `(companyId, connectionId, workspaceScope, credentialScope, trustScope)`.
+- Default slot identity is `(spaceId, connectionId, workspaceScope, credentialScope, trustScope)`.
 - Workspace-sensitive servers are scoped to project or issue execution workspaces.
 - Different secret scopes require different slots.
 - High-risk or untrusted templates may force per-run slots.
 - Idle slots stop after a configurable TTL.
-- Per-company and per-host caps prevent process explosion.
+- Per-space and per-host caps prevent process explosion.
 - Backpressure returns a structured defer/rate-limited result and writes audit.
 - Runtime slots expose status, health, last used, pid/provider ref, owner scope, last error, stop/restart actions, and idle policy in the UI.
 
@@ -235,8 +235,8 @@ Phase 1 fixtures should be isolated from production behavior but contract-aligne
 - Synthetic todo/KV: safe stateful reads/writes and idempotency tests.
 - Outbox email: draft/preview/send-to-outbox with approval-gated send.
 - Mock social/blog: preview/publish/unpublish with approval-gated publish.
-- Paperclip self-read: list issues, get issue context, read plan document, list recent runs.
-- Paperclip self-governed write: add comment draft, create child issue draft, update plan draft.
+- Outpost self-read: list issues, get issue context, read plan document, list recent runs.
+- Outpost self-governed write: add comment draft, create child issue draft, update plan draft.
 - Filesystem sandbox: scoped list/read/write/propose patch inside a temp root.
 - Hostile MCP: malicious metadata/results, false annotations, oversized outputs, schema changes, secret-looking values.
 - Slow/crashing/stateful stdio: sleep, crash, restart, increment, large result.
@@ -254,13 +254,13 @@ Minimum smoke checks:
 - malicious metadata/result is sanitized or blocked;
 - local stdio lazy-starts, reuses a slot, idles down, and records health;
 - remote HTTP fixture works without local process;
-- cross-company access is rejected at discovery, execution, audit, and secret resolution;
+- cross-space access is rejected at discovery, execution, audit, and secret resolution;
 - large output is bounded;
 - rate limit returns a clear denial/defer result and audit event.
 
 ## API Surfaces
 
-Use board/admin endpoints under `/api/companies/:companyId/tools/...`:
+Use board/admin endpoints under `/api/spaces/:spaceId/tools/...`:
 
 - applications: list/create/update/archive;
 - connections: create/update/test/disable/health/catalog refresh;
@@ -272,7 +272,7 @@ Use board/admin endpoints under `/api/companies/:companyId/tools/...`:
 
 Use gateway endpoints under `/api/tool-gateway/...`:
 
-- mint/read run-bound gateway session where invoked by Paperclip runtime;
+- mint/read run-bound gateway session where invoked by Outpost runtime;
 - list allowed tool descriptors for the session;
 - execute tool through policy, invocation, audit, and runtime supervision;
 - read pending invocation/action result.
@@ -283,7 +283,7 @@ Existing `/api/plugins/tools` discovery/execution must be wrapped, filtered, or 
 
 Primary navigation:
 
-- Company Settings > Tools & Access.
+- Space Settings > Tools & Access.
 
 Required views:
 
@@ -323,8 +323,8 @@ At ADR time, PAP-10381 had no completed threat-model document or comments. This 
 - SecurityEngineer must sign off on gateway-as-enforcement before Phases 2-8 are PR-ready.
 - SecurityEngineer must approve or amend runtime-slot scoping, command-template safety, slot isolation, and stdout/stderr handling.
 - Implementers must treat upstream MCP metadata and annotations as untrusted hints.
-- The gateway must be the context firewall. Upstream tools receive explicit args and minimal trace context, not full issue threads, prompts, company data, or board/session credentials.
-- Missing secrets, disabled connections, changed write schemas, cross-company references, invalid run sessions, and unsafe stdio templates fail closed.
+- The gateway must be the context firewall. Upstream tools receive explicit args and minimal trace context, not full issue threads, prompts, space data, or board/session credentials.
+- Missing secrets, disabled connections, changed write schemas, cross-space references, invalid run sessions, and unsafe stdio templates fail closed.
 - Audit and transcripts must be redacted and bounded.
 - Duplicate side effects are a release blocker until invocation idempotency is proven.
 
@@ -349,7 +349,7 @@ Phase 1 can proceed with isolated fixtures and smoke harness work.
 
 Phases 2-8 should use this ADR as the stable contract:
 
-- Phase 2 implements company-scoped storage and shared validators.
+- Phase 2 implements space-scoped storage and shared validators.
 - Phase 3 implements policy, effective profiles, invocation ledger, audit, and rate counters.
 - Phase 4 implements gateway sessions and runtime supervisor MVP.
 - Phase 5 implements managed connections, catalog refresh, secret refs, and changed-tool quarantine.
@@ -379,12 +379,12 @@ Phase 9 validates the end-to-end release with QA, SecurityEngineer, CloudOpsEngi
 - Security sign-off is still pending from PAP-10381.
 - UX sign-off is still pending from PAP-10382.
 - Runtime slot isolation depth is unresolved: process-only may be enough for trusted local dev, but container/sandbox isolation may be required for hosted or untrusted stdio templates.
-- OAuth/resource-bound token handling for remote MCP is deferred beyond managed company secret refs.
+- OAuth/resource-bound token handling for remote MCP is deferred beyond managed space secret refs.
 - Plugin tool compatibility needs a staged migration to avoid breaking existing plugin consumers.
 - Policy complexity can grow quickly; MVP must start with explicit allow/block/profile/rate/approval rules before rich ABAC.
 - Audit storage needs retention and pruning rules once volume is known.
 - Large result artifact strategy needs exact storage and UI contracts.
-- Cross-company tests must be present before any gateway route ships.
+- Cross-space tests must be present before any gateway route ships.
 - First-install demos should use synthetic or read-only providers until approval/idempotency are proven.
 
 ## Verification for This ADR
@@ -394,7 +394,7 @@ This ADR was checked against:
 - PAP-10383 deliverables and acceptance criteria.
 - PAP-10341 plan revision 2.
 - `doc/GOAL.md`, `doc/PRODUCT.md`, `doc/SPEC-implementation.md`, `doc/DEVELOPING.md`, and `doc/DATABASE.md`.
-- `packages/mcp-server/README.md` for the current Paperclip MCP server boundary.
+- `packages/mcp-server/README.md` for the current Outpost MCP server boundary.
 - `server/src/routes/plugins.ts` for the current plugin tool access gap.
 
 No code, schema, or runtime behavior changed in this ADR.

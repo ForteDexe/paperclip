@@ -31,7 +31,7 @@ journey is repeated after each PR is deployed.
 
 ## Baseline on staging, measured 2026-11-09
 
-- **Environment:** the shared staging instance, one company with production-like data, desktop Chrome, HTTP/2, no throttling.
+- **Environment:** the shared staging instance, one space with production-like data, desktop Chrome, HTTP/2, no throttling.
 - **JS cache:** the JS bundle was already in the browser cache.
 - **Harness:** an in-page harness that checks every animation frame for the thread mount, a visible composer, the latest `[data-conversation-message]` being visible in the viewport, layout shifts, and resource timing.
 
@@ -77,7 +77,7 @@ During a click, ~30 requests run at the same time, and each slows to 700–1,500
 
 **Server-Timing** samples:
 - `issue_lookup` took 893–908 ms in one cold sample and ~100–160 ms in others.
-- `paperclip_issue` (full view) took 736–1,813 ms.
+- `outpost_issue` (full view) took 736–1,813 ms.
 
 ### Run log read
 
@@ -98,8 +98,8 @@ These requests were made during one 17 s visit (Task E):
 | `issues/summaries?ids` | 22 |
 | `/issues/:id/live-runs` (two id forms) | 11 |
 | `/issues/:id/browsers` | 6 |
-| `companies/:id/agents` (60 KB each) | 6 |
-| `companies/:id/live-runs` | 3 |
+| `spaces/:id/agents` (60 KB each) | 6 |
+| `spaces/:id/live-runs` | 3 |
 | descendant, created-from and parent lists | 2–3 each |
 
 ## Where the time goes
@@ -186,7 +186,7 @@ result therefore gets a staging check before we call it done.
 
 - In `readRange`, fetch the payload segments for a range in parallel, with limited concurrency (~8).
 - Align to a record in **one pass**: read `[offset − 32 KB, end)` once and cut at the last newline. Do not re-traverse.
-- Cache immutable segments and index nodes per process, in a bounded LRU keyed by content key and company.
+- Cache immutable segments and index nodes per process, in a bounded LRU keyed by content key and space.
 - Optionally:
   - Store a tail pointer or the last index node in the head, so a tail read skips the walk from the root.
   - Compact small segments when the log closes.
@@ -199,8 +199,8 @@ result therefore gets a staging check before we call it done.
   - Add the P1-narrowed set to `prefetchIssueDetailForNavigation` (`issueDetailCache.ts:227`).
   - Trigger it on `pointerover`, `pointerdown`, `focusin` and keyboard selection, which already exist for code and core data.
   - Also trigger it on idle for the first few visible rows of "Mine".
-  - Respect `staleTime` and company scope.
-- **Add a chat bootstrap endpoint**, `GET /issues/:id/chat-bootstrap`. It returns one company-scoped response with:
+  - Respect `staleTime` and space scope.
+- **Add a chat bootstrap endpoint**, `GET /issues/:id/chat-bootstrap`. It returns one space-scoped response with:
   - the core issue
   - the latest N timeline items, already merged: comments, interactions, run summaries and the latest status of a live run
   - the composer facts: assignee, model and permissions
@@ -209,7 +209,7 @@ result therefore gets a staging check before we call it done.
   - The existing granular queries are seeded from the bootstrap response, so invalidation keeps working unchanged.
   - Contracts change in shared, server and UI.
 - **Keep the last-seen chat window per task in IndexedDB.**
-  - Bounded size, scoped by company and user, cleared on logout or company change.
+  - Bounded size, scoped by space and user, cleared on logout or space change.
   - On revisit or hard load, render from it on the first frame, then revalidate with `?since=cursor`.
   - New items append under the bottom anchor, so the reading position does not move.
   - A small "syncing" indicator sits in a reserved slot.
@@ -249,7 +249,7 @@ After P3, a hard load can render from the persisted chat window. The remaining w
 | Live run | Status visible right away; new output streams; no duplicate after catch-up |
 | Deep link to an older comment, Back restore | Anchor kept |
 | Draft typed during background refresh, navigating away and back | Draft kept; no duplicate send |
-| Company switch, logout | Persisted cache isolated and cleared |
+| Space switch, logout | Persisted cache isolated and cleared |
 | Websocket down | Polling fallback still catches up |
 
 ## Deferred / follow-ups

@@ -100,7 +100,7 @@ type PlanApprovalResumeFailure = {
 
 /** The retry module owns scheduling writes; the service owns lifecycle effects. */
 export interface HeartbeatRetryDependencies {
-  hasCaseHandoffForRun: (run: Pick<HeartbeatRun, "id" | "companyId">) => Promise<boolean>;
+  hasCaseHandoffForRun: (run: Pick<HeartbeatRun, "id" | "spaceId">) => Promise<boolean>;
   runDispatch: Pick<ReturnType<typeof createRunDispatch>,
     "evaluateScheduledRetryGate" | "promoteDueScheduledRetries" | "promoteScheduledRetry" | "nextScheduledRetryAt">;
   getAgent: (agentId: string) => Promise<typeof agents.$inferSelect | null | undefined>;
@@ -127,7 +127,7 @@ export interface HeartbeatRetryDependencies {
     run: HeartbeatRun | null;
   }>;
   setWakeupStatus: (wakeupRequestId: string | null | undefined, status: string, patch?: Partial<typeof agentWakeupRequests.$inferInsert>) => Promise<void>;
-  releaseIssueExecutionAndPromote: (run: Pick<HeartbeatRun, "id" | "companyId">) => Promise<unknown>;
+  releaseIssueExecutionAndPromote: (run: Pick<HeartbeatRun, "id" | "spaceId">) => Promise<unknown>;
   finalizeAgentStatus: (
     agentId: string,
     outcome: "succeeded" | "interrupted" | "failed" | "cancelled" | "timed_out",
@@ -478,7 +478,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
     const preparation = parseObject(run.resultJson?.executionRecovery);
     if (typeof preparation.preparationSettledAt === "string" && await isInterruptedNativePreparation(db, run)) {
       const children = await db.select().from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.agentId, run.agentId),
+        eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.agentId, run.agentId),
         eq(heartbeatRuns.retryOfRunId, run.id),
       )).orderBy(desc(heartbeatRuns.createdAt), desc(heartbeatRuns.id)).limit(2);
       const withheld = children.length === 1 ? children[0] : undefined;
@@ -673,7 +673,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
     if (requiresIssueGate) {
       const gate = await runDispatch.evaluateScheduledRetryGate({
         runId: run.id,
-        companyId: run.companyId,
+        spaceId: run.spaceId,
         retryReasonOverride: retryReason,
         now,
       });
@@ -790,9 +790,9 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
     );
     const continuationRetryIdempotencyKey =
       retryReason === MAX_TURN_CONTINUATION_RETRY_REASON
-        ? `max-turn-continuation:${run.companyId}:${issueId ?? "no-issue"}:${run.id}:${schedule.attempt}`
+        ? `max-turn-continuation:${run.spaceId}:${issueId ?? "no-issue"}:${run.id}:${schedule.attempt}`
         : retryReason === INTERACTION_CONTINUATION_INFRA_RETRY_REASON
-          ? `interaction-continuation:${run.companyId}:${issueId ?? "no-issue"}:${run.id}:${schedule.attempt}`
+          ? `interaction-continuation:${run.spaceId}:${issueId ?? "no-issue"}:${run.id}:${schedule.attempt}`
           : null;
 
     type ScheduledRetryTransactionResult =
@@ -826,17 +826,17 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
         ) {
           if (issueId)
             await tx.execute(
-              sql`select id from issues where company_id = ${run.companyId} and id = ${issueId} for update`,
+              sql`select id from issues where space_id = ${run.spaceId} and id = ${issueId} for update`,
             );
           await tx.execute(
-            sql`select id from heartbeat_runs where company_id = ${run.companyId} and id = ${run.id} for update`,
+            sql`select id from heartbeat_runs where space_id = ${run.spaceId} and id = ${run.id} for update`,
           );
           const [existing] = await tx
             .select()
             .from(heartbeatRuns)
             .where(
               and(
-                eq(heartbeatRuns.companyId, run.companyId),
+                eq(heartbeatRuns.spaceId, run.spaceId),
                 eq(heartbeatRuns.retryOfRunId, run.id),
               ),
             )
@@ -852,11 +852,11 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
         if (retryReason === INTERACTION_CONTINUATION_INFRA_RETRY_REASON) {
           if (issueId) {
             await tx.execute(
-              sql`select id from issues where company_id = ${run.companyId} and id = ${issueId} for update`,
+              sql`select id from issues where space_id = ${run.spaceId} and id = ${issueId} for update`,
             );
           } else {
             await tx.execute(
-              sql`select id from heartbeat_runs where company_id = ${run.companyId} and id = ${run.id} for update`,
+              sql`select id from heartbeat_runs where space_id = ${run.spaceId} and id = ${run.id} for update`,
             );
           }
 
@@ -865,7 +865,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
             .from(heartbeatRuns)
             .where(
               and(
-                eq(heartbeatRuns.companyId, run.companyId),
+                eq(heartbeatRuns.spaceId, run.spaceId),
                 eq(heartbeatRuns.retryOfRunId, run.id),
                 eq(heartbeatRuns.scheduledRetryReason, retryReason),
                 eq(heartbeatRuns.scheduledRetryAttempt, schedule.attempt),
@@ -919,11 +919,11 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
         if (retryReason === MAX_TURN_CONTINUATION_RETRY_REASON) {
           if (issueId) {
             await tx.execute(
-              sql`select id from issues where company_id = ${run.companyId} and id = ${issueId} for update`,
+              sql`select id from issues where space_id = ${run.spaceId} and id = ${issueId} for update`,
             );
           } else {
             await tx.execute(
-              sql`select id from heartbeat_runs where company_id = ${run.companyId} and id = ${run.id} for update`,
+              sql`select id from heartbeat_runs where space_id = ${run.spaceId} and id = ${run.id} for update`,
             );
           }
 
@@ -932,7 +932,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
             .from(heartbeatRuns)
             .where(
               and(
-                eq(heartbeatRuns.companyId, run.companyId),
+                eq(heartbeatRuns.spaceId, run.spaceId),
                 eq(heartbeatRuns.retryOfRunId, run.id),
                 eq(heartbeatRuns.scheduledRetryReason, retryReason),
                 eq(heartbeatRuns.scheduledRetryAttempt, schedule.attempt),
@@ -994,7 +994,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
               .where(
                 and(
                   eq(issues.id, issueId),
-                  eq(issues.companyId, run.companyId),
+                  eq(issues.spaceId, run.spaceId),
                 ),
               )
               .then((rows) => rows[0] ?? null);
@@ -1079,7 +1079,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
           // The issue row is locked above. Recheck after the preflight gate so
           // cancellation or recovery cannot leave a successor without its lock.
           const [lockedIssue] = await tx.select({ executionRunId: issues.executionRunId })
-            .from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)));
+            .from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId)));
           if (lockedIssue?.executionRunId !== run.id) {
             return {
               outcome: "not_scheduled", issueId, errorCode: "issue_execution_lock_changed",
@@ -1094,7 +1094,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
           const continuation = issueId && (retryReason === "transient_failure" || isPreparationWaitRetryReason(retryReason)
             || retryReason === AGENT_DIRECTORY_BUSY_RETRY_REASON)
             ? await admitExplicitContinuationRetry({
-            db: tx as unknown as Db, companyId: run.companyId, issueId, agentId: run.agentId,
+            db: tx as unknown as Db, spaceId: run.spaceId, issueId, agentId: run.agentId,
             parentRunId: run.id, successorRunId: scheduledRunId, now,
           }) : null;
           if (!continuation) return {
@@ -1107,12 +1107,12 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
           retryContextSnapshot.previousRunId = continuation.previousRunId;
         }
 
-        await notifyAttentionRetentionWork(tx, { companyId: run.companyId });
-        await notifyScheduledRetryDispatch(tx, { companyId: run.companyId });
+        await notifyAttentionRetentionWork(tx, { spaceId: run.spaceId });
+        await notifyScheduledRetryDispatch(tx, { spaceId: run.spaceId });
         const wakeupRequest = await tx
           .insert(agentWakeupRequests)
           .values({
-            companyId: run.companyId,
+            spaceId: run.spaceId,
             agentId: run.agentId,
             source: "automation",
             triggerDetail: "system",
@@ -1160,7 +1160,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
           .insert(heartbeatRuns)
           .values({
             id: scheduledRunId,
-            companyId: run.companyId,
+            spaceId: run.spaceId,
             agentId: run.agentId,
           scopeKind: run.scopeKind,
           issueId,
@@ -1198,12 +1198,12 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
           const issueWorkspace = await tx
             .select({
               id: issues.id,
-              companyId: issues.companyId,
+              spaceId: issues.spaceId,
               executionWorkspaceId: issues.executionWorkspaceId,
             })
             .from(issues)
             .where(
-              and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)),
+              and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId)),
             )
             .for("update")
             .then((rows) => rows[0] ?? null);
@@ -1216,7 +1216,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
             const failedWorkspace = await tx
               .select({
                 id: executionWorkspaces.id,
-                companyId: executionWorkspaces.companyId,
+                spaceId: executionWorkspaces.spaceId,
                 sourceIssueId: executionWorkspaces.sourceIssueId,
                 status: executionWorkspaces.status,
                 metadata: executionWorkspaces.metadata,
@@ -1225,7 +1225,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
               .where(
                 and(
                   eq(executionWorkspaces.id, failedExecutionWorkspaceId),
-                  eq(executionWorkspaces.companyId, run.companyId),
+                  eq(executionWorkspaces.spaceId, run.spaceId),
                 ),
               )
               .for("update")
@@ -1267,12 +1267,12 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
                 .where(
                   and(
                     eq(executionWorkspaces.id, failedWorkspace.id),
-                    eq(executionWorkspaces.companyId, run.companyId),
+                    eq(executionWorkspaces.spaceId, run.spaceId),
                   ),
                 );
 
               await logActivity(tx as unknown as Db, {
-                companyId: run.companyId,
+                spaceId: run.spaceId,
                 actorType: "system",
                 actorId: "heartbeat",
                 agentId: run.agentId,
@@ -1290,7 +1290,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
         }
 
         if (issueId) {
-          await notifyStatusCardIssueChange(tx, run.companyId);
+          await notifyStatusCardIssueChange(tx, run.spaceId);
           await tx
             .update(issues)
             .set({
@@ -1309,7 +1309,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
             .where(
               and(
                 eq(issues.id, issueId),
-                eq(issues.companyId, run.companyId),
+                eq(issues.spaceId, run.spaceId),
                 eq(issues.executionRunId, run.id),
               ),
             );
@@ -1439,7 +1439,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
   // direction). When the isolated-workspaces experiment is off, every run
   // resolves to the shared tree, so no holder is excluded.
   async function findSharedWorkspaceHolder(input: {
-    companyId: string;
+    spaceId: string;
     projectWorkspaceId: string;
     excludeIssueId: string;
     excludeRunId: string;
@@ -1461,13 +1461,13 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
       .innerJoin(
         issues,
         and(
-          eq(issues.companyId, heartbeatRuns.companyId),
+          eq(issues.spaceId, heartbeatRuns.spaceId),
           sql`${issues.id}::text = ${heartbeatRuns.contextSnapshot} ->> 'issueId'`,
         ),
       )
       .where(
         and(
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
           eq(heartbeatRuns.status, "running"),
           ne(heartbeatRuns.id, input.excludeRunId),
           // Last observed activity: output beats start beats creation. A run
@@ -1504,7 +1504,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
   // silence does not prove the holder stopped, so the caller must not treat
   // the folder as free. A live holder is preferred over a stale one.
   async function findExecutionWorkspaceHolder(input: {
-    companyId: string;
+    spaceId: string;
     executionWorkspaceId: string;
     excludeRunId: string;
     now?: Date;
@@ -1526,7 +1526,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
       .innerJoin(
         issues,
         and(
-          eq(issues.companyId, heartbeatRuns.companyId),
+          eq(issues.spaceId, heartbeatRuns.spaceId),
           eq(issues.executionWorkspaceId, input.executionWorkspaceId),
           or(
             eq(issues.executionRunId, heartbeatRuns.id),
@@ -1536,7 +1536,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
       )
       .where(
         and(
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
           eq(heartbeatRuns.status, "running"),
           ne(heartbeatRuns.id, input.excludeRunId),
         ),
@@ -1667,7 +1667,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
     const [issue] = await db
       .select({ executionWorkspaceId: issues.executionWorkspaceId, projectWorkspaceId: issues.projectWorkspaceId })
       .from(issues)
-      .where(and(eq(issues.companyId, run.companyId), eq(issues.id, issueId)));
+      .where(and(eq(issues.spaceId, run.spaceId), eq(issues.id, issueId)));
     if (!issue) return null;
     // The run is already cancelled, so the task may have moved in between.
     // Keep the wait only if the binding still names the deferral's workspace
@@ -1869,7 +1869,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
   }
 
   async function getIssueRetryRun(
-    companyId: string,
+    spaceId: string,
     issueId: string,
     statuses: Array<"scheduled_retry" | "queued" | "running" | "cancelled">,
   ) {
@@ -1883,7 +1883,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
       .innerJoin(agents, eq(heartbeatRuns.agentId, agents.id))
       .where(
         and(
-          eq(heartbeatRuns.companyId, companyId),
+          eq(heartbeatRuns.spaceId, spaceId),
           inArray(heartbeatRuns.status, statuses),
           sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' = ${issueId}`,
           sql`${heartbeatRuns.retryOfRunId} is not null`,
@@ -1927,18 +1927,18 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
   }) {
     const now = input.now ?? new Date();
     const issue = await db
-      .select({ id: issues.id, companyId: issues.companyId })
+      .select({ id: issues.id, spaceId: issues.spaceId })
       .from(issues)
       .where(eq(issues.id, input.issueId))
       .then((rows) => rows[0] ?? null);
     if (!issue) throw notFound("Issue not found");
 
-    const scheduled = await getIssueRetryRun(issue.companyId, issue.id, [
+    const scheduled = await getIssueRetryRun(issue.spaceId, issue.id, [
       "scheduled_retry",
     ]);
     if (!scheduled) {
       const alreadyPromoted = await getIssueRetryRun(
-        issue.companyId,
+        issue.spaceId,
         issue.id,
         ["queued", "running"],
       );
@@ -1965,7 +1965,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
     };
 
     const updated = await db.transaction(async (tx) => {
-      await notifyScheduledRetryDispatch(tx, { companyId: scheduled.run.companyId });
+      await notifyScheduledRetryDispatch(tx, { spaceId: scheduled.run.spaceId });
       const row = await tx
         .update(heartbeatRuns)
         .set({
@@ -2009,7 +2009,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
 
     if (!updated) {
       const alreadyPromoted = await getIssueRetryRun(
-        issue.companyId,
+        issue.spaceId,
         issue.id,
         ["queued", "running"],
       );
@@ -2046,7 +2046,7 @@ export function createHeartbeatRetries(db: Db, dependencies: HeartbeatRetryDepen
 
     const promotion = await runDispatch.promoteScheduledRetry({
       runId: updated.id,
-      companyId: updated.companyId,
+      spaceId: updated.spaceId,
       now,
     });
     if (promotion.outcome === "promoted") {

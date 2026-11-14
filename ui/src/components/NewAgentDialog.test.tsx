@@ -19,8 +19,8 @@ vi.mock("@/api/adapters", () => ({
     ],
   },
 }));
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "space-1" }),
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 vi.mock("@/context/DialogContext", () => ({
   useDialog: () => ({ newAgentOpen: true, closeNewAgent: state.close }),
@@ -47,7 +47,7 @@ async function click(label: string) {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  agents.create.mockImplementation(async (_companyId, input) => ({
+  agents.create.mockImplementation(async (_spaceId, input) => ({
     ...input,
     id: input.setupId,
     metadata: input.metadata ?? {},

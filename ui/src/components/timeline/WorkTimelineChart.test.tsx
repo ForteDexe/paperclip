@@ -208,10 +208,10 @@ describe("WorkTimelineChart", () => {
 
   it("keeps connectors hidden until hover, renders them orthogonally, and highlights the connected graph", async () => {
     const data = timelineSample();
-    data.actors.push({ id: "agent:cto", type: "agent", name: "CTO" });
+    data.actors.push({ id: "agent:engineering_lead", type: "agent", name: "Engineering Lead" });
     data.spans.push(
       {
-        actorId: "agent:cto",
+        actorId: "agent:engineering_lead",
         laneHint: null,
         runId: "run-3",
         issueId: "issue-3",
@@ -245,7 +245,7 @@ describe("WorkTimelineChart", () => {
       },
       {
         fromActorId: "agent:qa",
-        toActorId: "agent:cto",
+        toActorId: "agent:engineering_lead",
         issueId: "issue-3",
         at: "2026-07-02T11:35:00.000Z",
         kind: "delegation",
@@ -339,7 +339,7 @@ describe("WorkTimelineChart", () => {
     expect(onZoomScaleChange).toHaveBeenCalledTimes(1);
   });
 
-  it("opens task bars in a new company-prefixed window", () => {
+  it("opens task bars in a new space-prefixed window", () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
     renderChart(timelineSample());
 

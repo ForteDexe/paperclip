@@ -169,7 +169,7 @@ const billing = shape({
 const tracing = shape({
   projectId: string, traceId: string, spanId: string, status: oneOf("pending", "accepted", "failed"),
   verification: oneOf("unverified"), nativeConfiguration: oneOf("not_started", "configured", "failed"),
-  companyId: optional(string), revision: optional(string), errorCode: optional(string), httpStatus: optional(number),
+  spaceId: optional(string), revision: optional(string), errorCode: optional(string), httpStatus: optional(number),
   finalization: optional(shape({ spanId: string, status: oneOf("accepted", "failed"), outcome: oneOf("passed", "failed"),
     verification: oneOf("unverified"), errorCode: optional(string), httpStatus: optional(number) })),
 });
@@ -396,7 +396,7 @@ const fields = {
     setupChecks: optional(array(shape({ code: string, level: oneOf("info", "warn", "error") }))),
     runDiagnostics: optional(array(shape({ runId: string, status: oneOf("succeeded", "failed", "cancelled", "interrupted", "timed_out", "unknown"), signals: array(oneOf(...connectionRunSignals)), logAvailable: boolean }))),
     creationFailure: optional(shape({ status: integer, code: oneOf("ai_connection_api_key_rejected", "ai_connection_verification_failed", "connection_request_rejected") })),
-    connectionId: optional(string), agentId: optional(string), companyId: optional(string), artifactSha256: optional(string), model: optional(string), cleanupRetained: optional(boolean), companyArchived: optional(boolean),
+    connectionId: optional(string), agentId: optional(string), spaceId: optional(string), artifactSha256: optional(string), model: optional(string), cleanupRetained: optional(boolean), spaceArchived: optional(boolean),
   })),
   completionQuality: optional(array(shape({
     name: string, purpose: optional(oneOf("product", "calibration")), expectedPass: boolean, passed: boolean, status: oneOf("completed", "failed", "pending"), config: object, configHash: string, evidenceHash: string,
@@ -411,12 +411,12 @@ const fields = {
   })),
   antigravityJourney: optional((value, at) => { try { validateAntigravityJourneyEvidence(value); } catch { invalid(at); } }),
   githubReviewJourney: optional(closedShape({ version: integer, outcome: oneOf("running", "passed", "failed", "awaiting_user", "missing_credential", "blocked_target"),
-    phase: string, setupId: string, hosting: oneOf("self-hosted", "paperclip-cloud"), targetCommit: nullable(string), assisted: boolean,
+    phase: string, setupId: string, hosting: oneOf("self-hosted", "outpost-cloud"), targetCommit: nullable(string), assisted: boolean,
     dependencies: array(closedShape({ alias: string, consumer: oneOf("harness", "browser", "product-agent"), status: oneOf("ready", "unverified", "created-in-journey"), source: oneOf("onepassword", "environment", "browser-session", "product-connection") })),
     checkpoints: closedShape(Object.fromEntries(githubJourneyCheckpoints.map(id => [id, optional(boolean)]))),
     cleanup: closedShape({ endpoint: boolean, pullRequest: boolean, branch: boolean, app: boolean }), definitionHash: optional(string), score: optional(integer), conclusion: optional(string),
     budgetPolicyRead: optional(oneOf("verified", "unavailable")),
-    budgetPolicies: optional(array(closedShape({ scopeType: oneOf("agent", "company"), amount: number, hardStopEnabled: boolean, unpricedUsagePolicy: oneOf("allow", "block") }))),
+    budgetPolicies: optional(array(closedShape({ scopeType: oneOf("agent", "space"), amount: number, hardStopEnabled: boolean, unpricedUsagePolicy: oneOf("allow", "block") }))),
     execution: optional(closedShape({ reviewId: string, issueId: string, runId: nullable(string), runStatus: optional(string), issueStatus: optional(string),
       runtimeMode: optional(string), environmentId: optional(string), provider: optional(string), model: optional(string) })),
     review: optional(closedShape({ id: string, repository: string, pullNumber: integer, headSha: string, state: string, score: optional(integer), conclusion: nullable(string), summaryUrl: nullable(string), checkUrl: nullable(string) })),
@@ -446,8 +446,8 @@ export function validateRetainedRunnerResult(
     if (!evidence) return invalid("result.productJourney");
     const required = journeyRequiredChecks[checked.caseId];
     if (evidence.outcome !== "passed" || !evidence.deployment || !required || !required.every(id => evidence.checks.some(c => c.id === id && c.passed)) || evidence.checks.some(check => !check.passed) || evidence.phases.some(p => p.outcome !== "passed") || checked.cleanup !== "passed") invalid("result.productJourney");
-    if (["task-edit-lifecycle", "inbox-triage", "task-properties", "task-create", "project-task-context", "task-document-persistence", "task-search-filter", "company-access-isolation"].includes(checked.caseId) && (checked.runtimeMode !== "none" || checked.provider !== null || checked.model !== null || checked.runIds?.length)) invalid("result.browserOnly");
-    if (["company-access-isolation", "task-edit-lifecycle"].includes(checked.caseId) && checked.usage != null && Object.entries(checked.usage).some(([key, value]) => key !== "runs" || !Array.isArray(value) || value.length > 0)) invalid("result.browserOnly");
+    if (["task-edit-lifecycle", "inbox-triage", "task-properties", "task-create", "project-task-context", "task-document-persistence", "task-search-filter", "space-access-isolation"].includes(checked.caseId) && (checked.runtimeMode !== "none" || checked.provider !== null || checked.model !== null || checked.runIds?.length)) invalid("result.browserOnly");
+    if (["space-access-isolation", "task-edit-lifecycle"].includes(checked.caseId) && checked.usage != null && Object.entries(checked.usage).some(([key, value]) => key !== "runs" || !Array.isArray(value) || value.length > 0)) invalid("result.browserOnly");
     if (Object.hasOwn(agentJourneyRuns, checked.caseId) && (!agentJourneyRunCountValid(checked.caseId, checked.runIds?.length)
       || !checked.model || !checked.provider || checked.runtimeMode !== "native")) invalid("result.agentJourneyRun");
     if (checked.caseId === "cloud-onboarding" && (!checked.runIds?.length || !evidence.operations || !evidence.operations.requestCount || !evidence.operations.traceIds.length || evidence.operations.campaignId !== evidence.campaignId || evidence.operations.attemptId !== evidence.attemptId)) invalid("result.paidJourneyReceipt");
@@ -459,8 +459,8 @@ export function validateRetainedRunnerResult(
     if (!evidence || evidence.outcome !== "passed" || evidence.assisted || !evidence.targetCommit || !gradeAntigravityJourney(evidence).every(check => check.passed)
       || checked.cleanup !== "passed" || checked.runtimeMode !== "native" || checked.model !== evidence.model || checked.provider !== "acpx"
       || checked.runIds?.length !== 2 || !evidence.turnEvidence.every(turn => checked.runIds!.includes(turn.runId))
-      || !evidence.companyId || !evidence.agentId || !evidence.connectionId || !checked.issueId
-      || !evidence.turnEvidence.every(turn => turn.companyId === evidence.companyId && turn.agentId === evidence.agentId && turn.connectionId === evidence.connectionId && turn.issueId === checked.issueId)
+      || !evidence.spaceId || !evidence.agentId || !evidence.connectionId || !checked.issueId
+      || !evidence.turnEvidence.every(turn => turn.spaceId === evidence.spaceId && turn.agentId === evidence.agentId && turn.connectionId === evidence.connectionId && turn.issueId === checked.issueId)
       || !checked.screenshots?.some(shot => shot.id === "persisted" && /^[a-f0-9]{64}$/u.test(shot.sha256 ?? ""))) invalid("result.antigravityJourney");
   }
 }

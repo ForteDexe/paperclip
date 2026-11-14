@@ -13,17 +13,17 @@ import { suspendOwnedProviderForCleanup, releaseOwnedCleanupProvider, ownedClean
 import type { NativeFaultRun } from "./runtime-native-fault.js";
 import { hasSimplerWebsite, renderRuntimeArtifact, simplerWebsiteChecks } from "./runtime-rendered-artifact.js";
 import { observeRuntime, runtimeDefinition, runtimeObservation, type RuntimeAgent } from "./runtime-support.js";
-interface StopIntent { schema?: string; intentId?: string; intentAuditId?: string; companyId?: string; runId?: string; issueId?: string; scope?: string; dispatchState?: string; dispatched?: boolean; recordedAt?: string; acknowledgedAt?: string; acknowledgementAuditId?: string }
+interface StopIntent { schema?: string; intentId?: string; intentAuditId?: string; spaceId?: string; runId?: string; issueId?: string; scope?: string; dispatchState?: string; dispatched?: boolean; recordedAt?: string; acknowledgedAt?: string; acknowledgementAuditId?: string }
 interface StopHandle { page: Page; completed?: Promise<number> }
 const handles = new WeakMap<ChatCatalogContext, StopHandle>();
-export function sameSourcePostStopChronology(input: { boundary: NativeStopBoundaryReceipt; old: NativeFaultRun; next: NativeFaultRun; human: Pick<IssueComment, "id" | "body" | "issueId" | "companyId" | "authorAgentId" | "authorUserId" | "createdAt">; query: string; companyId: string; agentId: string; humanId: string; prompt: string; wakeCommentIds: string[]; heldReleasedAt: string }) {
+export function sameSourcePostStopChronology(input: { boundary: NativeStopBoundaryReceipt; old: NativeFaultRun; next: NativeFaultRun; human: Pick<IssueComment, "id" | "body" | "issueId" | "spaceId" | "authorAgentId" | "authorUserId" | "createdAt">; query: string; spaceId: string; agentId: string; humanId: string; prompt: string; wakeCommentIds: string[]; heldReleasedAt: string }) {
   const { old, next, human, boundary: b } = input, intent = old.resultJson?.nativeCancellation as StopIntent | undefined;
   const before = Date.parse(b.intentRecordedAt), sent = Date.parse(String(human.createdAt)), ack = Date.parse(intent?.acknowledgedAt ?? ""), started = Date.parse(String(next.startedAt)), ended = Date.parse(String(old.finishedAt)), released = Date.parse(input.heldReleasedAt);
-  return old.id === b.runId && old.nativeIssueId === b.issueId && old.companyId === input.companyId && old.agentId === input.agentId && old.runtimeMode === "native" && old.status === "cancelled"
-    && intent?.schema === "outpost.native-cancellation.v1" && intent.intentId === b.intentId && intent.issueId === b.issueId && intent.companyId === input.companyId && intent.runId === old.id && intent.scope === "run"
+  return old.id === b.runId && old.nativeIssueId === b.issueId && old.spaceId === input.spaceId && old.agentId === input.agentId && old.runtimeMode === "native" && old.status === "cancelled"
+    && intent?.schema === "outpost.native-cancellation.v1" && intent.intentId === b.intentId && intent.issueId === b.issueId && intent.spaceId === input.spaceId && intent.runId === old.id && intent.scope === "run"
     && !!intent.intentAuditId && !!intent.acknowledgementAuditId && intent.recordedAt === b.intentRecordedAt && intent.dispatchState === "acknowledged" && intent.dispatched === true
-    && human.issueId === b.issueId && human.companyId === input.companyId && !human.authorAgentId && human.authorUserId === input.humanId && human.body === input.query
-    && before <= sent && sent < released && Number.isFinite(ack) && next.id !== old.id && next.nativeIssueId === b.issueId && next.companyId === input.companyId && next.agentId === input.agentId && next.runtimeMode === "native" && next.status === "succeeded"
+    && human.issueId === b.issueId && human.spaceId === input.spaceId && !human.authorAgentId && human.authorUserId === input.humanId && human.body === input.query
+    && before <= sent && sent < released && Number.isFinite(ack) && next.id !== old.id && next.nativeIssueId === b.issueId && next.spaceId === input.spaceId && next.agentId === input.agentId && next.runtimeMode === "native" && next.status === "succeeded"
     && started >= ack && started >= ended && started >= released && input.wakeCommentIds.length === 1 && input.wakeCommentIds[0] === human.id && input.prompt.includes(human.id) && input.prompt.includes(input.query);
 }
 export async function releasePostStopGateAfterCleanup(old: Pick<NativeFaultRun, "status" | "resultJson">, providerExited: boolean, release: () => Promise<void>) {
@@ -112,7 +112,7 @@ export const runtimePostStopCases = [runtimeDefinition("recovery.post-stop-messa
     const next = await ctx.input.api.get<NativeFaultRun>(`/api/heartbeat-runs/${successor.id}`), comments = await ctx.input.api.get<IssueComment[]>(`/api/issues/${ctx.issue()!.id}/comments?order=asc`);
     const human = comments.filter(row => !row.authorAgentId), canonical = human[1];
     const native = next.runnerProfileJson?.nativeExecutionInput as { task?: { prompt?: string } } | undefined;
-    state.chronologyBound = !!canonical && sameSourcePostStopChronology({ boundary: state.nativeStopBoundary as NativeStopBoundaryReceipt, old, next, human: canonical, query: ctx.scenario.query, companyId: ctx.input.fixtures.company.id, agentId: ctx.input.fixtures.agent.id, humanId: String(state.humanId), prompt: native?.task?.prompt ?? "", wakeCommentIds: (next.contextSnapshot?.wakeCommentIds as string[] | undefined) ?? [], heldReleasedAt: String(state.heldReleasedAt) });
+    state.chronologyBound = !!canonical && sameSourcePostStopChronology({ boundary: state.nativeStopBoundary as NativeStopBoundaryReceipt, old, next, human: canonical, query: ctx.scenario.query, spaceId: ctx.input.fixtures.space.id, agentId: ctx.input.fixtures.agent.id, humanId: String(state.humanId), prompt: native?.task?.prompt ?? "", wakeCommentIds: (next.contextSnapshot?.wakeCommentIds as string[] | undefined) ?? [], heldReleasedAt: String(state.heldReleasedAt) });
     state.initialHumanRetained = human[0]?.id === (state.initialHuman as IssueComment).id && human[0]?.body === (state.initialHuman as IssueComment).body;
     state.singleSuccessor = settled.runs.filter(row => row.id !== old.id).length === 1;
     state.sameCurrentAssignment = ctx.issue()?.assigneeAgentId === next.agentId || (ctx.issue() as { conversationAgentId?: string }).conversationAgentId === next.agentId;

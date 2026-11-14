@@ -183,7 +183,7 @@ describe("ACPX recovery identity", () => {
     expect(fixture.binding.runtimeRoot).toContain("session-1-");
     expect(fixture.binding.workspaceDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(fixture.binding.profileSessionKey).toMatch(
-      /^paperclip-[0-9a-f]{64}$/,
+      /^outpost-[0-9a-f]{64}$/,
     );
     expect(fixture.binding.workspacePath).toBe(
       await realpath(fixture.workspace),
@@ -242,7 +242,7 @@ describe("ACPX recovery identity", () => {
       ...fixture.input,
       profile: {
         ...fixture.input.profile,
-        agentRuntimePackage: "@paperclip/test-runtime",
+        agentRuntimePackage: "@outpost/test-runtime",
       },
     });
     const otherRuntimeVersion = await createAcpxRecoveryBinding({
@@ -431,7 +431,7 @@ describe("ACPX recovery identity", () => {
 });
 
 async function recoveryFixture() {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-acpx-recovery-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-acpx-recovery-"));
   temporaryDirectories.push(root);
   const workspace = join(root, "workspace");
   const runtimeDirectory = join(root, "runtime");

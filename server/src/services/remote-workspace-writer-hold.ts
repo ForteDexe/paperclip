@@ -49,9 +49,9 @@ export function remoteWorkspaceHoldRefusesStart(hold: RemoteWorkspaceWriterHold,
  * this one rule, so a wait never ends before reservation would succeed.
  */
 export async function readRemoteWorkspaceWriterHold(tx: Db, input: {
-  companyId: string; authority: RemoteWorkspaceAuthority; runId?: string | null;
+  spaceId: string; authority: RemoteWorkspaceAuthority; runId?: string | null;
 }): Promise<{ kind: "free" } | { kind: "unattributed" } | { kind: "held"; writer: RemoteWorkspaceWriter }> {
-  const { authority, companyId } = input;
+  const { authority, spaceId } = input;
   if (!authority.writerRunId || authority.writerRunId === input.runId) return { kind: "free" };
   const [prior] = await tx.select({ status: heartbeatRuns.status, agentId: heartbeatRuns.agentId,
     issueId: heartbeatRuns.issueId, nativeIssueId: heartbeatRuns.nativeIssueId,
@@ -61,15 +61,15 @@ export async function readRemoteWorkspaceWriterHold(tx: Db, input: {
     lastOutputAt: heartbeatRuns.lastOutputAt, startedAt: heartbeatRuns.startedAt, createdAt: heartbeatRuns.createdAt,
     finishedAt: heartbeatRuns.finishedAt, ownerFenceHeld: runOwnerFenceHeldSql(),
   }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, authority.writerRunId)));
+    eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, authority.writerRunId)));
   const writerIssueId = prior ? prior.nativeIssueId ?? prior.issueId ?? prior.contextIssueId : null;
   const [writerIssue] = writerIssueId ? await tx.select({ id: issues.id, identifier: issues.identifier }).from(issues)
-    .where(and(eq(issues.companyId, companyId), eq(issues.id, canonicalExecutionUuid(sql`${writerIssueId}::text`)))) : [];
+    .where(and(eq(issues.spaceId, spaceId), eq(issues.id, canonicalExecutionUuid(sql`${writerIssueId}::text`)))) : [];
   if (prior?.status === "running" && writerIssue) return { kind: "held", writer: {
     runId: authority.writerRunId, agentId: prior.agentId, issueId: writerIssue.id, issueIdentifier: writerIssue.identifier,
     lastActivityAt: prior.lastOutputAt ?? prior.startedAt ?? prior.createdAt, ownerFenceHeld: prior.ownerFenceHeld === true,
   } };
-  const leases = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, companyId),
+  const leases = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, spaceId),
     eq(environmentLeases.heartbeatRunId, authority.writerRunId)));
   const bootstrap = object(prior?.executionRecovery);
   const pristinePreparation = !authority.location && !authority.snapshotId && prior?.status === "failed"
@@ -82,15 +82,15 @@ export async function readRemoteWorkspaceWriterHold(tx: Db, input: {
   if (unusedReservation) return { kind: "free" };
   // An ended writer still holds the workspace until its save and sandbox
   // release settle, within the same bounded cutoff as a live writer. While
-  // Paperclip is still saving the writer's retained files, that save's last
+  // Outpost is still saving the writer's retained files, that save's last
   // progress is the writer's activity, so a waiter keeps waiting instead of
   // failing setup. The save's own retry budget bounds it; a completed or
-  // board-handed-off save no longer extends the cutoff.
+  // operator-handed-off save no longer extends the cutoff.
   if (prior && writerIssue) {
     const ended = new Date(prior.finishedAt ?? prior.lastOutputAt ?? prior.startedAt ?? prior.createdAt);
     const [save] = await tx.select({ progressedAt: sql<string | null>`max(${issueRecoveryActions.updatedAt})` })
       .from(issueRecoveryActions).where(and(
-        eq(issueRecoveryActions.companyId, companyId), eq(issueRecoveryActions.sourceIssueId, writerIssue.id),
+        eq(issueRecoveryActions.spaceId, spaceId), eq(issueRecoveryActions.sourceIssueId, writerIssue.id),
         sql`${issueRecoveryActions.evidence}->>'runId' = ${authority.writerRunId}`,
         sql`${issueRecoveryActions.evidence}->'workspaceRestoreRecovery'->>'schema' = 'outpost.workspace-restore-recovery.v1'`,
         sql`coalesce(${issueRecoveryActions.evidence}#>>'{systemRecovery,state}', 'scheduled') in ('scheduled', 'running', 'awaiting_evidence')`,

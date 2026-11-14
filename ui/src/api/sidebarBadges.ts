@@ -2,5 +2,5 @@ import type { SidebarBadges } from "@outpost/shared";
 import { api } from "./client";
 
 export const sidebarBadgesApi = {
-  get: (companyId: string) => api.get<SidebarBadges>(`/companies/${companyId}/sidebar-badges`),
+  get: (spaceId: string) => api.get<SidebarBadges>(`/spaces/${spaceId}/sidebar-badges`),
 };

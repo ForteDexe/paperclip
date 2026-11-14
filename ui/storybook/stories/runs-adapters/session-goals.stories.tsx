@@ -169,7 +169,7 @@ const meta = {
           "Capability, status, active-turn, and pending-control states for the issue composer session-goal widget.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "runs-adapters/session"
       ],

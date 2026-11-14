@@ -17,7 +17,7 @@ afterEach(async () => {
   vi.unstubAllEnvs();
   for (const root of roots.splice(0)) {
     for (const entry of await readdir(root).catch(() => [])) {
-      if (entry.startsWith(".paperclip-eval-runtime-context-")) await chmod(join(root, entry, "instructions"), 0o700).catch(() => undefined);
+      if (entry.startsWith(".outpost-eval-runtime-context-")) await chmod(join(root, entry, "instructions"), 0o700).catch(() => undefined);
     }
     await rm(root, { recursive: true, force: true });
   }
@@ -29,7 +29,7 @@ async function fixture(provider = "codex", acpxAgent?: string) {
   const binary = join(root, "runnerd");
   await writeFile(binary, "fake runnerd");
   const request = parseEvalSessionRequest({
-    schema: "outpost-runner/eval-session-request/v1", attemptId: "attempt-1", prompt: "Read the governed task.",
+    schema: "outpost-runner/eval-session-request/v1", attemptId: "attempt-1", prompt: "Read the controlled task.",
     provider, ...(acpxAgent ? { acpxAgent } : {}), model,
     runnerd: { path: binary, sha256: createHash("sha256").update("fake runnerd").digest("hex") },
     limits: { turnTimeoutMs: 120000, maxAgentTurns: 1, maxEstimatedCostNanodollars: 100000000 },
@@ -115,9 +115,9 @@ it.each([false, true])("the real CLI retains route identity and removes the owne
     sessionId: "session-1", revision: 1, providerThreadId: "provider-1", providerSessionId: "provider-1",
     providerModel: { id: f.request.model, provider: "openai" }, status: "idle", activeTurnId: null,
     createdAt: "2026-10-24T00:00:00Z", updatedAt: "2026-10-24T00:00:01Z",
-    authority: { companyId: "company-1", actorId: "actor-1", taskId: "task-1", runId: "run-1", sessionId: "session-1", scenarioId: "gateway-test" },
+    authority: { spaceId: "space-1", actorId: "actor-1", taskId: "task-1", runId: "run-1", sessionId: "session-1", scenarioId: "gateway-test" },
     config: { provider: "codex", driver: "codex_app_server", seedState: state, workingDirectory: f.root, scenario: { id: "gateway-test" }, capabilities: [], explicitClaims: [], turnTimeoutMs: 1000 },
-    mockState: state, process: null, networkEvidence: { realPaperclipRequests: 0, childOutpostEnvironmentKeys: [] },
+    mockState: state, process: null, networkEvidence: { realOutpostRequests: 0, childOutpostEnvironmentKeys: [] },
     transcript: [], evidence: [], authorizationRecords: [], attempts: [], terminalTurns: [{ turnId: "turn-1", status: "completed" }],
     usageLedger: [{ receiptId: "receipt-1", turnId: "turn-1", providerCalls: 1, providerRequests: 1, inputTokens: 100, outputTokens: 10, cachedInputTokens: 0, reasoningTokens: 0, costNanodollars: 0 }], usageUnavailable: [],
   } as unknown as CapabilityLiveSessionSnapshot;

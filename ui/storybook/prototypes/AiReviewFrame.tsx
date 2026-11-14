@@ -48,7 +48,7 @@ export function aiReviewContext(id: string, args: { host?: string; initialStage?
   if (args.host === "connections" || story === "identity-matrix") {
     const detail = args.initialStage === "manage";
     return {
-      location: detail ? "Connectors → choose an account → account permissions/details." : "Connectors (/:company/apps) → provider → Add account or open an account.",
+      location: detail ? "Connectors → choose an account → account permissions/details." : "Connectors (/:space/apps) → provider → Add account or open an account.",
       existing: detail ? "AppDetail: header/rename, ownership display and agent-access controls. BreadcrumbBar supplies existing page navigation. The existing revoke dialog and reconnect banner are reused." : "Browse: provider groups, account rows, search and menus. Navigation opens the existing AppDetail and ConnectionSetupFlow components.",
       proposed: detail ? "The marked AI account section: personal default and AI credential actions." : "AI provider/account fixture entries and their method/default labels. AI-specific sections are marked when you open an account or sign in.",
       wrapper: "This frame, page margins and in-memory API. The page components are real; the AI accounts and all changes are simulated.",

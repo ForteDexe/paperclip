@@ -8,10 +8,10 @@ import {
   agentWakeupRequests,
   agentRuntimeState,
   budgetPolicies,
-  companies,
+  spaces,
   authUsers,
-  companyMemberships,
-  companySkills,
+  spaceMemberships,
+  spaceSkills,
   costEvents,
   createDb,
   executionWorkspaces,
@@ -93,7 +93,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   let db: ReturnType<typeof createDb>;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-issue-liveness-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-heartbeat-issue-liveness-");
     db = createDb(tempDb.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
@@ -127,9 +127,9 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     await db.delete(agentRuntimeState);
     await db.delete(budgetPolicies);
     await db.delete(agents);
-    await db.delete(companyMemberships);
-    await db.delete(companySkills);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaceSkills);
+    await db.delete(spaces);
     await db.delete(authUsers);
   });
 
@@ -142,26 +142,26 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     blockerStatus?: string;
     blockerAssigneeAgentId?: "coder" | "manager" | null;
   } = {}) {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const managerId = randomUUID();
     const coderId = randomUUID();
     const blockedIssueId = randomUUID();
     const blockerIssueId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values([
       {
         id: managerId,
-        companyId,
-        name: "CTO",
-        role: "cto",
+        spaceId,
+        name: "Engineering Lead",
+        role: "engineering_lead",
         status: "idle",
         adapterType: "codex_local",
         adapterConfig: {},
@@ -170,7 +170,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       },
       {
         id: coderId,
-        companyId,
+        spaceId,
         name: "Coder",
         role: "engineer",
         status: "idle",
@@ -188,7 +188,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     await db.insert(issues).values([
       {
         id: blockedIssueId,
-        companyId,
+        spaceId,
         title: "Blocked parent",
         status: "blocked",
         priority: "medium",
@@ -200,7 +200,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       },
       {
         id: blockerIssueId,
-        companyId,
+        spaceId,
         title: "Missing unblock owner",
         status: opts.blockerStatus ?? "todo",
         priority: "medium",
@@ -217,13 +217,13 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     ]);
 
     await db.insert(issueRelations).values({
-      companyId,
+      spaceId,
       issueId: blockerIssueId,
       relatedIssueId: blockedIssueId,
       type: "blocks",
     });
 
-    return { companyId, managerId, coderId, blockedIssueId, blockerIssueId };
+    return { spaceId, managerId, coderId, blockedIssueId, blockerIssueId };
   }
 
   async function seedResolvedDependencyBackstopFixture(opts: {
@@ -231,7 +231,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     assignee?: "agent" | null;
   } = {}) {
     const workspaceState = opts.workspaceState ?? "none";
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const ownerUserId = randomUUID();
     const blockedIssueId = randomUUID();
@@ -239,20 +239,20 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const executionWorkspaceId = randomUUID();
-    const issuePrefix = `R${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `R${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     // The responsible-user intersection requires both the account and its
     // active membership; a membership pointing at a nonexistent user is denied.
     await db.insert(authUsers).values({ id: ownerUserId, name: "Fixture owner", email: `${ownerUserId}@example.test`,
       createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({
-      companyId,
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "user",
       principalId: ownerUserId,
       membershipRole: "owner",
@@ -260,7 +260,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Priya",
       role: "engineer",
       status: "idle",
@@ -273,20 +273,20 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     if (workspaceState !== "none") {
       await db.insert(projects).values({
         id: projectId,
-        companyId,
+        spaceId,
         name: "Synthetic dependency project",
         status: "in_progress",
       });
       await db.insert(projectWorkspaces).values({
         id: projectWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         name: "Synthetic workspace",
         sourceType: "git_worktree",
       });
       await db.insert(executionWorkspaces).values({
         id: executionWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         mode: "isolated_workspace",
@@ -299,7 +299,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     await db.insert(issues).values([
       {
         id: blockedIssueId,
-        companyId,
+        spaceId,
         projectId: workspaceState === "none" ? null : projectId,
         title: "Synthetic blocked dependent",
         status: "blocked",
@@ -310,7 +310,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       },
       {
         id: blockerIssueId,
-        companyId,
+        spaceId,
         projectId: workspaceState === "none" ? null : projectId,
         title: "Synthetic completed blocker",
         status: "done",
@@ -321,7 +321,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       },
     ]);
     await db.insert(issueRelations).values({
-      companyId,
+      spaceId,
       issueId: blockerIssueId,
       relatedIssueId: blockedIssueId,
       type: "blocks",
@@ -329,7 +329,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
 
     if (workspaceState === "not_finalized") {
       await db.insert(workspaceOperations).values({
-        companyId,
+        spaceId,
         executionWorkspaceId,
         issueId: blockerIssueId,
         phase: "adapter_execute",
@@ -338,7 +338,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       });
     } else if (workspaceState === "finalized") {
       await db.insert(workspaceOperations).values({
-        companyId,
+        spaceId,
         executionWorkspaceId,
         issueId: blockerIssueId,
         phase: "workspace_finalize",
@@ -347,26 +347,26 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       });
     }
 
-    return { companyId, agentId, blockedIssueId, blockerIssueId, executionWorkspaceId };
+    return { spaceId, agentId, blockedIssueId, blockerIssueId, executionWorkspaceId };
   }
 
   it.each(["pathless", "monitor"] as const)("runs exactly one bounded review-path recovery with %s disposition", async (disposition) => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
-    const issuePrefix = `R${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
-    await db.insert(companies).values({
-      id: companyId,
+    const issuePrefix = `R${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Review Recovery Co",
       issuePrefix,
       defaultResponsibleUserId: "responsible-user",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(authUsers).values({ id: "responsible-user", name: "Fixture user", email: "responsible-user@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Review Agent",
       role: "engineer",
       status: "idle",
@@ -377,7 +377,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "External build follow-up",
       status: "in_review",
       priority: "medium",
@@ -426,7 +426,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       .select()
       .from(agentWakeupRequests)
       .where(and(
-        eq(agentWakeupRequests.companyId, companyId),
+        eq(agentWakeupRequests.spaceId, spaceId),
         eq(agentWakeupRequests.reason, "issue_review_path_lost"),
       ));
     expect(recoveryWakes).toHaveLength(1);
@@ -457,7 +457,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       expect(issue).toMatchObject({ status: "in_review", assigneeAgentId: agentId, monitorNextCheckAt: expect.any(Date) });
       expect(await db.select().from(issueRecoveryActions)).toHaveLength(0);
       expect(notices).toHaveLength(0);
-      const attention = await issueService(db).listReviewAttention(companyId, [issue]);
+      const attention = await issueService(db).listReviewAttention(spaceId, [issue]);
       expect(attention.get(issueId)).toMatchObject({ state: "covered", paths: expect.arrayContaining([expect.objectContaining({ kind: "monitor" })]) });
       return;
     }
@@ -465,7 +465,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     const actions = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, issueId));
     expect(actions).toHaveLength(1);
     expect(actions[0]).toMatchObject({
-      ownerType: "board", ownerAgentId: null, ownerUserId: null,
+      ownerType: "operator", ownerAgentId: null, ownerUserId: null,
       returnOwnerAgentId: agentId, cause: "issue_review_path_lost", attemptCount: 1, maxAttempts: 1,
     });
     expect(notices).toHaveLength(1);
@@ -479,7 +479,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     expect(replayComments.map((comment) => comment.id).sort()).toEqual(comments.map((comment) => comment.id).sort());
     expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.reason, "issue_review_path_lost"))).toHaveLength(1);
 
-    const feed = await attentionService(db).list(companyId, { userId: "responsible-user" });
+    const feed = await attentionService(db).list(spaceId, { userId: "responsible-user" });
     expect(feed.items.find((item) => item.subject.id === actions[0].id)).toMatchObject({
       sourceKind: "recovery_action",
       relatedIssue: expect.objectContaining({ id: issueId }),
@@ -489,17 +489,17 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     });
   });
 
-  it.each(["monitor", "completed", "reassigned", "newer_run", "other_company"] as const)(
+  it.each(["monitor", "completed", "reassigned", "newer_run", "other_space"] as const)(
     "does not escalate a stale review recovery after %s",
     async (change) => {
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const agentId = randomUUID();
       const issueId = randomUUID();
-      await db.insert(companies).values({ id: companyId, name: "Review Co", issuePrefix: `R${companyId.slice(0, 6)}` });
-      await db.insert(agents).values({ id: agentId, companyId, name: "Reviewer", role: "engineer", adapterType: "codex_local" });
-      await db.insert(issues).values({ id: issueId, companyId, title: "Async review", status: "in_review", assigneeAgentId: agentId });
+      await db.insert(spaces).values({ id: spaceId, name: "Review Co", issuePrefix: `R${spaceId.slice(0, 6)}` });
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Reviewer", role: "engineer", adapterType: "codex_local" });
+      await db.insert(issues).values({ id: issueId, spaceId, title: "Async review", status: "in_review", assigneeAgentId: agentId });
       const [run] = await db.insert(heartbeatRuns).values({
-        companyId, agentId, status: "succeeded", issueId,
+        spaceId, agentId, status: "succeeded", issueId,
         createdAt: new Date(Date.now() - 60_000),
         contextSnapshot: { issueId, wakeReason: "issue_review_path_lost", reviewPathRecoveryAttempt: 1 },
       }).returning();
@@ -509,13 +509,13 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
         await issueService(db).update(issueId, { status: "done" });
       } else if (change === "reassigned") {
         const nextAgentId = randomUUID();
-        await db.insert(agents).values({ id: nextAgentId, companyId, name: "New reviewer", role: "engineer", adapterType: "codex_local" });
+        await db.insert(agents).values({ id: nextAgentId, spaceId, name: "New reviewer", role: "engineer", adapterType: "codex_local" });
         await issueService(db).update(issueId, { assigneeAgentId: nextAgentId });
       } else if (change === "newer_run") {
-        await db.insert(heartbeatRuns).values({ companyId, agentId, issueId, status: "succeeded", contextSnapshot: { issueId } });
+        await db.insert(heartbeatRuns).values({ spaceId, agentId, issueId, status: "succeeded", contextSnapshot: { issueId } });
       }
       expect(await escalateExhaustedIssueReviewPathRecovery(db, {
-        run: change === "other_company" ? { ...run, companyId: randomUUID() } : run,
+        run: change === "other_space" ? { ...run, spaceId: randomUUID() } : run,
         issueId,
       })).toBeNull();
       expect(await db.select().from(issueRecoveryActions)).toHaveLength(0);
@@ -527,14 +527,14 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   );
 
   it("serializes concurrent finalization of a failed review repair", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Review Co", issuePrefix: `R${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Reviewer", role: "engineer", adapterType: "codex_local" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Failed review repair", status: "in_review", assigneeAgentId: agentId });
+    await db.insert(spaces).values({ id: spaceId, name: "Review Co", issuePrefix: `R${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Reviewer", role: "engineer", adapterType: "codex_local" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Failed review repair", status: "in_review", assigneeAgentId: agentId });
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId, agentId, issueId, status: "failed",
+      spaceId, agentId, issueId, status: "failed",
       contextSnapshot: { issueId, wakeReason: "issue_review_path_lost", reviewPathRecoveryAttempt: 1 },
     }).returning();
     const results = await Promise.all([
@@ -549,23 +549,23 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it.each(["restart", "transaction_failure", "due_monitor", "claimed_monitor", "expired_monitor", "exhausted_monitor", "disabled_monitor"] as const)("reconciles a committed review repair after %s with a one-connection pool", async (gap) => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
     const wakeId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Review Co", issuePrefix: `R${companyId.slice(0, 6)}`, defaultResponsibleUserId: "responsible-user" });
+    await db.insert(spaces).values({ id: spaceId, name: "Review Co", issuePrefix: `R${spaceId.slice(0, 6)}`, defaultResponsibleUserId: "responsible-user" });
     await db.insert(authUsers).values({ id: "responsible-user", name: "Fixture user", email: "responsible-user@example.test",
       createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user",
       status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Reviewer", role: "engineer", adapterType: "codex_local", runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Repair finalized before restart", status: "in_review", assigneeAgentId: agentId, responsibleUserId: "responsible-user" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Reviewer", role: "engineer", adapterType: "codex_local", runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Repair finalized before restart", status: "in_review", assigneeAgentId: agentId, responsibleUserId: "responsible-user" });
     await db.insert(agentWakeupRequests).values({
-      id: wakeId, companyId, agentId, source: "automation", status: "completed",
+      id: wakeId, spaceId, agentId, source: "automation", status: "completed",
       reason: "issue_review_path_lost", payload: { issueId, reviewPathRecoveryAttempt: 1 },
     });
     const [repairRun] = await db.insert(heartbeatRuns).values({
-      companyId, agentId, issueId, status: "succeeded", wakeupRequestId: wakeId, finishedAt: new Date(),
+      spaceId, agentId, issueId, status: "succeeded", wakeupRequestId: wakeId, finishedAt: new Date(),
       contextSnapshot: { issueId, wakeReason: "issue_review_path_lost", reviewPathRecoveryAttempt: 1 },
     }).returning();
     const dueAt = new Date(Date.now() - 60_000);
@@ -646,7 +646,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it("keeps resolved dependency wake reconciliation active", async () => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId } =
+    const { spaceId, agentId, blockedIssueId, blockerIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
 
     const result = await heartbeatService(db).reconcileResolvedDependencyWakes();
@@ -677,7 +677,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     const events = await db
       .select({ action: activityLog.action, entityId: activityLog.entityId, details: activityLog.details })
       .from(activityLog)
-      .where(and(eq(activityLog.companyId, companyId), eq(activityLog.action, "issue.blockers_resolved_wake_emitted")));
+      .where(and(eq(activityLog.spaceId, spaceId), eq(activityLog.action, "issue.blockers_resolved_wake_emitted")));
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
       entityId: blockedIssueId,
@@ -686,7 +686,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it("heals a blocked dependent whose done blocker has no workspace finalize obligation", async () => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId } =
+    const { spaceId, agentId, blockedIssueId, blockerIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
 
     const result = await heartbeatService(db).reconcileResolvedDependencyWakes();
@@ -717,7 +717,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     const events = await db
       .select({ action: activityLog.action, entityId: activityLog.entityId, details: activityLog.details })
       .from(activityLog)
-      .where(and(eq(activityLog.companyId, companyId), eq(activityLog.action, "issue.blockers_resolved_wake_emitted")));
+      .where(and(eq(activityLog.spaceId, spaceId), eq(activityLog.action, "issue.blockers_resolved_wake_emitted")));
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ entityId: blockedIssueId });
   });
@@ -763,8 +763,8 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   async function seedExecutionWait(status: "active" | "resolved" = "resolved") {
     const fixture = await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     const [action] = await db.insert(issueRecoveryActions).values({
-      companyId: fixture.companyId, sourceIssueId: fixture.blockedIssueId,
-      kind: "active_run_watchdog", ownerType: "board", returnOwnerAgentId: fixture.agentId,
+      spaceId: fixture.spaceId, sourceIssueId: fixture.blockedIssueId,
+      kind: "active_run_watchdog", ownerType: "operator", returnOwnerAgentId: fixture.agentId,
       cause: "legacy_execution_requires_reconciliation", status,
       evidence: status === "resolved" ? { automaticRecovery: { replay: "blocked" } } : {},
       fingerprint: randomUUID(), nextAction: "Check the stopped execution before resuming.",
@@ -773,7 +773,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   }
 
   it.each(["active", "resolved"] as const)("keeps repeated wakes behind a %s execution hold run-free, then resumes once", async (status) => {
-    const { companyId, agentId, blockedIssueId, action } = await seedExecutionWait(status);
+    const { spaceId, agentId, blockedIssueId, action } = await seedExecutionWait(status);
     const heartbeat = heartbeatService(db);
     // Different producers and wake keys must not create new attempts or notices.
     await Promise.all(Array.from({ length: 6 }, (_, i) => heartbeat.wakeup(agentId, {
@@ -786,16 +786,16 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       // Recreate the service to prove the wait is durable across scheduler restarts.
       expect((await heartbeatService(db).reconcileResolvedDependencyWakes()).healed).toBe(0);
     }
-    const waits = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId));
+    const waits = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId));
     expect(waits).toHaveLength(1);
     expect(waits[0]).toMatchObject({
       status: "skipped", runId: null, reason: "execution_reconciliation_required", coalescedCount: 8,
       payload: { issueId: blockedIssueId, executionWait: { recoveryActionId: action.id } },
     });
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId))).toHaveLength(0);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId))).toHaveLength(0);
     expect(mockAdapterExecute).not.toHaveBeenCalled();
     expect(await db.select().from(activityLog).where(and(
-      eq(activityLog.companyId, companyId), eq(activityLog.action, "issue.blockers_resolved_wake_emitted"),
+      eq(activityLog.spaceId, spaceId), eq(activityLog.action, "issue.blockers_resolved_wake_emitted"),
     ))).toHaveLength(0);
 
     mockAdapterExecute.mockImplementationOnce(async () => {
@@ -807,12 +807,12 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     expect((await heartbeat.reconcileResolvedDependencyWakes()).healed).toBe(1);
     expect((await heartbeat.reconcileResolvedDependencyWakes()).healed).toBe(0);
     await heartbeat.drainActiveRunExecutions();
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId))).toHaveLength(1);
     expect(mockAdapterExecute).toHaveBeenCalledTimes(1);
   });
 
   it("rechecks every gate after an execution hold clears", async () => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId, action } = await seedExecutionWait();
+    const { spaceId, agentId, blockedIssueId, blockerIssueId, action } = await seedExecutionWait();
     const wake = () => heartbeatService(db).wakeup(agentId, {
       source: "automation", triggerDetail: "system", reason: "issue_continuation_needed",
       requestedByActorType: "system", requestedByActorId: "wait-regression",
@@ -823,47 +823,47 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     await db.update(issueRecoveryActions).set({ evidence: {} }).where(eq(issueRecoveryActions.id, action.id));
     await wake();
     await wake();
-    const waits = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId));
+    const waits = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId));
     expect(waits).toHaveLength(2);
     expect(waits.find((row) => row.reason === "issue_dependencies_blocked")?.coalescedCount).toBe(1);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId))).toHaveLength(0);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId))).toHaveLength(0);
     await db.update(issues).set({ status: "done" }).where(eq(issues.id, blockerIssueId));
     expect((await heartbeatService(db).reconcileResolvedDependencyWakes()).healed).toBe(1);
   });
 
   it("preserves distinct comments through a hold and adopts them on the next eligible wake", async () => {
-    const { companyId, agentId, blockedIssueId, action } = await seedExecutionWait();
+    const { spaceId, agentId, blockedIssueId, action } = await seedExecutionWait();
     const heartbeat = heartbeatService(db);
     const commentIds: string[] = [];
     for (let i = 0; i < 2; i++) {
       const [comment] = await db.insert(issueComments).values({
-        companyId, issueId: blockedIssueId, authorUserId: "board-user", body: `Follow-up ${i}`,
+        spaceId, issueId: blockedIssueId, authorUserId: "operator-user", body: `Follow-up ${i}`,
       }).returning();
       commentIds.push(comment!.id);
       expect(await heartbeat.wakeup(agentId, {
         source: "on_demand", triggerDetail: "manual", reason: "issue_commented",
-        requestedByActorType: "user", requestedByActorId: "board-user",
+        requestedByActorType: "user", requestedByActorId: "operator-user",
         payload: { issueId: blockedIssueId, commentId: comment!.id },
         contextSnapshot: { issueId: blockedIssueId, wakeReason: "issue_commented", wakeCommentId: comment!.id },
       })).toBeNull();
     }
-    const deferred = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId));
+    const deferred = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId));
     expect(deferred).toHaveLength(2);
     expect(deferred.every((row) => row.status === "deferred_issue_execution" && row.runId === null)).toBe(true);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId))).toHaveLength(0);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId))).toHaveLength(0);
     await db.update(issueRecoveryActions).set({ evidence: {} }).where(eq(issueRecoveryActions.id, action.id));
     const resumed = await heartbeat.wakeup(agentId, {
       source: "on_demand", triggerDetail: "manual", reason: "issue_resumed",
-      requestedByActorType: "user", requestedByActorId: "board-user",
+      requestedByActorType: "user", requestedByActorId: "operator-user",
       payload: { issueId: blockedIssueId }, contextSnapshot: { issueId: blockedIssueId },
     });
     expect(resumed?.contextSnapshot?.wakeCommentIds).toEqual(commentIds);
-    const receipts = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId));
+    const receipts = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId));
     expect(receipts.filter((row) => row.status === "coalesced")).toHaveLength(2);
   });
 
   it("retries a resolved dependency wake when the prior wake was skipped as stale", async () => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId } =
+    const { spaceId, agentId, blockedIssueId, blockerIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     // The route-time wake writes the level-triggered state key. A skip records a
     // `skipped` row with that key. `skipped` is not an in-flight status, so the
@@ -873,7 +873,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       blockerIssueIds: [blockerIssueId],
     });
     await db.insert(agentWakeupRequests).values({
-      companyId,
+      spaceId,
       agentId,
       source: "automation",
       triggerDetail: "system",
@@ -901,7 +901,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
         idempotencyKey: agentWakeupRequests.idempotencyKey,
       })
       .from(agentWakeupRequests)
-      .where(and(eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.reason, "issue_blockers_resolved")))
+      .where(and(eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.reason, "issue_blockers_resolved")))
       .orderBy(agentWakeupRequests.requestedAt);
 
     expect(wakes).toHaveLength(2);
@@ -911,7 +911,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it("waits for workspace finalize before healing a resolved blocked dependent", async () => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId, executionWorkspaceId } =
+    const { spaceId, agentId, blockedIssueId, blockerIssueId, executionWorkspaceId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "not_finalized" });
     const heartbeat = heartbeatService(db);
 
@@ -927,7 +927,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     expect(wakesBeforeFinalize).toHaveLength(0);
 
     await db.insert(workspaceOperations).values({
-      companyId,
+      spaceId,
       executionWorkspaceId,
       issueId: blockerIssueId,
       phase: "workspace_finalize",
@@ -959,12 +959,12 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it("does not duplicate an existing dependency wake keyed to any resolved blocker", async () => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId } =
+    const { spaceId, agentId, blockedIssueId, blockerIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     const secondBlockerIssueId = randomUUID();
     await db.insert(issues).values({
       id: secondBlockerIssueId,
-      companyId,
+      spaceId,
       title: "Second completed blocker",
       status: "done",
       priority: "medium",
@@ -972,7 +972,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       identifier: "R-MULTI-3",
     });
     await db.insert(issueRelations).values({
-      companyId,
+      spaceId,
       issueId: secondBlockerIssueId,
       relatedIssueId: blockedIssueId,
       type: "blocks",
@@ -985,7 +985,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     }
     expect(blockerIdNotUsedByBackstop).toBe(secondBlockerIssueId);
     await db.insert(agentWakeupRequests).values({
-      companyId,
+      spaceId,
       agentId,
       source: "automation",
       triggerDetail: "system",
@@ -1009,7 +1009,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
         idempotencyKey: agentWakeupRequests.idempotencyKey,
       })
       .from(agentWakeupRequests)
-      .where(and(eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.reason, "issue_blockers_resolved")));
+      .where(and(eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.reason, "issue_blockers_resolved")));
     expect(wakes).toHaveLength(1);
     expect(wakes[0]?.idempotencyKey).toBe(
       `issue_blockers_resolved:${blockedIssueId}:${blockerIdNotUsedByBackstop}`,
@@ -1017,12 +1017,12 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it("heals a multi-blocker dependent when only a completed wake for an earlier blocker exists", async () => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId } =
+    const { spaceId, agentId, blockedIssueId, blockerIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     const secondBlockerIssueId = randomUUID();
     await db.insert(issues).values({
       id: secondBlockerIssueId,
-      companyId,
+      spaceId,
       title: "Earlier completed blocker",
       status: "done",
       priority: "medium",
@@ -1030,7 +1030,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       identifier: "R-MULTI-3",
     });
     await db.insert(issueRelations).values({
-      companyId,
+      spaceId,
       issueId: secondBlockerIssueId,
       relatedIssueId: blockedIssueId,
       type: "blocks",
@@ -1041,7 +1041,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     // level-triggered dedup keys on the full blocker set, so this completed wake
     // no longer strands the dependent.
     await db.insert(agentWakeupRequests).values({
-      companyId,
+      spaceId,
       agentId,
       source: "automation",
       triggerDetail: "system",
@@ -1071,7 +1071,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     const healedWake = await db
       .select({ status: agentWakeupRequests.status, idempotencyKey: agentWakeupRequests.idempotencyKey })
       .from(agentWakeupRequests)
-      .where(and(eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.idempotencyKey, stateKey)))
+      .where(and(eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.idempotencyKey, stateKey)))
       .then((rows) => rows[0] ?? null);
     expect(healedWake).not.toBeNull();
     expect(["queued", "claimed", "completed"]).toContain(healedWake?.status);
@@ -1084,12 +1084,12 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     const stateKeyWakes = await db
       .select({ id: agentWakeupRequests.id })
       .from(agentWakeupRequests)
-      .where(and(eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.idempotencyKey, stateKey)));
+      .where(and(eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.idempotencyKey, stateKey)));
     expect(stateKeyWakes).toHaveLength(1);
   });
 
   it("heals a blocked dependent after a terminal reset when a previous-cycle old-key wake exists", async () => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId } =
+    const { spaceId, agentId, blockedIssueId, blockerIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     const previousCycleWakeAt = new Date("2026-07-01T12:00:00.000Z");
     const blockedTransitionAt = new Date("2026-08-01T12:00:00.000Z");
@@ -1098,7 +1098,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       .set({ blockedTransitionAt, updatedAt: blockedTransitionAt })
       .where(eq(issues.id, blockedIssueId));
     await db.insert(agentWakeupRequests).values({
-      companyId,
+      spaceId,
       agentId,
       source: "automation",
       triggerDetail: "system",
@@ -1131,7 +1131,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     const healedWake = await db
       .select({ status: agentWakeupRequests.status, idempotencyKey: agentWakeupRequests.idempotencyKey })
       .from(agentWakeupRequests)
-      .where(and(eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.idempotencyKey, cycleKey)))
+      .where(and(eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.idempotencyKey, cycleKey)))
       .then((rows) => rows[0] ?? null);
     expect(healedWake).not.toBeNull();
     expect(["queued", "claimed", "completed"]).toContain(healedWake?.status);
@@ -1142,12 +1142,12 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     const cycleKeyWakes = await db
       .select({ id: agentWakeupRequests.id })
       .from(agentWakeupRequests)
-      .where(and(eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.idempotencyKey, cycleKey)));
+      .where(and(eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.idempotencyKey, cycleKey)));
     expect(cycleKeyWakes).toHaveLength(1);
   });
 
   it("does not re-heal when a completed old-key wake is from the current blocked cycle", async () => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId } =
+    const { spaceId, agentId, blockedIssueId, blockerIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     const blockedTransitionAt = new Date("2026-08-01T12:00:00.000Z");
     const sameCycleWakeAt = new Date("2026-08-01T12:00:01.000Z");
@@ -1156,7 +1156,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       .set({ blockedTransitionAt, updatedAt: blockedTransitionAt })
       .where(eq(issues.id, blockedIssueId));
     await db.insert(agentWakeupRequests).values({
-      companyId,
+      spaceId,
       agentId,
       source: "automation",
       triggerDetail: "system",
@@ -1182,7 +1182,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it("does not re-wake an assignee agent that opened the current blocked cycle itself", async () => {
-    const { companyId, agentId, blockedIssueId } =
+    const { spaceId, agentId, blockedIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     const blockedTransitionAt = new Date("2026-08-01T12:00:00.000Z");
     await db
@@ -1190,7 +1190,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       .set({ blockedTransitionAt, updatedAt: blockedTransitionAt })
       .where(eq(issues.id, blockedIssueId));
     await db.insert(activityLog).values({
-      companyId,
+      spaceId,
       actorType: "agent",
       actorId: agentId,
       agentId,
@@ -1207,8 +1207,8 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
     expect(result.selfBlockedSkipped).toBe(1);
   });
 
-  it("heals a self-blocked issue after a later board edit in the same blocked cycle", async () => {
-    const { companyId, agentId, blockedIssueId } =
+  it("heals a self-blocked issue after a later operator edit in the same blocked cycle", async () => {
+    const { spaceId, agentId, blockedIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     const blockedTransitionAt = new Date("2026-08-01T12:00:00.000Z");
     await db
@@ -1217,11 +1217,11 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       .where(eq(issues.id, blockedIssueId));
     await db.insert(activityLog).values([
       {
-        companyId, actorType: "agent", actorId: agentId, agentId, action: "issue.updated",
+        spaceId, actorType: "agent", actorId: agentId, agentId, action: "issue.updated",
         entityType: "issue", entityId: blockedIssueId, details: { status: "blocked" }, createdAt: blockedTransitionAt,
       },
       {
-        companyId, actorType: "user", actorId: "board-user", action: "issue.updated",
+        spaceId, actorType: "user", actorId: "operator-user", action: "issue.updated",
         entityType: "issue", entityId: blockedIssueId, details: { blockedByIssueIds: [] },
         createdAt: new Date("2026-08-01T12:05:00.000Z"),
       },
@@ -1234,14 +1234,14 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it.each(["title", "monitorNotes"])("preserves an assignee block after an unrelated %s edit", async (field) => {
-    const { companyId, agentId, blockedIssueId } =
+    const { spaceId, agentId, blockedIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     const blockedTransitionAt = new Date("2026-08-01T12:00:00.000Z");
     await db.update(issues).set({ blockedTransitionAt }).where(eq(issues.id, blockedIssueId));
     await db.insert(activityLog).values([
-      { companyId, actorType: "agent", actorId: agentId, agentId, action: "issue.updated",
+      { spaceId, actorType: "agent", actorId: agentId, agentId, action: "issue.updated",
         entityType: "issue", entityId: blockedIssueId, details: { status: "blocked" }, createdAt: blockedTransitionAt },
-      { companyId, actorType: "user", actorId: "board-user", action: "issue.updated",
+      { spaceId, actorType: "user", actorId: "operator-user", action: "issue.updated",
         entityType: "issue", entityId: blockedIssueId, details: { changes: { [field]: { from: "old", to: "new" } } },
         createdAt: new Date("2026-08-01T12:05:00.000Z") },
     ]);
@@ -1251,15 +1251,15 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it.each([true, false])("checks the native blocked decision run owner (assignee: %s)", async (sameOwner) => {
-    const { companyId, agentId, blockedIssueId } =
+    const { spaceId, agentId, blockedIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     const blockedTransitionAt = new Date("2026-08-01T12:00:00.000Z");
     await db.update(issues).set({ blockedTransitionAt }).where(eq(issues.id, blockedIssueId));
     const otherAgentId = randomUUID();
-    if (!sameOwner) await db.insert(agents).values({ id: otherAgentId, companyId, name: "Other agent", role: "engineer", status: "idle", adapterType: "process" });
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId: sameOwner ? agentId : otherAgentId,
+    if (!sameOwner) await db.insert(agents).values({ id: otherAgentId, spaceId, name: "Other agent", role: "engineer", status: "idle", adapterType: "process" });
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: sameOwner ? agentId : otherAgentId,
       issueId: blockedIssueId, status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: blockedIssueId } }).returning();
-    await db.insert(activityLog).values({ companyId, actorType: "system", actorId: "native-status-committer",
+    await db.insert(activityLog).values({ spaceId, actorType: "system", actorId: "native-status-committer",
       runId: run.id, action: "issue.updated", entityType: "issue", entityId: blockedIssueId,
       details: { source: "native_status_decision", fromStatus: "in_progress", toStatus: "blocked" }, createdAt: blockedTransitionAt });
     const result = await heartbeatService(db).reconcileResolvedDependencyWakes();
@@ -1268,15 +1268,15 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it.each(["completion", "finalize"] as const)("heals a self-block after later blocker %s", async (event) => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId, executionWorkspaceId } =
+    const { spaceId, agentId, blockedIssueId, blockerIssueId, executionWorkspaceId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: event === "finalize" ? "not_finalized" : "none" });
     const blockedTransitionAt = new Date(Date.now() - 120_000);
     const completedAt = new Date();
     await db.update(issues).set({ blockedTransitionAt }).where(eq(issues.id, blockedIssueId));
-    await db.insert(activityLog).values({ companyId, actorType: "agent", actorId: agentId, agentId,
+    await db.insert(activityLog).values({ spaceId, actorType: "agent", actorId: agentId, agentId,
       action: "issue.updated", entityType: "issue", entityId: blockedIssueId, details: { status: "blocked" }, createdAt: blockedTransitionAt });
     if (event === "completion") await db.update(issues).set({ completedAt }).where(eq(issues.id, blockerIssueId));
-    else await db.insert(workspaceOperations).values({ companyId, executionWorkspaceId, issueId: blockerIssueId,
+    else await db.insert(workspaceOperations).values({ spaceId, executionWorkspaceId, issueId: blockerIssueId,
       phase: "workspace_finalize", status: "succeeded", startedAt: completedAt, finishedAt: completedAt });
     const result = await heartbeatService(db).reconcileResolvedDependencyWakes();
     expect(result.healed).toBe(1);
@@ -1284,76 +1284,76 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it("wakes once when a completion refused for unresolved dependencies later becomes valid", async () => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId } =
+    const { spaceId, agentId, blockedIssueId, blockerIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     const blockedTransitionAt = new Date(Date.now() - 120_000);
     await db.update(issues).set({ blockedTransitionAt }).where(eq(issues.id, blockedIssueId));
     await db.update(issues).set({ completedAt: new Date(blockedTransitionAt.getTime() - 60_000) }).where(eq(issues.id, blockerIssueId));
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, issueId: blockedIssueId, status: "succeeded",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, issueId: blockedIssueId, status: "succeeded",
       runtimeMode: "native", contextSnapshot: { issueId: blockedIssueId } }).returning();
-    await db.insert(activityLog).values({ companyId, actorType: "system", actorId: "native-status-committer",
+    await db.insert(activityLog).values({ spaceId, actorType: "system", actorId: "native-status-committer",
       runId: run.id, action: "issue.updated", entityType: "issue", entityId: blockedIssueId,
       details: { source: "native_status_decision", fromStatus: "in_progress", toStatus: "blocked",
         reasonCode: "durable_dependency_blocker_bound" }, createdAt: blockedTransitionAt });
 
-    const first = await heartbeatService(db).reconcileResolvedDependencyWakes({ companyId, issueId: blockedIssueId });
+    const first = await heartbeatService(db).reconcileResolvedDependencyWakes({ spaceId, issueId: blockedIssueId });
     expect(first.selfBlockedSkipped).toBe(0);
     expect(first.healed).toBe(1);
-    const second = await heartbeatService(db).reconcileResolvedDependencyWakes({ companyId, issueId: blockedIssueId });
+    const second = await heartbeatService(db).reconcileResolvedDependencyWakes({ spaceId, issueId: blockedIssueId });
     expect(second.healed).toBe(0);
-    const wakes = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, companyId),
+    const wakes = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, spaceId),
       eq(agentWakeupRequests.reason, "issue_blockers_resolved")));
     expect(wakes).toHaveLength(1);
   });
 
   it("still holds a native block the agent chose while its dependencies were ready", async () => {
-    const { companyId, agentId, blockedIssueId } =
+    const { spaceId, agentId, blockedIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     const blockedTransitionAt = new Date(Date.now() - 120_000);
     await db.update(issues).set({ blockedTransitionAt }).where(eq(issues.id, blockedIssueId));
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, issueId: blockedIssueId, status: "succeeded",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, issueId: blockedIssueId, status: "succeeded",
       runtimeMode: "native", contextSnapshot: { issueId: blockedIssueId } }).returning();
-    await db.insert(activityLog).values({ companyId, actorType: "system", actorId: "native-status-committer",
+    await db.insert(activityLog).values({ spaceId, actorType: "system", actorId: "native-status-committer",
       runId: run.id, action: "issue.updated", entityType: "issue", entityId: blockedIssueId,
       details: { source: "native_status_decision", fromStatus: "in_progress", toStatus: "blocked",
         reasonCode: "task_wide_blocker_bound" }, createdAt: blockedTransitionAt });
-    const result = await heartbeatService(db).reconcileResolvedDependencyWakes({ companyId, issueId: blockedIssueId });
+    const result = await heartbeatService(db).reconcileResolvedDependencyWakes({ spaceId, issueId: blockedIssueId });
     expect(result.healed).toBe(0);
     expect(result.selfBlockedSkipped).toBe(1);
   });
 
   it("heals a self-block once a later recovery finalize without a workspace saves the blocker", async () => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId, executionWorkspaceId } =
+    const { spaceId, agentId, blockedIssueId, blockerIssueId, executionWorkspaceId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "finalized" });
     await db.delete(workspaceOperations).where(eq(workspaceOperations.issueId, blockerIssueId));
     const blockedTransitionAt = new Date(Date.now() - 120_000);
     await db.update(issues).set({ blockedTransitionAt }).where(eq(issues.id, blockedIssueId));
-    const [blockerRun] = await db.insert(heartbeatRuns).values({ companyId, agentId, issueId: blockerIssueId,
+    const [blockerRun] = await db.insert(heartbeatRuns).values({ spaceId, agentId, issueId: blockerIssueId,
       status: "succeeded", contextSnapshot: { issueId: blockerIssueId } }).returning();
-    await db.insert(workspaceOperations).values({ companyId, executionWorkspaceId, issueId: blockerIssueId,
+    await db.insert(workspaceOperations).values({ spaceId, executionWorkspaceId, issueId: blockerIssueId,
       heartbeatRunId: blockerRun.id, phase: "workspace_finalize", status: "failed",
       startedAt: new Date(blockedTransitionAt.getTime() - 60_000), finishedAt: new Date(blockedTransitionAt.getTime() - 59_000) });
-    await db.insert(activityLog).values({ companyId, actorType: "agent", actorId: agentId, agentId,
+    await db.insert(activityLog).values({ spaceId, actorType: "agent", actorId: agentId, agentId,
       action: "issue.updated", entityType: "issue", entityId: blockedIssueId, details: { status: "blocked" }, createdAt: blockedTransitionAt });
     await expect(issueService(db).getDependencyReadiness(blockedIssueId)).resolves.toMatchObject({ isDependencyReady: false });
-    await db.insert(workspaceOperations).values({ companyId, executionWorkspaceId: null, issueId: blockerIssueId,
+    await db.insert(workspaceOperations).values({ spaceId, executionWorkspaceId: null, issueId: blockerIssueId,
       heartbeatRunId: blockerRun.id, phase: "workspace_finalize", status: "succeeded", startedAt: new Date(), finishedAt: new Date(),
       metadata: { owningService: "workspace_recovery", preservationOperationIds: [] } });
     await expect(issueService(db).getDependencyReadiness(blockedIssueId)).resolves.toMatchObject({ isDependencyReady: true });
 
-    const result = await heartbeatService(db).reconcileResolvedDependencyWakes({ companyId, issueId: blockedIssueId });
+    const result = await heartbeatService(db).reconcileResolvedDependencyWakes({ spaceId, issueId: blockedIssueId });
     expect(result.selfBlockedSkipped).toBe(0);
     expect(result.healed).toBe(1);
   });
 
   it.each(["dependent", "blocker", "unattributed"] as const)("attributes shared-workspace export to its %s issue", async (exporter) => {
-    const { companyId, agentId, blockedIssueId, blockerIssueId, executionWorkspaceId } =
+    const { spaceId, agentId, blockedIssueId, blockerIssueId, executionWorkspaceId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "finalized" });
     const blockedTransitionAt = new Date(Date.now() - 30_000);
     await db.update(issues).set({ blockedTransitionAt, executionWorkspaceId }).where(eq(issues.id, blockedIssueId));
-    await db.insert(activityLog).values({ companyId, actorType: "agent", actorId: agentId, agentId,
+    await db.insert(activityLog).values({ spaceId, actorType: "agent", actorId: agentId, agentId,
       action: "issue.updated", entityType: "issue", entityId: blockedIssueId, details: { status: "blocked" }, createdAt: blockedTransitionAt });
-    await db.insert(workspaceOperations).values({ companyId, executionWorkspaceId,
+    await db.insert(workspaceOperations).values({ spaceId, executionWorkspaceId,
       issueId: exporter === "dependent" ? blockedIssueId : exporter === "blocker" ? blockerIssueId : null, phase: "workspace_finalize",
       status: "succeeded", startedAt: new Date(), finishedAt: new Date() });
     const result = await heartbeatService(db).reconcileResolvedDependencyWakes();
@@ -1362,7 +1362,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it("still heals when someone other than the assignee opened the blocked cycle", async () => {
-    const { companyId, agentId, blockedIssueId } =
+    const { spaceId, agentId, blockedIssueId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     const blockedTransitionAt = new Date("2026-08-01T12:00:00.000Z");
     await db
@@ -1370,9 +1370,9 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
       .set({ blockedTransitionAt, updatedAt: blockedTransitionAt })
       .where(eq(issues.id, blockedIssueId));
     await db.insert(activityLog).values({
-      companyId,
+      spaceId,
       actorType: "user",
-      actorId: "board-user",
+      actorId: "operator-user",
       action: "issue.updated",
       entityType: "issue",
       entityId: blockedIssueId,
@@ -1388,7 +1388,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
   });
 
   it("counts null dependency wake returns as deferred instead of enqueue failures", async () => {
-    const { companyId, agentId } =
+    const { spaceId, agentId } =
       await seedResolvedDependencyBackstopFixture({ workspaceState: "none" });
     await db
       .update(agents)
@@ -1409,7 +1409,7 @@ describeEmbeddedPostgres("heartbeat resolved dependency wake reconciliation", ()
         reason: agentWakeupRequests.reason,
       })
       .from(agentWakeupRequests)
-      .where(and(eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.agentId, agentId)))
+      .where(and(eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.agentId, agentId)))
       .then((rows) => rows[0] ?? null);
     expect(skippedWake).toMatchObject({
       status: "skipped",

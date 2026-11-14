@@ -20,7 +20,7 @@ on:
         type: string
         required: false
       release_base_image:
-        description: "Immutable Paperclip Daytona base image for the release-artifact consumer"
+        description: "Immutable Outpost Daytona base image for the release-artifact consumer"
         type: string
         required: false
       verify_source:

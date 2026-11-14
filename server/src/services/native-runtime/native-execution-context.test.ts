@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 import { NativeExecutionContext } from "./native-execution-context.js";
 
-const execution = { binding: { companyId: "company", agentId: "agent", runId: "run" } } as NativeExecutionInput;
+const execution = { binding: { spaceId: "space", agentId: "agent", runId: "run" } } as NativeExecutionInput;
 const target = { pluginId: "plugin", leaseId: "lease", taskId: "task", environmentId: "environment" };
 
 afterEach(() => vi.useRealTimers());

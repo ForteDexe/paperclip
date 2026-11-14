@@ -12,7 +12,7 @@ describe("acquisition diagnostics through the built worker and real host client"
     const handle = createPluginWorkerHandle("test.acquisition", {
       entrypointPath: fileURLToPath(new URL("./fixtures/plugin-worker-acquisition-diagnostic.mjs", import.meta.url)),
       manifest: { id: "test.acquisition", apiVersion: 1, version: "1.0.0", displayName: "Acquisition fixture",
-        description: "Acquisition fixture", author: "Paperclip", categories: ["automation"], capabilities: [],
+        description: "Acquisition fixture", author: "Outpost", categories: ["automation"], capabilities: [],
         entrypoints: { worker: "fixture.mjs" } },
       config: {}, instanceInfo: { instanceId: "instance-fixture", hostVersion: "1.0.0" }, apiVersion: 1,
       hostHandlers: {}, rpcTimeoutMs: 5_000,
@@ -20,7 +20,7 @@ describe("acquisition diagnostics through the built worker and real host client"
     });
     try {
       await handle.start();
-      const first = { driverKey: "daytona", companyId: "company-fixture", environmentId: "environment-fixture",
+      const first = { driverKey: "daytona", spaceId: "space-fixture", environmentId: "environment-fixture",
         runId: "run-first", config: { phase: "create" } };
       const second = { ...first, runId: "run-second", config: { phase: "shell" } };
       const [a, b] = await Promise.all([first, second].map(params => handle.call("environmentAcquireLease", params).catch(error => error)));
@@ -37,7 +37,7 @@ describe("acquisition diagnostics through the built worker and real host client"
         const properties = Object.getOwnPropertyDescriptors(error);
         Object.freeze(error);
         captureEnvironmentAcquisitionDiagnostic(error, params, diagnostic);
-        const run = { id: params.runId, companyId: params.companyId, errorCode: "setup_failed", resultJson: null } as typeof heartbeatRuns.$inferSelect;
+        const run = { id: params.runId, spaceId: params.spaceId, errorCode: "setup_failed", resultJson: null } as typeof heartbeatRuns.$inferSelect;
         const diagnostics = collectRunFailureDiagnostics(run, { error: new Error("Cleanup confirmed", { cause: error }), phase: "setup" });
         expect(diagnostics.execution).toMatchObject({ environmentAcquisitionPhase: params.config.phase,
           environmentAcquisitionElapsedMs: 2_000, environmentAcquisitionBudgetMs: 2_000 });

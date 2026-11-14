@@ -12,7 +12,7 @@ const MINUTE = 60_000;
 
 function providerRefusal() {
   return new JsonRpcCallError({ code: PLUGIN_RPC_ERROR_CODES.WORKER_ERROR, message: "private provider text",
-    data: { schema: "paperclip/workspace-operation-error/v1", reason: "unsupported_operation" } });
+    data: { schema: "outpost/workspace-operation-error/v1", reason: "unsupported_operation" } });
 }
 
 (support.supported ? describe : describe.skip)("plugin workspace terminal cleanup retry", () => {

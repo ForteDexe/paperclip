@@ -13,7 +13,7 @@ async function fixture(keyFilePath?: (root: string) => string) {
   const configPath = path.join(root, "home", "instances", "default", "config.json");
   await mkdir(path.dirname(configPath), { recursive: true });
   const keyFile = keyFilePath ? keyFilePath(root) : path.join(path.dirname(configPath), "secrets", "master.key");
-  await writeFile(configPath, JSON.stringify({ database: { connectionString: "postgres://u:p@127.0.0.1:5432/paperclip" },
+  await writeFile(configPath, JSON.stringify({ database: { connectionString: "postgres://u:p@127.0.0.1:5432/outpost" },
     secrets: { localEncrypted: { keyFilePath: keyFile } } }));
   return { root, configPath, keyFile };
 }
@@ -26,7 +26,7 @@ describe("ephemeralServerEnvironment", () => {
     const { root, configPath, keyFile } = await fixture();
     const first = await ephemeralServerEnvironment({ configPath, temporaryRoot: root, extraEnvironment: storage });
     expect(first).toMatchObject({ OUTPOST_EPHEMERAL_SERVER: "true", OUTPOST_DURABLE_AGENT_FILES: "true", OUTPOST_SHARED_UI_ASSETS: "true",
-      OUTPOST_DATABASE_LISTEN_URL: "postgres://u:p@127.0.0.1:5432/paperclip", RUN_LOG_S3_BUCKET: "chaos-b",
+      OUTPOST_DATABASE_LISTEN_URL: "postgres://u:p@127.0.0.1:5432/outpost", RUN_LOG_S3_BUCKET: "chaos-b",
       RUN_LOG_S3_ENDPOINT: "http://127.0.0.1:9000", RUN_LOG_S3_REGION: "us-east-1", RUN_LOG_S3_PREFIX: "chaos/w1/run-logs" });
     expect(Buffer.from(first.OUTPOST_SECRETS_MASTER_KEY!, "base64")).toHaveLength(32);
     expect((await readFile(keyFile, "utf8")).trim()).toBe(first.OUTPOST_SECRETS_MASTER_KEY);

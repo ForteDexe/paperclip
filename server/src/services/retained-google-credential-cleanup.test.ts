@@ -7,14 +7,14 @@ import {
 import { RetiredCredentialRecoveryError } from "./quota-credential-recovery.js";
 
 let sequence = 0;
-const scope = () => ({ companyId: "company", accountKey: `retained-${++sequence}` });
+const scope = () => ({ spaceId: "space", accountKey: `retained-${++sequence}` });
 
-it("retries only on the next same-company account action and coalesces concurrent cleanup", async () => {
+it("retries only on the next same-space account action and coalesces concurrent cleanup", async () => {
   const owner = scope();
   let finish!: () => void;
   const cleanup = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
   retainGoogleCredentialCleanup({ scope: owner, cleanup });
-  await reconcileRetainedGoogleCleanup({ ...owner, companyId: "other-company" });
+  await reconcileRetainedGoogleCleanup({ ...owner, spaceId: "other-space" });
   await reconcileRetainedGoogleCleanup({ ...owner, accountKey: "another-account" });
   expect(cleanup).not.toHaveBeenCalled();
   const first = reconcileRetainedGoogleCleanup(owner);

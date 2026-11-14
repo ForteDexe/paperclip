@@ -69,7 +69,7 @@ The depth rule is an **actor policy**, not a data rule.
 | Agent-authored chat suggestions (`suggest_tasks`), even when a user clicks accept | `flatten`, because the agent authored the shape. See Open decision 2 |
 | Harness/system creators: native delegation, accepted-plan decomposition, decisions effects, recovery, watchdog, routines | `flatten` |
 | Plugins (`issues.create`) | `flatten` (automation). See Open decision 3 |
-| `importIssues` / company import | exempt; preserves trees verbatim |
+| `importIssues` / space import | exempt; preserves trees verbatim |
 
 Implementation: add `parentDepthPolicy?: "flatten" | "allow_nested"` to the
 `create` / `createChild` / `update` inputs in `server/src/services/issues.ts`.
@@ -89,7 +89,7 @@ Add one resolver next to `assertExecutionTaskParent`
 (`server/src/services/issues.ts:2047`):
 
 ```ts
-resolveNewTaskParent(db, companyId, requestedParentId, policy)
+resolveNewTaskParent(db, spaceId, requestedParentId, policy)
   -> { effectiveParentId, requestedParentId, flattened: boolean }
 ```
 
@@ -146,7 +146,7 @@ parameters or request-body fields, and they never change after create.
 ### `origin_issue_id` (new column)
 
 `issues.origin_issue_id uuid references issues(id) on delete set null`, indexed
-on `(company_id, origin_issue_id)`. It is never read for hierarchy,
+on `(space_id, origin_issue_id)`. It is never read for hierarchy,
 authorization or wakes.
 
 The harness derives it in this order:
@@ -216,7 +216,7 @@ What exists today, and what changes:
   decision 5.
 - **Project tools `create_task`** (`project-tools.ts:50`) hard-codes
   `parentId: null` for conversations. Same change as the runner tool.
-- **HTTP API from a chat run** (`POST /companies/:id/issues`): explicit
+- **HTTP API from a chat run** (`POST /spaces/:id/issues`): explicit
   `parentId` is already allowed and goes through flatten. No change beyond §2.
 - **Chat suggestions (`suggest_tasks`)** already support `parentClientKey`
   nesting and default to top-level for conversations
@@ -249,7 +249,7 @@ written:
 
 Routes (`server/src/routes/issues.ts`):
 
-- `POST /companies/:id/issues` (~12630-12860). Board → `allow_nested`. Agent →
+- `POST /spaces/:id/issues` (~12630-12860). Board → `allow_nested`. Agent →
   resolve the effective parent first, including the **run-delegation default**
   (`resolveRunDelegationParentDefault`, :3830), which is the main source of
   agent grandchildren today. Run `assertIssueWriteInfluenceAllowed` /
@@ -288,13 +288,13 @@ Routes (`server/src/routes/issues.ts`):
   `ui/src/components/task-chat/task-created-items.ts`).
 - **CLI** (`cli/src/commands/client/issue.ts:289-352`). With an agent key, print
   the `parentAdjusted` notice. With user auth, nesting is unrestricted.
-- **Skills/docs.** Update `skills/paperclip/SKILL.md`,
-  `skills/paperclip/references/api-reference.md`,
-  `skills/paperclip-board/SKILL.md` and
-  `packages/skills-catalog/catalog/bundled/paperclip-operations/issue-triage/SKILL.md`:
+- **Skills/docs.** Update `skills/outpost/SKILL.md`,
+  `skills/outpost/references/api-reference.md`,
+  `skills/outpost-board/SKILL.md` and
+  `packages/skills-catalog/catalog/bundled/outpost-operations/issue-triage/SKILL.md`:
   agents nest one level, deeper requests become siblings, use
   `blockedByIssueIds` for ordering. Do the same for the external
-  `paperclip-converting-plans-to-tasks` skill. Add the rule to
+  `outpost-converting-plans-to-tasks` skill. Add the rule to
   `doc/SPEC-implementation.md` (additive).
 
 ## 8. Tests

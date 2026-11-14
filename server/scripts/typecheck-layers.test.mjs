@@ -256,7 +256,7 @@ describe("typecheckLayers", () => {
       "tsconfig.above.json",
       "tsconfig.tests.json",
     ]);
-    const output = path.join(root, "node_modules", ".cache", "paperclip-typecheck");
+    const output = path.join(root, "node_modules", ".cache", "outpost-typecheck");
     expect(JSON.parse(readFileSync(path.join(output, "package.json"), "utf8"))).toEqual({ type: "module" });
   });
 
@@ -278,7 +278,7 @@ describe("typecheckLayers", () => {
 
     expect(status).toBe(0);
     expect(configs).toEqual(["tsconfig.below.json", "tsconfig.cycle.json", "tsconfig.above.json"]);
-    const output = path.join(root, "node_modules", ".cache", "paperclip-typecheck");
+    const output = path.join(root, "node_modules", ".cache", "outpost-typecheck");
     expect(JSON.parse(readFileSync(path.join(output, "tsconfig.declarations.json"), "utf8")).references).toEqual([
       { path: "./tsconfig.below.json" },
       { path: "./tsconfig.cycle.json" },
@@ -417,7 +417,7 @@ describe("typecheckLayers with the real compiler", () => {
 
     expect(output).toBe("");
     expect(status).toBe(0);
-    const declarations = path.join(root, "node_modules", ".cache", "paperclip-typecheck", "dts");
+    const declarations = path.join(root, "node_modules", ".cache", "outpost-typecheck", "dts");
     for (const name of ["leaf.d.ts", "one.d.ts", "two.d.ts", "route.d.ts"]) {
       expect(existsSync(path.join(declarations, name))).toBe(true);
     }
@@ -436,7 +436,7 @@ describe("typecheckLayers with the real compiler", () => {
         extends: "../tsconfig.json",
         compilerOptions: { noEmit: true, rootDir: "..", outDir: null },
         include: ["*.ts"],
-        references: [{ path: "../node_modules/.cache/paperclip-typecheck/tsconfig.declarations.json" }],
+        references: [{ path: "../node_modules/.cache/outpost-typecheck/tsconfig.declarations.json" }],
       })}\n`,
     );
     const buildDeclarations = () =>
@@ -456,7 +456,7 @@ describe("typecheckLayers with the real compiler", () => {
     expect(passing.stdout).toBe("");
     expect(passing.status).toBe(0);
     const loaded = tscOutside("--listFilesOnly").stdout;
-    expect(loaded).toContain("paperclip-typecheck/dts/route.d.ts");
+    expect(loaded).toContain("outpost-typecheck/dts/route.d.ts");
     expect(loaded).not.toContain("src/route.ts");
     expect(findServerSource(loaded.split("\n").filter(Boolean), root)).toEqual([]);
 
@@ -658,7 +658,7 @@ describe("typecheckTestProjects", () => {
         return pnpmStatus(args);
       },
       run: (args, { env }) => {
-        const target = path.basename(path.dirname(args[1])) === "paperclip-typecheck" ? path.basename(args[1]) : args[1];
+        const target = path.basename(path.dirname(args[1])) === "outpost-typecheck" ? path.basename(args[1]) : args[1];
         calls.push({ tool: "tsc", target, env });
         return tscResult(target);
       },
@@ -772,7 +772,7 @@ describe("typecheckTestProjects", () => {
           file("src/data.json"),
           file("src/route.test.ts"),
           file("src/__tests__/helpers/home.ts"),
-          file("node_modules/.cache/paperclip-typecheck/dts/route.d.ts"),
+          file("node_modules/.cache/outpost-typecheck/dts/route.d.ts"),
           file("test-baselines/lifecycle.test.ts"),
           path.join(path.sep, "repo", "tests", "a.ts"),
         ],
@@ -810,7 +810,7 @@ describe("typecheckTestProjects", () => {
     const layered = readConfig("tsconfig.layers.json");
     expect(layered.extends).toBe("./tsconfig.json");
     expect(layered.references.map((reference) => path.resolve(directory, reference.path))).toEqual([
-      path.join(serverRoot, "node_modules", ".cache", "paperclip-typecheck", "tsconfig.declarations.json"),
+      path.join(serverRoot, "node_modules", ".cache", "outpost-typecheck", "tsconfig.declarations.json"),
     ]);
   });
 });

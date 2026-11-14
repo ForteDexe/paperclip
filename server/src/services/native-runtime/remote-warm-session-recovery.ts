@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { agents, companies, environmentLeases, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
+import { agents, spaces, environmentLeases, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
 import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import { parseNativeExecutionInput, type NativeExecutionInput, type PersistedNativeSession, type DurableRecoveryIdentity } from "../../vendor/outpost-runner/index.js";
 import { currentNativeControllerIdentity, evaluateNativeControllerTakeover, recordLegacyHostFallbackProof } from "./native-restart-recovery.js";
@@ -146,7 +146,7 @@ export async function inspectRemoteWarmSessionRecovery(input: {
   const providerLeaseId = target.sandboxLeaseAcquisition.providerLeaseId;
   const [prior] = await input.db.select({ run: heartbeatRuns, owner: nativeRunFinalizations })
     .from(heartbeatRuns).innerJoin(nativeRunFinalizations, eq(nativeRunFinalizations.runId, heartbeatRuns.id))
-    .where(and(eq(heartbeatRuns.id, identity.runId), eq(heartbeatRuns.companyId, binding.companyId),
+    .where(and(eq(heartbeatRuns.id, identity.runId), eq(heartbeatRuns.spaceId, binding.spaceId),
       eq(heartbeatRuns.agentId, binding.agentId), eq(heartbeatRuns.nativeIssueId, binding.issueId)));
   if (!prior || prior.run.status !== "succeeded" || !prior.owner.resultId || !prior.owner.controllerPid ||
       !prior.owner.controllerProcessStartedAt || !prior.owner.controllerBootId) return deny();
@@ -158,7 +158,7 @@ export async function inspectRemoteWarmSessionRecovery(input: {
   if (prior.owner.phase !== "committed" || prior.owner.leaseOwner) return deny();
   const checkpoint = input.loadCheckpoint(previous);
   if (!checkpoint || checkpoint.identity.runId !== identity.runId ||
-      checkpoint.identity.companyId !== binding.companyId || checkpoint.identity.issueId !== binding.issueId ||
+      checkpoint.identity.spaceId !== binding.spaceId || checkpoint.identity.issueId !== binding.issueId ||
       checkpoint.identity.agentId !== binding.agentId || checkpoint.identity.sessionId !== identity.normalizedSessionId ||
       checkpoint.driverKind !== previous.session.driverKind || !checkpoint.providerSessionId ||
       checkpoint.activeTurnId !== null || checkpoint.pendingRuntimeRequests?.length !== 0) return deny();
@@ -176,7 +176,7 @@ export async function inspectRemoteWarmSessionRecovery(input: {
   };
   await assertPriorStopped();
   const priorLeases = await input.db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, binding.companyId), eq(environmentLeases.heartbeatRunId, identity.runId),
+    eq(environmentLeases.spaceId, binding.spaceId), eq(environmentLeases.heartbeatRunId, identity.runId),
     eq(environmentLeases.issueId, binding.issueId), eq(environmentLeases.environmentId, target.environmentId),
     eq(environmentLeases.provider, target.providerKey), eq(environmentLeases.providerLeaseId, providerLeaseId),
   ));
@@ -188,23 +188,23 @@ export async function inspectRemoteWarmSessionRecovery(input: {
     revalidate: async leaseOwner => {
       await assertPriorStopped();
       const controller = await currentNativeControllerIdentity();
-      const [current] = await input.db.select({ run: heartbeatRuns, owner: nativeRunFinalizations, issue: issues, agent: agents, company: companies })
+      const [current] = await input.db.select({ run: heartbeatRuns, owner: nativeRunFinalizations, issue: issues, agent: agents, space: spaces })
         .from(heartbeatRuns).innerJoin(nativeRunFinalizations, eq(nativeRunFinalizations.runId, heartbeatRuns.id))
         .innerJoin(issues, eq(issues.id, heartbeatRuns.nativeIssueId))
-        .innerJoin(agents, and(eq(agents.id, heartbeatRuns.agentId), eq(agents.companyId, heartbeatRuns.companyId)))
-        .innerJoin(companies, eq(companies.id, heartbeatRuns.companyId))
-        .where(and(eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.companyId, binding.companyId),
+        .innerJoin(agents, and(eq(agents.id, heartbeatRuns.agentId), eq(agents.spaceId, heartbeatRuns.spaceId)))
+        .innerJoin(spaces, eq(spaces.id, heartbeatRuns.spaceId))
+        .where(and(eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.spaceId, binding.spaceId),
           eq(heartbeatRuns.agentId, binding.agentId), eq(heartbeatRuns.nativeIssueId, binding.issueId)));
       const [lease] = await input.db.select().from(environmentLeases).where(and(
-        eq(environmentLeases.id, target.leaseId!), eq(environmentLeases.companyId, binding.companyId),
+        eq(environmentLeases.id, target.leaseId!), eq(environmentLeases.spaceId, binding.spaceId),
         eq(environmentLeases.heartbeatRunId, binding.runId), eq(environmentLeases.issueId, binding.issueId),
       ));
       const [priorOwner] = await input.db.select().from(nativeRunFinalizations).where(and(
-        eq(nativeRunFinalizations.runId, identity.runId), eq(nativeRunFinalizations.companyId, binding.companyId),
+        eq(nativeRunFinalizations.runId, identity.runId), eq(nativeRunFinalizations.spaceId, binding.spaceId),
         eq(nativeRunFinalizations.issueId, binding.issueId),
       ));
       if (!current || current.run.status !== "running" || current.run.resultJson?.nativeCancellation ||
-          current.company.status !== "active" || current.agent.lifecycleState !== "ready" ||
+          current.space.status !== "active" || current.agent.lifecycleState !== "ready" ||
           ["paused", "terminated", "pending_approval"].includes(current.agent.status) ||
           !priorOwner || priorOwner.leaseOwner || priorOwner.phase !== "committed" ||
           priorOwner.resultId !== prior.owner.resultId || priorOwner.controllerBootId !== prior.owner.controllerBootId ||

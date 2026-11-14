@@ -9,7 +9,7 @@ export interface RoleRun {
   id: string; agentId?: string | null; status?: string; issueId?: string | null; nativeIssueId?: string | null;
   contextSnapshot?: Record<string, unknown> | null;
 }
-export interface RoleComment { id: string; issueId?: string | null; companyId?: string | null; authorAgentId?: string | null; createdByRunId?: string | null }
+export interface RoleComment { id: string; issueId?: string | null; spaceId?: string | null; authorAgentId?: string | null; createdByRunId?: string | null }
 
 export function runIssueId(run: RoleRun): string | undefined {
   const value = run.nativeIssueId ?? run.contextSnapshot?.issueId ?? run.issueId;
@@ -37,7 +37,7 @@ export function commentWokenContinuations(runs: RoleRun[], input: Parameters<typ
 /** The product's automatic follow-up on the source chat after its delegated task completed. */
 export function chatCompletionFollowUp(run: RoleRun, input: { leadId: string; sourceId: string; taskId: string }): boolean {
   const snapshot = run.contextSnapshot ?? {};
-  const wake = (snapshot.paperclipWake ?? {}) as Record<string, unknown>;
+  const wake = (snapshot.outpostWake ?? {}) as Record<string, unknown>;
   const updates = Array.isArray(snapshot.chatCompletionUpdates) ? snapshot.chatCompletionUpdates : wake.chatCompletionUpdates;
   return run.agentId === input.leadId && runIssueId(run) === input.sourceId && snapshot.wakeReason === "chat_task_completed"
     && Array.isArray(updates) && updates.length > 0 && updates.every(row => (row as { id?: string } | null)?.id === input.taskId);

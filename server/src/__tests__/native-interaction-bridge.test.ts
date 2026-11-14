@@ -4,7 +4,7 @@ import {
   activityLog,
   agentWakeupRequests,
   agents,
-  companies,
+  spaces,
   completionContracts,
   createDb,
   heartbeatRuns,
@@ -25,42 +25,42 @@ import {
   NativeInteractionBridgeError,
   routePersistedNativeResultAttention,
 } from "../services/native-runtime/native-interaction-bridge.js";
-import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "../services/native-runtime/outpost-control-plane-port.js";
 import { finalizeNativeRun } from "../services/native-runtime/native-run-finalizer.js";
 
-// seedAuditRun fills companyId and issueId unless a row sets them.
-type AuditInteraction = Omit<typeof issueThreadInteractions.$inferInsert, "companyId" | "issueId">
-  & Partial<Pick<typeof issueThreadInteractions.$inferInsert, "companyId" | "issueId">>;
+// seedAuditRun fills spaceId and issueId unless a row sets them.
+type AuditInteraction = Omit<typeof issueThreadInteractions.$inferInsert, "spaceId" | "issueId">
+  & Partial<Pick<typeof issueThreadInteractions.$inferInsert, "spaceId" | "issueId">>;
 
 describe("P6-19 native interaction bridge", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
   let db: ReturnType<typeof createDb>;
-  const companyId = "78000000-0000-4000-8000-000000000001";
+  const spaceId = "78000000-0000-4000-8000-000000000001";
   const agentId = "78000000-0000-4000-8000-000000000002";
   const issueId = "78000000-0000-4000-8000-000000000003";
   const runId = "78000000-0000-4000-8000-000000000004";
   const confirmationId = "78000000-0000-4000-8000-000000000005";
   const questionsId = "78000000-0000-4000-8000-000000000006";
-  const governedId = "78000000-0000-4000-8000-000000000007";
+  const controlledId = "78000000-0000-4000-8000-000000000007";
   const selfApprovedId = "78000000-0000-4000-8000-000000000008";
   const suggestedTasksId = "78000000-0000-4000-8000-000000000012";
   const checkboxId = "78000000-0000-4000-8000-000000000013";
   const itemVerdictsId = "78000000-0000-4000-8000-000000000014";
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-interaction-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-native-interaction-");
     db = createDb(temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Native interaction", issuePrefix: "NIB" });
+    await db.insert(spaces).values({ id: spaceId, name: "Native interaction", issuePrefix: "NIB" });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Native interaction agent",
       adapterType: "codex_local",
       status: "running",
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Consume an authorized interaction response",
       status: "in_progress",
       assigneeAgentId: agentId,
@@ -68,7 +68,7 @@ describe("P6-19 native interaction bridge", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       contextSnapshot: { issueId, interactionId: confirmationId },
@@ -76,22 +76,22 @@ describe("P6-19 native interaction bridge", () => {
     await db.insert(issueThreadInteractions).values([
       {
         id: confirmationId,
-        companyId,
+        spaceId,
         issueId,
         kind: "request_confirmation",
         status: "accepted",
-        resolvedByUserId: "board-user",
+        resolvedByUserId: "operator-user",
         resolvedAt: new Date(),
         payload: { version: 1, prompt: "Continue?" },
         result: { version: 1, outcome: "accepted" },
       },
       {
         id: questionsId,
-        companyId,
+        spaceId,
         issueId,
         kind: "ask_user_questions",
         status: "answered",
-        resolvedByUserId: "board-user",
+        resolvedByUserId: "operator-user",
         resolvedAt: new Date(),
         payload: {
           version: 1,
@@ -105,12 +105,12 @@ describe("P6-19 native interaction bridge", () => {
         result: { version: 1, answers: [{ questionId: "choice", optionIds: ["safe"] }] },
       },
       {
-        id: governedId,
-        companyId,
+        id: controlledId,
+        spaceId,
         issueId,
         kind: "request_confirmation",
         status: "accepted",
-        resolvedByUserId: "board-user",
+        resolvedByUserId: "operator-user",
         resolvedAt: new Date(),
         payload: {
           version: 1,
@@ -135,7 +135,7 @@ describe("P6-19 native interaction bridge", () => {
       },
       {
         id: selfApprovedId,
-        companyId,
+        spaceId,
         issueId,
         kind: "request_confirmation",
         status: "accepted",
@@ -148,11 +148,11 @@ describe("P6-19 native interaction bridge", () => {
       },
       {
         id: suggestedTasksId,
-        companyId,
+        spaceId,
         issueId,
         kind: "suggest_tasks",
         status: "accepted",
-        resolvedByUserId: "board-user",
+        resolvedByUserId: "operator-user",
         resolvedAt: new Date(),
         payload: {
           version: 1,
@@ -166,11 +166,11 @@ describe("P6-19 native interaction bridge", () => {
       },
       {
         id: checkboxId,
-        companyId,
+        spaceId,
         issueId,
         kind: "request_checkbox_confirmation",
         status: "accepted",
-        resolvedByUserId: "board-user",
+        resolvedByUserId: "operator-user",
         resolvedAt: new Date(),
         payload: {
           version: 1,
@@ -181,7 +181,7 @@ describe("P6-19 native interaction bridge", () => {
       },
       {
         id: itemVerdictsId,
-        companyId,
+        spaceId,
         issueId,
         kind: "request_item_verdicts",
         status: "pending",
@@ -200,7 +200,7 @@ describe("P6-19 native interaction bridge", () => {
           items: [{
             id: "one",
             verdict: "approve",
-            resolvedByUserId: "board-user",
+            resolvedByUserId: "operator-user",
             resolvedAt: new Date().toISOString(),
           }],
         },
@@ -213,7 +213,7 @@ describe("P6-19 native interaction bridge", () => {
   it("projects supported typed responses through the authorized interaction service", async () => {
     await expect(materializeNativeInteractionResponses({
       db,
-      companyId,
+      spaceId,
       issueId,
       runId,
       agentId,
@@ -271,7 +271,7 @@ describe("P6-19 native interaction bridge", () => {
             items: [{
               id: "one",
               verdict: "approve",
-              resolvedByUserId: "board-user",
+              resolvedByUserId: "operator-user",
               resolvedAt: expect.any(String),
             }],
           },
@@ -283,7 +283,7 @@ describe("P6-19 native interaction bridge", () => {
   it("projects answered questions for legacy adapter wake prompts", async () => {
     await expect(materializeLegacyQuestionResponseWakeProjection({
       db,
-      companyId,
+      spaceId,
       issueId,
       runId,
       agentId,
@@ -298,12 +298,12 @@ describe("P6-19 native interaction bridge", () => {
   });
 
   it.each([
-    [governedId, "native_interaction_governed_request_unresolved"],
+    [controlledId, "native_interaction_controlled_request_unresolved"],
     [selfApprovedId, "native_interaction_self_approval"],
-  ])("fails closed for governed or self-approved interaction %s", async (interactionId, code) => {
+  ])("fails closed for controlled or self-approved interaction %s", async (interactionId, code) => {
     const error = await materializeNativeInteractionResponses({
       db,
-      companyId,
+      spaceId,
       issueId,
       runId,
       agentId,
@@ -315,20 +315,20 @@ describe("P6-19 native interaction bridge", () => {
 
   it("routes accepted package-result attention through live issue and interaction owners", async () => {
     const delegateId = "78000000-0000-4000-8000-000000000020";
-    const outsideCompanyId = "78000000-0000-4000-8000-000000000021";
+    const outsideSpaceId = "78000000-0000-4000-8000-000000000021";
     const outsideAgentId = "78000000-0000-4000-8000-000000000022";
-    await db.insert(companies).values({ id: outsideCompanyId, name: "Outside attention", issuePrefix: "NIO" });
+    await db.insert(spaces).values({ id: outsideSpaceId, name: "Outside attention", issuePrefix: "NIO" });
     await db.insert(agents).values([
       {
         id: delegateId,
-        companyId,
+        spaceId,
         name: "Native attention delegate",
         adapterType: "codex_local",
         status: "idle",
       },
       {
         id: outsideAgentId,
-        companyId: outsideCompanyId,
+        spaceId: outsideSpaceId,
         name: "Outside attention delegate",
         adapterType: "codex_local",
         status: "idle",
@@ -345,8 +345,8 @@ describe("P6-19 native interaction bridge", () => {
         request: {
           id: "attention-agent",
           requestedCapability: "domain_expertise",
-          summary: "Delegate a same-company native investigation",
-          target: { ownerClass: "agent", agentId: delegateId, companyId },
+          summary: "Delegate a same-space native investigation",
+          target: { ownerClass: "agent", agentId: delegateId, spaceId },
         },
       },
       {
@@ -358,22 +358,22 @@ describe("P6-19 native interaction bridge", () => {
         request: {
           id: "attention-human",
           requestedCapability: "subjective_decision",
-          requiredAuthority: "board",
+          requiredAuthority: "operator",
           summary: "Choose the acceptable native result",
-          target: { ownerClass: "board_user", companyId },
+          target: { ownerClass: "operator_user", spaceId },
         },
       },
       {
-        key: "cross-company",
+        key: "cross-space",
         issueId: "78000000-0000-4000-8000-000000000029",
         runId: "78000000-0000-4000-8000-000000000030",
         contractId: "78000000-0000-4000-8000-000000000031",
         disposition: "yielded" as const,
         request: {
-          id: "attention-cross-company",
+          id: "attention-cross-space",
           requestedCapability: "domain_expertise",
-          summary: "Reject an outside-company native delegate",
-          target: { ownerClass: "agent", agentId: outsideAgentId, companyId: outsideCompanyId },
+          summary: "Reject an outside-space native delegate",
+          target: { ownerClass: "agent", agentId: outsideAgentId, spaceId: outsideSpaceId },
         },
       },
     ];
@@ -382,7 +382,7 @@ describe("P6-19 native interaction bridge", () => {
       const contractSha = `attention-contract:${scenario.key}`;
       await db.insert(issues).values({
         id: scenario.issueId,
-        companyId,
+        spaceId,
         title: `Native attention ${scenario.key}`,
         status: "in_progress",
         assigneeAgentId: agentId,
@@ -390,7 +390,7 @@ describe("P6-19 native interaction bridge", () => {
       });
       await db.insert(completionContracts).values({
         id: scenario.contractId,
-        companyId,
+        spaceId,
         issueId: scenario.issueId,
         revision: 1,
         schemaVersion: "outpost.completion-contract.v1",
@@ -405,7 +405,7 @@ describe("P6-19 native interaction bridge", () => {
       });
       await db.insert(heartbeatRuns).values({
         id: scenario.runId,
-        companyId,
+        spaceId,
         agentId,
         status: "running",
         runtimeMode: "native",
@@ -419,8 +419,8 @@ describe("P6-19 native interaction bridge", () => {
         completionContractSha256: contractSha,
         contextSnapshot: { issueId: scenario.issueId },
       });
-      const port = new PaperclipControlPlanePort(db, {
-        companyId,
+      const port = new OutpostControlPlanePort(db, {
+        spaceId,
         issueId: scenario.issueId,
         runId: scenario.runId,
         agentId,
@@ -471,7 +471,7 @@ describe("P6-19 native interaction bridge", () => {
 
     const delegated = await db.select().from(issues).where(and(
       eq(issues.parentId, scenarios[0]!.issueId),
-      eq(issues.companyId, companyId),
+      eq(issues.spaceId, spaceId),
     ));
     expect(delegated).toEqual([]);
     const agentInteractions = await db.select().from(issueThreadInteractions)
@@ -537,7 +537,7 @@ describe("P6-19 native interaction bridge", () => {
       const contractSha = `audit-contract:${input.label}`;
       await db.insert(issues).values({
         id: localIssueId,
-        companyId,
+        spaceId,
         title: `Audit-only native attention ${input.label}`,
         status: "in_progress",
         assigneeAgentId: agentId,
@@ -545,7 +545,7 @@ describe("P6-19 native interaction bridge", () => {
       });
       await db.insert(completionContracts).values({
         id: localContractId,
-        companyId,
+        spaceId,
         issueId: localIssueId,
         revision: 1,
         schemaVersion: "outpost.completion-contract.v1",
@@ -564,7 +564,7 @@ describe("P6-19 native interaction bridge", () => {
       });
       await db.insert(heartbeatRuns).values({
         id: localRunId,
-        companyId,
+        spaceId,
         agentId,
         status: "running",
         runtimeMode: "native",
@@ -581,12 +581,12 @@ describe("P6-19 native interaction bridge", () => {
       if (input.interactions.length > 0) {
         await db.insert(issueThreadInteractions).values(input.interactions.map((interaction) => ({
           ...interaction,
-          companyId: interaction.companyId ?? companyId,
+          spaceId: interaction.spaceId ?? spaceId,
           issueId: interaction.issueId ?? localIssueId,
         })));
       }
-      const port = new PaperclipControlPlanePort(db, {
-        companyId,
+      const port = new OutpostControlPlanePort(db, {
+        spaceId,
         issueId: localIssueId,
         runId: localRunId,
         agentId,
@@ -637,7 +637,7 @@ describe("P6-19 native interaction bridge", () => {
         id: `audit:${label}:duplicate`,
         requestedCapability: "duplicate",
         requiredAuthority: "agent",
-        target: { ownerClass: "current_agent", companyId },
+        target: { ownerClass: "current_agent", spaceId },
         summary: `Duplicate attention ${label}`,
         responseState: "none",
         targetInteractionId: duplicateId,
@@ -647,7 +647,7 @@ describe("P6-19 native interaction bridge", () => {
         id: `audit:${label}:stale`,
         requestedCapability: "context_lookup",
         requiredAuthority: "agent",
-        target: { ownerClass: "current_agent", companyId },
+        target: { ownerClass: "current_agent", spaceId },
         summary: `Stale attention ${label}`,
         responseState: "stale",
         targetInteractionId: staleId,
@@ -721,7 +721,7 @@ describe("P6-19 native interaction bridge", () => {
       await expect(db.select().from(statusDecisionEffects).where(eq(statusDecisionEffects.issueId, seeded.issueId)))
         .resolves.not.toHaveLength(0);
       const issueWakeups = (await db.select().from(agentWakeupRequests)
-        .where(eq(agentWakeupRequests.companyId, companyId)))
+        .where(eq(agentWakeupRequests.spaceId, spaceId)))
         .filter((request) => (request.payload as Record<string, unknown> | null)?.issueId === seeded.issueId);
       if (label === "stale") {
         expect(issueWakeups).toEqual([
@@ -770,20 +770,20 @@ describe("P6-19 native interaction bridge", () => {
         .then((rows) => rows[0] ?? null)).resolves.toEqual(coordinatorBeforeCommittedReplay);
     }
 
-    const outsideCompanyId = randomUUID();
+    const outsideSpaceId = randomUUID();
     const outsideIssueId = randomUUID();
     const outsideInteractionId = randomUUID();
-    await db.insert(companies).values({ id: outsideCompanyId, name: "Outside audit target", issuePrefix: "OAT" });
+    await db.insert(spaces).values({ id: outsideSpaceId, name: "Outside audit target", issuePrefix: "OAT" });
     await db.insert(issues).values({
       id: outsideIssueId,
-      companyId: outsideCompanyId,
+      spaceId: outsideSpaceId,
       title: "Outside audit target",
       status: "in_progress",
       workMode: "standard",
     });
     await db.insert(issueThreadInteractions).values({
       id: outsideInteractionId,
-      companyId: outsideCompanyId,
+      spaceId: outsideSpaceId,
       issueId: outsideIssueId,
       kind: "request_confirmation",
       status: "expired",
@@ -793,7 +793,7 @@ describe("P6-19 native interaction bridge", () => {
     });
     for (const [label, targetInteractionId] of [
       ["missing", randomUUID()],
-      ["cross-company", outsideInteractionId],
+      ["cross-space", outsideInteractionId],
     ] as const) {
       const seeded = await seedAuditRun({
         label: `invalid-${label}`,
@@ -801,7 +801,7 @@ describe("P6-19 native interaction bridge", () => {
           id: `audit:invalid:${label}`,
           requestedCapability: "context_lookup",
           requiredAuthority: "agent",
-          target: { ownerClass: "current_agent", companyId },
+          target: { ownerClass: "current_agent", spaceId },
           summary: `Invalid audit target ${label}`,
           responseState: "stale",
           targetInteractionId,
@@ -835,28 +835,28 @@ describe("P6-19 native interaction bridge", () => {
     const resultId = randomUUID();
     const assessmentId = randomUUID();
     const requestId = "attention:replayed";
-    await db.insert(issues).values({ id: localIssueId, companyId, title: "Replayed native attention",
+    await db.insert(issues).values({ id: localIssueId, spaceId, title: "Replayed native attention",
       status: "in_progress", assigneeAgentId: agentId, workMode: "standard" });
-    await db.insert(completionContracts).values({ id: localContractId, companyId, issueId: localIssueId, revision: 1,
+    await db.insert(completionContracts).values({ id: localContractId, spaceId, issueId: localIssueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "phase6-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "replay-v1", objective: "Replay attention", criteria: [{ id: "objective", requirement: "Replay" }] },
       canonicalSha256: `replay-contract:${localContractId}`, createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: localRunId, companyId, agentId, status: "succeeded", runtimeMode: "native",
+    await db.insert(heartbeatRuns).values({ id: localRunId, spaceId, agentId, status: "succeeded", runtimeMode: "native",
       nativeIssueId: localIssueId, nativeSessionId: localRunId, completionContractId: localContractId,
       completionContractSha256: `replay-contract:${localContractId}`, contextSnapshot: { issueId: localIssueId } });
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId: localIssueId, runId: localRunId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId: localIssueId, runId: localRunId,
       completionContractId: localContractId, serverFingerprint: `fp-${resultId}`, schemaStatus: "accepted",
       resultJson: { result: { attentionRequests: [{ id: requestId, requestedCapability: "context_lookup", summary: "Look up context" }] } },
       canonicalSha256: `sha-${resultId}` });
-    await db.insert(workAssessments).values({ id: assessmentId, companyId, issueId: localIssueId, runId: localRunId,
+    await db.insert(workAssessments).values({ id: assessmentId, spaceId, issueId: localIssueId, runId: localRunId,
       contractId: localContractId, resultId, triggerKind: "native_attention", triggerRef: requestId,
-      triggerActorCompanyId: companyId, priorIssueStatus: "in_progress", priorStatusVersion: 0,
+      triggerActorSpaceId: spaceId, priorIssueStatus: "in_progress", priorStatusVersion: 0,
       policyVersion: "phase6-v1", assessmentJson: {}, inputDigest: `digest-${assessmentId}` });
-    const [decision] = await db.insert(statusDecisions).values({ companyId, issueId: localIssueId, runId: localRunId,
+    const [decision] = await db.insert(statusDecisions).values({ spaceId, issueId: localIssueId, runId: localRunId,
       assessmentId, decisionVersion: 1, policyVersion: "phase6-v1", fromStatus: "in_progress", toStatus: "in_progress",
       reasonCode: "attention_context", decisionJson: { effects: [] }, decisionDigest: `digest-${assessmentId}` }).returning();
-    await db.insert(nativeRunFinalizations).values({ runId: localRunId, companyId, issueId: localIssueId,
+    await db.insert(nativeRunFinalizations).values({ runId: localRunId, spaceId, issueId: localIssueId,
       phase: "assessing", resultId, recoveryState: "resuming_session", recoveryRequestId: "restart-request" });
 
     const receipts = await routePersistedNativeResultAttention({ db, runId: localRunId });

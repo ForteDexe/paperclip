@@ -134,7 +134,7 @@ export function createChatActivity(db: Db, options: ChatActivityOptions) {
               : null));
       return {
         id: conversation.id,
-        companyId: conversation.companyId,
+        spaceId: conversation.spaceId,
         endpointId: conversation.endpointId,
         resourceId: conversation.resourceId,
         externalLabel: conversation.externalLabel,
@@ -255,7 +255,7 @@ export function createChatActivity(db: Db, options: ChatActivityOptions) {
         .leftJoin(
           recoveryIngress,
           and(
-            eq(recoveryIngress.companyId, chatActions.companyId),
+            eq(recoveryIngress.spaceId, chatActions.spaceId),
             eq(recoveryIngress.endpointId, chatActions.endpointId),
             eq(recoveryIngress.kind, "github_webhook_ingress"),
             sql`${recoveryIngress.providerActionId} = 'github_webhook_ingress:' || (${chatActions.payload}#>>'{original,guid}')`,
@@ -290,7 +290,7 @@ export function createChatActivity(db: Db, options: ChatActivityOptions) {
             chatPublications,
             and(
               eq(chatPublications.id, chatTeamsFileTransfers.publicationId),
-              eq(chatPublications.companyId, chatTeamsFileTransfers.companyId),
+              eq(chatPublications.spaceId, chatTeamsFileTransfers.spaceId),
               eq(
                 chatPublications.endpointId,
                 chatTeamsFileTransfers.endpointId,
@@ -303,7 +303,7 @@ export function createChatActivity(db: Db, options: ChatActivityOptions) {
           )
           .where(
             and(
-              eq(chatTeamsFileTransfers.companyId, publications[0]!.companyId),
+              eq(chatTeamsFileTransfers.spaceId, publications[0]!.spaceId),
               eq(chatTeamsFileTransfers.endpointId, endpointId),
               inArray(
                 chatTeamsFileTransfers.publicationId,
@@ -324,7 +324,7 @@ export function createChatActivity(db: Db, options: ChatActivityOptions) {
       if (!publication?.conversationId) continue;
       if (
         await teamsTransferProtocol().canCancelConflict({
-          companyId: publication.companyId,
+          spaceId: publication.spaceId,
           endpointId,
           conversationId: publication.conversationId,
           publicationId: publication.id,
@@ -344,7 +344,7 @@ export function createChatActivity(db: Db, options: ChatActivityOptions) {
       // authorization work unless a conversation appears in these candidates.
       const conversationIds = [...new Set(activityRows.flatMap(row => row.conversationId ? [row.conversationId] : []))];
       const conversations = conversationIds.length ? await db.select({ id: chatConversations.id, issueId: chatConversations.issueId }).from(chatConversations).where(and(
-        eq(chatConversations.companyId, managementContext.resource.companyId),
+        eq(chatConversations.spaceId, managementContext.resource.spaceId),
         eq(chatConversations.endpointId, endpointId), inArray(chatConversations.id, conversationIds),
       )) : [];
       const visibleConversations = new Set<string>();

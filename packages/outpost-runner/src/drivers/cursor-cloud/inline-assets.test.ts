@@ -19,7 +19,7 @@ async function asset(files: Record<string, string | Buffer>): Promise<NativeRunt
   return { schema: "outpost.runtime-asset.v1", rootPath: root, digest, manifestDigest: hash(`${JSON.stringify({ schema: "outpost.runtime-asset-manifest.v1", digest, fileCount: manifestFiles.length, totalBytes, files: manifestFiles })}\n`), fileCount: manifestFiles.length, totalBytes };
 }
 function context(bundle: NativeRuntimeAssetReference, skills: NativeRuntimeContextSnapshot["skills"] = []): NativeRuntimeContextSnapshot {
-  return { prompt: { revision: "test", text: "Paperclip policy.", digest: hash("Paperclip policy.") }, instructions: { entryPath: "AGENTS.md", bundle }, skills, mcp: { assignmentSetId: "set", digest: hash("set"), bindingId: "binding" }, aggregateDigest: hash("context") };
+  return { prompt: { revision: "test", text: "Outpost policy.", digest: hash("Outpost policy.") }, instructions: { entryPath: "AGENTS.md", bundle }, skills, mcp: { assignmentSetId: "set", digest: hash("set"), bindingId: "binding" }, aggregateDigest: hash("context") };
 }
 
 describe("Cursor Cloud immutable inline assets", () => {

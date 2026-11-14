@@ -76,7 +76,7 @@ migration adds two concurrent, idempotent indexes and retains five snapshots.
 
 A rollback-only PostgreSQL plan seeded 10,000 each of completed reviews, manual
 queued reviews, processed checks, unrelated cancelled checks, and deliveries.
-The original joined EXISTS query used the receipt index only for company and
+The original joined EXISTS query used the receipt index only for space and
 endpoint. An unrelated prefix forced 10,001 cancellation reads, 32,382 shared
 buffers and about 34 ms. A nested EXISTS form was flattened into a hash scan of
 retained cancellations. The final scalar receipt lookup uses all three index
@@ -87,7 +87,7 @@ check, not a whole-worker or fleet benchmark.
 The canonical lower-case UUID guard preserves the old delivery.id::text equality:
 manual run identities and noncanonical strings never matched that predicate.
 CASE guards the cast even if PostgreSQL reorders predicates. The receipt lookup
-is limited to one row and runs with the review's company and endpoint authority.
+is limited to one row and runs with the review's space and endpoint authority.
 The candidate partial index excludes assessed, terminal, and manual history.
 
 Final scalar-query verification: all 20 selected worker, legacy regression, and

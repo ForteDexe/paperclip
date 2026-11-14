@@ -45,7 +45,7 @@ const {
   checkpointDb,
   closeRegisteredClients,
   migratePostgresIfEmpty,
-  companies,
+  spaces,
   agents,
   issues,
   heartbeatRuns,
@@ -72,13 +72,13 @@ const { DurablePrpControlPlane: BaselineCore } = await load(
   baselineRoot,
   "packages/outpost-runner/src/control-plane/durable-orp-control-plane.ts",
 );
-const { PaperclipControlPlanePort: CandidatePort } = await load(
+const { OutpostControlPlanePort: CandidatePort } = await load(
   repoRoot,
-  "server/src/services/native-runtime/paperclip-control-plane-port.ts",
+  "server/src/services/native-runtime/outpost-control-plane-port.ts",
 );
-const { PaperclipControlPlanePort: BaselinePort } = await load(
+const { OutpostControlPlanePort: BaselinePort } = await load(
   baselineRoot,
-  "server/src/services/native-runtime/paperclip-control-plane-port.ts",
+  "server/src/services/native-runtime/outpost-control-plane-port.ts",
 );
 const require = createRequire(path.join(repoRoot, "server/package.json"));
 const postgres = createRequire(path.join(repoRoot, "packages/db/package.json"))("postgres");
@@ -184,7 +184,7 @@ function observeLockWaits(monitor: any, intervalMs = 25) {
     await collect().catch((e: any) => errors.push(e.message));
     for (const episode of active.values()) episodes.push({ ...episode,
       observedLowerMs: Number(episode.wait_age_ms), estimatedUpperMs: null, rightCensored: true });
-    const byPool = Object.fromEntries(["benchmark-application", "paperclip-controller-lease", "outpost-runner-checkpoint"].map(pool => {
+    const byPool = Object.fromEntries(["benchmark-application", "outpost-controller-lease", "outpost-runner-checkpoint"].map(pool => {
       const selected = episodes.filter(e => e.application_name === pool);
       return [pool, { observedEpisodes: selected.length,
         observedLowerMs: summary(selected.map(e => e.observedLowerMs)),
@@ -200,17 +200,17 @@ async function setup() {
   await migratePostgresIfEmpty(u);
   const db = createDb(u);
   await db.$client.unsafe("create extension if not exists pg_stat_statements");
-  const companyId = randomUUID(),
+  const spaceId = randomUUID(),
     agentId = randomUUID();
-  await db.insert(companies).values({
-    id: companyId,
+  await db.insert(spaces).values({
+    id: spaceId,
     name: "Synthetic normal-operation benchmark",
     issuePrefix: "BENCH",
-    requireBoardApprovalForNewAgents: false,
+    requireOperatorApprovalForNewAgents: false,
   });
   await db.insert(agents).values({
     id: agentId,
-    companyId,
+    spaceId,
     name: "Benchmark fixture",
     adapterType: "outpost_runner",
     adapterConfig: { provider: "codex" },
@@ -219,7 +219,7 @@ async function setup() {
   for (let batch = 0; batch < 20; batch++)
     await db.insert(issues).values(
       Array.from({ length: 500 }, (_, j) => ({
-        companyId,
+        spaceId,
         title: `Historical task ${batch * 500 + j}`,
         status: j % 3 ? "done" : "backlog",
         identifier: `BENCH-${batch * 500 + j + 1}`,
@@ -228,7 +228,7 @@ async function setup() {
       })),
     );
   await db.$client.unsafe("analyze");
-  await writeFile(root + "/seed.json", JSON.stringify({ companyId, agentId }));
+  await writeFile(root + "/seed.json", JSON.stringify({ spaceId, agentId }));
   await closeRegisteredClients(u);
 }
 async function sampleStats(dbName: string) {
@@ -396,14 +396,14 @@ async function run(variant: string, n: number, trial: number, durationMs: number
     await db.transaction(async (tx: any) => {
       await tx.insert(issues).values({
         id: issueId,
-        companyId: seed.companyId,
+        spaceId: seed.spaceId,
         title: "Active fixture " + i,
         status: "in_progress",
         assigneeAgentId: seed.agentId,
       });
       await tx.insert(completionContracts).values({
         id: contractId,
-        companyId: seed.companyId,
+        spaceId: seed.spaceId,
         issueId,
         revision: 1,
         schemaVersion: "fixture",
@@ -418,7 +418,7 @@ async function run(variant: string, n: number, trial: number, durationMs: number
       });
       await tx.insert(heartbeatRuns).values({
         id: runId,
-        companyId: seed.companyId,
+        spaceId: seed.spaceId,
         agentId: seed.agentId,
         status: "running",
         runtimeMode: "native",
@@ -435,7 +435,7 @@ async function run(variant: string, n: number, trial: number, durationMs: number
       });
       await tx.insert(nativeRunFinalizations).values({
         runId,
-        companyId: seed.companyId,
+        spaceId: seed.spaceId,
         issueId,
         phase: "observed",
         attempt: 1,
@@ -467,7 +467,7 @@ async function run(variant: string, n: number, trial: number, durationMs: number
       const writer = (variant === "candidate" ? CandidateWriter : BaselineWriter)(db, {
         runId,
         issueId,
-        companyId: seed.companyId,
+        spaceId: seed.spaceId,
         authorityRunId: runId,
         bootId: owner.bootId,
         generation: 1,
@@ -489,7 +489,7 @@ async function run(variant: string, n: number, trial: number, durationMs: number
       await core.flushCheckpoint();
     }
     const identity = {
-      companyId: seed.companyId,
+      spaceId: seed.spaceId,
       agentId: seed.agentId,
       issueId,
       runId,
@@ -524,7 +524,7 @@ async function run(variant: string, n: number, trial: number, durationMs: number
                 processConfigDigest: null,
               },
               owner: {
-                companyId: seed.companyId,
+                spaceId: seed.spaceId,
                 issueId,
                 runId,
                 authorityRunId: runId,
@@ -548,7 +548,7 @@ async function run(variant: string, n: number, trial: number, durationMs: number
       runId,
       issueId,
       leaseOwner,
-      companyId: seed.companyId,
+      spaceId: seed.spaceId,
       agentId: seed.agentId,
     });
   }
@@ -672,7 +672,7 @@ async function run(variant: string, n: number, trial: number, durationMs: number
                   status: issues.status,
                 })
                 .from(issues)
-                .where(and(eq(issues.companyId, seed.companyId), eq(issues.status, "backlog")))
+                .where(and(eq(issues.spaceId, seed.spaceId), eq(issues.status, "backlog")))
                 .orderBy(desc(issues.createdAt))
                 .limit(50);
               assert.equal(rows.length, 50);
@@ -713,13 +713,13 @@ async function run(variant: string, n: number, trial: number, durationMs: number
             await db.transaction(async (tx: any) => {
               await tx.insert(issues).values({
                 id: issueId,
-                companyId: seed.companyId,
+                spaceId: seed.spaceId,
                 title: "Fresh admission database probe",
                 status: "in_progress",
               });
               await tx.insert(heartbeatRuns).values({
                 id: runId,
-                companyId: seed.companyId,
+                spaceId: seed.spaceId,
                 agentId: seed.agentId,
                 status: "queued",
                 runtimeMode: "native",
@@ -727,7 +727,7 @@ async function run(variant: string, n: number, trial: number, durationMs: number
               });
               await tx.insert(nativeRunFinalizations).values({
                 runId,
-                companyId: seed.companyId,
+                spaceId: seed.spaceId,
                 issueId,
                 phase: "observed",
               });
@@ -926,7 +926,7 @@ try {
       schema: "outpost.normal-recovery-load/v1",
       ...provenance,
       scope:
-        "Paired baseline/candidate, including real PaperclipControlPlanePort snapshot persistence on every control checkpoint. Database/control-plane component stress; real production checkpoint writer and natural remote lease timers. Same synthetic DB request load. Not full HTTP, harness or hosted capacity qualification.",
+        "Paired baseline/candidate, including real OutpostControlPlanePort snapshot persistence on every control checkpoint. Database/control-plane component stress; real production checkpoint writer and natural remote lease timers. Same synthetic DB request load. Not full HTTP, harness or hosted capacity qualification.",
       hardware: {
         postgresCpuLimit: 2,
         postgresMemoryLimitMiB: 1536,

@@ -4,7 +4,7 @@ import { projectGitAuthorizationService } from "./project-git-authorization.js";
 import type { GitHubPullRequestReference } from "./github-pull-request-merge.js";
 
 export type GitHubWorkspaceDeliveryInput = {
-  companyId: string;
+  spaceId: string;
   projectSource?: { projectId: string; workspaceId: string };
   repoUrl: string | null;
   headSha: string | null;
@@ -25,7 +25,7 @@ export type GitHubWorkspaceDeliveryResolver = (input: GitHubWorkspaceDeliveryInp
 
 type Options = {
   fetch?: typeof fetch;
-  credentialProvider?: (companyId: string) => Promise<GitHubApiCredential | null>;
+  credentialProvider?: (spaceId: string) => Promise<GitHubApiCredential | null>;
 };
 type RecordValue = Record<string, unknown>;
 const record = (value: unknown): RecordValue | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : null;
@@ -36,7 +36,7 @@ class Unavailable extends Error {}
 
 export function createGitHubWorkspaceDeliveryResolver(db: Db, opts: Options = {}): GitHubWorkspaceDeliveryResolver {
   const fetchImpl = opts.fetch ?? fetch;
-  const credentialProvider = opts.credentialProvider ?? ((companyId: string) => resolveGitHubApiCredential(db, companyId));
+  const credentialProvider = opts.credentialProvider ?? ((spaceId: string) => resolveGitHubApiCredential(db, spaceId));
   return async (input) => {
     const repository = /^(?:https?:\/\/(?:www\.)?github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/i.exec(input.repoUrl?.trim() ?? "");
     const headSha = sha(input.headSha);
@@ -52,9 +52,9 @@ export function createGitHubWorkspaceDeliveryResolver(db: Db, opts: Options = {}
     const prefix = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
     try {
       const token = input.projectSource ? await projectGitAuthorizationService(db).resolve({
-        companyId: input.companyId, ...input.projectSource, expectedRepository: fullName,
+        spaceId: input.spaceId, ...input.projectSource, expectedRepository: fullName,
       }, { ...input.projectSource, operation: "inspect" }) : undefined;
-      const credential = token === undefined ? await credentialProvider(input.companyId)
+      const credential = token === undefined ? await credentialProvider(input.spaceId)
         : token ? { token, source: "project_authorization" as const } : null;
       const signal = AbortSignal.timeout(20_000);
       let requests = 0;

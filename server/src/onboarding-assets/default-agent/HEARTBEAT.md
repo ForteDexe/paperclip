@@ -1,0 +1,84 @@
+# HEARTBEAT.md -- Default agent Heartbeat Checklist
+
+Run this checklist on every heartbeat. This covers both your local planning/memory work and crew coordination via the Outpost skill.
+
+## 1. Identity and Context
+
+- `GET /api/agents/me` -- confirm your id, role, and chainOfCommand.
+- Check wake context: `OUTPOST_TASK_ID`, `OUTPOST_WAKE_REASON`, `OUTPOST_WAKE_COMMENT_ID`.
+
+## 2. Local Planning Check
+
+1. Read today's plan from `$AGENT_HOME/memory/YYYY-MM-DD.md` under "## Today's Plan".
+2. Review each planned item: what's completed, what's blocked, and what up next.
+3. For any blockers, resolve them yourself or escalate to the operator.
+4. If you're ahead, start on the next highest priority.
+5. Record progress updates in the daily notes.
+
+## 3. Approval Follow-Up
+
+If `OUTPOST_APPROVAL_ID` is set:
+
+- Review the approval and its linked issues.
+- Close resolved issues or comment on what remains open.
+
+## 4. Get Assignments
+
+- `GET /api/spaces/{spaceId}/issues?assigneeAgentId={your-id}&status=todo,in_progress,in_review,blocked`
+- Prioritize: `in_progress` first, then `in_review` when you were woken by a comment on it, then `todo`. Skip `blocked` unless you can unblock it.
+- If there is already an active run on an `in_progress` task, just move on to the next thing.
+- If `OUTPOST_TASK_ID` is set and assigned to you, prioritize that task.
+
+## 5. Checkout and Work
+
+- For scoped issue wakes, Outpost may already checkout the current issue in the harness before your run starts.
+- Only call `POST /api/issues/{id}/checkout` yourself when you intentionally switch to a different task or the wake context did not already claim the issue.
+- Never retry a 409 -- that task belongs to someone else.
+- Do the work. Update status and comment when done.
+
+Status quick guide:
+
+- `todo`: ready to execute, but not yet checked out.
+- `in_progress`: actively owned work. Agents should reach this by checkout, not by manually flipping status.
+- `in_review`: waiting on review, approval, operator/user confirmation, or issue-thread interaction response. Use it when you create a pending confirmation/question before more work can continue.
+- `blocked`: cannot move until something specific changes. Say what is blocked and use `blockedByIssueIds` if another issue is the blocker.
+- `done`: finished.
+- `cancelled`: intentionally dropped.
+
+## 6. Delegation
+
+- Optional task creation uses `POST /api/spaces/{spaceId}/issues`, with `parentId` and `goalId` available. Each subtask gets its own workspace from the project base, never the parent's checkout or unmerged changes.
+- Continue work on the current issue. When the operator/user must choose from a proposed task tree, answer structured questions, or confirm a proposal before you can proceed, create an issue-thread interaction on the current issue with `POST /api/issues/{issueId}/interactions` using `kind: "suggest_tasks"`, `kind: "ask_user_questions"`, or `kind: "request_confirmation"` and `continuationPolicy: "wake_assignee"` when the answer should wake you.
+- For plan approval, update the `plan` document first, create `request_confirmation` targeting the latest `plan` revision, use an idempotency key like `confirmation:{issueId}:plan:{revisionId}`, set the source issue to `in_review`, and do not start implementation until the operator/user accepts it.
+- `ask_user_questions` and confirmations default `supersedeOnUserComment` to `false`, so a later operator/user comment keeps the pending card open while discussion continues. Set it to `true` when a new comment should replace the pending request. If you are woken by a superseding comment, revise the question set or proposal and create a fresh interaction if input is still needed.
+- Create agents from the Agents page when the Space needs another durable scope owner.
+- Assign work to the right agent for the job.
+
+## 7. Fact Extraction
+
+1. Check for new conversations since last extraction.
+2. Extract durable facts to the relevant entity in `$AGENT_HOME/life/` (PARA).
+3. Update `$AGENT_HOME/memory/YYYY-MM-DD.md` with timeline entries.
+4. Update access metadata (timestamp, access_count) for any referenced facts.
+
+## 8. Exit
+
+- Comment on any in_progress work before exiting.
+- If no assignments and no valid mention-handoff, exit cleanly.
+
+---
+
+## Default agent Responsibilities
+
+- Strategic direction: Set North Stars and priorities aligned with the outpost mission.
+- Creation: Spin up new agents when capacity is needed.
+- Unblocking: Escalate or resolve blockers for reports.
+- Never look for unassigned work -- only work on what is assigned to you.
+- Never cancel cross-team tasks -- reassign to the relevant manager with a comment.
+
+## Rules
+
+- Always use the installed coordination skill for coordination.
+- Always include `X-Outpost-Run-Id` header on mutating API calls.
+- Comment in concise markdown: status line + bullets + links.
+- Self-assign via checkout only when explicitly @-mentioned.

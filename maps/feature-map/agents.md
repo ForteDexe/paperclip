@@ -19,7 +19,7 @@ Agent access: [companion](../agent-access-map/agents.md).
 - `grok-bot`: `agents/grok-bot` — experimental existing-Bot agent setup through remote OAuth, routine credentials, and an authenticated two-way challenge; current contact, stop and explicit recovery.
 - `instructions`: `agents/instructions` — edit agent configuration and instruction files with durable revisions.
 - `organization`: `agents/organization` — inspect and change reporting relationships through supported controls.
-- `primary-agent`: `agents/primary-agent` — choose a personal primary agent for the company, confirm replacement, and inspect its roster/sidebar and task/chat defaults.
+- `primary-agent`: `agents/primary-agent` — choose a personal primary agent for the space, confirm replacement, and inspect its roster/sidebar and task/chat defaults.
 - `lifecycle`: `agents/lifecycle` — pause/resume or retire an agent while preserving history.
 - `built-in`: `agents/built-in` — configure required agents without treating them as ordinary removable hires.
 - `api-keys`: `agents/api-keys` — create and inspect named agent credentials, copy a new token once, and revoke it without changing agent identity.
@@ -43,7 +43,7 @@ controller without a Computer, before model or credential selection. Local
 operators can choose **Outpost Runner** in Advanced. Bind a Cursor Cloud
 API key, enter the exact model and select a repository/ref or a named Cursor
 cloud environment. Cursor hosts the agent's environment; this native setup has
-no Paperclip Computer selection. Save, reopen, and run Test. Test checks the
+no Outpost Computer selection. Save, reopen, and run Test. Test checks the
 account catalog and callback authentication gate without a prompt; the effective-model
 warning remains visible for this experimental integration. Finish setup repeats
 that account check and reaches Ready without preparing or leasing a Computer,
@@ -66,11 +66,11 @@ switching that same held draft to another supported adapter.
 Verify discovery, Google-specific setup, draft preservation and the
 disabled actions separately from a successful Antigravity hire or task run.
 
-On an isolated host with a current operator candidate authorization, company-scoped
-adapter inventory can expose **Candidate** with one exact model. That company can
+On an isolated host with a current operator candidate authorization, space-scoped
+adapter inventory can expose **Candidate** with one exact model. That space can
 connect, save, reopen, Test and Finish setup while the global release stays pending.
 Test verifies native account/model admission and cleanup without a model turn.
-Other companies, remote targets, expired authority and other models stay blocked.
+Other spaces, remote targets, expired authority and other models stay blocked.
 Verify this scoped path separately from production qualification and real task acceptance.
 
 Agent-owned plugin environments prepare the saved draft in the background when
@@ -78,7 +78,7 @@ their driver declares `requiresAgent`. The draft waits in `verifying` with its
 setup hold until hiring finishes. Changing environments keeps the selected
 account and Configure step, saves the selection, and invalidates its test.
 Preparation and failed-save retries remain visible without reconnecting.
-Companies requiring hire approval save the account with pending verification;
+Spaces requiring hire approval save the account with pending verification;
 resource allocation waits for approval.
 
 ### `agent-configuration`
@@ -118,7 +118,7 @@ and API key operations. Verify each result in its owning tab. Revision restore i
 an isolated save. Default YAML excludes catalogs, inherited definitions, history, and instruction
 contents. Verify profile-key references, named instruction-file patches (`null`
 deletes one file), omitted-setting preservation, and explicit clears. Adding
-unrelated company profiles must not grow this agent’s YAML. Inherited access and
+unrelated space profiles must not grow this agent’s YAML. Inherited access and
 history remain in their owning tabs. An
 interrupted multi-resource save must report partial progress, preserve returned
 one-time keys, and require reload before another save. Domain APIs retain their
@@ -161,15 +161,15 @@ profile/roster and its position in the Agents sidebar, then open a new task or C
 
 ### `agent-api-keys`
 
-Open `/agents/:agentId/api-keys` → **API Keys** (by URL; it is not in the agent nav) with an authenticated person who can manage agents. The operator CLI also supports `paperclipai token agent create -C <company-id> --agent <agent-id> --name <label>`, `token agent list -C <company-id> --agent <agent-id>`, and `token agent revoke <key-id> -C <company-id> --agent <agent-id>`.
+Open `/agents/:agentId/api-keys` → **API Keys** (by URL; it is not in the agent nav) with an authenticated person who can manage agents. The operator CLI also supports `outpost token agent create -C <space-id> --agent <agent-id> --name <label>`, `token agent list -C <space-id> --agent <agent-id>`, and `token agent revoke <key-id> -C <space-id> --agent <agent-id>`.
 
 ### `managed-agent-cli`
 
-Use the operator command `paperclipai managed-agent setup --company-id <company-id> --profile-key <key> --display-name <name> --api-key-secret-id <company-secret-id> --acknowledge-retention --json`. Supply ANTHROPIC_API_KEY through the process environment. Use `--agent-id`, `--agent-version`, and `--environment-id` to adopt resources, or `--probe` for provider reads without profile persistence. The optional session-list cost ceiling is `--max-session-list-cost-usd`.
+Use the operator command `outpost managed-agent setup --space-id <space-id> --profile-key <key> --display-name <name> --api-key-secret-id <space-secret-id> --acknowledge-retention --json`. Supply ANTHROPIC_API_KEY through the process environment. Use `--agent-id`, `--agent-version`, and `--environment-id` to adopt resources, or `--probe` for provider reads without profile persistence. The optional session-list cost ceiling is `--max-session-list-cost-usd`.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
-Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a disposable company and supported adapter; hiring may require a formal approval.
+Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a disposable space and supported adapter; hiring may require a formal approval.
 
 ### `hire-agent`
 
@@ -185,7 +185,7 @@ live VM provisioning.
 
 Manual: Hire an agent with a distinct name and role. Complete any required approval, reload the roster, and open its configuration. Confirm manager, adapter, and model persisted; run a small task to prove execution readiness.
 
-For a new Codex hire, choose the Codex harness. Automatic selection uses Paperclip
+For a new Codex hire, choose the Codex harness. Automatic selection uses Outpost
 Runner on a qualified selected target. Hiring and configuration do not expose a
 runner dropdown; omit Advanced when no other settings remain. Record the persisted runner and
 underlying harness, rather than treating the displayed Codex name as execution
@@ -202,7 +202,7 @@ imports. Exports preserve resolved execution choices; a package without a runner
 choice uses the new-agent default, while updating an existing same-harness agent
 preserves its execution. For a native Codex import, edit a model or account binding
 and verify unchanged runtime settings survive; an explicit clear must stay cleared.
-Use the [portability recipe](./companies.md) for package preparation and boundaries.
+Use the [portability recipe](./spaces.md) for package preparation and boundaries.
 
 For Claude Code on qualified macOS or GNU/Linux x64/ARM64, submit without a
 runner override and inspect
@@ -243,13 +243,13 @@ recorded execution. Verify the next eligible
 run separately from historical transcripts.
 
 Existing legacy Claude, Codex, and Grok Build agents on qualified default environments, or
-probe-capable Daytona snapshots / immutable sandbox images, show **Upgrade runner** above their configuration. Verify a company owner with `agents:configure` and no instance-admin role can qualify the saved computer and upgrade. A caller without configuration permission must be denied before a probe starts. Exercise that action with
+probe-capable Daytona snapshots / immutable sandbox images, show **Upgrade runner** above their configuration. Verify a space owner with `agents:configure` and no instance-admin role can qualify the saved computer and upgrade. A caller without configuration permission must be denied before a probe starts. Exercise that action with
 pending edits and an environment-variable draft. An unsaved change to a different
 effective computer must disable the action and explain that the computer change
 must be saved first; restoring the saved target must re-enable it. Reopen the page and compare the
 saved harness, model, account bindings, instructions, and run policy. Check a
 saved `maxTurnsPerRun: 1000`: upgrade must warn and remove it. Test an initially
-unqualified Daytona Paperclip Computer: click must probe, record qualification,
+unqualified Daytona Outpost Computer: click must probe, record qualification,
 refresh availability, and only then save. A failed probe or changed selection must
 leave the agent on Legacy. Check a rejected permission setting, repair it, and retry. Verify a real task before
 and after migration, including its output, preserved history, and fresh session.
@@ -266,7 +266,7 @@ computer update. This action qualifies the saved computer under the existing
 agent configuration permission before testing the runtime. A current proof must
 remain unchanged. A missing proof requires a real successful probe and verified
 cleanup. Failed qualification must stop the runtime test. Unsaved configuration
-or a different computer must not qualify a draft target. A company owner must not
+or a different computer must not qualify a draft target. A space owner must not
 need instance-admin permission, and the generic environment probe must remain
 restricted. Existing runs retain their recorded allocation and snapshot binding.
 
@@ -286,48 +286,48 @@ Manual: Inspect a manager and report, change the relationship through the offere
 
 Automated: [primary-agent context](../../ui/src/context/PrimaryAgentProvider.test.tsx)
 and [primary-agent routes](../../server/src/__tests__/primary-agent.test.ts)
-cover selection, company/user scope, and request contracts.
+cover selection, space/user scope, and request contracts.
 
 Manual: Select an available agent, reload, and inspect the retained personal choice.
 Replace it and verify confirmation is required. Leave or terminate the selected
 agent through permitted controls and inspect the unavailable/cleared state.
-Switch company/user to check isolation. Open a task and Chat with a
+Switch space/user to check isolation. Open a task and Chat with a
 valid draft or recent selection; verify those explicit choices take precedence
 over the primary fallback. Opening Chat must not start execution.
 
 ### `agent-api-keys`
 
-Automated: [CLI token tests](../../cli/src/__tests__/token.test.ts) mock create/list/revoke. [Cross-tenant routes](../../server/src/__tests__/agent-cross-tenant-authz-routes.test.ts), [agent permissions](../../server/src/__tests__/agent-permissions-routes.test.ts), and [authentication middleware](../../server/src/__tests__/agent-auth-middleware.test.ts) cover company/key ownership, management permission, responsible-user binding, and denial. They do not prove a browser-created key working against a live instance.
+Automated: [CLI token tests](../../cli/src/__tests__/token.test.ts) mock create/list/revoke. [Cross-tenant routes](../../server/src/__tests__/agent-cross-tenant-authz-routes.test.ts), [agent permissions](../../server/src/__tests__/agent-permissions-routes.test.ts), and [authentication middleware](../../server/src/__tests__/agent-auth-middleware.test.ts) cover space/key ownership, management permission, responsible-user binding, and denial. They do not prove a browser-created key working against a live instance.
 
-Manual: As an authenticated person with agents:create, create a named key for an eligible disposable agent and copy it privately from the once-only display. Make a harmless same-company agent request with that bearer, then reload the Keys tab and verify only metadata remains. Revoke the key through UI or CLI, reload, and retry the exact same bearer: authentication must fail. Inspect key-created/key-revoked activity without token values. Test a board person lacking agent-management permission, an agent caller, another company’s agent, a different agent’s key ID, and a pending-approval/terminated target. A created key without a real responsible-user binding is a failed acceptance prerequisite, not a working credential.
+Manual: As an authenticated person with agents:create, create a named key for an eligible disposable agent and copy it privately from the once-only display. Make a harmless same-space agent request with that bearer, then reload the Keys tab and verify only metadata remains. Revoke the key through UI or CLI, reload, and retry the exact same bearer: authentication must fail. Inspect key-created/key-revoked activity without token values. Test a board person lacking agent-management permission, an agent caller, another space’s agent, a different agent’s key ID, and a pending-approval/terminated target. A created key without a real responsible-user binding is a failed acceptance prerequisite, not a working credential.
 
 Sources: [Keys tab](../../ui/src/pages/AgentDetail.tsx), [key routes](../../server/src/routes/agents.ts), [key service](../../server/src/services/agents.ts), [authentication](../../server/src/middleware/auth.ts), and [CLI token commands](../../cli/src/commands/client/token.ts).
 
 ### `managed-agent-cli`
 
-Automated: [Managed-agent CLI](../../cli/src/__tests__/managed-agent.test.ts) uses mocked provider/API responses. [Profile route authorization](../../server/src/__tests__/managed-agent-profile-routes-authz.test.ts) and [remote profiles](../../server/src/services/remote-agent-profiles.test.ts) cover actor/company checks and qualification. They do not establish provider provisioning or a useful managed task.
+Automated: [Managed-agent CLI](../../cli/src/__tests__/managed-agent.test.ts) uses mocked provider/API responses. [Profile route authorization](../../server/src/__tests__/managed-agent-profile-routes-authz.test.ts) and [remote profiles](../../server/src/services/remote-agent-profiles.test.ts) cover actor/space checks and qualification. They do not establish provider provisioning or a useful managed task.
 
-Manual: Start with known adopted provider IDs in an authorized disposable provider account. Run --probe and verify only provider reads: no resources are created and no Paperclip profile is written. Reject unsafe tools/network/package configuration, an unsupported model, duplicate profile matches, a missing retention acknowledgement, and a malformed secret UUID. During persistence, reject missing, inactive, or foreign-company secret references. Then create or adopt a locked profile in a disposable company; inspect its pinned version, model, environment, retention attestation, and cost ceiling through the profile API. Repeat setup and verify resource reuse. Reject viewer/agent writes and foreign-company references. Qualify useful task execution separately through the runtime recipe; a successful probe is not execution acceptance.
+Manual: Start with known adopted provider IDs in an authorized disposable provider account. Run --probe and verify only provider reads: no resources are created and no Outpost profile is written. Reject unsafe tools/network/package configuration, an unsupported model, duplicate profile matches, a missing retention acknowledgement, and a malformed secret UUID. During persistence, reject missing, inactive, or foreign-space secret references. Then create or adopt a locked profile in a disposable space; inspect its pinned version, model, environment, retention attestation, and cost ceiling through the profile API. Repeat setup and verify resource reuse. Reject viewer/agent writes and foreign-space references. Qualify useful task execution separately through the runtime recipe; a successful probe is not execution acceptance.
 
 Sources: [Managed-agent CLI](../../cli/src/commands/managed-agent.ts), [profile routes](../../server/src/routes/managed-agent-profiles.ts), [profile service](../../server/src/services/managed-agent-profiles.ts), and [runtime validation](./runs-adapters.md).
 
 ## Gotchas
 
-- Managed-agent probing is read-only at the provider and does not persist a Paperclip profile. The explicit retention acknowledgement remains required even for probe.
+- Managed-agent probing is read-only at the provider and does not persist a Outpost profile. The explicit retention acknowledgement remains required even for probe.
 
 - Agent keys, human CLI tokens, and personal assistant OAuth grants are different credentials. Never include a key’s plaintext token in screenshots, logs, or verification artifacts.
 
 - A roster entry is not proof of an authenticated or invokable adapter.
 - Pending hires may live in approval/task surfaces rather than the active roster.
 - Skill and tool grants are separate: see [skills](./skills.md) and [app permissions](./app-permissions.md).
-- A personal primary agent is a per-user/company preference. It does not change
+- A personal primary agent is a per-user/space preference. It does not change
   reporting lines, stars, permissions, or another person's primary agent.
 
 ### `connect-grok-bot`
 
-Choose **Invite an external agent → Grok Bot**, identify the Bot by its desktop name, connect its remote MCP plugin, configure a webhook-only routine, and verify delivery plus authenticated reply. Save & exit resumes the same agent. Keep pairing codes in browser authorization and routine credentials in Paperclip’s fields. A working Bot web URL is not required.
+Choose **Invite an external agent → Grok Bot**, identify the Bot by its desktop name, connect its remote MCP plugin, configure a webhook-only routine, and verify delivery plus authenticated reply. Save & exit resumes the same agent. Keep pairing codes in browser authorization and routine credentials in Outpost’s fields. A working Bot web URL is not required.
 
-Prerequisites: authenticated public HTTPS, Assistant connections (MCP), Outpost Runner and Grok Bot experimental settings. Cloud uses its normal managed Runner environment. Provider usage is unknown. Routine uncertainty blocks new assignments until explicit inspection and recovery; stopping work revokes Paperclip authority without confirming remote termination.
+Prerequisites: authenticated public HTTPS, Assistant connections (MCP), Outpost Runner and Grok Bot experimental settings. Cloud uses its normal managed Runner environment. Provider usage is unknown. Routine uncertainty blocks new assignments until explicit inspection and recovery; stopping work revokes Outpost authority without confirming remote termination.
 
 Evidence: source implementation and focused protocol tests; real provider assigned/proactive workflows and deployed managed acceptance remain release gates.
 ### Documentation scope: Agents, organization, and runtime setup

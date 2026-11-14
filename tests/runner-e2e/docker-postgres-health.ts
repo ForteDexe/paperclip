@@ -1,5 +1,5 @@
 /** Explicit infrastructure-only operation. Importing or typechecking never
- * starts Docker, a database, Paperclip, a scenario, a model or a native run. */
+ * starts Docker, a database, Outpost, a scenario, a model or a native run. */
 import { spawn } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -31,7 +31,7 @@ export async function runOwnedDockerInfrastructureHealth() {
   try {
     database = await startOwnedDockerDatabase({ temporaryRoot: root, privateSecrets: secrets });
     phase = "normal-source-onboarding-migrations";
-    const port = await reserveRunnerE2EServerPort(), home = path.join(root, "paperclip-home"), instance = `runner-e2e-docker-health-${randomBytes(6).toString("hex")}`;
+    const port = await reserveRunnerE2EServerPort(), home = path.join(root, "outpost-home"), instance = `runner-e2e-docker-health-${randomBytes(6).toString("hex")}`;
     const configPath = path.join(home, "instances", instance, "config.json");
     const env: NodeJS.ProcessEnv = Object.fromEntries(["PATH", "HOME", "TMPDIR", "DOCKER_CONFIG", "DOCKER_CONTEXT", "DOCKER_HOST"].filter(key => process.env[key]).map(key => [key, process.env[key]]));
     Object.assign(env, { NODE_ENV: "test", DO_NOT_TRACK: "1", OUTPOST_HOME: home, OUTPOST_CONFIG: configPath, OUTPOST_INSTANCE_ID: instance,
@@ -50,9 +50,9 @@ export async function runOwnedDockerInfrastructureHealth() {
     }
     if (!health) throw new Error("Owned source onboarding/API readiness deadline expired");
     phase = "actual-api-schema-and-isolation";
-    const companies = await fetch(`${origin}/api/companies`, { signal: AbortSignal.timeout(5000) }); const companyRows = await companies.json();
+    const spaces = await fetch(`${origin}/api/spaces`, { signal: AbortSignal.timeout(5000) }); const spaceRows = await spaces.json();
     const ui = await fetch(origin, { signal: AbortSignal.timeout(5000) });
-    if (!companies.ok || !Array.isArray(companyRows) || companyRows.length !== 0 || !ui.ok) throw new Error("Fresh source instance did not expose healthy empty-company API/UI");
+    if (!spaces.ok || !Array.isArray(spaceRows) || spaceRows.length !== 0 || !ui.ok) throw new Error("Fresh source instance did not expose healthy empty-space API/UI");
     await assertRunnerDatabaseIsolation(configPath, root, database.filename);
     phase = "same-final-persisted-state-secret-scan";
     const leak = await findSecretLeakInDirectory(home, secrets, { includeShapes: false, privateDockerDatabaseConfig: { temporaryRoot: root, configPath, receiptPath: database.filename } });
@@ -62,8 +62,8 @@ export async function runOwnedDockerInfrastructureHealth() {
     // Only the exact already-owned CID can receive this read-only SQL command.
     const r = database.receipt;
     schema = JSON.parse(await runDocker(["--context", r.engine.context, "exec", r.containerId!, "psql", "-X", "-U", r.username, "-d", r.database, "-At", "-c",
-      "SELECT json_build_object('migrations',(SELECT count(*) FROM drizzle.__drizzle_migrations),'companies',(SELECT count(*) FROM companies),'runs',(SELECT count(*) FROM heartbeat_runs),'agents',(SELECT count(*) FROM agents))"]));
-    if (!schema || !Number.isSafeInteger(schema.migrations) || schema.migrations <= 0 || schema.companies !== 0 || schema.agents !== 0 || schema.runs !== 0) throw new Error("Fresh normal migrations/zero-work SQL assertions failed");
+      "SELECT json_build_object('migrations',(SELECT count(*) FROM drizzle.__drizzle_migrations),'spaces',(SELECT count(*) FROM spaces),'runs',(SELECT count(*) FROM heartbeat_runs),'agents',(SELECT count(*) FROM agents))"]));
+    if (!schema || !Number.isSafeInteger(schema.migrations) || schema.migrations <= 0 || schema.spaces !== 0 || schema.agents !== 0 || schema.runs !== 0) throw new Error("Fresh normal migrations/zero-work SQL assertions failed");
     phase = "verified-zero-work-infrastructure";
   } catch (error) {
     failure = error; await writeFile(path.join(privateDir, "primary-error.txt"), error instanceof Error ? error.stack ?? error.message : "Infrastructure health failed", { mode: 0o600 });
@@ -79,7 +79,7 @@ export async function runOwnedDockerInfrastructureHealth() {
   const receipt = { schemaVersion: 1, kind: "owned-docker-postgres-infrastructure-only", source, productionBaseline: "8373d7867963674ff960d2345d0d28086f799bc7", startedAt, finishedAt: new Date().toISOString(),
     status: failure || cleanupFailures.length ? "failed" : "passed", phase, primaryFailure: failure ? "Actual infrastructure operation failed; primary private diagnostics retained" : null, cleanupFailures,
     database: database ? publicDockerDatabaseIdentity(database.receipt) : startupState.identity,
-    checks: { sameFinalPersistedStateSecretScan: persistedStateScanPassed, actualApiHealth: !!health, actualNormalMigrations: !!schema?.migrations, zeroCompanies: schema?.companies === 0, zeroNativeRuns: schema?.runs === 0, zeroAgents: schema?.agents === 0, zeroScenarios: true, zeroModels: true },
+    checks: { sameFinalPersistedStateSecretScan: persistedStateScanPassed, actualApiHealth: !!health, actualNormalMigrations: !!schema?.migrations, zeroSpaces: schema?.spaces === 0, zeroNativeRuns: schema?.runs === 0, zeroAgents: schema?.agents === 0, zeroScenarios: true, zeroModels: true },
     canonicalAttempts: 0, privateRoot: failure || cleanupFailures.length ? root : undefined };
   const destination = path.join(repositoryRoot, "tests/runner-e2e/results/chat-catalog-campaign"); await mkdir(destination, { recursive: true });
   const filename = path.join(destination, `docker-infrastructure-health-${startedAt.replaceAll(/[:.]/g, "-")}.json`);

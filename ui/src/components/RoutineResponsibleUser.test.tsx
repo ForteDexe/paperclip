@@ -11,7 +11,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { RoutineResponsibleUser } from "./RoutineResponsibleUser";
 
 const routine = {
-  id: "routine-1", companyId: "company-1", responsibleUserId: "user-alex",
+  id: "routine-1", spaceId: "space-1", responsibleUserId: "user-alex",
   latestRevisionId: "revision-1", canChangeResponsibleUser: true,
 } as RoutineDetail;
 const users = ["Alex", "Sam"].map((name) => ({
@@ -71,7 +71,7 @@ describe("RoutineResponsibleUser", () => {
     expect(routinesApi.update).toHaveBeenCalledWith("routine-1", { responsibleUserId: "user-sam", baseRevisionId: "revision-1" });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.routines.detail("routine-1") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.routines.revisions("routine-1") });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.routines.activity("company-1", "routine-1") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.routines.activity("space-1", "routine-1") });
     expect(document.querySelector('[role="option"]')).toBeNull();
   });
 
@@ -138,7 +138,7 @@ describe("RoutineResponsibleUser", () => {
   it("keeps a cached person visible without a local alert during a transient directory failure", async () => {
     await render();
     vi.mocked(accessApi.listUserDirectory).mockRejectedValue(new ApiError("tenant_app_unavailable", 503, { error: "tenant_app_unavailable" }));
-    await act(async () => client.invalidateQueries({ queryKey: queryKeys.access.companyUserDirectory(routine.companyId) }));
+    await act(async () => client.invalidateQueries({ queryKey: queryKeys.access.spaceUserDirectory(routine.spaceId) }));
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
     expect(container.textContent).toContain("Alex");
     expect(container.querySelector<HTMLButtonElement>("button")?.disabled).toBe(false);

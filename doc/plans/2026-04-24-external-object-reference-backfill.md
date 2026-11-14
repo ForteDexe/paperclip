@@ -10,17 +10,17 @@ Add a command parallel to the internal issue-reference backfill:
 
 ```sh
 pnpm external-objects:backfill
-pnpm external-objects:backfill -- --company <company-id>
+pnpm external-objects:backfill -- --space <space-id>
 pnpm external-objects:backfill -- --dry-run
 ```
 
 ## Required Behavior
 
 - Scan issue title and description sources, issue comments, and issue documents through the same external-object mention sync service used by write hooks.
-- Preserve company boundaries: every scan query, mention upsert, object upsert, and dry-run summary must include `company_id`.
+- Preserve space boundaries: every scan query, mention upsert, object upsert, and dry-run summary must include `space_id`.
 - Use shared URL extraction and canonicalization helpers so raw URLs, URL userinfo, query strings, and fragments are never persisted.
 - Replace mentions per source instead of appending, using the same source key shape as live write sync.
-- Report counts by company, source kind, provider key, object type, skipped userinfo URLs, and unresolved URLs.
+- Report counts by space, source kind, provider key, object type, skipped userinfo URLs, and unresolved URLs.
 - Default to a non-interactive safe run; `--dry-run` must avoid writes while still reporting what would change.
 
 ## Phase 3 Hook

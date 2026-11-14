@@ -1,6 +1,6 @@
 import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { agents } from "./agents.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 import { issues } from "./issues.js";
 
@@ -8,7 +8,7 @@ export const heartbeatRunWatchdogDecisions = pgTable(
   "heartbeat_run_watchdog_decisions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     runId: uuid("run_id").notNull().references(() => heartbeatRuns.id, { onDelete: "cascade" }),
     evaluationIssueId: uuid("evaluation_issue_id").references(() => issues.id, { onDelete: "set null" }),
     decision: text("decision").notNull(),
@@ -20,13 +20,13 @@ export const heartbeatRunWatchdogDecisions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyRunCreatedIdx: index("heartbeat_run_watchdog_decisions_company_run_created_idx").on(
-      table.companyId,
+    spaceRunCreatedIdx: index("heartbeat_run_watchdog_decisions_space_run_created_idx").on(
+      table.spaceId,
       table.runId,
       table.createdAt,
     ),
-    companyRunSnoozeIdx: index("heartbeat_run_watchdog_decisions_company_run_snooze_idx").on(
-      table.companyId,
+    spaceRunSnoozeIdx: index("heartbeat_run_watchdog_decisions_space_run_snooze_idx").on(
+      table.spaceId,
       table.runId,
       table.snoozedUntil,
     ),

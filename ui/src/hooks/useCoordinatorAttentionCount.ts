@@ -5,17 +5,17 @@ import { useLocation } from "@/lib/router";
 
 /** Navigation never starts a full-feed read. Reuse it on pages that own one;
  * elsewhere desktop and mobile navigation share the same count-only read. */
-export function useCoordinatorAttentionCount(companyId: string | null | undefined, enabled = true) {
+export function useCoordinatorAttentionCount(spaceId: string | null | undefined, enabled = true) {
   const location = useLocation();
   const feedPage = location.pathname.endsWith("/decisions");
   const taskPage = location.pathname.endsWith("/issues") && new URLSearchParams(location.search).get("view") === "needs_attention";
-  const attention = useQuery({ queryKey: coordinatorAttentionQueryKey(companyId!),
-    queryFn: () => attentionApi.list(companyId!, { all: true }), enabled: false });
-  const summary = useQuery({ queryKey: coordinatorAttentionSummaryQueryKey(companyId!),
-    queryFn: () => attentionApi.summary(companyId!), enabled: enabled && !!companyId && !feedPage && !taskPage });
-  const tasks = useQuery({ queryKey: coordinatorAttentionTasksQueryKey(companyId!),
-    queryFn: () => attentionApi.taskIndex(companyId!), enabled: false });
-  // These are three projections of the same company/person count. Keep the
+  const attention = useQuery({ queryKey: coordinatorAttentionQueryKey(spaceId!),
+    queryFn: () => attentionApi.list(spaceId!, { all: true }), enabled: false });
+  const summary = useQuery({ queryKey: coordinatorAttentionSummaryQueryKey(spaceId!),
+    queryFn: () => attentionApi.summary(spaceId!), enabled: enabled && !!spaceId && !feedPage && !taskPage });
+  const tasks = useQuery({ queryKey: coordinatorAttentionTasksQueryKey(spaceId!),
+    queryFn: () => attentionApi.taskIndex(spaceId!), enabled: false });
+  // These are three projections of the same space/person count. Keep the
   // newest known count during route changes, including an explicit fresh zero.
   // Server generation time wins over a delayed older response arriving later.
   const snapshots = feedPage ? [attention, tasks, summary] : taskPage ? [tasks, attention, summary] : [summary, attention, tasks];

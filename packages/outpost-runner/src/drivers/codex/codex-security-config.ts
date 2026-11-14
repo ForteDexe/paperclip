@@ -373,7 +373,7 @@ export function createIsolatedCodexAppServerArgs(
     ...(commandEnv.length > 0
       ? ["-c", `shell_environment_policy.set={${commandEnv}}`]
       : []),
-    // Codex ships its update_plan checklist tool disabled. Paperclip renders it
+    // Codex ships its update_plan checklist tool disabled. Outpost renders it
     // as the turn plan (`turn/plan/updated` -> `plan.updated`).
     "-c",
     CODEX_UPDATE_PLAN_TOOL_CONFIG,

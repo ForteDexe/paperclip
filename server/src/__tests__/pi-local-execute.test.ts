@@ -48,7 +48,7 @@ process.exit(0);
 
 describe("pi_local execute", () => {
   it("fails the run when Pi exhausts automatic retries despite exiting 0", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-pi-execute-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-pi-execute-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "pi");
     await fs.mkdir(workspace, { recursive: true });
@@ -62,7 +62,7 @@ describe("pi_local execute", () => {
         runId: "run-pi-quota-exhausted",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Pi Agent",
           adapterType: "pi_local",
           adapterConfig: {},
@@ -94,7 +94,7 @@ describe("pi_local execute", () => {
   });
 
   it("prepends installed skill bin/ dirs to the spawned Pi child PATH", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-pi-path-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-pi-path-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "pi");
     const skillDir = path.join(root, "skills", "demo-skill");
@@ -113,7 +113,7 @@ describe("pi_local execute", () => {
         runId: "run-pi-skill-path",
         agent: {
           id: "agent-skill-path",
-          companyId: "company-skill-path",
+          spaceId: "space-skill-path",
           name: "Pi Agent",
           adapterType: "pi_local",
           adapterConfig: {},
@@ -129,10 +129,10 @@ describe("pi_local execute", () => {
           cwd: workspace,
           model: "google/gemini-3-flash-preview",
           promptTemplate: "Keep working.",
-          paperclipRuntimeSkills: [
+          outpostRuntimeSkills: [
             { key: "demo-skill", runtimeName: "demo-skill", source: skillDir },
           ],
-          paperclipSkillSync: {
+          outpostSkillSync: {
             desiredSkills: ["demo-skill"],
           },
         },
@@ -153,7 +153,7 @@ describe("pi_local execute", () => {
   });
 
   it("does not expose bin/ dirs from skills that are not injected", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-pi-path-neg-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-pi-path-neg-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "pi");
     const nonInjectedSkillDir = path.join(root, "skills", "not-injected");
@@ -172,7 +172,7 @@ describe("pi_local execute", () => {
         runId: "run-pi-skill-path-neg",
         agent: {
           id: "agent-skill-path-neg",
-          companyId: "company-skill-path-neg",
+          spaceId: "space-skill-path-neg",
           name: "Pi Agent",
           adapterType: "pi_local",
           adapterConfig: {},
@@ -188,9 +188,9 @@ describe("pi_local execute", () => {
           cwd: workspace,
           model: "google/gemini-3-flash-preview",
           promptTemplate: "Keep working.",
-          // The implicit legacy default applies only to the canonical Paperclip
+          // The implicit legacy default applies only to the canonical Outpost
           // operational skill, so this unrelated skill remains unselected.
-          paperclipRuntimeSkills: [
+          outpostRuntimeSkills: [
             { key: "not-injected", runtimeName: "not-injected", source: nonInjectedSkillDir },
           ],
         },
@@ -209,7 +209,7 @@ describe("pi_local execute", () => {
   });
 
   it("isolates server secrets during execution, model discovery, and environment probes", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-pi-env-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-pi-env-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "pi");
     const envDumpPath = path.join(root, "captured-env.json");
@@ -247,7 +247,7 @@ console.log(JSON.stringify({ type: "agent_end", messages: [] }));
       await discoverPiModels({ command: commandPath, cwd: workspace, env: { AGENT_SETTING: "kept" } });
       await execute({
         runId: "run-pi-env-leak",
-        agent: { id: "agent-env", companyId: "company-env", name: "Pi Agent", adapterType: "pi_local", adapterConfig: {} },
+        agent: { id: "agent-env", spaceId: "space-env", name: "Pi Agent", adapterType: "pi_local", adapterConfig: {} },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           command: commandPath,
@@ -262,7 +262,7 @@ console.log(JSON.stringify({ type: "agent_end", messages: [] }));
       });
 
       const diagnostics = await testEnvironment({
-        companyId: "company-env",
+        spaceId: "space-env",
         adapterType: "pi_local",
         config: {
           command: commandPath,

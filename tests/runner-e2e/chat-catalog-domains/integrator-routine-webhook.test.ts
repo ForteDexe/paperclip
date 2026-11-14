@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { gradeIntegratorRoutineWebhook, webhookCredentialCandidates } from "./integrator-routine-webhook.js";
 function valid() {
-  const routine = { id: "routine", title: "Service receipt", assigneeAgentId: "ceo", triggers: [{ id: "trigger", routineId: "routine", companyId: "company", kind: "webhook", archived: false, signingMode: "bearer", enabled: true, setupPending: false }] };
-  const base = { scenarioId: "routines.webhook-trigger", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { routine, project: { id: "project" }, deliveryNonce: "delivery-123" }, routine,
+  const routine = { id: "routine", title: "Service receipt", assigneeAgentId: "ceo", triggers: [{ id: "trigger", routineId: "routine", spaceId: "space", kind: "webhook", archived: false, signingMode: "bearer", enabled: true, setupPending: false }] };
+  const base = { scenarioId: "routines.webhook-trigger", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { routine, project: { id: "project" }, deliveryNonce: "delivery-123" }, routine,
     invocations: [], deliveryComments: [], detectedCredentialLeak: false, tasks: [], projects: [], goals: [], documents: [], revisions: [], comments: [], humanQueries: [], links: [], runs: [],
     activity: [{ action: "routine.trigger_created", entityId: "trigger", agentId: "ceo" }], reply: "The webhook trigger is created. Finish its secure human setup before your service sends an event." };
   return { ...base, invocations: [{ id: "invocation", linkedIssueId: "work", triggerId: "trigger", source: "webhook", status: "completed", triggerPayload: { delivery: "delivery-123" } }], tasks: [{ id: "work", identifier: "ACN-1", projectId: "project", status: "done" }],

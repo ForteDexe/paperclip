@@ -42,7 +42,7 @@ describe("useCoordinatorWorkspaceEnabled", () => {
   function restorePreference() {
     const source = new QueryClient();
     source.setQueryData(queryKeys.auth.session, session("a"));
-    source.setQueryData(queryKeys.companies.list("a"), { companies: [{ id: "company", name: "Example" }], unauthorized: false });
+    source.setQueryData(queryKeys.spaces.list("a"), { spaces: [{ id: "space", name: "Example" }], unauthorized: false });
     source.setQueryData(queryKeys.workspacePreferences.mine("a"), preference());
     const saved = startPersistedQueryCache(source, { storage: localStorage, buildId: "test", eventTarget: null });
     saved.flush(); saved.dispose(); source.clear();
@@ -57,7 +57,7 @@ describe("useCoordinatorWorkspaceEnabled", () => {
     restorePreference();
     await mount();
     expect(current.userId).toBe("a");
-    const pending = current.setEnabled("company", true).catch(error => error);
+    const pending = current.setEnabled("space", true).catch(error => error);
     await flush();
     try {
       expect(mocks.session).toHaveBeenCalled();
@@ -73,7 +73,7 @@ describe("useCoordinatorWorkspaceEnabled", () => {
     mocks.session.mockRejectedValue(new ApiError("Sign in again", 401, {}));
     restorePreference();
     await mount();
-    await expect(current.setEnabled("company", true)).rejects.toBeDefined();
+    await expect(current.setEnabled("space", true)).rejects.toBeDefined();
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
@@ -92,21 +92,21 @@ describe("useCoordinatorWorkspaceEnabled", () => {
     await mount();
     let resolve!: (value: ReturnType<typeof preference>) => void;
     mocks.update.mockImplementationOnce(() => new Promise(r => { resolve = r; }));
-    const pending = current.setEnabled("company", true).catch(error => error);
+    const pending = current.setEnabled("space", true).catch(error => error);
     await flush();
     expect(mocks.update).toHaveBeenCalledTimes(1);
     await flush(); expect(current.enabled).toBe(false);
     resolve(preference("a", true)); expect(await pending).toEqual(preference("a", true)); await flush();
     expect(current.enabled).toBe(false);
     mocks.update.mockRejectedValueOnce(new Error("Save failed"));
-    await expect(current.setEnabled("company", false)).rejects.toThrow("Save failed"); await flush();
+    await expect(current.setEnabled("space", false)).rejects.toThrow("Save failed"); await flush();
     expect(current.enabled).toBe(false);
   });
   it("isolates cached choices and delayed save responses when accounts change", async () => {
     await mount();
     let resolve!: (value: ReturnType<typeof preference>) => void;
     mocks.update.mockImplementationOnce(() => new Promise(r => { resolve = r; }));
-    const pending = current.setEnabled("company", true).catch(error => error);
+    const pending = current.setEnabled("space", true).catch(error => error);
     await flush();
     expect(mocks.update).toHaveBeenCalledTimes(1);
     mocks.get.mockResolvedValue(preference("b", false));
@@ -137,19 +137,19 @@ describe("useCoordinatorWorkspaceEnabled", () => {
     expect(client.getQueryData(queryKeys.workspacePreferences.mine("a"))).toMatchObject(preference("a", false));
     expect(client.getQueryData(queryKeys.workspacePreferences.mine("b"))).toMatchObject(preference("b", true));
   });
-  it("does not treat anonymous sessions as local board, even with an enabled cached local choice", async () => {
+  it("does not treat anonymous sessions as local operator, even with an enabled cached local choice", async () => {
     mocks.session.mockResolvedValue(null);
-    client.setQueryData(queryKeys.workspacePreferences.mine("local-board"), preference("local-board", true));
+    client.setQueryData(queryKeys.workspacePreferences.mine("local-operator"), preference("local-operator", true));
     await mount(); expect(current).toMatchObject({ userId: null, enabled: false, loaded: true });
     expect(mocks.get).not.toHaveBeenCalled();
   });
   it("recognizes a local-trusted instance and keeps the standard workspace on a read error", async () => {
     mocks.session.mockResolvedValue(null);
     mocks.health.mockResolvedValue({ status: "ok", deploymentMode: "local_trusted" });
-    mocks.get.mockResolvedValue(preference("local-board", true));
-    await mount(); expect(current).toMatchObject({ userId: "local-board", enabled: false });
+    mocks.get.mockResolvedValue(preference("local-operator", true));
+    await mount(); expect(current).toMatchObject({ userId: "local-operator", enabled: false });
     mocks.get.mockRejectedValue(new Error("Unavailable"));
-    await client.invalidateQueries({ queryKey: queryKeys.workspacePreferences.mine("local-board") }); await flush();
+    await client.invalidateQueries({ queryKey: queryKeys.workspacePreferences.mine("local-operator") }); await flush();
     expect(current).toMatchObject({ enabled: false, loaded: true });
   });
 });

@@ -54,7 +54,7 @@ export function getConfigSchema(): AdapterConfigSchema {
         hint: "Delay before reconnecting the Hermes SSE events stream after a nonterminal disconnect.",
       },
       {
-        key: "paperclipApiUrl",
+        key: "outpostApiUrl",
         label: "Outpost API URL",
         type: "text",
         hint: "Optional Outpost API URL reachable by the remote Hermes host. This is not a credential.",

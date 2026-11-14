@@ -1,4 +1,4 @@
-export const TASK_COLLECTION_PREFERENCES_CHANGED = "paperclip:task-collection-preferences-changed";
+export const TASK_COLLECTION_PREFERENCES_CHANGED = "outpost:task-collection-preferences-changed";
 
 export const TASK_COLLECTION_PREFERENCES_VERSION = 1 as const;
 
@@ -6,7 +6,7 @@ type StorageLike = Pick<Storage, "getItem" | "setItem">;
 
 export interface TaskCollectionPreferenceEnvelope<TViewState, TColumn extends string> {
   version: typeof TASK_COLLECTION_PREFERENCES_VERSION;
-  companyId: string;
+  spaceId: string;
   collectionKey: string;
   viewState: TViewState;
   viewStateSource?: "stored" | "default";
@@ -14,7 +14,7 @@ export interface TaskCollectionPreferenceEnvelope<TViewState, TColumn extends st
 }
 
 export interface TaskCollectionPreferenceLocation {
-  companyId: string;
+  spaceId: string;
   collectionKey: string;
   legacyViewStorageKey?: string;
   legacyColumnsStorageKey?: string;
@@ -45,10 +45,10 @@ function parseStoredJson(storage: StorageLike, key: string | undefined): unknown
 }
 
 export function taskCollectionPreferencesStorageKey({
-  companyId,
+  spaceId,
   collectionKey,
-}: Pick<TaskCollectionPreferenceLocation, "companyId" | "collectionKey">): string {
-  return `paperclip:task-collection:v${TASK_COLLECTION_PREFERENCES_VERSION}:${encodeURIComponent(companyId)}:${encodeURIComponent(collectionKey)}`;
+}: Pick<TaskCollectionPreferenceLocation, "spaceId" | "collectionKey">): string {
+  return `outpost:task-collection:v${TASK_COLLECTION_PREFERENCES_VERSION}:${encodeURIComponent(spaceId)}:${encodeURIComponent(collectionKey)}`;
 }
 
 function isCurrentEnvelope<TViewState, TColumn extends string>(
@@ -58,7 +58,7 @@ function isCurrentEnvelope<TViewState, TColumn extends string>(
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<TaskCollectionPreferenceEnvelope<TViewState, TColumn>>;
   return candidate.version === TASK_COLLECTION_PREFERENCES_VERSION
-    && candidate.companyId === location.companyId
+    && candidate.spaceId === location.spaceId
     && candidate.collectionKey === location.collectionKey
     && "viewState" in candidate
     && Array.isArray(candidate.columns);
@@ -72,7 +72,7 @@ export function saveTaskCollectionPreferences<TViewState, TColumn extends string
   if (!storage) return;
   const envelope: TaskCollectionPreferenceEnvelope<TViewState, TColumn> = {
     version: TASK_COLLECTION_PREFERENCES_VERSION,
-    companyId: location.companyId,
+    spaceId: location.spaceId,
     collectionKey: location.collectionKey,
     viewState: value.viewState,
     viewStateSource: value.viewStateSource ?? "stored",

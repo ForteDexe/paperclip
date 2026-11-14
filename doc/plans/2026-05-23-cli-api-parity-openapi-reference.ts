@@ -35,10 +35,10 @@ import {
   updateProjectSchema,
   createProjectWorkspaceSchema,
   updateProjectWorkspaceSchema,
-  // Company
-  createCompanySchema,
-  updateCompanySchema,
-  updateCompanyBrandingSchema,
+  // Space
+  createSpaceSchema,
+  updateSpaceSchema,
+  updateSpaceBrandingSchema,
   // Routine
   createRoutineSchema,
   updateRoutineSchema,
@@ -74,11 +74,11 @@ import {
   createEnvironmentSchema,
   updateEnvironmentSchema,
   probeEnvironmentConfigSchema,
-  // Company skills
-  companySkillCreateSchema,
-  companySkillFileUpdateSchema,
-  companySkillImportSchema,
-  companySkillProjectScanRequestSchema,
+  // Space skills
+  spaceSkillCreateSchema,
+  spaceSkillFileUpdateSchema,
+  spaceSkillImportSchema,
+  spaceSkillProjectScanRequestSchema,
   // Issue tree
   createIssueTreeHoldSchema,
   previewIssueTreeControlSchema,
@@ -91,22 +91,22 @@ import {
   respondIssueThreadInteractionSchema,
   // Auth / profile
   updateCurrentUserProfileSchema,
-  // Company portability (legacy routes)
-  companyPortabilityExportSchema,
-  companyPortabilityPreviewSchema,
-  companyPortabilityImportSchema,
+  // Space portability (legacy routes)
+  spacePortabilityExportSchema,
+  spacePortabilityPreviewSchema,
+  spacePortabilityImportSchema,
   // Access / membership
   acceptInviteSchema,
-  createCompanyInviteSchema,
+  createSpaceInviteSchema,
   createOpenClawInvitePromptSchema,
   claimJoinRequestApiKeySchema,
   createCliAuthChallengeSchema,
   resolveCliAuthChallengeSchema,
-  updateCompanyMemberSchema,
-  updateCompanyMemberWithPermissionsSchema,
-  archiveCompanyMemberSchema,
+  updateSpaceMemberSchema,
+  updateSpaceMemberWithPermissionsSchema,
+  archiveSpaceMemberSchema,
   updateMemberPermissionsSchema,
-  updateUserCompanyAccessSchema,
+  updateUserSpaceAccessSchema,
   // Instance settings
   patchInstanceGeneralSettingsSchema,
   patchInstanceExperimentalSettingsSchema,
@@ -165,7 +165,7 @@ type OpenApiAuthLevel =
   | "instance_admin";
 
 const BOARD_SESSION_AUTH_SCHEME = "BoardSessionAuth";
-const BOARD_API_KEY_AUTH_SCHEME = "BoardApiKeyAuth";
+const OPERATOR_API_KEY_AUTH_SCHEME = "BoardApiKeyAuth";
 const AGENT_BEARER_AUTH_SCHEME = "AgentBearerAuth";
 
 function securityRequirement(name: string): Record<string, string[]> {
@@ -174,7 +174,7 @@ function securityRequirement(name: string): Record<string, string[]> {
 
 const BOARD_SECURITY: Array<Record<string, string[]>> = [
   securityRequirement(BOARD_SESSION_AUTH_SCHEME),
-  securityRequirement(BOARD_API_KEY_AUTH_SCHEME),
+  securityRequirement(OPERATOR_API_KEY_AUTH_SCHEME),
 ];
 
 const AUTHENTICATED_SECURITY: Array<Record<string, string[]>> = [
@@ -208,70 +208,70 @@ const BOARD_ONLY_PREFIXES = [
 ];
 
 const BOARD_ONLY_OPERATIONS = new Set([
-  "GET /api/companies",
-  "POST /api/companies",
-  "GET /api/companies/stats",
-  "GET /api/companies/issues",
+  "GET /api/spaces",
+  "POST /api/spaces",
+  "GET /api/spaces/stats",
+  "GET /api/spaces/issues",
   "POST /api/board-claim/{token}/claim",
   "GET /api/cli-auth/me",
-  "POST /api/companies/{companyId}/invites",
-  "GET /api/companies/{companyId}/invites",
-  "POST /api/companies/{companyId}/openclaw/invite-prompt",
-  "GET /api/companies/{companyId}/join-requests",
-  "POST /api/companies/{companyId}/join-requests/{requestId}/approve",
-  "POST /api/companies/{companyId}/join-requests/{requestId}/reject",
-  "GET /api/companies/{companyId}/members",
-  "PATCH /api/companies/{companyId}/members/{memberId}",
-  "PATCH /api/companies/{companyId}/members/{memberId}/role-and-grants",
-  "POST /api/companies/{companyId}/members/{memberId}/archive",
-  "PATCH /api/companies/{companyId}/members/{memberId}/permissions",
-  "GET /api/companies/{companyId}/user-directory",
+  "POST /api/spaces/{spaceId}/invites",
+  "GET /api/spaces/{spaceId}/invites",
+  "POST /api/spaces/{spaceId}/openclaw/invite-prompt",
+  "GET /api/spaces/{spaceId}/join-requests",
+  "POST /api/spaces/{spaceId}/join-requests/{requestId}/approve",
+  "POST /api/spaces/{spaceId}/join-requests/{requestId}/reject",
+  "GET /api/spaces/{spaceId}/members",
+  "PATCH /api/spaces/{spaceId}/members/{memberId}",
+  "PATCH /api/spaces/{spaceId}/members/{memberId}/role-and-grants",
+  "POST /api/spaces/{spaceId}/members/{memberId}/archive",
+  "PATCH /api/spaces/{spaceId}/members/{memberId}/permissions",
+  "GET /api/spaces/{spaceId}/user-directory",
   "POST /api/issues/{id}/interactions/{interactionId}/accept",
   "POST /api/issues/{id}/interactions/{interactionId}/reject",
   "POST /api/issues/{id}/interactions/{interactionId}/respond",
 ]);
 
 const INSTANCE_ADMIN_OPERATIONS = new Set([
-  "POST /api/companies",
+  "POST /api/spaces",
   "POST /api/plugins/install",
   "POST /api/instance/database-backups",
   "POST /api/admin/users/{userId}/promote-instance-admin",
   "POST /api/admin/users/{userId}/demote-instance-admin",
-  "PUT /api/admin/users/{userId}/company-access",
+  "PUT /api/admin/users/{userId}/space-access",
 ]);
 
 const CREATED_OPERATIONS = new Set([
   "POST /api/adapters/install",
-  "POST /api/companies/{companyId}/agent-hires",
-  "POST /api/companies/{companyId}/agents",
+  "POST /api/spaces/{spaceId}/agent-hires",
+  "POST /api/spaces/{spaceId}/agents",
   "POST /api/agents/{id}/keys",
-  "POST /api/companies/{companyId}/approvals",
+  "POST /api/spaces/{spaceId}/approvals",
   "POST /api/approvals/{id}/comments",
-  "POST /api/companies/{companyId}/assets/images",
-  "POST /api/companies/{companyId}/logo",
+  "POST /api/spaces/{spaceId}/assets/images",
+  "POST /api/spaces/{spaceId}/logo",
   "POST /api/cli-auth/challenges",
-  "POST /api/companies",
-  "POST /api/companies/{companyId}/invites",
-  "POST /api/companies/{companyId}/openclaw/invite-prompt",
-  "POST /api/companies/{companyId}/cost-events",
-  "POST /api/companies/{companyId}/finance-events",
-  "POST /api/companies/{companyId}/environments",
-  "POST /api/companies/{companyId}/goals",
-  "POST /api/companies/{companyId}/labels",
+  "POST /api/spaces",
+  "POST /api/spaces/{spaceId}/invites",
+  "POST /api/spaces/{spaceId}/openclaw/invite-prompt",
+  "POST /api/spaces/{spaceId}/cost-events",
+  "POST /api/spaces/{spaceId}/finance-events",
+  "POST /api/spaces/{spaceId}/environments",
+  "POST /api/spaces/{spaceId}/goals",
+  "POST /api/spaces/{spaceId}/labels",
   "POST /api/issues/{id}/work-products",
   "POST /api/issues/{id}/approvals",
-  "POST /api/companies/{companyId}/issues",
+  "POST /api/spaces/{spaceId}/issues",
   "POST /api/issues/{id}/children",
   "POST /api/issues/{id}/interactions",
   "POST /api/issues/{id}/comments",
-  "POST /api/companies/{companyId}/issues/{issueId}/attachments",
-  "POST /api/companies/{companyId}/projects",
+  "POST /api/spaces/{spaceId}/issues/{issueId}/attachments",
+  "POST /api/spaces/{spaceId}/projects",
   "POST /api/projects/{id}/workspaces",
-  "POST /api/companies/{companyId}/routines",
+  "POST /api/spaces/{spaceId}/routines",
   "POST /api/routines/{id}/triggers",
-  "POST /api/companies/{companyId}/secrets",
-  "POST /api/companies/{companyId}/skills",
-  "POST /api/companies/{companyId}/skills/import",
+  "POST /api/spaces/{spaceId}/secrets",
+  "POST /api/spaces/{spaceId}/skills",
+  "POST /api/spaces/{spaceId}/skills/import",
   "POST /api/join-requests/{requestId}/claim-api-key",
   "POST /api/admin/users/{userId}/promote-instance-admin",
   "POST /api/plugins/install",
@@ -326,11 +326,11 @@ function applyDocumentFixups(document: any): any {
     [BOARD_SESSION_AUTH_SCHEME]: {
       type: "apiKey",
       in: "cookie",
-      name: "paperclip_session",
+      name: "outpost_session",
       description:
-        "Board session cookie in authenticated mode. Paperclip uses Better Auth; cookie transport may vary by deployment.",
+        "Board session cookie in authenticated mode. Outpost uses Better Auth; cookie transport may vary by deployment.",
     },
-    [BOARD_API_KEY_AUTH_SCHEME]: {
+    [OPERATOR_API_KEY_AUTH_SCHEME]: {
       type: "http",
       scheme: "bearer",
       bearerFormat: "Board API Key",
@@ -341,7 +341,7 @@ function applyDocumentFixups(document: any): any {
       scheme: "bearer",
       bearerFormat: "Agent API Key or Agent JWT",
       description:
-        "Agent API key or Paperclip-issued local agent JWT presented in the Authorization bearer header.",
+        "Agent API key or Outpost-issued local agent JWT presented in the Authorization bearer header.",
     },
   };
   document.security = AUTHENTICATED_SECURITY;
@@ -357,7 +357,7 @@ function applyDocumentFixups(document: any): any {
         operation.security = BOARD_SECURITY;
       }
 
-      operation["x-paperclip-authorization"] =
+      operation["x-outpost-authorization"] =
         authLevel === "instance_admin"
           ? { actor: "board", instanceAdmin: true }
           : authLevel === "board"
@@ -412,126 +412,126 @@ registry.registerPath({
   responses: { 200: r.ok() },
 });
 
-// ─── Companies ───────────────────────────────────────────────────────────────
+// ─── Spaces ───────────────────────────────────────────────────────────────
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies",
-  tags: ["companies"],
-  summary: "List companies",
+  path: "/api/spaces",
+  tags: ["spaces"],
+  summary: "List spaces",
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies",
-  tags: ["companies"],
-  summary: "Create a company",
-  request: { body: jsonBody(createCompanySchema) },
+  path: "/api/spaces",
+  tags: ["spaces"],
+  summary: "Create a space",
+  request: { body: jsonBody(createSpaceSchema) },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/stats",
-  tags: ["companies"],
-  summary: "Company stats",
+  path: "/api/spaces/stats",
+  tags: ["spaces"],
+  summary: "Space stats",
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}",
-  tags: ["companies"],
-  summary: "Get a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  path: "/api/spaces/{spaceId}",
+  tags: ["spaces"],
+  summary: "Get a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}",
-  tags: ["companies"],
-  summary: "Update a company",
+  path: "/api/spaces/{spaceId}",
+  tags: ["spaces"],
+  summary: "Update a space",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(updateCompanySchema.partial()),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(updateSpaceSchema.partial()),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/branding",
-  tags: ["companies"],
-  summary: "Update company branding",
+  path: "/api/spaces/{spaceId}/branding",
+  tags: ["spaces"],
+  summary: "Update space branding",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(updateCompanyBrandingSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(updateSpaceBrandingSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/archive",
-  tags: ["companies"],
-  summary: "Archive a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  path: "/api/spaces/{spaceId}/archive",
+  tags: ["spaces"],
+  summary: "Archive a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "delete",
-  path: "/api/companies/{companyId}",
-  tags: ["companies"],
-  summary: "Delete a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  path: "/api/spaces/{spaceId}",
+  tags: ["spaces"],
+  summary: "Delete a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/feedback-traces",
-  tags: ["companies"],
-  summary: "List company feedback traces",
-  request: { params: z.object({ companyId: z.string() }) },
+  path: "/api/spaces/{spaceId}/feedback-traces",
+  tags: ["spaces"],
+  summary: "List space feedback traces",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/exports",
-  tags: ["companies"],
-  summary: "Export company data",
-  request: { params: z.object({ companyId: z.string() }) },
+  path: "/api/spaces/{spaceId}/exports",
+  tags: ["spaces"],
+  summary: "Export space data",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/exports/preview",
-  tags: ["companies"],
-  summary: "Preview company export",
-  request: { params: z.object({ companyId: z.string() }) },
+  path: "/api/spaces/{spaceId}/exports/preview",
+  tags: ["spaces"],
+  summary: "Preview space export",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/imports/preview",
-  tags: ["companies"],
-  summary: "Preview company import",
-  request: { params: z.object({ companyId: z.string() }) },
+  path: "/api/spaces/{spaceId}/imports/preview",
+  tags: ["spaces"],
+  summary: "Preview space import",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/imports/apply",
-  tags: ["companies"],
-  summary: "Apply company import",
-  request: { params: z.object({ companyId: z.string() }) },
+  path: "/api/spaces/{spaceId}/imports/apply",
+  tags: ["spaces"],
+  summary: "Apply space import",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
@@ -539,20 +539,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/agents",
+  path: "/api/spaces/{spaceId}/agents",
   tags: ["agents"],
-  summary: "List agents in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List agents in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/agents",
+  path: "/api/spaces/{spaceId}/agents",
   tags: ["agents"],
   summary: "Create an agent",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createAgentSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -560,11 +560,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/agent-hires",
+  path: "/api/spaces/{spaceId}/agent-hires",
   tags: ["agents"],
   summary: "Hire an agent",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createAgentHireSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -572,19 +572,19 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/agent-configurations",
+  path: "/api/spaces/{spaceId}/agent-configurations",
   tags: ["agents"],
-  summary: "List agent configurations for a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List agent configurations for a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/org",
+  path: "/api/spaces/{spaceId}/org",
   tags: ["agents"],
   summary: "Get org chart data",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -885,29 +885,29 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/adapters/{type}/models",
+  path: "/api/spaces/{spaceId}/adapters/{type}/models",
   tags: ["adapters"],
   summary: "List models for an adapter type",
-  request: { params: z.object({ companyId: z.string(), type: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), type: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/adapters/{type}/detect-model",
+  path: "/api/spaces/{spaceId}/adapters/{type}/detect-model",
   tags: ["adapters"],
   summary: "Detect active model for an adapter",
-  request: { params: z.object({ companyId: z.string(), type: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), type: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/adapters/{type}/test-environment",
+  path: "/api/spaces/{spaceId}/adapters/{type}/test-environment",
   tags: ["adapters"],
-  summary: "Validate adapter environment access for a company",
+  summary: "Validate adapter environment access for a space",
   request: {
-    params: z.object({ companyId: z.string(), type: z.string() }),
+    params: z.object({ spaceId: z.string(), type: z.string() }),
     body: jsonBody(testAdapterEnvironmentSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -917,20 +917,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/issues",
+  path: "/api/spaces/{spaceId}/issues",
   tags: ["issues"],
-  summary: "List issues in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List issues in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/issues",
+  path: "/api/spaces/{spaceId}/issues",
   tags: ["issues"],
   summary: "Create an issue",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createIssueSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -1253,20 +1253,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/labels",
+  path: "/api/spaces/{spaceId}/labels",
   tags: ["issues"],
-  summary: "List labels in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List labels in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/labels",
+  path: "/api/spaces/{spaceId}/labels",
   tags: ["issues"],
   summary: "Create a label",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createIssueLabelSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -1285,20 +1285,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/projects",
+  path: "/api/spaces/{spaceId}/projects",
   tags: ["projects"],
-  summary: "List projects in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List projects in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/projects",
+  path: "/api/spaces/{spaceId}/projects",
   tags: ["projects"],
   summary: "Create a project",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createProjectSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -1380,20 +1380,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/routines",
+  path: "/api/spaces/{spaceId}/routines",
   tags: ["routines"],
-  summary: "List routines in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List routines in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/routines",
+  path: "/api/spaces/{spaceId}/routines",
   tags: ["routines"],
   summary: "Create a routine",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createRoutineSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -1499,20 +1499,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/goals",
+  path: "/api/spaces/{spaceId}/goals",
   tags: ["goals"],
-  summary: "List goals in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List goals in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/goals",
+  path: "/api/spaces/{spaceId}/goals",
   tags: ["goals"],
   summary: "Create a goal",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createGoalSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -1552,29 +1552,29 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/secret-providers",
+  path: "/api/spaces/{spaceId}/secret-providers",
   tags: ["secrets"],
   summary: "List secret providers",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/secrets",
+  path: "/api/spaces/{spaceId}/secrets",
   tags: ["secrets"],
-  summary: "List secrets in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List secrets in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/secrets",
+  path: "/api/spaces/{spaceId}/secrets",
   tags: ["secrets"],
   summary: "Create a secret",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createSecretSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -1617,20 +1617,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/approvals",
+  path: "/api/spaces/{spaceId}/approvals",
   tags: ["approvals"],
-  summary: "List approvals in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List approvals in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/approvals",
+  path: "/api/spaces/{spaceId}/approvals",
   tags: ["approvals"],
   summary: "Create an approval",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createApprovalSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -1734,21 +1734,21 @@ const costSummaryPaths = [
 for (const segment of costSummaryPaths) {
   registry.registerPath({
     method: "get",
-    path: `/api/companies/{companyId}/costs/${segment}`,
+    path: `/api/spaces/{spaceId}/costs/${segment}`,
     tags: ["costs"],
     summary: `Cost report: ${segment}`,
-    request: { params: z.object({ companyId: z.string() }) },
+    request: { params: z.object({ spaceId: z.string() }) },
     responses: { 200: r.ok(), 401: r.unauthorized },
   });
 }
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/cost-events",
+  path: "/api/spaces/{spaceId}/cost-events",
   tags: ["costs"],
   summary: "Record a cost event",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createCostEventSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -1756,11 +1756,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/finance-events",
+  path: "/api/spaces/{spaceId}/finance-events",
   tags: ["costs"],
   summary: "Record a finance event",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createFinanceEventSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -1768,11 +1768,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/budgets/policies",
+  path: "/api/spaces/{spaceId}/budgets/policies",
   tags: ["costs"],
   summary: "Create or update a budget policy",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(upsertBudgetPolicySchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 404: r.notFound },
@@ -1780,11 +1780,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/budget-incidents/{incidentId}/resolve",
+  path: "/api/spaces/{spaceId}/budget-incidents/{incidentId}/resolve",
   tags: ["costs"],
   summary: "Resolve a budget incident",
   request: {
-    params: z.object({ companyId: z.string(), incidentId: z.string() }),
+    params: z.object({ spaceId: z.string(), incidentId: z.string() }),
     body: jsonBody(resolveBudgetIncidentSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 404: r.notFound },
@@ -1792,20 +1792,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/budgets/overview",
+  path: "/api/spaces/{spaceId}/budgets/overview",
   tags: ["costs"],
   summary: "Get budget overview",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/budgets",
+  path: "/api/spaces/{spaceId}/budgets",
   tags: ["costs"],
-  summary: "Update company budget",
+  summary: "Update space budget",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(updateBudgetSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -1827,20 +1827,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/activity",
+  path: "/api/spaces/{spaceId}/activity",
   tags: ["activity"],
-  summary: "List company activity",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List space activity",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/activity",
+  path: "/api/spaces/{spaceId}/activity",
   tags: ["activity"],
   summary: "Create an activity entry",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(z.object({
       actorType: z.enum(["agent", "user", "system", "plugin"]).optional(),
       actorId: z.string().min(1),
@@ -1885,10 +1885,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/dashboard",
+  path: "/api/spaces/{spaceId}/dashboard",
   tags: ["dashboard"],
   summary: "Get dashboard data",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -1896,10 +1896,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/sidebar-badges",
+  path: "/api/spaces/{spaceId}/sidebar-badges",
   tags: ["sidebar"],
   summary: "Get sidebar badge counts",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -1922,20 +1922,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/sidebar-preferences/me",
+  path: "/api/spaces/{spaceId}/sidebar-preferences/me",
   tags: ["sidebar"],
-  summary: "Get sidebar preferences for company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "Get sidebar preferences for space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "put",
-  path: "/api/companies/{companyId}/sidebar-preferences/me",
+  path: "/api/spaces/{spaceId}/sidebar-preferences/me",
   tags: ["sidebar"],
-  summary: "Update sidebar preferences for company",
+  summary: "Update sidebar preferences for space",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(upsertSidebarOrderPreferenceSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -1945,20 +1945,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/inbox-dismissals",
+  path: "/api/spaces/{spaceId}/inbox-dismissals",
   tags: ["inbox"],
   summary: "List inbox dismissals",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/inbox-dismissals",
+  path: "/api/spaces/{spaceId}/inbox-dismissals",
   tags: ["inbox"],
   summary: "Create an inbox dismissal",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(z.object({
       itemKey: z.string().trim().min(1).regex(/^(approval|join|run):.+$/, "Unsupported inbox item key"),
     })),
@@ -2006,49 +2006,49 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/invites",
+  path: "/api/spaces/{spaceId}/invites",
   tags: ["access"],
-  summary: "List company invites",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List space invites",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/invites",
+  path: "/api/spaces/{spaceId}/invites",
   tags: ["access"],
-  summary: "Create a company invite",
+  summary: "Create a space invite",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(createCompanyInviteSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(createSpaceInviteSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/join-requests",
+  path: "/api/spaces/{spaceId}/join-requests",
   tags: ["access"],
-  summary: "List company join requests",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List space join requests",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/join-requests/{requestId}/approve",
+  path: "/api/spaces/{spaceId}/join-requests/{requestId}/approve",
   tags: ["access"],
-  summary: "Approve a company join request",
-  request: { params: z.object({ companyId: z.string(), requestId: z.string() }) },
+  summary: "Approve a space join request",
+  request: { params: z.object({ spaceId: z.string(), requestId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/join-requests/{requestId}/reject",
+  path: "/api/spaces/{spaceId}/join-requests/{requestId}/reject",
   tags: ["access"],
-  summary: "Reject a company join request",
-  request: { params: z.object({ companyId: z.string(), requestId: z.string() }) },
+  summary: "Reject a space join request",
+  request: { params: z.object({ spaceId: z.string(), requestId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
@@ -2084,56 +2084,56 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/members",
+  path: "/api/spaces/{spaceId}/members",
   tags: ["access"],
-  summary: "List company members",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List space members",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/members/{memberId}",
+  path: "/api/spaces/{spaceId}/members/{memberId}",
   tags: ["access"],
-  summary: "Update a company member status or role",
+  summary: "Update a space member status or role",
   request: {
-    params: z.object({ companyId: z.string(), memberId: z.string() }),
-    body: jsonBody(updateCompanyMemberSchema),
+    params: z.object({ spaceId: z.string(), memberId: z.string() }),
+    body: jsonBody(updateSpaceMemberSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/members/{memberId}/role-and-grants",
+  path: "/api/spaces/{spaceId}/members/{memberId}/role-and-grants",
   tags: ["access"],
-  summary: "Update a company member role and explicit grants",
+  summary: "Update a space member role and explicit grants",
   request: {
-    params: z.object({ companyId: z.string(), memberId: z.string() }),
-    body: jsonBody(updateCompanyMemberWithPermissionsSchema),
+    params: z.object({ spaceId: z.string(), memberId: z.string() }),
+    body: jsonBody(updateSpaceMemberWithPermissionsSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/members/{memberId}/archive",
+  path: "/api/spaces/{spaceId}/members/{memberId}/archive",
   tags: ["access"],
-  summary: "Archive a company member",
+  summary: "Archive a space member",
   request: {
-    params: z.object({ companyId: z.string(), memberId: z.string() }),
-    body: jsonBody(archiveCompanyMemberSchema),
+    params: z.object({ spaceId: z.string(), memberId: z.string() }),
+    body: jsonBody(archiveSpaceMemberSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/members/{memberId}/permissions",
+  path: "/api/spaces/{spaceId}/members/{memberId}/permissions",
   tags: ["access"],
-  summary: "Update explicit company member permissions",
+  summary: "Update explicit space member permissions",
   request: {
-    params: z.object({ companyId: z.string(), memberId: z.string() }),
+    params: z.object({ spaceId: z.string(), memberId: z.string() }),
     body: jsonBody(updateMemberPermissionsSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 404: r.notFound },
@@ -2141,10 +2141,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/user-directory",
+  path: "/api/spaces/{spaceId}/user-directory",
   tags: ["access"],
-  summary: "Get company user directory",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "Get space user directory",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -2158,11 +2158,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/openclaw/invite-prompt",
+  path: "/api/spaces/{spaceId}/openclaw/invite-prompt",
   tags: ["access"],
   summary: "Create an OpenClaw invite prompt bundle",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createOpenClawInvitePromptSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -2283,10 +2283,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/users/{userSlug}/profile",
+  path: "/api/spaces/{spaceId}/users/{userSlug}/profile",
   tags: ["auth"],
-  summary: "Get a user profile within a company",
-  request: { params: z.object({ companyId: z.string(), userSlug: z.string() }) },
+  summary: "Get a user profile within a space",
+  request: { params: z.object({ spaceId: z.string(), userSlug: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
@@ -2294,19 +2294,19 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/heartbeat-runs",
+  path: "/api/spaces/{spaceId}/heartbeat-runs",
   tags: ["runs"],
-  summary: "List heartbeat runs for a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List heartbeat runs for a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/live-runs",
+  path: "/api/spaces/{spaceId}/live-runs",
   tags: ["runs"],
-  summary: "List live runs for a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List live runs for a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -2572,10 +2572,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/issues/{issueId}/attachments",
+  path: "/api/spaces/{spaceId}/issues/{issueId}/attachments",
   tags: ["assets"],
   summary: "Upload an attachment to an issue",
-  request: { params: z.object({ companyId: z.string(), issueId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), issueId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -2601,19 +2601,19 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/assets/images",
+  path: "/api/spaces/{spaceId}/assets/images",
   tags: ["assets"],
   summary: "Upload an image asset",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/logo",
+  path: "/api/spaces/{spaceId}/logo",
   tags: ["assets"],
-  summary: "Upload company logo",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "Upload space logo",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -2626,107 +2626,107 @@ registry.registerPath({
   responses: { 200: { description: "File content" }, 401: r.unauthorized, 404: r.notFound },
 });
 
-// ─── Company skills ───────────────────────────────────────────────────────────
+// ─── Space skills ───────────────────────────────────────────────────────────
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skills",
+  path: "/api/spaces/{spaceId}/skills",
   tags: ["skills"],
-  summary: "List skills for a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List skills for a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skills/{skillId}",
+  path: "/api/spaces/{spaceId}/skills/{skillId}",
   tags: ["skills"],
-  summary: "Get a company skill",
-  request: { params: z.object({ companyId: z.string(), skillId: z.string() }) },
+  summary: "Get a space skill",
+  request: { params: z.object({ spaceId: z.string(), skillId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skills/{skillId}/update-status",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/update-status",
   tags: ["skills"],
   summary: "Get skill update status",
-  request: { params: z.object({ companyId: z.string(), skillId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), skillId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skills/{skillId}/files",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/files",
   tags: ["skills"],
   summary: "List skill files",
-  request: { params: z.object({ companyId: z.string(), skillId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), skillId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills",
+  path: "/api/spaces/{spaceId}/skills",
   tags: ["skills"],
-  summary: "Create a company skill",
+  summary: "Create a space skill",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companySkillCreateSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spaceSkillCreateSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/skills/{skillId}/files",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/files",
   tags: ["skills"],
   summary: "Update a skill file",
   request: {
-    params: z.object({ companyId: z.string(), skillId: z.string() }),
-    body: jsonBody(companySkillFileUpdateSchema),
+    params: z.object({ spaceId: z.string(), skillId: z.string() }),
+    body: jsonBody(spaceSkillFileUpdateSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills/import",
+  path: "/api/spaces/{spaceId}/skills/import",
   tags: ["skills"],
   summary: "Import a skill",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companySkillImportSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spaceSkillImportSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills/scan-projects",
+  path: "/api/spaces/{spaceId}/skills/scan-projects",
   tags: ["skills"],
   summary: "Scan project for skills",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companySkillProjectScanRequestSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spaceSkillProjectScanRequestSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills/{skillId}/install-update",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/install-update",
   tags: ["skills"],
   summary: "Install a skill update",
-  request: { params: z.object({ companyId: z.string(), skillId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), skillId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "delete",
-  path: "/api/companies/{companyId}/skills/{skillId}",
+  path: "/api/spaces/{spaceId}/skills/{skillId}",
   tags: ["skills"],
-  summary: "Delete a company skill",
-  request: { params: z.object({ companyId: z.string(), skillId: z.string() }) },
+  summary: "Delete a space skill",
+  request: { params: z.object({ spaceId: z.string(), skillId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -2734,10 +2734,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/execution-workspaces",
+  path: "/api/spaces/{spaceId}/execution-workspaces",
   tags: ["execution-workspaces"],
-  summary: "List execution workspaces for a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List execution workspaces for a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -2808,29 +2808,29 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/environments",
+  path: "/api/spaces/{spaceId}/environments",
   tags: ["environments"],
-  summary: "List environments for a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List environments for a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/environments/capabilities",
+  path: "/api/spaces/{spaceId}/environments/capabilities",
   tags: ["environments"],
   summary: "Get environment capabilities",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/environments",
+  path: "/api/spaces/{spaceId}/environments",
   tags: ["environments"],
   summary: "Create an environment",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createEnvironmentSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -2895,11 +2895,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/environments/probe-config",
+  path: "/api/spaces/{spaceId}/environments/probe-config",
   tags: ["environments"],
   summary: "Probe environment config",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(probeEnvironmentConfigSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -3036,7 +3036,7 @@ registry.registerPath({
       runContext: z.object({
         agentId: z.string(),
         runId: z.string(),
-        companyId: z.string(),
+        spaceId: z.string(),
         projectId: z.string(),
       }),
     })),
@@ -3211,7 +3211,7 @@ registry.registerPath({
     params: z.object({ pluginId: z.string() }),
     body: jsonBody(z.object({
       key: z.string(),
-      companyId: z.string().optional(),
+      spaceId: z.string().optional(),
       params: z.record(z.unknown()).optional(),
     })),
   },
@@ -3227,7 +3227,7 @@ registry.registerPath({
     params: z.object({ pluginId: z.string() }),
     body: jsonBody(z.object({
       key: z.string(),
-      companyId: z.string().optional(),
+      spaceId: z.string().optional(),
       params: z.record(z.unknown()).optional(),
     })),
   },
@@ -3242,7 +3242,7 @@ registry.registerPath({
   request: {
     params: z.object({ pluginId: z.string(), key: z.string() }),
     body: jsonBody(z.object({
-      companyId: z.string().optional(),
+      spaceId: z.string().optional(),
       params: z.record(z.unknown()).optional(),
     })),
   },
@@ -3257,7 +3257,7 @@ registry.registerPath({
   request: {
     params: z.object({ pluginId: z.string(), key: z.string() }),
     body: jsonBody(z.object({
-      companyId: z.string().optional(),
+      spaceId: z.string().optional(),
       params: z.record(z.unknown()).optional(),
     })),
   },
@@ -3307,7 +3307,7 @@ registry.registerPath({
   method: "get",
   path: "/api/issues",
   tags: ["issues"],
-  summary: "Legacy — returns error directing to /api/companies/{companyId}/issues",
+  summary: "Legacy — returns error directing to /api/spaces/{spaceId}/issues",
   responses: { 400: r.badRequest },
 });
 
@@ -3324,59 +3324,59 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/org.svg",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/org.svg",
+  tags: ["spaces"],
   summary: "Get org chart as SVG",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: { description: "SVG image" }, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/org.png",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/org.png",
+  tags: ["spaces"],
   summary: "Get org chart as PNG",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: { description: "PNG image" }, 401: r.unauthorized },
 });
 
-// ─── Company portability (legacy routes) ─────────────────────────────────────
+// ─── Space portability (legacy routes) ─────────────────────────────────────
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/issues",
-  tags: ["companies"],
+  path: "/api/spaces/issues",
+  tags: ["spaces"],
   summary: "Legacy — returns error directing to correct issues path",
   responses: { 400: r.badRequest },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/export",
-  tags: ["companies"],
-  summary: "Export a company (legacy singular form)",
+  path: "/api/spaces/{spaceId}/export",
+  tags: ["spaces"],
+  summary: "Export a space (legacy singular form)",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companyPortabilityExportSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spacePortabilityExportSchema),
   },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/import/preview",
-  tags: ["companies"],
-  summary: "Preview a company import (legacy route)",
-  request: { body: jsonBody(companyPortabilityPreviewSchema) },
+  path: "/api/spaces/import/preview",
+  tags: ["spaces"],
+  summary: "Preview a space import (legacy route)",
+  request: { body: jsonBody(spacePortabilityPreviewSchema) },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/import",
-  tags: ["companies"],
-  summary: "Apply a company import (legacy route)",
-  request: { body: jsonBody(companyPortabilityImportSchema) },
+  path: "/api/spaces/import",
+  tags: ["spaces"],
+  summary: "Apply a space import (legacy route)",
+  request: { body: jsonBody(spacePortabilityImportSchema) },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
@@ -3415,7 +3415,7 @@ registry.registerPath({
   method: "get",
   path: "/api/invites/{token}/logo",
   tags: ["access"],
-  summary: "Get company logo for an invite",
+  summary: "Get space logo for an invite",
   request: { params: z.object({ token: z.string() }) },
   responses: { 200: { description: "Image file" }, 404: r.notFound },
 });
@@ -3469,21 +3469,21 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/admin/users/{userId}/company-access",
+  path: "/api/admin/users/{userId}/space-access",
   tags: ["admin"],
-  summary: "Get company access for a user (admin)",
+  summary: "Get space access for a user (admin)",
   request: { params: z.object({ userId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({
   method: "put",
-  path: "/api/admin/users/{userId}/company-access",
+  path: "/api/admin/users/{userId}/space-access",
   tags: ["admin"],
-  summary: "Set company access for a user (admin)",
+  summary: "Set space access for a user (admin)",
   request: {
     params: z.object({ userId: z.string() }),
-    body: jsonBody(updateUserCompanyAccessSchema),
+    body: jsonBody(updateUserSpaceAccessSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden },
 });
@@ -3576,9 +3576,9 @@ export function buildOpenApiSpec(): any {
   return applyDocumentFixups(generator.generateDocument({
     openapi: "3.0.0",
     info: {
-      title: "Paperclip API",
+      title: "Outpost API",
       version: "1.0.0",
-      description: "REST API for the Paperclip AI agent management platform",
+      description: "REST API for the Outpost AI agent management platform",
     },
     servers: [{ url: "/" }],
   }));

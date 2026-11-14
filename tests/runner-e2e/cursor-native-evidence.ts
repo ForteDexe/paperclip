@@ -107,7 +107,7 @@ export function hasCursorCancellation(input: { run: unknown; issue: unknown; eve
 
 /** Controller-observed sandbox receipts; never substitute host copy-back files. */
 export interface CursorRemoteBinding {
-  companyId: string; environmentId: string; runId: string; leaseId: string;
+  spaceId: string; environmentId: string; runId: string; leaseId: string;
   sandboxId: string; remoteCwd: string; image: string;
 }
 export interface CursorRemoteSnapshot {
@@ -121,7 +121,7 @@ export interface CursorRemoteSnapshot {
 export function assertCursorRemoteSnapshot(snapshot: CursorRemoteSnapshot, binding: CursorRemoteBinding): void {
   if (!snapshot.complete || !snapshot.watcher.complete || (!Number.isSafeInteger(snapshot.observedAtMs) || snapshot.observedAtMs < 0)
     || !Object.keys(binding).every(key => snapshot.binding[key as keyof CursorRemoteBinding] === binding[key as keyof CursorRemoteBinding])
-    || !isAbsolute(binding.remoteCwd) || posix.normalize(binding.remoteCwd) !== binding.remoteCwd || !/^.+@sha256:[a-f0-9]{64}$/u.test(binding.image) || ![binding.companyId, binding.environmentId, binding.runId, binding.leaseId, binding.sandboxId].every(id)) throw new Error("Cursor remote evidence lacks exact complete lease authority");
+    || !isAbsolute(binding.remoteCwd) || posix.normalize(binding.remoteCwd) !== binding.remoteCwd || !/^.+@sha256:[a-f0-9]{64}$/u.test(binding.image) || ![binding.spaceId, binding.environmentId, binding.runId, binding.leaseId, binding.sandboxId].every(id)) throw new Error("Cursor remote evidence lacks exact complete lease authority");
   const entries = Object.entries(snapshot.workspace);
   if (entries.length > 2048 || entries.some(([name, value]) => !name || name.startsWith("/") || /[\\\u0000-\u001f\u007f]/u.test(name)
     || name.replace(/\/$/u, "").split("/").some(part => !part || part === "." || part === "..")

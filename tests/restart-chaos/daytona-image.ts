@@ -28,7 +28,7 @@ export const RUNNERD_PATH = "usr/local/bin/outpost-runnerd";
 export const PROVIDER_PACK_PATH = "opt/outpost-runner/provider-pack";
 export const CONTENT_ID_LABEL = "io.outpost.runner.content-id";
 export const REVISION_LABEL = "org.opencontainers.image.revision";
-const RECEIPT_SCHEMA = "paperclip-restart-chaos/daytona-image-artifacts/v1";
+const RECEIPT_SCHEMA = "outpost-restart-chaos/daytona-image-artifacts/v1";
 const IMMUTABLE_IMAGE = /^[a-z0-9.-]+(?::[0-9]+)?\/[a-z0-9._/-]+@sha256:([0-9a-f]{64})$/;
 
 // ---------------------------------------------------------------- tar reader

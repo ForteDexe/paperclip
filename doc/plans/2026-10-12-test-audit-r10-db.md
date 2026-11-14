@@ -4,11 +4,11 @@ This test-only change is stacked on #16075 at `3432307f95f679e20b991c6a250934c21
 
 | Retired case | Keeper | Preserved observations |
 | --- | --- | --- |
-| `keeps the owner principal non-null and drops the environment from the key` | `serializes the active slot on company, owner, and adapter` | Copy the exact `started_by_user_id` non-null assertion. The keeper's exact index column list already proves that the owner is present and the environment is absent. |
+| `keeps the owner principal non-null and drops the environment from the key` | `serializes the active slot on space, owner, and adapter` | Copy the exact `started_by_user_id` non-null assertion. The keeper's exact index column list already proves that the owner is present and the environment is absent. |
 
-Both cases inspect the same `adapterAuthSessions` table and active index. The keeper still checks index presence, uniqueness, the exact company/owner/adapter columns, and the partial predicate. The public-session identity, claim marker, active states, secret-column exclusion, and migration SQL cases remain separate. No fixture, helper, schema, migration, or caller changes.
+Both cases inspect the same `adapterAuthSessions` table and active index. The keeper still checks index presence, uniqueness, the exact space/owner/adapter columns, and the partial predicate. The public-session identity, claim marker, active states, secret-column exclusion, and migration SQL cases remain separate. No fixture, helper, schema, migration, or caller changes.
 
-The direct owner is `packages/db/src/schema/adapter_auth_sessions.ts`. Its owner column prevents a null principal from escaping the active unique index. Local login, device login, and setup-token services use this company/owner/adapter scope. The DB project runs in the default `general-workspaces-c` CI group.
+The direct owner is `packages/db/src/schema/adapter_auth_sessions.ts`. Its owner column prevents a null principal from escaping the active unique index. Local login, device login, and setup-token services use this space/owner/adapter scope. The DB project runs in the default `general-workspaces-c` CI group.
 
 Complete-file command:
 

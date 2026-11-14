@@ -19,7 +19,7 @@ afterEach(() => {
   vi.mocked(readConfigFile).mockReturnValue(null);
 });
 
-describe("external Paperclip task links", () => {
+describe("external Outpost task links", () => {
   it("resolves a newly claimed Cloud origin at use time ahead of pool configuration", () => {
     vi.stubEnv("OUTPOST_AUTH_PUBLIC_BASE_URL", "https://pool.example");
     expect(publicChatTaskUrl("issue-1")).toBe("https://pool.example/issues/issue-1");
@@ -28,15 +28,15 @@ describe("external Paperclip task links", () => {
     expect(publicChatInteractionTaskUrl("issue-1")).toBe("https://vanity.example/issues/issue-1");
   });
 
-  it("uses only the safe board origin and canonical issue path", () => {
+  it("uses only the safe operator origin and canonical issue path", () => {
     expect(
       safeChatTaskUrl(
-        "https://board.example/path?secret=ignored#fragment",
+        "https://operator.example/path?secret=ignored#fragment",
         "issue-1",
       ),
-    ).toBe("https://board.example/issues/issue-1");
-    expect(safeChatTaskUrl("https://board.example", "a/b?c")).toBe(
-      "https://board.example/issues/a%2Fb%3Fc",
+    ).toBe("https://operator.example/issues/issue-1");
+    expect(safeChatTaskUrl("https://operator.example", "a/b?c")).toBe(
+      "https://operator.example/issues/a%2Fb%3Fc",
     );
   });
 
@@ -45,14 +45,14 @@ describe("external Paperclip task links", () => {
     null,
     "",
     "not a URL",
-    "http://board.example",
+    "http://operator.example",
     "http://127.0.0.1:3103",
     "https://localhost",
     "https://10.0.0.1",
-    "https://board.internal",
-    "https://user:secret@board.example",
+    "https://operator.internal",
+    "https://user:secret@operator.example",
   ])(
-    "omits unsafe or private board links before generating recovery copy (%s)",
+    "omits unsafe or private operator links before generating recovery copy (%s)",
     (baseUrl) => {
       expect(safeChatTaskUrl(baseUrl, "issue-1")).toBeNull();
       expect(
@@ -63,7 +63,7 @@ describe("external Paperclip task links", () => {
           publicBaseUrl: baseUrl,
         }),
       ).toBe(
-        "Maya stopped before completing this turn. Open the task in Paperclip for details.",
+        "Maya stopped before completing this turn. Open the task in Outpost for details.",
       );
     },
   );
@@ -81,9 +81,9 @@ describe("external Paperclip task links", () => {
     expect(publicChatInteractionTaskUrl("issue-1")).toBeNull();
     vi.stubEnv("OUTPOST_PUBLIC_URL", "http://127.0.0.1:3103");
     expect(publicChatInteractionTaskUrl("issue-1")).toBeNull();
-    vi.stubEnv("OUTPOST_PUBLIC_URL", "https://board.example");
+    vi.stubEnv("OUTPOST_PUBLIC_URL", "https://operator.example");
     expect(publicChatInteractionTaskUrl("issue-1")).toBe(
-      "https://board.example/issues/issue-1",
+      "https://operator.example/issues/issue-1",
     );
     vi.stubEnv("OUTPOST_AUTH_PUBLIC_BASE_URL", "https://canonical.example");
     expect(publicChatInteractionTaskUrl("issue-1")).toBe(
@@ -91,7 +91,7 @@ describe("external Paperclip task links", () => {
     );
   });
 
-  it("uses the configured board origin ahead of the managed-runtime fallback", () => {
+  it("uses the configured operator origin ahead of the managed-runtime fallback", () => {
     for (const name of [
       "OUTPOST_PUBLIC_URL",
       "OUTPOST_AUTH_PUBLIC_BASE_URL",

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { agents, agentTaskSessions, companies, completionContracts, createDb, heartbeatRuns, issues,
+import { agents, agentTaskSessions, spaces, completionContracts, createDb, heartbeatRuns, issues,
   nativeRunFinalizations, nativeRunResults, type Db } from "@outpost/db";
 import { CONTROL_PLANE_CONFORMANCE_OPEN, CONTROL_PLANE_CONFORMANCE_RESULT,
   CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/outpost-runner/testing.js";
@@ -13,7 +13,7 @@ import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres
 import { redactRegisteredSecretValues } from "../run-secret-redaction.js";
 import { nativeSha256 } from "./canonical.js";
 import { applyRunnerGoalPrpEvent } from "../runner-goals.js";
-import { PaperclipControlPlanePort, type PaperclipControlPlaneBinding } from "./paperclip-control-plane-port.js";
+import { OutpostControlPlanePort, type OutpostControlPlaneBinding } from "./outpost-control-plane-port.js";
 import { nativeTaskSessionPublicationHandled, publishNativeTaskSessionInTransaction, NATIVE_TASK_SESSION_PUBLICATION_KEY,
   type NativeTaskSessionPublicationContext } from "./native-task-session-publication.js";
 
@@ -42,37 +42,37 @@ describe("accepted native task session publication", () => {
   });
 
   async function fixture(source: "runner" | "control" = "runner", accepted = true) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     const sessionId = randomUUID(), contractId = randomUUID(), runner = randomUUID(), control = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Native pointer", issuePrefix: `P${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Native pointer", adapterType: "codex_local", status: "running" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Native pointer", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(spaces).values({ id: spaceId, name: "Native pointer", issuePrefix: `P${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Native pointer", adapterType: "codex_local", status: "running" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Native pointer", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "standalone-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "standalone-v1", objective: "Conformance", criteria: [{ id: "objective", requirement: "Complete" }] },
       canonicalSha256: "publication-contract", createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
       nativeIssueId: issueId, nativeSessionId: sessionId, runnerInstanceId: runner, completionContractId: contractId,
       completionContractSha256: "publication-contract", startedAt: new Date(Date.now() - 2_000), runnerProfileJson: {} });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    const owner = { companyId, issueId, runId, authorityRunId: runId, bootId: "publication-boot", generation: 1, leaseOwner: "publication-owner" };
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed",
+    const owner = { spaceId, issueId, runId, authorityRunId: runId, bootId: "publication-boot", generation: 1, leaseOwner: "publication-owner" };
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed",
       controllerBootId: owner.bootId, controllerGeneration: owner.generation, leaseOwner: owner.leaseOwner,
       leaseExpiresAt: new Date(Date.now() + 60_000) });
-    const binding: PaperclipControlPlaneBinding = { companyId, agentId, issueId, runId, sessionId,
+    const binding: OutpostControlPlaneBinding = { spaceId, agentId, issueId, runId, sessionId,
       completionContractId: contractId, completionContractSha256: "publication-contract", sourceInstanceId: runner,
       controlPlaneSourceInstanceId: control };
     const context: NativeTaskSessionPublicationContext = { taskKey: issueId, adapterType: "codex_local",
-      sessionParamsJson: { cwd: "/working", paperclipSessionConfigFingerprint: "prepared-once", opaque: "private-prepared-param" } };
-    const snapshot: PersistedNativeSession = { backendKind: "mock", sessionId, identity: { companyId, agentId, issueId, runId, sessionId },
+      sessionParamsJson: { cwd: "/working", outpostSessionConfigFingerprint: "prepared-once", opaque: "private-prepared-param" } };
+    const snapshot: PersistedNativeSession = { backendKind: "mock", sessionId, identity: { spaceId, agentId, issueId, runId, sessionId },
       providerSessionId: "provider-thread", activeTurnId: null, pendingRuntimeRequests: [], goal: null,
       semanticResult: CONTROL_PLANE_CONFORMANCE_RESULT, terminal: CONTROL_PLANE_CONFORMANCE_TERMINAL };
-    const port = new PaperclipControlPlanePort(measured, binding, { taskSessionPublication: context, taskSessionPublicationOwner: owner });
+    const port = new OutpostControlPlanePort(measured, binding, { taskSessionPublication: context, taskSessionPublicationOwner: owner });
     await port.openRun({ ...CONTROL_PLANE_CONFORMANCE_OPEN, identity: snapshot.identity, sourceInstanceId: runner });
-    if (accepted) await new PaperclipControlPlanePort(db, binding).completeRun({ result: CONTROL_PLANE_CONFORMANCE_RESULT,
+    if (accepted) await new OutpostControlPlanePort(db, binding).completeRun({ result: CONTROL_PLANE_CONFORMANCE_RESULT,
       terminal: CONTROL_PLANE_CONFORMANCE_TERMINAL, turnId: "publication-turn" });
-    await db.insert(agentTaskSessions).values({ companyId, agentId, adapterType: context.adapterType, taskKey: issueId,
+    await db.insert(agentTaskSessions).values({ spaceId, agentId, adapterType: context.adapterType, taskKey: issueId,
       goalSourceId: `${source === "runner" ? runner : control}:${runId}`, goalSourceCursor: 4 });
     const read = async () => {
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
@@ -98,7 +98,7 @@ describe("accepted native task session publication", () => {
     expect(JSON.stringify(run.runnerProfileJson)).not.toContain("private-prepared-param");
     expect(JSON.stringify({ [NATIVE_TASK_SESSION_PUBLICATION_KEY]: run.runnerProfileJson![NATIVE_TASK_SESSION_PUBLICATION_KEY] }).length).toBeLessThan(4_096);
     expect(redactRegisteredSecretValues(run.runnerProfileJson, [])).not.toHaveProperty(NATIVE_TASK_SESSION_PUBLICATION_KEY);
-    expect(nativeTaskSessionPublicationHandled(run.runnerProfileJson, { ...f.binding, ...f.context, companyId: randomUUID() })).toBe(false);
+    expect(nativeTaskSessionPublicationHandled(run.runnerProfileJson, { ...f.binding, ...f.context, spaceId: randomUUID() })).toBe(false);
     expect(nativeTaskSessionPublicationHandled(run.runnerProfileJson, { ...f.binding, ...f.context, agentId: randomUUID() })).toBe(false);
     const malformed = structuredClone(run.runnerProfileJson!);
     (malformed[NATIVE_TASK_SESSION_PUBLICATION_KEY] as Record<string, unknown>).resultId = "not-an-id";
@@ -119,7 +119,7 @@ describe("accepted native task session publication", () => {
   it("publishes a fresh authorized retry after a different provider session owned the goal epoch", async () => {
     const f = await fixture();
     const priorRunId = randomUUID(), priorSessionId = randomUUID(), priorRunnerId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: priorRunId, companyId: f.binding.companyId,
+    await db.insert(heartbeatRuns).values({ id: priorRunId, spaceId: f.binding.spaceId,
       agentId: f.binding.agentId, nativeIssueId: f.binding.issueId, nativeSessionId: priorSessionId,
       runnerInstanceId: priorRunnerId, runtimeMode: "native", status: "failed",
       createdAt: new Date(Date.now() - 10_000), finishedAt: new Date(Date.now() - 5_000) });
@@ -162,7 +162,7 @@ describe("accepted native task session publication", () => {
   it("does not hold the issue parent lock while a result replay waits for the status coordinator", async () => {
     const f = await fixture();
     let committed = 0;
-    const port = new PaperclipControlPlanePort(db, f.binding, { nativeRecovery: { owner: f.owner,
+    const port = new OutpostControlPlanePort(db, f.binding, { nativeRecovery: { owner: f.owner,
       compatibility: { configDigest: nativeSha256("config"), processConfigDigest: null } },
       onResultCommitted: async () => { committed++; } });
     await port.openRun({ ...CONTROL_PLANE_CONFORMANCE_OPEN, identity: f.snapshot.identity, sourceInstanceId: f.binding.sourceInstanceId });
@@ -206,7 +206,7 @@ describe("accepted native task session publication", () => {
     if (kind === "foreign_epoch") await db.update(agentTaskSessions).set({ goalSourceId: `${randomUUID()}:${f.binding.runId}` }).where(eq(agentTaskSessions.taskKey, f.binding.issueId));
     if (kind === "newer_pointer" || kind === "newer_execution") {
       const newer = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: newer, companyId: f.binding.companyId, agentId: f.binding.agentId,
+      await db.insert(heartbeatRuns).values({ id: newer, spaceId: f.binding.spaceId, agentId: f.binding.agentId,
         status: "running", issueId: f.binding.issueId, startedAt: new Date() });
       if (kind === "newer_pointer") await db.update(agentTaskSessions).set({ lastRunId: newer, sessionParamsJson: { sessionId: "newer" } }).where(eq(agentTaskSessions.taskKey, f.binding.issueId));
       else await db.update(issues).set({ executionRunId: newer }).where(eq(issues.id, f.binding.issueId));
@@ -223,14 +223,14 @@ describe("accepted native task session publication", () => {
   it("keeps unsupported task keys and missing remote recovery headers outside handled publication", async () => {
     const f = await fixture();
     const context = { ...f.context, taskKey: "custom-task" };
-    const port = new PaperclipControlPlanePort(measured, f.binding, { taskSessionPublication: context, taskSessionPublicationOwner: f.owner });
+    const port = new OutpostControlPlanePort(measured, f.binding, { taskSessionPublication: context, taskSessionPublicationOwner: f.owner });
     await port.openRun({ ...CONTROL_PLANE_CONFORMANCE_OPEN, identity: f.snapshot.identity, sourceInstanceId: f.binding.sourceInstanceId });
     await port.checkpointSession(f.snapshot);
     const { run, session } = await f.read();
     expect(session?.sessionParamsJson).toBeNull();
     expect(nativeTaskSessionPublicationHandled(run.runnerProfileJson, { ...f.binding, ...context })).toBe(false);
     const remote = await fixture();
-    const remotePort = new PaperclipControlPlanePort(measured, remote.binding, { taskSessionPublication: remote.context,
+    const remotePort = new OutpostControlPlanePort(measured, remote.binding, { taskSessionPublication: remote.context,
       taskSessionPublicationOwner: remote.owner, nativeRecovery: { owner: remote.owner,
         compatibility: { configDigest: nativeSha256("config"), processConfigDigest: null } } });
     await remotePort.openRun({ ...CONTROL_PLANE_CONFORMANCE_OPEN, identity: remote.snapshot.identity, sourceInstanceId: remote.binding.sourceInstanceId });
@@ -277,7 +277,7 @@ describe("accepted native task session publication", () => {
     const f = await fixture();
     if (kind === "completed_predecessor") {
       const prior = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: prior, companyId: f.binding.companyId, agentId: f.binding.agentId,
+      await db.insert(heartbeatRuns).values({ id: prior, spaceId: f.binding.spaceId, agentId: f.binding.agentId,
         issueId: f.binding.issueId, status: "succeeded", finishedAt: new Date(Date.now() - 5_000) });
       await db.update(agentTaskSessions).set({ lastRunId: prior, sessionParamsJson: { sessionId: "prior" } })
         .where(eq(agentTaskSessions.taskKey, f.binding.issueId));
@@ -308,7 +308,7 @@ describe("accepted native task session publication", () => {
     const ready = new Promise<void>(resolve => { locked = resolve; });
     const hold = new Promise<void>(resolve => { release = resolve; });
     const newer = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: newer, companyId: f.binding.companyId, agentId: f.binding.agentId,
+    await db.insert(heartbeatRuns).values({ id: newer, spaceId: f.binding.spaceId, agentId: f.binding.agentId,
       issueId: f.binding.issueId, status: "running", startedAt: new Date() });
     const blocker = db.transaction(async tx => {
       await tx.select().from(issues).where(eq(issues.id, f.binding.issueId)).for("no key update");

@@ -39,7 +39,7 @@ function executionIdOf(item: TaskChatItem, runId: string): string | undefined {
  * An approved automatic review is metadata about the command it approved, so
  * it becomes a badge on that tool row instead of a duplicate row. Reviews
  * that stopped an action, are still in progress, or have no tool row (network
- * access, permission requests) keep their own governance row.
+ * access, permission requests) keep their own policy row.
  */
 export function foldApprovedAutoReviews(items: TaskChatItem[], runId: string): TaskChatItem[] {
   const toolsByExecution = new Map<string, number>();

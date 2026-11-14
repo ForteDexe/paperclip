@@ -4,13 +4,13 @@ import { ApiError } from "../api/client";
 import { waitForStoppedRuns } from "./wait-for-stopped-runs";
 
 function run(id: string, status: HeartbeatRun["status"]) {
-  return { id, status, companyId: "company-1" } as HeartbeatRun;
+  return { id, status, spaceId: "space-1" } as HeartbeatRun;
 }
 function nativeRun(id: string, receipt: Record<string, unknown> = {}): HeartbeatRun & { runtimeMode: "native" } {
   return {
     ...run(id, "cancelled"), runtimeMode: "native",
     resultJson: { nativeCancellation: {
-      schema: "outpost.native-cancellation.v1", runId: id, companyId: "company-1",
+      schema: "outpost.native-cancellation.v1", runId: id, spaceId: "space-1",
       scope: "run", dispatchState: "acknowledged", ...receipt,
     } },
   };
@@ -128,7 +128,7 @@ describe("authoritative Stop response", () => {
     ["missing status", { ...nativeRun("native"), status: undefined } as unknown as HeartbeatRun],
     ["foreign run", nativeRun("other")],
     ["foreign receipt", nativeRun("native", { runId: "other" })],
-    ["foreign company", nativeRun("native", { companyId: "other" })],
+    ["foreign space", nativeRun("native", { spaceId: "other" })],
     ["unknown receipt", nativeRun("native", { schema: "unknown" })],
     ["live run", { ...nativeRun("native"), status: "running" } as HeartbeatRun],
   ])("keeps verifying a %s response", async (_label, initial) => {

@@ -68,7 +68,7 @@ const providers = [
 type ProviderChoice = (typeof providers)[number]["id"] | "github";
 
 export function AiProviderSetup({
-  companyId,
+  spaceId,
   agentId,
   environmentId,
   initialProvider,
@@ -80,7 +80,7 @@ export function AiProviderSetup({
   onCancel,
   onComplete,
 }: {
-  companyId: string;
+  spaceId: string;
   agentId?: string;
   environmentId?: string;
   initialProvider?: ProviderChoice;
@@ -125,16 +125,16 @@ export function AiProviderSetup({
   const [apiKey, setApiKey] = useState("");
   const client = useQueryClient();
   const accounts = useQuery({
-    queryKey: ["ai-connections", companyId, agentId],
-    queryFn: () => aiConnectionsApi.list(companyId, agentId),
+    queryKey: ["ai-connections", spaceId, agentId],
+    queryFn: () => aiConnectionsApi.list(spaceId, agentId),
   });
   const accountsView = useQueryView(accounts);
   const canManageConnections = accounts.data?.canManageConnections ?? false;
   const ownership = reconnect?.ownership ?? ownershipChoice ?? (!agentId && canManageConnections ? "shared" : "personal");
   const allAgents = allAgentsChoice ?? (!agentId && canManageConnections);
   const agents = useQuery({
-    queryKey: ["agents", companyId, "provider-access"],
-    queryFn: () => agentsApi.list(companyId),
+    queryKey: ["agents", spaceId, "provider-access"],
+    queryFn: () => agentsApi.list(spaceId),
   });
   const agentsView = useQueryView(agents);
   const label = providerLabel ?? providers.find((p) => p.id === provider)?.name ?? (provider === "github" ? "GitHub Copilot" : "provider");
@@ -165,7 +165,7 @@ export function AiProviderSetup({
     grantId: string;
     method?: "api_key" | "subscription";
   }) => {
-    void client.invalidateQueries({ queryKey: ["ai-connections", companyId] });
+    void client.invalidateQueries({ queryKey: ["ai-connections", spaceId] });
     void client.invalidateQueries({ queryKey: ["tools"] });
     onComplete({
       provider: nativeProvider,
@@ -194,7 +194,7 @@ export function AiProviderSetup({
             .map((id) => ({ id })),
         });
       return aiConnectionsApi.create(
-        companyId,
+        spaceId,
         createAiConnectionSchema.parse({
           provider: nativeProvider,
           method: "api_key",
@@ -258,11 +258,11 @@ export function AiProviderSetup({
   );
   const accessDefaults = !reconnect ? (
     <ConnectionAccessDefaults
-      companyId={companyId}
+      spaceId={spaceId}
       extra={advanced ? modelSettings : undefined}
       agents={agents.data ?? []}
       sentence={connectionDefaultSummarySentence({ grantKind: ownership === "shared" ? "organization" : "user", authKind: auth === "none" ? "none" : "api_key", installChoice: allAgents ? "all" : "specific", installCount: agentIds.size })}
-      capabilities={{ canCreateOrganizationGrant: canManageConnections, canSetCompanyInstall: canManageConnections }}
+      capabilities={{ canCreateOrganizationGrant: canManageConnections, canSetSpaceInstall: canManageConnections }}
       authKind={auth === "none" ? "none" : "api_key"}
       grantKind={ownership === "shared" ? "organization" : "user"}
       grantKinds={["user", "organization"]}
@@ -305,7 +305,7 @@ export function AiProviderSetup({
         </>
       ) : !advanced ? (
         <AiConnectionCredentialStep
-          companyId={companyId}
+          spaceId={spaceId}
           provider={nativeProvider}
           connectionId={reconnect?.id}
           initialMethod={reconnect?.method}

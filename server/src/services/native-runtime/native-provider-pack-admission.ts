@@ -8,7 +8,7 @@ import { isTransientLockContention, postgresErrorCode } from "../transient-lock-
 
 type Selection = {
   admittedRunId: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   sessionId: string;
   runnerInstanceId: string;
@@ -70,7 +70,7 @@ export function rememberAdmittedNativeProviderPack(session: NativeSession, input
     || !input.runnerInstanceId || !input.environmentLeaseId) return unavailable();
   const selected: Selection = {
     admittedRunId: actual.runId,
-    companyId: actual.companyId, agentId: actual.agentId, sessionId: actual.sessionId,
+    spaceId: actual.spaceId, agentId: actual.agentId, sessionId: actual.sessionId,
     runnerInstanceId: input.runnerInstanceId, environmentLeaseId: input.environmentLeaseId,
     providerPackDigest: input.manifest.digest, opencodeProxySha256: proxy!, sourceRevision: revision,
   };
@@ -90,23 +90,23 @@ export async function rememberRecoveredNativeProviderPack(db: Db, session: Nativ
   const source = input.source?.runId === input.sourceRunId ? input.source : (await db.select({
     receipt: sql<unknown>`${heartbeatRuns.runnerProfileJson}->'nativeProviderPackAdmission'`,
     state: sql<unknown>`${heartbeatRuns.runnerProfileJson}->'nativeProviderPackAdmissionState'`,
-  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, input.sourceRunId), eq(heartbeatRuns.companyId, input.identity.companyId),
+  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, input.sourceRunId), eq(heartbeatRuns.spaceId, input.identity.spaceId),
     eq(heartbeatRuns.agentId, input.identity.agentId), eq(heartbeatRuns.runtimeMode, "native"))).limit(1))[0];
   if (!verifiedState(source?.state)) return false;
   const value = source?.receipt;
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const receipt = value as Record<string, unknown>;
-  const keys = new Set(["schema", "stage", "authority", "companyId", "agentId", "runId", "sessionId", "runnerInstanceId",
+  const keys = new Set(["schema", "stage", "authority", "spaceId", "agentId", "runId", "sessionId", "runnerInstanceId",
     "runnerEnvironmentLeaseId", "providerPackDigest", "opencodeProxySha256", "sourceRevision", "inheritedFromRunId"]);
   if (Object.keys(receipt).some(key => !keys.has(key)) || receipt.schema !== "outpost.native-provider-pack-admission.v1"
     || receipt.stage !== "session_admitted" || receipt.authority !== "core_verified_selection"
-    || receipt.runId !== input.sourceRunId || receipt.companyId !== input.identity.companyId || receipt.agentId !== input.identity.agentId
+    || receipt.runId !== input.sourceRunId || receipt.spaceId !== input.identity.spaceId || receipt.agentId !== input.identity.agentId
     || receipt.sessionId !== input.identity.sessionId || receipt.runnerInstanceId !== input.runnerInstanceId
     || receipt.runnerEnvironmentLeaseId !== input.environmentLeaseId || !digest.test(String(receipt.providerPackDigest))
     || !digest.test(String(receipt.opencodeProxySha256)) || !/^[a-f0-9]{40}$/.test(String(receipt.sourceRevision))
     || (receipt.inheritedFromRunId !== undefined && (typeof receipt.inheritedFromRunId !== "string" || !receipt.inheritedFromRunId))) return false;
   return rememberSelection(session, { admittedRunId: String(receipt.inheritedFromRunId ?? receipt.runId),
-    companyId: input.identity.companyId, agentId: input.identity.agentId, sessionId: input.identity.sessionId,
+    spaceId: input.identity.spaceId, agentId: input.identity.agentId, sessionId: input.identity.sessionId,
     runnerInstanceId: input.runnerInstanceId, environmentLeaseId: input.environmentLeaseId,
     providerPackDigest: String(receipt.providerPackDigest), opencodeProxySha256: String(receipt.opencodeProxySha256),
     sourceRevision: String(receipt.sourceRevision) });
@@ -117,7 +117,7 @@ export function admittedNativeProviderPack(session: NativeSession, identity: Nat
   if (!selected) return null;
   const actual = session.identity();
   if (canonicalProviderPackJson(actual) !== canonicalProviderPackJson(identity)
-    || actual.companyId !== selected.companyId || actual.agentId !== selected.agentId || actual.sessionId !== selected.sessionId) return null;
+    || actual.spaceId !== selected.spaceId || actual.agentId !== selected.agentId || actual.sessionId !== selected.sessionId) return null;
   const { admittedRunId, environmentLeaseId, ...identityFields } = selected;
   return { schema: "outpost.native-provider-pack-admission.v1", stage: "session_admitted",
     authority: "core_verified_selection", ...identityFields, runId: actual.runId, runnerEnvironmentLeaseId: environmentLeaseId,
@@ -166,13 +166,13 @@ async function recordNativeProviderPackAdmissionOnce(db: Db, input: AdmissionInp
     // admission and then failed the run as admission_unverified.
     await tx.execute(sql`select set_config('lock_timeout', '1000ms', true)`);
     if (input.waitForClaim) {
-      await assertNativeRunnerCheckpointOwner(tx, { companyId: input.identity.companyId,
+      await assertNativeRunnerCheckpointOwner(tx, { spaceId: input.identity.spaceId,
         issueId: input.identity.issueId, runId: input.identity.runId, authorityRunId: input.identity.runId,
         bootId: input.claim.controllerBootId, leaseOwner: input.claim.leaseOwner,
         generation: input.claim.controllerGeneration }, false);
     }
     const [owner] = await tx.select({ runId: nativeRunFinalizations.runId }).from(nativeRunFinalizations).where(and(
-      eq(nativeRunFinalizations.runId, input.identity.runId), eq(nativeRunFinalizations.companyId, input.identity.companyId),
+      eq(nativeRunFinalizations.runId, input.identity.runId), eq(nativeRunFinalizations.spaceId, input.identity.spaceId),
       eq(nativeRunFinalizations.issueId, input.identity.issueId), eq(nativeRunFinalizations.leaseOwner, input.claim.leaseOwner),
       eq(nativeRunFinalizations.attempt, input.claim.attempt), eq(nativeRunFinalizations.controllerGeneration, input.claim.controllerGeneration),
       eq(nativeRunFinalizations.controllerBootId, input.claim.controllerBootId), gt(nativeRunFinalizations.leaseExpiresAt, sql`now()`),
@@ -180,7 +180,7 @@ async function recordNativeProviderPackAdmissionOnce(db: Db, input: AdmissionInp
     )).for("update", { noWait: true }).limit(1);
     if (!owner) return false;
     const [run] = await tx.select({ profile: heartbeatRuns.runnerProfileJson }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, input.identity.runId), eq(heartbeatRuns.companyId, input.identity.companyId),
+      eq(heartbeatRuns.id, input.identity.runId), eq(heartbeatRuns.spaceId, input.identity.spaceId),
       eq(heartbeatRuns.agentId, input.identity.agentId), eq(heartbeatRuns.nativeIssueId, input.identity.issueId),
       eq(heartbeatRuns.runtimeMode, "native"), eq(heartbeatRuns.status, "running"),
     )).for("update").limit(1);
@@ -199,7 +199,7 @@ async function recordNativeProviderPackAdmissionOnce(db: Db, input: AdmissionInp
     const saved = await tx.update(heartbeatRuns).set({
       runnerProfileJson: sql`coalesce(${heartbeatRuns.runnerProfileJson}, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb`,
       updatedAt: new Date(),
-    }).where(and(eq(heartbeatRuns.id, input.identity.runId), eq(heartbeatRuns.companyId, input.identity.companyId),
+    }).where(and(eq(heartbeatRuns.id, input.identity.runId), eq(heartbeatRuns.spaceId, input.identity.spaceId),
       eq(heartbeatRuns.agentId, input.identity.agentId), eq(heartbeatRuns.nativeIssueId, input.identity.issueId),
       eq(heartbeatRuns.runtimeMode, "native"), eq(heartbeatRuns.status, "running"),
     )).returning({ id: heartbeatRuns.id });

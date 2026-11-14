@@ -76,9 +76,9 @@ test("the script's path list and key inputs cover what the release build of the 
     `${RELEASE_DIR}/deps/outpost_runnerd-*`,
     `${RELEASE_DIR}/outpost-runnerd`,
     `${RELEASE_DIR}/outpost-runnerd.d`,
-    `${RELEASE_DIR}/.fingerprint/paperclip-process-table-*`,
-    `${RELEASE_DIR}/deps/libpaperclip_process_table-*`,
-    `${RELEASE_DIR}/deps/paperclip_process_table-*.d`,
+    `${RELEASE_DIR}/.fingerprint/outpost-process-table-*`,
+    `${RELEASE_DIR}/deps/liboutpost_process_table-*`,
+    `${RELEASE_DIR}/deps/outpost_process_table-*.d`,
   ]);
   assert.deepEqual(HASHED_INPUTS, [
     `${RUNNER_PACKAGE}/rust-toolchain.toml`,
@@ -423,12 +423,12 @@ test("only the master Rust lane writes the crate, after a lookup, with the reade
 });
 
 test("the scope names the platform, the compiler and the checkout root, and survives a missing rustc", () => {
-  const a = computeScope({ workspace: "/home/runner/_work/paperclip/paperclip", rustcVersion: "1.97.1-abcdef123-x86_64-unknown-linux-gnu" });
-  const b = computeScope({ workspace: "/home/runner/work/paperclip/paperclip", rustcVersion: "1.97.1-abcdef123-x86_64-unknown-linux-gnu" });
-  const c = computeScope({ workspace: "/home/runner/_work/paperclip/paperclip", rustcVersion: "1.97.2-0123456ab-x86_64-unknown-linux-gnu" });
+  const a = computeScope({ workspace: "/home/runner/_work/outpost/outpost", rustcVersion: "1.97.1-abcdef123-x86_64-unknown-linux-gnu" });
+  const b = computeScope({ workspace: "/home/runner/work/outpost/outpost", rustcVersion: "1.97.1-abcdef123-x86_64-unknown-linux-gnu" });
+  const c = computeScope({ workspace: "/home/runner/_work/outpost/outpost", rustcVersion: "1.97.2-0123456ab-x86_64-unknown-linux-gnu" });
   assert.notEqual(a, b, "a different checkout root must select a different entry");
   assert.notEqual(a, c, "a different compiler must select a different entry");
-  assert.equal(a, computeScope({ workspace: "/home/runner/_work/paperclip/paperclip/", rustcVersion: "1.97.1-abcdef123-x86_64-unknown-linux-gnu" }));
+  assert.equal(a, computeScope({ workspace: "/home/runner/_work/outpost/outpost/", rustcVersion: "1.97.1-abcdef123-x86_64-unknown-linux-gnu" }));
   assert.match(a, new RegExp(`^${os.platform()}-${os.arch()}-1\\.97\\.1-abcdef123-x86_64-unknown-linux-gnu-[0-9a-f]{12}$`));
   assert.doesNotMatch(computeScope({ rustcVersion: "weird version/with spaces" }), /[^A-Za-z0-9._-]/);
 
@@ -439,9 +439,9 @@ test("the scope names the platform, the compiler and the checkout root, and surv
     const stub = path.join(bin, "rustc");
     writeFileSync(stub, '#!/bin/sh\nprintf "rustc 1.97.1 (8bab26f4f 2026-06-30)\\nbinary: rustc\\ncommit-hash: 8bab26f4f0123456789abcdef\\ncommit-date: 2026-06-30\\nhost: x86_64-unknown-linux-gnu\\nrelease: 1.97.1\\nLLVM version: 21.1.2\\n"\n');
     chmodSync(stub, 0o755);
-    const withStub = execFileSync(process.execPath, [script, "scope"], { encoding: "utf8", env: { ...process.env, PATH: bin, GITHUB_WORKSPACE: "/home/runner/_work/paperclip/paperclip" } }).trim();
-    assert.equal(withStub, computeScope({ workspace: "/home/runner/_work/paperclip/paperclip", rustcVersion: "1.97.1-8bab26f4f-x86_64-unknown-linux-gnu" }));
-    const without = execFileSync(process.execPath, [script, "scope"], { encoding: "utf8", env: { ...process.env, PATH: mkdtempSync(path.join(os.tmpdir(), "empty-path-")), GITHUB_WORKSPACE: "/home/runner/_work/paperclip/paperclip" } }).trim();
+    const withStub = execFileSync(process.execPath, [script, "scope"], { encoding: "utf8", env: { ...process.env, PATH: bin, GITHUB_WORKSPACE: "/home/runner/_work/outpost/outpost" } }).trim();
+    assert.equal(withStub, computeScope({ workspace: "/home/runner/_work/outpost/outpost", rustcVersion: "1.97.1-8bab26f4f-x86_64-unknown-linux-gnu" }));
+    const without = execFileSync(process.execPath, [script, "scope"], { encoding: "utf8", env: { ...process.env, PATH: mkdtempSync(path.join(os.tmpdir(), "empty-path-")), GITHUB_WORKSPACE: "/home/runner/_work/outpost/outpost" } }).trim();
     assert.match(without, /-no-rustc-/);
   } finally {
     rmSync(bin, { recursive: true, force: true });
@@ -454,7 +454,7 @@ function layRestoredCrate(root) {
   const release = path.join(root, RELEASE_DIR);
   const lib = path.join(release, ".fingerprint/outpost-runner-core-0b6c4654c2710743");
   const bin = path.join(release, ".fingerprint/outpost-runner-core-46cce78dbc4840c2");
-  const table = path.join(release, ".fingerprint/paperclip-process-table-5a1b2c3d4e5f6071");
+  const table = path.join(release, ".fingerprint/outpost-process-table-5a1b2c3d4e5f6071");
   mkdirSync(path.join(release, "deps"), { recursive: true });
   mkdirSync(lib, { recursive: true });
   mkdirSync(bin, { recursive: true });
@@ -475,11 +475,11 @@ function layRestoredCrate(root) {
     [path.join(release, "outpost-runnerd")]: "ELF",
     [path.join(release, "outpost-runnerd.d")]: "d",
     // The process-table workspace library's lib unit.
-    [path.join(table, "lib-paperclip_process_table")]: "1111222233334444",
-    [path.join(table, "dep-lib-paperclip_process_table")]: "dep",
-    [path.join(release, "deps/libpaperclip_process_table-5a1b2c3d4e5f6071.rlib")]: "rlib",
-    [path.join(release, "deps/libpaperclip_process_table-5a1b2c3d4e5f6071.rmeta")]: "rmeta",
-    [path.join(release, "deps/paperclip_process_table-5a1b2c3d4e5f6071.d")]: "d",
+    [path.join(table, "lib-outpost_process_table")]: "1111222233334444",
+    [path.join(table, "dep-lib-outpost_process_table")]: "dep",
+    [path.join(release, "deps/liboutpost_process_table-5a1b2c3d4e5f6071.rlib")]: "rlib",
+    [path.join(release, "deps/liboutpost_process_table-5a1b2c3d4e5f6071.rmeta")]: "rmeta",
+    [path.join(release, "deps/outpost_process_table-5a1b2c3d4e5f6071.d")]: "d",
     // A dependency's artifacts sit beside the crate's and must not be touched.
     [path.join(release, "deps/libserde-1234567890abcdef.rlib")]: "dep rlib",
   };
@@ -539,10 +539,10 @@ const REQUIRED_FILES = {
   "the bin fingerprint hash": ".fingerprint/outpost-runner-core-46cce78dbc4840c2/bin-outpost-runnerd",
   "the bin dep-info": ".fingerprint/outpost-runner-core-46cce78dbc4840c2/dep-bin-outpost-runnerd",
   "the bin under deps": "deps/outpost_runnerd-46cce78dbc4840c2",
-  "the process-table lib fingerprint hash": ".fingerprint/paperclip-process-table-5a1b2c3d4e5f6071/lib-paperclip_process_table",
-  "the process-table lib dep-info": ".fingerprint/paperclip-process-table-5a1b2c3d4e5f6071/dep-lib-paperclip_process_table",
-  "the process-table lib rlib": "deps/libpaperclip_process_table-5a1b2c3d4e5f6071.rlib",
-  "the process-table lib rmeta": "deps/libpaperclip_process_table-5a1b2c3d4e5f6071.rmeta",
+  "the process-table lib fingerprint hash": ".fingerprint/outpost-process-table-5a1b2c3d4e5f6071/lib-outpost_process_table",
+  "the process-table lib dep-info": ".fingerprint/outpost-process-table-5a1b2c3d4e5f6071/dep-lib-outpost_process_table",
+  "the process-table lib rlib": "deps/liboutpost_process_table-5a1b2c3d4e5f6071.rlib",
+  "the process-table lib rmeta": "deps/liboutpost_process_table-5a1b2c3d4e5f6071.rmeta",
 };
 const NOT_NEEDED = [
   ".fingerprint/outpost-runner-core-0b6c4654c2710743/lib-outpost_runner_core.json",
@@ -552,7 +552,7 @@ const NOT_NEEDED = [
   "deps/outpost_runnerd-46cce78dbc4840c2.d",
   "outpost-runnerd",
   "outpost-runnerd.d",
-  "deps/paperclip_process_table-5a1b2c3d4e5f6071.d",
+  "deps/outpost_process_table-5a1b2c3d4e5f6071.d",
 ];
 
 test("mark-current discards a restore that lacks any file cargo needs for either unit, naming the file, so cargo sees a plain miss", () => {

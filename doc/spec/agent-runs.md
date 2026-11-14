@@ -7,7 +7,7 @@ Scope: Agent execution runtime, adapter protocol, wakeup orchestration, and live
 
 ## 1. Document Role
 
-This spec defines how Paperclip actually runs agents while staying runtime-agnostic.
+This spec defines how Outpost actually runs agents while staying runtime-agnostic.
 
 - This document adds concrete subsystem detail for agent execution, including local CLI adapters, runtime state persistence, wakeup scheduling, and browser live updates.
 - If this doc conflicts with current runtime behavior in code, this doc is the target behavior for upcoming implementation.
@@ -16,12 +16,12 @@ This spec defines how Paperclip actually runs agents while staying runtime-agnos
 
 The following intentions are explicitly preserved in this spec:
 
-1. Paperclip is adapter-agnostic. The key is a protocol, not a specific runtime.
+1. Outpost is adapter-agnostic. The key is a protocol, not a specific runtime.
 2. We still need default built-ins to make the system useful immediately.
 3. First two built-ins are `claude-local` and `codex-local`.
 4. Those adapters run local CLIs directly on the host machine, unsandboxed.
 5. Agent config includes working directory and initial/default prompt.
-6. Heartbeats run the configured adapter process, Paperclip manages lifecycle, and on exit Paperclip parses JSON output and updates state.
+6. Heartbeats run the configured adapter process, Outpost manages lifecycle, and on exit Outpost parses JSON output and updates state.
 7. Session IDs and token usage must be persisted so later heartbeats can resume.
 8. Adapters should support status updates (short message + color) and optional streaming logs.
 9. UI should support prompt template "pills" for variable insertion.
@@ -42,7 +42,7 @@ The following intentions are explicitly preserved in this spec:
 4. Centralize wakeup decisions and queueing in one service.
 5. Provide realtime run/task/agent updates to the browser.
 6. Support deployment-specific full-log storage without bloating Postgres.
-7. Preserve company scoping and existing governance invariants.
+7. Preserve space scoping and existing governance invariants.
 
 ### 3.2 Non-Goals (for this subsystem phase)
 
@@ -99,7 +99,7 @@ The subsystem introduces six cooperating components:
 
 6. `Realtime Event Hub`
    - Publishes run/agent/task updates over websocket.
-   - Supports selective subscription by company.
+   - Supports selective subscription by space.
 
 Control flow (happy path):
 
@@ -128,7 +128,7 @@ interface TokenUsage {
 
 interface AdapterInvokeInput {
   protocolVersion: "agent-run/v1";
-  companyId: string;
+  spaceId: string;
   agentId: string;
   runId: string;
   wakeupSource: "timer" | "assignment" | "on_demand" | "automation";
@@ -201,7 +201,7 @@ interface RunLogHandle {
 }
 
 interface RunLogStore {
-  begin(input: { companyId: string; agentId: string; runId: string }): Promise<RunLogHandle>;
+  begin(input: { spaceId: string; agentId: string; runId: string }): Promise<RunLogHandle>;
   append(
     handle: RunLogHandle,
     event: { stream: "stdout" | "stderr" | "system"; chunk: string; ts: string },
@@ -315,9 +315,9 @@ Runs local `codex` CLI directly.
 - Unsandboxed mode: add `--dangerously-bypass-approvals-and-sandbox` when enabled
 - Optional search mode: add `--search`
 
-For Linux local coding adapters, `filesystemScope: "workspace"` adds host-level filesystem confinement around the CLI process. It is disabled by default and independent of the CLI's own approval or sandbox flags. Paperclip uses Bubblewrap to expose the active workspace and adapter-managed config/home, creates a private `/tmp`, and hides other host paths. `filesystemExtraPaths` can expose additional absolute paths read-only (string or `access: "ro"`) or writable (`access: "rw"`).
+For Linux local coding adapters, `filesystemScope: "workspace"` adds host-level filesystem confinement around the CLI process. It is disabled by default and independent of the CLI's own approval or sandbox flags. Outpost uses Bubblewrap to expose the active workspace and adapter-managed config/home, creates a private `/tmp`, and hides other host paths. `filesystemExtraPaths` can expose additional absolute paths read-only (string or `access: "ro"`) or writable (`access: "rw"`).
 
-`networkScope` is also disabled by default and can be enabled independently or together with filesystem confinement. `"deny"` creates a private network namespace with no egress. `"allowlist"` keeps direct sockets blocked and injects an HTTP(S) proxy that accepts only exact `networkAllowlist` hostnames (optionally with a port); list the coding provider endpoint and every other required API origin explicitly. For example, a standard Codex API-key setup normally needs `api.openai.com`, while Claude setups may need `api.anthropic.com` or their configured Bedrock, Vertex, or gateway origins. Wildcards are intentionally unsupported. Install `bwrap` on the Paperclip host before enabling either scope. Auto engine selection uses the CLI lane while a scope is enabled; explicit ACP mode is rejected because ACP processes are not yet covered by the spawn wrapper.
+`networkScope` is also disabled by default and can be enabled independently or together with filesystem confinement. `"deny"` creates a private network namespace with no egress. `"allowlist"` keeps direct sockets blocked and injects an HTTP(S) proxy that accepts only exact `networkAllowlist` hostnames (optionally with a port); list the coding provider endpoint and every other required API origin explicitly. For example, a standard Codex API-key setup normally needs `api.openai.com`, while Claude setups may need `api.anthropic.com` or their configured Bedrock, Vertex, or gateway origins. Wildcards are intentionally unsupported. Install `bwrap` on the Outpost host before enabling either scope. Auto engine selection uses the CLI lane while a scope is enabled; explicit ACP mode is rejected because ACP processes are not yet covered by the spawn wrapper.
 
 ### Output parsing
 
@@ -361,7 +361,7 @@ All sources call one internal service:
 
 ```ts
 enqueueWakeup({
-  companyId,
+  spaceId,
   agentId,
   source,
   triggerDetail, // optional: manual|ping|callback|system
@@ -421,7 +421,7 @@ Defaults:
 
 ## 9. Persistence Model
 
-All tables remain company-scoped.
+All tables remain space-scoped.
 
 ## 9.0 Changes to `agents`
 
@@ -441,7 +441,7 @@ This separation keeps adapter config runtime-agnostic while allowing the heartbe
 One row per agent for aggregate runtime counters and legacy compatibility.
 
 - `agent_id` uuid pk fk `agents.id`
-- `company_id` uuid fk not null
+- `space_id` uuid fk not null
 - `adapter_type` text not null
 - `session_id` text null
 - `state_json` jsonb not null default `{}`
@@ -458,10 +458,10 @@ Invariant: exactly one runtime state row per agent.
 
 ## 9.1.1 New table: `agent_task_sessions`
 
-One row per `(company_id, agent_id, adapter_type, task_key)` for resumable session state.
+One row per `(space_id, agent_id, adapter_type, task_key)` for resumable session state.
 
 - `id` uuid pk
-- `company_id` uuid fk not null
+- `space_id` uuid fk not null
 - `agent_id` uuid fk not null
 - `adapter_type` text not null
 - `task_key` text not null
@@ -472,14 +472,14 @@ One row per `(company_id, agent_id, adapter_type, task_key)` for resumable sessi
 - `created_at` timestamptz not null
 - `updated_at` timestamptz not null
 
-Invariant: unique `(company_id, agent_id, adapter_type, task_key)`.
+Invariant: unique `(space_id, agent_id, adapter_type, task_key)`.
 
 ## 9.2 New table: `agent_wakeup_requests`
 
 Queue + audit for wakeups.
 
 - `id` uuid pk
-- `company_id` uuid fk not null
+- `space_id` uuid fk not null
 - `agent_id` uuid fk not null
 - `source` text not null (`timer|assignment|on_demand|automation`)
 - `trigger_detail` text null (`manual|ping|callback|system`)
@@ -501,7 +501,7 @@ Queue + audit for wakeups.
 Append-only per-run lightweight event timeline (no full raw log chunks).
 
 - `id` bigserial pk
-- `company_id` uuid fk not null
+- `space_id` uuid fk not null
 - `run_id` uuid fk `heartbeat_runs.id` not null
 - `agent_id` uuid fk `agents.id` not null
 - `seq` int not null
@@ -544,7 +544,7 @@ Runtime log storage is deployment-configured (not per-agent by default).
   "runLogStore": {
     "type": "local_file | object_store | postgres",
     "basePath": "./data/run-logs",
-    "bucket": "paperclip-run-logs",
+    "bucket": "outpost-run-logs",
     "prefix": "runs/",
     "compress": true,
     "maxInlineExcerptBytes": 32768
@@ -568,8 +568,8 @@ Rules:
 
 ## 10.2 Initial variable catalog
 
-- `company.id`
-- `company.name`
+- `space.id`
+- `space.name`
 - `agent.id`
 - `agent.name`
 - `agent.role`
@@ -578,7 +578,7 @@ Rules:
 - `run.source`
 - `run.startedAt`
 - `heartbeat.reason`
-- `outpost.skill` (shared Paperclip skill text block)
+- `outpost.skill` (shared Outpost skill text block)
 - `credentials.apiBaseUrl`
 - `credentials.apiKey` (optional, sensitive)
 
@@ -605,17 +605,17 @@ Rules:
 
 ## 11.1 Transport
 
-Primary transport: websocket channel per company.
+Primary transport: websocket channel per space.
 
-- Endpoint: `GET /api/companies/:companyId/events/ws`
-- Auth: board session or agent API key (company-bound)
+- Endpoint: `GET /api/spaces/:spaceId/events/ws`
+- Auth: board session or agent API key (space-bound)
 
 ## 11.2 Event envelope
 
 ```json
 {
   "eventId": "uuid-or-monotonic-id",
-  "companyId": "uuid",
+  "spaceId": "uuid",
   "type": "heartbeat.run.status",
   "entityType": "heartbeat_run",
   "entityId": "uuid",
@@ -699,7 +699,7 @@ On server startup:
    - fetch persisted lightweight timeline
 7. `GET /heartbeat-runs/:runId/log`
    - reads full log stream via `RunLogStore` (or redirects/presigned URL for object store)
-8. `GET /api/companies/:companyId/events/ws`
+8. `GET /api/spaces/:spaceId/events/ws`
    - websocket stream
 
 ## 13.2 Mutation logging
@@ -738,7 +738,7 @@ All wakeup/run state mutations must create `activity_log` entries:
 
 ## Phase 4: Realtime push
 
-1. Implement company websocket hub.
+1. Implement space websocket hub.
 2. Publish run/agent/issue events.
 3. Update UI pages to subscribe and invalidate/update relevant data.
 
@@ -763,7 +763,7 @@ All wakeup/run state mutations must create `activity_log` entries:
 5. Pause/terminate interrupts running local process and prevents new wakeups.
 6. Browser receives live websocket updates for run status/logs and task/agent changes.
 7. Failed runs expose rich CLI diagnostics in UI with excerpts immediately available and full log retrievable via `RunLogStore`.
-8. All actions remain company-scoped and auditable.
+8. All actions remain space-scoped and auditable.
 
 ## 16. Open Questions
 

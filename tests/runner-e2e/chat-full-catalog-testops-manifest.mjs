@@ -8,21 +8,21 @@ const surfaces = new Set(['agent-chat', 'browser-boundary', 'scoped-external-ass
 const nonnegative = value => Number.isSafeInteger(value) && value >= 0;
 const text = value => typeof value === 'string' && value.trim().length > 0;
 
-export function companySecretBindingApprovalMetadata(declaration) {
-  if (!Object.hasOwn(declaration, 'optionalCompanySecretBindingApproval')) return {};
-  if (declaration.optionalCompanySecretBindingApproval !== true
-    || declaration.scenarioId !== 'secrets.configure-company-secret'
+export function spaceSecretBindingApprovalMetadata(declaration) {
+  if (!Object.hasOwn(declaration, 'optionalSpaceSecretBindingApproval')) return {};
+  if (declaration.optionalSpaceSecretBindingApproval !== true
+    || declaration.scenarioId !== 'secrets.configure-space-secret'
     || declaration.expectedRunCount !== 3 || declaration.minimumRunCount !== 2
     || declaration.expectedHumanMessageCount !== 2 || declaration.attemptTimeoutMs !== 480000) {
-    throw new Error('chat_full_catalog_company_approval_invalid');
+    throw new Error('chat_full_catalog_space_approval_invalid');
   }
-  return { optionalCompanySecretBindingApproval: true, expectedHumanMessageCount: 2 };
+  return { optionalSpaceSecretBindingApproval: true, expectedHumanMessageCount: 2 };
 }
 
-export function validateCompanySecretBindingApprovalSource(row, task) {
-  const declared = companySecretBindingApprovalMetadata({ ...row, scenarioId: row.key,
+export function validateSpaceSecretBindingApprovalSource(row, task) {
+  const declared = spaceSecretBindingApprovalMetadata({ ...row, scenarioId: row.key,
     expectedRunCount: row.maximumRuns, minimumRunCount: row.minimumRuns });
-  const actual = companySecretBindingApprovalMetadata({ ...task, scenarioId: task.id,
+  const actual = spaceSecretBindingApprovalMetadata({ ...task, scenarioId: task.id,
     minimumRunCount: task.minimumExpectedRunCount ?? task.expectedRunCount,
     attemptTimeoutMs: task.attemptTimeoutMs?.local });
   if (JSON.stringify(actual) !== JSON.stringify(declared)) throw new Error('Pinned source approval mismatch');
@@ -35,7 +35,7 @@ export function validateFullCatalogManifest(value) {
     || value.profile !== 'runner-opencode' || value.model !== 'openrouter/deepseek/deepseek-v4.1-flash-1017'
     || !Array.isArray(value.cases) || value.cases.length !== 244) throw new Error('chat_full_catalog_manifest_invalid');
   for (const row of value.cases) {
-    companySecretBindingApprovalMetadata({ ...row, scenarioId: row.key,
+    spaceSecretBindingApprovalMetadata({ ...row, scenarioId: row.key,
       expectedRunCount: row.maximumRuns, minimumRunCount: row.minimumRuns });
     const task = legacy.has(row.key) ? row.key.slice(6) : row.key;
     if (!/^[a-z0-9-]+\.[a-z0-9-]+$/.test(row.key ?? '') || row.canonicalScenario !== row.key || row.scenario !== task

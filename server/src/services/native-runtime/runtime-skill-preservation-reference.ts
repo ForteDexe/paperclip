@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { heartbeatRuns, companySkillRepositorySnapshots } from "@outpost/db";
+import { heartbeatRuns, spaceSkillRepositorySnapshots } from "@outpost/db";
 import { nativeSha256 } from "./canonical.js";
 import { parseNativeExecutionInput, type NativeRuntimeContextSnapshot } from "../../vendor/outpost-runner/index.js";
 
@@ -12,10 +12,10 @@ export type PreservedRuntimeSkill = {
 export type RuntimeSkillPreservation = {
   schema: typeof RUNTIME_SKILL_PRESERVATION_SCHEMA; inputDigest: string; bindingDigest: string; assets: PreservedRuntimeSkill[];
 };
-export function admittedRuntimeSkills(row: { id: string; companyId: string; agentId: string; nativeIssueId: string | null;
+export function admittedRuntimeSkills(row: { id: string; spaceId: string; agentId: string; nativeIssueId: string | null;
   runnerProfileJson: Record<string, unknown> | null }) {
   const input = parseNativeExecutionInput(row.runnerProfileJson?.nativeExecutionInput);
-  if (input.binding.companyId !== row.companyId || input.binding.runId !== row.id
+  if (input.binding.spaceId !== row.spaceId || input.binding.runId !== row.id
     || input.binding.agentId !== row.agentId || input.binding.issueId !== row.nativeIssueId || !("runtimeContext" in input)) {
     throw new Error("runtime_skill_preservation_binding_changed");
   }
@@ -60,9 +60,9 @@ export function hasUnversionedRuntimeSkillInputSql() {
 }
 
 /** JSON receipts are references just like version FKs. Unknown receipt shapes
- * retain the company's packages rather than allowing destructive inference. */
+ * retain the space's packages rather than allowing destructive inference. */
 export function runtimeSkillPackageUnreferencedSql() {
-  return sql`not exists (select 1 from ${heartbeatRuns} r where r.company_id = ${companySkillRepositorySnapshots.companyId}
+  return sql`not exists (select 1 from ${heartbeatRuns} r where r.space_id = ${spaceSkillRepositorySnapshots.spaceId}
     and r.runner_profile_json ? 'nativeRuntimeSkillPreservation'
     and (r.runner_profile_json->'nativeRuntimeSkillPreservation'->>'schema' is distinct from ${RUNTIME_SKILL_PRESERVATION_SCHEMA}
       or coalesce(r.runner_profile_json->'nativeRuntimeSkillPreservation'->>'inputDigest', '') !~ '^[a-f0-9]{64}$'
@@ -71,5 +71,5 @@ export function runtimeSkillPackageUnreferencedSql() {
         when jsonb_typeof(r.runner_profile_json->'nativeRuntimeSkillPreservation'->'assets') = 'array'
         then r.runner_profile_json->'nativeRuntimeSkillPreservation'->'assets' else '[]'::jsonb end) a
         where coalesce(a->>'packageSnapshotId', '') !~* '^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
-          or a->>'packageSnapshotId' = ${companySkillRepositorySnapshots.id}::text)))`;
+          or a->>'packageSnapshotId' = ${spaceSkillRepositorySnapshots.id}::text)))`;
 }

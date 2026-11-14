@@ -30,7 +30,7 @@ export const remoteMcpProviders: Record<RemoteMcpProviderId, RemoteMcpProvider> 
     id: "arcade", name: "Arcade", supportsBrowserAuth: true,
     description: "Use the tools exposed by your Arcade gateway.",
     instructions: ["Create a gateway in Arcade and select its tools.", "Choose its User Source and copy the gateway URL.", "Paste the URL here, then sign in when prompted."],
-    setupUrl: "https://docs.arcade.dev/en/operate/governance/mcp-gateways",
+    setupUrl: "https://docs.arcade.dev/en/operate/policy/mcp-gateways",
     dashboardUrl: "https://app.arcade.dev",
     defaultUrl: "", placeholder: "https://api.arcade.dev/mcp/your-gateway",
     urlHelp: "Copy the MCP gateway URL from Arcade. App authorization may be required the first time you use a tool.",

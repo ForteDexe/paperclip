@@ -15,19 +15,19 @@ const describePostgres = support.supported ? describe : describe.skip;
 
 describePostgres("execution admission migration", () => {
   it("adds empty admission storage without changing existing projects or runs", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-execution-admission-migration-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-execution-admission-migration-");
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     try {
       await sql`DROP TABLE execution_admission_project_charges, execution_admissions, project_task_execution_policies`;
-      await sql`DROP FUNCTION paperclip_execution_admission_project_set_immutable`;
+      await sql`DROP FUNCTION outpost_execution_admission_project_set_immutable`;
       await sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash IN (${migrationHash}, ${await hashMigration(retainedSetMigration)})`;
-      const companyId = randomUUID(), agentId = randomUUID(), projectId = randomUUID();
-      await sql`INSERT INTO companies (id, name, issue_prefix) VALUES (${companyId}, 'Upgrade', 'UPG')`;
-      await sql`INSERT INTO agents (id, company_id, name, adapter_type) VALUES (${agentId}, ${companyId}, 'Agent', 'process')`;
-      await sql`INSERT INTO projects (id, company_id, name, execution_workspace_policy, archived_at) VALUES
-        (${projectId}, ${companyId}, 'Legacy', '{"enabled":true,"sharedWorkspaceConcurrency":"serialize"}', now())`;
-      await sql`INSERT INTO heartbeat_runs (company_id, agent_id, status, context_snapshot) VALUES
-        (${companyId}, ${agentId}, 'running', ${sql.json({ projectId })})`;
+      const spaceId = randomUUID(), agentId = randomUUID(), projectId = randomUUID();
+      await sql`INSERT INTO spaces (id, name, issue_prefix) VALUES (${spaceId}, 'Upgrade', 'UPG')`;
+      await sql`INSERT INTO agents (id, space_id, name, adapter_type) VALUES (${agentId}, ${spaceId}, 'Agent', 'process')`;
+      await sql`INSERT INTO projects (id, space_id, name, execution_workspace_policy, archived_at) VALUES
+        (${projectId}, ${spaceId}, 'Legacy', '{"enabled":true,"sharedWorkspaceConcurrency":"serialize"}', now())`;
+      await sql`INSERT INTO heartbeat_runs (space_id, agent_id, status, context_snapshot) VALUES
+        (${spaceId}, ${agentId}, 'running', ${sql.json({ projectId })})`;
       const contents = async () => ({
         projects: await sql`SELECT * FROM projects ORDER BY id`,
         runs: await sql`SELECT * FROM heartbeat_runs ORDER BY id`,
@@ -44,8 +44,8 @@ describePostgres("execution admission migration", () => {
       }
       expect((await sql`SELECT conname FROM pg_constraint WHERE conrelid = 'execution_admission_project_charges'::regclass
         AND contype = 'f' ORDER BY conname`).map(row => row.conname)).toEqual([
-        "execution_admission_project_charges_company_admission_fk",
-        "execution_admission_project_charges_company_project_fk",
+        "execution_admission_project_charges_space_admission_fk",
+        "execution_admission_project_charges_space_project_fk",
       ]);
       expect(await inspectMigrations(database.connectionString)).toMatchObject({ status: "upToDate" });
     } finally {
@@ -55,27 +55,27 @@ describePostgres("execution admission migration", () => {
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
   it("keeps the admitted sets of shipped 0426 rows that still have charges and marks settled ones unknown", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-execution-admission-sets-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-execution-admission-sets-");
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     try {
-      await sql`DROP TRIGGER paperclip_execution_admission_project_set_immutable ON execution_admissions`;
-      await sql`DROP FUNCTION paperclip_execution_admission_project_set_immutable`;
+      await sql`DROP TRIGGER outpost_execution_admission_project_set_immutable ON execution_admissions`;
+      await sql`DROP FUNCTION outpost_execution_admission_project_set_immutable`;
       await sql`ALTER TABLE execution_admissions DROP CONSTRAINT execution_admissions_project_set_check, DROP COLUMN admitted_project_ids`;
       await sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash = ${await hashMigration(retainedSetMigration)}`;
-      const companyId = randomUUID(), agentId = randomUUID();
+      const spaceId = randomUUID(), agentId = randomUUID();
       const [a, b] = [randomUUID(), randomUUID()].sort();
-      await sql`INSERT INTO companies (id, name, issue_prefix) VALUES (${companyId}, 'Upgrade', 'UPS')`;
-      await sql`INSERT INTO agents (id, company_id, name, adapter_type) VALUES (${agentId}, ${companyId}, 'Agent', 'process')`;
-      await sql`INSERT INTO projects (id, company_id, name) VALUES (${b}, ${companyId}, 'B'), (${a}, ${companyId}, 'A')`;
+      await sql`INSERT INTO spaces (id, name, issue_prefix) VALUES (${spaceId}, 'Upgrade', 'UPS')`;
+      await sql`INSERT INTO agents (id, space_id, name, adapter_type) VALUES (${agentId}, ${spaceId}, 'Agent', 'process')`;
+      await sql`INSERT INTO projects (id, space_id, name) VALUES (${b}, ${spaceId}, 'B'), (${a}, ${spaceId}, 'A')`;
       const [live, empty, settled] = [randomUUID(), randomUUID(), randomUUID()];
       for (const id of [live, empty, settled]) {
-        const [run] = await sql`INSERT INTO heartbeat_runs (company_id, agent_id) VALUES (${companyId}, ${agentId}) RETURNING id`;
-        await sql`INSERT INTO execution_admissions (id, company_id, run_id, attempt, primary_project_id, context_revision,
-          settlement_id, settled_at) VALUES (${id}, ${companyId}, ${run.id}, 1, ${a}, 'issue:1',
+        const [run] = await sql`INSERT INTO heartbeat_runs (space_id, agent_id) VALUES (${spaceId}, ${agentId}) RETURNING id`;
+        await sql`INSERT INTO execution_admissions (id, space_id, run_id, attempt, primary_project_id, context_revision,
+          settlement_id, settled_at) VALUES (${id}, ${spaceId}, ${run.id}, 1, ${a}, 'issue:1',
           ${id === settled ? randomUUID() : null}, ${id === settled ? sql`now()` : null})`;
       }
-      await sql`INSERT INTO execution_admission_project_charges (admission_id, company_id, project_id)
-        VALUES (${live}, ${companyId}, ${b}), (${live}, ${companyId}, ${a})`;
+      await sql`INSERT INTO execution_admission_project_charges (admission_id, space_id, project_id)
+        VALUES (${live}, ${spaceId}, ${b}), (${live}, ${spaceId}, ${a})`;
 
       const sets = () => sql`SELECT id, admitted_project_ids FROM execution_admissions ORDER BY id`;
       await applyPendingMigrations(database.connectionString);

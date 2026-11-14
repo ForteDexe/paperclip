@@ -1,5 +1,5 @@
 import { bigint, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { plugins } from "./plugins.js";
 
 /**
@@ -10,11 +10,11 @@ import { plugins } from "./plugins.js";
  */
 export const pluginLifecycleResourceCursors = pgTable("plugin_lifecycle_resource_cursors", {
   pluginId: uuid("plugin_id").notNull().references(() => plugins.id, { onDelete: "cascade" }),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   resourceType: text("resource_type").$type<"agent" | "project" | "agent_runtime">().notNull(),
   resourceId: uuid("resource_id").notNull(),
   acknowledgedThroughId: bigint("acknowledged_through_id", { mode: "number" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => ({
-  pk: primaryKey({ name: "plugin_lifecycle_resource_cursors_pk", columns: [table.pluginId, table.companyId, table.resourceType, table.resourceId] }),
+  pk: primaryKey({ name: "plugin_lifecycle_resource_cursors_pk", columns: [table.pluginId, table.spaceId, table.resourceType, table.resourceId] }),
 }));

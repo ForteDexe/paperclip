@@ -10,7 +10,7 @@ export async function photonControlTargetsConversation(db: Db, endpoint: Endpoin
     .from(chatMessageLinks)
     .where(
       and(
-        eq(chatMessageLinks.companyId, endpoint.companyId),
+        eq(chatMessageLinks.spaceId, endpoint.spaceId),
         eq(chatMessageLinks.endpointId, endpoint.id),
         eq(chatMessageLinks.providerMessageId, guid),
       ),
@@ -39,7 +39,7 @@ export async function recordPhotonInboundActivity(
     await logActivity(
       taskTx as Db,
       {
-        companyId: taskEndpoint.companyId,
+        spaceId: taskEndpoint.spaceId,
         actorType: taskUserId ? "user" : "system",
         actorId: taskUserId ?? "chat:imessage-photon",
         action: "issue.comment_added",

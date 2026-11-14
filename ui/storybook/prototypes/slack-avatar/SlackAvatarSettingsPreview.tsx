@@ -6,7 +6,7 @@ import { SlackAvatarSettings } from "@/pages/apps/chat/SlackAvatarStep";
 import { appearanceForPalette } from "@outpost/shared";
 import { agentAvatarUrl } from "@/lib/agent-avatar-url";
 
-const avatar = agentAvatarUrl(appearanceForPalette("flamingo-jade"), 512, 1, "rest", false, "paperclip-dark");
+const avatar = agentAvatarUrl(appearanceForPalette("flamingo-jade"), 512, 1, "rest", false, "outpost-dark");
 
 export function SlackAvatarSettingsPreview({ initialInstructions = "", failFirstSave = false }: { initialInstructions?: string; failFirstSave?: boolean }) {
   const [instructions, setInstructions] = useState(initialInstructions);
@@ -52,7 +52,7 @@ export function SlackAvatarSettingsPreview({ initialInstructions = "", failFirst
             </section>
             <SlackAvatarSettings
               agentName="CEO"
-              appName="ceo-paperclip"
+              appName="ceo-outpost"
               avatarUrl={avatar}
             />
             <ChatCommunicationInstructions value={instructions} onSave={async (next) => {

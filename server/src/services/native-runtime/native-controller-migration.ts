@@ -22,7 +22,7 @@ import { archiveSettledFailedNativeController } from "./native-controller-archiv
 import { nativeControllerSourceDigest } from "./native-controller-source-digest.js";
 import { isVolumeFreeControllerStateOwnerEntry, volumeFreeControllerStateOwned } from "./volume-free-controller-state.js";
 
-type Selected = { id: string; companyId: string; agentId: string; issueId: string; sessionId: string; createdAt: Date; lastRunId: string };
+type Selected = { id: string; spaceId: string; agentId: string; issueId: string; sessionId: string; createdAt: Date; lastRunId: string };
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -32,10 +32,10 @@ async function confirmedOlderSuccessfulSnapshot(db: Db, selected: Selected,
   source: NonNullable<Awaited<ReturnType<typeof findNativeSessionResumeRun>>>,
   paths: Awaited<ReturnType<typeof localPaths>>, olderRunId: unknown) {
   const snapshot = record(source.runnerProfileJson.sessionCheckpoint), identity = record(snapshot.identity);
-  const scope = { companyId: selected.companyId, agentId: selected.agentId, issueId: selected.issueId, sessionId: selected.sessionId };
+  const scope = { spaceId: selected.spaceId, agentId: selected.agentId, issueId: selected.issueId, sessionId: selected.sessionId };
   if (source.status !== "failed" || identity.runId !== source.id
     || Object.entries(scope).some(([key, value]) => identity[key] !== value)
-    || paths.execution.binding.runId !== source.id || paths.execution.binding.companyId !== selected.companyId
+    || paths.execution.binding.runId !== source.id || paths.execution.binding.spaceId !== selected.spaceId
     || paths.execution.binding.agentId !== selected.agentId || paths.execution.binding.issueId !== selected.issueId
     || paths.execution.session.normalizedSessionId !== selected.sessionId
     || typeof snapshot.sessionId !== "string" || !snapshot.sessionId.trim()
@@ -43,7 +43,7 @@ async function confirmedOlderSuccessfulSnapshot(db: Db, selected: Selected,
     || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(olderRunId)) return null;
   const [prior] = await db.select({ createdAt: heartbeatRuns.createdAt, finishedAt: heartbeatRuns.finishedAt,
     runnerInstanceId: heartbeatRuns.runnerInstanceId, snapshot: sql<unknown>`${heartbeatRuns.runnerProfileJson}->'sessionCheckpoint'` })
-    .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, olderRunId), eq(heartbeatRuns.companyId, selected.companyId),
+    .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, olderRunId), eq(heartbeatRuns.spaceId, selected.spaceId),
       eq(heartbeatRuns.agentId, selected.agentId), eq(heartbeatRuns.nativeIssueId, selected.issueId),
       eq(heartbeatRuns.nativeSessionId, selected.sessionId), eq(heartbeatRuns.runtimeMode, "native"), eq(heartbeatRuns.status, "succeeded")));
   const priorSnapshot = record(prior?.snapshot), priorIdentity = record(priorSnapshot.identity);
@@ -52,7 +52,7 @@ async function confirmedOlderSuccessfulSnapshot(db: Db, selected: Selected,
     || priorIdentity.runId !== olderRunId || Object.entries(scope).some(([key, value]) => priorIdentity[key] !== value)
     || priorSnapshot.sessionId !== snapshot.sessionId || priorSnapshot.backendKind !== snapshot.backendKind) return null;
   const [failed] = await db.select({ finishedAt: heartbeatRuns.finishedAt, startedAt: heartbeatRuns.startedAt }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.id, source.id), eq(heartbeatRuns.companyId, selected.companyId), eq(heartbeatRuns.agentId, selected.agentId),
+    eq(heartbeatRuns.id, source.id), eq(heartbeatRuns.spaceId, selected.spaceId), eq(heartbeatRuns.agentId, selected.agentId),
     eq(heartbeatRuns.nativeIssueId, selected.issueId), eq(heartbeatRuns.nativeSessionId, selected.sessionId),
     eq(heartbeatRuns.runtimeMode, "native"), eq(heartbeatRuns.status, "failed")));
   return failed?.finishedAt && prior.finishedAt <= (failed.startedAt ?? source.createdAt) ? priorSnapshot : null;
@@ -82,21 +82,21 @@ async function* retainedSources(db: Db, signal?: AbortSignal, concurrency = 1, i
   let after: string | undefined;
   for (;;) {
     signal?.throwIfAborted();
-    const rows = await db.execute<Selected>(sql`select s.id, s.company_id as "companyId", s.agent_id as "agentId",
+    const rows = await db.execute<Selected>(sql`select s.id, s.space_id as "spaceId", s.agent_id as "agentId",
       r.native_issue_id as "issueId", r.native_session_id as "sessionId", r.created_at as "createdAt", r.id as "lastRunId"
       from agent_task_sessions s join heartbeat_runs r on r.id = s.last_run_id
-        and r.company_id = s.company_id and r.agent_id = s.agent_id
+        and r.space_id = s.space_id and r.agent_id = s.agent_id
       where s.adapter_type = 'outpost_runner' and r.native_issue_id is not null and r.native_session_id is not null
         ${after ? sql`and s.id > ${after}::uuid` : sql``} order by s.id limit 100`);
     for (let offset = 0; offset < rows.length; offset += concurrency) {
       signal?.throwIfAborted();
       const batch = await Promise.allSettled(rows.slice(offset, offset + concurrency).map(async selected => {
-        const source = await findNativeSessionResumeRun(db, { companyId: selected.companyId, agentId: selected.agentId,
+        const source = await findNativeSessionResumeRun(db, { spaceId: selected.spaceId, agentId: selected.agentId,
           issueId: selected.issueId, normalizedSessionId: selected.sessionId,
           beforeCreatedAt: new Date(selected.createdAt), includeProgressBarrier: true });
         const databaseRecoveryPreserved = Boolean(inspectDatabaseRecovery && source && source.status !== "running"
           && readNativeControllerRecovery(source.runnerProfileJson.nativeControllerRecovery, source.runnerProfileJson.sessionCheckpoint)
-          && await hasNativeRunnerCheckpoint(db, { companyId: selected.companyId, issueId: selected.issueId, runId: source.id }));
+          && await hasNativeRunnerCheckpoint(db, { spaceId: selected.spaceId, issueId: selected.issueId, runId: source.id }));
         return { selected, source, databaseRecoveryPreserved };
       }));
       for (const result of batch) {
@@ -125,7 +125,7 @@ async function readPrivateSource(file: string, maxBytes: number): Promise<string
 
 async function localPaths(source: NonNullable<Awaited<ReturnType<typeof findNativeSessionResumeRun>>>) {
   const execution = parseNativeExecutionInput(source.runnerProfileJson.nativeExecutionInput);
-  if (execution.binding.companyId !== source.companyId || execution.binding.agentId !== source.agentId
+  if (execution.binding.spaceId !== source.spaceId || execution.binding.agentId !== source.agentId
     || execution.binding.issueId !== source.nativeIssueId || execution.binding.runId !== source.id
     || execution.session.normalizedSessionId !== source.nativeSessionId) throw new Error("native_controller_migration_artifact_binding");
   const descriptor = nativeControllerMigrationDescriptor(execution, source.runnerProfileJson.nativeToolContractFingerprint);
@@ -168,9 +168,9 @@ async function preservedDatabaseOnlyFailedCheckpoint(selected: Selected,
   checkpoint: Awaited<ReturnType<typeof loadNativeRunnerCheckpoint>>) {
   const snapshot = record(source.runnerProfileJson.sessionCheckpoint), identity = record(snapshot.identity);
   if (source.status !== "failed" || source.runtimeMode !== "native" || !checkpoint
-    || source.companyId !== selected.companyId || source.agentId !== selected.agentId
+    || source.spaceId !== selected.spaceId || source.agentId !== selected.agentId
     || source.nativeIssueId !== selected.issueId || source.nativeSessionId !== selected.sessionId
-    || identity.companyId !== selected.companyId || identity.agentId !== selected.agentId
+    || identity.spaceId !== selected.spaceId || identity.agentId !== selected.agentId
     || identity.issueId !== selected.issueId || identity.runId !== source.id || identity.sessionId !== selected.sessionId
     || typeof snapshot.sessionId !== "string" || !snapshot.sessionId.trim()
     || checkpoint.runId !== source.id || checkpoint.recoveryEvidence.runnerInstanceId !== source.runnerInstanceId
@@ -192,17 +192,17 @@ async function preservedWarmMarker(db: Db, selected: Selected,
   source: NonNullable<Awaited<ReturnType<typeof findNativeSessionResumeRun>>>, markerIdentity: Record<string, unknown>) {
   if (!isNativeSessionId(markerIdentity.runId) || markerIdentity.runId === source.id) return false;
   const [prior] = await db.execute<{ id: string }>(sql`
-    select r.id from heartbeat_runs r join heartbeat_runs current on current.id=${source.id}::uuid and current.company_id=r.company_id
-    join native_run_finalizations f on f.run_id=r.id and f.company_id=r.company_id and f.issue_id=r.native_issue_id
-    join native_run_results result on result.id=f.result_id and result.run_id=r.id and result.company_id=r.company_id
+    select r.id from heartbeat_runs r join heartbeat_runs current on current.id=${source.id}::uuid and current.space_id=r.space_id
+    join native_run_finalizations f on f.run_id=r.id and f.space_id=r.space_id and f.issue_id=r.native_issue_id
+    join native_run_results result on result.id=f.result_id and result.run_id=r.id and result.space_id=r.space_id
       and result.issue_id=r.native_issue_id and result.completion_contract_id=r.completion_contract_id and result.schema_status='accepted'
-    where r.id=${markerIdentity.runId}::uuid and r.company_id=${selected.companyId}::uuid and r.agent_id=${selected.agentId}::uuid
+    where r.id=${markerIdentity.runId}::uuid and r.space_id=${selected.spaceId}::uuid and r.agent_id=${selected.agentId}::uuid
       and r.native_issue_id=${selected.issueId}::uuid and r.native_session_id=${selected.sessionId}::uuid
       and r.runner_instance_id=${source.runnerInstanceId} and r.runtime_mode='native' and r.status='succeeded'
       and r.created_at<current.created_at and r.finished_at is not null and r.finished_at<=coalesce(current.started_at,current.created_at)
       and f.phase='committed' and f.lease_owner is null and f.recovery_state is null and f.failure_code is null`);
   if (!prior) return false;
-  const checkpoint = await loadNativeRunnerCheckpoint(db, { companyId: selected.companyId, issueId: selected.issueId, runId: prior.id }).catch(() => null);
+  const checkpoint = await loadNativeRunnerCheckpoint(db, { spaceId: selected.spaceId, issueId: selected.issueId, runId: prior.id }).catch(() => null);
   const header = checkpoint && inspectDurablePrpCheckpointHeader(checkpoint.records.get("header") ?? "");
   return Boolean(header && nativeSha256(header) === nativeSha256(markerIdentity));
 }
@@ -217,7 +217,7 @@ async function preservedActiveCheckpoint(db: Db, selected: Selected,
   } catch { return false; }
   if (marker !== null && (marker.schema !== "outpost.runner.external-control-plane-state.v1"
     || Object.keys(marker).sort().join(",") !== "identity,schema")) return false;
-  const binding = { companyId: selected.companyId, issueId: selected.issueId, runId: source.id };
+  const binding = { spaceId: selected.spaceId, issueId: selected.issueId, runId: source.id };
   const checkpoint = await loadNativeRunnerCheckpoint(db, binding).catch(() => null);
   const header = checkpoint && inspectDurablePrpCheckpointHeader(checkpoint.records.get("header") ?? "");
   if (!header || header.runId !== source.id || header.runnerInstanceId !== source.runnerInstanceId
@@ -235,15 +235,15 @@ async function preservedActiveCheckpoint(db: Db, selected: Selected,
        and f.controller_boot_id is not null and f.controller_boot_id<>'' and f.controller_generation>0
        and f.lease_owner is not null and f.lease_owner<>'' and f.lease_expires_at>clock_timestamp()
        and f.phase='observed' and f.result_id is null and f.failure_code is null) is true as "liveOwner"
-    from heartbeat_runs r left join native_run_finalizations f on f.run_id=r.id and f.company_id=r.company_id and f.issue_id=r.native_issue_id
-    left join issues i on i.id=r.native_issue_id and i.company_id=r.company_id
-    left join lateral (select l.id from environment_leases l where l.company_id=r.company_id and l.heartbeat_run_id=r.id
+    from heartbeat_runs r left join native_run_finalizations f on f.run_id=r.id and f.space_id=r.space_id and f.issue_id=r.native_issue_id
+    left join issues i on i.id=r.native_issue_id and i.space_id=r.space_id
+    left join lateral (select l.id from environment_leases l where l.space_id=r.space_id and l.heartbeat_run_id=r.id
       and l.issue_id=r.native_issue_id and l.status='active' and l.released_at is null and l.cleanup_status is null
       and (l.expires_at is null or l.expires_at>clock_timestamp()) and l.metadata->>'agentId'=r.agent_id::text
       and l.metadata->>'runnerTaskLease'='true' and l.metadata->>'runnerTaskDispatched'='true'
       and coalesce(l.metadata->>'runnerTaskExecutionStopped','false')!='true'
       and coalesce(l.metadata->>'runnerTaskRetiring','false')!='true' order by l.created_at desc limit 1) p on true
-    where r.id=${source.id}::uuid and r.company_id=${selected.companyId}::uuid and r.agent_id=${selected.agentId}::uuid
+    where r.id=${source.id}::uuid and r.space_id=${selected.spaceId}::uuid and r.agent_id=${selected.agentId}::uuid
       and r.native_issue_id=${selected.issueId}::uuid and r.native_session_id=${selected.sessionId}::uuid
       and r.runner_instance_id=${source.runnerInstanceId} and r.runtime_mode='native' and r.status='running'`);
   if (!current) return false;
@@ -268,7 +268,7 @@ export async function findLocalNativeControllerObligation(db: Db, storage?: Stor
   });
   if (!roots.some(name => !isVolumeFreeControllerStateOwnerEntry(name)) || await volumeFreeControllerStateOwned(base)) return null;
   for await (const { selected, source, databaseRecoveryPreserved } of retainedSources(db, undefined, 8, true)) {
-    const binding = { companyId: selected.companyId, issueId: selected.issueId, runId: source.id };
+    const binding = { spaceId: selected.spaceId, issueId: selected.issueId, runId: source.id };
     if (databaseRecoveryPreserved) continue;
     if (source.status === "failed" && source.runnerProfileJson.sessionCheckpoint == null
       && preservedFailedCheckpoint(source, selected.sessionId, await loadNativeRunnerCheckpoint(db, binding))) continue;
@@ -300,7 +300,7 @@ function hasMatchingControllerRecovery(selected: Selected,
   return Boolean(checkpoint && metadata?.checkpoint?.runId === source.id
       && metadata.checkpoint.runnerInstanceId === source.runnerInstanceId
       && metadata.checkpoint.normalizedSessionId === selected.sessionId
-      && snapshot?.identity?.runId === source.id && snapshot.identity.companyId === selected.companyId
+      && snapshot?.identity?.runId === source.id && snapshot.identity.spaceId === selected.spaceId
       && snapshot.identity.agentId === selected.agentId && snapshot.identity.issueId === selected.issueId
       && snapshot.identity.sessionId === selected.sessionId
       && checkpoint.recoveryEvidence.runnerInstanceId === source.runnerInstanceId
@@ -318,7 +318,7 @@ async function readMigrationMaterial(db: Db, selected: Selected,
     const identity = JSON.parse(legacyControllerState).identity;
     const execution = paths.execution;
     const [admission] = await db.select({ workspace: sql<unknown>`${heartbeatRuns.runnerProfileJson}->'nativeWorkspaceSync'` })
-      .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, source.id), eq(heartbeatRuns.companyId, selected.companyId),
+      .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, source.id), eq(heartbeatRuns.spaceId, selected.spaceId),
         eq(heartbeatRuns.agentId, selected.agentId)));
     const workspace = readNativeWorkspaceSyncReference(admission?.workspace);
     const remoteCwd = workspace?.remoteCwd ?? execution.workspace.cwd;
@@ -328,7 +328,7 @@ async function readMigrationMaterial(db: Db, selected: Selected,
     }
     const unavailable = (): never => { throw new Error("native_controller_migration_artifact_unavailable"); };
     legacyRunnerArtifact = resolveRemoteProviderPackAuthority({ stateDirectory: paths.root, reattach: true,
-      binding: { companyId: selected.companyId, agentId: selected.agentId,
+      binding: { spaceId: selected.spaceId, agentId: selected.agentId,
         workspaceId: providerPackWorkspaceId(execution.binding.executionWorkspaceId, source.id, identity.environmentLeaseId),
         sessionId: selected.sessionId, runnerInstanceId: source.runnerInstanceId!,
         environmentLeaseId: identity.environmentLeaseId, remoteCwd,
@@ -346,7 +346,7 @@ export async function migrateNativeControllers(db: Db, input: { writersStopped: 
   const counts = { inspected: 0, imported: 0, unchanged: 0, sourceAlreadyAbsent: 0, archivedFailed: 0, preservedFailed: 0 };
   for await (const { selected, source } of retainedSources(db, input.signal)) {
     counts.inspected++;
-    const binding = { companyId: selected.companyId, issueId: selected.issueId, runId: source.id };
+    const binding = { spaceId: selected.spaceId, issueId: selected.issueId, runId: source.id };
     const checkpoint = await loadNativeRunnerCheckpoint(db, binding);
     if (preservedFailedCheckpoint(source, selected.sessionId, checkpoint)) { counts.preservedFailed++; continue; }
     if (await preservedDatabaseOnlyFailedCheckpoint(selected, source, checkpoint)) { counts.preservedFailed++; continue; }
@@ -417,24 +417,24 @@ export async function prestageNativeControllers(db: Db, input: { signal: AbortSi
     input.signal.throwIfAborted();
     let outcome = await db.transaction(async tx => {
       await tx.execute(sql`set local lock_timeout = '1s'`);
-      const [task] = await tx.select().from(issues).where(and(eq(issues.companyId, selected.companyId),
+      const [task] = await tx.select().from(issues).where(and(eq(issues.spaceId, selected.spaceId),
         eq(issues.id, selected.issueId))).for("update");
       if (!task || task.executionRunId || task.checkoutRunId) return "source_active";
       const [owner] = await tx.select().from(nativeRunFinalizations).where(and(
-        eq(nativeRunFinalizations.companyId, selected.companyId), eq(nativeRunFinalizations.issueId, selected.issueId),
+        eq(nativeRunFinalizations.spaceId, selected.spaceId), eq(nativeRunFinalizations.issueId, selected.issueId),
         eq(nativeRunFinalizations.runId, source.id))).for("update");
       if (!owner || owner.leaseOwner || owner.phase !== "committed" || !owner.resultId || owner.recoveryState) return "owner_not_released";
       const [current] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, source.id),
-        eq(heartbeatRuns.companyId, selected.companyId), eq(heartbeatRuns.agentId, selected.agentId),
+        eq(heartbeatRuns.spaceId, selected.spaceId), eq(heartbeatRuns.agentId, selected.agentId),
         eq(heartbeatRuns.nativeIssueId, selected.issueId), eq(heartbeatRuns.nativeSessionId, selected.sessionId))).for("update");
       if (!current || !["succeeded", "failed"].includes(current.status) || !current.finishedAt) return "source_not_successful";
       const [active] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, selected.companyId), inArray(heartbeatRuns.status, ["queued", "running"]),
+        eq(heartbeatRuns.spaceId, selected.spaceId), inArray(heartbeatRuns.status, ["queued", "running"]),
         or(eq(heartbeatRuns.nativeIssueId, selected.issueId), eq(heartbeatRuns.issueId, selected.issueId),
           eq(heartbeatRuns.nativeSessionId, selected.sessionId)))).limit(1);
       if (active) return "source_active";
       const scoped = tx as unknown as Db;
-      const binding = { companyId: selected.companyId, issueId: selected.issueId, runId: source.id };
+      const binding = { spaceId: selected.spaceId, issueId: selected.issueId, runId: source.id };
       const checkpoint = await loadNativeRunnerCheckpoint(scoped, binding);
       const profile = record(current.runnerProfileJson);
       const freshSource = { ...source, status: current.status, runnerInstanceId: current.runnerInstanceId,

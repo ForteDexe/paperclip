@@ -298,7 +298,7 @@ describe("runRepeatedRestarts with --rr-stop-on recovering", () => {
     const steps: RestartStep[] = [{ signal: "SIGKILL", gapMs: 1_000 }];
     const fake = fakeHooks();
     await expect(runRepeatedRestarts({ record: record("RR1", steps), steps, server: { pid: 100 }, healthyAt: fake.now(), stopOn: "recovering",
-      hooks: { ...fake.hooks, waitForStopPhase: async () => { throw new Error("Paperclip server exited during the crash loop"); } } }))
+      hooks: { ...fake.hooks, waitForStopPhase: async () => { throw new Error("Outpost server exited during the crash loop"); } } }))
       .rejects.toThrow(/exited/);
     expect(fake.log).toEqual([]);
   });

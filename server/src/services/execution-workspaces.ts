@@ -449,7 +449,7 @@ export type ExecutionWorkspaceBranchReconcileResult = {
   } | null;
   restoredSourceIssue: {
     id: string;
-    companyId: string;
+    spaceId: string;
     status: string;
     assigneeAgentId: string | null;
   } | null;
@@ -1052,7 +1052,7 @@ async function inspectGitCloseReadiness(workspace: ExecutionWorkspace): Promise<
         cwd: workspacePath,
         operation: "execution_workspaces.close_readiness_status",
         fairnessKeys: [
-          `company:${workspace.companyId}`,
+          `space:${workspace.spaceId}`,
           `workspace:${workspace.id}`,
           ...(workspace.sourceIssueId ? [`issue:${workspace.sourceIssueId}`] : []),
         ],
@@ -1205,7 +1205,7 @@ function toRuntimeService(
 ): WorkspaceRuntimeService {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     projectId: row.projectId ?? null,
     projectWorkspaceId: row.projectWorkspaceId ?? null,
     executionWorkspaceId: row.executionWorkspaceId ?? null,
@@ -1243,7 +1243,7 @@ function toExecutionWorkspace(
 ): ExecutionWorkspace {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     projectId: row.projectId,
     projectWorkspaceId: row.projectWorkspaceId ?? null,
     sourceIssueId: row.sourceIssueId ?? null,
@@ -1330,7 +1330,7 @@ function noActiveRuntimeServicesForWorkspaceCondition(row: ExecutionWorkspaceRow
   const inheritedProjectWorkspaceId = usesInheritedProjectRuntimeServices(row) ? row.projectWorkspaceId : null;
   const activeServiceConditions = inheritedProjectWorkspaceId
     ? and(
-        eq(workspaceRuntimeServices.companyId, row.companyId),
+        eq(workspaceRuntimeServices.spaceId, row.spaceId),
         or(
           and(
             eq(workspaceRuntimeServices.projectWorkspaceId, inheritedProjectWorkspaceId),
@@ -1341,7 +1341,7 @@ function noActiveRuntimeServicesForWorkspaceCondition(row: ExecutionWorkspaceRow
         ne(workspaceRuntimeServices.status, "stopped"),
       )
     : and(
-        eq(workspaceRuntimeServices.companyId, row.companyId),
+        eq(workspaceRuntimeServices.spaceId, row.spaceId),
         eq(workspaceRuntimeServices.executionWorkspaceId, row.id),
         ne(workspaceRuntimeServices.status, "stopped"),
       );
@@ -1350,7 +1350,7 @@ function noActiveRuntimeServicesForWorkspaceCondition(row: ExecutionWorkspaceRow
 
 async function loadEffectiveRuntimeServicesByExecutionWorkspace(
   db: RuntimeServiceReadDb,
-  companyId: string,
+  spaceId: string,
   rows: ExecutionWorkspaceRow[],
 ) {
   const inheritedRows = rows.filter((row) => usesInheritedProjectRuntimeServices(row));
@@ -1361,12 +1361,12 @@ async function loadEffectiveRuntimeServicesByExecutionWorkspace(
   const [executionRuntimeServices, projectRuntimeServices, projectWorkspaceRows] = await Promise.all([
     listCurrentRuntimeServicesForExecutionWorkspaces(
       db,
-      companyId,
+      spaceId,
       rows.map((row) => row.id),
     ),
     listCurrentRuntimeServicesForProjectWorkspaces(
       db,
-      companyId,
+      spaceId,
       uniqueProjectWorkspaceIds,
     ),
     uniqueProjectWorkspaceIds.length > 0
@@ -1378,7 +1378,7 @@ async function loadEffectiveRuntimeServicesByExecutionWorkspace(
           .from(projectWorkspaces)
           .where(
             and(
-              eq(projectWorkspaces.companyId, companyId),
+              eq(projectWorkspaces.spaceId, spaceId),
               inArray(projectWorkspaces.id, uniqueProjectWorkspaceIds),
             ),
           )
@@ -1450,12 +1450,12 @@ type WorkspaceOverviewIssueRow = WorkspaceOverviewLinkedIssue & {
 };
 
 async function hasPendingTaskWorkspaceRecovery(tx: DbTransaction, input: {
-  companyId: string; issueId: string; excludeRunId?: string;
+  spaceId: string; issueId: string; excludeRunId?: string;
 }) {
   const rows = await tx.select({ finalization: nativeRunFinalizations, run: heartbeatRuns })
     .from(nativeRunFinalizations).innerJoin(heartbeatRuns, and(
-      eq(heartbeatRuns.companyId, nativeRunFinalizations.companyId), eq(heartbeatRuns.id, nativeRunFinalizations.runId),
-    )).where(and(eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.issueId, input.issueId),
+      eq(heartbeatRuns.spaceId, nativeRunFinalizations.spaceId), eq(heartbeatRuns.id, nativeRunFinalizations.runId),
+    )).where(and(eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.issueId, input.issueId),
       input.excludeRunId ? ne(nativeRunFinalizations.runId, input.excludeRunId) : undefined));
   if (rows.length === 0) return false;
   if (rows.some(({ finalization, run }) => finalization.leaseOwner ||
@@ -1463,7 +1463,7 @@ async function hasPendingTaskWorkspaceRecovery(tx: DbTransaction, input: {
       !["succeeded", "interrupted", "failed", "cancelled", "timed_out"].includes(run.status))) return true;
   const runIds = rows.map(({ run }) => run.id);
   const [pendingLease] = await tx.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, input.companyId), inArray(environmentLeases.heartbeatRunId, runIds),
+    eq(environmentLeases.spaceId, input.spaceId), inArray(environmentLeases.heartbeatRunId, runIds),
     or(and(isNull(environmentLeases.releasedAt),
         sql`not coalesce(${environmentLeases.status} = 'retained'
           and ${environmentLeases.leasePolicy} = 'reuse_by_environment'
@@ -1473,7 +1473,7 @@ async function hasPendingTaskWorkspaceRecovery(tx: DbTransaction, input: {
   )).limit(1);
   if (pendingLease) return true;
   const operations = await tx.select({ runId: workspaceOperations.heartbeatRunId, status: workspaceOperations.status })
-    .from(workspaceOperations).where(and(eq(workspaceOperations.companyId, input.companyId),
+    .from(workspaceOperations).where(and(eq(workspaceOperations.spaceId, input.spaceId),
       inArray(workspaceOperations.heartbeatRunId, runIds), eq(workspaceOperations.phase, "workspace_finalize")))
     .orderBy(desc(workspaceOperations.createdAt),
       asc(sql`case when ${workspaceOperations.status} = 'succeeded' then 1 else 0 end`));
@@ -1509,22 +1509,22 @@ async function hasPendingTaskWorkspaceRecovery(tx: DbTransaction, input: {
  * run still owns workspace finalization or recovery. Runs inside the caller's
  * transaction; returns whether the binding was released.
  */
-export async function releaseAncestorWorkspaceBinding(tx: DbTransaction, input: { companyId: string; issueId: string; runId?: string }) {
-  const [task] = await tx.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId))).for("update");
+export async function releaseAncestorWorkspaceBinding(tx: DbTransaction, input: { spaceId: string; issueId: string; runId?: string }) {
+  const [task] = await tx.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId))).for("update");
   if (!task?.executionWorkspaceId || task.workspacePendingSelection) return false;
-  if (!await bindsRelativesExecutionWorkspace(tx, { companyId: input.companyId, executionWorkspaceId: task.executionWorkspaceId, task })) {
+  if (!await bindsRelativesExecutionWorkspace(tx, { spaceId: input.spaceId, executionWorkspaceId: task.executionWorkspaceId, task })) {
     return false;
   }
   const [holder] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), input.runId ? ne(heartbeatRuns.id, input.runId) : undefined,
+    eq(heartbeatRuns.spaceId, input.spaceId), input.runId ? ne(heartbeatRuns.id, input.runId) : undefined,
     or(eq(heartbeatRuns.nativeIssueId, input.issueId),
       sql`coalesce(${heartbeatRuns.contextSnapshot}->>'issueId', ${heartbeatRuns.contextSnapshot}->>'taskId') = ${input.issueId}`),
     eq(heartbeatRuns.status, "running"),
   )).limit(1);
   if (holder) return false;
-  if (await hasPendingTaskWorkspaceRecovery(tx, { companyId: input.companyId, issueId: input.issueId, excludeRunId: input.runId })) return false;
+  if (await hasPendingTaskWorkspaceRecovery(tx, { spaceId: input.spaceId, issueId: input.issueId, excludeRunId: input.runId })) return false;
   const selection = task.workspaceSelection;
-  await notifyStatusCardIssueChange(tx, task.companyId);
+  await notifyStatusCardIssueChange(tx, task.spaceId);
   await tx.update(issues).set({
     executionWorkspaceId: null,
     executionWorkspacePreference: null,
@@ -1555,7 +1555,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       return { statusInspectionSucceeded: state.ready, warnings: state.reason ? [state.reason] : [], git: null };
     }
     if (workspace.providerType !== "plugin") return (opts.inspectGitCloseReadiness ?? inspectGitCloseReadiness)(workspace);
-    const [row] = await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, workspace.id), eq(executionWorkspaces.companyId, workspace.companyId)));
+    const [row] = await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, workspace.id), eq(executionWorkspaces.spaceId, workspace.spaceId)));
     if (!row) throw notFound("Workspace is unavailable");
     let state;
     try { state = await inspectPluginWorkspace(db, opts.pluginWorkerManager, row, recoveryPullRequest); }
@@ -1574,28 +1574,28 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     } };
   }
   async function resolveSourceWorkspaceConfiguration(input: {
-    companyId: string; issueId?: string | null; assigneeAgentId?: string | null;
+    spaceId: string; issueId?: string | null; assigneeAgentId?: string | null;
     assigneeAdapterOverrides?: unknown; executionWorkspaceSettings?: unknown;
     executionWorkspacePolicy: unknown; typedSelection?: boolean; projectId?: string | null; executionPolicy?: unknown;
     sourceWorkspaceId?: string | null; inheritProviderDefaults?: boolean;
   }, reader: Db | DbTransaction = db) {
     const [task] = input.issueId ? await reader.select().from(issues).where(and(
-      eq(issues.id, input.issueId), eq(issues.companyId, input.companyId),
+      eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId),
     )) : [];
     const assigneeAgentId = task ? task.assigneeAgentId : input.assigneeAgentId;
     const [agent] = assigneeAgentId ? await reader.select({ adapterConfig: agents.adapterConfig, permissions: agents.permissions }).from(agents)
-      .where(and(eq(agents.id, assigneeAgentId), eq(agents.companyId, input.companyId))) : [];
+      .where(and(eq(agents.id, assigneeAgentId), eq(agents.spaceId, input.spaceId))) : [];
     const overrides = assigneeAgentId ? parseIssueAssigneeAdapterOverrides(task ? task.assigneeAdapterOverrides : input.assigneeAdapterOverrides) : null;
     const experimental = await instanceSettingsService(db).getExperimental();
     const sourceId = input.sourceWorkspaceId ?? task?.projectWorkspaceId;
     const sourceProjectId = input.projectId ?? task?.projectId;
     const [source] = sourceId || sourceProjectId ? await reader.select({ repoUrl: projectWorkspaces.repoUrl }).from(projectWorkspaces).where(and(
-      eq(projectWorkspaces.companyId, input.companyId),
+      eq(projectWorkspaces.spaceId, input.spaceId),
       sourceId ? eq(projectWorkspaces.id, sourceId) : eq(projectWorkspaces.projectId, sourceProjectId!),
     )).orderBy(desc(projectWorkspaces.isPrimary), asc(projectWorkspaces.createdAt), asc(projectWorkspaces.id)).limit(1) : [];
     const effectivePolicy = input.inheritProviderDefaults === false
       ? parseProjectExecutionWorkspacePolicy(input.executionWorkspacePolicy)
-      : await effectiveProjectWorkspacePolicy(reader, input.companyId, input.executionWorkspacePolicy, Boolean(source?.repoUrl));
+      : await effectiveProjectWorkspacePolicy(reader, input.spaceId, input.executionWorkspacePolicy, Boolean(source?.repoUrl));
     const projectPolicy = applyDefaultIsolatedExecutionWorkspacePolicy({
       projectPolicy: gateProjectExecutionWorkspacePolicy(effectivePolicy, experimental.enableIsolatedWorkspaces || Boolean(effectivePolicy?.storageProviderPluginId)),
       defaultIsolatedWorkspacesEnabled: experimental.enableIsolatedWorkspaces && experimental.enableIsolatedWorkspacesByDefault,
@@ -1604,11 +1604,11 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     const settingsEnabled = experimental.enableIsolatedWorkspaces || Boolean(effectivePolicy?.storageProviderPluginId) || input.typedSelection || task?.workspaceSelection || task?.executionWorkspaceId;
     const issueSettings = settingsEnabled ? parseIssueExecutionWorkspaceSettings(input.executionWorkspaceSettings) : null;
     const projectId = task ? task.projectId : input.projectId;
-    const [organization] = projectId ? await reader.select({ companyId: projects.companyId, executionWorkspacePolicy: projects.executionWorkspacePolicy })
-      .from(projects).where(and(eq(projects.id, projectId), eq(projects.companyId, input.companyId))) : [];
-    const trust = resolveCoreTrustPreset({ companyId: input.companyId, agent,
-      project: organization, workspaceSourceProject: { companyId: input.companyId, executionWorkspacePolicy: input.executionWorkspacePolicy },
-      issue: { companyId: input.companyId, executionPolicy: task ? task.executionPolicy : input.executionPolicy } });
+    const [organization] = projectId ? await reader.select({ spaceId: projects.spaceId, executionWorkspacePolicy: projects.executionWorkspacePolicy })
+      .from(projects).where(and(eq(projects.id, projectId), eq(projects.spaceId, input.spaceId))) : [];
+    const trust = resolveCoreTrustPreset({ spaceId: input.spaceId, agent,
+      project: organization, workspaceSourceProject: { spaceId: input.spaceId, executionWorkspacePolicy: input.executionWorkspacePolicy },
+      issue: { spaceId: input.spaceId, executionPolicy: task ? task.executionPolicy : input.executionPolicy } });
     if (trust.kind === "denied") throw forbidden(trust.detail);
     const resolvedMode = resolveExecutionWorkspaceMode({ projectPolicy, issueSettings, legacyUseProjectWorkspace: overrides?.useProjectWorkspace ?? null });
     const mode = trust.kind === "low_trust_review" && resolvedMode === "shared_workspace" ? "isolated_workspace" : resolvedMode;
@@ -1621,20 +1621,20 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     return (await resolveSourceWorkspaceConfiguration(input, reader)).strategy;
   }
 
-  async function validateSelection(input: { taskCreation?: TaskWorkspaceCreationTrustContext; companyId: string; actor: AuthorizationActor; selection: TaskWorkspaceSelection; issueId?: string | null; parentIssueId?: string | null; assigneeAgentId?: string | null; assigneeUserId?: string | null; assigneeAdapterOverrides?: unknown; projectId?: string | null; executionPolicy?: unknown; preserveImplicitDefaultSettings?: boolean }, reader: Db | DbTransaction = db, storedForRun = false) {
+  async function validateSelection(input: { taskCreation?: TaskWorkspaceCreationTrustContext; spaceId: string; actor: AuthorizationActor; selection: TaskWorkspaceSelection; issueId?: string | null; parentIssueId?: string | null; assigneeAgentId?: string | null; assigneeUserId?: string | null; assigneeAdapterOverrides?: unknown; projectId?: string | null; executionPolicy?: unknown; preserveImplicitDefaultSettings?: boolean }, reader: Db | DbTransaction = db, storedForRun = false) {
     const selection = taskWorkspaceSelectionSchema.parse(input.selection);
     if (selection.kind === "existing") {
       const [workspace] = await reader.select().from(executionWorkspaces).where(and(
-        eq(executionWorkspaces.id, selection.workspaceId), eq(executionWorkspaces.companyId, input.companyId),
+        eq(executionWorkspaces.id, selection.workspaceId), eq(executionWorkspaces.spaceId, input.spaceId),
         taskWorkspaceSelectableCondition(),
         storedForRun ? undefined : await executionWorkspaceReadSqlCondition(reader, input.actor),
       ));
       if (!workspace) throw notFound("Workspace is unavailable or inaccessible");
       if (!storedForRun) {
-        await assertExecutionWorkspaceRecordAccess(reader, input.actor, input.companyId, workspace.id);
+        await assertExecutionWorkspaceRecordAccess(reader, input.actor, input.spaceId, workspace.id);
       }
       await assertSelectedWorkspaceTrust(reader, {
-        companyId: input.companyId, sourceProjectId: workspace.projectId, sourceWorkspaceId: workspace.id,
+        spaceId: input.spaceId, sourceProjectId: workspace.projectId, sourceWorkspaceId: workspace.id,
         actor: input.actor, issueId: input.issueId, assigneeAgentId: input.assigneeAgentId, taskCreation: input.taskCreation,
       });
       return { executionWorkspaceId: workspace.id, projectWorkspaceId: workspace.projectWorkspaceId,
@@ -1643,7 +1643,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     if (selection.kind === "configured_source") {
       const [source] = await reader.select({ id: projectWorkspaces.id, projectId: projectWorkspaces.projectId, executionWorkspacePolicy: projects.executionWorkspacePolicy }).from(projectWorkspaces)
         .innerJoin(projects, eq(projects.id, projectWorkspaces.projectId)).where(and(
-          eq(projectWorkspaces.id, selection.projectWorkspaceId), eq(projectWorkspaces.companyId, input.companyId),
+          eq(projectWorkspaces.id, selection.projectWorkspaceId), eq(projectWorkspaces.spaceId, input.spaceId),
           await projectReadSqlCondition(reader, input.actor),
         ));
       if (!source) throw notFound("Workspace source is unavailable or inaccessible");
@@ -1652,14 +1652,14 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       if (input.preserveImplicitDefaultSettings) {
         const [task] = input.issueId ? await reader.select({ settings: issues.executionWorkspaceSettings,
           intent: issues.workspaceSelection }).from(issues).where(and(eq(issues.id, input.issueId),
-          eq(issues.companyId, input.companyId), await issueReadSqlCondition(reader, input.actor))) : [];
+          eq(issues.spaceId, input.spaceId), await issueReadSqlCondition(reader, input.actor))) : [];
         if (!task || !["project", "task_default"].includes(task.intent?.source ?? "")
           || !isDeepStrictEqual(task.intent?.selection, selection)) throw conflict("Task workspace default changed");
         executionWorkspaceSettings = { ...parseObject(task.settings), mode };
       }
       await resolveSourceWorkspaceStrategy({ ...input, typedSelection: true,
         executionWorkspaceSettings, executionWorkspacePolicy: source.executionWorkspacePolicy, sourceWorkspaceId: source.id }, reader);
-      await assertTaskWorkspaceSourceProjectAccess(reader, input.actor, input.companyId, source.projectId);
+      await assertTaskWorkspaceSourceProjectAccess(reader, input.actor, input.spaceId, source.projectId);
       return { executionWorkspaceId: null, projectWorkspaceId: source.id, executionWorkspacePreference: null,
         executionWorkspaceSettings };
     }
@@ -1669,33 +1669,33 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
 
   async function validateStoredSelectionForRun(input: Parameters<typeof validateSelection>[0], reader: Db | DbTransaction = db) {
     if (!input.issueId) throw forbidden("Persisted workspace selection requires a current task");
-    await assertTaskWorkspaceExecutionAccess(reader, input.actor, input.companyId, {
+    await assertTaskWorkspaceExecutionAccess(reader, input.actor, input.spaceId, {
       issueId: input.issueId,
       persistedSelection: input.selection,
     });
     return validateSelection(input, reader, true);
   }
 
-  async function inspectTaskWorkspace(companyId: string, issueId: string, actor: AuthorizationActor) {
-    const [task] = await db.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, companyId), await issueReadSqlCondition(db, actor)));
+  async function inspectTaskWorkspace(spaceId: string, issueId: string, actor: AuthorizationActor) {
+    const [task] = await db.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId), await issueReadSqlCondition(db, actor)));
     if (!task) throw notFound("Task not found");
     const [workspace] = task.executionWorkspaceId ? await db.select().from(executionWorkspaces)
-      .where(and(eq(executionWorkspaces.id, task.executionWorkspaceId), eq(executionWorkspaces.companyId, companyId), await executionWorkspaceReadSqlCondition(db, actor))) : [];
+      .where(and(eq(executionWorkspaces.id, task.executionWorkspaceId), eq(executionWorkspaces.spaceId, spaceId), await executionWorkspaceReadSqlCondition(db, actor))) : [];
     if (task.executionWorkspaceId && !workspace) throw notFound("Workspace is unavailable or inaccessible");
-    if (workspace) await assertExecutionWorkspaceRecordAccess(db, actor, companyId, workspace.id);
+    if (workspace) await assertExecutionWorkspaceRecordAccess(db, actor, spaceId, workspace.id);
     return { issueId, bindingRevision: task.workspaceBindingRevision, selection: task.workspaceSelection,
       pendingSelection: task.workspacePendingSelection, workspace: workspace ? toExecutionWorkspace(workspace) : null };
   }
 
-  async function selectTaskWorkspace(input: { companyId: string; issueId: string; actor: AuthorizationActor;
+  async function selectTaskWorkspace(input: { spaceId: string; issueId: string; actor: AuthorizationActor;
     selection: TaskWorkspaceSelection; expectedBindingRevision: number; requestKey: string; source?: "recovery" }) {
-    if (input.source === "recovery" && input.actor.type !== "board") throw forbidden("Workspace recovery requires a board actor");
+    if (input.source === "recovery" && input.actor.type !== "operator") throw forbidden("Workspace recovery requires a operator actor");
     return db.transaction(async tx => {
-      const [task] = await tx.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId),
+      const [task] = await tx.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId),
         await issueReadSqlCondition(tx, input.actor))).for("update");
       if (!task) throw notFound("Task not found");
       const decision = await authorizationService(tx).decide({ actor: input.actor, action: "issue:mutate", resource: {
-        type: "issue", companyId: task.companyId, issueId: task.id,
+        type: "issue", spaceId: task.spaceId, issueId: task.id,
         status: task.status, assigneeAgentId: task.assigneeAgentId, assigneeUserId: task.assigneeUserId,
       } });
       if (!decision.allowed) throw forbidden("Task workspace modification is not allowed");
@@ -1717,7 +1717,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       await validateSelection(input, tx);
       const intent: TaskWorkspaceIntent = { version: 1, request: { key: input.requestKey, expectedBindingRevision: input.expectedBindingRevision }, selection: input.selection, source: input.source ?? "explicit" };
       const nextRevision = task.workspaceBindingRevision + 1;
-      await notifyStatusCardIssueChange(tx, task.companyId);
+      await notifyStatusCardIssueChange(tx, task.spaceId);
       await tx.update(issues).set({ workspaceBindingRevision: nextRevision,
         workspacePendingSelection: { version: 1, requestKey: input.requestKey,
           expectedBindingRevision: nextRevision, intent }, updatedAt: new Date() }).where(eq(issues.id, task.id));
@@ -1725,14 +1725,14 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     });
   }
 
-  async function applyPendingTaskWorkspaceSelection(input: { companyId: string; issueId: string; runId: string; actor: AuthorizationActor }) {
+  async function applyPendingTaskWorkspaceSelection(input: { spaceId: string; issueId: string; runId: string; actor: AuthorizationActor }) {
     return db.transaction(async tx => {
-      const [task] = await tx.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId))).for("update");
+      const [task] = await tx.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId))).for("update");
       if (!task?.workspacePendingSelection) return false;
       const pending = task.workspacePendingSelection;
       if (pending.expectedBindingRevision !== task.workspaceBindingRevision) throw conflict("Pending workspace selection is stale");
       const [holder] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, input.companyId), ne(heartbeatRuns.id, input.runId),
+        eq(heartbeatRuns.spaceId, input.spaceId), ne(heartbeatRuns.id, input.runId),
         or(eq(heartbeatRuns.nativeIssueId, input.issueId),
           sql`coalesce(${heartbeatRuns.contextSnapshot}->>'issueId', ${heartbeatRuns.contextSnapshot}->>'taskId') = ${input.issueId}`),
         eq(heartbeatRuns.status, "running"),
@@ -1746,7 +1746,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         patch.executionWorkspaceSettings = { ...parseObject(task.executionWorkspaceSettings), ...patch.executionWorkspaceSettings };
         const [source] = await tx.select({ policy: projects.executionWorkspacePolicy }).from(projectWorkspaces)
           .innerJoin(projects, eq(projects.id, projectWorkspaces.projectId)).where(and(
-            eq(projectWorkspaces.companyId, input.companyId), eq(projectWorkspaces.id, patch.projectWorkspaceId!),
+            eq(projectWorkspaces.spaceId, input.spaceId), eq(projectWorkspaces.id, patch.projectWorkspaceId!),
           ));
         const { strategy, config } = await resolveSourceWorkspaceConfiguration({ ...input, typedSelection: true,
           executionWorkspacePolicy: source?.policy, executionWorkspaceSettings: patch.executionWorkspaceSettings, sourceWorkspaceId: patch.projectWorkspaceId }, tx);
@@ -1761,7 +1761,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           }
         }
       }
-      await notifyStatusCardIssueChange(tx, task.companyId);
+      await notifyStatusCardIssueChange(tx, task.spaceId);
       await tx.update(issues).set({ ...patch, assigneeAdapterOverrides, workspaceSelection: pending.intent, workspacePendingSelection: null,
         workspaceBindingRevision: task.workspaceBindingRevision + 1, updatedAt: new Date() }).where(eq(issues.id, task.id));
       return true;
@@ -1778,20 +1778,20 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
    * can save its files first; a later admission releases it. Never throws for
    * that wait: the run proceeds on its current binding and nobody is asked to act.
    */
-  async function releaseAncestorWorkspaceBindingAtAdmission(input: { companyId: string; issueId: string; runId: string }) {
+  async function releaseAncestorWorkspaceBindingAtAdmission(input: { spaceId: string; issueId: string; runId: string }) {
     // Cheap unlocked pre-check: a task bound to a workspace it created keeps it.
     // When a relative selected that workspace, the relative is the one that moves.
     const [candidate] = await db.select({ sourceIssueId: executionWorkspaces.sourceIssueId })
       .from(issues).innerJoin(executionWorkspaces, eq(executionWorkspaces.id, issues.executionWorkspaceId))
-      .where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId))).limit(1);
+      .where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId))).limit(1);
     if (!candidate || candidate.sourceIssueId === input.issueId) return false;
     return db.transaction(tx => releaseAncestorWorkspaceBinding(tx, input));
   }
 
-  async function bindTaskWorkspace(companyId: string, issueId: string, workspaceId: string, patch: TaskWorkspaceBindingPatch = {}) {
+  async function bindTaskWorkspace(spaceId: string, issueId: string, workspaceId: string, patch: TaskWorkspaceBindingPatch = {}) {
     return db.transaction(async tx => {
-      const [task] = await measureRunPhase("workspace.row_lock", () => tx.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, companyId))).for("no key update"));
-      const [workspace] = await measureRunPhase("workspace.row_lock", () => tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, workspaceId), eq(executionWorkspaces.companyId, companyId))).for("no key update"));
+      const [task] = await measureRunPhase("workspace.row_lock", () => tx.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId))).for("no key update"));
+      const [workspace] = await measureRunPhase("workspace.row_lock", () => tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, workspaceId), eq(executionWorkspaces.spaceId, spaceId))).for("no key update"));
       if (!task || !workspace) throw notFound("Task workspace unavailable");
       await tx.update(executionWorkspaces).set({ metadata: { ...workspace.metadata,
         _issuePrivacySources: { ...(workspace.metadata?._issuePrivacySources as Record<string, unknown> ?? {}), [task.id]: true } } }).where(eq(executionWorkspaces.id, workspaceId));
@@ -1800,7 +1800,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       const pendingAfterFirstBinding = !task.executionWorkspaceId && pending?.expectedBindingRevision === task.workspaceBindingRevision
         ? { ...pending, expectedBindingRevision: nextRevision }
         : pending;
-      await notifyStatusCardIssueChange(tx, companyId);
+      await notifyStatusCardIssueChange(tx, spaceId);
       const [bound] = await tx.update(issues).set({ ...patch, executionWorkspaceId: workspaceId,
         workspaceBindingRevision: nextRevision, workspacePendingSelection: pendingAfterFirstBinding, updatedAt: new Date() })
         .where(eq(issues.id, issueId)).returning();
@@ -1816,7 +1816,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     // caller's JWT remains bound to its parent run. Admission validates run
     // identity separately when that child actually executes.
     const decision = await authorizationService(tx).decide({ actor, action: "issue:mutate", resource: {
-      type: "issue", companyId: task.companyId, issueId: task.id, projectId: task.projectId,
+      type: "issue", spaceId: task.spaceId, issueId: task.id, projectId: task.projectId,
       status: task.status, assigneeAgentId: task.assigneeAgentId, assigneeUserId: task.assigneeUserId,
     } });
     if (!decision.allowed) throw forbidden(decision.explanation);
@@ -1824,30 +1824,30 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       id: executionWorkspaces.id, projectId: executionWorkspaces.projectId,
       projectWorkspaceId: executionWorkspaces.projectWorkspaceId,
     }).from(executionWorkspaces).where(and(eq(executionWorkspaces.id, task.executionWorkspaceId),
-      eq(executionWorkspaces.companyId, task.companyId))) : [];
+      eq(executionWorkspaces.spaceId, task.spaceId))) : [];
     if (task.executionWorkspaceId && !workspace) throw notFound("Task workspace is unavailable");
-    await assertTaskWorkspaceSourceProjectAccess(tx, actor, task.companyId, workspace?.projectId ?? null);
+    await assertTaskWorkspaceSourceProjectAccess(tx, actor, task.spaceId, workspace?.projectId ?? null);
     const sourceId = workspace?.projectWorkspaceId ?? task.projectWorkspaceId;
     const [source] = sourceId ? await tx.select({ projectId: projectWorkspaces.projectId })
       .from(projectWorkspaces).where(and(eq(projectWorkspaces.id, sourceId),
-        eq(projectWorkspaces.companyId, task.companyId))) : [];
+        eq(projectWorkspaces.spaceId, task.spaceId))) : [];
     if (sourceId && !source) throw notFound("Workspace source is unavailable or inaccessible");
     const sourceProjectId = source?.projectId ?? workspace?.projectId;
     if (!sourceProjectId) return;
-    await assertTaskWorkspaceSourceProjectAccess(tx, actor, task.companyId, sourceProjectId);
+    await assertTaskWorkspaceSourceProjectAccess(tx, actor, task.spaceId, sourceProjectId);
     const [sourceProject] = await tx.select({ executionWorkspacePolicy: projects.executionWorkspacePolicy })
-      .from(projects).where(and(eq(projects.id, sourceProjectId), eq(projects.companyId, task.companyId)));
+      .from(projects).where(and(eq(projects.id, sourceProjectId), eq(projects.spaceId, task.spaceId)));
     if (!sourceProject) throw notFound("Workspace source is unavailable or inaccessible");
-    await resolveSourceWorkspaceStrategy({ companyId: task.companyId, issueId: task.id,
+    await resolveSourceWorkspaceStrategy({ spaceId: task.spaceId, issueId: task.id,
       executionWorkspaceSettings: task.executionWorkspaceSettings,
       executionWorkspacePolicy: sourceProject.executionWorkspacePolicy, sourceWorkspaceId: sourceId, inheritProviderDefaults: !workspace }, tx);
   }
 
   async function prepareTaskWorkspaceUpdate(input: {
-    companyId: string; issueId: string; patch: TaskWorkspaceBindingPatch;
+    spaceId: string; issueId: string; patch: TaskWorkspaceBindingPatch;
   }, tx: DbTransaction) {
     const [task] = await measureRunPhase("workspace.row_lock", () => tx.select().from(issues).where(and(
-      eq(issues.id, input.issueId), eq(issues.companyId, input.companyId),
+      eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId),
     )).for("no key update"));
     if (!task) throw notFound("Task not found");
     const fields = ["executionWorkspaceId", "projectWorkspaceId", "executionWorkspacePreference", "executionWorkspaceSettings"] as const;
@@ -1857,7 +1857,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       throw conflict("Task already has bound files; schedule a workspace selection or explicitly clear its binding when changing the source");
     }
     const [holder] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.status, "running"),
+      eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.status, "running"),
       or(eq(heartbeatRuns.nativeIssueId, input.issueId),
         sql`coalesce(${heartbeatRuns.contextSnapshot}->>'issueId', ${heartbeatRuns.contextSnapshot}->>'taskId') = ${input.issueId}`,
         task.executionRunId ? eq(heartbeatRuns.id, task.executionRunId) : undefined),
@@ -1866,7 +1866,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     if (holder || unsettled) throw conflict("Task run still owns its workspace; schedule a workspace selection for the next admission");
     const [selectedWorkspace] = input.patch.executionWorkspaceId
       ? await tx.select({ projectWorkspaceId: executionWorkspaces.projectWorkspaceId }).from(executionWorkspaces).where(and(
-        eq(executionWorkspaces.id, input.patch.executionWorkspaceId), eq(executionWorkspaces.companyId, input.companyId),
+        eq(executionWorkspaces.id, input.patch.executionWorkspaceId), eq(executionWorkspaces.spaceId, input.spaceId),
       )).limit(1)
       : [];
     if (input.patch.executionWorkspaceId && !selectedWorkspace) throw notFound("Execution workspace not found");
@@ -1976,11 +1976,11 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           workspaceIds: hints.filter(hint => hint.startsWith("workspace:")).map(hint => hint.slice("workspace:".length)),
           issueIds: hints.filter(hint => hint.startsWith("issue:")).map(hint => hint.slice("issue:".length)),
         });
-        const folders = new Map(hinted.map(folder => [`${folder.companyId}/${folder.issueId}`, folder]));
+        const folders = new Map(hinted.map(folder => [`${folder.spaceId}/${folder.issueId}`, folder]));
         for (const [key, dueAt] of taskDirectoryFolderDue) {
           if (dueAt > nowMs) continue;
-          const [companyId, issueId] = key.split("/");
-          folders.set(key, { companyId: companyId!, issueId: issueId! });
+          const [spaceId, issueId] = key.split("/");
+          folders.set(key, { spaceId: spaceId!, issueId: issueId! });
         }
         const batch = [...folders.entries()].slice(0, TASK_DIRECTORY_FOLDERS_PER_SWEEP);
         for (const [key] of batch) taskDirectoryFolderDue.delete(key);
@@ -1993,7 +1993,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       taskDirectoryWalkDueAt = Math.min(taskDirectoryWalkDueAt, nowMs + TASK_DIRECTORY_RETRY_MS);
     }
     for (const folder of results) {
-      const key = `${folder.companyId}/${folder.issueId}`;
+      const key = `${folder.spaceId}/${folder.issueId}`;
       if (folder.walkRetryAt !== undefined) taskDirectoryWalkDueAt = Math.min(taskDirectoryWalkDueAt, folder.walkRetryAt);
       if (folder.retryAt !== undefined) rememberFolder(key, folder.retryAt);
       else taskDirectoryFolderDue.delete(key);
@@ -2021,7 +2021,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
   // flag lets only one sweep run at a time, so one sweep owns the shared state.
   let terminalSweepInProgress = false;
 
-  async function listWorkspaceIssueTree(workspace: Pick<ExecutionWorkspaceRow, "companyId" | "sourceIssueId">) {
+  async function listWorkspaceIssueTree(workspace: Pick<ExecutionWorkspaceRow, "spaceId" | "sourceIssueId">) {
     const sourceIssueId = workspace.sourceIssueId;
     if (!sourceIssueId) return [];
     // A read-only lookup: rebuild it after a transient pooled disconnect.
@@ -2035,19 +2035,19 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       })
       .from(issues)
       .where(and(
-        eq(issues.companyId, workspace.companyId),
+        eq(issues.spaceId, workspace.spaceId),
         sql<boolean>`
           ${issues.id} IN (
             WITH RECURSIVE issue_tree(id) AS (
               SELECT ${issues.id}
               FROM ${issues}
-              WHERE ${issues.companyId} = ${workspace.companyId}
+              WHERE ${issues.spaceId} = ${workspace.spaceId}
                 AND ${issues.id} = ${sourceIssueId}
               UNION ALL
               SELECT child.id
               FROM ${issues} child
               JOIN issue_tree parent ON child.parent_id = parent.id
-              WHERE child.company_id = ${workspace.companyId}
+              WHERE child.space_id = ${workspace.spaceId}
             )
             SELECT id FROM issue_tree
           )
@@ -2073,7 +2073,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       })
       .from(issueWorkProducts)
       .where(and(
-        eq(issueWorkProducts.companyId, workspace.companyId),
+        eq(issueWorkProducts.spaceId, workspace.spaceId),
         eq(issueWorkProducts.type, "pull_request"),
         eq(issueWorkProducts.issueId, sourceIssueId),
       ))
@@ -2086,10 +2086,10 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
   }
 
   async function cachedDeliveryPullRequestDetails(workspace: ExecutionWorkspaceRow, reference: GitHubPullRequestReference) {
-    const key = `${workspace.companyId}:${reference.owner.toLowerCase()}/${reference.repo.toLowerCase()}#${reference.number}`;
+    const key = `${workspace.spaceId}:${reference.owner.toLowerCase()}/${reference.repo.toLowerCase()}#${reference.number}`;
     const cached = pullRequestStateCache.get(key);
     if (cached && now().getTime() - cached.checkedAtMs < pullRequestStateCacheTtlMs) return cached.details;
-    const details = await resolvePullRequestDetails(workspace.companyId, reference);
+    const details = await resolvePullRequestDetails(workspace.spaceId, reference);
     setBoundedPullRequestCacheEntry(pullRequestStateCache, key, { details, checkedAtMs: now().getTime() });
     return details;
   }
@@ -2104,7 +2104,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     if (!destinationRef || destinationRef === "HEAD" || !parseGitHubRepository(workspace.repoUrl)) return null;
     const operations = await db.select({ id: workspaceOperations.id, status: workspaceOperations.status, createdAt: workspaceOperations.createdAt,
       finishedAt: workspaceOperations.finishedAt, metadata: workspaceOperations.metadata })
-      .from(workspaceOperations).where(and(eq(workspaceOperations.companyId, workspace.companyId),
+      .from(workspaceOperations).where(and(eq(workspaceOperations.spaceId, workspace.spaceId),
         eq(workspaceOperations.executionWorkspaceId, workspace.id), eq(workspaceOperations.phase, "workspace_finalize")))
       .orderBy(desc(workspaceOperations.createdAt), desc(workspaceOperations.id)).limit(2);
     const [operation, previous] = operations;
@@ -2215,7 +2215,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     }
   }
 
-  async function workspaceHasActiveRun(workspace: Pick<ExecutionWorkspaceRow, "id" | "companyId" | "sourceIssueId">) {
+  async function workspaceHasActiveRun(workspace: Pick<ExecutionWorkspaceRow, "id" | "spaceId" | "sourceIssueId">) {
     const linkedIssues = await db
       .select({
         checkoutRunId: issues.checkoutRunId,
@@ -2223,7 +2223,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       })
       .from(issues)
       .where(and(
-        eq(issues.companyId, workspace.companyId),
+        eq(issues.spaceId, workspace.spaceId),
         or(
           eq(issues.executionWorkspaceId, workspace.id),
           ...(workspace.sourceIssueId ? [eq(issues.id, workspace.sourceIssueId)] : []),
@@ -2238,7 +2238,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       .select({ id: heartbeatRuns.id })
       .from(heartbeatRuns)
       .where(and(
-        eq(heartbeatRuns.companyId, workspace.companyId),
+        eq(heartbeatRuns.spaceId, workspace.spaceId),
         inArray(heartbeatRuns.id, runIds),
         inArray(heartbeatRuns.status, ["queued", "running"]),
       ))
@@ -2393,13 +2393,13 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       WITH RECURSIVE issue_tree(id, status) AS (
         SELECT root.id, root.status
         FROM ${issues} root
-        WHERE root.company_id = ${workspace.companyId}
+        WHERE root.space_id = ${workspace.spaceId}
           AND root.id = ${workspace.sourceIssueId}
         UNION ALL
         SELECT child.id, child.status
         FROM ${issues} child
         JOIN issue_tree parent ON child.parent_id = parent.id
-        WHERE child.company_id = ${workspace.companyId}
+        WHERE child.space_id = ${workspace.spaceId}
       )
       SELECT (
         EXISTS (SELECT 1 FROM issue_tree)
@@ -2410,18 +2410,18 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           JOIN ${heartbeatRuns} live_run
             ON live_run.id = linked_issue.checkout_run_id
             OR live_run.id = linked_issue.execution_run_id
-          WHERE linked_issue.company_id = ${workspace.companyId}
+          WHERE linked_issue.space_id = ${workspace.spaceId}
             AND (
               linked_issue.execution_workspace_id = ${workspace.id}
               OR linked_issue.id IN (SELECT id FROM issue_tree)
             )
-            AND live_run.company_id = ${workspace.companyId}
+            AND live_run.space_id = ${workspace.spaceId}
             AND live_run.status IN ('queued', 'running')
         )
         AND NOT EXISTS (
           SELECT 1
           FROM ${heartbeatRuns} issue_run
-          WHERE issue_run.company_id = ${workspace.companyId}
+          WHERE issue_run.space_id = ${workspace.spaceId}
             AND issue_run.status IN ('queued', 'running')
             AND coalesce(
               issue_run.native_issue_id::text,
@@ -2432,7 +2432,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         AND NOT EXISTS (
           SELECT 1
           FROM ${workspaceRuntimeServices} service
-          WHERE service.company_id = ${workspace.companyId}
+          WHERE service.space_id = ${workspace.spaceId}
             AND service.execution_workspace_id = ${workspace.id}
             AND service.status <> 'stopped'
         )
@@ -2506,7 +2506,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           .select({ cwd: projectWorkspaces.cwd })
           .from(projectWorkspaces)
           .where(and(
-            eq(projectWorkspaces.companyId, workspace.companyId),
+            eq(projectWorkspaces.spaceId, workspace.spaceId),
             eq(projectWorkspaces.id, workspace.projectWorkspaceId),
           ))
           .then((rows) => rows[0]?.cwd ?? null)
@@ -2534,7 +2534,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           metadata: executionWorkspaces.metadata,
         })
         .from(executionWorkspaces)
-        .where(and(eq(executionWorkspaces.id, workspace.id), eq(executionWorkspaces.companyId, workspace.companyId)));
+        .where(and(eq(executionWorkspaces.id, workspace.id), eq(executionWorkspaces.spaceId, workspace.spaceId)));
       const freshMetadata = (fresh?.metadata as Record<string, unknown> | null) ?? null;
       if (
         !fresh
@@ -2571,7 +2571,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     });
     if (move.moved.length === 0) return "nothing_to_compact";
     await logActivity(db, {
-      companyId: workspace.companyId,
+      spaceId: workspace.spaceId,
       actorType: "system",
       actorId: "workspace_terminality_reaper",
       action: "execution_workspace.regenerable_files_removed",
@@ -2641,7 +2641,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             .select({ cwd: projectWorkspaces.cwd, cleanupCommand: projectWorkspaces.cleanupCommand })
             .from(projectWorkspaces)
             .where(and(
-              eq(projectWorkspaces.companyId, workspace.companyId),
+              eq(projectWorkspaces.spaceId, workspace.spaceId),
               eq(projectWorkspaces.id, workspace.projectWorkspaceId),
             ))
             .then((rows) => rows[0] ?? null)
@@ -2649,7 +2649,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       db
         .select({ executionWorkspacePolicy: projects.executionWorkspacePolicy })
         .from(projects)
-        .where(and(eq(projects.companyId, workspace.companyId), workspace.projectId ? eq(projects.id, workspace.projectId) : sql`false`))
+        .where(and(eq(projects.spaceId, workspace.spaceId), workspace.projectId ? eq(projects.id, workspace.projectId) : sql`false`))
         .then((rows) => parseProjectExecutionWorkspacePolicy(rows[0]?.executionWorkspacePolicy)),
     ]);
     const config = readExecutionWorkspaceConfig((workspace.metadata as Record<string, unknown> | null) ?? null);
@@ -2672,7 +2672,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         cleanupCommand: config?.cleanupCommand ?? null,
         teardownCommand: config?.teardownCommand ?? projectPolicy?.workspaceStrategy?.teardownCommand ?? null,
         recorder: workspaceOperationService(db).createRecorder({
-          companyId: workspace.companyId,
+          spaceId: workspace.spaceId,
           executionWorkspaceId: workspace.id,
         }),
         assertSafeToCleanup: () => assertTerminalCleanupGitStateUnchanged(workspace, expectedHeadSha),
@@ -2687,12 +2687,12 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       });
       if (cleanup.cleaned && workspace.mode === "shared_workspace") {
         await db.transaction(async tx => {
-          await notifyStatusCardIssueChange(tx, workspace.companyId);
+          await notifyStatusCardIssueChange(tx, workspace.spaceId);
           await tx
           .update(issues)
           .set({ executionWorkspaceId: null, updatedAt: now() })
           .where(and(
-            eq(issues.companyId, workspace.companyId),
+            eq(issues.spaceId, workspace.spaceId),
             eq(issues.executionWorkspaceId, workspace.id),
           ));
         });
@@ -2755,7 +2755,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
   }
 
   function buildListConditions(
-    companyId: string,
+    spaceId: string,
     filters?: {
       projectId?: string;
       projectWorkspaceId?: string;
@@ -2767,7 +2767,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       ids?: string[];
     },
   ) {
-    const conditions = [eq(executionWorkspaces.companyId, companyId)];
+    const conditions = [eq(executionWorkspaces.spaceId, spaceId)];
     if (filters?.readCondition) conditions.push(filters.readCondition);
     if (filters?.ids) conditions.push(inArray(executionWorkspaces.id, filters.ids));
     if (filters?.projectId) conditions.push(eq(executionWorkspaces.projectId, filters.projectId));
@@ -2789,8 +2789,8 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     return conditions;
   }
 
-  function buildOverviewConditions(companyId: string, filters: WorkspaceOverviewQuery) {
-    const conditions = [eq(executionWorkspaces.companyId, companyId)];
+  function buildOverviewConditions(spaceId: string, filters: WorkspaceOverviewQuery) {
+    const conditions = [eq(executionWorkspaces.spaceId, spaceId)];
     if (filters.projectId) conditions.push(eq(executionWorkspaces.projectId, filters.projectId));
     if (filters.status && filters.status.length > 0) {
       if (filters.status.length === 1) conditions.push(eq(executionWorkspaces.status, filters.status[0]!));
@@ -2810,11 +2810,11 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     assertTaskRepositoryRecoveryBinding: executionWorkspaceRepositoryService(db).assertRecoveryBinding,
     resolveSourceWorkspaceStrategy, validateSelection, validateStoredSelectionForRun, inspectTaskWorkspace, selectTaskWorkspace, applyPendingTaskWorkspaceSelection, releaseAncestorWorkspaceBindingAtAdmission, bindTaskWorkspace, prepareTaskWorkspaceUpdate, assertTaskWorkspaceUpdateAccess,
     listOverview: async (
-      companyId: string,
+      spaceId: string,
       filters: WorkspaceOverviewQuery,
       readCondition?: SQL<boolean>,
     ): Promise<WorkspaceOverviewResponse> => {
-      const conditions = buildOverviewConditions(companyId, filters);
+      const conditions = buildOverviewConditions(spaceId, filters);
       if (readCondition) conditions.push(readCondition);
       const whereClause = and(...conditions, sql`(${executionWorkspaces.projectId} IS NULL OR ${projects.id} IS NOT NULL)`);
 
@@ -2826,7 +2826,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             projects,
             and(
               eq(projects.id, executionWorkspaces.projectId),
-              eq(projects.companyId, companyId),
+              eq(projects.spaceId, spaceId),
             ),
           )
           .where(whereClause)
@@ -2834,7 +2834,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         db
           .select({
             id: executionWorkspaces.id,
-            companyId: executionWorkspaces.companyId,
+            spaceId: executionWorkspaces.spaceId,
             projectId: executionWorkspaces.projectId,
             projectWorkspaceId: executionWorkspaces.projectWorkspaceId,
             sourceIssueId: executionWorkspaces.sourceIssueId,
@@ -2865,14 +2865,14 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             projects,
             and(
               eq(projects.id, executionWorkspaces.projectId),
-              eq(projects.companyId, companyId),
+              eq(projects.spaceId, spaceId),
             ),
           )
           .leftJoin(
             projectWorkspaces,
             and(
               eq(projectWorkspaces.id, executionWorkspaces.projectWorkspaceId),
-              eq(projectWorkspaces.companyId, companyId),
+              eq(projectWorkspaces.spaceId, spaceId),
             ),
           )
           .where(whereClause)
@@ -2899,7 +2899,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
 
       const workspaceIds = pageRows.map((row) => row.id);
       const [runtimeServicesByWorkspaceId, linkedIssueCountRows, linkedIssueRows] = await Promise.all([
-        loadEffectiveRuntimeServicesByExecutionWorkspace(db, companyId, pageRows),
+        loadEffectiveRuntimeServicesByExecutionWorkspace(db, spaceId, pageRows),
         db
           .select({
             executionWorkspaceId: issues.executionWorkspaceId,
@@ -2908,7 +2908,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           .from(issues)
           .where(
             and(
-              eq(issues.companyId, companyId),
+              eq(issues.spaceId, spaceId),
               visibleIssueCondition(),
               inArray(issues.executionWorkspaceId, workspaceIds),
             ),
@@ -2937,7 +2937,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
                 order by ${issues.updatedAt} desc, ${issues.id} asc
               ) as row_number
             from ${issues}
-            where ${issues.companyId} = ${companyId}
+            where ${issues.spaceId} = ${spaceId}
               and ${issues.hiddenAt} is null
               and ${issues.executionWorkspaceId} in (${sql.join(workspaceIds.map((id) => sql`${id}`), sql`, `)})
           ) ranked
@@ -3020,7 +3020,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       };
     },
 
-    list: async (companyId: string, filters?: {
+    list: async (spaceId: string, filters?: {
       projectId?: string;
       projectWorkspaceId?: string;
       issueId?: string;
@@ -3029,13 +3029,13 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       selectableForTask?: boolean;
       readCondition?: SQL<boolean>;
     }) => {
-      const conditions = buildListConditions(companyId, filters);
+      const conditions = buildListConditions(spaceId, filters);
       const rows = await db
         .select()
         .from(executionWorkspaces)
         .where(and(...conditions))
         .orderBy(desc(executionWorkspaces.lastUsedAt), desc(executionWorkspaces.createdAt));
-      const runtimeServicesByWorkspaceId = await loadEffectiveRuntimeServicesByExecutionWorkspace(db, companyId, rows);
+      const runtimeServicesByWorkspaceId = await loadEffectiveRuntimeServicesByExecutionWorkspace(db, spaceId, rows);
       // Collection reads are deliberately DB-only. Delivery-state hydration
       // inspects git and may resolve pull requests, so doing it for every row
       // lets a large inventory launch an unbounded number of child processes.
@@ -3048,7 +3048,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       );
     },
 
-    listSummaries: async (companyId: string, filters?: {
+    listSummaries: async (spaceId: string, filters?: {
       projectId?: string;
       projectWorkspaceId?: string;
       issueId?: string;
@@ -3058,7 +3058,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       readCondition?: SQL<boolean>;
       ids?: string[];
     }, pagination?: { limit: number; cursor?: string }) => {
-      const conditions = buildListConditions(companyId, filters);
+      const conditions = buildListConditions(spaceId, filters);
       if (pagination?.cursor) conditions.push(gt(executionWorkspaces.id, pagination.cursor));
       const query = db
         .select({
@@ -3080,7 +3080,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     },
 
     findGitWorktreeContention: async (input: {
-      companyId: string;
+      spaceId: string;
       worktreePath: string;
       liveBranchName: string | null;
       excludingExecutionWorkspaceId?: string | null;
@@ -3107,12 +3107,12 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         .leftJoin(
           issues,
           and(
-            eq(issues.companyId, executionWorkspaces.companyId),
+            eq(issues.spaceId, executionWorkspaces.spaceId),
             eq(issues.id, executionWorkspaces.sourceIssueId),
           ),
         )
         .where(and(
-          eq(executionWorkspaces.companyId, input.companyId),
+          eq(executionWorkspaces.spaceId, input.spaceId),
           isNull(executionWorkspaces.closedAt),
           ne(executionWorkspaces.status, "archived"),
           input.excludingExecutionWorkspaceId
@@ -3140,7 +3140,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           })
           .from(issues)
           .where(and(
-            eq(issues.companyId, input.companyId),
+            eq(issues.spaceId, input.spaceId),
             isNull(issues.hiddenAt),
             linkedIssueConditions.length === 1 ? linkedIssueConditions[0]! : or(...linkedIssueConditions),
           ))
@@ -3163,7 +3163,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             })
             .from(heartbeatRuns)
             .where(and(
-              eq(heartbeatRuns.companyId, input.companyId),
+              eq(heartbeatRuns.spaceId, input.spaceId),
               inArray(heartbeatRuns.id, runIds),
               inArray(heartbeatRuns.status, ["queued", "running"]),
             ))
@@ -3197,12 +3197,12 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       return null;
     },
 
-    getStoredById: async (companyId: string, id: string, options?: { includeRuntimeServices: boolean }) => {
+    getStoredById: async (spaceId: string, id: string, options?: { includeRuntimeServices: boolean }) => {
       const [row] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, id));
-      if (row && row.companyId !== companyId) throw forbidden("Task workspace access is no longer available");
+      if (row && row.spaceId !== spaceId) throw forbidden("Task workspace access is no longer available");
       if (!row) return null;
       const runtimeServices = options?.includeRuntimeServices
-        ? await loadEffectiveRuntimeServicesByExecutionWorkspace(db, companyId, [row]) : null;
+        ? await loadEffectiveRuntimeServicesByExecutionWorkspace(db, spaceId, [row]) : null;
       return toExecutionWorkspace(row, (runtimeServices?.get(row.id) ?? []).map(toRuntimeService));
     },
 
@@ -3220,11 +3220,11 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       const { refreshPersistedRuntimeServiceHealth } = await import("./workspace-runtime.js");
       await refreshPersistedRuntimeServiceHealth({
         db,
-        companyId: row.companyId,
+        spaceId: row.spaceId,
         executionWorkspaceId: row.id,
         projectWorkspaceId: row.projectWorkspaceId,
       });
-      const runtimeServicesByWorkspaceId = await loadEffectiveRuntimeServicesByExecutionWorkspace(db, row.companyId, [row]);
+      const runtimeServicesByWorkspaceId = await loadEffectiveRuntimeServicesByExecutionWorkspace(db, row.spaceId, [row]);
       return toExecutionWorkspace(
         row,
         (runtimeServicesByWorkspaceId.get(row.id) ?? []).map(toRuntimeService),
@@ -3239,7 +3239,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         .then((rows) => rows[0] ?? null);
       if (!workspace) return null;
 
-      const runtimeServicesByWorkspaceId = await loadEffectiveRuntimeServicesByExecutionWorkspace(db, workspace.companyId, [workspace]);
+      const runtimeServicesByWorkspaceId = await loadEffectiveRuntimeServicesByExecutionWorkspace(db, workspace.spaceId, [workspace]);
       const runtimeServices = (runtimeServicesByWorkspaceId.get(workspace.id) ?? []).map(toRuntimeService);
 
       const linkedIssues = await db
@@ -3250,7 +3250,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           status: issues.status,
         })
         .from(issues)
-        .where(and(eq(issues.companyId, workspace.companyId), eq(issues.executionWorkspaceId, workspace.id)));
+        .where(and(eq(issues.spaceId, workspace.spaceId), eq(issues.executionWorkspaceId, workspace.id)));
 
       const projectWorkspace = workspace.projectWorkspaceId
         ? await db
@@ -3263,7 +3263,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             .from(projectWorkspaces)
             .where(
               and(
-                eq(projectWorkspaces.companyId, workspace.companyId),
+                eq(projectWorkspaces.spaceId, workspace.spaceId),
                 eq(projectWorkspaces.id, workspace.projectWorkspaceId),
               ),
             )
@@ -3278,7 +3278,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             .from(projectWorkspaces)
             .where(
               and(
-                eq(projectWorkspaces.companyId, workspace.companyId),
+                eq(projectWorkspaces.spaceId, workspace.spaceId),
                 eq(projectWorkspaces.projectId, workspace.projectId),
                 eq(projectWorkspaces.isPrimary, true),
               ),
@@ -3292,7 +3292,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
               executionWorkspacePolicy: projects.executionWorkspacePolicy,
             })
             .from(projects)
-            .where(and(eq(projects.id, workspace.projectId), eq(projects.companyId, workspace.companyId)))
+            .where(and(eq(projects.id, workspace.projectId), eq(projects.spaceId, workspace.spaceId)))
             .then((rows) => parseProjectExecutionWorkspacePolicy(rows[0]?.executionWorkspacePolicy))
         : null;
 
@@ -3673,7 +3673,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         if (expiration.expired) taskDirectoryRowSkips.delete(workspace.id);
         else remember(taskDirectoryRowSkips, workspace.id, { updatedAt: workspace.updatedAt.getTime(), retryAt, issueId: workspace.sourceIssueId });
         logger.info({ event: "execution_workspace.task_directory_retention", executionWorkspaceId: workspace.id,
-          companyId: workspace.companyId, sourceIssueId: workspace.sourceIssueId, dryRun: settings.dryRun,
+          spaceId: workspace.spaceId, sourceIssueId: workspace.sourceIssueId, dryRun: settings.dryRun,
           outcome: expiration.expired ? "removed" : settings.dryRun && expiration.candidate ? "dry_run" : "skipped", ...expiration },
         "Isolated task directory retention inspected");
       };
@@ -3693,7 +3693,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             const dryRun = opts.isolatedSourceRehomeDryRun ?? false;
             const rehome = await rehomeIsolatedRepositoryWorkspace(db, workspace, { dryRun, now: now(), signal });
             logger.info({ event: "execution_workspace.isolated_source_rehome", executionWorkspaceId: workspace.id,
-              companyId: workspace.companyId, dryRun, ...rehome }, "Isolated repository source re-home inspected");
+              spaceId: workspace.spaceId, dryRun, ...rehome }, "Isolated repository source re-home inspected");
             const [after] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, workspace.id));
             if (after && (isIsolatedRepositoryRehomeCandidate(after) || hasPendingIsolatedRepositoryRehomeCleanup(after))) {
               if (isolatedRehomeNotBefore.size >= 4096) isolatedRehomeNotBefore.delete(isolatedRehomeNotBefore.keys().next().value!);
@@ -3729,7 +3729,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             for (const name of names) {
               const migration = await migrateNestedRepositoryClone(db, workspace, name, { dryRun, signal });
               logger.info({ event: "execution_workspace.nested_clone_migration", executionWorkspaceId: workspace.id,
-                companyId: workspace.companyId, dryRun, ...migration }, "Nested repository clone migration inspected");
+                spaceId: workspace.spaceId, dryRun, ...migration }, "Nested repository clone migration inspected");
               if (migration.outcome !== "migrated" && migration.outcome !== "recovered") remaining = true;
               else nestedCloneMigrationRotations.set(workspace.id, { ...batch.rotation, exhausted: null });
               if (!dryRun && migration.reason && NESTED_CLONE_MIGRATION_RETRY_REASONS.has(migration.reason)) retry = true;
@@ -3804,7 +3804,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
                 terminalWorkspaceDeadlines.set(workspace.id, now().getTime() + 60 * 60 * 1000);
               }
               logger.info({ event: "execution_workspace.git_cache_expiration", executionWorkspaceId: workspace.id,
-                companyId: workspace.companyId, dryRun: opts.gitCacheExpirationDryRun ?? false, idle: true, ...expiration },
+                spaceId: workspace.spaceId, dryRun: opts.gitCacheExpirationDryRun ?? false, idle: true, ...expiration },
               "Git workspace cache expiration inspected");
               continue;
             }
@@ -3871,7 +3871,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           if (expiration.candidate) result.eligible += 1;
           if (expiration.expired) result.archived += 1;
           logger.info({ event: "execution_workspace.git_cache_expiration", executionWorkspaceId: workspace.id,
-            companyId: workspace.companyId, dryRun: opts.gitCacheExpirationDryRun ?? false, ...expiration },
+            spaceId: workspace.spaceId, dryRun: opts.gitCacheExpirationDryRun ?? false, ...expiration },
           "Git workspace cache expiration inspected");
           continue;
         }
@@ -3952,7 +3952,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         }
         if (deliveryCandidate) {
           try {
-            const proof = await resolveWorkspaceDelivery({ companyId: workspace.companyId, repoUrl: workspace.repoUrl,
+            const proof = await resolveWorkspaceDelivery({ spaceId: workspace.spaceId, repoUrl: workspace.repoUrl,
               headSha: deliveryCandidate.headSha, destinationRef: deliveryCandidate.destinationRef, projectSource: deliveryCandidate.projectSource,
               pullRequests: await listDeliveryPullRequestReferences(workspace) });
             if (proof.status !== "delivered" || proof.headSha !== deliveryCandidate.headSha) {
@@ -3978,7 +3978,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         const expectedDeliveryProof = deliveryProof;
         const verifyDeliveryBeforeRemove = expectedDeliveryCandidate && expectedDeliveryProof ? async () => {
           const [current] = await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, workspace.id),
-            eq(executionWorkspaces.companyId, workspace.companyId)));
+            eq(executionWorkspaces.spaceId, workspace.spaceId)));
           const currentCandidate = current ? await workspaceDeliveryCandidate(current) : null;
           if (!current || current.repoUrl !== workspace.repoUrl || current.branchName !== workspace.branchName
             || current.providerRef !== workspace.providerRef || currentCandidate?.operationId !== expectedDeliveryCandidate.operationId
@@ -3986,7 +3986,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             || currentCandidate.projectSource.projectId !== expectedDeliveryCandidate.projectSource.projectId
             || currentCandidate.projectSource.workspaceId !== expectedDeliveryCandidate.projectSource.workspaceId)
             throw conflict("Workspace changed after delivery was verified");
-          const freshProof = await resolveWorkspaceDelivery({ companyId: current.companyId, repoUrl: current.repoUrl,
+          const freshProof = await resolveWorkspaceDelivery({ spaceId: current.spaceId, repoUrl: current.repoUrl,
             headSha: currentCandidate.headSha, destinationRef: currentCandidate.destinationRef, projectSource: currentCandidate.projectSource,
             pullRequests: await listDeliveryPullRequestReferences(current) });
           if (freshProof.status !== "delivered" || freshProof.headSha !== expectedDeliveryProof.headSha
@@ -3999,7 +3999,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           ? isRuntimeOwnedGitBranch(workspace.metadata)
           : workspace.metadata?.createdByRuntime === true;
         const readinessKey = workspace.providerType === "plugin" ? `plugin:${workspace.id}:${readExecutionWorkspaceLifecycleGeneration(workspace.metadata)}` : workspacePath
-          ? JSON.stringify([workspace.companyId, workspacePath, workspace.baseRef, workspace.branchName, createdByRuntime])
+          ? JSON.stringify([workspace.spaceId, workspacePath, workspace.baseRef, workspace.branchName, createdByRuntime])
           : `workspace:${workspace.id}`;
         let inspection = readinessByWorkingTree.get(readinessKey);
         if (!inspection) {
@@ -4172,7 +4172,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             })
             .where(and(
               eq(executionWorkspaces.id, workspace.id),
-              eq(executionWorkspaces.companyId, workspace.companyId),
+              eq(executionWorkspaces.spaceId, workspace.spaceId),
               ...(deliveryProof ? workspaceSourceKeys.map(key => sql`${executionWorkspaces[key]} IS NOT DISTINCT FROM ${workspace[key]}`) : []),
               deliveryProof ? sql`${executionWorkspaces.metadata} IS NOT DISTINCT FROM ${JSON.stringify(workspace.metadata)}::jsonb` : undefined,
               inArray(executionWorkspaces.status, ["active", "idle", "in_review"]),
@@ -4181,7 +4181,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
               sql<boolean>`EXISTS (
                 SELECT 1
                 FROM ${issues} source_issue
-                WHERE source_issue.company_id = ${workspace.companyId}
+                WHERE source_issue.space_id = ${workspace.spaceId}
                   AND source_issue.id = ${workspace.sourceIssueId}
                   AND source_issue.status IN ('done', 'cancelled')
               )`,
@@ -4191,25 +4191,25 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
                 JOIN ${heartbeatRuns} live_run
                   ON live_run.id = linked_issue.checkout_run_id
                   OR live_run.id = linked_issue.execution_run_id
-                WHERE linked_issue.company_id = ${workspace.companyId}
+                WHERE linked_issue.space_id = ${workspace.spaceId}
                   AND (
                     linked_issue.execution_workspace_id = ${workspace.id}
                     OR linked_issue.id = ${workspace.sourceIssueId}
                   )
-                  AND live_run.company_id = ${workspace.companyId}
+                  AND live_run.space_id = ${workspace.spaceId}
                   AND live_run.status IN ('queued', 'running')
               )`,
               sql<boolean>`NOT EXISTS (
                 WITH RECURSIVE issue_tree(id, status) AS (
                   SELECT root.id, root.status
                   FROM ${issues} root
-                  WHERE root.company_id = ${workspace.companyId}
+                  WHERE root.space_id = ${workspace.spaceId}
                     AND root.id = ${workspace.sourceIssueId}
                   UNION ALL
                   SELECT child.id, child.status
                   FROM ${issues} child
                   JOIN issue_tree parent ON child.parent_id = parent.id
-                  WHERE child.company_id = ${workspace.companyId}
+                  WHERE child.space_id = ${workspace.spaceId}
                 )
                 SELECT 1 FROM issue_tree WHERE status NOT IN ('done', 'cancelled')
               )`,
@@ -4223,13 +4223,13 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
                 WITH RECURSIVE cooldown_tree(id, status, completed_at, cancelled_at, updated_at) AS (
                   SELECT root.id, root.status, root.completed_at, root.cancelled_at, root.updated_at
                   FROM ${issues} root
-                  WHERE root.company_id = ${workspace.companyId}
+                  WHERE root.space_id = ${workspace.spaceId}
                     AND root.id = ${workspace.sourceIssueId}
                   UNION ALL
                   SELECT child.id, child.status, child.completed_at, child.cancelled_at, child.updated_at
                   FROM ${issues} child
                   JOIN cooldown_tree parent ON child.parent_id = parent.id
-                  WHERE child.company_id = ${workspace.companyId}
+                  WHERE child.space_id = ${workspace.spaceId}
                 )
                 SELECT 1 FROM cooldown_tree
                 WHERE COALESCE(
@@ -4252,7 +4252,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         terminalWorkspaceDeadlines.delete(workspace.id);
 
         await logActivity(db, {
-          companyId: archived.companyId,
+          spaceId: archived.spaceId,
           actorType: "system",
           actorId: "workspace_terminality_reaper",
           action: "execution_workspace.issue_terminal_archived",
@@ -4289,7 +4289,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             cleanupReason: `${ISSUE_TERMINAL_WORKSPACE_CLEANUP_REASON} | ${failure}`,
           });
           await logActivity(db, {
-            companyId: archived.companyId,
+            spaceId: archived.spaceId,
             actorType: "system",
             actorId: "workspace_terminality_reaper",
             action: "execution_workspace.issue_terminal_cleanup_failed",
@@ -4365,18 +4365,18 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         });
         return row ? toExecutionWorkspace(row) : null;
       }
-      const [identity] = await measureRunPhase("workspace.identity_read", () => db.select({ companyId: executionWorkspaces.companyId }).from(executionWorkspaces)
+      const [identity] = await measureRunPhase("workspace.identity_read", () => db.select({ spaceId: executionWorkspaces.spaceId }).from(executionWorkspaces)
         .where(eq(executionWorkspaces.id, id)));
       if (!identity) return null;
       return measureRunTransaction(db, "workspace", async tx => {
         const [current] = await measureRunPhase("workspace.row_lock", () => tx.select().from(executionWorkspaces).where(and(
-          eq(executionWorkspaces.id, id), eq(executionWorkspaces.companyId, identity.companyId),
+          eq(executionWorkspaces.id, id), eq(executionWorkspaces.spaceId, identity.spaceId),
         )).for("no key update"));
         if (!current) return null;
         const nextPatch = preserveWorkspaceMetadataForPatch(current, patch);
         await measureRunPhase("workspace.notification", () => notifyTerminalWorkspaceWork(tx, `workspace:${id}`));
         const [row] = await measureRunPhase("workspace.write", () => tx.update(executionWorkspaces).set({ ...nextPatch, updatedAt: new Date() })
-          .where(and(eq(executionWorkspaces.id, id), eq(executionWorkspaces.companyId, current.companyId))).returning());
+          .where(and(eq(executionWorkspaces.id, id), eq(executionWorkspaces.spaceId, current.spaceId))).returning());
         return row ? toExecutionWorkspace(row) : null;
       });
     },
@@ -4385,26 +4385,26 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
     // use it again. The caller must first authorize the request on the issue.
     reopenClosedIsolatedExecutionWorkspaceForIssue: async (input: {
       workspaceId: string;
-      issue: { id: string; companyId: string; projectId: string | null };
+      issue: { id: string; spaceId: string; projectId: string | null };
       actor: { agentId: string | null; actorType: string };
       authorizationActor: AuthorizationActor;
     }): Promise<ReopenClosedIsolatedExecutionWorkspaceResult> => {
       const { issue, actor } = input;
       const [boundSnapshot] = await db.select({ id: issues.id }).from(issues).where(and(
-        eq(issues.id, issue.id), eq(issues.companyId, issue.companyId),
+        eq(issues.id, issue.id), eq(issues.spaceId, issue.spaceId),
         eq(issues.executionWorkspaceId, input.workspaceId),
         await issueReadSqlCondition(db, input.authorizationActor),
       ));
       const authorizedSnapshot = boundSnapshot ? await db.select().from(executionWorkspaces).where(and(
-        eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.companyId, issue.companyId),
+        eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.spaceId, issue.spaceId),
         reopenableWorkspaceMode(),
       )).then(rows => rows[0] ?? null) : null;
       if (!authorizedSnapshot) return { ok: false, code: "not_reopenable", message: "Execution workspace is not reopenable" };
-      await assertTaskWorkspaceExecutionAccess(db, input.authorizationActor, issue.companyId, { issueId: issue.id, workspaceId: authorizedSnapshot.id });
+      await assertTaskWorkspaceExecutionAccess(db, input.authorizationActor, issue.spaceId, { issueId: issue.id, workspaceId: authorizedSnapshot.id });
       const sourceIssueId = authorizedSnapshot.sourceIssueId;
       const reopen = async (): Promise<ReopenClosedIsolatedExecutionWorkspaceResult> => {
       const freshSnapshot = await db.select().from(executionWorkspaces).where(and(
-        eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.companyId, issue.companyId),
+        eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.spaceId, issue.spaceId),
         reopenableWorkspaceMode(),
       )).then(rows => rows[0] ?? null);
       if (!freshSnapshot || freshSnapshot.sourceIssueId !== sourceIssueId) {
@@ -4413,9 +4413,9 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       if (readRemoteWorkspaceAuthority(freshSnapshot.metadata)) {
         return withExecutionWorkspaceLifecycleLock(db, freshSnapshot.id, async tx => {
           const [row] = await tx.select().from(executionWorkspaces).where(and(
-            eq(executionWorkspaces.companyId, issue.companyId), eq(executionWorkspaces.id, freshSnapshot.id)));
+            eq(executionWorkspaces.spaceId, issue.spaceId), eq(executionWorkspaces.id, freshSnapshot.id)));
           if (!row || row.sourceIssueId !== sourceIssueId) return { ok: false, code: "not_reopenable", message: "Workspace source changed" };
-          await assertTaskWorkspaceExecutionAccess(tx, input.authorizationActor, issue.companyId, { issueId: issue.id, workspaceId: row.id });
+          await assertTaskWorkspaceExecutionAccess(tx, input.authorizationActor, issue.spaceId, { issueId: issue.id, workspaceId: row.id });
           const persistence = await inspectRemoteWorkspacePersistence(tx, row);
           if (!persistence.ready) return { ok: false, code: "rebuild_failed", message: persistence.reason ?? "Saved workspace is unavailable" };
           const generation = readExecutionWorkspaceLifecycleGeneration(row.metadata);
@@ -4433,9 +4433,9 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       if (snapshot.providerType === "plugin") {
         return withExecutionWorkspaceLifecycleLock(db, snapshot.id, async tx => {
           const [row] = await tx.select().from(executionWorkspaces).where(and(
-            eq(executionWorkspaces.id, snapshot.id), eq(executionWorkspaces.companyId, issue.companyId)));
+            eq(executionWorkspaces.id, snapshot.id), eq(executionWorkspaces.spaceId, issue.spaceId)));
           if (!row || row.sourceIssueId !== sourceIssueId || row.metadata?.workspaceProviderRetired === true) return { ok: false, code: "not_reopenable", message: "Workspace source changed" };
-          await assertTaskWorkspaceExecutionAccess(tx, input.authorizationActor, issue.companyId, { issueId: issue.id, workspaceId: row.id });
+          await assertTaskWorkspaceExecutionAccess(tx, input.authorizationActor, issue.spaceId, { issueId: issue.id, workspaceId: row.id });
           const generation = readExecutionWorkspaceLifecycleGeneration(row.metadata);
           if (!isClosedExecutionWorkspaceStatus(row.status)) return { ok: true, reopened: false, workspace: toExecutionWorkspace(row), generation };
           try {
@@ -4452,19 +4452,19 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           }
         });
       }
-      await assertTaskWorkspaceExecutionAccess(db, input.authorizationActor, issue.companyId, { issueId: issue.id, workspaceId: snapshot.id });
+      await assertTaskWorkspaceExecutionAccess(db, input.authorizationActor, issue.spaceId, { issueId: issue.id, workspaceId: snapshot.id });
       let recipe: ReturnType<typeof readGitCacheRestoration> = null;
       const rebuildFailed = (step: WorkspaceReopenFailureStep, error: unknown, restoration = recipe !== null): ReopenClosedIsolatedExecutionWorkspaceResult => {
         const diagnostic = workspaceReopenDiagnostic(step, error);
         logger.warn({ event: "execution_workspace.reopen", outcome: "rebuild_failed", executionWorkspaceId: snapshot.id,
-          issueId: issue.id, companyId: issue.companyId, ...diagnostic }, "execution workspace reopen rebuild failed");
+          issueId: issue.id, spaceId: issue.spaceId, ...diagnostic }, "execution workspace reopen rebuild failed");
         return { ok: false, code: "rebuild_failed", diagnostic,
           message: restoration ? new GitCacheRestorationFailure().message : "Failed to rebuild the execution workspace" };
       };
       try { recipe = readGitCacheRestoration(snapshot); }
       catch (error) { return rebuildFailed("recipe", error, true); }
       const freshStart = recipe !== null && isClosedExecutionWorkspaceStatus(snapshot.status) && gitRestorePointExpired(recipe);
-      const gitAuth = createIssueGitRemoteAuthProvider(db, snapshot.companyId, issue.id);
+      const gitAuth = createIssueGitRemoteAuthProvider(db, snapshot.spaceId, issue.id);
       const [
         { ensurePersistedExecutionWorkspaceAvailable },
         { workspaceOperationService },
@@ -4480,7 +4480,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
               .select({ cwd: projectWorkspaces.cwd })
               .from(projectWorkspaces)
               .where(and(
-                eq(projectWorkspaces.companyId, snapshot.companyId),
+                eq(projectWorkspaces.spaceId, snapshot.spaceId),
                 eq(projectWorkspaces.id, snapshot.projectWorkspaceId),
               ))
               .then((rows) => rows[0] ?? null)
@@ -4488,7 +4488,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         db
           .select({ executionWorkspacePolicy: projects.executionWorkspacePolicy })
           .from(projects)
-          .where(and(eq(projects.companyId, snapshot.companyId), snapshot.projectId ? eq(projects.id, snapshot.projectId) : sql`false`))
+          .where(and(eq(projects.spaceId, snapshot.spaceId), snapshot.projectId ? eq(projects.id, snapshot.projectId) : sql`false`))
           .then((rows) => parseProjectExecutionWorkspacePolicy(rows[0]?.executionWorkspacePolicy)),
       ]);
       let resolvedBaseCwd: string | null;
@@ -4504,7 +4504,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       if (isClosedExecutionWorkspaceStatus(snapshot.status) && resolvedBaseCwd == null && snapshot.strategyType === "git_worktree" && snapshot.projectId) {
         try {
           const managedWorkspace = await ensureManagedProjectWorkspace({
-            companyId: snapshot.companyId,
+            spaceId: snapshot.spaceId,
             projectId: snapshot.projectId,
             repoUrl: snapshot.repoUrl,
             prepareLocalSource: async (sourceCwd, targetCwd) => {
@@ -4515,12 +4515,12 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
                   || await canonicalRepositoryRoot(targetCwd) !== targetIdentity) {
                   throw forbidden("Execution workspace copy identity changed during reopen");
                 }
-                await assertTaskWorkspaceExecutionAccess(db, input.authorizationActor, issue.companyId, {
+                await assertTaskWorkspaceExecutionAccess(db, input.authorizationActor, issue.spaceId, {
                   issueId: issue.id, workspaceId: snapshot.id,
                 });
               };
             },
-            resolveGitAuth: createIssueGitRemoteAuthProvider(db, snapshot.companyId, issue.id),
+            resolveGitAuth: createIssueGitRemoteAuthProvider(db, snapshot.spaceId, issue.id),
           });
           resolvedBaseCwd = managedWorkspace.cwd;
         } catch (error) {
@@ -4548,7 +4548,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       const result = await db.transaction(async (tx): Promise<ReopenClosedIsolatedExecutionWorkspaceResult> => {
         await acquireExecutionWorkspaceLifecycleLock(tx, input.workspaceId);
         const [boundTask] = await tx.select().from(issues).where(and(
-          eq(issues.id, issue.id), eq(issues.companyId, issue.companyId),
+          eq(issues.id, issue.id), eq(issues.spaceId, issue.spaceId),
           eq(issues.executionWorkspaceId, input.workspaceId),
           await issueReadSqlCondition(tx, input.authorizationActor),
         ));
@@ -4558,7 +4558,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           .from(executionWorkspaces)
           .where(and(
             eq(executionWorkspaces.id, input.workspaceId),
-            eq(executionWorkspaces.companyId, issue.companyId),
+            eq(executionWorkspaces.spaceId, issue.spaceId),
             reopenableWorkspaceMode(),
           ))
           .then((rows) => rows[0] ?? null);
@@ -4566,7 +4566,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           // disclose no workspace detail.
           return { ok: false, code: "not_reopenable", message: "Execution workspace is not reopenable" };
         }
-        await assertTaskWorkspaceExecutionAccess(tx, input.authorizationActor, issue.companyId, { issueId: issue.id, workspaceId: row.id });
+        await assertTaskWorkspaceExecutionAccess(tx, input.authorizationActor, issue.spaceId, { issueId: issue.id, workspaceId: row.id });
         if (!isClosedExecutionWorkspaceStatus(row.status)) {
           // A concurrent reopen already restored the row. Report success without a
           // second rebuild so the caller continues normally. The other request
@@ -4586,7 +4586,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         }
         if (copyIdentity && snapshot.projectWorkspaceId) {
           const [currentSource] = await tx.select({ cwd: projectWorkspaces.cwd }).from(projectWorkspaces)
-            .where(and(eq(projectWorkspaces.id, snapshot.projectWorkspaceId), eq(projectWorkspaces.companyId, snapshot.companyId)));
+            .where(and(eq(projectWorkspaces.id, snapshot.projectWorkspaceId), eq(projectWorkspaces.spaceId, snapshot.spaceId)));
           if (!isDeepStrictEqual(currentSource ?? null, projectWorkspace)) {
             return { ok: false, code: "not_reopenable", message: "Execution workspace source changed during reopen" };
           }
@@ -4599,7 +4599,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             || await canonicalRepositoryRoot(targetCwd) !== copyIdentity.targetCwd) {
             throw forbidden("Execution workspace copy identity changed during reopen");
           }
-          await assertTaskWorkspaceExecutionAccess(tx, input.authorizationActor, issue.companyId, {
+          await assertTaskWorkspaceExecutionAccess(tx, input.authorizationActor, issue.spaceId, {
             issueId: issue.id, workspaceId: row.id,
           });
         } : undefined;
@@ -4621,20 +4621,20 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         const prepareFreshProjectRepositories = async (targetCwd: string) => {
           const { prepareProjectRepositoryWorkspaces } = await import("./heartbeat/workspaces.js");
           const repositoryRows = await tx.select().from(projectWorkspaces).where(and(
-            eq(projectWorkspaces.companyId, row.companyId), eq(projectWorkspaces.projectId, row.projectId!),
+            eq(projectWorkspaces.spaceId, row.spaceId), eq(projectWorkspaces.projectId, row.projectId!),
           )).orderBy(asc(projectWorkspaces.createdAt), asc(projectWorkspaces.id));
           await prepareProjectRepositoryWorkspaces({ cwd: targetCwd, anchorRepoUrl: row.repoUrl, workspaces: repositoryRows,
-            sharedBase: { companyId: row.companyId, projectId: row.projectId! }, resolveGitAuth: gitAuth,
+            sharedBase: { spaceId: row.spaceId, projectId: row.projectId! }, resolveGitAuth: gitAuth,
             prepareLocalSource: async sourceCwd => {
               const sourceIdentity = await fs.realpath(sourceCwd);
               return async () => {
                 if (await fs.realpath(sourceCwd) !== sourceIdentity) throw forbidden("Execution workspace copy identity changed during reopen");
-                await assertTaskWorkspaceExecutionAccess(tx, input.authorizationActor, issue.companyId, { issueId: issue.id, workspaceId: row.id });
+                await assertTaskWorkspaceExecutionAccess(tx, input.authorizationActor, issue.spaceId, { issueId: issue.id, workspaceId: row.id });
               };
             } });
         };
         const recorder = workspaceOperationService(db).createRecorder({
-          companyId: row.companyId,
+          spaceId: row.spaceId,
           executionWorkspaceId: row.id,
         });
 
@@ -4646,33 +4646,33 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           if (taskDirectoryState) {
             const restored = await restoreIsolatedTaskDirectory({ storage: opts.gitRestorePoints?.storage ?? getStorageService(), workspace: row });
             if (restored.expired) taskDirectoryWarning = TASK_DIRECTORY_RESTORE_POINT_EXPIRED_WARNING;
-            logger.info({ event: "execution_workspace.task_directory_restore", executionWorkspaceId: row.id, companyId: row.companyId,
+            logger.info({ event: "execution_workspace.task_directory_restore", executionWorkspaceId: row.id, spaceId: row.spaceId,
               issueId: issue.id, ...restored }, "Isolated task directory restored for reopen");
           }
           const [assignee, organization, sourceProject] = await Promise.all([
-            boundTask.assigneeAgentId ? tx.select({ companyId: agents.companyId, permissions: agents.permissions }).from(agents)
-              .where(and(eq(agents.id, boundTask.assigneeAgentId), eq(agents.companyId, row.companyId)))
+            boundTask.assigneeAgentId ? tx.select({ spaceId: agents.spaceId, permissions: agents.permissions }).from(agents)
+              .where(and(eq(agents.id, boundTask.assigneeAgentId), eq(agents.spaceId, row.spaceId)))
               .then(rows => rows[0] ?? null) : null,
-            boundTask.projectId ? tx.select({ companyId: projects.companyId, executionWorkspacePolicy: projects.executionWorkspacePolicy }).from(projects)
-              .where(and(eq(projects.id, boundTask.projectId), eq(projects.companyId, row.companyId)))
+            boundTask.projectId ? tx.select({ spaceId: projects.spaceId, executionWorkspacePolicy: projects.executionWorkspacePolicy }).from(projects)
+              .where(and(eq(projects.id, boundTask.projectId), eq(projects.spaceId, row.spaceId)))
               .then(rows => rows[0] ?? null) : null,
-            row.projectId ? tx.select({ companyId: projects.companyId, executionWorkspacePolicy: projects.executionWorkspacePolicy }).from(projects)
-              .where(and(eq(projects.id, row.projectId), eq(projects.companyId, row.companyId)))
+            row.projectId ? tx.select({ spaceId: projects.spaceId, executionWorkspacePolicy: projects.executionWorkspacePolicy }).from(projects)
+              .where(and(eq(projects.id, row.projectId), eq(projects.spaceId, row.spaceId)))
               .then(rows => rows[0] ?? null) : row.projectWorkspaceId
-                ? tx.select({ companyId: projects.companyId, executionWorkspacePolicy: projects.executionWorkspacePolicy })
+                ? tx.select({ spaceId: projects.spaceId, executionWorkspacePolicy: projects.executionWorkspacePolicy })
                   .from(projectWorkspaces).innerJoin(projects, eq(projects.id, projectWorkspaces.projectId))
-                  .where(and(eq(projectWorkspaces.id, row.projectWorkspaceId), eq(projectWorkspaces.companyId, row.companyId), eq(projects.companyId, row.companyId)))
+                  .where(and(eq(projectWorkspaces.id, row.projectWorkspaceId), eq(projectWorkspaces.spaceId, row.spaceId), eq(projects.spaceId, row.spaceId)))
                   .then(rows => rows[0] ?? null) : null,
           ]);
           if ((boundTask.assigneeAgentId && !assignee) || (boundTask.projectId && !organization)
             || ((row.projectId || row.projectWorkspaceId) && !sourceProject)) {
             throw forbidden("Execution workspace trust policy is unavailable");
           }
-          const trust = resolveCoreTrustPreset({ companyId: row.companyId, agent: assignee, issue: boundTask,
+          const trust = resolveCoreTrustPreset({ spaceId: row.spaceId, agent: assignee, issue: boundTask,
             project: organization, workspaceSourceProject: sourceProject });
           if (trust.kind === "denied") throw forbidden(trust.detail);
           const copyOnlyProvisioning = await workspaceRequiresCopyOnlyProvisioning(tx, {
-            companyId: row.companyId, task: boundTask, sourceProjectId: row.projectId,
+            spaceId: row.spaceId, task: boundTask, sourceProjectId: row.projectId,
             sourceWorkspaceId: row.projectWorkspaceId, boundWorkspace: row,
           });
           if (copyOnlyProvisioning) nextMetadata[CONTROLLER_PROVISION_COPY_ONLY] = true;
@@ -4683,7 +4683,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
               const currentRecipe = nextMetadata.gitCacheRestoration;
               const updated = await db.update(executionWorkspaces).set({
                 metadata: sql`jsonb_set(${executionWorkspaces.metadata}, '{gitCacheRestoration,contentsRestoredAt}', ${JSON.stringify(at)}::jsonb)`,
-              }).where(and(eq(executionWorkspaces.id, row.id), eq(executionWorkspaces.companyId, row.companyId),
+              }).where(and(eq(executionWorkspaces.id, row.id), eq(executionWorkspaces.spaceId, row.spaceId),
                 sql`${executionWorkspaces.metadata}->'gitCacheRestoration' = ${JSON.stringify(currentRecipe)}::jsonb`))
                 .returning({ id: executionWorkspaces.id });
               if (updated.length !== 1) throw new GitCacheRestorationFailure();
@@ -4694,7 +4694,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
               const appliedRecipe = { ...currentRecipe, restorePoint: { ...currentRecipe.restorePoint as Record<string, unknown>, appliedAt: at } };
               const updated = await db.update(executionWorkspaces).set({
                 metadata: sql`jsonb_set(${executionWorkspaces.metadata}, '{gitCacheRestoration}', ${JSON.stringify(appliedRecipe)}::jsonb)`,
-              }).where(and(eq(executionWorkspaces.id, row.id), eq(executionWorkspaces.companyId, row.companyId),
+              }).where(and(eq(executionWorkspaces.id, row.id), eq(executionWorkspaces.spaceId, row.spaceId),
                 sql`${executionWorkspaces.metadata}->'gitCacheRestoration' = ${JSON.stringify(currentRecipe)}::jsonb`))
                 .returning({ id: executionWorkspaces.id });
               if (updated.length !== 1) throw new GitCacheRestorationFailure();
@@ -4708,7 +4708,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
                   || await canonicalRepositoryRoot(row.cwd!) !== targetIdentity) {
                   throw forbidden("Execution workspace copy identity changed during reopen");
                 }
-                await assertTaskWorkspaceExecutionAccess(tx, input.authorizationActor, issue.companyId, {
+                await assertTaskWorkspaceExecutionAccess(tx, input.authorizationActor, issue.spaceId, {
                   issueId: issue.id, workspaceId: row.id,
                 });
               };
@@ -4752,8 +4752,8 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
               : null,
             agent: {
               id: actor.agentId ?? null,
-              name: actor.actorType === "user" ? "Board" : "Agent",
-              companyId: row.companyId,
+              name: actor.actorType === "user" ? "Operator" : "Agent",
+              spaceId: row.spaceId,
             },
             recorder,
           });
@@ -4790,7 +4790,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
               outcome: "rebuild_failed",
               executionWorkspaceId: row.id,
               issueId: issue.id,
-              companyId: row.companyId,
+              spaceId: row.spaceId,
               actorType: actor.actorType,
               actorAgentId: actor.agentId ?? null,
               generation: nextGeneration,
@@ -4800,7 +4800,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             "execution workspace reopen rebuild failed",
           );
           await logActivity(tx as unknown as Db, {
-            companyId: row.companyId,
+            spaceId: row.spaceId,
             actorType: actor.actorType === "user" ? "user" : "agent",
             actorId: actor.agentId ?? "system",
             agentId: actor.actorType === "user" ? null : actor.agentId,
@@ -4858,7 +4858,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             outcome: "reopened",
             executionWorkspaceId: row.id,
             issueId: issue.id,
-            companyId: row.companyId,
+            spaceId: row.spaceId,
             actorType: actor.actorType,
             actorAgentId: actor.agentId ?? null,
             generation: nextGeneration,
@@ -4866,7 +4866,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           "execution workspace reopened",
         );
         await logActivity(tx as unknown as Db, {
-          companyId: row.companyId,
+          spaceId: row.spaceId,
           actorType: actor.actorType === "user" ? "user" : "agent",
           actorId: actor.agentId ?? "system",
           agentId: actor.actorType === "user" ? null : actor.agentId,
@@ -4899,7 +4899,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       if (freshSnapshot.projectId) projectIds.add(freshSnapshot.projectId);
       try {
         for (const cwd of localWorkspaceSourcePaths(freshSnapshot)) {
-          const identities = await workspaceSourceIdentities(freshSnapshot.companyId, cwd);
+          const identities = await workspaceSourceIdentities(freshSnapshot.spaceId, cwd);
           for (const id of identities.projectIds) projectIds.add(id);
           for (const id of identities.issueIds) issueIds.add(id);
         }
@@ -4907,10 +4907,10 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         return { ok: false, code: "rebuild_failed", message: freshSnapshot.metadata?.gitCacheRestoration
           ? new GitCacheRestorationFailure().message : "Failed to rebuild the execution workspace" };
       }
-      return withWorkspaceSourceLocks(db, { companyId: freshSnapshot.companyId, projectIds: [...projectIds], issueIds: [...issueIds] }, reopenSource);
+      return withWorkspaceSourceLocks(db, { spaceId: freshSnapshot.spaceId, projectIds: [...projectIds], issueIds: [...issueIds] }, reopenSource);
       };
       return authorizedSnapshot.sourceIssueId
-        ? withIsolatedRepositorySourceLock(db, authorizedSnapshot.companyId, authorizedSnapshot.sourceIssueId, reopen)
+        ? withIsolatedRepositorySourceLock(db, authorizedSnapshot.spaceId, authorizedSnapshot.sourceIssueId, reopen)
         : reopen();
     },
 
@@ -4945,7 +4945,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
 
     clearReopenPendingConsumptionForUnconsumedReopen: async (input: {
       workspaceId: string;
-      issue: { id: string; companyId: string };
+      issue: { id: string; spaceId: string };
       actor: { agentId: string | null; actorType: string };
       // The generation the reopen published the active row at. It owns the flag.
       // The clear runs only while the current generation still matches, so it never
@@ -4962,14 +4962,14 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             outcome: "unconsumed_reopen_cleared",
             executionWorkspaceId: input.workspaceId,
             issueId: input.issue.id,
-            companyId: input.issue.companyId,
+            spaceId: input.issue.spaceId,
             actorType: input.actor.actorType,
             actorAgentId: input.actor.agentId ?? null,
           },
           "execution workspace reopen-pending flag cleared after an unconsumed reopen",
         );
         await logActivity(db, {
-          companyId: input.issue.companyId,
+          spaceId: input.issue.spaceId,
           actorType: input.actor.actorType === "user" ? "user" : "agent",
           actorId: input.actor.agentId ?? "system",
           agentId: input.actor.actorType === "user" ? null : input.actor.agentId,
@@ -5008,14 +5008,14 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       | { outcome: "reopen_pending" }
       | null
     > => {
-      const [identity] = await db.select({ companyId: executionWorkspaces.companyId }).from(executionWorkspaces)
+      const [identity] = await db.select({ spaceId: executionWorkspaces.spaceId }).from(executionWorkspaces)
         .where(eq(executionWorkspaces.id, input.id));
       if (!identity) return null;
       return withExecutionWorkspaceLifecycleLock(db, input.id, async (tx) => {
         const fresh = await measureRunPhase("workspace.row_lock", () => tx
           .select()
           .from(executionWorkspaces)
-          .where(and(eq(executionWorkspaces.id, input.id), eq(executionWorkspaces.companyId, identity.companyId)))
+          .where(and(eq(executionWorkspaces.id, input.id), eq(executionWorkspaces.spaceId, identity.spaceId)))
           .for("no key update")
           .then((rows) => rows[0] ?? null));
         if (!fresh || isClosedExecutionWorkspaceStatus(fresh.status)) {
@@ -5050,7 +5050,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           })
           .where(and(
             eq(executionWorkspaces.id, input.id),
-            eq(executionWorkspaces.companyId, fresh.companyId),
+            eq(executionWorkspaces.spaceId, fresh.spaceId),
             // Defense in depth: never archive a reopen-pending row even if the
             // flag appears between the read above and this write. The lifecycle
             // lock already serializes reopen and archive, so this predicate only
@@ -5191,7 +5191,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
         ? await (async () => {
             const runtimeServicesByWorkspaceId = await loadEffectiveRuntimeServicesByExecutionWorkspace(
               db,
-              existing.companyId,
+              existing.spaceId,
               [existingRow],
             );
             assertBranchReconcileRuntimeServicesStopped({
@@ -5240,7 +5240,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             .from(projectWorkspaces)
             .where(
               and(
-                eq(projectWorkspaces.companyId, lockedRow.companyId),
+                eq(projectWorkspaces.spaceId, lockedRow.spaceId),
                 eq(projectWorkspaces.id, lockedRow.projectWorkspaceId!),
               ),
             )
@@ -5253,7 +5253,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           .where(
             usesInheritedProjectRuntimeServices(lockedRow)
               ? and(
-                  eq(workspaceRuntimeServices.companyId, lockedRow.companyId),
+                  eq(workspaceRuntimeServices.spaceId, lockedRow.spaceId),
                   or(
                     and(
                       eq(workspaceRuntimeServices.projectWorkspaceId, lockedRow.projectWorkspaceId!),
@@ -5263,7 +5263,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
                   ),
                 )
               : and(
-                  eq(workspaceRuntimeServices.companyId, lockedRow.companyId),
+                  eq(workspaceRuntimeServices.spaceId, lockedRow.spaceId),
                   eq(workspaceRuntimeServices.executionWorkspaceId, lockedRow.id),
                 ),
           )
@@ -5271,7 +5271,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
 
         const lockedRuntimeServicesByWorkspaceId = await loadEffectiveRuntimeServicesByExecutionWorkspace(
           txDb,
-          lockedRow.companyId,
+          lockedRow.spaceId,
           [lockedRow],
         );
         const lockedRuntimeServices = (lockedRuntimeServicesByWorkspaceId.get(lockedRow.id) ?? []).map(toRuntimeService);
@@ -5328,7 +5328,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           if (!branchUpdatedRow) {
             const latestRuntimeServicesByWorkspaceId = await loadEffectiveRuntimeServicesByExecutionWorkspace(
               txDb,
-              lockedRow.companyId,
+              lockedRow.spaceId,
               [lockedRow],
             );
             const latestRuntimeServices = (latestRuntimeServicesByWorkspaceId.get(lockedRow.id) ?? []).map(toRuntimeService);
@@ -5347,7 +5347,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
 
         let recoveryAction = await recoveryActionsSvc.resolveActiveForIssue(
           {
-            companyId: lockedWorkspace.companyId,
+            spaceId: lockedWorkspace.spaceId,
             sourceIssueId: lockedWorkspace.sourceIssueId,
             kind: "workspace_validation",
             cause: WORKSPACE_VALIDATION_RECOVERY_CAUSE,
@@ -5365,7 +5365,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             if (!alternateFingerprint || alternateFingerprint === inspection.fingerprint) continue;
             recoveryAction = await recoveryActionsSvc.resolveActiveForIssue(
               {
-                companyId: existing.companyId,
+                spaceId: existing.spaceId,
                 sourceIssueId: existing.sourceIssueId!,
                 kind: "workspace_validation",
                 cause: WORKSPACE_VALIDATION_RECOVERY_CAUSE,
@@ -5388,7 +5388,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           const [sourceBefore] = await tx
             .select({
               id: issues.id,
-              companyId: issues.companyId,
+              spaceId: issues.spaceId,
               status: issues.status,
               assigneeAgentId: issues.assigneeAgentId,
               assigneeUserId: issues.assigneeUserId,
@@ -5434,7 +5434,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           if (!updatedIssue) throw notFound("Source issue not found");
           restoredSourceIssue = {
             id: updatedIssue.id,
-            companyId: updatedIssue.companyId,
+            spaceId: updatedIssue.spaceId,
             status: updatedIssue.status,
             assigneeAgentId: updatedIssue.assigneeAgentId,
           };
@@ -5479,7 +5479,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
       });
     },
 
-    clearEnvironmentSelection: async (companyId: string, environmentId: string) => {
+    clearEnvironmentSelection: async (spaceId: string, environmentId: string) => {
       return db.transaction(async (tx) => {
         const rows = await tx
           .select({
@@ -5487,7 +5487,7 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
             metadata: executionWorkspaces.metadata,
           })
           .from(executionWorkspaces)
-          .where(eq(executionWorkspaces.companyId, companyId));
+          .where(eq(executionWorkspaces.spaceId, spaceId));
 
         let cleared = 0;
         const updatedAt = new Date();

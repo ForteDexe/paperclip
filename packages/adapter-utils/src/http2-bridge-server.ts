@@ -329,7 +329,7 @@ export const DEFAULT_HTTP2_BRIDGE_READ_BACKPRESSURE_STALL_MS = 30_000;
  * the stream write callback only after the channel's own write call settles
  * (the backpressure constraint), never as a delivery signal. The provider
  * accepts many megabytes in milliseconds and holds them in its own buffer, so
- * this direction stays governed by the channel's own write-settle timing.
+ * this direction stays controlled by the channel's own write-settle timing.
  *
  * The read direction needs its own bound. The channel exposes no pause: once
  * `onData` below is registered, the channel keeps calling it for every byte

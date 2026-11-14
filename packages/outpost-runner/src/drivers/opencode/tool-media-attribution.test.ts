@@ -22,7 +22,7 @@ describe("attributeUnsupportedToolMedia", () => {
     expect(payload.messages[2]).toEqual({
       role: "tool",
       tool_call_id: "a",
-      content: expect.stringMatching(/^Image read successfully\n\n\[Paperclip runner: This tool result included an image attachment that this model cannot read because it does not accept image input, so it was not shown to you\. .* not from the user, and needs no reply\.\]$/),
+      content: expect.stringMatching(/^Image read successfully\n\n\[Outpost runner: This tool result included an image attachment that this model cannot read because it does not accept image input, so it was not shown to you\. .* not from the user, and needs no reply\.\]$/),
     });
   });
 

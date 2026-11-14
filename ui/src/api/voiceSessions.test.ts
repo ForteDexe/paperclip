@@ -11,11 +11,11 @@ it("aborts a stuck notification fetch so the next poll can retrieve the saved an
     init.signal!.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
   })).mockResolvedValueOnce(new Response(JSON.stringify({sessionId: "session", generation: 1, publicationId: "saved-answer", attempt: 0}), {headers: {"content-type": "application/json"}}));
   vi.stubGlobal("fetch", fetch);
-  const stalled = voiceSessionsApi.notification("company", "session");
+  const stalled = voiceSessionsApi.notification("space", "session");
   const rejected = expect(stalled).rejects.toMatchObject({name: "AbortError"});
   expect(timeout).toHaveBeenCalledWith(10_000); deadline.abort(); await rejected;
   timeout.mockReturnValue(new AbortController().signal);
-  await expect(voiceSessionsApi.notification("company", "session")).resolves.toMatchObject({publicationId: "saved-answer"});
+  await expect(voiceSessionsApi.notification("space", "session")).resolves.toMatchObject({publicationId: "saved-answer"});
   expect(fetch).toHaveBeenCalledTimes(2);
 });
 
@@ -25,7 +25,7 @@ function recoveryJournal() {
     getItem: key => rows.get(key) ?? null,
     setItem: (key, value) => { rows.set(key, value); },
     removeItem: key => { rows.delete(key); },
-  }, "company", "operator");
+  }, "space", "operator");
 }
 function stalledFetch(_url: string, init: RequestInit) {
   return new Promise<Response>((_resolve, reject) => {
@@ -43,7 +43,7 @@ it("bounds lost start responses, preserves the request across reload, and closes
     .mockResolvedValueOnce(jsonResponse({ id: "saved-session", state: "ended" }));
   vi.stubGlobal("fetch", fetch);
   const journal = recoveryJournal();
-  const attempt = createVoiceCallAttempt("company", voiceSessionsApi, journal);
+  const attempt = createVoiceCallAttempt("space", voiceSessionsApi, journal);
   const controller = createVoiceSessionController({
     async mint() { return (await attempt.start({ endpointId: "endpoint", issueId: "task" })).media; },
     async end(id) { await attempt.end(id); },
@@ -59,7 +59,7 @@ it("bounds lost start responses, preserves the request across reload, and closes
   const original = journal.read();
   expect(original?.request).toMatchObject({ endpointId: "endpoint", issueId: "task" });
   timeout.mockReturnValue(new AbortController().signal);
-  const reloaded = createVoiceCallAttempt("company", voiceSessionsApi, journal);
+  const reloaded = createVoiceCallAttempt("space", voiceSessionsApi, journal);
   await expect(reloaded.start({ endpointId: "other-endpoint" })).rejects.toBeInstanceOf(VoiceSessionStartError);
   expect(fetch.mock.calls[1][1].body).toBe(fetch.mock.calls[0][1].body);
   expect(journal.read()?.sessionId).toBe("saved-session");
@@ -75,7 +75,7 @@ it("releases stalled hangup into cleanup retry and preserves the exact call iden
     .mockResolvedValueOnce(jsonResponse({ id: "saved-session", state: "ended" }));
   vi.stubGlobal("fetch", fetch);
   const journal = recoveryJournal();
-  const attempt = createVoiceCallAttempt("company", voiceSessionsApi, journal);
+  const attempt = createVoiceCallAttempt("space", voiceSessionsApi, journal);
   const localMedia = { endSession: vi.fn(async () => {}), setMicMuted: vi.fn(), sendChatMessage: vi.fn(), startAudioPlayback: vi.fn() };
   const controller = createVoiceSessionController({
     async mint() { return (await attempt.start({ endpointId: "endpoint", issueId: "task" })).media; },

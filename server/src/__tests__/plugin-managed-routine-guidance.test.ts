@@ -6,7 +6,7 @@ import { buildOpenApiDocument, applyPluginSettingsVisibility } from "../routes/o
 import { runnerApiCatalog, searchRunnerApi } from "../services/native-runtime/runner-api-catalog.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const settingsLink = "[plugin settings](/<prefix>/company/settings/instance/plugins/<pluginId>)";
+const settingsLink = "[plugin settings](/<prefix>/space/settings/instance/plugins/<pluginId>)";
 
 // Queries an agent searched after reading a routine whose `managedByPlugin` was set.
 it.each([
@@ -26,9 +26,9 @@ it.each([
   }
 });
 
-it("links a plugin settings page the board UI mounts", () => {
+it("links a plugin settings page the operator UI mounts", () => {
   const appRoutes = readFileSync(path.join(repoRoot, "ui/src/App.tsx"), "utf8");
-  expect(appRoutes).toContain('path="company/settings/instance/plugins/:pluginId"');
+  expect(appRoutes).toContain('path="space/settings/instance/plugins/:pluginId"');
 });
 
 it.each(["GET /api/routines/{id}", "PATCH /api/routines/{id}"])("%s carries the full plugin-managed routine guidance", (operationId) => {
@@ -42,7 +42,7 @@ it.each(["GET /api/routines/{id}", "PATCH /api/routines/{id}"])("%s carries the 
 it("names the hosting operator instead of linking plugin settings when the operator hides them", () => {
   const document = applyPluginSettingsVisibility(buildOpenApiDocument(), new Set(["instance.plugins"]));
   for (const operation of [document.paths["/api/routines/{id}"].get, document.paths["/api/routines/{id}"].patch]) {
-    expect(operation.description).not.toContain("/company/settings/instance/plugins");
+    expect(operation.description).not.toContain("/space/settings/instance/plugins");
     expect(operation.description).toContain("the hosting operator controls this plugin's settings");
     expect(operation.description).toContain("Do not rewrite, detach or duplicate");
   }

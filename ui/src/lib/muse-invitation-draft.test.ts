@@ -3,19 +3,19 @@ import { afterEach, expect, it } from "vitest";
 import { readMuseInvitationDraft, saveMuseInvitationDraft } from "./muse-invitation-draft";
 
 afterEach(() => localStorage.clear());
-it("retains only name and role in the exact company and operator scope", () => {
+it("retains only name and role in the exact space and operator scope", () => {
   const draft = { name: "Maia", role: "researcher" as const, ticket: "secret-not-to-save", setupInstruction: "private setup" };
-  saveMuseInvitationDraft("company-a", "operator-a", draft);
-  expect(readMuseInvitationDraft("company-a", "operator-a")).toEqual({ name: "Maia", role: "researcher" });
-  expect(readMuseInvitationDraft("company-b", "operator-a").name).toBe("");
-  expect(readMuseInvitationDraft("company-a", "operator-b").name).toBe("");
-  expect(readMuseInvitationDraft("company-a", null).name).toBe("");
+  saveMuseInvitationDraft("space-a", "operator-a", draft);
+  expect(readMuseInvitationDraft("space-a", "operator-a")).toEqual({ name: "Maia", role: "researcher" });
+  expect(readMuseInvitationDraft("space-b", "operator-a").name).toBe("");
+  expect(readMuseInvitationDraft("space-a", "operator-b").name).toBe("");
+  expect(readMuseInvitationDraft("space-a", null).name).toBe("");
   expect(localStorage.getItem(localStorage.key(0)!)).not.toContain("secret-not-to-save");
   expect(localStorage.getItem(localStorage.key(0)!)).not.toContain("setupInstruction");
 });
 it("rejects a corrupt role and does not share a signed-out draft", () => {
-  saveMuseInvitationDraft("company", null, { name: "Anonymous", role: "general" });
+  saveMuseInvitationDraft("space", null, { name: "Anonymous", role: "general" });
   expect(localStorage.length).toBe(0);
-  localStorage.setItem("outpost.muse-invitation.company.operator", JSON.stringify({ name: "Maia", role: "invented" }));
-  expect(readMuseInvitationDraft("company", "operator")).toEqual({ name: "", role: "general" });
+  localStorage.setItem("outpost.muse-invitation.space.operator", JSON.stringify({ name: "Maia", role: "invented" }));
+  expect(readMuseInvitationDraft("space", "operator")).toEqual({ name: "", role: "general" });
 });

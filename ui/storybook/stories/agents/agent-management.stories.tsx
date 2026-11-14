@@ -6,7 +6,7 @@ import {
   AGENT_ICON_NAMES,
   type Agent,
   type AgentRuntimeState,
-  type CompanySecret,
+  type SpaceSecret,
   type EnvBinding,
   type Environment,
 } from "@outpost/shared";
@@ -38,9 +38,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { storybookAgents, storybookIssues } from "../../fixtures/paperclipData";
+import { storybookAgents, storybookIssues } from "../../fixtures/outpostData";
 
-const COMPANY_ID = "company-storybook";
+const SPACE_ID = "space-storybook";
 const now = new Date("2026-04-20T12:00:00.000Z");
 const recent = (minutesAgo: number) => new Date(now.getTime() - minutesAgo * 60_000);
 
@@ -54,9 +54,9 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="paperclip-story__frame overflow-hidden">
+    <section className="outpost-story__frame overflow-hidden">
       <div className="border-b border-border px-5 py-4">
-        <div className="paperclip-story__label">{eyebrow}</div>
+        <div className="outpost-story__label">{eyebrow}</div>
         <h2 className="mt-1 text-xl font-semibold">{title}</h2>
       </div>
       <div className="p-5">{children}</div>
@@ -165,7 +165,7 @@ const agentManagementAgents: Agent[] = [
     urlKey: "cto",
     status: "paused",
     icon: "crown",
-    role: "cto",
+    role: "engineering_lead",
     title: "CTO",
     reportsTo: null,
     capabilities: "Reviews engineering strategy, architecture risk, and high-impact implementation tradeoffs.",
@@ -206,7 +206,7 @@ const agentManagementAgents: Agent[] = [
     pausedAt: null,
     adapterConfig: {
       webhookUrl: "https://ops.internal.example/heartbeat",
-      payloadTemplateJson: JSON.stringify({ channel: "paperclip-storybook", priority: "normal" }, null, 2),
+      payloadTemplateJson: JSON.stringify({ channel: "outpost-storybook", priority: "normal" }, null, 2),
       env: {
         OPS_WEBHOOK_TOKEN: { type: "secret_ref", secretId: "secret-ops-webhook", version: 3 },
       } satisfies Record<string, EnvBinding>,
@@ -227,7 +227,7 @@ const agentManagementAgents: Agent[] = [
 
 const runtimeState: AgentRuntimeState = {
   agentId: "agent-codex",
-  companyId: COMPANY_ID,
+  spaceId: SPACE_ID,
   adapterType: "codex_local",
   sessionId: "session-codex-storybook-management-20260420",
   sessionDisplayId: "codex-storybook-20260420",
@@ -250,18 +250,18 @@ const runtimeState: AgentRuntimeState = {
   updatedAt: recent(2),
 };
 
-const storybookSecrets: CompanySecret[] = [
+const storybookSecrets: SpaceSecret[] = [
 	  {
 	    id: "secret-openai",
-	    companyId: COMPANY_ID,
-	    scope: "company",
+	    spaceId: SPACE_ID,
+	    scope: "space",
 	    ownerUserId: null,
 	    userSecretDefinitionId: null,
 	    key: "openai-api-key",
 	    name: "OPENAI_API_KEY",
 	    provider: "local_encrypted",
 	    status: "active",
-	    managedMode: "paperclip_managed",
+	    managedMode: "outpost_managed",
 	    externalRef: null,
 	    providerConfigId: null,
 	    providerMetadata: null,
@@ -277,15 +277,15 @@ const storybookSecrets: CompanySecret[] = [
   },
 	  {
 	    id: "secret-ops-webhook",
-	    companyId: COMPANY_ID,
-	    scope: "company",
+	    spaceId: SPACE_ID,
+	    scope: "space",
 	    ownerUserId: null,
 	    userSecretDefinitionId: null,
 	    key: "ops-webhook-token",
 	    name: "OPS_WEBHOOK_TOKEN",
 	    provider: "local_encrypted",
 	    status: "active",
-	    managedMode: "paperclip_managed",
+	    managedMode: "outpost_managed",
 	    externalRef: null,
 	    providerConfigId: null,
 	    providerMetadata: null,
@@ -301,15 +301,15 @@ const storybookSecrets: CompanySecret[] = [
 	  },
 	  {
 	    id: "secret-prod-database",
-	    companyId: COMPANY_ID,
-	    scope: "company",
+	    spaceId: SPACE_ID,
+	    scope: "space",
 	    ownerUserId: null,
 	    userSecretDefinitionId: null,
-	    key: "/paperclip-cloud/prod/database/url",
-	    name: "/paperclip-cloud/prod/database/url",
+	    key: "/outpost-cloud/prod/database/url",
+	    name: "/outpost-cloud/prod/database/url",
 	    provider: "local_encrypted",
 	    status: "active",
-	    managedMode: "paperclip_managed",
+	    managedMode: "outpost_managed",
 	    externalRef: null,
 	    providerConfigId: null,
 	    providerMetadata: null,
@@ -451,28 +451,28 @@ const liveRuns: LiveRunForIssue[] = [
 function StorybookQueryFixtures({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
-  queryClient.setQueryData(queryKeys.agents.list(COMPANY_ID), agentManagementAgents);
-  queryClient.setQueryData(queryKeys.secrets.list(COMPANY_ID), storybookSecrets);
+  queryClient.setQueryData(queryKeys.agents.list(SPACE_ID), agentManagementAgents);
+  queryClient.setQueryData(queryKeys.secrets.list(SPACE_ID), storybookSecrets);
   queryClient.setQueryData(queryKeys.adapters.all, adapterFixtures);
-  queryClient.setQueryData(queryKeys.issues.list(COMPANY_ID), storybookIssues);
-  queryClient.setQueryData([...queryKeys.issues.list(COMPANY_ID), "with-routine-executions"], storybookIssues);
-  queryClient.setQueryData([...queryKeys.liveRuns(COMPANY_ID), "dashboard", { minRunCount: 4, fetchLimit: undefined }], liveRuns);
+  queryClient.setQueryData(queryKeys.issues.list(SPACE_ID), storybookIssues);
+  queryClient.setQueryData([...queryKeys.issues.list(SPACE_ID), "with-routine-executions"], storybookIssues);
+  queryClient.setQueryData([...queryKeys.liveRuns(SPACE_ID), "dashboard", { minRunCount: 4, fetchLimit: undefined }], liveRuns);
   for (const issue of storybookIssues) {
     queryClient.setQueryData(queryKeys.issues.detail(issue.id), issue);
   }
   queryClient.setQueryData(queryKeys.instance.generalSettings, { censorUsernameInLogs: false });
-  queryClient.setQueryData(queryKeys.agents.adapterModels(COMPANY_ID, "codex_local"), [
+  queryClient.setQueryData(queryKeys.agents.adapterModels(SPACE_ID, "codex_local"), [
     { id: "gpt-5.4", label: "GPT-5.4" },
     { id: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
     { id: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
   ]);
-  queryClient.setQueryData(queryKeys.agents.detectModel(COMPANY_ID, "codex_local"), {
+  queryClient.setQueryData(queryKeys.agents.detectModel(SPACE_ID, "codex_local"), {
     model: "gpt-5.4",
     provider: "openai",
     source: "config",
     candidates: ["gpt-5.4", "gpt-5.4-mini"],
   });
-  queryClient.setQueryData(queryKeys.agents.adapterModels(COMPANY_ID, "claude_local"), [
+  queryClient.setQueryData(queryKeys.agents.adapterModels(SPACE_ID, "claude_local"), [
     { id: "claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
     { id: "claude-opus-4.1", label: "Claude Opus 4.1" },
   ]);
@@ -714,12 +714,12 @@ function ConfigPrimitivesStory() {
 function AgentManagementStories() {
   return (
     <StorybookQueryFixtures>
-      <div className="paperclip-story">
-        <main className="paperclip-story__inner space-y-6">
-          <section className="paperclip-story__frame p-6">
+      <div className="outpost-story">
+        <main className="outpost-story__inner space-y-6">
+          <section className="outpost-story__frame p-6">
             <div className="flex flex-wrap items-start justify-between gap-5">
               <div>
-                <div className="paperclip-story__label">Agent management</div>
+                <div className="outpost-story__label">Agent management</div>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight">Agent details, controls, and config surfaces</h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
                   Management stories exercise the dense pieces of the agent lifecycle: status detail panels,
@@ -804,7 +804,7 @@ function AgentManagementStories() {
           </Section>
 
           <Section eyebrow="ActiveAgentsPanel" title="Mixed live, queued, succeeded, and failed agent runs">
-            <ActiveAgentsPanel companyId={COMPANY_ID} />
+            <ActiveAgentsPanel spaceId={SPACE_ID} />
           </Section>
 
           <Section eyebrow="agent-config-primitives" title="Individual text, select, toggle, and JSON field types">
@@ -826,10 +826,10 @@ const meta = {
     docs: {
       description: {
         component:
-          "Agent management stories cover detail, configuration, icon, action, live-run, and config primitive states using extended Paperclip fixtures.",
+          "Agent management stories cover detail, configuration, icon, action, live-run, and config primitive states using extended Outpost fixtures.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "agents/lifecycle",
         "agents/instructions",
@@ -864,7 +864,7 @@ const managedKubernetesEnvironment: Environment = {
     egressMode: "cilium",
   },
   envVars: {},
-  metadata: { managedByPaperclip: true, managedKubernetesSandbox: true },
+  metadata: { managedByOutpost: true, managedKubernetesSandbox: true },
   createdAt: recent(2_000),
   updatedAt: recent(60),
 };
@@ -878,8 +878,8 @@ function ForcedKubernetesFixtures({
 }) {
   const queryClient = useQueryClient();
 
-  queryClient.setQueryData(queryKeys.agents.list(COMPANY_ID), agentManagementAgents);
-  queryClient.setQueryData(queryKeys.secrets.list(COMPANY_ID), storybookSecrets);
+  queryClient.setQueryData(queryKeys.agents.list(SPACE_ID), agentManagementAgents);
+  queryClient.setQueryData(queryKeys.secrets.list(SPACE_ID), storybookSecrets);
   queryClient.setQueryData(queryKeys.adapters.all, adapterFixtures);
   // The instance-level execution policy that forces all agent execution onto
   // the managed Kubernetes sandbox (OUTPOST_EXECUTION_MODE=kubernetes).
@@ -887,8 +887,8 @@ function ForcedKubernetesFixtures({
     censorUsernameInLogs: false,
     executionMode: "kubernetes",
   });
-  queryClient.setQueryData(queryKeys.environments.list(COMPANY_ID), environmentFixtures);
-  queryClient.setQueryData(queryKeys.agents.adapterModels(COMPANY_ID, "codex_local"), [
+  queryClient.setQueryData(queryKeys.environments.list(SPACE_ID), environmentFixtures);
+  queryClient.setQueryData(queryKeys.agents.adapterModels(SPACE_ID, "codex_local"), [
     { id: "gpt-5.4", label: "GPT-5.4" },
     { id: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
   ]);
@@ -916,7 +916,7 @@ function ForcedKubernetesStory({ environmentFixtures }: { environmentFixtures: E
 }
 
 /**
- * Instance execution policy forces Kubernetes and the company has a managed
+ * Instance execution policy forces Kubernetes and the space has a managed
  * Kubernetes sandbox environment: the Execution section renders the
  * environment read-only (no local/SSH picker).
  */
@@ -926,7 +926,7 @@ export const ForcedKubernetesExecution: Story = {
 
 /**
  * Instance execution policy forces Kubernetes but no managed environment is
- * available for the company yet: the Execution section shows the warning
+ * available for the space yet: the Execution section shows the warning
  * notice instead of silently falling back to local execution.
  */
 export const ForcedKubernetesMissingEnvironment: Story = {

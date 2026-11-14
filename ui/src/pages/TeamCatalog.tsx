@@ -15,8 +15,8 @@ import type {
   CatalogTeamInstallOptions,
   CatalogTeamInstallResult,
   InstalledCatalogTeam,
-  CompanyPortabilityAdapterOverride,
-  CompanyPortabilityCollisionStrategy,
+  SpacePortabilityAdapterOverride,
+  SpacePortabilityCollisionStrategy,
 } from "@outpost/shared";
 import { AGENT_ADAPTER_TYPES } from "@outpost/shared";
 import { teamCatalogApi } from "../api/teamCatalog";
@@ -26,7 +26,7 @@ import {
   useAdapterRegistryLoaded,
   useDisabledAdaptersSync,
 } from "../adapters/use-disabled-adapters";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useToastActions } from "../context/ToastContext";
 import { queryKeys } from "../lib/queryKeys";
@@ -763,7 +763,7 @@ export function TeamDetailPane({
               <TooltipTrigger asChild>
                 <span tabIndex={0}>{installButton}</span>
               </TooltipTrigger>
-              <TooltipContent>Requires board operator or agent-create permissions.</TooltipContent>
+              <TooltipContent>Requires operator operator or agent-create permissions.</TooltipContent>
             </Tooltip>
           ) : (
             installButton
@@ -877,8 +877,8 @@ const STEP_LABELS: Record<WizardStep, string> = {
   preview: "Preview",
 };
 
-// `simplified` is the onboarding seam (design §6): the newly created company is
-// treated as a full-company-equivalent target, so the target-manager step is
+// `simplified` is the onboarding seam (design §6): the newly created space is
+// treated as a full-space-equivalent target, so the target-manager step is
 // dropped and source policy is never surfaced (onboarding only offers
 // markdown_only/assets teams). The skill plan collapses to a count and the
 // preview is minimal, but the skill step still renders when required skills
@@ -908,11 +908,11 @@ type ApplyPhase = "form" | "applying" | "done" | "error";
 
 export interface TeamInstallFormState {
   targetManagerAgentId: string | null;
-  fullCompany: boolean;
+  fullSpace: boolean;
   allowExternalSources: boolean;
   allowUnpinnedOptionalSources: boolean;
   allowLocalPathSources: boolean;
-  collisionStrategy: CompanyPortabilityCollisionStrategy;
+  collisionStrategy: SpacePortabilityCollisionStrategy;
   /** slug -> renamed entity name */
   nameOverrides: Record<string, string>;
   /** slug -> adapterType override */
@@ -923,7 +923,7 @@ export interface TeamInstallFormState {
 
 export const EMPTY_INSTALL_FORM: TeamInstallFormState = {
   targetManagerAgentId: null,
-  fullCompany: false,
+  fullSpace: false,
   allowExternalSources: false,
   allowUnpinnedOptionalSources: false,
   allowLocalPathSources: false,
@@ -934,12 +934,12 @@ export const EMPTY_INSTALL_FORM: TeamInstallFormState = {
 };
 
 export interface UseInstallTeamCatalogEntryOptions {
-  companyId: string;
+  spaceId: string;
   team: CatalogTeam;
   /**
    * Run the simplified onboarding flow: no target-manager step, source policy
-   * never surfaced, collapsed preview. The company is treated as a
-   * full-company-equivalent target (`targetManagerAgentId: null`).
+   * never surfaced, collapsed preview. The space is treated as a
+   * full-space-equivalent target (`targetManagerAgentId: null`).
    */
   simplified?: boolean;
   onInstalled?: (result: CatalogTeamInstallResult) => void;
@@ -963,7 +963,7 @@ export interface UseInstallTeamCatalogEntryResult {
 }
 
 export function useInstallTeamCatalogEntry({
-  companyId,
+  spaceId,
   team,
   simplified = false,
   onInstalled,
@@ -979,7 +979,7 @@ export function useInstallTeamCatalogEntry({
   // Preview body — the preview schema is strict and does NOT accept adapterOverrides.
   const buildPreviewOptions = useCallback(
     (form: TeamInstallFormState): CatalogTeamImportOptions => ({
-      targetManagerAgentId: simplified || form.fullCompany ? null : form.targetManagerAgentId,
+      targetManagerAgentId: simplified || form.fullSpace ? null : form.targetManagerAgentId,
       collisionStrategy: form.collisionStrategy,
       nameOverrides:
         Object.keys(form.nameOverrides).length > 0 ? form.nameOverrides : undefined,
@@ -995,7 +995,7 @@ export function useInstallTeamCatalogEntry({
   // Install body extends the preview body with adapterOverrides.
   const buildInstallOptions = useCallback(
     (form: TeamInstallFormState): CatalogTeamInstallOptions => {
-      const overrides: Record<string, CompanyPortabilityAdapterOverride> = {};
+      const overrides: Record<string, SpacePortabilityAdapterOverride> = {};
       for (const [slug, adapterType] of Object.entries(form.adapterOverrides)) {
         if (adapterType) overrides[slug] = { adapterType };
       }
@@ -1010,7 +1010,7 @@ export function useInstallTeamCatalogEntry({
 
   const previewMutation = useMutation({
     mutationFn: (form: TeamInstallFormState) =>
-      teamCatalogApi.preview(companyId, team.id, buildPreviewOptions(form)),
+      teamCatalogApi.preview(spaceId, team.id, buildPreviewOptions(form)),
     onSuccess: (result) => {
       setPreviewResult(result);
       setPreviewError(null);
@@ -1022,7 +1022,7 @@ export function useInstallTeamCatalogEntry({
 
   const installMutation = useMutation({
     mutationFn: (form: TeamInstallFormState) =>
-      teamCatalogApi.install(companyId, team.id, buildInstallOptions(form)),
+      teamCatalogApi.install(spaceId, team.id, buildInstallOptions(form)),
     onMutate: () => {
       setPhase("applying");
       setApplyError(null);
@@ -1066,7 +1066,7 @@ export function useInstallTeamCatalogEntry({
 
 export function TeamInstallerDialog({
   team,
-  companyId,
+  spaceId,
   agents,
   open,
   onClose,
@@ -1075,12 +1075,12 @@ export function TeamInstallerDialog({
   defaultCollisionStrategy = "rename",
 }: {
   team: CatalogTeam;
-  companyId: string;
+  spaceId: string;
   agents: Agent[];
   open: boolean;
   onClose: () => void;
   onReturnFocus?: () => void;
-  defaultCollisionStrategy?: CompanyPortabilityCollisionStrategy;
+  defaultCollisionStrategy?: SpacePortabilityCollisionStrategy;
   onInstalled: (result: CatalogTeamInstallResult) => void;
 }) {
   const steps = useMemo(() => computeSteps(team), [team]);
@@ -1095,8 +1095,8 @@ export function TeamInstallerDialog({
 
   // Step 1 — target manager
   const [targetManagerAgentId, setTargetManagerAgentId] = useState<string | null>(null);
-  const [fullCompany, setFullCompany] = useState(false);
-  const canBypassManager = team.recommendedForCompanyTypes.includes("outpost-root");
+  const [fullSpace, setFullSpace] = useState(false);
+  const canBypassManager = team.recommendedForSpaceTypes.includes("outpost-root");
 
   // Step 2 — source policy (the strict API exposes 3 booleans)
   const [allowExternalSources, setAllowExternalSources] = useState(false);
@@ -1104,7 +1104,7 @@ export function TeamInstallerDialog({
   const [allowLocalPathSources, setAllowLocalPathSources] = useState(false);
 
   // Step 4 — preview controls
-  const [collisionStrategy, setCollisionStrategy] = useState<CompanyPortabilityCollisionStrategy>(defaultCollisionStrategy);
+  const [collisionStrategy, setCollisionStrategy] = useState<SpacePortabilityCollisionStrategy>(defaultCollisionStrategy);
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
   // slug -> adapterType override (the install schema accepts adapterOverrides).
   const [adapterOverrides, setAdapterOverrides] = useState<Record<string, string>>({});
@@ -1123,7 +1123,7 @@ export function TeamInstallerDialog({
       setStepIndex(0);
       setPhase("form");
       setTargetManagerAgentId(null);
-      setFullCompany(false);
+      setFullSpace(false);
       setAllowExternalSources(false);
       setAllowUnpinnedOptionalSources(false);
       setAllowLocalPathSources(false);
@@ -1144,7 +1144,7 @@ export function TeamInstallerDialog({
 
   // Preview body — the preview schema is strict and does NOT accept adapterOverrides.
   const buildPreviewOptions = () => ({
-    targetManagerAgentId: fullCompany ? null : targetManagerAgentId,
+    targetManagerAgentId: fullSpace ? null : targetManagerAgentId,
     collisionStrategy,
     nameOverrides: Object.keys(nameOverrides).length > 0 ? nameOverrides : undefined,
     sourcePolicy: {
@@ -1156,7 +1156,7 @@ export function TeamInstallerDialog({
 
   // Install body extends the preview body with adapterOverrides.
   const buildInstallOptions = () => {
-    const overrides: Record<string, CompanyPortabilityAdapterOverride> = {};
+    const overrides: Record<string, SpacePortabilityAdapterOverride> = {};
     for (const [slug, adapterType] of Object.entries(adapterOverrides)) {
       if (adapterType) {
         const resolvedAdapterType = resolveTeamInstallAdapterType(
@@ -1195,7 +1195,7 @@ export function TeamInstallerDialog({
   };
 
   const previewMutation = useMutation({
-    mutationFn: () => teamCatalogApi.preview(companyId, team.id, buildPreviewOptions()),
+    mutationFn: () => teamCatalogApi.preview(spaceId, team.id, buildPreviewOptions()),
     onSuccess: (result) => {
       setPreviewResult(result);
       setPreviewError(null);
@@ -1206,7 +1206,7 @@ export function TeamInstallerDialog({
   });
 
   const installMutation = useMutation({
-    mutationFn: () => teamCatalogApi.install(companyId, team.id, buildInstallOptions()),
+    mutationFn: () => teamCatalogApi.install(spaceId, team.id, buildInstallOptions()),
     onMutate: () => {
       setPhase("applying");
       setApplyError(null);
@@ -1233,7 +1233,7 @@ export function TeamInstallerDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
 
-  const targetManagerResolved = fullCompany || Boolean(targetManagerAgentId);
+  const targetManagerResolved = fullSpace || Boolean(targetManagerAgentId);
 
   function canContinue(step: WizardStep): boolean {
     if (step === "target_manager") return targetManagerResolved;
@@ -1316,9 +1316,9 @@ export function TeamInstallerDialog({
                 team={team}
                 agents={agents}
                 targetManagerAgentId={targetManagerAgentId}
-                onPickManager={(id) => { setTargetManagerAgentId(id); setFullCompany(false); }}
-                fullCompany={fullCompany}
-                onToggleFullCompany={(v) => { setFullCompany(v); if (v) setTargetManagerAgentId(null); }}
+                onPickManager={(id) => { setTargetManagerAgentId(id); setFullSpace(false); }}
+                fullSpace={fullSpace}
+                onToggleFullSpace={(v) => { setFullSpace(v); if (v) setTargetManagerAgentId(null); }}
                 canBypassManager={canBypassManager}
               />
             )}
@@ -1469,16 +1469,16 @@ export function StepTargetManager({
   agents,
   targetManagerAgentId,
   onPickManager,
-  fullCompany,
-  onToggleFullCompany,
+  fullSpace,
+  onToggleFullSpace,
   canBypassManager,
 }: {
   team: CatalogTeam;
   agents: Agent[];
   targetManagerAgentId: string | null;
   onPickManager: (id: string) => void;
-  fullCompany: boolean;
-  onToggleFullCompany: (v: boolean) => void;
+  fullSpace: boolean;
+  onToggleFullSpace: (v: boolean) => void;
   canBypassManager: boolean;
 }) {
   return (
@@ -1506,7 +1506,7 @@ export function StepTargetManager({
         </ul>
       </div>
 
-      {!fullCompany && (
+      {!fullSpace && (
         <div className="space-y-1.5" aria-describedby="target-manager-help">
           <SectionHeader>Target manager</SectionHeader>
           {agents.length === 0 ? <p role="status" className="rounded-md border border-border p-3 text-sm text-muted-foreground">No agents are available to manage this team. Create an agent in your outpost, then try again.</p> : <Command className="rounded-md border border-border">
@@ -1538,8 +1538,8 @@ export function StepTargetManager({
         <label className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
           <input
             type="radio"
-            checked={fullCompany}
-            onChange={(e) => onToggleFullCompany(e.target.checked)}
+            checked={fullSpace}
+            onChange={(e) => onToggleFullSpace(e.target.checked)}
           />
           Use this team as a full-outpost package (no target manager)
         </label>
@@ -1788,8 +1788,8 @@ export function StepPreview({
   loading: boolean;
   error: string | null;
   result: CatalogTeamImportPreviewResult | null;
-  collisionStrategy: CompanyPortabilityCollisionStrategy;
-  onCollisionStrategyChange: (s: CompanyPortabilityCollisionStrategy) => void;
+  collisionStrategy: SpacePortabilityCollisionStrategy;
+  onCollisionStrategyChange: (s: SpacePortabilityCollisionStrategy) => void;
   nameOverrides: Record<string, string>;
   onRename: (slug: string, name: string) => void;
   adapterOverrides: Record<string, string>;
@@ -1844,7 +1844,7 @@ export function StepPreview({
       {/* Collision strategy */}
       <div className="flex items-center gap-3">
         <span className="text-sm font-medium">Collision strategy</span>
-        <Select value={collisionStrategy} onValueChange={(v) => onCollisionStrategyChange(v as CompanyPortabilityCollisionStrategy)}>
+        <Select value={collisionStrategy} onValueChange={(v) => onCollisionStrategyChange(v as SpacePortabilityCollisionStrategy)}>
           <SelectTrigger className="h-8 w-40">
             <SelectValue />
           </SelectTrigger>
@@ -2263,7 +2263,7 @@ export function TeamCatalog() {
   const { "*": routePath } = useParams<{ "*": string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const { pushToast } = useToastActions();
   const queryClient = useQueryClient();
@@ -2281,7 +2281,7 @@ export function TeamCatalog() {
   // navigation. Without this, auto-select and team-row / file-tree clicks rebuild
   // a fresh `/teams-catalog/<key>` path from `teamRoute()` and drop the query string, so a
   // landing `?search=…` unfiltered the list and emptied the search box (PAP-10257
-  // follow-up). `applyCompanyPrefix` already preserves query strings.
+  // follow-up). `applySpacePrefix` already preserves query strings.
   const filterQuery = searchParams.toString();
   const withFilters = useCallback(
     (path: string) => (filterQuery ? `${path}?${filterQuery}` : path),
@@ -2301,7 +2301,7 @@ export function TeamCatalog() {
   const catalogQuery = useQuery({
     queryKey: queryKeys.teamCatalog.catalog({ kind: kindFilter === "all" ? undefined : kindFilter }),
     queryFn: () => teamCatalogApi.catalogList(kindFilter === "all" ? {} : { kind: kindFilter }),
-    enabled: Boolean(selectedCompanyId),
+    enabled: Boolean(selectedSpaceId),
   });
   const catalogView = useQueryView(catalogQuery);
 
@@ -2343,18 +2343,18 @@ export function TeamCatalog() {
   });
 
   const agentsQuery = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId ?? ""),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: Boolean(selectedCompanyId),
+    queryKey: queryKeys.agents.list(selectedSpaceId ?? ""),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: Boolean(selectedSpaceId),
   });
 
   // Server-computed installed/out-of-date state. Drives the `INSTALLED · N`
   // group, the per-row out-of-date badge, and the detail header chip from a
   // real server signal (design §3.2 + §5 / PAP-10256).
   const installedQuery = useQuery({
-    queryKey: queryKeys.teamCatalog.installed(selectedCompanyId ?? ""),
-    queryFn: () => teamCatalogApi.installed(selectedCompanyId!),
-    enabled: Boolean(selectedCompanyId),
+    queryKey: queryKeys.teamCatalog.installed(selectedSpaceId ?? ""),
+    queryFn: () => teamCatalogApi.installed(selectedSpaceId!),
+    enabled: Boolean(selectedSpaceId),
   });
 
   const installedById = useMemo(() => {
@@ -2388,7 +2388,7 @@ export function TeamCatalog() {
 
   const canInstall = true; // server enforces; UI shows the affordance to operators
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return (
       <div className="p-8">
         <EmptyState icon={Users2} message="Select an outpost to browse the team catalog." />
@@ -2611,7 +2611,7 @@ export function TeamCatalog() {
       {selectedTeam && installOpen && (
         <TeamInstallerDialog
           team={selectedTeam}
-          companyId={selectedCompanyId}
+          spaceId={selectedSpaceId}
           agents={agentsQuery.data ?? []}
           open={installOpen}
           onClose={() => setInstallOpen(false)}
@@ -2619,9 +2619,9 @@ export function TeamCatalog() {
             pushToast({ tone: "success", title: "Team installed", body: `${selectedTeam.name} was imported.` });
             // Provenance now lives on the new agents — refresh installed/out-of-date state.
             void queryClient.invalidateQueries({
-              queryKey: queryKeys.teamCatalog.installed(selectedCompanyId),
+              queryKey: queryKeys.teamCatalog.installed(selectedSpaceId),
             });
-            void queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedCompanyId) });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedSpaceId) });
           }}
         />
       )}

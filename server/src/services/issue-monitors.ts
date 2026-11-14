@@ -24,23 +24,23 @@ export function applyActorMonitorScheduledBy(
 ) {
   return setIssueExecutionPolicyMonitorScheduledBy(
     policy,
-    actorType === "user" ? "board" : "assignee",
+    actorType === "user" ? "operator" : "assignee",
   );
 }
 
 export async function assertCanManageIssueMonitor(
   accessSvc: Pick<ReturnType<typeof accessService>, "decide">,
   req: { actor: AuthorizationActor },
-  companyId: string,
+  spaceId: string,
   assigneeAgentId: string | null,
   monitorChanged: boolean,
 ) {
   if (!monitorChanged) return;
-  if (req.actor.type === "board") return;
+  if (req.actor.type === "operator") return;
   const runtimeDecision = await accessSvc.decide({
     actor: req.actor,
     action: "runtime:manage",
-    resource: { type: "company", companyId },
+    resource: { type: "space", spaceId },
   });
   if (!runtimeDecision.allowed) {
     throw forbidden(
@@ -55,7 +55,7 @@ export async function assertCanManageIssueMonitor(
   )
     return;
   throw forbidden(
-    "Only the assignee agent or a board user can manage issue monitors",
+    "Only the assignee agent or a operator user can manage issue monitors",
   );
 }
 
@@ -135,7 +135,7 @@ export function prepareIssueMonitorUpdate(
   const previousPolicy = normalizeIssueExecutionPolicy(issue.executionPolicy);
   const policy = applyActorMonitorScheduledBy(normalizeIssueExecutionPolicy({
     ...previousPolicy, monitor,
-  }), actor.type === "board" ? "user" : "agent");
+  }), actor.type === "operator" ? "user" : "agent");
   const transition = applyIssueMonitorPolicyTransition({
     issue, policy, previousPolicy, requestedAssigneePatch: {},
     actor: { agentId: actor.agentId ?? null, userId: actor.userId ?? null },

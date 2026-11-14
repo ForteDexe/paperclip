@@ -30,12 +30,12 @@ if (values.auth === 'api') {
   environment.OUTPOST_ACPX_GROK_AUTH_JSON_SECRET = await readFile(values['auth-file'], 'utf8');
 }
 const report = { schema: 'outpost.grok-native-smoke.v1', auth: values.auth, sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), sourceDirty: execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).length > 0, profile: QUALIFIED_ACPX_PROFILES.grok, platform: `${process.platform}-${process.arch}`, startedAt: new Date().toISOString(), attempts: [] };
-const binary = await readFile('/opt/paperclip/providers/grok/1.0.13/grok');
+const binary = await readFile('/opt/outpost/providers/grok/1.0.13/grok');
 report.binaryDigest = `sha256:${createHash('sha256').update(binary).digest('hex')}`;
 async function persist() { await writeFile(resolve(values.output), JSON.stringify(report, null, 2)+'\n', { mode: 0o600 }); }
 await persist();
 for (let repetition=1; repetition<=repetitions; repetition++) {
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'paperclip-grok-smoke-')));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'outpost-grok-smoke-')));
   await mkdir(join(root,'runtime'), { mode:0o700 }); await mkdir(join(root,'workspace'), { mode:0o700 });
   const nonce=randomUUID(); let calls=0; let host;
   const attempt = { repetition, startedAt: new Date().toISOString(), status: 'running', checks: {}, usage: null, cost: null };

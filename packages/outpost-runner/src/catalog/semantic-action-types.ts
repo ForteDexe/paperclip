@@ -1,4 +1,4 @@
-export type PaperclipSemanticActionId =
+export type OutpostSemanticActionId =
   | "search_api"
   | "call_api"
   | "set_task_title"
@@ -18,7 +18,7 @@ export type PaperclipSemanticActionId =
   | "block_task"
   | "request_review"
   | "list_agents"
-  | "hire_agent"
+  | "create_agent"
   | "get_agent"
   | "search_tasks"
   | "list_approvals"
@@ -51,32 +51,32 @@ export type PaperclipSemanticActionId =
   | "comment_on_approval"
   | "schedule_wake";
 
-export type PaperclipSemanticActionPlacement = "always" | "optional";
-export type PaperclipSemanticActionMode =
+export type OutpostSemanticActionPlacement = "always" | "optional";
+export type OutpostSemanticActionMode =
   "standard" | "ask" | "planning" | "skill_test";
-export type PaperclipSemanticActionEffect = "read" | "write" | "governance";
+export type OutpostSemanticActionEffect = "read" | "write" | "approvals";
 
-export type PaperclipJsonValue =
+export type OutpostJsonValue =
   | null
   | boolean
   | number
   | string
-  | readonly PaperclipJsonValue[]
-  | { readonly [key: string]: PaperclipJsonValue };
+  | readonly OutpostJsonValue[]
+  | { readonly [key: string]: OutpostJsonValue };
 
 /** The JSON Schema subset used by the v1 semantic action catalog. */
-export interface PaperclipJsonSchema {
+export interface OutpostJsonSchema {
   readonly type?: string | readonly string[];
   readonly title?: string;
   readonly description?: string;
-  readonly properties?: Readonly<Record<string, PaperclipJsonSchema>>;
+  readonly properties?: Readonly<Record<string, OutpostJsonSchema>>;
   readonly required?: readonly string[];
-  readonly additionalProperties?: boolean | PaperclipJsonSchema;
-  readonly items?: PaperclipJsonSchema;
-  readonly enum?: readonly PaperclipJsonValue[];
-  readonly const?: PaperclipJsonValue;
-  readonly oneOf?: readonly PaperclipJsonSchema[];
-  readonly anyOf?: readonly PaperclipJsonSchema[];
+  readonly additionalProperties?: boolean | OutpostJsonSchema;
+  readonly items?: OutpostJsonSchema;
+  readonly enum?: readonly OutpostJsonValue[];
+  readonly const?: OutpostJsonValue;
+  readonly oneOf?: readonly OutpostJsonSchema[];
+  readonly anyOf?: readonly OutpostJsonSchema[];
   readonly minimum?: number;
   readonly maximum?: number;
   readonly minLength?: number;
@@ -86,24 +86,24 @@ export interface PaperclipJsonSchema {
   readonly uniqueItems?: boolean;
   readonly pattern?: string;
   readonly format?: string;
-  readonly default?: PaperclipJsonValue;
+  readonly default?: OutpostJsonValue;
 }
 
 /**
  * A transport-neutral declaration. Catalog membership never grants discovery
  * or invocation authority; a run-scoped authorization layer must do that.
  */
-export interface PaperclipSemanticActionDescriptor {
+export interface OutpostSemanticActionDescriptor {
   readonly schema: "outpost.semantic-action.v1";
-  readonly operationId: PaperclipSemanticActionId;
+  readonly operationId: OutpostSemanticActionId;
   readonly version: 1;
   readonly title: string;
   readonly description: string;
-  readonly placement: PaperclipSemanticActionPlacement;
-  readonly effect: PaperclipSemanticActionEffect;
+  readonly placement: OutpostSemanticActionPlacement;
+  readonly effect: OutpostSemanticActionEffect;
   readonly requiredClaims: readonly string[];
-  readonly allowedModes: readonly PaperclipSemanticActionMode[];
+  readonly allowedModes: readonly OutpostSemanticActionMode[];
   readonly allowedRoles?: readonly string[];
-  readonly inputSchema: PaperclipJsonSchema;
-  readonly outputSchema: PaperclipJsonSchema;
+  readonly inputSchema: OutpostJsonSchema;
+  readonly outputSchema: OutpostJsonSchema;
 }

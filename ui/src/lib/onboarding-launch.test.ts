@@ -2,17 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   buildOnboardingIssuePayload,
   buildOnboardingProjectPayload,
-  selectDefaultCompanyGoalId,
+  selectDefaultSpaceGoalId,
   selectReusableOnboardingProject,
 } from "./onboarding-launch";
 
-describe("selectDefaultCompanyGoalId", () => {
-  it("prefers the earliest active root company goal", () => {
+describe("selectDefaultSpaceGoalId", () => {
+  it("prefers the earliest active root space goal", () => {
     expect(
-      selectDefaultCompanyGoalId([
+      selectDefaultSpaceGoalId([
         {
           id: "team-goal",
-          companyId: "company-1",
+          spaceId: "space-1",
           title: "Nested",
           description: null,
           level: "team",
@@ -24,10 +24,10 @@ describe("selectDefaultCompanyGoalId", () => {
         },
         {
           id: "goal-2",
-          companyId: "company-1",
+          spaceId: "space-1",
           title: "Later active root",
           description: null,
-          level: "company",
+          level: "space",
           status: "active",
           parentId: null,
           ownerAgentId: null,
@@ -36,10 +36,10 @@ describe("selectDefaultCompanyGoalId", () => {
         },
         {
           id: "goal-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           title: "Earliest active root",
           description: null,
-          level: "company",
+          level: "space",
           status: "active",
           parentId: null,
           ownerAgentId: null,
@@ -50,15 +50,15 @@ describe("selectDefaultCompanyGoalId", () => {
     ).toBe("goal-1");
   });
 
-  it("falls back to the earliest root company goal when none are active", () => {
+  it("falls back to the earliest root space goal when none are active", () => {
     expect(
-      selectDefaultCompanyGoalId([
+      selectDefaultSpaceGoalId([
         {
           id: "goal-2",
-          companyId: "company-1",
+          spaceId: "space-1",
           title: "Cancelled root",
           description: null,
-          level: "company",
+          level: "space",
           status: "cancelled",
           parentId: null,
           ownerAgentId: null,
@@ -67,10 +67,10 @@ describe("selectDefaultCompanyGoalId", () => {
         },
         {
           id: "goal-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           title: "Earliest root",
           description: null,
-          level: "company",
+          level: "space",
           status: "planned",
           parentId: null,
           ownerAgentId: null,
@@ -108,13 +108,13 @@ describe("onboarding launch payloads", () => {
 
     expect(
       buildOnboardingIssuePayload({
-        title: "  Hire your first engineer  ",
+        title: "  Create your first engineer  ",
         assigneeAgentId: "agent-1",
         projectId: "project-1",
         goalId: "goal-1",
       }),
     ).toEqual({
-      title: "Hire your first engineer",
+      title: "Create your first engineer",
       assigneeAgentId: "agent-1",
       projectId: "project-1",
       goalId: "goal-1",
@@ -134,7 +134,7 @@ describe("onboarding launch payloads", () => {
     expect(payload.onboardingFirstTask).toBe(true);
   });
 
-  it("omits goal links when no default company goal exists", () => {
+  it("omits goal links when no default space goal exists", () => {
     expect(buildOnboardingProjectPayload(null)).toEqual({
       name: "Onboarding",
       status: "in_progress",

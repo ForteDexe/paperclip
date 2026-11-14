@@ -7,8 +7,8 @@ const DEFAULT_PROFILE = "default";
 
 export interface ClientContextProfile {
   apiBase?: string;
-  companyId?: string;
-  persona?: "board" | "agent";
+  spaceId?: string;
+  persona?: "operator" | "agent";
   agentId?: string;
   agentName?: string;
   apiKeyEnvVarName?: string;
@@ -28,7 +28,7 @@ function findContextFileFromAncestors(startDir: string): string | null {
   let currentDir = absoluteStartDir;
 
   while (true) {
-    const candidate = path.resolve(currentDir, ".paperclip", DEFAULT_CONTEXT_BASENAME);
+    const candidate = path.resolve(currentDir, ".outpost", DEFAULT_CONTEXT_BASENAME);
     if (fs.existsSync(candidate)) {
       return candidate;
     }
@@ -72,13 +72,13 @@ function toStringOrUndefined(value: unknown): string | undefined {
 function normalizeProfile(value: unknown): ClientContextProfile {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
   const profile = value as Record<string, unknown>;
-  const persona = profile.persona === "board" || profile.persona === "agent"
+  const persona = profile.persona === "operator" || profile.persona === "agent"
     ? profile.persona
     : undefined;
 
   return {
     apiBase: toStringOrUndefined(profile.apiBase),
-    companyId: toStringOrUndefined(profile.companyId),
+    spaceId: toStringOrUndefined(profile.spaceId),
     persona,
     agentId: toStringOrUndefined(profile.agentId),
     agentName: toStringOrUndefined(profile.agentName),
@@ -152,7 +152,7 @@ export function upsertProfile(
   const merged: ClientContextProfile = { ...existing };
 
   if (patch.apiBase !== undefined) merged.apiBase = patch.apiBase;
-  if (patch.companyId !== undefined) merged.companyId = patch.companyId;
+  if (patch.spaceId !== undefined) merged.spaceId = patch.spaceId;
   if (patch.persona !== undefined) merged.persona = patch.persona;
   if (patch.agentId !== undefined) merged.agentId = patch.agentId;
   if (patch.agentName !== undefined) merged.agentName = patch.agentName;
@@ -164,8 +164,8 @@ export function upsertProfile(
   if (patch.apiBase !== undefined && patch.apiBase.trim().length === 0) {
     delete merged.apiBase;
   }
-  if (patch.companyId !== undefined && patch.companyId.trim().length === 0) {
-    delete merged.companyId;
+  if (patch.spaceId !== undefined && patch.spaceId.trim().length === 0) {
+    delete merged.spaceId;
   }
   if (patch.persona === undefined && "persona" in patch) {
     delete merged.persona;

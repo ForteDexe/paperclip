@@ -4,7 +4,7 @@ import request from "supertest";
 import { and, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  activityLog, agents, agentWakeupRequests, companies, createDb,
+  activityLog, agents, agentWakeupRequests, spaces, createDb,
   environmentLeases, heartbeatRuns, issueRecoveryActions, issues, chatConversations, chatEndpoints, toolApplications, toolConnections,
 } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -30,48 +30,48 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   afterAll(async () => { await db?.$client.end(); await temporary?.cleanup(); });
 
   async function seed(options: { newerAction?: boolean; conversationReset?: boolean; noCurrentOwner?: boolean } = {}) {
-    const companyId = randomUUID(), originalAgentId = randomUUID(), currentAgentId = randomUUID();
+    const spaceId = randomUUID(), originalAgentId = randomUUID(), currentAgentId = randomUUID();
     const issueId = randomUUID(), sourceRunId = randomUUID(), currentRunId = randomUUID(), leaseId = randomUUID();
     const actionId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Workspace repair API", issuePrefix: `W${companyId.slice(0, 7)}` });
+    await db.insert(spaces).values({ id: spaceId, name: "Workspace repair API", issuePrefix: `W${spaceId.slice(0, 7)}` });
     await db.insert(agents).values([
-      { id: originalAgentId, companyId, name: "Original worker", role: "engineer", adapterType: "codex_local" },
-      { id: currentAgentId, companyId, name: "Current worker", role: "engineer", adapterType: "codex_local" },
+      { id: originalAgentId, spaceId, name: "Original worker", role: "engineer", adapterType: "codex_local" },
+      { id: currentAgentId, spaceId, name: "Current worker", role: "engineer", adapterType: "codex_local" },
     ]);
     const ownerId = options.conversationReset ? originalAgentId : currentAgentId;
-    await db.insert(issues).values({ id: issueId, companyId, title: "Preserve changed task", status: "in_progress",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Preserve changed task", status: "in_progress",
       assigneeAgentId: options.noCurrentOwner ? null : ownerId,
-      ...(options.conversationReset ? { conversationAgentId: originalAgentId, conversationUserId: "fixture-board",
+      ...(options.conversationReset ? { conversationAgentId: originalAgentId, conversationUserId: "fixture-operator",
         conversationState: "active", conversationSessionGeneration: 2 } : {}),
     });
     const workspaceRestoreRecovery = { schema: LEGACY_WORKSPACE_RECOVERY_SCHEMA, leaseIds: [leaseId] };
     await db.insert(heartbeatRuns).values([
-      { id: sourceRunId, companyId, agentId: originalAgentId, runtimeMode: "legacy", status: "cancelled",
+      { id: sourceRunId, spaceId, agentId: originalAgentId, runtimeMode: "legacy", status: "cancelled",
         finishedAt: new Date("2000-01-01T00:00:00Z"), contextSnapshot: { issueId, conversationSessionGeneration: 1 },
         runnerProfileJson: { adapterDispatch: { adapterType: "codex_local" } },
         resultJson: { workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery,
           conversationContinuation: "continue_conversation_v1" } },
-      { id: currentRunId, companyId, agentId: ownerId, runtimeMode: "legacy", status: "running",
+      { id: currentRunId, spaceId, agentId: ownerId, runtimeMode: "legacy", status: "running",
         contextSnapshot: { issueId, conversationSessionGeneration: 2 } },
     ]);
     await db.update(issues).set({ executionRunId: currentRunId, checkoutRunId: currentRunId,
       executionLockedAt: new Date("2000-01-01T00:00:00Z"), executionAgentNameKey: "current-worker" })
       .where(eq(issues.id, issueId));
-    const identity = { id: leaseId, companyId, heartbeatRunId: sourceRunId, provider: "daytona", providerLeaseId: `fixture-${leaseId}` };
+    const identity = { id: leaseId, spaceId, heartbeatRunId: sourceRunId, provider: "daytona", providerLeaseId: `fixture-${leaseId}` };
     await db.insert(environmentLeases).values({ ...identity, issueId, status: "released", leasePolicy: "retain_on_failure",
       releasedAt: new Date(), cleanupStatus: "success", metadata: {
         remoteExecutionTermination: remoteTerminationReceipt(identity, { providerLeaseId: identity.providerLeaseId, state: "stopped" }),
       } });
-    await db.insert(issueRecoveryActions).values({ id: actionId, companyId, sourceIssueId: issueId,
-      kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", ownerType: "board",
+    await db.insert(issueRecoveryActions).values({ id: actionId, spaceId, sourceIssueId: issueId,
+      kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", ownerType: "operator",
       returnOwnerAgentId: originalAgentId, fingerprint: `legacy-execution:${sourceRunId}`,
       status: "resolved", outcome: "blocked", nextAction: "Repair the retained workspace before continuing.",
       evidence: { runId: sourceRunId, workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery,
         automaticRecovery: { replay: "blocked" } },
     });
     const newerId = options.newerAction ? randomUUID() : null;
-    if (newerId) await db.insert(issueRecoveryActions).values({ id: newerId, companyId, sourceIssueId: issueId,
-      kind: "configuration_validation", cause: "configuration_incomplete", ownerType: "board", status: "active",
+    if (newerId) await db.insert(issueRecoveryActions).values({ id: newerId, spaceId, sourceIssueId: issueId,
+      kind: "configuration_validation", cause: "configuration_incomplete", ownerType: "operator", status: "active",
       fingerprint: `newer:${currentRunId}`, nextAction: "Review the current configuration.", evidence: { runId: currentRunId } });
     const [issueBefore] = await db.select().from(issues).where(eq(issues.id, issueId));
     const [leaseBefore] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, leaseId));
@@ -79,11 +79,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       executionReconciliation: { runId: sourceRunId, providerStopped: true, actionOutcome: "mixed",
         outcomeEvidence: "Reviewed the original action receipts without replaying any previous work.",
         workspaceRepairEvidence: "Recovered and verified the required files from the exact retained sandbox." } };
-    return { companyId, issueId, sourceRunId, currentRunId, originalAgentId, currentAgentId, ownerId,
+    return { spaceId, issueId, sourceRunId, currentRunId, originalAgentId, currentAgentId, ownerId,
       leaseId, actionId, newerId, issueBefore, leaseBefore, body };
   }
 
-  function appFor(actor: Record<string, unknown> = { type: "board", source: "local_implicit" }) {
+  function appFor(actor: Record<string, unknown> = { type: "operator", source: "local_implicit" }) {
     const wake = vi.fn(async () => null);
     const app = express();
     app.use(express.json());
@@ -97,14 +97,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await seed();
     const endpointId = randomUUID();
     const applicationId = randomUUID(), connectionId = randomUUID();
-    await db.insert(toolApplications).values({ id: applicationId, companyId: f.companyId, name: "Chat recovery", type: "chat" });
-    await db.insert(toolConnections).values({ id: connectionId, companyId: f.companyId, applicationId,
+    await db.insert(toolApplications).values({ id: applicationId, spaceId: f.spaceId, name: "Chat recovery", type: "chat" });
+    await db.insert(toolConnections).values({ id: connectionId, spaceId: f.spaceId, applicationId,
       name: "Chat recovery", uid: randomUUID(), transport: "chat_sdk", connectionPurpose: "channel", status: "active", enabled: true });
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId: f.companyId, connectionId,
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId: f.spaceId, connectionId,
       provider: "slack", publicId: randomUUID(), assignedAgentId: f.currentAgentId, status: "active" });
-    await db.insert(chatConversations).values({ companyId: f.companyId, endpointId, issueId: f.issueId,
+    await db.insert(chatConversations).values({ spaceId: f.spaceId, endpointId, issueId: f.issueId,
       externalConversationId: randomUUID(), externalLabel: "Recovery conversation", state });
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toMatchObject({
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toMatchObject({
       recoveryActionId: f.actionId, workspaceRepairRequired: true, canRecordWorkspaceRepair: true,
       nextAction: "Repair the retained workspace before continuing.", canRetry: false, canContinue: false,
     });
@@ -113,18 +113,18 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   async function assertSourceUnchanged(f: Awaited<ReturnType<typeof seed>>) {
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]).toEqual(f.issueBefore);
     expect((await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId)))[0]).toEqual(f.leaseBefore);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toEqual([]);
     expect(await db.select().from(heartbeatRuns).where(inArray(heartbeatRuns.id, [f.sourceRunId, f.currentRunId]))).toHaveLength(2);
   }
 
-  it.each(["reassigned", "conversation_reset", "unassigned", "successful_source"])("records board repair after %s without restarting or changing the current task", async scenario => {
+  it.each(["reassigned", "conversation_reset", "unassigned", "successful_source"])("records operator repair after %s without restarting or changing the current task", async scenario => {
     const f = await seed({ conversationReset: scenario === "conversation_reset", noCurrentOwner: scenario === "unassigned" });
     if (scenario === "successful_source") {
       await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.sourceRunId));
     }
     const [sourceBefore] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.sourceRunId));
     const { app, wake } = appFor();
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).not.toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).not.toBeNull();
     await request(app).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(f.body).expect(200);
     await assertSourceUnchanged(f);
     expect(wake).not.toHaveBeenCalled();
@@ -133,12 +133,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       executionReconciliation: { runId: f.sourceRunId, workspaceRepairEvidence: f.body.executionReconciliation.workspaceRepairEvidence } });
     expect(action.evidence.automaticRecovery).toBeUndefined();
     expect(action.evidence.continuationDelivery).not.toBe("pending");
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
-    const auditBefore = await db.select().from(activityLog).where(eq(activityLog.companyId, f.companyId));
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
+    const auditBefore = await db.select().from(activityLog).where(eq(activityLog.spaceId, f.spaceId));
     expect(auditBefore.length).toBeGreaterThan(0);
     await request(app).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(f.body).expect(200);
     expect((await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.actionId)))[0]).toEqual(action);
-    expect(await db.select().from(activityLog).where(eq(activityLog.companyId, f.companyId))).toEqual(auditBefore);
+    expect(await db.select().from(activityLog).where(eq(activityLog.spaceId, f.spaceId))).toEqual(auditBefore);
     await assertSourceUnchanged(f);
     expect(wake).not.toHaveBeenCalled();
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.sourceRunId)))[0]).toEqual(sourceBefore);
@@ -181,7 +181,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("rejects an agent even when it owns the current task and run", async () => {
     const f = await seed();
-    const { app, wake } = appFor({ type: "agent", source: "agent_jwt", companyId: f.companyId,
+    const { app, wake } = appFor({ type: "agent", source: "agent_jwt", spaceId: f.spaceId,
       agentId: f.ownerId, runId: f.currentRunId });
     await request(app).post(`/api/issues/${f.issueId}/recovery-actions/resolve`).send(f.body).expect(403);
     await assertSourceUnchanged(f);
@@ -190,23 +190,23 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       .not.toHaveProperty("executionReconciliation");
   });
 
-  it("does not expose retained-source evidence to another company", async () => {
+  it("does not expose retained-source evidence to another space", async () => {
     const f = await seed(), other = await seed();
-    const { app } = appFor({ type: "agent", source: "agent_jwt", companyId: other.companyId,
+    const { app } = appFor({ type: "agent", source: "agent_jwt", spaceId: other.spaceId,
       agentId: other.ownerId, runId: other.currentRunId });
     const response = await request(app).get(`/api/issues/${f.issueId}/recovery-actions`).expect(404);
     expect(JSON.stringify(response.body)).not.toContain(f.leaseId);
     expect(JSON.stringify(response.body)).not.toContain(f.actionId);
   });
 
-  it.each(["other_task", "other_company", "wrong_decision_run"])("rejects repair evidence for %s", async scenario => {
+  it.each(["other_task", "other_space", "wrong_decision_run"])("rejects repair evidence for %s", async scenario => {
     const f = await seed();
     const other = await seed();
     const foreignTaskId = scenario === "other_task" ? randomUUID() : other.issueId;
-    if (scenario === "other_task") await db.insert(issues).values({ id: foreignTaskId, companyId: f.companyId,
+    if (scenario === "other_task") await db.insert(issues).values({ id: foreignTaskId, spaceId: f.spaceId,
       title: "Other task", status: "todo", assigneeAgentId: f.originalAgentId });
     if (scenario !== "wrong_decision_run") await db.update(heartbeatRuns).set({
-      ...(scenario === "other_company" ? { companyId: other.companyId, agentId: other.originalAgentId } : {}),
+      ...(scenario === "other_space" ? { spaceId: other.spaceId, agentId: other.originalAgentId } : {}),
       contextSnapshot: { issueId: foreignTaskId },
     }).where(eq(heartbeatRuns.id, f.sourceRunId));
     const { app, wake } = appFor();
@@ -251,7 +251,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       .expect(scenario === "missing_repair_evidence" ? 400 : 409);
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]).toEqual(f.issueBefore);
     expect((await db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.id, f.actionId),
-      eq(issueRecoveryActions.companyId, f.companyId))))[0].evidence).not.toHaveProperty("executionReconciliation");
+      eq(issueRecoveryActions.spaceId, f.spaceId))))[0].evidence).not.toHaveProperty("executionReconciliation");
     expect(wake).not.toHaveBeenCalled();
   });
 });

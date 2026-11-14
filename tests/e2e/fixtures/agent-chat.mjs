@@ -1,5 +1,5 @@
 // Deterministic provider: all effects use the real run-authenticated APIs/MCP transport.
-// No DB writes, mocked Paperclip responses, provider calls, or outside workspaces.
+// No DB writes, mocked Outpost responses, provider calls, or outside workspaces.
 const base = process.env.OUTPOST_API_URL;
 const headers = {
   Authorization: `Bearer ${process.env.OUTPOST_API_KEY}`,
@@ -118,7 +118,7 @@ if (command.action === "hold") {
     const project = command.projectId
       ? await api(`/projects/${command.projectId}`)
       : command.direct
-        ? await api(`/companies/${task.companyId}/projects`, "POST", args)
+        ? await api(`/spaces/${task.spaceId}/projects`, "POST", args)
         : await mcp("create_project", args);
     const retry = command.projectId
       ? project

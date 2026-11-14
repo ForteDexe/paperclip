@@ -7,8 +7,8 @@ export interface ChatgptInput {
   receiptPath: string;
   backendOrigin: string;
   publicOrigin: string;
-  companyId: string;
-  companyName: string;
+  spaceId: string;
+  spaceName: string;
   prefix: string;
   humanId: string;
   operatorRef: string;
@@ -27,7 +27,7 @@ export interface ChatgptReceipt {
   operation: ChatgptInput["operation"];
   executionId: string;
   attemptId: string;
-  companyId: string;
+  spaceId: string;
   humanId: string;
   processIsolation: true;
   testRunnerAttached: false;
@@ -53,7 +53,7 @@ const uuid = (s: unknown) =>
   /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(s);
 export function namedChatgptRequest(
   r: McpConnectionRequest,
-  companyId: string,
+  spaceId: string,
 ) {
   return (
     !!r &&
@@ -63,8 +63,8 @@ export function namedChatgptRequest(
     !r.agentConnection &&
     !r.requiresSignIn &&
     r.requestedWrite === true &&
-    (!r.requestedCompanyId || r.requestedCompanyId === companyId) &&
-    r.companies.some((c) => c.id === companyId && c.canWrite === true)
+    (!r.requestedSpaceId || r.requestedSpaceId === spaceId) &&
+    r.spaces.some((c) => c.id === spaceId && c.canWrite === true)
   );
 }
 export function validChatgptInput(i: ChatgptInput) {
@@ -86,10 +86,10 @@ export function validChatgptInput(i: ChatgptInput) {
       b.protocol === "http:" &&
       b.hostname === "127.0.0.1" &&
       b.origin === i.backendOrigin &&
-      uuid(i.companyId) &&
+      uuid(i.spaceId) &&
       !!i.humanId &&
       i.humanId.length <= 200 &&
-      !!i.companyName &&
+      !!i.spaceName &&
       /^[A-Z][A-Z0-9]*$/.test(i.prefix) &&
       ref(i.operatorRef) &&
       ref(i.authorizationRef) &&
@@ -117,7 +117,7 @@ export function validChatgptReceipt(r: ChatgptReceipt, i: ChatgptInput) {
     "operation",
     "executionId",
     "attemptId",
-    "companyId",
+    "spaceId",
     "humanId",
     "processIsolation",
     "testRunnerAttached",
@@ -144,7 +144,7 @@ export function validChatgptReceipt(r: ChatgptReceipt, i: ChatgptInput) {
     r.operation === i.operation &&
     r.executionId === i.executionId &&
     r.attemptId === i.attemptId &&
-    r.companyId === i.companyId &&
+    r.spaceId === i.spaceId &&
     r.humanId === i.humanId &&
     r.processIsolation === true &&
     r.testRunnerAttached === false &&
@@ -165,7 +165,7 @@ export function validChatgptReceipt(r: ChatgptReceipt, i: ChatgptInput) {
         r.boundMcpComment === true &&
         r.zeroNativeAdmissions === true &&
         chatgptConsentDisclosure(
-          r.requestedScopes?.includes("paperclip:configure") === true,
+          r.requestedScopes?.includes("outpost:configure") === true,
           r.consentWording,
           r.configureDisclosed,
         ) &&
@@ -215,20 +215,20 @@ export function exactAcceptedChatgptScopes(
 ) {
   if (!Array.isArray(requested) || !Array.isArray(accepted)) return false;
   const allowed = [
-    "paperclip:read",
-    "paperclip:write",
-    "paperclip:configure",
+    "outpost:read",
+    "outpost:write",
+    "outpost:configure",
     "offline_access",
   ];
   return (
-    requested.includes("paperclip:read") &&
-    requested.includes("paperclip:write") &&
+    requested.includes("outpost:read") &&
+    requested.includes("outpost:write") &&
     requested.every((s) => typeof s === "string" && allowed.includes(s)) &&
     new Set(requested).size === requested.length &&
     new Set(accepted).size === accepted.length &&
     requested.length === accepted.length &&
     requested.every((s) => accepted.includes(s)) &&
-    (!requested.includes("paperclip:configure") || configureDisclosed === true)
+    (!requested.includes("outpost:configure") || configureDisclosed === true)
   );
 }
 
@@ -242,7 +242,7 @@ export function chatgptConsentDisclosure(
   return (
     typeof wording === "string" &&
     wording.trim().replace(/\s+/g, " ") ===
-      "Write all of your Paperclip data" &&
+      "Write all of your Outpost data" &&
     (!requestedConfigure || acknowledged === true)
   );
 }

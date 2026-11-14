@@ -4,7 +4,7 @@
  *
  * Usage receipts and streamed run-log appends update the same `heartbeat_runs`
  * row. Before #20385 a receipt's repeatable-read snapshot went stale when a
- * run-log append committed between its company check and its run-row lock;
+ * run-log append committed between its space check and its run-row lock;
  * four retries ran out with SQLSTATE 40001, the event stayed in the runner's
  * retained outbox, and every later terminal event was blocked behind it
  * (`native_event_replay_conflict: runner_event_commit_stalled ... last cause: Error`).
@@ -51,19 +51,19 @@ export interface ContentionRun {
 
 export interface ContentionEvidence {
   runs: ContentionRun[];
-  /** Sum of the wave company's cost events in cents, and the board's all-time cost summary. */
-  companyCostEventCents: number;
+  /** Sum of the wave space's cost events in cents, and the board's all-time cost summary. */
+  spaceCostEventCents: number;
   summary: CostSummary | null;
   error: string | null;
 }
 
-/** The fields of `GET /api/companies/:id/costs/summary?period=all` the oracle compares. */
+/** The fields of `GET /api/spaces/:id/costs/summary?period=all` the oracle compares. */
 export interface CostSummary { spendCents: number; pendingRunCount: number }
 
 const num = (value: unknown) => (value === null || value === undefined || value === "" ? null : Number(value));
 
 /** Accounting and run-log evidence for one task's runs (the ids the observer saw), read from the wave database at rest. */
-export async function collectContentionEvidence(db: Db, companyId: string, runIds: readonly string[], summary: CostSummary | null): Promise<ContentionEvidence> {
+export async function collectContentionEvidence(db: Db, spaceId: string, runIds: readonly string[], summary: CostSummary | null): Promise<ContentionEvidence> {
   try {
     const rows = await db.$client.unsafe(`
       select r.id::text as id, r.status, r.error_code as "errorCode", left(r.error, 400) as error, r.log_bytes as "logBytes",
@@ -80,10 +80,10 @@ export async function collectContentionEvidence(db: Db, companyId: string, runId
                       and u.receipt_json->'producerEvent'->>'eventType' = any($3::text[])) as "terminalReceipt",
              (select coalesce(sum(c.cost_cents), 0) from cost_events c where c.heartbeat_run_id = r.id)::float8 as "costEventCents"
         from heartbeat_runs r
-       where r.company_id::text = $1 and r.id::text = any($2::text[])
-       order by r.created_at`, [companyId, [...runIds], TERMINAL_EVENTS]) as Array<Record<string, unknown>>;
-    const [company] = await db.$client.unsafe(
-      "select coalesce(sum(cost_cents), 0)::float8 as cents from cost_events where company_id::text = $1", [companyId]) as Array<{ cents: number }>;
+       where r.space_id::text = $1 and r.id::text = any($2::text[])
+       order by r.created_at`, [spaceId, [...runIds], TERMINAL_EVENTS]) as Array<Record<string, unknown>>;
+    const [space] = await db.$client.unsafe(
+      "select coalesce(sum(cost_cents), 0)::float8 as cents from cost_events where space_id::text = $1", [spaceId]) as Array<{ cents: number }>;
     return {
       runs: rows.map(row => ({
         id: String(row.id), status: String(row.status), errorCode: (row.errorCode as string | null) ?? null, error: (row.error as string | null) ?? null,
@@ -93,10 +93,10 @@ export async function collectContentionEvidence(db: Db, companyId: string, runId
         recordedCostCents: row.recordedCostUsd === null || row.recordedCostUsd === undefined ? null : Number(row.recordedCostUsd) * 100,
         costEventCents: Number(row.costEventCents),
       })),
-      companyCostEventCents: Number(company?.cents ?? 0), summary, error: null,
+      spaceCostEventCents: Number(space?.cents ?? 0), summary, error: null,
     };
   } catch (error) {
-    return { runs: [], companyCostEventCents: 0, summary, error: error instanceof Error ? error.message : String(error) };
+    return { runs: [], spaceCostEventCents: 0, summary, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -127,9 +127,9 @@ export function contentionChecks(evidence: ContentionEvidence | undefined): Orac
     { name: "run_spend_matches_cost_events", ok: !mismatched.length,
       detail: list(mismatched, run => `${run.id} recorded=${run.recordedCostCents} events=${run.costEventCents}`) },
     // The board's spend is the cost-event sum; at rest no finished run may still wait for accounting.
-    { name: "company_spend_settled",
-      ok: evidence.summary !== null && centsMatch(evidence.summary.spendCents, evidence.companyCostEventCents) && evidence.summary.pendingRunCount === 0,
-      detail: evidence.summary ? `summary=${evidence.summary.spendCents} events=${evidence.companyCostEventCents} pending_runs=${evidence.summary.pendingRunCount}` : "summary unread" },
+    { name: "space_spend_settled",
+      ok: evidence.summary !== null && centsMatch(evidence.summary.spendCents, evidence.spaceCostEventCents) && evidence.summary.pendingRunCount === 0,
+      detail: evidence.summary ? `summary=${evidence.summary.spendCents} events=${evidence.spaceCostEventCents} pending_runs=${evidence.summary.pendingRunCount}` : "summary unread" },
     // Not a product property: proof that this task produced the contention it is meant to test.
     { name: "contention_produced", ok: logEvents >= L1_MIN_LOG_EVENTS && receipts >= L1_MIN_RECEIPTS,
       detail: `log_events=${logEvents} receipts=${receipts} log_bytes=${runs.reduce((sum, run) => sum + (run.logBytes ?? 0), 0)}` },
@@ -170,7 +170,7 @@ export const l1Workload: WorkloadDefinition = {
 export interface PressureStats { writers: number; updates: number; rowsTouched: number; errors: number; lastError: string | null; startedAt: number; stoppedAt: number | null }
 
 /**
- * Harness-owned writers that touch the wave company's running run rows back
+ * Harness-owned writers that touch the wave space's running run rows back
  * to back. Each statement keeps every value (`updated_at = updated_at`) but
  * still writes a new row version, which is exactly what invalidates a
  * repeatable-read snapshot that later locks the row.
@@ -185,7 +185,7 @@ export class RunRowPressure {
   #workers: Promise<void>[] = [];
   #db: Db;
 
-  constructor(connectionString: string, private readonly companyId: string, writers: number) {
+  constructor(connectionString: string, private readonly spaceId: string, writers: number) {
     this.#db = createDb(connectionString);
     this.stats = { writers, updates: 0, rowsTouched: 0, errors: 0, lastError: null, startedAt: Date.now(), stoppedAt: null };
   }
@@ -199,7 +199,7 @@ export class RunRowPressure {
     while (!this.#stopped) {
       try {
         const running = await this.#db.$client.unsafe(
-          "select id::text as id from heartbeat_runs where company_id::text = $1 and status = 'running'", [this.companyId]) as Array<{ id: string }>;
+          "select id::text as id from heartbeat_runs where space_id::text = $1 and status = 'running'", [this.spaceId]) as Array<{ id: string }>;
         // Nothing running: idle briefly instead of spinning on an empty read.
         if (!running.length) { await delay(50); continue; }
         for (const { id } of running) {

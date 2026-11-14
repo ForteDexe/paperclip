@@ -6,12 +6,12 @@ async function json(response: APIResponse) {
 }
 
 async function createTask(request: APIRequestContext) {
-  const company = await json(await request.post("/api/companies", { data: { name: "Loading frame verification" } }));
+  const space = await json(await request.post("/api/spaces", { data: { name: "Loading frame verification" } }));
   const title = "Investigate a long-running workspace and preserve its saved findings, document cards, and pending review without moving the initial reading position";
-  const issue = await json(await request.post(`/api/companies/${company.id}/issues`, { data: {
+  const issue = await json(await request.post(`/api/spaces/${space.id}/issues`, { data: {
     title, status: "backlog", description: "## Saved investigation\n\n" + "Preserve the original report and all saved evidence. ".repeat(20),
   } }));
-  return { company, issue, title, route: `/${company.issuePrefix}/issues/${issue.identifier}` };
+  return { space, issue, title, route: `/${space.issuePrefix}/issues/${issue.identifier}` };
 }
 
 for (const mobile of [false, true]) test(`a rich task uses one stable loading frame (${mobile ? "mobile" : "desktop"})`, async ({ page, request }, info) => {
@@ -58,8 +58,8 @@ for (const mobile of [false, true]) test(`a rich task uses one stable loading fr
           ready: !!document.querySelector('[data-testid="task-chat-thread"] > [aria-busy="false"]'),
           headerVisible: !!header && getComputedStyle(header).visibility === "visible" && bounds!.bottom > 60 && bounds!.top < innerHeight,
           loading: box('[data-testid="task-chat-loading-frame"]'),
-          loadingComposer: box('[data-testid="task-chat-loading-composer"] .paperclip-task-chat-composer'),
-          composer: box('[data-testid="task-chat-composer-stack"] .paperclip-task-chat-composer'),
+          loadingComposer: box('[data-testid="task-chat-loading-composer"] .outpost-task-chat-composer'),
+          composer: box('[data-testid="task-chat-composer-stack"] .outpost-task-chat-composer'),
           latestY: [...document.querySelectorAll('[id^="comment-"]')].at(-1)?.getBoundingClientRect().y,
           scrollHeight: document.querySelector('[data-testid="task-chat-scroller"]')?.scrollHeight,
           loadingFont: font('[data-slot="task-loading-title"]'),
@@ -89,7 +89,7 @@ for (const mobile of [false, true]) test(`a rich task uses one stable loading fr
     expect(Math.max(...ready.map(frame => frame.latestY!)) - Math.min(...ready.map(frame => frame.latestY!))).toBeLessThanOrEqual(2);
     expect(new Set(ready.map(frame => frame.scrollHeight)).size).toBe(1);
   } finally {
-    await request.patch(`/api/companies/${fixture.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${fixture.space.id}`, { data: { status: "archived" } });
   }
 });
 
@@ -124,7 +124,7 @@ test("Classic startup does not guess a chat layout while personal preferences ar
     await expect(page.locator("[data-task-chat-shell]")).toHaveCount(0);
   } finally {
     release();
-    await request.patch(`/api/companies/${fixture.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${fixture.space.id}`, { data: { status: "archived" } });
   }
 });
 
@@ -145,7 +145,7 @@ test("a stalled web font does not hide an otherwise prepared conversation indefi
   } finally {
     release();
     await page.unrouteAll({ behavior: "wait" });
-    await request.patch(`/api/companies/${fixture.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${fixture.space.id}`, { data: { status: "archived" } });
   }
 });
 
@@ -158,7 +158,7 @@ for (const coordinator of [false, true]) test(`mobile chrome stays fixed when pe
     const frames: number[][] = [], frameTimes: number[] = [];
     Object.assign(window, { mobileShellFrames: frames, mobileShellFrameTimes: frameTimes });
     const sample = () => {
-      const shell = document.querySelector(".paperclip-app-shell");
+      const shell = document.querySelector(".outpost-app-shell");
       if (shell && shell.getBoundingClientRect().width > 0) {
         const rects = [".app-breadcrumb", ".mobile-bottom-nav", "#main-content"].map(selector => document.querySelector(selector)!.getBoundingClientRect());
         frames.push([innerWidth, innerHeight, scrollX, scrollY, ...rects.flatMap((rect, index) => index === 2 ? [rect.x, rect.y, rect.width] : [rect.x, rect.y, rect.width, rect.height])]);
@@ -180,7 +180,7 @@ for (const coordinator of [false, true]) test(`mobile chrome stays fixed when pe
     });
     await page.goto(fixture.route);
     await expect(page.getByTestId("shell-configuration-loading")).toBeVisible();
-    await expect(page.locator(".paperclip-app-shell")).toBeHidden();
+    await expect(page.locator(".outpost-app-shell")).toBeHidden();
     expect(await page.evaluate(() => (window as unknown as { mobileShellFrames: number[][] }).mobileShellFrames)).toEqual([]);
     release();
     if (coordinator) await expect(page.getByTestId("task-chat-thread").locator(':scope > [aria-busy="false"]')).toBeVisible();
@@ -213,7 +213,7 @@ for (const coordinator of [false, true]) test(`mobile chrome stays fixed when pe
     }
   } finally {
     release();
-    await request.patch(`/api/companies/${fixture.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${fixture.space.id}`, { data: { status: "archived" } });
   }
 });
 
@@ -230,14 +230,14 @@ test("a seeded Classic loading title uses the resolved title typography", async 
       const response = await route.fetch();
       await route.fulfill({ json: { ...await response.json(), coordinatorWorkspaceEnabled: false } });
     });
-    await page.goto(`/${fixture.company.issuePrefix}/issues`);
+    await page.goto(`/${fixture.space.issuePrefix}/issues`);
     await page.getByRole("link").filter({ hasText: fixture.title }).first().click();
     await expect(page.getByTestId("issue-detail-header").getByRole("heading", { name: fixture.title, exact: true })).toBeVisible();
     // Also hold the hard load's early chat bootstrap: it carries the task too.
     await page.route(/\/api\/issues\/[^/?]+(?:\/chat-bootstrap)?(?:\?|$)/, async route => { await coreReady; await route.continue(); });
     // Keep the recent-task title seed, but exercise the loading frame without
     // a persisted full task that would correctly reveal the resolved header.
-    await page.addInitScript(() => Object.keys(localStorage).filter(key => key.startsWith("paperclip:query-cache:v1:")).forEach(key => localStorage.removeItem(key)));
+    await page.addInitScript(() => Object.keys(localStorage).filter(key => key.startsWith("outpost:query-cache:v1:")).forEach(key => localStorage.removeItem(key)));
     await page.reload({ waitUntil: "domcontentloaded" });
     const loadingTitle = page.getByRole("heading", { name: fixture.title, exact: true });
     await expect(loadingTitle).toBeVisible();
@@ -249,6 +249,6 @@ test("a seeded Classic loading title uses the resolved title typography", async 
     expect(await title.evaluate(element => getComputedStyle(element).font)).toBe(font);
   } finally {
     release();
-    await request.patch(`/api/companies/${fixture.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${fixture.space.id}`, { data: { status: "archived" } });
   }
 });

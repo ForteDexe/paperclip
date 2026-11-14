@@ -1,7 +1,7 @@
 # Chat milestone query performance
 
 The milestone selector first materializes runs that match an active or waiting
-conversation in the same company. It then applies the existing publication
+conversation in the same space. It then applies the existing publication
 origin, continuation, status and final-answer checks. This prevents PostgreSQL
 from evaluating expensive JSON lineage predicates across unrelated
 run/conversation pairs.
@@ -108,14 +108,14 @@ for this change. The dense and first-page performance limits remain disclosed.
 ## Correctness and blast radius
 
 The safety condition is that the new prefilter repeats a predicate already
-required by the existing conversation join. It uses the same company,
+required by the existing conversation join. It uses the same space,
 conversation-state and native/legacy binding expression within the same SQL
 statement. All authoritative checks still run afterward.
 
 The selective benchmark compares every returned column in exact order and
 checks 15 explicit historical binding cases. These include whitespace trimming,
 task-ID fallback, numeric/object/array JSON values, uppercase and malformed
-identifiers, native and first-class issue precedence, cross-company values and
+identifiers, native and first-class issue precedence, cross-space values and
 null/scalar/array contexts. Dense results compare the complete first 200 ordered
 rows; they do not claim that all history fits on that page.
 

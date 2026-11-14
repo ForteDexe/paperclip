@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { createPrivacyState, installPrivacyApi, privacyCompanyId, privacyTask, privacyGrant } from "./privateTasks";
+import { createPrivacyState, installPrivacyApi, privacySpaceId, privacyTask, privacyGrant } from "./privateTasks";
 describe("private task creation preview", () => {
   it.each([
     [{ title: "Open task" }, "open", null, null],
@@ -10,7 +10,7 @@ describe("private task creation preview", () => {
   ])("matches creation defaults for %j", async (data, visibility, privacyRootIssueId, privacyParentIssueId) => {
     const restore = installPrivacyApi(createPrivacyState({}));
     try {
-      const response = await fetch(`/api/companies/${privacyCompanyId}/issues`, { method: "POST", body: JSON.stringify(data) });
+      const response = await fetch(`/api/spaces/${privacySpaceId}/issues`, { method: "POST", body: JSON.stringify(data) });
       const task = await response.json();
       expect(task).toMatchObject({ visibility, privacyRootIssueId, privacyParentIssueId });
     } finally { restore(); }
@@ -190,7 +190,7 @@ describe("preview owner and saved assignment access", () => {
   it.each([null, "agent-dedicated"])("uses the new task's actual assignment %s", async (assigneeAgentId) => {
     const restore = installPrivacyApi(createPrivacyState({ grants: "empty" }));
     try {
-      await fetch(`/api/companies/${privacyCompanyId}/issues`, { method: "POST", body: JSON.stringify({ title: "Created private task", visibility: "private", assigneeAgentId }) });
+      await fetch(`/api/spaces/${privacySpaceId}/issues`, { method: "POST", body: JSON.stringify({ title: "Created private task", visibility: "private", assigneeAgentId }) });
       const grants = await fetch("/api/issues/privacy-created/access-grants").then(response => response.json());
       expect(grants).toContainEqual(expect.objectContaining({ issueId: "privacy-created", subjectId: "user-board", source: "owner", inherited: false }));
       expect(grants.filter((grant: { source: string }) => grant.source === "assignment")).toHaveLength(assigneeAgentId ? 1 : 0);

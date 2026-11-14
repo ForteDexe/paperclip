@@ -23,7 +23,7 @@ function makeIssue(overrides: Partial<Issue> = {}): Issue {
   const now = new Date("2026-04-13T20:00:00.000Z");
   return {
     id: "issue-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     projectWorkspaceId: null,
     goalId: null,
@@ -86,7 +86,7 @@ function IssueCoreQueryHarness({ issueRef }: { issueRef: string }) {
       return core;
     },
   });
-  return <div>{query.data?.title ?? "EMPTY"} / {query.data?.companyId ?? "UNKNOWN"} / {query.fetchStatus}</div>;
+  return <div>{query.data?.title ?? "EMPTY"} / {query.data?.spaceId ?? "UNKNOWN"} / {query.fetchStatus}</div>;
 }
 
 async function flush() {
@@ -108,7 +108,7 @@ describe("getIssueDetailQueryOptions", () => {
     document.body.appendChild(container);
     const root = createRoot(container);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const issue = makeIssue({ id: "c1267799-90d5-4cb3-8311-38bd480dd76e", title: "Organization-bound task link", companyId: "owning-company" });
+    const issue = makeIssue({ id: "c1267799-90d5-4cb3-8311-38bd480dd76e", title: "Organization-bound task link", spaceId: "owning-space" });
     let release!: (value: Issue) => void;
     const canonical = new Promise<Issue>((resolve) => { release = resolve; });
     vi.mocked(issuesApi.getCore).mockImplementation(async (ref) => ref === issue.id ? issue : canonical);
@@ -122,7 +122,7 @@ describe("getIssueDetailQueryOptions", () => {
       await render(issue.identifier!);
       expect(issuesApi.getCore).toHaveBeenCalledWith(issue.identifier, { signal: expect.any(AbortSignal) });
       expect(container.textContent).toContain(issue.title);
-      expect(container.textContent).toContain("owning-company");
+      expect(container.textContent).toContain("owning-space");
       expect(container.textContent).toContain("fetching");
       expect(queryClient.getQueryData(queryKeys.issues.detail(issue.identifier!))).toBeUndefined();
       expect(queryClient.getQueryData([...queryKeys.issues.detail("unrelated-task"), "core"])).toBeUndefined();

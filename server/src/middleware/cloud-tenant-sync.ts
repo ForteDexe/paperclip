@@ -28,7 +28,7 @@ function prune(states: Map<string, SyncState>, now: number) {
 }
 
 /**
- * Serialize writes for a user (the auth user row is shared across companies).
+ * Serialize writes for a user (the auth user row is shared across spaces).
  * Only the last queued context can be shared: A -> B -> A must still apply A
  * after B. Failed/partial syncs never populate the successful-write debounce.
  * This caches writes only; callers must still resolve current authority.

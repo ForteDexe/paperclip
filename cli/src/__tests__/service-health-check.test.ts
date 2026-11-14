@@ -11,37 +11,37 @@ import {
   renderSystemdUnit,
 } from "../services/service-manager.js";
 import { resolveRestartExpectedVersion, withHotRestartLock } from "../commands/service.js";
-import type { PaperclipConfig } from "../config/schema.js";
+import type { OutpostConfig } from "../config/schema.js";
 import { buildLocalHealthUrl } from "../utils/health-url.js";
 
 const config = {
   server: { host: "127.0.0.1", port: 3100 },
-} as PaperclipConfig;
+} as OutpostConfig;
 
-let previousPaperclipHome: string | undefined;
+let previousOutpostHome: string | undefined;
 let previousServiceManaged: string | undefined;
 
 beforeEach(() => {
-  previousPaperclipHome = process.env.OUTPOST_HOME;
+  previousOutpostHome = process.env.OUTPOST_HOME;
   previousServiceManaged = process.env.OUTPOST_SERVICE_MANAGED;
-  process.env.OUTPOST_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-service-restart-"));
+  process.env.OUTPOST_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-service-restart-"));
 });
 
 afterEach(() => {
-  if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-  else process.env.OUTPOST_HOME = previousPaperclipHome;
+  if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+  else process.env.OUTPOST_HOME = previousOutpostHome;
   if (previousServiceManaged === undefined) delete process.env.OUTPOST_SERVICE_MANAGED;
   else process.env.OUTPOST_SERVICE_MANAGED = previousServiceManaged;
 });
 
 function managerFixture(active = true) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-service-doctor-"));
-  const definitionPath = path.join(root, "paperclipai.service");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-service-doctor-"));
+  const definitionPath = path.join(root, "outpost.service");
   fs.writeFileSync(definitionPath, "unit");
   return {
     platform: "systemd" as const,
     instanceId: "default",
-    serviceName: "paperclipai.service",
+    serviceName: "outpost.service",
     definitionPath,
     renderDefinition: () => "unit",
     install: vi.fn(async () => ({ changed: false })),
@@ -51,7 +51,7 @@ function managerFixture(active = true) {
     restart: vi.fn(async () => undefined),
     status: vi.fn(async () => ({
       platform: "systemd" as const,
-      serviceName: "paperclipai.service",
+      serviceName: "outpost.service",
       installed: true,
       active,
       enabled: true,
@@ -144,7 +144,7 @@ describe("service health doctor checks", () => {
       expect.objectContaining({
         name: "Service runtime",
         status: "fail",
-        message: expect.stringContaining("another Paperclip process"),
+        message: expect.stringContaining("another Outpost process"),
       }),
     );
   });
@@ -170,7 +170,7 @@ describe("service runtime shim awareness", () => {
     return {
       platform: "launchd" as const,
       instanceId: "default",
-      serviceName: "ing.outpost.paperclipai",
+      serviceName: "ing.outpost.outpost",
       definitionPath: "/tmp/nonexistent-definition.plist",
       renderDefinition: () => "plist",
       install: vi.fn(async () => ({ changed: false })),
@@ -180,7 +180,7 @@ describe("service runtime shim awareness", () => {
       restart: vi.fn(async () => undefined),
       status: vi.fn(async () => ({
         platform: "launchd" as const,
-        serviceName: "ing.outpost.paperclipai",
+        serviceName: "ing.outpost.outpost",
         installed: true,
         active: false,
         enabled: true,
@@ -201,12 +201,12 @@ describe("service runtime shim awareness", () => {
     const runtime = results.find((r) => r.name === "Service runtime");
     expect(runtime?.status).toBe("fail");
     expect(runtime?.message).toContain("no executable exists at");
-    expect(runtime?.repairHint).toContain("paperclipai install");
+    expect(runtime?.repairHint).toContain("outpost install");
   });
 
   it("diagnoses against the executable recorded in the definition, not the current env", async () => {
     const manager = inactiveManager();
-    manager.installedExecutablePath = vi.fn(async () => "/custom/bin/paperclipai");
+    manager.installedExecutablePath = vi.fn(async () => "/custom/bin/outpost");
     const shimPresent = vi.fn(async () => false);
     const results = await serviceHealthChecks({} as never, {
       detect: vi.fn(async () => ({ supported: true as const, manager: manager as never })),
@@ -214,11 +214,11 @@ describe("service runtime shim awareness", () => {
       shimPresent,
     });
     const runtime = results.find((r) => r.name === "Service runtime");
-    expect(shimPresent).toHaveBeenCalledWith("/custom/bin/paperclipai");
-    expect(runtime?.message).toContain("/custom/bin/paperclipai");
-    expect(runtime?.repairHint).toContain("/custom/bin/paperclipai");
+    expect(shimPresent).toHaveBeenCalledWith("/custom/bin/outpost");
+    expect(runtime?.message).toContain("/custom/bin/outpost");
+    expect(runtime?.repairHint).toContain("/custom/bin/outpost");
     expect(runtime?.repairHint).toContain("unset OUTPOST_SHIM_PATH");
-    expect(runtime?.repairHint).toContain("`paperclipai install` followed by `paperclipai service install`");
+    expect(runtime?.repairHint).toContain("`outpost install` followed by `outpost service install`");
   });
 
   it("attributes a healthy foreign responder instead of reporting Healthy", async () => {
@@ -229,27 +229,27 @@ describe("service runtime shim awareness", () => {
     });
     const healthResult = results.find((r) => r.name === "Service health");
     expect(healthResult?.status).toBe("warn");
-    expect(healthResult?.message).toContain("but not from ing.outpost.paperclipai");
+    expect(healthResult?.message).toContain("but not from ing.outpost.outpost");
     const runtime = results.find((r) => r.name === "Service runtime");
-    expect(runtime?.message).toContain("serving another Paperclip process");
+    expect(runtime?.message).toContain("serving another Outpost process");
   });
 });
 
 describe("definition executable extraction", () => {
   it("round-trips through both renderers", () => {
-    const unit = renderSystemdUnit({ instanceId: "default", shimPath: "/custom/bin/paperclipai", homeDir: "/home/x/.paperclip" });
-    expect(extractExecutableFromSystemdUnit(unit)).toBe("/custom/bin/paperclipai");
-    const plist = renderLaunchdPlist({ instanceId: "default", shimPath: "/custom/bin/paperclipai", homeDir: "/home/x/.paperclip", stdoutPath: "/tmp/o.log", stderrPath: "/tmp/e.log" });
-    expect(extractExecutableFromLaunchdPlist(plist)).toBe("/custom/bin/paperclipai");
+    const unit = renderSystemdUnit({ instanceId: "default", shimPath: "/custom/bin/outpost", homeDir: "/home/x/.outpost" });
+    expect(extractExecutableFromSystemdUnit(unit)).toBe("/custom/bin/outpost");
+    const plist = renderLaunchdPlist({ instanceId: "default", shimPath: "/custom/bin/outpost", homeDir: "/home/x/.outpost", stdoutPath: "/tmp/o.log", stderrPath: "/tmp/e.log" });
+    expect(extractExecutableFromLaunchdPlist(plist)).toBe("/custom/bin/outpost");
     expect(extractExecutableFromSystemdUnit("garbage")).toBe(null);
     expect(extractExecutableFromLaunchdPlist("garbage")).toBe(null);
   });
 
   it("round-trips paths the renderers escape", () => {
-    const hostile = '/tmp/we"ird $pa%th & <x>/paperclipai';
-    const unit = renderSystemdUnit({ instanceId: "default", shimPath: hostile, homeDir: "/home/x/.paperclip" });
+    const hostile = '/tmp/we"ird $pa%th & <x>/outpost';
+    const unit = renderSystemdUnit({ instanceId: "default", shimPath: hostile, homeDir: "/home/x/.outpost" });
     expect(extractExecutableFromSystemdUnit(unit)).toBe(hostile);
-    const plist = renderLaunchdPlist({ instanceId: "default", shimPath: hostile, homeDir: "/home/x/.paperclip", stdoutPath: "/tmp/o.log", stderrPath: "/tmp/e.log" });
+    const plist = renderLaunchdPlist({ instanceId: "default", shimPath: hostile, homeDir: "/home/x/.outpost", stdoutPath: "/tmp/o.log", stderrPath: "/tmp/e.log" });
     expect(extractExecutableFromLaunchdPlist(plist)).toBe(hostile);
   });
 });

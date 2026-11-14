@@ -20,13 +20,13 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `GET /api/companies/{companyId}/cases` (search/status/type/project filters,
+- `GET /api/spaces/{spaceId}/cases` (search/status/type/project filters,
   `sortField=updated|created|title|status|type`, `sortDir=asc|desc`,
   `groupBy=none|status|type|project`, and offset after authorization). Sorting and
   group ordering apply to the full authorized result before pagination. Defaults
   retain newest-updated ordering; status uses lifecycle order and project groups
   use stable project IDs with unassigned cases last.
-- `GET /api/companies/{companyId}/cases/types` (distinct types from accessible standalone cases).
+- `GET /api/spaces/{spaceId}/cases/types` (distinct types from accessible standalone cases).
 
 Agent access: `available` — REST / native call_api; dedicated native `read_case`
 for an authorized standalone case or the task's primary case; agent cases reference.
@@ -44,7 +44,7 @@ rechecks source-task access and linkage, excludes system/quarantined documents,
 and binds the snapshot to the selected document identity, revision and body.
 
 
-Policy: enableCases gate; company/case/task boundaries, active run where required,
+Policy: enableCases gate; space/case/task boundaries, active run where required,
 source trust, and checked-out mutation ownership.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/cases.ts#L592) at the
@@ -52,7 +52,7 @@ reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: No dedicated production list_cases binding is required because the REST fallback
@@ -66,7 +66,7 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `POST /api/companies/{companyId}/cases`.
+- `POST /api/spaces/{spaceId}/cases`.
 - `PATCH /api/cases/{id}`.
 
 Agent access: `available` — REST / native call_api; native `create_case` creates a
@@ -84,7 +84,7 @@ default to the primary workflow case and retain REST authorization. Standard
 identify other accessible tasks and their authenticated REST read paths. Native
 `read_case` document selection can open those references without `call_api`.
 
-Policy: enableCases gate; company/case/task boundaries, active run where required,
+Policy: enableCases gate; space/case/task boundaries, active run where required,
 source trust, and checked-out mutation ownership.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/cases.ts#L592) at the
@@ -92,7 +92,7 @@ reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Structured case data is supported; grouping/rendering is presentation, not a new
@@ -142,7 +142,7 @@ API: `present` — representative operation IDs:
 
 Agent access: `available` — REST / native call_api.
 
-Policy: enableCases gate; company/case/task boundaries, active run where required,
+Policy: enableCases gate; space/case/task boundaries, active run where required,
 source trust, and checked-out mutation ownership.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/cases.ts#L592) at the
@@ -150,7 +150,7 @@ reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Source-backed access only; case visibility and document locks still apply.
@@ -168,7 +168,7 @@ API: `present` — representative operation IDs:
 
 Agent access: `available` — REST / native call_api.
 
-Policy: enableCases gate; company/case/task boundaries, active run where required,
+Policy: enableCases gate; space/case/task boundaries, active run where required,
 source trust, and checked-out mutation ownership.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/cases.ts#L592) at the
@@ -176,7 +176,7 @@ reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Case/task association exists; source trust and issue visibility must be tested
@@ -186,12 +186,12 @@ with agent credentials.
 
 Capability ID: `cases/handoffs`.
 
-Reusable workflow extension (2026-10-21): `GET/POST /api/companies/{companyId}/workflows`
-and `GET/PATCH /api/workflows/{id}` expose company-scoped metadata/Markdown prompts.
+Reusable workflow extension (2026-10-21): `GET/POST /api/spaces/{spaceId}/workflows`
+and `GET/PATCH /api/workflows/{id}` expose space-scoped metadata/Markdown prompts.
 Native `list_workflows`, `read_workflow`, `create_workflow`, `update_workflow` use
 the optional Cases group, including with generic API tools disabled. Writes use
 existing run/source-trust fences and mutation receipts. Bounded prompt reads use
-the native API JSON text paging path; every page checks current company access.
+the native API JSON text paging path; every page checks current space access.
 Continuation pages require the first page's content snapshot; edits return 409
 and require restarting the read, so pages cannot silently combine definitions.
 Kickoff accepts either a workflow ID or inline text. Agent handoffs omit the ID
@@ -200,20 +200,20 @@ Acceptance snapshots the prompt; transfer checks its task-document base revision
 before atomically adopting workflow/phase/instructions. Generic case updates
 cannot alter routing. Repeated visits and captured names remain in handoff history.
 The real-database/native-tool tests prove reuse, refresh, conflict/cancel/restart,
-cross-company denial, stopped writes, flag-off execution, and inline compatibility.
+cross-space denial, stopped writes, flag-off execution, and inline compatibility.
 Configured-provider acceptance of the extended journey is recorded separately.
 
 Review: `baseline`.
 
-API: `present` — POST /api/companies/{companyId}/case-handoffs; GET /api/cases/{id}/handoffs; POST /api/cases/{id}/handoffs/{handoffId}/retry and /cancel.
+API: `present` — POST /api/spaces/{spaceId}/case-handoffs; GET /api/cases/{id}/handoffs; POST /api/cases/{id}/handoffs/{handoffId}/retry and /cancel.
 
 Agent access: `available` — live native `handoff_case`, native API discovery/call_api, and authenticated agent REST. Initial kickoff creates or explicitly binds an ordinary task; subsequent calls reuse it.
 
 Terminal destination: `to: "done"` records closure intent for an existing primary task, using case read/mutation and normal task mutation authority. It does not assign, wake, yield, or satisfy completion evidence. Normal accepted task completion atomically closes the case; a current execution's Stop, task cancellation, or reassignment invalidates the intent. Run-scoped Stop preserves newer work; cancelling terminal intent without a source run requires fenced current task ownership. Waiting on review or user input preserves it. Ordinary completion without a terminal intent leaves case status unchanged.
 
-Retention: whole-company deletion removes case history before dependent tasks/agents. Individual agent purge returns `409 agent_case_history_retained` when handoffs reference the agent; termination preserves its attribution.
+Retention: whole-space deletion removes case history before dependent tasks/agents. Individual agent purge returns `409 agent_case_history_retained` when handoffs reference the agent; termination preserves its attribution.
 
-Policy: enableCases; standard mode; ordinary task creation/assignment authority; agents transfer only their own work; current case/task versions; company and retained task/project access intersection; existing review, Stop, budget, and workspace gates. Idempotency belongs to the authenticated principal, not a provider run. Cancellation remains available while the feature is disabled.
+Policy: enableCases; standard mode; ordinary task creation/assignment authority; agents transfer only their own work; current case/task versions; space and retained task/project access intersection; existing review, Stop, budget, and workspace gates. Idempotency belongs to the authenticated principal, not a provider run. Cancellation remains available while the feature is disabled.
 
 Delayed assignment rechecks the original caller's current assignment authority
 using internal, server-derived provenance. The context is not returned by

@@ -10,16 +10,16 @@ it("keeps generated-but-undelivered work honestly blocked until the canonical de
   expect(websitePrerequisiteSettled({ ...staged, runs: [{ agentId: "unrelated", status: "succeeded" }] }, "morgan", false)).toBe(false);
 });
 function valid(revising = false) {
-  const task = { id: "task", companyId: "company", title: "Website task", status: "done", assigneeAgentId: "ceo" };
+  const task = { id: "task", spaceId: "space", title: "Website task", status: "done", assigneeAgentId: "ceo" };
   const prior = "<html><body><h1>Bring your research team notes together in one accessible place</h1><p>Research teams stay organized.</p><a href='https://example.test/signup'>Signup</a><footer>ORCHID</footer></body></html>";
   const body = revising ? prior.replace("Bring your research team notes together in one accessible place", "Notes, together") : prior;
   const attachment = (id: string, bytes: string, run: string) => ({ id, issueId: "task", sha256: hash(bytes), originatingRunId: run, contentPath: `/api/attachments/${id}/content` });
-  const product = (id: string, file: string, run: string, issueId = "task") => ({ id, issueId, title: file === "original" ? "website-v1.html" : "website-v2.html", type: "artifact", provider: "paperclip", status: "active", createdByRunId: run, metadata: { attachmentId: file } });
+  const product = (id: string, file: string, run: string, issueId = "task") => ({ id, issueId, title: file === "original" ? "website-v1.html" : "website-v2.html", type: "artifact", provider: "outpost", status: "active", createdByRunId: run, metadata: { attachmentId: file } });
   const original = attachment("original", prior, "build"); const newFile = attachment("new", body, "run");
-  return { scenarioId: revising ? "documents-artifacts.revise-delivery" : "documents-artifacts.produce-download", origin: "https://fixture.test", companyId: "company", leadId: "ceo",
+  return { scenarioId: revising ? "documents-artifacts.revise-delivery" : "documents-artifacts.produce-download", origin: "https://fixture.test", spaceId: "space", leadId: "ceo",
     state: { task: structuredClone(task), worker: { id: "morgan" }, priorRunId: "build", producedBody: prior, producedHash: hash(prior), bodyFact: "Research teams stay organized.", signupHref: "https://example.test/signup", marker: "ORCHID", originalAttachment: original, originalProductId: "old-product" },
     ...(revising ? {} : { sourceWorkspaceHash: hash(prior) }), tasks: [task], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [], humanQueries: [], links: ["/RUN/issues/task", "/api/attachments/new/content?download=1", ...(revising ? ["/api/attachments/original/content"] : [])], chatIssueId: "chat",
-    reply: "The updated shorter version is downloadable; the original remains available.", runs: [{ id: "run", companyId: "company", agentId: "ceo", status: "succeeded" }, { id: "build", companyId: "company", agentId: "morgan", status: "succeeded" }],
+    reply: "The updated shorter version is downloadable; the original remains available.", runs: [{ id: "run", spaceId: "space", agentId: "ceo", status: "succeeded" }, { id: "build", spaceId: "space", agentId: "morgan", status: "succeeded" }],
     attachments: [newFile, ...(revising ? [original] : [])], products: [product("new-product", "new", "run"), ...(revising ? [product("old-product", "original", "build")] : [])], downloaded: [{ id: "new", sha256: hash(body), body }, ...(revising ? [{ id: "original", sha256: hash(prior), body: prior }] : [])] };
 }
 describe("registered website delivery calibration", () => {

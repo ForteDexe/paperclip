@@ -44,10 +44,10 @@ describeEmbeddedPostgres("durable native provider backups", () => {
   async function fixture(provider = "codex") {
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "51".repeat(32));
     const f = await environment.seedRun(randomUUID());
-    const { companyId, runtimeRoot, successor } = environment.current;
+    const { spaceId, runtimeRoot, successor } = environment.current;
     await f.db.update(nativeRunFinalizations).set({ controllerBootId: successor.bootId, controllerGeneration: 1,
       leaseOwner: "backup-writer", leaseExpiresAt: new Date(Date.now() + 120_000) }).where(eq(nativeRunFinalizations.runId, f.runId));
-    const owner = await nativeHarnessBackupOwner(f.db, { companyId, issueId: f.issueId, runId: f.runId, bootId: successor.bootId });
+    const owner = await nativeHarnessBackupOwner(f.db, { spaceId, issueId: f.issueId, runId: f.runId, bootId: successor.bootId });
     const home = join(runtimeRoot, randomUUID()), root = join(home, "failover-backups", "current");
     ownedHomes.push(home);
     await mkdir(join(root, provider, "sessions"), { recursive: true });
@@ -60,14 +60,14 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     await chmod(join(root, provider, "sessions"), 0o500);
     const sessionScopeId = randomUUID(), scopeDigest = createHash("sha256").update(sessionScopeId).digest("hex");
     const storage = createStorageService(createLocalDiskStorageProvider(join(runtimeRoot, "durable-objects")));
-    return { ...f, home, root, companyId, owner, scopeDigest, sessionScopeId, storage, identity,
+    return { ...f, home, root, spaceId, owner, scopeDigest, sessionScopeId, storage, identity,
       manifestSha256: `sha256:${createHash("sha256").update(manifest).digest("hex")}` };
   }
   async function offlineFixture(base: string) {
     const f = await fixture("codex-home"), home = join(base, f.scopeDigest);
     await rename(f.home, home);
     const root = join(home, "failover-backups", "current"), runnerInstanceId = randomUUID(), providerLeaseId = randomUUID();
-    const execution = { provider: { kind: "codex" }, binding: { companyId: f.companyId, issueId: f.issueId,
+    const execution = { provider: { kind: "codex" }, binding: { spaceId: f.spaceId, issueId: f.issueId,
       runId: f.runId, agentId: environment.current.agentId, executionWorkspaceId: randomUUID() },
       workspace: { cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: f.identity.normalizedSessionId, driverKind: "codex_app_server",
@@ -78,7 +78,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const stamp = createNativeHarnessBackupStamp({ manifestPath: join(root, "manifest.json"), sessionScopeId: f.sessionScopeId,
       authorizedProviderLeaseId: providerLeaseId, runnerInstanceId, normalizedSessionId: f.identity.normalizedSessionId, completedAt: manifest.completedAt });
     await f.db.update(heartbeatRuns).set({ nativeSessionId: f.identity.normalizedSessionId, runnerInstanceId }).where(eq(heartbeatRuns.id, f.runId));
-    await f.db.insert(environmentLeases).values({ companyId: f.companyId, issueId: f.issueId, heartbeatRunId: f.runId,
+    await f.db.insert(environmentLeases).values({ spaceId: f.spaceId, issueId: f.issueId, heartbeatRunId: f.runId,
       providerLeaseId, status: "expired", metadata: { nativeHarnessBackup: stamp } });
     return { ...f, home, root, runnerInstanceId, providerLeaseId };
   }
@@ -88,7 +88,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const fixtures = [];
     for (let i = 0; i < count; i++) fixtures.push(await offlineFixture(base));
     const runs = await fixtures[0].db.select({ id: heartbeatRuns.id, issueId: heartbeatRuns.nativeIssueId }).from(heartbeatRuns)
-      .where(eq(heartbeatRuns.companyId, fixtures[0].companyId));
+      .where(eq(heartbeatRuns.spaceId, fixtures[0].spaceId));
     for (const run of runs) await settle({ ...fixtures[0], runId: run.id, issueId: run.issueId! }, new Date());
     return fixtures.sort((a, b) => a.scopeDigest.localeCompare(b.scopeDigest));
   }
@@ -161,7 +161,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     await persistNativeHarnessBackup(f);
     const [row] = await f.db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.scopeDigest, f.scopeDigest));
     expect(row.status).toBe("current");
-    const object = await f.storage.getObject(f.companyId, row.reference.objectKey as string);
+    const object = await f.storage.getObject(f.spaceId, row.reference.objectKey as string);
     const parts: Buffer[] = []; for await (const part of object.stream) parts.push(part);
     expect(Buffer.concat(parts).includes(Buffer.from(f.identity.providerSessionId))).toBe(false);
     await removeNativeHarnessBackup(f.home);
@@ -186,12 +186,12 @@ describeEmbeddedPostgres("durable native provider backups", () => {
       pins: { opencode: "1.18.34" }, artifacts: { ...artifacts, opencodeCommand: artifacts.opencodeExecutable } };
     const manifest = { schema: "outpost-runner/remote-provider-pack/v1", payload,
       digest: `sha256:${createHash("sha256").update(canonicalProviderPackJson(payload)).digest("hex")}` };
-    const launchRoot = `/home/daytona/.paperclip-runtime/outpost-runner/provider-artifacts/${manifest.digest.slice(7)}`;
+    const launchRoot = `/home/daytona/.outpost-runtime/outpost-runner/provider-artifacts/${manifest.digest.slice(7)}`;
     await f.db.update(heartbeatRuns).set({ nativeSessionId: f.identity.normalizedSessionId, driverKind: "opencode_server",
       runnerProfileJson: { ...f.preparedProfile, nativeProviderPackAdmissionState: {
         schema: "outpost.native-provider-pack-admission-state.v1", state: "verified", admissionEpoch: randomUUID() },
       nativeProviderPackAdmission: { schema: "outpost.native-provider-pack-admission.v1", stage: "session_admitted",
-        authority: "core_verified_selection", companyId: f.companyId, agentId: environment.current.agentId,
+        authority: "core_verified_selection", spaceId: f.spaceId, agentId: environment.current.agentId,
         runId: f.runId, sessionId: f.identity.normalizedSessionId, runnerInstanceId: "artifact-fixture-runner",
         runnerEnvironmentLeaseId: "artifact-fixture-lease", providerPackDigest: manifest.digest,
         opencodeProxySha256: artifacts.opencodeProxy.sha256, sourceRevision: payload.runnerSourceRevision } },
@@ -261,9 +261,9 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const stop = async (f: typeof first) => {
       await settle(f, new Date(Date.now() - 10 * 86_400_000));
       const leaseId = randomUUID(), providerLeaseId = randomUUID(), confirmedAt = new Date();
-      await f.db.insert(environmentLeases).values({ id: leaseId, companyId: f.companyId, heartbeatRunId: f.runId,
+      await f.db.insert(environmentLeases).values({ id: leaseId, spaceId: f.spaceId, heartbeatRunId: f.runId,
         issueId: f.issueId, provider: "daytona", providerLeaseId, status: "expired", cleanupStatus: "success", releasedAt: confirmedAt,
-        metadata: { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId: f.companyId,
+        metadata: { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", spaceId: f.spaceId,
           runId: f.runId, leaseId, provider: "daytona", providerLeaseId, state: "destroyed", confirmedAt: confirmedAt.toISOString() } } });
     };
     await stop(first);
@@ -278,7 +278,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     expect(await first.db.select().from(nativeProviderArtifacts).where(eq(nativeProviderArtifacts.id, artifact.id))).toHaveLength(1);
     const runPins = await first.db.select().from(nativeProviderArtifactReferences).where(eq(nativeProviderArtifactReferences.artifactId, artifact.id));
     expect(runPins).toHaveLength(2); expect(runPins.every(pin => pin.backupId === null)).toBe(true);
-    await first.db.insert(nativeRunnerCheckpoints).values([first, second].map(f => ({ companyId: f.companyId,
+    await first.db.insert(nativeRunnerCheckpoints).values([first, second].map(f => ({ spaceId: f.spaceId,
       issueId: f.issueId, runId: f.runId, part: "header", material: { retained: "canonical checkpoint expiry fixture" } })));
     expect((await nativeHarnessBackupExpirationService(first.db, { storage: first.storage }).tickCheckpoints()).expiredCheckpoints).toBe(2);
     expect(await first.db.select().from(nativeProviderArtifacts).where(eq(nativeProviderArtifacts.id, artifact.id))).toHaveLength(0);
@@ -305,7 +305,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
       await transfers;
     } finally { calls.mockRestore(); }
     expect(uploaded).toHaveLength(2);
-    const objects = await first.db.select().from(nativeProviderArtifacts).where(and(eq(nativeProviderArtifacts.companyId, first.companyId),
+    const objects = await first.db.select().from(nativeProviderArtifacts).where(and(eq(nativeProviderArtifacts.spaceId, first.spaceId),
       inArray(nativeProviderArtifacts.id, uploaded.map(key => key.split("/").at(-2)!))));
     expect(objects).toHaveLength(1); expect(objects[0].status).toBe("ready");
     expect(deleted.mock.calls.map(([, key]) => key)).toEqual(uploaded.filter(key => key !== objects[0].reference!.objectKey));
@@ -339,11 +339,11 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const old = new Date(Date.now() - 10 * 86_400_000); await settle(f, old);
     await f.db.update(nativeHarnessBackups).set({ createdAt: old, updatedAt: old }).where(eq(nativeHarnessBackups.id, pending.id));
     const leaseId = randomUUID(), providerLeaseId = randomUUID(), confirmedAt = new Date();
-    await f.db.insert(environmentLeases).values({ id: leaseId, companyId: f.companyId, heartbeatRunId: f.runId,
+    await f.db.insert(environmentLeases).values({ id: leaseId, spaceId: f.spaceId, heartbeatRunId: f.runId,
       issueId: f.issueId, provider: "daytona", providerLeaseId, status: "expired", cleanupStatus: "success", releasedAt: confirmedAt,
-      metadata: { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId: f.companyId,
+      metadata: { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", spaceId: f.spaceId,
         runId: f.runId, leaseId, provider: "daytona", providerLeaseId, state: "destroyed", confirmedAt: confirmedAt.toISOString() } } });
-    const [selected] = await f.db.insert(agentTaskSessions).values({ companyId: f.companyId, agentId: environment.current.agentId,
+    const [selected] = await f.db.insert(agentTaskSessions).values({ spaceId: f.spaceId, agentId: environment.current.agentId,
       adapterType: "outpost_runner", taskKey: f.issueId, lastRunId: f.runId,
       sessionParamsJson: { sessionId: f.identity.normalizedSessionId } }).returning();
     const retention = nativeHarnessBackupExpirationService(f.db, { storage: f.storage });
@@ -351,7 +351,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     expect(first.expired).toBe(1); expect(first.expiredCheckpoints).toBe(0);
     expect(await f.db.select().from(nativeProviderArtifactReferences).where(eq(nativeProviderArtifactReferences.runId, f.runId)))
       .toMatchObject([{ backupId: null, artifactId: receipt.artifactId }]);
-    expect((await loadNativeRunnerCheckpoint(f.db, { companyId: f.companyId, issueId: f.issueId, runId: f.runId }))?.recoveryEvidence.normalizedSessionId)
+    expect((await loadNativeRunnerCheckpoint(f.db, { spaceId: f.spaceId, issueId: f.issueId, runId: f.runId }))?.recoveryEvidence.normalizedSessionId)
       .toBe(f.identity.normalizedSessionId);
     await removeNativeHarnessBackup(f.providerArtifacts.sourceRoot);
     const restored = join(environment.current.runtimeRoot, randomUUID()); ownedHomes.push(restored);
@@ -373,7 +373,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const [pin] = await f.db.select().from(nativeProviderArtifactReferences).where(eq(nativeProviderArtifactReferences.runId, f.runId));
     const [artifact] = await f.db.select().from(nativeProviderArtifacts).where(eq(nativeProviderArtifacts.id, pin.artifactId));
     expect(artifact.status).toBe("pending");
-    expect(artifact.reference).toMatchObject({ companyId: f.companyId, artifactId: artifact.id, objectKey: expect.any(String), material: expect.any(Object) });
+    expect(artifact.reference).toMatchObject({ spaceId: f.spaceId, artifactId: artifact.id, objectKey: expect.any(String), material: expect.any(Object) });
     expect(await readFile(join(f.providerArtifacts.sourceRoot, "opencodeProxy"), "utf8")).toBe(f.original.opencodeProxy);
   });
   it("retires an abandoned artifact upload through checkpoint expiration without losing deletion retries", async () => {
@@ -386,19 +386,19 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const [artifact] = await f.db.select().from(nativeProviderArtifacts).where(eq(nativeProviderArtifacts.id, pin.artifactId));
     expect(artifact.reference).toMatchObject({ objectKey: expect.any(String), material: expect.any(Object) });
     expect(await f.db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.scopeDigest, f.scopeDigest))).toEqual([]);
-    await f.db.insert(nativeRunnerCheckpoints).values({ companyId: f.companyId, runId: f.runId,
+    await f.db.insert(nativeRunnerCheckpoints).values({ spaceId: f.spaceId, runId: f.runId,
       issueId: f.issueId, part: "header", material: { retained: "canonical header index fixture" } });
     const retention = nativeHarnessBackupExpirationService(f.db, { storage: f.storage });
     expect((await retention.tickCheckpoints()).expiredCheckpoints).toBe(0);
     const old = new Date(Date.now() - 10 * 86_400_000);
     await settle(f, old);
     const leaseId = randomUUID(), providerLeaseId = randomUUID(), confirmedAt = new Date();
-    await f.db.insert(environmentLeases).values({ id: leaseId, companyId: f.companyId, heartbeatRunId: f.runId,
+    await f.db.insert(environmentLeases).values({ id: leaseId, spaceId: f.spaceId, heartbeatRunId: f.runId,
       issueId: f.issueId, provider: "daytona", providerLeaseId, status: "expired", cleanupStatus: "success", releasedAt: confirmedAt,
-      metadata: { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId: f.companyId,
+      metadata: { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", spaceId: f.spaceId,
         runId: f.runId, leaseId, provider: "daytona", providerLeaseId, state: "destroyed", confirmedAt: confirmedAt.toISOString() } } });
     const drop = vi.spyOn(f.storage, "deleteObject").mockRejectedValueOnce(new Error("delete reply lost"));
-    const [earlier] = await f.db.insert(agentTaskSessions).values({ companyId: f.companyId, agentId: environment.current.agentId,
+    const [earlier] = await f.db.insert(agentTaskSessions).values({ spaceId: f.spaceId, agentId: environment.current.agentId,
       adapterType: "outpost_runner", taskKey: f.issueId, lastRunId: f.runId }).returning();
     expect((await retention.tickCheckpoints()).expiredCheckpoints).toBe(0);
     expect(drop).not.toHaveBeenCalled();
@@ -407,12 +407,12 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     await f.db.delete(agentTaskSessions).where(eq(agentTaskSessions.id, earlier.id));
     expect((await retention.tickCheckpoints()).failed).toBe(1);
     const [retired] = await f.db.select().from(nativeRunnerCheckpoints).where(eq(nativeRunnerCheckpoints.runId, f.runId));
-    expect(retired.material).toMatchObject({ schema: "outpost.native-runner-checkpoint-retirement.v1", companyId: f.companyId,
+    expect(retired.material).toMatchObject({ schema: "outpost.native-runner-checkpoint-retirement.v1", spaceId: f.spaceId,
       runIds: [f.runId], sessionId: f.identity.normalizedSessionId });
     expect(await f.db.select().from(nativeProviderArtifactReferences).where(eq(nativeProviderArtifactReferences.artifactId, artifact.id))).toHaveLength(1);
-    await f.db.insert(agentTaskSessions).values({ companyId: f.companyId, agentId: environment.current.agentId,
+    await f.db.insert(agentTaskSessions).values({ spaceId: f.spaceId, agentId: environment.current.agentId,
       adapterType: "outpost_runner", taskKey: f.issueId, lastRunId: f.runId });
-    await expect(loadNativeRunnerCheckpoint(f.db, { companyId: f.companyId, issueId: f.issueId, runId: f.runId }))
+    await expect(loadNativeRunnerCheckpoint(f.db, { spaceId: f.spaceId, issueId: f.issueId, runId: f.runId }))
       .rejects.toThrow("native_runner_checkpoint_retired");
     const missingStorage = nativeHarnessBackupExpirationService(f.db);
     expect((await missingStorage.tickCheckpoints()).failed).toBe(1);
@@ -432,18 +432,18 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     finally { await f.db.update(nativeRunFinalizations).set({ phase: priorOwner.phase, leaseOwner: null,
       leaseExpiresAt: null }).where(eq(nativeRunFinalizations.runId, f.runId)); }
     const consumerRunId = randomUUID(), consumerLeaseId = randomUUID();
-    await f.db.insert(heartbeatRuns).values({ id: consumerRunId, companyId: f.companyId, agentId: environment.current.agentId,
+    await f.db.insert(heartbeatRuns).values({ id: consumerRunId, spaceId: f.spaceId, agentId: environment.current.agentId,
       issueId: f.issueId, nativeIssueId: f.issueId, nativeSessionId: f.identity.normalizedSessionId, status: "running" });
-    await f.db.insert(nativeRunFinalizations).values({ runId: consumerRunId, companyId: f.companyId, issueId: f.issueId,
+    await f.db.insert(nativeRunFinalizations).values({ runId: consumerRunId, spaceId: f.spaceId, issueId: f.issueId,
       phase: "observed", controllerBootId: f.owner.bootId, controllerGeneration: 1, leaseOwner: "late-source-consumer",
       leaseExpiresAt: new Date(Date.now() + 60_000) });
     await f.db.update(issues).set({ status: "in_progress", executionRunId: consumerRunId }).where(eq(issues.id, f.issueId));
     await f.db.update(environmentLeases).set({ metadata: { remoteExecutionTermination: {
-      schema: "outpost.remote-termination.v1", companyId: f.companyId, runId: f.runId, leaseId, provider: "daytona",
+      schema: "outpost.remote-termination.v1", spaceId: f.spaceId, runId: f.runId, leaseId, provider: "daytona",
       providerLeaseId, state: "destroyed", confirmedAt: confirmedAt.toISOString() },
       runnerTaskSourceConsumer: { leaseId: consumerLeaseId, runId: consumerRunId, accountIdentity: "owned-fixture-account", identity } } })
       .where(eq(environmentLeases.id, leaseId));
-    await f.db.insert(environmentLeases).values({ id: consumerLeaseId, companyId: f.companyId, heartbeatRunId: consumerRunId,
+    await f.db.insert(environmentLeases).values({ id: consumerLeaseId, spaceId: f.spaceId, heartbeatRunId: consumerRunId,
       issueId: f.issueId, provider: "daytona", providerLeaseId: randomUUID(), status: "active", metadata: { runnerTaskSourceRecovery: {
         schema: "outpost.runner.source-recovery.v1", sourceLeaseId: leaseId, consumerLeaseId, consumerRunId,
         accountIdentity: "owned-fixture-account", controllerBootId: f.owner.bootId, controllerGeneration: 1, identity } } });
@@ -462,12 +462,12 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const lost = vi.spyOn(f.storage, "putFile").mockImplementation(async input => { await put(input); throw new Error("upload reply lost"); });
     await expect(persistNativeHarnessBackup(f)).rejects.toThrow("upload reply lost"); lost.mockRestore();
     const old = new Date(Date.now() - 10 * 86_400_000); await settle(f, old);
-    await f.db.insert(nativeRunnerCheckpoints).values({ companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+    await f.db.insert(nativeRunnerCheckpoints).values({ spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
       part: "header", material: { retained: "original checkpoint" } });
     const relatives = Array.from({ length: 100 }, () => randomUUID());
-    await f.db.insert(heartbeatRuns).values(relatives.map(id => ({ id, companyId: f.companyId, agentId: environment.current.agentId,
+    await f.db.insert(heartbeatRuns).values(relatives.map(id => ({ id, spaceId: f.spaceId, agentId: environment.current.agentId,
       issueId: f.issueId, nativeIssueId: f.issueId, nativeSessionId: f.identity.normalizedSessionId, status: "failed", finishedAt: old })));
-    await f.db.insert(nativeRunFinalizations).values(relatives.map(runId => ({ runId, companyId: f.companyId, issueId: f.issueId, phase: "terminal_failure" })));
+    await f.db.insert(nativeRunFinalizations).values(relatives.map(runId => ({ runId, spaceId: f.spaceId, issueId: f.issueId, phase: "terminal_failure" })));
     const remove = vi.spyOn(f.storage, "deleteObject");
     const result = await nativeHarnessBackupExpirationService(f.db, { storage: f.storage }).tickCheckpoints();
     expect(result.expiredCheckpoints).toBe(0); expect(remove).not.toHaveBeenCalled();
@@ -487,7 +487,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
   });
   async function commitWarmRun(f: Awaited<ReturnType<typeof fixture>>) {
     const [run] = await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-    const [result] = await f.db.insert(nativeRunResults).values({ companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+    const [result] = await f.db.insert(nativeRunResults).values({ spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
       completionContractId: run.completionContractId!, serverFingerprint: "completed-warm-turn", schemaStatus: "accepted",
       resultJson: { summary: "Retained provider history" }, canonicalSha256: "completed-warm-turn" }).returning();
     await f.db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.runId));
@@ -508,7 +508,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const [f] = await offlineFixtures(1);
     await commitWarmRun(f);
     await f.db.update(issues).set({ executionRunId: null, checkoutRunId: null }).where(eq(issues.id, f.issueId));
-    const owner = await nativeHarnessBackupOwner(f.db, { companyId: f.companyId, issueId: f.issueId,
+    const owner = await nativeHarnessBackupOwner(f.db, { spaceId: f.spaceId, issueId: f.issueId,
       runId: f.runId, bootId: environment.current.successor.bootId });
     return { ...f, owner, inactiveSource: { normalizedSessionId: f.identity.normalizedSessionId,
       runnerInstanceId: f.runnerInstanceId, providerLeaseId: f.providerLeaseId } };
@@ -527,7 +527,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
   });
   it.each(["queued", "running"] as const)("defers pre-copy when the same task has a %s execution", async status => {
     const f = await inactiveFixture(), put = vi.spyOn(f.storage, "putFile");
-    await f.db.insert(heartbeatRuns).values({ id: randomUUID(), companyId: f.companyId, agentId: environment.current.agentId,
+    await f.db.insert(heartbeatRuns).values({ id: randomUUID(), spaceId: f.spaceId, agentId: environment.current.agentId,
       issueId: f.issueId, nativeIssueId: f.issueId, nativeSessionId: f.identity.normalizedSessionId, status, runtimeMode: "native" });
     expect(await prestageNativeHarnessBackups(f.db, { storage: f.storage, signal: AbortSignal.timeout(15_000) }))
       .toEqual({ inspected: 1, published: 0, current: 0, deferred: { source_active: 1 } });
@@ -646,7 +646,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     vi.spyOn(f.storage, "putFile").mockImplementation(async input => {
       const result = await put(input);
       if (change === "source_advanced") await writeFile(join(f.root, "manifest.json"), (await readFile(join(f.root, "manifest.json"), "utf8")) + "\n");
-      if (change === "queued_turn") await f.db.insert(heartbeatRuns).values({ id: randomUUID(), companyId: f.companyId,
+      if (change === "queued_turn") await f.db.insert(heartbeatRuns).values({ id: randomUUID(), spaceId: f.spaceId,
         agentId: environment.current.agentId, issueId: f.issueId, status: "queued" });
       if (change === "lease_revoked") await f.db.update(environmentLeases).set({ metadata: {} })
         .where(eq(environmentLeases.providerLeaseId, f.providerLeaseId));
@@ -665,7 +665,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
   it("publishes with the captured provider owner while an accepted result is still saving its workspace", async () => {
     const f = await fixture();
     const result = await releaseWhileSavingWorkspace(f);
-    await expect(nativeHarnessBackupOwner(f.db, { companyId: f.companyId, issueId: f.issueId,
+    await expect(nativeHarnessBackupOwner(f.db, { spaceId: f.spaceId, issueId: f.issueId,
       runId: f.runId, bootId: f.owner.bootId })).rejects.toThrow("native_harness_storage_owner_missing");
     await persistNativeHarnessBackup(f);
     await removeNativeHarnessBackup(f.home);
@@ -687,7 +687,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
       const object = await put(input);
       if (change === "successor") {
         const nextRunId = randomUUID();
-        await f.db.insert(heartbeatRuns).values({ id: nextRunId, companyId: f.companyId,
+        await f.db.insert(heartbeatRuns).values({ id: nextRunId, spaceId: f.spaceId,
           agentId: environment.current.agentId, issueId: f.issueId, status: "running" });
         await f.db.update(issues).set({ executionRunId: nextRunId }).where(eq(issues.id, f.issueId));
       } else {
@@ -709,16 +709,16 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     let nextRunId: string | null = null;
     if (state !== "idle") {
       nextRunId = randomUUID();
-      await f.db.insert(heartbeatRuns).values({ id: nextRunId, companyId: f.companyId, agentId: environment.current.agentId,
+      await f.db.insert(heartbeatRuns).values({ id: nextRunId, spaceId: f.spaceId, agentId: environment.current.agentId,
         issueId: f.issueId, status: "running", runtimeMode: state === "native" ? "native" : "legacy", executionStage: "preparing",
         ...(state === "native" ? { nativeIssueId: f.issueId } : {}),
         controllerBootId: legacyControllerBootId, controllerLeaseExpiresAt: new Date(Date.now() + 120_000) });
       if (state === "native") await f.db.insert(nativeRunFinalizations).values({ runId: nextRunId,
-        companyId: f.companyId, issueId: f.issueId, phase: "observed", controllerBootId: environment.current.successor.bootId,
+        spaceId: f.spaceId, issueId: f.issueId, phase: "observed", controllerBootId: environment.current.successor.bootId,
         controllerGeneration: 1, leaseOwner: "preparing-warm-successor", leaseExpiresAt: new Date(Date.now() + 120_000) });
     }
     await f.db.update(issues).set({ executionRunId: nextRunId }).where(eq(issues.id, f.issueId));
-    const owner = await nativeHarnessBackupOwner(f.db, { companyId: f.companyId, issueId: f.issueId,
+    const owner = await nativeHarnessBackupOwner(f.db, { spaceId: f.spaceId, issueId: f.issueId,
       runId: f.runId, bootId: environment.current.successor.bootId });
     await persistNativeHarnessBackup({ ...f, owner });
     const replacement = join(environment.current.runtimeRoot, randomUUID(), "restored-warm-session"); ownedHomes.push(replacement);
@@ -733,13 +733,13 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const f = await fixture(); await commitWarmRun(f);
     if (state === "unaccepted") await f.db.update(nativeRunFinalizations).set({ resultId: null }).where(eq(nativeRunFinalizations.runId, f.runId));
     if (state === "uncommitted") await f.db.update(nativeRunFinalizations).set({ phase: "observed" }).where(eq(nativeRunFinalizations.runId, f.runId));
-    await expect(nativeHarnessBackupOwner(f.db, { companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+    await expect(nativeHarnessBackupOwner(f.db, { spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
       bootId: state === "wrong_boot" ? randomUUID() : environment.current.successor.bootId })).rejects.toThrow("native_harness_storage_owner_missing");
   });
   it("rejects an active predecessor after the task moves to a successor", async () => {
     const f = await fixture();
     const nextRunId = randomUUID();
-    await f.db.insert(heartbeatRuns).values({ id: nextRunId, companyId: f.companyId, agentId: environment.current.agentId,
+    await f.db.insert(heartbeatRuns).values({ id: nextRunId, spaceId: f.spaceId, agentId: environment.current.agentId,
       nativeIssueId: f.issueId, issueId: f.issueId, status: "running", runtimeMode: "native" });
     await f.db.update(issues).set({ executionRunId: nextRunId }).where(eq(issues.id, f.issueId));
     await expect(persistNativeHarnessBackup(f)).rejects.toThrow("native_harness_storage_owner_superseded");
@@ -749,17 +749,17 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const f = await fixture(); await persistNativeHarnessBackup(f); await commitWarmRun(f);
     const [before] = await f.db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.scopeDigest, f.scopeDigest));
     const nextRunId = randomUUID();
-    await f.db.insert(heartbeatRuns).values({ id: nextRunId, companyId: f.companyId, agentId: environment.current.agentId,
+    await f.db.insert(heartbeatRuns).values({ id: nextRunId, spaceId: f.spaceId, agentId: environment.current.agentId,
       issueId: f.issueId, status: "running", runtimeMode: state === "foreign_native" ? "native" : "legacy",
       ...(state === "foreign_native" ? { nativeIssueId: f.issueId } : {}),
       executionStage: state === "dispatching_successor" ? "dispatching" : "preparing",
       controllerBootId: state === "foreign_preparation" ? randomUUID() : legacyControllerBootId,
       controllerLeaseExpiresAt: state === "expired_preparation" ? new Date(0) : new Date(Date.now() + 120_000) });
     if (state === "foreign_native") await f.db.insert(nativeRunFinalizations).values({ runId: nextRunId,
-      companyId: f.companyId, issueId: f.issueId, phase: "observed", controllerBootId: randomUUID(),
+      spaceId: f.spaceId, issueId: f.issueId, phase: "observed", controllerBootId: randomUUID(),
       controllerGeneration: 1, leaseOwner: "foreign-warm-successor", leaseExpiresAt: new Date(Date.now() + 120_000) });
     await f.db.update(issues).set({ executionRunId: nextRunId }).where(eq(issues.id, f.issueId));
-    const owner = await nativeHarnessBackupOwner(f.db, { companyId: f.companyId, issueId: f.issueId,
+    const owner = await nativeHarnessBackupOwner(f.db, { spaceId: f.spaceId, issueId: f.issueId,
       runId: f.runId, bootId: environment.current.successor.bootId });
     await expect(persistNativeHarnessBackup({ ...f, owner })).rejects.toThrow("native_runner_checkpoint_owner_lost");
     expect((await f.db.select().from(nativeHarnessBackups).where(and(eq(nativeHarnessBackups.scopeDigest, f.scopeDigest),
@@ -769,7 +769,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const f = await fixture(); await persistNativeHarnessBackup(f); await commitWarmRun(f);
     await f.db.update(issues).set({ executionRunId: null }).where(eq(issues.id, f.issueId));
     const [before] = await f.db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.scopeDigest, f.scopeDigest));
-    const owner = await nativeHarnessBackupOwner(f.db, { companyId: f.companyId, issueId: f.issueId,
+    const owner = await nativeHarnessBackupOwner(f.db, { spaceId: f.spaceId, issueId: f.issueId,
       runId: f.runId, bootId: environment.current.successor.bootId });
     const put = f.storage.putFile.bind(f.storage);
     f.storage.putFile = async input => {
@@ -786,7 +786,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
   it("cannot replace a newer conversation backup with a released predecessor's late upload", async () => {
     const f = await fixture(); await commitWarmRun(f);
     await f.db.update(issues).set({ executionRunId: null }).where(eq(issues.id, f.issueId));
-    const owner = await nativeHarnessBackupOwner(f.db, { companyId: f.companyId, issueId: f.issueId,
+    const owner = await nativeHarnessBackupOwner(f.db, { spaceId: f.spaceId, issueId: f.issueId,
       runId: f.runId, bootId: environment.current.successor.bootId });
     const next = await fixture();
     const put = f.storage.putFile.bind(f.storage);
@@ -831,13 +831,13 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const [retired] = await f.db.select().from(nativeHarnessBackups).where(and(eq(nativeHarnessBackups.scopeDigest, f.scopeDigest), eq(nativeHarnessBackups.status, "retired")));
     expect(await deleteRetiredNativeHarnessBackup(f.db, f.storage, retired.id)).toBe(true);
   });
-  it("rejects corrupt objects and cross-company lookups without publishing a local cache", async () => {
+  it("rejects corrupt objects and cross-space lookups without publishing a local cache", async () => {
     const f = await fixture(); await persistNativeHarnessBackup(f);
     const replacement = join(environment.current.runtimeRoot, randomUUID(), "failover-backups");
-    expect(await restoreDurableNativeHarnessBackup({ ...f, companyId: randomUUID(), backupRoot: replacement })).toBe(false);
+    expect(await restoreDurableNativeHarnessBackup({ ...f, spaceId: randomUUID(), backupRoot: replacement })).toBe(false);
     const [row] = await f.db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.scopeDigest, f.scopeDigest));
-    await f.storage.deleteObject(f.companyId, row.reference.objectKey as string);
-    await f.storage.putFile({ companyId: f.companyId, namespace: "native-harness-backups", objectKey: row.reference.objectKey as string,
+    await f.storage.deleteObject(f.spaceId, row.reference.objectKey as string);
+    await f.storage.putFile({ spaceId: f.spaceId, namespace: "native-harness-backups", objectKey: row.reference.objectKey as string,
       originalFilename: null, contentType: "application/octet-stream", body: Buffer.from("corrupted") });
     await expect(restoreDurableNativeHarnessBackup({ ...f, backupRoot: replacement })).rejects.toThrow("hash_mismatch");
     await expect(stat(join(replacement, "current"))).rejects.toMatchObject({ code: "ENOENT" });
@@ -855,7 +855,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const root = join(base, f.scopeDigest, "failover-backups", "current");
     vi.stubEnv("OUTPOST_RUNNER_STATE_DIR", base);
     const runnerInstanceId = randomUUID(), providerLeaseId = randomUUID();
-    const execution = { provider: { kind: "codex" }, binding: { companyId: f.companyId, issueId: f.issueId,
+    const execution = { provider: { kind: "codex" }, binding: { spaceId: f.spaceId, issueId: f.issueId,
       runId: f.runId, agentId: environment.current.agentId, executionWorkspaceId: randomUUID() },
       workspace: { cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: f.identity.normalizedSessionId, driverKind: "codex_app_server",
@@ -872,20 +872,20 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     expect(await verifyNativeHarnessBackupStampAsync(stamp, providerLeaseId, AbortSignal.timeout(10_000))).toBe(true);
     await expect(verifyNativeHarnessBackupStampAsync(stamp, providerLeaseId, AbortSignal.abort(new Error("cancelled")))).rejects.toThrow("cancelled");
     await f.db.update(heartbeatRuns).set({ nativeSessionId: f.identity.normalizedSessionId, runnerInstanceId }).where(eq(heartbeatRuns.id, f.runId));
-    await f.db.insert(environmentLeases).values({ companyId: f.companyId, issueId: f.issueId, heartbeatRunId: f.runId,
+    await f.db.insert(environmentLeases).values({ spaceId: f.spaceId, issueId: f.issueId, heartbeatRunId: f.runId,
       providerLeaseId, status: "expired", metadata: { nativeHarnessBackup: stamp } });
-    const [selected] = await f.db.insert(agentTaskSessions).values({ companyId: f.companyId, agentId: environment.current.agentId,
+    const [selected] = await f.db.insert(agentTaskSessions).values({ spaceId: f.spaceId, agentId: environment.current.agentId,
       adapterType: "outpost_runner", taskKey: f.issueId, lastRunId: f.runId,
       sessionParamsJson: { sessionId: f.identity.normalizedSessionId } }).returning();
     expect(await hasLocalNativeHarnessObligations(f.db)).toBe(true);
     await expect(migrateNativeHarnessBackups(f.db, { storage: f.storage, writersStopped: true, signal: AbortSignal.timeout(10_000) }))
       .rejects.toThrow("native_harness_migration_requires_offline_writers");
     const ownedRuns = await f.db.select({ id: heartbeatRuns.id, issueId: heartbeatRuns.nativeIssueId }).from(heartbeatRuns)
-      .where(eq(heartbeatRuns.companyId, f.companyId));
+      .where(eq(heartbeatRuns.spaceId, f.spaceId));
     for (const run of ownedRuns) await settle({ ...f, runId: run.id, issueId: run.issueId! });
     await f.db.update(nativeRunFinalizations).set({ recoveryState: "blocked" }).where(eq(nativeRunFinalizations.runId, f.runId));
     const [preservedOwner] = await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
-    const [queued] = await f.db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: environment.current.agentId,
+    const [queued] = await f.db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: environment.current.agentId,
       status: "queued", invocationSource: "on_demand", issueId: f.issueId }).returning();
     await f.db.update(issues).set({ executionRunId: queued.id }).where(eq(issues.id, f.issueId));
     expect(await migrateNativeHarnessBackups(f.db, { storage: f.storage, writersStopped: true, signal: AbortSignal.timeout(10_000) })).toBe(1);
@@ -916,7 +916,7 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     const orphan = JSON.stringify({ runId: randomUUID(), lifecycle: "suspended" });
     await writeFile(join(root, "runner", "runner-state.json"), orphan);
     const ownedRuns = await f.db.select({ id: heartbeatRuns.id, issueId: heartbeatRuns.nativeIssueId }).from(heartbeatRuns)
-      .where(eq(heartbeatRuns.companyId, f.companyId));
+      .where(eq(heartbeatRuns.spaceId, f.spaceId));
     for (const run of ownedRuns) await settle({ ...f, runId: run.id, issueId: run.issueId! });
     expect(await migrateNativeHarnessBackups(f.db, { storage: f.storage, writersStopped: true, signal: AbortSignal.timeout(10_000) })).toBe(0);
     expect(await readFile(join(root, "runner", "runner-state.json"), "utf8")).toBe(orphan);
@@ -943,9 +943,9 @@ describeEmbeddedPostgres("durable native provider backups", () => {
     await persistNativeHarnessBackup(f);
     const old = new Date(Date.now() - 10 * 86_400_000);
     await f.db.update(nativeHarnessBackups).set({ createdAt: old, updatedAt: old }).where(eq(nativeHarnessBackups.id, obsolete.id));
-    const [selected] = await f.db.insert(agentTaskSessions).values({ companyId: f.companyId, agentId: environment.current.agentId,
+    const [selected] = await f.db.insert(agentTaskSessions).values({ spaceId: f.spaceId, agentId: environment.current.agentId,
       adapterType: "outpost_runner", taskKey: f.issueId, lastRunId: f.runId }).returning();
-    const [lease] = await f.db.insert(environmentLeases).values({ companyId: f.companyId, issueId: f.issueId,
+    const [lease] = await f.db.insert(environmentLeases).values({ spaceId: f.spaceId, issueId: f.issueId,
       heartbeatRunId: f.runId, status: "pending_cleanup", metadata: { nativeHarnessBackup: {
         sessionScopeSha256: f.scopeDigest, manifestSha256: obsolete.manifestSha256 } } }).returning();
     const retention = nativeHarnessBackupExpirationService(f.db, { storage: f.storage });

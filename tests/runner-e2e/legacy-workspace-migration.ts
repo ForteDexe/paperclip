@@ -19,9 +19,9 @@ export interface MigrationPoint {
   runId: string; sessionId: string; providerSessionSha256: string; logicalCwd: string; remoteCwd: string;
 }
 
-export async function readMigrationPoint(input: { api: Pick<RunnerApi, "get">; companyId: string; agentId: string; issueId: string }): Promise<MigrationPoint> {
+export async function readMigrationPoint(input: { api: Pick<RunnerApi, "get">; spaceId: string; agentId: string; issueId: string }): Promise<MigrationPoint> {
   const { workspace } = await input.api.get<{ workspace: ExecutionWorkspace | null }>(`/api/issues/${input.issueId}/workspace`);
-  if (!workspace || workspace.companyId !== input.companyId) throw new Error("Migration oracle has no bound workspace");
+  if (!workspace || workspace.spaceId !== input.spaceId) throw new Error("Migration oracle has no bound workspace");
   const runs = await input.api.get<Array<{ runId: string; status: string; agentId: string; finishedAt: string }>>(`/api/issues/${input.issueId}/runs`);
   const latest = runs.filter(run => run.agentId === input.agentId && run.status === "succeeded")
     .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))[0];
@@ -29,7 +29,7 @@ export async function readMigrationPoint(input: { api: Pick<RunnerApi, "get">; c
   const run = await input.api.get<Record<string, any>>(`/api/heartbeat-runs/${latest.runId}`);
   const execution = run.runnerProfileJson?.nativeExecutionInput;
   const reference = run.runnerProfileJson?.nativeWorkspaceSync ?? run.runnerProfileJson?.remoteWorkspace;
-  if (run.companyId !== input.companyId || run.agentId !== input.agentId || run.nativeIssueId !== input.issueId
+  if (run.spaceId !== input.spaceId || run.agentId !== input.agentId || run.nativeIssueId !== input.issueId
     || run.runtimeMode !== "native" || !run.nativeSessionId || typeof run.sessionIdAfter !== "string" || !run.sessionIdAfter
     || execution?.binding?.executionWorkspaceId !== workspace.id
     || !execution?.workspace?.cwd || !reference?.remoteCwd) throw new Error("Migration run identity is incomplete");

@@ -10,9 +10,9 @@ import {
   agents,
   authUsers,
   closeRegisteredClients,
-  companies,
-  companyMemberships,
-  companySkills,
+  spaces,
+  spaceMemberships,
+  spaceSkills,
   costEvents,
   createDb,
   environmentLeases,
@@ -39,7 +39,7 @@ vi.mock("../services/heartbeat/run-preparation.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/heartbeat/run-preparation.js")>();
   return {
     ...actual,
-    buildPaperclipRuntimeMcpServers: async (input: Parameters<typeof actual.buildPaperclipRuntimeMcpServers>[0]) => {
+    buildOutpostRuntimeMcpServers: async (input: Parameters<typeof actual.buildOutpostRuntimeMcpServers>[0]) => {
       if (preparationGate.blockNext) {
         preparationGate.blockNext = false;
         preparationGate.blockedRunId = input.runId;
@@ -48,7 +48,7 @@ vi.mock("../services/heartbeat/run-preparation.js", async (importOriginal) => {
           preparationGate.reached?.();
         });
       }
-      return actual.buildPaperclipRuntimeMcpServers(input);
+      return actual.buildOutpostRuntimeMcpServers(input);
     },
   };
 });
@@ -70,7 +70,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
   beforeAll(async () => {
     if (externalTestDatabaseUrl) db = createDb(externalTestDatabaseUrl);
     else {
-      tempDb = await startEmbeddedPostgresTestDatabase("paperclip-tree-pause-resume-");
+      tempDb = await startEmbeddedPostgresTestDatabase("outpost-tree-pause-resume-");
       db = createDb(tempDb.connectionString);
     }
     const [{ heartbeatService }, blocker, { issueTreeControlRoutes }, { errorHandler }] = await Promise.all([
@@ -104,7 +104,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      (req as any).actor = { type: "board", userId: "board-user", source: "local_implicit", isInstanceAdmin: false };
+      (req as any).actor = { type: "operator", userId: "operator-user", source: "local_implicit", isInstanceAdmin: false };
       next();
     });
     app.use("/api", issueTreeControlRoutes(db));
@@ -121,8 +121,8 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     for (const table of [costEvents, activityLog, issueRecoveryActions, issueTreeHoldMembers, issueTreeHolds,
       environmentLeases, heartbeatRunEvents]) await db.delete(table);
     await db.update(issues).set({ executionRunId: null, checkoutRunId: null });
-    for (const table of [issues, heartbeatRuns, agentWakeupRequests, agentRuntimeState, agents, companySkills,
-      companyMemberships, companies]) await db.delete(table);
+    for (const table of [issues, heartbeatRuns, agentWakeupRequests, agentRuntimeState, agents, spaceSkills,
+      spaceMemberships, spaces]) await db.delete(table);
   });
 
   afterAll(async () => {
@@ -133,26 +133,26 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
   });
 
   async function seedTree() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const parentId = randomUUID();
     const childId = randomUUID();
-    const prefix = `P${companyId.replace(/-/g, "").slice(0, 5).toUpperCase()}`;
+    const prefix = `P${spaceId.replace(/-/g, "").slice(0, 5).toUpperCase()}`;
     const now = new Date();
-    await db.insert(companies).values({ id: companyId, name: "Pause co", issuePrefix: prefix,
-      requireBoardApprovalForNewAgents: false, defaultResponsibleUserId: "responsible-user" });
+    await db.insert(spaces).values({ id: spaceId, name: "Pause co", issuePrefix: prefix,
+      requireOperatorApprovalForNewAgents: false, defaultResponsibleUserId: "responsible-user" });
     await db.insert(authUsers).values({ id: "responsible-user", name: "Responsible", email: "tree-pause@example.test",
       createdAt: now, updatedAt: now }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user",
       status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Nibbler", role: "engineer", status: "idle",
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Nibbler", role: "engineer", status: "idle",
       adapterType: ADAPTER, adapterConfig: {},
       runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } }, permissions: {} });
-    await db.insert(issues).values({ id: parentId, companyId, title: "Parent", status: "in_progress", priority: "medium",
+    await db.insert(issues).values({ id: parentId, spaceId, title: "Parent", status: "in_progress", priority: "medium",
       responsibleUserId: "responsible-user", assigneeUserId: "responsible-user", issueNumber: 1, identifier: `${prefix}-1` });
-    await db.insert(issues).values({ id: childId, companyId, parentId, title: "Child", status: "todo", priority: "medium",
+    await db.insert(issues).values({ id: childId, spaceId, parentId, title: "Child", status: "todo", priority: "medium",
       responsibleUserId: "responsible-user", assigneeAgentId: agentId, issueNumber: 2, identifier: `${prefix}-2` });
-    return { companyId, agentId, parentId, childId, prefix };
+    return { spaceId, agentId, parentId, childId, prefix };
   }
 
   function wakeChild(fixture: Awaited<ReturnType<typeof seedTree>>) {
@@ -201,7 +201,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
       whilePaused: async () => {
         // Nothing runs during the hold, and the Stop needs no reconciliation.
         expect((await childRuns(fixture.childId)).map((run) => run.status)).toEqual(["cancelled"]);
-        expect(await getExecutionBlocker(db, fixture.companyId, fixture.childId)).toBeNull();
+        expect(await getExecutionBlocker(db, fixture.spaceId, fixture.childId)).toBeNull();
       },
     });
 
@@ -216,7 +216,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     const holds = await db.select().from(issueRecoveryActions).where(and(
       eq(issueRecoveryActions.sourceIssueId, fixture.childId), eq(issueRecoveryActions.status, "active")));
     expect(holds).toEqual([]);
-    expect(await getExecutionBlocker(db, fixture.companyId, fixture.childId)).toBeNull();
+    expect(await getExecutionBlocker(db, fixture.spaceId, fixture.childId)).toBeNull();
     const [child] = await db.select().from(issues).where(eq(issues.id, fixture.childId));
     expect(child!.status).toBe("done");
 
@@ -257,7 +257,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     expect(runs.map((run) => run.contextSnapshot?.wakeReason)).toEqual(["issue_assigned", "issue_tree_resumed"]);
     expect(runs[1]).toMatchObject({ status: "succeeded" });
     expect(runs[1]!.contextSnapshot).toMatchObject({ holdId, interruptedRunId });
-    expect(await getExecutionBlocker(db, fixture.companyId, fixture.childId)).toBeNull();
+    expect(await getExecutionBlocker(db, fixture.spaceId, fixture.childId)).toBeNull();
   });
 
   it("clears an automatic no-replay block recorded before the executor proved no adapter started", async () => {
@@ -272,7 +272,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
 
     preparationGate.release?.();
     await drainHeartbeatRunsToQuiescence(db, heartbeat);
-    expect(await getExecutionBlocker(db, fixture.companyId, fixture.childId)).toBeNull();
+    expect(await getExecutionBlocker(db, fixture.spaceId, fixture.childId)).toBeNull();
     const [restored] = await db.select().from(issues).where(eq(issues.id, fixture.childId));
     expect(restored!.status).toBe("in_progress");
 
@@ -359,7 +359,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     let continueStalled!: () => void;
     const gate = new Promise<void>((resolve) => { continueStalled = resolve; });
     const slow = resumePauseInterruptedWork(db, {
-      companyId: fixture.companyId, issueIds: [fixture.childId], actor: { actorType: "system", actorId: "system" },
+      spaceId: fixture.spaceId, issueIds: [fixture.childId], actor: { actorType: "system", actorId: "system" },
       wakeup: async (agentId, opts) => { resumeStalled(); await gate; return heartbeat.wakeup(agentId, opts); },
     });
     await stalled;
@@ -391,7 +391,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     const { resumePauseInterruptedWork, deliverPendingPauseResumes } = await import("../services/issue-tree-resume.js");
     let secondHoldId = "";
     expect(await resumePauseInterruptedWork(db, {
-      companyId: fixture.companyId, issueIds: [fixture.childId], actor: { actorType: "system", actorId: "system" },
+      spaceId: fixture.spaceId, issueIds: [fixture.childId], actor: { actorType: "system", actorId: "system" },
       wakeup: async (agentId, opts) => {
         const pause = await request(app).post(`/api/issues/${fixture.parentId}/tree-holds`).send({ mode: "pause" });
         expect(pause.status).toBe(201);
@@ -420,12 +420,12 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
 
     // A full page of claims on tasks under another active pause sorts first.
     const pausedRootId = randomUUID();
-    await db.insert(issues).values({ id: pausedRootId, companyId: fixture.companyId, title: "Paused root", status: "in_progress",
+    await db.insert(issues).values({ id: pausedRootId, spaceId: fixture.spaceId, title: "Paused root", status: "in_progress",
       priority: "medium", responsibleUserId: "responsible-user", assigneeUserId: "responsible-user", issueNumber: 10,
       identifier: `${fixture.prefix}-10` });
     const pausedChildIds = Array.from({ length: 25 }, () => randomUUID());
     for (const [index, id] of pausedChildIds.entries()) {
-      await db.insert(issues).values({ id, companyId: fixture.companyId, parentId: pausedRootId, title: `Paused ${index}`,
+      await db.insert(issues).values({ id, spaceId: fixture.spaceId, parentId: pausedRootId, title: `Paused ${index}`,
         status: "in_progress", priority: "medium", responsibleUserId: "responsible-user", assigneeAgentId: fixture.agentId,
         issueNumber: 11 + index, identifier: `${fixture.prefix}-${11 + index}` });
     }
@@ -434,7 +434,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     const claimedAt = new Date(Date.now() - 5 * 60_000).toISOString();
     const pendingClaim = { treeHoldResume: { holdId: otherPause.body.hold.id, state: "pending", claimedAt } };
     await db.insert(heartbeatRuns).values(pausedChildIds.map((issueId, index) => ({
-      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`, companyId: fixture.companyId, agentId: fixture.agentId,
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`, spaceId: fixture.spaceId, agentId: fixture.agentId,
       status: "cancelled", finishedAt: new Date(Date.now() - 10 * 60_000), createdAt: new Date(Date.now() - 10 * 60_000),
       contextSnapshot: { issueId }, resultJson: pendingClaim,
     })));
@@ -456,7 +456,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     const fixture = await seedTree();
     // Occupy the agent's only slot so the child's run stays queued.
     const otherIssueId = randomUUID();
-    await db.insert(issues).values({ id: otherIssueId, companyId: fixture.companyId, title: "Other", status: "todo",
+    await db.insert(issues).values({ id: otherIssueId, spaceId: fixture.spaceId, title: "Other", status: "todo",
       priority: "medium", responsibleUserId: "responsible-user", assigneeAgentId: fixture.agentId, issueNumber: 3,
       identifier: `${fixture.prefix}-3` });
     const prepared = new Promise<void>((resolve) => { preparationGate.reached = resolve; });
@@ -484,10 +484,10 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     expect(runs.map((run) => run.contextSnapshot?.wakeReason)).toEqual(["issue_assigned", "issue_tree_resumed"]);
     expect(runs[1]).toMatchObject({ status: "succeeded" });
     expect(runs[1]!.contextSnapshot).toMatchObject({ holdId, interruptedRunId: queued!.id });
-    expect(await getExecutionBlocker(db, fixture.companyId, fixture.childId)).toBeNull();
+    expect(await getExecutionBlocker(db, fixture.spaceId, fixture.childId)).toBeNull();
   });
 
-  // The staging S50b shape: a workspace_busy retry is parked when the board
+  // The staging S50b shape: a workspace_busy retry is parked when the operator
   // pauses the tree, comes due during the pause, and the dispatch gate cancels
   // it with issue_paused. No operator Stop names that run in the hold snapshot.
   async function seedParkedWorkspaceBusyRetry(fixture: Awaited<ReturnType<typeof seedTree>>) {
@@ -496,12 +496,12 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     const busyRunId = randomUUID();
     const retryRunId = randomUUID();
     const createdAt = new Date(Date.now() - 60_000);
-    await db.insert(heartbeatRuns).values({ id: busyRunId, companyId: fixture.companyId, agentId: fixture.agentId,
+    await db.insert(heartbeatRuns).values({ id: busyRunId, spaceId: fixture.spaceId, agentId: fixture.agentId,
       invocationSource: "assignment", triggerDetail: "system", status: "cancelled", errorCode: "workspace_busy",
       error: "Waiting for the shared execution workspace", contextSnapshot: context, createdAt,
       startedAt: createdAt, finishedAt: new Date(createdAt.getTime() + 1_000),
       resultJson: { executionRecovery: { kind: "workspace_wait", providerWorkStarted: false } } });
-    await db.insert(heartbeatRuns).values({ id: retryRunId, companyId: fixture.companyId, agentId: fixture.agentId,
+    await db.insert(heartbeatRuns).values({ id: retryRunId, spaceId: fixture.spaceId, agentId: fixture.agentId,
       invocationSource: "assignment", triggerDetail: "system", status: "scheduled_retry", retryOfRunId: busyRunId,
       scheduledRetryAttempt: 1, scheduledRetryReason: "workspace_busy",
       scheduledRetryAt: new Date(Date.now() + 1_000), contextSnapshot: { ...context, wakeReason: "workspace_busy_retry" },
@@ -534,7 +534,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
       await heartbeat.reconcileStrandedAssignedIssues();
       await drainHeartbeatRunsToQuiescence(db, heartbeat);
       expect(await childRuns(fixture.childId)).toHaveLength(2);
-      expect(await getExecutionBlocker(db, fixture.companyId, fixture.childId)).toBeNull();
+      expect(await getExecutionBlocker(db, fixture.spaceId, fixture.childId)).toBeNull();
 
       const released = releaseVia !== "resume"
         ? await request(app).post(`/api/issues/${fixture.parentId}/tree-holds/${holdId}/release`).send({})
@@ -554,7 +554,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
         wakeReason: "issue_tree_resumed", holdId, interruptedRunId: retryRunId,
       });
       expect(executedRunIds).toEqual([resumed[0]!.id]);
-      expect(await getExecutionBlocker(db, fixture.companyId, fixture.childId)).toBeNull();
+      expect(await getExecutionBlocker(db, fixture.spaceId, fixture.childId)).toBeNull();
       const [child] = await db.select().from(issues).where(eq(issues.id, fixture.childId));
       expect(child!.status).toBe("done");
     });
@@ -569,7 +569,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
 
     // A run queued just before the hold, missed by its snapshot, reaches the claim gate.
     const queuedRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: queuedRunId, companyId: fixture.companyId, agentId: fixture.agentId,
+    await db.insert(heartbeatRuns).values({ id: queuedRunId, spaceId: fixture.spaceId, agentId: fixture.agentId,
       invocationSource: "assignment", triggerDetail: "system", status: "queued",
       contextSnapshot: { issueId: fixture.childId, taskId: fixture.childId, wakeReason: "issue_assigned" } });
     // The claim gate holds the agent start lock; refusing the run must not wait on it.
@@ -591,7 +591,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     expect(runs[1]).toMatchObject({ status: "succeeded" });
     expect(runs[1]!.contextSnapshot).toMatchObject({ holdId, interruptedRunId: queuedRunId });
     expect(executedRunIds).toEqual([runs[1]!.id]);
-    expect(await getExecutionBlocker(db, fixture.companyId, fixture.childId)).toBeNull();
+    expect(await getExecutionBlocker(db, fixture.spaceId, fixture.childId)).toBeNull();
   });
 
   async function pauseAndSuppressRetry(fixture: Awaited<ReturnType<typeof seedTree>>) {
@@ -654,7 +654,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
   it("resumes a task added after overlapping snapshots once the last covering pause is released", async () => {
     const fixture = await seedTree();
     const midId = randomUUID();
-    await db.insert(issues).values({ id: midId, companyId: fixture.companyId, parentId: fixture.parentId, title: "Mid",
+    await db.insert(issues).values({ id: midId, spaceId: fixture.spaceId, parentId: fixture.parentId, title: "Mid",
       status: "in_progress", priority: "medium", responsibleUserId: "responsible-user", assigneeUserId: "responsible-user",
       issueNumber: 3, identifier: `${fixture.prefix}-3` });
     await db.update(issues).set({ parentId: null }).where(eq(issues.id, fixture.childId));
@@ -742,17 +742,17 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
 
     // The claim gate read the pause before release and saved its refusal after.
     const refusedRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: refusedRunId, companyId: fixture.companyId, agentId: fixture.agentId,
+    await db.insert(heartbeatRuns).values({ id: refusedRunId, spaceId: fixture.spaceId, agentId: fixture.agentId,
       invocationSource: "assignment", triggerDetail: "system", status: "cancelled", errorCode: "issue_paused",
       finishedAt: new Date(), resultJson: { treeHoldSuppression: { holdId, rootIssueId: fixture.parentId } },
       contextSnapshot: { issueId: fixture.childId, taskId: fixture.childId, wakeReason: "issue_assigned" } });
     const { resumeIfPauseAlreadyReleased } = await import("../services/issue-tree-resume.js");
     const wakeup = (agentId: string, opts: Parameters<typeof heartbeat.wakeup>[1]) => heartbeat.wakeup(agentId, opts);
-    expect(await resumeIfPauseAlreadyReleased(db, { companyId: fixture.companyId, issueId: fixture.childId, holdId, wakeup }))
+    expect(await resumeIfPauseAlreadyReleased(db, { spaceId: fixture.spaceId, issueId: fixture.childId, holdId, wakeup }))
       .toEqual([]);
     await drainHeartbeatRunsToQuiescence(db, heartbeat);
     // A repeated check cannot dispatch the same work twice.
-    await resumeIfPauseAlreadyReleased(db, { companyId: fixture.companyId, issueId: fixture.childId, holdId, wakeup });
+    await resumeIfPauseAlreadyReleased(db, { spaceId: fixture.spaceId, issueId: fixture.childId, holdId, wakeup });
     await drainHeartbeatRunsToQuiescence(db, heartbeat);
     await expectResumedOnce(fixture.childId, holdId, refusedRunId);
   });
@@ -765,7 +765,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
       .where(eq(heartbeatRuns.id, retryRunId));
     const { resumePauseInterruptedWork } = await import("../services/issue-tree-resume.js");
     expect(await resumePauseInterruptedWork(db, {
-      companyId: fixture.companyId, issueIds: [fixture.childId], actor: { actorType: "system", actorId: "system" },
+      spaceId: fixture.spaceId, issueIds: [fixture.childId], actor: { actorType: "system", actorId: "system" },
       wakeup: (agentId, opts) => heartbeat.wakeup(agentId, opts),
     })).toEqual([]);
     await drainHeartbeatRunsToQuiescence(db, heartbeat);
@@ -773,7 +773,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     expect(executedRunIds).toEqual([]);
   });
 
-  it("does not resume work the board reassigned while the tree was paused", async () => {
+  it("does not resume work the operator reassigned while the tree was paused", async () => {
     const fixture = await seedTree();
     const prepared = new Promise<void>((resolve) => { preparationGate.reached = resolve; });
     preparationGate.blockNext = true;
@@ -804,7 +804,7 @@ describeEmbeddedPostgres("subtree pause and release of an in-flight child run", 
     const runs = await childRuns(fixture.childId);
     expect(runs.map((row) => row.id)).toEqual([run!.id]);
     expect(runs[0]).toMatchObject({ status: "cancelled" });
-    expect(await getExecutionBlocker(db, fixture.companyId, fixture.childId))
+    expect(await getExecutionBlocker(db, fixture.spaceId, fixture.childId))
       .toMatchObject({ cause: "legacy_execution_requires_reconciliation", runId: run!.id });
     const skipped = await db.select().from(activityLog).where(eq(activityLog.action, "issue.tree_resume_wake_skipped"));
     expect(skipped).toHaveLength(1);

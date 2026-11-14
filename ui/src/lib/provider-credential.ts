@@ -12,11 +12,11 @@ export const PROVIDER_ENV_KEYS: Record<string, string> = {
 
 /** New organization credentials get a distinct key; never rotate another agent's secret. */
 export async function storeOrganizationApiKey(
-  companyId: string,
+  spaceId: string,
   envKey: string,
   value: string,
 ) {
-  const secret = await secretsApi.create(companyId, {
+  const secret = await secretsApi.create(spaceId, {
     name: `${envKey} · agent setup`,
     key: `${envKey}.setup.${crypto.randomUUID()}`,
     value: value.trim(),
@@ -35,20 +35,20 @@ export async function storeOrganizationApiKey(
 /** Store a validated key during agent creation without rotating other agents’
  * credentials. The caller removes this definition if creation fails. */
 export async function storeProviderApiKey(
-  companyId: string,
+  spaceId: string,
   envKey: string,
   value: string,
 ) {
   const key = `${envKey}.setup.${crypto.randomUUID()}`;
-  const definition = await secretsApi.createUserSecretDefinition(companyId, {
+  const definition = await secretsApi.createUserSecretDefinition(spaceId, {
     key,
     name: `${envKey} · agent setup`,
     description: "Model provider credential for a new agent setup.",
   });
   const remove = () =>
-    secretsApi.removeUserSecretDefinition(companyId, definition.id);
+    secretsApi.removeUserSecretDefinition(spaceId, definition.id);
   try {
-    await secretsApi.createMyUserSecret(companyId, {
+    await secretsApi.createMyUserSecret(spaceId, {
       definitionId: definition.id,
       definitionKey: key,
       value: value.trim(),

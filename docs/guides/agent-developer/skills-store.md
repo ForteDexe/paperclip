@@ -3,27 +3,27 @@ title: The Skills Store
 summary: Browse, install, import, fork, and share the reusable skills your agents use
 ---
 
-The **Skills Store** is Paperclip's library of reusable skills. A skill is a markdown
+The **Skills Store** is Outpost's library of reusable skills. A skill is a markdown
 playbook that teaches an agent how to do a specific kind of work — triage an issue,
 write a wireframe, run QA acceptance, draft a release announcement. The Store is where
-people (and agents) discover those skills, install them into a company, and manage them
+people (and agents) discover those skills, install them into a space, and manage them
 over time.
 
 If you want to *author* a skill, read [Writing a Skill](writing-a-skill). This page is
-about the **store around** skills: where they come from, how they get into your company,
+about the **store around** skills: where they come from, how they get into your space,
 and how you keep them current.
 
-## Two layers: the catalog and your company library
+## Two layers: the catalog and your space library
 
 There are two distinct things people loosely call "the skills store":
 
 | Layer | What it is | Lives in |
 |---|---|---|
-| **The catalog** | A curated, read-only set of skills that ships with Paperclip | The `@outpost/skills-catalog` package |
-| **Your company library** | The skills actually installed in *your* company, which agents can run | The `company_skills` database table |
+| **The catalog** | A curated, read-only set of skills that ships with Outpost | The `@outpost/skills-catalog` package |
+| **Your space library** | The skills actually installed in *your* space, which agents can run | The `space_skills` database table |
 
-The catalog is the shelf you browse. Your company library is the cart you've checked
-out. Installing a catalog skill copies it into your company library, where you can edit,
+The catalog is the shelf you browse. Your space library is the cart you've checked
+out. Installing a catalog skill copies it into your space library, where you can edit,
 version, fork, and share it independently of the original.
 
 ### The bundled catalog
@@ -35,7 +35,7 @@ directory containing a `SKILL.md` plus any supporting `references/`, `scripts/`,
 
 The catalog splits skills into two **kinds**:
 
-- **`bundled`** — first-party Paperclip skills (e.g. `issue-triage`, `task-planning`,
+- **`bundled`** — first-party Outpost skills (e.g. `issue-triage`, `task-planning`,
   `qa-acceptance`, `wireframe`, `github-pr-workflow`, `doc-maintenance`). These carry the
   reserved `paperclipai/paperclip/...` key namespace.
 - **`optional`** — additional curated skills you opt into (e.g. `agent-browser`,
@@ -44,9 +44,9 @@ The catalog splits skills into two **kinds**:
 Every catalog skill carries metadata used for discovery and safety:
 
 - **`category`** — grouping such as `software-development`, `quality`, `product`,
-  `research`, `content`, `browser`, `paperclip-operations`, `docs`.
+  `research`, `content`, `browser`, `outpost-operations`, `docs`.
 - **`recommendedForRoles`** — agent roles the skill suits (`engineer`, `qa`, `designer`,
-  `product`, `researcher`, …), used to suggest skills when staffing a company.
+  `product`, `researcher`, …), used to suggest skills when staffing a space.
 - **`trustLevel`** — see [Trust levels](#trust-levels-what-a-skill-is-allowed-to-carry).
 - **`compatibility`** — `compatible`, `unknown`, or `invalid`, derived during the build
   validation pass.
@@ -70,12 +70,12 @@ secrets, invalid paths, and oversized files are still rejected.
 
 ## Where skills come from (source types)
 
-A skill in your company library records where it originated. The Store shows this as a
+A skill in your space library records where it originated. The Store shows this as a
 **source badge**:
 
 | Source type | Badge | Meaning |
 |---|---|---|
-| `catalog` | Paperclip / catalog | Installed from the bundled catalog |
+| `catalog` | Outpost / catalog | Installed from the bundled catalog |
 | `github` | GitHub | Imported from a GitHub repo (pinned to a commit) |
 | `skills_sh` | skills.sh | Imported via the [skills.sh](https://skills.sh) registry (resolves to GitHub) |
 | `url` | URL | Imported from a raw markdown URL |
@@ -88,14 +88,14 @@ GitHub originals are read-only; use **Make a copy** to edit an independent local
 ### Thin wrappers for external live playbooks
 
 Some optional catalog skills intentionally do not vendor a third-party playbook. The
-`ramp` skill is the model: Paperclip ships the stable governance wrapper, source
+`ramp` skill is the model: Outpost ships the stable governance wrapper, source
 allowlist, and approval gates, then tells the agent to fetch Ramp's current published
 instructions from `agents.ramp.com` when the task starts.
 
 Use this pattern only when the external provider's setup flow changes often enough that
-a vendored snapshot would go stale, and when Paperclip can keep the safety boundary in
+a vendored snapshot would go stale, and when Outpost can keep the safety boundary in
 the wrapper. For financial, legal, or account-control domains, the wrapper must require
-Paperclip approvals before spend, incorporation, account authorization, card issuance,
+Outpost approvals before spend, incorporation, account authorization, card issuance,
 data sharing, or other irreversible actions. The tradeoff should be documented in the
 skill or PR so reviewers can evaluate freshness against external-instruction risk. If
 the provider mixes official and community playbooks on the same host, the wrapper must
@@ -103,18 +103,18 @@ fail closed on unclear provenance and require separate approval before using any
 third-party tool, connector, browser automation service, or credential flow introduced
 by a fetched playbook.
 
-## Getting skills into your company
+## Getting skills into your space
 
-The Store offers several paths, all of which land a skill in your company library.
+The Store offers several paths, all of which land a skill in your space library.
 
 ### Install from the catalog
 
 Browse the catalog's discovery grid, pick a skill, and install it. Installing copies the
-catalog skill's files into your company library and stamps provenance metadata (the
+catalog skill's files into your space library and stamps provenance metadata (the
 catalog key, content hash, and package version) so the Store can later tell you when the
 upstream catalog skill has changed.
 
-- API: `POST /companies/:companyId/skills/install-catalog`
+- API: `POST /spaces/:spaceId/skills/install-catalog`
 - Re-installing an already-installed catalog skill updates it in place rather than
   creating a duplicate.
 
@@ -123,7 +123,7 @@ upstream catalog skill has changed.
 Open **Skills → Sources → Import from GitHub** (also in the **New** menu), choose a connected repository or
 click **… or add public repo by URL** to paste a GitHub.com repository URL, then choose **Find skills**. The searchable list
 combines repositories from all GitHub connections you can access, with duplicates
-removed. Paperclip automatically uses an authorized connection for the chosen
+removed. Outpost automatically uses an authorized connection for the chosen
 repository. Pasted URLs also use your authorized connections when available,
 including public repositories outside the list. Public repositories can use
 anonymous access when no connection succeeds; private repositories require access.
@@ -173,8 +173,8 @@ manifests without retaining every package's content.
 
 This is the default for new imports, including skills that share agents, scripts,
 policies, or sibling skills.
-Paperclip saves supported repository files at the scanned commit. The skill checkboxes
-control which entrypoints appear in the company library; unselected helper skills
+Outpost saves supported repository files at the scanned commit. The skill checkboxes
+control which entrypoints appear in the space library; unselected helper skills
 remain available as supporting files. Add the imported skills to an agent to use
 that repository in its runtime. **View files** shows exactly what
 will be copied, including root license and credit files.
@@ -202,17 +202,17 @@ declarative metadata: it never runs setup commands. Dependencies, credentials,
 subagent tools, and scheduled jobs still need to be configured in the agent's environment.
 
 At runtime, each selected skill contains a generated discovery `SKILL.md` that
-points to the untouched original in `.paperclip-repository/`. Relative references
+points to the untouched original in `.outpost-repository/`. Relative references
 resolve from that original directory. Original file bytes and executable flags
 are preserved; discovery policy in `agents/openai.yaml` is also copied beside the
 entrypoint. Existing adapters copy this self-contained package to their runtime.
 Multiple enabled entrypoints currently repeat the repository files in the runtime,
-while the company database stores each immutable repository snapshot once.
+while the space database stores each immutable repository snapshot once.
 
 Repeated scans resolve the branch's current commit and reuse the caller's cached
 snapshot when it is unchanged. Each server process allows one active scan per
-caller and two per company. Per minute, callers can open 30 snapshots and download
-6 repositories; companies can open 60 snapshots and download 12 repositories.
+caller and two per space. Per minute, callers can open 30 snapshots and download
+6 repositories; spaces can open 60 snapshots and download 12 repositories.
 Cached scans do not consume the download quota. A limit returns a retry message;
 installed skills remain available.
 
@@ -253,12 +253,12 @@ results. Selection opens only after the full scan completes. Importing displays
 an animated saving state while complete local packages are prepared. Animations
 respect reduced-motion preferences.
 
-Paperclip fetches one shallow Git snapshot, preserving committed bytes and executable
+Outpost fetches one shallow Git snapshot, preserving committed bytes and executable
 permissions without checking out or running repository code. Download progress shows
 Git's measured receiving and preparing percentages before discovery begins. The server
 requires Git. Downloads are limited to 128 MiB and three minutes; at most two downloads
 run concurrently. Up to four temporary snapshots (including active downloads) are kept
-for ten minutes, scoped to the company and caller's authorization. Preview and import
+for ten minutes, scoped to the space and caller's authorization. Preview and import
 can reuse the exact scanned commit after checking access again. Installed skills remain
 local and independent of this temporary cache. GitHub's API is still used for repository
 identity and the connection picker, so metadata requests can still encounter rate limits.
@@ -269,7 +269,7 @@ by `complete` (containing the discovery response), or a terminal `error`. A stre
 ending without `complete` is unsuccessful; partial candidates are not importable.
 Progress contains metadata only, never package file contents.
 
-Source APIs live beneath `/api/companies/:companyId/skill-sources`:
+Source APIs live beneath `/api/spaces/:spaceId/skill-sources`:
 
 | Method/path | Purpose |
 |---|---|
@@ -284,7 +284,7 @@ Source APIs live beneath `/api/companies/:companyId/skill-sources`:
 
 ### Import from an external source
 
-Paste a source and Paperclip fetches and imports it. Accepted forms include:
+Paste a source and Outpost fetches and imports it. Accepted forms include:
 
 - A GitHub repo or subfolder URL (`https://github.com/owner/repo/tree/<ref>/skills/foo`)
 - A short `owner/repo` or `owner/repo/skill` reference
@@ -294,24 +294,24 @@ Paste a source and Paperclip fetches and imports it. Accepted forms include:
 A repo can contain many skills; the importer discovers every `SKILL.md` under the path
 (optionally filtered to a single `--skill` slug).
 
-- API: `POST /companies/:companyId/skills/import`
+- API: `POST /spaces/:spaceId/skills/import`
 
 ### Create a local skill
 
-Author a skill directly in the company library without any external source. This is the
+Author a skill directly in the space library without any external source. This is the
 "new skill" path — you provide the name, description, and markdown body and it's stored
 as a `local_path` / managed-local skill.
 
-- API: `POST /companies/:companyId/skills`
+- API: `POST /spaces/:spaceId/skills`
 
 ### Scan a project workspace
 
 Agents and projects often already keep skills on disk under conventional folders
 (`skills/`, `.claude/skills/`, `.agents/skills/`, and many other tool-specific roots).
 The project scan walks a workspace, finds those `SKILL.md` directories, and offers to
-import them into the company library, reporting any conflicts or skips.
+import them into the space library, reporting any conflicts or skips.
 
-- API: `POST /companies/:companyId/skills/scan-projects`
+- API: `POST /spaces/:spaceId/skills/scan-projects`
 
 ## Living with installed skills
 
@@ -324,8 +324,8 @@ Each skill keeps a revision history. Saving a new version snapshots the full fil
 inventory (with content) and bumps the revision number, so you can review history and
 roll back.
 
-- List: `GET /companies/:companyId/skills/:skillId/versions`
-- Create: `POST /companies/:companyId/skills/:skillId/versions`
+- List: `GET /spaces/:spaceId/skills/:skillId/versions`
+- Create: `POST /spaces/:spaceId/skills/:skillId/versions`
 
 ### Updates, drift, and reset
 
@@ -334,11 +334,11 @@ The **update status** endpoint compares your installed copy against the latest u
 and reports whether an update is available, whether *you* have locally modified the skill
 (drift), and any hold reason that should block an automatic update.
 
-- Check: `GET /companies/:companyId/skills/:skillId/update-status`
-- Install the upstream update: `POST /companies/:companyId/skills/:skillId/install-update`
+- Check: `GET /spaces/:spaceId/skills/:skillId/update-status`
+- Install the upstream update: `POST /spaces/:spaceId/skills/:skillId/install-update`
   (with `force` to override local drift)
 - Discard local changes and return to the pristine origin:
-  `POST /companies/:companyId/skills/:skillId/reset`
+  `POST /spaces/:spaceId/skills/:skillId/reset`
 
 ### Audit
 
@@ -346,7 +346,7 @@ A skill can be audited to compare its installed content hash against its recorde
 hash and flag tampering or unexpected drift. The audit returns a verdict and a set of
 codes that the Store surfaces as a health signal.
 
-- API: `POST /companies/:companyId/skills/:skillId/audit`
+- API: `POST /spaces/:spaceId/skills/:skillId/audit`
 
 ### Fork
 
@@ -355,7 +355,7 @@ new name, slug, and sharing scope). The fork records what it was forked from, an
 original's `forkCount` increments. Use this to customize a catalog or community skill
 without losing the ability to see the upstream it came from.
 
-- API: `POST /companies/:companyId/skills/:skillId/fork`
+- API: `POST /spaces/:spaceId/skills/:skillId/fork`
 
 ### Stars and comments
 
@@ -363,18 +363,18 @@ Skills are social objects inside the Store. Members can **star** a skill (a per-
 toggle that drives the `starCount`) and leave threaded **comments** for discussion and
 review.
 
-- Star / unstar: `POST` / `DELETE /companies/:companyId/skills/:skillId/star`
-- Comments: `GET` / `POST /companies/:companyId/skills/:skillId/comments`,
+- Star / unstar: `POST` / `DELETE /spaces/:spaceId/skills/:skillId/star`
+- Comments: `GET` / `POST /spaces/:spaceId/skills/:skillId/comments`,
   plus `PATCH` and `DELETE` for editing and removing.
 
 ## Sharing scope
 
-Every company skill has a **sharing scope** that controls who can see it:
+Every space skill has a **sharing scope** that controls who can see it:
 
 | Scope | Visibility |
 |---|---|
 | `private` | Only the author/owner |
-| `company` | Everyone in the company |
+| `space` | Everyone in the space |
 | `public_link` | Anyone with the generated public share token |
 
 Scope is set when creating, updating, or forking a skill, and the Store's discovery view
@@ -382,7 +382,7 @@ can filter by it.
 
 ## How agents actually use installed skills
 
-Installing a skill is not the same as an agent running it. At runtime, a company's
+Installing a skill is not the same as an agent running it. At runtime, a space's
 installed skills are materialized into the agent's workspace as `SKILL.md` directories,
 and the agent's harness loads the **frontmatter `name` + `description`** of each skill as
 routing logic. The agent reads those one-line descriptions to decide *whether* a skill is
@@ -391,11 +391,11 @@ relevant to the current task, and only then loads the full body. (This is why a 
 agent searches.)
 
 Skill sync into agent workspaces is governed by a per-instance preference, so an operator
-can control whether and how the company library is pushed down to running agents.
+can control whether and how the space library is pushed down to running agents.
 
 ## Reference: API surface
 
-All endpoints are under the company-skills router.
+All endpoints are under the space-skills router.
 
 **Catalog (read-only)**
 
@@ -403,29 +403,29 @@ All endpoints are under the company-skills router.
 - `GET /skills/catalog/:catalogId` — one catalog skill
 - `GET /skills/catalog/:catalogId/files` — its file inventory + content
 
-**Company library**
+**Space library**
 
-- `GET /companies/:companyId/skills` — list (supports `q`, `sort`, `categories`, `scope`)
-- `GET /companies/:companyId/skills/categories` — category counts
-- `GET /companies/:companyId/skills/:skillId` — detail
-- `GET /companies/:companyId/skills/:skillId/files` — file inventory + content
-- `POST /companies/:companyId/skills` — create a local skill
-- `PATCH /companies/:companyId/skills/:skillId` — edit metadata / sharing scope
-- `DELETE /companies/:companyId/skills/:skillId` — remove from the library
-- `POST /companies/:companyId/skills/install-catalog` — install a catalog skill
-- `POST /companies/:companyId/skills/import` — import from GitHub / skills.sh / URL
-- `POST /companies/:companyId/skills/scan-projects` — scan workspaces for skills
-- `POST /companies/:companyId/skills/:skillId/fork` — fork a skill
-- `POST /companies/:companyId/skills/:skillId/versions` · `GET …/versions` · `GET …/versions/:versionId`
-- `GET /companies/:companyId/skills/:skillId/update-status`
-- `POST /companies/:companyId/skills/:skillId/install-update`
-- `POST /companies/:companyId/skills/:skillId/reset`
-- `POST /companies/:companyId/skills/:skillId/audit`
-- `POST` / `DELETE /companies/:companyId/skills/:skillId/star`
-- `GET` / `POST /companies/:companyId/skills/:skillId/comments` · `PATCH` / `DELETE …/comments/:commentId`
+- `GET /spaces/:spaceId/skills` — list (supports `q`, `sort`, `categories`, `scope`)
+- `GET /spaces/:spaceId/skills/categories` — category counts
+- `GET /spaces/:spaceId/skills/:skillId` — detail
+- `GET /spaces/:spaceId/skills/:skillId/files` — file inventory + content
+- `POST /spaces/:spaceId/skills` — create a local skill
+- `PATCH /spaces/:spaceId/skills/:skillId` — edit metadata / sharing scope
+- `DELETE /spaces/:spaceId/skills/:skillId` — remove from the library
+- `POST /spaces/:spaceId/skills/install-catalog` — install a catalog skill
+- `POST /spaces/:spaceId/skills/import` — import from GitHub / skills.sh / URL
+- `POST /spaces/:spaceId/skills/scan-projects` — scan workspaces for skills
+- `POST /spaces/:spaceId/skills/:skillId/fork` — fork a skill
+- `POST /spaces/:spaceId/skills/:skillId/versions` · `GET …/versions` · `GET …/versions/:versionId`
+- `GET /spaces/:spaceId/skills/:skillId/update-status`
+- `POST /spaces/:spaceId/skills/:skillId/install-update`
+- `POST /spaces/:spaceId/skills/:skillId/reset`
+- `POST /spaces/:spaceId/skills/:skillId/audit`
+- `POST` / `DELETE /spaces/:spaceId/skills/:skillId/star`
+- `GET` / `POST /spaces/:spaceId/skills/:skillId/comments` · `PATCH` / `DELETE …/comments/:commentId`
 
-All mutating endpoints require permission to manage the company's skills and are recorded
-in the company activity log.
+All mutating endpoints require permission to manage the space's skills and are recorded
+in the space activity log.
 
 ## Reference: the catalog package
 

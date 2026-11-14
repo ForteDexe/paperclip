@@ -2,7 +2,7 @@ import { envBindingSchema, type SecretProjectionClass, type SecretVersionSelecto
 
 interface AgentSecretBindingSyncService {
   syncSecretRefsForTarget?: (
-    companyId: string,
+    spaceId: string,
     target: { targetType: "agent"; targetId: string },
     refs: Array<{
       secretId: string;
@@ -16,12 +16,12 @@ interface AgentSecretBindingSyncService {
     options?: { replaceAll?: boolean },
   ) => Promise<unknown>;
   syncEnvBindingsForTarget?: (
-    companyId: string,
+    spaceId: string,
     target: { targetType: "agent"; targetId: string; pathPrefix?: string },
     envValue: unknown,
   ) => Promise<unknown>;
   syncUserSecretDeclarationsForTarget?: (
-    companyId: string,
+    spaceId: string,
     target: { targetType: "agent"; targetId: string; pathPrefix?: string },
     refs: Array<{
       definitionKey: string;
@@ -147,19 +147,19 @@ export function collectUserSecretRefs(adapterConfig: unknown): Array<{
 
 export async function syncAgentAdapterEnvBindings(input: {
   secretsSvc: AgentSecretBindingSyncService;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   adapterConfig: unknown;
 }) {
   if (input.secretsSvc.syncSecretRefsForTarget) {
     await input.secretsSvc.syncSecretRefsForTarget(
-      input.companyId,
+      input.spaceId,
       { targetType: "agent", targetId: input.agentId },
       collectSecretRefs(input.adapterConfig),
       { replaceAll: true },
     );
     await input.secretsSvc.syncUserSecretDeclarationsForTarget?.(
-      input.companyId,
+      input.spaceId,
       { targetType: "agent", targetId: input.agentId },
       collectUserSecretRefs(input.adapterConfig),
       { replaceAll: true },
@@ -168,7 +168,7 @@ export async function syncAgentAdapterEnvBindings(input: {
   }
   const envValue = asRecord(asRecord(input.adapterConfig)?.env);
   await input.secretsSvc.syncEnvBindingsForTarget?.(
-    input.companyId,
+    input.spaceId,
     { targetType: "agent", targetId: input.agentId },
     envValue,
   );

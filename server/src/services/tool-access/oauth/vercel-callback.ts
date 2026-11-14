@@ -6,7 +6,7 @@ import { connectionMethodForConnection, projectedConnectionHeaders } from "../co
 import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, ne } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { connectionGrants, companyMemberships, toolApplications, toolConnections } from "@outpost/db";
+import { connectionGrants, spaceMemberships, toolApplications, toolConnections } from "@outpost/db";
 import type { ConnectionGrantKind, ConnectToolAppResult } from "@outpost/shared";
 import { getConnectableAppDefinition, recommendedDefaultsForApp } from "@outpost/shared";
 import { badRequest, forbidden, HttpError } from "../../../errors.js";
@@ -22,7 +22,7 @@ import { groupedActions } from "../catalog/action-summary.js";
 
 type Dependencies = {
   now: () => Date;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   state: OAuthStateStore;
   refreshCatalog: RefreshConnectionCatalog;
   finishOAuthCatalogWithRecommendedDefaults: OAuthCatalogCompletion;
@@ -60,7 +60,7 @@ export function createVercelOAuthCallback(db: Db, dependencies: Dependencies) {
       );
     let connection = await getConnectionRow(
       stateRow.connectionId,
-      stateRow.companyId,
+      stateRow.spaceId,
     );
     const credential = vercelCredentialFor(connection);
     if (
@@ -76,21 +76,21 @@ export function createVercelOAuthCallback(db: Db, dependencies: Dependencies) {
       : "organization";
     if (stateRow.subjectUserId) {
       const [membership] = await db
-        .select({ id: companyMemberships.id })
-        .from(companyMemberships)
+        .select({ id: spaceMemberships.id })
+        .from(spaceMemberships)
         .where(
           and(
-            eq(companyMemberships.companyId, connection.companyId),
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, stateRow.subjectUserId),
-            eq(companyMemberships.status, "active"),
-            ne(companyMemberships.membershipRole, "viewer"),
+            eq(spaceMemberships.spaceId, connection.spaceId),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, stateRow.subjectUserId),
+            eq(spaceMemberships.status, "active"),
+            ne(spaceMemberships.membershipRole, "viewer"),
           ),
         )
         .limit(1);
       if (!membership) {
         throw forbidden(
-          "Your company membership no longer permits connection changes. Restore non-viewer access before authorizing this connection.",
+          "Your space membership no longer permits connection changes. Restore non-viewer access before authorizing this connection.",
         );
       }
     }
@@ -99,7 +99,7 @@ export function createVercelOAuthCallback(db: Db, dependencies: Dependencies) {
       .from(connectionGrants)
       .where(
         and(
-          eq(connectionGrants.companyId, connection.companyId),
+          eq(connectionGrants.spaceId, connection.spaceId),
           eq(connectionGrants.connectionId, connection.id),
           eq(connectionGrants.kind, grantKind),
           grantKind === "user"
@@ -111,14 +111,14 @@ export function createVercelOAuthCallback(db: Db, dependencies: Dependencies) {
     const derived = deriveVercelConnectSubject({
       credential,
       connectionId: connection.id,
-      companyId: connection.companyId,
+      spaceId: connection.spaceId,
       grantKind,
       subjectUserId: stateRow.subjectUserId,
     });
     const request = vercelTokenRequest({
       credential,
       connectionId: connection.id,
-      companyId: connection.companyId,
+      spaceId: connection.spaceId,
       resources: vercelConnectResourcesFor(connection),
       grant: {
         kind: grantKind,
@@ -170,7 +170,7 @@ export function createVercelOAuthCallback(db: Db, dependencies: Dependencies) {
         .where(eq(connectionGrants.id, existingGrant.id));
     } else {
       await db.insert(connectionGrants).values({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         kind: grantKind,
         subjectUserId: stateRow.subjectUserId,
@@ -195,7 +195,7 @@ export function createVercelOAuthCallback(db: Db, dependencies: Dependencies) {
       .where(
         and(
           eq(toolConnections.id, connection.id),
-          eq(toolConnections.companyId, connection.companyId),
+          eq(toolConnections.spaceId, connection.spaceId),
         ),
       )
       .returning());

@@ -884,7 +884,7 @@ describe("historical publication security", () => {
         "evidence/core-compatibility.profile.local.case/attempt-1/snapshots/api-state.json",
       ),
     ).toBe(false);
-    expect(isHistoricalBundlePathAllowed("paperclip-home/database")).toBe(
+    expect(isHistoricalBundlePathAllowed("outpost-home/database")).toBe(
       false,
     );
 

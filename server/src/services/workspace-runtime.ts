@@ -181,7 +181,7 @@ export interface ExecutionWorkspaceIssueRef {
 export interface ExecutionWorkspaceAgentRef {
   id: string | null;
   name: string;
-  companyId: string;
+  spaceId: string;
 }
 
 export interface RealizedExecutionWorkspace extends ExecutionWorkspaceInput {
@@ -215,7 +215,7 @@ export class WorkspaceRuntimeValidationFailure extends Error {
 
 export interface RuntimeServiceRef {
   id: string;
-  companyId: string;
+  spaceId: string;
   projectId: string | null;
   projectWorkspaceId: string | null;
   executionWorkspaceId: string | null;
@@ -313,7 +313,7 @@ const OPEN_EXECUTION_WORKSPACE_LEASE_STATUSES = ["active", "idle", "in_review"] 
 const DEFAULT_EXECUTE_PROCESS_OUTPUT_BYTES = 256 * 1024;
 export const WORKSPACE_RUNTIME_PORT_ALLOCATION_ATTEMPTS = 32;
 const ACTIVE_RUNTIME_PORT_RESERVATION_STATUSES = ["provisioning", "starting", "running"] as const;
-const DEFAULT_TAILSCALE_BROKER_SOCKET = "/run/paperclip-tailscale-broker/broker.sock";
+const DEFAULT_TAILSCALE_BROKER_SOCKET = "/run/outpost-tailscale-broker/broker.sock";
 
 class RuntimeServicePortBindCollision extends Error {
   readonly port: number;
@@ -347,7 +347,7 @@ export type WorkspaceRuntimeExposureDeps = ExposureManagerDeps & {
   isPortAvailable: (port: number) => Promise<boolean>;
   /**
    * Whether this host can actually broker HTTPS exposures right now. Gating the
-   * automatic default on broker availability is what keeps a Paperclip install
+   * automatic default on broker availability is what keeps a Outpost install
    * without the host broker from failing every managed runtime start closed.
    * An explicit opt-in still bypasses this and fails loudly.
    */
@@ -413,7 +413,7 @@ export function setWorkspaceRuntimeExposureDepsForTests(deps: WorkspaceRuntimeEx
 /**
  * Deployment-level switch for the automatic default (PAP-17158).
  *
- *  - `auto` (default): eligible Paperclip-managed worktree runtimes get
+ *  - `auto` (default): eligible Outpost-managed worktree runtimes get
  *    `tailscale_https` without any project template or UI caller supplying an
  *    exposure block, provided the host broker is available.
  *  - `off`: no automatic default. Explicit opt-ins still work.
@@ -433,12 +433,12 @@ export function resolveManagedRuntimeHttpsMode(): ManagedRuntimeHttpsMode {
 /**
  * Whether a service would be defaulted to HTTPS if it declared nothing.
  *
- * Intentionally narrow: only the Paperclip-managed dev runtime. Unmanaged and
+ * Intentionally narrow: only the Outpost-managed dev runtime. Unmanaged and
  * custom external services are left exactly as they are, because the broker
- * only publishes allowlisted loopback ports it can prove Paperclip owns and we
+ * only publishes allowlisted loopback ports it can prove Outpost owns and we
  * do not want to relocate a service somebody else addresses by port.
  *
- * A *pinned* port is still a candidate. The pre-feature Paperclip App template
+ * A *pinned* port is still a candidate. The pre-feature Outpost App template
  * hard-codes `port: 45439`, which the broker's dedicated allowlist can never
  * publish, so defaulting it to HTTPS necessarily relocates it into the
  * dedicated range. "Keep existing runtime ports when safe" is honored one layer
@@ -449,7 +449,7 @@ function isManagedHttpsDefaultCandidate(input: {
   serviceName: string;
   command: string | null;
 }): boolean {
-  return isPaperclipDevRuntimeService(input);
+  return isOutpostDevRuntimeService(input);
 }
 
 export type ResolvedRuntimeServiceExposure = {
@@ -502,7 +502,7 @@ async function resolveRuntimeServiceExposure(input: {
  *
  * Reads the service name and command straight off the raw config entry rather
  * than resolving the full reuse identity: templates never rewrite a service
- * name, and the substrings `isPaperclipDevRuntimeService` matches survive
+ * name, and the substrings `isOutpostDevRuntimeService` matches survive
  * rendering, so this agrees with the per-service decision made during spawn.
  */
 async function anyRuntimeServiceUsesHttpsExposure(
@@ -534,7 +534,7 @@ type ProcessOutputAccumulator = {
  * Drops in-memory runtime state between tests.
  *
  * By default the spawned backend processes are deliberately left running: the
- * startup-reconciliation suites use this to simulate a Paperclip restart, where
+ * startup-reconciliation suites use this to simulate a Outpost restart, where
  * the point is that a live backend survives and has to be adopted.
  *
  * Suites that spawn real backends and do *not* need that must pass
@@ -558,7 +558,7 @@ export async function resetRuntimeServicesForTests(
     if (opts.simulateSupervisorExit) {
       // A real supervisor exit closes its side of every inherited pipe. Tests
       // use this to prove surviving request-logging services do not depend on
-      // Paperclip keeping an anonymous stdio peer alive.
+      // Outpost keeping an anonymous stdio peer alive.
       record.child?.stdout?.destroy();
       record.child?.stderr?.destroy();
     }
@@ -619,7 +619,7 @@ function isLinkedGitWorktreeCheckout(rootDir: string) {
 
 function discoverWorkspacePackagePaths(rootDir: string): Map<string, string> {
   const packagePaths = new Map<string, string>();
-  const ignoredDirNames = new Set([".git", ".paperclip", "dist", "node_modules"]);
+  const ignoredDirNames = new Set([".git", ".outpost", "dist", "node_modules"]);
 
   function visit(dirPath: string) {
     if (!existsSync(dirPath)) return;
@@ -750,7 +750,7 @@ function stableRuntimeServiceId(input: {
 function toRuntimeServiceRef(record: RuntimeServiceRecord, overrides?: Partial<RuntimeServiceRef>): RuntimeServiceRef {
   return {
     id: record.id,
-    companyId: record.companyId,
+    spaceId: record.spaceId,
     projectId: record.projectId,
     projectWorkspaceId: record.projectWorkspaceId,
     executionWorkspaceId: record.executionWorkspaceId,
@@ -823,7 +823,7 @@ export function sanitizeBranchName(value: string): string {
     .replace(/[^A-Za-z0-9._/-]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^[-/.]+|[-/.]+$/g, "")
-    .slice(0, 120) || "paperclip-work";
+    .slice(0, 120) || "outpost-work";
 }
 
 function isAbsolutePath(value: string) {
@@ -1093,7 +1093,7 @@ async function refreshRemoteTrackingBaseRefWithDiagnostic(
       .replace(/([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+@/gi, "$1***@")
       .replace(/([a-z][a-z0-9+.-]*:\/\/[^\s"'?]*)\?[^\s"']*/gi, "$1?***");
     const authNote = auth
-      ? ` The fetch used ${auth.secretName ? `the ${auth.secretName} company-secret GitHub credential` : "the server-environment GitHub credential"}.`
+      ? ` The fetch used ${auth.secretName ? `the ${auth.secretName} space-secret GitHub credential` : "the server-environment GitHub credential"}.`
       : "";
     return { warnings: [`Could not refresh base ref ${baseRef} before preparing the execution workspace: ${message}${authNote}`], diagnostic };
   }
@@ -1278,7 +1278,7 @@ function formatUtcBranchTimestamp(date = new Date()) {
 
 function buildDirtyQuarantineRescueBranch(sourceIssue: ExecutionWorkspaceIssueRef | null) {
   const issueComponent = sanitizeBranchName(sourceIssue?.identifier ?? sourceIssue?.id ?? "issue");
-  return sanitizeBranchName(`paperclip/rescue/${issueComponent}/${formatUtcBranchTimestamp()}`);
+  return sanitizeBranchName(`outpost/rescue/${issueComponent}/${formatUtcBranchTimestamp()}`);
 }
 
 function formatIssueReference(issueId: string | null | undefined, identifier: string | null | undefined) {
@@ -1288,13 +1288,13 @@ function formatIssueReference(issueId: string | null | undefined, identifier: st
   return `[${identifier}](/${match[1]}/issues/${identifier})`;
 }
 
-async function readIssueCompanyId(db: Db, issueId: string | null | undefined): Promise<string | null> {
+async function readIssueSpaceId(db: Db, issueId: string | null | undefined): Promise<string | null> {
   if (!issueId) return null;
   return db
-    .select({ companyId: issues.companyId })
+    .select({ spaceId: issues.spaceId })
     .from(issues)
     .where(eq(issues.id, issueId))
-    .then((rows) => rows[0]?.companyId ?? null);
+    .then((rows) => rows[0]?.spaceId ?? null);
 }
 
 async function findGitWorktreeBranchContention(input: {
@@ -1305,10 +1305,10 @@ async function findGitWorktreeBranchContention(input: {
   actualBranchName: string | null;
 }): Promise<GitWorktreeBranchContention | null> {
   if (!input.db) return null;
-  const companyId = await readIssueCompanyId(input.db, input.sourceIssue?.id);
-  if (!companyId) return null;
+  const spaceId = await readIssueSpaceId(input.db, input.sourceIssue?.id);
+  if (!spaceId) return null;
   return executionWorkspaceService(input.db).findGitWorktreeContention({
-    companyId,
+    spaceId,
     worktreePath: input.worktreePath,
     liveBranchName: input.actualBranchName,
     excludingExecutionWorkspaceId: input.executionWorkspaceId,
@@ -1331,12 +1331,12 @@ async function findActiveRuntimeServiceBlockingDirtyQuarantine(input: {
     : null;
   const serviceScopeCondition = inheritedProjectWorkspaceId
     ? and(
-        eq(workspaceRuntimeServices.companyId, input.workspace.companyId),
+        eq(workspaceRuntimeServices.spaceId, input.workspace.spaceId),
         eq(workspaceRuntimeServices.projectWorkspaceId, inheritedProjectWorkspaceId),
         eq(workspaceRuntimeServices.scopeType, "project_workspace"),
       )
     : and(
-        eq(workspaceRuntimeServices.companyId, input.workspace.companyId),
+        eq(workspaceRuntimeServices.spaceId, input.workspace.spaceId),
         eq(workspaceRuntimeServices.executionWorkspaceId, input.workspace.id),
       );
 
@@ -1676,7 +1676,7 @@ function formatDirtyQuarantineAuditComment(input: {
 
 async function writeDirtyQuarantineAuditComments(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   evidence: GitWorktreeBranchIncoherenceEvidence;
   sourceIssue: ExecutionWorkspaceIssueRef | null;
   rescueBranch: string;
@@ -1698,7 +1698,7 @@ async function writeDirtyQuarantineAuditComments(input: {
   const sourceIssueId = input.evidence.sourceIssueId;
   if (sourceIssueId) {
     const [sourceComment] = await insertIssueComment(input.db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       issueId: sourceIssueId,
       authorAgentId: null,
       authorUserId: null,
@@ -1708,7 +1708,7 @@ async function writeDirtyQuarantineAuditComments(input: {
     });
     sourceAuditCommentId = sourceComment?.id ?? null;
     await input.db.transaction(async tx => {
-      await notifyStatusCardIssueChange(tx, input.companyId);
+      await notifyStatusCardIssueChange(tx, input.spaceId);
       await tx.update(issues).set({ updatedAt: now }).where(eq(issues.id, sourceIssueId));
     });
   }
@@ -1716,7 +1716,7 @@ async function writeDirtyQuarantineAuditComments(input: {
   const claimantIssueId = input.evidence.contention?.claimedByIssueId ?? null;
   if (claimantIssueId && claimantIssueId !== input.evidence.sourceIssueId) {
     const [claimantComment] = await insertIssueComment(input.db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       issueId: claimantIssueId,
       authorAgentId: null,
       authorUserId: null,
@@ -1726,7 +1726,7 @@ async function writeDirtyQuarantineAuditComments(input: {
     });
     claimantAuditCommentId = claimantComment?.id ?? null;
     await input.db.transaction(async tx => {
-      await notifyStatusCardIssueChange(tx, input.companyId);
+      await notifyStatusCardIssueChange(tx, input.spaceId);
       await tx.update(issues).set({ updatedAt: now }).where(eq(issues.id, claimantIssueId));
     });
   }
@@ -1736,7 +1736,7 @@ async function writeDirtyQuarantineAuditComments(input: {
 
 async function logDirtyQuarantineActivity(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   evidence: GitWorktreeBranchIncoherenceEvidence;
   rescueBranch: string;
   rescueCommitSha: string;
@@ -1746,13 +1746,13 @@ async function logDirtyQuarantineActivity(input: {
   claimantAuditCommentId: string | null;
 }) {
   await logActivity(input.db, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     actorType: "system",
     actorId: "workspace_runtime",
     runId: input.heartbeatRunId,
     action: "execution_workspace.dirty_worktree_quarantined",
     entityType: input.evidence.executionWorkspaceId ? "execution_workspace" : "issue",
-    entityId: input.evidence.executionWorkspaceId ?? input.evidence.sourceIssueId ?? input.companyId,
+    entityId: input.evidence.executionWorkspaceId ?? input.evidence.sourceIssueId ?? input.spaceId,
     details: {
       reason: GIT_WORKTREE_BRANCH_INCOHERENCE_REASON,
       sourceIssueId: input.evidence.sourceIssueId,
@@ -1828,10 +1828,10 @@ async function quarantineDirtyWorktreeBranchIncoherence(input: {
   phase?: "worktree_prepare" | "workspace_finalize";
   recorder?: WorkspaceOperationRecorder | null;
 }): Promise<DirtyQuarantineRepairResult> {
-  const companyId = await readIssueCompanyId(input.db, input.evidence.sourceIssueId);
-  if (!companyId) {
+  const spaceId = await readIssueSpaceId(input.db, input.evidence.sourceIssueId);
+  if (!spaceId) {
     input.evidence.safeRepair.eligible = false;
-    input.evidence.safeRepair.reason = "dirty quarantine repair requires a source issue company for audit";
+    input.evidence.safeRepair.reason = "dirty quarantine repair requires a source issue space for audit";
     throw branchIncoherenceValidationFailure(input.evidence);
   }
 
@@ -1977,7 +1977,7 @@ async function quarantineDirtyWorktreeBranchIncoherence(input: {
 
     const comments = await writeDirtyQuarantineAuditComments({
       db: input.db,
-      companyId,
+      spaceId,
       evidence: input.evidence,
       sourceIssue: input.sourceIssue,
       rescueBranch,
@@ -1987,7 +1987,7 @@ async function quarantineDirtyWorktreeBranchIncoherence(input: {
     });
     await logDirtyQuarantineActivity({
       db: input.db,
-      companyId,
+      spaceId,
       evidence: input.evidence,
       rescueBranch,
       rescueCommitSha,
@@ -2076,7 +2076,7 @@ async function recordForwardBranchReconcileOperation(input: {
 
 async function logForwardBranchReconcileActivity(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   executionWorkspaceId: string;
   sourceIssueId: string | null;
   runId: string | null;
@@ -2092,7 +2092,7 @@ async function logForwardBranchReconcileActivity(input: {
   recoveryActionId: string | null;
 }) {
   await logActivity(input.db, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     actorType: "system",
     actorId: "workspace_runtime",
     runId: input.runId,
@@ -2144,7 +2144,7 @@ export async function reconcilePendingForwardBranchAfterPersistence(input: {
   );
   await logForwardBranchReconcileActivity({
     db: input.db,
-    companyId: result.workspace.companyId,
+    spaceId: result.workspace.spaceId,
     executionWorkspaceId: result.workspace.id,
     sourceIssueId: result.workspace.sourceIssueId,
     runId: input.heartbeatRunId ?? null,
@@ -2306,7 +2306,7 @@ export async function ensureGitWorktreeBranchCoherent(input: {
         );
         await logForwardBranchReconcileActivity({
           db: input.db,
-          companyId: result.workspace.companyId,
+          spaceId: result.workspace.spaceId,
           executionWorkspaceId: result.workspace.id,
           sourceIssueId: result.workspace.sourceIssueId ?? evidence.sourceIssueId ?? null,
           runId: input.heartbeatRunId ?? null,
@@ -3062,7 +3062,7 @@ function buildWorkspaceCommandEnv(input: {
   env.OUTPOST_PROJECT_WORKSPACE_ID = input.base.workspaceId ?? "";
   env.OUTPOST_AGENT_ID = input.agent.id ?? "";
   env.OUTPOST_AGENT_NAME = input.agent.name;
-  env.OUTPOST_COMPANY_ID = input.agent.companyId;
+  env.OUTPOST_SPACE_ID = input.agent.spaceId;
   env.OUTPOST_ISSUE_ID = input.issue?.id ?? "";
   env.OUTPOST_ISSUE_IDENTIFIER = input.issue?.identifier ?? "";
   env.OUTPOST_ISSUE_TITLE = input.issue?.title ?? "";
@@ -3537,7 +3537,7 @@ export async function realizeExecutionWorkspace(input: {
   const configuredParentDir = asString(rawStrategy.worktreeParentDir, "");
   const worktreeParentDir = configuredParentDir
     ? resolveConfiguredPath(configuredParentDir, repoRoot)
-    : path.join(repoRoot, ".paperclip", "worktrees");
+    : path.join(repoRoot, ".outpost", "worktrees");
   const worktreePath = path.join(worktreeParentDir, branchName);
   if (path.relative(worktreeParentDir, worktreePath).startsWith("..")) {
     throw new WorkspaceRuntimeValidationFailure(
@@ -3998,7 +3998,7 @@ export async function ensurePersistedExecutionWorkspaceAvailable(input: {
       "Cannot rebuild the git worktree: the base project checkout directory does not exist.",
     );
   }
-  const restoration = savedGitWorkspaceRestoration({ metadata: input.workspace.metadata, companyId: input.agent.companyId,
+  const restoration = savedGitWorkspaceRestoration({ metadata: input.workspace.metadata, spaceId: input.agent.spaceId,
     workspaceId: input.workspace.id, cwd, baseCwd, repoUrl: input.workspace.repoUrl ?? input.base.repoUrl,
     branchName: input.workspace.branchName ?? null });
   const savedCommit = restoration?.commit ?? null;
@@ -4010,7 +4010,7 @@ export async function ensurePersistedExecutionWorkspaceAvailable(input: {
       if (!input.db) throw new GitCacheRestorationFailure();
       const updated = await input.db.update(executionWorkspaces).set({
         metadata: sql`jsonb_set(${executionWorkspaces.metadata}, '{gitCacheRestoration,contentsRestoredAt}', ${JSON.stringify(at)}::jsonb)`,
-      }).where(and(eq(executionWorkspaces.id, input.workspace.id), eq(executionWorkspaces.companyId, input.agent.companyId),
+      }).where(and(eq(executionWorkspaces.id, input.workspace.id), eq(executionWorkspaces.spaceId, input.agent.spaceId),
         sql`${executionWorkspaces.metadata}->'gitCacheRestoration' = ${JSON.stringify(currentRecipe)}::jsonb`))
         .returning({ id: executionWorkspaces.id });
       if (updated.length !== 1) throw new GitCacheRestorationFailure();
@@ -4022,7 +4022,7 @@ export async function ensurePersistedExecutionWorkspaceAvailable(input: {
     const ref = restoration?.restorePoint;
     if (!ref || ref.appliedAt || !input.workspace.id) return;
     await applyGitRestorePointToWorktree({ storage: input.restorePointStorage ?? getStorageService(),
-      workspace: { companyId: input.agent.companyId, id: input.workspace.id }, ref, repositoryCwd, worktreePath })
+      workspace: { spaceId: input.agent.spaceId, id: input.workspace.id }, ref, repositoryCwd, worktreePath })
       .catch(() => { throw new GitCacheRestorationFailure(); });
     const at = new Date().toISOString();
     if (input.persistRestorePointAppliedAt) await input.persistRestorePointAppliedAt(at);
@@ -4030,7 +4030,7 @@ export async function ensurePersistedExecutionWorkspaceAvailable(input: {
       if (!input.db) throw new GitCacheRestorationFailure();
       const updated = await input.db.update(executionWorkspaces).set({
         metadata: sql`jsonb_set(${executionWorkspaces.metadata}, '{gitCacheRestoration,restorePoint,appliedAt}', ${JSON.stringify(at)}::jsonb)`,
-      }).where(and(eq(executionWorkspaces.id, input.workspace.id), eq(executionWorkspaces.companyId, input.agent.companyId),
+      }).where(and(eq(executionWorkspaces.id, input.workspace.id), eq(executionWorkspaces.spaceId, input.agent.spaceId),
         sql`${executionWorkspaces.metadata}->'gitCacheRestoration'->'restorePoint'->>'id' = ${ref.id}`))
         .returning({ id: executionWorkspaces.id });
       if (updated.length !== 1) throw new GitCacheRestorationFailure();
@@ -4041,18 +4041,18 @@ export async function ensurePersistedExecutionWorkspaceAvailable(input: {
   };
   const restoreContents = async () => {
     if (!restoration?.contents || !input.workspace.id) return;
-    await restoreGitWorkspaceContents({ cwd, companyId: input.agent.companyId, workspaceId: input.workspace.id,
+    await restoreGitWorkspaceContents({ cwd, spaceId: input.agent.spaceId, workspaceId: input.workspace.id,
       projectId: input.workspace.projectId, contents: restoration.contents, resolveGitAuth: async url => {
         const auth = await input.resolveGitAuth?.(url);
         if (!auth) return null;
         const source = auth.source;
-        if (source !== "company_secret" && source !== "managed_connection" && source !== "server_env") throw new GitCacheRestorationFailure();
+        if (source !== "space_secret" && source !== "managed_connection" && source !== "server_env") throw new GitCacheRestorationFailure();
         return { ...auth, source, secretName: auth.secretName ?? null };
       },
       authorizeSource: async source => {
         if (!input.db || !input.workspace.projectId) throw new GitCacheRestorationFailure();
         const [row] = await input.db.select().from(projectWorkspaces).where(and(
-          eq(projectWorkspaces.id, source.id), eq(projectWorkspaces.companyId, input.agent.companyId),
+          eq(projectWorkspaces.id, source.id), eq(projectWorkspaces.spaceId, input.agent.spaceId),
           eq(projectWorkspaces.projectId, input.workspace.projectId)));
         if (!row || row.repoUrl !== source.repoUrl) throw new GitCacheRestorationFailure();
       }, prepareLocalSource: input.prepareRestoredLocalSource });
@@ -4171,7 +4171,7 @@ export async function ensurePersistedExecutionWorkspaceAvailable(input: {
   if (savedCommit) {
     if (restoration?.restorePoint && input.workspace.id) {
       await ensureGitRestorePointCommit({ storage: input.restorePointStorage ?? getStorageService(),
-        workspace: { companyId: input.agent.companyId, id: input.workspace.id }, ref: restoration.restorePoint, repositoryCwd: repoRoot })
+        workspace: { spaceId: input.agent.spaceId, id: input.workspace.id }, ref: restoration.restorePoint, repositoryCwd: repoRoot })
         .catch(() => { throw new GitCacheRestorationFailure(); });
     }
     await ensureSavedGitCommit(repoRoot, input.workspace.repoUrl ?? input.base.repoUrl!, savedCommit, input.resolveGitAuth ?? (async () => null));
@@ -4349,7 +4349,7 @@ async function deleteGitBranchAtVerifiedTip(input: {
   const commonDir = path.isAbsolute(commonDirRaw)
     ? commonDirRaw
     : path.resolve(input.repoRoot, commonDirRaw);
-  const detachedGitDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-branch-delete-"));
+  const detachedGitDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-branch-delete-"));
   const detachedWorktree = `${detachedGitDir}-worktree`;
 
   try {
@@ -4383,7 +4383,7 @@ async function deleteGitBranchAtVerifiedTip(input: {
 export async function cleanupExecutionWorkspaceArtifacts(input: {
   workspace: {
     id: string;
-    companyId: string;
+    spaceId: string;
     cwd: string | null;
     providerType: string;
     providerRef: string | null;
@@ -4687,14 +4687,14 @@ async function probeEphemeralPort(): Promise<number> {
  * A lane that is stopped, torn down, and reported `removed` still owns its
  * pair until the workspace itself is released (PAP-17419).
  */
-async function readActiveExecutionWorkspaceLeases(db: Db | undefined, companyId: string): Promise<Set<string>> {
+async function readActiveExecutionWorkspaceLeases(db: Db | undefined, spaceId: string): Promise<Set<string>> {
   if (!db) return new Set<string>();
   const rows = await db
     .select({ id: executionWorkspaces.id })
     .from(executionWorkspaces)
     .where(
       and(
-        eq(executionWorkspaces.companyId, companyId),
+        eq(executionWorkspaces.spaceId, spaceId),
         inArray(executionWorkspaces.status, [...OPEN_EXECUTION_WORKSPACE_LEASE_STATUSES]),
         isNull(executionWorkspaces.closedAt),
       ),
@@ -4710,14 +4710,14 @@ async function readActiveExecutionWorkspaceLeases(db: Db | undefined, companyId:
  * broke: a leased workspace whose exposure had been torn down. See
  * `port-reservation.ts` for why the pair is re-derived from the `port` column.
  */
-async function buildCompanyExposureReservationLedger(input: {
+async function buildSpaceExposureReservationLedger(input: {
   db?: Db;
-  companyId: string;
+  spaceId: string;
   brokerMappings?: BrokerMappingSnapshot[];
 }): Promise<ExposureReservationLedger> {
   const inMemoryRuntimes: InMemoryExposureSnapshot[] = [];
   for (const record of runtimeServicesById.values()) {
-    if (record.companyId !== input.companyId || !record.exposure) continue;
+    if (record.spaceId !== input.spaceId || !record.exposure) continue;
     inMemoryRuntimes.push({
       runtimeServiceId: record.id,
       executionWorkspaceId: record.executionWorkspaceId,
@@ -4740,7 +4740,7 @@ async function buildCompanyExposureReservationLedger(input: {
           issueId: workspaceRuntimeServices.issueId,
         })
         .from(workspaceRuntimeServices)
-        .where(eq(workspaceRuntimeServices.companyId, input.companyId))
+        .where(eq(workspaceRuntimeServices.spaceId, input.spaceId))
     ).map((row) => ({
       id: row.id,
       status: row.status,
@@ -4757,13 +4757,13 @@ async function buildCompanyExposureReservationLedger(input: {
     inMemoryRuntimes,
     brokerMappings: input.brokerMappings ?? [],
     quarantinedPorts: quarantinedRuntimeExposurePorts,
-    activeExecutionWorkspaceIds: await readActiveExecutionWorkspaceLeases(input.db, input.companyId),
+    activeExecutionWorkspaceIds: await readActiveExecutionWorkspaceLeases(input.db, input.spaceId),
     inFlightClaimedPorts: exposurePortPairClaims.activePorts(),
   });
 }
 
 /**
- * Rows Paperclip reports stopped/removed whose reserved pair is still live on
+ * Rows Outpost reports stopped/removed whose reserved pair is still live on
  * the host or still mapped to someone else (PAP-17419 regression #3).
  *
  * The point is visibility. A false `stopped`/`removed` row used to be
@@ -4822,7 +4822,7 @@ async function detectPersistedExposureReservationDrift(input: {
   });
 }
 
-/** Paperclip-owned Serve mappings, or null when the broker cannot be read. */
+/** Outpost-owned Serve mappings, or null when the broker cannot be read. */
 async function readBrokerExposureMappings(): Promise<BrokerMappingSnapshot[] | null> {
   try {
     const owned = await workspaceRuntimeExposureDeps.broker.list();
@@ -4865,7 +4865,7 @@ async function readExposureListenerOwners(ports: number[]): Promise<Map<number, 
 
 async function allocateAndReserveExposure(input: {
   db?: Db;
-  companyId: string;
+  spaceId: string;
   runtimeId: string;
   config: RuntimeExposureConfigInput;
   /** Identity claiming the pair; governs every ownership decision below. */
@@ -4874,9 +4874,9 @@ async function allocateAndReserveExposure(input: {
   preferredAppPort?: number | null;
 }): Promise<{ appPort: number; hmrPort: number; status: RuntimeExposureStatus; handle: string }> {
   const brokerMappings = await readBrokerExposureMappings();
-  const ledger = await buildCompanyExposureReservationLedger({
+  const ledger = await buildSpaceExposureReservationLedger({
     db: input.db,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     brokerMappings: brokerMappings ?? [],
   });
   // Serve mappings are checked as their own view, not folded into the ledger:
@@ -5095,7 +5095,7 @@ async function readReservedRuntimePorts(input: {
 
 async function buildRuntimePortAllocationConflict(input: {
   db?: Db;
-  companyId: string;
+  spaceId: string;
   executionWorkspaceId: string | null;
   preferredPort: number;
   attemptedPorts: number[];
@@ -5110,7 +5110,7 @@ async function buildRuntimePortAllocationConflict(input: {
         .from(workspaceRuntimeServices)
         .where(
           and(
-            eq(workspaceRuntimeServices.companyId, input.companyId),
+            eq(workspaceRuntimeServices.spaceId, input.spaceId),
             inArray(workspaceRuntimeServices.status, [...ACTIVE_RUNTIME_PORT_RESERVATION_STATUSES]),
             inArray(workspaceRuntimeServices.port, input.attemptedPorts),
             input.executionWorkspaceId
@@ -5150,7 +5150,7 @@ async function buildRuntimePortAllocationConflict(input: {
 
 async function allocateIsolatedWorkspacePort(input: {
   db?: Db;
-  companyId: string;
+  spaceId: string;
   executionWorkspaceId: string;
   preferredPort: number;
   stoppedPort: number | null;
@@ -5198,7 +5198,7 @@ async function allocateIsolatedWorkspacePort(input: {
 
   throw await buildRuntimePortAllocationConflict({
     db: input.db,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     executionWorkspaceId: input.executionWorkspaceId,
     preferredPort: input.preferredPort,
     attemptedPorts,
@@ -5604,12 +5604,12 @@ async function waitForAllocatedPortBind(input: {
   throw new Error(`Runtime service did not bind allocated port ${input.port} before timeout`);
 }
 
-function isPaperclipDevRuntimeService(input: { serviceName?: string | null; command?: string | null }) {
+function isOutpostDevRuntimeService(input: { serviceName?: string | null; command?: string | null }) {
   const serviceName = (input.serviceName ?? "").trim().toLowerCase();
   const command = (input.command ?? "").trim().toLowerCase();
   return (
-    serviceName === "paperclip-dev"
-    || serviceName === "paperclip-dev-once"
+    serviceName === "outpost-dev"
+    || serviceName === "outpost-dev-once"
     || (command.includes("dev:once") && command.includes("tailscale-auth"))
   );
 }
@@ -5648,7 +5648,7 @@ function trustedRuntimeHostnameBoundary(
 ): TrustedRuntimeHostnameBoundary | null {
   if (!urlTemplate?.trim()) return null;
   let markerIndex = 0;
-  const markerPrefix = "paperclip-runtime-template-";
+  const markerPrefix = "outpost-runtime-template-";
   const safeTemplate = urlTemplate.replace(
     /{{\s*([a-zA-Z0-9_.-]+)\s*}}/g,
     (_match, path: string) => path === "port" ? "443" : `${markerPrefix}${markerIndex++}`,
@@ -5663,7 +5663,7 @@ function trustedRuntimeHostnameBoundary(
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
 
   const hostname = parsed.hostname.trim().toLowerCase().replace(/^\[|\]$/g, "");
-  const markers = [...hostname.matchAll(/paperclip-runtime-template-\d+/g)];
+  const markers = [...hostname.matchAll(/outpost-runtime-template-\d+/g)];
   const lastMarker = markers.at(-1);
   if (!lastMarker || lastMarker.index === undefined) {
     return hostname ? { exactHostname: hostname } : null;
@@ -5678,17 +5678,17 @@ function trustedRuntimeHostnameBoundary(
 }
 
 /**
- * Resolve the low-priority public URL hint injected into a managed Paperclip dev
+ * Resolve the low-priority public URL hint injected into a managed Outpost dev
  * service. Explicit operator origin settings are deliberately left untouched.
  */
-export function resolveManagedPaperclipRuntimePublicOrigin(input: {
+export function resolveManagedOutpostRuntimePublicOrigin(input: {
   serviceName: string;
   command: string;
   environment: Record<string, string>;
   exposedUrl: string | null;
   exposedUrlTemplate?: string | null;
 }) {
-  if (!isPaperclipDevRuntimeService(input)) return null;
+  if (!isOutpostDevRuntimeService(input)) return null;
   if (EXPLICIT_RUNTIME_ORIGIN_ENV_KEYS.some((key) => input.environment[key]?.trim())) return null;
   if (!input.exposedUrl) {
     throw managedRuntimeOriginError(input.serviceName, "the managed service does not report an exposed URL");
@@ -5763,7 +5763,7 @@ function resolveRuntimeServiceHealthUrl(
   url: string | null,
   input?: { serviceName?: string | null; command?: string | null },
 ) {
-  if (!url || !isPaperclipDevRuntimeService(input ?? {})) return url;
+  if (!url || !isOutpostDevRuntimeService(input ?? {})) return url;
   try {
     const parsed = new URL(url);
     if (parsed.pathname === "/" || parsed.pathname === "") {
@@ -5792,7 +5792,7 @@ type RuntimeServiceHealthProbeInput = {
    */
   cwd?: string | null;
   executionWorkspaceId?: string | null;
-  companyId?: string | null;
+  spaceId?: string | null;
 };
 
 /**
@@ -5813,11 +5813,11 @@ async function probeManagedWorkspaceRuntimeReadiness(
   healthUrl: string,
   input: RuntimeServiceHealthProbeInput,
 ): Promise<boolean | null> {
-  if (!isPaperclipDevRuntimeService(input)) return null;
+  if (!isOutpostDevRuntimeService(input)) return null;
   const identity = resolveManagedWorkspaceIdentity({
     workspaceCwd: input.cwd ?? null,
     executionWorkspaceId: input.executionWorkspaceId ?? null,
-    companyId: input.companyId ?? null,
+    spaceId: input.spaceId ?? null,
   });
   if (!identity) return null;
 
@@ -5830,7 +5830,7 @@ async function probeManagedWorkspaceRuntimeReadiness(
           ok: false as const,
           reason: "not_ready" as const,
           readiness: result.readiness,
-          detail: "control-plane database is unavailable for board identity verification",
+          detail: "control-plane database is unavailable for operator identity verification",
         };
   if (verified.ok) return true;
   logManagedWorkspaceReadinessRejection({
@@ -5847,7 +5847,7 @@ async function isRuntimeServiceUrlHealthy(
   url: string | null,
   input?: RuntimeServiceHealthProbeInput,
 ) {
-  const localProbeUrl = input?.provider === "local_process" && input.port && isPaperclipDevRuntimeService(input)
+  const localProbeUrl = input?.provider === "local_process" && input.port && isOutpostDevRuntimeService(input)
     ? `http://127.0.0.1:${input.port}`
     : null;
   const probeUrl = localProbeUrl ?? url;
@@ -5861,7 +5861,7 @@ async function isRuntimeServiceUrlHealthy(
   try {
     const response = await fetch(healthUrl, { signal: AbortSignal.timeout(2_000) });
     if (!response.ok) return false;
-    if (!isPaperclipDevRuntimeService(input ?? {})) return true;
+    if (!isOutpostDevRuntimeService(input ?? {})) return true;
     const payload = await response.json().catch(() => null) as { status?: unknown } | null;
     return payload?.status === "ok";
   } catch {
@@ -5872,7 +5872,7 @@ async function isRuntimeServiceUrlHealthy(
 function toPersistedWorkspaceRuntimeService(record: RuntimeServiceRecord): typeof workspaceRuntimeServices.$inferInsert {
   return {
     id: record.id,
-    companyId: record.companyId,
+    spaceId: record.spaceId,
     projectId: record.projectId,
     projectWorkspaceId: record.projectWorkspaceId,
     executionWorkspaceId: record.executionWorkspaceId,
@@ -5945,7 +5945,7 @@ async function persistRuntimeServiceRecord(db: Db | undefined, record: RuntimeSe
 
 async function findStoppedRuntimeServiceReuseCandidate(input: {
   db?: Db;
-  companyId: string;
+  spaceId: string;
   reuseKey: string | null;
   serviceName: string;
   command: string;
@@ -5963,7 +5963,7 @@ async function findStoppedRuntimeServiceReuseCandidate(input: {
       .from(workspaceRuntimeServices)
       .where(
         and(
-          eq(workspaceRuntimeServices.companyId, input.companyId),
+          eq(workspaceRuntimeServices.spaceId, input.spaceId),
           eq(workspaceRuntimeServices.reuseKey, input.reuseKey),
           eq(workspaceRuntimeServices.provider, "local_process"),
           eq(workspaceRuntimeServices.status, "stopped"),
@@ -5986,7 +5986,7 @@ async function findStoppedRuntimeServiceReuseCandidate(input: {
     .from(workspaceRuntimeServices)
     .where(
       and(
-        eq(workspaceRuntimeServices.companyId, input.companyId),
+        eq(workspaceRuntimeServices.spaceId, input.spaceId),
         eq(workspaceRuntimeServices.provider, "local_process"),
         eq(workspaceRuntimeServices.status, "stopped"),
         eq(workspaceRuntimeServices.scopeType, input.scopeType),
@@ -6049,7 +6049,7 @@ export function normalizeAdapterManagedRuntimeServices(input: {
         providerRef: report.providerRef ?? null,
         reuseKey: report.reuseKey ?? null,
       }),
-      companyId: input.agent.companyId,
+      spaceId: input.agent.spaceId,
       projectId: report.projectId ?? input.workspace.projectId,
       projectWorkspaceId: report.projectWorkspaceId ?? input.workspace.workspaceId,
       executionWorkspaceId: input.executionWorkspaceId ?? null,
@@ -6129,7 +6129,7 @@ function readWorkspaceSeedOperationEvidence(worktreePath: string): {
   error: string | null;
   metadata: Record<string, unknown>;
 } {
-  const manifestPath = path.join(worktreePath, ".paperclip", "seed-manifest.json");
+  const manifestPath = path.join(worktreePath, ".outpost", "seed-manifest.json");
   try {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
     const state = typeof manifest.state === "string" ? manifest.state : "unknown";
@@ -6172,7 +6172,7 @@ export function resolveRuntimeProvisionCommand(input: {
 
   if (input.workspace.strategy !== "git_worktree") return "";
 
-  const stateDir = path.join(input.workspace.cwd, ".paperclip");
+  const stateDir = path.join(input.workspace.cwd, ".outpost");
   if (existsSync(path.join(stateDir, "seed-empty"))) return "";
   const manifestPath = path.join(stateDir, "seed-manifest.json");
   const provisionScript = path.join(
@@ -6223,7 +6223,7 @@ async function runRuntimeProvisionWithWorkspaceMutex(input: StartLocalRuntimeSer
 
   const recorder = input.recorder ?? (input.db
     ? workspaceOperationService(input.db).createRecorder({
-        companyId: input.agent.companyId,
+        spaceId: input.agent.spaceId,
         heartbeatRunId: input.startedByRunId === undefined ? input.runId : input.startedByRunId,
         executionWorkspaceId: input.executionWorkspaceId ?? null,
         issueId: input.issue?.id ?? null,
@@ -6279,7 +6279,7 @@ function createProvisioningRuntimeServiceRecord(
   const id = input.runtimeServiceId ?? randomUUID();
   return {
     id,
-    companyId: input.agent.companyId,
+    spaceId: input.agent.spaceId,
     projectId: input.workspace.projectId,
     projectWorkspaceId: input.workspace.workspaceId,
     executionWorkspaceId: input.executionWorkspaceId ?? null,
@@ -6371,7 +6371,7 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
   );
   const stoppedReuseCandidate = await findStoppedRuntimeServiceReuseCandidate({
     db: input.db,
-    companyId: input.agent.companyId,
+    spaceId: input.agent.spaceId,
     reuseKey: input.reuseKey,
     serviceName,
     command,
@@ -6427,14 +6427,14 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
   // is honored when it is already an allowlisted app port whose HMR companion is
   // free — that keeps a restart on the same port and keeps a backfilled service
   // stable across deploys — and quietly relocated when it is not, which is the
-  // only way a legacy pinned port (the Paperclip App template's 45439) can be
+  // only way a legacy pinned port (the Outpost App template's 45439) can be
   // published at all. If the backend then fails to listen where we allocated,
   // the broker's /proc ownership proof refuses the mapping and the start fails
   // closed; it never falls back to HTTP.
   const reservedExposure = exposureConfig
     ? await allocateAndReserveExposure({
         db: input.db,
-        companyId: input.agent.companyId,
+        spaceId: input.agent.spaceId,
         runtimeId,
         config: exposureConfig,
         claimant: {
@@ -6490,7 +6490,7 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
   } else if (!reservedExposure && canAllocateFixedPort) {
     port = await allocateIsolatedWorkspacePort({
       db: input.db,
-      companyId: input.agent.companyId,
+      spaceId: input.agent.spaceId,
       executionWorkspaceId: input.executionWorkspaceId!,
       preferredPort: explicitPort,
       stoppedPort: stoppedReuseCandidate?.port ?? null,
@@ -6543,16 +6543,16 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
     ...sanitizeRuntimeServiceBaseEnv(process.env),
     ...runtimeEnvOverrides,
   } as Record<string, string>;
-  // Managed Paperclip worktrees are development environments, so their UI
+  // Managed Outpost worktrees are development environments, so their UI
   // should track source edits without each project repeating this setting.
   // An HTTPS profile must publish the companion HMR listener before it can use
   // this default. Otherwise, leave the value unset so dev-runner keeps its
   // built-UI safeguard. Keep every explicit service/adapter value.
   const uiDevMiddlewareHasTransport =
-    !exposureConfig || exposureConfig.includePaperclipViteHmr;
+    !exposureConfig || exposureConfig.includeOutpostViteHmr;
   if (
     uiDevMiddlewareHasTransport
-    && isPaperclipDevRuntimeService({ serviceName, command })
+    && isOutpostDevRuntimeService({ serviceName, command })
   ) {
     env.OUTPOST_UI_DEV_MIDDLEWARE ??= "true";
   }
@@ -6562,14 +6562,14 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
   }
 
   // Per-workspace handoff key, readiness token, and workspace id. Injected for
-  // the Paperclip dev runtime whether or not it is HTTPS-exposed, because the
+  // the Outpost dev runtime whether or not it is HTTPS-exposed, because the
   // password-independent login handoff and the protected readiness probe are
   // both needed for a plain-HTTP loopback workspace too (PAP-17572).
-  const managedWorkspaceIdentity = isPaperclipDevRuntimeService({ serviceName, command })
+  const managedWorkspaceIdentity = isOutpostDevRuntimeService({ serviceName, command })
     ? resolveManagedWorkspaceIdentity({
         workspaceCwd: input.workspace.cwd,
         executionWorkspaceId: input.executionWorkspaceId ?? null,
-        companyId: input.agent.companyId,
+        spaceId: input.agent.spaceId,
       })
     : null;
   if (managedWorkspaceIdentity) {
@@ -6577,7 +6577,7 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
   }
 
   if (exposureConfig) {
-    // Paperclip dev-runtime-specific hardening. Other managed processes are
+    // Outpost dev-runtime-specific hardening. Other managed processes are
     // still rejected by the broker unless /proc proves loopback-only listeners.
     //
     // Three independent layers force the loopback bind, because a guest checkout
@@ -6604,7 +6604,7 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
   let url = exposureConfig ? null : backendUrl;
   const readinessUrlTemplate = asString(readiness.urlTemplate, "");
   const readinessUrl = readinessUrlTemplate ? renderTemplate(readinessUrlTemplate, templateData) : null;
-  const managedRuntimePublicOrigin = resolveManagedPaperclipRuntimePublicOrigin({
+  const managedRuntimePublicOrigin = resolveManagedOutpostRuntimePublicOrigin({
     serviceName,
     command,
     // Includes the trusted public origin injected above for managed HTTPS
@@ -6651,7 +6651,7 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
       command,
       cwd: input.workspace.cwd,
       executionWorkspaceId: input.executionWorkspaceId ?? null,
-      companyId: input.agent.companyId,
+      spaceId: input.agent.spaceId,
     }))) {
       await terminateLocalService(adoptedRecord);
       await removeLocalServiceRegistryRecord(adoptedRecord.serviceKey);
@@ -6660,7 +6660,7 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
       return {
         record: {
           id: adoptedRecord.runtimeServiceId ?? randomUUID(),
-          companyId: input.agent.companyId,
+          spaceId: input.agent.spaceId,
           projectId: input.workspace.projectId,
           projectWorkspaceId: input.workspace.workspaceId,
           executionWorkspaceId: input.executionWorkspaceId ?? null,
@@ -6747,7 +6747,7 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
   const nowIso = new Date().toISOString();
   const record: RuntimeServiceRecord = {
     id: runtimeId,
-    companyId: input.agent.companyId,
+    spaceId: input.agent.spaceId,
     projectId: input.workspace.projectId,
     projectWorkspaceId: input.workspace.workspaceId,
     executionWorkspaceId: input.executionWorkspaceId ?? null,
@@ -6818,7 +6818,7 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
       env,
       detached: process.platform !== "win32",
       // The service receives duplicate append-only file descriptors. Closing
-      // Paperclip (or this parent handle below) cannot strand a request logger
+      // Outpost (or this parent handle below) cannot strand a request logger
       // on an orphaned socketpair during startup reconciliation.
       stdio: ["ignore", serviceLog.handle.fd, serviceLog.handle.fd],
     });
@@ -6878,7 +6878,7 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
     ? exposureConfig
       ? [
           port,
-          ...(exposureConfig.includePaperclipViteHmr ? [deriveViteHmrPort(port)] : []),
+          ...(exposureConfig.includeOutpostViteHmr ? [deriveViteHmrPort(port)] : []),
         ]
       : canAllocateFixedPort
         ? [port]
@@ -6998,7 +6998,7 @@ async function spawnLocalRuntimeService(input: StartLocalRuntimeServiceInput): P
     // bounded retries.
     const exposureAssignedPorts: number[] =
       exposureConfig && port
-        ? [port, ...(exposureConfig.includePaperclipViteHmr ? [deriveViteHmrPort(port)] : [])]
+        ? [port, ...(exposureConfig.includeOutpostViteHmr ? [deriveViteHmrPort(port)] : [])]
         : [];
     const collisionText = `${failureMessage}\n${serviceOutputExcerpt}`;
     const exposureNamedPorts = exposureAssignedPorts.filter((candidate) =>
@@ -7215,7 +7215,7 @@ async function startLocalRuntimeService(
     if (fixedPortFallbackEnabled && input.executionWorkspaceId) {
       throw await buildRuntimePortAllocationConflict({
         db: input.db,
-        companyId: input.agent.companyId,
+        spaceId: input.agent.spaceId,
         executionWorkspaceId: input.executionWorkspaceId,
         preferredPort: explicitPort,
         attemptedPorts: [...excludedPorts],
@@ -7348,7 +7348,7 @@ async function findHealthyRunningRuntimeService(reuseKey: string | null) {
     port: existing.port,
     cwd: existing.cwd,
     executionWorkspaceId: existing.executionWorkspaceId,
-    companyId: existing.companyId,
+    spaceId: existing.spaceId,
   };
   let healthy = await isRuntimeServiceUrlHealthy(existing.url, healthInput);
   if (!healthy) {
@@ -7579,7 +7579,7 @@ function registerRuntimeService(db: Db | undefined, record: RuntimeServiceRecord
     void (async () => {
       // The child exited on its own. Record the terminal status as best effort.
       // The persist can fail when a parent row is already gone: a caller can
-      // delete the project or the company while this service still runs, and the
+      // delete the project or the space while this service still runs, and the
       // `project_id` foreign key then rejects the write. Catch every error here,
       // or the detached persist becomes an unhandled rejection and crashes the
       // host. This path runs off the child `exit` event, so no caller awaits it.
@@ -7689,7 +7689,7 @@ function selectRuntimeServiceEntries(input: {
 
 async function inspectPersistedRuntimeWorkspace(input: {
   db?: Db;
-  companyId: string;
+  spaceId: string;
   executionWorkspaceId?: string | null;
 }) {
   if (!input.db || !input.executionWorkspaceId) return { isolated: false, remote: false };
@@ -7699,7 +7699,7 @@ async function inspectPersistedRuntimeWorkspace(input: {
     .where(
       and(
         eq(executionWorkspaces.id, input.executionWorkspaceId),
-        eq(executionWorkspaces.companyId, input.companyId),
+        eq(executionWorkspaces.spaceId, input.spaceId),
       ),
     )
     .limit(1)
@@ -7734,7 +7734,7 @@ async function ensureRuntimeServicesForRunInvocation(
   const refs: RuntimeServiceRef[] = [];
   const persistedWorkspace = await inspectPersistedRuntimeWorkspace({
     db: input.db,
-    companyId: input.agent.companyId,
+    spaceId: input.agent.spaceId,
     executionWorkspaceId: input.executionWorkspaceId,
   });
   if (persistedWorkspace.remote) {
@@ -7887,7 +7887,7 @@ function resolveRuntimeStartMutexPlan(input: {
       replacementReuseKeys.push(reuseKey);
       return `reuse:${reuseKey}`;
     }
-    return `${input.agent.companyId}:owner:${fallbackOwnerId}`;
+    return `${input.agent.spaceId}:owner:${fallbackOwnerId}`;
   });
   return {
     ownerKeys: [...new Set(keys)].sort(),
@@ -7925,11 +7925,11 @@ async function withRuntimeServiceSourceLocks<T>(input: {
     resolveRuntimeServiceReuseIdentity({ ...input, service, scopeType: "project_workspace", scopeId: input.workspace.workspaceId }).serviceCwd)];
   const projectIds: string[] = [], issueIds: string[] = [];
   for (const cwd of new Set(paths)) {
-    const identities = await workspaceSourceIdentities(input.agent.companyId, cwd);
+    const identities = await workspaceSourceIdentities(input.agent.spaceId, cwd);
     projectIds.push(...identities.projectIds);
     issueIds.push(...identities.issueIds);
   }
-  return withWorkspaceSourceLocks(input.db, { companyId: input.agent.companyId, projectIds, issueIds }, action);
+  return withWorkspaceSourceLocks(input.db, { spaceId: input.agent.spaceId, projectIds, issueIds }, action);
 }
 
 export async function ensureRuntimeServicesForRun(
@@ -8109,7 +8109,7 @@ async function lockWorkspaceRuntimeStartParents(
       .where(
         and(
           eq(executionWorkspaces.id, input.executionWorkspaceId),
-          eq(executionWorkspaces.companyId, input.actor.companyId),
+          eq(executionWorkspaces.spaceId, input.actor.spaceId),
         ),
       )
       .for("update");
@@ -8124,7 +8124,7 @@ async function lockWorkspaceRuntimeStartParents(
       .where(
         and(
           eq(projectWorkspaces.id, input.workspace.workspaceId),
-          eq(projectWorkspaces.companyId, input.actor.companyId),
+          eq(projectWorkspaces.spaceId, input.actor.spaceId),
         ),
       )
       .for("update");
@@ -8306,7 +8306,7 @@ async function startRuntimeServicesForWorkspaceControlInvocation(
             if (allowFixedPortFallback && portType !== "auto" && preferredPort > 0 && input.executionWorkspaceId) {
               throw await buildRuntimePortAllocationConflict({
                 db: input.db,
-                companyId: input.actor.companyId,
+                spaceId: input.actor.spaceId,
                 executionWorkspaceId: input.executionWorkspaceId,
                 preferredPort,
                 attemptedPorts: [...excludedPorts],
@@ -8412,7 +8412,7 @@ export async function startRuntimeServicesForWorkspaceControl(
         return withExecutionWorkspaceLifecycleLock(input.db, input.executionWorkspaceId, async (tx) => {
           const [fresh] = await tx.select({ cwd: executionWorkspaces.cwd, metadata: executionWorkspaces.metadata })
             .from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.executionWorkspaceId!),
-              eq(executionWorkspaces.companyId, input.actor.companyId)));
+              eq(executionWorkspaces.spaceId, input.actor.spaceId)));
           if (!fresh) throw new Error("Execution workspace not found before starting runtime services");
           if (readRemoteWorkspaceAuthority(fresh.metadata)) {
             throw unprocessable("Workspace commands are not supported for remote workspaces yet. Run the command through an agent task.",
@@ -8575,7 +8575,7 @@ async function stopRuntimeServicesForProjectWorkspaceOwned(input: {
 
 export async function listWorkspaceRuntimeServicesForProjectWorkspaces(
   db: Db,
-  companyId: string,
+  spaceId: string,
   projectWorkspaceIds: string[],
 ) {
   if (projectWorkspaceIds.length === 0) return new Map<string, typeof workspaceRuntimeServices.$inferSelect[]>();
@@ -8584,7 +8584,7 @@ export async function listWorkspaceRuntimeServicesForProjectWorkspaces(
     .from(workspaceRuntimeServices)
     .where(
       and(
-        eq(workspaceRuntimeServices.companyId, companyId),
+        eq(workspaceRuntimeServices.spaceId, spaceId),
         inArray(workspaceRuntimeServices.projectWorkspaceId, projectWorkspaceIds),
         eq(workspaceRuntimeServices.scopeType, "project_workspace"),
       ),
@@ -8693,7 +8693,7 @@ async function buildPersistedRuntimeExposureIntentLookup(db: Db) {
 
 export async function refreshPersistedRuntimeServiceHealth(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   executionWorkspaceId: string;
   projectWorkspaceId?: string | null;
 }) {
@@ -8717,11 +8717,11 @@ export async function refreshPersistedRuntimeServiceHealth(input: {
       healthStatus: workspaceRuntimeServices.healthStatus,
       cwd: workspaceRuntimeServices.cwd,
       executionWorkspaceId: workspaceRuntimeServices.executionWorkspaceId,
-      companyId: workspaceRuntimeServices.companyId,
+      spaceId: workspaceRuntimeServices.spaceId,
     })
     .from(workspaceRuntimeServices)
     .where(and(
-      eq(workspaceRuntimeServices.companyId, input.companyId),
+      eq(workspaceRuntimeServices.spaceId, input.spaceId),
       eq(workspaceRuntimeServices.provider, "local_process"),
       eq(workspaceRuntimeServices.status, "running"),
       ownershipCondition,
@@ -8738,7 +8738,7 @@ export async function refreshPersistedRuntimeServiceHealth(input: {
     if (row.healthStatus === healthStatus) return;
     await input.db.update(workspaceRuntimeServices).set({ healthStatus, updatedAt: new Date() }).where(and(
       eq(workspaceRuntimeServices.id, row.id),
-      eq(workspaceRuntimeServices.companyId, input.companyId),
+      eq(workspaceRuntimeServices.spaceId, input.spaceId),
       eq(workspaceRuntimeServices.status, "running"),
     ));
   }));
@@ -8801,14 +8801,14 @@ async function reconstructRuntimeServices(db: Db) {
     rows,
     ownedListeners: ownedExposureListeners,
   });
-  const companyIdByRowId = new Map(rows.map((row) => [row.id, row.companyId] as const));
+  const spaceIdByRowId = new Map(rows.map((row) => [row.id, row.spaceId] as const));
   for (const entry of exposureReservationDrift) {
     const description = describeExposureReservationDrift(entry);
     console.warn(`[workspace-runtime] exposure reservation drift: ${description}`);
-    const companyId = companyIdByRowId.get(entry.runtimeServiceId);
-    if (!companyId) continue;
+    const spaceId = spaceIdByRowId.get(entry.runtimeServiceId);
+    if (!spaceId) continue;
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "system",
       actorId: "workspace_runtime",
       action: "workspace_runtime.exposure_reservation_drift",
@@ -8847,7 +8847,7 @@ async function reconstructRuntimeServices(db: Db) {
     }
     if (row.status === "stopped" && row.exposure && row.exposure.state !== "removed") {
       // This branch is a GLOBAL sweep: `rows` spans every execution workspace and
-      // company on the host, at any age, and it runs on every server start. It
+      // space on the host, at any age, and it runs on every server start. It
       // used to issue a broker removal for each stale row on the row's authority
       // alone — which is how a restart at 12:25:49 UTC deleted the preserved
       // `42000/52000` mappings from two rows that were 2 and 3 days old
@@ -8879,7 +8879,7 @@ async function reconstructRuntimeServices(db: Db) {
     );
     // Pre-feature rows carry no exposure state at all. An eligible one that is
     // still serving plain HTTP must not be adopted as-is, or the deploy would
-    // leave `http://paperclip-dev:<port>` as the canonical URL forever. Stopping
+    // leave `http://outpost-dev:<port>` as the canonical URL forever. Stopping
     // it here hands it to the desired-state restart below, which brings it back
     // through the normal fail-closed exposure lifecycle.
     const backfillDecision = decideManagedRuntimeExposureBackfill({
@@ -8948,7 +8948,7 @@ async function reconstructRuntimeServices(db: Db) {
         port: adoptedRecord.port ?? row.port,
         cwd: row.cwd,
         executionWorkspaceId: row.executionWorkspaceId ?? null,
-        companyId: row.companyId,
+        spaceId: row.spaceId,
       };
       // A surviving service can be slow to answer one probe when the host is
       // busy at startup. One timeout is not enough evidence to terminate it.
@@ -8970,7 +8970,7 @@ async function reconstructRuntimeServices(db: Db) {
       } else {
         const record: RuntimeServiceRecord = {
           id: row.id,
-          companyId: row.companyId,
+          spaceId: row.spaceId,
           projectId: row.projectId ?? null,
           projectWorkspaceId: row.projectWorkspaceId ?? null,
           executionWorkspaceId: row.executionWorkspaceId ?? null,
@@ -9110,7 +9110,7 @@ export async function restartDesiredRuntimeServicesOnStartup(db: Db) {
     try {
       const refs = await startRuntimeServicesForWorkspaceControl({
         db,
-        actor: { id: null, name: "Outpost", companyId: row.companyId },
+        actor: { id: null, name: "Outpost", spaceId: row.spaceId },
         issue: null,
         workspace: {
           baseCwd: row.cwd,
@@ -9159,7 +9159,7 @@ export async function restartDesiredRuntimeServicesOnStartup(db: Db) {
     try {
       const refs = await startRuntimeServicesForWorkspaceControl({
         db,
-        actor: { id: null, name: "Outpost", companyId: row.companyId },
+        actor: { id: null, name: "Outpost", spaceId: row.spaceId },
         issue: row.sourceIssueId
           ? {
               id: row.sourceIssueId,
@@ -9230,7 +9230,7 @@ export async function persistAdapterManagedRuntimeServices(input: {
       .insert(workspaceRuntimeServices)
       .values({
         id: ref.id,
-        companyId: ref.companyId,
+        spaceId: ref.spaceId,
         projectId: ref.projectId,
         projectWorkspaceId: ref.projectWorkspaceId,
         executionWorkspaceId: ref.executionWorkspaceId,

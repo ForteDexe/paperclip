@@ -8,7 +8,7 @@ import type {
 import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, timestamp, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { agents } from "./agents.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 import { issueComments } from "./issue_comments.js";
 import { issues } from "./issues.js";
@@ -17,7 +17,7 @@ export const issueThreadInteractions = pgTable(
   "issue_thread_interactions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     issueId: uuid("issue_id").notNull().references(() => issues.id, { onDelete: "cascade" }),
     kind: text("kind").notNull(),
     status: text("status").notNull().default("pending"),
@@ -62,18 +62,18 @@ export const issueThreadInteractions = pgTable(
   },
   (table) => ({
     issueIdx: index("issue_thread_interactions_issue_idx").on(table.issueId),
-    companyIssueCreatedAtIdx: index("issue_thread_interactions_company_issue_created_at_idx").on(
-      table.companyId,
+    spaceIssueCreatedAtIdx: index("issue_thread_interactions_space_issue_created_at_idx").on(
+      table.spaceId,
       table.issueId,
       table.createdAt,
     ),
-    companyIssueStatusIdx: index("issue_thread_interactions_company_issue_status_idx").on(
-      table.companyId,
+    spaceIssueStatusIdx: index("issue_thread_interactions_space_issue_status_idx").on(
+      table.spaceId,
       table.issueId,
       table.status,
     ),
-    companyIssueIdempotencyUq: uniqueIndex("issue_thread_interactions_company_issue_idempotency_uq")
-      .on(table.companyId, table.issueId, table.idempotencyKey)
+    spaceIssueIdempotencyUq: uniqueIndex("issue_thread_interactions_space_issue_idempotency_uq")
+      .on(table.spaceId, table.issueId, table.idempotencyKey)
       .where(sql`${table.idempotencyKey} IS NOT NULL`),
     sourceCommentIdx: index("issue_thread_interactions_source_comment_idx").on(table.sourceCommentId),
     addresseeAgentIdx: index("issue_thread_interactions_addressee_agent_idx").on(table.addresseeAgentId),

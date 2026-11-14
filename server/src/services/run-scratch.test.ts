@@ -31,7 +31,7 @@ afterEach(async () => {
 describe("heartbeat run scratch cleanup", () => {
   it("removes only a marked run-owned scratch directory", async () => {
     const scratch = await trackScratch(await prepareHeartbeatRunScratch({
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "agent-1",
       runId: "run-1",
       issueId: "issue-1",
@@ -46,15 +46,15 @@ describe("heartbeat run scratch cleanup", () => {
     await expect(fs.stat(scratch.dir)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("preserves paperclip-named directories without the ownership marker", async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-run-unmarked-"));
+  it("preserves outpost-named directories without the ownership marker", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-run-unmarked-"));
     cleanupDirs.add(dir);
     const scratch: HeartbeatRunScratch = {
       dir,
       markerPath: path.join(dir, HEARTBEAT_RUN_SCRATCH_MARKER),
       metadata: {
         version: 1,
-        companyId: "company-1",
+        spaceId: "space-1",
         agentId: "agent-1",
         runId: "run-1",
         issueId: null,
@@ -71,7 +71,7 @@ describe("heartbeat run scratch cleanup", () => {
 
   it("preserves marked scratch when the marker owner does not match the run", async () => {
     const scratch = await trackScratch(await prepareHeartbeatRunScratch({
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "agent-1",
       runId: "run-1",
     }));
@@ -91,7 +91,7 @@ describe("heartbeat run scratch cleanup", () => {
 
   it("skips cleanup while the run process group is still alive", async () => {
     const scratch = await trackScratch(await prepareHeartbeatRunScratch({
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "agent-1",
       runId: "run-1",
     }));
@@ -108,7 +108,7 @@ describe("heartbeat run scratch cleanup", () => {
 
   it("builds explicit scratch env without clobbering configured temp dirs", async () => {
     const scratch = await trackScratch(await prepareHeartbeatRunScratch({
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "agent-1",
       runId: "run-1",
     }));
@@ -128,15 +128,15 @@ describe("heartbeat run scratch cleanup", () => {
 
 describe("orphaned run scratch sweep", () => {
   async function makeRoot() {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-sweep-test-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-sweep-test-"));
     cleanupDirs.add(root);
     return root;
   }
   async function leave(root: string, runId: string, createdAt = new Date().toISOString()) {
-    const dir = await fs.mkdtemp(path.join(root, `paperclip-run-x-${runId}-`));
+    const dir = await fs.mkdtemp(path.join(root, `outpost-run-x-${runId}-`));
     await fs.writeFile(
       path.join(dir, HEARTBEAT_RUN_SCRATCH_MARKER),
-      JSON.stringify({ version: 1, companyId: "c", agentId: "a", runId, issueId: null, issueIdentifier: null, createdAt }),
+      JSON.stringify({ version: 1, spaceId: "c", agentId: "a", runId, issueId: null, issueIdentifier: null, createdAt }),
     );
     return dir;
   }
@@ -149,7 +149,7 @@ describe("orphaned run scratch sweep", () => {
     const killedA = await leave(root, "run-done");
     const killedB = await leave(root, "run-done");
     const active = await leave(root, "run-live");
-    const unmarked = await fs.mkdtemp(path.join(root, "paperclip-run-x-nomarker-"));
+    const unmarked = await fs.mkdtemp(path.join(root, "outpost-run-x-nomarker-"));
     const foreign = await fs.mkdtemp(path.join(root, "other-"));
 
     const result = await sweepOrphanedRunScratch({
@@ -213,13 +213,13 @@ describe("orphaned run scratch sweep", () => {
 
   it("does not follow symlinks and bounds removals per sweep", async () => {
     const root = await makeRoot();
-    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-sweep-outside-"));
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-sweep-outside-"));
     cleanupDirs.add(outside);
     await fs.writeFile(
       path.join(outside, HEARTBEAT_RUN_SCRATCH_MARKER),
-      JSON.stringify({ version: 1, companyId: "c", agentId: "a", runId: "run-t", createdAt: new Date().toISOString() }),
+      JSON.stringify({ version: 1, spaceId: "c", agentId: "a", runId: "run-t", createdAt: new Date().toISOString() }),
     );
-    await fs.symlink(outside, path.join(root, "paperclip-run-x-link"));
+    await fs.symlink(outside, path.join(root, "outpost-run-x-link"));
     const dirs = [await leave(root, "run-t"), await leave(root, "run-t"), await leave(root, "run-t")];
 
     const result = await sweepOrphanedRunScratch({

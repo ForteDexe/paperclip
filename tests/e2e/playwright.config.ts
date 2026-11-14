@@ -7,7 +7,7 @@ import { defineConfig } from "@playwright/test";
 // even when the dev server is running on :3100 in authenticated mode.
 const PORT = Number(process.env.OUTPOST_E2E_PORT ?? 3199);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
-const OUTPOST_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-e2e-home-"));
+const OUTPOST_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-e2e-home-"));
 const OUTPOST_INSTANCE_ID = "playwright-e2e";
 const OUTPOST_CONFIG = path.join(OUTPOST_HOME, "instances", OUTPOST_INSTANCE_ID, "config.json");
 const OUTPOST_AGENT_JWT_SECRET = process.env.OUTPOST_AGENT_JWT_SECRET ?? "playwright-e2e-agent-jwt-secret";
@@ -68,7 +68,7 @@ export default defineConfig({
     command: "pnpm --filter @outpost/ui build --outDir ../server/ui-dist --emptyOutDir && node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts onboard --yes --run",
     url: `${BASE_URL}/api/health`,
     // Always boot a dedicated throwaway instance for e2e so browser tests
-    // never attach to the developer's active Paperclip home/server.
+    // never attach to the developer's active Outpost home/server.
     reuseExistingServer: false,
     timeout: 120_000,
     stdout: "pipe",

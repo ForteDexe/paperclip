@@ -11,7 +11,7 @@ impersonation and generic connected-tool execution are not included.
 node integrations/assistant-plugins/build.mjs
 
 # Replace with the operator's actual deployed endpoint before testing remotely:
-node integrations/assistant-plugins/build.mjs https://YOUR-PAPERCLIP-HOST/mcp/paperclip
+node integrations/assistant-plugins/build.mjs https://YOUR-OUTPOST-HOST/mcp/outpost
 ```
 
 The builder accepts a fixed HTTPS endpoint (HTTP loopback is allowed for local
@@ -25,14 +25,14 @@ output has `.claude-plugin/plugin.json` and `.mcp.json`. The MCP endpoint is the
 same for both. No lifecycle hook, embedded UI or client-side executor is needed.
 
 See [server setup and release gates](../../doc/public-mcp.md). Configure the
-client to request `paperclip:read paperclip:write offline_access` for delegation
-and refresh, or just `paperclip:read` for a read-only connection. The person may
+client to request `outpost:read outpost:write offline_access` for delegation
+and refresh, or just `outpost:read` for a read-only connection. The person may
 decline write access during consent. Use each client's normal OAuth connection
 flow; do not put agent keys or browser cookies into plugin manifests.
 
 ## Distribution
 
-Package `openai/paperclip/` and `claude/paperclip/` separately. Before publishing,
+Package `openai/outpost/` and `claude/outpost/` separately. Before publishing,
 build against the stable Outpost-owned public endpoint and complete the
 provider's review metadata, branding, privacy/support links and live tests.
 Submit the Claude remote connector and workflow plugin separately, paired by

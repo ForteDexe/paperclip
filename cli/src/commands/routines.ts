@@ -19,12 +19,12 @@ import { readConfig, resolveConfigPath } from "../config/store.js";
 type RoutinesDisableAllOptions = {
   config?: string;
   dataDir?: string;
-  companyId?: string;
+  spaceId?: string;
   json?: boolean;
 };
 
 type DisableAllRoutinesResult = {
-  companyId: string;
+  spaceId: string;
   totalRoutines: number;
   pausedCount: number;
   alreadyPausedCount: number;
@@ -37,7 +37,7 @@ type EmbeddedPostgresInstance = {
   stop(): Promise<void>;
 };
 
-type EmbeddedPostgresCtor = new (opts: {
+type EmbeddedPostgresEngineeringLeadr = new (opts: {
   databaseDir: string;
   user: string;
   password: string;
@@ -108,10 +108,10 @@ function readRunningPostmasterPid(postmasterPidFile: string): number | null {
 
 async function ensureEmbeddedPostgres(dataDir: string, preferredPort: number): Promise<EmbeddedPostgresHandle> {
   const moduleName = "embedded-postgres";
-  let EmbeddedPostgres: EmbeddedPostgresCtor;
+  let EmbeddedPostgres: EmbeddedPostgresEngineeringLeadr;
   try {
     const mod = await import(moduleName);
-    EmbeddedPostgres = mod.default as EmbeddedPostgresCtor;
+    EmbeddedPostgres = mod.default as EmbeddedPostgresEngineeringLeadr;
   } catch {
     throw new Error(
       "Embedded PostgreSQL support requires dependency `embedded-postgres`. Reinstall dependencies and try again.",
@@ -133,8 +133,8 @@ async function ensureEmbeddedPostgres(dataDir: string, preferredPort: number): P
   const logBuffer = createEmbeddedPostgresLogBuffer();
   const instance = new EmbeddedPostgres({
     databaseDir: dataDir,
-    user: "paperclip",
-    password: "paperclip",
+    user: "outpost",
+    password: "outpost",
     port,
     persistent: true,
     initdbFlags: ["--encoding=UTF8", "--locale=C", "--lc-messages=C"],
@@ -195,9 +195,9 @@ async function openConfiguredDb(configPath: string): Promise<{
         config.database.embeddedPostgresDataDir,
         config.database.embeddedPostgresPort,
       );
-      const adminConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${embeddedHandle.port}/postgres`;
-      await ensurePostgresDatabase(adminConnectionString, "paperclip");
-      const connectionString = `postgres://paperclip:paperclip@127.0.0.1:${embeddedHandle.port}/paperclip`;
+      const adminConnectionString = `postgres://outpost:outpost@127.0.0.1:${embeddedHandle.port}/postgres`;
+      await ensurePostgresDatabase(adminConnectionString, "outpost");
+      const connectionString = `postgres://outpost:outpost@127.0.0.1:${embeddedHandle.port}/outpost`;
       await applyPendingMigrations(connectionString);
       const db = createDb(connectionString) as ClosableDb;
       return {
@@ -233,16 +233,16 @@ async function openConfiguredDb(configPath: string): Promise<{
 }
 
 export async function disableAllRoutinesInConfig(
-  options: Pick<RoutinesDisableAllOptions, "config" | "companyId">,
+  options: Pick<RoutinesDisableAllOptions, "config" | "spaceId">,
 ): Promise<DisableAllRoutinesResult> {
   const configPath = resolveConfigPath(options.config);
   loadOutpostEnvFile(configPath);
-  const companyId =
-    nonEmpty(options.companyId)
-    ?? nonEmpty(process.env.OUTPOST_COMPANY_ID)
+  const spaceId =
+    nonEmpty(options.spaceId)
+    ?? nonEmpty(process.env.OUTPOST_SPACE_ID)
     ?? null;
-  if (!companyId) {
-    throw new Error("Outpost ID is required. Pass --company-id or set OUTPOST_COMPANY_ID.");
+  if (!spaceId) {
+    throw new Error("Outpost ID is required. Pass --space-id or set OUTPOST_SPACE_ID.");
   }
 
   const config = readConfig(configPath);
@@ -258,9 +258,9 @@ export async function disableAllRoutinesInConfig(
         config.database.embeddedPostgresDataDir,
         config.database.embeddedPostgresPort,
       );
-      const adminConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${embeddedHandle.port}/postgres`;
-      await ensurePostgresDatabase(adminConnectionString, "paperclip");
-      const connectionString = `postgres://paperclip:paperclip@127.0.0.1:${embeddedHandle.port}/paperclip`;
+      const adminConnectionString = `postgres://outpost:outpost@127.0.0.1:${embeddedHandle.port}/postgres`;
+      await ensurePostgresDatabase(adminConnectionString, "outpost");
+      const connectionString = `postgres://outpost:outpost@127.0.0.1:${embeddedHandle.port}/outpost`;
       await applyPendingMigrations(connectionString);
       db = createDb(connectionString) as ClosableDb;
     } else {
@@ -278,7 +278,7 @@ export async function disableAllRoutinesInConfig(
         status: routines.status,
       })
       .from(routines)
-      .where(eq(routines.companyId, companyId));
+      .where(eq(routines.spaceId, spaceId));
 
     const alreadyPausedCount = existing.filter((routine) => routine.status === "paused").length;
     const archivedCount = existing.filter((routine) => routine.status === "archived").length;
@@ -297,7 +297,7 @@ export async function disableAllRoutinesInConfig(
     }
 
     return {
-      companyId,
+      spaceId,
       totalRoutines: existing.length,
       pausedCount: idsToPause.length,
       alreadyPausedCount,
@@ -322,12 +322,12 @@ export async function disableAllRoutinesCommand(options: RoutinesDisableAllOptio
   }
 
   if (result.totalRoutines === 0) {
-    console.log(pc.dim(`No routines found for company ${result.companyId}.`));
+    console.log(pc.dim(`No routines found for space ${result.spaceId}.`));
     return;
   }
 
   console.log(
-    `Paused ${result.pausedCount} routine(s) for company ${result.companyId} ` +
+    `Paused ${result.pausedCount} routine(s) for space ${result.spaceId} ` +
       `(${result.alreadyPausedCount} already paused, ${result.archivedCount} archived).`,
   );
 }
@@ -337,10 +337,10 @@ export function registerRoutineCommands(program: Command): void {
 
   routinesCommand
     .command("disable-all")
-    .description("Pause all non-archived routines in the configured local instance for one company")
+    .description("Pause all non-archived routines in the configured local instance for one space")
     .option("-c, --config <path>", "Path to config file")
-    .option("-d, --data-dir <path>", "Outpost data directory root (isolates state from ~/.paperclip)")
-    .option("-C, --company-id <id>", "Outpost ID")
+    .option("-d, --data-dir <path>", "Outpost data directory root (isolates state from ~/.outpost)")
+    .option("-C, --space-id <id>", "Outpost ID")
     .option("--json", "Output raw JSON")
     .action(async (opts: RoutinesDisableAllOptions) => {
       try {

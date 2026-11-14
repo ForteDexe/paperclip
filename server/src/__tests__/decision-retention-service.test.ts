@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   decisionArchiveNotificationOutbox,
   decisionRetention,
@@ -29,7 +29,7 @@ describePg("decision retention", () => {
   let stopWorker: (() => Promise<void>) | undefined;
 
   beforeAll(async () => {
-    if (!externalUrl) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-decision-retention-");
+    if (!externalUrl) tempDb = await startEmbeddedPostgresTestDatabase("outpost-decision-retention-");
     db = createDb(externalUrl ?? tempDb!.connectionString, { maxConnections: 6, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
   }, 30_000);
 
@@ -40,23 +40,23 @@ describePg("decision retention", () => {
     await db.delete(activityLog);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await tempDb?.cleanup(); });
 
   async function seedReviewItems(count: number) {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Retention",
-      issuePrefix: `R${companyId.slice(0, 6)}`,
-      requireBoardApprovalForNewAgents: false,
+      issuePrefix: `R${spaceId.slice(0, 6)}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Origin",
       role: "engineer",
       status: "active",
@@ -69,34 +69,34 @@ describePg("decision retention", () => {
     const issueIds = Array.from({ length: count }, () => randomUUID());
     await db.insert(issues).values(issueIds.map((id, index) => ({
       id,
-      companyId,
-      identifier: `R${companyId.slice(0, 6)}-${index + 1}`,
+      spaceId,
+      identifier: `R${spaceId.slice(0, 6)}-${index + 1}`,
       title: `Old review ${index + 1}`,
       status: "in_review",
       priority: "medium",
-      assigneeUserId: "board-user",
+      assigneeUserId: "operator-user",
       createdByAgentId: agentId,
       createdAt: old,
       updatedAt: old,
     })));
-    return { companyId, agentId, issueIds };
+    return { spaceId, agentId, issueIds };
   }
 
-  const boardActor = (companyId: string) => ({
-    type: "board" as const,
+  const operatorActor = (spaceId: string) => ({
+    type: "operator" as const,
     source: "local_implicit" as const,
-    userId: "board-user",
-    companyIds: [companyId],
+    userId: "operator-user",
+    spaceIds: [spaceId],
     isInstanceAdmin: true,
   });
   const mutationActor = {
     actorType: "user" as const,
-    actorId: "board-user",
+    actorId: "operator-user",
     agentId: null,
-    userId: "board-user",
+    userId: "operator-user",
     runId: null,
     agentApiKeyId: null,
-    responsibleUserId: "board-user",
+    responsibleUserId: "operator-user",
   };
 
   describe("archive delivery worker", () => {
@@ -126,8 +126,8 @@ describePg("decision retention", () => {
       await registerDecisionArchiveDeliveryWork(coordinator, service, () => !draining).ready;
     }
     async function archive(source = db) {
-      const feed = await attentionService(source).list(fixture.companyId, { limit: 100 });
-      return decisionRetentionService(source).autoArchive({ companyId: fixture.companyId, items: feed.items });
+      const feed = await attentionService(source).list(fixture.spaceId, { limit: 100 });
+      return decisionRetentionService(source).autoArchive({ spaceId: fixture.spaceId, items: feed.items });
     }
     async function settle(ms = 60_000) {
       await vi.advanceTimersByTimeAsync(ms);
@@ -153,7 +153,7 @@ describePg("decision retention", () => {
       await start(); await quiet();
       expect(await archive()).toBe(1); await settle(); await delivered(); await quiet();
       expect(notify).toHaveBeenCalledTimes(1);
-      expect(notify.mock.calls[0][0]).toMatchObject({ companyId: fixture.companyId, agentId: fixture.agentId,
+      expect(notify.mock.calls[0][0]).toMatchObject({ spaceId: fixture.spaceId, agentId: fixture.agentId,
         items: [expect.objectContaining({ issueId: fixture.issueIds[0], archiveVersion: 1 })] });
     });
 
@@ -274,61 +274,61 @@ describePg("decision retention", () => {
   });
 
   it("auto-archives, excludes by default, returns archived rows, and revives", async () => {
-    const { companyId, issueIds } = await seedReviewItems(1);
+    const { spaceId, issueIds } = await seedReviewItems(1);
     const now = new Date("2026-08-02T00:00:00.000Z");
     const svc = decisionRetentionService(db);
-    const before = await attentionService(db, { now: () => now.getTime() }).list(companyId, { limit: 100 });
+    const before = await attentionService(db, { now: () => now.getTime() }).list(spaceId, { limit: 100 });
     expect(before.items).toHaveLength(1);
 
-    expect(await svc.autoArchive({ companyId, items: before.items, now })).toBe(1);
-    const current = await attentionService(db, { now: () => now.getTime() }).list(companyId, { limit: 100 });
+    expect(await svc.autoArchive({ spaceId, items: before.items, now })).toBe(1);
+    const current = await attentionService(db, { now: () => now.getTime() }).list(spaceId, { limit: 100 });
     expect(current.items).toHaveLength(0);
-    const archived = await attentionService(db, { now: () => now.getTime() }).list(companyId, { archived: true, limit: 100 });
+    const archived = await attentionService(db, { now: () => now.getTime() }).list(spaceId, { archived: true, limit: 100 });
     expect(archived.items[0]).toMatchObject({ subject: { id: issueIds[0] }, archivedAt: now.toISOString() });
 
     await svc.revive({
-      companyId,
+      spaceId,
       sourceKind: "review",
       sourceId: issueIds[0]!,
-      authActor: boardActor(companyId),
+      authActor: operatorActor(spaceId),
       actor: mutationActor,
     });
-    const revived = await attentionService(db, { now: () => now.getTime() }).list(companyId, { limit: 100 });
+    const revived = await attentionService(db, { now: () => now.getTime() }).list(spaceId, { limit: 100 });
     expect(revived.items[0]).toMatchObject({ subject: { id: issueIds[0] }, archivedAt: null });
   });
 
   it("exempts Keep rows and batches one notification per origin agent", async () => {
-    const { companyId, agentId, issueIds } = await seedReviewItems(3);
+    const { spaceId, agentId, issueIds } = await seedReviewItems(3);
     const now = new Date("2026-08-02T00:00:00.000Z");
     const notifications: Array<Record<string, unknown>> = [];
     const svc = decisionRetentionService(db, { notifyOriginAgent: async (batch) => notifications.push(batch) });
-    await attentionService(db, { now: () => now.getTime() }).list(companyId, { limit: 100 });
+    await attentionService(db, { now: () => now.getTime() }).list(spaceId, { limit: 100 });
     await svc.setKeep({
-      companyId,
+      spaceId,
       sourceKind: "review",
       sourceId: issueIds[0]!,
       keep: true,
-      authActor: boardActor(companyId),
+      authActor: operatorActor(spaceId),
       actor: mutationActor,
     });
-    const refreshed = await attentionService(db, { now: () => now.getTime() }).list(companyId, { limit: 100 });
-    expect(await svc.autoArchive({ companyId, items: refreshed.items, now })).toBe(2);
+    const refreshed = await attentionService(db, { now: () => now.getTime() }).list(spaceId, { limit: 100 });
+    expect(await svc.autoArchive({ spaceId, items: refreshed.items, now })).toBe(2);
     expect(await svc.deliverNotifications()).toEqual({ notifiedAgents: 1, delivered: 2 });
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]).toMatchObject({ companyId, agentId, items: expect.arrayContaining([
+    expect(notifications[0]).toMatchObject({ spaceId, agentId, items: expect.arrayContaining([
       expect.objectContaining({ issueId: issueIds[1] }),
       expect.objectContaining({ issueId: issueIds[2] }),
     ]) });
-    expect((await svc.getState(companyId, "review", issueIds[0]!))?.archivedAt).toBeNull();
+    expect((await svc.getState(spaceId, "review", issueIds[0]!))?.archivedAt).toBeNull();
   });
 
   it("fails the whole reviewed manifest when one expected version changes", async () => {
-    const { companyId, issueIds } = await seedReviewItems(2);
+    const { spaceId, issueIds } = await seedReviewItems(2);
     const now = Date.parse("2026-08-02T00:00:00.000Z");
     const svc = decisionRetentionService(db);
-    const feed = await attentionService(db, { now: () => now }).list(companyId, { limit: 100 });
+    const feed = await attentionService(db, { now: () => now }).list(spaceId, { limit: 100 });
     const manifest = feed.items.map((item) => ({
-      companyId,
+      spaceId,
       sourceKind: item.sourceKind,
       sourceId: item.subject.id,
       expectedVersion: item.retentionVersion,
@@ -336,19 +336,19 @@ describePg("decision retention", () => {
       reason: "Reviewed as stale",
     }));
     await svc.setKeep({
-      companyId,
+      spaceId,
       sourceKind: "review",
       sourceId: issueIds[0]!,
       keep: true,
-      authActor: boardActor(companyId),
+      authActor: operatorActor(spaceId),
       actor: mutationActor,
     });
     await expect(svc.archiveReviewedManifest({
-      companyId,
+      spaceId,
       manifest,
-      originActor: boardActor(companyId),
-      decidingActor: boardActor(companyId),
-      decidedByUserId: "board-user",
+      originActor: operatorActor(spaceId),
+      decidingActor: operatorActor(spaceId),
+      decidedByUserId: "operator-user",
     })).rejects.toThrow("archive_proposal_stale");
     expect((await db.select().from(decisionRetention)).every((row) => row.archivedAt === null)).toBe(true);
   });

@@ -1538,7 +1538,7 @@ it.each([false, true, "restart-before-bootstrap", "unknown-semantic", "accountin
       input: [{ type: "text", text: "$assigned second authority epoch" }, { type: "skill", name: "assigned", path: join(skillRoot, "SKILL.md") }],
     });
     for await (const event of rotated.transport.notifications()) {
-      if (event.method === "paperclip/runResult") break;
+      if (event.method === "outpost/runResult") break;
     }
     expect(rotated.evidence().diagnostics).toContain(
       "runnerd attached the durable provider session to a fresh ORP run authority",
@@ -1771,8 +1771,8 @@ it.each([false, true, "restart-before-bootstrap", "unknown-semantic", "accountin
     ) as { toolBridge?: { authorized?: Record<string, unknown> } };
     expect(Object.keys(providerState.toolBridge?.authorized ?? {})).toEqual([
       "get_task_context",
-      "paperclip_block",
-      "paperclip_finish",
+      "outpost_block",
+      "outpost_finish",
     ]);
     await restored.transport.request("turn/start", {
       input: [{ type: "text", text: "restored process" }],

@@ -11,7 +11,7 @@ export interface RuntimeAgent extends Entity {
 }
 export interface InstructionFile {
   path: string; content: string; revision: { id: string; parentRevisionId?: string | null;
-    companyId: string; agentId: string; actorAgentId?: string | null; sourceRunId?: string | null; source: string; restoredFromRevisionId?: string | null };
+    spaceId: string; agentId: string; actorAgentId?: string | null; sourceRunId?: string | null; source: string; restoredFromRevisionId?: string | null };
 }
 export interface RuntimeObservation extends InternalObservation {
   agents: RuntimeAgent[];
@@ -25,14 +25,14 @@ export async function runtimeWorker(ctx: ChatCatalogContext, name = "Morgan", ex
     workspacePath, secretRefs: fixtures.secretRefs, executionId: nonce });
   const payload = { ...base, name, role: "engineer", title: "Frontend engineer", reportsTo: fixtures.agent.id,
     runtimeConfig: { ...(base.runtimeConfig as Record<string, unknown>), heartbeat: { enabled: false, maxConcurrentRuns: 1 } }, ...extra };
-  const agent = await api.post<RuntimeAgent>(`/api/companies/${fixtures.company.id}/agents`, execution.profile.credential === "CODEX_AUTH_JSON"
-    ? codexSubscriptionAgentConfig(payload, process.env, fixtures.company.id) : payload);
+  const agent = await api.post<RuntimeAgent>(`/api/spaces/${fixtures.space.id}/agents`, execution.profile.credential === "CODEX_AUTH_JSON"
+    ? codexSubscriptionAgentConfig(payload, process.env, fixtures.space.id) : payload);
   return pollUntil({ label: `${name} real runtime readiness`, deadlineAt: Date.now() + 45_000,
     load: () => api.get<RuntimeAgent>(`/api/agents/${agent.id}`), accept: row => row.lifecycleState === "ready" });
 }
 export async function observeRuntime(ctx: ChatCatalogContext, state: Record<string, unknown>): Promise<RuntimeObservation> {
   const o = await observeInternal(ctx, state);
-  const agents = await ctx.input.api.get<RuntimeAgent[]>(`/api/companies/${o.companyId}/agents`);
+  const agents = await ctx.input.api.get<RuntimeAgent[]>(`/api/spaces/${o.spaceId}/agents`);
   const result: RuntimeObservation = { ...o, agents };
   if (state.instructionAgentId) {
     const root = `/api/agents/${state.instructionAgentId}/instructions-bundle`;
@@ -44,7 +44,7 @@ export async function observeRuntime(ctx: ChatCatalogContext, state: Record<stri
 }
 export function runtimeObservation(value: unknown): RuntimeObservation | undefined {
   const o = value as RuntimeObservation | undefined;
-  return o && o.state && typeof o.reply === "string" && typeof o.companyId === "string" && typeof o.leadId === "string"
+  return o && o.state && typeof o.reply === "string" && typeof o.spaceId === "string" && typeof o.leadId === "string"
     && [o.agents, o.tasks, o.links, o.activity, o.runs, o.humanQueries].every(Array.isArray) ? o : undefined;
 }
 export function agentLink(o: RuntimeObservation, agent: RuntimeAgent): string | undefined {
@@ -58,7 +58,7 @@ export function agentLink(o: RuntimeObservation, agent: RuntimeAgent): string | 
 export async function openRuntimeAgentProfile(ctx: ChatCatalogContext, agent: RuntimeAgent, o?: RuntimeObservation) {
   const href = o && agentLink(o, agent);
   if (href) await ctx.input.page.locator(`[id^="comment-"] a[href=${JSON.stringify(href)}]`).first().click();
-  else await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/agents/${agent.id}`, { waitUntil: "domcontentloaded" });
+  else await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/agents/${agent.id}`, { waitUntil: "domcontentloaded" });
   await expect(agentProfileIdentity(ctx.input.page, agent)).toBeVisible();
 }
 /**
@@ -77,7 +77,7 @@ export async function verifyRuntimeResult(ctx: ChatCatalogContext, state: Record
   await openRuntimeAgentProfile(ctx, target, o);
   await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
   await expect(agentProfileIdentity(ctx.input.page, target)).toBeVisible();
-  await ctx.input.evidence("chat-catalog-runtime-profile-opened.json", { agentId: target.id, companyId: target.companyId, url: ctx.input.page.url() });
+  await ctx.input.evidence("chat-catalog-runtime-profile-opened.json", { agentId: target.id, spaceId: target.spaceId, url: ctx.input.page.url() });
   await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });
 }
 /**
@@ -105,6 +105,6 @@ export function runtimeDefinition(scenarioId: string, setup: ChatCatalogCase["se
     sourceFiles: ["chat-catalog-domains/runtime-support.ts", `chat-catalog-domains/runtime-${scenarioId.split(".")[0]}.ts`, `chat-scenarios/${scenarioId.split(".")[0]}.yaml`], ...extra };
 }
 export function unchangedAgent(before: RuntimeAgent, after: RuntimeAgent, except: readonly string[] = []) {
-  return ["id", "companyId", "name", "role", "adapterType", "adapterConfig", "runtimeConfig", "permissions", "defaultEnvironmentId", "reportsTo"]
+  return ["id", "spaceId", "name", "role", "adapterType", "adapterConfig", "runtimeConfig", "permissions", "defaultEnvironmentId", "reportsTo"]
     .filter(key => !except.includes(key)).every(key => JSON.stringify(before[key as keyof RuntimeAgent]) === JSON.stringify(after[key as keyof RuntimeAgent]));
 }

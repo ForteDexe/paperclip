@@ -7,16 +7,16 @@ import {
   DispositionRecoveryNotice,
   DispositionRecoveryProvider,
 } from "@/components/DispositionRecoveryNotice";
-import { storybookAgents } from "../../fixtures/paperclipData";
+import { storybookAgents } from "../../fixtures/outpostData";
 const agent = storybookAgents[0];
 const action: IssueRecoveryAction = {
   id: "recovery-gap",
-  companyId: agent.companyId,
+  spaceId: agent.spaceId,
   sourceIssueId: "task-gap",
   recoveryIssueId: null,
   kind: "deliberate_wait_without_target",
   status: "active",
-  ownerType: "board",
+  ownerType: "operator",
   ownerAgentId: null,
   ownerUserId: null,
   previousOwnerAgentId: agent.id,
@@ -97,7 +97,7 @@ const meta = {
           "Shipped recovery notice/card. Decisions alter local fixture state only. Bounded attempts, unknown-side-effect replay and real continuation require production tests.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "recovery/exhaustion",
         "recovery/unknown-outcome"

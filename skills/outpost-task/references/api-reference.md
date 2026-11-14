@@ -1,7 +1,7 @@
 # Task API
 
-`issue` means task and `companyId` means the current Space. Use the injected
-base URL and bearer token. Add `X-Paperclip-Run-Id` to every mutation.
+`issue` means task and `spaceId` means the current Space. Use the injected
+base URL and bearer token. Add `X-Outpost-Run-Id` to every mutation.
 
 ## Endpoints
 
@@ -21,7 +21,7 @@ base URL and bearer token. Add `X-Paperclip-Run-Id` to every mutation.
 curl -sS -X POST \
   "$OUTPOST_API_URL/api/issues/$OUTPOST_TASK_ID/checkout" \
   -H "Authorization: Bearer $OUTPOST_API_KEY" \
-  -H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID" \
+  -H "X-Outpost-Run-Id: $OUTPOST_RUN_ID" \
   -H 'Content-Type: application/json' \
   --data "{\"agentId\":\"$OUTPOST_AGENT_ID\",\"expectedStatuses\":[\"todo\",\"backlog\",\"in_progress\"]}"
 ```

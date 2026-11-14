@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, builtInManagedResources, companies, companySecretVersions, createDb, environmentLeases, environments, heartbeatRuns, issues, plugins, sandboxCreationOperations } from "@outpost/db";
+import { agents, builtInManagedResources, spaces, spaceSecretVersions, createDb, environmentLeases, environments, heartbeatRuns, issues, plugins, sandboxCreationOperations } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { environmentRuntimeService } from "../services/environment-runtime.js";
@@ -24,7 +24,7 @@ const external = resolveExternalTestDatabaseUrl("OUTPOST_HISTORY_TEST_DATABASE_U
 describe("durable sandbox creation through the runtime entry point", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: ReturnType<typeof createDb>;
-  let companyId: string, environmentId: string, pluginId: string, runId: string, spool: string;
+  let spaceId: string, environmentId: string, pluginId: string, runId: string, spool: string;
   let creates: number, destroys: number, loseReply: boolean, failDestroy: boolean, pluginLogin: boolean, generatedLoginId: boolean, foreignReceipt: boolean;
   let beforeReply: (() => Promise<void>) | undefined;
   const resources = new Map<string, string>();
@@ -34,17 +34,17 @@ describe("durable sandbox creation through the runtime entry point", () => {
     db = createDb(external ?? database!.connectionString, { maxConnections: 4, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
   }, 90_000);
   beforeEach(async () => {
-    await db.execute(sql`truncate sandbox_creation_operations, companies, environments, plugins cascade`);
-    companyId = randomUUID(); environmentId = randomUUID(); pluginId = randomUUID(); runId = randomUUID();
+    await db.execute(sql`truncate sandbox_creation_operations, spaces, environments, plugins cascade`);
+    spaceId = randomUUID(); environmentId = randomUUID(); pluginId = randomUUID(); runId = randomUUID();
     const agentId = randomUUID(); creates = 0; destroys = 0; loseReply = false; failDestroy = false; pluginLogin = false; generatedLoginId = false; foreignReceipt = false; beforeReply = undefined; resources.clear();
     spool = await mkdtemp(join(tmpdir(), "empty-sandbox-web-"));
-    await db.insert(companies).values({ id: companyId, name: "Creation fixture", issuePrefix: "CRT" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", role: "engineer", adapterType: "codex_local" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", invocationSource: "manual" });
+    await db.insert(spaces).values({ id: spaceId, name: "Creation fixture", issuePrefix: "CRT" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", role: "engineer", adapterType: "codex_local" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", invocationSource: "manual" });
     await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "sandbox", config: { provider: "creation-fixture", image: "fixture", reuseLease: false } });
     await db.insert(plugins).values({ id: pluginId, pluginKey: "outpost.creation-fixture", packageName: "creation-fixture", version: "1.0.0", apiVersion: 1,
       status: "ready", categories: ["automation"], manifestJson: { id: "outpost.creation-fixture", version: "1.0.0", apiVersion: 1,
-      displayName: "Creation fixture", description: "Controlled remote provider", author: "Paperclip", categories: ["automation"],
+      displayName: "Creation fixture", description: "Controlled remote provider", author: "Outpost", categories: ["automation"],
       capabilities: ["environment.drivers.register"], entrypoints: { worker: "fixture.js" }, environmentDrivers: [{
         driverKey: "creation-fixture", kind: "sandbox_provider", displayName: "Fixture", creationOperationVersion: 1, configSchema: { type: "object" },
       }] } });
@@ -69,8 +69,8 @@ describe("durable sandbox creation through the runtime entry point", () => {
             : { providerLeaseId: id, state: "destroyed" };
           if (!resource) return { providerLeaseId: id, state: "unknown" };
           return { providerLeaseId: resource, state: "active", creationCleanup: { providerLeaseId: resource,
-            observedProviderLeaseId: resource, companyId, environmentId, runId: input.creationOperation.runId, attemptId: id,
-            accountFingerprint: "a".repeat(64), labels: { "paperclip-create-attempt": id } } };
+            observedProviderLeaseId: resource, spaceId, environmentId, runId: input.creationOperation.runId, attemptId: id,
+            accountFingerprint: "a".repeat(64), labels: { "outpost-create-attempt": id } } };
         }
         if (method === "environmentDestroyLease" || (pluginLogin && method === "environmentReleaseLease")) {
           destroys++;
@@ -90,8 +90,8 @@ describe("durable sandbox creation through the runtime entry point", () => {
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await database?.cleanup(); });
   function runtime() { return environmentRuntimeService(db, { pluginWorkerManager: workers, orphanCleanupSpoolDir: spool }); }
   async function acquire() {
-    return runtime().acquireRunLease({ companyId, environment: (await environmentService(db).getById(environmentId))!,
-      heartbeatRunId: runId, issueId: null, persistedExecutionWorkspace: null, assertCompanyBinding: true });
+    return runtime().acquireRunLease({ spaceId, environment: (await environmentService(db).getById(environmentId))!,
+      heartbeatRunId: runId, issueId: null, persistedExecutionWorkspace: null, assertSpaceBinding: true });
   }
   async function due() { await db.update(sandboxCreationOperations).set({ nextAttemptAt: new Date(0) }); }
   async function rejectWrites(table: "environment_leases" | "sandbox_creation_operations", trigger: string) {
@@ -103,7 +103,7 @@ describe("durable sandbox creation through the runtime entry point", () => {
     await db.update(environments).set({ driver: "plugin", config: { pluginKey: "outpost.creation-fixture", driverKey: "creation-fixture", driverConfig: {} } }).where(eq(environments.id, environmentId));
     const [plugin] = await db.select().from(plugins).where(eq(plugins.id, pluginId));
     await db.update(plugins).set({ manifestJson: { ...plugin.manifestJson, environmentDrivers: [{ driverKey: "creation-fixture", kind: "environment_driver", displayName: "Computer", creationOperationVersion: 1, configSchema: { type: "object" } }] } }).where(eq(plugins.id, pluginId));
-    return runtime().acquireRunLease({ companyId, environment: (await environmentService(db).getById(environmentId))!, heartbeatRunId,
+    return runtime().acquireRunLease({ spaceId, environment: (await environmentService(db).getById(environmentId))!, heartbeatRunId,
       issueId: null, persistedExecutionWorkspace: null, purpose: "login", loginCommandKey: "codex", requestedExpiresAt: new Date(Date.now() + 300000) });
   }
   it.each([false, true])("recovers an interrupted login using its exact receipt (provider-generated ID: %s)", async generated => {
@@ -214,7 +214,7 @@ describe("durable sandbox creation through the runtime entry point", () => {
         cwd: fileURLToPath(new URL("../../..", import.meta.url)), timeout: 60_000,
         env: { ...process.env, CREATION_FIXTURE_ACTION: action, CREATION_FIXTURE_EMPTY_DISK: disk,
           CREATION_FIXTURE_DATABASE_URL: external ?? database!.connectionString, CREATION_FIXTURE_PROVIDER_URL: `http://127.0.0.1:${address.port}`,
-          CREATION_FIXTURE_COMPANY_ID: companyId, CREATION_FIXTURE_ENVIRONMENT_ID: environmentId, CREATION_FIXTURE_RUN_ID: runId },
+          CREATION_FIXTURE_SPACE_ID: spaceId, CREATION_FIXTURE_ENVIRONMENT_ID: environmentId, CREATION_FIXTURE_RUN_ID: runId },
       });
       return result.stdout;
     }
@@ -250,15 +250,15 @@ describe("durable sandbox creation through the runtime entry point", () => {
     await due(); await runtime().flushDeferredOrphanCleanups();
     expect(await db.select().from(environmentLeases)).toEqual([expect.objectContaining({ environmentId: null, status: "pending_cleanup" })]);
   });
-  it("rejects attachment after a company rebind and retains cleanup", async () => {
+  it("rejects attachment after a space rebind and retains cleanup", async () => {
     beforeReply = async () => {
-      const foreign = randomUUID(); await db.insert(companies).values({ id: foreign, name: "Foreign", issuePrefix: "FOR" });
-      await db.insert(builtInManagedResources).values({ companyId: foreign, bundleKey: "managed-environment", resourceKind: "environment",
+      const foreign = randomUUID(); await db.insert(spaces).values({ id: foreign, name: "Foreign", issuePrefix: "FOR" });
+      await db.insert(builtInManagedResources).values({ spaceId: foreign, bundleKey: "managed-environment", resourceKind: "environment",
         resourceKey: "sandbox", resourceId: environmentId, stockVersion: "1", stockHash: "fixture" });
     };
     await expect(acquire()).rejects.toMatchObject({ status: 403 });
     await due(); await runtime().flushDeferredOrphanCleanups();
-    expect(await db.select().from(environmentLeases)).toEqual([expect.objectContaining({ companyId, status: "pending_cleanup" })]);
+    expect(await db.select().from(environmentLeases)).toEqual([expect.objectContaining({ spaceId, status: "pending_cleanup" })]);
   });
   it("backs off a failed lookup and recovers unrelated creations in the same pass", async () => {
     loseReply = true; await expect(acquire()).rejects.toThrow("Lost provider reply");
@@ -284,26 +284,26 @@ describe("durable sandbox creation through the runtime entry point", () => {
     await due(); await runtime().flushDeferredOrphanCleanups();
     expect(await db.select().from(environmentLeases)).toEqual([expect.objectContaining({ status: "pending_cleanup" })]);
   });
-  it.each(["before lookup", "during lookup", "lookup fails after deletion"])("records manual reconciliation when the company is deleted %s", async (deletion) => {
+  it.each(["before lookup", "during lookup", "lookup fails after deletion"])("records manual reconciliation when the space is deleted %s", async (deletion) => {
     loseReply = true; await expect(acquire()).rejects.toThrow("Lost provider reply");
-    async function deleteCompany() {
-      await db.delete(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
-      await db.delete(agents).where(eq(agents.companyId, companyId));
-      await db.delete(companies).where(eq(companies.id, companyId));
+    async function deleteSpace() {
+      await db.delete(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId));
+      await db.delete(agents).where(eq(agents.spaceId, spaceId));
+      await db.delete(spaces).where(eq(spaces.id, spaceId));
     }
-    if (deletion === "before lookup") await deleteCompany();
+    if (deletion === "before lookup") await deleteSpace();
     const originalCall = workers.call;
     const calls = vi.fn(async (plugin: string, method: string, params: any, timeout: any) => {
       if (method === "environmentInspectLease" && deletion !== "before lookup") {
-        await deleteCompany();
-        if (deletion === "lookup fails after deletion") throw new Error("Company credential no longer exists");
+        await deleteSpace();
+        if (deletion === "lookup fails after deletion") throw new Error("Space credential no longer exists");
       }
       return originalCall(plugin, method as any, params, timeout);
     });
     (workers as any).call = calls;
     await due(); await runtime().flushDeferredOrphanCleanups();
     expect(await db.select().from(sandboxCreationOperations)).toEqual([
-      expect.objectContaining({ companyId, state: "needs_reconciliation", metadata: expect.objectContaining({ creationReconciliationReason: "company_deleted" }) }),
+      expect.objectContaining({ spaceId, state: "needs_reconciliation", metadata: expect.objectContaining({ creationReconciliationReason: "space_deleted" }) }),
     ]);
     expect(await db.select().from(environmentLeases)).toEqual([]);
     expect(calls.mock.calls.filter(value => value[1] === "environmentInspectLease")).toHaveLength(deletion === "before lookup" ? 0 : 1);
@@ -315,10 +315,10 @@ describe("durable sandbox creation through the runtime entry point", () => {
   });
   async function savedCreationCredential(providerConfigId?: string) {
     const secrets = secretOwner.secretService(db);
-    const secret = await secrets.create(companyId, {
+    const secret = await secrets.create(spaceId, {
       name: `creation-key-${randomUUID()}`, provider: "local_encrypted", providerConfigId, value: "fixture-private-key",
     });
-    await secrets.createBinding({ companyId, secretId: secret.id, targetType: "environment", targetId: environmentId, configPath: "apiKey" });
+    await secrets.createBinding({ spaceId, secretId: secret.id, targetType: "environment", targetId: environmentId, configPath: "apiKey" });
     await db.update(plugins).set({ manifestJson: sql`jsonb_set(${plugins.manifestJson}, '{environmentDrivers,0,configSchema}',
       '{"type":"object","properties":{"apiKey":{"type":"string","format":"secret-ref"}}}'::jsonb)` }).where(eq(plugins.id, pluginId));
     await db.update(environments).set({ config: { provider: "creation-fixture", image: "fixture", reuseLease: false, apiKey: secret.id } })
@@ -330,19 +330,19 @@ describe("durable sandbox creation through the runtime entry point", () => {
   it.each(["deleted", "disabled", "archived", "version-disabled", "vault-disabled", "vault-coming-soon"] as const)(
     "retains a %s creation credential with a quiet worker while sleep remains blocked across restart", async state => {
     const secrets = secretOwner.secretService(db);
-    const vault = state.startsWith("vault-") ? await secrets.createProviderConfig(companyId, {
+    const vault = state.startsWith("vault-") ? await secrets.createProviderConfig(spaceId, {
       provider: "local_encrypted", displayName: "Creation vault", status: "ready", config: {},
     }) : undefined;
     const secret = await savedCreationCredential(vault?.id);
     if (state === "deleted") await secrets.remove(secret.id);
     else if (state === "disabled" || state === "archived") await secrets.update(secret.id, { status: state });
-    else if (state === "version-disabled") await db.update(companySecretVersions).set({ status: "disabled" })
-      .where(eq(companySecretVersions.secretId, secret.id));
+    else if (state === "version-disabled") await db.update(spaceSecretVersions).set({ status: "disabled" })
+      .where(eq(spaceSecretVersions.secretId, secret.id));
     else await secrets.updateProviderConfig(vault!.id, { status: state === "vault-disabled" ? "disabled" : "coming_soon" });
     const inspectCalls = () => vi.mocked(workers.call).mock.calls.filter(value => value[1] === "environmentInspectLease").length;
     await due(); await runtime().flushDeferredOrphanCleanups();
     expect(await db.select().from(sandboxCreationOperations)).toEqual([
-      expect.objectContaining({ companyId, state: "needs_reconciliation",
+      expect.objectContaining({ spaceId, state: "needs_reconciliation",
         metadata: expect.objectContaining({ creationReconciliationReason: "creation_identity_unavailable" }) }),
     ]);
     expect(resources.size).toBe(1);
@@ -419,7 +419,7 @@ describe("durable sandbox creation through the runtime entry point", () => {
       const operation = await interruptedCreation(async current => ({ ...current, bootId: randomUUID(), pid }));
       await runtime().flushDeferredOrphanCleanups();
       const [lease] = await db.select().from(environmentLeases);
-      expect(lease).toMatchObject({ status: "pending_cleanup", companyId, providerLeaseId: resources.get(operation.id),
+      expect(lease).toMatchObject({ status: "pending_cleanup", spaceId, providerLeaseId: resources.get(operation.id),
         failureReason: "interrupted_sandbox_creation" });
       expect(await db.select().from(sandboxCreationOperations)).toEqual([expect.objectContaining({ state: "cleanup_pending", leaseId: lease!.id })]);
       await runtime().retryPendingSandboxTeardown({ environment: null, lease: (await environmentService(db).getLeaseById(lease!.id))! });
@@ -445,7 +445,7 @@ describe("durable sandbox creation through the runtime entry point", () => {
       const operation = await interruptedCreation(async current => ({ ...current, bootId: randomUUID(), pid }));
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
       const issueId = randomUUID();
-      await db.insert(issues).values({ id: issueId, companyId, title: "Restart-crossing task", status: "done" });
+      await db.insert(issues).values({ id: issueId, spaceId, title: "Restart-crossing task", status: "done" });
       await db.update(sandboxCreationOperations).set({ issueId }).where(eq(sandboxCreationOperations.id, operation.id));
       await db.update(heartbeatRuns).set({ status: "failed", errorCode: "process_lost", finishedAt: new Date() })
         .where(eq(heartbeatRuns.id, runId));
@@ -457,7 +457,7 @@ describe("durable sandbox creation through the runtime entry point", () => {
       await runtime().flushDeferredOrphanCleanups();
 
       const [lease] = await db.select().from(environmentLeases);
-      expect(lease).toMatchObject({ status: "pending_cleanup", companyId, providerLeaseId: resources.get(operation.id) });
+      expect(lease).toMatchObject({ status: "pending_cleanup", spaceId, providerLeaseId: resources.get(operation.id) });
       await runtime().retryPendingSandboxTeardown({ environment: null, lease: (await environmentService(db).getLeaseById(lease!.id))! });
       expect(resources.size).toBe(0); expect(destroys).toBe(1); expect(creates).toBe(1);
     });

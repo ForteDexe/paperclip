@@ -131,7 +131,7 @@ export async function runAmbiguousConfirmationReply(context: {
   const ambiguousAnswer = afterReply.findLast(c => !c.authorAgentId && c.authorUserId && c.body === "Yes, go ahead.");
   expect(ambiguousAnswer, "Persist the exact ambiguous user reply").toBeTruthy();
   const e = { cards: await api.get<Row[]>(cardsPath), originalIds: [note.id, poster.id],
-    tasks: await api.get<Row[]>(`/api/companies/${input.fixtures.company.id}/issues`),
+    tasks: await api.get<Row[]>(`/api/spaces/${input.fixtures.space.id}/issues`),
     agentId: input.fixtures.agent.id, answerId: ambiguousAnswer!.id,
     reply: afterReply.filter(c => c.authorAgentId === input.fixtures.agent.id && c.createdAt >= ambiguousAnswer!.createdAt).at(-1)?.body ?? "" };
   await input.evidence("confirmation-ambiguous.json", e);
@@ -150,7 +150,7 @@ export async function runAmbiguousConfirmationReply(context: {
   cards = await api.get<Row[]>(cardsPath);
   const no = (await context.comments()).filter(c => !c.authorAgentId && c.body.includes("No, do not proceed")).at(-1)!;
   expect(cards.find(c => c.id === poster.id)).toMatchObject({ status: "rejected", result: { commentId: no.id } });
-  expect(await api.get<Row[]>(`/api/companies/${input.fixtures.company.id}/issues`)).toHaveLength(0);
+  expect(await api.get<Row[]>(`/api/spaces/${input.fixtures.space.id}/issues`)).toHaveLength(0);
   await page.reload({ waitUntil: "domcontentloaded" });
   for (const id of [note.id, poster.id]) {
     await assertConfirmationReceipt(page, cards.find(card => card.id === id)!);
@@ -194,7 +194,7 @@ export async function runUnansweredQuestionReturn(context: {
 }) {
   const { input } = context;
   const { api, page } = input;
-  await sendChatMessage(page, "Help me choose a color for a garden club welcome note. Ask me one interactive question using Paperclip's question card: Which color should the welcome note use? Offer Blue and Green. When I eventually answer, acknowledge my chosen color in chat. For now only ask; do not create tasks or write the note.");
+  await sendChatMessage(page, "Help me choose a color for a garden club welcome note. Ask me one interactive question using Outpost's question card: Which color should the welcome note use? Offer Blue and Green. When I eventually answer, acknowledge my chosen color in chat. For now only ask; do not create tasks or write the note.");
   await context.idle(1);
   const path = `/api/issues/${context.issue().id}/interactions`;
   const original = (await api.get<Row[]>(path)).filter(card => card.kind === "ask_user_questions" && card.status === "pending").at(-1);
@@ -240,7 +240,7 @@ export async function runUnansweredQuestionReturn(context: {
   const lateReply = (await context.comments()).findLast(comment => comment.authorAgentId === input.fixtures.agent.id
     && comment.createdAt >= afterAnswer.resolvedAt);
   const evidence = { original: original!, afterMove, afterAnswer, unrelatedComment, unrelatedReply, lateReply,
-    taskCount: (await api.get<Row[]>(`/api/companies/${input.fixtures.company.id}/issues`)).length };
+    taskCount: (await api.get<Row[]>(`/api/spaces/${input.fixtures.space.id}/issues`)).length };
   await input.evidence("unanswered-question.json", evidence);
   for (const check of gradeUnansweredQuestion(evidence)) {
     input.check?.(check.id, check.passed, check.detail);

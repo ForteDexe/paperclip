@@ -16,10 +16,10 @@ export function loginLeaseBoundsDeadline(expiresAt: Date | null | undefined, dea
 }
 
 /**
- * The company, environment, and provider adapter selected for this allocation.
+ * The space, environment, and provider adapter selected for this allocation.
  */
 export interface LoginLeaseMetadata {
-  companyId: string;
+  spaceId: string;
   environment: Environment;
   /** The agent adapter type for this login (mixed-harness environments). */
   adapterType?: string | null;
@@ -40,10 +40,10 @@ export interface BuildLoginLeaseAcquireArgsOptions {
   /** Explicit browser login; ordinary probes keep their execution allocation. */
   browserLogin?: boolean;
   /**
-   * Re-check the environment company binding inside the lease insert
+   * Re-check the environment space binding inside the lease insert
    * transaction. The setup-token flow sets this to true.
    */
-  assertCompanyBinding?: boolean;
+  assertSpaceBinding?: boolean;
   /**
    * The latest time the allocation may stay active. Both browser-login flows
    * pass their absolute session deadline.
@@ -62,7 +62,7 @@ export function buildLoginLeaseAcquireArgs(
   const pluginLogin = options.browserLogin === true && options.metadata.environment.driver === "plugin";
   return {
     ...(pluginLogin ? { purpose: "login" as const, loginCommandKey: resolveLoginCommandKey(options.metadata.adapterType ?? "") } : {}),
-    companyId: options.metadata.companyId,
+    spaceId: options.metadata.spaceId,
     environment: options.metadata.environment,
     adapterType: pluginLogin ? "outpost_runner" : options.metadata.adapterType ?? null,
     agentId: options.targetAgentId ?? null,
@@ -74,7 +74,7 @@ export function buildLoginLeaseAcquireArgs(
     // Apply the active custom-image template, so the sandbox binds to the
     // trusted image and runtime identity.
     applyCustomImageTemplate: true,
-    assertCompanyBinding: options.assertCompanyBinding,
+    assertSpaceBinding: options.assertSpaceBinding,
     requestedExpiresAt: options.requestedExpiresAt ?? null,
   };
 }

@@ -4,11 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { deriveAuthTrustedOrigins } from "../auth/better-auth.js";
 import { parseChatWebhookPublicBaseUrl } from "../chat-webhook-public-url.js";
 import { loadConfig } from "../config.js";
-import { boardMutationGuard } from "../middleware/board-mutation-guard.js";
+import { operatorMutationGuard } from "../middleware/operator-mutation-guard.js";
 
 const missingConfigPath = path.join(
   os.tmpdir(),
-  `paperclip-chat-webhook-url-${process.pid}.json`,
+  `outpost-chat-webhook-url-${process.pid}.json`,
 );
 
 function useIsolatedConfigEnvironment() {
@@ -72,7 +72,7 @@ describe("chat webhook public URL", () => {
     expect(message).not.toContain(canary);
   });
 
-  it("keeps webhook ingress separate from board auth and host trust", () => {
+  it("keeps webhook ingress separate from operator auth and host trust", () => {
     useIsolatedConfigEnvironment();
     vi.stubEnv(
       "OUTPOST_CHAT_WEBHOOK_PUBLIC_URL",
@@ -89,16 +89,16 @@ describe("chat webhook public URL", () => {
     );
   });
 
-  it("does not trust the webhook-only origin for board mutations", () => {
+  it("does not trust the webhook-only origin for operator mutations", () => {
     useIsolatedConfigEnvironment();
     vi.stubEnv(
       "OUTPOST_CHAT_WEBHOOK_PUBLIC_URL",
       "https://hooks.example.test",
     );
-    const middleware = boardMutationGuard();
+    const middleware = operatorMutationGuard();
     const req = {
       method: "POST",
-      actor: { type: "board", userId: "board", source: "session" },
+      actor: { type: "operator", userId: "operator", source: "session" },
       socket: { remoteAddress: "127.0.0.1" },
       app: { get: () => undefined },
       header: (name: string) => {
@@ -118,13 +118,13 @@ describe("chat webhook public URL", () => {
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({
-      error: "Board mutation requires trusted browser origin",
+      error: "Operator mutation requires trusted browser origin",
     });
   });
 
-  it("preserves the existing board origin while using a distinct webhook origin", () => {
+  it("preserves the existing operator origin while using a distinct webhook origin", () => {
     useIsolatedConfigEnvironment();
-    vi.stubEnv("OUTPOST_PUBLIC_URL", "https://board.example.test");
+    vi.stubEnv("OUTPOST_PUBLIC_URL", "https://operator.example.test");
     vi.stubEnv(
       "OUTPOST_CHAT_WEBHOOK_PUBLIC_URL",
       "https://hooks.example.test",
@@ -132,9 +132,9 @@ describe("chat webhook public URL", () => {
 
     const config = loadConfig();
 
-    expect(config.authPublicBaseUrl).toBe("https://board.example.test");
+    expect(config.authPublicBaseUrl).toBe("https://operator.example.test");
     expect(config.chatWebhookPublicBaseUrl).toBe("https://hooks.example.test");
-    expect(config.allowedHostnames).toContain("board.example.test");
+    expect(config.allowedHostnames).toContain("operator.example.test");
     expect(config.allowedHostnames).not.toContain("hooks.example.test");
   });
 });

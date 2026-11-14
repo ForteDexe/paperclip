@@ -88,11 +88,11 @@ export function installEnvironmentFixture(
         read: () => ({ defaultEnvironmentId: environment.id }),
       },
       {
-        path: "/api/companies/company-storybook/environments",
+        path: "/api/spaces/space-storybook/environments",
         read: () => (state === "empty" ? [] : [current]),
       },
       {
-        path: "/api/companies/company-storybook/environments/capabilities",
+        path: "/api/spaces/space-storybook/environments/capabilities",
         read: () =>
           unsupported
             ? {

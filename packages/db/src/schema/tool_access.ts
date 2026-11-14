@@ -69,7 +69,7 @@ import type {
 } from "@outpost/shared";
 import { agents } from "./agents.js";
 import { approvals } from "./approvals.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { executionWorkspaces } from "./execution_workspaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 import { issueThreadInteractions } from "./issue_thread_interactions.js";
@@ -82,7 +82,7 @@ export const toolApplications = pgTable(
   "tool_applications",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     applicationKey: text("application_key"),
     name: text("name").notNull(),
     description: text("description"),
@@ -97,10 +97,10 @@ export const toolApplications = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_applications_company_idx").on(table.companyId),
-    index("tool_applications_company_status_idx").on(table.companyId, table.status),
-    uniqueIndex("tool_applications_company_name_uq").on(table.companyId, table.name),
-    uniqueIndex("tool_applications_company_key_uq").on(table.companyId, table.applicationKey),
+    index("tool_applications_space_idx").on(table.spaceId),
+    index("tool_applications_space_status_idx").on(table.spaceId, table.status),
+    uniqueIndex("tool_applications_space_name_uq").on(table.spaceId, table.name),
+    uniqueIndex("tool_applications_space_key_uq").on(table.spaceId, table.applicationKey),
   ],
 );
 
@@ -108,14 +108,14 @@ export const toolConnections = pgTable(
   "tool_connections",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     // NO ACTION (not CASCADE) so the database itself refuses to delete an application that still
     // has connections. This closes the delete-vs-create race in DELETE
     // /tool-applications/:applicationId: a connection inserted concurrently takes a FOR KEY SHARE
     // lock on the parent row, so the delete fails closed with a foreign-key violation instead of
     // silently cascading the new connection away. NO ACTION (checked at end-of-statement) rather
-    // than RESTRICT (checked immediately) is deliberate: it lets a company delete still cascade —
-    // companies → tool_applications and companies → tool_connections both fire in one statement,
+    // than RESTRICT (checked immediately) is deliberate: it lets a space delete still cascade —
+    // spaces → tool_applications and spaces → tool_connections both fire in one statement,
     // and the connections are gone by the time this constraint is checked.
     applicationId: uuid("application_id").notNull().references(() => toolApplications.id, { onDelete: "no action" }),
     name: text("name").notNull(),
@@ -125,7 +125,7 @@ export const toolConnections = pgTable(
     ownership: text("ownership").$type<ToolConnectionOwnership>().notNull().default("customer"),
     transport: text("transport").$type<ToolConnectionTransport>().notNull(),
     authKind: text("auth_kind").$type<ToolConnectionAuthKind>().notNull().default("none"),
-    credentialSource: text("credential_source").$type<ToolConnectionCredentialSource>().notNull().default("paperclip_vault"),
+    credentialSource: text("credential_source").$type<ToolConnectionCredentialSource>().notNull().default("outpost_vault"),
     externalCredential: jsonb("external_credential").$type<VercelConnectCredentialReference>(),
     credentialPolicy: text("credential_policy").$type<ToolConnectionCredentialPolicy>().notNull().default("shared"),
     status: text("status").$type<ToolConnectionStatus>().notNull().default("draft"),
@@ -158,18 +158,18 @@ export const toolConnections = pgTable(
       (${table.connectionPurpose} = 'ai' and ${table.transport} = 'runtime_auth')
     )`),
     check("tool_connections_auth_kind_check", sql`${table.authKind} in ('oauth', 'api_key', 'none')`),
-    check("tool_connections_credential_source_check", sql`${table.credentialSource} in ('paperclip_vault', 'vercel_connect')`),
+    check("tool_connections_credential_source_check", sql`${table.credentialSource} in ('outpost_vault', 'vercel_connect')`),
     check("tool_connections_credential_source_one_of_check", sql`(
-      (${table.credentialSource} = 'paperclip_vault' and ${table.externalCredential} is null)
+      (${table.credentialSource} = 'outpost_vault' and ${table.externalCredential} is null)
       or
       (${table.credentialSource} = 'vercel_connect' and ${table.externalCredential} is not null and jsonb_array_length(${table.credentialRefs}) = 0 and jsonb_array_length(${table.credentialSecretRefs}) = 0)
     )`),
     check("tool_connections_credential_policy_check", sql`${table.credentialPolicy} in ('shared', 'per_user', 'per_user_with_fallback', 'per_agent')`),
-    index("tool_connections_company_idx").on(table.companyId),
+    index("tool_connections_space_idx").on(table.spaceId),
     index("tool_connections_application_idx").on(table.applicationId),
-    index("tool_connections_company_enabled_idx").on(table.companyId, table.enabled),
-    uniqueIndex("tool_connections_company_uid_uq").on(table.companyId, table.uid),
-    unique("tool_connections_company_id_uq").on(table.companyId, table.id),
+    index("tool_connections_space_enabled_idx").on(table.spaceId, table.enabled),
+    uniqueIndex("tool_connections_space_uid_uq").on(table.spaceId, table.uid),
+    unique("tool_connections_space_id_uq").on(table.spaceId, table.id),
   ],
 );
 
@@ -177,7 +177,7 @@ export const connectionGrants = pgTable(
   "connection_grants",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     connectionId: uuid("connection_id").notNull(),
     kind: text("kind").$type<ConnectionGrantKind>().notNull(),
     subjectUserId: text("subject_user_id"),
@@ -257,14 +257,14 @@ export const connectionGrants = pgTable(
     check("connection_grants_subject_check", sql`(${table.kind} = 'user' and ${table.subjectUserId} is not null and ${table.subjectAgentId} is null) or (${table.kind} = 'agent' and ${table.subjectAgentId} is not null and ${table.subjectUserId} is null) or (${table.kind} = 'organization' and ${table.subjectUserId} is null and ${table.subjectAgentId} is null)`),
     check("connection_grants_default_check", sql`${table.isDefault} = false or ${table.kind} = 'organization'`),
     foreignKey({
-      columns: [table.companyId, table.connectionId],
-      foreignColumns: [toolConnections.companyId, toolConnections.id],
-      name: "connection_grants_company_connection_fk",
+      columns: [table.spaceId, table.connectionId],
+      foreignColumns: [toolConnections.spaceId, toolConnections.id],
+      name: "connection_grants_space_connection_fk",
     }).onDelete("cascade"),
-    index("connection_grants_company_connection_idx").on(table.companyId, table.connectionId),
-    index("connection_grants_subject_user_idx").on(table.companyId, table.subjectUserId),
-    index("connection_grants_subject_agent_idx").on(table.companyId, table.subjectAgentId),
-    unique("connection_grants_company_id_uq").on(table.companyId, table.id),
+    index("connection_grants_space_connection_idx").on(table.spaceId, table.connectionId),
+    index("connection_grants_subject_user_idx").on(table.spaceId, table.subjectUserId),
+    index("connection_grants_subject_agent_idx").on(table.spaceId, table.subjectAgentId),
+    unique("connection_grants_space_id_uq").on(table.spaceId, table.id),
     uniqueIndex("connection_grants_user_uq").on(table.connectionId, table.subjectUserId),
     uniqueIndex("connection_grants_agent_uq").on(table.connectionId, table.subjectAgentId),
     uniqueIndex("connection_grants_default_uq").on(table.connectionId).where(sql`${table.isDefault} = true and ${table.kind} = 'organization'`),
@@ -275,7 +275,7 @@ export const connectionGrantMembers = pgTable(
   "connection_grant_members",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     grantId: uuid("grant_id").notNull(),
     subjectType: text("subject_type").$type<ConnectionGrantMemberSubjectType>().notNull(),
     subjectId: text("subject_id").notNull(),
@@ -284,11 +284,11 @@ export const connectionGrantMembers = pgTable(
   (table) => [
     check("connection_grant_members_subject_type_check", sql`${table.subjectType} in ('user')`),
     foreignKey({
-      columns: [table.companyId, table.grantId],
-      foreignColumns: [connectionGrants.companyId, connectionGrants.id],
-      name: "connection_grant_members_company_grant_fk",
+      columns: [table.spaceId, table.grantId],
+      foreignColumns: [connectionGrants.spaceId, connectionGrants.id],
+      name: "connection_grant_members_space_grant_fk",
     }).onDelete("cascade"),
-    index("connection_grant_members_company_subject_idx").on(table.companyId, table.subjectType, table.subjectId),
+    index("connection_grant_members_space_subject_idx").on(table.spaceId, table.subjectType, table.subjectId),
     uniqueIndex("connection_grant_members_grant_subject_uq").on(table.grantId, table.subjectType, table.subjectId),
   ],
 );
@@ -297,7 +297,7 @@ export const connectionGrantDelegations = pgTable(
   "connection_grant_delegations",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     grantId: uuid("grant_id").notNull(),
     agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
     createdByUserId: text("created_by_user_id").notNull(),
@@ -305,11 +305,11 @@ export const connectionGrantDelegations = pgTable(
   },
   (table) => [
     foreignKey({
-      columns: [table.companyId, table.grantId],
-      foreignColumns: [connectionGrants.companyId, connectionGrants.id],
-      name: "connection_grant_delegations_company_grant_fk",
+      columns: [table.spaceId, table.grantId],
+      foreignColumns: [connectionGrants.spaceId, connectionGrants.id],
+      name: "connection_grant_delegations_space_grant_fk",
     }).onDelete("cascade"),
-    index("connection_grant_delegations_company_agent_idx").on(table.companyId, table.agentId),
+    index("connection_grant_delegations_space_agent_idx").on(table.spaceId, table.agentId),
     uniqueIndex("connection_grant_delegations_grant_agent_uq").on(table.grantId, table.agentId),
   ],
 );
@@ -318,7 +318,7 @@ export const toolConnectionInstalls = pgTable(
   "tool_connection_installs",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     connectionId: uuid("connection_id").notNull().references(() => toolConnections.id, { onDelete: "cascade" }),
     targetType: text("target_type").$type<ToolConnectionInstallTargetType>().notNull(),
     targetId: text("target_id").notNull(),
@@ -327,11 +327,11 @@ export const toolConnectionInstalls = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    check("tool_connection_installs_target_type_check", sql`${table.targetType} in ('company', 'agent')`),
-    index("tool_connection_installs_company_target_idx").on(table.companyId, table.targetType, table.targetId),
-    index("tool_connection_installs_connection_idx").on(table.companyId, table.connectionId),
+    check("tool_connection_installs_target_type_check", sql`${table.targetType} in ('space', 'agent')`),
+    index("tool_connection_installs_space_target_idx").on(table.spaceId, table.targetType, table.targetId),
+    index("tool_connection_installs_connection_idx").on(table.spaceId, table.connectionId),
     uniqueIndex("tool_connection_installs_target_uq").on(
-      table.companyId,
+      table.spaceId,
       table.connectionId,
       table.targetType,
       table.targetId,
@@ -343,7 +343,7 @@ export const toolOauthStates = pgTable(
   "tool_oauth_states",
   {
     state: text("state").primaryKey(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     connectionId: uuid("connection_id").notNull().references(() => toolConnections.id, { onDelete: "cascade" }),
     codeVerifier: text("code_verifier").notNull(),
     createdByActorType: text("created_by_actor_type"),
@@ -359,10 +359,10 @@ export const toolOauthStates = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_oauth_states_company_idx").on(table.companyId),
+    index("tool_oauth_states_space_idx").on(table.spaceId),
     index("tool_oauth_states_connection_idx").on(table.connectionId),
     index("tool_oauth_states_actor_idx").on(table.createdByActorType, table.createdByActorId),
-    index("tool_oauth_states_subject_agent_idx").on(table.companyId, table.subjectAgentId),
+    index("tool_oauth_states_subject_agent_idx").on(table.spaceId, table.subjectAgentId),
     index("tool_oauth_states_expires_at_idx").on(table.expiresAt),
   ],
 );
@@ -371,7 +371,7 @@ export const toolCatalogEntries = pgTable(
   "tool_catalog_entries",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     applicationId: uuid("application_id").references(() => toolApplications.id, { onDelete: "cascade" }),
     connectionId: uuid("connection_id").notNull().references(() => toolConnections.id, { onDelete: "cascade" }),
     entryKind: text("entry_kind").$type<ToolCatalogEntryKind>().notNull().default("tool"),
@@ -401,10 +401,10 @@ export const toolCatalogEntries = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_catalog_entries_company_idx").on(table.companyId),
+    index("tool_catalog_entries_space_idx").on(table.spaceId),
     index("tool_catalog_entries_application_idx").on(table.applicationId),
     index("tool_catalog_entries_connection_idx").on(table.connectionId),
-    index("tool_catalog_entries_company_status_idx").on(table.companyId, table.status),
+    index("tool_catalog_entries_space_status_idx").on(table.spaceId, table.status),
     uniqueIndex("tool_catalog_entries_connection_name_uq").on(table.connectionId, table.name),
   ],
 );
@@ -413,7 +413,7 @@ export const toolProfiles = pgTable(
   "tool_profiles",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     profileKey: text("profile_key").notNull(),
     name: text("name").notNull(),
     description: text("description"),
@@ -425,9 +425,9 @@ export const toolProfiles = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_profiles_company_status_idx").on(table.companyId, table.status),
-    uniqueIndex("tool_profiles_company_key_uq").on(table.companyId, table.profileKey),
-    uniqueIndex("tool_profiles_company_name_uq").on(table.companyId, table.name),
+    index("tool_profiles_space_status_idx").on(table.spaceId, table.status),
+    uniqueIndex("tool_profiles_space_key_uq").on(table.spaceId, table.profileKey),
+    uniqueIndex("tool_profiles_space_name_uq").on(table.spaceId, table.name),
   ],
 );
 
@@ -435,7 +435,7 @@ export const toolProfileEntries = pgTable(
   "tool_profile_entries",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     profileId: uuid("profile_id").notNull().references(() => toolProfiles.id, { onDelete: "cascade" }),
     selectorType: text("selector_type").$type<ToolProfileEntrySelectorType>().notNull(),
     effect: text("effect").$type<ToolProfileEntryEffect>().notNull().default("include"),
@@ -449,10 +449,10 @@ export const toolProfileEntries = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_profile_entries_company_profile_idx").on(table.companyId, table.profileId),
-    index("tool_profile_entries_application_idx").on(table.companyId, table.applicationId),
-    index("tool_profile_entries_connection_idx").on(table.companyId, table.connectionId),
-    index("tool_profile_entries_catalog_entry_idx").on(table.companyId, table.catalogEntryId),
+    index("tool_profile_entries_space_profile_idx").on(table.spaceId, table.profileId),
+    index("tool_profile_entries_application_idx").on(table.spaceId, table.applicationId),
+    index("tool_profile_entries_connection_idx").on(table.spaceId, table.connectionId),
+    index("tool_profile_entries_catalog_entry_idx").on(table.spaceId, table.catalogEntryId),
   ],
 );
 
@@ -460,7 +460,7 @@ export const toolProfileBindings = pgTable(
   "tool_profile_bindings",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     profileId: uuid("profile_id").notNull().references(() => toolProfiles.id, { onDelete: "cascade" }),
     targetType: text("target_type").$type<ToolProfileBindingTargetType>().notNull(),
     targetId: text("target_id").notNull(),
@@ -472,9 +472,9 @@ export const toolProfileBindings = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_profile_bindings_company_target_idx").on(table.companyId, table.targetType, table.targetId),
+    index("tool_profile_bindings_space_target_idx").on(table.spaceId, table.targetType, table.targetId),
     uniqueIndex("tool_profile_bindings_target_profile_uq").on(
-      table.companyId,
+      table.spaceId,
       table.targetType,
       table.targetId,
       table.profileId,
@@ -486,7 +486,7 @@ export const toolMcpGateways = pgTable(
   "tool_mcp_gateways",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     gatewayPublicId: text("gateway_public_id").notNull().default(sql`'gw_' || replace(gen_random_uuid()::text, '-', '')`),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
@@ -526,7 +526,7 @@ export const toolMcpGateways = pgTable(
     }),
     metadataPolicy: jsonb("metadata_policy").$type<ToolMcpGatewayMetadataPolicy>().notNull().default({
       version: 1,
-      forwardCompanyId: false,
+      forwardSpaceId: false,
       forwardGatewayId: false,
       forwardProjectId: false,
       forwardIssueId: false,
@@ -547,12 +547,12 @@ export const toolMcpGateways = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_mcp_gateways_company_idx").on(table.companyId),
-    index("tool_mcp_gateways_company_status_idx").on(table.companyId, table.status),
-    index("tool_mcp_gateways_profile_idx").on(table.companyId, table.profileId),
+    index("tool_mcp_gateways_space_idx").on(table.spaceId),
+    index("tool_mcp_gateways_space_status_idx").on(table.spaceId, table.status),
+    index("tool_mcp_gateways_profile_idx").on(table.spaceId, table.profileId),
     uniqueIndex("tool_mcp_gateways_public_id_uq").on(table.gatewayPublicId),
-    uniqueIndex("tool_mcp_gateways_company_slug_uq").on(table.companyId, table.slug),
-    uniqueIndex("tool_mcp_gateways_company_name_uq").on(table.companyId, table.name),
+    uniqueIndex("tool_mcp_gateways_space_slug_uq").on(table.spaceId, table.slug),
+    uniqueIndex("tool_mcp_gateways_space_name_uq").on(table.spaceId, table.name),
   ],
 );
 
@@ -560,7 +560,7 @@ export const toolMcpGatewayTokens = pgTable(
   "tool_mcp_gateway_tokens",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     gatewayId: uuid("gateway_id").notNull().references(() => toolMcpGateways.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     tokenHash: text("token_hash").notNull(),
@@ -568,7 +568,7 @@ export const toolMcpGatewayTokens = pgTable(
     subjectType: text("subject_type").$type<ToolMcpGatewayTokenSubjectType>().notNull().default("gateway_client"),
     subjectId: text("subject_id"),
     clientLabel: text("client_label").notNull().default(""),
-    // Null distinguishes board/legacy clients from delegated agent clients.
+    // Null distinguishes operator/legacy clients from delegated agent clients.
     responsibleUserId: text("responsible_user_id"),
     ownerNote: text("owner_note").notNull().default(""),
     // Agent-created client tokens have no usable value until the responsible
@@ -590,9 +590,9 @@ export const toolMcpGatewayTokens = pgTable(
   (table) => [
     uniqueIndex("tool_mcp_gateway_tokens_token_hash_uq").on(table.tokenHash),
     index("tool_mcp_gateway_tokens_expiry_idx").on(table.expiresAt, table.id),
-    index("tool_mcp_gateway_tokens_gateway_idx").on(table.companyId, table.gatewayId),
-    index("tool_mcp_gateway_tokens_subject_idx").on(table.companyId, table.subjectType, table.subjectId),
-    index("tool_mcp_gateway_tokens_company_expires_idx").on(table.companyId, table.expiresAt),
+    index("tool_mcp_gateway_tokens_gateway_idx").on(table.spaceId, table.gatewayId),
+    index("tool_mcp_gateway_tokens_subject_idx").on(table.spaceId, table.subjectType, table.subjectId),
+    index("tool_mcp_gateway_tokens_space_expires_idx").on(table.spaceId, table.expiresAt),
   ],
 );
 
@@ -600,7 +600,7 @@ export const toolPolicies = pgTable(
   "tool_policies",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
     policyType: text("policy_type").$type<ToolPolicyType>().notNull(),
@@ -615,9 +615,9 @@ export const toolPolicies = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_policies_company_enabled_idx").on(table.companyId, table.enabled),
-    index("tool_policies_company_type_idx").on(table.companyId, table.policyType),
-    uniqueIndex("tool_policies_company_name_uq").on(table.companyId, table.name),
+    index("tool_policies_space_enabled_idx").on(table.spaceId, table.enabled),
+    index("tool_policies_space_type_idx").on(table.spaceId, table.policyType),
+    uniqueIndex("tool_policies_space_name_uq").on(table.spaceId, table.name),
   ],
 );
 
@@ -625,7 +625,7 @@ export const toolRuntimeSlots = pgTable(
   "tool_runtime_slots",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     applicationId: uuid("application_id").references(() => toolApplications.id, { onDelete: "set null" }),
     connectionId: uuid("connection_id").references(() => toolConnections.id, { onDelete: "cascade" }),
     projectWorkspaceId: uuid("project_workspace_id").references(() => projectWorkspaces.id, { onDelete: "set null" }),
@@ -658,10 +658,10 @@ export const toolRuntimeSlots = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_runtime_slots_company_idx").on(table.companyId),
+    index("tool_runtime_slots_space_idx").on(table.spaceId),
     index("tool_runtime_slots_connection_idx").on(table.connectionId),
-    index("tool_runtime_slots_execution_workspace_idx").on(table.companyId, table.executionWorkspaceId),
-    uniqueIndex("tool_runtime_slots_slot_key_uq").on(table.companyId, table.slotKey),
+    index("tool_runtime_slots_execution_workspace_idx").on(table.spaceId, table.executionWorkspaceId),
+    uniqueIndex("tool_runtime_slots_slot_key_uq").on(table.spaceId, table.slotKey),
   ],
 );
 
@@ -669,7 +669,7 @@ export const toolStdioCommandTemplates = pgTable(
   "tool_stdio_command_templates",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     templateKey: text("template_key").notNull(),
     name: text("name").notNull(),
     description: text("description"),
@@ -685,9 +685,9 @@ export const toolStdioCommandTemplates = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_stdio_command_templates_company_idx").on(table.companyId),
-    index("tool_stdio_command_templates_company_status_idx").on(table.companyId, table.status),
-    uniqueIndex("tool_stdio_command_templates_company_key_uq").on(table.companyId, table.templateKey),
+    index("tool_stdio_command_templates_space_idx").on(table.spaceId),
+    index("tool_stdio_command_templates_space_status_idx").on(table.spaceId, table.status),
+    uniqueIndex("tool_stdio_command_templates_space_key_uq").on(table.spaceId, table.templateKey),
   ],
 );
 
@@ -695,7 +695,7 @@ export const toolGatewaySessions = pgTable(
   "tool_gateway_sessions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
     runId: uuid("run_id").notNull().references(() => heartbeatRuns.id, { onDelete: "cascade" }),
     issueId: uuid("issue_id").references(() => issues.id, { onDelete: "set null" }),
@@ -717,12 +717,12 @@ export const toolGatewaySessions = pgTable(
   },
   (table) => [
     uniqueIndex("tool_gateway_sessions_token_hash_uq").on(table.tokenHash),
-    index("tool_gateway_sessions_company_agent_idx").on(table.companyId, table.agentId),
-    index("tool_gateway_sessions_company_expires_idx").on(table.companyId, table.expiresAt),
+    index("tool_gateway_sessions_space_agent_idx").on(table.spaceId, table.agentId),
+    index("tool_gateway_sessions_space_expires_idx").on(table.spaceId, table.expiresAt),
     index("tool_gateway_sessions_expiry_idx").on(table.expiresAt),
-    index("tool_gateway_sessions_run_idx").on(table.companyId, table.runId),
-    index("tool_gateway_sessions_issue_idx").on(table.companyId, table.issueId),
-    index("tool_gateway_sessions_gateway_idx").on(table.companyId, table.gatewayId),
+    index("tool_gateway_sessions_run_idx").on(table.spaceId, table.runId),
+    index("tool_gateway_sessions_issue_idx").on(table.spaceId, table.issueId),
+    index("tool_gateway_sessions_gateway_idx").on(table.spaceId, table.gatewayId),
   ],
 );
 
@@ -730,7 +730,7 @@ export const toolGatewayRateLimitCounters = pgTable(
   "tool_gateway_rate_limit_counters",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     counterKey: text("counter_key").notNull(),
     windowStartAt: timestamp("window_start_at", { withTimezone: true }).notNull(),
     windowMs: integer("window_ms").notNull(),
@@ -741,9 +741,9 @@ export const toolGatewayRateLimitCounters = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_gateway_rate_limit_counters_company_idx").on(table.companyId),
+    index("tool_gateway_rate_limit_counters_space_idx").on(table.spaceId),
     uniqueIndex("tool_gateway_rate_limit_counters_window_uq").on(
-      table.companyId,
+      table.spaceId,
       table.counterKey,
       table.windowStartAt,
     ),
@@ -754,7 +754,7 @@ export const toolInvocations = pgTable(
   "tool_invocations",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     idempotencyKey: text("idempotency_key"),
     actorType: text("actor_type").notNull().default("system"),
     actorId: text("actor_id"),
@@ -801,11 +801,11 @@ export const toolInvocations = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_invocations_company_created_idx").on(table.companyId, table.createdAt),
-    index("tool_invocations_run_idx").on(table.companyId, table.runId),
-    index("tool_invocations_issue_idx").on(table.companyId, table.issueId),
-    index("tool_invocations_gateway_idx").on(table.companyId, table.gatewayId),
-    uniqueIndex("tool_invocations_company_idempotency_uq").on(table.companyId, table.idempotencyKey),
+    index("tool_invocations_space_created_idx").on(table.spaceId, table.createdAt),
+    index("tool_invocations_run_idx").on(table.spaceId, table.runId),
+    index("tool_invocations_issue_idx").on(table.spaceId, table.issueId),
+    index("tool_invocations_gateway_idx").on(table.spaceId, table.gatewayId),
+    uniqueIndex("tool_invocations_space_idempotency_uq").on(table.spaceId, table.idempotencyKey),
   ],
 );
 
@@ -813,7 +813,7 @@ export const toolActionRequests = pgTable(
   "tool_action_requests",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     invocationId: uuid("invocation_id").notNull().references(() => toolInvocations.id, { onDelete: "cascade" }),
     issueId: uuid("issue_id").references(() => issues.id, { onDelete: "set null" }),
     interactionId: uuid("interaction_id").references(() => issueThreadInteractions.id, { onDelete: "set null" }),
@@ -836,16 +836,16 @@ export const toolActionRequests = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_action_requests_company_status_idx").on(table.companyId, table.status),
+    index("tool_action_requests_space_status_idx").on(table.spaceId, table.status),
     index("tool_action_requests_pending_expiry_idx").on(table.expiresAt, table.id)
       .where(sql`${table.status} = 'pending'`),
-    index("tool_action_requests_company_pending_expiry_idx").on(table.companyId, table.expiresAt)
+    index("tool_action_requests_space_pending_expiry_idx").on(table.spaceId, table.expiresAt)
       .where(sql`${table.status} = 'pending'`),
     index("tool_action_requests_executing_deadline_idx").on(table.updatedAt, table.id).where(sql`${table.status} = 'executing'`),
     index("tool_action_requests_approved_idx").on(table.id).where(sql`${table.status} = 'approved'`),
     index("tool_action_requests_invocation_idx").on(table.invocationId),
-    index("tool_action_requests_company_interaction_idx").on(table.companyId, table.interactionId),
-    index("tool_action_requests_issue_idx").on(table.companyId, table.issueId),
+    index("tool_action_requests_space_interaction_idx").on(table.spaceId, table.interactionId),
+    index("tool_action_requests_issue_idx").on(table.spaceId, table.issueId),
   ],
 );
 
@@ -853,7 +853,7 @@ export const toolCallEvents = pgTable(
   "tool_call_events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     eventType: text("event_type").$type<ToolAuditEventType>().notNull(),
     actorType: text("actor_type").notNull().default("system"),
     actorId: text("actor_id"),
@@ -897,11 +897,11 @@ export const toolCallEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_call_events_company_created_idx").on(table.companyId, table.createdAt),
-    index("tool_call_events_run_idx").on(table.companyId, table.runId),
-    index("tool_call_events_issue_idx").on(table.companyId, table.issueId),
+    index("tool_call_events_space_created_idx").on(table.spaceId, table.createdAt),
+    index("tool_call_events_run_idx").on(table.spaceId, table.runId),
+    index("tool_call_events_issue_idx").on(table.spaceId, table.issueId),
     index("tool_call_events_invocation_idx").on(table.invocationId),
-    index("tool_call_events_gateway_idx").on(table.companyId, table.gatewayId),
+    index("tool_call_events_gateway_idx").on(table.spaceId, table.gatewayId),
   ],
 );
 
@@ -909,7 +909,7 @@ export const connectionTokenIssuances = pgTable(
   "connection_token_issuances",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     applicationId: uuid("application_id").references(() => toolApplications.id, { onDelete: "set null" }),
     connectionId: uuid("connection_id").notNull().references(() => toolConnections.id, { onDelete: "cascade" }),
     agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
@@ -929,10 +929,10 @@ export const connectionTokenIssuances = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("connection_token_issuances_company_created_idx").on(table.companyId, table.createdAt),
-    index("connection_token_issuances_connection_created_idx").on(table.companyId, table.connectionId, table.createdAt),
-    index("connection_token_issuances_agent_connection_idx").on(table.companyId, table.agentId, table.connectionId, table.createdAt),
-    index("connection_token_issuances_run_idx").on(table.companyId, table.runId),
+    index("connection_token_issuances_space_created_idx").on(table.spaceId, table.createdAt),
+    index("connection_token_issuances_connection_created_idx").on(table.spaceId, table.connectionId, table.createdAt),
+    index("connection_token_issuances_agent_connection_idx").on(table.spaceId, table.agentId, table.connectionId, table.createdAt),
+    index("connection_token_issuances_run_idx").on(table.spaceId, table.runId),
     sql`CONSTRAINT connection_token_issuances_path_check CHECK (${table.path} IN ('exchange', 'oauth_access', 'static'))`,
     sql`CONSTRAINT connection_token_issuances_outcome_check CHECK (${table.outcome} IN ('success', 'denied', 'rate_limited', 'use_env_lease', 'upstream_error', 'failure'))`,
     sql`CONSTRAINT connection_token_issuances_ttl_bounds CHECK (${table.ttlSeconds} IS NULL OR (${table.ttlSeconds} >= 1 AND ${table.ttlSeconds} <= 900))`,
@@ -944,7 +944,7 @@ export const toolRateLimitCounters = pgTable(
   "tool_rate_limit_counters",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     policyId: uuid("policy_id").notNull().references(() => toolPolicies.id, { onDelete: "cascade" }),
     counterKey: text("counter_key").notNull(),
     scopeType: text("scope_type").notNull(),
@@ -958,9 +958,9 @@ export const toolRateLimitCounters = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_rate_limit_counters_company_idx").on(table.companyId),
+    index("tool_rate_limit_counters_space_idx").on(table.spaceId),
     uniqueIndex("tool_rate_limit_counters_window_uq").on(
-      table.companyId,
+      table.spaceId,
       table.policyId,
       table.counterKey,
       table.windowKind,
@@ -973,7 +973,7 @@ export const toolRuntimeMetricCounters = pgTable(
   "tool_runtime_metric_counters",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     metric: text("metric").notNull(),
     bucketStartAt: timestamp("bucket_start_at", { withTimezone: true }).notNull(),
     count: integer("count").notNull().default(0),
@@ -981,8 +981,8 @@ export const toolRuntimeMetricCounters = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_runtime_metric_counters_company_metric_idx").on(table.companyId, table.metric, table.bucketStartAt),
-    uniqueIndex("tool_runtime_metric_counters_bucket_uq").on(table.companyId, table.metric, table.bucketStartAt),
+    index("tool_runtime_metric_counters_space_metric_idx").on(table.spaceId, table.metric, table.bucketStartAt),
+    uniqueIndex("tool_runtime_metric_counters_bucket_uq").on(table.spaceId, table.metric, table.bucketStartAt),
     sql`CONSTRAINT tool_runtime_metric_counters_count_nonnegative CHECK (${table.count} >= 0)`,
   ],
 );
@@ -991,7 +991,7 @@ export const toolAccessAuditEvents = pgTable(
   "tool_access_audit_events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     gatewayId: uuid("gateway_id").references(() => toolMcpGateways.id, { onDelete: "set null" }),
     gatewayTokenId: uuid("gateway_token_id").references(() => toolMcpGatewayTokens.id, { onDelete: "set null" }),
     gatewayPublicId: text("gateway_public_id"),
@@ -1008,8 +1008,8 @@ export const toolAccessAuditEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("tool_access_audit_company_created_idx").on(table.companyId, table.createdAt),
+    index("tool_access_audit_space_created_idx").on(table.spaceId, table.createdAt),
     index("tool_access_audit_connection_idx").on(table.connectionId),
-    index("tool_access_audit_gateway_idx").on(table.companyId, table.gatewayId),
+    index("tool_access_audit_gateway_idx").on(table.spaceId, table.gatewayId),
   ],
 );

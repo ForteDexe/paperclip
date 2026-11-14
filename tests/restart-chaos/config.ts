@@ -45,7 +45,7 @@ export const PROFILE_FOR_ADAPTER: Record<AdapterId, string> = {
 };
 
 /**
- * Chaos sandboxes run in the company Daytona org next to the live Cloud fleet.
+ * Chaos sandboxes run in the space Daytona org next to the live Cloud fleet.
  * They use the runner-e2e fixture's 4 vCPU by default, and task sandboxes may
  * use at most 40 vCPU in total, a small fraction of the fleet's capacity. Set
  * RESTART_CHAOS_DAYTONA_VCPU_BUDGET lower for a smaller org (a 10 vCPU org
@@ -352,10 +352,10 @@ export function parseCommand(argv: readonly string[], now = Date.now()): ParsedC
       options.workspaceCommit = git("rev-parse", "HEAD");
     }
   }
-  // H1 pauses the whole company when its budget hard stop is crossed: no other task can share its
+  // H1 pauses the whole space when its budget hard stop is crossed: no other task can share its
   // wave, its tasks run one at a time, and the hard stop must be on.
   if (options.workloads.includes("H1")) {
-    if (options.workloads.length !== 1) throw new Error("--workloads H1 pauses the whole company; run it in its own wave (--workloads H1)");
+    if (options.workloads.length !== 1) throw new Error("--workloads H1 pauses the whole space; run it in its own wave (--workloads H1)");
     if (options.concurrency !== 1) throw new Error("--workloads H1 runs one task at a time; pass --concurrency 1");
     if (options.masks?.includes("rc06")) throw new Error("--workloads H1 needs the budget hard stop; do not combine it with --rc06-masked");
     if (stormMinutes) throw new Error("--workloads H1 does not combine with --storm-minutes");

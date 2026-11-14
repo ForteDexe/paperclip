@@ -6,32 +6,32 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Environment } from "../../../packages/shared/src/types/environment.js";
 import type { Cookie } from "@playwright/test";
-export function matchesClaudeFixtureTarget(input: { company: { id: string }; expectedCompanyId: string; fixtureEnvironmentId: string; detail: Pick<Environment, "id" | "driver" | "status">; listed: Array<Pick<Environment, "id" | "driver" | "status">> }) {
-  // Environments are instance resources, not company rows. The authenticated
-  // company read + public inventory authority and exact attempt fixture bind it.
+export function matchesClaudeFixtureTarget(input: { space: { id: string }; expectedSpaceId: string; fixtureEnvironmentId: string; detail: Pick<Environment, "id" | "driver" | "status">; listed: Array<Pick<Environment, "id" | "driver" | "status">> }) {
+  // Environments are instance resources, not space rows. The authenticated
+  // space read + public inventory authority and exact attempt fixture bind it.
   const { detail } = input;
-  return input.company.id === input.expectedCompanyId && detail.id === input.fixtureEnvironmentId && detail.driver === "local" && detail.status === "active"
+  return input.space.id === input.expectedSpaceId && detail.id === input.fixtureEnvironmentId && detail.driver === "local" && detail.status === "active"
     && input.listed.some(row => row.id === detail.id && row.driver === detail.driver && row.status === detail.status);
 }
 export interface ClaudePrivateReceipt {
   processIsolation: true; testRunnerAttached: false; apiStepRecorder: false;
-  operation: "check-harness" | "prepare-account" | "validate-saved"; companyId: string; environmentId: string; connectionId?: string; grantId?: string; agentId?: string;
+  operation: "check-harness" | "prepare-account" | "validate-saved"; spaceId: string; environmentId: string; connectionId?: string; grantId?: string; agentId?: string;
   probeStatus: "pass" | "warn" | "fail"; probeCheckCodes: string[];
 }
-export function validateClaudePrivateReceipt(value: unknown, expected: Pick<ClaudePrivateReceipt, "operation" | "companyId" | "environmentId">): ClaudePrivateReceipt {
+export function validateClaudePrivateReceipt(value: unknown, expected: Pick<ClaudePrivateReceipt, "operation" | "spaceId" | "environmentId">): ClaudePrivateReceipt {
   const r = value as ClaudePrivateReceipt;
-  if (!r || r.processIsolation !== true || r.testRunnerAttached !== false || r.apiStepRecorder !== false || r.operation !== expected.operation || r.companyId !== expected.companyId || r.environmentId !== expected.environmentId
-    || Object.keys(r).some(key => !["processIsolation", "testRunnerAttached", "apiStepRecorder", "operation", "companyId", "environmentId", "connectionId", "grantId", "agentId", "probeStatus", "probeCheckCodes"].includes(key))
-    || ![r.companyId, r.environmentId, ...(r.operation === "check-harness" ? [] : [r.connectionId, r.grantId]), ...(r.agentId ? [r.agentId] : [])].every(id => typeof id === "string" && /^[a-f0-9-]{36}$/i.test(id))
+  if (!r || r.processIsolation !== true || r.testRunnerAttached !== false || r.apiStepRecorder !== false || r.operation !== expected.operation || r.spaceId !== expected.spaceId || r.environmentId !== expected.environmentId
+    || Object.keys(r).some(key => !["processIsolation", "testRunnerAttached", "apiStepRecorder", "operation", "spaceId", "environmentId", "connectionId", "grantId", "agentId", "probeStatus", "probeCheckCodes"].includes(key))
+    || ![r.spaceId, r.environmentId, ...(r.operation === "check-harness" ? [] : [r.connectionId, r.grantId]), ...(r.agentId ? [r.agentId] : [])].every(id => typeof id === "string" && /^[a-f0-9-]{36}$/i.test(id))
     || !["pass", "warn", "fail"].includes(r.probeStatus) || !Array.isArray(r.probeCheckCodes) || r.probeCheckCodes.length > 100 || !r.probeCheckCodes.every(code => /^[a-z0-9_.-]{1,100}$/i.test(code))) throw new Error("Invalid closed Claude qualification receipt; private diagnostics withheld");
   return r;
 }
 export type ClaudePrivateRequest = { operation: "check-harness"; harnessExecutable: string } | { operation: "prepare-account"; credential: string; harnessExecutable: string; model: string } | { operation: "validate-saved"; agentId: string; connectionId: string; grantId: string };
 /** Only the selected per-attempt key/session crosses the private0600 file.
  * No Test request API, browser arguments, argv, env or raw child diagnostic gets it. */
-export async function privateClaudeOperation(input: ClaudePrivateRequest & { companyId: string; environmentId: string; baseURL: string; cookies: Cookie[] }, scanSecret = input.operation === "prepare-account" ? input.credential : undefined) {
+export async function privateClaudeOperation(input: ClaudePrivateRequest & { spaceId: string; environmentId: string; baseURL: string; cookies: Cookie[] }, scanSecret = input.operation === "prepare-account" ? input.credential : undefined) {
   if (!scanSecret || scanSecret.length < 12) throw new Error("Claude private operation requires the actual selected credential for private receipt scanning");
-  const directory = await mkdtemp(path.join(tmpdir(), "paperclip-claude-private-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "outpost-claude-private-"));
   try {
     const request = path.join(directory, "request.json"); await writeFile(request, JSON.stringify(input), { mode: 0o600 });
     const loader = fileURLToPath(new URL("../../../server/node_modules/tsx/dist/loader.mjs", import.meta.url)), worker = fileURLToPath(new URL("./runtime-claude-private-worker.ts", import.meta.url));

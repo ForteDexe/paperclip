@@ -85,20 +85,20 @@ describe("object byte journal", () => {
     const stopA = new AbortController();
     const claimA = waitOutStorageOutages(async () => {
       endStorageOutageWaitOn(stopA.signal);
-      return createObjectByteJournal({ provider: s.provider, prefix: "company/a/log" })
+      return createObjectByteJournal({ provider: s.provider, prefix: "space/a/log" })
         .claim({ assertAuthority: authority, signal: stopA.signal });
     });
-    const claimB = waitOutStorageOutages(() => createObjectByteJournal({ provider: s.provider, prefix: "company/b/log" })
+    const claimB = waitOutStorageOutages(() => createObjectByteJournal({ provider: s.provider, prefix: "space/b/log" })
       .claim({ assertAuthority: authority }));
     void claimA.catch(() => undefined);
-    setTimeout(() => stopA.abort(new Error("Stopped by a board operator")), 200);
+    setTimeout(() => stopA.abort(new Error("Stopped by a operator operator")), 200);
     await expect(claimA).rejects.toBeTruthy();
     await expect(claimB).resolves.toMatchObject({ head: { generation: 1 } });
   }, 30_000);
 
   it("rereads a head whose download was cut off during a storage outage", async () => {
     const s = storage();
-    const journal = createObjectByteJournal({ provider: s.provider, prefix: "company/reset/log" });
+    const journal = createObjectByteJournal({ provider: s.provider, prefix: "space/reset/log" });
     const first = await journal.claim({ assertAuthority: authority });
     const get = s.provider.getObject;
     let cut = false;
@@ -128,7 +128,7 @@ describe("object byte journal", () => {
         }, { once: true });
       }), input.signal);
     };
-    const journal = createObjectByteJournal({ provider: s.provider, prefix: "company/slow/log" });
+    const journal = createObjectByteJournal({ provider: s.provider, prefix: "space/slow/log" });
     const failure = await journal.claim({ assertAuthority: authority }).catch((error: unknown) => error);
     expect(isStorageUnavailableError(failure)).toBe(true);
   }, 40_000);
@@ -158,14 +158,14 @@ describe("object byte journal", () => {
       return put(input);
     };
     const controller = new AbortController();
-    const a = createObjectByteJournal({ provider: s.provider, prefix: "company/a/log" });
+    const a = createObjectByteJournal({ provider: s.provider, prefix: "space/a/log" });
     const first = a.claim({
       assertAuthority: authority,
       signal: controller.signal,
     });
     void first.catch(() => undefined);
     await probing;
-    const b = createObjectByteJournal({ provider: s.provider, prefix: "company/b/log" });
+    const b = createObjectByteJournal({ provider: s.provider, prefix: "space/b/log" });
     const second = b.claim({
       assertAuthority: async () => {
         admitted();
@@ -182,12 +182,12 @@ describe("object byte journal", () => {
   });
   it("recovers committed bytes and stable ranges with no local filesystem", async () => {
     const s = storage(),
-      a = createObjectByteJournal({ provider: s.provider, prefix: "company/run/log" });
+      a = createObjectByteJournal({ provider: s.provider, prefix: "space/run/log" });
     let writer = await a.claim({ assertAuthority: authority });
     const expected = Buffer.from("first\n再開\n".repeat(20));
     writer = await a.append(writer, expected.subarray(0, 17));
     writer = await a.append(writer, expected.subarray(17));
-    const b = createObjectByteJournal({ provider: s.provider, prefix: "company/run/log" });
+    const b = createObjectByteJournal({ provider: s.provider, prefix: "space/run/log" });
     const snapshot = (await b.head())!;
     expect(await b.readRange(snapshot.head, 0, expected.length)).toEqual(expected);
     expect(await b.readRange(snapshot.head, 7, 23)).toEqual(expected.subarray(7, 30));

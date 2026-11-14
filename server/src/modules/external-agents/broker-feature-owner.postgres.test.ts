@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  agents, applyPendingMigrations, authUsers, companies, companyMemberships, createDb,
+  agents, applyPendingMigrations, authUsers, spaces, spaceMemberships, createDb,
   dotAgentBindings, dotRunnerAssignments, heartbeatRuns, issues, museAgentBindings,
   museRunnerAssignments, type Db,
 } from "@outpost/db";
@@ -37,28 +37,28 @@ describe.skipIf(!url)("external broker forwards its admission owner to feature p
       id: operatorId, name: "Feature owner operator", email: `${operatorId}@example.test`,
       createdAt: new Date(), updatedAt: new Date(),
     });
-    const [company] = await db.insert(companies).values({
+    const [space] = await db.insert(spaces).values({
       name: "Broker feature owner", issuePrefix: `BF${operatorId.replaceAll("-", "")}`,
     }).returning();
-    await db.insert(companyMemberships).values({
-      companyId: company.id, principalType: "user", principalId: operatorId,
+    await db.insert(spaceMemberships).values({
+      spaceId: space.id, principalType: "user", principalId: operatorId,
       membershipRole: "owner", status: "active",
     });
-    await accessService(db).setPrincipalPermission(company.id, "user", operatorId, "agents:create", true, operatorId);
+    await accessService(db).setPrincipalPermission(space.id, "user", operatorId, "agents:create", true, operatorId);
     const [agent] = await db.insert(agents).values({
-      companyId: company.id, name: provider, adapterType: "outpost_runner", status: "active",
+      spaceId: space.id, name: provider, adapterType: "outpost_runner", status: "active",
       adapterConfig: { provider, allowUnmeteredProvider: true },
     }).returning();
     const broker = provider === "muse"
       ? museExternalAgents(db, { publicOrigin: "https://outpost.example" })
       : dotRunnerBroker(db);
-    const pairingInput = { companyId: company.id, agentId: agent.id, operatorId };
+    const pairingInput = { spaceId: space.id, agentId: agent.id, operatorId };
     const pairing = provider === "muse"
       ? await museExternalAgents(db, { publicOrigin: "https://outpost.example" }).createPairing(pairingInput)
       : await dotRunnerBroker(db).createPairing({ ...pairingInput, provider });
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Denied broker dispatch" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Denied broker dispatch" }).returning();
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId: company.id, agentId: agent.id, issueId: issue.id, nativeIssueId: issue.id,
+      spaceId: space.id, agentId: agent.id, issueId: issue.id, nativeIssueId: issue.id,
       status: "queued", runtimeMode: "legacy",
     }).returning();
     await settings.instanceSettingsService(db).updateExperimental({
@@ -84,10 +84,10 @@ describe.skipIf(!url)("external broker forwards its admission owner to feature p
       };
     });
     const snapshot = {
-      companyId: company.id, agentId: agent.id, bindingId: pairing.bindingId, bindingGeneration: 1,
+      spaceId: space.id, agentId: agent.id, bindingId: pairing.bindingId, bindingGeneration: 1,
       acceptByUnixMs: Date.now() + 60_000, expiresAtUnixMs: Date.now() + 120_000,
     };
-    const binding = { companyId: company.id, agentId: agent.id, runId: run.id };
+    const binding = { spaceId: space.id, agentId: agent.id, runId: run.id };
     await expect(broker.port({ binding, provider: { binding: snapshot } }).dispatch({
       sourceEventId: randomUUID(),
       payload: {
@@ -97,7 +97,7 @@ describe.skipIf(!url)("external broker forwards its admission owner to feature p
       },
     })).rejects.toMatchObject({ status: 403, message: "External binding is unavailable for new effects." });
     expect(admitted).toHaveBeenCalledTimes(1);
-    expect(admitted.mock.calls[0].slice(1, 4)).toEqual([company.id, agent.id, run.id]);
+    expect(admitted.mock.calls[0].slice(1, 4)).toEqual([space.id, agent.id, run.id]);
     expect(readOwners).toHaveLength(1);
     expect(readOwners[0]).toBe(admitted.mock.calls[0][0]);
     expect(readOwners[0]).not.toBe(db);

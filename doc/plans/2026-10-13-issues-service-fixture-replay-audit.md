@@ -2,7 +2,7 @@
 
 ## Scope and savings
 
-This candidate changes only `server/src/__tests__/issues-service.test.ts`. It consolidates repeated setup while retaining the observable list, count, description-preview, dependency-readiness, and deep-ancestor contracts. Production code, database fixture ownership, cleanup hooks, and `ensureIssueRelationsTable` are unchanged. The existing `seedIssueCompany`, `seedWorkspaceProject`, and `seedCodexCoder` helpers remain intact; the candidate uses existing company seed calls and preserves the Codex coder seed in the dependency keeper.
+This candidate changes only `server/src/__tests__/issues-service.test.ts`. It consolidates repeated setup while retaining the observable list, count, description-preview, dependency-readiness, and deep-ancestor contracts. Production code, database fixture ownership, cleanup hooks, and `ensureIssueRelationsTable` are unchanged. The existing `seedIssueSpace`, `seedWorkspaceProject`, and `seedCodexCoder` helpers remain intact; the candidate uses existing space seed calls and preserves the Codex coder seed in the dependency keeper.
 
 Against the existing stack, the test-file diff is 63 lines added and 218 removed: **155 net test lines removed**, including the reviewer-requested removal of an inline comment. The existing stack already shares seed helpers, so savings are smaller than the earlier candidate. Seven standalone test declarations are removed. All four description inputs and all three count calls remain. The 60-node ancestor chain remains; its descendants use one insert statement instead of 60. These are source and operation counts, not a measured CI speedup.
 

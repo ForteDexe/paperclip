@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  companies,
+  spaces,
   agents,
   issues,
   createDb,
@@ -31,19 +31,19 @@ const prompt = Buffer.from(
 ).toString("base64");
 const iso = (ms) => new Date(ms).toISOString();
 async function seed(db) {
-  const companyA = uuid();
-  const companyB = uuid();
+  const spaceA = uuid();
+  const spaceB = uuid();
   const agentA = uuid();
   const agentB = uuid();
   const endpointA = uuid();
   const endpointB = uuid();
-  await db.insert(companies).values([
-    { id: companyA, name: "Synthetic chat polls A", issuePrefix: "BENCH" },
-    { id: companyB, name: "Synthetic chat polls B", issuePrefix: "BNCH" }
+  await db.insert(spaces).values([
+    { id: spaceA, name: "Synthetic chat polls A", issuePrefix: "BENCH" },
+    { id: spaceB, name: "Synthetic chat polls B", issuePrefix: "BNCH" }
   ]);
   await db.insert(agents).values([
-    { id: agentA, companyId: companyA, name: "Fixture A", adapterType: "codex_local" },
-    { id: agentB, companyId: companyB, name: "Fixture B", adapterType: "codex_local" }
+    { id: agentA, spaceId: spaceA, name: "Fixture A", adapterType: "codex_local" },
+    { id: agentB, spaceId: spaceB, name: "Fixture B", adapterType: "codex_local" }
   ]);
   const conversationIssueIds = [];
   const issueIdsA = [];
@@ -51,45 +51,45 @@ async function seed(db) {
     const issueId = uuid();
     if (n < 45) conversationIssueIds.push(issueId);
     issueIdsA.push(issueId);
-    await db.insert(issues).values({ id: issueId, companyId: companyA, title: `Fixture issue A${n}` });
+    await db.insert(issues).values({ id: issueId, spaceId: spaceA, title: `Fixture issue A${n}` });
   }
   const conversationIssueIdsB = [];
   for (let n = 0; n < 10; n++) {
     const issueId = uuid();
     conversationIssueIdsB.push(issueId);
-    await db.insert(issues).values({ id: issueId, companyId: companyB, title: `Fixture issue B${n}` });
+    await db.insert(issues).values({ id: issueId, spaceId: spaceB, title: `Fixture issue B${n}` });
   }
-  for (const [companyId, endpointId, agentId, ids, label] of [
-    [companyA, endpointA, agentA, conversationIssueIds, "A"],
-    [companyB, endpointB, agentB, conversationIssueIdsB, "B"]
+  for (const [spaceId, endpointId, agentId, ids, label] of [
+    [spaceA, endpointA, agentA, conversationIssueIds, "A"],
+    [spaceB, endpointB, agentB, conversationIssueIdsB, "B"]
   ]) {
     const applicationId = uuid();
     const connectionId = uuid();
     await db.$client.unsafe(
       `INSERT INTO tool_applications
-        (id, company_id, name, type, status)
+        (id, space_id, name, type, status)
        VALUES ($1::uuid, $2::uuid, $3, 'chat', 'active')`,
-      [applicationId, companyId, `fixture-app-${label}`]
+      [applicationId, spaceId, `fixture-app-${label}`]
     );
     await db.$client.unsafe(
       `INSERT INTO tool_connections
-        (id, company_id, application_id, name, uid, connection_purpose, transport, status, enabled)
+        (id, space_id, application_id, name, uid, connection_purpose, transport, status, enabled)
        VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, 'channel', 'chat_sdk', 'active', true)`,
-      [connectionId, companyId, applicationId, `fixture-connection-${label}`, `fixture-conn-${label}`]
+      [connectionId, spaceId, applicationId, `fixture-connection-${label}`, `fixture-conn-${label}`]
     );
     await db.$client.unsafe(
       `INSERT INTO chat_endpoints
-        (id, company_id, connection_id, provider, public_id, publication_mode, assigned_agent_id, status)
+        (id, space_id, connection_id, provider, public_id, publication_mode, assigned_agent_id, status)
        VALUES ($1::uuid, $2::uuid, $3::uuid, 'slack', $4, 'automatic', $5::uuid, 'active')`,
-      [endpointId, companyId, connectionId, `fixture-endpoint-${label}`, agentId]
+      [endpointId, spaceId, connectionId, `fixture-endpoint-${label}`, agentId]
     );
     await db.$client.unsafe(
       `INSERT INTO chat_conversations
-        (id, company_id, endpoint_id, issue_id, external_conversation_id, external_label, state)
+        (id, space_id, endpoint_id, issue_id, external_conversation_id, external_label, state)
        SELECT gen_random_uuid(), $1::uuid, $2::uuid, issue::uuid, 'conv-' || n, 'Conv ${label} ' || n,
          CASE WHEN n % 9 = 0 THEN 'waiting' WHEN n % 11 = 0 THEN 'completed' ELSE 'active' END
        FROM (SELECT issue, row_number() OVER () AS n FROM unnest($3::uuid[]) AS issue) sub`,
-      [companyId, endpointId, ids]
+      [spaceId, endpointId, ids]
     );
   }
   const nativeRunIds = [];
@@ -100,37 +100,37 @@ async function seed(db) {
     const base = ANCHOR_MS - n % 40 * 6e4;
     await db.$client.unsafe(
       `INSERT INTO heartbeat_runs
-        (id, company_id, agent_id, scope_kind, issue_id, runtime_mode, status, error_code, created_at, updated_at, context_snapshot, result_json)
+        (id, space_id, agent_id, scope_kind, issue_id, runtime_mode, status, error_code, created_at, updated_at, context_snapshot, result_json)
        VALUES ($1::uuid, $2::uuid, $3::uuid, 'issue', $4::uuid, 'native', 'running', NULL, $5, $5,
          jsonb_build_object('issueId', $4::text, 'source', 'chat:slack:fixture', 'prompt', $6::text), NULL)`,
-      [nativeRunId, companyA, agentA, issue, iso(base), prompt]
+      [nativeRunId, spaceA, agentA, issue, iso(base), prompt]
     );
     await db.$client.unsafe(
       `INSERT INTO heartbeat_runs
-        (id, company_id, agent_id, scope_kind, runtime_mode, status, error_code, created_at, updated_at, context_snapshot, result_json)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, 'company', 'legacy',
+        (id, space_id, agent_id, scope_kind, runtime_mode, status, error_code, created_at, updated_at, context_snapshot, result_json)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'space', 'legacy',
          CASE WHEN $4 % 5 = 0 THEN 'failed' WHEN $4 % 7 = 0 THEN 'succeeded' ELSE 'running' END,
          CASE WHEN $4 % 5 = 0 THEN 'execution_reconciliation_required' END, $5, $5,
          jsonb_build_object('issueId', $6::text, 'source', 'chat:slack:fixture', 'prompt', $7::text),
          CASE WHEN $4 % 7 = 0 THEN jsonb_build_object('presentationDecision', jsonb_build_object('kind', 'fixture')) END)`,
-      [uuid(), companyA, agentA, n, iso(base), issue, prompt]
+      [uuid(), spaceA, agentA, n, iso(base), issue, prompt]
     );
     await db.$client.unsafe(
       `INSERT INTO chat_publications
-        (company_id, endpoint_id, conversation_id, issue_id, idempotency_key, payload, state, created_at)
+        (space_id, endpoint_id, conversation_id, issue_id, idempotency_key, payload, state, created_at)
        VALUES ($1::uuid, $2::uuid,
-         (SELECT id FROM chat_conversations WHERE company_id = $1::uuid AND issue_id = $4::uuid LIMIT 1),
+         (SELECT id FROM chat_conversations WHERE space_id = $1::uuid AND issue_id = $4::uuid LIMIT 1),
          $4::uuid, 'run:' || $3::text || ':working:' || $2::text,
          jsonb_build_object('classification', 'external', 'source', 'safe_milestone', 'text', 'working'),
          'streaming', $5)`,
-      [companyA, endpointA, nativeRunId, issue, iso(base - 12e4)]
+      [spaceA, endpointA, nativeRunId, issue, iso(base - 12e4)]
     );
     await db.$client.unsafe(
       `INSERT INTO heartbeat_run_events
-        (company_id, run_id, agent_id, seq, event_type, message, created_at)
+        (space_id, run_id, agent_id, seq, event_type, message, created_at)
        VALUES ($1::uuid, $2::uuid, $3::uuid, 1, 'workspace.ready', 'ready', $4),
               ($1::uuid, $2::uuid, $3::uuid, 2, 'tool.execution.started', 'tool', $5)`,
-      [companyA, nativeRunId, agentA, iso(base + 3e4), iso(base + 45e3)]
+      [spaceA, nativeRunId, agentA, iso(base + 3e4), iso(base + 45e3)]
     );
   }
   for (const [n, issue] of conversationIssueIdsB.entries()) {
@@ -138,47 +138,47 @@ async function seed(db) {
     const base = ANCHOR_MS - n % 10 * 6e4;
     await db.$client.unsafe(
       `INSERT INTO heartbeat_runs
-        (id, company_id, agent_id, scope_kind, issue_id, runtime_mode, status, error_code, created_at, updated_at, context_snapshot)
+        (id, space_id, agent_id, scope_kind, issue_id, runtime_mode, status, error_code, created_at, updated_at, context_snapshot)
        VALUES ($1::uuid, $2::uuid, $3::uuid, 'issue', $4::uuid, 'native', 'running', NULL, $5, $5,
          jsonb_build_object('issueId', $4::text, 'source', 'chat:slack:fixture', 'prompt', $6::text))`,
-      [runId, companyB, agentB, issue, iso(base), prompt]
+      [runId, spaceB, agentB, issue, iso(base), prompt]
     );
   }
   for (let start = 0; start < 2400; start += 400) {
     await db.$client.unsafe(
       `INSERT INTO heartbeat_runs
-        (company_id, agent_id, scope_kind, status, error_code, created_at, updated_at, context_snapshot)
-       SELECT $1::uuid, $2::uuid, 'company',
+        (space_id, agent_id, scope_kind, status, error_code, created_at, updated_at, context_snapshot)
+       SELECT $1::uuid, $2::uuid, 'space',
          (ARRAY['queued','running','succeeded','interrupted','failed','timed_out','cancelled'])[(n % 7) + 1],
          NULL,
          make_interval(hours => CASE WHEN n % 3 = 0 THEN -(30 + (n % 100)) ELSE -(n % 16) END, secs => -60) + $4::timestamptz,
          make_interval(hours => CASE WHEN n % 3 = 0 THEN -(30 + (n % 100)) ELSE -(n % 16) END, secs => -60) + $4::timestamptz,
          jsonb_build_object('issueId', gen_random_uuid()::text, 'source', 'chat:slack:fixture', 'prompt', $3::text)
        FROM generate_series(${start + 1}, ${start + 400}) n`,
-      [companyA, agentA, prompt, iso(ANCHOR_MS)]
+      [spaceA, agentA, prompt, iso(ANCHOR_MS)]
     );
   }
   await db.$client.unsafe(
     `INSERT INTO heartbeat_runs
-      (company_id, agent_id, scope_kind, status, error_code, created_at, updated_at, context_snapshot)
-     SELECT $1::uuid, $2::uuid, 'company',
+      (space_id, agent_id, scope_kind, status, error_code, created_at, updated_at, context_snapshot)
+     SELECT $1::uuid, $2::uuid, 'space',
        (ARRAY['queued','running','succeeded','interrupted','failed','timed_out','cancelled'])[(n % 7) + 1],
        NULL,
        make_interval(hours => CASE WHEN n % 3 = 0 THEN -(30 + (n % 100)) ELSE -(n % 16) END, secs => -60) + $4::timestamptz,
        make_interval(hours => CASE WHEN n % 3 = 0 THEN -(30 + (n % 100)) ELSE -(n % 16) END, secs => -60) + $4::timestamptz,
        jsonb_build_object('issueId', gen_random_uuid()::text, 'source', 'chat:slack:fixture', 'prompt', $3::text)
      FROM generate_series(1, 100) n`,
-    [companyB, agentB, prompt, iso(ANCHOR_MS)]
+    [spaceB, agentB, prompt, iso(ANCHOR_MS)]
   );
   await db.$client.unsafe(
-    "UPDATE heartbeat_runs SET scope_kind = 'company', issue_id = NULL WHERE id = $1::uuid",
+    "UPDATE heartbeat_runs SET scope_kind = 'space', issue_id = NULL WHERE id = $1::uuid",
     [nativeRunIds[0]]
   );
   await db.$client.unsafe("ANALYZE heartbeat_runs");
   await db.$client.unsafe("ANALYZE chat_conversations");
   await db.$client.unsafe("ANALYZE heartbeat_run_events");
   await db.$client.unsafe("ANALYZE chat_publications");
-  return { companyA, companyB };
+  return { spaceA, spaceB };
 }
 function recordingDb(db, sink) {
   return new Proxy(db, {
@@ -298,7 +298,7 @@ try {
         conversationIssues: 45,
         candidateRunsPerIssue: 2,
         decoyRuns: 2400,
-        crossCompanyDecoys: 100,
+        crossSpaceDecoys: 100,
         nativeRunsWithEvents: 45
       },
       milestone: {
@@ -414,7 +414,7 @@ try {
         promptKiB: PROMPT_KIB,
         windowHours: 24,
         decoyRuns: 2400,
-        crossCompanyDecoys: 100
+        crossSpaceDecoys: 100
       },
       summary,
       plans: report.plans,

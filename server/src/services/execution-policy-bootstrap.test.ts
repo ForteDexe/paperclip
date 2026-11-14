@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const updateGeneral = vi.fn();
-const listCompanyIds = vi.fn();
+const listSpaceIds = vi.fn();
 const ensureKubernetesEnvironment = vi.fn();
 
 vi.mock("./instance-settings.js", () => ({
   instanceSettingsService: () => ({
     updateGeneral,
-    listCompanyIds,
+    listSpaceIds,
   }),
 }));
 
@@ -137,32 +137,32 @@ describe("parseExecutionPolicyBootstrapEnv", () => {
 describe("applyExecutionPolicyBootstrap", () => {
   beforeEach(() => {
     updateGeneral.mockReset().mockResolvedValue(undefined);
-    listCompanyIds.mockReset();
+    listSpaceIds.mockReset();
     ensureKubernetesEnvironment.mockReset();
   });
 
-  it("does not throw when every company gets a managed environment", async () => {
-    listCompanyIds.mockResolvedValue(["c1", "c2", "c3"]);
+  it("does not throw when every space gets a managed environment", async () => {
+    listSpaceIds.mockResolvedValue(["c1", "c2", "c3"]);
     ensureKubernetesEnvironment.mockResolvedValue({ id: "env" });
 
     const result = await applyExecutionPolicyBootstrap(fakeDb, bootstrap);
 
-    expect(result).toEqual({ executionMode: "kubernetes", companiesConfigured: 3 });
+    expect(result).toEqual({ executionMode: "kubernetes", spacesConfigured: 3 });
     expect(ensureKubernetesEnvironment).toHaveBeenCalledTimes(3);
   });
 
-  it("throws when at least one company fails, after attempting every company", async () => {
-    listCompanyIds.mockResolvedValue(["c1", "c2", "c3"]);
-    ensureKubernetesEnvironment.mockImplementation(async (companyId: string) => {
-      if (companyId === "c2") throw new Error("operator config missing");
-      return { id: `env-${companyId}` };
+  it("throws when at least one space fails, after attempting every space", async () => {
+    listSpaceIds.mockResolvedValue(["c1", "c2", "c3"]);
+    ensureKubernetesEnvironment.mockImplementation(async (spaceId: string) => {
+      if (spaceId === "c2") throw new Error("operator config missing");
+      return { id: `env-${spaceId}` };
     });
 
     await expect(applyExecutionPolicyBootstrap(fakeDb, bootstrap)).rejects.toThrow(
-      /execution-policy bootstrap: 1 of 3 companies failed.*c2/,
+      /execution-policy bootstrap: 1 of 3 spaces failed.*c2/,
     );
 
-    // It keeps going past the failure (attempts all three companies).
+    // It keeps going past the failure (attempts all three spaces).
     expect(ensureKubernetesEnvironment).toHaveBeenCalledTimes(3);
   });
 });

@@ -13,7 +13,7 @@ import { NewProjectForm } from "./NewProjectDialog";
 vi.mock("../api/projects", () => ({ projectsApi: { create: vi.fn(), environmentOptions: vi.fn() } }));
 vi.mock("./ProjectRepositoryInput", () => ({
   ProjectRepositoryInput: () => null,
-  repositoryOptionsKey: (companyId: string) => ["repositories", companyId],
+  repositoryOptionsKey: (spaceId: string) => ["repositories", spaceId],
 }));
 vi.mock("@/features/connections/ConnectionSetupFlow", () => ({ ConnectionSetupFlow: () => null }));
 vi.mock("./ui/dialog", () => ({
@@ -49,7 +49,7 @@ describe("new project colors", () => {
       .mockResolvedValueOnce({ id: "project-created" } as Awaited<ReturnType<typeof projectsApi.create>>);
     const onClose = vi.fn();
     act(() => root.render(<QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}>
-      <NewProjectForm companyId="company-1" onClose={onClose} />
+      <NewProjectForm spaceId="space-1" onClose={onClose} />
     </QueryClientProvider>));
     await settle();
     const previewColor = container.querySelector<HTMLElement>('span[style]')!.style.backgroundColor;
@@ -69,7 +69,7 @@ describe("new project colors", () => {
     act(() => container.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     await settle();
     expect(vi.mocked(projectsApi.create).mock.calls[1][1]).toEqual({ name: "Colorful project", color: firstColor, status: "planned", repositoryIds: [] });
-    expect(getLastProjectId("company-1")).toBe("project-created");
+    expect(getLastProjectId("space-1")).toBe("project-created");
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
@@ -82,7 +82,7 @@ const groups = [
 async function renderForm() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   act(() => root.render(<QueryClientProvider client={client}>
-    <NewProjectForm companyId="company-1" onClose={vi.fn()} />
+    <NewProjectForm spaceId="space-1" onClose={vi.fn()} />
   </QueryClientProvider>));
   await settle();
   const input = container.querySelector<HTMLInputElement>('input[aria-label="Project name"]')!;
@@ -104,7 +104,7 @@ describe("project environment selection", () => {
     expect(select.value).toBe("sandbox");
     act(() => container.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     await settle();
-    expect(projectsApi.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ environmentId: "ssh" }));
+    expect(projectsApi.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ environmentId: "ssh" }));
   });
 
   it("sends an explicit choice and preserves it after a create failure", async () => {
@@ -116,7 +116,7 @@ describe("project environment selection", () => {
     act(() => { select.value = "sandbox"; select.dispatchEvent(new Event("change", { bubbles: true })); });
     act(() => container.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     await settle();
-    expect(projectsApi.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ environmentId: "sandbox", expectedStorageProviderPluginId: null }));
+    expect(projectsApi.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ environmentId: "sandbox", expectedStorageProviderPluginId: null }));
     expect(select.value).toBe("sandbox");
     expect(vi.mocked(projectsApi.create).mock.calls[0][1].executionWorkspacePolicy).toBeUndefined();
   });
@@ -128,7 +128,7 @@ describe("project environment selection", () => {
     expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false);
     act(() => container.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     await settle();
-    expect(projectsApi.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ environmentId: "ssh" }));
+    expect(projectsApi.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ environmentId: "ssh" }));
   });
 
   it("never offers a single storage option, even when the default is unavailable", async () => {
@@ -168,7 +168,7 @@ describe("project environment selection", () => {
     vi.mocked(projectsApi.environmentOptions).mockResolvedValueOnce({ groups, defaultEnvironmentId: "sandbox", error: null })
       .mockRejectedValue(new TypeError("Failed to fetch"));
     const client = await renderForm();
-    await act(async () => { await client.refetchQueries({ queryKey: queryKeys.projects.environments("company-1") }); });
+    await act(async () => { await client.refetchQueries({ queryKey: queryKeys.projects.environments("space-1") }); });
     await settle();
     expect(container.querySelector<HTMLSelectElement>("select")?.value).toBe("sandbox");
     expect(container.querySelector('[role="alert"]')).toBeNull();
@@ -181,13 +181,13 @@ describe("project environment selection", () => {
     const client = await renderForm();
     const select = container.querySelector<HTMLSelectElement>("select")!;
     act(() => { select.value = "computer"; select.dispatchEvent(new Event("change", { bubbles: true })); });
-    await act(async () => { await client.refetchQueries({ queryKey: queryKeys.projects.environments("company-1") }); });
+    await act(async () => { await client.refetchQueries({ queryKey: queryKeys.projects.environments("space-1") }); });
     await settle();
     expect(container.querySelector("select")).toBeNull();
     expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false);
     act(() => container.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     await settle();
-    expect(projectsApi.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ environmentId: "ssh", expectedStorageProviderPluginId: null }));
+    expect(projectsApi.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ environmentId: "ssh", expectedStorageProviderPluginId: null }));
   });
 
   it("does not silently substitute storage when the default is unavailable", async () => {

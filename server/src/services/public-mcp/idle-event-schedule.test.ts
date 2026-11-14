@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { projectIdleMcpEventSchedule, type IdleMcpEventDeadlineRow } from "./idle-event-schedule.js";
 const input = { now: 1000, coveredGrantIds: ["grant"], personal: { revision: "personal:1", reconciled: true }, dot: { revision: "dot:1", reconciled: true } };
-const row: IdleMcpEventDeadlineRow = { id: "delivery", subscriptionId: "subscription", companyId: "company", grantId: "grant", taskId: "task", bindingId: null,
+const row: IdleMcpEventDeadlineRow = { id: "delivery", subscriptionId: "subscription", spaceId: "space", grantId: "grant", taskId: "task", bindingId: null,
   subscriptionExpiresAt: new Date(10_000), subscriptionStoppedAt: null, nextAttemptAt: new Date(2000), attempts: 1, outcome: "http_503", sourceMatches: true };
 describe("MCP durable retry deadline proof", () => {
   it("represents future retries after successful reconciliation without advancing their deadline", () => {

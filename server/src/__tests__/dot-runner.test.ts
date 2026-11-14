@@ -18,7 +18,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import express, { type Request } from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { budgetPolicies, costEvents, grokBotRoutines, grokBotDispatches, agents, authUsers, companies, companyMemberships, createDb, dotAgentBindings, dotMailboxItems, dotRunnerAssignments, dotRunnerOperations,
+import { budgetPolicies, costEvents, grokBotRoutines, grokBotDispatches, agents, authUsers, spaces, spaceMemberships, createDb, dotAgentBindings, dotMailboxItems, dotRunnerAssignments, dotRunnerOperations,
   heartbeatRuns, mcpOauthGrants, issueAttachments, activityLog, agentWakeupRequests, issueComments, issues, nativeRunResults, nativeRunFinalizations, completionContracts, mcpEventDeliveries, mcpEventSubscriptions, workspaceOperations, workAssessments, statusDecisions, issueThreadInteractions } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createPublicMcpOAuth, DEVICE_GRANT } from "../services/public-mcp/oauth.js";
@@ -29,11 +29,11 @@ import type { EventFetch } from "../services/public-mcp/event-webhooks.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { canonicalNativeRuntimeContextDigest, type StrictCompletionContractInput } from "../vendor/outpost-runner/index.js";
 import { createDotRunnerMcpTools, dotRunnerBroker } from "../services/dot-runner-broker.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { prepareNativeHeartbeatRun } from "../services/native-runtime/prepare-native-run.js";
 import { buildNativeExecutionInput } from "../services/native-runtime/native-execution-input.js";
 import { nativeRuntimeContextFixture } from "../services/native-runtime/runtime-context.test-fixture.js";
-import { executePaperclipNativeSession } from "../services/native-runtime/native-session-executor.js";
+import { executeOutpostNativeSession } from "../services/native-runtime/native-session-executor.js";
 import { registerAssignedMcpGateway } from "../services/native-runtime/assigned-mcp-tools.js";
 import type { ToolGatewayService } from "../services/tool-gateway.js";
 import { documentService } from "../services/documents.js";
@@ -60,9 +60,9 @@ describe("durable Dot Runner integration", () => {
     const runnerRoot = fileURLToPath(new URL("../../../packages/outpost-runner/", import.meta.url));
     execFileSync("cargo", ["build", "--release", "--locked", "--manifest-path", join(runnerRoot, "runner/Cargo.toml"), "-p", "outpost-runner-core", "--bin", "outpost-runnerd"], { cwd: runnerRoot, stdio: "inherit", timeout: 300000 });
     if (externalUrl) await applyPendingMigrations(externalUrl);
-    else temporary = await startEmbeddedPostgresTestDatabase("paperclip-dot-runner-");
+    else temporary = await startEmbeddedPostgresTestDatabase("outpost-dot-runner-");
     db = createDb(externalUrl ?? temporary.connectionString);
-    root = await mkdtemp(join(tmpdir(), "paperclip-dot-state-"));
+    root = await mkdtemp(join(tmpdir(), "outpost-dot-state-"));
     vi.stubEnv("OUTPOST_IN_WORKTREE", "false");
     vi.stubEnv("OUTPOST_RUNNER_BINARY", join(runnerRoot, "runner/target/release", process.platform === "win32" ? "outpost-runnerd.exe" : "outpost-runnerd"));
     vi.stubEnv("OUTPOST_RUNNER_STATE_DIR", join(root, "runner-state"));
@@ -95,7 +95,7 @@ describe("durable Dot Runner integration", () => {
       try {
         vi.stubEnv("OUTPOST_ENABLE_OPENAI_DOT", "1");
         expect(await broker.enabled()).toBe(false);
-        await expect(broker.createPairing({ companyId: randomUUID(), agentId: randomUUID(), operatorId: randomUUID() })).rejects.toThrow("experimental settings");
+        await expect(broker.createPairing({ spaceId: randomUUID(), agentId: randomUUID(), operatorId: randomUUID() })).rejects.toThrow("experimental settings");
       } finally { await settings.updateExperimental({ [key]: true }); }
     }
     vi.stubEnv("OUTPOST_ENABLE_OPENAI_DOT", "0");
@@ -127,30 +127,30 @@ describe("durable Dot Runner integration", () => {
     if (provider === "grok_bot") await instanceSettingsService(db).updateExperimental({ enableGrokBot: true, enableNativeRunner: true });
     const userId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Dot operator", email: userId + "@example.test", createdAt: new Date(), updatedAt: new Date() });
-    const [company] = await db.insert(companies).values({ name: "Dot test", issuePrefix: "DT" + randomBytes(3).toString("hex") }).returning();
-    await db.insert(companyMemberships).values({ companyId: company!.id, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
-    await accessService(db).setPrincipalPermission(company!.id, "user", userId, "agents:create", true, userId);
-    const [agent] = await db.insert(agents).values({ companyId: company!.id, name: provider === "grok_bot" ? "Grok Bot" : "Dot", adapterType: "outpost_runner", status: "active", adapterConfig: { provider, allowUnmeteredProvider: true } }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Dot test", issuePrefix: "DT" + randomBytes(3).toString("hex") }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space!.id, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
+    await accessService(db).setPrincipalPermission(space!.id, "user", userId, "agents:create", true, userId);
+    const [agent] = await db.insert(agents).values({ spaceId: space!.id, name: provider === "grok_bot" ? "Grok Bot" : "Dot", adapterType: "outpost_runner", status: "active", adapterConfig: { provider, allowUnmeteredProvider: true } }).returning();
     const config = { origin: "https://outpost.example", resource: "https://outpost.example/mcp/runner" };
     const oauth = createPublicMcpOAuth(db, config);
     const client = await oauth.register({ client_name: "Dedicated Dot", redirect_uris: ["https://chatgpt.com/connector_platform/oauth/callback"] }, randomUUID());
     const verifier = randomBytes(32).toString("base64url");
     const input = { client_id: client.client_id, redirect_uri: "https://chatgpt.com/connector_platform/oauth/callback", response_type: "code", resource: config.resource,
-      scope: "paperclip:agent offline_access", code_challenge: createHash("sha256").update(verifier).digest("base64url"), code_challenge_method: "S256" };
+      scope: "outpost:agent offline_access", code_challenge: createHash("sha256").update(verifier).digest("base64url"), code_challenge_method: "S256" };
     const requestId = (await oauth.authorize(input)).split("/").at(-1)!;
-    const consent = await oauth.consent(requestId, { type: "board", source: "session", userId }, { decision: "approve", companyId: company!.id, allowWrites: false });
+    const consent = await oauth.consent(requestId, { type: "operator", source: "session", userId }, { decision: "approve", spaceId: space!.id, allowWrites: false });
     const tokens = await oauth.token({ grant_type: "authorization_code", client_id: client.client_id, redirect_uri: input.redirect_uri,
       resource: config.resource, code: new URL(consent.redirectUrl).searchParams.get("code"), code_verifier: verifier });
     const unpaired = await oauth.authenticate(tokens.access_token);
     expect(unpaired.actor.type).toBe("none");
     const broker = dotRunnerBroker(db);
-    const pairing = await broker.createPairing({ companyId: company!.id, agentId: agent!.id, operatorId: userId, provider });
+    const pairing = await broker.createPairing({ spaceId: space!.id, agentId: agent!.id, operatorId: userId, provider });
     await broker.pair(unpaired, pairing.pairingCode);
     expect((await db.select().from(agents).where(eq(agents.id, agent!.id)))[0]!.adapterConfig[provider === "grok_bot" ? "externalBindingId" : "dotBindingId"]).toBe(pairing.bindingId);
     await expect(broker.pair(unpaired, pairing.pairingCode)).rejects.toThrow();
     const principal = await oauth.authenticate(tokens.access_token);
-    expect(principal.actor).toMatchObject({ type: "agent", agentId: agent!.id, companyId: company!.id });
-    const personal = createPublicMcpOAuth(db, { ...config, resource: config.origin + "/mcp/paperclip" });
+    expect(principal.actor).toMatchObject({ type: "agent", agentId: agent!.id, spaceId: space!.id });
+    const personal = createPublicMcpOAuth(db, { ...config, resource: config.origin + "/mcp/outpost" });
     await expect(personal.authenticate(tokens.access_token)).rejects.toThrow();
     const secret = "whsec_" + randomBytes(32).toString("base64");
     const received: Array<Record<string, any>> = [];
@@ -164,17 +164,17 @@ describe("durable Dot Runner integration", () => {
       received.push(body); return new Response(null, { status: 204 });
     };
     const events = createPublicMcpEvents(db, oauth, async () => { throw new Error("personal API dispatch forbidden"); }, { enableDotRunner: true, fetch: fetcher, ...options });
-    const subscription = { name: "outpost.dot.mailbox_updated", arguments: { companyId: company!.id, bindingId: pairing.bindingId }, delivery: { mode: "webhook", url: "https://example.com/dot-hook", secret } };
+    const subscription = { name: "outpost.dot.mailbox_updated", arguments: { spaceId: space!.id, bindingId: pairing.bindingId }, delivery: { mode: "webhook", url: "https://example.com/dot-hook", secret } };
     if (provider === "grok_bot") {
       const routines = grokRoutineService(db, async () => ({ delivery: "accepted", httpStatus: 200 }));
-      await routines.configure({ companyId: company!.id, agentId: agent!.id, bindingId: pairing.bindingId, operatorId: userId,
+      await routines.configure({ spaceId: space!.id, agentId: agent!.id, bindingId: pairing.bindingId, operatorId: userId,
         expectedRevision: 0, botName: "Synthetic Grok", webhookUrl: "https://bot.example.test/routine", webhookKey: "synthetic-key" });
-      const wake = await routines.reserve({ companyId: company!.id, agentId: agent!.id, bindingId: pairing.bindingId, sourceEventId: randomUUID(), kind: "verify" });
-      await routines.send(company!.id, agent!.id, wake.id);
+      const wake = await routines.reserve({ spaceId: space!.id, agentId: agent!.id, bindingId: pairing.bindingId, sourceEventId: randomUUID(), kind: "verify" });
+      await routines.send(space!.id, agent!.id, wake.id);
       await routines.acknowledge(principal, { correlationId: wake.id, bindingId: wake.bindingId, bindingGeneration: wake.bindingGeneration, challenge: String(wake.payload.challenge) });
-      const snapshot = await broker.snapshot(company!.id, agent!.id, pairing.bindingId);
+      const snapshot = await broker.snapshot(space!.id, agent!.id, pairing.bindingId);
       const [fresh] = await db.select().from(agents).where(eq(agents.id, agent!.id));
-      return { company: company!, agent: fresh!, userId, broker, principal, oauth, events, subscription, received, snapshot, tokens, client, verifications: () => verifications };
+      return { space: space!, agent: fresh!, userId, broker, principal, oauth, events, subscription, received, snapshot, tokens, client, verifications: () => verifications };
     }
     await events.subscribe(principal, subscription);
     await events.tick();
@@ -183,34 +183,34 @@ describe("durable Dot Runner integration", () => {
     expect(received.at(-1)?.data).not.toHaveProperty("challenge");
     const challenge = (await broker.mailbox(principal)).items.find(i => i.kind === "readiness_challenge")!;
     await broker.confirmChallenge(principal, String(challenge.references.challenge));
-    const snapshot = await broker.snapshot(company!.id, agent!.id, pairing.bindingId);
+    const snapshot = await broker.snapshot(space!.id, agent!.id, pairing.bindingId);
     await db.update(agents).set({ adapterConfig: { provider: "openai_dot", dotBindingId: pairing.bindingId, allowUnmeteredProvider: true, lifecycleMode: "per_turn" } }).where(eq(agents.id, agent!.id));
-    return { company: company!, agent: agent!, userId, broker, principal, oauth, events, subscription, received, snapshot, tokens, client, verifications: () => verifications };
+    return { space: space!, agent: agent!, userId, broker, principal, oauth, events, subscription, received, snapshot, tokens, client, verifications: () => verifications };
   }
 
   it("keeps scoped Dot events on tenant OAuth when the Cloud personal broker is configured", async () => {
     const f = await fixture({ cloudOrigin: "https://cloud-broker.example" });
     expect(f.verifications()).toBe(1);
     expect(f.received.at(-1)?.data.kind).toBe("readiness_challenge");
-    await f.broker.revoke(f.company.id, f.agent.id, f.userId);
+    await f.broker.revoke(f.space.id, f.agent.id, f.userId);
     await expect(f.events.subscribe(f.principal, f.subscription)).rejects.toThrow();
   }, 30000);
 
   async function offeredWork(f: Awaited<ReturnType<typeof fixture>>) {
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
       status: "queued", invocationSource: "assignment", triggerDetail: "system" }).returning();
-    const [assignment] = await db.insert(dotRunnerAssignments).values({ companyId: f.company.id, bindingId: f.snapshot.bindingId,
+    const [assignment] = await db.insert(dotRunnerAssignments).values({ spaceId: f.space.id, bindingId: f.snapshot.bindingId,
       bindingGeneration: f.snapshot.bindingGeneration, runId: run!.id, agentId: f.agent.id, normalizedSessionId: randomUUID(),
       turnId: randomUUID(), controllerGeneration: 1, catalogDigest: "test", status: "offered", projection: {},
       acceptBy: new Date(Date.now() + 10 * 60_000), expiresAt: new Date(Date.now() + 2 * 60 * 60_000) }).returning();
-    await db.insert(dotMailboxItems).values({ companyId: f.company.id, bindingId: f.snapshot.bindingId,
+    await db.insert(dotMailboxItems).values({ spaceId: f.space.id, bindingId: f.snapshot.bindingId,
       bindingGeneration: f.snapshot.bindingGeneration, assignmentId: assignment!.id, kind: "assignment", sourceEventId: randomUUID(),
       references: { assignmentId: assignment!.id, runId: run!.id, revision: 1 } });
     return { run: run!, assignment: assignment! };
   }
 
   function gateway(oauth: ReturnType<typeof createPublicMcpOAuth>, actor: Request["actor"]) {
-    const personal = createPublicMcpOAuth(db, { ...oauth.config, resource: oauth.config.origin + "/mcp/paperclip" });
+    const personal = createPublicMcpOAuth(db, { ...oauth.config, resource: oauth.config.origin + "/mcp/outpost" });
     const dispatch = async () => { throw new Error("Personal API dispatch forbidden"); };
     const app = express();
     app.use(express.json());
@@ -223,20 +223,20 @@ describe("durable Dot Runner integration", () => {
 
   it.each(["grok_bot_mcp", "codex_app_server"] as const)("fences a running Grok overlap before assignment materialization with %s", async driverKind => {
     const f = await fixture({ provider: "grok_bot" });
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
       status: "running", runtimeMode: "native", nativePhase: "preparing", driverKind,
       invocationSource: "assignment", triggerDetail: "system" }).returning();
     expect(await db.select().from(dotRunnerAssignments).where(eq(dotRunnerAssignments.runId, run!.id))).toHaveLength(0);
-    await expect(db.transaction(tx => assertNoExternalOverlap(tx, f.company.id, f.agent.id))).rejects.toThrow("External work is live or unresolved");
+    await expect(db.transaction(tx => assertNoExternalOverlap(tx, f.space.id, f.agent.id))).rejects.toThrow("External work is live or unresolved");
     await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date() }).where(eq(heartbeatRuns.id, run!.id));
-    await expect(db.transaction(tx => assertNoExternalOverlap(tx, f.company.id, f.agent.id))).resolves.toBeUndefined();
+    await expect(db.transaction(tx => assertNoExternalOverlap(tx, f.space.id, f.agent.id))).resolves.toBeUndefined();
   });
 
   it.each(["openai_dot", "grok_bot"] as const)("requires a matching %s descriptor for a V6 authority fence", async provider => {
     const f = await fixture({ provider }), { run, assignment } = await offeredWork(f);
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Owned descriptor fence", assigneeAgentId: f.agent.id, checkoutRunId: run.id, executionRunId: run.id }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Owned descriptor fence", assigneeAgentId: f.agent.id, checkoutRunId: run.id, executionRunId: run.id }).returning();
     await db.update(heartbeatRuns).set({ nativeIssueId: issue!.id }).where(eq(heartbeatRuns.id, run.id));
-    const binding = { companyId: f.company.id, agentId: f.agent.id, runId: run.id };
+    const binding = { spaceId: f.space.id, agentId: f.agent.id, runId: run.id };
     const event = { sourceEventId: randomUUID(), payload: { kind: "authority_revoked" as const, binding: {
       ...f.snapshot, runId: run.id, normalizedSessionId: assignment.normalizedSessionId,
       turnId: assignment.turnId, assignmentRevision: assignment.revision,
@@ -250,12 +250,12 @@ describe("durable Dot Runner integration", () => {
 
   it("admits a native Grok operation while an actual upload waits for its task lock", async () => {
     const f = await fixture({ provider: "grok_bot" }), { run, assignment } = await offeredWork(f);
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Concurrent Grok publication", assigneeAgentId: f.agent.id,
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Concurrent Grok publication", assigneeAgentId: f.agent.id,
       checkoutRunId: run.id, executionRunId: run.id }).returning();
     await db.update(heartbeatRuns).set({ status: "running", runtimeMode: "native", nativePhase: "running", driverKind: "grok_bot_mcp",
       nativeIssueId: issue!.id, nativeSessionId: assignment.normalizedSessionId }).where(eq(heartbeatRuns.id, run.id));
     await db.update(dotRunnerAssignments).set({ status: "accepted", acceptedAt: new Date() }).where(eq(dotRunnerAssignments.id, assignment.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: f.company.id, issueId: issue!.id, phase: "running",
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: f.space.id, issueId: issue!.id, phase: "running",
       controllerGeneration: assignment.controllerGeneration, leaseExpiresAt: new Date(Date.now() + 60_000) });
     const files = new Map<string, Buffer>();
     const transfers = createPublicMcpTransfers(db, f.oauth, async () => { throw new Error("Personal API dispatch forbidden"); }, {
@@ -264,11 +264,11 @@ describe("durable Dot Runner integration", () => {
         files.set(input.objectKey!, input.body);
         return { provider: "local_disk", objectKey: input.objectKey!, contentType: input.contentType, originalFilename: input.originalFilename,
           byteSize: input.body.length, sha256: createHash("sha256").update(input.body).digest("hex") };
-      }, getObject: async (_company, key) => ({ stream: Readable.from(files.get(key)!) }),
-      headObject: async () => ({ exists: true }), deleteObject: async (_company, key) => { files.delete(key); },
+      }, getObject: async (_space, key) => ({ stream: Readable.from(files.get(key)!) }),
+      headObject: async () => ({ exists: true }), deleteObject: async (_space, key) => { files.delete(key); },
     }, { pathPrefix: "/mcp/runner/files", agentSession: { authorize: (principal, sessionId, taskId, write, database) => dotRunnerBroker(database ?? db).authorizeFileSession(principal, sessionId, taskId, write) } });
     const body = Buffer.from("Authenticated concurrent deliverable"), uploadRequestId = randomUUID(), operationId = randomUUID();
-    const upload = await transfers.getUploadUrl(f.principal, { companyId: f.company.id, taskId: issue!.id, requestId: uploadRequestId,
+    const upload = await transfers.getUploadUrl(f.principal, { spaceId: f.space.id, taskId: issue!.id, requestId: uploadRequestId,
       filename: "concurrent.txt", contentType: "text/plain", byteSize: body.length, sha256: createHash("sha256").update(body).digest("hex") }, assignment.id);
     const url = uploadGrantUrl(upload), api = express(); api.use(transfers.router);
     let uploading: Promise<request.Response> | undefined, uploaded: request.Response | undefined, uploadError: unknown;
@@ -298,9 +298,9 @@ describe("durable Dot Runner integration", () => {
     const attachments = await db.select().from(issueAttachments).where(eq(issueAttachments.issueId, issue!.id));
     expect(attachments).toHaveLength(1);
     const attachment = await issueService(db).getAttachmentById(attachments[0]!.id);
-    expect(attachment).toMatchObject({ companyId: f.company.id, issueId: issue!.id, assetId: attachments[0]!.assetId,
+    expect(attachment).toMatchObject({ spaceId: f.space.id, issueId: issue!.id, assetId: attachments[0]!.assetId,
       createdByAgentId: f.agent.id, originatingRunId: run.id, createdByUserId: null });
-    const audit = await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.company.id),
+    const audit = await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.space.id),
       eq(activityLog.action, "issue.attachment_added"), eq(activityLog.entityType, "issue"), eq(activityLog.entityId, issue!.id),
       sql`${activityLog.details}->>'attachmentId' = ${attachments[0]!.id}`));
     expect(audit).toHaveLength(1);
@@ -316,12 +316,12 @@ describe("durable Dot Runner integration", () => {
     const f = await fixture({ provider }), { run, assignment } = await offeredWork(f);
     const acceptedAt = new Date("2026-10-01T00:00:00.000Z");
     await db.update(dotRunnerAssignments).set({ status: "accepted", acceptedAt }).where(eq(dotRunnerAssignments.id, assignment.id));
-    const port = f.broker.port({ binding: { companyId: f.company.id, agentId: f.agent.id, runId: run.id },
+    const port = f.broker.port({ binding: { spaceId: f.space.id, agentId: f.agent.id, runId: run.id },
       provider: { kind: provider, binding: f.snapshot } });
     const binding = { ...f.snapshot, runId: run.id, normalizedSessionId: assignment.normalizedSessionId,
       turnId: assignment.turnId, assignmentRevision: assignment.revision };
     const rejectedId = randomUUID();
-    await db.insert(dotRunnerOperations).values({ companyId: f.company.id, assignmentId: assignment.id,
+    await db.insert(dotRunnerOperations).values({ spaceId: f.space.id, assignmentId: assignment.id,
       requestId: rejectedId, digest: "rejected-finish", command: { action: "finish" }, status: "admitted" });
     const rejection = { sourceEventId: randomUUID(), payload: { binding, requestId: rejectedId,
       outcome: { status: "rejected", message: "Completion evidence was not accepted" } } };
@@ -333,7 +333,7 @@ describe("durable Dot Runner integration", () => {
     await port.settle(rejection);
     expect((await db.select().from(dotRunnerAssignments).where(eq(dotRunnerAssignments.id, assignment.id)))[0]).toEqual(rejected);
     const completedId = randomUUID();
-    await db.insert(dotRunnerOperations).values({ companyId: f.company.id, assignmentId: assignment.id,
+    await db.insert(dotRunnerOperations).values({ spaceId: f.space.id, assignmentId: assignment.id,
       requestId: completedId, digest: "completed-finish", command: { action: "finish" }, status: "admitted" });
     await port.settle({ sourceEventId: randomUUID(), payload: { binding, requestId: completedId,
       outcome: { status: "completed" } } });
@@ -353,15 +353,15 @@ describe("durable Dot Runner integration", () => {
     const f = await fixture();
     await db.update(dotAgentBindings).set({ readyAt: null, status: "connected" }).where(eq(dotAgentBindings.id, f.snapshot.bindingId));
     const readBinding = f.broker.bindingForAgent.bind(f.broker);
-    const read = vi.spyOn(f.broker, "bindingForAgent").mockImplementationOnce(async (companyId, agentId) => {
-      const state = await readBinding(companyId, agentId);
+    const read = vi.spyOn(f.broker, "bindingForAgent").mockImplementationOnce(async (spaceId, agentId) => {
+      const state = await readBinding(spaceId, agentId);
       if (change === "revoked binding") await db.update(dotAgentBindings).set({ revokedAt: new Date() }).where(eq(dotAgentBindings.id, f.snapshot.bindingId));
       else await db.update(mcpEventSubscriptions).set({ stoppedAt: new Date() }).where(eq(mcpEventSubscriptions.bindingId, f.snapshot.bindingId));
       return state;
     });
     try {
-      await expect(f.broker.challenge(f.company.id, f.agent.id, { automatic: true, bindingId: f.snapshot.bindingId })).resolves.toEqual({ status: "unavailable" });
-      await expect(f.broker.challenge(f.company.id, f.agent.id)).rejects.toThrow("Connect and subscribe");
+      await expect(f.broker.challenge(f.space.id, f.agent.id, { automatic: true, bindingId: f.snapshot.bindingId })).resolves.toEqual({ status: "unavailable" });
+      await expect(f.broker.challenge(f.space.id, f.agent.id)).rejects.toThrow("Connect and subscribe");
     } finally {
       read.mockRestore();
       await f.events.unsubscribe(f.principal, f.subscription); await f.events.stop();
@@ -370,7 +370,7 @@ describe("durable Dot Runner integration", () => {
 
   it.each(["openai_dot", "grok_bot"] as const)("admits one durable %s idle intake without requiring a preassigned task", async provider => {
     const f = await fixture({ provider });
-    await db.update(companies).set({ defaultResponsibleUserId: f.userId }).where(eq(companies.id, f.company.id));
+    await db.update(spaces).set({ defaultResponsibleUserId: f.userId }).where(eq(spaces.id, f.space.id));
     const holding = await offeredWork(f);
     await db.update(heartbeatRuns).set({ status: "running", startedAt: new Date() }).where(eq(heartbeatRuns.id, holding.run.id));
     const requestId = randomUUID();
@@ -383,14 +383,14 @@ describe("durable Dot Runner integration", () => {
       const intake = await db.select().from(issues).where(eq(issues.id, requests[0]!.issueId));
       expect(intake).toHaveLength(1);
       expect(intake[0]).toMatchObject({ assigneeAgentId: f.agent.id, createdByAgentId: f.agent.id, responsibleUserId: f.userId });
-      expect(await f.broker.capabilities(f.principal)).toMatchObject({ agentId: f.agent.id, responsibleUser: { id: f.userId }, idle: { start: provider === "grok_bot" ? "paperclip_grok_request_turn" : "paperclip_dot_request_turn" } });
+      expect(await f.broker.capabilities(f.principal)).toMatchObject({ agentId: f.agent.id, responsibleUser: { id: f.userId }, idle: { start: provider === "grok_bot" ? "outpost_grok_request_turn" : "outpost_dot_request_turn" } });
       await expect(f.broker.requestTurn(f.principal, "Different request", requestId)).rejects.toThrow("reused");
-      const [budget] = await db.insert(budgetPolicies).values({ companyId: f.company.id, scopeType: "company", scopeId: f.company.id,
+      const [budget] = await db.insert(budgetPolicies).values({ spaceId: f.space.id, scopeType: "space", scopeId: f.space.id,
         windowKind: "calendar_month_utc", amount: 1 }).returning();
-      await db.insert(costEvents).values({ companyId: f.company.id, agentId: f.agent.id, provider: "test", model: "test", costCents: 1, occurredAt: new Date() });
+      await db.insert(costEvents).values({ spaceId: f.space.id, agentId: f.agent.id, provider: "test", model: "test", costCents: 1, occurredAt: new Date() });
       await expect(f.broker.requestTurn(f.principal, "Spend more", randomUUID())).rejects.toThrow("budget");
       await db.delete(budgetPolicies).where(eq(budgetPolicies.id, budget.id));
-      await f.broker.revoke(f.company.id, f.agent.id, f.userId);
+      await f.broker.revoke(f.space.id, f.agent.id, f.userId);
       expect((await db.select().from(agents).where(eq(agents.id, f.agent.id)))[0]!.adapterConfig).not.toHaveProperty(provider === "grok_bot" ? "externalBindingId" : "dotBindingId");
       await expect(f.broker.requestTurn(f.principal, "After revoke", randomUUID())).rejects.toThrow();
     } finally { await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, holding.run.id)); }
@@ -398,11 +398,11 @@ describe("durable Dot Runner integration", () => {
 
   it("keeps competing Dot assignments queued and replays durable work requests", async () => {
     const f = await fixture();
-    await db.update(companies).set({ defaultResponsibleUserId: f.userId }).where(eq(companies.id, f.company.id));
+    await db.update(spaces).set({ defaultResponsibleUserId: f.userId }).where(eq(spaces.id, f.space.id));
     await db.update(agents).set({ runtimeConfig: { heartbeat: { maxConcurrentRuns: 20, wakeOnDemand: true } } }).where(eq(agents.id, f.agent.id));
     const holding = await offeredWork(f);
     await db.update(heartbeatRuns).set({ status: "running", startedAt: new Date() }).where(eq(heartbeatRuns.id, holding.run.id));
-    const task = async (title: string) => (await db.insert(issues).values({ companyId: f.company.id, title, status: "todo", assigneeAgentId: f.agent.id, responsibleUserId: f.userId }).returning())[0]!;
+    const task = async (title: string) => (await db.insert(issues).values({ spaceId: f.space.id, title, status: "todo", assigneeAgentId: f.agent.id, responsibleUserId: f.userId }).returning())[0]!;
     const first = await task("First queued task");
     const second = await task("Second queued task");
     try {
@@ -437,11 +437,11 @@ describe("durable Dot Runner integration", () => {
 
   it("delivers deduplicated follow-up references only for the accepted current assignment", async () => {
     const f = await fixture(), { run, assignment } = await offeredWork(f);
-    const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Follow-up fixture", assigneeAgentId: f.agent.id }).returning();
+    const [task] = await db.insert(issues).values({ spaceId: f.space.id, title: "Follow-up fixture", assigneeAgentId: f.agent.id }).returning();
     await db.update(heartbeatRuns).set({ nativeIssueId: task!.id, status: "running" }).where(eq(heartbeatRuns.id, run.id));
     await db.update(dotRunnerAssignments).set({ status: "accepted" }).where(eq(dotRunnerAssignments.id, assignment.id));
-    const [incoming] = await db.insert(issueComments).values({ companyId: f.company.id, issueId: task!.id, authorUserId: f.userId, body: "Synthetic comment body must not be in webhook data" }).returning();
-    await db.insert(issueComments).values({ companyId: f.company.id, issueId: task!.id, authorAgentId: f.agent.id, body: "Dot's own output" });
+    const [incoming] = await db.insert(issueComments).values({ spaceId: f.space.id, issueId: task!.id, authorUserId: f.userId, body: "Synthetic comment body must not be in webhook data" }).returning();
+    await db.insert(issueComments).values({ spaceId: f.space.id, issueId: task!.id, authorAgentId: f.agent.id, body: "Dot's own output" });
     try {
       await f.events.tick(); await f.events.tick();
       const rows = await db.select().from(dotMailboxItems).where(and(eq(dotMailboxItems.assignmentId, assignment.id), eq(dotMailboxItems.kind, "follow_up")));
@@ -452,7 +452,7 @@ describe("durable Dot Runner integration", () => {
       expect(JSON.stringify(delivered)).not.toContain("Synthetic comment body");
       expect(JSON.stringify(delivered)).not.toContain("commentId");
       await db.update(dotRunnerAssignments).set({ status: "fenced" }).where(eq(dotRunnerAssignments.id, assignment.id));
-      await db.insert(issueComments).values({ companyId: f.company.id, issueId: task!.id, authorUserId: f.userId, body: "Too late" });
+      await db.insert(issueComments).values({ spaceId: f.space.id, issueId: task!.id, authorUserId: f.userId, body: "Too late" });
       await f.events.tick();
       expect(await db.select().from(dotMailboxItems).where(and(eq(dotMailboxItems.assignmentId, assignment.id), eq(dotMailboxItems.kind, "follow_up")))).toHaveLength(1);
     } finally { await f.events.unsubscribe(f.principal, f.subscription); await f.events.stop(); }
@@ -460,12 +460,12 @@ describe("durable Dot Runner integration", () => {
 
   it("coalesces a normal comment wake into the accepted Dot mailbox without a second run", async () => {
     const f = await fixture(), { run, assignment } = await offeredWork(f);
-    const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Active Dot comment",
+    const [task] = await db.insert(issues).values({ spaceId: f.space.id, title: "Active Dot comment",
       status: "in_progress", assigneeAgentId: f.agent.id, executionRunId: run.id, checkoutRunId: run.id }).returning();
     await db.update(heartbeatRuns).set({ nativeIssueId: task!.id, issueId: task!.id, status: "running",
       runtimeMode: "native", nativeSessionId: assignment.normalizedSessionId }).where(eq(heartbeatRuns.id, run.id));
     await db.update(dotRunnerAssignments).set({ status: "accepted" }).where(eq(dotRunnerAssignments.id, assignment.id));
-    const [comment] = await db.insert(issueComments).values({ companyId: f.company.id, issueId: task!.id,
+    const [comment] = await db.insert(issueComments).values({ spaceId: f.space.id, issueId: task!.id,
       authorUserId: f.userId, body: "Continue the same assignment" }).returning();
     try {
       const admitted = await heartbeatService(db).wakeup(f.agent.id, { source: "assignment", triggerDetail: "system",
@@ -484,7 +484,7 @@ describe("durable Dot Runner integration", () => {
       expect(f.received.filter(event => event.data?.kind === "follow_up")).toHaveLength(1);
       await f.broker.mailbox(f.principal);
       expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wakes[0]!.id)))[0]?.status).toBe("deferred_issue_execution");
-      const [receipt] = await db.insert(dotRunnerOperations).values({ companyId: f.company.id,
+      const [receipt] = await db.insert(dotRunnerOperations).values({ spaceId: f.space.id,
         assignmentId: assignment.id, requestId: randomUUID(), digest: "history", status: "completed",
         command: { action: "tool", input: { name: "get_task_history", arguments: {} } },
         outcome: { status: "completed", isError: false, result: { comments: [{ id: comment!.id }] } } }).returning();
@@ -502,16 +502,16 @@ describe("durable Dot Runner integration", () => {
   it.each(["finish before delivery", "read before wake admission", "partial history", "failed history"])(
     "preserves comment delivery when %s", async scenario => {
       const f = await fixture(), { run, assignment } = await offeredWork(f);
-      await db.update(companies).set({ defaultResponsibleUserId: f.userId }).where(eq(companies.id, f.company.id));
-      const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Dot comment race",
+      await db.update(spaces).set({ defaultResponsibleUserId: f.userId }).where(eq(spaces.id, f.space.id));
+      const [task] = await db.insert(issues).values({ spaceId: f.space.id, title: "Dot comment race",
         status: "in_progress", assigneeAgentId: f.agent.id, responsibleUserId: f.userId,
         executionRunId: run.id, checkoutRunId: run.id }).returning();
       await db.update(heartbeatRuns).set({ nativeIssueId: task!.id, issueId: task!.id, status: "running",
         contextSnapshot: { issueId: task!.id }, runtimeMode: "native", nativeSessionId: assignment.normalizedSessionId }).where(eq(heartbeatRuns.id, run.id));
       await db.update(dotRunnerAssignments).set({ status: "accepted" }).where(eq(dotRunnerAssignments.id, assignment.id));
-      const comments = await db.insert(issueComments).values([1, 2].map(index => ({ companyId: f.company.id,
+      const comments = await db.insert(issueComments).values([1, 2].map(index => ({ spaceId: f.space.id,
         issueId: task!.id, authorUserId: f.userId, body: "Input " + index }))).returning();
-      const [history] = await db.insert(dotRunnerOperations).values({ companyId: f.company.id,
+      const [history] = await db.insert(dotRunnerOperations).values({ spaceId: f.space.id,
         assignmentId: assignment.id, requestId: randomUUID(), digest: "history", status: "completed",
         command: { action: "tool", input: { name: "get_task_history", arguments: {} } },
         outcome: { status: "completed", isError: scenario === "failed history",
@@ -525,9 +525,9 @@ describe("durable Dot Runner integration", () => {
         });
         if (scenario === "finish before delivery") {
           const requestId = randomUUID();
-          await db.insert(dotRunnerOperations).values({ companyId: f.company.id, assignmentId: assignment.id,
+          await db.insert(dotRunnerOperations).values({ spaceId: f.space.id, assignmentId: assignment.id,
             requestId, digest: "finish", command: { action: "finish" }, status: "admitted" });
-          const port = f.broker.port({ binding: { companyId: f.company.id, agentId: f.agent.id, runId: run.id }, provider: { binding: f.snapshot } });
+          const port = f.broker.port({ binding: { spaceId: f.space.id, agentId: f.agent.id, runId: run.id }, provider: { binding: f.snapshot } });
           await port.settle({ sourceEventId: randomUUID(), payload: { requestId,
             binding: { ...f.snapshot, runId: run.id, normalizedSessionId: assignment.normalizedSessionId,
               turnId: assignment.turnId, assignmentRevision: assignment.revision }, outcome: { status: "completed" } } } as Parameters<typeof port.settle>[0]);
@@ -538,7 +538,7 @@ describe("durable Dot Runner integration", () => {
         let wakes = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.agentId, f.agent.id));
         expect(wakes).toHaveLength(scenario === "read before wake admission" ? 2 : 1);
         const pending = wakes.find(wake => wake.status === "deferred_issue_execution")!;
-        expect(pending.payload?._paperclipWakeContext).toMatchObject({ wakeCommentIds:
+        expect(pending.payload?._outpostWakeContext).toMatchObject({ wakeCommentIds:
           ["finish before delivery", "failed history"].includes(scenario)
             ? comments.map(comment => comment.id) : [comments[1]!.id] });
         if (scenario === "read before wake admission") expect(wakes.find(wake => wake.payload?.commentId === comments[0]!.id)?.status).toBe("coalesced");
@@ -553,8 +553,8 @@ describe("durable Dot Runner integration", () => {
             escalateStrandedAssignedIssue: async () => { throw new Error("unexpected escalation"); },
             escalateStrandedRecoveryIssueInPlace: async () => { throw new Error("unexpected escalation"); },
           } });
-          await release({ companyId: f.company.id, runId: run.id, now: new Date(), suppressImmediateRecovery: true });
-          await release({ companyId: f.company.id, runId: run.id, now: new Date(), suppressImmediateRecovery: true });
+          await release({ spaceId: f.space.id, runId: run.id, now: new Date(), suppressImmediateRecovery: true });
+          await release({ spaceId: f.space.id, runId: run.id, now: new Date(), suppressImmediateRecovery: true });
           const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, f.agent.id));
           expect(runs).toHaveLength(2);
           expect(runs.find(row => row.id !== run.id)).toMatchObject({ status: "queued",
@@ -573,11 +573,11 @@ describe("durable Dot Runner integration", () => {
   it.each(["foreign comment", "self comment", "revoked binding", "fenced assignment", "expired assignment", "prior generation"])(
     "refuses active comment delivery for %s", async kind => {
       const f = await fixture(), { run, assignment } = await offeredWork(f);
-      const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Bounded follow-up", assigneeAgentId: f.agent.id }).returning();
+      const [task] = await db.insert(issues).values({ spaceId: f.space.id, title: "Bounded follow-up", assigneeAgentId: f.agent.id }).returning();
       await db.update(heartbeatRuns).set({ nativeIssueId: task!.id, status: "running", runtimeMode: "native",
         nativeSessionId: assignment.normalizedSessionId }).where(eq(heartbeatRuns.id, run.id));
       await db.update(dotRunnerAssignments).set({ status: "accepted" }).where(eq(dotRunnerAssignments.id, assignment.id));
-      const [comment] = await db.insert(issueComments).values({ companyId: f.company.id, issueId: task!.id,
+      const [comment] = await db.insert(issueComments).values({ spaceId: f.space.id, issueId: task!.id,
         ...(kind === "self comment" ? { authorAgentId: f.agent.id } : { authorUserId: f.userId }), body: "Bounded input" }).returning();
       if (kind === "revoked binding") await db.update(dotAgentBindings).set({ revokedAt: new Date() }).where(eq(dotAgentBindings.id, f.snapshot.bindingId));
       if (kind === "fenced assignment") await db.update(dotRunnerAssignments).set({ status: "fenced" }).where(eq(dotRunnerAssignments.id, assignment.id));
@@ -585,7 +585,7 @@ describe("durable Dot Runner integration", () => {
       if (kind === "prior generation") await db.update(dotAgentBindings).set({ generation: f.snapshot.bindingGeneration + 1 }).where(eq(dotAgentBindings.id, f.snapshot.bindingId));
       try {
         expect(await db.transaction(tx => publishActiveDotComment(tx as unknown as typeof db, {
-          companyId: f.company.id, agentId: f.agent.id, bindingId: f.snapshot.bindingId, runId: run.id,
+          spaceId: f.space.id, agentId: f.agent.id, bindingId: f.snapshot.bindingId, runId: run.id,
           issueId: task!.id, commentId: kind === "foreign comment" ? randomUUID() : comment!.id }))).toBe(false);
         expect(await db.select().from(dotMailboxItems).where(and(eq(dotMailboxItems.assignmentId, assignment.id), eq(dotMailboxItems.kind, "follow_up")))).toHaveLength(0);
       } finally { await f.events.stop(); }
@@ -594,13 +594,13 @@ describe("durable Dot Runner integration", () => {
   it("does not authorize a failed Grok bootstrap retry without an external assignment", async () => {
     const f = await fixture({ provider: "grok_bot" });
     try {
-      const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Bootstrap retry", assigneeAgentId: f.agent.id }).returning();
-      const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+      const [task] = await db.insert(issues).values({ spaceId: f.space.id, title: "Bootstrap retry", assigneeAgentId: f.agent.id }).returning();
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
         nativeIssueId: task.id, runtimeMode: "native", driverKind: "grok_bot_mcp", status: "failed", invocationSource: "assignment" }).returning();
-      await db.insert(nativeRunFinalizations).values({ companyId: f.company.id, issueId: task.id, runId: run.id, phase: "retryable_failure" });
+      await db.insert(nativeRunFinalizations).values({ spaceId: f.space.id, issueId: task.id, runId: run.id, phase: "retryable_failure" });
       const cancelRun = vi.fn().mockResolvedValue(null);
       const broker = dotRunnerBroker(db, { heartbeat: { wakeup: vi.fn(), cancelRun } });
-      await expect(broker.stopGrokWork(f.company.id, f.agent.id, f.userId, run.id)).rejects.toThrow("changed");
+      await expect(broker.stopGrokWork(f.space.id, f.agent.id, f.userId, run.id)).rejects.toThrow("changed");
       expect(cancelRun).not.toHaveBeenCalled();
       expect(await db.select().from(dotRunnerAssignments).where(eq(dotRunnerAssignments.runId, run.id))).toHaveLength(0);
     } finally { await f.events.stop(); }
@@ -610,42 +610,42 @@ describe("durable Dot Runner integration", () => {
     const f = await fixture({ provider: "grok_bot" });
     const old = await offeredWork(f);
     await db.update(heartbeatRuns).set({ status: "failed" }).where(eq(heartbeatRuns.id, old.run.id));
-    expect(await f.broker.stopGrokWork(f.company.id, f.agent.id, f.userId, old.run.id))
+    expect(await f.broker.stopGrokWork(f.space.id, f.agent.id, f.userId, old.run.id))
       .toMatchObject({ stopped: true, remoteTerminationConfirmed: false });
     expect((await db.select().from(dotRunnerAssignments).where(eq(dotRunnerAssignments.runId, old.run.id)))[0]?.status).toBe("fenced");
-    expect(await grokRoutineService(db).recoveryNeeded(f.company.id, f.agent.id)).toBe(true);
+    expect(await grokRoutineService(db).recoveryNeeded(f.space.id, f.agent.id)).toBe(true);
     await expect(f.broker.read(f.principal, old.assignment.id)).rejects.toThrow();
     const current = await offeredWork(f);
-    await expect(f.broker.stopGrokWork(f.company.id, f.agent.id, f.userId, old.run.id)).rejects.toThrow("changed");
+    await expect(f.broker.stopGrokWork(f.space.id, f.agent.id, f.userId, old.run.id)).rejects.toThrow("changed");
     expect((await db.select().from(dotRunnerAssignments).where(eq(dotRunnerAssignments.id, current.assignment.id)))[0]?.status).toBe("offered");
     await f.events.stop();
   });
 
   it.each(["queued", "running"] as const)("stops a %s Grok run before an external assignment exists", async status => {
     const f = await fixture({ provider: "grok_bot" });
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, status, invocationSource: "assignment", triggerDetail: "system" }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id, status, invocationSource: "assignment", triggerDetail: "system" }).returning();
     const cancelRun = vi.fn().mockResolvedValue(null);
     const broker = dotRunnerBroker(db, { heartbeat: { wakeup: vi.fn(), cancelRun } });
-    expect(await broker.stopGrokWork(f.company.id, f.agent.id, f.userId, run!.id)).toMatchObject({ stopped: true, remoteTerminationConfirmed: false });
-    expect(cancelRun).toHaveBeenCalledWith(run!.id, "Paperclip work stopped; Grok execution unconfirmed");
-    expect(await grokRoutineService(db).recoveryNeeded(f.company.id, f.agent.id)).toBe(status === "running");
+    expect(await broker.stopGrokWork(f.space.id, f.agent.id, f.userId, run!.id)).toMatchObject({ stopped: true, remoteTerminationConfirmed: false });
+    expect(cancelRun).toHaveBeenCalledWith(run!.id, "Outpost work stopped; Grok execution unconfirmed");
+    expect(await grokRoutineService(db).recoveryNeeded(f.space.id, f.agent.id)).toBe(status === "running");
     expect(await db.select().from(dotRunnerAssignments).where(eq(dotRunnerAssignments.runId, run!.id))).toHaveLength(0);
     const other = await fixture({ provider: "grok_bot" });
-    await expect(broker.stopGrokWork(other.company.id, other.agent.id, other.userId, run!.id)).rejects.toThrow("changed");
+    await expect(broker.stopGrokWork(other.space.id, other.agent.id, other.userId, run!.id)).rejects.toThrow("changed");
     expect(cancelRun).toHaveBeenCalledTimes(1);
     await f.events.stop(); await other.events.stop();
   });
 
   it("cancels queued Grok work without fencing another active assignment", async () => {
     const f = await fixture({ provider: "grok_bot" }), active = await offeredWork(f);
-    const [queued] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, status: "queued", invocationSource: "assignment", triggerDetail: "system" }).returning();
+    const [queued] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id, status: "queued", invocationSource: "assignment", triggerDetail: "system" }).returning();
     const cancelRun = vi.fn().mockResolvedValue(null);
     const broker = dotRunnerBroker(db, { heartbeat: { wakeup: vi.fn(), cancelRun } });
-    await broker.stopGrokWork(f.company.id, f.agent.id, f.userId, queued!.id);
+    await broker.stopGrokWork(f.space.id, f.agent.id, f.userId, queued!.id);
     expect(cancelRun).toHaveBeenCalledTimes(1);
-    expect(cancelRun).toHaveBeenCalledWith(queued!.id, "Paperclip work stopped; Grok execution unconfirmed");
+    expect(cancelRun).toHaveBeenCalledWith(queued!.id, "Outpost work stopped; Grok execution unconfirmed");
     expect((await db.select().from(dotRunnerAssignments).where(eq(dotRunnerAssignments.id, active.assignment.id)))[0]!.status).toBe("offered");
-    expect(await grokRoutineService(db).recoveryNeeded(f.company.id, f.agent.id)).toBe(false);
+    expect(await grokRoutineService(db).recoveryNeeded(f.space.id, f.agent.id)).toBe(false);
     await f.events.stop();
   });
 
@@ -655,7 +655,7 @@ describe("durable Dot Runner integration", () => {
     await db.update(dotRunnerAssignments).set({ status: "settled" }).where(eq(dotRunnerAssignments.id, old.assignment.id));
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, old.run.id));
     const current = await offeredWork(f);
-    await expect(f.broker.stopGrokWork(f.company.id, f.agent.id, f.userId, old.run.id)).rejects.toThrow("changed");
+    await expect(f.broker.stopGrokWork(f.space.id, f.agent.id, f.userId, old.run.id)).rejects.toThrow("changed");
     expect((await db.select().from(dotRunnerAssignments).where(eq(dotRunnerAssignments.id, current.assignment.id)))[0]!.status).toBe("offered");
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, current.run.id)))[0]!.status).toBe("queued");
     await f.events.stop();
@@ -663,15 +663,15 @@ describe("durable Dot Runner integration", () => {
 
   it("preserves Grok feedback and its deferred wake while routine recovery blocks notification", async () => {
     const f = await fixture({ provider: "grok_bot" }), { run, assignment } = await offeredWork(f);
-    const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Grok feedback", assigneeAgentId: f.agent.id }).returning();
+    const [task] = await db.insert(issues).values({ spaceId: f.space.id, title: "Grok feedback", assigneeAgentId: f.agent.id }).returning();
     await db.update(heartbeatRuns).set({ nativeIssueId: task!.id, status: "running", runtimeMode: "native", nativeSessionId: assignment.normalizedSessionId }).where(eq(heartbeatRuns.id, run.id));
     await db.update(dotRunnerAssignments).set({ status: "accepted" }).where(eq(dotRunnerAssignments.id, assignment.id));
     await db.update(grokBotRoutines).set({ recoveryRequiredAt: new Date(), recoveryReason: "dispatch" }).where(eq(grokBotRoutines.bindingId, f.snapshot.bindingId));
-    const [comment] = await db.insert(issueComments).values({ companyId: f.company.id, issueId: task!.id, authorUserId: f.userId, body: "Please include the source dates." }).returning();
+    const [comment] = await db.insert(issueComments).values({ spaceId: f.space.id, issueId: task!.id, authorUserId: f.userId, body: "Please include the source dates." }).returning();
     await db.transaction(async tx => {
-      expect(await publishActiveDotComment(tx as unknown as typeof db, { companyId: f.company.id, agentId: f.agent.id,
+      expect(await publishActiveDotComment(tx as unknown as typeof db, { spaceId: f.space.id, agentId: f.agent.id,
         bindingId: f.snapshot.bindingId, runId: run.id, issueId: task!.id, commentId: comment!.id })).toMatchObject({ consumed: false });
-      await tx.insert(agentWakeupRequests).values({ companyId: f.company.id, agentId: f.agent.id, source: "assignment", triggerDetail: "system",
+      await tx.insert(agentWakeupRequests).values({ spaceId: f.space.id, agentId: f.agent.id, source: "assignment", triggerDetail: "system",
         reason: "issue_comment", status: "deferred_issue_execution", payload: { issueId: task!.id, commentId: comment!.id } });
     });
     const delivery = vi.fn().mockResolvedValue({ delivery: "accepted", httpStatus: 200 });
@@ -687,7 +687,7 @@ describe("durable Dot Runner integration", () => {
     const f = await fixture();
     const { run, assignment } = await offeredWork(f);
     const requestId = randomUUID();
-    await db.insert(dotRunnerOperations).values({ companyId: f.company.id, assignmentId: assignment.id, requestId,
+    await db.insert(dotRunnerOperations).values({ spaceId: f.space.id, assignmentId: assignment.id, requestId,
       digest: "test", command: { action: "tool" }, status: "admitted" });
     let release!: () => void;
     let held!: () => void;
@@ -696,12 +696,12 @@ describe("durable Dot Runner integration", () => {
     const firstEvent = randomUUID();
     const transaction = db.transaction(async tx => {
       await tx.select().from(dotAgentBindings).where(eq(dotAgentBindings.id, f.snapshot.bindingId)).for("update");
-      await tx.insert(dotMailboxItems).values({ companyId: f.company.id, bindingId: f.snapshot.bindingId,
+      await tx.insert(dotMailboxItems).values({ spaceId: f.space.id, bindingId: f.snapshot.bindingId,
         bindingGeneration: f.snapshot.bindingGeneration, kind: "operation_result", sourceEventId: firstEvent, references: {} });
       held(); await gate;
     });
     await locked;
-    const port = f.broker.port({ binding: { companyId: f.company.id, agentId: f.agent.id, runId: run.id }, provider: { binding: f.snapshot } });
+    const port = f.broker.port({ binding: { spaceId: f.space.id, agentId: f.agent.id, runId: run.id }, provider: { binding: f.snapshot } });
     let written = false, read = false;
     const secondEvent = randomUUID();
     const writer = port.settle({ sourceEventId: secondEvent, payload: { requestId, binding: { ...f.snapshot, runId: run.id,
@@ -722,7 +722,7 @@ describe("durable Dot Runner integration", () => {
     const f = await fixture();
     const { run, assignment } = await offeredWork(f);
     const requestId = randomUUID();
-    await db.insert(dotRunnerOperations).values({ companyId: f.company.id, assignmentId: assignment.id, requestId,
+    await db.insert(dotRunnerOperations).values({ spaceId: f.space.id, assignmentId: assignment.id, requestId,
       digest: "test", command: { action }, status: "admitted" });
     let release!: () => void;
     let held!: () => void;
@@ -734,10 +734,10 @@ describe("durable Dot Runner integration", () => {
     const admission = db.transaction(async tx => {
       await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)).for("update");
       held(); await gate;
-      await withExternalAdmissionGuard(tx, f.company.id, f.agent.id, async () => {});
+      await withExternalAdmissionGuard(tx, f.space.id, f.agent.id, async () => {});
     });
     await locked;
-    const port = f.broker.port({ binding: { companyId: f.company.id, agentId: f.agent.id, runId: run.id }, provider: { binding: f.snapshot } });
+    const port = f.broker.port({ binding: { spaceId: f.space.id, agentId: f.agent.id, runId: run.id }, provider: { binding: f.snapshot } });
     // Capture each outcome now so a failure surfaces as itself, not as the wait timeout.
     let settled = false;
     let settleError: unknown;
@@ -764,26 +764,26 @@ describe("durable Dot Runner integration", () => {
     const f = await fixture();
     const { run, assignment } = await offeredWork(f);
     try {
-      await expect(f.broker.snapshot(f.company.id, f.agent.id, f.snapshot.bindingId)).rejects.toThrow("active assignment");
+      await expect(f.broker.snapshot(f.space.id, f.agent.id, f.snapshot.bindingId)).rejects.toThrow("active assignment");
       await db.update(heartbeatRuns).set({ status }).where(eq(heartbeatRuns.id, run.id));
-      await f.broker.snapshot(f.company.id, f.agent.id, f.snapshot.bindingId);
-      await f.broker.snapshot(f.company.id, f.agent.id, f.snapshot.bindingId);
+      await f.broker.snapshot(f.space.id, f.agent.id, f.snapshot.bindingId);
+      await f.broker.snapshot(f.space.id, f.agent.id, f.snapshot.bindingId);
       expect((await db.select().from(dotRunnerAssignments).where(eq(dotRunnerAssignments.id, assignment.id)))[0]?.status).toBe("fenced");
       const inbox = await f.broker.mailbox(f.principal);
       const fences = inbox.items.filter(item => item.assignmentId === assignment.id && item.kind === "authority_revoked");
       expect(fences).toHaveLength(1);
       expect(fences[0]?.references).toMatchObject({ assignmentId: assignment.id, runId: run.id, externalStopConfirmed: false });
-      await expect(createDotRunnerMcpTools(db).callTool(f.principal, "paperclip_dot_accept", { assignmentId: assignment.id, requestId: randomUUID() })).rejects.toThrow("revoked");
+      await expect(createDotRunnerMcpTools(db).callTool(f.principal, "outpost_dot_accept", { assignmentId: assignment.id, requestId: randomUUID() })).rejects.toThrow("revoked");
     } finally { await f.events.unsubscribe(f.principal, f.subscription); await f.events.stop(); }
   }, 30000);
 
   it("allows paused Dot fence delivery and acknowledgements without task authority", async () => {
     const f = await fixture();
     const { run, assignment } = await offeredWork(f);
-    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Work paused before inbox read", assigneeAgentId: f.agent.id }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Work paused before inbox read", assigneeAgentId: f.agent.id }).returning();
     await db.update(heartbeatRuns).set({ nativeIssueId: issue!.id }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: f.company.id, issueId: issue!.id, phase: "observed" });
-    const port = f.broker.port({ binding: { companyId: f.company.id, agentId: f.agent.id, runId: run.id }, provider: { binding: f.snapshot } });
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: f.space.id, issueId: issue!.id, phase: "observed" });
+    const port = f.broker.port({ binding: { spaceId: f.space.id, agentId: f.agent.id, runId: run.id }, provider: { binding: f.snapshot } });
     await port.dispatch({ sourceEventId: randomUUID(), payload: { kind: "authority_revoked", binding: {
       ...f.snapshot, runId: run.id, normalizedSessionId: assignment.normalizedSessionId,
       turnId: assignment.turnId, assignmentRevision: assignment.revision,
@@ -793,40 +793,40 @@ describe("durable Dot Runner integration", () => {
     const tools = createDotRunnerMcpTools(db);
     await f.events.tick();
     expect(f.received.at(-1)?.data.kind).toBe("authority_revoked");
-    const inbox = await tools.callTool(principal, "paperclip_dot_inbox", { after: 0 });
+    const inbox = await tools.callTool(principal, "outpost_dot_inbox", { after: 0 });
     expect(inbox).toMatchObject({ result: { nextCursor: 0, items: [{ kind: "authority_revoked", assignmentId: assignment.id, references: { assignmentId: assignment.id } }] } });
     const fencedAssignmentId = (inbox!.result as { items: Array<{ references: { assignmentId: string } }> }).items[0]!.references.assignmentId;
-    await expect(tools.callTool(principal, "paperclip_dot_tasks", {})).rejects.toThrow("authority");
-    await expect(tools.callTool(principal, "paperclip_dot_read", { assignmentId: assignment.id })).rejects.toThrow("authority");
-    await expect(tools.callTool(principal, "paperclip_dot_accept", { assignmentId: assignment.id, requestId: randomUUID() })).rejects.toThrow("authority");
-    expect(await tools.callTool(principal, "paperclip_dot_control_ack", { assignmentId: fencedAssignmentId, requestId: randomUUID() })).toMatchObject({ result: { status: "acknowledged", externalStopConfirmed: false } });
+    await expect(tools.callTool(principal, "outpost_dot_tasks", {})).rejects.toThrow("authority");
+    await expect(tools.callTool(principal, "outpost_dot_read", { assignmentId: assignment.id })).rejects.toThrow("authority");
+    await expect(tools.callTool(principal, "outpost_dot_accept", { assignmentId: assignment.id, requestId: randomUUID() })).rejects.toThrow("authority");
+    expect(await tools.callTool(principal, "outpost_dot_control_ack", { assignmentId: fencedAssignmentId, requestId: randomUUID() })).toMatchObject({ result: { status: "acknowledged", externalStopConfirmed: false } });
     await f.events.unsubscribe(principal, f.subscription); await f.events.stop();
   }, 30000);
 
   it("authorizes admitted Dot reviews while preserving the worker and rejecting stale review authority", async () => {
     const f = await fixture();
-    const companyId = f.company.id;
-    const [worker] = await db.insert(agents).values({ companyId, name: "Original worker", status: "active", adapterType: "outpost_runner" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Review another agent's work", status: "in_review", statusVersion: 3, assigneeAgentId: worker!.id }).returning();
+    const spaceId = f.space.id;
+    const [worker] = await db.insert(agents).values({ spaceId, name: "Original worker", status: "active", adapterType: "outpost_runner" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Review another agent's work", status: "in_review", statusVersion: 3, assigneeAgentId: worker!.id }).returning();
     const issueId = issue!.id;
-    const [contract] = await db.insert(completionContracts).values({ companyId, issueId, revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "fixture",
+    const [contract] = await db.insert(completionContracts).values({ spaceId, issueId, revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "fixture",
       risk: "low", completionAuthority: "agent", incompleteCriteriaPolicy: "block", contractJson: {}, canonicalSha256: randomUUID(), createdByActorType: "user", createdByActorId: f.userId }).returning();
-    const [source] = await db.insert(heartbeatRuns).values({ companyId, agentId: worker!.id, nativeIssueId: issueId, runtimeMode: "native", status: "succeeded",
+    const [source] = await db.insert(heartbeatRuns).values({ spaceId, agentId: worker!.id, nativeIssueId: issueId, runtimeMode: "native", status: "succeeded",
       completionContractId: contract!.id, completionContractSha256: contract!.canonicalSha256 }).returning();
-    const [result] = await db.insert(nativeRunResults).values({ companyId, issueId, runId: source!.id, completionContractId: contract!.id,
+    const [result] = await db.insert(nativeRunResults).values({ spaceId, issueId, runId: source!.id, completionContractId: contract!.id,
       serverFingerprint: randomUUID(), schemaStatus: "accepted", resultJson: {}, canonicalSha256: randomUUID() }).returning();
-    const [assessment] = await db.insert(workAssessments).values({ companyId, issueId, runId: source!.id, contractId: contract!.id, resultId: result!.id,
-      triggerKind: "native_result", triggerActorCompanyId: companyId, priorIssueStatus: "in_progress", priorStatusVersion: 2, policyVersion: "fixture", assessmentJson: {}, inputDigest: randomUUID() }).returning();
-    const [decision] = await db.insert(statusDecisions).values({ companyId, issueId, runId: source!.id, assessmentId: assessment!.id, decisionVersion: 1,
+    const [assessment] = await db.insert(workAssessments).values({ spaceId, issueId, runId: source!.id, contractId: contract!.id, resultId: result!.id,
+      triggerKind: "native_result", triggerActorSpaceId: spaceId, priorIssueStatus: "in_progress", priorStatusVersion: 2, policyVersion: "fixture", assessmentJson: {}, inputDigest: randomUUID() }).returning();
+    const [decision] = await db.insert(statusDecisions).values({ spaceId, issueId, runId: source!.id, assessmentId: assessment!.id, decisionVersion: 1,
       policyVersion: "fixture", fromStatus: "in_progress", toStatus: "in_review", reasonCode: "explicit_review", decisionJson: { projectedStatusVersion: 3 }, decisionDigest: randomUUID(), applicationState: "applied" }).returning();
-    const [interaction] = await db.insert(issueThreadInteractions).values({ companyId, issueId, kind: "request_confirmation", sourceRunId: source!.id,
+    const [interaction] = await db.insert(issueThreadInteractions).values({ spaceId, issueId, kind: "request_confirmation", sourceRunId: source!.id,
       addresseeAgentId: f.agent.id, createdByAgentId: worker!.id,
       payload: { version: 1, prompt: "Review the completed work.", target: { type: "custom", key: "native_completion_review", revisionId: decision!.id } } }).returning();
     const { run, assignment } = await offeredWork(f);
     const contextSnapshot = { issueId, nativeReviewInteractionId: interaction!.id, nativeReviewDecisionId: decision!.id };
     await db.update(heartbeatRuns).set({ status: "running", runtimeMode: "native", nativeIssueId: issueId, nativeSessionId: assignment.normalizedSessionId, contextSnapshot }).where(eq(heartbeatRuns.id, run.id));
     await db.update(issues).set({ lastStatusDecisionId: decision!.id, executionRunId: run.id, checkoutRunId: source!.id }).where(eq(issues.id, issueId));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId, issueId, phase: "observed", controllerGeneration: assignment.controllerGeneration, leaseExpiresAt: new Date(Date.now() + 60_000) });
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId, issueId, phase: "observed", controllerGeneration: assignment.controllerGeneration, leaseExpiresAt: new Date(Date.now() + 60_000) });
     await expect(f.broker.read(f.principal, assignment.id)).resolves.toMatchObject({ assignmentId: assignment.id });
     await expect(f.broker.operation(f.principal, assignment.id, randomUUID(), "accept", {})).resolves.toMatchObject({ status: "pending" });
     await db.update(issues).set({ executionRunId: null }).where(eq(issues.id, issueId));
@@ -871,10 +871,10 @@ describe("durable Dot Runner integration", () => {
   it.each(["OAuth revocation", "refresh-token replay"])("%s fences Dot and cancels waiting work", async reason => {
     const f = await fixture();
     const { run, assignment } = await offeredWork(f);
-    const { app, personal } = gateway(f.oauth, { type: "board", source: "session", userId: f.userId });
+    const { app, personal } = gateway(f.oauth, { type: "operator", source: "session", userId: f.userId });
     // A token submitted to the other resource's revocation endpoint has no effect.
     await personal.revokeToken(f.tokens.access_token, f.client.client_id);
-    expect(await f.broker.bindingForAgent(f.company.id, f.agent.id)).not.toBeNull();
+    expect(await f.broker.bindingForAgent(f.space.id, f.agent.id)).not.toBeNull();
     if (reason === "OAuth revocation") {
       expect((await request(app).post("/mcp/runner/oauth/revoke").send({ token: f.tokens.access_token, client_id: f.client.client_id })).status).toBe(200);
     } else {
@@ -882,13 +882,13 @@ describe("durable Dot Runner integration", () => {
       await f.oauth.token(refresh);
       await expect(f.oauth.token(refresh)).rejects.toThrow();
     }
-    expect(await f.broker.bindingForAgent(f.company.id, f.agent.id)).toBeNull();
+    expect(await f.broker.bindingForAgent(f.space.id, f.agent.id)).toBeNull();
     expect((await db.select().from(dotRunnerAssignments).where(eq(dotRunnerAssignments.id, assignment.id)))[0]?.status).toBe("fenced");
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0]?.status).toBe("cancelled");
     await expect(f.oauth.authenticate(f.tokens.access_token)).rejects.toThrow();
-    const next = await f.broker.createPairing({ companyId: f.company.id, agentId: f.agent.id, operatorId: f.userId });
+    const next = await f.broker.createPairing({ spaceId: f.space.id, agentId: f.agent.id, operatorId: f.userId });
     await f.oauth.revokeToken(f.tokens.access_token, f.client.client_id);
-    expect((await f.broker.bindingForAgent(f.company.id, f.agent.id))?.id).toBe(next.bindingId);
+    expect((await f.broker.bindingForAgent(f.space.id, f.agent.id))?.id).toBe(next.bindingId);
   }, 30000);
 
   it("uses merged client metadata and scoped browser consent with a distinct Dot issuer", async () => {
@@ -899,54 +899,54 @@ describe("durable Dot Runner integration", () => {
       client_id: clientId, client_name: "Dot metadata client", redirect_uris: [redirectUri],
       grant_types: ["authorization_code", "refresh_token", DEVICE_GRANT],
     }) });
-    const { app, personal } = gateway(oauth, { type: "board", source: "session", userId: f.userId });
+    const { app, personal } = gateway(oauth, { type: "operator", source: "session", userId: f.userId });
     const metadata = await request(app).get("/.well-known/oauth-protected-resource/mcp/runner");
     expect(metadata.body.authorization_servers).toEqual([oauth.config.origin + "/mcp/runner/oauth"]);
     const issuer = await request(app).get("/.well-known/oauth-authorization-server/mcp/runner/oauth");
     expect(issuer.body).toMatchObject({ issuer: oauth.config.origin + "/mcp/runner/oauth", client_id_metadata_document_supported: true,
-      scopes_supported: ["paperclip:agent", "offline_access"], device_authorization_endpoint: oauth.config.origin + "/mcp/runner/oauth/device_authorization" });
+      scopes_supported: ["outpost:agent", "offline_access"], device_authorization_endpoint: oauth.config.origin + "/mcp/runner/oauth/device_authorization" });
     expect((await request(app).get("/.well-known/oauth-authorization-server")).body.issuer).toBe(oauth.config.origin);
     const verifier = randomBytes(32).toString("base64url");
     const input = { client_id: clientId, redirect_uri: redirectUri, response_type: "code", resource: oauth.config.resource,
-      company_id: f.company.id, code_challenge: createHash("sha256").update(verifier).digest("base64url"), code_challenge_method: "S256" };
+      space_id: f.space.id, code_challenge: createHash("sha256").update(verifier).digest("base64url"), code_challenge_method: "S256" };
     const id = (await oauth.authorize(input)).split("/").at(-1)!;
-    await expect(personal.describeRequest(id, { type: "board", source: "session", userId: f.userId }, null)).rejects.toThrow();
+    await expect(personal.describeRequest(id, { type: "operator", source: "session", userId: f.userId }, null)).rejects.toThrow();
     const description = await request(app).get("/api/mcp/requests/" + id);
-    expect(description.body).toMatchObject({ agentConnection: true, requestedCompanyId: f.company.id, clientOrigin: new URL(clientId).origin });
-    expect(description.body.companies.map((c: { id: string }) => c.id)).toEqual([f.company.id]);
+    expect(description.body).toMatchObject({ agentConnection: true, requestedSpaceId: f.space.id, clientOrigin: new URL(clientId).origin });
+    expect(description.body.spaces.map((c: { id: string }) => c.id)).toEqual([f.space.id]);
     expect((await request(app).post(`/api/mcp/requests/${id}/consent`).set("Origin", oauth.config.origin)
-      .send({ decision: "approve", companyId: randomUUID(), allowWrites: false })).status).toBe(403);
+      .send({ decision: "approve", spaceId: randomUUID(), allowWrites: false })).status).toBe(403);
     const consent = await request(app).post(`/api/mcp/requests/${id}/consent`).set("Origin", oauth.config.origin)
-      .send({ decision: "approve", companyId: f.company.id, allowWrites: false });
+      .send({ decision: "approve", spaceId: f.space.id, allowWrites: false });
     expect(consent.status).toBe(200);
     const redirect = new URL(consent.body.redirectUrl);
     expect(redirect.searchParams.get("iss")).toBe(issuer.body.issuer);
     const tokens = await oauth.token({ grant_type: "authorization_code", client_id: clientId, redirect_uri: redirectUri,
       resource: oauth.config.resource, code: redirect.searchParams.get("code"), code_verifier: verifier });
-    expect((await oauth.authenticate(tokens.access_token)).grant).toMatchObject({ purpose: "agent", agentId: null, scopes: ["paperclip:agent"] });
+    expect((await oauth.authenticate(tokens.access_token)).grant).toMatchObject({ purpose: "agent", agentId: null, scopes: ["outpost:agent"] });
     await expect(personal.authenticate(tokens.access_token)).rejects.toThrow();
-    await expect(oauth.authorize({ ...input, scope: "paperclip:read" })).rejects.toMatchObject({ code: "invalid_scope" });
+    await expect(oauth.authorize({ ...input, scope: "outpost:read" })).rejects.toMatchObject({ code: "invalid_scope" });
     await f.events.unsubscribe(f.principal, f.subscription);
   }, 30000);
 
-  it("routes merged device consent to Dot without granting personal or cross-company access", async () => {
+  it("routes merged device consent to Dot without granting personal or cross-space access", async () => {
     const f = await fixture();
-    const { app, personal } = gateway(f.oauth, { type: "board", source: "session", userId: f.userId });
+    const { app, personal } = gateway(f.oauth, { type: "operator", source: "session", userId: f.userId });
     const client = await f.oauth.register({ client_name: "Dot device", redirect_uris: [], response_types: [], grant_types: [DEVICE_GRANT, "refresh_token"] }, randomUUID());
     const started = await request(app).post("/mcp/runner/oauth/device_authorization")
-      .send({ client_id: client.client_id, resource: f.oauth.config.resource, scope: "paperclip:agent offline_access", company_id: f.company.id });
+      .send({ client_id: client.client_id, resource: f.oauth.config.resource, scope: "outpost:agent offline_access", space_id: f.space.id });
     expect(started.status).toBe(200);
     const codes = started.body;
     expect(await f.oauth.ownsDevice(codes.user_code)).toBe(true);
     await expect(personal.describeDevice(codes.user_code, { type: "none" })).rejects.toThrow();
     const description = await request(app).get("/api/mcp/device").query({ user_code: codes.user_code });
-    expect(description.body).toMatchObject({ agentConnection: true, requestedCompanyId: f.company.id });
-    await db.update(companyMemberships).set({ membershipRole: "viewer" }).where(eq(companyMemberships.principalId, f.userId));
+    expect(description.body).toMatchObject({ agentConnection: true, requestedSpaceId: f.space.id });
+    await db.update(spaceMemberships).set({ membershipRole: "viewer" }).where(eq(spaceMemberships.principalId, f.userId));
     expect((await request(app).post("/api/mcp/device/consent").set("Origin", f.oauth.config.origin)
-      .send({ userCode: codes.user_code, decision: "approve", companyId: f.company.id, allowWrites: false })).status).toBe(403);
-    await db.update(companyMemberships).set({ membershipRole: "owner" }).where(eq(companyMemberships.principalId, f.userId));
+      .send({ userCode: codes.user_code, decision: "approve", spaceId: f.space.id, allowWrites: false })).status).toBe(403);
+    await db.update(spaceMemberships).set({ membershipRole: "owner" }).where(eq(spaceMemberships.principalId, f.userId));
     const approved = await request(app).post("/api/mcp/device/consent").set("Origin", f.oauth.config.origin)
-      .send({ userCode: codes.user_code, decision: "approve", companyId: f.company.id, allowWrites: false });
+      .send({ userCode: codes.user_code, decision: "approve", spaceId: f.space.id, allowWrites: false });
     expect(approved.body).toEqual({ status: "approved" });
     const exchange = { grant_type: DEVICE_GRANT, client_id: client.client_id, resource: f.oauth.config.resource, device_code: codes.device_code };
     const tokens = (await request(app).post("/mcp/runner/oauth/token").send(exchange)).body;
@@ -958,7 +958,7 @@ describe("durable Dot Runner integration", () => {
     await instanceSettingsService(db).updateExperimental({ enableOpenAiDot: false });
     try {
       expect((await request(app).get("/.well-known/oauth-protected-resource/mcp/runner")).status).toBe(503);
-      expect((await request(app).get("/.well-known/oauth-protected-resource/mcp/paperclip")).status).toBe(200);
+      expect((await request(app).get("/.well-known/oauth-protected-resource/mcp/outpost")).status).toBe(200);
     } finally { await instanceSettingsService(db).updateExperimental({ enableOpenAiDot: true }); }
     await f.events.unsubscribe(f.principal, f.subscription);
   }, 30000);
@@ -972,20 +972,20 @@ describe("durable Dot Runner integration", () => {
     const remote = managed ? await (await import("./helpers/dot-daytona.js")).startDotDaytona(root) : null;
     try {
       const f = await fixture({ provider });
-      const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Save the arithmetic report", description: provider === "grok_bot" ? "Save 17 + 25 = 42 as a task document and attach report.txt." : "Save 17 + 25 = 42 as a task document.",
+      const [issue] = await db.insert(issues).values({ spaceId: f.space.id, title: "Save the arithmetic report", description: provider === "grok_bot" ? "Save 17 + 25 = 42 as a task document and attach report.txt." : "Save 17 + 25 = 42 as a task document.",
         status: "in_progress", workMode: "standard", assigneeAgentId: f.agent.id }).returning();
-      const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, status: "running", invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId: issue!.id } }).returning();
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id, status: "running", invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId: issue!.id } }).returning();
       await db.update(issues).set({ executionRunId: run!.id, checkoutRunId: run!.id }).where(eq(issues.id, issue!.id));
       const prepared = await prepareNativeHeartbeatRun({ db, run: run!, issue: issue!, environmentLeaseId: randomUUID() });
       await db.update(heartbeatRuns).set({ driverKind: provider === "grok_bot" ? "grok_bot_mcp" : "openai_dot_mcp" }).where(eq(heartbeatRuns.id, run!.id));
-      await db.insert(nativeRunFinalizations).values({ runId: run!.id, companyId: f.company.id, issueId: issue!.id, phase: "observed" });
+      await db.insert(nativeRunFinalizations).values({ runId: run!.id, spaceId: f.space.id, issueId: issue!.id, phase: "observed" });
       const [boundRun] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run!.id));
       const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.id, boundRun!.completionContractId!));
       const runtimeContext = nativeRuntimeContextFixture();
-      await writeFile(join(root, "AGENTS.md"), "Use Paperclip tools to save the report.");
+      await writeFile(join(root, "AGENTS.md"), "Use Outpost tools to save the report.");
       runtimeContext.instructions.bundle.rootPath = root;
       runtimeContext.aggregateDigest = canonicalNativeRuntimeContextDigest(runtimeContext);
-      const execution = buildNativeExecutionInput({ companyId: f.company.id, agentId: f.agent.id, runId: run!.id, issue: issue!,
+      const execution = buildNativeExecutionInput({ spaceId: f.space.id, agentId: f.agent.id, runId: run!.id, issue: issue!,
         taskPrompt: issue!.description!, normalizedSessionId: prepared.normalizedSessionId, provider, dotBinding: f.snapshot,
         workspace: { id: randomUUID(), cwd: root, repoUrl: null, repoRef: null, branchName: null }, runtimeContext,
         completionContract: { id: contract!.id, sha256: contract!.canonicalSha256,
@@ -1005,16 +1005,16 @@ describe("durable Dot Runner integration", () => {
       vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "fixture-cloud");
       try {
         for (const useRunnerd of [false, true]) {
-          await expect(executePaperclipNativeSession({ db, execution, runnerInstanceId: prepared.runnerInstanceId,
+          await expect(executeOutpostNativeSession({ db, execution, runnerInstanceId: prepared.runnerInstanceId,
             useRunnerd, turnTimeoutMs: 1000, onEvent: async () => {} }))
             .rejects.toThrow("dot_cloud_requires_managed_runner");
         }
       } finally { vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", ""); }
-      const resultPromise = executePaperclipNativeSession({ db, execution,
+      const resultPromise = executeOutpostNativeSession({ db, execution,
         ...(remote ? { runnerExecutionTarget: remote.target, runnerRemoteBinaryPath: remote.runnerBinary, runnerIngressAuthorized: true }
           : { dotWorkspaceRoot: root }),
         runnerInstanceId: prepared.runnerInstanceId,
-        runnerEnvironment: { OUTPOST_NATIVE_MCP_NAME: "paperclip-assigned", OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1:3217/mcp/gateways/dot-fixture", OUTPOST_NATIVE_MCP_TOKEN: "fixture-gateway-secret" },
+        runnerEnvironment: { OUTPOST_NATIVE_MCP_NAME: "outpost-assigned", OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1:3217/mcp/gateways/dot-fixture", OUTPOST_NATIVE_MCP_TOKEN: "fixture-gateway-secret" },
         useRunnerd: true, turnTimeoutMs: 45000, onEvent: async event => { observed.push(event); }, onLog: async () => {} });
       // Attach a handler immediately: a bootstrap error must never become an unhandled rejection.
       let startupError: unknown;
@@ -1048,12 +1048,12 @@ describe("durable Dot Runner integration", () => {
               if (revokeDuringUpload) { storingUpload = true; await uploadStorageRelease; }
               return { provider: "local_disk", objectKey, contentType: input.contentType, byteSize: input.body.length,
                 sha256: createHash("sha256").update(input.body).digest("hex"), originalFilename: input.originalFilename };
-            }, getObject: async (_company, key) => ({ stream: Readable.from(files.get(key)!) }),
-            headObject: async () => ({ exists: true }), deleteObject: async (_company, key) => { files.delete(key); },
+            }, getObject: async (_space, key) => ({ stream: Readable.from(files.get(key)!) }),
+            headObject: async () => ({ exists: true }), deleteObject: async (_space, key) => { files.delete(key); },
           }, { pathPrefix: "/mcp/runner/files", agentSession: { authorize: (principal, sessionId, taskId, write, database) => dotRunnerBroker(database ?? db).authorizeFileSession(principal, sessionId, taskId, write) } });
           const api = express(); api.use(transfers.router);
           const body = Buffer.from("Grok arithmetic file: 42\n"), uploadId = randomUUID();
-          const args = { companyId: f.company.id, taskId: issue!.id, requestId: uploadId, filename: "report.txt", contentType: "text/plain", byteSize: body.length, sha256: createHash("sha256").update(body).digest("hex") };
+          const args = { spaceId: f.space.id, taskId: issue!.id, requestId: uploadId, filename: "report.txt", contentType: "text/plain", byteSize: body.length, sha256: createHash("sha256").update(body).digest("hex") };
           const grant = await transfers.getUploadUrl(f.principal, args, assignment!.id);
           const url = uploadGrantUrl(grant);
           if (revokeDuringUpload) {
@@ -1063,7 +1063,7 @@ describe("durable Dot Runner integration", () => {
             let revoking: Promise<void> | undefined;
             try {
               await vi.waitFor(() => expect(storingUpload).toBe(true), { timeout: 10000, interval: 20 });
-              revoking = f.broker.revoke(f.company.id, f.agent.id, f.userId).then(() => { revoked = true; });
+              revoking = f.broker.revoke(f.space.id, f.agent.id, f.userId).then(() => { revoked = true; });
               void revoking.catch(() => {});
               // Revocation must not wait for remote storage, and late bytes
               // cannot produce accepted artifacts or completion evidence.
@@ -1103,8 +1103,8 @@ describe("durable Dot Runner integration", () => {
             const documentDb = Object.assign(Object.create(tx), {
               transaction: async (effect: (database: typeof db) => Promise<unknown>) => effect(tx as unknown as typeof db),
             }) as typeof db;
-            const authority = new PaperclipRunnerToolAuthority(documentDb, {
-              companyId: f.company.id, issueId: issue!.id, agentId: f.agent.id, runId: run!.id, firstPartyOnly: true,
+            const authority = new OutpostRunnerToolAuthority(documentDb, {
+              spaceId: f.space.id, issueId: issue!.id, agentId: f.agent.id, runId: run!.id, firstPartyOnly: true,
             });
             try {
               expect(await authority.execute({ tool: "write_document", callId: randomUUID(), arguments: {
@@ -1175,9 +1175,9 @@ describe("durable Dot Runner integration", () => {
           expect(app).toBeUndefined();
           expect((work.tools as Array<{ operationId: string }>).some(tool => ["get_workspace", "prepare_repository", "workspace_read"].includes(tool.operationId))).toBe(false);
         }
-        const [budget] = await db.insert(budgetPolicies).values({ companyId: f.company.id, scopeType: "agent", scopeId: f.agent.id,
+        const [budget] = await db.insert(budgetPolicies).values({ spaceId: f.space.id, scopeType: "agent", scopeId: f.agent.id,
           windowKind: "calendar_month_utc", amount: 100 }).returning();
-        await db.insert(costEvents).values({ companyId: f.company.id, agentId: f.agent.id, provider: "test", model: "test", costCents: 100, occurredAt: new Date() });
+        await db.insert(costEvents).values({ spaceId: f.space.id, agentId: f.agent.id, provider: "test", model: "test", costCents: 100, occurredAt: new Date() });
         await expect(f.broker.read(f.principal, assignment!.id)).rejects.toThrow("execution authority");
         await db.delete(budgetPolicies).where(eq(budgetPolicies.id, budget.id));
         await db.update(agents).set({ status: "paused" }).where(eq(agents.id, f.agent.id));
@@ -1201,13 +1201,13 @@ describe("durable Dot Runner integration", () => {
         if (uploadedDeliverableId) {
           const missingEvidenceId = randomUUID();
           await f.broker.operation(f.principal, assignment!.id, missingEvidenceId, "tool", {
-            name: "paperclip_finish", arguments: { ...result, evidence: [] },
+            name: "outpost_finish", arguments: { ...result, evidence: [] },
           });
           await vi.waitFor(async () => expect(await f.broker.operationStatus(f.principal, assignment!.id, missingEvidenceId))
             .toMatchObject({ status: "completed", isError: true, result: { error: expect.stringContaining("requested file") } }), { timeout: 10000 });
         }
         const completionId = randomUUID();
-        await f.broker.operation(f.principal, assignment!.id, completionId, "tool", { name: "paperclip_finish", arguments: result });
+        await f.broker.operation(f.principal, assignment!.id, completionId, "tool", { name: "outpost_finish", arguments: result });
         await vi.waitFor(async () => expect(await f.broker.operationStatus(f.principal, assignment!.id, completionId)).toMatchObject({ status: "completed", isError: false }), { timeout: 10000 });
         expect(await f.broker.operationStatus(f.principal, assignment!.id, completionId)).toMatchObject({ result: { completionReport: {
           schema: "outpost.run_result.v1", reportedWorkDisposition: "done", artifacts: [], attentionRequests: [],
@@ -1219,12 +1219,12 @@ describe("durable Dot Runner integration", () => {
         if (provider === "grok_bot") {
           await vi.waitFor(async () => expect(await db.select().from(grokBotDispatches).where(and(eq(grokBotDispatches.assignmentId, assignment!.id),
             eq(grokBotDispatches.kind, "mailbox_updated"), inArray(grokBotDispatches.status, ["prepared", "sending", "accepted", "unknown"])))).toHaveLength(0));
-          expect(await grokRoutineService(db).recoveryNeeded(f.company.id, f.agent.id)).toBe(false);
+          expect(await grokRoutineService(db).recoveryNeeded(f.space.id, f.agent.id)).toBe(false);
         }
         await resultPromise;
         // The heartbeat records its controller workspace settlement before the
         // ordinary status finalizer commits the task disposition.
-        await db.insert(workspaceOperations).values({ companyId: f.company.id, heartbeatRunId: run!.id, issueId: issue!.id,
+        await db.insert(workspaceOperations).values({ spaceId: f.space.id, heartbeatRunId: run!.id, issueId: issue!.id,
           phase: "workspace_finalize", status: "succeeded", exitCode: 0, cwd: root, finishedAt: new Date() });
         await finalizeNativeRun({ db, runId: run!.id, workspaceFinalizeStatus: "succeeded" });
         await finalizeNativeRun({ db, runId: run!.id, workspaceFinalizeStatus: "succeeded" });
@@ -1247,7 +1247,7 @@ describe("durable Dot Runner integration", () => {
     const { run } = await offeredWork(f);
     await db.update(heartbeatRuns).set({ status }).where(eq(heartbeatRuns.id, run.id));
     const requestId = randomUUID(), issueId = randomUUID();
-    await db.insert(agentWakeupRequests).values({ companyId: f.company.id, agentId: f.agent.id,
+    await db.insert(agentWakeupRequests).values({ spaceId: f.space.id, agentId: f.agent.id,
       source: "assignment", status: "admitted", runId: run.id, payload: { issueId },
       idempotencyKey: `dot-work:${f.snapshot.bindingId}:${f.snapshot.bindingGeneration}:${requestId}` });
     const result = await f.broker.requestWork(f.principal, issueId, requestId);
@@ -1269,18 +1269,18 @@ describe("durable Dot Runner integration", () => {
         durableDotRequest: expect.objectContaining({ issueId: intake.issueId, requestId }),
       }));
       const assignment = await offeredWork(f);
-      await f.broker.revoke(f.company.id, f.agent.id, f.userId);
+      await f.broker.revoke(f.space.id, f.agent.id, f.userId);
       expect(cancelRun).toHaveBeenCalledExactlyOnceWith(assignment.run.id, "Dot connection revoked");
     } finally { dotRunnerBroker(db, { heartbeat: heartbeatService(db) }); }
   });
 
-  it("revocation, membership loss and a foreign company cannot recover authority", async () => {
+  it("revocation, membership loss and a foreign space cannot recover authority", async () => {
     const f = await fixture(); const other = await fixture();
-    await expect(f.broker.authorizeBinding(other.principal, f.company.id, f.snapshot.bindingId)).rejects.toThrow();
-    await db.update(companyMemberships).set({ status: "suspended" }).where(eq(companyMemberships.principalId, f.userId));
+    await expect(f.broker.authorizeBinding(other.principal, f.space.id, f.snapshot.bindingId)).rejects.toThrow();
+    await db.update(spaceMemberships).set({ status: "suspended" }).where(eq(spaceMemberships.principalId, f.userId));
     await expect(f.broker.mailbox(f.principal)).rejects.toThrow();
-    await db.update(companyMemberships).set({ status: "active" }).where(eq(companyMemberships.principalId, f.userId));
-    await f.broker.revoke(f.company.id, f.agent.id, f.userId);
+    await db.update(spaceMemberships).set({ status: "active" }).where(eq(spaceMemberships.principalId, f.userId));
+    await f.broker.revoke(f.space.id, f.agent.id, f.userId);
     await expect(f.broker.mailbox(f.principal)).rejects.toThrow();
     await expect(f.oauth.authorizeGrant(f.principal.grant.id)).rejects.toThrow();
     expect(await db.select().from(dotMailboxItems).where(eq(dotMailboxItems.bindingId, f.snapshot.bindingId))).toHaveLength(1);

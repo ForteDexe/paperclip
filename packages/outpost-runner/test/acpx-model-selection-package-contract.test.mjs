@@ -13,7 +13,7 @@ const root = process.env.OUTPOST_TEST_ACPX_PACKAGE_ROOT ?? dirname(require.resol
 const { createAcpRuntime } = await import(pathToFileURL(join(root, "dist/runtime.js")));
 const { serializeSessionRecordForDisk: serialize, parseSessionRecord: parse } = await acpxInternals(["serializeSessionRecordForDisk", "parseSessionRecord"], root);
 const selectedModel = "custom/model";
-// Paperclip offers only models the provider advertises. Cursor-style bracketed
+// Outpost offers only models the provider advertises. Cursor-style bracketed
 // IDs are exact and must never be rewritten.
 const advertisedModel = "custom/model[variant=x]";
 
@@ -29,7 +29,7 @@ async function fixture(t, agent, behavior = {}) {
       async load(id) { const disk = records.get(id); return disk ? parse(structuredClone(disk)) : undefined; },
       async save(record) { records.set(record.acpxRecordId, structuredClone(serialize(record))); },
     },
-    agentRegistry: { resolve: () => behavior.agentCommand ?? "paperclip-verified-acpx-command", list: () => [agent] },
+    agentRegistry: { resolve: () => behavior.agentCommand ?? "outpost-verified-acpx-command", list: () => [agent] },
     protocolGuardFactory: () => (direction, message) => {
       if (direction === "outbound" && message.method) requests.push(structuredClone(message));
     },
@@ -115,7 +115,7 @@ test("an unadvertised model is rejected before it reaches the provider", async t
 });
 
 test("Claude forwards a model outside its advertised list for the adapter to accept or reject", async t => {
-  const f = await fixture(t, "claude", { agentCommand: "/paperclip-verified/claude-agent-acp" });
+  const f = await fixture(t, "claude", { agentCommand: "/outpost-verified/claude-agent-acp" });
   const owner = await f.open();
   assert.equal((await f.prompt(owner)).status, "completed");
   assert.ok(f.selected().every(model => model === selectedModel));
@@ -158,7 +158,7 @@ for (const includeUserSettings of [false, true]) for (const resume of [false, tr
   else delete process.env.ACPX_CLAUDE_INCLUDE_USER_SETTINGS;
   t.after(() => { if (prior === undefined) delete process.env.ACPX_CLAUDE_INCLUDE_USER_SETTINGS; else process.env.ACPX_CLAUDE_INCLUDE_USER_SETTINGS = prior; });
   const f = await fixture(t, "claude", {
-    resume, agentCommand: "/paperclip-verified/claude-agent-acp",
+    resume, agentCommand: "/outpost-verified/claude-agent-acp",
     sessionOptions: { allowedTools: ["mcp__fixture__*"], maxTurns: 5, systemPrompt: { append: "Fixture instructions" } },
   });
   const first = await f.open();

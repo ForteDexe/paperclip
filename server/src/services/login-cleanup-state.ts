@@ -16,7 +16,7 @@ export function orphanLoginLeases(db: Db, now = new Date()) {
     isNotNull(environmentLeases.providerLeaseId),
     sql`jsonb_typeof(${environmentLeases.metadata}->${LOGIN_LEASE_SESSION_TAG_KEY}) = 'string'`,
     notExists(db.select({ id: adapterAuthSessions.id }).from(adapterAuthSessions).where(and(
-      eq(adapterAuthSessions.companyId, environmentLeases.companyId),
+      eq(adapterAuthSessions.spaceId, environmentLeases.spaceId),
       eq(adapterAuthSessions.environmentId, environmentLeases.environmentId),
       sql`${adapterAuthSessions.id}::text = ${environmentLeases.metadata}->>${LOGIN_LEASE_SESSION_TAG_KEY}`,
       or(

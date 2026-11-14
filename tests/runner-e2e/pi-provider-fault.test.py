@@ -21,15 +21,15 @@ BOOT = '12345678-1234-1234-1234-123456789abc'
 ROOT = {'pid': 21, 'ppid': 1, 'startTicks': '100', 'bootId': BOOT}
 PARENT = {'pid': 22, 'ppid': 21, 'startTicks': '101', 'bootId': BOOT}
 TARGET = {'pid': 23, 'ppid': 22, 'startTicks': '102', 'bootId': BOOT}
-DIST = '/tmp/paperclip-acpx-native-fixture/distribution'
-RUNTIME = '/workspace/.paperclip-runtime/outpost-runner'
+DIST = '/tmp/outpost-acpx-native-fixture/distribution'
+RUNTIME = '/workspace/.outpost-runtime/outpost-runner'
 CANCELLED = False
 
 def check_cancelled():
     if CANCELLED: raise KeyboardInterrupt('calibration cancelled')
 
 
-NAMES = [fault.NODE, fault.ENTRY, fault.EXTENSION, 'pi-entry.cjs', 'node_modules/pi-acp/dist/index.js', 'node_modules/pi-acp/dist/paperclip-runtime.js']
+NAMES = [fault.NODE, fault.ENTRY, fault.EXTENSION, 'pi-entry.cjs', 'node_modules/pi-acp/dist/index.js', 'node_modules/pi-acp/dist/outpost-runtime.js']
 
 
 class ClosureMetadataTests(unittest.TestCase):
@@ -68,7 +68,7 @@ class ClosureMetadataTests(unittest.TestCase):
     def test_unsafe_duplicate_unsorted_and_invalid_metadata_fail_closed(self):
         mutations = [
             lambda m: m['entries'][0].update(path='../escape'),
-            lambda m: m['entries'][0].update(path='.paperclip-native-entry.cjs'),
+            lambda m: m['entries'][0].update(path='.outpost-native-entry.cjs'),
             lambda m: m['entries'].insert(1, m['entries'][0].copy()),
             lambda m: m['entries'].reverse(),
             lambda m: m['entries'][0].update(size=True),
@@ -231,9 +231,9 @@ class PidfdTests(unittest.TestCase):
     def calibrate_real_child(self, descriptor=None, runner_link=False):
         node = shutil.which('node'); self.assertIsNotNone(node)
         base = Path(tempfile.mkdtemp(prefix='pi-fault-calibration-', dir='/tmp'))
-        snapshot = Path(tempfile.mkdtemp(prefix='paperclip-acpx-native-', dir='/tmp'))
+        snapshot = Path(tempfile.mkdtemp(prefix='outpost-acpx-native-', dir='/tmp'))
         distribution = snapshot / 'distribution'; workspace = base / 'workspace'; workspace.mkdir()
-        runtime = workspace / '.paperclip-runtime/outpost-runner'; (runtime / 'bin').mkdir(parents=True)
+        runtime = workspace / '.outpost-runtime/outpost-runner'; (runtime / 'bin').mkdir(parents=True)
         pack = base / 'pack'; (pack / 'provider-assets/pi/linux-x64').mkdir(parents=True)
         root_child = None
         owned_fds = []

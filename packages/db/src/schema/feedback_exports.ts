@@ -1,5 +1,5 @@
 import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { feedbackVotes } from "./feedback_votes.js";
 import { issues } from "./issues.js";
 import { projects } from "./projects.js";
@@ -8,7 +8,7 @@ export const feedbackExports = pgTable(
   "feedback_exports",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     feedbackVoteId: uuid("feedback_vote_id").notNull().references(() => feedbackVotes.id, { onDelete: "cascade" }),
     issueId: uuid("issue_id").notNull().references(() => issues.id, { onDelete: "cascade" }),
     projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
@@ -20,9 +20,9 @@ export const feedbackExports = pgTable(
     destination: text("destination"),
     exportId: text("export_id"),
     consentVersion: text("consent_version"),
-    schemaVersion: text("schema_version").notNull().default("paperclip-feedback-envelope-v2"),
-    bundleVersion: text("bundle_version").notNull().default("paperclip-feedback-bundle-v2"),
-    payloadVersion: text("payload_version").notNull().default("paperclip-feedback-v1"),
+    schemaVersion: text("schema_version").notNull().default("outpost-feedback-envelope-v2"),
+    bundleVersion: text("bundle_version").notNull().default("outpost-feedback-bundle-v2"),
+    payloadVersion: text("payload_version").notNull().default("outpost-feedback-v1"),
     payloadDigest: text("payload_digest"),
     payloadSnapshot: jsonb("payload_snapshot"),
     targetSummary: jsonb("target_summary").notNull(),
@@ -36,10 +36,10 @@ export const feedbackExports = pgTable(
   },
   (table) => ({
     voteUniqueIdx: uniqueIndex("feedback_exports_feedback_vote_idx").on(table.feedbackVoteId),
-    companyCreatedIdx: index("feedback_exports_company_created_idx").on(table.companyId, table.createdAt),
-    companyStatusIdx: index("feedback_exports_company_status_idx").on(table.companyId, table.status, table.createdAt),
-    companyIssueIdx: index("feedback_exports_company_issue_idx").on(table.companyId, table.issueId, table.createdAt),
-    companyProjectIdx: index("feedback_exports_company_project_idx").on(table.companyId, table.projectId, table.createdAt),
-    companyAuthorIdx: index("feedback_exports_company_author_idx").on(table.companyId, table.authorUserId, table.createdAt),
+    spaceCreatedIdx: index("feedback_exports_space_created_idx").on(table.spaceId, table.createdAt),
+    spaceStatusIdx: index("feedback_exports_space_status_idx").on(table.spaceId, table.status, table.createdAt),
+    spaceIssueIdx: index("feedback_exports_space_issue_idx").on(table.spaceId, table.issueId, table.createdAt),
+    spaceProjectIdx: index("feedback_exports_space_project_idx").on(table.spaceId, table.projectId, table.createdAt),
+    spaceAuthorIdx: index("feedback_exports_space_author_idx").on(table.spaceId, table.authorUserId, table.createdAt),
   }),
 );

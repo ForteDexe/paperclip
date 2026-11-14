@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { agents, companies, companyMemberships, environments, heartbeatRuns, instanceSettings, plugins, principalPermissionGrants, createDb, type Db } from "@outpost/db";
+import { agents, spaces, spaceMemberships, environments, heartbeatRuns, instanceSettings, plugins, principalPermissionGrants, createDb, type Db } from "@outpost/db";
 import express from "express";
 import request from "supertest";
 import { agentRoutes } from "../../../routes/agents.js";
@@ -18,22 +18,22 @@ const support = await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("environment-bound lifecycle plugins", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
-  let companyId: string;
+  let spaceId: string;
   let boundPluginId: string;
   let boundEnvironmentId: string;
   let otherEnvironmentId: string;
   const workers: ReturnType<typeof configureAgentLifecycle>[] = [];
   const call = vi.fn(async (_id, _method, input) => ({ operationId: input.operationId, version: input.version, status: "complete" }));
 
-  beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("paperclip-environment-plugins-"); db = createDb(database.connectionString); }, 90_000);
+  beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("outpost-environment-plugins-"); db = createDb(database.connectionString); }, 90_000);
   afterAll(async () => { for (const work of workers) await work.stop(); await database?.cleanup(); });
   beforeEach(async () => {
     for (const work of workers.splice(0)) await work.stop();
     call.mockClear();
     await db.delete(plugins);
     await db.update(instanceSettings).set({ defaultEnvironmentId: null });
-    companyId = randomUUID(); boundPluginId = randomUUID(); boundEnvironmentId = randomUUID(); otherEnvironmentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Environment plugins", issuePrefix: `E${companyId.slice(0, 7)}` });
+    spaceId = randomUUID(); boundPluginId = randomUUID(); boundEnvironmentId = randomUUID(); otherEnvironmentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Environment plugins", issuePrefix: `E${spaceId.slice(0, 7)}` });
     await db.insert(plugins).values({ id: boundPluginId, pluginKey: boundPluginId, packageName: "bound", version: "1.0.0", status: "ready",
       manifestJson: { agentLifecycle: true, capabilities: ["agents.lifecycle.manage", "environment.drivers.register"],
         environmentDrivers: [{ driverKey: "tasks", requiresAgent: true, supportsTasks: true }] } as never });
@@ -50,7 +50,7 @@ const support = await getEmbeddedPostgresTestSupport();
   }
   async function agent(defaultEnvironmentId: string | null, fields: Partial<typeof agents.$inferInsert> = {}) {
     const id = randomUUID();
-    await db.insert(agents).values({ id, companyId, name: `Agent ${id}`, adapterType: "process", defaultEnvironmentId, ...fields });
+    await db.insert(agents).values({ id, spaceId, name: `Agent ${id}`, adapterType: "process", defaultEnvironmentId, ...fields });
     return id;
   }
   async function current(id: string) { return (await db.select().from(agents).where(eq(agents.id, id)))[0]!; }
@@ -171,33 +171,33 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(await current(id)).toMatchObject({ lifecycleState: "ready", status: "idle", lifecycleRequiredPluginIds: [boundPluginId] });
   });
 
-  it.each(["board", "agent"] as const)("lets a configuration-authorized %s migrate without separate manual-pause authority", async type => {
+  it.each(["operator", "agent"] as const)("lets a configuration-authorized %s migrate without separate manual-pause authority", async type => {
     const id = await agent(otherEnvironmentId, { status: "running", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" }, lifecycleRequiredPluginIds: [] });
     const principalId = type === "agent" ? await agent(otherEnvironmentId) : randomUUID();
-    await db.insert(companyMemberships).values({ companyId, principalType: type === "board" ? "user" : "agent",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: type === "operator" ? "user" : "agent",
       principalId, membershipRole: "member", status: "active" });
-    await db.insert(principalPermissionGrants).values({ companyId, principalType: type === "board" ? "user" : "agent",
+    await db.insert(principalPermissionGrants).values({ spaceId, principalType: type === "operator" ? "user" : "agent",
       principalId, permissionKey: "agents:configure" });
-    const actor: Express.Request["actor"] = type === "board"
-      ? { type, source: "session", userId: principalId, companyIds: [companyId],
-        memberships: [{ companyId, membershipRole: "member", status: "active" }] }
-      : { type, source: "agent_key", agentId: principalId, companyId };
+    const actor: Express.Request["actor"] = type === "operator"
+      ? { type, source: "session", userId: principalId, spaceIds: [spaceId],
+        memberships: [{ spaceId, membershipRole: "member", status: "active" }] }
+      : { type, source: "agent_key", agentId: principalId, spaceId };
     await request(app(actor)).post(`/api/agents/${id}/pause`).send({}).expect(403);
     const response = await request(app(actor)).patch(`/api/agents/${id}`).send({ defaultEnvironmentId: boundEnvironmentId });
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     expect(await current(id)).toMatchObject({ defaultEnvironmentId: boundEnvironmentId, lifecycleState: "pausing", status: "paused" });
   });
 
-  it.each(["board", "agent"] as const)("rejects a %s without configuration permission before saving the environment or pausing", async type => {
+  it.each(["operator", "agent"] as const)("rejects a %s without configuration permission before saving the environment or pausing", async type => {
     const id = await agent(otherEnvironmentId, { status: "running", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" }, lifecycleRequiredPluginIds: [] });
     const principalId = type === "agent" ? await agent(otherEnvironmentId) : randomUUID();
-    await db.insert(companyMemberships).values({ companyId, principalType: type === "board" ? "user" : "agent", principalId, membershipRole: "member", status: "active" });
-    const actor: Express.Request["actor"] = type === "board"
-      ? { type, source: "session", userId: principalId, companyIds: [companyId],
-        memberships: [{ companyId, membershipRole: "member", status: "active" }] }
-      : { type, source: "agent_key", agentId: principalId, companyId };
+    await db.insert(spaceMemberships).values({ spaceId, principalType: type === "operator" ? "user" : "agent", principalId, membershipRole: "member", status: "active" });
+    const actor: Express.Request["actor"] = type === "operator"
+      ? { type, source: "session", userId: principalId, spaceIds: [spaceId],
+        memberships: [{ spaceId, membershipRole: "member", status: "active" }] }
+      : { type, source: "agent_key", agentId: principalId, spaceId };
     const before = await current(id);
     await request(app(actor)).patch(`/api/agents/${id}`).send({ defaultEnvironmentId: boundEnvironmentId }).expect(403);
     expect(await current(id)).toMatchObject({ defaultEnvironmentId: otherEnvironmentId, lifecycleState: "ready", status: "running",
@@ -207,7 +207,7 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("retains the migration across a pending stop and worker restart without starting the new plugin early", async () => {
     const id = await agent(otherEnvironmentId, { status: "running", lifecycleRequiredPluginIds: [] });
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId: id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: id,
       status: "cancelled", invocationSource: "on_demand", runtimeMode: "legacy",
       startedAt: new Date(), finishedAt: new Date(), processPid: process.pid }).returning();
     await agentConfiguration(db).update(id, { defaultEnvironmentId: boundEnvironmentId });
@@ -224,7 +224,7 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(await current(id)).toMatchObject({ lifecycleState: "ready", lifecycleRequiredPluginIds: [boundPluginId] });
   });
 
-  it.each(["manual", "budget", "company_paused"])("preserves a %s hold added while migration is pausing", async reason => {
+  it.each(["manual", "budget", "space_paused"])("preserves a %s hold added while migration is pausing", async reason => {
     const id = await agent(otherEnvironmentId, { lifecycleRequiredPluginIds: [] });
     await agentConfiguration(db).update(id, { defaultEnvironmentId: boundEnvironmentId });
     await createAgentLifecycle(db).pauseAgent(id, reason);

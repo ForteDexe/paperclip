@@ -95,7 +95,7 @@ describe("Telegram video-note MIME contract", () => {
 
   it("preserves normalization and exact download identity in the real pinned restart descriptor", async () => {
     const runtime = createChatSdkEndpointRuntime({
-      companyId: "video-note-company",
+      spaceId: "video-note-space",
       endpointId: "video-note-endpoint",
       logger: "silent",
       callbacks: { onMessage() {} },
@@ -194,7 +194,7 @@ describe("Telegram video-note MIME contract", () => {
         throw new Error("Unexpected fixture provider method");
       });
     const runtime = createChatSdkEndpointRuntime({
-      companyId: "video-note-company",
+      spaceId: "video-note-space",
       endpointId: "video-note-endpoint",
       logger: "silent",
       callbacks: { onMessage },

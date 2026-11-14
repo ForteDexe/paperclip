@@ -26,7 +26,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseOpenCodeReasoningMode, type OpenCodeReasoningMode } from "./reasoning-mode.js";
 import { attributeUnsupportedToolMedia } from "./tool-media-attribution.js";
 import { openCodeProviderFailure } from "./provider-failure.js";
-import { createOpenCodeCompanyObservability } from "./company-observability.js";
+import { createOpenCodeSpaceObservability } from "./space-observability.js";
 import { startOpenCodePerformanceDiagnostics } from "./performance-diagnostics.js";
 import { PROVIDER_PERFORMANCE_ENV } from "../../contracts/provider-performance.js";
 import { annotateOmittedProviderText, parseOpenCodeSseFrames } from "./sse-frames.js";
@@ -55,9 +55,9 @@ import type {
   HarnessRuntimeRequest,
   HarnessRuntimeRequestHandoff,
   HarnessRuntimeRequestResolution,
-  PaperclipQuestion,
-  PaperclipQuestionResponse,
-  PaperclipQuestionSet,
+  OutpostQuestion,
+  OutpostQuestionResponse,
+  OutpostQuestionSet,
 } from "../../contracts/harness-driver.js";
 import {
   OUTPOST_QUESTION_SET_SCHEMA,
@@ -65,7 +65,7 @@ import {
   harnessRuntimeInputExpiredOutcome,
   harnessRuntimeRequestOutcome,
   parseHarnessRuntimeRequestResolution,
-  parsePaperclipQuestionSet,
+  parseOutpostQuestionSet,
 } from "../../contracts/harness-driver.js";
 import type {
   NativeSessionCapabilities,
@@ -81,7 +81,7 @@ import type {
   PrpStructuredRunResult,
 } from "../../protocol/replay-contract.js";
 import { validatePrpStructuredRunResult } from "../../protocol/replay-contract.js";
-import { paperclipWorkspaceFileReferencesFromText } from "../../live/workspace-file-reference.js";
+import { outpostWorkspaceFileReferencesFromText } from "../../live/workspace-file-reference.js";
 import {
   canonicalOpenCodeDisplayToolName,
   canonicalProviderEventsFromOpenCodePart,
@@ -417,12 +417,12 @@ export class OpenCodeServerDriver implements HarnessDriver {
           },
         });
         const fetcher = this.#options.fetch ?? globalThis.fetch;
-        const paperclipTools = ensurePaperclipMcpConnected(
+        const outpostTools = ensureOutpostMcpConnected(
           fetcher,
           runtime,
           this.#options.onDiagnostic,
         );
-        paperclipTools.catch(() => undefined);
+        outpostTools.catch(() => undefined);
         let providerSessionId =
           snapshot?.providerSessionId ?? snapshot?.driverSessionId ?? null;
         if (providerSessionId !== null) {
@@ -442,7 +442,7 @@ export class OpenCodeServerDriver implements HarnessDriver {
           if (!providerSessionId)
             throw new Error("OpenCode session creation omitted its id");
         }
-        await paperclipTools;
+        await outpostTools;
         session = new OpenCodeHarnessSession({
           runtime,
           fetcher,
@@ -452,7 +452,7 @@ export class OpenCodeServerDriver implements HarnessDriver {
           workingDirectory: cwd,
           runnerInstanceId:
             this.#options.runnerInstanceId ??
-            `paperclip-opencode-${input.runId}`,
+            `outpost-opencode-${input.runId}`,
           model: this.#options.model,
           taskEnvelope:
             this.#options.taskEnvelope ??
@@ -543,7 +543,7 @@ class OpenCodeHarnessSession implements HarnessSession {
     {
       request: HarnessRuntimeRequest;
       nativeQuestions: Record<string, unknown>[];
-      submittedResponse?: PaperclipQuestionResponse;
+      submittedResponse?: OutpostQuestionResponse;
       submittedAction?: "accept" | "accept_for_session" | "decline" | "cancel";
       settling?: boolean;
     }
@@ -563,7 +563,7 @@ class OpenCodeHarnessSession implements HarnessSession {
   #usage: Record<string, unknown> | null = null;
   readonly #conversationMode: "task" | "prepared";
   #sendFullContext: boolean;
-  readonly #companyObservability: ReturnType<typeof createOpenCodeCompanyObservability>;
+  readonly #spaceObservability: ReturnType<typeof createOpenCodeSpaceObservability>;
   #closed = false;
   #completionSettlement: Promise<void> | null = null;
   #turnStartSourceSeq = 0;
@@ -596,7 +596,7 @@ class OpenCodeHarnessSession implements HarnessSession {
     onDiagnostic?: (message: string) => void;
   }) {
     this.#runtime = input.runtime;
-    this.#companyObservability = createOpenCodeCompanyObservability({
+    this.#spaceObservability = createOpenCodeSpaceObservability({
       environment: input.observabilityEnvironment, model: input.model, sensitiveValues: input.runtime.sensitiveValues,
       managedToolNames: input.managedToolNames,
       onDiagnostic: input.onDiagnostic ?? ((message) => console.warn(message)),
@@ -780,14 +780,14 @@ class OpenCodeHarnessSession implements HarnessSession {
           // top level.  Older examples used a nested `model` object; 1.18
           // silently ignores that shape and falls back to the configured model,
           // which can turn `openrouter/deepseek/...` into a duplicated provider
-          // lookup. Keep Paperclip's persisted provider/model form, but adapt it
+          // lookup. Keep Outpost's persisted provider/model form, but adapt it
           // at this HTTP boundary.
           providerID,
           modelID,
           // Always select the empty default variant on an ordinary turn so a
           // previous disabled turn cannot change this turn's provider defaults.
           ...(providerID === "openrouter"
-            ? { variant: reasoningMode === "disabled" ? "paperclip-no-reasoning" : "paperclip-default" }
+            ? { variant: reasoningMode === "disabled" ? "outpost-no-reasoning" : "outpost-default" }
             : {}),
           // Keep question enabled in the isolated config. OpenCode 1.18.32
           // turns a prompt's deprecated `tools` map into replacement session
@@ -861,7 +861,7 @@ class OpenCodeHarnessSession implements HarnessSession {
     const opening = this.#turnHitOutputLimit(turnId)
       ? "Your previous response reached the output limit and was discarded as incomplete."
       : "Your response ended without a user-visible final answer or an accepted completion report.";
-    void this.#submitPrompt(`${opening} Continue this same request from the work already done. Give the user a concise final answer and submit paperclip_finish (or paperclip_block when blocked) with the current completion contract. Do not repeat completed actions.`, "disabled")
+    void this.#submitPrompt(`${opening} Continue this same request from the work already done. Give the user a concise final answer and submit outpost_finish (or outpost_block when blocked) with the current completion contract. Do not repeat completed actions.`, "disabled")
       .catch(() => this.#failEmptyResponse(turnId, "OpenCode could not request a final response after an empty completion."));
     return true;
   }
@@ -1133,7 +1133,7 @@ class OpenCodeHarnessSession implements HarnessSession {
     for (const requestId of [...this.#pendingRuntimeRequests.keys()])
       this.#settlePendingRuntimeRequest(requestId);
     this.#events.close();
-    await Promise.all([this.#runtime.close(), this.#companyObservability?.close()]);
+    await Promise.all([this.#runtime.close(), this.#spaceObservability?.close()]);
   }
 
   // A request can outlive its own turn: the turn can fail or get cancelled
@@ -1412,7 +1412,7 @@ class OpenCodeHarnessSession implements HarnessSession {
       return;
     }
     if (this.#pendingRuntimeRequests.has(requestId)) return;
-    let input: PaperclipQuestionSet;
+    let input: OutpostQuestionSet;
     try {
       input = normalizeOpenCodeQuestionSet(nativeQuestions, properties);
     } catch {
@@ -1990,12 +1990,12 @@ class OpenCodeHarnessSession implements HarnessSession {
           "Aborted"
       ) {
         // OpenCode reports its normal /abort control path as session.error. That
-        // endpoint is also how Paperclip parks a provider turn after a durable
-        // governed interaction is created, so presenting it as a provider
+        // endpoint is also how Outpost parks a provider turn after a durable
+        // controlled interaction is created, so presenting it as a provider
         // failure produces a false red error immediately above a healthy wait
         // card. Preserve the provider fact as a cancelled terminal event; the
         // native session loop independently commits the authoritative yielded
-        // result when this abort followed a governed wait.
+        // result when this abort followed a controlled wait.
         // Settle any request this turn never answered before the terminal
         // event, so a consumer that stops reading at that terminal event
         // still observes the settlement.
@@ -2133,7 +2133,7 @@ class OpenCodeHarnessSession implements HarnessSession {
     const previous = this.#partText.get(partId) ?? "";
     this.#partText.set(partId, content);
     if (partType === "text" && content.length > 0) {
-      for (const reference of paperclipWorkspaceFileReferencesFromText(
+      for (const reference of outpostWorkspaceFileReferencesFromText(
         this.#workingDirectory,
         content,
         turnId,
@@ -2368,7 +2368,7 @@ class OpenCodeHarnessSession implements HarnessSession {
     if (this.#activeTraceFrameId !== null) {
       this.#activeTraceEmittedEventIds.push(event.sourceEventId);
     }
-    this.#companyObservability?.observe(event);
+    this.#spaceObservability?.observe(event);
     this.#transcript.push(structuredClone(event));
     this.#events.push(event);
   }
@@ -2498,7 +2498,7 @@ async function startRuntime(input: {
   const taskEnvironment = configuredOpenCodeEnvironment(input.options.environment);
   const port = await reservePort();
   const password = randomBytes(32).toString("base64url");
-  const username = "paperclip";
+  const username = "outpost";
   const authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
   const configHome = join(input.root, "config");
   const dataHome = join(input.root, "data");
@@ -2568,7 +2568,7 @@ async function startRuntime(input: {
   const providerModelId = modelIdParts.join("/");
   const providerRoute = modelProvider === "openrouter"
     ? { baseUrl: "https://openrouter.ai/api/v1", key: providerEnvironment.OPENROUTER_API_KEY ?? "" }
-    : modelProvider === "paperclip" && input.options.environment?.OUTPOST_AI_PROVIDER_URL
+    : modelProvider === "outpost" && input.options.environment?.OUTPOST_AI_PROVIDER_URL
       ? { baseUrl: input.options.environment.OUTPOST_AI_PROVIDER_URL, key: input.options.environment.OUTPOST_AI_PROVIDER_KEY ?? "" }
       : null;
   const providerProxy = providerRoute
@@ -2634,8 +2634,8 @@ async function startRuntime(input: {
               name: providerModelId,
               ...(modelProvider === "openrouter"
                 ? { variants: {
-                    "paperclip-default": {},
-                    "paperclip-no-reasoning": { reasoning: { enabled: false } },
+                    "outpost-default": {},
+                    "outpost-no-reasoning": { reasoning: { enabled: false } },
                   } }
                 : {}),
             },
@@ -2648,12 +2648,12 @@ async function startRuntime(input: {
       permission: {
         "*": input.options.permissionMode ?? "allow",
         question: "allow",
-        "paperclip_*": "allow",
-        "mcp__paperclip__*": "allow",
+        "outpost_*": "allow",
+        "mcp__outpost__*": "allow",
         external_directory: externalDirectories,
       },
       mcp: {
-        paperclip: {
+        outpost: {
           type: "remote",
           url: bridge.url,
           enabled: true,
@@ -2848,9 +2848,9 @@ async function startRuntime(input: {
 export function normalizeOpenCodeQuestionSet(
   nativeQuestions: Record<string, unknown>[],
   metadata: Record<string, unknown> = {},
-): PaperclipQuestionSet {
+): OutpostQuestionSet {
   const questions = nativeQuestions.map(
-    (question, index): PaperclipQuestion => {
+    (question, index): OutpostQuestion => {
       const options = (Array.isArray(question.options) ? question.options : [])
         .map(record)
         .slice(0, 128)
@@ -2897,7 +2897,7 @@ export function normalizeOpenCodeQuestionSet(
       };
     },
   );
-  return parsePaperclipQuestionSet({
+  return parseOutpostQuestionSet({
     schema: OUTPOST_QUESTION_SET_SCHEMA,
     title: text(metadata.title, "OpenCode needs your input").slice(0, 1_000),
     ...(text(metadata.description)
@@ -2913,7 +2913,7 @@ function openCodeAnswers(
     request: HarnessRuntimeRequest;
     nativeQuestions: Record<string, unknown>[];
   },
-  response: PaperclipQuestionResponse,
+  response: OutpostQuestionResponse,
 ): string[][] {
   return pending.nativeQuestions.map((nativeQuestion, index) => {
     const questionId = openCodeQuestionId(nativeQuestion, index);
@@ -3064,11 +3064,11 @@ async function api(
   }
 }
 
-const OUTPOST_MCP_SERVER = "paperclip";
+const OUTPOST_MCP_SERVER = "outpost";
 const OUTPOST_MCP_RECONNECT_ATTEMPTS = 2;
-const OUTPOST_TOOLS_UNAVAILABLE = "paperclip_tools_unavailable";
+const OUTPOST_TOOLS_UNAVAILABLE = "outpost_tools_unavailable";
 
-async function ensurePaperclipMcpConnected(
+async function ensureOutpostMcpConnected(
   fetcher: typeof globalThis.fetch,
   runtime: OpenCodeRuntime,
   onDiagnostic?: (message: string) => void,

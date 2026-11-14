@@ -8,12 +8,12 @@ import {
   createIssue,
   storybookAgents,
   storybookAuthSession,
-  storybookCompanies,
+  storybookSpaces,
   storybookIssueLabels,
   storybookProjects,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 
-const companyId = "company-storybook";
+const spaceId = "space-storybook";
 const parentId = "issue-pap-1953";
 
 type BlockerRef = NonNullable<Issue["blockedBy"]>[number];
@@ -169,16 +169,16 @@ const subIssues: Issue[] = [
 ];
 
 const viewStateKey = "storybook:sub-issues-workflow:list";
-const scopedKey = `${viewStateKey}:${companyId}`;
+const scopedKey = `${viewStateKey}:${spaceId}`;
 
 function hydrateQueries(client: ReturnType<typeof useQueryClient>) {
-  client.setQueryData(queryKeys.companies.all, { companies: storybookCompanies, unauthorized: false });
+  client.setQueryData(queryKeys.spaces.all, { spaces: storybookSpaces, unauthorized: false });
   client.setQueryData(queryKeys.auth.session, storybookAuthSession);
-  client.setQueryData(queryKeys.agents.list(companyId), storybookAgents);
-  client.setQueryData(queryKeys.projects.list(companyId), storybookProjects);
-  client.setQueryData(queryKeys.issues.labels(companyId), storybookIssueLabels);
-  client.setQueryData(queryKeys.issues.list(companyId), subIssues);
-  client.setQueryData(queryKeys.access.companyUserDirectory(companyId), {
+  client.setQueryData(queryKeys.agents.list(spaceId), storybookAgents);
+  client.setQueryData(queryKeys.projects.list(spaceId), storybookProjects);
+  client.setQueryData(queryKeys.issues.labels(spaceId), storybookIssueLabels);
+  client.setQueryData(queryKeys.issues.list(spaceId), subIssues);
+  client.setQueryData(queryKeys.access.spaceUserDirectory(spaceId), {
     users: [
       {
         principalId: "user-board",
@@ -213,11 +213,11 @@ function Hydrated({ children }: { children: React.ReactNode }) {
 
 function SubIssuesWorkflowPanel() {
   return (
-    <div className="paperclip-story">
-      <main className="paperclip-story__inner">
+    <div className="outpost-story">
+      <main className="outpost-story__inner">
         <div className="mx-auto max-w-5xl space-y-5">
           <header className="space-y-1">
-            <div className="paperclip-story__label">Issue Detail · Sub-issues</div>
+            <div className="outpost-story__label">Issue Detail · Sub-issues</div>
             <h1 className="text-2xl font-semibold tracking-tight">
               Workflow-sorted sub-issues with checklist affordances
             </h1>
@@ -265,7 +265,7 @@ const meta = {
           "Review surface for the PAP-2189 checklist-style sub-issues work. Renders the IssuesList component with the Sub-issues panel props so the progress strip, workflow sort, step gutter, current marker, done de-emphasis, and blocker chips are all visible against a PAP-1953-like topology.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "task-coordination/dependencies",
         "task-coordination/delegation"

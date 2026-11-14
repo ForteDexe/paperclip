@@ -5,8 +5,8 @@ import { savedSkillDocumentAttributed, savedSkillFixture, savedSkillReadAssignme
 
 type Row = Record<string, any>;
 const fixture = savedSkillFixture("campaign-id", "62ff548dfec748da8fef6d5fbf6cc23d");
-const binding = { companyId: "company", agentId: "agent", issueId: "issue", runId: "run" };
-const assignment = { key: `company/${binding.companyId}/${fixture.slug}`, versionId: "version" };
+const binding = { spaceId: "space", agentId: "agent", issueId: "issue", runId: "run" };
+const assignment = { key: `space/${binding.spaceId}/${fixture.slug}`, versionId: "version" };
 function native(seq: number, eventType: string, payload: Row): Row {
   return { ...binding, seq, eventType, protocolSchemaVersion: 1, sourceSeq: seq, sourceInstanceId: "runner-instance", sourceEventId: `event-${seq}`,
     payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: binding.runId,
@@ -29,13 +29,13 @@ function wrappedReadEvents(): Row[] {
   return events;
 }
 function assignedReadEvents(): Row[] {
-  const result = { skill: `company/${binding.companyId}/${fixture.slug}`, versionId: "version", path: "SKILL.md",
+  const result = { skill: `space/${binding.spaceId}/${fixture.slug}`, versionId: "version", path: "SKILL.md",
     text: fixture.markdown, sha256: createHash("sha256").update(fixture.markdown).digest("hex"),
     byteSize: Buffer.byteLength(fixture.markdown), nextOffset: null };
   const output = JSON.stringify({ type: "inputText", text: JSON.stringify(result) });
   const events = readEvents();
   for (const row of events) Object.assign(row.payload.orpEvent.payload,
-    { name: "paperclip_read_assigned_skill", operation: "unknown", target: null });
+    { name: "outpost_read_assigned_skill", operation: "unknown", target: null });
   Object.assign(events[1]!.payload.orpEvent.payload, { output, outputBytes: Buffer.byteLength(output) });
   return events;
 }
@@ -44,18 +44,18 @@ function changeAssignedResult(events: Row[], change: (value: Row) => void) {
   change(result); wrapper.text = JSON.stringify(result); payload.output = JSON.stringify(wrapper);
 }
 function source() {
-  const skill: Row = { id: "skill", companyId: binding.companyId, key: `company/${binding.companyId}/${fixture.slug}`, sourceType: "managed", name: fixture.name, slug: fixture.slug,
+  const skill: Row = { id: "skill", spaceId: binding.spaceId, key: `space/${binding.spaceId}/${fixture.slug}`, sourceType: "managed", name: fixture.name, slug: fixture.slug,
     markdown: fixture.markdown, currentVersionId: "version" };
-  const version: Row = { id: "version", companyId: binding.companyId, companySkillId: skill.id,
+  const version: Row = { id: "version", spaceId: binding.spaceId, spaceSkillId: skill.id,
     fileInventory: [{ path: "SKILL.md", kind: "skill", content: fixture.markdown }] };
   const assignments: Row = { desiredSkillEntries: [{ key: skill.key, versionId: null }] };
   return { skill, version, assignments };
 }
 function output() {
-  const document: Row = { id: "document", companyId: binding.companyId, issueId: binding.issueId, key: fixture.key, format: "markdown",
+  const document: Row = { id: "document", spaceId: binding.spaceId, issueId: binding.issueId, key: fixture.key, format: "markdown",
     latestRevisionId: "revision", latestRevisionNumber: 1, createdByAgentId: binding.agentId, createdByUserId: null,
     updatedByAgentId: binding.agentId, updatedByUserId: null, body: JSON.stringify(fixture.expected) };
-  const revision: Row = { id: "revision", documentId: document.id, companyId: binding.companyId, issueId: binding.issueId,
+  const revision: Row = { id: "revision", documentId: document.id, spaceId: binding.spaceId, issueId: binding.issueId,
     key: fixture.key, format: "markdown", revisionNumber: 1, createdByAgentId: binding.agentId, createdByUserId: null, createdByRunId: binding.runId,
     body: document.body };
   return { document, revision };
@@ -76,10 +76,10 @@ describe("saved skill use evidence", () => {
   });
   it("requires an ordinary Latest assignment, its exact managed current version and original source bytes", () => {
     const good = source();
-    expect(savedSkillSourceMatches(good.skill, good.version, good.assignments, fixture, binding.companyId)).toBe(true);
+    expect(savedSkillSourceMatches(good.skill, good.version, good.assignments, fixture, binding.spaceId)).toBe(true);
     const changes: Array<(value: ReturnType<typeof source>) => void> = [
-      v => { v.skill.companyId = "foreign"; }, v => { v.version.companyId = "foreign"; },
-      v => { v.version.companySkillId = "foreign"; }, v => { v.skill.slug = "foreign"; },
+      v => { v.skill.spaceId = "foreign"; }, v => { v.version.spaceId = "foreign"; },
+      v => { v.version.spaceSkillId = "foreign"; }, v => { v.skill.slug = "foreign"; },
       v => { v.skill.name = "different saved name"; },
       v => { v.skill.sourceType = "local_path"; },
       v => { v.skill.key = "unknown"; v.assignments.desiredSkillEntries[0].key = "unknown"; },
@@ -95,15 +95,15 @@ describe("saved skill use evidence", () => {
     ];
     for (const change of changes) {
       const wrong = source(); change(wrong);
-      expect(savedSkillSourceMatches(wrong.skill, wrong.version, wrong.assignments, fixture, binding.companyId)).toBe(false);
+      expect(savedSkillSourceMatches(wrong.skill, wrong.version, wrong.assignments, fixture, binding.spaceId)).toBe(false);
     }
-    expect(savedSkillSourceMatches(undefined, good.version, good.assignments, fixture, binding.companyId)).toBe(false);
+    expect(savedSkillSourceMatches(undefined, good.version, good.assignments, fixture, binding.spaceId)).toBe(false);
   });
   it("accepts the bound successful source read and rejects missing, foreign, claimed and failed reads", () => {
     expect(savedSkillReadReceipts(readEvents(), binding, fixture)).toEqual([{ runId: "run", executionId: "read-skill", seq: 2 }]);
     const changes: Array<(events: Row[]) => void> = [
       e => { e.splice(0, 1); }, e => { e.pop(); }, e => { e[1].runId = "foreign"; },
-      e => { e[1].companyId = "foreign"; }, e => { e[1].agentId = "foreign"; },
+      e => { e[1].spaceId = "foreign"; }, e => { e[1].agentId = "foreign"; },
       e => { e[1].payload.orpEvent.runId = "foreign"; }, e => { e[1].payload.orpEvent.sourceKind = "provider"; },
       e => { e[1].sourceInstanceId = "foreign"; }, e => { e[1].sourceSeq += 1; },
       e => { e[1].payload.orpEvent.turnId = "foreign"; }, e => { e[1].payload.orpEvent.payload.status = "failed"; },
@@ -169,7 +169,7 @@ describe("saved skill use evidence", () => {
       }
     });
   it.each([
-    ["foreign canonical key", (e: Row[]) => changeAssignedResult(e, r => { r.skill = "company/foreign/skill"; })],
+    ["foreign canonical key", (e: Row[]) => changeAssignedResult(e, r => { r.skill = "space/foreign/skill"; })],
     ["foreign immutable version", (e: Row[]) => changeAssignedResult(e, r => { r.versionId = "foreign"; })],
     ["wrong file", (e: Row[]) => changeAssignedResult(e, r => { r.path = "other/SKILL.md"; })],
     ["incomplete page", (e: Row[]) => changeAssignedResult(e, r => { r.nextOffset = r.text.length; })],
@@ -180,7 +180,7 @@ describe("saved skill use evidence", () => {
     ["changed full source", (e: Row[]) => changeAssignedResult(e, r => { r.text += "extra source"; })],
     ["semantic failure with copied source", (e: Row[]) => changeAssignedResult(e, r => { r.outcome = "failed"; r.code = "runner_skill_not_assigned"; })],
     ["shell copied receipt", (e: Row[]) => { for (const row of e) row.payload.orpEvent.payload.name = "bash"; }],
-    ["another first-party tool", (e: Row[]) => { for (const row of e) row.payload.orpEvent.payload.name = "paperclip_read_document"; }],
+    ["another first-party tool", (e: Row[]) => { for (const row of e) row.payload.orpEvent.payload.name = "outpost_read_document"; }],
     ["non-builtin transport", (e: Row[]) => { for (const row of e) row.payload.orpEvent.payload.transport = "process"; }],
     ["mutating operation", (e: Row[]) => { for (const row of e) row.payload.orpEvent.payload.operation = "edit"; }],
     ["not read only", (e: Row[]) => { e[1]!.payload.orpEvent.payload.readOnly = false; }],
@@ -191,7 +191,7 @@ describe("saved skill use evidence", () => {
     ["call mismatch", (e: Row[]) => { e[0]!.payload.orpEvent.payload.executionId = "another-call"; }],
     ["foreign runner", (e: Row[]) => { e[0]!.sourceInstanceId = e[0]!.payload.orpEvent.sourceInstanceId = "another-runner"; }],
     ["foreign run", (e: Row[]) => { e[1]!.runId = e[1]!.payload.orpEvent.runId = "another-run"; }],
-    ["foreign company", (e: Row[]) => { e[1]!.companyId = "another-company"; }],
+    ["foreign space", (e: Row[]) => { e[1]!.spaceId = "another-space"; }],
     ["foreign turn", (e: Row[]) => { e[1]!.payload.orpEvent.turnId = "another-turn"; }],
     ["invalid wrapper", (e: Row[]) => { e[1]!.payload.orpEvent.payload.output = fixture.markdown; }],
     ["wrong wrapper type", (e: Row[]) => { const p = e[1]!.payload.orpEvent.payload; p.output = p.output.replace("inputText", "outputText"); }],
@@ -289,13 +289,13 @@ describe("saved skill use evidence", () => {
       expect(savedSkillResultMatches(body, fixture.expected)).toBe(false);
     }
     const changes: Array<(value: ReturnType<typeof output>) => void> = [
-      v => { v.document.companyId = "foreign"; }, v => { v.document.issueId = "foreign"; },
+      v => { v.document.spaceId = "foreign"; }, v => { v.document.issueId = "foreign"; },
       v => { v.document.createdByAgentId = "foreign"; }, v => { v.document.updatedByAgentId = "foreign"; },
       v => { v.document.createdByUserId = "owner"; }, v => { v.document.updatedByUserId = "owner"; },
       v => { v.document.key = "other"; }, v => { v.document.body = "{}"; },
       v => { v.document.latestRevisionId = null; }, v => { v.revision.id = "old"; },
       v => { delete v.document.latestRevisionNumber; delete v.revision.revisionNumber; },
-      v => { v.revision.documentId = "foreign"; }, v => { v.revision.companyId = "foreign"; },
+      v => { v.revision.documentId = "foreign"; }, v => { v.revision.spaceId = "foreign"; },
       v => { v.revision.issueId = "foreign"; }, v => { v.revision.key = "other"; },
       v => { v.revision.format = "unknown"; },
       v => { v.revision.createdByRunId = "foreign"; }, v => { v.revision.createdByAgentId = "foreign"; },

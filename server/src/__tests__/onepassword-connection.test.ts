@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, companyMemberships, companySecrets, connectionGrants, createDb,
+import { agents, spaces, spaceMemberships, spaceSecrets, connectionGrants, createDb,
   heartbeatRuns, issues, toolAccessAuditEvents, toolConnections, userSecretDeclarations } from "@outpost/db";
 import { toolAccessService } from "../services/tool-access.js";
 import { createToolGatewayService } from "../services/tool-gateway.js";
@@ -49,7 +49,7 @@ const support = await getEmbeddedPostgresTestSupport();
 const actor = { actorType: "user" as const, actorId: "onepassword-reviewer" };
 const credential = live ? process.env.OP_SERVICE_ACCOUNT_TOKEN! : "ops_fixture-credential";
 
-(support.supported ? describe : describe.skip)(live ? "1Password LIVE governed lifecycle" : "1Password governed lifecycle", () => {
+(support.supported ? describe : describe.skip)(live ? "1Password LIVE controlled lifecycle" : "1Password controlled lifecycle", () => {
   let db: ReturnType<typeof createDb>;
   let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   beforeAll(async () => {
@@ -60,20 +60,20 @@ const credential = live ? process.env.OP_SERVICE_ACCOUNT_TOKEN! : "ops_fixture-c
   afterAll(async () => { await db?.$client.end(); await temp?.cleanup(); });
 
   async function fixture(personal = false) {
-    const [company] = await db.insert(companies).values({ name: "1Password connector test", issuePrefix: `OP${randomUUID().slice(0, 6)}` }).returning();
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: actor.actorId, membershipRole: "admin", status: "active" });
+    const [space] = await db.insert(spaces).values({ name: "1Password connector test", issuePrefix: `OP${randomUUID().slice(0, 6)}` }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: actor.actorId, membershipRole: "admin", status: "active" });
     const service = toolAccessService(db, { deploymentMode: "authenticated" });
-    const connected = await service.connectGalleryApp(company.id, { galleryKey: "1password", connectionMethodKey: "service-account",
+    const connected = await service.connectGalleryApp(space.id, { galleryKey: "1password", connectionMethodKey: "service-account",
       ...(personal ? { grantKind: "user" as const } : {}), credentialValues: { "credentials.authorization": credential } }, actor);
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Vault test agent", role: "engineer", adapterType: "process" }).returning();
-    await service.finishGalleryAppConnection(company.id, connected.connectionId, {
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Vault test agent", role: "engineer", adapterType: "process" }).returning();
+    await service.finishGalleryAppConnection(space.id, connected.connectionId, {
       enabledCatalogEntryIds: connected.catalog.map(entry => entry.id), askFirstCatalogEntryIds: [], access: { agentIds: [agent.id] },
     }, actor);
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Disposable connector proof", assigneeAgentId: agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, issueId: issue.id,
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Disposable connector proof", assigneeAgentId: agent.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, issueId: issue.id,
       scopeKind: "issue", invocationSource: "on_demand", status: "running", responsibleUserId: actor.actorId, contextSnapshot: { issueId: issue.id } }).returning();
     const gateway = createToolGatewayService(db);
-    const session = await gateway.createSession({ companyId: company.id, agentId: agent.id, runId: run.id, issueId: issue.id });
+    const session = await gateway.createSession({ spaceId: space.id, agentId: agent.id, runId: run.id, issueId: issue.id });
     const tools = await gateway.listToolsForSession(session.token);
     const call = async (name: string, parameters: unknown) => {
       if (live) console.info(`Live 1Password action: ${name}`);
@@ -83,17 +83,17 @@ const credential = live ? process.env.OP_SERVICE_ACCOUNT_TOKEN! : "ops_fixture-c
       expect(JSON.stringify(output).includes(credential)).toBe(false);
       return output as { result?: { data?: { structuredContent?: unknown } } };
     };
-    return { company, service, connected, agent, run, issue, gateway, session, tools, call };
+    return { space, service, connected, agent, run, issue, gateway, session, tools, call };
   }
 
   it.each([false, true])("vaults credentials with the selected ownership and runs reads/writes (personal=%s)", async personal => {
     const f = await fixture(personal);
     const [grant] = await db.select().from(connectionGrants).where(eq(connectionGrants.connectionId, f.connected.connectionId));
-    const [secret] = await db.select().from(companySecrets).where(eq(companySecrets.id, grant.credentialSecretRefs[0]!.secretId));
-    expect(secret.scope).toBe(personal ? "user" : "company");
+    const [secret] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, grant.credentialSecretRefs[0]!.secretId));
+    expect(secret.scope).toBe(personal ? "user" : "space");
     expect(secret.ownerUserId).toBe(personal ? actor.actorId : null);
     if (personal) {
-      const declarations = await db.select().from(userSecretDeclarations).where(eq(userSecretDeclarations.companyId, f.company.id));
+      const declarations = await db.select().from(userSecretDeclarations).where(eq(userSecretDeclarations.spaceId, f.space.id));
       expect(declarations.some(entry => entry.configPath === "credentials.authorization")).toBe(true);
     }
     expect(f.tools).toHaveLength(8);
@@ -106,7 +106,7 @@ const credential = live ? process.env.OP_SERVICE_ACCOUNT_TOKEN! : "ops_fixture-c
     const vaultId = data[0]!.id;
     let itemId: string | undefined;
     try {
-      const created = await f.call("onepassword_create_item", { vaultId, title: `Paperclip disposable connector proof ${randomUUID()}`,
+      const created = await f.call("onepassword_create_item", { vaultId, title: `Outpost disposable connector proof ${randomUUID()}`,
         category: "SecureNote", notes: "Synthetic connector test data", fields: [{ id: "test_secret", title: "Test secret", fieldType: "Concealed", value: "disposable-secret" }] });
       itemId = (created.result?.data?.structuredContent as { id: string }).id;
       expect(typeof itemId === "string").toBe(true);
@@ -120,7 +120,7 @@ const credential = live ? process.env.OP_SERVICE_ACCOUNT_TOKEN! : "ops_fixture-c
       const resolved = await f.call("onepassword_resolve_secret", { reference: `op://${vaultId}/${itemId}/test_secret` });
       expect(JSON.stringify(resolved).includes("disposable-secret")).toBe(true);
       await f.service.refreshCatalog(f.connected.connectionId, actor);
-      await f.service.reconnectGalleryApp(f.connected.connectionId, f.company.id, { credentialValues: { "credentials.authorization": credential } }, actor);
+      await f.service.reconnectGalleryApp(f.connected.connectionId, f.space.id, { credentialValues: { "credentials.authorization": credential } }, actor);
       await f.call("onepassword_get_item", { vaultId, itemId });
       const archived = await f.call("onepassword_archive_item", { vaultId, itemId });
       expect(archived.result?.data?.structuredContent).toEqual({ archived: true });
@@ -132,25 +132,25 @@ const credential = live ? process.env.OP_SERVICE_ACCOUNT_TOKEN! : "ops_fixture-c
     }
     const remaining = await f.call("onepassword_list_items", { vaultId });
     expect((remaining.result?.data?.structuredContent as Array<{ id: string }>).some(item => item.id === itemId)).toBe(false);
-    const audit = await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.companyId, f.company.id));
+    const audit = await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.spaceId, f.space.id));
     expect(audit.length > 0).toBe(true);
     expect(JSON.stringify(audit).includes(credential)).toBe(false);
-    await f.service.archiveConnection(f.connected.connectionId, f.company.id, actor);
+    await f.service.archiveConnection(f.connected.connectionId, f.space.id, actor);
     await expect(f.call("onepassword_list_vaults", {})).rejects.toThrow();
     expect(await f.gateway.listToolsForSession(f.session.token)).toHaveLength(0);
   }, 180_000);
 
-  it.skipIf(live)("enforces action policy, company scope, and revocation on retained sessions", async () => {
+  it.skipIf(live)("enforces action policy, space scope, and revocation on retained sessions", async () => {
     const f = await fixture();
-    await f.service.finishGalleryAppConnection(f.company.id, f.connected.connectionId, {
+    await f.service.finishGalleryAppConnection(f.space.id, f.connected.connectionId, {
       enabledCatalogEntryIds: f.connected.catalog.filter(entry => entry.riskLevel === "read").map(entry => entry.id),
       askFirstCatalogEntryIds: [], access: { agentIds: [f.agent.id] },
     }, actor);
     let before = fixtureState.calls;
     await expect(f.call("onepassword_create_item", { vaultId: "a".repeat(26), title: "Blocked", category: "SecureNote" })).rejects.toThrow();
     expect(fixtureState.calls).toBe(before);
-    await expect(f.gateway.createSession({ companyId: randomUUID(), agentId: f.agent.id, runId: f.run.id, issueId: f.issue.id })).rejects.toThrow();
-    await db.update(toolConnections).set({ enabled: false }).where(and(eq(toolConnections.id, f.connected.connectionId), eq(toolConnections.companyId, f.company.id)));
+    await expect(f.gateway.createSession({ spaceId: randomUUID(), agentId: f.agent.id, runId: f.run.id, issueId: f.issue.id })).rejects.toThrow();
+    await db.update(toolConnections).set({ enabled: false }).where(and(eq(toolConnections.id, f.connected.connectionId), eq(toolConnections.spaceId, f.space.id)));
     before = fixtureState.calls;
     await expect(f.call("onepassword_list_vaults", {})).rejects.toThrow();
     expect(fixtureState.calls).toBe(before);
@@ -160,14 +160,14 @@ const credential = live ? process.env.OP_SERVICE_ACCOUNT_TOKEN! : "ops_fixture-c
     const f = await fixture(true);
     await f.call("onepassword_list_vaults", {});
     await f.service.refreshCatalog(f.connected.connectionId, actor);
-    const reconnected = await f.service.reconnectGalleryApp(f.connected.connectionId, f.company.id, {
+    const reconnected = await f.service.reconnectGalleryApp(f.connected.connectionId, f.space.id, {
       credentialValues: { "credentials.authorization": credential },
     }, actor);
     expect(reconnected.connection.id).toBe(f.connected.connectionId);
     await f.call("onepassword_list_vaults", {});
-    const audit = await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.companyId, f.company.id));
+    const audit = await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.spaceId, f.space.id));
     expect(audit.length > 0 && !JSON.stringify(audit).includes(credential)).toBe(true);
-    await f.service.archiveConnection(f.connected.connectionId, f.company.id, actor);
+    await f.service.archiveConnection(f.connected.connectionId, f.space.id, actor);
     await expect(f.call("onepassword_list_vaults", {})).rejects.toThrow();
     expect(await f.gateway.listToolsForSession(f.session.token)).toHaveLength(0);
   }, 120_000);

@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, authUsers, companies, companyMemberships, createDb, executionWorkspaceRepositoryAccess,
+import { agents, authUsers, spaces, spaceMemberships, createDb, executionWorkspaceRepositoryAccess,
   executionWorkspaces, issues, projects, projectWorkspaces, projectAccessMembers, principalPermissionGrants,
   EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { projectService } from "../services/projects.js";
@@ -19,9 +19,9 @@ const support = await getEmbeddedPostgresTestSupport();
   let root: string;
   beforeAll(async () => {
     vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
-    database = await startEmbeddedPostgresTestDatabase("paperclip-configured-provenance-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-configured-provenance-");
     db = createDb(database.connectionString);
-    root = await mkdtemp(path.join(tmpdir(), "paperclip-configured-provenance-"));
+    root = await mkdtemp(path.join(tmpdir(), "outpost-configured-provenance-"));
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => {
     vi.unstubAllEnvs();
@@ -32,48 +32,48 @@ const support = await getEmbeddedPostgresTestSupport();
   it.each((["cwd", "file_url", "absolute_path"] as const).flatMap(sourceKind =>
     (["move", "remove", "remove_project", "replace_repositories"] as const).map(mutation => ({ sourceKind, mutation }))))(
     "does not retain filesystem ownership after $sourceKind / $mutation", async ({ sourceKind, mutation }) => {
-      const companyId = randomUUID(), userId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-      const cwd = path.join(root, companyId), privateCwd = path.join(cwd, "private"), unrelatedCwd = `${cwd}-unrelated`;
+      const spaceId = randomUUID(), userId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+      const cwd = path.join(root, spaceId), privateCwd = path.join(cwd, "private"), unrelatedCwd = `${cwd}-unrelated`;
       await mkdir(privateCwd, { recursive: true });
       await mkdir(unrelatedCwd);
       await writeFile(path.join(privateCwd, "secret.txt"), "Private configured source\n");
-      await db.insert(companies).values({ id: companyId, name: "Configured provenance", issuePrefix: `P${companyId.slice(0, 6)}` });
+      await db.insert(spaces).values({ id: spaceId, name: "Configured provenance", issuePrefix: `P${spaceId.slice(0, 6)}` });
       await db.insert(authUsers).values({ id: userId, name: "Reader", email: `${userId}@example.test`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
-      await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "process", status: "idle" });
-      await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "member", status: "active" });
-      const [source] = await db.insert(projects).values({ companyId, name: "Private source", visibility: "private",
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "process", status: "idle" });
+      await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "member", status: "active" });
+      const [source] = await db.insert(projects).values({ spaceId, name: "Private source", visibility: "private",
         executionWorkspacePolicy: { authorizationPolicy: { assignmentPolicy: { mode: "protected" } } } }).returning();
       const sourceUrl = (cwd: string) => sourceKind === "file_url" ? pathToFileURL(cwd).href : cwd;
-      const [configured] = await db.insert(projectWorkspaces).values({ companyId, projectId: source.id, name: "Private files",
+      const [configured] = await db.insert(projectWorkspaces).values({ spaceId, projectId: source.id, name: "Private files",
         cwd: sourceKind === "cwd" ? privateCwd : null,
         repoUrl: sourceKind === "cwd" ? "https://github.com/example/private" : sourceUrl(privateCwd),
         metadata: { githubRepositoryId: "fixture-private" } }).returning();
-      const [workspace] = await db.insert(executionWorkspaces).values({ companyId, name: "Public parent", cwd, mode: "shared_workspace", strategyType: "task_directory" }).returning();
-      await db.insert(issues).values({ id: issueId, companyId, title: "Public task", assigneeAgentId: agentId, executionWorkspaceId: workspace.id });
-      const actor = { type: "board" as const, source: "session" as const, userId, ignoreInstanceAdmin: true };
-      const access = { companyId, cwd, sourceWorkspaceId: workspace.id, actor };
-      expect(await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.companyId, companyId))).toEqual([]);
+      const [workspace] = await db.insert(executionWorkspaces).values({ spaceId, name: "Public parent", cwd, mode: "shared_workspace", strategyType: "task_directory" }).returning();
+      await db.insert(issues).values({ id: issueId, spaceId, title: "Public task", assigneeAgentId: agentId, executionWorkspaceId: workspace.id });
+      const actor = { type: "operator" as const, source: "session" as const, userId, ignoreInstanceAdmin: true };
+      const access = { spaceId, cwd, sourceWorkspaceId: workspace.id, actor };
+      expect(await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.spaceId, spaceId))).toEqual([]);
       const service = projectService(db, { captureWorkspaceUpdates: false });
       if (mutation === "move") await service.updateWorkspace(source.id, configured.id,
         sourceKind === "cwd" ? { cwd: unrelatedCwd } : { repoUrl: sourceUrl(unrelatedCwd) });
       else if (mutation === "remove") await service.removeWorkspace(source.id, configured.id);
       else if (mutation === "remove_project") await service.remove(source.id);
       else await service.replaceRepositories(source.id, []);
-      expect(await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.companyId, companyId))).toEqual([]);
-      await expect(assertTaskWorkspaceExecutionAccess(db, actor, companyId, { issueId, workspaceId: workspace.id })).resolves.toBeDefined();
+      expect(await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.spaceId, spaceId))).toEqual([]);
+      await expect(assertTaskWorkspaceExecutionAccess(db, actor, spaceId, { issueId, workspaceId: workspace.id })).resolves.toBeDefined();
       if (mutation === "remove_project") return;
       // The selected app configuration remains private even though neighboring files are not classified.
-      await expect(assertTaskWorkspaceSourceProjectAccess(db, actor, companyId, source.id)).rejects.toThrow();
-      await db.insert(projectAccessMembers).values({ companyId, projectId: source.id, subjectType: "user", subjectId: userId });
-      await expect(assertTaskWorkspaceSourceProjectAccess(db, actor, companyId, source.id)).resolves.toBeUndefined();
+      await expect(assertTaskWorkspaceSourceProjectAccess(db, actor, spaceId, source.id)).rejects.toThrow();
+      await db.insert(projectAccessMembers).values({ spaceId, projectId: source.id, subjectType: "user", subjectId: userId });
+      await expect(assertTaskWorkspaceSourceProjectAccess(db, actor, spaceId, source.id)).resolves.toBeUndefined();
     });
 
   it("can remove a configured folder that never existed without inventing provenance", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Missing source", issuePrefix: `M${companyId.slice(0, 6)}` });
-    const [source] = await db.insert(projects).values({ companyId, name: "Missing private source", visibility: "private" }).returning();
-    const [configured] = await db.insert(projectWorkspaces).values({ companyId, projectId: source.id, name: "Missing", cwd: path.join(root, companyId, "never-created") }).returning();
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Missing source", issuePrefix: `M${spaceId.slice(0, 6)}` });
+    const [source] = await db.insert(projects).values({ spaceId, name: "Missing private source", visibility: "private" }).returning();
+    const [configured] = await db.insert(projectWorkspaces).values({ spaceId, projectId: source.id, name: "Missing", cwd: path.join(root, spaceId, "never-created") }).returning();
     await expect(projectService(db, { captureWorkspaceUpdates: false }).removeWorkspace(source.id, configured.id)).resolves.toMatchObject({ id: configured.id });
-    expect(await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.companyId, companyId))).toEqual([]);
+    expect(await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.spaceId, spaceId))).toEqual([]);
   });
 });

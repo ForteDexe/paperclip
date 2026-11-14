@@ -79,11 +79,11 @@ export function parseDirections(flags) {
   return directions;
 }
 
-export function parseCompany(text = "acmehats:ACM") {
+export function parseSpace(text = "acmehats:ACM") {
   const match = /^([a-z][a-z0-9-]*):([A-Z][A-Z0-9]{0,5})$/.exec(text);
-  if (!match) throw new UsageError('--company must look like name:PREFIX (lowercase name, upper-case prefix), e.g. acmehats:ACM');
+  if (!match) throw new UsageError('--space must look like name:PREFIX (lowercase name, upper-case prefix), e.g. acmehats:ACM');
   const [, name, issuePrefix] = match;
-  return { id: `company-${name}`, name, issuePrefix };
+  return { id: `space-${name}`, name, issuePrefix };
 }
 
 export function resolveLanding(flag = "auto", directions, surfaces) {
@@ -104,11 +104,11 @@ export function runtimeCommit(root) {
   }
 }
 
-export function shellTasks(company) {
+export function shellTasks(space) {
   return [
-    { identifier: `${company.issuePrefix}-1`, title: "Paperclip onboarding" },
-    { identifier: `${company.issuePrefix}-2`, title: `Develop ${company.name} brand strategy and designer brief` },
-    { identifier: `${company.issuePrefix}-3`, title: `Create visual directions and first ${company.name} brand deck` },
+    { identifier: `${space.issuePrefix}-1`, title: "Outpost onboarding" },
+    { identifier: `${space.issuePrefix}-2`, title: `Develop ${space.name} brand strategy and designer brief` },
+    { identifier: `${space.issuePrefix}-3`, title: `Create visual directions and first ${space.name} brand deck` },
   ];
 }
 
@@ -127,12 +127,12 @@ export function buildContext(flags, { root, ports, capabilities = [], today = ne
   if (!GROUPS.includes(group)) throw new UsageError(`--group must be one of ${GROUPS.join("|")}`);
   const surfaces = parseSurfaces(flags.surfaces);
   const directions = parseDirections(flags);
-  const company = parseCompany(flags.company);
+  const space = parseSpace(flags.space);
   const landing = resolveLanding(flags.landing, directions, surfaces);
-  return assembleContext({ root, slug, title, group, surfaces, directions, company, landing, ports, capabilities, forceCount: Boolean(flags["force-count"]), today });
+  return assembleContext({ root, slug, title, group, surfaces, directions, space, landing, ports, capabilities, forceCount: Boolean(flags["force-count"]), today });
 }
 
-export function assembleContext({ root, slug, title, group, surfaces, directions, company, landing, ports, capabilities, forceCount, today = new Date(), provenance }) {
+export function assembleContext({ root, slug, title, group, surfaces, directions, space, landing, ports, capabilities, forceCount, today = new Date(), provenance }) {
   const SLUG = upperSnake(slug);
   const kits = [...directions, TODAY];
   const cells = kits.length * surfaces.length;
@@ -162,12 +162,12 @@ export function assembleContext({ root, slug, title, group, surfaces, directions
     landing,
     capabilities,
     exception: `Design directory entry for ${title}: the shipped baseline and ${directions.length} proposed directions compared on static mocks of ${joinLabels(labels)}.`,
-    notes: `Controls pick a direction kit and a surface. Today mounts the shipped ${title} components behind the lab's fetch stub with the ${company.name} fixture world; the other kits are lab components. Frames are static mocks of the product chrome; nothing here establishes production behaviour or access checks.`,
-    company,
-    tasks: shellTasks(company),
+    notes: `Controls pick a direction kit and a surface. Today mounts the shipped ${title} components behind the lab's fetch stub with the ${space.name} fixture world; the other kits are lab components. Frames are static mocks of the product chrome; nothing here establishes production behaviour or access checks.`,
+    space,
+    tasks: shellTasks(space),
     tag: `[${slug}-directions]`,
-    publicUrl: `https://paperclip-${slug}-directions.vercel.app`,
-    vercelProject: `paperclip-${slug}-directions`,
+    publicUrl: `https://outpost-${slug}-directions.vercel.app`,
+    vercelProject: `outpost-${slug}-directions`,
     forceCount: Boolean(forceCount),
     provenance: provenance ?? { runtimeCommit: runtimeCommit(root), skillVersion: SKILL_VERSION, createdAt: today.toISOString().slice(0, 10) },
   };

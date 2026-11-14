@@ -11,13 +11,13 @@ import {
 } from "./common.js";
 
 interface AgentTokenOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   agent?: string;
   name?: string;
 }
 
-interface BoardTokenOptions extends BaseClientOptions {
-  companyId?: string;
+interface OperatorTokenOptions extends BaseClientOptions {
+  spaceId?: string;
   name?: string;
   expiresAt?: string;
   ttlDays?: string;
@@ -49,7 +49,7 @@ interface CreatedBoardKey {
   expiresAt: string | null;
 }
 
-interface BoardKeyRow {
+interface OperatorKeyRow {
   id: string;
   name: string;
   createdAt: string;
@@ -66,13 +66,13 @@ export function registerTokenCommands(program: Command): void {
     agent
       .command("create")
       .description("Create an agent API key")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--agent <agent>", "Agent ID, shortname, or unambiguous name")
       .option("--name <name>", "API key label", "cli-agent")
       .action(async (opts: AgentTokenOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const agentRow = await resolveAgent(ctx.api, ctx.companyId ?? "", opts.agent ?? "");
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const agentRow = await resolveAgent(ctx.api, ctx.spaceId ?? "", opts.agent ?? "");
           const payload = createAgentKeySchema.parse({ name: opts.name });
           const key = await ctx.api.post<CreatedAgentKey>(apiPath`/api/agents/${agentRow.id}/keys`, payload);
           if (!key) throw new Error("Failed to create agent API key");
@@ -80,7 +80,7 @@ export function registerTokenCommands(program: Command): void {
             {
               agentId: agentRow.id,
               agentName: agentRow.name,
-              companyId: agentRow.companyId,
+              spaceId: agentRow.spaceId,
               key,
             },
             { json: ctx.json },
@@ -89,22 +89,22 @@ export function registerTokenCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
     agent
       .command("list")
       .description("List agent API keys")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--agent <agent>", "Agent ID, shortname, or unambiguous name")
       .action(async (opts: AgentTokenOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const agentRow = await resolveAgent(ctx.api, ctx.companyId ?? "", opts.agent ?? "");
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const agentRow = await resolveAgent(ctx.api, ctx.spaceId ?? "", opts.agent ?? "");
           const keys = (await ctx.api.get<AgentKeyRow[]>(apiPath`/api/agents/${agentRow.id}/keys`)) ?? [];
           if (ctx.json) {
-            printOutput({ agentId: agentRow.id, companyId: agentRow.companyId, keys }, { json: true });
+            printOutput({ agentId: agentRow.id, spaceId: agentRow.spaceId, keys }, { json: true });
             return;
           }
           for (const key of keys) {
@@ -115,7 +115,7 @@ export function registerTokenCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
@@ -123,59 +123,59 @@ export function registerTokenCommands(program: Command): void {
       .command("revoke")
       .description("Revoke an agent API key")
       .argument("<keyId>", "Agent API key ID")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--agent <agent>", "Agent ID, shortname, or unambiguous name")
       .action(async (keyId: string, opts: AgentTokenOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const agentRow = await resolveAgent(ctx.api, ctx.companyId ?? "", opts.agent ?? "");
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const agentRow = await resolveAgent(ctx.api, ctx.spaceId ?? "", opts.agent ?? "");
           const result = await ctx.api.delete<{ ok: true; keyId?: string }>(apiPath`/api/agents/${agentRow.id}/keys/${keyId}`);
-          printOutput({ ok: true, agentId: agentRow.id, companyId: agentRow.companyId, ...(result ?? {}) }, { json: ctx.json });
+          printOutput({ ok: true, agentId: agentRow.id, spaceId: agentRow.spaceId, ...(result ?? {}) }, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
-  const board = token.command("board").description("Manage board API keys");
+  const operator = token.command("operator").description("Manage operator API keys");
 
   addCommonClientOptions(
-    board
+    operator
       .command("create")
-      .description("Create a named board API key")
-      .option("-C, --company-id <id>", "Outpost ID used for audit context")
-      .option("--name <name>", "API key label", "cli-board")
+      .description("Create a named operator API key")
+      .option("-C, --space-id <id>", "Outpost ID used for audit context")
+      .option("--name <name>", "API key label", "cli-operator")
       .option("--expires-at <iso8601>", "Expiration timestamp")
       .option("--ttl-days <days>", "Expiration in days from now")
       .option("--never-expires", "Create a non-expiring key")
-      .action(async (opts: BoardTokenOptions) => {
+      .action(async (opts: OperatorTokenOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
           const expiresAt = resolveBoardKeyExpiresAt(opts);
           const payload = createBoardApiKeySchema.parse({
             name: opts.name,
-            requestedCompanyId: opts.companyId ?? ctx.companyId ?? null,
+            requestedSpaceId: opts.spaceId ?? ctx.spaceId ?? null,
             expiresAt,
           });
-          const key = await ctx.api.post<CreatedBoardKey>("/api/board-api-keys", payload);
-          if (!key) throw new Error("Failed to create board API key");
+          const key = await ctx.api.post<CreatedBoardKey>("/api/operator-api-keys", payload);
+          if (!key) throw new Error("Failed to create operator API key");
           printOutput({ key }, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
-    board
+    operator
       .command("list")
-      .description("List board API keys for the current board user")
+      .description("List operator API keys for the current operator user")
       .action(async (opts: BaseClientOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
-          const keys = (await ctx.api.get<BoardKeyRow[]>("/api/board-api-keys")) ?? [];
+          const keys = (await ctx.api.get<OperatorKeyRow[]>("/api/operator-api-keys")) ?? [];
           if (ctx.json) {
             printOutput(keys, { json: true });
             return;
@@ -198,14 +198,14 @@ export function registerTokenCommands(program: Command): void {
   );
 
   addCommonClientOptions(
-    board
+    operator
       .command("revoke")
-      .description("Revoke a board API key")
-      .argument("<keyId>", "Board API key ID")
+      .description("Revoke a operator API key")
+      .argument("<keyId>", "Operator API key ID")
       .action(async (keyId: string, opts: BaseClientOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
-          const result = await ctx.api.delete<{ ok: true; keyId: string }>(apiPath`/api/board-api-keys/${keyId}`);
+          const result = await ctx.api.delete<{ ok: true; keyId: string }>(apiPath`/api/operator-api-keys/${keyId}`);
           printOutput(result ?? { ok: true, keyId }, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
@@ -214,21 +214,21 @@ export function registerTokenCommands(program: Command): void {
   );
 }
 
-async function resolveAgent(api: { get<T>(path: string): Promise<T | null> }, companyId: string, agentRef: string): Promise<Agent> {
+async function resolveAgent(api: { get<T>(path: string): Promise<T | null> }, spaceId: string, agentRef: string): Promise<Agent> {
   const trimmed = agentRef.trim();
   if (!trimmed) throw new Error("Agent reference is required");
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed)) {
     const agent = await api.get<Agent>(apiPath`/api/agents/${trimmed}`);
-    if (!agent || agent.companyId !== companyId) throw new Error(`Agent not found: ${agentRef}`);
+    if (!agent || agent.spaceId !== spaceId) throw new Error(`Agent not found: ${agentRef}`);
     return agent;
   }
-  const query = new URLSearchParams({ companyId });
+  const query = new URLSearchParams({ spaceId });
   const agent = await api.get<Agent>(`${apiPath`/api/agents/${trimmed}`}?${query.toString()}`);
-  if (!agent || agent.companyId !== companyId) throw new Error(`Agent not found: ${agentRef}`);
+  if (!agent || agent.spaceId !== spaceId) throw new Error(`Agent not found: ${agentRef}`);
   return agent;
 }
 
-function resolveBoardKeyExpiresAt(opts: BoardTokenOptions): Date | null | undefined {
+function resolveBoardKeyExpiresAt(opts: OperatorTokenOptions): Date | null | undefined {
   if (opts.neverExpires) return null;
   if (opts.expiresAt?.trim()) {
     const date = new Date(opts.expiresAt.trim());

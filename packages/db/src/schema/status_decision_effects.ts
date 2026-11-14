@@ -10,7 +10,7 @@ import {
   jsonb,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { issues } from "./issues.js";
 import { statusDecisions } from "./status_decisions.js";
 
@@ -18,7 +18,7 @@ export const statusDecisionEffects = pgTable(
   "status_decision_effects",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     issueId: uuid("issue_id").notNull(),
     decisionId: uuid("decision_id").notNull(),
     ordinal: integer("ordinal").notNull(),
@@ -37,24 +37,24 @@ export const statusDecisionEffects = pgTable(
   },
   (table) => ({
     pendingDeliveryIdx: index("status_decision_effects_pending_delivery_idx")
-      .on(table.companyId, table.issueId, table.decisionId)
+      .on(table.spaceId, table.issueId, table.decisionId)
       .where(sql`${table.deliveryState} in ('pending', 'failed')`),
-    issueCompanyFk: foreignKey({
-      columns: [table.companyId, table.issueId],
-      foreignColumns: [issues.companyId, issues.id],
-      name: "status_decision_effects_issue_company_fk",
+    issueSpaceFk: foreignKey({
+      columns: [table.spaceId, table.issueId],
+      foreignColumns: [issues.spaceId, issues.id],
+      name: "status_decision_effects_issue_space_fk",
     }),
     decisionOwnerFk: foreignKey({
-      columns: [table.companyId, table.issueId, table.decisionId],
-      foreignColumns: [statusDecisions.companyId, statusDecisions.issueId, statusDecisions.id],
+      columns: [table.spaceId, table.issueId, table.decisionId],
+      foreignColumns: [statusDecisions.spaceId, statusDecisions.issueId, statusDecisions.id],
       name: "status_decision_effects_decision_owner_fk",
     }),
     decisionOrdinalUq: uniqueIndex("status_decision_effects_decision_ordinal_uq").on(
       table.decisionId,
       table.ordinal,
     ),
-    idempotencyUq: uniqueIndex("status_decision_effects_company_idempotency_uq").on(
-      table.companyId,
+    idempotencyUq: uniqueIndex("status_decision_effects_space_idempotency_uq").on(
+      table.spaceId,
       table.idempotencyKey,
     ),
   }),

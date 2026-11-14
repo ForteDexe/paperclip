@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { describe, expect, it } from "vitest";
 import { registerClientAuthCommands } from "../commands/client/auth.js";
-import { registerCompanyCommands } from "../commands/client/company.js";
+import { registerSpaceCommands } from "../commands/client/space.js";
 import { registerContextCommands } from "../commands/client/context.js";
 import { registerIssueCommands } from "../commands/client/issue.js";
 import { registerRunCommands } from "../commands/client/run.js";
@@ -15,7 +15,7 @@ function cliProgram() {
   const program = new Command();
   registerContextCommands(program);
   registerIssueCommands(program);
-  registerCompanyCommands(program);
+  registerSpaceCommands(program);
   registerRunCommands(program.command("run"));
   registerClientAuthCommands(program.command("auth"));
   return program;
@@ -58,11 +58,11 @@ function resolve(program: Command, text: string): { path: string; error?: string
 
 describe("chat CLI guidance", () => {
   const program = cliProgram();
-  const commands = guidance.split("npx paperclipai ").slice(1).map(rest => resolve(program, rest.slice(0, 400)));
+  const commands = guidance.split("npx @outpost/cli ").slice(1).map(rest => resolve(program, rest.slice(0, 400)));
 
   it("names the commands a person runs for tasks, documents, runs and context", () => {
     const paths = commands.map(row => row.path);
-    for (const command of ["issue create", "issue document:get", "run get", "run cancel", "context set", "context show", "company current", "auth whoami"])
+    for (const command of ["issue create", "issue document:get", "run get", "run cancel", "context set", "context show", "space current", "auth whoami"])
       expect(paths).toContain(command);
   });
 
@@ -75,6 +75,6 @@ describe("chat CLI guidance", () => {
     expect(resolve(program, "context select <name>").error).toMatch(/unknown subcommand select/);
     expect(resolve(program, "issue document:get <task> and more").error).toMatch(/missing arguments/);
     expect(resolve(program, "context set --profile --use").error).toMatch(/missing value for --profile/);
-    expect(resolve(program, "issue create --project-id <projectId> creates").error).toMatch(/missing required --company-id/);
+    expect(resolve(program, "issue create --project-id <projectId> creates").error).toMatch(/missing required --space-id/);
   });
 });

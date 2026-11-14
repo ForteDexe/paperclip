@@ -28,7 +28,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const workspace = (await preparePluginWorkspace(db, f.workers, f.input))!;
     await db.update(issues).set({ status: "done", completedAt: new Date() }).where(eq(issues.id, f.issueId));
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.runId));
-    const [receipt] = await db.insert(workspaceOperations).values({ companyId: f.companyId, executionWorkspaceId: workspace.id,
+    const [receipt] = await db.insert(workspaceOperations).values({ spaceId: f.spaceId, executionWorkspaceId: workspace.id,
       heartbeatRunId: f.runId, issueId: f.issueId, phase: "workspace_finalize", status: "succeeded", finishedAt: new Date(),
       metadata: { pluginWorkspace: { providerType: "plugin", inspection: { kind: "finalized", headSha: "a".repeat(40), branchName: workspace.branchName } } } }).returning();
     let clock = new Date();
@@ -113,7 +113,7 @@ const support = await getEmbeddedPostgresTestSupport();
   });
   it.each(["running", "failed", "wrong_branch", "missing_head"])("retains storage when the latest receipt is %s", async (fault) => {
     const f = await fixture(); f.setProof(f.delivered());
-    await db.insert(workspaceOperations).values({ companyId: f.companyId, executionWorkspaceId: f.workspace.id,
+    await db.insert(workspaceOperations).values({ spaceId: f.spaceId, executionWorkspaceId: f.workspace.id,
       phase: "workspace_finalize", status: fault === "running" || fault === "failed" ? fault : "succeeded",
       createdAt: new Date(f.receipt.createdAt.getTime() + 1000), finishedAt: fault === "running" ? null : new Date(),
       metadata: { pluginWorkspace: { inspection: { headSha: fault === "missing_head" ? null : "a".repeat(40), branchName: "different" } } } });
@@ -124,7 +124,7 @@ const support = await getEmbeddedPostgresTestSupport();
   });
   it("retains storage when conflicting receipts have indistinguishable ordering", async () => {
     const f = await fixture(); f.setProof(f.delivered());
-    await db.insert(workspaceOperations).values({ companyId: f.companyId, executionWorkspaceId: f.workspace.id,
+    await db.insert(workspaceOperations).values({ spaceId: f.spaceId, executionWorkspaceId: f.workspace.id,
       phase: "workspace_finalize", status: "failed", createdAt: f.receipt.createdAt, finishedAt: new Date() });
     await f.service.sweepTerminalWorkspaces();
     expect(f.resolve).not.toHaveBeenCalled();
@@ -145,7 +145,7 @@ const support = await getEmbeddedPostgresTestSupport();
     f.workers.call = async (...args) => {
       const result = await original(...args);
       if ((args[2] as any).operation.kind !== "inspect") return result;
-      if (fault === "new_receipt") await db.insert(workspaceOperations).values({ companyId: f.companyId,
+      if (fault === "new_receipt") await db.insert(workspaceOperations).values({ spaceId: f.spaceId,
         executionWorkspaceId: f.workspace.id, phase: "workspace_finalize", status: "failed",
         createdAt: new Date(f.receipt.createdAt.getTime() + 1000), finishedAt: new Date() });
       return { ...result as object, ...(fault === "head" ? { headSha: "b".repeat(40) }

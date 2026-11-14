@@ -22,8 +22,8 @@ try {
   const f = await createConnectionReviewCountsFixture(db, true);
   const legacy = createToolAppAttention(measuredDb, () => new Date("2026-02-01T00:00:00Z"));
   const invoke = async (label: "before" | "after") => {
-    if (label === "after") return getToolConnectionReviewCounts(measuredDb, f.company.id, f.connection.id);
-    const item = (await legacy(f.company.id)).apps.find(app => app.connection.id === f.connection.id);
+    if (label === "after") return getToolConnectionReviewCounts(measuredDb, f.space.id, f.connection.id);
+    const item = (await legacy(f.space.id)).apps.find(app => app.connection.id === f.connection.id);
     return { pendingActionRequestCount: item?.pendingActionRequestCount ?? 0, quarantinedCatalogEntryCount: item?.quarantinedCatalogEntryCount ?? 0 };
   };
   const expected = await invoke("before");

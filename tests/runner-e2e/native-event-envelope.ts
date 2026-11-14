@@ -11,16 +11,16 @@ export function isValidNativePrpEnvelope(
 
 export interface NativePrpRunBinding {
   runId: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
 }
 
 export function isBoundNativePrpEventRow(row: Record<string, any>, binding?: NativePrpRunBinding, sourceInstanceId?: string): boolean {
   const event = row.payload?.orpEvent;
-  return Boolean(binding && [binding.runId, binding.companyId, binding.agentId]
+  return Boolean(binding && [binding.runId, binding.spaceId, binding.agentId]
     .every(value => typeof value === "string" && value.trim())
     && event && isValidNativePrpEnvelope(event, row.protocolSchemaVersion)
-    && row.runId === binding.runId && row.companyId === binding.companyId && row.agentId === binding.agentId
+    && row.runId === binding.runId && row.spaceId === binding.spaceId && row.agentId === binding.agentId
     && event.runId === binding.runId && event.eventType === row.eventType && event.sourceKind === "runner"
     && typeof event.sourceEventId === "string" && event.sourceEventId.trim() && event.sourceEventId === row.sourceEventId
     && typeof event.sourceInstanceId === "string" && event.sourceInstanceId.trim() && event.sourceInstanceId === row.sourceInstanceId

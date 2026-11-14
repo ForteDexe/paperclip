@@ -9,13 +9,13 @@ import { parseConfig, resolveApiKey } from "./config.js";
 import { CreateosCleanupError, execute, shellQuote } from "./execute.js";
 import { syncFiles } from "./file-sync.js";
 
-const CWD = "/paperclip-workspace";
-// The host excludes .paperclip-runtime from workspace export, so the lease
+const CWD = "/outpost-workspace";
+// The host excludes .outpost-runtime from workspace export, so the lease
 // marker never becomes a user repository file.
-const MARKER = `${CWD}/.paperclip-runtime/.paperclip-createos-lease`;
+const MARKER = `${CWD}/.outpost-runtime/.outpost-createos-lease`;
 
 function metadataMatches(params: PluginEnvironmentDriverBaseParams, metadata?: Record<string, unknown>): boolean {
-  return metadata?.provider === "createos" && metadata.companyId === params.companyId &&
+  return metadata?.provider === "createos" && metadata.spaceId === params.spaceId &&
     metadata.environmentId === params.environmentId && metadata.apiUrl === parseConfig(params.config).apiUrl;
 }
 
@@ -38,7 +38,7 @@ async function acquire(params: PluginEnvironmentAcquireLeaseParams): Promise<Plu
       providerLeaseId: sandbox.id,
       metadata: {
         provider: "createos", apiUrl: config.apiUrl,
-        companyId: params.companyId, environmentId: params.environmentId,
+        spaceId: params.spaceId, environmentId: params.environmentId,
         remoteCwd: CWD, shellCommand: "bash", marker,
         shape: config.shape, rootfs: config.rootfs, region: config.region,
         reuseLease: config.reuseLease,
@@ -63,7 +63,7 @@ export function createPlugin() {
   function key(params: PluginEnvironmentDriverBaseParams, id: string): string {
     const config = parseConfig(params.config);
     const account = createHash("sha256").update(resolveApiKey(config)).digest("hex");
-    return JSON.stringify([params.companyId, params.environmentId, config.apiUrl, account, id]);
+    return JSON.stringify([params.spaceId, params.environmentId, config.apiUrl, account, id]);
   }
 
   async function stopActive(scope: string) {
@@ -137,9 +137,9 @@ export function createPlugin() {
       try {
         lease = await acquire({ ...params, runId: "probe" });
         const result = await execute(new CreateosClient(parseConfig(params.config)), {
-          ...params, lease, command: "/bin/echo", args: ["paperclip-createos-ready"], cwd: CWD,
+          ...params, lease, command: "/bin/echo", args: ["outpost-createos-ready"], cwd: CWD,
         }, AbortSignal.timeout(parseConfig(params.config).timeoutMs));
-        if (result.timedOut || result.exitCode !== 0 || !result.stdout.includes("paperclip-createos-ready")) throw new Error("CreateOS command probe failed.");
+        if (result.timedOut || result.exitCode !== 0 || !result.stdout.includes("outpost-createos-ready")) throw new Error("CreateOS command probe failed.");
         return { ok: true, summary: "CreateOS sandbox creation and command execution succeeded." };
       } catch (error) {
         return { ok: false, summary: error instanceof Error ? error.message : "CreateOS probe failed." };

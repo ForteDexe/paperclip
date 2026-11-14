@@ -20,9 +20,9 @@ export function llmRoutes(db: Db) {
   const agentsSvc = agentService(db);
 
   async function assertCanRead(req: Request) {
-    if (req.actor.type === "board") return;
+    if (req.actor.type === "operator") return;
     if (req.actor.type !== "agent" || !req.actor.agentId) {
-      throw forbidden("Board or permitted agent authentication required");
+      throw forbidden("Operator or permitted agent authentication required");
     }
     const actorAgent = await agentsSvc.getById(req.actor.agentId);
     if (!actorAgent || !hasCreatePermission(actorAgent)) {
@@ -49,18 +49,18 @@ export function llmRoutes(db: Db) {
         ),
       "",
       "Related API endpoints:",
-      "- GET /api/companies/:companyId/agent-configurations",
+      "- GET /api/spaces/:spaceId/agent-configurations",
       "- GET /api/agents/:id/configuration",
-      "- POST /api/companies/:companyId/agent-hires",
+      "- POST /api/spaces/:spaceId/agent-creations",
       "",
       "Agent identity references:",
       "- GET /llms/agent-icons.txt",
       "",
       "Notes:",
       "- Sensitive values are redacted in configuration read APIs.",
-      "- New hires may be created in pending_approval state depending on company settings.",
-      "- Create agents only when the human explicitly requests one; use the configuration endpoints above rather than a bundled hiring workflow. Requested payloads may include desiredSkills and sourceIssueId/sourceIssueIds.",
-      "- Timer heartbeats are opt-in for new hires. Leave runtimeConfig.heartbeat.enabled false unless the role truly needs scheduled work or the user explicitly asked for it.",
+      "- New creations may be created in pending_approval state depending on space settings.",
+      "- Create agents only when the human explicitly requests one; use the configuration endpoints above rather than a bundled creation workflow. Requested payloads may include desiredSkills and sourceIssueId/sourceIssueIds.",
+      "- Timer heartbeats are opt-in for new creations. Leave runtimeConfig.heartbeat.enabled false unless the role truly needs scheduled work or the user explicitly asked for it.",
       "",
     ];
     res.type("text/plain").send(lines.join("\n"));
@@ -71,7 +71,7 @@ export function llmRoutes(db: Db) {
     const lines = [
       "# Outpost Agent Icon Names",
       "",
-      "Set the `icon` field on hire/create payloads to one of:",
+      "Set the `icon` field on create/create payloads to one of:",
       ...AGENT_ICON_NAMES.map((name) => `- ${name}`),
       "",
       "Example:",

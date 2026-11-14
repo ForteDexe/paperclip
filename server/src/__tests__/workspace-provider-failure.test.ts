@@ -20,7 +20,7 @@ import { findWorkspaceProviderFailure, workspaceProviderCallFailure } from "../s
 
 const id = (n: number) => `10000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const params = {
-  pluginId: id(1), companyId: id(2), projectId: id(3), executionWorkspaceId: id(4), agentId: id(9),
+  pluginId: id(1), spaceId: id(2), projectId: id(3), executionWorkspaceId: id(4), agentId: id(9),
   operationId: "operation-1", generation: 0, deadline: "2099-01-01T00:00:00.000Z", runId: null,
   operation: { kind: "prepare", source: { id: id(5), revision: "source-v1", repoUrl: null, repoRef: null, defaultRef: null },
     mode: "shared_workspace", strategy: "project_primary", branchName: null, baseRef: null, existing: null },
@@ -88,7 +88,7 @@ describe("workspace provider call failures", () => {
     const transient = new Set(["storage_pending", "runtime_unavailable", "remote_incomplete", "context_changed", "deadline_exceeded"]);
     for (const reason of WORKSPACE_OPERATION_FAILURE_REASONS) {
       const failure = workspaceProviderCallFailure(new JsonRpcCallError({ code: PLUGIN_RPC_ERROR_CODES.WORKER_ERROR, message: "private provider text",
-        data: { schema: "paperclip/workspace-operation-error/v1", reason } }));
+        data: { schema: "outpost/workspace-operation-error/v1", reason } }));
       expect(failure.summary()).toEqual({ kind: "provider", reason, retryable: transient.has(reason) });
       expect(failure.message).not.toContain("private");
       expect(failure.message.includes("retry the same workspace")).toBe(transient.has(reason));

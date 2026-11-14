@@ -12,8 +12,8 @@ it("the same validated bound action identity appears in action and delivery quer
     const rendered = new PgDialect().sqlToQuery(check.query);
     expect(rendered.params).toEqual([[id]]);
     expect(rendered.sql).not.toContain(id);
-    expect(rendered.sql).toContain("e.company_id = a.company_id");
-    expect(rendered.sql).toContain("d.company_id = a.company_id");
+    expect(rendered.sql).toContain("e.space_id = a.space_id");
+    expect(rendered.sql).toContain("d.space_id = a.space_id");
     expect(rendered.sql).toContain("unnest($1::uuid[])");
   }
   expect(() => idleChatHistoryChecksForOwner(["foreign' OR true"])).toThrow();

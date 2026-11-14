@@ -22,7 +22,7 @@ export type PrepareChatRetry = NonNullable<Parameters<typeof requestTaskRetry>[0
 
 /**
  * A native run whose provider ended its turn because the account's usage limit
- * ran out. When the provider reported when the limit resets, Paperclip asks for
+ * ran out. When the provider reported when the limit resets, Outpost asks for
  * the task's Retry itself at that time, as the accountable user would. Retry
  * admission keeps every gate (stop proof, saved work, action reconciliation),
  * so this never starts work a user's own Retry could not.
@@ -49,7 +49,7 @@ function providerFailureOf(payload: unknown) {
 
 export type ProviderLimitReset = {
   resetAt: Date; observedAt: Date;
-  /** False for a reset further out than Paperclip waits by itself (a monthly limit). */
+  /** False for a reset further out than Outpost waits by itself (a monthly limit). */
   withinAutomaticWait: boolean;
 };
 
@@ -60,12 +60,12 @@ export type ProviderLimitReset = {
  */
 export async function readNativeUsageLimitReset(
   db: Pick<Db, "select">,
-  run: { id: string; companyId: string },
+  run: { id: string; spaceId: string },
 ): Promise<ProviderLimitReset | null> {
   const [lastTurn] = await db.select({ eventType: heartbeatRunEvents.eventType, payload: heartbeatRunEvents.payload,
     createdAt: heartbeatRunEvents.createdAt })
     .from(heartbeatRunEvents).where(and(
-      eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+      eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
       inArray(heartbeatRunEvents.eventType, [...TURN_STARTED_EVENTS, ...TURN_SETTLED_EVENTS]),
     )).orderBy(desc(heartbeatRunEvents.seq)).limit(1);
   // An unsettled or unobserved turn may still be working: its outcome is unknown.
@@ -84,7 +84,7 @@ export async function readNativeUsageLimitReset(
 async function accountableUser(db: Pick<Db, "select">, run: typeof heartbeatRuns.$inferSelect) {
   const [wake] = run.wakeupRequestId ? await db.select({ type: agentWakeupRequests.requestedByActorType,
     id: agentWakeupRequests.requestedByActorId }).from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.id, run.wakeupRequestId))) : [];
+    eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.id, run.wakeupRequestId))) : [];
   if (wake?.type === "user" && wake.id) return wake.id;
   return run.responsibleUserId ?? null;
 }
@@ -126,7 +126,7 @@ async function settle(db: Db, actionId: string, state: Record<string, unknown>, 
   }).where(and(eq(issueRecoveryActions.id, actionId), sql`${issueRecoveryActions.evidence}->'providerLimitResume' is null`));
 }
 
-/** Why Paperclip did not retry after a reset it announced; the Retry stays.
+/** Why Outpost did not retry after a reset it announced; the Retry stays.
  * Every give-up reason is listed, so no give-up leaves the promise standing. */
 const NOT_RETRIED = {
   source_run_mismatch: "the failed run no longer matches this hold",
@@ -146,15 +146,15 @@ type NotRetriedReason = keyof typeof NOT_RETRIED;
  * prevent a second request.
  */
 export async function requestProviderLimitResumeRetry(db: Db, input: {
-  companyId: string; actionId: string; prepareChatRetry?: PrepareChatRetry;
+  spaceId: string; actionId: string; prepareChatRetry?: PrepareChatRetry;
 }, now = new Date()): Promise<Outcome> {
   const [action] = await db.select().from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, input.actionId)));
+    eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, input.actionId)));
   if (!action || action.status !== "active" || action.kind !== "active_run_watchdog" || action.cause !== NATIVE_PROVIDER_USAGE_LIMIT
     || action.evidence?.providerLimitResume) return { requested: false, reason: "not_waiting" };
   const runId = typeof action.evidence?.runId === "string" ? action.evidence.runId : null;
   const [run] = runId ? await db.select().from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, action.companyId), sql`${heartbeatRuns.id}::text = ${runId}`)) : [];
+    eq(heartbeatRuns.spaceId, action.spaceId), sql`${heartbeatRuns.id}::text = ${runId}`)) : [];
   const done = async (reason: NotRetriedReason, extra: Record<string, unknown> = {}) => {
     // Replace a promise to retry with what the user can do now.
     const nextAction = action.evidence?.providerLimitResetAt
@@ -197,25 +197,25 @@ export async function requestProviderLimitResumeRetry(db: Db, input: {
   if (now.getTime() - reset.resetAt.getTime() > STALE_RESET_MS) return done("reset_stale", { resetAt: reset.resetAt.toISOString() });
   const issueId = action.sourceIssueId;
   const [issue] = await db.select({ status: issues.status, assigneeAgentId: issues.assigneeAgentId }).from(issues)
-    .where(and(eq(issues.companyId, run.companyId), eq(issues.id, issueId)));
+    .where(and(eq(issues.spaceId, run.spaceId), eq(issues.id, issueId)));
   if (!issue || issue.assigneeAgentId !== run.agentId || ["done", "cancelled"].includes(issue.status)) return done("task_changed");
   const actorId = await accountableUser(db, run);
   if (!actorId) return done("no_accountable_user");
   // Bound a provider that keeps reporting resets that do not restore capacity.
   const [lastSuccess] = await db.select({ finishedAt: heartbeatRuns.finishedAt }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.agentId, run.agentId), eq(heartbeatRuns.status, "succeeded"),
+    eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.agentId, run.agentId), eq(heartbeatRuns.status, "succeeded"),
     sql`coalesce(${heartbeatRuns.nativeIssueId}::text, ${heartbeatRuns.issueId}::text, ${heartbeatRuns.contextSnapshot}->>'issueId') = ${issueId}`,
   )).orderBy(desc(heartbeatRuns.finishedAt)).limit(1);
   const earlier = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+    eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
     like(agentWakeupRequests.idempotencyKey, `task-retry:${PROVIDER_LIMIT_RESUME_KEY_PREFIX}%`),
     sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
     lastSuccess?.finishedAt ? gt(agentWakeupRequests.requestedAt, lastSuccess.finishedAt) : undefined,
   )).limit(MAX_AUTOMATIC_RESUMES);
   if (earlier.length >= MAX_AUTOMATIC_RESUMES) return done("automatic_retry_budget_used");
   try {
-    const receipt = await requestTaskRetry({ db, companyId: run.companyId, issueId, actorId,
-      actorSource: actorId === "local-board" ? "local_implicit" : "session",
+    const receipt = await requestTaskRetry({ db, spaceId: run.spaceId, issueId, actorId,
+      actorSource: actorId === "local-operator" ? "local_implicit" : "session",
       idempotencyKey: `${PROVIDER_LIMIT_RESUME_KEY_PREFIX}${run.id}`, observedRunId: run.id,
       initiatedBy: "provider_limit_reset", prepareChatRetry: input.prepareChatRetry });
     if (!receipt.accepted || !receipt.requestId) return done("retry_stale");
@@ -230,9 +230,9 @@ export async function requestProviderLimitResumeRetry(db: Db, input: {
   }
 }
 
-type Scope = { companyId: string };
+type Scope = { spaceId: string };
 const LOAD_PAGE_SIZE = 500;
-type Entry = { id: string; companyId: string; dueAt: number };
+type Entry = { id: string; spaceId: string; dueAt: number };
 
 /**
  * Deadline owner for usage-limit holds: one entry per hold, due at its
@@ -242,7 +242,7 @@ type Entry = { id: string; companyId: string; dueAt: number };
 export function registerProviderLimitResumeWork(
   db: Db,
   coordinator: ReturnType<typeof createDeliveryWorkCoordinator>,
-  owner: { resume(companyId: string, requestId: string): Promise<unknown>; schedulingSuppressed(): Promise<boolean>;
+  owner: { resume(spaceId: string, requestId: string): Promise<unknown>; schedulingSuppressed(): Promise<boolean>;
     /** Read when a Retry is requested: the chat service registers it after startup. */
     prepareChatRetry?: () => PrepareChatRetry | undefined },
   canRun: () => boolean,
@@ -251,15 +251,15 @@ export function registerProviderLimitResumeWork(
   return registerScopedDeadlineWork<Entry, Scope>(coordinator, {
     queue: DELIVERY_QUEUES.providerLimitResume,
     decodeScope: hint => hint === "*" ? undefined : JSON.parse(hint) as Scope,
-    matches: (entry, scope) => !scope || entry.companyId === scope.companyId,
+    matches: (entry, scope) => !scope || entry.spaceId === scope.spaceId,
     load: async scope => {
       // One bounded page per pass, resumed from a stable cursor until every
       // waiting hold is loaded: a hold left out would never retry.
       const key = scope ? JSON.stringify(scope) : "*";
       const cursor = cursors.get(key);
-      const rows = await db.select({ id: issueRecoveryActions.id, companyId: issueRecoveryActions.companyId })
+      const rows = await db.select({ id: issueRecoveryActions.id, spaceId: issueRecoveryActions.spaceId })
         .from(issueRecoveryActions).where(and(
-          scope ? eq(issueRecoveryActions.companyId, scope.companyId) : undefined,
+          scope ? eq(issueRecoveryActions.spaceId, scope.spaceId) : undefined,
           eq(issueRecoveryActions.status, "active"), eq(issueRecoveryActions.kind, "active_run_watchdog"),
           eq(issueRecoveryActions.cause, NATIVE_PROVIDER_USAGE_LIMIT),
           sql`${issueRecoveryActions.evidence}->'providerLimitResume' is null`,
@@ -273,10 +273,10 @@ export function registerProviderLimitResumeWork(
     },
     check: async entry => {
       if (await owner.schedulingSuppressed()) return { ...entry, dueAt: Date.now() + 5 * 60_000 };
-      const outcome = await requestProviderLimitResumeRetry(db, { companyId: entry.companyId, actionId: entry.id,
+      const outcome = await requestProviderLimitResumeRetry(db, { spaceId: entry.spaceId, actionId: entry.id,
         prepareChatRetry: owner.prepareChatRetry?.() });
       if ("waitUntil" in outcome) return { ...entry, dueAt: outcome.waitUntil.getTime() };
-      if (outcome.requested) await owner.resume(entry.companyId, outcome.requestId).catch((error: unknown) =>
+      if (outcome.requested) await owner.resume(entry.spaceId, outcome.requestId).catch((error: unknown) =>
         logger.warn({ err: error, actionId: entry.id }, "provider limit Retry remains queued"));
       return null;
     },

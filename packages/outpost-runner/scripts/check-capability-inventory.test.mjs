@@ -41,13 +41,13 @@ function validInventories() {
     capabilities: {
       schemaVersion: 2,
       inventoryRole: "normative",
-      generatedFrom: ["skills/paperclip/SKILL.md"],
+      generatedFrom: ["skills/outpost/SKILL.md"],
       rows: Array.from({ length: 166 }, (_, index) => row(`capability-${index}`)),
     },
     evaluations: {
       schemaVersion: 2,
       inventoryRole: "normative",
-      generatedFrom: "paperclip-evals/cases",
+      generatedFrom: "outpost-evals/cases",
       rows: evaluations,
     },
     legacyMcpAliases: {

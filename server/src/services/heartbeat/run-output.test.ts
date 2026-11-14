@@ -65,7 +65,7 @@ function createRunRowDb(row: Partial<Run>) {
 
 const newRunRow = {
   id: "run-1",
-  companyId: "company-1",
+  spaceId: "space-1",
   agentId: "agent-1",
   status: "running",
   logStore: null,
@@ -87,7 +87,7 @@ describe("claiming the run log during a storage outage (storage chaos ST1)", () 
 
   it("claims the log once the store is back instead of failing the run", async () => {
     let calls = 0;
-    const begin = vi.fn(async () => (++calls < 2 ? outage() : { store: "s3_segments" as const, logRef: "company/agent/run" }));
+    const begin = vi.fn(async () => (++calls < 2 ? outage() : { store: "s3_segments" as const, logRef: "space/agent/run" }));
     await output(begin).begin({ ...newRunRow } as Run);
     expect(begin).toHaveBeenCalledTimes(2);
   }, 30_000);
@@ -107,11 +107,11 @@ describe("claiming the run log during a storage outage (storage chaos ST1)", () 
     const seen: Array<{ writes: number; events: number; phase: string | undefined; message: string | undefined }> = [];
     let calls = 0;
     const begin = vi.fn(async (input: { assertWriterAuthority?: () => Promise<void> }) => {
-      const status = getHeartbeatRunRuntimeStatus("run-1", { companyId: "company-1", agentId: "agent-1" });
+      const status = getHeartbeatRunRuntimeStatus("run-1", { spaceId: "space-1", agentId: "agent-1" });
       seen.push({ writes: writes.length, events: appendRunEvent.mock.calls.length, phase: status?.phase, message: status?.message });
       if (++calls < 3) return outage();
       await input.assertWriterAuthority?.();
-      return { store: "s3_segments" as const, logRef: "company/agent/run" };
+      return { store: "s3_segments" as const, logRef: "space/agent/run" };
     });
     const recorder = createHeartbeatRunOutput(db, { run: row as Run, runId: "run-1", issueId: "issue-1",
       runLogStore: { begin, append: async () => 0, enqueue: async () => ({ committed: Promise.resolve(0) }), flush: async () => undefined },
@@ -129,18 +129,18 @@ describe("claiming the run log during a storage outage (storage chaos ST1)", () 
       expect.objectContaining({ writes: 0, events: 0, phase: STORAGE_WAIT_PHASE, message: expect.stringContaining("before starting the run log") }),
       expect.objectContaining({ writes: 0, events: 0, phase: STORAGE_WAIT_PHASE }),
     ]);
-    expect(writes).toEqual([expect.objectContaining({ logStore: "s3_segments", logRef: "company/agent/run" })]);
+    expect(writes).toEqual([expect.objectContaining({ logStore: "s3_segments", logRef: "space/agent/run" })]);
     expect(appendRunEvent).toHaveBeenCalledTimes(1);
     expect(appendRunEvent).toHaveBeenCalledWith(row, expect.objectContaining({ eventType: "lifecycle",
       message: expect.stringMatching(/^Waited \d+s for file storage before starting the run log\.$/),
       payload: expect.objectContaining({ reason: "storage_outage_wait", recovered: true }) }));
-    expect(getHeartbeatRunRuntimeStatus("run-1", { companyId: "company-1", agentId: "agent-1" })?.phase).toBe("run_activity");
+    expect(getHeartbeatRunRuntimeStatus("run-1", { spaceId: "space-1", agentId: "agent-1" })?.phase).toBe("run_activity");
   }, 30_000);
 
   it("stops waiting as soon as the run is stopped", async () => {
     const stop = new AbortController();
     const begin = vi.fn(async () => outage());
-    setTimeout(() => stop.abort(new Error("Stopped by a board operator")), 100);
+    setTimeout(() => stop.abort(new Error("Stopped by a operator operator")), 100);
     const startedAt = Date.now();
     await expect(output(begin, stop.signal).begin({ ...newRunRow } as Run)).rejects.toBeTruthy();
     expect(Date.now() - startedAt).toBeLessThan(1_500);
@@ -173,7 +173,7 @@ afterEach(async () => {
 describe("heartbeat run output log recovery", () => {
   it("keeps active diagnostic identity and current-user redaction while idle retention stays content-free", async () => {
     const row = { ...newRunRow }, store = objectLogFixture(), idle = vi.fn();
-    const owner = { companyId: row.companyId!, runId: row.id!, sessionScope: "synthetic-session" };
+    const owner = { spaceId: row.spaceId!, runId: row.id!, sessionScope: "synthetic-session" };
     const events = vi.fn(async () => undefined);
     const output = createHeartbeatRunOutput(createRunRowDb(row), { run: row as Run, runId: row.id!, issueId: null,
       runLogStore: store, identityRedactor: createAgentIdentityRedactor("SYNTHETIC_PRIVATE_KEY"), secretKeys: new Set(), appendRunEvent: events,
@@ -208,7 +208,7 @@ describe("heartbeat run output log recovery", () => {
       } }) }),
     } as unknown as Db;
     const output = createHeartbeatRunOutput(db, { run: row as Run, runId: row.id!, issueId: null,
-      runLogStore: { begin: async () => ({ store: "s3_segments", logRef: "synthetic-company/agent/run" }),
+      runLogStore: { begin: async () => ({ store: "s3_segments", logRef: "synthetic-space/agent/run" }),
         append: async () => 10, enqueue: async () => {
           if (phase === "enqueue") throw new Error("synthetic object admission failure");
           return { committed: Promise.resolve(10) };
@@ -218,13 +218,13 @@ describe("heartbeat run output log recovery", () => {
     const handlers = await output.begin(row as Run);
     if (phase === "export") await handlers.onPersistedNativeLog!(1, "synthetic canonical source");
     else {
-      const owner = { companyId: row.companyId!, runId: row.id!, sessionScope: "synthetic-session" };
+      const owner = { spaceId: row.spaceId!, runId: row.id!, sessionScope: "synthetic-session" };
       const channel = new NativeSessionDiagnostics(owner, owner, vi.fn(), vi.fn());
       const lease = channel.activate(owner, handlers.onLog);
       channel.record("accepted active diagnostic");
       lease.retire();
     }
-    await vi.waitFor(() => expect(events).toHaveBeenCalledWith(expect.objectContaining({ id: row.id, companyId: row.companyId }),
+    await vi.waitFor(() => expect(events).toHaveBeenCalledWith(expect.objectContaining({ id: row.id, spaceId: row.spaceId }),
       expect.objectContaining({ level: "warn", payload: { reason: "object_log_persistence_failed" } })));
   });
 
@@ -258,7 +258,7 @@ describe("heartbeat run output log recovery", () => {
     const { onLog } = await beginAttempt(store, row);
     await onLog("stdout", "hello\n");
     expect(calls).toEqual({ head: 0, get: 0 });
-    expect(row.logRef).toBe(path.join("company-1", "agent-1", "run-1.ndjson"));
+    expect(row.logRef).toBe(path.join("space-1", "agent-1", "run-1.ndjson"));
   });
 
   it("restores an existing attempt's durable log after local state is lost", async () => {
@@ -310,7 +310,7 @@ describe("object-backed diagnostic recording", () => {
       runLogStore: {
         begin: async () => ({
           store: "s3_segments",
-          logRef: "company/agent/run",
+          logRef: "space/agent/run",
           initialSourceCursor: 0,
         }),
         append: async () => 0,
@@ -369,7 +369,7 @@ describe("object-backed diagnostic recording", () => {
       runLogStore: {
         begin: async () => ({
           store: "s3_segments",
-          logRef: "company/agent/run",
+          logRef: "space/agent/run",
           initialBytes: 0,
           initialSequence: 10,
         }),

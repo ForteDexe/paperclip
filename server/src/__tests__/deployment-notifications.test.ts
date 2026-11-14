@@ -31,7 +31,7 @@ async function open(handoffMs = 120_000) {
 }
 async function listenerCount() {
   const [row] = await b.execute<{ count: number }>(sql`select count(*)::int as count from pg_stat_activity
-    where datname = current_database() and application_name = 'paperclip-deployment-notifications'`);
+    where datname = current_database() and application_name = 'outpost-deployment-notifications'`);
   return row!.count;
 }
 
@@ -66,29 +66,29 @@ it("delivers committed hints across independent pools, without exposing an outer
   } finally { unsubscribe(); await fixture.stop(); }
 });
 
-it("reconstructs on listener reconnect and scopes live refresh hints to the company", async () => {
+it("reconstructs on listener reconnect and scopes live refresh hints to the space", async () => {
   const fixture = await open();
   let refreshed = 0, other = 0, reconstructed = 0;
-  const companyId = randomUUID();
-  const stopCompany = fixture.bridge.subscribeCompany(companyId, () => { refreshed++; });
-  const stopOther = fixture.bridge.subscribeCompany(randomUUID(), () => { other++; });
+  const spaceId = randomUUID();
+  const stopSpace = fixture.bridge.subscribeSpace(spaceId, () => { refreshed++; });
+  const stopOther = fixture.bridge.subscribeSpace(randomUUID(), () => { other++; });
   const stopQueue = subscribeDatabaseWork(a, "test-reconstruction", () => { reconstructed++; });
   try {
-    await publishDatabaseWorkHint(b, `live:${companyId}`);
+    await publishDatabaseWorkHint(b, `live:${spaceId}`);
     await eventually(async () => refreshed === 1);
     expect(other).toBe(0);
     await b.execute(sql`select pg_terminate_backend(pid) from pg_stat_activity where datname = current_database()
-      and application_name = 'paperclip-deployment-notifications'`);
+      and application_name = 'outpost-deployment-notifications'`);
     await eventually(async () => reconstructed > 0);
-    // Reconnect cannot know which hints were lost, so it refreshes both company
+    // Reconnect cannot know which hints were lost, so it refreshes both space
     // subscriptions and existing durable queue consumers once.
     expect(other).toBeGreaterThan(0);
-  } finally { stopCompany(); stopOther(); stopQueue(); await fixture.stop(); }
+  } finally { stopSpace(); stopOther(); stopQueue(); await fixture.stop(); }
 });
 
 it("disconnects at the handoff deadline, reopens for active execution and becomes quiet again", async () => {
   const fixture = await open(25), runId = randomUUID();
-  const stopCompany = fixture.bridge.subscribeCompany(randomUUID(), () => {});
+  const stopSpace = fixture.bridge.subscribeSpace(randomUUID(), () => {});
   try {
     expect(await listenerCount()).toBe(1);
     fixture.bridge.markReady();
@@ -98,5 +98,5 @@ it("disconnects at the handoff deadline, reopens for active execution and become
     setNativeExecutionActive(runId, false);
     await eventually(async () => await listenerCount() === 0);
     expect(fixture.errors).toEqual([]);
-  } finally { setNativeExecutionActive(runId, false); stopCompany(); await fixture.stop(); }
+  } finally { setNativeExecutionActive(runId, false); stopSpace(); await fixture.stop(); }
 });

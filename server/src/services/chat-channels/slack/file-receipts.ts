@@ -186,7 +186,7 @@ export function createSlackFileReceipts(db: Db, options: SlackFileReceiptsOption
         .where(
           and(
             eq(chatPublications.id, input.publication.id),
-            eq(chatPublications.companyId, input.publication.companyId),
+            eq(chatPublications.spaceId, input.publication.spaceId),
             eq(chatPublications.endpointId, input.publication.endpointId),
             eq(
               chatPublications.conversationId,
@@ -216,7 +216,7 @@ export function createSlackFileReceipts(db: Db, options: SlackFileReceiptsOption
             .where(
               and(
                 eq(chatConversations.id, input.conversation.id),
-                eq(chatConversations.companyId, input.publication.companyId),
+                eq(chatConversations.spaceId, input.publication.spaceId),
                 eq(chatConversations.endpointId, input.endpoint.id),
                 inArray(chatConversations.state, [
                   "active",
@@ -242,7 +242,7 @@ export function createSlackFileReceipts(db: Db, options: SlackFileReceiptsOption
       const inserted = await tx
         .insert(chatActions)
         .values({
-          companyId: input.publication.companyId,
+          spaceId: input.publication.spaceId,
           endpointId: input.publication.endpointId,
           conversationId: input.publication.conversationId,
           kind: "slack_file_upload_receipt",
@@ -318,7 +318,7 @@ export function createSlackFileReceipts(db: Db, options: SlackFileReceiptsOption
       );
     if (input.stageSessionSync) {
       await stageSlackSessionSync(tx, {
-        companyId: input.publication.companyId,
+        spaceId: input.publication.spaceId,
         endpointId: input.publication.endpointId,
         conversationId: input.publication.conversationId,
         runtimeGeneration: input.runtimeContext.generation,
@@ -362,7 +362,7 @@ export function createSlackFileReceipts(db: Db, options: SlackFileReceiptsOption
           .where(
             and(
               eq(chatActions.id, input.actionId),
-              eq(chatActions.companyId, publication.companyId),
+              eq(chatActions.spaceId, publication.spaceId),
               eq(chatActions.endpointId, publication.endpointId),
               eq(chatActions.conversationId, publication.conversationId),
               eq(chatActions.kind, "slack_file_upload_receipt"),
@@ -399,7 +399,7 @@ export function createSlackFileReceipts(db: Db, options: SlackFileReceiptsOption
         .from(chatMessageLinks)
         .where(
           and(
-            eq(chatMessageLinks.companyId, publication.companyId),
+            eq(chatMessageLinks.spaceId, publication.spaceId),
             eq(chatMessageLinks.endpointId, publication.endpointId),
             eq(chatMessageLinks.conversationId, publication.conversationId),
             eq(chatMessageLinks.publicationId, publication.id),
@@ -442,7 +442,7 @@ export function createSlackFileReceipts(db: Db, options: SlackFileReceiptsOption
           .where(
             and(
               eq(chatConversations.id, publication.conversationId),
-              eq(chatConversations.companyId, publication.companyId),
+              eq(chatConversations.spaceId, publication.spaceId),
               eq(chatConversations.endpointId, publication.endpointId),
               eq(chatConversations.externalThreadId, input.payload.threadId),
               inArray(chatConversations.state, [
@@ -463,7 +463,7 @@ export function createSlackFileReceipts(db: Db, options: SlackFileReceiptsOption
             .where(
               and(
                 eq(chatEndpointResources.id, conversation.resourceId),
-                eq(chatEndpointResources.companyId, endpoint.companyId),
+                eq(chatEndpointResources.spaceId, endpoint.spaceId),
                 eq(chatEndpointResources.endpointId, endpoint.id),
               ),
             )

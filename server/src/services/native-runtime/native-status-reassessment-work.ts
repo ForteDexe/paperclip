@@ -8,7 +8,7 @@ import { registerScopedDeadlineWork } from "../scoped-deadline-work.js";
 import { nativeRunnerOwnershipNotHeldCondition } from "./native-runner-ownership.js";
 import { reassessNativeStatusFromSource } from "./native-status-reassessment.js";
 
-type Entry = { id: string; companyId: string; issueId: string; agentId: string; dueAt: number };
+type Entry = { id: string; spaceId: string; issueId: string; agentId: string; dueAt: number };
 
 export function nativeStatusReassessmentWork(db: Db) {
   function candidates(scope?: NativeStatusReassessmentScope, after?: string, runId?: string) {
@@ -23,17 +23,17 @@ export function nativeStatusReassessmentWork(db: Db) {
     const statusChanged = and(not(matchesDecision), or(ne(workAssessments.priorIssueStatus, issues.status),
       ne(workAssessments.priorStatusVersion, issues.statusVersion)));
     const evidenceChanged = exists(db.select({ id: issueWorkProducts.id }).from(issueWorkProducts).where(and(
-      eq(issueWorkProducts.companyId, nativeRunFinalizations.companyId), eq(issueWorkProducts.issueId, nativeRunFinalizations.issueId),
+      eq(issueWorkProducts.spaceId, nativeRunFinalizations.spaceId), eq(issueWorkProducts.issueId, nativeRunFinalizations.issueId),
       or(gt(issueWorkProducts.createdAt, workAssessments.createdAt), gt(issueWorkProducts.updatedAt, workAssessments.createdAt)),
     )));
     const retiredReview = exists(db.select({ id: issueThreadInteractions.id }).from(issueThreadInteractions).where(and(
-      eq(issueThreadInteractions.companyId, nativeRunFinalizations.companyId), eq(issueThreadInteractions.issueId, nativeRunFinalizations.issueId),
+      eq(issueThreadInteractions.spaceId, nativeRunFinalizations.spaceId), eq(issueThreadInteractions.issueId, nativeRunFinalizations.issueId),
       eq(issueThreadInteractions.status, "cancelled"), sql`${issueThreadInteractions.result}->>'reason' = 'automatic_completion_review_removed'`,
       sql`(${issueThreadInteractions.payload}->'target'->>'revisionId' = ${statusDecisions.id}::text
         or ${statusDecisions.decisionJson}->'effects' @> jsonb_build_array(jsonb_build_object('gate',
           jsonb_build_object('kind', 'interaction', 'id', ${issueThreadInteractions.id}::text))))`,
     )));
-    return db.select({ runId: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+    return db.select({ runId: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
       issueId: issues.id, issueStatus: issues.status, issueStatusVersion: issues.statusVersion,
       issueDecisionId: issues.lastStatusDecisionId, coordinatorPhase: nativeRunFinalizations.phase,
       assessmentId: workAssessments.id, decisionId: nativeRunFinalizations.decisionId, nativeStatusWakeIntentId: sql<unknown>`${heartbeatRuns.contextSnapshot}->'nativeStatusWakeIntentId'`,
@@ -41,13 +41,13 @@ export function nativeStatusReassessmentWork(db: Db) {
       leaseExpiresAt: nativeRunFinalizations.leaseExpiresAt,
     }).from(nativeRunFinalizations)
       .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, nativeRunFinalizations.runId),
-        eq(heartbeatRuns.companyId, nativeRunFinalizations.companyId), eq(heartbeatRuns.nativeIssueId, nativeRunFinalizations.issueId)))
-      .innerJoin(issues, and(eq(issues.id, nativeRunFinalizations.issueId), eq(issues.companyId, nativeRunFinalizations.companyId)))
+        eq(heartbeatRuns.spaceId, nativeRunFinalizations.spaceId), eq(heartbeatRuns.nativeIssueId, nativeRunFinalizations.issueId)))
+      .innerJoin(issues, and(eq(issues.id, nativeRunFinalizations.issueId), eq(issues.spaceId, nativeRunFinalizations.spaceId)))
       .innerJoin(workAssessments, and(eq(workAssessments.id, nativeRunFinalizations.assessmentId),
-        eq(workAssessments.companyId, nativeRunFinalizations.companyId), eq(workAssessments.issueId, nativeRunFinalizations.issueId),
+        eq(workAssessments.spaceId, nativeRunFinalizations.spaceId), eq(workAssessments.issueId, nativeRunFinalizations.issueId),
         eq(workAssessments.runId, nativeRunFinalizations.runId)))
       .leftJoin(statusDecisions, and(eq(statusDecisions.id, nativeRunFinalizations.decisionId),
-        eq(statusDecisions.companyId, nativeRunFinalizations.companyId), eq(statusDecisions.issueId, nativeRunFinalizations.issueId)))
+        eq(statusDecisions.spaceId, nativeRunFinalizations.spaceId), eq(statusDecisions.issueId, nativeRunFinalizations.issueId)))
       .where(and(eq(heartbeatRuns.runtimeMode, "native"), nativeRunnerOwnershipNotHeldCondition(),
         ne(nativeRunFinalizations.phase, "terminal_failure"), isNotNull(nativeRunFinalizations.resultId),
         or(isNull(nativeRunFinalizations.leaseOwner), isNotNull(nativeRunFinalizations.leaseExpiresAt)),
@@ -58,10 +58,10 @@ export function nativeStatusReassessmentWork(db: Db) {
             and ${workAssessments.priorDecisionId} = ${issues.lastStatusDecisionId}, false), false)`,
         or(statusChanged, evidenceChanged, and(matchesDecision, retiredReview)),
         notExists(db.select({ id: statusDecisionEffects.id }).from(statusDecisionEffects).where(and(
-          eq(statusDecisionEffects.companyId, nativeRunFinalizations.companyId), eq(statusDecisionEffects.issueId, nativeRunFinalizations.issueId),
+          eq(statusDecisionEffects.spaceId, nativeRunFinalizations.spaceId), eq(statusDecisionEffects.issueId, nativeRunFinalizations.issueId),
           eq(statusDecisionEffects.decisionId, nativeRunFinalizations.decisionId), inArray(statusDecisionEffects.deliveryState, ["pending", "failed"]),
         ))),
-        scope ? eq(nativeRunFinalizations.companyId, scope.companyId) : undefined,
+        scope ? eq(nativeRunFinalizations.spaceId, scope.spaceId) : undefined,
         scope?.issueId ? eq(nativeRunFinalizations.issueId, scope.issueId) : undefined,
         scope?.runId ? eq(nativeRunFinalizations.runId, scope.runId) : undefined,
         scope?.agentId ? eq(heartbeatRuns.agentId, scope.agentId) : undefined,
@@ -70,7 +70,7 @@ export function nativeStatusReassessmentWork(db: Db) {
       )).orderBy(asc(nativeRunFinalizations.runId)).limit(100);
   }
   function entry(row: Awaited<ReturnType<typeof candidates>>[number]): Entry {
-    return { id: row.runId, companyId: row.companyId, issueId: row.issueId, agentId: row.agentId,
+    return { id: row.runId, spaceId: row.spaceId, issueId: row.issueId, agentId: row.agentId,
       dueAt: Math.max(row.nextAttemptAt?.getTime() ?? 0, row.leaseOwner !== null ? row.leaseExpiresAt!.getTime() : 0) };
   }
   async function load(scope?: NativeStatusReassessmentScope, signal?: AbortSignal, canRun = () => true): Promise<Entry[]> {
@@ -86,7 +86,7 @@ export function nativeStatusReassessmentWork(db: Db) {
   }
   async function check(current: Entry, signal?: AbortSignal): Promise<Entry | null> {
     if (signal?.aborted) throw new Error("Native status reassessment stopped");
-    const scope = { companyId: current.companyId, issueId: current.issueId, runId: current.id };
+    const scope = { spaceId: current.spaceId, issueId: current.issueId, runId: current.id };
     const [source] = await candidates(scope);
     if (!source) return null;
     const due = entry(source);
@@ -103,7 +103,7 @@ export function nativeStatusReassessmentWork(db: Db) {
     return registerScopedDeadlineWork(coordinator, {
       queue: DELIVERY_QUEUES.nativeStatusReassessment,
       decodeScope: (hint: string): NativeStatusReassessmentScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
-      matches: (item: Entry, scope?: NativeStatusReassessmentScope) => !scope || item.companyId === scope.companyId
+      matches: (item: Entry, scope?: NativeStatusReassessmentScope) => !scope || item.spaceId === scope.spaceId
         && (!scope.issueId || item.issueId === scope.issueId) && (!scope.runId || item.id === scope.runId)
         && (!scope.agentId || item.agentId === scope.agentId),
       load: (scope, signal) => load(scope, signal, canRun),

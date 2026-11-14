@@ -6,14 +6,14 @@ import { useQueryView } from "@/components/QueryView";
 import { queryKeys } from "@/lib/queryKeys";
 
 export function useConnectionModelsState(
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   binding: AiConnectionBinding | undefined,
   harness: string,
 ) {
   const accounts = useQuery({
-    queryKey: ["ai-connections", companyId],
-    queryFn: () => aiConnectionsApi.list(companyId!),
-    enabled: Boolean(companyId && binding),
+    queryKey: ["ai-connections", spaceId],
+    queryFn: () => aiConnectionsApi.list(spaceId!),
+    enabled: Boolean(spaceId && binding),
   });
   const connection = accounts.data?.connections.find((c) =>
     binding?.mode === "responsible_user"
@@ -27,9 +27,9 @@ export function useConnectionModelsState(
   // strip only that transport prefix for other harnesses (openrouter/auto is
   // itself a valid upstream model ID).
   const catalog = useQuery({
-    queryKey: queryKeys.agents.adapterModels(companyId ?? "none", "opencode_local", null, "openrouter"),
-    queryFn: () => agentsApi.adapterModels(companyId!, "opencode_local", { provider: "openrouter" }),
-    enabled: Boolean(companyId && discover),
+    queryKey: queryKeys.agents.adapterModels(spaceId ?? "none", "opencode_local", null, "openrouter"),
+    queryFn: () => agentsApi.adapterModels(spaceId!, "opencode_local", { provider: "openrouter" }),
+    enabled: Boolean(spaceId && discover),
     staleTime: 60_000,
   });
   const catalogView = useQueryView(catalog);
@@ -63,9 +63,9 @@ export function useConnectionModelsState(
 }
 
 export function useConnectionModels(
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   binding: AiConnectionBinding | undefined,
   harness: string,
 ) {
-  return useConnectionModelsState(companyId, binding, harness).connectionModels;
+  return useConnectionModelsState(spaceId, binding, harness).connectionModels;
 }

@@ -7,7 +7,7 @@ import {
   chatGitHubConfigurations,
   chatGitHubReviews,
   chatIdentityLinks,
-  companyMemberships,
+  spaceMemberships,
   type Db,
 } from "@outpost/db";
 import {
@@ -44,11 +44,11 @@ export function githubBodyMentionsBot(body: string, username: string | null): bo
 /**
  * A thread subscription must not turn a request for another connected bot
  * into work for this bot. A leading mention explicitly selects a recipient,
- * including Apps outside Paperclip. Incidental human mentions still follow
+ * including Apps outside Outpost. Incidental human mentions still follow
  * thread policy, and explicitly mentioning this bot always wins. */
 export async function githubMessageAddressesAnotherRecipient(
   db: Db | Parameters<Parameters<Db["transaction"]>[0]>[0],
-  endpoint: Pick<typeof chatEndpoints.$inferSelect, "id" | "companyId" | "botUsername">,
+  endpoint: Pick<typeof chatEndpoints.$inferSelect, "id" | "spaceId" | "botUsername">,
   body: string,
 ): Promise<boolean> {
   if (!body.includes("@") || githubBodyMentionsBot(body, endpoint.botUsername)) return false;
@@ -58,7 +58,7 @@ export async function githubMessageAddressesAnotherRecipient(
     .from(chatEndpoints)
     .where(
       and(
-        eq(chatEndpoints.companyId, endpoint.companyId),
+        eq(chatEndpoints.spaceId, endpoint.spaceId),
         eq(chatEndpoints.provider, "github"),
         ne(chatEndpoints.id, endpoint.id),
         ne(chatEndpoints.status, "archived"),
@@ -227,7 +227,7 @@ export function githubAutomaticReviewEvent(
 
 export async function githubAutomaticAdmission(
   db: Db | Parameters<Parameters<Db["transaction"]>[0]>[0],
-  endpoint: Pick<typeof chatEndpoints.$inferSelect, "id" | "companyId">,
+  endpoint: Pick<typeof chatEndpoints.$inferSelect, "id" | "spaceId">,
   context: GitHubAutomaticPolicyContext,
 ) {
   const [saved] = await db
@@ -235,7 +235,7 @@ export async function githubAutomaticAdmission(
     .from(chatGitHubConfigurations)
     .where(
       and(
-        eq(chatGitHubConfigurations.companyId, endpoint.companyId),
+        eq(chatGitHubConfigurations.spaceId, endpoint.spaceId),
         eq(chatGitHubConfigurations.endpointId, endpoint.id),
       ),
     );
@@ -245,7 +245,7 @@ export async function githubAutomaticAdmission(
     .from(chatEndpointResources)
     .where(
       and(
-        eq(chatEndpointResources.companyId, endpoint.companyId),
+        eq(chatEndpointResources.spaceId, endpoint.spaceId),
         eq(chatEndpointResources.endpointId, endpoint.id),
         eq(
           chatEndpointResources.providerResourceId,
@@ -255,7 +255,7 @@ export async function githubAutomaticAdmission(
     );
   const [link] = await db
     .select({
-      userId: chatIdentityLinks.paperclipUserId,
+      userId: chatIdentityLinks.outpostUserId,
       status: chatIdentityLinks.status,
     })
     .from(chatExternalPrincipals)
@@ -265,7 +265,7 @@ export async function githubAutomaticAdmission(
     )
     .where(
       and(
-        eq(chatExternalPrincipals.companyId, endpoint.companyId),
+        eq(chatExternalPrincipals.spaceId, endpoint.spaceId),
         eq(chatExternalPrincipals.provider, "github"),
         eq(chatExternalPrincipals.externalId, context.author.id),
         eq(chatIdentityLinks.endpointId, endpoint.id),
@@ -273,12 +273,12 @@ export async function githubAutomaticAdmission(
     );
   const members = await db
     .select()
-    .from(companyMemberships)
+    .from(spaceMemberships)
     .where(
       and(
-        eq(companyMemberships.companyId, endpoint.companyId),
-        eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.status, "active"),
+        eq(spaceMemberships.spaceId, endpoint.spaceId),
+        eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.status, "active"),
       ),
     );
   const active = new Set(
@@ -333,7 +333,7 @@ export async function githubPreviousAssessment(
     .from(chatGitHubReviews)
     .where(
       and(
-        eq(chatGitHubReviews.companyId, endpoint.companyId),
+        eq(chatGitHubReviews.spaceId, endpoint.spaceId),
         eq(chatGitHubReviews.endpointId, endpoint.id),
         eq(chatGitHubReviews.repositoryId, repositoryId),
         eq(chatGitHubReviews.pullNumber, pullNumber),

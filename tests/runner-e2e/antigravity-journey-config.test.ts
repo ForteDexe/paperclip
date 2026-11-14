@@ -13,24 +13,24 @@ vi.mock("node:child_process", async original => ({ ...await original<typeof impo
 vi.mock("./antigravity-journey-evidence.js", async original => ({ ...await original<typeof import("./antigravity-journey-evidence.js")>(),
   reacquireAntigravityNativeFences: vi.fn(async () => {}) }));
 
-const companyId = "11111111-1111-4111-8111-111111111111", environmentId = "22222222-2222-4222-8222-222222222222";
+const spaceId = "11111111-1111-4111-8111-111111111111", environmentId = "22222222-2222-4222-8222-222222222222";
 const connectionId = "33333333-3333-4333-8333-333333333333", agentId = "44444444-4444-4444-8444-444444444444", runId = "55555555-5555-4555-8555-555555555555";
 function fixture() { return { version: 1, setupId: "synthetic", hosting: "self-hosted", executionEnvironment: "local",
-  target: { mode: "attach", baseURL: "http://127.0.0.1:3104", expectedCommit: "a".repeat(40), deploymentMode: "local_trusted", companyId, environmentId },
+  target: { mode: "attach", baseURL: "http://127.0.0.1:3104", expectedCommit: "a".repeat(40), deploymentMode: "local_trusted", spaceId, environmentId },
   browser: { headed: false, channel: "chromium", freshness: "signed-in" }, savedConnection: { id: connectionId, name: "Synthetic Google subscription", ownerUserId: "synthetic-user" },
   candidate: { platform: "darwin", architecture: "arm64", nativeVersion: "1.4.3-outpost.5", profileDigest: `sha256:${"b".repeat(64)}`, nativeClosureDigest: `sha256:${"c".repeat(64)}` },
   limits: { durationMs: 900_000, turnTimeoutMs: 300_000, maxRuns: 2, budgetCents: 100 } }; }
 function resources(): AntigravityJourneyResources { return { version: 1, executionId: ANTIGRAVITY_JOURNEY_EXECUTION, origin: "http://127.0.0.1:3104",
-  companyId, environmentId, connectionId, agentName: "Antigravity QA 0123456789ab", agentId, runIds: [], processes: {}, retained: false, setupProbe: "not_started" }; }
+  spaceId, environmentId, connectionId, agentName: "Antigravity QA 0123456789ab", agentId, runIds: [], processes: {}, retained: false, setupProbe: "not_started" }; }
 function neverLaunched() {
   const owned = resources(); owned.runIds = [runId]; owned.issueId = "66666666-6666-4666-8666-666666666666"; owned.setupProbe = "retired";
   const leaseId = "77777777-7777-4777-8777-777777777777";
-  const run: Record<string, any> = { id: runId, companyId, agentId, issueId: owned.issueId, status: "cancelled", executionStage: "settled", costAccountingPending: false,
+  const run: Record<string, any> = { id: runId, spaceId, agentId, issueId: owned.issueId, status: "cancelled", executionStage: "settled", costAccountingPending: false,
     runtimeMode: "legacy", runtimeModeResolvedAt: null, controllerLeaseExpiresAt: null, processPid: null, processGroupId: null, processStartedAt: null,
     runnerInstanceId: null, nativeSessionId: null, driverKind: null, completionContractId: null, runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
     resultJson: { startupCancellation: { beforeNativeSelection: true, errorCode: "cancelled", requestedAt: "2026-01-01T00:00:00Z" }, startupPreparationSettledAt: "2026-01-01T00:00:02Z" },
     contextSnapshot: { outpostEnvironment: { id: environmentId, driver: "local", leaseId } } };
-  const lease: Record<string, any> = { id: leaseId, companyId, heartbeatRunId: runId, environmentId, status: "expired", releasedAt: "2026-01-01T00:00:01Z" };
+  const lease: Record<string, any> = { id: leaseId, spaceId, heartbeatRunId: runId, environmentId, status: "expired", releasedAt: "2026-01-01T00:00:01Z" };
   return { owned, run, lease };
 }
 it("retains accepted physical ownership when a primary report projection throws", () => {
@@ -48,13 +48,13 @@ it("retains accepted physical ownership when a primary report projection throws"
 it.each(["released", "expired"])("persists authoritative pre-native cancellation with a %s lease before purge", async status => {
   const { owned, run, lease } = neverLaunched(); lease.status = status;
   let lifecycleState = "ready", saved = false;
-  const agent = () => ({ id: agentId, companyId, name: owned.agentName, lifecycleState });
+  const agent = () => ({ id: agentId, spaceId, name: owned.agentName, lifecycleState });
   const get = vi.fn(async (route: string) => {
     if (route.endsWith("/agents")) return [agent()];
     if (route.includes("heartbeat-runs?")) return [run];
     if (route === `/api/heartbeat-runs/${runId}`) return run;
     if (route === `/api/environment-leases/${lease.id}`) return lease;
-    if (route === `/api/issues/${owned.issueId}`) return { id: owned.issueId, companyId, assigneeAgentId: agentId, status: "cancelled" };
+    if (route === `/api/issues/${owned.issueId}`) return { id: owned.issueId, spaceId, assigneeAgentId: agentId, status: "cancelled" };
     if (route === `/api/agents/${agentId}`) return agent();
     if (route.endsWith("/ai-connections")) return { connections: [{ id: connectionId, provider: "google", method: "subscription", ownerUserId: "synthetic-user", isDefault: true, status: "connected" }] };
     throw new Error(`Unexpected cleanup read ${route}`);
@@ -90,7 +90,7 @@ it.each([
 it("retains the agent if authoritative no-launch evidence cannot be persisted", async () => {
   const { owned, run, lease } = neverLaunched(), post = vi.fn(), remove = vi.fn();
   const get = vi.fn(async (route: string) => {
-    if (route.endsWith("/agents")) return [{ id: agentId, companyId, name: owned.agentName }];
+    if (route.endsWith("/agents")) return [{ id: agentId, spaceId, name: owned.agentName }];
     if (route.includes("heartbeat-runs?")) return [run];
     if (route === `/api/heartbeat-runs/${runId}`) return run;
     if (route === `/api/environment-leases/${lease.id}`) return lease;
@@ -114,10 +114,10 @@ it.each(["settles", "timeout", "wrong_owner", "malformed"])("waits for an origin
     const { owned, run, lease } = neverLaunched(), settledRun = structuredClone(run), settledLease = structuredClone(lease);
     run.executionStage = "preparing"; run.costAccountingPending = true; delete run.resultJson.startupPreparationSettledAt;
     run.controllerLeaseExpiresAt = "2026-01-01T00:00:04Z"; lease.status = "active"; lease.releasedAt = null;
-    if (scenario === "wrong_owner") lease.companyId = agentId;
+    if (scenario === "wrong_owner") lease.spaceId = agentId;
     if (scenario === "malformed") run.resultJson.startupCancellation.requestedAt = "invalid-timestamp";
     let fullReads = 0, lifecycleState = "ready", persisted = false;
-    const agent = () => ({ id: agentId, companyId, name: owned.agentName, lifecycleState });
+    const agent = () => ({ id: agentId, spaceId, name: owned.agentName, lifecycleState });
     const get = vi.fn(async (route: string) => {
       if (route.endsWith("/agents")) return [agent()];
       if (route.includes("heartbeat-runs?")) return [structuredClone(run)];
@@ -126,7 +126,7 @@ it.each(["settles", "timeout", "wrong_owner", "malformed"])("waits for an origin
         return structuredClone(run);
       }
       if (route === `/api/environment-leases/${lease.id}`) return structuredClone(lease);
-      if (route === `/api/issues/${owned.issueId}`) return { id: owned.issueId, companyId, assigneeAgentId: agentId, status: "cancelled" };
+      if (route === `/api/issues/${owned.issueId}`) return { id: owned.issueId, spaceId, assigneeAgentId: agentId, status: "cancelled" };
       if (route === `/api/agents/${agentId}`) return agent();
       if (route.endsWith("/ai-connections")) return { connections: [{ id: connectionId, provider: "google", method: "subscription", ownerUserId: "synthetic-user", isDefault: true, status: "connected" }] };
       throw new Error("Unexpected cleanup read");
@@ -169,13 +169,13 @@ it("rejects widened turns, Linux inventory, live credential values and a signed-
     (v: any) => { v.limits.turnTimeoutMs = "300000"; },
   ]) { const value = fixture(); edit(value); expect(() => parseAntigravityJourneyConfig(value)).toThrow("invalid_antigravity_journey_configuration"); }
 });
-it("binds owned-resource recovery to the exact company, environment and saved account", () => {
+it("binds owned-resource recovery to the exact space, environment and saved account", () => {
   const config = parseAntigravityJourneyConfig(fixture());
   expect(parseAntigravityOwnedResources(resources(), config).agentId).toBe(agentId);
-  for (const patch of [{ companyId: environmentId }, { environmentId: companyId }, { connectionId: agentId }, { origin: "https://other.example" }, { agentName: "Existing user agent" }])
+  for (const patch of [{ spaceId: environmentId }, { environmentId: spaceId }, { connectionId: agentId }, { origin: "https://other.example" }, { agentName: "Existing user agent" }])
     expect(() => parseAntigravityOwnedResources({ ...resources(), ...patch }, config)).toThrow("invalid_antigravity_owned_resources");
 });
-it("accepts a company-allowed instance environment without inventing company ownership", () => {
+it("accepts a space-allowed instance environment without inventing space ownership", () => {
   const environment = { id: environmentId, name: "Local", driver: "local", status: "active" };
   expect(selectAntigravityJourneyEnvironment([environment], environmentId)).toBe(environment);
   expect(() => selectAntigravityJourneyEnvironment([{ ...environment, id: agentId }], environmentId)).toThrow("configured_execution_environment_unavailable");
@@ -183,7 +183,7 @@ it("accepts a company-allowed instance environment without inventing company own
 });
 it.each(["failed", "interrupted", "timed_out"])("retains an owned %s run when physical ownership was never captured", async status => {
   const owned = resources(); owned.runIds = [runId];
-  const agent = { id: agentId, companyId, name: owned.agentName }, run = { id: runId, agentId, companyId, status };
+  const agent = { id: agentId, spaceId, name: owned.agentName }, run = { id: runId, agentId, spaceId, status };
   const get = vi.fn(async (route: string) => route.includes("/agents") ? [agent] : route.includes("heartbeat-runs?") ? [run] : run);
   const remove = vi.fn(), patch = vi.fn();
   await expect(cleanupAntigravityJourney({ api: { get, patch, delete: remove } as unknown as ConnectionApi,
@@ -196,7 +196,7 @@ it("terminates the owned ready agent before purge and preserves the shared accou
   const owned = resources(); owned.setupProbe = "retired";
   const cleanup = { agent: false, runs: false, connectionPreserved: false };
   let lifecycleState = "ready";
-  const agent = () => ({ id: agentId, companyId, name: owned.agentName, lifecycleState });
+  const agent = () => ({ id: agentId, spaceId, name: owned.agentName, lifecycleState });
   const get = vi.fn(async (route: string) => {
     if (route.endsWith("/agents")) return [agent()];
     if (route.includes("heartbeat-runs?")) return [];
@@ -217,8 +217,8 @@ it.each([false, true])("captures a cleanup-discovered run's settled usage before
     { pid: 9000001, parent: 1, start: "2020-01-01T00:00:00Z" }, { pid: 9000002, parent: 9000001, start: "2020-01-01T00:00:00Z" },
   ] };
   let status = "running", lifecycleState = "ready";
-  const agent = () => ({ id: agentId, companyId, name: owned.agentName, lifecycleState });
-  const run = () => ({ id: runId, agentId, companyId, status, costAccountingPending: status === "running",
+  const agent = () => ({ id: agentId, spaceId, name: owned.agentName, lifecycleState });
+  const run = () => ({ id: runId, agentId, spaceId, status, costAccountingPending: status === "running",
     usageJson: { inputTokens: 100, outputTokens: 20, costUsd: status === "running" ? 0.01 : 0.25 },
     contextSnapshot: { outpostEnvironment: { leaseId: "lease" } } });
   const snapshots: any[] = [];
@@ -230,7 +230,7 @@ it.each([false, true])("captures a cleanup-discovered run's settled usage before
     if (route.endsWith("/agents")) return [agent()];
     if (route.includes("heartbeat-runs?")) return [run()];
     if (route === `/api/heartbeat-runs/${runId}`) return run();
-    if (route === "/api/environment-leases/lease") return { companyId, heartbeatRunId: runId, environmentId, status: "released" };
+    if (route === "/api/environment-leases/lease") return { spaceId, heartbeatRunId: runId, environmentId, status: "released" };
     if (route === `/api/agents/${agentId}`) return agent();
     if (route.endsWith("/ai-connections")) return { connections: [{ id: connectionId, provider: "google", method: "subscription", ownerUserId: "synthetic-user", isDefault: true, status: "connected" }] };
     throw new Error("Unexpected cleanup read");
@@ -250,7 +250,7 @@ it.each([false, true])("captures a cleanup-discovered run's settled usage before
 });
 it("does not erase a failed native setup Test's unconfirmed cleanup with an empty task-run list", async () => {
   const owned = resources(); owned.setupProbe = "retirement_unconfirmed";
-  const agent = { id: agentId, companyId, name: owned.agentName }, remove = vi.fn();
+  const agent = { id: agentId, spaceId, name: owned.agentName }, remove = vi.fn();
   const get = vi.fn(async (route: string) => route.endsWith("/agents") ? [agent] : []);
   await expect(cleanupAntigravityJourney({ api: { get, patch: vi.fn(), delete: remove } as unknown as ConnectionApi,
     config: parseAntigravityJourneyConfig(fixture()), resources: owned, cleanup: { agent: false, runs: true, connectionPreserved: true }, persistResources: async () => {}, captureRun: async () => {} }))
@@ -264,14 +264,14 @@ it.each(["interrupted", "timed_out"].flatMap(status => [false, true].map(pending
     owned.processes[runId] = { captured: true, identityChanged: false, journal: [
       { pid: 9000001, parent: 1, start: "2020-01-01T00:00:00Z" }, { pid: 9000002, parent: 9000001, start: "2020-01-01T00:00:00Z" },
     ] };
-    const agent = { id: agentId, companyId, name: owned.agentName, status: "active" }, run = { id: runId, agentId, companyId, status,
+    const agent = { id: agentId, spaceId, name: owned.agentName, status: "active" }, run = { id: runId, agentId, spaceId, status,
       costAccountingPending: pending, contextSnapshot: { outpostEnvironment: { leaseId: "lease" } } };
     const get = vi.fn(async (route: string) => {
       if (route.endsWith("/agents")) return [agent];
       if (route === `/api/agents/${agentId}`) return agent;
       if (route.includes("heartbeat-runs?")) return [run];
       if (route === `/api/heartbeat-runs/${runId}`) return run;
-      if (route === "/api/environment-leases/lease") return { companyId, heartbeatRunId: runId, environmentId, status: "released" };
+      if (route === "/api/environment-leases/lease") return { spaceId, heartbeatRunId: runId, environmentId, status: "released" };
       if (route.endsWith("/ai-connections")) return { connections: [{ id: connectionId, provider: "google", method: "subscription", ownerUserId: "synthetic-user", isDefault: true, status: "connected" }] };
       throw new Error("Unexpected cleanup read");
     });
@@ -288,7 +288,7 @@ it.each(["interrupted", "timed_out"].flatMap(status => [false, true].map(pending
 });
 it("does not claim retained-agent cleanup when the pause PATCH was ignored", async () => {
   const owned = resources(); owned.setupProbe = "retired";
-  const agent = { id: agentId, companyId, name: owned.agentName, status: "active" };
+  const agent = { id: agentId, spaceId, name: owned.agentName, status: "active" };
   const get = vi.fn(async (route: string) => {
     if (route.endsWith("/agents")) return [agent];
     if (route === `/api/agents/${agentId}`) return agent;
@@ -324,18 +324,18 @@ function deferredOwnerCleanup(discovery: "initial" | "poll" | "transition" = "in
   owned.processes[runId] = { captured: true, identityChanged: false, journal: [
     { pid: 9000001, parent: 1, start: "2020-01-01T00:00:00Z" }, { pid: 9000002, parent: 9000001, start: "2020-01-01T00:00:00Z" },
   ] };
-  const agent = { id: agentId, companyId, name: owned.agentName, status: "active" };
-  const run: Record<string, any> = { id: runId, companyId, agentId, issueId: owned.issueId, nativeIssueId: owned.issueId,
+  const agent = { id: agentId, spaceId, name: owned.agentName, status: "active" };
+  const run: Record<string, any> = { id: runId, spaceId, agentId, issueId: owned.issueId, nativeIssueId: owned.issueId,
     status: "failed", runtimeMode: "native", nativePhase: "retryable_failure", costAccountingPending: false,
     contextSnapshot: { outpostEnvironment: { leaseId: "owned-lease" } }, resultJson: {} };
-  const lease = { id: "owned-lease", companyId, heartbeatRunId: runId, environmentId, status: "released" };
+  const lease = { id: "owned-lease", spaceId, heartbeatRunId: runId, environmentId, status: "released" };
   const state = { listReads: 0, fullReads: 0, stopAtListReads: [] as number[], fullPatch: {} as Record<string, unknown>,
     onStop: async (_body: Record<string, any>) => {} };
   const acknowledge = (body: Record<string, any>, patch: Record<string, unknown> = {}) => {
     run.status = "cancelled"; run.nativePhase = "terminal_failure";
     run.resultJson = { startupCancellation: { cancellationRequestId: body.cancellationRequestId }, nativeCancellation: {
       schema: "outpost.native-cancellation.v1", intentId: `native-cancellation:${body.cancellationRequestId}`,
-      companyId, runId, issueId: owned.issueId, scope: "run", reasonCode: "cancellation_run_only", dispatched: false,
+      spaceId, runId, issueId: owned.issueId, scope: "run", reasonCode: "cancellation_run_only", dispatched: false,
       dispatchState: "acknowledged", intentAuditId: "owned-intent-audit", acknowledgementAuditId: "owned-ack-audit", ...patch,
     } };
   };
@@ -353,7 +353,7 @@ function deferredOwnerCleanup(discovery: "initial" | "poll" | "transition" = "in
       return { ...structuredClone(run), ...(discovery === "transition" && state.fullReads === 1 ? { nativePhase: "committed" } : {}), ...state.fullPatch };
     }
     if (route === "/api/environment-leases/owned-lease") return structuredClone(lease);
-    if (route === `/api/issues/${owned.issueId}`) return { id: owned.issueId, companyId, assigneeAgentId: agentId, status: "done" };
+    if (route === `/api/issues/${owned.issueId}`) return { id: owned.issueId, spaceId, assigneeAgentId: agentId, status: "done" };
     if (route.endsWith("/ai-connections")) return { connections: [{ id: connectionId, provider: "google", method: "subscription", ownerUserId: "synthetic-user", isDefault: true, status: "connected" }] };
     throw new Error(`Unexpected deferred cleanup read ${route}`);
   });
@@ -418,19 +418,19 @@ it.each([
   await f.start(); expect(f.post).not.toHaveBeenCalled(); expect(f.cleanup.runs).toBe(true);
 });
 
-it.each(["id", "companyId", "agentId", "issueId"])("owned deferred cleanup rejects foreign hydrated %s before Stop", async field => {
+it.each(["id", "spaceId", "agentId", "issueId"])("owned deferred cleanup rejects foreign hydrated %s before Stop", async field => {
   const f = deferredOwnerCleanup(); f.state.fullPatch[field] = "ffffffff-ffff-4fff-8fff-ffffffffffff";
   await expect(f.start()).rejects.toThrow(/owner_mismatch/u); expect(f.post).not.toHaveBeenCalled(); expect(f.cleanup.agent).toBe(false);
 });
 
-it.each(["pending", "foreign_run", "foreign_company", "foreign_issue", "missing_audit", "same_audit", "stale_intent", "accounting_pending", "stop_error"])("owned deferred cleanup keeps failure when Stop proof is %s", async scenario => {
+it.each(["pending", "foreign_run", "foreign_space", "foreign_issue", "missing_audit", "same_audit", "stale_intent", "accounting_pending", "stop_error"])("owned deferred cleanup keeps failure when Stop proof is %s", async scenario => {
   vi.useFakeTimers();
   try {
     const f = deferredOwnerCleanup();
     f.state.onStop = async body => {
       if (scenario === "stop_error") throw new Error("synthetic Stop rejected");
       f.acknowledge(body, scenario === "pending" ? { dispatchState: "pending" }
-        : scenario === "foreign_run" ? { runId: agentId } : scenario === "foreign_company" ? { companyId: agentId }
+        : scenario === "foreign_run" ? { runId: agentId } : scenario === "foreign_space" ? { spaceId: agentId }
         : scenario === "foreign_issue" ? { issueId: agentId } : scenario === "missing_audit" ? { acknowledgementAuditId: "" }
         : scenario === "same_audit" ? { acknowledgementAuditId: "owned-intent-audit" }
         : scenario === "stale_intent" ? { intentId: "native-cancellation:ffffffff-ffff-4fff-8fff-ffffffffffff" } : {});
@@ -480,13 +480,13 @@ it("owned deferred cleanup reuses a reservation-only UUID while its native retry
 
 function interruptedAgentCreation() {
   const owned = resources(); delete owned.agentId;
-  const witness = { setupId: agentId, companyId, agentName: owned.agentName, provider: "antigravity", creatorUserId: "synthetic-user", origin: owned.origin };
+  const witness = { setupId: agentId, spaceId, agentName: owned.agentName, provider: "antigravity", creatorUserId: "synthetic-user", origin: owned.origin };
   (owned as any).agentCreationRequest = witness;
   let lifecycleState = "draft", persisted = false;
-  const record = () => ({ id: agentId, companyId, name: owned.agentName, createdByUserId: "synthetic-user", lifecycleState });
+  const record = () => ({ id: agentId, spaceId, name: owned.agentName, createdByUserId: "synthetic-user", lifecycleState });
   const get = vi.fn(async (route: string): Promise<Record<string, any> | Record<string, any>[]> => {
-    if (route === `/api/companies/${companyId}/agents`) return [record()];
-    if (route === `/api/agents/${agentId}?companyId=${companyId}`) return record();
+    if (route === `/api/spaces/${spaceId}/agents`) return [record()];
+    if (route === `/api/agents/${agentId}?spaceId=${spaceId}`) return record();
     if (route.includes("heartbeat-runs?")) return [];
     if (route === `/api/agents/${agentId}`) return record();
     if (route.endsWith("/ai-connections")) return { connections: [{ id: connectionId, provider: "google", method: "subscription", ownerUserId: "synthetic-user", isDefault: true, status: "connected" }] };
@@ -509,12 +509,12 @@ it("recovers a committed UI draft by exact setupId before any pause or purge", a
   await cleanupAntigravityJourney({ api: { get: f.get, patch: f.patch, post: f.post, delete: f.remove } as unknown as ConnectionApi,
     config: parseAntigravityJourneyConfig(fixture()), resources: f.owned, cleanup, persistResources: f.persistResources, captureRun: async () => {} });
   expect(f.owned.agentId).toBe(agentId);
-  expect(f.get).toHaveBeenCalledWith(`/api/agents/${agentId}?companyId=${companyId}`);
+  expect(f.get).toHaveBeenCalledWith(`/api/agents/${agentId}?spaceId=${spaceId}`);
   expect(f.persistResources).toHaveBeenCalled(); expect(f.remove).toHaveBeenCalledWith(`/api/agents/${agentId}`);
   expect(cleanup).toEqual({ agent: true, runs: true, connectionPreserved: true });
 });
 it.each([
-  ["foreign company", { companyId: environmentId }], ["different name", { agentName: "Antigravity QA fedcba987654" }],
+  ["foreign space", { spaceId: environmentId }], ["different name", { agentName: "Antigravity QA fedcba987654" }],
   ["wrong provider", { provider: "codex" }], ["noncanonical setup UUID", { setupId: "NOT-A-UUID" }],
   ["uppercase setup UUID", { setupId: "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA" }],
   ["foreign origin", { origin: "http://127.0.0.1:9999" }], ["foreign creator", { creatorUserId: "another-user" }], ["missing creator", { creatorUserId: undefined }],
@@ -526,13 +526,13 @@ it.each([
   if (_label === "mismatched known agent") f.owned.agentId = agentId;
   expect(() => parseAntigravityOwnedResources(f.owned, parseAntigravityJourneyConfig(fixture()))).toThrow("invalid_antigravity_owned_resources");
 });
-it.each(["company", "name", "id", "creator", "missing-creator", "same-name-only", "duplicate-name"])("does not reclaim a creation draft with mismatched %s", async field => {
+it.each(["space", "name", "id", "creator", "missing-creator", "same-name-only", "duplicate-name"])("does not reclaim a creation draft with mismatched %s", async field => {
   const f = interruptedAgentCreation(), originalGet = f.get.getMockImplementation()!;
   f.get.mockImplementation(async route => {
-    if (route === `/api/companies/${companyId}/agents` && field === "same-name-only") return [{ ...f.record(), id: environmentId }];
-    if (route === `/api/companies/${companyId}/agents` && field === "duplicate-name") return [f.record(), { ...f.record(), id: environmentId }];
-    if (route === `/api/agents/${agentId}?companyId=${companyId}`) return { ...f.record(),
-      ...(field === "company" ? { companyId: environmentId } : field === "name" ? { name: "Existing user agent" } : field === "id" ? { id: environmentId } : field === "creator" ? { createdByUserId: "another-user" } : field === "missing-creator" ? { createdByUserId: undefined } : {}) };
+    if (route === `/api/spaces/${spaceId}/agents` && field === "same-name-only") return [{ ...f.record(), id: environmentId }];
+    if (route === `/api/spaces/${spaceId}/agents` && field === "duplicate-name") return [f.record(), { ...f.record(), id: environmentId }];
+    if (route === `/api/agents/${agentId}?spaceId=${spaceId}`) return { ...f.record(),
+      ...(field === "space" ? { spaceId: environmentId } : field === "name" ? { name: "Existing user agent" } : field === "id" ? { id: environmentId } : field === "creator" ? { createdByUserId: "another-user" } : field === "missing-creator" ? { createdByUserId: undefined } : {}) };
     return originalGet(route);
   });
   await expect(cleanupAntigravityJourney({ api: { get: f.get, patch: f.patch, post: f.post, delete: f.remove } as unknown as ConnectionApi,
@@ -543,8 +543,8 @@ it.each(["company", "name", "id", "creator", "missing-creator", "same-name-only"
 it("keeps a witnessed404 unconfirmed rather than treating an in-flight creation as absent", async () => {
   const f = interruptedAgentCreation(), cleanup = { agent: false, runs: false, connectionPreserved: false };
   f.get.mockImplementation(async route => {
-    if (route === `/api/companies/${companyId}/agents`) return [];
-    if (route === `/api/agents/${agentId}?companyId=${companyId}`) throw new ConnectionFailure("api_status_404");
+    if (route === `/api/spaces/${spaceId}/agents`) return [];
+    if (route === `/api/agents/${agentId}?spaceId=${spaceId}`) throw new ConnectionFailure("api_status_404");
     throw new Error(`Unexpected witnessed404 read ${route}`);
   });
   await expect(cleanupAntigravityJourney({ api: { get: f.get, patch: f.patch, post: f.post, delete: f.remove } as unknown as ConnectionApi,

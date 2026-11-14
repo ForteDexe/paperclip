@@ -44,7 +44,7 @@ per-skill runtime transport is a separate, explicitly scoped follow-up.
    tree, with a skill-folder-plus-reference fallback for oversized repositories and a
    further skill-only fallback. It does not store Git history or `.git` metadata.
 4. `skillSourceService.publish` hashes `scan.repositoryFiles` and inserts their **contents**
-   into `company_skill_repository_snapshots.file_inventory`. Deduplication is by company
+   into `space_skill_repository_snapshots.file_inventory`. Deduplication is by space
    and content hash. The insert happens before the selected-valid-skill loop; a nonempty
    package can therefore be stored with no discovered or selected usable skills.
    `ON CONFLICT DO NOTHING` avoids a duplicate row, but still sends the proposed file
@@ -52,15 +52,15 @@ per-skill runtime transport is a separate, explicitly scoped follow-up.
    commit/tree shortcut avoids this path for qualifying automatic checks.
 5. Each selected skill version references that snapshot and its original entrypoint.
    Publication also passes `candidate.files` into `createVersion`, which persists those
-   contents again in `company_skill_versions.file_inventory`. Thus the full repository is
+   contents again in `space_skill_versions.file_inventory`. Thus the full repository is
    shared, but the selected skills' own files have an additional persisted copy.
 6. Automatic refresh already skips downloading when the commit or root tree is unchanged.
    It uses saved setup authority, leases, budgets and five-minute deadlines. An included
    file change changes the package hash and versions every selected skill. This conservative
    invalidation preserves access to shared and dynamically chosen dependencies.
 
-The similarly named fields are different: `company_skills.file_inventory` and
-`company_skill_sources.repository_package.files` are file metadata; repository snapshot
+The similarly named fields are different: `space_skills.file_inventory` and
+`space_skill_sources.repository_package.files` are file metadata; repository snapshot
 and version `file_inventory` fields contain actual contents. Moving the former alone
 would not address the measured payload.
 
@@ -69,13 +69,13 @@ Source pointers: [project attachment](../../server/src/services/projects.ts),
 [worker](../../server/src/services/skill-source-sync.ts),
 [scanner](../../server/src/services/github-skill-source.ts),
 [publication](../../server/src/services/skill-sources.ts),
-[snapshot/version schema](../../packages/db/src/schema/company_skills.ts).
+[snapshot/version schema](../../packages/db/src/schema/space_skills.ts).
 
 ### Reads and execution
 
-`company-skills.ts::runtimeVersionInventory` selects the entire repository snapshot,
+`space-skills.ts::runtimeVersionInventory` selects the entire repository snapshot,
 then `repositorySkillProjection` builds a generated discovery wrapper plus the full
-original tree under `.paperclip-repository/`.
+original tree under `.outpost-repository/`.
 
 | Consumer | Current unnecessary or amplified work | Replacement |
 | --- | --- | --- |
@@ -96,12 +96,12 @@ over skill bundles and stages each directory separately. Moving storage alone do
 remove this disk/transport multiplication. Never assume 79 installed skills means all
 79 are assigned or transferred on every run.
 
-Source pointers: [runtime, audit, browsing and version creation](../../server/src/services/company-skills.ts),
+Source pointers: [runtime, audit, browsing and version creation](../../server/src/services/space-skills.ts),
 [projection](../../server/src/services/skill-repository-package.ts),
 [cache locking and restorability](../../server/src/services/skill-version-cache.ts),
 [Studio context](../../server/src/services/heartbeat/run-preparation.ts),
 [remote staging](../../server/src/services/native-runtime/remote-launch-assets.ts),
-[company export](../../server/src/services/company-portability.ts).
+[space export](../../server/src/services/space-portability.ts).
 
 ### Evidence and limits
 
@@ -156,7 +156,7 @@ repository's bytes, backed by real SQL-byte and storage-read assertions for shar
 ### 1. One package service, existing storage providers
 
 Add an owning service such as `skill-package-store.ts` for encoding, publication receipts,
-manifest reads, verified extraction and cache acquisition. `company-skills.ts` consumes it;
+manifest reads, verified extraction and cache acquisition. `space-skills.ts` consumes it;
 the heartbeat only asks for a prepared skill. Provider details stay under `server/src/storage`.
 
 The existing [storage API](../../server/src/storage/types.ts) supports streamed uploads,
@@ -185,8 +185,8 @@ Do not start with thousands of remote objects and database rows per package file
 
 Extend the existing snapshot row with storage state/format and a receipt containing the
 provider, server-owned archive/manifest keys, hashes, compressed/uncompressed sizes and
-file count. Keep the existing snapshot ID and `(company_id, content_hash)` uniqueness.
-Add company-scoped relational constraints where a new package reference is introduced.
+file count. Keep the existing snapshot ID and `(space_id, content_hash)` uniqueness.
+Add space-scoped relational constraints where a new package reference is introduced.
 
 During migration a snapshot is one of: legacy inline; inline plus verified external copy;
 external only. An explicit discriminator distinguishes absent payload from an empty
@@ -202,11 +202,11 @@ If it differs, store that inventory as its own immutable package.
 
 Support ordinary local, directory-only and forked versions with the same package reference
 in a second compatible writer path. Keep a bounded inline legacy reader until backfill
-finishes. Small searchable skill Markdown/metadata can remain on `company_skills`; the
+finishes. Small searchable skill Markdown/metadata can remain on `space_skills`; the
 goal is to remove file-tree payloads, not prohibit useful database text.
 
 Split internal `VersionMetadata` from content-bearing responses. Public
-`CompanySkillVersion.fileInventory`, the version routes, Studio and export consumers
+`SpaceSkillVersion.fileInventory`, the version routes, Studio and export consumers
 currently expect contents: preserve their response behavior through explicit hydration
 from storage, or add an opt-in metadata view and move clients to it. Never return an empty
 inventory to an old caller merely because the database payload was cleared. A storage
@@ -217,7 +217,7 @@ location or opaque digest is not an authorization capability and need not be exp
 ```text
 authorize and scan immutable Git revision
   -> audit/filter the installed package
-  -> obtain a bounded preparation claim for (company, content hash)
+  -> obtain a bounded preparation claim for (space, content hash)
   -> write manifest + archive to unique attempt-owned storage keys
   -> verify stored lengths, hashes and manifest/file agreement
   -> short DB transaction: recheck source revision/lease/authority;
@@ -235,7 +235,7 @@ Use immutable unique attempt keys, with logical deduplication in PostgreSQL. Thi
 single deterministic key across writers could let a losing/failed writer delete a winner.
 Do not use that API as a create-if-absent content-addressed store. A concurrent winner's
 receipt is retained; the losing attempt's own keys become cleanup candidates only after
-its outcome is known. Preserve pending receipts through restart and company deletion.
+its outcome is known. Preserve pending receipts through restart and space deletion.
 
 Amazon S3's [strong read-after-write consistency](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html)
 helps verify a successful object write, but does not make an S3 write and SQL commit atomic.
@@ -245,9 +245,9 @@ and uploads need bounded cancellation/settlement too. Avoid abandoned streams af
 
 ### 4. Shared verified cache before per-skill projection
 
-Use a cache identity containing instance/storage namespace, company, format and package
+Use a cache identity containing instance/storage namespace, space, format and package
 content identity. Reauthorize the skill/version before every use. Deduplicating content
-within a company must not expand a private project's audience; authorization stays on
+within a space must not expand a private project's audience; authorization stays on
 the referencing skill/source, including forks and detached copies.
 
 Acquire a package-scoped shared promise **before** opening legacy payloads or object
@@ -264,9 +264,9 @@ the hashed manifest, including unexpected files and modes, without rereading SQL
 Audit continues to inspect actual content and may require new policy scans independently
 of package immutability.
 
-Keep the current self-contained `.paperclip-repository` skill layout initially. Build it
+Keep the current self-contained `.outpost-repository` skill layout initially. Build it
 from the shared package cache and reuse the manifest in materialization and audit. Preserve
-the existing company cache lock through final publication and durable run pinning. Stage
+the existing space cache lock through final publication and durable run pinning. Stage
 slow downloads before that lock, then recheck authority/version identity inside it; if
 the caller already holds an outer preparation lock, change that owner deliberately rather
 than weakening pin safety. Cache eviction must respect active handles during staging.
@@ -334,7 +334,7 @@ version directories use existing retention; native runtime assets now have a 30-
 idle lifetime, pin-aware cleanup and a shared publication/deletion lock. A pin can
 conservatively defer cleanup until the next relevant mutation/use or restart.
 
-Source and package writes remain company-scoped. Saved grants are rechecked on Git
+Source and package writes remain space-scoped. Saved grants are rechecked on Git
 acquisition, with a persisted five-minute failure backoff and existing singleflight.
 No upstream network request, storage HEAD, cleanup scan, or TTL write is added to
 warm package preparation. Native access timestamps are coalesced hourly on disk.
@@ -349,7 +349,7 @@ blocking idle sleep. Optional retention may wait for the next ingress wake. This
 
 | Slice | Owning files/area | Exit condition |
 | --- | --- | --- |
-| A. Storage boundary and compatibility | New `skill-package-store.ts`; storage facade; DB/shared version descriptors; `company-skills.ts` readers | Real local and S3-compatible upload/restore round trips; old rows work; metadata reads contain no file bytes; no behavior change yet |
+| A. Storage boundary and compatibility | New `skill-package-store.ts`; storage facade; DB/shared version descriptors; `space-skills.ts` readers | Real local and S3-compatible upload/restore round trips; old rows work; metadata reads contain no file bytes; no behavior change yet |
 | B. Publisher and runtime | `skill-sources.ts`, scanner, version/fork/copy writers, package cache, cache retention | New package bytes never enter SQL; two or more selected skills share one cold package load; warm preparation does not reload it; zero-skill scan persists no package |
 | C. Consumers and migration | Version routes/client contracts, Studio context, export/disconnect, bounded migration command | Old API content behavior preserved; historical pins and copies restore; full current/legacy consumer matrix passes; backfill can restart safely |
 | D. Qualification and rollout | Existing skill suites and runner journey; operational docs/maps | Byte/performance evidence, fault injection, staged backfill, rollback boundary and cold recovery demonstrated |
@@ -375,7 +375,7 @@ assembled PostgreSQL/storage benchmark, not mocks that eliminate serialization a
 | Unchanged refresh and no-skill repository | No new package/version payload; empty scan remains discoverable on a later commit; existing installed content survives removal/failure |
 | Storage failure, corrupt archive/manifest/cache, cancellation | No partially published version; old installation remains; no silent SHA refetch; unrelated requests remain responsive |
 | Concurrent import, uncertain commit, process crash, deletion | No winner object deleted; persisted attempt reconciliation; stable IDs and source lease/revision fencing |
-| Private project, revoked access, detached/forked content | Fresh application authorization on cache hits; no company/project boundary widening |
+| Private project, revoked access, detached/forked content | Fresh application authorization on cache hits; no space/project boundary widening |
 | Pins, cold restore, Studio, forks, disconnect, export, retention | Equivalent supported files, binaries/modes and discovery policy; historical semantics preserved without upstream |
 | Backfill interrupted at each boundary | Retry changes no version IDs or contents; no early payload clearing; dual-reader rollback works |
 
@@ -406,7 +406,7 @@ transactions keep their serialization boundary and use an independent upload con
 
 - Full workspace typecheck passed; the server was rebuilt after the final refinements.
 - Full repository build passed. Migration numbering/safety and map contract checks passed.
-- Focused package, source, company-skill, retention/cache, concurrency, heartbeat preparation
+- Focused package, source, space-skill, retention/cache, concurrency, heartbeat preparation
   and native context suites passed. The final migration/retention rerun passed 36 tests;
   the final project-source/authoring-route rerun passed 92 tests.
 - Real loopback S3-compatible multipart upload and historical restoration passed; its

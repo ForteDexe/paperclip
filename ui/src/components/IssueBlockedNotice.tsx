@@ -419,7 +419,7 @@ export function IssueBlockedNotice({
    * {@link blockers} when not supplied.
    */
   allBlockers?: IssueRelationIssueSummary[];
-  /** Company-wide set of issue ids with a queued/running run (own or blocker). */
+  /** Space-wide set of issue ids with a queued/running run (own or blocker). */
   liveIssueIds?: ReadonlySet<string>;
   blockerAttention?: IssueBlockerAttention | null;
   successfulRunHandoff?: SuccessfulRunHandoffState | null;

@@ -4,7 +4,7 @@ import { readRegisteredArtifacts } from "../registered-artifact.js";
 import { checks, sameTask, type Entity } from "./internal-support.js";
 import { runtimeDefinition, runtimeWorker, runtimeObservation, observeRuntime } from "./runtime-support.js";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
-interface WorkspaceView { workspace: { id: string; companyId: string; projectId?: string | null; name: string; cwd: string }; repositories: unknown[] }
+interface WorkspaceView { workspace: { id: string; spaceId: string; projectId?: string | null; name: string; cwd: string }; repositories: unknown[] }
 export async function enableTaskWorkspaceView(ctx: ChatCatalogContext) {
   await ctx.input.api.patch("/api/instance/settings/experimental", { enableIsolatedWorkspaces: true });
   const settings = await ctx.input.api.get<{ enableIsolatedWorkspaces: boolean }>("/api/instance/settings/experimental");
@@ -16,12 +16,12 @@ export async function savedTaskWorkspace(ctx: ChatCatalogContext, options: { art
     workspacePath, secretRefs: fixtures.secretRefs, executionId: nonce });
   const { cwd: _cwd, ...taskConfig } = base.adapterConfig as Record<string, unknown>;
   const worker = await runtimeWorker(ctx, options.workerName ?? "Morgan", { adapterConfig: taskConfig });
-  const company = `/api/companies/${fixtures.company.id}`;
-  for (const scope of [{ scopeType: "company", scopeId: fixtures.company.id }, { scopeType: "agent", scopeId: worker.id }])
-    await api.post(`${company}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+  const space = `/api/spaces/${fixtures.space.id}`;
+  for (const scope of [{ scopeType: "space", scopeId: fixtures.space.id }, { scopeType: "agent", scopeId: worker.id }])
+    await api.post(`${space}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
   const marker = `Saved website prerequisite ${nonce}`;
   const previousRuns = await ctx.allRuns();
-  const task = await api.post<Entity>(`${company}/issues`, { title: "Website task", status: "todo", assigneeAgentId: worker.id,
+  const task = await api.post<Entity>(`${space}/issues`, { title: "Website task", status: "todo", assigneeAgentId: worker.id,
     description: `Create a local file website-fixture.txt containing exactly ${JSON.stringify(marker)} in your admitted task workspace. ${options.html ? `Also save index.html as a semantic HTML page with that same visible reference in an h1 and a short Acorn product paragraph. Do not start any preview server yet.` : ""} Save a brief task document as evidence, ${options.artifact ? "register the actual website-fixture.txt file as a downloadable artifact work product titled website-fixture.txt," : ""} then complete this fixture task normally. Do not create a project, repository, another task, or remote side effect.` });
   await pollUntil({ label: "Real projectless website fixture completion", deadlineAt: Date.now() + 180_000,
     load: async () => ({ task: await api.get<Entity>(`/api/issues/${task.id}`), runs: (await ctx.allRuns()).filter(run => !previousRuns.some(prior => prior.id === run.id)) }),
@@ -42,7 +42,7 @@ export function gradeLocateFiles(value: unknown) {
   const before = o.state.workspaceBefore as WorkspaceView | undefined; const after = o.state.workspaceAfter as WorkspaceView | undefined;
   const task = o.state.task as Entity | undefined;
   c.add("same-projectless-task-binding", !!before?.workspace?.id && !!after && before.workspace.id === after.workspace.id
-    && before.workspace.cwd === after.workspace.cwd && after.workspace.companyId === o.companyId && after.workspace.projectId == null
+    && before.workspace.cwd === after.workspace.cwd && after.workspace.spaceId === o.spaceId && after.workspace.projectId == null
     && !!task && sameTask(task, o.tasks.find(row => row.id === task.id)), "The correct projectless binding persists without reassigning or changing the task.");
   c.add("actual-saved-files-retained", o.state.fileAfter === o.state.fileBefore && typeof o.state.fileBefore === "string"
     && o.state.fileBefore.trim() === o.state.marker && o.runs.some(run => run.id === o.state.fixtureRunId && run.agentId === (o.state.worker as Entity).id
@@ -50,7 +50,7 @@ export function gradeLocateFiles(value: unknown) {
   // The person needs to reach the bound workspace, so the reply must render a link to its page; the
   // scripted human then clicks that link. A cwd or id copied as text is not graded: the request did not ask
   // for a literal, and abbreviated paths are a valid way to name a location the link already identifies.
-  const prefix = String(o.state.companyPrefix);
+  const prefix = String(o.state.spacePrefix);
   c.add("bound-workspace-page-link", !!after && o.links.some(href => workspaceLink(o.origin, href, after.workspace.id, prefix)),
     "The rendered reply links the supported view of the workspace actually bound to the task.");
   c.add("no-other-workspace-link", !!after && workspaceResultLinks(o.reply, o.links)
@@ -70,9 +70,9 @@ export function workspaceLink(origin: string, href: string, id: string, prefix: 
 export const runtimeWorkspacesCases = [runtimeDefinition("workspaces.locate-files", async ctx => {
   // The actual detail route is gated, independently of workspace realization.
   // Enable its supported UI fixture before the query, never after a bad link.
-  if (!ctx.input.fixtures.company.issuePrefix) throw new Error("Workspace fixture has no public company prefix");
+  if (!ctx.input.fixtures.space.issuePrefix) throw new Error("Workspace fixture has no public space prefix");
   await enableTaskWorkspaceView(ctx);
-  return { ...await savedTaskWorkspace(ctx), companyPrefix: ctx.input.fixtures.company.issuePrefix };
+  return { ...await savedTaskWorkspace(ctx), spacePrefix: ctx.input.fixtures.space.issuePrefix };
 }, gradeLocateFiles, {
   sourceFiles: ["chat-catalog-domains/runtime-workspaces.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/workspaces.yaml", "../../ui/src/components/IsolatedWorkspacesRouteGate.tsx", "../../ui/src/pages/ExecutionWorkspaceDetail.tsx"],
   expectedRunCount: 2, attemptTimeoutMs: 540_000, oracleVersion: "outpost.chat-catalog.runtime.locate-files.v3",
@@ -86,8 +86,8 @@ export const runtimeWorkspacesCases = [runtimeDefinition("workspaces.locate-file
   async verifyResult(ctx, state, value) {
     const o = runtimeObservation(value); if (!o) throw new Error("Workspace result missing");
     const view = state.workspaceAfter as WorkspaceView;
-    const prefix = state.companyPrefix;
-    if (typeof prefix !== "string" || !prefix) throw new Error("Workspace view lost its actual company prefix");
+    const prefix = state.spacePrefix;
+    if (typeof prefix !== "string" || !prefix) throw new Error("Workspace view lost its actual space prefix");
     const links = workspaceResultLinks(o.reply, o.links);
     if (links.some(link => { try { return new URL(link, o.origin).pathname.includes("/execution-workspaces/")
       && !workspaceLink(o.origin, link, view.workspace.id, prefix); } catch { return false; } }))

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { aiConnectionMetadataSchema } from "@outpost/shared";
 import { and, eq } from "drizzle-orm";
-import { companySecrets, connectionGrants, toolConnections, type Db } from "@outpost/db";
+import { spaceSecrets, connectionGrants, toolConnections, type Db } from "@outpost/db";
 import { mkdtemp, writeFile, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,36 +20,36 @@ export type ManagedAiCredentialWritebackBinding = z.infer<typeof managedAiCreden
 /** Credential ownership survives the invocation home; reconnects and revocations win. */
 export async function syncManagedAiCredentials(
   db: Db,
-  companyId: string,
+  spaceId: string,
   binding: ManagedAiCredentialWritebackBinding,
   provider: "codex" | "grok",
   fetchCredential: () => Promise<string | null>,
 ) {
   managedAiCredentialWritebackBindingSchema.parse(binding);
-  const home = await mkdtemp(join(await realpath(tmpdir()), "paperclip-ai-credential-"));
+  const home = await mkdtemp(join(await realpath(tmpdir()), "outpost-ai-credential-"));
   try {
     // Revocation or an explicit account replacement intentionally discards an old refresh.
     const account = async (database: Db) => {
       const [grant] = await database.select().from(connectionGrants).where(and(
-        eq(connectionGrants.companyId, companyId), eq(connectionGrants.id, binding.grantId),
+        eq(connectionGrants.spaceId, spaceId), eq(connectionGrants.id, binding.grantId),
       )).for("update");
       if (!grant || grant.status !== "active") return null;
       const ref = grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential");
       if (!ref || ref.secretId !== binding.secretId ||
           (ref.versionSelector ?? "latest") !== binding.versionSelector) return null;
-      const [secret] = await database.select().from(companySecrets).where(and(
-        eq(companySecrets.companyId, companyId), eq(companySecrets.id, binding.secretId),
+      const [secret] = await database.select().from(spaceSecrets).where(and(
+        eq(spaceSecrets.spaceId, spaceId), eq(spaceSecrets.id, binding.secretId),
       )).for("update");
       if (!secret || secret.aiSessionEpoch !== binding.sessionEpoch) return null;
       const [connection] = await database.select().from(toolConnections).where(and(
-        eq(toolConnections.companyId, companyId), eq(toolConnections.id, grant.connectionId),
+        eq(toolConnections.spaceId, spaceId), eq(toolConnections.id, grant.connectionId),
       ));
       const ai = aiConnectionMetadataSchema.safeParse(connection?.config.ai);
       if (!connection || !ai.success || ai.data.provider !== (provider === "codex" ? "openai" : "xai") || ai.data.method !== "subscription") return null;
       return { connection, grant };
     };
     const mutate = <T>(operation: (database: Db) => Promise<T>) => withAccountHomeSecretMutationLock(
-      undefined, companyId, () => db.transaction(tx => operation(tx as unknown as Db)),
+      undefined, spaceId, () => db.transaction(tx => operation(tx as unknown as Db)),
     );
     const current = await mutate(account);
     if (!current) return "binding_changed" as const;

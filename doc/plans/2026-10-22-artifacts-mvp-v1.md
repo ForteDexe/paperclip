@@ -26,7 +26,7 @@ against the PCLP-Core mocks (node 2129:133457, 2096:87691, 2096:86523, 2205:1382
    Artwork geometry (sheet 180×216, glyph at (58, 58), bars on a 26px pitch, stack centres)
    lives in one constants module, not in class names.
 3. **Reuse the lab's code, not its types.** The primitives move to
-   `ui/src/components/artifacts/v1/` and take `CompanyArtifact`, `IssueWorkProduct`,
+   `ui/src/components/artifacts/v1/` and take `SpaceArtifact`, `IssueWorkProduct`,
    issue documents and attachments through small adapters, the way the lab's Today kit
    adapted the other direction. The lab keeps its own copies; it is a reference, not a
    dependency of product code.

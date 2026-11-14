@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within, waitFor } from "storybook/test";
 import { IssueShareSheet } from "@/components/IssueShareSheet";
 import { Button } from "@/components/ui/button";
-import { privacyCompanyId } from "../../../fixtures/privateTasks";
+import { privacySpaceId } from "../../../fixtures/privateTasks";
 import {
   mobile,
   privacyDecorator,
@@ -42,7 +42,7 @@ function Sharing({
       <Button onClick={() => setOpen(true)}>Open sharing</Button>
       <IssueShareSheet
         issueId={child ? "privacy-child" : "privacy-root"}
-        companyId={privacyCompanyId}
+        spaceId={privacySpaceId}
         canManage={state.options.role !== "reader"}
         open={open}
         onOpenChange={setOpen}
@@ -73,7 +73,7 @@ const meta = {
   title: "Getting started and access/Login, invitations, and access/Private tasks/02 Sharing",
   decorators: [privacyDecorator],
   parameters: { ...privacyParameters, docs: { description: { component: "Task menu → Share → Add someone. Inspect avatars in search and selected values, inherited grants, reader access, confirmations, empty/loading/error states and mobile. The sticky-access paragraph is removed." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "access/resources",
         "tasks/properties"

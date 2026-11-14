@@ -4,7 +4,7 @@ import { expect, type Page } from "@playwright/test";
  * title later. Capture the actual public create response; never guess its ID
  * from a title or mutate the issue behind the browser. */
 export async function createTaskFromPromptThroughUi(input: {
-  page: Page; companyId: string; issuePrefix: string; agentName: string; prompt: string; projectName?: string;
+  page: Page; spaceId: string; issuePrefix: string; agentName: string; prompt: string; projectName?: string;
 }): Promise<{ id: string }> {
   const { page } = input;
   await page.goto(`/${encodeURIComponent(input.issuePrefix)}/issues`, { waitUntil: "domcontentloaded" });
@@ -30,12 +30,12 @@ export async function createTaskFromPromptThroughUi(input: {
     await expect(project).toContainText(input.projectName);
   }
   const responsePromise = page.waitForResponse(response => response.request().method() === "POST" &&
-    new URL(response.url()).pathname === `/api/companies/${input.companyId}/issues`);
+    new URL(response.url()).pathname === `/api/spaces/${input.spaceId}/issues`);
   await dialog.getByRole("button", { name: "Create task", exact: true }).click();
   const response = await responsePromise;
   if (!response.ok()) throw new Error(`Browser task creation failed: ${response.status()}`);
   const issue = await response.json();
-  if (typeof issue.id !== "string" || issue.companyId !== input.companyId) throw new Error("Browser created an unexpected issue identity");
+  if (typeof issue.id !== "string" || issue.spaceId !== input.spaceId) throw new Error("Browser created an unexpected issue identity");
   if (issue.description !== input.prompt || issue.workMode !== "standard") {
     throw new Error("Browser task creation changed the requested prompt or work mode");
   }

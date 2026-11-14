@@ -7,7 +7,7 @@ confirmation cards and then applied the merge-only parser in memory.
 The interaction service still owns merge-only eligibility, provider access,
 automatic acceptance, current resolver authority, audit, and continuation.
 The worker registers the existing scoped-deadline helper with a dedicated delivery
-topic. Shared scheduling receives interaction/company identities and deadlines;
+topic. Shared scheduling receives interaction/space identities and deadlines;
 it receives no GitHub payloads. No database migration is required.
 
 ## Durable truth and producers
@@ -26,7 +26,7 @@ before acceptance, rejection, withdrawal, supersession, and administrative expir
 Issue status and visibility changes invalidate that issue before their update.
 The signal helper joins caller-owned outer transactions; nested savepoint release
 is not a commit. Startup reconstructs existing candidates. Direct tool, secret,
-and OAuth interaction inserts do not create eligible merge-only work. Company
+and OAuth interaction inserts do not create eligible merge-only work. Space
 portability does not import pending interaction rows.
 
 The supported writer model is the instance's ordinary service/API process.
@@ -39,7 +39,7 @@ or empty recovery scan is added.
 
 The existing normalized `applyPullRequestEvent` to
 `sweepMergedPullRequestConfirmations` seam remains available. A normalized merge
-hint checks matching references in its company; unrelated tenants and PRs do not
+hint checks matching references in its space; unrelated tenants and PRs do not
 cause provider reads. Existing provider/binding authorization remains unchanged.
 
 A pending candidate can reference a PR whose external changes have no dependable

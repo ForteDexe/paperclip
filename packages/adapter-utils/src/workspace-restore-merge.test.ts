@@ -7,7 +7,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GitShallowMetadataError } from "./git-workspace-sync.js";
-import { resolvePaperclipInstanceRootForAdapter } from "./server-utils.js";
+import { resolveOutpostInstanceRootForAdapter } from "./server-utils.js";
 import {
   captureDirectorySnapshot,
   directorySnapshotSha256,
@@ -34,7 +34,7 @@ describe("workspace restore merge", () => {
   });
 
   it("locks absent publications independently while sharing the published target's merge lock", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "paperclip-publication-lock-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "outpost-publication-lock-"));
     cleanupDirs.push(root);
     const env = { OUTPOST_HOME: path.join(root, "home"), OUTPOST_INSTANCE_ID: "publication" };
     const first = path.join(root, "first"), second = path.join(root, "second");
@@ -55,7 +55,7 @@ describe("workspace restore merge", () => {
   });
 
   it.skipIf(process.platform === "win32")("canonicalizes publication parents and rejects unsafe existing leaves", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "paperclip-publication-alias-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "outpost-publication-alias-"));
     cleanupDirs.push(root);
     const env = { OUTPOST_HOME: path.join(root, "home"), OUTPOST_INSTANCE_ID: "publication" };
     const parent = path.join(root, "parent"), alias = path.join(root, "alias");
@@ -71,7 +71,7 @@ describe("workspace restore merge", () => {
 
   it("round-trips a deterministic durable snapshot and rejects traversal", async () => {
     const rootDir = await mkdtemp(
-      path.join(os.tmpdir(), "paperclip-snapshot-"),
+      path.join(os.tmpdir(), "outpost-snapshot-"),
     );
     cleanupDirs.push(rootDir);
     await mkdir(path.join(rootDir, "nested"), { recursive: true });
@@ -101,7 +101,7 @@ describe("workspace restore merge", () => {
   });
 
   it("preserves sibling files when sequential stale-baseline restores create the same nested directory tree", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
     cleanupDirs.push(rootDir);
 
     const targetDir = path.join(rootDir, "target");
@@ -144,7 +144,7 @@ describe("workspace restore merge", () => {
   });
 
   it("preserves a host file replacing a deleted baseline directory and continues the restore", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-conflict-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-conflict-"));
     cleanupDirs.push(rootDir);
     const targetDir = path.join(rootDir, "target");
     const sourceDir = path.join(rootDir, "source");
@@ -164,7 +164,7 @@ describe("workspace restore merge", () => {
   it("ignores non-file entries when capturing snapshots", async () => {
     if (process.platform === "win32") return;
 
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
     cleanupDirs.push(rootDir);
     const socketPath = path.join(rootDir, "runtime.sock");
     const server = net.createServer();
@@ -188,7 +188,7 @@ describe("workspace restore merge", () => {
       removeAt: "before-lstat" | "after-lstat",
       setup: (rootDir: string) => Promise<string>,
     ) {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
       cleanupDirs.push(rootDir);
       await writeFile(path.join(rootDir, "kept.txt"), "kept");
       const vanishing = await setup(rootDir);
@@ -207,14 +207,14 @@ describe("workspace restore merge", () => {
     it("omits a listed file that is renamed away before it is read", async () => {
       const snapshot = await captureWhileRemoving("before-lstat", async (rootDir) => {
         await mkdir(path.join(rootDir, "tests", "runner-e2e"), { recursive: true });
-        const temporary = path.join(rootDir, "tests", "runner-e2e", ".paperclip-merge-d3bcd290-dd7e-47bf-b2cd-7d2eb1d2b7f2");
+        const temporary = path.join(rootDir, "tests", "runner-e2e", ".outpost-merge-d3bcd290-dd7e-47bf-b2cd-7d2eb1d2b7f2");
         await writeFile(temporary, "in flight");
         return temporary;
       });
 
       expect(snapshot.entries.get("kept.txt")).toMatchObject({ kind: "file" });
       expect(snapshot.entries.get("tests/runner-e2e")).toEqual({ kind: "dir" });
-      expect(snapshot.entries.has("tests/runner-e2e/.paperclip-merge-d3bcd290-dd7e-47bf-b2cd-7d2eb1d2b7f2")).toBe(false);
+      expect(snapshot.entries.has("tests/runner-e2e/.outpost-merge-d3bcd290-dd7e-47bf-b2cd-7d2eb1d2b7f2")).toBe(false);
     });
 
     it("omits a file that is removed before its contents are hashed", async () => {
@@ -241,7 +241,7 @@ describe("workspace restore merge", () => {
     });
 
     it("still fails when the capture root itself is missing", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
       cleanupDirs.push(rootDir);
 
       await expect(captureDirectorySnapshot(path.join(rootDir, "missing"), { exclude: [] }))
@@ -249,7 +249,7 @@ describe("workspace restore merge", () => {
     });
 
     it("still fails on errors other than a vanished entry", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
       cleanupDirs.push(rootDir);
       const unreadable = path.join(rootDir, "unreadable.txt");
       await writeFile(unreadable, "secret");
@@ -328,7 +328,7 @@ describe("workspace restore merge", () => {
       const sentinelPath = "/srv/telemetry-backend";
       const sentinelPid = String(process.pid);
       const error: NodeJS.ErrnoException = new Error(
-        `EACCES: permission denied, mkdir '${sentinelPath}.paperclip-restore.lock' (pid ${sentinelPid})`,
+        `EACCES: permission denied, mkdir '${sentinelPath}.outpost-restore.lock' (pid ${sentinelPid})`,
       );
       error.code = "EACCES";
 
@@ -342,13 +342,13 @@ describe("workspace restore merge", () => {
 
   describe("instance-scoped directory merge lock", () => {
     // Points OUTPOST_HOME (and, where noted, OUTPOST_INSTANCE_ID) at a
-    // temporary directory so the lock root never touches the real Paperclip
+    // temporary directory so the lock root never touches the real Outpost
     // instance, then restores the previous values. Mirrors the save-and-restore
     // pattern in acpx-engine/execute.test.ts.
     let previousHome: string | undefined;
     let previousInstanceId: string | undefined;
 
-    function useTempPaperclipHome(homeDir: string, instanceId: string): void {
+    function useTempOutpostHome(homeDir: string, instanceId: string): void {
       previousHome = process.env.OUTPOST_HOME;
       previousInstanceId = process.env.OUTPOST_INSTANCE_ID;
       process.env.OUTPOST_HOME = homeDir;
@@ -367,9 +367,9 @@ describe("workspace restore merge", () => {
     it.skipIf(process.platform === "win32")(
       "restores successfully when the parent directory of the target is not writable",
       async () => {
-        const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+        const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
         cleanupDirs.push(rootDir);
-        useTempPaperclipHome(path.join(rootDir, "paperclip-home"), "test-instance");
+        useTempOutpostHome(path.join(rootDir, "outpost-home"), "test-instance");
 
         // The old lock sat beside the target, so it needed mkdir rights in the
         // target's parent. The new lock root lives under OUTPOST_HOME instead,
@@ -398,17 +398,17 @@ describe("workspace restore merge", () => {
     it.skipIf(process.platform === "win32")(
       "acquires the same lock for two alias paths that resolve to one canonical target",
       async () => {
-        const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+        const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
         cleanupDirs.push(rootDir);
-        const paperclipHome = path.join(rootDir, "paperclip-home");
-        useTempPaperclipHome(paperclipHome, "test-instance");
+        const outpostHome = path.join(rootDir, "outpost-home");
+        useTempOutpostHome(outpostHome, "test-instance");
 
         const targetDir = path.join(rootDir, "target");
         const aliasDir = path.join(rootDir, "target-alias");
         await mkdir(targetDir, { recursive: true });
         await symlink(targetDir, aliasDir);
 
-        const lockRootDir = path.join(paperclipHome, "instances", "test-instance", "locks", "directory-merge");
+        const lockRootDir = path.join(outpostHome, "instances", "test-instance", "locks", "directory-merge");
 
         let lockNameViaTarget = "";
         await withDirectoryMergeLock(targetDir, async () => {
@@ -428,12 +428,12 @@ describe("workspace restore merge", () => {
     );
 
     it("rejects a lock root that already exists as a symlink", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
       cleanupDirs.push(rootDir);
-      const paperclipHome = path.join(rootDir, "paperclip-home");
-      useTempPaperclipHome(paperclipHome, "test-instance");
+      const outpostHome = path.join(rootDir, "outpost-home");
+      useTempOutpostHome(outpostHome, "test-instance");
 
-      const locksDir = path.join(paperclipHome, "instances", "test-instance", "locks");
+      const locksDir = path.join(outpostHome, "instances", "test-instance", "locks");
       const decoyDir = path.join(rootDir, "decoy");
       await mkdir(locksDir, { recursive: true });
       await mkdir(decoyDir, { recursive: true });
@@ -448,12 +448,12 @@ describe("workspace restore merge", () => {
     });
 
     it("rejects a lock root that already exists as a non-directory", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
       cleanupDirs.push(rootDir);
-      const paperclipHome = path.join(rootDir, "paperclip-home");
-      useTempPaperclipHome(paperclipHome, "test-instance");
+      const outpostHome = path.join(rootDir, "outpost-home");
+      useTempOutpostHome(outpostHome, "test-instance");
 
-      const locksDir = path.join(paperclipHome, "instances", "test-instance", "locks");
+      const locksDir = path.join(outpostHome, "instances", "test-instance", "locks");
       await mkdir(locksDir, { recursive: true });
       await writeFile(path.join(locksDir, "directory-merge"), "not a directory\n", "utf8");
 
@@ -466,10 +466,10 @@ describe("workspace restore merge", () => {
     });
 
     it("closes the create/validate TOCTOU window: rejects a lock root a racing writer swapped for a symlink during creation", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
       cleanupDirs.push(rootDir);
-      const paperclipHome = path.join(rootDir, "paperclip-home");
-      useTempPaperclipHome(paperclipHome, "test-instance");
+      const outpostHome = path.join(rootDir, "outpost-home");
+      useTempOutpostHome(outpostHome, "test-instance");
 
       const targetDir = path.join(rootDir, "target");
       await mkdir(targetDir, { recursive: true });
@@ -477,7 +477,7 @@ describe("workspace restore merge", () => {
       await mkdir(decoyDir, { recursive: true });
       // Pre-create the lock root's parent, so the mock below only has to
       // reproduce what `fs.mkdir({ recursive: true })` does to the leaf path.
-      await mkdir(path.join(paperclipHome, "instances", "test-instance", "locks"), { recursive: true });
+      await mkdir(path.join(outpostHome, "instances", "test-instance", "locks"), { recursive: true });
 
       // Real `fs.mkdir({ recursive: true })` does not fail on a leaf that
       // already exists as a symlink to a real directory. This stub reproduces
@@ -501,15 +501,15 @@ describe("workspace restore merge", () => {
     });
 
     it("keeps the private lock database and removes diagnostic ownership after release", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
       cleanupDirs.push(rootDir);
-      const paperclipHome = path.join(rootDir, "paperclip-home");
-      useTempPaperclipHome(paperclipHome, "test-instance");
+      const outpostHome = path.join(rootDir, "outpost-home");
+      useTempOutpostHome(outpostHome, "test-instance");
 
       const targetDir = path.join(rootDir, "target");
       await mkdir(targetDir, { recursive: true });
 
-      const lockRootDir = path.join(paperclipHome, "instances", "test-instance", "locks", "directory-merge");
+      const lockRootDir = path.join(outpostHome, "instances", "test-instance", "locks", "directory-merge");
       let entriesDuringLock: string[] = [];
       await withDirectoryMergeLock(targetDir, async () => {
         entriesDuringLock = await readdir(lockRootDir);
@@ -524,10 +524,10 @@ describe("workspace restore merge", () => {
     });
 
     it("classifies the real lock-timeout error by its stable code, never by the message text", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
       cleanupDirs.push(rootDir);
-      const paperclipHome = path.join(rootDir, "paperclip-home");
-      useTempPaperclipHome(paperclipHome, "test-instance");
+      const outpostHome = path.join(rootDir, "outpost-home");
+      useTempOutpostHome(outpostHome, "test-instance");
 
       const targetDir = path.join(rootDir, "target");
       await mkdir(targetDir, { recursive: true });
@@ -537,7 +537,7 @@ describe("workspace restore merge", () => {
       // deadline check. The owner pid is this test process, which stays alive.
       const canonicalTargetDir = await realpath(targetDir);
       const lockKey = createHash("sha256").update(canonicalTargetDir).digest("hex");
-      const lockRootDir = path.join(paperclipHome, "instances", "test-instance", "locks", "directory-merge");
+      const lockRootDir = path.join(outpostHome, "instances", "test-instance", "locks", "directory-merge");
       const heldLockDir = path.join(lockRootDir, `${lockKey}.lock`);
       await mkdir(heldLockDir, { recursive: true });
       await writeFile(
@@ -577,9 +577,9 @@ describe("workspace restore merge", () => {
     });
 
     it("reports a known live holder without releasing it when a contender times out", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-lock-holder-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-lock-holder-"));
       cleanupDirs.push(rootDir);
-      useTempPaperclipHome(path.join(rootDir, "home"), "test-instance");
+      useTempOutpostHome(path.join(rootDir, "home"), "test-instance");
       const targetDir = path.join(rootDir, "target");
       await mkdir(targetDir);
       const lockRoot = path.join(rootDir, "home", "instances", "test-instance", "locks", "directory-merge");
@@ -602,9 +602,9 @@ describe("workspace restore merge", () => {
     });
 
     it("delivers the timeout when the diagnostic owner read stalls and ignores its late rejection", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-lock-read-stall-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-lock-read-stall-"));
       cleanupDirs.push(rootDir);
-      useTempPaperclipHome(path.join(rootDir, "home"), "test-instance");
+      useTempOutpostHome(path.join(rootDir, "home"), "test-instance");
       const targetDir = path.join(rootDir, "target");
       await mkdir(targetDir);
       const contender = vi.fn();
@@ -654,9 +654,9 @@ describe("workspace restore merge", () => {
       { label: "a missing file", raw: undefined, code: "ENOENT", ownerState: "missing" },
       { label: "an unreadable file", raw: undefined, code: "EACCES", ownerState: "unknown" },
     ])("distinguishes $label in the diagnostic read", async ({ raw, code, ownerState }) => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-lock-read-state-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-lock-read-state-"));
       cleanupDirs.push(rootDir);
-      useTempPaperclipHome(path.join(rootDir, "home"), "test-instance");
+      useTempOutpostHome(path.join(rootDir, "home"), "test-instance");
       const targetDir = path.join(rootDir, "target");
       await mkdir(targetDir);
       const contender = vi.fn();
@@ -685,9 +685,9 @@ describe("workspace restore merge", () => {
     });
 
     it("reports an owner older than this process without reclaiming a live PID", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-lock-older-owner-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-lock-older-owner-"));
       cleanupDirs.push(rootDir);
-      useTempPaperclipHome(path.join(rootDir, "home"), "test-instance");
+      useTempOutpostHome(path.join(rootDir, "home"), "test-instance");
       const targetDir = path.join(rootDir, "target");
       await mkdir(targetDir);
       const lockKey = createHash("sha256").update(await realpath(targetDir)).digest("hex");
@@ -715,9 +715,9 @@ describe("workspace restore merge", () => {
     it.skipIf(process.platform === "win32")(
       "serializes two concurrent writers that address one target through different aliases",
       async () => {
-        const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+        const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
         cleanupDirs.push(rootDir);
-        useTempPaperclipHome(path.join(rootDir, "paperclip-home"), "test-instance");
+        useTempOutpostHome(path.join(rootDir, "outpost-home"), "test-instance");
 
         const targetDir = path.join(rootDir, "target");
         const aliasDir = path.join(rootDir, "target-alias");
@@ -751,7 +751,7 @@ describe("workspace restore merge", () => {
     // always reading `process.env`.
 
     it("two callers that pass the same env with a temporary OUTPOST_HOME take the same lock under that home", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
       cleanupDirs.push(rootDir);
       const explicitHome = path.join(rootDir, "explicit-home");
       const env: NodeJS.ProcessEnv = { OUTPOST_HOME: explicitHome, OUTPOST_INSTANCE_ID: "test-instance" };
@@ -787,7 +787,7 @@ describe("workspace restore merge", () => {
     });
 
     it("does not write a lock entry under process.env.OUTPOST_HOME when the caller passes its own env", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
       cleanupDirs.push(rootDir);
       const explicitHome = path.join(rootDir, "explicit-home");
       const env: NodeJS.ProcessEnv = { OUTPOST_HOME: explicitHome, OUTPOST_INSTANCE_ID: "test-instance" };
@@ -799,7 +799,7 @@ describe("workspace restore merge", () => {
 
       // Resolved with no `env` argument, so it reads `process.env` exactly the way
       // the real instance root does — unaffected by the explicit `env` above.
-      const realInstanceRoot = resolvePaperclipInstanceRootForAdapter();
+      const realInstanceRoot = resolveOutpostInstanceRootForAdapter();
       const realLockPath = path.join(realInstanceRoot, "locks", "directory-merge", `${lockKey}.lock`);
 
       await withDirectoryMergeLock(targetDir, async () => undefined, env);
@@ -811,7 +811,7 @@ describe("workspace restore merge", () => {
     });
 
     it("resolves the lock root under the default instance id when the caller env sets OUTPOST_HOME but not OUTPOST_INSTANCE_ID, ignoring process.env.OUTPOST_INSTANCE_ID", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
       cleanupDirs.push(rootDir);
       const explicitHome = path.join(rootDir, "explicit-home");
       const env: NodeJS.ProcessEnv = { OUTPOST_HOME: explicitHome };
@@ -824,7 +824,7 @@ describe("workspace restore merge", () => {
 
         // The independent, no-caller-env resolution of "OUTPOST_HOME set,
         // OUTPOST_INSTANCE_ID unset" — the expected default instance id.
-        const expectedInstanceRoot = resolvePaperclipInstanceRootForAdapter({ homeDir: explicitHome, env: {} });
+        const expectedInstanceRoot = resolveOutpostInstanceRootForAdapter({ homeDir: explicitHome, env: {} });
         const expectedLockRootDir = path.join(expectedInstanceRoot, "locks", "directory-merge");
         const wrongInstanceLockRootDir = path.join(explicitHome, "instances", "wrong-instance", "locks", "directory-merge");
 
@@ -839,7 +839,7 @@ describe("workspace restore merge", () => {
     });
 
     it("does not read process.env.OUTPOST_HOME when the caller env sets neither variable", async () => {
-      const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-restore-merge-"));
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-restore-merge-"));
       cleanupDirs.push(rootDir);
       const fakeProcessHome = path.join(rootDir, "process-home");
       const fallbackOsHome = path.join(rootDir, "os-home");
@@ -856,7 +856,7 @@ describe("workspace restore merge", () => {
 
         // The independent, no-caller-env resolution of "neither variable set" —
         // the expected fallback root under the mocked home directory.
-        const expectedInstanceRoot = resolvePaperclipInstanceRootForAdapter({ env: {} });
+        const expectedInstanceRoot = resolveOutpostInstanceRootForAdapter({ env: {} });
         const expectedLockRootDir = path.join(expectedInstanceRoot, "locks", "directory-merge");
 
         await withDirectoryMergeLock(targetDir, async () => undefined, {});

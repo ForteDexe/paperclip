@@ -1,11 +1,11 @@
 import { ThreadImpl, type Adapter, type Thread } from "chat";
 import type { ChatProvider } from "@outpost/shared";
 import type { ChatSdkEndpointRuntime } from "../chat-sdk-runtime.js";
-import { createPaperclipChatSdkState, type ChatSdkStatePersistence } from "../chat-sdk-state.js";
+import { createOutpostChatSdkState, type ChatSdkStatePersistence } from "../chat-sdk-state.js";
 
 /** Shared control-plane port. Provider SDK classes and voice implement it separately. */
 export type ChatEndpointRuntime = Omit<ChatSdkEndpointRuntime, "provider" | "sdkAdapterKey"> & { readonly provider: ChatProvider; readonly sdkAdapterKey: string };
-export interface CreateVoiceRuntimeOptions { companyId: string; endpointId: string; userName: string; persistence: ChatSdkStatePersistence }
+export interface CreateVoiceRuntimeOptions { spaceId: string; endpointId: string; userName: string; persistence: ChatSdkStatePersistence }
 
 /**
  * Voice uses signed session tools and a pull outbox, not a Chat SDK adapter's
@@ -27,14 +27,14 @@ export function createVoiceRuntime(options: CreateVoiceRuntimeOptions): ChatEndp
     fetchMessages: async () => { assertActive(); return { messages: [] }; },
     startTyping: async () => { assertActive(); },
   };
-  const state = createPaperclipChatSdkState({ ...options });
+  const state = createOutpostChatSdkState({ ...options });
   const thread = (id: string): Thread => {
     assertActive();
     if (!/^speko:[0-9a-f-]{36}$/.test(id)) throw new Error("Invalid voice conversation identity");
     return new ThreadImpl({ adapter, stateAdapter: state, id, channelId: id, isDM: true });
   };
   return {
-    companyId: options.companyId, endpointId: options.endpointId, provider: "speko", sdkAdapterKey: "speko",
+    spaceId: options.spaceId, endpointId: options.endpointId, provider: "speko", sdkAdapterKey: "speko",
     initialize: async () => { assertActive(); }, shutdown: async () => { retired = true; },
     thread, channel: (id) => thread(id).channel, getProviderAdapter: () => adapter,
     getUser: async () => null, openDirectMessage: unsupported, abortTurn: async () => { assertActive(); },

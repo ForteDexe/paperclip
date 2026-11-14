@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { S3Client, CreateBucketCommand, DeleteBucketCommand, ListObjectsV2Command, DeleteObjectsCommand } from "@aws-sdk/client-s3";
-import { companies, createDb } from "@outpost/db";
+import { spaces, createDb } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { removeRuntimeAssetTree } from "../services/native-runtime/runtime-asset-retention.js";
 
@@ -18,7 +18,7 @@ describe.skipIf(!enabled)("skills survive web-server replacement", () => {
   let db: ReturnType<typeof createDb>;
   let root: string;
   let s3: S3Client;
-  const bucket = `paperclip-skills-${randomUUID()}`;
+  const bucket = `outpost-skills-${randomUUID()}`;
   const servers: Server[] = [];
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("ephemeral-skills-");
@@ -89,10 +89,10 @@ describe.skipIf(!enabled)("skills survive web-server replacement", () => {
     expect(response.status, JSON.stringify(result)).toBe(expected);
     return result;
   }
-  async function company() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Ephemeral skill qualification", issuePrefix: `EP${companyId.slice(0, 5)}` });
-    return companyId;
+  async function space() {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Ephemeral skill qualification", issuePrefix: `EP${spaceId.slice(0, 5)}` });
+    return spaceId;
   }
   async function directoryBytes(directory: string): Promise<number> {
     let bytes = 0;
@@ -104,8 +104,8 @@ describe.skipIf(!enabled)("skills survive web-server replacement", () => {
   }
 
   it("preserves unassigned content, exact receipts and executable delivery through A → B → C", async () => {
-    const companyId = await company();
-    const route = `/companies/${companyId}/skills`;
+    const spaceId = await space();
+    const route = `/spaces/${spaceId}/skills`;
     const a = await start("a");
     const input = { name: "Cold fixture", slug: "cold-fixture", markdown: "# Version A\n", idempotencyKey: "create-once" };
     const created = await request(a, route, "POST", input, 201);
@@ -126,9 +126,9 @@ describe.skipIf(!enabled)("skills survive web-server replacement", () => {
     const coldReadMs = performance.now() - coldStarted;
     const coldMetrics = await b.rpc("metrics");
     expect(coldMetrics.downloads).toBeGreaterThan(0);
-    expect(await b.rpc("runtime", { companyId, key: created.key, execute: true })).toMatchObject({ versionId: saved.versionId, output: "durable useful result\n" });
+    expect(await b.rpc("runtime", { spaceId, key: created.key, execute: true })).toMatchObject({ versionId: saved.versionId, output: "durable useful result\n" });
     await b.rpc("metrics");
-    const warm = await b.rpc("runtime", { companyId, key: created.key, execute: true });
+    const warm = await b.rpc("runtime", { spaceId, key: created.key, execute: true });
     const warmMetrics = await b.rpc("metrics");
     expect(warmMetrics.downloads).toBe(0);
     const temporaryBytes = await directoryBytes(b.home);
@@ -142,7 +142,7 @@ describe.skipIf(!enabled)("skills survive web-server replacement", () => {
     expect(await request(c, route, "POST", input)).toEqual(created);
     await stop(b);
     await removeRuntimeAssetTree(b.home);
-    expect(await c.rpc("runtime", { companyId, key: created.key, versionId: saved.versionId, execute: true }))
+    expect(await c.rpc("runtime", { spaceId, key: created.key, versionId: saved.versionId, execute: true }))
       .toMatchObject({ versionId: saved.versionId, markdown: "# Version A\n", output: "durable useful result\n" });
     expect(await request(c, files, "PATCH", { ...saveInput, content: "different" }, 409)).toHaveProperty("error");
     process.stdout.write(`${JSON.stringify({ qualification: "A-B-C", versions: [created.currentVersionId, saved.versionId, receipt.versionId],
@@ -151,7 +151,7 @@ describe.skipIf(!enabled)("skills survive web-server replacement", () => {
   }, 180_000);
 
   it("rejects concurrent stale publication and survives upload failure or process death", async () => {
-    const companyId = await company(), route = `/companies/${companyId}/skills`;
+    const spaceId = await space(), route = `/spaces/${spaceId}/skills`;
     const a = await start("concurrent-a"), b = await start("concurrent-b");
     const created = await request(a, route, "POST", { name: "Conflict", markdown: "# Stable\n" }, 201);
     const files = `${route}/${created.id}/files`;

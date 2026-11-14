@@ -176,7 +176,7 @@ export function summarizeHeartbeatRunResultJson(
 
 // An untyped adapter summary can be raw inter-tool narration (assistantTexts
 // concatenated by the adapter), which must never be published verbatim to the
-// board — see BRO-1507 / BRO-1516. Typed final messages and accepted ORP results
+// operator — see BRO-1507 / BRO-1516. Typed final messages and accepted ORP results
 // are semantic output, so they intentionally bypass this legacy safety check.
 // Apostrophes are matched as a character class so both the straight (') and
 // curly (’) forms count — agents emit either. Openers are narration phrases a
@@ -262,10 +262,10 @@ export function isExternalChatPresentationContext(
   verifiedToolReviewChatOrigin = false,
 ): boolean {
   const context = record(contextSnapshot);
-  const wake = record(context.paperclipWake);
+  const wake = record(context.outpostWake);
   const source =
     typeof context.source === "string" ? context.source.trim() : "";
-  // Approvals and Board comments also resume ordinary internal tasks. Only
+  // Approvals and Operator comments also resume ordinary internal tasks. Only
   // durable source-run or mirrored-comment proof authorizes an external reply.
   if (requiresChatOriginProof(source))
     return verifiedToolReviewChatOrigin;
@@ -408,7 +408,7 @@ function readAcceptedExternalChatResponseWakeSummary(
       resultJson.finalizationReasonCode !== "external_chat_response_waiting" &&
       !(
         reviewPresentationAuthorized &&
-        resultJson.finalizationReasonCode === "governed_response_waiting"
+        resultJson.finalizationReasonCode === "controlled_response_waiting"
       )) ||
     nativeResult.schema !== "outpost.run_result.v1" ||
     nativeResult.reportedWorkDisposition !== "yielded" ||
@@ -487,7 +487,7 @@ function decision(
  */
 export function resolveHeartbeatRunResponse(input: {
   resultJson: Record<string, unknown> | null | undefined;
-  /** Server-owned conversation finalization, after normal governance checks. */
+  /** Server-owned conversation finalization, after normal policy checks. */
   conversationTurnFinished?: boolean;
   existingComment?: { id: string; body?: string | null } | null;
   interactionOwnsResponse?: boolean;
@@ -715,7 +715,7 @@ export function resolveHeartbeatRunResponse(input: {
     };
   }
 
-  // A governed wait is not a completed assistant turn. Provider adapters may
+  // A controlled wait is not a completed assistant turn. Provider adapters may
   // still emit terminal-looking prose while the control plane is yielding for
   // an interaction; keep that prose in activity and let the durable
   // interaction own the visible waiting state.

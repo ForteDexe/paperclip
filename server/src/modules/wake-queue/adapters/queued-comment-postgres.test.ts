@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@outpost/db";
-import { activityLog, agentWakeupRequests, agents, companies, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
+import { activityLog, agentWakeupRequests, agents, spaces, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -14,9 +14,9 @@ import { QueuedCommentMutationError } from "../application/queued-comment-use-ca
 import { buildAgentMentionHref } from "@outpost/shared";
 
 // Proves the same two properties the release-half adapter test proves for
-// this module's other transaction: the one company the caller names in
-// `issue.companyId` binds every read and write for the whole transaction, so
-// a caller-supplied `issue`/`wake` for the wrong company sees nothing, and a
+// this module's other transaction: the one space the caller names in
+// `issue.spaceId` binds every read and write for the whole transaction, so
+// a caller-supplied `issue`/`wake` for the wrong space sees nothing, and a
 // guarded write that affects no row rolls the transaction back instead of
 // leaving a partial write. The decision branching itself is proven against
 // plain facts in `domain/policy.test.ts`; the use-case orchestration is
@@ -42,12 +42,12 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
   };
 
   beforeAll(async () => {
-    if (!external) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-queued-comment-postgres-adapter-");
+    if (!external) tempDb = await startEmbeddedPostgresTestDatabase("outpost-queued-comment-postgres-adapter-");
     db = createDb(external ?? tempDb!.connectionString);
   }, 20_000);
 
   afterEach(async () => {
-    // Deleted first: activity_log rows reference companies, agents, and
+    // Deleted first: activity_log rows reference spaces, agents, and
     // heartbeat_runs, and none of those foreign keys cascade.
     await db.delete(activityLog);
     await db.delete(issueComments);
@@ -55,7 +55,7 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
     await db.delete(agentWakeupRequests);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -63,23 +63,23 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompany(): Promise<string> {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+  async function seedSpace(): Promise<string> {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "responsible-user",
     });
-    return companyId;
+    return spaceId;
   }
 
-  async function seedAgent(input: { companyId: string; adapterType?: string }): Promise<string> {
+  async function seedAgent(input: { spaceId: string; adapterType?: string }): Promise<string> {
     const agentId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "active",
@@ -91,11 +91,11 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
     return agentId;
   }
 
-  async function seedIssue(input: { companyId: string; assigneeAgentId: string | null }): Promise<string> {
+  async function seedIssue(input: { spaceId: string; assigneeAgentId: string | null }): Promise<string> {
     const issueId = randomUUID();
     await db.insert(issues).values({
       id: issueId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       title: "Queued-comment adapter fixture issue",
       status: "in_progress",
       priority: "medium",
@@ -104,11 +104,11 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
     return issueId;
   }
 
-  async function seedComment(input: { companyId: string; issueId: string; authorUserId: string }): Promise<string> {
+  async function seedComment(input: { spaceId: string; issueId: string; authorUserId: string }): Promise<string> {
     const commentId = randomUUID();
     await db.insert(issueComments).values({
       id: commentId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       issueId: input.issueId,
       authorUserId: input.authorUserId,
       body: "queued message",
@@ -117,7 +117,7 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
   }
 
   async function seedDeferredWake(input: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     issueId: string;
     commentIds: string[];
@@ -125,7 +125,7 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
     const id = randomUUID();
     await db.insert(agentWakeupRequests).values({
       id,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       agentId: input.agentId,
       source: "automation",
       reason: "issue_commented",
@@ -133,20 +133,20 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
       requestedByActorType: "user",
       payload: {
         issueId: input.issueId,
-        _paperclipWakeContext: { wakeCommentIds: input.commentIds },
+        _outpostWakeContext: { wakeCommentIds: input.commentIds },
       },
     });
     return id;
   }
 
   it("checks the authenticated editor and changed mentions atomically before updating a queued comment", async () => {
-    const companyId = await seedCompany();
-    const recipient = await seedAgent({ companyId }), sender = await seedAgent({ companyId });
-    const issueId = await seedIssue({ companyId, assigneeAgentId: recipient });
-    const commentId = await seedComment({ companyId, issueId, authorUserId: "user-1" });
-    const wakeId = await seedDeferredWake({ companyId, agentId: recipient, issueId, commentIds: [commentId] });
+    const spaceId = await seedSpace();
+    const recipient = await seedAgent({ spaceId }), sender = await seedAgent({ spaceId });
+    const issueId = await seedIssue({ spaceId, assigneeAgentId: recipient });
+    const commentId = await seedComment({ spaceId, issueId, authorUserId: "user-1" });
+    const wakeId = await seedDeferredWake({ spaceId, agentId: recipient, issueId, commentIds: [commentId] });
     const issueLock = createQueuedCommentIssueLockWriter(db, noopDeps);
-    const input = { issue: { id: issueId, companyId, assigneeAgentId: recipient, executionRunId: null },
+    const input = { issue: { id: issueId, spaceId, assigneeAgentId: recipient, executionRunId: null },
       actor: { actorType: "agent" as const, actorId: sender, agentId: sender, runId: null, agentApiKeyId: null }, queueId: wakeId };
     await db.update(agents).set({ permissions: { interactions: { canMentionAgents: false } } }).where(eq(agents.id, sender));
     await expect(issueLock.withLockedQueue(input, async (_locked, tx) => tx.updateCommentBody({ issueId, commentId,
@@ -157,33 +157,33 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
       .rejects.toMatchObject({ status: 403, details: expect.objectContaining({ permission: "canReceiveCommentsFromAgents" }) });
     expect((await db.select().from(issueComments).where(eq(issueComments.id, commentId)))[0]?.body).toBe("queued message");
     expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wakeId)))[0]?.payload)
-      .toMatchObject({ _paperclipWakeContext: { wakeCommentIds: [commentId] } });
+      .toMatchObject({ _outpostWakeContext: { wakeCommentIds: [commentId] } });
     await issueLock.withLockedQueue({ ...input, actor: { ...input.actor, actorType: "user", actorId: "user-1", agentId: null } },
       async (_locked, tx) => tx.updateCommentBody({ issueId, commentId, body: "Human edit", updatedAt: new Date() }));
     expect((await db.select().from(issueComments).where(eq(issueComments.id, commentId)))[0]?.body).toBe("Human edit");
   });
 
-  it("scopes the wake lookup to its own company: a foreign-company issue context resolves not_pending and deletes nothing", async () => {
-    const companyId = await seedCompany();
-    const otherCompanyId = await seedCompany();
-    const agentId = await seedAgent({ companyId });
-    const issueId = await seedIssue({ companyId, assigneeAgentId: agentId });
-    const commentId = await seedComment({ companyId, issueId, authorUserId: "user-1" });
-    const wakeId = await seedDeferredWake({ companyId, agentId, issueId, commentIds: [commentId] });
+  it("scopes the wake lookup to its own space: a foreign-space issue context resolves not_pending and deletes nothing", async () => {
+    const spaceId = await seedSpace();
+    const otherSpaceId = await seedSpace();
+    const agentId = await seedAgent({ spaceId });
+    const issueId = await seedIssue({ spaceId, assigneeAgentId: agentId });
+    const commentId = await seedComment({ spaceId, issueId, authorUserId: "user-1" });
+    const wakeId = await seedDeferredWake({ spaceId, agentId, issueId, commentIds: [commentId] });
 
     const issueLock = createQueuedCommentIssueLockWriter(db, noopDeps);
     await expect(
       issueLock.withLockedQueue(
         {
-          // The caller mistakenly names the *other* company on the issue
+          // The caller mistakenly names the *other* space on the issue
           // context; that single value binds every read and write for the
           // whole transaction, so it alone must decide what is visible.
-          issue: { id: issueId, companyId: otherCompanyId, assigneeAgentId: agentId, executionRunId: null },
+          issue: { id: issueId, spaceId: otherSpaceId, assigneeAgentId: agentId, executionRunId: null },
           actor: { actorType: "user", actorId: "user-1", agentId: null, runId: null, agentApiKeyId: null },
           queueId: wakeId,
         },
         async () => {
-          throw new Error("fn must not run when the wake is invisible to the caller's company");
+          throw new Error("fn must not run when the wake is invisible to the caller's space");
         },
       ),
     ).rejects.toMatchObject({ code: "queued_comment_not_pending" });
@@ -195,25 +195,25 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
   });
 
   it("rolls back a discard when the comment id given belongs to a different issue than the one this transaction locked", async () => {
-    const companyId = await seedCompany();
-    const agentId = await seedAgent({ companyId });
-    const issueId = await seedIssue({ companyId, assigneeAgentId: agentId });
-    const otherIssueId = await seedIssue({ companyId, assigneeAgentId: agentId });
-    const commentId = await seedComment({ companyId, issueId: otherIssueId, authorUserId: "user-1" });
-    const wakeId = await seedDeferredWake({ companyId, agentId, issueId, commentIds: [commentId] });
+    const spaceId = await seedSpace();
+    const agentId = await seedAgent({ spaceId });
+    const issueId = await seedIssue({ spaceId, assigneeAgentId: agentId });
+    const otherIssueId = await seedIssue({ spaceId, assigneeAgentId: agentId });
+    const commentId = await seedComment({ spaceId, issueId: otherIssueId, authorUserId: "user-1" });
+    const wakeId = await seedDeferredWake({ spaceId, agentId, issueId, commentIds: [commentId] });
 
     const issueLock = createQueuedCommentIssueLockWriter(db, noopDeps);
     await expect(
       issueLock.withLockedQueue(
         {
-          issue: { id: issueId, companyId, assigneeAgentId: agentId, executionRunId: null },
+          issue: { id: issueId, spaceId, assigneeAgentId: agentId, executionRunId: null },
           actor: { actorType: "user", actorId: "user-1", agentId: null, runId: null, agentApiKeyId: null },
           queueId: wakeId,
         },
         async (_locked, transaction) => {
           // The comment belongs to a different issue than the one this
           // transaction locked. The write's own `issueId` predicate, not
-          // just the bound company, must decide what is visible.
+          // just the bound space, must decide what is visible.
           const deleted = await transaction.deleteComment({ issueId, commentId });
           if (!deleted) {
             throw new QueuedCommentMutationError("queued_comment_not_pending", "The queued message is no longer pending");
@@ -228,12 +228,12 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
     expect(commentRow?.deletedAt ?? null).toBeNull();
   });
 
-  it("edits the comment body, syncs references, and rebuilds the queue snapshot inside one company-scoped transaction", async () => {
-    const companyId = await seedCompany();
-    const agentId = await seedAgent({ companyId });
-    const issueId = await seedIssue({ companyId, assigneeAgentId: agentId });
-    const commentId = await seedComment({ companyId, issueId, authorUserId: "user-1" });
-    const wakeId = await seedDeferredWake({ companyId, agentId, issueId, commentIds: [commentId] });
+  it("edits the comment body, syncs references, and rebuilds the queue snapshot inside one space-scoped transaction", async () => {
+    const spaceId = await seedSpace();
+    const agentId = await seedAgent({ spaceId });
+    const issueId = await seedIssue({ spaceId, assigneeAgentId: agentId });
+    const commentId = await seedComment({ spaceId, issueId, authorUserId: "user-1" });
+    const wakeId = await seedDeferredWake({ spaceId, agentId, issueId, commentIds: [commentId] });
 
     let syncedCommentId: string | null = null;
     const deps: QueuedCommentQueuePostgresAdapterDeps = {
@@ -246,7 +246,7 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
 
     const queue = await issueLock.withLockedQueue(
       {
-        issue: { id: issueId, companyId, assigneeAgentId: agentId, executionRunId: null },
+        issue: { id: issueId, spaceId, assigneeAgentId: agentId, executionRunId: null },
         actor: { actorType: "user", actorId: "user-1", agentId: null, runId: null, agentApiKeyId: null },
         queueId: wakeId,
       },
@@ -261,7 +261,7 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
         expect(updated).toBe(true);
         await transaction.syncCommentReferences(commentId);
         return transaction.buildQueueSnapshot({
-          issue: { id: issueId, companyId, assigneeAgentId: agentId, executionRunId: null },
+          issue: { id: issueId, spaceId, assigneeAgentId: agentId, executionRunId: null },
           actor: { actorType: "user", actorId: "user-1", agentId: null, runId: null, agentApiKeyId: null },
           wake: locked.wake,
           state: locked.state,
@@ -279,11 +279,11 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
   });
 
   it("rolls back an already-applied comment edit when its own activity insert fails", async () => {
-    const companyId = await seedCompany();
-    const agentId = await seedAgent({ companyId });
-    const issueId = await seedIssue({ companyId, assigneeAgentId: agentId });
-    const commentId = await seedComment({ companyId, issueId, authorUserId: "user-1" });
-    const wakeId = await seedDeferredWake({ companyId, agentId, issueId, commentIds: [commentId] });
+    const spaceId = await seedSpace();
+    const agentId = await seedAgent({ spaceId });
+    const issueId = await seedIssue({ spaceId, assigneeAgentId: agentId });
+    const commentId = await seedComment({ spaceId, issueId, authorUserId: "user-1" });
+    const wakeId = await seedDeferredWake({ spaceId, agentId, issueId, commentIds: [commentId] });
 
     const issueLock = createQueuedCommentIssueLockWriter(db, noopDeps);
     const missingAgentId = randomUUID();
@@ -291,7 +291,7 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
     await expect(
       issueLock.withLockedQueue(
         {
-          issue: { id: issueId, companyId, assigneeAgentId: agentId, executionRunId: null },
+          issue: { id: issueId, spaceId, assigneeAgentId: agentId, executionRunId: null },
           actor: { actorType: "user", actorId: "user-1", agentId: null, runId: null, agentApiKeyId: null },
           queueId: wakeId,
         },
@@ -332,23 +332,23 @@ describeEmbeddedPostgres("queued-comment postgres adapter", () => {
   // the fact directly instead of through a database row, to keep this
   // branch of the shared steering rule under a regression test.
   it("answers the steering question for a deferred outpost_runner queue whose active run has no persisted runtime mode yet", async () => {
-    const companyId = await seedCompany();
-    const agentId = await seedAgent({ companyId, adapterType: "outpost_runner" });
-    const issueId = await seedIssue({ companyId, assigneeAgentId: agentId });
-    const commentId = await seedComment({ companyId, issueId, authorUserId: "user-1" });
-    const wakeId = await seedDeferredWake({ companyId, agentId, issueId, commentIds: [commentId] });
+    const spaceId = await seedSpace();
+    const agentId = await seedAgent({ spaceId, adapterType: "outpost_runner" });
+    const issueId = await seedIssue({ spaceId, assigneeAgentId: agentId });
+    const commentId = await seedComment({ spaceId, issueId, authorUserId: "user-1" });
+    const wakeId = await seedDeferredWake({ spaceId, agentId, issueId, commentIds: [commentId] });
 
     const issueLock = createQueuedCommentIssueLockWriter(db, noopDeps);
     const queue = await issueLock.withLockedQueue(
       {
-        issue: { id: issueId, companyId, assigneeAgentId: agentId, executionRunId: null },
+        issue: { id: issueId, spaceId, assigneeAgentId: agentId, executionRunId: null },
         actor: { actorType: "user", actorId: "user-1", agentId: null, runId: null, agentApiKeyId: null },
         queueId: wakeId,
       },
       async (locked, transaction) => {
         expect(locked.state).toBe("deferred");
         return transaction.buildQueueSnapshot({
-          issue: { id: issueId, companyId, assigneeAgentId: agentId, executionRunId: null },
+          issue: { id: issueId, spaceId, assigneeAgentId: agentId, executionRunId: null },
           actor: { actorType: "user", actorId: "user-1", agentId: null, runId: null, agentApiKeyId: null },
           wake: locked.wake,
           state: "deferred",

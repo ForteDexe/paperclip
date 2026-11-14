@@ -73,12 +73,12 @@ describe("Copilot pinned executable evidence", () => {
     expect(evidence.initialize).toMatchObject({ protocolVersion: 1, agentInfo: { version: "1.0.88" } });
     expect(evidence).toMatchObject({ initializeRequestId: 0, cleanExit: true, inheritedCredentials: false,
       promptSent: false, fixtureRequests: [], costUsd: 0, missingCredentialPreflight: "COPILOT_AUTH_REQUIRED" });
-    expect(JSON.stringify(evidence)).not.toMatch(/\/Users\/|\/private\/var\/|\/tmp\/paperclip-/);
+    expect(JSON.stringify(evidence)).not.toMatch(/\/Users\/|\/private\/var\/|\/tmp\/outpost-/);
   });
   it("accounts for every inventoried event and field without pretending all were observed", () => {
     const inventory = fixture("copilot-event-inventory-1.0.88.json");
     expect(inventory.events).toHaveLength(150);
-    const subscribed = inventory.events.filter((event: { paperclipDisposition: string }) => event.paperclipDisposition === "subscribed_and_projected").map((event: { event: string }) => event.event);
+    const subscribed = inventory.events.filter((event: { outpostDisposition: string }) => event.outpostDisposition === "subscribed_and_projected").map((event: { event: string }) => event.event);
     expect(subscribed.sort()).toEqual([...COPILOT_ACP_EVENT_TYPES].sort());
     for (const event of inventory.events) {
       expect(Object.keys(event.fieldCoverage).sort()).toEqual(event.fields);

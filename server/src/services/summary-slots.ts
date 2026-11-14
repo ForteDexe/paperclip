@@ -41,7 +41,7 @@ const SUMMARY_SNAPSHOT_GROUP_LIMIT = 12;
 const SUMMARY_SNAPSHOT_INITIAL_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1_000;
 
 export interface SummarySlotSelectorInput {
-  companyId: string;
+  spaceId: string;
   scopeKind: string;
   slotKey: string;
   scopeId?: string | null;
@@ -59,7 +59,7 @@ export interface SummaryWriteActor {
 }
 
 type ResolvedSelector = SummarySlotScopeSelector & {
-  companyId: string;
+  spaceId: string;
   scopeId: string | null;
 };
 
@@ -68,7 +68,7 @@ type SummarySlotRow = typeof summarySlots.$inferSelect;
 function mapSlot(row: SummarySlotRow): SummarySlot {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     scopeKind: row.scopeKind,
     scopeId: row.scopeId ?? null,
     slotKey: row.slotKey,
@@ -87,7 +87,7 @@ function mapSlot(row: SummarySlotRow): SummarySlot {
 function mapDocument(row: typeof documents.$inferSelect): SummarySlotDocument {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     title: row.title ?? null,
     format: row.format as SummarySlotDocument["format"],
     body: row.latestBody,
@@ -105,7 +105,7 @@ function mapDocument(row: typeof documents.$inferSelect): SummarySlotDocument {
 function mapRevision(row: typeof documentRevisions.$inferSelect): SummarySlotRevision {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     documentId: row.documentId,
     revisionNumber: row.revisionNumber,
     title: row.title ?? null,
@@ -150,12 +150,12 @@ export function summarySlotService(db: Db) {
     }
     return {
       ...parsed.data,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       scopeId: parsed.data.scopeId ?? null,
     };
   }
 
-  /** Enforce that the scope target exists inside the company boundary. */
+  /** Enforce that the scope target exists inside the space boundary. */
   async function assertTargetVisible(sel: ResolvedSelector): Promise<void> {
     if (sel.scopeKind === "workspaces_overview") return;
     if (!sel.scopeId) {
@@ -166,7 +166,7 @@ export function summarySlotService(db: Db) {
       const row = await db
         .select({ id: projects.id })
         .from(projects)
-        .where(and(eq(projects.id, sel.scopeId), eq(projects.companyId, sel.companyId)))
+        .where(and(eq(projects.id, sel.scopeId), eq(projects.spaceId, sel.spaceId)))
         .then((rows) => rows[0] ?? null);
       if (!row) throw notFound("Summary target not found");
       return;
@@ -175,7 +175,7 @@ export function summarySlotService(db: Db) {
       const row = await db
         .select({ id: projectWorkspaces.id })
         .from(projectWorkspaces)
-        .where(and(eq(projectWorkspaces.id, sel.scopeId), eq(projectWorkspaces.companyId, sel.companyId)))
+        .where(and(eq(projectWorkspaces.id, sel.scopeId), eq(projectWorkspaces.spaceId, sel.spaceId)))
         .then((rows) => rows[0] ?? null);
       if (!row) throw notFound("Summary target not found");
       return;
@@ -184,7 +184,7 @@ export function summarySlotService(db: Db) {
       const row = await db
         .select({ id: executionWorkspaces.id })
         .from(executionWorkspaces)
-        .where(and(eq(executionWorkspaces.id, sel.scopeId), eq(executionWorkspaces.companyId, sel.companyId)))
+        .where(and(eq(executionWorkspaces.id, sel.scopeId), eq(executionWorkspaces.spaceId, sel.spaceId)))
         .then((rows) => rows[0] ?? null);
       if (!row) throw notFound("Summary target not found");
     }
@@ -196,7 +196,7 @@ export function summarySlotService(db: Db) {
       .from(summarySlots)
       .where(
         and(
-          eq(summarySlots.companyId, sel.companyId),
+          eq(summarySlots.spaceId, sel.spaceId),
           eq(summarySlots.scopeKind, sel.scopeKind),
           eq(summarySlots.slotKey, sel.slotKey),
           sel.scopeId === null ? isNull(summarySlots.scopeId) : eq(summarySlots.scopeId, sel.scopeId),
@@ -205,16 +205,16 @@ export function summarySlotService(db: Db) {
       .then((rows) => rows[0] ?? null);
   }
 
-  async function loadDocument(companyId: string, documentId: string | null) {
+  async function loadDocument(spaceId: string, documentId: string | null) {
     if (!documentId) return null;
     return db
       .select()
       .from(documents)
-      .where(and(eq(documents.id, documentId), eq(documents.companyId, companyId)))
+      .where(and(eq(documents.id, documentId), eq(documents.spaceId, spaceId)))
       .then((rows) => rows[0] ?? null);
   }
 
-  async function loadIssueRef(companyId: string, issueId: string | null): Promise<{
+  async function loadIssueRef(spaceId: string, issueId: string | null): Promise<{
     ref: SummarySlotIssueRef | null;
     row: typeof issues.$inferSelect | null;
   }> {
@@ -222,7 +222,7 @@ export function summarySlotService(db: Db) {
     const row = await db
       .select()
       .from(issues)
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, companyId)))
+      .where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId)))
       .then((rows) => rows[0] ?? null);
     if (!row) return { ref: null, row: null };
     return {
@@ -247,8 +247,8 @@ export function summarySlotService(db: Db) {
     const slotRow = await findSlotRow(sel);
     if (!slotRow) return { slot: null, document: null, generatingIssue: null };
     const [documentRow, issueRef] = await Promise.all([
-      loadDocument(sel.companyId, slotRow.documentId ?? null),
-      loadIssueRef(sel.companyId, slotRow.generatingIssueId ?? null),
+      loadDocument(sel.spaceId, slotRow.documentId ?? null),
+      loadIssueRef(sel.spaceId, slotRow.generatingIssueId ?? null),
     ]);
     return {
       slot: mapSlot(slotRow),
@@ -270,7 +270,7 @@ export function summarySlotService(db: Db) {
       .where(
         and(
           eq(documentRevisions.documentId, slotRow.documentId),
-          eq(documentRevisions.companyId, sel.companyId),
+          eq(documentRevisions.spaceId, sel.spaceId),
         ),
       )
       .orderBy(desc(documentRevisions.revisionNumber))
@@ -286,7 +286,7 @@ export function summarySlotService(db: Db) {
     const [slot] = await db
       .insert(summarySlots)
       .values({
-        companyId: sel.companyId,
+        spaceId: sel.spaceId,
         scopeKind: sel.scopeKind,
         scopeId: sel.scopeId,
         slotKey: sel.slotKey,
@@ -297,7 +297,7 @@ export function summarySlotService(db: Db) {
       })
       .onConflictDoUpdate({
         target: [
-          summarySlots.companyId,
+          summarySlots.spaceId,
           summarySlots.scopeKind,
           summarySlots.scopeId,
           summarySlots.slotKey,
@@ -320,7 +320,7 @@ export function summarySlotService(db: Db) {
       const row = await db
         .select({ projectId: projectWorkspaces.projectId })
         .from(projectWorkspaces)
-        .where(and(eq(projectWorkspaces.id, sel.scopeId), eq(projectWorkspaces.companyId, sel.companyId)))
+        .where(and(eq(projectWorkspaces.id, sel.scopeId), eq(projectWorkspaces.spaceId, sel.spaceId)))
         .then((rows) => rows[0] ?? null);
       return {
         projectId: row?.projectId ?? null,
@@ -335,7 +335,7 @@ export function summarySlotService(db: Db) {
           projectWorkspaceId: executionWorkspaces.projectWorkspaceId,
         })
         .from(executionWorkspaces)
-        .where(and(eq(executionWorkspaces.id, sel.scopeId), eq(executionWorkspaces.companyId, sel.companyId)))
+        .where(and(eq(executionWorkspaces.id, sel.scopeId), eq(executionWorkspaces.spaceId, sel.spaceId)))
         .then((rows) => rows[0] ?? null);
       return {
         projectId: row?.projectId ?? null,
@@ -355,7 +355,7 @@ export function summarySlotService(db: Db) {
 
   async function buildScopeSnapshot(sel: ResolvedSelector, previousGeneratedAt: Date | null): Promise<string> {
     const commonConditions = [
-      eq(issues.companyId, sel.companyId),
+      eq(issues.spaceId, sel.spaceId),
       isNull(issues.hiddenAt),
       ...scopeIssueConditions(sel),
     ];
@@ -396,9 +396,9 @@ export function summarySlotService(db: Db) {
       ...(rows.length > 0
         ? rows.map((row) => {
             const identifier = row.identifier ?? "Unnumbered issue";
-            const companyPrefix = row.identifier?.split("-", 1)[0];
-            const issueLink = companyPrefix
-              ? `[${identifier}](/${companyPrefix}/issues/${identifier})`
+            const spacePrefix = row.identifier?.split("-", 1)[0];
+            const issueLink = spacePrefix
+              ? `[${identifier}](/${spacePrefix}/issues/${identifier})`
               : identifier;
             return `- ${issueLink} — ${row.title} (${row.priority}; updated ${row.updatedAt.toISOString()})`;
           })
@@ -409,7 +409,7 @@ export function summarySlotService(db: Db) {
       "## Prebuilt scope snapshot",
       "",
       `Snapshot generated at ${new Date().toISOString()}. Recently done means updated since ${recentlyDoneSince.toISOString()}.`,
-      "Use this bounded, company-scoped snapshot as the issue source of truth for this run. Do not call issue-list endpoints.",
+      "Use this bounded, space-scoped snapshot as the issue source of truth for this run. Do not call issue-list endpoints.",
       "",
       ...formatGroup("Blocked", blocked),
       "",
@@ -427,7 +427,7 @@ export function summarySlotService(db: Db) {
     generationIssueId: string | null = null,
   ): string {
     const target = sel.scopeId ? `\`${sel.scopeId}\`` : "the workspaces overview";
-    const summarySlotPath = `/api/companies/${encodeURIComponent(sel.companyId)}/summary-slots/${encodeURIComponent(sel.scopeKind)}/${encodeURIComponent(sel.slotKey)}`;
+    const summarySlotPath = `/api/spaces/${encodeURIComponent(sel.spaceId)}/summary-slots/${encodeURIComponent(sel.scopeKind)}/${encodeURIComponent(sel.slotKey)}`;
     const scopeQuery = sel.scopeId ? `?scopeId=${encodeURIComponent(sel.scopeId)}` : "";
     return [
       `Generate the ${scopeLabel(sel.scopeKind)} summary for ${target}.`,
@@ -475,7 +475,7 @@ export function summarySlotService(db: Db) {
     const sel = resolveSelector(input);
     await assertTargetVisible(sel);
 
-    const builtIn = await builtIns.get(sel.companyId, SUMMARIZER_BUILT_IN_KEY);
+    const builtIn = await builtIns.get(sel.spaceId, SUMMARIZER_BUILT_IN_KEY);
     if (builtIn.status !== "ready" || !builtIn.agentId) {
       throw unprocessable("Summarizer built-in agent is not configured", {
         code: "summarizer_not_configured",
@@ -487,7 +487,7 @@ export function summarySlotService(db: Db) {
     // Dedupe: if a generation is already active, return the in-flight state.
     const existing = await findSlotRow(sel);
     if (existing && existing.status === "generating" && existing.generatingIssueId) {
-      const active = await loadIssueRef(sel.companyId, existing.generatingIssueId);
+      const active = await loadIssueRef(sel.spaceId, existing.generatingIssueId);
       if (isIssueActive(active.row)) {
         return {
           slot: mapSlot(existing),
@@ -502,7 +502,7 @@ export function summarySlotService(db: Db) {
     const createdAt = new Date();
     const generationVersion = existing?.generatingIssueId ?? existing?.updatedAt.toISOString() ?? "initial";
     let issueDeduplicated = false;
-    const created = await issuesSvc.create(sel.companyId, {
+    const created = await issuesSvc.create(sel.spaceId, {
       projectId,
       projectWorkspaceId,
       executionWorkspaceId,
@@ -560,7 +560,7 @@ export function summarySlotService(db: Db) {
       throw forbidden("Only the Summarizer built-in agent may write summaries");
     }
     const agent = await agents.getById(actor.agentId);
-    if (!agent || agent.companyId !== sel.companyId) {
+    if (!agent || agent.spaceId !== sel.spaceId) {
       throw forbidden("Only the Summarizer built-in agent may write summaries");
     }
     const marker = readBuiltInAgentMarker(agent.metadata);
@@ -576,7 +576,7 @@ export function summarySlotService(db: Db) {
     if (!slotRow?.generatingIssueId || slotRow.generatingIssueId !== generationIssueId) {
       throw forbidden("Summary write does not match the active generation task");
     }
-    const issueRef = await loadIssueRef(sel.companyId, generationIssueId);
+    const issueRef = await loadIssueRef(sel.spaceId, generationIssueId);
     if (!issueRef.row) {
       throw forbidden("Linked generation task not found");
     }
@@ -642,7 +642,7 @@ export function summarySlotService(db: Db) {
         ? await tx
             .select()
             .from(documents)
-            .where(and(eq(documents.id, currentSlot.documentId), eq(documents.companyId, sel.companyId)))
+            .where(and(eq(documents.id, currentSlot.documentId), eq(documents.spaceId, sel.spaceId)))
             .then((rows) => rows[0] ?? null)
         : null;
 
@@ -656,7 +656,7 @@ export function summarySlotService(db: Db) {
         [revisionRow] = await tx
           .insert(documentRevisions)
           .values({
-            companyId: sel.companyId,
+            spaceId: sel.spaceId,
             documentId: existingDocument.id,
             revisionNumber: nextRevisionNumber,
             title: input.title ?? null,
@@ -685,7 +685,7 @@ export function summarySlotService(db: Db) {
         [documentRow] = await tx
           .insert(documents)
           .values({
-            companyId: sel.companyId,
+            spaceId: sel.spaceId,
             title: input.title ?? null,
             format: DEFAULT_SUMMARY_FORMAT,
             latestBody: input.markdown,
@@ -700,7 +700,7 @@ export function summarySlotService(db: Db) {
         [revisionRow] = await tx
           .insert(documentRevisions)
           .values({
-            companyId: sel.companyId,
+            spaceId: sel.spaceId,
             documentId: documentRow.id,
             revisionNumber: 1,
             title: input.title ?? null,

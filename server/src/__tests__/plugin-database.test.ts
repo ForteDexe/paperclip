@@ -5,7 +5,7 @@ import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  companies,
+  spaces,
   createDb,
   issueRelations,
   issues,
@@ -13,7 +13,7 @@ import {
   pluginMigrations,
   plugins,
 } from "@outpost/db";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -30,7 +30,7 @@ import { buildPluginWorkerEnv, pluginLoader } from "../services/plugin-loader.js
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 const multiMigrationPluginKey = "outpost.dbfixture";
-const llmWikiPluginKey = "paperclipai.plugin-llm-wiki";
+const llmWikiPluginKey = "outpost.plugin-llm-wiki";
 
 if (!embeddedPostgresSupport.supported) {
   console.warn(
@@ -317,7 +317,7 @@ describe("buildPluginWorkerEnv", () => {
         environmentDrivers: [{ driverKey: "daytona" }],
       },
       packageName: "@outpost/plugin-daytona",
-      packagePath: "/home/operator/.paperclip/plugins/fake-daytona",
+      packagePath: "/home/operator/.outpost/plugins/fake-daytona",
       trustedLocalPluginRoots: ["/app/packages/plugins"],
       instanceInfo,
       processEnv: {
@@ -376,7 +376,7 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
   let packageRoots: string[] = [];
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-plugin-db-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-plugin-db-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -391,7 +391,7 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
     await db.delete(plugins);
     await db.delete(issueRelations);
     await db.delete(issues);
-    await db.delete(companies);
+    await db.delete(spaces);
     await Promise.all(packageRoots.map((root) => rm(root, { recursive: true, force: true })));
     packageRoots = [];
   });
@@ -400,8 +400,8 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
     await tempDb?.cleanup();
   });
 
-  async function createPluginPackage(manifest: PaperclipPluginManifestV1, migrationSql: string) {
-    const packageRoot = await mkdtemp(path.join(os.tmpdir(), "paperclip-plugin-package-"));
+  async function createPluginPackage(manifest: OutpostPluginManifestV1, migrationSql: string) {
+    const packageRoot = await mkdtemp(path.join(os.tmpdir(), "outpost-plugin-package-"));
     packageRoots.push(packageRoot);
     const migrationsDir = path.join(packageRoot, manifest.database!.migrationsDir);
     await mkdir(migrationsDir, { recursive: true });
@@ -409,14 +409,14 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
     return packageRoot;
   }
 
-  function llmWikiManifest(): PaperclipPluginManifestV1 {
+  function llmWikiManifest(): OutpostPluginManifestV1 {
     return {
       id: llmWikiPluginKey,
       apiVersion: 1,
       version: "0.1.0",
       displayName: "LLM Wiki",
       description: "Local-file LLM Wiki plugin.",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["automation", "ui"],
       capabilities: [
         "database.namespace.migrate",
@@ -427,13 +427,13 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
       database: {
         namespaceSlug: "llm_wiki",
         migrationsDir: "migrations",
-        coreReadTables: ["companies", "issues", "projects", "agents"],
+        coreReadTables: ["spaces", "issues", "projects", "agents"],
       },
     };
   }
 
   async function createInstallablePluginPackage(
-    pluginManifest: PaperclipPluginManifestV1,
+    pluginManifest: OutpostPluginManifestV1,
     migrationSql: string,
   ) {
     const packageRoot = await createPluginPackage(pluginManifest, migrationSql);
@@ -443,7 +443,7 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
         name: pluginManifest.id,
         version: pluginManifest.version,
         type: "module",
-        paperclipPlugin: { manifest: "./manifest.js" },
+        outpostPlugin: { manifest: "./manifest.js" },
       }),
       "utf8",
     );
@@ -457,7 +457,7 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
     return packageRoot;
   }
 
-  async function installPluginRecord(manifest: PaperclipPluginManifestV1) {
+  async function installPluginRecord(manifest: OutpostPluginManifestV1) {
     const pluginId = randomUUID();
     await db.insert(plugins).values({
       id: pluginId,
@@ -473,14 +473,14 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
     return pluginId;
   }
 
-  function manifest(pluginKey = "outpost.dbtest"): PaperclipPluginManifestV1 {
+  function manifest(pluginKey = "outpost.dbtest"): OutpostPluginManifestV1 {
     return {
       id: pluginKey,
       apiVersion: 1,
       version: "1.0.0",
       displayName: "DB Test",
       description: "Exercises restricted plugin database access.",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["automation"],
       capabilities: [
         "database.namespace.migrate",
@@ -535,7 +535,7 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
       .where(and(eq(pluginMigrations.pluginId, pluginId), eq(pluginMigrations.status, "applied")));
     expect(migrations.map((migration) => migration.migrationKey)).toEqual([
       "001_llm_wiki.sql",
-      "002_paperclip_distillation.sql",
+      "002_outpost_distillation.sql",
       "003_spaces.sql",
     ]);
 
@@ -559,20 +559,20 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
     );
     expect(constraints).toEqual(
       expect.arrayContaining([
-        "wiki_pages_company_wiki_space_path_key",
-        "distillation_cursors_company_wiki_space_scope_key",
-        "distillation_work_items_company_wiki_space_idempotency_key",
-        "page_bindings_company_wiki_space_page_path_key",
+        "wiki_pages_space_wiki_space_path_key",
+        "distillation_cursors_space_wiki_space_scope_key",
+        "distillation_work_items_space_wiki_space_idempotency_key",
+        "page_bindings_space_wiki_space_page_path_key",
       ]),
     );
-    expect(constraints).not.toContain("wiki_pages_company_id_wiki_id_path_key");
-    expect(constraints).not.toContain("paperclip_distillation_cursor_company_id_wiki_id_source_sco_key");
-    expect(constraints).not.toContain("paperclip_distillation_work_i_company_id_wiki_id_idempotenc_key");
-    expect(constraints).not.toContain("paperclip_page_bindings_company_id_wiki_id_page_path_key");
-    expect(uniqueColumnSets).not.toContain("wiki_pages:company_id,wiki_id,path");
-    expect(uniqueColumnSets).not.toContain("paperclip_distillation_cursors:company_id,wiki_id,source_scope,scope_key,source_kind");
-    expect(uniqueColumnSets).not.toContain("paperclip_distillation_work_items:company_id,wiki_id,idempotency_key");
-    expect(uniqueColumnSets).not.toContain("paperclip_page_bindings:company_id,wiki_id,page_path");
+    expect(constraints).not.toContain("wiki_pages_space_id_wiki_id_path_key");
+    expect(constraints).not.toContain("outpost_distillation_cursor_space_id_wiki_id_source_sco_key");
+    expect(constraints).not.toContain("outpost_distillation_work_i_space_id_wiki_id_idempotenc_key");
+    expect(constraints).not.toContain("outpost_page_bindings_space_id_wiki_id_page_path_key");
+    expect(uniqueColumnSets).not.toContain("wiki_pages:space_id,wiki_id,path");
+    expect(uniqueColumnSets).not.toContain("outpost_distillation_cursors:space_id,wiki_id,source_scope,scope_key,source_kind");
+    expect(uniqueColumnSets).not.toContain("outpost_distillation_work_items:space_id,wiki_id,idempotency_key");
+    expect(uniqueColumnSets).not.toContain("outpost_page_bindings:space_id,wiki_id,page_path");
   });
 
   it("applies migrations once and allows whitelisted core joins at runtime", async () => {
@@ -589,17 +589,17 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
       `,
     );
     const pluginId = await installPluginRecord(pluginManifest);
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "TST",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Joined issue",
       status: "todo",
       priority: "medium",
@@ -704,12 +704,12 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
 
   it("refreshes persisted manifests from disk before activation", async () => {
     const staleManifest = manifest("outpost.refresh");
-    const refreshedManifest: PaperclipPluginManifestV1 = {
+    const refreshedManifest: OutpostPluginManifestV1 = {
       ...staleManifest,
       capabilities: [...staleManifest.capabilities, "agent.tools.register"],
       database: {
         ...staleManifest.database!,
-        coreReadTables: ["companies"],
+        coreReadTables: ["spaces"],
       },
       tools: [
         {
@@ -724,9 +724,9 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
     const packageRoot = await createInstallablePluginPackage(
       refreshedManifest,
       `
-      CREATE TABLE ${namespace}.company_refs (
+      CREATE TABLE ${namespace}.space_refs (
         id uuid PRIMARY KEY,
-        company_id uuid NOT NULL REFERENCES public.companies(id)
+        space_id uuid NOT NULL REFERENCES public.spaces(id)
       );
       `,
     );
@@ -787,7 +787,7 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
           OUTPOST_DEPLOYMENT_EXPOSURE: "public",
         },
         manifest: expect.objectContaining({
-          database: expect.objectContaining({ coreReadTables: ["companies"] }),
+          database: expect.objectContaining({ coreReadTables: ["spaces"] }),
         }),
       }),
     );
@@ -802,7 +802,7 @@ describeEmbeddedPostgres("plugin database namespaces", () => {
       .select()
       .from(plugins)
       .where(eq(plugins.id, pluginId));
-    expect(plugin?.manifestJson.database?.coreReadTables).toEqual(["companies"]);
+    expect(plugin?.manifestJson.database?.coreReadTables).toEqual(["spaces"]);
   });
 
   it("rejects checksum changes for already applied migrations", async () => {

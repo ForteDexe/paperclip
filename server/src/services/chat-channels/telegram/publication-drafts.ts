@@ -82,7 +82,7 @@ export function createTelegramPublicationDrafts(db: Db, options: TelegramPublica
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, record.endpoint.companyId),
+          eq(chatActions.spaceId, record.endpoint.spaceId),
           eq(chatActions.endpointId, callback.endpointId),
           eq(chatActions.kind, TELEGRAM_DRAFT_ACTION_KIND),
           sql`${chatActions.payload}->>'botUserId' = ${receipt.botUserId}`,
@@ -110,7 +110,7 @@ export function createTelegramPublicationDrafts(db: Db, options: TelegramPublica
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, record.endpoint.companyId),
+            eq(chatPublications.spaceId, record.endpoint.spaceId),
             eq(chatPublications.endpointId, callback.endpointId),
             eq(chatPublications.conversationId, binding.conversationId),
             eq(chatPublications.id, binding.publicationId),
@@ -141,7 +141,7 @@ export function createTelegramPublicationDrafts(db: Db, options: TelegramPublica
         .from(toolConnections)
         .where(
           and(
-            eq(toolConnections.companyId, endpoint.companyId),
+            eq(toolConnections.spaceId, endpoint.spaceId),
             eq(toolConnections.id, endpoint.connectionId),
           ),
         )
@@ -159,7 +159,7 @@ export function createTelegramPublicationDrafts(db: Db, options: TelegramPublica
         .from(chatConversations)
         .where(
           and(
-            eq(chatConversations.companyId, endpoint.companyId),
+            eq(chatConversations.spaceId, endpoint.spaceId),
             eq(chatConversations.endpointId, endpoint.id),
             eq(chatConversations.id, binding.conversationId),
           ),
@@ -228,7 +228,7 @@ export function createTelegramPublicationDrafts(db: Db, options: TelegramPublica
         })
         .where(
           and(
-            eq(chatActions.companyId, publication.companyId),
+            eq(chatActions.spaceId, publication.spaceId),
             eq(chatActions.endpointId, publication.endpointId),
             eq(
               chatActions.providerActionId,
@@ -313,7 +313,7 @@ export function createTelegramPublicationDrafts(db: Db, options: TelegramPublica
       // fresh, never-before-used bot-global ID.
       if (existing.length)
         throw new Error("Telegram draft attempt already exists");
-      // NO CYCLE and no company/endpoint ownership: rollback, endpoint deletion
+      // NO CYCLE and no space/endpoint ownership: rollback, endpoint deletion
       // and bot re-binding cannot recycle a provider-visible draft identity.
       // Exhaustion is a refusal, never a fallback to a process-local/random ID.
       const allocated = await tx.execute(
@@ -328,7 +328,7 @@ export function createTelegramPublicationDrafts(db: Db, options: TelegramPublica
       const [action] = await tx
         .insert(chatActions)
         .values({
-          companyId: input.endpoint.companyId,
+          spaceId: input.endpoint.spaceId,
           endpointId: input.endpoint.id,
           conversationId: input.conversation.id,
           kind: TELEGRAM_DRAFT_ACTION_KIND,
@@ -348,7 +348,7 @@ export function createTelegramPublicationDrafts(db: Db, options: TelegramPublica
           .from(chatPublications)
           .where(
             and(
-              eq(chatPublications.companyId, input.endpoint.companyId),
+              eq(chatPublications.spaceId, input.endpoint.spaceId),
               eq(chatPublications.id, input.publication.id),
             ),
           )
@@ -373,7 +373,7 @@ export function createTelegramPublicationDrafts(db: Db, options: TelegramPublica
           .from(toolConnections)
           .where(
             and(
-              eq(toolConnections.companyId, endpoint.companyId),
+              eq(toolConnections.spaceId, endpoint.spaceId),
               eq(toolConnections.id, endpoint.connectionId),
             ),
           )
@@ -391,7 +391,7 @@ export function createTelegramPublicationDrafts(db: Db, options: TelegramPublica
           .from(chatConversations)
           .where(
             and(
-              eq(chatConversations.companyId, endpoint.companyId),
+              eq(chatConversations.spaceId, endpoint.spaceId),
               eq(chatConversations.endpointId, endpoint.id),
               eq(chatConversations.id, input.conversation.id),
             ),

@@ -154,7 +154,7 @@ describe("speed budget checks in the native run trace", () => {
     expect(breaches().map(breach => breach.metric)).toEqual(["restart_recovery_control_plane"]);
   });
 
-  it("judges only Paperclip's share of a recovery, not the provider's session load", async () => {
+  it("judges only Outpost's share of a recovery, not the provider's session load", async () => {
     const { trace, breaches } = traced({ adapter: "codex", environment: "local", restartRecovery: true });
     const total = LOCAL_SPEED_BUDGETS.codex.restart_recovery.p95Ms + 3_000;
     // Ready → claim, prepare and launch in 1.5 s; the provider reloads its long session.

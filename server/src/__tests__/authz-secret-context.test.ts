@@ -9,7 +9,7 @@ function makeReq(actor: Express.Request["actor"]) {
 describe("buildActorSecretContext", () => {
   it("responsibleUserId resolves to req.actor.userId for a user actor", () => {
     const req = makeReq({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
     });
@@ -46,10 +46,10 @@ describe("buildActorSecretContext", () => {
 
   it("prefers userId over onBehalfOfUserId when both are present", () => {
     const req = makeReq({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       onBehalfOfUserId: "user-99",
-      source: "board_key",
+      source: "operator_key",
     });
 
     const context = buildActorSecretContext(req, {
@@ -77,7 +77,7 @@ describe("buildActorSecretContext", () => {
 
   it("carries the passed consumerType/consumerId params (agent, environment, and system all accepted) and never sets configPath or allowedBindingIds", () => {
     const req = makeReq({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
     });

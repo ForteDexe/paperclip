@@ -1,12 +1,12 @@
 import type { IssueComment } from "@outpost/shared";
-import { storybookAgents } from "../../fixtures/paperclipData";
-import type { CompanyUserProfile } from "@/lib/company-members";
+import { storybookAgents } from "../../fixtures/outpostData";
+import type { SpaceUserProfile } from "@/lib/space-members";
 
 // Representative fixtures. No private task content or tenant identities.
 export const alexId = "fixture-alex";
 export const samId = "fixture-sam";
 export const issueId = "fixture-human-identity-task";
-export const profiles = new Map<string, CompanyUserProfile>([
+export const profiles = new Map<string, SpaceUserProfile>([
   [alexId, { label: "Alex Morgan", image: null }],
   [samId, { label: "Sam Rivera", image: null }],
 ]);
@@ -20,7 +20,7 @@ export const humanMessages = [
   { id: "comment-7", authorUserId: alexId, body: "Thanks — I am working on it.", time: "15:42:29" },
 ];
 export const comments: IssueComment[] = humanMessages.map(row => ({
-  id: row.id, companyId: "company-paperclip", issueId,
+  id: row.id, spaceId: "space-outpost", issueId,
   authorType: "user", authorUserId: row.authorUserId, authorAgentId: null,
   body: row.body, presentation: null, metadata: null,
   createdAt: new Date(`2026-10-09T${row.time}-05:00`),

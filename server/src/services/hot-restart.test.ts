@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 async function withTempHome<T>(fn: (homeDir: string) => Promise<T>) {
-  const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-hot-restart-paths-"));
+  const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-hot-restart-paths-"));
   try {
     return await fn(homeDir);
   } finally {
@@ -47,7 +47,7 @@ describe("hot-restart path compatibility", () => {
           activeRuns: [
             {
               runId: "run-1",
-              companyId: "company-1",
+              spaceId: "space-1",
               agentId: "agent-1",
               adapterType: "outpost_runner",
               status: "running",
@@ -523,7 +523,7 @@ describe("hot-restart path compatibility", () => {
         signal: "SIGTERM",
         activeRuns: [{
           runId: "captured-run",
-          companyId: "company",
+          spaceId: "space",
           agentId: "agent",
           adapterType: "codex_local",
           status: "running",

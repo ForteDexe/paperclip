@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   costEvents,
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -65,7 +65,7 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-terminalize-before-release-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-terminalize-before-release-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -75,7 +75,7 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
     await db.delete(costEvents);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -83,20 +83,20 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
   });
 
   async function seed(input: { issueStatus: string; runStatus: string }) {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
     const runId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Coder",
       role: "engineer",
       status: "active",
@@ -107,7 +107,7 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Terminalize before release",
       status: input.issueStatus,
       priority: "high",
@@ -115,7 +115,7 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: input.runStatus,
       invocationSource: "manual",
@@ -129,7 +129,7 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
       .where(eq(heartbeatRuns.id, runId))
       .then((rows) => rows[0]!);
 
-    return { companyId, agentId, issueId, runId, run };
+    return { spaceId, agentId, issueId, runId, run };
   }
 
   async function runStatus(runId: string) {
@@ -150,11 +150,11 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
   // leaf, so the test observes the actual boundary, not a reproduction.
   async function runTeardownSequenceObservingRelease(input: {
     runId: string;
-    companyId: string;
+    spaceId: string;
     agentId: string;
     providerResourceDisposition?: "keep_running" | "stop_and_retain" | "destroy";
   }) {
-    const { runId, companyId, agentId } = input;
+    const { runId, spaceId, agentId } = input;
     const releaseLeafCalls: Array<{ runId: string; status: string }> = [];
     const ordering: string[] = [];
     const fakeEnvironmentRuntime = {
@@ -192,7 +192,7 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
     // Execute the real release step exactly as the teardown does at :16601.
     await heartbeat.releaseEnvironmentLeasesForRun({
       runId,
-      companyId,
+      spaceId,
       agentId,
       status: statusThreadedToRelease,
       providerResourceDisposition: input.providerResourceDisposition,
@@ -213,10 +213,10 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
   }
 
   it("closes a warm native session before destroying its terminal lease", async () => {
-    const { companyId, agentId, runId } = await seed({ issueStatus: "done", runStatus: "running" });
+    const { spaceId, agentId, runId } = await seed({ issueStatus: "done", runStatus: "running" });
     const observed = await runTeardownSequenceObservingRelease({
       runId,
-      companyId,
+      spaceId,
       agentId,
       providerResourceDisposition: "destroy",
     });
@@ -228,7 +228,7 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
   it.each(["in_review", "done"])(
     "preserves an authentication-blocked native run and lease despite issue status %s",
     async (issueStatus) => {
-      const { companyId, agentId, runId, issueId } = await seed({
+      const { spaceId, agentId, runId, issueId } = await seed({
         issueStatus,
         runStatus: "running",
       });
@@ -243,7 +243,7 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
         .where(eq(heartbeatRuns.id, runId));
       const observed = await runTeardownSequenceObservingRelease({
         runId,
-        companyId,
+        spaceId,
         agentId,
         providerResourceDisposition: "destroy",
       });
@@ -285,7 +285,7 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
   });
 
   it("does not destroy a terminal lease while its warm native session is busy", async () => {
-    const { companyId, agentId, runId } = await seed({ issueStatus: "done", runStatus: "running" });
+    const { spaceId, agentId, runId } = await seed({ issueStatus: "done", runStatus: "running" });
     const releaseRunLeases = vi.fn(async () => []);
     const heartbeat = heartbeatService(db, {
       environmentRuntime: { releaseRunLeases } as unknown as HeartbeatEnvironmentRuntime,
@@ -294,7 +294,7 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
 
     await heartbeat.releaseEnvironmentLeasesForRun({
       runId,
-      companyId,
+      spaceId,
       agentId,
       status: "succeeded",
       providerResourceDisposition: "destroy",
@@ -306,7 +306,7 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
   it.each(["failed", "cancelled", "timed_out", "interrupted", "succeeded"])(
     "uses the durable %s outcome when recovered workspace cleanup requests warm retention",
     async (status) => {
-      const { companyId, agentId, issueId, runId } = await seed({
+      const { spaceId, agentId, issueId, runId } = await seed({
         issueStatus: status === "succeeded" ? "done" : "blocked",
         runStatus: status,
       });
@@ -325,7 +325,7 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
       // successful. Recovery can reach this boundary without the run's finally.
       await heartbeat.releaseEnvironmentLeasesForRun({
         runId,
-        companyId,
+        spaceId,
         agentId,
         status: "succeeded",
         providerResourceDisposition: "keep_running",
@@ -341,10 +341,10 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
   );
 
   it.each(["daytona", "local"])("destroy after failed checkpoint requires a terminal remote owner: %s", async provider => {
-    const { companyId, agentId, runId } = await seed({ issueStatus: "blocked", runStatus: "running" });
+    const { spaceId, agentId, runId } = await seed({ issueStatus: "blocked", runStatus: "running" });
     await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date() }).where(eq(heartbeatRuns.id, runId));
     const [environment] = await db.insert(environments).values({ name: `cleanup-${runId}`, driver: "sandbox" }).returning();
-    await db.insert(environmentLeases).values({ companyId, environmentId: environment.id,
+    await db.insert(environmentLeases).values({ spaceId, environmentId: environment.id,
       heartbeatRunId: runId, provider, providerLeaseId: "sandbox-owned",
       status: "active", leasePolicy: "ephemeral" });
     const releaseRunLeases = vi.fn(async () => []);
@@ -352,15 +352,15 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
       environmentRuntime: { releaseRunLeases } as unknown as HeartbeatEnvironmentRuntime,
       closeWarmNativeSessionsForRun: async () => ({ closed: 0, busy: 0, failed: 1 }),
     });
-    await heartbeat.releaseEnvironmentLeasesForRun({ runId, companyId, agentId,
+    await heartbeat.releaseEnvironmentLeasesForRun({ runId, spaceId, agentId,
       status: "cancelled", providerResourceDisposition: "destroy" });
     expect(releaseRunLeases).toHaveBeenCalledTimes(provider === "daytona" ? 1 : 0);
   });
 
   it("terminalizes a running run to succeeded before release when the issue reached done", async () => {
-    const { companyId, agentId, issueId, runId } = await seed({ issueStatus: "done", runStatus: "running" });
+    const { spaceId, agentId, issueId, runId } = await seed({ issueStatus: "done", runStatus: "running" });
 
-    const observed = await runTeardownSequenceObservingRelease({ runId, companyId, agentId });
+    const observed = await runTeardownSequenceObservingRelease({ runId, spaceId, agentId });
 
     // The run was still running before terminalize, but release observes the
     // terminalized status, proving terminalize ran first.
@@ -392,9 +392,9 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
   });
 
   it("terminalizes a running run to interrupted before release when the issue is not terminal", async () => {
-    const { companyId, agentId, runId } = await seed({ issueStatus: "in_progress", runStatus: "running" });
+    const { spaceId, agentId, runId } = await seed({ issueStatus: "in_progress", runStatus: "running" });
 
-    const observed = await runTeardownSequenceObservingRelease({ runId, companyId, agentId });
+    const observed = await runTeardownSequenceObservingRelease({ runId, spaceId, agentId });
 
     expect(observed.statusBeforeTerminalize).toBe("running");
     expect(observed.statusThreadedToRelease).toBe("interrupted");
@@ -416,9 +416,9 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
   it("terminalizes a still-queued run to interrupted before release", async () => {
     // A queued run holds a lease but never reached running. Release must observe a
     // terminal status, not the queued phantom-live status.
-    const { companyId, agentId, runId } = await seed({ issueStatus: "in_progress", runStatus: "queued" });
+    const { spaceId, agentId, runId } = await seed({ issueStatus: "in_progress", runStatus: "queued" });
 
-    const observed = await runTeardownSequenceObservingRelease({ runId, companyId, agentId });
+    const observed = await runTeardownSequenceObservingRelease({ runId, spaceId, agentId });
 
     expect(observed.statusBeforeTerminalize).toBe("queued");
     expect(observed.statusThreadedToRelease).toBe("interrupted");
@@ -429,9 +429,9 @@ describeEmbeddedPostgres("heartbeat teardown terminalizes the run before releasi
   it("threads an already-terminal run's status through unchanged and writes no new event", async () => {
     // When another path already made the run terminal, terminalize is a no-op, so
     // release still observes that authoritative terminal status.
-    const { companyId, agentId, runId } = await seed({ issueStatus: "done", runStatus: "failed" });
+    const { spaceId, agentId, runId } = await seed({ issueStatus: "done", runStatus: "failed" });
 
-    const observed = await runTeardownSequenceObservingRelease({ runId, companyId, agentId });
+    const observed = await runTeardownSequenceObservingRelease({ runId, spaceId, agentId });
 
     expect(observed.statusBeforeTerminalize).toBe("failed");
     expect(observed.statusThreadedToRelease).toBe("failed");

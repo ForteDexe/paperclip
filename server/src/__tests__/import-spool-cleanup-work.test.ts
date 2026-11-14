@@ -5,12 +5,12 @@ import { eq } from "drizzle-orm";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { companyTransferRuns, createDb, type Db } from "@outpost/db";
-import { companyTransferRunService } from "../services/company-transfer-runs.js";
+import { spaceTransferRuns, createDb, type Db } from "@outpost/db";
+import { spaceTransferRunService } from "../services/space-transfer-runs.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { registerImportSpoolCleanupWork } from "../services/import-spool-cleanup-work.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
-import { IMPORT_TRANSFER_SPOOL_MAX_AGE_MS, settleImportTransferSpool, sweepAbandonedImportTransferSpools, writeImportTransferPart } from "../services/company-import-transfers.js";
+import { IMPORT_TRANSFER_SPOOL_MAX_AGE_MS, settleImportTransferSpool, sweepAbandonedImportTransferSpools, writeImportTransferPart } from "../services/space-import-transfers.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 
@@ -38,7 +38,7 @@ describe("import spool cleanup", () => {
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   async function transfer() {
-    return (await companyTransferRunService.resumeOrCreate(db, { direction: "import", actorKey: "test", idempotencyKey: randomUUID(), containerRef: {} })).run;
+    return (await spaceTransferRunService.resumeOrCreate(db, { direction: "import", actorKey: "test", idempotencyKey: randomUUID(), containerRef: {} })).run;
   }
   async function start() {
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => admitted,
@@ -69,25 +69,25 @@ describe("import spool cleanup", () => {
   it("stays quiet with no directory and reactivates on the first uploaded part", async () => {
     await fs.rm(root, { recursive: true });
     await start(); await quiet();
-    const run = await transfer(); await companyTransferRunService.start(db, run.id); await spool(run.id); await settle();
-    const current = await companyTransferRunService.getRun(db, run.id);
+    const run = await transfer(); await spaceTransferRunService.start(db, run.id); await spool(run.id); await settle();
+    const current = await spaceTransferRunService.getRun(db, run.id);
     expect(coordinator!.nextWakeAt()).toBe(current!.updatedAt.getTime() + IMPORT_TRANSFER_SPOOL_MAX_AGE_MS + 1);
     await quiet(3600_000); expect(await exists(run.id)).toBe(true);
     await vi.advanceTimersByTimeAsync(24 * 3600_000); await settle();
     expect(await exists(run.id)).toBe(false);
-    expect((await companyTransferRunService.getRun(db, run.id))!.status).toBe("cancelled");
+    expect((await spaceTransferRunService.getRun(db, run.id))!.status).toBe("cancelled");
     expect(coordinator!.nextWakeAt()).toBeNull(); await quiet();
   });
 
   it("keeps failed and applying uploads without recurring SQL or filesystem discovery", async () => {
     const failed = await transfer(), applying = await transfer();
     await spool(failed.id); await spool(applying.id);
-    await companyTransferRunService.fail(db, failed.id, "retryable");
-    expect(await companyTransferRunService.claimApply(db, applying.id)).toBe(true);
+    await spaceTransferRunService.fail(db, failed.id, "retryable");
+    expect(await spaceTransferRunService.claimApply(db, applying.id)).toBe(true);
     await start(); expect(coordinator!.nextWakeAt()).toBeNull(); await quiet();
     expect(await exists(failed.id)).toBe(true); expect(await exists(applying.id)).toBe(true);
 
-    await companyTransferRunService.complete(db, applying.id); await settle();
+    await spaceTransferRunService.complete(db, applying.id); await settle();
     expect(await exists(applying.id)).toBe(false); expect(await exists(failed.id)).toBe(true); await quiet();
   });
 
@@ -104,9 +104,9 @@ describe("import spool cleanup", () => {
     const run = await transfer(); await spool(run.id); await start();
     const before = coordinator!.nextWakeAt()!;
     await vi.advanceTimersByTimeAsync(3600_000);
-    await companyTransferRunService.completePart(db, run.id, "part-0"); await settle();
+    await spaceTransferRunService.completePart(db, run.id, "part-0"); await settle();
     expect(coordinator!.nextWakeAt()).toBeGreaterThan(before);
-    const current = await companyTransferRunService.getRun(db, run.id);
+    const current = await spaceTransferRunService.getRun(db, run.id);
     const boundary = current!.updatedAt.getTime() + IMPORT_TRANSFER_SPOOL_MAX_AGE_MS;
     expect(await settleImportTransferSpool(db, root, run.id, { now: new Date(boundary) })).toBe(false);
     expect(await settleImportTransferSpool(db, root, run.id, { now: new Date(boundary + 1) })).toBe(true);
@@ -115,25 +115,25 @@ describe("import spool cleanup", () => {
   it("a resume or apply winning the cleanup claim keeps the spool", async () => {
     const run = await transfer(); await spool(run.id);
     const old = new Date(Date.now() - 25 * 3600_000);
-    await db.update(companyTransferRuns).set({ updatedAt: old }).where(eq(companyTransferRuns.id, run.id));
-    const claim = companyTransferRunService.cancelIfIdle.bind(companyTransferRunService);
-    vi.spyOn(companyTransferRunService, "cancelIfIdle").mockImplementationOnce(async (...args) => {
-      expect(await companyTransferRunService.claimApply(db, run.id)).toBe(true);
+    await db.update(spaceTransferRuns).set({ updatedAt: old }).where(eq(spaceTransferRuns.id, run.id));
+    const claim = spaceTransferRunService.cancelIfIdle.bind(spaceTransferRunService);
+    vi.spyOn(spaceTransferRunService, "cancelIfIdle").mockImplementationOnce(async (...args) => {
+      expect(await spaceTransferRunService.claimApply(db, run.id)).toBe(true);
       return claim(...args);
     });
     expect(await settleImportTransferSpool(db, root, run.id)).toBe(false);
     expect(await exists(run.id)).toBe(true);
-    expect((await companyTransferRunService.getRun(db, run.id))!.status).toBe("applying");
+    expect((await spaceTransferRunService.getRun(db, run.id))!.status).toBe("applying");
   });
 
   it.each(["commit", "rollback"] as const)("defers a nested terminal change until outer %s", async outcome => {
-    const run = await transfer(); await spool(run.id); await companyTransferRunService.fail(db, run.id, "retained");
+    const run = await transfer(); await spool(run.id); await spaceTransferRunService.fail(db, run.id, "retained");
     await start(); await quiet();
     let release!: () => void, entered!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
     const changed = new Promise<void>(resolve => { entered = resolve; });
     const transaction = db.transaction(async tx => {
-      await companyTransferRunService.cancel(tx as unknown as Db, run.id); entered(); await gate;
+      await spaceTransferRunService.cancel(tx as unknown as Db, run.id); entered(); await gate;
       if (outcome === "rollback") throw new Error("rollback fixture");
     }).catch(error => { if (outcome !== "rollback" || error.message !== "rollback fixture") throw error; });
     await changed;
@@ -145,7 +145,7 @@ describe("import spool cleanup", () => {
 
   it("retains the first filesystem and ledger changes during drain without SQL", async () => {
     await start(); await quiet(); admitted = false;
-    const run = await transfer(); await spool(run.id); await companyTransferRunService.cancel(db, run.id);
+    const run = await transfer(); await spool(run.id); await spaceTransferRunService.cancel(db, run.id);
 
     await quiet(); expect(await exists(run.id)).toBe(true);
     admitted = true; worker!.wake(); await settle();
@@ -153,7 +153,7 @@ describe("import spool cleanup", () => {
   });
 
   it("retries failed cleanup, keeps its delay through a wake, and then becomes quiet", async () => {
-    const run = await transfer(); await spool(run.id); await companyTransferRunService.cancel(db, run.id);
+    const run = await transfer(); await spool(run.id); await spaceTransferRunService.cancel(db, run.id);
     const original = fs.rm.bind(fs); let denied = true;
     const removal = vi.spyOn(fs, "rm").mockImplementation(async (target, options) => {
       if (String(target) === path.join(root, run.id) && denied) throw Object.assign(new Error("denied"), { code: "EACCES" });
@@ -162,7 +162,7 @@ describe("import spool cleanup", () => {
     await start(); await settle(); expect(errors.splice(0)).toHaveLength(1);
     expect(await exists(run.id)).toBe(true);
     const attempts = removal.mock.calls.length;
-    await companyTransferRunService.complete(db, run.id); await settle();
+    await spaceTransferRunService.complete(db, run.id); await settle();
     expect(removal).toHaveBeenCalledTimes(attempts);
     denied = false; await vi.advanceTimersByTimeAsync(31_000); await settle();
     expect(await exists(run.id)).toBe(false); await quiet();
@@ -195,7 +195,7 @@ describe("import spool cleanup", () => {
   });
 
   it("joins cleanup on shutdown and removes filesystem subscriptions", async () => {
-    const run = await transfer(); await spool(run.id); await companyTransferRunService.cancel(db, run.id);
+    const run = await transfer(); await spool(run.id); await spaceTransferRunService.cancel(db, run.id);
     let release!: () => void, entered!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
     const began = new Promise<void>(resolve => { entered = resolve; });
@@ -214,19 +214,19 @@ describe("import spool cleanup", () => {
 
   it("keeps startup apply recovery separate from future live applies", async () => {
     const stranded = await transfer(); await spool(stranded.id);
-    await companyTransferRunService.claimApply(db, stranded.id);
-    await companyTransferRunService.recoverStrandedApplyingRuns(db);
+    await spaceTransferRunService.claimApply(db, stranded.id);
+    await spaceTransferRunService.recoverStrandedApplyingRuns(db);
     await start(); await quiet();
-    expect((await companyTransferRunService.getRun(db, stranded.id))!.status).toBe("failed");
-    expect(await companyTransferRunService.claimApply(db, stranded.id)).toBe(true);
+    expect((await spaceTransferRunService.getRun(db, stranded.id))!.status).toBe("failed");
+    expect(await spaceTransferRunService.claimApply(db, stranded.id)).toBe(true);
     await quiet(48 * 3600_000);
-    expect((await companyTransferRunService.getRun(db, stranded.id))!.status).toBe("applying");
+    expect((await spaceTransferRunService.getRun(db, stranded.id))!.status).toBe("applying");
     expect(await exists(stranded.id)).toBe(true);
   });
 
   it("retains another upload's wake while an earlier cleanup is running", async () => {
     const first = await transfer(), second = await transfer();
-    await spool(first.id); await companyTransferRunService.cancel(db, first.id);
+    await spool(first.id); await spaceTransferRunService.cancel(db, first.id);
     let release!: () => void, entered!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
     const began = new Promise<void>(resolve => { entered = resolve; });
@@ -236,15 +236,15 @@ describe("import spool cleanup", () => {
       return original(target, options);
     });
     const starting = start(); await began;
-    try { await spool(second.id); await companyTransferRunService.cancel(db, second.id); }
+    try { await spool(second.id); await spaceTransferRunService.cancel(db, second.id); }
     finally { release(); }
     await starting; await settle();
     expect(await exists(first.id)).toBe(false); expect(await exists(second.id)).toBe(false); await quiet();
   });
 
   it("retains a failed database read through drain and recovers without losing the files", async () => {
-    const run = await transfer(); await spool(run.id); await companyTransferRunService.cancel(db, run.id);
-    const reader = vi.spyOn(companyTransferRunService, "getCleanupState").mockRejectedValue(new Error("database unavailable"));
+    const run = await transfer(); await spool(run.id); await spaceTransferRunService.cancel(db, run.id);
+    const reader = vi.spyOn(spaceTransferRunService, "getCleanupState").mockRejectedValue(new Error("database unavailable"));
     await start(); expect(errors.splice(0)).toHaveLength(1); expect(await exists(run.id)).toBe(true);
     admitted = false; await quiet(); expect(await exists(run.id)).toBe(true);
     reader.mockRestore(); admitted = true; worker!.wake(); await settle();
@@ -254,7 +254,7 @@ describe("import spool cleanup", () => {
   it("cleans readable uploads while a different directory remains inaccessible", async () => {
     const denied = await transfer(), healthy = await transfer();
     await spool(denied.id); await spool(healthy.id);
-    await companyTransferRunService.cancel(db, denied.id); await companyTransferRunService.cancel(db, healthy.id);
+    await spaceTransferRunService.cancel(db, denied.id); await spaceTransferRunService.cancel(db, healthy.id);
     const original = fs.lstat.bind(fs); let inaccessible = true;
     const stat = vi.spyOn(fs, "lstat").mockImplementation(async (...args) => {
       if (String(args[0]) === path.join(root, denied.id) && inaccessible)

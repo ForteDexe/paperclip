@@ -19,9 +19,9 @@ describe("Kimi native instruction admission", () => {
     const admission = createKimiInstructionAdmission(content);
     const guard = admission.createGuard();
     guard("outbound", { id: 0, method: "session/new", params: {} });
-    guard("inbound", { id: 4, result: { sessionId: "native-1", _meta: { paperclipKimiInstructions: acknowledgment(content) } } });
+    guard("inbound", { id: 4, result: { sessionId: "native-1", _meta: { outpostKimiInstructions: acknowledgment(content) } } });
     expect(admission.assertReady).toThrow("did not acknowledge");
-    guard("inbound", { id: 0, result: { sessionId: "native-1", _meta: { paperclipKimiInstructions: acknowledgment(content) } } });
+    guard("inbound", { id: 0, result: { sessionId: "native-1", _meta: { outpostKimiInstructions: acknowledgment(content) } } });
     expect(admission.assertReady).not.toThrow();
     guard("outbound", { id: 1, method: "session/prompt", params: { sessionId: "native-1" } });
   });
@@ -35,7 +35,7 @@ describe("Kimi native instruction admission", () => {
     if (kind === "session") ack.sessionId = "other";
     if (kind === "length") ack.byteLength += 1;
     if (kind === "effective") ack.effectiveDigest = "unknown";
-    expect(() => guard("inbound", { id: "load", result: { _meta: kind === "missing" ? {} : { paperclipKimiInstructions: ack } } })).toThrow("mismatched");
+    expect(() => guard("inbound", { id: "load", result: { _meta: kind === "missing" ? {} : { outpostKimiInstructions: ack } } })).toThrow("mismatched");
     expect(() => guard("outbound", { id: 2, method: "session/prompt", params: { sessionId: "native-1" } })).toThrow();
   });
 
@@ -43,12 +43,12 @@ describe("Kimi native instruction admission", () => {
     const admission = createKimiInstructionAdmission("");
     const old = admission.createGuard();
     old("outbound", { id: 1, method: "session/new", params: {} });
-    old("inbound", { id: 1, result: { sessionId: "native-1", _meta: { paperclipKimiInstructions: acknowledgment("") } } });
+    old("inbound", { id: 1, result: { sessionId: "native-1", _meta: { outpostKimiInstructions: acknowledgment("") } } });
     const current = admission.createGuard();
     expect(() => old("outbound", { method: "session/prompt" })).toThrow("replaced");
     current("outbound", { id: 2, method: "session/load", params: { sessionId: "native-1" } });
     expect(admission.assertReady).toThrow();
-    current("inbound", { id: 2, result: { _meta: { paperclipKimiInstructions: acknowledgment("") } } });
+    current("inbound", { id: 2, result: { _meta: { outpostKimiInstructions: acknowledgment("") } } });
     expect(admission.assertReady).not.toThrow();
     expect(() => current("outbound", { method: "session/prompt", params: { sessionId: "other" } })).toThrow("unacknowledged");
   });
@@ -59,12 +59,12 @@ describe("Kimi native instruction admission", () => {
   });
 
   it("keeps read-only authority separate from native tool labels and auto-approval", () => {
-    const owned = new Set(["paperclip"]);
-    for (const title of ["Write", "Edit", "Bash", "Read", "mcp__other__read", "mcp__paperclip__"]) {
+    const owned = new Set(["outpost"]);
+    for (const title of ["Write", "Edit", "Bash", "Read", "mcp__other__read", "mcp__outpost__"]) {
       expect(kimiReadOnlyPermissionAllowed({ inferredKind: "read", raw: { toolCall: { title, rawInput: {} } } }, owned)).toBe(false);
     }
-    expect(kimiReadOnlyPermissionAllowed({ raw: { toolCall: { title: "mcp__paperclip__get_task_context", rawInput: {} } } }, owned)).toBe(true);
-    expect(kimiReadOnlyPermissionAllowed({ raw: { toolCall: { title: "mcp__paperclip__get_task_context" } } }, owned)).toBe(false);
-    expect(kimiReadOnlyPermissionAllowed({ raw: { toolCall: { title: "mcp__paperclip__get_task_context", rawInput: [] } } }, owned)).toBe(false);
+    expect(kimiReadOnlyPermissionAllowed({ raw: { toolCall: { title: "mcp__outpost__get_task_context", rawInput: {} } } }, owned)).toBe(true);
+    expect(kimiReadOnlyPermissionAllowed({ raw: { toolCall: { title: "mcp__outpost__get_task_context" } } }, owned)).toBe(false);
+    expect(kimiReadOnlyPermissionAllowed({ raw: { toolCall: { title: "mcp__outpost__get_task_context", rawInput: [] } } }, owned)).toBe(false);
   });
 });

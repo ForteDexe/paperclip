@@ -17,50 +17,50 @@ export function refreshSubscriptionConnection(db: Db, input: SubscriptionConnect
   if (!active) jobs.set(db, active = new Map());
   const existing = active.get(id);
   if (existing) return existing;
-  // Bound provider concurrency across all companies on this instance. Dashboard
+  // Bound provider concurrency across all spaces on this instance. Dashboard
   // discovery waits below; opportunistic run observations remain due when busy.
   if (active.size >= 4) return Promise.resolve();
   const task = trackIdleWork((async () => {
     const [claimed] = await db.update(aiSubscriptions).set({ lastCheckedAt: new Date() }).where(and(
-      eq(aiSubscriptions.companyId, input.companyId), eq(aiSubscriptions.id, id),
+      eq(aiSubscriptions.spaceId, input.spaceId), eq(aiSubscriptions.id, id),
       or(isNull(aiSubscriptions.lastCheckedAt), lt(aiSubscriptions.lastCheckedAt, new Date(Date.now() - REFRESH_MS))),
     )).returning({ id: aiSubscriptions.id });
     if (!claimed) return;
     try {
-      const observation = await probeSubscriptionIdentity(input.companyId, input.provider, input.credential, request);
+      const observation = await probeSubscriptionIdentity(input.spaceId, input.provider, input.credential, request);
       // A later execution/reconnect may now use another account. Never replace
       // that binding with a slow response for the previous credential.
-      const [binding] = await db.select().from(aiSubscriptionConnections).where(and(eq(aiSubscriptionConnections.companyId, input.companyId), eq(aiSubscriptionConnections.grantId, input.grantId)));
+      const [binding] = await db.select().from(aiSubscriptionConnections).where(and(eq(aiSubscriptionConnections.spaceId, input.spaceId), eq(aiSubscriptionConnections.grantId, input.grantId)));
       if (binding?.credentialKey !== observation.credentialKey) return;
       await subscriptionService(db).register(input, observation);
     } catch {
-      await db.update(aiSubscriptions).set({ refreshStatus: "unavailable" }).where(and(eq(aiSubscriptions.companyId, input.companyId), eq(aiSubscriptions.id, id)));
+      await db.update(aiSubscriptions).set({ refreshStatus: "unavailable" }).where(and(eq(aiSubscriptions.spaceId, input.spaceId), eq(aiSubscriptions.id, id)));
     }
   })().catch(() => {
     // No raw provider/credential errors are logged or returned to a user.
-    logger.warn({ companyId: input.companyId, subscriptionId: id }, "Subscription observation could not be saved");
+    logger.warn({ spaceId: input.spaceId, subscriptionId: id }, "Subscription observation could not be saved");
   }).finally(() => active!.delete(id)));
   active.set(id, task);
   return task;
 }
 
-export function refreshCompanySubscriptions(db: Db, companyId: string, userId: string): Promise<void> {
+export function refreshSpaceSubscriptions(db: Db, spaceId: string, userId: string): Promise<void> {
   let active = discovery.get(db);
   if (!active) discovery.set(db, active = new Map());
-  const key = `${companyId}:${userId}`;
+  const key = `${spaceId}:${userId}`;
   const existing = active.get(key);
   if (existing) return existing;
   if (active.size >= 20) throw tooManyRequests("Subscription account checks are busy. Try again shortly.");
   const task = trackIdleWork((async () => {
     const service = aiConnectionService(db);
-    // Uses the existing credential audience. Being a company admin does not
+    // Uses the existing credential audience. Being a space admin does not
     // authorize probing another member's personal credentials.
-    for (const row of await service.subscriptionAccounts(companyId, userId)) {
+    for (const row of await service.subscriptionAccounts(spaceId, userId)) {
       if (row.summary.status !== "connected") continue;
       try {
-        const session = await subscriptionSession(db, companyId, row.grant.credentialSecretRefs);
+        const session = await subscriptionSession(db, spaceId, row.grant.credentialSecretRefs);
         const credential = await service.credential(row);
-        const input: SubscriptionConnection = { companyId, connectionId: row.connection.id, grantId: row.grant.id,
+        const input: SubscriptionConnection = { spaceId, connectionId: row.connection.id, grantId: row.grant.id,
           provider: row.summary.provider, name: row.connection.name, ownerUserId: row.grant.subjectUserId, credential, session };
         const id = await subscriptionService(db).register(input);
         // Accepted discovery must not silently skip an account. At most twenty
@@ -73,10 +73,10 @@ export function refreshCompanySubscriptions(db: Db, companyId: string, userId: s
         }
         await refreshSubscriptionConnection(db, input, id);
       } catch {
-        logger.warn({ companyId, connectionId: row.connection.id }, "Subscription discovery unavailable for a connection");
+        logger.warn({ spaceId, connectionId: row.connection.id }, "Subscription discovery unavailable for a connection");
       }
     }
-  })().catch(() => logger.warn({ companyId }, "Subscription discovery unavailable"))
+  })().catch(() => logger.warn({ spaceId }, "Subscription discovery unavailable"))
     .finally(() => active!.delete(key)));
   active.set(key, task);
   return task;

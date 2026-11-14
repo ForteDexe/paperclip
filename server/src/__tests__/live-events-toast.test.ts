@@ -31,7 +31,7 @@ function database(onPredicate: (kind: "where" | "join", condition: SQL) => void 
       where: (condition: SQL) => { onPredicate("where", condition); return query; },
       limit: async () => {
         if (table === "issues") return [{ id: "task", identifier: "PAP-1234" }];
-        if (table === "company_memberships") return fields.name ? [{ name: "Alex Example", image: "/alex.png" }] : [{ id: "membership" }];
+        if (table === "space_memberships") return fields.name ? [{ name: "Alex Example", image: "/alex.png" }] : [{ id: "membership" }];
         if (table === "agents") return [{ name: "Coder", appearance: { schemaVersion: 1, characterVersion: "cap-v1", paletteId: "bubblegum-sky" } }];
         return [];
       },
@@ -59,12 +59,12 @@ describe("authenticated activity notifications", () => {
     const closed = new Promise<void>(resolve => wss.on("connection", socket => socket.on("close", resolve)));
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const socket = new WebSocket(`ws://127.0.0.1:${(server.address() as { port: number }).port}/api/companies/company/events/ws`);
+    const socket = new WebSocket(`ws://127.0.0.1:${(server.address() as { port: number }).port}/api/spaces/space/events/ws`);
     try {
       await once(socket, "open");
       await vi.waitFor(() => expect(idleWorkSnapshot().active).toBe(baseline));
       // System activity has no actor lookup: this gate is the new identifier SQL.
-      publishLiveEvent({ companyId: "company", type: "activity.logged", payload: {
+      publishLiveEvent({ spaceId: "space", type: "activity.logged", payload: {
         action: "issue.updated", entityType: "issue", entityId: "visible", actorType: "system",
       } });
       await started;
@@ -95,10 +95,10 @@ describe("authenticated activity notifications", () => {
     };
     const server = createServer();
     setupLiveEventsWebSocketServer(server, db as never, { deploymentMode,
-      resolveCloudActor: async () => ({ userId: "viewer", companyIds: ["company"] }) });
+      resolveCloudActor: async () => ({ userId: "viewer", spaceIds: ["space"] }) });
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const socket = new WebSocket(`ws://127.0.0.1:${(server.address() as { port: number }).port}/api/companies/company/events/ws`);
+    const socket = new WebSocket(`ws://127.0.0.1:${(server.address() as { port: number }).port}/api/spaces/space/events/ws`);
     try {
       await once(socket, "open");
       const messages: Array<{ payload: Record<string, unknown> }> = [];
@@ -108,7 +108,7 @@ describe("authenticated activity notifications", () => {
         if (event.payload.entityId === "after-failure") resolve();
       }));
       const activity = (entityId: string, actorType: string) => publishLiveEvent({
-        companyId: "company", type: "activity.logged", payload: {
+        spaceId: "space", type: "activity.logged", payload: {
           action: "issue.updated", entityType: "issue", entityId, actorType,
           actorId: actorType === "user" ? "viewer" : actorType === "agent" ? "agent" : null,
           issueIdentifier: "SPOOF-1", details: { secret: "private task details" },
@@ -141,16 +141,16 @@ describe("authenticated activity notifications", () => {
   it("preserves only an authorized handoff task identity for empty case-panel refresh", async () => {
     const server = createServer();
     setupLiveEventsWebSocketServer(server, database() as never, { deploymentMode: "authenticated",
-      resolveCloudActor: async () => ({ userId: "viewer", companyIds: ["company"] }) });
+      resolveCloudActor: async () => ({ userId: "viewer", spaceIds: ["space"] }) });
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const socket = new WebSocket(`ws://127.0.0.1:${(server.address() as { port: number }).port}/api/companies/company/events/ws`);
+    const socket = new WebSocket(`ws://127.0.0.1:${(server.address() as { port: number }).port}/api/spaces/space/events/ws`);
     try {
       await once(socket, "open");
       const messages: Array<{ payload: Record<string, unknown> }> = [];
       socket.on("message", data => messages.push(JSON.parse(data.toString())));
       const activity = (entityId: string, issueId: string, action = "case.handoff_applied") => publishLiveEvent({
-        companyId: "company", type: "activity.logged", payload: {
+        spaceId: "space", type: "activity.logged", payload: {
           action, entityType: "case", entityId, issueId,
           details: { instructions: "private handoff instructions", phase: "verification" },
         },
@@ -172,23 +172,23 @@ describe("authenticated activity notifications", () => {
     }
   });
 
-  it("uses the persisted local-board user identity for local task eligibility", async () => {
-    vi.mocked(taskToastEligible).mockImplementation(async (_db, _event, userId) => userId === "local-board");
+  it("uses the persisted local-operator user identity for local task eligibility", async () => {
+    vi.mocked(taskToastEligible).mockImplementation(async (_db, _event, userId) => userId === "local-operator");
     const server = createServer();
     setupLiveEventsWebSocketServer(server, database() as never, { deploymentMode: "local_trusted" });
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const socket = new WebSocket(`ws://127.0.0.1:${(server.address() as { port: number }).port}/api/companies/company/events/ws`);
+    const socket = new WebSocket(`ws://127.0.0.1:${(server.address() as { port: number }).port}/api/spaces/space/events/ws`);
     try {
       await once(socket, "open");
       const delivery = once(socket, "message");
-      publishLiveEvent({ companyId: "company", type: "activity.logged", payload: {
+      publishLiveEvent({ spaceId: "space", type: "activity.logged", payload: {
         action: "issue.updated", entityType: "issue", entityId: "visible", actorType: "agent", actorId: "agent",
       } });
       const [data] = await delivery;
       expect(JSON.parse(data.toString()).toastEligible).toBe(true);
       expect(JSON.parse(data.toString()).payload.issueIdentifier).toBe("PAP-1234");
-      expect(taskToastEligible).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), "local-board");
+      expect(taskToastEligible).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), "local-operator");
     } finally {
       socket.terminate();
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -204,18 +204,18 @@ describe("authenticated activity notifications", () => {
     const server = createServer();
     setupLiveEventsWebSocketServer(server, database() as never, {
       deploymentMode: "authenticated",
-      resolveCloudActor: async (req) => ({ userId: String(req.headers["x-test-viewer"]), companyIds: ["company"] }),
+      resolveCloudActor: async (req) => ({ userId: String(req.headers["x-test-viewer"]), spaceIds: ["space"] }),
     });
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const url = `ws://127.0.0.1:${(server.address() as { port: number }).port}/api/companies/company/events/ws`;
+    const url = `ws://127.0.0.1:${(server.address() as { port: number }).port}/api/spaces/space/events/ws`;
     const alice = new WebSocket(url, { headers: { "x-test-viewer": "alice" } });
     const bob = new WebSocket(url, { headers: { "x-test-viewer": "bob" } });
     try {
       await Promise.all([once(alice, "open"), once(bob, "open")]);
       for (const entityId of ["visible", "lookup-failure"]) {
         const deliveries = Promise.all([once(alice, "message"), once(bob, "message")]);
-        const original = publishLiveEvent({ companyId: "company", type: "activity.logged", payload: {
+        const original = publishLiveEvent({ spaceId: "space", type: "activity.logged", payload: {
           action: "issue.comment_added", entityType: "issue", entityId, actorType: "agent", actorId: "agent",
         } });
         const [a, b] = (await deliveries).map(([data]) => JSON.parse(data.toString()));
@@ -237,15 +237,15 @@ describe("authenticated activity notifications", () => {
   it.each(["authenticated", "local_trusted"] as const)("keeps task and actor identity for %s without exposing hidden tasks or copying private details", async (deploymentMode) => {
     const server = createServer();
     setupLiveEventsWebSocketServer(server, database() as never, { deploymentMode,
-      resolveCloudActor: async () => ({ userId: "viewer", companyIds: ["company"] }) });
+      resolveCloudActor: async () => ({ userId: "viewer", spaceIds: ["space"] }) });
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const socket = new WebSocket(`ws://127.0.0.1:${(server.address() as { port: number }).port}/api/companies/company/events/ws`);
+    const socket = new WebSocket(`ws://127.0.0.1:${(server.address() as { port: number }).port}/api/spaces/space/events/ws`);
     try {
       await once(socket, "open");
       const messages: Array<{ payload: Record<string, unknown> }> = [];
       socket.on("message", (data) => messages.push(JSON.parse(data.toString())));
-      const activity = (entityId: string, actorType = "user") => publishLiveEvent({ companyId: "company", type: "activity.logged", payload: {
+      const activity = (entityId: string, actorType = "user") => publishLiveEvent({ spaceId: "space", type: "activity.logged", payload: {
         action: "issue.created", entityType: "issue", entityId, actorType, actorId: actorType === "user" ? "viewer" : "agent",
         issueIdentifier: "SPOOF-1",
         details: { bodySnippet: "private comment", secret: "not for the socket" },
@@ -264,7 +264,7 @@ describe("authenticated activity notifications", () => {
       if (deploymentMode === "authenticated") expect(messages[1].payload).not.toHaveProperty("details");
       expect(messages[0].payload.taskIdentityChanged).toBe(true);
       const third = once(socket, "message");
-      publishLiveEvent({ companyId: "company", type: "activity.logged", payload: {
+      publishLiveEvent({ spaceId: "space", type: "activity.logged", payload: {
         action: "issue.updated", entityType: "issue", entityId: "visible", actorType: "user", actorId: "viewer",
         details: { title: "Secret new title", hiddenAt: null },
       } });
@@ -281,48 +281,48 @@ describe("authenticated activity notifications", () => {
 
 
 describe("activity profile query boundaries", () => {
-  it("reads the task identifier within its company even when there is no actor", async () => {
+  it("reads the task identifier within its space even when there is no actor", async () => {
     const predicates: { sql: string; params: unknown[] }[] = [];
     const db = database((_kind, condition) => {
       const { sql, params } = new PgDialect().sqlToQuery(condition);
       predicates.push({ sql, params });
     });
-    expect(await activityToastIdentity(db as never, "company-A", {
+    expect(await activityToastIdentity(db as never, "space-A", {
       action: "issue.updated", entityType: "issue", entityId: "task-A", actorType: "system",
     })).toMatchObject({ issueIdentifier: "PAP-1234" });
     expect(predicates).toEqual([
-      { sql: '("issues"."company_id" = $1 and "issues"."id" = $2)', params: ["company-A", "task-A"] },
+      { sql: '("issues"."space_id" = $1 and "issues"."id" = $2)', params: ["space-A", "task-A"] },
     ]);
   });
 
-  it("requires the exact company, human actor, and active membership before reading a person profile", async () => {
+  it("requires the exact space, human actor, and active membership before reading a person profile", async () => {
     const predicates: { kind: string; sql: string; params: unknown[] }[] = [];
     const db = database((kind, condition) => {
       const { sql, params } = new PgDialect().sqlToQuery(condition);
       predicates.push({ kind, sql, params });
     });
-    await activityToastIdentity(db as never, "company-A", {
+    await activityToastIdentity(db as never, "space-A", {
       action: "issue.created", actorType: "user", actorId: "person-A",
     });
     expect(predicates).toEqual([
-      { kind: "join", sql: '"user"."id" = "company_memberships"."principal_id"', params: [] },
-      { kind: "where", sql: '("company_memberships"."company_id" = $1 and "company_memberships"."principal_type" = $2 and "company_memberships"."principal_id" = $3 and "company_memberships"."status" = $4)',
-        params: ["company-A", "user", "person-A", "active"] },
+      { kind: "join", sql: '"user"."id" = "space_memberships"."principal_id"', params: [] },
+      { kind: "where", sql: '("space_memberships"."space_id" = $1 and "space_memberships"."principal_type" = $2 and "space_memberships"."principal_id" = $3 and "space_memberships"."status" = $4)',
+        params: ["space-A", "user", "person-A", "active"] },
     ]);
   });
 
-  it("requires both the exact company and agent ID before reading an agent profile", async () => {
+  it("requires both the exact space and agent ID before reading an agent profile", async () => {
     const predicates: { kind: string; sql: string; params: unknown[] }[] = [];
     const db = database((kind, condition) => {
       const { sql, params } = new PgDialect().sqlToQuery(condition);
       predicates.push({ kind, sql, params });
     });
-    await activityToastIdentity(db as never, "company-A", {
+    await activityToastIdentity(db as never, "space-A", {
       action: "issue.created", actorType: "agent", actorId: "agent-A",
     });
     expect(predicates).toEqual([
-      { kind: "where", sql: '("agents"."company_id" = $1 and "agents"."id" = $2)',
-        params: ["company-A", "agent-A"] },
+      { kind: "where", sql: '("agents"."space_id" = $1 and "agents"."id" = $2)',
+        params: ["space-A", "agent-A"] },
     ]);
   });
 });

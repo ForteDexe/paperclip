@@ -5,14 +5,14 @@ import { DELIVERY_QUEUES } from "./delivery-work-notifications.js";
 import type { IssueRecoveryScope } from "./issue-recovery-notifications.js";
 import { registerScopedDeadlineWork } from "./scoped-deadline-work.js";
 
-type Entry = { id: string; companyId: string; dueAt: number };
+type Entry = { id: string; spaceId: string; dueAt: number };
 
 export function registerTaskWatchdogWork(
   db: Db,
   coordinator: ReturnType<typeof createDeliveryWorkCoordinator>,
   owner: {
     enabled(): Promise<boolean>;
-    reconcile(scope: { companyId: string; watchdogId: string; onDeferredDeadline: (at: number) => void }): Promise<{ incomplete: number }>;
+    reconcile(scope: { spaceId: string; watchdogId: string; onDeferredDeadline: (at: number) => void }): Promise<{ incomplete: number }>;
   },
   canRun: () => boolean,
 ) {
@@ -23,14 +23,14 @@ export function registerTaskWatchdogWork(
     reconstructionIntervalMs: 30_000,
     beforePass: async () => { enabled = await owner.enabled(); },
     decodeScope: hint => hint === "*" ? undefined : JSON.parse(hint) as IssueRecoveryScope,
-    matches: (entry, scope) => !scope || entry.companyId === scope.companyId,
+    matches: (entry, scope) => !scope || entry.spaceId === scope.spaceId,
     load: async scope => {
-      const key = scope?.companyId ?? "*";
+      const key = scope?.spaceId ?? "*";
       if (!enabled) { cursors.delete(key); return []; }
       const cursor = cursors.get(key);
-      const rows = await db.select({ id: issueWatchdogs.id, companyId: issueWatchdogs.companyId })
+      const rows = await db.select({ id: issueWatchdogs.id, spaceId: issueWatchdogs.spaceId })
         .from(issueWatchdogs).where(and(eq(issueWatchdogs.status, "active"),
-          scope ? eq(issueWatchdogs.companyId, scope.companyId) : undefined,
+          scope ? eq(issueWatchdogs.spaceId, scope.spaceId) : undefined,
           cursor ? gt(issueWatchdogs.id, cursor) : undefined))
         .orderBy(asc(issueWatchdogs.id)).limit(100);
       const complete = rows.length < 100;
@@ -40,9 +40,9 @@ export function registerTaskWatchdogWork(
     check: async entry => {
       if (!enabled) return null;
       let next: number | null = null;
-      const result = await owner.reconcile({ companyId: entry.companyId, watchdogId: entry.id,
+      const result = await owner.reconcile({ spaceId: entry.spaceId, watchdogId: entry.id,
         onDeferredDeadline: at => { next = next === null ? at : Math.min(next, at); } });
-      if (result.incomplete > 0) throw new Error(`Task watchdog ${entry.id} in company ${entry.companyId} has an incomplete subtree`);
+      if (result.incomplete > 0) throw new Error(`Task watchdog ${entry.id} in space ${entry.spaceId} has an incomplete subtree`);
       return next === null ? null : { ...entry, dueAt: next };
     },
   }, canRun);

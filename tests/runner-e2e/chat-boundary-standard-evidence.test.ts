@@ -9,10 +9,10 @@ import { boundaryStandardSnapshots, emptyBoundaryResourceTrail, recordBoundaryRe
 const execFileAsync = promisify(execFile);
 it("records only the resources the boundary reported, without duplicates", () => {
   const trail = emptyBoundaryResourceTrail();
-  recordBoundaryResources(trail, { companyId: "company", runIds: [] });
-  recordBoundaryResources(trail, { companyId: "company", agentId: "morgan", runIds: ["run"] });
-  recordBoundaryResources(trail, { companyId: "company", agentId: "morgan", runIds: ["run"] });
-  expect(trail).toEqual({ companyIds: ["company"], agentIds: ["morgan"], runIds: ["run"] });
+  recordBoundaryResources(trail, { spaceId: "space", runIds: [] });
+  recordBoundaryResources(trail, { spaceId: "space", agentId: "morgan", runIds: ["run"] });
+  recordBoundaryResources(trail, { spaceId: "space", agentId: "morgan", runIds: ["run"] });
+  expect(trail).toEqual({ spaceIds: ["space"], agentIds: ["morgan"], runIds: ["run"] });
 });
 it("refuses to retain pass evidence without the boundary's own graded observation", () => {
   expect(() => boundaryStandardSnapshots({ scenarioId: "access.sign-in", trail: emptyBoundaryResourceTrail(), boundaryObservation: undefined })).toThrow("graded observation");
@@ -21,7 +21,7 @@ it("gives a passing boundary every standard pass file the launcher and private t
   const root = await mkdtemp(path.join(os.tmpdir(), "boundary-standard-")), upload = `${root}-upload`;
   try {
     for (const dir of ["snapshots", "html-report", "blob-report"]) await mkdir(path.join(root, dir));
-    const snapshots = boundaryStandardSnapshots({ scenarioId: "agent-chat.chat-disabled", trail: { companyIds: ["company"], agentIds: ["morgan"], runIds: [] },
+    const snapshots = boundaryStandardSnapshots({ scenarioId: "agent-chat.chat-disabled", trail: { spaceIds: ["space"], agentIds: ["morgan"], runIds: [] },
       boundaryObservation: { scenarioId: "agent-chat.chat-disabled", querySent: false, grade: { passed: true, checks: [] } } });
     const files: Record<string, string> = { "result.json": "{}", "junit.xml": "<testsuite/>", "html-report/index.html": "<html/>", "blob-report/receipt.txt": "synthetic unit fixture",
       "snapshots/fixtures.json": JSON.stringify(snapshots.fixtures), "snapshots/api-state.json": JSON.stringify(snapshots.apiState), "final-state.png": "unit PNG custody fixture" };

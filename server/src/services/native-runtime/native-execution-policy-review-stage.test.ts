@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agentWakeupRequests, agents, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issueThreadInteractions, issueWorkProducts, issues, statusDecisions } from "@outpost/db";
+import { agentWakeupRequests, agents, spaces, spaceMemberships, completionContracts, createDb, heartbeatRuns, issueThreadInteractions, issueWorkProducts, issues, statusDecisions } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { completionReviewStageEntry } from "../issue-execution-policy.js";
 import { nativeCompletionFeedback } from "./native-completion-feedback.js";
 import { issueThreadInteractionService } from "../issue-thread-interactions.js";
 import { gateDoneOnConfiguredReview, supersedeStaleOwnerCompletion, type NativeStatusDecision } from "./status-arbiter.js";
 import { finalizeNativeRun } from "./native-run-finalizer.js";
-import { PaperclipControlPlanePort } from "./paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "./outpost-control-plane-port.js";
 import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../../vendor/outpost-runner/testing.js";
 import type { PrpStructuredRunResult } from "../../vendor/outpost-runner/index.js";
 
@@ -25,15 +25,15 @@ describe.skipIf(!support.supported)("native completion with a configured review 
   type Options = { stage?: "user" | "agent"; monitor?: boolean; liveCycleWithRemovedStage?: boolean; unprovenEvidence?: boolean; earlyReview?: boolean;
     beforeFinish?: (runId: string, result: PrpStructuredRunResult) => Promise<void> };
   async function finishVerifiedDone(options: Options = {}) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     const reviewerId = `reviewer-${randomUUID()}`, reviewerAgentId = randomUUID(), stageId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Review stage", issuePrefix: `R${companyId.slice(0, 7)}` });
-    await db.insert(agents).values([{ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner", status: "active" },
-      { id: reviewerAgentId, companyId, name: "Reviewer", adapterType: "outpost_runner", status: "active" }]);
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: reviewerId, status: "active", membershipRole: "operator" });
+    await db.insert(spaces).values({ id: spaceId, name: "Review stage", issuePrefix: `R${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values([{ id: agentId, spaceId, name: "Worker", adapterType: "outpost_runner", status: "active" },
+      { id: reviewerAgentId, spaceId, name: "Reviewer", adapterType: "outpost_runner", status: "active" }]);
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: reviewerId, status: "active", membershipRole: "operator" });
     const participant = options.stage === "agent" ? { id: randomUUID(), type: "agent", agentId: reviewerAgentId } : { id: randomUUID(), type: "user", userId: reviewerId };
     const nextCheckAt = new Date(Date.now() + 3_600_000);
-    await db.insert(issues).values({ id: issueId, companyId, title: "Build the site", status: "in_progress", assigneeAgentId: agentId,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Build the site", status: "in_progress", assigneeAgentId: agentId,
       ...(options.stage || options.liveCycleWithRemovedStage ? { executionPolicy: { mode: "normal", commentRequired: true,
         stages: [{ id: stageId, type: "review", approvalsNeeded: 1, participants: [participant] }],
         ...(options.monitor ? { monitor: { nextCheckAt: nextCheckAt.toISOString(), notes: "Check the deploy.", scheduledBy: "assignee" } } : {}) } } : {}),
@@ -41,18 +41,18 @@ describe.skipIf(!support.supported)("native completion with a configured review 
       ...(options.liveCycleWithRemovedStage ? { executionState: { status: "changes_requested", currentStageId: randomUUID(), currentStageIndex: 0,
         currentStageType: "review", currentParticipant: { type: "user", userId: reviewerId }, returnAssignee: { type: "agent", agentId },
         completedStageIds: [], lastDecisionId: randomUUID(), lastDecisionOutcome: "changes_requested" } } : {}) });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, status: "running",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId, status: "running",
       runtimeMode: "native", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     const contractId = randomUUID(), sessionId = randomUUID(), runnerId = randomUUID(), contractSha256 = `contract-${runId}`;
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "standalone-v1", objective: "Build the site", criteria: [{ id: "objective", requirement: "Build the site" }] },
       canonicalSha256: contractSha256, createdByActorType: "system", createdByActorId: "test" });
     await db.update(heartbeatRuns).set({ completionContractId: contractId, completionContractSha256: contractSha256,
       nativeSessionId: sessionId, runnerInstanceId: runnerId }).where(eq(heartbeatRuns.id, runId));
-    const [verified] = await db.insert(issueWorkProducts).values({ companyId, issueId,
+    const [verified] = await db.insert(issueWorkProducts).values({ spaceId, issueId,
       type: "artifact", provider: "test", title: "Site check", status: "completed", reviewState: "approved" }).returning();
     const evidenceRef = `work_product:${verified!.id}`;
     // The recorded failing report: a file name and an unbound attachment ref,
@@ -71,16 +71,16 @@ describe.skipIf(!support.supported)("native completion with a configured review 
         remainingWork: [{ description: "Build the pages after the layout review", blocksCompletion: true }] },
       attentionRequests: [{ kind: "review", summary: "Riley: review the layout before I build the pages.", ownerClass: "human" }] } : result;
     if (options.beforeFinish) await options.beforeFinish(runId, reported);
-    const identity = { companyId, agentId, issueId, runId };
-    const port = new PaperclipControlPlanePort(db, { ...identity, sessionId, completionContractId: contractId,
+    const identity = { spaceId, agentId, issueId, runId };
+    const port = new OutpostControlPlanePort(db, { ...identity, sessionId, completionContractId: contractId,
       completionContractSha256: contractSha256, sourceInstanceId: runnerId, controlPlaneSourceInstanceId: randomUUID() });
     await port.openRun({ identity: { ...identity, sessionId }, backendKind: "mock", sourceInstanceId: runnerId });
     await port.completeRun({ result: reported, terminal: options.earlyReview ? { ...CONTROL_PLANE_CONFORMANCE_TERMINAL, reportedWorkDisposition: "needs_review" } : CONTROL_PLANE_CONFORMANCE_TERMINAL, callerResultId: randomUUID() });
     await finalizeNativeRun({ db, runId, workspaceFinalizeStatus: "succeeded" });
     const [task] = await db.select().from(issues).where(eq(issues.id, issueId));
     const decisions = await db.select().from(statusDecisions).where(eq(statusDecisions.issueId, issueId));
-    const wakes = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId));
-    return { task: task!, decisions, wakes, reviewerId, reviewerAgentId, stageId, agentId, companyId, issueId };
+    const wakes = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId));
+    return { task: task!, decisions, wakes, reviewerId, reviewerAgentId, stageId, agentId, spaceId, issueId };
   }
 
   it("closes verified work on a task without a configured review stage", async () => {
@@ -162,7 +162,7 @@ describe.skipIf(!support.supported)("native completion with a configured review 
     const [card] = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.issueId, r.issueId));
     expect(card).toMatchObject({ kind: "request_confirmation", status: "pending" });
     await issueThreadInteractionService(db).acceptInteraction(
-      { id: r.issueId, companyId: r.companyId, projectId: null, goalId: null, status: "in_review" }, card!.id, {}, { userId: r.reviewerId });
+      { id: r.issueId, spaceId: r.spaceId, projectId: null, goalId: null, status: "in_review" }, card!.id, {}, { userId: r.reviewerId });
     const [after] = await db.select().from(issues).where(eq(issues.id, r.issueId));
     expect(after).toMatchObject({ status: "todo", assigneeAgentId: r.agentId });
   });

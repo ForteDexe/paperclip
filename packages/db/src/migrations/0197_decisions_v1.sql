@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "decision_bundles" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"title" text NOT NULL,
 	"summary" text NOT NULL,
 	"origin_agent_id" uuid NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS "decision_bundles" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "decisions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"bundle_id" uuid,
 	"origin_agent_id" uuid NOT NULL,
 	"origin_issue_id" uuid NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS "decisions" (
 CREATE TABLE IF NOT EXISTS "decision_target_issues" (
 	"decision_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	CONSTRAINT "decision_target_issues_decision_id_issue_id_pk" PRIMARY KEY("decision_id","issue_id")
 );
 --> statement-breakpoint
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS "decision_effect_executions" (
 	"executed_at" timestamp with time zone
 );
 --> statement-breakpoint
-DO $$ BEGIN ALTER TABLE "decision_bundles" ADD CONSTRAINT "decision_bundles_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "decision_bundles" ADD CONSTRAINT "decision_bundles_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
 DO $$ BEGIN ALTER TABLE "decision_bundles" ADD CONSTRAINT "decision_bundles_origin_agent_id_agents_id_fk" FOREIGN KEY ("origin_agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
@@ -65,7 +65,7 @@ DO $$ BEGIN ALTER TABLE "decision_bundles" ADD CONSTRAINT "decision_bundles_orig
 --> statement-breakpoint
 DO $$ BEGIN ALTER TABLE "decision_bundles" ADD CONSTRAINT "decision_bundles_origin_run_id_heartbeat_runs_id_fk" FOREIGN KEY ("origin_run_id") REFERENCES "public"."heartbeat_runs"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
-DO $$ BEGIN ALTER TABLE "decisions" ADD CONSTRAINT "decisions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "decisions" ADD CONSTRAINT "decisions_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
 DO $$ BEGIN ALTER TABLE "decisions" ADD CONSTRAINT "decisions_bundle_id_decision_bundles_id_fk" FOREIGN KEY ("bundle_id") REFERENCES "public"."decision_bundles"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
@@ -79,7 +79,7 @@ DO $$ BEGIN ALTER TABLE "decision_target_issues" ADD CONSTRAINT "decision_target
 --> statement-breakpoint
 DO $$ BEGIN ALTER TABLE "decision_target_issues" ADD CONSTRAINT "decision_target_issues_issue_id_issues_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issues"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
-DO $$ BEGIN ALTER TABLE "decision_target_issues" ADD CONSTRAINT "decision_target_issues_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "decision_target_issues" ADD CONSTRAINT "decision_target_issues_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
 DO $$ BEGIN ALTER TABLE "decision_effect_executions" ADD CONSTRAINT "decision_effect_executions_decision_id_decisions_id_fk" FOREIGN KEY ("decision_id") REFERENCES "public"."decisions"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
@@ -87,11 +87,11 @@ DO $$ BEGIN ALTER TABLE "decision_effect_executions" ADD CONSTRAINT "decision_ef
 --> statement-breakpoint
 DO $$ BEGIN ALTER TABLE "decision_effect_executions" ADD CONSTRAINT "decision_effect_executions_activity_log_id_activity_log_id_fk" FOREIGN KEY ("activity_log_id") REFERENCES "public"."activity_log"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "decision_bundles_company_created_at_idx" ON "decision_bundles" USING btree ("company_id","created_at");
+CREATE INDEX IF NOT EXISTS "decision_bundles_space_created_at_idx" ON "decision_bundles" USING btree ("space_id","created_at");
 --> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "decisions_company_idempotency_uq" ON "decisions" USING btree ("company_id","idempotency_key") WHERE "decisions"."idempotency_key" IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS "decisions_space_idempotency_uq" ON "decisions" USING btree ("space_id","idempotency_key") WHERE "decisions"."idempotency_key" IS NOT NULL;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "decisions_company_status_expires_at_idx" ON "decisions" USING btree ("company_id","status","expires_at");
+CREATE INDEX IF NOT EXISTS "decisions_space_status_expires_at_idx" ON "decisions" USING btree ("space_id","status","expires_at");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "decisions_bundle_idx" ON "decisions" USING btree ("bundle_id");
 --> statement-breakpoint

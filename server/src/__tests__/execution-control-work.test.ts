@@ -4,7 +4,7 @@ import { localAiLoginService } from "../services/local-ai-login.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, agentWakeupRequests, companies, createDb, heartbeatRuns, issues, issueRecoveryActions, nativeRunFinalizations, applyPendingMigrations } from "@outpost/db";
+import { agents, agentWakeupRequests, spaces, createDb, heartbeatRuns, issues, issueRecoveryActions, nativeRunFinalizations, applyPendingMigrations } from "@outpost/db";
 import { installDatabaseWorkSignals } from "../../../packages/db/src/work-signals.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
@@ -116,7 +116,7 @@ describe("execution-control lifecycle", () => {
     const run = vi.fn(async () => {}), next = vi.fn(async () => null);
     await registerExecutionControlWork(c, [{ queue: DELIVERY_QUEUES.executionStatus, run, next }]).ready;
     for (let i = 0; i < 100; i++) {
-      await owner.transaction(tx => notifyDeliveryWork(tx, DELIVERY_QUEUES.executionStatus, `company-${i % 2}`));
+      await owner.transaction(tx => notifyDeliveryWork(tx, DELIVERY_QUEUES.executionStatus, `space-${i % 2}`));
       await vi.advanceTimersByTimeAsync(10);
     }
     expect(run).toHaveBeenCalledTimes(1); expect(next).toHaveBeenCalledTimes(1);
@@ -156,7 +156,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 describe.skipIf(!support.supported)("execution-control durable work", () => {
   let db: ReturnType<typeof createDb>, observed: typeof db;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
-  let calls: number, companyId: string, agentId: string, issueId: string;
+  let calls: number, spaceId: string, agentId: string, issueId: string;
   const errors: unknown[] = [];
   beforeAll(async () => {
     if (external) await applyPendingMigrations(external);
@@ -166,11 +166,11 @@ describe.skipIf(!support.supported)("execution-control durable work", () => {
   }, 90000);
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   beforeEach(async () => {
-    await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
-    companyId = randomUUID(); agentId = randomUUID(); issueId = randomUUID(); calls = 0; errors.length = 0;
-    await db.insert(companies).values({ id: companyId, name: "Idle execution", issuePrefix: "EXE" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "codex_local" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Execution", status: "in_progress", assigneeAgentId: agentId });
+    await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
+    spaceId = randomUUID(); agentId = randomUUID(); issueId = randomUUID(); calls = 0; errors.length = 0;
+    await db.insert(spaces).values({ id: spaceId, name: "Idle execution", issuePrefix: "EXE" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "codex_local" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Execution", status: "in_progress", assigneeAgentId: agentId });
     observed = new Proxy(db, { get(target, key) {
       if (!["select", "update", "insert", "delete", "execute", "transaction"].includes(String(key))) return Reflect.get(target, key);
       return (...args: unknown[]) => { calls++; return Reflect.apply(Reflect.get(target, key), target, args); };
@@ -189,24 +189,24 @@ describe.skipIf(!support.supported)("execution-control durable work", () => {
     await vi.advanceTimersByTimeAsync(90_000); expect(calls).toBe(before);
   }
   async function runRow(status = "running", sourceIssueId = issueId) {
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status, runtimeMode: "legacy", contextSnapshot: { issueId: sourceIssueId } }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status, runtimeMode: "legacy", contextSnapshot: { issueId: sourceIssueId } }).returning();
     return run!;
   }
   async function pausedRecoveredSource(actionId = randomUUID()) {
     const sourceIssueId = randomUUID();
-    await db.insert(issues).values({ id: sourceIssueId, companyId, title: "Recovered execution",
+    await db.insert(issues).values({ id: sourceIssueId, spaceId, title: "Recovered execution",
       status: "in_progress", assigneeAgentId: agentId });
     const run = await runRow("failed", sourceIssueId);
     await db.update(heartbeatRuns).set({ resultJson: { startupCancellation: { beforeNativeSelection: true } } })
       .where(eq(heartbeatRuns.id, run.id));
     await db.update(agents).set({ status: "paused" }).where(eq(agents.id, agentId));
-    await db.insert(issueRecoveryActions).values({ id: actionId, companyId, sourceIssueId,
+    await db.insert(issueRecoveryActions).values({ id: actionId, spaceId, sourceIssueId,
       kind: "active_run_watchdog", ownerType: "system", cause: "native_workspace_sync_out_retry_exhausted",
       fingerprint: run.id, nextAction: "Saved work recovered", evidence: { runId: run.id,
         systemRecovery: { ...createSystemRecovery(run.id), state: "complete" },
         workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: run.id,
           status: "recovered", stage: "saving_receipts", attempt: 1, attemptLimit: 6, requestIds: [] } } });
-    const retry = await requestTaskRetry({ db, companyId, issueId: sourceIssueId, actorId: "board",
+    const retry = await requestTaskRetry({ db, spaceId, issueId: sourceIssueId, actorId: "operator",
       observedRunId: run.id, idempotencyKey: randomUUID() });
     expect(retry.accepted).toBe(true);
     return { run, retry };
@@ -229,7 +229,7 @@ describe.skipIf(!support.supported)("execution-control durable work", () => {
     const evidence = { runId: run.id, systemRecovery: state,
       workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: run.id,
         status: "queued", stage: "verifying_stop", attempt: 0, attemptLimit: 6, requestIds: [] } };
-    const [action] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId,
+    const [action] = await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId,
       kind: "active_run_watchdog", ownerType: "system", cause: "native_workspace_sync_out_retry_exhausted",
       fingerprint: run.id, nextAction: "Save work", evidence }).returning();
     expect(await nextWorkspaceRecoveryAt(db)).toBe(0);
@@ -282,7 +282,7 @@ describe.skipIf(!support.supported)("execution-control durable work", () => {
         const [saved] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, retry.requestId!));
         expect(saved).toMatchObject({ status: "deferred_issue_execution", runId: null });
       }
-      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId))).toHaveLength(count);
+      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId))).toHaveLength(count);
       expect((await db.select().from(agents).where(eq(agents.id, agentId)))[0]?.status).toBe("paused");
     } finally { await c.stop(); await worker.stop(); }
   });
@@ -319,16 +319,16 @@ describe.skipIf(!support.supported)("execution-control durable work", () => {
         const [saved] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, retry.requestId!));
         expect(saved).toMatchObject({ status: "deferred_issue_execution", runId: null });
       }
-      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId))).toHaveLength(4);
+      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId))).toHaveLength(4);
       expect((await db.select().from(agents).where(eq(agents.id, agentId)))[0]?.status).toBe("paused");
     } finally { release(); await c.stop(); await worker.stop(); }
   });
 
-  it("bounds real producer bursts with another company's completed history present", async () => {
-    const otherCompany = randomUUID(), otherAgent = randomUUID();
-    await db.insert(companies).values({ id: otherCompany, name: "Other tenant", issuePrefix: "OTH" });
-    await db.insert(agents).values({ id: otherAgent, companyId: otherCompany, name: "Other worker", adapterType: "codex_local" });
-    await db.insert(heartbeatRuns).values({ companyId: otherCompany, agentId: otherAgent, status: "succeeded" });
+  it("bounds real producer bursts with another space's completed history present", async () => {
+    const otherSpace = randomUUID(), otherAgent = randomUUID();
+    await db.insert(spaces).values({ id: otherSpace, name: "Other tenant", issuePrefix: "OTH" });
+    await db.insert(agents).values({ id: otherAgent, spaceId: otherSpace, name: "Other worker", adapterType: "codex_local" });
+    await db.insert(heartbeatRuns).values({ spaceId: otherSpace, agentId: otherAgent, status: "succeeded" });
     const run = await runRow(); const publish = vi.fn(); const c = coordinator(db, undefined, error => { errors.push(error); });
     await registerExecutionControlWork(c, [{ queue: DELIVERY_QUEUES.executionStatus,
       run: () => deliverExecutionStatuses(observed, { publish }), next: executionControlSchedule(observed).status }]).ready;
@@ -339,7 +339,7 @@ describe.skipIf(!support.supported)("execution-control durable work", () => {
     }
     expect(calls).toBe(before); expect(publish).not.toHaveBeenCalled();
     await settle(); expect(publish).toHaveBeenCalledTimes(1);
-    expect(publish.mock.calls[0]?.[0]).toMatchObject({ companyId, payload: { runId: run.id } });
+    expect(publish.mock.calls[0]?.[0]).toMatchObject({ spaceId, payload: { runId: run.id } });
     await quiet(c);
   });
   it("wakes status delivery through the real producer only after outer commit, then becomes quiet", async () => {
@@ -379,7 +379,7 @@ describe.skipIf(!support.supported)("execution-control durable work", () => {
   it("retains replacement retries for an unresolved failed execution, excludes completed/denied history", async () => {
     const run = await runRow("failed");
     await db.update(heartbeatRuns).set({ nativeIssueId: issueId }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId, issueId, phase: "terminal_failure", failureCode: "provider_transport_failed" });
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId, issueId, phase: "terminal_failure", failureCode: "provider_transport_failed" });
     const schedule = executionControlSchedule(observed);
     expect(await schedule.replacement()).toBeGreaterThan(Date.now());
     await db.update(nativeRunFinalizations).set({ failureDetail: { replacementDenied: "operator_reconciled" } }).where(eq(nativeRunFinalizations.runId, run.id));
@@ -390,11 +390,11 @@ describe.skipIf(!support.supported)("execution-control durable work", () => {
     await registerExecutionControlWork(c, [{ queue: DELIVERY_QUEUES.executionDisposition,
       run: () => settleUnrecoverableExecutions(observed), next: executionControlSchedule(observed).disposition }]).ready;
     await quiet(c);
-    const action = await issueRecoveryActionService(db).upsertSourceScoped({ companyId, sourceIssueId: issueId,
+    const action = await issueRecoveryActionService(db).upsertSourceScoped({ spaceId, sourceIssueId: issueId,
       kind: "active_run_watchdog", cause: "execution_finalization_deadline_exceeded", fingerprint: run.id,
       returnOwnerAgentId: agentId, evidence: { runId: run.id }, nextAction: "Recover execution" });
     await settle();
-    expect(await issueRecoveryActionService(db).getActiveForIssue(companyId, issueId)).toBeNull();
+    expect(await issueRecoveryActionService(db).getActiveForIssue(spaceId, issueId)).toBeNull();
     expect(action.id).toBeTruthy(); await quiet(c);
   });
   it("retries a failed broadcast only while its durable marker remains, including after restart", async () => {
@@ -421,16 +421,16 @@ describe.skipIf(!support.supported)("execution-control durable work", () => {
     const due = new Date(Date.now() + 120_000), earlier = new Date(Date.now() + 60_000);
     for (const at of [due, earlier]) {
       await writeExecutionControl(db, DELIVERY_QUEUES.executionFinalization, tx => tx.update(heartbeatRuns)
-        .set({ executionControlDeadlineAt: at }).where(eq(heartbeatRuns.id, run.id)), { companyId });
+        .set({ executionControlDeadlineAt: at }).where(eq(heartbeatRuns.id, run.id)), { spaceId });
       await settle(); expect(c.nextWakeAt()).toBe(at.getTime());
     }
     await writeExecutionControl(db, DELIVERY_QUEUES.executionFinalization, tx => tx.update(heartbeatRuns)
-      .set({ executionControlDeadlineAt: null }).where(eq(heartbeatRuns.id, run.id)), { companyId });
+      .set({ executionControlDeadlineAt: null }).where(eq(heartbeatRuns.id, run.id)), { spaceId });
     await quiet(c);
   });
   it("delivers a reconciled continuation when marking and resolving commit together", async () => {
     const run = await runRow("failed"), successor = await runRow("queued");
-    const action = await issueRecoveryActionService(db).upsertSourceScoped({ companyId, sourceIssueId: issueId,
+    const action = await issueRecoveryActionService(db).upsertSourceScoped({ spaceId, sourceIssueId: issueId,
       kind: "active_run_watchdog", cause: "execution_finalization_deadline_exceeded", fingerprint: run.id,
       returnOwnerAgentId: agentId, evidence: { runId: run.id }, nextAction: "Recover execution" });
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId, recoveryActionId: action.id, previousRunId: run.id } })
@@ -441,7 +441,7 @@ describe.skipIf(!support.supported)("execution-control durable work", () => {
     await db.transaction(async tx => {
       await markExecutionReconciliation(tx as unknown as typeof db, action,
         { runId: run.id, providerStopped: true, actionOutcome: "not_performed", outcomeEvidence: "Verified the provider stopped without performing an external action." }, "operator");
-      await issueRecoveryActionService(tx).resolveActiveForIssue({ companyId, sourceIssueId: issueId, actionId: action.id, status: "resolved", outcome: "restored" });
+      await issueRecoveryActionService(tx).resolveActiveForIssue({ spaceId, sourceIssueId: issueId, actionId: action.id, status: "resolved", outcome: "restored" });
       await vi.advanceTimersByTimeAsync(1); expect(wake).not.toHaveBeenCalled();
     });
     await settle(); expect(wake).toHaveBeenCalledTimes(1); await quiet(c);

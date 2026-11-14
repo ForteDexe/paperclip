@@ -15,15 +15,15 @@ const {
   resolveAdapterExecutionTargetCommandForLogs,
   runAdapterExecutionTargetProcess,
   runAdapterExecutionTargetShellCommand,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
 } = vi.hoisted(() => ({
   ensureAdapterExecutionTargetCommandResolvable: vi.fn(async () => undefined),
   ensureAdapterExecutionTargetRuntimeCommandInstalled: vi.fn(async () => undefined),
   prepareAdapterExecutionTargetRuntime: vi.fn(async () => ({
     target: { kind: "remote", transport: "sandbox", remoteCwd: "/sandbox/workspace" },
     workspaceRemoteDir: "/sandbox/workspace",
-    runtimeRootDir: "/sandbox/.paperclip-runtime",
-    assetDirs: { home: "/sandbox/.paperclip-runtime/codex/home" },
+    runtimeRootDir: "/sandbox/.outpost-runtime",
+    assetDirs: { home: "/sandbox/.outpost-runtime/codex/home" },
     restoreWorkspace: vi.fn(async () => undefined),
   })),
   resolveAdapterExecutionTargetCommandForLogs: vi.fn(async () => "/usr/bin/codex"),
@@ -45,7 +45,7 @@ const {
     pid: null,
     startedAt: new Date().toISOString(),
   })),
-  startAdapterExecutionTargetPaperclipBridge: vi.fn(async () => null),
+  startAdapterExecutionTargetOutpostBridge: vi.fn(async () => null),
 }));
 
 vi.mock("@outpost/adapter-utils/execution-target", async () => {
@@ -60,7 +60,7 @@ vi.mock("@outpost/adapter-utils/execution-target", async () => {
     resolveAdapterExecutionTargetCommandForLogs,
     runAdapterExecutionTargetProcess,
     runAdapterExecutionTargetShellCommand,
-    startAdapterExecutionTargetPaperclipBridge,
+    startAdapterExecutionTargetOutpostBridge,
   };
 });
 
@@ -79,7 +79,7 @@ describe("codex sandbox auth precedence warning", () => {
   });
 
   it("logs and emits a run event when sandbox login is shadowed by host auth", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-auth-precedence-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-auth-precedence-"));
     cleanupDirs.push(root);
     const workspaceDir = path.join(root, "workspace");
     const hostCodexHome = path.join(root, "host-codex-home");
@@ -98,7 +98,7 @@ describe("codex sandbox auth precedence warning", () => {
       runId: "run-auth-precedence",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "CodexCoder",
         adapterType: "codex_local",
         adapterConfig: { engine: "cli" },
@@ -139,7 +139,7 @@ describe("codex sandbox auth precedence warning", () => {
     const homeAsset = runtimeCall.assets.find((asset) => asset.key === "home");
     expect(homeAsset).toBeDefined();
     expect(homeAsset?.localDir).not.toBe(hostCodexHome);
-    expect(homeAsset?.localDir).toContain("paperclip-codex-home-sync");
+    expect(homeAsset?.localDir).toContain("outpost-codex-home-sync");
     expect(homeAsset?.exclude).toBeUndefined();
     expect(runAdapterExecutionTargetShellCommand).toHaveBeenCalledWith(
       "run-auth-precedence",

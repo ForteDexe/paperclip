@@ -13,7 +13,7 @@ import { notFound, unprocessable } from "../errors.js";
 
 const publicVoteColumns = {
   id: feedbackVotes.id,
-  companyId: feedbackVotes.companyId,
+  spaceId: feedbackVotes.spaceId,
   issueId: feedbackVotes.issueId,
   targetType: feedbackVotes.targetType,
   targetId: feedbackVotes.targetId,
@@ -33,7 +33,7 @@ function normalizeReason(vote: FeedbackVoteValue, reason: string | null | undefi
 async function assertAgentAuthoredTarget(
   db: Pick<Db, "select">,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     targetType: FeedbackTargetType;
     targetId: string;
@@ -42,7 +42,7 @@ async function assertAgentAuthoredTarget(
   if (input.targetType === "issue_comment") {
     const target = await db
       .select({
-        companyId: issueComments.companyId,
+        spaceId: issueComments.spaceId,
         issueId: issueComments.issueId,
         authorAgentId: issueComments.authorAgentId,
         deletedAt: issueComments.deletedAt,
@@ -53,7 +53,7 @@ async function assertAgentAuthoredTarget(
 
     if (
       !target ||
-      target.companyId !== input.companyId ||
+      target.spaceId !== input.spaceId ||
       target.issueId !== input.issueId ||
       target.deletedAt
     ) {
@@ -68,7 +68,7 @@ async function assertAgentAuthoredTarget(
   if (input.targetType === "issue_document_revision") {
     const target = await db
       .select({
-        companyId: documentRevisions.companyId,
+        spaceId: documentRevisions.spaceId,
         authorAgentId: documentRevisions.createdByAgentId,
         issueId: issueDocuments.issueId,
       })
@@ -80,7 +80,7 @@ async function assertAgentAuthoredTarget(
         (rows) =>
           rows.find(
             (row) =>
-              row.companyId === input.companyId && row.issueId === input.issueId,
+              row.spaceId === input.spaceId && row.issueId === input.issueId,
           ) ?? null,
       );
 
@@ -126,14 +126,14 @@ export function feedbackService(db: Db) {
     }) =>
       db.transaction(async (tx) => {
         const issue = await tx
-          .select({ id: issues.id, companyId: issues.companyId })
+          .select({ id: issues.id, spaceId: issues.spaceId })
           .from(issues)
           .where(eq(issues.id, input.issueId))
           .then((rows) => rows[0] ?? null);
         if (!issue) throw notFound("Issue not found");
 
         await assertAgentAuthoredTarget(tx, {
-          companyId: issue.companyId,
+          spaceId: issue.spaceId,
           issueId: issue.id,
           targetType: input.targetType,
           targetId: input.targetId,
@@ -144,7 +144,7 @@ export function feedbackService(db: Db) {
         const [savedVote] = await tx
           .insert(feedbackVotes)
           .values({
-            companyId: issue.companyId,
+            spaceId: issue.spaceId,
             issueId: issue.id,
             targetType: input.targetType,
             targetId: input.targetId,
@@ -159,7 +159,7 @@ export function feedbackService(db: Db) {
           })
           .onConflictDoUpdate({
             target: [
-              feedbackVotes.companyId,
+              feedbackVotes.spaceId,
               feedbackVotes.targetType,
               feedbackVotes.targetId,
               feedbackVotes.authorUserId,

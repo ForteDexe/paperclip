@@ -3,9 +3,9 @@ import { chromium } from "@playwright/test";
 import { nativeCancellationHasNoLaterWork, nativeWorkEvents, stopAndRedirectThroughUi } from "./stop-redirect-flow.ts";
 import { activeStopWorkBoundary, stoppedRunAccountingFinalized } from "./product-journeys/stop-redirect-evidence.ts";
 
-const base = { id: "run", companyId: "company", agentId: "agent", nativeIssueId: "issue", runtimeMode: "native", status: "running",
+const base = { id: "run", spaceId: "space", agentId: "agent", nativeIssueId: "issue", runtimeMode: "native", status: "running",
   usageJson: { accountingReceiptSourceId: "source", accountingReceiptSequence: 5 } };
-const event = (seq, type, payload = {}) => ({ seq, eventType: type, runId: base.id, companyId: base.companyId, agentId: base.agentId,
+const event = (seq, type, payload = {}) => ({ seq, eventType: type, runId: base.id, spaceId: base.spaceId, agentId: base.agentId,
   protocolSchemaVersion: 1, sourceEventId: `event-${seq}`, sourceInstanceId: "runner", sourceSeq: seq,
   payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, eventType: type, runId: base.id, turnId: "turn",
     sourceKind: "runner", sourceEventId: `event-${seq}`, sourceInstanceId: "runner", sourceSeq: seq, payload } } });
@@ -93,7 +93,7 @@ try {
     run: { ...state.run, usageJson: { ...state.run.usageJson, accountingReceiptReady: true } } };
   await until(() => observed.has("ready-but-pending")); assert.equal(replies, 0);
   const current = await page.evaluate(async () => (await fetch("/api/owned-observation")).json());
-  for (const mutate of [row => { row.companyId = "foreign"; }, row => { row.agentId = "foreign"; },
+  for (const mutate of [row => { row.spaceId = "foreign"; }, row => { row.agentId = "foreign"; },
     row => { row.payload.orpEvent.runId = "foreign"; }, row => { row.sourceEventId = "foreign"; },
     row => { row.sourceInstanceId = "foreign"; }, row => { row.sourceSeq++; }]) {
     const foreign = event(11, "item.completed", raw); mutate(foreign);

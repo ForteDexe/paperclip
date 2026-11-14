@@ -18,8 +18,8 @@ const mockAccessService = vi.hoisted(() => ({
 }));
 
 const mockSecretService = vi.hoisted(() => ({
-  normalizeAdapterConfigForPersistence: vi.fn(async (_companyId: string, config: Record<string, unknown>) => config),
-  resolveAdapterConfigForRuntime: vi.fn(async (_companyId: string, config: Record<string, unknown>) => ({ config })),
+  normalizeAdapterConfigForPersistence: vi.fn(async (_spaceId: string, config: Record<string, unknown>) => config),
+  resolveAdapterConfigForRuntime: vi.fn(async (_spaceId: string, config: Record<string, unknown>) => ({ config })),
   collectMissingRuntimeBindings: vi.fn(async () => [] as Array<Record<string, unknown>>),
   resolveEnvBindings: vi.fn(async () => ({
     env: {} as Record<string, string>,
@@ -31,7 +31,7 @@ const mockSecretService = vi.hoisted(() => ({
 const mockEnvironmentService = vi.hoisted(() => ({
   getById: vi.fn(),
   releaseLease: vi.fn(),
-  listBoundCompanyIds: vi.fn(async () => [] as string[]),
+  listBoundSpaceIds: vi.fn(async () => [] as string[]),
   findManagedSandboxEnvironment: vi.fn(async () => null as Record<string, unknown> | null),
   findKubernetesEnvironment: vi.fn(async () => null as Record<string, unknown> | null),
 }));
@@ -71,8 +71,8 @@ vi.mock("../services/index.js", () => ({
   agentInstructionsService: () => ({}),
   accessService: () => mockAccessService,
   approvalService: () => ({}),
-  builtInAgentService: () => ({ ensureCompanyDefaultAgentGrants: vi.fn() }),
-  companySkillService: () => ({
+  builtInAgentService: () => ({ ensureSpaceDefaultAgentGrants: vi.fn() }),
+  spaceSkillService: () => ({
     listRuntimeSkillEntries: vi.fn(async () => []),
     resolveRequestedSkillKeys: vi.fn(async () => []),
   }),
@@ -141,11 +141,11 @@ vi.mock("../services/ai-connection-runtime.js", async (importOriginal) => ({
   },
 }));
 // Runner selection stays real unless a test overrides the resolved adapter.
-const mockResolveNewAgentRunnerForCompany = vi.hoisted(() => vi.fn());
+const mockResolveNewAgentRunnerForSpace = vi.hoisted(() => vi.fn());
 vi.mock("../services/agent-runner-selection.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/agent-runner-selection.js")>();
-  mockResolveNewAgentRunnerForCompany.mockImplementation(actual.resolveNewAgentRunnerForCompany);
-  return { ...actual, resolveNewAgentRunnerForCompany: mockResolveNewAgentRunnerForCompany };
+  mockResolveNewAgentRunnerForSpace.mockImplementation(actual.resolveNewAgentRunnerForSpace);
+  return { ...actual, resolveNewAgentRunnerForSpace: mockResolveNewAgentRunnerForSpace };
 });
 const mockValidateAiApiKey = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock("../services/ai-api-key-test.js", () => ({ validateAiApiKey: mockValidateAiApiKey }));
@@ -176,8 +176,8 @@ function mockManagedRuntime(method: "api_key" | "subscription") {
           provider: "anthropic",
           method,
           mode: "responsible_user",
-          responsibleUserId: "local-board",
-          identity: "grant-1:local-board:0000000000000000",
+          responsibleUserId: "local-operator",
+          identity: "grant-1:local-operator:0000000000000000",
         },
       },
       attribution: {
@@ -186,11 +186,11 @@ function mockManagedRuntime(method: "api_key" | "subscription") {
         provider: "anthropic",
         method,
         mode: "responsible_user",
-        responsibleUserId: "local-board",
+        responsibleUserId: "local-operator",
       },
       accountName: "My Claude Account",
-      accountOwnerUserId: "local-board",
-      identity: "grant-1:local-board:0000000000000000",
+      accountOwnerUserId: "local-operator",
+      identity: "grant-1:local-operator:0000000000000000",
       cleanup: vi.fn(async () => {}),
     }),
   );
@@ -209,9 +209,9 @@ async function createApp(actor: Record<string, unknown> = {}) {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = {
-      type: "board",
-      userId: "local-board",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "local-operator",
+      spaceIds: ["space-1"],
       source: "local_implicit",
       isInstanceAdmin: false,
       ...actor,
@@ -248,23 +248,23 @@ describe("agent test-environment route", () => {
     });
     mockEnvironmentService.getById.mockResolvedValue({
       id: "11111111-1111-4111-8111-111111111111",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Sandbox QA",
       driver: "sandbox",
       config: { provider: "fake-plugin" },
     });
-    // Default to an instance-global environment with no company binding, so the
+    // Default to an instance-global environment with no space binding, so the
     // tenant-binding guard passes unless a test overrides it.
-    mockEnvironmentService.listBoundCompanyIds.mockResolvedValue([]);
+    mockEnvironmentService.listBoundSpaceIds.mockResolvedValue([]);
     mockEnvironmentRuntime.acquireRunLease.mockResolvedValue({
       lease: {
         id: "lease-1",
         provider: "daytona",
         providerLeaseId: "provider-lease-1",
         metadata: {
-          remoteCwd: "/home/user/paperclip-workspace",
+          remoteCwd: "/home/user/outpost-workspace",
           sandboxId: "sandbox-1",
-          sandboxName: "paperclip-probe",
+          sandboxName: "outpost-probe",
           templateKind: "snapshot",
           templateRef: "snapshot-1",
         },
@@ -275,7 +275,7 @@ describe("agent test-environment route", () => {
       },
     });
     mockEnvironmentRuntime.realizeWorkspace.mockResolvedValue({
-      cwd: "/home/user/paperclip-workspace",
+      cwd: "/home/user/outpost-workspace",
     });
     mockResolveEnvironmentExecutionTarget.mockResolvedValue(null);
     testEnvironmentSpy.mockResolvedValue({
@@ -308,11 +308,11 @@ describe("agent test-environment route", () => {
     try {
       const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
       const adapterConfig = { provider: "cursor_cloud", model: "caller-model", repoUrl: "https://github.com/example/qualification", env: { CURSOR_API_KEY: "synthetic" } };
-      mockAgentService.getById.mockResolvedValue({ id, companyId: "company-1", adapterType: "outpost_runner", adapterConfig, defaultEnvironmentId: "11111111-1111-4111-8111-111111111111" });
+      mockAgentService.getById.mockResolvedValue({ id, spaceId: "space-1", adapterType: "outpost_runner", adapterConfig, defaultEnvironmentId: "11111111-1111-4111-8111-111111111111" });
       mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableManagedSandboxOnly: true });
       mockInstanceSettingsService.get.mockResolvedValue({ defaultEnvironmentId: "11111111-1111-4111-8111-111111111111" });
       const app = await createApp();
-      const response = await request(app).post("/api/companies/company-1/adapters/outpost_runner/test-environment").send({ agentId: id, adapterConfig });
+      const response = await request(app).post("/api/spaces/space-1/adapters/outpost_runner/test-environment").send({ agentId: id, adapterConfig });
       expect(response.status, JSON.stringify(response.body)).toBe(200);
       expect(response.body).toMatchObject({ status: "warn", checks: [{ code: "cursor_cloud_account_ready" }] });
       expect(probe).toHaveBeenCalledWith(expect.objectContaining({ executionTarget: null, environmentName: null, config: adapterConfig }));
@@ -320,7 +320,7 @@ describe("agent test-environment route", () => {
       expect(mockEnvironmentRuntime.realizeWorkspace).not.toHaveBeenCalled();
       expect(mockEnvironmentService.findManagedSandboxEnvironment).not.toHaveBeenCalled();
       mockInstanceSettingsService.getGeneral.mockResolvedValue({ censorUsernameInLogs: false, executionMode: "kubernetes" });
-      const denied = await request(app).post("/api/companies/company-1/adapters/outpost_runner/test-environment").send({ agentId: id, adapterConfig });
+      const denied = await request(app).post("/api/spaces/space-1/adapters/outpost_runner/test-environment").send({ agentId: id, adapterConfig });
       expect(denied.status).toBe(422);
       expect(denied.body.details?.code ?? denied.body.code).toBe("provider_api_kubernetes_execution_unsupported");
       expect(probe).toHaveBeenCalledOnce();
@@ -343,7 +343,7 @@ describe("agent test-environment route", () => {
     const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const environmentId = "22222222-2222-4222-8222-222222222222";
     const adapterConfig = { provider: "cursor_cloud", model: "caller-model", repoUrl: "https://github.com/example/qualification", env: {} };
-    mockAgentService.getById.mockResolvedValue({ id, companyId: "company-1", adapterType: "outpost_runner",
+    mockAgentService.getById.mockResolvedValue({ id, spaceId: "space-1", adapterType: "outpost_runner",
       adapterConfig, runtimeConfig: {}, defaultEnvironmentId: "11111111-1111-4111-8111-111111111111" });
     const envVars = { CURSOR_API_KEY: { type: "secret_ref", secretId: "computer-key" } };
     mockEnvironmentService.getById.mockResolvedValue({ id: environmentId, name: "Chosen Computer",
@@ -359,14 +359,14 @@ describe("agent test-environment route", () => {
     try {
       const f = savedCursorSwitchFixture();
       const config = { ...f.adapterConfig, ...(legacyPrompt ? { promptTemplate: "Legacy prompt" } : {}) };
-      const response = await request(await createApp()).post("/api/companies/company-1/adapters/outpost_runner/test-environment")
+      const response = await request(await createApp()).post("/api/spaces/space-1/adapters/outpost_runner/test-environment")
         .send({ agentId: f.id, runner: "legacy", environmentId: f.environmentId, adapterConfig: config });
       expect(response.status, JSON.stringify(response.body)).toBe(200);
       expect(probe).toHaveBeenCalledWith(expect.objectContaining({ environmentName: "Chosen Computer", executionTarget: null,
         config: expect.objectContaining({ model: "caller-model", env: { CURSOR_API_KEY: "chosen-computer-key" },
           ...(legacyPrompt ? { promptTemplate: "Legacy prompt" } : {}) }) }));
       expect(probe.mock.calls[0][0].config).not.toHaveProperty("provider");
-      expect(mockSecretService.resolveEnvBindings).toHaveBeenCalledWith("company-1", f.envVars,
+      expect(mockSecretService.resolveEnvBindings).toHaveBeenCalledWith("space-1", f.envVars,
         expect.objectContaining({ consumerType: "environment", consumerId: f.environmentId }));
       expect(mockEnvironmentRuntime.acquireRunLease).not.toHaveBeenCalled();
       expect(probes.native).not.toHaveBeenCalled();
@@ -377,8 +377,8 @@ describe("agent test-environment route", () => {
     const probes = await mockCursorSwitchProbes();
     try {
       const f = savedCursorSwitchFixture();
-      mockEnvironmentService.listBoundCompanyIds.mockResolvedValue(["company-2"]);
-      const response = await request(await createApp()).post("/api/companies/company-1/adapters/outpost_runner/test-environment")
+      mockEnvironmentService.listBoundSpaceIds.mockResolvedValue(["space-2"]);
+      const response = await request(await createApp()).post("/api/spaces/space-1/adapters/outpost_runner/test-environment")
         .send({ agentId: f.id, runner: "legacy", environmentId: f.environmentId,
           adapterConfig: { ...f.adapterConfig, promptTemplate: "Legacy prompt" } });
       expect(response.status).toBe(403);
@@ -396,7 +396,7 @@ describe("agent test-environment route", () => {
     try {
       const f = savedCursorSwitchFixture();
       mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableManagedSandboxOnly: true });
-      const response = await request(await createApp()).post("/api/companies/company-1/adapters/outpost_runner/test-environment")
+      const response = await request(await createApp()).post("/api/spaces/space-1/adapters/outpost_runner/test-environment")
         .send({ agentId: f.id, runner: "legacy", environmentId: f.environmentId, adapterConfig: f.adapterConfig });
       expect(response.status, JSON.stringify(response.body)).toBe(200);
       expect(response.body).toMatchObject({ status: "fail", checks: expect.arrayContaining([
@@ -408,7 +408,7 @@ describe("agent test-environment route", () => {
     } finally { probes.restore(); }
   });
 
-  it("keeps an explicit Paperclip Cursor test API-only despite a selected Computer", async () => {
+  it("keeps an explicit Outpost Cursor test API-only despite a selected Computer", async () => {
     const probes = await mockCursorSwitchProbes();
     const probe = probes.native;
     try {
@@ -416,8 +416,8 @@ describe("agent test-environment route", () => {
       const settings = { defaultEnvironmentId: null, experimental: { enableManagedSandboxOnly: true, enableNativeRunner: true } };
       mockInstanceSettingsService.get.mockResolvedValue(settings);
       mockInstanceSettingsService.getExperimental.mockResolvedValue(settings.experimental);
-      const response = await request(await createApp()).post("/api/companies/company-1/adapters/outpost_runner/test-environment")
-        .send({ agentId: f.id, runner: "paperclip", environmentId: f.environmentId, adapterConfig: f.adapterConfig });
+      const response = await request(await createApp()).post("/api/spaces/space-1/adapters/outpost_runner/test-environment")
+        .send({ agentId: f.id, runner: "outpost", environmentId: f.environmentId, adapterConfig: f.adapterConfig });
       expect(response.status, JSON.stringify(response.body)).toBe(200);
       expect(probe).toHaveBeenCalledWith(expect.objectContaining({ executionTarget: null, environmentName: null,
         config: expect.objectContaining({ provider: "cursor_cloud" }) }));
@@ -433,7 +433,7 @@ describe("agent test-environment route", () => {
     { patch: { command: "untrusted" }, code: "outpost_runner_cursor_cloud_config_invalid" },
   ])("returns a useful validation error before Computer or credential work for invalid native Cursor input ($code)", async ({ patch, code }) => {
     const app = await createApp();
-    const response = await request(app).post("/api/companies/company-1/adapters/outpost_runner/test-environment").send({
+    const response = await request(app).post("/api/spaces/space-1/adapters/outpost_runner/test-environment").send({
       adapterConfig: { provider: "cursor_cloud", model: "caller-model", repoUrl: "https://github.com/example/qualification", ...patch },
     });
     expect(response.status, JSON.stringify(response.body)).toBe(422);
@@ -454,7 +454,7 @@ describe("agent test-environment route", () => {
       mockInstanceSettingsService.getExperimental.mockResolvedValue(settings.experimental);
       const adapterConfig = { model: "caller-model", repoUrl: "https://github.com/example/qualification", env: { CURSOR_API_KEY: "synthetic" } };
       const app = await createApp();
-      const response = await request(app).post("/api/companies/company-1/adapters/cursor_cloud/test-environment").send({ runner, adapterConfig });
+      const response = await request(app).post("/api/spaces/space-1/adapters/cursor_cloud/test-environment").send({ runner, adapterConfig });
       expect(response.status, JSON.stringify(response.body)).toBe(200);
       expect(response.body).toMatchObject({ adapterType: "outpost_runner", checks: [{ code: "cursor_cloud_account_ready" }] });
       expect(probe).toHaveBeenCalledWith(expect.objectContaining({ executionTarget: null, environmentName: null,
@@ -462,8 +462,8 @@ describe("agent test-environment route", () => {
       expect(mockEnvironmentService.findManagedSandboxEnvironment).not.toHaveBeenCalled();
       expect(mockEnvironmentRuntime.acquireRunLease).not.toHaveBeenCalled();
       const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-      mockAgentService.getById.mockResolvedValue({ id, companyId: "company-1", adapterType: "cursor_cloud", adapterConfig, defaultEnvironmentId: null });
-      const legacy = await request(app).post("/api/companies/company-1/adapters/cursor_cloud/test-environment").send({ agentId: id, adapterConfig });
+      mockAgentService.getById.mockResolvedValue({ id, spaceId: "space-1", adapterType: "cursor_cloud", adapterConfig, defaultEnvironmentId: null });
+      const legacy = await request(app).post("/api/spaces/space-1/adapters/cursor_cloud/test-environment").send({ agentId: id, adapterConfig });
       expect(legacy.status).toBe(422);
       expect(legacy.body.details?.code).toBe("managed_sandbox_unavailable");
       expect(probe).toHaveBeenCalledOnce();
@@ -479,7 +479,7 @@ describe("agent test-environment route", () => {
     mockInstanceSettingsService.get.mockResolvedValue({ defaultEnvironmentId: "11111111-1111-4111-8111-111111111111" });
     const app = await createApp();
     try {
-      const res = await request(app).post("/api/companies/company-1/adapters/outpost_runner/test-environment")
+      const res = await request(app).post("/api/spaces/space-1/adapters/outpost_runner/test-environment")
         .send({ adapterConfig: { provider: "openai_dot", allowUnmeteredProvider: true } });
       expect(res.status, JSON.stringify(res.body)).toBe(200);
       expect(res.body.checks).toContainEqual(expect.objectContaining({ code: "dot_controller", level: "info" }));
@@ -497,7 +497,7 @@ describe("agent test-environment route", () => {
     });
     const app = await createApp();
     try {
-      const res = await request(app).post("/api/companies/company-1/adapters/outpost_runner/test-environment")
+      const res = await request(app).post("/api/spaces/space-1/adapters/outpost_runner/test-environment")
         .send({ adapterConfig: { provider: "openai_dot", allowUnmeteredProvider: true } });
       expect(res.status, JSON.stringify(res.body)).toBe(200);
       expect(res.body.status).toBe("fail");
@@ -508,33 +508,33 @@ describe("agent test-environment route", () => {
   });
 
   it("lets an authorized agent editor discover Copilot models", async () => {
-    mockAgentService.getById.mockResolvedValue({ id: "agent-1", companyId: "company-1" });
-    const response = await request(await createApp()).get("/api/companies/company-1/adapters/outpost_runner/models")
+    mockAgentService.getById.mockResolvedValue({ id: "agent-1", spaceId: "space-1" });
+    const response = await request(await createApp()).get("/api/spaces/space-1/adapters/outpost_runner/models")
       .query({ provider: "acpx", acpxAgent: "copilot", agentId: "agent-1" });
     expect(response.status).toBe(200);
     expect(response.body).toEqual([{ id: "gpt-5.6-luna", label: "GPT-5.6 Luna" }]);
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({ action: "agent_config:update" }));
     expect(mockSelectAiConnection).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      companyId: "company-1", userId: "local-board", agentId: "agent-1", runnerProvider: "acpx", acpxAgent: "copilot",
+      spaceId: "space-1", userId: "local-operator", agentId: "agent-1", runnerProvider: "acpx", acpxAgent: "copilot",
       binding: { provider: "github", method: "api_key", mode: "responsible_user" }, allowUninstalledShared: false,
     }));
-    expect(mockCopilotModels).toHaveBeenCalledExactlyOnceWith(expect.anything(), "company-1", "synthetic-copilot-token", null, undefined, expect.anything());
+    expect(mockCopilotModels).toHaveBeenCalledExactlyOnceWith(expect.anything(), "space-1", "synthetic-copilot-token", null, undefined, expect.anything());
   });
 
   it.each([
-    ["board viewer", { type: "board" }],
-    ["agent reader", { type: "agent", agentId: "reader-agent", companyId: "company-1", onBehalfOfUserId: "reader-user",
-      onBehalfOfMemberships: [{ companyId: "company-1", status: "active", membershipRole: "member" }] }],
+    ["operator viewer", { type: "operator" }],
+    ["agent reader", { type: "agent", agentId: "reader-agent", spaceId: "space-1", onBehalfOfUserId: "reader-user",
+      onBehalfOfMemberships: [{ spaceId: "space-1", status: "active", membershipRole: "member" }] }],
   ])("refuses a %s discovery probe before resolving a shared token", async (_label, actor) => {
     mockAccessService.decide.mockImplementation(async ({ action }) => ({
       allowed: action === "agent_config:read", explanation: "No configuration update grant",
     }));
     mockAccessService.canUser.mockResolvedValue(false);
-    mockAgentService.getById.mockResolvedValue({ id: "agent-1", companyId: "company-1" });
+    mockAgentService.getById.mockResolvedValue({ id: "agent-1", spaceId: "space-1" });
     const binding = { provider: "github", method: "api_key", mode: "shared",
       connectionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", grantId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" };
-    const response = await request(await createApp(actor)).get("/api/companies/company-1/adapters/outpost_runner/models")
+    const response = await request(await createApp(actor)).get("/api/spaces/space-1/adapters/outpost_runner/models")
       .query({ provider: "acpx", acpxAgent: "copilot", agentId: "agent-1",
         environmentId: "33333333-3333-4333-8333-333333333333", aiConnection: JSON.stringify(binding) });
     expect(response.status).toBe(403);
@@ -546,17 +546,17 @@ describe("agent test-environment route", () => {
 
   it.each([undefined, "33333333-3333-4333-8333-333333333333"])("uses the saved or editor-selected Copilot environment (%s)", async environmentId => {
     const savedEnvironmentId = "22222222-2222-4222-8222-222222222222";
-    mockAgentService.getById.mockResolvedValue({ id: "agent-1", companyId: "company-1", defaultEnvironmentId: savedEnvironmentId });
-    const response = await request(await createApp()).get("/api/companies/company-1/adapters/outpost_runner/models")
+    mockAgentService.getById.mockResolvedValue({ id: "agent-1", spaceId: "space-1", defaultEnvironmentId: savedEnvironmentId });
+    const response = await request(await createApp()).get("/api/spaces/space-1/adapters/outpost_runner/models")
       .query({ provider: "acpx", acpxAgent: "copilot", agentId: "agent-1", ...(environmentId ? { environmentId } : {}) });
     expect(response.status).toBe(200);
-    expect(mockCopilotModels).toHaveBeenCalledExactlyOnceWith(expect.anything(), "company-1", "synthetic-copilot-token",
+    expect(mockCopilotModels).toHaveBeenCalledExactlyOnceWith(expect.anything(), "space-1", "synthetic-copilot-token",
       environmentId ?? savedEnvironmentId, undefined, expect.objectContaining({ targetAgentId: "agent-1" }));
   });
 
   it("refuses model discovery for a foreign agent before selecting credentials", async () => {
-    mockAgentService.getById.mockResolvedValue({ id: "agent-foreign", companyId: "company-2" });
-    const response = await request(await createApp()).get("/api/companies/company-1/adapters/outpost_runner/models")
+    mockAgentService.getById.mockResolvedValue({ id: "agent-foreign", spaceId: "space-2" });
+    const response = await request(await createApp()).get("/api/spaces/space-1/adapters/outpost_runner/models")
       .query({ provider: "acpx", acpxAgent: "copilot", agentId: "agent-foreign" });
     expect(response.status).toBe(404);
     expect(mockSelectAiConnection).not.toHaveBeenCalled();
@@ -566,9 +566,9 @@ describe("agent test-environment route", () => {
 
   it("keeps saved connection access enforced before Copilot model probing", async () => {
     const { forbidden } = await import("../errors.js");
-    mockAgentService.getById.mockResolvedValue({ id: "agent-1", companyId: "company-1" });
+    mockAgentService.getById.mockResolvedValue({ id: "agent-1", spaceId: "space-1" });
     mockSelectAiConnection.mockRejectedValueOnce(forbidden("Saved connection access denied"));
-    const response = await request(await createApp()).get("/api/companies/company-1/adapters/outpost_runner/models")
+    const response = await request(await createApp()).get("/api/spaces/space-1/adapters/outpost_runner/models")
       .query({ provider: "acpx", acpxAgent: "copilot", agentId: "agent-1" });
     expect(response.status).toBe(403);
     expect(mockAiCredential).not.toHaveBeenCalled();
@@ -585,7 +585,7 @@ describe("agent test-environment route", () => {
     mockResolveEnvironmentExecutionTarget.mockResolvedValue(target);
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({ adapterConfig: {}, environmentId: null });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockEnvironmentRuntime.acquireRunLease).toHaveBeenCalled();
@@ -600,7 +600,7 @@ describe("agent test-environment route", () => {
   ])("resolves the saved agent environment when the request selection is $selection", async ({ environmentId, expectedId }) => {
     const agentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     mockAgentService.getById.mockResolvedValue({
-      id: agentId, companyId: "company-1", adapterType: "external_test",
+      id: agentId, spaceId: "space-1", adapterType: "external_test",
       adapterConfig: {}, runtimeConfig: {}, defaultEnvironmentId: "22222222-2222-4222-8222-222222222222",
     });
     mockInstanceSettingsService.get.mockResolvedValue({ defaultEnvironmentId: "11111111-1111-4111-8111-111111111111" });
@@ -611,14 +611,14 @@ describe("agent test-environment route", () => {
     mockResolveEnvironmentExecutionTarget.mockResolvedValue(target);
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({ agentId, adapterConfig: {}, ...(environmentId === undefined ? {} : { environmentId }) });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockEnvironmentRuntime.acquireRunLease).toHaveBeenCalledWith(expect.objectContaining({
       agentId, environment: expect.objectContaining({ id: expectedId }),
     }));
     expect(mockSecretService.resolveAdapterConfigForRuntime).toHaveBeenCalledWith(
-      "company-1", {}, expect.objectContaining({ consumerType: "environment", consumerId: expectedId }),
+      "space-1", {}, expect.objectContaining({ consumerType: "environment", consumerId: expectedId }),
       expect.any(Object),
     );
     expect(testEnvironmentSpy).toHaveBeenCalledWith(expect.objectContaining({ executionTarget: target }));
@@ -629,7 +629,7 @@ describe("agent test-environment route", () => {
     mockEnvironmentService.getById.mockResolvedValue({ id: "33333333-3333-4333-8333-333333333333", name: "Local", driver: "local", status: "active", config: {} });
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({ environmentId: "33333333-3333-4333-8333-333333333333" });
     expect(res.status).toBe(200);
     expect(mockInstanceSettingsService.get).not.toHaveBeenCalled();
@@ -644,7 +644,7 @@ describe("agent test-environment route", () => {
     mockResolveEnvironmentExecutionTarget.mockResolvedValue(target);
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({ environmentId: null });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(testEnvironmentSpy).toHaveBeenCalledWith(expect.objectContaining({ executionTarget: target }));
@@ -661,7 +661,7 @@ describe("agent test-environment route", () => {
       attribution: { provider: "github", method: "api_key" }, cleanup: vi.fn(),
     }));
     const app = await createApp();
-    const response = await request(app).post("/api/companies/company-1/adapters/outpost_runner/test-environment").send({
+    const response = await request(app).post("/api/spaces/space-1/adapters/outpost_runner/test-environment").send({
       environmentId, adapterConfig: { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.6-luna" },
       aiConnection: { provider: "github", method: "api_key", mode: "responsible_user" },
     });
@@ -675,7 +675,7 @@ describe("agent test-environment route", () => {
   it("refuses a Copilot test before credentials when forced Kubernetes is unavailable", async () => {
     mockInstanceSettingsService.getGeneral.mockResolvedValue({ censorUsernameInLogs: false, executionMode: "kubernetes" });
     const app = await createApp();
-    const response = await request(app).post("/api/companies/company-1/adapters/outpost_runner/test-environment").send({
+    const response = await request(app).post("/api/spaces/space-1/adapters/outpost_runner/test-environment").send({
       adapterConfig: { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.6-luna" },
       aiConnection: { provider: "github", method: "api_key", mode: "responsible_user" },
     });
@@ -685,12 +685,12 @@ describe("agent test-environment route", () => {
     expect(mockCopilotProbe).not.toHaveBeenCalled();
   });
 
-  it("checks the inherited environment's company before resolving credentials", async () => {
+  it("checks the inherited environment's space before resolving credentials", async () => {
     mockInstanceSettingsService.get.mockResolvedValue({ defaultEnvironmentId: "11111111-1111-4111-8111-111111111111" });
-    mockEnvironmentService.listBoundCompanyIds.mockResolvedValue(["company-2"]);
+    mockEnvironmentService.listBoundSpaceIds.mockResolvedValue(["space-2"]);
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({ adapterConfig: {} });
     expect(res.status).toBe(403);
     expect(mockSecretService.normalizeAdapterConfigForPersistence).not.toHaveBeenCalled();
@@ -702,7 +702,7 @@ describe("agent test-environment route", () => {
     mockEnvironmentService.getById.mockResolvedValue(null);
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({ adapterConfig: {} });
     expect(res.body.checks).toEqual([expect.objectContaining({ code: "environment_not_found" })]);
     expect(testEnvironmentSpy).not.toHaveBeenCalled();
@@ -712,7 +712,7 @@ describe("agent test-environment route", () => {
     mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableManagedSandboxOnly: true });
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({ adapterConfig: {} });
     expect(res.status).toBe(422);
     expect(res.body.details.code).toBe("managed_sandbox_unavailable");
@@ -721,23 +721,23 @@ describe("agent test-environment route", () => {
 
   it("tests a prospective adapter switch before saving the agent", async () => {
     mockAgentService.getById.mockResolvedValue({
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", companyId: "company-1",
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId: "space-1",
       adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {},
     });
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({ agentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", adapterConfig: { model: "prospective-model" } });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(testEnvironmentSpy).toHaveBeenCalledWith(expect.objectContaining({ config: { model: "prospective-model" } }));
   });
 
   it("requires agent update permission to test a prospective adapter switch", async () => {
-    mockAgentService.getById.mockResolvedValue({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", companyId: "company-1", adapterType: "codex_local", adapterConfig: {} });
+    mockAgentService.getById.mockResolvedValue({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId: "space-1", adapterType: "codex_local", adapterConfig: {} });
     mockAccessService.decide.mockImplementation(async ({ action }) => ({ allowed: action !== "agent_config:update", reason: "test", explanation: "Update denied" }));
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({ agentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", adapterConfig: {} });
     expect(res.status).toBe(403);
     expect(testEnvironmentSpy).not.toHaveBeenCalled();
@@ -746,7 +746,7 @@ describe("agent test-environment route", () => {
   it.each(["CURSOR_API_KEY", "KIMI_MODEL_API_KEY", "ZAI_API_KEY", "KIMI_API_KEY", "MINIMAX_API_KEY"])("accepts %s as a probe-only credential", async (key) => {
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({ testCredentials: { [key]: "probe-only-key" } });
     expect(res.status).toBe(200);
     expect(mockSecretService.normalizeAdapterConfigForPersistence.mock.calls[0]?.[1]).toEqual({});
@@ -761,7 +761,7 @@ describe("agent test-environment route", () => {
     try {
       const app = await createApp();
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/hermes_gateway/test-environment")
+        .post("/api/spaces/space-1/adapters/hermes_gateway/test-environment")
         .send({ adapterConfig: { apiBaseUrl: "https://hermes.example.com" }, testCredentials: { API_SERVER_KEY: "gateway-probe-key" } });
       expect(res.status).toBe(200);
       expect(mockSecretService.normalizeAdapterConfigForPersistence.mock.calls[0]?.[1]).toEqual({ apiBaseUrl: "https://hermes.example.com" });
@@ -798,7 +798,7 @@ describe("agent test-environment route", () => {
     try {
       const app = await createApp();
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({
           adapterConfig: { cwd: "/" },
           aiConnection: { provider: "anthropic", method: "api_key", mode: "responsible_user" },
@@ -824,7 +824,7 @@ describe("agent test-environment route", () => {
     }));
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({
         adapterConfig: { cwd: "/" },
         aiConnection: { provider: "anthropic", method: "api_key", mode: "responsible_user" },
@@ -833,7 +833,7 @@ describe("agent test-environment route", () => {
     expect(res.body.status).toBe("fail");
     expect(res.body.checks.map((check: { code: string }) => check.code)).toContain("ai_connection_api_key_rejected");
     expect(mockMarkAuthenticationFailed).toHaveBeenCalledWith(expect.objectContaining({
-      companyId: "company-1",
+      spaceId: "space-1",
       attribution: expect.objectContaining({ connectionId: "conn-1", grantId: "grant-1" }),
     }));
   });
@@ -853,7 +853,7 @@ describe("agent test-environment route", () => {
     try {
       const app = await createApp();
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({
           adapterConfig: { cwd: "/" },
           aiConnection: { provider: "anthropic", method: "subscription", mode: "responsible_user" },
@@ -875,8 +875,8 @@ describe("agent test-environment route", () => {
     const adapterConfig = { provider: "acpx", acpxAgent: "antigravity", model: "exact-google-model" };
     const binding = { provider: "google", method: "subscription", mode: "responsible_user" };
     const agentId = "11111111-1111-4111-8111-111111111111";
-    mockAgentService.getById.mockResolvedValue({ id: agentId, companyId: "company-1", adapterType: "outpost_runner",
-      adapterConfig, runtimeConfig: { aiConnection: binding }, createdByUserId: "local-board", pauseReason: "setup" });
+    mockAgentService.getById.mockResolvedValue({ id: agentId, spaceId: "space-1", adapterType: "outpost_runner",
+      adapterConfig, runtimeConfig: { aiConnection: binding }, createdByUserId: "local-operator", pauseReason: "setup" });
     mockPrepareManagedAiRuntime.mockImplementation(async (_db: unknown, input: { config: Record<string, unknown> }) => ({
       config: { ...input.config, env: { GEMINI_HOME: "/selected-private-home/provider" }, managedAiConnection: { method: "subscription" } },
       home: "/selected-private-home", cleanup: vi.fn(), accountName: "My Google subscription", attribution: { provider: "google" },
@@ -887,11 +887,11 @@ describe("agent test-environment route", () => {
     registerServerAdapter({ ...externalAdapter, type: "outpost_runner", testEnvironment: nativeProbe });
     try {
       const app = await createApp();
-      const response = await request(app).post("/api/companies/company-1/adapters/outpost_runner/test-environment")
+      const response = await request(app).post("/api/spaces/space-1/adapters/outpost_runner/test-environment")
         .send({ adapterConfig, aiConnection: binding, agentId });
       expect(response.status, JSON.stringify(response.body)).toBe(200);
       expect(response.body.status).toBe("pass");
-      expect(nativeProbe).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ companyId: "company-1", managedAiCredentialHome: "/selected-private-home/provider" }));
+      expect(nativeProbe).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ spaceId: "space-1", managedAiCredentialHome: "/selected-private-home/provider" }));
       expect(response.body.checks).toContainEqual(expect.objectContaining({ code: "antigravity_metadata_verified" }));
       expect(response.body.checks.some((check: { code: string }) => check.code.includes("hello_probe"))).toBe(false);
     } finally {
@@ -903,7 +903,7 @@ describe("agent test-environment route", () => {
   it("passes one-shot provider credentials only to the probe, never persistence normalization", async () => {
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({ adapterConfig: { env: { KEEP: "value" } }, testCredentials: { OPENROUTER_API_KEY: "probe-only-key" } });
     expect(res.status).toBe(200);
     expect(mockSecretService.normalizeAdapterConfigForPersistence.mock.calls[0]?.[1]).toEqual({ env: { KEEP: "value" } });
@@ -914,7 +914,7 @@ describe("agent test-environment route", () => {
   it("rejects non-provider variables in one-shot credentials", async () => {
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({ testCredentials: { NODE_OPTIONS: "--require unsafe" } });
     expect(res.status).toBe(400);
     expect(testEnvironmentSpy).not.toHaveBeenCalled();
@@ -924,7 +924,7 @@ describe("agent test-environment route", () => {
     const app = await createApp();
 
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({
         adapterConfig: {},
         environmentId: "11111111-1111-4111-8111-111111111111",
@@ -964,7 +964,7 @@ describe("agent test-environment route", () => {
     const app = await createApp();
 
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({
         adapterConfig: {},
         environmentId: "22222222-2222-4222-8222-222222222222",
@@ -990,7 +990,7 @@ describe("agent test-environment route", () => {
     mockResolveEnvironmentExecutionTarget.mockResolvedValueOnce({
       kind: "remote",
       transport: "sandbox",
-      remoteCwd: "/home/user/paperclip-workspace",
+      remoteCwd: "/home/user/outpost-workspace",
       providerKey: "fake-plugin",
       runner: { execute: vi.fn() },
     });
@@ -1009,7 +1009,7 @@ describe("agent test-environment route", () => {
     const app = await createApp();
 
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({
         adapterConfig: {},
         environmentId: "11111111-1111-4111-8111-111111111111",
@@ -1026,9 +1026,9 @@ describe("agent test-environment route", () => {
           id: "11111111-1111-4111-8111-111111111111",
           config: { provider: "fake-plugin" },
         }),
-        // The Test lease re-checks the company binding, so a binding change
+        // The Test lease re-checks the space binding, so a binding change
         // between the route guard and the lease cannot open a foreign sandbox.
-        assertCompanyBinding: true,
+        assertSpaceBinding: true,
         environment: expect.objectContaining({
           config: expect.objectContaining({
             reuseLease: false,
@@ -1050,7 +1050,7 @@ describe("agent test-environment route", () => {
         code: "sandbox_test_identity",
         level: "info",
         message: 'Environment test identity for "Sandbox QA".',
-        detail: expect.stringContaining("paperclipLeaseId=lease-1"),
+        detail: expect.stringContaining("outpostLeaseId=lease-1"),
       }),
       expect.objectContaining({
         code: "external_test_hello_probe_passed",
@@ -1061,7 +1061,7 @@ describe("agent test-environment route", () => {
     expect(res.body.checks[0].detail).toContain("providerLeaseId=provider-lease-1");
     expect(res.body.checks[0].detail).toContain("provider=daytona");
     expect(res.body.checks[0].detail).toContain("sandboxId=sandbox-1");
-    expect(res.body.checks[0].detail).toContain("sandboxName=paperclip-probe");
+    expect(res.body.checks[0].detail).toContain("sandboxName=outpost-probe");
     expect(res.body.checks[0].detail).toContain("snapshotRef=snapshot-1");
     expect(mockReleaseRunLease).toHaveBeenCalledWith({
       environment: expect.objectContaining({ id: "11111111-1111-4111-8111-111111111111" }),
@@ -1077,7 +1077,7 @@ describe("agent test-environment route", () => {
     const app = await createApp();
 
     const res = await request(app)
-      .post("/api/companies/company-1/adapters/external_test/test-environment")
+      .post("/api/spaces/space-1/adapters/external_test/test-environment")
       .send({
         adapterConfig: {},
         environmentId: "11111111-1111-4111-8111-111111111111",
@@ -1107,7 +1107,7 @@ describe("agent test-environment route", () => {
     const sandboxExecutionTarget = {
       kind: "remote",
       transport: "sandbox",
-      remoteCwd: "/home/user/paperclip-workspace",
+      remoteCwd: "/home/user/outpost-workspace",
       providerKey: "fake-plugin",
       runner: { execute: vi.fn() },
     };
@@ -1115,7 +1115,7 @@ describe("agent test-environment route", () => {
     it("merges resolved environment envVars under the agent adapterConfig env", async () => {
       mockEnvironmentService.getById.mockResolvedValue({
         id: environmentId,
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Sandbox QA",
         driver: "sandbox",
         config: { provider: "fake-plugin" },
@@ -1134,7 +1134,7 @@ describe("agent test-environment route", () => {
       const app = await createApp();
 
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({
           adapterConfig: { env: { FOO: "agent-foo" } },
           environmentId,
@@ -1142,7 +1142,7 @@ describe("agent test-environment route", () => {
 
       expect(res.status, JSON.stringify(res.body)).toBe(200);
       expect(mockSecretService.resolveEnvBindings).toHaveBeenCalledWith(
-        "company-1",
+        "space-1",
         {
           CLAUDE_CODE_OAUTH_TOKEN: { type: "secret_ref", secretId: "secret-1" },
           FOO: { type: "plain", value: "env-foo" },
@@ -1164,7 +1164,7 @@ describe("agent test-environment route", () => {
     it("skips env vars with missing secret bindings and fails the test", async () => {
       mockEnvironmentService.getById.mockResolvedValue({
         id: environmentId,
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Sandbox QA",
         driver: "sandbox",
         config: { provider: "fake-plugin" },
@@ -1192,13 +1192,13 @@ describe("agent test-environment route", () => {
       const app = await createApp();
 
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({ adapterConfig: {}, environmentId });
 
       expect(res.status, JSON.stringify(res.body)).toBe(200);
       // The unresolved key is excluded from resolution; the rest still flows.
       expect(mockSecretService.resolveEnvBindings).toHaveBeenCalledWith(
-        "company-1",
+        "space-1",
         { GOOD: { type: "plain", value: "ok" } },
         expect.objectContaining({ consumerType: "environment" }),
       );
@@ -1221,7 +1221,7 @@ describe("agent test-environment route", () => {
     it("includes environment env checks when the environment cannot produce an execution target", async () => {
       mockEnvironmentService.getById.mockResolvedValue({
         id: environmentId,
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Sandbox QA",
         driver: "sandbox",
         config: { provider: "fake-plugin" },
@@ -1242,7 +1242,7 @@ describe("agent test-environment route", () => {
       const app = await createApp();
 
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({ adapterConfig: {}, environmentId });
 
       expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -1258,7 +1258,7 @@ describe("agent test-environment route", () => {
   describe("driver guard after runner selection", () => {
     const pluginEnvironment = {
       id: "33333333-3333-4333-8333-333333333333",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Agent computer",
       driver: "plugin",
       status: "active",
@@ -1268,15 +1268,15 @@ describe("agent test-environment route", () => {
 
     beforeEach(() => {
       mockEnvironmentService.getById.mockResolvedValue(pluginEnvironment);
-      mockResolveNewAgentRunnerForCompany.mockClear();
+      mockResolveNewAgentRunnerForSpace.mockClear();
     });
 
     it("reports the missing agent prerequisite without acquiring a lease or probing the host", async () => {
       mockPluginEnvironmentRequiresAgent.mockResolvedValueOnce(true);
-      mockResolveNewAgentRunnerForCompany.mockResolvedValueOnce({ adapterType: "outpost_runner", adapterConfig: { provider: "codex" } });
+      mockResolveNewAgentRunnerForSpace.mockResolvedValueOnce({ adapterType: "outpost_runner", adapterConfig: { provider: "codex" } });
       const app = await createApp();
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/codex_local/test-environment")
+        .post("/api/spaces/space-1/adapters/codex_local/test-environment")
         .send({ adapterConfig: {}, environmentId: pluginEnvironment.id });
       expect(res.status, JSON.stringify(res.body)).toBe(200);
       expect(res.body).toMatchObject({ status: "warn", checks: [{ code: "environment_agent_required", level: "warn" }] });
@@ -1285,12 +1285,12 @@ describe("agent test-environment route", () => {
     });
 
     it("checks the plugin driver against the resolved Runner adapter, not the requested harness", async () => {
-      mockResolveNewAgentRunnerForCompany.mockResolvedValueOnce({ adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "claude" } });
+      mockResolveNewAgentRunnerForSpace.mockResolvedValueOnce({ adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "claude" } });
       const app = await createApp();
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/claude_local/test-environment")
+        .post("/api/spaces/space-1/adapters/claude_local/test-environment")
         .send({ adapterConfig: {}, environmentId: pluginEnvironment.id });
-      expect(mockResolveNewAgentRunnerForCompany).toHaveBeenCalledWith(expect.anything(), "company-1",
+      expect(mockResolveNewAgentRunnerForSpace).toHaveBeenCalledWith(expect.anything(), "space-1",
         expect.objectContaining({ adapterType: "claude_local", defaultEnvironmentId: pluginEnvironment.id }));
       // The driver check passes, and the resolved Runner leases the plugin
       // environment. The probe stops at the controlled task-capability check.
@@ -1313,10 +1313,10 @@ describe("agent test-environment route", () => {
       { name: "with a preconfigured Runner home", adapterConfig: { provider: "codex", homeMode: "preconfigured" }, message: "isolated Runner home" },
     ])("refuses a Runner-task environment $name before secrets or a lease", async ({ adapterConfig, message }) => {
       mockPluginRunnerTaskDriver.mockResolvedValueOnce({ driverKey: "tasks" });
-      mockResolveNewAgentRunnerForCompany.mockResolvedValueOnce({ adapterType: "outpost_runner", adapterConfig });
+      mockResolveNewAgentRunnerForSpace.mockResolvedValueOnce({ adapterType: "outpost_runner", adapterConfig });
       const app = await createApp();
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/codex_local/test-environment")
+        .post("/api/spaces/space-1/adapters/codex_local/test-environment")
         .send({ adapterConfig: {}, environmentId: pluginEnvironment.id });
       expect(res.status, JSON.stringify(res.body)).toBe(200);
       expect(res.body).toMatchObject({ adapterType: "outpost_runner", status: "fail",
@@ -1328,10 +1328,10 @@ describe("agent test-environment route", () => {
     });
 
     it("still rejects a plugin environment when selection keeps a legacy adapter, before resolving secrets", async () => {
-      mockResolveNewAgentRunnerForCompany.mockResolvedValueOnce({ adapterType: "external_test", adapterConfig: {} });
+      mockResolveNewAgentRunnerForSpace.mockResolvedValueOnce({ adapterType: "external_test", adapterConfig: {} });
       const app = await createApp();
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({ adapterConfig: { env: { FOO: "bar" } }, environmentId: pluginEnvironment.id });
       expect(res.status, JSON.stringify(res.body)).toBe(422);
       expect(res.body.error).toContain('Environment driver "plugin" is not allowed here');
@@ -1341,23 +1341,23 @@ describe("agent test-environment route", () => {
     });
 
     it("re-resolves a saved adapter that cannot run on the requested environment", async () => {
-      mockAgentService.getById.mockResolvedValue({ id: savedAgentId, companyId: "company-1", adapterType: "external_test", adapterConfig: {}, runtimeConfig: {} });
-      mockResolveNewAgentRunnerForCompany.mockResolvedValueOnce({ adapterType: "external_test", adapterConfig: {} });
+      mockAgentService.getById.mockResolvedValue({ id: savedAgentId, spaceId: "space-1", adapterType: "external_test", adapterConfig: {}, runtimeConfig: {} });
+      mockResolveNewAgentRunnerForSpace.mockResolvedValueOnce({ adapterType: "external_test", adapterConfig: {} });
       const app = await createApp();
       await request(app)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({ agentId: savedAgentId, adapterConfig: {}, environmentId: pluginEnvironment.id });
-      expect(mockResolveNewAgentRunnerForCompany).toHaveBeenCalledTimes(1);
+      expect(mockResolveNewAgentRunnerForSpace).toHaveBeenCalledTimes(1);
     });
 
     it("keeps a saved adapter's execution when it can run on the requested environment", async () => {
       mockEnvironmentService.getById.mockResolvedValue({ ...pluginEnvironment, driver: "local", config: {} });
-      mockAgentService.getById.mockResolvedValue({ id: savedAgentId, companyId: "company-1", adapterType: "external_test", adapterConfig: {}, runtimeConfig: {} });
+      mockAgentService.getById.mockResolvedValue({ id: savedAgentId, spaceId: "space-1", adapterType: "external_test", adapterConfig: {}, runtimeConfig: {} });
       const app = await createApp();
       await request(app)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({ agentId: savedAgentId, adapterConfig: {}, environmentId: pluginEnvironment.id });
-      expect(mockResolveNewAgentRunnerForCompany).not.toHaveBeenCalled();
+      expect(mockResolveNewAgentRunnerForSpace).not.toHaveBeenCalled();
     });
   });
 
@@ -1365,16 +1365,16 @@ describe("agent test-environment route", () => {
     async function postForeignEnvironmentTest() {
       const app = await createApp();
       return request(app)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({
           adapterConfig: { env: { FOO: "bar" } },
           environmentId: "11111111-1111-4111-8111-111111111111",
         });
     }
 
-    function expectCompanyMismatch(res: request.Response) {
+    function expectSpaceMismatch(res: request.Response) {
       expect(res.status, JSON.stringify(res.body)).toBe(403);
-      expect(JSON.stringify(res.body)).toContain("environment_company_mismatch");
+      expect(JSON.stringify(res.body)).toContain("environment_space_mismatch");
       // The guard rejects before any secret resolution, target resolution,
       // sandbox lease, or adapter test runs.
       expect(mockSecretService.normalizeAdapterConfigForPersistence).not.toHaveBeenCalled();
@@ -1383,47 +1383,47 @@ describe("agent test-environment route", () => {
       expect(testEnvironmentSpy).not.toHaveBeenCalled();
     }
 
-    it("rejects an active environment bound to another company", async () => {
-      mockEnvironmentService.listBoundCompanyIds.mockResolvedValue(["company-2"]);
-      expectCompanyMismatch(await postForeignEnvironmentTest());
+    it("rejects an active environment bound to another space", async () => {
+      mockEnvironmentService.listBoundSpaceIds.mockResolvedValue(["space-2"]);
+      expectSpaceMismatch(await postForeignEnvironmentTest());
     });
 
-    it("rejects an archived environment bound to another company without revealing its status", async () => {
+    it("rejects an archived environment bound to another space without revealing its status", async () => {
       mockEnvironmentService.getById.mockResolvedValue({
         id: "11111111-1111-4111-8111-111111111111",
-        companyId: "company-2",
+        spaceId: "space-2",
         name: "Sandbox QA",
         driver: "sandbox",
         status: "archived",
         config: { provider: "fake-plugin" },
       });
-      mockEnvironmentService.listBoundCompanyIds.mockResolvedValue(["company-2"]);
-      expectCompanyMismatch(await postForeignEnvironmentTest());
+      mockEnvironmentService.listBoundSpaceIds.mockResolvedValue(["space-2"]);
+      expectSpaceMismatch(await postForeignEnvironmentTest());
     });
 
-    it("rejects a disallowed-driver environment bound to another company without revealing its driver", async () => {
+    it("rejects a disallowed-driver environment bound to another space without revealing its driver", async () => {
       mockEnvironmentService.getById.mockResolvedValue({
         id: "11111111-1111-4111-8111-111111111111",
-        companyId: "company-2",
+        spaceId: "space-2",
         name: "Plugin Env",
         driver: "plugin",
         status: "active",
         config: {},
       });
-      mockEnvironmentService.listBoundCompanyIds.mockResolvedValue(["company-2"]);
-      expectCompanyMismatch(await postForeignEnvironmentTest());
+      mockEnvironmentService.listBoundSpaceIds.mockResolvedValue(["space-2"]);
+      expectSpaceMismatch(await postForeignEnvironmentTest());
     });
 
-    it("allows an instance-global environment with no company binding", async () => {
-      mockEnvironmentService.listBoundCompanyIds.mockResolvedValue([]);
+    it("allows an instance-global environment with no space binding", async () => {
+      mockEnvironmentService.listBoundSpaceIds.mockResolvedValue([]);
       const res = await postForeignEnvironmentTest();
       // The guard passes and the route proceeds to secret resolution.
       expect(res.status, JSON.stringify(res.body)).toBe(200);
       expect(mockSecretService.normalizeAdapterConfigForPersistence).toHaveBeenCalled();
     });
 
-    it("allows an environment bound to the caller company", async () => {
-      mockEnvironmentService.listBoundCompanyIds.mockResolvedValue(["company-1"]);
+    it("allows an environment bound to the caller space", async () => {
+      mockEnvironmentService.listBoundSpaceIds.mockResolvedValue(["space-1"]);
       const res = await postForeignEnvironmentTest();
       // The guard passes and the route proceeds to secret resolution.
       expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -1435,7 +1435,7 @@ describe("agent test-environment route", () => {
     const localEnvironmentId = "33333333-3333-4333-8333-333333333333";
     const managedSandboxEnvironment = {
       id: "44444444-4444-4444-8444-444444444444",
-      companyId: null,
+      spaceId: null,
       name: "Managed sandbox",
       driver: "sandbox",
       status: "active",
@@ -1443,7 +1443,7 @@ describe("agent test-environment route", () => {
     };
     const localEnvironment = {
       id: localEnvironmentId,
-      companyId: null,
+      spaceId: null,
       name: "Local host",
       driver: "local",
       status: "active",
@@ -1461,14 +1461,14 @@ describe("agent test-environment route", () => {
       mockResolveEnvironmentExecutionTarget.mockResolvedValueOnce({
         kind: "remote",
         transport: "sandbox",
-        remoteCwd: "/home/user/paperclip-workspace",
+        remoteCwd: "/home/user/outpost-workspace",
         providerKey: "fake-plugin",
         runner: { execute: vi.fn() },
       });
       const app = await createApp();
 
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({ adapterConfig: {}, environmentId: localEnvironmentId });
 
       expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -1495,7 +1495,7 @@ describe("agent test-environment route", () => {
       const app = await createApp();
 
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({ adapterConfig: {}, environmentId: localEnvironmentId });
 
       expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -1516,7 +1516,7 @@ describe("agent test-environment route", () => {
       const app = await createApp();
 
       const res = await request(app)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({ adapterConfig: {}, environmentId: localEnvironmentId });
 
       expect(res.status, JSON.stringify(res.body)).toBe(200);

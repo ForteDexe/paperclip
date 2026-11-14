@@ -43,7 +43,7 @@ export function gradeIndependentReview(value: unknown) {
     && before.executionState?.status !== "pending" && s.setupReviewRunCount === 0 && s.actualImplementation === true
     && (s.reviewer as Entity).id !== (s.worker as Entity).id && s.reviewerEligibleBeforeQuery === true,
   "Morgan genuinely delivers the page and blocks before the requested review; eligible Riley has not already executed the target action.");
-  c.add("canonical-request-admits-exact-governed-review", pending?.id === before.id && pending.companyId === o.companyId && pending.status === "in_review"
+  c.add("canonical-request-admits-exact-governed-review", pending?.id === before.id && pending.spaceId === o.spaceId && pending.status === "in_review"
     && pending.assigneeAgentId === (s.reviewer as Entity).id && pending.executionState?.status === "pending" && pending.executionState.currentStageType === "review"
     && pending.executionState.currentParticipant?.agentId === (s.reviewer as Entity).id && pending.executionState.returnAssignee?.agentId === (s.worker as Entity).id
     && JSON.stringify(pending.executionPolicy) === JSON.stringify(before.executionPolicy) && s.reviewRequestSourceBound === true && s.reviewerWasReallyWaiting === true
@@ -64,8 +64,8 @@ export function gradeIndependentReview(value: unknown) {
 }
 export const runtimeIndependentReviewCases = [runtimeDefinition("task-coordination.independent-review", async ctx => {
   const worker = await runtimeWorker(ctx), reviewer = await runtimeWorker(ctx, "Riley"), prepared = await prepareRuntimeWorkerGate(ctx, { worker: reviewer });
-  const root = `/api/companies/${ctx.input.fixtures.company.id}`, marker = `Launch acceptance ${ctx.input.nonce}`;
-  for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: worker.id }])
+  const root = `/api/spaces/${ctx.input.fixtures.space.id}`, marker = `Launch acceptance ${ctx.input.nonce}`;
+  for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: worker.id }])
     await ctx.input.api.post(`${root}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
   await ctx.input.api.saveAgentInstructions(reviewer.id, `When actually assigned the configured review stage, first run node ${JSON.stringify(prepared.gate.scriptPath)} and wait for its real output. Then independently read the actual Website artifact and acceptance requirements, verify its heading, product copy and signup action, and record your review in a non-plan website-review task document including the exact reference ${marker}. Approve only if the real page meets the criteria. Resolve your own configured review stage using the supported finish/update path and a substantive review decision comment. Do not create work or alter Morgan's deliverable.`);
   const task = await ctx.input.api.post<Issue>(`${root}/issues`, { title: "Launch Website", status: "todo", assigneeAgentId: worker.id, reviewPolicy: "not_creator",
@@ -123,7 +123,7 @@ export const runtimeIndependentReviewCases = [runtimeDefinition("task-coordinati
     const retained = await ctx.input.api.get<Issue>(`/api/issues/${task.id}`);
     state.selfApprovalPreservedPending = retained.status === "in_review" && retained.executionState?.currentParticipant?.agentId === reviewer.id && retained.executionState.status === "pending";
     const actualRead = await fetch(new URL(`/api/issues/${task.id}`, ctx.input.api.baseURL), { redirect: "error", signal: AbortSignal.timeout(15_000), headers: { Authorization: `Bearer ${reviewKey.token}` } });
-    if (actualRead.ok) { const view = await actualRead.json() as Issue; state.acceptanceContextDelivered = view.id === task.id && view.companyId === ctx.input.fixtures.company.id
+    if (actualRead.ok) { const view = await actualRead.json() as Issue; state.acceptanceContextDelivered = view.id === task.id && view.spaceId === ctx.input.fixtures.space.id
       && view.description?.includes(String(state.marker)) === true && /signup|sign.up/i.test(view.description ?? "") && view.executionState?.currentParticipant?.agentId === reviewer.id; }
     else await actualRead.body?.cancel();
     const artifact = state.artifact as { attachmentId: string; sha256: string };
@@ -133,7 +133,7 @@ export const runtimeIndependentReviewCases = [runtimeDefinition("task-coordinati
     const bytes = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(15_000), headers: { Authorization: `Bearer ${reviewKey.token}` } });
     state.reviewerActualBriefAccess = bytes.ok && createHash("sha256").update(new Uint8Array(await bytes.arrayBuffer())).digest("hex") === artifact.sha256;
     if (!bytes.ok) await bytes.body?.cancel();
-    const source = ctx.input.page.url(); await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    const source = ctx.input.page.url(); await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByText(/Riley/).first()).toBeVisible(); await expect(ctx.input.page.getByRole("button", { name: /^Change status \(current: In review\)$/i }).first()).toBeVisible(); state.pendingReviewVisible = true;
     await ctx.input.capture("actual-independent-review-pending", "Riley's actual review stage remains pending after rejected implementer self-approval", "runtime-independent-review.png");
     await writeFile((state.gate as { gate: string }).gate, "The human review observation is complete. Independently inspect Morgan's actual registered website.html against the saved heading/product/signup and accessibility criteria. Record your actual verification and acceptance reference in website-review. If the real result passes, approve your own configured review stage with a substantive decision comment through the supported path; do not manufacture a result, change policy, or create tasks.", "utf8");
@@ -169,7 +169,7 @@ export const runtimeIndependentReviewCases = [runtimeDefinition("task-coordinati
     return o;
   },
   async verifyResult(ctx, state) { const source = ctx.input.page.url(), task = state.task as Issue;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" }); await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" }); await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("button", { name: "Change status (current: Done)", exact: true }).first()).toBeVisible(); await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" }); },
   async cleanup(ctx, state) { try { const owned = credentials.get(ctx); credentials.delete(ctx); for (const key of owned ?? []) await ctx.input.api.delete(`/api/agents/${key.agentId}/keys/${key.id}`, { allowNotFound: true }); }
     finally { await releaseRuntimeWorker(state); } },

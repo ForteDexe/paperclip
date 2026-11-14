@@ -2,9 +2,9 @@ import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { onboardingConnect, validateOnboardingConnectEvidence, type OnboardingConnectEvidence } from "./onboarding-connect.js";
 
-const origin = "https://tenant.example.test", companyId = "company-1";
-const validation = `/api/companies/${companyId}/adapters/outpost_runner/test-environment`;
-const hire = `/api/companies/${companyId}/agent-hires`;
+const origin = "https://tenant.example.test", spaceId = "space-1";
+const validation = `/api/spaces/${spaceId}/adapters/outpost_runner/test-environment`;
+const hire = `/api/spaces/${spaceId}/agent-hires`;
 const secret = "PRIVATE_SENTINEL_do_not_retain";
 function fixture(options: { ready?: boolean; durationMs?: number; click?: () => Promise<void> | void; wait?: () => Promise<void> } = {}) {
   const events = new EventEmitter();
@@ -26,7 +26,7 @@ function fixture(options: { ready?: boolean; durationMs?: number; click?: () => 
     events.emit("request", req); events.emit("response", response);
     return response;
   };
-  const run = () => onboardingConnect({ page: page as any, origin, companyId, deadlineAt: Date.now() + (options.durationMs ?? 100), retain: value => { retained = value; } });
+  const run = () => onboardingConnect({ page: page as any, origin, spaceId, deadlineAt: Date.now() + (options.durationMs ?? 100), retain: value => { retained = value; } });
   return { page, events, request, respond, run, receipt: () => retained };
 }
 afterEach(() => { vi.useRealTimers(); });
@@ -94,11 +94,11 @@ describe("one onboarding Connect diagnostic boundary", () => {
     expect(() => validateOnboardingConnectEvidence({ ...result, validation: { ...result.validation, requestedAdapter: ["codex_local"] } })).toThrow();
   });
 
-  it("ignores wrong origin, company, method, query, and responses without an in-action request", async () => {
+  it("ignores wrong origin, space, method, query, and responses without an in-action request", async () => {
     vi.useFakeTimers();
     const f = fixture({ click: () => {
       f.respond({}, 500, validation, "POST", "https://foreign.example.test");
-      f.respond({}, 500, validation.replace(companyId, "company-2"));
+      f.respond({}, 500, validation.replace(spaceId, "space-2"));
       f.respond({}, 500, validation, "GET");
       f.respond({}, 500, validation + "?private=" + secret);
       f.events.emit("response", { request: () => f.request(), status: () => 500 });

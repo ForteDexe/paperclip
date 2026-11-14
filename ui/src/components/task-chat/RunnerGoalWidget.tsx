@@ -7,7 +7,7 @@ import type {
   RunnerGoalProjection,
 } from "@outpost/shared";
 import { issuesApi } from "@/api/issues";
-import { useCompanyLiveEvent } from "@/context/LiveUpdatesProvider";
+import { useSpaceLiveEvent } from "@/context/LiveUpdatesProvider";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -74,7 +74,7 @@ export function useRunnerGoalControl(issueId: string | null, agentId: string | n
     },
   });
 
-  useCompanyLiveEvent((event) => {
+  useSpaceLiveEvent((event) => {
     if (event.type !== "agent.session.goal.changed") return;
     const next = event.payload as unknown as RunnerGoalProjection;
     if (next.issueId !== issueId || (agentId && next.agentId !== agentId)) return;

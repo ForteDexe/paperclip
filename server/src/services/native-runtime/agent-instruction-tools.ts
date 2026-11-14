@@ -1,7 +1,7 @@
 import type { AgentInstructionCommitReceipt } from "@outpost/shared";
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
-import { agents, companies, type Db } from "@outpost/db";
+import { agents, spaces, type Db } from "@outpost/db";
 import { badRequest, notFound } from "../../errors.js";
 import { agentInstructionRevisionService } from "../agent-instruction-revisions.js";
 import { agentInstructionWorkingCopyService } from "../agent-instruction-working-copies.js";
@@ -25,19 +25,19 @@ export type AgentInstructionToolName = keyof typeof schemas;
 /** Called only after the native authority validates its server-bound active run. */
 export async function executeAgentInstructionTool(input: {
   db: Db;
-  binding: { companyId: string; agentId: string; runId: string };
+  binding: { spaceId: string; agentId: string; runId: string };
   tool: AgentInstructionToolName;
   arguments: unknown;
 }) {
-  // Never accept an actor, responsible user, company, or source run from tool JSON.
-  const actor: AuthorizationActor = { type: "agent", source: "agent_jwt", companyId: input.binding.companyId, agentId: input.binding.agentId, runId: input.binding.runId };
+  // Never accept an actor, responsible user, space, or source run from tool JSON.
+  const actor: AuthorizationActor = { type: "agent", source: "agent_jwt", spaceId: input.binding.spaceId, agentId: input.binding.agentId, runId: input.binding.runId };
   const service = agentInstructionRevisionService(input.db);
   const parse = <T>(schema: z.ZodType<T>): T => {
     const result = schema.safeParse(input.arguments);
     if (!result.success) throw badRequest("Invalid instruction tool arguments", result.error.flatten());
     return result.data;
   };
-  const scope = (targetAgentId?: string) => ({ companyId: input.binding.companyId, agentId: targetAgentId ?? input.binding.agentId });
+  const scope = (targetAgentId?: string) => ({ spaceId: input.binding.spaceId, agentId: targetAgentId ?? input.binding.agentId });
   const acknowledge = async (receipt: AgentInstructionCommitReceipt, targetAgentId?: string) => {
     // The commit is already durable. A failed baseline refresh keeps the old CAS
     // fence, so later cleanup preserves a conflict instead of overwriting it.
@@ -56,7 +56,7 @@ export async function executeAgentInstructionTool(input: {
       if (snapshot) return { ...snapshot, entryFile: snapshot.revision.entryFile };
       // An unseeded empty entry still needs its configured filename for the first CAS.
       const agent = await agentService(input.db).getById(target.agentId);
-      if (!agent || agent.companyId !== target.companyId) throw notFound("Agent not found");
+      if (!agent || agent.spaceId !== target.spaceId) throw notFound("Agent not found");
       return { entryFile: deriveBundleState(agent).entryFile, revision: null, content: null };
     }
     case "update_agent_instructions": {
@@ -80,10 +80,10 @@ export async function executeAgentInstructionTool(input: {
  * reaches only runs that start afterward. The chat reply needs a real profile
  * href for the edited agent; completion guidance forbids guessing routes. */
 const INSTRUCTION_SAVE_EFFECT = "Runs that start after this save use these instructions. Runs already in progress keep the instructions they started with.";
-async function savedAgentResource(db: Db, target: { companyId: string; agentId: string }) {
-  const [row] = await db.select({ name: agents.name, issuePrefix: companies.issuePrefix }).from(agents)
-    .innerJoin(companies, eq(companies.id, agents.companyId))
-    .where(and(eq(agents.id, target.agentId), eq(agents.companyId, target.companyId)));
+async function savedAgentResource(db: Db, target: { spaceId: string; agentId: string }) {
+  const [row] = await db.select({ name: agents.name, issuePrefix: spaces.issuePrefix }).from(agents)
+    .innerJoin(spaces, eq(spaces.id, agents.spaceId))
+    .where(and(eq(agents.id, target.agentId), eq(agents.spaceId, target.spaceId)));
   if (!row) return { appliesTo: INSTRUCTION_SAVE_EFFECT };
   const href = `/${encodeURIComponent(row.issuePrefix)}/agents/${encodeURIComponent(target.agentId)}`;
   return { appliesTo: INSTRUCTION_SAVE_EFFECT, resourceLinks: [{ kind: "agent", id: target.agentId, name: row.name, href }] };

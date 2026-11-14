@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { HeartbeatRunEvent } from "@outpost/shared";
 import { nativeRunEventsToTranscript } from "./native-run-events";
-import { buildTurnTimelineRows, paperclipRunnerFinalResponse, paperclipRunnerTimelineItems, settledRunChildren, transcriptToTaskChatItems } from "../task-chat/transcript-adapter";
+import { buildTurnTimelineRows, outpostRunnerFinalResponse, outpostRunnerTimelineItems, settledRunChildren, transcriptToTaskChatItems } from "../task-chat/transcript-adapter";
 
 const RUN_ID = "10000000-0000-4000-8000-000000000001";
 
@@ -14,7 +14,7 @@ function event(
 ): HeartbeatRunEvent {
   return {
     id: seq,
-    companyId: "10000000-0000-4000-8000-000000000002",
+    spaceId: "10000000-0000-4000-8000-000000000002",
     runId: RUN_ID,
     agentId: "10000000-0000-4000-8000-000000000003",
     seq,
@@ -444,7 +444,7 @@ describe("nativeRunEventsToTranscript", () => {
     )) as { events: Array<Record<string, unknown>> };
     const persistedEvents = fixture.events.map((orpEvent, index) => ({
       id: index + 1,
-      companyId: "company_replay",
+      spaceId: "space_replay",
       runId: String(orpEvent.runId),
       agentId: "agent_replay",
       seq: index + 1,
@@ -696,7 +696,7 @@ describe("nativeRunEventsToTranscript", () => {
     const parsed = transcriptToTaskChatItems(entries, { runId: fixture.run.id, running: false });
 
     expect(fixture.run.status).toBe("cancelled");
-    expect(paperclipRunnerFinalResponse(parsed, { allowFallback: true })).toBeUndefined();
+    expect(outpostRunnerFinalResponse(parsed, { allowFallback: true })).toBeUndefined();
     expect(parsed.filter((item) => item.kind === "message")).toEqual([
       expect.objectContaining({
         channel: "progress",
@@ -1331,7 +1331,7 @@ describe("context compaction", () => {
     expect(flat).toContain('"variant":"context_compacted"');
     expect(flat).toContain("230k → 38k tokens");
     // The live runner turn keeps the divider as its own timeline row.
-    const rows = buildTurnTimelineRows(paperclipRunnerTimelineItems(items), true);
+    const rows = buildTurnTimelineRows(outpostRunnerTimelineItems(items), true);
     expect(rows).toEqual(
       expect.arrayContaining([expect.objectContaining({ kind: "marker", variant: "context_compacted" })]),
     );

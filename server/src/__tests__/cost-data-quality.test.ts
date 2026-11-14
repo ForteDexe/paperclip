@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { appearanceForPalette } from "@outpost/shared";
-import { agents, companies, costEvents, createDb, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
+import { agents, spaces, costEvents, createDb, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
 import { costDataQualityReport, RECEIPT_WAIT_MS } from "../services/cost-data-quality.js";
 import { accountingIntegrityService } from "../services/accounting-integrity.js";
 import { costService } from "../services/costs.js";
@@ -13,28 +13,28 @@ describe("actionable cost data quality", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-cost-quality-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-cost-quality-");
     db = createDb(database.connectionString);
   }, 90_000);
   afterAll(async () => { await database?.cleanup(); });
 
-  async function company() {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Costs", issuePrefix: `Q${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Codie", role: "engineer", adapterType: "codex_local" });
-    return { companyId, agentId };
+  async function space() {
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Costs", issuePrefix: `Q${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Codie", role: "engineer", adapterType: "codex_local" });
+    return { spaceId, agentId };
   }
-  async function event(owner: Awaited<ReturnType<typeof company>>, overrides: Partial<typeof costEvents.$inferInsert> = {}) {
+  async function event(owner: Awaited<ReturnType<typeof space>>, overrides: Partial<typeof costEvents.$inferInsert> = {}) {
     const [row] = await db.insert(costEvents).values({ ...owner, provider: "openai", model: "gpt-6-astra", billingType: "metered_api", costStatus: "unpriced", costCents: 0, occurredAt: now, ...overrides }).returning();
     return row;
   }
-  async function run(owner: Awaited<ReturnType<typeof company>>, overrides: Partial<typeof heartbeatRuns.$inferInsert> = {}) {
+  async function run(owner: Awaited<ReturnType<typeof space>>, overrides: Partial<typeof heartbeatRuns.$inferInsert> = {}) {
     const [row] = await db.insert(heartbeatRuns).values({ ...owner, status: "failed", costAccountingPending: true, createdAt: now, finishedAt: now, usageJson: { accountingReceiptReady: false }, ...overrides }).returning();
     return row;
   }
 
   it("distinguishes billing, model and price gaps, excluding normal subscription/credit/fixed usage", async () => {
-    const owner = await company();
+    const owner = await space();
     const unknown = await event(owner, { billingType: "unknown", costStatus: "reported", costCents: 21 });
     const missingModel = await event(owner, { model: "unknown" });
     const missingPrice = await event(owner);
@@ -42,7 +42,7 @@ describe("actionable cost data quality", () => {
     await event(owner, { billingType: "credits", costStatus: "reported" });
     await event(owner, { billingType: "fixed", costStatus: "reported" });
     await event(owner, { costStatus: "estimated", costCents: 3 });
-    const report = await costDataQualityReport(db, owner.companyId, true, undefined, now);
+    const report = await costDataQualityReport(db, owner.spaceId, true, undefined, now);
     expect(report.events).toHaveLength(3);
     expect(report.events.every(row => row.occurredAt === now.toISOString())).toBe(true);
     expect(report.events).toEqual(expect.arrayContaining([
@@ -50,26 +50,26 @@ describe("actionable cost data quality", () => {
       expect.objectContaining({ id: missingModel.id, reason: "missing_model" }),
       expect.objectContaining({ id: missingPrice.id, reason: "missing_price" }),
     ]));
-    const summary = await costService(db).summary(owner.companyId, { allTime: true });
+    const summary = await costService(db).summary(owner.spaceId, { allTime: true });
     expect(summary.unknownBillingEventCount).toBe(1);
     expect(summary.spendCents).toBe(24); // Unknown billing retains its reported dollars.
     expect(summary.unpricedEventCount).toBe(2); // Included subscription usage is not a price gap.
-    const providerRows = await costService(db).byProvider(owner.companyId, { allTime: true });
+    const providerRows = await costService(db).byProvider(owner.spaceId, { allTime: true });
     expect(providerRows.reduce((count, row) => count + row.eventCount!, 0)).toBe(7);
     expect(providerRows.reduce((count, row) => count + row.estimatedEventCount!, 0)).toBe(1);
     expect(providerRows.reduce((count, row) => count + row.unpricedEventCount!, 0)).toBe(2);
-    expect(await costService(db).byBiller(owner.companyId, { allTime: true })).toEqual([
+    expect(await costService(db).byBiller(owner.spaceId, { allTime: true })).toEqual([
       expect.objectContaining({ eventCount: 7, estimatedEventCount: 1, unpricedEventCount: 2, costCents: 24 }),
     ]);
   });
 
   it("uses sparse ordered indexes for old gaps behind thousands of healthy records", async () => {
-    const owner = await company();
-    await db.execute(sql`insert into cost_events (company_id,agent_id,provider,model,billing_type,cost_status,cost_cents,occurred_at)
-      select ${owner.companyId}::uuid,${owner.agentId}::uuid,'openai','gpt-6-astra','metered_api','reported',1,
+    const owner = await space();
+    await db.execute(sql`insert into cost_events (space_id,agent_id,provider,model,billing_type,cost_status,cost_cents,occurred_at)
+      select ${owner.spaceId}::uuid,${owner.agentId}::uuid,'openai','gpt-6-astra','metered_api','reported',1,
         ${now.toISOString()}::timestamptz - n * interval '1 second' from generate_series(1,5000) n`);
-    await db.execute(sql`insert into heartbeat_runs (company_id,agent_id,status,created_at,finished_at,cost_accounting_pending)
-      select ${owner.companyId}::uuid,${owner.agentId}::uuid,'succeeded',${now.toISOString()}::timestamptz,
+    await db.execute(sql`insert into heartbeat_runs (space_id,agent_id,status,created_at,finished_at,cost_accounting_pending)
+      select ${owner.spaceId}::uuid,${owner.agentId}::uuid,'succeeded',${now.toISOString()}::timestamptz,
         ${now.toISOString()}::timestamptz - n * interval '1 second',false from generate_series(1,5000) n`);
     const old = new Date(now.getTime() - 10_000_000);
     await event(owner, { occurredAt: old });
@@ -96,7 +96,7 @@ describe("actionable cost data quality", () => {
         return typeof value === "function" ? value.bind(target) : value;
       },
     });
-    const report = await costDataQualityReport(explainingDb, owner.companyId, false, { allTime: true }, now);
+    const report = await costDataQualityReport(explainingDb, owner.spaceId, false, { allTime: true }, now);
     expect(report.events).toHaveLength(2);
     expect(report.runs).toHaveLength(1);
     expect(plans).toHaveLength(2);
@@ -105,8 +105,8 @@ describe("actionable cost data quality", () => {
     expect(plans.join(" ")).not.toContain("Rows Removed by Filter\":5000");
   });
 
-  it("enforces company and period boundaries, including month-to-date and inclusive endpoints", async () => {
-    const owner = await company(), other = await company();
+  it("enforces space and period boundaries, including month-to-date and inclusive endpoints", async () => {
+    const owner = await space(), other = await space();
     const start = new Date("2026-10-01T00:00:00Z");
     const first = await event(owner, { occurredAt: start });
     const last = await event(owner);
@@ -114,32 +114,32 @@ describe("actionable cost data quality", () => {
     await event(owner, { occurredAt: new Date(now.getTime() + 1) });
     await event(other);
     await run(other);
-    expect((await costDataQualityReport(db, owner.companyId, false, undefined, now)).events.map(row => row.id)).toEqual([last.id, first.id]);
-    expect((await costDataQualityReport(db, owner.companyId, true, { from: start, to: now }, now)).events).toHaveLength(2);
-    expect((await costDataQualityReport(db, owner.companyId, true, { from: new Date(past.occurredAt), to: new Date(past.occurredAt) }, now)).events.map(row => row.id)).toEqual([past.id]);
-    const all = await costDataQualityReport(db, owner.companyId, false, { allTime: true }, now);
+    expect((await costDataQualityReport(db, owner.spaceId, false, undefined, now)).events.map(row => row.id)).toEqual([last.id, first.id]);
+    expect((await costDataQualityReport(db, owner.spaceId, true, { from: start, to: now }, now)).events).toHaveLength(2);
+    expect((await costDataQualityReport(db, owner.spaceId, true, { from: new Date(past.occurredAt), to: new Date(past.occurredAt) }, now)).events.map(row => row.id)).toEqual([past.id]);
+    const all = await costDataQualityReport(db, owner.spaceId, false, { allTime: true }, now);
     expect(all.events).toHaveLength(4);
     expect(all.runs).toEqual([]);
     expect(all.canRetry).toBe(false);
-    await expect(costDataQualityReport(db, randomUUID(), true)).rejects.toThrow("Company not found");
+    await expect(costDataQualityReport(db, randomUUID(), true)).rejects.toThrow("Space not found");
   });
 
   it("includes the agent's saved appearance for both pricing and receipt gaps", async () => {
-    const owner = await company();
+    const owner = await space();
     const appearance = appearanceForPalette("deep-tide");
     await db.update(agents).set({ appearance }).where(eq(agents.id, owner.agentId));
     await event(owner);
     await run(owner);
-    const report = await costDataQualityReport(db, owner.companyId, true, undefined, now);
+    const report = await costDataQualityReport(db, owner.spaceId, true, undefined, now);
     expect(report.events[0].agentAppearance).toEqual(appearance);
     expect(report.runs[0].agentAppearance).toEqual(appearance);
   });
 
   it("changes waiting copy at fifteen minutes without settling or mutating the run", async () => {
-    const owner = await company();
+    const owner = await space();
     const pending = await run(owner, { accountingLastError: "SECRET provider command", resultJson: { credential: "SECRET" } });
-    expect((await costDataQualityReport(db, owner.companyId, true, undefined, now)).runs[0].reason).toBe("waiting_for_receipt");
-    const report = await costDataQualityReport(db, owner.companyId, true, undefined, new Date(now.getTime() + RECEIPT_WAIT_MS));
+    expect((await costDataQualityReport(db, owner.spaceId, true, undefined, now)).runs[0].reason).toBe("waiting_for_receipt");
+    const report = await costDataQualityReport(db, owner.spaceId, true, undefined, new Date(now.getTime() + RECEIPT_WAIT_MS));
     expect(report.runs[0].reason).toBe("receipt_unavailable");
     expect(Object.keys(report.runs[0]).sort()).toEqual(["agentId", "agentName", "agentAppearance", "id", "model", "occurredAt", "provider", "reason", "runId"].sort());
     expect(JSON.stringify(report)).not.toContain("SECRET");
@@ -150,7 +150,7 @@ describe("actionable cost data quality", () => {
   });
 
   it("offers retry only at the writer's proven receipt boundary", async () => {
-    const owner = await company();
+    const owner = await space();
     const ready = await run(owner, { usageJson: { accountingReceiptReady: true } });
     const noWork = await run(owner, { usageJson: { accountingReceiptReady: false, accountingProviderWorkStarted: false } });
     const resultProof = await run(owner, { resultJson: { executionRecovery: { providerWorkStarted: false } } });
@@ -160,7 +160,7 @@ describe("actionable cost data quality", () => {
     await run(owner, { status: "running" });
     await run(owner, { status: "queued" });
     await run(owner, { costAccountingPending: false });
-    const report = await costDataQualityReport(db, owner.companyId, true, undefined, now);
+    const report = await costDataQualityReport(db, owner.spaceId, true, undefined, now);
     expect(report.runs).toHaveLength(6);
     for (const row of [ready, noWork, resultProof, acknowledged]) expect(report.runs.find(item => item.id === row.id)?.reason).toBe("retryable");
     expect(report.runs.find(item => item.id === captureFailed.id)?.reason).toBe("waiting_for_receipt");
@@ -169,41 +169,41 @@ describe("actionable cost data quality", () => {
     // A failed capture is never certified free. Before the accounting closure
     // bound it stays pending; past it, its known usage settles as unpriced.
     await db.update(heartbeatRuns).set({ finishedAt: new Date() }).where(eq(heartbeatRuns.id, captureFailed.id));
-    expect(await integrity.retry(owner.companyId, captureFailed.id, "board")).toEqual({ accounted: false });
-    expect(await integrity.retry(owner.companyId, noWork.id, "board")).toEqual({ accounted: true });
-    expect(await db.select().from(costEvents).where(eq(costEvents.companyId, owner.companyId))).toEqual([]);
+    expect(await integrity.retry(owner.spaceId, captureFailed.id, "operator")).toEqual({ accounted: false });
+    expect(await integrity.retry(owner.spaceId, noWork.id, "operator")).toEqual({ accounted: true });
+    expect(await db.select().from(costEvents).where(eq(costEvents.spaceId, owner.spaceId))).toEqual([]);
     await db.update(heartbeatRuns).set({ finishedAt: now }).where(eq(heartbeatRuns.id, captureFailed.id));
-    expect(await integrity.retry(owner.companyId, captureFailed.id, "board")).toEqual({ accounted: true });
-    const charges = await db.select().from(costEvents).where(eq(costEvents.companyId, owner.companyId));
+    expect(await integrity.retry(owner.spaceId, captureFailed.id, "operator")).toEqual({ accounted: true });
+    const charges = await db.select().from(costEvents).where(eq(costEvents.spaceId, owner.spaceId));
     expect(charges.map(charge => [charge.heartbeatRunId, charge.costStatus])).toEqual([[captureFailed.id, "unpriced"]]);
   });
 
   it("does not offer retry while a native coordinator can still resume provider work", async () => {
-    const owner = await company();
-    const [issue] = await db.insert(issues).values({ companyId: owner.companyId, title: "Native task" }).returning();
+    const owner = await space();
+    const [issue] = await db.insert(issues).values({ spaceId: owner.spaceId, title: "Native task" }).returning();
     const pending = await run(owner, { nativeIssueId: issue.id, runtimeMode: "native", usageJson: { accountingReceiptReady: true } });
-    await db.insert(nativeRunFinalizations).values({ companyId: owner.companyId, runId: pending.id, issueId: issue.id, phase: "recovering" });
-    expect((await costDataQualityReport(db, owner.companyId, true, undefined, now)).runs[0].reason).toBe("waiting_for_receipt");
-    expect(await accountingIntegrityService(db).retry(owner.companyId, pending.id, "board")).toEqual({ accounted: false });
+    await db.insert(nativeRunFinalizations).values({ spaceId: owner.spaceId, runId: pending.id, issueId: issue.id, phase: "recovering" });
+    expect((await costDataQualityReport(db, owner.spaceId, true, undefined, now)).runs[0].reason).toBe("waiting_for_receipt");
+    expect(await accountingIntegrityService(db).retry(owner.spaceId, pending.id, "operator")).toEqual({ accounted: false });
     await db.update(nativeRunFinalizations).set({ phase: "terminal_failure" }).where(eq(nativeRunFinalizations.runId, pending.id));
-    expect((await costDataQualityReport(db, owner.companyId, true, undefined, now)).runs[0].reason).toBe("retryable");
+    expect((await costDataQualityReport(db, owner.spaceId, true, undefined, now)).runs[0].reason).toBe("retryable");
   });
 
   it("exposes acknowledged late receipt debt through existing run and retry metadata", async () => {
-    const owner = await company(), other = await company();
+    const owner = await space(), other = await space();
     const pending = await run(owner, { costAccountedAt: now, accountingLastError: "late_usage_requires_reconciliation",
       usageJson: { accountingReceiptReady: true, accountingLateReceiptPending: true,
         accountingLateReceiptId: randomUUID(), privateProviderPayload: "PRIVATE LATE RECEIPT" } });
-    const report = await costDataQualityReport(db, owner.companyId, true, undefined, now);
+    const report = await costDataQualityReport(db, owner.spaceId, true, undefined, now);
     expect(report.canRetry).toBe(true);
     expect(report.runs).toEqual([expect.objectContaining({ id: pending.id, runId: pending.id, reason: "retryable" })]);
     expect(JSON.stringify(report)).not.toContain("PRIVATE LATE RECEIPT");
-    expect((await costDataQualityReport(db, owner.companyId, false, undefined, now)).canRetry).toBe(false);
-    expect((await costDataQualityReport(db, other.companyId, true, undefined, now)).runs).toEqual([]);
-    const summary = await costService(db).summary(owner.companyId, { from: new Date("2026-10-01T00:00:00Z"), to: now });
+    expect((await costDataQualityReport(db, owner.spaceId, false, undefined, now)).canRetry).toBe(false);
+    expect((await costDataQualityReport(db, other.spaceId, true, undefined, now)).runs).toEqual([]);
+    const summary = await costService(db).summary(owner.spaceId, { from: new Date("2026-10-01T00:00:00Z"), to: now });
     expect(summary.pendingRunCount).toBe(1);
     expect(summary.pricingComplete).toBe(false);
-    const health = await accountingIntegrityService(db).health(owner.companyId);
+    const health = await accountingIntegrityService(db).health(owner.spaceId);
     expect(health.pendingRunCount).toBe(1);
     expect(health.items).toEqual([expect.objectContaining({ runId: pending.id, state: "retryable",
       lastError: "late_usage_requires_reconciliation" })]);
@@ -214,12 +214,12 @@ describe("actionable cost data quality", () => {
   });
 
   it("bounds each category independently and reports truncation", async () => {
-    const owner = await company();
+    const owner = await space();
     for (let i = 0; i < 26; i++) {
       await event(owner, { occurredAt: new Date(now.getTime() - i * 1000) });
       await run(owner, { finishedAt: new Date(now.getTime() - i * 1000) });
     }
-    const report = await costDataQualityReport(db, owner.companyId, true, undefined, now);
+    const report = await costDataQualityReport(db, owner.spaceId, true, undefined, now);
     expect(report.events).toHaveLength(25);
     expect(report.runs).toHaveLength(25);
     expect(report.hasMoreEvents).toBe(true);
@@ -228,20 +228,20 @@ describe("actionable cost data quality", () => {
   });
 
   it("retry cannot invent a missing receipt; a late receipt is recorded exactly once", async () => {
-    const owner = await company();
+    const owner = await space();
     const pending = await run(owner);
     const integrity = accountingIntegrityService(db);
-    expect(await integrity.retry(owner.companyId, pending.id, "board")).toEqual({ accounted: false });
-    expect((await db.select().from(costEvents).where(eq(costEvents.companyId, owner.companyId)))).toEqual([]);
+    expect(await integrity.retry(owner.spaceId, pending.id, "operator")).toEqual({ accounted: false });
+    expect((await db.select().from(costEvents).where(eq(costEvents.spaceId, owner.spaceId)))).toEqual([]);
     await db.update(heartbeatRuns).set({ usageJson: { accountingReceiptReady: true, provider: "openai", biller: "openai", billingType: "metered_api", model: "gpt-6-astra", costUsd: 0.21, inputTokens: 10, outputTokens: 2 } }).where(eq(heartbeatRuns.id, pending.id));
-    expect((await costDataQualityReport(db, owner.companyId, true, { allTime: true }, now)).runs[0].reason).toBe("retryable");
-    expect(await integrity.retry(owner.companyId, pending.id, "board")).toEqual({ accounted: true });
-    expect(await integrity.retry(owner.companyId, pending.id, "board")).toEqual({ accounted: false });
-    const charges = await db.select().from(costEvents).where(eq(costEvents.companyId, owner.companyId));
+    expect((await costDataQualityReport(db, owner.spaceId, true, { allTime: true }, now)).runs[0].reason).toBe("retryable");
+    expect(await integrity.retry(owner.spaceId, pending.id, "operator")).toEqual({ accounted: true });
+    expect(await integrity.retry(owner.spaceId, pending.id, "operator")).toEqual({ accounted: false });
+    const charges = await db.select().from(costEvents).where(eq(costEvents.spaceId, owner.spaceId));
     expect(charges).toHaveLength(1);
     expect(charges[0].costCents).toBe(21);
-    expect((await costDataQualityReport(db, owner.companyId, true, { allTime: true }, now)).runs).toEqual([]);
-    const other = await company();
-    await expect(integrity.retry(other.companyId, pending.id, "board")).rejects.toThrow("Accounting run not found");
+    expect((await costDataQualityReport(db, owner.spaceId, true, { allTime: true }, now)).runs).toEqual([]);
+    const other = await space();
+    await expect(integrity.retry(other.spaceId, pending.id, "operator")).rejects.toThrow("Accounting run not found");
   });
 });

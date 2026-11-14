@@ -10,7 +10,7 @@ import { isAgentStatusInvokable } from "@outpost/shared";
 import { notifyNativeResponsePresentation } from "./native-response-presentation-notifications.js";
 import { notifyChatInboundWakeNotices } from "./chat-inbound-wake-notice-notifications.js";
 import { logger } from "../middleware/logger.js";
-import { agents, companies, type Db } from "@outpost/db";
+import { agents, spaces, type Db } from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import { persistActivity, type ActivityPublication } from "./activity-log.js";
 import * as lifecycle from "../modules/agent-lifecycle/index.js";
@@ -20,9 +20,9 @@ import { recordAgentStatusEvent, recordResourceCreationEvent } from "./resource-
 import { clearPrimaryAgent } from "./primary-agent.js";
 import { deleteAgentDependencies } from "./agent-deletion.js";
 import { lockAgentConfigurationInteractions, prepareAgentConfiguration, completeAgentConfiguration } from "./agent-configuration.js";
-import { prepareAgentHire, initializeAgentHire, prepareAgentHireApproval, completeAgentHireApproval } from "./agent-hiring.js";
+import { prepareAgentCreation, initializeAgentCreation, prepareAgentCreationApproval, completeAgentCreationApproval } from "./agent-creation.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
-import { fenceActiveCompanyAgentStopsInTransaction as fenceActiveCompanyStops } from "../modules/agent-lifecycle/index.js";
+import { fenceActiveSpaceAgentStopsInTransaction as fenceActiveSpaceStops } from "../modules/agent-lifecycle/index.js";
 import { applyAgentPolicyHoldsInTransaction } from "../modules/agent-lifecycle/index.js";
 import { trackIdleWork } from "./task-admission.js";
 import { environmentService } from "./environments.js";
@@ -35,15 +35,15 @@ export type { LifecycleDriver, LifecycleAgent } from "../modules/agent-lifecycle
 
 export function createAgentLifecycleEffects(_hooks: BudgetServiceHooks = {}): lifecycle.LifecycleEffects {
   return {
-    async setupRequiresPreparation(db, companyId, environmentId, profile) {
+    async setupRequiresPreparation(db, spaceId, environmentId, profile) {
       if (isProviderApiSetupDraft(profile)) return false;
       const id = environmentId ?? (await instanceSettingsService(db).get()).defaultEnvironmentId;
       const environment = id ? await environmentService(db).getById(id) : null;
       if (!environment || !await pluginEnvironmentRequiresAgent(db, environment)) return false;
-      const [company] = await db.select({ requiresApproval: companies.requireBoardApprovalForNewAgents }).from(companies).where(eq(companies.id, companyId));
-      if (!company || company.requiresApproval) return false;
-      const bound = await environmentService(db).listBoundCompanyIds(environment.id);
-      if (bound.length && !bound.includes(companyId)) throw new lifecycle.AgentLifecycleConflict("The environment belongs to another company");
+      const [space] = await db.select({ requiresApproval: spaces.requireOperatorApprovalForNewAgents }).from(spaces).where(eq(spaces.id, spaceId));
+      if (!space || space.requiresApproval) return false;
+      const bound = await environmentService(db).listBoundSpaceIds(environment.id);
+      if (bound.length && !bound.includes(spaceId)) throw new lifecycle.AgentLifecycleConflict("The environment belongs to another space");
       return true;
     },
     async environmentRequiresNewPlugin(db, environmentId, selectedPluginIds) {
@@ -54,21 +54,21 @@ export function createAgentLifecycleEffects(_hooks: BudgetServiceHooks = {}): li
     },
     notifyWork: tx => notifyDeliveryWork(tx, DELIVERY_QUEUES.agentLifecycle),
     leaseHolder: () => currentControllerProcessStamp(),
-    beforeConnectionEligibilityRestore: async (tx, companyId, agentId) => {
-      await notifyMuseContactVerification(tx, { companyId, agentId });
+    beforeConnectionEligibilityRestore: async (tx, spaceId, agentId) => {
+      await notifyMuseContactVerification(tx, { spaceId, agentId });
     },
-    async beforeStatusChange(tx, companyId, agentId, before, after) {
-      await notifyAttentionRetentionWork(tx, { companyId });
+    async beforeStatusChange(tx, spaceId, agentId, before, after) {
+      await notifyAttentionRetentionWork(tx, { spaceId });
       if (before !== after) {
-        await notifyStrandedAgentStatus(tx, { companyId, agentId });
-        await notifyRunDispatch(tx, { companyId });
-        await notifyDeferredExecutionEligibility(tx, { companyId });
+        await notifyStrandedAgentStatus(tx, { spaceId, agentId });
+        await notifyRunDispatch(tx, { spaceId });
+        await notifyDeferredExecutionEligibility(tx, { spaceId });
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
       }
       if (!isAgentStatusInvokable(before) && isAgentStatusInvokable(after)) {
-        await notifyNativeResponsePresentation(tx, { companyId, agentId });
-        await notifyNativeReviewResponse(tx, { companyId, agentId });
-        await notifyChatInboundWakeNotices(tx, { companyId });
+        await notifyNativeResponsePresentation(tx, { spaceId, agentId });
+        await notifyNativeReviewResponse(tx, { spaceId, agentId });
+        await notifyChatInboundWakeNotices(tx, { spaceId });
         await notifyBudgetResumeAgentReady(tx, agentId);
       }
     },
@@ -79,20 +79,20 @@ export function createAgentLifecycleEffects(_hooks: BudgetServiceHooks = {}): li
     transaction: withAccountingTransaction,
     deleteDependencies: deleteAgentDependencies,
     policyBlocks,
-    setAgentBudget: (db, publications, companyId, agentId, amount, userId, isActive) =>
-      budgetServiceInTransaction(db, publications).upsertPolicy(companyId, {
+    setAgentBudget: (db, publications, spaceId, agentId, amount, userId, isActive) =>
+      budgetServiceInTransaction(db, publications).upsertPolicy(spaceId, {
         scopeType: "agent", scopeId: agentId, amount, isActive, windowKind: "calendar_month_utc",
       }, userId),
-    recordCreation: (db, companyId, agentId) => recordResourceCreationEvent(db, companyId, "agent", agentId),
+    recordCreation: (db, spaceId, agentId) => recordResourceCreationEvent(db, spaceId, "agent", agentId),
     recordStatus: recordAgentStatusEvent,
     clearPrimary: clearPrimaryAgent,
     lockConfigurationInteractions: lockAgentConfigurationInteractions,
     prepareConfiguration: prepareAgentConfiguration,
     completeConfiguration: completeAgentConfiguration,
-    prepareHire: prepareAgentHire,
-    initializeHire: initializeAgentHire,
-    prepareHireApproval: prepareAgentHireApproval,
-    completeHireApproval: completeAgentHireApproval,
+    prepareCreate: prepareAgentCreation,
+    initializeCreate: initializeAgentCreation,
+    prepareCreationApproval: prepareAgentCreationApproval,
+    completeCreationApproval: completeAgentCreationApproval,
   };
 }
 
@@ -105,9 +105,9 @@ export function initializeImportedAgentConfigurationInTransaction(tx: Db, public
   return lifecycle.initializeImportedAgentConfigurationInTransaction(tx, createAgentLifecycleEffects(), publications, id, data);
 }
 
-export function requestAgentHireInTransaction(tx: Db, publications: ActivityPublication[],
-  ...args: Parameters<ReturnType<typeof createAgentLifecycle>["requestHire"]>) {
-  return lifecycle.requestAgentHireInTransaction(tx, createAgentLifecycleEffects(), publications, ...args);
+export function requestAgentCreationInTransaction(tx: Db, publications: ActivityPublication[],
+  ...args: Parameters<ReturnType<typeof createAgentLifecycle>["requestCreation"]>) {
+  return lifecycle.requestAgentCreationInTransaction(tx, createAgentLifecycleEffects(), publications, ...args);
 }
 
 function trackedDriver(driver: lifecycle.LifecycleDriver): lifecycle.LifecycleDriver {
@@ -126,19 +126,19 @@ export function startAgentLifecycle(db: Db, driver: lifecycle.LifecycleDriver, c
 /** Budget evaluation owns the transaction and supplies the aggregate agent decision. */
 /** Pass the transaction's post-commit `publications` so the entry reaches live
  * subscribers after commit; without them it publishes nothing until reload. */
-export async function applyAgentBudgetHoldInTransaction(tx: Db, companyId: string, agentId: string, blocked: boolean,
+export async function applyAgentBudgetHoldInTransaction(tx: Db, spaceId: string, agentId: string, blocked: boolean,
   publications?: ActivityPublication[]) {
   const [before] = await tx.select({ holds: agents.lifecycleHolds }).from(agents)
-    .where(and(eq(agents.id, agentId), eq(agents.companyId, companyId)));
-  const updated = await applyAgentPolicyHoldsInTransaction(tx, createAgentLifecycleEffects(), companyId, agentId, { budget: blocked });
-  // A budget pause is a governance stop: record it, and its release, with the
+    .where(and(eq(agents.id, agentId), eq(agents.spaceId, spaceId)));
+  const updated = await applyAgentPolicyHoldsInTransaction(tx, createAgentLifecycleEffects(), spaceId, agentId, { budget: blocked });
+  // A budget pause is a policy stop: record it, and its release, with the
   // reason, in the transaction that applies it.
   const had = before?.holds?.includes("budget") ?? false;
   const has = updated?.lifecycleHolds?.includes("budget") ?? had;
   if (updated && had !== has) {
-    const { publication } = await persistActivity(tx, { companyId, actorType: "system", actorId: "budget",
+    const { publication } = await persistActivity(tx, { spaceId, actorType: "system", actorId: "budget",
       // Releasing the budget hold resumes the agent only when no other hold
-      // (a manual or company pause) still keeps it paused.
+      // (a manual or space pause) still keeps it paused.
       agentId, action: has ? "agent.paused" : updated.lifecycleHolds.length === 0 ? "agent.resumed" : "agent.budget_hold_released",
       entityType: "agent", entityId: agentId,
       details: { reason: "budget", lifecycleState: updated.lifecycleState, holds: updated.lifecycleHolds } });
@@ -147,6 +147,6 @@ export async function applyAgentBudgetHoldInTransaction(tx: Db, companyId: strin
   return updated;
 }
 
-export function fenceActiveCompanyAgentStopsInTransaction(tx: Db, companyId: string, status: "paused" | "archived") {
-  return fenceActiveCompanyStops(tx, createAgentLifecycleEffects(), companyId, status);
+export function fenceActiveSpaceAgentStopsInTransaction(tx: Db, spaceId: string, status: "paused" | "archived") {
+  return fenceActiveSpaceStops(tx, createAgentLifecycleEffects(), spaceId, status);
 }

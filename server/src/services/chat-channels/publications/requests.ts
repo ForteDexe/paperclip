@@ -15,9 +15,9 @@ import { projectSafeChatPublication } from "../../chat-publication-projection.js
 import type { EndpointRecord } from "../runtime-types.js";
 import type { createTeamsFileAuthority } from "../microsoft-teams/file-transfer-authority.js";
 import type { createChatPublicationQueue } from "./queue.js";
-import type { createSlackBoardMessages } from "../slack/board-messages.js";
-import type { createTeamsBoardSendPreparation } from "../microsoft-teams/board-send-preparation.js";
-import { stageSlackBoardSend } from "../slack/board-send.js";
+import type { createSlackBoardMessages } from "../slack/operator-messages.js";
+import type { createTeamsBoardSendPreparation } from "../microsoft-teams/operator-send-preparation.js";
+import { stageSlackBoardSend } from "../slack/operator-send.js";
 type RequestOptions = {
   endpointRecord: (endpointId: string) => Promise<EndpointRecord | null>;
   stageTeamsBoardFileIntent: ReturnType<typeof createTeamsFileAuthority>["stageTeamsBoardFileIntent"];
@@ -49,7 +49,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
       )
       .then((rows) => rows[0]);
     if (!anchor) throw notFound("Chat publication not found");
-    // An explicit Board send and every durable text/file transport part share
+    // An explicit Operator send and every durable text/file transport part share
     // its comment. Read all parts without Activity's history limit; never
     // advance the worker or replay a provider side effect from this GET.
     // Join public receipts and private transfer facts in one database snapshot.
@@ -63,7 +63,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
       .leftJoin(
         chatTeamsFileTransfers,
         and(
-          eq(chatTeamsFileTransfers.companyId, chatPublications.companyId),
+          eq(chatTeamsFileTransfers.spaceId, chatPublications.spaceId),
           eq(chatTeamsFileTransfers.endpointId, chatPublications.endpointId),
           eq(
             chatTeamsFileTransfers.conversationId,
@@ -74,7 +74,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
       )
       .where(
         and(
-          eq(chatPublications.companyId, anchor.companyId),
+          eq(chatPublications.spaceId, anchor.spaceId),
           eq(chatPublications.endpointId, endpointId),
           eq(chatPublications.conversationId, conversationId),
           anchor.commentId
@@ -133,7 +133,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
       return tx
         .insert(chatPublications)
         .values({
-          companyId: conversation.companyId,
+          spaceId: conversation.spaceId,
           endpointId,
           conversationId,
           issueId: conversation.issueId,
@@ -155,7 +155,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
       .from(chatPublications)
       .where(
         and(
-          eq(chatPublications.companyId, conversation.companyId),
+          eq(chatPublications.spaceId, conversation.spaceId),
           eq(chatPublications.endpointId, endpointId),
           eq(chatPublications.conversationId, conversationId),
           eq(chatPublications.commentId, commentId),
@@ -187,8 +187,8 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
     // them. Include that durable task boundary so a retried key from another
     // conversation can neither suppress its send nor return the first task's
     // publication.
-    const idempotencyKey = `explicit-board:${endpointId}:${conversationId}:${clientIdempotencyKey}`;
-    const rejectionActionId = `board-send-rejected:${conversationId}:${clientIdempotencyKey}`;
+    const idempotencyKey = `explicit-operator:${endpointId}:${conversationId}:${clientIdempotencyKey}`;
+    const rejectionActionId = `operator-send-rejected:${conversationId}:${clientIdempotencyKey}`;
     const rejectionCode = "chat_board_send_attachments_already_bound";
     const rejectionDetails = (ids: string[]) => ({
       code: rejectionCode,
@@ -223,7 +223,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, conversation.companyId),
+            eq(chatPublications.spaceId, conversation.spaceId),
             eq(chatPublications.idempotencyKey, idempotencyKey),
           ),
         )
@@ -255,7 +255,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
         .from(chatActions)
         .where(
           and(
-            eq(chatActions.companyId, conversation.companyId),
+            eq(chatActions.spaceId, conversation.spaceId),
             eq(chatActions.endpointId, endpointId),
             eq(chatActions.providerActionId, rejectionActionId),
           ),
@@ -264,7 +264,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
       if (rejected) {
         const payload = rejected.payload;
         if (
-          rejected.kind !== "board_send_rejected" ||
+          rejected.kind !== "operator_send_rejected" ||
           rejected.status !== "processed" ||
           rejected.conversationId !== conversation.id ||
           payload.schemaVersion !== 1 ||
@@ -273,7 +273,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
           rejected.result?.code !== rejectionCode ||
           !validRejectedIds(payload.attachmentIds)
         ) {
-          throw conflict("Board send rejection receipt is unavailable");
+          throw conflict("Operator send rejection receipt is unavailable");
         }
         // The negative receipt is immutable, including when the caller retries
         // with different content or the previous owner comment was deleted.
@@ -306,7 +306,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
             : null;
         if (
           details?.code !== "issue_comment_attachments_already_bound" ||
-          details.companyId !== conversation.companyId ||
+          details.spaceId !== conversation.spaceId ||
           details.issueId !== conversation.issueId ||
           !validRejectedIds(details.attachmentIds) ||
           !details.attachmentIds.every((id) => attachmentIds.includes(id))
@@ -316,10 +316,10 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
           (details.attachmentIds as string[]).includes(id),
         );
         await tx.insert(chatActions).values({
-          companyId: conversation.companyId,
+          spaceId: conversation.spaceId,
           endpointId,
           conversationId,
-          kind: "board_send_rejected",
+          kind: "operator_send_rejected",
           providerActionId: rejectionActionId,
           payload: {
             schemaVersion: 1,
@@ -344,7 +344,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
           .innerJoin(assets, eq(issueAttachments.assetId, assets.id))
           .where(
             and(
-              eq(issueAttachments.companyId, conversation.companyId),
+              eq(issueAttachments.spaceId, conversation.spaceId),
               eq(issueAttachments.issueId, conversation.issueId),
               eq(issueAttachments.issueCommentId, comment.id),
               inArray(issueAttachments.id, attachmentIds),
@@ -362,7 +362,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
       const [created] = await tx
         .insert(chatPublications)
         .values({
-          companyId: conversation.companyId,
+          spaceId: conversation.spaceId,
           endpointId,
           conversationId,
           issueId: conversation.issueId,
@@ -387,7 +387,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
         const [attachmentPublication] = await tx
           .insert(chatPublications)
           .values({
-            companyId: conversation.companyId,
+            spaceId: conversation.spaceId,
             endpointId,
             conversationId,
             issueId: conversation.issueId,
@@ -413,7 +413,7 @@ export function createChatPublicationRequests(db: Db, options: RequestOptions) {
         terminalPublication = attachmentPublication;
       }
       await logActivity(tx as unknown as Db, {
-        companyId: conversation.companyId,
+        spaceId: conversation.spaceId,
         actorType: "user",
         actorId: userId,
         action: "chat.publication_requested",

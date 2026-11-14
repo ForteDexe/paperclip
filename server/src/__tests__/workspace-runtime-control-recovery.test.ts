@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
-  companies,
+  spaces,
   createDb,
   executionWorkspaces,
   projects,
@@ -58,10 +58,10 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   let previousLogRoot: string | undefined;
 
   beforeAll(async () => {
-    const started = await startEmbeddedPostgresTestDatabase("paperclip-runtime-control-recovery-");
+    const started = await startEmbeddedPostgresTestDatabase("outpost-runtime-control-recovery-");
     stopDb = started.cleanup;
     db = createDb(started.connectionString);
-    logRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-runtime-control-logs-"));
+    logRoot = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-runtime-control-logs-"));
     previousLogRoot = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH;
     process.env.WORKSPACE_OPERATION_LOG_BASE_PATH = logRoot;
   }, 60_000);
@@ -72,7 +72,7 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
     await db.delete(workspaceOperations);
     await db.delete(executionWorkspaces);
     await db.delete(projects);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -83,24 +83,24 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   });
 
   async function seedWorkspace() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const executionWorkspaceId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Runtime control recovery",
-      issuePrefix: `R${companyId.replace(/-/g, "").slice(0, 7).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+      issuePrefix: `R${spaceId.replace(/-/g, "").slice(0, 7).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Runtime control recovery",
       status: "in_progress",
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       mode: "isolated_workspace",
       strategyType: "git_worktree",
@@ -108,7 +108,7 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
       status: "active",
       cwd: "/tmp/runtime-control-lane-a",
     });
-    return { companyId, projectId, executionWorkspaceId };
+    return { spaceId, projectId, executionWorkspaceId };
   }
 
   /** Wait for a managed control to have actually persisted its claim row. */
@@ -132,7 +132,7 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
 
   /** Insert a `running` start the way an abandoned request or dead server process leaves one. */
   async function seedRunningStart(input: {
-    companyId: string;
+    spaceId: string;
     executionWorkspaceId: string;
     /** hostHash defaults to this process's PID space; null omits it (a legacy stamp). */
     owner?: { ownerId: string; pid: number; heartbeatAt: Date; hostHash?: string | null;
@@ -148,12 +148,12 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   }) {
     const id = randomUUID();
     const handle = input.withLog
-      ? await getWorkspaceOperationLogStore().begin({ companyId: input.companyId, operationId: id })
+      ? await getWorkspaceOperationLogStore().begin({ spaceId: input.spaceId, operationId: id })
       : null;
     const startedAt = input.startedAt ?? new Date();
     await db.insert(workspaceOperations).values({
       id,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       executionWorkspaceId: input.executionWorkspaceId,
       phase: "workspace_provision",
       command: "workspace command start",
@@ -184,12 +184,12 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   }
 
   it("recovers a start abandoned by a dead server process and frees managed control", async () => {
-    const { companyId, executionWorkspaceId } = await seedWorkspace();
+    const { spaceId, executionWorkspaceId } = await seedWorkspace();
     const service = workspaceOperationService(db);
     // pid 2^22-1 is above every Linux/macOS pid ceiling, so it can never be alive.
     const deadPid = 4_194_303;
     const staleId = await seedRunningStart({
-      companyId,
+      spaceId,
       executionWorkspaceId,
       owner: { ownerId: randomUUID(), pid: deadPid, heartbeatAt: new Date() },
       withLog: true,
@@ -239,10 +239,10 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   });
 
   it("refuses to steal a start whose owning process is still alive inside the staleness window", async () => {
-    const { companyId, executionWorkspaceId } = await seedWorkspace();
+    const { spaceId, executionWorkspaceId } = await seedWorkspace();
     const service = workspaceOperationService(db);
     const liveId = await seedRunningStart({
-      companyId,
+      spaceId,
       executionWorkspaceId,
       // A different server instance, but its pid is this very test process: genuinely alive.
       owner: { ownerId: randomUUID(), pid: process.pid, heartbeatAt: new Date() },
@@ -269,10 +269,10 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   });
 
   it("bounds recovery: the same live owner is reclaimed once its heartbeat lapses", async () => {
-    const { companyId, executionWorkspaceId } = await seedWorkspace();
+    const { spaceId, executionWorkspaceId } = await seedWorkspace();
     const service = workspaceOperationService(db);
     const staleId = await seedRunningStart({
-      companyId,
+      spaceId,
       executionWorkspaceId,
       owner: { ownerId: randomUUID(), pid: process.pid, heartbeatAt: new Date() },
     });
@@ -285,9 +285,9 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   });
 
   it("recovers a legacy start with no ownership stamp only after the staleness window", async () => {
-    const { companyId, executionWorkspaceId } = await seedWorkspace();
+    const { spaceId, executionWorkspaceId } = await seedWorkspace();
     const service = workspaceOperationService(db);
-    const legacyId = await seedRunningStart({ companyId, executionWorkspaceId });
+    const legacyId = await seedRunningStart({ spaceId, executionWorkspaceId });
 
     await expect(service.reconcileStaleRuntimeControlOperations(executionWorkspaceId)).resolves.toEqual({
       reconciled: 0,
@@ -301,14 +301,14 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   });
 
   it("recovers a start whose timestamps came from the column defaults", async () => {
-    const { companyId, executionWorkspaceId } = await seedWorkspace();
+    const { spaceId, executionWorkspaceId } = await seedWorkspace();
     const service = workspaceOperationService(db);
     // Regression guard for the compare-and-swap: `updated_at` written by `defaultNow()` keeps
     // microsecond precision, while the driver hands JS a millisecond-truncated Date. An `=`
     // CAS against that read never matches, which would make recovery silently no-op on exactly
     // the rows it exists to clear — the ones a previous build left `running`.
     const legacyId = await seedRunningStart({
-      companyId,
+      spaceId,
       executionWorkspaceId,
       owner: { ownerId: randomUUID(), pid: 4_194_303, heartbeatAt: new Date() },
       columnDefaultTimestamps: true,
@@ -323,10 +323,10 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   });
 
   it("terminalizes exactly once when two recovery sweeps race the same operation", async () => {
-    const { companyId, executionWorkspaceId } = await seedWorkspace();
+    const { spaceId, executionWorkspaceId } = await seedWorkspace();
     const service = workspaceOperationService(db);
     const staleId = await seedRunningStart({
-      companyId,
+      spaceId,
       executionWorkspaceId,
       owner: { ownerId: randomUUID(), pid: 4_194_303, heartbeatAt: new Date() },
     });
@@ -340,12 +340,12 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   });
 
   it("leaves non-runtime-control operations alone", async () => {
-    const { companyId, executionWorkspaceId } = await seedWorkspace();
+    const { spaceId, executionWorkspaceId } = await seedWorkspace();
     const service = workspaceOperationService(db);
     const provisionId = randomUUID();
     await db.insert(workspaceOperations).values({
       id: provisionId,
-      companyId,
+      spaceId,
       executionWorkspaceId,
       phase: "workspace_provision",
       command: "bash ./scripts/provision-worktree.sh",
@@ -368,17 +368,17 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
     expect(row?.status).toBe("running");
   });
 
-  it("keeps a company's recovery inside its own scope", async () => {
+  it("keeps a space's recovery inside its own scope", async () => {
     const laneA = await seedWorkspace();
     const laneB = await seedWorkspace();
     const service = workspaceOperationService(db);
     const staleA = await seedRunningStart({
-      companyId: laneA.companyId,
+      spaceId: laneA.spaceId,
       executionWorkspaceId: laneA.executionWorkspaceId,
       owner: { ownerId: randomUUID(), pid: 4_194_303, heartbeatAt: new Date() },
     });
     const staleB = await seedRunningStart({
-      companyId: laneB.companyId,
+      spaceId: laneB.spaceId,
       executionWorkspaceId: laneB.executionWorkspaceId,
       owner: { ownerId: randomUUID(), pid: 4_194_303, heartbeatAt: new Date() },
     });
@@ -390,9 +390,9 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   });
 
   it("holds the workspace while a start is genuinely live in this process, then releases it", async () => {
-    const { companyId, executionWorkspaceId } = await seedWorkspace();
+    const { spaceId, executionWorkspaceId } = await seedWorkspace();
     const service = workspaceOperationService(db);
-    const recorder = service.createRecorder({ companyId, executionWorkspaceId });
+    const recorder = service.createRecorder({ spaceId, executionWorkspaceId });
 
     let releaseStart!: () => void;
     const startGate = new Promise<void>((resolve) => {
@@ -443,9 +443,9 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   });
 
   it("protects an in-process start from recovery even with the staleness window collapsed", async () => {
-    const { companyId, executionWorkspaceId } = await seedWorkspace();
+    const { spaceId, executionWorkspaceId } = await seedWorkspace();
     const service = workspaceOperationService(db);
-    const recorder = service.createRecorder({ companyId, executionWorkspaceId });
+    const recorder = service.createRecorder({ spaceId, executionWorkspaceId });
     const sweeper = workspaceOperationService(db);
 
     let sweeping = true;
@@ -481,9 +481,9 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   });
 
   it("fails a hung start on its own time budget so no active operation is left behind", async () => {
-    const { companyId, executionWorkspaceId } = await seedWorkspace();
+    const { spaceId, executionWorkspaceId } = await seedWorkspace();
     const service = workspaceOperationService(db);
-    const recorder = service.createRecorder({ companyId, executionWorkspaceId });
+    const recorder = service.createRecorder({ spaceId, executionWorkspaceId });
 
     await expect(
       recorder.recordOperation({
@@ -517,9 +517,9 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
   });
 
   it("lets a managed retry succeed immediately after a failed start", async () => {
-    const { companyId, executionWorkspaceId } = await seedWorkspace();
+    const { spaceId, executionWorkspaceId } = await seedWorkspace();
     const service = workspaceOperationService(db);
-    const recorder = service.createRecorder({ companyId, executionWorkspaceId });
+    const recorder = service.createRecorder({ spaceId, executionWorkspaceId });
 
     await expect(
       recorder.recordOperation({
@@ -632,7 +632,7 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
 
     it("wakes the ownership worker when a runtime control starts, before its row is visible", async () => {
       const seeded = await seedWorkspace();
-      const recorder = workspaceOperationService(db).createRecorder({ companyId: seeded.companyId,
+      const recorder = workspaceOperationService(db).createRecorder({ spaceId: seeded.spaceId,
         executionWorkspaceId: seeded.executionWorkspaceId });
       const hints: string[] = [];
       const stop = subscribeDatabaseWork(db, DELIVERY_QUEUES.ownershipInvariantReport, (event, eventHints) => {
@@ -654,7 +654,7 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
 
     it("wakes the ownership worker when a local workspace command starts, before its row is visible", async () => {
       const seeded = await seedWorkspace();
-      const recorder = workspaceOperationService(db).createRecorder({ companyId: seeded.companyId,
+      const recorder = workspaceOperationService(db).createRecorder({ spaceId: seeded.spaceId,
         executionWorkspaceId: seeded.executionWorkspaceId });
       const hints: string[] = [];
       const stop = subscribeDatabaseWork(db, DELIVERY_QUEUES.ownershipInvariantReport, (event, eventHints) => {
@@ -677,7 +677,7 @@ describeEmbeddedPostgres("managed runtime-control operation recovery", () => {
     it("stamps new operations with the server's boot id and start time", async () => {
       const seeded = await seedWorkspace();
       const service = workspaceOperationService(db);
-      const recorder = service.createRecorder({ companyId: seeded.companyId, executionWorkspaceId: seeded.executionWorkspaceId });
+      const recorder = service.createRecorder({ spaceId: seeded.spaceId, executionWorkspaceId: seeded.executionWorkspaceId });
       let seen: Record<string, unknown> | null = null;
       await recorder.recordOperation({ phase: "workspace_provision", metadata: { action: "start" }, run: async () => {
         const [row] = await db.select().from(workspaceOperations).where(eq(workspaceOperations.status, "running"));

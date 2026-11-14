@@ -25,11 +25,11 @@ function ids(run: Run): string[] {
  * The source must be read/authorized by the caller; ownership and generation are
  * rechecked under the creation transaction so reset chats cannot receive new work. */
 export async function lockAcceptedChatHandoffSource(tx: Connection, input: {
-  companyId: string; conversationId: string; sessionGeneration: number;
+  spaceId: string; conversationId: string; sessionGeneration: number;
   userId?: string | null; agentId?: string | null;
 }) {
   const [source] = await tx.select().from(issues).where(and(eq(issues.id, input.conversationId),
-    eq(issues.companyId, input.companyId))).for("update");
+    eq(issues.spaceId, input.spaceId))).for("update");
   if (!source?.conversationAgentId) throw notFound("Originating conversation not found");
   if (source.conversationSessionGeneration !== input.sessionGeneration) {
     throw conflict("The originating conversation was reset; request a new task suggestion");
@@ -41,10 +41,10 @@ export async function lockAcceptedChatHandoffSource(tx: Connection, input: {
 }
 
 export async function recordAcceptedChatHandoff(tx: Connection, task: Issue, source: Issue) {
-  if (!source.conversationAgentId || source.companyId !== task.companyId || task.conversationAgentId) {
-    throw forbidden("Task handoff requires an execution task in the originating conversation's company");
+  if (!source.conversationAgentId || source.spaceId !== task.spaceId || task.conversationAgentId) {
+    throw forbidden("Task handoff requires an execution task in the originating conversation's space");
   }
-  await tx.insert(handoffs).values({ taskId: task.id, companyId: task.companyId,
+  await tx.insert(handoffs).values({ taskId: task.id, spaceId: task.spaceId,
     conversationId: source.id, agentId: source.conversationAgentId,
     sessionGeneration: source.conversationSessionGeneration }).onConflictDoNothing();
 }
@@ -52,10 +52,10 @@ export async function recordAcceptedChatHandoff(tx: Connection, task: Issue, sou
 export async function recordChatHandoff(tx: Connection, task: Issue, actorRunId: string | null | undefined) {
   if (!actorRunId || task.conversationAgentId || !task.createdByAgentId) return;
   const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, actorRunId),
-    eq(heartbeatRuns.companyId, task.companyId), eq(heartbeatRuns.agentId, task.createdByAgentId)));
+    eq(heartbeatRuns.spaceId, task.spaceId), eq(heartbeatRuns.agentId, task.createdByAgentId)));
   const sourceId = run?.nativeIssueId ?? run?.contextSnapshot?.issueId;
   if (typeof sourceId !== "string" || sourceId === task.id) return;
-  const [source] = await tx.select().from(issues).where(and(eq(issues.id, sourceId), eq(issues.companyId, task.companyId)));
+  const [source] = await tx.select().from(issues).where(and(eq(issues.id, sourceId), eq(issues.spaceId, task.spaceId)));
   if (!source?.conversationAgentId || source.conversationAgentId !== run.agentId ||
     source.conversationSessionGeneration !== run.contextSnapshot?.conversationSessionGeneration) return;
   await recordAcceptedChatHandoff(tx, task, source);
@@ -65,22 +65,22 @@ export async function recordChatHandoff(tx: Connection, task: Issue, actorRunId:
 export async function recordChatCompletion(tx: Connection, before: Issue, after: Issue): Promise<boolean> {
   if (before.status === after.status) return false;
   await tx.update(deliveries).set({ status: "superseded" }).where(and(eq(deliveries.taskId, after.id),
-    eq(deliveries.companyId, after.companyId), inArray(deliveries.status, [...pending])));
+    eq(deliveries.spaceId, after.spaceId), inArray(deliveries.status, [...pending])));
   if (after.status !== "done") return false;
-  const [handoff] = await tx.select().from(handoffs).where(and(eq(handoffs.taskId, after.id), eq(handoffs.companyId, after.companyId)));
+  const [handoff] = await tx.select().from(handoffs).where(and(eq(handoffs.taskId, after.id), eq(handoffs.spaceId, after.spaceId)));
   if (!handoff) return false;
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.chatCompletion);
-  await tx.insert(deliveries).values({ companyId: after.companyId, taskId: after.id, statusVersion: after.statusVersion }).onConflictDoNothing();
+  await tx.insert(deliveries).values({ spaceId: after.spaceId, taskId: after.id, statusVersion: after.statusVersion }).onConflictDoNothing();
   return true;
 }
 
 async function loadAudience(tx: Connection, deliveryId: string) {
   const [row] = await tx.select({ delivery: deliveries, handoff: handoffs, task: issues }).from(deliveries)
-    .innerJoin(handoffs, and(eq(handoffs.taskId, deliveries.taskId), eq(handoffs.companyId, deliveries.companyId)))
-    .innerJoin(issues, and(eq(issues.id, deliveries.taskId), eq(issues.companyId, deliveries.companyId)))
+    .innerJoin(handoffs, and(eq(handoffs.taskId, deliveries.taskId), eq(handoffs.spaceId, deliveries.spaceId)))
+    .innerJoin(issues, and(eq(issues.id, deliveries.taskId), eq(issues.spaceId, deliveries.spaceId)))
     .where(eq(deliveries.id, deliveryId));
   if (!row) return null;
-  const [source] = await tx.select().from(issues).where(and(eq(issues.id, row.handoff.conversationId), eq(issues.companyId, row.handoff.companyId)));
+  const [source] = await tx.select().from(issues).where(and(eq(issues.id, row.handoff.conversationId), eq(issues.spaceId, row.handoff.spaceId)));
   return { ...row, source };
 }
 function current(row: NonNullable<Awaited<ReturnType<typeof loadAudience>>>) {
@@ -94,12 +94,12 @@ async function taskResult(tx: Connection, task: Issue) {
   // source agent's instructions. These links and lifecycle facts are generated
   // by the server; the saved work remains on its normal access-controlled task.
   const documents = await tx.select({ id: issueDocuments.documentId }).from(issueDocuments)
-    .where(and(eq(issueDocuments.companyId, task.companyId), eq(issueDocuments.issueId, task.id))).limit(1);
+    .where(and(eq(issueDocuments.spaceId, task.spaceId), eq(issueDocuments.issueId, task.id))).limit(1);
   // A bounded receipt projection gives the coordinator actual verdicts to link,
   // rather than asking it to infer whether the worker's prose needs another review.
   // These are historical decisions on their named versions, not publication authority.
   const reviews = await tx.select().from(issueThreadInteractions).where(and(
-    eq(issueThreadInteractions.companyId, task.companyId), eq(issueThreadInteractions.issueId, task.id),
+    eq(issueThreadInteractions.spaceId, task.spaceId), eq(issueThreadInteractions.issueId, task.id),
     inArray(issueThreadInteractions.kind, ["request_confirmation", "request_item_verdicts"]),
     inArray(issueThreadInteractions.status, ["accepted", "answered"]),
   )).orderBy(desc(issueThreadInteractions.resolvedAt), desc(issueThreadInteractions.id)).limit(20);
@@ -127,14 +127,14 @@ async function taskResult(tx: Connection, task: Issue) {
 /** A completed onboarding parent still owes the result of its own child handoff.
  * This permits a reporting turn without reopening Done or reviving cancellation. */
 export async function isCompletedOnboardingHandoffWake(db: Connection, input: {
-  companyId: string; issueId: string; agentId: string; reason: string | null;
+  spaceId: string; issueId: string; agentId: string; reason: string | null;
   contextSnapshot: Record<string, unknown>;
 }) {
   if (input.reason !== "issue_children_completed" || typeof input.contextSnapshot.completedChildIssueId !== "string") return false;
-  const [source] = await db.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId)));
+  const [source] = await db.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId)));
   if (source?.originKind !== "onboarding_first_task" || source.status !== "done" || source.assigneeAgentId !== input.agentId) return false;
   const children = await db.select({ id: issues.id, status: issues.status }).from(issues)
-    .where(and(eq(issues.companyId, input.companyId), eq(issues.parentId, source.id)));
+    .where(and(eq(issues.spaceId, input.spaceId), eq(issues.parentId, source.id)));
   return children.some(child => child.id === input.contextSnapshot.completedChildIssueId && child.status === "done") &&
     children.every(child => ["done", "cancelled"].includes(child.status));
 }
@@ -144,10 +144,10 @@ export async function prepareChatCompletionTurn(db: Db, run: Run): Promise<Run> 
   const issueId = run.contextSnapshot?.issueId;
   if (typeof issueId !== "string") return run;
   return db.transaction(async tx => {
-    const [source] = await tx.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId))).for("update");
+    const [source] = await tx.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId))).for("update");
     if (!source) return run;
     if (source.originKind === "onboarding_first_task" && run.contextSnapshot?.wakeReason === "issue_children_completed") {
-      const children = await tx.select().from(issues).where(and(eq(issues.companyId, run.companyId), eq(issues.parentId, source.id), eq(issues.status, "done"))).orderBy(issues.createdAt).limit(20);
+      const children = await tx.select().from(issues).where(and(eq(issues.spaceId, run.spaceId), eq(issues.parentId, source.id), eq(issues.status, "done"))).orderBy(issues.createdAt).limit(20);
       const contextSnapshot = { ...run.contextSnapshot, onboardingCompletion: true,
         chatCompletionUpdates: await Promise.all(children.map(child => taskResult(tx, child))) };
       await tx.update(heartbeatRuns).set({ contextSnapshot }).where(eq(heartbeatRuns.id, run.id));
@@ -158,7 +158,7 @@ export async function prepareChatCompletionTurn(db: Db, run: Run): Promise<Run> 
     if (initialIds.length === 0 && run.contextSnapshot?.wakeReason !== CHAT_COMPLETION_WAKE_REASON) return run;
     if (run.contextSnapshot?.conversationSessionGeneration !== source.conversationSessionGeneration) throw new Error("chat_completion_superseded");
     const rows = await tx.select({ delivery: deliveries }).from(deliveries).innerJoin(handoffs, eq(handoffs.taskId, deliveries.taskId))
-      .where(and(eq(deliveries.companyId, run.companyId), eq(handoffs.conversationId, issueId),
+      .where(and(eq(deliveries.spaceId, run.spaceId), eq(handoffs.conversationId, issueId),
         eq(handoffs.agentId, run.agentId), eq(handoffs.sessionGeneration, source.conversationSessionGeneration),
         inArray(deliveries.status, [...pending]),
         sql`(${deliveries.targetRunId} is null or ${deliveries.targetRunId} = ${run.id})`))
@@ -190,11 +190,11 @@ export function chatCompletionInstruction(context: Record<string, unknown>) {
 export async function existingChatCompletionReply(tx: Connection, runId: string, issueId: string) {
   const [run] = await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
   if (!run || ids(run).length === 0) return null;
-  const rows = await tx.select().from(deliveries).where(and(eq(deliveries.companyId, run.companyId), inArray(deliveries.id, ids(run))));
+  const rows = await tx.select().from(deliveries).where(and(eq(deliveries.spaceId, run.spaceId), inArray(deliveries.id, ids(run))));
   for (const delivery of rows) {
     // Match the status writer's task-first lock order, then reload the outbox
     // row so a concurrent reopen cannot leave us with its pre-commit snapshot.
-    await tx.select({ id: issues.id }).from(issues).where(and(eq(issues.id, delivery.taskId), eq(issues.companyId, run.companyId))).for("update");
+    await tx.select({ id: issues.id }).from(issues).where(and(eq(issues.id, delivery.taskId), eq(issues.spaceId, run.spaceId))).for("update");
     const row = await loadAudience(tx, delivery.id);
     if (!row || row.source?.id !== issueId || row.handoff.agentId !== run.agentId || !current(row)) throw new Error("chat_completion_superseded");
     if (row.delivery.responseCommentId) {
@@ -227,10 +227,10 @@ export function chatCompletionDeliveryService(db: Db, heartbeat: { wakeup(agentI
         await db.update(deliveries).set({ status: "superseded" }).where(eq(deliveries.id, id)); return;
       }
       if (!(await instanceSettingsService(db).getExperimental()).enableAgentChat) return;
-      const [agent] = await db.select().from(agents).where(and(eq(agents.id, row.handoff.agentId), eq(agents.companyId, claimed.companyId)));
+      const [agent] = await db.select().from(agents).where(and(eq(agents.id, row.handoff.agentId), eq(agents.spaceId, claimed.spaceId)));
       if (!agent || ["paused", "terminated"].includes(agent.status)) return;
       const key = `chat-completion:${id}:${claimed.attempts}`;
-      const wakes = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, claimed.companyId), eq(agentWakeupRequests.idempotencyKey, key)));
+      const wakes = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, claimed.spaceId), eq(agentWakeupRequests.idempotencyKey, key)));
       const runId = claimed.targetRunId ?? wakes.find(w => w.runId)?.runId;
       if (runId) {
         const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
@@ -239,7 +239,7 @@ export function chatCompletionDeliveryService(db: Db, heartbeat: { wakeup(agentI
         const presentationDeadline = run?.runtimeMode === "native" && run.status === "succeeded" && run.finishedAt
           ? run.finishedAt.getTime() + MAX_ATTEMPTS * LEASE_MS : null;
         if (run && presentationDeadline !== null && Date.now() < presentationDeadline) {
-          const scope = { companyId: claimed.companyId, issueId: row.handoff.conversationId,
+          const scope = { spaceId: claimed.spaceId, issueId: row.handoff.conversationId,
             runId: run.id, agentId: row.handoff.agentId };
           const deferred = await db.transaction(async tx => {
 
@@ -250,7 +250,7 @@ export function chatCompletionDeliveryService(db: Db, heartbeat: { wakeup(agentI
             await notifyNativeResponsePresentation(tx, scope);
             const updated = await tx.update(deliveries).set({ nextAttemptAt: new Date(Math.min(presentationDeadline, Math.max(
               claimed.nextAttemptAt.getTime(), response.nextAttemptAt?.getTime() ?? 0,
-            ))) }).where(and(eq(deliveries.id, id), eq(deliveries.companyId, claimed.companyId),
+            ))) }).where(and(eq(deliveries.id, id), eq(deliveries.spaceId, claimed.spaceId),
               eq(deliveries.status, "queued"), eq(deliveries.targetRunId, run.id),
               eq(deliveries.statusVersion, claimed.statusVersion), eq(deliveries.attempts, claimed.attempts),
               eq(deliveries.nextAttemptAt, claimed.nextAttemptAt))).returning({ id: deliveries.id });
@@ -262,9 +262,9 @@ export function chatCompletionDeliveryService(db: Db, heartbeat: { wakeup(agentI
 
 
           const [task] = await tx.select({ status: issues.status }).from(issues)
-            .where(and(eq(issues.id, claimed.taskId), eq(issues.companyId, claimed.companyId))).for("update");
+            .where(and(eq(issues.id, claimed.taskId), eq(issues.spaceId, claimed.spaceId))).for("update");
           if (task?.status !== "done") return false;
-          const sameClaim = and(eq(deliveries.id, id), eq(deliveries.companyId, claimed.companyId),
+          const sameClaim = and(eq(deliveries.id, id), eq(deliveries.spaceId, claimed.spaceId),
             inArray(deliveries.status, [...pending]), eq(deliveries.statusVersion, claimed.statusVersion),
             eq(deliveries.attempts, claimed.attempts),
             eq(deliveries.nextAttemptAt, claimed.nextAttemptAt),
@@ -299,7 +299,7 @@ export function chatCompletionDeliveryService(db: Db, heartbeat: { wakeup(agentI
       const siblings = await db.select({ delivery: deliveries, run: heartbeatRuns }).from(deliveries)
         .innerJoin(handoffs, eq(handoffs.taskId, deliveries.taskId))
         .leftJoin(heartbeatRuns, eq(heartbeatRuns.id, deliveries.targetRunId))
-        .where(and(eq(deliveries.companyId, claimed.companyId), eq(handoffs.conversationId, row.handoff.conversationId),
+        .where(and(eq(deliveries.spaceId, claimed.spaceId), eq(handoffs.conversationId, row.handoff.conversationId),
           eq(handoffs.sessionGeneration, row.handoff.sessionGeneration), inArray(deliveries.status, [...pending])))
         .orderBy(asc(deliveries.createdAt), asc(deliveries.id));
       if (siblings.some(s => s.run && activeRuns.includes(s.run.status) &&
@@ -314,24 +314,24 @@ export function chatCompletionDeliveryService(db: Db, heartbeat: { wakeup(agentI
       });
       if (!run) {
         const receipts = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests)
-          .where(and(eq(agentWakeupRequests.companyId, claimed.companyId), eq(agentWakeupRequests.idempotencyKey, key)));
+          .where(and(eq(agentWakeupRequests.spaceId, claimed.spaceId), eq(agentWakeupRequests.idempotencyKey, key)));
         if (!receipts.length) throw new Error("Completion wake returned no run or durable receipt");
       }
       if (run) await db.update(deliveries).set({ targetRunId: run.id, status: "queued" })
         .where(and(eq(deliveries.id, id), inArray(deliveries.status, [...pending]), sql`${deliveries.targetRunId} is null`));
     } catch (error) {
       const receipts = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests)
-        .where(and(eq(agentWakeupRequests.companyId, claimed.companyId), eq(agentWakeupRequests.idempotencyKey, `chat-completion:${id}:${claimed.attempts}`)));
+        .where(and(eq(agentWakeupRequests.spaceId, claimed.spaceId), eq(agentWakeupRequests.idempotencyKey, `chat-completion:${id}:${claimed.attempts}`)));
       await db.update(deliveries).set({ error: error instanceof Error ? error.message : String(error),
         ...(receipts.length ? {} : { attempts: claimed.attempts + 1,
           status: claimed.attempts + 1 >= MAX_ATTEMPTS ? "exhausted" as const : "pending" as const }) })
         .where(and(eq(deliveries.id, id), inArray(deliveries.status, [...pending])));
     }
   }
-  async function sweepPending(scope?: { companyId: string; taskId: string }) {
+  async function sweepPending(scope?: { spaceId: string; taskId: string }) {
     const due = await db.select({ id: deliveries.id }).from(deliveries)
       .where(and(inArray(deliveries.status, [...pending]), lte(deliveries.nextAttemptAt, new Date()),
-        ...(scope ? [eq(deliveries.companyId, scope.companyId), eq(deliveries.taskId, scope.taskId)] : [])))
+        ...(scope ? [eq(deliveries.spaceId, scope.spaceId), eq(deliveries.taskId, scope.taskId)] : [])))
       .orderBy(asc(deliveries.nextAttemptAt)).limit(100);
     for (const row of due) await deliver(row.id);
   }

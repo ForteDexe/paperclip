@@ -1,10 +1,10 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq, gt, like, sql } from "drizzle-orm";
-import { chatEndpoints, chatSlackManagerGrants, chatSlackRegistrations, companySecrets, toolOauthStates } from "@outpost/db";
+import { chatEndpoints, chatSlackManagerGrants, chatSlackRegistrations, spaceSecrets, toolOauthStates } from "@outpost/db";
 import { SLACK_MANAGER_SCOPES, type SlackSetupOptions as SetupChoices } from "@outpost/shared";
 import { conflict, forbidden } from "../../../../errors.js";
 import { getCloudRuntimeIdentity } from "../../../cloud-runtime-identity.js";
-import { createPaperclipCloudConnector, outpostCloudConnectorConfigFromEnv, type SealedConnectorCredentials } from "../../../paperclip-cloud-connector.js";
+import { createOutpostCloudConnector, outpostCloudConnectorConfigFromEnv, type SealedConnectorCredentials } from "../../../outpost-cloud-connector.js";
 import { instanceSettingsService } from "../../../instance-settings.js";
 import { accessService } from "../../../access.js";
 import { secretService } from "../../../secrets.js";
@@ -26,11 +26,11 @@ export function createSlackManagerGrants(store: SlackRegistrationStore) {
     // Open-source instances never contact a hosted service to discover this path.
     if (!getCloudRuntimeIdentity() || process.env.OUTPOST_SLACK_MANAGED_SETUP_ENABLED !== "true") return null;
     const config = outpostCloudConnectorConfigFromEnv();
-    return config ? createPaperclipCloudConnector({ config }) : null;
+    return config ? createOutpostCloudConnector({ config }) : null;
   }
-  async function access(companyId: string, actor: SlackSetupActor, database: Database = db) {
+  async function access(spaceId: string, actor: SlackSetupActor, database: Database = db) {
     if (!(await instanceSettingsService(database as typeof db).getExperimental()).enableChatConnectors) throw forbidden("Chat connectors are disabled");
-    if (!actor.bypassPermissionCheck && !await accessService(database as typeof db).hasPermission(companyId, "user", actor.userId, "tools:manage_connections")) throw forbidden("Missing permission: tools:manage_connections");
+    if (!actor.bypassPermissionCheck && !await accessService(database as typeof db).hasPermission(spaceId, "user", actor.userId, "tools:manage_connections")) throw forbidden("Missing permission: tools:manage_connections");
   }
   // Deployment intent is stable across broker outages and preview rollbacks.
   // A missing live profile pauses managed setup; it must not select token entry.
@@ -45,11 +45,11 @@ export function createSlackManagerGrants(store: SlackRegistrationStore) {
     if (!await available()) throw providerFailure("slack_managed_unavailable");
     return broker()!;
   }
-  async function choices(companyId: string, actor: SlackSetupActor): Promise<SetupChoices> {
-    await access(companyId, actor);
+  async function choices(spaceId: string, actor: SlackSetupActor): Promise<SetupChoices> {
+    await access(spaceId, actor);
     const managedAvailable = await available();
     const managerAppId = managedAvailable ? await broker()!.getSlackManagerAppId() : null;
-    const grants = managedAvailable && managerAppId ? await db.select().from(chatSlackManagerGrants).where(and(eq(chatSlackManagerGrants.companyId, companyId), eq(chatSlackManagerGrants.userId, actor.userId), eq(chatSlackManagerGrants.status, "active"), eq(chatSlackManagerGrants.managerAppId, managerAppId))) : [];
+    const grants = managedAvailable && managerAppId ? await db.select().from(chatSlackManagerGrants).where(and(eq(chatSlackManagerGrants.spaceId, spaceId), eq(chatSlackManagerGrants.userId, actor.userId), eq(chatSlackManagerGrants.status, "active"), eq(chatSlackManagerGrants.managerAppId, managerAppId))) : [];
     return { managedAvailable, defaultMethod: defaultMethod(), workspaces: grants.map(g => ({ grantId: g.id, workspaceId: g.workspaceId, workspaceName: g.workspaceName, userId: g.slackUserId })) };
   }
   const callbackUri = () => `${origin(options.publicOrigin())}/api/chat-slack/managed/oauth/callback`;
@@ -60,14 +60,14 @@ export function createSlackManagerGrants(store: SlackRegistrationStore) {
       if (current.endpoint.setup.slackSetupMethod !== "managed") throw conflict("Resume the selected Slack setup method");
       const row = await store.registration(endpointId);
       const revisions = await db.select({ id: chatSlackManagerGrants.id, revision: chatSlackManagerGrants.revision }).from(chatSlackManagerGrants)
-        .where(and(eq(chatSlackManagerGrants.companyId, current.endpoint.companyId), eq(chatSlackManagerGrants.userId, actor.userId)));
+        .where(and(eq(chatSlackManagerGrants.spaceId, current.endpoint.spaceId), eq(chatSlackManagerGrants.userId, actor.userId)));
       const state = `${SLACK_MANAGER_STATE_PREFIX}${randomBytes(32).toString("base64url")}`;
       const expiresAt = new Date(Date.now() + 10 * 60_000);
       await lease.assertOwned();
-      await db.insert(toolOauthStates).values({ state, companyId: current.endpoint.companyId, connectionId: current.connection.id,
+      await db.insert(toolOauthStates).values({ state, spaceId: current.endpoint.spaceId, connectionId: current.connection.id,
         codeVerifier: JSON.stringify({ endpointId, revisions, authorizationMode: client.authorizationMode ?? "claim", requestId: row?.requestId ?? null, callbackUri: callbackUri(), webhookOrigin: origin(options.webhookOrigin()), runtimeGeneration: object(current.endpoint.setup).runtimeGeneration ?? 0 }),
         createdByActorType: "user", createdByActorId: actor.userId, createdBySessionId: actor.sessionId, requestedScopes: [...SLACK_MANAGER_SCOPES], expiresAt });
-      try { return await client.startAuthorization({ profile: "slack.manager", subject: actor.userId, companyId: current.endpoint.companyId, returnUri: callbackUri(), returnState: state }); }
+      try { return await client.startAuthorization({ profile: "slack.manager", subject: actor.userId, spaceId: current.endpoint.spaceId, returnUri: callbackUri(), returnState: state }); }
       catch { await db.delete(toolOauthStates).where(eq(toolOauthStates.state, state)); throw providerFailure("slack_manager_reauthorize"); }
     });
   }
@@ -78,7 +78,7 @@ export function createSlackManagerGrants(store: SlackRegistrationStore) {
     const binding = object(JSON.parse(attempt.codeVerifier));
     const current = await endpoint(String(binding.endpointId), actor);
     const row = await store.registration(current.endpoint.id);
-    if (current.endpoint.setup.slackSetupMethod !== "managed" || current.connection.id !== attempt.connectionId || current.endpoint.companyId !== attempt.companyId
+    if (current.endpoint.setup.slackSetupMethod !== "managed" || current.connection.id !== attempt.connectionId || current.endpoint.spaceId !== attempt.spaceId
       || ["paused", "revoked"].includes(current.endpoint.status) || row?.status === "removed"
       || (binding.authorizationMode ?? "claim") !== (broker()?.authorizationMode ?? "claim")
       || (row?.requestId ?? null) !== binding.requestId || binding.callbackUri !== callbackUri() || binding.webhookOrigin !== origin(options.webhookOrigin())
@@ -109,81 +109,81 @@ export function createSlackManagerGrants(store: SlackRegistrationStore) {
         await lease.assertOwned();
         const latest = await endpoint(current.endpoint.id, actor);
         await db.update(chatEndpoints).set({ setup: { ...latest.endpoint.setup, slackManagerError: code ?? undefined } }).where(eq(chatEndpoints.id, current.endpoint.id));
-        if (code) await logActivity(db, { companyId: current.endpoint.companyId, actorType: "user", actorId: actor.userId, action: "chat_slack.manager_authorization_failed", entityType: "chat_endpoint", entityId: current.endpoint.id, details: { code } });
+        if (code) await logActivity(db, { spaceId: current.endpoint.spaceId, actorType: "user", actorId: actor.userId, action: "chat_slack.manager_authorization_failed", entityType: "chat_endpoint", entityId: current.endpoint.id, details: { code } });
         return current.endpoint.id;
       }
       if (error || !claimId || claimId.length > 4096) return outcome(error === "access_denied" ? "slack_install_declined" : "slack_manager_reauthorize");
       try {
       let grant: SealedConnectorCredentials;
-      try { grant = await client.claim({ profile: "slack.manager", subject: actor.userId, companyId: current.endpoint.companyId, claimId, redemptionId: randomUUID() }); }
+      try { grant = await client.claim({ profile: "slack.manager", subject: actor.userId, spaceId: current.endpoint.spaceId, claimId, redemptionId: randomUUID() }); }
       catch { throw providerFailure("slack_manager_reauthorize"); }
       const identity = grant.slackManager;
       if (!identity || identity.appId !== await client.getSlackManagerAppId() || !/^A[A-Z0-9]+$/.test(identity.appId) || !/^T[A-Z0-9]+$/.test(identity.workspaceId) || !/^[UW][A-Z0-9]+$/.test(identity.userId) || typeof identity.workspaceName !== "string" || !identity.workspaceName || identity.workspaceName.length > 255) throw providerFailure("slack_manager_reauthorize");
       if (row?.managerGrantId) {
-        const existing = await get(row.managerGrantId, current.endpoint.companyId, actor);
+        const existing = await get(row.managerGrantId, current.endpoint.spaceId, actor);
         if (existing.managerAppId !== identity.appId || existing.workspaceId !== identity.workspaceId || existing.slackUserId !== identity.userId) throw providerFailure("slack_install_identity_mismatch");
       }
       await endpoint(current.endpoint.id, actor);
-      await access(current.endpoint.companyId, actor);
+      await access(current.endpoint.spaceId, actor);
       await db.transaction(async tx => {
         await lease.assertOwned(tx);
-        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`slack-manager:${current.endpoint.companyId}:${actor.userId}:${identity.appId}:${identity.workspaceId}`}, 0))`);
-        const [existing] = await tx.select().from(chatSlackManagerGrants).where(and(eq(chatSlackManagerGrants.companyId, current.endpoint.companyId), eq(chatSlackManagerGrants.userId, actor.userId), eq(chatSlackManagerGrants.managerAppId, identity.appId), eq(chatSlackManagerGrants.workspaceId, identity.workspaceId)));
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`slack-manager:${current.endpoint.spaceId}:${actor.userId}:${identity.appId}:${identity.workspaceId}`}, 0))`);
+        const [existing] = await tx.select().from(chatSlackManagerGrants).where(and(eq(chatSlackManagerGrants.spaceId, current.endpoint.spaceId), eq(chatSlackManagerGrants.userId, actor.userId), eq(chatSlackManagerGrants.managerAppId, identity.appId), eq(chatSlackManagerGrants.workspaceId, identity.workspaceId)));
         if (existing) {
           await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`slack-manager-refresh:${existing.id}`}, 0))`);
           const [latest] = await tx.select().from(chatSlackManagerGrants).where(eq(chatSlackManagerGrants.id, existing.id));
           const revision = Array.isArray(binding.revisions) ? binding.revisions.map(object).find(value => value.id === existing.id)?.revision : undefined;
           if (!latest || latest.revision !== revision) throw conflict("Workspace authorization changed. Start again.");
         }
-        const [saved] = await tx.insert(chatSlackManagerGrants).values({ companyId: current.endpoint.companyId, userId: actor.userId, slackUserId: identity.userId, workspaceId: identity.workspaceId, workspaceName: identity.workspaceName, managerAppId: identity.appId })
-          .onConflictDoUpdate({ target: [chatSlackManagerGrants.companyId, chatSlackManagerGrants.userId, chatSlackManagerGrants.managerAppId, chatSlackManagerGrants.workspaceId], set: { updatedAt: new Date() } }).returning();
+        const [saved] = await tx.insert(chatSlackManagerGrants).values({ spaceId: current.endpoint.spaceId, userId: actor.userId, slackUserId: identity.userId, workspaceId: identity.workspaceId, workspaceName: identity.workspaceName, managerAppId: identity.appId })
+          .onConflictDoUpdate({ target: [chatSlackManagerGrants.spaceId, chatSlackManagerGrants.userId, chatSlackManagerGrants.managerAppId, chatSlackManagerGrants.workspaceId], set: { updatedAt: new Date() } }).returning();
         // A reauthorization must never change which Slack person this grant represents.
         if (saved.slackUserId !== identity.userId) throw conflict("Reconnect using the original Slack account");
-        await access(current.endpoint.companyId, actor, tx);
+        await access(current.endpoint.spaceId, actor, tx);
         await save(tx, saved, grant, actor);
         if (row?.managerGrantId === saved.id) {
           await tx.update(chatSlackRegistrations).set({ errorCode: null, updatedAt: new Date() })
             .where(and(eq(chatSlackRegistrations.endpointId, current.endpoint.id), eq(chatSlackRegistrations.managerGrantId, saved.id), eq(chatSlackRegistrations.errorCode, "slack_manager_reauthorize")));
         }
       });
-      await logActivity(db, { companyId: current.endpoint.companyId, actorType: "user", actorId: actor.userId, action: "chat_slack.manager_authorized", entityType: "chat_endpoint", entityId: current.endpoint.id, details: { workspaceId: identity.workspaceId, managerAppId: identity.appId } });
+      await logActivity(db, { spaceId: current.endpoint.spaceId, actorType: "user", actorId: actor.userId, action: "chat_slack.manager_authorized", entityType: "chat_endpoint", entityId: current.endpoint.id, details: { workspaceId: identity.workspaceId, managerAppId: identity.appId } });
       return outcome(null);
       } catch { return outcome("slack_manager_reauthorize"); }
     });
   }
   type Grant = typeof chatSlackManagerGrants.$inferSelect;
-  async function get(id: string, companyId: string, actor: SlackSetupActor) {
-    await access(companyId, actor);
-    return readGrant(db, id, companyId, actor);
+  async function get(id: string, spaceId: string, actor: SlackSetupActor) {
+    await access(spaceId, actor);
+    return readGrant(db, id, spaceId, actor);
   }
-  async function readGrant(database: Database, id: string, companyId: string, actor: SlackSetupActor) {
-    await access(companyId, actor, database);
-    const [grant] = await database.select().from(chatSlackManagerGrants).where(and(eq(chatSlackManagerGrants.id, id), eq(chatSlackManagerGrants.companyId, companyId), eq(chatSlackManagerGrants.userId, actor.userId)));
+  async function readGrant(database: Database, id: string, spaceId: string, actor: SlackSetupActor) {
+    await access(spaceId, actor, database);
+    const [grant] = await database.select().from(chatSlackManagerGrants).where(and(eq(chatSlackManagerGrants.id, id), eq(chatSlackManagerGrants.spaceId, spaceId), eq(chatSlackManagerGrants.userId, actor.userId)));
     if (!grant) throw forbidden("This Slack workspace authorization belongs to another account");
     return grant;
   }
   async function save(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], row: Grant, credentials: SealedConnectorCredentials, actor: SlackSetupActor) {
-    if (credentials.tokenType !== "user" || !credentials.accessToken || !credentials.refreshToken || !credentials.accessTokenExpiresAt || !Number.isFinite(Date.parse(credentials.accessTokenExpiresAt)) || Date.parse(credentials.accessTokenExpiresAt) <= Date.now() || credentials.provider !== "slack" || credentials.profile !== "slack.manager" || credentials.subject !== row.userId || credentials.companyId !== row.companyId || SLACK_MANAGER_SCOPES.some(scope => !credentials.scopes.includes(scope))) throw providerFailure("slack_manager_reauthorize");
-    const write = (key: string, value: string, secretId: string | null) => writeConnectionCredential(tx, { companyId: row.companyId, ownerUserId: row.userId, actor: { userId: actor.userId }, connectionName: "Slack workspace management", configPath: `slack_manager.${key}`, definitionKey: `slack_manager.${row.id}.${key}`, label: key, value, ...(secretId ? { existingRef: { secretId, configPath: `slack_manager.${key}` } } : {}) });
+    if (credentials.tokenType !== "user" || !credentials.accessToken || !credentials.refreshToken || !credentials.accessTokenExpiresAt || !Number.isFinite(Date.parse(credentials.accessTokenExpiresAt)) || Date.parse(credentials.accessTokenExpiresAt) <= Date.now() || credentials.provider !== "slack" || credentials.profile !== "slack.manager" || credentials.subject !== row.userId || credentials.spaceId !== row.spaceId || SLACK_MANAGER_SCOPES.some(scope => !credentials.scopes.includes(scope))) throw providerFailure("slack_manager_reauthorize");
+    const write = (key: string, value: string, secretId: string | null) => writeConnectionCredential(tx, { spaceId: row.spaceId, ownerUserId: row.userId, actor: { userId: actor.userId }, connectionName: "Slack workspace management", configPath: `slack_manager.${key}`, definitionKey: `slack_manager.${row.id}.${key}`, label: key, value, ...(secretId ? { existingRef: { secretId, configPath: `slack_manager.${key}` } } : {}) });
     const accessToken = await write("access_token", credentials.accessToken, row.accessSecretId);
     const refreshToken = credentials.refreshToken ? await write("refresh_token", credentials.refreshToken, row.refreshSecretId) : null;
     await tx.update(chatSlackManagerGrants).set({ accessSecretId: accessToken.secret.id, refreshSecretId: refreshToken?.secret.id ?? row.refreshSecretId, expiresAt: credentials.accessTokenExpiresAt ? new Date(credentials.accessTokenExpiresAt) : null, status: "active", revision: row.revision + 1, updatedAt: new Date() }).where(eq(chatSlackManagerGrants.id, row.id));
   }
   async function secret(row: Grant, id: string | null, database: Database = db) {
     if (!id) throw providerFailure("slack_manager_reauthorize");
-    const [ref] = await database.select().from(companySecrets).where(and(eq(companySecrets.id, id), eq(companySecrets.companyId, row.companyId), eq(companySecrets.scope, "user"), eq(companySecrets.ownerUserId, row.userId)));
+    const [ref] = await database.select().from(spaceSecrets).where(and(eq(spaceSecrets.id, id), eq(spaceSecrets.spaceId, row.spaceId), eq(spaceSecrets.scope, "user"), eq(spaceSecrets.ownerUserId, row.userId)));
     if (!ref?.userSecretDefinitionId) throw providerFailure("slack_manager_reauthorize");
     // Owner-scoped system consumer; the durable grant is its authority, not a tool binding.
-    const value = await secretService(database).resolveUserSecretValue(row.companyId, { definitionId: ref.userSecretDefinitionId, responsibleUserId: row.userId }, { consumerType: "system", consumerId: `slack-manager:${row.id}`, actorType: "user", actorId: row.userId, responsibleUserId: row.userId });
+    const value = await secretService(database).resolveUserSecretValue(row.spaceId, { definitionId: ref.userSecretDefinitionId, responsibleUserId: row.userId }, { consumerType: "system", consumerId: `slack-manager:${row.id}`, actorType: "user", actorId: row.userId, responsibleUserId: row.userId });
     if (!value) throw providerFailure("slack_manager_reauthorize");
     return value.value;
   }
   const tokenRequests = new Map<string, Promise<{ grant: Grant; token: string }>>();
-  async function token(id: string, companyId: string, actor: SlackSetupActor) {
-    await access(companyId, actor);
+  async function token(id: string, spaceId: string, actor: SlackSetupActor) {
+    await access(spaceId, actor);
     const client = await requiredBroker();
     const managerAppId = await client.getSlackManagerAppId();
-    const key = `${companyId}:${actor.userId}:${id}`;
+    const key = `${spaceId}:${actor.userId}:${id}`;
     const running = tokenRequests.get(key);
     if (running) return running;
     const operation = (async () => {
@@ -191,7 +191,7 @@ export function createSlackManagerGrants(store: SlackRegistrationStore) {
       // pool connection while another query or the broker needs it.
       const prepared = await db.transaction(async tx => {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`slack-manager-refresh:${id}`}, 0))`);
-        const grant = await readGrant(tx, id, companyId, actor);
+        const grant = await readGrant(tx, id, spaceId, actor);
         if (grant.managerAppId !== managerAppId || grant.status !== "active") throw providerFailure("slack_manager_reauthorize");
         if (!grant.expiresAt || grant.expiresAt.getTime() > Date.now() + 60_000) return { grant, token: await secret(grant, grant.accessSecretId, tx) };
         const refreshToken = await secret(grant, grant.refreshSecretId, tx);
@@ -200,53 +200,53 @@ export function createSlackManagerGrants(store: SlackRegistrationStore) {
       });
       if ("token" in prepared) return { grant: prepared.grant, token: prepared.token! };
       try {
-        const refreshed = await client.refresh({ profile: "slack.manager", subject: actor.userId, companyId, refreshToken: prepared.refreshToken });
-        await access(companyId, actor);
+        const refreshed = await client.refresh({ profile: "slack.manager", subject: actor.userId, spaceId, refreshToken: prepared.refreshToken });
+        await access(spaceId, actor);
         return await db.transaction(async tx => {
           await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`slack-manager-refresh:${id}`}, 0))`);
-          const current = await readGrant(tx, id, companyId, actor);
+          const current = await readGrant(tx, id, spaceId, actor);
           if (current.status !== "reauthorize" || current.revision !== prepared.grant.revision) throw providerFailure("slack_manager_reauthorize");
           await save(tx, current, refreshed, actor);
-          return { grant: await readGrant(tx, id, companyId, actor), token: refreshed.accessToken };
+          return { grant: await readGrant(tx, id, spaceId, actor), token: refreshed.accessToken };
         });
       } catch { throw providerFailure("slack_manager_reauthorize"); }
     })();
     tokenRequests.set(key, operation);
     try { return await operation; } finally { if (tokenRequests.get(key) === operation) tokenRequests.delete(key); }
   }
-  async function revoke(id: string, companyId: string, actor: SlackSetupActor) {
-    await access(companyId, actor);
+  async function revoke(id: string, spaceId: string, actor: SlackSetupActor) {
+    await access(spaceId, actor);
     let providerRevoked = true;
     const grant = await db.transaction(async tx => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`slack-manager-refresh:${id}`}, 0))`);
-      const current = await readGrant(tx, id, companyId, actor);
+      const current = await readGrant(tx, id, spaceId, actor);
       await tx.update(chatSlackManagerGrants).set({ status: "revoked", revision: current.revision + 1, updatedAt: new Date() }).where(eq(chatSlackManagerGrants.id, id));
-      await tx.delete(toolOauthStates).where(and(eq(toolOauthStates.companyId, companyId), eq(toolOauthStates.createdByActorId, actor.userId), like(toolOauthStates.state, `${SLACK_MANAGER_STATE_PREFIX}%`)));
+      await tx.delete(toolOauthStates).where(and(eq(toolOauthStates.spaceId, spaceId), eq(toolOauthStates.createdByActorId, actor.userId), like(toolOauthStates.state, `${SLACK_MANAGER_STATE_PREFIX}%`)));
       const client = broker();
       for (const secretId of [current.accessSecretId, current.refreshSecretId]) if (secretId) {
         try {
           if (!client) throw providerFailure("slack_managed_unavailable");
-          await client.revoke({ subject: actor.userId, companyId, profile: "slack.manager", token: await secret(current, secretId, tx) });
+          await client.revoke({ subject: actor.userId, spaceId, profile: "slack.manager", token: await secret(current, secretId, tx) });
         } catch { providerRevoked = false; }
         await secretService(tx).remove(secretId);
       }
       await tx.update(chatSlackManagerGrants).set({ accessSecretId: null, refreshSecretId: null }).where(eq(chatSlackManagerGrants.id, id));
       return current;
     });
-    await logActivity(db, { companyId, actorType: "user", actorId: actor.userId, action: "chat_slack.manager_revoked", entityType: "slack_manager_grant", entityId: id, details: { workspaceId: grant.workspaceId, providerRevoked } });
+    await logActivity(db, { spaceId, actorType: "user", actorId: actor.userId, action: "chat_slack.manager_revoked", entityType: "slack_manager_grant", entityId: id, details: { workspaceId: grant.workspaceId, providerRevoked } });
   }
-  async function request(id: string, companyId: string, actor: SlackSetupActor, method: string, fields: Record<string, string> | FormData) {
-    const authorized = await token(id, companyId, actor);
+  async function request(id: string, spaceId: string, actor: SlackSetupActor, method: string, fields: Record<string, string> | FormData) {
+    const authorized = await token(id, spaceId, actor);
     const { grant } = authorized;
     // Slack shares a method budget across manager tokens in the same workspace.
     // Persist Retry-After across grants and process restarts; never retry a dispatch.
     const result = await db.transaction(async tx => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`slack-manager-api:${companyId}:${grant.managerAppId}:${grant.workspaceId}:${method}`}, 0))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`slack-manager-api:${spaceId}:${grant.managerAppId}:${grant.workspaceId}:${method}`}, 0))`);
       // Serialize provider dispatch against refresh/revocation for this personal grant.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`slack-manager-refresh:${id}`}, 0))`);
-      const peers = await tx.select().from(chatSlackManagerGrants).where(and(eq(chatSlackManagerGrants.companyId, companyId), eq(chatSlackManagerGrants.managerAppId, grant.managerAppId), eq(chatSlackManagerGrants.workspaceId, grant.workspaceId))).orderBy(chatSlackManagerGrants.id);
+      const peers = await tx.select().from(chatSlackManagerGrants).where(and(eq(chatSlackManagerGrants.spaceId, spaceId), eq(chatSlackManagerGrants.managerAppId, grant.managerAppId), eq(chatSlackManagerGrants.workspaceId, grant.workspaceId))).orderBy(chatSlackManagerGrants.id);
       if (peers.some(peer => Date.parse(peer.rateLimits[method] ?? "") > Date.now())) return { error: providerFailure("slack_setup_rate_limited") };
-      const current = await readGrant(tx, id, companyId, actor);
+      const current = await readGrant(tx, id, spaceId, actor);
       if (current.status !== "active") return { error: providerFailure("slack_manager_reauthorize") };
       try { return { value: await api(method, fields, await secret(current, current.accessSecretId, tx)) }; }
       catch (error) {

@@ -8,8 +8,8 @@ import {
   resolveConfigPath,
 } from "../config/store.js";
 import {
-  findPaperclipConfigKeyWarnings,
-  type PaperclipConfig,
+  findOutpostConfigKeyWarnings,
+  type OutpostConfig,
 } from "../config/schema.js";
 import { ensureLocalSecretsKeyFile } from "../config/secrets-key.js";
 import { promptDatabase } from "../prompts/database.js";
@@ -22,9 +22,9 @@ import {
   resolveDefaultBackupDir,
   resolveDefaultEmbeddedPostgresDir,
   resolveDefaultLogsDir,
-  resolvePaperclipInstanceId,
+  resolveOutpostInstanceId,
 } from "../config/home.js";
-import { printPaperclipCliBanner } from "../utils/banner.js";
+import { printOutpostCliBanner } from "../utils/banner.js";
 
 type Section = "llm" | "database" | "logging" | "server" | "storage" | "secrets";
 
@@ -37,8 +37,8 @@ const SECTION_LABELS: Record<Section, string> = {
   secrets: "Secrets",
 };
 
-function defaultConfig(): PaperclipConfig {
-  const instanceId = resolvePaperclipInstanceId();
+function defaultConfig(): OutpostConfig {
+  const instanceId = resolveOutpostInstanceId();
   return {
     $meta: {
       version: 1,
@@ -85,22 +85,22 @@ export async function configure(opts: {
   config?: string;
   section?: string;
 }): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclip configure ")));
+  printOutpostCliBanner();
+  p.intro(pc.bgCyan(pc.black(" outpost configure ")));
   const configPath = resolveConfigPath(opts.config);
 
   if (!configExists(opts.config)) {
-    p.log.error("No config file found. Run `paperclipai onboard` first.");
+    p.log.error("No config file found. Run `outpost onboard` first.");
     p.outro("");
     process.exitCode = 1;
     return;
   }
 
-  let config: PaperclipConfig;
+  let config: OutpostConfig;
   let invalidBackupPath: string | undefined;
   try {
     config = readConfig(opts.config) ?? defaultConfig();
-    for (const warning of findPaperclipConfigKeyWarnings(config)) {
+    for (const warning of findOutpostConfigKeyWarnings(config)) {
       p.log.warn(`Unknown config key ${warning.path}; did you mean ${warning.suggestion}? It will be preserved.`);
     }
   } catch (err) {

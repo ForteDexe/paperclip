@@ -25,17 +25,17 @@ export function ProjectAccessMembers({ project, canManage }: { project: Project;
   const membersKey = queryKeys.projects.accessMembers(project.id);
   const membersQuery = useQuery({
     queryKey: membersKey,
-    queryFn: () => projectsApi.listAccessMembers(project.id, project.companyId),
+    queryFn: () => projectsApi.listAccessMembers(project.id, project.spaceId),
     enabled: open,
   });
   const directoryQuery = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(project.companyId),
-    queryFn: () => accessApi.listUserDirectory(project.companyId),
+    queryKey: queryKeys.access.spaceUserDirectory(project.spaceId),
+    queryFn: () => accessApi.listUserDirectory(project.spaceId),
     enabled: open,
   });
   const agentsQuery = useQuery({
-    queryKey: queryKeys.agents.list(project.companyId),
-    queryFn: () => agentsApi.list(project.companyId),
+    queryKey: queryKeys.agents.list(project.spaceId),
+    queryFn: () => agentsApi.list(project.spaceId),
     enabled: open,
   });
   // Read all three through the shared view: cached data stays usable during a
@@ -74,7 +74,7 @@ export function ProjectAccessMembers({ project, canManage }: { project: Project;
   const addMember = useMutation({
     mutationFn: async () => {
       const [subjectType, subjectId] = selection.split(/:(.+)/) as ["user" | "agent", string];
-      return projectsApi.addAccessMember(project.id, { subjectType, subjectId }, project.companyId);
+      return projectsApi.addAccessMember(project.id, { subjectType, subjectId }, project.spaceId);
     },
     onSuccess: () => {
       setSelection("");
@@ -86,7 +86,7 @@ export function ProjectAccessMembers({ project, canManage }: { project: Project;
     onError: (error) => pushToast({ title: "Couldn't add project access", body: describeError(error).body, tone: "error" }),
   });
   const removeMember = useMutation({
-    mutationFn: (memberId: string) => projectsApi.removeAccessMember(project.id, memberId, project.companyId),
+    mutationFn: (memberId: string) => projectsApi.removeAccessMember(project.id, memberId, project.spaceId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: membersKey });
       // Project membership changes task access, descendants and cached discovery.

@@ -77,7 +77,7 @@ export async function readChatControlChronology(
   database: DbOrTransaction,
   endpoint: Pick<
     typeof chatEndpoints.$inferSelect,
-    "companyId" | "id" | "provider"
+    "spaceId" | "id" | "provider"
   >,
   thread: { id: string; channelId: string },
   delivery: Pick<
@@ -98,7 +98,7 @@ export async function readChatControlChronology(
       .where(
         and(
           eq(chatConversations.id, requiredConversationId),
-          eq(chatConversations.companyId, endpoint.companyId),
+          eq(chatConversations.spaceId, endpoint.spaceId),
           eq(chatConversations.endpointId, endpoint.id),
           ...(endpoint.provider === "microsoft-teams"
             ? []
@@ -159,7 +159,7 @@ export async function readChatControlChronology(
       .innerJoin(
         chatConversations,
         and(
-          eq(chatConversations.companyId, endpoint.companyId),
+          eq(chatConversations.spaceId, endpoint.spaceId),
           eq(chatConversations.endpointId, endpoint.id),
           eq(chatConversations.id, chatPublications.conversationId),
           ...(endpoint.provider === "microsoft-teams"
@@ -175,7 +175,7 @@ export async function readChatControlChronology(
         chatActions,
         and(
           eq(chatConversations.issueId, chatPublications.issueId),
-          eq(chatActions.companyId, endpoint.companyId),
+          eq(chatActions.spaceId, endpoint.spaceId),
           eq(chatActions.endpointId, endpoint.id),
           eq(chatActions.conversationId, chatConversations.id),
           eq(chatActions.kind, "task_control_authorization"),
@@ -189,7 +189,7 @@ export async function readChatControlChronology(
       .leftJoin(
         chatDeliveries,
         and(
-          eq(chatDeliveries.companyId, endpoint.companyId),
+          eq(chatDeliveries.spaceId, endpoint.spaceId),
           eq(chatDeliveries.endpointId, endpoint.id),
           eq(chatDeliveries.conversationId, chatConversations.id),
           or(
@@ -234,7 +234,7 @@ export async function readChatControlChronology(
         command,
         and(
           sql`${endpoint.provider} = 'discord'`,
-          eq(command.companyId, endpoint.companyId),
+          eq(command.spaceId, endpoint.spaceId),
           eq(command.endpointId, endpoint.id),
           eq(command.conversationId, chatConversations.id),
           eq(command.principalId, chatActions.principalId),
@@ -252,7 +252,7 @@ export async function readChatControlChronology(
       )
       .where(
         and(
-          eq(chatPublications.companyId, endpoint.companyId),
+          eq(chatPublications.spaceId, endpoint.spaceId),
           eq(chatPublications.endpointId, endpoint.id),
           sql`${chatPublications.idempotencyKey} ~ '^control:(close|new):'`,
           or(

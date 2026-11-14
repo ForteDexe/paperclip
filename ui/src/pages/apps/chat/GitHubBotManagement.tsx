@@ -42,7 +42,7 @@ import { describeError } from "@/api/errors";
 
 export function GitHubRepositoryAccess({
   endpointId,
-  companyId,
+  spaceId,
   managementUrl,
   pending,
   onRefresh,
@@ -50,7 +50,7 @@ export function GitHubRepositoryAccess({
   onToggleAll,
 }: {
   endpointId: string;
-  companyId: string;
+  spaceId: string;
   managementUrl: string;
   pending: boolean;
   onRefresh: () => void;
@@ -155,7 +155,7 @@ export function GitHubRepositoryAccess({
               <summary className="cursor-pointer text-muted-foreground">Task defaults</summary>
               <div className="pt-3">
                 <ChatExecutionDefaults
-                  companyId={companyId}
+                  spaceId={spaceId}
                   value={resource.executionDefaults}
                   resource
                   onSave={async (executionDefaults) => {
@@ -259,7 +259,7 @@ export function GitHubBotManagement({
           <>
             <GitHubRepositoryAccess
               endpointId={endpoint.id}
-              companyId={endpoint.companyId}
+              spaceId={endpoint.spaceId}
               pending={pending}
               managementUrl={
                 endpoint.setup?.github?.managementUrl ??
@@ -293,7 +293,7 @@ export function GitHubBotManagement({
             />
             <GitHubAccessEditor
               endpointId={endpoint.id}
-              companyId={endpoint.companyId}
+              spaceId={endpoint.spaceId}
               configuration={config}
               onChange={edit}
             />

@@ -2,14 +2,14 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { heartbeatRunEvents, heartbeatRuns, type Db } from "@outpost/db";
 import { isUuidLike } from "@outpost/shared";
 
-type Source = Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "agentId" | "error">;
+type Source = Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId" | "agentId" | "error">;
 
 export async function readFailedPreparationSettlement(db: Db, source: Source, allowRunStarted = false): Promise<{
   unsupportedHarnessWarning: { message: string | null; revision: string } | null;
 } | null> {
   if (typeof source.error !== "string" || !source.error.length) return null;
   const events = await db.select().from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, source.companyId), eq(heartbeatRunEvents.runId, source.id),
+    eq(heartbeatRunEvents.spaceId, source.spaceId), eq(heartbeatRunEvents.runId, source.id),
   )).orderBy(asc(heartbeatRunEvents.seq)).limit(allowRunStarted ? 6 : 5);
   const hostEvent = (event: typeof heartbeatRunEvents.$inferSelect) => event.agentId === source.agentId
     && event.stream === "system" && event.sourceInstanceId === null && event.sourceEventId === null
@@ -57,7 +57,7 @@ async function matchesScheduledRetryPromotion(db: Db, source: Source, event: typ
       'retryReason', ${heartbeatRuns.contextSnapshot}->'retryReason',
       'scheduledRetryAt', ${heartbeatRuns.contextSnapshot}->'scheduledRetryAt',
       'scheduledRetryAttempt', ${heartbeatRuns.contextSnapshot}->'scheduledRetryAttempt')`,
-  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, source.companyId),
+  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, source.spaceId),
     eq(heartbeatRuns.agentId, source.agentId), eq(heartbeatRuns.id, source.id)));
   const due = run?.scheduledRetryAt?.toISOString();
   return Boolean(run && run.retryOfRunId && isUuidLike(run.retryOfRunId) && due

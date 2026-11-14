@@ -59,7 +59,7 @@ describe("Codex app-server Codex driver", () => {
     });
     const starting = session.startTurn({ message: { role: "user", text: "Finish." } });
     await new Promise(resolve => setTimeout(resolve, 0));
-    transport.push("paperclip/runResult", { threadId: "thread-1", turnId: "turn-1", result });
+    transport.push("outpost/runResult", { threadId: "thread-1", turnId: "turn-1", result });
     await new Promise(resolve => setTimeout(resolve, 0));
     releaseStart({ turn: { id: "turn-1", status: "inProgress", items: [] } });
     await expect(starting).resolves.toMatchObject({ turnId: "turn-1" });
@@ -97,13 +97,13 @@ describe("Codex app-server Codex driver", () => {
       runId: "activity-current", normalizedSessionId: "activity-session", workingDirectory: WORKSPACE,
     });
     const payload = { namespace: "example.runtime", activityKey: "screen.used" };
-    transport.push("paperclip/runtimeActivityRecorded", { runId: "activity-current", payload });
-    transport.push("paperclip/runtimeActivityRecorded", {
+    transport.push("outpost/runtimeActivityRecorded", { runId: "activity-current", payload });
+    transport.push("outpost/runtimeActivityRecorded", {
       [RUNNERD_RUNTIME_ACTIVITY]: true, runId: "activity-previous", payload,
     });
     const turn = await session.startTurn({ message: { role: "user", text: "Finish." } });
     transport.push("turn/started", { threadId: "thread-1", turn: { id: turn.turnId, status: "inProgress" } });
-    transport.push("paperclip/runResult", { threadId: "thread-1", turnId: turn.turnId, result });
+    transport.push("outpost/runResult", { threadId: "thread-1", turnId: turn.turnId, result });
     transport.push("turn/completed", { threadId: "thread-1", turn: { id: turn.turnId, status: "completed", items: [] } });
     const events = await collectUntilTerminal(session.events());
     expect(events.some(event => event.eventType === "runtime.activity.recorded")).toBe(false);
@@ -122,18 +122,18 @@ describe("Codex app-server Codex driver", () => {
     const attaching = expect(session.attachRun!({ runId: "activity-rejected" })).rejects.toThrow("controlled attachment failure");
     await expect(session.attachRun!({ runId: "activity-concurrent" })).rejects.toThrow("codex_run_attach_busy");
     const payload = { namespace: "example.runtime", activityKey: "screen.used" };
-    transport.push("paperclip/runtimeActivityRecorded", {
+    transport.push("outpost/runtimeActivityRecorded", {
       [RUNNERD_RUNTIME_ACTIVITY]: true, runId: "activity-rejected", payload,
     });
     await new Promise<void>(resolve => setImmediate(resolve));
     rejectAttachment(new Error("controlled attachment failure"));
     await attaching;
-    transport.push("paperclip/runtimeActivityRecorded", {
+    transport.push("outpost/runtimeActivityRecorded", {
       [RUNNERD_RUNTIME_ACTIVITY]: true, runId: "activity-current", payload,
     });
     const turn = await session.startTurn({ message: { role: "user", text: "Finish." } });
     transport.push("turn/started", { threadId: "thread-1", turn: { id: turn.turnId, status: "inProgress" } });
-    transport.push("paperclip/runResult", { threadId: "thread-1", turnId: turn.turnId, result });
+    transport.push("outpost/runResult", { threadId: "thread-1", turnId: turn.turnId, result });
     transport.push("turn/completed", { threadId: "thread-1", turn: { id: turn.turnId, status: "completed", items: [] } });
     const events = await collectUntilTerminal(session.events());
     expect(events.filter(event => event.eventType === "runtime.activity.recorded")).toEqual([
@@ -149,10 +149,10 @@ describe("Codex app-server Codex driver", () => {
     });
     const payload = { schema: "outpost.auth.credentials.updated.v1", provider: "codex",
       bindingId: "harness-auth", revision: 1, detection: "credential_store" };
-    transport.push("paperclip/canonicalProviderEvent", { eventType: "auth.credentials.updated", payload });
+    transport.push("outpost/canonicalProviderEvent", { eventType: "auth.credentials.updated", payload });
     const turn = await session.startTurn({ message: { role: "user", text: "Finish." } });
     transport.push("turn/started", { threadId: "thread-1", turn: { id: turn.turnId, status: "inProgress" } });
-    transport.push("paperclip/runResult", { threadId: "thread-1", turnId: turn.turnId, result });
+    transport.push("outpost/runResult", { threadId: "thread-1", turnId: turn.turnId, result });
     transport.push("turn/completed", { threadId: "thread-1", turn: { id: turn.turnId, status: "completed", items: [] } });
     const events = await collectUntilTerminal(session.events());
     const updates = events.filter(event => event.eventType === "auth.credentials.updated");
@@ -166,7 +166,7 @@ describe("Codex app-server Codex driver", () => {
     const session = await makeDriver([transport]).openSession({
       runId: "run-invalid-credential-update", normalizedSessionId: "session-invalid-credential-update", workingDirectory: WORKSPACE,
     });
-    transport.push("paperclip/canonicalProviderEvent", { eventType: "auth.credentials.updated", payload: {
+    transport.push("outpost/canonicalProviderEvent", { eventType: "auth.credentials.updated", payload: {
       schema: "outpost.auth.credentials.updated.v1", provider: "codex", bindingId: "harness-auth",
       revision: 1, detection: "credential_store", access_token: "credential-secret-sentinel",
     } });
@@ -191,7 +191,7 @@ describe("Codex app-server Codex driver", () => {
       threadId: "thread-1",
       turn: { id: turn.turnId, status: "inProgress" },
     });
-    transport.push("paperclip/runResult", {
+    transport.push("outpost/runResult", {
       threadId: "thread-1",
       turnId: turn.turnId,
       itemId: "semantic-result-1",
@@ -264,7 +264,7 @@ describe("Codex app-server Codex driver", () => {
     expect(events.map((event) => event.sourceEventId)).toEqual(
       expect.arrayContaining(itemMapping?.emittedEventIds ?? []),
     );
-    expect(JSON.stringify(events)).not.toContain("paperclipTrace");
+    expect(JSON.stringify(events)).not.toContain("outpostTrace");
   });
 
   it("maps canonical workspace snapshots with monotonic revisions and one terminal diff", async () => {
@@ -326,23 +326,23 @@ describe("Codex app-server Codex driver", () => {
       totals: { files: 3, additions: null, deletions: null },
     };
     transport.pushTraced(
-      "paperclip/workspaceChange/updated",
+      "outpost/workspaceChange/updated",
       { threadId: "thread-1", turnId: turn.turnId, workspaceChange: first },
       "event_workspace_1",
       "workspace.change.updated",
     );
     transport.pushTraced(
-      "paperclip/workspaceChange/updated",
+      "outpost/workspaceChange/updated",
       { threadId: "thread-1", turnId: turn.turnId, workspaceChange: second },
       "event_workspace_2",
       "workspace.change.updated",
     );
-    transport.push("paperclip/workspaceChange/updated", {
+    transport.push("outpost/workspaceChange/updated", {
       threadId: "thread-1",
       turnId: turn.turnId,
       workspaceChange: second,
     });
-    transport.push("paperclip/workspaceChange/updated", {
+    transport.push("outpost/workspaceChange/updated", {
       threadId: "thread-1",
       turnId: turn.turnId,
       workspaceChange: {
@@ -379,7 +379,7 @@ describe("Codex app-server Codex driver", () => {
     });
     expect(
       transport.traceInterpretations.filter((entry) =>
-        entry.providerMethod === "paperclip/workspaceChange/updated"
+        entry.providerMethod === "outpost/workspaceChange/updated"
       ).map((entry) => entry.disposition),
     ).toEqual(["mapped", "mapped"]);
   });
@@ -398,7 +398,7 @@ describe("Codex app-server Codex driver", () => {
       threadId: "thread-1",
       turn: { id: turn.turnId, status: "inProgress" },
     });
-    transport.push("paperclip/workspaceChange/updated", {
+    transport.push("outpost/workspaceChange/updated", {
       threadId: "thread-1",
       turnId: turn.turnId,
       workspaceChange: {

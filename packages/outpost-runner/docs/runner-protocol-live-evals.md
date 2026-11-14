@@ -25,7 +25,7 @@ are readable by authenticated public GitHub users. Controlled runs keep full
 evidence in private S3 storage. The optional legacy public S3 report uses a
 closed public DTO: only isolated mock-run conversation text, scrubbed private
 references, named tool outcomes, and checks. Tool arguments/results, reasoning,
-provider identities, and company snapshots stay private. The public notice
+provider identities, and space snapshots stay private. The public notice
 explains these redactions. An unverified isolation boundary yields no public
 conversation, not a guessed reconstruction.
 
@@ -67,7 +67,7 @@ Download the aggregate Actions artifact, then:
 ```sh
 node packages/outpost-runner/scripts/refresh-runner-protocol-eval-report.mjs \
   --source /path/to/downloaded-aggregate \
-  --evals-root /path/to/paperclip-evals \
+  --evals-root /path/to/outpost-evals \
   --viewer-root packages/outpost-runner/dist-issue-thread \
   --output /path/to/new-refresh-directory \
   --revision chat-v1
@@ -93,12 +93,12 @@ workflow schedule in `runner-workflow-evals.md`.
 
 The canonical unit of work is one live roster plus one authored case. A full
 campaign selects every enabled lane declared by
-`campaigns/live-direct-full.json` at one immutable `paperclip-evals` commit.
+`campaigns/live-direct-full.json` at one immutable `outpost-evals` commit.
 That includes the complete 35-case provider rosters and the smaller ACPX Codex
 control roster. A disabled roster remains available for an explicit diagnostic
 selection, but is never inferred into a paid `all` run from the files present
 on disk. The native resume reliability gate is not a normal one-turn roster:
-it requires its separately governed external-resource campaign and remains
+it requires its separately controlled external-resource campaign and remains
 opt-in.
 
 Managed-provider evidence identifies the immutable deployed provider artifact:
@@ -256,7 +256,7 @@ lowercase hex characters); `baseUrl` in the form
 `http://127.0.0.1:PORT/otel`; and `launch`, the secret-free result from the existing
 `buildProviderObservabilityLaunch` in `packages/adapter-utils`. The CLI accepts
 only its known Codex/Claude exporter settings and the mock session's exact
-company and agent attributes. Bind `revision` to `compatibilityKey`. Use a
+space and agent attributes. Bind `revision` to `compatibilityKey`. Use a
 compatibility key of at most 128 letters, digits, underscores, or hyphens.
 
 Build the launch with `/v1/logs` and `/v1/traces` under that base URL, a timeout
@@ -626,8 +626,8 @@ the browser E2E launcher does; no globally installed `codex` is required.
 Its isolated fixture sessions explicitly use unattended ACPX `approve-all`
 permissions, matching the full-stack ACPX test profiles. OpenCode retains its
 existing semantic-only permission boundary.
-The seeded mock control plane still enforces tool grants, company boundaries,
-and governance checks. These test-only choices do not change production
+The seeded mock control plane still enforces tool grants, space boundaries,
+and approvals checks. These test-only choices do not change production
 permission defaults and are not a qualification of interactive approval UI.
 
 AgentCore eval admission waits up to 125 seconds, capped by the configured
@@ -637,7 +637,7 @@ delivery short during parallel fleet startup. Other providers retain their
 existing admission timeout.
 
 The runtime instructions distinguish the fixture's `finish_task`/`block_task`
-state changes from native `paperclip_finish`/`paperclip_block` run-result
+state changes from native `outpost_finish`/`outpost_block` run-result
 reporting. This layer has no production server to apply a reported run result
 to a task. Its completion cases still require the actual semantic operation
 and durable mock-state change; reporting success alone does not pass them.
@@ -797,7 +797,7 @@ evals checkout:
 ```sh
 pnpm --filter @outpost/outpost-runner \
   report:runner-protocol-eval:catalog -- \
-  --evals-root /path/to/paperclip-evals \
+  --evals-root /path/to/outpost-evals \
   --campaign-id gha-1-1 \
   --output /tmp/runner-protocol-eval-catalog.json
 ```

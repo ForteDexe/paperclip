@@ -3,16 +3,16 @@ import { describe, expect, it, vi } from "vitest";
 import { parseFinalizationCrashBinding, readFinalizationCrashBoundary } from "./finalization-crash-boundary.js";
 
 function fixture() {
-  const binding = { companyId: randomUUID(), issueId: randomUUID(), runId: randomUUID() };
-  const run = { id: binding.runId, companyId: binding.companyId, nativeIssueId: binding.issueId, agentId: "agent",
+  const binding = { spaceId: randomUUID(), issueId: randomUUID(), runId: randomUUID() };
+  const run = { id: binding.runId, spaceId: binding.spaceId, nativeIssueId: binding.issueId, agentId: "agent",
     runtimeMode: "native", status: "running", nativePhase: "workspace_finalizing" };
-  const issue = { id: binding.issueId, companyId: binding.companyId, assigneeAgentId: "agent", executionRunId: binding.runId, status: "in_progress" };
+  const issue = { id: binding.issueId, spaceId: binding.spaceId, assigneeAgentId: "agent", executionRunId: binding.runId, status: "in_progress" };
   const read = vi.fn(async (path: string) => path.includes("heartbeat-runs") ? run : issue);
   return { binding, run, issue, read };
 }
 
 describe("isolated finalization crash admission", () => {
-  it("requires the current company, task, assignee and result-bearing run before admitting the fault", async () => {
+  it("requires the current space, task, assignee and result-bearing run before admitting the fault", async () => {
     const value = fixture();
     expect(parseFinalizationCrashBinding(value.binding)).toEqual(value.binding);
     expect(await readFinalizationCrashBoundary(value.read, value.binding)).toMatchObject({ ...value.binding, nativePhase: "workspace_finalizing" });
@@ -22,10 +22,10 @@ describe("isolated finalization crash admission", () => {
   });
   it.each([
     ["foreign run", (v: ReturnType<typeof fixture>) => { v.run.id = randomUUID(); }],
-    ["foreign run company", (v: ReturnType<typeof fixture>) => { v.run.companyId = randomUUID(); }],
+    ["foreign run space", (v: ReturnType<typeof fixture>) => { v.run.spaceId = randomUUID(); }],
     ["foreign bound task", (v: ReturnType<typeof fixture>) => { v.run.nativeIssueId = randomUUID(); }],
     ["foreign task", (v: ReturnType<typeof fixture>) => { v.issue.id = randomUUID(); }],
-    ["foreign task company", (v: ReturnType<typeof fixture>) => { v.issue.companyId = randomUUID(); }],
+    ["foreign task space", (v: ReturnType<typeof fixture>) => { v.issue.spaceId = randomUUID(); }],
     ["changed run owner", (v: ReturnType<typeof fixture>) => { v.issue.executionRunId = randomUUID(); }],
     ["changed assignee", (v: ReturnType<typeof fixture>) => { v.issue.assigneeAgentId = "other"; }],
     ["provider still working", (v: ReturnType<typeof fixture>) => { v.run.nativePhase = "running"; }],

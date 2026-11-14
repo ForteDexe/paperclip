@@ -19,7 +19,7 @@ import { createS3StorageProvider } from "../../storage/s3-provider.js";
 import { createObjectRunLogStore } from "../object-run-log-store.js";
 import { createNativeRunLogExporter, formatNativeRunLogEvent } from "./native-run-log-export.js";
 import { recoverSettledNativeRunLog, readRecoverableRunLog } from "./native-run-log-recovery.js";
-import { PaperclipControlPlanePort } from "./paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "./outpost-control-plane-port.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { createNativeRunLogTestTables } from "../../__tests__/helpers/native-run-log-database.js";
 import type { PrpEvent } from "../../vendor/outpost-runner/index.js";
@@ -73,7 +73,7 @@ describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
   });
   async function fixture() {
     const binding = {
-      companyId: randomUUID(),
+      spaceId: randomUUID(),
       runId: randomUUID(),
       agentId: randomUUID(),
       sessionId: randomUUID(),
@@ -84,7 +84,7 @@ describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
       completionContractSha256: "test",
     };
     await db.execute(
-      sql`insert into heartbeat_runs(id,company_id,agent_id,status) values(${binding.runId},${binding.companyId},${binding.agentId},'running')`,
+      sql`insert into heartbeat_runs(id,space_id,agent_id,status) values(${binding.runId},${binding.spaceId},${binding.agentId},'running')`,
     );
     const provider = createS3StorageProvider({
       endpoint,
@@ -101,8 +101,8 @@ describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
           await input.assertWriterAuthority?.();
         },
       });
-    const begin = { companyId: binding.companyId, agentId: binding.agentId, runId: binding.runId };
-    const port = new PaperclipControlPlanePort(db, binding);
+    const begin = { spaceId: binding.spaceId, agentId: binding.agentId, runId: binding.runId };
+    const port = new OutpostControlPlanePort(db, binding);
     const event = (seq: number): PrpEvent => ({
       schema: "outpost.orp.event.v1",
       schemaVersion: 1,
@@ -142,7 +142,7 @@ describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
     let seq = successor.initialSequence!;
     const exporter = createNativeRunLogExporter({
       db,
-      companyId: f.binding.companyId,
+      spaceId: f.binding.spaceId,
       runId: f.binding.runId,
       afterCursor: successor.initialSourceCursor!,
       enqueue: async (sourceCursor, chunk) => {
@@ -182,7 +182,7 @@ describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
       sql`update heartbeat_runs set status='succeeded', log_store='s3_segments', log_ref=${h.logRef} where id=${f.binding.runId}`,
     );
     await db.execute(
-      sql`insert into native_run_finalizations values(${f.binding.runId},${f.binding.companyId},now()+interval '1 minute')`,
+      sql`insert into native_run_finalizations values(${f.binding.runId},${f.binding.spaceId},now()+interval '1 minute')`,
     );
     const b = f.store();
     await recoverSettledNativeRunLog(db, b, h.logRef, async () => ({ enabled: false }));
@@ -257,14 +257,14 @@ describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
     await db.execute(sql`update heartbeat_runs set status='succeeded', log_store='s3_segments', log_ref=${h.logRef},
       native_session_id=${f.binding.sessionId}, runner_instance_id=${f.binding.sourceInstanceId} where id=${f.binding.runId}`);
     await appendNativeCredentialUpdate(db, {
-      companyId: f.binding.companyId,
+      spaceId: f.binding.spaceId,
       agentId: f.binding.agentId,
       normalizedSessionId: f.binding.sessionId,
       runnerInstanceId: f.binding.sourceInstanceId,
       event: credential(20),
     });
     await appendRetainedNativeCleanupEvent(db, {
-      companyId: f.binding.companyId,
+      spaceId: f.binding.spaceId,
       agentId: f.binding.agentId,
       runId: f.binding.runId,
       nativeSessionId: f.binding.sessionId,
@@ -273,7 +273,7 @@ describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
       event: f.event(21),
     });
     await appendHeartbeatRunEvent(db, {
-      companyId: f.binding.companyId,
+      spaceId: f.binding.spaceId,
       agentId: f.binding.agentId,
       runId: f.binding.runId,
       eventType: "workspace.diff.recorded",
@@ -376,7 +376,7 @@ describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
     const encrypted = await localEncryptedProvider.createSecret({ value: privateKeyPem });
     await db.insert(agentIdentityKeys).values({
       agentId: f.binding.agentId,
-      companyId: f.binding.companyId,
+      spaceId: f.binding.spaceId,
       algorithm: "Ed25519",
       keyId,
       publicKeyPem,
@@ -387,7 +387,7 @@ describe.skipIf(!url || !endpoint)("native run log source recovery", () => {
     redactor.values.push(secret);
     const run = {
       id: f.binding.runId,
-      companyId: f.binding.companyId,
+      spaceId: f.binding.spaceId,
       agentId: f.binding.agentId,
       status: "running",
       runtimeMode: "native",

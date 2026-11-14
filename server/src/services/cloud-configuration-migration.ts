@@ -8,7 +8,7 @@ import { isCloudManagedInstance, type CloudInstanceEnv } from "./cloud-instance.
 import { cloudConfigurationDigest, externalRegistrationEvidenceSchema, inspectLegacyExternalRegistrations } from "./cloud-configuration-evidence.js";
 import { cloudPackageEvidenceSchema, inspectCloudPackages, qualificationBlockerSchema } from "./cloud-package-qualification.js";
 import type { ResolvedBundledPlugin } from "./bundled-plugins.js";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 
 const RECEIPT_KEY = "cloud-configuration-migration:v1";
 const CONFIGURATION_KEYS = ["adapter-settings:v1", "cloud-runtime-config:v1"];
@@ -141,7 +141,7 @@ export function cloudConfigurationMigrationService(db: CloudConfigurationDb, opt
     async qualify(input: {
       installs: readonly ResolvedBundledPlugin[];
       catalogRoot?: string;
-      loadManifest: (packageRoot: string) => Promise<PaperclipPluginManifestV1 | null>;
+      loadManifest: (packageRoot: string) => Promise<OutpostPluginManifestV1 | null>;
       expectedPackageEvidenceDigest?: string;
       imageCatalogUnavailable?: boolean;
     }) {

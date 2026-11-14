@@ -4,7 +4,7 @@ import { SLACK_COMMAND_POST_STALE_MS, SLACK_COMMAND_EXPLICIT_RETRY_STALE_MS } fr
 import { notifyChatActionWork } from "../../chat-work-notifications.js";
 import { and, eq, lte, ne, or, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { chatActions, chatEndpointResources, chatExternalPrincipals, chatIdentityLinks, companyMemberships } from "@outpost/db";
+import { chatActions, chatEndpointResources, chatExternalPrincipals, chatIdentityLinks, spaceMemberships } from "@outpost/db";
 import { conflict, notFound } from "../../../errors.js";
 import { logActivity } from "../../activity-log.js";
 import type { createSlackTaskStart } from "./task-start.js";
@@ -107,7 +107,7 @@ export function createSlackTaskStartResolution(db: Db, options: ResolutionOption
                 ),
               );
             await logActivity(tx as unknown as Db, {
-              companyId: action.companyId,
+              spaceId: action.spaceId,
               actorType: "user",
               actorId: userId,
               action: "chat.slack_command_cancel",
@@ -194,7 +194,7 @@ export function createSlackTaskStartResolution(db: Db, options: ResolutionOption
           .where(
             and(
               eq(chatExternalPrincipals.id, action.principalId),
-              eq(chatExternalPrincipals.companyId, record.endpoint.companyId),
+              eq(chatExternalPrincipals.spaceId, record.endpoint.spaceId),
               eq(chatExternalPrincipals.provider, "slack"),
               eq(
                 chatExternalPrincipals.providerAccountId,
@@ -210,7 +210,7 @@ export function createSlackTaskStartResolution(db: Db, options: ResolutionOption
         }
         const link = await db
           .select({
-            paperclipUserId: chatIdentityLinks.paperclipUserId,
+            outpostUserId: chatIdentityLinks.outpostUserId,
             status: chatIdentityLinks.status,
           })
           .from(chatIdentityLinks)
@@ -222,17 +222,17 @@ export function createSlackTaskStartResolution(db: Db, options: ResolutionOption
           )
           .then((rows) => rows[0] ?? null);
         let principalAllowed = false;
-        if (link?.status === "linked" && link.paperclipUserId) {
+        if (link?.status === "linked" && link.outpostUserId) {
           principalAllowed = await db
-            .select({ membershipRole: companyMemberships.membershipRole })
-            .from(companyMemberships)
+            .select({ membershipRole: spaceMemberships.membershipRole })
+            .from(spaceMemberships)
             .where(
               and(
-                eq(companyMemberships.companyId, record.endpoint.companyId),
-                eq(companyMemberships.principalType, "user"),
-                eq(companyMemberships.principalId, link.paperclipUserId),
-                eq(companyMemberships.status, "active"),
-                ne(companyMemberships.membershipRole, "viewer"),
+                eq(spaceMemberships.spaceId, record.endpoint.spaceId),
+                eq(spaceMemberships.principalType, "user"),
+                eq(spaceMemberships.principalId, link.outpostUserId),
+                eq(spaceMemberships.status, "active"),
+                ne(spaceMemberships.membershipRole, "viewer"),
               ),
             )
             .then((rows) => rows.length > 0);
@@ -346,8 +346,8 @@ export function createSlackTaskStartResolution(db: Db, options: ResolutionOption
                   .where(
                     and(
                       eq(
-                        chatEndpointResources.companyId,
-                        currentEndpoint.companyId,
+                        chatEndpointResources.spaceId,
+                        currentEndpoint.spaceId,
                       ),
                       eq(chatEndpointResources.endpointId, currentEndpoint.id),
                       eq(
@@ -403,7 +403,7 @@ export function createSlackTaskStartResolution(db: Db, options: ResolutionOption
             )
             .returning();
           await logActivity(tx as unknown as Db, {
-            companyId: current.companyId,
+            spaceId: current.spaceId,
             actorType: "user",
             actorId: userId,
             action: "chat.slack_command_retry_anyway",
@@ -451,7 +451,7 @@ export function createSlackTaskStartResolution(db: Db, options: ResolutionOption
             .set({
               // The provider send is now confirmed, but task admission is a
               // separate durable phase. Persist this fence before constructing the
-              // Paperclip delivery so a crash cannot turn into another Slack post.
+              // Outpost delivery so a crash cannot turn into another Slack post.
               status: "provider_confirmed",
               result: {
                 attemptCount: retryAttempt,

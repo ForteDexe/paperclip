@@ -33,13 +33,13 @@ export async function readClarificationState(context: JourneyContext, issueId: s
   const [currentIssue, summaries, interactions, documents, attachments, children] = await Promise.all([
     context.api.get<Row>(route), context.api.get<Row[]>(`${route}/runs`), context.api.get<Row[]>(`${route}/interactions`),
     context.api.get<Row[]>(`${route}/documents`), context.api.get<Row[]>(`${route}/attachments`),
-    context.api.get<Row[]>(`/api/companies/${context.company.id}/issues?view=index&parentIds=${encodeURIComponent(issueId)}&limit=2`),
+    context.api.get<Row[]>(`/api/spaces/${context.space.id}/issues?view=index&parentIds=${encodeURIComponent(issueId)}&limit=2`),
   ]);
   if (!Array.isArray(summaries) || summaries.length > 3) throw new JourneyError("failed", "clarification_run_limit_exceeded");
   const runs = await Promise.all(summaries.map(summary => context.api.get<Row>(`/api/heartbeat-runs/${summary.runId}`)));
   validateAgentTaskState(context, issueId, { currentIssue: currentIssue as Row & { id: string; status: string },
     taskRuns: runs as Array<Row & { status: string }>, interactions: interactions as Array<Row & { id: string; status: string }>, comments: [], attachments: [] }, 3);
-  if (!Array.isArray(children) || children.some(child => child.parentId !== issueId || child.companyId !== context.company.id)) {
+  if (!Array.isArray(children) || children.some(child => child.parentId !== issueId || child.spaceId !== context.space.id)) {
     throw new JourneyError("failed", "clarification_child_query_mismatch");
   }
   return { currentIssue, runs, interactions, documents, attachments, children };
@@ -73,7 +73,7 @@ export async function runClarificationJourney(context: JourneyContext, session: 
     }
     throw new JourneyError("failed", final ? "clarification_not_completed" : "clarification_question_not_ready");
   };
-  const open = () => context.page.goto(`${context.api.origin}/${encodeURIComponent(context.company.issuePrefix)}/issues/${encodeURIComponent(issue!.identifier ?? issue!.id)}`, { waitUntil: "domcontentloaded" });
+  const open = () => context.page.goto(`${context.api.origin}/${encodeURIComponent(context.space.issuePrefix)}/issues/${encodeURIComponent(issue!.identifier ?? issue!.id)}`, { waitUntil: "domcontentloaded" });
   const snapshot = async (phase: "initial" | "answered" | "final", state: Awaited<ReturnType<typeof read>>) => {
     const documents = await Promise.all(state.documents.map(document => context.api.get<Row>(`/api/issues/${issue!.id}/documents/${encodeURIComponent(document.key)}`)));
     const point = { phase, issue: state.currentIssue, runs: structuredClone(state.runs), interactions: structuredClone(state.interactions),
@@ -87,7 +87,7 @@ export async function runClarificationJourney(context: JourneyContext, session: 
   try {
     const title = `Journey QA question-answer-resume ${campaignId}`;
     const created = await createTaskThroughUi({ page: context.page, origin: context.api.origin,
-      issuePrefix: context.company.issuePrefix, agentName: agent.name, title, prompt: scenario.prompt,
+      issuePrefix: context.space.issuePrefix, agentName: agent.name, title, prompt: scenario.prompt,
       workMode: "standard", requireExplicitTitle: true,
       beforeDispatch: () => session.own({ kind: "issue", name: title, journeyId: "question-answer-resume" }) });
     await session.own({ kind: "issue", name: title, id: created.issueId, journeyId: "question-answer-resume" });
@@ -107,7 +107,7 @@ export async function runClarificationJourney(context: JourneyContext, session: 
     const final = await snapshot("final", state);
     if (final.documents.length !== 1) throw new JourneyError("failed", "clarification_document_missing");
     const document = final.documents[0]!;
-    const href = `/${encodeURIComponent(context.company.issuePrefix)}/issues/${encodeURIComponent(issue.identifier ?? issue.id)}#document-${encodeURIComponent(document.key)}`;
+    const href = `/${encodeURIComponent(context.space.issuePrefix)}/issues/${encodeURIComponent(issue.identifier ?? issue.id)}#document-${encodeURIComponent(document.key)}`;
     await context.page.goto(new URL(href, context.api.origin).href, { waitUntil: "domcontentloaded" });
     await context.page.reload({ waitUntil: "domcontentloaded" });
     // With the task chat shell and Artifacts V1, saved documents render in the

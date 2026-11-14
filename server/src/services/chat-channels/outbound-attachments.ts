@@ -74,7 +74,7 @@ function isOutboundAttachmentValidationError(
  */
 export async function hydrateOutboundAttachment(input: {
   storage: StorageService;
-  companyId: string;
+  spaceId: string;
   objectKey: string;
   byteSize: number;
   sha256: string;
@@ -112,7 +112,7 @@ export async function hydrateOutboundAttachment(input: {
   }, timeoutMs);
   acquisitionTimer.unref?.();
   const objectPromise = Promise.resolve()
-    .then(() => input.storage.getObject(input.companyId, input.objectKey))
+    .then(() => input.storage.getObject(input.spaceId, input.objectKey))
     .then((object) => {
       if (acquisitionTimedOut) object.stream.destroy();
       return object;
@@ -220,7 +220,7 @@ export function createOutboundAttachments(db: Db, options: OutboundAttachmentsOp
         .innerJoin(assets, eq(issueAttachments.assetId, assets.id))
         .where(
           and(
-            eq(issueAttachments.companyId, publication.companyId),
+            eq(issueAttachments.spaceId, publication.spaceId),
             eq(issueAttachments.issueId, publication.issueId),
             inArray(issueAttachments.id, payload.attachmentIds),
           ),
@@ -267,7 +267,7 @@ export function createOutboundAttachments(db: Db, options: OutboundAttachmentsOp
         files.push(
           await hydrateOutboundAttachment({
             storage: options.storage,
-            companyId: publication.companyId,
+            spaceId: publication.spaceId,
             objectKey: row.objectKey,
             byteSize: row.byteSize,
             sha256: row.sha256,

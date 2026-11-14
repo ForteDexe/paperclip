@@ -34,7 +34,7 @@ jobs:
   typecheck:
     if: ${{ !inputs.runner_binaries_only }}
     name: Typecheck
-    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=paperclip-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=outpost-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: read
@@ -120,7 +120,7 @@ jobs:
   general_tests:
     if: ${{ !inputs.runner_binaries_only }}
     name: General tests (${{ matrix.group_label }})
-    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=paperclip-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=outpost-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: read
@@ -232,7 +232,7 @@ jobs:
   serialized_tests:
     if: ${{ !inputs.runner_binaries_only }}
     name: Serialized tests (${{ matrix.shard_label }})
-    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=paperclip-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=outpost-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: read
@@ -282,7 +282,7 @@ jobs:
   runner_workflow_evals:
     if: ${{ !inputs.runner_binaries_only }}
     name: Runner workflow eval scorer contract
-    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=paperclip-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=outpost-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -313,7 +313,7 @@ jobs:
   verify_outpost_runner:
     if: ${{ !inputs.runner_binaries_only }}
     name: Verify Outpost Runner (${{ matrix.lane }})
-    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=paperclip-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=outpost-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: read
@@ -450,7 +450,7 @@ jobs:
       - name: Clean debug test variants before publishing workspace binaries
         if: ${{ matrix.lane == 'rust' && github.repository == 'paperclipai/paperclip' && github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.ref == github.sha && steps.runner_debug_crate.outputs.cache-hit != 'true' }}
         working-directory: packages/outpost-runner
-        run: cargo clean --profile dev --manifest-path runner/Cargo.toml -p outpost-runner-core -p paperclip-process-table
+        run: cargo clean --profile dev --manifest-path runner/Cargo.toml -p outpost-runner-core -p outpost-process-table
 
       - name: Warm debug dependencies for the shared Runner cache
         # Protocol tests need debug binaries. Populate their dependencies in
@@ -497,9 +497,9 @@ jobs:
             packages/outpost-runner/runner/target/release/deps/outpost_runnerd-*
             packages/outpost-runner/runner/target/release/outpost-runnerd
             packages/outpost-runner/runner/target/release/outpost-runnerd.d
-            packages/outpost-runner/runner/target/release/.fingerprint/paperclip-process-table-*
-            packages/outpost-runner/runner/target/release/deps/libpaperclip_process_table-*
-            packages/outpost-runner/runner/target/release/deps/paperclip_process_table-*.d
+            packages/outpost-runner/runner/target/release/.fingerprint/outpost-process-table-*
+            packages/outpost-runner/runner/target/release/deps/liboutpost_process_table-*
+            packages/outpost-runner/runner/target/release/deps/outpost_process_table-*.d
           key: runner-release-crate-v1-${{ steps.runner_release_crate_key.outputs.scope }}-${{ hashFiles('packages/outpost-runner/rust-toolchain.toml', 'packages/outpost-runner/acpx-profiles.json', 'packages/outpost-runner/antigravity-distributions.json', 'packages/outpost-runner/runner/Cargo.toml', 'packages/outpost-runner/runner/Cargo.lock', 'packages/outpost-runner/runner/crates/**', 'packages/outpost-runner/protocol/**', 'packages/outpost-runner/test-fixtures/**', 'packages/outpost-runner/test/fixtures/**', 'tests/runner-e2e/fixtures/**') }}
 
       - name: Build the Runner release crate for its cache
@@ -521,15 +521,15 @@ jobs:
             packages/outpost-runner/runner/target/release/deps/outpost_runnerd-*
             packages/outpost-runner/runner/target/release/outpost-runnerd
             packages/outpost-runner/runner/target/release/outpost-runnerd.d
-            packages/outpost-runner/runner/target/release/.fingerprint/paperclip-process-table-*
-            packages/outpost-runner/runner/target/release/deps/libpaperclip_process_table-*
-            packages/outpost-runner/runner/target/release/deps/paperclip_process_table-*.d
+            packages/outpost-runner/runner/target/release/.fingerprint/outpost-process-table-*
+            packages/outpost-runner/runner/target/release/deps/liboutpost_process_table-*
+            packages/outpost-runner/runner/target/release/deps/outpost_process_table-*.d
           key: runner-release-crate-v1-${{ steps.runner_release_crate_key.outputs.scope }}-${{ hashFiles('packages/outpost-runner/rust-toolchain.toml', 'packages/outpost-runner/acpx-profiles.json', 'packages/outpost-runner/antigravity-distributions.json', 'packages/outpost-runner/runner/Cargo.toml', 'packages/outpost-runner/runner/Cargo.lock', 'packages/outpost-runner/runner/crates/**', 'packages/outpost-runner/protocol/**', 'packages/outpost-runner/test-fixtures/**', 'packages/outpost-runner/test/fixtures/**', 'tests/runner-e2e/fixtures/**') }}
 
   build:
     if: ${{ !inputs.runner_binaries_only }}
     name: Build
-    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=paperclip-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.sha != '' && inputs.ref == github.sha && 'runs-on/fleet=outpost-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: read

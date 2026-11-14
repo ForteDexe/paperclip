@@ -11,23 +11,23 @@ test.beforeAll(async ({ request }) => {
 test("Mine refreshes a recent-task history with one summaries request", async ({ page, request }) => {
   const session = await (await request.get("/api/auth/get-session")).json().catch(() => null);
   const userId: string | null = session?.user?.id ?? session?.session?.userId ?? null;
-  const companyId = fixture.company.id;
+  const spaceId = fixture.space.id;
   const taskIds = fixture.taskIds.slice(0, 12);
-  await page.addInitScript(({ companyId, userId, taskIds }) => {
+  await page.addInitScript(({ spaceId, userId, taskIds }) => {
     const entries = taskIds.map((id, index) => ({
-      id, companyId, title: `Recent ${index}`, identifier: null, status: "backlog", recordedAt: Date.now() - index * 1000,
+      id, spaceId, title: `Recent ${index}`, identifier: null, status: "backlog", recordedAt: Date.now() - index * 1000,
     }));
     for (const owner of new Set([userId ?? "__local_board__", "__local_board__"])) {
-      localStorage.setItem(`outpost.recentTasks.v2:${companyId}:${owner}`, JSON.stringify(entries));
+      localStorage.setItem(`outpost.recentTasks.v2:${spaceId}:${owner}`, JSON.stringify(entries));
     }
-  }, { companyId, userId, taskIds });
+  }, { spaceId, userId, taskIds });
   const summaries: URL[] = [];
   page.on("request", item => {
     const url = new URL(item.url());
-    if (url.pathname === `/api/companies/${companyId}/issues/summaries`) summaries.push(url);
+    if (url.pathname === `/api/spaces/${spaceId}/issues/summaries`) summaries.push(url);
   });
-  const response = page.waitForResponse(item => new URL(item.url()).pathname === `/api/companies/${companyId}/issues/summaries`);
-  await page.goto(`/${fixture.company.issuePrefix}/issues?view=mine`);
+  const response = page.waitForResponse(item => new URL(item.url()).pathname === `/api/spaces/${spaceId}/issues/summaries`);
+  await page.goto(`/${fixture.space.issuePrefix}/issues?view=mine`);
   // The server must accept the whole batch, not just receive it.
   const first = await response;
   expect(first.status()).toBe(200);

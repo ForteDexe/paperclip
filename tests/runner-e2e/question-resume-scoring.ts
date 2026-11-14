@@ -35,9 +35,9 @@ export function questionPath(checkpoint: ContinuationCheckpoint | undefined, i?:
   if (!checkpoint || !i || !nonempty(i.id) || !nonempty(i.sourceRunId) || !nonempty(i.idempotencyKey)) return null;
   const matches = checkpoint.runs.filter(r => r.id === i.sourceRunId) as Row[];
   const run = matches.length === 1 ? matches[0] : undefined;
-  if (!run || run.runtimeMode !== "native" || !nonempty(run.companyId) ||
-      run.companyId !== (checkpoint.issue as Row).companyId ||
-      i.companyId !== run.companyId || i.issueId !== checkpoint.issue.id || run.issueId !== i.issueId ||
+  if (!run || run.runtimeMode !== "native" || !nonempty(run.spaceId) ||
+      run.spaceId !== (checkpoint.issue as Row).spaceId ||
+      i.spaceId !== run.spaceId || i.issueId !== checkpoint.issue.id || run.issueId !== i.issueId ||
       !nonempty(checkpoint.issue.assigneeAgentId) || i.createdByAgentId !== checkpoint.issue.assigneeAgentId ||
       run.agentId !== checkpoint.issue.assigneeAgentId) return null;
   const request = i.payload?.runtimeRequestId;
@@ -52,7 +52,7 @@ export function questionPath(checkpoint: ContinuationCheckpoint | undefined, i?:
   if (
     receipt?.operationId === "request_human_input" && receipt.result?.disposition === "applied" &&
     created?.id === i.id && created?.sourceRunId === run.id && created?.issueId === i.issueId &&
-    created?.companyId === i.companyId && created?.kind === "ask_user_questions" &&
+    created?.spaceId === i.spaceId && created?.kind === "ask_user_questions" &&
     isDeepStrictEqual(created?.payload?.questionSet, i.payload?.questionSet)) return "semantic";
   return nativeApiQuestionReceipt(run, i) ? "api" : null;
 }
@@ -77,7 +77,7 @@ export function validResumeReferenceForm(checkpoint: ContinuationCheckpoint, i: 
 }
 
 export function sameQuestion(a: Row, b?: Row) {
-  return !!b && ["id", "kind", "sourceRunId", "issueId", "companyId", "createdByAgentId", "idempotencyKey", "continuationPolicy"]
+  return !!b && ["id", "kind", "sourceRunId", "issueId", "spaceId", "createdByAgentId", "idempotencyKey", "continuationPolicy"]
     .every(k => a[k] === b[k]) && isDeepStrictEqual(a.payload, b.payload);
 }
 function answeredByUser(i?: Row) {
@@ -152,7 +152,7 @@ export function gradeQuestionResume(checkpoints: ContinuationCheckpoint[], marke
     id: "question-resume.complete-evidence",
     passed: checkpoints.length === 3 && !!initial && !!middle && !!final && initial.runs.length === 1 &&
       questions(final).length === 2 && final.runs.length >= 1 && final.runs.length <= 3 &&
-      final.runs.every((r: Row) => r.companyId === (final.issue as Row).companyId &&
+      final.runs.every((r: Row) => r.spaceId === (final.issue as Row).spaceId &&
         r.issueId === final.issue.id && r.agentId === final.issue.assigneeAgentId &&
         typeof r.runnerProfileJson?.nativeExecutionInput?.task?.prompt === "string") &&
       final.documents.length === 1 && !!final.documents[0].latestRevisionId &&

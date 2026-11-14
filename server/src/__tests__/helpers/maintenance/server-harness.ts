@@ -102,10 +102,10 @@ export async function startMaintenanceServer(databaseUrl: string, options: Maint
     throw new Error('Managed tenant fixture requires the supported authenticated S3 profile');
   }
   const tenantHeaders: Record<string, string> = options.tenantActor ? {
-    'x-paperclip-cloud-tenant-token': 'maintenance-tenant-token', 'x-paperclip-cloud-stack-id': 'maintenance-stack',
-    'x-paperclip-cloud-stack-role': 'owner', 'x-paperclip-cloud-user-id': options.tenantActor.userId,
-    'x-paperclip-cloud-user-email': options.tenantActor.email, 'x-paperclip-cloud-user-name': options.tenantActor.name,
-    'x-paperclip-cloud-paperclip-company-name': 'Configured sleep acceptance',
+    'x-outpost-cloud-tenant-token': 'maintenance-tenant-token', 'x-outpost-cloud-stack-id': 'maintenance-stack',
+    'x-outpost-cloud-stack-role': 'owner', 'x-outpost-cloud-user-id': options.tenantActor.userId,
+    'x-outpost-cloud-user-email': options.tenantActor.email, 'x-outpost-cloud-user-name': options.tenantActor.name,
+    'x-outpost-cloud-outpost-space-name': 'Configured sleep acceptance',
   } : {};
   for (const origin of [configuration?.telemetryOrigin, configuration?.otelOrigin]) {
     if (!origin) continue;
@@ -231,7 +231,7 @@ export async function startMaintenanceServer(databaseUrl: string, options: Maint
       for (const request of requests.values()) request.reject(error);
       requests.clear();
     });
-    async function request<T>(command: string, payload: { ms?: number; issueUpdate?: { id: string; status: "done" }; orphanLease?: { companyId: string }; publication?: { companyId: string; scopeDigest: string; backupRoot: string; pendingRoot: string }; github?: { companyId?: string; connectionId?: string; grantId?: string } } = {}): Promise<T> {
+    async function request<T>(command: string, payload: { ms?: number; issueUpdate?: { id: string; status: "done" }; orphanLease?: { spaceId: string }; publication?: { spaceId: string; scopeDigest: string; backupRoot: string; pendingRoot: string }; github?: { spaceId?: string; connectionId?: string; grantId?: string } } = {}): Promise<T> {
       const id = ++requestId;
       const result = new Promise<T>((resolve, reject) => requests.set(id, { resolve, reject }));
       child.send({ id, command, ...payload });
@@ -263,15 +263,15 @@ export async function startMaintenanceServer(databaseUrl: string, options: Maint
         if (options.clock) await request("realtime");
         try {
           const response = await fetch(`http://127.0.0.1:${port}/api${route}`, { method, signal: AbortSignal.timeout(30_000),
-            headers: { "Content-Type": "application/json", ...(Object.keys(headers ?? {}).some(key => ["authorization", "x-paperclip-cloud-control"].includes(key.toLowerCase())) ? {} : tenantHeaders), ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+            headers: { "Content-Type": "application/json", ...(Object.keys(headers ?? {}).some(key => ["authorization", "x-outpost-cloud-control"].includes(key.toLowerCase())) ? {} : tenantHeaders), ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
           const value = await response.json();
           if (!response.ok) throw new Error(`Maintenance API ${method} ${route}: ${response.status} ${JSON.stringify(value)}`);
           return value as T;
         } finally { if (options.clock) await request("freeze"); }
       },
-      async createOrphanLease(companyId: string) {
+      async createOrphanLease(spaceId: string) {
         if (options.clock) await request("realtime");
-        try { return await request<{ leaseId: string }>("createOrphanLease", { orphanLease: { companyId } }); }
+        try { return await request<{ leaseId: string }>("createOrphanLease", { orphanLease: { spaceId } }); }
         finally { if (options.clock) await request("freeze"); }
       },
       async updateIssue(issueUpdate: { id: string; status: "done" }) {
@@ -279,9 +279,9 @@ export async function startMaintenanceServer(databaseUrl: string, options: Maint
         try { return await request("updateIssue", { issueUpdate }); }
         finally { if (options.clock) await request("freeze"); }
       },
-      publishBackup: (publication: { companyId: string; scopeDigest: string; backupRoot: string; pendingRoot: string }) => request("publishBackup", { publication }),
-      async prepareGitHub(companyId: string) {
-        const result = await request<{ result: { connectionId: string; grantId: string } }>("prepareGitHub", { github: { companyId } });
+      publishBackup: (publication: { spaceId: string; scopeDigest: string; backupRoot: string; pendingRoot: string }) => request("publishBackup", { publication }),
+      async prepareGitHub(spaceId: string) {
+        const result = await request<{ result: { connectionId: string; grantId: string } }>("prepareGitHub", { github: { spaceId } });
         return result.result;
       },
       async settleGitHub(input: { connectionId: string; grantId: string }) {

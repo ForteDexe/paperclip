@@ -15,7 +15,7 @@ export async function deliverExecutionStatuses(
   const rows = await db
     .select({
       id: heartbeatRuns.id,
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
       agentId: heartbeatRuns.agentId,
       issueId: issues.id,
       status: heartbeatRuns.status,
@@ -27,7 +27,7 @@ export async function deliverExecutionStatuses(
     .leftJoin(
       issues,
       and(
-        eq(issues.companyId, heartbeatRuns.companyId),
+        eq(issues.spaceId, heartbeatRuns.spaceId),
         eq(issues.id, sql`coalesce(
           ${heartbeatRuns.nativeIssueId},
           ${canonicalExecutionUuid(sql`${heartbeatRuns.contextSnapshot}->>'issueId'`)}
@@ -40,7 +40,7 @@ export async function deliverExecutionStatuses(
   for (const run of rows) {
     try {
       (options.publish ?? publishLiveEvent)({
-        companyId: run.companyId,
+        spaceId: run.spaceId,
         type: "heartbeat.run.status",
         payload: {
           // This retryable broadcast only invalidates caches. Provider output,
@@ -60,7 +60,7 @@ export async function deliverExecutionStatuses(
         .set({ executionStatusDeliveryId: null })
         .where(
           and(
-            eq(heartbeatRuns.companyId, run.companyId),
+            eq(heartbeatRuns.spaceId, run.spaceId),
             eq(heartbeatRuns.id, run.id),
             eq(
               heartbeatRuns.executionStatusDeliveryId,

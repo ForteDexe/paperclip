@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import {
-  agents, authUsers, closeRegisteredClients, companies, companyMemberships, companySecrets, companySecretVersions,
+  agents, authUsers, closeRegisteredClients, spaces, spaceMemberships, spaceSecrets, spaceSecretVersions,
   connectionGrants, createDb, userSecretDefinitions,
 } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -42,7 +42,7 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
     isolatedHome = createIsolatedTestHome();
     vi.stubEnv("OUTPOST_HOME", isolatedHome.home);
     vi.stubEnv("OUTPOST_INSTANCE_ID", "google-ai-real-db");
-    if (!external) embedded = await startEmbeddedPostgresTestDatabase("paperclip-google-ai-db-");
+    if (!external) embedded = await startEmbeddedPostgresTestDatabase("outpost-google-ai-db-");
     db = createDb(external ?? embedded!.connectionString);
     request = vi.spyOn(globalThis, "fetch");
   }, 90_000);
@@ -57,52 +57,52 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
   });
 
   async function fixture(method: "api_key" | "subscription", allAgents = true) {
-    const companyId = randomUUID(), otherCompanyId = randomUUID(), agentId = randomUUID(), peerAgentId = randomUUID(), foreignAgentId = randomUUID();
+    const spaceId = randomUUID(), otherSpaceId = randomUUID(), agentId = randomUUID(), peerAgentId = randomUUID(), foreignAgentId = randomUUID();
     const owner = `google-owner-${randomUUID()}`, otherUser = `google-other-${randomUUID()}`;
-    await db.insert(companies).values([
-      { id: companyId, name: "Google AI authority fixture", issuePrefix: `GAF${companyId.slice(0, 8)}` },
-      { id: otherCompanyId, name: "Foreign Google AI fixture", issuePrefix: `GAX${otherCompanyId.slice(0, 8)}` },
+    await db.insert(spaces).values([
+      { id: spaceId, name: "Google AI authority fixture", issuePrefix: `GAF${spaceId.slice(0, 8)}` },
+      { id: otherSpaceId, name: "Foreign Google AI fixture", issuePrefix: `GAX${otherSpaceId.slice(0, 8)}` },
     ]);
     await db.insert(authUsers).values([owner, otherUser].map(id => ({ id, name: id, email: `${id}@example.test`, createdAt: new Date(), updatedAt: new Date() })));
-    await db.insert(companyMemberships).values([
-      ...[owner, otherUser].map(principalId => ({ companyId, principalId, principalType: "user", status: "active", membershipRole: "member" })),
-      { companyId: otherCompanyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" },
+    await db.insert(spaceMemberships).values([
+      ...[owner, otherUser].map(principalId => ({ spaceId, principalId, principalType: "user", status: "active", membershipRole: "member" })),
+      { spaceId: otherSpaceId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" },
     ]);
     await db.insert(agents).values([
-      { id: agentId, companyId, name: "Selected Google agent", adapterType: "outpost_runner" },
-      { id: peerAgentId, companyId, name: "Uninstalled peer", adapterType: "outpost_runner" },
-      { id: foreignAgentId, companyId: otherCompanyId, name: "Foreign agent", adapterType: "outpost_runner" },
+      { id: agentId, spaceId, name: "Selected Google agent", adapterType: "outpost_runner" },
+      { id: peerAgentId, spaceId, name: "Uninstalled peer", adapterType: "outpost_runner" },
+      { id: foreignAgentId, spaceId: otherSpaceId, name: "Foreign agent", adapterType: "outpost_runner" },
     ]);
     const service = aiConnectionService(db);
     const credential = method === "api_key" ? "fixture-selected-google-api-key" : googleCredential();
     const intent = { provider: "google" as const, method, ownership: "personal" as const, name: "Fixture Google account", allAgents,
       agentIds: allAgents ? [] : [agentId], ...(method === "api_key" ? { apiKey: credential } : { loginSessionId: "verified-fixture" }) };
-    const saved = await service.save(companyId, owner, intent, credential, undefined, new Date(), undefined,
+    const saved = await service.save(spaceId, owner, intent, credential, undefined, new Date(), undefined,
       method === "subscription" ? "verified-owner@example.test" : undefined);
-    await service.setDefault(companyId, owner, saved.grantId);
+    await service.setDefault(spaceId, owner, saved.grantId);
     const binding = { provider: "google", method, mode: "responsible_user" } as const;
     const config = { provider: "acpx", acpxAgent: "antigravity", model: "caller-selected-model", env: {
       GEMINI_API_KEY: "fixture-ambient-key", GOOGLE_API_KEY: "fixture-other-key", GEMINI_HOME: "/ambient/home",
       GOOGLE_APPLICATION_CREDENTIALS: "/ambient/google.json", OUTPOST_ACPX_ANTIGRAVITY_AUTH_JSON_SECRET: "fixture-forged-inline",
     } };
-    const select = { companyId, userId: owner, agentId, adapterType: "outpost_runner", runnerProvider: "acpx", acpxAgent: "antigravity", model: config.model, binding };
-    const runtime = { companyId, responsibleUserId: owner, agentId, adapterType: "outpost_runner", config, binding };
+    const select = { spaceId, userId: owner, agentId, adapterType: "outpost_runner", runnerProvider: "acpx", acpxAgent: "antigravity", model: config.model, binding };
+    const runtime = { spaceId, responsibleUserId: owner, agentId, adapterType: "outpost_runner", config, binding };
     const selection = await service.select(select);
     const secretId = selection.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!.secretId;
-    return { companyId, otherCompanyId, agentId, peerAgentId, foreignAgentId, owner, otherUser, saved, service, select, runtime, selection, secretId, credential, intent };
+    return { spaceId, otherSpaceId, agentId, peerAgentId, foreignAgentId, owner, otherUser, saved, service, select, runtime, selection, secretId, credential, intent };
   }
 
   it.each(["api_key", "subscription"] as const)("prepares the selected %s from a personal encrypted secret and preserves provider identity across private homes", async method => {
     const f = await fixture(method);
-    const [secret] = await db.select().from(companySecrets).where(eq(companySecrets.id, f.secretId));
+    const [secret] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, f.secretId));
     const [definition] = await db.select().from(userSecretDefinitions).where(eq(userSecretDefinitions.id, secret.userSecretDefinitionId!));
-    const versions = await db.select().from(companySecretVersions).where(eq(companySecretVersions.secretId, secret.id));
-    expect(secret).toMatchObject({ companyId: f.companyId, scope: "user", ownerUserId: f.owner, provider: "local_encrypted", latestVersion: 1 });
-    expect(definition).toMatchObject({ companyId: f.companyId, key: `ai_${f.saved.grantId.replaceAll("-", "_")}` });
+    const versions = await db.select().from(spaceSecretVersions).where(eq(spaceSecretVersions.secretId, secret.id));
+    expect(secret).toMatchObject({ spaceId: f.spaceId, scope: "user", ownerUserId: f.owner, provider: "local_encrypted", latestVersion: 1 });
+    expect(definition).toMatchObject({ spaceId: f.spaceId, key: `ai_${f.saved.grantId.replaceAll("-", "_")}` });
     expect(versions[0].material).toMatchObject({ scheme: "local_encrypted_v1" });
     expect(JSON.stringify(versions[0].material)).not.toContain(method === "api_key" ? f.credential : "fixture-google-refresh");
     expect(await f.service.credential(f.selection)).toBe(f.credential);
-    expect(await secretService(db).listCurrentUserSecretValues(f.companyId, f.otherUser)).toMatchObject([{ definition: { id: definition.id }, secret: null }]);
+    expect(await secretService(db).listCurrentUserSecretValues(f.spaceId, f.otherUser)).toMatchObject([{ definition: { id: definition.id }, secret: null }]);
     const first = await prepareManagedAiRuntime(db, f.runtime), second = await prepareManagedAiRuntime(db, f.runtime);
     try {
       expect(first.attribution).toMatchObject({ provider: "google", method, connectionId: f.saved.connectionId, grantId: f.saved.grantId });
@@ -122,19 +122,19 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
     await expect(access(second.home!)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it.each(["api_key", "subscription"] as const)("enforces the %s owner's membership, personal audience, company, and agent installation", async method => {
+  it.each(["api_key", "subscription"] as const)("enforces the %s owner's membership, personal audience, space, and agent installation", async method => {
     const f = await fixture(method, false);
     const explicit = { provider: "google", method, mode: "delegated", ...f.saved } as const;
     expect((await f.service.select({ ...f.select, binding: explicit })).grant.id).toBe(f.saved.grantId);
-    await expect(f.service.select({ ...f.select, binding: { ...explicit, mode: "shared" } })).rejects.toThrow("company-shared account");
+    await expect(f.service.select({ ...f.select, binding: { ...explicit, mode: "shared" } })).rejects.toThrow("space-shared account");
     await expect(f.service.select({ ...f.select, userId: f.otherUser, binding: explicit })).rejects.toThrow("not shared");
-    await expect(f.service.select({ ...f.select, companyId: f.otherCompanyId, agentId: f.foreignAgentId, binding: explicit })).rejects.toThrow("unavailable");
+    await expect(f.service.select({ ...f.select, spaceId: f.otherSpaceId, agentId: f.foreignAgentId, binding: explicit })).rejects.toThrow("unavailable");
     await expect(f.service.select({ ...f.select, agentId: f.peerAgentId })).rejects.toThrow("not permitted for this agent");
-    await expect(f.service.save(f.companyId, f.owner, { ...f.intent, connectionId: undefined, agentIds: [f.foreignAgentId] }, f.credential)).rejects.toThrow("Agent does not belong");
-    const credentials = await db.select().from(companySecrets).where(eq(companySecrets.companyId, f.companyId));
+    await expect(f.service.save(f.spaceId, f.owner, { ...f.intent, connectionId: undefined, agentIds: [f.foreignAgentId] }, f.credential)).rejects.toThrow("Agent does not belong");
+    const credentials = await db.select().from(spaceSecrets).where(eq(spaceSecrets.spaceId, f.spaceId));
     expect(credentials).toHaveLength(1); // The rejected foreign-agent save rolled back its secret too.
-    await db.update(companyMemberships).set({ status: "inactive" }).where(and(eq(companyMemberships.companyId, f.companyId), eq(companyMemberships.principalId, f.owner)));
-    await expect(prepareManagedAiRuntime(db, f.runtime)).rejects.toThrow("not an active company member");
+    await db.update(spaceMemberships).set({ status: "inactive" }).where(and(eq(spaceMemberships.spaceId, f.spaceId), eq(spaceMemberships.principalId, f.owner)));
+    await expect(prepareManagedAiRuntime(db, f.runtime)).rejects.toThrow("not an active space member");
     expect(request).not.toHaveBeenCalled();
   });
 
@@ -163,20 +163,20 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
 
   it.each(["api_key", "subscription"] as const)("refuses revoked %s defaults without falling back to another saved credential", async method => {
     const f = await fixture(method);
-    await f.service.save(f.companyId, f.owner, { ...f.intent, name: "Unselected fallback", connectionId: undefined }, f.credential);
+    await f.service.save(f.spaceId, f.owner, { ...f.intent, name: "Unselected fallback", connectionId: undefined }, f.credential);
     await db.update(connectionGrants).set({ status: "revoked", revokedAt: new Date() }).where(eq(connectionGrants.id, f.saved.grantId));
     await expect(prepareManagedAiRuntime(db, f.runtime)).rejects.toThrow("Reconnect or validate");
-    expect((await f.service.list(f.companyId, f.owner)).find(row => row.grantId === f.saved.grantId)).toMatchObject({ status: "revoked", isDefault: true });
+    expect((await f.service.list(f.spaceId, f.owner)).find(row => row.grantId === f.saved.grantId)).toMatchObject({ status: "revoked", isDefault: true });
     expect(request).not.toHaveBeenCalled();
   });
 
   it("persists same-account project discovery with a new encrypted revision while preserving the session epoch", async () => {
     const f = await fixture("subscription");
-    const [before] = await db.select().from(companySecrets).where(eq(companySecrets.id, f.secretId));
+    const [before] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, f.secretId));
     const runtime = await prepareManagedAiRuntime(db, f.runtime);
     await writeFile(join(String(runtime.config.env.GEMINI_HOME), "antigravity-acp", "acp_token.json"), googleCredential("resolved-project"));
     await runtime.cleanup();
-    const [after] = await db.select().from(companySecrets).where(eq(companySecrets.id, f.secretId));
+    const [after] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, f.secretId));
     expect(after.latestVersion).toBe(before.latestVersion + 1);
     expect(after.aiSessionEpoch).toBe(before.aiSessionEpoch);
     expect(await f.service.credential(await f.service.select(f.select))).toBe(googleCredential("resolved-project"));
@@ -201,7 +201,7 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
       const deadline = Date.now() + 5_000;
       let waiting = false;
       while (!waiting && Date.now() < deadline) {
-        const rows = await db.execute(sql`select pid from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock' and query like '%company_secrets%'`);
+        const rows = await db.execute(sql`select pid from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock' and query like '%space_secrets%'`);
         waiting = rows.length > 0;
         if (!waiting) await new Promise(resolve => setTimeout(resolve, 25));
       }
@@ -219,7 +219,7 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
     const runtime = await prepareManagedAiRuntime(db, f.runtime);
     const replacement = googleCredential("recovered-project");
     await writeFile(join(String(runtime.config.env.GEMINI_HOME), "antigravity-acp", "acp_token.json"), replacement);
-    const journal = quotaCredentialRecovery(f.companyId, f.saved.grantId);
+    const journal = quotaCredentialRecovery(f.spaceId, f.saved.grantId);
     const transaction = db.transaction.bind(db);
     const interrupted = failure === "lost_reply" ? vi.spyOn(db, "transaction").mockImplementationOnce(async (work, config) => {
       await transaction(work, config);
@@ -227,12 +227,12 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
     }) : undefined;
     if (!interrupted) await db.execute(sql.raw(`create function reject_google_recovery() returns trigger language plpgsql as $$ begin
       if new.secret_id = '${f.secretId}'::uuid then raise exception 'fixture Google writeback failure'; end if; return new; end $$;
-      create ${failure === "commit" ? "constraint " : ""}trigger reject_google_recovery ${failure === "commit" ? "after" : "before"} insert on company_secret_versions
+      create ${failure === "commit" ? "constraint " : ""}trigger reject_google_recovery ${failure === "commit" ? "after" : "before"} insert on space_secret_versions
       ${failure === "commit" ? "deferrable initially deferred" : ""} for each row execute function reject_google_recovery();`));
     try {
       await expect(runtime.cleanup()).rejects.toThrow();
       await expect(access(runtime.home!)).rejects.toMatchObject({ code: "ENOENT" });
-      const encrypted = await readFile(quotaCredentialRecoveryPath(f.companyId, f.saved.grantId), "utf8");
+      const encrypted = await readFile(quotaCredentialRecoveryPath(f.spaceId, f.saved.grantId), "utf8");
       expect(encrypted).not.toContain("fixture-google-refresh");
       expect(encrypted).not.toContain("recovered-project");
       expect(await journal.read()).toMatchObject({ provider: "google", value: replacement });
@@ -240,7 +240,7 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
       if (!interrupted) await expect(prepareManagedAiRuntime(db, f.runtime)).rejects.toMatchObject({ details: { code: "ai_connection_busy" } });
     } finally {
       if (interrupted) interrupted.mockRestore();
-      else await db.execute(sql`drop trigger reject_google_recovery on company_secret_versions; drop function reject_google_recovery()`);
+      else await db.execute(sql`drop trigger reject_google_recovery on space_secret_versions; drop function reject_google_recovery()`);
     }
     // The retired owner's ephemeral files and JS callbacks are no longer needed.
     await rm(runtime.home!, { recursive: true, force: true });
@@ -249,14 +249,14 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
       expect(await readFile(join(String(recovered.config.env.GEMINI_HOME), "antigravity-acp", "acp_token.json"), "utf8")).toBe(replacement);
       expect(await journal.read()).toBeNull();
       expect(request).not.toHaveBeenCalled();
-      expect(await db.select().from(companySecretVersions).where(eq(companySecretVersions.secretId, f.secretId))).toHaveLength(2);
+      expect(await db.select().from(spaceSecretVersions).where(eq(spaceSecretVersions.secretId, f.secretId))).toHaveLength(2);
     } finally { await recovered.cleanup(); await journal.clear(); }
   });
 
   async function retiredJournal(f: Awaited<ReturnType<typeof fixture>>, value: string, verified = true) {
-    const [secret] = await db.select().from(companySecrets).where(eq(companySecrets.id, f.secretId));
-    const journal = quotaCredentialRecovery(f.companyId, f.saved.grantId);
-    await journal.write({ companyId: f.companyId, grantId: f.saved.grantId, connectionId: f.saved.connectionId,
+    const [secret] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, f.secretId));
+    const journal = quotaCredentialRecovery(f.spaceId, f.saved.grantId);
+    await journal.write({ spaceId: f.spaceId, grantId: f.saved.grantId, connectionId: f.saved.connectionId,
       secretId: f.secretId, provider: "google", baseHash: quotaCredentialHash(f.credential), value,
       google: { sessionEpoch: secret.aiSessionEpoch, baseVersion: secret.latestVersion,
         versionSelector: "latest", accountEmail: "verified-owner@example.test", verified } });
@@ -266,7 +266,7 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
   it("runs another provider while the same Google account retains failed probe cleanup", async () => {
     const f = await fixture("subscription");
     const replacement = googleCredential("recovered-probe-project");
-    const journalPath = quotaCredentialRecoveryPath(f.companyId, f.saved.grantId);
+    const journalPath = quotaCredentialRecoveryPath(f.spaceId, f.saved.grantId);
     const realOpen = fs.open.bind(fs);
     let unavailable = false;
     const open = vi.spyOn(fs, "open").mockImplementation(async (...args: Parameters<typeof fs.open>) => {
@@ -289,12 +289,12 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
       expect(provider).toHaveBeenCalledOnce();
       expect(await f.service.credential(await f.service.select(f.select))).toBe(f.credential);
       unavailable = false;
-      await reconcileRetainedGoogleCleanup({ companyId: f.companyId, accountKey: f.saved.grantId });
+      await reconcileRetainedGoogleCleanup({ spaceId: f.spaceId, accountKey: f.saved.grantId });
       await expect(withManagedAiProbe(db, f.runtime, provider)).resolves.toBe(replacement);
       expect(provider).toHaveBeenCalledTimes(2);
       await expect(access(originalHome!)).rejects.toMatchObject({ code: "ENOENT" });
       expect(await f.service.credential(await f.service.select(f.select))).toBe(replacement);
-      expect(await quotaCredentialRecovery(f.companyId, f.saved.grantId).read()).toBeNull();
+      expect(await quotaCredentialRecovery(f.spaceId, f.saved.grantId).read()).toBeNull();
       expect(request).not.toHaveBeenCalled();
     } finally { unavailable = false; open.mockRestore(); }
   });
@@ -303,7 +303,7 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
     const f = await fixture("subscription"), runtime = await prepareManagedAiRuntime(db, f.runtime);
     const replacement = googleCredential("retirement-concurrency-project");
     await writeFile(join(String(runtime.config.env.GEMINI_HOME), "antigravity-acp", "acp_token.json"), replacement);
-    const scope = { companyId: f.companyId, accountKey: f.saved.grantId };
+    const scope = { spaceId: f.spaceId, accountKey: f.saved.grantId };
     let entered!: () => void, release!: () => void, lockEntered!: () => void;
     const cleanupEntered = new Promise<void>(resolve => { entered = resolve; });
     const permitCleanup = new Promise<void>(resolve => { release = resolve; });
@@ -314,10 +314,10 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
     const originalLock = codexAdapter.withAccountHomeSecretMutationLock;
     const originalDirectoryLock = workspaceLocks.withDirectoryMergeLock;
     let requestedLock = false;
-    const lock = vi.spyOn(codexAdapter, "withAccountHomeSecretMutationLock").mockImplementation((env, company, callback) => {
-      if (requestedLock) return originalLock(env, company, callback);
+    const lock = vi.spyOn(codexAdapter, "withAccountHomeSecretMutationLock").mockImplementation((env, space, callback) => {
+      if (requestedLock) return originalLock(env, space, callback);
       requestedLock = true;
-      return originalLock(env, company, async () => { lockEntered(); return callback(); });
+      return originalLock(env, space, async () => { lockEntered(); return callback(); });
     });
     // Exercise the real filesystem mutex with its existing bounded test seam;
     // a regression reports contention promptly instead of waiting 30 seconds.
@@ -338,12 +338,12 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
       lock.mockRestore(); directoryLock.mockRestore();
       await reconcileRetainedGoogleCleanup(scope);
       await runtime.cleanup();
-      await quotaCredentialRecovery(f.companyId, f.saved.grantId).clear();
+      await quotaCredentialRecovery(f.spaceId, f.saved.grantId).clear();
     }
   });
 
   it("reads Google credentials while another retained owner is still live", async () => {
-    const f = await fixture("subscription"), scope = { companyId: f.companyId, accountKey: f.saved.grantId };
+    const f = await fixture("subscription"), scope = { spaceId: f.spaceId, accountKey: f.saved.grantId };
     let retire!: () => void;
     const retired = new Promise<void>(resolve => { retire = resolve; });
     const cleanup = vi.fn(async () => {});
@@ -358,7 +358,7 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
   });
 
   it("does not join another retirement from cleanup that already holds the credential lock", async () => {
-    const f = await fixture("subscription"), scope = { companyId: f.companyId, accountKey: f.saved.grantId };
+    const f = await fixture("subscription"), scope = { spaceId: f.spaceId, accountKey: f.saved.grantId };
     let retire!: () => void, entered!: () => void;
     const retired = new Promise<void>(resolve => { retire = resolve; });
     const cleanupEntered = new Promise<void>(resolve => { entered = resolve; });
@@ -368,11 +368,11 @@ describeDatabase("Google AI connection authority with real PostgreSQL", () => {
       originalDirectoryLock(directory, callback, env, operation, 100));
     retainGoogleCredentialCleanup({ scope, retired, cleanup: async () => {
       entered();
-      try { await codexAdapter.withAccountHomeSecretMutationLock(undefined, f.companyId, async () => { finished = true; }); }
+      try { await codexAdapter.withAccountHomeSecretMutationLock(undefined, f.spaceId, async () => { finished = true; }); }
       catch (error) { failedLock = true; throw error; }
     } });
     try {
-      await codexAdapter.withAccountHomeSecretMutationLock(undefined, f.companyId, async () => {
+      await codexAdapter.withAccountHomeSecretMutationLock(undefined, f.spaceId, async () => {
         retire(); await cleanupEntered;
         await expect(f.service.runtimeCredential(f.selection)).resolves.toBe(f.credential);
         expect(failedLock).toBe(false);

@@ -60,7 +60,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 function createIssueDocument(overrides: Partial<IssueDocument> = {}): IssueDocument {
   return {
     id: "document-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     key: "plan",
     title: "Plan",
@@ -84,7 +84,7 @@ function createIssueDocument(overrides: Partial<IssueDocument> = {}): IssueDocum
 function createIssue(): Issue {
   return {
     id: "issue-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     identifier: "DOC-1",
     title: "Keyless documents",
     documentSummaries: [],

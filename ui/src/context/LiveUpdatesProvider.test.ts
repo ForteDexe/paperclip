@@ -18,11 +18,11 @@ import { queryKeys } from "../lib/queryKeys";
 describe("LiveUpdatesProvider issue invalidation", () => {
   it("discovers first proactive deliveries without invalidating another human's chat list", () => {
     const client = new QueryClient();
-    const mine = queryKeys.agentChats.list("company-1", "user-1");
-    const theirs = queryKeys.agentChats.list("company-1", "user-2");
+    const mine = queryKeys.agentChats.list("space-1", "user-1");
+    const theirs = queryKeys.agentChats.list("space-1", "user-2");
     client.setQueryData(mine, []);
     client.setQueryData(theirs, []);
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
       entityType: "issue", entityId: "new-chat", action: "issue.comment_added",
       details: { conversationUserId: "user-1", conversationAgentId: "kodi", commentId: "digest" },
     }, { userId: "user-1", agentId: null });
@@ -33,10 +33,10 @@ describe("LiveUpdatesProvider issue invalidation", () => {
   it.each(["issue.thread_interaction_accepted", "issue.thread_interaction_answered", "decision.decided", "decision.effect_succeeded", "decision.effect_failed", "issue.conversation_session_started", "inbox.dismissed", "inbox.snoozed", "inbox.restored"])("refreshes canonical attention, history and source-chat projections after %s", action => {
     const client = new QueryClient();
     const invalidate = vi.spyOn(client, "invalidateQueries");
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
       entityType: action.startsWith("decision.") ? "decision" : "issue", entityId: "task-1", action,
     }, { userId: "user-1", agentId: null });
-    for (const queryKey of [queryKeys.attention("company-1"), ["decisions", "company-1"], ["issues", "decision-receipts"], ["issues", "chat-handoffs"], ["issues", "pending-questions"]]) {
+    for (const queryKey of [queryKeys.attention("space-1"), ["decisions", "space-1"], ["issues", "decision-receipts"], ["issues", "chat-handoffs"], ["issues", "pending-questions"]]) {
       expect(invalidate).toHaveBeenCalledWith({ queryKey });
     }
     client.clear();
@@ -53,7 +53,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     client.setQueryData(blockedTaskKey, { id: "blocked-uuid", identifier: "PAP-3900", blockedBy: [], blocks: [blocker] });
     client.setQueryData(unrelatedKey, { id: "other-uuid", identifier: "PAP-1", blockedBy: [], blocks: [] });
     // Authenticated events can carry only the UUID; the dependent cache is still found by its summary id.
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
       entityType: "issue", entityId: "blocker-uuid", action: "issue.updated", actorType: "user", actorId: "user-1",
       details: { status: "done", _previous: { status: "blocked" } },
     }, { userId: "user-1", agentId: null });
@@ -66,14 +66,14 @@ describe("LiveUpdatesProvider issue invalidation", () => {
   it("drops cached decision content when its access is revoked", () => {
     const client = new QueryClient();
     const receiptKey = ["issues", "decision-receipts", "chat-1", "user-1"];
-    const historyKey = [...queryKeys.attention("company-1"), "history"];
+    const historyKey = [...queryKeys.attention("space-1"), "history"];
     const questionKey = ["issues", "pending-questions", "chat-1", "user-1"];
-    const taskRecordKey = queryKeys.decisions.taskRecord("company-1", "task-1", "user-1", "decision-1");
+    const taskRecordKey = queryKeys.decisions.taskRecord("space-1", "task-1", "user-1", "decision-1");
     client.setQueryData(taskRecordKey, { title: "Private decision" });
     client.setQueryData(questionKey, [{ title: "Private question" }]);
     client.setQueryData(receiptKey, { items: [{ title: "Private decision" }] });
     client.setQueryData(historyKey, { items: [{ title: "Private decision" }] });
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
       entityType: "issue_access_grant", entityId: "grant-1", action: "issue_access_grant.revoked",
     }, { userId: "user-1", agentId: null });
     expect(client.getQueryData(receiptKey)).toBeUndefined();
@@ -92,7 +92,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     expect(client.getQueryState(target)?.isInvalidated).toBe(true);
     expect(client.getQueryState(other)?.isInvalidated).toBe(false);
     client.setQueryData(target, { projectIds: ["project-1"] });
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
       entityType: "agent", entityId: "agent-1", action: "agent.permissions_updated",
     }, { userId: "user-1", agentId: null });
     expect(client.getQueryState(target)?.isInvalidated).toBe(true);
@@ -103,10 +103,10 @@ describe("LiveUpdatesProvider issue invalidation", () => {
   it('refreshes sources, legacy repositories and installed skills after a background import', () => {
     const client = new QueryClient();
     const invalidate = vi.spyOn(client, 'invalidateQueries');
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, 'company-1', {
-      entityType: 'company_skill_source', entityId: 'source-1', action: 'company.skill_source_refreshed',
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, 'space-1', {
+      entityType: 'space_skill_source', entityId: 'source-1', action: 'space.skill_source_refreshed',
     }, { userId: 'user-1', agentId: null });
-    for (const queryKey of [queryKeys.skillSources.all('company-1'), queryKeys.skillSources.projects('company-1'), queryKeys.companySkills.list('company-1')]) {
+    for (const queryKey of [queryKeys.skillSources.all('space-1'), queryKeys.skillSources.projects('space-1'), queryKeys.spaceSkills.list('space-1')]) {
       expect(invalidate).toHaveBeenCalledWith({ queryKey });
     }
     client.clear();
@@ -114,12 +114,12 @@ describe("LiveUpdatesProvider issue invalidation", () => {
   it("refreshes personal membership state when a primary changes on another device", () => {
     const client = new QueryClient();
     const invalidate = vi.spyOn(client, "invalidateQueries");
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
       entityType: "user_preference", entityId: "user-1", action: "primary_agent.updated",
       actorType: "user", actorId: "user-1",
     }, { userId: "user-1", agentId: null });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["primary-agent", "company-1"] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.resourceMemberships.mine("company-1") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["primary-agent", "space-1"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.resourceMemberships.mine("space-1") });
     client.clear();
   });
 
@@ -130,41 +130,41 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     ["chat-2", "issue.conversation_opened", "user", "user-2", false],
   ])("refreshes only the owner's chat list for relevant activity: %s %s %s %s", (entityId, action, actorType, actorId, refresh) => {
     const client = new QueryClient();
-    const key = queryKeys.agentChats.list("company-1", "user-1");
+    const key = queryKeys.agentChats.list("space-1", "user-1");
     client.setQueryData(key, [{ id: "chat-1" }]);
     const invalidate = vi.spyOn(client, "invalidateQueries");
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
       entityType: "issue", entityId, action, actorType, actorId,
     }, { userId: "user-1", agentId: null });
     if (refresh) expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
     else expect(invalidate).not.toHaveBeenCalledWith({ queryKey: key });
-    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: queryKeys.agentChats.list("company-1", "user-2") });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: queryKeys.agentChats.list("space-1", "user-2") });
     client.clear();
   });
 
-  it("refreshes the source task activity when a company skill is created", () => {
+  it("refreshes the source task activity when a space skill is created", () => {
     const client = new QueryClient();
     const invalidate = vi.spyOn(client, "invalidateQueries");
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
-      entityType: "company_skill", entityId: "skill-1", action: "company.skill_created",
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
+      entityType: "space_skill", entityId: "skill-1", action: "space.skill_created",
       details: { sourceIssueId: "issue-1" },
     }, { userId: "user-1", agentId: null });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.issues.activity("issue-1") });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.companySkills.detail("company-1", "skill-1") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.spaceSkills.detail("space-1", "skill-1") });
     client.clear();
   });
   it.each(["issue.attachment_added", "issue.attachment_removed", "issue.work_product_created", "issue.work_product_updated"])("refreshes visible delivered files for %s", action => {
     const client = new QueryClient();
-    client.setQueryData(queryKeys.issues.detail("issue-1"), { id: "issue-1", companyId: "company-1", identifier: "PAP-1" });
+    client.setQueryData(queryKeys.issues.detail("issue-1"), { id: "issue-1", spaceId: "space-1", identifier: "PAP-1" });
     const invalidate = vi.spyOn(client, "invalidateQueries");
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
       entityType: "issue", entityId: "issue-1", actorType: "agent", actorId: "agent-1", action,
     }, { userId: "user-1", agentId: null }, { pathname: "/PAP/issues/PAP-1", isForegrounded: true });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.issues.attachments("issue-1") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.issues.workProducts("issue-1") });
     client.clear();
   });
-  it("connects trusted local boards without admitting signed-out authenticated users", () => {
+  it("connects trusted local operators without admitting signed-out authenticated users", () => {
     const canConnect = __liveUpdatesTestUtils.canUseLiveSession;
     expect(canConnect("success", false, "local_trusted")).toBe(true);
     expect(canConnect("success", false, "authenticated")).toBe(false);
@@ -175,16 +175,16 @@ describe("LiveUpdatesProvider issue invalidation", () => {
   it("uses the current person's canonical chat for live updates and refreshes reset boundaries", () => {
     const client = new QueryClient();
     client.setQueryData(queryKeys.auth.session, { user: { id: "user-1" } });
-    client.setQueryData(queryKeys.companies.list("user-1"), { companies: [{ id: "company-1", issuePrefix: "PAP" }], unauthorized: false });
-    client.setQueryData(queryKeys.agents.list("company-1"), [{ id: "agent-1", name: "Coder", urlKey: "coder" }]);
-    const chat = { id: "chat-1", companyId: "company-1", identifier: "PAP-1", assigneeAgentId: "agent-1" };
-    client.setQueryData(queryKeys.agentChats.detail("company-1", "user-1", "agent-1"), chat);
-    client.setQueryData(queryKeys.agentChats.detail("company-1", "user-2", "agent-1"), { ...chat, id: "other-chat" });
+    client.setQueryData(queryKeys.spaces.list("user-1"), { spaces: [{ id: "space-1", issuePrefix: "PAP" }], unauthorized: false });
+    client.setQueryData(queryKeys.agents.list("space-1"), [{ id: "agent-1", name: "Coder", urlKey: "coder" }]);
+    const chat = { id: "chat-1", spaceId: "space-1", identifier: "PAP-1", assigneeAgentId: "agent-1" };
+    client.setQueryData(queryKeys.agentChats.detail("space-1", "user-1", "agent-1"), chat);
+    client.setQueryData(queryKeys.agentChats.detail("space-1", "user-2", "agent-1"), { ...chat, id: "other-chat" });
     client.setQueryData(queryKeys.issues.detail("chat-1"), chat);
     expect(__liveUpdatesTestUtils.shouldSuppressRunStatusToastForVisibleIssue(client, "/PAP/chats/agent-1", { issueId: "chat-1", runId: "run-1" }, { isForegrounded: true })).toBe(true);
     expect(__liveUpdatesTestUtils.shouldSuppressRunStatusToastForVisibleIssue(client, "/PAP/chats/agent-1", { issueId: "other-chat", runId: "run-2" }, { isForegrounded: true })).toBe(false);
     const invalidate = vi.spyOn(client, "invalidateQueries");
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", { entityType: "issue", entityId: "chat-1", action: "issue.conversation_session_started", actorType: "system" }, { userId: "user-1", agentId: null }, { pathname: "/PAP/chats/agent-1", isForegrounded: true });
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", { entityType: "issue", entityId: "chat-1", action: "issue.conversation_session_started", actorType: "system" }, { userId: "user-1", agentId: null }, { pathname: "/PAP/chats/agent-1", isForegrounded: true });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.issues.comments("chat-1") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["issues", "tree-control-state", "chat-1"] });
     invalidate.mockClear();
@@ -193,14 +193,14 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     client.clear();
   });
   it.each(["ai_connection.default_changed", "ai_connection.reconnected", "connection_grant.revoked"])(
-    "refreshes company AI account previews after %s", (action) => {
+    "refreshes space AI account previews after %s", (action) => {
       const invalidateQueries = vi.fn();
       __liveUpdatesTestUtils.invalidateActivityQueries(
         { invalidateQueries, getQueryData: () => undefined } as never,
-        "company-1", { entityType: "connection_grant", entityId: "grant-1", action },
+        "space-1", { entityType: "connection_grant", entityId: "grant-1", action },
         { userId: "owner", agentId: null },
       );
-      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["ai-connections", "company-1"] });
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["ai-connections", "space-1"] });
       expect(invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ["ai-connections"] });
     },
   );
@@ -216,7 +216,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "issue",
         entityId: "issue-1",
@@ -227,13 +227,13 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     );
 
     expect(invalidations).toContainEqual({
-      queryKey: queryKeys.issues.listMineByMe("company-1"),
+      queryKey: queryKeys.issues.listMineByMe("space-1"),
     });
     expect(invalidations).toContainEqual({
-      queryKey: queryKeys.issues.listTouchedByMe("company-1"),
+      queryKey: queryKeys.issues.listTouchedByMe("space-1"),
     });
     expect(invalidations).toContainEqual({
-      queryKey: queryKeys.issues.listUnreadTouchedByMe("company-1"),
+      queryKey: queryKeys.issues.listUnreadTouchedByMe("space-1"),
     });
     expect(invalidations).toContainEqual({
       queryKey: queryKeys.issues.detail("issue-1"),
@@ -275,7 +275,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "issue",
         entityId: "issue-1",
@@ -300,7 +300,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateHeartbeatProgressQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         agentId: "agent-1",
         runId: "run-1",
@@ -311,25 +311,25 @@ describe("LiveUpdatesProvider issue invalidation", () => {
       queryKey: queryKeys.agents.detail("agent-1"),
     });
     expect(invalidations).not.toContainEqual({
-      queryKey: queryKeys.liveRuns("company-1"),
+      queryKey: queryKeys.liveRuns("space-1"),
     });
     expect(invalidations).not.toContainEqual({
-      queryKey: queryKeys.heartbeats("company-1"),
+      queryKey: queryKeys.heartbeats("space-1"),
     });
     expect(invalidations).not.toContainEqual({
-      queryKey: queryKeys.heartbeats("company-1", "agent-1"),
+      queryKey: queryKeys.heartbeats("space-1", "agent-1"),
     });
     expect(invalidations).not.toContainEqual({
-      queryKey: queryKeys.agents.list("company-1"),
+      queryKey: queryKeys.agents.list("space-1"),
     });
     expect(invalidations).not.toContainEqual({
-      queryKey: queryKeys.dashboard("company-1"),
+      queryKey: queryKeys.dashboard("space-1"),
     });
     expect(invalidations).not.toContainEqual({
-      queryKey: queryKeys.costs("company-1"),
+      queryKey: queryKeys.costs("space-1"),
     });
     expect(invalidations).not.toContainEqual({
-      queryKey: queryKeys.sidebarBadges("company-1"),
+      queryKey: queryKeys.sidebarBadges("space-1"),
     });
   });
 
@@ -343,7 +343,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateHeartbeatQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       { runId: "run-1", agentId: "agent-1" },
     );
 
@@ -355,7 +355,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
   it("patches progress without refetching visible task history but refreshes actual activity and terminal runs", async () => {
     vi.stubGlobal("document", { visibilityState: "visible" });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-    const issue = { id: "issue-1", identifier: "DEMO-1", companyId: "company-1", assigneeAgentId: "agent-1", executionRunId: "run-1" };
+    const issue = { id: "issue-1", identifier: "DEMO-1", spaceId: "space-1", assigneeAgentId: "agent-1", executionRunId: "run-1" };
     const run = { id: "run-1", agentId: "agent-1", status: "running" };
     const snapshots = [
       [queryKeys.issues.detail("DEMO-1"), issue],
@@ -374,11 +374,11 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     const unsubscribe = observers.map(observer => observer.subscribe(() => {}));
     const gate = { cooldownHits: new Map<string, number[]>(), suppressUntil: 0, observedRunOutcomes: new Set<string>() };
     const deliver = (event: Parameters<typeof __liveUpdatesTestUtils.handleLiveEvent>[3]) =>
-      __liveUpdatesTestUtils.handleLiveEvent(client, "company-1", "/DEMO/issues/DEMO-1", event, () => null, gate,
+      __liveUpdatesTestUtils.handleLiveEvent(client, "space-1", "/DEMO/issues/DEMO-1", event, () => null, gate,
         { userId: "viewer", agentId: null });
     try {
       for (let id = 1; id <= 3; id++) {
-        deliver({ id, companyId: "company-1", type: "heartbeat.run.progress", createdAt: "2020-01-01T00:00:00Z",
+        deliver({ id, spaceId: "space-1", type: "heartbeat.run.progress", createdAt: "2020-01-01T00:00:00Z",
           payload: { runId: "run-1", issueId: "issue-1", agentId: "agent-1", phase: "working", message: `Step ${id}`,
             currentToolName: "read_task", updatedAt: "2020-01-01T00:00:00Z" } });
       }
@@ -386,14 +386,14 @@ describe("LiveUpdatesProvider issue invalidation", () => {
       expect(readers.map(reader => reader.mock.calls.length)).toEqual([0, 0, 0, 0, 0, 0]);
       expect(client.getQueryData(queryKeys.issues.activeRun("DEMO-1"))).toMatchObject({ currentStatusMessage: "Step 3", currentToolName: "read_task" });
       expect(client.getQueryData(queryKeys.issues.liveRuns("DEMO-1"))).toMatchObject([{ currentStatusMessage: "Step 3" }]);
-      deliver({ id: 4, companyId: "company-1", type: "heartbeat.run.progress", createdAt: "2020-01-01T00:00:01Z",
+      deliver({ id: 4, spaceId: "space-1", type: "heartbeat.run.progress", createdAt: "2020-01-01T00:00:01Z",
         payload: { runId: "unknown-run", issueId: "issue-1", agentId: "agent-1", message: "New run" } });
       await vi.waitFor(() => {
         expect(readers.slice(0, 5).every(reader => reader.mock.calls.length > 0)).toBe(true);
         expect(client.isFetching()).toBe(0);
       });
       readers.forEach(reader => reader.mockClear());
-      deliver({ id: 5, companyId: "company-1", type: "activity.logged", createdAt: "2020-01-01T00:00:02Z",
+      deliver({ id: 5, spaceId: "space-1", type: "activity.logged", createdAt: "2020-01-01T00:00:02Z",
         payload: { entityType: "issue", entityId: "issue-1", action: "issue.comment_added", actorType: "user", actorId: "another-viewer" } });
       await vi.waitFor(() => {
         expect(readers[1]).toHaveBeenCalled();
@@ -401,7 +401,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
         expect(client.isFetching()).toBe(0);
       });
       readers.forEach(reader => reader.mockClear());
-      deliver({ id: 6, companyId: "company-1", type: "heartbeat.run.status", createdAt: "2020-01-01T00:00:03Z",
+      deliver({ id: 6, spaceId: "space-1", type: "heartbeat.run.status", createdAt: "2020-01-01T00:00:03Z",
         payload: { runId: "run-1", issueId: "issue-1", agentId: "agent-1", status: "succeeded" } });
       await vi.waitFor(() => {
         expect(readers.every(reader => reader.mock.calls.length > 0)).toBe(true);
@@ -417,7 +417,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
   it("applies heartbeat progress payloads directly to cached visible issue runs", () => {
     const cache = new Map<string, unknown>([
-      [JSON.stringify(queryKeys.liveRuns("company-1")), [{ id: "run-1", currentStatusMessage: null }]],
+      [JSON.stringify(queryKeys.liveRuns("space-1")), [{ id: "run-1", currentStatusMessage: null }]],
       [JSON.stringify(queryKeys.issues.detail("DEMO-759")), {
         id: "issue-1",
         identifier: "DEMO-759",
@@ -451,7 +451,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     const changed = __liveUpdatesTestUtils.applyRunLiveStatusPatchToCaches(
       queryClient as never,
-      "company-1",
+      "space-1",
       "/DEMO/issues/DEMO-759",
       {
         runId: "run-1",
@@ -467,7 +467,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     );
 
     expect(changed).toBe(true);
-    expect(cache.get(JSON.stringify(queryKeys.liveRuns("company-1")))).toEqual([
+    expect(cache.get(JSON.stringify(queryKeys.liveRuns("space-1")))).toEqual([
       expect.objectContaining({
         id: "run-1",
         currentStatusMessage: "Syncing workspace",
@@ -553,7 +553,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "issue",
         entityId: "issue-1",
@@ -618,7 +618,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "issue",
         entityId: "issue-1",
@@ -650,7 +650,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
     const document = { taskId: "issue-1", key: "findings", document: { title: "Original findings", latestRevisionNumber: 1 } };
     const initial = {
-      id: "case-1", companyId: "company-1", identifier: "PAP-C1",
+      id: "case-1", spaceId: "space-1", identifier: "PAP-C1",
       workIssueId: relationship === "primary" ? "issue-1" : "another-primary",
       issueLinks: relationship === "linked" ? [{ issueId: "issue-1" }] : [],
       taskDocuments: change === "created" || change === "restored" ? [] : [document],
@@ -658,11 +658,11 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     const refreshed = { ...initial, taskDocuments: change === "deleted" ? []
       : [{ ...document, document: { title: "Current findings", latestRevisionNumber: 2 } }] };
     const unrelatedKey = queryKeys.cases.detail("PAP-C2");
-    const otherCompanyKey = queryKeys.cases.detail("OTHER-C1");
+    const otherSpaceKey = queryKeys.cases.detail("OTHER-C1");
     client.setQueryData(queryKeys.cases.detail("case-1"), initial);
     client.setQueryData(queryKeys.cases.detail("PAP-C1"), initial);
     client.setQueryData(unrelatedKey, { ...initial, id: "case-2", identifier: "PAP-C2", workIssueId: "unrelated", issueLinks: [] });
-    client.setQueryData(otherCompanyKey, { ...initial, companyId: "company-2" });
+    client.setQueryData(otherSpaceKey, { ...initial, spaceId: "space-2" });
     const readCase = vi.fn(async () => refreshed);
     const observer = new QueryObserver(client, { queryKey: queryKeys.cases.detail("PAP-C1"), queryFn: readCase });
     const unsubscribe = observer.subscribe(() => {});
@@ -670,7 +670,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
       expect(observer.getCurrentResult().data?.taskDocuments).toEqual(initial.taskDocuments);
       expect(readCase).not.toHaveBeenCalled();
 
-      __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+      __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
         entityType: "issue", entityId: "issue-1", action: `issue.document_${change}`,
         actorType: "agent", actorId: "agent-1", details: { key: "findings" },
       }, { userId: "user-1", agentId: null }, { pathname: "/PAP/cases/PAP-C1", isForegrounded: true });
@@ -679,7 +679,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
       expect(readCase).toHaveBeenCalledOnce();
       expect(client.getQueryState(queryKeys.cases.detail("case-1"))?.isInvalidated).toBe(true);
       expect(client.getQueryState(unrelatedKey)?.isInvalidated).toBe(false);
-      expect(client.getQueryState(otherCompanyKey)?.isInvalidated).toBe(false);
+      expect(client.getQueryState(otherSpaceKey)?.isInvalidated).toBe(false);
     } finally {
       unsubscribe();
       client.clear();
@@ -694,26 +694,26 @@ describe("LiveUpdatesProvider issue invalidation", () => {
   ])("refreshes case work after primary task $label", async ({ action, status, assigneeAgentId }) => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
     const initial = {
-      id: "case-1", companyId: "company-1", identifier: "PAP-C1", status: "in_progress",
+      id: "case-1", spaceId: "space-1", identifier: "PAP-C1", status: "in_progress",
       workIssueId: "issue-1", issueLinks: [],
       workIssue: { id: "issue-1", status: "todo", assigneeAgentId: "agent-1" },
     };
     const refreshed = { ...initial, workIssue: { ...initial.workIssue, status, assigneeAgentId } };
     const uuidKey = queryKeys.cases.detail("case-1");
     const identifierKey = queryKeys.cases.detail("PAP-C1");
-    const listKey = [...queryKeys.cases.list("company-1"), { q: "receipt" }];
+    const listKey = [...queryKeys.cases.list("space-1"), { q: "receipt" }];
     const excludedKeys = [
       queryKeys.cases.detail("PAP-C2"),
       queryKeys.cases.detail("PAP-C3"),
       queryKeys.cases.detail("OTHER-C1"),
-      queryKeys.cases.list("company-2"),
+      queryKeys.cases.list("space-2"),
     ];
     client.setQueryData(uuidKey, initial);
     client.setQueryData(identifierKey, initial);
     client.setQueryData(listKey, [initial]);
     client.setQueryData(excludedKeys[0], { ...initial, workIssueId: "another-primary", issueLinks: [{ issueId: "issue-1" }] });
     client.setQueryData(excludedKeys[1], { ...initial, workIssueId: null });
-    client.setQueryData(excludedKeys[2], { ...initial, companyId: "company-2" });
+    client.setQueryData(excludedKeys[2], { ...initial, spaceId: "space-2" });
     client.setQueryData(excludedKeys[3], [initial]);
     const readCase = vi.fn(async () => refreshed);
     const readList = vi.fn(async () => [refreshed]);
@@ -725,7 +725,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
       expect(readCase).not.toHaveBeenCalled();
       expect(readList).not.toHaveBeenCalled();
 
-      __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+      __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
         entityType: "issue", entityId: "issue-1", action,
         actorType: "agent", actorId: "agent-1", details: { status, assigneeAgentId },
       }, { userId: "user-1", agentId: null }, { pathname: "/PAP/cases/PAP-C1", isForegrounded: true });
@@ -748,11 +748,11 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
   it("refreshes an empty filtered case list after task changes without a cached case detail", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-    const listKey = [...queryKeys.cases.list("company-1"), { q: "receipt" }];
-    const otherCompanyKey = [...queryKeys.cases.list("company-2"), { q: "receipt" }];
-    const refreshed = [{ id: "case-1", companyId: "company-1", workIssueId: "issue-1" }];
+    const listKey = [...queryKeys.cases.list("space-1"), { q: "receipt" }];
+    const otherSpaceKey = [...queryKeys.cases.list("space-2"), { q: "receipt" }];
+    const refreshed = [{ id: "case-1", spaceId: "space-1", workIssueId: "issue-1" }];
     client.setQueryData(listKey, []);
-    client.setQueryData(otherCompanyKey, []);
+    client.setQueryData(otherSpaceKey, []);
     const readList = vi.fn(async () => refreshed);
     const observer = new QueryObserver(client, { queryKey: listKey, queryFn: readList });
     const unsubscribe = observer.subscribe(() => {});
@@ -760,14 +760,14 @@ describe("LiveUpdatesProvider issue invalidation", () => {
       expect(readList).not.toHaveBeenCalled();
       expect(client.getQueriesData({ queryKey: ["cases", "detail"] })).toEqual([]);
 
-      __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+      __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
         entityType: "issue", entityId: "issue-1", action: "issue.updated",
         actorType: "agent", actorId: "agent-1", details: { assigneeAgentId: "agent-2" },
       }, { userId: "user-1", agentId: null });
 
       await vi.waitFor(() => expect(observer.getCurrentResult().data).toEqual(refreshed));
       expect(readList).toHaveBeenCalledOnce();
-      expect(client.getQueryState(otherCompanyKey)?.isInvalidated).toBe(false);
+      expect(client.getQueryState(otherSpaceKey)?.isInvalidated).toBe(false);
     } finally {
       unsubscribe();
       client.clear();
@@ -777,12 +777,12 @@ describe("LiveUpdatesProvider issue invalidation", () => {
   it.each(["issue.comment_added", "issue.read_marked"])("does not refresh case work for %s", (action) => {
     const client = new QueryClient();
     const detailKey = queryKeys.cases.detail("case-1");
-    const listKey = queryKeys.cases.list("company-1");
-    const caseData = { id: "case-1", companyId: "company-1", workIssueId: "issue-1" };
+    const listKey = queryKeys.cases.list("space-1");
+    const caseData = { id: "case-1", spaceId: "space-1", workIssueId: "issue-1" };
     client.setQueryData(detailKey, caseData);
     client.setQueryData(listKey, [caseData]);
 
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
       entityType: "issue", entityId: "issue-1", action, actorType: "agent", actorId: "agent-1",
     }, { userId: "user-1", agentId: null });
 
@@ -802,7 +802,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "issue",
         entityId: "issue-1",
@@ -841,7 +841,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "routine",
         entityId: "routine-1",
@@ -874,7 +874,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient,
-      "company-1",
+      "space-1",
       {
         entityType: "case",
         entityId: "case-1",
@@ -891,7 +891,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     );
 
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: queryKeys.cases.list("company-1"),
+      queryKey: queryKeys.cases.list("space-1"),
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: queryKeys.cases.detail("case-1"),
@@ -925,7 +925,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     ];
     for (const key of [...affected, ...untouched]) queryClient.setQueryData(key, { body: "Saved findings" });
 
-    __liveUpdatesTestUtils.invalidateActivityQueries(queryClient, "company-1", {
+    __liveUpdatesTestUtils.invalidateActivityQueries(queryClient, "space-1", {
       entityType: "case", entityId: "case-1", action: "case.document_revised",
       actorType: "agent", actorId: "agent-1", details: { [keyField]: "findings" },
     }, { userId: "user-1", agentId: null });
@@ -944,7 +944,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     const otherCase = ["cases", "document", "PAP-C2", "findings"];
     for (const key of [...affected, otherCase]) queryClient.setQueryData(key, { body: "Saved findings" });
 
-    __liveUpdatesTestUtils.invalidateActivityQueries(queryClient, "company-1", {
+    __liveUpdatesTestUtils.invalidateActivityQueries(queryClient, "space-1", {
       entityType: "case", entityId: "case-1", action: "case.document_revised",
       actorType: "agent", actorId: "agent-1", details: {},
     }, { userId: "user-1", agentId: null });
@@ -971,7 +971,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient,
-      "company-1",
+      "space-1",
       {
         entityType: "case",
         entityId: "case-1",
@@ -1001,7 +1001,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient,
-      "company-1",
+      "space-1",
       {
         entityType: "case",
         entityId: "case-1",
@@ -1031,7 +1031,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "issue",
         entityId: "issue-1",
@@ -1068,7 +1068,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "issue",
         entityId: "issue-1",
@@ -1114,7 +1114,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "issue",
         entityId: "issue-1",
@@ -1140,7 +1140,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
     });
   });
 
-  it("still actively refetches visible issue detail for board-authored updates", () => {
+  it("still actively refetches visible issue detail for operator-authored updates", () => {
     const invalidations: unknown[] = [];
     const queryClient = {
       invalidateQueries: (input: unknown) => {
@@ -1160,7 +1160,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "issue",
         entityId: "issue-1",
@@ -1208,7 +1208,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "issue",
         entityId: "issue-1",
@@ -1260,7 +1260,7 @@ describe("LiveUpdatesProvider issue invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "issue",
         entityId: "issue-1",
@@ -1294,10 +1294,10 @@ describe("LiveUpdatesProvider issue invalidation", () => {
   it("refetches visible comments when an authenticated event omits hydration details", () => {
     const client = new QueryClient();
     client.setQueryData(queryKeys.issues.detail("PAP-759"), {
-      id: "issue-1", companyId: "company-1", identifier: "PAP-759",
+      id: "issue-1", spaceId: "space-1", identifier: "PAP-759",
     });
     const invalidate = vi.spyOn(client, "invalidateQueries");
-    __liveUpdatesTestUtils.invalidateActivityQueries(client, "company-1", {
+    __liveUpdatesTestUtils.invalidateActivityQueries(client, "space-1", {
       entityType: "issue", entityId: "issue-1", action: "issue.comment_added",
       actorType: "user", actorId: "another-user",
     }, { userId: "viewer", agentId: null }, {
@@ -1512,7 +1512,7 @@ describe("LiveUpdatesProvider visible issue comment hydration", () => {
   it("hydrates the visible issue comments cache with only the new comment", async () => {
     getCommentMock.mockResolvedValueOnce({
       id: "comment-2",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       authorAgentId: "agent-1",
       authorUserId: null,
@@ -1535,7 +1535,7 @@ describe("LiveUpdatesProvider visible issue comment hydration", () => {
           return {
             pages: [[{
               id: "comment-1",
-              companyId: "company-1",
+              spaceId: "space-1",
               issueId: "issue-1",
               authorAgentId: null,
               authorUserId: "user-1",
@@ -1577,7 +1577,7 @@ describe("LiveUpdatesProvider visible issue comment hydration", () => {
       pages: [[
         {
           id: "comment-2",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorAgentId: "agent-1",
           authorUserId: null,
@@ -1587,7 +1587,7 @@ describe("LiveUpdatesProvider visible issue comment hydration", () => {
         },
         {
           id: "comment-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorAgentId: null,
           authorUserId: "user-1",
@@ -1698,7 +1698,7 @@ describe("LiveUpdatesProvider run lifecycle toasts", () => {
         },
         () => "CodexCoder",
         queryClient as never,
-        "company-1",
+        "space-1",
       ),
     ).toBeNull();
 
@@ -1739,7 +1739,7 @@ describe("LiveUpdatesProvider run lifecycle toasts", () => {
         },
         () => "CodexCoder",
         queryClient as never,
-        "company-1",
+        "space-1",
       ),
     ).toMatchObject({
       title: "CodexCoder errored",
@@ -1804,7 +1804,7 @@ describe("LiveUpdatesProvider run lifecycle toasts", () => {
     expect(
       __liveUpdatesTestUtils.buildRunStatusToast(
         {
-          runId: "run-low-trust-board",
+          runId: "run-low-trust-operator",
           agentId: "agent-1",
           status: "failed",
           error: "Low-trust execution requires isolated workspaces to be enabled.",
@@ -1840,11 +1840,11 @@ describe("LiveUpdatesProvider run lifecycle toasts", () => {
   });
 });
 
-describe("applyRunLifecycleToCompanyLiveRuns", () => {
+describe("applyRunLifecycleToSpaceLiveRuns", () => {
   function makeClient(initial: Array<{ id: string; status: string }>) {
     const initialDetail = initial.find((run) => run.id === "run-1");
     const cache = new Map<string, unknown>([
-      [JSON.stringify(queryKeys.liveRuns("company-1")), initial],
+      [JSON.stringify(queryKeys.liveRuns("space-1")), initial],
       [JSON.stringify(queryKeys.runDetail("run-1")), initialDetail],
     ]);
     const client = {
@@ -1855,16 +1855,16 @@ describe("applyRunLifecycleToCompanyLiveRuns", () => {
         cache.set(cacheKey, typeof updater === "function" ? updater(current) : updater);
       },
     };
-    const read = () => cache.get(JSON.stringify(queryKeys.liveRuns("company-1")));
+    const read = () => cache.get(JSON.stringify(queryKeys.liveRuns("space-1")));
     const readDetail = () => cache.get(JSON.stringify(queryKeys.runDetail("run-1")));
     return { client, read, readDetail };
   }
 
   it("removes a run on a terminal status (patched, no refetch needed)", () => {
     const { client, read, readDetail } = makeClient([{ id: "run-1", status: "running" }, { id: "run-2", status: "running" }]);
-    const patched = __liveUpdatesTestUtils.applyRunLifecycleToCompanyLiveRuns(
+    const patched = __liveUpdatesTestUtils.applyRunLifecycleToSpaceLiveRuns(
       client as never,
-      "company-1",
+      "space-1",
       {
         runId: "run-1",
         status: "succeeded",
@@ -1885,9 +1885,9 @@ describe("applyRunLifecycleToCompanyLiveRuns", () => {
 
   it("patches status in place for a run already in the list", () => {
     const { client, read } = makeClient([{ id: "run-1", status: "queued" }]);
-    const patched = __liveUpdatesTestUtils.applyRunLifecycleToCompanyLiveRuns(
+    const patched = __liveUpdatesTestUtils.applyRunLifecycleToSpaceLiveRuns(
       client as never,
-      "company-1",
+      "space-1",
       { runId: "run-1", status: "running" },
     );
     expect(patched).toBe(true);
@@ -1897,9 +1897,9 @@ describe("applyRunLifecycleToCompanyLiveRuns", () => {
   it("patches the selected run detail when a queued run starts", () => {
     const { client, readDetail } = makeClient([{ id: "run-1", status: "queued" }]);
 
-    __liveUpdatesTestUtils.applyRunLifecycleToCompanyLiveRuns(
+    __liveUpdatesTestUtils.applyRunLifecycleToSpaceLiveRuns(
       client as never,
-      "company-1",
+      "space-1",
       {
         runId: "run-1",
         status: "running",
@@ -1920,9 +1920,9 @@ describe("applyRunLifecycleToCompanyLiveRuns", () => {
 
   it("reports not-patched for a genuinely new run so the caller refetches", () => {
     const { client, read } = makeClient([{ id: "run-1", status: "running" }]);
-    const patched = __liveUpdatesTestUtils.applyRunLifecycleToCompanyLiveRuns(
+    const patched = __liveUpdatesTestUtils.applyRunLifecycleToSpaceLiveRuns(
       client as never,
-      "company-1",
+      "space-1",
       { runId: "run-new", status: "running" },
     );
     expect(patched).toBe(false);
@@ -1942,7 +1942,7 @@ describe("LiveUpdatesProvider summary slot invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "summary_slot",
         entityId: "slot-1",
@@ -1958,14 +1958,14 @@ describe("LiveUpdatesProvider summary slot invalidation", () => {
     );
 
     expect(invalidations).toContainEqual({
-      queryKey: queryKeys.summarySlots.detail("company-1", "project", "header", "project-1"),
+      queryKey: queryKeys.summarySlots.detail("space-1", "project", "header", "project-1"),
     });
     expect(invalidations).toContainEqual({
-      queryKey: queryKeys.summarySlots.revisions("company-1", "project", "header", "project-1"),
+      queryKey: queryKeys.summarySlots.revisions("space-1", "project", "header", "project-1"),
     });
   });
 
-  it("maps a null scopeId to a company-scoped slot key", () => {
+  it("maps a null scopeId to a space-scoped slot key", () => {
     const invalidations: unknown[] = [];
     const queryClient = {
       invalidateQueries: (input: unknown) => {
@@ -1976,21 +1976,21 @@ describe("LiveUpdatesProvider summary slot invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "summary_slot",
         entityId: "slot-1",
         action: "summary_slot.write",
-        details: { scopeKind: "company", scopeId: null, slotKey: "header" },
+        details: { scopeKind: "space", scopeId: null, slotKey: "header" },
       },
       { userId: null, agentId: null },
     );
 
     expect(invalidations).toContainEqual({
-      queryKey: queryKeys.summarySlots.detail("company-1", "company", "header", null),
+      queryKey: queryKeys.summarySlots.detail("space-1", "space", "header", null),
     });
     expect(invalidations).toContainEqual({
-      queryKey: queryKeys.summarySlots.revisions("company-1", "company", "header", null),
+      queryKey: queryKeys.summarySlots.revisions("space-1", "space", "header", null),
     });
   });
 
@@ -2005,7 +2005,7 @@ describe("LiveUpdatesProvider summary slot invalidation", () => {
 
     __liveUpdatesTestUtils.invalidateActivityQueries(
       queryClient as never,
-      "company-1",
+      "space-1",
       {
         entityType: "summary_slot",
         entityId: "slot-1",
@@ -2028,13 +2028,13 @@ describe("LiveUpdatesProvider summary slot invalidation", () => {
 describe("dispatchLiveEventToSubscribers", () => {
   const baseEvent = {
     id: 1,
-    companyId: "company-1",
+    spaceId: "space-1",
     type: "heartbeat.run.progress" as const,
     createdAt: "2026-07-15T00:00:00.000Z",
     payload: { issueId: "issue-1" },
   };
 
-  it("delivers events for the active company to every subscriber", () => {
+  it("delivers events for the active space to every subscriber", () => {
     const received: unknown[] = [];
     const subscribers = new Set<(event: never) => void>([
       (event) => received.push(["a", event]),
@@ -2043,20 +2043,20 @@ describe("dispatchLiveEventToSubscribers", () => {
 
     __liveUpdatesTestUtils.dispatchLiveEventToSubscribers(
       subscribers as never,
-      "company-1",
+      "space-1",
       baseEvent as never,
     );
 
     expect(received).toHaveLength(2);
   });
 
-  it("drops events for other companies", () => {
+  it("drops events for other spaces", () => {
     const received: unknown[] = [];
     const subscribers = new Set<(event: never) => void>([() => received.push("hit")]);
 
     __liveUpdatesTestUtils.dispatchLiveEventToSubscribers(
       subscribers as never,
-      "company-2",
+      "space-2",
       baseEvent as never,
     );
 
@@ -2075,7 +2075,7 @@ describe("dispatchLiveEventToSubscribers", () => {
     expect(() =>
       __liveUpdatesTestUtils.dispatchLiveEventToSubscribers(
         subscribers as never,
-        "company-1",
+        "space-1",
         baseEvent as never,
       ),
     ).not.toThrow();
@@ -2084,12 +2084,12 @@ describe("dispatchLiveEventToSubscribers", () => {
 });
 
 describe("task subtree notification context", () => {
-  const root = { id: "root", companyId: "company", identifier: "PAP-204", assigneeAgentId: "parent-agent" };
+  const root = { id: "root", spaceId: "space", identifier: "PAP-204", assigneeAgentId: "parent-agent" };
   const descendants = [{ id: "child", identifier: "PAP-205", assigneeAgentId: "child-agent", executionRunId: "child-run" }];
   const queryClient = {
     getQueryData: (key: unknown) => {
       if (JSON.stringify(key) === JSON.stringify(queryKeys.issues.detail("PAP-204"))) return root;
-      if (JSON.stringify(key) === JSON.stringify(queryKeys.issues.listByDescendantRoot("company", "root"))) return descendants;
+      if (JSON.stringify(key) === JSON.stringify(queryKeys.issues.listByDescendantRoot("space", "root"))) return descendants;
     },
   };
   it("suppresses descendant cancellation and activity on the visible subtree", () => {
@@ -2118,14 +2118,14 @@ describe("activity toast attribution", () => {
     ["issue.updated", "Alex Example updated PAP-1234"],
     ["issue.comment_added", "Alex Example commented on PAP-1234"],
   ])("uses the server task identifier for %s with an empty cache and no activity details", (action, title) => {
-    const toast = build(new QueryClient(), "company", { ...payload, action }, { userId: "other-user", agentId: null });
+    const toast = build(new QueryClient(), "space", { ...payload, action }, { userId: "other-user", agentId: null });
     expect(toast?.title).toBe(title);
     expect(toast?.action).toEqual({ label: "View PAP-1234", href: "/issues/PAP-1234" });
     if (action === "issue.updated") expect(toast?.body).toBe("PAP-1234");
     expect(JSON.stringify(toast)).not.toContain("Task task-1");
   });
   it("uses a generic task label when the identifier is unavailable", () => {
-    const toast = build(new QueryClient(), "company", { ...payload, action: "issue.updated", issueIdentifier: undefined }, { userId: "other-user", agentId: null });
+    const toast = build(new QueryClient(), "space", { ...payload, action: "issue.updated", issueIdentifier: undefined }, { userId: "other-user", agentId: null });
     expect(toast?.title).toBe("Alex Example updated Task");
     expect(toast?.body).toBe("Task");
     expect(toast?.action).toEqual({ label: "View Task", href: "/issues/task-1" });
@@ -2133,29 +2133,29 @@ describe("activity toast attribution", () => {
   it("resolves cached task titles by the server identifier", () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(queryKeys.issues.detail("PAP-1234"), { id: "task-1", identifier: "PAP-1234", title: "Fix task toasts" });
-    const toast = build(queryClient, "company", { ...payload, action: "issue.updated" }, { userId: "other-user", agentId: null });
+    const toast = build(queryClient, "space", { ...payload, action: "issue.updated" }, { userId: "other-user", agentId: null });
     expect(toast?.title).toBe("Alex Example updated PAP-1234");
     expect(toast?.body).toBe("Fix task toasts");
   });
   it.each(["issue.created", "issue.updated", "issue.comment_added"])("hides the viewer's own %s", (action) => {
-    expect(build(new QueryClient(), "company", { ...payload, action }, { userId: "user-1", agentId: null })).toBeNull();
+    expect(build(new QueryClient(), "space", { ...payload, action }, { userId: "user-1", agentId: null })).toBeNull();
   });
   it("hides an agent's own action", () => {
-    expect(build(new QueryClient(), "company", { ...payload, actorType: "agent", actorId: "agent-1" }, { userId: null, agentId: "agent-1" })).toBeNull();
+    expect(build(new QueryClient(), "space", { ...payload, actorType: "agent", actorId: "agent-1" }, { userId: null, agentId: "agent-1" })).toBeNull();
   });
   it("uses the real name and photo with an empty directory cache", () => {
-    const toast = build(new QueryClient(), "company", payload, { userId: "other-user", agentId: null });
+    const toast = build(new QueryClient(), "space", payload, { userId: "other-user", agentId: null });
     expect(toast?.title).toBe("Alex Example created PAP-1234");
     expect(toast?.actor).toMatchObject({ type: "user", name: "Alex Example", image: "/alex.png" });
   });
   it("uses the agent's custom avatar with an empty agent cache", () => {
     const appearance = { schemaVersion: 1, characterVersion: "cap-v1", paletteId: "bubblegum-sky", customAvatarAssetId: "11111111-1111-4111-8111-111111111111" };
-    const toast = build(new QueryClient(), "company", { ...payload, actorType: "agent", actorId: "agent-1", actorName: "Coder", actorAppearance: appearance }, { userId: "user-1", agentId: null });
+    const toast = build(new QueryClient(), "space", { ...payload, actorType: "agent", actorId: "agent-1", actorName: "Coder", actorAppearance: appearance }, { userId: "user-1", agentId: null });
     expect(toast?.title).toBe("Coder created PAP-1234");
     expect(toast?.actor?.appearance).toEqual(appearance);
   });
   it("keeps system activity distinct from people", () => {
-    const toast = build(new QueryClient(), "company", { ...payload, actorType: "system", actorName: undefined }, { userId: "user-1", agentId: null });
+    const toast = build(new QueryClient(), "space", { ...payload, actorType: "system", actorName: undefined }, { userId: "user-1", agentId: null });
     expect(toast?.title).toBe("System created PAP-1234");
     expect(toast?.actor).toBeUndefined();
   });

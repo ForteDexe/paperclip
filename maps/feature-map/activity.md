@@ -4,7 +4,7 @@ navigation: {"section":"Oversight and operation","sectionOrder":70,"order":20}
 
 # Dashboards and audit trails
 
-People inspect company health, recent activity, run history, and routine activity, then follow evidence back to the task or agent responsible.
+People inspect space health, recent activity, run history, and routine activity, then follow evidence back to the task or agent responsible.
 
 Feature ID: `activity`.
 
@@ -14,7 +14,7 @@ Agent access: [companion](../agent-access-map/activity.md).
 
 ## Sub-features
 
-- `overview`: `activity/overview` — inspect the company dashboard and live-work summary.
+- `overview`: `activity/overview` — inspect the space dashboard and live-work summary.
 - `activity`: `activity/activity` — filter and page through recorded actor/resource events.
 - `runs`: `activity/runs` — find executions and follow their task/agent context.
 - `routine-audit`: `activity/routine-audit` — inspect routine execution activity separately from its definition.
@@ -31,9 +31,9 @@ Open `/dashboard` or `/dashboard/live`.
 
 Open `/activity`, `/activity/runs`, or `/activity/timeline` in the streamlined shell; legacy routes may redirect.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
-Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Prepare known task mutations and completed/failed runs in a disposable company, recording their IDs and actors.
+Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Prepare known task mutations and completed/failed runs in a disposable space, recording their IDs and actors.
 
 ### `dashboard`
 
@@ -45,7 +45,7 @@ Manual: Compare the dashboard with the known fixture tasks and runs. Start and f
 
 Automated: [activity service](../../server/src/__tests__/activity-service.test.ts), [audit runs](../../ui/src/pages/audit/AuditRuns.test.tsx), and [routine audit](../../ui/src/pages/audit/RoutineAuditActivity.test.tsx) cover these separate data/host layers.
 
-Manual: Find a known mutation by actor/resource and a known run by status. Change filters, load more, and follow the source links. Reload the chosen view and verify no company leakage or duplicate events. Inspect a routine run from its audit entry.
+Manual: Find a known mutation by actor/resource and a known run by status. Change filters, load more, and follow the source links. Reload the chosen view and verify no space leakage or duplicate events. Inspect a routine run from its audit entry.
 
 Case detail's **View in Audit** opens `/activity?entityType=case&entityId=<case UUID>`.
 The Activity filters include **Cases** actions and **Case** entities; the Case
@@ -65,7 +65,7 @@ link in the actual app to verify the assembled journey.
 Issue activity is also available through `GET /api/issues/{id}/activity`.
 [Agent authorization](../../server/src/__tests__/activity-routes.test.ts) and
 [sandbox bridge](../../packages/adapter-utils/src/sandbox-callback-bridge.test.ts)
-regressions cover this route separately from company-wide audit. Live sandbox
+regressions cover this route separately from space-wide audit. Live sandbox
 agent access remains unverified; use the companion recipe.
 
 Audit-event Load more and run listings differ: Runs currently loads at most 200
@@ -77,8 +77,8 @@ the routine rather than treating that component test as a reachable journey.
 
 Open Audit → Commentary (`/activity/commentary`). Search message text, filter by agent and suggestion/complaint,
 page through 50-message previews, and open a row to read the full message with its task/run links.
-Filters, page offsets and the selected entry are retained in the URL. Read access requires board company access and
-`commentary:view`, granted by default to all human company roles and backfilled for existing active
+Filters, page offsets and the selected entry are retained in the URL. Read access requires board space access and
+`commentary:view`, granted by default to all human space roles and backfilled for existing active
 human members. Task privacy applies to previews, counts and full messages; agent-action audit access is separate.
 All Audit tab destinations resolve in both the classic and streamlined layouts.
 
@@ -101,8 +101,8 @@ Capability ID: `activity/runs`.
 
 Scope: ui
 Storybook: Mount AuditRuns selected status/agent/routine, linked task/agent, empty/loading/error/retry and 200-entry limit. Do not invent pagination.
-Production: GET /companies/{id}/heartbeat-runs and /routines/{id}/runs require company/read/privacy checks; real browser follows context links and confirms the referenced execution.
-Company run history defaults to 200 rows and caps explicit limits at 1,000.
+Production: GET /spaces/{id}/heartbeat-runs and /routines/{id}/runs require space/read/privacy checks; real browser follows context links and confirms the referenced execution.
+Space run history defaults to 200 rows and caps explicit limits at 1,000.
 Summary contexts omit stored prompts and expand JSON once per returned row.
 The array response and run visibility/redaction checks remain in place.
 Agent detail links resolve older runs by ID outside the recent history page.

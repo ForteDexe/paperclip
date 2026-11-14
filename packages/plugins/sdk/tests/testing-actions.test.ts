@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createTestHarness } from "../src/testing.js";
-import type { PaperclipPluginManifestV1 } from "../src/types.js";
+import type { OutpostPluginManifestV1 } from "../src/types.js";
 
 const manifest = {
   id: "outpost.test-actions",
@@ -9,41 +9,41 @@ const manifest = {
   version: "1.0.0",
   displayName: "Test Actions",
   description: "Test plugin",
-  author: "Paperclip",
+  author: "Outpost",
   categories: ["automation"],
   capabilities: [],
   entrypoints: { worker: "./worker.js" },
-} satisfies PaperclipPluginManifestV1;
+} satisfies OutpostPluginManifestV1;
 
 describe("createTestHarness action context", () => {
-  it("passes immutable authenticated actor context and overrides caller company scope", async () => {
+  it("passes immutable authenticated actor context and overrides caller space scope", async () => {
     const harness = createTestHarness({ manifest });
 
     harness.ctx.actions.register("inspect", async (params, context) => ({
-      paramsCompanyId: params.companyId,
+      paramsSpaceId: params.spaceId,
       actor: context.actor,
-      companyId: context.companyId,
+      spaceId: context.spaceId,
       contextFrozen: Object.isFrozen(context),
       actorFrozen: Object.isFrozen(context.actor),
     }));
 
     const result = await harness.performAction<{
-      paramsCompanyId: unknown;
+      paramsSpaceId: unknown;
       actor: {
         type: string;
         userId: string | null;
         agentId: string | null;
         runId: string | null;
-        companyId: string | null;
+        spaceId: string | null;
       };
-      companyId: string | null;
+      spaceId: string | null;
       contextFrozen: boolean;
       actorFrozen: boolean;
     }>(
       "inspect",
-      { companyId: "spoofed-company", value: true },
+      { spaceId: "spoofed-space", value: true },
       {
-        companyId: "host-company",
+        spaceId: "host-space",
         actor: {
           type: "user",
           userId: "board-user-1",
@@ -52,14 +52,14 @@ describe("createTestHarness action context", () => {
       },
     );
 
-    expect(result.paramsCompanyId).toBe("host-company");
-    expect(result.companyId).toBe("host-company");
+    expect(result.paramsSpaceId).toBe("host-space");
+    expect(result.spaceId).toBe("host-space");
     expect(result.actor).toEqual({
       type: "user",
       userId: "board-user-1",
       agentId: null,
       runId: "run-1",
-      companyId: "host-company",
+      spaceId: "host-space",
     });
     expect(result.contextFrozen).toBe(true);
     expect(result.actorFrozen).toBe(true);
@@ -88,7 +88,7 @@ describe("createTestHarness managed routines", () => {
       },
     });
 
-    const resolved = await harness.ctx.routines.managed.reconcile("quiet-watcher", "company-1");
+    const resolved = await harness.ctx.routines.managed.reconcile("quiet-watcher", "space-1");
 
     expect(resolved.routine).toMatchObject({
       activityGatePolicy: "require_external_activity",
@@ -100,15 +100,15 @@ describe("createTestHarness managed routines", () => {
 describe("createTestHarness issue interactions", () => {
   it("normalizes a canonical question form through the typed host helper", async () => {
     const harness = createTestHarness({ manifest, capabilities: ["issues.create", "issue.interactions.create"] });
-    const issue = await harness.ctx.issues.create({ companyId: "company-1", title: "Ask for a repository" });
+    const issue = await harness.ctx.issues.create({ spaceId: "space-1", title: "Ask for a repository" });
     const input = {
       idempotencyKey: "canonical:repo",
       payload: { version: 1 as const, questionSet: { schema: "outpost.question_set.v1" as const, questions: [{ id: "repo", prompt: "Repository URL?", required: true, answerMode: "text" as const }] } },
     };
-    const created = await harness.ctx.issues.askUserQuestions(issue.id, input, "company-1");
+    const created = await harness.ctx.issues.askUserQuestions(issue.id, input, "space-1");
     expect(created.payload.questionSet).toEqual(input.payload.questionSet);
-    expect(created.payload.questions).toMatchObject([{ id: "repo", options: [{ id: "paperclip_text_answer", freeText: true }] }]);
-    expect(await harness.ctx.issues.askUserQuestions(issue.id, input, "company-1")).toEqual(created);
+    expect(created.payload.questions).toMatchObject([{ id: "repo", options: [{ id: "outpost_text_answer", freeText: true }] }]);
+    expect(await harness.ctx.issues.askUserQuestions(issue.id, input, "space-1")).toEqual(created);
   });
   it("creates request_checkbox_confirmation interactions through the typed host helper", async () => {
     const harness = createTestHarness({
@@ -116,7 +116,7 @@ describe("createTestHarness issue interactions", () => {
       capabilities: ["issues.create", "issue.interactions.create"],
     });
     const issue = await harness.ctx.issues.create({
-      companyId: "company-1",
+      spaceId: "space-1",
       title: "Pick files",
     });
 
@@ -138,13 +138,13 @@ describe("createTestHarness issue interactions", () => {
         },
         // Omits the fields the schema defaults. The input type allows that.
       },
-      "company-1",
+      "space-1",
       { authorAgentId: "agent-1" },
     );
 
     expect(interaction).toMatchObject({
       issueId: issue.id,
-      companyId: "company-1",
+      spaceId: "space-1",
       kind: "request_checkbox_confirmation",
       status: "pending",
       continuationPolicy: "wake_assignee",

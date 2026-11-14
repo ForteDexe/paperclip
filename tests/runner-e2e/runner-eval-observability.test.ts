@@ -21,7 +21,7 @@ afterEach(async () => {
   vi.unstubAllEnvs();
   for (const root of roots.splice(0)) {
     for (const entry of await readdir(root).catch(() => [])) {
-      if (entry.startsWith(".paperclip-eval-runtime-context-")) await chmod(join(root, entry, "instructions"), 0o700).catch(() => undefined);
+      if (entry.startsWith(".outpost-eval-runtime-context-")) await chmod(join(root, entry, "instructions"), 0o700).catch(() => undefined);
     }
     await rm(root, { recursive: true, force: true });
   }
@@ -54,7 +54,7 @@ async function observabilityFixture(f: Awaited<ReturnType<typeof fixture>>) {
     schema: "outpost.runner-eval.observability/v1", campaignId: f.descriptor.campaignId,
     executionId: f.descriptor.executionId, attemptId: f.request.attemptId, ...identity, baseUrl,
     launch: buildProviderObservabilityLaunch({ kind: f.request.provider === "codex" ? "codex" : "claude",
-      companyId: "company-1", agentId: "actor-1", revision: "revision-1", compatibilityKey: "revision-1", enabled: true,
+      spaceId: "space-1", agentId: "actor-1", revision: "revision-1", compatibilityKey: "revision-1", enabled: true,
       capture: { userPrompts: true, assistantResponses: true, toolDetails: true, toolContent: true },
       logsEndpoint: `${baseUrl}/v1/logs`, tracesEndpoint: `${baseUrl}/v1/traces`,
       headers: { "x-bt-parent": exportBraintrustAttemptParent(identity) },
@@ -78,7 +78,7 @@ it.each([["codex", undefined], ["acpx", "claude"]])("applies the existing %s/%s 
     expect(result.transportOptions.environment.BRAINTRUST_API_KEY).toBeUndefined();
     if (provider === "codex") {
       const raw = await readFile(join(gateway.transportOptions.environment.CODEX_HOME!, "config.toml"), "utf8"), config = parse(raw);
-      expect(config.model_provider).toBe("paperclip_eval");
+      expect(config.model_provider).toBe("outpost_eval");
       expect(config.otel).toEqual(observation.descriptor.launch.otelConfig);
       expect(raw).not.toContain(otlpToken);
       expect((await stat(join(gateway.transportOptions.environment.CODEX_HOME!, "config.toml"))).mode & 0o777).toBe(0o600);
@@ -91,7 +91,7 @@ it.each([["codex", undefined], ["acpx", "claude"]])("applies the existing %s/%s 
   } finally { await gateway.close(); }
 });
 
-it.each(["identity", "endpoint", "parent", "credential", "company", "rawBodies", "modelEnvironment", "extraField", "unknownExporter", "prototypeHeader"])("rejects observability %s drift before changing the gateway home", async fault => {
+it.each(["identity", "endpoint", "parent", "credential", "space", "rawBodies", "modelEnvironment", "extraField", "unknownExporter", "prototypeHeader"])("rejects observability %s drift before changing the gateway home", async fault => {
   const f = await fixture(), observation = await observabilityFixture(f);
   const descriptor = observation.descriptor as unknown as Record<string, any>;
   if (fault === "identity") descriptor.attemptId = "other";
@@ -99,7 +99,7 @@ it.each(["identity", "endpoint", "parent", "credential", "company", "rawBodies",
   if (fault === "parent") descriptor.traceId = "3".repeat(32);
   if (fault === "prototypeHeader") descriptor.launch.environment.OTEL_EXPORTER_OTLP_LOGS_HEADERS += ",__proto__=ignored";
   if (fault === "credential") descriptor.launch.environment.OTEL_EXPORTER_OTLP_LOGS_HEADERS += ",authorization=Bearer%20upstream-secret";
-  if (fault === "company") descriptor.launch.otelConfig.span_attributes["outpost.company.id"] = "other";
+  if (fault === "space") descriptor.launch.otelConfig.span_attributes["outpost.space.id"] = "other";
   if (fault === "rawBodies") descriptor.launch.otelConfig.log_guardian_assessments = true;
   if (fault === "modelEnvironment") descriptor.launch.environment.OPENAI_API_KEY = "upstream-secret";
   if (fault === "extraField") descriptor.extra = "unknown";
@@ -136,9 +136,9 @@ it.each([false, true])("the real CLI redacts native relay credentials and remove
     sessionId: "session-1", revision: 1, providerThreadId: "provider-1", providerSessionId: "provider-1",
     providerModel: { id: f.request.model, provider: "openai" }, status: "idle", activeTurnId: null,
     createdAt: "2026-10-24T00:00:00Z", updatedAt: "2026-10-24T00:00:01Z",
-    authority: { companyId: "company-1", actorId: "actor-1", taskId: "task-1", runId: "run-1", sessionId: "session-1", scenarioId: "gateway-test" },
+    authority: { spaceId: "space-1", actorId: "actor-1", taskId: "task-1", runId: "run-1", sessionId: "session-1", scenarioId: "gateway-test" },
     config: { provider: "codex", driver: "codex_app_server", seedState: state, workingDirectory: f.root, scenario: { id: "gateway-test" }, capabilities: [], explicitClaims: [], turnTimeoutMs: 1000 },
-    mockState: state, process: null, networkEvidence: { realPaperclipRequests: 0, childOutpostEnvironmentKeys: [] },
+    mockState: state, process: null, networkEvidence: { realOutpostRequests: 0, childOutpostEnvironmentKeys: [] },
     transcript: [], evidence: [], authorizationRecords: [], attempts: [], terminalTurns: [{ turnId: "turn-1", status: "completed" }],
     usageLedger: [{ receiptId: "receipt-1", turnId: "turn-1", providerCalls: 1, providerRequests: 1, inputTokens: 100, outputTokens: 10, cachedInputTokens: 0, reasoningTokens: 0, costNanodollars: 0 }], usageUnavailable: [],
   } as unknown as CapabilityLiveSessionSnapshot;

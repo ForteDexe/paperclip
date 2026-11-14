@@ -80,7 +80,7 @@ export type MediaKind = "image" | "video" | "document" | "text" | "file";
 const TEXT_TYPES = new Set(["application/json", "application/xml", "application/markdown"]);
 
 /**
- * The product's rule (server/src/services/company-artifacts.ts,
+ * The product's rule (server/src/services/space-artifacts.ts,
  * `classifyMediaKind`): a task document is a Document; every file goes by its
  * content type — images and video by theirs, text, JSON, XML and Markdown are
  * Text, anything else is a File. So an attached `deck-guide.md` is Text while

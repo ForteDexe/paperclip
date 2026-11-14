@@ -6,12 +6,12 @@ vi.unmock("http");
 vi.unmock("node:http");
 
 const agentId = "11111111-1111-4111-8111-111111111111";
-const companyId = "22222222-2222-4222-8222-222222222222";
+const spaceId = "22222222-2222-4222-8222-222222222222";
 const keyId = "33333333-3333-4333-8333-333333333333";
 
 const baseAgent = {
   id: agentId,
-  companyId,
+  spaceId,
   name: "Builder",
   urlKey: "builder",
   role: "engineer",
@@ -37,7 +37,7 @@ const baseAgent = {
 const baseKey = {
   id: keyId,
   agentId,
-  companyId,
+  spaceId,
   name: "exploit",
   createdAt: new Date("2026-04-11T00:00:00.000Z"),
   revokedAt: null,
@@ -101,7 +101,7 @@ const mockAgentInstructionsService = vi.hoisted(() => ({
   materializeManagedBundle: vi.fn(),
 }));
 
-const mockCompanySkillService = vi.hoisted(() => ({
+const mockSpaceSkillService = vi.hoisted(() => ({
   listRuntimeSkillEntries: vi.fn(),
   resolveRequestedSkillKeys: vi.fn(),
 }));
@@ -127,49 +127,49 @@ vi.mock("../routes/authz.js", async () => {
     }
   }
 
-  function assertBoard(req: Express.Request) {
-    if (req.actor.type !== "board") {
-      throw forbidden("Board access required");
+  function assertOperator(req: Express.Request) {
+    if (req.actor.type !== "operator") {
+      throw forbidden("Operator access required");
     }
   }
 
-  function assertCompanyAccess(req: Express.Request, expectedCompanyId: string) {
+  function assertSpaceAccess(req: Express.Request, expectedSpaceId: string) {
     assertAuthenticated(req);
-    if (req.actor.type === "agent" && req.actor.companyId !== expectedCompanyId) {
-      throw forbidden("Agent key cannot access another company");
+    if (req.actor.type === "agent" && req.actor.spaceId !== expectedSpaceId) {
+      throw forbidden("Agent key cannot access another space");
     }
-    if (req.actor.type === "board" && req.actor.source !== "local_implicit") {
-      const allowedCompanies = req.actor.companyIds ?? [];
-      if (!allowedCompanies.includes(expectedCompanyId)) {
-        throw forbidden("User does not have access to this company");
+    if (req.actor.type === "operator" && req.actor.source !== "local_implicit") {
+      const allowedSpaces = req.actor.spaceIds ?? [];
+      if (!allowedSpaces.includes(expectedSpaceId)) {
+        throw forbidden("User does not have access to this space");
       }
     }
   }
 
-  function hasCompanyAccess(req: Express.Request, expectedCompanyId: string): boolean {
+  function hasSpaceAccess(req: Express.Request, expectedSpaceId: string): boolean {
     if (req.actor.type === "none") return false;
-    if (req.actor.type === "agent") return req.actor.companyId === expectedCompanyId;
+    if (req.actor.type === "agent") return req.actor.spaceId === expectedSpaceId;
     if (req.actor.source === "local_implicit") return true;
-    return (req.actor.companyIds ?? []).includes(expectedCompanyId);
+    return (req.actor.spaceIds ?? []).includes(expectedSpaceId);
   }
 
-  async function getAccessibleResource<T extends { companyId: string }>(
+  async function getAccessibleResource<T extends { spaceId: string }>(
     req: Express.Request,
     res: { status(code: number): { json(body: unknown): unknown } },
     resource: T | null | undefined | Promise<T | null | undefined>,
     notFoundMessage: string,
   ): Promise<T | null> {
     const resolved = await resource;
-    if (!resolved || !hasCompanyAccess(req, resolved.companyId)) {
+    if (!resolved || !hasSpaceAccess(req, resolved.spaceId)) {
       res.status(404).json({ error: notFoundMessage });
       return null;
     }
-    assertCompanyAccess(req, resolved.companyId);
+    assertSpaceAccess(req, resolved.spaceId);
     return resolved;
   }
 
   function assertInstanceAdmin(req: Express.Request) {
-    assertBoard(req);
+    assertOperator(req);
     if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return;
     throw forbidden("Instance admin access required");
   }
@@ -187,7 +187,7 @@ vi.mock("../routes/authz.js", async () => {
     }
     return {
       actorType: "user" as const,
-      actorId: req.actor.userId ?? "board",
+      actorId: req.actor.userId ?? "operator",
       agentId: null,
       runId: req.actor.runId ?? null,
       agentApiKeyId: null,
@@ -196,12 +196,12 @@ vi.mock("../routes/authz.js", async () => {
 
   return {
     assertAuthenticated,
-    assertBoard,
-    assertCompanyAccess,
+    assertOperator,
+    assertSpaceAccess,
     assertInstanceAdmin,
     getAccessibleResource,
     getActorInfo,
-    hasCompanyAccess,
+    hasSpaceAccess,
   };
 });
 
@@ -210,8 +210,8 @@ vi.mock("../services/index.js", () => ({
   agentInstructionsService: () => mockAgentInstructionsService,
   accessService: () => mockAccessService,
   approvalService: () => mockApprovalService,
-  builtInAgentService: () => ({ ensureCompanyDefaultAgentGrants: vi.fn() }),
-  companySkillService: () => mockCompanySkillService,
+  builtInAgentService: () => ({ ensureSpaceDefaultAgentGrants: vi.fn() }),
+  spaceSkillService: () => mockSpaceSkillService,
   budgetService: () => mockBudgetService,
   heartbeatService: () => mockHeartbeatService,
   issueApprovalService: () => mockIssueApprovalService,
@@ -250,7 +250,7 @@ async function createApp(actor: Record<string, unknown>) {
   app.use((req, _res, next) => {
     (req as any).actor = {
       ...actor,
-      companyIds: Array.isArray(actor.companyIds) ? [...actor.companyIds] : actor.companyIds,
+      spaceIds: Array.isArray(actor.spaceIds) ? [...actor.spaceIds] : actor.spaceIds,
     };
     next();
   });
@@ -297,7 +297,7 @@ function resetMockDefaults() {
   for (const mock of Object.values(mockIssueService)) mock.mockReset();
   for (const mock of Object.values(mockSecretService)) mock.mockReset();
   for (const mock of Object.values(mockAgentInstructionsService)) mock.mockReset();
-  for (const mock of Object.values(mockCompanySkillService)) mock.mockReset();
+  for (const mock of Object.values(mockSpaceSkillService)) mock.mockReset();
   mockLogActivity.mockReset();
   mockGetTelemetryClient.mockReset();
   mockGetTelemetryClient.mockReturnValue({ track: vi.fn() });
@@ -327,7 +327,7 @@ function resetMockDefaults() {
   }));
   mockAccessService.canUser.mockImplementation(async () => currentAccessCanUser);
   mockAccessService.decide.mockImplementation(async (input: { actor?: { type?: string; source?: string }; action?: string }) => {
-    const allowed = input.actor?.type === "board" && input.actor.source === "local_implicit"
+    const allowed = input.actor?.type === "operator" && input.actor.source === "local_implicit"
       ? true
       : currentAccessCanUser;
     return {
@@ -351,11 +351,11 @@ describe("agent cross-tenant route authorization", () => {
     resetMockDefaults();
   });
 
-  it("enforces company boundaries before mutating or reading agent keys", async () => {
+  it("enforces space boundaries before mutating or reading agent keys", async () => {
     const crossTenantActor = {
-      type: "board",
+      type: "operator",
       userId: "mallory",
-      companyIds: [],
+      spaceIds: [],
       source: "session",
       isInstanceAdmin: false,
     };
@@ -416,9 +416,9 @@ describe("agent cross-tenant route authorization", () => {
     currentAccessCanUser = true;
 
     const app = await createApp({
-      type: "board",
-      userId: "board-user",
-      companyIds: [companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -431,11 +431,11 @@ describe("agent cross-tenant route authorization", () => {
     expect(mockAgentService.revokeKey).not.toHaveBeenCalled();
   }, 30_000);
 
-  it("requires board access before clearing an agent error", async () => {
+  it("requires operator access before clearing an agent error", async () => {
     const app = await createApp({
       type: "agent",
       agentId,
-      companyId,
+      spaceId,
       runId: "run-1",
     });
 
@@ -444,11 +444,11 @@ describe("agent cross-tenant route authorization", () => {
     );
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("Board access required");
+    expect(res.body.error).toContain("Operator access required");
     expect(mockAgentService.clearError).not.toHaveBeenCalled();
   });
 
-  it("preserves board resume access", async () => {
+  it("preserves operator resume access", async () => {
     const pausedAgent = { ...baseAgent, status: "paused", pauseReason: "manual", pausedAt: new Date() };
     mockAgentService.getById.mockResolvedValue(pausedAgent);
     mockAgentService.resume.mockResolvedValue({
@@ -458,9 +458,9 @@ describe("agent cross-tenant route authorization", () => {
       pausedAt: null,
     });
     const app = await createApp({
-      type: "board",
-      userId: "board-user",
-      companyIds: [companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [spaceId],
       source: "local_implicit",
       isInstanceAdmin: true,
     });
@@ -472,9 +472,9 @@ describe("agent cross-tenant route authorization", () => {
     expect(res.status).toBe(200);
     expect(mockAgentService.resume).toHaveBeenCalledWith(agentId);
     expect(mockLogActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      companyId,
+      spaceId,
       actorType: "user",
-      actorId: "board-user",
+      actorId: "operator-user",
       agentId: null,
       runId: null,
       agentApiKeyId: null,
@@ -484,7 +484,7 @@ describe("agent cross-tenant route authorization", () => {
     }));
   });
 
-  it("allows a same-company agent with a direct agents:configure grant to resume", async () => {
+  it("allows a same-space agent with a direct agents:configure grant to resume", async () => {
     mockAccessService.decide.mockResolvedValue({
       allowed: true,
       action: "agent_config:update",
@@ -495,7 +495,7 @@ describe("agent cross-tenant route authorization", () => {
     const app = await createApp({
       type: "agent",
       agentId: "44444444-4444-4444-8444-444444444444",
-      companyId,
+      spaceId,
       runId: "55555555-5555-4555-8555-555555555555",
       keyId: "66666666-6666-4666-8666-666666666666",
       source: "agent_key",
@@ -508,7 +508,7 @@ describe("agent cross-tenant route authorization", () => {
     expect(res.status).toBe(200);
     expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
       action: "agent_config:update",
-      resource: { type: "agent", companyId, agentId },
+      resource: { type: "agent", spaceId, agentId },
       scope: { requiresChangeGrant: true },
     }));
     expect(mockAgentService.resume).toHaveBeenCalledWith(agentId);
@@ -527,7 +527,7 @@ describe("agent cross-tenant route authorization", () => {
     const app = await createApp({
       type: "agent",
       agentId: actorAgentId,
-      companyId,
+      spaceId,
       runId: "55555555-5555-4555-8555-555555555555",
       source: "agent_key",
     });
@@ -556,7 +556,7 @@ describe("agent cross-tenant route authorization", () => {
     const app = await createApp({
       type: "agent",
       agentId: "44444444-4444-4444-8444-444444444444",
-      companyId,
+      spaceId,
       runId: "55555555-5555-4555-8555-555555555555",
       source: "agent_key",
     });
@@ -570,11 +570,11 @@ describe("agent cross-tenant route authorization", () => {
     expect(mockAgentService.resume).not.toHaveBeenCalled();
   });
 
-  it("does not disclose a cross-company resume target", async () => {
+  it("does not disclose a cross-space resume target", async () => {
     const app = await createApp({
       type: "agent",
       agentId: "44444444-4444-4444-8444-444444444444",
-      companyId: "77777777-7777-4777-8777-777777777777",
+      spaceId: "77777777-7777-4777-8777-777777777777",
       runId: "55555555-5555-4555-8555-555555555555",
       source: "agent_key",
     });
@@ -609,7 +609,7 @@ describe("agent cross-tenant route authorization", () => {
     const app = await createApp({
       type: "agent",
       agentId: "44444444-4444-4444-8444-444444444444",
-      companyId,
+      spaceId,
       runId: "55555555-5555-4555-8555-555555555555",
       source: "agent_key",
     });
@@ -638,7 +638,7 @@ describe("agent cross-tenant route authorization", () => {
     const app = await createApp({
       type: "agent",
       agentId: actorAgentId,
-      companyId,
+      spaceId,
       runId,
       keyId: actorKeyId,
       source: "agent_key",
@@ -650,7 +650,7 @@ describe("agent cross-tenant route authorization", () => {
 
     expect(res.status).toBe(200);
     expect(mockLogActivity).toHaveBeenCalledWith(expect.anything(), {
-      companyId,
+      spaceId,
       actorType: "agent",
       actorId: actorAgentId,
       agentId: actorAgentId,
@@ -678,9 +678,9 @@ describe("agent cross-tenant route authorization", () => {
       updatedAt: new Date("2026-04-11T00:03:00.000Z"),
     }));
     const app = await createApp({
-      type: "board",
-      userId: "board-user",
-      companyIds: [companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [spaceId],
       source: "local_implicit",
       isInstanceAdmin: true,
     });
@@ -698,9 +698,9 @@ describe("agent cross-tenant route authorization", () => {
     });
     expect(mockAgentService.clearError).toHaveBeenCalledWith(agentId);
     expect(mockLogActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      companyId,
+      spaceId,
       actorType: "user",
-      actorId: "board-user",
+      actorId: "operator-user",
       action: "agent.error_cleared",
       entityType: "agent",
       entityId: agentId,
@@ -718,9 +718,9 @@ describe("agent cross-tenant route authorization", () => {
       },
     }));
     const app = await createApp({
-      type: "board",
-      userId: "board-user",
-      companyIds: [companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [spaceId],
       source: "local_implicit",
       isInstanceAdmin: true,
     });
@@ -742,9 +742,9 @@ describe("agent cross-tenant route authorization", () => {
       throw conflict("Only agents in error status can have their error cleared");
     });
     const app = await createApp({
-      type: "board",
-      userId: "board-user",
-      companyIds: [companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [spaceId],
       source: "local_implicit",
       isInstanceAdmin: true,
     });
@@ -762,7 +762,7 @@ describe("agent cross-tenant route authorization", () => {
 vi.mock("../services/agent-lifecycle.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/agent-lifecycle.js")>();
   return { ...actual, createAgentLifecycle: () => ({
-    requestHire: (...args: unknown[]) => mockAgentService.create(...args),
+    requestCreation: (...args: unknown[]) => mockAgentService.create(...args),
     retry: (...args: unknown[]) => mockAgentService.retryLifecycle(...args),
     pauseAgent: (...args: unknown[]) => mockAgentService.pause(...args),
     resumeAgent: (...args: unknown[]) => mockAgentService.resume(...args),
@@ -774,22 +774,22 @@ vi.mock("../services/agent-lifecycle.js", async (importOriginal) => {
 describe("agent lifecycle retry authorization", () => {
   beforeEach(resetMockDefaults);
 
-  it("retries and audits a board-authorized agent in its company", async () => {
-    const app = await createApp({ type: "board", userId: "board", source: "local_implicit" });
+  it("retries and audits a operator-authorized agent in its space", async () => {
+    const app = await createApp({ type: "operator", userId: "operator", source: "local_implicit" });
     const res = await requestApp(app, base => request(base).post(`/api/agents/${agentId}/lifecycle/retry`).send({}));
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: agentId, lifecycleState: "preparing", lifecycleError: null });
     expect(mockAgentService.retryLifecycle).toHaveBeenCalledWith(agentId);
     expect(mockLogActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      companyId, entityId: agentId, action: "agent.lifecycle_retried", actorType: "user", actorId: "board",
+      spaceId, entityId: agentId, action: "agent.lifecycle_retried", actorType: "user", actorId: "operator",
     }));
   });
 
   it.each([
     [{ type: "none" }, 403],
-    [{ type: "agent", agentId, companyId }, 403],
-    [{ type: "board", userId: "outsider", source: "session", companyIds: ["other-company"] }, 404],
-    [{ type: "board", userId: "reader", source: "session", companyIds: [companyId] }, 403],
+    [{ type: "agent", agentId, spaceId }, 403],
+    [{ type: "operator", userId: "outsider", source: "session", spaceIds: ["other-space"] }, 404],
+    [{ type: "operator", userId: "reader", source: "session", spaceIds: [spaceId] }, 403],
   ])("refuses retry for %j", async (actor, status) => {
     const app = await createApp(actor);
     const res = await requestApp(app, base => request(base).post(`/api/agents/${agentId}/lifecycle/retry`).send({}));

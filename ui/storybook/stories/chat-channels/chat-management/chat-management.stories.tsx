@@ -7,25 +7,25 @@ import { queryKeys } from "@/lib/queryKeys";
 import { Layout } from "@/components/Layout";
 import { PluginLauncherProvider } from "@/plugins/launchers";
 import { ChatEndpointDetail } from "@/pages/apps/chat/ChatEndpointDetail";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import type { ChatEndpoint, ChatEndpointResource, ChatIdentityLink } from "@/api/chatEndpoints";
 import userAvatar from "../../../prototypes/slack-avatar/ceo-cliptoon.png";
-import { storybookAgents, storybookExecutionWorkspaces } from "../../../fixtures/paperclipData";
+import { storybookAgents, storybookExecutionWorkspaces } from "../../../fixtures/outpostData";
 
 type Scenario = "populated" | "empty" | "error" | "channel-added" | "unlinked" | "invitation-expired";
 function ChatManagementPage({ tab = "settings", scenario = "populated" }: { tab?: string; scenario?: Scenario }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { setSelectedCompanyId } = useCompany();
+  const { setSelectedSpaceId } = useSpace();
   const initialTab = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const previous = window.fetch;
     const agent = { ...storybookAgents[0], name: "Arlo" };
     let endpoint: ChatEndpoint = {
-      id: "chat-management", companyId: "company-storybook", provider: "slack", status: "active",
+      id: "chat-management", spaceId: "space-storybook", provider: "slack", status: "active",
       assignedAgentId: agent.id, assignedAgentName: agent.name, providerAccountId: "TSTORY",
-      providerAccountLabel: "Paperclip", botExternalId: "UARLO", botLabel: "Arlo", botUsername: "arlo-paperclip",
+      providerAccountLabel: "Outpost", botExternalId: "UARLO", botLabel: "Arlo", botUsername: "arlo-outpost",
       allowUnlinkedPeople: false, allowDirectMessages: true,
       setup: { step: "complete", slackRegistration: { status: "configured", appId: "ASTORY" }, slackApp: { appName: "Arlo", botName: "Arlo", command: "/arlo" } },
     };
@@ -34,8 +34,8 @@ function ChatManagementPage({ tab = "settings", scenario = "populated" }: { tab?
       { id: "general", type: "channel", providerResourceId: "CGENERAL", label: "#general", availability: "available", enabled: false },
     ];
     let principals: ChatIdentityLink[] = scenario === "empty" ? [] : [
-      { id: "ada", principalId: "ada", externalLabel: "@ada", paperclipUserLabel: "Ada Lovelace", paperclipUserId: "ada", paperclipUserImage: userAvatar, status: "linked" },
-      { id: "alan", principalId: "alan", externalLabel: "@alan", paperclipUserLabel: "Alan Turing", paperclipUserImage: null, status: "linked" },
+      { id: "ada", principalId: "ada", externalLabel: "@ada", outpostUserLabel: "Ada Lovelace", outpostUserId: "ada", outpostUserImage: userAvatar, status: "linked" },
+      { id: "alan", principalId: "alan", externalLabel: "@alan", outpostUserLabel: "Alan Turing", outpostUserImage: null, status: "linked" },
       { id: "grace", principalId: "grace", externalLabel: "Grace Hopper", status: "pending" },
     ];
     let resourceReads = 0;
@@ -46,8 +46,8 @@ function ChatManagementPage({ tab = "settings", scenario = "populated" }: { tab?
       const path = url.pathname;
       const json = (data: unknown) => Response.json(data);
       if (path === `/api/agents/${agent.id}`) return json(agent);
-      if (path === "/api/companies/company-storybook/agents") return json([agent, ...storybookAgents.slice(1)]);
-      if (path === "/api/companies/company-storybook/execution-workspaces" && url.searchParams.get("selectableForTask") === "true") {
+      if (path === "/api/spaces/space-storybook/agents") return json([agent, ...storybookAgents.slice(1)]);
+      if (path === "/api/spaces/space-storybook/execution-workspaces" && url.searchParams.get("selectableForTask") === "true") {
         return json(storybookExecutionWorkspaces.filter(workspace =>
           workspace.closedAt == null && ["active", "idle"].includes(workspace.status)));
       }
@@ -55,7 +55,7 @@ function ChatManagementPage({ tab = "settings", scenario = "populated" }: { tab?
         if (init?.method === "PATCH") endpoint = { ...endpoint, ...JSON.parse(String(init.body)) };
         return json(endpoint);
       }
-      if (path.startsWith("/api/companies/company-storybook/slack/endpoints/chat-management/")) {
+      if (path.startsWith("/api/spaces/space-storybook/slack/endpoints/chat-management/")) {
         return json(path.endsWith("capabilities") ? { missingScopes: [], tools: [] } : { configured: true, connected: false, canConfigure: false, nativeSearchAvailable: true });
       }
       const route = path.replace("/api/chat-endpoints/chat-management/", "");
@@ -84,7 +84,7 @@ function ChatManagementPage({ tab = "settings", scenario = "populated" }: { tab?
       }
       if (route.endsWith("/link-intent")) return json({ confirmationUrl: "https://example.test/chat-identity/confirm?token=storybook-only" });
       if (route.endsWith("/link") && init?.method === "DELETE") {
-        principals = principals.map(person => route.includes(person.id) ? { ...person, status: "revoked", paperclipUserId: null } : person);
+        principals = principals.map(person => route.includes(person.id) ? { ...person, status: "revoked", outpostUserId: null } : person);
         return json({ ok: true });
       }
       if (route === "conversations") return json(scenario === "empty" ? [] : [
@@ -94,18 +94,18 @@ function ChatManagementPage({ tab = "settings", scenario = "populated" }: { tab?
       return previous(input, init);
     };
     queryClient.removeQueries({ queryKey: ["chat-endpoints"] });
-    setSelectedCompanyId("company-storybook");
+    setSelectedSpaceId("space-storybook");
     queryClient.setQueryData(queryKeys.chatEndpoints.detail(endpoint.id), endpoint);
     setReady(true);
     return () => { window.fetch = previous; };
-  }, [scenario, queryClient, setSelectedCompanyId]);
+  }, [scenario, queryClient, setSelectedSpaceId]);
   useEffect(() => {
     if (initialTab.current === tab) return;
     initialTab.current = tab;
     navigate(`/PAP/apps/chat/chat-management/${tab}`, { replace: true });
   }, [tab, navigate]);
   if (!ready) return null;
-  return <PluginLauncherProvider><Routes><Route path="/:companyPrefix" element={<Layout />}>
+  return <PluginLauncherProvider><Routes><Route path="/:spacePrefix" element={<Layout />}>
     <Route path="apps/chat/:endpointId/:tab" element={<ChatEndpointDetail />} />
   </Route></Routes></PluginLauncherProvider>;
 }
@@ -115,7 +115,7 @@ const meta = {
   title: "Apps, channels, and extensions/External chat and email/Connections/Chat management",
   component: ChatManagementPage,
   parameters: { layout: "fullscreen", a11y: { test: "off" },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "chat-channels/lifecycle",
         "chat-channels/identity",

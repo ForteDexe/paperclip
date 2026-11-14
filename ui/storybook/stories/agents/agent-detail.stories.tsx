@@ -9,11 +9,11 @@ import type {
   HeartbeatRun,
 } from "@outpost/shared";
 import { AgentDetail } from "@/pages/AgentDetail";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { queryKeys } from "@/lib/queryKeys";
-import { storybookAgentMap, storybookAgents, storybookIssues } from "../../fixtures/paperclipData";
+import { storybookAgentMap, storybookAgents, storybookIssues } from "../../fixtures/outpostData";
 
-const COMPANY_ID = "company-storybook";
+const SPACE_ID = "space-storybook";
 const AGENT_ID = "agent-codex";
 const AGENT_ROUTE_REF = "codexcoder"; // the agent fixture's urlKey
 
@@ -23,7 +23,7 @@ const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000);
 const agentDetailFixture: AgentDetailRecord = {
   ...storybookAgentMap.get(AGENT_ID)!,
   chainOfCommand: [
-    { id: "agent-cto", name: "CTO", role: "cto", title: "CTO" },
+    { id: "agent-cto", name: "CTO", role: "engineering_lead", title: "CTO" },
     { id: AGENT_ID, name: "CodexCoder", role: "engineer", title: "Senior Product Engineer" },
   ],
   access: {
@@ -36,7 +36,7 @@ const agentDetailFixture: AgentDetailRecord = {
 
 const runtimeStateFixture: AgentRuntimeState = {
   agentId: AGENT_ID,
-  companyId: COMPANY_ID,
+  spaceId: SPACE_ID,
   adapterType: "codex_local",
   sessionId: "session-storybook",
   sessionDisplayId: "codex-session-7f2a",
@@ -56,7 +56,7 @@ const runtimeStateFixture: AgentRuntimeState = {
 function heartbeatRun(overrides: Partial<HeartbeatRun>): HeartbeatRun {
   return {
     id: "run-agent-detail-1",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     agentId: AGENT_ID,
     invocationSource: "timer",
     triggerDetail: null,
@@ -121,7 +121,7 @@ const heartbeatRunsFixture: HeartbeatRun[] = [
 ];
 
 const budgetOverviewFixture: BudgetOverview = {
-  companyId: COMPANY_ID,
+  spaceId: SPACE_ID,
   policies: [],
   activeIncidents: [],
   pausedAgentCount: 0,
@@ -129,33 +129,33 @@ const budgetOverviewFixture: BudgetOverview = {
   pendingApprovalCount: 0,
 };
 
-const sharedCompanyUserDirectoryFixture = {
+const sharedSpaceUserDirectoryFixture = {
   users: [
-    { principalId: "local-board", status: "active", user: { id: "local-board", email: null, name: "Board", image: null } },
+    { principalId: "local-operator", status: "active", user: { id: "local-operator", email: null, name: "Board", image: null } },
     { principalId: "user-alice", status: "active", user: { id: "user-alice", email: "alice@example.com", name: "Alice Admin", image: null } },
     { principalId: "user-bob", status: "active", user: { id: "user-bob", email: "bob@example.com", name: "Bob Builder", image: null } },
   ],
 };
 
-type AgentDetailScenarioOptions = { sharedCompany?: boolean };
+type AgentDetailScenarioOptions = { sharedSpace?: boolean };
 
-function seedAgentDetailData(queryClient: QueryClient, { sharedCompany = false }: AgentDetailScenarioOptions = {}) {
+function seedAgentDetailData(queryClient: QueryClient, { sharedSpace = false }: AgentDetailScenarioOptions = {}) {
   queryClient.setQueryData(
-    [...queryKeys.agents.detail(AGENT_ROUTE_REF), COMPANY_ID],
-    sharedCompany ? { ...agentDetailFixture, createdByUserId: "user-alice" } : agentDetailFixture,
+    [...queryKeys.agents.detail(AGENT_ROUTE_REF), SPACE_ID],
+    sharedSpace ? { ...agentDetailFixture, createdByUserId: "user-alice" } : agentDetailFixture,
   );
-  if (sharedCompany) {
-    queryClient.setQueryData(queryKeys.access.companyUserDirectory(COMPANY_ID), sharedCompanyUserDirectoryFixture);
+  if (sharedSpace) {
+    queryClient.setQueryData(queryKeys.access.spaceUserDirectory(SPACE_ID), sharedSpaceUserDirectoryFixture);
   }
   queryClient.setQueryData(queryKeys.agents.runtimeState(AGENT_ID), runtimeStateFixture);
-  queryClient.setQueryData(queryKeys.heartbeats(COMPANY_ID, AGENT_ID), heartbeatRunsFixture);
+  queryClient.setQueryData(queryKeys.heartbeats(SPACE_ID, AGENT_ID), heartbeatRunsFixture);
   queryClient.setQueryData(
-    [...queryKeys.issues.list(COMPANY_ID), "participant-agent", AGENT_ID],
+    [...queryKeys.issues.list(SPACE_ID), "participant-agent", AGENT_ID],
     storybookIssues.slice(0, 4),
   );
-  queryClient.setQueryData(queryKeys.agents.list(COMPANY_ID), storybookAgents);
-  queryClient.setQueryData(queryKeys.budgets.overview(COMPANY_ID), budgetOverviewFixture);
-  queryClient.setQueryData(queryKeys.resourceMemberships.mine(COMPANY_ID), {
+  queryClient.setQueryData(queryKeys.agents.list(SPACE_ID), storybookAgents);
+  queryClient.setQueryData(queryKeys.budgets.overview(SPACE_ID), budgetOverviewFixture);
+  queryClient.setQueryData(queryKeys.resourceMemberships.mine(SPACE_ID), {
     projectMemberships: {},
     agentMemberships: {},
     starredProjects: [],
@@ -172,7 +172,7 @@ function AgentDetailScenario(options: AgentDetailScenarioOptions) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
-  const { selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { selectedSpaceId, setSelectedSpaceId } = useSpace();
   // Seed synchronously before the page's queries mount (staleTime: Infinity
   // in the preview QueryClient keeps these fixtures authoritative).
   useState(() => {
@@ -181,8 +181,8 @@ function AgentDetailScenario(options: AgentDetailScenarioOptions) {
   });
 
   useEffect(() => {
-    if (selectedCompanyId !== COMPANY_ID) setSelectedCompanyId(COMPANY_ID);
-  }, [selectedCompanyId, setSelectedCompanyId]);
+    if (selectedSpaceId !== SPACE_ID) setSelectedSpaceId(SPACE_ID);
+  }, [selectedSpaceId, setSelectedSpaceId]);
 
   const target = `/PAP/agents/${AGENT_ROUTE_REF}`;
   const onAgentRoute = location.pathname.startsWith(target);
@@ -192,11 +192,11 @@ function AgentDetailScenario(options: AgentDetailScenarioOptions) {
     if (!onAgentRoute) navigate(target, { replace: true });
   }, [onAgentRoute, navigate, target]);
 
-  if (selectedCompanyId !== COMPANY_ID || !onAgentRoute) return null;
+  if (selectedSpaceId !== SPACE_ID || !onAgentRoute) return null;
 
   return (
     <Routes>
-      <Route path="/:companyPrefix/agents/:agentId/:tab?" element={<AgentDetail />} />
+      <Route path="/:spacePrefix/agents/:agentId/:tab?" element={<AgentDetail />} />
       <Route path="*" element={null} />
     </Routes>
   );
@@ -206,7 +206,7 @@ const meta: Meta = {
   id: "pages-agent-detail",
   title: "Agents and reusable capabilities/Hiring, configuration, and organization/Pages/Agent Detail",
   parameters: { layout: "fullscreen", a11y: { test: "off" },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "agents/lifecycle",
         "agents/instructions"
@@ -223,6 +223,6 @@ export const Dashboard: Story = {
   render: () => <AgentDetailScenario />,
 };
 
-export const SharedCompanyShowsCreator: Story = {
-  render: () => <AgentDetailScenario sharedCompany />,
+export const SharedSpaceShowsCreator: Story = {
+  render: () => <AgentDetailScenario sharedSpace />,
 };

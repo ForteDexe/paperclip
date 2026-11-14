@@ -45,7 +45,7 @@ pub use journal::{enable_journal, reap_journals, ReapReport, REAP_REPORT_SCHEMA}
 /// Code's Bash wrapper sources a shell snapshot first and lives far longer.
 const SAMPLE_INTERVAL: Duration = Duration::from_millis(50);
 
-pub(crate) use paperclip_process_table::ProcessEntry;
+pub(crate) use outpost_process_table::ProcessEntry;
 
 /// One read of the process table. Session IDs are read only on demand.
 pub(crate) trait ProcessTable {
@@ -60,7 +60,7 @@ pub(crate) trait ProcessTable {
 }
 
 struct LiveProcessTable {
-    snapshot: paperclip_process_table::Snapshot,
+    snapshot: outpost_process_table::Snapshot,
 }
 
 impl ProcessTable for LiveProcessTable {
@@ -76,7 +76,7 @@ impl ProcessTable for LiveProcessTable {
         // Not rustix's getsid: it asserts a nonzero session, and a kernel
         // thread or a process whose session leader is outside this PID
         // namespace reports 0. That assertion killed the sampler thread.
-        paperclip_process_table::session(pid)
+        outpost_process_table::session(pid)
     }
 }
 
@@ -242,7 +242,7 @@ impl LineageState {
 }
 
 fn read_process_table() -> Option<LiveProcessTable> {
-    paperclip_process_table::list().map(|snapshot| LiveProcessTable { snapshot })
+    outpost_process_table::list().map(|snapshot| LiveProcessTable { snapshot })
 }
 
 /// Reads the table while holding the state, so reads are applied in the
@@ -287,7 +287,7 @@ impl LineageTracker {
             .map_err(|_| format!("process ID {root_pid} is out of range"))?;
         // One read of the new process names the root by start time before
         // any tool can run. It reads one process, not the whole table.
-        let initial = match paperclip_process_table::read(root_pid).entry() {
+        let initial = match outpost_process_table::read(root_pid).entry() {
             Some(root) if !root.zombie => LineageState::with_known_root(root),
             _ => LineageState::new(root_pid),
         };
@@ -402,7 +402,7 @@ impl Drop for LineageTracker {
 /// process. The re-check and the signal are not atomic, but a PID is not
 /// reused within the few microseconds between them in practice.
 fn signal_member(entry: &ProcessEntry, signal: rustix::process::Signal) {
-    let Some(current) = paperclip_process_table::read(entry.pid).entry() else {
+    let Some(current) = outpost_process_table::read(entry.pid).entry() else {
         return;
     };
     if current.started != entry.started || current.zombie {
@@ -491,7 +491,7 @@ pub(crate) mod host_orphans {
     /// signal takes effect after `kill` returns, not before.
     pub(crate) fn wait_until_group_gone(pgid: i32) {
         let deadline = Instant::now() + Duration::from_secs(10);
-        while paperclip_process_table::list().is_none_or(|table| {
+        while outpost_process_table::list().is_none_or(|table| {
             table
                 .entries
                 .iter()

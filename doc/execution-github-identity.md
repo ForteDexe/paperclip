@@ -31,7 +31,7 @@ or log excerpts. It keeps the existing task/run lock order and accepted-identity
 reconciliation. Other identity callers retain their complete execution input,
 including the native input required by project creation authorization.
 
-Native runners retain a session-owned broker and launcher path across warm turns. The provider keeps an opaque transport token, not a GitHub credential or the previous run's signed capability. After acquiring exclusive session ownership, the controller binds the broker to the current company, agent, task, and run. Requests cannot choose another run or responsible person. The broker rejects requests while idle and discards credential responses if their run binding changed during acquisition. Each operation still rechecks the live run, accepted identity, grants, and trust policy through the shared credential resolver. Changing run IDs alone no longer replaces the provider process; changes to authentication mode, provider credentials, permissions, or other session configuration retain their existing retirement rules.
+Native runners retain a session-owned broker and launcher path across warm turns. The provider keeps an opaque transport token, not a GitHub credential or the previous run's signed capability. After acquiring exclusive session ownership, the controller binds the broker to the current space, agent, task, and run. Requests cannot choose another run or responsible person. The broker rejects requests while idle and discards credential responses if their run binding changed during acquisition. Each operation still rechecks the live run, accepted identity, grants, and trust policy through the shared credential resolver. Changing run IDs alone no longer replaces the provider process; changes to authentication mode, provider credentials, permissions, or other session configuration retain their existing retirement rules.
 
 The session broker listens only on controller loopback and accepts only its authenticated GitHub credential operation. Remote executions reach it through the existing authenticated callback bridge. Its transport and launchers are retired with the provider session. If remote bridge startup fails, anonymous launchers keep ordinary work available; the next run retries setup with a fresh session. Controller restart/cold recovery still uses the existing checkpoint and process-recovery rules; the broker's in-memory authority is not persisted for adoption.
 
@@ -46,7 +46,7 @@ permit reuse. Normal session cleanup closes the channel as an orderly completion
 This selection changes transport only; operation-time credential checks remain
 the same. Local and SSH execution retain their existing transport.
 
-Other adapters continue using the run-scoped signed capability and public broker endpoint. That endpoint rejects browser origins and session cookies, validates a distinct signed runtime scope, and rechecks the company, agent, and live run. GitHub credentials are returned only to the managed command process, never persisted in identity history or injected into the long-lived provider process.
+Other adapters continue using the run-scoped signed capability and public broker endpoint. That endpoint rejects browser origins and session cookies, validates a distinct signed runtime scope, and rechecks the space, agent, and live run. GitHub credentials are returned only to the managed command process, never persisted in identity history or injected into the long-lived provider process.
 
 Low-trust executions cannot receive raw GitHub credentials, including dedicated
 agent tokens. The broker rechecks current agent, project, task, and retained run
@@ -56,7 +56,7 @@ Read-only access must use separately authorized tools that enforce that boundary
 
 Server-side Git operations and GitHub gateway calls follow the same selection rules. Approved gateway operations retain their signed originating identity. Connection audience and tool policies continue to apply to the selected person's connection. Native catalogs remain stable across identity changes, but each invocation resolves the selected grant again. Personal OAuth secret declarations survive connection pauses and metadata edits.
 
-Managed commands disable ambient Git credential helpers, Git global/system configuration, host GitHub CLI configuration, and host SSH identity access. Per-operation GitHub CLI configuration is isolated in a writable configuration directory beneath the managed launcher directory. Missing credentials clear previous author and token values; no teammate, standing delegation, host token, or company-default user's account is substituted. Anonymous/local operations remain available where supported.
+Managed commands disable ambient Git credential helpers, Git global/system configuration, host GitHub CLI configuration, and host SSH identity access. Per-operation GitHub CLI configuration is isolated in a writable configuration directory beneath the managed launcher directory. Missing credentials clear previous author and token values; no teammate, standing delegation, host token, or space-default user's account is substituted. Anonymous/local operations remain available where supported.
 
 OpenCode retains the controller-projected GitHub broker environment through
 runner startup and provider startup. Shell operations acquire credentials for
@@ -79,7 +79,7 @@ to receive the repaired launch environment; reconnecting the GitHub account
 does not repair a process that already started without the transport.
 
 Without a managed identity, local commits default to
-`Paperclip <noreply@outpost.ing>`. The launcher writes this token-free default
+`Outpost <noreply@outpost.ing>`. The launcher writes this token-free default
 to a private per-operation global Git configuration file, removed on exit.
 Repository identity and `git -c user.name=... -c user.email=...` override it.
 The launcher leaves author/committer environment variables unset instead of
@@ -94,7 +94,7 @@ need to unset them per command. A captured managed identity still takes
 precedence over repository configuration.
 
 Remote launchers prepend their directory to the execution target's effective
-`PATH`. An explicit remote `PATH` override is preserved; otherwise Paperclip
+`PATH`. An explicit remote `PATH` override is preserved; otherwise Outpost
 reads the provider's environment before staging the launcher shell files.
 This keeps legacy NVM and user-local agent installations available alongside
 newer images with system-wide CLIs. The generated shell files retain that
@@ -119,7 +119,7 @@ Scripts that previously read a persistent `GH_TOKEN` must use managed `git`, `gh
 
 When no managed GitHub connection is installed for an agent, standard-trust
 local and SSH executions retain that execution host's existing Git and GitHub
-CLI credentials, configuration, credential helpers, and SSH agent. Paperclip
+CLI credentials, configuration, credential helpers, and SSH agent. Outpost
 does not import controller credentials into an SSH target. Sandbox, plugin,
 and low-trust executions do not receive this compatibility fallback. Once a
 managed connection is configured, unavailable or revoked access never falls
@@ -175,7 +175,7 @@ Run details show identity revisions and redacted GitHub results: responsible per
 
 Deploy the schema, server broker, launcher staging, and runtime environment contract together. Already-running processes retain their original environment; only newly dispatched processes receive the broker contract. Run-scoped capabilities remain valid only while their bound run is active.
 
-Focused coverage lives in `run-identity.test.ts`, `github-operation-credentials.test.ts`, and `github-launcher.test.ts`, alongside the native steering, gateway, routine, and callback-bridge suites. Live acceptance additionally requires two authenticated Paperclip users, two authorized GitHub accounts, and a designated disposable repository for push verification. Local commit metadata and mocked API results do not replace that live push test.
+Focused coverage lives in `run-identity.test.ts`, `github-operation-credentials.test.ts`, and `github-launcher.test.ts`, alongside the native steering, gateway, routine, and callback-bridge suites. Live acceptance additionally requires two authenticated Outpost users, two authorized GitHub accounts, and a designated disposable repository for push verification. Local commit metadata and mocked API results do not replace that live push test.
 
 ### Release procedure
 
@@ -188,8 +188,8 @@ Focused coverage lives in `run-identity.test.ts`, `github-operation-credentials.
 Remote acceptance uses the existing paid runner workflow with a narrow selection. Run it against the same immutable revision as the release; a successful local test does not qualify a different remote runner artifact.
 
 Identity history survives deletion of the originating agent or run, so surviving
-subtasks and approvals retain their responsible person. The company foreign key and company-deletion service remove
-these company-scoped records when their company is deleted. Run-scoped adapters remove their managed launcher files at the terminal boundary.
+subtasks and approvals retain their responsible person. The space foreign key and space-deletion service remove
+these space-scoped records when their space is deleted. Run-scoped adapters remove their managed launcher files at the terminal boundary.
 Native warm sessions retain their token-free launchers and inactive broker until
 session retirement; environment deletion and orderly controller shutdown close
 idle owners first. Cleanup failures are logged and do not change the run result.
@@ -198,7 +198,7 @@ idle owners first. Cleanup failures are logged and do not change the run result.
 
 Background provisioning and workspace maintenance have no responsible task user.
 They must not retain a task's identity. A signed-in project workspace writer can
-select their own active, company-installed GitHub Connector grant in project
+select their own active, space-installed GitHub Connector grant in project
 settings and explicitly authorize the project. The binding stores the exact grant
 ID and consenting user, never a credential. Revocation records a project lifecycle
 event so subscribed providers can reconcile the change.
@@ -228,7 +228,7 @@ roles cannot replace that authority. An unavailable authority check cannot confe
 owner access, though explicit project membership still applies.
 
 The trusted plugin capability `projects.git-credentials` enables
-`ctx.projects.resolveGitCredential(projectId, workspaceId, companyId)`. The host
+`ctx.projects.resolveGitCredential(projectId, workspaceId, spaceId)`. The host
 binds requests to the active project lifecycle or workspace operation; data, UI,
 tool, and proactive calls do not carry this authority. Repository URLs come from
 stored project workspaces. Foreground preparation uses the live run's accepted

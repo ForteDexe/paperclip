@@ -47,7 +47,7 @@ export const toolConnectionTransportSchema = z.enum(["mcp_remote", "rest_api", "
 export const toolConnectionPurposeSchema = z.enum(["tool", "channel"]);
 export const toolConnectionAuthKindSchema = z.enum(["oauth", "api_key", "none"]);
 export const toolConnectionOwnershipSchema = z.enum(["platform_shared", "platform_provisioned", "customer", "dcr"]);
-export const toolConnectionCredentialSourceSchema = z.enum(["paperclip_vault", "vercel_connect"]);
+export const toolConnectionCredentialSourceSchema = z.enum(["outpost_vault", "vercel_connect"]);
 export const vercelConnectCredentialSummarySchema = z.object({
   provider: z.literal("vercel_connect"),
   connectorId: z.string().trim().min(1).max(255),
@@ -76,7 +76,7 @@ export const createConnectionGrantDelegationSchema = z.object({
 export type CreateConnectionGrantDelegation = z.infer<typeof createConnectionGrantDelegationSchema>;
 export const toolConnectionCredentialPolicySchema = z.enum(["shared", "per_user", "per_user_with_fallback", "per_agent"]);
 export const toolConnectionStatusSchema = z.enum(["draft", "active", "disabled", "archived"]);
-export const toolConnectionInstallTargetTypeSchema = z.enum(["company", "agent"]);
+export const toolConnectionInstallTargetTypeSchema = z.enum(["space", "agent"]);
 export const toolCredentialPlacementSchema = z.enum(["header", "env", "url"]);
 export const toolConnectionKindSchema = z.enum(TOOL_CONNECTION_KINDS);
 export const toolConnectionHealthStatusSchema = z.enum(TOOL_CONNECTION_HEALTH_STATUSES);
@@ -209,7 +209,7 @@ export type UpdateToolConnection = z.infer<typeof updateToolConnectionSchema>;
 
 export const connectionGrantSchema = z.object({
   id: z.string().guid(),
-  companyId: z.string().guid(),
+  spaceId: z.string().guid(),
   connectionId: z.string().guid(),
   kind: connectionGrantKindSchema,
   subjectUserId: z.string().nullable(),
@@ -350,7 +350,7 @@ export type DisableToolStdioCommandTemplate = z.infer<typeof disableToolStdioCom
 /**
  * How an operator says a generic remote MCP endpoint authenticates (PAP-17087).
  *
- * `auto` is the default and the only value the simple path sends: Paperclip
+ * `auto` is the default and the only value the simple path sends: Outpost
  * probes the endpoint and branches on what it finds. The rest are the explicit
  * choices behind "Advanced authentication", where the operator already knows.
  */
@@ -363,7 +363,7 @@ export type GenericMcpAuthMode = z.infer<typeof genericMcpAuthModeSchema>;
 /**
  * A preregistered OAuth client an operator pasted in because the authorization
  * server supports neither CIMD nor dynamic registration. The secret is write-only:
- * it becomes a Paperclip secret ref and is never read back.
+ * it becomes a Outpost secret ref and is never read back.
  */
 export const genericMcpOAuthClientSchema = z.object({
   clientId: z.string().trim().min(1).max(4096),
@@ -373,7 +373,7 @@ export const genericMcpOAuthClientSchema = z.object({
 export type GenericMcpOAuthClient = z.infer<typeof genericMcpOAuthClientSchema>;
 
 /**
- * Reject `headers.*` credential paths whose header name Paperclip refuses to
+ * Reject `headers.*` credential paths whose header name Outpost refuses to
  * send, and any value that could split the outbound request. This runs at the
  * API boundary so both the guided wizard and normalized paste-config go through
  * exactly one gate; the service re-checks when it projects the headers.
@@ -439,7 +439,7 @@ export const connectToolAppSchema = z.object({
   saveDraft: z.boolean().optional(),
   authMode: genericMcpAuthModeSchema.optional(),
   oauthClient: genericMcpOAuthClientSchema.optional(),
-  credentialSource: z.enum(["paperclip_vault", "vercel_connect"]).optional(),
+  credentialSource: z.enum(["outpost_vault", "vercel_connect"]).optional(),
   vercelConnect: z.object({ connector: z.string().trim().min(1).max(255) }).strict().optional(),
   /**
    * Which identity this credential becomes (PAP-17835). `user` means "Just me":
@@ -448,7 +448,7 @@ export const connectToolAppSchema = z.object({
    * Omitted keeps the historical shared-credential behaviour.
    */
   grantKind: connectionGrantKindSchema.optional(),
-  /** Same-company agent that owns a dedicated provider identity. */
+  /** Same-space agent that owns a dedicated provider identity. */
   subjectAgentId: z.string().guid().optional(),
 }).superRefine((value, ctx) => {
   if (value.workspaceServices && value.galleryKey !== "google-workspace") {
@@ -479,7 +479,7 @@ export const connectToolAppSchema = z.object({
       message: "Only gallery app setup can resume a draft connection",
     });
   }
-  const source = value.credentialSource ?? "paperclip_vault";
+  const source = value.credentialSource ?? "outpost_vault";
   if (source === "vercel_connect") {
     if (!value.vercelConnect) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["vercelConnect"], message: "A Vercel connector UID is required" });
@@ -712,7 +712,7 @@ export const toolMcpGatewayHeaderPolicySchema = z.object({
 
 export const toolMcpGatewayMetadataPolicySchema = z.object({
   version: z.literal(1).default(1),
-  forwardCompanyId: z.boolean().default(false),
+  forwardSpaceId: z.boolean().default(false),
   forwardGatewayId: z.boolean().default(false),
   forwardProjectId: z.boolean().default(false),
   forwardIssueId: z.boolean().default(false),
@@ -770,7 +770,7 @@ export const createToolMcpGatewayTokenSchema = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["subjectType"],
-      message: "Public V1 token minting only supports gateway_client subjects; heartbeat_run is runtime-managed, while board_user and agent are reserved for later OAuth/user-bound flows.",
+      message: "Public V1 token minting only supports gateway_client subjects; heartbeat_run is runtime-managed, while operator_user and agent are reserved for later OAuth/user-bound flows.",
     });
   }
   if (value.expiresAt === null && !value.expiryOverrideReason) {
@@ -857,7 +857,7 @@ export const toolPolicyConditionsSchema = z.object({
     applicationKey: z.string().trim().min(1).max(160).optional(),
     applicationKeys: z.array(z.string().trim().min(1).max(160)).max(100).optional(),
     remoteHttpOnly: z.boolean().optional(),
-    paperclipSelfOnly: z.boolean().optional(),
+    outpostSelfOnly: z.boolean().optional(),
   }).strict().optional(),
   timeWindow: timeWindowConditionSchema.optional(),
 }).strict().refine(
@@ -973,7 +973,7 @@ export const toolAccessSelectorSchema = z.object({
 export const toolRateLimitRuleSchema = z.object({
   limit: z.number().int().positive().max(1_000_000),
   windowSeconds: z.number().int().positive().max(31_536_000),
-  keyBy: z.array(z.enum(["company", "agent", "application", "connection", "tool"])).optional(),
+  keyBy: z.array(z.enum(["space", "agent", "application", "connection", "tool"])).optional(),
 });
 
 export const toolTrustRuleArgumentFiltersSchema = z.object({
@@ -1037,7 +1037,7 @@ export const revokeToolTrustRuleSchema = z.object({
 export type RevokeToolTrustRule = z.infer<typeof revokeToolTrustRuleSchema>;
 
 export const toolPolicyTestRequestSchema = z.object({
-  companyId: z.string().guid(),
+  spaceId: z.string().guid(),
   actor: z.object({
     actorType: z.enum(["agent", "user", "system", "plugin"]),
     actorId: z.string().trim().min(1).max(240),

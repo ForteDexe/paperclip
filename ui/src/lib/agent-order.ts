@@ -1,7 +1,7 @@
 import type { Agent } from "@outpost/shared";
 
-export const AGENT_ORDER_UPDATED_EVENT = "paperclip:agent-order-updated";
-export const AGENT_SORT_MODE_UPDATED_EVENT = "paperclip:agent-sort-mode-updated";
+export const AGENT_ORDER_UPDATED_EVENT = "outpost:agent-order-updated";
+export const AGENT_SORT_MODE_UPDATED_EVENT = "outpost:agent-sort-mode-updated";
 const AGENT_ORDER_STORAGE_PREFIX = "outpost.agentOrder";
 const AGENT_SORT_MODE_STORAGE_PREFIX = "outpost.agentSortMode";
 const ANONYMOUS_USER_ID = "anonymous";
@@ -33,12 +33,12 @@ function resolveUserId(userId: string | null | undefined): string {
   return trimmed.length > 0 ? trimmed : ANONYMOUS_USER_ID;
 }
 
-export function getAgentOrderStorageKey(companyId: string, userId: string | null | undefined): string {
-  return `${AGENT_ORDER_STORAGE_PREFIX}:${companyId}:${resolveUserId(userId)}`;
+export function getAgentOrderStorageKey(spaceId: string, userId: string | null | undefined): string {
+  return `${AGENT_ORDER_STORAGE_PREFIX}:${spaceId}:${resolveUserId(userId)}`;
 }
 
-export function getAgentSortModeStorageKey(companyId: string, userId: string | null | undefined): string {
-  return `${AGENT_SORT_MODE_STORAGE_PREFIX}:${companyId}:${resolveUserId(userId)}`;
+export function getAgentSortModeStorageKey(spaceId: string, userId: string | null | undefined): string {
+  return `${AGENT_SORT_MODE_STORAGE_PREFIX}:${spaceId}:${resolveUserId(userId)}`;
 }
 
 export function readAgentOrder(storageKey: string): string[] {

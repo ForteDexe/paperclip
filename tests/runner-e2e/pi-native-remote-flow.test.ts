@@ -30,7 +30,7 @@ it.each([
     expect(parentSeeded).toBe(true);
     expect(value.requireExplicitTitle).toBe(true);
     expect(value.prompt).toMatch(/^Read only bootstrap-/); expect(value.prompt).not.toContain("forbidden");
-    const n = issues.length + 1; issues.push({ id: `issue-${n}`, title: "Provider-generated task name", companyId: "company", assigneeAgentId: agentId, status: "in_progress" }); runs.push({ id: runIds[n - 1], status: "running", runtimeMode: "native", createdAt: `2026-09-29T00:00:0${n}Z` });
+    const n = issues.length + 1; issues.push({ id: `issue-${n}`, title: "Provider-generated task name", spaceId: "space", assigneeAgentId: agentId, status: "in_progress" }); runs.push({ id: runIds[n - 1], status: "running", runtimeMode: "native", createdAt: `2026-09-29T00:00:0${n}Z` });
     return { submittedAtMs: Date.now(), issueId: `issue-${n}` };
   };
   const api = { request: { put: async (path: string, input: any) => {
@@ -49,7 +49,7 @@ it.each([
       const runId = runIds.find(id => path.includes(`${id}/`))!;
       const nativeRead = { eventType: "tool.execution.completed", seq: 3, payload: { orpEvent: { payload: {
         schema: "outpost.tool.execution.v1", transport: "builtin", name: "read", operation: "read", status: "completed",
-        target: `.paperclip-runtime/agent-files/${agentId}/${runId}/memory/pi-native.txt`, readOnly: true, outputTruncated: false, executionId: path.includes(`${runIds[0]}/`) ? "read-1" : "read-2",
+        target: `.outpost-runtime/agent-files/${agentId}/${runId}/memory/pi-native.txt`, readOnly: true, outputTruncated: false, executionId: path.includes(`${runIds[0]}/`) ? "read-1" : "read-2",
         // Missing-LF controls still model the intended complete native read;
         // their independent persisted bytes fail the existing byte assertion.
         output: JSON.stringify({ content: [{ type: "text", text: personal.endsWith("\n") ? personal : `${personal}\n` }] }),
@@ -82,7 +82,7 @@ it.each([
   } };
   try {
     await writeFile(join(root, "pi-agent-memory-proof.txt"), "WRONG HOST COPYBACK");
-    const call = runPiNativeFlow({ page: { goto: async () => {}, reload: async () => {}, getByTestId: () => ({ getByRole: () => ({}) }) }, api, fixtures: { company: { id: "company", issuePrefix: "PI" }, agent: { id: agentId, name: "Pi" }, environment: { id: "daytona-env" } }, execution: { task, environment: { id: "daytona" }, profile: { qualificationCandidate: "pi" } }, nonce: "fixture", workspacePath: root, deadlineAt: Date.now() + 2000,
+    const call = runPiNativeFlow({ page: { goto: async () => {}, reload: async () => {}, getByTestId: () => ({ getByRole: () => ({}) }) }, api, fixtures: { space: { id: "space", issuePrefix: "PI" }, agent: { id: agentId, name: "Pi" }, environment: { id: "daytona-env" } }, execution: { task, environment: { id: "daytona" }, profile: { qualificationCandidate: "pi" } }, nonce: "fixture", workspacePath: root, deadlineAt: Date.now() + 2000,
       restart: async () => { expect(evidence.has("pi-remote-1-cross-root-final.json")).toBe(true); restarted = true; }, observe: () => {}, capture: async () => {}, evidence: async (name: string, value: unknown) => { if (name.endsWith("incomplete-terminal.json")) { diagnosticAttempts++; if (diagnosticSaveFails) throw new Error("diagnostic storage unavailable"); } evidence.set(name, value); }, remoteBootstrap, registerCleanupAssertion: (fn: () => Promise<any>) => cleanup.push(fn) } as any);
     if (missingLF) {
       await expect(call).rejects.toThrow("Public managed-file API contains the exact native-write bytes");

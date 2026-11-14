@@ -14,7 +14,7 @@ import { NATIVE_RUNTIME_ASSET_SCHEMA, OUTPOST_EXECUTION_PROMPT, OUTPOST_EXECUTIO
   nativeRuntimePromptDigest, canonicalNativeRuntimeContextDigest } from "../../contracts/runtime-context.js";
 
 function execution(root: string, provider: "openai_dot" | "grok_bot" = "openai_dot"): NativeExecutionInputV6 {
-  const companyId = randomUUID(), agentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID();
   const digest = "0".repeat(64);
   const context = {
     prompt: { revision: OUTPOST_EXECUTION_PROMPT_REVISION, text: OUTPOST_EXECUTION_PROMPT, digest: nativeRuntimePromptDigest() },
@@ -23,9 +23,9 @@ function execution(root: string, provider: "openai_dot" | "grok_bot" = "openai_d
   };
   return parseNativeExecutionInput({
     schema: "outpost.native-execution-input.v6",
-    binding: { companyId, agentId, runId: randomUUID(), issueId: randomUUID(), executionWorkspaceId: randomUUID() },
+    binding: { spaceId, agentId, runId: randomUUID(), issueId: randomUUID(), executionWorkspaceId: randomUUID() },
     task: { identifier: "DOT-1", title: "Synthetic bridge recovery", description: null, prompt: "Read the synthetic counter.", workMode: "standard" },
-    provider: { kind: provider, model: null, binding: { companyId, agentId, bindingId: randomUUID(), bindingGeneration: 1,
+    provider: { kind: provider, model: null, binding: { spaceId, agentId, bindingId: randomUUID(), bindingGeneration: 1,
       acceptByUnixMs: Date.now() + 600_000, expiresAtUnixMs: Date.now() + 7_200_000 } },
     workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null },
     session: { normalizedSessionId: randomUUID(), driverKind: provider === "grok_bot" ? "grok_bot_mcp" : "openai_dot_mcp", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
@@ -71,7 +71,7 @@ it.each(["openai_dot", "grok_bot"] as const)("admits the %s descriptor without a
     expect(descriptor).toEqual(await backend.descriptor());
     expect(descriptor).toMatchObject({
       kind: "runner", name: provider === "grok_bot" ? "grok_bot_mcp" : "openai_dot_mcp", version: provider === "grok_bot" ? "grok-bot-mcp-v1" : "dot-mcp-v1",
-      capabilities: { resume: false, steering: false, interruption: false, usage: false, dynamicTools: true, completionBoundary: "paperclip_work_session", providerTermination: "unavailable", providerTranscriptStreaming: false },
+      capabilities: { resume: false, steering: false, interruption: false, usage: false, dynamicTools: true, completionBoundary: "outpost_work_session", providerTermination: "unavailable", providerTranscriptStreaming: false },
       runtimeContextCapabilities: { instructions: "native", skills: "native", mcp: "native" },
     });
     expect(spawnSpy).not.toHaveBeenCalled();
@@ -207,7 +207,7 @@ it.each(["local", "local pending finish", "custom local directory", "external la
       await send!(renewal);
       await vi.waitFor(() => expect(settlements.get(renewal.requestId)).toMatchObject({ status: "renewed" }), { timeout: 10000 });
     }
-    const finish = operation("tool", { name: "paperclip_finish", arguments: {
+    const finish = operation("tool", { name: "outpost_finish", arguments: {
       schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Read the counter",
       completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: [] }], remainingWork: [] },
       evidence: [], verification: [], attentionRequests: [], artifacts: [],

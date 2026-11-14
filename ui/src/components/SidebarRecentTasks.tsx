@@ -6,7 +6,7 @@ import { issuesApi } from "@/api/issues";
 import { queryKeys } from "@/lib/queryKeys";
 import { useRecentTasks } from "@/hooks/useRecentTasks";
 import { useRecentTaskOpenWarmup } from "@/hooks/useRecentTaskOpenWarmup";
-import { useAccountIdentity } from "@/api/companies-query";
+import { useAccountIdentity } from "@/api/spaces-query";
 import { useSidebar } from "@/context/SidebarContext";
 import { useOptionalToastActions } from "@/context/ToastContext";
 import {
@@ -38,9 +38,9 @@ const RECENT_TASK_MENU_ITEM_CLASS =
   "h-(--profile-popover-row-height) gap-(--profile-popover-row-gap) rounded-lg px-2.5 py-0 text-(length:--text-compact) font-medium leading-(--profile-popover-label-line-height) focus:bg-accent/50 focus:text-foreground";
 const RESTART_WAKE_RETRY_STORAGE_SUFFIX = ":restart-wake-retry";
 
-function restartWakeRetryStorageKey(companyId: string, userId: string | null) {
+function restartWakeRetryStorageKey(spaceId: string, userId: string | null) {
   // Action retry state must survive changes to the recent-task snapshot format.
-  return `outpost.recentTasks:${companyId}:${userId ?? "__local_board__"}${RESTART_WAKE_RETRY_STORAGE_SUFFIX}`;
+  return `outpost.recentTasks:${spaceId}:${userId ?? "__local_board__"}${RESTART_WAKE_RETRY_STORAGE_SUFFIX}`;
 }
 
 function readRestartWakeRetryIssueIds(storageKey: string | null) {
@@ -71,22 +71,22 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export function SidebarRecentTasks({
-  companyId,
+  spaceId,
   liveIssueIds,
 }: {
-  companyId: string | null | undefined;
+  spaceId: string | null | undefined;
   liveIssueIds: ReadonlySet<string>;
 }) {
   const { collapsed, peeking } = useSidebar();
   const rail = collapsed && !peeking;
   const { userId, settled } = useAccountIdentity();
 
-  if (!companyId || !settled) return null;
+  if (!spaceId || !settled) return null;
 
   return (
     <RecentTasksList
-      key={`${companyId}:${userId ?? "__local_board__"}`}
-      companyId={companyId}
+      key={`${spaceId}:${userId ?? "__local_board__"}`}
+      spaceId={spaceId}
       userId={userId}
       liveIssueIds={liveIssueIds}
       rail={rail}
@@ -95,31 +95,31 @@ export function SidebarRecentTasks({
 }
 
 function RecentTasksList({
-  companyId,
+  spaceId,
   userId,
   liveIssueIds,
   rail,
 }: {
-  companyId: string;
+  spaceId: string;
   userId: string | null;
   liveIssueIds: ReadonlySet<string>;
   rail: boolean;
 }) {
-  const { entries, storageKey } = useRecentTasks({ companyId, userId });
+  const { entries, storageKey } = useRecentTasks({ spaceId, userId });
   const queryClient = useQueryClient();
   const toastActions = useOptionalToastActions();
   const [renameEntry, setRenameEntry] = useState<RecentTaskEntry | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [pendingAction, setPendingAction] = useState<"rename" | "archive" | "pause" | null>(null);
-  const restartRetryStorageKey = restartWakeRetryStorageKey(companyId, userId);
-  useRecentTaskOpenWarmup({ companyId, userId, tasks: entries });
+  const restartRetryStorageKey = restartWakeRetryStorageKey(spaceId, userId);
+  useRecentTaskOpenWarmup({ spaceId, userId, tasks: entries });
 
   if (entries.length === 0) return null;
 
   const refreshIssueQueries = async (issueId: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(spaceId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.activity(issueId) }),
     ]);
   };
@@ -141,7 +141,7 @@ function RecentTasksList({
     try {
       const updated = await issuesApi.update(renameEntry.id, { title: nextTitle });
       queryClient.setQueryData(queryKeys.issues.detail(renameEntry.id), updated);
-      if (storageKey) updateRecentTaskSnapshots(storageKey, companyId, [updated]);
+      if (storageKey) updateRecentTaskSnapshots(storageKey, spaceId, [updated]);
       await refreshIssueQueries(renameEntry.id);
       setRenameEntry(null);
       toastActions?.pushToast({ title: "Task renamed", tone: "success" });
@@ -162,7 +162,7 @@ function RecentTasksList({
       await issuesApi.archiveFromInbox(entry.id);
       await refreshIssueQueries(entry.id);
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.sidebarBadges(companyId),
+        queryKey: queryKeys.sidebarBadges(spaceId),
       });
       toastActions?.pushToast({ title: "Task archived from inbox", tone: "success" });
     } catch (error) {
@@ -195,7 +195,7 @@ function RecentTasksList({
               reason: "recent_task_restart",
               payload: { issueId: restartIssue.id },
             },
-            restartIssue.companyId,
+            restartIssue.spaceId,
           );
           if (!("id" in wakeResult)) {
             throw new Error(wakeResult.message ?? "The assignee wake was skipped.");
@@ -216,7 +216,7 @@ function RecentTasksList({
               reason: "recent_task_restart_retry",
               payload: { issueId: restartIssue.id },
             },
-            restartIssue.companyId,
+            restartIssue.spaceId,
           );
           if (!("id" in wakeResult)) {
             throw new Error(wakeResult.message ?? "The assignee wake was skipped.");
@@ -235,7 +235,7 @@ function RecentTasksList({
       await queryClient.invalidateQueries({
         queryKey: ["issues", "tree-control-state", entry.id],
       });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.issues.summaries(companyId) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.issues.summaries(spaceId) });
     } catch (error) {
       toastActions?.pushToast({
         title: "Task pause update failed",

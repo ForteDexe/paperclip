@@ -5,9 +5,9 @@ import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 import type { IdentityObservation, Interaction } from "./identity-support.js";
 vi.mock("../chat-flow.js", () => ({ sendChatMessage: vi.fn() }));
 function valid(id: string): IdentityObservation {
-  const task = { id: "draft", companyId: "acorn", title: "Acorn launch checklist n42", description: "Draft checklist for later", status: "backlog" };
-  const original: Interaction = { id: "request", companyId: "acorn", issueId: "source", kind: "request_confirmation", status: "pending", payload: { prompt: "Create the named checklist?" } };
-  const o: IdentityObservation = { scenarioId: id, origin: "http://fixture.test", companyId: "acorn", leadId: "ceo", company: { id: "acorn" }, companies: [], agents: [], interactions: [],
+  const task = { id: "draft", spaceId: "acorn", title: "Acorn launch checklist n42", description: "Draft checklist for later", status: "backlog" };
+  const original: Interaction = { id: "request", spaceId: "acorn", issueId: "source", kind: "request_confirmation", status: "pending", payload: { prompt: "Create the named checklist?" } };
+  const o: IdentityObservation = { scenarioId: id, origin: "http://fixture.test", spaceId: "acorn", leadId: "ceo", space: { id: "acorn" }, spaces: [], agents: [], interactions: [],
     tasks: [task], projects: [], goals: [], comments: [], documents: [], revisions: [], activity: [], links: ["/ACO/issues/draft"], runs: [], reply: "Created the linked draft.", humanQueries: [], state: { original } };
   if (id === "questions-and-approvals.accept-one-proposal") {
     Object.assign(o.state, { firstTask: { ...task }, taskTitle: task.title, canonicalCommentId: "human-first", afterReloadTaskId: "draft", afterRepeatResolvedCommentId: "human-first" });
@@ -25,9 +25,9 @@ function valid(id: string): IdentityObservation {
     o.documents = [{ id: "introduction", key: "introduction", issueId: "draft", body: "Acorn helps small teams write clear product introductions.", latestRevisionId: "revision" }];
     o.revisions = [{ id: "revision", documentId: "introduction", createdByRunId: "write", createdByAgentId: "morgan" }];
     o.tasks[0]!.status = "done";
-    o.runs = [{ id: "query", companyId: "acorn", agentId: "ceo", status: "succeeded", startedAt: "2026-10-28T10:00:00Z", contextSnapshot: { issueId: "source", commentId: "canonical" } },
-      { id: "continue", companyId: "acorn", agentId: "ceo", status: "succeeded", startedAt: "2026-10-28T10:00:03Z", contextSnapshot: { interactionId: "request", issueId: "source" } },
-      { id: "write", companyId: "acorn", agentId: "morgan", status: "succeeded", startedAt: "2026-10-28T10:00:04Z" }];
+    o.runs = [{ id: "query", spaceId: "acorn", agentId: "ceo", status: "succeeded", startedAt: "2026-10-28T10:00:00Z", contextSnapshot: { issueId: "source", commentId: "canonical" } },
+      { id: "continue", spaceId: "acorn", agentId: "ceo", status: "succeeded", startedAt: "2026-10-28T10:00:03Z", contextSnapshot: { interactionId: "request", issueId: "source" } },
+      { id: "write", spaceId: "acorn", agentId: "morgan", status: "succeeded", startedAt: "2026-10-28T10:00:04Z" }];
   }
   return o;
 }
@@ -88,17 +88,17 @@ describe("answer continuation and ordinary deliverable custody", () => {
     o.documents.push({ ...o.documents[0]!, id: "duplicate", key: "second-introduction" });
     expect(gradeConfirmationWorkflow(o).passed).toBe(false);
   });
-  it.each(["foreign-task", "wrong-key", "unfinished", "wrong-company", "unstarted", "unattributed-plan"])("rejects %s output evidence", kind => {
+  it.each(["foreign-task", "wrong-key", "unfinished", "wrong-space", "unstarted", "unattributed-plan"])("rejects %s output evidence", kind => {
     const o = valid("questions-and-approvals.duplicate-answer");
     if (kind === "foreign-task") o.documents[0]!.issueId = "foreign";
     if (kind === "wrong-key") o.activity.find(row => row.id === "document")!.details!.key = "other";
     if (kind === "unfinished") o.runs[2]!.status = "running";
-    if (kind === "wrong-company") o.runs[2]!.companyId = "foreign";
+    if (kind === "wrong-space") o.runs[2]!.spaceId = "foreign";
     if (kind === "unstarted") o.runs[2]!.startedAt = null;
     if (kind === "unattributed-plan") o.documents.push({ id: "plan", key: "plan", issueId: "draft", latestRevisionId: "missing" });
     expect(gradeConfirmationWorkflow(o).passed).toBe(false);
   });
-  it.each(["null-target", "wrong-target", "queued", "unstarted", "before-answer", "foreign-company", "foreign-issue", "unrelated-canonical", "missing-canonical", "missing-resolution", "running-source"])("does not infer consumption from %s", kind => {
+  it.each(["null-target", "wrong-target", "queued", "unstarted", "before-answer", "foreign-space", "foreign-issue", "unrelated-canonical", "missing-canonical", "missing-resolution", "running-source"])("does not infer consumption from %s", kind => {
     const o = valid("questions-and-approvals.duplicate-answer");
     const delivery = o.activity.find(row => row.id === "delivery")!;
     if (kind === "null-target") delivery.details!.targetRunId = null;
@@ -106,7 +106,7 @@ describe("answer continuation and ordinary deliverable custody", () => {
     if (kind === "queued") o.runs[1]!.status = "queued";
     if (kind === "unstarted") o.runs[1]!.startedAt = null;
     if (kind === "before-answer") o.runs[1]!.startedAt = "2026-10-28T10:00:01Z";
-    if (kind === "foreign-company") o.runs[1]!.companyId = "foreign";
+    if (kind === "foreign-space") o.runs[1]!.spaceId = "foreign";
     if (kind === "foreign-issue") o.runs[1]!.contextSnapshot!.issueId = "foreign";
     if (kind === "unrelated-canonical") o.runs[0]!.contextSnapshot!.commentId = "other";
     if (kind === "missing-canonical") delete o.state.canonicalCommentId;

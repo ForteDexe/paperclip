@@ -74,7 +74,7 @@ export async function runNativeActiveStopFlow(input: {
   };
   const load = async (): Promise<ActiveStopState> => {
     if (issue.id) issue = await api.get<Row>(`/api/issues/${issue.id}`);
-    const list = await api.get<Row[]>(`/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100`);
+    const list = await api.get<Row[]>(`/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100`);
     runs = await Promise.all(list.map(r => api.get<Row>(`/api/heartbeat-runs/${r.id}`)));
     if (runs.length > 1) throw new Error("Native active Stop dispatched an extra run");
     events = runs[0] ? await collectRunEvents<Row>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${runs[0]!.id}/events?afterSeq=${afterSeq}&limit=${limit}`)) : [];
@@ -92,7 +92,7 @@ export async function runNativeActiveStopFlow(input: {
     } else value = !await exists(local!.targetPath);
     samples.push({ phase, absent: value }); check(`no-effect-${phase}`, value, "Exact target remains absent at the causal observation boundary");
   };
-  const scope = (): ActiveStopScope => ({ provider, companyId: fixtures.company.id, issueId: issue.id, runId: runs[0]!.id, target, ...(command ? { commandSha256: command.commandSha256 } : {}) });
+  const scope = (): ActiveStopScope => ({ provider, spaceId: fixtures.space.id, issueId: issue.id, runId: runs[0]!.id, target, ...(command ? { commandSha256: command.commandSha256 } : {}) });
   const bootstrap = (): BootstrapReadProof | undefined => fixture ? { actionFile: fixture.actionFile, events } : undefined;
   const cleanup = async () => {
     const receipt: Check[] = [];
@@ -131,15 +131,15 @@ export async function runNativeActiveStopFlow(input: {
     const agent = await api.get<Row>(`/api/agents/${fixtures.agent.id}`);
     const configured = await api.patch<Row>(`/api/agents/${fixtures.agent.id}`, { adapterConfig: { ...agent.adapterConfig, acpxPermissionMode: "approve-reads", ...(provider === "cursor" ? { acpxSessionMode: "agent" } : {}), timeoutSec: 120, lifecycleMode: "per_turn" } });
     check("explicit-per-turn-policy", configured.adapterConfig?.acpxPermissionMode === "approve-reads" && configured.adapterConfig?.lifecycleMode === "per_turn" && (provider !== "cursor" || configured.adapterConfig?.acpxSessionMode === "agent"), "Agent mode and per-turn restrictive permission policy selected before startup");
-    const project = await api.post<Row>(`/api/companies/${fixtures.company.id}/projects`, { name: `Native active Stop ${nonce}`, executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", sharedWorkspaceConcurrency: "serialize", allowIssueOverride: false, environmentId: fixtures.environment.id, workspaceStrategy: { type: "project_primary" } }, workspace: { name: "Primary", sourceType: "local_path", cwd: input.workspacePath, isPrimary: true } });
+    const project = await api.post<Row>(`/api/spaces/${fixtures.space.id}/projects`, { name: `Native active Stop ${nonce}`, executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", sharedWorkspaceConcurrency: "serialize", allowIssueOverride: false, environmentId: fixtures.environment.id, workspaceStrategy: { type: "project_primary" } }, workspace: { name: "Primary", sourceType: "local_path", cwd: input.workspacePath, isPrimary: true } });
     if (!remote) await sample("before-request");
-    await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt: remote ? input.remoteBootstrap!.prompt(nonce) : prompt(), workMode: "standard", projectName: project.name });
-    issue = (await pollUntil({ label: "browser-created active Stop task", deadlineAt: input.deadlineAt, load: async () => (await api.get<Row[]>(`/api/companies/${fixtures.company.id}/issues?limit=100`)).find(i => i.title === execution.task.buildTitle(nonce)), accept: Boolean }))!;
+    await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt: remote ? input.remoteBootstrap!.prompt(nonce) : prompt(), workMode: "standard", projectName: project.name });
+    issue = (await pollUntil({ label: "browser-created active Stop task", deadlineAt: input.deadlineAt, load: async () => (await api.get<Row[]>(`/api/spaces/${fixtures.space.id}/issues?limit=100`)).find(i => i.title === execution.task.buildTitle(nonce)), accept: Boolean }))!;
     if (remote) {
       await pollUntil({ label: "active Stop remote bootstrap", deadlineAt: input.deadlineAt, load, accept: state => state.run.status === "running" });
       const bound = await input.remoteBootstrap!.bindAndRelease({ issueId: issue.id, runId: runs[0]!.id, targets: [target], actionPrompt: async value => {
         fixture = value; if (provider === "cursor") command = cursorDeniedCommand(join(value.remoteCwd, target));
-        const prepared = await prepareCopilotRemoteAction({ fixture: value, companyId: fixtures.company.id, environmentId: fixtures.environment.id, runId: runs[0]!.id, target, prompt: prompt() });
+        const prepared = await prepareCopilotRemoteAction({ fixture: value, spaceId: fixtures.space.id, environmentId: fixtures.environment.id, runId: runs[0]!.id, target, prompt: prompt() });
         baseline = prepared.baseline;
         remoteObservations.push({ phase: "before-request", source: "live-snapshot", snapshot: baseline });
         await input.evidence("active-stop-before-request-remote.json", baseline); return prepared.prompt;
@@ -150,7 +150,7 @@ export async function runNativeActiveStopFlow(input: {
     await pollUntil({ label, deadlineAt: input.deadlineAt, intervalMs: 200, load: async () => {
       const state = await load(); if (["failed", "timed_out", "cancelled", "succeeded"].includes(state.run.status)) throw new Error(`Stopped waiting for ${label}: provider ended without pending callback`); return state;
     }, accept: state => { observeActiveStopPending({ ...state, scope: scope(), caller, cancellationRequestId: randomUUID(), bootstrap: bootstrap() }); return true; } });
-    await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
+    await page.goto(`/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
     const card = page.getByTestId("task-chat-runtime-request").filter({ visible: true });
     await expect(card).toHaveCount(1); await expect(card.getByRole("button", { name: "Deny", exact: true })).toBeEnabled();
     await input.capture("pending-permission", "Native permission left unanswered before Stop", "pending-permission.png"); await sample("pending");

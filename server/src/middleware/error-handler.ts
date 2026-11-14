@@ -6,7 +6,7 @@ import { HttpError } from "../errors.js";
 import { trackErrorHandlerCrash } from "@outpost/shared/telemetry";
 import { getTelemetryClient } from "../telemetry.js";
 import { captureException } from "../sentry.js";
-import { COMPANY_IMPORT_API_PATH } from "../routes/company-import-paths.js";
+import { SPACE_IMPORT_API_PATH } from "../routes/space-import-paths.js";
 import { logger } from "./logger.js";
 import {
   isSecretSensitiveHttpRequest,
@@ -99,21 +99,21 @@ function reportCrash(error: Error, req: Request, reportToSentry = true): void {
   const tc = getTelemetryClient();
   if (tc) trackErrorHandlerCrash(tc, { errorCode: error.name });
   if (reportToSentry) {
-    if (req.actor?.type === "agent" && req.actor.runId && req.actor.companyId && req.actor.agentId) {
-      captureException(error, { runId: req.actor.runId, companyId: req.actor.companyId, agentId: req.actor.agentId });
+    if (req.actor?.type === "agent" && req.actor.runId && req.actor.spaceId && req.actor.agentId) {
+      captureException(error, { runId: req.actor.runId, spaceId: req.actor.spaceId, agentId: req.actor.agentId });
     } else captureException(error);
   }
 }
 
 /** Set by the orderly shutdown just before it ends the database pools. */
 function isDatabaseClosing(req: Request): boolean {
-  const locals = req.app?.locals as { paperclipDatabaseClosing?: boolean } | undefined;
-  return locals?.paperclipDatabaseClosing === true;
+  const locals = req.app?.locals as { outpostDatabaseClosing?: boolean } | undefined;
+  return locals?.outpostDatabaseClosing === true;
 }
 
-function getPaperclipDb(req: Request): Db | null {
-  const locals = req.app?.locals as { paperclipDb?: Db; db?: Db } | undefined;
-  return locals?.paperclipDb ?? locals?.db ?? null;
+function getOutpostDb(req: Request): Db | null {
+  const locals = req.app?.locals as { outpostDb?: Db; db?: Db } | undefined;
+  return locals?.outpostDb ?? locals?.db ?? null;
 }
 
 function recordResponsibleUserDenialFromHttpError(
@@ -121,13 +121,13 @@ function recordResponsibleUserDenialFromHttpError(
   details: Record<string, unknown> | null,
 ) {
   if (req.actor?.type !== "agent") return;
-  const db = getPaperclipDb(req);
+  const db = getOutpostDb(req);
   if (!db) return;
 
   void recordResponsibleUserDenialOnActiveRun(db, {
     runId: req.actor.runId ?? null,
     agentId: req.actor.agentId ?? null,
-    companyId: req.actor.companyId ?? null,
+    spaceId: req.actor.spaceId ?? null,
     code: details?.code,
   }).catch((recordErr) => {
     logger.warn(
@@ -175,7 +175,7 @@ export function errorHandler(
     const workspaceRepairPreconditionFailure =
       details?.code === "workspace_repair_precondition_failed";
     // Its code and remediation are already top-level; repeating them only lengthens agent context.
-    const boardAccessDenial = details?.code === "board_access_required";
+    const operatorAccessDenial = details?.code === "operator_access_required";
     const structuredConnectionError = new Set([
       "user_authorization_required",
       "organization_authorization_required",
@@ -257,7 +257,7 @@ export function errorHandler(
               : {}),
             ...(!redactedSkillPolicyDenial &&
             !workspaceRepairPreconditionFailure &&
-            !boardAccessDenial &&
+            !operatorAccessDenial &&
             responseDetailsValue
               ? { details: responseDetailsValue }
               : {}),
@@ -368,6 +368,6 @@ function shouldExposeTrustedCloudTenantImportError(req: Request) {
   return (
     req.actor?.source === "cloud_tenant" &&
     req.method === "POST" &&
-    req.originalUrl.split("?")[0] === COMPANY_IMPORT_API_PATH
+    req.originalUrl.split("?")[0] === SPACE_IMPORT_API_PATH
   );
 }

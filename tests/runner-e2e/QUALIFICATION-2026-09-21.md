@@ -2,7 +2,7 @@
 
 This record distinguishes live behavior from the existence of an eval. No native
 onboarding default or production prompt was changed. All paid work ran on isolated
-GitHub Actions workers with real providers, Chromium, Paperclip, and public APIs.
+GitHub Actions workers with real providers, Chromium, Outpost, and public APIs.
 
 ## Native onboarding
 
@@ -140,7 +140,7 @@ cases in the preceding campaign independently reproduced cleanup quarantine.
 ## Measurement limits
 
 All selected environments here are local Linux GitHub Actions workers, not
-Daytona-hosted execution or the user's staging company. The result JSON retains
+Daytona-hosted execution or the user's staging space. The result JSON retains
 source SHA, suite definition hash, profile/model, attempt, timing, token usage,
 and billing coverage; initial failures are never regraded as passes.
 

@@ -1,13 +1,13 @@
 /** Version 1 inspection wire contract. Keep Cloud's protocol.ts byte-identical. */
 export const INSPECTION_VERSION = 1;
-export const INSPECTION_AUDIENCE = "paperclip-customer-success/v1";
-export const INSPECTION_PERMIT_TYPE = "paperclip-inspection+jwt";
-export const INSPECTION_HEADER = "x-paperclip-cloud-inspection";
-export const CHALLENGE_DOMAIN = "paperclip-customer-success-challenge/v1\n";
+export const INSPECTION_AUDIENCE = "outpost-customer-success/v1";
+export const INSPECTION_PERMIT_TYPE = "outpost-inspection+jwt";
+export const INSPECTION_HEADER = "x-outpost-cloud-inspection";
+export const CHALLENGE_DOMAIN = "outpost-customer-success-challenge/v1\n";
 export const MAX_INSPECTION_BYTES = 1024 * 1024;
 export const MAX_INSPECTION_ROWS = 100;
 export const INSPECTION_RESOURCES = [
-  "companies",
+  "spaces",
   "goals",
   "users",
   "memberships",
@@ -77,7 +77,7 @@ export interface InspectionQuery {
     | "files.download"
     | "assets.content";
   resource?: InspectionResource;
-  companyId?: string;
+  spaceId?: string;
   resourceId?: string;
   parentId?: string;
   path?: string;
@@ -94,7 +94,7 @@ export interface InspectionQuery {
 export interface RunAuthority {
   version: 1;
   instanceId: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   runId: string;
   keyId: string;
@@ -102,7 +102,7 @@ export interface RunAuthority {
 }
 export interface InspectionPermit {
   v: 1;
-  iss: "paperclip-cloud";
+  iss: "outpost-cloud";
   aud: typeof INSPECTION_AUDIENCE;
   sub: string;
   jti: string;
@@ -136,7 +136,7 @@ export function parseInspectionQuery(value: unknown): InspectionQuery {
   const allowed = new Set([
     "operation",
     "resource",
-    "companyId",
+    "spaceId",
     "resourceId",
     "parentId",
     "path",
@@ -162,7 +162,7 @@ export function parseInspectionQuery(value: unknown): InspectionQuery {
     ].includes(q.operation)
   )
     throw new Error("Unsupported inspection operation");
-  for (const k of ["companyId", "resourceId", "parentId", "versionId"] as const) {
+  for (const k of ["spaceId", "resourceId", "parentId", "versionId"] as const) {
     if (q[k] !== undefined && (typeof q[k] !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/.test(q[k]!)))
       throw new Error(`Invalid ${k}`);
   }
@@ -170,8 +170,8 @@ export function parseInspectionQuery(value: unknown): InspectionQuery {
     throw new Error("Unsupported inspection resource");
   if (q.operation === "get" && !q.resourceId) throw new Error("resourceId required");
   if (["get", "list"].includes(q.operation) && !q.resource) throw new Error("resource required");
-  if (!(q.operation === "list" && q.resource === "companies") && !q.companyId)
-    throw new Error("companyId required");
+  if (!(q.operation === "list" && q.resource === "spaces") && !q.spaceId)
+    throw new Error("spaceId required");
   if (!["get", "list"].includes(q.operation) && !q.resourceId)
     throw new Error("resourceId required");
   if (

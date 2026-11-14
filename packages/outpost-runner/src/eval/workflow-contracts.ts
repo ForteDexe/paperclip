@@ -8,7 +8,7 @@ export const RUNNER_WORKFLOW_IDS = [
   "final-response",
   "rich-activity",
   "verification-policy",
-  "governed-interaction",
+  "controlled-interaction",
   "steering-causality",
   "planning-lifecycle",
   "review-lifecycle",
@@ -51,7 +51,7 @@ export interface RunnerWorkflowAssertions {
   semanticDisposition?: "done" | "needs_review" | "blocked" | "yielded";
   maxAttempts?: number;
   maxRuns?: number;
-  recoveryOwner?: "none" | "agent" | "human" | "board";
+  recoveryOwner?: "none" | "agent" | "human" | "operator";
   commentCount?: number;
   responseSource?: "existing_issue_comment" | "final_agent_message" | "semantic_result_summary" | "adapter_final" | "none";
   orderedMarkers?: string[];

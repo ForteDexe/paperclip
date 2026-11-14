@@ -9,7 +9,7 @@ import { resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.
 import { createRunnerdCodexTransport, runnerdLaunchProfileInternals } from "./runnerd-codex-transport.js";
 
 const identity = { runnerInstanceId: "runner-candidate", environmentLeaseId: "lease-candidate", runId: "run-candidate", normalizedSessionId: "session-candidate", turnId: "turn-candidate", itemId: "item-candidate" };
-const candidate = (): AcpxCandidateAdmission => ({ schema: "outpost.acpx-candidate-admission.v1", companyId: "company-candidate", agent: "antigravity", model: "gemini-3.8-flash-low",
+const candidate = (): AcpxCandidateAdmission => ({ schema: "outpost.acpx-candidate-admission.v1", spaceId: "space-candidate", agent: "antigravity", model: "gemini-3.8-flash-low",
   profileDigest: resolveQualifiedAcpxProfile("antigravity", "gemini-3.8-flash-low").commandDigest,
   nativeClosureDigest: `sha256:${ANTIGRAVITY_DISTRIBUTION_PINS["darwin-arm64"].closureSha256}`,
   platform: "darwin", architecture: "arm64", expiresAt: Date.now() + 60_000 });
@@ -72,7 +72,7 @@ describe("Antigravity candidate trusted startup", () => {
     try {
       const options = { provider: "acpx" as const, acpxAgent: "antigravity" as const, stateDirectory: root,
         acpxCandidateAdmission: admission, orpIdentity: identity, resumeWorkingDirectory: root,
-        resumeProviderSession: retained, providerRecoveryPolicy: "allow_replacement_after_governed_wait" as const };
+        resumeProviderSession: retained, providerRecoveryPolicy: "allow_replacement_after_controlled_wait" as const };
       const owner = createRunnerdCodexTransport(options);
       expect(owner.transport.prepareConversationResume).toBeTypeOf("function");
       await expect(owner.transport.prepareConversationResume!({ threadId: retained.driverSessionId, model: "wrong-model", cwd: root })).rejects.toThrow("exact current conversation");

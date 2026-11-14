@@ -12,10 +12,10 @@ import { createRunnerdCodexTransport, defaultCapabilityRunnerdBinary } from "./r
 
 it.each(["none", "before-start", "after-start"] as const)("completes after the real runner and provider are killed (second crash: %s)", async (crash) => {
   const root = await mkdtemp(join(tmpdir(), "runner-restart-continuation-"));
-  const identity = { runId: "run-restart", sessionId: "session-restart", companyId: "company-restart", issueId: "issue-restart", agentId: "agent-restart" };
+  const identity = { runId: "run-restart", sessionId: "session-restart", spaceId: "space-restart", issueId: "issue-restart", agentId: "agent-restart" };
   const execution: NativeExecutionInputV1 = {
     schema: "outpost.native-execution-input.v1",
-    binding: { runId: identity.runId, companyId: identity.companyId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-restart" },
+    binding: { runId: identity.runId, spaceId: identity.spaceId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-restart" },
     session: { normalizedSessionId: identity.sessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
     task: { identifier: "TEST-1", title: "Finish checks", description: null, prompt: "Watch the already running checks and finish the request.", workMode: "standard" },
     workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },
@@ -130,10 +130,10 @@ it("starts a new turn when the restored runner reports a lost turn the checkpoin
   // accepted turn reached the checkpoint. The restored runner then reports that
   // unbound turn as lost while the recovery's new turn start is pending.
   const root = await mkdtemp(join(tmpdir(), "runner-restart-unbound-"));
-  const identity = { runId: "run-unbound", sessionId: "session-unbound", companyId: "company-unbound", issueId: "issue-unbound", agentId: "agent-unbound" };
+  const identity = { runId: "run-unbound", sessionId: "session-unbound", spaceId: "space-unbound", issueId: "issue-unbound", agentId: "agent-unbound" };
   const execution: NativeExecutionInputV1 = {
     schema: "outpost.native-execution-input.v1",
-    binding: { runId: identity.runId, companyId: identity.companyId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-unbound" },
+    binding: { runId: identity.runId, spaceId: identity.spaceId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-unbound" },
     session: { normalizedSessionId: identity.sessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
     task: { identifier: "TEST-2", title: "Finish checks", description: null, prompt: "Watch the already running checks and finish the request.", workMode: "standard" },
     workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },
@@ -211,15 +211,15 @@ it("starts a new turn when the restored runner reports a lost turn the checkpoin
 }, 40_000);
 
 it("finalizes the durable proposed result when the runner and provider die before the turn terminal", async () => {
-  // The provider proposed a complete result and Paperclip durably recorded it.
+  // The provider proposed a complete result and Outpost durably recorded it.
   // Both processes were then killed before the provider turn ended. The
   // restored runner recovers that turn's authoritative result: recovery must
   // finalize it instead of failing reconciliation or re-running the task.
   const root = await mkdtemp(join(tmpdir(), "runner-restart-proposed-"));
-  const identity = { runId: "run-proposed", sessionId: "session-proposed", companyId: "company-proposed", issueId: "issue-proposed", agentId: "agent-proposed" };
+  const identity = { runId: "run-proposed", sessionId: "session-proposed", spaceId: "space-proposed", issueId: "issue-proposed", agentId: "agent-proposed" };
   const execution: NativeExecutionInputV1 = {
     schema: "outpost.native-execution-input.v1",
-    binding: { runId: identity.runId, companyId: identity.companyId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-proposed" },
+    binding: { runId: identity.runId, spaceId: identity.spaceId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-proposed" },
     session: { normalizedSessionId: identity.sessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
     task: { identifier: "TEST-3", title: "Finish checks", description: null, prompt: "Run the checks and report the result.", workMode: "standard" },
     workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },
@@ -318,10 +318,10 @@ it.each(["unread", "read"] as const)("delivers a steered message the restart los
   // log: the unread message must reach the continuation once; the read one
   // must not reach it again.
   const root = await mkdtemp(join(tmpdir(), "runner-restart-steer-"));
-  const identity = { runId: "run-steer", sessionId: "session-steer", companyId: "company-steer", issueId: "issue-steer", agentId: "agent-steer" };
+  const identity = { runId: "run-steer", sessionId: "session-steer", spaceId: "space-steer", issueId: "issue-steer", agentId: "agent-steer" };
   const execution: NativeExecutionInputV1 = {
     schema: "outpost.native-execution-input.v1",
-    binding: { runId: identity.runId, companyId: identity.companyId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-steer" },
+    binding: { runId: identity.runId, spaceId: identity.spaceId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-steer" },
     session: { normalizedSessionId: identity.sessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
     task: { identifier: "TEST-4", title: "Finish checks", description: null, prompt: "Watch the already running checks and finish the request.", workMode: "standard" },
     workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },
@@ -429,10 +429,10 @@ it("adopts the in-flight turn when a restart lands just after turn.start (t77)",
   // execution_indeterminate. The restored runner reconciles the ambiguous start
   // to the provider's live turn, and recovery must adopt that exact turn.
   const root = await mkdtemp(join(tmpdir(), "runner-restart-indeterminate-"));
-  const identity = { runId: "run-indeterminate", sessionId: "session-indeterminate", companyId: "company-indeterminate", issueId: "issue-indeterminate", agentId: "agent-indeterminate" };
+  const identity = { runId: "run-indeterminate", sessionId: "session-indeterminate", spaceId: "space-indeterminate", issueId: "issue-indeterminate", agentId: "agent-indeterminate" };
   const execution: NativeExecutionInputV1 = {
     schema: "outpost.native-execution-input.v1",
-    binding: { runId: identity.runId, companyId: identity.companyId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-indeterminate" },
+    binding: { runId: identity.runId, spaceId: identity.spaceId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-indeterminate" },
     session: { normalizedSessionId: identity.sessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
     task: { identifier: "TEST-4", title: "Finish checks", description: null, prompt: "Watch the already running checks and finish the request.", workMode: "standard" },
     workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },
@@ -508,10 +508,10 @@ it("starts a new turn when the lost turn's start reached the runner only after t
   // The restored runner replays that undelivered turn.started and reports the
   // turn lost; recovery must start a new turn instead of failing on the replay.
   const root = await mkdtemp(join(tmpdir(), "runner-restart-late-start-"));
-  const identity = { runId: "run-late-start", sessionId: "session-late-start", companyId: "company-late-start", issueId: "issue-late-start", agentId: "agent-late-start" };
+  const identity = { runId: "run-late-start", sessionId: "session-late-start", spaceId: "space-late-start", issueId: "issue-late-start", agentId: "agent-late-start" };
   const execution: NativeExecutionInputV1 = {
     schema: "outpost.native-execution-input.v1",
-    binding: { runId: identity.runId, companyId: identity.companyId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-late-start" },
+    binding: { runId: identity.runId, spaceId: identity.spaceId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-late-start" },
     session: { normalizedSessionId: identity.sessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
     task: { identifier: "TEST-5", title: "Finish checks", description: null, prompt: "Watch the already running checks and finish the request.", workMode: "standard" },
     workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },
@@ -600,10 +600,10 @@ it("starts a new turn when the lost turn's start reached the runner only after t
 
 it("starts a new turn when the checkpoint names an accepted turn whose start was never committed", async () => {
   const root = await mkdtemp(join(tmpdir(), "runner-restart-uncommitted-start-"));
-  const identity = { runId: "run-uncommitted-start", sessionId: "session-uncommitted-start", companyId: "company-uncommitted-start", issueId: "issue-uncommitted-start", agentId: "agent-uncommitted-start" };
+  const identity = { runId: "run-uncommitted-start", sessionId: "session-uncommitted-start", spaceId: "space-uncommitted-start", issueId: "issue-uncommitted-start", agentId: "agent-uncommitted-start" };
   const execution: NativeExecutionInputV1 = {
     schema: "outpost.native-execution-input.v1",
-    binding: { runId: identity.runId, companyId: identity.companyId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-uncommitted-start" },
+    binding: { runId: identity.runId, spaceId: identity.spaceId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-uncommitted-start" },
     session: { normalizedSessionId: identity.sessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
     task: { identifier: "TEST-6", title: "Finish checks", description: null, prompt: "Watch the already running checks and finish the request.", workMode: "standard" },
     workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },

@@ -2,14 +2,14 @@
 
 This connection delegates website work to Browser Use's hosted agent through its
 v4 REST API. The task's Browser tab embeds the provider's interactive live viewer.
-The connection's API key stays in Paperclip's vault and is never exported to the
+The connection's API key stays in Outpost's vault and is never exported to the
 agent, local browser tools, or the board UI.
 
 ## Connect and configure
 
 Choose **Browser Use Cloud** (`browser-use-cloud`) in Apps, select agent access, enter a project API key from
 [Browser Use settings](https://cloud.browser-use.com/settings), and review
-Permissions. No OAuth registration, callback, Paperclip ID, or external connection
+Permissions. No OAuth registration, callback, Outpost ID, or external connection
 broker is required. Cloud and self-hosted instances use the same server-side path.
 The instance needs outbound HTTPS to `api.browser-use.com`; browsers need access
 to `live.browser-use.com`. An operator-supplied CSP must permit that viewer origin
@@ -21,7 +21,7 @@ and invocation audit remain authoritative. Browser settings on Permissions are
 per credential: the owner (or a shared connection manager) can set a maximum cost per run and explicitly allow
 existing saved profiles. No selected profiles means fresh browsers. Profiles can
 contain authenticated website sessions, so selecting one grants meaningful access.
-Paperclip does not create or import profiles.
+Outpost does not create or import profiles.
 
 ## Reviewed actions
 
@@ -67,7 +67,7 @@ a hosted run, polls its status and stays alive until it finishes. Approved start
 can execute after the requesting turn ends: a ten-minute handoff window lets the
 resumed agent attach by reading status. An expired handoff stops unfinished work.
 
-Four company-scoped tables separate grant settings, conversation ownership, hosted
+Four space-scoped tables separate grant settings, conversation ownership, hosted
 runs and browser instances. Each hosted run records its invocation, parent run,
 event cursor and cost checkpoint. A leased reconciler polls minimal status,
 drains bounded event pages, discovers browser instances by conversation, and
@@ -102,8 +102,8 @@ override a newer fixed selection. A resize failure pauses fitting until a size
 is explicitly selected again. Socket/server restart resets the mode to fitting.
 
 Browser Use's current viewer has a 30-pixel tab strip and 40-pixel navigation bar.
-The Paperclip token `--browser-use-viewer-chrome-height` records that measured
-70-pixel allowance; Paperclip's footer is excluded by observing the iframe itself.
+The Outpost token `--browser-use-viewer-chrome-height` records that measured
+70-pixel allowance; Outpost's footer is excluded by observing the iframe itself.
 The provider's published viewer bundle exposes no sizing postMessage contract.
 This keeps navigation available but requires rechecking the allowance if the
 provider changes its chrome; it is not a guaranteed cross-origin measurement.
@@ -128,7 +128,7 @@ credential access, and retrying removal finishes secret deletion.
 ## Credential and budget boundaries
 
 The board list and stored tab state contain internal IDs and safe metadata only.
-An authenticated, active, non-viewer company member with access to the exact grant
+An authenticated, active, non-viewer space member with access to the exact grant
 can request a viewer URL through a `no-store` endpoint. Agent keys cannot use that
 endpoint. Only the exact HTTPS `live.browser-use.com` origin is accepted. The URL
 lives in component memory, uses `no-referrer`, and is revalidated while hidden.
@@ -137,9 +137,9 @@ CDP, recording and other URL fields are excluded. Do not put a viewer link in a
 comment, log, tool response or artifact.
 
 Each dispatch uses the minimum of the requested cap, configured grant cap and
-applicable remaining hard company/agent/project budgets. Unconfigured limits do
+applicable remaining hard space/agent/project budgets. Unconfigured limits do
 not invent a cap. Provider run `totalCostUsd` is recorded through a locked,
-idempotent cumulative checkpoint and feeds normal Paperclip budget enforcement.
+idempotent cumulative checkpoint and feeds normal Outpost budget enforcement.
 Each positive accounting delta also creates a linked, task-scoped `finance_events`
 row in the same transaction as its `cost_events` row. Reconciliation retries do
 not duplicate either entry. Costs remain available for reporting without appearing
@@ -174,11 +174,11 @@ For live acceptance, connect a dedicated test credential in the isolated instanc
    per cumulative billed increment without any viewer credential in audit.
 
 The live test-drive used a fresh
-database with one company, one agent and one task; it contains no cloned inbox or
+database with one space, one agent and one task; it contains no cloned inbox or
 task history. The connection was configured through the normal setup wizard and
 given a $1 per-run limit with fresh browsers. Browser Use completed a real v4 run
 that explored `outpost.ing`, visited About and returned to the homepage. The
-recorded run cost was $0.01. The completed browser was visible in Paperclip's
+recorded run cost was $0.01. The completed browser was visible in Outpost's
 Browser tab, and manual address-bar navigation and Back worked inside the iframe.
 Keep open renewed the idle countdown. The initial blank viewer recovered after a
 page reload; provider results alone were not treated as proof of the viewer.
@@ -231,11 +231,11 @@ Reviewed on 2026-09-29:
   copied as a sanitized local SVG; provenance is in the app brand manifest.
 
 The connector uses v4 directly. It does not mix v3 MCP task/session methods with
-v4 runs, and it does not substitute Paperclip's existing execution agent adapter.
+v4 runs, and it does not substitute Outpost's existing execution agent adapter.
 
 ## Viewer size and Storybook coverage
 
-The iframe fills the available panel height and width without a Paperclip-imposed
+The iframe fills the available panel height and width without a Outpost-imposed
 aspect ratio. The provider streams an existing remote viewport, so scaling its
 viewer does not make the website switch responsive breakpoints.
 
@@ -275,7 +275,7 @@ does document [CDP attachment to a live v4 agent browser](https://docs.browser-u
 Automatic panel-size synchronization is implemented through
 `POST /api/issues/:issueId/browsers/:browserId/viewport`. Fit requests carry bounded
 width/height and a viewer UUID; fixed choices carry a validated preset. All use
-the same company, task, grant and board checks as the viewer. New runs request
+the same space, task, grant and board checks as the viewer. New runs request
 the resizing opt-in. A bounded CDP session verifies actual viewport dimensions,
 reapplies the selection to new page targets, and serializes updates. Browser
 default clears the override while retaining the selected mode. Mode and ownership
@@ -377,7 +377,7 @@ and [1Password integration](https://docs.browser-use.com/cloud/guides/1password)
 
 Each paid task includes an opaque invocation marker. The v4 API has no documented
 create idempotency key. If a response is lost or the process stops before saving
-provider identifiers, Paperclip never repeats the paid POST. The reconciler scans
+provider identifiers, Outpost never repeats the paid POST. The reconciler scans
 the documented run list for that exact marker, with a durable pagination cursor.
 Once found, it cancels the run, discovers and stops its browsers, and records cost.
 A missing list entry is not proof that no work exists: cleanup remains pending

@@ -15,7 +15,7 @@ const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
 async function createTempDatabase(): Promise<string> {
-  const db = await startEmbeddedPostgresTestDatabase("paperclip-inbox-archive-policies-");
+  const db = await startEmbeddedPostgresTestDatabase("outpost-inbox-archive-policies-");
   cleanups.push(db.cleanup);
   return db.connectionString;
 }
@@ -47,7 +47,7 @@ describeEmbeddedPostgres("inbox archive agent policy migration", () => {
     async () => {
       const connectionString = await createTempDatabase();
       const sql = postgres(connectionString, { max: 1, onnotice: () => {} });
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const agentId = randomUUID();
       const deletedAgentId = randomUUID();
       const issueId = randomUUID();
@@ -67,28 +67,28 @@ describeEmbeddedPostgres("inbox archive agent policy migration", () => {
         await sql`ALTER TABLE "issue_inbox_archives" DROP COLUMN IF EXISTS "archived_by_actor_type"`;
 
         await sql`
-          INSERT INTO "companies" ("id", "name", "issue_prefix")
-          VALUES (${companyId}, 'Inbox migration company', 'IAM')
+          INSERT INTO "spaces" ("id", "name", "issue_prefix")
+          VALUES (${spaceId}, 'Inbox migration space', 'IAM')
         `;
         await sql`
-          INSERT INTO "agents" ("id", "company_id", "name", "role", "adapter_type", "adapter_config")
-          VALUES (${agentId}, ${companyId}, 'Inbox agent', 'engineer', 'process', '{}'::jsonb)
+          INSERT INTO "agents" ("id", "space_id", "name", "role", "adapter_type", "adapter_config")
+          VALUES (${agentId}, ${spaceId}, 'Inbox agent', 'engineer', 'process', '{}'::jsonb)
         `;
         await sql`
-          INSERT INTO "agents" ("id", "company_id", "name", "role", "adapter_type", "adapter_config")
-          VALUES (${deletedAgentId}, ${companyId}, 'Deleted inbox agent', 'engineer', 'process', '{}'::jsonb)
+          INSERT INTO "agents" ("id", "space_id", "name", "role", "adapter_type", "adapter_config")
+          VALUES (${deletedAgentId}, ${spaceId}, 'Deleted inbox agent', 'engineer', 'process', '{}'::jsonb)
         `;
         await sql`
-          INSERT INTO "issues" ("id", "company_id", "title", "identifier")
-          VALUES (${issueId}, ${companyId}, 'Legacy inbox issue', 'IAM-1')
+          INSERT INTO "issues" ("id", "space_id", "title", "identifier")
+          VALUES (${issueId}, ${spaceId}, 'Legacy inbox issue', 'IAM-1')
         `;
         await sql`
-          INSERT INTO "heartbeat_runs" ("id", "company_id", "agent_id", "status")
-          VALUES (${runId}, ${companyId}, ${agentId}, 'succeeded')
+          INSERT INTO "heartbeat_runs" ("id", "space_id", "agent_id", "status")
+          VALUES (${runId}, ${spaceId}, ${agentId}, 'succeeded')
         `;
         await sql`
-          INSERT INTO "issue_inbox_archives" ("id", "company_id", "issue_id", "user_id")
-          VALUES (${legacyArchiveId}, ${companyId}, ${issueId}, 'legacy-user')
+          INSERT INTO "issue_inbox_archives" ("id", "space_id", "issue_id", "user_id")
+          VALUES (${legacyArchiveId}, ${spaceId}, ${issueId}, 'legacy-user')
         `;
       } finally {
         await sql.end();
@@ -121,14 +121,14 @@ describeEmbeddedPostgres("inbox archive agent policy migration", () => {
         await verifySql`
           INSERT INTO "issue_inbox_archives" (
             "id",
-            "company_id",
+            "space_id",
             "issue_id",
             "user_id",
             "archived_by_actor_type",
             "archived_by_agent_id",
             "archived_by_run_id"
           )
-          VALUES (${agentArchiveId}, ${companyId}, ${issueId}, 'agent-managed-user', 'agent', ${agentId}, ${runId})
+          VALUES (${agentArchiveId}, ${spaceId}, ${issueId}, 'agent-managed-user', 'agent', ${agentId}, ${runId})
         `;
         const agentRows = await verifySql<{
           archived_by_actor_type: string;
@@ -147,12 +147,12 @@ describeEmbeddedPostgres("inbox archive agent policy migration", () => {
 
         await verifySql`
           INSERT INTO "user_inbox_agent_policies" (
-            "company_id",
+            "space_id",
             "user_id",
             "mode",
             "allowed_agent_ids"
           )
-          VALUES (${companyId}, 'agent-managed-user', 'allowlist', ${verifySql.json([agentId, deletedAgentId])})
+          VALUES (${spaceId}, 'agent-managed-user', 'allowlist', ${verifySql.json([agentId, deletedAgentId])})
         `;
         const policies = await verifySql<{
           mode: string;
@@ -160,7 +160,7 @@ describeEmbeddedPostgres("inbox archive agent policy migration", () => {
         }[]>`
           SELECT "mode", "allowed_agent_ids"
           FROM "user_inbox_agent_policies"
-          WHERE "company_id" = ${companyId}
+          WHERE "space_id" = ${spaceId}
             AND "user_id" = 'agent-managed-user'
         `;
         expect(policies).toEqual([{
@@ -174,14 +174,14 @@ describeEmbeddedPostgres("inbox archive agent policy migration", () => {
         }[]>`
           SELECT "allowed_agent_ids"
           FROM "user_inbox_agent_policies"
-          WHERE "company_id" = ${companyId}
+          WHERE "space_id" = ${spaceId}
             AND "user_id" = 'agent-managed-user'
         `;
         expect(policiesAfterAgentDeletion).toEqual([{ allowed_agent_ids: [agentId] }]);
 
         await expect(verifySql`
-          INSERT INTO "user_inbox_agent_policies" ("company_id", "user_id", "mode")
-          VALUES (${companyId}, 'agent-managed-user', 'disabled')
+          INSERT INTO "user_inbox_agent_policies" ("space_id", "user_id", "mode")
+          VALUES (${spaceId}, 'agent-managed-user', 'disabled')
         `).rejects.toMatchObject({ code: "23505" });
       } finally {
         await verifySql.end();

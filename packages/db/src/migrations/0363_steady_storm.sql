@@ -6,7 +6,7 @@ BEGIN
   IF to_regclass('public.case_handoffs') IS NULL THEN
 CREATE TABLE "case_access_sources" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"case_id" uuid NOT NULL,
 	"source_kind" text NOT NULL,
 	"source_id" uuid NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE "case_access_sources" (
 
 CREATE TABLE "case_handoffs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"case_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"version" integer NOT NULL,
@@ -53,17 +53,17 @@ ALTER TABLE "case_events" DROP CONSTRAINT IF EXISTS "case_events_kind_check";
 ALTER TABLE "cases" ADD COLUMN "work_issue_id" uuid;
 ALTER TABLE "cases" ADD COLUMN "phase" text;
 ALTER TABLE "cases" ADD COLUMN "handoff_version" integer DEFAULT 0 NOT NULL;
-ALTER TABLE "case_access_sources" ADD CONSTRAINT "case_access_sources_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "case_access_sources" ADD CONSTRAINT "case_access_sources_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "case_access_sources" ADD CONSTRAINT "case_access_sources_case_id_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."cases"("id") ON DELETE cascade ON UPDATE no action;
-ALTER TABLE "case_handoffs" ADD CONSTRAINT "case_handoffs_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "case_handoffs" ADD CONSTRAINT "case_handoffs_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "case_handoffs" ADD CONSTRAINT "case_handoffs_case_id_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."cases"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "case_handoffs" ADD CONSTRAINT "case_handoffs_issue_id_issues_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issues"("id") ON DELETE restrict ON UPDATE no action;
 ALTER TABLE "case_handoffs" ADD CONSTRAINT "case_handoffs_from_agent_id_agents_id_fk" FOREIGN KEY ("from_agent_id") REFERENCES "public"."agents"("id") ON DELETE set null ON UPDATE no action;
 ALTER TABLE "case_handoffs" ADD CONSTRAINT "case_handoffs_to_agent_id_agents_id_fk" FOREIGN KEY ("to_agent_id") REFERENCES "public"."agents"("id") ON DELETE restrict ON UPDATE no action;
 CREATE UNIQUE INDEX "case_access_sources_case_source_uq" ON "case_access_sources" USING btree ("case_id","source_kind","source_id");
-CREATE INDEX "case_access_sources_company_case_idx" ON "case_access_sources" USING btree ("company_id","case_id");
-CREATE UNIQUE INDEX "case_handoffs_case_version_uq" ON "case_handoffs" USING btree ("company_id","case_id","version");
-CREATE UNIQUE INDEX "case_handoffs_actor_idempotency_uq" ON "case_handoffs" USING btree ("company_id","actor_type","actor_id","idempotency_key");
+CREATE INDEX "case_access_sources_space_case_idx" ON "case_access_sources" USING btree ("space_id","case_id");
+CREATE UNIQUE INDEX "case_handoffs_case_version_uq" ON "case_handoffs" USING btree ("space_id","case_id","version");
+CREATE UNIQUE INDEX "case_handoffs_actor_idempotency_uq" ON "case_handoffs" USING btree ("space_id","actor_type","actor_id","idempotency_key");
 CREATE UNIQUE INDEX "case_handoffs_pending_case_uq" ON "case_handoffs" USING btree ("case_id") WHERE "case_handoffs"."state" in ('awaiting_release', 'pending_dispatch');
 CREATE UNIQUE INDEX "case_handoffs_pending_issue_uq" ON "case_handoffs" USING btree ("issue_id") WHERE "case_handoffs"."state" in ('awaiting_release', 'pending_dispatch');
 CREATE INDEX "case_handoffs_pending_attempt_idx" ON "case_handoffs" USING btree ("next_attempt_at") WHERE "case_handoffs"."state" in ('awaiting_release', 'pending_dispatch');
@@ -89,12 +89,12 @@ ALTER TABLE "case_events" ADD CONSTRAINT "case_events_kind_check" CHECK ("case_e
       ));
 -- Preserve every historical source boundary. Logical source IDs deliberately
 -- survive source deletion so removing a task/project cannot publish a case.
-INSERT INTO "case_access_sources" ("company_id", "case_id", "source_kind", "source_id")
-SELECT "company_id", "id", 'project', "project_id" FROM "cases" WHERE "project_id" IS NOT NULL
+INSERT INTO "case_access_sources" ("space_id", "case_id", "source_kind", "source_id")
+SELECT "space_id", "id", 'project', "project_id" FROM "cases" WHERE "project_id" IS NOT NULL
 ON CONFLICT DO NOTHING;
 
-INSERT INTO "case_access_sources" ("company_id", "case_id", "source_kind", "source_id")
-SELECT "company_id", "case_id", 'issue', "issue_id" FROM "case_issue_links"
+INSERT INTO "case_access_sources" ("space_id", "case_id", "source_kind", "source_id")
+SELECT "space_id", "case_id", 'issue', "issue_id" FROM "case_issue_links"
 ON CONFLICT DO NOTHING;
 
   END IF;

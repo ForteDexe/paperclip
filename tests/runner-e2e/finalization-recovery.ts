@@ -53,7 +53,7 @@ export function gradeFinalizationRecovery(value: FinalizationRecoveryObservation
   const check = (id: string, passed: unknown, detail: string) => ({ id, passed: Boolean(passed), detail });
   return [
     check("exercised-finalization-crash", !!before && before.acceptedResults === 1 && before.providerTurns >= 1 && before.operationIds.length > 0 &&
-      crash?.companyId === value.binding.companyId && crash?.issueId === value.binding.issueId && crash?.runId === value.binding.runId &&
+      crash?.spaceId === value.binding.spaceId && crash?.issueId === value.binding.issueId && crash?.runId === value.binding.runId &&
       crash?.nativePhase === "workspace_finalizing" && Number.isFinite(Date.parse(crash.observedAt)) &&
       final?.resumedOperations.some(operation => before.operationIds.includes(operation.resumedFromOperationId) && Date.parse(operation.startedAt) >= Date.parse(crash.observedAt)),
       "A saved result must be interrupted before commit and its unfinished workspace operation resumed after the crash observation."),

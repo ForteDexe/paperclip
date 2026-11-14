@@ -118,7 +118,7 @@ export async function claimNativeSessionResumptions(input: {
 }): Promise<NativeSessionResumeClaim[]> {
   const now = input.now ?? new Date();
   const candidates = await input.db
-    .select({ runId: heartbeatRuns.id, companyId: heartbeatRuns.companyId, issueId: nativeRunFinalizations.issueId })
+    .select({ runId: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, issueId: nativeRunFinalizations.issueId })
     .from(heartbeatRuns)
     .innerJoin(
       nativeRunFinalizations,
@@ -159,15 +159,15 @@ export async function claimNativeSessionResumptions(input: {
     const claimed = await input.db.transaction(async (tx) => {
       await tx.execute(sql`select set_config('statement_timeout', '10000', true), set_config('lock_timeout', '2000', true)`);
       const [issue] = await tx.select().from(issues).where(and(
-        eq(issues.companyId, candidate.companyId), eq(issues.id, candidate.issueId),
+        eq(issues.spaceId, candidate.spaceId), eq(issues.id, candidate.issueId),
       )).for("update").limit(1);
       if (!issue) return false;
       const [coordinator] = await tx.select().from(nativeRunFinalizations).where(and(
-        eq(nativeRunFinalizations.companyId, candidate.companyId), eq(nativeRunFinalizations.runId, candidate.runId),
+        eq(nativeRunFinalizations.spaceId, candidate.spaceId), eq(nativeRunFinalizations.runId, candidate.runId),
         eq(nativeRunFinalizations.issueId, issue.id),
       )).for("update").limit(1);
       const [run] = await tx.select().from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, candidate.companyId), eq(heartbeatRuns.id, candidate.runId),
+        eq(heartbeatRuns.spaceId, candidate.spaceId), eq(heartbeatRuns.id, candidate.runId),
         eq(heartbeatRuns.nativeIssueId, issue.id),
       )).for("update").limit(1);
       if (!run || !coordinator || run.runnerProfileJson?.legacyWorkspaceRecoveryMigration != null) return false;
@@ -240,8 +240,8 @@ export async function claimNativeSessionResumptions(input: {
         || (!!checkpoint && !checkpointHasProviderIdentity)
       ) {
         const failureCode = originalFailureCode;
-        await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, row.run.companyId);
-        await notifyLiveRunRecovery(tx, { companyId: row.run.companyId, runId: row.run.id, agentId: row.run.agentId });
+        await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, row.run.spaceId);
+        await notifyLiveRunRecovery(tx, { spaceId: row.run.spaceId, runId: row.run.id, agentId: row.run.agentId });
         await tx.update(nativeRunFinalizations).set({
           phase: "terminal_failure",
           leaseOwner: null,
@@ -253,15 +253,15 @@ export async function claimNativeSessionResumptions(input: {
             recoveryMode: "ambiguous_state",
             providerSessionEstablished:
               checkpointHasProviderIdentity || providerEvent !== null,
-            recoveryOwner: { kind: "board" },
+            recoveryOwner: { kind: "operator" },
             nextAction: "Inspect the original provider failure; durable state is missing or ambiguous and opening a replacement provider session is forbidden.",
           },
           nextAttemptAt: null,
           updatedAt: now,
         }).where(eq(nativeRunFinalizations.runId, row.run.id));
-        await notifyExternalAgentSettlement(tx, { companyId: row.run.companyId, runId: row.run.id });
-        await notifyInstructionCollection(tx, { companyId: row.run.companyId, runId: row.run.id });
-        await notifyCancelledWorkspacePreservation(tx, { companyId: row.run.companyId, runId: row.run.id });
+        await notifyExternalAgentSettlement(tx, { spaceId: row.run.spaceId, runId: row.run.id });
+        await notifyInstructionCollection(tx, { spaceId: row.run.spaceId, runId: row.run.id });
+        await notifyCancelledWorkspacePreservation(tx, { spaceId: row.run.spaceId, runId: row.run.id });
         await notifyUnsafeWorkspaceExportRunChange(tx, row.run);
         const [updatedRun] = await tx.update(heartbeatRuns).set({
           status: "failed",
@@ -286,10 +286,10 @@ export async function claimNativeSessionResumptions(input: {
           tx,
         );
         await issueRecoveryActionService(tx as unknown as Db).upsertSourceScoped({
-          companyId: row.run.companyId,
+          spaceId: row.run.spaceId,
           sourceIssueId: row.coordinator.issueId,
           kind: "active_run_watchdog",
-          ownerType: "board",
+          ownerType: "operator",
           ownerAgentId: null,
           returnOwnerAgentId: row.run.agentId,
           cause: failureCode,
@@ -310,7 +310,7 @@ export async function claimNativeSessionResumptions(input: {
       }
 
       const leaseExpiresAt = new Date(now.getTime() + 20 * 60_000);
-      await notifyLiveRunRecovery(tx, { companyId: row.run.companyId, runId: row.run.id, agentId: row.run.agentId });
+      await notifyLiveRunRecovery(tx, { spaceId: row.run.spaceId, runId: row.run.id, agentId: row.run.agentId });
       const stamp = currentControllerProcessStamp();
       const resumeClaim = sameRunResumeClaimEntry({ at: now, controllerBootId: stamp.bootId,
         providerAttempt: row.coordinator.attempt, failureDetail: row.coordinator.failureDetail });
@@ -346,7 +346,7 @@ export async function claimNativeSessionResumptions(input: {
       claimFailed = true;
       input.onError?.(error);
       terminalRunToEmit = null;
-      logger.warn({ err: error, companyId: candidate.companyId, runId: candidate.runId },
+      logger.warn({ err: error, spaceId: candidate.spaceId, runId: candidate.runId },
         "failed to claim native session recovery candidate");
       return false;
     });
@@ -359,12 +359,12 @@ export async function claimNativeSessionResumptions(input: {
     if (claimed) claims.push({ runId: candidate.runId, leaseOwner, attempt: claimedAttempt });
     else if (claimFailed || input.deferIneligible !== false) await input.db.transaction(async tx => {
       await tx.execute(sql`select set_config('statement_timeout', '10000', true), set_config('lock_timeout', '2000', true)`);
-      await notifyLiveRunRecovery(tx, { companyId: candidate.companyId, runId: candidate.runId });
+      await notifyLiveRunRecovery(tx, { spaceId: candidate.spaceId, runId: candidate.runId });
       await tx.update(nativeRunFinalizations).set({
         nextAttemptAt: new Date(now.getTime() + 30_000),
         updatedAt: now,
       }).where(and(
-        eq(nativeRunFinalizations.companyId, candidate.companyId),
+        eq(nativeRunFinalizations.spaceId, candidate.spaceId),
         eq(nativeRunFinalizations.issueId, candidate.issueId),
         eq(nativeRunFinalizations.runId, candidate.runId),
         eq(nativeRunFinalizations.phase, "retryable_failure"),
@@ -374,7 +374,7 @@ export async function claimNativeSessionResumptions(input: {
       ));
     }).catch((error: unknown) => {
       input.onError?.(error);
-      logger.warn({ err: error, companyId: candidate.companyId, runId: candidate.runId },
+      logger.warn({ err: error, spaceId: candidate.spaceId, runId: candidate.runId },
         "failed to defer native session recovery candidate");
     });
   }
@@ -399,7 +399,7 @@ type NativeReconciliationOptions = {
   environmentRuntime?: EnvironmentRuntimeService;
   onWorkspaceSettled?: (input: {
     runId: string;
-    companyId: string;
+    spaceId: string;
     agentId: string;
     succeeded: boolean;
   }) => Promise<void>;
@@ -424,7 +424,7 @@ function settledCommittedFinalization(now: Date): SQL {
     lt(heartbeatRuns.finishedAt, new Date(now.getTime() - NATIVE_SETTLED_COMMITTED_GRACE_MS)),
     sql<boolean>`not exists (
       select 1 from ${statusDecisionEffects} effect
-      where effect.company_id = ${nativeRunFinalizations.companyId}
+      where effect.space_id = ${nativeRunFinalizations.spaceId}
         and effect.issue_id = ${nativeRunFinalizations.issueId}
         and effect.decision_id = ${nativeRunFinalizations.decisionId}
         and effect.delivery_state in ('pending', 'failed')
@@ -506,7 +506,7 @@ async function reconcileNativeFinalizationsPass(
   const rows = await db
     .select({
       runId: heartbeatRuns.id,
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
       agentId: heartbeatRuns.agentId,
       issueId: nativeRunFinalizations.issueId,
       issueStatus: issues.status,
@@ -524,7 +524,7 @@ async function reconcileNativeFinalizationsPass(
     .innerJoin(nativeRunFinalizations, eq(nativeRunFinalizations.runId, heartbeatRuns.id))
     .innerJoin(issues, and(
       eq(issues.id, nativeRunFinalizations.issueId),
-      eq(issues.companyId, heartbeatRuns.companyId),
+      eq(issues.spaceId, heartbeatRuns.spaceId),
     ))
     .where(and(
       eq(heartbeatRuns.runtimeMode, "native"),
@@ -553,7 +553,7 @@ async function reconcileNativeFinalizationsPass(
   for (const row of rows) {
     const pendingEffects = row.decisionId
       ? await db.select({ id: statusDecisionEffects.id }).from(statusDecisionEffects).where(and(
-          eq(statusDecisionEffects.companyId, row.companyId),
+          eq(statusDecisionEffects.spaceId, row.spaceId),
           eq(statusDecisionEffects.issueId, row.issueId),
           eq(statusDecisionEffects.decisionId, row.decisionId),
           inArray(statusDecisionEffects.deliveryState, ["pending", "failed"]),
@@ -571,7 +571,7 @@ async function reconcileNativeFinalizationsPass(
       }
       const deliveredEffectIds = await dispatchPendingNativeStatusEffects({
         db,
-        companyId: row.companyId,
+        spaceId: row.spaceId,
         issueId: row.issueId,
         decisionId: row.decisionId,
         runId: row.runId,
@@ -582,7 +582,7 @@ async function reconcileNativeFinalizationsPass(
     if (row.assessmentId) {
       const currentDecision = !options.skipNativeReviewResponse && row.coordinatorPhase === "committed" && row.decisionId
         ? await db.select().from(statusDecisions).where(and(
-            eq(statusDecisions.id, row.decisionId), eq(statusDecisions.companyId, row.companyId),
+            eq(statusDecisions.id, row.decisionId), eq(statusDecisions.spaceId, row.spaceId),
             eq(statusDecisions.issueId, row.issueId),
           )).limit(1).then(entries => entries[0] ?? null)
         : null;
@@ -591,7 +591,7 @@ async function reconcileNativeFinalizationsPass(
         // erase its accepted, still-authorized response. Repair presentation
         // before the status-only early return below, without rerunning work.
         await repairCommittedNativeChatResponse(db, {
-          companyId: row.companyId, issueId: row.issueId, runId: row.runId,
+          spaceId: row.spaceId, issueId: row.issueId, runId: row.runId,
         });
       }
       if (
@@ -606,7 +606,7 @@ async function reconcileNativeFinalizationsPass(
         // earlier response independently before status reconciliation skips
         // its superseded decision; this cannot change issue disposition.
         await repairCommittedNativeReviewResponse(db, {
-          companyId: row.companyId,
+          spaceId: row.spaceId,
           issueId: row.issueId,
           runId: row.runId,
           decisionId: row.decisionId,
@@ -631,7 +631,7 @@ async function reconcileNativeFinalizationsPass(
     const barrier = await db.select({ status: workspaceOperations.status })
       .from(workspaceOperations)
       .where(and(
-        eq(workspaceOperations.companyId, row.companyId),
+        eq(workspaceOperations.spaceId, row.spaceId),
         eq(workspaceOperations.issueId, row.issueId),
         eq(workspaceOperations.heartbeatRunId, row.runId),
         eq(workspaceOperations.phase, "workspace_finalize"),
@@ -674,7 +674,7 @@ async function reconcileNativeFinalizationsPass(
           await options
             .onWorkspaceSettled?.({
               runId: row.runId,
-              companyId: row.companyId,
+              spaceId: row.spaceId,
               agentId: row.agentId,
               succeeded: false,
             })
@@ -716,7 +716,7 @@ async function reconcileNativeFinalizationsPass(
           await options
             .onWorkspaceSettled?.({
               runId: row.runId,
-              companyId: row.companyId,
+              spaceId: row.spaceId,
               agentId: row.agentId,
               succeeded: true,
             })
@@ -772,7 +772,7 @@ async function reconcileNativeFinalizationsPass(
         await options
           .onWorkspaceSettled?.({
             runId: row.runId,
-            companyId: row.companyId,
+            spaceId: row.spaceId,
             agentId: row.agentId,
             succeeded: true,
           })
@@ -804,7 +804,7 @@ const OWNERSHIP_REPORT_WAKE_QUEUES = [
   DELIVERY_QUEUES.staleIssueLocks,
   DELIVERY_QUEUES.queuedRunDispatch,
   DELIVERY_QUEUES.accounting,
-  // Company and agent pause changes: the hold-release watch of the deferred
+  // Space and agent pause changes: the hold-release watch of the deferred
   // work-intent backstop (section E).
   DELIVERY_QUEUES.agentLifecycle,
 ] as const;
@@ -842,17 +842,17 @@ export async function applyOwnershipReportBackstops(db: Db, report: OwnershipRep
   // Save the missing outbox entry, then promote it.
   for (const violation of report.violations.filter(row =>
     row.reason === USER_COMMENT_WITHOUT_WAKE || row.reason === USER_COMMENT_DROPPED_BY_STALE_RUN)) {
-    if (!violation.companyId || !violation.issueId) continue;
+    if (!violation.spaceId || !violation.issueId) continue;
     const lost = violation.reason === USER_COMMENT_WITHOUT_WAKE;
     try {
       const [issue] = await db.select({ assigneeAgentId: issues.assigneeAgentId }).from(issues)
-        .where(and(eq(issues.companyId, violation.companyId), eq(issues.id, violation.issueId)));
+        .where(and(eq(issues.spaceId, violation.spaceId), eq(issues.id, violation.issueId)));
       if (!issue?.assigneeAgentId) continue;
-      const saved = await saveUndeliveredUserComments(db, { companyId: violation.companyId, issueId: violation.issueId,
+      const saved = await saveUndeliveredUserComments(db, { spaceId: violation.spaceId, issueId: violation.issueId,
         agentId: issue.assigneeAgentId, commentIds: [violation.recordId], allowedStatuses: lost ? ["todo", "in_progress", "done"] : ["done"],
         ...(lost ? { executionWait: deferredWorkIntentWait("wake_lost", "This message's wake was lost; it is sent now."),
           reopenAgentClosedDone: true } : {}) });
-      if (saved) await db.transaction(tx => promoteDeferredWorkIntents(tx, { companyId: violation.companyId!,
+      if (saved) await db.transaction(tx => promoteDeferredWorkIntents(tx, { spaceId: violation.spaceId!,
         trigger: "reconciler_backstop", issueId: violation.issueId }));
     } catch (error) {
       // The message still has no saved receipt: keep a pass due.
@@ -860,11 +860,11 @@ export async function applyOwnershipReportBackstops(db: Db, report: OwnershipRep
       logger.warn({ err: error, commentId: violation.recordId }, "could not save a user comment without a wake");
     }
   }
-  const companies = new Set(report.violations.filter(violation => violation.reason === DEFERRED_INTENT_NOT_PROMOTED)
-    .flatMap(violation => violation.companyId ? [violation.companyId] : []));
-  for (const companyId of companies) {
-    await db.transaction(tx => promoteDeferredWorkIntents(tx, { companyId, trigger: "reconciler_backstop" }))
-      .catch(error => { retryNeeded = true; logger.warn({ err: error, companyId }, "deferred intent backstop promotion failed"); });
+  const spaces = new Set(report.violations.filter(violation => violation.reason === DEFERRED_INTENT_NOT_PROMOTED)
+    .flatMap(violation => violation.spaceId ? [violation.spaceId] : []));
+  for (const spaceId of spaces) {
+    await db.transaction(tx => promoteDeferredWorkIntents(tx, { spaceId, trigger: "reconciler_backstop" }))
+      .catch(error => { retryNeeded = true; logger.warn({ err: error, spaceId }, "deferred intent backstop promotion failed"); });
   }
   return { retryNeeded };
 }

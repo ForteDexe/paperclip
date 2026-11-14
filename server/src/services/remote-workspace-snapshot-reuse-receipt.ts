@@ -5,17 +5,17 @@ import type { RemoteWorkspaceRunReference } from "@outpost/shared";
 type Snapshot = typeof executionWorkspaceSnapshots.$inferSelect;
 
 export async function verifiedWorkspaceSnapshotReuse(db: Pick<Db, "select">, input: {
-  companyId: string; issueId: string; runId: string; reference: RemoteWorkspaceRunReference; snapshot: Snapshot;
+  spaceId: string; issueId: string; runId: string; reference: RemoteWorkspaceRunReference; snapshot: Snapshot;
 }): Promise<string | null> {
   const { reference, snapshot } = input;
-  if (reference.state !== "saved" || reference.snapshotId !== snapshot.id || snapshot.companyId !== input.companyId
+  if (reference.state !== "saved" || reference.snapshotId !== snapshot.id || snapshot.spaceId !== input.spaceId
     || snapshot.executionWorkspaceId !== reference.workspaceId || !["committed", "superseded"].includes(snapshot.status)
-    || !snapshot.objectKey?.startsWith(`${input.companyId}/workspace-snapshots/${reference.workspaceId}/${snapshot.id}/`)
+    || !snapshot.objectKey?.startsWith(`${input.spaceId}/workspace-snapshots/${reference.workspaceId}/${snapshot.id}/`)
     || !snapshot.key || !snapshot.sha256 || !snapshot.manifestDigest || !snapshot.byteSize) return null;
   const rows = await db.select({ id: workspaceOperations.id, metadata: workspaceOperations.metadata,
     generation: executionWorkspaceSnapshots.generation }).from(workspaceOperations)
     .innerJoin(executionWorkspaceSnapshots, and(
-      eq(executionWorkspaceSnapshots.companyId, input.companyId),
+      eq(executionWorkspaceSnapshots.spaceId, input.spaceId),
       eq(executionWorkspaceSnapshots.executionWorkspaceId, reference.workspaceId),
       eq(executionWorkspaceSnapshots.sourceOperationId, workspaceOperations.id),
       eq(executionWorkspaceSnapshots.sourceRunId, input.runId),
@@ -26,7 +26,7 @@ export async function verifiedWorkspaceSnapshotReuse(db: Pick<Db, "select">, inp
       isNull(executionWorkspaceSnapshots.byteSize), isNull(executionWorkspaceSnapshots.key),
       isNull(executionWorkspaceSnapshots.manifestDigest),
       sql`coalesce(${executionWorkspaceSnapshots.metadata}->'uploads', '[]'::jsonb) = '[]'::jsonb`))
-    .where(and(eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.issueId, input.issueId),
+    .where(and(eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.issueId, input.issueId),
       eq(workspaceOperations.executionWorkspaceId, reference.workspaceId), eq(workspaceOperations.heartbeatRunId, input.runId),
       eq(workspaceOperations.phase, "remote_workspace_snapshot"), eq(workspaceOperations.status, "succeeded"),
       sql`${workspaceOperations.metadata}->>'boundary' = 'final'`,

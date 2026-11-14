@@ -26,20 +26,20 @@ export { hasAgentShortnameCollision, deduplicateAgentName } from "../lib/agent-r
 export function agentService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
   const {
     normalizeAgentRows,
-    listCompanyAgentRows,
+    listSpaceAgentRows,
     hydrateAgentSpend,
     getById
   } = agentRecordQueries(db);
   const updateAgent = (...args: Parameters<ReturnType<typeof createAgentLifecycle>["updateConfiguration"]>) =>
     createAgentLifecycle(db, budgetHooks).updateConfiguration(...args);
   return {
-    list: async (companyId: string, options?: { includeTerminated?: boolean }) => {
-      const allCompanyRows = await listCompanyAgentRows(companyId);
+    list: async (spaceId: string, options?: { includeTerminated?: boolean }) => {
+      const allSpaceRows = await listSpaceAgentRows(spaceId);
       const rows = options?.includeTerminated
-        ? allCompanyRows
-        : allCompanyRows.filter((row) => row.status !== "terminated");
+        ? allSpaceRows
+        : allSpaceRows.filter((row) => row.status !== "terminated");
       const hydrated = await hydrateAgentSpend(rows);
-      return normalizeAgentRows(hydrated, allCompanyRows);
+      return normalizeAgentRows(hydrated, allSpaceRows);
     },
 
     getById,
@@ -48,7 +48,7 @@ export function agentService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
       const existing = await getById(id);
       if (!existing) return null;
       if (existing.status === "pending_approval") {
-        throw conflict("Pending approval agent permissions cannot be changed before board approval", {
+        throw conflict("Pending approval agent permissions cannot be changed before operator approval", {
           code: "pending_approval_agent_config_frozen",
           agentId: id,
           fields: ["permissions"],
@@ -56,13 +56,13 @@ export function agentService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
       }
 
       const updated = await db.transaction(async tx => {
-        await assertAgentInteraction(tx, { companyId: existing.companyId, actorAgentId: options?.actorAgentId,
+        await assertAgentInteraction(tx, { spaceId: existing.spaceId, actorAgentId: options?.actorAgentId,
           operation: "configure", targetAgentId: id, lock: "update" });
         const [current] = await tx.select().from(agents).where(eq(agents.id, id)).for("update");
         if (!current) return null;
-        if (current.status === "pending_approval") throw conflict("Pending approval agent permissions cannot be changed before board approval");
+        if (current.status === "pending_approval") throw conflict("Pending approval agent permissions cannot be changed before operator approval");
         const protectedPermissions = preserveAgentInteractionPermissions(current.permissions, permissions);
-        await notifyAttentionRetentionWork(tx, { companyId: current.companyId });
+        await notifyAttentionRetentionWork(tx, { spaceId: current.spaceId });
         return tx
         .update(agents)
         .set({
@@ -141,7 +141,7 @@ export function agentService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
         .insert(agentApiKeys)
         .values({
           agentId: id,
-          companyId: existing.companyId,
+          spaceId: existing.spaceId,
           name,
           keyHash,
           responsibleUserId: options?.responsibleUserId?.trim() || null,
@@ -186,7 +186,7 @@ export function agentService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
         .select({
           id: agentApiKeys.id,
           agentId: agentApiKeys.agentId,
-          companyId: agentApiKeys.companyId,
+          spaceId: agentApiKeys.spaceId,
           name: agentApiKeys.name,
           responsibleUserId: agentApiKeys.responsibleUserId,
           scopeConfig: agentApiKeys.scopeConfig,
@@ -214,10 +214,10 @@ export function agentService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
       return rows[0] ?? null;
     },
 
-    orgForCompany: async (companyId: string) => {
-      const allCompanyRows = await listCompanyAgentRows(companyId);
-      const rows = allCompanyRows.filter((row) => row.status !== "terminated");
-      const normalizedRows = normalizeAgentRows(rows, allCompanyRows);
+    orgForSpace: async (spaceId: string) => {
+      const allSpaceRows = await listSpaceAgentRows(spaceId);
+      const rows = allSpaceRows.filter((row) => row.status !== "terminated");
+      const normalizedRows = normalizeAgentRows(rows, allSpaceRows);
       const byManager = new Map<string | null, typeof normalizedRows>();
       for (const row of normalizedRows) {
         const key = row.reportsTo && rows.some((candidate) => candidate.id === row.reportsTo) ? row.reportsTo : null;
@@ -258,7 +258,7 @@ export function agentService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
         .from(heartbeatRuns)
         .where(and(eq(heartbeatRuns.agentId, agentId), inArray(heartbeatRuns.status, ["queued", "running"]))),
 
-    resolveByReference: async (companyId: string, reference: string) => {
+    resolveByReference: async (spaceId: string, reference: string) => {
       const raw = reference.trim();
       if (raw.length === 0) {
         return { agent: null, ambiguous: false } as const;
@@ -266,7 +266,7 @@ export function agentService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
 
       if (isUuidLike(raw)) {
         const byId = await getById(raw);
-        if (!byId || byId.companyId !== companyId) {
+        if (!byId || byId.spaceId !== spaceId) {
           return { agent: null, ambiguous: false } as const;
         }
         return { agent: byId, ambiguous: false } as const;
@@ -277,7 +277,7 @@ export function agentService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
         return { agent: null, ambiguous: false } as const;
       }
 
-      const rows = await db.select().from(agents).where(eq(agents.companyId, companyId));
+      const rows = await db.select().from(agents).where(eq(agents.spaceId, spaceId));
       const matches = normalizeAgentRows(rows, rows)
         .filter((agent) => agent.urlKey === urlKey && agent.status !== "terminated");
       if (matches.length === 1) {

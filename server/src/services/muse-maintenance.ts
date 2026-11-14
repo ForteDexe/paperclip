@@ -50,7 +50,7 @@ export function startMuseMaintenance(
               if (signal.aborted) throw new Error("Muse maintenance stopped");
               if (!b.qualificationId) throw new Error("Muse qualification is missing its identity");
               try {
-                await broker.endQualification({ companyId: b.companyId, agentId: b.agentId,
+                await broker.endQualification({ spaceId: b.spaceId, agentId: b.agentId,
                   bindingId: b.id, qualificationId: b.qualificationId, operatorId: b.operatorId });
               } catch {
                 failed = true;
@@ -70,16 +70,16 @@ export function startMuseMaintenance(
               try {
                 if (b.grantId) {
                   const [grant] = await db.select({ revokedAt: mcpOauthGrants.revokedAt }).from(mcpOauthGrants)
-                    .where(and(eq(mcpOauthGrants.id, b.grantId), eq(mcpOauthGrants.companyId, b.companyId),
+                    .where(and(eq(mcpOauthGrants.id, b.grantId), eq(mcpOauthGrants.spaceId, b.spaceId),
                       eq(mcpOauthGrants.agentId, b.agentId), eq(mcpOauthGrants.userId, b.operatorId)));
                   if (!grant || grant.revokedAt) {
-                    await broker.revokeOAuthGrant({ grantId: b.grantId, companyId: b.companyId,
+                    await broker.revokeOAuthGrant({ grantId: b.grantId, spaceId: b.spaceId,
                       agentId: b.agentId, authorizingUserId: b.operatorId });
                     continue;
                   }
                 }
                 if (settlementAllowed) {
-                  await broker.reconcileTerminalAssignments(b.companyId, b.agentId, b.id, { limit: 100 });
+                  await broker.reconcileTerminalAssignments(b.spaceId, b.agentId, b.id, { limit: 100 });
                   inspected.add(b.id);
                 }
               } catch {
@@ -106,7 +106,7 @@ export function startMuseMaintenance(
               try {
                 const credential = await inspectMuseConnectionCredential(db, b);
                 if (credential.state !== "active" && credential.state !== "pending") continue;
-                await broker.verify(b.companyId, b.agentId, {
+                await broker.verify(b.spaceId, b.agentId, {
                   bindingId: b.id, generation: b.generation, expectedRevision: b.revision,
                 });
               } catch (error) {
@@ -130,7 +130,7 @@ export function startMuseMaintenance(
               for (const binding of pending) {
                 if (signal.aborted) throw new Error("Muse settlement stopped");
                 if (inspected.has(binding.id)) continue;
-                try { await broker.reconcileTerminalAssignments(binding.companyId, binding.agentId, binding.id, { limit: 100 }); }
+                try { await broker.reconcileTerminalAssignments(binding.spaceId, binding.agentId, binding.id, { limit: 100 }); }
                 catch (error) { failed = true; logger.warn({ err: error, bindingId: binding.id }, "Muse settlement failed; will retry."); }
               }
               if (pending.length < 100) break;

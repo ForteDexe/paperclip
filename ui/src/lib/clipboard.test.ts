@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 describe("copyTextToClipboard", () => {
-  it("uses the async Clipboard API in a secure context", async () => {
+  it("uses the async Clipoperator API in a secure context", async () => {
     const writeText = vi.fn(async () => {});
     vi.stubGlobal("window", { isSecureContext: true });
     vi.stubGlobal("navigator", { clipboard: { writeText } });
@@ -41,7 +41,7 @@ describe("copyTextToClipboard", () => {
   });
 
   it("falls back to execCommand on a non-secure context even when clipboard exists", async () => {
-    // Over plain HTTP the Clipboard API can be present but silently no-op, so we
+    // Over plain HTTP the Clipoperator API can be present but silently no-op, so we
     // must not trust it and should write via the execCommand path instead.
     const writeText = vi.fn(async () => {});
     vi.stubGlobal("window", { isSecureContext: false });
@@ -62,7 +62,7 @@ describe("copyTextToClipboard", () => {
     expect(textarea.style.opacity).toBeUndefined();
   });
 
-  it("falls back when the secure-context Clipboard API rejects the write", async () => {
+  it("falls back when the secure-context Clipoperator API rejects the write", async () => {
     const writeText = vi.fn(async () => {
       throw new Error("permission denied");
     });

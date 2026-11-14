@@ -102,7 +102,7 @@ export async function suspendOwnedProviderForCleanup(ctx: ChatCatalogContext, bi
   if (!matchesOwnedProvider({ identity: first, expected }) || !matchesOwnedProvider({ identity: second, expected }) || JSON.stringify(first) !== JSON.stringify(second)) throw new Error("Provider cleanup suspension rejected changed or unowned process identity");
   process.kill(pid, "SIGSTOP"); retainedProvider.set(ctx, second);
   const timer = setTimeout(() => { void releaseOwnedCleanupProvider(ctx).catch(() => undefined); }, MAXIMUM_SUSPENSION_MS); timer.unref(); suspended.set(ctx, { identity: second, runId: run.id, timer });
-  await ctx.input.evidence("runtime-cleanup-owned-provider.json", { runId: run.id, companyId: run.companyId, issueId: run.nativeIssueId, agentId: run.agentId, providerPid: pid, providerStartedAt: started,
+  await ctx.input.evidence("runtime-cleanup-owned-provider.json", { runId: run.id, spaceId: run.spaceId, issueId: run.nativeIssueId, agentId: run.agentId, providerPid: pid, providerStartedAt: started,
     providerKind: kind, cleanupBoundary: kind === "opencode" ? viaProxy ? "owned-protocol-proxy-retirement" : "owned-opencode-serve-retirement" : "owned-app-server-retirement", sdkServerExitRequired: false, sameUid: true, directOwnedRunnerParent: true, proxyScriptSha256: proxyDigest, executableSha256: second.digest, durableSessionReceipt: true, identityReadTwice: true, signal: "SIGSTOP", groupSignalled: false, maximumSuspensionMs: MAXIMUM_SUSPENSION_MS, releasedBy: "follow-up-message-accepted" });
   return { providerPid: pid, providerStartedAt: started, runId: run.id };
 }

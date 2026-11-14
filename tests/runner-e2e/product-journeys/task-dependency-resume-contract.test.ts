@@ -21,7 +21,7 @@ function retained(): RunnerE2EResult {
 }
 describe("dependency journey registration and retained acceptance", () => {
   it("is explicit and requires exactly one bounded configured native run", () => {
-    expect(productJourneys.find(row => row.id === caseId)).toMatchObject({ paid: true, requires: ["company", "board-user", "task-write", "agent"] });
+    expect(productJourneys.find(row => row.id === caseId)).toMatchObject({ paid: true, requires: ["space", "board-user", "task-write", "agent"] });
     expect(parseTargetConfig(configuration()).journeys).toEqual([caseId]);
     expect(journeyRequiredChecks[caseId]).toEqual(TASK_DEPENDENCY_RESUME_CHECKS);
     expect(agentJourneyRunCountValid(caseId, 1)).toBe(true);

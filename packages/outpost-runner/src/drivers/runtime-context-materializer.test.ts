@@ -77,7 +77,7 @@ function context(
       },
     },
     skills: [{
-      key: `company/${runtimeName}`,
+      key: `space/${runtimeName}`,
       runtimeName,
       versionId: "version-1",
       bundle: {
@@ -109,19 +109,19 @@ describe("runtime context materialization", () => {
   it("validates native MCP launch bindings before they reach Codex", () => {
     expect(nativeMcpLaunchBinding({})).toBeNull();
     expect(() => nativeMcpLaunchBinding({
-      OUTPOST_NATIVE_MCP_NAME: "paperclip",
+      OUTPOST_NATIVE_MCP_NAME: "outpost",
       OUTPOST_NATIVE_MCP_URL: "http://outpost.example/mcp",
       OUTPOST_NATIVE_MCP_TOKEN: "x".repeat(40),
     })).toThrow("requires HTTPS or loopback HTTP");
     expect(() => nativeMcpLaunchBinding({
-      OUTPOST_NATIVE_MCP_NAME: "paperclip",
+      OUTPOST_NATIVE_MCP_NAME: "outpost",
       OUTPOST_NATIVE_MCP_URL: "https://user:pass@outpost.example/mcp#secret",
       OUTPOST_NATIVE_MCP_TOKEN: "x".repeat(40),
     })).toThrow("contains forbidden URL data");
   });
 
   it("copies only assigned skills and writes an isolated MCP config", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-runtime-context-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-runtime-context-"));
     roots.push(root);
     const assigned = join(root, "assigned-source");
     const instructions = join(root, "instructions-source");
@@ -145,7 +145,7 @@ describe("runtime context materialization", () => {
       codexHome,
       sourceCodexHome: join(root, "host-home"),
       nativeMcp: nativeMcpLaunchBinding({
-        OUTPOST_NATIVE_MCP_NAME: "paperclip-assigned",
+        OUTPOST_NATIVE_MCP_NAME: "outpost-assigned",
         OUTPOST_NATIVE_MCP_URL: "https://outpost.example/mcp",
         OUTPOST_NATIVE_MCP_TOKEN: "x".repeat(40),
       }),
@@ -162,21 +162,21 @@ describe("runtime context materialization", () => {
     ).toBe(0);
     const config = await readFile(join(codexHome, "config.toml"), "utf8");
     expect(config).toContain("shell_snapshot = false");
-    expect(config).toContain("paperclip-assigned");
+    expect(config).toContain("outpost-assigned");
     expect(config).toContain('default_tools_approval_mode = "approve"');
     expect(config).toContain("Bearer ");
     expect(config).not.toContain("unassigned");
   });
 
   it("preserves a managed provider while excluding ambient auth, hooks, and tool configuration", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-routing-home-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-routing-home-"));
     roots.push(root);
     const source = join(root, "source");
     const target = join(root, "isolated");
     await mkdir(source);
     await writeFile(join(source, "auth.json"), '{"OPENAI_API_KEY":"unrelated-key"}');
-    await writeFile(join(source, "config.toml"), `model_provider = "paperclip"
-[model_providers.paperclip]
+    await writeFile(join(source, "config.toml"), `model_provider = "outpost"
+[model_providers.outpost]
 name = "Selected connection"
 base_url = "https://openrouter.ai/api/v1"
 wire_api = "responses"
@@ -189,18 +189,18 @@ command = "untrusted-command"
 `);
     await prepareIsolatedCodexHome({ context: null, codexHome: target, sourceCodexHome: source, apiKey: "also-unrelated" });
     const config = await readFile(join(target, "config.toml"), "utf8");
-    expect(config).toContain('model_provider = "paperclip"');
+    expect(config).toContain('model_provider = "outpost"');
     expect(config).toContain('base_url = "https://openrouter.ai/api/v1"');
     expect(config).toContain('env_key = "OUTPOST_AI_PROVIDER_KEY"');
     expect(config).toContain('"HTTP-Referer" = "https://outpost.ing"');
-    expect(config).toContain('"X-OpenRouter-Title" = "Paperclip"');
+    expect(config).toContain('"X-OpenRouter-Title" = "Outpost"');
     expect(config).toContain("shell_snapshot = false");
     expect(config).not.toMatch(/unrelated|untrusted|unassigned/);
     await expect(stat(join(target, "auth.json"))).rejects.toThrow();
   });
 
   it("rejects repeated assignments without changing the current assignment", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-runtime-repeat-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-runtime-repeat-"));
     roots.push(root);
     const assigned = join(root, "assigned-source");
     const replacement = join(root, "replacement-source");
@@ -233,7 +233,7 @@ command = "untrusted-command"
   });
 
   it("rejects source symlinks without changing the current assignment", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-runtime-symlink-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-runtime-symlink-"));
     roots.push(root);
     const assigned = join(root, "assigned-source");
     const unsafe = join(root, "unsafe-source");
@@ -261,7 +261,7 @@ command = "untrusted-command"
   });
 
   it("rejects overlapping portable names without changing the current assignment", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-runtime-atomic-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-runtime-atomic-"));
     roots.push(root);
     const assigned = join(root, "assigned-source");
     const replacement = join(root, "replacement-source");
@@ -280,7 +280,7 @@ command = "untrusted-command"
     for (const runtimeName of ["group", "GROUP", "group.", "group "]) {
       const collidingSkill = {
         ...replacementContext.skills[0]!,
-        key: `company/${runtimeName}`,
+        key: `space/${runtimeName}`,
         runtimeName,
       };
       for (const skills of [
@@ -307,7 +307,7 @@ command = "untrusted-command"
 
     const win32AliasedChild = {
       ...replacementContext.skills[0]!,
-      key: "company/group-dot-child",
+      key: "space/group-dot-child",
       runtimeName: "group./child",
     };
     const value = {
@@ -324,7 +324,7 @@ command = "untrusted-command"
   });
 
   it("rejects an existing destination before filesystem mutation", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-runtime-existing-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-runtime-existing-"));
     roots.push(root);
     const assigned = join(root, "assigned-source");
     const replacement = join(root, "replacement-source");
@@ -369,13 +369,13 @@ command = "untrusted-command"
     await expect(stat(join(skillsHome, "replacement"))).rejects.toThrow();
     expect(
       (await readdir(dirname(skillsHome))).filter((entry) =>
-        entry.startsWith(".paperclip-skills-"),
+        entry.startsWith(".outpost-skills-"),
       ),
     ).toEqual([]);
   });
 
   it("cleans private staging when fresh publication fails", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-runtime-publish-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-runtime-publish-"));
     roots.push(root);
     const assigned = join(root, "assigned-source");
     const instructions = join(root, "instructions-source");
@@ -400,13 +400,13 @@ command = "untrusted-command"
     await expect(stat(skillsHome)).rejects.toThrow();
     expect(
       (await readdir(dirname(skillsHome))).filter((entry) =>
-        entry.startsWith(".paperclip-skills-staging-"),
+        entry.startsWith(".outpost-skills-staging-"),
       ),
     ).toEqual([]);
   });
 
   it("rejects skill names that can escape or alias the skills home", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-runtime-name-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-runtime-name-"));
     roots.push(root);
     const assigned = join(root, "assigned-source");
     const instructions = join(root, "instructions-source");
@@ -449,7 +449,7 @@ command = "untrusted-command"
   });
 
   it("writes API login state as an owner-only file and removes stale auth", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-runtime-auth-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-runtime-auth-"));
     roots.push(root);
     const codexHome = join(root, "codex-home");
     const emptyCodexHome = join(root, "empty-codex-home");
@@ -478,7 +478,7 @@ command = "untrusted-command"
   });
 
   it("copies regular host auth but refuses symlinked auth", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-runtime-host-auth-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-runtime-host-auth-"));
     roots.push(root);
     const codexHome = join(root, "codex-home");
     const symlinkCodexHome = join(root, "symlink-codex-home");
@@ -508,7 +508,7 @@ command = "untrusted-command"
   });
 
   it.each(["selected", "missing", "symlink", "routing"] as const)("refreshes source launch files without changing retained skills (%s)", async mode => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-source-auth-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-source-auth-"));
     roots.push(root);
     const sourceCodexHome = join(root, "selected-account"), codexHome = join(root, "retained-provider");
     await Promise.all([mkdir(sourceCodexHome), mkdir(codexHome)]);
@@ -524,8 +524,8 @@ command = "untrusted-command"
       if (mode === "symlink") await symlink(filename, join(sourceCodexHome, "auth.json"));
       else await writeFile(join(sourceCodexHome, "auth.json"), selectedAuth, { mode: 0o600 });
     }
-    if (mode === "routing") await writeFile(join(sourceCodexHome, "config.toml"), `model_provider = "paperclip"
-[model_providers.paperclip]
+    if (mode === "routing") await writeFile(join(sourceCodexHome, "config.toml"), `model_provider = "outpost"
+[model_providers.outpost]
 base_url = "https://example.com/v1"
 wire_api = "responses"
 requires_openai_auth = false

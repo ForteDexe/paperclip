@@ -11,16 +11,16 @@ import { McpConfigHelpDialog } from "@/pages/tools/McpConfigHelpDialog";
 import { AgentInstructions } from "@/components/routine-triggers/WebhookFields";
 import { IssueContinuationHandoff } from "@/components/IssueContinuationHandoff";
 import { webhookAgentInstructions } from "../../fixtures/routineTriggerWizard";
-import { storybookContinuationHandoff } from "../../fixtures/paperclipData";
+import { storybookContinuationHandoff } from "../../fixtures/outpostData";
 
 const slackPrompt = buildSlackSetupPrompt(import.meta.env.VITE_OUTPOST_INSTANCE_URL ?? "");
-const apiPrompt = `Help me connect my agent to the Paperclip API.
+const apiPrompt = `Help me connect my agent to the Outpost API.
 
-First, ask me for my Paperclip instance URL if it is not already available. Read its API documentation and identify the company and agent I want to use.
+First, ask me for my Outpost instance URL if it is not already available. Read its API documentation and identify the space and agent I want to use.
 
 Guide me through creating a dedicated agent API key. Store it securely in my agent's environment; do not paste it into code, logs, or chat.
 
-Configure the base URL and authentication, then verify the connection with a read-only request. Show me what worked and ask before making any changes to my company.`;
+Configure the base URL and authentication, then verify the connection with a read-only request. Show me what worked and ask before making any changes to my space.`;
 
 const meta = {
   id: "components-agent-setup-prompt",
@@ -29,7 +29,7 @@ const meta = {
   parameters: {
     layout: "fullscreen",
     docs: { description: { component: "A reusable handoff to an agent. Hover or focus to fan out the logos, click once to copy the prompt and open its preview. Logos travel into the preview; clipboard success stays in place. Supports reduced motion, keyboard dismissal, and manual copying when clipboard access fails. The default story copies the complete production Slack setup prompt." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "connection-setup/channel-setup",
         "gateways-profiles/client-connect"
@@ -73,7 +73,7 @@ export const Playground: Story = {
           </div>
           <div className="flex flex-col gap-1">
             <h2 className="text-base font-medium">Connect Slack</h2>
-            <p className="text-sm leading-relaxed text-muted-foreground">Bring your Paperclip agent into your workspace.</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">Bring your Outpost agent into your workspace.</p>
           </div>
         </div>
         <div><AgentSetupPrompt {...args} /></div>

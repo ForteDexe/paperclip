@@ -11,7 +11,7 @@ import { privilegedDefinition, privilegedObservation, settlePrivilegedChat, rema
  * itself is always on (#19360), so it is no longer an experiment a person can ask to enable.
  */
 const endpoint = "/api/instance/settings/experimental";
-const SETTINGS_PATH = "/company/settings/instance/experimental";
+const SETTINGS_PATH = "/space/settings/instance/experimental";
 const CASES_TOGGLE = "Toggle cases experimental setting";
 const probeKeys = new WeakMap<ChatCatalogContext, { id: string; token: string }>();
 const restoreValues = new WeakMap<ChatCatalogContext, boolean>();
@@ -28,7 +28,7 @@ async function probe(ctx: ChatCatalogContext, method: "GET" | "PATCH") {
 async function casesEnabled(ctx: ChatCatalogContext, timeout?: number) {
   return (await ctx.input.api.get<Experimental>(endpoint, timeout === undefined ? undefined : { timeout })).enableCases === true;
 }
-/** The Experimental settings page, with or without the company prefix, on the fixture origin. */
+/** The Experimental settings page, with or without the space prefix, on the fixture origin. */
 export function isExperimentalSettingsLink(href: string, origin: string, prefix: string): boolean {
   try {
     const url = new URL(href, origin);
@@ -50,7 +50,7 @@ async function renderedSettingsLink(page: Page, replyIds: string[], origin: stri
 export function gradeInstanceSettings(value: unknown) {
   const c = checks(), o = privilegedObservation(value);
   c.add("actual-setting-evidence", !!o, "Actual denied agent access and independently saved operator changes are required."); if (!o) return c.result();
-  const prefix = typeof o.state.companyPrefix === "string" ? o.state.companyPrefix : "";
+  const prefix = typeof o.state.spacePrefix === "string" ? o.state.spacePrefix : "";
   c.add("agent-not-instance-admin", o.state.agentReadStatus === 403 && o.state.agentPatchStatus === 403 && o.state.agentDenialCode === "board_access_required"
     && o.state.gateUnchangedAfterProbe === true && o.state.settingOffAfterAgent === true,
     "The actual agent bearer is denied reading and patching experimental settings, and Cases is still off after the agent's turn.");
@@ -80,7 +80,7 @@ const settings = privilegedDefinition("instance-operations.instance-settings", "
       const key = await ctx.input.api.postSensitive<{ id: string; token: string }>(`/api/agents/${ctx.input.fixtures.agent.id}/keys`, { name: `catalog-instance-probe-${ctx.input.nonce}` });
       ctx.input.privateSecrets.push(key.token); probeKeys.set(ctx, key);
       const read = await probe(ctx, "GET"), patch = await probe(ctx, "PATCH");
-      return { companyPrefix: ctx.input.fixtures.company.issuePrefix, agentReadStatus: read.status, agentPatchStatus: patch.status,
+      return { spacePrefix: ctx.input.fixtures.space.issuePrefix, agentReadStatus: read.status, agentPatchStatus: patch.status,
         agentDenialCode: read.code === patch.code ? read.code : null, gateUnchangedAfterProbe: !(await casesEnabled(ctx)) };
     } catch (error) {
       await restoreFixture(ctx).catch(() => undefined);
@@ -91,8 +91,8 @@ const settings = privilegedDefinition("instance-operations.instance-settings", "
     const remaining = () => remainingPrivilegedObservationBudget(ctx);
     remaining();
     const settled = await settlePrivilegedChat(ctx, ctx.observationDeadlineAt);
-    const page = ctx.input.page, source = page.url(), origin = ctx.input.api.baseURL, prefix = ctx.input.fixtures.company.issuePrefix ?? "";
-    if (!prefix) throw new Error("Instance settings journey requires the fixture company prefix");
+    const page = ctx.input.page, source = page.url(), origin = ctx.input.api.baseURL, prefix = ctx.input.fixtures.space.issuePrefix ?? "";
+    if (!prefix) throw new Error("Instance settings journey requires the fixture space prefix");
     // Only the agent acted so far: Cases must still be off.
     state.settingOffAfterAgent = !(await casesEnabled(ctx, remaining()));
     // While Cases is off, its page is unavailable: the route gate sends the person to the dashboard.

@@ -14,7 +14,7 @@ import {
   activityLog,
   applyPendingMigrations,
   agents,
-  companies,
+  spaces,
   createDb,
   databaseWorkPending,
   executionWorkspaces,
@@ -182,9 +182,9 @@ async function readGit(cwd: string, args: string[]) {
 }
 
 async function createTempRepo() {
-  const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-execution-workspace-"));
+  const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-execution-workspace-"));
   await runGit(repoRoot, ["init"]);
-  await runGit(repoRoot, ["config", "user.name", "Paperclip Test"]);
+  await runGit(repoRoot, ["config", "user.name", "Outpost Test"]);
   await runGit(repoRoot, ["config", "user.email", "test@outpost.local"]);
   await fs.writeFile(path.join(repoRoot, "README.md"), "# Test repo\n", "utf8");
   await runGit(repoRoot, ["add", "README.md"]);
@@ -262,12 +262,12 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
 
   beforeAll(async () => {
     if (externalUrl) await applyPendingMigrations(externalUrl);
-    else tempDb = await startEmbeddedPostgresTestDatabase("paperclip-execution-workspaces-service-");
+    else tempDb = await startEmbeddedPostgresTestDatabase("outpost-execution-workspaces-service-");
     db = createDb(externalUrl ?? tempDb!.connectionString);
     await resetDatabase();
     svc = executionWorkspaceService(db, {
-      resolvePullRequestDetails: vi.fn(async (companyId, reference) =>
-        pullRequestDetailsByKey.get(`${companyId}:${reference.number}`)
+      resolvePullRequestDetails: vi.fn(async (spaceId, reference) =>
+        pullRequestDetailsByKey.get(`${spaceId}:${reference.number}`)
         ?? { state: "unknown" as const, headRef: null, headSha: null }
       ),
       // Disable the reaper cooldown for the delivery, terminal, race, and
@@ -290,7 +290,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await db.delete(projects);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   }
 
   afterEach(async () => {
@@ -308,10 +308,10 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await tempDb?.cleanup();
   });
 
-  function insertBlockedSourceTask(issueId: string, companyId: string, projectId: string) {
+  function insertBlockedSourceTask(issueId: string, spaceId: string, projectId: string) {
     return db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       title: "Source task",
       status: "blocked",
@@ -319,13 +319,13 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
   }
 
-  function insertBoardWorkspaceRecovery(companyId: string, issueId: string, fingerprint: string) {
+  function insertBoardWorkspaceRecovery(spaceId: string, issueId: string, fingerprint: string) {
     return db.insert(issueRecoveryActions).values({
-      companyId,
+      spaceId,
       sourceIssueId: issueId,
       kind: "workspace_validation",
       status: "active",
-      ownerType: "board",
+      ownerType: "operator",
       cause: "workspace_validation_failed",
       fingerprint,
       evidence: {
@@ -337,10 +337,10 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
   }
 
-  function insertMissingRecordedBranchWorkspace(executionWorkspaceId: string, companyId: string, projectId: string, issueId: string, worktreePath: string) {
+  function insertMissingRecordedBranchWorkspace(executionWorkspaceId: string, spaceId: string, projectId: string, issueId: string, worktreePath: string) {
     return db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       sourceIssueId: issueId,
       mode: "isolated_workspace",
@@ -355,10 +355,10 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
   }
 
-  function insertRecordedBranchWorkspace(executionWorkspaceId: string, companyId: string, projectId: string, projectWorkspaceId: string, issueId: string, worktreePath: string) {
+  function insertRecordedBranchWorkspace(executionWorkspaceId: string, spaceId: string, projectId: string, projectWorkspaceId: string, issueId: string, worktreePath: string) {
     return db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       sourceIssueId: issueId,
@@ -374,10 +374,10 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
   }
 
-  function insertRunningWorkspaceService(runtimeServiceId: string, companyId: string, projectId: string, executionWorkspaceId: string, issueId: string, worktreePath: string) {
+  function insertRunningWorkspaceService(runtimeServiceId: string, spaceId: string, projectId: string, executionWorkspaceId: string, issueId: string, worktreePath: string) {
     return db.insert(workspaceRuntimeServices).values({
       id: runtimeServiceId,
-      companyId,
+      spaceId,
       projectId,
       executionWorkspaceId,
       issueId,
@@ -392,10 +392,10 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
   }
 
-  function insertActiveCodexCoder(agentId: string, companyId: string) {
+  function insertActiveCodexCoder(agentId: string, spaceId: string) {
     return db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Codex Coder",
       role: "engineer",
       status: "active",
@@ -411,14 +411,14 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     activeRun?: boolean;
     childStatus?: "done" | "todo";
   } = {}) {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const executionWorkspaceId = randomUUID();
     const sourceIssueId = randomUUID();
-    const issuePrefix = `P${companyId.slice(0, 8).toUpperCase()}`;
+    const issuePrefix = `P${spaceId.slice(0, 8).toUpperCase()}`;
     const identifier = `${issuePrefix}-1`;
     const repoRoot = await createTempRepo();
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-terminal-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-terminal-${randomUUID()}`);
     tempDirs.add(repoRoot);
     tempDirs.add(worktreePath);
     await runGit(repoRoot, ["branch", "PAP-16015-delivery"]);
@@ -427,21 +427,21 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await runGit(worktreePath, ["add", "delivered.txt"]);
     await runGit(worktreePath, ["commit", "-m", "Delivered change"]);
     const headSha = await readGit(worktreePath, ["rev-parse", "HEAD"]);
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Terminal workspaces",
       status: "in_progress",
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       mode: "isolated_workspace",
       strategyType: "git_worktree",
@@ -450,13 +450,13 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       cwd: worktreePath,
       providerRef: worktreePath,
       providerType: "git_worktree",
-      repoUrl: "https://github.com/paperclipai/outpost.git",
+      repoUrl: "https://github.com/outpost/outpost.git",
       baseRef: "main",
       branchName: "PAP-16015-delivery",
     });
     await db.insert(issues).values({
       id: sourceIssueId,
-      companyId,
+      spaceId,
       projectId,
       identifier,
       title: "Delivered source issue",
@@ -473,7 +473,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     if (options.childStatus) {
       await db.insert(issues).values({
         id: randomUUID(),
-        companyId,
+        spaceId,
         projectId,
         parentId: sourceIssueId,
         title: "Descendant",
@@ -483,7 +483,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     }
     if (options.mergedPr) {
       await db.insert(issueWorkProducts).values({
-        companyId,
+        spaceId,
         issueId: sourceIssueId,
         executionWorkspaceId,
         type: "pull_request",
@@ -493,17 +493,17 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         status: "merged",
       });
     }
-    pullRequestDetailsByKey.set(`${companyId}:10623`, {
+    pullRequestDetailsByKey.set(`${spaceId}:10623`, {
       state: "merged",
       headRef: "PAP-16015-delivery",
       headSha,
     });
-    pullRequestDetailsByKey.set(`${companyId}:10624`, {
+    pullRequestDetailsByKey.set(`${spaceId}:10624`, {
       state: "merged",
       headRef: "unrelated-delivery",
       headSha,
     });
-    pullRequestDetailsByKey.set(`${companyId}:10625`, {
+    pullRequestDetailsByKey.set(`${spaceId}:10625`, {
       state: "merged",
       headRef: "descendant-delivery",
       headSha,
@@ -513,7 +513,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       const runId = randomUUID();
       await db.insert(agents).values({
         id: agentId,
-        companyId,
+        spaceId,
         name: "Coder",
         role: "engineer",
         status: "active",
@@ -524,13 +524,13 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       });
       await db.insert(heartbeatRuns).values({
         id: runId,
-        companyId,
+        spaceId,
         agentId,
         status: "running",
       });
       await db.update(issues).set({ checkoutRunId: runId }).where(eq(issues.id, sourceIssueId));
     }
-    return { companyId, projectId, executionWorkspaceId, sourceIssueId, identifier, repoRoot, worktreePath, headSha };
+    return { spaceId, projectId, executionWorkspaceId, sourceIssueId, identifier, repoRoot, worktreePath, headSha };
   }
 
   it("skips nonterminal trees, cooldowns, and active runs without a Git scan", async () => {
@@ -549,7 +549,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     } finally { scan.mockRestore(); }
   });
 
-  it("derives cooldown deadlines from the full company-scoped terminal tree", async () => {
+  it("derives cooldown deadlines from the full space-scoped terminal tree", async () => {
     const seed = await seedTerminalWorkspace({ childStatus: "done" });
     const [child] = await db.select().from(issues).where(eq(issues.parentId, seed.sourceIssueId));
     const sourceDone = new Date("2026-01-01T00:00:00Z"), childCancelled = new Date("2026-01-02T00:00:00Z");
@@ -583,9 +583,9 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     expect(await fs.readFile(path.join(seed.worktreePath, "unsaved.txt"), "utf8")).toBe("keep this work\n");
   });
 
-  it("shares compatible Git inspections within a batch while keeping branch and company decisions separate", async () => {
+  it("shares compatible Git inspections within a batch while keeping branch and space decisions separate", async () => {
     const first = await seedTerminalWorkspace();
-    const otherCompany = await seedTerminalWorkspace();
+    const otherSpace = await seedTerminalWorkspace();
     const [original] = await db.select().from(executionWorkspaces)
       .where(eq(executionWorkspaces.id, first.executionWorkspaceId));
     await db.insert(executionWorkspaces).values([
@@ -597,7 +597,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       providerRef: first.worktreePath,
       branchName: original!.branchName,
       baseRef: original!.baseRef,
-    }).where(eq(executionWorkspaces.id, otherCompany.executionWorkspaceId));
+    }).where(eq(executionWorkspaces.id, otherSpace.executionWorkspaceId));
     const service = executionWorkspaceService(db, { workspaceReaperCooldownDays: 0 });
     const scan = vi.spyOn(workspaceGitOperationScheduler, "run");
     const select = vi.spyOn(db, "select");
@@ -647,7 +647,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       if (event === "settled") service.terminalWorkspaceWorkSettled(hints);
     });
     try {
-      await workProductService(db).createForIssue(seed.sourceIssueId, seed.companyId, {
+      await workProductService(db).createForIssue(seed.sourceIssueId, seed.spaceId, {
         type: "pull_request", provider: "github", title: "PR", status: "merged",
         url: "https://github.com/paperclipai/paperclip/pull/10623", executionWorkspaceId: seed.executionWorkspaceId,
       });
@@ -663,7 +663,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       resolvePullRequestDetails: async () => ({ state: "merged", headRef: "PAP-16015-delivery", headSha: seed.headSha }),
     });
     expect(await service.sweepTerminalWorkspaces(1)).toMatchObject({ checked: 1, skippedUndelivered: 1 });
-    await workProductService(db).createForIssue(seed.sourceIssueId, seed.companyId, {
+    await workProductService(db).createForIssue(seed.sourceIssueId, seed.spaceId, {
       type: "pull_request", provider: "github", title: "PR", status: "merged",
       url: "https://github.com/paperclipai/paperclip/pull/10623",
     });
@@ -719,7 +719,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       });
       expect(events).toEqual(["intent", "settled"]);
       expect(databaseWorkPending(db, DELIVERY_QUEUES.terminalWorkspaces)).toBe(false);
-      await workProductService(db).createForIssue(seed.sourceIssueId, seed.companyId, {
+      await workProductService(db).createForIssue(seed.sourceIssueId, seed.spaceId, {
         type: "pull_request", provider: "github", title: "PR", status: "merged", url: "https://github.com/paperclipai/paperclip/pull/10623",
       });
       expect(events.slice(-2)).toEqual(["intent", "settled"]);
@@ -735,11 +735,11 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       providerRef: seeded.worktreePath,
       providerType: "git_worktree",
       baseRef: "main",
-      repoUrl: "https://github.com/paperclipai/outpost.git",
+      repoUrl: "https://github.com/outpost/outpost.git",
       branchName: "PAP-16015-delivery",
     }).where(eq(executionWorkspaces.id, seeded.executionWorkspaceId));
     await db.insert(issueWorkProducts).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       issueId: seeded.sourceIssueId,
       type: "pull_request",
       provider: "github",
@@ -832,8 +832,8 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
 
     function serviceFor(flakyDb: typeof db) {
       return executionWorkspaceService(flakyDb, {
-        resolvePullRequestDetails: vi.fn(async (companyId, reference) =>
-          pullRequestDetailsByKey.get(`${companyId}:${reference.number}`)
+        resolvePullRequestDetails: vi.fn(async (spaceId, reference) =>
+          pullRequestDetailsByKey.get(`${spaceId}:${reference.number}`)
           ?? { state: "unknown" as const, headRef: null, headSha: null }
         ),
         workspaceReaperCooldownDays: 0,
@@ -873,32 +873,32 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     // pull request, so delivery derives to merged_by_ancestry.
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-ancestry-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-ancestry-${randomUUID()}`);
     tempDirs.add(worktreePath);
     const branchName = `ancestry-${randomUUID().slice(0, 8)}`;
     await runGit(repoRoot, ["branch", branchName]);
     await runGit(repoRoot, ["worktree", "add", worktreePath, branchName]);
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const executionWorkspaceId = randomUUID();
     const sourceIssueId = randomUUID();
-    const issuePrefix = `P${companyId.slice(0, 8).toUpperCase()}`;
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    const issuePrefix = `P${spaceId.slice(0, 8).toUpperCase()}`;
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Ancestry delivery",
       status: "in_progress",
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       mode: "isolated_workspace",
       strategyType: "git_worktree",
@@ -907,13 +907,13 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       cwd: worktreePath,
       providerRef: worktreePath,
       providerType: "git_worktree",
-      repoUrl: "https://github.com/paperclipai/outpost.git",
+      repoUrl: "https://github.com/outpost/outpost.git",
       baseRef: "main",
       branchName,
     });
     await db.insert(issues).values({
       id: sourceIssueId,
-      companyId,
+      spaceId,
       projectId,
       identifier: `${issuePrefix}-1`,
       title: "Delivered by ancestry",
@@ -925,7 +925,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       .update(executionWorkspaces)
       .set({ sourceIssueId, ...(overrides.updatedAt ? { updatedAt: overrides.updatedAt } : {}) })
       .where(eq(executionWorkspaces.id, executionWorkspaceId));
-    return { companyId, projectId, executionWorkspaceId, sourceIssueId, worktreePath };
+    return { spaceId, projectId, executionWorkspaceId, sourceIssueId, worktreePath };
   }
 
   it("archives a terminal workspace delivered by ancestry with no pull request", async () => {
@@ -945,7 +945,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     expect(workspace).toMatchObject({ status: "archived", cleanupReason: "issue_terminal" });
   }, 20_000);
 
-  it("reads workspace details and company-scoped execution configuration without live Git inspection", async () => {
+  it("reads workspace details and space-scoped execution configuration without live Git inspection", async () => {
     const seed = await seedAncestryTerminalWorkspace();
     const service = executionWorkspaceService(db, {
       inspectGitCloseReadiness: async () => { throw new Error("Git inspection unavailable"); },
@@ -954,22 +954,22 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await db.update(executionWorkspaces).set({ metadata: { config } })
       .where(eq(executionWorkspaces.id, seed.executionWorkspaceId));
 
-    expect(await service.getStoredById(seed.companyId, seed.executionWorkspaceId)).toMatchObject({
-      id: seed.executionWorkspaceId, companyId: seed.companyId,
+    expect(await service.getStoredById(seed.spaceId, seed.executionWorkspaceId)).toMatchObject({
+      id: seed.executionWorkspaceId, spaceId: seed.spaceId,
       cwd: seed.worktreePath, baseRef: "main", config,
       deliveryState: "unknown", runtimeServices: [],
     });
     const runtimeServiceId = randomUUID();
     const [workspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, seed.executionWorkspaceId));
-    await insertRunningWorkspaceService(runtimeServiceId, seed.companyId, workspace!.projectId!, seed.executionWorkspaceId, workspace!.sourceIssueId!, seed.worktreePath);
-    expect(await service.getStoredById(seed.companyId, seed.executionWorkspaceId, { includeRuntimeServices: true })).toMatchObject({
+    await insertRunningWorkspaceService(runtimeServiceId, seed.spaceId, workspace!.projectId!, seed.executionWorkspaceId, workspace!.sourceIssueId!, seed.worktreePath);
+    expect(await service.getStoredById(seed.spaceId, seed.executionWorkspaceId, { includeRuntimeServices: true })).toMatchObject({
       deliveryState: "unknown", runtimeServices: [{ id: runtimeServiceId, status: "running", healthStatus: "healthy" }],
     });
     await expect(service.getStoredById(randomUUID(), seed.executionWorkspaceId, { includeRuntimeServices: true }))
       .rejects.toThrow("Task workspace access is no longer available");
     await expect(service.getStoredById(randomUUID(), seed.executionWorkspaceId))
       .rejects.toThrow("Task workspace access is no longer available");
-    expect(await service.getStoredById(seed.companyId, randomUUID())).toBeNull();
+    expect(await service.getStoredById(seed.spaceId, randomUUID())).toBeNull();
     await expect(service.getById(seed.executionWorkspaceId)).resolves.toMatchObject({
       id: seed.executionWorkspaceId, deliveryState: "unknown", config,
       runtimeServices: [{ id: runtimeServiceId, status: "running" }],
@@ -1020,7 +1020,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         state: "blocked",
         isDestructiveCloseAllowed: false,
         blockingReasons: [
-          "Paperclip could not verify the workspace git status. Retry before destructive cleanup.",
+          "Outpost could not verify the workspace git status. Retry before destructive cleanup.",
         ],
       });
 
@@ -1091,18 +1091,18 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     // the eligible workspace. A skipped candidate keeps its updatedAt, so a
     // sweep that always reads the oldest page never reaches the eligible
     // workspace. The reaper must rotate its scan window across sweeps.
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
-    const issuePrefix = `P${companyId.slice(0, 8).toUpperCase()}`;
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    const issuePrefix = `P${spaceId.slice(0, 8).toUpperCase()}`;
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Starved reaper",
       status: "in_progress",
     });
@@ -1115,7 +1115,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       skippedWorkspaceIds.push(workspaceId);
       await db.insert(executionWorkspaces).values({
         id: workspaceId,
-        companyId,
+        spaceId,
         projectId,
         mode: "isolated_workspace",
         strategyType: "local_fs",
@@ -1126,7 +1126,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       });
       await db.insert(issues).values({
         id: openIssueId,
-        companyId,
+        spaceId,
         projectId,
         title: `Open ${index}`,
         status: "in_progress",
@@ -1206,7 +1206,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     const olderOpenIssueId = randomUUID();
     await db.insert(executionWorkspaces).values({
       id: olderSkippedId,
-      companyId: eligible.companyId,
+      spaceId: eligible.spaceId,
       projectId: eligible.projectId,
       mode: "isolated_workspace",
       strategyType: "local_fs",
@@ -1217,7 +1217,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
     await db.insert(issues).values({
       id: olderOpenIssueId,
-      companyId: eligible.companyId,
+      spaceId: eligible.spaceId,
       projectId: eligible.projectId,
       title: "Older open",
       status: "in_progress",
@@ -1257,7 +1257,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       const churnIssueId = randomUUID();
       await db.insert(executionWorkspaces).values({
         id: churnId,
-        companyId: eligible.companyId,
+        spaceId: eligible.spaceId,
         projectId: eligible.projectId,
         mode: "isolated_workspace",
         strategyType: "local_fs",
@@ -1268,7 +1268,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       });
       await db.insert(issues).values({
         id: churnIssueId,
-        companyId: eligible.companyId,
+        spaceId: eligible.spaceId,
         projectId: eligible.projectId,
         title: `Churn ${attempt}`,
         status: "in_progress",
@@ -1298,8 +1298,8 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
 
     function cooldownService(cooldownDays: number) {
       return executionWorkspaceService(db, {
-        resolvePullRequestDetails: async (companyId, reference) =>
-          pullRequestDetailsByKey.get(`${companyId}:${reference.number}`)
+        resolvePullRequestDetails: async (spaceId, reference) =>
+          pullRequestDetailsByKey.get(`${spaceId}:${reference.number}`)
           ?? { state: "unknown" as const, headRef: null, headSha: null },
         now: () => new Date(nowMs),
         workspaceReaperCooldownDays: cooldownDays,
@@ -1396,14 +1396,14 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     const unrelatedIssueId = randomUUID();
     await db.insert(issues).values({
       id: unrelatedIssueId,
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       projectId: seeded.projectId,
       title: `Investigate ${seeded.identifier} follow-up`,
       status: "done",
       priority: "medium",
     });
     await db.insert(issueReferenceMentions).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceIssueId: unrelatedIssueId,
       targetIssueId: seeded.sourceIssueId,
       sourceKind: "title",
@@ -1412,7 +1412,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       matchedText: seeded.identifier,
     });
     await db.insert(issueWorkProducts).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       issueId: unrelatedIssueId,
       type: "pull_request",
       provider: "github",
@@ -1445,7 +1445,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     const seeded = await seedTerminalWorkspace();
     await db.insert(issueWorkProducts).values([
       {
-        companyId: seeded.companyId,
+        spaceId: seeded.spaceId,
         issueId: seeded.sourceIssueId,
         executionWorkspaceId: seeded.executionWorkspaceId,
         type: "pull_request",
@@ -1455,13 +1455,13 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         status: "merged",
       },
       {
-        companyId: seeded.companyId,
+        spaceId: seeded.spaceId,
         issueId: seeded.sourceIssueId,
         executionWorkspaceId: seeded.executionWorkspaceId,
         type: "pull_request",
         provider: "github",
         title: "Wrong repository merged PR",
-        url: "https://github.com/unrelated/paperclip/pull/10623",
+        url: "https://github.com/unrelated/outpost/pull/10623",
         status: "merged",
       },
     ]);
@@ -1537,7 +1537,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     expect(readiness?.git).toMatchObject({ hasUntrackedFiles: true, untrackedEntryCount: 5_000 });
     expect(readiness?.warnings).toContain("The workspace has 5000 untracked files.");
     expect(readiness?.blockingReasons).not.toContain(
-      "Paperclip could not verify the workspace git status. Retry before destructive cleanup.",
+      "Outpost could not verify the workspace git status. Retry before destructive cleanup.",
     );
     expect(await svc.sweepTerminalWorkspaces()).toMatchObject({ archived: 0, skippedUndelivered: 1 });
     await expect(fs.access(seeded.worktreePath)).resolves.toBeUndefined();
@@ -1552,8 +1552,8 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
     }).where(eq(executionWorkspaces.id, seeded.executionWorkspaceId));
     const racingService = executionWorkspaceService(db, {
-      resolvePullRequestDetails: async (_companyId, reference) =>
-        pullRequestDetailsByKey.get(`${seeded.companyId}:${reference.number}`) ?? { state: "unknown" as const, headRef: null, headSha: null },
+      resolvePullRequestDetails: async (_spaceId, reference) =>
+        pullRequestDetailsByKey.get(`${seeded.spaceId}:${reference.number}`) ?? { state: "unknown" as const, headRef: null, headSha: null },
       workspaceReaperCooldownDays: 0,
       beforeTerminalWorkspaceCleanup: async () => {
         await fs.writeFile(path.join(seeded.worktreePath, "late-work.txt"), "not delivered\n", "utf8");
@@ -1582,8 +1582,8 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     const seeded = await seedTerminalWorkspace({ mergedPr: true });
     const newerReason = "newer_archive_lifecycle_marker";
     const racingService = executionWorkspaceService(db, {
-      resolvePullRequestDetails: async (_companyId, reference) =>
-        pullRequestDetailsByKey.get(`${seeded.companyId}:${reference.number}`) ?? { state: "unknown" as const, headRef: null, headSha: null },
+      resolvePullRequestDetails: async (_spaceId, reference) =>
+        pullRequestDetailsByKey.get(`${seeded.spaceId}:${reference.number}`) ?? { state: "unknown" as const, headRef: null, headSha: null },
       workspaceReaperCooldownDays: 0,
       beforeTerminalWorkspaceCleanup: async (workspace) => {
         // Stand in for a reopen and a fresh archive that ran after this sweep
@@ -2126,7 +2126,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       .where(eq(executionWorkspaces.id, clearSeed.executionWorkspaceId));
     const clearResult = await svc.clearReopenPendingConsumptionForUnconsumedReopen({
       workspaceId: clearSeed.executionWorkspaceId,
-      issue: { id: clearSeed.sourceIssueId, companyId: clearSeed.companyId },
+      issue: { id: clearSeed.sourceIssueId, spaceId: clearSeed.spaceId },
       actor: { agentId: null, actorType: "user" },
       expectedGeneration: 5,
     });
@@ -2186,8 +2186,8 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     const failSeed = await seedTerminalWorkspace({ mergedPr: true });
     const newerReason = "newer_archive_lifecycle_marker";
     const racingService = executionWorkspaceService(db, {
-      resolvePullRequestDetails: async (_companyId, reference) =>
-        pullRequestDetailsByKey.get(`${failSeed.companyId}:${reference.number}`) ?? { state: "unknown" as const, headRef: null, headSha: null },
+      resolvePullRequestDetails: async (_spaceId, reference) =>
+        pullRequestDetailsByKey.get(`${failSeed.spaceId}:${reference.number}`) ?? { state: "unknown" as const, headRef: null, headSha: null },
       workspaceReaperCooldownDays: 0,
       beforeTerminalWorkspaceCleanup: async (workspace) => {
         await db
@@ -2232,8 +2232,8 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     let commitFailure = "";
     let refUpdateFailure = "";
     const lockingService = executionWorkspaceService(db, {
-      resolvePullRequestDetails: async (_companyId, reference) =>
-        pullRequestDetailsByKey.get(`${seeded.companyId}:${reference.number}`) ?? { state: "unknown" as const, headRef: null, headSha: null },
+      resolvePullRequestDetails: async (_spaceId, reference) =>
+        pullRequestDetailsByKey.get(`${seeded.spaceId}:${reference.number}`) ?? { state: "unknown" as const, headRef: null, headSha: null },
       workspaceReaperCooldownDays: 0,
       beforeTerminalWorkspaceCleanup: async () => {
         try {
@@ -2268,7 +2268,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     const descendantIssueId = randomUUID();
     await db.insert(issues).values({
       id: descendantIssueId,
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       projectId: seeded.projectId,
       parentId: seeded.sourceIssueId,
       title: "Delivered descendant",
@@ -2277,7 +2277,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       executionWorkspaceId: seeded.executionWorkspaceId,
     });
     await db.insert(issueWorkProducts).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       issueId: descendantIssueId,
       executionWorkspaceId: seeded.executionWorkspaceId,
       type: "pull_request",
@@ -2330,7 +2330,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
 
     await issueService(db).update(eligible.sourceIssueId, {
       status: "todo",
-      actorUserId: "local-board",
+      actorUserId: "local-operator",
     });
     const reopenedWorkspace = await db
       .select({ status: executionWorkspaces.status })
@@ -2346,20 +2346,20 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   }, 20_000);
 
   it("allows archiving shared workspace sessions with warnings even when issues are still open", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const executionWorkspaceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Workspaces",
       status: "in_progress",
       executionWorkspacePolicy: {
@@ -2368,16 +2368,16 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       sourceType: "local_path",
       isPrimary: true,
-      cwd: "/tmp/paperclip-primary",
+      cwd: "/tmp/outpost-primary",
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       mode: "shared_workspace",
@@ -2385,7 +2385,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       name: "Shared workspace",
       status: "active",
       providerType: "local_fs",
-      cwd: "/tmp/paperclip-primary",
+      cwd: "/tmp/outpost-primary",
       metadata: {
         config: {
           teardownCommand: "bash ./scripts/teardown.sh",
@@ -2394,7 +2394,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
     await db.insert(issues).values({
       id: randomUUID(),
-      companyId,
+      spaceId,
       projectId,
       title: "Still working",
       status: "todo",
@@ -2420,26 +2420,26 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   });
 
   async function seedSharedLocalWorkspace(cwd: string, options: { metadata?: Record<string, unknown> } = {}) {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const executionWorkspaceId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Workspaces",
       status: "in_progress",
       executionWorkspacePolicy: { enabled: true },
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       sourceType: "local_path",
@@ -2448,7 +2448,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       mode: "shared_workspace",
@@ -2463,7 +2463,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   }
 
   it("treats an existing workspace directory that is not a git repository as ready", async () => {
-    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-non-git-workspace-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-non-git-workspace-"));
     tempDirs.add(workspaceDir);
     await fs.writeFile(path.join(workspaceDir, "notes.txt"), "plain files\n", "utf8");
     const { executionWorkspaceId } = await seedSharedLocalWorkspace(workspaceDir);
@@ -2480,7 +2480,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   });
 
   it("plans removal of a runtime-created plain workspace directory", async () => {
-    const parentDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-non-git-runtime-"));
+    const parentDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-non-git-runtime-"));
     tempDirs.add(parentDir);
     const workspaceDir = path.join(parentDir, "task");
     await fs.mkdir(workspaceDir);
@@ -2498,7 +2498,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   });
 
   it("still blocks close when an ancestor directory holds an unreadable .git marker", async () => {
-    const parentDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-ancestor-git-workspace-"));
+    const parentDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-ancestor-git-workspace-"));
     tempDirs.add(parentDir);
     await fs.writeFile(path.join(parentDir, ".git"), `gitdir: ${path.join(parentDir, "missing-git-dir")}\n`, "utf8");
     const workspaceDir = path.join(parentDir, "nested", "task");
@@ -2509,12 +2509,12 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
 
     expect(readiness).toMatchObject({ state: "blocked", isDestructiveCloseAllowed: false });
     expect(readiness?.blockingReasons).toContain(
-      "Paperclip could not verify the workspace git status. Retry before destructive cleanup.",
+      "Outpost could not verify the workspace git status. Retry before destructive cleanup.",
     );
   });
 
   it("still blocks close when the workspace .git marker is a dangling symlink", async () => {
-    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-dangling-git-workspace-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-dangling-git-workspace-"));
     tempDirs.add(workspaceDir);
     await fs.symlink(path.join(workspaceDir, "unmounted-repo", ".git"), path.join(workspaceDir, ".git"));
     const { executionWorkspaceId } = await seedSharedLocalWorkspace(workspaceDir);
@@ -2523,12 +2523,12 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
 
     expect(readiness).toMatchObject({ state: "blocked", isDestructiveCloseAllowed: false });
     expect(readiness?.blockingReasons).toContain(
-      "Paperclip could not verify the workspace git status. Retry before destructive cleanup.",
+      "Outpost could not verify the workspace git status. Retry before destructive cleanup.",
     );
   });
 
   it("still blocks close when a workspace git repository cannot be inspected", async () => {
-    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-broken-git-workspace-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-broken-git-workspace-"));
     tempDirs.add(workspaceDir);
     // A worktree-style .git pointer whose git dir is missing: git refuses to read it.
     await fs.writeFile(path.join(workspaceDir, ".git"), `gitdir: ${path.join(workspaceDir, "missing-git-dir")}\n`, "utf8");
@@ -2538,27 +2538,27 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
 
     expect(readiness).toMatchObject({ state: "blocked", isDestructiveCloseAllowed: false });
     expect(readiness?.blockingReasons).toContain(
-      "Paperclip could not verify the workspace git status. Retry before destructive cleanup.",
+      "Outpost could not verify the workspace git status. Retry before destructive cleanup.",
     );
   });
 
   it("clears matching environment selections transactionally without touching other workspaces", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const matchingWorkspaceId = randomUUID();
     const otherWorkspaceId = randomUUID();
     const untouchedWorkspaceId = randomUUID();
     const environmentId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Workspace cleanup",
       status: "in_progress",
       executionWorkspacePolicy: {
@@ -2568,7 +2568,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await db.insert(executionWorkspaces).values([
       {
         id: matchingWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         mode: "isolated_workspace",
         strategyType: "directory",
@@ -2586,7 +2586,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: otherWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         mode: "isolated_workspace",
         strategyType: "directory",
@@ -2603,7 +2603,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: untouchedWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         mode: "isolated_workspace",
         strategyType: "directory",
@@ -2617,7 +2617,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
     ]);
 
-    const cleared = await svc.clearEnvironmentSelection(companyId, environmentId);
+    const cleared = await svc.clearEnvironmentSelection(spaceId, environmentId);
 
     expect(cleared).toBe(1);
 
@@ -2641,21 +2641,21 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   });
 
   it("limits reusable summaries to open non-shared execution workspaces", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const openWorkspaceId = randomUUID();
     const sharedWorkspaceId = randomUUID();
     const closedWorkspaceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Reusable workspaces",
       status: "in_progress",
       executionWorkspacePolicy: {
@@ -2665,7 +2665,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await db.insert(executionWorkspaces).values([
       {
         id: openWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         mode: "isolated_workspace",
         strategyType: "git_worktree",
@@ -2673,11 +2673,11 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         status: "idle",
         providerType: "git_worktree",
         cwd: "/tmp/open-workspace",
-        branchName: "paperclip/open",
+        branchName: "outpost/open",
       },
       {
         id: sharedWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         mode: "shared_workspace",
         strategyType: "project_primary",
@@ -2688,7 +2688,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: closedWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         mode: "isolated_workspace",
         strategyType: "git_worktree",
@@ -2700,7 +2700,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
     ]);
 
-    const summaries = await svc.listSummaries(companyId, {
+    const summaries = await svc.listSummaries(spaceId, {
       projectId,
       reuseEligible: true,
     });
@@ -2712,32 +2712,32 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         mode: "isolated_workspace",
         status: "idle",
         cwd: "/tmp/open-workspace",
-        branchName: "paperclip/open",
+        branchName: "outpost/open",
       }),
     ]);
   });
 
-  it("limits summaries to the requested ids while keeping company scope and the read condition", async () => {
-    const companyId = randomUUID();
-    const otherCompanyId = randomUUID();
+  it("limits summaries to the requested ids while keeping space scope and the read condition", async () => {
+    const spaceId = randomUUID();
+    const otherSpaceId = randomUUID();
     const projectId = randomUUID();
     const otherProjectId = randomUUID();
     const requestedId = randomUUID();
     const hiddenId = randomUUID();
     const unrequestedId = randomUUID();
-    const otherCompanyWorkspaceId = randomUUID();
+    const otherSpaceWorkspaceId = randomUUID();
 
-    await db.insert(companies).values([
-      { id: companyId, name: "Paperclip", issuePrefix: `I${companyId.slice(0, 5).toUpperCase()}`, requireBoardApprovalForNewAgents: false },
-      { id: otherCompanyId, name: "Other", issuePrefix: `O${otherCompanyId.slice(0, 5).toUpperCase()}`, requireBoardApprovalForNewAgents: false },
+    await db.insert(spaces).values([
+      { id: spaceId, name: "Outpost", issuePrefix: `I${spaceId.slice(0, 5).toUpperCase()}`, requireOperatorApprovalForNewAgents: false },
+      { id: otherSpaceId, name: "Other", issuePrefix: `O${otherSpaceId.slice(0, 5).toUpperCase()}`, requireOperatorApprovalForNewAgents: false },
     ]);
     await db.insert(projects).values([
-      { id: projectId, companyId, name: "Ids", status: "in_progress" },
-      { id: otherProjectId, companyId: otherCompanyId, name: "Other ids", status: "in_progress" },
+      { id: projectId, spaceId, name: "Ids", status: "in_progress" },
+      { id: otherProjectId, spaceId: otherSpaceId, name: "Other ids", status: "in_progress" },
     ]);
     const workspace = (id: string, owner: string, project: string, name: string) => ({
       id,
-      companyId: owner,
+      spaceId: owner,
       projectId: project,
       mode: "isolated_workspace",
       strategyType: "git_worktree",
@@ -2747,14 +2747,14 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       cwd: `/tmp/${id}`,
     });
     await db.insert(executionWorkspaces).values([
-      workspace(requestedId, companyId, projectId, "Requested"),
-      workspace(hiddenId, companyId, projectId, "Hidden by read condition"),
-      workspace(unrequestedId, companyId, projectId, "Not requested"),
-      workspace(otherCompanyWorkspaceId, otherCompanyId, otherProjectId, "Other company"),
+      workspace(requestedId, spaceId, projectId, "Requested"),
+      workspace(hiddenId, spaceId, projectId, "Hidden by read condition"),
+      workspace(unrequestedId, spaceId, projectId, "Not requested"),
+      workspace(otherSpaceWorkspaceId, otherSpaceId, otherProjectId, "Other space"),
     ]);
 
-    const summaries = await svc.listSummaries(companyId, {
-      ids: [requestedId, hiddenId, otherCompanyWorkspaceId],
+    const summaries = await svc.listSummaries(spaceId, {
+      ids: [requestedId, hiddenId, otherSpaceWorkspaceId],
       readCondition: sql<boolean>`${executionWorkspaces.id} <> ${hiddenId}`,
     });
 
@@ -2764,7 +2764,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("reconciles a forward branch record, comments on the source issue, and resolves matching workspace recovery", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-reconcile-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-reconcile-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["branch", "feature/recorded"]);
@@ -2774,7 +2774,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await runGit(worktreePath, ["add", "feature.txt"]);
     await runGit(worktreePath, ["commit", "-m", "Current branch work"]);
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const executionWorkspaceId = randomUUID();
@@ -2788,21 +2788,21 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       actualBranch,
     });
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Branch reconcile",
       status: "in_progress",
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       title: "Source task",
       identifier: "PAP-123",
@@ -2811,7 +2811,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       sourceIssueId: issueId,
       mode: "isolated_workspace",
@@ -2824,14 +2824,14 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       branchName: "feature/recorded",
       baseRef: "main",
     });
-    await insertBoardWorkspaceRecovery(companyId, issueId, fingerprint);
+    await insertBoardWorkspaceRecovery(spaceId, issueId, fingerprint);
 
     const result = await svc.reconcileExecutionWorkspaceBranch(executionWorkspaceId, {
       mode: "forward",
       reason: null,
       actor: {
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
         runId: null,
       },
@@ -2857,10 +2857,10 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       .from(issueComments)
       .where(eq(issueComments.issueId, issueId));
     expect(comment).toMatchObject({
-      companyId,
+      spaceId,
       issueId,
       authorType: "user",
-      authorUserId: "local-board",
+      authorUserId: "local-operator",
     });
     expect(comment?.body).toContain("Execution workspace branch reconciled.");
     expect(comment?.body).toContain("- Mode: `forward`");
@@ -2883,7 +2883,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("reconciles forward when the recorded branch has no resolvable commit and the worktree is clean", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-missing-recorded-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-missing-recorded-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["worktree", "add", "-b", "feature/current", worktreePath, "HEAD"]);
@@ -2891,40 +2891,40 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await runGit(worktreePath, ["add", "feature.txt"]);
     await runGit(worktreePath, ["commit", "-m", "Current branch work"]);
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const executionWorkspaceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Missing recorded branch",
       status: "in_progress",
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       title: "Source task",
       identifier: "PAP-124",
       status: "blocked",
       priority: "medium",
     });
-    await insertMissingRecordedBranchWorkspace(executionWorkspaceId, companyId, projectId, issueId, worktreePath);
+    await insertMissingRecordedBranchWorkspace(executionWorkspaceId, spaceId, projectId, issueId, worktreePath);
 
     const result = await svc.reconcileExecutionWorkspaceBranch(executionWorkspaceId, {
       mode: "forward",
       reason: null,
       actor: {
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
         runId: null,
       },
@@ -2952,46 +2952,46 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("keeps forward reconciliation fail-closed when the recorded branch is missing but the worktree is dirty", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-missing-recorded-dirty-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-missing-recorded-dirty-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["worktree", "add", "-b", "feature/current", worktreePath, "HEAD"]);
     await fs.writeFile(path.join(worktreePath, "uncommitted.txt"), "dirty work\n", "utf8");
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const executionWorkspaceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Missing recorded branch dirty",
       status: "in_progress",
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       title: "Source task",
       identifier: "PAP-125",
       status: "blocked",
       priority: "medium",
     });
-    await insertMissingRecordedBranchWorkspace(executionWorkspaceId, companyId, projectId, issueId, worktreePath);
+    await insertMissingRecordedBranchWorkspace(executionWorkspaceId, spaceId, projectId, issueId, worktreePath);
 
     await expect(svc.reconcileExecutionWorkspaceBranch(executionWorkspaceId, {
       mode: "forward",
       reason: null,
       actor: {
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
         runId: null,
       },
@@ -3004,7 +3004,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("keeps forward reconciliation fail-closed when the checked-out branch ref does not resolve either", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-missing-both-refs-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-missing-both-refs-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     // An empty tree keeps the worktree clean even after its branch ref is
@@ -3017,40 +3017,40 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     // reporting the branch name even though nothing resolves to a commit.
     await runGit(repoRoot, ["update-ref", "-d", "refs/heads/feature/current"]);
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const executionWorkspaceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Missing both branch refs",
       status: "in_progress",
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       title: "Source task",
       identifier: "PAP-126",
       status: "blocked",
       priority: "medium",
     });
-    await insertMissingRecordedBranchWorkspace(executionWorkspaceId, companyId, projectId, issueId, worktreePath);
+    await insertMissingRecordedBranchWorkspace(executionWorkspaceId, spaceId, projectId, issueId, worktreePath);
 
     await expect(svc.reconcileExecutionWorkspaceBranch(executionWorkspaceId, {
       mode: "forward",
       reason: null,
       actor: {
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
         runId: null,
       },
@@ -3063,7 +3063,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("quarantine_restore rescues dirty live-branch work, resolves recovery, and returns the source issue to todo", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-quarantine-restore-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-quarantine-restore-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["branch", "feature/recorded"]);
@@ -3071,7 +3071,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await fs.appendFile(path.join(worktreePath, "README.md"), "dirty tracked work\n", "utf8");
     await fs.writeFile(path.join(worktreePath, "untracked.txt"), "dirty untracked work\n", "utf8");
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
@@ -3087,22 +3087,22 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       actualBranch,
     });
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
-    await insertActiveCodexCoder(agentId, companyId);
+    await insertActiveCodexCoder(agentId, spaceId);
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Branch reconcile",
       status: "in_progress",
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       cwd: repoRoot,
@@ -3110,7 +3110,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       title: "Source task",
@@ -3119,15 +3119,15 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       priority: "medium",
       assigneeAgentId: agentId,
     });
-    await insertRecordedBranchWorkspace(executionWorkspaceId, companyId, projectId, projectWorkspaceId, issueId, worktreePath);
-    await insertBoardWorkspaceRecovery(companyId, issueId, fingerprint);
+    await insertRecordedBranchWorkspace(executionWorkspaceId, spaceId, projectId, projectWorkspaceId, issueId, worktreePath);
+    await insertBoardWorkspaceRecovery(spaceId, issueId, fingerprint);
 
     const result = await svc.reconcileExecutionWorkspaceBranch(executionWorkspaceId, {
       mode: "quarantine_restore",
       reason: "rescue dirty work and restore recorded branch",
       actor: {
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
         runId: null,
       },
@@ -3141,7 +3141,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       fingerprint,
     });
     expect(result.rescueRef).toMatchObject({
-      branchName: expect.stringMatching(/^paperclip\/rescue\/PAP-124\/\d{8}T\d{6}Z$/),
+      branchName: expect.stringMatching(/^outpost\/rescue\/PAP-124\/\d{8}T\d{6}Z$/),
       fileCount: 2,
     });
     expect(result.restoredSourceIssue).toMatchObject({
@@ -3195,34 +3195,34 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("quarantine_restore rejects active runtime services before creating a rescue branch", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-quarantine-running-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-quarantine-running-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["branch", "feature/recorded"]);
     await runGit(repoRoot, ["worktree", "add", "-b", "feature/live", worktreePath, "feature/recorded"]);
     await fs.appendFile(path.join(worktreePath, "README.md"), "dirty tracked work\n", "utf8");
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const executionWorkspaceId = randomUUID();
     const runtimeServiceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Branch reconcile",
       status: "in_progress",
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       title: "Source task",
       identifier: "PAP-125",
@@ -3231,7 +3231,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       sourceIssueId: issueId,
       mode: "isolated_workspace",
@@ -3244,13 +3244,13 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       branchName: "feature/recorded",
       baseRef: "main",
     });
-    await insertRunningWorkspaceService(runtimeServiceId, companyId, projectId, executionWorkspaceId, issueId, worktreePath);
+    await insertRunningWorkspaceService(runtimeServiceId, spaceId, projectId, executionWorkspaceId, issueId, worktreePath);
 
     await expect(svc.reconcileExecutionWorkspaceBranch(executionWorkspaceId, {
       mode: "quarantine_restore",
       actor: {
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
         runId: null,
       },
@@ -3276,7 +3276,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await expect(readGit(worktreePath, ["branch", "--show-current"])).resolves.toBe("feature/live");
     await expect(readGit(
       repoRoot,
-      ["for-each-ref", "--format=%(refname:short)", "refs/heads/paperclip/rescue"],
+      ["for-each-ref", "--format=%(refname:short)", "refs/heads/outpost/rescue"],
     )).resolves.toBeNull();
     const comments = await db.select().from(issueComments).where(eq(issueComments.issueId, issueId));
     expect(comments).toHaveLength(0);
@@ -3287,14 +3287,14 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     async (stageType) => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-quarantine-${stageType}-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-quarantine-${stageType}-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["branch", "feature/recorded"]);
     await runGit(repoRoot, ["worktree", "add", "-b", "feature/live", worktreePath, "feature/recorded"]);
     await fs.appendFile(path.join(worktreePath, "README.md"), "dirty tracked review work\n", "utf8");
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const coderAgentId = randomUUID();
     const reviewerAgentId = randomUUID();
     const projectId = randomUUID();
@@ -3312,16 +3312,16 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       actualBranch,
     });
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values([
       {
         id: coderAgentId,
-        companyId,
+        spaceId,
         name: "Codex Coder",
         role: "engineer",
         status: "active",
@@ -3332,7 +3332,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: reviewerAgentId,
-        companyId,
+        spaceId,
         name: "QA Reviewer",
         role: "qa",
         status: "active",
@@ -3344,13 +3344,13 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     ]);
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Branch reconcile",
       status: "in_progress",
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       cwd: repoRoot,
@@ -3358,7 +3358,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       title: "Source task awaiting review",
@@ -3388,15 +3388,15 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         lastDecisionOutcome: null,
       },
     });
-    await insertRecordedBranchWorkspace(executionWorkspaceId, companyId, projectId, projectWorkspaceId, issueId, worktreePath);
-    await insertBoardWorkspaceRecovery(companyId, issueId, fingerprint);
+    await insertRecordedBranchWorkspace(executionWorkspaceId, spaceId, projectId, projectWorkspaceId, issueId, worktreePath);
+    await insertBoardWorkspaceRecovery(spaceId, issueId, fingerprint);
 
     const result = await svc.reconcileExecutionWorkspaceBranch(executionWorkspaceId, {
       mode: "quarantine_restore",
       reason: "rescue dirty work and restore recorded branch",
       actor: {
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
         runId: null,
       },
@@ -3444,7 +3444,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     async ({ claimantIssueIdentifier, claimantHasActiveRun, expectedReason }) => {
       const repoRoot = await createTempRepo();
       tempDirs.add(repoRoot);
-      const worktreePath = path.join(path.dirname(repoRoot), `paperclip-quarantine-claimant-${randomUUID()}`);
+      const worktreePath = path.join(path.dirname(repoRoot), `outpost-quarantine-claimant-${randomUUID()}`);
       tempDirs.add(worktreePath);
 
       await runGit(repoRoot, ["branch", "feature/recorded"]);
@@ -3452,7 +3452,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       await fs.appendFile(path.join(worktreePath, "README.md"), "dirty tracked work\n", "utf8");
       await fs.writeFile(path.join(worktreePath, "untracked.txt"), "dirty untracked work\n", "utf8");
 
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const agentId = randomUUID();
       const projectId = randomUUID();
       const projectWorkspaceId = randomUUID();
@@ -3461,25 +3461,25 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       const executionWorkspaceId = randomUUID();
       const claimantWorkspaceId = randomUUID();
       const claimantRunId = claimantHasActiveRun ? randomUUID() : null;
-      const claimantWorkspacePath = path.join(path.dirname(repoRoot), `paperclip-claimant-${randomUUID()}`);
+      const claimantWorkspacePath = path.join(path.dirname(repoRoot), `outpost-claimant-${randomUUID()}`);
       const now = new Date();
 
-      await db.insert(companies).values({
-        id: companyId,
-        name: "Paperclip",
+      await db.insert(spaces).values({
+        id: spaceId,
+        name: "Outpost",
         issuePrefix: "PAP",
-        requireBoardApprovalForNewAgents: false,
+        requireOperatorApprovalForNewAgents: false,
       });
-      await insertActiveCodexCoder(agentId, companyId);
+      await insertActiveCodexCoder(agentId, spaceId);
       await db.insert(projects).values({
         id: projectId,
-        companyId,
+        spaceId,
         name: "Branch reconcile",
         status: "in_progress",
       });
       await db.insert(projectWorkspaces).values({
         id: projectWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         name: "Primary",
         cwd: repoRoot,
@@ -3488,7 +3488,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       if (claimantRunId) {
         await db.insert(heartbeatRuns).values({
           id: claimantRunId,
-          companyId,
+          spaceId,
           agentId,
           invocationSource: "manual",
           status: "running",
@@ -3499,7 +3499,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       await db.insert(issues).values([
         {
           id: issueId,
-          companyId,
+          spaceId,
           projectId,
           projectWorkspaceId,
           title: "Source task",
@@ -3510,7 +3510,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         },
         {
           id: claimantIssueId,
-          companyId,
+          spaceId,
           projectId,
           projectWorkspaceId,
           title: claimantHasActiveRun ? "Active claimant" : "Idle claimant",
@@ -3524,7 +3524,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       await db.insert(executionWorkspaces).values([
         {
           id: executionWorkspaceId,
-          companyId,
+          spaceId,
           projectId,
           projectWorkspaceId,
           sourceIssueId: issueId,
@@ -3540,7 +3540,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         },
         {
           id: claimantWorkspaceId,
-          companyId,
+          spaceId,
           projectId,
           projectWorkspaceId,
           sourceIssueId: claimantIssueId,
@@ -3567,7 +3567,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         reason: "should refuse branch claimant",
         actor: {
           actorType: "user",
-          actorId: "local-board",
+          actorId: "local-operator",
           agentId: null,
           runId: null,
         },
@@ -3605,7 +3605,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("rejects branch reconciliation when the worktree is dirty", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-dirty-reconcile-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-dirty-reconcile-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["branch", "feature/recorded"]);
@@ -3616,27 +3616,27 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await runGit(worktreePath, ["commit", "-m", "Current branch work"]);
     await fs.writeFile(path.join(worktreePath, "dirty.txt"), "not safe to mutate\n", "utf8");
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const executionWorkspaceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Branch reconcile",
       status: "in_progress",
     });
-    await insertBlockedSourceTask(issueId, companyId, projectId);
+    await insertBlockedSourceTask(issueId, spaceId, projectId);
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       sourceIssueId: issueId,
       mode: "isolated_workspace",
@@ -3655,7 +3655,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       reason: "operator override still requires idle clean workspace",
       actor: {
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
         runId: null,
       },
@@ -3684,7 +3684,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("rejects branch reconciliation while the workspace lifecycle is active", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-active-reconcile-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-active-reconcile-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["branch", "feature/recorded"]);
@@ -3694,27 +3694,27 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await runGit(worktreePath, ["add", "feature.txt"]);
     await runGit(worktreePath, ["commit", "-m", "Current branch work"]);
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const executionWorkspaceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Branch reconcile",
       status: "in_progress",
     });
-    await insertBlockedSourceTask(issueId, companyId, projectId);
+    await insertBlockedSourceTask(issueId, spaceId, projectId);
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       sourceIssueId: issueId,
       mode: "isolated_workspace",
@@ -3733,7 +3733,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       reason: "operator override still requires idle workspace",
       actor: {
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
         runId: null,
       },
@@ -3762,7 +3762,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("rejects branch reconciliation if the workspace becomes active before the branch record update", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-race-reconcile-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-race-reconcile-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["branch", "feature/recorded"]);
@@ -3772,27 +3772,27 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await runGit(worktreePath, ["add", "feature.txt"]);
     await runGit(worktreePath, ["commit", "-m", "Current branch work"]);
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const executionWorkspaceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Branch reconcile",
       status: "in_progress",
     });
-    await insertBlockedSourceTask(issueId, companyId, projectId);
+    await insertBlockedSourceTask(issueId, spaceId, projectId);
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       sourceIssueId: issueId,
       mode: "isolated_workspace",
@@ -3823,7 +3823,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         reason: "operator override still requires idle workspace at write time",
         actor: {
           actorType: "user",
-          actorId: "local-board",
+          actorId: "local-operator",
           agentId: null,
           runId: null,
         },
@@ -3858,7 +3858,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("rejects branch reconciliation while runtime services are active", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-running-reconcile-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-running-reconcile-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["branch", "feature/recorded"]);
@@ -3868,28 +3868,28 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await runGit(worktreePath, ["add", "feature.txt"]);
     await runGit(worktreePath, ["commit", "-m", "Current branch work"]);
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const executionWorkspaceId = randomUUID();
     const runtimeServiceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Branch reconcile",
       status: "in_progress",
     });
-    await insertBlockedSourceTask(issueId, companyId, projectId);
+    await insertBlockedSourceTask(issueId, spaceId, projectId);
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       sourceIssueId: issueId,
       mode: "isolated_workspace",
@@ -3902,14 +3902,14 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       branchName: "feature/recorded",
       baseRef: "main",
     });
-    await insertRunningWorkspaceService(runtimeServiceId, companyId, projectId, executionWorkspaceId, issueId, worktreePath);
+    await insertRunningWorkspaceService(runtimeServiceId, spaceId, projectId, executionWorkspaceId, issueId, worktreePath);
 
     await expect(svc.reconcileExecutionWorkspaceBranch(executionWorkspaceId, {
       mode: "override",
       reason: "operator override still requires stopped services",
       actor: {
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
         runId: null,
       },
@@ -3944,7 +3944,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("rejects branch reconciliation when a runtime service starts before the locked update", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-raced-service-reconcile-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-raced-service-reconcile-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["branch", "feature/recorded"]);
@@ -3954,28 +3954,28 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await runGit(worktreePath, ["add", "feature.txt"]);
     await runGit(worktreePath, ["commit", "-m", "Current branch work"]);
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const executionWorkspaceId = randomUUID();
     const runtimeServiceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Branch reconcile",
       status: "in_progress",
     });
-    await insertBlockedSourceTask(issueId, companyId, projectId);
+    await insertBlockedSourceTask(issueId, spaceId, projectId);
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       sourceIssueId: issueId,
       mode: "isolated_workspace",
@@ -4002,7 +4002,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       await tx.execute(sql`select id from ${executionWorkspaces} where ${executionWorkspaces.id} = ${executionWorkspaceId} for update`);
       await tx.insert(workspaceRuntimeServices).values({
         id: runtimeServiceId,
-        companyId,
+        spaceId,
         projectId,
         executionWorkspaceId,
         issueId,
@@ -4026,7 +4026,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       reason: "operator override still requires stopped services",
       actor: {
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
         runId: null,
       },
@@ -4066,7 +4066,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("rejects branch reconciliation when runtime service activation is already spawning", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-spawning-service-reconcile-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-spawning-service-reconcile-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["branch", "feature/recorded"]);
@@ -4076,28 +4076,28 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await runGit(worktreePath, ["add", "feature.txt"]);
     await runGit(worktreePath, ["commit", "-m", "Current branch work"]);
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const executionWorkspaceId = randomUUID();
-    const runtimeStartedMarker = path.join(os.tmpdir(), `paperclip-runtime-started-${randomUUID()}.marker`);
+    const runtimeStartedMarker = path.join(os.tmpdir(), `outpost-runtime-started-${randomUUID()}.marker`);
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Branch reconcile",
       status: "in_progress",
     });
-    await insertBlockedSourceTask(issueId, companyId, projectId);
+    await insertBlockedSourceTask(issueId, spaceId, projectId);
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       sourceIssueId: issueId,
       mode: "isolated_workspace",
@@ -4132,8 +4132,8 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         invocationId: randomUUID(),
         actor: {
           id: null,
-          name: "Board",
-          companyId,
+          name: "Operator",
+          spaceId,
         },
         issue: {
           id: issueId,
@@ -4199,7 +4199,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         reason: "operator override still requires stopped services",
         actor: {
           actorType: "user",
-          actorId: "local-board",
+          actorId: "local-operator",
           agentId: null,
           runId: null,
         },
@@ -4255,7 +4255,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("rejects forward branch reconciliation for diverged branches", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-diverged-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-diverged-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
     await runGit(repoRoot, ["checkout", "-b", "feature/recorded"]);
@@ -4270,27 +4270,27 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await runGit(repoRoot, ["checkout", "main"]);
     await runGit(repoRoot, ["worktree", "add", worktreePath, "feature/current"]);
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const executionWorkspaceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Branch reconcile",
       status: "in_progress",
     });
-    await insertBlockedSourceTask(issueId, companyId, projectId);
+    await insertBlockedSourceTask(issueId, spaceId, projectId);
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       sourceIssueId: issueId,
       mode: "isolated_workspace",
@@ -4309,7 +4309,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       reason: null,
       actor: {
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
         runId: null,
       },
@@ -4334,26 +4334,26 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   }, 20_000);
 
   it("keeps a large collection DB-only while a concurrent health-style query remains responsive", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const workspaceCount = 6_176;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Workspace scale regression",
       status: "in_progress",
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       sourceType: "local_path",
@@ -4363,7 +4363,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
 
     const workspaceRows = Array.from({ length: workspaceCount }, (_, index) => ({
       id: randomUUID(),
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       mode: "shared_workspace" as const,
@@ -4379,7 +4379,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await db.insert(workspaceRuntimeServices).values(
       Array.from({ length: 163 }, (_, index) => ({
         id: randomUUID(),
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         scopeType: "project_workspace",
@@ -4399,7 +4399,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       throw new Error("collection inventory must not inspect git worktrees");
     });
     const inventoryService = executionWorkspaceService(db, { inspectGitCloseReadiness });
-    const inventoryPromise = inventoryService.list(companyId);
+    const inventoryPromise = inventoryService.list(spaceId);
     const healthResponsive = await Promise.race([
       db.execute(sql`select 1 as ok`).then(() => true),
       new Promise<false>((resolve) => setTimeout(() => resolve(false), 2_000)),
@@ -4413,7 +4413,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     expect(workspaces.reduce((count, workspace) => count + (workspace.runtimeServices?.length ?? 0), 0)).toBe(0);
     expect(JSON.stringify(workspaces).length).toBeLessThan(12_000_000);
 
-    const overview = await svc.listOverview(companyId, { limit: 1, offset: 0 });
+    const overview = await svc.listOverview(spaceId, { limit: 1, offset: 0 });
     expect(overview.total).toBe(workspaceCount);
     expect(overview.items[0]).toMatchObject({
       serviceCount: 0,
@@ -4424,28 +4424,28 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   }, 30_000);
 
   it("inherits only runtime-service rows matching the current project workspace configuration and reuse scopes", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const executionWorkspaceId = randomUUID();
     const currentWebServiceId = randomUUID();
     const currentWorkerServiceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Configured runtime selection",
       status: "in_progress",
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       sourceType: "local_path",
@@ -4469,7 +4469,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       mode: "shared_workspace",
@@ -4482,7 +4482,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await db.insert(workspaceRuntimeServices).values([
       {
         id: randomUUID(),
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         scopeType: "project_workspace",
@@ -4499,7 +4499,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: currentWebServiceId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         scopeType: "project_workspace",
@@ -4516,7 +4516,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: randomUUID(),
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         scopeType: "project_workspace",
@@ -4533,7 +4533,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: currentWorkerServiceId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         executionWorkspaceId,
@@ -4551,7 +4551,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
     ]);
 
-    const [workspace] = await svc.list(companyId);
+    const [workspace] = await svc.list(spaceId);
     expect(workspace?.runtimeServices).toEqual([
       expect.objectContaining({
         id: currentWebServiceId,
@@ -4565,7 +4565,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       }),
     ]);
 
-    const overview = await svc.listOverview(companyId, { limit: 10, offset: 0 });
+    const overview = await svc.listOverview(spaceId, { limit: 10, offset: 0 });
     expect(overview.items[0]).toMatchObject({
       serviceCount: 2,
       runningServiceCount: 1,
@@ -4586,31 +4586,31 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     // though the row still knows its loopback `backendUrl`. Serializing that
     // backend URL would put `http://…` back into a launch link, which is exactly
     // the fail-closed contract this feature exists to enforce.
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const readyWorkspaceId = randomUUID();
     const provisioningWorkspaceId = randomUUID();
     const readyServiceId = randomUUID();
     const provisioningServiceId = randomUUID();
-    const hostname = "paperclip-dev.tail29c1aa.ts.net";
+    const hostname = "outpost-dev.tail29c1aa.ts.net";
     const httpsUrl = `https://${hostname}:42010`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "HTTPS URL serialization",
       status: "in_progress",
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       sourceType: "local_path",
@@ -4618,7 +4618,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       cwd: "/tmp/https-url-serialization",
       metadata: {
         runtimeConfig: {
-          workspaceRuntime: { services: [{ name: "paperclip-dev", command: "pnpm dev" }] },
+          workspaceRuntime: { services: [{ name: "outpost-dev", command: "pnpm dev" }] },
           desiredState: "running",
         },
       },
@@ -4626,7 +4626,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await db.insert(executionWorkspaces).values([
       {
         id: readyWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         mode: "dedicated_worktree",
@@ -4638,7 +4638,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: provisioningWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         mode: "dedicated_worktree",
@@ -4652,13 +4652,13 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await db.insert(workspaceRuntimeServices).values([
       {
         id: readyServiceId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         executionWorkspaceId: readyWorkspaceId,
         scopeType: "execution_workspace",
         scopeId: readyWorkspaceId,
-        serviceName: "paperclip-dev",
+        serviceName: "outpost-dev",
         status: "running",
         lifecycle: "shared",
         reuseKey: "ready-dev",
@@ -4687,13 +4687,13 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: provisioningServiceId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         executionWorkspaceId: provisioningWorkspaceId,
         scopeType: "execution_workspace",
         scopeId: provisioningWorkspaceId,
-        serviceName: "paperclip-dev",
+        serviceName: "outpost-dev",
         status: "running",
         lifecycle: "shared",
         reuseKey: "provisioning-dev",
@@ -4718,7 +4718,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
     ]);
 
-    const workspaces = await svc.list(companyId);
+    const workspaces = await svc.list(spaceId);
     const readyService = workspaces
       .find((workspace) => workspace.id === readyWorkspaceId)
       ?.runtimeServices?.find((service) => service.id === readyServiceId);
@@ -4738,7 +4738,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     expect(JSON.stringify(provisioningService)).not.toContain("http://127.0.0.1:42020");
 
     // The overview feeds the workspace list launch links.
-    const overview = await svc.listOverview(companyId, { limit: 10, offset: 0 });
+    const overview = await svc.listOverview(spaceId, { limit: 10, offset: 0 });
     const readyItem = overview.items.find((item) => item.workspaceId === readyWorkspaceId);
     expect(readyItem?.primaryService).toMatchObject({
       id: readyServiceId,
@@ -4758,34 +4758,34 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     expect(JSON.stringify(provisioningItem)).not.toContain("http://127.0.0.1:42020");
   }, 30_000);
 
-  it("returns a bounded company-scoped workspace overview with service and linked issue summaries", async () => {
-    const companyId = randomUUID();
-    const otherCompanyId = randomUUID();
+  it("returns a bounded space-scoped workspace overview with service and linked issue summaries", async () => {
+    const spaceId = randomUUID();
+    const otherSpaceId = randomUUID();
     const projectId = randomUUID();
     const workspaceAId = "11111111-1111-4111-8111-111111111111";
     const workspaceBId = "22222222-2222-4222-8222-222222222222";
     const archivedWorkspaceId = "33333333-3333-4333-8333-333333333333";
     const otherWorkspaceId = "44444444-4444-4444-8444-444444444444";
-    const crossCompanyProjectWorkspaceId = "55555555-5555-4555-8555-555555555555";
+    const crossSpaceProjectWorkspaceId = "55555555-5555-4555-8555-555555555555";
 
-    await db.insert(companies).values([
+    await db.insert(spaces).values([
       {
-        id: companyId,
-        name: "Paperclip",
+        id: spaceId,
+        name: "Outpost",
         issuePrefix: "PAP",
-        requireBoardApprovalForNewAgents: false,
+        requireOperatorApprovalForNewAgents: false,
       },
       {
-        id: otherCompanyId,
+        id: otherSpaceId,
         name: "OtherCo",
         issuePrefix: "OTH",
-        requireBoardApprovalForNewAgents: false,
+        requireOperatorApprovalForNewAgents: false,
       },
     ]);
     await db.insert(projects).values([
       {
         id: projectId,
-        companyId,
+        spaceId,
         name: "Workspaces",
         status: "in_progress",
         executionWorkspacePolicy: {
@@ -4794,7 +4794,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: randomUUID(),
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         name: "Other project",
         status: "in_progress",
       },
@@ -4802,13 +4802,13 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     const otherProject = await db
       .select({ id: projects.id })
       .from(projects)
-      .where(inArray(projects.companyId, [otherCompanyId]))
+      .where(inArray(projects.spaceId, [otherSpaceId]))
       .then((rows) => rows[0]!.id);
 
     await db.insert(executionWorkspaces).values([
       {
         id: workspaceAId,
-        companyId,
+        spaceId,
         projectId,
         mode: "isolated_workspace",
         strategyType: "git_worktree",
@@ -4816,7 +4816,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         status: "active",
         providerType: "git_worktree",
         cwd: "/tmp/workspace-a",
-        branchName: "paperclip/a",
+        branchName: "outpost/a",
         lastUsedAt: new Date("2026-06-03T10:00:00.000Z"),
         updatedAt: new Date("2026-06-03T10:05:00.000Z"),
         metadata: {
@@ -4829,7 +4829,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: workspaceBId,
-        companyId,
+        spaceId,
         projectId,
         mode: "isolated_workspace",
         strategyType: "git_worktree",
@@ -4837,13 +4837,13 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
         status: "idle",
         providerType: "git_worktree",
         cwd: "/tmp/workspace-b",
-        branchName: "paperclip/b",
+        branchName: "outpost/b",
         lastUsedAt: new Date("2026-06-02T10:00:00.000Z"),
         updatedAt: new Date("2026-06-02T10:05:00.000Z"),
       },
       {
         id: archivedWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         mode: "isolated_workspace",
         strategyType: "git_worktree",
@@ -4855,33 +4855,33 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: otherWorkspaceId,
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         projectId: otherProject,
         mode: "isolated_workspace",
         strategyType: "git_worktree",
-        name: "Other company",
+        name: "Other space",
         status: "active",
         providerType: "git_worktree",
         cwd: "/tmp/workspace-other",
         lastUsedAt: new Date("2026-06-05T10:00:00.000Z"),
       },
       {
-        id: crossCompanyProjectWorkspaceId,
-        companyId,
+        id: crossSpaceProjectWorkspaceId,
+        spaceId,
         projectId: otherProject,
         mode: "isolated_workspace",
         strategyType: "git_worktree",
-        name: "Cross-company project mismatch",
+        name: "Cross-space project mismatch",
         status: "active",
         providerType: "git_worktree",
-        cwd: "/tmp/workspace-cross-company-project",
+        cwd: "/tmp/workspace-cross-space-project",
         lastUsedAt: new Date("2026-06-06T10:00:00.000Z"),
       },
     ]);
     await db.insert(workspaceRuntimeServices).values([
       {
         id: randomUUID(),
-        companyId,
+        spaceId,
         projectId,
         executionWorkspaceId: workspaceAId,
         issueId: null,
@@ -4899,7 +4899,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: randomUUID(),
-        companyId,
+        spaceId,
         projectId,
         executionWorkspaceId: workspaceAId,
         issueId: null,
@@ -4916,7 +4916,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await db.insert(issues).values(
       Array.from({ length: 5 }, (_, index) => ({
         id: randomUUID(),
-        companyId,
+        spaceId,
         projectId,
         title: `Linked issue ${index + 1}`,
         status: "todo",
@@ -4928,7 +4928,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     );
     await db.insert(issues).values({
       id: randomUUID(),
-      companyId,
+      spaceId,
       projectId,
       title: "Hidden linked issue",
       status: "todo",
@@ -4937,7 +4937,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       hiddenAt: new Date("2026-06-03T11:00:00.000Z"),
     });
 
-    const overview = await svc.listOverview(companyId, {
+    const overview = await svc.listOverview(spaceId, {
       limit: 10,
       offset: 0,
     });
@@ -4946,7 +4946,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     expect(overview.items.map((item) => item.workspaceId)).toEqual([workspaceAId, workspaceBId]);
     expect(overview.items.map((item) => item.workspaceId)).not.toContain(archivedWorkspaceId);
     expect(overview.items.map((item) => item.workspaceId)).not.toContain(otherWorkspaceId);
-    expect(overview.items.map((item) => item.workspaceId)).not.toContain(crossCompanyProjectWorkspaceId);
+    expect(overview.items.map((item) => item.workspaceId)).not.toContain(crossSpaceProjectWorkspaceId);
     expect(overview.hasMore).toBe(false);
 
     const activeA = overview.items[0]!;
@@ -4957,7 +4957,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       projectId,
       projectUrlKey: "workspaces",
       projectName: "Workspaces",
-      branchName: "paperclip/a",
+      branchName: "outpost/a",
       serviceCount: 1,
       runningServiceCount: 1,
       primaryServiceUrl: "http://localhost:3100",
@@ -4982,29 +4982,29 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   });
 
   it("supports status and project filters with stable limit/offset pagination", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectAId = randomUUID();
     const projectBId = randomUUID();
     const activeWorkspaceId = "55555555-5555-4555-8555-555555555555";
     const idleWorkspaceId = "66666666-6666-4666-8666-666666666666";
     const archivedWorkspaceId = "77777777-7777-4777-8777-777777777777";
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values([
       {
         id: projectAId,
-        companyId,
+        spaceId,
         name: "Project A",
         status: "in_progress",
       },
       {
         id: projectBId,
-        companyId,
+        spaceId,
         name: "Project B",
         status: "in_progress",
       },
@@ -5012,7 +5012,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await db.insert(executionWorkspaces).values([
       {
         id: activeWorkspaceId,
-        companyId,
+        spaceId,
         projectId: projectAId,
         mode: "isolated_workspace",
         strategyType: "git_worktree",
@@ -5023,7 +5023,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: idleWorkspaceId,
-        companyId,
+        spaceId,
         projectId: projectAId,
         mode: "isolated_workspace",
         strategyType: "git_worktree",
@@ -5034,7 +5034,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
       {
         id: archivedWorkspaceId,
-        companyId,
+        spaceId,
         projectId: projectBId,
         mode: "isolated_workspace",
         strategyType: "git_worktree",
@@ -5045,7 +5045,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       },
     ]);
 
-    const secondPage = await svc.listOverview(companyId, {
+    const secondPage = await svc.listOverview(spaceId, {
       projectId: projectAId,
       limit: 1,
       offset: 1,
@@ -5056,7 +5056,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     expect(secondPage.hasMore).toBe(false);
     expect(secondPage.nextOffset).toBeNull();
 
-    const archivedOnly = await svc.listOverview(companyId, {
+    const archivedOnly = await svc.listOverview(spaceId, {
       status: ["archived"],
       limit: 10,
       offset: 0,
@@ -5069,30 +5069,30 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
   it("warns about dirty and unmerged git worktrees and reports cleanup actions", async () => {
     const repoRoot = await createTempRepo();
     tempDirs.add(repoRoot);
-    const worktreePath = path.join(path.dirname(repoRoot), `paperclip-worktree-${randomUUID()}`);
+    const worktreePath = path.join(path.dirname(repoRoot), `outpost-worktree-${randomUUID()}`);
     tempDirs.add(worktreePath);
 
-    await runGit(repoRoot, ["branch", "paperclip-close-check"]);
-    await runGit(repoRoot, ["worktree", "add", worktreePath, "paperclip-close-check"]);
+    await runGit(repoRoot, ["branch", "outpost-close-check"]);
+    await runGit(repoRoot, ["worktree", "add", worktreePath, "outpost-close-check"]);
     await fs.writeFile(path.join(worktreePath, "feature.txt"), "hello\n", "utf8");
     await runGit(worktreePath, ["add", "feature.txt"]);
     await runGit(worktreePath, ["commit", "-m", "Feature commit"]);
     await fs.writeFile(path.join(worktreePath, "untracked.txt"), "left behind\n", "utf8");
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const executionWorkspaceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Workspaces",
       status: "in_progress",
       executionWorkspacePolicy: {
@@ -5105,7 +5105,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       sourceType: "git_repo",
@@ -5115,7 +5115,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       mode: "isolated_workspace",
@@ -5125,7 +5125,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       providerType: "git_worktree",
       cwd: worktreePath,
       providerRef: worktreePath,
-      branchName: "paperclip-close-check",
+      branchName: "outpost-close-check",
       baseRef: "main",
       metadata: {
         createdByRuntime: true,
@@ -5147,7 +5147,7 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
       isDestructiveCloseAllowed: true,
       git: {
         workspacePath: worktreePath,
-        branchName: "paperclip-close-check",
+        branchName: "outpost-close-check",
         baseRef: "main",
         createdByRuntime: true,
         hasDirtyTrackedFiles: false,

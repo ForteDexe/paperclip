@@ -541,7 +541,7 @@ it("refreshes Copilot native instructions privately on every admission, includin
     await refreshCopilotSystemInstructions(sandbox, composeCopilotSystemInstructions(systemInstructions));
     return sandbox;
   };
-  const composed = (value: string) => `${value}\n\n# Paperclip task orientation\n${COPILOT_TASK_ORIENTATION_INSTRUCTIONS}\n`;
+  const composed = (value: string) => `${value}\n\n# Outpost task orientation\n${COPILOT_TASK_ORIENTATION_INSTRUCTIONS}\n`;
   const first = await prepare("Original registered instructions.");
   const path = join(first.agentHomeDirectory, "copilot-instructions.md");
   expect(await readFile(path, "utf8")).toBe(composed("Original registered instructions."));
@@ -566,7 +566,7 @@ it("refreshes Copilot native instructions privately on every admission, includin
 });
 
 async function sandboxFixture(agent: "pi" | "claude" | "codex" | "grok" | "cursor" | "copilot" | "antigravity") {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-acpx-sandbox-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-acpx-sandbox-"));
   temporaryDirectories.push(root);
   const workspace = join(root, "workspace");
   const runtimeDirectory = join(root, "runtime");

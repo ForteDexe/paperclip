@@ -8,13 +8,13 @@ import type {
 import { api } from "./client";
 
 export const budgetsApi = {
-  overview: (companyId: string) =>
-    api.get<BudgetOverview>(`/companies/${companyId}/budgets/overview`),
-  upsertPolicy: (companyId: string, data: BudgetPolicyUpsertInput) =>
-    api.post<BudgetPolicySummary>(`/companies/${companyId}/budgets/policies`, data),
-  resolveIncident: (companyId: string, incidentId: string, data: BudgetIncidentResolutionInput) =>
+  overview: (spaceId: string) =>
+    api.get<BudgetOverview>(`/spaces/${spaceId}/budgets/overview`),
+  upsertPolicy: (spaceId: string, data: BudgetPolicyUpsertInput) =>
+    api.post<BudgetPolicySummary>(`/spaces/${spaceId}/budgets/policies`, data),
+  resolveIncident: (spaceId: string, incidentId: string, data: BudgetIncidentResolutionInput) =>
     api.post<BudgetIncident>(
-      `/companies/${companyId}/budget-incidents/${encodeURIComponent(incidentId)}/resolve`,
+      `/spaces/${spaceId}/budget-incidents/${encodeURIComponent(incidentId)}/resolve`,
       data,
     ),
 };

@@ -1,16 +1,16 @@
 import { notifyIssueRecovery } from "./issue-recovery-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 
-export type RunDispatchScope = { companyId: string };
+export type RunDispatchScope = { spaceId: string };
 
 export async function notifyQueuedRunDispatch(transaction: object, scope?: RunDispatchScope) {
   await notifyDeliveryWork(transaction, DELIVERY_QUEUES.queuedRunDispatch,
-    scope ? JSON.stringify({ companyId: scope.companyId }) : "*");
+    scope ? JSON.stringify({ spaceId: scope.spaceId }) : "*");
 }
 
 export async function notifyRunDispatch(transaction: object, scope?: RunDispatchScope) {
-  await notifyIssueRecovery(transaction, scope ? { companyId: scope.companyId } : undefined);
-  const hint = scope ? JSON.stringify({ companyId: scope.companyId }) : "*";
+  await notifyIssueRecovery(transaction, scope ? { spaceId: scope.spaceId } : undefined);
+  const hint = scope ? JSON.stringify({ spaceId: scope.spaceId }) : "*";
   await notifyDeliveryWork(transaction, DELIVERY_QUEUES.nativeProcessSessions, hint);
   await notifyDeliveryWork(transaction, DELIVERY_QUEUES.executionReplacement, hint);
   await notifyQueuedRunDispatch(transaction, scope);

@@ -1,6 +1,6 @@
 // Kept in sync with shared/src/openrouter-attribution.ts by the server attribution test.
 // Runner is independently published and cannot depend on the control-plane packages.
-/** Public product identity only: never include company, user, run, or credential data. */
+/** Public product identity only: never include space, user, run, or credential data. */
 export const OPENROUTER_ATTRIBUTION_HEADERS = Object.freeze({
   "HTTP-Referer": "https://outpost.ing",
   "X-Title": "Outpost",

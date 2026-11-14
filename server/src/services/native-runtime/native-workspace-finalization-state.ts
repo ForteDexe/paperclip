@@ -18,21 +18,21 @@ export async function preserveRemoteWorkspacePreparationFailure(db: Db, lease: W
   return db.transaction(async tx => {
     await tx.execute(sql`select set_config('statement_timeout', '15000', true), set_config('lock_timeout', '1000', true)`);
     const [task] = await tx.select({ id: issues.id }).from(issues).where(and(
-      eq(issues.companyId, lease.companyId), eq(issues.id, candidate.issueId))).for("update");
+      eq(issues.spaceId, lease.spaceId), eq(issues.id, candidate.issueId))).for("update");
     const [run] = await tx.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, lease.companyId), eq(heartbeatRuns.id, candidate.run.id))).for("update");
+      eq(heartbeatRuns.spaceId, lease.spaceId), eq(heartbeatRuns.id, candidate.run.id))).for("update");
     if (!task || !run || run.runtimeMode !== "legacy" || run.runnerProfileJson?.nativeExecutionInput != null
       || options.assertOwned && (run.controllerBootId !== candidate.run.controllerBootId
         || run.controllerBootId !== null && (!run.controllerLeaseExpiresAt || run.controllerLeaseExpiresAt.getTime() <= Date.now()))
       || (!options.assertOwned && (!["failed", "cancelled", "timed_out", "interrupted"].includes(run.status)
         || run.controllerLeaseExpiresAt && run.controllerLeaseExpiresAt.getTime() > Date.now()))) return null;
     const [coordinator] = await tx.select({ id: nativeRunFinalizations.runId }).from(nativeRunFinalizations)
-      .where(and(eq(nativeRunFinalizations.companyId, lease.companyId), eq(nativeRunFinalizations.runId, run.id)));
+      .where(and(eq(nativeRunFinalizations.spaceId, lease.spaceId), eq(nativeRunFinalizations.runId, run.id)));
     if (coordinator) return null;
     await tx.select({ id: executionWorkspaces.id }).from(executionWorkspaces).where(and(
-      eq(executionWorkspaces.companyId, lease.companyId), eq(executionWorkspaces.id, candidate.reference.workspaceId))).for("update");
+      eq(executionWorkspaces.spaceId, lease.spaceId), eq(executionWorkspaces.id, candidate.reference.workspaceId))).for("update");
     await tx.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, lease.companyId), eq(environmentLeases.id, lease.id))).for("update");
+      eq(environmentLeases.spaceId, lease.spaceId), eq(environmentLeases.id, lease.id))).for("update");
     const current = await preparedRemoteWorkspaceSource(tx as unknown as Db, lease);
     if (!current || current.issueId !== task.id || current.run.id !== run.id) return null;
     if (options.assertOwned && run.controllerBootId !== null
@@ -46,7 +46,7 @@ export async function preserveRemoteWorkspacePreparationFailure(db: Db, lease: W
 function nativeWorkspaceRunProjection() {
   const input = sql`${heartbeatRuns.runnerProfileJson}->'nativeExecutionInput'`;
   return {
-    id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+    id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
     issueId: heartbeatRuns.issueId, nativeIssueId: heartbeatRuns.nativeIssueId,
     runtimeMode: heartbeatRuns.runtimeMode, driverKind: heartbeatRuns.driverKind,
     reference: sql<unknown>`${heartbeatRuns.runnerProfileJson}->'nativeWorkspaceSync'`,
@@ -54,7 +54,7 @@ function nativeWorkspaceRunProjection() {
       and ${heartbeatRuns.runnerProfileJson}->'remoteWorkspace' is not null
       and ${heartbeatRuns.runnerProfileJson}->'remoteWorkspace' <> 'null'::jsonb
       and exists (select 1 from ${nativeRunFinalizations}
-        where ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId}
+        where ${nativeRunFinalizations.spaceId} = ${heartbeatRuns.spaceId}
           and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
           and ${nativeRunFinalizations.issueId} = ${heartbeatRuns.nativeIssueId}
           and ${nativeRunFinalizations.phase} = 'observed' and ${nativeRunFinalizations.resultId} is null)`,
@@ -68,7 +68,7 @@ function nativeWorkspaceRunProjection() {
 }
 
 function nativeWorkspaceSourcePending(run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "issueId" | "nativeIssueId" | "runtimeMode" | "driverKind"> & {
+  "id" | "spaceId" | "agentId" | "issueId" | "nativeIssueId" | "runtimeMode" | "driverKind"> & {
     reference: unknown; executionScope: Record<string, unknown>; observedRemoteWorkspace: boolean;
   }, lease: WorkspaceSourceLease) {
   if (run.runtimeMode !== "native") return false;
@@ -82,7 +82,7 @@ function nativeWorkspaceSourcePending(run: Pick<typeof heartbeatRuns.$inferSelec
 export async function nativeWorkspaceExportPendingForLease(db: Db, lease: WorkspaceSourceLease): Promise<boolean> {
   if (!lease.heartbeatRunId || !lease.provider || lease.provider === "local" || !lease.providerLeaseId) return false;
   const [run] = await db.select(nativeWorkspaceRunProjection()).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.id, lease.heartbeatRunId), eq(heartbeatRuns.companyId, lease.companyId),
+    eq(heartbeatRuns.id, lease.heartbeatRunId), eq(heartbeatRuns.spaceId, lease.spaceId),
     eq(heartbeatRuns.runtimeMode, "native"),
   )).limit(1);
   if (run?.observedRemoteWorkspace) return true;
@@ -92,16 +92,16 @@ export async function nativeWorkspaceExportPendingForLease(db: Db, lease: Worksp
 
 export async function nativeWorkspaceExportPendingForResource(db: Db, lease: WorkspaceSourceLease, resumingRunId: string | null) {
   if (!lease.provider || !lease.providerLeaseId || lease.provider === "local") return false;
-  const sources = await db.select({ lease: { id: environmentLeases.id, companyId: environmentLeases.companyId,
+  const sources = await db.select({ lease: { id: environmentLeases.id, spaceId: environmentLeases.spaceId,
     heartbeatRunId: environmentLeases.heartbeatRunId, provider: environmentLeases.provider, providerLeaseId: environmentLeases.providerLeaseId,
     issueId: environmentLeases.issueId, executionWorkspaceId: environmentLeases.executionWorkspaceId,
     environmentId: environmentLeases.environmentId, metadata: environmentLeases.metadata },
     run: nativeWorkspaceRunProjection(),
-    workspace: { id: executionWorkspaces.id, companyId: executionWorkspaces.companyId, sourceIssueId: executionWorkspaces.sourceIssueId,
+    workspace: { id: executionWorkspaces.id, spaceId: executionWorkspaces.spaceId, sourceIssueId: executionWorkspaces.sourceIssueId,
       mode: executionWorkspaces.mode, metadata: executionWorkspaces.metadata },
-  }).from(environmentLeases).innerJoin(heartbeatRuns, and(eq(heartbeatRuns.companyId, environmentLeases.companyId),
+  }).from(environmentLeases).innerJoin(heartbeatRuns, and(eq(heartbeatRuns.spaceId, environmentLeases.spaceId),
     eq(heartbeatRuns.id, environmentLeases.heartbeatRunId))).leftJoin(executionWorkspaces, and(
-      eq(executionWorkspaces.companyId, heartbeatRuns.companyId),
+      eq(executionWorkspaces.spaceId, heartbeatRuns.spaceId),
       sql`${executionWorkspaces.id}::text = ${heartbeatRuns.runnerProfileJson}#>>'{remoteWorkspace,workspaceId}'`,
     )).where(and(eq(environmentLeases.provider, lease.provider), eq(environmentLeases.providerLeaseId, lease.providerLeaseId)));
   for (const source of sources) {
@@ -128,13 +128,13 @@ export function pendingNativeWorkspaceFinalizationCondition(db: Db) {
       .innerJoin(nativeRunResults, and(
         eq(nativeRunResults.id, nativeRunFinalizations.resultId),
         eq(nativeRunResults.runId, nativeRunFinalizations.runId),
-        eq(nativeRunResults.companyId, nativeRunFinalizations.companyId),
+        eq(nativeRunResults.spaceId, nativeRunFinalizations.spaceId),
         eq(nativeRunResults.issueId, nativeRunFinalizations.issueId),
         eq(nativeRunResults.schemaStatus, "accepted"),
       ))
       .where(and(
         eq(nativeRunFinalizations.runId, heartbeatRuns.id),
-        eq(nativeRunFinalizations.companyId, heartbeatRuns.companyId),
+        eq(nativeRunFinalizations.spaceId, heartbeatRuns.spaceId),
         eq(nativeRunFinalizations.issueId, heartbeatRuns.nativeIssueId),
         eq(nativeRunFinalizations.phase, "workspace_finalizing"),
       ))),

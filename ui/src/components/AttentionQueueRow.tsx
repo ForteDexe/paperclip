@@ -79,7 +79,7 @@ const SNOOZE_PRESETS: ReadonlyArray<{ label: string; resolve: () => string }> = 
 
 interface AttentionQueueRowProps {
   item: AttentionItem;
-  companyId: string;
+  spaceId: string;
   expanded: boolean;
   /** Receives the row's item so the parent can pass one stable callback for every row. */
   onToggleExpand: (item: AttentionItem) => void;
@@ -90,7 +90,7 @@ interface AttentionQueueRowProps {
   /** "active" renders the live queue row; "hidden" renders a curtain row. */
   variant?: "active" | "hidden";
   agentMap?: Map<string, Agent>;
-  /** Company agents, for the triage strip's route-to-agent picker. */
+  /** Space agents, for the triage strip's route-to-agent picker. */
   agents?: Agent[];
   /** Render the per-card triage strip (queue/decide-by/snooze/route) when expanded. */
   showTriage?: boolean;
@@ -108,7 +108,7 @@ interface AttentionQueueRowProps {
  */
 export const AttentionQueueRow = memo(function AttentionQueueRow({
   item,
-  companyId,
+  spaceId,
   expanded,
   onToggleExpand,
   onDismiss,
@@ -206,7 +206,7 @@ export const AttentionQueueRow = memo(function AttentionQueueRow({
           {showCompact && (
             <CompactDecisionActions
               item={item}
-              companyId={companyId}
+              spaceId={spaceId}
               audience={audience}
               onOpen={() => onToggleExpand(item)}
             />
@@ -386,11 +386,11 @@ export const AttentionQueueRow = memo(function AttentionQueueRow({
         <CollapsibleContent data-decision-disclosure className="-mt-4">
           <div className="flex flex-col gap-4 pt-4">
             {hasImages && <ExpandedImages images={images} issueHref={issueHref} />}
-            {triageEnabled && <DecisionTriageStrip item={item} companyId={companyId} agents={agents} />}
+            {triageEnabled && <DecisionTriageStrip item={item} spaceId={spaceId} agents={agents} />}
             {inline && (
               <InlineResolver
                 item={item}
-                companyId={companyId}
+                spaceId={spaceId}
                 agentMap={agentMap}
                 currentUserId={currentUserId}
                 userLabelMap={userLabelMap}
@@ -474,12 +474,12 @@ function collectCompactActions(item: AttentionItem): CompactAction[] {
 
 function CompactDecisionActions({
   item,
-  companyId,
+  spaceId,
   audience,
   onOpen,
 }: {
   item: AttentionItem;
-  companyId: string;
+  spaceId: string;
   /** Effective resolver audience, so a denial can name who *can* respond. */
   audience: InteractionAudienceDescription | null;
   onOpen: () => void;
@@ -497,8 +497,8 @@ function CompactDecisionActions({
       }
       if (item.sourceKind === "join_request") {
         return action === "approve"
-          ? accessApi.approveJoinRequest(companyId, item.subject.id)
-          : accessApi.rejectJoinRequest(companyId, item.subject.id);
+          ? accessApi.approveJoinRequest(spaceId, item.subject.id)
+          : accessApi.rejectJoinRequest(spaceId, item.subject.id);
       }
       if (item.sourceKind === "issue_thread_interaction") {
         const issueId = item.subject.metadata?.issueId;
@@ -509,11 +509,11 @@ function CompactDecisionActions({
       throw new Error("This decision must be completed from its detail view.");
     },
     onSuccess: (_result, action) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.attention(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.attention(spaceId) });
       if (item.sourceKind === "approval") {
-        queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(companyId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(spaceId) });
       } else {
-        queryClient.invalidateQueries({ queryKey: queryKeys.access.joinRequests(companyId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.access.joinRequests(spaceId) });
       }
       pushToast({
         title: compactDecisionSuccessLabel(item.sourceKind, action),
@@ -750,14 +750,14 @@ function reappearLabel(snoozedUntil: string): string {
  */
 function InlineResolver({
   item,
-  companyId,
+  spaceId,
   agentMap,
   currentUserId,
   userLabelMap,
   toggle,
 }: {
   item: AttentionItem;
-  companyId: string;
+  spaceId: string;
   agentMap?: Map<string, Agent>;
   currentUserId?: string | null;
   userLabelMap?: ReadonlyMap<string, string> | null;
@@ -766,7 +766,7 @@ function InlineResolver({
   if (item.sourceKind === "decision") {
     return (
       <DecisionResolver
-        companyId={companyId}
+        spaceId={spaceId}
         decisionId={item.subject.id}
         originIssue={item.relatedIssue}
         agentMap={agentMap}
@@ -782,7 +782,7 @@ function InlineResolver({
     return (
       <>
         <AttentionInteractionResolver
-          companyId={companyId}
+          spaceId={spaceId}
           issueId={issueId}
           interactionId={item.subject.id}
           agentMap={agentMap}
@@ -795,11 +795,11 @@ function InlineResolver({
   }
 
   if (item.sourceKind === "approval") {
-    return <ApprovalResolver item={item} companyId={companyId} toggle={toggle} />;
+    return <ApprovalResolver item={item} spaceId={spaceId} toggle={toggle} />;
   }
 
   if (item.sourceKind === "join_request") {
-    return <JoinRequestResolver item={item} companyId={companyId} toggle={toggle} />;
+    return <JoinRequestResolver item={item} spaceId={spaceId} toggle={toggle} />;
   }
 
   if (item.sourceKind === "review") {
@@ -808,7 +808,7 @@ function InlineResolver({
     return (
       <StalledReviewActions
         issueId={item.subject.id}
-        companyId={companyId}
+        spaceId={spaceId}
         footerSlot={toggle}
         reviewPolicy={readIssueReviewPolicyMetadata(item.subject.metadata)}
       />
@@ -828,12 +828,12 @@ function ResolverFooter({ toggle, children }: { toggle: ReactNode; children: Rea
   );
 }
 
-function ApprovalResolver({ item, companyId, toggle }: { item: AttentionItem; companyId: string; toggle: ReactNode }) {
+function ApprovalResolver({ item, spaceId, toggle }: { item: AttentionItem; spaceId: string; toggle: ReactNode }) {
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.attention(companyId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.attention(spaceId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(spaceId) });
   };
   const approve = useMutation({
     mutationFn: () => approvalsApi.approve(item.subject.id, note.trim() || undefined),
@@ -877,18 +877,18 @@ function ApprovalResolver({ item, companyId, toggle }: { item: AttentionItem; co
   );
 }
 
-function JoinRequestResolver({ item, companyId, toggle }: { item: AttentionItem; companyId: string; toggle: ReactNode }) {
+function JoinRequestResolver({ item, spaceId, toggle }: { item: AttentionItem; spaceId: string; toggle: ReactNode }) {
   const queryClient = useQueryClient();
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.attention(companyId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.access.joinRequests(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.attention(spaceId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.access.joinRequests(spaceId) });
   };
   const approve = useMutation({
-    mutationFn: () => accessApi.approveJoinRequest(companyId, item.subject.id),
+    mutationFn: () => accessApi.approveJoinRequest(spaceId, item.subject.id),
     onSuccess: invalidate,
   });
   const reject = useMutation({
-    mutationFn: () => accessApi.rejectJoinRequest(companyId, item.subject.id),
+    mutationFn: () => accessApi.rejectJoinRequest(spaceId, item.subject.id),
     onSuccess: invalidate,
   });
   const pending = approve.isPending || reject.isPending;

@@ -37,14 +37,14 @@ test('blocks a contributor change to the reporting-lock proof', () => {
 });
 
 test('blocks a contributor branch named like the refresh branch', () => {
-  for (const headRepo of [repo, 'someone/paperclip']) {
+  for (const headRepo of [repo, 'someone/outpost']) {
     const result = classifyPullRequest({ ...base, headRepo, headRef: 'chore/refresh-lockfile', changedPaths: ['pnpm-lock.yaml'] });
     assert.equal(result.allowed, false, headRepo);
   }
 });
 
 test('blocks the refresh author and branch from a fork', () => {
-  const result = classifyPullRequest({ ...base, author: 'github-actions[bot]', headRepo: 'someone/paperclip',
+  const result = classifyPullRequest({ ...base, author: 'github-actions[bot]', headRepo: 'someone/outpost',
     headRef: 'chore/refresh-lockfile', changedPaths: ['pnpm-lock.yaml'] });
   assert.equal(result.allowed, false);
 });
@@ -76,7 +76,7 @@ test('blocks a Dependabot pull request that changes the reporting-lock proof', (
 });
 
 test('blocks a Dependabot author from a fork', () => {
-  const result = classifyPullRequest({ ...base, author: 'dependabot[bot]', headRepo: 'someone/paperclip',
+  const result = classifyPullRequest({ ...base, author: 'dependabot[bot]', headRepo: 'someone/outpost',
     dependabotLockCommits: { 'pnpm-lock.yaml': 'abc123' }, changedPaths: ['pnpm-lock.yaml'] });
   assert.equal(result.allowed, false);
 });

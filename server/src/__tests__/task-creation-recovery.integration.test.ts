@@ -27,16 +27,16 @@ let db: Db;
 const database = setupRunControlDatabase("task-creation-recovery-", value => { db = value; });
 
 async function fixture(version = true, inspector = true) {
-  const { company, agent } = await database.fixture();
-  const companyId = company.id, agentId = agent.id, runId = randomUUID(), issueId = randomUUID();
+  const { space, agent } = await database.fixture();
+  const spaceId = space.id, agentId = agent.id, runId = randomUUID(), issueId = randomUUID();
   const pluginId = randomUUID(), environmentId = randomUUID(), leaseId = randomUUID(), taskId = randomUUID(), leaseOwner = randomUUID();
   await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, agentId));
-  await db.insert(issues).values({ id: issueId, companyId, title: "Recover task creation", status: "in_progress", assigneeAgentId: agentId });
-  const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId,
+  await db.insert(issues).values({ id: issueId, spaceId, title: "Recover task creation", status: "in_progress", assigneeAgentId: agentId });
+  const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, nativeIssueId: issueId,
     runtimeMode: "native", invocationSource: "manual", status: "running", contextSnapshot: { issueId } }).returning();
   await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
   await prepareNativeHeartbeatRun({ db, run, issue: { id: issueId, title: "Recover task creation", description: null }, environmentLeaseId: leaseId });
-  await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed", attempt: 1,
+  await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed", attempt: 1,
     controllerGeneration: 1, leaseOwner, leaseExpiresAt: new Date(Date.now() + 60_000) });
   await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "task-recovery-fixture", version: "1", status: "ready",
     manifestJson: { capabilities: ["environment.drivers.register"], environmentDrivers: [{ driverKey: "tasks", supportsTasks: true,
@@ -44,11 +44,11 @@ async function fixture(version = true, inspector = true) {
   await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "plugin",
     config: { pluginKey: pluginId, driverKey: "tasks", driverConfig: {} } });
   const binding = { agentId, runId: "predecessor", computerId: "saved-computer", opaque: "saved-binding" };
-  await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId, heartbeatRunId: runId, issueId,
+  await db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId, heartbeatRunId: runId, issueId,
     provider: "plugin:fixture:tasks", providerLeaseId: taskId, status: "active", leasePolicy: "reuse_by_environment",
     metadata: { driver: "plugin", pluginId, pluginKey: pluginId, driverKey: "tasks", agentId,
       runnerTaskLease: true, runnerTaskReused: true, providerMetadata: binding } });
-  const context = new NativeExecutionContext({ binding: { companyId, agentId, runId } } as never, 30_000);
+  const context = new NativeExecutionContext({ binding: { spaceId, agentId, runId } } as never, 30_000);
   const stopped = new Set([taskId]), calls: string[] = [];
   let acquireSuccess = false, mismatched = false, inspectUnknown = false, genericCleanup = false;
   let acquiredId = "", observed: ((lease: PluginEnvironmentLease) => Promise<void>) | undefined;
@@ -69,11 +69,11 @@ async function fixture(version = true, inspector = true) {
       calls.push(method === "environmentTask" ? params.operation.kind : method);
       if (method === "environmentAcquireLease") return currentWorker.call(method, params, ...rest as []);
       if (method === "environmentInspectLease") {
-        expect(params).toMatchObject({ companyId, environmentId, creationOperation: { id: acquiredId, runId },
+        expect(params).toMatchObject({ spaceId, environmentId, creationOperation: { id: acquiredId, runId },
           leaseMetadata: { creationOperationVersion: 1, runnerTaskCreationContextId: context.id, agentId, runId, providerMetadata: binding } });
         return { providerLeaseId: acquiredId, state: "unknown", ...(!inspectUnknown ? {
           creationLease: { providerLeaseId: mismatched ? "foreign-task" : acquiredId, metadata: recoveredBinding() },
-        } : {}), ...(genericCleanup ? { creationCleanup: { providerLeaseId: acquiredId, companyId, environmentId,
+        } : {}), ...(genericCleanup ? { creationCleanup: { providerLeaseId: acquiredId, spaceId, environmentId,
           runId, attemptId: acquiredId, accountFingerprint: "a".repeat(64), labels: {} } } : {}) };
       }
       if (method === "environmentReleaseLease") return undefined;
@@ -89,9 +89,9 @@ async function fixture(version = true, inspector = true) {
   const reload = async () => (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)))[0]!;
   const owner = async () => (await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, runId)))[0]!;
   const creation = async () => (await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.runId, runId)))[0]!;
-  const start = () => runtime.task({ companyId, leaseId, operation: { kind: "describe" }, executionContext: context });
+  const start = () => runtime.task({ spaceId, leaseId, operation: { kind: "describe" }, executionContext: context });
   const request = async () => {
-    await requestNativeStartupCleanup(db, { companyId, agentId, runId, leaseId, leaseOwner,
+    await requestNativeStartupCleanup(db, { spaceId, agentId, runId, leaseId, leaseOwner,
       contextId: context.id, deadlineAtMs: context.deadlineAtMs, requiresPreparationStop: false });
     const lease = (await environmentService(db).getLeaseById(leaseId))!;
     await environmentService(db).releaseLease(leaseId, "released", { cleanupStatus: "success",
@@ -103,7 +103,7 @@ async function fixture(version = true, inspector = true) {
   const recovery = createHeartbeatRecovery(db, { ...deps, environmentRuntime: runtime, environmentsSvc: environmentService(db),
     runtimeEnv: {}, activeRunExecutionPromises: new Set<Promise<void>>(), acknowledgeRemoteStop: async () => {},
     resumeRemoteStopComments: async () => {} } as unknown as HeartbeatRecoveryDependencies);
-  return { companyId, pluginId, deps, runId, context, calls, acquired: () => acquiredId, binding, creation, start, request, runtime, recovery, control,
+  return { spaceId, pluginId, deps, runId, context, calls, acquired: () => acquiredId, binding, creation, start, request, runtime, recovery, control,
     reload, owner, originalWorker, replacementAcquire, acquire, workers,
     succeed: () => { acquireSuccess = true; }, replaceWorker: () => { currentWorker = oldWorker; },
     mismatch: () => { mismatched = true; }, unknown: () => { inspectUnknown = true; },
@@ -132,7 +132,7 @@ it.each(["pending", "needs_reconciliation", "late_first", "inspection_first"])("
     expect(await db.select().from(environmentLeases).where(and(eq(environmentLeases.heartbeatRunId, f.runId),
       eq(environmentLeases.providerLeaseId, f.acquired())))).toHaveLength(1);
     expect((await f.reload()).status).toBe("running");
-    expect((await f.recovery.sweepPendingCleanupLeases({ explicitRetry: { companyId: f.companyId, runId: f.runId, actorId: "operator" } })).destroyed).toBe(1);
+    expect((await f.recovery.sweepPendingCleanupLeases({ explicitRetry: { spaceId: f.spaceId, runId: f.runId, actorId: "operator" } })).destroyed).toBe(1);
     expect(f.calls).toContain("stop"); expect(f.calls).toContain("status"); expect(f.calls).toContain("complete");
     expect(await f.control.cancelRunInternal(f.runId, "Startup cleanup retry")).toMatchObject({ status: "cancelled" });
     expect((await f.owner()).leaseOwner).toBeNull();
@@ -159,7 +159,7 @@ readline.createInterface({input:process.stdin,crlfDelay:Infinity}).on("line", li
 `);
   try {
     const handle = await manager.startWorker(f.pluginId, { entrypointPath, manifest: { id: f.pluginId, apiVersion: 1, version: "1.0.0",
-      displayName: "Recovery fixture", description: "Recovery fixture", author: "Paperclip", categories: ["automation"], capabilities: [],
+      displayName: "Recovery fixture", description: "Recovery fixture", author: "Outpost", categories: ["automation"], capabilities: [],
       entrypoints: { worker: "worker.cjs" } }, config: {}, instanceInfo: { instanceId: "fixture", hostVersion: "1.0.0" }, apiVersion: 1,
       hostHandlers: {}, autoRestart: false });
     const call = handle.call.bind(handle);

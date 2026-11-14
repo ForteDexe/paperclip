@@ -24,8 +24,8 @@ export function gradeNavigation(value: unknown) {
   c.add("complete-navigation-evidence", !!o, "Persisted records and observed browser navigation are required.");
   if (!o) return c.result();
   const p = entity(o.state, "project"); const t = entity(o.state, "task");
-  c.add("scope-retained", o.projects.some(row => row.id === p.id && row.companyId === o.companyId)
-    && o.tasks.some(row => row.id === t.id && row.projectId === p.id && row.status === "backlog"), "Navigation retains the real company project and open task.");
+  c.add("scope-retained", o.projects.some(row => row.id === p.id && row.spaceId === o.spaceId)
+    && o.tasks.some(row => row.id === t.id && row.projectId === p.id && row.status === "backlog"), "Navigation retains the real space project and open task.");
   c.add("navigation-is-read-only", !o.activity.some(row => row.agentId === o.leadId && [p.id, t.id].includes(row.entityId ?? "")), "The agent does not rewrite records to make the requested view appear correct.");
   if (o.scenarioId === "navigation-preferences.find-project-view") {
     c.add("actual-project-link", hasLink(o, "projects", p), "The rendered reply links the exact Launch project.");
@@ -38,7 +38,7 @@ export function gradeNavigation(value: unknown) {
     c.add("browser-search-transition", o.state.paletteTaskVisible === true && o.state.searchTaskVisible === true
       && o.state.searchQuery === "Launch" && o.state.searchStatus === "backlog", "The human opens the palette, finds the fixture task, and carries its query and chosen status filter into full search.");
     c.add("independent-search-audience", o.state.observerPublicVisible === true && o.state.observerPrivatePaletteHidden === true && o.state.observerPrivateSearchHidden === true,
-      "A separately authenticated company member finds the public Launch task but cannot discover its private counterpart in quick or full search.");
+      "A separately authenticated space member finds the public Launch task but cannot discover its private counterpart in quick or full search.");
   } else c.add("known-navigation-case", false, "No oracle exists for this navigation request.");
   return c.result();
 }
@@ -98,7 +98,7 @@ export const navigationIdentityCases = [
       const observer = searchObservers.get(ctx); if (!observer) throw new Error("Independent search observer missing");
       const page = await observer.context.newPage();
       try {
-        await page.goto(`/${ctx.input.fixtures.company.issuePrefix}/projects/${entity(state, "project").id}`, { waitUntil: "domcontentloaded" });
+        await page.goto(`/${ctx.input.fixtures.space.issuePrefix}/projects/${entity(state, "project").id}`, { waitUntil: "domcontentloaded" });
         await (await openQuickSearch(page)).fill("Launch status:backlog");
         const palette = page.getByRole("dialog");
         await expect(palette.getByText(entity(state, "task").title!, { exact: true })).toBeVisible();
@@ -116,7 +116,7 @@ export const navigationIdentityCases = [
   }),
 ] as const;
 async function preferenceSnapshot(ctx: Parameters<typeof project>[0]) {
-  const order = await ctx.input.api.get(`/api/companies/${ctx.input.fixtures.company.id}/sidebar-preferences/me`);
+  const order = await ctx.input.api.get(`/api/spaces/${ctx.input.fixtures.space.id}/sidebar-preferences/me`);
   const browserPreferences = await ctx.input.page.evaluate(() => Object.fromEntries(Object.entries(localStorage)
     .filter(([key]) => /favorite|recent[-:.]?(?:tasks|projects)/i.test(key)).sort(([a], [b]) => a.localeCompare(b))));
   return { order, browserPreferences };

@@ -33,7 +33,7 @@ export interface WaveSpeed {
   errors: string[];
   /**
    * Every graded (non-restart) run's own timing, so a breach can be attributed after the instance is
-   * gone: `bootMs` is Paperclip's share (claim to the provider accepting the turn), `providerFirstActivityMs`
+   * gone: `bootMs` is Outpost's share (claim to the provider accepting the turn), `providerFirstActivityMs`
    * the provider's (turn accepted to first visible activity), and `preTurnSteps` the spans before the turn.
    */
   runs?: SpeedRunDetail[];
@@ -51,7 +51,7 @@ export function budgetFor(environment: EnvironmentKind, adapter: string, metric:
   const key = BUDGET_ADAPTER[adapter as AdapterId];
   if (environment !== "local" || !key) return null;
   // Reported without a budget: the full recovery and the provider's session load
-  // grow with session size and simultaneous resumes; Paperclip's share is judged.
+  // grow with session size and simultaneous resumes; Outpost's share is judged.
   if (metric === "ttft" || metric === "workspace_provision" || metric === "restart_recovery" || metric === "restart_provider_load") return null;
   const budgets = LOCAL_SPEED_BUDGETS[key] as unknown as Record<string, Record<"cold" | "warm", SpeedBudget> | SpeedBudget>;
   if (metric === "restart_recovery_control_plane") return budgets.restart_recovery_control_plane as SpeedBudget;

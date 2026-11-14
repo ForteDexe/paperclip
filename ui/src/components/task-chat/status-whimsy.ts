@@ -1,6 +1,6 @@
 /**
  * Whimsical gerunds for the live status pill when the label carries no real
- * signal ("Running"/"Working"). Two curated pools: Paperclip's analog-office
+ * signal ("Running"/"Working"). Two curated pools: Outpost's analog-office
  * vocabulary (led by the "Clipping" brand nod) and Claude-Code-style whimsy.
  * Every word is chosen to still read sensibly after-the-fact — a settled turn
  * that once said "Collating…" shouldn't feel like a lie.
@@ -10,8 +10,8 @@
  * ~10s of elapsed run time.
  */
 
-/** Paperclip / analog-office pool — "Clipping" is the guaranteed brand nod.
- * Board-curated round 2 (PAP-349): dropped Cataloguing / Carbon-copying /
+/** Outpost / analog-office pool — "Clipping" is the guaranteed brand nod.
+ * Operator-curated round 2 (PAP-349): dropped Cataloguing / Carbon-copying /
  * Archiving, added the workshop-and-whiteboard verbs. */
 export const ANALOG_OFFICE_WORDS: readonly string[] = [
   "Clipping",
@@ -43,7 +43,7 @@ export const ANALOG_OFFICE_WORDS: readonly string[] = [
   "Sticky-noting",
 ];
 
-/** Claude-Code-style whimsy pool — board-curated round 2 kept only these four. */
+/** Claude-Code-style whimsy pool — operator-curated round 2 kept only these four. */
 export const CLAUDE_CODE_WORDS: readonly string[] = [
   "Brewing",
   "Tinkering",

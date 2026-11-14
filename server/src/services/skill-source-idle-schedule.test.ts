@@ -5,9 +5,9 @@ import { MAX_PROJECT_PENDING_SKILL_IMPORTS, SKILL_IMPORT_CAPACITY_WAIT } from '.
 
 const now = Date.UTC(2099, 0, 1);
 const future = new Date(now + 300_000);
-const source = { id: 'source', companyId: 'company', revision: 1, accessScope: 'company' as const,
+const source = { id: 'source', spaceId: 'space', revision: 1, accessScope: 'space' as const,
   nextSyncAt: future, leaseToken: null, leaseExpiresAt: null };
-const binding = { id: 'binding', companyId: 'company', projectId: 'project', workspaceId: 'workspace',
+const binding = { id: 'binding', spaceId: 'space', projectId: 'project', workspaceId: 'workspace',
   active: true, status: 'pending' as const, lastError: null, nextSyncAt: future, leaseToken: null, leaseExpiresAt: null };
 
 describe('skill source durable wake responsibility', () => {
@@ -32,7 +32,7 @@ describe('skill source durable wake responsibility', () => {
     expect(skillSourceIdleSchedule([], [{ ...source, leaseExpiresAt: future }], now).blocked).toBe(true);
     expect(skillSourceIdleSchedule([], [{ ...source, nextSyncAt: new Date(NaN) }], now).blocked).toBe(true);
     expect(skillSourceIdleSchedule([{ ...binding, status: 'ready' }], [], now).blocked).toBe(true);
-    expect(skillSourceIdleSchedule([], [{ ...source, accessScope: 'unknown' as 'company' }], now).blocked).toBe(true);
+    expect(skillSourceIdleSchedule([], [{ ...source, accessScope: 'unknown' as 'space' }], now).blocked).toBe(true);
   });
   it('cannot lose an inactive waiting admission behind a null or unrelated future deadline', () => {
     const waiting = { ...binding, active: false, lastError: SKILL_IMPORT_CAPACITY_WAIT };
@@ -45,7 +45,7 @@ describe('skill source durable wake responsibility', () => {
     const waiting = { ...binding, active: false, lastError: SKILL_IMPORT_CAPACITY_WAIT };
     expect(skillSourceIdleSchedule([...peers, waiting], [], now).blocked).toBe(false);
     expect(skillSourceIdleSchedule([...peers.slice(1), waiting], [], now).blocked).toBe(true);
-    expect(skillSourceIdleSchedule([...peers.map(peer => ({ ...peer, companyId: 'other' })), waiting], [], now).blocked).toBe(true);
+    expect(skillSourceIdleSchedule([...peers.map(peer => ({ ...peer, spaceId: 'other' })), waiting], [], now).blocked).toBe(true);
   });
 });
 

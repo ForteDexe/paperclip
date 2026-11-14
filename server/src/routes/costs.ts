@@ -2,7 +2,7 @@ import { importProviderDailyCosts } from "../services/provider-billing-import.js
 import { subscriptionPriceSchema, mergeSubscriptionsSchema } from "@outpost/shared";
 import { subscriptionService } from "../services/subscriptions.js";
 import { subscriptionCostReport } from "../services/subscription-report.js";
-import { refreshCompanySubscriptions } from "../services/subscription-refresh.js";
+import { refreshSpaceSubscriptions } from "../services/subscription-refresh.js";
 import { canManageAiConnections } from "./ai-connections.js";
 import { importProviderCostsSchema } from "@outpost/shared";
 import { accountingIntegrityService } from "../services/accounting-integrity.js";
@@ -25,14 +25,14 @@ import {
   budgetService,
   costService,
   financeService,
-  companyService,
+  spaceService,
   agentService,
   issueService,
   heartbeatService,
   accessService,
 } from "../services/index.js";
-import { assertBoard, assertCompanyAccess, getAccessibleResource, getActorInfo } from "./authz.js";
-import { fetchCompanyQuotaWindows } from "../services/quota-windows.js";
+import { assertOperator, assertSpaceAccess, getAccessibleResource, getActorInfo } from "./authz.js";
+import { fetchSpaceQuotaWindows } from "../services/quota-windows.js";
 import { badRequest, forbidden } from "../errors.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 
@@ -80,65 +80,65 @@ export function costRoutes(
   const costs = costService(db, budgetHooks);
   const finance = financeService(db);
   const budgets = budgetService(db, budgetHooks);
-  const companies = companyService(db);
+  const spaces = spaceService(db);
   const agents = agentService(db);
   const issues = issueService(db);
   const access = accessService(db);
 
-  function costReaderActor(req: Parameters<typeof assertCompanyAccess>[0], companyId: string) {
-    assertBoard(req);
-    assertCompanyAccess(req, companyId);
+  function costReaderActor(req: Parameters<typeof assertSpaceAccess>[0], spaceId: string) {
+    assertOperator(req);
+    assertSpaceAccess(req, spaceId);
     return { userId: getActorInfo(req).actorId,
-      readOnly: req.actor.memberships?.some(member => member.companyId === companyId && member.membershipRole === "viewer") ?? false };
+      readOnly: req.actor.memberships?.some(member => member.spaceId === spaceId && member.membershipRole === "viewer") ?? false };
   }
 
-  async function subscriptionActor(req: Parameters<typeof assertCompanyAccess>[0], companyId: string) {
-    return { ...costReaderActor(req, companyId), canManage: await canManageAiConnections(db, req, companyId) };
+  async function subscriptionActor(req: Parameters<typeof assertSpaceAccess>[0], spaceId: string) {
+    return { ...costReaderActor(req, spaceId), canManage: await canManageAiConnections(db, req, spaceId) };
   }
 
-  router.get("/companies/:companyId/costs/data-quality", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    const actor = costReaderActor(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
-    res.json(await costDataQualityReport(db, companyId, !actor.readOnly, parseCostDateRange(req.query)));
+  router.get("/spaces/:spaceId/costs/data-quality", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    const actor = costReaderActor(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
+    res.json(await costDataQualityReport(db, spaceId, !actor.readOnly, parseCostDateRange(req.query)));
   });
-  router.post("/companies/:companyId/costs/retry-accounting", validate(retryAccountingSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    const actor = costReaderActor(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.post("/spaces/:spaceId/costs/retry-accounting", validate(retryAccountingSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    const actor = costReaderActor(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     if (actor.readOnly) throw forbidden("Viewers cannot retry cost recording");
-    res.json(await accountingIntegrityService(db, budgetHooks).retry(companyId, req.body.runId, actor.userId));
+    res.json(await accountingIntegrityService(db, budgetHooks).retry(spaceId, req.body.runId, actor.userId));
   });
 
-  router.get("/companies/:companyId/costs/subscriptions", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    const actor = await subscriptionActor(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
-    res.json(await subscriptionCostReport(db, companyId, actor, parseCostDateRange(req.query)));
+  router.get("/spaces/:spaceId/costs/subscriptions", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    const actor = await subscriptionActor(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
+    res.json(await subscriptionCostReport(db, spaceId, actor, parseCostDateRange(req.query)));
   });
-  router.post("/companies/:companyId/costs/subscriptions/refresh", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    const actor = await subscriptionActor(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.post("/spaces/:spaceId/costs/subscriptions/refresh", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    const actor = await subscriptionActor(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     if (actor.readOnly) throw forbidden("Viewers cannot refresh subscription accounts");
-    void refreshCompanySubscriptions(db, companyId, actor.userId);
+    void refreshSpaceSubscriptions(db, spaceId, actor.userId);
     res.status(202).json({ status: "accepted" });
   });
-  router.patch("/companies/:companyId/costs/subscriptions/:subscriptionId", validate(subscriptionPriceSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    const actor = await subscriptionActor(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.patch("/spaces/:spaceId/costs/subscriptions/:subscriptionId", validate(subscriptionPriceSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    const actor = await subscriptionActor(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const id = z.string().uuid().safeParse(req.params.subscriptionId);
     if (!id.success) throw badRequest("Invalid subscription ID");
-    res.json(await subscriptionService(db).updatePrice(companyId, id.data, req.body, actor));
+    res.json(await subscriptionService(db).updatePrice(spaceId, id.data, req.body, actor));
   });
-  router.post("/companies/:companyId/costs/subscriptions/:subscriptionId/link", validate(mergeSubscriptionsSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    const actor = await subscriptionActor(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.post("/spaces/:spaceId/costs/subscriptions/:subscriptionId/link", validate(mergeSubscriptionsSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    const actor = await subscriptionActor(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const id = z.string().uuid().safeParse(req.params.subscriptionId);
     if (!id.success) throw badRequest("Invalid subscription ID");
-    res.json(await subscriptionService(db).merge(companyId, id.data, req.body.targetId, req.body.expectedRevision, req.body.targetRevision, actor));
+    res.json(await subscriptionService(db).merge(spaceId, id.data, req.body.targetId, req.body.expectedRevision, req.body.targetRevision, actor));
   });
 
   async function resolveIssueByRef(rawId: string) {
@@ -149,20 +149,20 @@ export function costRoutes(
     return issues.getById(rawId);
   }
 
-  async function assertCompanyCostReadAllowed(req: Parameters<typeof assertCompanyAccess>[0], res: any, companyId: string) {
+  async function assertSpaceCostReadAllowed(req: Parameters<typeof assertSpaceAccess>[0], res: any, spaceId: string) {
     const decision = await access.decide({
       actor: req.actor,
-      action: "company_scope:read",
-      resource: { type: "company", companyId },
+      action: "space_scope:read",
+      resource: { type: "space", spaceId },
     });
     if (decision.allowed) return true;
     res.status(403).json({ error: "Costs are outside this actor's authorization boundary" });
     return false;
   }
 
-  async function assertIssueCostReadAllowed(req: Parameters<typeof assertCompanyAccess>[0], res: any, issue: {
+  async function assertIssueCostReadAllowed(req: Parameters<typeof assertSpaceAccess>[0], res: any, issue: {
     id: string;
-    companyId: string;
+    spaceId: string;
     projectId: string | null;
     parentId: string | null;
     assigneeAgentId: string | null;
@@ -174,7 +174,7 @@ export function costRoutes(
       action: "issue:read",
       resource: {
         type: "issue",
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         issueId: issue.id,
         projectId: issue.projectId,
         parentIssueId: issue.parentId,
@@ -188,9 +188,9 @@ export function costRoutes(
     return false;
   }
 
-  router.post("/companies/:companyId/cost-events", validate(createCostEventSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.post("/spaces/:spaceId/cost-events", validate(createCostEventSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
 
     if (req.actor.type === "agent" && req.actor.agentId !== req.body.agentId) {
       res.status(403).json({ error: "Agent can only report its own costs" });
@@ -198,7 +198,7 @@ export function costRoutes(
     }
 
     const actor = getActorInfo(req);
-    const event = await costs.createEvent(companyId, {
+    const event = await costs.createEvent(spaceId, {
       ...req.body,
       occurredAt: new Date(req.body.occurredAt),
     }, { actorType: actor.actorType, actorId: actor.actorId, agentId: actor.agentId });
@@ -206,13 +206,13 @@ export function costRoutes(
     res.status(201).json(event);
   });
 
-  router.post("/companies/:companyId/finance-events", validate(createFinanceEventSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    assertBoard(req);
+  router.post("/spaces/:spaceId/finance-events", validate(createFinanceEventSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    assertOperator(req);
 
     const actor = getActorInfo(req);
-    const event = await finance.createEvent(companyId, {
+    const event = await finance.createEvent(spaceId, {
       ...req.body,
       occurredAt: new Date(req.body.occurredAt),
     }, { actorType: actor.actorType, actorId: actor.actorId, agentId: actor.agentId });
@@ -220,12 +220,12 @@ export function costRoutes(
     res.status(201).json(event);
   });
 
-  router.get("/companies/:companyId/costs/summary", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/costs/summary", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const range = parseCostDateRange(req.query);
-    const summary = await costs.summary(companyId, range);
+    const summary = await costs.summary(spaceId, range);
     res.json(summary);
   });
 
@@ -235,174 +235,174 @@ export function costRoutes(
     if (!issue) return;
     if (!(await assertIssueCostReadAllowed(req, res, issue))) return;
     const excludeRoot = req.query.excludeRoot === "true" || req.query.excludeRoot === "1";
-    const summary = await costs.issueTreeSummary(issue.companyId, issue.id, { excludeRoot });
+    const summary = await costs.issueTreeSummary(issue.spaceId, issue.id, { excludeRoot });
     res.json(summary);
   });
 
-  router.get("/companies/:companyId/costs/by-user", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/costs/by-user", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const range = parseCostDateRange(req.query);
-    res.json(await costs.byUser(companyId, range));
+    res.json(await costs.byUser(spaceId, range));
   });
 
-  router.get("/companies/:companyId/costs/by-agent", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/costs/by-agent", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const range = parseCostDateRange(req.query);
-    const rows = await costs.byAgent(companyId, range);
+    const rows = await costs.byAgent(spaceId, range);
     res.json(rows);
   });
 
-  router.get("/companies/:companyId/costs/by-agent-model", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/costs/by-agent-model", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const range = parseCostDateRange(req.query);
-    const rows = await costs.byAgentModel(companyId, range);
+    const rows = await costs.byAgentModel(spaceId, range);
     res.json(rows);
   });
 
-  router.get("/companies/:companyId/costs/by-provider", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/costs/by-provider", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const range = parseCostDateRange(req.query);
-    const rows = await costs.byProvider(companyId, range);
+    const rows = await costs.byProvider(spaceId, range);
     res.json(rows);
   });
 
-  router.get("/companies/:companyId/costs/by-biller", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/costs/by-biller", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const range = parseCostDateRange(req.query);
-    const rows = await costs.byBiller(companyId, range);
+    const rows = await costs.byBiller(spaceId, range);
     res.json(rows);
   });
 
-  router.get("/companies/:companyId/costs/finance-summary", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/costs/finance-summary", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const range = parseCostDateRange(req.query);
-    const summary = await finance.summary(companyId, range);
+    const summary = await finance.summary(spaceId, range);
     res.json(summary);
   });
 
-  router.get("/companies/:companyId/costs/finance-by-biller", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/costs/finance-by-biller", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const range = parseCostDateRange(req.query);
-    const rows = await finance.byBiller(companyId, range);
+    const rows = await finance.byBiller(spaceId, range);
     res.json(rows);
   });
 
-  router.get("/companies/:companyId/costs/finance-by-kind", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/costs/finance-by-kind", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const range = parseCostDateRange(req.query);
-    const rows = await finance.byKind(companyId, range);
+    const rows = await finance.byKind(spaceId, range);
     res.json(rows);
   });
 
-  router.get("/companies/:companyId/costs/finance-events", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/costs/finance-events", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const range = parseCostDateRange(req.query);
     const limit = parseCostLimit(req.query);
-    const rows = await finance.list(companyId, range, limit);
+    const rows = await finance.list(spaceId, range, limit);
     res.json(rows);
   });
 
-  router.get("/companies/:companyId/costs/window-spend", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
-    const rows = await costs.windowSpend(companyId);
+  router.get("/spaces/:spaceId/costs/window-spend", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
+    const rows = await costs.windowSpend(spaceId);
     res.json(rows);
   });
 
-  router.get("/companies/:companyId/costs/quota-windows", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    assertBoard(req);
-    // validate companyId resolves to a real company so the "__none__" sentinel
+  router.get("/spaces/:spaceId/costs/quota-windows", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    assertOperator(req);
+    // validate spaceId resolves to a real space so the "__none__" sentinel
     // and any forged ids are rejected before we touch provider credentials
-    const company = await companies.getById(companyId);
-    if (!company) {
+    const space = await spaces.getById(spaceId);
+    if (!space) {
       res.status(404).json({ error: "Outpost not found" });
       return;
     }
-    const results = await fetchCompanyQuotaWindows(db, companyId, getActorInfo(req).actorId);
+    const results = await fetchSpaceQuotaWindows(db, spaceId, getActorInfo(req).actorId);
     res.json(results);
   });
 
-  router.get("/companies/:companyId/budgets/overview", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
-    const overview = await budgets.overview(companyId);
+  router.get("/spaces/:spaceId/budgets/overview", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
+    const overview = await budgets.overview(spaceId);
     res.json(overview);
   });
 
   router.post(
-    "/companies/:companyId/budgets/policies",
+    "/spaces/:spaceId/budgets/policies",
     validate(upsertBudgetPolicySchema),
     async (req, res) => {
-      assertBoard(req);
-      const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
-      const summary = await budgets.upsertPolicy(companyId, req.body, req.actor.userId ?? "board");
+      assertOperator(req);
+      const spaceId = req.params.spaceId as string;
+      assertSpaceAccess(req, spaceId);
+      const summary = await budgets.upsertPolicy(spaceId, req.body, req.actor.userId ?? "operator");
       res.json(summary);
     },
   );
 
   router.post(
-    "/companies/:companyId/budget-incidents/:incidentId/resolve",
+    "/spaces/:spaceId/budget-incidents/:incidentId/resolve",
     validate(resolveBudgetIncidentSchema),
     async (req, res) => {
-      assertBoard(req);
-      const companyId = req.params.companyId as string;
+      assertOperator(req);
+      const spaceId = req.params.spaceId as string;
       const incidentId = req.params.incidentId as string;
-      assertCompanyAccess(req, companyId);
-      const incident = await budgets.resolveIncident(companyId, incidentId, req.body, req.actor.userId ?? "board",
+      assertSpaceAccess(req, spaceId);
+      const incident = await budgets.resolveIncident(spaceId, incidentId, req.body, req.actor.userId ?? "operator",
         req.actor.source ?? null);
       res.json(incident);
     },
   );
 
-  router.get("/companies/:companyId/costs/by-project", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyCostReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/costs/by-project", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceCostReadAllowed(req, res, spaceId))) return;
     const range = parseCostDateRange(req.query);
-    const rows = await costs.byProject(companyId, range);
+    const rows = await costs.byProject(spaceId, range);
     res.json(rows);
   });
 
-  router.patch("/companies/:companyId/budgets", validate(updateBudgetSchema), async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.patch("/spaces/:spaceId/budgets", validate(updateBudgetSchema), async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     await budgets.upsertPolicy(
-      companyId,
+      spaceId,
       {
-        scopeType: "company",
-        scopeId: companyId,
+        scopeType: "space",
+        scopeId: spaceId,
         amount: req.body.budgetMonthlyCents,
         isActive: req.body.budgetMonthlyCents > 0,
         windowKind: "calendar_month_utc",
       },
-      req.actor.userId ?? "board",
+      req.actor.userId ?? "operator",
     );
 
-    res.json(await companies.getById(companyId));
+    res.json(await spaces.getById(spaceId));
   });
 
   router.patch("/agents/:agentId/budgets", validate(updateBudgetSchema), async (req, res) => {
@@ -410,10 +410,10 @@ export function costRoutes(
     const agent = await getAccessibleResource(req, res, agents.getById(agentId), "Agent not found");
     if (!agent) return;
 
-    assertBoard(req);
+    assertOperator(req);
 
     await budgets.upsertPolicy(
-      agent.companyId,
+      agent.spaceId,
       {
         scopeType: "agent",
         scopeId: agent.id,
@@ -421,7 +421,7 @@ export function costRoutes(
         isActive: req.body.budgetMonthlyCents > 0,
         windowKind: "calendar_month_utc",
       },
-      req.actor.type === "board" ? req.actor.userId ?? "board" : null,
+      req.actor.type === "operator" ? req.actor.userId ?? "operator" : null,
     );
 
     res.json(await agents.getById(agentId));
@@ -429,46 +429,46 @@ export function costRoutes(
 
   const integrity = accountingIntegrityService(db, budgetHooks);
   const billing = billingReconciliationService(db, budgetHooks);
-  // Operational accounting evidence and repairs are board-only. These payloads
-  // can contain company-wide billing identifiers even for an agent's own run.
-  router.use("/companies/:companyId/accounting", (req, _res, next) => {
-    assertCompanyAccess(req, req.params.companyId as string); assertBoard(req); next();
+  // Operational accounting evidence and repairs are operator-only. These payloads
+  // can contain space-wide billing identifiers even for an agent's own run.
+  router.use("/spaces/:spaceId/accounting", (req, _res, next) => {
+    assertSpaceAccess(req, req.params.spaceId as string); assertOperator(req); next();
   });
-  router.post("/companies/:companyId/accounting/provider-costs/import", (req, _res, next) => {
+  router.post("/spaces/:spaceId/accounting/provider-costs/import", (req, _res, next) => {
     // Unlike ledger inspection, this operation discloses a stored credential
-    // to a provider. Ordinary company membership does not authorize that use.
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    assertBoard(req);
-    const membership = req.actor.memberships?.find((item) => item.companyId === companyId);
+    // to a provider. Ordinary space membership does not authorize that use.
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    assertOperator(req);
+    const membership = req.actor.memberships?.find((item) => item.spaceId === spaceId);
     if (req.actor.source !== "local_implicit" && !req.actor.isInstanceAdmin
       && !(membership?.status === "active" && ["owner", "admin"].includes(String(membership.membershipRole)))) {
       throw forbidden("Outpost admin access required to import provider billing.");
     }
     next();
   }, validate(importProviderCostsSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    assertBoard(req);
-    const result = await importProviderDailyCosts(db, companyId, req.body, getActorInfo(req).actorId);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    assertOperator(req);
+    const result = await importProviderDailyCosts(db, spaceId, req.body, getActorInfo(req).actorId);
     res.json(result);
   });
 
-  router.get("/companies/:companyId/accounting/health", async (req, res) => res.json(await integrity.health(req.params.companyId as string)));
-  router.get("/companies/:companyId/accounting/inspect", async (req, res) => res.json(await integrity.inspect(req.params.companyId as string)));
-  router.post("/companies/:companyId/accounting/repair", validate(repairAccountingSchema), async (req, res) =>
-    res.json(await integrity.repair(req.params.companyId as string, req.body.fingerprint, req.body.reason, getActorInfo(req).actorId)));
-  router.post("/companies/:companyId/accounting/retry", validate(retryAccountingSchema), async (req, res) =>
-    res.json(await integrity.retry(req.params.companyId as string, req.body.runId, getActorInfo(req).actorId)));
-  router.get("/companies/:companyId/accounting/invoices", async (req, res) => res.json(await billing.list(req.params.companyId as string)));
-  router.post("/companies/:companyId/accounting/invoices", validate(importBillingInvoiceSchema), async (req, res) =>
-    res.status(201).json(await billing.importInvoice(req.params.companyId as string, req.body, getActorInfo(req).actorId)));
-  router.get("/companies/:companyId/accounting/invoices/:invoiceId", async (req, res) =>
-    res.json(await billing.reconcile(req.params.companyId as string, req.params.invoiceId as string)));
-  router.get("/companies/:companyId/accounting/events/:eventId/adjustments", async (req, res) =>
-    res.json(await billing.adjustments(req.params.companyId as string, req.params.eventId as string)));
-  router.post("/companies/:companyId/accounting/events/:eventId/adjustments", validate(adjustCostSchema), async (req, res) =>
-    res.status(201).json(await billing.adjust(req.params.companyId as string, req.params.eventId as string, req.body, getActorInfo(req).actorId)));
+  router.get("/spaces/:spaceId/accounting/health", async (req, res) => res.json(await integrity.health(req.params.spaceId as string)));
+  router.get("/spaces/:spaceId/accounting/inspect", async (req, res) => res.json(await integrity.inspect(req.params.spaceId as string)));
+  router.post("/spaces/:spaceId/accounting/repair", validate(repairAccountingSchema), async (req, res) =>
+    res.json(await integrity.repair(req.params.spaceId as string, req.body.fingerprint, req.body.reason, getActorInfo(req).actorId)));
+  router.post("/spaces/:spaceId/accounting/retry", validate(retryAccountingSchema), async (req, res) =>
+    res.json(await integrity.retry(req.params.spaceId as string, req.body.runId, getActorInfo(req).actorId)));
+  router.get("/spaces/:spaceId/accounting/invoices", async (req, res) => res.json(await billing.list(req.params.spaceId as string)));
+  router.post("/spaces/:spaceId/accounting/invoices", validate(importBillingInvoiceSchema), async (req, res) =>
+    res.status(201).json(await billing.importInvoice(req.params.spaceId as string, req.body, getActorInfo(req).actorId)));
+  router.get("/spaces/:spaceId/accounting/invoices/:invoiceId", async (req, res) =>
+    res.json(await billing.reconcile(req.params.spaceId as string, req.params.invoiceId as string)));
+  router.get("/spaces/:spaceId/accounting/events/:eventId/adjustments", async (req, res) =>
+    res.json(await billing.adjustments(req.params.spaceId as string, req.params.eventId as string)));
+  router.post("/spaces/:spaceId/accounting/events/:eventId/adjustments", validate(adjustCostSchema), async (req, res) =>
+    res.status(201).json(await billing.adjust(req.params.spaceId as string, req.params.eventId as string, req.body, getActorInfo(req).actorId)));
 
   return router;
 }

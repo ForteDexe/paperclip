@@ -40,7 +40,7 @@ export interface EvalTraceReceipt {
   status: "pending" | "accepted" | "failed";
   verification: "unverified";
   nativeConfiguration: "not_started" | "configured" | "failed";
-  companyId?: string; revision?: string; errorCode?: string; httpStatus?: number;
+  spaceId?: string; revision?: string; errorCode?: string; httpStatus?: number;
   finalization?: EvalFinalizationReceipt;
 }
 export interface EvalFinalizationReceipt {
@@ -78,11 +78,11 @@ export class EvalAttemptTrace {
       exportBraintrustAttemptParent(receipt);
       if (receipt.projectId !== config.projectId || !Number.isFinite(startedAtMs) || startedAtMs < 0 || startedAtMs > Date.now()
           || !["not_started", "configured", "failed"].includes(receipt.nativeConfiguration)
-          || receipt.companyId !== undefined && !uuid.test(receipt.companyId)
+          || receipt.spaceId !== undefined && !uuid.test(receipt.spaceId)
           || receipt.revision !== undefined && !uuid.test(receipt.revision)) throw new Error("Invalid eval finalization context");
       this.startedAt = startedAtMs;
       Object.assign(this.receipt, { traceId: receipt.traceId, spanId: receipt.spanId, nativeConfiguration: receipt.nativeConfiguration,
-        ...(receipt.companyId ? { companyId: receipt.companyId } : {}), ...(receipt.revision ? { revision: receipt.revision } : {}) });
+        ...(receipt.spaceId ? { spaceId: receipt.spaceId } : {}), ...(receipt.revision ? { revision: receipt.revision } : {}) });
     }
   }
   snapshot(): EvalTraceReceipt { return { ...this.receipt }; }
@@ -95,12 +95,12 @@ export class EvalAttemptTrace {
   endPhase(failed = false) {
     if (this.active) { this.active.end = Date.now(); this.active.failed = failed; this.active = undefined; }
   }
-  async configureCompany(api: Pick<RunnerApi, "putSensitive">, companyId: string) {
-    if (!uuid.test(companyId)) throw new Error("Invalid eval trace company identity");
-    this.receipt.companyId = companyId;
+  async configureSpace(api: Pick<RunnerApi, "putSensitive">, spaceId: string) {
+    if (!uuid.test(spaceId)) throw new Error("Invalid eval trace space identity");
+    this.receipt.spaceId = spaceId;
     try {
       const saved = await api.putSensitive<{ settings: { revision: string; enabled: boolean; credentialsConfigured: boolean; destination: { provider: string; endpointBaseUrl?: string } } }>(
-        `/api/companies/${companyId}/observability`, {
+        `/api/spaces/${spaceId}/observability`, {
           expectedRevision: null, enabled: true,
           destination: { provider: "otlp", endpointBaseUrl: this.endpointBaseUrl },
           credentials: { mode: "replace", headers: [
@@ -140,9 +140,9 @@ export class EvalAttemptTrace {
         "outpost.eval.source_revision": this.provenance.sourceRevision ?? "unknown",
         "outpost.eval.grader": "tests/runner-e2e/runner.spec.ts",
       } : {}),
-      ...(this.receipt.companyId ? { "outpost.company.id": this.receipt.companyId } : {}),
+      ...(this.receipt.spaceId ? { "outpost.space.id": this.receipt.spaceId } : {}),
     };
-    const resource = resourceFromAttributes({ "service.name": "paperclip-evals" });
+    const resource = resourceFromAttributes({ "service.name": "outpost-evals" });
     const instrumentationScope = { name: "outpost.eval-operations", version: "1" };
     const rootContext = { traceId: this.receipt.traceId, spanId: this.receipt.spanId, traceFlags: 1 };
     const span = (name: string, spanId: string, start: number, end: number, failed: boolean, parent = false) => ({

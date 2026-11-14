@@ -108,7 +108,7 @@ describe("applyManagedEnvironments plugin entries", () => {
     // "remote-host" is not in this build's bundled catalog and the test root
     // has no distribution catalog, so the catalog lookup refuses.
     await expect(applyManagedEnvironments(noDb, configWith([pluginEntry()]), {
-      env: { OUTPOST_BUNDLED_PLUGIN_ROOT: "/nonexistent-paperclip-catalog" },
+      env: { OUTPOST_BUNDLED_PLUGIN_ROOT: "/nonexistent-outpost-catalog" },
       workerManager: workerManager(),
       environments: environmentsSeam(),
     })).rejects.toThrow(/auto-install key "remote-host" is not in the bundled catalog/);

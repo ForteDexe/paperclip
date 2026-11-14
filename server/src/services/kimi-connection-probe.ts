@@ -11,9 +11,9 @@ const INSTALLATION_INVALID = () => unprocessable("Install the current verified K
 
 const SSH_INPUT_PROBE = 'try { const input = JSON.parse(require("node:fs").readFileSync(0, "utf8")); if (typeof input.apiKey !== "string" || typeof input.model !== "string") process.exit(1); process.env.KIMI_API_KEY = input.apiKey; process.env.OUTPOST_KIMI_PROBE_MODEL = input.model; if (input.candidateAdmission !== undefined) process.env.OUTPOST_ACPX_CANDIDATE_ADMISSION = JSON.stringify(input.candidateAdmission); require(process.argv[1]); } catch { process.exit(1); }';
 
-export async function probeKimiExecutionTarget(apiKey: string, target: AdapterExecutionTarget | null | undefined, model: string, context: { companyId?: string } = {}) {
+export async function probeKimiExecutionTarget(apiKey: string, target: AdapterExecutionTarget | null | undefined, model: string, context: { spaceId?: string } = {}) {
   if (typeof apiKey !== "string" || !apiKey.trim() || /[\0\r\n]/.test(apiKey) || Buffer.byteLength(apiKey) > 16 * 1024) {
-    throw unprocessable("Bind a valid company secret to KIMI_API_KEY.", { code: "KIMI_AUTH_REQUIRED" });
+    throw unprocessable("Bind a valid space secret to KIMI_API_KEY.", { code: "KIMI_AUTH_REQUIRED" });
   }
   if (typeof model !== "string" || !model.trim() || model.includes("\0") || Buffer.byteLength(model) > 512 || Buffer.from(model).toString("utf8") !== model) {
     throw unprocessable("Select the exact Kimi Code model.", { code: "KIMI_MODEL_UNAVAILABLE" });
@@ -21,13 +21,13 @@ export async function probeKimiExecutionTarget(apiKey: string, target: AdapterEx
   let candidateAdmission: Parameters<typeof probeKimiMetadata>[2];
   if (QUALIFIED_ACPX_PROFILES.kimi.qualificationStatus === "pending") {
     try {
-      const admission = resolveKimiCandidateAdmission({ companyId: context.companyId, model,
+      const admission = resolveKimiCandidateAdmission({ spaceId: context.spaceId, model,
         target: target?.kind === "remote" ? { platform: "linux", architecture: "x64" } : { platform: process.platform, architecture: process.arch } });
       if (!admission) throw new Error("Missing candidate admission");
       const probeId = `kimi-metadata-${randomUUID()}`;
       candidateAdmission = { ...admission, runId: probeId, normalizedSessionId: `metadata-${randomUUID()}` };
     } catch {
-      throw unprocessable("Kimi Code qualification requires current trusted operator admission for this company and execution target.", { code: "KIMI_QUALIFICATION_REQUIRED" });
+      throw unprocessable("Kimi Code qualification requires current trusted operator admission for this space and execution target.", { code: "KIMI_QUALIFICATION_REQUIRED" });
     }
   }
   if (!target || target.kind === "local") {

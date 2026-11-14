@@ -2,7 +2,7 @@ export type RunStatus = string;
 
 export type RunSnapshot = {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   status: RunStatus;
   lastOutputAt: Date | null;
@@ -31,7 +31,7 @@ export type EvaluationIssueSnapshot = {
   identifier: string | null;
   status: string;
   assigneeAgentId: string | null;
-  companyId: string;
+  spaceId: string;
   originKind: string;
   originId: string | null;
   hiddenAt: Date | null;
@@ -117,7 +117,7 @@ export type FoldOutcome =
   | { kind: "stale"; retryAt?: number };
 
 export type WatchdogDecisionActor =
-  | { type: "board"; userId?: string | null; runId?: string | null }
+  | { type: "operator"; userId?: string | null; runId?: string | null }
   | { type: "agent"; agentId?: string | null; runId?: string | null }
   | { type: "none" };
 
@@ -135,7 +135,7 @@ export type RecordDecisionInput = {
 
 export type WatchdogDecisionRecord = {
   id: string;
-  companyId: string;
+  spaceId: string;
   runId: string;
   evaluationIssueId: string | null;
   decision: "snooze" | "continue" | "dismissed_false_positive";

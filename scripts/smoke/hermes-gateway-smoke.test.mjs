@@ -102,16 +102,16 @@ test("join helper redacts known secrets without exposing raw key material", () =
 HERMES_GATEWAY_API_KEY="gateway-secret"
 CLAIM_SECRET="claim-secret"
 AGENT_API_KEY="agent-secret"
-OUTPOST_API_KEY="paperclip-secret"
-OUTPOST_AUTH_HEADER="Bearer board-secret"
-OUTPOST_COOKIE="session=board-cookie"
-output="$(redact_text "gateway-secret claim-secret agent-secret paperclip-secret Bearer board-secret session=board-cookie")"
+OUTPOST_API_KEY="outpost-secret"
+OUTPOST_AUTH_HEADER="Bearer operator-secret"
+OUTPOST_COOKIE="session=operator-cookie"
+output="$(redact_text "gateway-secret claim-secret agent-secret outpost-secret Bearer operator-secret session=operator-cookie")"
 [[ "$output" != *"gateway-secret"* ]]
 [[ "$output" != *"claim-secret"* ]]
 [[ "$output" != *"agent-secret"* ]]
-[[ "$output" != *"paperclip-secret"* ]]
-[[ "$output" != *"board-secret"* ]]
-[[ "$output" != *"board-cookie"* ]]
+[[ "$output" != *"outpost-secret"* ]]
+[[ "$output" != *"operator-secret"* ]]
+[[ "$output" != *"operator-cookie"* ]]
 [[ "$output" == *"[redacted len=14]"* ]]
 `,
   );

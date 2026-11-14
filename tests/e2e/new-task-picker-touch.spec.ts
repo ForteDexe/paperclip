@@ -3,7 +3,7 @@ import { expect, test, type APIResponse, type Locator, type Page } from "@playwr
 
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/workspace-preferences/me", route => route.fulfill({ json: {
-    userId: "local-board", coordinatorWorkspaceEnabled: false, updatedAt: null,
+    userId: "local-operator", coordinatorWorkspaceEnabled: false, updatedAt: null,
   } }));
 });
 
@@ -94,29 +94,29 @@ test("touch scroll observation stays valid when momentum finishes between browse
 
 test("new-task assignee, model, and project sheets scroll by touch and retain the selected values", async ({ page, request, browserName }, testInfo) => {
   test.skip(browserName !== "chromium", "Native touch drags use Chromium's input protocol.");
-  const company = await json(await request.post("/api/companies", {
+  const space = await json(await request.post("/api/spaces", {
     data: { name: `Touch pickers ${randomUUID()}` },
   }));
   for (let index = 1; index <= 22; index += 1) {
-    await json(await request.post(`/api/companies/${company.id}/agents`, {
+    await json(await request.post(`/api/spaces/${space.id}/agents`, {
       data: {
         name: `Touch Agent ${String(index).padStart(2, "0")}`, role: "engineer",
         adapterType: "codex_local", runner: "legacy", adapterConfig: { model: "gpt-6-sol" },
         runtimeConfig: { heartbeat: { enabled: false } },
       },
     }));
-    await json(await request.post(`/api/companies/${company.id}/projects`, {
+    await json(await request.post(`/api/spaces/${space.id}/projects`, {
       data: { name: `Touch Project ${String(index).padStart(2, "0")}` },
     }));
   }
   // Keep the provider catalog deterministic; task UI, agents, and drafts are real.
-  await page.route(`**/api/companies/${company.id}/adapters/codex_local/models*`, (route) => route.fulfill({
+  await page.route(`**/api/spaces/${space.id}/adapters/codex_local/models*`, (route) => route.fulfill({
     json: Array.from({ length: 24 }, (_, index) => ({
       id: `touch-model-${String(index + 1).padStart(2, "0")}`,
       label: `Touch Model ${String(index + 1).padStart(2, "0")}`,
     })),
   }));
-  await page.goto(`/${company.issuePrefix}/dashboard`);
+  await page.goto(`/${space.issuePrefix}/dashboard`);
   await page.getByRole("navigation", { name: "Mobile navigation" }).getByRole("button", { name: "New Task", exact: true }).tap();
   const draft = page.getByRole("textbox", { name: "editable markdown" });
   await draft.fill("Keep this touch selection draft");
@@ -195,28 +195,28 @@ test.describe("desktop picker scrolling", () => {
   test.use({ viewport: { width: 1280, height: 900 }, hasTouch: false, isMobile: false });
 
   test("mouse wheels scroll nested model, assignee, and project lists without losing the draft", async ({ page, request }) => {
-    const company = await json(await request.post("/api/companies", {
+    const space = await json(await request.post("/api/spaces", {
       data: { name: `Wheel pickers ${randomUUID()}` },
     }));
     for (let index = 1; index <= 22; index += 1) {
-      await json(await request.post(`/api/companies/${company.id}/agents`, {
+      await json(await request.post(`/api/spaces/${space.id}/agents`, {
         data: {
           name: `Wheel Agent ${String(index).padStart(2, "0")}`, role: "engineer",
           adapterType: "codex_local", runner: "legacy", adapterConfig: { model: "gpt-6-sol" },
           runtimeConfig: { heartbeat: { enabled: false } },
         },
       }));
-      await json(await request.post(`/api/companies/${company.id}/projects`, {
+      await json(await request.post(`/api/spaces/${space.id}/projects`, {
         data: { name: `Wheel Project ${String(index).padStart(2, "0")}` },
       }));
     }
-    await page.route(`**/api/companies/${company.id}/adapters/codex_local/models*`, (route) => route.fulfill({
+    await page.route(`**/api/spaces/${space.id}/adapters/codex_local/models*`, (route) => route.fulfill({
       json: Array.from({ length: 24 }, (_, index) => ({
         id: `wheel-model-${String(index + 1).padStart(2, "0")}`,
         label: `Wheel Model ${String(index + 1).padStart(2, "0")}`,
       })),
     }));
-    await page.goto(`/${company.issuePrefix}/dashboard`);
+    await page.goto(`/${space.issuePrefix}/dashboard`);
     await page.getByRole("button", { name: "New Task", exact: true }).click();
     const draft = page.getByRole("textbox", { name: "editable markdown" });
     await draft.fill("Keep this mouse wheel selection draft");

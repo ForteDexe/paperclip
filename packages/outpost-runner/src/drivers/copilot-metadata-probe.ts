@@ -30,7 +30,7 @@ export async function probeCopilotMetadata(token: string, model?: string): Promi
   let phase = "installation";
   try {
     lease = await installation.openCommand();
-    root = await mkdtemp(join(tmpdir(), "paperclip-copilot-metadata-"));
+    root = await mkdtemp(join(tmpdir(), "outpost-copilot-metadata-"));
     const directories = { homeDirectory: join(root, "home"), configDirectory: join(root, "config"), dataDirectory: join(root, "data"), cacheDirectory: join(root, "cache"), agentHomeDirectory: join(root, "copilot") };
     for (const directory of Object.values(directories)) await mkdir(directory, { mode: 0o700 });
     await writeFile(join(directories.agentHomeDirectory, "config.json"), JSON.stringify(copilotConfiguration()), { mode: 0o600 });
@@ -39,7 +39,7 @@ export async function probeCopilotMetadata(token: string, model?: string): Promi
     const rpc = createMetadataRpc(child);
     const work = async (): Promise<CopilotMetadataResult> => {
       phase = "initialize";
-      const initialized = record(await rpc.request("initialize", { protocolVersion: 1, clientInfo: { name: "paperclip-copilot-metadata", version: "1" }, clientCapabilities: COPILOT_ACP_CLIENT_CAPABILITIES }));
+      const initialized = record(await rpc.request("initialize", { protocolVersion: 1, clientInfo: { name: "outpost-copilot-metadata", version: "1" }, clientCapabilities: COPILOT_ACP_CLIENT_CAPABILITIES }));
       if (record(initialized.agentInfo).version !== "1.0.88") throw Object.assign(new Error("Verified Copilot installation changed"), { code: "COPILOT_INSTALLATION_INVALID" });
       phase = "session-new";
       const opened = record(await rpc.request("session/new", { cwd: root, mcpServers: [] }));

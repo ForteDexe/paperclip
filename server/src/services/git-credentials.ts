@@ -1,8 +1,8 @@
 import {
-  companySecrets,
+  spaceSecrets,
   heartbeatRuns,
   issues,
-  companyMemberships,
+  spaceMemberships,
   connectionGrantDelegations,
   connectionGrants,
   toolConnectionInstalls,
@@ -17,7 +17,7 @@ import { toolAccessService } from "./tool-access.js";
 
 /**
  * Server-side git credentials for managed project checkouts and execution-workspace base
- * refreshes. Operators store a GitHub token as a company secret under one of the well-known
+ * refreshes. Operators store a GitHub token as a space secret under one of the well-known
  * names below (the same convention the GitHub external-object provider reads); this module
  * resolves it and turns it into a git invocation that authenticates clone/fetch against
  * github.com over HTTPS without ever placing the token in argv, URLs, or on disk.
@@ -26,7 +26,7 @@ import { toolAccessService } from "./tool-access.js";
  * example a brokered GitHub connection): swap the factory, keep every call site unchanged.
  */
 
-/** Company-secret names probed for a GitHub token, in priority order. */
+/** Space-secret names probed for a GitHub token, in priority order. */
 export const DEFAULT_GITHUB_TOKEN_SECRET_NAMES = ["GITHUB_TOKEN", "GH_TOKEN", "OUTPOST_GITHUB_TOKEN"] as const;
 
 /** Env var the credential helper reads the token from; never appears in argv. */
@@ -47,8 +47,8 @@ const GIT_CREDENTIAL_HELPER =
 
 export type GitCredential = {
   token: string;
-  source: "managed_connection" | "company_secret" | "server_env";
-  /** The company-secret name the token came from; null for a server-environment token. */
+  source: "managed_connection" | "space_secret" | "server_env";
+  /** The space-secret name the token came from; null for a server-environment token. */
   secretName: string | null;
   githubIdentity?: { userId: string; login: string };
   identitySource?: "personal" | "dedicated";
@@ -180,40 +180,40 @@ export function describeGitAuthFailure(input: {
   }
   if (input.used) {
     const label = input.used.secretName
-      ? `the ${input.used.secretName} company-secret GitHub credential`
+      ? `the ${input.used.secretName} space-secret GitHub credential`
       : input.used.source === "managed_connection"
         ? "the resolved GitHub connection"
       : "the server-environment GitHub credential";
     return `The operation authenticated with ${label}, which was rejected or lacks access to this repository.`;
   }
-  return "No GitHub credential is configured — add a GITHUB_TOKEN or GH_TOKEN company secret in Settings → Secrets, or configure a local checkout cwd for this project workspace.";
+  return "No GitHub credential is configured — add a GITHUB_TOKEN or GH_TOKEN space secret in Settings → Secrets, or configure a local checkout cwd for this project workspace.";
 }
 
 type SecretServiceLike = ReturnType<typeof secretService>;
 
 type GitCredentialSecretsDeps = {
   getByName: (
-    companyId: string,
+    spaceId: string,
     name: string,
   ) => Promise<{ id: string } | null | undefined> | ReturnType<SecretServiceLike["getByName"]>;
   resolveSecretValue: SecretServiceLike["resolveSecretValue"];
   resolveUserSecretValue?: SecretServiceLike["resolveUserSecretValue"];
 };
 
-export type GitHubApiCredentialSource = "managed_connection" | "company_secret" | "server_env";
+export type GitHubApiCredentialSource = "managed_connection" | "space_secret" | "server_env";
 
 export type GitHubApiCredential = {
   token: string;
   source: GitHubApiCredentialSource;
-  /** The company-secret name the token came from; null for a server-environment token. */
+  /** The space-secret name the token came from; null for a server-environment token. */
   secretName: string | null;
 };
 
 /**
- * Resolve a GitHub API credential for company-scoped, non-run work (for example the
+ * Resolve a GitHub API credential for space-scoped, non-run work (for example the
  * external-object refresh sweep, which has no agent or responsible-user context).
  *
- * This is the background-safe subset of the git credential order: it reads a company
+ * This is the background-safe subset of the git credential order: it reads a space
  * secret by well-known name, then the server process environment (`GITHUB_TOKEN`/`GH_TOKEN`)
  * that self-hosted operators already set for Git. It deliberately cannot resolve a managed
  * GitHub connection, because every managed grant is scoped to one agent or one person and a
@@ -221,27 +221,27 @@ export type GitHubApiCredential = {
  * `createGitRemoteAuthProvider`/`resolveManagedGitHubCredential` instead so the managed
  * identity and its consent boundary are honored.
  *
- * The `source` matters to callers that show company data. A server-environment token is
- * instance-wide, so it can see repositories the company cannot. A caller must treat a
- * `server_env` token differently from a `company_secret` token and keep it away from
+ * The `source` matters to callers that show space data. A server-environment token is
+ * instance-wide, so it can see repositories the space cannot. A caller must treat a
+ * `server_env` token differently from a `space_secret` token and keep it away from
  * private repositories. Without any credential a caller runs anonymous, and anonymous
- * GitHub requests are capped at 60/hour, so a busy company is rate-limited into
+ * GitHub requests are capped at 60/hour, so a busy space is rate-limited into
  * misleading failures.
  */
 export async function resolveGitHubApiCredential(
   db: Db,
-  companyId: string,
+  spaceId: string,
   opts: { secretNames?: readonly string[]; env?: NodeJS.ProcessEnv; secrets?: GitCredentialSecretsDeps } = {},
 ): Promise<GitHubApiCredential | null> {
   const secrets = opts.secrets ?? secretService(db);
   for (const secretName of opts.secretNames ?? DEFAULT_GITHUB_TOKEN_SECRET_NAMES) {
-    const secret = await Promise.resolve(secrets.getByName(companyId, secretName)).catch(() => null);
+    const secret = await Promise.resolve(secrets.getByName(spaceId, secretName)).catch(() => null);
     if (!secret) continue;
     const token = await secrets
-      .resolveSecretValue(companyId, secret.id, "latest")
+      .resolveSecretValue(spaceId, secret.id, "latest")
       .then((value) => value.trim())
       .catch(() => "");
-    if (token) return { token, source: "company_secret", secretName };
+    if (token) return { token, source: "space_secret", secretName };
   }
   const env = opts.env ?? process.env;
   const envToken = env.GITHUB_TOKEN?.trim() || env.GH_TOKEN?.trim() || "";
@@ -250,19 +250,19 @@ export async function resolveGitHubApiCredential(
 
 /**
  * Build the credential provider for one run. Resolution order: the managed GitHub identity
- * resolver, then a company secret by well-known name, then the server process environment
+ * resolver, then a space secret by well-known name, then the server process environment
  * (`GITHUB_TOKEN`/`GH_TOKEN`) for self-hosted operators. A configured managed identity fails
  * closed instead of falling through to legacy credentials. The lookup is memoized per
  * provider instance so one run performs at most one secret resolution (and writes at most
  * one audit event) no matter how many git operations it authenticates.
  */
-export function createIssueGitRemoteAuthProvider(db: Db, companyId: string, issueId: string,
+export function createIssueGitRemoteAuthProvider(db: Db, spaceId: string, issueId: string,
   create: typeof createGitRemoteAuthProvider = createGitRemoteAuthProvider): GitRemoteAuthProvider {
   let provider: Promise<GitRemoteAuthProvider> | null = null;
   return async (remoteUrl: string) => {
     provider ??= db.select({ responsibleUserId: issues.responsibleUserId, assigneeAgentId: issues.assigneeAgentId }).from(issues)
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, companyId)))
-      .then(([issue]) => create(db, companyId, {
+      .where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId)))
+      .then(([issue]) => create(db, spaceId, {
         issueId, responsibleUserId: issue?.responsibleUserId ?? null, agentId: issue?.assigneeAgentId ?? null,
       }));
     return (await provider)(remoteUrl);
@@ -271,7 +271,7 @@ export function createIssueGitRemoteAuthProvider(db: Db, companyId: string, issu
 
 export function createGitRemoteAuthProvider(
   db: Db,
-  companyId: string,
+  spaceId: string,
   context?: {
     issueId?: string | null;
     heartbeatRunId?: string | null;
@@ -294,19 +294,19 @@ export function createGitRemoteAuthProvider(
     // always supplies a real DB and therefore always checks managed identities before
     // considering legacy secrets or process environment credentials.
     const managed = db
-      ? await resolveManagedGitHubCredential(db, secrets, companyId, context ?? {})
+      ? await resolveManagedGitHubCredential(db, secrets, spaceId, context ?? {})
       : { configured: false as const };
     if (managed.configured) {
       if (!managed.credential) throw new Error(managed.error ?? "Managed GitHub connection is unavailable");
       return managed.credential;
     }
     for (const secretName of secretNames) {
-      const secret = await Promise.resolve(secrets.getByName(companyId, secretName)).catch(() => null);
+      const secret = await Promise.resolve(secrets.getByName(spaceId, secretName)).catch(() => null);
       if (!secret) continue;
       // A resolution failure (inactive secret, provider outage) records its own failure audit
       // event; fall through to the next source instead of failing the whole git operation here.
       const token = await secrets
-        .resolveSecretValue(companyId, secret.id, "latest", {
+        .resolveSecretValue(spaceId, secret.id, "latest", {
           accessContext: {
             consumerType: "system",
             consumerId: "workspace-git-credential",
@@ -318,7 +318,7 @@ export function createGitRemoteAuthProvider(
         })
         .then((value) => value.trim())
         .catch(() => "");
-      if (token) return { token, source: "company_secret", secretName };
+      if (token) return { token, source: "space_secret", secretName };
     }
     const envToken = env.GITHUB_TOKEN?.trim() || env.GH_TOKEN?.trim() || "";
     if (envToken) return { token: envToken, source: "server_env", secretName: null };
@@ -329,12 +329,12 @@ export function createGitRemoteAuthProvider(
     if (!isSupportedGitHubRemoteUrl(remoteUrl)) return null;
     if (db && context?.heartbeatRunId && context.agentId) {
       const [run] = await db.select({ contextId: heartbeatRuns.activeIdentityContextId }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.id, context.heartbeatRunId), eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, context.agentId),
+        eq(heartbeatRuns.id, context.heartbeatRunId), eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, context.agentId),
       ));
       if (run?.contextId) {
         const { resolveGitHubOperationCredentials } = await import("./github-operation-credentials.js");
         const result = await resolveGitHubOperationCredentials(db, {
-          companyId, runId: context.heartbeatRunId, agentId: context.agentId,
+          spaceId, runId: context.heartbeatRunId, agentId: context.agentId,
         });
         if (result.status === "absent") {
           const credential = await resolveCredential();
@@ -357,7 +357,7 @@ export function createGitRemoteAuthProvider(
 
 export async function resolveManagedGitHubIdentitySelection(
   db: Db,
-  companyId: string,
+  spaceId: string,
   context: {
     responsibleUserId?: string | null;
     agentId?: string | null;
@@ -372,7 +372,7 @@ export async function resolveManagedGitHubIdentitySelection(
   error?: string;
 }> {
   const connections = await db.select().from(toolConnections).where(and(
-    eq(toolConnections.companyId, companyId),
+    eq(toolConnections.spaceId, spaceId),
     or(
       sql`${toolConnections.config}->'sourceTemplateKey' = '"github"'::jsonb`,
       sql`${toolConnections.transportConfig}->'sourceTemplateKey' = '"github"'::jsonb`,
@@ -389,22 +389,22 @@ export async function resolveManagedGitHubIdentitySelection(
 
   const connectionIds = githubConnections.map((connection) => connection.id);
   const installs = await db.select().from(toolConnectionInstalls).where(and(
-    eq(toolConnectionInstalls.companyId, companyId),
+    eq(toolConnectionInstalls.spaceId, spaceId),
     inArray(toolConnectionInstalls.connectionId, connectionIds),
   ));
   const eligibleConnectionIds = new Set(githubConnections.filter((connection) => installs.some((install) =>
     install.connectionId === connection.id && (
-      (install.targetType === "company" && install.targetId === companyId)
+      (install.targetType === "space" && install.targetId === spaceId)
       || (install.targetType === "agent" && install.targetId === context.agentId)
     )
   )).map((connection) => connection.id));
   // A GitHub connection installed only for another agent is not configured for
-  // this run. Treating the company-wide connection as configured here would
+  // this run. Treating the space-wide connection as configured here would
   // make unrelated agents fail before their adapter starts and would also
   // suppress their otherwise-eligible legacy credential fallback.
   if (eligibleConnectionIds.size === 0) return { configured: false };
   const grants = await db.select().from(connectionGrants).where(and(
-    eq(connectionGrants.companyId, companyId),
+    eq(connectionGrants.spaceId, spaceId),
     inArray(connectionGrants.connectionId, [...eligibleConnectionIds]),
     context.explicitGrantId ? eq(connectionGrants.id, context.explicitGrantId) : undefined,
     or(eq(connectionGrants.kind, "agent"), eq(connectionGrants.kind, "user")),
@@ -420,7 +420,7 @@ export async function resolveManagedGitHubIdentitySelection(
     : [];
   const delegated = context.allowStandingDelegation !== false && !context.responsibleUserId && context.agentId
     ? await db.select({ grantId: connectionGrantDelegations.grantId }).from(connectionGrantDelegations).where(and(
-        eq(connectionGrantDelegations.companyId, companyId),
+        eq(connectionGrantDelegations.spaceId, spaceId),
         eq(connectionGrantDelegations.agentId, context.agentId),
         inArray(connectionGrantDelegations.grantId, grants.map((grant) => grant.id)),
       )).then((rows) => {
@@ -449,14 +449,14 @@ export async function resolveManagedGitHubIdentitySelection(
     .filter((ref) => ref.configPath === "oauth.access_token").map((ref) => ref.secretId));
   const credentialRecords = candidates.length > 1 && credentialIds.length > 0
     ? await db.select({
-        id: companySecrets.id, status: companySecrets.status, deletedAt: companySecrets.deletedAt,
-        scope: companySecrets.scope, ownerUserId: companySecrets.ownerUserId,
+        id: spaceSecrets.id, status: spaceSecrets.status, deletedAt: spaceSecrets.deletedAt,
+        scope: spaceSecrets.scope, ownerUserId: spaceSecrets.ownerUserId,
         definitionStatus: userSecretDefinitions.status, definitionDeletedAt: userSecretDefinitions.deletedAt,
-      }).from(companySecrets).leftJoin(userSecretDefinitions, and(
-        eq(userSecretDefinitions.id, companySecrets.userSecretDefinitionId),
-        eq(userSecretDefinitions.companyId, companyId),
+      }).from(spaceSecrets).leftJoin(userSecretDefinitions, and(
+        eq(userSecretDefinitions.id, spaceSecrets.userSecretDefinitionId),
+        eq(userSecretDefinitions.spaceId, spaceId),
       )).where(and(
-        eq(companySecrets.companyId, companyId), inArray(companySecrets.id, credentialIds),
+        eq(spaceSecrets.spaceId, spaceId), inArray(spaceSecrets.id, credentialIds),
       ))
     : [];
   const hasCredentialRecord = (grant: typeof connectionGrants.$inferSelect) => {
@@ -469,7 +469,7 @@ export async function resolveManagedGitHubIdentitySelection(
         && (grant.kind === "user"
           ? secret.scope === "user" && secret.ownerUserId === grant.subjectUserId
             && secret.definitionStatus === "active" && !secret.definitionDeletedAt
-          : secret.scope === "company")));
+          : secret.scope === "space")));
   };
   const isAvailable = (grant: typeof connectionGrants.$inferSelect) =>
     grant.status === "active" && hasCredentialRecord(grant) && githubConnections.some((connection) =>
@@ -503,7 +503,7 @@ export async function filterResolvedGitHubConnectionsForRun<T extends {
   transportConfig?: unknown;
 }>(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   responsibleUserId?: string | null;
   connections: T[];
@@ -518,7 +518,7 @@ export async function filterResolvedGitHubConnectionsForRun<T extends {
     return config.sourceTemplateKey === "github" || transportConfig.sourceTemplateKey === "github";
   });
   if (githubConnections.length === 0) return input.connections;
-  const selection = await resolveManagedGitHubIdentitySelection(input.db, input.companyId, {
+  const selection = await resolveManagedGitHubIdentitySelection(input.db, input.spaceId, {
     agentId: input.agentId,
     responsibleUserId: input.responsibleUserId ?? null,
   });
@@ -532,7 +532,7 @@ export async function filterResolvedGitHubConnectionsForRun<T extends {
 export async function resolveManagedGitHubCredential(
   db: Db,
   secrets: GitCredentialSecretsDeps,
-  companyId: string,
+  spaceId: string,
   context: {
     issueId?: string | null;
     heartbeatRunId?: string | null;
@@ -542,19 +542,19 @@ export async function resolveManagedGitHubCredential(
     explicitGrantId?: string;
   },
 ): Promise<{ configured: boolean; identitySource?: "personal" | "dedicated"; credential?: GitCredential; error?: string }> {
-  const selection = await resolveManagedGitHubIdentitySelection(db, companyId, context);
+  const selection = await resolveManagedGitHubIdentitySelection(db, spaceId, context);
   if (!selection.configured) return { configured: false };
   if (!selection.grant) return { configured: true, identitySource: selection.identitySource, error: selection.error };
   const acquire = async (selection: Awaited<ReturnType<typeof resolveManagedGitHubIdentitySelection>>) => {
     let grant = selection.grant!;
     if (grant.kind === "user" && grant.subjectUserId) {
-      const [membership] = await db.select({ id: companyMemberships.id, role: companyMemberships.membershipRole }).from(companyMemberships).where(and(
-        eq(companyMemberships.companyId, companyId),
-        eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.principalId, grant.subjectUserId),
-        eq(companyMemberships.status, "active"),
+      const [membership] = await db.select({ id: spaceMemberships.id, role: spaceMemberships.membershipRole }).from(spaceMemberships).where(and(
+        eq(spaceMemberships.spaceId, spaceId),
+        eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.principalId, grant.subjectUserId),
+        eq(spaceMemberships.status, "active"),
       )).limit(1);
-      if (!membership || membership.role === "viewer") return { configured: true, identitySource: selection.identitySource, error: "The managed GitHub identity owner is not an authorized company member" };
+      if (!membership || membership.role === "viewer") return { configured: true, identitySource: selection.identitySource, error: "The managed GitHub identity owner is not an authorized space member" };
     }
     const expiresAt = grant.providerTenant?.oauth?.accessTokenExpiresAt;
     const refreshedAt = grant.providerTenant?.oauth?.refreshedAt;
@@ -566,7 +566,7 @@ export async function resolveManagedGitHubCredential(
       || refreshedMs <= Date.now() - 30 * 24 * 60 * 60_000
     )) {
       grant = await toolAccessService(db).refreshOAuthGrantCredentials({
-        companyId,
+        spaceId,
         connectionId: grant.connectionId,
         grantId: grant.id,
         actor: { actorType: "system", actorId: "workspace-git-credential" },
@@ -595,14 +595,14 @@ export async function resolveManagedGitHubCredential(
         return { configured: true, identitySource: selection.identitySource, error: "The personal GitHub credential cannot be resolved" };
       }
       const [secret] = await db.select({
-        userSecretDefinitionId: companySecrets.userSecretDefinitionId,
-      }).from(companySecrets).where(and(
-        eq(companySecrets.companyId, companyId),
-        eq(companySecrets.id, accessRef.secretId),
-        eq(companySecrets.ownerUserId, grant.subjectUserId),
+        userSecretDefinitionId: spaceSecrets.userSecretDefinitionId,
+      }).from(spaceSecrets).where(and(
+        eq(spaceSecrets.spaceId, spaceId),
+        eq(spaceSecrets.id, accessRef.secretId),
+        eq(spaceSecrets.ownerUserId, grant.subjectUserId),
       )).limit(1);
       if (!secret?.userSecretDefinitionId) return { configured: true, identitySource: selection.identitySource, error: "The personal GitHub credential is invalid" };
-      const resolved = await secrets.resolveUserSecretValue(companyId, {
+      const resolved = await secrets.resolveUserSecretValue(spaceId, {
         definitionId: secret.userSecretDefinitionId,
         responsibleUserId: grant.subjectUserId,
         version: accessRef.versionSelector ?? "latest",
@@ -611,7 +611,7 @@ export async function resolveManagedGitHubCredential(
       if (!resolved) return { configured: true, identitySource: selection.identitySource, error: "The personal GitHub credential is missing" };
       token = resolved.value;
     } else {
-      token = await secrets.resolveSecretValue(companyId, accessRef.secretId, accessRef.versionSelector ?? "latest", { accessContext });
+      token = await secrets.resolveSecretValue(spaceId, accessRef.secretId, accessRef.versionSelector ?? "latest", { accessContext });
     }
     return {
       configured: true, identitySource: selection.identitySource,
@@ -637,7 +637,7 @@ export async function resolveManagedGitHubCredential(
   if (context.explicitGrantId) return failure;
   // Retry credential acquisition, never the GitHub operation. An alternate
   // authorization must still belong to this exact principal and account.
-  const alternate = await resolveManagedGitHubIdentitySelection(db, companyId, {
+  const alternate = await resolveManagedGitHubIdentitySelection(db, spaceId, {
     ...context, excludeGrantId: selection.grant.id,
   });
   const accountId = selection.grant.providerTenant?.github?.userId;

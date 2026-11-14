@@ -11,13 +11,13 @@ import { heartbeatRuns, type Db } from "@outpost/db";
 export const NATIVE_HUMAN_SELF_HANDOFF_KEY = "humanSelfHandoff";
 
 export async function recordNativeHumanSelfHandoff(db: Db, input: {
-  companyId: string; runId: string; agentId: string; issueId: string; assigneeUserId: string;
+  spaceId: string; runId: string; agentId: string; issueId: string; assigneeUserId: string;
 }): Promise<boolean> {
   const record = { issueId: input.issueId, assigneeUserId: input.assigneeUserId, recordedAt: new Date().toISOString() };
   const updated = await db.update(heartbeatRuns)
     .set({ resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb)
       || jsonb_build_object(${NATIVE_HUMAN_SELF_HANDOFF_KEY}::text, ${JSON.stringify(record)}::jsonb)` })
-    .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId),
+    .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId),
       eq(heartbeatRuns.agentId, input.agentId), eq(heartbeatRuns.runtimeMode, "native"),
       eq(heartbeatRuns.nativeIssueId, input.issueId), eq(heartbeatRuns.status, "running")))
     .returning({ id: heartbeatRuns.id });

@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { deliveryRevisionBound, gradeInterruption } from "./runtime-interruption.js";
 function valid() {
-  return { scenarioId: "steering.interrupt-with-direction", companyId: "company", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "", tasks: [{ id: "website", status: "done" }], activity: [],
+  return { scenarioId: "steering.interrupt-with-direction", spaceId: "space", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "", tasks: [{ id: "website", status: "done" }], activity: [],
     runs: [{ id: "old", status: "cancelled" }, { id: "source", status: "succeeded" }, { id: "new", status: "succeeded" }],
     state: { task: { id: "website" }, worker: { id: "morgan" }, workerRunId: "old", approvedDirection: { id: "accepted-plan" },
       directionQueue: { issueId: "website", targetRunId: "old", protocol: "outpost_runner_v1", entries: [{ source: { kind: "interaction", requiresFreshSession: true, interactionId: "accepted-plan" } }] },

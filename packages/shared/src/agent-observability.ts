@@ -83,7 +83,7 @@ export type AgentObservabilityTestReceipt = {
   signals: { logs: OtlpSignalTestResult; traces: OtlpSignalTestResult };
 };
 export type AgentObservabilitySettings = {
-  companyId: string; revision: string; enabled: boolean; destination: AgentObservabilityDestination;
+  spaceId: string; revision: string; enabled: boolean; destination: AgentObservabilityDestination;
   capture: AgentObservabilityCapture; credentialsConfigured: boolean; headerNames: string[];
   updatedAt: string; lastTest: AgentObservabilityTestReceipt | null;
 };

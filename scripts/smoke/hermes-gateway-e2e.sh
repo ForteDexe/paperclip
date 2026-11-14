@@ -25,15 +25,15 @@ require_cmd() {
 
 OUTPOST_API_URL="${OUTPOST_API_URL:-http://127.0.0.1:3100}"
 API_BASE="${OUTPOST_API_URL%/}/api"
-COMPANY_ID="${COMPANY_ID:-${OUTPOST_COMPANY_ID:-}}"
-COMPANY_SELECTOR="${COMPANY_SELECTOR:-}"
+SPACE_ID="${SPACE_ID:-${OUTPOST_SPACE_ID:-}}"
+SPACE_SELECTOR="${SPACE_SELECTOR:-}"
 
 RUN_SUFFIX="${HERMES_SMOKE_RUN_SUFFIX:-$(date +%Y%m%d-%H%M%S)-$$}"
-HERMES_IMAGE="${HERMES_IMAGE:-paperclip-hermes-gateway-smoke:local}"
+HERMES_IMAGE="${HERMES_IMAGE:-outpost-hermes-gateway-smoke:local}"
 HERMES_VERSION="${HERMES_VERSION:-0.17.0}"
 HERMES_BUILD="${HERMES_BUILD:-1}"
 HERMES_DOCKER_CONTEXT="${HERMES_DOCKER_CONTEXT:-docker/hermes-gateway-smoke}"
-HERMES_CONTAINER_NAME="${HERMES_CONTAINER_NAME:-paperclip-hermes-gateway-smoke-${RUN_SUFFIX}}"
+HERMES_CONTAINER_NAME="${HERMES_CONTAINER_NAME:-outpost-hermes-gateway-smoke-${RUN_SUFFIX}}"
 HERMES_GATEWAY_PORT="${HERMES_GATEWAY_PORT:-8642}"
 HERMES_GATEWAY_API_BASE_URL="${HERMES_GATEWAY_API_BASE_URL:-http://127.0.0.1:${HERMES_GATEWAY_PORT}}"
 HERMES_GATEWAY_PROBE_URL="${HERMES_GATEWAY_PROBE_URL:-http://127.0.0.1:${HERMES_GATEWAY_PORT}}"
@@ -47,8 +47,8 @@ HERMES_STOP_ASSERT="${HERMES_STOP_ASSERT:-auto}"
 HERMES_SMOKE_KEEP="${HERMES_SMOKE_KEEP:-0}"
 HERMES_SMOKE_NETWORK="${HERMES_SMOKE_NETWORK:-}"
 HERMES_DOCKER_ADD_HOST="${HERMES_DOCKER_ADD_HOST:-1}"
-HERMES_SMOKE_STATE_DIR="${HERMES_SMOKE_STATE_DIR:-${TMPDIR:-/tmp}/paperclip-hermes-gateway-smoke-${RUN_SUFFIX}}"
-HERMES_SMOKE_DIAG_DIR="${HERMES_SMOKE_DIAG_DIR:-${TMPDIR:-/tmp}/paperclip-hermes-gateway-e2e-diag-${RUN_SUFFIX}}"
+HERMES_SMOKE_STATE_DIR="${HERMES_SMOKE_STATE_DIR:-${TMPDIR:-/tmp}/outpost-hermes-gateway-smoke-${RUN_SUFFIX}}"
+HERMES_SMOKE_DIAG_DIR="${HERMES_SMOKE_DIAG_DIR:-${TMPDIR:-/tmp}/outpost-hermes-gateway-e2e-diag-${RUN_SUFFIX}}"
 HERMES_SMOKE_MODEL_PROVIDER="${HERMES_SMOKE_MODEL_PROVIDER:-}"
 HERMES_SMOKE_MODEL_DEFAULT="${HERMES_SMOKE_MODEL_DEFAULT:-}"
 HERMES_SMOKE_MODEL_BASE_URL="${HERMES_SMOKE_MODEL_BASE_URL:-}"
@@ -72,18 +72,18 @@ print_usage() {
 Hermes gateway Docker E2E smoke
 
 Builds a fresh Hermes gateway container, verifies the gateway API directly,
-joins it to Paperclip as a hermes_gateway agent, wakes that agent on a smoke
+joins it to Outpost as a hermes_gateway agent, wakes that agent on a smoke
 issue, verifies the issue result, captures redacted diagnostics, and cleans up
-Paperclip and Docker state unless HERMES_SMOKE_KEEP=1.
+Outpost and Docker state unless HERMES_SMOKE_KEEP=1.
 
 Required:
   OUTPOST_API_URL=http://127.0.0.1:3100
-  OUTPOST_AUTH_HEADER='Bearer <board-token>'     # or OUTPOST_COOKIE
+  OUTPOST_AUTH_HEADER='Bearer <operator-token>'     # or OUTPOST_COOKIE
 
 Common flags:
-  COMPANY_ID=<uuid> or COMPANY_SELECTOR=<prefix|name|uuid>
+  SPACE_ID=<uuid> or SPACE_SELECTOR=<prefix|name|uuid>
   HERMES_VERSION=0.17.0
-  HERMES_IMAGE=paperclip-hermes-gateway-smoke:local
+  HERMES_IMAGE=outpost-hermes-gateway-smoke:local
   HERMES_GATEWAY_PORT=8642
   HERMES_GATEWAY_API_BASE_URL=http://127.0.0.1:8642
   HERMES_GATEWAY_PROBE_URL=http://127.0.0.1:8642
@@ -98,12 +98,12 @@ Common flags:
   HERMES_SMOKE_MODEL_BASE_URL=https://openrouter.ai/api/v1
 
 Mode notes:
-  HERMES_GATEWAY_API_BASE_URL is the URL stored on the Paperclip adapter and
-  must be reachable by the Paperclip server. HERMES_GATEWAY_PROBE_URL is the URL
+  HERMES_GATEWAY_API_BASE_URL is the URL stored on the Outpost adapter and
+  must be reachable by the Outpost server. HERMES_GATEWAY_PROBE_URL is the URL
   this operator shell uses for direct gateway checks. They can differ for Docker
   network and reverse-proxy smoke runs.
 
-  Raw Hermes and Paperclip API keys are redacted from logs and diagnostic files.
+  Raw Hermes and Outpost API keys are redacted from logs and diagnostic files.
   The E2E helper seeds a minimal non-secret Hermes config in the fresh container
   state, including command_allowlist: execute_code so gateway/API runs do not
   pause on an interactive approval prompt.
@@ -304,39 +304,39 @@ wait_http_ready() {
 
 require_board_auth() {
   if [[ ${#AUTH_HEADERS[@]} -eq 0 ]]; then
-    fail "board/operator auth required. Set OUTPOST_COOKIE, OUTPOST_AUTH_HEADER, or a board-capable OUTPOST_API_KEY."
+    fail "operator/operator auth required. Set OUTPOST_COOKIE, OUTPOST_AUTH_HEADER, or a operator-capable OUTPOST_API_KEY."
   fi
-  api_request "GET" "/companies"
+  api_request "GET" "/spaces"
   if [[ "$RESPONSE_CODE" != "200" ]]; then
     redact_text "$RESPONSE_BODY" >&2
     echo >&2
-    fail "board/operator auth invalid for /api/companies (HTTP ${RESPONSE_CODE})"
+    fail "operator/operator auth invalid for /api/spaces (HTTP ${RESPONSE_CODE})"
   fi
 }
 
-resolve_company_id() {
-  if [[ -n "$COMPANY_ID" ]]; then
-    log "using company ${COMPANY_ID}"
+resolve_space_id() {
+  if [[ -n "$SPACE_ID" ]]; then
+    log "using space ${SPACE_ID}"
     return
   fi
 
-  api_request "GET" "/companies"
+  api_request "GET" "/spaces"
   assert_status "200"
 
-  if [[ -n "$COMPANY_SELECTOR" ]]; then
-    COMPANY_ID="$(jq -r --arg selector "$COMPANY_SELECTOR" '
+  if [[ -n "$SPACE_SELECTOR" ]]; then
+    SPACE_ID="$(jq -r --arg selector "$SPACE_SELECTOR" '
       map(select(
         (.id == $selector)
         or ((.issuePrefix // "") == $selector)
         or ((.name // "") == $selector)
       )) | .[0].id // empty
     ' <<<"$RESPONSE_BODY")"
-    [[ -n "$COMPANY_ID" ]] || fail "no company matched COMPANY_SELECTOR=${COMPANY_SELECTOR}"
+    [[ -n "$SPACE_ID" ]] || fail "no space matched SPACE_SELECTOR=${SPACE_SELECTOR}"
   else
-    COMPANY_ID="$(jq -r '.[0].id // empty' <<<"$RESPONSE_BODY")"
-    [[ -n "$COMPANY_ID" ]] || fail "no companies found"
+    SPACE_ID="$(jq -r '.[0].id // empty' <<<"$RESPONSE_BODY")"
+    [[ -n "$SPACE_ID" ]] || fail "no spaces found"
   fi
-  log "resolved company ${COMPANY_ID}"
+  log "resolved space ${SPACE_ID}"
 }
 
 capture_container_logs() {
@@ -389,7 +389,7 @@ capture_diagnostics() {
   mkdir -p "$HERMES_SMOKE_DIAG_DIR"
   {
     echo "runSuffix=${RUN_SUFFIX}"
-    echo "companyId=${COMPANY_ID:-}"
+    echo "spaceId=${SPACE_ID:-}"
     echo "agentId=${AGENT_ID:-}"
     echo "inviteId=${INVITE_ID:-}"
     echo "joinRequestId=${JOIN_REQUEST_ID:-}"
@@ -397,8 +397,8 @@ capture_diagnostics() {
     echo "image=${HERMES_IMAGE}"
     echo "gateway=${HERMES_GATEWAY_API_BASE_URL}"
     echo "gatewayProbe=${HERMES_GATEWAY_PROBE_URL}"
-    echo "paperclipApiUrl=${OUTPOST_API_URL}"
-    echo "paperclipApiUrlForHermes=${OUTPOST_API_URL_FOR_HERMES}"
+    echo "outpostApiUrl=${OUTPOST_API_URL}"
+    echo "outpostApiUrlForHermes=${OUTPOST_API_URL_FOR_HERMES}"
     echo "apiServerKeySha256=$(hash_prefix "${HERMES_GATEWAY_API_KEY:-}") len=${#HERMES_GATEWAY_API_KEY}"
     echo "agentApiKeySha256=$(hash_prefix "${AGENT_API_KEY:-}") len=${#AGENT_API_KEY}"
   } > "${HERMES_SMOKE_DIAG_DIR}/summary.env"
@@ -406,11 +406,11 @@ capture_diagnostics() {
   gateway_request "GET" "/health" "" "${HERMES_SMOKE_DIAG_DIR}/gateway-health.json" || true
   gateway_request "GET" "/v1/capabilities" "" "${HERMES_SMOKE_DIAG_DIR}/gateway-capabilities.json" || true
   capture_container_logs
-  capture_issue_diagnostics "$SMOKE_ISSUE_ID" "paperclip-smoke"
-  capture_run_diagnostics "$RUN_ID" "paperclip-smoke"
+  capture_issue_diagnostics "$SMOKE_ISSUE_ID" "outpost-smoke"
+  capture_run_diagnostics "$RUN_ID" "outpost-smoke"
 }
 
-cleanup_paperclip_state() {
+cleanup_outpost_state() {
   [[ "$KEEP_ON_EXIT" != "1" ]] || return 0
 
   if [[ -n "$SMOKE_ISSUE_ID" ]]; then
@@ -433,8 +433,8 @@ cleanup_paperclip_state() {
     fi
   fi
 
-  if [[ -n "$JOIN_REQUEST_ID" && -n "$COMPANY_ID" ]]; then
-    api_request "POST" "/companies/${COMPANY_ID}/join-requests/${JOIN_REQUEST_ID}/reject" "{}"
+  if [[ -n "$JOIN_REQUEST_ID" && -n "$SPACE_ID" ]]; then
+    api_request "POST" "/spaces/${SPACE_ID}/join-requests/${JOIN_REQUEST_ID}/reject" "{}"
     if [[ "$RESPONSE_CODE" != "200" && "$RESPONSE_CODE" != "404" && "$RESPONSE_CODE" != "409" ]]; then
       warn "reject join request returned HTTP ${RESPONSE_CODE}"
     fi
@@ -457,7 +457,7 @@ on_exit() {
     capture_diagnostics || true
   fi
 
-  cleanup_paperclip_state || true
+  cleanup_outpost_state || true
   cleanup_local_state || true
 
   if [[ "$KEEP_ON_EXIT" == "1" ]]; then
@@ -589,17 +589,17 @@ assert_fresh_container_state() {
   fi
 }
 
-probe_container_to_paperclip() {
-  log "probing container-to-Paperclip connectivity at ${OUTPOST_API_URL_FOR_HERMES}/api/health"
-  if ! docker exec "$HERMES_CONTAINER_NAME" curl -fsS --max-time 8 "${OUTPOST_API_URL_FOR_HERMES%/}/api/health" > "${HERMES_SMOKE_DIAG_DIR}/container-paperclip-health.json"; then
-    fail "Hermes container cannot reach Paperclip. Set OUTPOST_API_URL_FOR_HERMES to a URL reachable from inside Docker, or keep HERMES_DOCKER_ADD_HOST=1 for Linux host.docker.internal."
+probe_container_to_outpost() {
+  log "probing container-to-Outpost connectivity at ${OUTPOST_API_URL_FOR_HERMES}/api/health"
+  if ! docker exec "$HERMES_CONTAINER_NAME" curl -fsS --max-time 8 "${OUTPOST_API_URL_FOR_HERMES%/}/api/health" > "${HERMES_SMOKE_DIAG_DIR}/container-outpost-health.json"; then
+    fail "Hermes container cannot reach Outpost. Set OUTPOST_API_URL_FOR_HERMES to a URL reachable from inside Docker, or keep HERMES_DOCKER_ADD_HOST=1 for Linux host.docker.internal."
   fi
 }
 
 probe_gateway_readiness() {
   log "waiting for Hermes gateway health at ${HERMES_GATEWAY_PROBE_URL%/}/health"
   if [[ "$HERMES_GATEWAY_PROBE_URL" != "$HERMES_GATEWAY_API_BASE_URL" ]]; then
-    log "Paperclip will store Hermes gateway URL ${HERMES_GATEWAY_API_BASE_URL}"
+    log "Outpost will store Hermes gateway URL ${HERMES_GATEWAY_API_BASE_URL}"
   fi
   wait_http_ready "${HERMES_GATEWAY_PROBE_URL%/}/health" "$GATEWAY_READY_TIMEOUT_SEC" || fail "Hermes gateway health did not become ready"
 
@@ -653,8 +653,8 @@ assert_direct_gateway_run() {
   local payload
   payload="$(jq -nc \
     --arg marker "$marker" \
-    --arg session "paperclip-smoke-direct-${RUN_SUFFIX}" \
-    '{input: ("Reply with exactly " + $marker + " and no other text."), instructions: "You are running a Paperclip Hermes gateway smoke direct API assertion.", session_id: $session}')"
+    --arg session "outpost-smoke-direct-${RUN_SUFFIX}" \
+    '{input: ("Reply with exactly " + $marker + " and no other text."), instructions: "You are running a Outpost Hermes gateway smoke direct API assertion.", session_id: $session}')"
 
   log "asserting POST /v1/runs and SSE events"
   gateway_request "POST" "/v1/runs" "$payload" "${HERMES_SMOKE_DIAG_DIR}/direct-run-create.json"
@@ -697,7 +697,7 @@ assert_stop_behavior_if_deterministic() {
 
   local payload
   payload="$(jq -nc \
-    --arg session "paperclip-smoke-stop-${RUN_SUFFIX}" \
+    --arg session "outpost-smoke-stop-${RUN_SUFFIX}" \
     '{input: "Wait until stopped. If you cannot wait, emit a short acknowledgement.", instructions: "This run exists only to verify the Hermes gateway stop endpoint.", session_id: $session}')"
 
   log "probing /stop behavior (mode=${HERMES_STOP_ASSERT})"
@@ -757,8 +757,8 @@ join_hermes_agent() {
   OUTPOST_AUTH_HEADER="${OUTPOST_AUTH_HEADER:-}" \
   OUTPOST_API_KEY="${OUTPOST_API_KEY:-}" \
   OUTPOST_COOKIE="${OUTPOST_COOKIE:-}" \
-  COMPANY_ID="$COMPANY_ID" \
-  COMPANY_SELECTOR="$COMPANY_SELECTOR" \
+  SPACE_ID="$SPACE_ID" \
+  SPACE_SELECTOR="$SPACE_SELECTOR" \
   HERMES_JOIN_OUTPUT_FILE="$JOIN_OUTPUT_FILE" \
     bash scripts/smoke/hermes-gateway-join.sh > "${join_log}.raw" 2>&1 || {
       redact_text "$(cat "${join_log}.raw")" > "$join_log"
@@ -779,23 +779,23 @@ join_hermes_agent() {
 }
 
 install_claimed_key_in_container() {
-  log "placing newly claimed Paperclip key in container workspace"
-  local key_file="${HERMES_SMOKE_STATE_DIR}/workspace/paperclip-claimed-api-key.json"
+  log "placing newly claimed Outpost key in container workspace"
+  local key_file="${HERMES_SMOKE_STATE_DIR}/workspace/outpost-claimed-api-key.json"
   jq -nc --arg token "$AGENT_API_KEY" '{token:$token,apiKey:$token}' > "$key_file"
   # The host-created bind-mounted file must be readable by the non-root hermes
   # user inside the container. The state dir is still per-run and deleted on
   # success unless HERMES_SMOKE_KEEP=1.
   chmod 644 "$key_file"
-  docker exec "$HERMES_CONTAINER_NAME" sh -lc 'test -f /home/hermes/workspace/paperclip-claimed-api-key.json && test ! -e "$HERMES_HOME/host-sentinel.txt"'
+  docker exec "$HERMES_CONTAINER_NAME" sh -lc 'test -f /home/hermes/workspace/outpost-claimed-api-key.json && test ! -e "$HERMES_HOME/host-sentinel.txt"'
 }
 
 patch_agent_instructions_with_claimed_key() {
-  log "patching Hermes agent instructions with claimed Paperclip API context"
+  log "patching Hermes agent instructions with claimed Outpost API context"
   api_request "GET" "/agents/${AGENT_ID}"
   assert_status "200"
 
   local instructions patch_payload
-  instructions="For this smoke run only, call Paperclip at ${OUTPOST_API_URL_FOR_HERMES}. Read /home/hermes/workspace/paperclip-claimed-api-key.json and use its token as OUTPOST_API_KEY for Paperclip API requests. Do not reveal this key. When mutating Paperclip, include X-Paperclip-Run-Id with the current Paperclip run id when available."
+  instructions="For this smoke run only, call Outpost at ${OUTPOST_API_URL_FOR_HERMES}. Read /home/hermes/workspace/outpost-claimed-api-key.json and use its token as OUTPOST_API_KEY for Outpost API requests. Do not reveal this key. When mutating Outpost, include X-Outpost-Run-Id with the current Outpost run id when available."
   patch_payload="$(jq -c --arg instructions "$instructions" '
     {adapterConfig: ((.adapterConfig // {}) + {instructions: $instructions})}
   ' <<<"$RESPONSE_BODY")"
@@ -807,7 +807,7 @@ create_smoke_issue() {
   local marker="HERMES_OUTPOST_E2E_OK_${RUN_SUFFIX}"
   local title="[Hermes Gateway Smoke] ${RUN_SUFFIX}"
   local description
-  description="Hermes gateway full Docker e2e smoke.\n\n1. Read this issue.\n2. Post a Paperclip issue comment containing exactly: ${marker}\n3. Mark this issue done.\n\nUse the Paperclip API URL and key provided in your run instructions. Do not reveal secrets."
+  description="Hermes gateway full Docker e2e smoke.\n\n1. Read this issue.\n2. Post a Outpost issue comment containing exactly: ${marker}\n3. Mark this issue done.\n\nUse the Outpost API URL and key provided in your run instructions. Do not reveal secrets."
 
   local payload
   payload="$(jq -nc \
@@ -815,13 +815,13 @@ create_smoke_issue() {
     --arg description "$description" \
     --arg assignee "$AGENT_ID" \
     '{title:$title,description:$description,status:"todo",priority:"high",assigneeAgentId:$assignee}')"
-  api_request "POST" "/companies/${COMPANY_ID}/issues" "$payload"
+  api_request "POST" "/spaces/${SPACE_ID}/issues" "$payload"
   assert_status "201"
   SMOKE_ISSUE_ID="$(jq -r '.id // empty' <<<"$RESPONSE_BODY")"
   SMOKE_ISSUE_IDENTIFIER="$(jq -r '.identifier // empty' <<<"$RESPONSE_BODY")"
   [[ -n "$SMOKE_ISSUE_ID" ]] || fail "smoke issue create missing id"
   log "created smoke issue ${SMOKE_ISSUE_ID} (${SMOKE_ISSUE_IDENTIFIER})"
-  echo "$marker" > "${HERMES_SMOKE_DIAG_DIR}/paperclip-marker.txt"
+  echo "$marker" > "${HERMES_SMOKE_DIAG_DIR}/outpost-marker.txt"
 }
 
 trigger_wakeup() {
@@ -835,12 +835,12 @@ trigger_wakeup() {
   fi
   RUN_ID="$(jq -r '.id // empty' <<<"$RESPONSE_BODY")"
   [[ -n "$RUN_ID" ]] || fail "wakeup response missing run id"
-  log "triggered Paperclip run ${RUN_ID}"
+  log "triggered Outpost run ${RUN_ID}"
 }
 
 get_run_status() {
   local run_id="$1"
-  api_request "GET" "/companies/${COMPANY_ID}/heartbeat-runs?agentId=${AGENT_ID}&limit=200"
+  api_request "GET" "/spaces/${SPACE_ID}/heartbeat-runs?agentId=${AGENT_ID}&limit=200"
   if [[ "$RESPONSE_CODE" != "200" ]]; then
     echo ""
     return 0
@@ -909,14 +909,14 @@ issue_comments_contain() {
   jq -r --arg marker "$marker" '[.[] | (.body // "") | contains($marker)] | any' <<<"$RESPONSE_BODY"
 }
 
-assert_paperclip_wake_success() {
+assert_outpost_wake_success() {
   local marker
-  marker="$(cat "${HERMES_SMOKE_DIAG_DIR}/paperclip-marker.txt")"
+  marker="$(cat "${HERMES_SMOKE_DIAG_DIR}/outpost-marker.txt")"
 
   trigger_wakeup
   local run_status issue_status marker_found
   run_status="$(wait_for_run_terminal "$RUN_ID" "$RUN_TIMEOUT_SEC")"
-  log "Paperclip run ${RUN_ID} status=${run_status}"
+  log "Outpost run ${RUN_ID} status=${run_status}"
   issue_status="$(wait_for_issue_terminal "$SMOKE_ISSUE_ID" "$CASE_TIMEOUT_SEC")"
   marker_found="$(issue_comments_contain "$SMOKE_ISSUE_ID" "$marker")"
   log "smoke issue status=${issue_status} marker_found=${marker_found}"
@@ -925,7 +925,7 @@ assert_paperclip_wake_success() {
     capture_diagnostics
   fi
   if [[ "$STRICT_CASES" == "1" ]]; then
-    [[ "$run_status" == "succeeded" ]] || fail "Paperclip Hermes gateway run did not succeed"
+    [[ "$run_status" == "succeeded" ]] || fail "Outpost Hermes gateway run did not succeed"
     [[ "$issue_status" == "done" ]] || fail "smoke issue did not reach done"
     [[ "$marker_found" == "true" ]] || fail "smoke marker was not found in issue comments"
   fi
@@ -970,16 +970,16 @@ main() {
 
   api_request "GET" "/health"
   assert_status "200"
-  log "Paperclip health deploymentMode=$(jq -r '.deploymentMode // "unknown"' <<<"$RESPONSE_BODY") exposure=$(jq -r '.deploymentExposure // "unknown"' <<<"$RESPONSE_BODY")"
+  log "Outpost health deploymentMode=$(jq -r '.deploymentMode // "unknown"' <<<"$RESPONSE_BODY") exposure=$(jq -r '.deploymentExposure // "unknown"' <<<"$RESPONSE_BODY")"
   require_board_auth
-  resolve_company_id
+  resolve_space_id
 
   prepare_fresh_state
   write_hermes_model_config
   build_image
   start_container
   assert_fresh_container_state
-  probe_container_to_paperclip
+  probe_container_to_outpost
   probe_gateway_readiness
   assert_capabilities
   assert_direct_gateway_run
@@ -988,12 +988,12 @@ main() {
   install_claimed_key_in_container
   patch_agent_instructions_with_claimed_key
   create_smoke_issue
-  assert_paperclip_wake_success
+  assert_outpost_wake_success
   capture_diagnostics
   scan_diagnostics_for_secret_leaks
 
   log "success"
-  log "companyId=${COMPANY_ID}"
+  log "spaceId=${SPACE_ID}"
   log "agentId=${AGENT_ID}"
   log "inviteId=${INVITE_ID}"
   log "joinRequestId=${JOIN_REQUEST_ID}"

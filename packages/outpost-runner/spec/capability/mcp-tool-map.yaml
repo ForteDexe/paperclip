@@ -9,424 +9,424 @@
   ],
   "rows": [
     {
-      "id": "mcp:paperclipMe",
-      "name": "paperclipMe",
+      "id": "mcp:outpostMe",
+      "name": "outpostMe",
       "description": "Get the current authenticated Outpost actor details",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:290",
       "expectedSemantics": "Get the current authenticated Outpost actor details",
       "foldedInto": "eval:hb-inbox-lite-01",
-      "evidenceId": "mcp:paperclipMe"
+      "evidenceId": "mcp:outpostMe"
     },
     {
-      "id": "mcp:paperclipInboxLite",
-      "name": "paperclipInboxLite",
+      "id": "mcp:outpostInboxLite",
+      "name": "outpostInboxLite",
       "description": "Get the current authenticated agent inbox-lite assignment list",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:296",
       "expectedSemantics": "Get the current authenticated agent inbox-lite assignment list",
       "foldedInto": "eval:hb-inbox-lite-01",
-      "evidenceId": "mcp:paperclipInboxLite"
+      "evidenceId": "mcp:outpostInboxLite"
     },
     {
-      "id": "mcp:paperclipListAgents",
-      "name": "paperclipListAgents",
+      "id": "mcp:outpostListAgents",
+      "name": "outpostListAgents",
       "description": "List agents in an Outpost",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:302",
       "expectedSemantics": "List agents in an Outpost",
       "foldedInto": "eval:rf-api-mgr-heartbeat-01",
-      "evidenceId": "mcp:paperclipListAgents"
+      "evidenceId": "mcp:outpostListAgents"
     },
     {
-      "id": "mcp:paperclipListSkills",
-      "name": "paperclipListSkills",
+      "id": "mcp:outpostListSkills",
+      "name": "outpostListSkills",
       "description": "List the Outpost skill library (all installed skills, independent of which agents have them enabled)",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:308",
       "expectedSemantics": "List the Outpost skill library (all installed skills, independent of which agents have them enabled)",
       "foldedInto": "eval:rf-cskill-audit-01",
-      "evidenceId": "mcp:paperclipListSkills"
+      "evidenceId": "mcp:outpostListSkills"
     },
     {
-      "id": "mcp:paperclipGetAgent",
-      "name": "paperclipGetAgent",
+      "id": "mcp:outpostGetAgent",
+      "name": "outpostGetAgent",
       "description": "Get a single agent by id",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:314",
       "expectedSemantics": "Get a single agent by id",
       "foldedInto": "eval:rf-api-mgr-heartbeat-01",
-      "evidenceId": "mcp:paperclipGetAgent"
+      "evidenceId": "mcp:outpostGetAgent"
     },
     {
-      "id": "mcp:paperclipListIssues",
-      "name": "paperclipListIssues",
+      "id": "mcp:outpostListIssues",
+      "name": "outpostListIssues",
       "description": "List issues for an Outpost with optional filters",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:323",
       "expectedSemantics": "List issues for an Outpost with optional filters",
       "foldedInto": "eval:se-q-filters-01",
-      "evidenceId": "mcp:paperclipListIssues"
+      "evidenceId": "mcp:outpostListIssues"
     },
     {
-      "id": "mcp:paperclipGetIssue",
-      "name": "paperclipGetIssue",
+      "id": "mcp:outpostGetIssue",
+      "name": "outpostGetIssue",
       "description": "Get a single issue by UUID or identifier",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:338",
       "expectedSemantics": "Get a single issue by UUID or identifier",
       "foldedInto": "eval:se-get-issue-01",
-      "evidenceId": "mcp:paperclipGetIssue"
+      "evidenceId": "mcp:outpostGetIssue"
     },
     {
-      "id": "mcp:paperclipGetHeartbeatContext",
-      "name": "paperclipGetHeartbeatContext",
+      "id": "mcp:outpostGetHeartbeatContext",
+      "name": "outpostGetHeartbeatContext",
       "description": "Get compact heartbeat context for an issue",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:344",
       "expectedSemantics": "Get compact heartbeat context for an issue",
       "foldedInto": "eval:hb-context-01",
-      "evidenceId": "mcp:paperclipGetHeartbeatContext"
+      "evidenceId": "mcp:outpostGetHeartbeatContext"
     },
     {
-      "id": "mcp:paperclipListComments",
-      "name": "paperclipListComments",
+      "id": "mcp:outpostListComments",
+      "name": "outpostListComments",
       "description": "List issue comments with incremental options",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:353",
       "expectedSemantics": "List issue comments with incremental options",
       "foldedInto": "eval:se-get-issue-01",
-      "evidenceId": "mcp:paperclipListComments"
+      "evidenceId": "mcp:outpostListComments"
     },
     {
-      "id": "mcp:paperclipGetComment",
-      "name": "paperclipGetComment",
+      "id": "mcp:outpostGetComment",
+      "name": "outpostGetComment",
       "description": "Get a specific issue comment by id",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:366",
       "expectedSemantics": "Get a specific issue comment by id",
       "foldedInto": "eval:hb-wake-comment-01",
-      "evidenceId": "mcp:paperclipGetComment"
+      "evidenceId": "mcp:outpostGetComment"
     },
     {
-      "id": "mcp:paperclipListIssueApprovals",
-      "name": "paperclipListIssueApprovals",
+      "id": "mcp:outpostListIssueApprovals",
+      "name": "outpostListIssueApprovals",
       "description": "List approvals linked to an issue",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:373",
       "expectedSemantics": "List approvals linked to an issue",
       "foldedInto": "eval:ap-board-approval-01",
-      "evidenceId": "mcp:paperclipListIssueApprovals"
+      "evidenceId": "mcp:outpostListIssueApprovals"
     },
     {
-      "id": "mcp:paperclipListDocuments",
-      "name": "paperclipListDocuments",
+      "id": "mcp:outpostListDocuments",
+      "name": "outpostListDocuments",
       "description": "List issue documents",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:379",
       "expectedSemantics": "List issue documents",
       "foldedInto": "eval:dp-base-revision-01",
-      "evidenceId": "mcp:paperclipListDocuments"
+      "evidenceId": "mcp:outpostListDocuments"
     },
     {
-      "id": "mcp:paperclipGetDocument",
-      "name": "paperclipGetDocument",
+      "id": "mcp:outpostGetDocument",
+      "name": "outpostGetDocument",
       "description": "Get one issue document by key",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:385",
       "expectedSemantics": "Get one issue document by key",
       "foldedInto": "eval:dp-base-revision-01",
-      "evidenceId": "mcp:paperclipGetDocument"
+      "evidenceId": "mcp:outpostGetDocument"
     },
     {
-      "id": "mcp:paperclipListDocumentRevisions",
-      "name": "paperclipListDocumentRevisions",
+      "id": "mcp:outpostListDocumentRevisions",
+      "name": "outpostListDocumentRevisions",
       "description": "List revisions for an issue document",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:392",
       "expectedSemantics": "List revisions for an issue document",
       "foldedInto": "eval:dp-base-revision-01",
-      "evidenceId": "mcp:paperclipListDocumentRevisions"
+      "evidenceId": "mcp:outpostListDocumentRevisions"
     },
     {
-      "id": "mcp:paperclipListProjects",
-      "name": "paperclipListProjects",
+      "id": "mcp:outpostListProjects",
+      "name": "outpostListProjects",
       "description": "List projects in an Outpost",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:402",
       "expectedSemantics": "List projects in an Outpost",
       "foldedInto": "eval:rf-wf-project-setup-01",
-      "evidenceId": "mcp:paperclipListProjects"
+      "evidenceId": "mcp:outpostListProjects"
     },
     {
-      "id": "mcp:paperclipGetProject",
-      "name": "paperclipGetProject",
+      "id": "mcp:outpostGetProject",
+      "name": "outpostGetProject",
       "description": "Get a project by id or Outpost-scoped short reference",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:408",
       "expectedSemantics": "Get a project by id or Outpost-scoped short reference",
       "foldedInto": "eval:rf-wf-project-setup-01",
-      "evidenceId": "mcp:paperclipGetProject"
+      "evidenceId": "mcp:outpostGetProject"
     },
     {
-      "id": "mcp:paperclipGetIssueWorkspaceRuntime",
-      "name": "paperclipGetIssueWorkspaceRuntime",
+      "id": "mcp:outpostGetIssueWorkspaceRuntime",
+      "name": "outpostGetIssueWorkspaceRuntime",
       "description": "Get the current execution workspace and runtime services for an issue, including service URLs",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:417",
       "expectedSemantics": "Get the current execution workspace and runtime services for an issue, including service URLs",
       "foldedInto": "eval:rf-iws-start-url-01",
-      "evidenceId": "mcp:paperclipGetIssueWorkspaceRuntime"
+      "evidenceId": "mcp:outpostGetIssueWorkspaceRuntime"
     },
     {
-      "id": "mcp:paperclipControlIssueWorkspaceServices",
-      "name": "paperclipControlIssueWorkspaceServices",
+      "id": "mcp:outpostControlIssueWorkspaceServices",
+      "name": "outpostControlIssueWorkspaceServices",
       "description": "Start, stop, or restart the current issue execution workspace runtime services",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:423",
       "expectedSemantics": "Start, stop, or restart the current issue execution workspace runtime services",
       "foldedInto": "eval:rf-iws-start-url-01",
-      "evidenceId": "mcp:paperclipControlIssueWorkspaceServices"
+      "evidenceId": "mcp:outpostControlIssueWorkspaceServices"
     },
     {
-      "id": "mcp:paperclipWaitForIssueWorkspaceService",
-      "name": "paperclipWaitForIssueWorkspaceService",
+      "id": "mcp:outpostWaitForIssueWorkspaceService",
+      "name": "outpostWaitForIssueWorkspaceService",
       "description": "Wait until an issue execution workspace runtime service is running and has a URL when one is exposed",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:440",
       "expectedSemantics": "Wait until an issue execution workspace runtime service is running and has a URL when one is exposed",
       "foldedInto": "eval:rf-iws-target-restart-01",
-      "evidenceId": "mcp:paperclipWaitForIssueWorkspaceService"
+      "evidenceId": "mcp:outpostWaitForIssueWorkspaceService"
     },
     {
-      "id": "mcp:paperclipListGoals",
-      "name": "paperclipListGoals",
+      "id": "mcp:outpostListGoals",
+      "name": "outpostListGoals",
       "description": "List North Stars in an Outpost",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:466",
       "expectedSemantics": "List North Stars in an Outpost",
       "foldedInto": "eval:su-parent-goal-01",
-      "evidenceId": "mcp:paperclipListGoals"
+      "evidenceId": "mcp:outpostListGoals"
     },
     {
-      "id": "mcp:paperclipGetGoal",
-      "name": "paperclipGetGoal",
+      "id": "mcp:outpostGetGoal",
+      "name": "outpostGetGoal",
       "description": "Get a North Star by id",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:472",
       "expectedSemantics": "Get a North Star by id",
       "foldedInto": "eval:su-parent-goal-01",
-      "evidenceId": "mcp:paperclipGetGoal"
+      "evidenceId": "mcp:outpostGetGoal"
     },
     {
-      "id": "mcp:paperclipListApprovals",
-      "name": "paperclipListApprovals",
+      "id": "mcp:outpostListApprovals",
+      "name": "outpostListApprovals",
       "description": "List approvals in an Outpost",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:478",
       "expectedSemantics": "List approvals in an Outpost",
       "foldedInto": "eval:ap-approval-wake-01",
-      "evidenceId": "mcp:paperclipListApprovals"
+      "evidenceId": "mcp:outpostListApprovals"
     },
     {
-      "id": "mcp:paperclipCreateApproval",
-      "name": "paperclipCreateApproval",
+      "id": "mcp:outpostCreateApproval",
+      "name": "outpostCreateApproval",
       "description": "Create a board approval request, optionally linked to one or more issues",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:487",
       "expectedSemantics": "Create a board approval request, optionally linked to one or more issues",
       "foldedInto": "eval:ap-board-approval-01",
-      "evidenceId": "mcp:paperclipCreateApproval"
+      "evidenceId": "mcp:outpostCreateApproval"
     },
     {
-      "id": "mcp:paperclipGetApproval",
-      "name": "paperclipGetApproval",
+      "id": "mcp:outpostGetApproval",
+      "name": "outpostGetApproval",
       "description": "Get an approval by id",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:496",
       "expectedSemantics": "Get an approval by id",
       "foldedInto": "eval:ap-approval-wake-01",
-      "evidenceId": "mcp:paperclipGetApproval"
+      "evidenceId": "mcp:outpostGetApproval"
     },
     {
-      "id": "mcp:paperclipGetApprovalIssues",
-      "name": "paperclipGetApprovalIssues",
+      "id": "mcp:outpostGetApprovalIssues",
+      "name": "outpostGetApprovalIssues",
       "description": "List issues linked to an approval",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:502",
       "expectedSemantics": "List issues linked to an approval",
       "foldedInto": "eval:ap-approval-wake-01",
-      "evidenceId": "mcp:paperclipGetApprovalIssues"
+      "evidenceId": "mcp:outpostGetApprovalIssues"
     },
     {
-      "id": "mcp:paperclipListApprovalComments",
-      "name": "paperclipListApprovalComments",
+      "id": "mcp:outpostListApprovalComments",
+      "name": "outpostListApprovalComments",
       "description": "List comments for an approval",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:508",
       "expectedSemantics": "List comments for an approval",
       "foldedInto": "eval:ap-approval-deny-01",
-      "evidenceId": "mcp:paperclipListApprovalComments"
+      "evidenceId": "mcp:outpostListApprovalComments"
     },
     {
-      "id": "mcp:paperclipCreateIssue",
-      "name": "paperclipCreateIssue",
+      "id": "mcp:outpostCreateIssue",
+      "name": "outpostCreateIssue",
       "description": "Create a new issue",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:514",
       "expectedSemantics": "Create a new issue",
       "foldedInto": "eval:su-parent-goal-01",
-      "evidenceId": "mcp:paperclipCreateIssue"
+      "evidenceId": "mcp:outpostCreateIssue"
     },
     {
-      "id": "mcp:paperclipUpdateIssue",
-      "name": "paperclipUpdateIssue",
+      "id": "mcp:outpostUpdateIssue",
+      "name": "outpostUpdateIssue",
       "description": "Patch an issue, optionally including a comment; include resume=true when intentionally requesting follow-up on resumable closed work",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:521",
       "expectedSemantics": "Patch an issue, optionally including a comment; include resume=true when intentionally requesting follow-up on resumable closed work",
       "foldedInto": "eval:st-done-comment-01",
-      "evidenceId": "mcp:paperclipUpdateIssue"
+      "evidenceId": "mcp:outpostUpdateIssue"
     },
     {
-      "id": "mcp:paperclipCheckoutIssue",
-      "name": "paperclipCheckoutIssue",
+      "id": "mcp:outpostCheckoutIssue",
+      "name": "outpostCheckoutIssue",
       "description": "Checkout an issue for an agent",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:528",
       "expectedSemantics": "Checkout an issue for an agent",
       "foldedInto": "eval:co-body-contract-01",
-      "evidenceId": "mcp:paperclipCheckoutIssue"
+      "evidenceId": "mcp:outpostCheckoutIssue"
     },
     {
-      "id": "mcp:paperclipReleaseIssue",
-      "name": "paperclipReleaseIssue",
+      "id": "mcp:outpostReleaseIssue",
+      "name": "outpostReleaseIssue",
       "description": "Release an issue checkout",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:540",
       "expectedSemantics": "Release an issue checkout",
       "foldedInto": "eval:er-release-01",
-      "evidenceId": "mcp:paperclipReleaseIssue"
+      "evidenceId": "mcp:outpostReleaseIssue"
     },
     {
-      "id": "mcp:paperclipAddComment",
-      "name": "paperclipAddComment",
+      "id": "mcp:outpostAddComment",
+      "name": "outpostAddComment",
       "description": "Add a comment to an issue; include resume=true when intentionally requesting follow-up on resumable closed work",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:546",
       "expectedSemantics": "Add a comment to an issue; include resume=true when intentionally requesting follow-up on resumable closed work",
       "foldedInto": "eval:cm-multiline-01",
-      "evidenceId": "mcp:paperclipAddComment"
+      "evidenceId": "mcp:outpostAddComment"
     },
     {
-      "id": "mcp:paperclipSuggestTasks",
-      "name": "paperclipSuggestTasks",
+      "id": "mcp:outpostSuggestTasks",
+      "name": "outpostSuggestTasks",
       "description": "Create a suggest_tasks interaction on an issue",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:553",
       "expectedSemantics": "Create a suggest_tasks interaction on an issue",
       "foldedInto": "eval:ix-suggest-tasks-01",
-      "evidenceId": "mcp:paperclipSuggestTasks"
+      "evidenceId": "mcp:outpostSuggestTasks"
     },
     {
-      "id": "mcp:paperclipAskUserQuestions",
-      "name": "paperclipAskUserQuestions",
+      "id": "mcp:outpostAskUserQuestions",
+      "name": "outpostAskUserQuestions",
       "description": "Create an ask_user_questions interaction on an issue. Ask independent questions together in one interaction instead of one per card.",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:565",
       "expectedSemantics": "Create an ask_user_questions interaction on an issue. Ask independent questions together in one interaction instead of one per card.",
       "foldedInto": "eval:ix-questions-01",
-      "evidenceId": "mcp:paperclipAskUserQuestions"
+      "evidenceId": "mcp:outpostAskUserQuestions"
     },
     {
-      "id": "mcp:paperclipRequestConfirmation",
-      "name": "paperclipRequestConfirmation",
+      "id": "mcp:outpostRequestConfirmation",
+      "name": "outpostRequestConfirmation",
       "description": "Create a request_confirmation interaction on an issue",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:577",
       "expectedSemantics": "Create a request_confirmation interaction on an issue",
       "foldedInto": "eval:ix-confirmation-plan-01",
-      "evidenceId": "mcp:paperclipRequestConfirmation"
+      "evidenceId": "mcp:outpostRequestConfirmation"
     },
     {
-      "id": "mcp:paperclipRequestCheckboxConfirmation",
-      "name": "paperclipRequestCheckboxConfirmation",
+      "id": "mcp:outpostRequestCheckboxConfirmation",
+      "name": "outpostRequestCheckboxConfirmation",
       "description": "Create a request_checkbox_confirmation interaction on an issue",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:589",
       "expectedSemantics": "Create a request_checkbox_confirmation interaction on an issue",
       "foldedInto": "eval:ix-checkbox-01",
-      "evidenceId": "mcp:paperclipRequestCheckboxConfirmation"
+      "evidenceId": "mcp:outpostRequestCheckboxConfirmation"
     },
     {
-      "id": "mcp:paperclipUpsertIssueDocument",
-      "name": "paperclipUpsertIssueDocument",
+      "id": "mcp:outpostUpsertIssueDocument",
+      "name": "outpostUpsertIssueDocument",
       "description": "Create or update an issue document",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:601",
       "expectedSemantics": "Create or update an issue document",
       "foldedInto": "eval:dp-plan-doc-01",
-      "evidenceId": "mcp:paperclipUpsertIssueDocument"
+      "evidenceId": "mcp:outpostUpsertIssueDocument"
     },
     {
-      "id": "mcp:paperclipRestoreIssueDocumentRevision",
-      "name": "paperclipRestoreIssueDocumentRevision",
+      "id": "mcp:outpostRestoreIssueDocumentRevision",
+      "name": "outpostRestoreIssueDocumentRevision",
       "description": "Restore a prior revision of an issue document",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:612",
       "expectedSemantics": "Restore a prior revision of an issue document",
       "foldedInto": "eval:dp-base-revision-01",
-      "evidenceId": "mcp:paperclipRestoreIssueDocumentRevision"
+      "evidenceId": "mcp:outpostRestoreIssueDocumentRevision"
     },
     {
-      "id": "mcp:paperclipLinkIssueApproval",
-      "name": "paperclipLinkIssueApproval",
+      "id": "mcp:outpostLinkIssueApproval",
+      "name": "outpostLinkIssueApproval",
       "description": "Link an approval to an issue",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:627",
       "expectedSemantics": "Link an approval to an issue",
       "foldedInto": "eval:ap-board-approval-01",
-      "evidenceId": "mcp:paperclipLinkIssueApproval"
+      "evidenceId": "mcp:outpostLinkIssueApproval"
     },
     {
-      "id": "mcp:paperclipUnlinkIssueApproval",
-      "name": "paperclipUnlinkIssueApproval",
+      "id": "mcp:outpostUnlinkIssueApproval",
+      "name": "outpostUnlinkIssueApproval",
       "description": "Unlink an approval from an issue",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:636",
       "expectedSemantics": "Unlink an approval from an issue",
       "foldedInto": "eval:ap-board-approval-01",
-      "evidenceId": "mcp:paperclipUnlinkIssueApproval"
+      "evidenceId": "mcp:outpostUnlinkIssueApproval"
     },
     {
-      "id": "mcp:paperclipApprovalDecision",
-      "name": "paperclipApprovalDecision",
+      "id": "mcp:outpostApprovalDecision",
+      "name": "outpostApprovalDecision",
       "description": "Approve, reject, request revision, or resubmit an approval",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:646",
       "expectedSemantics": "Approve, reject, request revision, or resubmit an approval",
       "foldedInto": "eval:ap-approval-wake-01",
-      "evidenceId": "mcp:paperclipApprovalDecision"
+      "evidenceId": "mcp:outpostApprovalDecision"
     },
     {
-      "id": "mcp:paperclipAddApprovalComment",
-      "name": "paperclipAddApprovalComment",
+      "id": "mcp:outpostAddApprovalComment",
+      "name": "outpostAddApprovalComment",
       "description": "Add a comment to an approval",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:668",
       "expectedSemantics": "Add a comment to an approval",
       "foldedInto": "eval:ap-approval-deny-01",
-      "evidenceId": "mcp:paperclipAddApprovalComment"
+      "evidenceId": "mcp:outpostAddApprovalComment"
     },
     {
-      "id": "mcp:paperclipApiRequest",
-      "name": "paperclipApiRequest",
+      "id": "mcp:outpostApiRequest",
+      "name": "outpostApiRequest",
       "description": "Make a JSON request to an existing Outpost /api endpoint for unsupported operations",
       "sourceKind": "legacy_mcp_alias",
       "sourceAnchor": "packages/mcp-server/src/tools.ts:677",
       "expectedSemantics": "Make a JSON request to an existing Outpost /api endpoint for unsupported operations",
       "foldedInto": "eval:rf-api-404-report-01",
-      "evidenceId": "mcp:paperclipApiRequest"
+      "evidenceId": "mcp:outpostApiRequest"
     }
   ]
 }

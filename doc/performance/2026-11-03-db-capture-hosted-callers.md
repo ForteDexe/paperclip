@@ -77,5 +77,5 @@ node packages/db/src/__tests__/response-capture-overhead.mjs 09162fe893b464dd2cc
 The helper reads the pinned baseline with `git show` into an esbuild loader.
 It does not retain a cloned implementation or change production files. It
 removes its temporary bundles in `finally`. No source maps, network services,
-SQL parameters or real company data are required. The PostgreSQL test needs
+SQL parameters or real space data are required. The PostgreSQL test needs
 local embedded PostgreSQL support. Preserve failures if that setup is unavailable.

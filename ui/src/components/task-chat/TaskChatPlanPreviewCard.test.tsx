@@ -17,7 +17,7 @@ vi.mock("@/lib/router", () => ({ Link: ({ to, children, disableIssueQuicklook: _
 function planDocument(overrides: Partial<IssueDocument> = {}): IssueDocument {
   return {
     id: "plan-document",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     key: "plan",
     title: "Plan",

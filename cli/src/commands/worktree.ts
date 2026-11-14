@@ -37,8 +37,8 @@ import {
   authAccounts,
   authUsers,
   assets,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   documentRevisions,
   documents,
@@ -69,9 +69,9 @@ import {
 import type { Command } from "commander";
 import { ensureAgentJwtSecret, ensureToolActionSigningSecret, loadOutpostEnvFile, mergeOutpostEnvEntries, readOutpostEnvEntries, resolveOutpostEnvFile } from "../config/env.js";
 import { expandHomePrefix } from "../config/home.js";
-import type { PaperclipConfig } from "../config/schema.js";
+import type { OutpostConfig } from "../config/schema.js";
 import { readConfig, resolveConfigPath, writeConfig } from "../config/store.js";
-import { printPaperclipCliBanner } from "../utils/banner.js";
+import { printOutpostCliBanner } from "../utils/banner.js";
 import { resolveRuntimeLikePath } from "../utils/path-resolver.js";
 import {
   buildWorktreeConfig,
@@ -140,7 +140,7 @@ type WorktreeListOptions = {
 type WorktreeMergeHistoryOptions = {
   from?: string;
   to?: string;
-  company?: string;
+  space?: string;
   scope?: string;
   apply?: boolean;
   dry?: boolean;
@@ -180,7 +180,7 @@ type WorktreeEnsureSeededOptions = {
   preserveLiveWork?: boolean;
   registeredBaseWorkspaceCwd?: string;
   registeredProjectWorkspaceId?: string;
-  expectedCompanyId?: string;
+  expectedSpaceId?: string;
 };
 
 type EmbeddedPostgresInstance = {
@@ -189,7 +189,7 @@ type EmbeddedPostgresInstance = {
   stop(): Promise<void>;
 };
 
-type EmbeddedPostgresCtor = new (opts: {
+type EmbeddedPostgresEngineeringLeadr = new (opts: {
   databaseDir: string;
   user: string;
   password: string;
@@ -231,9 +231,9 @@ export type WorktreeSeedValidationSummary = {
   credentialAccountCount: number;
   instanceAdminCount: number;
   activeMembershipCount: number;
-  companyCount: number;
+  spaceCount: number;
   issueCount: number;
-  representativeCompanyId: string;
+  representativeSpaceId: string;
   representativeIssueId: string;
   migrationRevision: string;
 };
@@ -294,7 +294,7 @@ function formatSeededWorktreeExecutionQuarantineSummary(
   ].join(", ");
 }
 
-const WORKTREE_NAME_PREFIX = "paperclip-";
+const WORKTREE_NAME_PREFIX = "outpost-";
 
 function resolveWorktreeMakeName(name: string): string {
   const value = nonEmpty(name);
@@ -318,13 +318,13 @@ function resolveWorktreeStartPoint(explicit?: string): string | undefined {
 }
 
 type ConfiguredStorage = {
-  getObject(companyId: string, objectKey: string): Promise<Buffer>;
-  putObject(companyId: string, objectKey: string, body: Buffer, contentType: string): Promise<void>;
+  getObject(spaceId: string, objectKey: string): Promise<Buffer>;
+  putObject(spaceId: string, objectKey: string, body: Buffer, contentType: string): Promise<void>;
 };
 
-function assertStorageCompanyPrefix(companyId: string, objectKey: string): void {
-  if (!objectKey.startsWith(`${companyId}/`) || objectKey.includes("..")) {
-    throw new Error(`Invalid object key for company ${companyId}.`);
+function assertStorageSpacePrefix(spaceId: string, objectKey: string): void {
+  if (!objectKey.startsWith(`${spaceId}/`) || objectKey.includes("..")) {
+    throw new Error(`Invalid object key for space ${spaceId}.`);
   }
 }
 
@@ -393,16 +393,16 @@ function buildS3ObjectKey(prefix: string, objectKey: string): string {
 
 const dynamicImport = new Function("specifier", "return import(specifier);") as (specifier: string) => Promise<any>;
 
-function createConfiguredStorageFromPaperclipConfig(config: PaperclipConfig): ConfiguredStorage {
+function createConfiguredStorageFromOutpostConfig(config: OutpostConfig): ConfiguredStorage {
   if (config.storage.provider === "local_disk") {
     const baseDir = expandHomePrefix(config.storage.localDisk.baseDir);
     return {
-      async getObject(companyId: string, objectKey: string) {
-        assertStorageCompanyPrefix(companyId, objectKey);
+      async getObject(spaceId: string, objectKey: string) {
+        assertStorageSpacePrefix(spaceId, objectKey);
         return await fsPromises.readFile(resolveLocalStoragePath(baseDir, objectKey));
       },
-      async putObject(companyId: string, objectKey: string, body: Buffer) {
-        assertStorageCompanyPrefix(companyId, objectKey);
+      async putObject(spaceId: string, objectKey: string, body: Buffer) {
+        assertStorageSpacePrefix(spaceId, objectKey);
         const filePath = resolveLocalStoragePath(baseDir, objectKey);
         await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
         await fsPromises.writeFile(filePath, body);
@@ -430,8 +430,8 @@ function createConfiguredStorageFromPaperclipConfig(config: PaperclipConfig): Co
   }
   const bucket = config.storage.s3.bucket;
   return {
-    async getObject(companyId: string, objectKey: string) {
-      assertStorageCompanyPrefix(companyId, objectKey);
+    async getObject(spaceId: string, objectKey: string) {
+      assertStorageSpacePrefix(spaceId, objectKey);
       const { sdk, client } = await getS3Client();
       const response = await client.send(
         new sdk.GetObjectCommand({
@@ -441,8 +441,8 @@ function createConfiguredStorageFromPaperclipConfig(config: PaperclipConfig): Co
       );
       return await s3BodyToBuffer(response.Body);
     },
-    async putObject(companyId: string, objectKey: string, body: Buffer, contentType: string) {
-      assertStorageCompanyPrefix(companyId, objectKey);
+    async putObject(spaceId: string, objectKey: string, body: Buffer, contentType: string) {
+      assertStorageSpacePrefix(spaceId, objectKey);
       const { sdk, client } = await getS3Client();
       await client.send(
         new sdk.PutObjectCommand({
@@ -462,7 +462,7 @@ function openConfiguredStorage(configPath: string): ConfiguredStorage {
   if (!config) {
     throw new Error(`Config not found at ${configPath}.`);
   }
-  return createConfiguredStorageFromPaperclipConfig(config);
+  return createConfiguredStorageFromOutpostConfig(config);
 }
 
 async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
@@ -485,12 +485,12 @@ export function isMissingStorageObjectError(error: unknown): boolean {
 
 export async function readSourceAttachmentBody(
   sourceStorages: Array<Pick<ConfiguredStorage, "getObject">>,
-  companyId: string,
+  spaceId: string,
   objectKey: string,
 ): Promise<Buffer | null> {
   for (const sourceStorage of sourceStorages) {
     try {
-      return await sourceStorage.getObject(companyId, objectKey);
+      return await sourceStorage.getObject(spaceId, objectKey);
     } catch (error) {
       if (isMissingStorageObjectError(error)) {
         continue;
@@ -590,11 +590,11 @@ async function findAvailablePort(preferredPort: number, reserved = new Set<numbe
 
 function resolveRepoManagedWorktreesRoot(cwd: string): string | null {
   const normalized = path.resolve(cwd);
-  const marker = `${path.sep}.paperclip${path.sep}worktrees${path.sep}`;
+  const marker = `${path.sep}.outpost${path.sep}worktrees${path.sep}`;
   const index = normalized.indexOf(marker);
   if (index === -1) return null;
   const repoRoot = normalized.slice(0, index);
-  return path.resolve(repoRoot, ".paperclip", "worktrees");
+  return path.resolve(repoRoot, ".outpost", "worktrees");
 }
 
 function collectClaimedWorktreePorts(
@@ -611,7 +611,7 @@ function collectClaimedWorktreePorts(
   const configPaths = new Set<string>();
   for (const configPath of registeredConfigPaths) {
     const resolvedConfigPath = path.resolve(configPath);
-    if (resolvedConfigPath !== path.resolve(cwd, ".paperclip", "config.json") && existsSync(resolvedConfigPath)) {
+    if (resolvedConfigPath !== path.resolve(cwd, ".outpost", "config.json") && existsSync(resolvedConfigPath)) {
       configPaths.add(resolvedConfigPath);
     }
   }
@@ -631,7 +631,7 @@ function collectClaimedWorktreePorts(
   if (repoManagedWorktreesRoot && existsSync(repoManagedWorktreesRoot)) {
     for (const entry of readdirSync(repoManagedWorktreesRoot, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      const configPath = path.resolve(repoManagedWorktreesRoot, entry.name, ".paperclip", "config.json");
+      const configPath = path.resolve(repoManagedWorktreesRoot, entry.name, ".outpost", "config.json");
       if (existsSync(configPath)) {
         configPaths.add(configPath);
       }
@@ -860,7 +860,7 @@ export function resolveSourceConfigPath(opts: WorktreeInitOptions): string {
   if (!opts.fromDataDir && !opts.fromInstance) {
     return resolveConfigPath();
   }
-  const sourceHome = path.resolve(expandHomePrefix(opts.fromDataDir ?? "~/.paperclip"));
+  const sourceHome = path.resolve(expandHomePrefix(opts.fromDataDir ?? "~/.outpost"));
   const sourceInstanceId = sanitizeWorktreeInstanceId(opts.fromInstance ?? "default");
   return path.resolve(sourceHome, "instances", sourceInstanceId, "config.json");
 }
@@ -949,7 +949,7 @@ function resolveExistingGitWorktree(selector: string, cwd: string): MergeSourceC
       worktree: directPath,
       branch: null,
       branchLabel: path.basename(directPath),
-      hasPaperclipConfig: existsSync(path.resolve(directPath, ".paperclip", "config.json")),
+      hasOutpostConfig: existsSync(path.resolve(directPath, ".outpost", "config.json")),
       isCurrent: directPath === path.resolve(cwd),
     };
   }
@@ -969,7 +969,7 @@ async function ensureRepairTargetWorktree(input: {
 }): Promise<ResolvedWorktreeRepairTarget | null> {
   const cwd = process.cwd();
   const currentRoot = path.resolve(cwd);
-  const currentConfigPath = path.resolve(currentRoot, ".paperclip", "config.json");
+  const currentConfigPath = path.resolve(currentRoot, ".outpost", "config.json");
 
   if (!input.selector) {
     if (isPrimaryGitWorktree(cwd)) {
@@ -988,7 +988,7 @@ async function ensureRepairTargetWorktree(input: {
   if (existing) {
     return {
       rootPath: existing.worktree,
-      configPath: path.resolve(existing.worktree, ".paperclip", "config.json"),
+      configPath: path.resolve(existing.worktree, ".outpost", "config.json"),
       label: existing.branchLabel,
       branchName: existing.branchLabel === "(detached)" ? null : existing.branchLabel,
       created: false,
@@ -999,7 +999,7 @@ async function ensureRepairTargetWorktree(input: {
   const branchName = validateGitBranchName(repoRoot, input.selector);
   const targetPath = path.resolve(
     repoRoot,
-    ".paperclip",
+    ".outpost",
     "worktrees",
     resolveRepairWorktreeDirName(branchName),
   );
@@ -1031,14 +1031,14 @@ async function ensureRepairTargetWorktree(input: {
 
   return {
     rootPath: targetPath,
-    configPath: path.resolve(targetPath, ".paperclip", "config.json"),
+    configPath: path.resolve(targetPath, ".outpost", "config.json"),
     label: branchName,
     branchName,
     created: true,
   };
 }
 
-function resolveSourceConnectionString(config: PaperclipConfig, envEntries: Record<string, string>, portOverride?: number): string {
+function resolveSourceConnectionString(config: OutpostConfig, envEntries: Record<string, string>, portOverride?: number): string {
   if (config.database.mode === "postgres") {
     const connectionString = nonEmpty(envEntries.DATABASE_URL) ?? nonEmpty(config.database.connectionString);
     if (!connectionString) {
@@ -1050,12 +1050,12 @@ function resolveSourceConnectionString(config: PaperclipConfig, envEntries: Reco
   }
 
   const port = portOverride ?? config.database.embeddedPostgresPort;
-  return `postgres://paperclip:paperclip@127.0.0.1:${port}/paperclip`;
+  return `postgres://outpost:outpost@127.0.0.1:${port}/outpost`;
 }
 
 export function copySeededSecretsKey(input: {
   sourceConfigPath: string;
-  sourceConfig: PaperclipConfig;
+  sourceConfig: OutpostConfig;
   sourceEnvEntries: Record<string, string>;
   targetKeyFilePath: string;
 }): void {
@@ -1108,10 +1108,10 @@ export async function ensureEmbeddedPostgres(
   options: { allowExisting?: boolean } = {},
 ): Promise<EmbeddedPostgresHandle> {
   const moduleName = "embedded-postgres";
-  let EmbeddedPostgres: EmbeddedPostgresCtor;
+  let EmbeddedPostgres: EmbeddedPostgresEngineeringLeadr;
   try {
     const mod = await loadWithoutEmbeddedPostgresExitHooks(() => import(moduleName));
-    EmbeddedPostgres = mod.default as EmbeddedPostgresCtor;
+    EmbeddedPostgres = mod.default as EmbeddedPostgresEngineeringLeadr;
   } catch {
     throw new Error(
       "Embedded PostgreSQL support requires dependency `embedded-postgres`. Reinstall dependencies and try again.",
@@ -1139,8 +1139,8 @@ export async function ensureEmbeddedPostgres(
   const logBuffer = createEmbeddedPostgresLogBuffer();
   const instance = new EmbeddedPostgres({
     databaseDir: dataDir,
-    user: "paperclip",
-    password: "paperclip",
+    user: "outpost",
+    password: "outpost",
     port,
     persistent: true,
     initdbFlags: ["--encoding=UTF8", "--locale=C", "--lc-messages=C"],
@@ -1319,7 +1319,7 @@ export async function quarantineSeededWorktreeExecutionState(
       const affectedIssues = await tx
         .select({
           id: issues.id,
-          companyId: issues.companyId,
+          spaceId: issues.spaceId,
           status: issues.status,
         })
         .from(issues)
@@ -1350,7 +1350,7 @@ export async function quarantineSeededWorktreeExecutionState(
         if (issue.status === "in_progress") {
           summary.quarantinedInProgressIssues += 1;
           await tx.insert(issueComments).values({
-            companyId: issue.companyId,
+            spaceId: issue.spaceId,
             issueId: issue.id,
             body:
               "Quarantined during worktree seed so copied in-flight work does not auto-run in this isolated instance. " +
@@ -1416,12 +1416,12 @@ export async function quarantineSeededWorktreeExecutionState(
 
 type WorktreeSeedValidationExpectation = {
   adminUserId: string;
-  representativeCompanyId: string;
+  representativeSpaceId: string;
   representativeIssueId: string;
 };
 
 export function requiresWorktreeSeedCredentialAccount(
-  deploymentMode: PaperclipConfig["server"]["deploymentMode"],
+  deploymentMode: OutpostConfig["server"]["deploymentMode"],
 ): boolean {
   return deploymentMode === "authenticated";
 }
@@ -1458,7 +1458,7 @@ export function resolveWorktreeSeedMigrationRevision(
 /**
  * Markerless worktrees predate the versioned seed manifest. Adopt one only
  * after proving that its configured database already has a compatible
- * migration journal and the core Paperclip tables. The physical PG_VERSION
+ * migration journal and the core Outpost tables. The physical PG_VERSION
  * check prevents this read-only probe from initializing a missing embedded
  * database and then mistaking that empty cluster for legacy evidence.
  */
@@ -1486,7 +1486,7 @@ export async function inspectLegacyWorktreeDatabase(
     db = createDb(connectionString);
     await Promise.all([
       db.select({ id: authUsers.id }).from(authUsers).limit(1),
-      db.select({ id: companies.id }).from(companies).limit(1),
+      db.select({ id: spaces.id }).from(spaces).limit(1),
       db.select({ id: issues.id }).from(issues).limit(1),
     ]);
     return { migrationRevision };
@@ -1503,17 +1503,17 @@ export async function inspectLegacyWorktreeDatabase(
 async function inspectVerifiedSeedDatabase(
   connectionString: string,
   options: {
-    deploymentMode: PaperclipConfig["server"]["deploymentMode"];
+    deploymentMode: OutpostConfig["server"]["deploymentMode"];
     expected?: WorktreeSeedValidationExpectation;
     migrationRequirement?: "sourcePrefix" | "upToDate";
-    requiredCompanyId?: string;
+    requiredSpaceId?: string;
   },
 ): Promise<{ summary: WorktreeSeedValidationSummary; expectation: WorktreeSeedValidationExpectation }> {
   const {
     deploymentMode,
     expected,
     migrationRequirement = "upToDate",
-    requiredCompanyId,
+    requiredSpaceId,
   } = options;
   const requiresCredentialAccount = requiresWorktreeSeedCredentialAccount(deploymentMode);
   const migrationState = await inspectMigrations(connectionString);
@@ -1529,8 +1529,8 @@ async function inspectVerifiedSeedDatabase(
         authUserCount: sql<number>`count(distinct ${authUsers.id})::int`,
         credentialAccountCount: sql<number>`count(distinct ${authAccounts.id})::int`,
         instanceAdminCount: sql<number>`count(distinct ${instanceUserRoles.userId})::int`,
-        activeMembershipCount: sql<number>`count(distinct ${companyMemberships.id})::int`,
-        companyCount: sql<number>`count(distinct ${companies.id})::int`,
+        activeMembershipCount: sql<number>`count(distinct ${spaceMemberships.id})::int`,
+        spaceCount: sql<number>`count(distinct ${spaces.id})::int`,
         issueCount: sql<number>`count(distinct ${issues.id})::int`,
       })
       .from(authUsers)
@@ -1540,15 +1540,15 @@ async function inspectVerifiedSeedDatabase(
         and(eq(instanceUserRoles.userId, authUsers.id), eq(instanceUserRoles.role, "instance_admin")),
       )
       .leftJoin(
-        companyMemberships,
+        spaceMemberships,
         and(
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, authUsers.id),
-          eq(companyMemberships.status, "active"),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, authUsers.id),
+          eq(spaceMemberships.status, "active"),
         ),
       )
-      .leftJoin(companies, eq(companies.id, companyMemberships.companyId))
-      .leftJoin(issues, eq(issues.companyId, companies.id));
+      .leftJoin(spaces, eq(spaces.id, spaceMemberships.spaceId))
+      .leftJoin(issues, eq(issues.spaceId, spaces.id));
 
     const admin = await db
       .select({ userId: authUsers.id })
@@ -1562,16 +1562,16 @@ async function inspectVerifiedSeedDatabase(
         eq(authAccounts.userId, authUsers.id),
       )
       .innerJoin(
-        companyMemberships,
+        spaceMemberships,
         and(
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, authUsers.id),
-          eq(companyMemberships.status, "active"),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, authUsers.id),
+          eq(spaceMemberships.status, "active"),
         ),
       )
       .where(and(
         expected ? eq(authUsers.id, expected.adminUserId) : undefined,
-        requiredCompanyId ? eq(companyMemberships.companyId, requiredCompanyId) : undefined,
+        requiredSpaceId ? eq(spaceMemberships.spaceId, requiredSpaceId) : undefined,
         requiresCredentialAccount
           ? and(
               sql`length(trim(${authAccounts.providerId})) > 0`,
@@ -1584,26 +1584,26 @@ async function inspectVerifiedSeedDatabase(
     if (!admin) {
       throw new Error(
         requiresCredentialAccount
-          ? "No auth user has a non-empty credential account, instance-admin role, and active company membership. Authenticated worktree seeding requires a credential-backed instance administrator."
-          : "No auth user has an instance-admin role and active company membership for local-trusted worktree seeding.",
+          ? "No auth user has a non-empty credential account, instance-admin role, and active space membership. Authenticated worktree seeding requires a credential-backed instance administrator."
+          : "No auth user has an instance-admin role and active space membership for local-trusted worktree seeding.",
       );
     }
 
     const representative = await db
-      .select({ companyId: companies.id, issueId: issues.id })
-      .from(companies)
-      .innerJoin(issues, eq(issues.companyId, companies.id))
+      .select({ spaceId: spaces.id, issueId: issues.id })
+      .from(spaces)
+      .innerJoin(issues, eq(issues.spaceId, spaces.id))
       .where(
         and(
-          expected ? eq(companies.id, expected.representativeCompanyId) : undefined,
+          expected ? eq(spaces.id, expected.representativeSpaceId) : undefined,
           expected ? eq(issues.id, expected.representativeIssueId) : undefined,
-          requiredCompanyId ? eq(companies.id, requiredCompanyId) : undefined,
+          requiredSpaceId ? eq(spaces.id, requiredSpaceId) : undefined,
         ),
       )
       .limit(1)
       .then((rows) => rows[0] ?? null);
     if (!representative) {
-      throw new Error("No representative cloned company and issue pair is readable.");
+      throw new Error("No representative cloned space and issue pair is readable.");
     }
 
     const summary: WorktreeSeedValidationSummary = {
@@ -1611,9 +1611,9 @@ async function inspectVerifiedSeedDatabase(
       credentialAccountCount: counts?.credentialAccountCount ?? 0,
       instanceAdminCount: counts?.instanceAdminCount ?? 0,
       activeMembershipCount: counts?.activeMembershipCount ?? 0,
-      companyCount: counts?.companyCount ?? 0,
+      spaceCount: counts?.spaceCount ?? 0,
       issueCount: counts?.issueCount ?? 0,
-      representativeCompanyId: representative.companyId,
+      representativeSpaceId: representative.spaceId,
       representativeIssueId: representative.issueId,
       migrationRevision,
     };
@@ -1622,17 +1622,17 @@ async function inspectVerifiedSeedDatabase(
       || (requiresCredentialAccount && summary.credentialAccountCount < 1)
       || summary.instanceAdminCount < 1
       || summary.activeMembershipCount < 1
-      || summary.companyCount < 1
+      || summary.spaceCount < 1
       || summary.issueCount < 1
     ) {
-      throw new Error("Seed validation found an incomplete auth, membership, company, or issue shape.");
+      throw new Error("Seed validation found an incomplete auth, membership, space, or issue shape.");
     }
 
     return {
       summary,
       expectation: {
         adminUserId: admin.userId,
-        representativeCompanyId: representative.companyId,
+        representativeSpaceId: representative.spaceId,
         representativeIssueId: representative.issueId,
       },
     };
@@ -1643,13 +1643,13 @@ async function inspectVerifiedSeedDatabase(
 
 async function seedWorktreeDatabase(input: {
   sourceConfigPath: string;
-  sourceConfig: PaperclipConfig;
-  targetConfig: PaperclipConfig;
+  sourceConfig: OutpostConfig;
+  targetConfig: OutpostConfig;
   targetPaths: WorktreeLocalPaths;
   instanceId: string;
   seedMode: WorktreeSeedMode;
   preserveLiveWork?: boolean;
-  expectedCompanyId?: string;
+  expectedSpaceId?: string;
   onPhase?: (phase: WorktreeSeedPhase, status: "started" | "succeeded", message?: string) => void;
 }): Promise<SeedWorktreeDatabaseResult> {
   const seedPlan = resolveWorktreeSeedPlan(input.seedMode);
@@ -1664,8 +1664,8 @@ async function seedWorktreeDatabase(input: {
         input.sourceConfig.database.embeddedPostgresDataDir,
         input.sourceConfig.database.embeddedPostgresPort,
       );
-      const sourceAdminConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${sourceHandle.port}/postgres`;
-      await ensurePostgresDatabase(sourceAdminConnectionString, "paperclip");
+      const sourceAdminConnectionString = `postgres://outpost:outpost@127.0.0.1:${sourceHandle.port}/postgres`;
+      await ensurePostgresDatabase(sourceAdminConnectionString, "outpost");
     }
     const sourceConnectionString = resolveSourceConnectionString(
       input.sourceConfig,
@@ -1678,13 +1678,13 @@ async function seedWorktreeDatabase(input: {
       {
         deploymentMode: input.sourceConfig.server.deploymentMode,
         migrationRequirement: "sourcePrefix",
-        requiredCompanyId: input.expectedCompanyId,
+        requiredSpaceId: input.expectedSpaceId,
       },
     );
     input.onPhase?.(
       "source_validation",
       "succeeded",
-      `Validated migration ${sourceValidation.summary.migrationRevision}, ${sourceValidation.summary.companyCount} company record(s), and ${sourceValidation.summary.issueCount} issue record(s).`,
+      `Validated migration ${sourceValidation.summary.migrationRevision}, ${sourceValidation.summary.spaceCount} space record(s), and ${sourceValidation.summary.issueCount} issue record(s).`,
     );
     copySeededSecretsKey({
       sourceConfigPath: input.sourceConfigPath,
@@ -1714,9 +1714,9 @@ async function seedWorktreeDatabase(input: {
       { allowExisting: false },
     );
 
-    const adminConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${targetHandle.port}/postgres`;
-    await resetPostgresDatabase(adminConnectionString, "paperclip");
-    const targetConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${targetHandle.port}/paperclip`;
+    const adminConnectionString = `postgres://outpost:outpost@127.0.0.1:${targetHandle.port}/postgres`;
+    await resetPostgresDatabase(adminConnectionString, "outpost");
+    const targetConnectionString = `postgres://outpost:outpost@127.0.0.1:${targetHandle.port}/outpost`;
     await runDatabaseRestore({
       connectionString: targetConnectionString,
       backupFile: backup.backupFile,
@@ -1797,11 +1797,11 @@ export function formatWorktreeSeedFailureDiagnostic(
     return "Target embedded PostgreSQL is owned by a running worktree service. Stop that service and retry the seed.";
   }
   if (
-    /No auth user has a non-empty credential account, instance-admin role, and active company membership/i.test(
+    /No auth user has a non-empty credential account, instance-admin role, and active space membership/i.test(
       message,
     )
   ) {
-    return "Seed validation could not find a credential-backed instance administrator with an active company membership. Authenticated instances must create or sign in an administrator before seeding.";
+    return "Seed validation could not find a credential-backed instance administrator with an active space membership. Authenticated instances must create or sign in an administrator before seeding.";
   }
   return `Seed failed during ${phase}.`;
 }
@@ -2128,13 +2128,13 @@ function startWorktreeSeedAttempt(configPath: string, now = new Date()): Worktre
 async function runVerifiedWorktreeSeed(input: {
   configPath: string;
   sourceConfigPath: string;
-  sourceConfig: PaperclipConfig;
-  targetConfig: PaperclipConfig;
+  sourceConfig: OutpostConfig;
+  targetConfig: OutpostConfig;
   targetPaths: WorktreeLocalPaths;
   instanceId: string;
   seedMode: WorktreeSeedMode;
   preserveLiveWork?: boolean;
-  expectedCompanyId?: string;
+  expectedSpaceId?: string;
   seedDatabase: SeedWorktreeDatabase;
 }): Promise<SeedWorktreeDatabaseResult> {
   let activePhase: WorktreeSeedPhase = "pending";
@@ -2169,7 +2169,7 @@ async function runVerifiedWorktreeSeed(input: {
       instanceId: input.instanceId,
       seedMode: input.seedMode,
       preserveLiveWork: input.preserveLiveWork,
-      expectedCompanyId: input.expectedCompanyId,
+      expectedSpaceId: input.expectedSpaceId,
       onPhase: (phase, status, message) => {
         activePhase = phase;
         updateWorktreeSeedManifest({
@@ -2195,7 +2195,7 @@ async function runVerifiedWorktreeSeed(input: {
       snapshotAt: details.snapshotAt,
       migrationRevision: details.migrationRevision,
       message:
-        `Verified ${details.validation.companyCount} company record(s), `
+        `Verified ${details.validation.spaceCount} space record(s), `
         + `${details.validation.issueCount} issue record(s), auth, admin, membership, and migration state.`,
     });
     return details;
@@ -2258,13 +2258,13 @@ export async function ensureWorktreeSeeded(
   const registeredProjectWorkspaceId = opts.registeredProjectWorkspaceId
     ?? nonEmpty(process.env.OUTPOST_PROJECT_WORKSPACE_ID)
     ?? null;
-  const expectedCompanyId = opts.expectedCompanyId
-    ?? nonEmpty(process.env.OUTPOST_SEED_EXPECTED_COMPANY_ID)
-    ?? nonEmpty(process.env.OUTPOST_COMPANY_ID)
+  const expectedSpaceId = opts.expectedSpaceId
+    ?? nonEmpty(process.env.OUTPOST_SEED_EXPECTED_SPACE_ID)
+    ?? nonEmpty(process.env.OUTPOST_SPACE_ID)
     ?? undefined;
-  if (!explicitSourceConfigPath && registeredBaseWorkspaceCwd && (!registeredProjectWorkspaceId || !expectedCompanyId)) {
+  if (!explicitSourceConfigPath && registeredBaseWorkspaceCwd && (!registeredProjectWorkspaceId || !expectedSpaceId)) {
     throw new Error(
-      "Managed worktree seed registration is incomplete; project workspace and company bindings are required.",
+      "Managed worktree seed registration is incomplete; project workspace and space bindings are required.",
     );
   }
 
@@ -2391,7 +2391,7 @@ export async function ensureWorktreeSeeded(
       instanceId: targetPaths.instanceId,
       seedMode: manifest.seedMode,
       preserveLiveWork: opts.preserveLiveWork,
-      expectedCompanyId,
+      expectedSpaceId,
       seedDatabase,
     });
     return { seeded: true, reason: "seeded", details };
@@ -2438,7 +2438,7 @@ async function runWorktreeInit(opts: WorktreeInitOptions): Promise<void> {
   if (opts.force) {
     // Only remove the specific files we're about to rewrite, not the whole
     // repoConfigDir — that directory can contain sibling state such as
-    // <repo>/.paperclip/worktrees/ holding every repo-managed worktree
+    // <repo>/.outpost/worktrees/ holding every repo-managed worktree
     // checkout, and a recursive rmSync here would nuke them all.
     rmSync(paths.configPath, { force: true });
     rmSync(paths.envPath, { force: true });
@@ -2603,14 +2603,14 @@ async function runWorktreeInit(opts: WorktreeInitOptions): Promise<void> {
 }
 
 export async function worktreeInitCommand(opts: WorktreeInitOptions): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclipai worktree init ")));
+  printOutpostCliBanner();
+  p.intro(pc.bgCyan(pc.black(" outpost worktree init ")));
   await runWorktreeInit(opts);
 }
 
 export async function worktreeEnsureSeededCommand(opts: WorktreeEnsureSeededOptions): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclipai worktree ensure-seeded ")));
+  printOutpostCliBanner();
+  p.intro(pc.bgCyan(pc.black(" outpost worktree ensure-seeded ")));
 
   const spinner = p.spinner();
   spinner.start("Checking isolated worktree database seed state...");
@@ -2647,8 +2647,8 @@ export async function worktreeEnsureSeededCommand(opts: WorktreeEnsureSeededOpti
 }
 
 export async function worktreeMakeCommand(nameArg: string, opts: WorktreeMakeOptions): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclipai worktree:make ")));
+  printOutpostCliBanner();
+  p.intro(pc.bgCyan(pc.black(" outpost worktree:make ")));
 
   const name = resolveWorktreeMakeName(nameArg);
   const startPoint = resolveWorktreeStartPoint(opts.startPoint);
@@ -2763,7 +2763,7 @@ type MergeSourceChoice = {
   worktree: string;
   branch: string | null;
   branchLabel: string;
-  hasPaperclipConfig: boolean;
+  hasOutpostConfig: boolean;
   isCurrent: boolean;
 };
 
@@ -2834,7 +2834,7 @@ function toMergeSourceChoices(cwd: string): MergeSourceChoice[] {
       worktree: worktreePath,
       branch: entry.branch,
       branchLabel,
-      hasPaperclipConfig: existsSync(path.resolve(worktreePath, ".paperclip", "config.json")),
+      hasOutpostConfig: existsSync(path.resolve(worktreePath, ".outpost", "config.json")),
       isCurrent: worktreePath === currentCwd,
     };
   });
@@ -2880,8 +2880,8 @@ function worktreePathHasUncommittedChanges(worktreePath: string): boolean {
 }
 
 export async function worktreeCleanupCommand(nameArg: string, opts: WorktreeCleanupOptions): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclipai worktree:cleanup ")));
+  printOutpostCliBanner();
+  p.intro(pc.bgCyan(pc.black(" outpost worktree:cleanup ")));
 
   const name = resolveWorktreeMakeName(nameArg);
   const sourceCwd = process.cwd();
@@ -3044,7 +3044,7 @@ type OpenDbHandle = {
   stop: () => Promise<void>;
 };
 
-type ResolvedMergeCompany = {
+type ResolvedMergeSpace = {
   id: string;
   name: string;
   issuePrefix: string;
@@ -3057,7 +3057,7 @@ async function closeDb(db: ClosableDb): Promise<void> {
 export function resolveCurrentWorktreeEndpoint(): ResolvedWorktreeEndpoint {
   const cwd = path.resolve(process.cwd());
   const rootPath = detectGitWorkspaceInfo(cwd)?.root ?? cwd;
-  const localConfigPath = path.join(rootPath, ".paperclip", "config.json");
+  const localConfigPath = path.join(rootPath, ".outpost", "config.json");
   return {
     rootPath,
     configPath: existsSync(localConfigPath) ? localConfigPath : resolveConfigPath(),
@@ -3075,8 +3075,8 @@ function resolveAttachmentLookupStorages(input: {
     resolveCurrentWorktreeEndpoint().configPath,
     input.targetEndpoint.configPath,
     ...toMergeSourceChoices(process.cwd())
-      .filter((choice) => choice.hasPaperclipConfig)
-      .map((choice) => path.resolve(choice.worktree, ".paperclip", "config.json")),
+      .filter((choice) => choice.hasOutpostConfig)
+      .map((choice) => path.resolve(choice.worktree, ".outpost", "config.json")),
   ];
   const seen = new Set<string>();
   const storages: ConfiguredStorage[] = [];
@@ -3133,37 +3133,37 @@ async function openConfiguredDb(configPath: string): Promise<OpenDbHandle> {
   }
 }
 
-async function resolveMergeCompany(input: {
+async function resolveMergeSpace(input: {
   sourceDb: ClosableDb;
   targetDb: ClosableDb;
   selector?: string;
-}): Promise<ResolvedMergeCompany> {
-  const [sourceCompanies, targetCompanies] = await Promise.all([
+}): Promise<ResolvedMergeSpace> {
+  const [sourceSpaces, targetSpaces] = await Promise.all([
     input.sourceDb
       .select({
-        id: companies.id,
-        name: companies.name,
-        issuePrefix: companies.issuePrefix,
+        id: spaces.id,
+        name: spaces.name,
+        issuePrefix: spaces.issuePrefix,
       })
-      .from(companies),
+      .from(spaces),
     input.targetDb
       .select({
-        id: companies.id,
-        name: companies.name,
-        issuePrefix: companies.issuePrefix,
+        id: spaces.id,
+        name: spaces.name,
+        issuePrefix: spaces.issuePrefix,
       })
-      .from(companies),
+      .from(spaces),
   ]);
 
-  const targetById = new Map(targetCompanies.map((company) => [company.id, company]));
-  const shared = sourceCompanies.filter((company) => targetById.has(company.id));
+  const targetById = new Map(targetSpaces.map((space) => [space.id, space]));
+  const shared = sourceSpaces.filter((space) => targetById.has(space.id));
   const selector = nonEmpty(input.selector);
   if (selector) {
     const matched = shared.find(
-      (company) => company.id === selector || company.issuePrefix.toLowerCase() === selector.toLowerCase(),
+      (space) => space.id === selector || space.issuePrefix.toLowerCase() === selector.toLowerCase(),
     );
     if (!matched) {
-      throw new Error(`Could not resolve company "${selector}" in both source and target databases.`);
+      throw new Error(`Could not resolve space "${selector}" in both source and target databases.`);
     }
     return matched;
   }
@@ -3173,13 +3173,13 @@ async function resolveMergeCompany(input: {
   }
 
   if (shared.length === 0) {
-    throw new Error("Source and target databases do not share a company id. Pass --company explicitly once both sides match.");
+    throw new Error("Source and target databases do not share a space id. Pass --space explicitly once both sides match.");
   }
 
   const options = shared
-    .map((company) => `${company.issuePrefix} (${company.name})`)
+    .map((space) => `${space.issuePrefix} (${space.name})`)
     .join(", ");
-  throw new Error(`Multiple shared companies found. Re-run with --company <id-or-prefix>. Options: ${options}`);
+  throw new Error(`Multiple shared spaces found. Re-run with --space <id-or-prefix>. Options: ${options}`);
 }
 
 function renderMergePlan(plan: Awaited<ReturnType<typeof collectMergePlan>>["plan"], extras: {
@@ -3198,7 +3198,7 @@ function renderMergePlan(plan: Awaited<ReturnType<typeof collectMergePlan>>["pla
     `Mode: preview`,
     `Source: ${extras.sourcePath}`,
     `Target: ${extras.targetPath}`,
-    `Outpost: ${plan.companyName} (${plan.issuePrefix})`,
+    `Outpost: ${plan.spaceName} (${plan.issuePrefix})`,
     "",
     "Projects",
     `- import: ${plan.counts.projectsToImport}`,
@@ -3283,7 +3283,7 @@ function renderMergePlan(plan: Awaited<ReturnType<typeof collectMergePlan>>["pla
   return lines.join("\n");
 }
 
-function resolveRunningEmbeddedPostgresPid(config: PaperclipConfig): number | null {
+function resolveRunningEmbeddedPostgresPid(config: OutpostConfig): number | null {
   if (config.database.mode !== "embedded-postgres") {
     return null;
   }
@@ -3293,14 +3293,14 @@ function resolveRunningEmbeddedPostgresPid(config: PaperclipConfig): number | nu
 async function collectMergePlan(input: {
   sourceDb: ClosableDb;
   targetDb: ClosableDb;
-  company: ResolvedMergeCompany;
+  space: ResolvedMergeSpace;
   scopes: ReturnType<typeof parseWorktreeMergeScopes>;
   importProjectIds?: Iterable<string>;
   projectIdOverrides?: Record<string, string | null | undefined>;
 }) {
-  const companyId = input.company.id;
+  const spaceId = input.space.id;
   const [
-    targetCompanyRow,
+    targetSpaceRow,
     sourceIssuesRows,
     targetIssuesRows,
     sourceCommentsRows,
@@ -3321,33 +3321,33 @@ async function collectMergePlan(input: {
   ] = await Promise.all([
     input.targetDb
       .select({
-        issueCounter: companies.issueCounter,
+        issueCounter: spaces.issueCounter,
       })
-      .from(companies)
-      .where(eq(companies.id, companyId))
+      .from(spaces)
+      .where(eq(spaces.id, spaceId))
       .then((rows) => rows[0] ?? null),
     input.sourceDb
       .select()
       .from(issues)
-      .where(eq(issues.companyId, companyId)),
+      .where(eq(issues.spaceId, spaceId)),
     input.targetDb
       .select()
       .from(issues)
-      .where(eq(issues.companyId, companyId)),
+      .where(eq(issues.spaceId, spaceId)),
     input.scopes.includes("comments")
       ? input.sourceDb
         .select()
         .from(issueComments)
-        .where(eq(issueComments.companyId, companyId))
+        .where(eq(issueComments.spaceId, spaceId))
       : Promise.resolve([]),
     input.targetDb
       .select()
       .from(issueComments)
-      .where(eq(issueComments.companyId, companyId)),
+      .where(eq(issueComments.spaceId, spaceId)),
     input.sourceDb
       .select({
         id: issueDocuments.id,
-        companyId: issueDocuments.companyId,
+        spaceId: issueDocuments.spaceId,
         issueId: issueDocuments.issueId,
         documentId: issueDocuments.documentId,
         key: issueDocuments.key,
@@ -3368,11 +3368,11 @@ async function collectMergePlan(input: {
       .from(issueDocuments)
       .innerJoin(documents, eq(issueDocuments.documentId, documents.id))
       .innerJoin(issues, eq(issueDocuments.issueId, issues.id))
-      .where(eq(issues.companyId, companyId)),
+      .where(eq(issues.spaceId, spaceId)),
     input.targetDb
       .select({
         id: issueDocuments.id,
-        companyId: issueDocuments.companyId,
+        spaceId: issueDocuments.spaceId,
         issueId: issueDocuments.issueId,
         documentId: issueDocuments.documentId,
         key: issueDocuments.key,
@@ -3393,11 +3393,11 @@ async function collectMergePlan(input: {
       .from(issueDocuments)
       .innerJoin(documents, eq(issueDocuments.documentId, documents.id))
       .innerJoin(issues, eq(issueDocuments.issueId, issues.id))
-      .where(eq(issues.companyId, companyId)),
+      .where(eq(issues.spaceId, spaceId)),
     input.sourceDb
       .select({
         id: documentRevisions.id,
-        companyId: documentRevisions.companyId,
+        spaceId: documentRevisions.spaceId,
         documentId: documentRevisions.documentId,
         revisionNumber: documentRevisions.revisionNumber,
         body: documentRevisions.body,
@@ -3409,11 +3409,11 @@ async function collectMergePlan(input: {
       .from(documentRevisions)
       .innerJoin(issueDocuments, eq(documentRevisions.documentId, issueDocuments.documentId))
       .innerJoin(issues, eq(issueDocuments.issueId, issues.id))
-      .where(eq(issues.companyId, companyId)),
+      .where(eq(issues.spaceId, spaceId)),
     input.targetDb
       .select({
         id: documentRevisions.id,
-        companyId: documentRevisions.companyId,
+        spaceId: documentRevisions.spaceId,
         documentId: documentRevisions.documentId,
         revisionNumber: documentRevisions.revisionNumber,
         body: documentRevisions.body,
@@ -3425,11 +3425,11 @@ async function collectMergePlan(input: {
       .from(documentRevisions)
       .innerJoin(issueDocuments, eq(documentRevisions.documentId, issueDocuments.documentId))
       .innerJoin(issues, eq(issueDocuments.issueId, issues.id))
-      .where(eq(issues.companyId, companyId)),
+      .where(eq(issues.spaceId, spaceId)),
     input.sourceDb
       .select({
         id: issueAttachments.id,
-        companyId: issueAttachments.companyId,
+        spaceId: issueAttachments.spaceId,
         issueId: issueAttachments.issueId,
         issueCommentId: issueAttachments.issueCommentId,
         assetId: issueAttachments.assetId,
@@ -3449,11 +3449,11 @@ async function collectMergePlan(input: {
       .from(issueAttachments)
       .innerJoin(assets, eq(issueAttachments.assetId, assets.id))
       .innerJoin(issues, eq(issueAttachments.issueId, issues.id))
-      .where(eq(issues.companyId, companyId)),
+      .where(eq(issues.spaceId, spaceId)),
     input.targetDb
       .select({
         id: issueAttachments.id,
-        companyId: issueAttachments.companyId,
+        spaceId: issueAttachments.spaceId,
         issueId: issueAttachments.issueId,
         issueCommentId: issueAttachments.issueCommentId,
         assetId: issueAttachments.assetId,
@@ -3473,46 +3473,46 @@ async function collectMergePlan(input: {
       .from(issueAttachments)
       .innerJoin(assets, eq(issueAttachments.assetId, assets.id))
       .innerJoin(issues, eq(issueAttachments.issueId, issues.id))
-      .where(eq(issues.companyId, companyId)),
+      .where(eq(issues.spaceId, spaceId)),
     input.sourceDb
       .select()
       .from(projects)
-      .where(eq(projects.companyId, companyId)),
+      .where(eq(projects.spaceId, spaceId)),
     input.sourceDb
       .select()
       .from(projectWorkspaces)
-      .where(eq(projectWorkspaces.companyId, companyId)),
+      .where(eq(projectWorkspaces.spaceId, spaceId)),
     input.targetDb
       .select()
       .from(projects)
-      .where(eq(projects.companyId, companyId)),
+      .where(eq(projects.spaceId, spaceId)),
     input.targetDb
       .select()
       .from(agents)
-      .where(eq(agents.companyId, companyId)),
+      .where(eq(agents.spaceId, spaceId)),
     input.targetDb
       .select()
       .from(projectWorkspaces)
-      .where(eq(projectWorkspaces.companyId, companyId)),
+      .where(eq(projectWorkspaces.spaceId, spaceId)),
     input.targetDb
       .select()
       .from(goals)
-      .where(eq(goals.companyId, companyId)),
+      .where(eq(goals.spaceId, spaceId)),
     input.sourceDb
       .select({ count: sql<number>`count(*)::int` })
       .from(heartbeatRuns)
-      .where(eq(heartbeatRuns.companyId, companyId)),
+      .where(eq(heartbeatRuns.spaceId, spaceId)),
   ]);
 
-  if (!targetCompanyRow) {
-    throw new Error(`Target company ${companyId} was not found.`);
+  if (!targetSpaceRow) {
+    throw new Error(`Target space ${spaceId} was not found.`);
   }
 
   const plan = buildWorktreeMergePlan({
-    companyId,
-    companyName: input.company.name,
-    issuePrefix: input.company.issuePrefix,
-    previewIssueCounterStart: targetCompanyRow.issueCounter,
+    spaceId,
+    spaceName: input.space.name,
+    issuePrefix: input.space.issuePrefix,
+    previewIssueCounterStart: targetSpaceRow.issueCounter,
     scopes: input.scopes,
     sourceIssues: sourceIssuesRows,
     targetIssues: targetIssuesRows,
@@ -3635,7 +3635,7 @@ export async function worktreeListCommand(opts: WorktreeListOptions): Promise<vo
   for (const choice of choices) {
     const flags = [
       choice.isCurrent ? "current" : null,
-      choice.hasPaperclipConfig ? "paperclip" : "no-paperclip-config",
+      choice.hasOutpostConfig ? "outpost" : "no-outpost-config",
     ].filter((value): value is string => value !== null);
     p.log.message(`${choice.branchLabel}  ${choice.worktree}  [${flags.join(", ")}]`);
   }
@@ -3647,7 +3647,7 @@ function resolveEndpointFromChoice(choice: MergeSourceChoice): ResolvedWorktreeE
   }
   return {
     rootPath: choice.worktree,
-    configPath: path.resolve(choice.worktree, ".paperclip", "config.json"),
+    configPath: path.resolve(choice.worktree, ".outpost", "config.json"),
     label: choice.branchLabel,
     isCurrent: false,
   };
@@ -3674,9 +3674,9 @@ function resolveWorktreeEndpointFromSelector(
     if (allowCurrent && directPath === currentEndpoint.rootPath) {
       return currentEndpoint;
     }
-    const configPath = path.resolve(directPath, ".paperclip", "config.json");
+    const configPath = path.resolve(directPath, ".outpost", "config.json");
     if (!existsSync(configPath)) {
-      throw new Error(`Resolved worktree path ${directPath} does not contain .paperclip/config.json.`);
+      throw new Error(`Resolved worktree path ${directPath} does not contain .outpost/config.json.`);
     }
     return {
       rootPath: directPath,
@@ -3697,7 +3697,7 @@ function resolveWorktreeEndpointFromSelector(
       `Could not resolve worktree "${selector}". Use a path, a listed worktree directory name, branch name, or "current".`,
     );
   }
-  if (!matched.hasPaperclipConfig && !matched.isCurrent) {
+  if (!matched.hasOutpostConfig && !matched.isCurrent) {
     throw new Error(`Resolved worktree "${selector}" does not look like an Outpost worktree.`);
   }
   return resolveEndpointFromChoice(matched);
@@ -3707,7 +3707,7 @@ async function promptForSourceEndpoint(excludeWorktreePath?: string): Promise<Re
   const excluded = excludeWorktreePath ? path.resolve(excludeWorktreePath) : null;
   const currentEndpoint = resolveCurrentWorktreeEndpoint();
   const choices = toMergeSourceChoices(process.cwd())
-    .filter((choice) => choice.hasPaperclipConfig || choice.isCurrent)
+    .filter((choice) => choice.hasOutpostConfig || choice.isCurrent)
     .filter((choice) => path.resolve(choice.worktree) !== excluded)
     .map((choice) => ({
       value: choice.isCurrent ? "__current__" : choice.worktree,
@@ -3715,7 +3715,7 @@ async function promptForSourceEndpoint(excludeWorktreePath?: string): Promise<Re
       hint: `${choice.worktree}${choice.isCurrent ? " (current)" : ""}`,
     }));
   if (choices.length === 0) {
-    throw new Error("No Outpost worktrees were found. Run `paperclipai worktree:list` to inspect the repo worktrees.");
+    throw new Error("No Outpost worktrees were found. Run `outpost worktree:list` to inspect the repo worktrees.");
   }
   const selection = await p.select<string>({
     message: "Choose the source worktree to import from",
@@ -3734,10 +3734,10 @@ async function applyMergePlan(input: {
   sourceStorages: ConfiguredStorage[];
   targetStorage: ConfiguredStorage;
   targetDb: ClosableDb;
-  company: ResolvedMergeCompany;
+  space: ResolvedMergeSpace;
   plan: Awaited<ReturnType<typeof collectMergePlan>>["plan"];
 }) {
-  const companyId = input.company.id;
+  const spaceId = input.space.id;
 
   return await input.targetDb.transaction(async (tx) => {
     const importedProjectIds = input.plan.projectImports.map((project) => project.source.id);
@@ -3767,7 +3767,7 @@ async function applyMergePlan(input: {
     for (const project of projectImports) {
       await tx.insert(projects).values({
         id: project.source.id,
-        companyId,
+        spaceId,
         goalId: project.targetGoalId,
         name: project.source.name,
         description: project.source.description,
@@ -3788,7 +3788,7 @@ async function applyMergePlan(input: {
         if (existingImportedWorkspaceIds.has(workspace.id)) continue;
         await tx.insert(projectWorkspaces).values({
           id: workspace.id,
-          companyId,
+          spaceId,
           projectId: project.source.id,
           name: workspace.name,
           sourceType: workspace.sourceType,
@@ -3828,12 +3828,12 @@ async function applyMergePlan(input: {
 
     let nextIssueNumber = 0;
     if (issueInserts.length > 0) {
-      const [companyRow] = await tx
-        .update(companies)
-        .set({ issueCounter: sql`${companies.issueCounter} + ${issueInserts.length}` })
-        .where(eq(companies.id, companyId))
-        .returning({ issueCounter: companies.issueCounter });
-      nextIssueNumber = companyRow.issueCounter - issueInserts.length + 1;
+      const [spaceRow] = await tx
+        .update(spaces)
+        .set({ issueCounter: sql`${spaces.issueCounter} + ${issueInserts.length}` })
+        .where(eq(spaces.id, spaceId))
+        .returning({ issueCounter: spaces.issueCounter });
+      nextIssueNumber = spaceRow.issueCounter - issueInserts.length + 1;
     }
 
     const insertedIssueIdentifiers = new Map<string, string>();
@@ -3841,11 +3841,11 @@ async function applyMergePlan(input: {
     for (const issue of issueInserts) {
       const issueNumber = nextIssueNumber;
       nextIssueNumber += 1;
-      const identifier = `${input.company.issuePrefix}-${issueNumber}`;
+      const identifier = `${input.space.issuePrefix}-${issueNumber}`;
       insertedIssueIdentifiers.set(issue.source.id, identifier);
       await tx.insert(issues).values({
         id: issue.source.id,
-        companyId,
+        spaceId,
         projectId: issue.targetProjectId,
         projectWorkspaceId: issue.targetProjectWorkspaceId,
         goalId: issue.targetGoalId,
@@ -3900,12 +3900,12 @@ async function applyMergePlan(input: {
       const parentExists = await tx
         .select({ id: issues.id })
         .from(issues)
-        .where(and(eq(issues.id, comment.source.issueId), eq(issues.companyId, companyId)))
+        .where(and(eq(issues.id, comment.source.issueId), eq(issues.spaceId, spaceId)))
         .then((rows) => rows[0] ?? null);
       if (!parentExists) continue;
       await tx.insert(issueComments).values({
         id: comment.source.id,
-        companyId,
+        spaceId,
         issueId: comment.source.issueId,
         authorAgentId: comment.targetAuthorAgentId,
         authorUserId: comment.source.authorUserId,
@@ -3927,7 +3927,7 @@ async function applyMergePlan(input: {
       const parentExists = await tx
         .select({ id: issues.id })
         .from(issues)
-        .where(and(eq(issues.id, documentPlan.source.issueId), eq(issues.companyId, companyId)))
+        .where(and(eq(issues.id, documentPlan.source.issueId), eq(issues.spaceId, spaceId)))
         .then((rows) => rows[0] ?? null);
       if (!parentExists) continue;
 
@@ -3952,7 +3952,7 @@ async function applyMergePlan(input: {
       if (!existingDocument) {
         await tx.insert(documents).values({
           id: documentPlan.source.documentId,
-          companyId,
+          spaceId,
           title: documentPlan.source.title,
           format: documentPlan.source.format,
           latestBody: documentPlan.source.latestBody,
@@ -3967,7 +3967,7 @@ async function applyMergePlan(input: {
         });
         await tx.insert(issueDocuments).values({
           id: documentPlan.source.id,
-          companyId,
+          spaceId,
           issueId: documentPlan.source.issueId,
           documentId: documentPlan.source.documentId,
           key: documentPlan.source.key,
@@ -3984,7 +3984,7 @@ async function applyMergePlan(input: {
         if (!existingLink) {
           await tx.insert(issueDocuments).values({
             id: documentPlan.source.id,
-            companyId,
+            spaceId,
             issueId: documentPlan.source.issueId,
             documentId: documentPlan.source.documentId,
             key: documentPlan.source.key,
@@ -4030,7 +4030,7 @@ async function applyMergePlan(input: {
         if (existingRevisionIds.has(revisionPlan.source.id)) continue;
         await tx.insert(documentRevisions).values({
           id: revisionPlan.source.id,
-          companyId,
+          spaceId,
           documentId: documentPlan.source.documentId,
           revisionNumber: revisionPlan.targetRevisionNumber,
           body: revisionPlan.source.body,
@@ -4051,7 +4051,7 @@ async function applyMergePlan(input: {
         await tx
           .select({ id: issueAttachments.id })
           .from(issueAttachments)
-          .where(eq(issueAttachments.companyId, companyId))
+          .where(eq(issueAttachments.spaceId, spaceId))
       ).map((row) => row.id),
     );
     let insertedAttachments = 0;
@@ -4061,13 +4061,13 @@ async function applyMergePlan(input: {
       const parentExists = await tx
         .select({ id: issues.id })
         .from(issues)
-        .where(and(eq(issues.id, attachment.source.issueId), eq(issues.companyId, companyId)))
+        .where(and(eq(issues.id, attachment.source.issueId), eq(issues.spaceId, spaceId)))
         .then((rows) => rows[0] ?? null);
       if (!parentExists) continue;
 
       const body = await readSourceAttachmentBody(
         input.sourceStorages,
-        companyId,
+        spaceId,
         attachment.source.objectKey,
       );
       if (!body) {
@@ -4075,7 +4075,7 @@ async function applyMergePlan(input: {
         continue;
       }
       await input.targetStorage.putObject(
-        companyId,
+        spaceId,
         attachment.source.objectKey,
         body,
         attachment.source.contentType,
@@ -4083,7 +4083,7 @@ async function applyMergePlan(input: {
 
       await tx.insert(assets).values({
         id: attachment.source.assetId,
-        companyId,
+        spaceId,
         provider: attachment.source.provider,
         objectKey: attachment.source.objectKey,
         contentType: attachment.source.contentType,
@@ -4098,7 +4098,7 @@ async function applyMergePlan(input: {
 
       await tx.insert(issueAttachments).values({
         id: attachment.source.id,
-        companyId,
+        spaceId,
         issueId: attachment.source.issueId,
         assetId: attachment.source.assetId,
         issueCommentId: attachment.targetIssueCommentId,
@@ -4155,15 +4155,15 @@ export async function worktreeMergeHistoryCommand(sourceArg: string | undefined,
   const targetStorage = openConfiguredStorage(targetEndpoint.configPath);
 
   try {
-    const company = await resolveMergeCompany({
+    const space = await resolveMergeSpace({
       sourceDb: sourceHandle.db,
       targetDb: targetHandle.db,
-      selector: opts.company,
+      selector: opts.space,
     });
     let collected = await collectMergePlan({
       sourceDb: sourceHandle.db,
       targetDb: targetHandle.db,
-      company,
+      space,
       scopes,
     });
     if (!opts.yes) {
@@ -4179,7 +4179,7 @@ export async function worktreeMergeHistoryCommand(sourceArg: string | undefined,
         collected = await collectMergePlan({
           sourceDb: sourceHandle.db,
           targetDb: targetHandle.db,
-          company,
+          space,
           scopes,
           importProjectIds: projectSelections.importProjectIds,
           projectIdOverrides: projectSelections.projectIdOverrides,
@@ -4212,7 +4212,7 @@ export async function worktreeMergeHistoryCommand(sourceArg: string | undefined,
       sourceStorages,
       targetStorage,
       targetDb: targetHandle.db,
-      company,
+      space,
       plan: collected.plan,
     });
     if (applied.skippedMissingAttachmentObjects > 0) {
@@ -4222,7 +4222,7 @@ export async function worktreeMergeHistoryCommand(sourceArg: string | undefined,
     }
     p.outro(
       pc.green(
-        `Imported ${applied.insertedProjects} projects (${applied.insertedProjectWorkspaces} workspaces), ${applied.insertedIssues} issues, ${applied.insertedComments} comments, ${applied.insertedDocuments} documents (${applied.insertedDocumentRevisions} revisions, ${applied.mergedDocuments} merged), and ${applied.insertedAttachments} attachments into ${company.issuePrefix}.`,
+        `Imported ${applied.insertedProjects} projects (${applied.insertedProjectWorkspaces} workspaces), ${applied.insertedIssues} issues, ${applied.insertedComments} comments, ${applied.insertedDocuments} documents (${applied.insertedDocumentRevisions} revisions, ${applied.mergedDocuments} merged), and ${applied.insertedAttachments} attachments into ${space.issuePrefix}.`,
       ),
     );
   } finally {
@@ -4232,7 +4232,7 @@ export async function worktreeMergeHistoryCommand(sourceArg: string | undefined,
 }
 
 async function backupWorktreeReseedTarget(input: {
-  targetConfig: PaperclipConfig;
+  targetConfig: OutpostConfig;
   targetPaths: WorktreeLocalPaths;
 }): Promise<string> {
   if (input.targetConfig.database.mode !== "embedded-postgres") {
@@ -4243,10 +4243,10 @@ async function backupWorktreeReseedTarget(input: {
     input.targetConfig.database.embeddedPostgresPort,
   );
   try {
-    const adminConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${targetHandle.port}/postgres`;
-    await ensurePostgresDatabase(adminConnectionString, "paperclip");
+    const adminConnectionString = `postgres://outpost:outpost@127.0.0.1:${targetHandle.port}/postgres`;
+    await ensurePostgresDatabase(adminConnectionString, "outpost");
     const result = await runDatabaseBackup({
-      connectionString: `postgres://paperclip:paperclip@127.0.0.1:${targetHandle.port}/paperclip`,
+      connectionString: `postgres://outpost:outpost@127.0.0.1:${targetHandle.port}/outpost`,
       backupDir: path.resolve(input.targetPaths.backupDir, "repair"),
       retention: { dailyDays: 30, weeklyWeeks: 12, monthlyMonths: 12 },
       filenamePrefix: `${input.targetPaths.instanceId}-pre-repair`,
@@ -4338,7 +4338,7 @@ async function runWorktreeReseed(opts: WorktreeReseedOptions): Promise<void> {
       instanceId: targetPaths.instanceId,
       seedMode,
       preserveLiveWork: opts.preserveLiveWork,
-      expectedCompanyId: nonEmpty(process.env.OUTPOST_SEED_EXPECTED_COMPANY_ID) ?? undefined,
+      expectedSpaceId: nonEmpty(process.env.OUTPOST_SEED_EXPECTED_SPACE_ID) ?? undefined,
       seedDatabase: seedWorktreeDatabase,
     });
     // An operator-confirmed successful reseed replaces the earlier empty-instance choice.
@@ -4370,14 +4370,14 @@ async function runWorktreeReseed(opts: WorktreeReseedOptions): Promise<void> {
 }
 
 export async function worktreeReseedCommand(opts: WorktreeReseedOptions): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclipai worktree reseed ")));
+  printOutpostCliBanner();
+  p.intro(pc.bgCyan(pc.black(" outpost worktree reseed ")));
   await runWorktreeReseed(opts);
 }
 
 export async function worktreeRepairCommand(opts: WorktreeRepairOptions): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclipai worktree repair ")));
+  printOutpostCliBanner();
+  p.intro(pc.bgCyan(pc.black(" outpost worktree repair ")));
 
   const seedMode = opts.seedMode ?? "minimal";
   if (!isWorktreeSeedMode(seedMode)) {
@@ -4467,7 +4467,7 @@ export function registerWorktreeCommands(program: Command): void {
   program
     .command("worktree:make")
     .description("Create ~/NAME as a git worktree, then initialize an isolated Outpost instance inside it")
-    .argument("<name>", "Worktree name — auto-prefixed with paperclip- if needed (created at ~/paperclip-NAME)")
+    .argument("<name>", "Worktree name — auto-prefixed with outpost- if needed (created at ~/outpost-NAME)")
     .option("--start-point <ref>", "Remote ref to base the new branch on (env: OUTPOST_WORKTREE_START_POINT)")
     .option("--instance <id>", "Explicit isolated instance id")
     .option("--home <path>", `Home root for worktree instances (env: OUTPOST_WORKTREES_DIR, default: ${DEFAULT_WORKTREE_HOME})`)
@@ -4530,7 +4530,7 @@ export function registerWorktreeCommands(program: Command): void {
     .argument("[source]", "Optional source worktree path, directory name, or branch name (back-compat alias for --from)")
     .option("--from <worktree>", "Source worktree path, directory name, branch name, or current")
     .option("--to <worktree>", "Target worktree path, directory name, branch name, or current (defaults to current)")
-    .option("--company <id-or-prefix>", "Shared company id or issue prefix inside the chosen source/target instances")
+    .option("--space <id-or-prefix>", "Shared space id or issue prefix inside the chosen source/target instances")
     .option("--scope <items>", "Comma-separated scopes to import (issues, comments)", "issues,comments")
     .option("--apply", "Apply the import after previewing the plan", false)
     .option("--dry", "Preview only and do not import anything", false)
@@ -4555,7 +4555,7 @@ export function registerWorktreeCommands(program: Command): void {
   worktree
     .command("repair")
     .description("Create or repair a linked worktree-local Outpost instance without touching the primary checkout")
-    .option("--branch <name>", "Existing branch/worktree selector to repair, or a branch name to create under .paperclip/worktrees")
+    .option("--branch <name>", "Existing branch/worktree selector to repair, or a branch name to create under .outpost/worktrees")
     .option("--home <path>", `Home root for worktree instances (env: OUTPOST_WORKTREES_DIR, default: ${DEFAULT_WORKTREE_HOME})`)
     .option("--from-config <path>", "Source config.json to seed from")
     .option("--from-data-dir <path>", "Source OUTPOST_HOME used when deriving the source config")
@@ -4569,7 +4569,7 @@ export function registerWorktreeCommands(program: Command): void {
   program
     .command("worktree:cleanup")
     .description("Safely remove a worktree, its branch, and its isolated instance data")
-    .argument("<name>", "Worktree name — auto-prefixed with paperclip- if needed")
+    .argument("<name>", "Worktree name — auto-prefixed with outpost- if needed")
     .option("--instance <id>", "Explicit instance id (if different from the worktree name)")
     .option("--home <path>", `Home root for worktree instances (env: OUTPOST_WORKTREES_DIR, default: ${DEFAULT_WORKTREE_HOME})`)
     .option("--force", "Bypass safety checks (uncommitted changes, unique commits)", false)

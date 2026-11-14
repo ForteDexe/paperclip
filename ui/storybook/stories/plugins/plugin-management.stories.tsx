@@ -17,7 +17,7 @@ const meta = {
   title: "Apps, channels, and extensions/Plugins/Installation and lifecycle",
   component: Plugins,
   parameters: { layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "plugins/installation",
         "plugins/lifecycle"

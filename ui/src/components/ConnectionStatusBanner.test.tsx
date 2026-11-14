@@ -157,7 +157,7 @@ describe("simulated tenant_app_unavailable blip", () => {
   }
 
   it("shows exactly one readable banner, then recovers and refetches", async () => {
-    const observer = new QueryObserver(client, { queryKey: ["companies"], queryFn: () => api.get("/companies") });
+    const observer = new QueryObserver(client, { queryKey: ["spaces"], queryFn: () => api.get("/spaces") });
     const stop = observer.subscribe(() => {});
 
     await advance(BANNER_SHOW_DELAY_MS + 1_000);

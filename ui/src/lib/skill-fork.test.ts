@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type {
-  CompanySkillForkSummary,
-  CompanySkillOriginalSummary,
-  CompanySkillUsageAgent,
+  SpaceSkillForkSummary,
+  SpaceSkillOriginalSummary,
+  SpaceSkillUsageAgent,
 } from "@outpost/shared";
 import {
   agentUsageSentence,
@@ -15,8 +15,8 @@ import {
 } from "./skill-fork";
 
 function original(
-  over: Partial<CompanySkillOriginalSummary> = {},
-): CompanySkillOriginalSummary {
+  over: Partial<SpaceSkillOriginalSummary> = {},
+): SpaceSkillOriginalSummary {
   return {
     id: "orig-1",
     name: "Deep Research",
@@ -28,13 +28,13 @@ function original(
   };
 }
 
-function fork(over: Partial<CompanySkillForkSummary> = {}): CompanySkillForkSummary {
+function fork(over: Partial<SpaceSkillForkSummary> = {}): SpaceSkillForkSummary {
   return {
     ...original(),
     id: "fork-1",
     key: "deep-research-fork",
     forkedFromSkillId: "orig-1",
-    forkedFromCompanyId: "co-1",
+    forkedFromSpaceId: "co-1",
     currentVersionId: "v1",
     createdByCurrentActor: true,
     diverged: false,
@@ -125,7 +125,7 @@ describe("agentUsageSentence", () => {
 
 describe("reassignTargetIds", () => {
   it("maps usage agents to their ids", () => {
-    const agents: CompanySkillUsageAgent[] = [
+    const agents: SpaceSkillUsageAgent[] = [
       { id: "a1", name: "One", urlKey: "one", adapterType: "claude", desired: true, actualState: null, versionId: null },
       { id: "a2", name: "Two", urlKey: "two", adapterType: "codex", desired: true, actualState: null, versionId: null },
     ];

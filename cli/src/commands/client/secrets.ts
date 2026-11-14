@@ -3,10 +3,10 @@ import pc from "picocolors";
 import type {
   Agent,
   AgentEnvConfig,
-  CompanyPortabilityEnvInput,
-  CompanyPortabilityExportPreviewResult,
-  CompanyPortabilityInclude,
-  CompanySecret,
+  SpacePortabilityEnvInput,
+  SpacePortabilityExportPreviewResult,
+  SpacePortabilityInclude,
+  SpaceSecret,
   EnvBinding,
   SecretProvider,
   SecretProviderDescriptor,
@@ -22,17 +22,17 @@ import {
 } from "./common.js";
 
 interface SecretListOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
 }
 
 interface SecretDeclarationsOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   include?: string;
   kind?: "all" | "secret" | "plain";
 }
 
 interface SecretCreateOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   name?: string;
   key?: string;
   provider?: SecretProvider;
@@ -56,7 +56,7 @@ interface SecretDeleteOptions extends BaseClientOptions {
 }
 
 interface SecretLinkOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   name?: string;
   key?: string;
   provider?: SecretProvider;
@@ -66,16 +66,16 @@ interface SecretLinkOptions extends BaseClientOptions {
 }
 
 interface SecretDoctorOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
 }
 
 interface SecretMigrateInlineEnvOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   apply?: boolean;
 }
 
 interface SecretJsonOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   payloadJson?: string;
 }
 
@@ -103,26 +103,26 @@ export interface InlineSecretMigrationCandidate {
 const SENSITIVE_ENV_KEY_RE =
   /(^token$|[-_]?token$|api[-_]?key|access[-_]?token|auth(?:_?token)?|authorization|bearer|secret|passwd|password|credential|jwt|private[-_]?key|cookie|connectionstring)/i;
 
-const DEFAULT_DECLARATION_INCLUDE: CompanyPortabilityInclude = {
-  company: true,
+const DEFAULT_DECLARATION_INCLUDE: SpacePortabilityInclude = {
+  space: true,
   agents: true,
   projects: true,
   issues: false,
   skills: false,
 };
 
-export function parseSecretsInclude(input: string | undefined): CompanyPortabilityInclude {
+export function parseSecretsInclude(input: string | undefined): SpacePortabilityInclude {
   if (!input?.trim()) return { ...DEFAULT_DECLARATION_INCLUDE };
   const values = input.split(",").map((part) => part.trim().toLowerCase()).filter(Boolean);
   const include = {
-    company: values.includes("company"),
+    space: values.includes("space"),
     agents: values.includes("agents"),
     projects: values.includes("projects"),
     issues: values.includes("issues") || values.includes("tasks"),
     skills: values.includes("skills"),
   };
   if (!Object.values(include).some(Boolean)) {
-    throw new Error("Invalid --include value. Use one or more of: company,agents,projects,issues,tasks,skills");
+    throw new Error("Invalid --include value. Use one or more of: space,agents,projects,issues,tasks,skills");
   }
   return include;
 }
@@ -145,7 +145,7 @@ export function buildInlineMigrationSecretName(agentId: string, key: string): st
 
 export function collectInlineSecretMigrationCandidates(
   agents: Agent[],
-  existingSecrets: CompanySecret[],
+  existingSecrets: SpaceSecret[],
 ): InlineSecretMigrationCandidate[] {
   const secretByName = new Map(existingSecrets.map((secret) => [secret.name, secret]));
   const candidates: InlineSecretMigrationCandidate[] = [];
@@ -204,12 +204,12 @@ function readValueFromOptions(opts: { value?: string; valueEnv?: string }): stri
   throw new Error("Secret value is required. Pass --value or --value-env.");
 }
 
-function renderDeclaration(input: CompanyPortabilityEnvInput): Record<string, unknown> {
+function renderDeclaration(input: SpacePortabilityEnvInput): Record<string, unknown> {
   const scope = input.agentSlug
     ? `agent:${input.agentSlug}`
     : input.projectSlug
       ? `project:${input.projectSlug}`
-      : "company";
+      : "space";
   return {
     key: input.key,
     scope,
@@ -221,7 +221,7 @@ function renderDeclaration(input: CompanyPortabilityEnvInput): Record<string, un
   };
 }
 
-function renderSecret(secret: CompanySecret): Record<string, unknown> {
+function renderSecret(secret: SpaceSecret): Record<string, unknown> {
   return {
     id: secret.id,
     name: secret.name,
@@ -281,10 +281,10 @@ function asStringArray(value: unknown): string[] {
 }
 
 async function migrateInlineEnv(opts: SecretMigrateInlineEnvOptions): Promise<void> {
-  const ctx = resolveCommandContext(opts, { requireCompany: true });
-  const companyId = ctx.companyId!;
-  const agents = (await ctx.api.get<Agent[]>(apiPath`/api/companies/${companyId}/agents`)) ?? [];
-  const secrets = (await ctx.api.get<CompanySecret[]>(apiPath`/api/companies/${companyId}/secrets`)) ?? [];
+  const ctx = resolveCommandContext(opts, { requireSpace: true });
+  const spaceId = ctx.spaceId!;
+  const agents = (await ctx.api.get<Agent[]>(apiPath`/api/spaces/${spaceId}/agents`)) ?? [];
+  const secrets = (await ctx.api.get<SpaceSecret[]>(apiPath`/api/spaces/${spaceId}/secrets`)) ?? [];
   const candidates = collectInlineSecretMigrationCandidates(agents, secrets);
 
   if (!opts.apply) {
@@ -321,7 +321,7 @@ async function migrateInlineEnv(opts: SecretMigrateInlineEnvOptions): Promise<vo
       continue;
     }
 
-    const created = await ctx.api.post<CompanySecret>(apiPath`/api/companies/${companyId}/secrets`, {
+    const created = await ctx.api.post<SpaceSecret>(apiPath`/api/spaces/${spaceId}/secrets`, {
       name: candidate.secretName,
       provider: "local_encrypted",
       value,
@@ -370,12 +370,12 @@ export function registerSecretCommands(program: Command): void {
   addCommonClientOptions(
     secrets
       .command("list")
-      .description("List secret metadata for a company")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .description("List secret metadata for a space")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .action(async (opts: SecretListOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const rows = (await ctx.api.get<CompanySecret[]>(apiPath`/api/companies/${ctx.companyId}/secrets`)) ?? [];
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const rows = (await ctx.api.get<SpaceSecret[]>(apiPath`/api/spaces/${ctx.spaceId}/secrets`)) ?? [];
           printOutput(ctx.json ? rows : rows.map(renderSecret), { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
@@ -386,19 +386,19 @@ export function registerSecretCommands(program: Command): void {
   addCommonClientOptions(
     secrets
       .command("declarations")
-      .description("List portable env declarations emitted by company export")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
-      .option("--include <values>", "Comma-separated include set: company,agents,projects,issues,tasks,skills", "company,agents,projects")
+      .description("List portable env declarations emitted by space export")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
+      .option("--include <values>", "Comma-separated include set: space,agents,projects,issues,tasks,skills", "space,agents,projects")
       .option("--kind <kind>", "Filter declarations: all | secret | plain", "all")
       .action(async (opts: SecretDeclarationsOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const kind = opts.kind ?? "all";
           if (!["all", "secret", "plain"].includes(kind)) {
             throw new Error("Invalid --kind value. Use: all, secret, plain");
           }
-          const preview = await ctx.api.post<CompanyPortabilityExportPreviewResult>(
-            apiPath`/api/companies/${ctx.companyId}/exports/preview`,
+          const preview = await ctx.api.post<SpacePortabilityExportPreviewResult>(
+            apiPath`/api/spaces/${ctx.spaceId}/exports/preview`,
             { include: parseSecretsInclude(opts.include) },
           );
           const declarations = (preview?.manifest.envInputs ?? [])
@@ -414,7 +414,7 @@ export function registerSecretCommands(program: Command): void {
     secrets
       .command("create")
       .description("Create an Outpost-managed secret")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--name <name>", "Secret display name")
       .option("--key <key>", "Portable secret key")
       .option("--provider <provider>", "Secret provider id")
@@ -423,8 +423,8 @@ export function registerSecretCommands(program: Command): void {
       .option("--description <text>", "Description")
       .action(async (opts: SecretCreateOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const created = await ctx.api.post<CompanySecret>(apiPath`/api/companies/${ctx.companyId}/secrets`, {
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const created = await ctx.api.post<SpaceSecret>(apiPath`/api/spaces/${ctx.spaceId}/secrets`, {
             name: opts.name,
             key: opts.key,
             provider: opts.provider,
@@ -442,7 +442,7 @@ export function registerSecretCommands(program: Command): void {
     secrets
       .command("link")
       .description("Link an external provider-owned secret without storing its value in Outpost")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--name <name>", "Secret display name")
       .requiredOption("--provider <provider>", "Secret provider id")
       .requiredOption("--external-ref <ref>", "Provider secret ARN/name/path/reference")
@@ -451,8 +451,8 @@ export function registerSecretCommands(program: Command): void {
       .option("--description <text>", "Description")
       .action(async (opts: SecretLinkOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const created = await ctx.api.post<CompanySecret>(apiPath`/api/companies/${ctx.companyId}/secrets`, {
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const created = await ctx.api.post<SpaceSecret>(apiPath`/api/spaces/${ctx.spaceId}/secrets`, {
             name: opts.name,
             key: opts.key,
             provider: opts.provider,
@@ -556,12 +556,12 @@ export function registerSecretCommands(program: Command): void {
     secrets
       .command("doctor")
       .description("Run secret provider health checks through the Outpost API")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .action(async (opts: SecretDoctorOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const health = await ctx.api.get<SecretProviderHealthResponse>(
-            apiPath`/api/companies/${ctx.companyId}/secret-providers/health`,
+            apiPath`/api/spaces/${ctx.spaceId}/secret-providers/health`,
           );
           printProviderHealth(health?.providers ?? [], ctx.json);
         } catch (err) {
@@ -574,12 +574,12 @@ export function registerSecretCommands(program: Command): void {
     secrets
       .command("providers")
       .description("List configured secret provider descriptors")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .action(async (opts: SecretDoctorOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const rows = (await ctx.api.get<SecretProviderDescriptor[]>(
-            apiPath`/api/companies/${ctx.companyId}/secret-providers`,
+            apiPath`/api/spaces/${ctx.spaceId}/secret-providers`,
           )) ?? [];
           printOutput(rows, { json: ctx.json });
         } catch (err) {
@@ -591,20 +591,20 @@ export function registerSecretCommands(program: Command): void {
   addCommonClientOptions(
     secrets
       .command("provider-configs")
-      .description("List company secret provider vault configs")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .description("List space secret provider vault configs")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .action(async (opts: SecretDoctorOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          printOutput(await ctx.api.get(apiPath`/api/companies/${ctx.companyId}/secret-provider-configs`), { json: ctx.json });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          printOutput(await ctx.api.get(apiPath`/api/spaces/${ctx.spaceId}/secret-provider-configs`), { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
   );
 
-  addCompanySecretJsonPost(secrets, "provider-config:create", "Create a secret provider vault config", "secret-provider-configs");
-  addCompanySecretJsonPost(
+  addSpaceSecretJsonPost(secrets, "provider-config:create", "Create a secret provider vault config", "secret-provider-configs");
+  addSpaceSecretJsonPost(
     secrets,
     "provider-config:discovery-preview",
     "Preview provider vault secret discovery",
@@ -615,14 +615,14 @@ export function registerSecretCommands(program: Command): void {
   addSecretProviderConfigPost(secrets, "provider-config:default", "Set the default provider vault config", "default");
   addSecretProviderConfigPost(secrets, "provider-config:health", "Check provider vault health", "health");
   addSecretProviderConfigDelete(secrets, "provider-config:delete", "Delete a secret provider vault config");
-  addCompanySecretJsonPost(secrets, "remote-import:preview", "Preview remote secret import", "secrets/remote-import/preview");
-  addCompanySecretJsonPost(secrets, "remote-import", "Import selected remote secrets", "secrets/remote-import");
+  addSpaceSecretJsonPost(secrets, "remote-import:preview", "Preview remote secret import", "secrets/remote-import/preview");
+  addSpaceSecretJsonPost(secrets, "remote-import", "Import selected remote secrets", "secrets/remote-import");
 
   addCommonClientOptions(
     secrets
       .command("migrate-inline-env")
       .description("Migrate inline sensitive agent env values into secret references")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .option("--apply", "Persist changes; default is a dry run", false)
       .action(async (opts: SecretMigrateInlineEnvOptions) => {
         try {
@@ -634,17 +634,17 @@ export function registerSecretCommands(program: Command): void {
   );
 }
 
-function addCompanySecretJsonPost(parent: Command, name: string, description: string, path: string): void {
+function addSpaceSecretJsonPost(parent: Command, name: string, description: string, path: string): void {
   addCommonClientOptions(
     parent
       .command(name)
       .description(description)
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "JSON payload")
       .action(async (opts: SecretJsonOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          printOutput(await ctx.api.post(`${apiPath`/api/companies/${ctx.companyId}`}/${path}`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          printOutput(await ctx.api.post(`${apiPath`/api/spaces/${ctx.spaceId}`}/${path}`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }

@@ -23,7 +23,7 @@ import {
   overrideAdapterExecutionTargetRemoteCwd,
   adapterExecutionTargetSessionIdentity,
   adapterExecutionTargetSessionMatches,
-  adapterExecutionTargetUsesPaperclipBridge,
+  adapterExecutionTargetUsesOutpostBridge,
   describeAdapterExecutionTarget,
   ensureAdapterExecutionTargetCommandResolvable,
   ensureAdapterExecutionTargetRuntimeCommandInstalled,
@@ -35,7 +35,7 @@ import {
   resolveAdapterExecutionTargetCommandForLogs,
   runAdapterExecutionTargetProcess,
   runAdapterExecutionTargetShellCommand,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
 } from "@outpost/adapter-utils/execution-target";
 import {
   asString,
@@ -44,17 +44,17 @@ import {
   buildOutpostEnv,
   buildInvocationEnvForLogs,
   ensureAbsoluteDirectory,
-  ensurePaperclipSkillSymlink,
+  ensureOutpostSkillSymlink,
   ensurePathInEnv,
   refreshOutpostWorkspaceEnvForExecution,
-  isPaperclipSkillSourceMissing,
-  readPaperclipRuntimeSkillEntries,
-  readPaperclipIssueWorkModeFromContext,
+  isOutpostSkillSourceMissing,
+  readOutpostRuntimeSkillEntries,
+  readOutpostIssueWorkModeFromContext,
   renderTemplate,
   hydrateFreshSessionHandoff,
   selectInitialCommunicationGuidance,
-  selectPaperclipPromptSections,
-  isPaperclipRecoveryWakePayload,
+  selectOutpostPromptSections,
+  isOutpostRecoveryWakePayload,
   DEFAULT_OUTPOST_AGENT_PROMPT_TEMPLATE,
   DEFAULT_OUTPOST_CONVERSATION_PROMPT_TEMPLATE,
   joinPromptSections,
@@ -153,7 +153,7 @@ function firstNonEmptyLine(text: string): string {
 // skipped.
 const BENIGN_CODEX_STDERR_LINE_RES: readonly RegExp[] = [
   /^YOLO mode is enabled\b/i,
-  /^\[paperclip\]/,
+  /^\[outpost\]/,
 ];
 
 function isBenignCodexStderrLine(line: string): boolean {
@@ -207,7 +207,7 @@ function resolveCodexBiller(env: Record<string, string>, billingType: "api" | "s
   return billingType === "subscription" ? "chatgpt" : openAiCompatibleBiller ?? "openai";
 }
 
-async function isLikelyPaperclipRepoRoot(candidate: string): Promise<boolean> {
+async function isLikelyOutpostRepoRoot(candidate: string): Promise<boolean> {
   const [hasWorkspace, hasPackageJson, hasServerDir, hasAdapterUtilsDir] = await Promise.all([
     pathExists(path.join(candidate, "pnpm-workspace.yaml")),
     pathExists(path.join(candidate, "package.json")),
@@ -218,7 +218,7 @@ async function isLikelyPaperclipRepoRoot(candidate: string): Promise<boolean> {
   return hasWorkspace && hasPackageJson && hasServerDir && hasAdapterUtilsDir;
 }
 
-async function isLikelyPaperclipRuntimeSkillPath(
+async function isLikelyOutpostRuntimeSkillPath(
   candidate: string,
   skillName: string,
   options: { requireSkillMarkdown?: boolean } = {},
@@ -232,7 +232,7 @@ async function isLikelyPaperclipRuntimeSkillPath(
 
   let cursor = path.dirname(skillsRoot);
   for (let depth = 0; depth < 6; depth += 1) {
-    if (await isLikelyPaperclipRepoRoot(cursor)) return true;
+    if (await isLikelyOutpostRepoRoot(cursor)) return true;
     const parent = path.dirname(cursor);
     if (parent === cursor) break;
     cursor = parent;
@@ -241,7 +241,7 @@ async function isLikelyPaperclipRuntimeSkillPath(
   return false;
 }
 
-async function pruneBrokenUnavailablePaperclipSkillSymlinks(
+async function pruneBrokenUnavailableOutpostSkillSymlinks(
   skillsHome: string,
   allowedSkillNames: Iterable<string>,
   onLog: AdapterExecutionContext["onLog"],
@@ -259,7 +259,7 @@ async function pruneBrokenUnavailablePaperclipSkillSymlinks(
     const resolvedLinkedPath = path.resolve(path.dirname(target), linkedPath);
     if (await pathExists(resolvedLinkedPath)) continue;
     if (
-      !(await isLikelyPaperclipRuntimeSkillPath(resolvedLinkedPath, entry.name, {
+      !(await isLikelyOutpostRuntimeSkillPath(resolvedLinkedPath, entry.name, {
         requireSkillMarkdown: false,
       }))
     ) {
@@ -313,7 +313,7 @@ function fallbackModeUsesFreshSession(mode: CodexTransientFallbackMode | null): 
 }
 
 function managedMcpGatewaysFromContext(context: Record<string, unknown>): ManagedCodexMcpGateway[] {
-  const managedMcp = parseObject(context.paperclipManagedMcp);
+  const managedMcp = parseObject(context.outpostManagedMcp);
   if (managedMcp.managedMcpOnly !== true) return [];
   const gateways = Array.isArray(managedMcp.gateways) ? managedMcp.gateways : [];
   return gateways
@@ -387,7 +387,7 @@ async function sandboxCodexAuthJsonExists(input: {
  */
 export async function assertCodexCredentialsLaunchable(input: {
   runId: string;
-  companyId: string;
+  spaceId: string;
   configuredCodexHome: string | null;
   configuredApiKey: string | null;
   effectiveCodexHome: string;
@@ -398,7 +398,7 @@ export async function assertCodexCredentialsLaunchable(input: {
 }): Promise<void> {
   const credentialReadiness = await evaluateCodexCredentialReadiness({
     env: input.env ?? process.env,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     configuredCodexHome: input.configuredCodexHome,
     configuredApiKey: input.configuredApiKey,
   });
@@ -512,8 +512,8 @@ export async function ensureCodexSkillsInjected(
   options: EnsureCodexSkillsInjectedOptions = {},
 ) {
   const allSkillsEntries = options.skillsEntries
-    ?? (await readPaperclipRuntimeSkillEntries({}, __moduleDir)).filter(
-      (entry) => !isPaperclipSkillSourceMissing(entry),
+    ?? (await readOutpostRuntimeSkillEntries({}, __moduleDir)).filter(
+      (entry) => !isOutpostSkillSourceMissing(entry),
     );
   const desiredSkillNames =
     options.desiredSkillNames ?? allSkillsEntries.map((entry) => entry.key);
@@ -560,7 +560,7 @@ export async function ensureCodexSkillsInjected(
         if (
           resolvedLinkedPath &&
           resolvedLinkedPath !== entry.source &&
-          (await isLikelyPaperclipRuntimeSkillPath(resolvedLinkedPath, entry.runtimeName))
+          (await isLikelyOutpostRuntimeSkillPath(resolvedLinkedPath, entry.runtimeName))
         ) {
           await fs.unlink(target);
           await linkSkill(entry.source, target);
@@ -572,7 +572,7 @@ export async function ensureCodexSkillsInjected(
         }
       }
 
-      const result = await ensurePaperclipSkillSymlink(entry.source, target, linkSkill);
+      const result = await ensureOutpostSkillSymlink(entry.source, target, linkSkill);
       if (result === "skipped") continue;
 
       await onLog(
@@ -587,7 +587,7 @@ export async function ensureCodexSkillsInjected(
     }
   }
 
-  await pruneBrokenUnavailablePaperclipSkillSymlinks(
+  await pruneBrokenUnavailableOutpostSkillSymlinks(
     skillsHome,
     skillsEntries.map((entry) => entry.runtimeName),
     onLog,
@@ -624,7 +624,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const command = asString(config.command, "codex");
   const model = asString(config.model, "");
 
-  const workspaceContext = parseObject(context.paperclipWorkspace);
+  const workspaceContext = parseObject(context.outpostWorkspace);
   const workspaceCwd = asString(workspaceContext.cwd, "");
   const workspaceSource = asString(workspaceContext.source, "");
   const workspaceStrategy = asString(workspaceContext.strategy, "");
@@ -634,22 +634,22 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const workspaceBranch = asString(workspaceContext.branchName, "");
   const workspaceWorktreePath = asString(workspaceContext.worktreePath, "");
   const agentHome = asString(workspaceContext.agentHome, "");
-  const workspaceHints = Array.isArray(context.paperclipWorkspaces)
-    ? context.paperclipWorkspaces.filter(
+  const workspaceHints = Array.isArray(context.outpostWorkspaces)
+    ? context.outpostWorkspaces.filter(
         (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
       )
     : [];
-  const runtimeServiceIntents = Array.isArray(context.paperclipRuntimeServiceIntents)
-    ? context.paperclipRuntimeServiceIntents.filter(
+  const runtimeServiceIntents = Array.isArray(context.outpostRuntimeServiceIntents)
+    ? context.outpostRuntimeServiceIntents.filter(
         (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
       )
     : [];
-  const runtimeServices = Array.isArray(context.paperclipRuntimeServices)
-    ? context.paperclipRuntimeServices.filter(
+  const runtimeServices = Array.isArray(context.outpostRuntimeServices)
+    ? context.outpostRuntimeServices.filter(
         (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
       )
     : [];
-  const runtimePrimaryUrl = asString(context.paperclipRuntimePrimaryUrl, "");
+  const runtimePrimaryUrl = asString(context.outpostRuntimePrimaryUrl, "");
   const executionTarget = readAdapterExecutionTarget({
     executionTarget: ctx.executionTarget,
     legacyRemoteExecution: ctx.executionTransport?.remoteExecution,
@@ -672,22 +672,22 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       ? envConfig.OPENAI_API_KEY.trim()
       : null;
   const skillSourceHome = configuredCodexHome;
-  const connectorSkillDigest = typeof config.paperclipConnectorSkillDigest === "string"
-    && /^[a-f0-9]{64}$/.test(config.paperclipConnectorSkillDigest) ? config.paperclipConnectorSkillDigest : null;
-  const codexSkillEntries = (await readPaperclipRuntimeSkillEntries(config, __moduleDir))
-    .filter((entry) => !isPaperclipSkillSourceMissing(entry));
+  const connectorSkillDigest = typeof config.outpostConnectorSkillDigest === "string"
+    && /^[a-f0-9]{64}$/.test(config.outpostConnectorSkillDigest) ? config.outpostConnectorSkillDigest : null;
+  const codexSkillEntries = (await readOutpostRuntimeSkillEntries(config, __moduleDir))
+    .filter((entry) => !isOutpostSkillSourceMissing(entry));
   const desiredSkillNames = resolveCodexDesiredSkillNames(config, codexSkillEntries);
   const desiredSet = new Set(desiredSkillNames);
   // An explicit inventory is the server's authorized execution selection. Include
   // empty inventories: revocation must not fall back to a previously populated home.
-  let runtimeSkillDigest = Array.isArray(config.paperclipRuntimeSkills)
+  let runtimeSkillDigest = Array.isArray(config.outpostRuntimeSkills)
     ? createHash("sha256").update(JSON.stringify({ connectorSkillDigest,
       skills: codexSkillEntries.filter(entry => desiredSet.has(entry.key))
         .map(entry => [entry.key, entry.source]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
     })).digest("hex")
     : connectorSkillDigest;
   const runtimeCredentialHome = runtimeSkillDigest
-    ? skillSourceHome ?? await prepareManagedCodexHome(process.env, onLog, agent.companyId, { apiKey: configuredOpenAiApiKey })
+    ? skillSourceHome ?? await prepareManagedCodexHome(process.env, onLog, agent.spaceId, { apiKey: configuredOpenAiApiKey })
     : null;
   if (runtimeSkillDigest) {
     const credentialHome = runtimeCredentialHome!;
@@ -705,20 +705,20 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     })).digest("hex");
     // Different authorized versions/assignments get separate homes, including
     // session state. Previously permitted private links cannot survive revocation.
-    configuredCodexHome = path.join(resolveManagedCodexHomeDir(process.env, agent.companyId),
+    configuredCodexHome = path.join(resolveManagedCodexHomeDir(process.env, agent.spaceId),
       connectorSkillDigest ? "connector-runtimes" : "skill-runtimes", agent.id, runtimeSkillDigest);
   }
   if (!executionTargetIsRemote) {
     await ensureAbsoluteDirectory(cwd, { createIfMissing: true });
   }
-  // A configured CODEX_HOME that lives under the Paperclip-managed company tree
+  // A configured CODEX_HOME that lives under the Outpost-managed space tree
   // (the per-agent home set by the server isolation guard) still needs auth
   // seeded — it ships with no credentials and OPENAI_API_KEY="" by default.
   // Only a genuine external/user-supplied override is treated as self-managed
   // and left untouched.
   const configuredHomeIsManaged =
     configuredCodexHome != null &&
-    isManagedCodexHomePath(process.env, agent.companyId, configuredCodexHome);
+    isManagedCodexHomePath(process.env, agent.spaceId, configuredCodexHome);
   // Identity-anchored cache vend (host to sandbox). Before the managed home is
   // seeded from the shared source `auth.json`, refresh the shared credential with
   // a strictly-newer cached copy of the SAME identity. The vend reads the host
@@ -733,7 +733,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     // default for the merge lock root.
     await selectVendCredential(
       sharedHomeAuthPath,
-      (accountId) => resolveCodexAuthCacheEntryPath(process.env, accountId, agent.companyId),
+      (accountId) => resolveCodexAuthCacheEntryPath(process.env, accountId, agent.spaceId),
       (line) => onLog("stdout", `${line}\n`),
     ).catch(async (error) => {
       // The vend is best-effort and additive. A vend failure must never block a
@@ -746,19 +746,19 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     });
   }
   if (configuredCodexHome == null) {
-    await prepareManagedCodexHome(process.env, onLog, agent.companyId, {
+    await prepareManagedCodexHome(process.env, onLog, agent.spaceId, {
       apiKey: configuredOpenAiApiKey,
     });
   }
   if (configuredHomeIsManaged && configuredCodexHome) {
     const seedEnv = runtimeSkillDigest ? {
-      ...process.env, CODEX_HOME: runtimeCredentialHome ?? resolveManagedCodexHomeDir(process.env, agent.companyId),
+      ...process.env, CODEX_HOME: runtimeCredentialHome ?? resolveManagedCodexHomeDir(process.env, agent.spaceId),
     } : process.env;
     await seedManagedCodexHome(configuredCodexHome, seedEnv, onLog, {
       apiKey: configuredOpenAiApiKey,
     });
   }
-  const defaultCodexHome = resolveManagedCodexHomeDir(process.env, agent.companyId);
+  const defaultCodexHome = resolveManagedCodexHomeDir(process.env, agent.spaceId);
   const effectiveCodexHome = configuredCodexHome ?? defaultCodexHome;
   await fs.mkdir(effectiveCodexHome, { recursive: true });
 
@@ -774,7 +774,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   // probe).
   await assertCodexCredentialsLaunchable({
     runId,
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     configuredCodexHome,
     configuredApiKey: configuredOpenAiApiKey,
     effectiveCodexHome,
@@ -804,7 +804,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   let observabilityPreparationFailed = false;
   try {
     if (ctx.observability) {
-      if (isManagedCodexHomePath(process.env, agent.companyId, effectiveCodexHome)) {
+      if (isManagedCodexHomePath(process.env, agent.spaceId, effectiveCodexHome)) {
         try {
           observabilityProfile = await prepareCodexObservabilityProfile({ home: effectiveCodexHome, runId,
             launch: ctx.observability, sourceProfile: selectedCodexProfile(buildCodexExecArgs(config).args) });
@@ -917,11 +917,11 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
                     log: (line) => onLog("stdout", `${line}\n`),
                     // Additive cache write (sandbox to host): also cache the
                     // sandbox subscription credential in its per-identity slot,
-                    // keyed by the real `account_id`. Company-scoped root; the
+                    // keyed by the real `account_id`. Space-scoped root; the
                     // helper ensures the slot directory private and containment-
                     // guarded. The off-switch (default on) is read inside.
                     resolveCacheEntryPath: config.managedAiConnection ? undefined : (accountId) =>
-                      ensureCodexAuthCacheEntryDir(process.env, accountId, agent.companyId),
+                      ensureCodexAuthCacheEntryDir(process.env, accountId, agent.spaceId),
                     env: process.env,
                   })),
                 // No `exclude` denylist: `stagedCodexHomeDir` already contains
@@ -941,10 +941,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     const restoreRemoteWorkspace = preparedExecutionTargetRuntime
       ? () => preparedExecutionTargetRuntime.restoreWorkspace((line) => onLog("stdout", line))
       : null;
-    let paperclipBridge: Awaited<ReturnType<typeof startAdapterExecutionTargetPaperclipBridge>> = null;
+    let outpostBridge: Awaited<ReturnType<typeof startAdapterExecutionTargetOutpostBridge>> = null;
     const remoteCodexHome = executionTargetIsRemote
       ? preparedExecutionTargetRuntime?.assetDirs.home ??
-        path.posix.join(effectiveExecutionCwd, ".paperclip-runtime", "codex", "home")
+        path.posix.join(effectiveExecutionCwd, ".outpost-runtime", "codex", "home")
       : null;
     await emitSandboxAuthPrecedenceWarningIfNeeded({
       runId,
@@ -980,7 +980,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     const linkedIssueIds = Array.isArray(context.issueIds)
       ? context.issueIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
       : [];
-    const issueWorkMode = readPaperclipIssueWorkModeFromContext(context);
+    const issueWorkMode = readOutpostIssueWorkModeFromContext(context);
     if (wakeTaskId) {
       env.OUTPOST_TASK_ID = wakeTaskId;
     }
@@ -1036,8 +1036,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     if (authToken) {
       env.OUTPOST_API_KEY = authToken;
     }
-    if (executionTargetIsRemote && adapterExecutionTargetUsesPaperclipBridge(runtimeExecutionTarget)) {
-      paperclipBridge = await startAdapterExecutionTargetPaperclipBridge({
+    if (executionTargetIsRemote && adapterExecutionTargetUsesOutpostBridge(runtimeExecutionTarget)) {
+      outpostBridge = await startAdapterExecutionTargetOutpostBridge({
         runId,
         target: runtimeExecutionTarget,
         enableSandboxDuplexBridge: adapterExecutionTargetEnablesSandboxDuplexBridge(runtimeExecutionTarget),
@@ -1048,8 +1048,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         hostApiToken: env.OUTPOST_API_KEY,
         onLog,
       });
-      if (paperclipBridge) {
-        Object.assign(env, paperclipBridge.env);
+      if (outpostBridge) {
+        Object.assign(env, outpostBridge.env);
       }
     }
     const effectiveEnv = Object.fromEntries(
@@ -1188,14 +1188,14 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     const bootstrapPromptTemplate = asString(config.bootstrapPromptTemplate, "");
     const templateData = {
       agentId: agent.id,
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       runId,
-      company: { id: agent.companyId },
+      space: { id: agent.spaceId },
       agent,
       run: { id: runId, source: "on_demand" },
       context,
     };
-    const continuationSummary = parseObject(context.paperclipContinuationSummary);
+    const continuationSummary = parseObject(context.outpostContinuationSummary);
     const continuationSummaryBody = asString(continuationSummary.body, "").trim() || null;
     const codexFallbackHandoffNote =
       forceFreshSession
@@ -1211,7 +1211,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         !resumeSessionId && bootstrapPromptTemplate.trim().length > 0
           ? renderTemplate(bootstrapPromptTemplate, templateData).trim()
           : "";
-      const { taskContextNote, wakePrompt } = selectPaperclipPromptSections(context, {
+      const { taskContextNote, wakePrompt } = selectOutpostPromptSections(context, {
         resumedSession: Boolean(resumeSessionId),
         includeCommunicationGuidance: false,
       });
@@ -1276,10 +1276,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       if (preparedRuntimeConfig.notes.length > 0) {
         commandNotes.unshift(...preparedRuntimeConfig.notes);
       }
-      const renderedPrompt = shouldUseResumeDeltaPrompt || isPaperclipRecoveryWakePayload(context.paperclipWake)
+      const renderedPrompt = shouldUseResumeDeltaPrompt || isOutpostRecoveryWakePayload(context.outpostWake)
         ? ""
         : renderTemplate(promptTemplate, templateData);
-      const sessionHandoffNote = asString(context.paperclipSessionHandoffMarkdown, "").trim();
+      const sessionHandoffNote = asString(context.outpostSessionHandoffMarkdown, "").trim();
       const prompt = joinPromptSections([
         promptInstructionsPrefix,
         renderedBootstrapPrompt,
@@ -1429,8 +1429,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
             if (!cleaned.trim()) return;
             await onLog(stream, cleaned);
           },
-          runLogTail: paperclipBridge?.runLogTail,
-          settleRunDisposition: paperclipBridge?.settleRunDisposition,
+          runLogTail: outpostBridge?.runLogTail,
+          settleRunDisposition: outpostBridge?.settleRunDisposition,
           localProcessSandbox,
         });
         await accountingLog.flush();
@@ -1693,8 +1693,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       try {
         await providerStop.collectBeforeRestore();
       } finally {
-        if (paperclipBridge) {
-          await paperclipBridge.stop();
+        if (outpostBridge) {
+          await outpostBridge.stop();
         }
         if (restoreRemoteWorkspace) {
           try {

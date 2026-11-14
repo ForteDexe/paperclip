@@ -9,15 +9,15 @@ export interface GrokRoutinePrivateInput {
 /** Only the saved agent's exact routine form is admitted by this finite mode.
  * These checks neither connect an account nor qualify a routine roundtrip. */
 export function validGrokRoutinePrivateInput(
-  companyId: unknown,
+  spaceId: unknown,
   input: GrokRoutinePrivateInput | undefined,
   setupURL: string,
 ) {
   try {
     const setup = new URL(setupURL);
     if (
-      typeof companyId !== "string" ||
-      !/^[a-f0-9-]{36}$/i.test(companyId) ||
+      typeof spaceId !== "string" ||
+      !/^[a-f0-9-]{36}$/i.test(spaceId) ||
       !input ||
       !/^[a-f0-9-]{36}$/i.test(input.agentId) ||
       !/^[a-f0-9-]{36}$/i.test(input.bindingId) ||

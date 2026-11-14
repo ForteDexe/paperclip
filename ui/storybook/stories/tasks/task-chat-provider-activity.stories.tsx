@@ -30,7 +30,7 @@ function runEvent(
   const emittedAt = new Date(baseMs + (options.offsetMs ?? seq * 1500)).toISOString();
   return {
     id: seq,
-    companyId: "10000000-0000-4000-8000-0000000000a2",
+    spaceId: "10000000-0000-4000-8000-0000000000a2",
     runId: RUN_ID,
     agentId: "10000000-0000-4000-8000-0000000000a3",
     seq,
@@ -239,7 +239,7 @@ const meta = {
           "Web research, model reroutes, intentional waits and verification checks from a Codex run. The fixtures are persisted run events and pass through nativeRunEventsToTranscript and transcriptToTaskChatItems, the live task-chat path.",
       },
     },
-    paperclip: {
+    outpost: {
       capabilities: ["tasks/discussion", "runs-adapters/runs"],
       status: "current",
       implementation: "production",

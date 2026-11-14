@@ -6,12 +6,12 @@ import { privilegedDefinition, privilegedObservation, settlePrivilegedChat } fro
 import { startOwnedProductionUi } from "./privileged-production-ui.js";
 
 const productionTargets = new WeakMap<ChatCatalogContext, Awaited<ReturnType<typeof startOwnedProductionUi>>>();
-export function historicalLabLink(origin: string, companyPrefix: string | null | undefined) {
+export function historicalLabLink(origin: string, spacePrefix: string | null | undefined) {
   const url = new URL(origin);
   if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || !url.port || url.pathname !== "/"
-    || url.search || url.hash || url.username || url.password || typeof companyPrefix !== "string" || !/^[A-Z][A-Z0-9]*$/.test(companyPrefix))
-    throw new Error("Historical lab link must bind the owned production listener and exact company prefix");
-  return new URL(`/${companyPrefix}/dev/task-chat-lab`, url).href;
+    || url.search || url.hash || url.username || url.password || typeof spacePrefix !== "string" || !/^[A-Z][A-Z0-9]*$/.test(spacePrefix))
+    throw new Error("Historical lab link must bind the owned production listener and exact space prefix");
+  return new URL(`/${spacePrefix}/dev/task-chat-lab`, url).href;
 }
 /** The reply names the requested route by its setup literal. Whether it explains the development-only limitation and the
  * owned-checkout path (chat guidance states both) is free-form text that a person reads; the oracle never grades it. */
@@ -36,7 +36,7 @@ const gated = privilegedDefinition("developer-labs.gated-lab", "privileged-gated
     const target = await startOwnedProductionUi(ctx);
     productionTargets.set(ctx, target);
     try {
-      const historicalUrl = historicalLabLink(target.origin, ctx.input.fixtures.company.issuePrefix);
+      const historicalUrl = historicalLabLink(target.origin, ctx.input.fixtures.space.issuePrefix);
       const factualContextAttachment = await uploadFactualQueryAttachment(ctx, {
         filename: "historical-lab-link.md", body: `${historicalUrl}\n`,
       });
@@ -53,7 +53,7 @@ const gated = privilegedDefinition("developer-labs.gated-lab", "privileged-gated
     if (!target) throw new Error("Missing exact pre-query production target");
     const page = ctx.input.page, source = page.url();
     try {
-      const historicalUrl = historicalLabLink(target.origin, ctx.input.fixtures.company.issuePrefix);
+      const historicalUrl = historicalLabLink(target.origin, ctx.input.fixtures.space.issuePrefix);
       if (state.historicalUrl !== historicalUrl) throw new Error("Selected historical link changed after the human query");
       const historicalPath = new URL(historicalUrl).pathname;
       const response = await page.goto(historicalUrl, { waitUntil: "domcontentloaded" });

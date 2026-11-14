@@ -4,23 +4,23 @@ import { cloudRuntimePublicKeyForKid } from "./cloud-runtime-identity.js";
 import { getCloudStackContext } from "./cloud-instance.js";
 
 const bindingSchema = z.object({
-  companyId: z.string().uuid(), issueId: z.string().uuid(), runId: z.string().uuid(),
+  spaceId: z.string().uuid(), issueId: z.string().uuid(), runId: z.string().uuid(),
   leaseId: z.string().uuid(), ownerToken: z.string().uuid(), provider: z.literal("daytona"),
   providerLeaseId: z.string().uuid(),
 }).strict();
 const cleanupBindingSchema = z.object({
-  purpose: z.literal("cleanup"), companyId: z.string().uuid(), environmentId: z.string().uuid(),
+  purpose: z.literal("cleanup"), spaceId: z.string().uuid(), environmentId: z.string().uuid(),
   leaseId: z.string().uuid(), heartbeatRunId: z.string().uuid().nullable(),
   provider: z.literal("daytona"), providerLeaseId: z.string().uuid(),
 }).strict();
 export type SandboxAbsenceBinding = z.infer<typeof bindingSchema>;
 export type SandboxCleanupAbsenceBinding = z.infer<typeof cleanupBindingSchema>;
 export type SandboxCleanupAbsenceProof = SandboxCleanupAbsenceBinding & {
-  v: 1; iss: "paperclip-cloud"; aud: "paperclip-sandbox-cleanup-absence/v1"; sub: string;
+  v: 1; iss: "outpost-cloud"; aud: "outpost-sandbox-cleanup-absence/v1"; sub: string;
   absent: true; iat: number; exp: number;
 };
 export type SandboxAbsenceProof = SandboxAbsenceBinding & {
-  v: 1; iss: "paperclip-cloud"; aud: "paperclip-sandbox-absence/v1"; sub: string;
+  v: 1; iss: "outpost-cloud"; aud: "outpost-sandbox-absence/v1"; sub: string;
   absent: true; iat: number; exp: number;
 };
 
@@ -43,11 +43,11 @@ function verifyReceipt(receipt: string, binding: Record<string, unknown>, purpos
     const parts = receipt.split(".");
     if (parts.length !== 3 || parts.some(part => !/^[A-Za-z0-9_-]+$/.test(part))) return null;
     const header = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
-    if (header.alg !== "EdDSA" || header.typ !== `paperclip-${purpose}+jwt` || typeof header.kid !== "string") return null;
+    if (header.alg !== "EdDSA" || header.typ !== `outpost-${purpose}+jwt` || typeof header.kid !== "string") return null;
     if (!verify(null, Buffer.from(`${parts[0]}.${parts[1]}`, "ascii"), cloudRuntimePublicKeyForKid(env, header.kid), Buffer.from(parts[2], "base64url"))) return null;
     const proof = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
     const seconds = Math.floor(now.getTime() / 1000);
-    if (proof.v !== 1 || proof.iss !== "paperclip-cloud" || proof.aud !== `paperclip-${purpose}/v1`
+    if (proof.v !== 1 || proof.iss !== "outpost-cloud" || proof.aud !== `outpost-${purpose}/v1`
       || !env.OUTPOST_CLOUD_STACK_ID || proof.sub !== env.OUTPOST_CLOUD_STACK_ID || proof.absent !== true
       || Object.keys(binding).some(key => proof[key] !== binding[key])
       || !Number.isInteger(proof.iat) || !Number.isInteger(proof.exp) || proof.iat > seconds + 30
@@ -69,10 +69,10 @@ export async function requestSandboxAbsenceProof(binding: SandboxAbsenceBinding,
 
 /** Cleanup-only observation: never grants continuation authority to a run. */
 export async function inspectCloudSandboxCleanupAbsence(lease: {
-  id: string; companyId: string; environmentId: string | null; heartbeatRunId: string | null;
+  id: string; spaceId: string; environmentId: string | null; heartbeatRunId: string | null;
   provider: string | null; providerLeaseId: string | null;
 }, options: { env?: NodeJS.ProcessEnv; fetchImpl?: typeof fetch; now?: Date } = {}) {
-  const parsed = cleanupBindingSchema.safeParse({ purpose: "cleanup", companyId: lease.companyId,
+  const parsed = cleanupBindingSchema.safeParse({ purpose: "cleanup", spaceId: lease.spaceId,
     environmentId: lease.environmentId, leaseId: lease.id, heartbeatRunId: lease.heartbeatRunId,
     provider: lease.provider, providerLeaseId: lease.providerLeaseId });
   if (!parsed.success) return undefined;
@@ -92,10 +92,10 @@ async function requestReceipt(binding: Record<string, unknown>, options: {
     const origin = new URL(context.cloudOrigin);
     const host = new URL(`https://${context.primaryHost}`);
     if (origin.protocol !== "https:" || origin.username || origin.password || host.hostname !== context.primaryHost.toLowerCase()) return null;
-    const capability = createHmac("sha256", secret).update(`paperclip-cloud-sandbox-absence-v1\n${host.hostname}`).digest("hex");
+    const capability = createHmac("sha256", secret).update(`outpost-cloud-sandbox-absence-v1\n${host.hostname}`).digest("hex");
     const response = await (options.fetchImpl ?? fetch)(`${origin.origin}/v1/tenant/sandbox-absence`, {
       method: "POST", redirect: "error", signal: AbortSignal.timeout(10_000),
-      headers: { authorization: `Bearer ${capability}`, "x-paperclip-cloud-tenant-host": host.hostname, "content-type": "application/json" },
+      headers: { authorization: `Bearer ${capability}`, "x-outpost-cloud-tenant-host": host.hostname, "content-type": "application/json" },
       body: JSON.stringify(binding),
     });
     if (!response.ok) return null;

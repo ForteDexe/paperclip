@@ -5,7 +5,7 @@ import type { ToolConnection } from "@outpost/shared";
 import { AGGREGATOR_NAMES, aggregatorManagementUrl, isAppAggregator } from "@outpost/shared/aggregator-apps";
 import type { AggregatorAppCatalogEntry } from "@outpost/shared/aggregator-app-catalog";
 import { toolsApi } from "@/api/tools";
-import { useAccountIdentity } from "@/api/companies-query";
+import { useAccountIdentity } from "@/api/spaces-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { Link } from "@/lib/router";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";

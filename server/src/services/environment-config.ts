@@ -207,7 +207,7 @@ function secretName(input: {
 
 async function createEnvironmentSecret(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   environmentName: string;
   driver: EnvironmentDriver;
   field: string;
@@ -216,7 +216,7 @@ async function createEnvironmentSecret(input: {
   actor?: { userId?: string | null; agentId?: string | null };
 }) {
   const created = await secretService(input.db).create(
-    input.companyId,
+    input.spaceId,
     {
       name: secretName(input),
       provider: input.provider,
@@ -253,7 +253,7 @@ function canonicalizeSecretRefValue(value: unknown, path: string): unknown {
 
 async function persistConfigSecretRefs(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   environmentName: string;
   driver: EnvironmentDriver;
   secretProvider: SecretProvider;
@@ -276,7 +276,7 @@ async function persistConfigSecretRefs(input: {
     }
     const created = await createEnvironmentSecret({
       db: input.db,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       environmentName: input.environmentName,
       driver: input.driver,
       field: path.replace(/[^a-z0-9]+/gi, "-").toLowerCase(),
@@ -291,7 +291,7 @@ async function persistConfigSecretRefs(input: {
 
 async function resolveConfigSecretRefsForRuntime(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   config: Record<string, unknown>;
   schema: Record<string, unknown> | null;
   readOnlyInspection?: boolean;
@@ -314,10 +314,10 @@ async function resolveConfigSecretRefsForRuntime(input: {
     nextConfig = writeConfigValueAtPath(
       nextConfig,
       path,
-      input.readOnlyInspection ? await secrets.resolveSecretValueForReadOnlyEnvironmentInspection(input.companyId, trimmed, "latest", {
+      input.readOnlyInspection ? await secrets.resolveSecretValueForReadOnlyEnvironmentInspection(input.spaceId, trimmed, "latest", {
         environmentId: input.context.consumerId, configPath: path,
         issueId: input.context.issueId, heartbeatRunId: input.context.heartbeatRunId,
-      }) : await secrets.resolveSecretValue(input.companyId, trimmed, "latest", {
+      }) : await secrets.resolveSecretValue(input.spaceId, trimmed, "latest", {
         consumerType: "environment",
         consumerId: input.context.consumerId,
         actorType: "system",
@@ -333,13 +333,13 @@ async function resolveConfigSecretRefsForRuntime(input: {
 
 async function resolveConfigSecretRefsForProbe(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   config: Record<string, unknown>;
   schema: Record<string, unknown> | null;
   accessContext?: {
     actorType: "agent" | "user";
     actorId: string;
-    actorSource?: "local_implicit" | "session" | "board_key" | "agent_key" | "agent_jwt" | "mcp_oauth" | "cloud_tenant";
+    actorSource?: "local_implicit" | "session" | "operator_key" | "agent_key" | "agent_jwt" | "mcp_oauth" | "cloud_tenant";
     heartbeatRunId?: string | null;
   };
 }): Promise<Record<string, unknown>> {
@@ -352,11 +352,11 @@ async function resolveConfigSecretRefsForProbe(input: {
     if (!isUuidSecretRef(trimmed)) continue;
     // Unsaved draft probes do not have an environment record yet, so they
     // cannot rely on environment-bound secret resolution. Resolve directly for
-    // this ephemeral board-only probe and never persist the plaintext value.
+    // this ephemeral operator-only probe and never persist the plaintext value.
     nextConfig = writeConfigValueAtPath(
       nextConfig,
       path,
-      await secrets.resolveSecretValueForEphemeralAccess(input.companyId, trimmed, "latest", {
+      await secrets.resolveSecretValueForEphemeralAccess(input.spaceId, trimmed, "latest", {
         consumerType: "system",
         consumerId: "environment-probe-config",
         configPath: path,
@@ -478,13 +478,13 @@ export function normalizeEnvironmentConfig(input: {
 
 export function normalizeEnvironmentConfigForProbe(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   driver: EnvironmentDriver;
   config: Record<string, unknown> | null | undefined;
   accessContext?: {
     actorType: "agent" | "user";
     actorId: string;
-    actorSource?: "local_implicit" | "session" | "board_key" | "agent_key" | "agent_jwt" | "mcp_oauth" | "cloud_tenant";
+    actorSource?: "local_implicit" | "session" | "operator_key" | "agent_key" | "agent_jwt" | "mcp_oauth" | "cloud_tenant";
     heartbeatRunId?: string | null;
   };
   pluginWorkerManager?: PluginWorkerManager;
@@ -521,7 +521,7 @@ export function normalizeEnvironmentConfigForProbe(input: {
       provider: parsed.data.provider,
       ...(await resolveConfigSecretRefsForProbe({
         db: input.db,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         config: applyHostOwnedSandboxFlags(
           validated.normalizedConfig,
           parsed.data,
@@ -545,7 +545,7 @@ export function normalizeEnvironmentConfigForProbe(input: {
 
 export async function normalizeEnvironmentConfigForPersistence(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   environmentName: string;
   driver: EnvironmentDriver;
   secretProvider: SecretProvider;
@@ -566,7 +566,7 @@ export async function normalizeEnvironmentConfigForPersistence(input: {
     if (privateKey) {
       nextPrivateKeySecretRef = await createEnvironmentSecret({
         db: input.db,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         environmentName: input.environmentName,
         driver: input.driver,
         field: "private-key",
@@ -611,7 +611,7 @@ export async function normalizeEnvironmentConfigForPersistence(input: {
     });
     return await persistConfigSecretRefs({
       db: input.db,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       environmentName: input.environmentName,
       driver: input.driver,
       secretProvider: input.secretProvider,
@@ -652,7 +652,7 @@ export async function normalizeEnvironmentConfigForPersistence(input: {
 
 export async function resolveEnvironmentDriverConfigForRuntime(
   db: Db,
-  companyId: string | null,
+  spaceId: string | null,
   environment: Pick<Environment, "driver" | "config"> & Partial<Pick<Environment, "id">>,
   context?: {
     issueId?: string | null;
@@ -675,15 +675,15 @@ export async function resolveEnvironmentDriverConfigForRuntime(
   }
 
   if (parsed.driver === "ssh" && parsed.config.privateKeySecretRef) {
-    if (!companyId) {
-      throw unprocessable("Runtime secret resolution requires a companyId context");
+    if (!spaceId) {
+      throw unprocessable("Runtime secret resolution requires a spaceId context");
     }
     return {
       driver: "ssh",
       config: {
         ...parsed.config,
         privateKey: await secrets.resolveSecretValue(
-          companyId,
+          spaceId,
           parsed.config.privateKeySecretRef.secretId,
           parsed.config.privateKeySecretRef.version ?? "latest",
           {
@@ -703,10 +703,10 @@ export async function resolveEnvironmentDriverConfigForRuntime(
   if (parsed.driver === "sandbox" && parsed.config.provider !== "fake") {
     const schema = await getSandboxProviderConfigSchema(db, parsed.config.provider);
     let runtimeConfig = parsed.config;
-    if (companyId) {
+    if (spaceId) {
       runtimeConfig = await resolveConfigSecretRefsForRuntime({
         db,
-        companyId,
+        spaceId,
         config: parsed.config as Record<string, unknown>,
         schema,
         readOnlyInspection: context?.readOnlyInspection,
@@ -720,7 +720,7 @@ export async function resolveEnvironmentDriverConfigForRuntime(
       for (const path of collectSecretRefPaths(schema)) {
         const current = readConfigValueAtPath(parsed.config as Record<string, unknown>, path);
         if (parseSecretRefBindingObject(current) || (typeof current === "string" && isUuidSecretRef(current.trim()))) {
-          throw unprocessable("Runtime secret resolution requires a companyId context");
+          throw unprocessable("Runtime secret resolution requires a spaceId context");
         }
       }
     }
@@ -758,7 +758,7 @@ export async function resolveEnvironmentDriverConfigForRuntime(
  */
 export async function resolveSandboxCleanupConfigSecrets(
   db: Db,
-  companyId: string,
+  spaceId: string,
   config: SandboxEnvironmentConfig,
   context?: { issueId?: string | null; heartbeatRunId?: string | null },
 ): Promise<SandboxEnvironmentConfig> {
@@ -774,7 +774,7 @@ export async function resolveSandboxCleanupConfigSecrets(
     nextConfig = writeConfigValueAtPath(
       nextConfig,
       path,
-      await secrets.resolveSecretValueForSandboxCleanup(companyId, trimmed, "latest", {
+      await secrets.resolveSecretValueForSandboxCleanup(spaceId, trimmed, "latest", {
         configPath: path,
         issueId: context?.issueId ?? null,
         heartbeatRunId: context?.heartbeatRunId ?? null,

@@ -21,7 +21,7 @@ export function createOAuthDiscovery({ fetchRemoteHttpUrl, assertRemoteEndpointA
     } catch {
       return null;
     }
-    const oauthBasePath = `/api/companies/${encodeURIComponent(connection.companyId)}/smoke-lab/oauth`;
+    const oauthBasePath = `/api/spaces/${encodeURIComponent(connection.spaceId)}/smoke-lab/oauth`;
     return {
       provider: "smoke_lab",
       scopes: normalizeOauthScopes(oauthConfig(connection).scopes),
@@ -391,7 +391,7 @@ export function createOAuthDiscovery({ fetchRemoteHttpUrl, assertRemoteEndpointA
         "OAuth provider endpoints are not configured for this app",
       );
     }
-    // A gallery default is Paperclip's own data, but it is still a URL that ends
+    // A gallery default is Outpost's own data, but it is still a URL that ends
     // up as a browser navigation, and the metadata branch above reads the same
     // untrusted document a generic connection does. Both go through the gate.
     return {

@@ -1,4 +1,4 @@
-import { companies, createDb } from "../packages/db/src/index.js";
+import { spaces, createDb } from "../packages/db/src/index.js";
 import { loadConfig } from "../server/src/config.js";
 import { issueReferenceService } from "../server/src/services/issue-references.js";
 
@@ -14,24 +14,24 @@ async function main() {
   const dbUrl =
     process.env.DATABASE_URL?.trim()
     || config.databaseUrl
-    || `postgres://paperclip:paperclip@127.0.0.1:${config.embeddedPostgresPort}/paperclip`;
+    || `postgres://outpost:outpost@127.0.0.1:${config.embeddedPostgresPort}/outpost`;
 
   const db = createDb(dbUrl);
   const refs = issueReferenceService(db);
-  const companyId = parseFlag("--company");
-  const companyRows = companyId
-    ? [{ id: companyId }]
-    : await db.select({ id: companies.id }).from(companies);
+  const spaceId = parseFlag("--space");
+  const spaceRows = spaceId
+    ? [{ id: spaceId }]
+    : await db.select({ id: spaces.id }).from(spaces);
 
-  if (companyRows.length === 0) {
-    console.log("No companies found; nothing to backfill.");
+  if (spaceRows.length === 0) {
+    console.log("No spaces found; nothing to backfill.");
     return;
   }
 
-  console.log(`Backfilling issue reference mentions for ${companyRows.length} compan${companyRows.length === 1 ? "y" : "ies"}...`);
-  for (const company of companyRows) {
-    console.log(`- ${company.id}`);
-    await refs.syncAllForCompany(company.id);
+  console.log(`Backfilling issue reference mentions for ${spaceRows.length} compan${spaceRows.length === 1 ? "y" : "ies"}...`);
+  for (const space of spaceRows) {
+    console.log(`- ${space.id}`);
+    await refs.syncAllForSpace(space.id);
   }
   console.log("Issue reference backfill complete.");
 }

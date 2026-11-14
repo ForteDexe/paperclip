@@ -17,7 +17,7 @@ describe("Slack item reviews", () => {
     const view = chatInteractionForm(source, "slack")!;
     expect(view.summary).toContain(source.payload.prompt);
     const draft = createChatQuestionFormDraft(view, { nativeProvider: "slack" })!;
-    const payload = parseChatQuestionFormSubmitTokenPayload(chatQuestionFormActionRecords(draft, { companyId: "company", conversationId: "conversation", endpointId: "endpoint", publicationId: "publication" })[1].payload)!;
+    const payload = parseChatQuestionFormSubmitTokenPayload(chatQuestionFormActionRecords(draft, { spaceId: "space", conversationId: "conversation", endpointId: "endpoint", publicationId: "publication" })[1].payload)!;
     const answers = [{ questionId: "verdict:api", optionIds: ["approve"] }, { questionId: "verdict:docs", optionIds: ["reject"] }];
     const missing = chatItemVerdicts(source, answers, payload)!;
     const reasonField = payload.fields.find(field => field.questionId === "reason:docs")!;

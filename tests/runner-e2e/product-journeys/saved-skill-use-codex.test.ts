@@ -11,9 +11,9 @@ import { readAssignedSkill, RUNNER_BRIDGE_READ_OPERATIONS } from "../../../serve
 import { savedSkillFixture, savedSkillReadAssignment, savedSkillReadReceipts } from "./saved-skill-use-evidence.js";
 
 type Row = Record<string, any>;
-const binding = { companyId: "company", agentId: "agent", runId: "run" };
+const binding = { spaceId: "space", agentId: "agent", runId: "run" };
 const fixture = savedSkillFixture("codex-campaign", "62ff548dfec748da8fef6d5fbf6cc23d");
-const key = `company/${binding.companyId}/${fixture.slug}`, runtimeName = `${fixture.slug}--0123456789`;
+const key = `space/${binding.spaceId}/${fixture.slug}`, runtimeName = `${fixture.slug}--0123456789`;
 const correlation = { runId: "run", normalizedSessionId: "native-session", turnId: "turn", itemId: "item" };
 const callId = "assigned-read";
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
@@ -50,7 +50,7 @@ async function observedRead(text = fixture.markdown, rawInput?: Row) {
 
 async function observations(text = fixture.markdown, rawInput?: Row) {
   const { input, result } = await observedRead(text, rawInput);
-  const run: Row = { id: binding.runId, companyId: binding.companyId, agentId: binding.agentId, runtimeMode: "native",
+  const run: Row = { id: binding.runId, spaceId: binding.spaceId, agentId: binding.agentId, runtimeMode: "native",
     runnerInstanceId: "runner-instance", nativeSessionId: correlation.normalizedSessionId,
     contextSnapshot: { skillSelectionSnapshot: true, skillVersions: { [key]: "version" } },
     runnerProfileJson: { nativeExecutionInput: { provider: { kind: "codex" },
@@ -106,7 +106,7 @@ describe("saved-skill Codex native authority", () => {
     const value = await observations();
     value.events = [value.events[0]!, value.events[3]!];
     for (const row of value.events) Object.assign(row.payload.orpEvent.payload,
-      { name: "paperclip_read_assigned_skill", readOnly: true, namespace: "paperclip",
+      { name: "outpost_read_assigned_skill", readOnly: true, namespace: "outpost",
         output: JSON.stringify({ type: "inputText", text: JSON.stringify(value.result) }), outputTruncated: false });
     const p = value.events[1]!.payload.orpEvent.payload; p.outputBytes = Buffer.byteLength(p.output);
     expect(read(value)).toEqual([]);
@@ -123,7 +123,7 @@ describe("saved-skill Codex native authority", () => {
     ["foreign session", (v: any) => { v.run.nativeSessionId = "foreign"; }],
     ["missing runner identity", (v: any) => { delete v.run.runnerInstanceId; }],
     ["missing session identity", (v: any) => { delete v.run.nativeSessionId; }],
-    ["foreign run owner", (v: any) => { v.run.companyId = "foreign"; }],
+    ["foreign run owner", (v: any) => { v.run.spaceId = "foreign"; }],
     ["missing native assignment", (v: any) => { v.run.runnerProfileJson.nativeExecutionInput.runtimeContext.skills = []; }],
     ["duplicate native assignment", (v: any) => { v.run.runnerProfileJson.nativeExecutionInput.runtimeContext.skills.push(v.run.runnerProfileJson.nativeExecutionInput.runtimeContext.skills[0]); }],
     ["foreign native version", (v: any) => { v.run.runnerProfileJson.nativeExecutionInput.runtimeContext.skills[0].versionId = "foreign"; }],
@@ -133,10 +133,10 @@ describe("saved-skill Codex native authority", () => {
     ["foreign turn", (v: any) => { semantic(v, 2).correlation.turnId = "foreign"; }],
     ["foreign item", (v: any) => { semantic(v, 2).correlation.itemId = "foreign"; }],
     ["foreign source", (v: any) => { v.events[2].sourceInstanceId = v.events[2].payload.orpEvent.sourceInstanceId = "foreign"; }],
-    ["foreign operation", (v: any) => { for (const i of [1, 2]) semantic(v, i).operationId = "paperclip_read_assigned_skill"; }],
+    ["foreign operation", (v: any) => { for (const i of [1, 2]) semantic(v, i).operationId = "outpost_read_assigned_skill"; }],
     ["MCP carriers", (v: any) => { for (const i of [1, 2]) v.events[i].eventType = v.events[i].payload.orpEvent.eventType = i === 1 ? "mcp_app.tool_input" : "mcp_app.tool_result"; }],
     ["failed result", (v: any) => { semantic(v, 2).outcome = "failed"; }],
-    ["wrong boundary", (v: any) => { semantic(v, 2).authorizationBoundary = "company"; }],
+    ["wrong boundary", (v: any) => { semantic(v, 2).authorizationBoundary = "space"; }],
     ["wrong receipt", (v: any) => { semantic(v, 2).operationReceiptId = "foreign"; }],
     ["wrong input digest", (v: any) => { semantic(v, 1).content.digest = `sha256:${"0".repeat(64)}`; }],
     ["foreign input key", (v: any) => { semantic(v, 1).input.skill = "foreign"; semantic(v, 1).content.digest = digestPrpSemanticContent(semantic(v, 1).input); }],

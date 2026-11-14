@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import express from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { companies, companyMemberships, createDb, issues, principalPermissionGrants } from "@outpost/db";
+import { spaces, spaceMemberships, createDb, issues, principalPermissionGrants } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -25,30 +25,30 @@ describeEmbeddedPostgres("issue list routes updatedSince filter", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-issue-list-routes-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-issue-list-routes-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
   afterEach(async () => {
     await db.delete(issues);
     await db.delete(principalPermissionGrants);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  function createApp(companyId: string) {
+  function createApp(spaceId: string) {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
       (req as any).actor = {
-        type: "board",
+        type: "operator",
         userId: "cloud-user-1",
-        companyIds: [companyId],
-        memberships: [{ companyId, membershipRole: "owner", status: "active" }],
+        spaceIds: [spaceId],
+        memberships: [{ spaceId, membershipRole: "owner", status: "active" }],
         source: "cloud_tenant",
         isInstanceAdmin: false,
       };
@@ -63,9 +63,9 @@ describeEmbeddedPostgres("issue list routes updatedSince filter", () => {
     return `P${randomUUID().replace(/-/g, "").slice(0, 4).toUpperCase()}`;
   }
 
-  async function seedCloudTenantMember(companyId: string) {
-    await db.insert(companyMemberships).values({
-      companyId,
+  async function seedCloudTenantMember(spaceId: string) {
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "user",
       principalId: "cloud-user-1",
       status: "active",
@@ -73,7 +73,7 @@ describeEmbeddedPostgres("issue list routes updatedSince filter", () => {
       updatedAt: new Date(),
     });
     await ensureHumanRoleDefaultGrants(db, {
-      companyId,
+      spaceId,
       principalId: "cloud-user-1",
       membershipRole: "owner",
       grantedByUserId: null,
@@ -81,19 +81,19 @@ describeEmbeddedPostgres("issue list routes updatedSince filter", () => {
   }
 
   it("returns 0 issues when updatedSince is in the future", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: uniqueIssuePrefix(),
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
-    await seedCloudTenantMember(companyId);
+    await seedCloudTenantMember(spaceId);
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Existing issue",
       status: "todo",
       priority: "medium",
@@ -101,9 +101,9 @@ describeEmbeddedPostgres("issue list routes updatedSince filter", () => {
 
     const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-    const app = createApp(companyId);
+    const app = createApp(spaceId);
     const res = await request(app)
-      .get(`/api/companies/${companyId}/issues`)
+      .get(`/api/spaces/${spaceId}/issues`)
       .query({ updatedSince: futureDate, limit: "20" });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -111,24 +111,24 @@ describeEmbeddedPostgres("issue list routes updatedSince filter", () => {
   });
 
   it("returns only issues updated after a past updatedSince timestamp", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const staleIssueId = randomUUID();
     const freshIssueId = randomUUID();
     const since = new Date("2026-07-01T00:00:00.000Z");
     const staleUpdatedAt = new Date("2026-06-30T00:00:00.000Z");
     const freshUpdatedAt = new Date("2026-07-02T00:00:00.000Z");
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: uniqueIssuePrefix(),
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
-    await seedCloudTenantMember(companyId);
+    await seedCloudTenantMember(spaceId);
     await db.insert(issues).values([
       {
         id: staleIssueId,
-        companyId,
+        spaceId,
         title: "Stale issue",
         status: "todo",
         priority: "medium",
@@ -136,7 +136,7 @@ describeEmbeddedPostgres("issue list routes updatedSince filter", () => {
       },
       {
         id: freshIssueId,
-        companyId,
+        spaceId,
         title: "Fresh issue",
         status: "todo",
         priority: "medium",
@@ -144,9 +144,9 @@ describeEmbeddedPostgres("issue list routes updatedSince filter", () => {
       },
     ]);
 
-    const app = createApp(companyId);
+    const app = createApp(spaceId);
     const res = await request(app)
-      .get(`/api/companies/${companyId}/issues`)
+      .get(`/api/spaces/${spaceId}/issues`)
       .query({ updatedSince: since.toISOString(), limit: "20" });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -154,18 +154,18 @@ describeEmbeddedPostgres("issue list routes updatedSince filter", () => {
   });
 
   it("returns 400 for a malformed updatedSince timestamp", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: uniqueIssuePrefix(),
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
-    await seedCloudTenantMember(companyId);
+    await seedCloudTenantMember(spaceId);
 
-    const app = createApp(companyId);
+    const app = createApp(spaceId);
     const res = await request(app)
-      .get(`/api/companies/${companyId}/issues`)
+      .get(`/api/spaces/${spaceId}/issues`)
       .query({ updatedSince: "not-a-date", limit: "20" });
 
     expect(res.status).toBe(400);

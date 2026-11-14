@@ -38,19 +38,19 @@ vi.mock("@/lib/router", () => ({
 
 function detail(): CaseDetailData {
   return {
-    id: "case-1", companyId: "company-1", projectId: null, caseNumber: 7, identifier: "PAP-C7",
+    id: "case-1", spaceId: "space-1", projectId: null, caseNumber: 7, identifier: "PAP-C7",
     caseType: "blog_post", key: "hermes-agent-post", title: "Hermes agent launch post", summary: "Launch narrative", status: "in_review",
     fields: { title: "Hermes agent launch post", description: "Launch narrative", body: "Superseded body", word_count: 1850, published: false, task_identifiers: ["PAP-12947"] },
     parent: null, parentCaseId: null, createdByAgentId: null, createdByUserId: null, completedAt: null,
     createdAt: "2026-10-19T09:00:00.000Z", updatedAt: "2026-10-19T10:00:00.000Z", labels: [],
     issueLinks: [{ id: "link-1", caseId: "case-1", issueId: "related-task", role: "reference", createdAt: "2026-10-19T09:00:00.000Z", issue: { id: "related-task", identifier: "PAP-12947", title: "Case object exploration", status: "in_progress" } }],
-    documents: [{ key: "body", document: { id: "doc-1", companyId: "company-1", title: "Launch draft", format: "markdown", latestBody: "Current draft", latestRevisionId: "rev-2", latestRevisionNumber: 2, createdByAgentId: null, createdByUserId: null, updatedByAgentId: "agent-1", updatedByUserId: null, lockedAt: null, lockedByAgentId: null, lockedByUserId: null, createdAt: "2026-10-19T09:00:00.000Z", updatedAt: "2026-10-19T10:00:00.000Z" } }],
+    documents: [{ key: "body", document: { id: "doc-1", spaceId: "space-1", title: "Launch draft", format: "markdown", latestBody: "Current draft", latestRevisionId: "rev-2", latestRevisionNumber: 2, createdByAgentId: null, createdByUserId: null, updatedByAgentId: "agent-1", updatedByUserId: null, lockedAt: null, lockedByAgentId: null, lockedByUserId: null, createdAt: "2026-10-19T09:00:00.000Z", updatedAt: "2026-10-19T10:00:00.000Z" } }],
     attachments: [{ id: "attachment-1", asset: { id: "asset-1", contentType: "application/pdf", originalFilename: "Launch report.pdf", byteSize: 1024 }, createdAt: "2026-10-19T09:00:00.000Z", updatedAt: "2026-10-19T09:00:00.000Z" }],
   };
 }
 
 function handoff(overrides: Partial<CaseHandoffView> = {}): CaseHandoffView {
-  return { id: "handoff-1", companyId: "company-1", caseId: "case-1", issueId: "task-1", version: 1, destinationKind: "agent", completedAt: null, workflowTransition: null, fromAgentId: "agent-1", toAgentId: "agent-2", phase: "verification", instructions: "Check the saved draft independently.", commentId: null, actorType: "agent", actorId: "agent-1", sourceRunId: null, responsibleUserId: null, expectedIssueStatusVersion: 1, appliedIssueStatusVersion: null, wakeupRequestId: "wake-1", idempotencyKey: "handoff-key", inputFingerprint: "fingerprint", state: "awaiting_release", attemptCount: 0, nextAttemptAt: "2026-10-19T10:00:00Z", leaseExpiresAt: null, lastErrorCode: null, lastError: null, createdAt: "2026-10-19T10:00:00Z", assignmentAppliedAt: null, deliveredAt: null, cancelledAt: null, updatedAt: "2026-10-19T10:00:00Z", fromAgentName: "Writer", toAgentName: "Verifier", ...overrides };
+  return { id: "handoff-1", spaceId: "space-1", caseId: "case-1", issueId: "task-1", version: 1, destinationKind: "agent", completedAt: null, workflowTransition: null, fromAgentId: "agent-1", toAgentId: "agent-2", phase: "verification", instructions: "Check the saved draft independently.", commentId: null, actorType: "agent", actorId: "agent-1", sourceRunId: null, responsibleUserId: null, expectedIssueStatusVersion: 1, appliedIssueStatusVersion: null, wakeupRequestId: "wake-1", idempotencyKey: "handoff-key", inputFingerprint: "fingerprint", state: "awaiting_release", attemptCount: 0, nextAttemptAt: "2026-10-19T10:00:00Z", leaseExpiresAt: null, lastErrorCode: null, lastError: null, createdAt: "2026-10-19T10:00:00Z", assignmentAppliedAt: null, deliveredAt: null, cancelledAt: null, updatedAt: "2026-10-19T10:00:00Z", fromAgentName: "Writer", toAgentName: "Verifier", ...overrides };
 }
 
 async function settle() {
@@ -159,7 +159,7 @@ describe("read-only CaseDetail", () => {
       taskIdentifier: "PAP-123", scope: "primary", key: "body", document: { ...metadata, id: "task-document", title: "Task launch draft" },
       readPath: "/api/issues/task-1/documents/body" }] });
     taskDocuments.getDocument.mockResolvedValue({ ...metadata, id: "task-document", issueId: "task-1", key: "body", body: "Current authorized task draft" });
-    taskDocuments.listDocumentRevisions.mockResolvedValue([2, 1].map(number => ({ id: `task-revision-${number}`, companyId: "company-1", documentId: "task-document",
+    taskDocuments.listDocumentRevisions.mockResolvedValue([2, 1].map(number => ({ id: `task-revision-${number}`, spaceId: "space-1", documentId: "task-document",
       issueId: "task-1", key: "body", revisionNumber: number, title: "Task launch draft", format: "markdown",
       body: number === 2 ? "Current authorized task draft" : "Earlier authorized task draft", changeSummary: null,
       createdAt: `2026-10-19T0${number}:00:00Z`, createdByAgentId: "agent-1", createdByUserId: null })));
@@ -193,7 +193,7 @@ describe("read-only CaseDetail", () => {
     render();
     await waitFor(() => expect(container.querySelector('a[href="/PAP/cases/PAP-C8?q=hermes&type=blog_post"]')).not.toBeNull());
     expect(container.querySelector('a[href="/PAP/cases/PAP-C2?q=hermes&type=blog_post"]')).not.toBeNull();
-    expect(cases.listChildren).toHaveBeenCalledWith("company-1", "case-1");
+    expect(cases.listChildren).toHaveBeenCalledWith("space-1", "case-1");
   });
 
   it("keeps a failed document read visible without displaying cached document contents", async () => {

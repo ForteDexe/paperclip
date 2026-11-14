@@ -13,13 +13,13 @@ const mockAgentService = vi.hoisted(() => ({
   getById: vi.fn(),
 }));
 
-const mockBoardAuthService = vi.hoisted(() => ({
+const mockOperatorAuthService = vi.hoisted(() => ({
   createCliAuthChallenge: vi.fn(),
   describeCliAuthChallenge: vi.fn(),
   approveCliAuthChallenge: vi.fn(),
   cancelCliAuthChallenge: vi.fn(),
   resolveBoardAccess: vi.fn(),
-  resolveBoardActivityCompanyIds: vi.fn(),
+  resolveBoardActivitySpaceIds: vi.fn(),
   assertCurrentBoardKey: vi.fn(),
   revokeBoardApiKey: vi.fn(),
   listBoardApiKeys: vi.fn(),
@@ -32,9 +32,9 @@ const mockLogActivity = vi.hoisted(() => vi.fn());
 vi.mock("../services/index.js", () => ({
   accessService: () => mockAccessService,
   agentService: () => mockAgentService,
-  boardAuthService: () => mockBoardAuthService,
+  operatorAuthService: () => mockOperatorAuthService,
   logActivity: mockLogActivity,
-  notifyHireApproved: vi.fn(),
+  notifyCreateApproved: vi.fn(),
   deduplicateAgentName: vi.fn((name: string) => name),
 }));
 
@@ -44,9 +44,9 @@ function registerModuleMocks() {
   vi.doMock("../services/index.js", () => ({
     accessService: () => mockAccessService,
     agentService: () => mockAgentService,
-    boardAuthService: () => mockBoardAuthService,
+    operatorAuthService: () => mockOperatorAuthService,
     logActivity: mockLogActivity,
-    notifyHireApproved: vi.fn(),
+    notifyCreateApproved: vi.fn(),
     deduplicateAgentName: vi.fn((name: string) => name),
   }));
 }
@@ -67,7 +67,7 @@ async function createApp(actor: any, db: any = {} as any, options: { authPublicB
   app.use((req, _res, next) => {
     req.actor = {
       ...actor,
-      companyIds: Array.isArray(actor.companyIds) ? [...actor.companyIds] : actor.companyIds,
+      spaceIds: Array.isArray(actor.spaceIds) ? [...actor.spaceIds] : actor.spaceIds,
       memberships: Array.isArray(actor.memberships)
         ? actor.memberships.map((membership: unknown) =>
             typeof membership === "object" && membership !== null
@@ -107,7 +107,7 @@ describe("cli auth routes", () => {
   });
 
   it("creates a CLI auth challenge with approval metadata", async () => {
-    mockBoardAuthService.createCliAuthChallenge.mockResolvedValue({
+    mockOperatorAuthService.createCliAuthChallenge.mockResolvedValue({
       challenge: {
         id: "12345678-1234-4123-8123-123456789abc",
         expiresAt: new Date("2026-03-23T13:00:00.000Z"),
@@ -120,9 +120,9 @@ describe("cli auth routes", () => {
     const res = await request(app)
       .post("/api/cli-auth/challenges")
       .send({
-        command: "paperclipai company import",
-        clientName: "paperclipai cli",
-        requestedAccess: "board",
+        command: "outpost space import",
+        clientName: "outpost cli",
+        requestedAccess: "operator",
       });
 
     expect(res.status, res.text || JSON.stringify(res.body)).toBe(201);
@@ -133,12 +133,12 @@ describe("cli auth routes", () => {
       pollPath: "/cli-auth/challenges/12345678-1234-4123-8123-123456789abc",
       expiresAt: "2026-03-23T13:00:00.000Z",
     });
-    expect(res.body.boardApiToken).toBe("pcp_board_token");
+    expect(res.body.operatorApiToken).toBe("pcp_board_token");
     expect(res.body.approvalUrl).toContain("/cli-auth/12345678-1234-4123-8123-123456789abc?token=pcp_cli_auth_secret");
   });
 
   it("uses the configured public origin for CLI approval behind an upstream proxy", async () => {
-    mockBoardAuthService.createCliAuthChallenge.mockResolvedValue({
+    mockOperatorAuthService.createCliAuthChallenge.mockResolvedValue({
       challenge: {
         id: "12345678-1234-4123-8123-123456789abc",
         expiresAt: new Date(Date.now() + 60_000),
@@ -154,7 +154,7 @@ describe("cli auth routes", () => {
       .set("Host", "upstream.example.net")
       .set("X-Forwarded-Host", "upstream.example.net")
       .set("X-Forwarded-Proto", "https")
-      .send({ command: "paperclipai auth login", requestedAccess: "board" });
+      .send({ command: "outpost auth login", requestedAccess: "operator" });
 
     expect(res.status).toBe(201);
     expect(res.body.approvalUrl).toBe(
@@ -164,27 +164,27 @@ describe("cli auth routes", () => {
 
   it("bounds anonymous create and poll independently without trusting spoofed forwarding headers", async () => {
     let now = 1_000;
-    mockBoardAuthService.createCliAuthChallenge.mockResolvedValue({
+    mockOperatorAuthService.createCliAuthChallenge.mockResolvedValue({
       challenge: { id: "12345678-1234-4123-8123-123456789abc", expiresAt: new Date(Date.now() + 60_000) },
       challengeSecret: "pcp_cli_auth_secret", pendingBoardToken: "pcp_board_token",
     });
-    mockBoardAuthService.describeCliAuthChallenge.mockResolvedValue({ id: "12345678-1234-4123-8123-123456789abc", status: "pending", requestedAccess: "board" });
+    mockOperatorAuthService.describeCliAuthChallenge.mockResolvedValue({ id: "12345678-1234-4123-8123-123456789abc", status: "pending", requestedAccess: "operator" });
     const app = await createApp({ type: "none", source: "none" }, {}, {
       cliAuthCreateRateLimiter: createInviteRateLimiter({ maxRequests: 2, now: () => now }),
       cliAuthPollRateLimiter: createInviteRateLimiter({ maxRequests: 2, now: () => now }),
     });
-    const payload = { command: "paperclipai auth login", requestedAccess: "board" };
+    const payload = { command: "outpost auth login", requestedAccess: "operator" };
     for (let i = 0; i < 2; i++) expect((await request(app).post("/api/cli-auth/challenges").set("X-Forwarded-For", `198.51.100.${i}`).send(payload)).status).toBe(201);
     const blocked = await request(app).post("/api/cli-auth/challenges").set("X-Forwarded-For", "203.0.113.7").send(payload);
     expect(blocked.status).toBe(429);
     expect(blocked.headers["retry-after"]).toBe("60");
     expect(blocked.headers["cache-control"]).toBe("no-store");
     expect(blocked.headers["referrer-policy"]).toBe("no-referrer");
-    expect(mockBoardAuthService.createCliAuthChallenge).toHaveBeenCalledTimes(2);
+    expect(mockOperatorAuthService.createCliAuthChallenge).toHaveBeenCalledTimes(2);
     const path = "/api/cli-auth/challenges/12345678-1234-4123-8123-123456789abc?token=pcp_cli_auth_secret";
     for (let i = 0; i < 2; i++) expect((await request(app).get(path).set("X-Forwarded-For", `198.51.100.${i}`)).status).toBe(200);
     expect((await request(app).get(path).set("X-Forwarded-For", "203.0.113.8")).status).toBe(429);
-    expect(mockBoardAuthService.describeCliAuthChallenge).toHaveBeenCalledTimes(2);
+    expect(mockOperatorAuthService.describeCliAuthChallenge).toHaveBeenCalledTimes(2);
     now += 60_000;
     expect((await request(app).post("/api/cli-auth/challenges").send(payload)).status).toBe(201);
     expect((await request(app).get(path)).status).toBe(200);
@@ -193,7 +193,7 @@ describe("cli auth routes", () => {
   it("preserves the normal one-second CLI poll cadence throughout the ten-minute challenge", async () => {
     let now = Date.now();
     vi.spyOn(Date, "now").mockImplementation(() => now);
-    mockBoardAuthService.describeCliAuthChallenge.mockResolvedValue({ id: "12345678-1234-4123-8123-123456789abc", status: "pending", requestedAccess: "board" });
+    mockOperatorAuthService.describeCliAuthChallenge.mockResolvedValue({ id: "12345678-1234-4123-8123-123456789abc", status: "pending", requestedAccess: "operator" });
     const app = await createApp({ type: "none", source: "none" });
     try {
       for (let i = 0; i < 600; i++) {
@@ -206,14 +206,14 @@ describe("cli auth routes", () => {
   });
 
   it("keeps challenge capabilities out of HTTP caches and referrers", async () => {
-    mockBoardAuthService.createCliAuthChallenge.mockResolvedValue({
+    mockOperatorAuthService.createCliAuthChallenge.mockResolvedValue({
       challenge: { id: "12345678-1234-4123-8123-123456789abc", expiresAt: new Date(Date.now() + 60_000) },
       challengeSecret: "pcp_cli_auth_secret", pendingBoardToken: "pcp_board_token",
     });
-    mockBoardAuthService.describeCliAuthChallenge.mockResolvedValue({ id: "12345678-1234-4123-8123-123456789abc", status: "pending", requestedAccess: "board" });
+    mockOperatorAuthService.describeCliAuthChallenge.mockResolvedValue({ id: "12345678-1234-4123-8123-123456789abc", status: "pending", requestedAccess: "operator" });
     const app = await createApp({ type: "none", source: "none" });
     const responses = [
-      await request(app).post("/api/cli-auth/challenges").send({ command: "paperclipai auth login" }),
+      await request(app).post("/api/cli-auth/challenges").send({ command: "outpost auth login" }),
       await request(app).get("/api/cli-auth/challenges/12345678-1234-4123-8123-123456789abc?token=pcp_cli_auth_secret"),
       await request(app).get("/api/cli-auth/challenges/12345678-1234-4123-8123-123456789abc"),
       await request(app).get("/api/cli-auth/challenges/not-a-uuid?token=pcp_cli_auth_secret"),
@@ -226,21 +226,21 @@ describe("cli auth routes", () => {
   });
 
   it("does not offer approval for an inaccessible requested organization", async () => {
-    mockBoardAuthService.describeCliAuthChallenge.mockResolvedValue({
-      id: "12345678-1234-4123-8123-123456789abc", status: "pending", requestedAccess: "board", requestedCompanyId: "company-private",
+    mockOperatorAuthService.describeCliAuthChallenge.mockResolvedValue({
+      id: "12345678-1234-4123-8123-123456789abc", status: "pending", requestedAccess: "operator", requestedSpaceId: "space-private",
     });
-    const app = await createApp({ type: "board", source: "session", userId: "user-1", companyIds: ["company-public"] });
+    const app = await createApp({ type: "operator", source: "session", userId: "user-1", spaceIds: ["space-public"] });
     const response = await request(app).get("/api/cli-auth/challenges/12345678-1234-4123-8123-123456789abc?token=pcp_cli_auth_secret");
     expect(response.body.canApprove).toBe(false);
   });
 
   it("does not duplicate key-creation audit on a same-user approval retry", async () => {
-    mockBoardAuthService.approveCliAuthChallenge.mockResolvedValue({
+    mockOperatorAuthService.approveCliAuthChallenge.mockResolvedValue({
       status: "approved", created: false,
-      challenge: { id: "12345678-1234-4123-8123-123456789abc", boardApiKeyId: "board-key-1", requestedAccess: "board", expiresAt: new Date(Date.now() + 60_000) },
+      challenge: { id: "12345678-1234-4123-8123-123456789abc", operatorApiKeyId: "operator-key-1", requestedAccess: "operator", expiresAt: new Date(Date.now() + 60_000) },
     });
-    mockBoardAuthService.resolveBoardActivityCompanyIds.mockResolvedValue(["company-1"]);
-    const app = await createApp({ type: "board", source: "session", userId: "user-1" });
+    mockOperatorAuthService.resolveBoardActivitySpaceIds.mockResolvedValue(["space-1"]);
+    const app = await createApp({ type: "operator", source: "session", userId: "user-1" });
     const response = await request(app).post("/api/cli-auth/challenges/12345678-1234-4123-8123-123456789abc/approve").send({ token: "pcp_cli_auth_secret" });
     expect(response.status).toBe(200);
     expect(response.body.approved).toBe(true);
@@ -252,17 +252,17 @@ describe("cli auth routes", () => {
     const skillApp = await createApp({ type: "none", source: "none" });
 
     const indexRes = await request(indexApp).get("/api/skills/index");
-    const skillRes = await request(skillApp).get("/api/skills/paperclip");
+    const skillRes = await request(skillApp).get("/api/skills/outpost");
 
     expect(indexRes.status, JSON.stringify(indexRes.body)).toBe(401);
     expect(skillRes.status, skillRes.text || JSON.stringify(skillRes.body)).toBe(401);
   });
 
-  it("serves the invite-scoped paperclip skill anonymously for active invites", async () => {
+  it("serves the invite-scoped outpost skill anonymously for active invites", async () => {
     const invite = {
       id: "invite-1",
-      companyId: "company-1",
-      inviteType: "company_join",
+      spaceId: "space-1",
+      inviteType: "space_join",
       allowedJoinTypes: "agent",
       tokenHash: "hash",
       defaultsPayload: null,
@@ -282,22 +282,22 @@ describe("cli auth routes", () => {
     };
 
     const app = await createApp({ type: "none", source: "none" }, db);
-    const res = await request(app).get("/api/invites/token-123/skills/paperclip");
+    const res = await request(app).get("/api/invites/token-123/skills/outpost");
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("text/markdown");
-    expect(res.text).toContain("# Paperclip Skill");
+    expect(res.text).toContain("# Outpost Skill");
   });
 
   it("marks challenge status as requiring sign-in for anonymous viewers", async () => {
-    mockBoardAuthService.describeCliAuthChallenge.mockResolvedValue({
+    mockOperatorAuthService.describeCliAuthChallenge.mockResolvedValue({
       id: "12345678-1234-4123-8123-123456789abc",
       status: "pending",
-      command: "paperclipai company import",
-      clientName: "paperclipai cli",
-      requestedAccess: "board",
-      requestedCompanyId: null,
-      requestedCompanyName: null,
+      command: "outpost space import",
+      clientName: "outpost cli",
+      requestedAccess: "operator",
+      requestedSpaceId: null,
+      requestedSpaceName: null,
       approvedAt: null,
       cancelledAt: null,
       expiresAt: "2026-03-23T13:00:00.000Z",
@@ -313,22 +313,22 @@ describe("cli auth routes", () => {
   });
 
   it.each([
-    ["cloud_tenant", "board", false, false, true],
+    ["cloud_tenant", "operator", false, false, true],
     ["cloud_tenant", "instance_admin_required", false, false, false],
-    ["session", "board", false, false, true],
-    ["board_api_key", "board", false, true, false],
+    ["session", "operator", false, false, true],
+    ["operator_api_key", "operator", false, true, false],
   ])("reports CLI approval for %s requesting %s", async (source, requestedAccess, isInstanceAdmin, requiresSignIn, canApprove) => {
-    mockBoardAuthService.describeCliAuthChallenge.mockResolvedValue({
+    mockOperatorAuthService.describeCliAuthChallenge.mockResolvedValue({
       id: "12345678-1234-4123-8123-123456789abc", status: "pending", requestedAccess,
     });
-    const app = await createApp({ type: "board", source, userId: "user-1", isInstanceAdmin });
+    const app = await createApp({ type: "operator", source, userId: "user-1", isInstanceAdmin });
     const res = await request(app).get("/api/cli-auth/challenges/12345678-1234-4123-8123-123456789abc?token=pcp_cli_auth_secret");
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ requiresSignIn, canApprove });
   });
 
   it.each(["PASTE_ID_HERE", "not-a-uuid"])("rejects malformed challenge ID %s before calling the service", async (id) => {
-    const app = await createApp({ type: "board", userId: "user-1", source: "session" });
+    const app = await createApp({ type: "operator", userId: "user-1", source: "session" });
     const responses = [
       await request(app).get(`/api/cli-auth/challenges/${id}?token=pcp_cli_auth_secret`),
       await request(app).post(`/api/cli-auth/challenges/${id}/approve`).send({ token: "pcp_cli_auth_secret" }),
@@ -338,9 +338,9 @@ describe("cli auth routes", () => {
       expect(response.status).toBe(400);
       expect(response.body.error).toBe("Invalid CLI auth challenge ID");
     }
-    expect(mockBoardAuthService.describeCliAuthChallenge).not.toHaveBeenCalled();
-    expect(mockBoardAuthService.approveCliAuthChallenge).not.toHaveBeenCalled();
-    expect(mockBoardAuthService.cancelCliAuthChallenge).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.describeCliAuthChallenge).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.approveCliAuthChallenge).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.cancelCliAuthChallenge).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
@@ -350,7 +350,7 @@ describe("cli auth routes", () => {
       .post("/api/cli-auth/challenges/PASTE_ID_HERE/approve")
       .send({ token: "pcp_cli_auth_secret" });
     expect(res.status).toBe(401);
-    expect(mockBoardAuthService.approveCliAuthChallenge).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.approveCliAuthChallenge).not.toHaveBeenCalled();
   });
 
   it("preserves missing-secret and unknown-challenge responses", async () => {
@@ -358,14 +358,14 @@ describe("cli auth routes", () => {
     const path = "/api/cli-auth/challenges/12345678-1234-4123-8123-123456789abc";
     const missing = await request(app).get(path);
     expect(missing.status).toBe(404);
-    expect(mockBoardAuthService.describeCliAuthChallenge).not.toHaveBeenCalled();
-    mockBoardAuthService.describeCliAuthChallenge.mockResolvedValue(null);
+    expect(mockOperatorAuthService.describeCliAuthChallenge).not.toHaveBeenCalled();
+    mockOperatorAuthService.describeCliAuthChallenge.mockResolvedValue(null);
     const unknown = await request(app).get(`${path}?token=wrong-secret`);
     expect(unknown.status).toBe(404);
   });
 
   it("cancels a valid challenge and preserves path whitespace normalization", async () => {
-    mockBoardAuthService.cancelCliAuthChallenge.mockResolvedValue({ status: "cancelled" });
+    mockOperatorAuthService.cancelCliAuthChallenge.mockResolvedValue({ status: "cancelled" });
     const app = await createApp({ type: "none", source: "none" });
     const id = "12345678-1234-4123-8123-123456789ABC";
     const res = await request(app)
@@ -373,108 +373,108 @@ describe("cli auth routes", () => {
       .send({ token: "pcp_cli_auth_secret" });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: "cancelled", cancelled: true });
-    expect(mockBoardAuthService.cancelCliAuthChallenge).toHaveBeenCalledWith(id, "pcp_cli_auth_secret");
+    expect(mockOperatorAuthService.cancelCliAuthChallenge).toHaveBeenCalledWith(id, "pcp_cli_auth_secret");
   });
 
-  it("approves a CLI auth challenge for a signed-in board user", async () => {
-    mockBoardAuthService.approveCliAuthChallenge.mockResolvedValue({
+  it("approves a CLI auth challenge for a signed-in operator user", async () => {
+    mockOperatorAuthService.approveCliAuthChallenge.mockResolvedValue({
       status: "approved",
       challenge: {
         id: "12345678-1234-4123-8123-123456789abc",
-        boardApiKeyId: "board-key-1",
-        requestedAccess: "board",
-        requestedCompanyId: "company-1",
+        operatorApiKeyId: "operator-key-1",
+        requestedAccess: "operator",
+        requestedSpaceId: "space-1",
         expiresAt: new Date("2026-03-23T13:00:00.000Z"),
       },
     });
-    mockBoardAuthService.resolveBoardAccess.mockResolvedValue({
+    mockOperatorAuthService.resolveBoardAccess.mockResolvedValue({
       user: { id: "user-1", name: "User One", email: "user@example.com" },
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
       isInstanceAdmin: false,
     });
-    mockBoardAuthService.resolveBoardActivityCompanyIds.mockResolvedValue(["company-1"]);
+    mockOperatorAuthService.resolveBoardActivitySpaceIds.mockResolvedValue(["space-1"]);
 
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     });
     const res = await request(app)
       .post("/api/cli-auth/challenges/12345678-1234-4123-8123-123456789abc/approve")
       .send({ token: "pcp_cli_auth_secret" });
 
     expect(res.status).toBe(200);
-    expect(mockBoardAuthService.approveCliAuthChallenge).toHaveBeenCalledWith(
+    expect(mockOperatorAuthService.approveCliAuthChallenge).toHaveBeenCalledWith(
       "12345678-1234-4123-8123-123456789abc",
       "pcp_cli_auth_secret",
       "user-1",
     );
-    expect(mockBoardAuthService.resolveBoardActivityCompanyIds).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.resolveBoardActivitySpaceIds).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
   it("delegates instance-admin approval and atomic auditing to the service", async () => {
-    mockBoardAuthService.approveCliAuthChallenge.mockResolvedValue({
+    mockOperatorAuthService.approveCliAuthChallenge.mockResolvedValue({
       status: "approved",
       challenge: {
         id: "12345678-1234-4123-8123-123456789def",
-        boardApiKeyId: "board-key-2",
+        operatorApiKeyId: "operator-key-2",
         requestedAccess: "instance_admin_required",
-        requestedCompanyId: null,
+        requestedSpaceId: null,
         expiresAt: new Date("2026-03-23T13:00:00.000Z"),
       },
     });
-    mockBoardAuthService.resolveBoardActivityCompanyIds.mockResolvedValue(["company-a", "company-b"]);
+    mockOperatorAuthService.resolveBoardActivitySpaceIds.mockResolvedValue(["space-a", "space-b"]);
 
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId: "admin-1",
       source: "session",
       isInstanceAdmin: true,
-      companyIds: [],
+      spaceIds: [],
     });
     const res = await request(app)
       .post("/api/cli-auth/challenges/12345678-1234-4123-8123-123456789def/approve")
       .send({ token: "pcp_cli_auth_secret" });
 
     expect(res.status).toBe(200);
-    expect(mockBoardAuthService.approveCliAuthChallenge).toHaveBeenCalledWith(
+    expect(mockOperatorAuthService.approveCliAuthChallenge).toHaveBeenCalledWith(
       "12345678-1234-4123-8123-123456789def", "pcp_cli_auth_secret", "admin-1",
     );
-    expect(mockBoardAuthService.resolveBoardActivityCompanyIds).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.resolveBoardActivitySpaceIds).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
   it("delegates owner-bound revocation and atomic audit to the service", async () => {
-    mockBoardAuthService.assertCurrentBoardKey.mockResolvedValue({
-      id: "board-key-3",
+    mockOperatorAuthService.assertCurrentBoardKey.mockResolvedValue({
+      id: "operator-key-3",
       userId: "admin-2",
     });
-    mockBoardAuthService.resolveBoardActivityCompanyIds.mockResolvedValue(["company-z"]);
+    mockOperatorAuthService.resolveBoardActivitySpaceIds.mockResolvedValue(["space-z"]);
 
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId: "admin-2",
-      keyId: "board-key-3",
-      source: "board_key",
+      keyId: "operator-key-3",
+      source: "operator_key",
       isInstanceAdmin: true,
-      companyIds: [],
+      spaceIds: [],
     });
     const res = await request(app).post("/api/cli-auth/revoke-current").send({});
 
     expect(res.status).toBe(200);
-    expect(mockBoardAuthService.revokeBoardApiKey).toHaveBeenCalledWith("board-key-3", {
+    expect(mockOperatorAuthService.revokeBoardApiKey).toHaveBeenCalledWith("operator-key-3", {
       userId: "admin-2", revokedVia: "cli_auth_logout",
     });
-    expect(mockBoardAuthService.resolveBoardActivityCompanyIds).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.resolveBoardActivitySpaceIds).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
-  it("creates a named board API key and logs audit activity", async () => {
-    mockBoardAuthService.createNamedBoardApiKey.mockResolvedValue({
-      id: "board-key-4",
+  it("creates a named operator API key and logs audit activity", async () => {
+    mockOperatorAuthService.createNamedBoardApiKey.mockResolvedValue({
+      id: "operator-key-4",
       name: "external-admin",
       token: "pcp_board_plaintext",
       createdAt: new Date("2026-05-23T12:00:00.000Z"),
@@ -482,31 +482,31 @@ describe("cli auth routes", () => {
       revokedAt: null,
       expiresAt: new Date("2026-06-23T12:00:00.000Z"),
     });
-    mockBoardAuthService.resolveBoardActivityCompanyIds.mockResolvedValue(["11111111-1111-4111-8111-111111111111"]);
+    mockOperatorAuthService.resolveBoardActivitySpaceIds.mockResolvedValue(["11111111-1111-4111-8111-111111111111"]);
 
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
-      source: "board_key",
+      source: "operator_key",
       isInstanceAdmin: false,
-      companyIds: ["11111111-1111-4111-8111-111111111111"],
+      spaceIds: ["11111111-1111-4111-8111-111111111111"],
     });
     const res = await request(app)
-      .post("/api/board-api-keys")
+      .post("/api/operator-api-keys")
       .send({
         name: "external-admin",
-        requestedCompanyId: "11111111-1111-4111-8111-111111111111",
+        requestedSpaceId: "11111111-1111-4111-8111-111111111111",
         expiresAt: "2026-06-23T12:00:00.000Z",
       });
 
     expect(res.status, res.text || JSON.stringify(res.body)).toBe(201);
     expect(res.body).toMatchObject({
-      id: "board-key-4",
+      id: "operator-key-4",
       name: "external-admin",
       token: "pcp_board_plaintext",
       expiresAt: "2026-06-23T12:00:00.000Z",
     });
-    expect(mockBoardAuthService.createNamedBoardApiKey).toHaveBeenCalledWith({
+    expect(mockOperatorAuthService.createNamedBoardApiKey).toHaveBeenCalledWith({
       userId: "user-1",
       name: "external-admin",
       expiresAt: new Date("2026-06-23T12:00:00.000Z"),
@@ -514,16 +514,16 @@ describe("cli auth routes", () => {
     expect(mockLogActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        companyId: "11111111-1111-4111-8111-111111111111",
-        action: "board_api_key.created",
+        spaceId: "11111111-1111-4111-8111-111111111111",
+        action: "operator_api_key.created",
         details: expect.objectContaining({ name: "external-admin" }),
       }),
     );
   });
 
-  it("lists and revokes named board API keys for the current board user", async () => {
+  it("lists and revokes named operator API keys for the current operator user", async () => {
     const keyId = "55555555-5555-4555-8555-555555555555";
-    mockBoardAuthService.listBoardApiKeys.mockResolvedValue([
+    mockOperatorAuthService.listBoardApiKeys.mockResolvedValue([
       {
         id: keyId,
         name: "external-admin",
@@ -533,57 +533,57 @@ describe("cli auth routes", () => {
         expiresAt: null,
       },
     ]);
-    mockBoardAuthService.getBoardApiKeyForUser.mockResolvedValue({
+    mockOperatorAuthService.getBoardApiKeyForUser.mockResolvedValue({
       id: keyId,
       userId: "user-1",
       name: "external-admin",
     });
-    mockBoardAuthService.revokeBoardApiKey.mockResolvedValue({
+    mockOperatorAuthService.revokeBoardApiKey.mockResolvedValue({
       id: keyId,
       userId: "user-1",
       name: "external-admin",
     });
-    mockBoardAuthService.resolveBoardActivityCompanyIds.mockResolvedValue(["company-1"]);
+    mockOperatorAuthService.resolveBoardActivitySpaceIds.mockResolvedValue(["space-1"]);
 
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
-      source: "board_key",
+      source: "operator_key",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     });
 
-    const listRes = await request(app).get("/api/board-api-keys");
+    const listRes = await request(app).get("/api/operator-api-keys");
     expect(listRes.status).toBe(200);
     expect(listRes.body[0]).toMatchObject({ id: keyId, name: "external-admin" });
-    expect(mockBoardAuthService.listBoardApiKeys).toHaveBeenCalledWith(
+    expect(mockOperatorAuthService.listBoardApiKeys).toHaveBeenCalledWith(
       "user-1",
       { includeInactive: false },
     );
 
-    const revokeRes = await request(app).delete(`/api/board-api-keys/${keyId}`);
+    const revokeRes = await request(app).delete(`/api/operator-api-keys/${keyId}`);
     expect(revokeRes.status).toBe(200);
     expect(revokeRes.body).toEqual({ ok: true, keyId });
-    expect(mockBoardAuthService.revokeBoardApiKey).toHaveBeenCalledWith(keyId, {
-      userId: "user-1", revokedVia: "board_api_key_lifecycle",
+    expect(mockOperatorAuthService.revokeBoardApiKey).toHaveBeenCalledWith(keyId, {
+      userId: "user-1", revokedVia: "operator_api_key_lifecycle",
     });
-    expect(mockBoardAuthService.resolveBoardActivityCompanyIds).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.resolveBoardActivitySpaceIds).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
-  it("rejects malformed board API key IDs before database lookup", async () => {
+  it("rejects malformed operator API key IDs before database lookup", async () => {
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
-      source: "board_key",
+      source: "operator_key",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     });
 
-    const res = await request(app).delete("/api/board-api-keys/not-a-uuid");
+    const res = await request(app).delete("/api/operator-api-keys/not-a-uuid");
 
     expect(res.status).toBe(400);
-    expect(mockBoardAuthService.getBoardApiKeyForUser).not.toHaveBeenCalled();
-    expect(mockBoardAuthService.revokeBoardApiKey).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.getBoardApiKeyForUser).not.toHaveBeenCalled();
+    expect(mockOperatorAuthService.revokeBoardApiKey).not.toHaveBeenCalled();
   });
 });

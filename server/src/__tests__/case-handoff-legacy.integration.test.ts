@@ -7,7 +7,7 @@ import path from "node:path";
 import express from "express";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agentWakeupRequests, agents, authUsers, caseHandoffs, companies, companyMemberships, createDb, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
+import { agentWakeupRequests, agents, authUsers, caseHandoffs, spaces, spaceMemberships, createDb, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
 import { actorMiddleware } from "../middleware/auth.js";
 import { errorHandler } from "../middleware/error-handler.js";
 import { caseRoutes } from "../routes/cases.js";
@@ -24,7 +24,7 @@ import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.j
 
 const childScript = String.raw`
 const base = process.env.CASE_TEST_API_URL;
-const headers = { authorization: 'Bearer ' + process.env.OUTPOST_API_KEY, 'content-type': 'application/json', 'x-paperclip-run-id': process.env.OUTPOST_RUN_ID };
+const headers = { authorization: 'Bearer ' + process.env.OUTPOST_API_KEY, 'content-type': 'application/json', 'x-outpost-run-id': process.env.OUTPOST_RUN_ID };
 async function main() {
   const response = await fetch(base + '/api/cases/' + process.env.CASE_TEST_CASE_ID, { headers });
   const workflow = await response.json();
@@ -39,13 +39,13 @@ async function main() {
     const handoffBody = { idempotencyKey: 'triage-to-implementation', case: { id: workflow.id },
       toAgentId: process.env.CASE_TEST_RECIPIENT_ID, phase: 'implementation', instructions: 'Implement the persisted specification canary',
       expectedHandoffVersion: workflow.handoffVersion, expectedIssueStatusVersion: workflow.workIssue.statusVersion };
-    const submitted = await fetch(base + '/api/companies/' + process.env.OUTPOST_COMPANY_ID + '/case-handoffs', {
+    const submitted = await fetch(base + '/api/spaces/' + process.env.OUTPOST_SPACE_ID + '/case-handoffs', {
       method: 'POST', headers, body: JSON.stringify(handoffBody) });
     const receipt = await submitted.json();
     if (submitted.status !== 202) throw new Error('handoff failed ' + submitted.status + ': ' + JSON.stringify(receipt));
     const cancelled = await fetch(base + '/api/cases/' + workflow.id + '/handoffs/' + receipt.handoffId + '/cancel', { method: 'POST', headers, body: '{}' });
     if (cancelled.status !== 403) throw new Error('outgoing run escaped handoff fence: cancel status ' + cancelled.status);
-    const replayed = await fetch(base + '/api/companies/' + process.env.OUTPOST_COMPANY_ID + '/case-handoffs', { method: 'POST', headers, body: JSON.stringify(handoffBody) });
+    const replayed = await fetch(base + '/api/spaces/' + process.env.OUTPOST_SPACE_ID + '/case-handoffs', { method: 'POST', headers, body: JSON.stringify(handoffBody) });
     if (replayed.status !== 200) throw new Error('outgoing receipt replay failed: ' + replayed.status);
     await fetch(base + '/fixture/source-accepted', { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({ receipt, pid: process.pid }) });
     // An accepted HTTP response must not release a still-live process.
@@ -104,8 +104,8 @@ describe("case handoff through actual legacy process and HTTP boundaries", () =>
   });
 
   it.each([false, true])("keeps the recipient stopped until the source process tree settles, then executes the same task (scratch failure=%s)", async scratchFailure => {
-    const companyId = randomUUID(), triage = randomUUID(), engineer = randomUUID(), userId = randomUUID();
-    const writerDir = await mkdtemp(path.join(tmpdir(), "paperclip-case-legacy-writer-"));
+    const spaceId = randomUUID(), triage = randomUUID(), engineer = randomUUID(), userId = randomUUID();
+    const writerDir = await mkdtemp(path.join(tmpdir(), "outpost-case-legacy-writer-"));
     fixtureDirs.add(writerDir);
     const writerFile = path.join(writerDir, "writes.txt");
     if (scratchFailure) {
@@ -116,11 +116,11 @@ describe("case handoff through actual legacy process and HTTP boundaries", () =>
       });
     }
     await db.insert(authUsers).values({ id: userId, name: "Factory operator", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companies).values({ id: companyId, name: "Factory process proof", issuePrefix: `P${companyId.slice(0, 6)}`, defaultResponsibleUserId: userId });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "operator", status: "active" });
+    await db.insert(spaces).values({ id: spaceId, name: "Factory process proof", issuePrefix: `P${spaceId.slice(0, 6)}`, defaultResponsibleUserId: userId });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "operator", status: "active" });
     await db.insert(agents).values([
-      { id: triage, companyId, name: "Triage process", role: "ceo", status: "idle", adapterType: "process" },
-      { id: engineer, companyId, name: "Implementation process", role: "engineer", reportsTo: triage, status: "idle", adapterType: "process" },
+      { id: triage, spaceId, name: "Triage process", role: "lead", status: "idle", adapterType: "process" },
+      { id: engineer, spaceId, name: "Implementation process", role: "engineer", reportsTo: triage, status: "idle", adapterType: "process" },
     ]);
     let accepted: { receipt: { handoffId: string; taskId: string; state: string }; pid: number } | undefined;
     let observed: { taskId: string; caseId: string; phase: string; handoffVersion: number; runId: string } | undefined;
@@ -135,7 +135,7 @@ describe("case handoff through actual legacy process and HTTP boundaries", () =>
     server = await new Promise<Server>(resolve => { const listening = app.listen(0, "127.0.0.1", () => resolve(listening)); });
     const api = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
     process.env.OUTPOST_API_URL = api;
-    const initial = await caseHandoffService(db).handoff(companyId, { type: "board", source: "local_implicit", userId }, {
+    const initial = await caseHandoffService(db).handoff(spaceId, { type: "operator", source: "local_implicit", userId }, {
       idempotencyKey: "factory-start", case: { create: { caseType: "work", title: "Process factory proof", fields: { specification: "persisted specification canary" } } },
       workflow_document_text: "Triage researches the specification and hands the same task to implementation. Implementation saves the observed evidence.",
       toAgentId: triage, phase: "triage", instructions: "Research then hand this same task to implementation",
@@ -166,7 +166,7 @@ describe("case handoff through actual legacy process and HTTP boundaries", () =>
     process.kill(accepted!.pid, 0); // prove the provider process is still alive
     await delivery.sweepPending();
     expect(observed).toBeUndefined();
-    expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.agentId, engineer), eq(heartbeatRuns.companyId, companyId)))).toHaveLength(0);
+    expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.agentId, engineer), eq(heartbeatRuns.spaceId, spaceId)))).toHaveLength(0);
     expect((await db.select().from(issues).where(eq(issues.id, initial.taskId)))[0]!.assigneeAgentId).toBe(triage);
     releaseSource!();
     await heartbeat.drainActiveRunExecutions();
@@ -206,11 +206,11 @@ describe("case handoff through actual legacy process and HTTP boundaries", () =>
     expect(observed).toMatchObject({ taskId: initial.taskId, caseId: initial.caseId, phase: "implementation", handoffVersion: 2,
       fields: { specification: "persisted specification canary" } });
     const successor = (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, observed!.runId)))[0]!;
-    expect(successor.contextSnapshot?.paperclipCase).toMatchObject({ phase: "implementation", handoffVersion: 2, taskId: initial.taskId,
+    expect(successor.contextSnapshot?.outpostCase).toMatchObject({ phase: "implementation", handoffVersion: 2, taskId: initial.taskId,
       incomingHandoff: { instructions: expect.stringContaining("persisted specification canary") } });
-    expect(await db.select().from(issues).where(eq(issues.companyId, companyId))).toHaveLength(1);
-    expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, triage)))).toHaveLength(1);
-    expect(await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.agentId, engineer), eq(agentWakeupRequests.reason, "case_handoff")))).toHaveLength(1);
+    expect(await db.select().from(issues).where(eq(issues.spaceId, spaceId))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, triage)))).toHaveLength(1);
+    expect(await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.agentId, engineer), eq(agentWakeupRequests.reason, "case_handoff")))).toHaveLength(1);
     expect((await db.select().from(issues).where(eq(issues.id, initial.taskId)))[0]!.status).toBe("done");
   }, 30_000);
 });

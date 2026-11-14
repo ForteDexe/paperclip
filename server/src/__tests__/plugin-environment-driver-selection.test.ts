@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { createDb, plugins } from "@outpost/db";
-import type { PaperclipPluginManifestV1, PluginEnvironmentDriverDeclaration } from "@outpost/shared";
+import type { OutpostPluginManifestV1, PluginEnvironmentDriverDeclaration } from "@outpost/shared";
 import { pluginRegistryService } from "../services/plugin-registry.js";
 import { resolvePluginSandboxProviderDriverByKey } from "../services/plugin-environment-driver.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
@@ -20,7 +20,7 @@ describePostgres("sandbox-provider plugin selection", () => {
   const driver = (driverKey: string, kind: PluginEnvironmentDriverDeclaration["kind"] = "sandbox_provider") => ({
     driverKey, kind, displayName: driverKey, configSchema: { type: "object" },
   });
-  const manifest = (id: string, environmentDrivers: PluginEnvironmentDriverDeclaration[]): PaperclipPluginManifestV1 => ({
+  const manifest = (id: string, environmentDrivers: PluginEnvironmentDriverDeclaration[]): OutpostPluginManifestV1 => ({
     id: `test.selection.${id}`, apiVersion: 1, version: "1.0.0", displayName: "Selection fixture",
     description: "Fixture", author: "Test", categories: ["automation"],
     capabilities: ["environment.drivers.register"], entrypoints: { worker: "worker.js" }, environmentDrivers,
@@ -28,7 +28,7 @@ describePostgres("sandbox-provider plugin selection", () => {
   const largeDriver = { ...driver("other-provider"), configSchema: { type: "object", description: randomBytes(64 * 1024).toString("hex") } };
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-provider-selection-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-provider-selection-");
     db = createDb(temporary.connectionString);
   }, 60_000);
   beforeEach(async () => {

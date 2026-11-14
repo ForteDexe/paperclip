@@ -8,15 +8,15 @@ Use the copy from the website in cases where we need some.
 ## Outline
 
 - image header up top
-- Paperclip
+- Outpost
 - Manage autonomous AI Businesses
-- The open-source AI-agent orchestrator teams of agents that run companies
+- The open-source AI-agent orchestrator teams of agents that run spaces
 
 - a video
 
 # What is it
 
-Paperclip is a node server & UI that orchestrates a team of agents to run businesses.
+Outpost is a node server & UI that orchestrates a team of agents to run businesses.
 
 Bring-your-own agents, assign goals, and track your agent's work and costs.
 
@@ -24,9 +24,9 @@ It looks like a task manager but has specialized skills and agent coordination
 
 **It's high taste, and feels good to use**
 
-# Paperclip is right for you if:
+# Outpost is right for you if:
 
-- You want to build autonomous companies
+- You want to build autonomous spaces
 - You want to coordinate many different types agents (OpenClaw, Codex, Claude, Cursor, etc.) to collaborate towards a common goal
 - You have 20 simultaneous Claude Code terminals open (and lose track of what everyone is working on)
 - You want to let your agents run autonomously 24/7, but still audit their work and chime in when needed
@@ -36,7 +36,7 @@ It looks like a task manager but has specialized skills and agent coordination
 
 # What is not
 
-Paperclip is not:
+Outpost is not:
 
 - a code review tool
 - opinionated about what agent you use

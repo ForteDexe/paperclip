@@ -21,10 +21,10 @@ export async function withExecutionWorkspaceLifecycleLock<T>(
   workspaceId: string,
   work: (tx: Transaction) => Promise<T>,
 ): Promise<T> {
-  const [source] = await db.select({ companyId: executionWorkspaces.companyId, projectId: executionWorkspaces.projectId,
+  const [source] = await db.select({ spaceId: executionWorkspaces.spaceId, projectId: executionWorkspaces.projectId,
     providerType: executionWorkspaces.providerType, sourceIssueId: executionWorkspaces.sourceIssueId, cwd: executionWorkspaces.cwd, providerRef: executionWorkspaces.providerRef }).from(executionWorkspaces).where(eq(executionWorkspaces.id, workspaceId));
   const sourceRoots = source ? await Promise.all(localWorkspaceSourcePaths(source)
-    .map(cwd => workspaceSourceIdentities(source.companyId, cwd))) : [];
+    .map(cwd => workspaceSourceIdentities(source.spaceId, cwd))) : [];
   const projectIds = [...new Set([...sourceRoots.flatMap(root => root.projectIds),
     source && ["local_fs", "git_worktree"].includes(source.providerType) ? source.projectId : null,
   ].filter((id): id is string => Boolean(id)))].sort();
@@ -35,11 +35,11 @@ export async function withExecutionWorkspaceLifecycleLock<T>(
     connection.transaction(async (tx) => {
       await acquireExecutionWorkspaceLifecycleLock(tx, workspaceId);
       if ((projectIds.length || issueIds.length) && source) {
-        const [fresh] = await tx.select({ companyId: executionWorkspaces.companyId, projectId: executionWorkspaces.projectId,
+        const [fresh] = await tx.select({ spaceId: executionWorkspaces.spaceId, projectId: executionWorkspaces.projectId,
           providerType: executionWorkspaces.providerType, sourceIssueId: executionWorkspaces.sourceIssueId, cwd: executionWorkspaces.cwd, providerRef: executionWorkspaces.providerRef }).from(executionWorkspaces).where(eq(executionWorkspaces.id, workspaceId));
         const freshRoots = fresh ? await Promise.all(localWorkspaceSourcePaths(fresh)
-          .map(cwd => workspaceSourceIdentities(fresh.companyId, cwd))) : [];
-        if (!fresh || fresh.companyId !== source.companyId || fresh.projectId !== source.projectId
+          .map(cwd => workspaceSourceIdentities(fresh.spaceId, cwd))) : [];
+        if (!fresh || fresh.spaceId !== source.spaceId || fresh.projectId !== source.projectId
           || fresh.providerType !== source.providerType || fresh.sourceIssueId !== source.sourceIssueId || !isDeepStrictEqual(freshRoots, sourceRoots)) {
           throw new Error("workspace_source_scope_changed");
         }
@@ -55,7 +55,7 @@ export async function withExecutionWorkspaceLifecycleLock<T>(
     }),
   );
   return (projectIds.length || issueIds.length) && source
-    ? withWorkspaceSourceLocks(db, { companyId: source.companyId, projectIds, issueIds }, workWithLifecycle)
+    ? withWorkspaceSourceLocks(db, { spaceId: source.spaceId, projectIds, issueIds }, workWithLifecycle)
     : workWithLifecycle();
 }
 

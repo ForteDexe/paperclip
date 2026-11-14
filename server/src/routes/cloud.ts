@@ -95,8 +95,8 @@ export function cloudRoutes(opts: {
             headers: {
               accept: "application/json",
               authorization: `Bearer ${tenantToken}`,
-              "x-paperclip-cloud-user-id": actorUserId,
-              "x-paperclip-cloud-stack-id": context.stackId,
+              "x-outpost-cloud-user-id": actorUserId,
+              "x-outpost-cloud-stack-id": context.stackId,
             },
             signal: upstreamSignal,
           });

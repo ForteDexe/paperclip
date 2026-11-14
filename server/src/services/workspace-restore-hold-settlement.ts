@@ -8,7 +8,7 @@ import { hasConfirmedSandboxStopAndRetain } from "./sandbox-stop-and-retain.js";
 import { completedWorkspaceRecoveryCondition } from "./workspace-recovery-receipt.js";
 import { LEGACY_WORKSPACE_RECOVERY_KEY, LEGACY_WORKSPACE_RECOVERY_SCHEMA, SETTLED_WORKSPACE_RESTORE_HOLD_KEY } from "./workspace-restore-recovery-state.js";
 
-type Source = { companyId: string; issueId: string; runId: string; actionId: string };
+type Source = { spaceId: string; issueId: string; runId: string; actionId: string };
 
 /**
  * A restore hold stops a warm sandbox and changes its lease to
@@ -24,7 +24,7 @@ type Source = { companyId: string; issueId: string; runId: string; actionId: str
  */
 export async function settleRecoveredWorkspaceRestoreHolds(db: Db, input: Source): Promise<string[]> {
   const [run] = await db.select().from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId)));
+    eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId)));
   if (!run) return [];
   // A recovered workspace whose recorded disposition is `destroy` owes cleanup
   // (scheduleRecoveredWorkspaceCleanup), not reuse.
@@ -35,12 +35,12 @@ export async function settleRecoveredWorkspaceRestoreHolds(db: Db, input: Source
   // The hold settled only when this recovery is complete with saved files and
   // its own workspace_finalize receipt.
   const [action] = await db.select({ evidence: issueRecoveryActions.evidence }).from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.sourceIssueId, input.issueId),
+    eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.sourceIssueId, input.issueId),
     eq(issueRecoveryActions.id, input.actionId), completedWorkspaceRecoveryCondition(run.id))).limit(1);
   const operationIds = (action?.evidence.systemRecovery as { preservationOperationIds?: unknown } | undefined)?.preservationOperationIds;
   if (!action || !Array.isArray(operationIds)) return [];
   const leases = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, input.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+    eq(environmentLeases.spaceId, input.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
     eq(environmentLeases.leasePolicy, "retain_on_failure"), eq(environmentLeases.status, "released"),
     sql`${environmentLeases.metadata}->${LEGACY_WORKSPACE_RECOVERY_KEY}->>'schema' = ${LEGACY_WORKSPACE_RECOVERY_SCHEMA}`,
     sql`${environmentLeases.metadata}->${LEGACY_WORKSPACE_RECOVERY_KEY}->>'runId' = ${run.id}`));
@@ -57,7 +57,7 @@ export async function settleRecoveredWorkspaceRestoreHolds(db: Db, input: Source
     if (!hasConfirmedSandboxStopAndRetain(lease)) continue;
     // These files were saved by this recovery, from this exact allocation.
     const [saved] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-      eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.heartbeatRunId, run.id),
+      eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.heartbeatRunId, run.id),
       eq(workspaceOperations.status, "succeeded"),
       sql`${workspaceOperations.id}::text in (select jsonb_array_elements_text(${JSON.stringify(operationIds)}::jsonb))`,
       sql`${workspaceOperations.metadata}->>'leaseId' = ${lease.id}`,
@@ -73,7 +73,7 @@ export async function settleRecoveredWorkspaceRestoreHolds(db: Db, input: Source
     const [updated] = await db.update(environmentLeases).set({ leasePolicy: "reuse_by_environment", updatedAt: new Date(),
       metadata: { ...metadata, [SETTLED_WORKSPACE_RESTORE_HOLD_KEY]: { ...marker, actionId: input.actionId,
         snapshotOperationId: saved.id, restoredLeasePolicy: "reuse_by_environment", settledAt: new Date().toISOString() } },
-    }).where(and(eq(environmentLeases.companyId, input.companyId), eq(environmentLeases.id, lease.id),
+    }).where(and(eq(environmentLeases.spaceId, input.spaceId), eq(environmentLeases.id, lease.id),
       eq(environmentLeases.heartbeatRunId, run.id), eq(environmentLeases.leasePolicy, "retain_on_failure"),
       eq(environmentLeases.status, "released"), sql`${environmentLeases.metadata} = ${JSON.stringify(lease.metadata)}::jsonb`,
     )).returning({ id: environmentLeases.id });

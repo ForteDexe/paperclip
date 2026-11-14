@@ -9,9 +9,9 @@ import {
   agentRuntimeState,
   agentWakeupRequests,
   agents,
-  companies,
-  companyMemberships,
-  companySkills,
+  spaces,
+  spaceMemberships,
+  spaceSkills,
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -70,7 +70,7 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-issue-watchdogs-routes-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-issue-watchdogs-routes-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -89,25 +89,25 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
     await db.delete(issueWatchdogs);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companySkills);
+    await db.delete(spaceSkills);
     await db.delete(principalPermissionGrants);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  function createApp(companyId: string, actor?: Record<string, unknown>) {
+  function createApp(spaceId: string, actor?: Record<string, unknown>) {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
       (req as any).actor = actor ?? {
-        type: "board",
+        type: "operator",
         userId: "cloud-user-1",
-        companyIds: [companyId],
-        memberships: [{ companyId, membershipRole: "owner", status: "active" }],
+        spaceIds: [spaceId],
+        memberships: [{ spaceId, membershipRole: "owner", status: "active" }],
         source: "cloud_tenant",
         isInstanceAdmin: false,
       };
@@ -122,9 +122,9 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
     return `W${randomUUID().replace(/-/g, "").slice(0, 5).toUpperCase()}`;
   }
 
-  async function seedCloudTenantMember(companyId: string) {
-    await db.insert(companyMemberships).values({
-      companyId,
+  async function seedCloudTenantMember(spaceId: string) {
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "user",
       principalId: "cloud-user-1",
       status: "active",
@@ -132,30 +132,30 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
       updatedAt: new Date(),
     });
     await ensureHumanRoleDefaultGrants(db, {
-      companyId,
+      spaceId,
       principalId: "cloud-user-1",
       membershipRole: "owner",
       grantedByUserId: null,
     });
   }
 
-  async function seedCompany(name = "Paperclip") {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+  async function seedSpace(name = "Outpost") {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name,
       issuePrefix: uniqueIssuePrefix(),
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
-    await seedCloudTenantMember(companyId);
-    return companyId;
+    await seedCloudTenantMember(spaceId);
+    return spaceId;
   }
 
-  async function seedAgent(companyId: string, overrides: Partial<typeof agents.$inferInsert> = {}) {
+  async function seedAgent(spaceId: string, overrides: Partial<typeof agents.$inferInsert> = {}) {
     const id = overrides.id ?? randomUUID();
     await db.insert(agents).values({
       id,
-      companyId,
+      spaceId,
       name: overrides.name ?? "Watchdog Agent",
       role: overrides.role ?? "engineer",
       status: overrides.status ?? "active",
@@ -168,11 +168,11 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
     return id;
   }
 
-  async function seedIssue(companyId: string, overrides: Partial<typeof issues.$inferInsert> = {}) {
+  async function seedIssue(spaceId: string, overrides: Partial<typeof issues.$inferInsert> = {}) {
     const id = overrides.id ?? randomUUID();
     await db.insert(issues).values({
       id,
-      companyId,
+      spaceId,
       title: overrides.title ?? "Watched task",
       status: overrides.status ?? "todo",
       priority: overrides.priority ?? "medium",
@@ -193,27 +193,27 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
   }
 
   async function seedWatchdogRun(input: {
-    companyId: string;
+    spaceId: string;
     watchdogAgentId: string;
     watchedIssueId: string;
     watchdogIssueId: string;
   }) {
     await db.insert(issueWatchdogs).values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       issueId: input.watchedIssueId,
       watchdogAgentId: input.watchdogAgentId,
       watchdogIssueId: input.watchdogIssueId,
       status: "active",
     });
-    await taskWatchdogService(db).reconcileTaskWatchdogs({ companyId: input.companyId });
+    await taskWatchdogService(db).reconcileTaskWatchdogs({ spaceId: input.spaceId });
     const [watchdog] = await db
       .select({ lastObservedFingerprint: issueWatchdogs.lastObservedFingerprint })
       .from(issueWatchdogs)
-      .where(and(eq(issueWatchdogs.companyId, input.companyId), eq(issueWatchdogs.issueId, input.watchedIssueId)));
+      .where(and(eq(issueWatchdogs.spaceId, input.spaceId), eq(issueWatchdogs.issueId, input.watchedIssueId)));
     const runId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       agentId: input.watchdogAgentId,
       status: "running",
       contextSnapshot: {
@@ -229,12 +229,12 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
     return runId;
   }
 
-  async function waitForAssignmentWakeup(companyId: string) {
+  async function waitForAssignmentWakeup(spaceId: string) {
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const rows = await db
         .select({ id: heartbeatRuns.id })
         .from(heartbeatRuns)
-        .where(eq(heartbeatRuns.companyId, companyId))
+        .where(eq(heartbeatRuns.spaceId, spaceId))
         .limit(1);
       if (rows.length > 0) return;
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -242,11 +242,11 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
   }
 
   it("creates, updates, reads, lists, and removes an issue watchdog with activity logs", async () => {
-    const companyId = await seedCompany();
-    const issueId = await seedIssue(companyId, { identifier: "WDOG-1", issueNumber: 1 });
-    const firstAgentId = await seedAgent(companyId, { name: "First Watchdog" });
-    const secondAgentId = await seedAgent(companyId, { name: "Second Watchdog" });
-    const app = createApp(companyId);
+    const spaceId = await seedSpace();
+    const issueId = await seedIssue(spaceId, { identifier: "WDOG-1", issueNumber: 1 });
+    const firstAgentId = await seedAgent(spaceId, { name: "First Watchdog" });
+    const secondAgentId = await seedAgent(spaceId, { name: "Second Watchdog" });
+    const app = createApp(spaceId);
 
     const created = await request(app)
       .put(`/api/issues/${issueId}/watchdog`)
@@ -281,7 +281,7 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
     expect(detail.status, JSON.stringify(detail.body)).toBe(200);
     expect(detail.body.watchdog).toMatchObject({ id: created.body.id, watchdogAgentId: secondAgentId });
 
-    const list = await request(app).get(`/api/companies/${companyId}/issues`);
+    const list = await request(app).get(`/api/spaces/${spaceId}/issues`);
     expect(list.status, JSON.stringify(list.body)).toBe(200);
     expect(list.body.find((issue: { id: string }) => issue.id === issueId)?.watchdog)
       .toMatchObject({ id: created.body.id, watchdogAgentId: secondAgentId });
@@ -297,7 +297,7 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
     const stored = await db
       .select()
       .from(issueWatchdogs)
-      .where(and(eq(issueWatchdogs.companyId, companyId), eq(issueWatchdogs.issueId, issueId)))
+      .where(and(eq(issueWatchdogs.spaceId, spaceId), eq(issueWatchdogs.issueId, issueId)))
       .then((rows) => rows[0] ?? null);
     expect(stored).toMatchObject({
       id: created.body.id,
@@ -319,10 +319,10 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
   });
 
   it("handles concurrent first-time watchdog upserts without duplicate-key failures", async () => {
-    const companyId = await seedCompany();
-    const issueId = await seedIssue(companyId, { identifier: "WDOG-RACE", issueNumber: 99 });
-    const agentId = await seedAgent(companyId, { name: "Race Watchdog" });
-    const app = createApp(companyId);
+    const spaceId = await seedSpace();
+    const issueId = await seedIssue(spaceId, { identifier: "WDOG-RACE", issueNumber: 99 });
+    const agentId = await seedAgent(spaceId, { name: "Race Watchdog" });
+    const app = createApp(spaceId);
 
     const responses = await Promise.all(
       Array.from({ length: 12 }, (_, index) =>
@@ -337,18 +337,18 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
     const stored = await db
       .select()
       .from(issueWatchdogs)
-      .where(and(eq(issueWatchdogs.companyId, companyId), eq(issueWatchdogs.issueId, issueId)));
+      .where(and(eq(issueWatchdogs.spaceId, spaceId), eq(issueWatchdogs.issueId, issueId)));
     expect(stored).toHaveLength(1);
     expect(stored[0]).toMatchObject({ status: "active", watchdogAgentId: agentId });
   });
 
   it("creates an issue and watchdog atomically from the create issue route", async () => {
-    const companyId = await seedCompany();
-    const agentId = await seedAgent(companyId);
-    const app = createApp(companyId);
+    const spaceId = await seedSpace();
+    const agentId = await seedAgent(spaceId);
+    const app = createApp(spaceId);
 
     const res = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({
         title: "Create with watchdog",
         watchdog: {
@@ -379,13 +379,13 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
   });
 
   it("does not create an immediate watchdog review for a newly assigned issue", async () => {
-    const companyId = await seedCompany();
-    const workerAgentId = await seedAgent(companyId, { name: "Worker" });
-    const watchdogAgentId = await seedAgent(companyId, { name: "Watchdog" });
-    const app = createApp(companyId);
+    const spaceId = await seedSpace();
+    const workerAgentId = await seedAgent(spaceId, { name: "Worker" });
+    const watchdogAgentId = await seedAgent(spaceId, { name: "Watchdog" });
+    const app = createApp(spaceId);
 
     const res = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({
         title: "Assigned issue with watchdog",
         assigneeAgentId: workerAgentId,
@@ -396,7 +396,7 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
       });
 
     expect(res.status, JSON.stringify(res.body)).toBe(201);
-    await waitForAssignmentWakeup(companyId);
+    await waitForAssignmentWakeup(spaceId);
     expect(res.body).toMatchObject({
       assigneeAgentId: workerAgentId,
       watchdog: {
@@ -409,13 +409,13 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
     const watchdogReviewIssues = await db
       .select()
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.originKind, "task_watchdog")));
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.originKind, "task_watchdog")));
     expect(watchdogReviewIssues).toHaveLength(0);
 
     const [watchdog] = await db
       .select()
       .from(issueWatchdogs)
-      .where(and(eq(issueWatchdogs.companyId, companyId), eq(issueWatchdogs.issueId, res.body.id)));
+      .where(and(eq(issueWatchdogs.spaceId, spaceId), eq(issueWatchdogs.issueId, res.body.id)));
     expect(watchdog?.triggerCount).toBe(0);
 
     const taskWatchdogActivity = await db
@@ -426,32 +426,32 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
   });
 
   it("enforces persisted watchdog scope for issue mutations and child creation", async () => {
-    const companyId = await seedCompany();
-    const watchdogAgentId = await seedAgent(companyId, { name: "Scoped Watchdog" });
-    const watchedRootId = await seedIssue(companyId, { title: "Watched root", identifier: "WDOG-ROOT" });
-    const watchedChildId = await seedIssue(companyId, { title: "Watched child", parentId: watchedRootId });
-    const unrelatedRootId = await seedIssue(companyId, { title: "Unrelated root" });
-    const watchdogIssueId = await seedIssue(companyId, {
+    const spaceId = await seedSpace();
+    const watchdogAgentId = await seedAgent(spaceId, { name: "Scoped Watchdog" });
+    const watchedRootId = await seedIssue(spaceId, { title: "Watched root", identifier: "WDOG-ROOT" });
+    const watchedChildId = await seedIssue(spaceId, { title: "Watched child", parentId: watchedRootId });
+    const unrelatedRootId = await seedIssue(spaceId, { title: "Unrelated root" });
+    const watchdogIssueId = await seedIssue(spaceId, {
       title: "Reusable watchdog issue",
       parentId: watchedRootId,
       assigneeAgentId: watchdogAgentId,
       originKind: "task_watchdog",
       originId: watchedRootId,
     });
-    const watchdogIssueChildId = await seedIssue(companyId, {
+    const watchdogIssueChildId = await seedIssue(spaceId, {
       title: "Watchdog issue child",
       parentId: watchdogIssueId,
     });
     const runId = await seedWatchdogRun({
-      companyId,
+      spaceId,
       watchdogAgentId,
       watchedIssueId: watchedRootId,
       watchdogIssueId,
     });
-    const app = createApp(companyId, {
+    const app = createApp(spaceId, {
       type: "agent",
       agentId: watchdogAgentId,
-      companyId,
+      spaceId,
       runId,
       source: "agent_jwt",
     });
@@ -488,11 +488,11 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
     const deniedVisibleProbeIssues = await db
       .select({ id: issues.id })
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.title, "Denied watchdog issue child")));
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.title, "Denied watchdog issue child")));
     expect(deniedVisibleProbeIssues).toHaveLength(0);
 
     const deniedParentCreate = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({ title: "Denied parent create", parentId: unrelatedRootId });
     expect(deniedParentCreate.status, JSON.stringify(deniedParentCreate.body)).toBe(403);
     expect(deniedParentCreate.body.error).toBe("Task-watchdog runs can only mutate the watched issue subtree.");
@@ -510,14 +510,14 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
     const nestedWatchdogs = await db
       .select({ id: issueWatchdogs.id })
       .from(issueWatchdogs)
-      .where(and(eq(issueWatchdogs.companyId, companyId), eq(issueWatchdogs.issueId, watchedChildId)));
+      .where(and(eq(issueWatchdogs.spaceId, spaceId), eq(issueWatchdogs.issueId, watchedChildId)));
     expect(nestedWatchdogs).toHaveLength(0);
 
     // Watchdog runs are authorized for the watched subtree, so the agent depth
     // limit does not move their tasks above the requested parent. Remove the
     // task afterwards so the watched subtree returns to its stopped state.
     const allowedCreate = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({ title: "Allowed watched grandchild", parentId: watchedChildId });
     expect(allowedCreate.status, JSON.stringify(allowedCreate.body)).toBe(201);
     expect(allowedCreate.body.parentId).toBe(watchedChildId);
@@ -533,20 +533,20 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
   });
 
   it("routes watchdog-discovered product bugs outside the watched source tree with evidence links", async () => {
-    const companyId = await seedCompany();
-    const watchdogAgentId = await seedAgent(companyId, { name: "Product Bug Watchdog" });
-    const watchedRootId = await seedIssue(companyId, {
+    const spaceId = await seedSpace();
+    const watchdogAgentId = await seedAgent(spaceId, { name: "Product Bug Watchdog" });
+    const watchedRootId = await seedIssue(spaceId, {
       title: "Watched root",
       identifier: "PAP-100",
       issueNumber: 100,
     });
-    const watchedChildId = await seedIssue(companyId, {
+    const watchedChildId = await seedIssue(spaceId, {
       title: "Watched child",
       identifier: "PAP-101",
       issueNumber: 101,
       parentId: watchedRootId,
     });
-    const watchdogIssueId = await seedIssue(companyId, {
+    const watchdogIssueId = await seedIssue(spaceId, {
       title: "Reusable watchdog issue",
       identifier: "PAP-102",
       issueNumber: 102,
@@ -556,24 +556,24 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
       originId: watchedRootId,
     });
     const runId = await seedWatchdogRun({
-      companyId,
+      spaceId,
       watchdogAgentId,
       watchedIssueId: watchedRootId,
       watchdogIssueId,
     });
-    const app = createApp(companyId, {
+    const app = createApp(spaceId, {
       type: "agent",
       agentId: watchdogAgentId,
-      companyId,
+      spaceId,
       runId,
       source: "agent_jwt",
     });
 
     const res = await request(app)
-      .post(`/api/companies/${companyId}/issues`)
+      .post(`/api/spaces/${spaceId}/issues`)
       .send({
         title: "Fix watchdog source-tree pollution",
-        description: "Watchdog found a Paperclip follow-up routing bug.",
+        description: "Watchdog found a Outpost follow-up routing bug.",
         parentId: watchedChildId,
         watchdogDiscovery: {
           kind: "product_bug",
@@ -597,13 +597,13 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
     const watchedSourceChildren = await db
       .select({ id: issues.id, title: issues.title })
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.parentId, watchedChildId)));
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.parentId, watchedChildId)));
     expect(watchedSourceChildren).toHaveLength(0);
 
     const [createdActivity] = await db
       .select({ details: activityLog.details })
       .from(activityLog)
-      .where(and(eq(activityLog.companyId, companyId), eq(activityLog.entityId, res.body.id)));
+      .where(and(eq(activityLog.spaceId, spaceId), eq(activityLog.entityId, res.body.id)));
     expect(createdActivity?.details).toMatchObject({
       watchdogDiscovery: {
         kind: "product_bug",
@@ -614,21 +614,21 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
   });
 
   it("rejects watchdog interaction-resolution attempts outside the persisted watched subtree", async () => {
-    const companyId = await seedCompany();
-    const watchdogAgentId = await seedAgent(companyId, { name: "Interaction Watchdog" });
-    const watchedRootId = await seedIssue(companyId, { title: "Watched root" });
-    const unrelatedRootId = await seedIssue(companyId, { title: "Unrelated root" });
-    const watchdogIssueId = await seedIssue(companyId, { title: "Reusable watchdog issue" });
+    const spaceId = await seedSpace();
+    const watchdogAgentId = await seedAgent(spaceId, { name: "Interaction Watchdog" });
+    const watchedRootId = await seedIssue(spaceId, { title: "Watched root" });
+    const unrelatedRootId = await seedIssue(spaceId, { title: "Unrelated root" });
+    const watchdogIssueId = await seedIssue(spaceId, { title: "Reusable watchdog issue" });
     const runId = await seedWatchdogRun({
-      companyId,
+      spaceId,
       watchdogAgentId,
       watchedIssueId: watchedRootId,
       watchdogIssueId,
     });
-    const app = createApp(companyId, {
+    const app = createApp(spaceId, {
       type: "agent",
       agentId: watchdogAgentId,
-      companyId,
+      spaceId,
       runId,
       source: "agent_jwt",
     });
@@ -641,13 +641,13 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
     expect(res.body.error).toBe("Task-watchdog runs can only mutate the watched issue subtree.");
   });
 
-  it("rejects cross-company watched issues and watchdog agents", async () => {
-    const companyId = await seedCompany("Allowed company");
-    const otherCompanyId = await seedCompany("Other company");
-    const issueId = await seedIssue(companyId);
-    const otherIssueId = await seedIssue(otherCompanyId);
-    const otherAgentId = await seedAgent(otherCompanyId);
-    const app = createApp(companyId);
+  it("rejects cross-space watched issues and watchdog agents", async () => {
+    const spaceId = await seedSpace("Allowed space");
+    const otherSpaceId = await seedSpace("Other space");
+    const issueId = await seedIssue(spaceId);
+    const otherIssueId = await seedIssue(otherSpaceId);
+    const otherAgentId = await seedAgent(otherSpaceId);
+    const app = createApp(spaceId);
 
     const foreignIssue = await request(app)
       .put(`/api/issues/${otherIssueId}/watchdog`)
@@ -665,10 +665,10 @@ describeEmbeddedPostgres("issue watchdog routes", () => {
   it.each(["paused", "terminated", "pending_approval"])(
     "rejects %s watchdog agents",
     async (status) => {
-      const companyId = await seedCompany();
-      const issueId = await seedIssue(companyId);
-      const agentId = await seedAgent(companyId, { status });
-      const app = createApp(companyId);
+      const spaceId = await seedSpace();
+      const issueId = await seedIssue(spaceId);
+      const agentId = await seedAgent(spaceId, { status });
+      const app = createApp(spaceId);
 
       const res = await request(app)
         .put(`/api/issues/${issueId}/watchdog`)

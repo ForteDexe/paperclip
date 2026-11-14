@@ -21,7 +21,7 @@ export interface CopilotSemanticCompletionProof {
 }
 /** Independent public-event oracle. A transport receipt alone never proves completion acceptance. */
 export function readCopilotSemanticCompletion(rows: readonly unknown[], expected: {
-  companyId: string; runId: string; turnId: string; nativeSessionId: string; command: CopilotToolNotice; summary: string; requireContextRead?: boolean;
+  spaceId: string; runId: string; turnId: string; nativeSessionId: string; command: CopilotToolNotice; summary: string; requireContextRead?: boolean;
 }): CopilotSemanticCompletionProof {
   const fail = (message: string): never => { throw new Error(`Copilot semantic completion: ${message}`); };
   const all = rows.map(rec), notices = readCopilotToolEvidence(rows, expected.runId);
@@ -31,7 +31,7 @@ export function readCopilotSemanticCompletion(rows: readonly unknown[], expected
   if (!id(base.normalizedSessionId) || !id(base.sourceInstanceId)) fail("missing command stream");
   function frame(r: Row, sourceKind: "runner" | "control_plane") {
     const e = rec(rec(r.payload).orpEvent);
-    if (r.companyId !== expected.companyId || r.runId !== expected.runId || !Number.isSafeInteger(r.seq) || r.seq < 1
+    if (r.spaceId !== expected.spaceId || r.runId !== expected.runId || !Number.isSafeInteger(r.seq) || r.seq < 1
       || e.schema !== "outpost.orp.event.v1" || e.eventType !== r.eventType || e.sourceKind !== sourceKind
       || e.runId !== expected.runId || e.turnId !== expected.turnId || e.normalizedSessionId !== base.normalizedSessionId
       || !id(e.sourceInstanceId) || r.sourceInstanceId !== e.sourceInstanceId || r.sourceSeq !== e.sourceSeq
@@ -49,12 +49,12 @@ export function readCopilotSemanticCompletion(rows: readonly unknown[], expected
   }
   if (expected.command.runId !== expected.runId || expected.command.turnId !== expected.turnId || expected.command.sessionId !== expected.nativeSessionId) fail("foreign command");
   const contextRead = readCopilotContextRead(rows, expected.command, expected.requireContextRead);
-  const authorityRows = all.filter(r => (rec(rec(rec(r.payload).orpEvent).payload).category === "paperclip_semantic_tool_receipt_v2" || rec(rec(rec(r.payload).orpEvent).payload).category === "paperclip_semantic_tool_receipt_v1") && ![contextRead?.receiptSeq, ...(contextRead?.discoveries.map(d => d.receiptSeq) ?? [])].includes(r.seq));
+  const authorityRows = all.filter(r => (rec(rec(rec(r.payload).orpEvent).payload).category === "outpost_semantic_tool_receipt_v2" || rec(rec(rec(r.payload).orpEvent).payload).category === "outpost_semantic_tool_receipt_v1") && ![contextRead?.receiptSeq, ...(contextRead?.discoveries.map(d => d.receiptSeq) ?? [])].includes(r.seq));
   // This authored case asks for one finish, not arbitrary semantic actions.
   if (authorityRows.length !== 1) fail("expected one authoritative finish receipt");
   const authorityRow = authorityRows[0]!, authority = frame(authorityRow, "runner"), payload = rec(authority.payload), origin = rec(payload.provenance);
-  if (payload.category !== "paperclip_semantic_tool_receipt_v2" || payload.schema !== "outpost.provider.notice.v1" || payload.scope !== "turn" || authorityRow.eventType !== "provider.notice.recorded"
-    || origin.method !== "paperclip/semantic_tool_result" || origin.eventType !== "semantic_result"
+  if (payload.category !== "outpost_semantic_tool_receipt_v2" || payload.schema !== "outpost.provider.notice.v1" || payload.scope !== "turn" || authorityRow.eventType !== "provider.notice.recorded"
+    || origin.method !== "outpost/semantic_tool_result" || origin.eventType !== "semantic_result"
     || origin.sessionId !== expected.nativeSessionId || origin.turnId !== expected.turnId || !Array.isArray(payload.details) || payload.details.length !== 8) fail("invalid receipt provenance");
   const fields: Record<string, string> = {};
   for (const d of payload.details) {
@@ -62,7 +62,7 @@ export function readCopilotSemanticCompletion(rows: readonly unknown[], expected
     fields[d.name] = d.value;
   }
   if (Object.keys(fields).sort().join(",") !== receiptKeys || fields.stage !== "semantic_result" || fields.schema !== "outpost.semantic_tool_receipt.v2"
-    || fields.operationId !== "paperclip_finish" || fields.outcome !== "returned"
+    || fields.operationId !== "outpost_finish" || fields.outcome !== "returned"
     || ![fields.callIdentitySha256, fields.inputSha256, fields.normalizedInputSha256, fields.resultSha256].every(v => /^[a-f0-9]{64}$/.test(v!))) fail("invalid finish receipt");
   const matches = notices.filter(n => n.semanticCallIdentitySha256 === fields.callIdentitySha256);
   if (matches.length !== 1) fail("missing or duplicate native match");
@@ -161,7 +161,7 @@ export function copilotFinishAttemptBeforeCommandExit(proof: CopilotSemanticComp
 
 /** Fixture scheduling only; final grading still verifies the complete durable receipt and acceptance. */
 export function copilotAttachedFinishReady(notices: readonly CopilotToolNotice[], command: CopilotToolNotice): CopilotToolNotice | undefined {
-  const matches = notices.filter(n => n.semanticOperationId === "paperclip_finish" && n.semanticOutcome === "returned" && n.stage === "tool" && n.status === "completed"
+  const matches = notices.filter(n => n.semanticOperationId === "outpost_finish" && n.semanticOutcome === "returned" && n.stage === "tool" && n.status === "completed"
     && n.runId === command.runId && n.turnId === command.turnId && n.sessionId === command.sessionId && n.seq > command.seq);
   if (!matches.length) return undefined;
   if (matches.length !== 1) throw new Error("Attached fixture has ambiguous finish receipts");

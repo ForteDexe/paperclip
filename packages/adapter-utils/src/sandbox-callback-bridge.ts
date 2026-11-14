@@ -87,7 +87,7 @@ const BACKSTOP_WRITE_RETRY_MS = 50;
 // call every poll interval.
 const MAX_TRANSIENT_ITERATION_BACKOFF_MS = 5_000;
 const REMOTE_WRITE_BASE64_CHUNK_SIZE = 32 * 1024;
-export const SANDBOX_CALLBACK_BRIDGE_ENTRYPOINT = "paperclip-bridge-server.mjs";
+export const SANDBOX_CALLBACK_BRIDGE_ENTRYPOINT = "outpost-bridge-server.mjs";
 const SANDBOX_EXEC_CHANNEL_ENV = "OUTPOST_SANDBOX_EXEC_CHANNEL";
 const SANDBOX_EXEC_CHANNEL_BRIDGE = "bridge";
 
@@ -102,7 +102,7 @@ const SANDBOX_CALLBACK_BRIDGE_FILE_MODE = "queue_v1";
 /** The active non-file transport mode. */
 export const SANDBOX_CALLBACK_BRIDGE_HTTP2_MODE = "http2_v1";
 
-/** Span name that wraps one Paperclip-API callback request — read the request,
+/** Span name that wraps one Outpost-API callback request — read the request,
  * write the response, and remove the request file. */
 const CALLBACK_BRIDGE_RELAY_REQUEST_SPAN = "sandbox.callbackBridge.relayRequest";
 
@@ -122,14 +122,14 @@ export interface SandboxCallbackBridgeRouteRule {
 // Routes the in-sandbox heartbeat skill is documented to call. The server
 // still enforces actor-level permissions on top of this allowlist; the list
 // exists to bound the surface area a compromised CLI could reach via the
-// reverse bridge. Keep this in sync with the Paperclip skill in
+// reverse bridge. Keep this in sync with the Outpost skill in
 // `skills/outpost-task/SKILL.md` and `references/api-reference.md`.
 export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST: readonly SandboxCallbackBridgeRouteRule[] = [
   // Runtime capability authentication is independently checked by the controller.
   { method: "POST", path: /^\/runtime-tools\/github\/credentials$/ },
   // Identity, inbox, agent self-management
   { method: "GET", path: /^\/api\/agents\/me$/ },
-  { method: "POST", path: /^\/api\/companies\/[^/]+\/agent-commentary$/ },
+  { method: "POST", path: /^\/api\/spaces\/[^/]+\/agent-commentary$/ },
   { method: "GET", path: /^\/api\/agents\/me\/inbox-lite$/ },
   { method: "GET", path: /^\/api\/agents\/me\/inbox\/mine$/ },
   { method: "GET", path: /^\/api\/agents\/[^/]+$/ },
@@ -140,41 +140,41 @@ export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST: readonly SandboxCa
   // Read-only schema discovery for validated control-plane requests.
   { method: "GET", path: /^\/api\/openapi\.json$/ },
 
-  // Company-level reads used to discover work and context
-  { method: "GET", path: /^\/api\/companies\/[^/]+$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/dashboard$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/agents$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/issues$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/projects$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/goals$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/org$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/approvals$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/routines$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/skills$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/skills\/[^/]+$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/skills\/[^/]+\/files$/ },
+  // Space-level reads used to discover work and context
+  { method: "GET", path: /^\/api\/spaces\/[^/]+$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/dashboard$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/agents$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/issues$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/projects$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/goals$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/org$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/approvals$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/routines$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/skills$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/skills\/[^/]+$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/skills\/[^/]+\/files$/ },
   { method: "GET", path: /^\/api\/projects\/[^/]+$/ },
   { method: "GET", path: /^\/api\/goals\/[^/]+$/ },
 
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/heartbeat-runs$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/live-runs$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/heartbeat-runs$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/live-runs$/ },
   { method: "GET", path: /^\/api\/heartbeat-runs\/[^/]+$/ },
   { method: "GET", path: /^\/api\/heartbeat-runs\/[^/]+\/(?:events|log|workspace-operations|issues)$/ },
   { method: "GET", path: /^\/api\/issues\/[^/]+\/(?:runs|recovery-actions)$/ },
 
-  // Task-bound email actions. Company, inbox ownership, task/run authority,
+  // Task-bound email actions. Space, inbox ownership, task/run authority,
   // and action policies are enforced by the controller; mailbox setup stays denied.
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/email\/inboxes$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/email\/tasks\/[^/]+$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/email\/deliveries\/[^/]+$/ },
-  { method: "POST", path: /^\/api\/companies\/[^/]+\/email\/send$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/email\/inboxes$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/email\/tasks\/[^/]+$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/email\/deliveries\/[^/]+$/ },
+  { method: "POST", path: /^\/api\/spaces\/[^/]+\/email\/send$/ },
 
   // Issue lifecycle: read context, checkout, update, comment, document, release
   { method: "GET", path: /^\/api\/issues\/[^/]+$/ },
   { method: "GET", path: /^\/api\/issues\/[^/]+\/heartbeat-context$/ },
   { method: "GET", path: /^\/api\/issues\/[^/]+\/diagnostics\/wakes$/ },
   { method: "POST", path: /^\/api\/issues\/[^/]+\/monitor\/check-now$/ },
-  // The controller still checks company membership and issue read authority.
+  // The controller still checks space membership and issue read authority.
   { method: "GET", path: /^\/api\/issues\/[^/]+\/activity$/ },
   { method: "GET", path: /^\/api\/issues\/[^/]+\/comments(?:\/[^/]+)?$/ },
   { method: "POST", path: /^\/api\/issues\/[^/]+\/comments$/ },
@@ -188,7 +188,7 @@ export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST: readonly SandboxCa
 
   // Files: the queue encodes binary bodies; HTTP/2 carries the same bytes directly.
   { method: "GET", path: /^\/api\/issues\/[^/]+\/attachments$/ },
-  { method: "POST", path: /^\/api\/companies\/[^/]+\/issues\/[^/]+\/attachments$/ },
+  { method: "POST", path: /^\/api\/spaces\/[^/]+\/issues\/[^/]+\/attachments$/ },
   { method: "GET", path: /^\/api\/attachments\/[^/]+\/content$/ },
   { method: "GET", path: /^\/api\/assets\/[^/]+\/content$/ },
 
@@ -203,17 +203,17 @@ export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST: readonly SandboxCa
   { method: "POST", path: /^\/api\/issues\/[^/]+\/interactions\/[^/]+\/(?:accept|reject|respond|verdicts|withdraw)$/ },
 
   // Subtasks / delegation
-  { method: "POST", path: /^\/api\/companies\/[^/]+\/issues$/ },
+  { method: "POST", path: /^\/api\/spaces\/[^/]+\/issues$/ },
 
   // Agent creation: adapter/icon discovery, comparing existing configurations,
   // submitting the request, and linking its approval to the source task. Direct
-  // creation (POST /api/companies/:id/agents) stays denied; the server still
+  // creation (POST /api/spaces/:id/agents) stays denied; the server still
   // permission-checks the approval-gated endpoint.
   { method: "GET", path: /^\/llms\/agent-configuration\.txt$/ },
   { method: "GET", path: /^\/llms\/agent-configuration\/[^/]+\.txt$/ },
   { method: "GET", path: /^\/llms\/agent-icons\.txt$/ },
-  { method: "GET", path: /^\/api\/companies\/[^/]+\/agent-configurations$/ },
-  { method: "POST", path: /^\/api\/companies\/[^/]+\/agent-hires$/ },
+  { method: "GET", path: /^\/api\/spaces\/[^/]+\/agent-configurations$/ },
+  { method: "POST", path: /^\/api\/spaces\/[^/]+\/agent-hires$/ },
   { method: "POST", path: /^\/api\/issues\/[^/]+\/approvals$/ },
 
   // Approvals (request, read, comment)
@@ -221,7 +221,7 @@ export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST: readonly SandboxCa
   { method: "GET", path: /^\/api\/approvals\/[^/]+\/issues$/ },
   { method: "GET", path: /^\/api\/approvals\/[^/]+\/comments$/ },
   { method: "POST", path: /^\/api\/approvals\/[^/]+\/comments$/ },
-  { method: "POST", path: /^\/api\/companies\/[^/]+\/approvals$/ },
+  { method: "POST", path: /^\/api\/spaces\/[^/]+\/approvals$/ },
 
   // Execution workspaces and runtime services (start/stop/restart dev servers)
   { method: "GET", path: /^\/api\/execution-workspaces\/[^/]+$/ },
@@ -230,7 +230,7 @@ export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST: readonly SandboxCa
   // Routines (agents manage their own routines and triggers)
   { method: "GET", path: /^\/api\/routines\/[^/]+$/ },
   { method: "GET", path: /^\/api\/routines\/[^/]+\/runs$/ },
-  { method: "POST", path: /^\/api\/companies\/[^/]+\/routines$/ },
+  { method: "POST", path: /^\/api\/spaces\/[^/]+\/routines$/ },
   { method: "PATCH", path: /^\/api\/routines\/[^/]+$/ },
   { method: "POST", path: /^\/api\/routines\/[^/]+\/run$/ },
   { method: "POST", path: /^\/api\/routines\/[^/]+\/triggers$/ },
@@ -246,7 +246,7 @@ export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_HEADER_ALLOWLIST = [
   "content-type",
   "if-match",
   "if-none-match",
-  "x-paperclip-github-capability",
+  "x-outpost-github-capability",
 ] as const;
 
 export interface SandboxCallbackBridgeRequest extends SandboxCallbackBridgeBody {
@@ -494,7 +494,7 @@ export function buildSandboxCallbackBridgeEnv(input: {
 }
 
 export async function createSandboxCallbackBridgeAsset(): Promise<SandboxCallbackBridgeAsset> {
-  const localDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-bridge-asset-"));
+  const localDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-bridge-asset-"));
   const entrypoint = path.join(localDir, SANDBOX_CALLBACK_BRIDGE_ENTRYPOINT);
   await fs.writeFile(entrypoint, getSandboxCallbackBridgeServerSource(), "utf8");
   return {
@@ -547,14 +547,14 @@ export function createFileSystemSandboxCallbackBridgeQueueClient(): SandboxCallb
       // onto the final `.json` path. A direct `writeFile` truncates the final
       // path first, so a `.json`-only reader (the stdin poller) can see an
       // empty or partial file. The atomic rename never exposes partial content.
-      const tempPath = `${remotePath}.paperclip-upload.decoded`;
+      const tempPath = `${remotePath}.outpost-upload.decoded`;
       await fs.writeFile(tempPath, body, "utf8");
       await fs.rename(tempPath, remotePath);
     },
     writeResponseFile: async (responsePath, body, options = {}) => {
       const responseDir = path.posix.dirname(responsePath);
       const tempPath = `${responsePath}.tmp`;
-      const lockDir = `${responsePath}.paperclip-write.lock`;
+      const lockDir = `${responsePath}.outpost-write.lock`;
       const lockPidFile = `${lockDir}/pid`;
       if (options.requestPath) {
         const requestExists = await pathExists(options.requestPath);
@@ -702,7 +702,7 @@ export function createCommandManagedSandboxCallbackBridgeQueueClient(input: {
       // decode writes it, so a reader can see an empty or partial file.
       // A failed provider response does not prove the remote command stopped.
       // Keep concurrent or retried uploads from truncating each other's bytes.
-      const uploadPath = `${remotePath}.${randomUUID()}.paperclip-upload`;
+      const uploadPath = `${remotePath}.${randomUUID()}.outpost-upload`;
       const tempPath = `${uploadPath}.b64`;
       const decodedPath = `${uploadPath}.decoded`;
       try {
@@ -738,7 +738,7 @@ export function createCommandManagedSandboxCallbackBridgeQueueClient(input: {
     writeResponseFile: async (responsePath, body, options = {}) => {
       const responseDir = path.posix.dirname(responsePath);
       const tempPath = `${responsePath}.tmp`;
-      const lockDir = `${responsePath}.paperclip-write.lock`;
+      const lockDir = `${responsePath}.outpost-write.lock`;
       const requestPath = options.requestPath?.trim() || "";
       const result = await runShell(
         input.runner,
@@ -850,7 +850,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
   // otherwise). When it is absent, the request work runs with an empty store,
   // exactly like the earlier `runWithoutActiveStep` behavior.
   getRuntimeParentContext?: () => StartupSpanContext | undefined;
-  // Wrap each Paperclip-API callback request in a
+  // Wrap each Outpost-API callback request in a
   // `sandbox.callbackBridge.relayRequest` span, so the request's read, write, and
   // remove execs group under one named span. When it is absent, the request work
   // runs under the run parent with no wrapper span, exactly like the earlier
@@ -1174,7 +1174,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
             status: 504,
             headers: {
               "content-type": "application/json",
-              "x-paperclip-bridge-outcome": "indeterminate",
+              "x-outpost-bridge-outcome": "indeterminate",
             },
             body: JSON.stringify({
               error: error instanceof Error ? error.message : String(error),
@@ -1238,7 +1238,7 @@ export async function startSandboxCallbackBridgeWorker(input: {
             status: 504,
             headers: {
               "content-type": "application/json",
-              "x-paperclip-bridge-outcome": "indeterminate",
+              "x-outpost-bridge-outcome": "indeterminate",
             },
             body: JSON.stringify({ error: message, outcome: "indeterminate", retryable: false }),
             completedAt: new Date().toISOString(),
@@ -1676,7 +1676,7 @@ export async function syncSandboxCallbackBridgeEntrypoint(input: {
     body: entrypointSource,
     label: "Sandbox callback bridge entrypoint",
     action: "sync sandbox callback bridge entrypoint",
-    lockDir: path.posix.join(input.assetRemoteDir, ".paperclip-bridge-upload.lock"),
+    lockDir: path.posix.join(input.assetRemoteDir, ".outpost-bridge-upload.lock"),
     timeoutMs: input.timeoutMs,
     shellCommand: input.shellCommand,
   });
@@ -2173,7 +2173,7 @@ if (bridgeMode !== "${SANDBOX_CALLBACK_BRIDGE_HTTP2_MODE}" && !queueDir) {
 let gatewayReady = false;
 process.on("uncaughtException", (error) => {
   process.stderr.write(
-    "[paperclip-bridge] uncaught exception: " + (error && error.stack ? error.stack : String(error)) + "\\n",
+    "[outpost-bridge] uncaught exception: " + (error && error.stack ? error.stack : String(error)) + "\\n",
   );
   if (!gatewayReady) {
     process.exit(1);
@@ -2181,7 +2181,7 @@ process.on("uncaughtException", (error) => {
 });
 process.on("unhandledRejection", (reason) => {
   const detail = reason && typeof reason === "object" && "stack" in reason ? reason.stack : String(reason);
-  process.stderr.write("[paperclip-bridge] unhandled rejection: " + detail + "\\n");
+  process.stderr.write("[outpost-bridge] unhandled rejection: " + detail + "\\n");
   if (!gatewayReady) {
     process.exit(1);
   }
@@ -2399,7 +2399,7 @@ async function runFileGateway() {
       const url = new URL(req.url || "/", "http://127.0.0.1");
       const contentType = typeof req.headers["content-type"] === "string" ? req.headers["content-type"] : "";
       const multipartAttachment = req.method === "POST"
-        && /^\\/api\\/companies\\/[^/]+\\/issues\\/[^/]+\\/attachments$/.test(url.pathname)
+        && /^\\/api\\/spaces\\/[^/]+\\/issues\\/[^/]+\\/attachments$/.test(url.pathname)
         && /^multipart\\/form-data(?:;|$)/i.test(contentType);
       if (req.method && req.method !== "GET" && req.method !== "HEAD" && !/json/i.test(contentType) && !multipartAttachment) {
         writeJsonResponse(res, 415, { error: "Bridge only accepts JSON request bodies." });
@@ -2452,7 +2452,7 @@ async function runFileGateway() {
       // mutation twice. Map the indeterminate outcome to a non-retryable 409, so a
       // standard retry policy does not repeat the request. The outcome header and
       // body stay, so a caller that reads them still sees the indeterminate result.
-      const bridgeOutcome = responseHeaders["x-paperclip-bridge-outcome"];
+      const bridgeOutcome = responseHeaders["x-outpost-bridge-outcome"];
       if (bridgeOutcome === "indeterminate") {
         res.statusCode = 409;
       } else {
@@ -2468,7 +2468,7 @@ async function runFileGateway() {
       // dispatched, a missing or corrupt receipt cannot prove that it failed.
       const uncertainWrite = dispatched && !["GET", "HEAD", "OPTIONS", "TRACE"].includes(req.method || "GET");
       const status = uncertainWrite ? 409 : error instanceof BridgeProcessCapacityError ? 503 : 502;
-      if (uncertainWrite) res.setHeader("x-paperclip-bridge-outcome", "indeterminate");
+      if (uncertainWrite) res.setHeader("x-outpost-bridge-outcome", "indeterminate");
       writeJsonResponse(res, status, {
         error: error instanceof Error ? error.message : String(error),
         ...(uncertainWrite ? { outcome: "indeterminate", retryable: false } : {}),
@@ -2502,7 +2502,7 @@ async function runFileGateway() {
   server.once("error", (error) => {
     clearInterval(bindKeepalive);
     process.stderr.write(
-      "[paperclip-bridge] server error: " + (error && error.stack ? error.stack : String(error)) + "\\n",
+      "[outpost-bridge] server error: " + (error && error.stack ? error.stack : String(error)) + "\\n",
     );
     if (!gatewayReady) {
       process.exit(1);
@@ -2572,7 +2572,7 @@ function createStdioDuplex() {
 function runHttp2Gateway() {
   function diag(message) {
     // Diagnostics go to stderr only, the same as every other mode.
-    process.stderr.write("[paperclip-bridge] " + message + "\\n");
+    process.stderr.write("[outpost-bridge] " + message + "\\n");
   }
   function writeFrame(frame) {
     process.stdout.write(encodeDuplexFrame(frame));
@@ -2695,7 +2695,7 @@ function runHttp2Gateway() {
       // mutation twice. Map the indeterminate outcome to a non-retryable 409, so a
       // standard retry policy does not repeat the request. The outcome header and
       // body stay, so a caller that reads them still sees the indeterminate result.
-      const bridgeOutcome = (response.headers || {})["x-paperclip-bridge-outcome"];
+      const bridgeOutcome = (response.headers || {})["x-outpost-bridge-outcome"];
       if (bridgeOutcome === "indeterminate") {
         res.statusCode = 409;
       } else {

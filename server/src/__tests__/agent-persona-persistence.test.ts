@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, companies, createDb } from "@outpost/db";
+import { agents, spaces, createDb } from "@outpost/db";
 import { agentAppearanceSchema, appearanceForPalette, legacyAgentAppearance } from "@outpost/shared";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { agentService } from "../services/agents.js";
@@ -11,21 +11,21 @@ import { agentService } from "../services/agents.js";
 describe("persisted agent personas", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  let companyId: string;
+  let spaceId: string;
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("agent-persona-persistence-");
     db = createDb(database.connectionString);
-    companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Persona test", issuePrefix: "CAP" });
+    spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Persona test", issuePrefix: "CAP" });
   }, 30_000);
   afterAll(async () => { await database?.cleanup(); });
   it("randomizes once, accepts a saved draft and preserves identity across edits and revision rollback", async () => {
     const service = agentService(db);
     const serviceLifecycle = createAgentLifecycle(db);
-    const random = await serviceLifecycle.requestHire(companyId, { name: "Random", role: "engineer", adapterType: "process" });
+    const random = await serviceLifecycle.requestCreation(spaceId, { name: "Random", role: "engineer", adapterType: "process" });
     expect(agentAppearanceSchema.safeParse(random.appearance).success).toBe(true);
     const appearance = appearanceForPalette("arctic-blue");
-    const original = await serviceLifecycle.requestHire(companyId, { name: "Draft", role: "engineer", adapterType: "process", appearance });
+    const original = await serviceLifecycle.requestCreation(spaceId, { name: "Draft", role: "engineer", adapterType: "process", appearance });
     expect(original.appearance).toEqual(appearance);
     const updated = await service.update(original.id, { name: "Renamed" }, { recordRevision: { source: "test" } });
     expect(updated?.appearance).toEqual(appearance);
@@ -40,7 +40,7 @@ describe("persisted agent personas", () => {
   });
   it("backfills legacy IDs with exactly the same persisted identity as the runtime fallback", async () => {
     const ids = Array.from({ length: 20 }, () => randomUUID());
-    await db.insert(agents).values(ids.map((id, i) => ({ id, companyId, name: `Legacy ${i}`, role: "engineer", appearance: null, icon: "bot" })));
+    await db.insert(agents).values(ids.map((id, i) => ({ id, spaceId, name: `Legacy ${i}`, role: "engineer", appearance: null, icon: "bot" })));
     const migration = await readFile(new URL("../../../packages/db/src/migrations/0280_unique_genesis.sql", import.meta.url), "utf8");
     // Replaying the entire migration must preserve saved choices and tolerate
     // an already-created column from an earlier worktree migration number.

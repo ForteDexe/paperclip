@@ -9,7 +9,7 @@ interface RoutinesObservation extends InternalObservation {
   routines: RoutineDetail[]; histories: Record<string, RoutineRunSummary[]>; routineRevisions: Record<string, RoutineRevision[]>;
   browserTimezone: string;
 }
-const root = (ctx: ChatCatalogContext) => `/api/companies/${ctx.input.fixtures.company.id}`;
+const root = (ctx: ChatCatalogContext) => `/api/spaces/${ctx.input.fixtures.space.id}`;
 async function observeRoutines(ctx: ChatCatalogContext, state: Record<string, unknown>): Promise<RoutinesObservation> {
   const base = await observeInternal(ctx, state); const api = ctx.input.api;
   const listed = await api.get<RoutineListItem[]>(`${root(ctx)}/routines`);
@@ -52,7 +52,7 @@ export function gradeIntegratorRoutines(value: unknown) {
   if (!o) return c.result();
   if (o.scenarioId === "routines.create-daily-brief") {
     const routine = o.routines[0]; const p = o.state.project as { id: string };
-    c.add("one-owned-launch-definition", o.routines.length === 1 && !!routine && routine.companyId === o.companyId && routine.assigneeAgentId === o.leadId && routine.projectId === p?.id
+    c.add("one-owned-launch-definition", o.routines.length === 1 && !!routine && routine.spaceId === o.spaceId && routine.assigneeAgentId === o.leadId && routine.projectId === p?.id
       && /summar(?:y|ize|ise)/i.test(`${routine.title} ${routine.description}`) && routine.createdByAgentId === o.leadId, "Exactly one self-assigned routine saves the summary purpose and actual Launch project.");
     const schedule = routine?.triggers.filter(row => row.kind === "schedule");
     c.add("weekday-nine-person-timezone", o.browserTimezone === "America/Chicago" && schedule?.length === 1 && schedule[0]?.enabled === true
@@ -88,7 +88,7 @@ export function gradeIntegratorRoutines(value: unknown) {
 async function verifyRoutine(ctx: ChatCatalogContext, _state: Record<string, unknown>, value: unknown) {
   const o = routineObservation(value); const routine = o?.routines[0];
   if (!routine) throw new Error("No saved routine available for browser inspection");
-  await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/routines/${routine.id}`, routine.title);
+  await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/routines/${routine.id}`, routine.title);
 }
 const define = (id: string, setup: ChatCatalogCase["setup"], extra: Partial<ChatCatalogCase> = {}) => integratorDefinition("routines", id, setup, observeRoutines, gradeIntegratorRoutines, verifyRoutine, extra);
 export const integratorRoutinesCases: readonly ChatCatalogCase[] = [

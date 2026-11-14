@@ -60,7 +60,7 @@ mutating its file but retains a visible execution blocker. Unit and integration
 tests additionally cover pre-start Stop, unavailable/changed sessions, rotating
 scratch directories, cancellation acknowledgment, a provider that hangs during
 cleanup after returning cancellation, deferred-wake adoption, and
-company-scoped blocker lookup. Hosted-provider behavior is a separate smoke test.
+space-scoped blocker lookup. Hosted-provider behavior is a separate smoke test.
 
 The browser tests also require the continued provider to complete the task through
 the agent API. Restoring a session must refresh its run identity, API credential,
@@ -136,7 +136,7 @@ permissions, keyboard submission, queue edits, duplicate clicks, draft
 preservation, shared pause requests, compact cancellation, and visible errors.
 Stop verification tests include continued execution, native acknowledgment,
 network failures, and hung status requests. Route tests cover pause dispatch,
-authorization, cancellation, and opt-in resume wakeups with terminal/company
+authorization, cancellation, and opt-in resume wakeups with terminal/space
 exclusions.
 
 ## Isolated browser acceptance
@@ -163,7 +163,7 @@ The suite boots a disposable local-trusted instance on port 3199 (override with
 is explicitly skipped without the fixture; it must not use a logged-in provider
 as a fallback. The acceptance server pins its Codex command resolver to the fixture
 and uses an empty credential home, because an installed Codex dependency takes
-precedence over `PATH`. Test companies are archived during cleanup.
+precedence over `PATH`. Test spaces are archived during cleanup.
 
 For each runner, the journey starts a parent, child, and unrelated task, plus a
 terminal child. It sends while running and verifies the durable queue, clicks
@@ -203,7 +203,7 @@ in unchanged suites, all reproduced in the original checkout:
 - `server/src/services/workspace-runtime-exposure.test.ts`: 7 failures.
 - `server/src/__tests__/execution-workspace-runtime-control-conflict.test.ts`: 4 failures.
 - `server/src/__tests__/workspace-instance-cleanup.test.ts`: 1 failure.
-- `server/src/__tests__/company-skills.test.ts`: 2 failures.
+- `server/src/__tests__/space-skills.test.ts`: 2 failures.
 - `server/src/__tests__/worktree-seed-server-spawn.test.ts`: 1 failure.
 
 These baseline failures prevent a green repository-wide test result.

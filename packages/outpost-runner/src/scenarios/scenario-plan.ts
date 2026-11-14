@@ -594,7 +594,7 @@ function derivedWorkSteps(
       ];
     case "se":
       return [
-        read("search_tasks", { query: "MCK" }, "Search company tasks through the granted claim."),
+        read("search_tasks", { query: "MCK" }, "Search space tasks through the granted claim."),
         read("list_agents", {}, "Read the roster through the granted claim."),
       ];
     case "su":
@@ -642,7 +642,7 @@ function approvalSteps(
         "Comment on the approval instead of acting around it.",
       ),
     );
-    if (entry.scenarioClaims.includes("governance:approvals:decide")) {
+    if (entry.scenarioClaims.includes("approvals:approvals:decide")) {
       steps.push(
         write(
           "decide_approval",
@@ -686,7 +686,7 @@ function referenceSurfaceSteps(
     ];
   }
   if (entry.id.startsWith("rf-cskill-")) {
-    return [read("list_company_skills", {}, "Read the company skill library through the granted claim.")];
+    return [read("list_space_skills", {}, "Read the space skill library through the granted claim.")];
   }
   if (entry.id.startsWith("rf-iws-")) {
     const steps: CapabilityPlanStep[] = [
@@ -708,7 +708,7 @@ function referenceSurfaceSteps(
     return [read("list_routines", {}, "Read the routine set through the granted claim.")];
   }
   if (entry.id.startsWith("rf-wf-")) {
-    return [read("export_company", {}, "Preview the company export through the granted claim.")];
+    return [read("export_space", {}, "Preview the space export through the granted claim.")];
   }
   if (entry.id.startsWith("rf-art-")) {
     return [

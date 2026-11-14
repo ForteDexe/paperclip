@@ -4,7 +4,7 @@ import {
   fulfill,
   installChatControlPlaneMock,
   json,
-  seedCompanyAndAgent,
+  seedSpaceAndAgent,
   PROVIDERS,
   bodyOf,
   type Seed,
@@ -20,7 +20,7 @@ test.describe("chat destination partial updates", () => {
   let seed: Seed;
 
   test.beforeAll(async ({ request }) => {
-    seed = await seedCompanyAndAgent(request);
+    seed = await seedSpaceAndAgent(request);
   });
 
   for (const initiallyEnabled of [false, true]) {
@@ -219,7 +219,7 @@ test.describe("Board send delivery refresh", () => {
         request,
       }) => {
         await page.addLocatorHandler(
-          page.getByRole("complementary", { name: "Paperclip announcements", exact: true })
+          page.getByRole("complementary", { name: "Outpost announcements", exact: true })
             .getByRole("button", { name: "Dismiss announcement", exact: true }),
           async (dismiss) => {
             const menuOpen = await page.getByRole("menu", { name: "Add to composer", exact: true }).isVisible();
@@ -228,16 +228,16 @@ test.describe("Board send delivery refresh", () => {
             if (menuOpen) await page.getByRole("button", { name: "Add to composer", exact: true }).click();
           },
         );
-        const selected = await seedCompanyAndAgent(request);
-        const target = await seedCompanyAndAgent(request);
+        const selected = await seedSpaceAndAgent(request);
+        const target = await seedSpaceAndAgent(request);
         const issue = await json<{ id: string; identifier: string }>(
-          await request.post(`/api/companies/${target.companyId}/issues`, {
+          await request.post(`/api/spaces/${target.spaceId}/issues`, {
             data: { title: "Organization-bound task link", status: "backlog" },
           }),
           "create linked task in another organization",
         );
         await page.route("**/api/workspace-preferences/me", route => fulfill(route, {
-          userId: "local-board", coordinatorWorkspaceEnabled: !classic, updatedAt: null,
+          userId: "local-operator", coordinatorWorkspaceEnabled: !classic, updatedAt: null,
         }));
         await page.route("**/api/instance/settings/experimental", (route) =>
           fulfill(route, {
@@ -249,10 +249,10 @@ test.describe("Board send delivery refresh", () => {
         await expect
           .poll(() =>
             page.evaluate(() =>
-              localStorage.getItem("outpost.selectedCompanyId"),
+              localStorage.getItem("outpost.selectedSpaceId"),
             ),
           )
-          .toBe(selected.companyId);
+          .toBe(selected.spaceId);
         await page.goto(
           entry === "uuid"
             ? `/issues/${issue.id}`
@@ -302,7 +302,7 @@ test.describe("Board send delivery refresh", () => {
         const responsePromise = page.waitForResponse(
           (response) =>
             response.request().method() === "POST" &&
-            /\/api\/companies\/[^/]+\/issues\/[^/]+\/attachments$/.test(
+            /\/api\/spaces\/[^/]+\/issues\/[^/]+\/attachments$/.test(
               new URL(response.url()).pathname,
             ),
         );
@@ -312,7 +312,7 @@ test.describe("Board send delivery refresh", () => {
         expect
           .soft(new URL(response.url()).pathname)
           .toBe(
-            `/api/companies/${target.companyId}/issues/${issue.id}/attachments`,
+            `/api/spaces/${target.spaceId}/issues/${issue.id}/attachments`,
           );
         const attachments = await json<
           {
@@ -341,10 +341,10 @@ test.describe("Board send delivery refresh", () => {
         await expect
           .poll(() =>
             page.evaluate(() =>
-              localStorage.getItem("outpost.selectedCompanyId"),
+              localStorage.getItem("outpost.selectedSpaceId"),
             ),
           )
-          .toBe(target.companyId);
+          .toBe(target.spaceId);
       });
     }
   }
@@ -353,9 +353,9 @@ test.describe("Board send delivery refresh", () => {
     page,
     request,
   }) => {
-    const seed = await seedCompanyAndAgent(request);
+    const seed = await seedSpaceAndAgent(request);
     const issue = await json<{ id: string; identifier: string }>(
-      await request.post(`/api/companies/${seed.companyId}/issues`, {
+      await request.post(`/api/spaces/${seed.spaceId}/issues`, {
         data: { title: "Connected banner layout", status: "backlog" },
       }),
       "create connected banner task",
@@ -423,9 +423,9 @@ test.describe("Board send delivery refresh", () => {
     page,
     request,
   }) => {
-    const seed = await seedCompanyAndAgent(request);
+    const seed = await seedSpaceAndAgent(request);
     const issue = await json<{ id: string; identifier: string }>(
-      await request.post(`/api/companies/${seed.companyId}/issues`, {
+      await request.post(`/api/spaces/${seed.spaceId}/issues`, {
         data: { title: "Upload channel files", status: "backlog" },
       }),
       "create upload task",
@@ -572,9 +572,9 @@ test.describe("Board send delivery refresh", () => {
     page,
     request,
   }, testInfo) => {
-    const seed = await seedCompanyAndAgent(request);
+    const seed = await seedSpaceAndAgent(request);
     const issue = await json<{ id: string; identifier: string }>(
-      await request.post(`/api/companies/${seed.companyId}/issues`, {
+      await request.post(`/api/spaces/${seed.spaceId}/issues`, {
         data: { title: "Rejected channel selection", status: "backlog" },
       }),
       "create rejected-send task",
@@ -739,9 +739,9 @@ test.describe("Board send delivery refresh", () => {
       page,
       request,
     }, testInfo) => {
-      const seed = await seedCompanyAndAgent(request);
+      const seed = await seedSpaceAndAgent(request);
       const issue = await json<{ id: string; identifier: string }>(
-        await request.post(`/api/companies/${seed.companyId}/issues`, {
+        await request.post(`/api/spaces/${seed.spaceId}/issues`, {
           data: { title: "Teams consent receipt", status: "backlog" },
         }),
         "create consent receipt task",
@@ -763,7 +763,7 @@ test.describe("Board send delivery refresh", () => {
         await request.get("/api/auth/get-session"),
         "read receipt owner",
       );
-      const storageKey = `paperclip:board-send:v2:${JSON.stringify([session.user.id, seed.companyId, issue.id, endpointId, conversationId])}`;
+      const storageKey = `outpost:board-send:v2:${JSON.stringify([session.user.id, seed.spaceId, issue.id, endpointId, conversationId])}`;
       await page.route("**/api/instance/settings/experimental", (route) =>
         fulfill(route, { enableChatConnectors: true }),
       );
@@ -777,7 +777,7 @@ test.describe("Board send delivery refresh", () => {
         }),
       );
       // Only the publication API is simulated. Task creation and safe file
-      // uploads use this test's isolated Paperclip instance, never Teams.
+      // uploads use this test's isolated Outpost instance, never Teams.
       await page.route(`**${publicationsPath}`, (route) => {
         expect(route.request().method()).toBe("POST");
         posts.push(bodyOf(route));
@@ -1038,9 +1038,9 @@ test.describe("Board send delivery refresh", () => {
       page,
       request,
     }) => {
-      const seed = await seedCompanyAndAgent(request);
+      const seed = await seedSpaceAndAgent(request);
       const issue = await json<{ id: string; identifier: string }>(
-        await request.post(`/api/companies/${seed.companyId}/issues`, {
+        await request.post(`/api/spaces/${seed.spaceId}/issues`, {
           data: { title: "Board delivery refresh", status: "backlog" },
         }),
         "create board-send task",
@@ -1089,10 +1089,10 @@ test.describe("Board send delivery refresh", () => {
               ? [
                   {
                     id: publicationId,
-                    companyId: seed.companyId,
+                    spaceId: seed.spaceId,
                     issueId: issue.id,
                     authorAgentId: null,
-                    authorUserId: "local-board",
+                    authorUserId: "local-operator",
                     authorType: "user",
                     body: "Board batch must finish all files.",
                     createdAt: new Date().toISOString(),
@@ -1118,7 +1118,7 @@ test.describe("Board send delivery refresh", () => {
           await fulfill(route, [
             {
               id: attachmentId,
-              companyId: seed.companyId,
+              spaceId: seed.spaceId,
               issueId: issue.id,
               issueCommentId: sends ? publicationId : null,
               assetId: attachmentId,
@@ -1129,14 +1129,14 @@ test.describe("Board send delivery refresh", () => {
               sha256: "a".repeat(64),
               originalFilename: "board-send-test.txt",
               createdByAgentId: null,
-              createdByUserId: "local-board",
+              createdByUserId: "local-operator",
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               contentPath: `/api/attachments/${attachmentId}/content`,
             },
             {
               id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-              companyId: seed.companyId,
+              spaceId: seed.spaceId,
               issueId: issue.id,
               issueCommentId: null,
               assetId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
@@ -1147,7 +1147,7 @@ test.describe("Board send delivery refresh", () => {
               sha256: "b".repeat(64),
               originalFilename: "internal-only.txt",
               createdByAgentId: null,
-              createdByUserId: "local-board",
+              createdByUserId: "local-operator",
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               contentPath:
@@ -1349,9 +1349,9 @@ test.describe("Failed chat task and exact run retry", () => {
     "This chat source is no longer authorized. Open the task to review its current channel access before retrying.";
 
   test.beforeAll(async ({ request }) => {
-    seed = await seedCompanyAndAgent(request);
+    seed = await seedSpaceAndAgent(request);
     issue = await json<typeof issue>(
-      await request.post(`/api/companies/${seed.companyId}/issues`, {
+      await request.post(`/api/spaces/${seed.spaceId}/issues`, {
         data: { title: "Exact chat retry destination", status: "backlog" },
       }),
       "create exact-retry task",
@@ -1367,7 +1367,7 @@ test.describe("Failed chat task and exact run retry", () => {
         const now = Date.now();
         const run = {
           id: failedRunId,
-          companyId: seed.companyId,
+          spaceId: seed.spaceId,
           agentId: seed.agentId,
           status: "failed",
           invocationSource: "assignment",
@@ -1406,7 +1406,7 @@ test.describe("Failed chat task and exact run retry", () => {
           },
         };
         const requests: Array<{
-          companyId: string | null;
+          spaceId: string | null;
           body: Record<string, unknown>;
         }> = [];
         const destinations: string[] = [];
@@ -1418,7 +1418,7 @@ test.describe("Failed chat task and exact run retry", () => {
           const pathname = url.pathname;
           if (pathname === "/api/workspace-preferences/me") {
             await fulfill(route, {
-              userId: "local-board",
+              userId: "local-operator",
               coordinatorWorkspaceEnabled: surface === "Coordinator Tasks",
               updatedAt: null,
             });
@@ -1431,7 +1431,7 @@ test.describe("Failed chat task and exact run retry", () => {
             });
             return;
           }
-          if (pathname === `/api/companies/${seed.companyId}/heartbeat-runs`) {
+          if (pathname === `/api/spaces/${seed.spaceId}/heartbeat-runs`) {
             await fulfill(route, [run]);
             return;
           }
@@ -1443,7 +1443,7 @@ test.describe("Failed chat task and exact run retry", () => {
             pathname === `/api/heartbeat-runs/${failedRunId}/events` ||
             pathname ===
               `/api/heartbeat-runs/${failedRunId}/workspace-operations` ||
-            pathname === `/api/companies/${seed.companyId}/provider-traces`
+            pathname === `/api/spaces/${seed.spaceId}/provider-traces`
           ) {
             await fulfill(route, []);
             return;
@@ -1474,7 +1474,7 @@ test.describe("Failed chat task and exact run retry", () => {
           if (pathname === retryPath) {
             expect(route.request().method()).toBe("POST");
             requests.push({
-              companyId: url.searchParams.get("companyId"),
+              spaceId: url.searchParams.get("spaceId"),
               body: bodyOf(route),
             });
             if (outcome === "denied") {
@@ -1527,7 +1527,7 @@ test.describe("Failed chat task and exact run retry", () => {
                 return (
                   response.request().method() === "GET" &&
                   url.pathname === "/api/agents/maya" &&
-                  url.searchParams.get("companyId") === seed.companyId
+                  url.searchParams.get("spaceId") === seed.spaceId
                 );
               })
             : null;
@@ -1537,7 +1537,7 @@ test.describe("Failed chat task and exact run retry", () => {
           expect(response.ok()).toBe(true);
           expect(await response.json()).toMatchObject({
             id: seed.agentId,
-            companyId: seed.companyId,
+            spaceId: seed.spaceId,
             urlKey: "maya",
           });
           await expect(page).toHaveURL(
@@ -1552,7 +1552,7 @@ test.describe("Failed chat task and exact run retry", () => {
         await expect.poll(() => requests.length).toBe(1);
         expect(requests[0]).toEqual(usesTaskRetry
           ? {
-              companyId: null,
+              spaceId: null,
               body: {
                 idempotencyKey: expect.stringMatching(
                   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
@@ -1561,7 +1561,7 @@ test.describe("Failed chat task and exact run retry", () => {
               },
             }
           : {
-              companyId: seed.companyId,
+              spaceId: seed.spaceId,
               body: {
                 source: "on_demand",
                 triggerDetail: "manual",

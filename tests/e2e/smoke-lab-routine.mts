@@ -28,8 +28,8 @@
  *   SMOKE_BUDGET_MS=600000             hard timeout for the browser run
  *
  * Control plane where failure issues + amber notes are recorded (the REAL
- * Paperclip company — provided in every routine run's env):
- *   OUTPOST_API_URL, OUTPOST_API_KEY, OUTPOST_COMPANY_ID, OUTPOST_RUN_ID
+ * Outpost space — provided in every routine run's env):
+ *   OUTPOST_API_URL, OUTPOST_API_KEY, OUTPOST_SPACE_ID, OUTPOST_RUN_ID
  *   ROUTINE_ISSUE_ID=<uuid>            issue to record against (default OUTPOST_TASK_ID)
  *   SMOKE_OWNER_DEFAULT / SMOKE_OWNER_UI / SMOKE_OWNER_CTO  owner overrides
  *   SMOKE_DRY_RUN=1                    log the control-plane writes, don't perform them
@@ -51,7 +51,7 @@ const CP_BASE = (() => {
   return b.replace(/\/api$/, "");
 })();
 const CP_KEY = process.env.OUTPOST_API_KEY ?? "";
-const CP_COMPANY = process.env.OUTPOST_COMPANY_ID ?? "";
+const CP_SPACE = process.env.OUTPOST_SPACE_ID ?? "";
 const CP_RUN = process.env.OUTPOST_RUN_ID ?? "";
 const ROUTINE_ISSUE_ID = process.env.ROUTINE_ISSUE_ID ?? process.env.OUTPOST_TASK_ID ?? "";
 
@@ -96,7 +96,7 @@ async function cp(method: string, apiPath: string, body?: Json): Promise<any> {
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${CP_KEY}`,
-      "x-paperclip-run-id": CP_RUN,
+      "x-outpost-run-id": CP_RUN,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -121,9 +121,9 @@ function issueLink(issue: Json): string {
 }
 
 async function findExistingFailureIssue(title: string): Promise<Json | null> {
-  if (!CP_COMPANY || !ROUTINE_ISSUE_ID) return null;
+  if (!CP_SPACE || !ROUTINE_ISSUE_ID) return null;
   try {
-    const found = await cp("GET", `/api/companies/${CP_COMPANY}/issues?q=${encodeURIComponent(title)}`);
+    const found = await cp("GET", `/api/spaces/${CP_SPACE}/issues?q=${encodeURIComponent(title)}`);
     const issues = Array.isArray(found) ? found : found.issues ?? [];
     return findDuplicateFailureIssue(issues, title, ROUTINE_ISSUE_ID);
   } catch (e: any) {
@@ -132,8 +132,8 @@ async function findExistingFailureIssue(title: string): Promise<Json | null> {
   }
 }
 
-// Upload a screenshot as a company asset and return its served URL. Assets are
-// company-scoped, so the run token can upload one even when the target issue is
+// Upload a screenshot as a space asset and return its served URL. Assets are
+// space-scoped, so the run token can upload one even when the target issue is
 // assigned to another agent (attachments to an assigned-away issue 403 on the
 // run-token authorization boundary). Embed the URL in the issue body instead.
 async function cpUploadAsset(file: string): Promise<string | null> {
@@ -146,9 +146,9 @@ async function cpUploadAsset(file: string): Promise<string | null> {
     const form = new FormData();
     form.append("file", new Blob([buf], { type: "image/png" }), path.basename(file));
     form.append("namespace", "smoke-lab");
-    const res = await fetch(`${CP_BASE}/api/companies/${CP_COMPANY}/assets/images`, {
+    const res = await fetch(`${CP_BASE}/api/spaces/${CP_SPACE}/assets/images`, {
       method: "POST",
-      headers: { authorization: `Bearer ${CP_KEY}`, "x-paperclip-run-id": CP_RUN },
+      headers: { authorization: `Bearer ${CP_KEY}`, "x-outpost-run-id": CP_RUN },
       body: form as any,
     });
     if (!res.ok) {
@@ -172,9 +172,9 @@ async function cpAttach(issueId: string, file: string): Promise<boolean> {
     const buf = await fs.readFile(file);
     const form = new FormData();
     form.append("file", new Blob([buf], { type: "image/png" }), path.basename(file));
-    const res = await fetch(`${CP_BASE}/api/companies/${CP_COMPANY}/issues/${issueId}/attachments`, {
+    const res = await fetch(`${CP_BASE}/api/spaces/${CP_SPACE}/issues/${issueId}/attachments`, {
       method: "POST",
-      headers: { authorization: `Bearer ${CP_KEY}`, "x-paperclip-run-id": CP_RUN },
+      headers: { authorization: `Bearer ${CP_KEY}`, "x-outpost-run-id": CP_RUN },
       body: form as any,
     });
     if (!res.ok) {
@@ -290,7 +290,7 @@ async function recordPass(result: Json) {
     `### Smoke Lab routine — ✅ passed`,
     ``,
     `- **Target:** \`${SMOKE_BASE}\``,
-    `- **Company (throwaway):** \`${result.companyId}\` · **run:** \`${result.runId}\``,
+    `- **Space (throwaway):** \`${result.spaceId}\` · **run:** \`${result.runId}\``,
     `- **Steps:** ${result.steps} across ${Object.keys(result.byPath ?? {}).length} path(s) — ${JSON.stringify(result.byPath ?? {})}`,
     `- **Failures:** 0`,
     ``,
@@ -307,7 +307,7 @@ async function recordForcedFailureDuplicate(result: Json, existing: Json, failed
     `### Smoke Lab routine — forced-failure drill already recorded`,
     ``,
     `- **Target:** \`${SMOKE_BASE}\``,
-    `- **Throwaway company:** \`${result.companyId}\` · **run:** \`${result.runId}\``,
+    `- **Throwaway space:** \`${result.spaceId}\` · **run:** \`${result.runId}\``,
     `- **Synthetic step:** ${failed.map((f) => "`" + f + "`").join(", ")}`,
     `- **Existing evidence issue:** ${issueLink(existing)}`,
     ``,
@@ -350,14 +350,14 @@ async function recordFailure(result: Json): Promise<"filed" | "suppressed_duplic
     `3. Observe the failure above; the failing step's screenshot is attached.`,
     ``,
     `### Context`,
-    `- **Throwaway company:** \`${result.companyId}\` · **run:** \`${result.runId}\` · **status:** \`${result.status}\``,
+    `- **Throwaway space:** \`${result.spaceId}\` · **run:** \`${result.runId}\` · **status:** \`${result.status}\``,
     `- **Suggested owner:** ${owner.name}. If this is the wrong surface, reassign — a governance/API step failure is S1/S4; a matrix/dashboard render defect is S2.`,
     `- **Parent / linked:** routine issue \`${ROUTINE_ISSUE_ID}\`.`,
   ];
 
   let issueId = "";
   try {
-    const created = await cp("POST", `/api/companies/${CP_COMPANY}/issues`, {
+    const created = await cp("POST", `/api/spaces/${CP_SPACE}/issues`, {
       title,
       description: bodyLines.join("\n"),
       priority: "high",

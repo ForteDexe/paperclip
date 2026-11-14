@@ -10,7 +10,7 @@ import {
   type Db,
 } from "@outpost/db";
 import { offlineMigrationExecutionWhere } from "./offline-migration-execution.js";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 import { createObjectByteJournal } from "./object-byte-journal.js";
 import {
   createProviderTraceObjectStore,
@@ -42,7 +42,7 @@ export async function migrateRunEvidence(
   db: Db,
   options: {
     apply: boolean;
-    companyId?: string;
+    spaceId?: string;
     afterRunId?: string;
     afterTraceId?: string;
     limit?: number;
@@ -89,17 +89,17 @@ export async function migrateRunEvidence(
       ),
       sql`not exists (select 1 from ${nativeRunFinalizations} where ${and(
         eq(nativeRunFinalizations.runId, heartbeatRuns.id),
-        eq(nativeRunFinalizations.companyId, heartbeatRuns.companyId),
+        eq(nativeRunFinalizations.spaceId, heartbeatRuns.spaceId),
         gt(nativeRunFinalizations.leaseExpiresAt, now),
       )})`,
     );
   }
-  async function assertDrained(runId: string, companyId: string) {
+  async function assertDrained(runId: string, spaceId: string) {
     const [run] = await db
       .select({ id: heartbeatRuns.id })
       .from(heartbeatRuns)
       .where(
-        and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId), drainedWriter()),
+        and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId), drainedWriter()),
       );
     if (!run) throw new Error("legacy_writer_not_drained");
   }
@@ -110,7 +110,7 @@ export async function migrateRunEvidence(
       : await db
           .select({
             id: heartbeatRuns.id,
-            companyId: heartbeatRuns.companyId,
+            spaceId: heartbeatRuns.spaceId,
             agentId: heartbeatRuns.agentId,
             status: heartbeatRuns.status,
             runtimeMode: heartbeatRuns.runtimeMode,
@@ -123,7 +123,7 @@ export async function migrateRunEvidence(
           .where(
             and(
               eq(heartbeatRuns.logStore, "local_file"),
-              options.companyId ? eq(heartbeatRuns.companyId, options.companyId) : undefined,
+              options.spaceId ? eq(heartbeatRuns.spaceId, options.spaceId) : undefined,
               options.afterRunId ? gt(heartbeatRuns.id, options.afterRunId) : undefined,
             ),
           )
@@ -141,7 +141,7 @@ export async function migrateRunEvidence(
       if (!SETTLED.includes(run.status)) throw new Error("legacy_writer_not_settled");
       if (!run.logRef) throw new Error("legacy_reference_missing");
       const originalLogRef = run.logRef;
-      await assertDrained(run.id, run.companyId);
+      await assertDrained(run.id, run.spaceId);
       const historicalArchive = (preserveHistoricalFiles || preserveSettledNativeFiles) && run.runtimeMode === "native" &&
         (run.bytes === null || run.sha256 === null);
       const scopedArchive = historicalArchive && preserveSettledNativeFiles;
@@ -150,7 +150,7 @@ export async function migrateRunEvidence(
         : await inspectNativeLogArchiveSource(db, run) : undefined;
       // Keep raw history separate from the canonical log namespace. A later
       // writer must never acquire this archive as a native source prefix.
-      const ref = `${run.companyId}/${run.agentId}/${run.id}${historicalArchive ? ".archive" : ""}`;
+      const ref = `${run.spaceId}/${run.agentId}/${run.id}${historicalArchive ? ".archive" : ""}`;
       const journal = createObjectByteJournal({
         provider: config.provider,
         prefix: `${config.keyPrefix || "run-logs"}/segments-v1/${ref}`,
@@ -170,7 +170,7 @@ export async function migrateRunEvidence(
                 .where(
                   and(
                     eq(heartbeatRuns.id, run.id),
-                    eq(heartbeatRuns.companyId, run.companyId),
+                    eq(heartbeatRuns.spaceId, run.spaceId),
                     eq(heartbeatRuns.logStore, "local_file"),
                     eq(heartbeatRuns.logRef, run.logRef!),
                     drainedWriter(),
@@ -189,7 +189,7 @@ export async function migrateRunEvidence(
       const hash = createHash("sha256");
       const nativeCoverage =
         !historicalArchive && run.runtimeMode === "native" && (run.bytes === null || run.sha256 === null)
-          ? createNativeRunLogCoverageVerifier(db, run.companyId, run.id)
+          ? createNativeRunLogCoverageVerifier(db, run.spaceId, run.id)
           : undefined;
       let offset = 0,
         tail = Buffer.alloc(0),
@@ -240,7 +240,7 @@ export async function migrateRunEvidence(
         const [source] = await db
           .select({ seq: heartbeatRunEvents.seq })
           .from(heartbeatRunEvents)
-          .where(nativeRunLogSourceWhere(run.companyId, run.id))
+          .where(nativeRunLogSourceWhere(run.spaceId, run.id))
           .orderBy(desc(heartbeatRunEvents.seq))
           .limit(1);
         sourceCursor = source?.seq ?? 0;
@@ -267,7 +267,7 @@ export async function migrateRunEvidence(
           .where(
             and(
               eq(heartbeatRuns.id, run.id),
-              eq(heartbeatRuns.companyId, run.companyId),
+              eq(heartbeatRuns.spaceId, run.spaceId),
               eq(heartbeatRuns.logStore, "local_file"),
               eq(heartbeatRuns.logRef, originalLogRef),
               run.bytes === null
@@ -279,7 +279,7 @@ export async function migrateRunEvidence(
               drainedWriter(),
               run.runtimeMode === "native" && !historicalArchive
                 ? sql`not exists (select 1 from ${heartbeatRunEvents} where ${and(
-                    nativeRunLogSourceWhere(run.companyId, run.id),
+                    nativeRunLogSourceWhere(run.spaceId, run.id),
                     gt(heartbeatRunEvents.seq, sourceCursor),
                   )})`
                 : undefined,
@@ -293,7 +293,7 @@ export async function migrateRunEvidence(
               await source.assertUnchanged();
               const result = await publish(tx);
               if (!result.length) throw new Error("migration_publication_conflict");
-              await logActivity(tx, { companyId: run.companyId, actorType: "system", actorId: "run-evidence-migration",
+              await logActivity(tx, { spaceId: run.spaceId, actorType: "system", actorId: "run-evidence-migration",
                 action: "run.historical_log_archived", entityType: "heartbeat_run", entityId: run.id,
                 agentId: run.agentId, runId: run.id, details: { bytes: offset, sha256: digest, sourceFence } }, publications);
               return result;
@@ -323,7 +323,7 @@ export async function migrateRunEvidence(
             heartbeatRuns,
             and(
               eq(heartbeatRuns.id, providerTraceRecords.runId),
-              eq(heartbeatRuns.companyId, providerTraceRecords.companyId),
+              eq(heartbeatRuns.spaceId, providerTraceRecords.spaceId),
             ),
           )
           .where(
@@ -331,7 +331,7 @@ export async function migrateRunEvidence(
               sql`${providerTraceRecords.traceRef} not like 's3-segments-v1:%'`,
               isNull(providerTraceRecords.deletedAt),
               gt(providerTraceRecords.expiresAt, new Date()),
-              options.companyId ? eq(providerTraceRecords.companyId, options.companyId) : undefined,
+              options.spaceId ? eq(providerTraceRecords.spaceId, options.spaceId) : undefined,
               options.afterTraceId ? gt(providerTraceRecords.id, options.afterTraceId) : undefined,
             ),
           )
@@ -352,15 +352,15 @@ export async function migrateRunEvidence(
     try {
       if (!SETTLED.includes(runStatus) || trace.status === "capturing")
         throw new Error("legacy_trace_writer_not_settled");
-      await assertDrained(trace.runId, trace.companyId);
+      await assertDrained(trace.runId, trace.spaceId);
       const importing = importingProviderTraceRef(trace.traceRef);
-      if (importing && (importing[1] !== trace.companyId || importing[2] !== trace.runId))
+      if (importing && (importing[1] !== trace.spaceId || importing[2] !== trace.runId))
         throw new Error("trace_import_binding_mismatch");
       const filename = importing?.[3] ?? trace.traceRef;
       if (!/^[a-f0-9-]+\.ndjson$/.test(filename)) throw new Error("invalid_legacy_trace_ref");
       const file = path.join(
         process.env.PROVIDER_TRACE_BASE_PATH ||
-          path.join(resolvePaperclipInstanceRoot(), "data", "provider-traces"),
+          path.join(resolveOutpostInstanceRoot(), "data", "provider-traces"),
         filename,
       );
       for (const sidecar of [file, `${file}.rehydration`]) {
@@ -410,7 +410,7 @@ export async function migrateRunEvidence(
       item.sha256 = digest;
       if (traceObjects) {
         options.signal?.throwIfAborted();
-        const ref = `s3-segments-v1:${trace.companyId}/${trace.runId}/${filename}`;
+        const ref = `s3-segments-v1:${trace.spaceId}/${trace.runId}/${filename}`;
         const pendingRef = ref.replace("s3-segments-v1:", "s3-import-v1:");
         if (!importing) {
           const staged = await db.transaction(async (tx) => {
@@ -435,7 +435,7 @@ export async function migrateRunEvidence(
           ref,
           file,
           async () => {
-            await assertDrained(trace.runId, trace.companyId);
+            await assertDrained(trace.runId, trace.spaceId);
             const [current] = await db
               .select({ id: providerTraceRecords.id })
               .from(providerTraceRecords)
@@ -474,7 +474,7 @@ export async function migrateRunEvidence(
                 gt(providerTraceRecords.expiresAt, new Date()),
                 sql`exists (select 1 from ${heartbeatRuns} where ${and(
                   eq(heartbeatRuns.id, trace.runId),
-                  eq(heartbeatRuns.companyId, trace.companyId),
+                  eq(heartbeatRuns.spaceId, trace.spaceId),
                   drainedWriter(),
                 )})`,
               ),

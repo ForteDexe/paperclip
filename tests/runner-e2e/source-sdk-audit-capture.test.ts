@@ -19,7 +19,7 @@ async function fixture(){
  for(const directory of ["packages/shared/dist","packages/plugins/sdk/dist"]){
   const dir=path.join(repo,directory);await mkdir(dir,{recursive:true});const body=Buffer.from(secret);
   await writeFile(path.join(dir,"index.js"),body);const outputs=createHash("sha256").update(JSON.stringify(["index.js",body.length])).update(body).digest("hex");
-  await writeFile(path.join(dir,".paperclip-build-complete"),JSON.stringify({sources:"a".repeat(64),outputs}));
+  await writeFile(path.join(dir,".outpost-build-complete"),JSON.stringify({sources:"a".repeat(64),outputs}));
  }
  const context={root:handoff,private:true as const,runId:"123",attempt:"1",executionIds:[id],cellReportProducer:await inspectCellReportProducer()};
  const source=path.join(temp,"artifacts-private/cases",scenario,"snapshots/source-sdk-privacy-observations.json"),destination=path.join(cell,"snapshots/source-sdk-privacy-observations.json");

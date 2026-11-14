@@ -3,7 +3,7 @@ import { eq, sql, type SQL } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb, plugins, type Db } from "@outpost/db";
 import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } from "./helpers/full-database-response-capture.js";
-import type { PaperclipPluginManifestV1, PluginEnvironmentDriverDeclaration } from "@outpost/shared";
+import type { OutpostPluginManifestV1, PluginEnvironmentDriverDeclaration } from "@outpost/shared";
 import { resolvePluginSandboxProviderConfigSchema, resolvePluginSandboxProviderDriverByKey } from "../services/plugin-environment-driver.js";
 import { resolveEnvironmentDriverConfigForRuntime, resolveSandboxProviderSecretRefPaths } from "../services/environment-config.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -18,7 +18,7 @@ describe.skipIf(!support.supported)("sandbox provider schema reads", () => {
   const driver = (driverKey = key, configSchema: unknown = { type: "object" }) => ({
     driverKey, kind: "sandbox_provider", displayName: "Schema fixture", configSchema,
   }) as PluginEnvironmentDriverDeclaration;
-  const manifest = (id: string, declarations: PluginEnvironmentDriverDeclaration[]): PaperclipPluginManifestV1 => ({
+  const manifest = (id: string, declarations: PluginEnvironmentDriverDeclaration[]): OutpostPluginManifestV1 => ({
     id: `test.schema.${id}`, apiVersion: 1, version: "1.0.0", displayName: "Schema fixture",
     description: "Fixture", author: "Test", categories: ["automation"],
     capabilities: ["environment.drivers.register"], entrypoints: { worker: "worker.js" }, environmentDrivers: declarations,
@@ -76,7 +76,7 @@ describe.skipIf(!support.supported)("sandbox provider schema reads", () => {
     await db.update(plugins).set({ manifestJson: manifest(id, [driver(key, changed)]) }).where(eq(plugins.id, id));
     expect(await resolveSandboxProviderSecretRefPaths(observed, key)).toEqual(new Set(["apiKey"]));
     const environment = { id: randomUUID(), driver: "sandbox" as const, config: { provider: key, apiKey: randomUUID() } };
-    await expect(resolveEnvironmentDriverConfigForRuntime(observed, null, environment)).rejects.toThrow("companyId");
+    await expect(resolveEnvironmentDriverConfigForRuntime(observed, null, environment)).rejects.toThrow("spaceId");
     await db.update(plugins).set({ manifestJson: before[0].manifestJson }).where(eq(plugins.id, id));
     expect(await db.select().from(plugins).where(eq(plugins.id, id))).toEqual(before);
   });

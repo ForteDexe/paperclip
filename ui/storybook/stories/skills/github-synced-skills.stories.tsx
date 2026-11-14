@@ -1,7 +1,7 @@
 import { userEvent, within } from "storybook/test";
 import { useEffect, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { COMPANY_ID, SOURCE_ID, installFixtures, type RepositoryScenario } from "../../fixtures/githubSkillSources";
+import { SPACE_ID, SOURCE_ID, installFixtures, type RepositoryScenario } from "../../fixtures/githubSkillSources";
 import { Link, Route, Routes, useNavigate } from "@/lib/router";
 import { SkillSources } from "@/pages/SkillSources";
 
@@ -12,8 +12,8 @@ function SourcesStory({ view = "sources", empty = false, needsConnection = false
   const navigate = useNavigate();
   useEffect(() => {
     const cleanup = installFixtures(empty, needsConnection, { repositories, scan, disconnected });
-    for (const id of ["new", SOURCE_ID]) sessionStorage.removeItem(`outpost.skill-source-draft:${COMPANY_ID}:${id}`);
-    if (repositoryUrl) sessionStorage.setItem(`outpost.skill-source-draft:${COMPANY_ID}:new`, JSON.stringify({ repositoryUrl }));
+    for (const id of ["new", SOURCE_ID]) sessionStorage.removeItem(`outpost.skill-source-draft:${SPACE_ID}:${id}`);
+    if (repositoryUrl) sessionStorage.setItem(`outpost.skill-source-draft:${SPACE_ID}:new`, JSON.stringify({ repositoryUrl }));
     navigate(`/skills/sources${view === "import" ? "/new" : view === "manage" ? `/${SOURCE_ID}` : ""}`, { replace: true });
     setReady(true);
     return cleanup;
@@ -22,8 +22,8 @@ function SourcesStory({ view = "sources", empty = false, needsConnection = false
   }, [empty, needsConnection, view, repositories, repositoryUrl, scan, disconnected]);
   if (!ready) return null;
   return <Routes>
-    <Route path="/:companyPrefix/skills/sources/:sourceId" element={<SkillSources />} />
-    <Route path="/:companyPrefix/apps/*" element={<div className="flex flex-col gap-3 p-6">
+    <Route path="/:spacePrefix/skills/sources/:sourceId" element={<SkillSources />} />
+    <Route path="/:spacePrefix/apps/*" element={<div className="flex flex-col gap-3 p-6">
       <h1 className="text-xl font-semibold">GitHub connections in Apps</h1>
       <p className="text-sm text-muted-foreground">In the running app, this opens the standard GitHub connection setup. This preview doesn’t connect real accounts.</p>
       <Link to="/skills/sources/new" className="text-sm underline">Return to skill import</Link>
@@ -39,7 +39,7 @@ const meta = {
   parameters: {
     layout: "fullscreen",
     docs: { description: { component: "Production Sources page with local fixture data. Try importing a repository, searching and selecting skills, saving the selection, and refreshing. GitHub OAuth and external destinations require the running app." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "skills/versions",
         "skills/discovery"

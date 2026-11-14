@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
-import { companySecrets, companySecretVersions, companySecretProposals, managedAgentProfiles, routineTriggers, userSecretDefinitions, type Db, type connectionGrants, type toolConnections } from "@outpost/db";
+import { spaceSecrets, spaceSecretVersions, spaceSecretProposals, managedAgentProfiles, routineTriggers, userSecretDefinitions, type Db, type connectionGrants, type toolConnections } from "@outpost/db";
 import type { ToolCredentialSecretRef } from "@outpost/shared";
 import { connectionCredentialConfigPath } from "@outpost/shared";
 import { unprocessable } from "../errors.js";
@@ -19,8 +19,8 @@ export async function connectionSecretsUsedByOtherConsumers(db: CredentialDb, se
     .where(inArray(managedAgentProfiles.apiKeySecretId, secretIds));
   const triggers = await db.select({ secretId: routineTriggers.secretId }).from(routineTriggers)
     .where(inArray(routineTriggers.secretId, secretIds));
-  const proposals = await db.select({ secretId: companySecretProposals.secretId, createdSecretId: companySecretProposals.createdSecretId })
-    .from(companySecretProposals).where(or(inArray(companySecretProposals.secretId, secretIds), inArray(companySecretProposals.createdSecretId, secretIds)));
+  const proposals = await db.select({ secretId: spaceSecretProposals.secretId, createdSecretId: spaceSecretProposals.createdSecretId })
+    .from(spaceSecretProposals).where(or(inArray(spaceSecretProposals.secretId, secretIds), inArray(spaceSecretProposals.createdSecretId, secretIds)));
   return new Set([...profiles, ...triggers, ...proposals, ...proposals.map((row) => ({ secretId: row.createdSecretId }))]
     .flatMap((row) => row.secretId ? [row.secretId] : []));
 }
@@ -38,7 +38,7 @@ export function connectionGrantCredentialRef(
 export async function writeConnectionCredential(
   db: CredentialDb,
   input: {
-    companyId: string;
+    spaceId: string;
     connectionName: string;
     configPath: string;
     label: string;
@@ -54,23 +54,23 @@ export async function writeConnectionCredential(
 ) {
   const vault = secretService(db);
   if (input.existingRef) {
-    const [existing] = await db.select().from(companySecrets).where(and(
-      eq(companySecrets.id, input.existingRef.secretId),
-      eq(companySecrets.companyId, input.companyId),
+    const [existing] = await db.select().from(spaceSecrets).where(and(
+      eq(spaceSecrets.id, input.existingRef.secretId),
+      eq(spaceSecrets.spaceId, input.spaceId),
     )).limit(1);
     if (existing?.scope === "user" && existing.ownerUserId !== input.ownerUserId) {
       throw unprocessable("Reconnect this connection as its credential owner.", { code: "grant_credential_invalid" });
     }
     if (existing?.status === "active" && (input.ownerUserId
       ? existing.scope === "user" && Boolean(existing.userSecretDefinitionId)
-      : existing.scope === "company")) {
+      : existing.scope === "space")) {
       const secret = input.ownerUserId
-        ? await vault.rotateCurrentUserSecretValue(input.companyId, input.ownerUserId, existing.id,
+        ? await vault.rotateCurrentUserSecretValue(input.spaceId, input.ownerUserId, existing.id,
           { value: input.value, preserveAiSessionEpoch: input.preserveOAuthIdentity }, input.actor)
         : await vault.rotate(existing.id, { value: input.value, preserveAiSessionEpoch: input.preserveOAuthIdentity }, input.actor);
       return { secret, created: false, definitionId: null };
     }
-    // Re-entering a credential is fresh consent. Replace a legacy company
+    // Re-entering a credential is fresh consent. Replace a legacy space
     // secret with a new owner value; never rotate or adopt the old shared row.
   }
   const metadata = {
@@ -80,64 +80,64 @@ export async function writeConnectionCredential(
     description: `Credential for ${input.connectionName} (${input.configPath}).`,
   };
   if (!input.ownerUserId) {
-    return { secret: await vault.create(input.companyId, { ...metadata, value: input.value }, input.actor), created: true, definitionId: null };
+    return { secret: await vault.create(input.spaceId, { ...metadata, value: input.value }, input.actor), created: true, definitionId: null };
   }
   let definition = input.definitionKey ? (await db.select().from(userSecretDefinitions).where(and(
-    eq(userSecretDefinitions.companyId, input.companyId), eq(userSecretDefinitions.key, input.definitionKey),
+    eq(userSecretDefinitions.spaceId, input.spaceId), eq(userSecretDefinitions.key, input.definitionKey),
     isNull(userSecretDefinitions.deletedAt),
   )).limit(1))[0] : undefined;
   let createdDefinitionId: string | null = null;
   if (!definition) {
     if (input.definitionKey) {
       [definition] = await db.insert(userSecretDefinitions).values({
-        ...metadata, key: input.definitionKey, companyId: input.companyId,
-        managedMode: "paperclip_managed", createdByUserId: input.actor?.userId, createdByAgentId: input.actor?.agentId,
+        ...metadata, key: input.definitionKey, spaceId: input.spaceId,
+        managedMode: "outpost_managed", createdByUserId: input.actor?.userId, createdByAgentId: input.actor?.agentId,
       }).onConflictDoNothing().returning();
       if (definition) createdDefinitionId = definition.id;
       else [definition] = await db.select().from(userSecretDefinitions).where(and(
-        eq(userSecretDefinitions.companyId, input.companyId), eq(userSecretDefinitions.key, input.definitionKey),
+        eq(userSecretDefinitions.spaceId, input.spaceId), eq(userSecretDefinitions.key, input.definitionKey),
         isNull(userSecretDefinitions.deletedAt),
       )).limit(1);
     } else {
-      definition = await vault.createUserSecretDefinition(input.companyId, metadata, input.actor);
+      definition = await vault.createUserSecretDefinition(input.spaceId, metadata, input.actor);
       createdDefinitionId = definition.id;
     }
   }
   if (!definition) throw unprocessable("Reconnect this connection to restore its credential definition.", { code: "grant_credential_invalid" });
-  const [ownerValue] = await db.select().from(companySecrets).where(and(
-    eq(companySecrets.companyId, input.companyId), eq(companySecrets.scope, "user"),
-    eq(companySecrets.ownerUserId, input.ownerUserId), eq(companySecrets.userSecretDefinitionId, definition.id),
-    ne(companySecrets.status, "deleted"),
+  const [ownerValue] = await db.select().from(spaceSecrets).where(and(
+    eq(spaceSecrets.spaceId, input.spaceId), eq(spaceSecrets.scope, "user"),
+    eq(spaceSecrets.ownerUserId, input.ownerUserId), eq(spaceSecrets.userSecretDefinitionId, definition.id),
+    ne(spaceSecrets.status, "deleted"),
   )).limit(1);
   if (ownerValue) {
-    if (ownerValue.status !== "active") await vault.updateCurrentUserSecretValue(input.companyId, input.ownerUserId, ownerValue.id,
+    if (ownerValue.status !== "active") await vault.updateCurrentUserSecretValue(input.spaceId, input.ownerUserId, ownerValue.id,
       { status: "active" }, input.actor);
-    return { secret: await vault.rotateCurrentUserSecretValue(input.companyId, input.ownerUserId, ownerValue.id,
+    return { secret: await vault.rotateCurrentUserSecretValue(input.spaceId, input.ownerUserId, ownerValue.id,
       { value: input.value }, input.actor), created: false, definitionId: createdDefinitionId };
   }
-  const secret = await vault.createCurrentUserSecretValue(input.companyId, input.ownerUserId,
+  const secret = await vault.createCurrentUserSecretValue(input.spaceId, input.ownerUserId,
     { definitionId: definition.id, value: input.value }, input.actor);
   return { secret, created: true, definitionId: createdDefinitionId };
 }
 
 const credentialSecretColumns = {
-  id: companySecrets.id, companyId: companySecrets.companyId, scope: companySecrets.scope,
-  ownerUserId: companySecrets.ownerUserId, userSecretDefinitionId: companySecrets.userSecretDefinitionId,
-  status: companySecrets.status, deletedAt: companySecrets.deletedAt, latestVersion: companySecrets.latestVersion,
-  updatedAt: companySecrets.updatedAt,
+  id: spaceSecrets.id, spaceId: spaceSecrets.spaceId, scope: spaceSecrets.scope,
+  ownerUserId: spaceSecrets.ownerUserId, userSecretDefinitionId: spaceSecrets.userSecretDefinitionId,
+  status: spaceSecrets.status, deletedAt: spaceSecrets.deletedAt, latestVersion: spaceSecrets.latestVersion,
+  updatedAt: spaceSecrets.updatedAt,
 };
-type CredentialConnection = Pick<typeof toolConnections.$inferSelect, "id" | "companyId">;
+type CredentialConnection = Pick<typeof toolConnections.$inferSelect, "id" | "spaceId">;
 type CredentialGrantOwner = Pick<typeof connectionGrants.$inferSelect,
-  "id" | "companyId" | "connectionId" | "kind" | "subjectUserId">;
-type CredentialSecretOwner = Pick<typeof companySecrets.$inferSelect,
-  "id" | "companyId" | "scope" | "ownerUserId" | "userSecretDefinitionId">;
+  "id" | "spaceId" | "connectionId" | "kind" | "subjectUserId">;
+type CredentialSecretOwner = Pick<typeof spaceSecrets.$inferSelect,
+  "id" | "spaceId" | "scope" | "ownerUserId" | "userSecretDefinitionId">;
 function assertConnectionGrantSecretOwnership(connection: CredentialConnection, grant: CredentialGrantOwner,
   ref: ToolCredentialSecretRef, secret: CredentialSecretOwner | undefined) {
   const personal = grant.kind === "user";
-  if (grant.companyId !== connection.companyId || grant.connectionId !== connection.id || !secret
-    || secret.companyId !== connection.companyId || (personal
+  if (grant.spaceId !== connection.spaceId || grant.connectionId !== connection.id || !secret
+    || secret.spaceId !== connection.spaceId || (personal
       ? !grant.subjectUserId || secret.scope !== "user" || secret.ownerUserId !== grant.subjectUserId || !secret.userSecretDefinitionId
-      : secret.scope !== "company")) {
+      : secret.scope !== "space")) {
     throw unprocessable("This connection's credential does not belong to the selected identity. Its owner must reconnect it.", {
       code: "grant_credential_invalid", connectionId: connection.id, grantId: grant.id, credential: ref.configPath,
     });
@@ -145,8 +145,8 @@ function assertConnectionGrantSecretOwnership(connection: CredentialConnection, 
 }
 export async function validateConnectionGrantSecretOwnership(db: Pick<Db, "select">,
   connection: CredentialConnection, grant: CredentialGrantOwner, ref: ToolCredentialSecretRef) {
-  const [secret] = await db.select(credentialSecretColumns).from(companySecrets).where(and(
-    eq(companySecrets.id, ref.secretId), eq(companySecrets.companyId, connection.companyId),
+  const [secret] = await db.select(credentialSecretColumns).from(spaceSecrets).where(and(
+    eq(spaceSecrets.id, ref.secretId), eq(spaceSecrets.spaceId, connection.spaceId),
   )).limit(1);
   assertConnectionGrantSecretOwnership(connection, grant, ref, secret);
   return secret!;
@@ -155,8 +155,8 @@ export async function validateConnectionGrantSecretOwnership(db: Pick<Db, "selec
 /** The same owner/declaration checks apply during setup, testing and execution. */
 export async function resolveConnectionGrantSecret(
   db: CredentialDb,
-  connection: Pick<typeof toolConnections.$inferSelect, "id" | "companyId">,
-  grant: Pick<typeof connectionGrants.$inferSelect, "id" | "companyId" | "connectionId" | "kind" | "subjectUserId">,
+  connection: Pick<typeof toolConnections.$inferSelect, "id" | "spaceId">,
+  grant: Pick<typeof connectionGrants.$inferSelect, "id" | "spaceId" | "connectionId" | "kind" | "subjectUserId">,
   ref: ToolCredentialSecretRef,
   context: ConsumerContext,
 ) {
@@ -166,10 +166,10 @@ export async function resolveConnectionGrantSecret(
     configPath: ref.configPath, responsibleUserId: grant.subjectUserId };
   const vault = secretService(db);
   if (!personal) {
-    return { value: await vault.resolveSecretValue(connection.companyId, ref.secretId, ref.versionSelector ?? "latest",
+    return { value: await vault.resolveSecretValue(connection.spaceId, ref.secretId, ref.versionSelector ?? "latest",
       { accessContext }), latestVersion: secret.latestVersion };
   }
-  const resolved = await vault.resolveUserSecretValue(connection.companyId, {
+  const resolved = await vault.resolveUserSecretValue(connection.spaceId, {
     definitionId: secret.userSecretDefinitionId!, responsibleUserId: grant.subjectUserId!,
     version: ref.versionSelector ?? "latest", required: ref.required ?? true,
   }, accessContext);
@@ -206,10 +206,10 @@ export async function readConnectionGrantCredentialStates(db: Pick<Db, "select">
     const chunk = requests.slice(offset, offset + 1000);
     const ids = [...new Set(chunk.map(request => request.ref.secretId))];
     const rows = await db.select({ secret: credentialSecretColumns, definition: {
-      id: userSecretDefinitions.id, companyId: userSecretDefinitions.companyId, status: userSecretDefinitions.status,
+      id: userSecretDefinitions.id, spaceId: userSecretDefinitions.spaceId, status: userSecretDefinitions.status,
       deletedAt: userSecretDefinitions.deletedAt, updatedAt: userSecretDefinitions.updatedAt,
-    } }).from(companySecrets).leftJoin(userSecretDefinitions, eq(userSecretDefinitions.id, companySecrets.userSecretDefinitionId))
-      .where(inArray(companySecrets.id, ids)).orderBy(companySecrets.id).limit(1001);
+    } }).from(spaceSecrets).leftJoin(userSecretDefinitions, eq(userSecretDefinitions.id, spaceSecrets.userSecretDefinitionId))
+      .where(inArray(spaceSecrets.id, ids)).orderBy(spaceSecrets.id).limit(1001);
     if (rows.length > ids.length) return;
     const secrets = new Map(rows.map(row => [row.secret.id, row]));
     if (secrets.size !== rows.length) return;
@@ -227,7 +227,7 @@ export async function readConnectionGrantCredentialStates(db: Pick<Db, "select">
       const { secret, definition } = row;
       if (secret.status !== "active" || secret.deletedAt || !Number.isSafeInteger(secret.latestVersion) || secret.latestVersion <= 0) return;
       if (secret.scope === "user" && (!definition || definition.id !== secret.userSecretDefinitionId
-        || definition.companyId !== request.input.connection.companyId || definition.status !== "active" || definition.deletedAt)) return;
+        || definition.spaceId !== request.input.connection.spaceId || definition.status !== "active" || definition.deletedAt)) return;
       const version = request.ref.versionSelector === undefined || request.ref.versionSelector === "latest"
         ? secret.latestVersion : request.ref.versionSelector;
       if (typeof version !== "number" || !Number.isSafeInteger(version) || version <= 0) return;
@@ -236,11 +236,11 @@ export async function readConnectionGrantCredentialStates(db: Pick<Db, "select">
       selected.push({ request, secret, definition: secret.scope === "user" ? definition : undefined, key });
     }
     checkBudget();
-    const versions = await db.select({ id: companySecretVersions.id, secretId: companySecretVersions.secretId,
-      version: companySecretVersions.version, status: companySecretVersions.status, revokedAt: companySecretVersions.revokedAt })
-      .from(companySecretVersions).where(or(...[...pairs.values()].map(pair => and(
-        eq(companySecretVersions.secretId, pair.secretId), eq(companySecretVersions.version, pair.version)))))
-      .orderBy(companySecretVersions.secretId, companySecretVersions.version).limit(1001);
+    const versions = await db.select({ id: spaceSecretVersions.id, secretId: spaceSecretVersions.secretId,
+      version: spaceSecretVersions.version, status: spaceSecretVersions.status, revokedAt: spaceSecretVersions.revokedAt })
+      .from(spaceSecretVersions).where(or(...[...pairs.values()].map(pair => and(
+        eq(spaceSecretVersions.secretId, pair.secretId), eq(spaceSecretVersions.version, pair.version)))))
+      .orderBy(spaceSecretVersions.secretId, spaceSecretVersions.version).limit(1001);
     if (versions.length > pairs.size) return;
     const saved = new Map(versions.map(version => [JSON.stringify([version.secretId, version.version]), version]));
     if (saved.size !== versions.length || versions.some(version => !pairs.has(JSON.stringify([version.secretId, version.version])))) return;

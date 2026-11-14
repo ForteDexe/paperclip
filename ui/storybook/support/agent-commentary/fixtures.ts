@@ -1,5 +1,5 @@
 import { type AgentCommentaryDetail } from "@outpost/shared";
-import { storybookAgents } from "../../fixtures/paperclipData";
+import { storybookAgents } from "../../fixtures/outpostData";
 import { prepareFixtureApi, type FixtureState } from "../capability-gaps/api";
 
 export const commentaryAgents = ["Amy (Opus)", "Codie", "VoC", "Fry (Codex)"].map((name, index) => ({
@@ -32,8 +32,8 @@ export function prepareCommentaryFixtures(options: { state?: FixtureState; pagin
   const entries = options.paginated ? Array.from({ length: 58 }, (_, index) => ({ ...commentaryEntries[index % commentaryEntries.length], id: `20000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}` })) : commentaryEntries.map((entry) => ({ ...entry }));
   if (options.longMessage) entries[0].body += "\n\n" + Array.from({ length: 18 }, (_, index) => `### Observation ${index + 1}\n\nThe run retained its task and branch references, but the tool catalog did not recover. A useful error should explain which operation failed, whether it is safe to retry, and which context will survive the retry.`).join("\n\n");
   return prepareFixtureApi([
-    { path: "/api/companies/company-storybook/agents", read: () => commentaryAgents },
-    { path: "/api/companies/company-storybook/agent-commentary", state: options.state, read: ({ url }) => {
+    { path: "/api/spaces/space-storybook/agents", read: () => commentaryAgents },
+    { path: "/api/spaces/space-storybook/agent-commentary", state: options.state, read: ({ url }) => {
       const agent = url.searchParams.get("agentId");
       const kind = url.searchParams.get("kind");
       const query = url.searchParams.get("q")?.toLowerCase();
@@ -42,6 +42,6 @@ export function prepareCommentaryFixtures(options: { state?: FixtureState; pagin
       const matches = options.state === "empty" ? [] : entries.filter((entry) => (!agent || entry.agent.id === agent) && (!kind || entry.kind === kind) && (!query || entry.body.toLowerCase().includes(query)));
       return { items: matches.slice(offset, offset + limit).map(({ body: _body, ...entry }) => entry), total: matches.length, offset, limit };
     } },
-    { path: /^\/api\/companies\/company-storybook\/agent-commentary\//, read: ({ url }) => entries.find((entry) => entry.id === url.pathname.split("/").at(-1)) ?? Response.json({ error: "Commentary not found" }, { status: 404 }) },
+    { path: /^\/api\/spaces\/space-storybook\/agent-commentary\//, read: ({ url }) => entries.find((entry) => entry.id === url.pathname.split("/").at(-1)) ?? Response.json({ error: "Commentary not found" }, { status: 404 }) },
   ]);
 }

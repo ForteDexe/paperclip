@@ -41,7 +41,7 @@ export async function enqueueNativeRuntimeResponse(db: Db, input: {
   return db.transaction(async tx => {
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.nativeRuntimeResponses);
     const [run] = await tx.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, input.request.runId), eq(heartbeatRuns.companyId, input.request.companyId),
+      eq(heartbeatRuns.id, input.request.runId), eq(heartbeatRuns.spaceId, input.request.spaceId),
     )).for("update").limit(1);
     if (!run || run.runtimeMode !== "native" || run.status !== "running") throw conflict("This runner session is no longer accepting runtime responses.");
     const existing = commands(run.resultJson);
@@ -74,7 +74,7 @@ async function authorize(db: Db, command: ResponseCommand) {
   const local = command.localImplicit && loadConfig().deploymentMode === "local_trusted";
   const admin = local || await access.isInstanceAdmin(command.actor.userId);
   if (!local) {
-    const membership = await access.getMembership(command.request.companyId, "user", command.actor.userId);
+    const membership = await access.getMembership(command.request.spaceId, "user", command.actor.userId);
     if (membership?.status !== "active" || (!admin && membership.membershipRole === "viewer")) {
       throw new NativeRuntimeRequestResolutionAuthorizationError("native_runtime_request_resolver_denied");
     }
@@ -115,7 +115,7 @@ export function registerNativeRuntimeResponseDelivery(db: Db, coordinator: Retur
               || !["native_session_not_active", "runtime_request_resolution_unsupported"].includes(error.code)) throw error;
             const { pending, actor } = await authorize(db, command);
             const { queueRunnerPrpRuntimeRequestResolution } = await import("../../realtime/runner-orp-ws.js");
-            queueRunnerPrpRuntimeRequestResolution({ companyId: pending.companyId, runId: row.id,
+            queueRunnerPrpRuntimeRequestResolution({ spaceId: pending.spaceId, runId: row.id,
               pendingRequest: pending, actor, resolution: command.resolution, commandId: command.commandId });
           }
         } catch (error) {

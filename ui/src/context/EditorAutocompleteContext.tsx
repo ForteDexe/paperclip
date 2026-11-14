@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { buildRoutineMentionHref, buildSkillMentionHref } from "@outpost/shared";
-import { companySkillsApi } from "../api/companySkills";
+import { spaceSkillsApi } from "../api/spaceSkills";
 import { routinesApi } from "../api/routines";
-import { useCompany } from "./CompanyContext";
+import { useSpace } from "./SpaceContext";
 import { queryKeys } from "../lib/queryKeys";
 
 export interface SkillCommandOption {
@@ -53,33 +53,33 @@ const EditorAutocompleteContext = createContext<EditorAutocompleteContextValue>(
 });
 
 /**
- * Slash-command options for Markdown editors. The company skills and routines
+ * Slash-command options for Markdown editors. The space skills and routines
  * lists are large, and most pages have no editor, so the provider reads them
  * only after the first editor mounts. Once read they stay current through the
  * live-update invalidations for skills and routines.
  */
 export function EditorAutocompleteProvider({ children }: { children: ReactNode }) {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const [requested, setRequested] = useState(false);
   const requestSlashCommands = useCallback(() => setRequested(true), []);
-  const { data: companySkills = [] } = useQuery({
-    queryKey: selectedCompanyId
-      ? queryKeys.companySkills.list(selectedCompanyId)
+  const { data: spaceSkills = [] } = useQuery({
+    queryKey: selectedSpaceId
+      ? queryKeys.spaceSkills.list(selectedSpaceId)
       : ["outpost-skills", "__none__"],
-    queryFn: () => companySkillsApi.list(selectedCompanyId!),
-    enabled: requested && Boolean(selectedCompanyId),
+    queryFn: () => spaceSkillsApi.list(selectedSpaceId!),
+    enabled: requested && Boolean(selectedSpaceId),
   });
   const { data: routines = [] } = useQuery({
-    queryKey: selectedCompanyId
-      ? queryKeys.routines.list(selectedCompanyId)
+    queryKey: selectedSpaceId
+      ? queryKeys.routines.list(selectedSpaceId)
       : ["routines", "__none__", "__all-projects__"],
-    queryFn: () => routinesApi.list(selectedCompanyId!),
-    enabled: requested && Boolean(selectedCompanyId),
+    queryFn: () => routinesApi.list(selectedSpaceId!),
+    enabled: requested && Boolean(selectedSpaceId),
   });
 
   const value = useMemo<EditorAutocompleteContextValue>(() => ({
     slashCommands: [
-      ...companySkills.map((skill) => ({
+      ...spaceSkills.map((skill) => ({
         id: `skill:${skill.id}`,
         kind: "skill" as const,
         skillId: skill.id,
@@ -104,7 +104,7 @@ export function EditorAutocompleteProvider({ children }: { children: ReactNode }
         })),
     ],
     requestSlashCommands,
-  }), [companySkills, requestSlashCommands, routines]);
+  }), [spaceSkills, requestSlashCommands, routines]);
 
   return (
     <EditorAutocompleteContext.Provider value={value}>

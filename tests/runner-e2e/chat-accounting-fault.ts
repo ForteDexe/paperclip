@@ -13,7 +13,7 @@ import { ownedDatabaseUrl } from "./chat-archive-storage-fault.js";
  * edits product rows, and all saved state comes from the product.
  */
 export const ACCOUNTING_SCENARIO = "budgets-costs.repair-cost-recording";
-export interface AccountingFaultBinding { companyId: string; issueId: string }
+export interface AccountingFaultBinding { spaceId: string; issueId: string }
 export interface AccountingFault {
   /** Cost-event writes the trigger refused, read from a rollback-proof sequence. */
   failures(): Promise<number>;
@@ -22,19 +22,19 @@ export interface AccountingFault {
 }
 const uuid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
 export function validAccountingFaultBinding(value: AccountingFaultBinding) {
-  return !!value && Object.keys(value).sort().join() === "companyId,issueId" && uuid.test(value.companyId) && uuid.test(value.issueId);
+  return !!value && Object.keys(value).sort().join() === "spaceId,issueId" && uuid.test(value.spaceId) && uuid.test(value.issueId);
 }
 
 /** Statements only; ids are validated above and are the only interpolated values. */
 export function accountingFaultSql(tag: string, binding: AccountingFaultBinding) {
   if (!/^[a-f0-9]{12}$/.test(tag) || !validAccountingFaultBinding(binding)) throw new Error("Accounting fault requires an exact owned binding");
-  const name = `paperclip_e2e_accounting_fault_${tag}`, hits = `${name}_hits`;
+  const name = `outpost_e2e_accounting_fault_${tag}`, hits = `${name}_hits`;
   return {
     install: [
       `create sequence ${hits}`,
       `create function ${name}() returns trigger language plpgsql as $fault$
 begin
-  if NEW.company_id = '${binding.companyId}'::uuid and NEW.issue_id = '${binding.issueId}'::uuid then
+  if NEW.space_id = '${binding.spaceId}'::uuid and NEW.issue_id = '${binding.issueId}'::uuid then
     perform nextval('${hits}'::regclass);
     raise exception 'could not write cost event' using errcode = '58030';
   end if;

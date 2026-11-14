@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
 import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { budgetIncidents } from "./budget_incidents.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 
 /**
- * A run a budget stop cancelled, owed one continuation because a board member
+ * A run a budget stop cancelled, owed one continuation because a operator member
  * resolved the incident with Raise budget and resume. Kept outside the run's
  * result JSON, which terminal writers replace, so a Stop that settles at the
  * same moment cannot erase it.
@@ -14,7 +14,7 @@ export const budgetResumeClaims = pgTable(
   "budget_resume_claims",
   {
     runId: uuid("run_id").primaryKey().references(() => heartbeatRuns.id, { onDelete: "cascade" }),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     incidentId: uuid("incident_id").notNull().references(() => budgetIncidents.id, { onDelete: "cascade" }),
     actorUserId: text("actor_user_id").notNull(),
     actorSource: text("actor_source"),
@@ -26,7 +26,7 @@ export const budgetResumeClaims = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    pendingIdx: index("budget_resume_claims_pending_idx").on(table.companyId, table.runId)
+    pendingIdx: index("budget_resume_claims_pending_idx").on(table.spaceId, table.runId)
       .where(sql`${table.state} = 'pending'`),
   }),
 );

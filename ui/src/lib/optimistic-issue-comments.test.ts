@@ -37,16 +37,16 @@ describe("optimistic issue comments", () => {
 
   it("creates a pending optimistic comment for the current user", () => {
     const comment = createOptimisticIssueComment({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       body: "Working on it",
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
     });
 
     expect(comment.id).toMatch(/^optimistic-/);
     expect(comment.clientId).toBe(comment.id);
     expect(comment.clientStatus).toBe("pending");
-    expect(comment.authorUserId).toBe("board-1");
+    expect(comment.authorUserId).toBe("operator-1");
     expect(comment.authorAgentId).toBeNull();
   });
 
@@ -56,10 +56,10 @@ describe("optimistic issue comments", () => {
     const mathSpy = vi.spyOn(Math, "random").mockReturnValue(0.123456789);
 
     const comment = createOptimisticIssueComment({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       body: "Working on it",
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
     });
 
     expect(comment.id).toBe("optimistic-1746000000000-4fzzzxjy");
@@ -71,10 +71,10 @@ describe("optimistic issue comments", () => {
 
   it("supports queued optimistic comments for active-run follow-ups", () => {
     const comment = createOptimisticIssueComment({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       body: "Queue this",
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
       clientStatus: "queued",
       queueTargetRunId: "run-1",
     });
@@ -88,10 +88,10 @@ describe("optimistic issue comments", () => {
       [
         {
           id: "comment-2",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorAgentId: null,
-          authorUserId: "board-1",
+          authorUserId: "operator-1",
           body: "Second",
           authorType: "user",
           presentation: null,
@@ -105,10 +105,10 @@ describe("optimistic issue comments", () => {
           id: "optimistic-1",
           clientId: "optimistic-1",
           clientStatus: "pending",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorAgentId: null,
-          authorUserId: "board-1",
+          authorUserId: "operator-1",
           body: "First",
           authorType: "user",
           presentation: null,
@@ -124,10 +124,10 @@ describe("optimistic issue comments", () => {
 
   it("reconciles an optimistic comment with its canonical server copy", () => {
     const optimistic = createOptimisticIssueComment({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       body: "Do not flash twice",
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
     });
     const { clientId: _clientId, clientStatus: _clientStatus, queueTargetRunId: _queueTargetRunId, ...persisted } = optimistic;
 
@@ -142,16 +142,16 @@ describe("optimistic issue comments", () => {
 
   it("reconciles repeated identical comments one-for-one", () => {
     const first = createOptimisticIssueComment({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       body: "Same text",
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
     });
     const second = createOptimisticIssueComment({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       body: "Same text",
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
     });
     const { clientId: _clientId, clientStatus: _clientStatus, queueTargetRunId: _queueTargetRunId, ...persisted } = first;
 
@@ -167,16 +167,16 @@ describe("optimistic issue comments", () => {
 
   it("keeps repeated identical optimistic comments when neither is persisted", () => {
     const first = createOptimisticIssueComment({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       body: "Same pending text",
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
     });
     const second = createOptimisticIssueComment({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       body: "Same pending text",
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
     });
 
     expect(mergeIssueComments([], [first, second])).toHaveLength(2);
@@ -184,18 +184,18 @@ describe("optimistic issue comments", () => {
 
   it("can take one optimistic queued comment back out of the queue", () => {
     const first = createOptimisticIssueComment({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       body: "First",
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
       clientStatus: "queued",
       queueTargetRunId: "run-1",
     });
     const second = createOptimisticIssueComment({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       body: "Second",
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
       clientStatus: "queued",
       queueTargetRunId: "run-1",
     });
@@ -211,10 +211,10 @@ describe("optimistic issue comments", () => {
       [
         {
           id: "comment-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorAgentId: null,
-          authorUserId: "board-1",
+          authorUserId: "operator-1",
           body: "Original",
           authorType: "user",
           presentation: null,
@@ -225,10 +225,10 @@ describe("optimistic issue comments", () => {
       ],
       {
         id: "comment-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         authorAgentId: null,
-        authorUserId: "board-1",
+        authorUserId: "operator-1",
         body: "Updated",
         authorType: "user",
         presentation: null,
@@ -247,10 +247,10 @@ describe("optimistic issue comments", () => {
       [
         {
           id: "comment-3",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorAgentId: null,
-          authorUserId: "board-1",
+          authorUserId: "operator-1",
           body: "Newest",
           authorType: "user",
           presentation: null,
@@ -262,10 +262,10 @@ describe("optimistic issue comments", () => {
       [
         {
           id: "comment-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorAgentId: null,
-          authorUserId: "board-1",
+          authorUserId: "operator-1",
           body: "Oldest",
           authorType: "user",
           presentation: null,
@@ -275,10 +275,10 @@ describe("optimistic issue comments", () => {
         },
         {
           id: "comment-2",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorAgentId: null,
-          authorUserId: "board-1",
+          authorUserId: "operator-1",
           body: "Middle",
           authorType: "user",
           presentation: null,
@@ -302,10 +302,10 @@ describe("optimistic issue comments", () => {
         [
           {
             id: "comment-2",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
-            authorUserId: "board-1",
+            authorUserId: "operator-1",
             body: "Second",
             authorType: "user",
             presentation: null,
@@ -315,10 +315,10 @@ describe("optimistic issue comments", () => {
           },
           {
             id: "comment-1",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
-            authorUserId: "board-1",
+            authorUserId: "operator-1",
             body: "First",
             authorType: "user",
             presentation: null,
@@ -402,10 +402,10 @@ describe("optimistic issue comments", () => {
         [
           {
             id: "comment-3",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
-            authorUserId: "board-1",
+            authorUserId: "operator-1",
             body: "Newest",
             authorType: "user",
             presentation: null,
@@ -417,10 +417,10 @@ describe("optimistic issue comments", () => {
         [
           {
             id: "comment-1",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
-            authorUserId: "board-1",
+            authorUserId: "operator-1",
             body: "Oldest",
             authorType: "user",
             presentation: null,
@@ -432,10 +432,10 @@ describe("optimistic issue comments", () => {
       ],
       {
         id: "comment-4",
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         authorAgentId: null,
-        authorUserId: "board-1",
+        authorUserId: "operator-1",
         body: "Brand new",
         authorType: "user",
         presentation: null,
@@ -455,10 +455,10 @@ describe("optimistic issue comments", () => {
         [
           {
             id: "comment-3",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
-            authorUserId: "board-1",
+            authorUserId: "operator-1",
             body: "Newest",
             authorType: "user",
             presentation: null,
@@ -470,10 +470,10 @@ describe("optimistic issue comments", () => {
         [
           {
             id: "comment-2",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
-            authorUserId: "board-1",
+            authorUserId: "operator-1",
             body: "Middle",
             authorType: "user",
             presentation: null,
@@ -483,10 +483,10 @@ describe("optimistic issue comments", () => {
           },
           {
             id: "comment-1",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
-            authorUserId: "board-1",
+            authorUserId: "operator-1",
             body: "Oldest",
             authorType: "user",
             presentation: null,
@@ -508,7 +508,7 @@ describe("optimistic issue comments", () => {
     const next = applyOptimisticIssueCommentUpdate(
       {
         id: "issue-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         projectId: null,
         projectWorkspaceId: null,
         goalId: null,
@@ -527,7 +527,7 @@ describe("optimistic issue comments", () => {
         executionAgentNameKey: null,
         executionLockedAt: null,
         createdByAgentId: null,
-        createdByUserId: "board-1",
+        createdByUserId: "operator-1",
         issueNumber: 1,
         identifier: "PAP-1",
         originKind: "manual",
@@ -550,21 +550,21 @@ describe("optimistic issue comments", () => {
         reopen: true,
         reassignment: {
           assigneeAgentId: null,
-          assigneeUserId: "board-2",
+          assigneeUserId: "operator-2",
         },
       },
     );
 
     expect(next?.status).toBe("todo");
     expect(next?.assigneeAgentId).toBeNull();
-    expect(next?.assigneeUserId).toBe("board-2");
+    expect(next?.assigneeUserId).toBe("operator-2");
   });
 
   it("applies optimistic field updates for issue property edits", () => {
     const next = applyOptimisticIssueFieldUpdate(
       {
         id: "issue-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         projectId: "project-1",
         projectWorkspaceId: "workspace-1",
         goalId: null,
@@ -599,7 +599,7 @@ describe("optimistic issue comments", () => {
         executionAgentNameKey: null,
         executionLockedAt: null,
         createdByAgentId: null,
-        createdByUserId: "board-1",
+        createdByUserId: "operator-1",
         issueNumber: 1,
         identifier: "PAP-1",
         originKind: "manual",
@@ -619,7 +619,7 @@ describe("optimistic issue comments", () => {
         labels: [
           {
             id: "label-1",
-            companyId: "company-1",
+            spaceId: "space-1",
             name: "One",
             color: "#111111",
             createdAt: new Date("2026-03-28T14:00:00.000Z"),
@@ -627,7 +627,7 @@ describe("optimistic issue comments", () => {
           },
           {
             id: "label-2",
-            companyId: "company-1",
+            spaceId: "space-1",
             name: "Two",
             color: "#222222",
             createdAt: new Date("2026-03-28T14:00:00.000Z"),
@@ -657,7 +657,7 @@ describe("optimistic issue comments", () => {
         blocks: [],
         project: {
           id: "project-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           urlKey: "project-one",
           goalId: null,
           goalIds: [],
@@ -680,8 +680,8 @@ describe("optimistic issue comments", () => {
             defaultRef: null,
             repoName: null,
             localFolder: null,
-            managedFolder: "/tmp/paperclip",
-            effectiveLocalFolder: "/tmp/paperclip",
+            managedFolder: "/tmp/outpost",
+            effectiveLocalFolder: "/tmp/outpost",
             origin: "local_folder",
           },
           workspaces: [],
@@ -692,7 +692,7 @@ describe("optimistic issue comments", () => {
         },
         currentExecutionWorkspace: {
           id: "exec-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           projectId: "project-1",
           projectWorkspaceId: null,
           sourceIssueId: "issue-1",
@@ -702,7 +702,7 @@ describe("optimistic issue comments", () => {
           status: "active",
           deliveryState: "unknown",
           name: "Execution workspace",
-          cwd: "/tmp/paperclip",
+          cwd: "/tmp/outpost",
           repoUrl: null,
           baseRef: null,
           providerType: "local_fs",
@@ -724,7 +724,7 @@ describe("optimistic issue comments", () => {
       {
         status: "in_review",
         assigneeAgentId: null,
-        assigneeUserId: "board-2",
+        assigneeUserId: "operator-2",
         labelIds: ["label-2"],
         blockedByIssueIds: ["issue-3"],
         parentId: "issue-4",
@@ -735,7 +735,7 @@ describe("optimistic issue comments", () => {
 
     expect(next?.status).toBe("in_review");
     expect(next?.assigneeAgentId).toBeNull();
-    expect(next?.assigneeUserId).toBe("board-2");
+    expect(next?.assigneeUserId).toBe("operator-2");
     expect(next?.labelIds).toEqual(["label-2"]);
     expect(next?.labels?.map((label) => label.id)).toEqual(["label-2"]);
     expect(next?.blockedBy?.map((relation) => relation.id)).toEqual(["issue-3"]);
@@ -757,7 +757,7 @@ describe("optimistic issue comments", () => {
     const issues: Issue[] = [
       {
         id: "issue-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         projectId: null,
         projectWorkspaceId: null,
         goalId: null,
@@ -776,7 +776,7 @@ describe("optimistic issue comments", () => {
         executionAgentNameKey: null,
         executionLockedAt: null,
         createdByAgentId: null,
-        createdByUserId: "board-1",
+        createdByUserId: "operator-1",
         issueNumber: 1,
         identifier: "PAP-1",
         originKind: "manual",
@@ -801,7 +801,7 @@ describe("optimistic issue comments", () => {
       },
       {
         id: "issue-2",
-        companyId: "company-1",
+        spaceId: "space-1",
         projectId: null,
         projectWorkspaceId: null,
         goalId: null,
@@ -820,7 +820,7 @@ describe("optimistic issue comments", () => {
         executionAgentNameKey: null,
         executionLockedAt: null,
         createdByAgentId: null,
-        createdByUserId: "board-1",
+        createdByUserId: "operator-1",
         issueNumber: 2,
         identifier: "PAP-2",
         originKind: "manual",
@@ -951,10 +951,10 @@ describe("optimistic issue comments", () => {
   it("keeps a confirmed queued comment queued while the target run is still live", () => {
     const comment = {
       id: "comment-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       authorAgentId: null,
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
       body: "Follow up after the active run",
       authorType: "user" as const,
       presentation: null,
@@ -980,10 +980,10 @@ describe("optimistic issue comments", () => {
   it("does not keep local queued state after the target run is no longer live", () => {
     const comment = {
       id: "comment-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       authorAgentId: null,
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
       body: "Follow up after the active run",
       authorType: "user" as const,
       presentation: null,
@@ -1004,10 +1004,10 @@ describe("optimistic issue comments", () => {
   it("does not keep local queued state when a different run is live", () => {
     const comment = {
       id: "comment-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       authorAgentId: null,
-      authorUserId: "board-1",
+      authorUserId: "operator-1",
       body: "Follow up after the active run",
       authorType: "user" as const,
       presentation: null,

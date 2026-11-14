@@ -3,7 +3,7 @@ export const INBOX_AGENT_POLICY_MODES = ["open", "allowlist", "disabled"] as con
 export type InboxAgentPolicyMode = (typeof INBOX_AGENT_POLICY_MODES)[number];
 
 export interface InboxAgentPolicy {
-  companyId: string;
+  spaceId: string;
   userId: string;
   mode: InboxAgentPolicyMode;
   allowedAgentIds: string[];

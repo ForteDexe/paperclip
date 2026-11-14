@@ -13,7 +13,7 @@ const rec = (value: unknown): Row => value !== null && typeof value === "object"
 const bytesHash = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 const hash = (value: unknown) => bytesHash(canonicalJson(value));
 const requireProof = (ok: unknown): void => { if (!ok) throw new Error("Kimi context rendezvous: exact scoped read proof is unavailable"); };
-export interface KimiContextScope { companyId: string; agentId: string; environmentId: string; issueId: string; runId: string }
+export interface KimiContextScope { spaceId: string; agentId: string; environmentId: string; issueId: string; runId: string }
 export interface KimiContextPending extends KimiContextScope {
   requestId: string; toolCallId: string; executionId: string; turnId: string; sessionId: string; sourceInstanceId: string;
   createdSeq: number; createdSha256: string;
@@ -31,7 +31,7 @@ function frames(events: readonly unknown[], scope: KimiContextScope) {
   const rows = events.map(rec).filter(row => rec(row.payload).orpEvent !== undefined).map(row => ({ row, event: rec(rec(row.payload).orpEvent) })).sort((a, b) => a.row.seq - b.row.seq);
   const seqs = new Set<number>(), sources = new Set<string>(), cursor = new Map<string, number>();
   for (const { row, event } of rows) {
-    requireProof(row.companyId === scope.companyId && row.runId === scope.runId && isValidNativePrpEnvelope(event, row.protocolSchemaVersion)
+    requireProof(row.spaceId === scope.spaceId && row.runId === scope.runId && isValidNativePrpEnvelope(event, row.protocolSchemaVersion)
       && event.runId === scope.runId && event.eventType === row.eventType && Number.isSafeInteger(row.seq) && row.seq > 0 && !seqs.has(row.seq)
       && typeof event.sourceInstanceId === "string" && event.sourceInstanceId && Number.isSafeInteger(event.sourceSeq)
       && event.sourceSeq > (cursor.get(event.sourceInstanceId) ?? 0) && event.sourceEventId === `${event.sourceInstanceId}:${scope.runId}:${event.sourceSeq}`
@@ -48,7 +48,7 @@ function declaredReadOnlyContext() {
     && canonicalJson(getTaskContextAction.live.descriptor.inputSchema) === canonicalJson({ type: "object", properties: {}, required: [], additionalProperties: false }));
 }
 export function kimiContextRendezvousPrompt(): string {
-  return "Call the already configured Paperclip get_task_context tool exactly once with {}. Wait for the operator's one Allow once decision. Its returned activeTask.description will contain the complete task continuation. Perform no native read, shell, write, search, discovery, semantic mutation, or completion before receiving that context. After reading the returned description, perform only that supplied native action.";
+  return "Call the already configured Outpost get_task_context tool exactly once with {}. Wait for the operator's one Allow once decision. Its returned activeTask.description will contain the complete task continuation. Perform no native read, shell, write, search, discovery, semantic mutation, or completion before receiving that context. After reading the returned description, perform only that supplied native action.";
 }
 export function pendingKimiContextPermission(events: readonly unknown[], scope: KimiContextScope): KimiContextPending | undefined {
   declaredReadOnlyContext();
@@ -57,7 +57,7 @@ export function pendingKimiContextPermission(events: readonly unknown[], scope: 
   requireProof(created.length === 1);
   const { row, event } = created[0]!, request = rec(rec(event.payload).request);
   requireProof(request.schema === "outpost.runtime_request.v2" && request.requestKind === "permission_approval" && request.type === "permission" && request.status === "pending"
-    && request.prompt === "mcp__paperclip__get_task_context" && request.method === "session/request_permission"
+    && request.prompt === "mcp__outpost__get_task_context" && request.method === "session/request_permission"
     && hasAcpxNativeOrigin(request.origin, "kimi", "session/request_permission") && request.turnId === event.turnId
     && typeof request.requestId === "string" && typeof request.details?.toolCallId === "string"
     && Array.isArray(request.choices) && request.choices.map((x: Row) => x.key).sort().join(",") === "accept,cancel,decline");
@@ -66,7 +66,7 @@ export function pendingKimiContextPermission(events: readonly unknown[], scope: 
   requireProof([pending.turnId, pending.sessionId, pending.sourceInstanceId].every(value => typeof value === "string" && value.length > 0));
   const tools = rows.filter(x => x.event.eventType.startsWith("tool.execution."));
   requireProof(tools.every(x => sameStream(x.event, pending) && x.event.payload?.executionId === pending.executionId && x.event.payload?.target === null));
-  const named = tools.filter(x => x.event.payload?.transport === "mcp" && x.event.payload?.namespace === "paperclip" && x.event.payload?.name === "get_task_context");
+  const named = tools.filter(x => x.event.payload?.transport === "mcp" && x.event.payload?.namespace === "outpost" && x.event.payload?.name === "get_task_context");
   if (!named.length) return undefined;
   requireProof(tools.every(x => x.event.payload?.status === "running" && x.event.eventType !== "tool.execution.completed")
     && rows.every(x => !x.event.eventType.startsWith("semantic_tool.") && !["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"].includes(x.event.eventType)));
@@ -80,10 +80,10 @@ export async function publishKimiContextContinuation(input: {
   const p = input.pending; requireProof(input.action.trim().length > 0 && Buffer.byteLength(input.action) <= 16_384);
   const snapshot = await input.fixture.snapshot("before-kimi-context-publication"), binding = rec(snapshot.binding), setup = rec(snapshot.setup), actionSha256 = bytesHash(input.action);
   requireProof(snapshot.complete === true && snapshot.watcher?.complete === true && snapshot.watcher?.targetMutationCount === 0 && snapshot.watcher?.workspaceMutationCount === 0
-    && typeof binding.leaseId === "string" && binding.leaseId.length > 0 && binding.companyId === p.companyId && binding.environmentId === p.environmentId && binding.runId === p.runId && setup.path === input.fixture.actionFile && setup.published === true && setup.sha256 === actionSha256);
+    && typeof binding.leaseId === "string" && binding.leaseId.length > 0 && binding.spaceId === p.spaceId && binding.environmentId === p.environmentId && binding.runId === p.runId && setup.path === input.fixture.actionFile && setup.published === true && setup.sha256 === actionSha256);
   const [issue, run] = await Promise.all([input.api.get<Row>(`/api/issues/${p.issueId}`), input.api.get<Row>(`/api/heartbeat-runs/${p.runId}`)]);
-  const owned = (task: Row) => task.id === p.issueId && task.companyId === p.companyId && task.assigneeAgentId === p.agentId && task.executionRunId === p.runId && task.status === "in_progress";
-  requireProof(owned(issue) && run.id === p.runId && run.companyId === p.companyId && run.agentId === p.agentId && run.status === "running" && run.runtimeMode === "native" && run.nativeIssueId === p.issueId
+  const owned = (task: Row) => task.id === p.issueId && task.spaceId === p.spaceId && task.assigneeAgentId === p.agentId && task.executionRunId === p.runId && task.status === "in_progress";
+  requireProof(owned(issue) && run.id === p.runId && run.spaceId === p.spaceId && run.agentId === p.agentId && run.status === "running" && run.runtimeMode === "native" && run.nativeIssueId === p.issueId
     && run.nativeSessionId === p.sessionId && run.runnerInstanceId === p.sourceInstanceId);
   const updated = await input.api.patch<Row>(`/api/issues/${p.issueId}`, { description: input.action });
   const confirmed = await input.api.get<Row>(`/api/issues/${p.issueId}`);
@@ -106,7 +106,7 @@ export function readKimiContextProof(events: readonly unknown[], publication: Ki
   requireProof(original && Object.entries(original).every(([key, value]) => publication[key as keyof KimiContextPublication] === value));
   if (!authority) return undefined;
   requireProof(authority.schema === "outpost.e2e.kimi-context-authority.v2"
-    && ["companyId", "issueId", "agentId", "environmentId", "runId", "sessionId", "sourceInstanceId", "turnId", "actionSha256", "observerLeaseId", "requestId", "toolCallId"].every(key => (authority as unknown as Row)[key] === (publication as unknown as Row)[key])
+    && ["spaceId", "issueId", "agentId", "environmentId", "runId", "sessionId", "sourceInstanceId", "turnId", "actionSha256", "observerLeaseId", "requestId", "toolCallId"].every(key => (authority as unknown as Row)[key] === (publication as unknown as Row)[key])
     && authority.inputSha256 === hash({}) && typeof authority.callId === "string" && authority.callId.length > 0
     && [authority.inputEventSha256, authority.resultSha256, authority.correlationSha256, authority.commandSha256, authority.deliverySha256, authority.checkpointIdentitySha256, authority.requestCreatedSha256, authority.requestResolvedSha256, authority.turnStartSha256, authority.resolutionCommandSha256].every(value => /^sha256:[a-f0-9]{64}$/.test(value))
     && typeof authority.executionWorkspaceId === "string" && authority.executionWorkspaceId.length > 0
@@ -121,7 +121,7 @@ export function readKimiContextProof(events: readonly unknown[], publication: Ki
   requireProof(finished.length === 1 && native[0]?.event.eventType === "tool.execution.started" && native.at(-1) === finished[0]
     && native.every((x, index) => x.event.payload?.schema === "outpost.tool.execution.v1" && x.event.payload?.target === null
       && (x.event.payload.name === null || x.event.payload.name === "get_task_context")
-      && (x.event.payload.namespace === null || x.event.payload.namespace === "paperclip")
+      && (x.event.payload.namespace === null || x.event.payload.namespace === "outpost")
       && x.event.payload.status === (index === native.length - 1 ? "completed" : "running")));
   const final = finished[0]!, output = final.event.payload;
   requireProof(final.row.seq > closed[0]!.row.seq && typeof output.output === "string" && Buffer.byteLength(output.output) <= 64 * 1024
@@ -149,7 +149,7 @@ export async function approveKimiContextThroughUi(input: {
   requireProof(before && Object.entries(before).every(([key, value]) => input.publication[key as keyof KimiContextPublication] === value));
   const card = input.page.getByTestId("task-chat-runtime-request").filter({ visible: true });
   await expect(card).toHaveCount(1);
-  await expect(card.getByText("mcp__paperclip__get_task_context", { exact: true })).toBeVisible();
+  await expect(card.getByText("mcp__outpost__get_task_context", { exact: true })).toBeVisible();
   const endpoint = `/api/heartbeat-runs/${input.publication.runId}/runtime-requests/${encodeURIComponent(input.publication.requestId)}/resolve`;
   const sent = input.page.waitForRequest(request => new URL(request.url()).pathname === endpoint && request.method() === "POST");
   await card.getByRole("button", { name: "Allow once", exact: true }).click();

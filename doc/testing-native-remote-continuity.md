@@ -212,7 +212,7 @@ A positive report alone does not prove hosted upgrade continuity.
 
 Retain Postgres and the instance secret encryption key across deployments. The
 private `native_runner_checkpoints` journal holds encrypted authentication state,
-commands, and acknowledged event cursors. These records are company/run scoped
+commands, and acknowledged event cursors. These records are space/run scoped
 and are not part of public run projections. The replacement reconstructs its
 local controller cache and authenticates the recorded running artifact, even
 when its own installed runner binary differs. It does not stage a new binary
@@ -231,7 +231,7 @@ are coalesced: only the latest one is included when a control change triggers a
 checkpoint. Priority-zero events always retain their durability barrier. The
 writer receives changed records, exact removed keys, and an initial replacement
 flag and applies them under the owner lock. The format remains encrypted and
-company/run bound. The decoder reads v1 as well as v2 checkpoints.
+space/run bound. The decoder reads v1 as well as v2 checkpoints.
 
 There is no event batching timer. Streaming text/usage does not call the external
 checkpoint writer. Authentication, commands/results, semantic inputs, lifecycle
@@ -342,7 +342,7 @@ restore a controller that has already lost local authority.
 Graceful shutdown detaches and releases the lease. Startup and the existing
 orphan sweep claim eligible expired owners; another container's PID is not
 ownership proof. The runner reconnect window is seven minutes, providing margin
-for the five-minute outage, lease expiry, and connection setup. Stop, company
+for the five-minute outage, lease expiry, and connection setup. Stop, space
 scope and normal admission gates retain precedence. A completed tool receipt can
 restore a lost response. Safe reads recheck current authority. An uncertain
 external mutation is not executed again without outcome evidence.
@@ -602,7 +602,7 @@ pnpm --filter @outpost/server exec vitest run \
   -t 'retires the completed child listener'
 ```
 
-Controls cover foreign companies, allocations and workspaces; live or unaccounted
+Controls cover foreign spaces, allocations and workspaces; live or unaccounted
 owners; changed controllers, reassignment and competing leases; workspace-lock
 and cancellation races; unconfirmed close; and controller, Stop and writer
 changes inside awaited close. The latter must prevent parent backend invocation

@@ -84,7 +84,7 @@ export const DECISION_QUEUE_SEEDS: readonly SeedDefinition[] = [
   {
     key: "questions",
     title: "Questions",
-    description: "Structured questions waiting for a board response.",
+    description: "Structured questions waiting for a operator response.",
     rules: [{
       key: "ask-user-questions",
       signal: "ask_user_questions",
@@ -137,7 +137,7 @@ function eventActorColumns(actor: DecisionMutationActor) {
 function toQueue(row: typeof decisionQueues.$inferSelect, itemCount: number): DecisionQueue {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     key: row.key,
     title: row.title,
     description: row.description ?? null,
@@ -157,7 +157,7 @@ function toQueue(row: typeof decisionQueues.$inferSelect, itemCount: number): De
 function toQueueItem(row: typeof decisionQueueItems.$inferSelect): DecisionQueueItem {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     queueId: row.queueId,
     sourceKind: row.sourceKind as AttentionSourceKind,
     sourceId: row.sourceId,
@@ -173,7 +173,7 @@ function toQueueItem(row: typeof decisionQueueItems.$inferSelect): DecisionQueue
 function toTriage(row: typeof decisionTriage.$inferSelect): DecisionTriage {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     sourceKind: row.sourceKind as AttentionSourceKind,
     sourceId: row.sourceId,
     decideBy: row.decideBy === "date" ? row.decideByDate : row.decideBy,
@@ -189,11 +189,11 @@ function toTriage(row: typeof decisionTriage.$inferSelect): DecisionTriage {
   };
 }
 
-async function loadIssueResource(db: Db, companyId: string, issueId: string): Promise<AuthorizationResource | null> {
+async function loadIssueResource(db: Db, spaceId: string, issueId: string): Promise<AuthorizationResource | null> {
   return db
     .select({
       issueId: issues.id,
-      companyId: issues.companyId,
+      spaceId: issues.spaceId,
       projectId: issues.projectId,
       parentIssueId: issues.parentId,
       assigneeAgentId: issues.assigneeAgentId,
@@ -203,13 +203,13 @@ async function loadIssueResource(db: Db, companyId: string, issueId: string): Pr
       status: issues.status,
     })
     .from(issues)
-    .where(and(eq(issues.companyId, companyId), eq(issues.id, issueId), isNull(issues.hiddenAt)))
+    .where(and(eq(issues.spaceId, spaceId), eq(issues.id, issueId), isNull(issues.hiddenAt)))
     .then((rows) => rows[0] ? ({ type: "issue", ...rows[0] } as const) : null);
 }
 
 async function sourceIssueId(
   db: Db,
-  companyId: string,
+  spaceId: string,
   sourceKind: AttentionSourceKind,
   sourceId: string,
 ): Promise<{ exists: boolean; issueId: string | null; ownerAgentId?: string | null; agentId?: string | null }> {
@@ -218,31 +218,31 @@ async function sourceIssueId(
       const row = await db.select({ id: approvals.id, issueId: issueApprovals.issueId })
         .from(approvals)
         .leftJoin(issueApprovals, and(
-          eq(issueApprovals.companyId, companyId),
+          eq(issueApprovals.spaceId, spaceId),
           eq(issueApprovals.approvalId, approvals.id),
         ))
-        .where(and(eq(approvals.companyId, companyId), eq(approvals.id, sourceId)))
+        .where(and(eq(approvals.spaceId, spaceId), eq(approvals.id, sourceId)))
         .then((rows) => rows[0] ?? null);
       return { exists: Boolean(row), issueId: row?.issueId ?? null };
     }
     case "decision": {
       const row = await db.select({ issueId: decisions.originIssueId })
         .from(decisions)
-        .where(and(eq(decisions.companyId, companyId), eq(decisions.id, sourceId)))
+        .where(and(eq(decisions.spaceId, spaceId), eq(decisions.id, sourceId)))
         .then((rows) => rows[0] ?? null);
       return { exists: Boolean(row), issueId: row?.issueId ?? null };
     }
     case "issue_thread_interaction": {
       const row = await db.select({ issueId: issueThreadInteractions.issueId })
         .from(issueThreadInteractions)
-        .where(and(eq(issueThreadInteractions.companyId, companyId), eq(issueThreadInteractions.id, sourceId)))
+        .where(and(eq(issueThreadInteractions.spaceId, spaceId), eq(issueThreadInteractions.id, sourceId)))
         .then((rows) => rows[0] ?? null);
       return { exists: Boolean(row), issueId: row?.issueId ?? null };
     }
     case "recovery_action": {
       const row = await db.select({ issueId: issueRecoveryActions.sourceIssueId })
         .from(issueRecoveryActions)
-        .where(and(eq(issueRecoveryActions.companyId, companyId), eq(issueRecoveryActions.id, sourceId)))
+        .where(and(eq(issueRecoveryActions.spaceId, spaceId), eq(issueRecoveryActions.id, sourceId)))
         .then((rows) => rows[0] ?? null);
       return { exists: Boolean(row), issueId: row?.issueId ?? null };
     }
@@ -252,14 +252,14 @@ async function sourceIssueId(
     case "review": {
       const row = await db.select({ id: issues.id })
         .from(issues)
-        .where(and(eq(issues.companyId, companyId), eq(issues.id, sourceId), isNull(issues.hiddenAt)))
+        .where(and(eq(issues.spaceId, spaceId), eq(issues.id, sourceId), isNull(issues.hiddenAt)))
         .then((rows) => rows[0] ?? null);
       return { exists: Boolean(row), issueId: row?.id ?? null };
     }
     case "failed_run": {
       const row = await db.select({ agentId: heartbeatRuns.agentId, contextSnapshot: heartbeatRuns.contextSnapshot })
         .from(heartbeatRuns)
-        .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, sourceId)))
+        .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, sourceId)))
         .then((rows) => rows[0] ?? null);
       const snapshot = row?.contextSnapshot && typeof row.contextSnapshot === "object"
         ? row.contextSnapshot as Record<string, unknown>
@@ -272,21 +272,21 @@ async function sourceIssueId(
     case "agent_error_alert": {
       const row = await db.select({ id: agents.id })
         .from(agents)
-        .where(and(eq(agents.companyId, companyId), eq(agents.id, sourceId)))
+        .where(and(eq(agents.spaceId, spaceId), eq(agents.id, sourceId)))
         .then((rows) => rows[0] ?? null);
       return { exists: Boolean(row), issueId: null, agentId: row?.id ?? null };
     }
     case "join_request": {
       const row = await db.select({ id: joinRequests.id })
         .from(joinRequests)
-        .where(and(eq(joinRequests.companyId, companyId), eq(joinRequests.id, sourceId)))
+        .where(and(eq(joinRequests.spaceId, spaceId), eq(joinRequests.id, sourceId)))
         .then((rows) => rows[0] ?? null);
       return { exists: Boolean(row), issueId: null };
     }
     case "budget_alert": {
       const row = await db.select({ id: budgetIncidents.id })
         .from(budgetIncidents)
-        .where(and(eq(budgetIncidents.companyId, companyId), eq(budgetIncidents.id, sourceId)))
+        .where(and(eq(budgetIncidents.spaceId, spaceId), eq(budgetIncidents.id, sourceId)))
         .then((rows) => rows[0] ?? null);
       return { exists: Boolean(row), issueId: null };
     }
@@ -296,15 +296,15 @@ async function sourceIssueId(
 export async function canReadDecisionSource(
   db: Db,
   actor: AuthorizationActor,
-  companyId: string,
+  spaceId: string,
   sourceKind: AttentionSourceKind,
   sourceId: string,
 ) {
-  const source = await sourceIssueId(db, companyId, sourceKind, sourceId);
+  const source = await sourceIssueId(db, spaceId, sourceKind, sourceId);
   if (!source.exists) return false;
   const authz = authorizationService(db);
   if (source.issueId) {
-    const resource = await loadIssueResource(db, companyId, source.issueId);
+    const resource = await loadIssueResource(db, spaceId, source.issueId);
     if (!resource) return false;
     return (await authz.decide({ actor, action: "issue:read", resource })).allowed;
   }
@@ -313,31 +313,31 @@ export async function canReadDecisionSource(
     return (await authz.decide({
       actor,
       action: "agent:read",
-      resource: { type: "agent", companyId, agentId: source.agentId },
+      resource: { type: "agent", spaceId, agentId: source.agentId },
     })).allowed;
   }
   if (sourceKind === "failed_run" && actor.type === "agent") {
     return source.ownerAgentId === actor.agentId;
   }
 
-  // Join requests, unlinked approvals, and budget incidents are board-only
-  // governance data. Same-company existence is deliberately not authority.
-  if (actor.type !== "board") return false;
+  // Join requests, unlinked approvals, and budget incidents are operator-only
+  // policy data. Same-space existence is deliberately not authority.
+  if (actor.type !== "operator") return false;
   return (await authz.decide({
     actor,
-    action: "company_scope:read",
-    resource: { type: "company", companyId },
+    action: "space_scope:read",
+    resource: { type: "space", spaceId },
   })).allowed;
 }
 
 async function requireSourceRead(
   db: Db,
   actor: AuthorizationActor,
-  companyId: string,
+  spaceId: string,
   sourceKind: AttentionSourceKind,
   sourceId: string,
 ) {
-  if (!(await canReadDecisionSource(db, actor, companyId, sourceKind, sourceId))) {
+  if (!(await canReadDecisionSource(db, actor, spaceId, sourceKind, sourceId))) {
     throw notFound("Attention source not found");
   }
 }
@@ -345,10 +345,10 @@ async function requireSourceRead(
 async function recordActivity(
   db: Db,
   actor: DecisionMutationActor,
-  input: { companyId: string; action: string; entityType: string; entityId: string; details?: Record<string, unknown> },
+  input: { spaceId: string; action: string; entityType: string; entityId: string; details?: Record<string, unknown> },
 ) {
   await logActivity(db, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     actorType: actor.actorType,
     actorId: actor.actorId,
     agentId: actor.agentId,
@@ -371,39 +371,39 @@ function itemIssueId(item: AttentionItem) {
 }
 
 export function decisionQueueService(db: Db) {
-  async function getQueue(companyId: string, key: string) {
+  async function getQueue(spaceId: string, key: string) {
     return db.select().from(decisionQueues)
-      .where(and(eq(decisionQueues.companyId, companyId), eq(decisionQueues.key, key)))
+      .where(and(eq(decisionQueues.spaceId, spaceId), eq(decisionQueues.key, key)))
       .then((rows) => rows[0] ?? null);
   }
 
-  async function lockQueue(database: Db, companyId: string, id: string) {
+  async function lockQueue(database: Db, spaceId: string, id: string) {
     const [queue] = await database.select({ id: decisionQueues.id }).from(decisionQueues)
-      .where(and(eq(decisionQueues.companyId, companyId), eq(decisionQueues.id, id))).for("update");
+      .where(and(eq(decisionQueues.spaceId, spaceId), eq(decisionQueues.id, id))).for("update");
     if (!queue) throw notFound("Decision queue not found");
   }
 
-  async function visibleItems(companyId: string, queueId: string, authActor: AuthorizationActor) {
+  async function visibleItems(spaceId: string, queueId: string, authActor: AuthorizationActor) {
     const rows = await db.select().from(decisionQueueItems)
-      .where(and(eq(decisionQueueItems.companyId, companyId), eq(decisionQueueItems.queueId, queueId)))
+      .where(and(eq(decisionQueueItems.spaceId, spaceId), eq(decisionQueueItems.queueId, queueId)))
       .orderBy(desc(decisionQueueItems.createdAt), desc(decisionQueueItems.id));
     const visible: DecisionQueueItem[] = [];
     for (const row of rows) {
-      if (await canReadDecisionSource(db, authActor, companyId, row.sourceKind as AttentionSourceKind, row.sourceId)) {
+      if (await canReadDecisionSource(db, authActor, spaceId, row.sourceKind as AttentionSourceKind, row.sourceId)) {
         visible.push(toQueueItem(row));
       }
     }
     return visible;
   }
 
-  async function materializeSeedSources(companyId: string, items: DecisionQueueSeedSource[]) {
+  async function materializeSeedSources(spaceId: string, items: DecisionQueueSeedSource[]) {
     if (items.length === 0) return;
     const issueIds = [...new Set(items.map(item => item.issueId).filter((id): id is string => Boolean(id)))];
     const prIssueIds = new Set(issueIds.length === 0 ? [] : await db
       .select({ issueId: issueWorkProducts.issueId })
       .from(issueWorkProducts)
       .where(and(
-        pullRequestSeedProductCondition(companyId),
+        pullRequestSeedProductCondition(spaceId),
         inArray(issueWorkProducts.issueId, issueIds),
       )).then((rows) => rows.map((row) => row.issueId)));
 
@@ -426,29 +426,29 @@ export function decisionQueueService(db: Db) {
       await db.transaction(async (tx) => {
         const txDb = tx as unknown as Db;
         const insertedQueue = await txDb.insert(decisionQueues).values({
-          companyId,
+          spaceId,
           key: seed.key,
           title: seed.title,
           description: seed.description,
           createdByType: "system",
           seedRules: seed.rules,
           seedRulesEnabled: true,
-        }).onConflictDoNothing({ target: [decisionQueues.companyId, decisionQueues.key] }).returning();
+        }).onConflictDoNothing({ target: [decisionQueues.spaceId, decisionQueues.key] }).returning();
         const queue = insertedQueue[0] ?? await txDb.select().from(decisionQueues)
-          .where(and(eq(decisionQueues.companyId, companyId), eq(decisionQueues.key, seed.key)))
+          .where(and(eq(decisionQueues.spaceId, spaceId), eq(decisionQueues.key, seed.key)))
           .for("update")
           .then((rows) => rows[0] ?? null);
         if (!queue || !queue.seedRulesEnabled) return;
         if (insertedQueue[0]) {
           await txDb.insert(decisionTriageEvents).values({
-            companyId,
+            spaceId,
             queueId: queue.id,
             action: "queue.seeded",
             ...eventActorColumns(SYSTEM_ACTOR),
             details: { key: seed.key, rules: seed.rules.map((rule) => rule.key) },
           });
           await recordActivity(txDb, SYSTEM_ACTOR, {
-            companyId,
+            spaceId,
             action: "decision_queue.seeded",
             entityType: "decision_queue",
             entityId: queue.id,
@@ -458,7 +458,7 @@ export function decisionQueueService(db: Db) {
         let insertedAnyItem = false;
         for (let offset = 0; offset < matchingItems.length; offset += 500) {
           const inserted = await txDb.insert(decisionQueueItems).values(matchingItems.slice(offset, offset + 500).map(item => ({
-            companyId,
+            spaceId,
             queueId: queue.id,
             sourceKind: item.sourceKind,
             sourceId: item.sourceId,
@@ -470,7 +470,7 @@ export function decisionQueueService(db: Db) {
           insertedAnyItem = true;
           for (const item of inserted) {
             await txDb.insert(decisionTriageEvents).values({
-              companyId,
+              spaceId,
               queueId: queue.id,
               sourceKind: item.sourceKind,
               sourceId: item.sourceId,
@@ -479,7 +479,7 @@ export function decisionQueueService(db: Db) {
               details: { seedKey: seed.key },
             });
             await recordActivity(txDb, SYSTEM_ACTOR, {
-              companyId,
+              spaceId,
               action: "decision_queue_item.seeded",
               entityType: "decision_queue",
               entityId: queue.id,
@@ -489,7 +489,7 @@ export function decisionQueueService(db: Db) {
         }
         if (insertedAnyItem) {
           await txDb.update(decisionQueues).set({ updatedAt: new Date() })
-            .where(and(eq(decisionQueues.companyId, companyId), eq(decisionQueues.id, queue.id)));
+            .where(and(eq(decisionQueues.spaceId, spaceId), eq(decisionQueues.id, queue.id)));
         }
       });
     }
@@ -497,7 +497,7 @@ export function decisionQueueService(db: Db) {
 
   return {
     create: async (input: {
-      companyId: string;
+      spaceId: string;
       key: string;
       title: string;
       description?: string | null;
@@ -507,29 +507,29 @@ export function decisionQueueService(db: Db) {
     }) => {
       const result = await db.transaction(async (tx) => {
         const txDb = tx as unknown as Db;
-        if (input.key === "prs") await notifyApprovalQueueWork(txDb, input.companyId);
+        if (input.key === "prs") await notifyApprovalQueueWork(txDb, input.spaceId);
         const inserted = await txDb.insert(decisionQueues).values({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           key: input.key,
           title: input.title,
           description: input.description ?? null,
           retentionDays: input.retentionDays ?? null,
           ...creatorColumns(input.actor),
-        }).onConflictDoNothing({ target: [decisionQueues.companyId, decisionQueues.key] }).returning();
+        }).onConflictDoNothing({ target: [decisionQueues.spaceId, decisionQueues.key] }).returning();
         const row = inserted[0] ?? await txDb.select().from(decisionQueues)
-          .where(and(eq(decisionQueues.companyId, input.companyId), eq(decisionQueues.key, input.key)))
+          .where(and(eq(decisionQueues.spaceId, input.spaceId), eq(decisionQueues.key, input.key)))
           .then((rows) => rows[0] ?? null);
         if (!row) throw new Error("Decision queue create did not return a row");
         if (inserted[0]) {
           await txDb.insert(decisionTriageEvents).values({
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             queueId: row.id,
             action: "queue.created",
             ...eventActorColumns(input.actor),
             details: { key: row.key },
           });
           await recordActivity(txDb, input.actor, {
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             action: "decision_queue.created",
             entityType: "decision_queue",
             entityId: row.id,
@@ -540,24 +540,24 @@ export function decisionQueueService(db: Db) {
       });
       const itemCount = result.created
         ? 0
-        : (await visibleItems(input.companyId, result.row.id, input.authActor)).length;
+        : (await visibleItems(input.spaceId, result.row.id, input.authActor)).length;
       return { queue: toQueue(result.row, itemCount), created: result.created };
     },
 
-    list: async (companyId: string, authActor: AuthorizationActor) => {
+    list: async (spaceId: string, authActor: AuthorizationActor) => {
       const rows = await db.select().from(decisionQueues)
-        .where(eq(decisionQueues.companyId, companyId))
+        .where(eq(decisionQueues.spaceId, spaceId))
         .orderBy(desc(decisionQueues.updatedAt), desc(decisionQueues.id));
       const result: DecisionQueue[] = [];
       for (const row of rows) {
-        const items = await visibleItems(companyId, row.id, authActor);
+        const items = await visibleItems(spaceId, row.id, authActor);
         result.push(toQueue(row, items.length));
       }
       return result;
     },
 
     update: async (input: {
-      companyId: string;
+      spaceId: string;
       key: string;
       patch: { title?: string; description?: string | null; retentionDays?: number | null; seedRulesEnabled?: boolean };
       authActor: AuthorizationActor;
@@ -565,20 +565,20 @@ export function decisionQueueService(db: Db) {
     }) => {
       const row = await db.transaction(async (tx) => {
         const txDb = tx as unknown as Db;
-        if (input.key === "prs") await notifyApprovalQueueWork(txDb, input.companyId);
+        if (input.key === "prs") await notifyApprovalQueueWork(txDb, input.spaceId);
         const updated = await txDb.update(decisionQueues).set({ ...input.patch, updatedAt: new Date() })
-          .where(and(eq(decisionQueues.companyId, input.companyId), eq(decisionQueues.key, input.key)))
+          .where(and(eq(decisionQueues.spaceId, input.spaceId), eq(decisionQueues.key, input.key)))
           .returning().then((rows) => rows[0] ?? null);
         if (!updated) throw notFound("Decision queue not found");
         await txDb.insert(decisionTriageEvents).values({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           queueId: updated.id,
           action: "queue.updated",
           ...eventActorColumns(input.actor),
           details: { fields: Object.keys(input.patch) },
         });
         await recordActivity(txDb, input.actor, {
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           action: "decision_queue.updated",
           entityType: "decision_queue",
           entityId: updated.id,
@@ -586,31 +586,31 @@ export function decisionQueueService(db: Db) {
         });
         return updated;
       });
-      return toQueue(row, (await visibleItems(input.companyId, row.id, input.authActor)).length);
+      return toQueue(row, (await visibleItems(input.spaceId, row.id, input.authActor)).length);
     },
 
-    listItems: async (companyId: string, key: string, authActor: AuthorizationActor) => {
-      const queue = await getQueue(companyId, key);
+    listItems: async (spaceId: string, key: string, authActor: AuthorizationActor) => {
+      const queue = await getQueue(spaceId, key);
       if (!queue) throw notFound("Decision queue not found");
-      return visibleItems(companyId, queue.id, authActor);
+      return visibleItems(spaceId, queue.id, authActor);
     },
 
     addItem: async (input: {
-      companyId: string;
+      spaceId: string;
       key: string;
       sourceKind: AttentionSourceKind;
       sourceId: string;
       authActor: AuthorizationActor;
       actor: DecisionMutationActor;
     }) => {
-      const queue = await getQueue(input.companyId, input.key);
+      const queue = await getQueue(input.spaceId, input.key);
       if (!queue) throw notFound("Decision queue not found");
-      await requireSourceRead(db, input.authActor, input.companyId, input.sourceKind, input.sourceId);
+      await requireSourceRead(db, input.authActor, input.spaceId, input.sourceKind, input.sourceId);
       return db.transaction(async (tx) => {
         const txDb = tx as unknown as Db;
-        await lockQueue(txDb, input.companyId, queue.id);
+        await lockQueue(txDb, input.spaceId, queue.id);
         const inserted = await txDb.insert(decisionQueueItems).values({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           queueId: queue.id,
           sourceKind: input.sourceKind,
           sourceId: input.sourceId,
@@ -627,9 +627,9 @@ export function decisionQueueService(db: Db) {
         if (!row) throw new Error("Decision queue item create did not return a row");
         if (inserted[0]) {
           await txDb.update(decisionQueues).set({ updatedAt: new Date() })
-            .where(and(eq(decisionQueues.id, queue.id), eq(decisionQueues.companyId, input.companyId)));
+            .where(and(eq(decisionQueues.id, queue.id), eq(decisionQueues.spaceId, input.spaceId)));
           await txDb.insert(decisionTriageEvents).values({
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             queueId: queue.id,
             sourceKind: input.sourceKind,
             sourceId: input.sourceId,
@@ -637,7 +637,7 @@ export function decisionQueueService(db: Db) {
             ...eventActorColumns(input.actor),
           });
           await recordActivity(txDb, input.actor, {
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             action: "decision_queue_item.added",
             entityType: "decision_queue",
             entityId: queue.id,
@@ -649,7 +649,7 @@ export function decisionQueueService(db: Db) {
     },
 
     removeItem: async (input: {
-      companyId: string;
+      spaceId: string;
       key: string;
       sourceKind: AttentionSourceKind;
       sourceId: string;
@@ -657,36 +657,36 @@ export function decisionQueueService(db: Db) {
       authActor: AuthorizationActor;
       actor: DecisionMutationActor;
     }) => {
-      const queue = await getQueue(input.companyId, input.key);
+      const queue = await getQueue(input.spaceId, input.key);
       if (!queue) throw notFound("Decision queue not found");
       const sourceReadable = await canReadDecisionSource(
         db,
         input.authActor,
-        input.companyId,
+        input.spaceId,
         input.sourceKind,
         input.sourceId,
       );
-      // Board operators may clean up an existing sidecar after its source has
+      // Operator operators may clean up an existing sidecar after its source has
       // disappeared. Agents still need source-level read authority so removal
       // cannot be used to probe hidden membership.
-      if (!sourceReadable && input.authActor.type !== "board") {
+      if (!sourceReadable && input.authActor.type !== "operator") {
         throw notFound("Attention source not found");
       }
       return db.transaction(async (tx) => {
         const txDb = tx as unknown as Db;
-        await lockQueue(txDb, input.companyId, queue.id);
-        if (input.key === "prs" && input.sourceKind === "approval") await notifyApprovalQueueWork(txDb, input.companyId);
+        await lockQueue(txDb, input.spaceId, queue.id);
+        if (input.key === "prs" && input.sourceKind === "approval") await notifyApprovalQueueWork(txDb, input.spaceId);
         const removed = await txDb.delete(decisionQueueItems).where(and(
-          eq(decisionQueueItems.companyId, input.companyId),
+          eq(decisionQueueItems.spaceId, input.spaceId),
           eq(decisionQueueItems.queueId, queue.id),
           eq(decisionQueueItems.sourceKind, input.sourceKind),
           eq(decisionQueueItems.sourceId, input.sourceId),
         )).returning().then((rows) => rows[0] ?? null);
         if (!removed) throw notFound("Decision queue item not found");
         await txDb.update(decisionQueues).set({ updatedAt: new Date() })
-          .where(and(eq(decisionQueues.id, queue.id), eq(decisionQueues.companyId, input.companyId)));
+          .where(and(eq(decisionQueues.id, queue.id), eq(decisionQueues.spaceId, input.spaceId)));
         await txDb.insert(decisionTriageEvents).values({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           queueId: queue.id,
           sourceKind: input.sourceKind,
           sourceId: input.sourceId,
@@ -695,7 +695,7 @@ export function decisionQueueService(db: Db) {
           ...eventActorColumns(input.actor),
         });
         await recordActivity(txDb, input.actor, {
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           action: "decision_queue_item.removed",
           entityType: "decision_queue",
           entityId: queue.id,
@@ -710,14 +710,14 @@ export function decisionQueueService(db: Db) {
     },
 
     getTriage: async (
-      companyId: string,
+      spaceId: string,
       sourceKind: AttentionSourceKind,
       sourceId: string,
       authActor: AuthorizationActor,
     ) => {
-      await requireSourceRead(db, authActor, companyId, sourceKind, sourceId);
+      await requireSourceRead(db, authActor, spaceId, sourceKind, sourceId);
       const row = await db.select().from(decisionTriage).where(and(
-        eq(decisionTriage.companyId, companyId),
+        eq(decisionTriage.spaceId, spaceId),
         eq(decisionTriage.sourceKind, sourceKind),
         eq(decisionTriage.sourceId, sourceId),
       )).then((rows) => rows[0] ?? null);
@@ -725,7 +725,7 @@ export function decisionQueueService(db: Db) {
     },
 
     updateTriage: async (input: {
-      companyId: string;
+      spaceId: string;
       sourceKind: AttentionSourceKind;
       sourceId: string;
       decideBy?: string | null;
@@ -733,13 +733,13 @@ export function decisionQueueService(db: Db) {
       authActor: AuthorizationActor;
       actor: DecisionMutationActor;
     }) => {
-      await requireSourceRead(db, input.authActor, input.companyId, input.sourceKind, input.sourceId);
+      await requireSourceRead(db, input.authActor, input.spaceId, input.sourceKind, input.sourceId);
       return db.transaction(async (tx) => {
         const txDb = tx as unknown as Db;
-        const lockKey = `decision-triage:${input.companyId}:${input.sourceKind}:${input.sourceId}`;
+        const lockKey = `decision-triage:${input.spaceId}:${input.sourceKind}:${input.sourceId}`;
         await txDb.execute(sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
         const current = await txDb.select().from(decisionTriage).where(and(
-          eq(decisionTriage.companyId, input.companyId),
+          eq(decisionTriage.spaceId, input.spaceId),
           eq(decisionTriage.sourceKind, input.sourceKind),
           eq(decisionTriage.sourceId, input.sourceId),
         )).then((rows) => rows[0] ?? null);
@@ -769,16 +769,16 @@ export function decisionQueueService(db: Db) {
           updatedAt: now,
         };
         const row = await txDb.insert(decisionTriage).values({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           sourceKind: input.sourceKind,
           sourceId: input.sourceId,
           ...values,
         }).onConflictDoUpdate({
-          target: [decisionTriage.companyId, decisionTriage.sourceKind, decisionTriage.sourceId],
+          target: [decisionTriage.spaceId, decisionTriage.sourceKind, decisionTriage.sourceId],
           set: values,
         }).returning().then((rows) => rows[0]!);
         await txDb.insert(decisionTriageEvents).values({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           sourceKind: input.sourceKind,
           sourceId: input.sourceId,
           action: "triage.updated",
@@ -792,7 +792,7 @@ export function decisionQueueService(db: Db) {
           },
         });
         await recordActivity(txDb, input.actor, {
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           action: "decision_triage.updated",
           entityType: "attention_source",
           entityId: `${input.sourceKind}:${input.sourceId}`,
@@ -803,7 +803,7 @@ export function decisionQueueService(db: Db) {
     },
 
     materializeSeedSources,
-    materializeSeededQueues: (companyId: string, items: AttentionItem[]) => materializeSeedSources(companyId, items.map(item => ({
+    materializeSeededQueues: (spaceId: string, items: AttentionItem[]) => materializeSeedSources(spaceId, items.map(item => ({
       sourceKind: item.sourceKind,
       sourceId: item.subject.id,
       issueId: itemIssueId(item),

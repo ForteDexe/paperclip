@@ -1,13 +1,13 @@
 /**
- * Scheme/transport safety for OAuth endpoints Paperclip learned from a remote
+ * Scheme/transport safety for OAuth endpoints Outpost learned from a remote
  * server (PAP-17099).
  *
  * A generic remote MCP connection can point at any endpoint, and that endpoint
  * gets to advertise its own authorization-server metadata. The
- * `authorization_endpoint` it names is not just fetched server-side — Paperclip
+ * `authorization_endpoint` it names is not just fetched server-side — Outpost
  * hands it to the operator's browser as a top-level navigation, so an arbitrary
  * string there is a code-execution and open-redirect primitive:
- * `javascript:` / `data:` would run in the board's origin, and plain `http:`
+ * `javascript:` / `data:` would run in the operator's origin, and plain `http:`
  * would carry the authorization request (and the operator) over a network any
  * intermediary can rewrite.
  *
@@ -18,13 +18,13 @@
  * - a well-formed absolute URL (anything `new URL` rejects is rejected);
  * - `https:`, or `http:` only for a loopback host under the caller's explicit
  *   local-development policy (the server passes its private-network policy, the
- *   board passes "am I myself served over plaintext HTTP");
+ *   operator passes "am I myself served over plaintext HTTP");
  * - free of embedded credentials, because `https://evil.test@real.test/...`
- *   reads as the wrong origin to a human and Paperclip must not help;
+ *   reads as the wrong origin to a human and Outpost must not help;
  * - free of a fragment, which never survives an authorization request usefully
  *   and is a classic way to hide the effective target from a reader.
  *
- * Both the server and the board import this so a value that passes the API
+ * Both the server and the operator import this so a value that passes the API
  * boundary cannot fail the navigation boundary, or vice versa.
  */
 
@@ -46,10 +46,10 @@ export interface OAuthEndpointUrlOptions {
   allowInsecureLoopback?: boolean;
   /**
    * Origins whose `http:` is already the operator's own trust boundary —
-   * in practice just Paperclip's own deployment origin. A deployment served over
+   * in practice just Outpost's own deployment origin. A deployment served over
    * plaintext HTTP on a LAN address can still run its own authorization
-   * endpoints (the smoke-lab fixture does), and opening Paperclip from Paperclip
-   * adds no exposure the board does not already have.
+   * endpoints (the smoke-lab fixture does), and opening Outpost from Outpost
+   * adds no exposure the operator does not already have.
    */
   allowInsecureOrigins?: string[];
 }
@@ -90,7 +90,7 @@ function insecureTransportAllowed(parsed: URL, options: OAuthEndpointUrlOptions)
 }
 
 /**
- * Is `value` an OAuth endpoint Paperclip is willing to use — and, for the
+ * Is `value` an OAuth endpoint Outpost is willing to use — and, for the
  * authorization endpoint, to navigate a browser to? Returns the normalized URL
  * and its host on success, or the specific rejection reason so callers can
  * produce an actionable message.

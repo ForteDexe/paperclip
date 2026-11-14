@@ -59,7 +59,7 @@ export interface WaveOptions {
   concurrency: number;
   tasks: number;
   seed: number;
-  /** Company budget hard cap in cents; the product hard-stops at this value. */
+  /** Space budget hard cap in cents; the product hard-stops at this value. */
   budgetCents: number;
   /** Poll interval for the observer, 2–5 s per plan §5. */
   pollMs: number;
@@ -110,7 +110,7 @@ export interface WaveOptions {
   faultAfterMs?: number;
   /**
    * Known product signatures this wave deliberately masks. "rc06" keeps the
-   * company budget amount but disables its hard stop, so a stuck
+   * space budget amount but disables its hard stop, so a stuck
    * accounting row (RC-06) cannot wedge every later task. Spend is still
    * recorded per wave. Absent on plans written before masks existed.
    */
@@ -401,19 +401,19 @@ export interface GovernanceRecord {
   decision?: { kind: "approve" | "reject"; at: number; httpStatus: number | null; error: string | null;
     /** The approval was still pending when the board decided (it survived the restart). */
     pendingWhenDecided: boolean; afterFault: boolean };
-  /** H1: the company budget the harness set before launch, in cents (observed spend + 1). */
+  /** H1: the space budget the harness set before launch, in cents (observed spend + 1). */
   budgetSetCents?: number | null;
   budgetSetError?: string | null;
-  /** H1: first time the observer saw the company paused for its budget. */
+  /** H1: first time the observer saw the space paused for its budget. */
   budgetPausedAt?: number | null;
-  /** H1: runs of the task that started while the company was paused (must be none). */
+  /** H1: runs of the task that started while the space was paused (must be none). */
   runsStartedWhilePaused?: string[];
   /** H1: the board's raise-and-resume, made once the task's faults fired and the pause held. */
   resume?: { at: number; amount: number | null; incidentId: string | null; httpStatus: number | null; error: string | null; afterFault: boolean;
     /** When the resume request returned: the pause window ends here. */
     doneAt?: number };
-  /** H1: the company was active again at rest. */
-  companyActiveAtRest?: boolean;
+  /** H1: the space was active again at rest. */
+  spaceActiveAtRest?: boolean;
   /** H1: the pause cleared on its own (before the board resumed it). */
   pauseLostAt?: number | null;
   /** G1: subtasks named after the nonce that existed before the board decided (must be 0). */

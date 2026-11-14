@@ -105,7 +105,7 @@ export async function readClaudeCommandVersion(input: {
   graceSec: number;
 }): Promise<string | null> {
   // Do not cache this probe: an operator may upgrade Claude Code while the
-  // Paperclip server is running, and the next Test/run should recover without
+  // Outpost server is running, and the next Test/run should recover without
   // requiring a server restart.
   return probeClaudeCommandVersion(input).catch(() => null);
 }

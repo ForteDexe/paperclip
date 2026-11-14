@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ActiveAgentsPanel, AgentRunCard } from "./ActiveAgentsPanel";
 
 const mockHeartbeatsApi = vi.hoisted(() => ({
-  liveRunsForCompany: vi.fn(),
+  liveRunsForSpace: vi.fn(),
 }));
 
 const mockIssuesApi = vi.hoisted(() => ({
@@ -91,7 +91,7 @@ function createIssueRun(index: number, issueId: string) {
 function createIssue(id: string, identifier: string, title: string) {
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     identifier,
     title,
     description: null,
@@ -118,7 +118,7 @@ describe("ActiveAgentsPanel", () => {
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([1, 2, 3, 4, 5].map(createRun));
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([1, 2, 3, 4, 5].map(createRun));
     mockIssuesApi.get.mockRejectedValue(new Error("Issue not found"));
   });
 
@@ -137,13 +137,13 @@ describe("ActiveAgentsPanel", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <ActiveAgentsPanel companyId="company-1" />
+          <ActiveAgentsPanel spaceId="space-1" />
         </QueryClientProvider>,
       );
     });
     await flushReact();
 
-    expect(mockHeartbeatsApi.liveRunsForCompany).toHaveBeenCalledWith("company-1", {
+    expect(mockHeartbeatsApi.liveRunsForSpace).toHaveBeenCalledWith("space-1", {
       minCount: 4,
       limit: undefined,
       distinctTasks: false,
@@ -162,7 +162,7 @@ describe("ActiveAgentsPanel", () => {
 
   it("shows each linked task once on the dashboard while keeping distinct taskless runs", async () => {
     const repeatedIssueId = "issue-repeated";
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([
       createIssueRun(1, repeatedIssueId),
       { ...createIssueRun(2, repeatedIssueId), status: "succeeded", finishedAt: "2026-04-24T11:00:00.000Z" },
       createIssueRun(3, "issue-other"),
@@ -179,13 +179,13 @@ describe("ActiveAgentsPanel", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <ActiveAgentsPanel companyId="company-1" dedupeLinkedTasks />
+          <ActiveAgentsPanel spaceId="space-1" dedupeLinkedTasks />
         </QueryClientProvider>,
       );
     });
     await flushReact();
 
-    expect(mockHeartbeatsApi.liveRunsForCompany).toHaveBeenCalledWith("company-1", {
+    expect(mockHeartbeatsApi.liveRunsForSpace).toHaveBeenCalledWith("space-1", {
       minCount: 4,
       limit: undefined,
       distinctTasks: true,
@@ -204,7 +204,7 @@ describe("ActiveAgentsPanel", () => {
   });
 
   it("can request the full live dashboard page limit without a hidden-runs link", async () => {
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([
       createIssueRun(1, "issue-repeated"),
       { ...createIssueRun(2, "issue-repeated"), status: "succeeded" },
     ]);
@@ -217,7 +217,7 @@ describe("ActiveAgentsPanel", () => {
       root.render(
         <QueryClientProvider client={queryClient}>
           <ActiveAgentsPanel
-            companyId="company-1"
+            spaceId="space-1"
             minRunCount={50}
             fetchLimit={50}
             cardLimit={50}
@@ -229,7 +229,7 @@ describe("ActiveAgentsPanel", () => {
     });
     await flushReact();
 
-    expect(mockHeartbeatsApi.liveRunsForCompany).toHaveBeenCalledWith("company-1", {
+    expect(mockHeartbeatsApi.liveRunsForSpace).toHaveBeenCalledWith("space-1", {
       minCount: 50,
       limit: 50,
       distinctTasks: false,
@@ -244,7 +244,7 @@ describe("ActiveAgentsPanel", () => {
   });
 
   it("loads exact visible run issues so task names render even when the issue list page would miss them", async () => {
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([
       createIssueRun(1, "65274215-0000-4000-8000-000000000000"),
     ]);
     mockIssuesApi.get.mockResolvedValue(createIssue(
@@ -261,7 +261,7 @@ describe("ActiveAgentsPanel", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <ActiveAgentsPanel companyId="company-1" />
+          <ActiveAgentsPanel spaceId="space-1" />
         </QueryClientProvider>,
       );
     });
@@ -289,7 +289,7 @@ describe("ActiveAgentsPanel", () => {
       root.render(<>{statuses.map((status, index) => (
         <AgentRunCard
           key={status}
-          companyId="company-1"
+          spaceId="space-1"
           run={{ ...createIssueRun(index, "issue-1"), status }}
           issue={{ title: "Review release notes", identifier: "PAP-559", status: "in_review" }}
         />
@@ -314,7 +314,7 @@ describe("ActiveAgentsPanel", () => {
   it("shows an answered Slack task as idle without changing the run outcome", async () => {
     const root = createRoot(container);
     await act(async () => {
-      root.render(<AgentRunCard companyId="company-1"
+      root.render(<AgentRunCard spaceId="space-1"
         run={{ ...createIssueRun(0, "issue-1"), status: "succeeded" }}
         issue={{ title: "Slack conversation", identifier: "PAP-559", status: "in_review", externalConversationState: "waiting" }} />);
     });
@@ -327,7 +327,7 @@ describe("ActiveAgentsPanel", () => {
   it("keeps a failed task lookup navigable and shows a clear error", async () => {
     const root = createRoot(container);
     await act(async () => {
-      root.render(<AgentRunCard companyId="company-1" run={createIssueRun(1, "issue-missing")} issueLoadFailed />);
+      root.render(<AgentRunCard spaceId="space-1" run={createIssueRun(1, "issue-missing")} issueLoadFailed />);
     });
     expect(container.textContent).toContain("Task unavailable");
     expect(container.querySelector('a[href="/issues/issue-missing"]')).not.toBeNull();
@@ -338,7 +338,7 @@ describe("ActiveAgentsPanel", () => {
     const root = createRoot(container);
     await act(async () => {
       root.render(<AgentRunCard
-        companyId="company-1"
+        spaceId="space-1"
         run={{
           ...createRun(0),
           execution: {

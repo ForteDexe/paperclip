@@ -5,23 +5,23 @@ Date: 2026-03-14
 Audience: Product and engineering
 Related:
 - `doc/plans/2026-03-14-skills-ui-product-plan.md`
-- `doc/plans/2026-03-13-company-import-export-v2.md`
+- `doc/plans/2026-03-13-space-import-export-v2.md`
 - `docs/companies/companies-spec.md`
 
 ## 1. Purpose
 
-This document defines the rollout plan for adapter-wide skill support in Paperclip.
+This document defines the rollout plan for adapter-wide skill support in Outpost.
 
 The goal is not just “show a skills tab.” The goal is:
 
 - every adapter has a deliberate skill-sync truth model
 - the UI tells the truth for that adapter
-- Paperclip stores desired skill state consistently even when the adapter cannot fully reconcile it
+- Outpost stores desired skill state consistently even when the adapter cannot fully reconcile it
 - unsupported adapters degrade clearly and safely
 
 ## 2. Current Adapter Matrix
 
-Paperclip currently has these adapters:
+Outpost currently has these adapters:
 
 - `claude_local`
 - `codex_local`
@@ -53,7 +53,7 @@ Current implementation state:
 
 ## 3. Product Principles
 
-1. Desired skills live in Paperclip for every adapter.
+1. Desired skills live in Outpost for every adapter.
 2. Adapters may expose different truth models, and the UI must reflect that honestly.
 3. Persistent adapters should read and reconcile actual installed state.
 4. Ephemeral adapters should report effective runtime state, not pretend they own a persistent install.
@@ -64,7 +64,7 @@ Current implementation state:
 
 ### 4.1 Persistent local-home adapters
 
-These adapters have a stable local skills directory that Paperclip can read and manage.
+These adapters have a stable local skills directory that Outpost can read and manage.
 
 Candidates:
 
@@ -83,7 +83,7 @@ Expected UX:
 
 ### 4.2 Ephemeral mount adapters
 
-These adapters do not have a meaningful Paperclip-owned persistent install state.
+These adapters do not have a meaningful Outpost-owned persistent install state.
 
 Current adapter:
 
@@ -94,7 +94,7 @@ Current adapter:
 
 Expected UX:
 
-- show desired Paperclip skills
+- show desired Outpost skills
 - show any discoverable external dirs if available
 - say “mounted on next run” instead of “installed”
 - do not imply a persistent adapter-owned install state
@@ -110,7 +110,7 @@ Current adapter:
 
 Expected UX:
 
-- company skill library still works
+- space skill library still works
 - agent attachment UI still works at the desired-state level
 - actual adapter state is `unsupported`
 - sync button is disabled or replaced with explanatory text
@@ -130,12 +130,12 @@ Current state:
 Requirements to finish:
 
 - keep runtime-mounted snapshots separate from persistent install snapshots
-- ensure imported company skills can be attached and mounted without manual path work
+- ensure imported space skills can be attached and mounted without manual path work
 - keep `CODEX_HOME/skills` mutation scoped to heartbeat execution, not `skills/sync`
 
 Success criteria:
 
-- desired skills are stored in Paperclip
+- desired skills are stored in Outpost
 - selected skills are linked into the effective `CODEX_HOME/skills` during runs
 - no persistent installed/stale state is reported from `skills/sync`
 
@@ -157,7 +157,7 @@ Requirements to finish:
 
 Success criteria:
 
-- desired skills stored in Paperclip
+- desired skills stored in Outpost
 - selected skills mounted per run
 - no misleading “installed” language
 
@@ -169,7 +169,7 @@ Target mode:
 
 Technical basis:
 
-- Paperclip reconciles desired skills into `~/.cursor/skills`
+- Outpost reconciles desired skills into `~/.cursor/skills`
 
 Current state:
 
@@ -194,7 +194,7 @@ Target mode:
 
 Technical basis:
 
-- Paperclip reconciles desired skills into `~/.gemini/skills`
+- Outpost reconciles desired skills into `~/.gemini/skills`
 
 Current state:
 
@@ -216,7 +216,7 @@ Target mode:
 
 Technical basis:
 
-- Paperclip reconciles desired skills into `~/.pi/agent/skills`
+- Outpost reconciles desired skills into `~/.pi/agent/skills`
 
 Current state:
 
@@ -225,7 +225,7 @@ Current state:
 Success criteria:
 
 - Pi agents expose actual installed skill state
-- Paperclip can sync desired skills into Pi’s persistent home
+- Outpost can sync desired skills into Pi’s persistent home
 
 ### 5.6 OpenCode Local
 
@@ -235,19 +235,19 @@ Target mode:
 
 Special case:
 
-- OpenCode currently injects Paperclip skills into `~/.claude/skills`
+- OpenCode currently injects Outpost skills into `~/.claude/skills`
 
 This is product-risky because:
 
 - it shares state with Claude
-- Paperclip may accidentally imply the skills belong only to OpenCode when the home is shared
+- Outpost may accidentally imply the skills belong only to OpenCode when the home is shared
 
 Plan:
 
 - implemented `listSkills` and `syncSkills`
 - treat it as `persistent`
 - explicitly label the home as shared in UI copy
-- only remove stale managed Paperclip skills that are clearly marked as Paperclip-managed
+- only remove stale managed Outpost skills that are clearly marked as Outpost-managed
 
 Phase 2:
 
@@ -273,7 +273,7 @@ Required external work:
 
 Until then:
 
-- Paperclip stores desired skills only
+- Outpost stores desired skills only
 - UI shows unsupported actual state
 - no fake sync implementation
 
@@ -302,7 +302,7 @@ Target mode:
 
 Success criteria:
 
-- desired skills are stored in Paperclip
+- desired skills are stored in Outpost
 - selected skills are copied into the execution workspace for the next run
 - no persistent installed/stale state is reported from `skills/sync`
 
@@ -330,7 +330,7 @@ These should be optional metadata additions to the snapshot, not required new ad
 
 ## 7. UI Plan
 
-The company-level skill library can stay adapter-neutral.
+The space-level skill library can stay adapter-neutral.
 
 The agent-level Skills tab must become adapter-aware by copy and status:
 
@@ -341,7 +341,7 @@ The agent-level Skills tab must become adapter-aware by copy and status:
 Additional UI requirement for shared-home adapters:
 
 - show a small warning that the adapter uses a shared user skills home
-- avoid destructive wording unless Paperclip can prove a skill is Paperclip-managed
+- avoid destructive wording unless Outpost can prove a skill is Outpost-managed
 
 ## 8. Rollout Phases
 

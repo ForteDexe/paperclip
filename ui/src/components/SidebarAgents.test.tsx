@@ -28,7 +28,7 @@ const mockAuthApi = vi.hoisted(() => ({
 }));
 
 const mockHeartbeatsApi = vi.hoisted(() => ({
-  liveRunsForCompany: vi.fn(),
+  liveRunsForSpace: vi.fn(),
 }));
 
 const mockResourceMembershipsApi = vi.hoisted(() => ({
@@ -66,9 +66,9 @@ vi.mock("@/lib/router", () => ({
   useLocation: () => ({ pathname: "/PAP/dashboard", search: "", hash: "", state: null }),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({
-    selectedCompanyId: "company-1",
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({
+    selectedSpaceId: "space-1",
   }),
 }));
 
@@ -131,7 +131,7 @@ if (!globalThis.PointerEvent) {
 function makeAgent(overrides: Partial<Agent>): Agent {
   return {
     id: "agent-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Alpha",
     urlKey: "alpha",
     role: "engineer",
@@ -236,7 +236,7 @@ describe("SidebarAgents", () => {
       session: { id: "session-1", userId: "user-1" },
       user: { id: "user-1" },
     });
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([]);
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([]);
     memberships = {
       projectMemberships: {},
       agentMemberships: {},
@@ -245,7 +245,7 @@ describe("SidebarAgents", () => {
       updatedAt: null,
     };
     mockResourceMembershipsApi.listMine.mockImplementation(() => Promise.resolve(memberships));
-    mockResourceMembershipsApi.updateAgent.mockImplementation((_companyId, agentId, data) => {
+    mockResourceMembershipsApi.updateAgent.mockImplementation((_spaceId, agentId, data) => {
       const previousState = memberships.agentMemberships[agentId] ?? "joined";
       const nextState = data.starred === true ? "joined" : data.state ?? previousState;
       const starredAgentIds = memberships.starredAgentIds ?? [];
@@ -364,7 +364,7 @@ describe("SidebarAgents", () => {
   });
 
   it("does not query built-in agents when the experimental feature is disabled", async () => {
-    queryClient.setQueryData(queryKeys.builtInAgents.list("company-1"), [
+    queryClient.setQueryData(queryKeys.builtInAgents.list("space-1"), [
       { agentId: "agent-1", status: "needs_setup" },
     ]);
 
@@ -388,7 +388,7 @@ describe("SidebarAgents", () => {
     await renderSidebarAgents();
     await flushReact();
 
-    expect(mockBuiltInAgentsApi.list).toHaveBeenCalledWith("company-1");
+    expect(mockBuiltInAgentsApi.list).toHaveBeenCalledWith("space-1");
   });
 
   it("renders icon-only agent rows with tooltips and no row actions in the rail", async () => {
@@ -458,7 +458,7 @@ describe("SidebarAgents", () => {
     await flushReact();
 
     expect(mockResourceMembershipsApi.updateAgent).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "agent-1",
       { state: undefined, starred: true },
     );
@@ -498,7 +498,7 @@ describe("SidebarAgents", () => {
   });
 
   it("keeps top mode in stored org-aware order", async () => {
-    localStorage.setItem("outpost.agentOrder:company-1:user-1", JSON.stringify(["agent-b", "agent-a", "agent-c"]));
+    localStorage.setItem("outpost.agentOrder:space-1:user-1", JSON.stringify(["agent-b", "agent-a", "agent-c"]));
     mockAgentsApi.list.mockResolvedValue([
       makeAgent({ id: "agent-a", name: "Alpha", urlKey: "alpha" }),
       makeAgent({ id: "agent-b", name: "Bravo", urlKey: "bravo" }),
@@ -534,7 +534,7 @@ describe("SidebarAgents", () => {
     expect(browseLink?.getAttribute("href")).toBe("/agents/all");
   });
 
-  it("sorts alphabetically and persists the selected mode per company and user", async () => {
+  it("sorts alphabetically and persists the selected mode per space and user", async () => {
     mockAgentsApi.list.mockResolvedValue([
       makeAgent({ id: "agent-c", name: "Charlie", urlKey: "charlie" }),
       makeAgent({ id: "agent-a", name: "Alpha", urlKey: "alpha" }),
@@ -546,7 +546,7 @@ describe("SidebarAgents", () => {
     await chooseSortMode("Alphabetical");
 
     expect(agentLinkLabels(container)).toEqual(["Alpha", "Bravo", "Charlie"]);
-    expect(localStorage.getItem("outpost.agentSortMode:company-1:user-1")).toBe("alphabetical");
+    expect(localStorage.getItem("outpost.agentSortMode:space-1:user-1")).toBe("alphabetical");
   });
 
   it("sorts recent agents by heartbeat, updated time, and created time descending", async () => {
@@ -629,7 +629,7 @@ describe("SidebarAgents", () => {
     });
     await flushReact();
 
-    expect(mockAgentsApi.pause).toHaveBeenCalledWith("agent-1", "company-1");
+    expect(mockAgentsApi.pause).toHaveBeenCalledWith("agent-1", "space-1");
     expect(mockPushToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Agent paused" }));
   });
 
@@ -647,7 +647,7 @@ describe("SidebarAgents", () => {
     await flushReact();
 
     expect(mockResourceMembershipsApi.updateAgent).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "agent-1",
       { state: "left" },
     );
@@ -671,7 +671,7 @@ describe("SidebarAgents", () => {
     });
     await flushReact();
 
-    expect(mockAgentsApi.resume).toHaveBeenCalledWith("agent-1", "company-1");
+    expect(mockAgentsApi.resume).toHaveBeenCalledWith("agent-1", "space-1");
     expect(mockPushToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Agent resumed" }));
   });
 
@@ -717,7 +717,7 @@ describe("SidebarAgents", () => {
       makeAgent({ id: "agent-b", name: "Bravo", urlKey: "bravo" }),
       makeAgent({ id: "agent-c", name: "Charlie", urlKey: "charlie" }),
     ]);
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([
       { id: "run-1", agentId: "agent-b", status: "running" },
     ]);
 
@@ -739,7 +739,7 @@ describe("SidebarAgents", () => {
       makeAgent({ id: "agent-c", name: "Charlie", urlKey: "charlie" }),
       makeAgent({ id: "agent-d", name: "Delta", urlKey: "delta" }),
     ]);
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([
       { id: "run-1", agentId: "agent-a", status: "running" },
     ]);
 
@@ -750,9 +750,9 @@ describe("SidebarAgents", () => {
     expect(labels[0]).toContain("Alpha");
     expect(labels[0]).toContain("1 live");
 
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([]);
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([]);
     await act(async () => {
-      queryClient.setQueryData(queryKeys.liveRuns("company-1"), []);
+      queryClient.setQueryData(queryKeys.liveRuns("space-1"), []);
     });
     await act(async () => {
       await Promise.resolve();
@@ -783,16 +783,16 @@ describe("SidebarAgents", () => {
       makeAgent({ id: "agent-c", name: "Charlie", urlKey: "charlie" }),
       makeAgent({ id: "agent-d", name: "Delta", urlKey: "delta" }),
     ]);
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([
       { id: "run-1", agentId: "agent-a", status: "running" },
     ]);
 
     await renderSidebarAgents();
     expect(agentLinkLabels(container)[0]).toContain("Alpha");
 
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([]);
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([]);
     await act(async () => {
-      queryClient.setQueryData(queryKeys.liveRuns("company-1"), []);
+      queryClient.setQueryData(queryKeys.liveRuns("space-1"), []);
     });
     await act(async () => {
       await Promise.resolve();
@@ -800,12 +800,12 @@ describe("SidebarAgents", () => {
     });
     expect(agentLinkLabels(container)).toEqual(["Alpha"]);
 
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([
       { id: "run-2", agentId: "agent-b", status: "running" },
     ]);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60_000);
-      queryClient.setQueryData(queryKeys.liveRuns("company-1"), [
+      queryClient.setQueryData(queryKeys.liveRuns("space-1"), [
         { id: "run-2", agentId: "agent-b", status: "running" },
       ]);
     });
@@ -815,9 +815,9 @@ describe("SidebarAgents", () => {
     });
     expect(agentLinkLabels(container).join(" ")).toContain("Bravo");
 
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([]);
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([]);
     await act(async () => {
-      queryClient.setQueryData(queryKeys.liveRuns("company-1"), []);
+      queryClient.setQueryData(queryKeys.liveRuns("space-1"), []);
     });
     await act(async () => {
       await Promise.resolve();
@@ -848,7 +848,7 @@ describe("SidebarAgents", () => {
         }),
       ),
     );
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([]);
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([]);
 
     await renderSidebarAgents();
 
@@ -862,7 +862,7 @@ describe("SidebarAgents", () => {
       makeAgent({ id: "agent-b", name: "Bravo", urlKey: "bravo" }),
       makeAgent({ id: "agent-c", name: "Charlie", urlKey: "charlie" }),
     ]);
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([
       { id: "run-1", agentId: "agent-b", status: "running" },
     ]);
 
@@ -889,7 +889,7 @@ describe("SidebarAgents", () => {
         }),
       ),
     );
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([]);
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([]);
 
     await renderSidebarAgents(false);
 
@@ -907,7 +907,7 @@ describe("SidebarAgents", () => {
         }),
       ),
     );
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([]);
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([]);
 
     await renderSidebarAgentsWithDefaultProps();
 

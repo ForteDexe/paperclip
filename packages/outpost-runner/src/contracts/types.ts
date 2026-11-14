@@ -1,7 +1,7 @@
 export interface NativeRunIdentity {
   runId: string;
   sessionId: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   agentId: string;
 }
@@ -32,7 +32,7 @@ export interface NativeSessionCapabilities {
   interruption: boolean;
   structuredResult: boolean;
   /** Defaults to existing provider terminal guarantees when omitted. */
-  completionBoundary?: "provider_termination" | "paperclip_work_session";
+  completionBoundary?: "provider_termination" | "outpost_work_session";
   /** External work-session completion does not prove a remote process exited. */
   providerTermination?: "confirmed" | "unavailable";
   providerTranscriptStreaming?: boolean;

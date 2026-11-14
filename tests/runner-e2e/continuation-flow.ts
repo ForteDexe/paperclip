@@ -65,11 +65,11 @@ export async function runContinuationFlow(input: {
   let issue: Row | undefined;
   let runs: Row[] = [];
   let checks: ReturnType<typeof gradeContinuation> = [];
-  const tasksPath = `/api/companies/${fixtures.company.id}/issues?limit=100`;
+  const tasksPath = `/api/spaces/${fixtures.space.id}/issues?limit=100`;
   async function refresh() {
     issue = await api.get<Row>(`/api/issues/${issue!.id}`);
     const listed = await api.get<Row[]>(
-      `/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100`,
+      `/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100`,
     );
     runs = await Promise.all(
       listed.map((r) => api.get<Row>(`/api/heartbeat-runs/${r.id}`)),
@@ -133,7 +133,7 @@ export async function runContinuationFlow(input: {
     // A restarted dev server can leave DOMContentLoaded pending after the app
     // is interactive (see chat-flow). Require the rendered task thread instead.
     await page.goto(
-      `/${fixtures.company.issuePrefix}/issues/${issue!.identifier ?? issue!.id}`,
+      `/${fixtures.space.issuePrefix}/issues/${issue!.identifier ?? issue!.id}`,
       { waitUntil: "commit", timeout: 60_000 },
     );
     await waitForTaskChatRendered(page, undefined, 60_000);
@@ -193,7 +193,7 @@ export async function runContinuationFlow(input: {
         expect(documents).toHaveLength(1);
         const document = documents[0]!;
         expect(document.latestRevisionId).toBeTruthy();
-        const href = `/${encodeURIComponent(fixtures.company.issuePrefix!)}/issues/${encodeURIComponent(issue!.identifier ?? issue!.id)}#document-${encodeURIComponent(document.key)}`;
+        const href = `/${encodeURIComponent(fixtures.space.issuePrefix!)}/issues/${encodeURIComponent(issue!.identifier ?? issue!.id)}#document-${encodeURIComponent(document.key)}`;
         const url = new URL(href, page.url()).href;
         const link = page.getByTestId("task-chat-agent-bubble").locator(`a[href=${JSON.stringify(href)}]`).last();
         await expect(link).toBeVisible({ timeout: 30_000 });
@@ -254,14 +254,14 @@ export async function runContinuationFlow(input: {
     expect(c.issue.status, "waiting is not complete").not.toBe("done");
   }
   try {
-    budgetGuard = await prepareContinuationBudget(api, fixtures.company.id, fixtures.agent.id);
-    if (execution.profile.generation === "legacy") await prepareLegacyContinuationSkill(api, fixtures.company.id, fixtures.agent.id);
+    budgetGuard = await prepareContinuationBudget(api, fixtures.space.id, fixtures.agent.id);
+    if (execution.profile.generation === "legacy") await prepareLegacyContinuationSkill(api, fixtures.space.id, fixtures.agent.id);
     await api.patch("/api/instance/settings/experimental", {
       enableClassicTaskInterface: false,
     });
     const createdTask = await createTaskThroughUi({
       page,
-      issuePrefix: fixtures.company.issuePrefix!,
+      issuePrefix: fixtures.space.issuePrefix!,
       agentName: fixtures.agent.name,
       title: execution.task.buildTitle(input.nonce),
       prompt: migration ? legacyWorkspaceMigrationPrompt(scenario.prompt) : scenario.prompt,
@@ -281,7 +281,7 @@ export async function runContinuationFlow(input: {
     await snapshot("initial");
     assertWaiting();
     if (migration) {
-      migrationBefore = await readMigrationPoint({ api, companyId: fixtures.company.id, agentId: fixtures.agent.id, issueId: issue.id });
+      migrationBefore = await readMigrationPoint({ api, spaceId: fixtures.space.id, agentId: fixtures.agent.id, issueId: issue.id });
       await input.evidence("legacy-migration-before.json", migrationBefore);
       await input.restart();
       await open();
@@ -290,7 +290,7 @@ export async function runContinuationFlow(input: {
       const parentRun = runs.find((r) => r.contextSnapshot?.issueId === issue!.id);
       await seedContinuationContext({
         isolatedRoot: path.dirname(input.workspacePath),
-        recordedCwd: parentRun?.contextSnapshot?.paperclipWorkspace?.cwd,
+        recordedCwd: parentRun?.contextSnapshot?.outpostWorkspace?.cwd,
         body: scenario.context,
       });
     }
@@ -319,7 +319,7 @@ export async function runContinuationFlow(input: {
         await settle(before);
       } else await reply(scenario.approval);
     }
-    if (migration) migrationAfter = await readMigrationPoint({ api, companyId: fixtures.company.id, agentId: fixtures.agent.id, issueId: issue!.id });
+    if (migration) migrationAfter = await readMigrationPoint({ api, spaceId: fixtures.space.id, agentId: fixtures.agent.id, issueId: issue!.id });
     await snapshot("final");
   } finally {
     checks = gradeContinuation({

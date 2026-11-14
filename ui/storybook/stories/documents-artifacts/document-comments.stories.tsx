@@ -8,14 +8,14 @@ import type {
 } from "@outpost/shared";
 import { DocumentAnnotationPanel } from "@/components/DocumentAnnotationPanel";
 import type { PendingAnchor } from "@/components/DocumentAnnotationLayer";
-import type { CompanyUserProfile } from "@/lib/company-members";
+import type { SpaceUserProfile } from "@/lib/space-members";
 import { queryKeys } from "@/lib/queryKeys";
 
 const issueId = "issue-doc-comments";
 const documentKey = "plan";
 const currentUserId = "user-board";
 
-const userProfileMap = new Map<string, CompanyUserProfile>([
+const userProfileMap = new Map<string, SpaceUserProfile>([
   [currentUserId, { label: "Dotta", image: null }],
   ["user-pm", { label: "Mara Product", image: null }],
 ]);
@@ -28,7 +28,7 @@ function makeThread(
   const anchorState: DocumentAnnotationAnchorState = overrides.anchorState ?? "active";
   return {
     id,
-    companyId: "co-1",
+    spaceId: "co-1",
     issueId,
     documentId: "doc-1",
     documentKey,
@@ -61,7 +61,7 @@ function makeThread(
     comments: [
       {
         id: `${id}-c1`,
-        companyId: "co-1",
+        spaceId: "co-1",
         threadId: id,
         issueId,
         documentId: "doc-1",
@@ -110,7 +110,7 @@ function PanelFrame({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="paperclip-story__label">{label}</div>
+      <div className="outpost-story__label">{label}</div>
       <QueryClientProvider client={client}>
         <div className="h-[460px]">
           <DocumentAnnotationPanel
@@ -138,11 +138,11 @@ function PanelFrame({
 
 function DocumentCommentsMatrix() {
   return (
-    <div className="paperclip-story">
-      <main className="paperclip-story__inner">
-        <section className="paperclip-story__frame overflow-hidden">
+    <div className="outpost-story">
+      <main className="outpost-story__inner">
+        <section className="outpost-story__frame overflow-hidden">
           <div className="border-b border-border px-5 py-4">
-            <div className="paperclip-story__label">Document comments · PAP-10960</div>
+            <div className="outpost-story__label">Document comments · PAP-10960</div>
             <h2 className="mt-1 text-xl font-semibold">Simplified annotation panel</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               No header, no filter chips, no empty-state copy. Revision indicator sits top-right.
@@ -179,7 +179,7 @@ const meta = {
           "Inline document comment panel (PAP-10960): simplified to drop the header, filter chips, and empty-state, surface the author identity in the composer, and clamp quotes to two lines.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "documents-artifacts/annotations"
       ],

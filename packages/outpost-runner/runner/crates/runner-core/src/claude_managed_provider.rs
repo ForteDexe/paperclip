@@ -33,12 +33,12 @@ const MAX_REMOTE_TOOLS: usize = 128;
 const MAX_HISTORY_EVENTS: usize = 10_000;
 const MAX_HISTORY_PAGES: usize = 100;
 // Managed Agents supports at most 500 deduplicated skills in a session.
-// Paperclip's generated instruction companion consumes one of those slots.
+// Outpost's generated instruction companion consumes one of those slots.
 const MAX_MANAGED_SKILL_ATTACHMENTS: usize = 500;
 const MAX_SKILL_UPLOAD_FILES: usize = 10_000;
 const MAX_SKILL_UPLOAD_BYTES: usize = 32 * 1024 * 1024;
 const MAX_SKILL_RECONCILIATION_PAGES: usize = 100;
-const SESSION_OWNERSHIP_METADATA_KEY: &str = "paperclip_ownership";
+const SESSION_OWNERSHIP_METADATA_KEY: &str = "outpost_ownership";
 
 #[derive(Clone, Debug)]
 pub struct ClaudeManagedProviderStartError {
@@ -194,7 +194,7 @@ impl NetworkWorker {
         let beta = beta.to_owned();
         let origin = origin.trim_end_matches('/').to_owned();
         let join = thread::Builder::new()
-            .name("paperclip-claude-managed-network".to_owned())
+            .name("outpost-claude-managed-network".to_owned())
             .spawn(move || {
                 network_loop(
                     api_key,
@@ -668,7 +668,7 @@ fn upload_managed_skill(
     }
     files.sort_by(|left, right| left.0.cmp(&right.0));
     let mut content_identity = Sha256::new();
-    content_identity.update(b"paperclip-managed-skill-v1\0");
+    content_identity.update(b"outpost-managed-skill-v1\0");
     content_identity.update(title.as_bytes());
     content_identity.update([0]);
     content_identity.update(top_level.as_bytes());
@@ -697,7 +697,7 @@ fn upload_managed_skill(
         return Ok(existing);
     }
     let upload_nonce = Uuid::new_v4().simple().to_string();
-    let boundary = format!("paperclip-{}-{upload_nonce}", &content_identity[..24]);
+    let boundary = format!("outpost-{}-{upload_nonce}", &content_identity[..24]);
     let mut body = Vec::new();
     multipart_field(&mut body, &boundary, "display_name", &display_name);
     for (path, bytes) in files {
@@ -780,9 +780,9 @@ fn upload_managed_runtime_skills_at(
         "{:x}",
         Sha256::digest(format!("{instruction_digest}\0{entry_path}").as_bytes())
     );
-    let instruction_name = format!("paperclip-instructions-{}", &instruction_identity[..12]);
+    let instruction_name = format!("outpost-instructions-{}", &instruction_identity[..12]);
     let companion = format!(
-        "---\nname: {instruction_name}\ndescription: Paperclip agent instruction sibling bundle\n---\nRead `instructions/{entry_path}` and its sibling files when the system instructions require them. Treat all files as read-only.\n"
+        "---\nname: {instruction_name}\ndescription: Outpost agent instruction sibling bundle\n---\nRead `instructions/{entry_path}` and its sibling files when the system instructions require them. Treat all files as read-only.\n"
     );
     let assigned = runtime_array(context, "skills").map_err(fresh_error)?;
     validate_managed_skill_upload_aggregate(assigned.len().saturating_add(1), 0, 0)
@@ -931,7 +931,7 @@ fn managed_system_instructions(
         "{:x}",
         Sha256::digest(format!("{instruction_digest}\0{entry_path}").as_bytes())
     );
-    let instruction_name = format!("paperclip-instructions-{}", &instruction_identity[..12]);
+    let instruction_name = format!("outpost-instructions-{}", &instruction_identity[..12]);
     let local_directive = format!("Read-only instruction sibling root: {instruction_root}");
     let replacement = format!(
         "Read-only instruction siblings are in the attached `{instruction_name}` skill under `instructions/`."
@@ -1603,7 +1603,7 @@ impl ClaudeManagedProvider {
                     })?;
                 let validator = jsonschema::validator_for(schema).map_err(|_| {
                     LocalRunnerError::invalid(
-                        "authorized Paperclip tool has an invalid JSON Schema",
+                        "authorized Outpost tool has an invalid JSON Schema",
                     )
                 })?;
                 if !validator.is_valid(&input) {
@@ -2271,7 +2271,7 @@ fn encode_tools(
         .map(|tool| {
             jsonschema::validator_for(&tool.input_schema).map_err(|_| {
                 LocalRunnerError::invalid(format!(
-                    "Paperclip tool {} has an invalid JSON Schema",
+                    "Outpost tool {} has an invalid JSON Schema",
                     tool.operation_id
                 ))
             })?;
@@ -2358,14 +2358,14 @@ fn verify_remote_session(
         || actual_budget.as_deref() != Some(expected_budget.as_str())
     {
         return Err(LocalRunnerError::invalid(
-            "Anthropic session identity does not match its immutable Paperclip profile",
+            "Anthropic session identity does not match its immutable Outpost profile",
         ));
     }
     Ok(())
 }
 
 fn session_ownership_marker(ownership_scope: &str) -> String {
-    format!("paperclip-{:x}", Sha256::digest(ownership_scope.as_bytes()))
+    format!("outpost-{:x}", Sha256::digest(ownership_scope.as_bytes()))
 }
 
 fn session_matches_ownership(
@@ -2458,7 +2458,7 @@ fn reconcile_managed_session(
                 )?;
             }
             Err(LocalRunnerError::invalid(
-                "Anthropic session reconciliation removed duplicate Paperclip-owned sessions",
+                "Anthropic session reconciliation removed duplicate Outpost-owned sessions",
             ))
         }
     }
@@ -2809,7 +2809,7 @@ pub(crate) mod tests {
                 || body
                     .pointer(&format!("/metadata/{SESSION_OWNERSHIP_METADATA_KEY}"))
                     .and_then(Value::as_str)
-                    .is_none_or(|marker| !marker.starts_with("paperclip-"))
+                    .is_none_or(|marker| !marker.starts_with("outpost-"))
             {
                 return send_json_response(
                     socket,
@@ -2910,14 +2910,14 @@ pub(crate) mod tests {
             environment_id: "env_test".to_owned(),
             beta_version: QUALIFIED_BETA.to_owned(),
             max_session_list_cost_usd: 1.0,
-            instructions: "Paperclip test system instructions".to_owned(),
+            instructions: "Outpost test system instructions".to_owned(),
             runtime_context: None,
         }
     }
 
     fn runtime_config_with_one_skill() -> (PathBuf, ClaudeManagedProviderConfig) {
         let root = std::env::temp_dir().join(format!(
-            "paperclip-claude-managed-failure-test-{}",
+            "outpost-claude-managed-failure-test-{}",
             Uuid::new_v4()
         ));
         let instruction_root = root.join("instructions");
@@ -2940,7 +2940,7 @@ pub(crate) mod tests {
                 }
             },
             "skills": [{
-                "key": "company/failure-boundary",
+                "key": "space/failure-boundary",
                 "runtimeName": "failure-boundary",
                 "bundle": {
                     "digest": "failure-skill",
@@ -3055,7 +3055,7 @@ pub(crate) mod tests {
     fn managed_overrides_pin_inline_tools_and_never_embed_remote_mcp_credentials() {
         let overrides = managed_agent_overrides(
             &config(),
-            "Paperclip test system instructions",
+            "Outpost test system instructions",
             vec![json!({ "type": "custom", "name": "pc_finish" })],
             &[ClaudeManagedSkillRef {
                 skill_id: "skill_1".to_owned(),
@@ -3064,13 +3064,13 @@ pub(crate) mod tests {
         );
         assert_eq!(
             overrides.get("system"),
-            Some(&json!("Paperclip test system instructions"))
+            Some(&json!("Outpost test system instructions"))
         );
         assert_eq!(overrides.pointer("/skills/0/version"), Some(&json!("7")));
         assert_eq!(overrides.get("mcp_servers"), Some(&json!([])));
         assert!(!serde_json::to_string(&overrides)
             .unwrap()
-            .contains("paperclip_capability"));
+            .contains("outpost_capability"));
         assert!(overrides
             .get("tools")
             .and_then(Value::as_array)
@@ -3079,16 +3079,16 @@ pub(crate) mod tests {
                 .any(|tool| tool.get("type") == Some(&json!("agent_toolset_20260401")))));
         assert!(serde_json::to_string(&config())
             .unwrap()
-            .find("paperclip_capability")
+            .find("outpost_capability")
             .is_none());
     }
 
     #[test]
     fn managed_system_replaces_the_local_instruction_path_with_the_companion_skill() {
         let mut config = config();
-        let local_root = "/paperclip/runtime/instructions";
+        let local_root = "/outpost/runtime/instructions";
         config.instructions = format!(
-            "paperclip prompt\n\nAGENTS entry\n\nRead-only instruction sibling root: {local_root}"
+            "outpost prompt\n\nAGENTS entry\n\nRead-only instruction sibling root: {local_root}"
         );
         config.runtime_context = Some(json!({
             "instructions": {
@@ -3099,8 +3099,8 @@ pub(crate) mod tests {
         }));
 
         let instructions = managed_system_instructions(&config).unwrap();
-        assert!(instructions.starts_with("paperclip prompt\n\nAGENTS entry\n\n"));
-        assert!(instructions.contains("attached `paperclip-instructions-"));
+        assert!(instructions.starts_with("outpost prompt\n\nAGENTS entry\n\n"));
+        assert!(instructions.contains("attached `outpost-instructions-"));
         assert!(instructions.ends_with("skill under `instructions/`."));
         assert!(!instructions.contains(local_root));
     }
@@ -3109,7 +3109,7 @@ pub(crate) mod tests {
     fn managed_skill_uploads_include_instruction_siblings_and_complete_assigned_skill_trees() {
         let service = FakeAnthropicService::start(vec![], vec![]);
         let root = std::env::temp_dir().join(format!(
-            "paperclip-claude-managed-context-{}",
+            "outpost-claude-managed-context-{}",
             uuid::Uuid::new_v4()
         ));
         let instruction_root = root.join("instructions");
@@ -3146,7 +3146,7 @@ pub(crate) mod tests {
                 }
             },
             "skills": [{
-                "key": "company-1/reviewer",
+                "key": "space-1/reviewer",
                 "runtimeName": "reviewer",
                 "bundle": {
                     "digest": "skill-digest",
@@ -3262,7 +3262,7 @@ pub(crate) mod tests {
     fn managed_skill_count_is_rejected_before_any_remote_upload() {
         let service = FakeAnthropicService::start(vec![], vec![]);
         let root = std::env::temp_dir().join(format!(
-            "paperclip-claude-managed-context-count-{}",
+            "outpost-claude-managed-context-count-{}",
             uuid::Uuid::new_v4()
         ));
         fs::create_dir_all(&root).unwrap();
@@ -3270,7 +3270,7 @@ pub(crate) mod tests {
         let assigned = (0..MAX_MANAGED_SKILL_ATTACHMENTS)
             .map(|index| {
                 json!({
-                    "key": format!("company-1/skill-{index}"),
+                    "key": format!("space-1/skill-{index}"),
                     "runtimeName": format!("skill-{index}"),
                     "bundle": {
                         "digest": format!("{index:064x}"),
@@ -3672,7 +3672,7 @@ pub(crate) mod tests {
     fn managed_skills_upload_once_reuse_on_cold_recovery_and_delete_with_session() {
         let create_service = FakeAnthropicService::start(vec![], vec![]);
         let root = std::env::temp_dir().join(format!(
-            "paperclip-claude-managed-lifecycle-{}",
+            "outpost-claude-managed-lifecycle-{}",
             uuid::Uuid::new_v4()
         ));
         let instruction_root = root.join("instructions");
@@ -3691,7 +3691,7 @@ pub(crate) mod tests {
         .unwrap();
         let mut managed_config = config();
         managed_config.instructions = format!(
-            "Paperclip test system instructions\n\nRead-only instruction sibling root: {}",
+            "Outpost test system instructions\n\nRead-only instruction sibling root: {}",
             instruction_root.display()
         );
         managed_config.runtime_context = Some(json!({
@@ -3703,7 +3703,7 @@ pub(crate) mod tests {
                 }
             },
             "skills": [{
-                "key": "company-1/reviewer",
+                "key": "space-1/reviewer",
                 "runtimeName": "reviewer",
                 "bundle": {
                     "digest": "reviewer-digest",
@@ -4244,7 +4244,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn malformed_tool_arguments_fail_closed_before_paperclip_execution() {
+    fn malformed_tool_arguments_fail_closed_before_outpost_execution() {
         let service = FakeAnthropicService::start(
             vec![json!({
                 "type": "agent.custom_tool_use",

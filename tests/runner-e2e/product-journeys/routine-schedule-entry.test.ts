@@ -18,24 +18,24 @@ afterEach(async () => { await Promise.all(directories.splice(0).map(directory =>
 async function fixture(fault: "body" | "document-author" | "revision-run" | "creation-description" | "creation-project" | null = null, disableFailure = false) {
   const campaignId = "journey-1-campaign", expectedBody = `scheduled-${campaignId}\nSchedule check complete.`;
   const agent = { id: "agent", name: "Owned QA agent", provider: "opencode", model: "configured-model", runtimeMode: "native" };
-  const project = { id: "project", companyId: "company", name: `Journey QA routine project ${campaignId}` };
-  const trigger = { id: "trigger", companyId: "company", routineId: "routine", kind: "schedule", cronExpression: "* * * * *",
+  const project = { id: "project", spaceId: "space", name: `Journey QA routine project ${campaignId}` };
+  const trigger = { id: "trigger", spaceId: "space", routineId: "routine", kind: "schedule", cronExpression: "* * * * *",
     timezone: "America/Chicago", enabled: false, updatedAt: new Date(60_000).toISOString() };
-  const invocation = { id: "invocation", companyId: "company", routineId: "routine", triggerId: "trigger", source: "schedule",
+  const invocation = { id: "invocation", spaceId: "space", routineId: "routine", triggerId: "trigger", source: "schedule",
     status: "completed", linkedIssueId: "task", routineRevisionId: "routine-revision", triggeredAt: new Date(61_000).toISOString() };
-  const task = { id: "task", identifier: "QA-1", companyId: "company", projectId: "project", assigneeAgentId: agent.id,
+  const task = { id: "task", identifier: "QA-1", spaceId: "space", projectId: "project", assigneeAgentId: agent.id,
     status: "done", originKind: "routine_execution", originId: "routine", originRunId: "invocation" };
-  const run = { id: "native-run", companyId: "company", issueId: task.id, agentId: agent.id, status: "succeeded", runtimeMode: "native",
+  const run = { id: "native-run", spaceId: "space", issueId: task.id, agentId: agent.id, status: "succeeded", runtimeMode: "native",
     contextSnapshot: { outpostEnvironment: { id: "environment" } },
     runnerProfileJson: { nativeExecutionInput: { provider: { kind: agent.provider, model: agent.model } } } };
   const body = fault === "body" ? expectedBody.slice(0, -1) : expectedBody;
-  const document = { id: "document", companyId: "company", issueId: task.id, latestRevisionId: "revision", body,
+  const document = { id: "document", spaceId: "space", issueId: task.id, latestRevisionId: "revision", body,
     createdByAgentId: fault === "document-author" ? "foreign-agent" : agent.id, createdByUserId: null };
   const revision = { id: "revision", documentId: document.id, body, createdByAgentId: agent.id,
     createdByRunId: fault === "revision-run" ? "foreign-run" : run.id };
   const reads: string[] = [];
   let instructions = "", pastes = 0, triggerCreated = false, responseResolver: ((value: unknown) => void) | undefined;
-  const routine = () => ({ id: "routine", companyId: "company", title: `Journey QA scheduled routine ${campaignId}`,
+  const routine = () => ({ id: "routine", spaceId: "space", title: `Journey QA scheduled routine ${campaignId}`,
     projectId: fault === "creation-project" ? "foreign-project" : project.id, assigneeAgentId: agent.id,
     createdByUserId: "user", createdByAgentId: null,
     description: fault === "creation-description" ? instructions.replaceAll("`", "\\`") : instructions,
@@ -56,7 +56,7 @@ async function fixture(fault: "body" | "document-author" | "revision-run" | "cre
       if (name === "Create routine") responseResolver?.({ status: () => 201, json: async () => routine() });
     } });
   const api = { origin: "https://qa.example.test", async post(route: string) {
-    if (route === "/api/companies/company/projects") return project;
+    if (route === "/api/spaces/space/projects") return project;
     expect(route).toBe("/api/routines/routine/triggers"); triggerCreated = true; return { trigger: { ...trigger } };
   }, async patch(route: string, input: Row) {
     if (route === "/api/routine-triggers/trigger") {
@@ -79,7 +79,7 @@ async function fixture(fault: "body" | "document-author" | "revision-run" | "cre
   const page = { getByRole: (_role: string, options: { name?: string } = {}) => locator(options.name), getByPlaceholder: () => locator(),
     async goto(url: string) { if (url.endsWith("/routines/routine/runs")) throw new Error("Stop the positive control before the real pause window"); },
     waitForResponse: () => new Promise(resolve => { responseResolver = resolve; }) };
-  const context = { api, page, company: { id: "company", issuePrefix: "QA" }, user: { id: "user" }, agent, environmentId: "environment" } as unknown as JourneyContext;
+  const context = { api, page, space: { id: "space", issuePrefix: "QA" }, user: { id: "user" }, agent, environmentId: "environment" } as unknown as JourneyContext;
   const directory = await mkdtemp(path.join(os.tmpdir(), "routine-attribution-")); directories.push(directory);
   const evidence = { checks: [] } as unknown as JourneyEvidence;
   return { expectedBody, body, instructions: () => instructions, pastes: () => pastes, evidence, trigger, directory, reads,
@@ -91,7 +91,7 @@ it.each(["creation-description", "creation-project"] as const)("retains closed %
   const f = await fixture(fault);
   await expect(f.run()).rejects.toMatchObject({ code: "routine_browser_created" });
   const receipt = JSON.parse(await readFile(path.join(f.directory, "scheduled-routine-creation.json"), "utf8"));
-  expect(receipt.matches).toEqual({ company: true, title: true, project: fault !== "creation-project", assignee: true,
+  expect(receipt.matches).toEqual({ space: true, title: true, project: fault !== "creation-project", assignee: true,
     userCreator: true, agentCreatorNull: true, description: fault !== "creation-description", concurrency: true, zeroTriggers: true });
   expect(receipt.expectedDescription.sha256).toBe(createHash("sha256").update(f.instructions()).digest("hex"));
   expect(receipt.savedDescription.backslashCount).toBe(fault === "creation-description" ? 6 : 0);

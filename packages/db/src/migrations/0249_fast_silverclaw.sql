@@ -1,7 +1,7 @@
 -- Idempotent for workspaces that applied the pre-rebase review migrations.
 CREATE TABLE IF NOT EXISTS "tool_action_deliveries" (
 	"action_request_id" uuid PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"interaction_id" uuid NOT NULL,
 	"delivered_at" timestamp with time zone,
@@ -14,8 +14,8 @@ DO $$ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_action_deliveries_company_id_companies_id_fk' AND conrelid = 'public.tool_action_deliveries'::regclass) THEN
-    ALTER TABLE "tool_action_deliveries" ADD CONSTRAINT "tool_action_deliveries_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_action_deliveries_space_id_spaces_id_fk' AND conrelid = 'public.tool_action_deliveries'::regclass) THEN
+    ALTER TABLE "tool_action_deliveries" ADD CONSTRAINT "tool_action_deliveries_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -29,5 +29,5 @@ DO $$ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "tool_action_deliveries_pending_idx" ON "tool_action_deliveries" USING btree ("delivered_at","created_at");--> statement-breakpoint
--- paperclip:migration-safety-ignore large-create-index-not-concurrently: Transactional migrations require the unique delivery claim before writers start. This new key namespace has no rows, but index construction can briefly block wakeup writes.
-CREATE UNIQUE INDEX IF NOT EXISTS "agent_wakeup_requests_tool_action_delivery_uq" ON "agent_wakeup_requests" USING btree ("company_id","idempotency_key") WHERE "agent_wakeup_requests"."idempotency_key" LIKE 'tool-action-response:%' AND "agent_wakeup_requests"."status" NOT IN ('skipped', 'failed', 'cancelled');
+-- outpost:migration-safety-ignore large-create-index-not-concurrently: Transactional migrations require the unique delivery claim before writers start. This new key namespace has no rows, but index construction can briefly block wakeup writes.
+CREATE UNIQUE INDEX IF NOT EXISTS "agent_wakeup_requests_tool_action_delivery_uq" ON "agent_wakeup_requests" USING btree ("space_id","idempotency_key") WHERE "agent_wakeup_requests"."idempotency_key" LIKE 'tool-action-response:%' AND "agent_wakeup_requests"."status" NOT IN ('skipped', 'failed', 'cancelled');

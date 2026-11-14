@@ -4,7 +4,7 @@ name: browser-use-cloud
 description: Delegate website work to Browser Use Cloud while a human watches and interacts in the task's Browser tab.
 ---
 
-Use the assigned Browser Use Cloud connection tools from the governed tool catalog.
+Use the assigned Browser Use Cloud connection tools from the controlled tool catalog.
 Discover the connection's browser_start, browser_status, browser_continue,
 browser_cancel, browser_end, browser_sessions, and browser_profiles actions.
 The tools follow the connection's Allowed / Ask first / Off permissions.

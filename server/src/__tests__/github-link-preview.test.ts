@@ -10,7 +10,7 @@ vi.mock("../services/git-credentials.js", async original => ({
 }));
 vi.mock("../services/secrets.js", () => ({ secretService: () => ({}) }));
 const db = null as unknown as Db;
-const scope = { companyId: "company-a", userId: "alice" };
+const scope = { spaceId: "space-a", userId: "alice" };
 const target = recognizeLinkPreview("https://github.com/acme/web/pull/42")!;
 beforeEach(() => vi.resetAllMocks());
 
@@ -18,7 +18,7 @@ describe("GitHub link preview boundary", () => {
   it("uses only the current viewer's managed identity with no standing delegation", async () => {
     vi.mocked(resolveManagedGitHubCredential).mockResolvedValue({ configured: true, credential: { token: "token", source: "managed_connection", secretName: null } });
     expect(await resolveLinkPreviewGitHubCredential(db, scope)).toEqual({ token: "token", source: "managed_connection", secretName: null });
-    expect(resolveManagedGitHubCredential).toHaveBeenCalledWith(db, {}, scope.companyId, { responsibleUserId: "alice", allowStandingDelegation: false });
+    expect(resolveManagedGitHubCredential).toHaveBeenCalledWith(db, {}, scope.spaceId, { responsibleUserId: "alice", allowStandingDelegation: false });
     expect(resolveGitHubApiCredential).not.toHaveBeenCalled();
   });
   it("does not bypass a configured connection that cannot supply credentials", async () => {
@@ -26,11 +26,11 @@ describe("GitHub link preview boundary", () => {
     await expect(resolveLinkPreviewGitHubCredential(db, scope)).rejects.toThrow();
     expect(resolveGitHubApiCredential).not.toHaveBeenCalled();
   });
-  it("uses the existing company/public fallback only without a managed connection", async () => {
+  it("uses the existing space/public fallback only without a managed connection", async () => {
     vi.mocked(resolveManagedGitHubCredential).mockResolvedValue({ configured: false });
     vi.mocked(resolveGitHubApiCredential).mockResolvedValue(null);
     expect(await resolveLinkPreviewGitHubCredential(db, scope)).toBeNull();
-    expect(resolveGitHubApiCredential).toHaveBeenCalledWith(db, scope.companyId);
+    expect(resolveGitHubApiCredential).toHaveBeenCalledWith(db, scope.spaceId);
   });
   it.each([
     [{ state: "open" }, "open"], [{ state: "open", mergeable: false }, "conflicts"],

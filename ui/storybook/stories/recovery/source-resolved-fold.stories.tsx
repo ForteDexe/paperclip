@@ -54,11 +54,11 @@ function DefaultPanel() {
 }
 
 const meta = {
-  id: "paperclip-source-resolved-fold",
-  title: "Projects and execution/Recovery/Paperclip/Source-resolved Fold",
+  id: "outpost-source-resolved-fold",
+  title: "Projects and execution/Recovery/Outpost/Source-resolved Fold",
   component: DefaultPanel,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "recovery/diagnosis",
         "recovery/source-action"

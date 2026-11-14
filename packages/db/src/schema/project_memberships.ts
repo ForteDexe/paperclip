@@ -1,12 +1,12 @@
 import { pgTable, uuid, text, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { projects } from "./projects.js";
 
 export const projectMemberships = pgTable(
   "project_memberships",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull(),
     state: text("state").notNull().default("joined"),
@@ -15,15 +15,15 @@ export const projectMemberships = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyUserIdx: index("project_memberships_company_user_idx").on(table.companyId, table.userId),
-    companyUserStarredIdx: index("project_memberships_company_user_starred_idx").on(
-      table.companyId,
+    spaceUserIdx: index("project_memberships_space_user_idx").on(table.spaceId, table.userId),
+    spaceUserStarredIdx: index("project_memberships_space_user_starred_idx").on(
+      table.spaceId,
       table.userId,
       table.starredAt,
     ),
     projectIdx: index("project_memberships_project_idx").on(table.projectId),
-    companyUserProjectUq: uniqueIndex("project_memberships_company_user_project_uq").on(
-      table.companyId,
+    spaceUserProjectUq: uniqueIndex("project_memberships_space_user_project_uq").on(
+      table.spaceId,
       table.userId,
       table.projectId,
     ),

@@ -3,8 +3,8 @@ import { projectIdleMcpSubscriptionProof, type IdleMcpSubscriptionProofInput } f
 import { createMcpWakeAdmission } from "./wake-admission.js";
 import { mcpEventSubscriptions } from "@outpost/db";
 const context = { stackId: "stack", ownerId: "00000000-0000-4000-8000-000000000001", capabilityGeneration: "a".repeat(64), challenge: "c".repeat(64) };
-const row: typeof mcpEventSubscriptions.$inferSelect = { id: "sub", companyId: "company", grantId: "grant", name: "outpost.task.status_changed", taskId: "task", bindingId: null,
-  arguments: { companyId: "company", taskId: "task" }, deliveryMaterial: {}, verifiedAt: new Date(0), startsAt: new Date(0), expiresAt: new Date(10_000), stoppedAt: null, scannedAt: new Date(1000) };
+const row: typeof mcpEventSubscriptions.$inferSelect = { id: "sub", spaceId: "space", grantId: "grant", name: "outpost.task.status_changed", taskId: "task", bindingId: null,
+  arguments: { spaceId: "space", taskId: "task" }, deliveryMaterial: {}, verifiedAt: new Date(0), startsAt: new Date(0), expiresAt: new Date(10_000), stoppedAt: null, scannedAt: new Date(1000) };
 const input: IdleMcpSubscriptionProofInput = { now: 2000,
   ingress: { admission: createMcpWakeAdmission({ ...context, tokens: [] }), generation: "d".repeat(64), grantIds: ["grant"], dotBindingIds: ["binding"] },
   personal: { revision: "personal:1", reconciled: true }, dot: { revision: "dot:1", reconciled: true }, inspectDestination: async () => true };
@@ -18,8 +18,8 @@ describe("configured-idle MCP subscription proof", () => {
     expect((await projectIdleMcpSubscriptionProof([{ subscription: row, taskMatches: true }], { ...input, personal: { revision: "personal:2", reconciled: true } })).generation).not.toBe(proof.generation);
   });
   it("keeps unknown/foreign/malformed/uncertain subscriptions blocking", async () => {
-    for (const change of [{ name: "unknown.event" }, { grantId: "foreign" }, { taskId: null }, { arguments: { companyId: "foreign", taskId: "task" } },
-      { arguments: { companyId: "company", taskId: "task", injected: true } }, { arguments: { companyId: "company", taskId: "task", statuses: ["unknown"] } },
+    for (const change of [{ name: "unknown.event" }, { grantId: "foreign" }, { taskId: null }, { arguments: { spaceId: "foreign", taskId: "task" } },
+      { arguments: { spaceId: "space", taskId: "task", injected: true } }, { arguments: { spaceId: "space", taskId: "task", statuses: ["unknown"] } },
       { expiresAt: new Date(NaN) }, { verifiedAt: new Date(3000) }, { scannedAt: new Date(-1) }]) {
       expect((await projectIdleMcpSubscriptionProof([{ subscription: { ...row, ...change }, taskMatches: true }], input)).blocked).toBe(true);
     }
@@ -28,7 +28,7 @@ describe("configured-idle MCP subscription proof", () => {
     expect((await projectIdleMcpSubscriptionProof([{ subscription: row, taskMatches: true }], { ...input, personal: { revision: "dirty", reconciled: false } })).blocked).toBe(true);
   });
   it("requires the exact certified Dot binding and matching Dot reconciliation", async () => {
-    const dot = { ...row, name: "outpost.dot.mailbox_updated", taskId: null, bindingId: "binding", arguments: { companyId: "company", bindingId: "binding" } };
+    const dot = { ...row, name: "outpost.dot.mailbox_updated", taskId: null, bindingId: "binding", arguments: { spaceId: "space", bindingId: "binding" } };
     expect((await projectIdleMcpSubscriptionProof([{ subscription: dot, taskMatches: false }], input)).blocked).toBe(false);
     expect((await projectIdleMcpSubscriptionProof([{ subscription: { ...dot, bindingId: "other" }, taskMatches: false }], input)).blocked).toBe(true);
     expect((await projectIdleMcpSubscriptionProof([], { ...input, personal: { revision: "missing", reconciled: false } })).blocked).toBe(false);

@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   instanceSettings,
   issueComments,
@@ -64,7 +64,7 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-run-referenced-projects-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-run-referenced-projects-");
     db = createDb(tempDb.connectionString);
     issuesSvc = issueService(db);
     projectsSvc = projectService(db);
@@ -78,24 +78,24 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
     await db.delete(projects);
     await db.delete(agents);
     await db.delete(instanceSettings);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  const buildActor = (companyId: string): AuthorizationActor => ({
+  const buildActor = (spaceId: string): AuthorizationActor => ({
     type: "agent",
     agentId: randomUUID(),
-    companyId,
+    spaceId,
     source: "agent_key",
   });
 
   const decision = (allowed: boolean): AuthorizationDecision => ({
     allowed,
     action: "project:read",
-    reason: allowed ? "allow_company_agent" : "deny_company_boundary",
+    reason: allowed ? "allow_space_agent" : "deny_space_boundary",
     explanation: "test decision",
   });
 
@@ -115,17 +115,17 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
     return { decidedProjectIds, access };
   };
 
-  const seedCompany = async (companyId: string) => {
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+  const seedSpace = async (spaceId: string) => {
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
   };
 
   const seedIssueWithMentions = async (input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     anchorProjectId: string | null;
     mentionedProjectIds: string[];
@@ -135,7 +135,7 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
       .join(" ");
     await db.insert(issues).values({
       id: input.issueId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       projectId: input.anchorProjectId,
       title: `Referencing ${mentionMarkup}`,
       description: null,
@@ -145,33 +145,33 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
   };
 
   const baseOpts = (
-    companyId: string,
+    spaceId: string,
     access: ResolveRunReferencedProjectsOptions["access"],
     overrides?: Partial<ResolveRunReferencedProjectsOptions>,
   ): ResolveRunReferencedProjectsOptions => ({
-    companyId,
-    actor: buildActor(companyId),
+    spaceId,
+    actor: buildActor(spaceId),
     issues: issuesSvc,
     projects: projectsSvc,
     access,
     ...overrides,
   });
 
-  it("admits a same-company project that passes project:read", async () => {
-    const companyId = randomUUID();
+  it("admits a same-space project that passes project:read", async () => {
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const mentionedProjectId = randomUUID();
 
-    await seedCompany(companyId);
+    await seedSpace(spaceId);
     await db.insert(projects).values([
-      { id: anchorProjectId, companyId, name: "Anchor", status: "in_progress" },
-      { id: mentionedProjectId, companyId, name: "Mentioned", status: "in_progress" },
+      { id: anchorProjectId, spaceId, name: "Anchor", status: "in_progress" },
+      { id: mentionedProjectId, spaceId, name: "Mentioned", status: "in_progress" },
     ]);
-    await seedIssueWithMentions({ companyId, issueId, anchorProjectId, mentionedProjectIds: [mentionedProjectId] });
+    await seedIssueWithMentions({ spaceId, issueId, anchorProjectId, mentionedProjectIds: [mentionedProjectId] });
 
     const { decidedProjectIds, access } = recordingAccess(() => decision(true));
-    const result = await resolveRunReferencedProjects(issueId, anchorProjectId, baseOpts(companyId, access));
+    const result = await resolveRunReferencedProjects(issueId, anchorProjectId, baseOpts(spaceId, access));
 
     expect(result.anchor?.projectId).toBe(anchorProjectId);
     expect(result.additional.map((entry) => entry.projectId)).toEqual([mentionedProjectId]);
@@ -181,70 +181,70 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
   });
 
   it("dedupes the anchor against the mentioned set (anchor wins)", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const mentionedProjectId = randomUUID();
 
-    await seedCompany(companyId);
+    await seedSpace(spaceId);
     await db.insert(projects).values([
-      { id: anchorProjectId, companyId, name: "Anchor", status: "in_progress" },
-      { id: mentionedProjectId, companyId, name: "Mentioned", status: "in_progress" },
+      { id: anchorProjectId, spaceId, name: "Anchor", status: "in_progress" },
+      { id: mentionedProjectId, spaceId, name: "Mentioned", status: "in_progress" },
     ]);
     // The anchor is also @-mentioned in the body; it must not appear in `additional`.
     await seedIssueWithMentions({
-      companyId,
+      spaceId,
       issueId,
       anchorProjectId,
       mentionedProjectIds: [anchorProjectId, mentionedProjectId],
     });
 
     const { decidedProjectIds, access } = recordingAccess(() => decision(true));
-    const result = await resolveRunReferencedProjects(issueId, anchorProjectId, baseOpts(companyId, access));
+    const result = await resolveRunReferencedProjects(issueId, anchorProjectId, baseOpts(spaceId, access));
 
     expect(result.anchor?.projectId).toBe(anchorProjectId);
     expect(result.additional.map((entry) => entry.projectId)).toEqual([mentionedProjectId]);
     expect(decidedProjectIds).not.toContain(anchorProjectId);
   });
 
-  it("drops a foreign-company project before authorization", async () => {
-    const companyId = randomUUID();
-    const foreignCompanyId = randomUUID();
+  it("drops a foreign-space project before authorization", async () => {
+    const spaceId = randomUUID();
+    const foreignSpaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const foreignProjectId = randomUUID();
 
-    await seedCompany(companyId);
-    await seedCompany(foreignCompanyId);
+    await seedSpace(spaceId);
+    await seedSpace(foreignSpaceId);
     await db.insert(projects).values([
-      { id: anchorProjectId, companyId, name: "Anchor", status: "in_progress" },
-      { id: foreignProjectId, companyId: foreignCompanyId, name: "Foreign", status: "in_progress" },
+      { id: anchorProjectId, spaceId, name: "Anchor", status: "in_progress" },
+      { id: foreignProjectId, spaceId: foreignSpaceId, name: "Foreign", status: "in_progress" },
     ]);
-    await seedIssueWithMentions({ companyId, issueId, anchorProjectId, mentionedProjectIds: [foreignProjectId] });
+    await seedIssueWithMentions({ spaceId, issueId, anchorProjectId, mentionedProjectIds: [foreignProjectId] });
 
     const { decidedProjectIds, access } = recordingAccess(() => decision(true));
-    const result = await resolveRunReferencedProjects(issueId, anchorProjectId, baseOpts(companyId, access));
+    const result = await resolveRunReferencedProjects(issueId, anchorProjectId, baseOpts(spaceId, access));
 
     expect(result.additional).toEqual([]);
-    // Company scoping drops the foreign project before any authorization call is made.
+    // Space scoping drops the foreign project before any authorization call is made.
     expect(decidedProjectIds).toEqual([]);
   });
 
   it("drops and warns on a project that fails per-project authorization", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const deniedProjectId = randomUUID();
 
-    await seedCompany(companyId);
+    await seedSpace(spaceId);
     await db.insert(projects).values([
-      { id: anchorProjectId, companyId, name: "Anchor", status: "in_progress" },
-      { id: deniedProjectId, companyId, name: "Denied", status: "in_progress" },
+      { id: anchorProjectId, spaceId, name: "Anchor", status: "in_progress" },
+      { id: deniedProjectId, spaceId, name: "Denied", status: "in_progress" },
     ]);
-    await seedIssueWithMentions({ companyId, issueId, anchorProjectId, mentionedProjectIds: [deniedProjectId] });
+    await seedIssueWithMentions({ spaceId, issueId, anchorProjectId, mentionedProjectIds: [deniedProjectId] });
 
     const { access } = recordingAccess((projectId) => decision(projectId !== deniedProjectId));
-    const result = await resolveRunReferencedProjects(issueId, anchorProjectId, baseOpts(companyId, access));
+    const result = await resolveRunReferencedProjects(issueId, anchorProjectId, baseOpts(spaceId, access));
 
     expect(result.additional).toEqual([]);
     expect(result.warnings).toHaveLength(1);
@@ -253,24 +253,24 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
   });
 
   it("fail-closed drops a project when the authorization service throws", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const explodingProjectId = randomUUID();
 
-    await seedCompany(companyId);
+    await seedSpace(spaceId);
     await db.insert(projects).values([
-      { id: anchorProjectId, companyId, name: "Anchor", status: "in_progress" },
-      { id: explodingProjectId, companyId, name: "Exploding", status: "in_progress" },
+      { id: anchorProjectId, spaceId, name: "Anchor", status: "in_progress" },
+      { id: explodingProjectId, spaceId, name: "Exploding", status: "in_progress" },
     ]);
-    await seedIssueWithMentions({ companyId, issueId, anchorProjectId, mentionedProjectIds: [explodingProjectId] });
+    await seedIssueWithMentions({ spaceId, issueId, anchorProjectId, mentionedProjectIds: [explodingProjectId] });
 
     const access: ResolveRunReferencedProjectsOptions["access"] = {
       decide: async () => {
         throw new Error("authorization backend unavailable");
       },
     };
-    const result = await resolveRunReferencedProjects(issueId, anchorProjectId, baseOpts(companyId, access));
+    const result = await resolveRunReferencedProjects(issueId, anchorProjectId, baseOpts(spaceId, access));
 
     // The run continues; the un-authorizable project is dropped with a warning rather than throwing.
     expect(result.anchor?.projectId).toBe(anchorProjectId);
@@ -281,28 +281,28 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
   });
 
   it("caps the number of additional projects and warns about the overflow", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const mentionedProjectIds = [randomUUID(), randomUUID(), randomUUID()];
 
-    await seedCompany(companyId);
+    await seedSpace(spaceId);
     await db.insert(projects).values([
-      { id: anchorProjectId, companyId, name: "Anchor", status: "in_progress" },
+      { id: anchorProjectId, spaceId, name: "Anchor", status: "in_progress" },
       ...mentionedProjectIds.map((id, index) => ({
         id,
-        companyId,
+        spaceId,
         name: `Mentioned ${index}`,
         status: "in_progress" as const,
       })),
     ]);
-    await seedIssueWithMentions({ companyId, issueId, anchorProjectId, mentionedProjectIds });
+    await seedIssueWithMentions({ spaceId, issueId, anchorProjectId, mentionedProjectIds });
 
     const { decidedProjectIds, access } = recordingAccess(() => decision(true));
     const result = await resolveRunReferencedProjects(
       issueId,
       anchorProjectId,
-      baseOpts(companyId, access, { maxAdditionalProjects: 2 }),
+      baseOpts(spaceId, access, { maxAdditionalProjects: 2 }),
     );
 
     expect(result.additional.map((entry) => entry.projectId)).toEqual(mentionedProjectIds.slice(0, 2));
@@ -313,7 +313,7 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
   });
 
   it("does not let an unauthorized mention consume an additional-project cap slot", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const deniedProjectId = randomUUID();
@@ -321,24 +321,24 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
     // Mention order: the denied project comes first, ahead of two authorized projects.
     const mentionedProjectIds = [deniedProjectId, ...allowedProjectIds];
 
-    await seedCompany(companyId);
+    await seedSpace(spaceId);
     await db.insert(projects).values([
-      { id: anchorProjectId, companyId, name: "Anchor", status: "in_progress" },
-      { id: deniedProjectId, companyId, name: "Denied", status: "in_progress" },
+      { id: anchorProjectId, spaceId, name: "Anchor", status: "in_progress" },
+      { id: deniedProjectId, spaceId, name: "Denied", status: "in_progress" },
       ...allowedProjectIds.map((id, index) => ({
         id,
-        companyId,
+        spaceId,
         name: `Allowed ${index}`,
         status: "in_progress" as const,
       })),
     ]);
-    await seedIssueWithMentions({ companyId, issueId, anchorProjectId, mentionedProjectIds });
+    await seedIssueWithMentions({ spaceId, issueId, anchorProjectId, mentionedProjectIds });
 
     const { access } = recordingAccess((projectId) => decision(projectId !== deniedProjectId));
     const result = await resolveRunReferencedProjects(
       issueId,
       anchorProjectId,
-      baseOpts(companyId, access, { maxAdditionalProjects: 2 }),
+      baseOpts(spaceId, access, { maxAdditionalProjects: 2 }),
     );
 
     // The denied mention is dropped without using a cap slot, so both authorized projects still fit.
@@ -350,31 +350,31 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
     expect(result.warnings.some((warning) => warning.includes("Only the first"))).toBe(false);
   });
 
-  it("bounds authorization fan-out when a same-company mention flood is denied", async () => {
-    const companyId = randomUUID();
+  it("bounds authorization fan-out when a same-space mention flood is denied", async () => {
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
-    // A flood of same-company mentions that every fail authorization. Without a fan-out cap this
+    // A flood of same-space mentions that every fail authorization. Without a fan-out cap this
     // would authorize all eight candidates because the admitted cap is never reached.
     const deniedProjectIds = Array.from({ length: 8 }, () => randomUUID());
 
-    await seedCompany(companyId);
+    await seedSpace(spaceId);
     await db.insert(projects).values([
-      { id: anchorProjectId, companyId, name: "Anchor", status: "in_progress" },
+      { id: anchorProjectId, spaceId, name: "Anchor", status: "in_progress" },
       ...deniedProjectIds.map((id, index) => ({
         id,
-        companyId,
+        spaceId,
         name: `Denied ${index}`,
         status: "in_progress" as const,
       })),
     ]);
-    await seedIssueWithMentions({ companyId, issueId, anchorProjectId, mentionedProjectIds: deniedProjectIds });
+    await seedIssueWithMentions({ spaceId, issueId, anchorProjectId, mentionedProjectIds: deniedProjectIds });
 
     const { decidedProjectIds, access } = recordingAccess(() => decision(false));
     const result = await resolveRunReferencedProjects(
       issueId,
       anchorProjectId,
-      baseOpts(companyId, access, { maxAdditionalProjects: 2, maxCandidateEvaluations: 3 }),
+      baseOpts(spaceId, access, { maxAdditionalProjects: 2, maxCandidateEvaluations: 3 }),
     );
 
     // No project is admitted (all denied), but only the first three candidates are ever authorized —
@@ -393,7 +393,7 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
   });
 
   it("still admits authorized candidates inside the evaluation window under a flood", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const allowedProjectId = randomUUID();
@@ -401,18 +401,18 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
     const deniedProjectIds = Array.from({ length: 5 }, () => randomUUID());
     const mentionedProjectIds = [allowedProjectId, ...deniedProjectIds];
 
-    await seedCompany(companyId);
+    await seedSpace(spaceId);
     await db.insert(projects).values([
-      { id: anchorProjectId, companyId, name: "Anchor", status: "in_progress" },
-      { id: allowedProjectId, companyId, name: "Allowed", status: "in_progress" },
+      { id: anchorProjectId, spaceId, name: "Anchor", status: "in_progress" },
+      { id: allowedProjectId, spaceId, name: "Allowed", status: "in_progress" },
       ...deniedProjectIds.map((id, index) => ({
         id,
-        companyId,
+        spaceId,
         name: `Denied ${index}`,
         status: "in_progress" as const,
       })),
     ]);
-    await seedIssueWithMentions({ companyId, issueId, anchorProjectId, mentionedProjectIds });
+    await seedIssueWithMentions({ spaceId, issueId, anchorProjectId, mentionedProjectIds });
 
     const { decidedProjectIds, access } = recordingAccess((projectId) =>
       decision(projectId === allowedProjectId),
@@ -420,7 +420,7 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
     const result = await resolveRunReferencedProjects(
       issueId,
       anchorProjectId,
-      baseOpts(companyId, access, { maxAdditionalProjects: 2, maxCandidateEvaluations: 3 }),
+      baseOpts(spaceId, access, { maxAdditionalProjects: 2, maxCandidateEvaluations: 3 }),
     );
 
     // The authorized project is admitted; only the first three candidates are ever authorized.
@@ -430,21 +430,21 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
   });
 
   it("does not let unavailable mentions consume the evaluation window", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const allowedProjectId = randomUUID();
-    // Two unavailable (foreign-company / deleted / unknown) mentions sit ahead of the authorized
-    // project in mention order. The production mention lookup company-filters these out, so drive the
+    // Two unavailable (foreign-space / deleted / unknown) mentions sit ahead of the authorized
+    // project in mention order. The production mention lookup space-filters these out, so drive the
     // mention set through a stub to exercise the resolver's own availability filtering directly.
     const unavailableProjectIds = [randomUUID(), randomUUID()];
 
-    await seedCompany(companyId);
+    await seedSpace(spaceId);
     await db.insert(projects).values([
-      { id: anchorProjectId, companyId, name: "Anchor", status: "in_progress" },
-      { id: allowedProjectId, companyId, name: "Allowed", status: "in_progress" },
+      { id: anchorProjectId, spaceId, name: "Anchor", status: "in_progress" },
+      { id: allowedProjectId, spaceId, name: "Allowed", status: "in_progress" },
     ]);
-    await seedIssueWithMentions({ companyId, issueId, anchorProjectId, mentionedProjectIds: [allowedProjectId] });
+    await seedIssueWithMentions({ spaceId, issueId, anchorProjectId, mentionedProjectIds: [allowedProjectId] });
 
     const mentions: ResolveRunReferencedProjectsOptions["issues"] = {
       findMentionedProjectIds: async () => [...unavailableProjectIds, allowedProjectId],
@@ -456,7 +456,7 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
     const result = await resolveRunReferencedProjects(
       issueId,
       anchorProjectId,
-      baseOpts(companyId, access, { issues: mentions, maxAdditionalProjects: 2, maxCandidateEvaluations: 2 }),
+      baseOpts(spaceId, access, { issues: mentions, maxAdditionalProjects: 2, maxCandidateEvaluations: 2 }),
     );
 
     // Availability filtering runs before the evaluation cap, so the authorized project still lands
@@ -465,35 +465,35 @@ describeEmbeddedPostgres("resolveRunReferencedProjects", () => {
     expect(decidedProjectIds).toEqual([allowedProjectId]);
     // Each unavailable mention warns, but none of them consumed an evaluation slot.
     expect(
-      result.warnings.filter((warning) => warning.includes("not available in this company")),
+      result.warnings.filter((warning) => warning.includes("not available in this space")),
     ).toHaveLength(2);
     expect(result.warnings.some((warning) => warning.includes("without evaluation"))).toBe(false);
   });
 
   it("floors the evaluation cap at the admitted cap so the admitted cap stays reachable", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const allowedProjectIds = [randomUUID(), randomUUID()];
 
-    await seedCompany(companyId);
+    await seedSpace(spaceId);
     await db.insert(projects).values([
-      { id: anchorProjectId, companyId, name: "Anchor", status: "in_progress" },
+      { id: anchorProjectId, spaceId, name: "Anchor", status: "in_progress" },
       ...allowedProjectIds.map((id, index) => ({
         id,
-        companyId,
+        spaceId,
         name: `Allowed ${index}`,
         status: "in_progress" as const,
       })),
     ]);
-    await seedIssueWithMentions({ companyId, issueId, anchorProjectId, mentionedProjectIds: allowedProjectIds });
+    await seedIssueWithMentions({ spaceId, issueId, anchorProjectId, mentionedProjectIds: allowedProjectIds });
 
     const { decidedProjectIds, access } = recordingAccess(() => decision(true));
     // An evaluation cap below the admitted cap must not starve the admitted cap.
     const result = await resolveRunReferencedProjects(
       issueId,
       anchorProjectId,
-      baseOpts(companyId, access, { maxAdditionalProjects: 2, maxCandidateEvaluations: 0 }),
+      baseOpts(spaceId, access, { maxAdditionalProjects: 2, maxCandidateEvaluations: 0 }),
     );
 
     expect(result.additional.map((entry) => entry.projectId)).toEqual(allowedProjectIds);

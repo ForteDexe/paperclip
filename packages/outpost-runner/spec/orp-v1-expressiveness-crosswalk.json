@@ -38,17 +38,17 @@
       "invariant": "Every artifact ref is produced by a typed semantic receipt or registered work product and remains linked to the terminal result by run id."
     },
     {
-      "id": "governance-links-and-interactions",
+      "id": "approvals-links-and-interactions",
       "classification": "compositional_v1_with_invariant",
       "wire": "semantic-tool.schema.json + request.schema.json",
-      "evidence": ["semantic-tool.schema.json#/properties/targets", "protocol/fixtures/replay/semantic-tool-governance-wake-monitor.json"],
+      "evidence": ["semantic-tool.schema.json#/properties/targets", "protocol/fixtures/replay/semantic-tool-approvals-wake-monitor.json"],
       "invariant": "Interaction and approval targets are immutable revision or decision references carried in a typed target envelope."
     },
     {
       "id": "blockers-monitors-and-wakes",
       "classification": "compositional_v1_with_invariant",
       "wire": "semantic-tool.schema.json + result.schema.json",
-      "evidence": ["semantic-tool.schema.json#/properties/causalRefs", "result.schema.json#/properties/continuation", "protocol/fixtures/replay/semantic-tool-governance-wake-monitor.json"],
+      "evidence": ["semantic-tool.schema.json#/properties/causalRefs", "result.schema.json#/properties/continuation", "protocol/fixtures/replay/semantic-tool-approvals-wake-monitor.json"],
       "invariant": "A blocked or yielded result names a bounded continuation; wake routing remains a control-plane decision and emits only safe causal identifiers."
     },
     {
@@ -76,8 +76,8 @@
       "id": "end-to-end-causality",
       "classification": "compositional_v1_with_invariant",
       "wire": "event.schema.json + semantic-tool.schema.json + terminal.schema.json",
-      "evidence": ["event.schema.json#/required", "semantic-tool.schema.json#/properties/correlation", "protocol/fixtures/replay/semantic-tool-governance-wake-monitor.json"],
-      "invariant": "Run, session, turn, item, source-event, governed-target, wake, monitor, decision, and receipt identifiers form an inspectable trace to terminal disposition."
+      "evidence": ["event.schema.json#/required", "semantic-tool.schema.json#/properties/correlation", "protocol/fixtures/replay/semantic-tool-approvals-wake-monitor.json"],
+      "invariant": "Run, session, turn, item, source-event, controlled-target, wake, monitor, decision, and receipt identifiers form an inspectable trace to terminal disposition."
     },
     {
       "id": "control-plane-local-lifecycle",
@@ -87,11 +87,11 @@
       "invariant": "Checkout and release, wake routing, budget enforcement, audit persistence, run persistence and replay, assignment, and monitor management are not runner tool calls."
     },
     {
-      "id": "future-cross-company-and-destructive-admin",
+      "id": "future-cross-space-and-destructive-admin",
       "classification": "breaking_v2_work",
       "wire": "none",
       "evidence": ["docs/capability-disposition.md", "docs/capability-future-binding-boundary.md"],
-      "invariant": "Cross-company discovery, broad audit access, destructive document lifecycle, and company administration require separately governed contracts; v1 rejects rather than tunnels them."
+      "invariant": "Cross-space discovery, broad audit access, destructive document lifecycle, and space administration require separately controlled contracts; v1 rejects rather than tunnels them."
     },
     {
       "id": "existing-fixture-and-doc-coverage",

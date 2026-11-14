@@ -19,7 +19,7 @@ names alone, images, operating systems, endpoints, or complete config equality:
   a workspace provider, and the project resource lifecycle.
 - Two task environments from that installed plugin share its project storage
   contract, even when their other settings differ. Storage operations are scoped
-  by company, project, and plugin; they do not take an environment configuration.
+  by space, project, and plugin; they do not take an environment configuration.
   Separate installed storage plugins remain incompatible even when both use the
   `plugin` driver. Core cannot transfer their managed bindings between them.
 - Unknown plugin drivers and the probe-only fake sandbox do not establish a
@@ -36,18 +36,18 @@ establish it.
 
 For an agent API request, use that agent's default environment. For a person,
 use their primary agent's default environment when present. Fall back to the
-instance default, then local execution. There is no separate user or company
+instance default, then local execution. There is no separate user or space
 `defaultEnvironmentId` setting today. Managed-only and forced Kubernetes policies
 retain their execution restrictions and default redirection.
 
-`GET /api/companies/:companyId/project-environments` returns environment IDs and
+`GET /api/spaces/:spaceId/project-environments` returns environment IDs and
 names grouped by storage owner, plus the caller's effective default. It excludes
 archived environments, disabled/uninstalled storage plugins, and managed
-environments bound only to another company. It does not contact workers or return
+environments bound only to another space. It does not contact workers or return
 provider configs, credentials, endpoints, or host paths. A cold worker does not
 change a durable storage choice.
 
-`POST /api/companies/:companyId/projects` accepts an optional `environmentId`.
+`POST /api/spaces/:spaceId/projects` accepts an optional `environmentId`.
 The server validates the choice again and stores only its storage owner. The
 project is then available to the compatible environments in that group; no single
 run environment is saved. An explicit `executionWorkspacePolicy.storageProviderPluginId`

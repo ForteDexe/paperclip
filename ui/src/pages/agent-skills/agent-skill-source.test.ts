@@ -18,7 +18,7 @@ describe("buildAgentSkillSourceMeta", () => {
   it("does not surface long filesystem labels for local skills", () => {
     expect(source({
       sourceBadge: "local",
-      sourceLabel: "/Users/dev/work/paperclip/skills/private-review",
+      sourceLabel: "/Users/dev/work/outpost/skills/private-review",
       sourceLocator: null,
       sourceType: "local_path",
     })).toBe("Local folder");
@@ -36,7 +36,7 @@ describe("buildAgentSkillSourceMeta", () => {
   it("does not surface long filesystem labels for catalog skills", () => {
     expect(source({
       sourceBadge: "catalog",
-      sourceLabel: "/srv/paperclip/home/.paperclip/instances/default/skills/company-id/__catalog__/briefs-discover-cards--68f7e3ad47",
+      sourceLabel: "/srv/outpost/home/.outpost/instances/default/skills/space-id/__catalog__/briefs-discover-cards--68f7e3ad47",
       sourceLocator: null,
       sourceType: "catalog",
     })).toBe("Catalog");

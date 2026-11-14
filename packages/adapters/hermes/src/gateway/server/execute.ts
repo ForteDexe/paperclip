@@ -8,11 +8,11 @@ import {
   asNumber,
   asString,
   parseObject,
-  readPaperclipIssueWorkModeFromContext,
-  selectPaperclipPromptSections,
-  isPaperclipRecoveryWakePayload,
-  stringifyPaperclipWakePayload,
-  paperclipWakeCommentsArePromptOwned,
+  readOutpostIssueWorkModeFromContext,
+  selectOutpostPromptSections,
+  isOutpostRecoveryWakePayload,
+  stringifyOutpostWakePayload,
+  outpostWakeCommentsArePromptOwned,
 } from "@outpost/adapter-utils/server-utils";
 import {
   ADAPTER_TYPE,
@@ -141,7 +141,7 @@ const SENSITIVE_KEY_PATTERN =
 const BEARER_TOKEN_PATTERN = /Bearer\s+\S+/gi;
 const HERMES_SESSION_KEY_HEADER_PATTERN = /(X-Hermes-Session-Key\s*[:=]\s*)([^\s,;]+)/gi;
 const OUTPOST_SESSION_KEY_PATTERN =
-  /\bpaperclip:(?:company:[A-Za-z0-9-]+:agent:[A-Za-z0-9-]+(?::(?:issue|run):[A-Za-z0-9-]+)?|run:[A-Za-z0-9-]+)\b/gi;
+  /\boutpost:(?:space:[A-Za-z0-9-]+:agent:[A-Za-z0-9-]+(?::(?:issue|run):[A-Za-z0-9-]+)?|run:[A-Za-z0-9-]+)\b/gi;
 
 const TERMINAL_STATUSES = new Set([
   "completed",
@@ -219,20 +219,20 @@ function issueIdFromContext(ctx: AdapterExecutionContext): string | null {
 
 export function resolveSessionKey(input: {
   strategy: SessionKeyStrategy;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   runId: string;
   issueId: string | null;
 }): string | null {
   if (input.strategy === "none") return null;
   if (input.strategy === "agent") {
-    return `paperclip:company:${input.companyId}:agent:${input.agentId}`;
+    return `outpost:space:${input.spaceId}:agent:${input.agentId}`;
   }
   if (input.strategy === "run") {
-    return `paperclip:run:${input.runId}`;
+    return `outpost:run:${input.runId}`;
   }
   const issuePart = input.issueId ? `issue:${input.issueId}` : `run:${input.runId}`;
-  return `paperclip:company:${input.companyId}:agent:${input.agentId}:${issuePart}`;
+  return `outpost:space:${input.spaceId}:agent:${input.agentId}:${issuePart}`;
 }
 
 function stringifyForLog(value: unknown, maxChars = 4_000): string {
@@ -332,7 +332,7 @@ function buildHeaders(input: {
   };
 }
 
-function buildInput(ctx: AdapterExecutionContext, paperclipApiUrl: string | null): string {
+function buildInput(ctx: AdapterExecutionContext, outpostApiUrl: string | null): string {
   // Stable session keys (issue/agent strategy) resume the same remote Hermes
   // conversation across runs; a stored session id from a prior run means that
   // conversation already received the task brief, so pick the compact
@@ -341,37 +341,37 @@ function buildInput(ctx: AdapterExecutionContext, paperclipApiUrl: string | null
   const resumedSession =
     (sessionKeyStrategy === "issue" || sessionKeyStrategy === "agent") &&
     Boolean(nonEmpty(ctx.runtime?.sessionId));
-  const { taskContextNote: taskMarkdown, wakePrompt } = selectPaperclipPromptSections(ctx.context, {
+  const { taskContextNote: taskMarkdown, wakePrompt } = selectOutpostPromptSections(ctx.context, {
     resumedSession,
     // Hermes gateway owns the execution contract below; retain the old
     // gateway prompt shape and avoid adding a second contract on resume.
     includeExecutionContract: false,
   });
-  const wakePayloadJson = paperclipWakeCommentsArePromptOwned(ctx.context)
+  const wakePayloadJson = outpostWakeCommentsArePromptOwned(ctx.context)
     ? null
-    : stringifyPaperclipWakePayload(ctx.context.paperclipWake, {
+    : stringifyOutpostWakePayload(ctx.context.outpostWake, {
         omitIssueDescription: Boolean(taskMarkdown),
       });
-  const sessionHandoff = nonEmpty(ctx.context.paperclipSessionHandoffMarkdown);
-  const issueWorkMode = readPaperclipIssueWorkModeFromContext(ctx.context);
+  const sessionHandoff = nonEmpty(ctx.context.outpostSessionHandoffMarkdown);
+  const issueWorkMode = readOutpostIssueWorkModeFromContext(ctx.context);
   const lines = [
-    `You are ${ctx.agent.name}, an AI agent employee in an Outpost-managed company.`,
+    `You are ${ctx.agent.name}, an AI agent in an Outpost-managed space.`,
     "",
     "Outpost runtime identity:",
     `- Agent ID: ${ctx.agent.id}`,
-    `- Outpost ID: ${ctx.agent.companyId}`,
+    `- Outpost ID: ${ctx.agent.spaceId}`,
     `- Run ID: ${ctx.runId}`,
-    ...(paperclipApiUrl ? [`- Outpost API URL: ${paperclipApiUrl}`] : []),
+    ...(outpostApiUrl ? [`- Outpost API URL: ${outpostApiUrl}`] : []),
     ...(issueWorkMode ? [`- Issue work mode: ${issueWorkMode}`] : []),
     "",
-    ...(ctx.context.conversationMode === true || isPaperclipRecoveryWakePayload(ctx.context.paperclipWake)
+    ...(ctx.context.conversationMode === true || isOutpostRecoveryWakePayload(ctx.context.outpostWake)
       ? []
       : [
           "Execution contract:",
           "- Take concrete action in this run when the task is actionable.",
           "- Do not stop at a plan unless the issue asks for planning only.",
           "- Leave durable progress and update the issue to a clear final disposition.",
-          "- Use X-Paperclip-Run-Id on mutating Outpost API requests when an Outpost API key is available.",
+          "- Use X-Outpost-Run-Id on mutating Outpost API requests when an Outpost API key is available.",
           "",
         ]),
     wakePrompt,
@@ -391,12 +391,12 @@ function buildInput(ctx: AdapterExecutionContext, paperclipApiUrl: string | null
 }
 
 function buildRunBody(ctx: AdapterExecutionContext, sessionKey: string | null): Record<string, unknown> {
-  const paperclipApiUrl = nonEmpty(ctx.config.paperclipApiUrl);
+  const outpostApiUrl = nonEmpty(ctx.config.outpostApiUrl);
   const payloadTemplate = parseObject(ctx.config.payloadTemplate);
   const configuredInput = nonEmpty(payloadTemplate.input);
   const input = configuredInput && ctx.context.conversationMode === true
-    ? `${configuredInput}\n\n${buildInput(ctx, paperclipApiUrl)}`
-    : configuredInput ?? buildInput(ctx, paperclipApiUrl);
+    ? `${configuredInput}\n\n${buildInput(ctx, outpostApiUrl)}`
+    : configuredInput ?? buildInput(ctx, outpostApiUrl);
   const instructions =
     nonEmpty(ctx.config.instructions) ??
     nonEmpty(payloadTemplate.instructions) ??
@@ -943,7 +943,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const strategy = normalizeSessionKeyStrategy(ctx.config.sessionKeyStrategy);
   const sessionKey = resolveSessionKey({
     strategy,
-    companyId: ctx.agent.companyId,
+    spaceId: ctx.agent.spaceId,
     agentId: ctx.agent.id,
     runId: ctx.runId,
     issueId: issueIdFromContext(ctx),

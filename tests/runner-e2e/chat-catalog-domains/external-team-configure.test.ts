@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { teamBindingCandidate, teamConfigureExternalCases, type TeamBindingApproval } from "./external-team-configure.js";
 function valid() {
-  return { scenarioId: "teams.configure-team", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo", connections: [], profiles: [], secrets: [], endpoints: [], interactions: [], tasks: [], projects: [], goals: [], comments: [], documents: [], revisions: [], humanQueries: [], links: [],
+  return { scenarioId: "teams.configure-team", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo", connections: [], profiles: [], secrets: [], endpoints: [], interactions: [], tasks: [], projects: [], goals: [], comments: [], documents: [], revisions: [], humanQueries: [], links: [],
     reply: "QA has been configured and each team member is ready.", phaseReplies: [{ runId: "initial", body: "QA needs the eligible account; open QA configuration." }, { runId: "verified", body: "QA and the senior coder are now configured and ready." }], runs: [{ id: "initial", status: "succeeded" }, { id: "verified", status: "succeeded" }],
     activity: [{ id: "repair", action: "agent.updated", actorType: "user", entityId: "qa", agentId: null as string | null }], state: {
       installedFromCatalog: true, missingId: "qa", workingId: "coder", expectedMembers: 2, memberIdsBefore: ["coder", "qa"], workingRevisionIdsBefore: ["revision"], workingRevisionIdsAfter: ["revision"],
@@ -45,22 +45,22 @@ describe("installed team per-member readiness oracle", () => {
 
 const cardPayload = { version: 1, prompt: "Bind?", secretProposal: { version: 1, proposalId: "proposal", sourceSecretLabel: "OpenRouter", configPath: "env.OPENROUTER_API_KEY", targetAgentId: "qa", targetAgentName: "QA", justification: "x", expiresAt: "2026-12-01T00:00:00Z" } };
 function card(overrides: Record<string, unknown> = {}) {
-  return { id: "card", companyId: "company", issueId: "source", kind: "request_confirmation", status: "pending", sourceRunId: "initial", createdByAgentId: "ceo", createdByUserId: null, addresseeAgentId: null,
+  return { id: "card", spaceId: "space", issueId: "source", kind: "request_confirmation", status: "pending", sourceRunId: "initial", createdByAgentId: "ceo", createdByUserId: null, addresseeAgentId: null,
     resolvedByUserId: null as string | null, resolvedByAgentId: null as string | null, requestedResolverPolicy: "human_only", effectiveResolverPolicy: "human_only", idempotencyKey: "secret-proposal:proposal", payload: structuredClone(cardPayload), ...overrides };
 }
 function proposal(overrides: Record<string, unknown> = {}) {
-  return { id: "proposal", companyId: "company", kind: "binding", status: "pending", secretId: "openrouter-secret", secretProposalId: null, targetType: "agent", target: { id: "qa" },
+  return { id: "proposal", spaceId: "space", kind: "binding", status: "pending", secretId: "openrouter-secret", secretProposalId: null, targetType: "agent", target: { id: "qa" },
     configPath: "env.OPENROUTER_API_KEY", originRunId: "initial", proposedBy: { id: "ceo" }, ...overrides };
 }
 function candidate(cards: unknown[], proposals: unknown[]) {
-  return teamBindingCandidate({ interactions: cards as never, proposals: proposals as never, companyId: "company", issueId: "source", leadId: "ceo", initialRunId: "initial", missingId: "qa",
+  return teamBindingCandidate({ interactions: cards as never, proposals: proposals as never, spaceId: "space", issueId: "source", leadId: "ceo", initialRunId: "initial", missingId: "qa",
     eligible: [{ configPath: "env.OPENROUTER_API_KEY", secretId: "openrouter-secret" }] });
 }
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 function bindingValid() {
   const o = valid(), marker: TeamBindingApproval = { interactionId: "card", proposalId: "proposal", configPath: "env.OPENROUTER_API_KEY", secretId: "openrouter-secret", targetAgentId: "qa", payloadHash: hash(cardPayload) };
   return { ...o, activity: [] as typeof o.activity, interactions: [card({ status: "accepted", resolvedByUserId: "person" })],
-    runs: [...o.runs, { id: "wake", status: "succeeded" }], phaseReplies: [o.phaseReplies[0]!, { runId: "wake", body: "QA is now bound to the company account." }, o.phaseReplies[1]!],
+    runs: [...o.runs, { id: "wake", status: "succeeded" }], phaseReplies: [o.phaseReplies[0]!, { runId: "wake", body: "QA is now bound to the space account." }, o.phaseReplies[1]!],
     state: { ...o.state, preVerificationRunIds: ["initial", "wake"], repairChannel: "human-approved-binding", bindingApproval: marker, currentUserId: "person",
       bindingsBefore: ["agent:coder:env.OPENROUTER_API_KEY", "agent:ceo:env.OPENROUTER_API_KEY"], bindingsAfter: ["agent:ceo:env.OPENROUTER_API_KEY", "agent:coder:env.OPENROUTER_API_KEY", "agent:qa:env.OPENROUTER_API_KEY"],
       missingBindingRef: { type: "secret_ref", secretId: "openrouter-secret" } } };

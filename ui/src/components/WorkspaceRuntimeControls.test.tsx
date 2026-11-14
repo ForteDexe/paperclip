@@ -47,7 +47,7 @@ function withQueryClient(node: ReactNode, experimentalSettings: Record<string, u
 function createRuntimeService(overrides: Partial<WorkspaceRuntimeService> = {}): WorkspaceRuntimeService {
   return {
     id: overrides.id ?? "service-1",
-    companyId: overrides.companyId ?? "company-1",
+    spaceId: overrides.spaceId ?? "space-1",
     projectId: overrides.projectId ?? "project-1",
     projectWorkspaceId: overrides.projectWorkspaceId ?? "workspace-1",
     executionWorkspaceId: overrides.executionWorkspaceId ?? null,
@@ -456,7 +456,7 @@ describe("WorkspaceRuntimeControls", () => {
               provider: "tailscale_https",
               state,
               publicUrl: null,
-              hostname: "paperclip-dev.tail29c1aa.ts.net",
+              hostname: "outpost-dev.tail29c1aa.ts.net",
               listeners: [{ purpose: "app", publicPort: 42002, targetPort: 42002 }],
               brokerRef: "service-web",
               lastError,
@@ -700,7 +700,7 @@ describe("buildWorkspaceServiceControlEntries", () => {
     // entries, so the tailnet HTTPS URL has to survive the mapping intact — and a
     // service whose exposure is not yet verified must offer no URL at all rather
     // than the loopback backend it is really listening on.
-    const httpsUrl = "https://paperclip-dev.tail29c1aa.ts.net:42010";
+    const httpsUrl = "https://outpost-dev.tail29c1aa.ts.net:42010";
     const buildEntry = (service: ReturnType<typeof createRuntimeService>) => {
       const sections = buildWorkspaceRuntimeControlSections({
         runtimeConfig: { commands: [{ id: "web", name: "web", kind: "service", command: "pnpm dev" }] },
@@ -719,7 +719,7 @@ describe("buildWorkspaceServiceControlEntries", () => {
         provider: "tailscale_https",
         state: "ready",
         publicUrl: httpsUrl,
-        hostname: "paperclip-dev.tail29c1aa.ts.net",
+        hostname: "outpost-dev.tail29c1aa.ts.net",
         listeners: [
           { purpose: "app", publicPort: 42_010, targetPort: 42_010 },
           { purpose: "vite_hmr", publicPort: 52_010, targetPort: 52_010 },
@@ -745,7 +745,7 @@ describe("buildWorkspaceServiceControlEntries", () => {
         provider: "tailscale_https",
         state: "pending",
         publicUrl: null,
-        hostname: "paperclip-dev.tail29c1aa.ts.net",
+        hostname: "outpost-dev.tail29c1aa.ts.net",
         listeners: [],
         brokerRef: null,
         lastError: null,

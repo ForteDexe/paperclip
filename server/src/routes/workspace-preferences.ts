@@ -1,36 +1,36 @@
 import { Router } from "express";
-import { companies, type Db } from "@outpost/db";
+import { spaces, type Db } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { updateWorkspacePreferenceSchema } from "@outpost/shared";
 import { forbidden, notFound } from "../errors.js";
 import { validate } from "../middleware/validate.js";
 import { workspacePreferenceService } from "../services/workspace-preferences.js";
-import { assertBoard, hasCompanyAccess } from "./authz.js";
+import { assertOperator, hasSpaceAccess } from "./authz.js";
 
 export function workspacePreferenceRoutes(db: Db) {
   const router = Router();
   const svc = workspacePreferenceService(db);
-  const paths = ["/workspace-preferences/me", "/companies/:companyId/workspace-preferences/me"];
+  const paths = ["/workspace-preferences/me", "/spaces/:spaceId/workspace-preferences/me"];
   router.use(paths, (req, res, next) => {
-    assertBoard(req);
-    if (!req.actor.userId) throw forbidden("Board user access required");
+    assertOperator(req);
+    if (!req.actor.userId) throw forbidden("Operator user access required");
     res.setHeader("Cache-Control", "private, no-store");
     next();
   });
   router.get("/workspace-preferences/me", async (req, res) => {
     res.json(await svc.get(req.actor.userId!));
   });
-  router.put("/companies/:companyId/workspace-preferences/me", validate(updateWorkspacePreferenceSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    // The company supplies authorized audit context, not ownership of this
+  router.put("/spaces/:spaceId/workspace-preferences/me", validate(updateWorkspacePreferenceSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    // The space supplies authorized audit context, not ownership of this
     // personal setting. Viewers may change their own interface too.
-    if (!hasCompanyAccess(req, companyId)) throw forbidden("User does not have access to this company");
+    if (!hasSpaceAccess(req, spaceId)) throw forbidden("User does not have access to this space");
     if (req.actor.source !== "local_implicit" && !req.actor.isInstanceAdmin
-      && !req.actor.memberships?.some(member => member.companyId === companyId && member.status === "active")) {
-      throw forbidden("User does not have active company access");
+      && !req.actor.memberships?.some(member => member.spaceId === spaceId && member.status === "active")) {
+      throw forbidden("User does not have active space access");
     }
-    if (!await db.query.companies.findFirst({ where: eq(companies.id, companyId) })) throw notFound("Outpost not found");
-    res.json(await svc.set(companyId, req.actor.userId!, {
+    if (!await db.query.spaces.findFirst({ where: eq(spaces.id, spaceId) })) throw notFound("Outpost not found");
+    res.json(await svc.set(spaceId, req.actor.userId!, {
       coordinatorWorkspaceEnabled: req.body.coordinatorWorkspaceEnabled,
       timeZone: req.body.timeZone,
     }));

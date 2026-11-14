@@ -4,14 +4,14 @@ import { hasRemoteTerminationReceipt, remoteExecutionHasStopped } from "./remote
 
 /** A saved provider task can resume only within the same authorized agent workspace. */
 export async function resolvePluginTaskResume(db: Db, input: {
-  companyId: string; leaseId: string;
+  spaceId: string; leaseId: string;
   priorIdentity: { runnerInstanceId: string; environmentLeaseId: string; runId: string; normalizedSessionId: string };
   /** Read-only discovery; launching still requires an attested retained checkpoint. */
   inspectCheckpoint?: boolean;
 }): Promise<string> {
   const rows = await db.select({ lease: environmentLeases, run: heartbeatRuns }).from(environmentLeases)
-    .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, environmentLeases.heartbeatRunId), eq(heartbeatRuns.companyId, input.companyId)))
-    .where(and(eq(environmentLeases.companyId, input.companyId),
+    .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, environmentLeases.heartbeatRunId), eq(heartbeatRuns.spaceId, input.spaceId)))
+    .where(and(eq(environmentLeases.spaceId, input.spaceId),
       or(eq(environmentLeases.id, input.leaseId), eq(heartbeatRuns.id, input.priorIdentity.runId))));
   const next = rows.find(row => row.lease.id === input.leaseId);
   // A retained ORP lease is logical; later provider tasks have different physical lease IDs.
@@ -44,7 +44,7 @@ export async function resolvePluginTaskResume(db: Db, input: {
       (next.lease.expiresAt && next.lease.expiresAt.getTime() <= Date.now()) ||
       !(old.run.id === next.run.id
         ? rows.filter(row => row.lease.id !== next.lease.id).every(row => hasRemoteTerminationReceipt(row.lease))
-        : await remoteExecutionHasStopped(db, input.companyId, old.run.id))) {
+        : await remoteExecutionHasStopped(db, input.spaceId, old.run.id))) {
     throw new Error("Plugin Runner retained session is not authorized");
   }
   return old.lease.providerLeaseId;

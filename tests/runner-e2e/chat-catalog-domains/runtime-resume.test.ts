@@ -1,8 +1,8 @@
 import { it, expect } from "vitest";
 import { gradeResumeAgent } from "./runtime-resume.js";
 function valid(): any {
-  const worker = { id: "morgan", companyId: "company" };
-  return { scenarioId: "agents.resume-agent", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  const worker = { id: "morgan", spaceId: "space" };
+  return { scenarioId: "agents.resume-agent", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { worker, firstRunIds: ["first"], firstResumedWorker: { ...worker, lifecycleState: "ready", status: "idle", lifecycleHolds: [] },
       firstReply: "Morgan is resumed and available for future work.", secondBudgetHardStop: true, secondBudgetAmount: 100, secondBudgetPolicyActive: true, syntheticReceiptId: "imported-receipt", syntheticReceiptOrigin: "public-imported-synthetic-fixture", secondBudgetIncidentOpen: true,
       secondReply: "The budget cap remains a hold; Morgan cannot pick up work before it is resolved." },

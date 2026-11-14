@@ -21,10 +21,10 @@ use sha2::{Digest, Sha256};
 /// take longer than any fixed sleep. A process that cannot be read counts as
 /// running, so the check never passes on a platform it cannot see.
 fn process_running(pid: u64) -> bool {
-    match paperclip_process_table::read(i32::try_from(pid).unwrap()) {
-        paperclip_process_table::Read::Present(entry) => !entry.zombie,
-        paperclip_process_table::Read::Gone => false,
-        paperclip_process_table::Read::Unreadable => true,
+    match outpost_process_table::read(i32::try_from(pid).unwrap()) {
+        outpost_process_table::Read::Present(entry) => !entry.zombie,
+        outpost_process_table::Read::Gone => false,
+        outpost_process_table::Read::Unreadable => true,
     }
 }
 
@@ -57,7 +57,7 @@ fn sha256_file(path: &Path) -> String {
 #[test]
 fn verified_launch_uses_open_command_and_script_after_atomic_path_replacement() {
     let directory = std::env::temp_dir().join(format!(
-        "paperclip-verified-launch-{}-{}",
+        "outpost-verified-launch-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -125,7 +125,7 @@ fn verified_launch_uses_open_command_and_script_after_atomic_path_replacement() 
     assert!(inherited_runtime.starts_with("/proc/self/fd/"));
     #[cfg(target_os = "macos")]
     {
-        assert!(inherited_runtime.contains(".paperclip-verified-executable-"));
+        assert!(inherited_runtime.contains(".outpost-verified-executable-"));
         assert_eq!(
             Path::new(&inherited_runtime).parent(),
             command.parent(),
@@ -202,7 +202,7 @@ mod darwin_executable_role {
     impl OwnedDirectory {
         fn new() -> Self {
             let path = std::env::temp_dir().join(format!(
-                "paperclip-executable-role-{}",
+                "outpost-executable-role-{}",
                 uuid::Uuid::new_v4().simple()
             ));
             fs::create_dir(&path).unwrap();
@@ -299,7 +299,7 @@ mod darwin_executable_role {
             .file_name()
             .unwrap()
             .to_string_lossy()
-            .starts_with(".paperclip-verified-executable-"));
+            .starts_with(".outpost-verified-executable-"));
         assert!(Path::new(&inherited_runtime).exists());
         assert_eq!(
             process
@@ -355,7 +355,7 @@ mod darwin_executable_role {
             .file_name()
             .unwrap()
             .to_string_lossy()
-            .starts_with(".paperclip-verified-executable-"));
+            .starts_with(".outpost-verified-executable-"));
         assert!(Path::new(&executed_node).exists());
         wait_for_success(&mut process);
         drop(process);

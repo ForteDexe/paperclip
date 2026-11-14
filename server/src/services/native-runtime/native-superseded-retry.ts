@@ -15,14 +15,14 @@ export async function retireSupersededNativeRetry(db: Db, input: {
   if (run.runtimeMode !== "native" || run.status !== "failed" || !run.startedAt || !run.finishedAt
     || run.processPid !== null || run.processGroupId !== null
     || coordinator.phase !== "retryable_failure" || coordinator.resultId || coordinator.leaseOwner
-    || coordinator.companyId !== run.companyId || coordinator.issueId !== run.nativeIssueId
+    || coordinator.spaceId !== run.spaceId || coordinator.issueId !== run.nativeIssueId
     || coordinator.runId !== run.id || input.issueExecutionRunId === run.id
     || run.runnerProfileJson?.nativeWorkspaceFinalizationOwner || nativeRunHasNoWorkspaceAccess(run)) return false;
   const reference = readNativeWorkspaceSyncReference(run.runnerProfileJson?.nativeWorkspaceSync);
   if (reference?.state !== "prepared") return false;
 
   const [successor] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.nativeIssueId, coordinator.issueId),
+    eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.nativeIssueId, coordinator.issueId),
     eq(heartbeatRuns.agentId, run.agentId), eq(heartbeatRuns.runtimeMode, "native"),
     eq(heartbeatRuns.status, "succeeded"), eq(heartbeatRuns.nativePhase, "committed"),
     gt(heartbeatRuns.startedAt, run.finishedAt), isNotNull(heartbeatRuns.finishedAt),
@@ -31,7 +31,7 @@ export async function retireSupersededNativeRetry(db: Db, input: {
   )).orderBy(desc(heartbeatRuns.startedAt)).limit(1);
   if (!successor) return false;
   const [source] = await db.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
-    eq(environmentLeases.id, reference.leaseId), eq(environmentLeases.companyId, run.companyId),
+    eq(environmentLeases.id, reference.leaseId), eq(environmentLeases.spaceId, run.spaceId),
     eq(environmentLeases.heartbeatRunId, run.id), eq(environmentLeases.issueId, coordinator.issueId),
     eq(environmentLeases.providerLeaseId, reference.providerLeaseId),
     sql`${environmentLeases.metadata}->>'remoteCwd' = ${reference.remoteCwd}`,
@@ -39,7 +39,7 @@ export async function retireSupersededNativeRetry(db: Db, input: {
   )).limit(1);
   if (!source) return false;
 
-  await notifyExecutionRunWork(db, { companyId: run.companyId });
+  await notifyExecutionRunWork(db, { spaceId: run.spaceId });
   await db.update(nativeRunFinalizations).set({ phase: "terminal_failure", nextAttemptAt: null,
     leaseExpiresAt: null, controlDeadlineAt: null, recoveryState: "blocked",
     failureCode: "native_retry_superseded", failureDetail: { ...coordinator.failureDetail,

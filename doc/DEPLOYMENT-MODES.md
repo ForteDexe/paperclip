@@ -3,7 +3,7 @@
 Status: Canonical deployment and auth mode model  
 Date: 2026-02-23
 
-### Paperclip Cloud sign-in
+### Outpost Cloud sign-in
 
 Cloud-managed instances use Cloud for human sign-in. The instance `/auth`
 route waits for deployment metadata before rendering; it never renders the
@@ -42,7 +42,7 @@ production retains its managed feature policy.
 
 ## 1. Purpose
 
-Paperclip supports two runtime modes:
+Outpost supports two runtime modes:
 
 1. `local_trusted`
 2. `authenticated`
@@ -54,7 +54,7 @@ Paperclip supports two runtime modes:
 
 This keeps one authenticated auth stack while still separating low-friction private-network defaults from internet-facing hardening requirements.
 
-Paperclip now treats **bind** as a separate concern from auth:
+Outpost now treats **bind** as a separate concern from auth:
 
 - auth model: `local_trusted` vs `authenticated`, plus `private/public`
 - reachability model: `server.bind = loopback | lan | tailnet | custom`
@@ -101,18 +101,18 @@ Paperclip now treats **bind** as a separate concern from auth:
 - recommended bind is `loopback` behind a reverse proxy; direct `lan/custom` is advanced
 - local stdio MCP runtime slots fail closed by default; set `OUTPOST_TRUSTED_MCP_RUNTIME_HOST` only when a trusted worker/runtime host is configured to supervise those processes. Remote HTTP MCP remains the preferred public-hosted path.
 
-### Paperclip Cloud warm-pool identity
+### Outpost Cloud warm-pool identity
 
 A Cloud-managed warm-pool process initially boots under a `pool-*` origin. It
 receives only Cloud's public verification set in
 `OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS`. Before Cloud activates a claimed stack,
 the existing server-to-server health request carries a short-lived Ed25519 JWS
 that binds the immutable `OUTPOST_CLOUD_STACK_ID`, pool claim, previous
-origin, canonical HTTPS origin, and slug. Paperclip verifies and persists that
+origin, canonical HTTPS origin, and slug. Outpost verifies and persists that
 one-time assertion, updates its live public/API URL provider, and acknowledges
 the exact origin in `/api/health` before the first user request is admitted.
 
-The Harness signing private key is never present in Paperclip, browsers, or
+The Harness signing private key is never present in Outpost, browsers, or
 other tenant stacks. A different claim or destination cannot replace the
 persisted identity. On restart, the durable identity is loaded before auth,
 routes, and child-runtime configuration, even when provider variables are
@@ -124,7 +124,7 @@ temporarily stale. Self-hosted deployments continue to use their configured
 Default onboarding remains interactive and flagless:
 
 ```sh
-pnpm paperclipai onboard
+pnpm outpost onboard
 ```
 
 Server prompt behavior:
@@ -141,9 +141,9 @@ Server prompt behavior:
 Examples:
 
 ```sh
-pnpm paperclipai onboard --yes
-npx paperclipai onboard --yes --bind lan
-npx paperclipai run --bind tailnet
+pnpm outpost onboard --yes
+npx @outpost/cli onboard --yes --bind lan
+npx @outpost/cli run --bind tailnet
 ```
 
 `configure --section server` follows the same interactive behavior.
@@ -153,7 +153,7 @@ npx paperclipai run --bind tailnet
 Default doctor remains flagless:
 
 ```sh
-pnpm paperclipai doctor
+pnpm outpost doctor
 ```
 
 Doctor reads configured mode/exposure and applies mode-aware checks. Optional override flags are secondary.
@@ -166,20 +166,20 @@ Required integration points:
 
 - real user row in `authUsers` for Board identity
 - `instance_user_roles` entry for Board admin authority
-- `company_memberships` integration for user-level task assignment and access
+- `space_memberships` integration for user-level task assignment and access
 
 This is required because user assignment paths validate active membership for `assigneeUserId`.
 
 ## 7. Local Trusted -> Authenticated Claim Flow
 
-When running `authenticated` mode, if the only instance admin is `local-board`, Paperclip emits a startup warning with a one-time high-entropy claim URL.
+When running `authenticated` mode, if the only instance admin is `local-operator`, Outpost emits a startup warning with a one-time high-entropy claim URL.
 
 - URL format: `/board-claim/<token>?code=<code>`
 - intended use: signed-in human claims board ownership
 - claim action:
   - promotes current signed-in user to `instance_admin`
-  - demotes `local-board` admin role
-  - ensures active owner membership for the claiming user across existing companies
+  - demotes `local-operator` admin role
+  - ensures active owner membership for the claiming user across existing spaces
 
 This prevents lockout when a user migrates from long-running local trusted usage to authenticated mode.
 
@@ -188,10 +188,10 @@ This prevents lockout when a user migrates from long-running local trusted usage
 Fresh authenticated installs start in `bootstrap_pending` until the first
 `instance_admin` exists.
 
-For `authenticated/private`, Paperclip supports a browser-first setup path:
+For `authenticated/private`, Outpost supports a browser-first setup path:
 
-1. open the Paperclip URL from the private network or appliance UI
-2. sign in or create a Paperclip account
+1. open the Outpost URL from the private network or appliance UI
+2. sign in or create a Outpost account
 3. choose `Claim this instance` on the setup screen
 
 That browser claim promotes the signed-in session user to the first instance
@@ -209,7 +209,7 @@ not an account-recovery or public-deployment mechanism.
 The CLI fallback remains supported in all authenticated setup states:
 
 ```sh
-pnpm paperclipai auth bootstrap-ceo
+pnpm outpost auth bootstrap-ceo
 ```
 
 That command prints a one-time first-admin invite URL. Browser claim and
@@ -225,7 +225,7 @@ future public-hosted setup design explicitly changes this policy.
 - runtime values are `local_trusted | authenticated`
 - `authenticated` uses Better Auth sessions and bootstrap invite flow
 - `local_trusted` ensures a real local Board user principal in `authUsers` with `instance_user_roles` admin access
-- company creation ensures creator membership in `company_memberships` so user assignment/access flows remain consistent
+- space creation ensures creator membership in `space_memberships` so user assignment/access flows remain consistent
 
 ## 10. Naming and Compatibility Policy
 

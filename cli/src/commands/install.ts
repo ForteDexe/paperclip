@@ -86,7 +86,7 @@ export function resolveGitInstallWorkspacePackages(checkoutPath: string): Releas
 
 export function assertSupportedNodeVersion(): void {
   if (!isSupportedNodeVersion(process.versions.node)) {
-    throw new Error(`Installing or updating Outpost requires Node.js ${MINIMUM_NODE_VERSION} or newer (found ${process.version} at ${process.execPath}). Put a supported Node bin directory first on PATH and run 'npx paperclipai@latest install --yes' to re-pin an existing managed install.`);
+    throw new Error(`Installing or updating Outpost requires Node.js ${MINIMUM_NODE_VERSION} or newer (found ${process.version} at ${process.execPath}). Put a supported Node bin directory first on PATH and run 'npx @outpost/cli@latest install --yes' to re-pin an existing managed install.`);
   }
 }
 
@@ -122,7 +122,7 @@ function parseResolvedVersion(stdout: string): string {
 export async function resolvePublishedVersion(spec: string, runCommand: CommandRunner): Promise<string> {
   const result = await runCommand(
     "npm",
-    ["view", `paperclipai@${spec}`, "version", "--json", `--registry=${PUBLIC_NPM_REGISTRY}`],
+    ["view", `@outpost/cli@${spec}`, "version", "--json", `--registry=${PUBLIC_NPM_REGISTRY}`],
     { maxBuffer: 1024 * 1024 },
   );
   return parseResolvedVersion(result.stdout);
@@ -149,7 +149,7 @@ async function runGitHubCurl(
   // The token travels via a curl --config file so it never appears in process args.
   const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
   if (!token) return runCommand("curl", args, options);
-  const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclipai-gh-"));
+  const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-gh-"));
   const configFile = path.join(configDir, "headers");
   try {
     fs.writeFileSync(configFile, `header = "Authorization: Bearer ${token}"\n`, { mode: 0o600 });
@@ -160,7 +160,7 @@ async function runGitHubCurl(
 }
 
 export async function resolveGitHubRef(repo: string, ref: string, runCommand: CommandRunner): Promise<string> {
-  const result = await runGitHubCurl(["--fail", "--silent", "--show-error", "--location", "--header", "Accept: application/vnd.github+json", "--header", "User-Agent: paperclipai-install", `https://api.github.com/repos/${repo}/commits/${encodeURIComponent(ref)}`], runCommand, { maxBuffer: 4 * 1024 * 1024 });
+  const result = await runGitHubCurl(["--fail", "--silent", "--show-error", "--location", "--header", "Accept: application/vnd.github+json", "--header", "User-Agent: outpost-install", `https://api.github.com/repos/${repo}/commits/${encodeURIComponent(ref)}`], runCommand, { maxBuffer: 4 * 1024 * 1024 });
   let sha: unknown;
   try { sha = (JSON.parse(result.stdout) as { sha?: unknown }).sha; } catch { throw new Error(`GitHub returned an invalid response while resolving ${repo}@${ref}.`); }
   if (typeof sha !== "string" || !/^[0-9a-f]{40}$/i.test(sha)) throw new Error(`GitHub did not return a full commit SHA for ${repo}@${ref}.`);
@@ -168,7 +168,7 @@ export async function resolveGitHubRef(repo: string, ref: string, runCommand: Co
 }
 
 function payloadEntrypoint(payloadPath: string): string {
-  return path.join(payloadPath, "node_modules", "paperclipai", "dist", "index.js");
+  return path.join(payloadPath, "node_modules", "@outpost", "cli", "dist", "index.js");
 }
 
 export async function smokePayload(payloadPath: string, expectedVersion: string, runCommand: CommandRunner): Promise<void> {
@@ -206,7 +206,7 @@ export async function installNpmPayload(
   try {
     fs.writeFileSync(
       npmUserConfigPath,
-      `registry=${PUBLIC_NPM_REGISTRY}\n@paperclipai:registry=${PUBLIC_NPM_REGISTRY}\n`,
+      `registry=${PUBLIC_NPM_REGISTRY}\n@outpost:registry=${PUBLIC_NPM_REGISTRY}\n`,
       { mode: 0o600 },
     );
     await runCommand(
@@ -215,9 +215,9 @@ export async function installNpmPayload(
         "install",
         "--prefix",
         stagingPath,
-        `paperclipai@${version}`,
+        `@outpost/cli@${version}`,
         `--registry=${PUBLIC_NPM_REGISTRY}`,
-        `--@paperclipai:registry=${PUBLIC_NPM_REGISTRY}`,
+        `--@outpost:registry=${PUBLIC_NPM_REGISTRY}`,
         "--no-audit",
         "--no-fund",
       ],
@@ -248,7 +248,7 @@ export async function installGitPayload(repo: string, sha: string, runCommand: C
   const identifier = sha.slice(0, 12);
   const payloadPath = payloadPathFor(paths, "git", identifier);
   if (fs.existsSync(payloadPath)) {
-    const metadata = JSON.parse(fs.readFileSync(path.join(payloadPath, "node_modules", "paperclipai", "package.json"), "utf8")) as { version: string };
+    const metadata = JSON.parse(fs.readFileSync(path.join(payloadPath, "node_modules", "@outpost", "cli", "package.json"), "utf8")) as { version: string };
     await smokePayload(payloadPath, metadata.version, runCommand);
     return { payloadPath, reused: true, version: metadata.version };
   }
@@ -296,7 +296,7 @@ export async function installGitPayload(repo: string, sha: string, runCommand: C
     }
     await runCommand("npm", ["pack", "--pack-destination", stagingRoot], { cwd: path.join(checkoutPath, "cli"), env: buildEnv(), maxBuffer: 16 * 1024 * 1024 });
     const tarballs = fs.readdirSync(stagingRoot).filter((entry) => entry.endsWith(".tgz"));
-    const cliTarball = tarballs.find((entry) => entry === `paperclipai-${metadata.version}.tgz`);
+    const cliTarball = tarballs.find((entry) => entry === `outpost-cli-${metadata.version}.tgz`);
     const workspaceTarballs = tarballs.filter((entry) => entry !== cliTarball);
     if (!cliTarball || workspaceTarballs.length !== workspacePackages.length) {
       throw new Error(`Git install packaging produced ${workspaceTarballs.length} workspace tarballs; expected ${workspacePackages.length}.`);
@@ -380,13 +380,13 @@ export async function installCommand(
       writeManagedShim(paths); pruneInstallPayloads(nextManifest, paths); return payload;
     }, paths);
     await ensureShimOnPath(options);
-    console.log(pc.green(`${installed.reused ? "Activated cached" : "Installed"} paperclipai git payload ${sha.slice(0, 12)}.`));
+    console.log(pc.green(`${installed.reused ? "Activated cached" : "Installed"} outpost git payload ${sha.slice(0, 12)}.`));
     return;
   }
   const request = resolveNpmInstallRequest(options);
-  console.log(`Resolving paperclipai@${request.spec} from ${PUBLIC_NPM_REGISTRY}...`);
+  console.log(`Resolving @outpost/cli@${request.spec} from ${PUBLIC_NPM_REGISTRY}...`);
   const version = await resolvePublishedVersion(request.spec, runCommand);
-  console.log(`Installing paperclipai@${version}...`);
+  console.log(`Installing @outpost/cli@${version}...`);
 
   const paths = resolveInstallStorePaths();
   const installed = await withInstallStoreLock(async () => {
@@ -416,7 +416,7 @@ export async function installCommand(
   }, paths);
   await ensureShimOnPath(options);
 
-  console.log(pc.green(`${installed.reused ? "Activated cached" : "Installed"} paperclipai ${version} (${request.channel}).`));
+  console.log(pc.green(`${installed.reused ? "Activated cached" : "Installed"} Outpost CLI ${version} (${request.channel}).`));
   console.log(pc.dim(`Payload: ${installed.payloadPath}`));
-  console.log(`Run ${pc.cyan("paperclipai --version")} to verify the managed install.`);
+  console.log(`Run ${pc.cyan("outpost --version")} to verify the managed install.`);
 }

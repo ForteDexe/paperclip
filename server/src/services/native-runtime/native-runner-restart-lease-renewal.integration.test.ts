@@ -8,15 +8,15 @@ describeEmbeddedPostgres("native runner restart recovery: lease-renewal", () => 
   const environment = nativeRestartFixture();
   const { seedRun } = environment;
   let temporary: typeof environment.current.temporary;
-  let companyId: typeof environment.current.companyId;
+  let spaceId: typeof environment.current.spaceId;
   let successor: typeof environment.current.successor;
-  beforeAll(() => { ({ temporary, companyId, successor } = environment.current); });
+  beforeAll(() => { ({ temporary, spaceId, successor } = environment.current); });
 
   it("retains remote ownership through two delayed successful liveness-pool renewals", async () => {
     const fixture = await seedRun("DELAYED-RENEWAL-SUCCESS");
     const owner = createDb(temporary.connectionString);
     const pool = livenessDb(owner);
-    const input = { db: owner, runId: fixture.runId, companyId, issueId: fixture.issueId,
+    const input = { db: owner, runId: fixture.runId, spaceId, issueId: fixture.issueId,
       controller: successor, leaseOwner: "delayed-renewal-owner", attempt: 1, remote: true,
       onLost: vi.fn(async () => undefined) };
     const initialExpiry = new Date(Date.now() + 60_000);

@@ -44,7 +44,7 @@ const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : 
 
 async function createTempDatabase(): Promise<string> {
   if (historyExternal) throw new Error("Explicit retained-history mode permits only its two selected migration cases");
-  const db = await startEmbeddedPostgresTestDatabase("paperclip-db-client-");
+  const db = await startEmbeddedPostgresTestDatabase("outpost-db-client-");
   cleanups.push(db.cleanup);
   return db.connectionString;
 }
@@ -58,7 +58,7 @@ async function migrationHash(migrationFile: string): Promise<string> {
 }
 
 const userVisibleUpdatedAtTables = new Set([
-  "companies",
+  "spaces",
   "heartbeat_runs",
   "issue_comments",
   "issues",
@@ -77,7 +77,7 @@ const migrationUpdatedAtUpdateAllowlist = new Map<string, ReadonlySet<string>>([
   ],
   [
     "0135_repair_run_responsible_user_updated_at_sweep.sql",
-    new Set(["companies", "heartbeat_runs", "issues", "routine_runs", "routines"]),
+    new Set(["spaces", "heartbeat_runs", "issues", "routine_runs", "routines"]),
   ],
 ]);
 
@@ -138,21 +138,21 @@ describeEmbeddedPostgres("createDb pool defaults", () => {
     const [self] = await db.$client`select application_name from pg_stat_activity where pid = pg_backend_pid()`;
     expect(self?.application_name).toBe(DEFAULT_DATABASE_APPLICATION_NAME);
 
-    const shortLived = createDb(url, { applicationName: "paperclip-idle-test", idleTimeoutSeconds: 1 });
+    const shortLived = createDb(url, { applicationName: "outpost-idle-test", idleTimeoutSeconds: 1 });
     cleanups.push(async () => {
       await shortLived.$client.end({ timeout: 1 });
     });
     await shortLived.$client`select 1`;
-    expect(await backendsNamed("paperclip-idle-test")).toBe(1);
+    expect(await backendsNamed("outpost-idle-test")).toBe(1);
 
     // The driver closes the idle connection after `idle_timeout`; without the
     // option (the driver default) the backend would stay until the process
     // exits. Wait past the timeout, then poll PostgreSQL's own view.
     const deadline = Date.now() + 10_000;
-    let remaining = await backendsNamed("paperclip-idle-test");
+    let remaining = await backendsNamed("outpost-idle-test");
     while (remaining > 0 && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 250));
-      remaining = await backendsNamed("paperclip-idle-test");
+      remaining = await backendsNamed("outpost-idle-test");
     }
     expect(remaining).toBe(0);
   }, 30_000);
@@ -258,37 +258,37 @@ describeEmbeddedPostgres("merged Muse migration histories", () => {
 
   async function seedRetainedRows(sql: ReturnType<typeof postgres>, withMuse: boolean) {
     const userId = randomUUID(), clientId = `migration-client-${randomUUID()}`;
-    const [company] = await sql`INSERT INTO companies (name, issue_prefix) VALUES ('Retained migration company', 'MRG') RETURNING id`;
+    const [space] = await sql`INSERT INTO spaces (name, issue_prefix) VALUES ('Retained migration space', 'MRG') RETURNING id`;
     const [agent] = await sql`
-      INSERT INTO agents (company_id, name, adapter_type, adapter_config)
-      VALUES (${company.id}, 'Retained Muse', 'outpost_runner', '{"provider":"muse"}'::jsonb) RETURNING id
+      INSERT INTO agents (space_id, name, adapter_type, adapter_config)
+      VALUES (${space.id}, 'Retained Muse', 'outpost_runner', '{"provider":"muse"}'::jsonb) RETURNING id
     `;
     const [task] = await sql`
-      INSERT INTO issues (company_id, title, assignee_agent_id)
-      VALUES (${company.id}, 'Retained task', ${agent.id}) RETURNING id
+      INSERT INTO issues (space_id, title, assignee_agent_id)
+      VALUES (${space.id}, 'Retained task', ${agent.id}) RETURNING id
     `;
     const [run] = await sql`
-      INSERT INTO heartbeat_runs (company_id, agent_id, invocation_source, trigger_detail, status, runtime_mode, native_issue_id, context_snapshot)
-      VALUES (${company.id}, ${agent.id}, 'assignment', 'system', 'failed', 'native', ${task.id},
-        ${JSON.stringify({ paperclipIssue: { id: task.id }, issueId: task.id })}::jsonb) RETURNING id
+      INSERT INTO heartbeat_runs (space_id, agent_id, invocation_source, trigger_detail, status, runtime_mode, native_issue_id, context_snapshot)
+      VALUES (${space.id}, ${agent.id}, 'assignment', 'system', 'failed', 'native', ${task.id},
+        ${JSON.stringify({ outpostIssue: { id: task.id }, issueId: task.id })}::jsonb) RETURNING id
     `;
     await sql`INSERT INTO "user" (id, name, email, created_at, updated_at) VALUES (${userId}, 'Migration operator', ${`${userId}@example.test`}, now(), now())`;
     await sql`INSERT INTO mcp_oauth_clients (id, name, redirect_uris) VALUES (${clientId}, 'Synthetic migration client', '["https://example.test/callback"]'::jsonb)`;
     const [grant] = await sql`
-      INSERT INTO mcp_oauth_grants (company_id, user_id, client_id, resource, purpose, agent_id, scopes)
-      VALUES (${company.id}, ${userId}, ${clientId}, 'https://example.test/api/muse/v1', 'agent', ${agent.id}, '["paperclip:agent","offline_access"]'::jsonb) RETURNING id
+      INSERT INTO mcp_oauth_grants (space_id, user_id, client_id, resource, purpose, agent_id, scopes)
+      VALUES (${space.id}, ${userId}, ${clientId}, 'https://example.test/api/muse/v1', 'agent', ${agent.id}, '["outpost:agent","offline_access"]'::jsonb) RETURNING id
     `;
     const [binding] = withMuse ? await sql`
-      INSERT INTO muse_agent_bindings (company_id, agent_id, operator_id, grant_id, status)
-      VALUES (${company.id}, ${agent.id}, ${userId}, ${grant.id}, 'connected') RETURNING id
+      INSERT INTO muse_agent_bindings (space_id, agent_id, operator_id, grant_id, status)
+      VALUES (${space.id}, ${agent.id}, ${userId}, ${grant.id}, 'connected') RETURNING id
     ` : [];
     return async () => {
-      const [companyRow] = await sql`SELECT to_jsonb(c) AS row FROM companies c WHERE id = ${company.id}`;
+      const [spaceRow] = await sql`SELECT to_jsonb(c) AS row FROM spaces c WHERE id = ${space.id}`;
       const [taskRow] = await sql`SELECT to_jsonb(t) AS row FROM issues t WHERE id = ${task.id}`;
       const [runRow] = await sql`SELECT to_jsonb(r) AS row FROM heartbeat_runs r WHERE id = ${run.id}`;
       const [grantRow] = await sql`SELECT to_jsonb(g) AS row FROM mcp_oauth_grants g WHERE id = ${grant.id}`;
       const [bindingRow] = binding ? await sql`SELECT to_jsonb(b) AS row FROM muse_agent_bindings b WHERE id = ${binding.id}` : [];
-      return { company: companyRow.row, task: taskRow.row, run: runRow.row, grant: grantRow.row, binding: bindingRow?.row ?? null };
+      return { space: spaceRow.row, task: taskRow.row, run: runRow.row, grant: grantRow.row, binding: bindingRow?.row ?? null };
     };
   }
 
@@ -364,12 +364,12 @@ describeEmbeddedPostgres("merged Muse migration histories", () => {
         SELECT c.relname, i.indisvalid, i.indisready, pg_get_indexdef(c.oid) AS definition
         FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public' AND c.relname IN (
-          'heartbeat_runs_company_ctx_paperclip_issue_created_idx', 'heartbeat_runs_company_origin_issue_idx', 'grok_dispatch_assignment_kind_idx'
+          'heartbeat_runs_space_ctx_outpost_issue_created_idx', 'heartbeat_runs_space_origin_issue_idx', 'grok_dispatch_assignment_kind_idx'
         ) ORDER BY c.relname
       `;
       expect(indexes).toHaveLength(3);
       for (const index of indexes) expect(index).toMatchObject({ indisvalid: true, indisready: true });
-      expect(indexes.find(index => index.relname === "heartbeat_runs_company_origin_issue_idx")!.definition).toContain("COALESCE");
+      expect(indexes.find(index => index.relname === "heartbeat_runs_space_origin_issue_idx")!.definition).toContain("COALESCE");
       const finalShape = await schemaShape(sql);
       expect(finalShape).toEqual(await schemaShape(reference));
       await applyPendingMigrations(connectionString);
@@ -398,7 +398,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
     await ensurePostgresDatabase(clusterUrl.toString(), databaseName);
     clusterUrl.pathname = "/" + databaseName;
     const connectionString = clusterUrl.toString();
-    const prefixFolder = await fs.promises.mkdtemp(join(tmpdir(), "paperclip-migration-prefix-"));
+    const prefixFolder = await fs.promises.mkdtemp(join(tmpdir(), "outpost-migration-prefix-"));
     cleanups.push(() => fs.promises.rm(prefixFolder, { recursive: true, force: true }));
     await fs.promises.mkdir(join(prefixFolder, "meta"));
     const journal = JSON.parse(await fs.promises.readFile(new URL("./migrations/meta/_journal.json", import.meta.url), "utf8"));
@@ -501,7 +501,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await sql.unsafe(
           `DELETE FROM "drizzle"."__drizzle_migrations" WHERE hash = '${richMagnetoHash}'`,
         );
-        await sql.unsafe(`DROP TABLE "company_logos"`);
+        await sql.unsafe(`DROP TABLE "space_logos"`);
       } finally {
         await sql.end();
       }
@@ -525,12 +525,12 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
             SELECT table_name
             FROM information_schema.tables
             WHERE table_schema = 'public'
-              AND table_name IN ('company_logos', 'execution_workspaces')
+              AND table_name IN ('space_logos', 'execution_workspaces')
             ORDER BY table_name
           `,
         );
         expect(rows.map((row) => row.table_name)).toEqual([
-          "company_logos",
+          "space_logos",
           "execution_workspaces",
         ]);
       } finally {
@@ -584,7 +584,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
   );
 
   it(
-    "enforces a unique board_api_keys.key_hash after migration 0044",
+    "enforces a unique operator_api_keys.key_hash after migration 0044",
     async () => {
       const connectionString = await createTempDatabase();
 
@@ -596,12 +596,12 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           VALUES ('user-1', 'User One', 'user@example.com', true, now(), now())
         `);
         await sql.unsafe(`
-          INSERT INTO "board_api_keys" ("id", "user_id", "name", "key_hash", "created_at")
+          INSERT INTO "operator_api_keys" ("id", "user_id", "name", "key_hash", "created_at")
           VALUES ('00000000-0000-0000-0000-000000000001', 'user-1', 'Key One', 'dup-hash', now())
         `);
         await expect(
           sql.unsafe(`
-            INSERT INTO "board_api_keys" ("id", "user_id", "name", "key_hash", "created_at")
+            INSERT INTO "operator_api_keys" ("id", "user_id", "name", "key_hash", "created_at")
             VALUES ('00000000-0000-0000-0000-000000000002', 'user-1', 'Key Two', 'dup-hash', now())
           `),
         ).rejects.toThrow();
@@ -717,7 +717,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
             FROM information_schema.columns
             WHERE table_schema = 'public'
               AND (
-                (table_name = 'companies' AND column_name IN (
+                (table_name = 'spaces' AND column_name IN (
                   'feedback_data_sharing_enabled',
                   'feedback_data_sharing_consent_at',
                   'feedback_data_sharing_consent_by_user_id',
@@ -753,20 +753,20 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
             SELECT conname
             FROM pg_constraint
             WHERE conname IN (
-              'feedback_exports_company_id_companies_id_fk',
+              'feedback_exports_space_id_spaces_id_fk',
               'feedback_exports_feedback_vote_id_feedback_votes_id_fk',
               'feedback_exports_issue_id_issues_id_fk',
-              'feedback_votes_company_id_companies_id_fk',
+              'feedback_votes_space_id_spaces_id_fk',
               'feedback_votes_issue_id_issues_id_fk'
             )
             ORDER BY conname
           `,
         );
         expect(constraints.map((row) => row.conname)).toEqual([
-          "feedback_exports_company_id_companies_id_fk",
+          "feedback_exports_space_id_spaces_id_fk",
           "feedback_exports_feedback_vote_id_feedback_votes_id_fk",
           "feedback_exports_issue_id_issues_id_fk",
-          "feedback_votes_company_id_companies_id_fk",
+          "feedback_votes_space_id_spaces_id_fk",
           "feedback_votes_issue_id_issues_id_fk",
         ]);
       } finally {
@@ -1005,11 +1005,11 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         );
         await sql.unsafe(`
           ALTER TABLE "built_in_managed_resources"
-          DROP CONSTRAINT IF EXISTS "built_in_managed_resources_company_id_companies_id_fk"
+          DROP CONSTRAINT IF EXISTS "built_in_managed_resources_space_id_spaces_id_fk"
         `);
-        await sql.unsafe(`DROP INDEX IF EXISTS "built_in_managed_resources_company_idx"`);
+        await sql.unsafe(`DROP INDEX IF EXISTS "built_in_managed_resources_space_idx"`);
         await sql.unsafe(`DROP INDEX IF EXISTS "built_in_managed_resources_resource_idx"`);
-        await sql.unsafe(`DROP INDEX IF EXISTS "built_in_managed_resources_company_bundle_resource_uq"`);
+        await sql.unsafe(`DROP INDEX IF EXISTS "built_in_managed_resources_space_bundle_resource_uq"`);
       } finally {
         await sql.end();
       }
@@ -1030,7 +1030,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
       try {
         const rows = await verifySql.unsafe<{
           foreign_key_exists: boolean;
-          company_index_exists: boolean;
+          space_index_exists: boolean;
           resource_index_exists: boolean;
           unique_index_exists: boolean;
         }[]>(`
@@ -1042,7 +1042,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
               JOIN "pg_namespace" n ON n.oid = t.relnamespace
               WHERE n.nspname = 'public'
                 AND t.relname = 'built_in_managed_resources'
-                AND c.conname = 'built_in_managed_resources_company_id_companies_id_fk'
+                AND c.conname = 'built_in_managed_resources_space_id_spaces_id_fk'
             ) AS "foreign_key_exists",
             EXISTS (
               SELECT 1
@@ -1050,8 +1050,8 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
               JOIN "pg_namespace" n ON n.oid = c.relnamespace
               WHERE n.nspname = 'public'
                 AND c.relkind = 'i'
-                AND c.relname = 'built_in_managed_resources_company_idx'
-            ) AS "company_index_exists",
+                AND c.relname = 'built_in_managed_resources_space_idx'
+            ) AS "space_index_exists",
             EXISTS (
               SELECT 1
               FROM "pg_class" c
@@ -1066,12 +1066,12 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
               JOIN "pg_namespace" n ON n.oid = c.relnamespace
               WHERE n.nspname = 'public'
                 AND c.relkind = 'i'
-                AND c.relname = 'built_in_managed_resources_company_bundle_resource_uq'
+                AND c.relname = 'built_in_managed_resources_space_bundle_resource_uq'
             ) AS "unique_index_exists"
         `);
         expect(rows[0]).toEqual({
           foreign_key_exists: true,
-          company_index_exists: true,
+          space_index_exists: true,
           resource_index_exists: true,
           unique_index_exists: true,
         });
@@ -1095,7 +1095,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         );
 
         await sql.unsafe(`
-          INSERT INTO "companies" ("id", "name", "issue_prefix", "created_at", "updated_at")
+          INSERT INTO "spaces" ("id", "name", "issue_prefix", "created_at", "updated_at")
           VALUES (
             '00000000-0000-0000-0000-000000000120',
             'Migration Inbox Co',
@@ -1105,9 +1105,9 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           )
         `);
         await sql.unsafe(`
-          INSERT INTO "company_memberships" (
+          INSERT INTO "space_memberships" (
             "id",
-            "company_id",
+            "space_id",
             "principal_type",
             "principal_id",
             "status",
@@ -1129,7 +1129,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await sql.unsafe(`
           INSERT INTO "issues" (
             "id",
-            "company_id",
+            "space_id",
             "title",
             "status",
             "responsible_user_id",
@@ -1149,7 +1149,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await sql.unsafe(`
           INSERT INTO "issue_inbox_archives" (
             "id",
-            "company_id",
+            "space_id",
             "issue_id",
             "user_id",
             "archived_at",
@@ -1195,7 +1195,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
             EXISTS (
               SELECT 1
               FROM "issue_inbox_archives" AS archive
-              WHERE archive."company_id" = i."company_id"
+              WHERE archive."space_id" = i."space_id"
                 AND archive."issue_id" = i."id"
                 AND archive."user_id" = 'owner-user'
                 AND archive."archived_at" >= i."updated_at"
@@ -1226,7 +1226,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
       const sql = postgres(connectionString, { max: 1, onnotice: () => {} });
       try {
         await sql.unsafe(`
-          INSERT INTO "companies" ("id", "name", "issue_prefix", "created_at", "updated_at")
+          INSERT INTO "spaces" ("id", "name", "issue_prefix", "created_at", "updated_at")
           VALUES (
             '00000000-0000-0000-0000-000000000240',
             'Clean Migration Co',
@@ -1236,7 +1236,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           )
         `);
         await sql.unsafe(`
-          INSERT INTO "issues" ("id", "company_id", "title", "status", "created_at", "updated_at")
+          INSERT INTO "issues" ("id", "space_id", "title", "status", "created_at", "updated_at")
           VALUES (
             '00000000-0000-0000-0000-000000000241',
             '00000000-0000-0000-0000-000000000240',
@@ -1265,7 +1265,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         expect(cleanRows[0]?.updated_at.toISOString()).toBe("2026-04-02T10:00:00.000Z");
 
         await afterCleanReplay.unsafe(`
-          INSERT INTO "companies" ("id", "name", "issue_prefix", "created_at", "updated_at")
+          INSERT INTO "spaces" ("id", "name", "issue_prefix", "created_at", "updated_at")
           VALUES (
             '00000000-0000-0000-0000-000000000250',
             'Sweep Migration Co',
@@ -1275,7 +1275,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           )
         `);
         await afterCleanReplay.unsafe(`
-          INSERT INTO "agents" ("id", "company_id", "name", "role", "adapter_type", "created_at", "updated_at")
+          INSERT INTO "agents" ("id", "space_id", "name", "role", "adapter_type", "created_at", "updated_at")
           VALUES (
             '00000000-0000-0000-0000-000000000251',
             '00000000-0000-0000-0000-000000000250',
@@ -1287,7 +1287,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           )
         `);
         await afterCleanReplay.unsafe(`
-          INSERT INTO "issues" ("id", "company_id", "title", "status", "created_at", "updated_at")
+          INSERT INTO "issues" ("id", "space_id", "title", "status", "created_at", "updated_at")
           SELECT
             ('10000000-0000-0000-0000-' || lpad(gs::text, 12, '0'))::uuid,
             '00000000-0000-0000-0000-000000000250',
@@ -1305,7 +1305,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           WHERE "id" = '10000000-0000-0000-0000-000000000003'
         `);
         await afterCleanReplay.unsafe(`
-          INSERT INTO "issue_comments" ("id", "company_id", "issue_id", "body", "created_at", "updated_at")
+          INSERT INTO "issue_comments" ("id", "space_id", "issue_id", "body", "created_at", "updated_at")
           VALUES (
             '00000000-0000-0000-0000-000000000252',
             '00000000-0000-0000-0000-000000000250',
@@ -1318,7 +1318,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await afterCleanReplay.unsafe(`
           INSERT INTO "heartbeat_runs" (
             "id",
-            "company_id",
+            "space_id",
             "agent_id",
             "status",
             "started_at",
@@ -1340,7 +1340,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await afterCleanReplay.unsafe(`
           INSERT INTO "heartbeat_runs" (
             "id",
-            "company_id",
+            "space_id",
             "agent_id",
             "status",
             "started_at",
@@ -1362,7 +1362,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await afterCleanReplay.unsafe(`
           INSERT INTO "routines" (
             "id",
-            "company_id",
+            "space_id",
             "title",
             "last_triggered_at",
             "last_enqueued_at",
@@ -1382,7 +1382,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await afterCleanReplay.unsafe(`
           INSERT INTO "routines" (
             "id",
-            "company_id",
+            "space_id",
             "title",
             "last_triggered_at",
             "last_enqueued_at",
@@ -1402,7 +1402,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await afterCleanReplay.unsafe(`
           INSERT INTO "routine_runs" (
             "id",
-            "company_id",
+            "space_id",
             "routine_id",
             "source",
             "status",
@@ -1424,7 +1424,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await afterCleanReplay.unsafe(`
           INSERT INTO "routine_runs" (
             "id",
-            "company_id",
+            "space_id",
             "routine_id",
             "source",
             "status",
@@ -1444,7 +1444,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           )
         `);
         await afterCleanReplay.unsafe(`
-          INSERT INTO "companies" ("id", "name", "issue_prefix", "created_at", "updated_at")
+          INSERT INTO "spaces" ("id", "name", "issue_prefix", "created_at", "updated_at")
           VALUES (
             '00000000-0000-0000-0000-000000000260',
             'Coincident Timestamp Co',
@@ -1454,7 +1454,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           )
         `);
         await afterCleanReplay.unsafe(`
-          INSERT INTO "agents" ("id", "company_id", "name", "role", "adapter_type", "created_at", "updated_at")
+          INSERT INTO "agents" ("id", "space_id", "name", "role", "adapter_type", "created_at", "updated_at")
           VALUES (
             '00000000-0000-0000-0000-000000000261',
             '00000000-0000-0000-0000-000000000260',
@@ -1466,7 +1466,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           )
         `);
         await afterCleanReplay.unsafe(`
-          INSERT INTO "issues" ("id", "company_id", "title", "status", "created_at", "updated_at")
+          INSERT INTO "issues" ("id", "space_id", "title", "status", "created_at", "updated_at")
           VALUES (
             '20000000-0000-0000-0000-000000000001',
             '00000000-0000-0000-0000-000000000260',
@@ -1479,7 +1479,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await afterCleanReplay.unsafe(`
           INSERT INTO "heartbeat_runs" (
             "id",
-            "company_id",
+            "space_id",
             "agent_id",
             "status",
             "started_at",
@@ -1513,8 +1513,8 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           subject: string;
           updated_at: Date;
         }[]>(`
-          SELECT 'company' AS subject, "updated_at"
-          FROM "companies"
+          SELECT 'space' AS subject, "updated_at"
+          FROM "spaces"
           WHERE "id" = '00000000-0000-0000-0000-000000000250'
           UNION ALL
           SELECT 'issue_with_comment' AS subject, "updated_at"
@@ -1537,8 +1537,8 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           FROM "heartbeat_runs"
           WHERE "id" = '00000000-0000-0000-0000-000000000256'
           UNION ALL
-          SELECT 'other_company' AS subject, "updated_at"
-          FROM "companies"
+          SELECT 'other_space' AS subject, "updated_at"
+          FROM "spaces"
           WHERE "id" = '00000000-0000-0000-0000-000000000260'
           UNION ALL
           SELECT 'other_heartbeat_run' AS subject, "updated_at"
@@ -1570,13 +1570,13 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           repairedRows.map((row) => [row.subject, row.updated_at.toISOString()]),
         );
         expect(repaired).toEqual({
-          company: "2026-01-01T00:00:00.000Z",
+          space: "2026-01-01T00:00:00.000Z",
           heartbeat_run: "2026-02-10T10:30:00.000Z",
           heartbeat_run_with_output: "2026-04-03T12:00:00.123Z",
           issue_with_comment: "2026-03-02T16:45:00.000Z",
           issue_with_state_activity: "2026-04-03T12:00:00.123Z",
           issue_without_comment: "2026-02-01T00:02:00.000Z",
-          other_company: "2026-04-03T12:00:00.123Z",
+          other_space: "2026-04-03T12:00:00.123Z",
           other_heartbeat_run: "2026-04-03T12:00:00.123Z",
           other_issue: "2026-04-03T12:00:00.123Z",
           routine: "2026-03-21T11:00:00.000Z",
@@ -1622,13 +1622,13 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         );
 
         await sql.unsafe(`
-          INSERT INTO "companies" ("id", "name", "issue_prefix", "created_at", "updated_at")
+          INSERT INTO "spaces" ("id", "name", "issue_prefix", "created_at", "updated_at")
           VALUES ('00000000-0000-0000-0000-000000000130', 'Migration Test Co', 'TST130', now(), now())
         `);
         await sql.unsafe(`
-          INSERT INTO "company_memberships" (
+          INSERT INTO "space_memberships" (
             "id",
-            "company_id",
+            "space_id",
             "principal_type",
             "principal_id",
             "status",
@@ -1648,7 +1648,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
           )
         `);
         await sql.unsafe(`
-          INSERT INTO "agents" ("id", "company_id", "name", "role", "adapter_type", "created_at", "updated_at")
+          INSERT INTO "agents" ("id", "space_id", "name", "role", "adapter_type", "created_at", "updated_at")
           VALUES (
             '00000000-0000-0000-0000-000000000132',
             '00000000-0000-0000-0000-000000000130',
@@ -1662,7 +1662,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await sql.unsafe(`
           INSERT INTO "issues" (
             "id",
-            "company_id",
+            "space_id",
             "title",
             "status",
             "responsible_user_id",
@@ -1684,7 +1684,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await sql.unsafe(`
           INSERT INTO "heartbeat_runs" (
             "id",
-            "company_id",
+            "space_id",
             "agent_id",
             "status",
             "responsible_user_id",
@@ -1744,7 +1744,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
       legacyUrl.pathname = "/native_legacy";
       const connectionString = legacyUrl.href;
       cleanups.push(() => closeRegisteredClients(connectionString));
-      const directory = await fs.promises.mkdtemp(join(tmpdir(), "paperclip-native-prior-migrations-"));
+      const directory = await fs.promises.mkdtemp(join(tmpdir(), "outpost-native-prior-migrations-"));
       cleanups.push(() => fs.promises.rm(directory, { recursive: true, force: true }));
       const migrationsRoot = new URL("./migrations/", import.meta.url);
       const journal = JSON.parse(await fs.promises.readFile(new URL("meta/_journal.json", migrationsRoot), "utf8"));
@@ -1760,7 +1760,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         "0235_heartbeat_run_event_sequence_uniqueness.sql",
       );
       const sql = postgres(connectionString, { max: 1, onnotice: () => {} });
-      const companyId = "10000000-0000-4000-8000-000000000227";
+      const spaceId = "10000000-0000-4000-8000-000000000227";
       const agentId = "20000000-0000-4000-8000-000000000227";
       const runId = "30000000-0000-4000-8000-000000000227";
       const issueId = "40000000-0000-4000-8000-000000000227";
@@ -1768,7 +1768,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
       const resultId = "60000000-0000-4000-8000-000000000227";
       const assessmentId = "70000000-0000-4000-8000-000000000227";
       const decisionId = "80000000-0000-4000-8000-000000000227";
-      const otherCompanyId = "11000000-0000-4000-8000-000000000227";
+      const otherSpaceId = "11000000-0000-4000-8000-000000000227";
       const otherAgentId = "21000000-0000-4000-8000-000000000227";
       const otherRunId = "31000000-0000-4000-8000-000000000227";
       const otherIssueId = "41000000-0000-4000-8000-000000000227";
@@ -1783,29 +1783,29 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         await migrate(drizzle(sql), { migrationsFolder: directory });
         expect(await sql`SELECT to_regclass('public.native_run_results') AS native_results`).toEqual([{ native_results: null }]);
         await sql`
-          INSERT INTO companies (id, name, issue_prefix)
-          VALUES (${companyId}, 'Native persistence fixture', 'NPF')
+          INSERT INTO spaces (id, name, issue_prefix)
+          VALUES (${spaceId}, 'Native persistence fixture', 'NPF')
         `;
         await sql`
-          INSERT INTO agents (id, company_id, name)
-          VALUES (${agentId}, ${companyId}, 'Legacy migration agent')
+          INSERT INTO agents (id, space_id, name)
+          VALUES (${agentId}, ${spaceId}, 'Legacy migration agent')
         `;
         await sql`
-          INSERT INTO heartbeat_runs (id, company_id, agent_id, status)
-          VALUES (${runId}, ${companyId}, ${agentId}, 'succeeded')
+          INSERT INTO heartbeat_runs (id, space_id, agent_id, status)
+          VALUES (${runId}, ${spaceId}, ${agentId}, 'succeeded')
         `;
         await sql`
-          INSERT INTO issues (id, company_id, title, status)
-          VALUES (${issueId}, ${companyId}, 'Legacy migration issue', 'in_progress')
+          INSERT INTO issues (id, space_id, title, status)
+          VALUES (${issueId}, ${spaceId}, 'Legacy migration issue', 'in_progress')
         `;
         await sql.unsafe(`
           INSERT INTO heartbeat_run_events
-            (company_id, run_id, agent_id, seq, event_type, stream, level, message, payload, created_at)
+            (space_id, run_id, agent_id, seq, event_type, stream, level, message, payload, created_at)
           VALUES
-            ('${companyId}', '${runId}', '${agentId}', 1, 'legacy.start', 'system', 'info', 'one', '{"bytes":"alpha-1"}'::jsonb, '2026-08-01T00:00:01.000Z'),
-            ('${companyId}', '${runId}', '${agentId}', 5, 'legacy.log', 'stdout', 'info', 'first-five', '{"bytes":"beta-5a"}'::jsonb, '2026-08-01T00:00:02.000Z'),
-            ('${companyId}', '${runId}', '${agentId}', 5, 'legacy.log', 'stderr', 'warn', 'duplicate-five', '{"bytes":"gamma-5b"}'::jsonb, '2026-08-01T00:00:03.000Z'),
-            ('${companyId}', '${runId}', '${agentId}', 9, 'legacy.end', 'system', 'info', 'nine', '{"bytes":"delta-9"}'::jsonb, '2026-08-01T00:00:04.000Z')
+            ('${spaceId}', '${runId}', '${agentId}', 1, 'legacy.start', 'system', 'info', 'one', '{"bytes":"alpha-1"}'::jsonb, '2026-08-01T00:00:01.000Z'),
+            ('${spaceId}', '${runId}', '${agentId}', 5, 'legacy.log', 'stdout', 'info', 'first-five', '{"bytes":"beta-5a"}'::jsonb, '2026-08-01T00:00:02.000Z'),
+            ('${spaceId}', '${runId}', '${agentId}', 5, 'legacy.log', 'stderr', 'warn', 'duplicate-five', '{"bytes":"gamma-5b"}'::jsonb, '2026-08-01T00:00:03.000Z'),
+            ('${spaceId}', '${runId}', '${agentId}', 9, 'legacy.end', 'system', 'info', 'nine', '{"bytes":"delta-9"}'::jsonb, '2026-08-01T00:00:04.000Z')
         `);
       } finally {
         await sql.end();
@@ -1893,24 +1893,24 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         expect(nativeRowsBefore.every((row) => row.row_count === 0)).toBe(true);
 
         await verifySql`
-          INSERT INTO companies (id, name, issue_prefix)
-          VALUES (${otherCompanyId}, 'Other native persistence fixture', 'ONP')
+          INSERT INTO spaces (id, name, issue_prefix)
+          VALUES (${otherSpaceId}, 'Other native persistence fixture', 'ONP')
         `;
         await verifySql`
-          INSERT INTO agents (id, company_id, name)
-          VALUES (${otherAgentId}, ${otherCompanyId}, 'Other native migration agent')
+          INSERT INTO agents (id, space_id, name)
+          VALUES (${otherAgentId}, ${otherSpaceId}, 'Other native migration agent')
         `;
         await verifySql`
           INSERT INTO heartbeat_runs (
-            id, company_id, agent_id, status, native_issue_id, completion_contract_id
+            id, space_id, agent_id, status, native_issue_id, completion_contract_id
           ) VALUES (
-            ${otherRunId}, ${otherCompanyId}, ${otherAgentId}, 'succeeded',
+            ${otherRunId}, ${otherSpaceId}, ${otherAgentId}, 'succeeded',
             ${otherIssueId}, ${otherContractId}
           )
         `;
         await verifySql`
-          INSERT INTO issues (id, company_id, title, status)
-          VALUES (${otherIssueId}, ${otherCompanyId}, 'Other native issue', 'in_progress')
+          INSERT INTO issues (id, space_id, title, status)
+          VALUES (${otherIssueId}, ${otherSpaceId}, 'Other native issue', 'in_progress')
         `;
         await verifySql`
           UPDATE heartbeat_runs
@@ -1920,34 +1920,34 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
 
         await expect(verifySql`
           INSERT INTO completion_contracts (
-            company_id, issue_id, revision, schema_version, policy_version,
+            space_id, issue_id, revision, schema_version, policy_version,
             risk, completion_authority, incomplete_criteria_policy, contract_json,
             canonical_sha256, created_by_actor_type, created_by_actor_id
           ) VALUES (
-            ${companyId}, ${otherIssueId}, 1, 'outpost.completion-contract.v1',
+            ${spaceId}, ${otherIssueId}, 1, 'outpost.completion-contract.v1',
             'policy-v1', 'low', 'server', 'review', ${JSON.stringify({ criteria: [] })}::jsonb,
-            'cross-company-contract-sha', 'system', 'migration-test'
+            'cross-space-contract-sha', 'system', 'migration-test'
           )
-        `).rejects.toThrow(/completion_contracts_issue_company_fk/);
+        `).rejects.toThrow(/completion_contracts_issue_space_fk/);
 
         await verifySql`
           INSERT INTO completion_contracts (
-            id, company_id, issue_id, revision, schema_version, policy_version,
+            id, space_id, issue_id, revision, schema_version, policy_version,
             risk, completion_authority, incomplete_criteria_policy, contract_json,
             canonical_sha256, created_by_actor_type, created_by_actor_id
           ) VALUES (
-            ${contractId}, ${companyId}, ${issueId}, 1, 'outpost.completion-contract.v1',
+            ${contractId}, ${spaceId}, ${issueId}, 1, 'outpost.completion-contract.v1',
             'policy-v1', 'low', 'server', 'review', ${JSON.stringify({ criteria: [] })}::jsonb,
             'contract-sha', 'system', 'migration-test'
           )
         `;
         await verifySql`
           INSERT INTO completion_contracts (
-            id, company_id, issue_id, revision, schema_version, policy_version,
+            id, space_id, issue_id, revision, schema_version, policy_version,
             risk, completion_authority, incomplete_criteria_policy, contract_json,
             canonical_sha256, created_by_actor_type, created_by_actor_id
           ) VALUES (
-            ${otherContractId}, ${otherCompanyId}, ${otherIssueId}, 1,
+            ${otherContractId}, ${otherSpaceId}, ${otherIssueId}, 1,
             'outpost.completion-contract.v1', 'policy-v1', 'low', 'server', 'review',
             ${JSON.stringify({ criteria: [] })}::jsonb, 'other-contract-sha',
             'system', 'migration-test'
@@ -1956,41 +1956,41 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
 
         await expect(verifySql`
           INSERT INTO native_run_results (
-            company_id, issue_id, run_id, completion_contract_id,
+            space_id, issue_id, run_id, completion_contract_id,
             server_fingerprint, schema_status, result_json, canonical_sha256
           ) VALUES (
-            ${companyId}, ${issueId}, ${otherRunId}, ${contractId},
-            'cross-company-run', 'valid', ${JSON.stringify({ summary: "invalid" })}::jsonb,
-            'cross-company-run-sha'
+            ${spaceId}, ${issueId}, ${otherRunId}, ${contractId},
+            'cross-space-run', 'valid', ${JSON.stringify({ summary: "invalid" })}::jsonb,
+            'cross-space-run-sha'
           )
         `).rejects.toThrow(/native_run_results_run_contract_owner_fk/);
 
         await expect(verifySql`
           INSERT INTO native_run_results (
-            company_id, issue_id, run_id, completion_contract_id,
+            space_id, issue_id, run_id, completion_contract_id,
             server_fingerprint, schema_status, result_json, canonical_sha256
           ) VALUES (
-            ${companyId}, ${issueId}, ${runId}, ${otherContractId},
-            'cross-company-contract', 'valid', ${JSON.stringify({ summary: "invalid" })}::jsonb,
-            'cross-company-contract-sha'
+            ${spaceId}, ${issueId}, ${runId}, ${otherContractId},
+            'cross-space-contract', 'valid', ${JSON.stringify({ summary: "invalid" })}::jsonb,
+            'cross-space-contract-sha'
           )
         `).rejects.toThrow(/native_run_results_run_contract_owner_fk/);
 
         await verifySql`
           INSERT INTO native_run_results (
-            id, company_id, issue_id, run_id, completion_contract_id,
+            id, space_id, issue_id, run_id, completion_contract_id,
             server_fingerprint, schema_status, result_json, canonical_sha256
           ) VALUES (
-            ${resultId}, ${companyId}, ${issueId}, ${runId}, ${contractId},
+            ${resultId}, ${spaceId}, ${issueId}, ${runId}, ${contractId},
             'result-fingerprint', 'valid', ${JSON.stringify({ summary: "done" })}::jsonb, 'result-sha'
           )
         `;
         await verifySql`
           INSERT INTO native_run_results (
-            id, company_id, issue_id, run_id, completion_contract_id,
+            id, space_id, issue_id, run_id, completion_contract_id,
             server_fingerprint, schema_status, result_json, canonical_sha256
           ) VALUES (
-            ${otherResultId}, ${otherCompanyId}, ${otherIssueId}, ${otherRunId},
+            ${otherResultId}, ${otherSpaceId}, ${otherIssueId}, ${otherRunId},
             ${otherContractId}, 'other-result-fingerprint', 'valid',
             ${JSON.stringify({ summary: "other" })}::jsonb, 'other-result-sha'
           )
@@ -1998,49 +1998,49 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
 
         await expect(verifySql`
           INSERT INTO work_assessments (
-            company_id, issue_id, run_id, contract_id, result_id,
-            trigger_kind, trigger_actor_company_id, prior_issue_status,
+            space_id, issue_id, run_id, contract_id, result_id,
+            trigger_kind, trigger_actor_space_id, prior_issue_status,
             prior_status_version, policy_version, assessment_json, input_digest
           ) VALUES (
-            ${companyId}, ${issueId}, ${runId}, ${contractId}, ${otherResultId},
-            'run_terminal', ${companyId}, 'in_progress', 0, 'policy-v1',
+            ${spaceId}, ${issueId}, ${runId}, ${contractId}, ${otherResultId},
+            'run_terminal', ${spaceId}, 'in_progress', 0, 'policy-v1',
             ${JSON.stringify({ disposition: "invalid" })}::jsonb,
-            'cross-company-assessment-input-sha'
+            'cross-space-assessment-input-sha'
           )
         `).rejects.toThrow(/work_assessments_result_owner_fk/);
 
         await expect(verifySql`
           INSERT INTO work_assessments (
-            company_id, issue_id, run_id, contract_id, result_id,
-            trigger_kind, trigger_actor_company_id, prior_issue_status,
+            space_id, issue_id, run_id, contract_id, result_id,
+            trigger_kind, trigger_actor_space_id, prior_issue_status,
             prior_status_version, policy_version, assessment_json, input_digest
           ) VALUES (
-            ${companyId}, ${issueId}, ${runId}, ${contractId}, ${resultId},
-            'run_terminal', ${otherCompanyId}, 'in_progress', 0, 'policy-v1',
+            ${spaceId}, ${issueId}, ${runId}, ${contractId}, ${resultId},
+            'run_terminal', ${otherSpaceId}, 'in_progress', 0, 'policy-v1',
             ${JSON.stringify({ disposition: "invalid" })}::jsonb,
-            'cross-company-trigger-input-sha'
+            'cross-space-trigger-input-sha'
           )
-        `).rejects.toThrow(/work_assessments_trigger_actor_company_check/);
+        `).rejects.toThrow(/work_assessments_trigger_actor_space_check/);
 
         await verifySql`
           INSERT INTO work_assessments (
-            id, company_id, issue_id, run_id, contract_id, result_id,
-            trigger_kind, trigger_actor_company_id, prior_issue_status,
+            id, space_id, issue_id, run_id, contract_id, result_id,
+            trigger_kind, trigger_actor_space_id, prior_issue_status,
             prior_status_version, policy_version, assessment_json, input_digest
           ) VALUES (
-            ${assessmentId}, ${companyId}, ${issueId}, ${runId}, ${contractId}, ${resultId},
-            'run_terminal', ${companyId}, 'in_progress', 0, 'policy-v1',
+            ${assessmentId}, ${spaceId}, ${issueId}, ${runId}, ${contractId}, ${resultId},
+            'run_terminal', ${spaceId}, 'in_progress', 0, 'policy-v1',
             ${JSON.stringify({ disposition: "done" })}::jsonb, 'assessment-input-sha'
           )
         `;
         await verifySql`
           INSERT INTO work_assessments (
-            id, company_id, issue_id, run_id, contract_id, result_id,
-            trigger_kind, trigger_actor_company_id, prior_issue_status,
+            id, space_id, issue_id, run_id, contract_id, result_id,
+            trigger_kind, trigger_actor_space_id, prior_issue_status,
             prior_status_version, policy_version, assessment_json, input_digest
           ) VALUES (
-            ${otherAssessmentId}, ${otherCompanyId}, ${otherIssueId}, ${otherRunId},
-            ${otherContractId}, ${otherResultId}, 'run_terminal', ${otherCompanyId},
+            ${otherAssessmentId}, ${otherSpaceId}, ${otherIssueId}, ${otherRunId},
+            ${otherContractId}, ${otherResultId}, 'run_terminal', ${otherSpaceId},
             'in_progress', 0, 'policy-v1',
             ${JSON.stringify({ disposition: "done" })}::jsonb, 'other-assessment-input-sha'
           )
@@ -2048,34 +2048,34 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
 
         await expect(verifySql`
           INSERT INTO status_decisions (
-            company_id, issue_id, run_id, assessment_id, decision_version,
+            space_id, issue_id, run_id, assessment_id, decision_version,
             policy_version, from_status, to_status, reason_code,
             decision_json, decision_digest
           ) VALUES (
-            ${companyId}, ${issueId}, ${runId}, ${otherAssessmentId}, 1,
+            ${spaceId}, ${issueId}, ${runId}, ${otherAssessmentId}, 1,
             'policy-v1', 'in_progress', 'done', 'native_result_accepted',
-            ${JSON.stringify({ toStatus: "done" })}::jsonb, 'cross-company-decision-sha'
+            ${JSON.stringify({ toStatus: "done" })}::jsonb, 'cross-space-decision-sha'
           )
         `).rejects.toThrow(/status_decisions_assessment_owner_fk/);
 
         await verifySql`
           INSERT INTO status_decisions (
-            id, company_id, issue_id, run_id, assessment_id, decision_version,
+            id, space_id, issue_id, run_id, assessment_id, decision_version,
             policy_version, from_status, to_status, reason_code,
             decision_json, decision_digest
           ) VALUES (
-            ${decisionId}, ${companyId}, ${issueId}, ${runId}, ${assessmentId}, 1,
+            ${decisionId}, ${spaceId}, ${issueId}, ${runId}, ${assessmentId}, 1,
             'policy-v1', 'in_progress', 'done', 'native_result_accepted',
             ${JSON.stringify({ toStatus: "done" })}::jsonb, 'decision-sha'
           )
         `;
         await verifySql`
           INSERT INTO status_decisions (
-            id, company_id, issue_id, run_id, assessment_id, decision_version,
+            id, space_id, issue_id, run_id, assessment_id, decision_version,
             policy_version, from_status, to_status, reason_code,
             decision_json, decision_digest
           ) VALUES (
-            ${otherDecisionId}, ${otherCompanyId}, ${otherIssueId}, ${otherRunId},
+            ${otherDecisionId}, ${otherSpaceId}, ${otherIssueId}, ${otherRunId},
             ${otherAssessmentId}, 1, 'policy-v1', 'in_progress', 'done',
             'native_result_accepted', ${JSON.stringify({ toStatus: "done" })}::jsonb,
             'other-decision-sha'
@@ -2084,38 +2084,38 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
 
         await expect(verifySql`
           INSERT INTO status_decision_effects (
-            company_id, issue_id, decision_id, ordinal, effect_kind,
+            space_id, issue_id, decision_id, ordinal, effect_kind,
             target_type, idempotency_key, payload
           ) VALUES (
-            ${companyId}, ${issueId}, ${otherDecisionId}, 0, 'update_issue_status',
-            'issue', 'cross-company-decision-effect', ${JSON.stringify({ status: "done" })}::jsonb
+            ${spaceId}, ${issueId}, ${otherDecisionId}, 0, 'update_issue_status',
+            'issue', 'cross-space-decision-effect', ${JSON.stringify({ status: "done" })}::jsonb
           )
         `).rejects.toThrow(/status_decision_effects_decision_owner_fk/);
 
         await verifySql`
           INSERT INTO status_decision_effects (
-            company_id, issue_id, decision_id, ordinal, effect_kind,
+            space_id, issue_id, decision_id, ordinal, effect_kind,
             target_type, idempotency_key, payload
           ) VALUES (
-            ${companyId}, ${issueId}, ${decisionId}, 0, 'update_issue_status',
+            ${spaceId}, ${issueId}, ${decisionId}, 0, 'update_issue_status',
             'issue', 'decision-effect-1', ${JSON.stringify({ status: "done" })}::jsonb
           )
         `;
 
         await expect(verifySql`
           INSERT INTO native_run_finalizations (
-            run_id, company_id, issue_id, phase, result_id, assessment_id, decision_id
+            run_id, space_id, issue_id, phase, result_id, assessment_id, decision_id
           ) VALUES (
-            ${runId}, ${companyId}, ${issueId}, 'committed', ${resultId},
+            ${runId}, ${spaceId}, ${issueId}, 'committed', ${resultId},
             ${assessmentId}, ${otherDecisionId}
           )
         `).rejects.toThrow(/native_run_finalizations_decision_owner_fk/);
 
         await verifySql`
           INSERT INTO native_run_finalizations (
-            run_id, company_id, issue_id, phase, result_id, assessment_id, decision_id
+            run_id, space_id, issue_id, phase, result_id, assessment_id, decision_id
           ) VALUES (
-            ${runId}, ${companyId}, ${issueId}, 'committed', ${resultId}, ${assessmentId}, ${decisionId}
+            ${runId}, ${spaceId}, ${issueId}, 'committed', ${resultId}, ${assessmentId}, ${decisionId}
           )
         `;
 
@@ -2156,7 +2156,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
             (
               SELECT count(*)::int
               FROM pg_trigger
-              WHERE tgname = 'paperclip_issue_status_version_trigger'
+              WHERE tgname = 'outpost_issue_status_version_trigger'
                 AND NOT tgisinternal
             ) AS trigger_count,
             (
@@ -2192,7 +2192,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
         expect(await replaySql`SELECT status_version::int FROM issues WHERE id = ${issueId}`)
           .toEqual([{ status_version: 3 }]);
         expect(await replaySql`SELECT count(*)::int AS count FROM pg_trigger
-          WHERE tgname = 'paperclip_issue_assignment_version_trigger' AND NOT tgisinternal`)
+          WHERE tgname = 'outpost_issue_assignment_version_trigger' AND NOT tgisinternal`)
           .toEqual([{ count: 1 }]);
         await replaySql`UPDATE issues SET assignee_user_id = null WHERE id = ${issueId}`;
         expect(await replaySql`SELECT status_version::int FROM issues WHERE id = ${issueId}`)
@@ -2236,44 +2236,44 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
     async () => {
       const connectionString = await createTempDatabase();
       const hash = await migrationHash("0236_remove_cheap_model_profiles.sql");
-      const companyId = "10000000-0000-4000-8000-000000000236";
+      const spaceId = "10000000-0000-4000-8000-000000000236";
       const agentId = "20000000-0000-4000-8000-000000000236";
       const issueId = "30000000-0000-4000-8000-000000000236";
       const sql = postgres(connectionString, { max: 1, onnotice: () => {} });
 
       try {
         await sql`
-          INSERT INTO companies (id, name, issue_prefix)
-          VALUES (${companyId}, 'Model profile migration fixture', 'MPF')
+          INSERT INTO spaces (id, name, issue_prefix)
+          VALUES (${spaceId}, 'Model profile migration fixture', 'MPF')
         `;
         await sql`
-          INSERT INTO agents (id, company_id, name, runtime_config)
+          INSERT INTO agents (id, space_id, name, runtime_config)
           VALUES (
             ${agentId},
-            ${companyId},
+            ${spaceId},
             'Legacy model profile agent',
             '{"heartbeat":{"enabled":true},"modelProfiles":{"cheap":{"model":"legacy"}}}'::jsonb
           )
         `;
         await sql`
-          INSERT INTO issues (id, company_id, title, assignee_adapter_overrides)
+          INSERT INTO issues (id, space_id, title, assignee_adapter_overrides)
           VALUES (
             ${issueId},
-            ${companyId},
+            ${spaceId},
             'Legacy model profile issue',
             '{"modelProfile":"cheap","workingDirectory":"/workspace"}'::jsonb
           )
         `;
         await sql`
           INSERT INTO agent_config_revisions (
-            company_id,
+            space_id,
             agent_id,
             changed_keys,
             before_config,
             after_config
           )
           VALUES (
-            ${companyId},
+            ${spaceId},
             ${agentId},
             '["runtimeConfig"]'::jsonb,
             '{"name":"Legacy model profile agent","runtimeConfig":{"modelProfiles":{"cheap":{"model":"legacy-before"}},"heartbeat":{"enabled":true}}}'::jsonb,
@@ -2304,7 +2304,7 @@ describeEmbeddedPostgres("applyPendingMigrations", () => {
             revision.before_config,
             revision.after_config
           FROM agents agent
-          JOIN issues issue ON issue.company_id = agent.company_id
+          JOIN issues issue ON issue.space_id = agent.space_id
           JOIN agent_config_revisions revision ON revision.agent_id = agent.id
           WHERE agent.id = '${agentId}' AND issue.id = '${issueId}'
         `);

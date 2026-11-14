@@ -4,7 +4,7 @@ import { canonicalJson } from "../../packages/shared/src/portability-hash.js";
 import { approvePiBootstrapRead, withoutApprovedPiBootstrapRequests, type PiBootstrapApproval } from "./pi-bootstrap-permission.js";
 import { observePiControlPending, readPiStopSettlement, readPiSteeringSettlement } from "./pi-controls-evidence.js";
 import { piCancellationId, piControlCaller, piControlFixture } from "./pi-controls-test-fixture.js";
-const actionFile = `.paperclip-eval-action-${"a".repeat(36)}.txt`;
+const actionFile = `.outpost-eval-action-${"a".repeat(36)}.txt`;
 const digest = (value: unknown) => `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
 function fixture() {
   const f = piControlFixture(), write = structuredClone(f.events);
@@ -17,7 +17,7 @@ function fixture() {
     f.append("tool.execution.completed", { ...read, status: "completed" });
     for (const row of write) f.append(row.eventType, row.payload.orpEvent.payload);
   };
-  const proof = (): PiBootstrapApproval => ({ schema: "outpost.e2e.pi-bootstrap-read-approval.v1", companyId: f.scope.companyId, issueId: f.scope.issueId, runId: f.scope.runId, actionFile, publishedSha256: `sha256:${"b".repeat(64)}`,
+  const proof = (): PiBootstrapApproval => ({ schema: "outpost.e2e.pi-bootstrap-read-approval.v1", spaceId: f.scope.spaceId, issueId: f.scope.issueId, runId: f.scope.runId, actionFile, publishedSha256: `sha256:${"b".repeat(64)}`,
     requestId: "setup-request", toolCallId: "setup-tool", turnId: "turn", normalizedSessionId: "session", sourceInstanceId: "source",
     createdRowSha256: digest(f.events[1]), resolvedRowSha256: digest(f.events[2]), completedRowSha256: digest(f.events[3]) });
   return { ...f, read, finish, proof };
@@ -28,8 +28,8 @@ describe("Pi operator setup read", () => {
     const f = fixture(), saved = new Map<string, unknown>(); let posts = 0;
     const result = await approvePiBootstrapRead({
       api: { post: async (path: string, data: unknown) => { expect(path).toBe("/api/heartbeat-runs/run/runtime-requests/setup-request/resolve"); expect(data).toEqual({ turnId: "turn", requestKind: "permission_approval", resolution: { action: "accept" } }); posts++; f.finish(); } } as any,
-      fixture: { actionFile, binding: { companyId: "company", runId: "run" }, snapshot: async () => ({ complete: true, setup: { path: actionFile, published: true, sha256: `sha256:${"b".repeat(64)}` } }) } as any,
-      companyId: "company", issueId: "issue", runId: "run", deadlineAt: Date.now() + 2000, load: async () => f.state(), evidence: async (name, value) => { saved.set(name, value); },
+      fixture: { actionFile, binding: { spaceId: "space", runId: "run" }, snapshot: async () => ({ complete: true, setup: { path: actionFile, published: true, sha256: `sha256:${"b".repeat(64)}` } }) } as any,
+      spaceId: "space", issueId: "issue", runId: "run", deadlineAt: Date.now() + 2000, load: async () => f.state(), evidence: async (name, value) => { saved.set(name, value); },
     });
     expect(posts).toBe(1); expect(result).toEqual(f.proof()); expect(saved.has("pi-bootstrap-read-before-approval.json")).toBe(true);
     const pending = observePiControlPending({ ...f.state(), scope: f.scope, bootstrapApproval: result });
@@ -41,8 +41,8 @@ describe("Pi operator setup read", () => {
     if (failure === "other-file") f.events[0]!.payload.orpEvent.payload.target = "private.txt";
     if (failure === "shell") { f.events[0]!.payload.orpEvent.payload.name = "bash"; f.events[0]!.payload.orpEvent.payload.operation = "execute"; }
     await expect(approvePiBootstrapRead({ api: { post: async () => { posts++; } } as any,
-      fixture: { actionFile, binding: { companyId: failure === "foreign-binding" ? "other" : "company", runId: "run" }, snapshot: async () => ({ complete: true, setup: { path: actionFile, published: failure !== "unpublished", sha256: `sha256:${"b".repeat(64)}` } }) } as any,
-      companyId: "company", issueId: "issue", runId: "run", deadlineAt: Date.now() + 2000, load: async () => f.state(), evidence: async () => {},
+      fixture: { actionFile, binding: { spaceId: failure === "foreign-binding" ? "other" : "space", runId: "run" }, snapshot: async () => ({ complete: true, setup: { path: actionFile, published: failure !== "unpublished", sha256: `sha256:${"b".repeat(64)}` } }) } as any,
+      spaceId: "space", issueId: "issue", runId: "run", deadlineAt: Date.now() + 2000, load: async () => f.state(), evidence: async () => {},
     })).rejects.toThrow("Pi bootstrap"); expect(posts).toBe(0);
   });
 

@@ -4,18 +4,18 @@ const record = (value: object) => "Checked the supplied page.\n\n```json\n" + JS
 const missingLabel = { check: "Every input has a visible associated label", element: '<input type="email" id="trial-email">' };
 function setOutput(o: ReturnType<typeof valid>, output: string) { const run = o.studioRuns[0]!; run.outputBody = output; run.outputSnapshot = output; run.documents[0]!.body = output; }
 function valid() {
-  const skill = { id: "skill", companyId: "company", currentVersionId: "revision", markdown: "Inspect visible form labels", editable: true };
+  const skill = { id: "skill", spaceId: "space", currentVersionId: "revision", markdown: "Inspect visible form labels", editable: true };
   const output = record({ passed: 3, failed: 1, failures: [missingLabel] });
-  const run = { id: "test", companyId: "company", skillId: "skill", agentId: "morgan", skillVersionId: "revision", skillVersion: { id: "revision", companyId: "company", companySkillId: "skill", authorAgentId: null as string | null, authorUserId: "person", fileInventory: [{ path: "SKILL.md", kind: "markdown" }] },
+  const run = { id: "test", spaceId: "space", skillId: "skill", agentId: "morgan", skillVersionId: "revision", skillVersion: { id: "revision", spaceId: "space", spaceSkillId: "skill", authorAgentId: null as string | null, authorUserId: "person", fileInventory: [{ path: "SKILL.md", kind: "markdown" }] },
     inputId: "input", inputSnapshot: studioPageInput, status: "succeeded", issueId: "harness", harnessIssue: { id: "harness", identifier: "COM-2", status: "done" }, harnessContent: { available: true },
     outputBody: output, outputSnapshot: output, outputDocumentKey: "output", documents: [{ key: "output", body: output }], interactions: [] };
-  return { scenarioId: "skills.studio-test", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { skill: structuredClone(skill), input: { id: "input" }, worker: { id: "morgan" } },
+  return { scenarioId: "skills.studio-test", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { skill: structuredClone(skill), input: { id: "input" }, worker: { id: "morgan" } },
     tasks: [], projects: [], goals: [], comments: [], documents: [], revisions: [], humanQueries: [], activity: [], links: [],
     runs: [
-      { id: "initial", companyId: "company", agentId: "ceo", runtimeMode: "native", status: "succeeded", startedAt: "2026-11-03T00:00:00Z", contextSnapshot: { issueId: "source", commentId: "human" } as Record<string, unknown> },
-      { id: "native", companyId: "company", agentId: "morgan", runtimeMode: "native", status: "succeeded", startedAt: "2026-11-03T00:01:00Z", contextSnapshot: { issueId: "harness" } as Record<string, unknown> },
-      { id: "completion", companyId: "company", agentId: "ceo", runtimeMode: "native", status: "succeeded", startedAt: "2026-11-03T00:03:00Z", contextSnapshot: { issueId: "source", wakeReason: "chat_task_completed", wakeSource: "automation", chatCompletionDeliveryIds: ["delivery"], chatCompletionUpdates: [{ id: "harness", status: "done", completedAt: "2026-11-03T00:02:00Z" }] } as Record<string, unknown> },
-    ], skill, studioRuns: [run], pinnedVersions: { test: { id: "revision", companyId: "company", companySkillId: "skill", authorAgentId: null as string | null, authorUserId: "person", fileInventory: [{ path: "SKILL.md", content: skill.markdown }] } }, sourceIssueId: "source",
+      { id: "initial", spaceId: "space", agentId: "ceo", runtimeMode: "native", status: "succeeded", startedAt: "2026-11-03T00:00:00Z", contextSnapshot: { issueId: "source", commentId: "human" } as Record<string, unknown> },
+      { id: "native", spaceId: "space", agentId: "morgan", runtimeMode: "native", status: "succeeded", startedAt: "2026-11-03T00:01:00Z", contextSnapshot: { issueId: "harness" } as Record<string, unknown> },
+      { id: "completion", spaceId: "space", agentId: "ceo", runtimeMode: "native", status: "succeeded", startedAt: "2026-11-03T00:03:00Z", contextSnapshot: { issueId: "source", wakeReason: "chat_task_completed", wakeSource: "automation", chatCompletionDeliveryIds: ["delivery"], chatCompletionUpdates: [{ id: "harness", status: "done", completedAt: "2026-11-03T00:02:00Z" }] } as Record<string, unknown> },
+    ], skill, studioRuns: [run], pinnedVersions: { test: { id: "revision", spaceId: "space", spaceSkillId: "skill", authorAgentId: null as string | null, authorUserId: "person", fileInventory: [{ path: "SKILL.md", content: skill.markdown }] } }, sourceIssueId: "source",
     sourceComments: [{ id: "human", authorUserId: "person", body: "Test this skill on our sample landing page.", authorAgentId: null as string | null, createdByRunId: undefined as string | undefined, createdAt: "2026-11-03T00:00:00Z" },
       { id: "completed-reply", authorUserId: undefined, authorAgentId: "ceo", createdByRunId: "completion", createdAt: "2026-11-03T00:04:00Z", body: "The test finished: [COM-2](/COM/issues/COM-2#document-output) has the saved result." }],
     reply: "Started one Studio test on the saved sample and selected accessibility revision. You can inspect the result there; this does not qualify other pages." };
@@ -79,9 +79,9 @@ describe("source-bound Studio native accounting", () => {
     o.sourceComments[1]!.createdByRunId = "initial";
     expect(studioNativeRunsComplete(o)).toBe(false); expect(gradeIntegratorSkillStudio(o).passed).toBe(false);
   });
-  it.each(["wrong company", "wrong source", "wrong worker", "extra worker", "missing delivery", "ambiguous delivery", "wrong task", "unfinished task", "wrong wake", "missing response", "early response", "ambiguous response", "cancelled", "unfinished", "wrong human", "before task", "missing detail", "wrong version detail", "foreign version detail", "wrong version author", "wrong summary company"])("rejects %s without hiding extra or incomplete work", fault => {
+  it.each(["wrong space", "wrong source", "wrong worker", "extra worker", "missing delivery", "ambiguous delivery", "wrong task", "unfinished task", "wrong wake", "missing response", "early response", "ambiguous response", "cancelled", "unfinished", "wrong human", "before task", "missing detail", "wrong version detail", "foreign version detail", "wrong version author", "wrong summary space"])("rejects %s without hiding extra or incomplete work", fault => {
     const o = valid(), completion = o.runs[2]!, context = completion.contextSnapshot;
-    if (fault === "wrong company") completion.companyId = "foreign";
+    if (fault === "wrong space") completion.spaceId = "foreign";
     if (fault === "wrong source") context.issueId = "foreign";
     if (fault === "wrong worker") o.runs[1]!.agentId = "foreign";
     if (fault === "extra worker") o.runs.push({ ...o.runs[1]!, id: "extra" });
@@ -99,9 +99,9 @@ describe("source-bound Studio native accounting", () => {
     if (fault === "before task") completion.startedAt = "2026-11-03T00:01:00Z";
     if (fault === "missing detail") delete (o.pinnedVersions as Record<string, unknown>).test;
     if (fault === "wrong version detail") o.pinnedVersions.test.id = "different-version";
-    if (fault === "foreign version detail") o.pinnedVersions.test.companyId = "foreign";
+    if (fault === "foreign version detail") o.pinnedVersions.test.spaceId = "foreign";
     if (fault === "wrong version author") o.pinnedVersions.test.authorUserId = "foreign";
-    if (fault === "wrong summary company") o.studioRuns[0]!.skillVersion.companyId = "foreign";
+    if (fault === "wrong summary space") o.studioRuns[0]!.skillVersion.spaceId = "foreign";
     expect(gradeIntegratorSkillStudio(o).passed).toBe(false);
   });
 });

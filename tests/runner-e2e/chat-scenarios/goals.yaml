@@ -8,15 +8,15 @@ scenarios:
     capabilities:
       - goals/hierarchy
     context: >-
-      The company has a growth mission and no matching quarterly goal; the agent may create
+      The space has a growth mission and no matching quarterly goal; the agent may create
       goals.
     query: >-
-      Set a company goal of reaching a thousand signups, with a team goal for launching the
+      Set a space goal of reaching a thousand signups, with a team goal for launching the
       website.
     expected_outcome: >-
-      The saved goals have the requested levels and a valid same-company parent relationship.
+      The saved goals have the requested levels and a valid same-space parent relationship.
       Ownership may remain unassigned when none was requested; any assigned owner belongs to the
-      company. The saved hierarchy is inspectable through ordinary Goals navigation and public
+      space. The saved hierarchy is inspectable through ordinary Goals navigation and public
       readback, without invented progress metrics. A retry reuses the intended goals rather than
       creating another parallel tree.
   - id: goals.align-existing-work
@@ -24,18 +24,18 @@ scenarios:
       - goals/alignment
       - projects/defaults
     context: >-
-      Launch and the growth goal are accessible in the same company.
+      Launch and the growth goal are accessible in the same space.
     query: >-
       Tie the Launch project and website task to our growth goal.
     expected_outcome: >-
       The agent updates the allowed goal associations on the intended records and confirms them
-      through readback. Cross-company goals are rejected. The response distinguishes changing
+      through readback. Cross-space goals are rejected. The response distinguishes changing
       strategic context from changing task priority, ownership or execution state.
   - id: goals.explain-purpose
     capabilities:
       - goals/navigation
     context: >-
-      Website task links to Launch and a team goal beneath the company goal.
+      Website task links to Launch and a team goal beneath the space goal.
     query: >-
       Why are we doing this website task?
     expected_outcome: >-

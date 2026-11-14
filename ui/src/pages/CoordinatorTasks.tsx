@@ -1,4 +1,4 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { readTaskListSortParams, taskListOrderToIssueSort, type TaskListSort } from "@/lib/task-list";
 import { useDeferredValue, useEffect, useRef, useState, type ReactNode } from "react";
 import { useWarmTaskDetailCode } from "@/hooks/useWarmTaskDetailCode";
@@ -17,7 +17,7 @@ import { TruncatedTextMarqueeProvider } from "@/components/TruncatedText";
 import { Button } from "@/components/ui/button";
 import { FlyoutAppearanceProvider } from "@/components/ui/flyout";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useDialogActions } from "@/context/DialogContext";
 import { useTaskListCollection } from "@/hooks/useTaskListCollection";
 import { useIssueRowDetails } from "@/hooks/useIssueRowDetails";
@@ -25,7 +25,7 @@ import { useCoordinatorWorkspaceEnabled } from "@/hooks/useCoordinatorWorkspaceE
 import { usePublishSharedQueryData, useSharedPollingQuery } from "@/hooks/useSharedPolling";
 import { collectLiveIssueIds } from "@/lib/liveIssueIds";
 import { formatUserLabel } from "@/lib/assignees";
-import { buildCompanyUserProfileMap } from "@/lib/company-members";
+import { buildSpaceUserProfileMap } from "@/lib/space-members";
 import { coordinatorAttentionTasksQueryKey } from "@/lib/coordinator-attention";
 import { createIssueDetailLocationState } from "@/lib/issueDetailBreadcrumb";
 import { defaultIssueFilterState, type IssueFilterState } from "@/lib/issue-filters";
@@ -40,7 +40,7 @@ const pageSize = 200;
 /** Coordinator's existing IA and attention feed, rendered with the production
  * components reviewed in Design proposals / Pages / Tasks. */
 export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = {}) {
-  const { selectedCompanyId: companyId } = useCompany();
+  const { selectedSpaceId: spaceId } = useSpace();
   const { userId, loaded: identitySettled } = useCoordinatorWorkspaceEnabled();
   const { openNewIssue } = useDialogActions();
   const { setBreadcrumbs } = useBreadcrumbs();
@@ -54,7 +54,7 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
   const urlStatuses = JSON.stringify(params.getAll("status"));
   const urlLabels = JSON.stringify(params.getAll("label").filter(Boolean));
   const urlView = params.get("view");
-  const viewStorageKey = taskListViewStorageKey("coordinator", userId ?? "local-board");
+  const viewStorageKey = taskListViewStorageKey("coordinator", userId ?? "local-operator");
   const [preference, setPreference] = useState(() => ({ key: viewStorageKey, view: loadTaskListView(viewStorageKey) }));
   const savedView = preference.key === viewStorageKey ? preference.view : loadTaskListView(viewStorageKey);
   const explicitView = urlView === "needs_attention" ? "blocked" : taskListViews.find(option => option.value === urlView)?.value;
@@ -115,9 +115,9 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
   useEffect(() => { setBreadcrumbs([{ label: "Tasks" }]); }, [setBreadcrumbs]);
 
   const tasks = useInfiniteQuery({
-    queryKey: [...queryKeys.issues.list(companyId!), "coordinator-table", "index", userId, deferredQuery, participantAgentId, workspaceIds, originKind, serverSortField, serverSortDir, includeBlockedBy, view === "unread"],
+    queryKey: [...queryKeys.issues.list(spaceId!), "coordinator-table", "index", userId, deferredQuery, participantAgentId, workspaceIds, originKind, serverSortField, serverSortDir, includeBlockedBy, view === "unread"],
     queryFn: async ({ pageParam, signal }) => {
-      const pages = await Promise.all((workspaceIds.length ? workspaceIds : [undefined]).map(workspaceId => issuesApi.listCompact(companyId!, {
+      const pages = await Promise.all((workspaceIds.length ? workspaceIds : [undefined]).map(workspaceId => issuesApi.listCompact(spaceId!, {
       projection: "index", limit: pageSize, offset: pageParam, includeAgentCreatedTasks: true, includeRoutineExecutions: true,
       sortField: serverSortField, sortDir: serverSortDir,
       includeBlockedBy: includeBlockedBy || undefined, q: deferredQuery || undefined, participantAgentId, workspaceId, originKind,
@@ -127,18 +127,18 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
     },
     initialPageParam: 0,
     getNextPageParam: (last, _pages, offset) => last.hasNextPage ? offset + pageSize : undefined,
-    enabled: !!companyId && !needsAttention,
+    enabled: !!spaceId && !needsAttention,
   });
-  const attention = useQuery({ queryKey: coordinatorAttentionTasksQueryKey(companyId!),
-    queryFn: () => attentionApi.taskIndex(companyId!), enabled: !!companyId && needsAttention });
+  const attention = useQuery({ queryKey: coordinatorAttentionTasksQueryKey(spaceId!),
+    queryFn: () => attentionApi.taskIndex(spaceId!), enabled: !!spaceId && needsAttention });
   // Resolve every pending task in bounded index batches, including tasks outside
   // the first list page. Keep full task enrichment out of the collection read.
   const attentionIds = needsAttention ? attention.data?.taskIds ?? [] : [];
   const attentionBatches = Array.from({ length: Math.ceil(attentionIds.length / 100) }, (_, index) => attentionIds.slice(index * 100, (index + 1) * 100));
   const attentionTasks = useQueries({ queries: attentionBatches.map(ids => ({
-    queryKey: [...queryKeys.issues.list(companyId!), "coordinator-attention-index", userId, participantAgentId, deferredQuery, originKind, includeBlockedBy, ids],
+    queryKey: [...queryKeys.issues.list(spaceId!), "coordinator-attention-index", userId, participantAgentId, deferredQuery, originKind, includeBlockedBy, ids],
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
-      const rows = await issuesApi.listCompact(companyId!, {
+      const rows = await issuesApi.listCompact(spaceId!, {
         ids, projection: "index", limit: 100, q: deferredQuery || undefined, participantAgentId, originKind, includeBlockedBy: includeBlockedBy || undefined,
         includeAgentCreatedTasks: true, includeRoutineExecutions: true,
       }, { signal });
@@ -147,16 +147,16 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
       }
       return rows;
     },
-    enabled: !!companyId,
+    enabled: !!spaceId,
   })) });
-  const agents = useQuery({ queryKey: queryKeys.agents.list(companyId!), queryFn: () => agentsApi.list(companyId!), enabled: !!companyId });
-  const projects = useQuery({ ...companyProjectsQuery(companyId!, { includeArchived: true }), enabled: !!companyId });
-  const directory = useQuery({ queryKey: queryKeys.access.companyUserDirectory(companyId!), queryFn: () => accessApi.listUserDirectory(companyId!), enabled: !!companyId });
-  const labels = useQuery({ queryKey: queryKeys.issues.labels(companyId!), queryFn: () => issuesApi.listLabels(companyId!), enabled: !!companyId });
-  const sharedLiveRuns = useSharedPollingQuery({ companyId, resourceKey: "live-runs", queryKey: queryKeys.liveRuns(companyId!), enabled: !!companyId, refetchInterval: false, leaderOnly: true });
-  const liveRuns = useQuery({ queryKey: queryKeys.liveRuns(companyId!), queryFn: () => heartbeatsApi.liveRunsForCompany(companyId!), enabled: sharedLiveRuns.enabled, refetchInterval: sharedLiveRuns.refetchInterval });
+  const agents = useQuery({ queryKey: queryKeys.agents.list(spaceId!), queryFn: () => agentsApi.list(spaceId!), enabled: !!spaceId });
+  const projects = useQuery({ ...spaceProjectsQuery(spaceId!, { includeArchived: true }), enabled: !!spaceId });
+  const directory = useQuery({ queryKey: queryKeys.access.spaceUserDirectory(spaceId!), queryFn: () => accessApi.listUserDirectory(spaceId!), enabled: !!spaceId });
+  const labels = useQuery({ queryKey: queryKeys.issues.labels(spaceId!), queryFn: () => issuesApi.listLabels(spaceId!), enabled: !!spaceId });
+  const sharedLiveRuns = useSharedPollingQuery({ spaceId, resourceKey: "live-runs", queryKey: queryKeys.liveRuns(spaceId!), enabled: !!spaceId, refetchInterval: false, leaderOnly: true });
+  const liveRuns = useQuery({ queryKey: queryKeys.liveRuns(spaceId!), queryFn: () => heartbeatsApi.liveRunsForSpace(spaceId!), enabled: sharedLiveRuns.enabled, refetchInterval: sharedLiveRuns.refetchInterval });
   usePublishSharedQueryData(sharedLiveRuns, liveRuns.data, liveRuns.dataUpdatedAt);
-  const users = buildCompanyUserProfileMap(directory.data?.users);
+  const users = buildSpaceUserProfileMap(directory.data?.users);
   const agentById = new Map(agents.data?.map(agent => [agent.id, agent]));
   const projectById = new Map(projects.data?.map(project => [project.id, project]));
   const records = (needsAttention ? attentionTasks.flatMap(task => task.data ?? []) : tasks.data?.pages.flatMap(page => page.items) ?? []) as Issue[];
@@ -164,8 +164,8 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
   const parentIds = view === "unread" ? [...new Set(records.flatMap(issue =>
     issue.parentId && !unreadIds.has(issue.parentId) ? [issue.parentId] : []))].sort() : [];
   const parentContext = useQuery({
-    queryKey: [...queryKeys.issues.list(companyId!), "coordinator-unread-ancestors", userId, parentIds],
-    enabled: !!companyId && parentIds.length > 0,
+    queryKey: [...queryKeys.issues.list(spaceId!), "coordinator-unread-ancestors", userId, parentIds],
+    enabled: !!spaceId && parentIds.length > 0,
     queryFn: async ({ signal }) => {
       const parents: Issue[] = [];
       const seen = new Set(records.map(issue => issue.id));
@@ -174,7 +174,7 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
         for (const id of ids) seen.add(id);
         const rows: Issue[] = [];
         for (let offset = 0; offset < ids.length; offset += 100) {
-          rows.push(...await issuesApi.listCompact(companyId!, {
+          rows.push(...await issuesApi.listCompact(spaceId!, {
             ids: ids.slice(offset, offset + 100), projection: "index", limit: 100,
             includeAgentCreatedTasks: true, includeRoutineExecutions: true,
           }, { signal }) as Issue[]);
@@ -196,7 +196,7 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
     assigneeAgent: agentById.get(issue.assigneeAgentId ?? ""),
     assigneeUserAvatarUrl: users.get(issue.assigneeUserId ?? "")?.image,
   }));
-  const collection = useTaskListCollection({ items, companyId, userId, query, onQueryChange: setQuery, view: needsAttention ? "all" : view,
+  const collection = useTaskListCollection({ items, spaceId, userId, query, onQueryChange: setQuery, view: needsAttention ? "all" : view,
     layout, onLayoutChange: setLayout,
     searchMode: "server",
     liveIssueIds: collectLiveIssueIds(liveRuns.data, records),
@@ -246,7 +246,7 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
     navigate({ search: next.toString(), hash: location.hash }, { replace: true });
   };
   const update = useMutation({ mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => issuesApi.update(id, data),
-    onSuccess: () => { void client.invalidateQueries({ queryKey: queryKeys.issues.list(companyId!) }); void client.invalidateQueries({ queryKey: queryKeys.attention(companyId!) }); },
+    onSuccess: () => { void client.invalidateQueries({ queryKey: queryKeys.issues.list(spaceId!) }); void client.invalidateQueries({ queryKey: queryKeys.attention(spaceId!) }); },
   });
   const error = (needsAttention ? attention.error ?? attentionTasks.find(task => task.error)?.error : tasks.error)
     ?? (view === "unread" ? parentContext.error : null)
@@ -257,7 +257,7 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
     || (collection.filters.liveOnly && liveRuns.isPending);
   useWarmTaskDetailCode(!pending && !error && items.length > 0);
   const { enrichIssueRow, error: rowDetailsError, retry: retryRowDetails } = useIssueRowDetails(
-    companyId, listRef,
+    spaceId, listRef,
     `${collection.visibleItems.map(item => item.issue.id).join(",")}:${[...collection.collapsedIds].join(",")}:${collection.layout}`,
     !pending && !error,
     recordsWithContext,
@@ -278,7 +278,7 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
     if (collection.filters.liveOnly) void liveRuns.refetch();
   };
 
-  if (!companyId) return <EmptyState icon={ListChecks} message="Select an outpost to view tasks." />;
+  if (!spaceId) return <EmptyState icon={ListChecks} message="Select an outpost to view tasks." />;
   return <FlyoutAppearanceProvider><TruncatedTextMarqueeProvider><section ref={listRef} className="coordinator-task-list task-row-design-preview flex min-w-0 flex-col gap-8" aria-label="Tasks">
     <TaskListToolbar view={view} onViewChange={setView} viewControl={viewControl}
       query={collection.query} onQueryChange={collection.setQuery} layout={collection.layout} onLayoutChange={collection.setLayout}
@@ -288,11 +288,11 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
     {error ? <div role="alert" className="flex items-center gap-2 text-sm text-destructive"><span>{error instanceof Error ? error.message : "Could not load tasks"}</span><Button variant="outline" size="sm" onClick={retry}>Retry</Button></div> : null}
     {rowDetailsError ? <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><span>Task details couldn’t load.</span><Button variant="ghost" size="sm" onClick={() => void retryRowDetails()}>Retry</Button></div> : null}
     {pending ? <p role="status" className="text-sm text-muted-foreground">Loading tasks…</p> : !error && <>
-      <div hidden={collection.layout !== "list"} className="design-task-list-panel">{collection.matchingItems.length ? <TaskList key={companyId}
-        items={(needsAttention ? collection.matchingItems : collection.visibleItems).map(enrichItem)} allItems={collection.companyItems.map(enrichItem)}
-        preferenceLocation={userId ? { companyId, collectionKey: `coordinator-tasks:${userId}` } : undefined}
-        collectionKey={JSON.stringify([companyId, userId, needsAttention, deferredQuery, participantAgentId, workspaceIds, collection.view, collection.filters])}
-        sort={sort} onSortChange={setSort} preloadCompanyId={collection.layout === "list" ? companyId : null}
+      <div hidden={collection.layout !== "list"} className="design-task-list-panel">{collection.matchingItems.length ? <TaskList key={spaceId}
+        items={(needsAttention ? collection.matchingItems : collection.visibleItems).map(enrichItem)} allItems={collection.spaceItems.map(enrichItem)}
+        preferenceLocation={userId ? { spaceId, collectionKey: `coordinator-tasks:${userId}` } : undefined}
+        collectionKey={JSON.stringify([spaceId, userId, needsAttention, deferredQuery, participantAgentId, workspaceIds, collection.view, collection.filters])}
+        sort={sort} onSortChange={setSort} preloadSpaceId={collection.layout === "list" ? spaceId : null}
         issueLinkState={issueLinkState} collapsedIds={collection.collapsedIds} onCollapsedIdsChange={collection.setCollapsedIds} /> : empty}</div>
       {collection.layout === "board" ? collection.matchingItems.length
         ? <KanbanBoard showOverflowFades issues={collection.matchingItems.map(item => enrichIssueRow(item.issue))} agents={agents.data} onUpdateIssue={(id, data) => update.mutate({ id, data })} /> : empty : null}

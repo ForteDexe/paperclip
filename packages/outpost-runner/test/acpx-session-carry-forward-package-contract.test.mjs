@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url);
 const root = process.env.OUTPOST_TEST_ACPX_PACKAGE_ROOT ?? dirname(require.resolve("acpx/package.json"));
 const { createAcpRuntime, createAgentRegistry, createRuntimeStore } = await import(pathToFileURL(join(root, "dist/runtime.js")));
 
-// This record was written by the previous release: ACPX 0.13.1 with Paperclip's
+// This record was written by the previous release: ACPX 0.13.1 with Outpost's
 // 0.13.1 patch, after one completed turn. Only absolute paths were replaced.
 const savedRecord = JSON.parse(await readFile(new URL("./fixtures/acpx-0.13.1-session-record.json", import.meta.url), "utf8"));
 const peer = String.raw`

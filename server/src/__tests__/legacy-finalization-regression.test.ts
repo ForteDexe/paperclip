@@ -5,8 +5,8 @@ import { eq } from "drizzle-orm";
 import {
   agents,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   completionContracts,
   createDb,
   heartbeatRuns,
@@ -52,18 +52,18 @@ import { reconcileNativeFinalizations } from "../services/native-runtime/native-
 describe("P6-32 legacy finalization regression", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   const projectId = randomUUID();
   const projectWorkspaceId = randomUUID();
   const issueId = randomUUID();
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-legacy-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-native-legacy-");
     db = createDb(temporary.connectionString);
     await instanceSettingsService(db).updateExperimental({ enableNativeRunner: false });
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Legacy snapshot",
       issuePrefix: "LGC",
       status: "active",
@@ -73,13 +73,13 @@ describe("P6-32 legacy finalization regression", () => {
       id: "responsible-user", name: "Responsible user", email: "legacy-finalization@example.test",
       createdAt: new Date(), updatedAt: new Date(),
     });
-    await db.insert(companyMemberships).values({
-      companyId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member",
+    await db.insert(spaceMemberships).values({
+      spaceId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member",
     });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Legacy project", status: "active" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Legacy project", status: "active" });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       cwd: fileURLToPath(new URL("../../../", import.meta.url)),
@@ -87,7 +87,7 @@ describe("P6-32 legacy finalization regression", () => {
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Legacy agent",
       adapterType: "codex_local",
       status: "idle",
@@ -95,7 +95,7 @@ describe("P6-32 legacy finalization regression", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       title: "Complete through the legacy adapter",
@@ -142,11 +142,11 @@ describe("P6-32 legacy finalization regression", () => {
     await expect(reconcileNativeFinalizations(db, [runId])).resolves.toEqual([]);
     expect(JSON.stringify(await heartbeat.getRun(runId))).toBe(JSON.stringify(publicBefore));
 
-    await expect(db.select().from(completionContracts).where(eq(completionContracts.companyId, companyId))).resolves.toHaveLength(0);
+    await expect(db.select().from(completionContracts).where(eq(completionContracts.spaceId, spaceId))).resolves.toHaveLength(0);
     await expect(db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, runId))).resolves.toHaveLength(0);
     await expect(db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, runId))).resolves.toHaveLength(0);
     await expect(db.select().from(workAssessments).where(eq(workAssessments.runId, runId))).resolves.toHaveLength(0);
-    await expect(db.select().from(statusDecisions).where(eq(statusDecisions.companyId, companyId))).resolves.toHaveLength(0);
+    await expect(db.select().from(statusDecisions).where(eq(statusDecisions.spaceId, spaceId))).resolves.toHaveLength(0);
     await expect(db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId))).resolves.toHaveLength(1);
   }, 30_000);
 });

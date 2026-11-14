@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accessApi } from "@/api/access";
 import { ApiError } from "@/api/client";
 import { authApi } from "@/api/auth";
-import { boardAccessQueryOptions } from "@/api/board-access-query";
+import { operatorAccessQueryOptions } from "@/api/operator-access-query";
 import { useBootstrapQuery } from "@/api/bootstrap-query";
 import { healthApi } from "@/api/health";
 import { isTemporaryApiError } from "@/api/response";
@@ -13,7 +13,7 @@ import { useConnectivityStore } from "@/lib/connectivity";
 import { reconnectDelayFor, retryWhileTransient } from "@/lib/query-client";
 import { queryKeys } from "@/lib/queryKeys";
 import { BootstrapPendingPage } from "@/components/BootstrapPendingPage";
-import { PaperclipLoading } from "@/components/AnimatedPaperclipIcon";
+import { OutpostLoading } from "@/components/AnimatedOutpostIcon";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CloudSignIn } from "@/components/CloudSignIn";
@@ -77,7 +77,7 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
   const queryClient = useQueryClient();
   const connectivity = useConnectivityStore();
   const [hasOpenedBoard, setHasOpenedBoard] = useState(false);
-  // The board cannot open without these checks, so transient failures retry
+  // The operator cannot open without these checks, so transient failures retry
   // until they succeed (never a 401/403). During an outage the retries pause
   // and the connectivity store's single probe loop decides when to resume.
   const healthQuery = useQuery({
@@ -109,27 +109,27 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
     if (sessionQuery.data) clearCloudSignInAttempt();
   }, [sessionQuery.data]);
 
-  const sessionBootstrap = sessionQuery.isSuccess ? sessionQuery.data?.boardBootstrap : undefined;
+  const sessionBootstrap = sessionQuery.isSuccess ? sessionQuery.data?.operatorBootstrap : undefined;
   const bootstrap = sessionBootstrap?.userId === sessionQuery.data?.user.id
-    && sessionBootstrap?.boardAccess.userId === sessionQuery.data?.user.id ? sessionBootstrap : undefined;
-  const boardAccessQuery = useBootstrapQuery({
-    ...boardAccessQueryOptions(
+    && sessionBootstrap?.operatorAccess.userId === sessionQuery.data?.user.id ? sessionBootstrap : undefined;
+  const operatorAccessQuery = useBootstrapQuery({
+    ...operatorAccessQueryOptions(
       sessionQuery.data?.user.id ?? null,
-      sessionQuery.data?.boardBootstrap,
+      sessionQuery.data?.operatorBootstrap,
       sessionQuery.dataUpdatedAt,
       () => { void queryClient.invalidateQueries({ queryKey: queryKeys.auth.session }); },
     ),
     enabled: isAuthenticatedMode && !isBootstrapPending && !!sessionQuery.data,
     retry: retryWhileTransient,
     retryDelay: reconnectDelayFor,
-  }, bootstrap ? { identity: bootstrap, data: bootstrap.boardAccess, updatedAt: sessionQuery.dataUpdatedAt } : undefined);
+  }, bootstrap ? { identity: bootstrap, data: bootstrap.operatorAccess, updatedAt: sessionQuery.dataUpdatedAt } : undefined);
   const claimMutation = useMutation({
     mutationFn: () => accessApi.claimBootstrapAdmin(),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
       await queryClient.invalidateQueries({ queryKey: queryKeys.health });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.companies.stats });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.spaces.stats });
       await queryClient.invalidateQueries({ queryKey: queryKeys.access.currentBoardAccess });
     },
   });
@@ -137,7 +137,7 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
   const activeQueries = [
     healthQuery,
     ...(isAuthenticatedMode ? [sessionQuery] : []),
-    ...(isAuthenticatedMode && !isBootstrapPending && sessionQuery.data ? [boardAccessQuery] : []),
+    ...(isAuthenticatedMode && !isBootstrapPending && sessionQuery.data ? [operatorAccessQuery] : []),
   ];
   const isServerStarting = healthQuery.data?.status === "starting";
   // A background outage must not unmount editors and discard drafts. Cached
@@ -150,9 +150,9 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
   const isLoading =
     healthQuery.isLoading ||
     (isAuthenticatedMode && sessionQuery.isLoading) ||
-    (isAuthenticatedMode && !isBootstrapPending && !!sessionQuery.data && boardAccessQuery.isLoading);
+    (isAuthenticatedMode && !isBootstrapPending && !!sessionQuery.data && operatorAccessQuery.isLoading);
   const hasBoardAccess = allowMembershipRequest || !isAuthenticatedMode
-    || !!boardAccessQuery.data?.isInstanceAdmin || (boardAccessQuery.data?.companyIds.length ?? 0) > 0;
+    || !!operatorAccessQuery.data?.isInstanceAdmin || (operatorAccessQuery.data?.spaceIds.length ?? 0) > 0;
   const canAccessBoard = !isLoading && !blockingError && !isBootstrapPending
     && (!isAuthenticatedMode || !!sessionQuery.data) && hasBoardAccess;
   useEffect(() => {
@@ -187,7 +187,7 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
   }
 
   if (isLoading) {
-    return <PaperclipLoading />;
+    return <OutpostLoading />;
   }
 
   if (isAuthenticatedMode && healthQuery.data?.cloud && !sessionQuery.data) {
@@ -197,7 +197,7 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
   if (isBootstrapPending) {
     const health = healthQuery.data;
     if (!health) {
-      return <PaperclipLoading />;
+      return <OutpostLoading />;
     }
     const claimError = claimMutation.error instanceof ApiError
       ? { status: claimMutation.error.status, message: claimMutation.error.message }
@@ -227,7 +227,7 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
     return <NoBoardAccessPage />;
   }
 
-  // Outages after the board opened are shown by the app-level
+  // Outages after the operator opened are shown by the app-level
   // `ConnectionStatusBanner`, not here.
   return <Outlet />;
 }

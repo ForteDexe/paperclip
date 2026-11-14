@@ -55,11 +55,11 @@ const put = (storage: ReturnType<typeof provider>, objectKey: string) =>
 describe("S3 credentials that expire or rotate during a run (storage chaos ST5)", () => {
   it("re-resolves a rotated key and finishes the write instead of failing the run", async () => {
     const storage = provider();
-    await put(storage, "company/runs/before.json");
+    await put(storage, "space/runs/before.json");
     acceptedKey = "second-access-key";
     process.env.AWS_ACCESS_KEY_ID = "second-access-key";
     process.env.AWS_SECRET_ACCESS_KEY = "second-secret-key";
-    await waitOutStorageOutages(() => put(storage, "company/runs/after.json"));
+    await waitOutStorageOutages(() => put(storage, "space/runs/after.json"));
     expect(signedWith).toEqual(["first-access-key", "first-access-key", "second-access-key"]);
   }, 30_000);
 
@@ -67,13 +67,13 @@ describe("S3 credentials that expire or rotate during a run (storage chaos ST5)"
     "waits out a window of 403 %s answers with a valid key", async (code) => {
       rejectionCode = code;
       rejectAllUntil = Date.now() + 3_000;
-      await expect(waitOutStorageOutages(() => put(provider(), "company/runs/window.json"))).resolves.toBeUndefined();
+      await expect(waitOutStorageOutages(() => put(provider(), "space/runs/window.json"))).resolves.toBeUndefined();
       expect(signedWith.length).toBeGreaterThan(1);
     }, 30_000);
 
   it("reports a rejected key as a storage wait with a credentials message outside the wait", async () => {
     acceptedKey = "never-issued";
-    const error = await put(provider(), "company/runs/rejected.json").catch(thrown => thrown);
+    const error = await put(provider(), "space/runs/rejected.json").catch(thrown => thrown);
     expect(isStorageUnavailableError(error)).toBe(true);
     expect(storageUnavailableMessage(error)).toBe(STORAGE_CREDENTIALS_REJECTED_MESSAGE);
     expect(signedWith).toHaveLength(1);
@@ -82,7 +82,7 @@ describe("S3 credentials that expire or rotate during a run (storage chaos ST5)"
   it("keeps a 403 AccessDenied a permanent failure", async () => {
     rejectionCode = "AccessDenied";
     acceptedKey = "never-issued";
-    const error = await put(provider(), "company/runs/denied.json").catch(thrown => thrown);
+    const error = await put(provider(), "space/runs/denied.json").catch(thrown => thrown);
     expect(isStorageUnavailableError(error)).toBe(false);
   });
 });

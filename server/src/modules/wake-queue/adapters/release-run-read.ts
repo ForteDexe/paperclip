@@ -4,15 +4,15 @@ import { and, eq, getTableColumns, sql } from "drizzle-orm";
 type Run = typeof heartbeatRuns.$inferSelect;
 export type ReleaseRun = Omit<Run, "runnerProfileJson" | "stdoutExcerpt" | "stderrExcerpt">;
 
-export async function readReleaseRun(db: Db, scope: { companyId: string; runId: string }) {
+export async function readReleaseRun(db: Db, scope: { spaceId: string; runId: string }) {
   const [selected] = await db.select({
     ...getTableColumns(heartbeatRuns),
     contextSnapshot: sql<Run["contextSnapshot"]>`case when ${heartbeatRuns.runtimeMode} = 'native'
       and jsonb_typeof(${heartbeatRuns.contextSnapshot}) = 'object'
-      then ${heartbeatRuns.contextSnapshot} - array['executionContinuation', 'paperclipWake', 'paperclipWakeComment',
-        'paperclipTaskMarkdown', 'paperclipTaskMarkdownCompact', 'paperclipTaskMarkdownAssignment',
-        'paperclipTaskMarkdownAssignmentCompact', 'paperclipWorkspace', 'outpostEnvironment',
-        'paperclipContinuationSummary']
+      then ${heartbeatRuns.contextSnapshot} - array['executionContinuation', 'outpostWake', 'outpostWakeComment',
+        'outpostTaskMarkdown', 'outpostTaskMarkdownCompact', 'outpostTaskMarkdownAssignment',
+        'outpostTaskMarkdownAssignmentCompact', 'outpostWorkspace', 'outpostEnvironment',
+        'outpostContinuationSummary']
       else ${heartbeatRuns.contextSnapshot} end`,
     runnerProfileJson: sql<Run["runnerProfileJson"]>`case when ${heartbeatRuns.runtimeMode} = 'native'
       then null else ${heartbeatRuns.runnerProfileJson} end`,
@@ -22,7 +22,7 @@ export async function readReleaseRun(db: Db, scope: { companyId: string; runId: 
       then null else ${heartbeatRuns.stderrExcerpt} end`,
     resultJson: sql<Run["resultJson"]>`case when jsonb_typeof(${heartbeatRuns.resultJson}) = 'object'
       then ${heartbeatRuns.resultJson} - 'stdout' - 'stderr' else ${heartbeatRuns.resultJson} end`,
-  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, scope.runId), eq(heartbeatRuns.companyId, scope.companyId)));
+  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, scope.runId), eq(heartbeatRuns.spaceId, scope.spaceId)));
   if (!selected || selected.runtimeMode !== "native") return { kind: "complete" as const, run: selected };
   const { runnerProfileJson: _profile, stdoutExcerpt: _stdout, stderrExcerpt: _stderr, ...run } = selected;
   return { kind: "native" as const, run };

@@ -7,7 +7,7 @@ agents through the CLI or API.
 
 Every setting defaults to unrestricted when absent. Existing agents are not
 rewritten, new agents do not persist default values, and no migration or grant
-backfill is required. An explicit `true` removes this restriction only: company
+backfill is required. An explicit `true` removes this restriction only: space
 boundaries, visibility, trust, responsible-user authority, grants, approvals,
 checkout and execution rules still apply.
 
@@ -42,7 +42,7 @@ a child under someone else's task checks the affected parent.
 
 Comments and task messages share the comment controls. Mentions are checked
 separately, so a permitted comment can still be denied for mentioning a protected
-agent. A denial rejects the entire operation. Structured Paperclip agent links
+agent. A denial rejects the entire operation. Structured Outpost agent links
 are mentions; an ordinary name in prose is not. Allowed mentions retain their
 existing context-link behavior and do not start execution or forward messages.
 New or changed mention-bearing text is checked; unrelated edits do not rescan
@@ -54,7 +54,7 @@ Compound operations must pass every applicable control. Posting a comment does
 not require edit permission solely because the server updates bookkeeping.
 
 Configuration controls cover peer instructions, settings, runtime configuration,
-skill/tool assignments, and restores. Shared company resources retain their
+skill/tool assignments, and restores. Shared space resources retain their
 existing permissions; changing a shared skill is not treated as editing every
 agent that uses it. Initial hiring remains governed by hiring authorization.
 
@@ -65,12 +65,12 @@ Read access follows agent configuration read authorization. Agents, including
 CEOs, cannot change these restrictions.
 
 ```sh
-paperclipai agent interaction-permissions <agent-id>
+outpost agent interaction-permissions <agent-id>
 
-paperclipai agent interaction-permissions:update <agent-id> \
+outpost agent interaction-permissions:update <agent-id> \
   --payload-json '{"canReceiveCommentsFromAgents":false}'
 
-paperclipai agent interaction-permissions:update <agent-id> \
+outpost agent interaction-permissions:update <agent-id> \
   --payload-json '{"canReceiveCommentsFromAgents":null}'
 ```
 
@@ -81,7 +81,7 @@ values. Both commands support `--json`.
 The underlying endpoints are `GET /api/agents/:id/interaction-permissions` and
 `PATCH /api/agents/:id/interaction-permissions`. PATCH accepts a nonempty partial map
 of the setting names to booleans or `null`. Unknown keys and malformed values
-are rejected. Responses contain `agentId`, `companyId`, sparse `overrides`, and
+are rejected. Responses contain `agentId`, `spaceId`, sparse `overrides`, and
 the resolved `effective` map. Effective values describe this restriction layer,
 not the outcome of every other authorization rule.
 
@@ -89,7 +89,7 @@ For an agent that should accept only human-directed interactions, explicitly
 set all five incoming controls to false:
 
 ```sh
-paperclipai agent interaction-permissions:update <agent-id> --payload-json '{
+outpost agent interaction-permissions:update <agent-id> --payload-json '{
   "canReceiveAssignmentsFromAgents": false,
   "canReceiveMentionsFromAgents": false,
   "canReceiveCommentsFromAgents": false,
@@ -110,7 +110,7 @@ alter unrelated grants. Pending hires cannot be changed before approval.
 
 Other permission/configuration saves preserve the subtree, including when an
 older client omits it. Attempts to change it through those APIs are rejected.
-Restores cannot revive older interaction permissions. Company package exports
+Restores cannot revive older interaction permissions. Space package exports
 omit this instance's restrictions with a warning; configure the imported agent
 explicitly after creation rather than copying another agent's authority.
 

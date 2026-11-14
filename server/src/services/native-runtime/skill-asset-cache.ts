@@ -4,14 +4,14 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import type { NativeRuntimeAssetReference } from "../../vendor/outpost-runner/index.js";
 import { verifyFileManifest, type FileManifestEntry } from "../file-manifest-cache.js";
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 
 type Cached = { manifest: FileManifestEntry[]; bundle: NativeRuntimeAssetReference };
 const entries = new Map<string, Cached>();
 let fileCount = 0;
 const MAX_FILES = 32_000;
 const MAX_ENTRIES = 128;
-const cacheKey = (source: string) => `${resolvePaperclipInstanceRoot()}:${source}`;
+const cacheKey = (source: string) => `${resolveOutpostInstanceRoot()}:${source}`;
 
 /** The caller supplies freshly authorized runtime entries on every turn. This
  * cache retains no authority or file bodies, and verifies source and destination
@@ -20,7 +20,7 @@ export async function cachedSkillAsset(source: string): Promise<NativeRuntimeAss
   const cached = entries.get(cacheKey(source));
   if (!cached || !await verifyFileManifest(source, cached.manifest)) return null;
   return withRuntimeAssetUse(cached.bundle.digest, async () => {
-    const manifestPath = path.join(resolvePaperclipInstanceRoot(), "runtime-context-assets", "manifests", `${cached.bundle.digest}.json`);
+    const manifestPath = path.join(resolveOutpostInstanceRoot(), "runtime-context-assets", "manifests", `${cached.bundle.digest}.json`);
     const manifest = await fs.readFile(manifestPath).catch(() => null);
     if (!manifest || !(await fs.lstat(cached.bundle.rootPath).catch(() => null))?.isDirectory()) return null;
     if (createHash("sha256").update(manifest).digest("hex") !== cached.bundle.manifestDigest

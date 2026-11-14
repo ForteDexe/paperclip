@@ -57,7 +57,7 @@ This routine is **paused by default** and spends no tokens until an operator ena
 
 1. Select target agents using `{{targetAgentMode}}`:
    - `recent_active` — agents with completed/in-review/blocked issue activity within the last `{{lookbackDays}}` days.
-   - `all` — every non-terminated agent in the company.
+   - `all` — every non-terminated agent in the space.
    - `explicit` — only agents named in the run inputs.
    Cap the set at `{{maxTargetAgents}}`. Drop any agent id listed in `{{excludeAgentIds}}`, and always drop your own `OUTPOST_AGENT_ID` (no self-reflection).
 2. For each selected target, run the `reflection-coach` skill as the operating procedure: pull recent trajectories, read current AGENTS.md and assigned skills, cluster evidence-backed patterns, and draft the smallest durable change.
@@ -68,7 +68,7 @@ This routine is **paused by default** and spends no tokens until an operator ena
 - Proposal-only. This routine must not edit any agent's live AGENTS.md, skill assignments, or tool descriptions directly.
 - Any actual instruction/skill/tool-description change requires a displayed diff and an **accepted** `request_confirmation` task interaction, applied only in a separate follow-up run.
 - Mutation confirmations must bind the exact resource key they will apply, using `agent:<agentId>:instructions`, `agent:<agentId>:profile`, `skill:<skillId>`, `skill-slug:<slug>`, `skill-import:<source>`, or `skills:scan-projects`.
-- Keep every read company-scoped. Do not cross company boundaries.
+- Keep every read space-scoped. Do not cross space boundaries.
 - Every proposed rule needs linked issue/comment evidence or it is dropped. No scoring without trajectories.
 - Respect the size caps: AGENTS.md +20% max per proposal, skills 15KB max, tool descriptions 500 chars max.
 

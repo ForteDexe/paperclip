@@ -2,25 +2,25 @@
 
 External-object refresh uses the delivery coordinator. The server registers the
 service in both heartbeat-scheduler configurations. It no longer calls the
-company-wide aggregate sweep on each heartbeat tick.
+space-wide aggregate sweep on each heartbeat tick.
 
 `external-objects.ts` owns automatic eligibility, resolver selection, refresh
 claims, provider results and the next deadline. `index.ts` supplies registration
 and admission gates. The existing scoped deadline helper owns wake coalescing,
-page reconciliation, fair company selection, retry backoff and shutdown.
+page reconciliation, fair space selection, retry backoff and shutdown.
 
 ## Durable obligations and quiet states
 
-An automatic refresh needs an active company, a retained mention in that company,
+An automatic refresh needs an active space, a retained mention in that space,
 a non-null `next_refresh_at` and an available resolver. Injected resolvers,
 including custom `url/link` resolvers, remain supported. A plugin resolver needs a
 ready plugin with `external.objects.read`, a matching provider/object declaration,
-and no company setting that disables it. Built-in resolvers remain available
+and no space setting that disables it. Built-in resolvers remain available
 independently of optional plugin support.
 
 A plugin result carries its selected plugin ID inside the host owner. Persistence
 rechecks that exact plugin's readiness, read capability, object declaration and
-same-company enabled setting in the result update. Another available resolver
+same-space enabled setting in the result update. Another available resolver
 cannot authorize an obsolete plugin response. A rejected response releases only
 its own claim; the due row remains for a fresh allowed resolver. Plugin RPC
 payloads and public result shapes do not contain this host selection context.
@@ -32,9 +32,9 @@ probe before their terminal verdict is definitive. A null deadline retains its
 existing never-refresh meaning. Registration does not change stored timestamps.
 
 The worker reconstructs eligible deadlines in pages of at most 250 rows. A
-company notification reads that company only. Ordinary ingestion uses object IDs
+space notification reads that space only. Ordinary ingestion uses object IDs
 or stable provider/object/external identity hints, including concurrent upserts,
-so one mention write does not reconstruct all company history. A due callback reads only its
+so one mention write does not reconstruct all space history. A due callback reads only its
 object. Pages select scheduling columns and retain compact deadlines in memory.
 Dispatch uses fair batches of at most 50 objects. The deadline is the later of
 `next_refresh_at` and the current refresh lease expiry. Lease renewals and atomic
@@ -49,7 +49,7 @@ restart reconstructs the saved object and any unexpired claim.
 The supported-resolver and retained-reference approach follows the related draft
 [PR #17298](https://github.com/paperclipai/paperclip/pull/17298) by
 [@kaluli123123](https://github.com/kaluli123123). This change adapts that eligibility
-pattern to scoped scheduling, adds dynamic plugin/company permission predicates,
+pattern to scoped scheduling, adds dynamic plugin/space permission predicates,
 and fences automatic result persistence. It does not modify that draft PR.
 
 ## Producer and transaction audit
@@ -57,15 +57,15 @@ and fences automatic result persistence. It does not modify that draft PR.
 | Mutation | Owner and activation |
 | --- | --- |
 | Issue title/description, comment and document references | Existing sync methods register object intent before mention replacement and stable identity intent before object upsert. Routes, runtime tools, adapters and plugin paths reuse these methods. |
-| Comment/document disappearance | Sync derives the retained mention owners and registers only those companies before deleting obsolete mentions. |
-| Last mention removal and reattachment | Mention replacement invalidates company deadlines. Retained objects stay available for reattachment. |
-| Issue deletion | The issue service selects distinct mentioned object IDs by company and `sourceIssueId`, then registers only those IDs before the cascade. The source owner includes title, description, comments and documents. |
-| Company status/archive/deletion, including budget pause/resume | Company and budget services register company reconstruction before status or deletion writes. |
+| Comment/document disappearance | Sync derives the retained mention owners and registers only those spaces before deleting obsolete mentions. |
+| Last mention removal and reattachment | Mention replacement invalidates space deadlines. Retained objects stay available for reattachment. |
+| Issue deletion | The issue service selects distinct mentioned object IDs by space and `sourceIssueId`, then registers only those IDs before the cascade. The source owner includes title, description, comments and documents. |
+| Space status/archive/deletion, including budget pause/resume | Space and budget services register space reconstruction before status or deletion writes. |
 | Feature enable/disable | Instance settings registers global reconstruction before the experimental-settings write. |
 | Plugin manifest/status/uninstall | Plugin registry registers reconstruction before lifecycle writes. Installed plugins acquire support through the ordinary ready transition. |
-| Plugin company configuration and enabled setting | Registry writes register only the affected company. There is no plugin-readiness poll. |
+| Plugin space configuration and enabled setting | Registry writes register only the affected space. There is no plugin-readiness poll. |
 | Manual and automatic resolver result | Result persistence registers object intent in the same transaction. Automatic persistence rechecks reference and resolver eligibility. Lost support releases the worker's own claim without publishing the stale result. |
-| Normalized GitHub ingress | The event service registers company intent with the snapshot write. It clears the old refresh token, so an older provider response cannot overwrite that event. |
+| Normalized GitHub ingress | The event service registers space intent with the snapshot write. It clears the old refresh token, so an older provider response cannot overwrite that event. |
 | Import and restore | No independent object-table importer exists in the source baseline. Supported reference ingestion uses the ordinary sync boundary. Startup reconstructs restored durable objects. |
 
 Notifications are awaited before writes. Caller-owned and nested transactions
@@ -88,10 +88,10 @@ pre-create the tested resolved outcome. Assertions independently read saved
 objects. Tests measure owner reads and provider calls across former tick windows.
 
 Coverage includes empty and terminal quiet, unsupported links, orphan removal and
-reattachment, feature/company eligibility, plugin readiness and permission loss
+reattachment, feature/space eligibility, plugin readiness and permission loss
 during a held provider call, exact and earlier deadlines, durable provider retry,
 rollback and outer commit after nested savepoint release, startup and paginated
-reconstruction, inactive companies, never-refresh rows, first work during drain,
+reconstruction, inactive spaces, never-refresh rows, first work during drain,
 warm standby, failed refresh after restart, lease renewal, duplicate exclusion,
 and shutdown while a provider call remains active. The GitHub ingress suite also
 checks a real normalized event superseding a held resolver response.
@@ -119,27 +119,27 @@ lease, concurrent manual refresh, terminal-history and not-found recovery tests
 now enter through the registered scheduler owner. The removed baseline control
 recorded six SQL reads over three empty aggregate ticks; the current quiet-work
 acceptance measures zero recurring SQL after settlement. The scheduled check retains its
-post-refresh scoped read to revalidate current company, reference and resolver
+post-refresh scoped read to revalidate current space, reference and resolver
 eligibility and recover an authoritative lease after a competing writer; all such
-reads target one object rather than rebuilding a company.
+reads target one object rather than rebuilding a space.
 
 ### Repeated eligibility changes
 
-Company status and company plugin settings affect every eligible object. Their
-company-wide reconstruction hints now coalesce for 30 seconds after a completed
+Space status and space plugin settings affect every eligible object. Their
+space-wide reconstruction hints now coalesce for 30 seconds after a completed
 reconstruction. This is a deadline for a newly received dirty hint, not a periodic
 scan. Object and provider-identity hints remain immediate; already known object
-deadlines still execute on time and re-read current company/provider eligibility.
+deadlines still execute on time and re-read current space/provider eligibility.
 Reactivation after a second broad change can wait up to 30 seconds to reconstruct
 previously removed future obligations. Startup and instance-wide feature changes
 retain their existing behavior.
 
 The shared scoped worker accepts an owner-selected reconstruction interval for
 its typed scope; existing numeric callers retain their policy. It does not know
-companies or provider identities. A real PostgreSQL regression with 1,100 future
+spaces or provider identities. A real PostgreSQL regression with 1,100 future
 objects reproduces five immediate page reads after a status toggle before the
 fix. With the fix, five repeated status writes retain one owed reconstruction,
-then execute exactly one company-scoped five-page pass. Twenty quiet minutes add
+then execute exactly one space-scoped five-page pass. Twenty quiet minutes add
 no reads or provider calls. A scheduler control proves an exact object hint and a
 250ms saved deadline still preempt the broad reconstruction. All 76 affected
 external-object, route, and scheduler tests and server types pass.
@@ -149,7 +149,7 @@ external-object, route, and scheduler tests and server types pass.
 
 The registered external-object service exposes `readIdleSchedule(tx, now, owner)`.
 Its bounded read reuses that service's actual built-in/injected resolver registry
-and current plugin, company and retained-reference eligibility. Shared sleep
+and current plugin, space and retained-reference eligibility. Shared sleep
 code does not interpret provider terminal states or plugin manifests. Settled
 terminal/unsupported/orphan/never-refresh history is passive; eligible future
 refreshes retain their exact saved deadline. Active or ambiguous refresh claims

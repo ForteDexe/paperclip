@@ -262,8 +262,8 @@ async function buildCatalogTeam(
   validateSlug("category", candidate.category, prefix, errors);
   validateSlug("slug", candidate.slug, prefix, errors);
 
-  const id = `paperclipai:${candidate.kind}:${candidate.category}:${candidate.slug}`;
-  const key = `paperclipai/${candidate.kind}/${candidate.category}/${candidate.slug}`;
+  const id = `outpost:${candidate.kind}:${candidate.category}:${candidate.slug}`;
+  const key = `outpost/${candidate.kind}/${candidate.category}/${candidate.slug}`;
   const teamMarkdownPath = path.join(candidate.absolutePath, TEAM_ENTRYPOINT);
   const parsed = parseFrontmatterMarkdown(await fs.readFile(teamMarkdownPath, "utf8"));
 
@@ -298,9 +298,9 @@ async function buildCatalogTeam(
   }
 
   const defaultInstall = asBoolean(parsed.frontmatter.defaultInstall) ?? false;
-  const recommendedForCompanyTypes = readStringArrayField(
-    parsed.frontmatter.recommendedForCompanyTypes,
-    "recommendedForCompanyTypes",
+  const recommendedForSpaceTypes = readStringArrayField(
+    parsed.frontmatter.recommendedForSpaceTypes,
+    "recommendedForSpaceTypes",
     prefix,
     errors,
   );
@@ -337,7 +337,7 @@ async function buildCatalogTeam(
     entrypoint: TEAM_ENTRYPOINT,
     schema: TEAM_SCHEMA,
     defaultInstall,
-    recommendedForCompanyTypes,
+    recommendedForSpaceTypes,
     tags,
     counts: {
       agents: graph.agents.length,
@@ -865,8 +865,8 @@ function collectUniquenessErrors(teams: CatalogTeam[], errors: string[]) {
 
 function collectCandidateUniquenessErrors(candidates: TeamCandidate[], errors: string[]) {
   const projected = candidates.map((candidate) => ({
-    id: `paperclipai:${candidate.kind}:${candidate.category}:${candidate.slug}`,
-    key: `paperclipai/${candidate.kind}/${candidate.category}/${candidate.slug}`,
+    id: `outpost:${candidate.kind}:${candidate.category}:${candidate.slug}`,
+    key: `outpost/${candidate.kind}/${candidate.category}/${candidate.slug}`,
     slug: candidate.slug,
     path: toPosixPath(path.join("catalog", candidate.kind, candidate.category, candidate.slug)),
   })) as CatalogTeam[];

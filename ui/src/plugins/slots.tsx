@@ -50,8 +50,8 @@ import {
 } from "./bridge";
 
 export type PluginSlotContext = {
-  companyId?: string | null;
-  companyPrefix?: string | null;
+  spaceId?: string | null;
+  spacePrefix?: string | null;
   projectId?: string | null;
   entityId?: string | null;
   entityType?: PluginUiSlotEntityType | null;
@@ -113,7 +113,7 @@ type SlotFilters = {
   slotTypes: PluginUiSlotType[];
   taskSidePanel?: boolean;
   entityType?: PluginUiSlotEntityType | null;
-  companyId?: string | null;
+  spaceId?: string | null;
   enabled?: boolean;
 };
 
@@ -276,7 +276,7 @@ function buildPluginUiUrl(contribution: PluginUiContribution): string {
  * fighting import map timing constraints, we:
  * 1. Fetch the module source text
  * 2. Rewrite bare specifier imports to use blob URLs that re-export from the
- *    host's global bridge registry (`globalThis.__paperclipPluginBridge__`)
+ *    host's global bridge registry (`globalThis.__outpostPluginBridge__`)
  * 3. Import the rewritten module via a blob URL
  *
  * This approach is compatible with all modern browsers and avoids import map
@@ -301,7 +301,7 @@ function createReactShimSource(reactModule: object): string {
     .join("\n");
 
   return `
-        const R = globalThis.__paperclipPluginBridge__?.react;
+        const R = globalThis.__outpostPluginBridge__?.react;
         if (!R) {
           throw new Error("Outpost plugin React runtime is not initialized.");
         }
@@ -324,7 +324,7 @@ function getShimBlobUrl(specifier: "react" | "react-dom" | "react-dom/client" | 
       // marking, so dev React emits "unique key" warnings for every
       // multi-child element rendered by a plugin component.
       source = `
-        const BRIDGE = globalThis.__paperclipPluginBridge__;
+        const BRIDGE = globalThis.__outpostPluginBridge__;
         const RUNTIME = BRIDGE?.reactJsxRuntime;
         const R = BRIDGE?.react;
         const withKey = ${applyJsxRuntimeKey.toString()};
@@ -337,7 +337,7 @@ function getShimBlobUrl(specifier: "react" | "react-dom" | "react-dom/client" | 
     case "react-dom":
     case "react-dom/client":
       source = `
-        const RD = globalThis.__paperclipPluginBridge__?.reactDom;
+        const RD = globalThis.__outpostPluginBridge__?.reactDom;
         export default RD;
         const { createRoot, hydrateRoot, createPortal, flushSync } = RD ?? {};
         export { createRoot, hydrateRoot, createPortal, flushSync };
@@ -345,9 +345,9 @@ function getShimBlobUrl(specifier: "react" | "react-dom" | "react-dom/client" | 
       break;
     case "sdk-ui":
       source = `
-        const SDK = globalThis.__paperclipPluginBridge__?.sdkUi ?? {};
+        const SDK = globalThis.__outpostPluginBridge__?.sdkUi ?? {};
         function missing(name) {
-          return function MissingPaperclipSdkUiComponent() {
+          return function MissingOutpostSdkUiComponent() {
             throw new Error('Outpost plugin UI runtime is not initialized for "' + name + '". Ensure the host loaded the plugin bridge before rendering this UI module.');
           };
         }
@@ -430,7 +430,7 @@ function rewriteBareSpecifiers(source: string): string {
 async function importPluginModule(url: string): Promise<Record<string, unknown>> {
   // Check if the bridge registry is available. If not, fall back to direct
   // import (which will fail on bare specifiers but won't crash the loader).
-  if (!globalThis.__paperclipPluginBridge__) {
+  if (!globalThis.__outpostPluginBridge__) {
     console.warn("[plugin-loader] Bridge registry not initialized, falling back to direct import");
     return import(/* @vite-ignore */ url);
   }
@@ -465,7 +465,7 @@ async function importPluginModule(url: string): Promise<Record<string, unknown>>
  * component registry.
  *
  * This replaces the previous approach where plugin bundles had to
- * self-register via `window.paperclipPlugins.registerReactComponent()`.
+ * self-register via `window.outpostPlugins.registerReactComponent()`.
  * Now the host is responsible for importing the module and binding
  * exports to the correct `pluginKey:exportName` registry keys.
  *
@@ -815,8 +815,8 @@ function slotContextToHostContext(
   userId: string | null,
 ): PluginHostContext {
   return {
-    companyId: pluginSlotContext.companyId ?? null,
-    companyPrefix: pluginSlotContext.companyPrefix ?? null,
+    spaceId: pluginSlotContext.spaceId ?? null,
+    spacePrefix: pluginSlotContext.spacePrefix ?? null,
     projectId: pluginSlotContext.projectId ?? (pluginSlotContext.entityType === "project" ? pluginSlotContext.entityId ?? null : null),
     entityId: pluginSlotContext.entityId ?? null,
     entityType: pluginSlotContext.entityType ?? null,
@@ -946,7 +946,7 @@ export function PluginSlotOutlet({
   const { slots } = usePluginSlots({
     slotTypes,
     entityType,
-    companyId: context.companyId,
+    spaceId: context.spaceId,
   });
 
   if (slots.length === 0) return null;

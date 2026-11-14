@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { companies, createDb, environmentLeases } from "@outpost/db";
+import { spaces, createDb, environmentLeases } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createOwnershipReportState, runOwnershipReconciliationPass } from "../services/recovery/ownership-invariant-report.js";
 
@@ -11,14 +11,14 @@ const KIND = "environment_pending_cleanup";
 suite("pending-cleanup obligation owned by the cleanup queue", () => {
   let db!: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId = "";
+  let spaceId = "";
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-pending-cleanup-queue-owner-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-pending-cleanup-queue-owner-");
     db = createDb(temporary.connectionString);
-    companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "PCQ",
-      requireBoardApprovalForNewAgents: false });
+    spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "PCQ",
+      requireOperatorApprovalForNewAgents: false });
   }, 30_000);
 
   afterEach(async () => {
@@ -31,7 +31,7 @@ suite("pending-cleanup obligation owned by the cleanup queue", () => {
 
   async function item(updatedAt: Date, metadata: Record<string, unknown> = {}) {
     const id = randomUUID();
-    await db.insert(environmentLeases).values({ id, companyId, status: "pending_cleanup", cleanupStatus: "failed",
+    await db.insert(environmentLeases).values({ id, spaceId, status: "pending_cleanup", cleanupStatus: "failed",
       provider: "fake", providerLeaseId: `sandbox://fake/${id}`, updatedAt, metadata });
     return id;
   }

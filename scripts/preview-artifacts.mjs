@@ -29,13 +29,13 @@ export function previewManifest(pkg, sha) {
   }
   const result = materializePublishManifest({ ...exact, version });
   result.gitHead = sha;
-  result.paperclipPreviewCommit = sha;
+  result.outpostPreviewCommit = sha;
   if (pkg.name === "@outpost/db") result.dependencies = { ...result.dependencies, "@outpost/shared": version };
   return result;
 }
 
 export function assertMetadata(pkg, name, sha) {
-  if (pkg?.publishConfig !== undefined || pkg?.name !== name || pkg.version !== versionFor(sha) || pkg.gitHead !== sha || pkg.paperclipPreviewCommit !== sha ||
+  if (pkg?.publishConfig !== undefined || pkg?.name !== name || pkg.version !== versionFor(sha) || pkg.gitHead !== sha || pkg.outpostPreviewCommit !== sha ||
       (name === "@outpost/db" && pkg.dependencies?.["@outpost/shared"] !== versionFor(sha))) {
     throw new Error("Preview package identity or dependency pin mismatch.");
   }

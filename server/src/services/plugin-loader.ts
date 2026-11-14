@@ -9,8 +9,8 @@ import { finishServiceShutdown } from "../shutdown.js";
  * This service is the entry point for the plugin system's I/O boundary:
  *
  * 1. **Discovery** — Scans the local plugin directory
- *    (`~/.paperclip/plugins/`) and `node_modules` for packages matching
- *    the `paperclip-plugin-*` naming convention. Aggregates results with
+ *    (`~/.outpost/plugins/`) and `node_modules` for packages matching
+ *    the `outpost-plugin-*` naming convention. Aggregates results with
  *    path-based deduplication.
  *
  * 2. **Installation** — `installPlugin()` downloads from npm (or reads a
@@ -39,7 +39,7 @@ import { isDeepStrictEqual, promisify } from "node:util";
 import type { Db } from "@outpost/db";
 import { PLUGIN_RPC_ERROR_CODES } from "@outpost/plugin-sdk";
 import type {
-  PaperclipPluginManifestV1,
+  OutpostPluginManifestV1,
   PluginLauncherDeclaration,
   PluginRecord,
   PluginUiSlotDeclaration,
@@ -71,12 +71,12 @@ const STANDALONE_BUNDLED_PLUGIN_SDK_PACKAGE = "@outpost/plugin-sdk";
 // ---------------------------------------------------------------------------
 
 /**
- * Naming convention for npm-published Paperclip plugins.
- * Packages matching this pattern are considered Paperclip plugins.
+ * Naming convention for npm-published Outpost plugins.
+ * Packages matching this pattern are considered Outpost plugins.
  *
  * @see PLUGIN_SPEC.md §10 — Package Contract
  */
-export const NPM_PLUGIN_PACKAGE_PREFIX = "paperclip-plugin-";
+export const NPM_PLUGIN_PACKAGE_PREFIX = "outpost-plugin-";
 
 /**
  * Default local plugin directory.  The loader scans this directory for
@@ -86,7 +86,7 @@ export const NPM_PLUGIN_PACKAGE_PREFIX = "paperclip-plugin-";
  */
 export const DEFAULT_LOCAL_PLUGIN_DIR = path.join(
   os.homedir(),
-  ".paperclip",
+  ".outpost",
   "plugins",
 );
 
@@ -137,7 +137,7 @@ const K8S_IN_CLUSTER_ENV_PASSTHROUGH = [
  * manifest's declared driver key — but name and manifest are both
  * plugin-authored, so neither is proof of identity on its own. The gate
  * therefore also requires a trusted install origin: a registry install
- * (`packagePath` null — the `@paperclipai` scope is project-controlled at
+ * (`packagePath` null — the `@outpost` scope is project-controlled at
  * the registry), or a local path inside the repo/bundled plugin catalog,
  * which ships inside the release image and is as trusted as the server
  * code itself. An operator-added local plugin directory can claim any
@@ -156,7 +156,7 @@ const SANDBOX_PROVIDER_CREDENTIAL_ENV_PASSTHROUGH: Record<
 };
 
 export function buildPluginWorkerEnv(input: {
-  manifest: Pick<PaperclipPluginManifestV1, "capabilities"> & {
+  manifest: Pick<OutpostPluginManifestV1, "capabilities"> & {
     environmentDrivers?: ReadonlyArray<{ driverKey: string }>;
   };
   packageName?: string;
@@ -222,7 +222,7 @@ export interface DiscoveredPlugin {
   /** Source that found this package. */
   source: PluginSource;
   /** The parsed and validated manifest if available, null if discovery-only. */
-  manifest: PaperclipPluginManifestV1 | null;
+  manifest: OutpostPluginManifestV1 | null;
 }
 
 /**
@@ -231,8 +231,8 @@ export interface DiscoveredPlugin {
  * @see PLUGIN_SPEC.md §8.1 — On-Disk Layout
  */
 export type PluginSource =
-  | "local-filesystem"  // ~/.paperclip/plugins/ local directory
-  | "npm"               // npm packages matching paperclip-plugin-* convention
+  | "local-filesystem"  // ~/.outpost/plugins/ local directory
+  | "npm"               // npm packages matching outpost-plugin-* convention
   | "registry";         // future: remote plugin registry URL
 
 type ParsedSemver = {
@@ -267,7 +267,7 @@ type LocalPluginBuildCommand = {
   cwd: string;
 };
 
-function getDeclaredPageRoutePaths(manifest: PaperclipPluginManifestV1): string[] {
+function getDeclaredPageRoutePaths(manifest: OutpostPluginManifestV1): string[] {
   return (manifest.ui?.slots ?? [])
     .filter((slot): slot is PluginUiSlotDeclaration => slot.type === "page" && typeof slot.routePath === "string" && slot.routePath.length > 0)
     .map((slot) => slot.routePath!);
@@ -289,13 +289,13 @@ export interface PluginLoaderOptions {
     packageRoot: string;
     /** Persisted source path, even when package resolution used a fallback. */
     installedPackagePath?: string | null;
-    manifest?: PaperclipPluginManifestV1;
+    manifest?: OutpostPluginManifestV1;
     /** Persisted grants, supplied before a runtime manifest refresh is saved. */
-    previousManifest?: PaperclipPluginManifestV1;
+    previousManifest?: OutpostPluginManifestV1;
   }) => void;
   /**
    * Path to the local plugin directory to scan.
-   * Defaults to ~/.paperclip/plugins/
+   * Defaults to ~/.outpost/plugins/
    */
   localPluginDir?: string;
 
@@ -309,7 +309,7 @@ export interface PluginLoaderOptions {
   enableLocalFilesystem?: boolean;
 
   /**
-   * Whether to discover installed npm packages matching the paperclip-plugin-*
+   * Whether to discover installed npm packages matching the outpost-plugin-*
    * naming convention.
    * Defaults to true.
    */
@@ -332,7 +332,7 @@ export interface PluginLoaderOptions {
  */
 export interface PluginInstallOptions {
   /**
-   * npm package name to install (e.g. "paperclip-plugin-linear" or "@acme/plugin-linear").
+   * npm package name to install (e.g. "outpost-plugin-linear" or "@acme/plugin-linear").
    * Either packageName or localPath must be set.
    */
   packageName?: string;
@@ -391,7 +391,7 @@ export interface PluginRuntimeServices {
    * events.emit, config.get). Each plugin gets its own set of handlers
    * scoped to its capabilities and plugin ID.
    */
-  buildHostHandlers: (pluginId: string, manifest: PaperclipPluginManifestV1) => WorkerToHostHandlers;
+  buildHostHandlers: (pluginId: string, manifest: OutpostPluginManifestV1) => WorkerToHostHandlers;
   /**
    * Host instance information passed to the worker during initialization.
    * Includes the instance ID and host version.
@@ -507,8 +507,8 @@ export interface PluginLoader {
   discoverFromLocalFilesystem(dir?: string): Promise<PluginDiscoveryResult>;
 
   /**
-   * Discover Paperclip plugins installed as npm packages in the current
-   * Node.js environment matching the "paperclip-plugin-*" naming convention.
+   * Discover Outpost plugins installed as npm packages in the current
+   * Node.js environment matching the "outpost-plugin-*" naming convention.
    *
    * Looks for packages in node_modules that match the naming convention.
    *
@@ -520,15 +520,15 @@ export interface PluginLoader {
    * Load and parse the plugin manifest from a package directory.
    *
    * Reads the package.json, finds the manifest entrypoint declared under
-   * the "paperclipPlugin.manifest" key, loads the manifest module, and
+   * the "outpostPlugin.manifest" key, loads the manifest module, and
    * validates it against the plugin manifest schema.
    *
-   * Returns null if the package is not a Paperclip plugin.
-   * Throws if the package is a Paperclip plugin but the manifest is invalid.
+   * Returns null if the package is not a Outpost plugin.
+   * Throws if the package is a Outpost plugin but the manifest is invalid.
    *
    * @see PLUGIN_SPEC.md §10 — Package Contract
    */
-  loadManifest(packagePath: string): Promise<PaperclipPluginManifestV1 | null>;
+  loadManifest(packagePath: string): Promise<OutpostPluginManifestV1 | null>;
 
   /**
    * Install a plugin package and register it in the database.
@@ -561,8 +561,8 @@ export interface PluginLoader {
    * @see PLUGIN_SPEC.md §25.3 — Upgrade Lifecycle
    */
   upgradePlugin(pluginId: string, options: Omit<PluginInstallOptions, "installDir">): Promise<{
-    oldManifest: PaperclipPluginManifestV1;
-    newManifest: PaperclipPluginManifestV1;
+    oldManifest: OutpostPluginManifestV1;
+    newManifest: OutpostPluginManifestV1;
     discovered: DiscoveredPlugin;
   }>;
 
@@ -671,8 +671,8 @@ export interface PluginLoader {
 // ---------------------------------------------------------------------------
 
 /**
- * Check whether a package name matches the Paperclip plugin naming convention.
- * Accepts both the "paperclip-plugin-" prefix and scoped "@scope/plugin-" packages.
+ * Check whether a package name matches the Outpost plugin naming convention.
+ * Accepts both the "outpost-plugin-" prefix and scoped "@scope/plugin-" packages.
  *
  * @see PLUGIN_SPEC.md §10 — Package Contract
  */
@@ -748,18 +748,18 @@ export function resolveDeclaredPluginEntrypoints(
   packageRoot: string,
   pkgJson: Record<string, unknown>,
 ): PluginEntrypointPath[] {
-  const paperclipPlugin = pkgJson["paperclipPlugin"];
+  const outpostPlugin = pkgJson["outpostPlugin"];
   if (
-    paperclipPlugin === null
-    || typeof paperclipPlugin !== "object"
-    || Array.isArray(paperclipPlugin)
+    outpostPlugin === null
+    || typeof outpostPlugin !== "object"
+    || Array.isArray(outpostPlugin)
   ) {
     return [];
   }
 
   const entrypoints: PluginEntrypointPath[] = [];
   for (const key of ["manifest", "worker", "ui"] as const) {
-    const relativePath = (paperclipPlugin as Record<string, unknown>)[key];
+    const relativePath = (outpostPlugin as Record<string, unknown>)[key];
     if (typeof relativePath === "string" && relativePath.length > 0) {
       entrypoints.push({
         key,
@@ -966,7 +966,7 @@ export async function ensureLocalPluginBuilt(
 /**
  * Resolve the manifest entrypoint from a package.json and package root.
  *
- * The spec defines a "paperclipPlugin" key in package.json with a "manifest"
+ * The spec defines a "outpostPlugin" key in package.json with a "manifest"
  * subkey pointing to the manifest module.  This helper resolves the path.
  *
  * @see PLUGIN_SPEC.md §10 — Package Contract
@@ -975,13 +975,13 @@ function resolveManifestPath(
   packageRoot: string,
   pkgJson: Record<string, unknown>,
 ): string | null {
-  const paperclipPlugin = pkgJson["paperclipPlugin"];
+  const outpostPlugin = pkgJson["outpostPlugin"];
   if (
-    paperclipPlugin !== null &&
-    typeof paperclipPlugin === "object" &&
-    !Array.isArray(paperclipPlugin)
+    outpostPlugin !== null &&
+    typeof outpostPlugin === "object" &&
+    !Array.isArray(outpostPlugin)
   ) {
-    const manifestRelPath = (paperclipPlugin as Record<string, unknown>)[
+    const manifestRelPath = (outpostPlugin as Record<string, unknown>)[
       "manifest"
     ];
     if (typeof manifestRelPath === "string") {
@@ -1069,8 +1069,8 @@ function compareSemver(left: string, right: string): number {
   return 0;
 }
 
-function getMinimumHostVersion(manifest: PaperclipPluginManifestV1): string | undefined {
-  return manifest.minimumHostVersion ?? manifest.minimumPaperclipVersion;
+function getMinimumHostVersion(manifest: OutpostPluginManifestV1): string | undefined {
+  return manifest.minimumHostVersion ?? manifest.minimumOutpostVersion;
 }
 
 /**
@@ -1081,7 +1081,7 @@ function getMinimumHostVersion(manifest: PaperclipPluginManifestV1): string | un
  * `launchers` field and the preferred `ui.launchers` field.
  */
 export function getPluginUiContributionMetadata(
-  manifest: PaperclipPluginManifestV1,
+  manifest: OutpostPluginManifestV1,
 ): PluginUiContributionMetadata | null {
   const slots = manifest.ui?.slots ?? [];
   const launchers = [
@@ -1125,7 +1125,7 @@ export function getPluginUiContributionMetadata(
  *
  * // Install a specific plugin
  * const discovered = await loader.installPlugin({
- *   packageName: "paperclip-plugin-linear",
+ *   packageName: "outpost-plugin-linear",
  *   version: "^1.0.0",
  * });
  * ```
@@ -1179,7 +1179,7 @@ export function pluginLoader(
   const log = logger.child({ service: "plugin-loader" });
   const hostVersion = runtimeServices?.instanceInfo.hostVersion;
 
-  async function assertPageRoutePathsAvailable(manifest: PaperclipPluginManifestV1): Promise<void> {
+  async function assertPageRoutePathsAvailable(manifest: OutpostPluginManifestV1): Promise<void> {
     const requestedRoutePaths = getDeclaredPageRoutePaths(manifest);
     if (requestedRoutePaths.length === 0) return;
 
@@ -1191,7 +1191,7 @@ export function pluginLoader(
     const installedPlugins = await registry.listInstalled();
     for (const plugin of installedPlugins) {
       if (plugin.pluginKey === manifest.id) continue;
-      const installedManifest = plugin.manifestJson as PaperclipPluginManifestV1 | null;
+      const installedManifest = plugin.manifestJson as OutpostPluginManifestV1 | null;
       if (!installedManifest) continue;
       const installedRoutePaths = new Set(getDeclaredPageRoutePaths(installedManifest));
       const conflictingRoute = requestedRoutePaths.find((routePath) => installedRoutePaths.has(routePath));
@@ -1366,7 +1366,7 @@ export function pluginLoader(
    */
   async function loadManifestFromPath(
     manifestPath: string,
-  ): Promise<PaperclipPluginManifestV1> {
+  ): Promise<OutpostPluginManifestV1> {
     let raw: unknown;
 
     try {
@@ -1388,7 +1388,7 @@ export function pluginLoader(
 
   async function loadManifestFromPackageRoot(
     packageRoot: string,
-  ): Promise<PaperclipPluginManifestV1 | null> {
+  ): Promise<OutpostPluginManifestV1 | null> {
     const pkgJson = await readPackageJson(packageRoot);
     if (!pkgJson) return null;
 
@@ -1434,7 +1434,7 @@ export function pluginLoader(
 
   /**
    * Build a DiscoveredPlugin from a resolved package directory, or null
-   * if the package is not a Paperclip plugin.
+   * if the package is not a Outpost plugin.
    */
   async function buildDiscoveredPlugin(
     packagePath: string,
@@ -1448,10 +1448,10 @@ export function pluginLoader(
     const version = typeof pkgJson["version"] === "string" ? pkgJson["version"] : "0.0.0";
 
     // Determine if this is a plugin package at all
-    const hasPaperclipPlugin = "paperclipPlugin" in pkgJson;
+    const hasOutpostPlugin = "outpostPlugin" in pkgJson;
     const nameMatchesConvention = isPluginPackageName(packageName);
 
-    if (!hasPaperclipPlugin && !nameMatchesConvention) {
+    if (!hasOutpostPlugin && !nameMatchesConvention) {
       return null;
     }
 
@@ -1722,16 +1722,16 @@ export function pluginLoader(
     // loadManifest
     // -----------------------------------------------------------------------
 
-    async loadManifest(packagePath: string): Promise<PaperclipPluginManifestV1 | null> {
+    async loadManifest(packagePath: string): Promise<OutpostPluginManifestV1 | null> {
       assertPackageActivation?.({ packageRoot: packagePath });
       const pkgJson = await readPackageJson(packagePath);
       if (!pkgJson) return null;
 
-      const hasPaperclipPlugin = "paperclipPlugin" in pkgJson;
+      const hasOutpostPlugin = "outpostPlugin" in pkgJson;
       const packageName = typeof pkgJson["name"] === "string" ? pkgJson["name"] : "";
       const nameMatchesConvention = isPluginPackageName(packageName);
 
-      if (!hasPaperclipPlugin && !nameMatchesConvention) {
+      if (!hasOutpostPlugin && !nameMatchesConvention) {
         return null;
       }
 
@@ -1815,8 +1815,8 @@ export function pluginLoader(
       pluginId: string,
       upgradeOptions: Omit<PluginInstallOptions, "installDir">,
     ): Promise<{
-      oldManifest: PaperclipPluginManifestV1;
-      newManifest: PaperclipPluginManifestV1;
+      oldManifest: OutpostPluginManifestV1;
+      newManifest: OutpostPluginManifestV1;
       discovered: DiscoveredPlugin;
     }> {
       const plugin = await registry.getById(pluginId);
@@ -2298,24 +2298,24 @@ export function pluginLoader(
       // ------------------------------------------------------------------
       // 4. Bootstrap worker config
       // ------------------------------------------------------------------
-      // Plugin configuration is company-scoped. Workers receive an empty
-      // bootstrap config and must use ctx.config.get(companyId) at runtime.
+      // Plugin configuration is space-scoped. Workers receive an empty
+      // bootstrap config and must use ctx.config.get(spaceId) at runtime.
       // Stored config is delivered right after the worker starts (step 5b) via
       // the same configChanged path an operator config-save uses.
       const config: Record<string, unknown> = {};
 
       // ------------------------------------------------------------------
-      // 4b. Load stored company configs BEFORE starting the worker
+      // 4b. Load stored space configs BEFORE starting the worker
       // ------------------------------------------------------------------
-      // The worker authorizes its proactive (no-invocation) company scopes from
-      // its configured companies. A proactive plugin — e.g. the chat gateway —
+      // The worker authorizes its proactive (no-invocation) space scopes from
+      // its configured spaces. A proactive plugin — e.g. the chat gateway —
       // issues its one-shot events.subscribe calls from setup(), which runs
       // while startWorker is still awaiting the worker's initialize response, so
-      // the authorized company set must be seeded onto the worker handle BEFORE
+      // the authorized space set must be seeded onto the worker handle BEFORE
       // startWorker spawns the process — not after startWorker resolves.
       // Setting it afterwards (the previous ordering) was too late for those
-      // setup()-time subscribes: the governed-access gate rejected every one
-      // with "company context is required" and outbound push stayed dead
+      // setup()-time subscribes: the controlled-access gate rejected every one
+      // with "space context is required" and outbound push stayed dead
       // (eventSubscriptions: 0) for the worker's life (LOOA-695). The same rows
       // drive startup config delivery in step 5b below. Listing is best-effort:
       // if it fails the worker still starts, just with no proactive access.
@@ -2352,12 +2352,12 @@ export function pluginLoader(
           instanceInfo,
           grantedEnvVars: managedPluginWorkerEnvGrant(activePlugin.pluginKey),
         }),
-        // Authorize the worker to act on each configured company from its
+        // Authorize the worker to act on each configured space from its
         // proactive loops/timers (LOOA-629). Seeded here so it is in place
         // before any setup()-time worker→host call (LOOA-695). The authorized
-        // set is exactly the plugin's configured companies — proactive access
-        // never reaches an unconfigured company.
-        proactiveCompanyScopes: configRows.map((row) => row.companyId),
+        // set is exactly the plugin's configured spaces — proactive access
+        // never reaches an unconfigured space.
+        proactiveSpaceScopes: configRows.map((row) => row.spaceId),
       };
 
       if (prebuiltOnly) {
@@ -2381,48 +2381,48 @@ export function pluginLoader(
       // 5b. Deliver stored configuration to the freshly-started worker
       // ------------------------------------------------------------------
       // The worker is spawned with an empty bootstrap config and is expected to
-      // read company-scoped config via ctx.config.get(companyId). That call
-      // only resolves inside a company-scoped invocation (event/action/tool),
-      // so a proactive plugin that does company work from setup() — e.g. the
+      // read space-scoped config via ctx.config.get(spaceId). That call
+      // only resolves inside a space-scoped invocation (event/action/tool),
+      // so a proactive plugin that does space work from setup() — e.g. the
       // chat gateway opening a Slack Socket Mode connection — can never read
-      // its own config and comes up inert. Replay each configured company's
+      // its own config and comes up inert. Replay each configured space's
       // config through the same configChanged path an operator config-save
       // uses (routes/plugins.ts), so the worker receives it at startup.
       // Best-effort: a worker that doesn't implement onConfigChanged
       // (METHOD_NOT_IMPLEMENTED) or is momentarily unavailable simply keeps the
-      // runtime ctx.config.get(companyId) model. onConfigChanged is idempotent
+      // runtime ctx.config.get(spaceId) model. onConfigChanged is idempotent
       // for well-behaved plugins, so replaying an unchanged config is safe.
       //
       // Reuses the `configRows` loaded in step 4b (which also seeded the
-      // worker's proactive company scopes before startup); no second listConfigs
+      // worker's proactive space scopes before startup); no second listConfigs
       // round-trip is needed here.
       for (const row of configRows) {
         try {
           await workerManager.call(pluginId, "configChanged", {
             config: (row.configJson ?? {}) as Record<string, unknown>,
-            companyId: row.companyId,
+            spaceId: row.spaceId,
           });
         } catch (configErr) {
           // A single-tenant worker fails closed (CROSS_TENANT_CONFIG) rather
-          // than collapse onto a second company's config — surface that at
-          // warn so the misconfiguration (multiple distinct companies
+          // than collapse onto a second space's config — surface that at
+          // warn so the misconfiguration (multiple distinct spaces
           // configured for a single-tenant plugin) is visible, instead of
           // being lost in the best-effort debug stream.
           const code = (configErr as { code?: number } | null)?.code;
           const details = {
             pluginId,
             pluginKey,
-            companyId: row.companyId,
+            spaceId: row.spaceId,
             code,
             err: configErr instanceof Error ? configErr.message : String(configErr),
           };
           if (code === PLUGIN_RPC_ERROR_CODES.CROSS_TENANT_CONFIG) {
             log.warn(
               details,
-              "plugin-loader: startup config delivery rejected — single-tenant plugin configured for multiple companies",
+              "plugin-loader: startup config delivery rejected — single-tenant plugin configured for multiple spaces",
             );
           } else {
-            log.debug(details, "plugin-loader: startup config delivery skipped for company");
+            log.debug(details, "plugin-loader: startup config delivery skipped for space");
           }
         }
       }

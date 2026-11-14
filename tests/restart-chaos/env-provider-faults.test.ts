@@ -27,7 +27,7 @@ describe("EP1 environment-provider faults", () => {
 
   it("fails the staging shape: a generic setup failure stranded on a board action", () => {
     const grade = gradeEnvProviderTask(base({ runs: [failedRun("a", "setup_failed")], finalStatus: "blocked", briefOk: false,
-      activeRecoveryActions: [{ ownerType: "board", kind: "stranded_assigned_issue", cause: "stranded_assigned_issue" }] }));
+      activeRecoveryActions: [{ ownerType: "operator", kind: "stranded_assigned_issue", cause: "stranded_assigned_issue" }] }));
     expect(grade.checks.filter(check => !check.pass).map(check => check.name))
       .toEqual(["bounded_retry", "no_board_recovery_action", "completes_without_user", "brief_oracle"]);
   });

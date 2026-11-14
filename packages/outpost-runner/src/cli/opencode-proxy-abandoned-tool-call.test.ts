@@ -135,10 +135,10 @@ describe("OpenCode proxy abandoned completion (driver + proxy wiring)", () => {
     await Promise.all(cleanup.splice(0).map(path => rm(path, { recursive: true, force: true })));
   });
 
-  it("withdraws a queued paperclip_finish feedback frame when its MCP client cancels", async () => {
-    const fixtureRoot = await mkdtemp(join(tmpdir(), "paperclip-opencode-abandon-fixture-"));
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-abandon-"));
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-opencode-abandon-workspace-"));
+  it("withdraws a queued outpost_finish feedback frame when its MCP client cancels", async () => {
+    const fixtureRoot = await mkdtemp(join(tmpdir(), "outpost-opencode-abandon-fixture-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-abandon-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-opencode-abandon-workspace-"));
     cleanup.push(fixtureRoot, root, workspace);
     const fixture = join(fixtureRoot, "fake-opencode-server.mjs");
     await copyFile(resolve("test/fixtures/fake-opencode-server.mjs"), fixture);

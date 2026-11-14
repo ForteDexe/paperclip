@@ -19,10 +19,10 @@ export function validateRailwayKnownHosts(value: string): string {
 }
 
 export async function generateRailwaySshKey(): Promise<{ publicKey: string; privateKey: string }> {
-  const directory = await mkdtemp(path.join(tmpdir(), "paperclip-railway-key-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "outpost-railway-key-"));
   try {
     const keyPath = path.join(directory, "identity");
-    await promisify(execFile)("/usr/bin/ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-C", "paperclip-railway", "-f", keyPath], { timeout: 10_000, env: { PATH: "/usr/bin:/bin" } });
+    await promisify(execFile)("/usr/bin/ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-C", "outpost-railway", "-f", keyPath], { timeout: 10_000, env: { PATH: "/usr/bin:/bin" } });
     return { publicKey: (await readFile(`${keyPath}.pub`, "utf8")).trim(), privateKey: await readFile(keyPath, "utf8") };
   } catch {
     throw new RailwayError("railway_ssh_unavailable", "Generating a Railway key requires system OpenSSH (ssh-keygen) on the Outpost runtime.", 422);
@@ -46,7 +46,7 @@ export async function runRailwaySshCommand(input: RailwaySshInput & { privateKey
   input.signal.throwIfAborted();
   const knownHosts = validateRailwayKnownHosts(input.knownHosts);
   if (!input.privateKey.startsWith("-----BEGIN OPENSSH PRIVATE KEY-----")) throw new RailwayError("railway_ssh_key_invalid", "Regenerate the Railway connection's SSH key.", 422);
-  const directory = await mkdtemp(path.join(tmpdir(), "paperclip-railway-command-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "outpost-railway-command-"));
   try {
     await writeFile(path.join(directory, "identity"), input.privateKey, { mode: 0o600 });
     await writeFile(path.join(directory, "known_hosts"), knownHosts, { mode: 0o600 });
@@ -55,7 +55,7 @@ export async function runRailwaySshCommand(input: RailwaySshInput & { privateKey
       // No developer SSH config/agent, CLI login, provider token or ambient env.
       const child = spawn("/usr/bin/ssh", railwaySshArguments(directory, input.deploymentInstanceId), { env: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8" }, stdio: ["pipe", "pipe", "pipe"] });
       let stdout = "", stderr = "", bytes = 0, truncated = false, timedOut = false, deliveryFailed = false;
-      const marker = `paperclip_railway_completed_${randomBytes(16).toString("hex")}`;
+      const marker = `outpost_railway_completed_${randomBytes(16).toString("hex")}`;
       const stop = () => { child.kill("SIGKILL"); };
       const receive = (chunk: Buffer, stream: "out" | "err") => {
         const remaining = Math.max(0, 64 * 1024 - bytes);
@@ -85,7 +85,7 @@ export async function runRailwaySshCommand(input: RailwaySshInput & { privateKey
       });
       child.stdin.on("error", () => { deliveryFailed = true; });
       const quotedCommand = "'" + input.command.replace(/'/g, "'\\''") + "'";
-      child.stdin.end(`sh -c ${quotedCommand} </dev/null\npaperclip_command_status=$?\nprintf '\\n${marker}:%d\\n' "$paperclip_command_status"\nexit "$paperclip_command_status"\n`);
+      child.stdin.end(`sh -c ${quotedCommand} </dev/null\noutpost_command_status=$?\nprintf '\\n${marker}:%d\\n' "$outpost_command_status"\nexit "$outpost_command_status"\n`);
     });
   } finally { await rm(directory, { recursive: true, force: true }); }
 }

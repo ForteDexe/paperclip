@@ -35,7 +35,7 @@ import type { Db } from "@outpost/db";
 import type { PluginRecord } from "@outpost/shared";
 import { pluginRegistryService } from "../services/plugin-registry.js";
 import { logger } from "../middleware/logger.js";
-import { assertCompanyAccess } from "./authz.js";
+import { assertSpaceAccess } from "./authz.js";
 import { badRequest } from "../errors.js";
 
 // ---------------------------------------------------------------------------
@@ -190,7 +190,7 @@ export interface PluginUiStaticRouteOptions {
   /**
    * The local plugin installation directory.
    * This is where plugins are installed via `npm install --prefix`.
-   * Defaults to the standard `~/.paperclip/plugins/` location.
+   * Defaults to the standard `~/.outpost/plugins/` location.
    */
   localPluginDir: string;
   resolvePackageRoot?: (plugin: PluginRecord) => string;
@@ -281,23 +281,23 @@ export function pluginUiStaticRoutes(db: Db, options: PluginUiStaticRouteOptions
       return;
     }
 
-    const rawCompanyId = req.query.companyId;
+    const rawSpaceId = req.query.spaceId;
     if (
-      Array.isArray(rawCompanyId) ||
-      (rawCompanyId !== undefined && typeof rawCompanyId !== "string")
+      Array.isArray(rawSpaceId) ||
+      (rawSpaceId !== undefined && typeof rawSpaceId !== "string")
     ) {
-      throw badRequest('"companyId" must be a string when provided');
+      throw badRequest('"spaceId" must be a string when provided');
     }
-    const companyId = typeof rawCompanyId === "string" ? rawCompanyId.trim() : "";
-    if (companyId) {
-      assertCompanyAccess(req, companyId);
+    const spaceId = typeof rawSpaceId === "string" ? rawSpaceId.trim() : "";
+    if (spaceId) {
+      assertSpaceAccess(req, spaceId);
     }
 
-    // Step 2b: Check for devUiUrl in company-scoped plugin config — proxy to
+    // Step 2b: Check for devUiUrl in space-scoped plugin config — proxy to
     // local dev server when a plugin author has configured hot-reload.
     // See PLUGIN_SPEC.md §27.2 — Local Development Workflow
     try {
-      const configRow = companyId ? await registry.getConfig(plugin.id, companyId) : null;
+      const configRow = spaceId ? await registry.getConfig(plugin.id, spaceId) : null;
       const devUiUrl =
         configRow &&
         typeof configRow === "object" &&

@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "chat_voice_inbound_calls" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"endpoint_id" uuid NOT NULL,
 	"provider_session_id" text NOT NULL,
 	"state" text DEFAULT 'awaiting_approval' NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS "chat_voice_inbound_calls" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "chat_voice_phone_lines" (
 	"endpoint_id" uuid PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"provider_number_id" text NOT NULL,
 	"phone_number" text NOT NULL,
 	"enabled" boolean DEFAULT false NOT NULL,
@@ -36,17 +36,17 @@ CREATE TABLE IF NOT EXISTS "chat_voice_phone_lines" (
 --> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_inbound_endpoint_fk' AND conrelid = 'chat_voice_inbound_calls'::regclass) THEN
-    ALTER TABLE "chat_voice_inbound_calls" ADD CONSTRAINT "chat_voice_inbound_endpoint_fk" FOREIGN KEY ("company_id","endpoint_id") REFERENCES "public"."chat_endpoints"("company_id","id") ON DELETE cascade ON UPDATE no action;
+    ALTER TABLE "chat_voice_inbound_calls" ADD CONSTRAINT "chat_voice_inbound_endpoint_fk" FOREIGN KEY ("space_id","endpoint_id") REFERENCES "public"."chat_endpoints"("space_id","id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_inbound_session_fk' AND conrelid = 'chat_voice_inbound_calls'::regclass) THEN
-    ALTER TABLE "chat_voice_inbound_calls" ADD CONSTRAINT "chat_voice_inbound_session_fk" FOREIGN KEY ("company_id","session_id") REFERENCES "public"."chat_voice_sessions"("company_id","id") ON DELETE no action ON UPDATE no action;
+    ALTER TABLE "chat_voice_inbound_calls" ADD CONSTRAINT "chat_voice_inbound_session_fk" FOREIGN KEY ("space_id","session_id") REFERENCES "public"."chat_voice_sessions"("space_id","id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_phone_lines_endpoint_fk' AND conrelid = 'chat_voice_phone_lines'::regclass) THEN
-    ALTER TABLE "chat_voice_phone_lines" ADD CONSTRAINT "chat_voice_phone_lines_endpoint_fk" FOREIGN KEY ("company_id","endpoint_id") REFERENCES "public"."chat_endpoints"("company_id","id") ON DELETE cascade ON UPDATE no action;
+    ALTER TABLE "chat_voice_phone_lines" ADD CONSTRAINT "chat_voice_phone_lines_endpoint_fk" FOREIGN KEY ("space_id","endpoint_id") REFERENCES "public"."chat_endpoints"("space_id","id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "chat_voice_inbound_expiry_idx" ON "chat_voice_inbound_calls" USING btree ("state","expires_at");

@@ -176,7 +176,7 @@ async function commandAddDirection(flags) {
     group: registry.group,
     surfaces: registry.surfaces.map(deriveSurface),
     directions: [...explorations.map((entry) => ({ ...entry, digit: Number(entry.key), prefix: entry.id.replace(/^d\d+-/, "") })), direction],
-    company: { id: `company-${registry.slug}`, name: registry.slug, issuePrefix: upperSnake(registry.slug).slice(0, 3) },
+    space: { id: `space-${registry.slug}`, name: registry.slug, issuePrefix: upperSnake(registry.slug).slice(0, 3) },
     landing: registry.landing,
     ports: { dev: 0, preview: 0 },
     capabilities: [],

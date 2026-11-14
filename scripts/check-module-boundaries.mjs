@@ -13,7 +13,7 @@ const databasePackages = ["@outpost/db", "drizzle-orm", "embedded-postgres", "po
 const configurationTransactionCallers = new Set([
   "modules/external-agents/muse.ts", "modules/external-agents/dot.ts",
   "services/secret-proposals.ts", "services/connection-intents.ts", "services/dot-runner-broker.ts",
-  "services/public-mcp/oauth.ts", "services/agent-profile-avatar.ts", "services/agent-instruction-revisions.ts", "services/company-skills.ts",
+  "services/public-mcp/oauth.ts", "services/agent-profile-avatar.ts", "services/agent-instruction-revisions.ts", "services/space-skills.ts",
 ]);
 
 function normalizedRelative(from, to) {
@@ -155,9 +155,9 @@ export function scanModuleBoundaries({
         const targetRelative = normalizedRelative(resolve(modulesRoot, targetLocation.moduleName), target);
         const configurationIntegration = /^configuration\.(?:js|ts)$/.test(targetRelative) &&
           normalizedRelative(serverSrc, sourceFile) === "services/agent-configuration-transaction.ts";
-        const companyDeletionIntegration = /^company-deletion\.(?:js|ts)$/.test(targetRelative) &&
-          normalizedRelative(serverSrc, sourceFile) === "services/company-deletion.ts";
-        if (targetRelative !== "index.js" && targetRelative !== "index.ts" && !companyDeletionIntegration && !configurationIntegration) {
+        const spaceDeletionIntegration = /^space-deletion\.(?:js|ts)$/.test(targetRelative) &&
+          normalizedRelative(serverSrc, sourceFile) === "services/space-deletion.ts";
+        if (targetRelative !== "index.js" && targetRelative !== "index.ts" && !spaceDeletionIntegration && !configurationIntegration) {
           addViolation(
             violations,
             sourceLabel,

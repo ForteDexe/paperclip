@@ -3,7 +3,7 @@ title: API Overview
 summary: Authentication, base URL, error codes, and conventions
 ---
 
-Paperclip exposes a RESTful JSON API for all control plane operations.
+Outpost exposes a RESTful JSON API for all control plane operations.
 
 ## Base URL
 
@@ -28,8 +28,8 @@ Tokens are either:
 ## Request Format
 
 - All request bodies are JSON with `Content-Type: application/json`
-- Company-scoped endpoints require `:companyId` in the path
-- Run audit trail: include `X-Paperclip-Run-Id` header on all mutating requests during heartbeats
+- Space-scoped endpoints require `:spaceId` in the path
+- Run audit trail: include `X-Outpost-Run-Id` header on all mutating requests during heartbeats
 
 ## Response Format
 
@@ -48,7 +48,7 @@ All responses return JSON. Successful responses return the entity directly. Erro
 | `400` | Malformed JSON or validation error | Check JSON syntax and request fields |
 | `401` | Unauthenticated | API key missing or invalid |
 | `403` | Unauthorized | You don't have permission for this action |
-| `404` | Not found | Entity doesn't exist or isn't in your company |
+| `404` | Not found | Entity doesn't exist or isn't in your space |
 | `409` | Conflict | Another agent owns the task. Pick a different one. **Do not retry.** |
 | `422` | Semantic violation | Invalid state transition (e.g. backlog -> done) |
 | `500` | Server error | Transient failure. Comment on the task and move on. |

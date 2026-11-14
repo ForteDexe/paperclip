@@ -120,7 +120,7 @@
       "actualFailedCases": 1,
       "intendedAssertionFailed": true,
       "sourceRestored": true,
-      "failure": "AssertionError: expected '<div class=\"paperclip-markdown prose \u2026' to contain '<a href=\"https://example.com/docs\"'\n    at <workspace>/ui/src/components/MarkdownBody.test.tsx:587:18\n    at file://<workspace>/node_modules/.pnpm/vitest@5.0.3_@opentelemetry+api@1.9.1_@types+node@24.13.3_jsdom@30.0.1_@noble+hashes@2.4.0__v_wr5mxfuu6kgge6st623q4v5egm/node_modules/vitest/dist/chunks/run.BTlFXlnv.js:1628:35\n    at file://<workspace>/node_modules/.pnpm/vitest@5.0.3_@opentelemetry+api@1.9.1_@types+node@24.13.3_jsdom@30.0.1_"
+      "failure": "AssertionError: expected '<div class=\"outpost-markdown prose \u2026' to contain '<a href=\"https://example.com/docs\"'\n    at <workspace>/ui/src/components/MarkdownBody.test.tsx:587:18\n    at file://<workspace>/node_modules/.pnpm/vitest@5.0.3_@opentelemetry+api@1.9.1_@types+node@24.13.3_jsdom@30.0.1_@noble+hashes@2.4.0__v_wr5mxfuu6kgge6st623q4v5egm/node_modules/vitest/dist/chunks/run.BTlFXlnv.js:1628:35\n    at file://<workspace>/node_modules/.pnpm/vitest@5.0.3_@opentelemetry+api@1.9.1_@types+node@24.13.3_jsdom@30.0.1_"
     },
     {
       "id": "server-cancelled-reopen",
@@ -338,7 +338,7 @@
           }
         },
         {
-          "file": "server/src/__tests__/company-skills-routes.test.ts",
+          "file": "server/src/__tests__/space-skills-routes.test.ts",
           "sourceSha256": "9fdfa5790bd33b9824e3aeed28daa01065eab248712d2f9482f633f7c33165a9",
           "proposalSha256": "7037feadb73f235f81afeb9499b5bc9b988e2057b43add48c7546f6558085a03",
           "fullProgramAstEqualAfterActualHelperExpansionAndEnumeratedBehaviorEdits": true,
@@ -356,13 +356,13 @@
       "method": "Actual proposed helper bodies expanded. Source metadata/comments/types and object shorthand normalized; object fields, array rows, JSX props, all values/callbacks/promises/awaits, action/write/Git order and cleanup remain strict. Statement-helper parameters are checked to be stable Identifier bindings. Only enumerated reviewed retirement/migration deltas are permitted.",
       "checks": [
         {
-          "file": "cli/src/__tests__/company.test.ts",
+          "file": "cli/src/__tests__/space.test.ts",
           "sourceSha256": "d957294d6113f3b546e15e36289f5085852fc5ab1350529bc025a192fc05d378",
           "proposalSha256": "1cd0c0445ab57a8c74416a63da6acb4ddde36e8c09aa5b3c74db589792445be1",
           "actualHelperExpansionWholeRuntimeAstEqual": true,
           "expandedCalls": {
             "allImportEntities": 6,
-            "sourceCompanyManifest": 2,
+            "sourceSpaceManifest": 2,
             "ceoManifest": 2,
             "alphaProjectManifest": 2,
             "kickoffIssueManifest": 2,
@@ -449,7 +449,7 @@
     {
       "batch": "round5-tools",
       "baseline": "3e7ee04591fd82f3effb89370f47aa90dcadd6eb",
-      "method": "Only source metadata/comments and object shorthand differ. Actual candidate helper bodies expanded, removing only their new declarations and type-only IdRef aliases. Object-field, nested object, array, table, JSX-free input, promise, await, callback, actor/company/credential/expected value and statement order remain exact. Newly introduced literal spreads are allowed only when there are no overwritten keys or effectful helper arguments. All helper object bodies are fresh literals without external closure state.",
+      "method": "Only source metadata/comments and object shorthand differ. Actual candidate helper bodies expanded, removing only their new declarations and type-only IdRef aliases. Object-field, nested object, array, table, JSX-free input, promise, await, callback, actor/space/credential/expected value and statement order remain exact. Newly introduced literal spreads are allowed only when there are no overwritten keys or effectful helper arguments. All helper object bodies are fresh literals without external closure state.",
       "files": [
         {
           "path": "server/src/__tests__/tool-access-service.test.ts",
@@ -508,7 +508,7 @@
           "expandedBeforeSha256": "0a7affd96c9e84850e2540edea63bbc6eabf24f124468e2526fa3095f2ddd7af",
           "expandedAfterSha256": "0a7affd96c9e84850e2540edea63bbc6eabf24f124468e2526fa3095f2ddd7af",
           "allHelperCalls": {
-            "interactionCompanyRow": 14,
+            "interactionSpaceRow": 14,
             "parentIssueRow": 7,
             "activeCodexAgentRow": 19,
             "acceptIssueScope": 31

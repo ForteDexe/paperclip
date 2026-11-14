@@ -4,8 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Agent, CompanySecret } from "@outpost/shared";
-import type { PaperclipConfig } from "../config/schema.js";
+import type { Agent, SpaceSecret } from "@outpost/shared";
+import type { OutpostConfig } from "../config/schema.js";
 import { secretsCheck } from "../checks/secrets-check.js";
 import {
   buildInlineMigrationSecretName,
@@ -19,7 +19,7 @@ import {
 function agent(partial: Partial<Agent>): Agent {
   return {
     id: "agent-12345678",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Coder",
     urlKey: "coder",
     role: "engineer",
@@ -46,18 +46,18 @@ function agent(partial: Partial<Agent>): Agent {
   };
 }
 
-function secret(partial: Partial<CompanySecret>): CompanySecret {
+function secret(partial: Partial<SpaceSecret>): SpaceSecret {
   return {
     id: "secret-1",
-    companyId: "company-1",
-    scope: "company",
+    spaceId: "space-1",
+    scope: "space",
     ownerUserId: null,
     userSecretDefinitionId: null,
     key: "agent_agent-12_anthropic_api_key",
     name: "agent_agent-12_anthropic_api_key",
     provider: "local_encrypted",
     status: "active",
-    managedMode: "paperclip_managed",
+    managedMode: "outpost_managed",
     externalRef: null,
     providerConfigId: null,
     providerMetadata: null,
@@ -74,7 +74,7 @@ function secret(partial: Partial<CompanySecret>): CompanySecret {
   };
 }
 
-function configWithSecretsProvider(provider: PaperclipConfig["secrets"]["provider"]): PaperclipConfig {
+function configWithSecretsProvider(provider: OutpostConfig["secrets"]["provider"]): OutpostConfig {
   return {
     $meta: {
       version: 1,
@@ -83,18 +83,18 @@ function configWithSecretsProvider(provider: PaperclipConfig["secrets"]["provide
     },
     database: {
       mode: "embedded-postgres",
-      embeddedPostgresDataDir: "/tmp/paperclip/db",
+      embeddedPostgresDataDir: "/tmp/outpost/db",
       embeddedPostgresPort: 55432,
       backup: {
         enabled: true,
         intervalMinutes: 60,
         retentionDays: 30,
-        dir: "/tmp/paperclip/backups",
+        dir: "/tmp/outpost/backups",
       },
     },
     logging: {
       mode: "file",
-      logDir: "/tmp/paperclip/logs",
+      logDir: "/tmp/outpost/logs",
     },
     server: {
       deploymentMode: "local_trusted",
@@ -114,10 +114,10 @@ function configWithSecretsProvider(provider: PaperclipConfig["secrets"]["provide
     storage: {
       provider: "local_disk",
       localDisk: {
-        baseDir: "/tmp/paperclip/storage",
+        baseDir: "/tmp/outpost/storage",
       },
       s3: {
-        bucket: "paperclip",
+        bucket: "outpost",
         region: "us-east-1",
         prefix: "",
         forcePathStyle: false,
@@ -127,7 +127,7 @@ function configWithSecretsProvider(provider: PaperclipConfig["secrets"]["provide
       provider,
       strictMode: true,
       localEncrypted: {
-        keyFilePath: "/tmp/paperclip/secrets/master.key",
+        keyFilePath: "/tmp/outpost/secrets/master.key",
       },
     },
   };
@@ -154,7 +154,7 @@ describe("secrets CLI helpers", () => {
 
   it("parses declaration include filters", () => {
     expect(parseSecretsInclude("agents,projects,tasks")).toEqual({
-      company: false,
+      space: false,
       agents: true,
       projects: true,
       issues: true,
@@ -258,7 +258,7 @@ describe("secrets CLI helpers", () => {
     process.env.OUTPOST_SECRETS_AWS_DEPLOYMENT_ID = "prod-us-1";
     process.env.OUTPOST_SECRETS_AWS_KMS_KEY_ID =
       "arn:aws:kms:us-east-1:123456789012:key/test";
-    process.env.AWS_PROFILE = "paperclip-prod";
+    process.env.AWS_PROFILE = "outpost-prod";
 
     const result = secretsCheck(configWithSecretsProvider("aws_secrets_manager"));
 
@@ -273,7 +273,7 @@ describe("secrets CLI helpers", () => {
 
     beforeEach(() => {
       delete process.env.OUTPOST_SECRETS_MASTER_KEY;
-      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-secrets-check-"));
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-secrets-check-"));
       keyFilePath = path.join(tempDir, "master.key");
       fs.writeFileSync(keyFilePath, randomBytes(32).toString("base64"), "utf8");
       process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = keyFilePath;
@@ -325,28 +325,28 @@ describe("secrets API parity commands", () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse()));
     vi.stubGlobal("fetch", fetchMock);
 
-    await runSecretCommand(["secrets", "provider-configs", "--company-id", "company-1"]);
-    await runSecretCommand(["secrets", "provider-config:create", "--company-id", "company-1", "--payload-json", "{}"]);
-    await runSecretCommand(["secrets", "provider-config:discovery-preview", "--company-id", "company-1", "--payload-json", "{}"]);
+    await runSecretCommand(["secrets", "provider-configs", "--space-id", "space-1"]);
+    await runSecretCommand(["secrets", "provider-config:create", "--space-id", "space-1", "--payload-json", "{}"]);
+    await runSecretCommand(["secrets", "provider-config:discovery-preview", "--space-id", "space-1", "--payload-json", "{}"]);
     await runSecretCommand(["secrets", "provider-config:get", "config-1"]);
     await runSecretCommand(["secrets", "provider-config:update", "config-1", "--payload-json", "{}"]);
     await runSecretCommand(["secrets", "provider-config:default", "config-1"]);
     await runSecretCommand(["secrets", "provider-config:health", "config-1"]);
     await runSecretCommand(["secrets", "provider-config:delete", "config-1"]);
-    await runSecretCommand(["secrets", "remote-import:preview", "--company-id", "company-1", "--payload-json", "{}"]);
-    await runSecretCommand(["secrets", "remote-import", "--company-id", "company-1", "--payload-json", "{}"]);
+    await runSecretCommand(["secrets", "remote-import:preview", "--space-id", "space-1", "--payload-json", "{}"]);
+    await runSecretCommand(["secrets", "remote-import", "--space-id", "space-1", "--payload-json", "{}"]);
 
     expect(fetchMock.mock.calls.map((call) => [call[1]?.method ?? "GET", call[0]])).toEqual([
-      ["GET", "http://localhost:3100/api/companies/company-1/secret-provider-configs"],
-      ["POST", "http://localhost:3100/api/companies/company-1/secret-provider-configs"],
-      ["POST", "http://localhost:3100/api/companies/company-1/secret-provider-configs/discovery/preview"],
+      ["GET", "http://localhost:3100/api/spaces/space-1/secret-provider-configs"],
+      ["POST", "http://localhost:3100/api/spaces/space-1/secret-provider-configs"],
+      ["POST", "http://localhost:3100/api/spaces/space-1/secret-provider-configs/discovery/preview"],
       ["GET", "http://localhost:3100/api/secret-provider-configs/config-1"],
       ["PATCH", "http://localhost:3100/api/secret-provider-configs/config-1"],
       ["POST", "http://localhost:3100/api/secret-provider-configs/config-1/default"],
       ["POST", "http://localhost:3100/api/secret-provider-configs/config-1/health"],
       ["DELETE", "http://localhost:3100/api/secret-provider-configs/config-1"],
-      ["POST", "http://localhost:3100/api/companies/company-1/secrets/remote-import/preview"],
-      ["POST", "http://localhost:3100/api/companies/company-1/secrets/remote-import"],
+      ["POST", "http://localhost:3100/api/spaces/space-1/secrets/remote-import/preview"],
+      ["POST", "http://localhost:3100/api/spaces/space-1/secrets/remote-import"],
     ]);
   });
 
@@ -375,7 +375,7 @@ async function runSecretCommand(args: string[]): Promise<void> {
   program.exitOverride();
   program.configureOutput({ writeOut: () => {}, writeErr: () => {} });
   registerSecretCommands(program);
-  await program.parseAsync([...args, "--api-base", "http://localhost:3100", "--api-key", "board-token"], { from: "user" });
+  await program.parseAsync([...args, "--api-base", "http://localhost:3100", "--api-key", "operator-token"], { from: "user" });
 }
 
 function jsonResponse(body: unknown = { ok: true }, init: ResponseInit = { status: 200 }): Response {

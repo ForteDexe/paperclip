@@ -199,7 +199,7 @@ export class CodexAppServerDriver implements HarnessDriver {
     if (!this.#caps.dynamicTools) return [];
     const supplied = this.#options.dynamicTools ?? [];
     if (this.#direct()) {
-      // Direct chat deliberately excludes the general semantic/governance
+      // Direct chat deliberately excludes the general semantic/approvals
       // catalog. Keep only the server-authorized question, file handoff, and
       // current-wake tools so the harness can ask a structured provider
       // question or return requested files without reopening general task

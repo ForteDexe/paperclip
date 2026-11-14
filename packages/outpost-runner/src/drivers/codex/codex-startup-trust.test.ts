@@ -79,7 +79,7 @@ describe.each([
           "empty-inline": `[projects]\n${root} = {} # retain inline comment\n`,
           "inline-projects": `projects = {${root} = {label = "unchanged"}}\n`,
         }[kind]!;
-        const managed = '# BEGIN PAPERCLIP MANAGED MCP\n[mcp_servers.fixture]\nurl = "https://example.invalid/old"\n# END PAPERCLIP MANAGED MCP\n';
+        const managed = '# BEGIN OUTPOST MANAGED MCP\n[mcp_servers.fixture]\nurl = "https://example.invalid/old"\n# END OUTPOST MANAGED MCP\n';
         const misleading = 'text = """\n[projects.fake]\ntrust_level = "untrusted"\n"""\n';
         const original = (kind === "inline-projects" ? project + misleading : misleading + project) + managed;
         writeFileSync(join(home, "config.toml"), original);

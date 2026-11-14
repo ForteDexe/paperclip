@@ -5,8 +5,8 @@ import { parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 
 function fixture() {
   const nonce = "fixture-nonce", bodies = expectedFixtureFeedback(nonce);
-  return { nonce, companyId: "company", agentId: "agent", taskId: "task", runIds: ["run"],
-    evidence: { version: 1, companyId: "company", summary: { collection: "complete", invocationCollection: "complete" },
+  return { nonce, spaceId: "space", agentId: "agent", taskId: "task", runIds: ["run"],
+    evidence: { version: 1, spaceId: "space", summary: { collection: "complete", invocationCollection: "complete" },
       entries: (["complaint", "suggestion"] as const).map(kind => ({ id: kind, kind, body: bodies[kind],
         agent: { id: "agent" }, task: { id: "task" }, runId: "run" })),
       invocations: (["complaint", "suggestion"] as const).map(kind => ({ callId: `${kind}-call`, kind, runId: "run", outcome: "completed" })),
@@ -36,7 +36,7 @@ describe("feedback persistence oracle", () => {
     ["missing saved evidence", (f: ReturnType<typeof fixture>) => { f.evidence.entries = []; }],
     ["prose without tool receipts", (f: ReturnType<typeof fixture>) => { f.evidence.invocations = []; }],
     ["wrong saved body", (f: ReturnType<typeof fixture>) => { f.evidence.entries[0]!.body = "submitted successfully"; }],
-    ["foreign company", (f: ReturnType<typeof fixture>) => { f.evidence.companyId = "other"; }],
+    ["foreign space", (f: ReturnType<typeof fixture>) => { f.evidence.spaceId = "other"; }],
     ["foreign task", (f: ReturnType<typeof fixture>) => { f.evidence.entries[0]!.task.id = "other"; }],
     ["foreign agent", (f: ReturnType<typeof fixture>) => { f.evidence.entries[0]!.agent.id = "other"; }],
     ["foreign run", (f: ReturnType<typeof fixture>) => { f.evidence.entries[0]!.runId = "other"; }],

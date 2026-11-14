@@ -1,7 +1,7 @@
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { randomBytes } from "node:crypto";
 import type { Db } from "@outpost/db";
-import { agents, agentWakeupRequests, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRunEvents, heartbeatRuns, issues, subscribeDatabaseWork } from "@outpost/db";
+import { agents, agentWakeupRequests, spaces, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRunEvents, heartbeatRuns, issues, subscribeDatabaseWork } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -30,7 +30,7 @@ function callbacks(db: Db) {
       listReviewAttention: vi.fn<HeartbeatLifecycleDependencies["issuesSvc"]["listReviewAttention"]>(),
     },
     recovery: { escalateStrandedAssignedIssue: vi.fn<HeartbeatLifecycleDependencies["recovery"]["escalateStrandedAssignedIssue"]>() },
-    companySkills: { completeTestRunForIssue: vi.fn<HeartbeatLifecycleDependencies["companySkills"]["completeTestRunForIssue"]>() },
+    spaceSkills: { completeTestRunForIssue: vi.fn<HeartbeatLifecycleDependencies["spaceSkills"]["completeTestRunForIssue"]>() },
     budgets: { getInvocationBlock: vi.fn(async () => null) },
     treeControlSvc: { getActivePauseHoldGate: vi.fn(async () => null) },
     enqueueWakeup: vi.fn<HeartbeatLifecycleDependencies["enqueueWakeup"]>(),
@@ -105,7 +105,7 @@ describe("heartbeat lifecycle module boundary", () => {
   it("rejects late progress after re-reading a terminal run through the service callback", async () => {
     const database = guardedDatabase();
     const deps = callbacks(database.db);
-    const run = { id: "late-progress", companyId: "company", agentId: "agent", status: "running", contextSnapshot: {} } as Run;
+    const run = { id: "late-progress", spaceId: "space", agentId: "agent", status: "running", contextSnapshot: {} } as Run;
     deps.getRunStatus.mockResolvedValue({ ...run, status: "succeeded" });
     expect(await createHeartbeatLifecycle(database.db, deps).recordCurrentHeartbeatRunRuntimeProgress(run, { phase: "finalize", message: "late update" }, null)).toBeNull();
     expect(deps.getRunStatus).toHaveBeenCalledWith(run.id);
@@ -117,7 +117,7 @@ describe("heartbeat lifecycle module boundary", () => {
     const database = guardedDatabase();
     const deps = callbacks(database.db);
     deps.getRunStatus.mockRejectedValue(new Error("status read failed"));
-    const run = { id: "unavailable-progress", companyId: "company", agentId: "agent", status: "running" };
+    const run = { id: "unavailable-progress", spaceId: "space", agentId: "agent", status: "running" };
     vi.mocked(publishLiveEvent).mockClear();
     await expect(createHeartbeatLifecycle(database.db, deps)
       .recordCurrentHeartbeatRunRuntimeProgress(run, { phase: "restore", message: "restoring" }, null))
@@ -134,7 +134,7 @@ describe.skipIf(!support.supported)("heartbeat lifecycle database wiring", () =>
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
   beforeAll(async () => {
-    if (!external) database = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-lifecycle-module");
+    if (!external) database = await startEmbeddedPostgresTestDatabase("outpost-heartbeat-lifecycle-module");
     db = createDb(external ?? database.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => {
@@ -143,15 +143,15 @@ describe.skipIf(!support.supported)("heartbeat lifecycle database wiring", () =>
   });
   beforeEach(async () => {
     vi.mocked(publishLiveEvent).mockClear();
-    await db.execute(sql`truncate table companies restart identity cascade`);
+    await db.execute(sql`truncate table spaces restart identity cascade`);
   });
 
   async function fixture(patch: Partial<typeof heartbeatRuns.$inferInsert> = {}) {
-    const [company] = await db.insert(companies).values({ name: "Lifecycle module", issuePrefix: "LM" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Lifecycle agent" }).returning();
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: company.id, agentId: agent.id, source: "assignment", status: "claimed" }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, wakeupRequestId: wake.id, status: "running", runtimeMode: "native", ...patch }).returning();
-    return { company, agent, wake, run };
+    const [space] = await db.insert(spaces).values({ name: "Lifecycle module", issuePrefix: "LM" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Lifecycle agent" }).returning();
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: space.id, agentId: agent.id, source: "assignment", status: "claimed" }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, wakeupRequestId: wake.id, status: "running", runtimeMode: "native", ...patch }).returning();
+    return { space, agent, wake, run };
   }
 
   it.each(["succeeded", "failed", "cancelled", "timed_out", "interrupted", "deleted"])(
@@ -167,15 +167,15 @@ describe.skipIf(!support.supported)("heartbeat lifecycle database wiring", () =>
       const update = { phase: "restore" as const, message: "Restoring workspace", currentToolName: "sync" };
       const progress = await lifecycle.recordCurrentHeartbeatRunRuntimeProgress(run, update, null);
       expect(progress).toMatchObject({
-        companyId: run.companyId, agentId: run.agentId, runId: run.id,
+        spaceId: run.spaceId, agentId: run.agentId, runId: run.id,
         phase: update.phase, message: update.message, currentToolName: "sync",
       });
       expect(await deps.getRunStatus.mock.results[0].value).toEqual({
-        id: run.id, companyId: run.companyId, agentId: run.agentId, status: "running",
+        id: run.id, spaceId: run.spaceId, agentId: run.agentId, status: "running",
       });
       expect(publishLiveEvent).toHaveBeenCalledTimes(1);
       expect(publishLiveEvent).toHaveBeenCalledWith(expect.objectContaining({
-        companyId: run.companyId,
+        spaceId: run.spaceId,
         type: "heartbeat.run.progress",
         payload: expect.objectContaining({ runId: run.id, agentId: run.agentId, phase: update.phase, message: update.message }),
       }));
@@ -262,7 +262,7 @@ describe.skipIf(!support.supported)("heartbeat lifecycle database wiring", () =>
 
   it.each(["native", "legacy", "unbound"] as const)("keeps %s run-status response recovery scoped to its task or run", async binding => {
     const { run } = await fixture();
-    const [issue] = await db.insert(issues).values({ companyId: run.companyId, title: "Scope owner" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: run.spaceId, title: "Scope owner" }).returning();
     await db.update(heartbeatRuns).set(binding === "native" ? { nativeIssueId: issue.id }
       : binding === "legacy" ? { contextSnapshot: { issueId: issue.id } } : { contextSnapshot: {} }).where(eq(heartbeatRuns.id, run.id));
     const hints: unknown[] = [];
@@ -271,8 +271,8 @@ describe.skipIf(!support.supported)("heartbeat lifecycle database wiring", () =>
     });
     try {
       await createHeartbeatLifecycle(db, callbacks(db)).setRunStatusIfRunning(run.id, "succeeded", { finishedAt: new Date() });
-      expect(hints).toEqual([binding === "unbound" ? { companyId: run.companyId, runId: run.id }
-        : { companyId: run.companyId, issueId: issue.id }]);
+      expect(hints).toEqual([binding === "unbound" ? { spaceId: run.spaceId, runId: run.id }
+        : { spaceId: run.spaceId, issueId: issue.id }]);
       expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0].status).toBe("succeeded");
     } finally { unsubscribe(); }
   });
@@ -290,12 +290,12 @@ describe.skipIf(!support.supported)("heartbeat lifecycle database wiring", () =>
         expect(hints).toEqual([]);
         expect((await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0].status).toBe("succeeded");
       });
-      expect(hints).toEqual([{ companyId: run.companyId, runId: run.id }]);
+      expect(hints).toEqual([{ spaceId: run.spaceId, runId: run.id }]);
       expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0].finishedAt).not.toBeNull();
       hints.length = 0;
 
       await createHeartbeatLifecycle(db, callbacks(db)).setRunStatus(run.id, "succeeded", { error: "repaired metadata" });
-      expect(hints).toEqual([{ companyId: run.companyId, runId: run.id }]);
+      expect(hints).toEqual([{ spaceId: run.spaceId, runId: run.id }]);
     } finally { unsubscribe(); }
   });
 

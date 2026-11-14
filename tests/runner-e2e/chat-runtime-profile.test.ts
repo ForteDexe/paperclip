@@ -62,8 +62,8 @@ it("posts the reviewed routing configuration through the ordinary agent fixture 
     async get() { return [{id:"local",driver:"local"}]; },
     async postSensitive() { return {id:"encrypted-account"}; },
     async post(url: string, body: Record<string, unknown>) {
-      if (url === "/api/companies") return {id:"company",name:"Fixture"};
-      if (url === "/api/companies/company/agents") { saved=body; return {id:"ceo",...body}; }
+      if (url === "/api/spaces") return {id:"space",name:"Fixture"};
+      if (url === "/api/spaces/space/agents") { saved=body; return {id:"ceo",...body}; }
       throw new Error("Unexpected fixture route");
     },
   } as unknown as RunnerApi;

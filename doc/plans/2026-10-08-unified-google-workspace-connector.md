@@ -41,7 +41,7 @@ Full regression checks and PR review are in progress. No live Google proof yet.
 ## Draft resume follow-up — 2026-10-28
 
 The setup draft now retains its validated service request before either managed
-or customer-owned OAuth handoff. This non-secret intent is bound to the company,
+or customer-owned OAuth handoff. This non-secret intent is bound to the space,
 connection, initiating actor, grant kind, and credential subject. Denial, expired
 OAuth state, and a cold Finish setup return restore that exact request rather
 than the new-account write defaults. Historical or differently owned drafts

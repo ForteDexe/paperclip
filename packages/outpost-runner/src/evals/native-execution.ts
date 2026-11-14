@@ -17,11 +17,11 @@ const TOOL_OUTCOMES = new Set([
   "failed",
 ]);
 
-export const paperclipNativeExecutionSchemaUrl = new URL(
+export const outpostNativeExecutionSchemaUrl = new URL(
   "../../protocol/schemas/native-execution.schema.json",
   import.meta.url,
 );
-export const paperclipNativeExecutionFixtureUrl = new URL(
+export const outpostNativeExecutionFixtureUrl = new URL(
   "../../protocol/fixtures/evals/native-execution-seeded.json",
   import.meta.url,
 );
@@ -34,7 +34,7 @@ export interface NativeExecutionContentRef {
   [key: string]: unknown;
 }
 
-export interface PaperclipNativeExecutionV1 {
+export interface OutpostNativeExecutionV1 {
   schema: typeof OUTPOST_RUNNER_NATIVE_EXECUTION_SCHEMA;
   provenance: "seeded" | "replay" | "live";
   identity: {
@@ -109,20 +109,20 @@ export interface PaperclipNativeExecutionV1 {
   [key: string]: unknown;
 }
 
-export class PaperclipNativeExecutionError extends Error {
-  readonly code = "paperclip_native_execution_invalid" as const;
+export class OutpostNativeExecutionError extends Error {
+  readonly code = "outpost_native_execution_invalid" as const;
 
   constructor(
     message: string,
     readonly path: string,
   ) {
     super(`${path}: ${message}`);
-    this.name = "PaperclipNativeExecutionError";
+    this.name = "OutpostNativeExecutionError";
   }
 }
 
 function fail(path: string, message: string): never {
-  throw new PaperclipNativeExecutionError(message, path);
+  throw new OutpostNativeExecutionError(message, path);
 }
 
 function record(value: unknown, path: string): Record<string, unknown> {
@@ -200,9 +200,9 @@ function semanticEntry(
  * fields. Required identities, digests, event bindings, terminal consistency,
  * semantic-tool outcomes, usage, and transcript completeness fail closed.
  */
-export function parsePaperclipNativeExecution(
+export function parseOutpostNativeExecution(
   value: unknown,
-): PaperclipNativeExecutionV1 {
+): OutpostNativeExecutionV1 {
   const bundle = record(value, "bundle");
   if (bundle.schema !== OUTPOST_RUNNER_NATIVE_EXECUTION_SCHEMA) {
     fail(
@@ -312,19 +312,19 @@ export function parsePaperclipNativeExecution(
       "operationId",
       "eventId",
     ]);
-    return parsed as PaperclipNativeExecutionV1["semanticTools"]["calls"][number];
+    return parsed as OutpostNativeExecutionV1["semanticTools"]["calls"][number];
   });
   const results = array(semanticTools.results, "bundle.semanticTools.results").map((entry, index) => {
     const path = `bundle.semanticTools.results[${index}]`;
     const parsed = semanticEntry(entry, path, ["callId", "operationId", "eventId", "outcome"]);
     if (!TOOL_OUTCOMES.has(parsed.outcome as string)) fail(`${path}.outcome`, "is unsupported");
-    return parsed as PaperclipNativeExecutionV1["semanticTools"]["results"][number];
+    return parsed as OutpostNativeExecutionV1["semanticTools"]["results"][number];
   });
   const denials = array(semanticTools.denials, "bundle.semanticTools.denials").map((entry, index) => {
     const path = `bundle.semanticTools.denials[${index}]`;
     const parsed = semanticEntry(entry, path, ["callId", "code", "authorizationBoundary"]);
     parsed.retryable = boolean(parsed.retryable, `${path}.retryable`);
-    return parsed as PaperclipNativeExecutionV1["semanticTools"]["denials"][number];
+    return parsed as OutpostNativeExecutionV1["semanticTools"]["denials"][number];
   });
   const callById = new Map(calls.map((call) => [call.callId, call]));
   if (callById.size !== calls.length) {
@@ -507,7 +507,7 @@ export function parsePaperclipNativeExecution(
     artifactRoot,
     artifacts,
     failure,
-  } as PaperclipNativeExecutionV1;
+  } as OutpostNativeExecutionV1;
 }
 
 function semanticToolEnvelope(
@@ -544,9 +544,9 @@ function semanticToolEnvelope(
   return envelope;
 }
 
-export async function loadPaperclipNativeExecutionFixture(
-  url: URL = paperclipNativeExecutionFixtureUrl,
-): Promise<PaperclipNativeExecutionV1> {
+export async function loadOutpostNativeExecutionFixture(
+  url: URL = outpostNativeExecutionFixtureUrl,
+): Promise<OutpostNativeExecutionV1> {
   const value = JSON.parse(await readFile(url, "utf8")) as unknown;
-  return parsePaperclipNativeExecution(value);
+  return parseOutpostNativeExecution(value);
 }

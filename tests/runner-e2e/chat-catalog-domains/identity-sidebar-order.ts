@@ -16,7 +16,7 @@ export function gradeSidebarOrder(value: unknown) {
     "The answer explains the human controls and does not impersonate their board preference identity.");
   c.add("human-order-persisted", (o.state.orderAfterDrag as Order | undefined)?.orderedIds?.[0] === launch.id
     && (o.state.orderAfterReload as Order | undefined)?.orderedIds?.[0] === launch.id && o.state.launchFirstInBrowser === true,
-    "The actual mouse reorder writes the person's company-scoped project order and the visible first position survives reload.");
+    "The actual mouse reorder writes the person's space-scoped project order and the visible first position survives reload.");
   c.add("collapse-has-session-scope", o.state.agentsCollapsed === true && o.state.collapseRetainedDuringNavigation === true && o.state.collapseResetAfterReload === true,
     "The actual Agents section collapses, stays collapsed through client navigation and resets on full reload according to its component-session contract.");
   c.add("other-person-unchanged", o.state.observerId !== o.state.humanId && typeof o.state.observerId === "string"
@@ -27,17 +27,17 @@ export function gradeSidebarOrder(value: unknown) {
 export const sidebarOrderIdentityCases: readonly ChatCatalogCase[] = [identityDefinition("navigation-preferences.sidebar-order", async ctx => {
   const browser = ctx.input.page.context().browser(); if (!browser || !ctx.input.privateSecrets) throw new Error("Sidebar scope requires real human browser identities");
   const session = await ctx.input.api.get<{ user: { id: string } }>("/api/auth/get-session");
-  if (!session.user?.id || session.user.id === "local-board") throw new Error("Personal sidebar order requires actual human authentication");
+  if (!session.user?.id || session.user.id === "local-operator") throw new Error("Personal sidebar order requires actual human authentication");
   const settings = await ctx.input.api.get<{ enableStreamlinedUi: boolean }>("/api/instance/settings/experimental");
   try {
   const source = ctx.input.page.url();
-  await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/company/settings/instance/experimental`, { waitUntil: "domcontentloaded" });
+  await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/space/settings/instance/experimental`, { waitUntil: "domcontentloaded" });
   const toggle = ctx.input.page.getByRole("switch", { name: "Toggle Streamlined UI experimental setting", exact: true });
   await expect(toggle).toBeVisible();
   if (await toggle.isChecked()) await toggle.click();
   await expect.poll(async () => (await ctx.input.api.get<{ enableStreamlinedUi: boolean }>("/api/instance/settings/experimental")).enableStreamlinedUi).toBe(false);
   const first = await project(ctx, "Archive"); const launch = await project(ctx);
-  const endpoint = `/api/companies/${ctx.input.fixtures.company.id}/sidebar-preferences/me`;
+  const endpoint = `/api/spaces/${ctx.input.fixtures.space.id}/sidebar-preferences/me`;
   await ctx.input.api.putSensitive(endpoint, { orderedIds: [first.id, launch.id] });
   const observer = await createAuthenticatedPerson({ api: ctx.input.api, browser, secrets: ctx.input.privateSecrets, name: "Riley" }); observers.set(ctx, observer);
     await enrollPrerequisitePerson(ctx, observer);
@@ -53,7 +53,7 @@ export const sidebarOrderIdentityCases: readonly ChatCatalogCase[] = [identityDe
   authentication: "human-session",
   sourceFiles: ["chat-catalog-domains/identity-sidebar-order.ts", "chat-catalog-domains/identity-auth.ts", "chat-catalog-domains/identity-private-browser.ts", "chat-catalog-domains/identity-private-browser-worker.ts", "chat-catalog-domains/identity-wizard.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/navigation-preferences.yaml"],
   async act(ctx, state) {
-    await waitForReply(ctx); const endpoint = `/api/companies/${ctx.input.fixtures.company.id}/sidebar-preferences/me`;
+    await waitForReply(ctx); const endpoint = `/api/spaces/${ctx.input.fixtures.space.id}/sidebar-preferences/me`;
     state.orderAfterReply = await ctx.input.api.get<Order>(endpoint);
     state.agentPreferenceWriteStatus = await probeAgentPermission(ctx, endpoint, "PUT", { orderedIds: [entity(state, "project").id, entity(state, "otherProject").id] });
     const page = ctx.input.page; const sidebar = page.locator("aside").filter({ has: page.getByRole("button", { name: "Projects section actions", exact: true }) }).first();
@@ -77,14 +77,14 @@ export const sidebarOrderIdentityCases: readonly ChatCatalogCase[] = [identityDe
     const observer = observers.get(ctx); if (!observer) throw new Error("Independent sidebar person missing");
     const other = await observer.context.newPage();
     try {
-      await other.goto(`/${ctx.input.fixtures.company.issuePrefix}/projects/${entity(state, "project").id}`, { waitUntil: "domcontentloaded" });
+      await other.goto(`/${ctx.input.fixtures.space.issuePrefix}/projects/${entity(state, "project").id}`, { waitUntil: "domcontentloaded" });
       await expect(other.getByRole("button", { name: "Collapse Agents", exact: true })).toBeVisible(); state.observerAgentsExpanded = true;
       const after = await observer.request(endpoint); if (!after.ok) throw new Error("Independent sidebar persistence read failed"); state.observerAfter = (await after.json() as Order).orderedIds;
     } finally { await other.close(); }
     await ctx.input.evidence("identity-sidebar-person-scope.json", { humanId: state.humanId, observerId: state.observerId, orderAfterDrag: state.orderAfterDrag,
       orderAfterReload: state.orderAfterReload, observerBefore: state.observerBefore, observerAfter: state.observerAfter,
       agentsCollapsed: state.agentsCollapsed, collapseRetainedDuringNavigation: state.collapseRetainedDuringNavigation, collapseResetAfterReload: state.collapseResetAfterReload });
-    await page.goto(`/${ctx.input.fixtures.company.issuePrefix}/chats/${ctx.input.fixtures.agent.id}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/${ctx.input.fixtures.space.issuePrefix}/chats/${ctx.input.fixtures.agent.id}`, { waitUntil: "domcontentloaded" });
   },
   async cleanup(ctx, state) {
     try { await ctx.input.api.patch("/api/instance/settings/experimental", { enableStreamlinedUi: state.originalStreamlined }); }

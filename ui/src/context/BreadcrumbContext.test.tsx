@@ -103,7 +103,7 @@ describe("BreadcrumbContext", () => {
     expect(renderCounts).toHaveLength(3);
   });
 
-  it("builds page titles with the selected company name before Outpost", () => {
+  it("builds page titles with the selected space name before Outpost", () => {
     expect(buildDocumentTitle([{ label: "Inbox" }], "Anachronist Wiki")).toBe(
       "Inbox • Anachronist Wiki • Outpost",
     );
@@ -115,7 +115,7 @@ describe("BreadcrumbContext", () => {
     ).toBe("PAP-3515 • Issues • Anachronist Wiki • Outpost");
   });
 
-  it("omits blank company names from page titles", () => {
+  it("omits blank space names from page titles", () => {
     expect(buildDocumentTitle([{ label: "Inbox" }], "  ")).toBe("Inbox • Outpost");
     expect(buildDocumentTitle([], null)).toBe("Outpost");
   });

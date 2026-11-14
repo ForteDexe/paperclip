@@ -10,7 +10,7 @@ import { createVoiceCallAttempt, type VoiceCallJournal } from "@/lib/voice-call-
 import { VoiceConversationPanel } from "./VoiceConversationPanel";
 
 export interface NativeVoiceConversationProps {
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   issueId?: string;
   managed?: boolean;
@@ -40,7 +40,7 @@ function ConversationChoice({ value, disabled, onChange }: { value: boolean; dis
   </label>;
 }
 
-export function VoiceSessionView({ companyId, endpointId, issueId, agentName, autoStart, newConversation: initialNewConversation = false, onEndedChange, journal, client = voiceSessionsApi, connect = connectSpekoVoiceMedia }: NativeVoiceConversationProps) {
+export function VoiceSessionView({ spaceId, endpointId, issueId, agentName, autoStart, newConversation: initialNewConversation = false, onEndedChange, journal, client = voiceSessionsApi, connect = connectSpekoVoiceMedia }: NativeVoiceConversationProps) {
   const [sessionId, setSessionId] = useState<string>();
   const [boundIssueId, setBoundIssueId] = useState(issueId);
   const [starting, setStarting] = useState(false);
@@ -49,7 +49,7 @@ export function VoiceSessionView({ companyId, endpointId, issueId, agentName, au
   const intent = useRef(newConversation);
   intent.current = newConversation;
   const dependencies = useMemo(() => {
-    const attempt = createVoiceCallAttempt(companyId, client, journal);
+    const attempt = createVoiceCallAttempt(spaceId, client, journal);
     return {
       async mint() {
         setAccessLost(false); setStarting(true);
@@ -65,10 +65,10 @@ export function VoiceSessionView({ companyId, endpointId, issueId, agentName, au
       },
       connect,
     };
-  }, [companyId, endpointId, issueId, client, connect, journal]);
+  }, [spaceId, endpointId, issueId, client, connect, journal]);
   const notification = useQuery({
-    queryKey: ["voice-notification", companyId, sessionId],
-    queryFn: () => client.notification(companyId, sessionId!),
+    queryKey: ["voice-notification", spaceId, sessionId],
+    queryFn: () => client.notification(spaceId, sessionId!),
     enabled: Boolean(sessionId),
     refetchInterval: 1000,
     refetchIntervalInBackground: true,

@@ -22,19 +22,19 @@ export interface RestartRequest {
   recoveryBinding?: RecoveryBinding;
 }
 
-export function kimiCandidateAdmissionForExecution(execution: MatrixExecution, companyId: string, now = Date.now()): AcpxCandidateAdmission | undefined {
+export function kimiCandidateAdmissionForExecution(execution: MatrixExecution, spaceId: string, now = Date.now()): AcpxCandidateAdmission | undefined {
   if (execution.suite.id !== "kimi-qualification" || execution.profile.qualificationCandidate !== "kimi"
     || QUALIFIED_ACPX_PROFILES.kimi.qualificationStatus !== "pending") return undefined;
-  if (!execution.suite.manualOnly || execution.profile.id !== "runner-acpx-kimi" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(companyId)) {
-    throw new Error("Kimi qualification requires an exact disposable company and manual profile");
+  if (!execution.suite.manualOnly || execution.profile.id !== "runner-acpx-kimi" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(spaceId)) {
+    throw new Error("Kimi qualification requires an exact disposable space and manual profile");
   }
   const target = execution.environment.expectedExecutionTarget.kind === "remote" ? "linux-x64" : `${process.platform}-${process.arch}`;
   if (target !== "darwin-arm64" && target !== "linux-x64") throw new Error("Kimi fixture host is unsupported");
   const [platform, architecture] = target.split("-");
-  return parseAcpxCandidateAdmission({ schema: "outpost.acpx-candidate-admission.v1", companyId, agent: "kimi",
+  return parseAcpxCandidateAdmission({ schema: "outpost.acpx-candidate-admission.v1", spaceId, agent: "kimi",
     model: execution.profile.model, profileDigest: QUALIFIED_ACPX_PROFILES.kimi.commandDigest,
     nativeClosureDigest: `sha256:${KIMI_DISTRIBUTION_CLOSURE_SHA256[target]}`, platform, architecture,
-    expiresAt: now + 60 * 60 * 1000 }, { companyId, agent: "kimi", model: execution.profile.model }, now);
+    expiresAt: now + 60 * 60 * 1000 }, { spaceId, agent: "kimi", model: execution.profile.model }, now);
 }
 
 function selectedKimiCandidateAdmission(value: unknown, executionIds: readonly string[]): AcpxCandidateAdmission {
@@ -44,8 +44,8 @@ function selectedKimiCandidateAdmission(value: unknown, executionIds: readonly s
     throw new Error("Kimi authority staging requires an explicit Kimi qualification selection");
   }
   const record = value as Partial<AcpxCandidateAdmission> | null;
-  if (!record || typeof record.companyId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(record.companyId)) throw new Error("Invalid Kimi fixture company");
-  const admission = parseAcpxCandidateAdmission(value, { companyId: record.companyId, agent: "kimi", model: executions[0]!.profile.model });
+  if (!record || typeof record.spaceId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(record.spaceId)) throw new Error("Invalid Kimi fixture space");
+  const admission = parseAcpxCandidateAdmission(value, { spaceId: record.spaceId, agent: "kimi", model: executions[0]!.profile.model });
   if (!executions.some(row => row!.environment.expectedExecutionTarget.kind === "remote"
     ? admission.platform === "linux" && admission.architecture === "x64"
     : admission.platform === process.platform && admission.architecture === process.arch)) throw new Error("Kimi fixture target does not match the selected execution");

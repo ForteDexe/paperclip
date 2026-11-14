@@ -5,7 +5,7 @@ import {
   agentSessionGoalActions,
   agentTaskSessions,
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issues,
@@ -44,7 +44,7 @@ describeEmbeddedPostgres("runner goal service", () => {
     await db.delete(issues);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -53,18 +53,18 @@ describeEmbeddedPostgres("runner goal service", () => {
   });
 
   async function seed() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Goal Test Company",
-      issuePrefix: `G${companyId.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Goal Test Space",
+      issuePrefix: `G${spaceId.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Codex Goal Agent",
       role: "engineer",
       status: "idle",
@@ -75,13 +75,13 @@ describeEmbeddedPostgres("runner goal service", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       identifier: `G-${Math.floor(Math.random() * 1_000_000)}`,
       title: "Pursue a durable goal",
       status: "in_progress",
       assigneeAgentId: agentId,
     });
-    return { companyId, agentId, issueId };
+    return { spaceId, agentId, issueId };
   }
 
   it.each(["codex_local", "claude_local"])("does not convert %s into another execution path for goals", async (adapterType) => {
@@ -89,13 +89,13 @@ describeEmbeddedPostgres("runner goal service", () => {
     await db.update(agents).set({ adapterType, adapterConfig: { engine: "acp", mode: "persistent" } });
     const enqueueOfflineControl = vi.fn(async () => {});
     const service = runnerGoalService(db, { enqueueOfflineControl });
-    const projection = await service.projection(binding.companyId, binding.issueId);
+    const projection = await service.projection(binding.spaceId, binding.issueId);
     expect(projection?.capability).toMatchObject({
       availability: "unsupported",
       reasonCode: "direct_adapter_goal_controller_unavailable",
       actions: [],
     });
-    await expect(service.act(binding.companyId, binding.issueId, {
+    await expect(service.act(binding.spaceId, binding.issueId, {
       requestId: randomUUID(), agentId: binding.agentId, expectedRevision: 0,
       action: "create", objective: "Never start an ordinary prompt",
     })).rejects.toThrow();
@@ -110,7 +110,7 @@ describeEmbeddedPostgres("runner goal service", () => {
       queueLiveCommand: () => null,
     });
     const requestId = randomUUID();
-    const accepted = await service.act(binding.companyId, binding.issueId, {
+    const accepted = await service.act(binding.spaceId, binding.issueId, {
       requestId,
       agentId: binding.agentId,
       expectedRevision: 0,
@@ -125,7 +125,7 @@ describeEmbeddedPostgres("runner goal service", () => {
     expect(await failRunnerGoalAction(db, {
       ...binding, adapterType: "outpost_runner",
     }, requestId, "duplicate_failure")).toBeNull();
-    expect((await service.projection(binding.companyId, binding.issueId))?.revision).toBe(failed?.revision);
+    expect((await service.projection(binding.spaceId, binding.issueId))?.revision).toBe(failed?.revision);
   });
 
   it("enforces revisions, correlates acknowledgements, and fences cleared goals", async () => {
@@ -138,7 +138,7 @@ describeEmbeddedPostgres("runner goal service", () => {
       queueLiveCommand: () => null,
     });
     const requestId = randomUUID();
-    const accepted = await service.act(binding.companyId, binding.issueId, {
+    const accepted = await service.act(binding.spaceId, binding.issueId, {
       requestId,
       agentId: binding.agentId,
       expectedRevision: 0,
@@ -150,7 +150,7 @@ describeEmbeddedPostgres("runner goal service", () => {
     expect(accepted.projection.pendingAction).toBe("starting");
     expect(await isRunnerGoalActionCompleted(db, binding, requestId)).toBe(false);
 
-    const repeated = await service.act(binding.companyId, binding.issueId, {
+    const repeated = await service.act(binding.spaceId, binding.issueId, {
       requestId,
       agentId: binding.agentId,
       expectedRevision: 0,
@@ -160,7 +160,7 @@ describeEmbeddedPostgres("runner goal service", () => {
     });
     expect(repeated.status).toBe("pending");
 
-    await expect(service.act(binding.companyId, binding.issueId, {
+    await expect(service.act(binding.spaceId, binding.issueId, {
       requestId,
       agentId: binding.agentId,
       expectedRevision: 0,
@@ -172,7 +172,7 @@ describeEmbeddedPostgres("runner goal service", () => {
       projection: { revision: 1 },
     });
 
-    await expect(service.act(binding.companyId, binding.issueId, {
+    await expect(service.act(binding.spaceId, binding.issueId, {
       requestId: randomUUID(),
       agentId: binding.agentId,
       expectedRevision: 0,
@@ -227,7 +227,7 @@ describeEmbeddedPostgres("runner goal service", () => {
     expect(await isRunnerGoalActionCompleted(db, binding, requestId)).toBe(true);
     expect(await isRunnerGoalActionCompleted(db, { ...binding, issueId: randomUUID() }, requestId)).toBe(false);
     expect(await isRunnerGoalActionCompleted(db, { ...binding, agentId: randomUUID() }, requestId)).toBe(false);
-    expect(await isRunnerGoalActionCompleted(db, { ...binding, companyId: randomUUID() }, requestId)).toBe(false);
+    expect(await isRunnerGoalActionCompleted(db, { ...binding, spaceId: randomUUID() }, requestId)).toBe(false);
 
     const failedClear = await applyRunnerGoalPrpEvent(db, {
       ...binding,
@@ -252,7 +252,7 @@ describeEmbeddedPostgres("runner goal service", () => {
     });
     expect(failedClear).toBeNull();
     const afterFailedClear = await service.projection(
-      binding.companyId,
+      binding.spaceId,
       binding.issueId,
       binding.agentId,
     );
@@ -261,7 +261,7 @@ describeEmbeddedPostgres("runner goal service", () => {
     });
 
     const clearRequestId = randomUUID();
-    const clearAccepted = await service.act(binding.companyId, binding.issueId, {
+    const clearAccepted = await service.act(binding.spaceId, binding.issueId, {
       requestId: clearRequestId,
       agentId: binding.agentId,
       expectedRevision: afterFailedClear!.revision,
@@ -289,7 +289,7 @@ describeEmbeddedPostgres("runner goal service", () => {
       },
     });
     expect(stale).toBeNull();
-    await expect(service.projection(binding.companyId, binding.issueId, binding.agentId))
+    await expect(service.projection(binding.spaceId, binding.issueId, binding.agentId))
       .resolves.toMatchObject({ goal: null });
   });
 
@@ -300,8 +300,8 @@ describeEmbeddedPostgres("runner goal service", () => {
     const priorRunId = randomUUID();
     const nextRunId = randomUUID();
     await db.insert(heartbeatRuns).values([
-      { id: priorRunId, companyId: binding.companyId, agentId: binding.agentId, nativeIssueId: binding.issueId, status: "succeeded", invocationSource: "on_demand", runnerInstanceId: runnerId, nativeSessionId },
-      { id: nextRunId, companyId: binding.companyId, agentId: binding.agentId, nativeIssueId: binding.issueId, status: "running", invocationSource: "on_demand", runnerInstanceId: runnerId, nativeSessionId },
+      { id: priorRunId, spaceId: binding.spaceId, agentId: binding.agentId, nativeIssueId: binding.issueId, status: "succeeded", invocationSource: "on_demand", runnerInstanceId: runnerId, nativeSessionId },
+      { id: nextRunId, spaceId: binding.spaceId, agentId: binding.agentId, nativeIssueId: binding.issueId, status: "running", invocationSource: "on_demand", runnerInstanceId: runnerId, nativeSessionId },
     ]);
     const first = await applyRunnerGoalPrpEvent(db, {
       ...binding,
@@ -330,7 +330,7 @@ describeEmbeddedPostgres("runner goal service", () => {
       payload: { goal: null },
     })).resolves.toBeNull();
     await expect(runnerGoalService(db).projection(
-      binding.companyId,
+      binding.spaceId,
       binding.issueId,
       binding.agentId,
     )).resolves.toMatchObject({ revision: 1, goal: { status: "complete" } });
@@ -392,7 +392,7 @@ describeEmbeddedPostgres("runner goal service", () => {
     });
     // The predecessor cannot erase the successor's active goal.
     await expect(applyRunnerGoalPrpEvent(db, eventBinding, delayed("session.goal.cleared", 100))).resolves.toBeNull();
-    await expect(runnerGoalService(db).projection(binding.companyId, binding.issueId)).resolves.toMatchObject({
+    await expect(runnerGoalService(db).projection(binding.spaceId, binding.issueId)).resolves.toMatchObject({
       revision: 2, goal: { objective: "Successor heartbeat objective" },
     });
     await applyRunnerGoalPrpEvent(db, eventBinding, {
@@ -404,7 +404,7 @@ describeEmbeddedPostgres("runner goal service", () => {
     await expect(applyRunnerGoalPrpEvent(db, eventBinding, {
       eventType: "session.goal.updated", sourceSeq: 102, payload: delayed("", 0).payload,
     })).resolves.toBeNull();
-    await expect(runnerGoalService(db).projection(binding.companyId, binding.issueId)).resolves.toMatchObject({ revision: 3, goal: null });
+    await expect(runnerGoalService(db).projection(binding.spaceId, binding.issueId)).resolves.toMatchObject({ revision: 3, goal: null });
     const [session] = await db.select().from(agentTaskSessions);
     expect(session).toMatchObject({ goalSourceId: `${runnerId}:${nextRunId}`, goalSourceCursor: 2 });
   });
@@ -459,7 +459,7 @@ describeEmbeddedPostgres("runner goal service", () => {
       { eventType: "session.goal.updated", sourceSeq: 2_000, payload: priorEvent.payload }]) {
       expect(await applyRunnerGoalPrpEvent(db, eventBinding, stale)).toBeNull();
     }
-    expect(await runnerGoalService(db).projection(binding.companyId, binding.issueId)).toMatchObject({ goal: null });
+    expect(await runnerGoalService(db).projection(binding.spaceId, binding.issueId)).toMatchObject({ goal: null });
     expect(await db.select().from(agentSessionGoalActions)).toHaveLength(0);
   });
 
@@ -659,7 +659,7 @@ describeEmbeddedPostgres("runner goal service", () => {
     });
     const requestId = randomUUID();
 
-    const accepted = await service.act(binding.companyId, binding.issueId, {
+    const accepted = await service.act(binding.spaceId, binding.issueId, {
       requestId,
       agentId: binding.agentId,
       expectedRevision: 0,

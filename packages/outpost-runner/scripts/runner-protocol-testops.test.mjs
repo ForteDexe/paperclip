@@ -24,7 +24,7 @@ function sanitizedRun() {
   const artifact = { schema: "outpost-runner/eval-session-artifact/v1", attemptId: cell.finalAttemptId,
     requestedModel: contract.model, provider: contract.provider, driver: contract.driver,
     publication: { schema: "outpost.runner-protocol-eval.public-chat/v1" }, privateExtra: "PRIVATE-SECRET" };
-  const campaign = { schema: "outpost.runner-protocol-eval.campaign/v1", source: { paperclip: { sha: context.sourceSha },
+  const campaign = { schema: "outpost.runner-protocol-eval.campaign/v1", source: { outpost: { sha: context.sourceSha },
     evals: { sha: context.evalsSha }, workflowRunUrl: "https://github.com/paperclipai/paperclip/actions/runs/123" }, results: [cell] };
   return { cell, score, artifact, campaign };
 }
@@ -92,7 +92,7 @@ test("exports the production sanitizer output as closed TestOps files under a co
 function catalog() {
   const roster = { rosterId: contract.rosterId, model: contract.model, provider: contract.provider,
     driver: contract.driver, cases: contract.cases.map(row => row.caseId) };
-  return { schema: "outpost.runner-protocol-eval.catalog/v1", source: { paperclipSha: context.sourceSha, evalsSha: context.evalsSha },
+  return { schema: "outpost.runner-protocol-eval.catalog/v1", source: { outpostSha: context.sourceSha, evalsSha: context.evalsSha },
     rosters: [roster], cells: roster.cases.map(caseId => ({ rosterId: roster.rosterId, caseId })), selection: { kind: "subset" } };
 }
 
@@ -114,7 +114,7 @@ test("rejects foreign, duplicate, missing and mismatched selections before provi
     assert.throws(() => selection(rows), /runner_testops_/);
   }
   const selected = selection(planned);
-  for (const mutate of [value => { value.source.paperclipSha = "c".repeat(40); },
+  for (const mutate of [value => { value.source.outpostSha = "c".repeat(40); },
     value => { value.rosters[0].model = "different"; }, value => { value.rosters[0].cases.pop(); }]) {
     const value = catalog(); mutate(value);
     assert.throws(() => filterCatalog(value, selected), /runner_testops_/);
@@ -205,7 +205,7 @@ test("only current-run successful behavioral evidence becomes a pass", () => {
   const expected = selected.cases[0];
   const cell = { rosterId: contract.rosterId, caseId: expected.caseId, model: contract.model, provider: contract.provider,
     driver: contract.driver, finalAttemptId: "attempt-1", disposition: "passed", passed: true };
-  const campaign = { schema: "outpost.runner-protocol-eval.campaign/v1", source: { paperclip: { sha: context.sourceSha },
+  const campaign = { schema: "outpost.runner-protocol-eval.campaign/v1", source: { outpost: { sha: context.sourceSha },
     evals: { sha: context.evalsSha }, workflowRunUrl: "https://github.com/paperclipai/paperclip/actions/runs/123" }, results: [cell] };
   const payload = { attemptId: "attempt-1", caseId: expected.caseId, disposition: "passed", passed: true,
     publication: { schema: "outpost.runner-protocol-eval.public-chat/v1" },
@@ -253,7 +253,7 @@ test("preserves real behavior failures and infrastructure failures", () => {
   for (const [disposition, status] of [["behavior_failure", "failed"], ["infrastructure_failure", "broken"]]) {
     const cell = { rosterId: contract.rosterId, caseId: selected.cases[0].caseId, model: contract.model, provider: contract.provider,
       driver: contract.driver, finalAttemptId: "attempt-1", disposition, passed: false };
-    const campaign = { schema: "outpost.runner-protocol-eval.campaign/v1", source: { paperclip: { sha: context.sourceSha },
+    const campaign = { schema: "outpost.runner-protocol-eval.campaign/v1", source: { outpost: { sha: context.sourceSha },
       evals: { sha: context.evalsSha }, workflowRunUrl: "https://github.com/paperclipai/paperclip/actions/runs/123" }, results: [cell] };
     const payload = { attemptId: "attempt-1", caseId: cell.caseId, disposition, passed: false,
       publication: { schema: "outpost.runner-protocol-eval.public-chat/v1" },

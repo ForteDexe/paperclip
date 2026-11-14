@@ -5,13 +5,13 @@ import vm from "node:vm";
 import { transformSync } from "esbuild";
 import { it } from "vitest";
 
-it("stages company authority only across the actual completed supervisor restart boundary", async () => {
+it("stages space authority only across the actual completed supervisor restart boundary", async () => {
   const source = readFileSync(new URL('./server.ts', import.meta.url), 'utf8');
   const extract=(start,end)=>{const a=source.indexOf(start),b=source.indexOf(end,a);assert.ok(a>=0&&b>a);const part=source.slice(a,b);assert.ok(part.trimEnd().endsWith('}'));return part;};
   const functions=extract('async function startServer()', '\nfunction delay(')+'\n'+extract('async function restartServer(', '\nfor (const signal of');
   const controls=[];
-  const grantA={schema:'outpost.acpx-candidate-admission.v1',companyId:'11111111-1111-4111-8111-111111111111',agent:'kimi',model:'kimi-for-coding',platform:'darwin',architecture:'arm64',expiresAt:Date.now()+60000};
-  const grantB={...grantA,companyId:'22222222-2222-4222-8222-222222222222'};
+  const grantA={schema:'outpost.acpx-candidate-admission.v1',spaceId:'11111111-1111-4111-8111-111111111111',agent:'kimi',model:'kimi-for-coding',platform:'darwin',architecture:'arm64',expiresAt:Date.now()+60000};
+  const grantB={...grantA,spaceId:'22222222-2222-4222-8222-222222222222'};
   function factory(code){
    const events=[],spawns=[];let pid=100,stopFails=false,shuttingDown=false;
    const stop=async c=>{events.push('stop');if(stopFails)throw new Error('controlled stop failure');c.exitCode=0;events.push('stopped');};
@@ -23,7 +23,7 @@ it("stages company authority only across the actual completed supervisor restart
     invitationSourceProofPath:()=>'/controlled/tmp/proof',rm:async()=>{},executionIds:[],invitationAttemptId:'controlled',
     publishInvitationSourceProof:async()=>undefined,
     verifyInstalledCli:async()=>null,installedReleaseLaunch:()=>{throw Error('unexpected installed path');},
-    definedServerEnvironment:{PATH:'/controlled/bin'},repositoryRoot:'/controlled/repo',paperclipCli:'/controlled/cli',runnerE2EServerDetached:true,
+    definedServerEnvironment:{PATH:'/controlled/bin'},repositoryRoot:'/controlled/repo',outpostCli:'/controlled/cli',runnerE2EServerDetached:true,
     runnerE2ETypeScriptProcessArgs:()=>['controlled-cli','onboard','--yes','--run'],
     shutdownRequested:()=>shuttingDown,shutdownSignal:null,expectedStops:new Set(),childErrors:new Map(),servingArtifacts:new Map(),
     kimiCandidateAdmission:undefined,activeRestartRequestId:null,child:null,log:{write(){}},appendLog(){},
@@ -58,7 +58,7 @@ it("stages company authority only across the actual completed supervisor restart
   await assert.rejects(current.restartServer({requestId:'shutdown',kimiCandidateAdmission:grantB}),/Wrapper shutdown/);
   assert.equal(current.spawns.length,before);assert.deepEqual(current.ctx.kimiCandidateAdmission,grantA);
   controls.push({name:'shutdown before replacement neither changes held authority nor spawns replacement',result:'PASS'});
-  current.setShutdown(false);await current.startServer();await current.restartServer({requestId:'next-company',kimiCandidateAdmission:grantB});
+  current.setShutdown(false);await current.startServer();await current.restartServer({requestId:'next-space',kimiCandidateAdmission:grantB});
   assert.deepEqual(JSON.parse(current.spawns.at(-1).options.env.OUTPOST_ACPX_CANDIDATE_ADMISSION),grantB);
-  controls.push({name:'next validated disposable company replaces record only on explicit staging restart',result:'PASS'});
+  controls.push({name:'next validated disposable space replaces record only on explicit staging restart',result:'PASS'});
 });

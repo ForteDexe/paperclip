@@ -27,7 +27,7 @@ import { classifyRunLiveness } from "./run-liveness.js";
 import { missingRunLivenessCandidatesQuery } from "./run-liveness-backfill-query.js";
 
 export interface ActivityFilters {
-  companyId: string;
+  spaceId: string;
   agentId?: string;
   entityType?: string;
   entityId?: string;
@@ -126,10 +126,10 @@ export function activityService(db: Db) {
           when jsonb_typeof(${heartbeatRuns.resultJson} -> 'nativeCancellation') = 'object'
             and ${heartbeatRuns.resultJson} #>> '{nativeCancellation,schema}' = 'outpost.native-cancellation.v1'
             and ${heartbeatRuns.resultJson} #>> '{nativeCancellation,runId}' = ${heartbeatRuns.id}::text
-            and ${heartbeatRuns.resultJson} #>> '{nativeCancellation,companyId}' = ${heartbeatRuns.companyId}::text
+            and ${heartbeatRuns.resultJson} #>> '{nativeCancellation,spaceId}' = ${heartbeatRuns.spaceId}::text
             and ${heartbeatRuns.resultJson} #>> '{nativeCancellation,dispatchState}' in ('pending', 'acknowledged')
           then jsonb_build_object('schema', 'outpost.native-cancellation.v1',
-            'runId', ${heartbeatRuns.id}, 'companyId', ${heartbeatRuns.companyId},
+            'runId', ${heartbeatRuns.id}, 'spaceId', ${heartbeatRuns.spaceId},
             'dispatchState', ${heartbeatRuns.resultJson} #>> '{nativeCancellation,dispatchState}') end,
         'configurationIncomplete', case
           when ${heartbeatRuns.resultJson} -> 'configurationIncomplete' ->> 'reason' = 'workspace_base_ref_unresolved'
@@ -211,8 +211,8 @@ export function activityService(db: Db) {
     return typeof value === "number" && Number.isFinite(value) ? value : null;
   }
 
-  async function backfillMissingRunLivenessForIssue(companyId: string, issueId: string) {
-    const runs = await missingRunLivenessCandidatesQuery(db, companyId, issueId, RUN_LIVENESS_BACKFILL_BATCH);
+  async function backfillMissingRunLivenessForIssue(spaceId: string, issueId: string) {
+    const runs = await missingRunLivenessCandidatesQuery(db, spaceId, issueId, RUN_LIVENESS_BACKFILL_BATCH);
 
     if (runs.length === 0) return 0;
 
@@ -224,7 +224,7 @@ export function activityService(db: Db) {
         workMode: issues.workMode,
       })
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.id, issueId)))
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.id, issueId)))
       .then((rows) => rows[0] ?? null);
 
     for (const run of runs) {
@@ -243,7 +243,7 @@ export function activityService(db: Db) {
         .from(issueComments)
         .where(
           and(
-            eq(issueComments.companyId, companyId),
+            eq(issueComments.spaceId, spaceId),
             eq(issueComments.issueId, issueId),
             eq(issueComments.createdByRunId, run.id),
           ),
@@ -259,9 +259,9 @@ export function activityService(db: Db) {
         .innerJoin(issueDocuments, eq(documentRevisions.documentId, issueDocuments.documentId))
         .where(
           and(
-            eq(documentRevisions.companyId, companyId),
+            eq(documentRevisions.spaceId, spaceId),
             eq(documentRevisions.createdByRunId, run.id),
-            eq(issueDocuments.companyId, companyId),
+            eq(issueDocuments.spaceId, spaceId),
             eq(issueDocuments.issueId, issueId),
             sql`${issueDocuments.key} != ${ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY}`,
           ),
@@ -275,7 +275,7 @@ export function activityService(db: Db) {
         .from(issueWorkProducts)
         .where(
           and(
-            eq(issueWorkProducts.companyId, companyId),
+            eq(issueWorkProducts.spaceId, spaceId),
             eq(issueWorkProducts.issueId, issueId),
             eq(issueWorkProducts.createdByRunId, run.id),
           ),
@@ -287,7 +287,7 @@ export function activityService(db: Db) {
           latestAt: sql<Date | null>`max(${workspaceOperations.startedAt})`,
         })
         .from(workspaceOperations)
-        .where(and(eq(workspaceOperations.companyId, companyId), eq(workspaceOperations.heartbeatRunId, run.id)));
+        .where(and(eq(workspaceOperations.spaceId, spaceId), eq(workspaceOperations.heartbeatRunId, run.id)));
 
       const [activityStats] = await db
         .select({
@@ -295,7 +295,7 @@ export function activityService(db: Db) {
           latestAt: sql<Date | null>`max(${activityLog.createdAt})`,
         })
         .from(activityLog)
-        .where(and(eq(activityLog.companyId, companyId), eq(activityLog.runId, run.id)));
+        .where(and(eq(activityLog.spaceId, spaceId), eq(activityLog.runId, run.id)));
 
       const [eventStats] = await db
         .select({
@@ -303,7 +303,7 @@ export function activityService(db: Db) {
           latestAt: sql<Date | null>`max(${heartbeatRunEvents.createdAt}) filter (where ${heartbeatRunEvents.eventType} not in ('lifecycle', 'adapter.invoke', 'error'))`,
         })
         .from(heartbeatRunEvents)
-        .where(and(eq(heartbeatRunEvents.companyId, companyId), eq(heartbeatRunEvents.runId, run.id)));
+        .where(and(eq(heartbeatRunEvents.spaceId, spaceId), eq(heartbeatRunEvents.runId, run.id)));
 
       const classification = classifyRunLiveness({
         runStatus: run.status,
@@ -348,8 +348,8 @@ export function activityService(db: Db) {
     return runs.length;
   }
 
-  function scheduleRunLivenessBackfill(companyId: string, issueId: string) {
-    const key = `${companyId}:${issueId}`;
+  function scheduleRunLivenessBackfill(spaceId: string, issueId: string) {
+    const key = `${spaceId}:${issueId}`;
     if (scheduledLivenessBackfills.has(key)) return;
     const cleanUntil = livenessCleanUntil.get(key);
     if (cleanUntil !== undefined) {
@@ -357,14 +357,14 @@ export function activityService(db: Db) {
       livenessCleanUntil.delete(key);
     }
     scheduledLivenessBackfills.add(key);
-    void backfillMissingRunLivenessForIssue(companyId, issueId)
+    void backfillMissingRunLivenessForIssue(spaceId, issueId)
       .then((found) => {
         // A partial batch means this pass classified every remaining candidate.
         // Skip this issue for a while, so page reads do not repeat the lookup.
         if (found < RUN_LIVENESS_BACKFILL_BATCH) rememberLivenessClean(key);
       })
       .catch((err: unknown) => {
-        logger.warn({ err, companyId, issueId }, "run liveness backfill failed");
+        logger.warn({ err, spaceId, issueId }, "run liveness backfill failed");
       })
       .finally(() => {
         scheduledLivenessBackfills.delete(key);
@@ -373,7 +373,7 @@ export function activityService(db: Db) {
 
   return {
     list: async (filters: ActivityFilters) => {
-      const conditions = [eq(activityLog.companyId, filters.companyId), await skillAccessService(db).activityCondition(filters.companyId),
+      const conditions = [eq(activityLog.spaceId, filters.spaceId), await skillAccessService(db).activityCondition(filters.spaceId),
         filters.caseReadCondition ?? sql<boolean>`${activityLog.entityType} <> 'case'`];
       const limit = normalizeActivityLimit(filters.limit);
 
@@ -411,13 +411,13 @@ export function activityService(db: Db) {
         .then((rows) => rows.map((r) => r.activityLog));
     },
 
-    inputFactsForIssue: async (companyId: string, issueId: string, commentIds: string[]) => {
+    inputFactsForIssue: async (spaceId: string, issueId: string, commentIds: string[]) => {
       if (!commentIds.length) return [];
       const commentId = sql<string>`${activityLog.details}->>'commentId'`;
       return db.selectDistinctOn([commentId, activityLog.action])
         .from(activityLog)
         .where(and(
-          eq(activityLog.companyId, companyId),
+          eq(activityLog.spaceId, spaceId),
           eq(activityLog.entityType, "issue"),
           eq(activityLog.entityId, issueId),
           inArray(commentId, commentIds),
@@ -434,8 +434,8 @@ export function activityService(db: Db) {
         .where(
           or(
             and(eq(activityLog.entityType, "issue"), eq(activityLog.entityId, issueId)),
-            and(or(eq(activityLog.action, "project.created"), eq(activityLog.action, "company.skill_created")), sql`${activityLog.details}->>'sourceIssueId' = ${issueId}`,
-              sql`${activityLog.companyId} = (select company_id from issues where id = ${issueId})`),
+            and(or(eq(activityLog.action, "project.created"), eq(activityLog.action, "space.skill_created")), sql`${activityLog.details}->>'sourceIssueId' = ${issueId}`,
+              sql`${activityLog.spaceId} = (select space_id from issues where id = ${issueId})`),
           ),
         )
         .orderBy(desc(activityLog.createdAt), desc(activityLog.id));
@@ -443,7 +443,7 @@ export function activityService(db: Db) {
     },
 
     runsForIssue: async (
-      companyId: string,
+      spaceId: string,
       issueId: string,
       viewerUserId: string | null = null,
       limit?: number,
@@ -454,7 +454,7 @@ export function activityService(db: Db) {
       options: { skipLivenessBackfill?: boolean } = {},
     ) => {
       if (selectedRunIds && !selectedRunIds.length) return [];
-      if (!options.skipLivenessBackfill) scheduleRunLivenessBackfill(companyId, issueId);
+      if (!options.skipLivenessBackfill) scheduleRunLivenessBackfill(spaceId, issueId);
       const runsQuery = db
         .select({
           runId: heartbeatRuns.id,
@@ -501,14 +501,14 @@ export function activityService(db: Db) {
           agents,
           and(
             eq(agents.id, heartbeatRuns.agentId),
-            eq(agents.companyId, heartbeatRuns.companyId),
+            eq(agents.spaceId, heartbeatRuns.spaceId),
           ),
         )
         .where(
           and(
-            eq(heartbeatRuns.companyId, companyId),
+            eq(heartbeatRuns.spaceId, spaceId),
             sql`(not exists (select 1 from ${issues} where ${issues.id} = ${issueId}
-              and ${issues.companyId} = ${companyId} and ${issues.conversationAgentId} is not null)
+              and ${issues.spaceId} = ${spaceId} and ${issues.conversationAgentId} is not null)
               or coalesce(${heartbeatRuns.nativeIssueId}::text, ${heartbeatRuns.issueId}::text,
                 ${heartbeatRuns.contextSnapshot} ->> 'issueId', ${heartbeatRuns.contextSnapshot} ->> 'taskId') = ${issueId})`,
             ...(selectedRunIds ? [inArray(heartbeatRuns.id, selectedRunIds)] : []),
@@ -517,7 +517,7 @@ export function activityService(db: Db) {
               sql`exists (
                 select 1
                 from ${activityLog}
-                where ${activityLog.companyId} = ${companyId}
+                where ${activityLog.spaceId} = ${spaceId}
                   and ${activityLog.entityType} = 'issue'
                   and ${activityLog.entityId} = ${issueId}
                   and ${activityLog.runId} = ${heartbeatRuns.id}
@@ -560,7 +560,7 @@ export function activityService(db: Db) {
         .innerJoin(environments, eq(environmentLeases.environmentId, environments.id))
         .where(
           and(
-            eq(environmentLeases.companyId, companyId),
+            eq(environmentLeases.spaceId, spaceId),
             inArray(environmentLeases.heartbeatRunId, runIds),
           ),
         )
@@ -571,15 +571,15 @@ export function activityService(db: Db) {
       const savedPlanQuery = runs.some((run) => hasWorkspaceRestoreFailure(run.resultJson))
         ? db.select({ revisionId: documentRevisions.id, runId: documentRevisions.createdByRunId })
           .from(issueDocuments)
-          .innerJoin(documents, and(eq(documents.id, issueDocuments.documentId), eq(documents.companyId, companyId)))
-          .innerJoin(documentRevisions, and(eq(documentRevisions.id, documents.latestRevisionId), eq(documentRevisions.documentId, documents.id), eq(documentRevisions.companyId, companyId)))
-          .where(and(eq(issueDocuments.companyId, companyId), eq(issueDocuments.issueId, issueId), eq(issueDocuments.key, "plan")))
+          .innerJoin(documents, and(eq(documents.id, issueDocuments.documentId), eq(documents.spaceId, spaceId)))
+          .innerJoin(documentRevisions, and(eq(documentRevisions.id, documents.latestRevisionId), eq(documentRevisions.documentId, documents.id), eq(documentRevisions.spaceId, spaceId)))
+          .where(and(eq(issueDocuments.spaceId, spaceId), eq(issueDocuments.issueId, issueId), eq(issueDocuments.key, "plan")))
           .limit(1)
         : Promise.resolve([]);
       const [exhaustionRows, leaseRows, executionByRunId, [savedPlan]] = await Promise.all([
         exhaustionRowsQuery,
         leaseRowsQuery,
-        executionProjectionsForRuns(db, companyId, runIds, new Date(), { retryDatabaseReads: true }),
+        executionProjectionsForRuns(db, spaceId, runIds, new Date(), { retryDatabaseReads: true }),
         savedPlanQuery,
       ]);
       const retryExhaustedReasonByRunId = new Map<string, string>();
@@ -647,7 +647,7 @@ export function activityService(db: Db) {
     issuesForRun: async (runId: string, readCondition: SQL<boolean>) => {
       const run = await db
         .select({
-          companyId: heartbeatRuns.companyId,
+          spaceId: heartbeatRuns.spaceId,
           issueId: heartbeatRuns.issueId,
         })
         .from(heartbeatRuns)
@@ -667,10 +667,10 @@ export function activityService(db: Db) {
         .innerJoin(issues, eq(activityLog.entityId, issueIdAsText))
         .where(
           and(
-            eq(activityLog.companyId, run.companyId),
+            eq(activityLog.spaceId, run.spaceId),
             eq(activityLog.runId, runId),
             eq(activityLog.entityType, "issue"),
-            eq(issues.companyId, run.companyId),
+            eq(issues.spaceId, run.spaceId),
             visibleIssueCondition(),
             readCondition,
           ),
@@ -692,7 +692,7 @@ export function activityService(db: Db) {
         .from(issues)
         .where(
           and(
-            eq(issues.companyId, run.companyId),
+            eq(issues.spaceId, run.spaceId),
             eq(issues.id, contextIssueId),
             visibleIssueCondition(),
             readCondition,

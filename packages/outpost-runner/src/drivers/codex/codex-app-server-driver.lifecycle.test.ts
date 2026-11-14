@@ -565,12 +565,12 @@ describe("Codex app-server Codex driver", () => {
     });
   });
 
-  it("adds Paperclip developer instructions without replacing the Codex base and enables selected skills", async () => {
+  it("adds Outpost developer instructions without replacing the Codex base and enables selected skills", async () => {
     const transport = new FakeCodexTransport();
     const baseInstructions = [
-      "You are running as a Paperclip agent.",
+      "You are running as a Outpost agent.",
       "Follow the attached AGENTS.md instructions.",
-      "Read-only instruction sibling root: /paperclip/context/instructions",
+      "Read-only instruction sibling root: /outpost/context/instructions",
     ].join("\n\n");
     const driver = makeDriver([transport], {
       baseInstructions,
@@ -602,7 +602,7 @@ describe("Codex app-server Codex driver", () => {
   it.each(["task", "prepared", "direct"] as const)("preserves stock Codex instructions on %s recovery", async (conversationMode) => {
     const originalTransport = new FakeCodexTransport();
     const recoveryTransport = new FakeCodexTransport();
-    const baseInstructions = "Paperclip coordination and assigned instruction paths.";
+    const baseInstructions = "Outpost coordination and assigned instruction paths.";
     const driver = makeDriver([originalTransport, recoveryTransport], {
       conversationMode,
       baseInstructions,
@@ -629,8 +629,8 @@ describe("Codex app-server Codex driver", () => {
     expect(resumed.developerInstructions).toBe(conversationMode === "direct" ? "" : baseInstructions);
     expect(resumed.dynamicTools).toEqual(started.dynamicTools);
     expect(started.dynamicTools).toEqual(conversationMode === "direct" ? [] : [
-      { name: "paperclip_finish", description: ORP_COMPLETION_TOOL_DESCRIPTION, inputSchema: ORP_COMPLETION_RESULT_PROVIDER_INPUT_SCHEMA },
-      { name: "paperclip_block", description: ORP_BLOCK_TOOL_DESCRIPTION, inputSchema: ORP_BLOCK_RESULT_PROVIDER_INPUT_SCHEMA },
+      { name: "outpost_finish", description: ORP_COMPLETION_TOOL_DESCRIPTION, inputSchema: ORP_COMPLETION_RESULT_PROVIDER_INPUT_SCHEMA },
+      { name: "outpost_block", description: ORP_BLOCK_TOOL_DESCRIPTION, inputSchema: ORP_BLOCK_RESULT_PROVIDER_INPUT_SCHEMA },
     ]);
     expect(resumed.config).toEqual(started.config);
     await recovered.session?.close({ reason: "verified additive recovery" });
@@ -850,7 +850,7 @@ describe("Codex app-server Codex driver", () => {
       fixtureName: "codex-conformance",
       identity: {
         schema: "outpost.orp.identity.v1" as const,
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         runId: "run-1",
         environmentLeaseId: "lease-1",

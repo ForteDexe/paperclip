@@ -5,21 +5,21 @@ import { addAgentProjectAccessSchema } from "@outpost/shared";
 import { notFound } from "../errors.js";
 import { validate } from "../middleware/validate.js";
 import { addAgentProjectAccess, readAgentProjectAccess } from "../services/agent-project-access.js";
-import { assertBoard, assertCompanyAccess, hasCompanyAccess } from "./authz.js";
+import { assertOperator, assertSpaceAccess, hasSpaceAccess } from "./authz.js";
 
 export function registerAgentProjectAccessRoutes(router: Router, db: Db) {
   router.get("/agents/:id/project-access", async (req, res) => {
-    assertBoard(req);
-    const [agent] = await db.select({ id: agents.id, companyId: agents.companyId }).from(agents).where(eq(agents.id, req.params.id as string));
-    if (!agent || !hasCompanyAccess(req, agent.companyId)) throw notFound("Agent not found");
-    assertCompanyAccess(req, agent.companyId);
-    res.json(await readAgentProjectAccess(db, req.actor, agent.companyId, agent.id));
+    assertOperator(req);
+    const [agent] = await db.select({ id: agents.id, spaceId: agents.spaceId }).from(agents).where(eq(agents.id, req.params.id as string));
+    if (!agent || !hasSpaceAccess(req, agent.spaceId)) throw notFound("Agent not found");
+    assertSpaceAccess(req, agent.spaceId);
+    res.json(await readAgentProjectAccess(db, req.actor, agent.spaceId, agent.id));
   });
   router.post("/agents/:id/project-access", validate(addAgentProjectAccessSchema), async (req, res) => {
-    assertBoard(req);
-    const [agent] = await db.select({ id: agents.id, companyId: agents.companyId }).from(agents).where(eq(agents.id, req.params.id as string));
-    if (!agent || !hasCompanyAccess(req, agent.companyId)) throw notFound("Agent not found");
-    assertCompanyAccess(req, agent.companyId);
-    res.json(await addAgentProjectAccess(db, req.actor, agent.companyId, agent.id, req.body.projectIds));
+    assertOperator(req);
+    const [agent] = await db.select({ id: agents.id, spaceId: agents.spaceId }).from(agents).where(eq(agents.id, req.params.id as string));
+    if (!agent || !hasSpaceAccess(req, agent.spaceId)) throw notFound("Agent not found");
+    assertSpaceAccess(req, agent.spaceId);
+    res.json(await addAgentProjectAccess(db, req.actor, agent.spaceId, agent.id, req.body.projectIds));
   });
 }

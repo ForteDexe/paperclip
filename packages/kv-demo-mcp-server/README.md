@@ -13,7 +13,7 @@ package stores — the package stores the values, Outpost stores the
 connection, the profile/policy decisions, and the audit log.
 
 This package pairs with the operator guide in
-[doc/MCP-ACCESS-GOVERNANCE.md](../../doc/MCP-ACCESS-GOVERNANCE.md) and the
+[doc/MCP-ACCESS-APPROVALS.md](../../doc/MCP-ACCESS-APPROVALS.md) and the
 recorded walkthrough in [doc/MCP-DEMO-SCRIPT.md](../../doc/MCP-DEMO-SCRIPT.md).
 
 ## What you get
@@ -80,7 +80,7 @@ process supervision to you (just `Ctrl+C` the server when you are done).
 
 ### Via the Connect-an-app wizard (recommended)
 
-1. Open the company's Tools UI at `/<prefix>/companies/<companyId>/tools`.
+1. Open the space's Tools UI at `/<prefix>/spaces/<spaceId>/tools`.
 2. Go to **Connect an app** and pick **Connect with a link**.
 3. Paste `http://127.0.0.1:8848/mcp` and give it a name (e.g. "KV demo").
 4. If you launched the server with `KV_DEMO_TOKEN`, paste the token in the
@@ -93,9 +93,9 @@ The wizard hits this API under the hood:
 
 ```sh
 curl -fsS -X POST \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
   -H "Content-Type: application/json" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/apps/connect" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/apps/connect" \
   -d '{
     "link": "http://127.0.0.1:8848/mcp",
     "name": "KV demo"
@@ -133,7 +133,7 @@ If a token is set, add the `credentialValues` block:
   this server into a local-stdio template.
 
 For the full transport policy across deployment modes, see
-[MCP-ACCESS-GOVERNANCE.md → Local trusted deployment](../../doc/MCP-ACCESS-GOVERNANCE.md#local-trusted-deployment).
+[MCP-ACCESS-APPROVALS.md → Local trusted deployment](../../doc/MCP-ACCESS-APPROVALS.md#local-trusted-deployment).
 
 ## What you should see in Outpost
 
@@ -187,7 +187,7 @@ records stay intact unless you also archive the connection.
 
   ```sh
   curl -fsS -X PATCH \
-    -H "Authorization: Bearer $BOARD_API_KEY" \
+    -H "Authorization: Bearer $OPERATOR_API_KEY" \
     -H "Content-Type: application/json" \
     "$OUTPOST_URL/api/tool-connections/$CONNECTION_ID" \
     -d '{ "enabled": false, "status": "disabled" }'
@@ -197,7 +197,7 @@ records stay intact unless you also archive the connection.
 
   ```sh
   curl -fsS -X PATCH \
-    -H "Authorization: Bearer $BOARD_API_KEY" \
+    -H "Authorization: Bearer $OPERATOR_API_KEY" \
     -H "Content-Type: application/json" \
     "$OUTPOST_URL/api/tool-applications/$APPLICATION_ID" \
     -d '{ "status": "archived" }'

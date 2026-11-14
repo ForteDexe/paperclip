@@ -24,24 +24,24 @@ describeEmbeddedPostgres("nested skill folders migration", () => {
   });
 
   it("backfills existing folders, bundled skills, and project scan skills", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-nested-folders-migration-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-nested-folders-migration-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1 });
     cleanups.push(async () => sql.end());
 
     await sql`DELETE FROM "drizzle"."__drizzle_migrations" WHERE "hash" = ${await migrationHash()}`;
-    await sql`DROP INDEX IF EXISTS "folders_company_kind_parent_position_idx"`;
-    await sql`DROP INDEX IF EXISTS "folders_company_kind_system_key_uq"`;
-    await sql`DROP INDEX IF EXISTS "folders_company_kind_root_slug_uq"`;
-    await sql`DROP INDEX IF EXISTS "folders_company_kind_parent_slug_uq"`;
-    await sql`ALTER TABLE "folders" DROP CONSTRAINT IF EXISTS "folders_company_kind_parent_slug_uq"`;
+    await sql`DROP INDEX IF EXISTS "folders_space_kind_parent_position_idx"`;
+    await sql`DROP INDEX IF EXISTS "folders_space_kind_system_key_uq"`;
+    await sql`DROP INDEX IF EXISTS "folders_space_kind_root_slug_uq"`;
+    await sql`DROP INDEX IF EXISTS "folders_space_kind_parent_slug_uq"`;
+    await sql`ALTER TABLE "folders" DROP CONSTRAINT IF EXISTS "folders_space_kind_parent_slug_uq"`;
     await sql`ALTER TABLE "folders" DROP CONSTRAINT IF EXISTS "folders_parent_id_folders_id_fk"`;
     await sql`ALTER TABLE "folders" DROP COLUMN IF EXISTS "system_key"`;
     await sql`ALTER TABLE "folders" DROP COLUMN IF EXISTS "slug"`;
     await sql`ALTER TABLE "folders" DROP COLUMN IF EXISTS "parent_id"`;
-    await sql`CREATE UNIQUE INDEX IF NOT EXISTS "folders_company_kind_name_uq" ON "folders" ("company_id", "kind", "name")`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS "folders_space_kind_name_uq" ON "folders" ("space_id", "kind", "name")`;
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const existingFolderId = randomUUID();
     const squattedBundledId = randomUUID();
@@ -50,26 +50,26 @@ describeEmbeddedPostgres("nested skill folders migration", () => {
     const projectSkillId = randomUUID();
     const unfiledSkillId = randomUUID();
     await sql`
-      INSERT INTO "companies" ("id", "name", "issue_prefix")
-      VALUES (${companyId}, 'Paperclip', 'PAP')
+      INSERT INTO "spaces" ("id", "name", "issue_prefix")
+      VALUES (${spaceId}, 'Outpost', 'PAP')
     `;
     await sql`
-      INSERT INTO "projects" ("id", "company_id", "name")
-      VALUES (${projectId}, ${companyId}, 'Agent Platform')
+      INSERT INTO "projects" ("id", "space_id", "name")
+      VALUES (${projectId}, ${spaceId}, 'Agent Platform')
     `;
     await sql`
-      INSERT INTO "folders" ("id", "company_id", "kind", "name", "position")
+      INSERT INTO "folders" ("id", "space_id", "kind", "name", "position")
       VALUES
-        (${existingFolderId}, ${companyId}, 'skill', 'Team Notes', 0),
-        (${squattedBundledId}, ${companyId}, 'skill', 'Bundled', 1),
-        (${squattedProjectsId}, ${companyId}, 'skill', 'Projects', 2)
+        (${existingFolderId}, ${spaceId}, 'skill', 'Team Notes', 0),
+        (${squattedBundledId}, ${spaceId}, 'skill', 'Bundled', 1),
+        (${squattedProjectsId}, ${spaceId}, 'skill', 'Projects', 2)
     `;
     await sql`
-      INSERT INTO "company_skills" ("id", "company_id", "key", "slug", "name", "markdown", "metadata")
+      INSERT INTO "space_skills" ("id", "space_id", "key", "slug", "name", "markdown", "metadata")
       VALUES
-        (${bundledSkillId}, ${companyId}, 'paperclipai/bundled/software-development/review', 'review', 'Review', '# Review', '{"sourceKind":"paperclip_bundled"}'::jsonb),
-        (${projectSkillId}, ${companyId}, 'company/project-skill', 'project-skill', 'Project Skill', '# Project', ${sql.json({ sourceKind: "project_scan", projectId, projectName: "Agent Platform" })}),
-        (${unfiledSkillId}, ${companyId}, 'company/unfiled', 'unfiled', 'Unfiled', '# Unfiled', '{}'::jsonb)
+        (${bundledSkillId}, ${spaceId}, 'outpost/bundled/software-development/review', 'review', 'Review', '# Review', '{"sourceKind":"outpost_bundled"}'::jsonb),
+        (${projectSkillId}, ${spaceId}, 'space/project-skill', 'project-skill', 'Project Skill', '# Project', ${sql.json({ sourceKind: "project_scan", projectId, projectName: "Agent Platform" })}),
+        (${unfiledSkillId}, ${spaceId}, 'space/unfiled', 'unfiled', 'Unfiled', '# Unfiled', '{}'::jsonb)
     `;
 
     await applyPendingMigrations(database.connectionString);
@@ -82,7 +82,7 @@ describeEmbeddedPostgres("nested skill folders migration", () => {
     }[]>`
       SELECT "id", "parent_id", "slug", "system_key"
       FROM "folders"
-      WHERE "company_id" = ${companyId}
+      WHERE "space_id" = ${spaceId}
       ORDER BY "slug"
     `;
     expect(folderRows).toEqual(expect.arrayContaining([
@@ -97,9 +97,9 @@ describeEmbeddedPostgres("nested skill folders migration", () => {
 
     const skills = await sql<{ id: string; folder_id: string | null; folder_slug: string | null }[]>`
       SELECT skill."id", skill."folder_id", folder."slug" AS folder_slug
-      FROM "company_skills" AS skill
+      FROM "space_skills" AS skill
       LEFT JOIN "folders" AS folder ON folder."id" = skill."folder_id"
-      WHERE skill."company_id" = ${companyId}
+      WHERE skill."space_id" = ${spaceId}
       ORDER BY skill."id"
     `;
     expect(skills.find((skill) => skill.id === bundledSkillId)).toMatchObject({ folder_slug: "software-development" });
@@ -110,14 +110,14 @@ describeEmbeddedPostgres("nested skill folders migration", () => {
       SELECT "indexname", "indexdef"
       FROM "pg_indexes"
       WHERE "tablename" = 'folders'
-        AND "indexname" IN ('folders_company_kind_root_slug_uq', 'folders_company_kind_parent_slug_uq')
+        AND "indexname" IN ('folders_space_kind_root_slug_uq', 'folders_space_kind_parent_slug_uq')
       ORDER BY "indexname"
     `;
     expect(indexes).toHaveLength(2);
     expect(indexes.map((index) => index.indexdef).join("\n")).not.toContain("NULLS NOT DISTINCT");
-    expect(indexes.find((index) => index.indexname === "folders_company_kind_root_slug_uq")?.indexdef)
+    expect(indexes.find((index) => index.indexname === "folders_space_kind_root_slug_uq")?.indexdef)
       .toContain("WHERE (parent_id IS NULL)");
-    expect(indexes.find((index) => index.indexname === "folders_company_kind_parent_slug_uq")?.indexdef)
+    expect(indexes.find((index) => index.indexname === "folders_space_kind_parent_slug_uq")?.indexdef)
       .toContain("WHERE (parent_id IS NOT NULL)");
   }, 30_000);
 });

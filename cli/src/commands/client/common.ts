@@ -1,10 +1,10 @@
 import pc from "picocolors";
 import type { Command } from "commander";
-import { getStoredBoardCredential, loginBoardCli } from "../../client/board-auth.js";
+import { getStoredBoardCredential, loginBoardCli } from "../../client/operator-auth.js";
 import { buildCliCommandLabel } from "../../client/command-label.js";
 import { readConfig } from "../../config/store.js";
 import { readContext, resolveProfile, type ClientContextProfile } from "../../client/context.js";
-import { ApiRequestError, PaperclipApiClient } from "../../client/http.js";
+import { ApiRequestError, OutpostApiClient } from "../../client/http.js";
 
 export interface BaseClientOptions {
   config?: string;
@@ -14,23 +14,23 @@ export interface BaseClientOptions {
   apiBase?: string;
   apiKey?: string;
   runId?: string;
-  companyId?: string;
+  spaceId?: string;
   json?: boolean;
 }
 
 export interface ResolvedClientContext {
-  api: PaperclipApiClient;
-  companyId?: string;
+  api: OutpostApiClient;
+  spaceId?: string;
   profileName: string;
   profile: ClientContextProfile;
   json: boolean;
   authSource: "explicit" | "env" | "profile_env" | "stored_board" | "none";
 }
 
-export function addCommonClientOptions(command: Command, opts?: { includeCompany?: boolean }): Command {
+export function addCommonClientOptions(command: Command, opts?: { includeSpace?: boolean }): Command {
   command
     .option("-c, --config <path>", "Path to Outpost config file")
-    .option("-d, --data-dir <path>", "Outpost data directory root (isolates state from ~/.paperclip)")
+    .option("-d, --data-dir <path>", "Outpost data directory root (isolates state from ~/.outpost)")
     .option("--context <path>", "Path to CLI context file")
     .option("--profile <name>", "CLI context profile name")
     .option("--api-base <url>", "Base URL for the Outpost API")
@@ -38,8 +38,8 @@ export function addCommonClientOptions(command: Command, opts?: { includeCompany
     .option("--run-id <id>", "Heartbeat run id for agent-authenticated mutations (checkout/release/interactions/in-progress update); falls back to $OUTPOST_RUN_ID")
     .option("--json", "Output raw JSON");
 
-  if (opts?.includeCompany) {
-    command.option("-C, --company-id <id>", "Outpost ID (overrides context default)");
+  if (opts?.includeSpace) {
+    command.option("-C, --space-id <id>", "Outpost ID (overrides context default)");
   }
 
   return command;
@@ -47,7 +47,7 @@ export function addCommonClientOptions(command: Command, opts?: { includeCompany
 
 export function resolveCommandContext(
   options: BaseClientOptions,
-  opts?: { requireCompany?: boolean },
+  opts?: { requireSpace?: boolean },
 ): ResolvedClientContext {
   const context = readContext(options.context);
   const { name: profileName, profile } = resolveProfile(context, options.profile);
@@ -59,40 +59,40 @@ export function resolveCommandContext(
   const storedBoardCredential = explicitApiKey ? null : getStoredBoardCredential(apiBase);
   const apiKey = explicitApiKey || storedBoardCredential?.token;
 
-  const companyId =
-    options.companyId?.trim() ||
-    process.env.OUTPOST_COMPANY_ID?.trim() ||
-    profile.companyId;
+  const spaceId =
+    options.spaceId?.trim() ||
+    process.env.OUTPOST_SPACE_ID?.trim() ||
+    profile.spaceId;
 
-  if (opts?.requireCompany && !companyId) {
+  if (opts?.requireSpace && !spaceId) {
     throw new Error(
-      "Outpost ID is required. Pass --company-id, set OUTPOST_COMPANY_ID, or set context profile companyId via `paperclipai context set`.",
+      "Outpost ID is required. Pass --space-id, set OUTPOST_SPACE_ID, or set context profile spaceId via `outpost context set`.",
     );
   }
 
   // Agent-authenticated mutations (checkout, release, interactions, PATCH of an
-  // in-progress issue) require the X-Paperclip-Run-Id header (the server returns
+  // in-progress issue) require the X-Outpost-Run-Id header (the server returns
   // "401 Agent run id required" without it). Source it from --run-id, else the
   // OUTPOST_RUN_ID env the adapter/embodiment context already exports.
   const runId = options.runId?.trim() || process.env.OUTPOST_RUN_ID?.trim() || undefined;
 
-  const api = new PaperclipApiClient({
+  const api = new OutpostApiClient({
     apiBase,
     apiKey,
     runId,
-    recoverAuth: explicitApiKey || !canAttemptInteractiveBoardAuth()
+    recoverAuth: explicitApiKey || !canAttemptInteractiveOperatorAuth()
       ? undefined
       : async ({ error }) => {
           const requestedAccess = error.message.includes("Instance admin required")
             ? "instance_admin_required"
-            : "board";
-          if (!shouldRecoverBoardAuth(error)) {
+            : "operator";
+          if (!shouldRecoverOperatorAuth(error)) {
             return null;
           }
           const login = await loginBoardCli({
             apiBase,
             requestedAccess,
-            requestedCompanyId: companyId ?? null,
+            requestedSpaceId: spaceId ?? null,
             command: buildCliCommandLabel(),
           });
           return login.token;
@@ -100,7 +100,7 @@ export function resolveCommandContext(
   });
   return {
     api,
-    companyId,
+    spaceId,
     profileName,
     profile,
     json: Boolean(options.json),
@@ -180,13 +180,13 @@ function resolveApiKey(
   return { value: undefined, source: "none" };
 }
 
-function shouldRecoverBoardAuth(error: ApiRequestError): boolean {
+function shouldRecoverOperatorAuth(error: ApiRequestError): boolean {
   if (error.status === 401) return true;
   if (error.status !== 403) return false;
-  return error.message.includes("Board access required") || error.message.includes("Instance admin required");
+  return error.message.includes("Operator access required") || error.message.includes("Instance admin required");
 }
 
-function canAttemptInteractiveBoardAuth(): boolean {
+function canAttemptInteractiveOperatorAuth(): boolean {
   return Boolean(process.stdin.isTTY && process.stdout.isTTY);
 }
 

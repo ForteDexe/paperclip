@@ -3,18 +3,18 @@ import { fastResponsesApi } from "@/api/fast-responses";
 import { DecisionHistoryTable } from "@/components/decision-models/DecisionHistory";
 import { Button } from "@/components/ui/button";
 export function FastResponseHistory({
-  companyId,
+  spaceId,
   from,
   to,
 }: {
-  companyId: string;
+  spaceId: string;
   from?: string | null;
   to?: string | null;
 }) {
   const query = useQuery({
-    queryKey: ["fast-response-history", companyId, from, to],
+    queryKey: ["fast-response-history", spaceId, from, to],
     queryFn: () =>
-      fastResponsesApi.history(companyId, from ?? undefined, to ?? undefined),
+      fastResponsesApi.history(spaceId, from ?? undefined, to ?? undefined),
     refetchInterval: (q) =>
       q.state.data?.some(
         (r) =>

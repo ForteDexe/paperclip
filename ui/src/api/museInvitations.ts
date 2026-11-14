@@ -4,7 +4,7 @@ import type {
   MuseVerifyInput, MuseVerifyResult, MuseRevokeInput, MuseDetectorCleanupAttestationInput, MuseAttestStopInput,
 } from "@outpost/shared";
 
-const path = (companyId: string, agentId: string) => `/companies/${companyId}/agents/${agentId}/muse-binding`;
+const path = (spaceId: string, agentId: string) => `/spaces/${spaceId}/agents/${agentId}/muse-binding`;
 function accountScopedRead<T>(path: string, signal?: AbortSignal) {
   // Query keys carry the operator. Path-only GET coalescing must not join a
   // request issued under the previous account; React Query handles same-key reads.
@@ -12,12 +12,12 @@ function accountScopedRead<T>(path: string, signal?: AbortSignal) {
   return api.get<T>(path, { signal, cache: "no-store" });
 }
 export const museInvitationsApi = {
-  resume: (companyId: string, signal?: AbortSignal) => accountScopedRead<MuseInvitation | null>(`/companies/${companyId}/muse-invitations`, signal),
-  create: (companyId: string, input: MuseInvitationInput) => api.post<MuseInvitation>(`/companies/${companyId}/muse-invitations`, input),
-  connection: (companyId: string, agentId: string, signal?: AbortSignal) => accountScopedRead<MuseConnection>(path(companyId, agentId), signal),
-  pair: (companyId: string, agentId: string, input: MusePairingInput) => api.post<MusePairing>(path(companyId, agentId), input),
-  verify: (companyId: string, agentId: string, input: MuseVerifyInput) => api.post<MuseVerifyResult>(path(companyId, agentId) + "/verify", input),
-  revoke: (companyId: string, agentId: string, input: MuseRevokeInput) => api.post<void>(path(companyId, agentId) + "/revoke", input),
-  attestDetectorCleanup: (companyId: string, agentId: string, input: MuseDetectorCleanupAttestationInput) => api.post<void>(path(companyId, agentId) + "/attest-detector-cleanup", input),
-  attestStop: (companyId: string, agentId: string, input: MuseAttestStopInput) => api.post<void>(path(companyId, agentId) + "/attest-stop", input),
+  resume: (spaceId: string, signal?: AbortSignal) => accountScopedRead<MuseInvitation | null>(`/spaces/${spaceId}/muse-invitations`, signal),
+  create: (spaceId: string, input: MuseInvitationInput) => api.post<MuseInvitation>(`/spaces/${spaceId}/muse-invitations`, input),
+  connection: (spaceId: string, agentId: string, signal?: AbortSignal) => accountScopedRead<MuseConnection>(path(spaceId, agentId), signal),
+  pair: (spaceId: string, agentId: string, input: MusePairingInput) => api.post<MusePairing>(path(spaceId, agentId), input),
+  verify: (spaceId: string, agentId: string, input: MuseVerifyInput) => api.post<MuseVerifyResult>(path(spaceId, agentId) + "/verify", input),
+  revoke: (spaceId: string, agentId: string, input: MuseRevokeInput) => api.post<void>(path(spaceId, agentId) + "/revoke", input),
+  attestDetectorCleanup: (spaceId: string, agentId: string, input: MuseDetectorCleanupAttestationInput) => api.post<void>(path(spaceId, agentId) + "/attest-detector-cleanup", input),
+  attestStop: (spaceId: string, agentId: string, input: MuseAttestStopInput) => api.post<void>(path(spaceId, agentId) + "/attest-stop", input),
 };

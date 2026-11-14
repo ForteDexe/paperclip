@@ -14,7 +14,7 @@ type Row = Record<string, any>;
 type Settings = ReturnType<typeof resolveConnectionSettings>;
 export interface ConnectionFlowInput {
   page: Page; api: ConnectionApi; execution: MatrixExecution; config: ConnectionConfig; settings: Settings;
-  company: Row; environment: Row; secret?: string; nonce: string; privateDir: string;
+  space: Row; environment: Row; secret?: string; nonce: string; privateDir: string;
   evidence: ConnectionEvidence;
   checkpoint(phase: string): Promise<void>;
   observeRun(run: Row): void;
@@ -49,7 +49,7 @@ async function fillGateway(input: ConnectionFlowInput) {
 }
 
 async function submitConnection(input: ConnectionFlowInput, submit: () => Promise<void>) {
-  const route = `${input.api.origin}/api/companies/${input.company.id}/ai-connections`;
+  const route = `${input.api.origin}/api/spaces/${input.space.id}/ai-connections`;
   const response = input.page.waitForResponse(response => response.url() === route && response.request().method() === "POST", { timeout: 60_000 }).catch(() => null);
   await submit();
   const created = await response;
@@ -64,7 +64,7 @@ async function submitConnection(input: ConnectionFlowInput, submit: () => Promis
 }
 
 async function waitForFreshConnection(input: ConnectionFlowInput, before: Set<string>) {
-  const { page, api, config, evidence, company } = input;
+  const { page, api, config, evidence, space } = input;
   const { harness, mode } = connectionCell(input.execution);
   const deadline = Date.now() + (mode === "subscription" ? config.browser.loginTimeoutMs : 90_000);
   let loginOpened = false;
@@ -72,7 +72,7 @@ async function waitForFreshConnection(input: ConnectionFlowInput, before: Set<st
   while (Date.now() < deadline) {
     input.assertActive();
     await input.refreshOwnedConnections();
-    const list = await api.get(`/api/companies/${company.id}/ai-connections`);
+    const list = await api.get(`/api/spaces/${space.id}/ai-connections`);
     const fresh = list.connections.filter((c: Row) => !before.has(c.id) && input.createdConnectionIds.has(c.id));
     if (fresh.length > 1) throw new ConnectionFailure("unexpected_multiple_connections");
     if (fresh.length === 1) {
@@ -92,7 +92,7 @@ async function waitForFreshConnection(input: ConnectionFlowInput, before: Set<st
         evidence.assisted = true;
         evidence.waits.push({ kind: "provider_login", startedAt: new Date().toISOString() });
         await input.checkpoint("awaiting_provider_login");
-        console.log(`[provider-connections] Sign in to ${harness.label} in the opened browser (${config.browser.accountAlias}); complete the code/consent step in Paperclip. This test resumes automatically.`);
+        console.log(`[provider-connections] Sign in to ${harness.label} in the opened browser (${config.browser.accountAlias}); complete the code/consent step in Outpost. This test resumes automatically.`);
       }
       // Grok currently exposes a terminal handoff; do not pretend it has the same browser flow.
       if (!loginOpened && harness.id === "grok" && await page.getByRole("button", { name: "Copy sign-in command" }).isVisible()) {
@@ -100,7 +100,7 @@ async function waitForFreshConnection(input: ConnectionFlowInput, before: Set<st
         evidence.assisted = true;
         evidence.waits.push({ kind: "provider_login", startedAt: new Date().toISOString() });
         await input.checkpoint("awaiting_provider_login");
-        console.log("[provider-connections] Grok requires the sign-in command shown in Paperclip. Complete that production handoff; the test will resume automatically.");
+        console.log("[provider-connections] Grok requires the sign-in command shown in Outpost. Complete that production handoff; the test will resume automatically.");
       }
       const connect = page.getByRole("button", { name: "Connect", exact: true }).last();
       if (!connected && await connect.isVisible() && await connect.isEnabled()) { await connect.click(); connected = true; }
@@ -137,16 +137,16 @@ async function selectSavedConnection(page: Page, connection: Row, harness: Conne
 }
 
 async function createConnectionThroughUi(input: ConnectionFlowInput, agentURL: string) {
-  const { page, api, company, evidence } = input;
+  const { page, api, space, evidence } = input;
   const { harness, mode, entry } = connectionCell(input.execution);
-  const priorConnections = (await api.get(`/api/companies/${company.id}/ai-connections`)).connections as Row[];
+  const priorConnections = (await api.get(`/api/spaces/${space.id}/ai-connections`)).connections as Row[];
   const before = new Set<string>(priorConnections.map(c => c.id));
   // Fresh-creation proof cannot be satisfied by an existing personal default.
-  if (priorConnections.some(connection => connection.status !== "revoked")) throw new ConnectionBlock("blocked_target", "fresh_connection_requires_empty_qa_company");
+  if (priorConnections.some(connection => connection.status !== "revoked")) throw new ConnectionBlock("blocked_target", "fresh_connection_requires_empty_qa_space");
   const advanced = !["subscription", "api-key"].includes(mode);
   await input.checkpoint("connection_navigation");
   if (entry === "apps") {
-    await page.goto(`${api.origin}/${company.issuePrefix}/apps`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${api.origin}/${space.issuePrefix}/apps`, { waitUntil: "domcontentloaded" });
     const catalogSlug = advanced ? ({ openrouter: "openrouter", bedrock: "bedrock", responses: "responses-api", messages: "messages-api", chat: "chat-completions-api" } as Record<string, string>)[mode]! : harness.provider;
     const definition = getConnectableAppDefinition(catalogSlug);
     if (!definition) throw new ConnectionFailure("connection_catalog_entry_missing");
@@ -203,7 +203,7 @@ async function createConnectionThroughUi(input: ConnectionFlowInput, agentURL: s
       (mode === "bedrock" && connection.routing?.region !== input.settings.route?.region)) throw new ConnectionFailure("saved_routing_mismatch");
   } else if (connection.provider !== harness.provider) throw new ConnectionFailure("saved_provider_mismatch");
   // Navigate away and return through the normal list: proof includes durable UI state.
-  await page.goto(`${api.origin}/${company.issuePrefix}/apps`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${api.origin}/${space.issuePrefix}/apps`, { waitUntil: "domcontentloaded" });
   await expect(page.getByText(connection.name, { exact: true }).first()).toBeVisible();
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByText(connection.name, { exact: true }).first()).toBeVisible();
@@ -230,10 +230,10 @@ async function selectModel(page: Page, model: string) {
 }
 
 export async function runConnectionFlow(input: ConnectionFlowInput) {
-  const { page, api, execution, evidence, settings, company, environment, config } = input;
+  const { page, api, execution, evidence, settings, space, environment, config } = input;
   const { harness, mode } = connectionCell(execution);
   const agentName = `Connection QA ${input.nonce}`;
-  const agentURL = `${api.origin}/${company.issuePrefix}/agents/new?${new URLSearchParams({ name: agentName, adapterType: execution.profile.adapterType, runnerProvider: harness.id })}`;
+  const agentURL = `${api.origin}/${space.issuePrefix}/agents/new?${new URLSearchParams({ name: agentName, adapterType: execution.profile.adapterType, runnerProvider: harness.id })}`;
   const connection = await createConnectionThroughUi(input, agentURL);
   await expect(page.getByRole("heading", { name: "Configure your agent", exact: true })).toBeVisible({ timeout: 120_000 });
   const environmentSelect = page.getByRole("combobox", { name: "Environment", exact: true });
@@ -247,7 +247,7 @@ export async function runConnectionFlow(input: ConnectionFlowInput) {
   await input.checkpoint("select_model");
   await selectModel(page, settings.model);
   await input.checkpoint("setup_probe");
-  const response = page.waitForResponse(response => response.url().startsWith(`${api.origin}/api/companies/${company.id}/adapters/`) && response.url().endsWith("/test-environment"), { timeout: 120_000 });
+  const response = page.waitForResponse(response => response.url().startsWith(`${api.origin}/api/spaces/${space.id}/adapters/`) && response.url().endsWith("/test-environment"), { timeout: 120_000 });
   await page.getByRole("button", { name: /^(Run test|Test again)$/ }).click();
   const probe = await response;
   const result = await probe.json();
@@ -260,7 +260,7 @@ export async function runConnectionFlow(input: ConnectionFlowInput) {
   let agent: Row | undefined;
   const deadline = Date.now() + 60_000;
   while (!agent && Date.now() < deadline) {
-    agent = (await api.get<Row[]>(`/api/companies/${company.id}/agents`)).find(row => row.name === agentName);
+    agent = (await api.get<Row[]>(`/api/spaces/${space.id}/agents`)).find(row => row.name === agentName);
     if (!agent) await connectionDelay(500);
   }
   if (!agent) throw new ConnectionFailure("agent_creation_failed");
@@ -290,16 +290,16 @@ export async function runConnectionFlow(input: ConnectionFlowInput) {
   // every harness can decode them with its actual tools.
   evidence.inputTransport = "prompt_base64";
   const title = `Connection artifact ${input.nonce}`;
-  const createdTask = await createTaskThroughUi({ page, issuePrefix: company.issuePrefix, agentName, title, workMode: "standard", prompt: [
+  const createdTask = await createTaskThroughUi({ page, issuePrefix: space.issuePrefix, agentName, title, workMode: "standard", prompt: [
     "Complete this bounded connection acceptance task. Using your actual tools, decode the following base64 into connection-input.json and read the file. Preserve the exact decoded bytes, including the final newline.",
     `Input bytes (base64): ${Buffer.from(proof.input, "utf8").toString("base64")}`,
     "Create the input and output files inside your current workspace using relative filenames. Do not put them in /tmp or another directory outside the workspace.",
     'Write connection-proof.json with exactly this schema: {"nonce": string, "count": number, "total": number, "sha256": string}. Set nonce from the input, count to the number of values, total to their sum, and sha256 to the hash of the exact input file bytes. All four fields are required; use the literal field name "total", not "sum". Compute and validate with a tool; do not guess or paraphrase the data.',
-    "Deliver connection-proof.json as a downloadable attachment on this task. Use the normal Paperclip artifact/attachment workflow and include its download link in your final response. Then mark this task done. Do not create other tasks, read credentials, or inspect unrelated files.",
+    "Deliver connection-proof.json as a downloadable attachment on this task. Use the normal Outpost artifact/attachment workflow and include its download link in your final response. Then mark this task done. Do not create other tasks, read credentials, or inspect unrelated files.",
     execution.profile.generation === "native" ? "Use your native register_deliverable tool with workspace-relative contentRef connection-proof.json and the exact byteSize and SHA-256 of that output file. Never submit an absolute contentRef." : "",
   ].join("\n") });
   const issue = await api.get<Row>(`/api/issues/${createdTask.issueId}`);
-  if (issue.companyId !== company.id) throw new ConnectionFailure("task_creation_failed");
+  if (issue.spaceId !== space.id) throw new ConnectionFailure("task_creation_failed");
   const runs = new Map<string, Row>();
   async function completedRun(after: Set<string>, filename: string) {
     const deadline = Date.now() + config.turnTimeoutMs;
@@ -346,7 +346,7 @@ export async function runConnectionFlow(input: ConnectionFlowInput) {
     evidence.artifactChecks.push({ filename, runId: run.id, sha256: createHash("sha256").update(bytes).digest("hex"),
       fields: Object.fromEntries(Object.entries(expected).map(([key, value]) => [key, actual?.[key] === value])), exactFields: Boolean(actual && Object.keys(actual).length === Object.keys(expected).length) });
     if (!verifyConnectionArtifact(bytes, expected)) throw new ConnectionFailure("independent_artifact_verification_failed");
-    await page.goto(`${api.origin}/${company.issuePrefix}/issues/${issue!.identifier}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${api.origin}/${space.issuePrefix}/issues/${issue!.identifier}`, { waitUntil: "domcontentloaded" });
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.locator(`a[href*="/api/attachments/${attachment.id}/content"]`).first()).toBeVisible({ timeout: 30_000 });
     evidence.artifactSha256 = createHash("sha256").update(bytes).digest("hex");

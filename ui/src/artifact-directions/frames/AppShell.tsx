@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { COMPANY, TASKS } from "../fixtures";
+import { SPACE, TASKS } from "../fixtures";
 
 /**
  * Static mock of the streamlined app shell (Layout.tsx:618-795): the primary
@@ -98,7 +98,7 @@ function Sidebar({ nav }: { nav: ShellNav }) {
   return (
     // SidebarShell.tsx:15 (240px), Sidebar.tsx:128 — no right border; the edge is the surface change.
     <aside className="flex w-60 shrink-0 flex-col primary-sidebar-surface" aria-label="Primary">
-      {/* Sidebar.tsx:142 + SidebarCompanyMenu.tsx:268-291 */}
+      {/* Sidebar.tsx:142 + SidebarSpaceMenu.tsx:268-291 */}
       <div className="flex h-(--sz-60px) shrink-0 items-center gap-1 px-3">
         <span className="flex h-9 min-w-0 flex-1 items-center justify-start gap-2 rounded-md px-4 text-left">
           <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -108,7 +108,7 @@ function Sidebar({ nav }: { nav: ShellNav }) {
             >
               A
             </span>
-            <span className="min-w-0 truncate text-sm font-bold text-foreground">{COMPANY.name}</span>
+            <span className="min-w-0 truncate text-sm font-bold text-foreground">{SPACE.name}</span>
           </span>
           <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
         </span>

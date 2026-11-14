@@ -45,7 +45,7 @@ import type {
  * UI can group evidence by turn without deriving a single fact itself
  * (7I interaction map §10).
  *
- * No credential, no network, no Paperclip service: the adapter is the in-memory
+ * No credential, no network, no Outpost service: the adapter is the in-memory
  * fixture core, and the only prompt text that leaves the page is the text the
  * board typed into this same page.
  */
@@ -134,7 +134,7 @@ export class CapabilityChatSession {
       identity: {
         runId,
         sessionId: `session-capability-chat-${entry.id}`,
-        companyId: fixture.seed.company!.id!,
+        spaceId: fixture.seed.space!.id!,
         issueId: fixture.taskId,
         agentId: fixture.actorId,
       },

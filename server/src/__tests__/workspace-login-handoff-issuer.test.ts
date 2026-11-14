@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "@outpost/db";
 import {
   issueWorkspaceLoginHandoff,
-  resolveWorkspaceHandoffBoardIdentity,
+  resolveWorkspaceHandoffOperatorIdentity,
   workspaceLoginHandoffFailureStatus,
 } from "../services/workspace-login-handoff-issuer.js";
 import { verifyWorkspaceHandoffTicket } from "../auth/workspace-login-handoff.js";
@@ -15,19 +15,19 @@ import type { probeManagedWorkspaceReadiness } from "../services/managed-workspa
 
 const INSTANCE_ID = "pap-17572-live-workspace-aa11bb22cc33";
 const EXECUTION_WORKSPACE_ID = "ews-live-1";
-const COMPANY_ID = "company-1";
+const SPACE_ID = "space-1";
 const RUNTIME_URL = "https://workspace.example.ts.net:42013/";
 
 const tempDirs: string[] = [];
 let previousSecret: string | undefined;
 
 function createWorkspaceCwd(instanceId: string | null) {
-  const cwd = mkdtempSync(path.join(os.tmpdir(), "paperclip-handoff-issuer-"));
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "outpost-handoff-issuer-"));
   tempDirs.push(cwd);
-  mkdirSync(path.join(cwd, ".paperclip"), { recursive: true });
+  mkdirSync(path.join(cwd, ".outpost"), { recursive: true });
   if (instanceId) {
     writeFileSync(
-      path.join(cwd, ".paperclip", ".env"),
+      path.join(cwd, ".outpost", ".env"),
       `OUTPOST_HOME=/srv/home\nOUTPOST_INSTANCE_ID=${instanceId}\n`,
       "utf8",
     );
@@ -70,7 +70,7 @@ function readyProbe() {
       seedMode: "minimal" as const,
       instanceId: INSTANCE_ID,
       executionWorkspaceId: EXECUTION_WORKSPACE_ID,
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       failurePhase: null,
     },
   }));
@@ -94,7 +94,7 @@ describe("issueWorkspaceLoginHandoff", () => {
     const probe = readyProbe();
     const result = await issueWorkspaceLoginHandoff({
       db: stubDb({ runtimeRows: [{ id: "runtime-1", url: RUNTIME_URL, updatedAt: new Date() }] }),
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       executionWorkspace: { id: EXECUTION_WORKSPACE_ID, cwd },
       actor: { userId: "user-1", userEmail: "operator@example.com", source: "session" },
       next: "/PAP/issues/PAP-17572",
@@ -112,7 +112,7 @@ describe("issueWorkspaceLoginHandoff", () => {
     const identity = resolveManagedWorkspaceIdentity({
       workspaceCwd: cwd,
       executionWorkspaceId: EXECUTION_WORKSPACE_ID,
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
     });
     const verification = verifyWorkspaceHandoffTicket({
       ticket: url.searchParams.get(WORKSPACE_HANDOFF_TICKET_QUERY_PARAM),
@@ -120,7 +120,7 @@ describe("issueWorkspaceLoginHandoff", () => {
       expected: {
         instanceId: INSTANCE_ID,
         executionWorkspaceId: EXECUTION_WORKSPACE_ID,
-        companyId: COMPANY_ID,
+        spaceId: SPACE_ID,
         origin: "https://workspace.example.ts.net:42013",
       },
     });
@@ -144,7 +144,7 @@ describe("issueWorkspaceLoginHandoff", () => {
     const cwd = createWorkspaceCwd(INSTANCE_ID);
     const result = await issueWorkspaceLoginHandoff({
       db: stubDb({ runtimeRows: [{ id: "runtime-1", url: RUNTIME_URL, updatedAt: new Date() }] }),
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       executionWorkspace: { id: EXECUTION_WORKSPACE_ID, cwd },
       actor: { userId: "user-1", userEmail: "operator@example.com", source: "session" },
       probe: vi.fn(async () => ({
@@ -164,7 +164,7 @@ describe("issueWorkspaceLoginHandoff", () => {
     const cwd = createWorkspaceCwd(INSTANCE_ID);
     const result = await issueWorkspaceLoginHandoff({
       db: stubDb({ runtimeRows: [] }),
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       executionWorkspace: { id: EXECUTION_WORKSPACE_ID, cwd },
       actor: { userId: "user-1", userEmail: "operator@example.com", source: "session" },
       probe: readyProbe(),
@@ -176,7 +176,7 @@ describe("issueWorkspaceLoginHandoff", () => {
     const cwd = createWorkspaceCwd(INSTANCE_ID);
     const result = await issueWorkspaceLoginHandoff({
       db: stubDb({ runtimeRows: [{ id: "runtime-1", url: "not-a-url", updatedAt: new Date() }] }),
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       executionWorkspace: { id: EXECUTION_WORKSPACE_ID, cwd },
       actor: { userId: "user-1", userEmail: "operator@example.com", source: "session" },
       probe: readyProbe(),
@@ -187,7 +187,7 @@ describe("issueWorkspaceLoginHandoff", () => {
   it("fails closed when the worktree instance identity cannot be resolved", async () => {
     const result = await issueWorkspaceLoginHandoff({
       db: stubDb({ runtimeRows: [{ id: "runtime-1", url: RUNTIME_URL, updatedAt: new Date() }] }),
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       executionWorkspace: { id: EXECUTION_WORKSPACE_ID, cwd: null },
       actor: { userId: "user-1", userEmail: "operator@example.com", source: "session" },
       probe: readyProbe(),
@@ -205,7 +205,7 @@ describe("issueWorkspaceLoginHandoff", () => {
       const cwd = createWorkspaceCwd(INSTANCE_ID);
       const result = await issueWorkspaceLoginHandoff({
         db: stubDb({ runtimeRows: [{ id: "runtime-1", url: RUNTIME_URL, updatedAt: new Date() }] }),
-        companyId: COMPANY_ID,
+        spaceId: SPACE_ID,
         executionWorkspace: { id: EXECUTION_WORKSPACE_ID, cwd },
         actor: { userId: "user-1", userEmail: "operator@example.com", source: "session" },
         probe: readyProbe(),
@@ -217,23 +217,23 @@ describe("issueWorkspaceLoginHandoff", () => {
     }
   });
 
-  it("refuses an actor with no resolvable board identity", async () => {
+  it("refuses an actor with no resolvable operator identity", async () => {
     const cwd = createWorkspaceCwd(INSTANCE_ID);
     const result = await issueWorkspaceLoginHandoff({
       db: stubDb({ adminRows: [] }),
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       executionWorkspace: { id: EXECUTION_WORKSPACE_ID, cwd },
       actor: { userId: null, userEmail: null, source: "session" },
       probe: readyProbe(),
     });
-    expect(result).toMatchObject({ ok: false, failure: { reason: "no_board_identity" } });
+    expect(result).toMatchObject({ ok: false, failure: { reason: "no_operator_identity" } });
   });
 
   it("normalizes a landing target that tries to leave the workspace origin", async () => {
     const cwd = createWorkspaceCwd(INSTANCE_ID);
     const result = await issueWorkspaceLoginHandoff({
       db: stubDb({ runtimeRows: [{ id: "runtime-1", url: RUNTIME_URL, updatedAt: new Date() }] }),
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       executionWorkspace: { id: EXECUTION_WORKSPACE_ID, cwd },
       actor: { userId: "user-1", userEmail: "operator@example.com", source: "session" },
       next: "https://attacker.example.com/steal",
@@ -244,7 +244,7 @@ describe("issueWorkspaceLoginHandoff", () => {
     const identity = resolveManagedWorkspaceIdentity({
       workspaceCwd: cwd,
       executionWorkspaceId: EXECUTION_WORKSPACE_ID,
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
     });
     const verification = verifyWorkspaceHandoffTicket({
       ticket: new URL(result.issuance.url).searchParams.get(WORKSPACE_HANDOFF_TICKET_QUERY_PARAM),
@@ -252,7 +252,7 @@ describe("issueWorkspaceLoginHandoff", () => {
       expected: {
         instanceId: INSTANCE_ID,
         executionWorkspaceId: EXECUTION_WORKSPACE_ID,
-        companyId: COMPANY_ID,
+        spaceId: SPACE_ID,
         origin: "https://workspace.example.ts.net:42013",
       },
     });
@@ -260,10 +260,10 @@ describe("issueWorkspaceLoginHandoff", () => {
   });
 });
 
-describe("resolveWorkspaceHandoffBoardIdentity", () => {
+describe("resolveWorkspaceHandoffOperatorIdentity", () => {
   it("uses the caller's own session identity", async () => {
     await expect(
-      resolveWorkspaceHandoffBoardIdentity(stubDb({}), {
+      resolveWorkspaceHandoffOperatorIdentity(stubDb({}), {
         userId: "user-9",
         userEmail: "nine@example.com",
         source: "session",
@@ -273,17 +273,17 @@ describe("resolveWorkspaceHandoffBoardIdentity", () => {
 
   it("stands in the instance admin for the implicit local-trusted actor", async () => {
     await expect(
-      resolveWorkspaceHandoffBoardIdentity(
+      resolveWorkspaceHandoffOperatorIdentity(
         stubDb({ adminRows: [{ id: "admin-1", email: "admin@example.com", createdAt: new Date(0) }] }),
-        { userId: "local-board", userEmail: null, source: "local_implicit" },
+        { userId: "local-operator", userEmail: null, source: "local_implicit" },
       ),
     ).resolves.toEqual({ userId: "admin-1", email: "admin@example.com" });
   });
 
   it("returns null when a local-trusted instance has no instance admin", async () => {
     await expect(
-      resolveWorkspaceHandoffBoardIdentity(stubDb({ adminRows: [] }), {
-        userId: "local-board",
+      resolveWorkspaceHandoffOperatorIdentity(stubDb({ adminRows: [] }), {
+        userId: "local-operator",
         userEmail: null,
         source: "local_implicit",
       }),
@@ -293,7 +293,7 @@ describe("resolveWorkspaceHandoffBoardIdentity", () => {
 
 describe("workspaceLoginHandoffFailureStatus", () => {
   it("separates authorization, unsupported, and conflict outcomes", () => {
-    expect(workspaceLoginHandoffFailureStatus({ reason: "no_board_identity" })).toBe(403);
+    expect(workspaceLoginHandoffFailureStatus({ reason: "no_operator_identity" })).toBe(403);
     expect(workspaceLoginHandoffFailureStatus({ reason: "handoff_not_configured" })).toBe(501);
     expect(workspaceLoginHandoffFailureStatus({ reason: "runtime_not_running" })).toBe(409);
     expect(

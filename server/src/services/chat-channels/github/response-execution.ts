@@ -4,7 +4,7 @@ import { readGitHubResponseRun } from "./response-run-state.js";
 export { responseRunColumns as githubResponseRunColumns } from "./response-run-state.js";
 
 export type GitHubResponseExecutionInput = {
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   agentId: string;
   issueId: string;
@@ -21,7 +21,7 @@ export async function githubResponseExecution(db: Db, input: GitHubResponseExecu
   const run = terminal && (ownsLatestRequest || input.issueStatus === "blocked") ? latestRun : null;
 
   const reply = run && ownsLatestRequest ? await githubRunReplyState(db, {
-    companyId: input.companyId, endpointId: input.endpointId, issueId: input.issueId, runId: run.id,
+    spaceId: input.spaceId, endpointId: input.endpointId, issueId: input.issueId, runId: run.id,
   }) : "none";
   const paused = !!run ? input.issueStatus === "blocked" && !ownsLatestRequest
     : input.issueStatus === "blocked" && latestRun?.status !== "running";

@@ -21,7 +21,7 @@
  * the Runner's durable state and the provider's own files are the only sandbox-side record.
  *
  * Harness only: no product code changes. The one in-sandbox mutation is CR2's SIGKILL of the provider
- * process, run by a fixed script in sandboxes labelled with this wave's company and environment.
+ * process, run by a fixed script in sandboxes labelled with this wave's space and environment.
  */
 import type { AdapterId, FaultKind, FaultReceipt, WaveOptions } from "./types.js";
 import { ProcessFreezer, descendantPids, readProcessTable, type ProcessRow } from "./time-faults.js";
@@ -148,7 +148,7 @@ export const PROVIDER_KILL_SCRIPT = [
 export function providerKillCommand(runId: string, adapter: AdapterId): string {
   if (!UUID.test(runId)) throw new Error(`CR2 needs a run id, got ${JSON.stringify(runId)}`);
   const quote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
-  return `sh -c ${quote(PROVIDER_KILL_SCRIPT)} paperclip-chaos-cr2 ${quote(runId)} ${quote(PROVIDER_PROCESS_PATTERN[adapter])}`;
+  return `sh -c ${quote(PROVIDER_KILL_SCRIPT)} outpost-chaos-cr2 ${quote(runId)} ${quote(PROVIDER_PROCESS_PATTERN[adapter])}`;
 }
 
 /** What one CR2 kill found and did, per sandbox. */

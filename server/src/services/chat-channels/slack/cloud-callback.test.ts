@@ -8,9 +8,9 @@ import { receiveSlackCloudCallback, slackDeferredCallbackActive } from "./cloud-
 import { slackCloudAcceptedAt, type SlackCloudEvent } from "./cloud-event.js";
 const acceptedAt = Date.parse("2099-01-01T00:00:00Z");
 function fixture(lane: "command" | "action" = "command") {
-  const current = { instanceId: "instance", environment: "test", companyId: "company", endpointId: "endpoint", connectionId: "connection", publicId: "a".repeat(43), runtimeGeneration: 1,
+  const current = { instanceId: "instance", environment: "test", spaceId: "space", endpointId: "endpoint", connectionId: "connection", publicId: "a".repeat(43), runtimeGeneration: 1,
     teamId: "TTEST", appId: "ATEST", bindingId: `slack-event:${"b".repeat(64)}`, signingSecret: "0123456789abcdef0123456789abcdef" };
-  const body = lane === "command" ? new URLSearchParams({ command: "/paperclip", text: "useful original task", trigger_id: "original-one-use-trigger", team_id: "TTEST", api_app_id: "ATEST", user_id: "UTEST", channel_id: "CTEST", response_url: "https://hooks.slack.com/commands/controlled" }).toString()
+  const body = lane === "command" ? new URLSearchParams({ command: "/outpost", text: "useful original task", trigger_id: "original-one-use-trigger", team_id: "TTEST", api_app_id: "ATEST", user_id: "UTEST", channel_id: "CTEST", response_url: "https://hooks.slack.com/commands/controlled" }).toString()
     : new URLSearchParams({ payload: JSON.stringify({ type: "block_actions", api_app_id: "ATEST", team: { id: "TTEST" }, user: { id: "UTEST" }, channel: { id: "CTEST" }, actions: [{ action_id: "opaque-confirmation", action_ts: "4070908800.000001" }], trigger_id: "original-one-use-trigger" }) }).toString();
   const rawBody = Buffer.from(body).toString("base64"), timestamp = String(Math.floor(acceptedAt / 1000));
   const signature = `v0=${createHmac("sha256", current.signingSecret).update(`v0:${timestamp}:`).update(body).digest("hex")}`;
@@ -60,9 +60,9 @@ describe("deferred Slack command and action custody", () => {
         await event.event.channel.postEphemeral(event.event.user, { markdown: "Useful normal bot notice" }, { fallbackToDM: false });
       };
       const onSlashCommand = vi.fn(slash);
-      runtime = createChatSdkEndpointRuntime({ companyId: f.current.companyId, endpointId: f.current.endpointId, logger: "silent",
+      runtime = createChatSdkEndpointRuntime({ spaceId: f.current.spaceId, endpointId: f.current.endpointId, logger: "silent",
         callbacks: { onMessage: async () => {}, onSlashCommand }, persistence: { read: async () => null, compareAndSet: async () => true, deleteIfVersion: async () => true },
-        providerConfig: { provider: "slack", userName: "paperclip-agent", credentials: { apiUrl: "http://127.0.0.1:1/api/", botToken: "xoxb-synthetic", botUserId: "UBOT", signingSecret: f.current.signingSecret } } });
+        providerConfig: { provider: "slack", userName: "outpost-agent", credentials: { apiUrl: "http://127.0.0.1:1/api/", botToken: "xoxb-synthetic", botUserId: "UBOT", signingSecret: f.current.signingSecret } } });
       await runtime.initialize();
       const transport = stubSlackFixtureTransport(runtime.getProviderAdapter());
       const delegate = transport.getMockImplementation();
@@ -84,7 +84,7 @@ describe("deferred Slack command and action custody", () => {
       expect(notices).toBe(1);
       expect(onSlashCommand).toHaveBeenCalledOnce();
       expect(onSlashCommand).toHaveBeenCalledWith(expect.objectContaining({ endpointId: f.current.endpointId, provider: "slack",
-        event: expect.objectContaining({ command: "/paperclip", text: "useful original task", triggerId: "original-one-use-trigger" }) }));
+        event: expect.objectContaining({ command: "/outpost", text: "useful original task", triggerId: "original-one-use-trigger" }) }));
       await transport.assertNoErrors();
       const packet = f.event.payload.slackCallback as Record<string, unknown>;
       await expect(verifySlackSignature(f.body, new Headers({ "x-slack-request-timestamp": String(packet.timestamp), "x-slack-signature": String(packet.signature) }),

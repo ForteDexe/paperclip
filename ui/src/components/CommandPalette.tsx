@@ -3,7 +3,7 @@ import { useCombinedInboxTasksEnabled } from "@/hooks/useCombinedInboxTasksEnabl
 import { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useDialogActions } from "../context/DialogContext";
 import { useSidebar } from "../context/SidebarContext";
 import { issuesApi } from "../api/issues";
@@ -41,9 +41,9 @@ import {
   parseSearchQuery,
   type SearchQueryParserContext,
 } from "../lib/search-query-parser";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 
-const SEARCH_ALL_VALUE = "__paperclip-search-all__";
+const SEARCH_ALL_VALUE = "__outpost-search-all__";
 
 export function buildFullSearchPath(query: string, context: SearchQueryParserContext = {}) {
   return buildSearchPathFromQuery(query, context);
@@ -93,7 +93,7 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { openNewIssue, openNewAgent } = useDialogActions();
   const { isMobile, setSidebarOpen } = useSidebar();
   const searchQuery = query.trim();
@@ -122,14 +122,14 @@ export function CommandPalette() {
   }, [open]);
 
   const { data: agents = [] } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId && open,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId && open,
   });
 
   const { data: allProjects = [] } = useQuery({
-    ...companyProjectsQuery(selectedCompanyId!),
-    enabled: !!selectedCompanyId && open,
+    ...spaceProjectsQuery(selectedSpaceId!),
+    enabled: !!selectedSpaceId && open,
   });
   const projects = useMemo(
     () => allProjects,
@@ -137,9 +137,9 @@ export function CommandPalette() {
   );
 
   const { data: labels = [] } = useQuery({
-    queryKey: queryKeys.issues.labels(selectedCompanyId!),
-    queryFn: () => issuesApi.listLabels(selectedCompanyId!),
-    enabled: !!selectedCompanyId && open,
+    queryKey: queryKeys.issues.labels(selectedSpaceId!),
+    queryFn: () => issuesApi.listLabels(selectedSpaceId!),
+    enabled: !!selectedSpaceId && open,
   });
 
   const { data: session } = useQuery({
@@ -159,15 +159,15 @@ export function CommandPalette() {
   const quickSearchQuery = parsedQuery.query.trim();
 
   const { data: issues = [] } = useQuery({
-    queryKey: queryKeys.issues.list(selectedCompanyId!),
-    queryFn: () => issuesApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId && open && searchQuery.length === 0,
+    queryKey: queryKeys.issues.list(selectedSpaceId!),
+    queryFn: () => issuesApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId && open && searchQuery.length === 0,
   });
 
   const { data: searchedIssues = [] } = useQuery({
-    queryKey: queryKeys.issues.search(selectedCompanyId!, quickSearchQuery, undefined, 10),
-    queryFn: () => issuesApi.list(selectedCompanyId!, { q: quickSearchQuery, limit: 10, includeRoutineExecutions: true }),
-    enabled: !!selectedCompanyId && open && quickSearchQuery.length > 0,
+    queryKey: queryKeys.issues.search(selectedSpaceId!, quickSearchQuery, undefined, 10),
+    queryFn: () => issuesApi.list(selectedSpaceId!, { q: quickSearchQuery, limit: 10, includeRoutineExecutions: true }),
+    enabled: !!selectedSpaceId && open && quickSearchQuery.length > 0,
   });
 
   function go(path: string) {
@@ -327,7 +327,7 @@ export function CommandPalette() {
             <CommandItem
               onSelect={() => {
                 setOpen(false);
-                window.dispatchEvent(new CustomEvent("paperclip:open-file-viewer"));
+                window.dispatchEvent(new CustomEvent("outpost:open-file-viewer"));
               }}
             >
               <FileCode2 className="mr-2 h-4 w-4" />

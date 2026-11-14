@@ -3,9 +3,9 @@ import { ConnectionBlock, ConnectionFailure } from "./connection-config.js";
 import { connectionDelay } from "./connection-target.js";
 import type { GitHubReviewJourneyConfig } from "./github-review-config.js";
 
-export async function enterGitHubJourneyCompany(page: Page, origin: string, company: { issuePrefix: string }) {
-  if (!/^[A-Za-z0-9]+$/.test(company.issuePrefix)) throw new ConnectionFailure("invalid_journey_company_prefix");
-  const pathname = `/${company.issuePrefix}/dashboard`;
+export async function enterGitHubJourneySpace(page: Page, origin: string, space: { issuePrefix: string }) {
+  if (!/^[A-Za-z0-9]+$/.test(space.issuePrefix)) throw new ConnectionFailure("invalid_journey_space_prefix");
+  const pathname = `/${space.issuePrefix}/dashboard`;
   await page.goto(`${origin}${pathname}`);
   await page.waitForURL(url => url.origin === origin && url.pathname === pathname);
 }

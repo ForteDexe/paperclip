@@ -5,12 +5,12 @@ import type { TaskChatTaskCreatedItem } from "./task-chat-model";
 export function taskCreatedItems(
   tasks: readonly Issue[],
   issueId: string | null,
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   representedTaskIds: ReadonlySet<string>,
 ): TaskChatTaskCreatedItem[] {
   const seen = new Set(representedTaskIds);
   return tasks.flatMap((task) => {
-    if (!task.createdByAgentId || task.id === issueId || seen.has(task.id) || task.companyId !== companyId) return [];
+    if (!task.createdByAgentId || task.id === issueId || seen.has(task.id) || task.spaceId !== spaceId) return [];
     seen.add(task.id);
     return [{
       id: `task-created:${task.id}`,

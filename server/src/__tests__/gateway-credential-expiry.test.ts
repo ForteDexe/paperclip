@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, companies, createDb, heartbeatRuns, toolAccessAuditEvents, toolGatewaySessions,
+import { activityLog, agents, spaces, createDb, heartbeatRuns, toolAccessAuditEvents, toolGatewaySessions,
   toolMcpGateways, toolMcpGatewayTokens, toolProfiles } from "@outpost/db";
 import { createToolGatewayService } from "../services/tool-gateway.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -18,7 +18,7 @@ describe.skipIf(!supported)("gateway credential expiry", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let gateway: ReturnType<typeof createToolGatewayService>;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
-  let companyId: string, agentId: string, runId: string, namedId: string;
+  let spaceId: string, agentId: string, runId: string, namedId: string;
   let draining: boolean;
   const errors: unknown[] = [];
 
@@ -29,13 +29,13 @@ describe.skipIf(!supported)("gateway credential expiry", () => {
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   beforeEach(async () => {
     await Promise.all(Array.from({ length: 6 }, () => db.execute(sql`select pg_sleep(0.01)`)));
-    companyId = randomUUID(); agentId = randomUUID(); runId = randomUUID(); draining = false; errors.length = 0;
-    await db.insert(companies).values({ id: companyId, name: "Credential expiry", issuePrefix: "EXP" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Agent", role: "engineer", adapterType: "process" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "assignment", status: "running" });
-    const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: "expiry", name: "Expiry", defaultAction: "deny" }).returning();
+    spaceId = randomUUID(); agentId = randomUUID(); runId = randomUUID(); draining = false; errors.length = 0;
+    await db.insert(spaces).values({ id: spaceId, name: "Credential expiry", issuePrefix: "EXP" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Agent", role: "engineer", adapterType: "process" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "assignment", status: "running" });
+    const [profile] = await db.insert(toolProfiles).values({ spaceId, profileKey: "expiry", name: "Expiry", defaultAction: "deny" }).returning();
     gateway = createToolGatewayService(db, { toolActionSigningSecret: "expiry-test-only" });
-    namedId = (await gateway.createNamedGateway({ companyId, body: { name: "Expiry", profileId: profile.id } })).id;
+    namedId = (await gateway.createNamedGateway({ spaceId, body: { name: "Expiry", profileId: profile.id } })).id;
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"], shouldAdvanceTime: true });
   });
   afterEach(async () => {
@@ -49,7 +49,7 @@ describe.skipIf(!supported)("gateway credential expiry", () => {
     await db.delete(toolProfiles);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     expect(errors).toEqual([]);
   });
   async function start() {
@@ -79,8 +79,8 @@ describe.skipIf(!supported)("gateway credential expiry", () => {
     expect(reads).not.toHaveBeenCalled(); expect(selects).not.toHaveBeenCalled(); expect(deletes).not.toHaveBeenCalled();
     reads.mockRestore(); selects.mockRestore(); deletes.mockRestore();
   }
-  const token = (expiresAt?: Date) => gateway.createNamedGatewayToken({ companyId, gatewayId: namedId, body: { name: "Expiry", clientLabel: "Expiry client", ownerNote: "", expiresAt } });
-  const session = (service = gateway) => service.createSession({ companyId, agentId, runId, ttlMs: 5 * 60_000 });
+  const token = (expiresAt?: Date) => gateway.createNamedGatewayToken({ spaceId, gatewayId: namedId, body: { name: "Expiry", clientLabel: "Expiry client", ownerNote: "", expiresAt } });
+  const session = (service = gateway) => service.createSession({ spaceId, agentId, runId, ttlMs: 5 * 60_000 });
 
   it("stays quiet with configuration and a nonexpiring token, then expires real tokens and sessions by deadline", async () => {
     await start(); await quiet();
@@ -94,7 +94,7 @@ describe.skipIf(!supported)("gateway credential expiry", () => {
     await settle(30_000);
     expect(reads).not.toHaveBeenCalled(); expect(selects).not.toHaveBeenCalled();
     reads.mockRestore(); selects.mockRestore();
-    await gateway.revokeNamedGatewayToken({ companyId, tokenId: expiring.id });
+    await gateway.revokeNamedGatewayToken({ spaceId, tokenId: expiring.id });
     await settle(2 * 60_000);
     expect((await db.select().from(toolMcpGatewayTokens)).map(row => row.id)).toEqual([retained.id]);
     expect(coordinator!.nextWakeAt()).toBe(active.expiresAt.getTime());
@@ -115,7 +115,7 @@ describe.skipIf(!supported)("gateway credential expiry", () => {
     const writing = db.transaction(async tx => {
       const scoped = createToolGatewayService(tx as unknown as typeof db, { toolActionSigningSecret: "expiry-test-only" });
       if (kind === "session") await session(scoped);
-      else await scoped.createNamedGatewayToken({ companyId, gatewayId: namedId,
+      else await scoped.createNamedGatewayToken({ spaceId, gatewayId: namedId,
         body: { name: "Outer transaction", clientLabel: "Outer transaction client", ownerNote: "", expiresAt: new Date(Date.now() + 5 * 60_000) } });
       written(); await gate; if (rollback) throw rollbackError;
     }).catch(error => { if (error !== rollbackError) throw error; });
@@ -178,7 +178,7 @@ describe.skipIf(!supported)("gateway credential expiry", () => {
     const cleanup = vi.spyOn(gateway, "cleanupExpiredSessions");
     await start();
     const at = Date.now();
-    const active = await gateway.createSession({ companyId, agentId, runId, ttlMs: 1000 });
+    const active = await gateway.createSession({ spaceId, agentId, runId, ttlMs: 1000 });
     await vi.advanceTimersByTimeAsync(1000);
     await db.execute(sql`select pg_sleep(0.01)`);
     expect(cleanup).toHaveBeenCalledTimes(1);
@@ -197,10 +197,10 @@ describe.skipIf(!supported)("gateway credential expiry", () => {
     const futureToken = await token(new Date(now.getTime() + 60_000));
     const nonexpiringToken = await token();
     if (kind !== "tokens") await db.insert(toolGatewaySessions).values(Array.from({ length: 1001 }, () => ({
-      companyId, agentId, runId, tokenHash: randomUUID(), expiresAt: new Date(now.getTime() - 1),
+      spaceId, agentId, runId, tokenHash: randomUUID(), expiresAt: new Date(now.getTime() - 1),
     })));
     if (kind !== "sessions") await db.insert(toolMcpGatewayTokens).values(Array.from({ length: 1001 }, () => ({
-      companyId, gatewayId: namedId, name: "Expired", tokenHash: randomUUID(), expiresAt: new Date(now.getTime() - 1),
+      spaceId, gatewayId: namedId, name: "Expired", tokenHash: randomUUID(), expiresAt: new Date(now.getTime() - 1),
     })));
     await expect(gateway.cleanupExpiredSessions({ now })).resolves.toEqual({ deletedCount: kind === "tokens" ? 0 : 1001 });
     expect((await db.select().from(toolGatewaySessions)).map(row => row.id)).toEqual([futureSession.id]);
@@ -212,7 +212,7 @@ describe.skipIf(!supported)("gateway credential expiry", () => {
   it("bounds session cleanup and schedules the remaining overdue batch", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"], shouldAdvanceTime: false });
     await db.insert(toolGatewaySessions).values(Array.from({ length: 501 }, () => ({
-      companyId, agentId, runId, tokenHash: randomUUID(), expiresAt: new Date(Date.now() - 1),
+      spaceId, agentId, runId, tokenHash: randomUUID(), expiresAt: new Date(Date.now() - 1),
     })));
     const future = await session();
     const cleanup = vi.spyOn(gateway, "cleanupExpiredSessions");
@@ -239,7 +239,7 @@ describe.skipIf(!supported)("gateway credential expiry", () => {
 
   it("drains an overdue persisted backlog across bounded batches", async () => {
     await db.insert(toolMcpGatewayTokens).values(Array.from({ length: 501 }, (_, index) => ({
-      companyId, gatewayId: namedId, name: `Expired ${index}`, tokenHash: randomUUID(),
+      spaceId, gatewayId: namedId, name: `Expired ${index}`, tokenHash: randomUUID(),
       tokenPrefix: "expired", expiresAt: new Date(Date.now() - 1),
     })));
     await start();

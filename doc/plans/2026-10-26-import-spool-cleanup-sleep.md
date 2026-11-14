@@ -2,7 +2,7 @@
 
 This is slice 59 of the recurring server work migration, based on slice 58
 at `929c86e32e00d219b329741dd2c89c40b1a5f826`. The original inventory includes
-abandoned company-transfer files among the remaining application maintenance
+abandoned space-transfer files among the remaining application maintenance
 loops. This slice does not complete the inventory or certify other stack PRs.
 
 ## Problem and ownership
@@ -12,8 +12,8 @@ and every hour. It listed the import directory and queried every transfer with
 files, including failed transfers retained for a future retry and applying
 transfers owned by live work. These retained files caused SQL indefinitely.
 
-`company-import-transfers.ts` owns filesystem layout and cleanup policy.
-`company-transfer-runs.ts` owns all supported production ledger writes, including
+`space-import-transfers.ts` owns filesystem layout and cleanup policy.
+`space-transfer-runs.ts` owns all supported production ledger writes, including
 compare-and-set cancellation. `import-spool-cleanup-work.ts` connects these
 owners to the existing delivery coordinator and scoped deadline helper.
 `app.ts` registers the worker and removes its local filesystem subscription at
@@ -47,14 +47,14 @@ behavior; it does not expand the worker's authority to fail live runs.
 
 ## Producer and boundary audit
 
-All production writes to `company_transfer_runs` are in its service. A local
+All production writes to `space_transfer_runs` are in its service. A local
 transaction helper registers the existing database-work intent before each
 update. It composes with outer transactions; savepoint release does not publish
 premature cleanup. The insert allocates its UUID before registering intent in
 the existing idempotency transaction. Methods covered are:
 
 - `resumeOrCreate` when it inserts; returning an existing row makes no change.
-- `recordManifest`, `start`, `attachCompany`, `notePartUploadActivity`, and `completePart` (activity deadlines).
+- `recordManifest`, `start`, `attachSpace`, `notePartUploadActivity`, and `completePart` (activity deadlines).
 - `claimApply`, `releaseApplyClaim`, `complete`, `fail`, and `cancel` (eligibility).
 - `cancelIfIdle` (deletion claim).
 - `recoverStrandedApplyingRuns` (one startup-wide invalidation).
@@ -68,8 +68,8 @@ The filesystem owner emits process-local root/run hints after part writes,
 part removal, and whole-spool removal, including partial failures. A failed
 rename can leave a directory even if the subsequent ledger update never happens.
 Startup scans existing directories to reconstruct that obligation. The cleanup
-read selects only ID, company ID, status, and update time, not the manifest or
-completed-part history. Pre-company imports and orphan directories share an
+read selects only ID, space ID, status, and update time, not the manifest or
+completed-part history. Pre-space imports and orphan directories share an
 instance-level fairness group; this label is not an authorization identity.
 
 The supported writer model is the server's existing single-process import and
@@ -116,7 +116,7 @@ for these complete suites. No host semaphore cleanup was repeated.
 ## Sleep boundary and remaining scope
 
 This proves worker quiet and reactivation, not database or host suspension.
-The existing host-sleep proof still treats company transfer rows conservatively.
+The existing host-sleep proof still treats space transfer rows conservatively.
 The Cloud alarm contract has not been extended to import-file expiry. Internal
 `nextWakeAt` alone is not proof of a persisted external alarm. Do not remove that
 sleep blocker on the strength of this worker migration.
@@ -135,8 +135,8 @@ The first review identified two concrete gaps, each reproduced before its fix:
    A failure to list the root still retains global discovery, because its child
    inventory is unknown. A database outage likewise never proves absence.
 2. Re-running the route suite against the external test database failed on its
-   fixed company primary key. Company and actor identities are now unique to the
-   fixture. Teardown deletes exactly its actors' transfer rows and its company,
+   fixed space primary key. Space and actor identities are now unique to the
+   fixture. Teardown deletes exactly its actors' transfer rows and its space,
    then closes the database and removes temporary files. It also handles partial
    setup without trying to remove an undefined path.
 
@@ -234,7 +234,7 @@ Current-head CI on `284294a9ab453406cfb6d4ff4bafc9c403dd1c80` passed 2,192 serve
 one tool-access audience race case. The test assumed that two 50 ms sleeps
 queued member suspension ahead of an empty audience replacement. That ordering
 was not established. If the explicit empty replacement wins while membership
-is still active, its company-wide audience is the authorized result.
+is still active, its space-wide audience is the authorized result.
 
 The repair changes only that three-case test fixture. Dedicated backend PIDs
 are observed, and each queued writer must be blocked by the exact first

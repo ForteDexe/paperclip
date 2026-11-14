@@ -59,4 +59,4 @@ export const OUTPOST_RUNNER_BUILD_METADATA = Object.freeze({
   }),
 });
 
-export type PaperclipRunnerBuildMetadata = typeof OUTPOST_RUNNER_BUILD_METADATA;
+export type OutpostRunnerBuildMetadata = typeof OUTPOST_RUNNER_BUILD_METADATA;

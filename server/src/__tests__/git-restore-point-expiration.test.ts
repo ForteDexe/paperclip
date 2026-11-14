@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, executionWorkspaceRestorePoints, executionWorkspaces, heartbeatRuns, issueComments, issues } from "@outpost/db";
+import { agents, spaces, createDb, executionWorkspaceRestorePoints, executionWorkspaces, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { materializeIsolatedRemoteWorkspaceSource } from "../services/isolated-remote-workspace-source.js";
 import { ensurePersistedExecutionWorkspaceAvailable, realizeExecutionWorkspace } from "../services/workspace-runtime.js";
@@ -33,14 +33,14 @@ describeEmbeddedPostgres("git restore point expiration", () => {
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("git-restore-point-expiration-");
     db = createDb(database.connectionString);
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-restore-point-expiration-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-restore-point-expiration-"));
     process.env.OUTPOST_HOME = path.join(root, "home");
     process.env.OUTPOST_INSTANCE_ID = "default";
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
   });
   afterEach(async () => {
     await db.delete(executionWorkspaceRestorePoints);
-    await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
   });
   afterAll(async () => {
     vi.unstubAllEnvs();
@@ -50,8 +50,8 @@ describeEmbeddedPostgres("git restore point expiration", () => {
   });
 
   async function fixture() {
-    const companyId = randomUUID(), issueId = randomUUID(), workspaceId = randomUUID();
-    const location = path.join(root, companyId), source = path.join(location, "author"), remote = path.join(location, "remote.git");
+    const spaceId = randomUUID(), issueId = randomUUID(), workspaceId = randomUUID();
+    const location = path.join(root, spaceId), source = path.join(location, "author"), remote = path.join(location, "remote.git");
     await fs.mkdir(source, { recursive: true });
     git(source, "init", "--initial-branch=main");
     await fs.writeFile(path.join(source, "marker.txt"), "commit A\n");
@@ -59,17 +59,17 @@ describeEmbeddedPostgres("git restore point expiration", () => {
     await fs.writeFile(path.join(source, ".gitignore"), "node_modules/\n.env\n.claude/settings.local.json\n*.tsbuildinfo\nevidence/\n");
     git(source, "add", "."); git(source, "commit", "-m", "A");
     git(location, "clone", "--bare", source, remote); git(source, "remote", "add", "origin", remote);
-    await db.insert(companies).values({ id: companyId, name: "Restore point fixture", issuePrefix: `RP${companyId.slice(0, 6)}` });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Finished task", status: "done", completedAt: new Date(Date.now() - 4 * DAY_MS) });
+    await db.insert(spaces).values({ id: spaceId, name: "Restore point fixture", issuePrefix: `RP${spaceId.slice(0, 6)}` });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Finished task", status: "done", completedAt: new Date(Date.now() - 4 * DAY_MS) });
     const repoUrl = pathToFileURL(remote).href;
-    const baseCwd = await materializeIsolatedRemoteWorkspaceSource({ companyId, issueId, repoUrl, resolveGitAuth: async () => null });
+    const baseCwd = await materializeIsolatedRemoteWorkspaceSource({ spaceId, issueId, repoUrl, resolveGitAuth: async () => null });
     const base = { baseCwd, source: "task_session" as const, projectId: null, workspaceId: null, repoUrl, repoRef: "origin/main" };
-    const workspace = await realizeExecutionWorkspace({ base, issue: { id: issueId, identifier: "RP-1", title: "Fixture" }, agent: { id: null, name: "Fixture", companyId },
+    const workspace = await realizeExecutionWorkspace({ base, issue: { id: issueId, identifier: "RP-1", title: "Fixture" }, agent: { id: null, name: "Fixture", spaceId },
       config: { workspaceStrategy: { type: "git_worktree", branchTemplate: "fixture-task", worktreeParentDir: path.join(location, "worktrees"), baseRef: "origin/main" } }, skipHostProvision: true });
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId, mode: "isolated_workspace", strategyType: "git_worktree", name: "Fixture", status: "active",
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issueId, mode: "isolated_workspace", strategyType: "git_worktree", name: "Fixture", status: "active",
       providerType: "local_fs", cwd: workspace.cwd, providerRef: workspace.cwd, repoUrl, baseRef: "origin/main", branchName: workspace.branchName,
       metadata: { createdByRuntime: workspace.branchCreatedByRuntime, gitBranchOwnershipVersion: 1, baseRefSha: workspace.baseRefSha,
-        isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId, issueId, repoUrl } } });
+        isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", spaceId, issueId, repoUrl } } });
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, issueId));
     const row = () => db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, workspaceId)).then(rows => rows[0]!);
     const restorePoint = (overrides: Partial<{ notBefore: Date; keyDurable: boolean }> = {}) => ({
@@ -78,14 +78,14 @@ describeEmbeddedPostgres("git restore point expiration", () => {
     const expire = async (options: Partial<Parameters<typeof expireReconstructableGitWorkspace>[2]> = {}) =>
       expireReconstructableGitWorkspace(db, await row(), { dryRun: false, expireBase: false, now: new Date(), restorePoint: restorePoint(), ...options });
     const reopen = () => executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({ workspaceId,
-      issue: { id: issueId, companyId, projectId: null }, actor: { actorType: "user", agentId: null },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true } });
+      issue: { id: issueId, spaceId, projectId: null }, actor: { actorType: "user", agentId: null },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true } });
     const ledger = () => db.select().from(executionWorkspaceRestorePoints).where(eq(executionWorkspaceRestorePoints.executionWorkspaceId, workspaceId));
     const runtimeRestore = async () => ensurePersistedExecutionWorkspaceAvailable({ db, base,
-      workspace: (await executionWorkspaceService(db).getStoredById(companyId, workspaceId))!,
+      workspace: (await executionWorkspaceService(db).getStoredById(spaceId, workspaceId))!,
       issue: { id: issueId, identifier: "RP-1", title: "Resumed task" },
-      agent: { id: null, name: "Fixture", companyId }, skipHostProvision: true });
-    return { companyId, issueId, workspaceId, cwd: workspace.cwd, baseCwd, row, restorePoint, expire, reopen, ledger, runtimeRestore };
+      agent: { id: null, name: "Fixture", spaceId }, skipHostProvision: true });
+    return { spaceId, issueId, workspaceId, cwd: workspace.cwd, baseCwd, row, restorePoint, expire, reopen, ledger, runtimeRestore };
   }
 
   async function makeUnsavedWork(cwd: string) {
@@ -219,7 +219,7 @@ describeEmbeddedPostgres("git restore point expiration", () => {
     await makeUnsavedWork(f.cwd);
     expect(await f.expire()).toMatchObject({ expired: true });
     const recipe = (await f.row()).metadata?.gitCacheRestoration as Record<string, any>;
-    await getStorageService().deleteObject(f.companyId, recipe.restorePoint.objectKey);
+    await getStorageService().deleteObject(f.spaceId, recipe.restorePoint.objectKey);
     expect(await f.reopen()).toMatchObject({ ok: false, code: "rebuild_failed" });
     const failed = await f.row();
     expect(failed.status).toBe("archived");
@@ -234,7 +234,7 @@ describeEmbeddedPostgres("git restore point expiration", () => {
     expect(await f.expire()).toMatchObject({ expired: true });
     const [ledgerRow] = await f.ledger();
     await markGitRestorePointExpired(db, ledgerRow!);
-    await getStorageService().deleteObject(f.companyId, ledgerRow!.objectKey);
+    await getStorageService().deleteObject(f.spaceId, ledgerRow!.objectKey);
     const branch = (await f.row()).branchName!;
     git(f.baseCwd, "worktree", "prune");
     git(f.baseCwd, "branch", "-D", branch);
@@ -316,7 +316,7 @@ describeEmbeddedPostgres("git restore point expiration", () => {
       await makeUnsavedWork(f.cwd);
       await openIdle(f, 8);
       const other = randomUUID();
-      await db.insert(issues).values({ id: other, companyId: f.companyId, title: "Unrelated issue sharing the workspace", status: "todo",
+      await db.insert(issues).values({ id: other, spaceId: f.spaceId, title: "Unrelated issue sharing the workspace", status: "todo",
         executionWorkspaceId: f.workspaceId, updatedAt: new Date(Date.now() - DAY_MS) });
       expect((await gitWorkspaceLastActivityAt(db, await f.row()))!.getTime()).toBeGreaterThan(Date.now() - 2 * DAY_MS);
       expect(await f.expire(idle())).toMatchObject({ expired: false, skipReason: "live_or_unresolved_consumer" });
@@ -347,8 +347,8 @@ describeEmbeddedPostgres("git restore point expiration", () => {
       await makeUnsavedWork(f.cwd);
       await openIdle(f, 8);
       const agentId = randomUUID();
-      await db.insert(agents).values({ id: agentId, companyId: f.companyId, name: "Worker", adapterType: "process" });
-      await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId, issueId: f.issueId, status: "succeeded",
+      await db.insert(agents).values({ id: agentId, spaceId: f.spaceId, name: "Worker", adapterType: "process" });
+      await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId, issueId: f.issueId, status: "succeeded",
         createdAt: new Date(Date.now() - 2 * DAY_MS), startedAt: new Date(Date.now() - 2 * DAY_MS), finishedAt: new Date(Date.now() - 2 * DAY_MS) });
       expect(await gitWorkspaceLastActivityAt(db, await f.row())).toEqual(expect.any(Date));
       expect(await f.expire(idle())).toMatchObject({ expired: false, skipReason: "live_or_unresolved_consumer" });
@@ -359,12 +359,12 @@ describeEmbeddedPostgres("git restore point expiration", () => {
   describe("closed source issue with open descendants", () => {
     async function child(f: Awaited<ReturnType<typeof fixture>>, values: Partial<typeof issues.$inferInsert> = {}) {
       const id = randomUUID();
-      await db.insert(issues).values({ id, companyId: f.companyId, parentId: f.issueId, title: "Follow-up", status: "blocked", ...values });
+      await db.insert(issues).values({ id, spaceId: f.spaceId, parentId: f.issueId, title: "Follow-up", status: "blocked", ...values });
       return id;
     }
     async function ownWorkspace(f: Awaited<ReturnType<typeof fixture>>, sourceIssueId: string) {
       const id = randomUUID();
-      await db.insert(executionWorkspaces).values({ id, companyId: f.companyId, sourceIssueId, mode: "isolated_workspace", strategyType: "git_worktree",
+      await db.insert(executionWorkspaces).values({ id, spaceId: f.spaceId, sourceIssueId, mode: "isolated_workspace", strategyType: "git_worktree",
         name: "Child workspace", status: "active", providerType: "local_fs", cwd: path.join(root, "child-workspaces", id), providerRef: path.join(root, "child-workspaces", id) });
       await db.update(issues).set({ executionWorkspaceId: id, executionWorkspacePreference: "reuse_existing" }).where(eq(issues.id, sourceIssueId));
       return id;
@@ -498,8 +498,8 @@ describeEmbeddedPostgres("git restore point expiration", () => {
       const running = await child(f, { status: "in_progress" });
       await ownWorkspace(f, running);
       const agentId = randomUUID();
-      await db.insert(agents).values({ id: agentId, companyId: f.companyId, name: "Worker", adapterType: "process" });
-      const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId, status: "running", startedAt: new Date(),
+      await db.insert(agents).values({ id: agentId, spaceId: f.spaceId, name: "Worker", adapterType: "process" });
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId, status: "running", startedAt: new Date(),
         contextSnapshot: { issueId: running, executionWorkspaceId: f.workspaceId } }).returning();
       expect(await f.expire()).toMatchObject({ expired: false, skipReason: "live_or_unresolved_consumer" });
       expect(await exists(f.cwd)).toBe(true);
@@ -522,8 +522,8 @@ describeEmbeddedPostgres("git restore point expiration", () => {
       expect(await f.expire()).toMatchObject({ expired: true, restorePoint: true });
       await db.update(issues).set({ executionWorkspaceId: f.workspaceId, executionWorkspacePreference: "reuse_existing" }).where(eq(issues.id, follower));
       const reopened = await executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({ workspaceId: f.workspaceId,
-        issue: { id: follower, companyId: f.companyId, projectId: null }, actor: { actorType: "user", agentId: null },
-        authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true } });
+        issue: { id: follower, spaceId: f.spaceId, projectId: null }, actor: { actorType: "user", agentId: null },
+        authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true } });
       expect(reopened).toMatchObject({ ok: true, reopened: true });
       expect(git(f.cwd, "rev-parse", "HEAD")).toBe(unpushed);
       expect(await fs.readFile(path.join(f.cwd, "marker.txt"), "utf8")).toBe("unstaged edit\n");

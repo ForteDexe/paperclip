@@ -14,15 +14,15 @@ import {
   agents,
   approvals,
   budgetPolicies,
-  companies,
+  spaces,
   createDb,
   pluginEntities,
-  pluginCompanySettings,
+  pluginSpaceSettings,
   pluginManagedResources,
   plugins,
   principalPermissionGrants,
 } from "@outpost/db";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -51,14 +51,14 @@ function issuePrefix(id: string) {
   return `T${id.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 }
 
-function manifest(): PaperclipPluginManifestV1 {
+function manifest(): OutpostPluginManifestV1 {
   return {
     id: "outpost.managed-agents-test",
     apiVersion: 1,
     version: "0.1.0",
     displayName: "Managed Agents Test",
     description: "Test plugin",
-    author: "Paperclip",
+    author: "Outpost",
     categories: ["automation"],
     capabilities: ["agents.managed"],
     entrypoints: { worker: "./dist/worker.js" },
@@ -79,7 +79,7 @@ function manifest(): PaperclipPluginManifestV1 {
   };
 }
 
-function pausedManifest(): PaperclipPluginManifestV1 {
+function pausedManifest(): OutpostPluginManifestV1 {
   const pluginManifest = manifest();
   pluginManifest.agents![0] = {
     ...pluginManifest.agents![0]!,
@@ -101,7 +101,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
   const runnerTarget = { driver: "local", platform: "linux", architecture: "x64" };
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-plugin-managed-agents-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-plugin-managed-agents-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -109,7 +109,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
     runnerTarget.platform = "linux";
     runnerTarget.architecture = "x64";
     const selection = await import("../services/agent-runner-selection.js");
-    runnerSelectionSpy = vi.spyOn(selection, "resolveNewAgentRunnerForCompany").mockImplementation(async (_db, _companyId, input) =>
+    runnerSelectionSpy = vi.spyOn(selection, "resolveNewAgentRunnerForSpace").mockImplementation(async (_db, _spaceId, input) =>
       selection.resolveNewAgentRunner({ ...input, target: runnerTarget }));
   });
 
@@ -119,28 +119,28 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
     await db.delete(activityLog);
     await db.delete(pluginEntities);
     await db.delete(pluginManagedResources);
-    await db.delete(pluginCompanySettings);
+    await db.delete(pluginSpaceSettings);
     await db.delete(approvals);
     await db.delete(budgetPolicies);
     await db.delete(principalPermissionGrants);
     await db.delete(agents);
     await db.delete(plugins);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompanyAndPlugin(options: { requireApproval?: boolean; manifest?: PaperclipPluginManifestV1 } = {}) {
-    const companyId = randomUUID();
+  async function seedSpaceAndPlugin(options: { requireApproval?: boolean; manifest?: OutpostPluginManifestV1 } = {}) {
+    const spaceId = randomUUID();
     const pluginId = randomUUID();
     const pluginManifest = options.manifest ?? manifest();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: issuePrefix(companyId),
-      requireBoardApprovalForNewAgents: options.requireApproval ?? false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: issuePrefix(spaceId),
+      requireOperatorApprovalForNewAgents: options.requireApproval ?? false,
     });
     await db.insert(plugins).values({
       id: pluginId,
@@ -156,14 +156,14 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
     const services = buildHostServices(db, pluginId, pluginManifest.id, createEventBusStub(), undefined, {
       manifest: pluginManifest,
     });
-    return { companyId, pluginId, pluginManifest, services };
+    return { spaceId, pluginId, pluginManifest, services };
   }
 
   it("creates and resolves managed agents by stable resource key", async () => {
-    const { companyId, services } = await seedCompanyAndPlugin();
+    const { spaceId, services } = await seedSpaceAndPlugin();
 
     const created = await services.agents.managedReconcile({
-      companyId,
+      spaceId,
       agentKey: "wiki-maintainer",
     });
 
@@ -176,7 +176,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
     });
 
     const resolved = await services.agents.managedGet({
-      companyId,
+      spaceId,
       agentKey: "wiki-maintainer",
     });
     expect(resolved.status).toBe("resolved");
@@ -184,8 +184,8 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
 
     const [binding] = await db.select().from(pluginEntities);
     expect(binding?.entityType).toBe("managed_agent");
-    expect(binding?.scopeKind).toBe("company");
-    expect(binding?.scopeId).toBe(companyId);
+    expect(binding?.scopeKind).toBe("space");
+    expect(binding?.scopeId).toBe(spaceId);
     expect(binding?.data).toMatchObject({
       resourceKind: "agent",
       resourceKey: "wiki-maintainer",
@@ -194,8 +194,8 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
   });
 
   it("preserves user edits during reconcile and resets only on explicit reset", async () => {
-    const { companyId, services } = await seedCompanyAndPlugin();
-    const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+    const { spaceId, services } = await seedSpaceAndPlugin();
+    const created = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
     expect(created.agentId).toBeTruthy();
 
     await db
@@ -207,14 +207,14 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       })
       .where(eq(agents.id, created.agentId!));
 
-    const reconciled = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+    const reconciled = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
     expect(reconciled.status).toBe("resolved");
     expect(reconciled.agent).toMatchObject({
       name: "Knowledge Lead",
       adapterConfig: { command: "custom" },
     });
 
-    const reset = await services.agents.managedReset({ companyId, agentKey: "wiki-maintainer" });
+    const reset = await services.agents.managedReset({ spaceId, agentKey: "wiki-maintainer" });
     expect(reset.status).toBe("reset");
     expect(reset.agent).toMatchObject({
       name: "Wiki Maintainer",
@@ -223,9 +223,9 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
   });
 
   it("records plugin provenance when a manifest creates a paused managed agent", async () => {
-    const { companyId, services } = await seedCompanyAndPlugin({ manifest: pausedManifest() });
+    const { spaceId, services } = await seedSpaceAndPlugin({ manifest: pausedManifest() });
 
-    const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+    const created = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
 
     expect(created.agent).toMatchObject({
       status: "paused",
@@ -235,14 +235,14 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
   });
 
   it("backfills a legacy null pause reason while the managed declaration and agent remain paused", async () => {
-    const { companyId, services } = await seedCompanyAndPlugin({ manifest: pausedManifest() });
-    const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+    const { spaceId, services } = await seedSpaceAndPlugin({ manifest: pausedManifest() });
+    const created = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
     await db
       .update(agents)
       .set({ pauseReason: null, updatedAt: new Date() })
       .where(eq(agents.id, created.agentId!));
 
-    const reconciled = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+    const reconciled = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
 
     expect(reconciled.agent).toMatchObject({
       status: "paused",
@@ -253,38 +253,38 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
   it.each(["manual", "budget", "system", "maintenance"])(
     "preserves the existing %s pause reason during reconcile",
     async (pauseReason) => {
-      const { companyId, services } = await seedCompanyAndPlugin({ manifest: pausedManifest() });
-      const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+      const { spaceId, services } = await seedSpaceAndPlugin({ manifest: pausedManifest() });
+      const created = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
       await db
         .update(agents)
         .set({ pauseReason, updatedAt: new Date() })
         .where(eq(agents.id, created.agentId!));
 
-      const reconciled = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+      const reconciled = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
 
       expect(reconciled.agent).toMatchObject({ status: "paused", pauseReason });
     },
   );
 
   it("keeps an explicit resume durable across managed-agent reconcile", async () => {
-    const { companyId, services } = await seedCompanyAndPlugin({ manifest: pausedManifest() });
-    const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+    const { spaceId, services } = await seedSpaceAndPlugin({ manifest: pausedManifest() });
+    const created = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
     await createAgentLifecycle(db).resumeAgent(created.agentId!);
 
-    const reconciled = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+    const reconciled = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
 
     expect(reconciled.agent).toMatchObject({ lifecycleState: "resuming", pauseReason: null });
     const worker = configureAgentLifecycle(db, { requiredPluginIds: async () => [], runPlugin: async () => "complete", runHost: async () => "complete" });
     await worker.process(created.agentId!);
     await worker.stop();
-    expect((await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" })).agent).toMatchObject({
+    expect((await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" })).agent).toMatchObject({
       status: "idle",
       pauseReason: null,
       pausedAt: null,
     });
   });
 
-  it.each([{ platform: "linux", architecture: "x64" }, { platform: "linux", architecture: "arm64" }, { platform: "darwin", architecture: "arm64" }, { platform: "darwin", architecture: "x64" }])("creates managed agents with the most-used compatible company adapter ($platform/$architecture)", async ({ platform, architecture }) => {
+  it.each([{ platform: "linux", architecture: "x64" }, { platform: "linux", architecture: "arm64" }, { platform: "darwin", architecture: "arm64" }, { platform: "darwin", architecture: "x64" }])("creates managed agents with the most-used compatible space adapter ($platform/$architecture)", async ({ platform, architecture }) => {
     runnerTarget.platform = platform;
     runnerTarget.architecture = architecture;
     const pluginManifest = manifest();
@@ -294,11 +294,11 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       adapterPreference: ["claude_local", "codex_local"],
       adapterConfig: {},
     };
-    const { companyId, services } = await seedCompanyAndPlugin({ manifest: pluginManifest });
+    const { spaceId, services } = await seedSpaceAndPlugin({ manifest: pluginManifest });
     await db.insert(agents).values([
       {
         id: randomUUID(),
-        companyId,
+        spaceId,
         name: "Codex One",
         role: "engineer",
         status: "idle",
@@ -309,7 +309,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       },
       {
         id: randomUUID(),
-        companyId,
+        spaceId,
         name: "Codex Two",
         role: "engineer",
         status: "idle",
@@ -320,7 +320,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       },
       {
         id: randomUUID(),
-        companyId,
+        spaceId,
         name: "Claude One",
         role: "engineer",
         status: "idle",
@@ -331,23 +331,23 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       },
     ]);
 
-    const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+    const created = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
 
     expect(created.status).toBe("created");
     expect(created.agent).toMatchObject({ adapterType: "outpost_runner", adapterConfig: { provider: "codex" } });
-    const reconciled = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+    const reconciled = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
     expect(reconciled.agent?.adapterConfig).toEqual(created.agent?.adapterConfig);
     runnerTarget.platform = "win32";
     runnerTarget.architecture = "x64";
-    const reset = await services.agents.managedReset({ companyId, agentKey: "wiki-maintainer" });
+    const reset = await services.agents.managedReset({ spaceId, agentKey: "wiki-maintainer" });
     expect(reset.agent).toMatchObject({ adapterType: "outpost_runner", adapterConfig: { provider: "codex" } });
   });
 
   it("materializes declared managed agent instructions with local folder paths", async () => {
     const previousHome = process.env.OUTPOST_HOME;
     const previousInstance = process.env.OUTPOST_INSTANCE_ID;
-    const tempHome = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-managed-agent-home-")));
-    const wikiRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-managed-agent-wiki-")));
+    const tempHome = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "outpost-managed-agent-home-")));
+    const wikiRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "outpost-managed-agent-wiki-")));
     process.env.OUTPOST_HOME = tempHome;
     process.env.OUTPOST_INSTANCE_ID = "test";
     try {
@@ -378,10 +378,10 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
           ].join("\n"),
         },
       };
-      const { companyId, pluginId, services } = await seedCompanyAndPlugin({ manifest: pluginManifest });
+      const { spaceId, pluginId, services } = await seedSpaceAndPlugin({ manifest: pluginManifest });
       await fs.writeFile(path.join(wikiRoot, "AGENTS.md"), "# Wiki schema\n", "utf8");
-      await db.insert(pluginCompanySettings).values({
-        companyId,
+      await db.insert(pluginSpaceSettings).values({
+        spaceId,
         pluginId,
         enabled: true,
         settingsJson: {
@@ -396,7 +396,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
         },
       });
 
-      const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+      const created = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
 
       const instructionsFilePath = created.agent?.adapterConfig.instructionsFilePath;
       expect(typeof instructionsFilePath).toBe("string");
@@ -409,7 +409,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       // history instead of deleting a shared bundle or bypassing its write guard.
       const edited = "# User-customized wiki instructions\n";
       await fs.writeFile(instructionsFilePath as string, edited);
-      const reset = await services.agents.managedReset({ companyId, agentKey: "wiki-maintainer" });
+      const reset = await services.agents.managedReset({ spaceId, agentKey: "wiki-maintainer" });
       expect(reset.status).toBe("reset");
       expect(await fs.readFile(instructionsFilePath as string, "utf8")).toBe(content);
       const history = await db.select().from(agentInstructionRevisions)
@@ -420,7 +420,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       const runtimeEvents = () => db.select().from(resourceLifecycleEvents).where(and(eq(resourceLifecycleEvents.resourceType, "agent_runtime"), eq(resourceLifecycleEvents.resourceId, created.agentId!)));
       await fs.writeFile(path.join(path.dirname(instructionsFilePath as string), "TOOLS.md"), "custom tools");
       const runtimeCount = (await runtimeEvents()).length;
-      const repeated = await services.agents.managedReset({ companyId, agentKey: "wiki-maintainer" });
+      const repeated = await services.agents.managedReset({ spaceId, agentKey: "wiki-maintainer" });
       expect(repeated.status).toBe("reset");
       expect(await runtimeEvents()).toHaveLength(runtimeCount + 2);
       expect(await fs.readFile(path.join(path.dirname(instructionsFilePath as string), "TOOLS.md"), "utf8")).toBe("# Stock tools\n");
@@ -433,7 +433,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       await bundles.writeFile(repeated.agent!, "CUSTOM.md", "# Alternate configured entry\n");
       const switched = await bundles.updateBundle(repeated.agent!, { entryFile: "CUSTOM.md" });
       await agentService(db).update(created.agentId!, { adapterConfig: switched.adapterConfig });
-      const resetEntry = await services.agents.managedReset({ companyId, agentKey: "wiki-maintainer" });
+      const resetEntry = await services.agents.managedReset({ spaceId, agentKey: "wiki-maintainer" });
       expect(resetEntry.agent?.adapterConfig.instructionsEntryFile).toBe("AGENTS.md");
       expect(resetEntry.defaultDrift).toBeNull();
       expect(await fs.readFile(instructionsFilePath as string, "utf8")).toBe(content);
@@ -459,9 +459,9 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
     try {
       const pluginManifest = manifest();
       pluginManifest.agents![0]!.instructions = { content: "# Default\n" };
-      const { companyId, pluginId, services } = await seedCompanyAndPlugin({ manifest: pluginManifest });
-      const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
-      const target = { companyId, agentId: created.agentId! };
+      const { spaceId, pluginId, services } = await seedSpaceAndPlugin({ manifest: pluginManifest });
+      const created = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
+      const target = { spaceId, agentId: created.agentId! };
       const actor = { type: "plugin" as const, pluginId, pluginKey: pluginManifest.id, agentKey: "wiki-maintainer" };
       const revisions = agentInstructionRevisionService(db);
       const baselineRead = await revisions.readForPluginReset(target, actor);
@@ -469,7 +469,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       const input = { ...target, entryFile: "AGENTS.md", baseRevisionId: baseline.revision.id,
         configuredEntryFile: baselineRead.configuredEntryFile, content: "# Reset\n" };
       await expect(revisions.commitPluginReset(input, { ...actor, pluginId: randomUUID() })).rejects.toMatchObject({ status: 403 });
-      await expect(revisions.commitPluginReset({ ...input, companyId: randomUUID() }, actor)).rejects.toMatchObject({ status: 404 });
+      await expect(revisions.commitPluginReset({ ...input, spaceId: randomUUID() }, actor)).rejects.toMatchObject({ status: 404 });
       await expect(revisions.commitPluginReset(input, { ...actor, agentKey: "foreign-agent" })).rejects.toMatchObject({ status: 403 });
       await db.update(plugins).set({ manifestJson: { ...pluginManifest, capabilities: [] } }).where(eq(plugins.id, pluginId));
       await expect(revisions.commitPluginReset(input, actor)).rejects.toMatchObject({ status: 403 });
@@ -506,12 +506,12 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
     }
   });
 
-  it("repairs a missing binding by relinking a same-company managed agent marker", async () => {
-    const { companyId, pluginId, pluginManifest, services } = await seedCompanyAndPlugin();
+  it("repairs a missing binding by relinking a same-space managed agent marker", async () => {
+    const { spaceId, pluginId, pluginManifest, services } = await seedSpaceAndPlugin();
     const agentId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Renamed Wiki Agent",
       role: "engineer",
       status: "idle",
@@ -520,7 +520,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       runtimeConfig: {},
       permissions: {},
       metadata: {
-        paperclipManagedResource: {
+        outpostManagedResource: {
           pluginId,
           pluginKey: pluginManifest.id,
           resourceKind: "agent",
@@ -529,7 +529,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       },
     });
 
-    const relinked = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+    const relinked = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
     expect(relinked.status).toBe("relinked");
     expect(relinked.agentId).toBe(agentId);
     expect(relinked.agent?.urlKey).toBe("renamed-wiki-agent");
@@ -545,9 +545,9 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
     try {
       const pluginManifest = manifest();
       pluginManifest.agents![0]!.instructions = { content: "# Original stock\n" };
-      const { companyId, pluginId, services } = await seedCompanyAndPlugin({ manifest: pluginManifest });
-      const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
-      const target = { companyId, agentId: created.agentId! };
+      const { spaceId, pluginId, services } = await seedSpaceAndPlugin({ manifest: pluginManifest });
+      const created = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
+      const target = { spaceId, agentId: created.agentId! };
       const revisions = agentInstructionRevisionService(db);
       const original = await revisions.readForPluginReset(target, {
         type: "plugin", pluginId, pluginKey: pluginManifest.id, agentKey: "wiki-maintainer",
@@ -564,12 +564,12 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       const reinstalledServices = buildHostServices(db, installed!.id, nextManifest.id, createEventBusStub(), undefined, {
         manifest: nextManifest,
       });
-      const relinked = await reinstalledServices.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+      const relinked = await reinstalledServices.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
       expect(relinked.status).toBe("relinked");
       expect(relinked.agentId).toBe(created.agentId);
-      const reset = await reinstalledServices.agents.managedReset({ companyId, agentKey: "wiki-maintainer" });
+      const reset = await reinstalledServices.agents.managedReset({ spaceId, agentKey: "wiki-maintainer" });
       expect(reset.agentId).toBe(created.agentId);
-      expect(reset.agent!.metadata).toMatchObject({ paperclipManagedResource: { pluginId: installed!.id }, pluginManagedAgent: { pluginId: installed!.id } });
+      expect(reset.agent!.metadata).toMatchObject({ outpostManagedResource: { pluginId: installed!.id }, pluginManagedAgent: { pluginId: installed!.id } });
       expect(await fs.readFile(reset.agent!.adapterConfig.instructionsFilePath as string, "utf8")).toBe("# Reinstalled stock\n");
       const history = await db.select().from(agentInstructionRevisions).where(eq(agentInstructionRevisions.agentId, created.agentId!));
       expect(history).toHaveLength(0);
@@ -581,8 +581,8 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
 
   it.each(["not-ready", "capability-removed", "declaration-removed", "other-plugin-owner"])(
     "does not relink a managed agent when its authority is %s", async (reason) => {
-      const { companyId, pluginId, pluginManifest, services } = await seedCompanyAndPlugin();
-      const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+      const { spaceId, pluginId, pluginManifest, services } = await seedSpaceAndPlugin();
+      const created = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
       await db.delete(pluginEntities);
       await db.delete(pluginManagedResources);
       if (reason === "not-ready") {
@@ -596,11 +596,11 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
         await db.insert(plugins).values({ id: otherId, pluginKey: "outpost.other-owner", packageName: "other",
           version: "0.1.0", apiVersion: 1, categories: [], manifestJson: { ...pluginManifest, id: "outpost.other-owner" }, status: "ready", installOrder: 2 });
         await db.update(agents).set({ metadata: { ...created.agent!.metadata,
-          paperclipManagedResource: { pluginId: otherId, pluginKey: pluginManifest.id, resourceKind: "agent", resourceKey: "wiki-maintainer" },
+          outpostManagedResource: { pluginId: otherId, pluginKey: pluginManifest.id, resourceKind: "agent", resourceKey: "wiki-maintainer" },
         } }).where(eq(agents.id, created.agentId!));
       }
       const [before] = await db.select().from(agents).where(eq(agents.id, created.agentId!));
-      await expect(services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" })).rejects.toMatchObject({ status: 403 });
+      await expect(services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" })).rejects.toMatchObject({ status: 403 });
       expect(await db.select().from(pluginEntities)).toHaveLength(0);
       expect(await db.select().from(pluginManagedResources)).toHaveLength(0);
       const [after] = await db.select().from(agents).where(eq(agents.id, created.agentId!));
@@ -608,10 +608,10 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
     },
   );
 
-  it("respects board approval policy for new managed agents", async () => {
-    const { companyId, services } = await seedCompanyAndPlugin({ requireApproval: true });
+  it("respects operator approval policy for new managed agents", async () => {
+    const { spaceId, services } = await seedSpaceAndPlugin({ requireApproval: true });
 
-    const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+    const created = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
 
     expect(created.status).toBe("created");
     expect(created.agent?.status).toBe("pending_approval");
@@ -619,7 +619,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
 
     const [approval] = await db.select().from(approvals).where(eq(approvals.id, created.approvalId!));
     expect(approval).toMatchObject({
-      type: "hire_agent",
+      type: "create_agent",
       status: "pending",
     });
     expect(approval?.payload).toMatchObject({

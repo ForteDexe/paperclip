@@ -11,11 +11,11 @@ import { configure } from "./commands/configure.js";
 import { addAllowedHostname } from "./commands/allowed-hostname.js";
 import { heartbeatRun } from "./commands/heartbeat-run.js";
 import { runCommand } from "./commands/run.js";
-import { bootstrapCeoInvite } from "./commands/auth-bootstrap-ceo.js";
+import { bootstrapDefaultAgentInvite } from "./commands/auth-bootstrap-default-agent.js";
 import { dbBackupCommand } from "./commands/db-backup.js";
 import { registerEnvLabCommands } from "./commands/env-lab.js";
 import { registerContextCommands } from "./commands/client/context.js";
-import { registerCompanyCommands } from "./commands/client/company.js";
+import { registerSpaceCommands } from "./commands/client/space.js";
 import { registerIssueCommands } from "./commands/client/issue.js";
 import { registerAgentCommands } from "./commands/client/agent.js";
 import { registerProjectCommands } from "./commands/client/project.js";
@@ -24,7 +24,6 @@ import { registerApprovalCommands } from "./commands/client/approval.js";
 import { registerActivityCommands } from "./commands/client/activity.js";
 import { registerDashboardCommands } from "./commands/client/dashboard.js";
 import { registerRoutineCommands } from "./commands/routines.js";
-import { registerFeedbackCommands } from "./commands/client/feedback.js";
 import { registerSecretCommands } from "./commands/client/secrets.js";
 import { registerSkillsCommands } from "./commands/client/skills.js";
 import { registerTeamCommands } from "./commands/client/teams.js";
@@ -61,12 +60,12 @@ import {
 
 const program = new Command();
 const DATA_DIR_OPTION_HELP =
-  "Outpost data directory root (compatibility path remains ~/.paperclip)";
+  "Outpost data directory root (compatibility path remains ~/.outpost)";
 
 program.enablePositionalOptions();
 
 program
-  .name("paperclipai")
+  .name("outpost")
   .description("Outpost CLI — setup, diagnose, and configure your instance")
   .version(cliVersion);
 
@@ -181,7 +180,7 @@ program
   .option("-d, --data-dir <path>", DATA_DIR_OPTION_HELP)
   .option("--dir <path>", "Backup output directory (overrides config)")
   .option("--retention-days <days>", "Retention window used for pruning", (value) => Number(value))
-  .option("--filename-prefix <prefix>", "Backup filename prefix", "paperclip")
+  .option("--filename-prefix <prefix>", "Backup filename prefix", "outpost")
   .option("--json", "Print backup metadata as JSON")
   .action(async (opts) => {
     await dbBackupCommand(opts);
@@ -238,7 +237,7 @@ registerContextCommands(program);
 registerConnectCommand(program);
 registerConnectionIntentCommands(program);
 registerEmailCommands(program);
-registerCompanyCommands(program);
+registerSpaceCommands(program);
 registerIssueCommands(program);
 registerAgentCommands(program);
 registerProjectCommands(program);
@@ -256,7 +255,6 @@ registerManagedAgentCommands(program);
 registerAssetCommands(program);
 registerSkillCommands(program);
 registerRoutineCommands(program);
-registerFeedbackCommands(program);
 registerSecretCommands(program);
 registerSkillsCommands(program);
 registerTeamCommands(program);
@@ -267,14 +265,14 @@ registerPluginCommands(program);
 const auth = program.command("auth").description("Authentication and bootstrap utilities");
 
 auth
-  .command("bootstrap-ceo")
+  .command("bootstrap-lead")
   .description("Create a one-time bootstrap invite URL for the first Outpost admin")
   .option("-c, --config <path>", "Path to config file")
   .option("-d, --data-dir <path>", DATA_DIR_OPTION_HELP)
   .option("--force", "Create new invite even if admin already exists", false)
   .option("--expires-hours <hours>", "Invite expiration window in hours", (value) => Number(value))
   .option("--base-url <url>", "Public base URL used to print invite link")
-  .action(bootstrapCeoInvite);
+  .action(bootstrapDefaultAgentInvite);
 
 registerClientAuthCommands(auth);
 registerMcpCommands(program);

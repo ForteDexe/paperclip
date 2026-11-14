@@ -12,8 +12,8 @@ export async function prepareAcpxCodexObservabilityHome(home: string, launch: Pr
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(agentId) || !/^[A-Za-z0-9_-]{1,128}$/.test(launch.compatibilityKey) || launch.kind !== "codex" || !launch.otelConfig) {
     throw new Error("Invalid Codex observability launch");
   }
-  const parent = path.join(home, "paperclip-observability");
-  // Subscription agents share the company home and compatibility key, but
+  const parent = path.join(home, "outpost-observability");
+  // Subscription agents share the space home and compatibility key, but
   // their resource attributes differ. Never let their configs share a file.
   const owner = path.join(parent, agentId);
   const target = path.join(owner, launch.compatibilityKey);

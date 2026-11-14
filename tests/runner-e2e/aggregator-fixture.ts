@@ -1,10 +1,10 @@
 import type { RunnerApi } from "./api.js";
 import { startReviewProvider } from "../fixtures/connection-review-provider.js";
 
-/** Deterministic Arcade gateway; the real Paperclip transport, grants and agent are exercised. */
+/** Deterministic Arcade gateway; the real Outpost transport, grants and agent are exercised. */
 export async function setupAggregatorFixture(
   api: RunnerApi,
-  companyId: string,
+  spaceId: string,
   agentId: string,
   marker: string,
   requireAccessApproval = false,
@@ -20,7 +20,7 @@ export async function setupAggregatorFixture(
   );
   try {
     const connected = await api.post<any>(
-      `/api/companies/${companyId}/tools/apps/connect`,
+      `/api/spaces/${spaceId}/tools/apps/connect`,
       {
         name: "Arcade fixture",
         link: provider.url,
@@ -38,7 +38,7 @@ export async function setupAggregatorFixture(
       config: { ...connection.config, sourceTemplateKey: "arcade" },
     });
     await api.post(
-      `/api/companies/${companyId}/tools/apps/${connected.connectionId}/finish`,
+      `/api/spaces/${spaceId}/tools/apps/${connected.connectionId}/finish`,
       {
         enabledCatalogEntryIds: [
           ...connected.actions.readOnly,
@@ -54,7 +54,7 @@ export async function setupAggregatorFixture(
     );
     if (!installed.ok())
       throw new Error("Could not install the aggregator fixture");
-    const effective = await api.get<any>(`/api/companies/${companyId}/tools/profiles/effective/agents/${agentId}`);
+    const effective = await api.get<any>(`/api/spaces/${spaceId}/tools/profiles/effective/agents/${agentId}`);
     if (requireAccessApproval && (effective.installedConnections.some((c: any) => c.id === connected.connectionId)
       || effective.allowedTools.some((tool: any) => tool.connectionId === connected.connectionId))) {
       throw new Error("Provider-choice fixture unexpectedly grants tool access before the user's decision");

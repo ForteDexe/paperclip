@@ -845,7 +845,7 @@ class CodexAcpxSession implements HarnessSession {
     this.#quarantineCleanup = input.quarantineCleanup;
     this.#events = new AsyncQueue<PrpEvent>(input.maxBufferedEvents);
     this.#sourceInstanceId = stableId(
-      "paperclip-acpx",
+      "outpost-acpx",
       input.input.normalizedSessionId,
     );
     this.#sourceSequence = input.snapshot?.lastSourceSequence ?? 0;
@@ -2247,7 +2247,7 @@ function validateRecoverySnapshot(snapshot: PersistedHarnessSession): void {
     !/^sha256:[a-f0-9]{64}$/.test(identity.profileDigest) ||
     !/^sha256:[a-f0-9]{64}$/.test(identity.workspaceDigest) ||
     (identity.permissionMode !== undefined &&
-      !["approve-all", "approve-paperclip", "approve-reads", "deny-all"].includes(
+      !["approve-all", "approve-outpost", "approve-reads", "deny-all"].includes(
         identity.permissionMode,
       )) ||
     (identity.mode !== undefined && !isProviderMode(identity.mode)) ||
@@ -2498,7 +2498,7 @@ function reportRetainedAcpxCleanupFailure(
     }),
     {
       code: "OUTPOST_ACPX_RETAINED_CLEANUP_FAILURE",
-      type: "PaperclipRunnerCleanupWarning",
+      type: "OutpostRunnerCleanupWarning",
     },
   );
 }

@@ -8,7 +8,7 @@ import {
   activityLog,
   agents,
   approvals,
-  companies,
+  spaces,
   createDb, applyPendingMigrations,
   decisionQueueItems,
   decisionQueues,
@@ -44,7 +44,7 @@ describeEmbeddedPostgres("decision queue routes", () => {
 
   beforeAll(async () => {
     if (external) await applyPendingMigrations(external);
-    else tempDb = await startEmbeddedPostgresTestDatabase("paperclip-decision-queues-");
+    else tempDb = await startEmbeddedPostgresTestDatabase("outpost-decision-queues-");
     db = createDb(external ?? tempDb!.connectionString);
   }, 30_000);
 
@@ -59,7 +59,7 @@ describeEmbeddedPostgres("decision queue routes", () => {
     await db.delete(approvals);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -68,19 +68,19 @@ describeEmbeddedPostgres("decision queue routes", () => {
   });
 
   async function seed() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
     const interactionId = randomUUID();
     const approvalId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Decision Queue Co",
       issuePrefix: "DQC",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Prioritizer",
       role: "engineer",
       status: "idle",
@@ -91,7 +91,7 @@ describeEmbeddedPostgres("decision queue routes", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       identifier: "DQC-1",
       title: "Review the rollout",
       status: "in_review",
@@ -99,7 +99,7 @@ describeEmbeddedPostgres("decision queue routes", () => {
     });
     await db.insert(issueThreadInteractions).values({
       id: interactionId,
-      companyId,
+      spaceId,
       issueId,
       kind: "ask_user_questions",
       status: "pending",
@@ -107,12 +107,12 @@ describeEmbeddedPostgres("decision queue routes", () => {
     });
     await db.insert(approvals).values({
       id: approvalId,
-      companyId,
-      type: "request_board_approval",
+      spaceId,
+      type: "request_operator_approval",
       status: "pending",
       payload: {},
     });
-    return { companyId, agentId, issueId, interactionId, approvalId };
+    return { spaceId, agentId, issueId, interactionId, approvalId };
   }
 
   function app(actor: Record<string, unknown>) {
@@ -127,21 +127,21 @@ describeEmbeddedPostgres("decision queue routes", () => {
     return testApp;
   }
 
-  function boardActor(companyId: string, userId = "board-user") {
+  function operatorActor(spaceId: string, userId = "operator-user") {
     return {
-      type: "board",
+      type: "operator",
       source: "local_implicit",
       userId,
-      companyIds: [companyId],
+      spaceIds: [spaceId],
       isInstanceAdmin: false,
     };
   }
 
-  function agentActor(companyId: string, agentId: string) {
+  function agentActor(spaceId: string, agentId: string) {
     return {
       type: "agent",
       source: "agent_key",
-      companyId,
+      spaceId,
       agentId,
       keyId: null,
       keyScope: { kind: "standard" },
@@ -150,14 +150,14 @@ describeEmbeddedPostgres("decision queue routes", () => {
   }
 
   it("creates idempotently, patches, lists by updated time, and audits queue mutations", async () => {
-    const { companyId } = await seed();
-    const board = boardActor(companyId);
-    const first = await request(app(board)).post(`/api/companies/${companyId}/decision-queues`).send({
+    const { spaceId } = await seed();
+    const operator = operatorActor(spaceId);
+    const first = await request(app(operator)).post(`/api/spaces/${spaceId}/decision-queues`).send({
       key: "launches",
       title: "Launches",
       description: "Ship decisions",
     }).expect(201);
-    const repeated = await request(app(board)).post(`/api/companies/${companyId}/decision-queues`).send({
+    const repeated = await request(app(operator)).post(`/api/spaces/${spaceId}/decision-queues`).send({
       key: "launches",
       title: "Ignored duplicate title",
     }).expect(200);
@@ -166,33 +166,33 @@ describeEmbeddedPostgres("decision queue routes", () => {
     expect(repeated.body.title).toBe("Launches");
     expect(repeated.body.itemCount).toBe(0);
 
-    const patched = await request(app(board))
-      .patch(`/api/companies/${companyId}/decision-queues/launches`)
+    const patched = await request(app(operator))
+      .patch(`/api/spaces/${spaceId}/decision-queues/launches`)
       .send({ title: "Launch desk", retentionDays: 45 })
       .expect(200);
     expect(patched.body).toMatchObject({ title: "Launch desk", retentionDays: 45 });
 
-    await request(app(board)).post(`/api/companies/${companyId}/decision-queues`).send({
+    await request(app(operator)).post(`/api/spaces/${spaceId}/decision-queues`).send({
       key: "older",
       title: "Older",
     }).expect(201);
-    const listed = await request(app(board)).get(`/api/companies/${companyId}/decision-queues`).expect(200);
+    const listed = await request(app(operator)).get(`/api/spaces/${spaceId}/decision-queues`).expect(200);
     expect(listed.body.map((queue: { key: string }) => queue.key)).toEqual(["older", "launches"]);
-    const seedRules = await request(app(board))
-      .get(`/api/companies/${companyId}/decision-queue-seed-rules`)
+    const seedRules = await request(app(operator))
+      .get(`/api/spaces/${spaceId}/decision-queue-seed-rules`)
       .expect(200);
     expect(seedRules.body.map((seed: { key: string }) => seed.key)).toEqual(["prs", "plans", "questions"]);
 
     const events = await db.select().from(decisionTriageEvents)
       .where(eq(decisionTriageEvents.queueId, first.body.id));
     expect(events.map((event) => event.action)).toEqual(["queue.created", "queue.updated"]);
-    expect(events.every((event) => event.actorUserId === "board-user")).toBe(true);
+    expect(events.every((event) => event.actorUserId === "operator-user")).toBe(true);
   });
 
-  it("adds and removes three attention source kinds and hides board-only membership from agents", async () => {
-    const { companyId, agentId, issueId, interactionId, approvalId } = await seed();
-    const board = boardActor(companyId);
-    await request(app(board)).post(`/api/companies/${companyId}/decision-queues`).send({
+  it("adds and removes three attention source kinds and hides operator-only membership from agents", async () => {
+    const { spaceId, agentId, issueId, interactionId, approvalId } = await seed();
+    const operator = operatorActor(spaceId);
+    await request(app(operator)).post(`/api/spaces/${spaceId}/decision-queues`).send({
       key: "triage",
       title: "Triage",
     }).expect(201);
@@ -202,47 +202,47 @@ describeEmbeddedPostgres("decision queue routes", () => {
       { sourceKind: "issue_thread_interaction", sourceId: interactionId },
       { sourceKind: "review", sourceId: issueId },
     ]) {
-      await request(app(board))
-        .post(`/api/companies/${companyId}/decision-queues/triage/items`)
+      await request(app(operator))
+        .post(`/api/spaces/${spaceId}/decision-queues/triage/items`)
         .send(source)
         .expect(201);
     }
 
-    const items = await request(app(board))
-      .get(`/api/companies/${companyId}/decision-queues/triage/items`)
+    const items = await request(app(operator))
+      .get(`/api/spaces/${spaceId}/decision-queues/triage/items`)
       .expect(200);
     expect(items.body).toHaveLength(3);
-    const repeated = await request(app(board)).post(`/api/companies/${companyId}/decision-queues`).send({
+    const repeated = await request(app(operator)).post(`/api/spaces/${spaceId}/decision-queues`).send({
       key: "triage",
       title: "Ignored duplicate title",
     }).expect(200);
     expect(repeated.body.itemCount).toBe(3);
 
-    const agentList = await request(app(agentActor(companyId, agentId)))
-      .get(`/api/companies/${companyId}/decision-queues`)
+    const agentList = await request(app(agentActor(spaceId, agentId)))
+      .get(`/api/spaces/${spaceId}/decision-queues`)
       .expect(200);
     expect(agentList.body[0].itemCount).toBe(2);
-    const agentItems = await request(app(agentActor(companyId, agentId)))
-      .get(`/api/companies/${companyId}/decision-queues/triage/items`)
+    const agentItems = await request(app(agentActor(spaceId, agentId)))
+      .get(`/api/spaces/${spaceId}/decision-queues/triage/items`)
       .expect(200);
     expect(agentItems.body.map((item: { sourceKind: string }) => item.sourceKind).sort()).toEqual([
       "issue_thread_interaction",
       "review",
     ]);
-    await request(app(agentActor(companyId, agentId)))
-      .delete(`/api/companies/${companyId}/decision-queues/triage/items/approval/${approvalId}`)
+    await request(app(agentActor(spaceId, agentId)))
+      .delete(`/api/spaces/${spaceId}/decision-queues/triage/items/approval/${approvalId}`)
       .expect(404);
 
-    await request(app(board))
-      .delete(`/api/companies/${companyId}/decision-queues/triage/items/review/${issueId}`)
+    await request(app(operator))
+      .delete(`/api/spaces/${spaceId}/decision-queues/triage/items/review/${issueId}`)
       .send({ reason: "Handled in the release review" })
       .expect(200);
     expect(await db.select().from(decisionQueueItems).where(and(
-      eq(decisionQueueItems.companyId, companyId),
+      eq(decisionQueueItems.spaceId, spaceId),
       eq(decisionQueueItems.sourceKind, "review"),
     ))).toHaveLength(0);
     const removalAudit = await db.select().from(activityLog).where(and(
-      eq(activityLog.companyId, companyId),
+      eq(activityLog.spaceId, spaceId),
       eq(activityLog.action, "decision_queue_item.removed"),
     )).then((rows) => rows[0]);
     expect(removalAudit?.details).toMatchObject({
@@ -251,7 +251,7 @@ describeEmbeddedPostgres("decision queue routes", () => {
       reason: "Handled in the release review",
     });
     const removalEvent = await db.select().from(decisionTriageEvents).where(and(
-      eq(decisionTriageEvents.companyId, companyId),
+      eq(decisionTriageEvents.spaceId, spaceId),
       eq(decisionTriageEvents.sourceKind, "review"),
       eq(decisionTriageEvents.sourceId, issueId),
       eq(decisionTriageEvents.action, "queue_item.removed"),
@@ -259,19 +259,19 @@ describeEmbeddedPostgres("decision queue routes", () => {
     expect(removalEvent?.details).toEqual({ reason: "Handled in the release review" });
 
     await db.delete(approvals).where(eq(approvals.id, approvalId));
-    await request(app(board))
-      .delete(`/api/companies/${companyId}/decision-queues/triage/items/approval/${approvalId}`)
+    await request(app(operator))
+      .delete(`/api/spaces/${spaceId}/decision-queues/triage/items/approval/${approvalId}`)
       .expect(200);
     expect(await db.select().from(decisionQueueItems).where(and(
-      eq(decisionQueueItems.companyId, companyId),
+      eq(decisionQueueItems.spaceId, spaceId),
       eq(decisionQueueItems.sourceKind, "approval"),
     ))).toHaveLength(0);
   });
 
   it("materializes data-backed starter queues from plan, question, and pull-request signals", async () => {
-    const { companyId, issueId, interactionId } = await seed();
+    const { spaceId, issueId, interactionId } = await seed();
     await db.insert(issueWorkProducts).values({
-      companyId,
+      spaceId,
       issueId,
       type: "pull_request",
       provider: "github",
@@ -288,12 +288,12 @@ describeEmbeddedPostgres("decision queue routes", () => {
     }): AttentionItem {
       return {
         id: `${input.sourceKind}:${input.sourceId}`,
-        companyId,
+        spaceId,
         sourceKind: input.sourceKind,
         subject: {
           kind: input.subjectKind,
           id: input.sourceId,
-          companyId,
+          spaceId,
           title: "Seed candidate",
           identifier: null,
           status: "pending",
@@ -316,7 +316,7 @@ describeEmbeddedPostgres("decision queue routes", () => {
         relatedIssue: input.issueId ? {
           kind: "issue",
           id: input.issueId,
-          companyId,
+          spaceId,
           title: "Issue",
           identifier: "DQC-1",
           status: "in_review",
@@ -359,33 +359,33 @@ describeEmbeddedPostgres("decision queue routes", () => {
         issueId,
       }),
     ];
-    await decisionQueueService(db).materializeSeededQueues(companyId, candidates);
+    await decisionQueueService(db).materializeSeededQueues(spaceId, candidates);
 
-    const queues = await db.select().from(decisionQueues).where(eq(decisionQueues.companyId, companyId));
+    const queues = await db.select().from(decisionQueues).where(eq(decisionQueues.spaceId, spaceId));
     expect(queues.map((queue) => queue.key).sort()).toEqual(["plans", "prs", "questions"]);
     expect(queues.every((queue) => queue.seedRulesEnabled && queue.seedRules.length === 1)).toBe(true);
     const seededItems = await db.select({ queueId: decisionQueueItems.queueId })
       .from(decisionQueueItems)
-      .where(eq(decisionQueueItems.companyId, companyId));
+      .where(eq(decisionQueueItems.spaceId, spaceId));
     expect(seededItems).toHaveLength(5);
     const prQueue = queues.find((queue) => queue.key === "prs")!;
     expect(seededItems.filter((item) => item.queueId === prQueue.id)).toHaveLength(3);
 
     const firstEvents = await db.select().from(decisionTriageEvents)
-      .where(eq(decisionTriageEvents.companyId, companyId));
-    const firstActivity = await db.select().from(activityLog).where(eq(activityLog.companyId, companyId));
+      .where(eq(decisionTriageEvents.spaceId, spaceId));
+    const firstActivity = await db.select().from(activityLog).where(eq(activityLog.spaceId, spaceId));
     const firstUpdatedAt = new Map(queues.map((queue) => [queue.key, queue.updatedAt.toISOString()]));
-    await decisionQueueService(db).materializeSeededQueues(companyId, candidates);
-    const unchangedQueues = await db.select().from(decisionQueues).where(eq(decisionQueues.companyId, companyId));
+    await decisionQueueService(db).materializeSeededQueues(spaceId, candidates);
+    const unchangedQueues = await db.select().from(decisionQueues).where(eq(decisionQueues.spaceId, spaceId));
     expect(unchangedQueues.every((queue) => queue.updatedAt.toISOString() === firstUpdatedAt.get(queue.key))).toBe(true);
-    expect(await db.select().from(decisionTriageEvents).where(eq(decisionTriageEvents.companyId, companyId)))
+    expect(await db.select().from(decisionTriageEvents).where(eq(decisionTriageEvents.spaceId, spaceId)))
       .toHaveLength(firstEvents.length);
-    expect(await db.select().from(activityLog).where(eq(activityLog.companyId, companyId)))
+    expect(await db.select().from(activityLog).where(eq(activityLog.spaceId, spaceId)))
       .toHaveLength(firstActivity.length);
 
     const questionsQueue = queues.find((queue) => queue.key === "questions")!;
     await db.update(decisionQueues).set({ seedRulesEnabled: false }).where(eq(decisionQueues.id, questionsQueue.id));
-    await decisionQueueService(db).materializeSeededQueues(companyId, [attentionItem({
+    await decisionQueueService(db).materializeSeededQueues(spaceId, [attentionItem({
       sourceKind: "issue_thread_interaction",
       sourceId: randomUUID(),
       subjectKind: "interaction",
@@ -397,42 +397,42 @@ describeEmbeddedPostgres("decision queue routes", () => {
   });
 
   it("batches repeated seed checks and records only new memberships across concurrent reads", async () => {
-    const { companyId } = await seed();
+    const { spaceId } = await seed();
     const service = decisionQueueService(db);
     const items = Array.from({ length: 501 }, () => ({ sourceKind: "issue_thread_interaction" as const,
       sourceId: randomUUID(), issueId: null, interactionKind: "ask_user_questions" }));
-    await service.materializeSeedSources(companyId, items.slice(0, 2));
+    await service.materializeSeedSources(spaceId, items.slice(0, 2));
     await Promise.all([
-      service.materializeSeedSources(companyId, [...items, items[0]!]),
-      service.materializeSeedSources(companyId, items),
+      service.materializeSeedSources(spaceId, [...items, items[0]!]),
+      service.materializeSeedSources(spaceId, items),
     ]);
-    const memberships = await db.select().from(decisionQueueItems).where(eq(decisionQueueItems.companyId, companyId));
+    const memberships = await db.select().from(decisionQueueItems).where(eq(decisionQueueItems.spaceId, spaceId));
     expect(new Set(memberships.map(item => item.sourceId))).toEqual(new Set(items.map(item => item.sourceId)));
     expect(memberships).toHaveLength(items.length);
     const events = await db.select().from(decisionTriageEvents).where(and(
-      eq(decisionTriageEvents.companyId, companyId), eq(decisionTriageEvents.action, "queue_item.seeded")));
+      eq(decisionTriageEvents.spaceId, spaceId), eq(decisionTriageEvents.action, "queue_item.seeded")));
     const activity = await db.select().from(activityLog).where(and(
-      eq(activityLog.companyId, companyId), eq(activityLog.action, "decision_queue_item.seeded")));
+      eq(activityLog.spaceId, spaceId), eq(activityLog.action, "decision_queue_item.seeded")));
     expect(events).toHaveLength(items.length);
     expect(activity).toHaveLength(items.length);
     const queries: string[] = [];
     const previousDebug = db.$client.options.debug;
     try {
       db.$client.options.debug = (_connection, text) => queries.push(text);
-      await service.materializeSeedSources(companyId, items);
+      await service.materializeSeedSources(spaceId, items);
     } finally { db.$client.options.debug = previousDebug; }
     expect(queries.filter(query => query.startsWith('insert into "decision_queue_items"')).length).toBeLessThan(10);
     expect(await db.select().from(decisionTriageEvents).where(and(
-      eq(decisionTriageEvents.companyId, companyId), eq(decisionTriageEvents.action, "queue_item.seeded")))).toHaveLength(items.length);
+      eq(decisionTriageEvents.spaceId, spaceId), eq(decisionTriageEvents.action, "queue_item.seeded")))).toHaveLength(items.length);
   });
 
-  it("records agent decide-by, preserves override history, and exposes the board override attribution", async () => {
-    const { companyId, agentId, issueId } = await seed();
-    const agent = agentActor(companyId, agentId);
-    const board = boardActor(companyId, "override-user");
+  it("records agent decide-by, preserves override history, and exposes the operator override attribution", async () => {
+    const { spaceId, agentId, issueId } = await seed();
+    const agent = agentActor(spaceId, agentId);
+    const operator = operatorActor(spaceId, "override-user");
 
     const agentSet = await request(app(agent))
-      .put(`/api/companies/${companyId}/decision-triage/review/${issueId}`)
+      .put(`/api/spaces/${spaceId}/decision-triage/review/${issueId}`)
       .send({ decideBy: "today", snoozedUntil: "2026-08-03T12:00:00.000Z" })
       .expect(200);
     expect(agentSet.body).toMatchObject({
@@ -442,8 +442,8 @@ describeEmbeddedPostgres("decision queue routes", () => {
       version: 1,
     });
 
-    const overridden = await request(app(board))
-      .put(`/api/companies/${companyId}/decision-triage/review/${issueId}`)
+    const overridden = await request(app(operator))
+      .put(`/api/spaces/${spaceId}/decision-triage/review/${issueId}`)
       .send({ decideBy: "2026-08-08", snoozedUntil: null })
       .expect(200);
     expect(overridden.body).toMatchObject({
@@ -454,7 +454,7 @@ describeEmbeddedPostgres("decision queue routes", () => {
     });
 
     const events = await db.select().from(decisionTriageEvents).where(and(
-      eq(decisionTriageEvents.companyId, companyId),
+      eq(decisionTriageEvents.spaceId, spaceId),
       eq(decisionTriageEvents.sourceKind, "review"),
       eq(decisionTriageEvents.sourceId, issueId),
     ));
@@ -468,14 +468,14 @@ describeEmbeddedPostgres("decision queue routes", () => {
   });
 
   it("serializes concurrent partial triage updates without losing state or reusing a version", async () => {
-    const { companyId, issueId } = await seed();
-    const board = boardActor(companyId);
+    const { spaceId, issueId } = await seed();
+    const operator = operatorActor(spaceId);
     const [decideByResult, snoozeResult] = await Promise.all([
-      request(app(board))
-        .put(`/api/companies/${companyId}/decision-triage/review/${issueId}`)
+      request(app(operator))
+        .put(`/api/spaces/${spaceId}/decision-triage/review/${issueId}`)
         .send({ decideBy: "today" }),
-      request(app(board))
-        .put(`/api/companies/${companyId}/decision-triage/review/${issueId}`)
+      request(app(operator))
+        .put(`/api/spaces/${spaceId}/decision-triage/review/${issueId}`)
         .send({ snoozedUntil: "2026-08-03T12:00:00.000Z" }),
     ]);
 
@@ -483,8 +483,8 @@ describeEmbeddedPostgres("decision queue routes", () => {
     expect(snoozeResult.status).toBe(200);
     expect([decideByResult.body.version, snoozeResult.body.version].sort()).toEqual([1, 2]);
 
-    const current = await request(app(board))
-      .get(`/api/companies/${companyId}/decision-triage/review/${issueId}`)
+    const current = await request(app(operator))
+      .get(`/api/spaces/${spaceId}/decision-triage/review/${issueId}`)
       .expect(200);
     expect(current.body).toMatchObject({
       decideBy: "today",
@@ -492,7 +492,7 @@ describeEmbeddedPostgres("decision queue routes", () => {
       version: 2,
     });
     const events = await db.select().from(decisionTriageEvents).where(and(
-      eq(decisionTriageEvents.companyId, companyId),
+      eq(decisionTriageEvents.spaceId, spaceId),
       eq(decisionTriageEvents.sourceKind, "review"),
       eq(decisionTriageEvents.sourceId, issueId),
     ));
@@ -500,38 +500,38 @@ describeEmbeddedPostgres("decision queue routes", () => {
   });
 
   it("rejects task-bridge JWTs and returns the same 404 for missing and unauthorized sources", async () => {
-    const { companyId, agentId, approvalId } = await seed();
+    const { spaceId, agentId, approvalId } = await seed();
     const bridge = {
-      ...agentActor(companyId, agentId),
+      ...agentActor(spaceId, agentId),
       source: "agent_jwt",
       keyId: randomUUID(),
       keyScope: { kind: "task_bridge", parentIssueId: randomUUID() },
     };
-    await request(app(bridge)).post(`/api/companies/${companyId}/decision-queues`).send({
+    await request(app(bridge)).post(`/api/spaces/${spaceId}/decision-queues`).send({
       key: "blocked",
       title: "Blocked",
     }).expect(403);
     const skillTest = {
-      ...agentActor(companyId, agentId),
+      ...agentActor(spaceId, agentId),
       source: "agent_jwt",
       keyScope: { kind: "skill_test", issueId: randomUUID() },
     };
-    await request(app(skillTest)).post(`/api/companies/${companyId}/decision-queues`).send({
+    await request(app(skillTest)).post(`/api/spaces/${spaceId}/decision-queues`).send({
       key: "skill-test-blocked",
       title: "Skill test blocked",
     }).expect(403);
 
-    await request(app(boardActor(companyId))).post(`/api/companies/${companyId}/decision-queues`).send({
+    await request(app(operatorActor(spaceId))).post(`/api/spaces/${spaceId}/decision-queues`).send({
       key: "secure",
       title: "Secure",
     }).expect(201);
-    const standardAgent = app(agentActor(companyId, agentId));
+    const standardAgent = app(agentActor(spaceId, agentId));
     const unauthorized = await request(standardAgent)
-      .post(`/api/companies/${companyId}/decision-queues/secure/items`)
+      .post(`/api/spaces/${spaceId}/decision-queues/secure/items`)
       .send({ sourceKind: "approval", sourceId: approvalId })
       .expect(404);
     const missing = await request(standardAgent)
-      .post(`/api/companies/${companyId}/decision-queues/secure/items`)
+      .post(`/api/spaces/${spaceId}/decision-queues/secure/items`)
       .send({ sourceKind: "approval", sourceId: randomUUID() })
       .expect(404);
     expect(unauthorized.body).toEqual(missing.body);

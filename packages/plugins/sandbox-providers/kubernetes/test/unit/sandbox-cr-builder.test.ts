@@ -6,12 +6,12 @@ const buildSandboxCrManifest = (input: BuildSandboxCrManifestInput) =>
   buildRawSandboxCrManifest(input) as unknown as SandboxCrManifestView;
 
 const baseInput = {
-  namespace: "paperclip-acme",
+  namespace: "outpost-acme",
   sandboxName: "pc-01h00000000000000000000000",
   adapterType: "claude_local",
-  image: "ghcr.io/paperclipai/agent-runtime-claude:v1",
+  image: "ghcr.io/fortedexe/agent-runtime-claude:v1",
   envSecretName: "pc-01h00000000000000000000000-env",
-  serviceAccountName: "paperclip-tenant-sa",
+  serviceAccountName: "outpost-tenant-sa",
   labels: { "outpost.io/run-id": "r1" },
   resources: {
     requests: { cpu: "250m", memory: "512Mi" },
@@ -82,8 +82,8 @@ describe("buildSandboxCrManifest", () => {
       .map((m: { mountPath: string }) => m.mountPath)
       .sort();
     expect(mountPaths).toEqual([
-      "/home/paperclip",
-      "/home/paperclip/.cache",
+      "/home/outpost",
+      "/home/outpost/.cache",
       "/tmp",
       "/workspace",
     ]);

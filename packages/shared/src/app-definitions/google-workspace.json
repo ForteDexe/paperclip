@@ -26,11 +26,11 @@
   "redirectConstraints": "https-or-loopback-http",
   "methods": [
     {
-      "key": "paperclip-workspace",
+      "key": "outpost-workspace",
       "label": "Connect with Outpost",
       "transport": "mcp_remote",
       "auth": "oauth",
-      "oauthStrategy": "paperclip_cloud_connector",
+      "oauthStrategy": "outpost_cloud_connector",
       "connectorProfile": "workspace.all",
       "capabilityProfile": {
         "key": "workspace",

@@ -124,7 +124,7 @@ function envelope(type: 3 | 5, data: Record<string, unknown>) {
 function memoryPersistence() {
   const rows = new Map<string, ChatSdkStateRecord>();
   const keyFor = (scope: ChatSdkStateScope, key: string) =>
-    JSON.stringify([scope.companyId, scope.endpointId, key]);
+    JSON.stringify([scope.spaceId, scope.endpointId, key]);
   const persistence: ChatSdkStatePersistence = {
     async read(scope, key) {
       return rows.get(keyFor(scope, key)) ?? null;
@@ -180,7 +180,7 @@ describe("Discord modal installed discord.js wire contract", () => {
       }),
     );
     const runtime = createChatSdkEndpointRuntime({
-      companyId: "company-discord-wire",
+      spaceId: "space-discord-wire",
       endpointId: "endpoint-discord-wire",
       callbacks: { onMessage() {}, ...callbacks },
       enableDiscordGateway: false,
@@ -408,7 +408,7 @@ describe("Discord modal installed discord.js wire contract", () => {
             content:
               outcome === "accepted"
                 ? "Your response was received."
-                : "This response was not accepted. Open the linked Paperclip task or reopen the question to try again.",
+                : "This response was not accepted. Open the linked Outpost task or reopen the question to try again.",
             flags: 64,
             allowed_mentions: { parse: [] },
           },

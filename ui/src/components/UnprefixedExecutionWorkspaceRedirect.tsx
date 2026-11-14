@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { executionWorkspacesApi } from "@/api/execution-workspaces";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { Navigate, Outlet, useLocation, useParams } from "@/lib/router";
-import { PaperclipLoading } from "./AnimatedPaperclipIcon";
+import { OutpostLoading } from "./AnimatedOutpostIcon";
 import { QueryErrorState, useQueryView, type QueryViewState } from "./QueryView";
 import { NotFoundPage } from "../pages/NotFound";
 
@@ -22,8 +22,8 @@ function useWorkspaceLookup(workspaceId: string | undefined) {
   return { workspace: query.data, view: useQueryView(query) };
 }
 
-function workspaceLookupGate(view: QueryViewState<unknown>, companiesLoading: boolean) {
-  if (companiesLoading || view.kind === "loading" || view.kind === "reconnecting") return <PaperclipLoading />;
+function workspaceLookupGate(view: QueryViewState<unknown>, spacesLoading: boolean) {
+  if (spacesLoading || view.kind === "loading" || view.kind === "reconnecting") return <OutpostLoading />;
   if (view.kind === "error") {
     if (view.errorKind === "not_found" || view.errorKind === "forbidden" || view.errorKind === "auth") {
       return <NotFoundPage scope="global" />;
@@ -45,45 +45,45 @@ function workspaceLookupGate(view: QueryViewState<unknown>, companiesLoading: bo
 export function UnprefixedExecutionWorkspaceRedirect() {
   const location = useLocation();
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { companies, loading: companiesLoading } = useCompany();
+  const { spaces, loading: spacesLoading } = useSpace();
   const { workspace, view } = useWorkspaceLookup(workspaceId);
 
   if (!workspaceId) return <NotFoundPage scope="global" />;
-  const gate = workspaceLookupGate(view, companiesLoading);
+  const gate = workspaceLookupGate(view, spacesLoading);
   if (gate) return gate;
-  if (!workspace) return <PaperclipLoading />;
+  if (!workspace) return <OutpostLoading />;
 
-  const targetCompany = companies.find(
-    (company) => company.id === workspace.companyId,
+  const targetSpace = spaces.find(
+    (space) => space.id === workspace.spaceId,
   );
-  if (!targetCompany) return <NotFoundPage scope="global" />;
+  if (!targetSpace) return <NotFoundPage scope="global" />;
 
   return (
     <Navigate
-      to={`/${targetCompany.issuePrefix}${location.pathname}${location.search}${location.hash}`}
+      to={`/${targetSpace.issuePrefix}${location.pathname}${location.search}${location.hash}`}
       replace
     />
   );
 }
 
-/** Reject a prefixed URL when its prefix and workspace belong to different companies. */
-export function ExecutionWorkspaceCompanyGate() {
-  const { companyPrefix, workspaceId } = useParams<{
-    companyPrefix?: string;
+/** Reject a prefixed URL when its prefix and workspace belong to different spaces. */
+export function ExecutionWorkspaceSpaceGate() {
+  const { spacePrefix, workspaceId } = useParams<{
+    spacePrefix?: string;
     workspaceId?: string;
   }>();
-  const { companies, loading: companiesLoading } = useCompany();
+  const { spaces, loading: spacesLoading } = useSpace();
   const { workspace, view } = useWorkspaceLookup(workspaceId);
 
-  if (!workspaceId || !companyPrefix) return <NotFoundPage scope="global" />;
-  const gate = workspaceLookupGate(view, companiesLoading);
+  if (!workspaceId || !spacePrefix) return <NotFoundPage scope="global" />;
+  const gate = workspaceLookupGate(view, spacesLoading);
   if (gate) return gate;
-  if (!workspace) return <PaperclipLoading />;
+  if (!workspace) return <OutpostLoading />;
 
-  const routeCompany = companies.find(
-    (company) => company.issuePrefix.toUpperCase() === companyPrefix.toUpperCase(),
+  const routeSpace = spaces.find(
+    (space) => space.issuePrefix.toUpperCase() === spacePrefix.toUpperCase(),
   );
-  if (!routeCompany || routeCompany.id !== workspace.companyId) {
+  if (!routeSpace || routeSpace.id !== workspace.spaceId) {
     return <NotFoundPage scope="global" />;
   }
 

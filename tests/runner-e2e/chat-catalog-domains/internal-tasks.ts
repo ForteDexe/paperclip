@@ -86,7 +86,7 @@ function ambiguousTask(): ChatCatalogCase {
   const base = define("tasks.ambiguous-task", async ctx => {
     const p = await project(ctx); const otherProject = await project(ctx, "Experiments");
     const t = await task(ctx, "Landing page", p.id);
-    // Public creation defaults to company-wide recent-title reuse, regardless of project.
+    // Public creation defaults to space-wide recent-title reuse, regardless of project.
     const otherTask = await task(ctx, "Landing page", otherProject.id, { allowDuplicate: true });
     await verifyDistinctTaskFixtures(ctx, [t, otherTask]);
     return { project: p, task: t, otherProject, otherTask };

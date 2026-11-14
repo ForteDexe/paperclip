@@ -3,11 +3,11 @@ import { isDeepStrictEqual } from "node:util";
 import type { Agent } from "../../../packages/shared/src/types/agent.js";
 import type {
   CatalogSkill,
-  CompanySkill,
-  CompanySkillListItem,
-  CompanySkillDetail,
-  CompanySkillVersion,
-} from "../../../packages/shared/src/types/company-skill.js";
+  SpaceSkill,
+  SpaceSkillListItem,
+  SpaceSkillDetail,
+  SpaceSkillVersion,
+} from "../../../packages/shared/src/types/space-skill.js";
 import type {
   CatalogTeam,
   CatalogTeamImportPreviewResult,
@@ -19,7 +19,7 @@ import { checks, root, type ExternalObservation } from "./external-support.js";
 import type { Entity } from "./internal-support.js";
 const agentAuthority = (a: Agent) => ({
   id: a.id,
-  companyId: a.companyId,
+  spaceId: a.spaceId,
   name: a.name,
   urlKey: a.urlKey,
   adapterType: a.adapterType,
@@ -28,10 +28,10 @@ const agentAuthority = (a: Agent) => ({
   permissions: a.permissions,
   metadata: a.metadata,
 });
-const skillIdentity = (s: CompanySkill) => ({
+const skillIdentity = (s: SpaceSkill) => ({
   id: s.id,
   name: s.name,
-  companyId: s.companyId,
+  spaceId: s.spaceId,
   key: s.key,
   slug: s.slug,
   markdown: s.markdown,
@@ -62,11 +62,11 @@ export async function prepareTeamConditions(
     throw new Error(
       "Setup blocker: actual team lacks its inspectable root role/required catalog skill for finite installer conditions",
     );
-  const inventory = await ctx.input.api.get<CompanySkillListItem[]>(
+  const inventory = await ctx.input.api.get<SpaceSkillListItem[]>(
     `${root(ctx)}/skills`,
   );
   const occupied = inventory.filter((s) => s.slug === required.slug);
-  // A default installed catalog skill in this fresh owned company can be
+  // A default installed catalog skill in this fresh owned space can be
   // replaced with a real local customization through ordinary public controls.
   if (occupied.some((s) => s.key !== required.key))
     throw new Error(
@@ -74,12 +74,12 @@ export async function prepareTeamConditions(
     );
   for (const s of occupied)
     await ctx.input.api.delete(`${root(ctx)}/skills/${s.id}`);
-  const local = await ctx.input.api.post<CompanySkill>(`${root(ctx)}/skills`, {
-    name: "Existing company launch checklist",
+  const local = await ctx.input.api.post<SpaceSkill>(`${root(ctx)}/skills`, {
+    name: "Existing space launch checklist",
     slug: required.slug,
-    description: "Company-owned local launch review checklist",
+    description: "Space-owned local launch review checklist",
     markdown:
-      "---\nname: Existing company launch checklist\ndescription: Company-owned local launch review checklist\n---\n\nCheck the launch owner and release checklist before publishing.\n",
+      "---\nname: Existing space launch checklist\ndescription: Space-owned local launch review checklist\n---\n\nCheck the launch owner and release checklist before publishing.\n",
   });
   if (local.key === required.key || local.slug !== required.slug)
     throw new Error(
@@ -131,19 +131,19 @@ export async function prepareTeamConditions(
   };
 }
 interface TeamSkillRecovery {
-  skill: CompanySkillDetail;
-  version: CompanySkillVersion;
+  skill: SpaceSkillDetail;
+  version: SpaceSkillVersion;
   agents: Agent[];
 }
-export function verifiedTeamSkillRecovery(state: Record<string, unknown>, companyId: string, value: unknown): boolean {
+export function verifiedTeamSkillRecovery(state: Record<string, unknown>, spaceId: string, value: unknown): boolean {
   const recovery = value as TeamSkillRecovery | undefined, target = state.blockedSkill as CatalogSkill;
   const team = state.team as CatalogTeam, preview = state.conditionalPreview as CatalogTeamImportPreviewResult;
   const first = state.first as { agents: Agent[] } | undefined;
   if (!recovery?.skill || !recovery.version || !Array.isArray(recovery.agents) || !target?.key || !target.contentHash
     || !team?.id || !preview?.portabilityPreview?.plan || !first?.agents) return false;
   const { skill, version, agents } = recovery;
-  if (!skill.id || skill.companyId !== companyId || skill.key !== target.key || skill.sourceType !== "catalog" || skill.sourceRef !== target.contentHash
-    || !skill.currentVersionId || version.id !== skill.currentVersionId || version.companyId !== companyId || version.companySkillId !== skill.id
+  if (!skill.id || skill.spaceId !== spaceId || skill.key !== target.key || skill.sourceType !== "catalog" || skill.sourceRef !== target.contentHash
+    || !skill.currentVersionId || version.id !== skill.currentVersionId || version.spaceId !== spaceId || version.spaceSkillId !== skill.id
     || !Array.isArray(version.fileInventory) || !target.files?.length || version.fileInventory.length !== target.files.length
     || new Set(version.fileInventory.map(file => file.path)).size !== target.files.length
     || version.fileInventory.find(file => file.path === "SKILL.md")?.content !== skill.markdown
@@ -156,8 +156,8 @@ export function verifiedTeamSkillRecovery(state: Record<string, unknown>, compan
   if (!required?.agentSlugs.length) return false;
   const plans = preview.portabilityPreview.plan.agentPlans;
   const members = (rows: Agent[]) => rows.filter(agent => {
-    const provenance = (agent.metadata as { paperclip?: { catalogTeam?: { catalogId?: string; originHash?: string } } } | null)?.paperclip?.catalogTeam;
-    return agent.companyId === companyId && provenance?.catalogId === team.id && provenance.originHash === team.contentHash;
+    const provenance = (agent.metadata as { outpost?: { catalogTeam?: { catalogId?: string; originHash?: string } } } | null)?.outpost?.catalogTeam;
+    return agent.spaceId === spaceId && provenance?.catalogId === team.id && provenance.originHash === team.contentHash;
   });
   const initialMembers = members(first.agents), currentMembers = members(agents);
   if (initialMembers.length !== team.agentSlugs.length || currentMembers.length !== initialMembers.length
@@ -168,7 +168,7 @@ export function verifiedTeamSkillRecovery(state: Record<string, unknown>, compan
     const initial = initialMembers.filter(agent => agent.name === planned[0]!.plannedName);
     if (initial.length !== 1) return false;
     const current = currentMembers.find(agent => agent.id === initial[0]!.id);
-    const sync = current?.adapterConfig?.paperclipSkillSync as { desiredSkills?: unknown[] } | undefined;
+    const sync = current?.adapterConfig?.outpostSkillSync as { desiredSkills?: unknown[] } | undefined;
     const selection = sync?.desiredSkills?.find(value => typeof value === "string" ? value.trim() === target.key
       : !!value && typeof value === "object" && "key" in value && value.key === target.key);
     return typeof selection === "string" || !!selection && typeof selection === "object" && "versionId" in selection
@@ -181,19 +181,19 @@ export async function observeTeamConditions(
 ) {
   const [agent, skill, skills] = await Promise.all([
     ctx.input.api.get<Agent>(`/api/agents/${state.conflictAgentId}`),
-    ctx.input.api.get<CompanySkill>(
+    ctx.input.api.get<SpaceSkill>(
       `${root(ctx)}/skills/${state.localSkillId}`,
     ),
-    ctx.input.api.get<CompanySkillListItem[]>(`${root(ctx)}/skills`),
+    ctx.input.api.get<SpaceSkillListItem[]>(`${root(ctx)}/skills`),
   ]);
   const target = state.blockedSkill as CatalogSkill;
   const installed = skills.filter(row => row.key === target.key && row.sourceType === "catalog");
   let recovery: TeamSkillRecovery | undefined;
   if (installed.length === 1) {
-    const detail = await ctx.input.api.get<CompanySkillDetail>(`${root(ctx)}/skills/${encodeURIComponent(installed[0]!.id)}`);
+    const detail = await ctx.input.api.get<SpaceSkillDetail>(`${root(ctx)}/skills/${encodeURIComponent(installed[0]!.id)}`);
     if (detail.id === installed[0]!.id && detail.currentVersionId) {
       const [version, agents] = await Promise.all([
-        ctx.input.api.get<CompanySkillVersion>(`${root(ctx)}/skills/${encodeURIComponent(detail.id)}/versions/${encodeURIComponent(detail.currentVersionId)}`),
+        ctx.input.api.get<SpaceSkillVersion>(`${root(ctx)}/skills/${encodeURIComponent(detail.id)}/versions/${encodeURIComponent(detail.currentVersionId)}`),
         ctx.input.api.get<Agent[]>(`${root(ctx)}/agents`),
       ]);
       recovery = { skill: detail, version, agents };
@@ -249,7 +249,7 @@ export function gradeTeamConditions(
     "Actual accepted preview conflicts with a public-created unrelated agent, and the separately owned local skill really rejects catalog installation; both existing originals remain immutable across install and repeat.",
   );
   const resolved = (condition: Record<string, unknown> | undefined) => condition?.requiredCatalogStillMissing === false
-    && verifiedTeamSkillRecovery(o.state, o.companyId, condition.recovery);
+    && verifiedTeamSkillRecovery(o.state, o.spaceId, condition.recovery);
   const accounted = (condition: Record<string, unknown> | undefined) => condition?.localSkillStillOccupiesSlug === true
     && (condition.requiredCatalogStillMissing === true || resolved(condition));
   const events = o.activity as Array<Entity & { runId?: string | null }>;
@@ -260,7 +260,7 @@ export function gradeTeamConditions(
       (phase === "initial" || accounted(later)) &&
       events.some(
         (e) =>
-          e.action === "company.team_catalog_installed" &&
+          e.action === "space.team_catalog_installed" &&
           e.actorType === "agent" &&
           e.agentId === o.leadId &&
           e.runId === o.state.initialRunId &&

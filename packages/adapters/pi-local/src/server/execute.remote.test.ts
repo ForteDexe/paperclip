@@ -12,7 +12,7 @@ const {
   restoreWorkspaceFromSshExecution,
   runSshCommand,
   syncDirectoryToSsh,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
 } = vi.hoisted(() => ({
   runChildProcess: vi.fn(async () => ({
     exitCode: 0,
@@ -46,7 +46,7 @@ const {
     exitCode: 0,
   })),
   syncDirectoryToSsh: vi.fn(async () => undefined),
-  startAdapterExecutionTargetPaperclipBridge: vi.fn(async () => ({
+  startAdapterExecutionTargetOutpostBridge: vi.fn(async () => ({
     env: {
       OUTPOST_API_URL: "http://127.0.0.1:4310",
       OUTPOST_API_KEY: "bridge-token",
@@ -87,7 +87,7 @@ vi.mock("@outpost/adapter-utils/execution-target", async () => {
   );
   return {
     ...actual,
-    startAdapterExecutionTargetPaperclipBridge,
+    startAdapterExecutionTargetOutpostBridge,
   };
 });
 
@@ -116,11 +116,11 @@ describe("pi remote execution", () => {
   });
 
   it("prepares the workspace, syncs Pi skills, and restores workspace changes for remote SSH execution", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-remote-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-pi-remote-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     const alternateWorkspaceDir = path.join(rootDir, "workspace-other");
-    const managedRemoteWorkspace = "/remote/workspace/.paperclip-runtime/runs/run-1/workspace";
+    const managedRemoteWorkspace = "/remote/workspace/.outpost-runtime/runs/run-1/workspace";
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(alternateWorkspaceDir, { recursive: true });
 
@@ -128,7 +128,7 @@ describe("pi remote execution", () => {
       runId: "run-1",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Pi Builder",
         adapterType: "pi_local",
         adapterConfig: {},
@@ -144,21 +144,21 @@ describe("pi remote execution", () => {
         model: "openai/gpt-5.4-mini",
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
-        paperclipWorkspaces: [
+        outpostWorkspaces: [
           {
             workspaceId: "workspace-1",
             cwd: workspaceDir,
-            repoUrl: "https://github.com/paperclipai/outpost.git",
+            repoUrl: "https://github.com/example/outpost.git",
             repoRef: "main",
           },
           {
             workspaceId: "workspace-2",
             cwd: alternateWorkspaceDir,
-            repoUrl: "https://github.com/paperclipai/outpost.git",
+            repoUrl: "https://github.com/example/outpost.git",
             repoRef: "feature/other",
           },
         ],
@@ -188,16 +188,16 @@ describe("pi remote execution", () => {
         remoteCwd: managedRemoteWorkspace,
       },
     });
-    expect(String(result.sessionId)).toContain(`${managedRemoteWorkspace}/.paperclip-runtime/pi/sessions/`);
+    expect(String(result.sessionId)).toContain(`${managedRemoteWorkspace}/.outpost-runtime/pi/sessions/`);
     expect(prepareWorkspaceForSshExecution).toHaveBeenCalledTimes(1);
     expect(syncDirectoryToSsh).toHaveBeenCalledTimes(2);
     expect(syncDirectoryToSsh).toHaveBeenCalledWith(expect.objectContaining({
-      remoteDir: `${managedRemoteWorkspace}/.paperclip-runtime/pi/skills`,
+      remoteDir: `${managedRemoteWorkspace}/.outpost-runtime/pi/skills`,
       followSymlinks: true,
     }));
     expect(runSshCommand).toHaveBeenCalledWith(
       expect.anything(),
-      expect.stringContaining(".paperclip-runtime/pi/sessions"),
+      expect.stringContaining(".outpost-runtime/pi/sessions"),
       expect.anything(),
     );
     const call = runChildProcess.mock.calls[0] as unknown as
@@ -205,35 +205,35 @@ describe("pi remote execution", () => {
       | undefined;
     expect(call?.[2]).toContain("--session");
     expect(call?.[2]).toContain("--skill");
-    expect(call?.[2]).toContain(`${managedRemoteWorkspace}/.paperclip-runtime/pi/skills`);
+    expect(call?.[2]).toContain(`${managedRemoteWorkspace}/.outpost-runtime/pi/skills`);
     expect(call?.[2]).toContain("--extension");
-    expect(call?.[2]).toContain(`${managedRemoteWorkspace}/.paperclip-runtime/pi/attribution/openrouter-attribution.mjs`);
+    expect(call?.[2]).toContain(`${managedRemoteWorkspace}/.outpost-runtime/pi/attribution/openrouter-attribution.mjs`);
     expect(call?.[3].env.OUTPOST_WORKSPACE_CWD).toBe(managedRemoteWorkspace);
     expect(JSON.parse(call?.[3].env.OUTPOST_WORKSPACES_JSON ?? "[]")).toEqual([
       {
         workspaceId: "workspace-1",
         cwd: managedRemoteWorkspace,
-        repoUrl: "https://github.com/paperclipai/outpost.git",
+        repoUrl: "https://github.com/example/outpost.git",
         repoRef: "main",
       },
       {
         workspaceId: "workspace-2",
-        repoUrl: "https://github.com/paperclipai/outpost.git",
+        repoUrl: "https://github.com/example/outpost.git",
         repoRef: "feature/other",
       },
     ]);
     expect(call?.[3].env.OUTPOST_API_URL).toBe("http://127.0.0.1:4310");
     expect(call?.[3].env.OUTPOST_API_BRIDGE_MODE).toBe("queue_v1");
     expect(call?.[3].remoteExecution?.remoteCwd).toBe(managedRemoteWorkspace);
-    expect(startAdapterExecutionTargetPaperclipBridge).toHaveBeenCalledTimes(1);
+    expect(startAdapterExecutionTargetOutpostBridge).toHaveBeenCalledTimes(1);
     expect(restoreWorkspaceFromSshExecution).toHaveBeenCalledTimes(1);
   });
 
   it("ships the managed Pi agent config and repoints PI_CODING_AGENT_DIR when OUTPOST_PI_PROVIDERS is set", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-remote-providers-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-pi-remote-providers-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
-    const managedRemoteWorkspace = "/remote/workspace/.paperclip-runtime/runs/run-providers/workspace";
+    const managedRemoteWorkspace = "/remote/workspace/.outpost-runtime/runs/run-providers/workspace";
     await mkdir(workspaceDir, { recursive: true });
 
     const providers = {
@@ -249,7 +249,7 @@ describe("pi remote execution", () => {
       runId: "run-providers",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Pi Builder",
         adapterType: "pi_local",
         adapterConfig: {},
@@ -269,7 +269,7 @@ describe("pi remote execution", () => {
         },
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -290,13 +290,13 @@ describe("pi remote execution", () => {
     });
 
     expect(syncDirectoryToSsh).toHaveBeenCalledWith(expect.objectContaining({
-      remoteDir: `${managedRemoteWorkspace}/.paperclip-runtime/pi/agentConfig`,
+      remoteDir: `${managedRemoteWorkspace}/.outpost-runtime/pi/agentConfig`,
     }));
     const call = runChildProcess.mock.calls[0] as unknown as
       | [string, string, string[], { env: Record<string, string> }]
       | undefined;
     expect(call?.[3].env.PI_CODING_AGENT_DIR).toBe(
-      `${managedRemoteWorkspace}/.paperclip-runtime/pi/agentConfig`,
+      `${managedRemoteWorkspace}/.outpost-runtime/pi/agentConfig`,
     );
     expect(call?.[2]).toContain("--provider");
     expect(call?.[2]).toContain("tensorix");
@@ -305,10 +305,10 @@ describe("pi remote execution", () => {
   });
 
   it("resumes saved Pi sessions for remote SSH execution only when the identity matches", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-remote-resume-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-pi-remote-resume-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
-    const managedRemoteWorkspace = "/remote/workspace/.paperclip-runtime/runs/run-ssh-resume/workspace";
+    const managedRemoteWorkspace = "/remote/workspace/.outpost-runtime/runs/run-ssh-resume/workspace";
     await mkdir(workspaceDir, { recursive: true });
 
     runSshCommand.mockImplementation(async (...args: unknown[]) => {
@@ -331,15 +331,15 @@ describe("pi remote execution", () => {
       runId: "run-ssh-resume",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Pi Builder",
         adapterType: "pi_local",
         adapterConfig: {},
       },
       runtime: {
-        sessionId: `${managedRemoteWorkspace}/.paperclip-runtime/pi/sessions/session-123.jsonl`,
+        sessionId: `${managedRemoteWorkspace}/.outpost-runtime/pi/sessions/session-123.jsonl`,
         sessionParams: {
-          sessionId: `${managedRemoteWorkspace}/.paperclip-runtime/pi/sessions/session-123.jsonl`,
+          sessionId: `${managedRemoteWorkspace}/.outpost-runtime/pi/sessions/session-123.jsonl`,
           cwd: managedRemoteWorkspace,
           remoteExecution: {
             transport: "ssh",
@@ -357,7 +357,7 @@ describe("pi remote execution", () => {
         model: "openai/gpt-5.4-mini",
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -379,11 +379,11 @@ describe("pi remote execution", () => {
 
     const call = runChildProcess.mock.calls[0] as unknown as [string, string, string[]] | undefined;
     expect(call?.[2]).toContain("--session");
-    expect(call?.[2]).toContain(`${managedRemoteWorkspace}/.paperclip-runtime/pi/sessions/session-123.jsonl`);
+    expect(call?.[2]).toContain(`${managedRemoteWorkspace}/.outpost-runtime/pi/sessions/session-123.jsonl`);
   });
 
   it("starts a fresh remote Pi session when the saved session header cwd points at a different workspace", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-remote-stale-session-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-pi-remote-stale-session-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     await mkdir(workspaceDir, { recursive: true });
@@ -408,15 +408,15 @@ describe("pi remote execution", () => {
       runId: "run-ssh-stale-session",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Pi Builder",
         adapterType: "pi_local",
         adapterConfig: {},
       },
       runtime: {
-        sessionId: "/remote/workspace/.paperclip-runtime/pi/sessions/session-123.jsonl",
+        sessionId: "/remote/workspace/.outpost-runtime/pi/sessions/session-123.jsonl",
         sessionParams: {
-          sessionId: "/remote/workspace/.paperclip-runtime/pi/sessions/session-123.jsonl",
+          sessionId: "/remote/workspace/.outpost-runtime/pi/sessions/session-123.jsonl",
           cwd: "/remote/workspace",
           remoteExecution: {
             transport: "ssh",
@@ -434,7 +434,7 @@ describe("pi remote execution", () => {
         model: "openai/gpt-5.4-mini",
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -454,17 +454,17 @@ describe("pi remote execution", () => {
       onLog: async () => {},
     });
 
-    const managedRemoteWorkspaceFresh = "/remote/workspace/.paperclip-runtime/runs/run-ssh-stale-session/workspace";
+    const managedRemoteWorkspaceFresh = "/remote/workspace/.outpost-runtime/runs/run-ssh-stale-session/workspace";
     const call = runChildProcess.mock.calls[0] as unknown as [string, string, string[]] | undefined;
     const sessionIndex = call?.[2].indexOf("--session") ?? -1;
     expect(sessionIndex).toBeGreaterThanOrEqual(0);
     const usedSession = sessionIndex >= 0 ? call?.[2][sessionIndex + 1] : null;
-    expect(usedSession).toContain(`${managedRemoteWorkspaceFresh}/.paperclip-runtime/pi/sessions/`);
-    expect(usedSession).not.toBe("/remote/workspace/.paperclip-runtime/pi/sessions/session-123.jsonl");
+    expect(usedSession).toContain(`${managedRemoteWorkspaceFresh}/.outpost-runtime/pi/sessions/`);
+    expect(usedSession).not.toBe("/remote/workspace/.outpost-runtime/pi/sessions/session-123.jsonl");
   });
 
   it("starts a fresh remote Pi session when the saved session header is empty or unreadable", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-remote-empty-header-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-pi-remote-empty-header-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     await mkdir(workspaceDir, { recursive: true });
@@ -481,15 +481,15 @@ describe("pi remote execution", () => {
       runId: "run-ssh-empty-header",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Pi Builder",
         adapterType: "pi_local",
         adapterConfig: {},
       },
       runtime: {
-        sessionId: "/remote/workspace/.paperclip-runtime/pi/sessions/session-123.jsonl",
+        sessionId: "/remote/workspace/.outpost-runtime/pi/sessions/session-123.jsonl",
         sessionParams: {
-          sessionId: "/remote/workspace/.paperclip-runtime/pi/sessions/session-123.jsonl",
+          sessionId: "/remote/workspace/.outpost-runtime/pi/sessions/session-123.jsonl",
           cwd: "/remote/workspace",
           remoteExecution: {
             transport: "ssh",
@@ -504,7 +504,7 @@ describe("pi remote execution", () => {
       },
       config: { command: "pi", model: "openai/gpt-5.4-mini" },
       context: {
-        paperclipWorkspace: { cwd: workspaceDir, source: "project_primary" },
+        outpostWorkspace: { cwd: workspaceDir, source: "project_primary" },
       },
       executionTransport: {
         remoteExecution: {
@@ -525,11 +525,11 @@ describe("pi remote execution", () => {
     const sessionIndex = call?.[2].indexOf("--session") ?? -1;
     expect(sessionIndex).toBeGreaterThanOrEqual(0);
     const usedSession = sessionIndex >= 0 ? call?.[2][sessionIndex + 1] : null;
-    expect(usedSession).not.toBe("/remote/workspace/.paperclip-runtime/pi/sessions/session-123.jsonl");
+    expect(usedSession).not.toBe("/remote/workspace/.outpost-runtime/pi/sessions/session-123.jsonl");
   });
 
   it("starts a fresh remote Pi session when the remote head command fails", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-remote-head-failure-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-pi-remote-head-failure-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     await mkdir(workspaceDir, { recursive: true });
@@ -550,15 +550,15 @@ describe("pi remote execution", () => {
       runId: "run-ssh-head-failure",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Pi Builder",
         adapterType: "pi_local",
         adapterConfig: {},
       },
       runtime: {
-        sessionId: "/remote/workspace/.paperclip-runtime/pi/sessions/session-123.jsonl",
+        sessionId: "/remote/workspace/.outpost-runtime/pi/sessions/session-123.jsonl",
         sessionParams: {
-          sessionId: "/remote/workspace/.paperclip-runtime/pi/sessions/session-123.jsonl",
+          sessionId: "/remote/workspace/.outpost-runtime/pi/sessions/session-123.jsonl",
           cwd: "/remote/workspace",
           remoteExecution: {
             transport: "ssh",
@@ -574,7 +574,7 @@ describe("pi remote execution", () => {
       config: { command: "pi", model: "openai/gpt-5.4-mini", bootstrapPromptTemplate: "BOOTSTRAP {{run.id}}" },
       context: {
         ...createPromptContextFixture(),
-        paperclipWorkspace: { cwd: workspaceDir, source: "project_primary" },
+        outpostWorkspace: { cwd: workspaceDir, source: "project_primary" },
       },
       executionTransport: {
         remoteExecution: {
@@ -595,7 +595,7 @@ describe("pi remote execution", () => {
     const sessionIndex = call?.[2].indexOf("--session") ?? -1;
     expect(sessionIndex).toBeGreaterThanOrEqual(0);
     const usedSession = sessionIndex >= 0 ? call?.[2][sessionIndex + 1] : null;
-    expect(usedSession).not.toBe("/remote/workspace/.paperclip-runtime/pi/sessions/session-123.jsonl");
+    expect(usedSession).not.toBe("/remote/workspace/.outpost-runtime/pi/sessions/session-123.jsonl");
     const prompt = String(call?.[2].at(-1) ?? "");
     expect(prompt).toContain("## Owned assignment");
     expect(prompt).toContain("BOOTSTRAP run-ssh-head-failure");
@@ -603,7 +603,7 @@ describe("pi remote execution", () => {
   });
 
   it("delivers the owned assignment and ordered wake comments through Pi's prompt", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-context-ownership-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-pi-context-ownership-"));
     cleanupDirs.push(rootDir);
     await mkdir(rootDir, { recursive: true });
     const fixture = createPromptContextFixture();
@@ -613,20 +613,20 @@ describe("pi remote execution", () => {
       runId: "run-context-ownership",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Pi Builder",
         adapterType: "pi_local",
         adapterConfig: {},
       },
       runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
       config: { command: "pi", model: "openai/gpt-5.4-mini", cwd: rootDir },
-      context: { ...fixture, paperclipWorkspace: { cwd: rootDir, source: "project_primary" } },
+      context: { ...fixture, outpostWorkspace: { cwd: rootDir, source: "project_primary" } },
       onLog: async () => {},
     } as never);
 
     const call = runChildProcess.mock.calls.at(-1) as unknown as [string, string, string[]] | undefined;
     deliveredPrompt = String(call?.[2].at(-1) ?? "");
-    expect(deliveredPrompt).toContain(fixture.paperclipTaskMarkdownAssignment);
+    expect(deliveredPrompt).toContain(fixture.outpostTaskMarkdownAssignment);
     expect(deliveredPrompt.indexOf("Append the same ledger entry.")).toBeLessThan(
       deliveredPrompt.lastIndexOf("Append the same ledger entry."),
     );
@@ -639,15 +639,15 @@ describe("pi remote execution", () => {
     expect(deliveredPrompt).toContain("Change the final scope to the launch checklist.");
   });
 
-  it("keeps the default Paperclip policy in the system carrier without duplicating it in user input", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-default-policy-"));
+  it("keeps the default Outpost policy in the system carrier without duplicating it in user input", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-pi-default-policy-"));
     cleanupDirs.push(rootDir);
 
     await execute({
       runId: "run-default-policy",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Pi Builder",
         adapterType: "pi_local",
         adapterConfig: {},
@@ -667,14 +667,14 @@ describe("pi remote execution", () => {
   });
 
   it("preserves custom prompt templates in both configured carriers", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-custom-policy-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-pi-custom-policy-"));
     cleanupDirs.push(rootDir);
 
     await execute({
       runId: "run-custom-policy",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Pi Builder",
         adapterType: "pi_local",
         adapterConfig: {},
@@ -699,7 +699,7 @@ describe("pi remote execution", () => {
   });
 
   it("keeps resumed default identity and connection guidance in the system carrier", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-resumed-policy-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-pi-resumed-policy-"));
     cleanupDirs.push(rootDir);
     const sessionPath = path.join(rootDir, "session.jsonl");
     await writeFile(sessionPath, `${JSON.stringify({ type: "session", cwd: rootDir })}\n`, "utf8");
@@ -708,7 +708,7 @@ describe("pi remote execution", () => {
       runId: "run-resumed-policy",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Pi Builder",
         adapterType: "pi_local",
         adapterConfig: {},
@@ -735,7 +735,7 @@ describe("pi remote execution", () => {
   });
 
   it("keeps default identity in system input when custom prompt uses loaded instructions", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-instructions-policy-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-pi-instructions-policy-"));
     cleanupDirs.push(rootDir);
     const sessionPath = path.join(rootDir, "session.jsonl");
     const instructionsPath = path.join(rootDir, "AGENTS.md");
@@ -746,7 +746,7 @@ describe("pi remote execution", () => {
       runId: "run-instructions-policy",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Pi Builder",
         adapterType: "pi_local",
         adapterConfig: {},
@@ -781,7 +781,7 @@ describe("pi remote execution", () => {
   });
 
   it("compacts streamed chunks while parsing the untouched raw stdout result", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-pi-remote-log-boundary-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-pi-remote-log-boundary-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     await mkdir(workspaceDir, { recursive: true });
@@ -841,7 +841,7 @@ describe("pi remote execution", () => {
       runId: "run-log-boundary",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Pi Builder",
         adapterType: "pi_local",
         adapterConfig: {},
@@ -858,7 +858,7 @@ describe("pi remote execution", () => {
         stdoutLogMode: "compact",
       },
       context: {
-        paperclipWorkspace: { cwd: workspaceDir, source: "project_primary" },
+        outpostWorkspace: { cwd: workspaceDir, source: "project_primary" },
       },
       executionTransport: {
         remoteExecution: {

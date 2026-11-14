@@ -102,9 +102,9 @@ export function isPagesTokenConnection(
   const broker = tokenBrokerConfig(connection);
   const applicationKey = application?.applicationKey ?? "";
   return Boolean(
-    applicationKey === "paperclip-pages" ||
+    applicationKey === "outpost-pages" ||
     applicationKey === "outpost.pages" ||
-    applicationKey === "pages.paperclip" ||
+    applicationKey === "pages.outpost" ||
     readConfigString(config, "connectionType") === "pages" ||
     readConfigString(config, "service") === "pages" ||
     readConfigString(broker, "connectionType") === "pages" ||

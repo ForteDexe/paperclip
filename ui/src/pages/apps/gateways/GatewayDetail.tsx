@@ -1,10 +1,10 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Send } from "lucide-react";
 import type { ToolMcpGatewayTokenCreated } from "@outpost/shared";
 import { Link, Navigate, useNavigate, useParams } from "@/lib/router";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useToast } from "@/context/ToastContext";
 import { queryKeys } from "@/lib/queryKeys";
@@ -32,7 +32,7 @@ export function GatewayDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [snippetOpen, setSnippetOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -41,33 +41,33 @@ export function GatewayDetail() {
   const activeTab: GatewayTabKey | null = isGatewayTabKey(tab) ? tab : null;
 
   const gatewaysQuery = useQuery({
-    queryKey: gatewaysQueryKey(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listGateways(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: gatewaysQueryKey(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listGateways(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const profilesQuery = useQuery({
-    queryKey: queryKeys.tools.profiles(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listProfiles(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.tools.profiles(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listProfiles(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const connectionsQuery = useQuery({
-    queryKey: queryKeys.tools.connections(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listConnections(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.tools.connections(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listConnections(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const applicationsQuery = useQuery({
-    queryKey: queryKeys.tools.applications(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listApplications(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.tools.applications(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listApplications(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const agentsQuery = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId ?? "__none__"),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId ?? "__none__"),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const projectsQuery = useQuery({
-    ...companyProjectsQuery(selectedCompanyId ?? "__none__", { includeArchived: true }),
-    enabled: !!selectedCompanyId,
+    ...spaceProjectsQuery(selectedSpaceId ?? "__none__", { includeArchived: true }),
+    enabled: !!selectedSpaceId,
   });
   const gatewaysView = useQueryView(gatewaysQuery);
 
@@ -113,7 +113,7 @@ export function GatewayDetail() {
 
   const toggleMutation = useMutation({
     mutationFn: () =>
-      toolsApi.updateGateway(selectedCompanyId!, gatewayId, {
+      toolsApi.updateGateway(selectedSpaceId!, gatewayId, {
         status: gateway && isGatewayOn(gateway) ? "disabled" : "active",
       }),
     onSuccess: async (updated) => {
@@ -125,7 +125,7 @@ export function GatewayDetail() {
             : `${updated.name} is off — every client goes silent.`,
         tone: "success",
       });
-      await queryClient.invalidateQueries({ queryKey: gatewaysQueryKey(selectedCompanyId!) });
+      await queryClient.invalidateQueries({ queryKey: gatewaysQueryKey(selectedSpaceId!) });
     },
     onError: (error) =>
       pushToast({
@@ -135,7 +135,7 @@ export function GatewayDetail() {
       }),
   });
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <div className="p-6 text-sm text-muted-foreground">Select an outpost to manage gateways.</div>;
   }
   if (!activeTab) {
@@ -231,16 +231,16 @@ export function GatewayDetail() {
       {activeTab === "apps" && <AppsToolsPanel apps={apps} profile={profile} />}
       {activeTab === "tokens" && (
         <TokensPanel
-          companyId={selectedCompanyId}
+          spaceId={selectedSpaceId}
           gateway={gateway}
           onTokenCreated={rememberCreatedToken}
         />
       )}
       {activeTab === "activity" && (
-        <GatewayActivityPanel companyId={selectedCompanyId} gateway={gateway} />
+        <GatewayActivityPanel spaceId={selectedSpaceId} gateway={gateway} />
       )}
       {activeTab === "advanced" && (
-        <GatewayAdvancedPanel companyId={selectedCompanyId} gateway={gateway} />
+        <GatewayAdvancedPanel spaceId={selectedSpaceId} gateway={gateway} />
       )}
 
       <ConnectClientDialog
@@ -251,7 +251,7 @@ export function GatewayDetail() {
         onTokenCreated={rememberCreatedToken}
       />
       <EditGatewayDialog
-        companyId={selectedCompanyId}
+        spaceId={selectedSpaceId}
         gateway={gateway}
         profiles={profilesQuery.data?.profiles ?? []}
         open={editing}

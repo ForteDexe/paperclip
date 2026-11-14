@@ -20,7 +20,7 @@ const entries = {
   "packages/plugins/sdk/src/index.ts": 'SDK API',
   "server/src/server.ts": 'server',
 };
-const scope = { node: 'v24.19.0', root: '/work/paperclip', arch: 'x64', libc: '2.39', pnpm: '9.15.4', store: '/store' };
+const scope = { node: 'v24.19.0', root: '/work/outpost', arch: 'x64', libc: '2.39', pnpm: '9.15.4', store: '/store' };
 const plan = (files = entries, runtime = scope) => cachePlan({
   files: Object.keys(files), read: (file) => files[file] === null ? null : Buffer.from(files[file]), scope: runtime,
   packageDirs: ['.', 'packages/plugins/sdk', 'packages/shared', 'server'],
@@ -137,5 +137,5 @@ test('paired test timings remain available when lifecycle hooks disable material
     'server/src/__tests__/setup-supertest.ts', 'server/src/__tests__/workspace-runtime.test.ts',
     'server/src/services/workspace-git-snapshot-streaming.test.ts']) assert.ok(scope.includes(file));
   assert.doesNotMatch(scope, /scripts\/ci-dependency-cache|\.github\/actions\/setup-ci-dependencies/);
-  assert.match(step('Exercise restored dependencies for cache-only changes'), /pnpm exec vitest run --project @paperclipai\/shared/);
+  assert.match(step('Exercise restored dependencies for cache-only changes'), /pnpm exec vitest run --project @outpost\/shared/);
 });

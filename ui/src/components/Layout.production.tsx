@@ -1,6 +1,6 @@
 import { useDesignSandbox } from "@/context/DesignSandboxContext";
 import { DesignSandboxSidebar } from "./DesignSandboxSidebar";
-import { BoardDialogs } from "./BoardDialogs";
+import { OperatorDialogs } from "./OperatorDialogs";
 import { ChatSetupSidebarProvider } from "@/context/ChatSetupSidebarContext";
 import { PluginAppShellOverlays } from "./PluginAppShellOverlays";
 import {
@@ -21,8 +21,8 @@ import {
   useParams,
 } from "@/lib/router";
 import { Sidebar } from "./Sidebar.production";
-import { CompanySettingsSidebar } from "./CompanySettingsSidebar.production";
-import { CompanySettingsNav } from "./access/CompanySettingsNav";
+import { SpaceSettingsSidebar } from "./SpaceSettingsSidebar.production";
+import { SpaceSettingsNav } from "./access/SpaceSettingsNav";
 import { AppsSidebar } from "./AppsSidebar.production";
 import { AppDetailSidebar } from "./AppConnectionSidebar.production";
 import { BreadcrumbBar } from "./BreadcrumbBar.production";
@@ -40,17 +40,17 @@ import { SecondarySidebar } from "./SecondarySidebar.production";
 import { SidebarAccountMenu } from "./SidebarAccountMenu.production";
 import { useDialogActions } from "../context/DialogContext";
 import { usePanel } from "../context/PanelContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useSidebar } from "../context/SidebarContext";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
-import { useCompanyPageMemory } from "../hooks/useCompanyPageMemory";
+import { useSpacePageMemory } from "../hooks/useSpacePageMemory";
 import { useMobileNavVisibility } from "../hooks/useMobileNavVisibility";
 import { useMobileVisualViewport } from "../hooks/useMobileVisualViewport";
 import { healthApi } from "../api/health";
 import {
-  resolveArchivedCompanyBounce,
-  shouldSyncCompanySelectionFromRoute,
-} from "../lib/company-selection";
+  resolveArchivedSpaceBounce,
+  shouldSyncSpaceSelectionFromRoute,
+} from "../lib/space-selection";
 import { useOptionalToastActions } from "../context/ToastContext";
 import {
   applyMainContentScrollTop,
@@ -70,23 +70,23 @@ import {
   usePluginSlots,
 } from "../plugins/slots";
 
-function getCompanyRouteSegment(
+function getSpaceRouteSegment(
   pathname: string,
-  companyPrefix: string | undefined,
+  spacePrefix: string | undefined,
 ): string | null {
   return (
-    getCompanyPathSegments(pathname, companyPrefix)[0]?.toLowerCase() ?? null
+    getSpacePathSegments(pathname, spacePrefix)[0]?.toLowerCase() ?? null
   );
 }
 
-function getCompanyPathSegments(
+function getSpacePathSegments(
   pathname: string,
-  companyPrefix: string | undefined,
+  spacePrefix: string | undefined,
 ): string[] {
-  if (!companyPrefix) return [];
+  if (!spacePrefix) return [];
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length < 2) return [];
-  if (segments[0]?.toUpperCase() !== companyPrefix.toUpperCase()) return [];
+  if (segments[0]?.toUpperCase() !== spacePrefix.toUpperCase()) return [];
   return segments.slice(1);
 }
 
@@ -119,43 +119,43 @@ export function Layout() {
   // Optional: Layout also renders in harnesses without a ToastProvider.
   const pushToast = useOptionalToastActions()?.pushToast ?? null;
   const {
-    companies,
-    loading: companiesLoading,
-    selectedCompany,
-    selectedCompanyId,
+    spaces,
+    loading: spacesLoading,
+    selectedSpace,
+    selectedSpaceId,
     selectionSource,
-    setSelectedCompanyId,
-  } = useCompany();
-  const { companyPrefix, pluginRoutePath: matchedPluginRoutePath } = useParams<{
-    companyPrefix: string;
+    setSelectedSpaceId,
+  } = useSpace();
+  const { spacePrefix, pluginRoutePath: matchedPluginRoutePath } = useParams<{
+    spacePrefix: string;
     pluginRoutePath?: string;
   }>();
   const navigate = useNavigate();
   const location = useLocation();
   const navigationType = useNavigationType();
-  const isTaskDetailRoute = classifyShellRoute(location.pathname, companyPrefix).isTaskDetail;
-  const isCompanySettingsRoute = [
-    "/company/settings",
-    "/company/export",
-    "/company/import",
+  const isTaskDetailRoute = classifyShellRoute(location.pathname, spacePrefix).isTaskDetail;
+  const isSpaceSettingsRoute = [
+    "/space/settings",
+    "/space/export",
+    "/space/import",
   ].some((settingsPath) => location.pathname.includes(settingsPath));
-  const companyPathSegments = getCompanyPathSegments(
+  const spacePathSegments = getSpacePathSegments(
     location.pathname,
-    companyPrefix,
+    spacePrefix,
   );
-  const isToolsRoute = companyPathSegments[0]?.toLowerCase() === "tools";
-  const isAppsRoute = companyPathSegments[0]?.toLowerCase() === "apps";
+  const isToolsRoute = spacePathSegments[0]?.toLowerCase() === "tools";
+  const isAppsRoute = spacePathSegments[0]?.toLowerCase() === "apps";
   const appDetailConnectionId =
     isAppsRoute &&
-    companyPathSegments[1] &&
-    !RESERVED_APP_SUBPATHS.has(companyPathSegments[1].toLowerCase())
-      ? companyPathSegments[1]
+    spacePathSegments[1] &&
+    !RESERVED_APP_SUBPATHS.has(spacePathSegments[1].toLowerCase())
+      ? spacePathSegments[1]
       : null;
   const appDetailApplicationId =
     isAppsRoute &&
-    companyPathSegments[1]?.toLowerCase() === "app" &&
-    companyPathSegments[2]
-      ? companyPathSegments[2]
+    spacePathSegments[1]?.toLowerCase() === "app" &&
+    spacePathSegments[2]
+      ? spacePathSegments[2]
       : null;
   const previousPathname = useRef<string | null>(null);
   const mainContentRef = useRef<HTMLElement | null>(null);
@@ -164,32 +164,32 @@ export function Layout() {
   const mobileNavVisible = useMobileNavVisibility(isMobile, location.pathname);
   const mobileViewportRef = useMobileVisualViewport(isMobile);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const matchedCompany = useMemo(() => {
-    if (!companyPrefix) return null;
-    const requestedPrefix = companyPrefix.toUpperCase();
+  const matchedSpace = useMemo(() => {
+    if (!spacePrefix) return null;
+    const requestedPrefix = spacePrefix.toUpperCase();
     return (
-      companies.find(
-        (company) => company.issuePrefix.toUpperCase() === requestedPrefix,
+      spaces.find(
+        (space) => space.issuePrefix.toUpperCase() === requestedPrefix,
       ) ?? null
     );
-  }, [companies, companyPrefix]);
-  const hasUnknownCompanyPrefix =
-    Boolean(companyPrefix) &&
-    !companiesLoading &&
-    companies.length > 0 &&
-    !matchedCompany;
+  }, [spaces, spacePrefix]);
+  const hasUnknownSpacePrefix =
+    Boolean(spacePrefix) &&
+    !spacesLoading &&
+    spaces.length > 0 &&
+    !matchedSpace;
   const pluginRoutePath = useMemo(
     () =>
       matchedPluginRoutePath?.toLowerCase() ??
-      getCompanyRouteSegment(location.pathname, companyPrefix),
-    [companyPrefix, location.pathname, matchedPluginRoutePath],
+      getSpaceRouteSegment(location.pathname, spacePrefix),
+    [spacePrefix, location.pathname, matchedPluginRoutePath],
   );
-  const routeSidebarCompanyId = matchedCompany?.id ?? null;
-  const routeSidebarCompanyPrefix = matchedCompany?.issuePrefix ?? null;
+  const routeSidebarSpaceId = matchedSpace?.id ?? null;
+  const routeSidebarSpacePrefix = matchedSpace?.issuePrefix ?? null;
   const { slots: routeSidebarSlots } = usePluginSlots({
     slotTypes: ["page", "routeSidebar"],
-    companyId: routeSidebarCompanyId,
-    enabled: Boolean(routeSidebarCompanyId && pluginRoutePath),
+    spaceId: routeSidebarSpaceId,
+    enabled: Boolean(routeSidebarSpaceId && pluginRoutePath),
   });
   const routeSidebarSlot = useMemo(
     () => resolveRouteSidebarSlot(routeSidebarSlots, pluginRoutePath),
@@ -197,17 +197,17 @@ export function Layout() {
   );
   const sidebarContext = useMemo(
     () => ({
-      companyId: routeSidebarCompanyId,
-      companyPrefix: routeSidebarCompanyPrefix,
+      spaceId: routeSidebarSpaceId,
+      spacePrefix: routeSidebarSpacePrefix,
     }),
-    [routeSidebarCompanyId, routeSidebarCompanyPrefix],
+    [routeSidebarSpaceId, routeSidebarSpacePrefix],
   );
-  // Takeover routes (company settings, plugin `routeSidebar`) no longer replace
+  // Takeover routes (space settings, plugin `routeSidebar`) no longer replace
   // the app `<Sidebar/>`. Instead the host collapses it to its rail and renders
   // the contextual sidebar in a second pane (PAP-10695). One resolver drives
   // both desktop (SecondarySidebar) and mobile (off-canvas drawer).
-  const secondarySidebar = isCompanySettingsRoute ? (
-    <CompanySettingsSidebar />
+  const secondarySidebar = isSpaceSettingsRoute ? (
+    <SpaceSettingsSidebar />
   ) : appDetailConnectionId ? (
     <AppDetailSidebar kind="connection" connectionId={appDetailConnectionId} />
   ) : appDetailApplicationId ? (
@@ -249,71 +249,71 @@ export function Layout() {
   }, [forceRailCollapsed, setForceCollapsed]);
 
   useEffect(() => {
-    if (!companyPrefix || companiesLoading || companies.length === 0) return;
+    if (!spacePrefix || spacesLoading || spaces.length === 0) return;
 
-    if (!matchedCompany) {
+    if (!matchedSpace) {
       const fallback =
-        (selectedCompanyId
-          ? companies.find((company) => company.id === selectedCompanyId)
+        (selectedSpaceId
+          ? spaces.find((space) => space.id === selectedSpaceId)
           : null) ??
-        companies[0] ??
+        spaces[0] ??
         null;
-      if (fallback && selectedCompanyId !== fallback.id) {
-        setSelectedCompanyId(fallback.id, { source: "route_sync" });
+      if (fallback && selectedSpaceId !== fallback.id) {
+        setSelectedSpaceId(fallback.id, { source: "route_sync" });
       }
       return;
     }
 
-    if (companyPrefix !== matchedCompany.issuePrefix) {
+    if (spacePrefix !== matchedSpace.issuePrefix) {
       const suffix = location.pathname.replace(/^\/[^/]+/, "");
-      navigate(`/${matchedCompany.issuePrefix}${suffix}${location.search}`, {
+      navigate(`/${matchedSpace.issuePrefix}${suffix}${location.search}`, {
         replace: true,
       });
       return;
     }
 
     // Stale state (remembered paths, history, bookmarks, restored tabs)
-    // deposits users into archived companies long after archiving; a cold
-    // arrival bounces to an active company instead of dwelling there.
-    // Deliberate visits (the company is already the selection) stay put.
-    const bounce = resolveArchivedCompanyBounce({
-      matchedCompany,
-      selectedCompanyId,
-      companies,
+    // deposits users into archived spaces long after archiving; a cold
+    // arrival bounces to an active space instead of dwelling there.
+    // Deliberate visits (the space is already the selection) stay put.
+    const bounce = resolveArchivedSpaceBounce({
+      matchedSpace,
+      selectedSpaceId,
+      spaces,
     });
     if (bounce) {
       pushToast?.({
-        title: `${matchedCompany.name} is archived`,
+        title: `${matchedSpace.name} is archived`,
         body: `Switched to ${bounce.name}.`,
         tone: "info",
-        dedupeKey: `archived-company-bounce:${matchedCompany.id}`,
+        dedupeKey: `archived-space-bounce:${matchedSpace.id}`,
       });
-      setSelectedCompanyId(bounce.id, { source: "route_sync" });
+      setSelectedSpaceId(bounce.id, { source: "route_sync" });
       navigate(`/${bounce.issuePrefix}/dashboard`, { replace: true });
       return;
     }
 
     if (
-      shouldSyncCompanySelectionFromRoute({
+      shouldSyncSpaceSelectionFromRoute({
         selectionSource,
-        selectedCompanyId,
-        routeCompanyId: matchedCompany.id,
+        selectedSpaceId,
+        routeSpaceId: matchedSpace.id,
       })
     ) {
-      setSelectedCompanyId(matchedCompany.id, { source: "route_sync" });
+      setSelectedSpaceId(matchedSpace.id, { source: "route_sync" });
     }
   }, [
-    companyPrefix,
-    companies,
-    companiesLoading,
-    matchedCompany,
+    spacePrefix,
+    spaces,
+    spacesLoading,
+    matchedSpace,
     location.pathname,
     location.search,
     navigate,
     pushToast,
     selectionSource,
-    selectedCompanyId,
-    setSelectedCompanyId,
+    selectedSpaceId,
+    setSelectedSpaceId,
   ]);
 
   const togglePanel = togglePanelVisible;
@@ -424,7 +424,7 @@ export function Layout() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [peeking, clearPeekTimer, setPeeking]);
 
-  useCompanyPageMemory();
+  useSpacePageMemory();
 
   useKeyboardShortcuts({
     onNewIssue: () => openNewIssue(),
@@ -557,7 +557,7 @@ export function Layout() {
         ref={mobileViewportRef}
         data-mobile={isMobile ? "true" : undefined}
         className={cn(
-          "paperclip-app-shell bg-background text-foreground pt-(--sz-safe-top)",
+          "outpost-app-shell bg-background text-foreground pt-(--sz-safe-top)",
           // overflow-x-clip on mobile keeps a stray wide descendant from making the
           // whole viewport scroll horizontally. clip (not hidden) leaves overflow-y
           // computed as visible, so native body scroll + the sticky breadcrumb keep
@@ -644,9 +644,9 @@ export function Layout() {
             >
               <StandaloneBrowserControls mobile={isMobile} />
               <BreadcrumbBar />
-              {isMobile && isCompanySettingsRoute ? (
+              {isMobile && isSpaceSettingsRoute ? (
                 <div className="border-b border-border px-4 pb-3">
-                  <CompanySettingsNav />
+                  <SpaceSettingsNav />
                 </div>
               ) : null}
             </div>
@@ -687,11 +687,11 @@ export function Layout() {
                     : "overflow-auto [scrollbar-gutter:stable]",
                 )}
               >
-                {hasUnknownCompanyPrefix ? (
+                {hasUnknownSpacePrefix ? (
                   <NotFoundPage
-                    scope="invalid_company_prefix"
+                    scope="invalid_space_prefix"
                     requestedPrefix={
-                      companyPrefix ?? selectedCompany?.issuePrefix
+                      spacePrefix ?? selectedSpace?.issuePrefix
                     }
                   />
                 ) : (
@@ -706,7 +706,7 @@ export function Layout() {
         </div>
         {isMobile && <MobileBottomNav visible={mobileNavVisible} />}
         <CommandPalette />
-        <BoardDialogs />
+        <OperatorDialogs />
         <KeyboardShortcutsCheatsheet
           open={shortcutsOpen}
           onOpenChange={setShortcutsOpen}

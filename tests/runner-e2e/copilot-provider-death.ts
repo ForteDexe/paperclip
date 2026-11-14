@@ -17,7 +17,7 @@ export function selectOwnedCopilotProcess<T extends { pid: number; parent: numbe
   const candidates = journal.filter(row => {
     if (row.pid === rootPid || !live.includes(row.pid)) return false;
     const command = argv.get(row.pid);
-    if (!command || command.length !== fixedArguments.length + 1 || !/^\/[^\u0000-\u0020]*\/paperclip-acpx-native-[A-Za-z0-9_-]+\/distribution\/copilot$/u.test(command[0] ?? "") || !fixedArguments.every((arg, i) => command[i + 1] === arg)) return false;
+    if (!command || command.length !== fixedArguments.length + 1 || !/^\/[^\u0000-\u0020]*\/outpost-acpx-native-[A-Za-z0-9_-]+\/distribution\/copilot$/u.test(command[0] ?? "") || !fixedArguments.every((arg, i) => command[i + 1] === arg)) return false;
     const seen = new Set<number>(); let parent = row.parent;
     while (parent !== rootPid) {
       if (seen.has(parent) || !live.includes(parent)) return false;
@@ -38,7 +38,7 @@ export function canonicalRemoteCopilotCommand(
   executableIdentity: { dev: string; ino: string },
   descriptor?: { path: string; dev: string; ino: string },
 ): readonly string[] {
-  if (!/^\/[^\u0000-\u0020]*\/paperclip-acpx-native-[A-Za-z0-9_-]+\/distribution\/copilot$/u.test(executable)) return command;
+  if (!/^\/[^\u0000-\u0020]*\/outpost-acpx-native-[A-Za-z0-9_-]+\/distribution\/copilot$/u.test(executable)) return command;
   if (command[0] === executable) return command;
   if (!/^\/proc\/self\/fd\/(?:3|7)$/u.test(command[0] ?? "") || !descriptor
     || descriptor.path !== executable || descriptor.dev !== executableIdentity.dev || descriptor.ino !== executableIdentity.ino) return command;
@@ -52,9 +52,9 @@ export function copilotDeathCommandDigest(argv: readonly string[]) {
  * native operation must never complete or appear again after the stale answer. */
 export function assertCopilotProviderDeath(input: { pending: ActiveStopPending; run: Record<string, any>; issue: Record<string, any>; events: readonly any[]; bootstrap?: BootstrapReadProof }) {
   const { pending, run, issue } = input;
-  if (run.id !== pending.scope.runId || run.companyId !== pending.scope.companyId || issue.id !== pending.scope.issueId || issue.status !== "blocked" || run.nativeIssueId !== pending.scope.issueId || run.runtimeMode !== "native" || run.status !== "failed") throw new Error("Provider death requires one failed unfinished run");
+  if (run.id !== pending.scope.runId || run.spaceId !== pending.scope.spaceId || issue.id !== pending.scope.issueId || issue.status !== "blocked" || run.nativeIssueId !== pending.scope.issueId || run.runtimeMode !== "native" || run.status !== "failed") throw new Error("Provider death requires one failed unfinished run");
   const rows = input.events.filter(row => row.payload?.orpEvent);
-  if (!rows.length || rows.some(row => row.runId !== run.id || row.companyId !== run.companyId || !isValidNativePrpEnvelope(row.payload.orpEvent, row.protocolSchemaVersion))) throw new Error("Provider death requires canonical run evidence");
+  if (!rows.length || rows.some(row => row.runId !== run.id || row.spaceId !== run.spaceId || !isValidNativePrpEnvelope(row.payload.orpEvent, row.protocolSchemaVersion))) throw new Error("Provider death requires canonical run evidence");
   const events = rows.map(row => row.payload.orpEvent);
   const expiry = events.filter(event => event.eventType === "runtime_request.expired" && event.payload?.requestId === pending.requestId && event.turnId === pending.turnId && event.normalizedSessionId === pending.normalizedSessionId);
   if (expiry.length !== 1 || events.some(event => event.eventType === "runtime_request.resolved" && event.payload?.requestId === pending.requestId) || events.some(event => event.eventType === "task.completed" || event.eventType === "turn.completed")) throw new Error("Provider death did not expire the unanswered callback");

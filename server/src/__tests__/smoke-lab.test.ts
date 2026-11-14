@@ -9,8 +9,8 @@ import {
   agents,
   authUsers,
   connectionGrants,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   heartbeatRuns,
   instanceSettings,
@@ -35,8 +35,8 @@ const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : 
 
 type TestDb = ReturnType<typeof createDb>;
 
-async function createCompany(db: TestDb) {
-  return db.insert(companies).values({
+async function createSpace(db: TestDb) {
+  return db.insert(spaces).values({
     name: `Smoke Lab ${randomUUID()}`,
     issuePrefix: `SL${randomUUID().slice(0, 6).toUpperCase()}`,
   }).returning().then((rows) => rows[0]!);
@@ -52,9 +52,9 @@ async function enableSmokeLab(db: TestDb) {
   });
 }
 
-async function createAgent(db: TestDb, companyId: string) {
+async function createAgent(db: TestDb, spaceId: string) {
   return db.insert(agents).values({
-    companyId,
+    spaceId,
     name: `Smoke Agent ${randomUUID()}`,
     role: "qa",
     status: "active",
@@ -64,22 +64,22 @@ async function createAgent(db: TestDb, companyId: string) {
   }).returning().then((rows) => rows[0]!);
 }
 
-function boardActor(companyId?: string): Express.Request["actor"] {
+function operatorActor(spaceId?: string): Express.Request["actor"] {
   return {
-    type: "board",
-    userId: "board-user",
-    userName: "Board User",
+    type: "operator",
+    userId: "operator-user",
+    userName: "Operator User",
     userEmail: null,
     isInstanceAdmin: true,
     source: "local_implicit",
-    companyIds: companyId ? [companyId] : [],
+    spaceIds: spaceId ? [spaceId] : [],
   };
 }
 
-function agentActor(companyId: string, agentId: string, runId: string): Express.Request["actor"] {
+function agentActor(spaceId: string, agentId: string, runId: string): Express.Request["actor"] {
   return {
     type: "agent",
-    companyId,
+    spaceId,
     agentId,
     runId,
     source: "agent_jwt",
@@ -107,7 +107,7 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    if (!externalTestDatabaseUrl) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-smoke-lab-");
+    if (!externalTestDatabaseUrl) tempDb = await startEmbeddedPostgresTestDatabase("outpost-smoke-lab-");
     if (externalTestDatabaseUrl) await applyPendingMigrations(externalTestDatabaseUrl);
     db = createDb(externalTestDatabaseUrl ?? tempDb!.connectionString);
   }, 20_000);
@@ -125,8 +125,8 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
     await db.delete(toolApplications);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
     await db.delete(authUsers);
     await db.delete(instanceSettings);
   });
@@ -137,35 +137,35 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
   });
 
   it("gates smoke lab behind the experimental flag and public exposure, not auth mode or NODE_ENV", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
 
     // Flag off -> hidden (404) regardless of deployment.
-    await request(createRouteApp(db, boardActor(company.id)))
-      .get(`/api/companies/${company.id}/smoke-lab/services`)
+    await request(createRouteApp(db, operatorActor(space.id)))
+      .get(`/api/spaces/${space.id}/smoke-lab/services`)
       .expect(404);
 
     await enableSmokeLab(db);
 
     // Public exposure is the only disallowed deployment -> 403.
-    await request(createRouteApp(db, boardActor(company.id), { deploymentMode: "authenticated", deploymentExposure: "public" }))
-      .get(`/api/companies/${company.id}/smoke-lab/services`)
+    await request(createRouteApp(db, operatorActor(space.id), { deploymentMode: "authenticated", deploymentExposure: "public" }))
+      .get(`/api/spaces/${space.id}/smoke-lab/services`)
       .expect(403);
 
     // Authenticated + private (e.g. a Tailscale dev box) is allowed, even when the
     // instance runs a production Node build.
-    await request(createRouteApp(db, boardActor(company.id), { deploymentMode: "authenticated", deploymentExposure: "private", nodeEnv: "production" }))
-      .get(`/api/companies/${company.id}/smoke-lab/services`)
+    await request(createRouteApp(db, operatorActor(space.id), { deploymentMode: "authenticated", deploymentExposure: "private", nodeEnv: "production" }))
+      .get(`/api/spaces/${space.id}/smoke-lab/services`)
       .expect(200);
   });
 
   it("runs the deterministic fake OAuth code, refresh, userinfo, and revoke flow", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     await enableSmokeLab(db);
     const app = createRouteApp(db);
     const redirectUri = "http://127.0.0.1/callback";
 
     const page = await request(app)
-      .get(`/api/companies/${company.id}/smoke-lab/oauth/authorize`)
+      .get(`/api/spaces/${space.id}/smoke-lab/oauth/authorize`)
       .query({ client_id: "smoke-client", redirect_uri: redirectUri, state: "state-1", response_type: "code" })
       .expect(200);
     expect(page.text).toContain("SMOKE TEST - not a real provider");
@@ -182,7 +182,7 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
       password: "smoke-password",
     };
     const authorize = await request(app)
-      .post(`/api/companies/${company.id}/smoke-lab/oauth/authorize`)
+      .post(`/api/spaces/${space.id}/smoke-lab/oauth/authorize`)
       .type("form")
       .send(authorizeBody)
       .expect(302);
@@ -192,7 +192,7 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
     expect(redirected.searchParams.get("state")).toBe("state-1");
 
     const token = await request(app)
-      .post(`/api/companies/${company.id}/smoke-lab/oauth/token`)
+      .post(`/api/spaces/${space.id}/smoke-lab/oauth/token`)
       .type("form")
       .send({ grant_type: "authorization_code", code, client_id: "smoke-client", redirect_uri: redirectUri })
       .expect(200);
@@ -201,14 +201,14 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
     expect(token.body.scope).toBe(SMOKE_LAB_OAUTH_SCOPE);
 
     const repeatAuthorize = await request(app)
-      .post(`/api/companies/${company.id}/smoke-lab/oauth/authorize`)
+      .post(`/api/spaces/${space.id}/smoke-lab/oauth/authorize`)
       .type("form")
       .send(authorizeBody)
       .expect(302);
     const repeatCode = new URL(repeatAuthorize.headers.location).searchParams.get("code");
     expect(repeatCode).toBe(code);
     const repeatToken = await request(app)
-      .post(`/api/companies/${company.id}/smoke-lab/oauth/token`)
+      .post(`/api/spaces/${space.id}/smoke-lab/oauth/token`)
       .type("form")
       .send({ grant_type: "authorization_code", code: repeatCode, client_id: "smoke-client", redirect_uri: redirectUri })
       .expect(200);
@@ -216,7 +216,7 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
     expect(repeatToken.body.refresh_token).toBe(token.body.refresh_token);
 
     const refreshed = await request(app)
-      .post(`/api/companies/${company.id}/smoke-lab/oauth/token`)
+      .post(`/api/spaces/${space.id}/smoke-lab/oauth/token`)
       .type("form")
       .send({ grant_type: "refresh_token", refresh_token: token.body.refresh_token })
       .expect(200);
@@ -224,36 +224,36 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
     expect(refreshed.body.scope).toBe(SMOKE_LAB_OAUTH_SCOPE);
 
     const userinfo = await request(app)
-      .get(`/api/companies/${company.id}/smoke-lab/oauth/userinfo`)
+      .get(`/api/spaces/${space.id}/smoke-lab/oauth/userinfo`)
       .set("Authorization", `Bearer ${refreshed.body.access_token}`)
       .expect(200);
     expect(userinfo.body).toMatchObject({ sub: "smoke-user-1", email: "smoke@outpost.test" });
 
     await request(app)
-      .post(`/api/companies/${company.id}/smoke-lab/oauth/revoke`)
+      .post(`/api/spaces/${space.id}/smoke-lab/oauth/revoke`)
       .type("form")
       .send({ token: refreshed.body.access_token })
       .expect(200);
 
     await request(app)
-      .get(`/api/companies/${company.id}/smoke-lab/oauth/userinfo`)
+      .get(`/api/spaces/${space.id}/smoke-lab/oauth/userinfo`)
       .set("Authorization", `Bearer ${refreshed.body.access_token}`)
       .expect(403);
   });
 
   it("rejects real-looking vendor scopes at the fake OAuth provider", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     await enableSmokeLab(db);
     const app = createRouteApp(db);
     const redirectUri = "http://127.0.0.1/callback";
 
     await request(app)
-      .get(`/api/companies/${company.id}/smoke-lab/oauth/authorize`)
+      .get(`/api/spaces/${space.id}/smoke-lab/oauth/authorize`)
       .query({ client_id: "smoke-client", redirect_uri: redirectUri, scope: "repo user:email offline_access", response_type: "code" })
       .expect(400);
 
     await request(app)
-      .post(`/api/companies/${company.id}/smoke-lab/oauth/authorize`)
+      .post(`/api/spaces/${space.id}/smoke-lab/oauth/authorize`)
       .type("form")
       .send({
         client_id: "smoke-client",
@@ -266,38 +266,38 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
   });
 
   it("requires a loopback or same-origin HTTP(S) redirect URI before rendering or completing consent", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     await enableSmokeLab(db);
     const app = createRouteApp(db);
-    vi.stubEnv("OUTPOST_PUBLIC_URL", "http://paperclip-dev:45439");
+    vi.stubEnv("OUTPOST_PUBLIC_URL", "http://outpost-dev:45439");
 
     // A redirect host that is neither loopback nor the instance's own origin
     // could leak fixture authorization codes off the gated deployment.
     await request(app)
-      .get(`/api/companies/${company.id}/smoke-lab/oauth/authorize`)
+      .get(`/api/spaces/${space.id}/smoke-lab/oauth/authorize`)
       .query({ client_id: "smoke-client", redirect_uri: "http://other-host:45439/callback", response_type: "code" })
       .expect(403);
 
     // The instance's own (non-loopback) origin is fine — the smoke lab runs on
     // any private instance, e.g. an authenticated Tailscale host.
     await request(app)
-      .get(`/api/companies/${company.id}/smoke-lab/oauth/authorize`)
-      .query({ client_id: "smoke-client", redirect_uri: "http://paperclip-dev:45439/callback", response_type: "code" })
+      .get(`/api/spaces/${space.id}/smoke-lab/oauth/authorize`)
+      .query({ client_id: "smoke-client", redirect_uri: "http://outpost-dev:45439/callback", response_type: "code" })
       .expect(200);
 
     await request(app)
-      .post(`/api/companies/${company.id}/smoke-lab/oauth/authorize`)
+      .post(`/api/spaces/${space.id}/smoke-lab/oauth/authorize`)
       .type("form")
       .send({
         client_id: "smoke-client",
-        redirect_uri: "http://paperclip-dev:45439/api/tools/oauth/callback",
+        redirect_uri: "http://outpost-dev:45439/api/tools/oauth/callback",
         email: "smoke@outpost.test",
         password: "smoke-password",
       })
       .expect(302);
 
     await request(app)
-      .post(`/api/companies/${company.id}/smoke-lab/oauth/authorize`)
+      .post(`/api/spaces/${space.id}/smoke-lab/oauth/authorize`)
       .type("form")
       .send({
         client_id: "smoke-client",
@@ -308,7 +308,7 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
       .expect(302);
 
     await request(app)
-      .post(`/api/companies/${company.id}/smoke-lab/oauth/authorize`)
+      .post(`/api/spaces/${space.id}/smoke-lab/oauth/authorize`)
       .type("form")
       .send({
         client_id: "smoke-client",
@@ -320,7 +320,7 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
   });
 
   it("does not trust the Host header as the OAuth redirect origin", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     await enableSmokeLab(db);
     const app = createRouteApp(db);
     vi.stubEnv("OUTPOST_PUBLIC_URL", "");
@@ -329,7 +329,7 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
     vi.stubEnv("BETTER_AUTH_BASE_URL", "");
 
     await request(app)
-      .get(`/api/companies/${company.id}/smoke-lab/oauth/authorize`)
+      .get(`/api/spaces/${space.id}/smoke-lab/oauth/authorize`)
       .set("Host", "attacker.example")
       .query({
         client_id: "smoke-client",
@@ -340,15 +340,15 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
   });
 
   it("installs smoke fixtures idempotently into tool access tables", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     await enableSmokeLab(db);
-    const app = createRouteApp(db, boardActor(company.id));
+    const app = createRouteApp(db, operatorActor(space.id));
 
     const first = await request(app)
-      .post(`/api/companies/${company.id}/smoke-lab/install-fixtures`)
+      .post(`/api/spaces/${space.id}/smoke-lab/install-fixtures`)
       .expect(201);
     const second = await request(app)
-      .post(`/api/companies/${company.id}/smoke-lab/install-fixtures`)
+      .post(`/api/spaces/${space.id}/smoke-lab/install-fixtures`)
       .expect(200);
 
     expect(first.body.created).toBe(true);
@@ -358,11 +358,11 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
     expect(first.body.catalog.length).toBeGreaterThanOrEqual(6);
     expect(first.body.profileEntries.every((entry: { toolName: string }) => entry.toolName.includes(".") || entry.toolName)).toBe(true);
 
-    const applications = await db.select().from(toolApplications).where(eq(toolApplications.companyId, company.id));
-    const connections = await db.select().from(toolConnections).where(eq(toolConnections.companyId, company.id));
-    const grants = await db.select().from(connectionGrants).where(eq(connectionGrants.companyId, company.id));
-    const catalog = await db.select().from(toolCatalogEntries).where(eq(toolCatalogEntries.companyId, company.id));
-    const profiles = await db.select().from(toolProfiles).where(eq(toolProfiles.companyId, company.id));
+    const applications = await db.select().from(toolApplications).where(eq(toolApplications.spaceId, space.id));
+    const connections = await db.select().from(toolConnections).where(eq(toolConnections.spaceId, space.id));
+    const grants = await db.select().from(connectionGrants).where(eq(connectionGrants.spaceId, space.id));
+    const catalog = await db.select().from(toolCatalogEntries).where(eq(toolCatalogEntries.spaceId, space.id));
+    const profiles = await db.select().from(toolProfiles).where(eq(toolProfiles.spaceId, space.id));
     expect(applications).toHaveLength(2);
     expect(connections).toHaveLength(2);
     expect(grants).toHaveLength(2);
@@ -373,50 +373,50 @@ describeEmbeddedPostgres("smoke lab service pack and results API", () => {
   });
 
   it("creates runs and lets an agent JWT actor record step results", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
     await enableSmokeLab(db);
 
-    const boardApp = createRouteApp(db, boardActor(company.id));
-    const created = await request(boardApp)
-      .post(`/api/companies/${company.id}/smoke-lab/runs`)
+    const operatorApp = createRouteApp(db, operatorActor(space.id));
+    const created = await request(operatorApp)
+      .post(`/api/spaces/${space.id}/smoke-lab/runs`)
       .send({ trigger: "manual", summary: { scenario: "P1" } })
       .expect(201);
     const runId = created.body.run.id;
 
     const [heartbeatRun] = await db.insert(heartbeatRuns).values({
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       invocationSource: "manual",
       status: "running",
     }).returning();
-    const agentApp = createRouteApp(db, agentActor(company.id, agent.id, heartbeatRun!.id));
+    const agentApp = createRouteApp(db, agentActor(space.id, agent.id, heartbeatRun!.id));
     const step = await request(agentApp)
-      .post(`/api/companies/${company.id}/smoke-lab/runs/${runId}/steps`)
+      .post(`/api/spaces/${space.id}/smoke-lab/runs/${runId}/steps`)
       .send({
         path: "P1",
         scenarioStep: "oauth-login",
         status: "pass",
         detail: "OAuth login completed",
-        screenshotArtifactRef: { provider: "paperclip", attachmentId: randomUUID() },
+        screenshotArtifactRef: { provider: "outpost", attachmentId: randomUUID() },
         durationMs: 42,
       })
       .expect(201);
     expect(step.body.step).toMatchObject({ path: "P1", scenarioStep: "oauth-login", status: "pass" });
     expect(step.body.summary).toMatchObject({ totalSteps: 1, passedSteps: 1, failedSteps: 0 });
 
-    const fetched = await request(boardApp)
-      .get(`/api/companies/${company.id}/smoke-lab/runs/${runId}`)
+    const fetched = await request(operatorApp)
+      .get(`/api/spaces/${space.id}/smoke-lab/runs/${runId}`)
       .expect(200);
     expect(fetched.body.steps).toHaveLength(1);
 
-    await request(boardApp)
-      .patch(`/api/companies/${company.id}/smoke-lab/runs/${runId}`)
+    await request(operatorApp)
+      .patch(`/api/spaces/${space.id}/smoke-lab/runs/${runId}`)
       .send({ status: "passed", summary: { totalSteps: 1, passedSteps: 1 } })
       .expect(200);
 
     await request(agentApp)
-      .post(`/api/companies/${company.id}/smoke-lab/runs/${runId}/steps`)
+      .post(`/api/spaces/${space.id}/smoke-lab/runs/${runId}/steps`)
       .send({ path: "P1", scenarioStep: "late", status: "pass" })
       .expect(409);
   });

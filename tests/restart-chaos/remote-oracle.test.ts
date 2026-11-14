@@ -25,7 +25,7 @@ test("slug", () => {
 });
 `,
 };
-const lab = { companyId: "c1", projectId: "p1", environmentId: "e1", environmentKind: "daytona", fixtureRepositoryPath: "/x",
+const lab = { spaceId: "c1", projectId: "p1", environmentId: "e1", environmentKind: "daytona", fixtureRepositoryPath: "/x",
   agents: { codex: { id: "a1", name: "Chaos codex" }, claude: { id: "a2", name: "Chaos claude" } } } as unknown as ChaosLab;
 const plan: TaskPlan = { taskId: "t01", index: 0, workload: "R1", adapter: "codex", fault: "K1", fireAfterMs: 999_999,
   holdMs: 0, followUpAfterMs: null, nonce };
@@ -54,7 +54,7 @@ beforeAll(async () => {
 afterAll(async () => { server.closeAllConnections(); server.close(); });
 
 describe("oracle for a remote workspace", () => {
-  it("reads the task's files through the board API and runs the oracle commands on a local copy", async () => {
+  it("reads the task's files through the operator API and runs the oracle commands on a local copy", async () => {
     const api = {
       baseUrl,
       async get(route: string) {

@@ -92,8 +92,8 @@ export function createDiscordQuestionForms(db: Db, options: DiscordQuestionForms
           .where(
             and(
               eq(
-                issueThreadInteractions.companyId,
-                record.endpoint.companyId,
+                issueThreadInteractions.spaceId,
+                record.endpoint.spaceId,
               ),
               eq(issueThreadInteractions.issueId, conversation.issueId),
               eq(issueThreadInteractions.id, interaction.id),
@@ -104,7 +104,7 @@ export function createDiscordQuestionForms(db: Db, options: DiscordQuestionForms
           .then((rows) => rows[0]);
         const resolved = pending
           ? await resolveChatQuestionFormOpen(tx, {
-              companyId: record.endpoint.companyId,
+              spaceId: record.endpoint.spaceId,
               endpointId: record.endpoint.id,
               conversationId: conversation.id,
               interaction,
@@ -120,7 +120,7 @@ export function createDiscordQuestionForms(db: Db, options: DiscordQuestionForms
         return retainDiscordQuestionFormCorrection(
           createChatSdkStatePersistence(tx as unknown as Db),
           {
-            companyId: record.endpoint.companyId,
+            spaceId: record.endpoint.spaceId,
             endpointId: record.endpoint.id,
           },
           {
@@ -161,7 +161,7 @@ export function createDiscordQuestionForms(db: Db, options: DiscordQuestionForms
       await deleteDiscordQuestionFormCorrection(
         persistence,
         {
-          companyId: record.endpoint.companyId,
+          spaceId: record.endpoint.spaceId,
           endpointId: record.endpoint.id,
         },
         {

@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { subscribeDatabaseWork, agentWakeupRequests, agents, authUsers, companies, companyMemberships, completionContracts, createDb, environmentLeases, environments, heartbeatRuns, issueComments, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations, type Db } from "@outpost/db";
+import { subscribeDatabaseWork, agentWakeupRequests, agents, authUsers, spaces, spaceMemberships, completionContracts, createDb, environmentLeases, environments, heartbeatRuns, issueComments, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations, type Db } from "@outpost/db";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { nativeRunProjectionWork } from "../services/native-runtime/native-run-projection-work.js";
@@ -20,7 +20,7 @@ import { NATIVE_RUN_FAILED_UNEXPLAINED } from "../services/native-runtime/native
 import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
 import { finalizeNativeRun, recordNativeFinalizationFailure } from "../services/native-runtime/native-run-finalizer.js";
 import * as statusCommitter from "../services/native-runtime/status-decision-committer.js";
-import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "../services/native-runtime/outpost-control-plane-port.js";
 import { NativeRunCoordinatorStore } from "../services/native-runtime/native-run-coordinator-store.js";
 import { workspaceOperationService } from "../services/workspace-operations.js";
 import { environmentService } from "../services/environments.js";
@@ -41,7 +41,7 @@ describe("committed native run projection lifecycle", () => {
   let db: Db, root: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let worker: ReturnType<ReturnType<typeof nativeRunProjectionWork>["register"]> | undefined;
-  const companyId = randomUUID(), agentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID();
   const priorLogs = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH;
   let admitted = true;
   const errors: unknown[] = [];
@@ -51,8 +51,8 @@ describe("committed native run projection lifecycle", () => {
     const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_RUN_PROJECTION_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("native-run-projection-");
     db = createDb(external ?? temporary!.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Result commits", issuePrefix: `RC${randomUUID().slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Result worker", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Result commits", issuePrefix: `RC${randomUUID().slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Result worker", adapterType: "outpost_runner" });
   }, 30_000);
   beforeEach(() => {
     admitted = true; errors.length = 0; vi.mocked(emitAgentTaskRun).mockClear();
@@ -61,7 +61,7 @@ describe("committed native run projection lifecycle", () => {
   afterEach(async () => {
     await coordinator?.stop(); coordinator = undefined; worker = undefined;
     vi.useRealTimers(); vi.restoreAllMocks();
-    await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, companyId));
+    await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, spaceId));
     expect(errors).toEqual([]);
   });
   afterAll(async () => {
@@ -91,21 +91,21 @@ describe("committed native run projection lifecycle", () => {
   }
   async function seed(matchesCompletionClaim = false) {
     const runId = randomUUID(), issueId = randomUUID(), contractId = randomUUID(), sourceInstanceId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Commit accepted work", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Commit accepted work", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "result-worker-v1", risk: matchesCompletionClaim ? "low" : "standard",
       completionAuthority: matchesCompletionClaim ? "agent_claim_policy" : "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: matchesCompletionClaim ? CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim.contractRevision : "result-worker-v1", objective: "Finish", criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, runtimeMode: "native", status: "running",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, runtimeMode: "native", status: "running",
       nativeIssueId: issueId, nativeSessionId: runId, runnerInstanceId: sourceInstanceId,
       completionContractId: contractId, completionContractSha256: contractId, contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    return { companyId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
+    return { spaceId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
       completionContractSha256: contractId, sourceInstanceId, controlPlaneSourceInstanceId: "result-worker-test" };
   }
   async function complete(binding: Awaited<ReturnType<typeof seed>>, producer: "control_plane" | "coordinator", writer: Db = db, terminalStatus: "succeeded" | "failed" | "cancelled" = "succeeded") {
-    const port = producer === "control_plane" ? new PaperclipControlPlanePort(writer, binding)
+    const port = producer === "control_plane" ? new OutpostControlPlanePort(writer, binding)
       : new NativeRunCoordinatorStore(writer, { ...binding, normalizedSessionId: binding.sessionId,
         runnerSourceInstanceId: binding.sourceInstanceId,
         completionContractRevision: CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim.contractRevision,
@@ -114,7 +114,7 @@ describe("committed native run projection lifecycle", () => {
       callerResultId: `${binding.runId}:result` });
   }
   async function barrier(binding: Awaited<ReturnType<typeof seed>>) {
-    await workspaceOperationService(db).createRecorder({ companyId, issueId: binding.issueId, heartbeatRunId: binding.runId })
+    await workspaceOperationService(db).createRecorder({ spaceId, issueId: binding.issueId, heartbeatRunId: binding.runId })
       .recordOperation({ phase: "workspace_finalize", cwd: root, run: async () => ({ status: "succeeded", exitCode: 0 }) });
   }
   async function state(runId: string) {
@@ -127,7 +127,7 @@ describe("committed native run projection lifecycle", () => {
     const binding = await seed(); await complete(binding, "control_plane", db, status); await barrier(binding); return binding;
   }
   async function claimedWake(binding: Awaited<ReturnType<typeof seed>>) {
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId, agentId, source: "issue",
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId, agentId, source: "issue",
       status: "claimed", runId: binding.runId, claimedAt: new Date(), payload: { issueId: binding.issueId } }).returning();
     await db.update(heartbeatRuns).set({ wakeupRequestId: wake.id }).where(eq(heartbeatRuns.id, binding.runId));
     return wake;
@@ -142,7 +142,7 @@ describe("committed native run projection lifecycle", () => {
     const started = new Promise<void>(resolve => { entered = resolve; });
     const gate = new Promise<void>(resolve => { release = resolve; });
     const finalizing = (async () => {
-      await workspaceOperationService(db).createRecorder({ companyId, issueId: binding.issueId, heartbeatRunId: binding.runId })
+      await workspaceOperationService(db).createRecorder({ spaceId, issueId: binding.issueId, heartbeatRunId: binding.runId })
         .recordOperation({ phase: "workspace_finalize", cwd: root, run: async () => {
           entered(); await gate; return { status: "succeeded", exitCode: 0 };
         } });
@@ -153,8 +153,8 @@ describe("committed native run projection lifecycle", () => {
     try {
       await started;
       await heartbeatService(db).cancelRun(binding.runId, "Stopped by operator", {
-        cancellationRequestId: randomUUID(), cancellationRequestedByUserId: "board-user",
-        resultJson: { cancelledByActorType: "user", cancelledByUserId: "board-user" },
+        cancellationRequestId: randomUUID(), cancellationRequestedByUserId: "operator-user",
+        resultJson: { cancelledByActorType: "user", cancelledByUserId: "operator-user" },
       });
       stopped = await read(binding.runId);
       [stoppedIssue] = await db.select().from(issues).where(eq(issues.id, binding.issueId));
@@ -191,8 +191,8 @@ describe("committed native run projection lifecycle", () => {
     vi.spyOn(statusCommitter, "commitNativeStatusDecision").mockImplementationOnce(async input => {
       const decision = await commit(input);
       await heartbeatService(db).cancelRun(binding.runId, "Stopped by operator", {
-        cancellationRequestId: randomUUID(), cancellationRequestedByUserId: "board-user",
-        resultJson: { cancelledByActorType: "user", cancelledByUserId: "board-user" },
+        cancellationRequestId: randomUUID(), cancellationRequestedByUserId: "operator-user",
+        resultJson: { cancelledByActorType: "user", cancelledByUserId: "operator-user" },
       });
       stopped = await read(binding.runId);
       [stoppedIssue] = await db.select().from(issues).where(eq(issues.id, binding.issueId));
@@ -222,7 +222,7 @@ describe("committed native run projection lifecycle", () => {
     const run = await read(binding.runId), settled = await readWake(wake.id);
     expect(run.status).toBe(status);
     expect(settled).toMatchObject({ status: status === "succeeded" ? "completed" : status, runId: binding.runId,
-      companyId, agentId, finishedAt: run.finishedAt, error: run.error });
+      spaceId, agentId, finishedAt: run.finishedAt, error: run.error });
     expect(settled.finishedAt).not.toBeNull();
     await projectCommittedRun({ db, run, coordinator: await state(binding.runId) });
     expect(await readWake(wake.id)).toEqual(settled);
@@ -232,12 +232,12 @@ describe("committed native run projection lifecycle", () => {
     const binding = await seed(true);
     await complete(binding, "control_plane");
     const wake = await claimedWake(binding);
-    await workspaceOperationService(db).createRecorder({ companyId, issueId: binding.issueId, heartbeatRunId: binding.runId })
+    await workspaceOperationService(db).createRecorder({ spaceId, issueId: binding.issueId, heartbeatRunId: binding.runId })
       .recordOperation({ phase: "workspace_finalize", cwd: root,
         run: async () => ({ status: scope === "workspace" ? "failed" : "succeeded", exitCode: scope === "workspace" ? 1 : 0 }) });
     await heartbeatService(db).cancelRun(binding.runId, "Stopped by operator", {
-      cancellationRequestId: randomUUID(), cancellationRequestedByUserId: "board-user",
-      resultJson: { cancelledByActorType: "user", cancelledByUserId: "board-user" },
+      cancellationRequestId: randomUUID(), cancellationRequestedByUserId: "operator-user",
+      resultJson: { cancelledByActorType: "user", cancelledByUserId: "operator-user" },
     });
     const stopped = await read(binding.runId), cancelledWake = await readWake(wake.id);
     expect(stopped.status).toBe("cancelled");
@@ -266,7 +266,7 @@ describe("committed native run projection lifecycle", () => {
   it("preserves Stop that wins after the workspace terminal-failure admission snapshot", async () => {
     const binding = await seed(true); await complete(binding, "control_plane");
     const wake = await claimedWake(binding);
-    await workspaceOperationService(db).createRecorder({ companyId, issueId: binding.issueId, heartbeatRunId: binding.runId })
+    await workspaceOperationService(db).createRecorder({ spaceId, issueId: binding.issueId, heartbeatRunId: binding.runId })
       .recordOperation({ phase: "workspace_finalize", cwd: root, run: async () => ({ status: "failed", exitCode: 1 }) });
     const fail = () => recordNativeFinalizationFailure({ db, runId: binding.runId,
       projectRunStatus: true, failureScope: "workspace" as const, permanent: true, error: new Error("native_workspace_finalize_failed") });
@@ -278,8 +278,8 @@ describe("committed native run projection lifecycle", () => {
       // Let the actual Stop producer win before its failure transaction starts.
       expect((await read(binding.runId)).status).toBe("running");
       await heartbeatService(db).cancelRun(binding.runId, "Stopped by operator", {
-        cancellationRequestId: randomUUID(), cancellationRequestedByUserId: "board-user",
-        resultJson: { cancelledByActorType: "user", cancelledByUserId: "board-user" },
+        cancellationRequestId: randomUUID(), cancellationRequestedByUserId: "operator-user",
+        resultJson: { cancelledByActorType: "user", cancelledByUserId: "operator-user" },
       });
       stopped = await read(binding.runId); cancelledWake = await readWake(wake.id);
       expect(stopped.status).toBe("cancelled");
@@ -356,16 +356,16 @@ describe("committed native run projection lifecycle", () => {
     await finalizeNativeRun({ db, runId: binding.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
     const run = await read(binding.runId), wake = await claimedWake(binding);
     const work = nativeRunProjectionWork(db);
-    const [entry] = await work.load({ companyId, runId: binding.runId });
+    const [entry] = await work.load({ spaceId, runId: binding.runId });
     expect(entry).toMatchObject({ id: binding.runId });
     await work.check(entry);
     expect(await readWake(wake.id)).toMatchObject({ status: status === "succeeded" ? "completed" : status,
       finishedAt: run.finishedAt });
     expect((await read(binding.runId)).finishedAt).toEqual(run.finishedAt);
-    expect(await work.load({ companyId, runId: binding.runId })).toEqual([]);
+    expect(await work.load({ spaceId, runId: binding.runId })).toEqual([]);
   });
 
-  it.each(["unbound", "newer-run", "queued", "cancelled", "foreign-company", "foreign-agent", "live-owner"] as const)(
+  it.each(["unbound", "newer-run", "queued", "cancelled", "foreign-space", "foreign-agent", "live-owner"] as const)(
     "does not settle a %s wake claim", async fault => {
       const binding = await accepted(), wake = await claimedWake(binding);
       await finalizeNativeRun({ db, runId: binding.runId, workspaceFinalizeStatus: "succeeded" });
@@ -373,14 +373,14 @@ describe("committed native run projection lifecycle", () => {
         .set({ runId: fault === "unbound" ? null : randomUUID() }).where(eq(agentWakeupRequests.id, wake.id));
       if (fault === "queued" || fault === "cancelled") await db.update(agentWakeupRequests)
         .set({ status: fault }).where(eq(agentWakeupRequests.id, wake.id));
-      if (fault === "foreign-company") {
-        const otherCompany = randomUUID();
-        await db.insert(companies).values({ id: otherCompany, name: "Other wake owner", issuePrefix: `OW${randomUUID().slice(0, 6)}` });
-        await db.update(agentWakeupRequests).set({ companyId: otherCompany }).where(eq(agentWakeupRequests.id, wake.id));
+      if (fault === "foreign-space") {
+        const otherSpace = randomUUID();
+        await db.insert(spaces).values({ id: otherSpace, name: "Other wake owner", issuePrefix: `OW${randomUUID().slice(0, 6)}` });
+        await db.update(agentWakeupRequests).set({ spaceId: otherSpace }).where(eq(agentWakeupRequests.id, wake.id));
       }
       if (fault === "foreign-agent") {
         const otherAgent = randomUUID();
-        await db.insert(agents).values({ id: otherAgent, companyId, name: "Other wake owner", adapterType: "outpost_runner" });
+        await db.insert(agents).values({ id: otherAgent, spaceId, name: "Other wake owner", adapterType: "outpost_runner" });
         await db.update(agentWakeupRequests).set({ agentId: otherAgent }).where(eq(agentWakeupRequests.id, wake.id));
       }
       if (fault === "live-owner") await db.update(heartbeatRuns).set({ status: "running", nativePhase: "terminal_failure",
@@ -454,7 +454,7 @@ describe("committed native run projection lifecycle", () => {
     await projectCommittedRun({ db, run, coordinator: await state(binding.runId) });
     expect(await read(binding.runId)).toMatchObject({ status: "failed", errorCode: expectedCode, error: expectedError });
   });
-  it("ignores routine company-only finalization hints and still repairs a committed run", async () => {
+  it("ignores routine space-only finalization hints and still repairs a committed run", async () => {
     await start(); await flush(); await quiet();
     const previous = db.$client.options.debug;
     const queries: string[] = [];
@@ -463,7 +463,7 @@ describe("committed native run projection lifecycle", () => {
     };
     try {
       for (let index = 0; index < 3; index += 1) {
-        await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, { companyId }); });
+        await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, { spaceId }); });
         await flush();
       }
       expect(queries).toEqual([]);
@@ -668,28 +668,28 @@ describe("committed native run projection lifecycle", () => {
     async function deferredComment(binding: Awaited<ReturnType<typeof seed>>, bodies = ["Also include the FOLLOWUP line."]) {
       await db.insert(authUsers).values({ id: commenter, name: "Commenter", email: `${commenter}@example.test`,
         createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-      await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: commenter,
+      await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: commenter,
         status: "active", membershipRole: "operator" }).onConflictDoNothing();
       // One provider slot is held by another task, so a promoted follow-up stays
       // queued here instead of starting a provider.
       await db.update(agents).set({ runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } }).where(eq(agents.id, agentId));
-      [{ id: busyRunId }] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "running",
+      [{ id: busyRunId }] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "running",
         contextSnapshot: { issueId: randomUUID() } }).returning({ id: heartbeatRuns.id });
-      const comments = await db.insert(issueComments).values(bodies.map(body => ({ companyId, issueId: binding.issueId,
+      const comments = await db.insert(issueComments).values(bodies.map(body => ({ spaceId, issueId: binding.issueId,
         authorUserId: commenter, body }))).returning();
       const ids = comments.map(comment => comment.id), latest = ids[ids.length - 1];
       // The durable receipt the comment route writes while the run is active.
-      const [wake] = await db.insert(agentWakeupRequests).values({ companyId, agentId, source: "automation",
+      const [wake] = await db.insert(agentWakeupRequests).values({ spaceId, agentId, source: "automation",
         triggerDetail: "system", reason: "issue_commented", status: "deferred_issue_execution",
         requestedByActorType: "user", requestedByActorId: commenter,
-        payload: { issueId: binding.issueId, commentId: latest, _paperclipWakeContext: {
+        payload: { issueId: binding.issueId, commentId: latest, _outpostWakeContext: {
           issueId: binding.issueId, taskId: binding.issueId, commentId: latest, wakeCommentId: latest,
           wakeCommentIds: ids, wakeReason: "issue_commented", source: "issue.comment" } },
       }).returning();
       // The killed executor never reached its cleanup, so its local lease is still active.
       const environmentId = (await db.select({ id: environments.id }).from(environments).where(eq(environments.driver, "local")))[0]?.id
         ?? (await db.insert(environments).values({ name: "Local", driver: "local" }).returning())[0].id;
-      const lease = await environmentService(db).acquireLease({ companyId, environmentId, heartbeatRunId: binding.runId,
+      const lease = await environmentService(db).acquireLease({ spaceId, environmentId, heartbeatRunId: binding.runId,
         issueId: binding.issueId, leasePolicy: "ephemeral", provider: "local" });
       return { comment: comments[0], comments, wake, lease };
     }
@@ -698,8 +698,8 @@ describe("committed native run projection lifecycle", () => {
     // that its turn received it.
     async function steer(binding: Awaited<ReturnType<typeof seed>>, wakeId: string, commentId: string) {
       const wake = await readWake(wakeId);
-      const remaining = (wake.payload as { _paperclipWakeContext: { wakeCommentIds: string[] } })
-        ._paperclipWakeContext.wakeCommentIds.filter(id => id !== commentId);
+      const remaining = (wake.payload as { _outpostWakeContext: { wakeCommentIds: string[] } })
+        ._outpostWakeContext.wakeCommentIds.filter(id => id !== commentId);
       await db.update(agentWakeupRequests).set({ payload: withQueuedCommentIdsInWakePayload(wake.payload, remaining) })
         .where(eq(agentWakeupRequests.id, wakeId));
       const run = await read(binding.runId);
@@ -745,8 +745,8 @@ describe("committed native run projection lifecycle", () => {
       expect((await followUps(binding.issueId, binding.runId)).map(run => run.id)).toEqual([followUp.id]);
     });
 
-    it("hints the saved comment's own wake when recovery projects its run, not only the company", async () => {
-      // A company hint waits out the deferred-receipt worker's reconstruction
+    it("hints the saved comment's own wake when recovery projects its run, not only the space", async () => {
+      // A space hint waits out the deferred-receipt worker's reconstruction
       // interval after the decision commit's pass, so the task looked done
       // with its message still unread (RC-37, s7401 replay).
       const binding = await seed(true);
@@ -809,9 +809,9 @@ describe("committed native run projection lifecycle", () => {
       expect(followUp).toMatchObject({ id: (await readWake(wake.id)).runId, status: "queued" });
       // A click that observed the recovered source is stale; one that observed
       // the follow-up joins it. Neither admits another run with the comment.
-      expect(await requestTaskRetry({ db, companyId, issueId: binding.issueId, actorId: commenter,
+      expect(await requestTaskRetry({ db, spaceId, issueId: binding.issueId, actorId: commenter,
         idempotencyKey: randomUUID(), observedRunId: binding.runId })).toMatchObject({ accepted: false, stale: true });
-      expect(await requestTaskRetry({ db, companyId, issueId: binding.issueId, actorId: commenter,
+      expect(await requestTaskRetry({ db, spaceId, issueId: binding.issueId, actorId: commenter,
         idempotencyKey: randomUUID(), observedRunId: followUp.id })).toMatchObject({ accepted: true });
       await flush(); await heartbeatService(db).resumeQueuedRuns();
       const runs = await followUps(binding.issueId, binding.runId);

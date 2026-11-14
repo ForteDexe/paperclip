@@ -94,7 +94,7 @@ jobs:
     # falls back to GitHub-hosted runners, including raced merge dispatches.
     name: Check preview artifacts
     if: github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch' && (inputs.channel == 'preview' || inputs.channel == 'cloud-migrator') && !inputs.dry_run
-    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt == 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.event_name == 'workflow_dispatch' && inputs.channel == 'cloud-migrator' && github.sha != '' && inputs.source_ref == github.sha && 'runs-on/fleet=paperclip-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt == 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.event_name == 'workflow_dispatch' && inputs.channel == 'cloud-migrator' && github.sha != '' && inputs.source_ref == github.sha && 'runs-on/fleet=outpost-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
     permissions:
       contents: read
     # Preserve the previous hosted default; only AWS needs the Fleet limit.
@@ -122,7 +122,7 @@ jobs:
     name: Build preview migrator
     needs: plan_preview
     if: needs.plan_preview.outputs.packages == 'true'
-    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt == 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.event_name == 'workflow_dispatch' && inputs.channel == 'cloud-migrator' && github.sha != '' && inputs.source_ref == github.sha && 'runs-on/fleet=paperclip-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt == 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.event_name == 'workflow_dispatch' && inputs.channel == 'cloud-migrator' && github.sha != '' && inputs.source_ref == github.sha && 'runs-on/fleet=outpost-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -541,7 +541,7 @@ jobs:
     permissions:
       contents: read
     env:
-      PAPERCLIPAI_VERSION: ${{ needs.publish_canary.outputs.canary_version }}
+      OUTPOST_VERSION: ${{ needs.publish_canary.outputs.canary_version }}
       OUTPOST_PLAYWRIGHT_CHANNEL: chrome
 
     steps:
@@ -693,7 +693,7 @@ jobs:
     if: needs.select_nightly.outputs.proceed == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
     uses: ./.github/workflows/release-smoke.yml
     with:
-      paperclip_version: ${{ needs.select_nightly.outputs.canary_version }}
+      outpost_version: ${{ needs.select_nightly.outputs.canary_version }}
       artifact_name: nightly-release-smoke
 
   publish_nightly:
@@ -1218,7 +1218,7 @@ jobs:
     if: ${{ !cancelled() && needs.publish_beta.result == 'success' && !inputs.dry_run }}
     uses: ./.github/workflows/release-smoke.yml
     with:
-      paperclip_version: ${{ needs.publish_beta.outputs.beta_version }}
+      outpost_version: ${{ needs.publish_beta.outputs.beta_version }}
       artifact_name: beta-release-smoke
 
   # ----- Stable lane ------------------------------------------------------
@@ -1313,7 +1313,7 @@ jobs:
 
           beta_version="${beta_tag#beta/v}"
           echo "beta_version=${beta_version}" >> "$GITHUB_OUTPUT"
-          publish_time="$(npm view "paperclipai@${beta_version}" time --json 2>/dev/null \
+          publish_time="$(npm view "@outpost/cli@${beta_version}" time --json 2>/dev/null \
             | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const t=JSON.parse(d);process.stdout.write(typeof t === "string" ? t : (t[process.argv[1]] ?? ""))})' "$beta_version" || true)"
           if [ -z "$publish_time" ]; then
             fail_or_justify "could not determine the npm publish time of beta ${beta_version}."

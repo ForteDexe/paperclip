@@ -1,15 +1,15 @@
-# Public Paperclip MCP connection
+# Public Outpost MCP connection
 
 The first-release implementation connects an external assistant **as a person**
-to one explicitly selected company. It exposes first-party task operations and
-keeps normal Paperclip authorization, scheduling, attribution, budgets and
+to one explicitly selected space. It exposes first-party task operations and
+keeps normal Outpost authorization, scheduling, attribution, budgets and
 approvals. The existing named agent gateways and native runner checks remain
 separate. The accepted roadmap is in
-[the implementation plan](plans/2026-09-30-paperclip-public-mcp-and-plugins.md).
+[the implementation plan](plans/2026-09-30-outpost-public-mcp-and-plugins.md).
 
 ## Enable an instance
 
-Apply database migrations with the normal instance upgrade workflow. In Paperclip,
+Apply database migrations with the normal instance upgrade workflow. In Outpost,
 open **Settings → Experimental → Assistant connections (MCP)** and turn it on.
 Instance administrators can change this setting. It is off by default and takes
 effect immediately without restarting the server.
@@ -17,7 +17,7 @@ effect immediately without restarting the server.
 Use the instance's configured authentication public URL, or explicitly set:
 
 ```sh
-OUTPOST_PUBLIC_URL=https://YOUR-PAPERCLIP-HOST
+OUTPOST_PUBLIC_URL=https://YOUR-OUTPOST-HOST
 ```
 
 The retired `OUTPOST_PUBLIC_MCP_ENABLED` variable has no effect. The persisted
@@ -28,11 +28,11 @@ unexpired connections and subscriptions to resume.
 
 The URL must be an origin without a path, credentials, query or fragment. HTTP
 is allowed only for localhost/loopback development. The feature is disabled by
-default. Use authenticated deployment with real user accounts and company
+default. Use authenticated deployment with real user accounts and space
 memberships; local implicit board authority and agent/board API keys cannot
 approve user OAuth connections. Configure `TRUST_PROXY` correctly at your edge.
 
-The endpoint is `POST /mcp/paperclip`, using stateless Streamable HTTP with JSON
+The endpoint is `POST /mcp/outpost`, using stateless Streamable HTTP with JSON
 responses. GET/SSE sessions are unnecessary. Each invocation verifies its bearer
 token again; normal API endpoints do not accept these OAuth tokens. Public
 installation requires a reachable HTTPS deployment. Private self-hosted
@@ -47,7 +47,7 @@ authorization.
 ## Start from Connections
 
 Inside your organization, open **Connectors → Assistant Connection (MCP) → Set up**.
-This connects an outside assistant to Paperclip using your human account; no agent
+This connects an outside assistant to Outpost using your human account; no agent
 is selected or impersonated. The entry is discoverable while disabled, but its
 setup instructions require the experimental setting. Follow **Open Experimental
 settings**, enable **Assistant connections (MCP)**, then return to setup.
@@ -65,11 +65,11 @@ provide the same version-aware instructions for assistants without browser acces
 connectors and headless clients. Browser clients may require adding a connector
 in their settings; reading an invitation cannot install one. A running client may
 need a restart or a fresh conversation to load its tools. Verify the organization
-with `paperclip_connection` before doing work. Keep existing client configuration,
-and use a distinct server name when another Paperclip instance is already present.
+with `outpost_connection` before doing work. Keep existing client configuration,
+and use a distinct server name when another Outpost instance is already present.
 
-For OpenCode, merge the displayed `mcp.paperclip` entry into your project’s
-`opencode.json`, run `opencode mcp auth paperclip` there, approve the organization,
+For OpenCode, merge the displayed `mcp.outpost` entry into your project’s
+`opencode.json`, run `opencode mcp auth outpost` there, approve the organization,
 then start `opencode web`. Restart an already-running OpenCode after authentication.
 An assistant invoking authorization through a shell tool must keep the command
 alive in a persistent terminal or background process and share its approval URL
@@ -105,17 +105,17 @@ After the instance is enabled and reachable, an existing team member can connect
 without a store listing. For Codex CLI:
 
 ```sh
-codex mcp add paperclip --url https://YOUR-PAPERCLIP-HOST/mcp/paperclip
-codex mcp login paperclip --scopes paperclip:read,paperclip:write,paperclip:configure,offline_access
+codex mcp add outpost --url https://YOUR-OUTPOST-HOST/mcp/outpost
+codex mcp login outpost --scopes outpost:read,outpost:write,outpost:configure,offline_access
 ```
 
 For Claude Code:
 
 ```sh
-claude mcp add --transport http paperclip https://YOUR-PAPERCLIP-HOST/mcp/paperclip
+claude mcp add --transport http outpost https://YOUR-OUTPOST-HOST/mcp/outpost
 ```
 
-Open Claude Code's `/mcp` menu and authenticate the Paperclip server. Both flows
+Open Claude Code's `/mcp` menu and authenticate the Outpost server. Both flows
 open browser sign-in and consent: review the selected organization (or choose one for a direct instance connection) and review the write-access checkbox. It starts checked when the assistant requests
 writes and your organization role allows them; uncheck it for read-only access. Read-only consent cannot delegate work.
 
@@ -123,7 +123,7 @@ Ask the assistant to identify the connected organization and list its agents, th
 it to delegate a small task to an available agent. The returned task link is the
 durable reference. In a later conversation, ask for that task's progress and
 report. Configure the agent's provider credentials, execution environment and
-budget in Paperclip before expecting it to run; the assistant connection does
+budget in Outpost before expecting it to run; the assistant connection does
 not supply them. Revocation is available at `/assistant-connections`.
 
 The optional [workflow packages](../integrations/assistant-plugins/README.md)
@@ -136,18 +136,18 @@ installation requires the separate deployment and submission work below.
 With a CLI build that includes this feature:
 
 ```sh
-paperclipai mcp login --device --url https://YOUR-PAPERCLIP-HOST/mcp/paperclip
-paperclipai mcp proxy --url https://YOUR-PAPERCLIP-HOST/mcp/paperclip
+outpost mcp login --device --url https://YOUR-OUTPOST-HOST/mcp/outpost
+outpost mcp proxy --url https://YOUR-OUTPOST-HOST/mcp/outpost
 ```
 
-Add `--company <organization UUID>` to login to restrict the consent choice.
+Add `--space <organization UUID>` to login to restrict the consent choice.
 Login prints a human verification URL and code. Open that URL, sign in, compare
 the code, and approve or decline. The private device code and issued tokens stay
 inside the CLI. Configure the second command as a local stdio MCP server in a host
 without native device support. Do not copy tokens into chat or MCP configuration.
 
 The CLI stores credentials separately under `$OUTPOST_HOME/mcp` (default
-`~/.paperclip/mcp`), with a private directory and files, atomic replacement and a
+`~/.outpost/mcp`), with a private directory and files, atomic replacement and a
 cross-process refresh mutex. It forwards only to the exact bound resource and
 rejects redirects. A failed write is never retried automatically because it may
 already have completed. Revoke access from Connections when finished.
@@ -156,7 +156,7 @@ The device endpoint is `/mcp/oauth/device_authorization`, browser verification i
 `/mcp-device`, and the token endpoint accepts the RFC 8628 device grant. Pending
 requests have separately hashed codes, ten-minute expiry, five-second initial
 polling, persistent backoff and atomic redemption. Shared database quotas bound
-new requests. Consent uses the same company, role, scope, grant, audit and
+new requests. Consent uses the same space, role, scope, grant, audit and
 revocation checks as browser OAuth. This is human authorization, not client
 credentials or agent impersonation. Both flows require the experimental setting.
 
@@ -166,7 +166,7 @@ does not advertise device or CIMD support until separately implemented.
 
 ## Identity and consent
 
-- Protected-resource discovery: `/.well-known/oauth-protected-resource/mcp/paperclip`.
+- Protected-resource discovery: `/.well-known/oauth-protected-resource/mcp/outpost`.
 - Authorization-server discovery: `/.well-known/oauth-authorization-server`.
 - Public-client registration: `/mcp/oauth/register`.
 - Authorization, token and revocation endpoints: `/mcp/oauth/authorize`,
@@ -194,7 +194,7 @@ clients. CIMD uses an HTTPS client ID URL with an exact matching `client_id`,
 required registered redirects, a 32 KiB response limit, a bounded cache, and
 guarded DNS/HTTP fetching that rejects private networks and redirects. Supplied
 names are not proof of a brand identity. Client documents can list capabilities
-used with other servers; Paperclip retains only its implemented grants. Extra
+used with other servers; Outpost retains only its implemented grants. Extra
 capabilities such as Claude web’s JWT-bearer grant do not enable that grant here.
 Verified native loopback callbacks may vary only their port; the exact authorized
 callback remains bound to code redemption. Authorization responses include `iss`.
@@ -212,15 +212,15 @@ revoked or their agent/operator loses access. Migration `0319_heavy_captain_midl
 removes the old expiry from valid, unused Dot refresh tokens on unrevoked grants.
 Expired credentials remain expired.
 Replaying a consumed refresh token still revokes its entire grant. Tokens and codes
-are hashed at rest. `paperclip:read` is required; `paperclip:write` adds only task
-work and attachment mutations on direct connections. The `paperclip:configure`
-scope covers allowed configuration operations. One **Write all of your Paperclip
+are hashed at rest. `outpost:read` is required; `outpost:write` adds only task
+work and attachment mutations on direct connections. The `outpost:configure`
+scope covers allowed configuration operations. One **Write all of your Outpost
 data** consent checkbox approves both requested mutation scopes. Scope expansion
 requires a new consent flow; the directory broker retains its original operations.
 
-Each grant records the person, client, company, resource and scopes. Membership
-and company availability are rechecked at execution. Instance admin status does
-not elevate a grant beyond that company's role. Consent/revocation require an
+Each grant records the person, client, space, resource and scopes. Membership
+and space availability are rechecked at execution. Instance admin status does
+not elevate a grant beyond that space's role. Consent/revocation require an
 authenticated browser and the configured origin. Client registration does not
 fetch redirect URLs or accept arbitrary tool destinations. Rate limiting at the
 public edge is required in addition to the bounded per-process auth limiter.
@@ -231,7 +231,7 @@ registration. Clients with grants are retained, preserving their connections and
 audit/mutation history.
 
 Revocation blocks future calls; it does not cancel already delegated work or
-undo in-flight mutations. Manage existing tasks and execution in Paperclip.
+undo in-flight mutations. Manage existing tasks and execution in Outpost.
 Audit records identify the human caller and connection/client for mutations.
 OAuth credential bodies and redirect locations are redacted from HTTP logs.
 
@@ -239,24 +239,24 @@ OAuth credential bodies and redirect locations are redacted from HTTP logs.
 
 | Tool | Effect |
 | --- | --- |
-| `paperclip_connection` | Person, company, scopes, connection management link |
-| `paperclip_list_agents` | Safe agent summary and availability |
-| `paperclip_list_projects` | Safe project summary |
-| `paperclip_search_tasks` | Bounded task search with offset pagination |
-| `paperclip_read_task` | Current task plus recent comments/history |
-| `paperclip_create_task` | Assigned task, submitted to existing scheduling |
-| `paperclip_add_comment` | Human feedback; may wake or queue work |
-| `paperclip_list_deliverables` | Documents, attachments and work-product references |
-| `paperclip_read_document` | Durable document body and current revision |
-| `paperclip_pending_approvals` | Pending approvals and existing decision links |
+| `outpost_connection` | Person, space, scopes, connection management link |
+| `outpost_list_agents` | Safe agent summary and availability |
+| `outpost_list_projects` | Safe project summary |
+| `outpost_search_tasks` | Bounded task search with offset pagination |
+| `outpost_read_task` | Current task plus recent comments/history |
+| `outpost_create_task` | Assigned task, submitted to existing scheduling |
+| `outpost_add_comment` | Human feedback; may wake or queue work |
+| `outpost_list_deliverables` | Documents, attachments and work-product references |
+| `outpost_read_document` | Durable document body and current revision |
+| `outpost_pending_approvals` | Pending approvals and existing decision links |
 
-Every company-scoped call requires its explicit authorized company ID. The
+Every space-scoped call requires its explicit authorized space ID. The
 server emits bounded projections without upstream credentials. Direct connections
-can read the allowed operating configuration through the expanded tools below. URLs include the company's prefix so unrelated browser company
+can read the allowed operating configuration through the expanded tools below. URLs include the space's prefix so unrelated browser space
 selection cannot redirect the user to a different team's approval interface.
 
 Writes require a UUID `requestId`, unique per intended action. A durable receipt
-is reserved before dispatch, keyed by person, company, operation and request ID (with the originating grant recorded for audit). Matching
+is reserved before dispatch, keyed by person, space, operation and request ID (with the originating grant recorded for audit). Matching
 retries, including after a new authorization grant, replay the recorded result; changed arguments are rejected. A concurrent
 or unconfirmed result is reported as `outcome: unknown`. Inspect the task and
 comments before another action; never retry with a new ID to force success.
@@ -273,7 +273,7 @@ task is not proof that an agent started or finished it.
 Create a hosted organization through Cloud before approving a connection.
 Provisioning, mission/template selection,
 model credentials, execution capacity and spending remain owned by Cloud.
-Installing a plugin never provisions a company or starts paid agents.
+Installing a plugin never provisions a space or starts paid agents.
 
 This repository implements the instance-side connection and vendor packages.
 The companion Cloud implementation supplies the stable public resource, an
@@ -285,7 +285,7 @@ and links to tenant setup for mission, templates, execution and spending.
 The Cloud broker forwards the original PKCE challenge to tenant OAuth, validates
 the resulting person, and wraps tenant credentials in encrypted tokens bound to
 client, workspace and resource. Every call rechecks current Cloud membership and
-verified routing; the tenant rechecks company permissions and revocation.
+verified routing; the tenant rechecks space permissions and revocation.
 Cloud stores request metadata and code hashes, not raw tenant tokens. Unknown
 mutation outcomes preserve the existing request-ID receipt contract.
 
@@ -331,9 +331,9 @@ The request ID binds a UUID and the SHA-256 digest of this ordered, UTF-8 JSON
 field tuple:
 
 ```text
-["paperclip-dot-original-principal-v1", "mcp-dot:principal", expectedInstanceId,
+["outpost-dot-original-principal-v1", "mcp-dot:principal", expectedInstanceId,
  canonicalVerifiedResource, upstreamClientId, selectingUserId,
- requestedCompanyId ?? null, accessToken]
+ requestedSpaceId ?? null, accessToken]
 ```
 
 This covers every accepted body field, independent of JSON property order.
@@ -341,9 +341,9 @@ The raw request is limited to 16 KiB; compressed bodies, invalid UTF-8, malforme
 JSON and unknown fields are rejected. The resource must be the current origin's
 `/mcp/runner`. The stack, claim, instance, origin and connector identity must
 remain current before and after the OAuth call. OAuth authenticates the original
-token once and retains its client, selected user, company, purpose, scope,
+token once and retains its client, selected user, space, purpose, scope,
 membership and feature checks. The reply contains only the checked user,
-company, grant, client, resource and agent-purpose identity. It creates no board
+space, grant, client, resource and agent-purpose identity. It creates no board
 actor, grant, agent binding or execution authority.
 
 The original token and signed request remain credentials. Request/response
@@ -372,9 +372,9 @@ directory broker keeps its original ten-tool connection.
 
 | Event | Required filters | Payload |
 | --- | --- | --- |
-| `outpost.task.status_changed` | `companyId`, `taskId`; optional `statuses` | Task ID, status, company ID and task link |
-| `outpost.task.comment_created` | `companyId`, `taskId` | Task/company IDs, comment ID and task link |
-| `outpost.task.document_updated` | `companyId`, `taskId` | Task/company IDs, document key, revision and task link |
+| `outpost.task.status_changed` | `spaceId`, `taskId`; optional `statuses` | Task ID, status, space ID and task link |
+| `outpost.task.comment_created` | `spaceId`, `taskId` | Task/space IDs, comment ID and task link |
+| `outpost.task.document_updated` | `spaceId`, `taskId` | Task/space IDs, document key, revision and task link |
 
 In an Events-capable ChatGPT Work Cloud chat or dot, ask, for example:
 “Watch this task. When it finishes, read its report and tell me the result.”
@@ -384,9 +384,9 @@ connecting alone does not start monitoring. Claude and other clients without
 Events support can continue retrieving results through the read tools.
 
 Callback and hosted-authority verification reserve durable capacity before any
-remote request. Across replicas, at most 2 verifications per grant, 8 per company
+remote request. Across replicas, at most 2 verifications per grant, 8 per space
 and 32 per instance can run concurrently. Attempts are bounded to 30 per grant,
-200 per company and 1,000 per instance per minute, including failed verification.
+200 per space and 1,000 per instance per minute, including failed verification.
 New monitors reserve subscription quota before verification; leases expire after
 one minute. Network waits hold no database transaction, and expired, cancelled
 or revoked requests cannot finalize a subscription.
@@ -403,7 +403,7 @@ subscriptions last at most five minutes and never outlive the broker access
 proof: refresh the OAuth token before refreshing a subscription when necessary.
 The tenant verifies that proof through the fixed `OUTPOST_CLOUD_API_ORIGIN`
 broker before each delivery, checking current Cloud membership as well as local
-company membership, grant revocation and task access. A compatible Cloud broker
+space membership, grant revocation and task access. A compatible Cloud broker
 must be deployed first for hosted Events. Direct connections to a Cloud tenant
 without a broker authority proof cannot create event subscriptions.
 
@@ -415,14 +415,14 @@ across retries while signatures receive fresh timestamps. HTTP 410 stops a
 monitor; 413 and other permanent failures are not retried. Secret rotation signs
 with both keys for five minutes. Expired subscriptions and their receipts are
 removed on the next admission or after seven days; active quotas are 20 per
-grant, 100 per company and 1,000 per instance. Unsubscribe frees the subscription and its receipts.
+grant, 100 per space and 1,000 per instance. Unsubscribe frees the subscription and its receipts.
 
 This release returns `cursor: null`: it does not offer protocol replay after an
 expired/stopped subscription. Use task history and document tools to recover
 missed changes. In-flight requests may finish during unsubscribe/revocation;
 subsequent attempts recheck access. Events are data, and may be duplicated or
 out of order. Do not post comments merely to acknowledge comments or documents,
-which would risk a feedback loop. Approval decisions remain in Paperclip.
+which would risk a feedback loop. Approval decisions remain in Outpost.
 
 See [OpenAI's MCP Events guide](https://developers.openai.com/plugins/build/mcp-events)
 for currently supported client surfaces. Actual staging ChatGPT subscription,
@@ -452,20 +452,20 @@ interactive product preview; Reset this screen restores that step’s fixture.
 Each screen starts fresh, so sample state does not persist between chapters.
 
 The Cloud walkthrough covers sign-in, choosing or creating an organization,
-readiness, and the handoff. The Paperclip walkthrough covers the experimental
+readiness, and the handoff. The Outpost walkthrough covers the experimental
 setting, organization consent, example delegation and retrieval conversations, and
 revocation. Assistant conversations are explicitly illustrative; product
 screens use isolated service fixtures. No paid work or real OAuth runs here.
 
-Local cross-links expect Paperclip Storybook on port 6106 and Cloud on 6107.
+Local cross-links expect Outpost Storybook on port 6106 and Cloud on 6107.
 The default scripts use port 6006; launch these in separate terminals with
 explicit overrides:
 
 ```sh
-# From the Paperclip repository's ui/ directory:
+# From the Outpost repository's ui/ directory:
 pnpm exec storybook dev --port 6106 --config-dir storybook/.storybook --no-open
 
-# From the paperclip-cloud repository's web/ directory:
+# From the outpost-cloud repository's web/ directory:
 npm run storybook -- --port 6107
 ```
 
@@ -475,18 +475,18 @@ story so the presentation itself never advances automatically.
 
 ### One organization from Cloud through consent
 
-Cloud selects an organization once and sends its registry company ID as the
-optional OAuth `company_id` parameter. Paperclip persists it as
-`mcp_oauth_requests.requested_company_id`, filters the consent response to that
-company, and rejects approval for any other company even if the user belongs to
+Cloud selects an organization once and sends its registry space ID as the
+optional OAuth `space_id` parameter. Outpost persists it as
+`mcp_oauth_requests.requested_space_id`, filters the consent response to that
+space, and rejects approval for any other space even if the user belongs to
 both. It is a scope restriction, never a substitute for active membership or
-explicit read/write consent. A deleted, archived, or inaccessible company cannot
+explicit read/write consent. A deleted, archived, or inaccessible space cannot
 fall back to another one. The UI shows the fixed organization and permissions,
 with cancel/reconnect guidance if it is unavailable.
 
-Direct instance requests without `company_id` retain their organization picker.
+Direct instance requests without `space_id` retain their organization picker.
 There is no separate “team” entity in this flow. Cloud’s organization maps to its
-stack’s primary Paperclip company; the stack is hosting infrastructure. The hosted
+stack’s primary Outpost space; the stack is hosting infrastructure. The hosted
 walkthrough uses **Consent → Hosted organization**; direct selection, read-only,
 and unavailable-organization variants remain separately inspectable.
 
@@ -499,44 +499,44 @@ Existing direct requests and grants are unchanged.
 Direct instance connections expose 37 explicitly registered operations. The central
 public directory broker retains its original ten tools and rejects expanded calls.
 The existing experimental setting gates both surfaces; sharing a setup link still
-conveys no authority. Consent has one **Write all of your Paperclip data** checkbox,
+conveys no authority. Consent has one **Write all of your Outpost data** checkbox,
 checked by default for eligible roles. It approves the requested work and
 configuration scopes together; unchecking it grants read-only access. Clients must
-request `paperclip:configure` to configure agents, projects and skills. Existing
+request `outpost:configure` to configure agents, projects and skills. Existing
 write connections do not acquire this scope, including after refresh; reconnect
 with the expanded scopes to approve it.
-Normal Paperclip permissions are required in addition to the connection scope.
+Normal Outpost permissions are required in addition to the connection scope.
 
-- Work (`paperclip:write`): update, finish or block tasks; write Markdown documents;
+- Work (`outpost:write`): update, finish or block tasks; write Markdown documents;
   register or update deliverables; upload attachments. Assignment and status changes
-  can schedule agents. Pending execution reviews must be decided in Paperclip.
-- Configuration (`paperclip:configure`): edit existing agents, model/budget and
+  can schedule agents. Pending execution reviews must be decided in Outpost.
+- Configuration (`outpost:configure`): edit existing agents, model/budget and
   existing connection bindings; edit instructions; create/update projects and choose
   accessible repositories; create/update organization skills and their files.
   Credentials, execution commands, policies and agent creation are excluded.
-- Reads (`paperclip:read`): task/document history, agent instructions, skill files,
+- Reads (`outpost:read`): task/document history, agent instructions, skill files,
   accessible repository choices and attachment downloads. Native domain read
   permissions still apply. Revision IDs from reads are required for content edits.
 
-`paperclip_search_api` describes the same allowlisted named operations and their
-schemas. `paperclip_call_api` takes an operation identifier and validated arguments.
+`outpost_search_api` describes the same allowlisted named operations and their
+schemas. `outpost_call_api` takes an operation identifier and validated arguments.
 It cannot accept an arbitrary URL, REST path, credential or actor override. Both
 interfaces share scope checks and mutation receipts. Reuse the same request UUID
 and arguments after a timeout. An unknown result means execution is uncertain;
 inspect current state or retry that identity instead of starting another action.
 
 To attach a video, compute its byte size and SHA-256, then call
-`paperclip_get_upload_url` with its task, filename, content type and request UUID.
+`outpost_get_upload_url` with its task, filename, content type and request UUID.
 PUT the exact bytes using the returned Content-Type. Success returns the saved
 attachment immediately; **there is no completion call**. Recover a lost response
 by repeating the upload or requesting its URL with the same identity. Conflicting
-bytes are rejected. `paperclip_list_deliverables` includes attachments, documents
-and work products; `paperclip_get_download_url` downloads one authorized attachment.
+bytes are rejected. `outpost_list_deliverables` includes attachments, documents
+and work products; `outpost_get_download_url` downloads one authorized attachment.
 Replacing a binary deliverable uses a new attachment and updates its reference.
 
 File URLs are ten-minute, transfer-specific credentials: keep them out of chat and
 logs. Only their hashes are stored. Use host HTTP/file tools to send/receive bytes;
-if unavailable, upload/download through the Paperclip task page manually. The server
+if unavailable, upload/download through the Outpost task page manually. The server
 never fetches a supplied remote URL or reads a supplied local path. Existing file
 type and size limits apply (10 MB default). Grants, membership, organization,
 experimental availability and write authority are checked again during transfer.
@@ -547,7 +547,7 @@ remain durable. Cloud deployments also need the narrowly scoped transfer proxy.
 Instruction edits require a managed instruction file with a current revision/hash.
 The legacy `promptTemplate.legacy.md` entry has no version protection, so MCP
 rejects edits to it with `MCP_LEGACY_INSTRUCTIONS_UNVERSIONED`. Migrate the legacy
-prompt to a managed instruction file in Paperclip first; native runner behavior
+prompt to a managed instruction file in Outpost first; native runner behavior
 is unchanged.
 
 Client-side tool approval remains separate from OAuth consent. For example, a

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, FileText, Loader2, Wrench } from "lucide-react";
-import { companySkillsApi } from "@/api/companySkills";
+import { spaceSkillsApi } from "@/api/spaceSkills";
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,11 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useNavigate } from "@/lib/router";
 import { parseFrontmatterMarkdown } from "@outpost/shared";
 
-export function TaskSkillPanel({ companyId, skillId }: { companyId: string; skillId: string }) {
+export function TaskSkillPanel({ spaceId, skillId }: { spaceId: string; skillId: string }) {
   const navigate = useNavigate();
   const query = useQuery({
-    queryKey: queryKeys.companySkills.detail(companyId, skillId),
-    queryFn: () => companySkillsApi.detail(companyId, skillId),
+    queryKey: queryKeys.spaceSkills.detail(spaceId, skillId),
+    queryFn: () => spaceSkillsApi.detail(spaceId, skillId),
     refetchOnWindowFocus: true,
     refetchOnMount: "always",
   });

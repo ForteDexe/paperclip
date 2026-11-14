@@ -7,7 +7,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { agents, createDb, executionWorkspaceRepositoryRoots, executionWorkspaceRepositoryAccess, executionWorkspaceRepositories, executionWorkspaces,
-  heartbeatRuns, issues, projects, projectWorkspaces, projectAccessMembers, companyMemberships, authUsers, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
+  heartbeatRuns, issues, projects, projectWorkspaces, projectAccessMembers, spaceMemberships, authUsers, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { executionWorkspaceRepositoryService } from "../services/execution-workspace-repositories.js";
 import { buildNativeExecutionInput } from "../services/native-runtime/native-execution-input.js";
 import { nativeRuntimeContextFixture } from "../services/native-runtime/runtime-context.test-fixture.js";
@@ -47,42 +47,42 @@ const support = await getEmbeddedPostgresTestSupport();
     await db.update(executionWorkspaces).set({ cwd: historicalRoot }).where(eq(executionWorkspaces.id, f.workspace.id));
     const canonicalCwd = await realpath(f.admission.cwd);
     await db.insert(executionWorkspaceRepositoryAccess).values([
-      { companyId: f.companyId, canonicalCwd, rootKey: createHash("sha256").update(canonicalCwd).digest("hex"), kind: "source", scopeId: f.workspace.id },
-      { companyId: f.companyId, canonicalCwd, rootKey: createHash("sha256").update(canonicalCwd).digest("hex"), kind: "reader", scopeId: randomUUID(), issueId: randomUUID(), agentId: randomUUID(), responsibleUserId: "deleted-user" },
+      { spaceId: f.spaceId, canonicalCwd, rootKey: createHash("sha256").update(canonicalCwd).digest("hex"), kind: "source", scopeId: f.workspace.id },
+      { spaceId: f.spaceId, canonicalCwd, rootKey: createHash("sha256").update(canonicalCwd).digest("hex"), kind: "reader", scopeId: randomUUID(), issueId: randomUUID(), agentId: randomUUID(), responsibleUserId: "deleted-user" },
     ]);
     await expect(f.service.prepareForAdmission(peer.admission)).resolves.toEqual([]);
     await expect(f.service.assertPublicationAllowed(peer.admission)).resolves.toBeUndefined();
     const { authorizationService, canActorReadExecutionWorkspace } = await import("../services/authorization.js");
     expect((await authorizationService(db).decide({ actor: peer.actor, action: "issue:read",
-      resource: { type: "issue", companyId: f.companyId, issueId: f.issueId } })).allowed).toBe(false);
+      resource: { type: "issue", spaceId: f.spaceId, issueId: f.issueId } })).allowed).toBe(false);
     expect(await canActorReadExecutionWorkspace(db, peer.actor, f.workspace.id)).toBe(false);
   });
 
   it.each(["anonymous_only", "managed"] as const)("ignores a legacy %s directory reservation while preserving current acquisition restrictions", async mode => {
     const f = await fixture(), peer = await lowTrustPeer(f);
     const canonicalCwd = await realpath(f.admission.cwd);
-    await db.insert(executionWorkspaceRepositoryRoots).values({ companyId: f.companyId, canonicalCwd,
+    await db.insert(executionWorkspaceRepositoryRoots).values({ spaceId: f.spaceId, canonicalCwd,
       rootKey: createHash("sha256").update(canonicalCwd).digest("hex"), mode });
     await expect(f.service.prepareForAdmission(peer.admission)).resolves.toEqual([]);
     await expect(f.request({ kind: "catalog", id: "private-repo" })).resolves.toMatchObject({ kind: "requires_next_admission" });
-    await expect(f.service.request({ companyId: f.companyId, issueId: peer.admission.issueId, actor: peer.actor,
+    await expect(f.service.request({ spaceId: f.spaceId, issueId: peer.admission.issueId, actor: peer.actor,
       request: { repository: { kind: "url", url: "https://github.com/public/new" }, requestKey: randomUUID() } })).rejects.toThrow(/trusted task|Selected workspace source trust/);
-    expect(await db.select().from(executionWorkspaceRepositoryRoots).where(eq(executionWorkspaceRepositoryRoots.companyId, f.companyId)))
+    expect(await db.select().from(executionWorkspaceRepositoryRoots).where(eq(executionWorkspaceRepositoryRoots.spaceId, f.spaceId)))
       .toHaveLength(1);
   });
 
   it("ignores unselected private/protected project aliases but rechecks the directly selected project", async () => {
     const f = await fixture();
-    const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Private source", visibility: "private",
+    const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Private source", visibility: "private",
       executionWorkspacePolicy: { authorizationPolicy: { assignmentPolicy: { mode: "protected" } } } }).returning();
-    await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: project.id, name: "Other configuration", cwd: f.admission.cwd });
+    await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: project.id, name: "Other configuration", cwd: f.admission.cwd });
     await expect(f.service.prepareForAdmission(f.admission)).resolves.toEqual([]);
     await expect(f.service.assertPublicationAllowed(f.admission)).resolves.toBeUndefined();
     await db.update(executionWorkspaces).set({ projectId: project.id }).where(eq(executionWorkspaces.id, f.workspace.id));
     await expect(f.service.prepareForAdmission(f.admission)).rejects.toThrow();
     await db.insert(projectAccessMembers).values([
-      { companyId: f.companyId, projectId: project.id, subjectType: "agent", subjectId: f.agentId },
-      { companyId: f.companyId, projectId: project.id, subjectType: "user", subjectId: f.userId },
+      { spaceId: f.spaceId, projectId: project.id, subjectType: "agent", subjectId: f.agentId },
+      { spaceId: f.spaceId, projectId: project.id, subjectType: "user", subjectId: f.userId },
     ]);
     await expect(f.service.prepareForAdmission(f.admission)).resolves.toEqual([]);
     await db.delete(projectAccessMembers).where(eq(projectAccessMembers.subjectId, f.userId));
@@ -117,8 +117,8 @@ const support = await getEmbeddedPostgresTestSupport();
     const f = await fixture();
     const source = path.join(root, `${f.issueId}-configured-source`);
     await mkdir(source);
-    const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Selected configuration" }).returning();
-    const [configuration] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: project.id,
+    const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Selected configuration" }).returning();
+    const [configuration] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: project.id,
       name: "Source", cwd: source }).returning();
     await db.update(executionWorkspaces).set({ projectId: project.id, projectWorkspaceId: configuration.id }).where(eq(executionWorkspaces.id, f.workspace.id));
     const verify = await f.service.prepareConfiguredRepositoryCopy({ ...f.admission, sourceCwd: source });
@@ -141,12 +141,12 @@ const support = await getEmbeddedPostgresTestSupport();
     const first = await f.request({ kind: "catalog", id: "private-repo" });
     await localPrivateClone(f);
     const [published] = await f.service.prepareForAdmission(f.admission);
-    const next = await f.service.request({ companyId: f.companyId, issueId: peer.issueId, actor: peer.actor,
+    const next = await f.service.request({ spaceId: f.spaceId, issueId: peer.issueId, actor: peer.actor,
       request: { repository: { kind: "catalog", id: "private-repo" }, requestKey: randomUUID() } });
     const decoys = await db.insert(executionWorkspaces).values(Array.from({ length: 500 }, () => ({
-      companyId: f.companyId, name: "Unrelated matching receipt", cwd: f.admission.cwd,
+      spaceId: f.spaceId, name: "Unrelated matching receipt", cwd: f.admission.cwd,
       mode: "shared_workspace", strategyType: "operator_directory" }))).returning({ id: executionWorkspaces.id });
-    await db.insert(executionWorkspaceRepositories).values(decoys.map(workspace => ({ companyId: f.companyId,
+    await db.insert(executionWorkspaceRepositories).values(decoys.map(workspace => ({ spaceId: f.spaceId,
       executionWorkspaceId: workspace.id, requestedByIssueId: f.issueId, repositoryIdentity: first.repository.repositoryIdentity,
       repoUrl: first.repository.repoUrl, catalogRepositoryId: "private-repo", relativePath: first.repository.relativePath,
       requestedRef: first.repository.requestedRef, requestKey: randomUUID(), state: "ready", pinnedCommit: "b".repeat(40) })));
@@ -155,11 +155,11 @@ const support = await getEmbeddedPostgresTestSupport();
     await expect(f.service.prepareForAdmission(peer.admission)).resolves.toEqual([
       expect.objectContaining({ id: next.operationId, cwd: published.cwd, pinnedCommit: published.pinnedCommit }),
     ]);
-    expect(JSON.parse(await readFile(path.join(published.cwd, ".git", "paperclip-workspace-owner.json"), "utf8")))
+    expect(JSON.parse(await readFile(path.join(published.cwd, ".git", "outpost-workspace-owner.json"), "utf8")))
       .toMatchObject({ repositoryId: next.operationId, pinnedCommit: published.pinnedCommit });
     const { authorizationService } = await import("../services/authorization.js");
     expect((await authorizationService(db).decide({ actor: peer.actor, action: "issue:read",
-      resource: { type: "issue", companyId: f.companyId, issueId: f.issueId } })).allowed).toBe(false);
+      resource: { type: "issue", spaceId: f.spaceId, issueId: f.issueId } })).allowed).toBe(false);
   });
 
   it("keeps shared checkout ownership current when an earlier workspace moves", async () => {
@@ -167,7 +167,7 @@ const support = await getEmbeddedPostgresTestSupport();
     await f.request({ kind: "catalog", id: "private-repo" });
     await localPrivateClone(f);
     const [published] = await f.service.prepareForAdmission(f.admission);
-    const next = await f.service.request({ companyId: f.companyId, issueId: peer.issueId, actor: peer.actor,
+    const next = await f.service.request({ spaceId: f.spaceId, issueId: peer.issueId, actor: peer.actor,
       request: { repository: { kind: "catalog", id: "private-repo" }, requestKey: randomUUID() } });
     const actual = await vi.importActual<typeof import("../services/managed-repository-checkout.js")>("../services/managed-repository-checkout.js");
     acquisition.materialize.mockImplementationOnce(actual.materializeManagedProjectWorkspace);
@@ -176,15 +176,15 @@ const support = await getEmbeddedPostgresTestSupport();
     await mkdir(moved);
     await db.update(executionWorkspaces).set({ cwd: moved }).where(eq(executionWorkspaces.id, f.workspace.id));
     const latest = await standardPeer(f);
-    const last = await f.service.request({ companyId: f.companyId, issueId: latest.issueId, actor: latest.actor,
+    const last = await f.service.request({ spaceId: f.spaceId, issueId: latest.issueId, actor: latest.actor,
       request: { repository: { kind: "catalog", id: "private-repo" }, requestKey: randomUUID() } });
     acquisition.materialize.mockImplementationOnce(actual.materializeManagedProjectWorkspace);
     await expect(f.service.prepareForAdmission(latest.admission)).resolves.toEqual([
       expect.objectContaining({ id: last.operationId, cwd: published.cwd, pinnedCommit: published.pinnedCommit }),
     ]);
-    expect(JSON.parse(await readFile(path.join(published.cwd, ".git", "paperclip-workspace-owner.json"), "utf8")))
+    expect(JSON.parse(await readFile(path.join(published.cwd, ".git", "outpost-workspace-owner.json"), "utf8")))
       .toMatchObject({ repositoryId: last.operationId, pinnedCommit: published.pinnedCommit });
-    expect((await f.service.list(f.companyId, peer.workspace.id))[0])
+    expect((await f.service.list(f.spaceId, peer.workspace.id))[0])
       .toMatchObject({ id: next.operationId, state: "ready", pinnedCommit: published.pinnedCommit });
     expect(await readFile(path.join(published.cwd, "private.txt"), "utf8")).toBe("Private task edits\n");
     expect(acquisition.managedAuth).not.toHaveBeenCalled();
@@ -195,7 +195,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const first = await f.request({ kind: "catalog", id: "private-repo" });
     await localPrivateClone(f);
     const [published] = await f.service.prepareForAdmission(f.admission);
-    await f.service.request({ companyId: f.companyId, issueId: peer.issueId, actor: peer.actor,
+    await f.service.request({ spaceId: f.spaceId, issueId: peer.issueId, actor: peer.actor,
       request: { repository: { kind: "catalog", id: "private-repo" }, requestKey: randomUUID() } });
     const actual = await vi.importActual<typeof import("../services/managed-repository-checkout.js")>("../services/managed-repository-checkout.js");
     acquisition.materialize.mockImplementationOnce(async (cwd, input) => {
@@ -204,18 +204,18 @@ const support = await getEmbeddedPostgresTestSupport();
       return result;
     });
     await expect(f.service.prepareForAdmission(peer.admission)).rejects.toThrow(/publication binding/);
-    expect(JSON.parse(await readFile(path.join(published.cwd, ".git", "paperclip-workspace-owner.json"), "utf8")))
+    expect(JSON.parse(await readFile(path.join(published.cwd, ".git", "outpost-workspace-owner.json"), "utf8")))
       .toMatchObject({ repositoryId: first.operationId, pinnedCommit: published.pinnedCommit });
   });
 
-  it.each(["missing", "malformed", "symlink", "foreign_company", "conflicting_pin"] as const)("rejects unverified shared publication ownership (%s) without overwriting files", async marker => {
+  it.each(["missing", "malformed", "symlink", "foreign_space", "conflicting_pin"] as const)("rejects unverified shared publication ownership (%s) without overwriting files", async marker => {
     const f = await fixture(), peer = await standardPeer(f);
     const first = await f.request({ kind: "catalog", id: "private-repo" });
     await localPrivateClone(f);
     const [published] = await f.service.prepareForAdmission(f.admission);
-    const next = await f.service.request({ companyId: f.companyId, issueId: peer.issueId, actor: peer.actor,
+    const next = await f.service.request({ spaceId: f.spaceId, issueId: peer.issueId, actor: peer.actor,
       request: { repository: { kind: "catalog", id: "private-repo" }, requestKey: randomUUID() } });
-    const ownerPath = path.join(published.cwd, ".git", "paperclip-workspace-owner.json");
+    const ownerPath = path.join(published.cwd, ".git", "outpost-workspace-owner.json");
     await rm(ownerPath);
     if (marker === "malformed") await writeFile(ownerPath, "{not-json");
     if (marker === "symlink") {
@@ -223,7 +223,7 @@ const support = await getEmbeddedPostgresTestSupport();
       await writeFile(outside, JSON.stringify({ repositoryId: first.operationId, pinnedCommit: published.pinnedCommit }));
       await symlink(outside, ownerPath);
     }
-    if (marker === "foreign_company") {
+    if (marker === "foreign_space") {
       const foreign = await fixture();
       const foreignReceipt = await foreign.request({ kind: "catalog", id: "private-repo" });
       await writeFile(ownerPath, JSON.stringify({ repositoryId: foreignReceipt.operationId, pinnedCommit: published.pinnedCommit }));
@@ -232,7 +232,7 @@ const support = await getEmbeddedPostgresTestSupport();
       await writeFile(ownerPath, JSON.stringify({ repositoryId: first.operationId, pinnedCommit: "b".repeat(40) }));
     }
     await expect(f.service.prepareForAdmission(peer.admission)).rejects.toThrow(/matching preparation receipt|receipts disagree/);
-    expect((await f.service.list(f.companyId, peer.workspace.id))[0]).toMatchObject({ id: next.operationId, state: "needs_repair" });
+    expect((await f.service.list(f.spaceId, peer.workspace.id))[0]).toMatchObject({ id: next.operationId, state: "needs_repair" });
     expect(await readFile(path.join(published.cwd, "private.txt"), "utf8")).toBe("Private task edits\n");
   });
 
@@ -243,7 +243,7 @@ const support = await getEmbeddedPostgresTestSupport();
       if (source === "issue") await db.update(issues).set({ executionPolicy: f.policy }).where(eq(issues.id, f.issueId));
       if (source === "run") await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, executionPolicy: f.policy } }).where(eq(heartbeatRuns.id, f.runId));
       if (source === "project" || source === "workspace_source_project") {
-        const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Restricted", executionWorkspacePolicy: f.policy }).returning();
+        const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Restricted", executionWorkspacePolicy: f.policy }).returning();
         if (source === "project") await db.update(issues).set({ projectId: project.id }).where(eq(issues.id, f.issueId));
         else {
           await db.update(projects).set({ executionWorkspacePolicy: { ...f.policy, authorizationPolicy: { ...f.policy.authorizationPolicy,
@@ -252,7 +252,7 @@ const support = await getEmbeddedPostgresTestSupport();
         }
       }
       await expect(f.request({ kind: "catalog", id: "private-repo" })).rejects.toThrow(/anonymous public URLs only|trusted task|Selected workspace source trust/);
-      expect(await db.select().from(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.spaceId, f.spaceId))).toHaveLength(0);
       expect(acquisition.managedAuth).not.toHaveBeenCalled();
     },
   );
@@ -268,7 +268,7 @@ const support = await getEmbeddedPostgresTestSupport();
         await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, executionPolicy: f.policy } }).where(eq(heartbeatRuns.id, f.runId));
       }
       if (source === "project" || source === "workspace_source_project") {
-        const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Restricted", executionWorkspacePolicy: f.policy }).returning();
+        const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Restricted", executionWorkspacePolicy: f.policy }).returning();
         if (source === "project") await db.update(issues).set({ projectId: project.id }).where(eq(issues.id, f.issueId));
         else {
           const admittedPolicy = { ...f.policy, authorizationPolicy: { ...f.policy.authorizationPolicy,
@@ -281,7 +281,7 @@ const support = await getEmbeddedPostgresTestSupport();
       for (const url of ["https://github.com/public/example", "https://github.com/sponsor/private"]) {
         await expect(f.request({ kind: "url", url })).rejects.toThrow(/trusted task|Selected workspace source trust/);
       }
-      expect(await f.service.list(f.companyId, f.workspace.id)).toEqual([]);
+      expect(await f.service.list(f.spaceId, f.workspace.id)).toEqual([]);
       expect(acquisition.materialize).not.toHaveBeenCalled();
       expect(acquisition.managedAuth).not.toHaveBeenCalled();
     });
@@ -292,7 +292,7 @@ const support = await getEmbeddedPostgresTestSupport();
     await db.update(executionWorkspaceRepositories).set({ state }).where(eq(executionWorkspaceRepositories.id, receipt.operationId));
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, executionPolicy: f.policy } }).where(eq(heartbeatRuns.id, f.runId));
     await expect(f.service.prepareForAdmission(f.admission)).rejects.toThrow(/trusted task|Selected workspace source trust/);
-    expect((await f.service.list(f.companyId, f.workspace.id))[0].state).toBe(state);
+    expect((await f.service.list(f.spaceId, f.workspace.id))[0].state).toBe(state);
     expect(acquisition.materialize).not.toHaveBeenCalled();
     expect(acquisition.managedAuth).not.toHaveBeenCalled();
   });
@@ -301,7 +301,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const f = await fixture();
     await db.update(heartbeatRuns).set({ responsibleUserId: null }).where(eq(heartbeatRuns.id, f.runId));
     await expect(f.request({ kind: "url", url: "https://github.com/public/example" })).rejects.toThrow(/responsible user/);
-    expect(await f.service.list(f.companyId, f.workspace.id)).toEqual([]);
+    expect(await f.service.list(f.spaceId, f.workspace.id)).toEqual([]);
     await expect(f.service.prepareForAdmission({ ...f.admission, responsibleUserId: null })).resolves.toEqual([]);
     expect(acquisition.materialize).not.toHaveBeenCalled();
   });
@@ -330,7 +330,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const f = await fixture();
     await db.update(executionWorkspaces).set(lifecycle).where(eq(executionWorkspaces.id, f.workspace.id));
     await expect(f.request({ kind: "url", url: "https://github.com/public/example" })).rejects.toThrow("Execution workspace is unavailable");
-    expect(await f.service.list(f.companyId, f.workspace.id)).toEqual([]);
+    expect(await f.service.list(f.spaceId, f.workspace.id)).toEqual([]);
     expect(acquisition.materialize).not.toHaveBeenCalled();
   });
 
@@ -347,7 +347,7 @@ const support = await getEmbeddedPostgresTestSupport();
     await db.update(executionWorkspaces).set({ strategyType: "project_primary", sourceIssueId: f.issueId,
       metadata: { source: "task_session" }, ...patch }).where(eq(executionWorkspaces.id, f.workspace.id));
     await mkdir(path.join(f.admission.cwd, ".git", "info"), { recursive: true });
-    await writeFile(path.join(f.admission.cwd, ".git", "info", "exclude"), "/.paperclip-repositories/\n");
+    await writeFile(path.join(f.admission.cwd, ".git", "info", "exclude"), "/.outpost-repositories/\n");
     await expect(f.service.prepareForAdmission(f.admission)).rejects.toThrow("not a git repository");
     expect(acquisition.materialize).not.toHaveBeenCalled();
   });
@@ -356,16 +356,16 @@ const support = await getEmbeddedPostgresTestSupport();
     const f = await fixture();
     await db.update(executionWorkspaces).set({ status: "idle" }).where(eq(executionWorkspaces.id, f.workspace.id));
     const localBoard = principal === "local_board" || principal === "local_board_jwt";
-    if (localBoard) await db.update(heartbeatRuns).set({ responsibleUserId: "local-board" }).where(eq(heartbeatRuns.id, f.runId));
+    if (localBoard) await db.update(heartbeatRuns).set({ responsibleUserId: "local-operator" }).where(eq(heartbeatRuns.id, f.runId));
     if (principal === "local_board_jwt") {
-      await db.insert(authUsers).values({ id: "local-board", name: "Local Board", email: "local-board@example.invalid",
+      await db.insert(authUsers).values({ id: "local-operator", name: "Local Operator", email: "local-operator@example.invalid",
         emailVerified: true, createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-      await db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: "local-board", membershipRole: "owner", status: "active" });
+      await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: "local-operator", membershipRole: "owner", status: "active" });
     }
-    const receipt = await f.service.request({ companyId: f.companyId, issueId: f.issueId,
-      actor: localBoard ? { ...f.actor, onBehalfOfUserId: principal === "local_board_jwt" ? "local-board" : null } : f.actor,
+    const receipt = await f.service.request({ spaceId: f.spaceId, issueId: f.issueId,
+      actor: localBoard ? { ...f.actor, onBehalfOfUserId: principal === "local_board_jwt" ? "local-operator" : null } : f.actor,
       request: { repository: { kind: "url", url: "https://github.com/public/example" }, requestKey: randomUUID() } });
-    const responsibleUserId = localBoard ? "local-board" : principal === "routine" ? null : f.userId;
+    const responsibleUserId = localBoard ? "local-operator" : principal === "routine" ? null : f.userId;
     await db.update(heartbeatRuns).set({ responsibleUserId }).where(eq(heartbeatRuns.id, f.runId));
     const admission = { ...f.admission, responsibleUserId };
     const source = path.join(root, `${f.issueId}-public-source`);
@@ -388,7 +388,7 @@ const support = await getEmbeddedPostgresTestSupport();
       await db.update(executionWorkspaces).set({ strategyType: "project_primary", sourceIssueId: f.issueId,
         mode: principal === "sponsored_shared_git_residue" ? "shared_workspace" : "isolated_workspace", metadata: { source: "task_session" } }).where(eq(executionWorkspaces.id, f.workspace.id));
       await mkdir(path.join(f.admission.cwd, ".git", "info"), { recursive: true });
-      await writeFile(path.join(f.admission.cwd, ".git", "info", "exclude"), "/.paperclip-repositories/\n");
+      await writeFile(path.join(f.admission.cwd, ".git", "info", "exclude"), "/.outpost-repositories/\n");
     }
     const [prepared] = await f.service.prepareForAdmission(admission);
     expect(prepared.id).toBe(receipt.operationId);
@@ -413,12 +413,12 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(acquisition.materialize).not.toHaveBeenCalled();
   });
 
-  it.each(["local-board", null, "changed-human"])("rejects the former sponsor after responsibility changes to %s", async responsibleUserId => {
+  it.each(["local-operator", null, "changed-human"])("rejects the former sponsor after responsibility changes to %s", async responsibleUserId => {
     const f = await fixture();
     await db.update(heartbeatRuns).set({ responsibleUserId }).where(eq(heartbeatRuns.id, f.runId));
     await expect(f.request({ kind: "url", url: "https://github.com/public/example" })).rejects.toThrow(
       responsibleUserId === null ? "Repository access requires a responsible user" : "Task workspace responsible user changed");
-    expect(await f.service.list(f.companyId, f.workspace.id)).toEqual([]);
+    expect(await f.service.list(f.spaceId, f.workspace.id)).toEqual([]);
   });
 
   it("reauthorizes a public clone before publication after trust changes during Git", async () => {
@@ -429,7 +429,7 @@ const support = await getEmbeddedPostgresTestSupport();
     });
     await expect(f.service.prepareForAdmission(f.admission)).rejects.toThrow(/trusted task|Selected workspace source trust/);
     await expect(fs.lstat(path.join(f.admission.cwd, receipt.repository.relativePath))).rejects.toMatchObject({ code: "ENOENT" });
-    expect((await f.service.list(f.companyId, f.workspace.id))[0]).toMatchObject({ pinnedCommit: null, state: "needs_repair" });
+    expect((await f.service.list(f.spaceId, f.workspace.id))[0]).toMatchObject({ pinnedCommit: null, state: "needs_repair" });
     expect(acquisition.materialize).toHaveBeenCalledOnce();
     expect(acquisition.managedAuth).not.toHaveBeenCalled();
   });
@@ -444,13 +444,13 @@ const support = await getEmbeddedPostgresTestSupport();
     });
     await expect(f.service.prepareForAdmission(f.admission)).rejects.toThrow(/no longer available|binding|responsible user/);
     await expect(fs.lstat(path.join(f.admission.cwd, receipt.repository.relativePath))).rejects.toMatchObject({ code: "ENOENT" });
-    expect((await f.service.list(f.companyId, f.workspace.id))[0]).toMatchObject({ state: "needs_repair", pinnedCommit: null });
+    expect((await f.service.list(f.spaceId, f.workspace.id))[0]).toMatchObject({ state: "needs_repair", pinnedCommit: null });
   });
 
   it.each(["standard", "retained_low_trust", "current_low_trust"] as const)("recovers an exact legacy run-ID binding with %s trust", async trust => {
     const f = await fixture();
     const execution = buildNativeExecutionInput({
-      companyId: f.companyId, runId: f.runId, agentId: f.agentId,
+      spaceId: f.spaceId, runId: f.runId, agentId: f.agentId,
       issue: { id: f.issueId, identifier: "LEG-1", title: "Legacy recovery", description: null, workMode: "standard" },
       taskPrompt: "Continue", normalizedSessionId: randomUUID(), provider: "codex",
       workspace: { id: f.runId, cwd: f.admission.cwd, repoUrl: null, repoRef: null, branchName: null },
@@ -461,7 +461,7 @@ const support = await getEmbeddedPostgresTestSupport();
       contextSnapshot: { issueId: f.issueId, ...(trust === "retained_low_trust" ? { executionPolicy: f.policy } : {}) } }).where(eq(heartbeatRuns.id, f.runId));
     if (trust === "current_low_trust") await db.update(agents).set({ permissions: f.policy }).where(eq(agents.id, f.agentId));
     await expect(f.service.assertRecoveryBinding({ ...f.admission, workspaceId: f.runId })).resolves.toBeUndefined();
-    const reservations = await db.select().from(executionWorkspaceRepositoryRoots).where(eq(executionWorkspaceRepositoryRoots.companyId, f.companyId));
+    const reservations = await db.select().from(executionWorkspaceRepositoryRoots).where(eq(executionWorkspaceRepositoryRoots.spaceId, f.spaceId));
     expect(reservations).toHaveLength(0);
     await expect(f.service.assertRecoveryBinding({ ...f.admission, workspaceId: randomUUID() })).rejects.toThrow(/recovery identity/);
     execution.binding.agentId = randomUUID();
@@ -470,13 +470,13 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(acquisition.materialize).not.toHaveBeenCalled();
   });
 
-  it("retains previous run trust without confusing a board request's reassigned agent", async () => {
+  it("retains previous run trust without confusing a operator request's reassigned agent", async () => {
     const f = await fixture();
-    const [replacement] = await db.insert(agents).values({ companyId: f.companyId, name: "Replacement", adapterType: "process" }).returning();
+    const [replacement] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Replacement", adapterType: "process" }).returning();
     await db.update(issues).set({ assigneeAgentId: replacement.id }).where(eq(issues.id, f.issueId));
     await db.update(heartbeatRuns).set({ status: "succeeded", contextSnapshot: { taskId: f.issueId } }).where(eq(heartbeatRuns.id, f.runId));
-    const request = () => f.service.request({ companyId: f.companyId, issueId: f.issueId,
-      actor: { type: "board", source: "local_implicit", userId: "local-board" },
+    const request = () => f.service.request({ spaceId: f.spaceId, issueId: f.issueId,
+      actor: { type: "operator", source: "local_implicit", userId: "local-operator" },
       request: { requestKey: randomUUID(), repository: { kind: "catalog", id: "private-repo" } } });
     await expect(request()).resolves.toMatchObject({ kind: "requires_next_admission" });
     await db.update(heartbeatRuns).set({ contextSnapshot: { taskId: f.issueId, executionPolicy: f.policy } }).where(eq(heartbeatRuns.id, f.runId));
@@ -488,9 +488,9 @@ const support = await getEmbeddedPostgresTestSupport();
     await expect(f.service.prepareForAdmission(f.admission)).resolves.toEqual([]);
     expect(acquisition.catalog).not.toHaveBeenCalled();
     expect(acquisition.materialize).not.toHaveBeenCalled();
-    await db.insert(executionWorkspaceRepositories).values({ companyId: f.companyId, executionWorkspaceId: f.workspace.id,
+    await db.insert(executionWorkspaceRepositories).values({ spaceId: f.spaceId, executionWorkspaceId: f.workspace.id,
       requestedByIssueId: f.issueId, repositoryIdentity: "https://github.com/public/example", repoUrl: "https://github.com/public/example",
-      relativePath: ".paperclip-repositories/unused", requestedRef: "HEAD", requestKey: "requires-authority", requestKeys: ["requires-authority"] });
+      relativePath: ".outpost-repositories/unused", requestedRef: "HEAD", requestKey: "requires-authority", requestKeys: ["requires-authority"] });
     await expect(f.service.prepareForAdmission(f.admission)).rejects.toThrow();
     expect(acquisition.materialize).not.toHaveBeenCalled();
   });

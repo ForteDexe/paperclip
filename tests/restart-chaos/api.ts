@@ -1,4 +1,4 @@
-/** Minimal board API client for an isolated local_trusted instance. */
+/** Minimal operator API client for an isolated local_trusted instance. */
 export function isSocketTypeOfServiceRace(error: unknown): boolean {
   const candidate = error as { code?: unknown; syscall?: unknown } | null;
   return candidate?.code === "EINVAL" && candidate.syscall === "setTypeOfService";

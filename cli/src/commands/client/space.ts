@@ -1,0 +1,1978 @@
+import { Command } from "commander";
+import { createHash } from "node:crypto";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
+import * as p from "@clack/prompts";
+import pc from "picocolors";
+import type {
+  Space,
+  SpacePortabilityFileEntry,
+  SpacePortabilityExportResult,
+  SpacePortabilityInclude,
+  SpacePortabilityPreviewResult,
+  SpacePortabilityImportResult,
+} from "@outpost/shared";
+import {
+  buildAlreadyImportedMessage,
+  spaceImportTransferApplyPath,
+  spaceImportTransferPartPath,
+  spaceImportTransferPreviewPath,
+  SPACE_IMPORT_TRANSFERS_ROUTE_PATH,
+  type SpaceImportTransferCreated,
+  type SpaceImportTransferDeclaration,
+} from "@outpost/shared/space-import-transfer";
+import { getTelemetryClient, trackSpaceImported } from "../../telemetry.js";
+import { ApiRequestError, type OutpostApiClient } from "../../client/http.js";
+import { openUrl } from "../../client/operator-auth.js";
+import {
+  binaryContentTypeByExtension,
+  bytesToPortableFileEntry,
+  createStoredZipArchive,
+  isBlobStorePath,
+  readZipArchive,
+} from "./zip.js";
+import {
+  addCommonClientOptions,
+  apiPath,
+  formatInlineRecord,
+  handleCommandError,
+  printOutput,
+  resolveCommandContext,
+  type BaseClientOptions,
+} from "./common.js";
+interface SpaceCommandOptions extends BaseClientOptions {}
+interface SpaceJsonOptions extends BaseClientOptions {
+  spaceId?: string;
+  payloadJson?: string;
+}
+interface AgentMeResponse {
+  id: string;
+  spaceId: string;
+}
+type SpaceDeleteSelectorMode = "auto" | "id" | "prefix";
+type SpaceImportTargetMode = "new" | "existing";
+type SpaceCollisionMode = "rename" | "skip" | "replace";
+
+interface SpaceDeleteOptions extends BaseClientOptions {
+  by?: SpaceDeleteSelectorMode;
+  yes?: boolean;
+  confirm?: string;
+}
+
+interface SpaceExportOptions extends BaseClientOptions {
+  out?: string;
+  include?: string;
+  skills?: string;
+  projects?: string;
+  issues?: string;
+  projectIssues?: string;
+  expandReferencedSkills?: boolean;
+  force?: boolean;
+}
+
+interface SpaceImportOptions extends BaseClientOptions {
+  include?: string;
+  target?: SpaceImportTargetMode;
+  spaceId?: string;
+  newSpaceName?: string;
+  agents?: string;
+  collision?: SpaceCollisionMode;
+  ref?: string;
+  outpostUrl?: string;
+  yes?: boolean;
+  dryRun?: boolean;
+}
+
+const DEFAULT_EXPORT_INCLUDE: SpacePortabilityInclude = {
+  space: true,
+  agents: true,
+  projects: false,
+  issues: false,
+  skills: false,
+};
+
+const DEFAULT_IMPORT_INCLUDE: SpacePortabilityInclude = {
+  space: true,
+  agents: true,
+  projects: true,
+  issues: true,
+  skills: true,
+};
+
+const IMPORT_INCLUDE_OPTIONS: Array<{
+  value: keyof SpacePortabilityInclude;
+  label: string;
+  hint: string;
+}> = [
+  { value: "space", label: "Outpost", hint: "name, branding, and space settings" },
+  { value: "projects", label: "Projects", hint: "projects and workspace metadata" },
+  { value: "issues", label: "Tasks", hint: "tasks and recurring routines" },
+  { value: "agents", label: "Agents", hint: "agent records and org structure" },
+  { value: "skills", label: "Skills", hint: "space skill packages and references" },
+];
+
+const IMPORT_PREVIEW_SAMPLE_LIMIT = 6;
+
+type ImportSelectableGroup = "projects" | "issues" | "agents" | "skills";
+
+type ImportSelectionCatalog = {
+  space: {
+    includedByDefault: boolean;
+    files: string[];
+  };
+  projects: Array<{ key: string; label: string; hint?: string; files: string[] }>;
+  issues: Array<{ key: string; label: string; hint?: string; files: string[] }>;
+  agents: Array<{ key: string; label: string; hint?: string; files: string[] }>;
+  skills: Array<{ key: string; label: string; hint?: string; files: string[] }>;
+  extensionPath: string | null;
+};
+
+type ImportSelectionState = {
+  space: boolean;
+  projects: Set<string>;
+  issues: Set<string>;
+  agents: Set<string>;
+  skills: Set<string>;
+};
+
+function portableFileEntryToWriteValue(entry: SpacePortabilityFileEntry): string | Uint8Array {
+  if (typeof entry === "string") return entry;
+  return Buffer.from(entry.data, "base64");
+}
+
+function isUuidLike(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function normalizeSelector(input: string): string {
+  return input.trim();
+}
+
+function parseInclude(
+  input: string | undefined,
+  fallback: SpacePortabilityInclude = DEFAULT_EXPORT_INCLUDE,
+): SpacePortabilityInclude {
+  if (!input || !input.trim()) return { ...fallback };
+  const values = input.split(",").map((part) => part.trim().toLowerCase()).filter(Boolean);
+  const include = {
+    space: values.includes("space"),
+    agents: values.includes("agents"),
+    projects: values.includes("projects"),
+    issues: values.includes("issues") || values.includes("tasks"),
+    skills: values.includes("skills"),
+  };
+  if (!include.space && !include.agents && !include.projects && !include.issues && !include.skills) {
+    throw new Error("Invalid --include value. Use one or more of: space,agents,projects,issues,tasks,skills");
+  }
+  return include;
+}
+
+function parseAgents(input: string | undefined): "all" | string[] {
+  if (!input || !input.trim()) return "all";
+  const normalized = input.trim().toLowerCase();
+  if (normalized === "all") return "all";
+  const values = input.split(",").map((part) => part.trim()).filter(Boolean);
+  if (values.length === 0) return "all";
+  return Array.from(new Set(values));
+}
+
+function parseCsvValues(input: string | undefined): string[] {
+  if (!input || !input.trim()) return [];
+  return Array.from(new Set(input.split(",").map((part) => part.trim()).filter(Boolean)));
+}
+
+function isInteractiveTerminal(): boolean {
+  return Boolean(process.stdin.isTTY && process.stdout.isTTY);
+}
+
+function resolveImportInclude(input: string | undefined): SpacePortabilityInclude {
+  return parseInclude(input, DEFAULT_IMPORT_INCLUDE);
+}
+
+function normalizePortablePath(filePath: string): string {
+  return filePath.replace(/\\/g, "/");
+}
+
+function shouldIncludePortableFile(filePath: string): boolean {
+  const baseName = path.basename(filePath);
+  const isMarkdown = baseName.endsWith(".md");
+  const isOutpostYaml = baseName === ".outpost.yaml" || baseName === ".outpost.yml";
+  const contentType = binaryContentTypeByExtension[path.extname(baseName).toLowerCase()];
+  return isMarkdown || isOutpostYaml || Boolean(contentType) || isBlobStorePath(filePath);
+}
+
+function findPortableExtensionPath(files: Record<string, SpacePortabilityFileEntry>): string | null {
+  if (files[".outpost.yaml"] !== undefined) return ".outpost.yaml";
+  if (files[".outpost.yml"] !== undefined) return ".outpost.yml";
+  return Object.keys(files).find((entry) => entry.endsWith("/.outpost.yaml") || entry.endsWith("/.outpost.yml")) ?? null;
+}
+
+function collectFilesUnderDirectory(
+  files: Record<string, SpacePortabilityFileEntry>,
+  directory: string,
+  opts?: { excludePrefixes?: string[] },
+): string[] {
+  const normalizedDirectory = normalizePortablePath(directory).replace(/\/+$/, "");
+  if (!normalizedDirectory) return [];
+  const prefix = `${normalizedDirectory}/`;
+  const excluded = (opts?.excludePrefixes ?? []).map((entry) => normalizePortablePath(entry).replace(/\/+$/, "")).filter(Boolean);
+  return Object.keys(files)
+    .map(normalizePortablePath)
+    .filter((filePath) => filePath.startsWith(prefix))
+    .filter((filePath) => !excluded.some((excludePrefix) => filePath.startsWith(`${excludePrefix}/`)))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function collectEntityFiles(
+  files: Record<string, SpacePortabilityFileEntry>,
+  entryPath: string,
+  opts?: { excludePrefixes?: string[] },
+): string[] {
+  const normalizedPath = normalizePortablePath(entryPath);
+  const directory = normalizedPath.includes("/") ? normalizedPath.slice(0, normalizedPath.lastIndexOf("/")) : "";
+  const selected = new Set<string>([normalizedPath]);
+  if (directory) {
+    for (const filePath of collectFilesUnderDirectory(files, directory, opts)) {
+      selected.add(filePath);
+    }
+  }
+  return Array.from(selected).sort((left, right) => left.localeCompare(right));
+}
+
+export function buildImportSelectionCatalog(preview: SpacePortabilityPreviewResult): ImportSelectionCatalog {
+  const selectedAgentSlugs = new Set(preview.selectedAgentSlugs);
+  const spaceFiles = new Set<string>();
+  const spacePath = preview.manifest.space?.path ? normalizePortablePath(preview.manifest.space.path) : null;
+  if (spacePath) {
+    spaceFiles.add(spacePath);
+  }
+  const readmePath = Object.keys(preview.files).find((entry) => normalizePortablePath(entry) === "README.md");
+  if (readmePath) {
+    spaceFiles.add(normalizePortablePath(readmePath));
+  }
+  const logoPath = preview.manifest.space?.logoPath ? normalizePortablePath(preview.manifest.space.logoPath) : null;
+  if (logoPath && preview.files[logoPath] !== undefined) {
+    spaceFiles.add(logoPath);
+  }
+
+  return {
+    space: {
+      includedByDefault: preview.include.space && preview.manifest.space !== null,
+      files: Array.from(spaceFiles).sort((left, right) => left.localeCompare(right)),
+    },
+    projects: preview.manifest.projects.map((project) => {
+      const projectPath = normalizePortablePath(project.path);
+      const projectDir = projectPath.includes("/") ? projectPath.slice(0, projectPath.lastIndexOf("/")) : "";
+      return {
+        key: project.slug,
+        label: project.name,
+        hint: project.slug,
+        files: collectEntityFiles(preview.files, projectPath, {
+          excludePrefixes: projectDir ? [`${projectDir}/issues`] : [],
+        }),
+      };
+    }),
+    issues: preview.manifest.issues.map((issue) => ({
+      key: issue.slug,
+      label: issue.title,
+      hint: issue.identifier ?? issue.slug,
+      files: collectEntityFiles(preview.files, normalizePortablePath(issue.path)),
+    })),
+    agents: preview.manifest.agents
+      .filter((agent) => selectedAgentSlugs.size === 0 || selectedAgentSlugs.has(agent.slug))
+      .map((agent) => ({
+        key: agent.slug,
+        label: agent.name,
+        hint: agent.slug,
+        files: collectEntityFiles(preview.files, normalizePortablePath(agent.path)),
+      })),
+    skills: preview.manifest.skills.map((skill) => ({
+      key: skill.slug,
+      label: skill.name,
+      hint: skill.slug,
+      files: collectEntityFiles(preview.files, normalizePortablePath(skill.path)),
+    })),
+    extensionPath: findPortableExtensionPath(preview.files),
+  };
+}
+
+function toKeySet(items: Array<{ key: string }>): Set<string> {
+  return new Set(items.map((item) => item.key));
+}
+
+export function buildDefaultImportSelectionState(catalog: ImportSelectionCatalog): ImportSelectionState {
+  return {
+    space: catalog.space.includedByDefault,
+    projects: toKeySet(catalog.projects),
+    issues: toKeySet(catalog.issues),
+    agents: toKeySet(catalog.agents),
+    skills: toKeySet(catalog.skills),
+  };
+}
+
+function countSelected(state: ImportSelectionState, group: ImportSelectableGroup): number {
+  return state[group].size;
+}
+
+function countTotal(catalog: ImportSelectionCatalog, group: ImportSelectableGroup): number {
+  return catalog[group].length;
+}
+
+function summarizeGroupSelection(catalog: ImportSelectionCatalog, state: ImportSelectionState, group: ImportSelectableGroup): string {
+  return `${countSelected(state, group)}/${countTotal(catalog, group)} selected`;
+}
+
+function getGroupLabel(group: ImportSelectableGroup): string {
+  switch (group) {
+    case "projects":
+      return "Projects";
+    case "issues":
+      return "Tasks";
+    case "agents":
+      return "Agents";
+    case "skills":
+      return "Skills";
+  }
+}
+
+export function buildSelectedFilesFromImportSelection(
+  catalog: ImportSelectionCatalog,
+  state: ImportSelectionState,
+): string[] {
+  const selected = new Set<string>();
+
+  if (state.space) {
+    for (const filePath of catalog.space.files) {
+      selected.add(normalizePortablePath(filePath));
+    }
+  }
+
+  for (const group of ["projects", "issues", "agents", "skills"] as const) {
+    const selectedKeys = state[group];
+    for (const item of catalog[group]) {
+      if (!selectedKeys.has(item.key)) continue;
+      for (const filePath of item.files) {
+        selected.add(normalizePortablePath(filePath));
+      }
+    }
+  }
+
+  if (catalog.extensionPath) {
+    selected.add(normalizePortablePath(catalog.extensionPath));
+  }
+
+  return Array.from(selected).sort((left, right) => left.localeCompare(right));
+}
+
+export function buildDefaultImportAdapterOverrides(
+  preview: Pick<SpacePortabilityPreviewResult, "manifest" | "selectedAgentSlugs">,
+): Record<string, { adapterType: string }> | undefined {
+  const selectedAgentSlugs = new Set(preview.selectedAgentSlugs);
+  const overrides = Object.fromEntries(
+    preview.manifest.agents
+      .filter((agent) => selectedAgentSlugs.size === 0 || selectedAgentSlugs.has(agent.slug))
+      .filter((agent) => agent.adapterType === "process")
+      .map((agent) => [
+        agent.slug,
+        {
+          // TODO: replace this temporary claude_local fallback with adapter selection in the import TUI.
+          adapterType: "claude_local",
+        },
+      ]),
+  );
+  return Object.keys(overrides).length > 0 ? overrides : undefined;
+}
+
+function buildDefaultImportAdapterMessages(
+  overrides: Record<string, { adapterType: string }> | undefined,
+): string[] {
+  if (!overrides) return [];
+  const adapterTypes = Array.from(new Set(Object.values(overrides).map((override) => override.adapterType)))
+    .map((adapterType) => adapterType.replace(/_/g, "-"));
+  const agentCount = Object.keys(overrides).length;
+  return [
+    `Using ${adapterTypes.join(", ")} adapter${adapterTypes.length === 1 ? "" : "s"} for ${agentCount} imported ${pluralize(agentCount, "agent")} without an explicit adapter.`,
+  ];
+}
+
+async function promptForImportSelection(preview: SpacePortabilityPreviewResult): Promise<string[]> {
+  const catalog = buildImportSelectionCatalog(preview);
+  const state = buildDefaultImportSelectionState(catalog);
+
+  while (true) {
+    const choice = await p.select<ImportSelectableGroup | "space" | "confirm">({
+      message: "Select what Outpost should import",
+      options: [
+        {
+          value: "space",
+          label: state.space ? "Outpost: included" : "Outpost: skipped",
+          hint: catalog.space.files.length > 0 ? "toggle space metadata" : "no space metadata in package",
+        },
+        {
+          value: "projects",
+          label: "Select Projects",
+          hint: summarizeGroupSelection(catalog, state, "projects"),
+        },
+        {
+          value: "issues",
+          label: "Select Tasks",
+          hint: summarizeGroupSelection(catalog, state, "issues"),
+        },
+        {
+          value: "agents",
+          label: "Select Agents",
+          hint: summarizeGroupSelection(catalog, state, "agents"),
+        },
+        {
+          value: "skills",
+          label: "Select Skills",
+          hint: summarizeGroupSelection(catalog, state, "skills"),
+        },
+        {
+          value: "confirm",
+          label: "Confirm",
+          hint: `${buildSelectedFilesFromImportSelection(catalog, state).length} files selected`,
+        },
+      ],
+      initialValue: "confirm",
+    });
+
+    if (p.isCancel(choice)) {
+      p.cancel("Import cancelled.");
+      process.exit(0);
+    }
+
+    if (choice === "confirm") {
+      const selectedFiles = buildSelectedFilesFromImportSelection(catalog, state);
+      if (selectedFiles.length === 0) {
+        p.note("Select at least one import target before confirming.", "Nothing selected");
+        continue;
+      }
+      return selectedFiles;
+    }
+
+    if (choice === "space") {
+      if (catalog.space.files.length === 0) {
+        p.note("This package does not include space metadata to toggle.", "No space metadata");
+        continue;
+      }
+      state.space = !state.space;
+      continue;
+    }
+
+    const group = choice;
+    const groupItems = catalog[group];
+    if (groupItems.length === 0) {
+      p.note(`This package does not include any ${getGroupLabel(group).toLowerCase()}.`, `No ${getGroupLabel(group)}`);
+      continue;
+    }
+
+    const selection = await p.multiselect<string>({
+      message: `${getGroupLabel(group)} to import. Space toggles, enter returns to the main menu.`,
+      options: groupItems.map((item) => ({
+        value: item.key,
+        label: item.label,
+        hint: item.hint,
+      })),
+      initialValues: Array.from(state[group]),
+    });
+
+    if (p.isCancel(selection)) {
+      p.cancel("Import cancelled.");
+      process.exit(0);
+    }
+
+    state[group] = new Set(selection);
+  }
+}
+
+function summarizeInclude(include: SpacePortabilityInclude): string {
+  const labels = IMPORT_INCLUDE_OPTIONS
+    .filter((option) => include[option.value])
+    .map((option) => option.label.toLowerCase());
+  return labels.length > 0 ? labels.join(", ") : "nothing selected";
+}
+
+function formatSourceLabel(source: { type: "inline"; rootPath?: string | null } | { type: "github"; url: string }): string {
+  if (source.type === "github") {
+    return `GitHub: ${source.url}`;
+  }
+  return `Local package: ${source.rootPath?.trim() || "(current folder)"}`;
+}
+
+function formatTargetLabel(
+  target: { mode: "existing_space"; spaceId?: string | null } | { mode: "new_space"; newSpaceName?: string | null },
+  preview?: SpacePortabilityPreviewResult,
+): string {
+  if (target.mode === "existing_space") {
+    const targetName = preview?.targetSpaceName?.trim();
+    const targetId = preview?.targetSpaceId?.trim() || target.spaceId?.trim() || "unknown-space";
+    return targetName ? `${targetName} (${targetId})` : targetId;
+  }
+  return target.newSpaceName?.trim() || preview?.manifest.space?.name || "new space";
+}
+
+function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return count === 1 ? singular : plural;
+}
+
+function summarizePlanCounts(
+  plans: Array<{ action: "create" | "update" | "skip" }>,
+  noun: string,
+): string {
+  if (plans.length === 0) return `0 ${pluralize(0, noun)} selected`;
+  const createCount = plans.filter((plan) => plan.action === "create").length;
+  const updateCount = plans.filter((plan) => plan.action === "update").length;
+  const skipCount = plans.filter((plan) => plan.action === "skip").length;
+  const parts: string[] = [];
+  if (createCount > 0) parts.push(`${createCount} create`);
+  if (updateCount > 0) parts.push(`${updateCount} update`);
+  if (skipCount > 0) parts.push(`${skipCount} skip`);
+  return `${plans.length} ${pluralize(plans.length, noun)} total (${parts.join(", ")})`;
+}
+
+function summarizeImportAgentResults(agents: SpacePortabilityImportResult["agents"]): string {
+  if (agents.length === 0) return "0 agents changed";
+  const created = agents.filter((agent) => agent.action === "created").length;
+  const updated = agents.filter((agent) => agent.action === "updated").length;
+  const skipped = agents.filter((agent) => agent.action === "skipped").length;
+  const parts: string[] = [];
+  if (created > 0) parts.push(`${created} created`);
+  if (updated > 0) parts.push(`${updated} updated`);
+  if (skipped > 0) parts.push(`${skipped} skipped`);
+  return `${agents.length} ${pluralize(agents.length, "agent")} total (${parts.join(", ")})`;
+}
+
+function summarizeImportSkillResults(skills: SpacePortabilityImportResult["skills"]): string {
+  if (skills.length === 0) return "0 skills changed";
+  const actions = ["created", "renamed", "replaced", "skipped"] as const;
+  const parts = actions.flatMap((action) => {
+    const count = skills.filter((skill) => skill.action === action).length;
+    return count > 0 ? [`${count} ${action}`] : [];
+  });
+  return `${skills.length} ${pluralize(skills.length, "skill")} total (${parts.join(", ")})`;
+}
+
+function summarizeImportProjectResults(projects: SpacePortabilityImportResult["projects"]): string {
+  if (projects.length === 0) return "0 projects changed";
+  const created = projects.filter((project) => project.action === "created").length;
+  const updated = projects.filter((project) => project.action === "updated").length;
+  const skipped = projects.filter((project) => project.action === "skipped").length;
+  const parts: string[] = [];
+  if (created > 0) parts.push(`${created} created`);
+  if (updated > 0) parts.push(`${updated} updated`);
+  if (skipped > 0) parts.push(`${skipped} skipped`);
+  return `${projects.length} ${pluralize(projects.length, "project")} total (${parts.join(", ")})`;
+}
+
+function actionChip(action: string): string {
+  switch (action) {
+    case "create":
+    case "created":
+      return pc.green(action);
+    case "update":
+    case "updated":
+      return pc.yellow(action);
+    case "skip":
+    case "skipped":
+    case "none":
+    case "unchanged":
+      return pc.dim(action);
+    default:
+      return action;
+  }
+}
+
+function appendPreviewExamples(
+  lines: string[],
+  title: string,
+  entries: Array<{ action: string; label: string; reason?: string | null }>,
+): void {
+  if (entries.length === 0) return;
+  lines.push("");
+  lines.push(pc.bold(title));
+  const shown = entries.slice(0, IMPORT_PREVIEW_SAMPLE_LIMIT);
+  for (const entry of shown) {
+    const reason = entry.reason?.trim() ? pc.dim(` (${entry.reason.trim()})`) : "";
+    lines.push(`- ${actionChip(entry.action)} ${entry.label}${reason}`);
+  }
+  if (entries.length > shown.length) {
+    lines.push(pc.dim(`- +${entries.length - shown.length} more`));
+  }
+}
+
+function appendMessageBlock(lines: string[], title: string, messages: string[]): void {
+  if (messages.length === 0) return;
+  lines.push("");
+  lines.push(pc.bold(title));
+  for (const message of messages) {
+    lines.push(`- ${message}`);
+  }
+}
+
+export function renderSpaceImportPreview(
+  preview: SpacePortabilityPreviewResult,
+  meta: {
+    sourceLabel: string;
+    targetLabel: string;
+    infoMessages?: string[];
+  },
+): string {
+  const lines: string[] = [
+    `${pc.bold("Source")}  ${meta.sourceLabel}`,
+    `${pc.bold("Target")}  ${meta.targetLabel}`,
+    `${pc.bold("Include")} ${summarizeInclude(preview.include)}`,
+    `${pc.bold("Mode")}    ${preview.collisionStrategy} collisions`,
+    "",
+    pc.bold("Package"),
+    `- space: ${preview.manifest.space?.name ?? preview.manifest.source?.spaceName ?? "not included"}`,
+    `- agents: ${preview.manifest.agents.length}`,
+    `- projects: ${preview.manifest.projects.length}`,
+    `- tasks: ${preview.manifest.issues.length}`,
+    `- skills: ${preview.manifest.skills.length}`,
+  ];
+
+  if (preview.envInputs.length > 0) {
+    const requiredCount = preview.envInputs.filter((item) => item.requirement === "required").length;
+    lines.push(`- env inputs: ${preview.envInputs.length} (${requiredCount} required)`);
+  }
+
+  lines.push("");
+  lines.push(pc.bold("Plan"));
+  lines.push(`- space: ${actionChip(preview.plan.spaceAction === "none" ? "unchanged" : preview.plan.spaceAction)}`);
+  lines.push(`- agents: ${summarizePlanCounts(preview.plan.agentPlans, "agent")}`);
+  lines.push(`- projects: ${summarizePlanCounts(preview.plan.projectPlans, "project")}`);
+  lines.push(`- tasks: ${summarizePlanCounts(preview.plan.issuePlans, "task")}`);
+  if (preview.include.skills) {
+    lines.push(`- skills: ${preview.manifest.skills.length} ${pluralize(preview.manifest.skills.length, "skill")} packaged`);
+  }
+
+  appendPreviewExamples(
+    lines,
+    "Agent examples",
+    preview.plan.agentPlans.map((plan) => ({
+      action: plan.action,
+      label: `${plan.slug} -> ${plan.plannedName}`,
+      reason: plan.reason,
+    })),
+  );
+  appendPreviewExamples(
+    lines,
+    "Project examples",
+    preview.plan.projectPlans.map((plan) => ({
+      action: plan.action,
+      label: `${plan.slug} -> ${plan.plannedName}`,
+      reason: plan.reason,
+    })),
+  );
+  appendPreviewExamples(
+    lines,
+    "Task examples",
+    preview.plan.issuePlans.map((plan) => ({
+      action: plan.action,
+      label: `${plan.slug} -> ${plan.plannedTitle}`,
+      reason: plan.reason,
+    })),
+  );
+
+  appendMessageBlock(lines, pc.cyan("Info"), meta.infoMessages ?? []);
+  appendMessageBlock(lines, pc.yellow("Warnings"), preview.warnings);
+  appendMessageBlock(lines, pc.red("Errors"), preview.errors);
+
+  return lines.join("\n");
+}
+
+export function renderSpaceImportResult(
+  result: SpacePortabilityImportResult,
+  meta: { targetLabel: string; spaceUrl?: string; infoMessages?: string[] },
+): string {
+  const skills = result.skills ?? [];
+  const lines: string[] = [
+    `${pc.bold("Target")}  ${meta.targetLabel}`,
+    `${pc.bold("Outpost")} ${result.space.name} (${actionChip(result.space.action)})`,
+    `${pc.bold("Agents")}  ${summarizeImportAgentResults(result.agents)}`,
+    `${pc.bold("Skills")}  ${summarizeImportSkillResults(skills)}`,
+    `${pc.bold("Projects")} ${summarizeImportProjectResults(result.projects)}`,
+  ];
+
+  if (meta.spaceUrl) {
+    lines.splice(1, 0, `${pc.bold("URL")}     ${meta.spaceUrl}`);
+  }
+
+  appendPreviewExamples(
+    lines,
+    "Agent results",
+    result.agents.map((agent) => ({
+      action: agent.action,
+      label: `${agent.slug} -> ${agent.name}`,
+      reason: agent.reason,
+    })),
+  );
+  appendPreviewExamples(
+    lines,
+    "Skill results",
+    skills.map((skill) => ({
+      action: skill.action,
+      label: `${skill.originalSlug} -> ${skill.slug}`,
+      reason: skill.reason,
+    })),
+  );
+  appendPreviewExamples(
+    lines,
+    "Project results",
+    result.projects.map((project) => ({
+      action: project.action,
+      label: `${project.slug} -> ${project.name}`,
+      reason: project.reason,
+    })),
+  );
+
+  if (result.envInputs.length > 0) {
+    lines.push("");
+    lines.push(pc.bold("Env inputs"));
+    lines.push(
+      `- ${result.envInputs.length} ${pluralize(result.envInputs.length, "input")} may need values after import`,
+    );
+  }
+
+  appendMessageBlock(lines, pc.cyan("Info"), meta.infoMessages ?? []);
+  appendMessageBlock(lines, pc.yellow("Warnings"), result.warnings);
+
+  return lines.join("\n");
+}
+
+function printSpaceImportView(title: string, body: string, opts?: { interactive?: boolean }): void {
+  if (opts?.interactive) {
+    p.note(body, title);
+    return;
+  }
+  console.log(pc.bold(title));
+  console.log(body);
+}
+
+export function resolveSpaceImportApiPath(input: {
+  dryRun: boolean;
+  targetMode: "new_space" | "existing_space";
+  spaceId?: string | null;
+}): string {
+  if (input.targetMode === "existing_space") {
+    const spaceId = input.spaceId?.trim();
+    if (!spaceId) {
+      throw new Error("Existing-space imports require a spaceId to resolve the API route.");
+    }
+    return input.dryRun
+      ? apiPath`/api/spaces/${spaceId}/imports/preview`
+      : apiPath`/api/spaces/${spaceId}/imports/apply`;
+  }
+
+  return input.dryRun ? "/api/spaces/import/preview" : "/api/spaces/import";
+}
+
+export function buildSpaceDashboardUrl(apiBase: string, issuePrefix: string): string {
+  const url = new URL(apiBase);
+  const normalizedPrefix = issuePrefix.trim().replace(/^\/+|\/+$/g, "");
+  url.pathname = `${url.pathname.replace(/\/+$/, "")}/${normalizedPrefix}/dashboard`;
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
+export function resolveSpaceImportApplyConfirmationMode(input: {
+  yes?: boolean;
+  interactive: boolean;
+  json: boolean;
+}): "skip" | "prompt" {
+  if (input.yes) {
+    return "skip";
+  }
+  if (input.json) {
+    throw new Error(
+      "Applying a space import with --json requires --yes. Use --dry-run first to inspect the preview.",
+    );
+  }
+  if (!input.interactive) {
+    throw new Error(
+      "Applying a space import from a non-interactive terminal requires --yes. Use --dry-run first to inspect the preview.",
+    );
+  }
+  return "prompt";
+}
+
+export function isHttpUrl(input: string): boolean {
+  return /^https?:\/\//i.test(input.trim());
+}
+
+export function looksLikeRepoUrl(input: string): boolean {
+  try {
+    const url = new URL(input.trim());
+    if (url.protocol !== "https:") return false;
+    const segments = url.pathname.split("/").filter(Boolean);
+    return segments.length >= 2;
+  } catch {
+    return false;
+  }
+}
+
+function isGithubSegment(input: string): boolean {
+  return /^[A-Za-z0-9._-]+$/.test(input);
+}
+
+export function isGithubShorthand(input: string): boolean {
+  const trimmed = input.trim();
+  if (!trimmed || isHttpUrl(trimmed)) return false;
+  if (
+    trimmed.startsWith(".") ||
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("~") ||
+    trimmed.includes("\\") ||
+    /^[A-Za-z]:/.test(trimmed)
+  ) {
+    return false;
+  }
+
+  const segments = trimmed.split("/").filter(Boolean);
+  return segments.length >= 2 && segments.every(isGithubSegment);
+}
+
+function normalizeGithubImportPath(input: string | null | undefined): string | null {
+  if (!input) return null;
+  const trimmed = input.trim().replace(/^\/+|\/+$/g, "");
+  return trimmed || null;
+}
+
+function buildGithubImportUrl(input: {
+  hostname?: string;
+  owner: string;
+  repo: string;
+  ref?: string | null;
+  path?: string | null;
+  spacePath?: string | null;
+}): string {
+  const host = input.hostname || "github.com";
+  const url = new URL(`https://${host}/${input.owner}/${input.repo.replace(/\.git$/i, "")}`);
+  const ref = input.ref?.trim();
+  if (ref) {
+    url.searchParams.set("ref", ref);
+  }
+  const spacePath = normalizeGithubImportPath(input.spacePath);
+  if (spacePath) {
+    url.searchParams.set("spacePath", spacePath);
+    return url.toString();
+  }
+  const sourcePath = normalizeGithubImportPath(input.path);
+  if (sourcePath) {
+    url.searchParams.set("path", sourcePath);
+  }
+  return url.toString();
+}
+
+export function normalizeGithubImportSource(input: string, refOverride?: string): string {
+  const trimmed = input.trim();
+  const ref = refOverride?.trim();
+
+  if (isGithubShorthand(trimmed)) {
+    const [owner, repo, ...repoPath] = trimmed.split("/").filter(Boolean);
+    return buildGithubImportUrl({
+      owner: owner!,
+      repo: repo!,
+      ref: ref || "main",
+      path: repoPath.join("/"),
+    });
+  }
+
+  if (!looksLikeRepoUrl(trimmed)) {
+    throw new Error("GitHub source must be a GitHub or GitHub Enterprise URL, or owner/repo[/path] shorthand.");
+  }
+  if (!ref) {
+    return trimmed;
+  }
+
+  const url = new URL(trimmed);
+  const hostname = url.hostname;
+  const parts = url.pathname.split("/").filter(Boolean);
+  if (parts.length < 2) {
+    throw new Error("Invalid GitHub URL.");
+  }
+
+  const owner = parts[0]!;
+  const repo = parts[1]!;
+  const existingPath = normalizeGithubImportPath(url.searchParams.get("path"));
+  const existingSpacePath = normalizeGithubImportPath(url.searchParams.get("spacePath"));
+  if (existingSpacePath) {
+    return buildGithubImportUrl({ hostname, owner, repo, ref, spacePath: existingSpacePath });
+  }
+  if (existingPath) {
+    return buildGithubImportUrl({ hostname, owner, repo, ref, path: existingPath });
+  }
+  if (parts[2] === "tree") {
+    return buildGithubImportUrl({ hostname, owner, repo, ref, path: parts.slice(4).join("/") });
+  }
+  if (parts[2] === "blob") {
+    return buildGithubImportUrl({ hostname, owner, repo, ref, spacePath: parts.slice(4).join("/") });
+  }
+  return buildGithubImportUrl({ hostname, owner, repo, ref });
+}
+
+async function pathExists(inputPath: string): Promise<boolean> {
+  try {
+    await stat(path.resolve(inputPath));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function collectPackageFileBytes(
+  root: string,
+  current: string,
+  files: Record<string, Uint8Array>,
+): Promise<void> {
+  const entries = await readdir(current, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name.startsWith(".git")) continue;
+    const absolutePath = path.join(current, entry.name);
+    if (entry.isDirectory()) {
+      await collectPackageFileBytes(root, absolutePath, files);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    const relativePath = path.relative(root, absolutePath).replace(/\\/g, "/");
+    if (!shouldIncludePortableFile(relativePath)) continue;
+    files[relativePath] = await readFile(absolutePath);
+  }
+}
+
+export async function resolveInlineSourceFromPath(inputPath: string): Promise<{
+  rootPath: string;
+  files: Record<string, SpacePortabilityFileEntry>;
+}> {
+  const resolved = path.resolve(inputPath);
+  const resolvedStat = await stat(resolved);
+  if (resolvedStat.isFile() && path.extname(resolved).toLowerCase() === ".zip") {
+    const archive = await readZipArchive(await readFile(resolved));
+    const filteredFiles = Object.fromEntries(
+      Object.entries(archive.files).filter(([relativePath]) => shouldIncludePortableFile(relativePath)),
+    );
+    return {
+      rootPath: archive.rootPath ?? path.basename(resolved, ".zip"),
+      files: filteredFiles,
+    };
+  }
+
+  const rootDir = resolvedStat.isDirectory() ? resolved : path.dirname(resolved);
+  const fileBytes: Record<string, Uint8Array> = {};
+  await collectPackageFileBytes(rootDir, rootDir, fileBytes);
+  return {
+    rootPath: path.basename(rootDir),
+    files: Object.fromEntries(
+      Object.entries(fileBytes).map(([relativePath, bytes]) => [
+        relativePath,
+        bytesToPortableFileEntry(relativePath, bytes),
+      ]),
+    ),
+  };
+}
+
+// ── Chunked transfer flow for large local packages ───────────────────
+//
+// A local package over the threshold is not posted as one inline JSON body:
+// its zip is declared as a chunked transfer (whole-file and per-part sha256),
+// the parts are uploaded individually with per-part retries, and preview and
+// apply run server-side against the assembled spool. Re-declaring the same
+// content — after a failure or an interrupted run — resumes the prior
+// transfer, so only the parts the server is missing are ever re-uploaded.
+
+export const CHUNKED_IMPORT_THRESHOLD_BYTES = 48 * 1024 * 1024;
+// Imports into an EXISTING space post to /api/spaces/:id/imports/*,
+// which sits behind the server's default 10 MB JSON parser — only the
+// generic /api/spaces/import path carries the 64 MB portable limit. The
+// chunk decision for existing targets therefore uses this lower threshold
+// (margin under 10 MB for the envelope), or the inline body would 413.
+export const EXISTING_SPACE_CHUNKED_IMPORT_THRESHOLD_BYTES = 8 * 1024 * 1024;
+export const IMPORT_TRANSFER_PART_SIZE_BYTES = 32 * 1024 * 1024;
+const IMPORT_TRANSFER_PART_ATTEMPTS = 3;
+
+// ── Inline request size estimation ───────────────────────────────────
+//
+// Mirrors `estimateInlineImportBytes` in ui/src/lib/import-preflight.ts (the
+// CLI cannot import from ui/) — keep the math on both sides in sync. The
+// server enforces its body limit on raw request bytes, so each entry is
+// measured the way it actually travels: JSON-escaped UTF-8 for text
+// (multi-byte characters and escape sequences both inflate past
+// `String.length`), and the base64 payload plus its object structure for
+// binary entries (base64 and MIME types are ASCII, one byte per character).
+
+const inlineEstimateUtf8 = new TextEncoder();
+
+// Fixed serialization overhead of a base64 entry object around its data and
+// contentType values: {"encoding":"base64","data":"…","contentType":"…"}.
+const BASE64_ENTRY_STRUCTURE_BYTES = '{"encoding":"base64","data":"","contentType":""}'.length;
+
+// Allowance for everything in the request body besides the files map itself
+// (rootPath, include flags, target, collision strategy, adapter overrides,
+// braces and commas). Deliberately generous so the estimate never undercounts.
+const REQUEST_ENVELOPE_ALLOWANCE_BYTES = 256 * 1024;
+
+function fileEntryInlineBytes(entry: SpacePortabilityFileEntry): number {
+  if (typeof entry === "string") return inlineEstimateUtf8.encode(JSON.stringify(entry)).length;
+  return BASE64_ENTRY_STRUCTURE_BYTES + entry.data.length + (entry.contentType?.length ?? 0);
+}
+
+/**
+ * Approximate JSON request size of an inline import: JSON-escaped UTF-8 text
+ * bytes, base64 payloads with their entry structure, the serialized file-path
+ * keys (thousands of paths are real bytes), and an envelope allowance for the
+ * rest of the request body.
+ */
+function estimateInlineImportBytes(files: Record<string, SpacePortabilityFileEntry>): number {
+  let total = REQUEST_ENVELOPE_ALLOWANCE_BYTES;
+  for (const [filePath, entry] of Object.entries(files)) {
+    // "path": entry,  → key bytes + colon + comma.
+    total += inlineEstimateUtf8.encode(JSON.stringify(filePath)).length + 2 + fileEntryInlineBytes(entry);
+  }
+  return total;
+}
+
+export interface ImportTransferUploadProgress {
+  uploadedParts: number;
+  totalParts: number;
+  uploadedBytes: number;
+  totalBytes: number;
+}
+
+export function buildImportTransferManifest(zipBytes: Uint8Array): SpaceImportTransferDeclaration {
+  const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+  const parts: SpaceImportTransferDeclaration["parts"] = [];
+  for (let offset = 0; offset < zipBytes.length; offset += IMPORT_TRANSFER_PART_SIZE_BYTES) {
+    const byteSize = Math.min(IMPORT_TRANSFER_PART_SIZE_BYTES, zipBytes.length - offset);
+    parts.push({
+      index: parts.length,
+      byteSize,
+      sha256: sha256(zipBytes.subarray(offset, offset + byteSize)),
+    });
+  }
+  return {
+    totalBytes: zipBytes.length,
+    zipSha256: sha256(zipBytes),
+    partSizeBytes: IMPORT_TRANSFER_PART_SIZE_BYTES,
+    parts,
+  };
+}
+
+/**
+ * Resolve a local import source into raw zip bytes when its package is too
+ * large to travel as one inline JSON body: a .zip file is read as-is (so its
+ * declared hashes match the file on disk), a folder is packaged as a stored
+ * zip in memory with the same walk filters the inline path uses. Both source
+ * kinds are measured twice — raw bytes as a fast path, then the estimated
+ * inline request size, because base64 inflates binary entries ~4/3 and a
+ * compressed zip can expand far past its file size. Returns null for sources
+ * under the threshold on both measures — those keep the inline JSON path.
+ */
+export async function resolveChunkedImportZip(
+  inputPath: string,
+  thresholdBytes: number = CHUNKED_IMPORT_THRESHOLD_BYTES,
+): Promise<{
+  zipBytes: Uint8Array;
+  rootPath: string;
+} | null> {
+  const resolved = path.resolve(inputPath);
+  const resolvedStat = await stat(resolved);
+  if (resolvedStat.isFile() && path.extname(resolved).toLowerCase() === ".zip") {
+    const zipBytes = new Uint8Array(await readFile(resolved));
+    const rootPath = path.basename(resolved, ".zip");
+    if (resolvedStat.size > thresholdBytes) return { zipBytes, rootPath };
+    // A small compressed zip can still expand past server caps as inline
+    // JSON (text compresses well and binary re-inflates ~4/3 as base64), so
+    // the stay-inline decision uses the estimated request size of the same
+    // entries the inline path would send. An unreadable zip stays inline so
+    // that path surfaces its canonical parse error.
+    let archive: Awaited<ReturnType<typeof readZipArchive>>;
+    try {
+      archive = await readZipArchive(zipBytes);
+    } catch {
+      return null;
+    }
+    if (estimateInlineImportBytes(archive.files) <= thresholdBytes) return null;
+    return { zipBytes, rootPath };
+  }
+  if (!resolvedStat.isDirectory()) return null;
+  const fileBytes: Record<string, Uint8Array> = {};
+  await collectPackageFileBytes(resolved, resolved, fileBytes);
+  const rootPath = path.basename(resolved);
+  // Content bytes alone already past the threshold means the stored zip
+  // (content plus headers) is too.
+  const contentBytes = Object.values(fileBytes).reduce((sum, bytes) => sum + bytes.length, 0);
+  if (contentBytes <= thresholdBytes) {
+    // Raw bytes under the threshold can still blow past server caps once the
+    // inline body is built (binary entries travel base64-inflated), so the
+    // stay-inline decision is made on the estimated request size — the same
+    // entries the inline path would send.
+    const inlineEntries = Object.fromEntries(
+      Object.entries(fileBytes).map(([relativePath, bytes]) => [
+        relativePath,
+        bytesToPortableFileEntry(relativePath, bytes),
+      ]),
+    );
+    if (estimateInlineImportBytes(inlineEntries) <= thresholdBytes) return null;
+  }
+  return { zipBytes: createStoredZipArchive(fileBytes, rootPath), rootPath };
+}
+
+/**
+ * Declare (or resume) the transfer for these zip bytes and upload every part
+ * the server reports missing, sequentially with per-part retries. Resolves
+ * with the transfer id once the server holds every part.
+ */
+export async function uploadSpaceImportTransfer(
+  api: Pick<OutpostApiClient, "post" | "putRaw">,
+  zipBytes: Uint8Array,
+  opts: { onProgress?: (progress: ImportTransferUploadProgress) => void } = {},
+): Promise<string> {
+  const manifest = buildImportTransferManifest(zipBytes);
+  const created = await api.post<SpaceImportTransferCreated>(
+    `/api/spaces${SPACE_IMPORT_TRANSFERS_ROUTE_PATH}`,
+    manifest,
+  );
+  if (!created) {
+    throw new Error("Import transfer declaration returned no data.");
+  }
+  if (created.alreadyCompleted) {
+    // The server keys transfers by content, and this exact zip already
+    // finished an apply — its spooled parts are gone, so it cannot re-run.
+    // Name the space that apply created so the rejection points at the
+    // existing import instead of reading as data loss.
+    throw new Error(buildAlreadyImportedMessage(created.space));
+  }
+  const missing = new Set(created.missingParts);
+  let uploadedParts = manifest.parts.length - missing.size;
+  let uploadedBytes = manifest.parts.reduce(
+    (sum, part) => (missing.has(part.index) ? sum : sum + part.byteSize),
+    0,
+  );
+  for (const part of manifest.parts) {
+    if (!missing.has(part.index)) continue;
+    const offset = part.index * manifest.partSizeBytes;
+    const bytes = zipBytes.subarray(offset, offset + part.byteSize);
+    let lastError: unknown = null;
+    let uploaded = false;
+    for (let attempt = 0; attempt < IMPORT_TRANSFER_PART_ATTEMPTS && !uploaded; attempt += 1) {
+      try {
+        await api.putRaw(
+          `/api/spaces${spaceImportTransferPartPath(created.transferId, part.index)}`,
+          bytes,
+        );
+        uploaded = true;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (!uploaded) {
+      // Parts already uploaded stay spooled server-side; re-running the
+      // import resumes from them instead of starting over.
+      throw lastError instanceof Error
+        ? lastError
+        : new Error(`Import transfer part ${part.index} failed to upload.`);
+    }
+    uploadedParts += 1;
+    uploadedBytes += part.byteSize;
+    opts.onProgress?.({
+      uploadedParts,
+      totalParts: manifest.parts.length,
+      uploadedBytes,
+      totalBytes: manifest.totalBytes,
+    });
+  }
+  return created.transferId;
+}
+
+export async function writeExportToFolder(outDir: string, exported: SpacePortabilityExportResult): Promise<void> {
+  const root = path.resolve(outDir);
+  await mkdir(root, { recursive: true });
+  for (const [relativePath, content] of Object.entries(exported.files)) {
+    const normalized = relativePath.replace(/\\/g, "/");
+    const filePath = resolveExportOutputPath(root, normalized);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    const writeValue = portableFileEntryToWriteValue(content);
+    if (typeof writeValue === "string") {
+      await writeFile(filePath, writeValue, "utf8");
+    } else {
+      await writeFile(filePath, writeValue);
+    }
+  }
+}
+
+export function resolveExportOutputPath(root: string, relativePath: string): string {
+  const resolvedRoot = path.resolve(root);
+  const filePath = path.resolve(resolvedRoot, relativePath);
+  const rootPrefix = resolvedRoot.endsWith(path.sep) ? resolvedRoot : `${resolvedRoot}${path.sep}`;
+  if (filePath !== resolvedRoot && !filePath.startsWith(rootPrefix)) {
+    throw new Error(`Refusing to write export file outside output directory: ${relativePath}`);
+  }
+  return filePath;
+}
+
+export async function confirmOverwriteExportDirectory(
+  outDir: string,
+  opts: { force?: boolean } = {},
+): Promise<void> {
+  const root = path.resolve(outDir);
+  const stats = await stat(root).catch(() => null);
+  if (!stats) return;
+  if (!stats.isDirectory()) {
+    throw new Error(`Export output path ${root} exists and is not a directory.`);
+  }
+
+  const entries = await readdir(root);
+  if (entries.length === 0) return;
+
+  // --force skips the guard for non-interactive/automated callers (e.g. the
+  // nightly backup routine, which exports into a git clone that legitimately
+  // still holds .git and BACKUP-README.md after cleaning tracked content).
+  if (opts.force) return;
+
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error(`Export output directory ${root} already contains files. Re-run interactively, pass --force, or choose an empty directory.`);
+  }
+
+  const confirmed = await p.confirm({
+    message: `Overwrite existing files in ${root}?`,
+    initialValue: false,
+  });
+
+  if (p.isCancel(confirmed) || !confirmed) {
+    throw new Error("Export cancelled.");
+  }
+}
+
+function matchesPrefix(space: Space, selector: string): boolean {
+  return space.issuePrefix.toUpperCase() === selector.toUpperCase();
+}
+
+export function resolveSpaceForDeletion(
+  spaces: Space[],
+  selectorRaw: string,
+  by: SpaceDeleteSelectorMode = "auto",
+): Space {
+  const selector = normalizeSelector(selectorRaw);
+  if (!selector) {
+    throw new Error("Outpost selector is required.");
+  }
+
+  const idMatch = spaces.find((space) => space.id === selector);
+  const prefixMatch = spaces.find((space) => matchesPrefix(space, selector));
+
+  if (by === "id") {
+    if (!idMatch) {
+      throw new Error(`No space found by ID '${selector}'.`);
+    }
+    return idMatch;
+  }
+
+  if (by === "prefix") {
+    if (!prefixMatch) {
+      throw new Error(`No space found by shortname/prefix '${selector}'.`);
+    }
+    return prefixMatch;
+  }
+
+  if (idMatch && prefixMatch && idMatch.id !== prefixMatch.id) {
+    throw new Error(
+      `Selector '${selector}' is ambiguous (matches both an ID and a shortname). Re-run with --by id or --by prefix.`,
+    );
+  }
+
+  if (idMatch) return idMatch;
+  if (prefixMatch) return prefixMatch;
+
+  throw new Error(
+    `No space found for selector '${selector}'. Use space ID or issue prefix (for example PAP).`,
+  );
+}
+
+export function assertDeleteConfirmation(space: Space, opts: SpaceDeleteOptions): void {
+  if (!opts.yes) {
+    throw new Error("Deletion requires --yes.");
+  }
+
+  const confirm = opts.confirm?.trim();
+  if (!confirm) {
+    throw new Error(
+      "Deletion requires --confirm <value> where value matches the space ID or issue prefix.",
+    );
+  }
+
+  const confirmsById = confirm === space.id;
+  const confirmsByPrefix = confirm.toUpperCase() === space.issuePrefix.toUpperCase();
+  if (!confirmsById && !confirmsByPrefix) {
+    throw new Error(
+      `Confirmation '${confirm}' does not match target space. Expected ID '${space.id}' or prefix '${space.issuePrefix}'.`,
+    );
+  }
+}
+
+function assertDeleteFlags(opts: SpaceDeleteOptions): void {
+  if (!opts.yes) {
+    throw new Error("Deletion requires --yes.");
+  }
+  if (!opts.confirm?.trim()) {
+    throw new Error(
+      "Deletion requires --confirm <value> where value matches the space ID or issue prefix.",
+    );
+  }
+}
+
+export function registerSpaceCommands(program: Command): void {
+  const space = program.command("space").description("Outpost operations");
+
+  addCommonClientOptions(
+    space
+      .command("list")
+      .description("List spaces")
+      .action(async (opts: SpaceCommandOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          const rows = await listSpacesForContext(ctx);
+          if (ctx.json) {
+            printOutput(rows, { json: true });
+            return;
+          }
+
+          if (rows.length === 0) {
+            printOutput([], { json: false });
+            return;
+          }
+
+          const formatted = rows.map((row) => ({
+            id: row.id,
+            name: row.name,
+            status: row.status,
+            budgetMonthlyCents: row.budgetMonthlyCents,
+            spentMonthlyCents: row.spentMonthlyCents,
+            requireOperatorApprovalForNewAgents: row.requireOperatorApprovalForNewAgents,
+          }));
+          for (const row of formatted) {
+            console.log(formatInlineRecord(row));
+          }
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+
+  addCommonClientOptions(
+    space
+      .command("get")
+      .description("Get one space")
+      .argument("<spaceId>", "Outpost ID")
+      .action(async (spaceId: string, opts: SpaceCommandOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          const row = await ctx.api.get<Space>(apiPath`/api/spaces/${spaceId}`);
+          printOutput(row, { json: ctx.json });
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+
+  addCommonClientOptions(
+    space
+      .command("current")
+      .description("Get the current scoped space from --space-id, context, env, or agent authentication")
+      .action(async (opts: SpaceCommandOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          const spaceId = await resolveCurrentSpaceId(ctx);
+          const row = await ctx.api.get<Space>(apiPath`/api/spaces/${spaceId}`);
+          printOutput(row, { json: ctx.json });
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+    { includeSpace: true },
+  );
+
+  addCommonClientOptions(
+    space
+      .command("stats")
+      .description("Get space stats")
+      .action(async (opts: SpaceCommandOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          printOutput(await ctx.api.get("/api/spaces/stats"), { json: ctx.json });
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+
+  addCommonClientOptions(
+    space
+      .command("create")
+      .description("Create a space")
+      .requiredOption("--payload-json <json>", "CreateSpace JSON payload")
+      .action(async (opts: SpaceJsonOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          printOutput(await createSpaceForContext(ctx, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+
+  addCommonClientOptions(
+    space
+      .command("update")
+      .description("Update a space")
+      .argument("<spaceId>", "Outpost ID")
+      .requiredOption("--payload-json <json>", "UpdateSpace JSON payload")
+      .action(async (spaceId: string, opts: SpaceJsonOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          printOutput(await ctx.api.patch(apiPath`/api/spaces/${spaceId}`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+
+  addCommonClientOptions(
+    space
+      .command("branding:update")
+      .description("Update space branding")
+      .argument("<spaceId>", "Outpost ID")
+      .requiredOption("--payload-json <json>", "UpdateSpaceBranding JSON payload")
+      .action(async (spaceId: string, opts: SpaceJsonOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          printOutput(await ctx.api.patch(apiPath`/api/spaces/${spaceId}/branding`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+
+  addCommonClientOptions(
+    space
+      .command("archive")
+      .description("Archive a space")
+      .argument("<spaceId>", "Outpost ID")
+      .action(async (spaceId: string, opts: SpaceCommandOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          printOutput(await ctx.api.post(apiPath`/api/spaces/${spaceId}/archive`, {}), { json: ctx.json });
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+
+  addSpaceJsonPost(space, "export:preview", "Preview a portable space export", "exports/preview");
+  addSpaceJsonPost(space, "export:api", "Export a space through the raw API route", "exports");
+  addSpaceJsonPost(space, "import:preview", "Preview a safe space import through the raw API route", "imports/preview");
+  addSpaceJsonPost(space, "import:apply", "Apply a safe space import through the raw API route", "imports/apply");
+
+  addCommonClientOptions(
+    space
+      .command("export")
+      .description("Export a space into a portable markdown package")
+      .argument("<spaceId>", "Outpost ID")
+      .requiredOption("--out <path>", "Output directory")
+      .option("--include <values>", "Comma-separated include set: space,agents,projects,issues,tasks,skills", "space,agents")
+      .option("--skills <values>", "Comma-separated skill slugs/keys to export")
+      .option("--projects <values>", "Comma-separated project shortnames/ids to export")
+      .option("--issues <values>", "Comma-separated issue identifiers/ids to export")
+      .option("--project-issues <values>", "Comma-separated project shortnames/ids whose issues should be exported")
+      .option("--expand-referenced-skills", "Vendor skill contents instead of exporting upstream references", false)
+      .option(
+        "--force",
+        "Overwrite a non-empty output directory without the interactive confirmation (required for non-interactive/automated runs such as the nightly backup routine)",
+        false,
+      )
+      .action(async (spaceId: string, opts: SpaceExportOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          const include = parseInclude(opts.include);
+          const exported = await ctx.api.post<SpacePortabilityExportResult>(
+            apiPath`/api/spaces/${spaceId}/export`,
+            {
+              include,
+              skills: parseCsvValues(opts.skills),
+              projects: parseCsvValues(opts.projects),
+              issues: parseCsvValues(opts.issues),
+              projectIssues: parseCsvValues(opts.projectIssues),
+              expandReferencedSkills: Boolean(opts.expandReferencedSkills),
+            },
+          );
+          if (!exported) {
+            throw new Error("Export request returned no data");
+          }
+          await confirmOverwriteExportDirectory(opts.out!, { force: Boolean(opts.force) });
+          await writeExportToFolder(opts.out!, exported);
+          printOutput(
+            {
+              ok: true,
+              out: path.resolve(opts.out!),
+              rootPath: exported.rootPath,
+              filesWritten: Object.keys(exported.files).length,
+              outpostExtensionPath: exported.outpostExtensionPath,
+              warningCount: exported.warnings.length,
+            },
+            { json: ctx.json },
+          );
+          if (!ctx.json && exported.warnings.length > 0) {
+            for (const warning of exported.warnings) {
+              console.log(`warning=${warning}`);
+            }
+          }
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+
+  addCommonClientOptions(
+    space
+      .command("import")
+      .description("Import a portable markdown space package from local path, URL, or GitHub")
+      .argument("<fromPathOrUrl>", "Source path or URL")
+      .option("--include <values>", "Comma-separated include set: space,agents,projects,issues,tasks,skills")
+      .option("--target <mode>", "Target mode: new | existing")
+      .option("-C, --space-id <id>", "Existing target space ID")
+      .option("--new-space-name <name>", "Name override for --target new")
+      .option("--agents <list>", "Comma-separated agent slugs to import, or all", "all")
+      .option("--collision <mode>", "Collision strategy: rename | skip | replace", "rename")
+      .option("--ref <value>", "Git ref to use for GitHub imports (branch, tag, or commit)")
+      .option("--outpost-url <url>", "Alias for --api-base on this command")
+      .option("--yes", "Accept default selection and skip the pre-import confirmation prompt", false)
+      .option("--dry-run", "Run preview only without applying", false)
+      .action(async (fromPathOrUrl: string, opts: SpaceImportOptions) => {
+        try {
+          if (!opts.apiBase?.trim() && opts.outpostUrl?.trim()) {
+            opts.apiBase = opts.outpostUrl.trim();
+          }
+          const ctx = resolveCommandContext(opts);
+          const interactiveView = isInteractiveTerminal() && !ctx.json;
+          const from = fromPathOrUrl.trim();
+          if (!from) {
+            throw new Error("Source path or URL is required.");
+          }
+
+          const include = resolveImportInclude(opts.include);
+          const agents = parseAgents(opts.agents);
+          const collision = (opts.collision ?? "rename").toLowerCase() as SpaceCollisionMode;
+          if (!["rename", "skip", "replace"].includes(collision)) {
+            throw new Error("Invalid --collision value. Use: rename, skip, replace");
+          }
+
+          const inferredTarget = opts.target ?? (opts.spaceId || ctx.spaceId ? "existing" : "new");
+          const target = inferredTarget.toLowerCase() as SpaceImportTargetMode;
+          if (!["new", "existing"].includes(target)) {
+            throw new Error("Invalid --target value. Use: new | existing");
+          }
+
+          const existingTargetSpaceId = opts.spaceId?.trim() || ctx.spaceId;
+          const targetPayload =
+            target === "existing"
+              ? {
+                  mode: "existing_space" as const,
+                  spaceId: existingTargetSpaceId,
+                }
+              : {
+                  mode: "new_space" as const,
+                  newSpaceName: opts.newSpaceName?.trim() || null,
+                };
+
+          if (targetPayload.mode === "existing_space" && !targetPayload.spaceId) {
+            throw new Error("Target existing space requires --space-id (or context default spaceId).");
+          }
+
+          let sourcePayload:
+            | { type: "inline"; rootPath?: string | null; files: Record<string, SpacePortabilityFileEntry> }
+            | { type: "github"; url: string };
+          let chunkedZip: { zipBytes: Uint8Array; rootPath: string } | null = null;
+
+          const treatAsLocalPath = !isHttpUrl(from) && await pathExists(from);
+          const isGithubSource = looksLikeRepoUrl(from) || (isGithubShorthand(from) && !treatAsLocalPath);
+
+          if (isHttpUrl(from) || isGithubSource) {
+            if (!looksLikeRepoUrl(from) && !isGithubShorthand(from)) {
+              throw new Error(
+                "Only GitHub URLs and local paths are supported for import. " +
+                "Generic HTTP URLs are not supported. Use a GitHub or GitHub Enterprise URL (https://github.com/... or https://ghe.example.com/...) or a local directory path.",
+              );
+            }
+            sourcePayload = { type: "github", url: normalizeGithubImportSource(from, opts.ref) };
+          } else {
+            if (opts.ref?.trim()) {
+              throw new Error("--ref is only supported for GitHub import sources.");
+            }
+            chunkedZip = await resolveChunkedImportZip(
+              from,
+              target === "existing"
+                ? EXISTING_SPACE_CHUNKED_IMPORT_THRESHOLD_BYTES
+                : CHUNKED_IMPORT_THRESHOLD_BYTES,
+            );
+            if (chunkedZip) {
+              // Too large for one request: the zip travels as a chunked
+              // transfer, so the inline files map is never built or sent.
+              sourcePayload = { type: "inline", rootPath: chunkedZip.rootPath, files: {} };
+            } else {
+              const inline = await resolveInlineSourceFromPath(from);
+              sourcePayload = {
+                type: "inline",
+                rootPath: inline.rootPath,
+                files: inline.files,
+              };
+            }
+          }
+
+          const sourceLabel = formatSourceLabel(sourcePayload);
+          const targetLabel = formatTargetLabel(targetPayload);
+          const previewApiPath = resolveSpaceImportApiPath({
+            dryRun: true,
+            targetMode: targetPayload.mode,
+            spaceId: targetPayload.mode === "existing_space" ? targetPayload.spaceId : null,
+          });
+
+          // The transfer meta mirrors the inline preview payload minus its
+          // `source` — the source is the assembled zip, spooled server-side.
+          const transferMeta = {
+            include,
+            target: targetPayload,
+            agents,
+            collisionStrategy: collision,
+          };
+          let transferId: string | null = null;
+          if (chunkedZip) {
+            transferId = await uploadSpaceImportTransfer(ctx.api, chunkedZip.zipBytes, {
+              onProgress: ctx.json
+                ? undefined
+                : ({ uploadedParts, totalParts, uploadedBytes, totalBytes }) => {
+                    console.log(
+                      pc.dim(
+                        `Uploaded part ${uploadedParts}/${totalParts} (${Math.round(uploadedBytes / (1024 * 1024))} of ${Math.round(totalBytes / (1024 * 1024))} MB)`,
+                      ),
+                    );
+                  },
+            });
+          }
+          const transferPreviewPath = transferId
+            ? `/api/spaces${spaceImportTransferPreviewPath(transferId)}`
+            : null;
+
+          let selectedFiles: string[] | undefined;
+          if (interactiveView && !opts.yes && !opts.include?.trim()) {
+            const initialPreview = transferPreviewPath
+              ? await ctx.api.post<SpacePortabilityPreviewResult>(transferPreviewPath, transferMeta)
+              : await ctx.api.post<SpacePortabilityPreviewResult>(previewApiPath, {
+                  source: sourcePayload,
+                  ...transferMeta,
+                });
+            if (!initialPreview) {
+              throw new Error("Import preview returned no data.");
+            }
+            selectedFiles = await promptForImportSelection(initialPreview);
+          }
+
+          const previewPayload = {
+            source: sourcePayload,
+            ...transferMeta,
+            selectedFiles,
+          };
+          const preview = transferPreviewPath
+            ? await ctx.api.post<SpacePortabilityPreviewResult>(transferPreviewPath, {
+                ...transferMeta,
+                selectedFiles,
+              })
+            : await ctx.api.post<SpacePortabilityPreviewResult>(previewApiPath, previewPayload);
+          if (!preview) {
+            throw new Error("Import preview returned no data.");
+          }
+          const adapterOverrides = buildDefaultImportAdapterOverrides(preview);
+          const adapterMessages = buildDefaultImportAdapterMessages(adapterOverrides);
+
+          if (opts.dryRun) {
+            if (ctx.json) {
+              printOutput(preview, { json: true });
+            } else {
+              printSpaceImportView(
+                "Import Preview",
+                renderSpaceImportPreview(preview, {
+                  sourceLabel,
+                  targetLabel: formatTargetLabel(targetPayload, preview),
+                  infoMessages: adapterMessages,
+                }),
+                { interactive: interactiveView },
+              );
+            }
+            return;
+          }
+
+          if (!ctx.json) {
+            printSpaceImportView(
+              "Import Preview",
+              renderSpaceImportPreview(preview, {
+                sourceLabel,
+                targetLabel: formatTargetLabel(targetPayload, preview),
+                infoMessages: adapterMessages,
+              }),
+              { interactive: interactiveView },
+            );
+          }
+
+          const confirmationMode = resolveSpaceImportApplyConfirmationMode({
+            yes: opts.yes,
+            interactive: interactiveView,
+            json: ctx.json,
+          });
+          if (confirmationMode === "prompt") {
+            const confirmed = await p.confirm({
+              message: "Apply this import? (y/N)",
+              initialValue: false,
+            });
+            if (p.isCancel(confirmed) || !confirmed) {
+              p.log.warn("Import cancelled.");
+              return;
+            }
+          }
+
+          const importApiPath = resolveSpaceImportApiPath({
+            dryRun: false,
+            targetMode: targetPayload.mode,
+            spaceId: targetPayload.mode === "existing_space" ? targetPayload.spaceId : null,
+          });
+          const imported = transferId
+            ? await ctx.api.post<SpacePortabilityImportResult>(
+                `/api/spaces${spaceImportTransferApplyPath(transferId)}`,
+                { ...transferMeta, selectedFiles, adapterOverrides },
+              )
+            : await ctx.api.post<SpacePortabilityImportResult>(importApiPath, {
+                ...previewPayload,
+                adapterOverrides,
+              });
+          if (!imported) {
+            throw new Error("Import request returned no data.");
+          }
+          const tc = getTelemetryClient();
+          if (tc) {
+            const isPrivate = sourcePayload.type !== "github";
+            const sourceRef = sourcePayload.type === "github" ? sourcePayload.url : from;
+            trackSpaceImported(tc, { sourceType: sourcePayload.type, sourceRef, isPrivate });
+          }
+          let spaceUrl: string | undefined;
+          if (!ctx.json) {
+            try {
+              const importedSpace = await ctx.api.get<Space>(apiPath`/api/spaces/${imported.space.id}`);
+              const issuePrefix = importedSpace?.issuePrefix?.trim();
+              if (issuePrefix) {
+                spaceUrl = buildSpaceDashboardUrl(ctx.api.apiBase, issuePrefix);
+              }
+            } catch {
+              spaceUrl = undefined;
+            }
+          }
+          if (ctx.json) {
+            printOutput(imported, { json: true });
+          } else {
+            printSpaceImportView(
+              "Import Result",
+              renderSpaceImportResult(imported, {
+                targetLabel,
+                spaceUrl,
+                infoMessages: adapterMessages,
+              }),
+              { interactive: interactiveView },
+            );
+            if (interactiveView && spaceUrl) {
+              const openImportedSpace = await p.confirm({
+                message: "Open the imported space in your browser?",
+                initialValue: true,
+              });
+              if (!p.isCancel(openImportedSpace) && openImportedSpace) {
+                if (await openUrl(spaceUrl)) {
+                  p.log.info(`Opened ${spaceUrl}`);
+                } else {
+                  p.log.warn(`Could not open your browser automatically. Open this URL manually:\n${spaceUrl}`);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+
+  addCommonClientOptions(
+    space
+      .command("delete")
+      .description("Delete a space by ID or shortname/prefix (destructive)")
+      .argument("<selector>", "Outpost ID or issue prefix (for example PAP)")
+      .option(
+        "--by <mode>",
+        "Selector mode: auto | id | prefix",
+        "auto",
+      )
+      .option("--yes", "Required safety flag to confirm destructive action", false)
+      .option(
+        "--confirm <value>",
+        "Required safety value: target space ID or shortname/prefix",
+      )
+      .action(async (selector: string, opts: SpaceDeleteOptions) => {
+        try {
+          const by = (opts.by ?? "auto").trim().toLowerCase() as SpaceDeleteSelectorMode;
+          if (!["auto", "id", "prefix"].includes(by)) {
+            throw new Error(`Invalid --by mode '${opts.by}'. Expected one of: auto, id, prefix.`);
+          }
+
+          const ctx = resolveCommandContext(opts);
+          const normalizedSelector = normalizeSelector(selector);
+          assertDeleteFlags(opts);
+
+          let target: Space | null = null;
+          const shouldTryIdLookup = by === "id" || (by === "auto" && isUuidLike(normalizedSelector));
+          if (shouldTryIdLookup) {
+            const byId = await ctx.api.get<Space>(apiPath`/api/spaces/${normalizedSelector}`, { ignoreNotFound: true });
+            if (byId) {
+              target = byId;
+            } else if (by === "id") {
+              throw new Error(`No space found by ID '${normalizedSelector}'.`);
+            }
+          }
+
+          if (!target && ctx.spaceId) {
+            const scoped = await ctx.api.get<Space>(apiPath`/api/spaces/${ctx.spaceId}`, { ignoreNotFound: true });
+            if (scoped) {
+              try {
+                target = resolveSpaceForDeletion([scoped], normalizedSelector, by);
+              } catch {
+                // Fallback to operator-wide lookup below.
+              }
+            }
+          }
+
+          if (!target) {
+            try {
+              const spaces = (await ctx.api.get<Space[]>("/api/spaces")) ?? [];
+              target = resolveSpaceForDeletion(spaces, normalizedSelector, by);
+            } catch (error) {
+              if (error instanceof ApiRequestError && error.status === 403 && error.message.includes("Operator access required")) {
+                throw new Error(
+                  "Operator access is required to resolve spaces across the instance. Use a space ID/prefix for your current space, or run with operator authentication.",
+                );
+              }
+              throw error;
+            }
+          }
+
+          if (!target) {
+            throw new Error(`No space found for selector '${normalizedSelector}'.`);
+          }
+
+          assertDeleteConfirmation(target, opts);
+
+          await ctx.api.delete<{ ok: true }>(apiPath`/api/spaces/${target.id}`);
+
+          printOutput(
+            {
+              ok: true,
+              deletedSpaceId: target.id,
+              deletedSpaceName: target.name,
+              deletedSpacePrefix: target.issuePrefix,
+            },
+            { json: ctx.json },
+          );
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+}
+
+async function listSpacesForContext(ctx: {
+  spaceId?: string;
+  api: { get<T>(path: string): Promise<T | null> };
+}): Promise<Space[]> {
+  try {
+    return (await ctx.api.get<Space[]>("/api/spaces")) ?? [];
+  } catch (error) {
+    if (!isBoardAccessRequiredError(error)) {
+      throw error;
+    }
+  }
+
+  const spaceId = await resolveCurrentSpaceId(ctx);
+  const scopedSpace = await ctx.api.get<Space>(apiPath`/api/spaces/${spaceId}`);
+  return scopedSpace ? [scopedSpace] : [];
+}
+
+async function createSpaceForContext(ctx: {
+  api: { post<T>(path: string, body?: unknown): Promise<T | null> };
+}, payload: unknown): Promise<unknown> {
+  try {
+    return await ctx.api.post("/api/spaces", payload);
+  } catch (error) {
+    if (isBoardAccessRequiredError(error) || isInstanceAdminRequiredError(error)) {
+      throw new Error(
+        "Creating spaces requires operator/instance-admin authentication. Agent API keys are scoped to one space; use `outpost space list --json` or `outpost space current --json` to select the scoped space, or rerun create with a operator token/login.",
+      );
+    }
+    throw error;
+  }
+}
+
+async function resolveCurrentSpaceId(ctx: { spaceId?: string; api: { get<T>(path: string): Promise<T | null> } }): Promise<string> {
+  const fromContext = ctx.spaceId?.trim();
+  if (fromContext) return fromContext;
+
+  let agent: AgentMeResponse | null = null;
+  try {
+    agent = await ctx.api.get<AgentMeResponse>("/api/agents/me");
+  } catch (error) {
+    if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
+      throw new Error(
+        "Current space is not available. Pass --space-id, set OUTPOST_SPACE_ID, set a context profile spaceId, or authenticate with an agent API key.",
+      );
+    }
+    throw error;
+  }
+
+  const fromAgent = agent?.spaceId?.trim();
+  if (fromAgent) return fromAgent;
+  throw new Error(
+    "Current space is not available. Pass --space-id, set OUTPOST_SPACE_ID, set a context profile spaceId, or authenticate with an agent API key.",
+  );
+}
+
+function isBoardAccessRequiredError(error: unknown): error is ApiRequestError {
+  return error instanceof ApiRequestError && error.status === 403 && error.message.toLowerCase().includes("operator access required");
+}
+
+function isInstanceAdminRequiredError(error: unknown): error is ApiRequestError {
+  return error instanceof ApiRequestError && error.status === 403 && error.message.toLowerCase().includes("instance admin");
+}
+
+function addSpaceJsonPost(parent: Command, name: string, description: string, pathSuffix: string): void {
+  addCommonClientOptions(
+    parent
+      .command(name)
+      .description(description)
+      .argument("<spaceId>", "Outpost ID")
+      .requiredOption("--payload-json <json>", "JSON payload")
+      .action(async (spaceId: string, opts: SpaceJsonOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          printOutput(await ctx.api.post(`${apiPath`/api/spaces/${spaceId}`}/${pathSuffix}`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+}
+
+function parseJson(value: string): unknown {
+  return JSON.parse(value) as unknown;
+}

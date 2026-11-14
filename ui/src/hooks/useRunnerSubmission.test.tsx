@@ -26,8 +26,8 @@ it("settles a newer saved message while the same Retry explanation remains visib
     await act(async () => container.querySelector("button")!.click());
     await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
     expect(container.textContent).toContain("Taking longer than usual…");
-    const comments: IssueChatComment[] = [{ id: "comment", clientRequestId: "message", companyId: "company", issueId: "task",
-      authorType: "user", authorAgentId: null, authorUserId: "board", body: "Keep my saved message.",
+    const comments: IssueChatComment[] = [{ id: "comment", clientRequestId: "message", spaceId: "space", issueId: "task",
+      authorType: "user", authorAgentId: null, authorUserId: "operator", body: "Keep my saved message.",
       presentation: null, metadata: null, createdAt: new Date(), updatedAt: new Date() }];
     await act(async () => root.render(<View comments={comments} />));
     expect(container.textContent).toContain("Taking longer than usual…");

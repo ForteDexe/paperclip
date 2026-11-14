@@ -7,7 +7,7 @@
 //     workspaceStrategy: { type: "git_worktree", existingBranch: "<branch>" } }
 // Dispatch then attaches a git worktree on exactly that branch and ignores a
 // mismatched inherited reuse_existing binding. The script only PATCHes issues
-// through the company-scoped API; it never runs git and never mutates or
+// through the space-scoped API; it never runs git and never mutates or
 // deletes any branch.
 //
 // Usage:
@@ -41,7 +41,7 @@ const apiBase = apiUrl.replace(/\/$/, "").replace(/\/api$/, "");
 const headers = {
   Authorization: `Bearer ${apiKey}`,
   "Content-Type": "application/json",
-  ...(process.env.OUTPOST_RUN_ID ? { "X-Paperclip-Run-Id": process.env.OUTPOST_RUN_ID } : {}),
+  ...(process.env.OUTPOST_RUN_ID ? { "X-Outpost-Run-Id": process.env.OUTPOST_RUN_ID } : {}),
 };
 
 let failed = false;

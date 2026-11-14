@@ -45,7 +45,7 @@ service diff. Compiled modules and source maps stay in the printed evidence
 directory. Successful fixtures are removed; failed fixtures remain for diagnosis.
 
 This is a service benchmark. The HTTP endpoint is a responsiveness probe, not
-the assembled Paperclip API. The lease-stamp callback resolves without database
+the assembled Outpost API. The lease-stamp callback resolves without database
 work. It does not prove a hosted latency or total-CPU improvement. Process CPU
 during publication includes foreground requests that the synchronous baseline
 cannot serve until cleanup completes. Async cleanup can consume more CPU while

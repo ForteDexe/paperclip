@@ -92,7 +92,7 @@ export function githubReviewSchedulingDecision(input: {
   configuration: GitHubChatConfiguration;
   context: GitHubAutomaticPolicyContext;
   repositoryEnabled: boolean;
-  /** Resolved against current company membership and the user's confirmed link. */
+  /** Resolved against current space membership and the user's confirmed link. */
   linkedMemberUserId: string | null;
   /** Only IDs whose membership/permissions were rechecked for this operation. */
   activeSponsorUserIds: ReadonlySet<string>;

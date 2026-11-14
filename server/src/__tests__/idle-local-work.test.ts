@@ -98,17 +98,17 @@ describe("idle cleanup inspection", () => {
 });
 
 describe("idle credential recovery inspection", () => {
-  const company = "7238bc31-f3ca-42ba-b487-4122e77b8867";
-  it("allows missing roots and empty company directories after successful recovery", async () => {
+  const space = "7238bc31-f3ca-42ba-b487-4122e77b8867";
+  it("allows missing roots and empty space directories after successful recovery", async () => {
     expect(await inspectIdleQuotaRecovery(path.join(root, "missing"))).toBe("none");
     expect(await inspectIdleQuotaRecovery(root)).toBe("none");
-    await fs.mkdir(path.join(root, company));
+    await fs.mkdir(path.join(root, space));
     expect(await inspectIdleQuotaRecovery(root)).toBe("none");
   });
   it.each(["receipt.json", "malformed.json", "partial.tmp", "write.probe", "unexpected"])(
-    "retains every pending company entry without reading its contents: %s", async name => {
-      await fs.mkdir(path.join(root, company));
-      const file = path.join(root, company, name);
+    "retains every pending space entry without reading its contents: %s", async name => {
+      await fs.mkdir(path.join(root, space));
+      const file = path.join(root, space, name);
       await fs.writeFile(file, "unreadable recovery fixture");
       const read = vi.spyOn(fs, "readFile");
       expect(await inspectIdleQuotaRecovery(root)).toBe("present");
@@ -121,10 +121,10 @@ describe("idle credential recovery inspection", () => {
     await fs.mkdir(path.join(root, "unexpected"));
     expect(await inspectIdleQuotaRecovery(root)).toBe("present");
     await fs.rm(path.join(root, "unexpected"), { recursive: true });
-    await fs.symlink(path.join(root, "missing"), path.join(root, company));
+    await fs.symlink(path.join(root, "missing"), path.join(root, space));
     expect(await inspectIdleQuotaRecovery(root)).toBe("present");
-    await fs.rm(path.join(root, company));
-    await fs.mkdir(path.join(root, company, "nested"), { recursive: true });
+    await fs.rm(path.join(root, space));
+    await fs.mkdir(path.join(root, space, "nested"), { recursive: true });
     expect(await inspectIdleQuotaRecovery(root)).toBe("present");
   });
   it("fails closed on invalid roots and directory read errors", async () => {
@@ -138,7 +138,7 @@ describe("idle credential recovery inspection", () => {
   it("keeps persisted credential recovery awake after the request and process work have ended", async () => {
     vi.stubEnv("OUTPOST_HOME", root);
     markIdleIngressTracked(); markIdleStartupComplete({ scheduledBackups: false });
-    const directory = path.join(idleQuotaRecoveryPath(), company);
+    const directory = path.join(idleQuotaRecoveryPath(), space);
     await fs.mkdir(directory, { recursive: true });
     const file = path.join(directory, "pending.json");
     await fs.writeFile(file, "encrypted journal fixture");

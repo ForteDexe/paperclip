@@ -27,7 +27,7 @@ export const EMBEDDED_POSTGRES_TEST_TIMEOUT_MS = 90_000;
 
 type EmbeddedPostgresInstance = ReturnType<typeof ownTestPostgres>;
 
-type EmbeddedPostgresCtor = new (opts: {
+type EmbeddedPostgresEngineeringLeadr = new (opts: {
   databaseDir: string;
   user: string;
   password: string;
@@ -63,27 +63,27 @@ function getReservedTestPorts(): Set<number> {
   return new Set(configuredPorts.filter((port) => Number.isInteger(port) && port > 0 && port <= 65535));
 }
 
-type EmbeddedPostgresCtorProvider = () => Promise<EmbeddedPostgresCtor>;
+type EmbeddedPostgresEngineeringLeadrProvider = () => Promise<EmbeddedPostgresEngineeringLeadr>;
 
-async function loadEmbeddedPostgresCtor(): Promise<EmbeddedPostgresCtor> {
+async function loadEmbeddedPostgresEngineeringLeadr(): Promise<EmbeddedPostgresEngineeringLeadr> {
   const mod = await loadWithoutEmbeddedPostgresExitHooks(() => import("embedded-postgres"));
   await prepareEmbeddedPostgresNativeRuntime();
-  return mod.default as unknown as EmbeddedPostgresCtor;
+  return mod.default as unknown as EmbeddedPostgresEngineeringLeadr;
 }
 
-let embeddedPostgresCtorProvider: EmbeddedPostgresCtorProvider = loadEmbeddedPostgresCtor;
+let embeddedPostgresEngineeringLeadrProvider: EmbeddedPostgresEngineeringLeadrProvider = loadEmbeddedPostgresEngineeringLeadr;
 
 // Test seam. Replace the embedded-postgres constructor provider so a test can
 // simulate a failed start without the native runtime. Pass `null` to restore
 // the default provider. This module is test support only, so the seam is safe.
-export function __setEmbeddedPostgresCtorProviderForTests(
-  provider: EmbeddedPostgresCtorProvider | null,
+export function __setEmbeddedPostgresEngineeringLeadrProviderForTests(
+  provider: EmbeddedPostgresEngineeringLeadrProvider | null,
 ): void {
-  embeddedPostgresCtorProvider = provider ?? loadEmbeddedPostgresCtor;
+  embeddedPostgresEngineeringLeadrProvider = provider ?? loadEmbeddedPostgresEngineeringLeadr;
 }
 
-async function getEmbeddedPostgresCtor(): Promise<EmbeddedPostgresCtor> {
-  return await embeddedPostgresCtorProvider();
+async function getEmbeddedPostgresEngineeringLeadr(): Promise<EmbeddedPostgresEngineeringLeadr> {
+  return await embeddedPostgresEngineeringLeadrProvider();
 }
 
 async function getAvailablePort(): Promise<number> {
@@ -117,8 +117,8 @@ async function getAvailablePort(): Promise<number> {
   );
 }
 
-const EMBEDDED_POSTGRES_USER = "paperclip";
-const EMBEDDED_POSTGRES_PASSWORD = "paperclip";
+const EMBEDDED_POSTGRES_USER = "outpost";
+const EMBEDDED_POSTGRES_PASSWORD = "outpost";
 const EMBEDDED_POSTGRES_INITDB_FLAGS = ["--encoding=UTF8", "--locale=C", "--lc-messages=C"];
 
 async function createEmbeddedPostgresTestInstance(tempDirPrefix: string) {
@@ -136,7 +136,7 @@ async function createEmbeddedPostgresTestInstance(tempDirPrefix: string) {
 // holds a copied cluster that only needs `start()`.
 async function createEmbeddedPostgresTestInstanceAt(dataDir: string) {
   const port = await getAvailablePort();
-  const EmbeddedPostgres = await getEmbeddedPostgresCtor();
+  const EmbeddedPostgres = await getEmbeddedPostgresEngineeringLeadr();
   // Postgres writes the true reason for a failed start to its output, for
   // example `could not bind IPv4 address "127.0.0.1": Address already in use`.
   // The `start()` rejection carries an empty message, so we capture the output
@@ -161,7 +161,7 @@ function adminConnectionStringFor(port: number): string {
 }
 
 function databaseConnectionStringFor(port: number): string {
-  return `postgres://${EMBEDDED_POSTGRES_USER}:${EMBEDDED_POSTGRES_PASSWORD}@127.0.0.1:${port}/paperclip`;
+  return `postgres://${EMBEDDED_POSTGRES_USER}:${EMBEDDED_POSTGRES_PASSWORD}@127.0.0.1:${port}/outpost`;
 }
 
 async function cleanupEmbeddedPostgresTestDirs(dataDir: string): Promise<void> {
@@ -270,7 +270,7 @@ async function startEmbeddedPostgresWithRetry(tempDirPrefix: string): Promise<{
 // reports a migration that cannot apply or a cluster that cannot start.
 // ---------------------------------------------------------------------------
 
-const TEMPLATE_ROOT_DIR_NAME = "paperclip-embedded-postgres-templates";
+const TEMPLATE_ROOT_DIR_NAME = "outpost-embedded-postgres-templates";
 // Templates whose key no longer matches are pruned once they have not been
 // used for this long. Every reuse refreshes the template's timestamp.
 const TEMPLATE_PRUNE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -459,11 +459,11 @@ async function stopForTemplatePublish(instance: EmbeddedPostgresInstance): Promi
 async function buildEmbeddedPostgresTemplate(templateDir: string): Promise<boolean> {
   const rootDir = path.dirname(templateDir);
   const { port, dataDir, instance } = await startEmbeddedPostgresWithRetry(
-    "paperclip-embedded-postgres-template-build-",
+    "outpost-embedded-postgres-template-build-",
   );
   let published = false;
   try {
-    await ensurePostgresDatabase(adminConnectionStringFor(port), "paperclip");
+    await ensurePostgresDatabase(adminConnectionStringFor(port), "outpost");
     await applyPendingMigrations(databaseConnectionStringFor(port));
     const stopped = await stopForTemplatePublish(instance);
     if (!stopped || !isUsableTemplate(dataDir)) return false;
@@ -593,7 +593,7 @@ async function probeEmbeddedPostgresSupport(): Promise<EmbeddedPostgresTestSuppo
   let started: { dataDir: string; instance: EmbeddedPostgresInstance } | null = null;
 
   try {
-    started = await startEmbeddedPostgresWithRetry("paperclip-embedded-postgres-probe-");
+    started = await startEmbeddedPostgresWithRetry("outpost-embedded-postgres-probe-");
     return { supported: true };
   } catch (error) {
     const failure = formatEmbeddedPostgresError(error, {
@@ -666,7 +666,7 @@ export async function startEmbeddedPostgresTestDatabase(
   try {
     // Both calls are no-ops on a template copy and keep the returned database
     // identical to the fresh path even if the template were ever stale.
-    await ensurePostgresDatabase(adminConnectionStringFor(port), "paperclip");
+    await ensurePostgresDatabase(adminConnectionStringFor(port), "outpost");
     const connectionString = databaseConnectionStringFor(port);
     await applyPendingMigrations(connectionString);
 

@@ -52,7 +52,7 @@ describe("DangerZone", () => {
         connection={{
           id: "obsolete-anthropic",
           uid: "obsolete-anthropic",
-          companyId: "company-1",
+          spaceId: "space-1",
           applicationId: "app-1",
           name: "Anthropic",
           connectionKind: "managed",
@@ -60,7 +60,7 @@ describe("DangerZone", () => {
           ownership: "customer",
           transport: "rest_api",
           authKind: "api_key",
-          credentialSource: "paperclip_vault",
+          credentialSource: "outpost_vault",
           credentialPolicy: "shared",
           transportConfig: {},
           config: { sourceTemplateKey: "anthropic", connectionMethodKey: "api-key" },

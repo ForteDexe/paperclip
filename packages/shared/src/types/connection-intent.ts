@@ -1,6 +1,6 @@
 import type { ConnectionIntentInteraction } from "./issue.js";
 import type { ToolConnection } from "./tool-access.js";
-import type { AskUserQuestionsQuestion, PaperclipQuestionSetPayload } from "./issue.js";
+import type { AskUserQuestionsQuestion, OutpostQuestionSetPayload } from "./issue.js";
 import type { RemoteMcpConnectorId } from "../remote-mcp-connectors.js";
 
 /** A saved setup's next human step. This is not an authorization grant. */
@@ -8,7 +8,7 @@ export interface ConnectionRequiredUserAction {
   kind: "authenticate" | "consent" | "enter_credentials" | "confirm_identity" | "reveal_credential";
   userId: string;
   reason: string;
-  resource: { type: "connection" | "chat_endpoint" | "ai_login" | "gateway_token"; id: string; companyId: string };
+  resource: { type: "connection" | "chat_endpoint" | "ai_login" | "gateway_token"; id: string; spaceId: string };
   setupPath: string;
   expiresAt?: string;
   continuation?: string;
@@ -41,7 +41,7 @@ export interface ConnectionSearchResultItem {
     auth: "oauth" | "api_key" | "none";
     /** AgentMail channel setup and tool methods support connection_request cards. */
     purpose?: "tool" | "channel" | "ai";
-    /** Company-scoped setup destination for methods with a separate setup flow. */
+    /** Space-scoped setup destination for methods with a separate setup flow. */
     setupPath?: string;
     management?: {
       allowed: boolean;
@@ -61,11 +61,11 @@ export interface ConnectionsSearchResult {
   version: 1;
   query: string;
   results: ConnectionSearchResultItem[];
-  /** Paperclip-authored next step; provider content must never supply this field. */
+  /** Outpost-authored next step; provider content must never supply this field. */
   instruction?: string;
   providerQuestion?: AskUserQuestionsQuestion;
   /** Canonical native form of the same provider choice; IDs and disclosure are identical. */
-  providerQuestionSet?: PaperclipQuestionSetPayload;
+  providerQuestionSet?: OutpostQuestionSetPayload;
   selectionInteractionId?: string;
 }
 

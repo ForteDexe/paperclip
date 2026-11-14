@@ -28,7 +28,7 @@ function assertSameOAuthActor(
   const actual = actorBinding(actor);
   if (!expected.actorType || !expected.actorId) {
     throw forbidden(
-      "OAuth sign-in state is not bound to an authenticated board session",
+      "OAuth sign-in state is not bound to an authenticated operator session",
     );
   }
   if (
@@ -50,7 +50,7 @@ export function createOAuthStateStore(db: Db) {
   async function peekOAuthState(state: string) {
     const [row] = await db
       .select({
-        companyId: toolOauthStates.companyId,
+        spaceId: toolOauthStates.spaceId,
         connectionId: toolOauthStates.connectionId,
         subjectUserId: toolOauthStates.subjectUserId,
         subjectAgentId: toolOauthStates.subjectAgentId,
@@ -113,12 +113,12 @@ async function consumeOAuthState(
   }
 
   /**
-   * End the board's "Connect your account" prompt when the user declines in the
+   * End the operator's "Connect your account" prompt when the user declines in the
    * provider's window (PAP-17109). Without this the card stays `pending`, so the
-   * board keeps offering an authorization link for a flow the user just refused
+   * operator keeps offering an authorization link for a flow the user just refused
    * and the requesting agent never learns the answer.
    *
-   * Scoped to a still-`pending` row: a board user who already answered the card
+   * Scoped to a still-`pending` row: a operator user who already answered the card
    * directly keeps their own answer.
    */
 async function rejectPendingOAuthInteraction(
@@ -138,7 +138,7 @@ async function rejectPendingOAuthInteraction(
       .where(
         and(
           eq(issueThreadInteractions.id, interactionId),
-          eq(issueThreadInteractions.companyId, stateRow.companyId),
+          eq(issueThreadInteractions.spaceId, stateRow.spaceId),
         ),
       )
       .limit(1)
@@ -156,7 +156,7 @@ async function rejectPendingOAuthInteraction(
         .where(
           and(
             eq(issueThreadInteractions.id, interactionId),
-            eq(issueThreadInteractions.companyId, stateRow.companyId),
+            eq(issueThreadInteractions.spaceId, stateRow.spaceId),
             eq(issueThreadInteractions.status, "pending"),
           ),
         );
@@ -164,7 +164,7 @@ async function rejectPendingOAuthInteraction(
     }
     if (!linked) return;
     await db.transaction(async tx => {
-      await notifyIssueReviewState(tx, { companyId: stateRow.companyId, issueId: linked.issueId });
+      await notifyIssueReviewState(tx, { spaceId: stateRow.spaceId, issueId: linked.issueId });
       await tx
         .update(issueThreadInteractions)
         .set({
@@ -184,7 +184,7 @@ async function rejectPendingOAuthInteraction(
         .where(
           and(
             eq(issueThreadInteractions.id, interactionId),
-            eq(issueThreadInteractions.companyId, stateRow.companyId),
+            eq(issueThreadInteractions.spaceId, stateRow.spaceId),
             eq(issueThreadInteractions.status, "pending"),
           ),
         );

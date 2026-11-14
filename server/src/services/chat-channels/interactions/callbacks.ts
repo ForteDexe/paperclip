@@ -170,7 +170,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
     const telegramCallback =
       endpoint.provider === "telegram" && endpoint.botExternalId
         ? readTelegramCallbackProvenance(event.telegramCallback, {
-            companyId: endpoint.companyId,
+            spaceId: endpoint.spaceId,
             endpointId: endpoint.id,
             botUserId: endpoint.botExternalId,
             threadId: event.event.threadId,
@@ -239,7 +239,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
         const [inserted] = await tx
           .insert(chatDeliveries)
           .values({
-            companyId: endpoint.companyId,
+            spaceId: endpoint.spaceId,
             endpointId: endpoint.id,
             conversationId: safelyKnown.conversationId ?? null,
             principalId: safelyKnown.principalId ?? null,
@@ -367,7 +367,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
         const [inserted] = await tx
           .insert(chatDeliveries)
           .values({
-            companyId: endpoint.companyId,
+            spaceId: endpoint.spaceId,
             endpointId: endpoint.id,
             conversationId: safelyKnown.conversationId ?? null,
             principalId: safelyKnown.principalId ?? null,
@@ -459,7 +459,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
             .set({ availability: "unavailable", updatedAt: processedAt })
             .where(
               and(
-                eq(chatEndpointResources.companyId, endpoint.companyId),
+                eq(chatEndpointResources.spaceId, endpoint.spaceId),
                 eq(chatEndpointResources.endpointId, endpoint.id),
                 eq(chatEndpointResources.id, safelyKnown.resource.id),
               ),
@@ -523,7 +523,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
       await database
         .insert(chatDeliveries)
         .values({
-          companyId: endpoint.companyId,
+          spaceId: endpoint.spaceId,
           endpointId: endpoint.id,
           conversationId: input.conversationId ?? null,
           principalId: input.principalId ?? null,
@@ -610,7 +610,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
     );
     // Executable external actions are deliberately stricter than ordinary
     // sponsored-guest messages. They require a current endpoint-scoped link to
-    // an active non-viewer Paperclip member, and never run as a guest sponsor.
+    // an active non-viewer Outpost member, and never run as a guest sponsor.
     if (
       principal.linkedDenied ||
       !principal.userId ||
@@ -629,7 +629,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
         ? await loadDiscordQuestionFormCorrection(
             persistence,
             {
-              companyId: record.endpoint.companyId,
+              spaceId: record.endpoint.spaceId,
               endpointId: record.endpoint.id,
             },
             event.event.actionId,
@@ -658,7 +658,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, record.endpoint.companyId),
+          eq(chatActions.spaceId, record.endpoint.spaceId),
           eq(chatActions.endpointId, record.endpoint.id),
           inArray(chatActions.kind, [
             "question_answer",
@@ -690,13 +690,13 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
     // The opaque provider action is the immutable link to the original
     // publication. Resolve the conversation from that token, then verify the
     // provider's thread independently; never trust a callback message id to
-    // select a Paperclip task.
+    // select a Outpost task.
     const conversation = await db
       .select()
       .from(chatConversations)
       .where(
         and(
-          eq(chatConversations.companyId, record.endpoint.companyId),
+          eq(chatConversations.spaceId, record.endpoint.spaceId),
           eq(chatConversations.endpointId, record.endpoint.id),
           eq(chatConversations.id, actionBinding.conversationId),
           inArray(chatConversations.state, ["active", "waiting"]),
@@ -723,7 +723,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
           .from(chatEndpointResources)
           .where(
             and(
-              eq(chatEndpointResources.companyId, record.endpoint.companyId),
+              eq(chatEndpointResources.spaceId, record.endpoint.spaceId),
               eq(chatEndpointResources.endpointId, record.endpoint.id),
               eq(chatEndpointResources.id, conversation.resourceId),
             ),
@@ -740,7 +740,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
       .from(chatPublications)
       .where(
         and(
-          eq(chatPublications.companyId, record.endpoint.companyId),
+          eq(chatPublications.spaceId, record.endpoint.spaceId),
           eq(chatPublications.endpointId, record.endpoint.id),
           eq(chatPublications.conversationId, conversation.id),
           eq(chatPublications.issueId, conversation.issueId),
@@ -770,7 +770,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
           .then((rows) => rows[0] ?? null);
         if (
           !current ||
-          current.companyId !== record.endpoint.companyId ||
+          current.spaceId !== record.endpoint.spaceId ||
           current.endpointId !== record.endpoint.id ||
           current.conversationId !== conversation.id ||
           current.issueId !== conversation.issueId ||
@@ -820,7 +820,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
         await tx
           .insert(chatMessageLinks)
           .values({
-            companyId: current.companyId,
+            spaceId: current.spaceId,
             endpointId: current.endpointId,
             conversationId: current.conversationId,
             publicationId: current.id,
@@ -855,7 +855,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
       .innerJoin(
         chatPublications,
         and(
-          eq(chatPublications.companyId, chatMessageLinks.companyId),
+          eq(chatPublications.spaceId, chatMessageLinks.spaceId),
           eq(chatPublications.endpointId, chatMessageLinks.endpointId),
           eq(chatPublications.conversationId, chatMessageLinks.conversationId),
           eq(chatPublications.id, chatMessageLinks.publicationId),
@@ -863,7 +863,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
       )
       .where(
         and(
-          eq(chatMessageLinks.companyId, record.endpoint.companyId),
+          eq(chatMessageLinks.spaceId, record.endpoint.spaceId),
           eq(chatMessageLinks.endpointId, record.endpoint.id),
           eq(chatMessageLinks.conversationId, conversation.id),
           eq(chatMessageLinks.providerMessageId, sourceMessageId),
@@ -926,7 +926,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
     ).find((candidate) => candidate.id === payload.interactionId);
     if (
       !interaction ||
-      interaction.companyId !== record.endpoint.companyId ||
+      interaction.spaceId !== record.endpoint.spaceId ||
       interaction.issueId !== conversation.issueId
     ) {
       return deny(safelyKnown);
@@ -938,7 +938,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
         .from(chatActions)
         .where(
           and(
-            eq(chatActions.companyId, record.endpoint.companyId),
+            eq(chatActions.spaceId, record.endpoint.spaceId),
             eq(chatActions.endpointId, record.endpoint.id),
             eq(chatActions.conversationId, conversation.id),
             eq(chatActions.providerActionId, event.event.actionId),
@@ -1015,7 +1015,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
             runtimeContext,
           });
           const resolved = await resolveChatQuestionFormOpen(tx, {
-            companyId: record.endpoint.companyId,
+            spaceId: record.endpoint.spaceId,
             endpointId: record.endpoint.id,
             conversationId: conversation.id,
             interaction: formInteraction,
@@ -1034,7 +1034,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
           const [attempt] = await tx
             .insert(chatActions)
             .values({
-              companyId: record.endpoint.companyId,
+              spaceId: record.endpoint.spaceId,
               endpointId: record.endpoint.id,
               conversationId: conversation.id,
               principalId: principal.principal.id,
@@ -1046,7 +1046,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
             .onConflictDoNothing()
             .returning({ id: chatActions.id });
           if (cloudForm) return stageSlackFormOpenCallback(tx, { context: cloudForm, lease, resolved,
-            companyId: record.endpoint.companyId, endpointId: record.endpoint.id, conversationId: conversation.id,
+            spaceId: record.endpoint.spaceId, endpointId: record.endpoint.id, conversationId: conversation.id,
             principalId: principal.principal.id, attemptProviderActionId, attemptActionId: attempt?.id ?? null });
           return attempt
             ? {
@@ -1089,7 +1089,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
         );
 
         // A provider modal open can take seconds and can outlive Slack's
-        // trigger. The final Paperclip authorization snapshot above commits
+        // trigger. The final Outpost authorization snapshot above commits
         // before transport starts so provider latency never holds endpoint,
         // destination, identity-link, or membership row locks.
         const modal = correction
@@ -1113,7 +1113,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
           return;
         }
         if (cloudForm) await db.transaction(tx => confirmSlackFormOpenCallback(tx, { context: cloudForm,
-          companyId: record.endpoint.companyId, endpointId: record.endpoint.id, principalId: principal.principal.id }));
+          spaceId: record.endpoint.spaceId, endpointId: record.endpoint.id, principalId: principal.principal.id }));
         if (attemptActionId) {
           const [settledAttempt] = await db
             .update(chatActions)
@@ -1162,7 +1162,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, record.endpoint.companyId),
+          eq(chatActions.spaceId, record.endpoint.spaceId),
           eq(chatActions.endpointId, record.endpoint.id),
           eq(chatActions.conversationId, conversation.id),
           eq(chatActions.kind, "question_answer"),
@@ -1222,13 +1222,13 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
     const issue = await db
       .select({
         id: issues.id,
-        companyId: issues.companyId,
+        spaceId: issues.spaceId,
         status: issues.status,
       })
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, record.endpoint.companyId),
+          eq(issues.spaceId, record.endpoint.spaceId),
           eq(issues.id, conversation.issueId),
         ),
       )
@@ -1292,7 +1292,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
               })
               .where(
                 and(
-                  eq(chatActions.companyId, issue.companyId),
+                  eq(chatActions.spaceId, issue.spaceId),
                   eq(chatActions.endpointId, record.endpoint.id),
                   eq(chatActions.conversationId, conversation.id),
                   eq(chatActions.kind, "question_answer"),
@@ -1305,7 +1305,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
                 ),
               );
             await logActivity(tx as unknown as Db, {
-              companyId: issue.companyId,
+              spaceId: issue.spaceId,
               actorType: "user",
               actorId: principal.userId!,
               action: "issue.thread_interaction_answered",
@@ -1329,7 +1329,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
             await tx
               .insert(chatPublications)
               .values({
-                companyId: issue.companyId,
+                spaceId: issue.spaceId,
                 endpointId: record.endpoint.id,
                 conversationId: conversation.id,
                 issueId: issue.id,
@@ -1498,7 +1498,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
     };
     const loaded = await loadChatQuestionFormSubmissionToken(db, {
       callbackId: event.event.callbackId,
-      companyId: record.endpoint.companyId,
+      spaceId: record.endpoint.spaceId,
       endpointId: record.endpoint.id,
       includeProcessed: true,
     });
@@ -1508,7 +1508,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
       .from(chatConversations)
       .where(
         and(
-          eq(chatConversations.companyId, record.endpoint.companyId),
+          eq(chatConversations.spaceId, record.endpoint.spaceId),
           eq(chatConversations.endpointId, record.endpoint.id),
           eq(chatConversations.id, loaded.conversationId),
           inArray(chatConversations.state, ["active", "waiting"]),
@@ -1562,7 +1562,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
           .from(chatEndpointResources)
           .where(
             and(
-              eq(chatEndpointResources.companyId, record.endpoint.companyId),
+              eq(chatEndpointResources.spaceId, record.endpoint.spaceId),
               eq(chatEndpointResources.endpointId, record.endpoint.id),
               eq(chatEndpointResources.id, conversation.resourceId),
             ),
@@ -1588,7 +1588,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
       .from(chatPublications)
       .where(
         and(
-          eq(chatPublications.companyId, record.endpoint.companyId),
+          eq(chatPublications.spaceId, record.endpoint.spaceId),
           eq(chatPublications.endpointId, record.endpoint.id),
           eq(chatPublications.conversationId, conversation.id),
           eq(chatPublications.issueId, conversation.issueId),
@@ -1628,7 +1628,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
       .innerJoin(
         chatPublications,
         and(
-          eq(chatPublications.companyId, chatMessageLinks.companyId),
+          eq(chatPublications.spaceId, chatMessageLinks.spaceId),
           eq(chatPublications.endpointId, chatMessageLinks.endpointId),
           eq(chatPublications.conversationId, chatMessageLinks.conversationId),
           eq(chatPublications.id, chatMessageLinks.publicationId),
@@ -1636,7 +1636,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
       )
       .where(
         and(
-          eq(chatMessageLinks.companyId, record.endpoint.companyId),
+          eq(chatMessageLinks.spaceId, record.endpoint.spaceId),
           eq(chatMessageLinks.endpointId, record.endpoint.id),
           eq(chatMessageLinks.conversationId, conversation.id),
           eq(chatMessageLinks.providerMessageId, providerMessageId),
@@ -1711,7 +1711,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
     const isExactProcessedReplay = (
       current: Awaited<ReturnType<typeof loadChatQuestionFormSubmissionToken>>,
     ) =>
-      interaction?.companyId === record.endpoint.companyId &&
+      interaction?.spaceId === record.endpoint.spaceId &&
       interaction.issueId === conversation.issueId &&
       (interaction.kind === "ask_user_questions" || event.provider === "slack" && interaction.kind === "request_item_verdicts") &&
       interaction.status === "answered" &&
@@ -1733,7 +1733,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
     };
     const persistSlackFormTerminal = async (tx: DbTransaction, resolved: IssueThreadInteraction) => {
       if (event.provider !== "slack" || !slackFormSubmissionEvidence()) return;
-      await stageSlackFormSubmission(tx, { companyId: record.endpoint.companyId, endpointId: record.endpoint.id,
+      await stageSlackFormSubmission(tx, { spaceId: record.endpoint.spaceId, endpointId: record.endpoint.id,
         conversationId: conversation.id, principalId: principal.principal.id, authorizedUserId: principal.userId!,
         runtimeGeneration: runtimeContext.generation, submitReceiptId: loaded.actionRowId, publicationId: originalPublication.id, resolved });
     };
@@ -1767,7 +1767,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
     }
     if (
       !interaction ||
-      interaction.companyId !== record.endpoint.companyId ||
+      interaction.spaceId !== record.endpoint.spaceId ||
       interaction.issueId !== conversation.issueId ||
       !formInteraction ||
       interaction.status !== "pending"
@@ -1778,7 +1778,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
       // does not authorize this form. Recheck current policy under its locks.
       let processedReplay = false;
       if (
-        interaction?.companyId === record.endpoint.companyId &&
+        interaction?.spaceId === record.endpoint.spaceId &&
         interaction.issueId === conversation.issueId &&
         (interaction.kind === "ask_user_questions" || event.provider === "slack" && interaction.kind === "request_item_verdicts") &&
         interaction.status === "answered"
@@ -1795,7 +1795,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
             return isExactProcessedReplay(
               await loadChatQuestionFormSubmissionToken(tx, {
                 callbackId: event.event.callbackId,
-                companyId: record.endpoint.companyId,
+                spaceId: record.endpoint.spaceId,
                 endpointId: record.endpoint.id,
                 includeProcessed: true,
               }),
@@ -1858,13 +1858,13 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
     const issue = await db
       .select({
         id: issues.id,
-        companyId: issues.companyId,
+        spaceId: issues.spaceId,
         status: issues.status,
       })
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, record.endpoint.companyId),
+          eq(issues.spaceId, record.endpoint.spaceId),
           eq(issues.id, conversation.issueId),
         ),
       )
@@ -1915,7 +1915,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
               })
               .where(
                 and(
-                  eq(chatActions.companyId, issue.companyId),
+                  eq(chatActions.spaceId, issue.spaceId),
                   eq(chatActions.endpointId, record.endpoint.id),
                   eq(chatActions.conversationId, conversation.id),
                   eq(chatActions.kind, "question_form_open"),
@@ -1927,7 +1927,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
                 ),
               );
             await logActivity(tx as unknown as Db, {
-              companyId: issue.companyId,
+              spaceId: issue.spaceId,
               actorType: "user",
               actorId: principal.userId!,
               action: "issue.thread_interaction_answered",
@@ -2030,7 +2030,7 @@ export function createChatInteractionCallbacks(db: Db, options: InteractionCallb
       if (event.provider === "discord") {
         const current = await loadChatQuestionFormSubmissionToken(db, {
           callbackId: event.event.callbackId,
-          companyId: record.endpoint.companyId,
+          spaceId: record.endpoint.spaceId,
           endpointId: record.endpoint.id,
           includeProcessed: true,
         });

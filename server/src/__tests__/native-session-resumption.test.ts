@@ -13,9 +13,9 @@ import {
   agentWakeupRequests,
   agentTaskSessions,
   agents,
-  companies,
+  spaces,
   authUsers,
-  companyMemberships,
+  spaceMemberships,
   completionContracts,
   createDb,
   closeRegisteredClients,
@@ -92,7 +92,7 @@ import { instanceSettingsService } from "../services/instance-settings.js";
 describe("P6-25 pre-result native session recovery", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
   let db: ReturnType<typeof createDb>;
-  const companyId = "79000000-0000-4000-8000-000000000001";
+  const spaceId = "79000000-0000-4000-8000-000000000001";
   const agentId = "79000000-0000-4000-8000-000000000002";
   const issueId = "79000000-0000-4000-8000-000000000003";
   const runId = "79000000-0000-4000-8000-000000000004";
@@ -119,24 +119,24 @@ describe("P6-25 pre-result native session recovery", () => {
   };
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-resume-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-native-resume-");
     db = createDb(temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Native resume", issuePrefix: "NRR" });
+    await db.insert(spaces).values({ id: spaceId, name: "Native resume", issuePrefix: "NRR" });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Native resume agent",
       adapterType: "codex_local",
       status: "running",
     });
     await db.insert(issues).values(fixtureRunIds.map(id => ({
-      id: issueForRun(id), companyId, title: "Resume the same native run",
+      id: issueForRun(id), spaceId, title: "Resume the same native run",
       status: "in_progress", assigneeAgentId: agentId, workMode: "standard" as const,
     })));
     await db.insert(heartbeatRuns).values([
       {
         id: runId,
-        companyId,
+        spaceId,
         agentId,
         nativeIssueId: issueId,
         status: "running",
@@ -147,7 +147,7 @@ describe("P6-25 pre-result native session recovery", () => {
       },
       {
         id: cancelledRunId,
-        companyId,
+        spaceId,
         agentId,
         nativeIssueId: issueId,
         status: "cancelled",
@@ -158,7 +158,7 @@ describe("P6-25 pre-result native session recovery", () => {
       },
       {
         id: exhaustedRunId,
-        companyId,
+        spaceId,
         agentId,
         nativeIssueId: issueId,
         status: "failed",
@@ -169,7 +169,7 @@ describe("P6-25 pre-result native session recovery", () => {
       },
       {
         id: missingCheckpointRunId,
-        companyId,
+        spaceId,
         agentId,
         nativeIssueId: issueId,
         status: "running",
@@ -185,7 +185,7 @@ describe("P6-25 pre-result native session recovery", () => {
       },
       {
         id: initialRunId,
-        companyId,
+        spaceId,
         agentId,
         nativeIssueId: issueId,
         status: "running",
@@ -201,7 +201,7 @@ describe("P6-25 pre-result native session recovery", () => {
       },
       {
         id: bootstrapRetryRunId,
-        companyId,
+        spaceId,
         agentId,
         nativeIssueId: issueId,
         status: "failed",
@@ -218,7 +218,7 @@ describe("P6-25 pre-result native session recovery", () => {
       },
       ...[observedExpiredRunId, observedLivePidRunId].map((observedRunId) => ({
         id: observedRunId,
-        companyId,
+        spaceId,
         agentId,
         nativeIssueId: issueId,
         status: "running" as const,
@@ -242,14 +242,14 @@ describe("P6-25 pre-result native session recovery", () => {
     })));
 
     await db.insert(nativeRunFinalizations).values([
-      { runId, companyId, issueId, phase: "retryable_failure", attempt: 1, nextAttemptAt: new Date(0) },
-      { runId: cancelledRunId, companyId, issueId, phase: "retryable_failure", attempt: 1, nextAttemptAt: new Date(0) },
-      { runId: exhaustedRunId, companyId, issueId, phase: "terminal_failure", attempt: 3 },
-      { runId: missingCheckpointRunId, companyId, issueId, phase: "retryable_failure", attempt: 1 },
-      { runId: initialRunId, companyId, issueId, phase: "observed", attempt: 0 },
+      { runId, spaceId, issueId, phase: "retryable_failure", attempt: 1, nextAttemptAt: new Date(0) },
+      { runId: cancelledRunId, spaceId, issueId, phase: "retryable_failure", attempt: 1, nextAttemptAt: new Date(0) },
+      { runId: exhaustedRunId, spaceId, issueId, phase: "terminal_failure", attempt: 3 },
+      { runId: missingCheckpointRunId, spaceId, issueId, phase: "retryable_failure", attempt: 1 },
+      { runId: initialRunId, spaceId, issueId, phase: "observed", attempt: 0 },
       {
         runId: bootstrapRetryRunId,
-        companyId,
+        spaceId,
         issueId,
         phase: "retryable_failure",
         attempt: 1,
@@ -266,7 +266,7 @@ describe("P6-25 pre-result native session recovery", () => {
       },
       ...[observedExpiredRunId, observedLivePidRunId].map((observedRunId) => ({
         runId: observedRunId,
-        companyId,
+        spaceId,
         issueId,
         phase: "observed" as const,
         attempt: 2,
@@ -290,12 +290,12 @@ describe("P6-25 pre-result native session recovery", () => {
     const eligibleRunId = "79100000-0000-4000-8000-000000000099";
     const candidateRunIds = [...heldRunIds, eligibleRunId];
     await db.insert(issues).values(candidateRunIds.map(id => ({
-      id, companyId, title: "Independent recovery candidate", status: "in_progress", assigneeAgentId: agentId,
+      id, spaceId, title: "Independent recovery candidate", status: "in_progress", assigneeAgentId: agentId,
     })));
     await db.insert(heartbeatRuns).values(
       candidateRunIds.map((candidateRunId) => ({
         id: candidateRunId,
-        companyId,
+        spaceId,
         agentId,
         nativeIssueId: candidateRunId,
         status: "running",
@@ -324,7 +324,7 @@ describe("P6-25 pre-result native session recovery", () => {
     await db.insert(nativeRunFinalizations).values(
       candidateRunIds.map((candidateRunId) => ({
         runId: candidateRunId,
-        companyId,
+        spaceId,
         issueId: candidateRunId,
         phase: "retryable_failure",
         attempt: 1,
@@ -408,7 +408,7 @@ describe("P6-25 pre-result native session recovery", () => {
       phase: "retryable_failure", leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: new Date(0),
       controllerBootId: "previous-process-boot",
     }).where(eq(nativeRunFinalizations.runId, runId));
-    await db.update(heartbeatRuns).set({ status: "failed", logStore: "s3_segments", logRef: `${companyId}/run-log` })
+    await db.update(heartbeatRuns).set({ status: "failed", logStore: "s3_segments", logRef: `${spaceId}/run-log` })
       .where(eq(heartbeatRuns.id, runId));
     const dispatched: Array<{ runId: string; leaseOwner: string; attempt: number }> = [];
     await dispatchNativeSessionResumptions({ db, runnerInstanceId: "heartbeat-restarted", runIds: [runId],
@@ -579,11 +579,11 @@ describe("P6-25 pre-result native session recovery", () => {
 
   it("sends exactly one Sentry event when a sweep resolves a run from running to failed", async () => {
     const freshRunId = "79000000-0000-4000-8000-000000000101";
-    await db.insert(issues).values({ id: freshRunId, companyId, title: "Independent failure report",
+    await db.insert(issues).values({ id: freshRunId, spaceId, title: "Independent failure report",
       status: "in_progress", assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({
       id: freshRunId,
-      companyId,
+      spaceId,
       agentId,
       nativeIssueId: freshRunId,
       status: "running",
@@ -599,7 +599,7 @@ describe("P6-25 pre-result native session recovery", () => {
     });
     await db.insert(nativeRunFinalizations).values({
       runId: freshRunId,
-      companyId,
+      spaceId,
       issueId: freshRunId,
       phase: "retryable_failure",
       attempt: 1,
@@ -617,11 +617,11 @@ describe("P6-25 pre-result native session recovery", () => {
 
   it("sends no Sentry event when a sweep finds a run that is already failed", async () => {
     const freshRunId = "79000000-0000-4000-8000-000000000102";
-    await db.insert(issues).values({ id: freshRunId, companyId, title: "Independent failure report",
+    await db.insert(issues).values({ id: freshRunId, spaceId, title: "Independent failure report",
       status: "in_progress", assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({
       id: freshRunId,
-      companyId,
+      spaceId,
       agentId,
       nativeIssueId: freshRunId,
       status: "failed",
@@ -637,7 +637,7 @@ describe("P6-25 pre-result native session recovery", () => {
     });
     await db.insert(nativeRunFinalizations).values({
       runId: freshRunId,
-      companyId,
+      spaceId,
       issueId: freshRunId,
       phase: "retryable_failure",
       attempt: 1,
@@ -652,13 +652,13 @@ describe("P6-25 pre-result native session recovery", () => {
 
   it("sends one Sentry event when a sweep ends an unreported pending retry", async () => {
     const freshRunId = "79000000-0000-4000-8000-000000000103";
-    await db.insert(issues).values({ id: freshRunId, companyId, title: "Independent failure report",
+    await db.insert(issues).values({ id: freshRunId, spaceId, title: "Independent failure report",
       status: "in_progress", assigneeAgentId: agentId });
     // The executor stores a scheduled same-run retry as failed + retryable_failure,
     // and reportRunFailure skips that write. The sweep's terminal write reports it.
     await db.insert(heartbeatRuns).values({
       id: freshRunId,
-      companyId,
+      spaceId,
       agentId,
       nativeIssueId: freshRunId,
       status: "failed",
@@ -675,7 +675,7 @@ describe("P6-25 pre-result native session recovery", () => {
     });
     await db.insert(nativeRunFinalizations).values({
       runId: freshRunId,
-      companyId,
+      spaceId,
       issueId: freshRunId,
       phase: "retryable_failure",
       attempt: 1,
@@ -701,7 +701,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
     > | null = null;
     let db: ReturnType<typeof createDb>;
     let staleProviderProcess: ReturnType<typeof spawn> | null = null;
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
@@ -740,7 +740,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
     };
     const execution: NativeExecutionInputV1 = {
       schema: "outpost.native-execution-input.v1",
-      binding: { companyId, runId, issueId, agentId, executionWorkspaceId },
+      binding: { spaceId, runId, issueId, agentId, executionWorkspaceId },
       task: {
         identifier: "NRR-1",
         title: "Recover one native heartbeat",
@@ -773,7 +773,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
     const checkpoint: PersistedNativeSession = {
       backendKind: "mock",
       sessionId: "driver-existing-session",
-      identity: { companyId, runId, issueId, agentId, sessionId },
+      identity: { spaceId, runId, issueId, agentId, sessionId },
       providerSessionId,
       cursor: "1",
       activeTurnId: staleIdleCheckpoint ? null : turnId,
@@ -869,32 +869,32 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
 
     beforeAll(async () => {
       temporary = await startEmbeddedPostgresTestDatabase(
-        "paperclip-native-reaper-e2e-",
+        "outpost-native-reaper-e2e-",
       );
       db = createDb(temporary.connectionString);
       await instanceSettingsService(db).updateExperimental({
         enableNativeRunner: newerRequest,
       });
-      await db.insert(companies).values({
-        id: companyId,
+      await db.insert(spaces).values({
+        id: spaceId,
         name: "Native same-run recovery",
         issuePrefix: "NRR",
         status: "active",
         defaultResponsibleUserId: "responsible-user",
       });
       await db.insert(authUsers).values({ id: "responsible-user", name: "Fixture user", email: "responsible-user@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-      await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
+      await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
       await db
         .insert(projects)
         .values({
           id: projectId,
-          companyId,
+          spaceId,
           name: "Recovery project",
           status: "active",
         });
       await db.insert(projectWorkspaces).values({
         id: projectWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         name: "Recovery workspace",
         cwd: repoRoot,
@@ -902,7 +902,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
       });
       await db.insert(agents).values({
         id: agentId,
-        companyId,
+        spaceId,
         name: "Native recovery agent",
         adapterType: "outpost_runner",
         // Match the persisted fixture workspace's strategy explicitly. A
@@ -921,7 +921,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
       });
       await db.insert(issues).values({
         id: issueId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         issueNumber: 1,
@@ -933,7 +933,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
       });
       await db.insert(executionWorkspaces).values({
         id: executionWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         sourceIssueId: issueId,
@@ -946,7 +946,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
       });
       await db.insert(executionWorkspaces).values({
         id: newerExecutionWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         sourceIssueId: issueId,
@@ -969,7 +969,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
         .where(eq(issues.id, issueId));
       await db.insert(completionContracts).values({
         id: contractId,
-        companyId,
+        spaceId,
         issueId,
         revision: 1,
         schemaVersion: "outpost.completion-contract.v1",
@@ -984,17 +984,17 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
       });
       await db.insert(issueWorkProducts).values({
         id: workProductId,
-        companyId,
+        spaceId,
         issueId,
         type: "artifact",
-        provider: "paperclip",
+        provider: "outpost",
         title: "Recovered result evidence",
         status: "ready_for_review",
         reviewState: "approved",
       });
       await db.insert(heartbeatRuns).values({
         id: runId,
-        companyId,
+        spaceId,
         agentId,
         nativeIssueId: issueId,
         status: "running",
@@ -1026,7 +1026,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
         .where(eq(issues.id, issueId));
       await db.insert(nativeRunFinalizations).values({
         runId,
-        companyId,
+        spaceId,
         issueId,
         phase: "retryable_failure",
         attempt: 1,
@@ -1036,7 +1036,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
       if (newerRequest)
         await db.insert(issueComments).values({
           id: newerCommentId,
-          companyId,
+          spaceId,
           issueId,
           authorUserId: "responsible-user",
           body: "Verify the newest user instruction before completing this task.",
@@ -1186,7 +1186,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
         // Restore the independently admitted receipt that was deferred while the
         // original provider was running, before this simulated process loss.
         await db.insert(agentWakeupRequests).values({
-          companyId,
+          spaceId,
           agentId,
           status: "deferred_issue_execution",
           source: "automation",
@@ -1198,7 +1198,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
           payload: {
             issueId,
             commentId: newerCommentId,
-            _paperclipWakeContext: {
+            _outpostWakeContext: {
               issueId,
               taskId: issueId,
               commentId: newerCommentId,
@@ -1308,7 +1308,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
           await db
             .select()
             .from(heartbeatRuns)
-            .where(eq(heartbeatRuns.companyId, companyId)),
+            .where(eq(heartbeatRuns.spaceId, spaceId)),
         ).toHaveLength(2);
         return;
       }
@@ -1336,7 +1336,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
         db
           .select()
           .from(heartbeatRuns)
-          .where(eq(heartbeatRuns.companyId, companyId)),
+          .where(eq(heartbeatRuns.spaceId, spaceId)),
       ).resolves.toEqual([
         expect.objectContaining({
           id: runId,
@@ -1396,7 +1396,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
         db
           .select()
           .from(executionWorkspaces)
-          .where(eq(executionWorkspaces.companyId, companyId)),
+          .where(eq(executionWorkspaces.spaceId, spaceId)),
       ).resolves.toHaveLength(2);
       await expect(
         db
@@ -1438,7 +1438,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
         db
           .select()
           .from(heartbeatRuns)
-          .where(eq(heartbeatRuns.companyId, companyId)),
+          .where(eq(heartbeatRuns.spaceId, spaceId)),
       ).resolves.toHaveLength(1);
       await expect(
         db
@@ -1468,7 +1468,7 @@ describe.each(["unchanged", "newer_active", "stale_idle"] as const)(
         .where(eq(agents.id, agentId));
       await db.insert(issues).values({
         id: freshIssueId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         issueNumber: 2,
@@ -1548,7 +1548,7 @@ describe("goal-less native task-session publication", () => {
     const external = process.env.OUTPOST_TEST_DATABASE_URL;
     if (external) db = createDb(external);
     else {
-      database = await startEmbeddedPostgresTestDatabase("paperclip-native-pointer-");
+      database = await startEmbeddedPostgresTestDatabase("outpost-native-pointer-");
       db = createDb(database.connectionString);
     }
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
@@ -1561,8 +1561,8 @@ describe("goal-less native task-session publication", () => {
     const home = createIsolatedTestHome();
     const previousHome = process.env.OUTPOST_HOME;
     process.env.OUTPOST_HOME = home.home;
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-    const issuePrefix = `NPT${companyId.slice(0, 6).toUpperCase()}`;
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    const issuePrefix = `NPT${spaceId.slice(0, 6).toUpperCase()}`;
     const projectId = randomUUID(), projectWorkspaceId = randomUUID(), workProductId = randomUUID();
     let providerSessionId: string | undefined;
     const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -1586,7 +1586,7 @@ describe("goal-less native task-session publication", () => {
       const currentProviderSessionId = `provider-${execution.session.normalizedSessionId}`;
       providerSessionId ??= currentProviderSessionId;
       const turnId = `turn-${currentRunId}`;
-      const identity = { companyId, agentId, issueId, runId: currentRunId, sessionId: execution.session.normalizedSessionId! };
+      const identity = { spaceId, agentId, issueId, runId: currentRunId, sessionId: execution.session.normalizedSessionId! };
       const result = structuredClone(CONTROL_PLANE_CONFORMANCE_RESULT);
       result.completionClaim.contractRevision = execution.completionContract.contract.revision;
       result.completionClaim.criteria = execution.completionContract.contract.criteria.map(criterion => ({
@@ -1626,22 +1626,22 @@ describe("goal-less native task-session publication", () => {
     try {
       await instanceSettingsService(db).updateExperimental({ enableNativeRunner: true, enableIsolatedWorkspaces: true });
       await db.insert(authUsers).values({ id: "pointer-user", name: "Pointer user", email: "pointer@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-      await db.insert(companies).values({ id: companyId, name: "Native pointer", issuePrefix, status: "active", defaultResponsibleUserId: "pointer-user" });
-      await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "pointer-user", status: "active", membershipRole: "member" });
-      await db.insert(projects).values({ id: projectId, companyId, name: "Pointer project", status: "active" });
-      await db.insert(projectWorkspaces).values({ id: projectWorkspaceId, companyId, projectId, name: "Pointer workspace", cwd: repoRoot, isPrimary: true });
-      await db.insert(agents).values({ id: agentId, companyId, name: "Pointer agent", adapterType: "outpost_runner", status: "active",
+      await db.insert(spaces).values({ id: spaceId, name: "Native pointer", issuePrefix, status: "active", defaultResponsibleUserId: "pointer-user" });
+      await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "pointer-user", status: "active", membershipRole: "member" });
+      await db.insert(projects).values({ id: projectId, spaceId, name: "Pointer project", status: "active" });
+      await db.insert(projectWorkspaces).values({ id: projectWorkspaceId, spaceId, projectId, name: "Pointer workspace", cwd: repoRoot, isPrimary: true });
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Pointer agent", adapterType: "outpost_runner", status: "active",
         // This scenario is per-turn publication: each run closes its session.
         // An unset lifecycle now resolves to warm for local Codex.
         adapterConfig: { provider: "codex", lifecycleMode: "per_turn", workspaceStrategy: { type: "project_primary" } },
         runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } });
-      await db.insert(issues).values({ id: issueId, companyId, projectId, projectWorkspaceId, issueNumber: 1,
+      await db.insert(issues).values({ id: issueId, spaceId, projectId, projectWorkspaceId, issueNumber: 1,
         identifier: `${issuePrefix}-1`, title: "Deliver the saved artifact", status: "in_progress", assigneeAgentId: agentId, workMode: "standard",
         // Declare the shared mode up front, as the normal profile does. The
         // first workspace otherwise materializes this setting and legitimately
         // changes the effective adapter strategy before the next admission.
         executionWorkspaceSettings: { mode: "shared_workspace" } });
-      await db.insert(issueWorkProducts).values({ id: workProductId, companyId, issueId, type: "artifact", provider: "paperclip",
+      await db.insert(issueWorkProducts).values({ id: workProductId, spaceId, issueId, type: "artifact", provider: "outpost",
         title: "Saved artifact", status: "ready_for_review", reviewState: "approved" });
       const first = await heartbeat.wakeup(agentId, { source: "automation", triggerDetail: "system", reason: "issue_commented",
         requestedByActorType: "user", requestedByActorId: "pointer-user", payload: { issueId }, contextSnapshot: { issueId, taskId: issueId, skipIssueComment: true } });

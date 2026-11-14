@@ -6,7 +6,7 @@ import { TaskChatThreadView } from "../../../src/components/task-chat/TaskChatTh
 import { TaskChatPresentationProvider } from "../../../src/components/task-chat/presentation-mode";
 import type { TaskChatItem, TaskChatMaterializedResourceItem } from "../../../src/components/task-chat/task-chat-model";
 import { TaskChatThread } from "../../../src/components/TaskChatThread";
-import { storybookAgents } from "../../fixtures/paperclipData";
+import { storybookAgents } from "../../fixtures/outpostData";
 import { Button } from "../../../src/components/ui/button";
 
 const meta = {
@@ -14,7 +14,7 @@ const meta = {
   title: "Tasks and conversations/Documents, attachments, and work products/Task Chat/Image grids",
   parameters: {
     layout: "fullscreen",
-    paperclip: {
+    outpost: {
       capabilities: ["documents-artifacts/work-products", "documents-artifacts/attachments"],
       status: "current", implementation: "production", boundary: "fixtures",
       notes: "Production thread renderer and media gallery. Representative PAP-2525 conversation with seven original sample-account screenshots from its 2026-11-06 turn; no live task or provider actions. Streaming appends saved resources through the same renderer used during execution.",
@@ -37,7 +37,7 @@ const images: TaskChatMaterializedResourceItem[] = screenshots.map(([filename, t
   const attachmentId = `00000000-0000-4000-8000-00000000000${index}`;
   const href = `/api/attachments/${attachmentId}/content`;
   const workProduct = {
-    id: `image-${index}`, companyId: "storybook-company", issueId: "pap-2525", projectId: null, executionWorkspaceId: null, runtimeServiceId: null, externalId: null, isPrimary: false, summary: null, url: null, type: "artifact", provider: "paperclip", title,
+    id: `image-${index}`, spaceId: "storybook-space", issueId: "pap-2525", projectId: null, executionWorkspaceId: null, runtimeServiceId: null, externalId: null, isPrimary: false, summary: null, url: null, type: "artifact", provider: "outpost", title,
     status: "active", reviewState: "none", healthStatus: "unknown",
     createdByRunId: "pap-2525-revised-prototype", createdAt: new Date("2026-11-06T13:31:00Z"), updatedAt: new Date("2026-11-06T13:31:00Z"),
     metadata: { attachmentId, byteSize: 118000, contentType: "image/png", originalFilename: filename, contentPath: href, openPath: href, downloadPath: `${href}?download=1` },

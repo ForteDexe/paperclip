@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issues,
@@ -96,7 +96,7 @@ const seam = vi.hoisted(() => ({
   ),
   transport: vi.fn((_options: TransportOptions) => ({ transport: {} })),
   register: vi.fn(
-    (_input: { companyId: string; runId: string; authority: unknown }) => ({
+    (_input: { spaceId: string; runId: string; authority: unknown }) => ({
       connection: {
         mode: "connect",
         connectUrl: "ws://127.0.0.1/test-owned-route",
@@ -116,7 +116,7 @@ vi.mock("../../realtime/runner-orp-ws.js", () => ({
   registerRunnerPrpAuthority: seam.register,
 }));
 vi.mock("./outpost-runner-tool-authority.js", () => ({
-  PaperclipRunnerToolAuthority: class {
+  OutpostRunnerToolAuthority: class {
     definitions() {
       return Promise.resolve([]);
     }
@@ -132,7 +132,7 @@ import { readRunnerdArtifactBinding } from "../../vendor/outpost-runner/index.js
 
 function executionFor(
   fixture: Fixture,
-  companyId: string,
+  spaceId: string,
   agentId: string,
   issueId: string,
   current: boolean,
@@ -144,7 +144,7 @@ function executionFor(
     schema: "outpost.native-execution-input.v1",
     provider: { kind: "codex", model: null },
     binding: {
-      companyId,
+      spaceId,
       agentId,
       issueId,
       runId: identity.runId,
@@ -280,10 +280,10 @@ generated(
         binary: process.env.OUTPOST_RUNNER_BINARY,
       };
       const db = createDb(databaseUrl!);
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const agentId = randomUUID();
       const issueId = randomUUID();
-      let companyCreated = false;
+      let spaceCreated = false;
       let primaryError: unknown;
       let releaseLock: (() => void) | undefined;
       let lockHolder: Promise<void> | undefined;
@@ -292,14 +292,14 @@ generated(
         process.env.OUTPOST_RUNNER_BINARY = fixture.artifact.path;
         const priorExecution = executionFor(
           fixture,
-          companyId,
+          spaceId,
           agentId,
           issueId,
           false,
         );
         const currentExecution = executionFor(
           fixture,
-          companyId,
+          spaceId,
           agentId,
           issueId,
           true,
@@ -308,7 +308,7 @@ generated(
           fixture.oldIdentity.environmentLeaseId === fixture.oldIdentity.runId;
         const stateKey = nativeSha256({
           schema: "outpost.native-session-scope.v2",
-          companyId,
+          spaceId,
           agentId,
           workspace: transient
             ? { kind: "transient", ...currentExecution.workspace }
@@ -335,16 +335,16 @@ generated(
           "control-plane",
           "control-plane-state.json",
         );
-        await db.insert(companies).values({
-          id: companyId,
+        await db.insert(spaces).values({
+          id: spaceId,
           name: "Generated warm admission",
           issuePrefix: "WARM",
-          requireBoardApprovalForNewAgents: false,
+          requireOperatorApprovalForNewAgents: false,
         });
-        companyCreated = true;
+        spaceCreated = true;
         await db.insert(agents).values({
           id: agentId,
-          companyId,
+          spaceId,
           name: "Fixture owner",
           role: "engineer",
           status: "active",
@@ -355,7 +355,7 @@ generated(
         });
         await db.insert(issues).values({
           id: issueId,
-          companyId,
+          spaceId,
           identifier: "WARM-1",
           title: "Generated handoff",
           status: "in_progress",
@@ -375,7 +375,7 @@ generated(
             sessionId: fixture.thread.id,
             providerSessionId: fixture.thread.sessionId,
             identity: {
-              companyId,
+              spaceId,
               agentId,
               issueId,
               runId: fixture.oldIdentity.runId,
@@ -386,7 +386,7 @@ generated(
         };
         const previous = {
           id: fixture.oldIdentity.runId,
-          companyId,
+          spaceId,
           agentId,
           nativeSessionId: fixture.oldIdentity.normalizedSessionId,
           runnerProfileJson: oldProfile,
@@ -405,7 +405,7 @@ generated(
           sessionCheckpoint: rebound,
         };
         const common = {
-          companyId,
+          spaceId,
           agentId,
           runtimeMode: "native",
           nativeIssueId: issueId,
@@ -436,7 +436,7 @@ generated(
           .where(eq(issues.id, issueId));
         await db.insert(nativeRunFinalizations).values({
           runId: fixture.newIdentity.runId,
-          companyId,
+          spaceId,
           issueId,
           phase: "observed",
         });
@@ -497,7 +497,7 @@ generated(
         if (fault === "unsettled_archive")
           await db.insert(nativeRunFinalizations).values({
             runId: fixture.oldIdentity.runId,
-            companyId,
+            spaceId,
             issueId,
             phase: "committed",
             recoveryHistory: [
@@ -516,7 +516,7 @@ generated(
             join(root, "cleanup-activation.json"),
             JSON.stringify({
               schema: "outpost.native_cleanup_activation.v1",
-              companyId,
+              spaceId,
               issueId,
               runId: fixture.oldIdentity.runId,
               requestId: `native-cleanup:${randomUUID()}`,
@@ -696,12 +696,12 @@ generated(
             await options.controlPlaneRegistration({}, fixture.newIdentity);
             expect(
               seam.register.mock.calls.map(([input]) => ({
-                companyId: input.companyId,
+                spaceId: input.spaceId,
                 runId: input.runId,
               })),
             ).toEqual([
-              { companyId, runId: fixture.oldIdentity.runId },
-              { companyId, runId: fixture.newIdentity.runId },
+              { spaceId, runId: fixture.oldIdentity.runId },
+              { spaceId, runId: fixture.newIdentity.runId },
             ]);
             if (fault !== "claim_changed_before_bootstrap")
               await options.authorizeWarmTransitionRecovery!(
@@ -714,7 +714,7 @@ generated(
               if (fault === "unsettled_archive_before_spawn")
                 await db.insert(nativeRunFinalizations).values({
                   runId: fixture.oldIdentity.runId,
-                  companyId,
+                  spaceId,
                   issueId,
                   phase: "committed",
                   recoveryHistory: [
@@ -733,7 +733,7 @@ generated(
                   join(root, "cleanup-activation.json"),
                   JSON.stringify({
                     schema: "outpost.native_cleanup_activation.v1",
-                    companyId,
+                    spaceId,
                     issueId,
                     runId: fixture.oldIdentity.runId,
                     requestId: `native-cleanup:${randomUUID()}`,
@@ -814,22 +814,22 @@ generated(
         releaseLock?.();
         await lockHolder;
         try {
-          if (companyCreated) {
+          if (spaceCreated) {
             await db
               .update(issues)
               .set({ executionRunId: null })
               .where(
-                and(eq(issues.id, issueId), eq(issues.companyId, companyId)),
+                and(eq(issues.id, issueId), eq(issues.spaceId, spaceId)),
               );
             await db
               .delete(nativeRunFinalizations)
-              .where(eq(nativeRunFinalizations.companyId, companyId));
+              .where(eq(nativeRunFinalizations.spaceId, spaceId));
             await db
               .delete(heartbeatRuns)
-              .where(eq(heartbeatRuns.companyId, companyId));
-            await db.delete(issues).where(eq(issues.companyId, companyId));
-            await db.delete(agents).where(eq(agents.companyId, companyId));
-            await db.delete(companies).where(eq(companies.id, companyId));
+              .where(eq(heartbeatRuns.spaceId, spaceId));
+            await db.delete(issues).where(eq(issues.spaceId, spaceId));
+            await db.delete(agents).where(eq(agents.spaceId, spaceId));
+            await db.delete(spaces).where(eq(spaces.id, spaceId));
           }
         } catch (cleanupError) {
           throw primaryError

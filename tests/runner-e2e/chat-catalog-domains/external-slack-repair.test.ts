@@ -7,7 +7,7 @@ import { slackAuthorizationReceipt } from "./external-slack-authorization.js";
 function valid() {
   const run = (id: string, issueId: string) => ({
       id,
-      companyId: "company",
+      spaceId: "space",
       agentId: "ceo",
       runtimeMode: "native",
       status: "succeeded",
@@ -21,7 +21,7 @@ function valid() {
       conversationId: "conversation",
       issueId: "slack-source",
       humanCommentId: "human",
-      linkedPaperclipUserId: "person",
+      linkedOutpostUserId: "person",
       providerCalls: 1,
       provider: {
         workspaceId: "T123",
@@ -33,7 +33,7 @@ function valid() {
     };
   return {
     scenarioId: "chat-channels.repair-endpoint",
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     origin: "http://127.0.0.1:3100",
     reply: "Slack is reconnected and replies work in that thread.",
@@ -89,7 +89,7 @@ function valid() {
     repair: {
       endpoint: {
         id: "endpoint",
-        companyId: "company",
+        spaceId: "space",
         assignedAgentId: "ceo",
         providerAccountId: "T123",
         status: "active",
@@ -139,7 +139,7 @@ function valid() {
         activationUiVisible: true,
         endpointActive: true,
         identityWasAlreadyLinked: true,
-        paperclipUserId: "person",
+        outpostUserId: "person",
       },
       principalUserId: "person",
       connectAt: "2031-02-14T10:00:02Z",

@@ -1,4 +1,4 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { type FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
@@ -73,7 +73,7 @@ function formatOwner(gateway: ToolMcpGatewayWithTokens, agentNames: Map<string, 
   if (gateway.createdByAgentId) {
     return agentNames.get(gateway.createdByAgentId) ?? `Agent ${shortId(gateway.createdByAgentId)}`;
   }
-  if (gateway.createdByUserId) return `Board user ${shortId(gateway.createdByUserId)}`;
+  if (gateway.createdByUserId) return `Operator user ${shortId(gateway.createdByUserId)}`;
   return "User";
 }
 
@@ -114,7 +114,7 @@ function buildTokenExpiresAt(value: string) {
   return value ? `${value}T23:59:59.000Z` : null;
 }
 
-export function GatewaysTab({ companyId }: { companyId: string }) {
+export function GatewaysTab({ spaceId }: { spaceId: string }) {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const [creating, setCreating] = useState(false);
@@ -129,19 +129,19 @@ export function GatewaysTab({ companyId }: { companyId: string }) {
   const [confirmingRevokeTokenId, setConfirmingRevokeTokenId] = useState<string | null>(null);
 
   const gatewaysQuery = useQuery({
-    queryKey: queryKeys.tools.gateways(companyId),
-    queryFn: () => toolsApi.listGateways(companyId),
+    queryKey: queryKeys.tools.gateways(spaceId),
+    queryFn: () => toolsApi.listGateways(spaceId),
   });
   const profilesQuery = useQuery({
-    queryKey: queryKeys.tools.profiles(companyId),
-    queryFn: () => toolsApi.listProfiles(companyId),
+    queryKey: queryKeys.tools.profiles(spaceId),
+    queryFn: () => toolsApi.listProfiles(spaceId),
   });
   const agentsQuery = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
   });
   const projectsQuery = useQuery({
-    ...companyProjectsQuery(companyId, { includeArchived: true }),
+    ...spaceProjectsQuery(spaceId, { includeArchived: true }),
   });
   const gatewaysView = useQueryView(gatewaysQuery);
 
@@ -159,16 +159,16 @@ export function GatewaysTab({ companyId }: { companyId: string }) {
     [projectsQuery.data],
   );
 
-  const invalidateGateways = () => queryClient.invalidateQueries({ queryKey: queryKeys.tools.gateways(companyId) });
+  const invalidateGateways = () => queryClient.invalidateQueries({ queryKey: queryKeys.tools.gateways(spaceId) });
 
   const createGatewayMutation = useMutation({
     mutationFn: () =>
-      toolsApi.createGateway(companyId, {
+      toolsApi.createGateway(spaceId, {
         name: createDraft.name.trim(),
         description: createDraft.description.trim() || null,
         profileId: createDraft.profileId,
         defaultProfileMode: "gateway_only",
-        contextScopeType: "company" satisfies ToolMcpGatewayContextScopeType,
+        contextScopeType: "space" satisfies ToolMcpGatewayContextScopeType,
       }),
     onSuccess: async (gateway) => {
       setCreateDraft({ name: "", description: "", profileId: activeProfiles[0]?.id ?? "" });
@@ -184,7 +184,7 @@ export function GatewaysTab({ companyId }: { companyId: string }) {
   const createTokenMutation = useMutation({
     mutationFn: async (gatewayId: string) => {
       const draft = tokenDrafts[gatewayId] ?? defaultTokenDraft();
-      return toolsApi.createGatewayToken(companyId, gatewayId, {
+      return toolsApi.createGatewayToken(spaceId, gatewayId, {
         name: draft.name.trim(),
         clientLabel: draft.clientLabel.trim(),
         ownerNote: draft.ownerNote.trim(),
@@ -205,7 +205,7 @@ export function GatewaysTab({ companyId }: { companyId: string }) {
   });
 
   const revokeTokenMutation = useMutation({
-    mutationFn: (tokenId: string) => toolsApi.revokeGatewayToken(companyId, tokenId),
+    mutationFn: (tokenId: string) => toolsApi.revokeGatewayToken(spaceId, tokenId),
     onSuccess: async (token) => {
       setConfirmingRevokeTokenId(null);
       pushToast({ title: "Token revoked", body: token.name, tone: "success" });

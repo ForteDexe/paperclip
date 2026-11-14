@@ -22,7 +22,7 @@ export function parseCaseReferenceFromHref(
   const trimmed = value.trim();
   if (!BARE_CASE_IDENTIFIER_RE.test(trimmed)) return null;
   const normalized = trimmed.toUpperCase();
-  // Only auto-link when the prefix belongs to a known company (mirrors the
+  // Only auto-link when the prefix belongs to a known space (mirrors the
   // issue-reference gate). An empty/omitted set stays permissive so provider-less
   // render surfaces still linkify deliberate references.
   if (knownPrefixes && knownPrefixes.size > 0) {
@@ -94,7 +94,7 @@ function rewriteMarkdownTree(node: MarkdownNode, knownPrefixes?: Set<string>) {
 }
 
 export interface RemarkLinkCaseReferencesOptions {
-  /** Company prefixes eligible for auto-linking (see parseCaseReferenceFromHref). */
+  /** Space prefixes eligible for auto-linking (see parseCaseReferenceFromHref). */
   knownPrefixes?: string[];
 }
 

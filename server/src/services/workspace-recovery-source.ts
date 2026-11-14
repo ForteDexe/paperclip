@@ -14,7 +14,7 @@ import { ENVIRONMENT_LEASE_POLICIES, EXECUTION_RECONCILIATION_CAUSES, readRemote
 
 export const workspaceExportCauses = ["native_workspace_sync_out_unrecoverable", "native_workspace_sync_out_retry_exhausted"];
 export const terminalWorkspaceRunStates = ["failed", "interrupted", "timed_out", "cancelled", "succeeded"];
-export type WorkspaceRecoverySourceIdentity = { companyId: string; issueId: string; runId: string; actionId: string };
+export type WorkspaceRecoverySourceIdentity = { spaceId: string; issueId: string; runId: string; actionId: string };
 
 export function workspaceSourceBindingFailure(reason: WorkspaceSourceVerificationFailure["reason"], policy?: unknown) {
   const observedLeasePolicy = typeof policy === "string" && (ENVIRONMENT_LEASE_POLICIES as readonly string[]).includes(policy)
@@ -79,8 +79,8 @@ export async function ownedWorkspaceRecoveryLease(db: Db, input: WorkspaceRecove
 export async function inspectWorkspaceRecoverySource(db: Db, input: WorkspaceRecoverySourceIdentity,
   options: { maximumSources?: number; prepareNativeRetention?: boolean } = {}) {
   const invalid = workspaceSourceBindingFailure;
-  const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId)));
-  const [action] = await db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, input.companyId),
+  const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId)));
+  const [action] = await db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, input.spaceId),
     eq(issueRecoveryActions.sourceIssueId, input.issueId), eq(issueRecoveryActions.id, input.actionId)));
   if (!run) throw invalid("source_run_missing");
   if (!action) throw invalid("recovery_action_missing");
@@ -104,7 +104,7 @@ export async function inspectWorkspaceRecoverySource(db: Db, input: WorkspaceRec
   if ((rawRemoteReference != null && !remoteReference) || (reference && remoteReference)) throw invalid("native_reference_invalid");
   const recoveryReference = reference ?? remoteReference;
   const [remoteWorkspace] = remoteReference ? await db.select().from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.id, remoteReference.workspaceId),
+    eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.id, remoteReference.workspaceId),
   )) : [];
   const remoteAuthority = readRemoteWorkspaceAuthority(remoteWorkspace?.metadata);
   if (remoteReference && (!remoteWorkspace || !remoteAuthority?.location || remoteAuthority.epoch !== remoteReference.epoch
@@ -117,7 +117,7 @@ export async function inspectWorkspaceRecoverySource(db: Db, input: WorkspaceRec
   }
   if (remoteReference?.state === "saved") {
     const [snapshot] = await db.select({ id: executionWorkspaceSnapshots.id }).from(executionWorkspaceSnapshots).where(and(
-      eq(executionWorkspaceSnapshots.companyId, input.companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, remoteReference.workspaceId),
+      eq(executionWorkspaceSnapshots.spaceId, input.spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, remoteReference.workspaceId),
       eq(executionWorkspaceSnapshots.id, remoteReference.snapshotId!), eq(executionWorkspaceSnapshots.status, "committed"),
     ));
     if (!snapshot) throw invalid("workspace_reference_mismatch");
@@ -136,7 +136,7 @@ export async function inspectWorkspaceRecoverySource(db: Db, input: WorkspaceRec
   if (leaseIds.some(id => typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) ||
       new Set(leaseIds).size !== leaseIds.length || (recoveryReference && !leaseIds.includes(recoveryReference.leaseId))) throw invalid("lease_reference_invalid");
   const [coordinator] = await db.select().from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.runId, run.id)));
+    eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.runId, run.id)));
   if (coordinator?.leaseOwner || adapterExecutionControls.has(run.id) ||
       (run.controllerLeaseExpiresAt && run.controllerLeaseExpiresAt > new Date()))
     throw new SystemRecoveryFailure("agent_stop_unconfirmed", "recheck_evidence");
@@ -147,7 +147,7 @@ export async function inspectWorkspaceRecoverySource(db: Db, input: WorkspaceRec
     && run.runtimeMode === "native" && coordinator?.issueId === input.issueId
     && coordinator.resultId && run.completionContractId
     ? (await db.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-      eq(nativeRunResults.companyId, input.companyId), eq(nativeRunResults.issueId, input.issueId),
+      eq(nativeRunResults.spaceId, input.spaceId), eq(nativeRunResults.issueId, input.issueId),
       eq(nativeRunResults.runId, run.id), eq(nativeRunResults.id, coordinator.resultId),
       eq(nativeRunResults.completionContractId, run.completionContractId),
       eq(nativeRunResults.schemaStatus, "accepted"),
@@ -155,7 +155,7 @@ export async function inspectWorkspaceRecoverySource(db: Db, input: WorkspaceRec
     )).limit(1))[0] : null;
   const sources = [];
   for (const leaseId of leaseIds as string[]) {
-    const [lease] = await db.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId),
+    const [lease] = await db.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId),
       eq(environmentLeases.id, leaseId), eq(environmentLeases.heartbeatRunId, run.id)));
     const legacyDescriptor = reference?.leaseId === leaseId ? reference : null;
     const remoteDescriptor = remoteReference?.leaseId === leaseId ? remoteReference : null;
@@ -192,10 +192,10 @@ export async function inspectWorkspaceRecoverySource(db: Db, input: WorkspaceRec
       throw new SystemRecoveryFailure("allocation_ownership_ambiguous", "service_required");
     const predecessorRuns = predecessors.map(item => item.heartbeatRunId!);
     const priors = predecessorRuns.length ? await db.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, input.companyId), inArray(heartbeatRuns.id, predecessorRuns))) : [];
+      eq(heartbeatRuns.spaceId, input.spaceId), inArray(heartbeatRuns.id, predecessorRuns))) : [];
     const priorOwners = predecessorRuns.length ? await db.select({ runId: nativeRunFinalizations.runId,
       issueId: nativeRunFinalizations.issueId, phase: nativeRunFinalizations.phase, leaseOwner: nativeRunFinalizations.leaseOwner }).from(nativeRunFinalizations).where(and(
-        eq(nativeRunFinalizations.companyId, input.companyId), inArray(nativeRunFinalizations.runId, predecessorRuns))) : [];
+        eq(nativeRunFinalizations.spaceId, input.spaceId), inArray(nativeRunFinalizations.runId, predecessorRuns))) : [];
     for (const predecessor of predecessors) {
       const prior = priors.find(item => item.id === predecessor.heartbeatRunId);
       const priorReference = readNativeWorkspaceSyncReference(prior?.runnerProfileJson?.nativeWorkspaceSync);
@@ -219,9 +219,9 @@ export async function inspectWorkspaceRecoverySource(db: Db, input: WorkspaceRec
     // merge additionally needs exclusive ownership of its host destination.
     if (descriptor) {
       const [writer] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, input.companyId), inArray(heartbeatRuns.status, ["queued", "running"]),
+        eq(heartbeatRuns.spaceId, input.spaceId), inArray(heartbeatRuns.status, ["queued", "running"]),
         sql`not exists (select 1 from ${issueRecoveryActions} a
-          where a.company_id = ${input.companyId} and a.source_issue_id = ${input.issueId}
+          where a.space_id = ${input.spaceId} and a.source_issue_id = ${input.issueId}
           and a.evidence->>'runId' = ${run.id}
           and a.evidence#>>'{explicitUserContinuation,runId}' = ${heartbeatRuns.id}::text
           and a.evidence#>>'{explicitUserContinuation,readiness,mode}' = 'fresh_isolated_workspace')`,
@@ -239,7 +239,7 @@ export async function inspectWorkspaceRecoverySource(db: Db, input: WorkspaceRec
     const [environment] = await db.select().from(environments).where(eq(environments.id, lease.environmentId));
     if (!environment) throw new SystemRecoveryFailure("source_unavailable", "service_required");
     const preservationOnly = legacyDescriptor ? await hasMigratedLegacyWorkspaceSource(db, {
-      companyId: input.companyId, runId: run.id, reference: legacyDescriptor,
+      spaceId: input.spaceId, runId: run.id, reference: legacyDescriptor,
     }) : false;
     sources.push({ lease, environment, reference: legacyDescriptor, preservationOnly, remoteReference: remoteDescriptor,
       remoteWorkspace: remoteDescriptor ? remoteWorkspace : null, remoteCwd });

@@ -21,7 +21,7 @@ ownership rules; unrelated code need not be reorganized.
   should survive provider removal or substitution. One consumer can justify it;
   speculative reuse or another fixture alone cannot. Preserve provider differences
   rather than forcing a universal interface.
-- **Preserve invariant ownership.** Authorization, company isolation, audit,
+- **Preserve invariant ownership.** Authorization, space isolation, audit,
   transactions, and resource ownership retain their existing owners. Adapters
   must neither bypass controls nor create parallel enforcement paths.
 - **Explain shared changes.** For each substantive change outside the owner,

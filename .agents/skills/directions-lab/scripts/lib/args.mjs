@@ -2,7 +2,7 @@ export class UsageError extends Error {}
 
 export const COMMANDS = {
   new: {
-    strings: ["slug", "title", "surfaces", "directions", "names", "group", "capabilities", "company", "landing", "ports", "root"],
+    strings: ["slug", "title", "surfaces", "directions", "names", "group", "capabilities", "space", "landing", "ports", "root"],
     booleans: ["force-count", "dry-run", "json", "skip-verify", "no-build", "keep-on-failure"],
   },
   check: { strings: ["slug", "root"], booleans: ["strict", "run", "json", "skip-verify"] },
@@ -37,7 +37,7 @@ export function helpText() {
   return `Usage:
   scaffold.mjs new --slug <slug> --title <Title> --surfaces id:Label:width@nav,... --directions 2|3
                [--names a,b[,c]] [--group Components|Pages|Layouts|Patterns] [--capabilities a/k,...]
-               [--company name:PREFIX] [--landing auto|all|today|<id>] [--ports dev,preview]
+               [--space name:PREFIX] [--landing auto|all|today|<id>] [--ports dev,preview]
                [--force-count] [--dry-run] [--json] [--skip-verify] [--no-build] [--keep-on-failure] [--root <dir>]
   scaffold.mjs check --slug <slug> [--strict] [--run] [--json] [--skip-verify] [--root <dir>]
   scaffold.mjs add-direction --slug <slug> --name <Name> [--force-count] [--json] [--skip-verify] [--root <dir>]

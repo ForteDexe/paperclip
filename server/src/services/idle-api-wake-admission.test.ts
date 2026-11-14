@@ -16,7 +16,7 @@ describe("API wake receipt wire vectors", () => {
     expect(matchesApiWakeAdmission(receipt, { stackId: "other", token, now: 0 })).toBe(false);
     expect(matchesApiWakeAdmission(receipt, { stackId: input.stackId, token: "unknown", now: 0 })).toBe(false);
   });
-  it("enforces board expiry and canonical unique bounded complete receipts", () => {
+  it("enforces operator expiry and canonical unique bounded complete receipts", () => {
     const changedChallenge = createApiWakeAdmission({ ...input, challenge: "b".repeat(64), keys: receipt.keys });
     expect(matchesApiWakeAdmission(changedChallenge, { stackId: input.stackId, token, now: 0 })).toBe(false);
     const expiring = createApiWakeAdmission({ ...input, keys: [{ fingerprint, expiresAt: new Date(1000).toISOString() }] });

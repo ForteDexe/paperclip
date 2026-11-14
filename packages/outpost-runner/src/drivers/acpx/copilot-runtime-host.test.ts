@@ -6,7 +6,7 @@ import { COPILOT_TASK_ORIENTATION_INSTRUCTIONS } from "./copilot-profile.js";
 import { AcpxRuntimeHost, type AcpxRuntimeHostDependencies, type AcpxRuntimePortOpenOptions } from "./runtime-host.js";
 
 it("reports missing Copilot authentication before spawn and releases admission ownership for retry", async () => {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-copilot-auth-admission-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-copilot-auth-admission-"));
   const runtimeDirectory = join(root, "runtime");
   const workingDirectory = join(root, "workspace");
   await Promise.all([mkdir(runtimeDirectory), mkdir(workingDirectory), mkdir(join(root, "provider"))]);
@@ -39,7 +39,7 @@ it("reports missing Copilot authentication before spawn and releases admission o
 });
 
 it("does not refresh Copilot instructions for a contender rejected by the lifetime lease", async () => {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-copilot-instruction-owner-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-copilot-instruction-owner-"));
   const runtimeDirectory = join(root, "runtime");
   const workingDirectory = join(root, "workspace");
   await Promise.all([mkdir(runtimeDirectory), mkdir(workingDirectory), mkdir(join(root, "provider"))]);
@@ -67,7 +67,7 @@ it("does not refresh Copilot instructions for a contender rejected by the lifeti
     normalizedSessionId: "same-native-session", runtimeDirectory, workingDirectory,
     providerPolicy: { readOnly: false }, environment: { COPILOT_GITHUB_TOKEN: "synthetic-fixture" },
   };
-  const composed = (value: string) => `${value}\n\n# Paperclip task orientation\n${COPILOT_TASK_ORIENTATION_INSTRUCTIONS}\n`;
+  const composed = (value: string) => `${value}\n\n# Outpost task orientation\n${COPILOT_TASK_ORIENTATION_INSTRUCTIONS}\n`;
   const winner = AcpxRuntimeHost.open({ ...options, systemInstructions: "Winner instructions." }, dependencies);
   // Attach the rejection handler before deliberately releasing the failed launch.
   const winnerResult = expect(winner).rejects.toThrow("fixture stops before native process launch");

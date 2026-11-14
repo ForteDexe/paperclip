@@ -83,7 +83,7 @@ export const READ_CURRENT_WAKE_COMMENTS_TOOL_DEFINITION = Object.freeze({
 
 export type CurrentWakeCommentsBinding = {
   schema: typeof CURRENT_WAKE_COMMENTS_BINDING_SCHEMA;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   agentId: string;
@@ -232,7 +232,7 @@ function attachmentImportNotice(
 }
 
 function bindingDigest(input: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   agentId: string;
@@ -242,7 +242,7 @@ function bindingDigest(input: {
 }) {
   return sha256({
     schema: CURRENT_WAKE_COMMENTS_BINDING_SCHEMA,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     issueId: input.issueId,
     runId: input.runId,
     agentId: input.agentId,
@@ -260,7 +260,7 @@ function bindingDigest(input: {
 export async function resolveCurrentWakeCommentsBinding(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     runId: string;
     agentId: string;
@@ -275,12 +275,12 @@ export async function resolveCurrentWakeCommentsBinding(
     .from(heartbeatRuns)
     .innerJoin(
       issues,
-      and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId)),
+      and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId)),
     )
     .where(
       and(
         eq(heartbeatRuns.id, input.runId),
-        eq(heartbeatRuns.companyId, input.companyId),
+        eq(heartbeatRuns.spaceId, input.spaceId),
         eq(heartbeatRuns.agentId, input.agentId),
         eq(heartbeatRuns.nativeIssueId, input.issueId),
       ),
@@ -297,7 +297,7 @@ export async function resolveCurrentWakeCommentsBinding(
     return null;
   }
 
-  const wake = record(record(bound.run.contextSnapshot).paperclipWake);
+  const wake = record(record(bound.run.contextSnapshot).outpostWake);
   const provider = nonEmptyString(wake.externalChatProvider);
   const commentIds = commentIdsFromWakePayload(wake);
   const attachmentOmissions = attachmentOmissionsFromWakePayload(
@@ -312,7 +312,7 @@ export async function resolveCurrentWakeCommentsBinding(
       !(
         wake.externalChatExecutionBound === true &&
         record(bound.run.contextSnapshot)
-          .paperclipExternalChatExecutionBound === true
+          .outpostExternalChatExecutionBound === true
       )) ||
     wake.fallbackFetchNeeded !== true ||
     commentIds.length === 0 ||
@@ -330,7 +330,7 @@ export async function resolveCurrentWakeCommentsBinding(
   });
   return {
     schema: CURRENT_WAKE_COMMENTS_BINDING_SCHEMA,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     issueId: input.issueId,
     runId: input.runId,
     agentId: input.agentId,
@@ -356,7 +356,7 @@ function decodeCursor(
     value.length === 0 ||
     value.length > MAX_CURSOR_CHARS
   ) {
-    throw new Error("paperclip_current_wake_comments_cursor_invalid");
+    throw new Error("outpost_current_wake_comments_cursor_invalid");
   }
   try {
     const parsed = record(
@@ -371,17 +371,17 @@ function decodeCursor(
       Number(parsed.commentIndex) < 0 ||
       Number(parsed.bodyOffset) < 0
     ) {
-      throw new Error("paperclip_current_wake_comments_cursor_invalid");
+      throw new Error("outpost_current_wake_comments_cursor_invalid");
     }
     return parsed as CurrentWakeCommentsCursor;
   } catch (error) {
     if (
       error instanceof Error &&
-      error.message === "paperclip_current_wake_comments_cursor_invalid"
+      error.message === "outpost_current_wake_comments_cursor_invalid"
     ) {
       throw error;
     }
-    throw new Error("paperclip_current_wake_comments_cursor_invalid");
+    throw new Error("outpost_current_wake_comments_cursor_invalid");
   }
 }
 
@@ -422,7 +422,7 @@ async function currentWakeCommentsSnapshot(
     .from(issueComments)
     .where(
       and(
-        eq(issueComments.companyId, binding.companyId),
+        eq(issueComments.spaceId, binding.spaceId),
         eq(issueComments.issueId, binding.issueId),
         inArray(issueComments.id, [...binding.commentIds]),
       ),
@@ -443,12 +443,12 @@ async function currentWakeCommentsSnapshot(
       assets,
       and(
         eq(assets.id, issueAttachments.assetId),
-        eq(assets.companyId, binding.companyId),
+        eq(assets.spaceId, binding.spaceId),
       ),
     )
     .where(
       and(
-        eq(issueAttachments.companyId, binding.companyId),
+        eq(issueAttachments.spaceId, binding.spaceId),
         eq(issueAttachments.issueId, binding.issueId),
         inArray(issueAttachments.issueCommentId, [...binding.commentIds]),
       ),
@@ -474,7 +474,7 @@ async function currentWakeCommentsSnapshot(
       filename: attachment.filename?.trim() || "attachment",
       contentType: attachment.contentType,
       byteSize: attachment.byteSize,
-      // This closed reader intentionally has no general Paperclip API key.
+      // This closed reader intentionally has no general Outpost API key.
       // Inline wake attachments are staged separately by the native harness;
       // overflow attachments remain visible as metadata so the agent can be
       // truthful rather than claiming it inspected bytes it cannot access.
@@ -528,7 +528,7 @@ async function currentWakeCommentsSnapshot(
     };
   });
   const comments = await createRunSecretRedactionRegistry(db).redactForIssue(
-    binding.companyId,
+    binding.spaceId,
     binding.issueId,
     unredacted,
   );
@@ -549,7 +549,7 @@ function buildPage(
   let commentIndex = cursor?.commentIndex ?? 0;
   let bodyOffset = cursor?.bodyOffset ?? 0;
   if (commentIndex > snapshot.comments.length) {
-    throw new Error("paperclip_current_wake_comments_cursor_invalid");
+    throw new Error("outpost_current_wake_comments_cursor_invalid");
   }
   const chunks: CurrentWakeCommentChunk[] = [];
   let remainingChars = MAX_PAGE_BODY_CHARS;
@@ -561,7 +561,7 @@ function buildPage(
   ) {
     const comment = snapshot.comments[commentIndex]!;
     if (bodyOffset > comment.body.length) {
-      throw new Error("paperclip_current_wake_comments_cursor_invalid");
+      throw new Error("outpost_current_wake_comments_cursor_invalid");
     }
     const remainingBody = comment.body.slice(bodyOffset);
     const chunkSize = Math.min(
@@ -621,7 +621,7 @@ export async function readCurrentWakeComments(
       typeof request.cursor === "string"
     )
   ) {
-    throw new Error("paperclip_current_wake_comments_input_invalid");
+    throw new Error("outpost_current_wake_comments_input_invalid");
   }
   const inputCursor = request.cursor ?? null;
 
@@ -637,13 +637,13 @@ export async function readCurrentWakeComments(
         issues,
         and(
           eq(issues.id, binding.issueId),
-          eq(issues.companyId, binding.companyId),
+          eq(issues.spaceId, binding.spaceId),
         ),
       )
       .where(
         and(
           eq(heartbeatRuns.id, binding.runId),
-          eq(heartbeatRuns.companyId, binding.companyId),
+          eq(heartbeatRuns.spaceId, binding.spaceId),
           eq(heartbeatRuns.agentId, binding.agentId),
           eq(heartbeatRuns.nativeIssueId, binding.issueId),
         ),
@@ -658,12 +658,12 @@ export async function readCurrentWakeComments(
       locked.issueAssigneeAgentId !== binding.agentId ||
       locked.issueExecutionRunId !== binding.runId
     ) {
-      throw new Error("paperclip_current_wake_comments_binding_not_authorized");
+      throw new Error("outpost_current_wake_comments_binding_not_authorized");
     }
     const currentBinding = await resolveCurrentWakeCommentsBinding(
       tx as unknown as Db,
       {
-        companyId: binding.companyId,
+        spaceId: binding.spaceId,
         issueId: binding.issueId,
         runId: binding.runId,
         agentId: binding.agentId,
@@ -673,7 +673,7 @@ export async function readCurrentWakeComments(
       !currentBinding ||
       currentBinding.bindingDigest !== binding.bindingDigest
     ) {
-      throw new Error("paperclip_current_wake_comments_binding_changed");
+      throw new Error("outpost_current_wake_comments_binding_changed");
     }
 
     const snapshot = await currentWakeCommentsSnapshot(
@@ -696,15 +696,15 @@ export async function readCurrentWakeComments(
         prior.snapshotDigest !== snapshot.snapshotDigest)
     ) {
       if (inputCursor !== null) {
-        throw new Error("paperclip_current_wake_comments_snapshot_changed");
+        throw new Error("outpost_current_wake_comments_snapshot_changed");
       }
     } else if (!prior && inputCursor !== null) {
-      throw new Error("paperclip_current_wake_comments_cursor_out_of_order");
+      throw new Error("outpost_current_wake_comments_cursor_out_of_order");
     } else if (prior && prior.nextCursor !== inputCursor) {
       throw new Error(
         prior.complete
-          ? "paperclip_current_wake_comments_already_complete"
-          : "paperclip_current_wake_comments_cursor_out_of_order",
+          ? "outpost_current_wake_comments_already_complete"
+          : "outpost_current_wake_comments_cursor_out_of_order",
       );
     }
 
@@ -747,7 +747,7 @@ export async function readCurrentWakeComments(
 export async function assertCurrentWakeCommentsRead(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     runId: string;
     agentId: string;
@@ -768,13 +768,13 @@ export async function assertCurrentWakeCommentsRead(
         issues,
         and(
           eq(issues.id, input.issueId),
-          eq(issues.companyId, input.companyId),
+          eq(issues.spaceId, input.spaceId),
         ),
       )
       .where(
         and(
           eq(heartbeatRuns.id, input.runId),
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
           eq(heartbeatRuns.agentId, input.agentId),
           eq(heartbeatRuns.nativeIssueId, input.issueId),
           eq(heartbeatRuns.status, "running"),
@@ -805,7 +805,7 @@ export async function assertCurrentWakeCommentsRead(
     const currentBinding = handedOff ? expectedBinding ?? null : await resolveCurrentWakeCommentsBinding(
       tx as unknown as Db,
       {
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         issueId: input.issueId,
         runId: input.runId,
         agentId: input.agentId,

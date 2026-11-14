@@ -13,8 +13,8 @@ import {
 /**
  * Deterministic browser coverage for the native chat-connector UI.
  *
- * Provider APIs are deliberately not contacted here. The shared Paperclip
- * server supplies the company, agent, and connector catalog, while a small
+ * Provider APIs are deliberately not contacted here. The shared Outpost
+ * server supplies the space, agent, and connector catalog, while a small
  * stateful route fixture emulates the chat-control-plane responses. Live
  * provider webhook and credential qualification belongs in the manual runbook
  * because those checks require real accounts and publicly reachable ingress.
@@ -50,7 +50,7 @@ export const PROVIDERS: ProviderCase[] = [
     name: "Slack",
     accountLabel: "Acme Workspace",
     botLabel: "Maya",
-    botUsername: "maya-paperclip",
+    botUsername: "maya-outpost",
     resourceLabel: "#product",
     secondaryResourceLabel: "#support",
     resourceType: "channel",
@@ -63,15 +63,15 @@ export const PROVIDERS: ProviderCase[] = [
     provider: "github",
     slug: "github-code-review-bot",
     name: "GitHub",
-    accountLabel: "paperclip-ai",
+    accountLabel: "outpost-ai",
     botLabel: "Maya",
     // GitHub's API returns the actor login with this suffix, while people
     // invoke the App with the bare slug.
-    botUsername: "maya-paperclip[bot]",
-    resourceLabel: "paperclip-ai/paperclip",
-    secondaryResourceLabel: "paperclip-ai/chat-e2e",
+    botUsername: "maya-outpost[bot]",
+    resourceLabel: "outpost-ai/outpost",
+    secondaryResourceLabel: "outpost-ai/chat-e2e",
     resourceType: "repository",
-    externalUrl: "https://github.com/paperclip-ai/paperclip/issues/123",
+    externalUrl: "https://github.com/outpost-ai/outpost/issues/123",
     setupHeading: /Create or connect a GitHub App/i,
     setupButton: "Connect and verify",
     chatAndTool: false,
@@ -82,7 +82,7 @@ export const PROVIDERS: ProviderCase[] = [
     name: "Microsoft Teams",
     accountLabel: "Acme Tenant",
     botLabel: "Maya",
-    botUsername: "maya-paperclip",
+    botUsername: "maya-outpost",
     resourceLabel: "Product / General",
     secondaryResourceLabel: "Product / Incidents",
     resourceType: "channel",
@@ -97,7 +97,7 @@ export const PROVIDERS: ProviderCase[] = [
     name: "Discord",
     accountLabel: "Clawd",
     botLabel: "Maya",
-    botUsername: "maya-paperclip",
+    botUsername: "maya-outpost",
     resourceLabel: "#general",
     secondaryResourceLabel: "#support",
     resourceType: "channel",
@@ -111,13 +111,13 @@ export const PROVIDERS: ProviderCase[] = [
     provider: "telegram",
     slug: "telegram",
     name: "Telegram",
-    accountLabel: "@maya_paperclip_bot",
+    accountLabel: "@maya_outpost_bot",
     botLabel: "Maya",
-    botUsername: "maya_paperclip_bot",
+    botUsername: "maya_outpost_bot",
     resourceLabel: "Maya test chat",
     secondaryResourceLabel: "Maya group chat",
     resourceType: "direct_message",
-    externalUrl: "https://t.me/maya_paperclip_bot",
+    externalUrl: "https://t.me/maya_outpost_bot",
     setupHeading: /Create Maya in Telegram/i,
     setupButton: "Connect bot",
     chatAndTool: false,
@@ -151,14 +151,14 @@ export const PROVIDER_LIFECYCLE_COPY: Record<
   },
   telegram: {
     reconnect:
-      "Reconnect verifies this same BotFather bot and automatically refreshes its Paperclip webhook and command menu.",
+      "Reconnect verifies this same BotFather bot and automatically refreshes its Outpost webhook and command menu.",
     remove:
-      "queues durable removal of its Telegram webhook and command menu. After Telegram confirms that cleanup, Paperclip retires the saved token",
+      "queues durable removal of its Telegram webhook and command menu. After Telegram confirms that cleanup, Outpost retires the saved token",
   },
 };
 
 export type Seed = {
-  companyId: string;
+  spaceId: string;
   prefix: string;
   agentId: string;
   otherAgentId: string;
@@ -175,15 +175,15 @@ export async function json<T>(
   return (await response.json()) as T;
 }
 
-export async function seedCompanyAndAgent(request: APIRequestContext): Promise<Seed> {
-  const company = await json<{ id: string; issuePrefix: string }>(
-    await request.post("/api/companies", {
+export async function seedSpaceAndAgent(request: APIRequestContext): Promise<Seed> {
+  const space = await json<{ id: string; issuePrefix: string }>(
+    await request.post("/api/spaces", {
       data: { name: `Chat adapters browser E2E ${Date.now()}` },
     }),
-    "create company",
+    "create space",
   );
   const agent = await json<{ id: string }>(
-    await request.post(`/api/companies/${company.id}/agents`, {
+    await request.post(`/api/spaces/${space.id}/agents`, {
       data: {
         name: "Maya",
         role: "qa",
@@ -199,7 +199,7 @@ export async function seedCompanyAndAgent(request: APIRequestContext): Promise<S
     "create agent",
   );
   const otherAgent = await json<{ id: string }>(
-    await request.post(`/api/companies/${company.id}/agents`, {
+    await request.post(`/api/spaces/${space.id}/agents`, {
       data: {
         name: "Nora",
         role: "qa",
@@ -215,8 +215,8 @@ export async function seedCompanyAndAgent(request: APIRequestContext): Promise<S
     "create second agent",
   );
   return {
-    companyId: company.id,
-    prefix: company.issuePrefix,
+    spaceId: space.id,
+    prefix: space.issuePrefix,
     agentId: agent.id,
     otherAgentId: otherAgent.id,
   };
@@ -238,7 +238,7 @@ export function endpointFixture(provider: ProviderCase, seed: Seed) {
   const now = new Date().toISOString();
   return {
     id: `endpoint-${provider.provider}`,
-    companyId: seed.companyId,
+    spaceId: seed.spaceId,
     connectionId: `connection-${provider.provider}`,
     provider: provider.provider,
     publicId: `public-${provider.provider}`,
@@ -364,7 +364,7 @@ export async function installChatControlPlaneMock(
   let slackIdentityLinked = false;
   let githubAppConnected = false;
   let githubConfiguration = { revision: 0, configuration: {
-    version: 1, toolsEnabled: false, responsibleUserId: "local-board", memberAccess: "all_linked", people: [], defaults: defaultGitHubReviewPolicy(), repositories: {},
+    version: 1, toolsEnabled: false, responsibleUserId: "local-operator", memberAccess: "all_linked", people: [], defaults: defaultGitHubReviewPolicy(), repositories: {},
   }};
   const state: ChatMock & {
     created: boolean;
@@ -374,9 +374,9 @@ export async function installChatControlPlaneMock(
     slackCreations: 0, slackInstallations: 0,
     setSlackInstalled: () => {
       slackIdentityLinked = true;
-      endpoint.setup.slackAccount = { externalUserId: "UINSTALLER", paperclipUserId: "local-board", status: "linked", welcomeStatus: "sent", dmChannelId: "DE2E" };
+      endpoint.setup.slackAccount = { externalUserId: "UINSTALLER", outpostUserId: "local-operator", status: "linked", welcomeStatus: "sent", dmChannelId: "DE2E" };
       endpoint.setup.slackRegistration = { status: "configured", appId: "AE2E", managementUrl: "https://api.slack.com/apps/AE2E" };
-      Object.assign(endpoint, { status: "verifying", providerAccountId: "TE2E", botExternalId: "UE2E", botUsername: "maya-paperclip" });
+      Object.assign(endpoint, { status: "verifying", providerAccountId: "TE2E", botExternalId: "UE2E", botUsername: "maya-outpost" });
     },
     setSlackUncertain: () => { endpoint.setup.slackRegistration = { status: "uncertain", errorCode: "slack_creation_uncertain", managementUrl: "https://api.slack.com/apps" }; },
     failNextGitHubEndpointRead: false,
@@ -410,7 +410,7 @@ export async function installChatControlPlaneMock(
   };
   const resource = {
     id: `resource-${provider.provider}`,
-    companyId: seed.companyId,
+    spaceId: seed.spaceId,
     endpointId: endpoint.id,
     type: provider.resourceType,
     providerResourceId: `provider-resource-${provider.provider}`,
@@ -467,7 +467,7 @@ export async function installChatControlPlaneMock(
         await fulfill(route, githubConfiguration); return;
       }
       if (operation === "progress") {
-        Object.assign(endpoint.setup, { github: { appSlug: githubAppConnected ? "maya-paperclip" : undefined, stage: body.stage, managementUrl: "https://github.com/settings/installations/2468" } });
+        Object.assign(endpoint.setup, { github: { appSlug: githubAppConnected ? "maya-outpost" : undefined, stage: body.stage, managementUrl: "https://github.com/settings/installations/2468" } });
         await fulfill(route, endpoint); return;
       }
       if (operation === "app") {
@@ -475,8 +475,8 @@ export async function installChatControlPlaneMock(
         state.configuredCredentialKeys = Object.keys(body).sort();
         if (state.setupAttempts === 1) { await fulfill(route, { error: "GitHub rejected the supplied App credentials." }, 422); return; }
         githubAppConnected = true;
-        Object.assign(endpoint, { status: "attention", botExternalId: "123456", botUsername: "maya-paperclip[bot]", botLabel: "Maya" });
-        Object.assign(endpoint.setup, { github: { stage: "install", appSlug: "maya-paperclip", installationUrl: "https://github.com/apps/maya-paperclip/installations/new", managementUrl: "https://github.com/settings/installations/2468" } });
+        Object.assign(endpoint, { status: "attention", botExternalId: "123456", botUsername: "maya-outpost[bot]", botLabel: "Maya" });
+        Object.assign(endpoint.setup, { github: { stage: "install", appSlug: "maya-outpost", installationUrl: "https://github.com/apps/maya-outpost/installations/new", managementUrl: "https://github.com/settings/installations/2468" } });
         await fulfill(route, endpoint); return;
       }
       if (operation === "repositories") {
@@ -501,7 +501,7 @@ export async function installChatControlPlaneMock(
       if (operation === "reviews") { await fulfill(route, []); return; }
     }
 
-    if (pathname === `/api/companies/${seed.companyId}/chat-endpoints`) {
+    if (pathname === `/api/spaces/${seed.spaceId}/chat-endpoints`) {
       if (method === "GET") {
         state.chatEndpointListReads += 1;
         await fulfill(route, { endpoints: state.created ? [endpoint] : [] });
@@ -568,8 +568,8 @@ export async function installChatControlPlaneMock(
       return;
     }
 
-    if (pathname === `/api/companies/${seed.companyId}/chat-slack/setup-options`) {
-      await fulfill(route, { managedAvailable: managedSlack, defaultMethod: managedSlack ? "managed" : "automatic", workspaces: managedSlack ? [{ grantId: "11111111-1111-4111-8111-111111111111", workspaceId: "TE2E", workspaceName: "Paperclip", userId: "UINSTALLER" }] : [] }); return;
+    if (pathname === `/api/spaces/${seed.spaceId}/chat-slack/setup-options`) {
+      await fulfill(route, { managedAvailable: managedSlack, defaultMethod: managedSlack ? "managed" : "automatic", workspaces: managedSlack ? [{ grantId: "11111111-1111-4111-8111-111111111111", workspaceId: "TE2E", workspaceName: "Outpost", userId: "UINSTALLER" }] : [] }); return;
     }
     if (pathname === `/api/chat-endpoints/${endpoint.id}/slack/managed/provision`) {
       const body = bodyOf(route);
@@ -726,7 +726,7 @@ export async function installChatControlPlaneMock(
     }
     if (pathname === "/api/chat-identity-links/confirm" && method === "POST") {
       slackIdentityLinked = true;
-      await fulfill(route, { endpointId: endpoint.id, companyId: seed.companyId });
+      await fulfill(route, { endpointId: endpoint.id, spaceId: seed.spaceId });
       return;
     }
 
@@ -765,7 +765,7 @@ export async function installChatControlPlaneMock(
           ...(provider.provider === "slack" && (slackIdentityLinked || endpoint.setup.step === "test") ? [{
             id: "link-slack-self", principalId: "principal-slack-self", externalLabel: "Test operator",
             externalDetail: "operator@slack", lastConnectAt: new Date().toISOString(),
-            paperclipUserId: slackIdentityLinked ? "local-board" : null,
+            outpostUserId: slackIdentityLinked ? "local-operator" : null,
             status: slackIdentityLinked ? "linked" : "pending",
           }] : []),
           {
@@ -773,8 +773,8 @@ export async function installChatControlPlaneMock(
             principalId: `principal-${provider.provider}`,
             externalLabel: "Ada Lovelace",
             externalDetail: `ada@${provider.provider}`,
-            paperclipUserId: null,
-            paperclipUserLabel: null,
+            outpostUserId: null,
+            outpostUserLabel: null,
             status: "pending",
           },
           {
@@ -782,12 +782,12 @@ export async function installChatControlPlaneMock(
             principalId: `principal-${provider.provider}-linked`,
             externalLabel: "Grace Hopper",
             externalDetail: `grace@${provider.provider}`,
-            paperclipUserId:
+            outpostUserId:
               state.revokedPrincipalId ===
               `principal-${provider.provider}-linked`
                 ? null
-                : "paperclip-user-grace",
-            paperclipUserLabel:
+                : "outpost-user-grace",
+            outpostUserLabel:
               state.revokedPrincipalId ===
               `principal-${provider.provider}-linked`
                 ? null
@@ -833,7 +833,7 @@ export async function installChatControlPlaneMock(
         conversations: [
           {
             id: `conversation-${provider.provider}`,
-            companyId: seed.companyId,
+            spaceId: seed.spaceId,
             endpointId: endpoint.id,
             resourceId: resource.id,
             issueId: `issue-${provider.provider}`,
@@ -933,7 +933,7 @@ export async function fillProviderSetup(page: Page, provider: ProviderCase) {
       "Choose GitHub App private key file",
     );
     await privateKeyFile.setInputFiles({
-      name: "paperclip-test.pem",
+      name: "outpost-test.pem",
       mimeType: "application/x-pem-file",
       buffer: Buffer.alloc(64 * 1024 + 1, "x"),
     });
@@ -947,7 +947,7 @@ export async function fillProviderSetup(page: Page, provider: ProviderCase) {
     await page.getByRole("button", { name: "Choose .pem file" }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles({
-      name: "paperclip-test.pem",
+      name: "outpost-test.pem",
       mimeType: "application/x-pem-file",
       buffer: Buffer.from(GITHUB_PRIVATE_KEY_FIXTURE),
     });
@@ -966,7 +966,7 @@ export async function fillProviderSetup(page: Page, provider: ProviderCase) {
     await expect(page.locator("body")).not.toContainText(
       GITHUB_PRIVATE_KEY_FIXTURE,
     );
-    await expect(page.locator("body")).not.toContainText("paperclip-test.pem");
+    await expect(page.locator("body")).not.toContainText("outpost-test.pem");
     await page.getByRole("button", { name: provider.setupButton }).click();
     await expect(page.getByRole("alert")).toContainText("Connection failed");
     await page
@@ -1050,7 +1050,7 @@ export async function expectSetupRail(page: Page, newDraft = false) {
 }
 
 export function expectedSlackManifest(webhookUrl: string) {
-  return JSON.stringify(buildSlackAppManifest({ app: { appName: "maya-paperclip", botName: "maya", command: "/maya" }, agentName: "Maya", webhookUrl }), null, 2);
+  return JSON.stringify(buildSlackAppManifest({ app: { appName: "maya-outpost", botName: "maya", command: "/maya" }, agentName: "Maya", webhookUrl }), null, 2);
 }
 
 export async function expectMinimumProviderSetup(page: Page, provider: ProviderCase) {
@@ -1148,7 +1148,7 @@ export async function expectMinimumProviderSetup(page: Page, provider: ProviderC
         resource: "https://outpost.ing",
       },
     });
-    expect(manifest).not.toContain("api://paperclip-chat/");
+    expect(manifest).not.toContain("api://outpost-chat/");
     expect(manifest).not.toContain("supportsTargetedMessages");
     await expect(
       page.getByRole("button", { name: "Copy manifest settings" }),
@@ -1235,7 +1235,7 @@ export async function expectProviderTryInstructions(
   provider: ProviderCase,
 ) {
   if (provider.provider === "slack") {
-    for (const text of ["Open a channel and invite @maya-paperclip if needed.", "@maya-paperclip you there?", "Continue the conversation in the thread."]) {
+    for (const text of ["Open a channel and invite @maya-outpost if needed.", "@maya-outpost you there?", "Continue the conversation in the thread."]) {
       await expect(page.getByText(text, { exact: true })).toBeVisible();
     }
     await expect(page.getByRole("button", { name: "Copy message" })).toBeVisible();
@@ -1246,19 +1246,19 @@ export async function expectProviderTryInstructions(
     provider.provider === "github"
         ? [
             "Open an installed issue or pull request.",
-            "Mention @maya-paperclip in a comment.",
+            "Mention @maya-outpost in a comment.",
             "Add another comment to continue the same task.",
           ]
         : provider.provider === "microsoft-teams"
           ? [
               "Open an installed channel and start a new post.",
-              "Mention @maya-paperclip in the post.",
+              "Mention @maya-outpost in the post.",
               "Reply once beneath the post.",
             ]
           : provider.provider === "discord"
             ? [
                 "Open a text channel where the bot is installed.",
-                "Mention @maya-paperclip in a new root message.",
+                "Mention @maya-outpost in a new root message.",
                 "Reply once inside Maya's new Discord thread.",
               ]
             : [

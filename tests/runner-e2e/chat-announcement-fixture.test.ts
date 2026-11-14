@@ -30,7 +30,7 @@ describe("singleton announcement fixture admission", () => {
     const manifest = announcementManifestSchema.parse(CHAT_ANNOUNCEMENT_MANIFEST);
     expect(manifest.announcement).not.toBeNull();
     expect(isAnnouncementEligible(manifest.announcement!, "2026.1017.0", Date.parse("2026-11-03T00:00:00Z"))).toBe(true);
-    expect(manifest.announcement).not.toHaveProperty("minimumPaperclipVersion");
+    expect(manifest.announcement).not.toHaveProperty("minimumOutpostVersion");
     expect(manifest.announcement).not.toHaveProperty("expiresAt");
     expect(manifest.announcement!.primaryAction).toEqual({ kind: "route", label: "Explore your projects", path: "/projects" });
   });

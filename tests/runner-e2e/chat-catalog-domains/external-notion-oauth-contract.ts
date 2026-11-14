@@ -2,7 +2,7 @@ import type { PublicSignInStorage } from "./external-public-signin-contract.js";
 export interface NotionOAuthInput {
   operation: "save-draft" | "authorize";
   publicOrigin: string;
-  companyId: string;
+  spaceId: string;
   prefix: string;
   humanId: string;
   agentId: string;
@@ -95,7 +95,7 @@ export function validNotionOAuthInput(input: NotionOAuthInput) {
       !u.username &&
       !u.password &&
       !u.port &&
-      [input.companyId, input.humanId, input.agentId, input.prefix].every(id) &&
+      [input.spaceId, input.humanId, input.agentId, input.prefix].every(id) &&
       (!input.intentId || id(input.intentId)) &&
       !!input.intentId === !!input.issueId &&
       (!input.issueId || id(input.issueId)) &&

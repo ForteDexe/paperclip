@@ -120,11 +120,11 @@ function availableAllResponse(
 function createWorkspace(overrides: Partial<ProjectWorkspace> = {}): ProjectWorkspace {
   return {
     id: "workspace-content",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-content",
     name: "Outpost Content",
     sourceType: "local_path",
-    cwd: "/srv/paperclip/home/paperclipai/paperclip-content",
+    cwd: "/srv/outpost/home/paperclipai/paperclip-content",
     repoUrl: null,
     repoRef: null,
     defaultRef: null,
@@ -147,8 +147,8 @@ function createProject(overrides: Partial<Project> = {}): Project {
   const workspace = createWorkspace();
   return {
     id: "project-content",
-    companyId: "company-1",
-    urlKey: "paperclip-content",
+    spaceId: "space-1",
+    urlKey: "outpost-content",
     goalId: null,
     goalIds: [],
     goals: [],
@@ -388,13 +388,13 @@ describe("WorkspaceFileBrowser", () => {
       ok(availableResponse([
         createItem({
           title: "tweet.md",
-          relativePath: "videos/90-days-paperclip/tweet.md",
-          displayPath: "videos/90-days-paperclip/tweet.md",
+          relativePath: "videos/90-days-outpost/tweet.md",
+          displayPath: "videos/90-days-outpost/tweet.md",
         }),
         createItem({
-          title: "90-days-paperclip-1x1.mp4",
-          relativePath: "videos/90-days-paperclip/out/90-days-paperclip-1x1.mp4",
-          displayPath: "videos/90-days-paperclip/out/90-days-paperclip-1x1.mp4",
+          title: "90-days-outpost-1x1.mp4",
+          relativePath: "videos/90-days-outpost/out/90-days-outpost-1x1.mp4",
+          displayPath: "videos/90-days-outpost/out/90-days-outpost-1x1.mp4",
           previewKind: "video",
         }),
       ])),
@@ -404,10 +404,10 @@ describe("WorkspaceFileBrowser", () => {
 
     expect(container.querySelector('[role="tree"]')).not.toBeNull();
     expect(container.textContent).toContain("videos");
-    expect(container.textContent).toContain("90-days-paperclip");
+    expect(container.textContent).toContain("90-days-outpost");
     expect(container.textContent).toContain("tweet.md");
-    expect(container.textContent).toContain("90-days-paperclip-1x1.mp4");
-    expect(container.textContent).not.toContain("videos/90-days-paperclip/tweet.md");
+    expect(container.textContent).toContain("90-days-outpost-1x1.mp4");
+    expect(container.textContent).not.toContain("videos/90-days-outpost/tweet.md");
 
     const videosFolder = Array.from(container.querySelectorAll('button[role="treeitem"]')).find(
       (el) => el.getAttribute("title") === "videos",
@@ -429,8 +429,8 @@ describe("WorkspaceFileBrowser", () => {
   it("hides source controls, folder headings, workspace labels, and timestamps", () => {
     useQueryMock.mockReturnValue(ok(availableResponse([
       createItem({
-        relativePath: "videos/90-days-paperclip/tweet.md",
-        displayPath: "videos/90-days-paperclip/tweet.md",
+        relativePath: "videos/90-days-outpost/tweet.md",
+        displayPath: "videos/90-days-outpost/tweet.md",
       }),
     ])));
 
@@ -731,7 +731,7 @@ describe("WorkspaceFileBrowser", () => {
     });
 
     const { onOpen } = renderBrowser(vi.fn(), {
-      companyId: "company-1",
+      spaceId: "space-1",
       initialProjectId: "project-content",
       initialWorkspaceId: "workspace-content",
     });
@@ -778,7 +778,7 @@ describe("WorkspaceFileBrowser", () => {
     });
 
     const { onOpen } = renderBrowser(vi.fn(), {
-      companyId: "company-1",
+      spaceId: "space-1",
       initialProjectId: "project-content",
       initialWorkspaceId: "workspace-content",
       initialFolderPath: folderPath,

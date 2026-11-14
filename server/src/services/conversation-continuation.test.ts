@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { agents, companies, createDb, heartbeatRuns, issues, issueRecoveryActions, type Db } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, issues, issueRecoveryActions, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { conversationRecoveryActionPredicate, getConversationOwnershipBlocker } from "./conversation-continuation.js";
 import { deliverExecutionStatuses } from "./execution-status-delivery.js";
@@ -16,30 +16,30 @@ describePostgres("execution identity query contracts", () => {
   beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("execution-identity-"); db = createDb(database.connectionString); }, 20_000);
   afterAll(async () => { await db?.$client.end({ timeout: 0 }); await database?.cleanup(); });
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), otherIssueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Identity", issuePrefix: `I${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "codex_local" });
-    await db.insert(issues).values([{ id: issueId, companyId, title: "Target" }, { id: otherIssueId, companyId, title: "Other" }]);
-    return { companyId, agentId, issueId, otherIssueId };
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), otherIssueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Identity", issuePrefix: `I${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "codex_local" });
+    await db.insert(issues).values([{ id: issueId, spaceId, title: "Target" }, { id: otherIssueId, spaceId, title: "Other" }]);
+    return { spaceId, agentId, issueId, otherIssueId };
   }
   async function run(f: Awaited<ReturnType<typeof fixture>>, context: Record<string, unknown> | null, nativeIssueId: string | null = null, pid: number | null = null) {
-    const [row] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, nativeIssueId,
+    const [row] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, nativeIssueId,
       status: "interrupted", runtimeMode: "legacy", contextSnapshot: context, processPid: pid,
       runnerProfileJson: { adapterDispatch: { adapterType: "codex_local" } } }).returning();
     return row;
   }
-  it("matches only canonical evidence IDs and keeps source issue and company scope", async () => {
+  it("matches only canonical evidence IDs and keeps source issue and space scope", async () => {
     const f = await fixture(), foreign = await fixture();
     const ours = await run(f, { issueId: f.issueId });
     const elsewhere = await run(f, { issueId: f.otherIssueId });
     const foreignRun = await run(foreign, { issueId: f.issueId });
     const ids: unknown[] = [ours.id, ours.id.toUpperCase(), ours.id.replaceAll("-", ""), `{${ours.id}}`, "bad", "", null, 42, {}, [ours.id], elsewhere.id, foreignRun.id];
     const actions = await db.insert(issueRecoveryActions).values(ids.map((runId, index) => ({
-      companyId: f.companyId, sourceIssueId: f.issueId, kind: "active_run_watchdog", status: "resolved", ownerType: "board",
+      spaceId: f.spaceId, sourceIssueId: f.issueId, kind: "active_run_watchdog", status: "resolved", ownerType: "operator",
       cause: "legacy_execution_requires_reconciliation", fingerprint: `fixture-${index}`, evidence: { runId }, nextAction: "Fixture",
     }))).returning();
     const matches = await db.select({ id: issueRecoveryActions.id }).from(issueRecoveryActions)
-      .where(and(eq(issueRecoveryActions.companyId, f.companyId), conversationRecoveryActionPredicate()));
+      .where(and(eq(issueRecoveryActions.spaceId, f.spaceId), conversationRecoveryActionPredicate()));
     expect(matches).toEqual([{ id: actions[0].id }]);
   });
   it("preserves native issue precedence and does not broaden legacy spellings", async () => {
@@ -47,20 +47,20 @@ describePostgres("execution identity query contracts", () => {
     await run(f, { issueId: f.issueId }, f.otherIssueId, process.pid);
     const uppercase = await run(f, { issueId: f.issueId.toUpperCase() }, null, process.pid);
     const malformed = await run(f, { issueId: "bad" }, null, process.pid);
-    expect(await getConversationOwnershipBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect(await getConversationOwnershipBlocker(db, f.spaceId, f.issueId)).toBeNull();
     const native = await run(f, { issueId: f.otherIssueId }, f.issueId, process.pid);
-    expect(await getConversationOwnershipBlocker(db, f.companyId, f.issueId)).toMatchObject({ runId: native.id, cause: "execution_owner_active" });
-    expect(await getConversationOwnershipBlocker(db, f.companyId, f.issueId.toUpperCase())).toMatchObject({ runId: uppercase.id });
-    expect(await getConversationOwnershipBlocker(db, f.companyId, "bad")).toMatchObject({ runId: malformed.id });
+    expect(await getConversationOwnershipBlocker(db, f.spaceId, f.issueId)).toMatchObject({ runId: native.id, cause: "execution_owner_active" });
+    expect(await getConversationOwnershipBlocker(db, f.spaceId, f.issueId.toUpperCase())).toMatchObject({ runId: uppercase.id });
+    expect(await getConversationOwnershipBlocker(db, f.spaceId, "bad")).toMatchObject({ runId: malformed.id });
   });
   it("retains legacy ownership holds and releases only after ownership ends", async () => {
     const f = await fixture();
     const legacy = await run(f, { issueId: f.issueId }, null, process.pid);
-    expect(await getConversationOwnershipBlocker(db, f.companyId, f.issueId)).toMatchObject({ runId: legacy.id });
+    expect(await getConversationOwnershipBlocker(db, f.spaceId, f.issueId)).toMatchObject({ runId: legacy.id });
     await db.update(heartbeatRuns).set({ processPid: null }).where(eq(heartbeatRuns.id, legacy.id));
-    expect(await getConversationOwnershipBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect(await getConversationOwnershipBlocker(db, f.spaceId, f.issueId)).toBeNull();
   });
-  it("delivers canonical same-company task IDs and keeps malformed IDs private", async () => {
+  it("delivers canonical same-space task IDs and keeps malformed IDs private", async () => {
     const f = await fixture(), foreign = await fixture();
     const contexts: unknown[] = [f.issueId, f.issueId.toUpperCase(), "bad", `{${f.issueId}}`, f.issueId.replaceAll("-", ""), null, 42, {}, [f.issueId], foreign.issueId];
     const expected = new Map<string, string | null>();

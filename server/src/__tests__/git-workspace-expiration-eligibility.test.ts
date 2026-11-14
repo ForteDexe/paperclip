@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, projects, projectWorkspaces, workspaceOperations } from "@outpost/db";
+import { agents, spaces, createDb, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, projects, projectWorkspaces, workspaceOperations } from "@outpost/db";
 import { isGitWorkspaceExpirationEligible } from "../services/git-workspace-expiration.js";
 import { createSystemRecovery } from "../services/system-recovery-state.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -18,26 +18,26 @@ describeDatabase("Git expiration eligibility", () => {
     database = await startEmbeddedPostgresTestDatabase("git-expiration-eligibility-");
     db = createDb(database.connectionString, { maxConnections: 1 });
   });
-  afterEach(async () => { vi.restoreAllMocks(); await db.execute(sql`TRUNCATE TABLE companies CASCADE`); });
+  afterEach(async () => { vi.restoreAllMocks(); await db.execute(sql`TRUNCATE TABLE spaces CASCADE`); });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await database?.cleanup(); });
 
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
     const now = new Date(), old = new Date(now.getTime() - 3 * 86_400_000);
-    await db.insert(companies).values({ id: companyId, name: "Eligibility", issuePrefix: `EL${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Eligibility" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Finished root", status: "done", completedAt: old });
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId, sourceIssueId: issueId,
-      mode: "isolated_workspace", strategyType: "git_worktree", name: "Eligibility", cwd: `/tmp/eligibility-${companyId}` }).returning();
-    await db.insert(heartbeatRuns).values({ companyId, agentId, status: "succeeded", finishedAt: old, contextSnapshot: { issueId } });
+    await db.insert(spaces).values({ id: spaceId, name: "Eligibility", issuePrefix: `EL${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Eligibility" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Finished root", status: "done", completedAt: old });
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId, sourceIssueId: issueId,
+      mode: "isolated_workspace", strategyType: "git_worktree", name: "Eligibility", cwd: `/tmp/eligibility-${spaceId}` }).returning();
+    await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "succeeded", finishedAt: old, contextSnapshot: { issueId } });
     const eligible = () => db.transaction(tx => isGitWorkspaceExpirationEligible(tx, workspace, now));
-    return { companyId, agentId, issueId, workspace, now, old, eligible };
+    return { spaceId, agentId, issueId, workspace, now, old, eligible };
   }
 
   it.each(["running", "failed-hold"])("keeps a saved migration consumer after its process is gone (%s)", async state => {
     const f = await fixture();
     expect(await f.eligible()).toBe(true);
-    const [operation] = await db.insert(workspaceOperations).values({ companyId: f.companyId,
+    const [operation] = await db.insert(workspaceOperations).values({ spaceId: f.spaceId,
       executionWorkspaceId: f.workspace.id, issueId: f.issueId, phase: "remote_workspace_migration",
       status: state === "running" ? "running" : "failed",
       metadata: state === "running" ? { schema: "outpost.remote-workspace-migration.v1" }
@@ -48,16 +48,16 @@ describeDatabase("Git expiration eligibility", () => {
   });
 
   async function alias(f: Awaited<ReturnType<typeof fixture>>, kind: string) {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Other owner", issuePrefix: `EO${companyId.slice(0, 6)}` });
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Other owner", issuePrefix: `EO${spaceId.slice(0, 6)}` });
     const cwd = kind.endsWith("child") ? `${f.workspace.cwd}/nested` : f.workspace.cwd;
     if (kind.startsWith("project")) {
-      const [project] = await db.insert(projects).values({ companyId, name: "Other project" }).returning();
-      const [row] = await db.insert(projectWorkspaces).values({ companyId, projectId: project.id, name: "Other checkout", cwd }).returning();
+      const [project] = await db.insert(projects).values({ spaceId, name: "Other project" }).returning();
+      const [row] = await db.insert(projectWorkspaces).values({ spaceId, projectId: project.id, name: "Other checkout", cwd }).returning();
       return { id: row.id, table: projectWorkspaces };
     }
-    const [row] = await db.insert(executionWorkspaces).values({ companyId, mode: "isolated_workspace", strategyType: "git_worktree", name: "Other checkout",
-      cwd: kind === "workspace provider" ? `/tmp/unrelated-${companyId}` : cwd,
+    const [row] = await db.insert(executionWorkspaces).values({ spaceId, mode: "isolated_workspace", strategyType: "git_worktree", name: "Other checkout",
+      cwd: kind === "workspace provider" ? `/tmp/unrelated-${spaceId}` : cwd,
       providerRef: kind === "workspace provider" ? f.workspace.cwd : null }).returning();
     return { id: row.id, table: executionWorkspaces };
   }
@@ -88,18 +88,18 @@ describeDatabase("Git expiration eligibility", () => {
 
   it("does not treat a sibling path prefix as a descendant", async () => {
     const f = await fixture();
-    await db.insert(executionWorkspaces).values({ companyId: f.companyId, mode: "isolated_workspace", strategyType: "git_worktree", name: "Sibling", cwd: `${f.workspace.cwd}-sibling` });
+    await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, mode: "isolated_workspace", strategyType: "git_worktree", name: "Sibling", cwd: `${f.workspace.cwd}-sibling` });
     expect(await f.eligible()).toBe(true);
   });
 
   it.each(["issueId", "nativeIssueId", "contextIssue", "contextTask", "contextWorkspace", "checkout"])("retains the active-run veto through %s", async route => {
     const f = await fixture(), runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, status: "scheduled_retry",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId, status: "scheduled_retry",
       ...(route === "issueId" ? { scopeKind: "issue" as const, issueId: f.issueId } : {}),
       ...(route === "nativeIssueId" ? { nativeIssueId: f.issueId } : {}),
       contextSnapshot: route === "contextIssue" ? { issueId: f.issueId } : route === "contextTask" ? { taskId: f.issueId } : route === "contextWorkspace" ? { executionWorkspaceId: f.workspace.id } : null });
     if (route === "checkout") {
-      await db.insert(issues).values({ companyId: f.companyId, title: "Other finished consumer", status: "done", completedAt: f.old, executionWorkspaceId: f.workspace.id, checkoutRunId: runId });
+      await db.insert(issues).values({ spaceId: f.spaceId, title: "Other finished consumer", status: "done", completedAt: f.old, executionWorkspaceId: f.workspace.id, checkoutRunId: runId });
     }
     expect(await f.eligible()).toBe(false);
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: f.old }).where(eq(heartbeatRuns.id, runId));
@@ -109,13 +109,13 @@ describeDatabase("Git expiration eligibility", () => {
   type StaleState = { finalization?: Partial<typeof nativeRunFinalizations.$inferInsert>; action?: Partial<typeof issueRecoveryActions.$inferInsert> };
   async function seedStaleState(f: Awaited<ReturnType<typeof fixture>>, state: StaleState) {
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, status: "succeeded",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId, status: "succeeded",
       finishedAt: f.old, nativeIssueId: f.issueId });
     if (state.finalization) {
-      await db.insert(nativeRunFinalizations).values({ runId, companyId: f.companyId, issueId: f.issueId, phase: "committed", ...state.finalization });
+      await db.insert(nativeRunFinalizations).values({ runId, spaceId: f.spaceId, issueId: f.issueId, phase: "committed", ...state.finalization });
     }
     if (state.action) {
-      await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId, kind: "active_run_watchdog",
+      await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId, kind: "active_run_watchdog",
         status: "active", ownerType: "agent", ownerAgentId: f.agentId, cause: "native_finalization_error", fingerprint: randomUUID(),
         evidence: { runId }, nextAction: "Resume the native run.", wakePolicy: { kind: "resume_native_run", runId }, ...state.action });
     }
@@ -135,7 +135,7 @@ describeDatabase("Git expiration eligibility", () => {
   it.each<[string, StaleState]>([
     ["a leased finalization", { finalization: { leaseOwner: "native-finalizer:live", recoveryState: "resuming_session" } }],
     ["an observed finalization", { finalization: { phase: "observed", recoveryState: "resuming_session" } }],
-    ["an unverified owner hold", { action: { ownerType: "board", ownerAgentId: null, cause: "native_workspace_finalization_owner_unverified", wakePolicy: null } }],
+    ["an unverified owner hold", { action: { ownerType: "operator", ownerAgentId: null, cause: "native_workspace_finalization_owner_unverified", wakePolicy: null } }],
     ["in-flight system recovery", { action: { ownerType: "system", ownerAgentId: null, evidence: { systemRecovery: createSystemRecovery(randomUUID()) } } }],
   ])("keeps a closed tree with %s", async (_label, state) => {
     const f = await fixture();

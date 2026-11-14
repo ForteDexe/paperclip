@@ -15,8 +15,8 @@ import { AttentionQueueRow } from "@/components/AttentionQueueRow";
 import type { DecisionQueueDto } from "@/api/decisionQueues";
 import { queryKeys } from "@/lib/queryKeys";
 
-// The company id the Storybook providers select (see .storybook/preview.tsx).
-const companyId = "company-storybook";
+// The space id the Storybook providers select (see .storybook/preview.tsx).
+const spaceId = "space-storybook";
 
 // A fixed clock so the decide-by split ("today" vs "this week") and the aging
 // "idle N days" labels are deterministic across renders/screenshots.
@@ -56,12 +56,12 @@ function item(
 ): AttentionItem {
   const base: AttentionItem = {
     id,
-    companyId,
+    spaceId,
     sourceKind,
     subject: {
       kind: "issue",
       id: `${id}-subject`,
-      companyId,
+      spaceId,
       title,
       identifier: null,
       status: "pending",
@@ -87,7 +87,7 @@ function item(
     relatedIssue: {
       kind: "issue",
       id: "issue-1000",
-      companyId,
+      spaceId,
       title: "Ship the decisions desk",
       identifier: "PAP-1000",
       status: "in_progress",
@@ -121,7 +121,7 @@ function approval(id: string, title: string, whyNow: string, overrides: Partial<
     subject: {
       kind: "approval",
       id: `${id}-approval`,
-      companyId,
+      spaceId,
       title,
       identifier: null,
       status: "pending",
@@ -149,7 +149,7 @@ function feed(items: AttentionItem[]): AttentionFeed {
       (it.decideBy === "today" || new Date(it.createdAt).getTime() >= startOfToday),
   ).length;
   return {
-    companyId,
+    spaceId,
     generatedAt: iso(NOW),
     totalCount: items.length,
     deskBadgeCount,
@@ -161,7 +161,7 @@ function feed(items: AttentionItem[]): AttentionFeed {
 
 const PRS_QUEUE: DecisionQueueDto = {
   id: "queue-prs",
-  companyId,
+  spaceId,
   key: "prs",
   title: "PRs to review",
   description: "Pull requests waiting on a merge decision.",
@@ -247,7 +247,7 @@ const DESK_ITEMS: AttentionItem[] = [
       subject: {
         kind: "interaction",
         id: "intx-plan",
-        companyId,
+        spaceId,
         title: "Approve plan: heartbeat.ts split",
         identifier: null,
         status: "pending",
@@ -286,7 +286,7 @@ const DESK_ITEMS: AttentionItem[] = [
     "budget-1",
     "budget_alert",
     "low",
-    "Company budget crossed 85%",
+    "Space budget crossed 85%",
     "Budget crossed the 85% threshold.",
     { relatedIssue: null, inlineResolvable: false, createdAt: iso(NOW - 2 * DAY), activityAt: iso(NOW - 2 * DAY) },
   ),
@@ -313,7 +313,7 @@ const AGING_ITEMS: AttentionItem[] = [
     relatedIssue: {
       kind: "issue",
       id: "issue-legacy",
-      companyId,
+      spaceId,
       title: "Legacy exporter cleanup",
       identifier: "PAP-812",
       status: "backlog",
@@ -365,11 +365,11 @@ function PrimeDeskFixtures({
 }) {
   const queryClient = useQueryClient();
   useMemo(() => {
-    queryClient.setQueryData(queryKeys.decisionQueues.list(companyId), QUEUES);
-    queryClient.setQueryData(queryKeys.agents.list(companyId), AGENTS);
+    queryClient.setQueryData(queryKeys.decisionQueues.list(spaceId), QUEUES);
+    queryClient.setQueryData(queryKeys.agents.list(spaceId), AGENTS);
     if (items) {
       queryClient.setQueryData(
-        [...queryKeys.attention(companyId), "with-dismissed", null, null],
+        [...queryKeys.attention(spaceId), "with-dismissed", null, null],
         feed(items),
       );
     }
@@ -377,7 +377,7 @@ function PrimeDeskFixtures({
       // The queue feed key carries the resolved activity bounds (null/null for
       // the default "all" range), matching the page's real query key.
       queryClient.setQueryData(
-        [...queryKeys.attention(companyId), "queue", "prs", null, null],
+        [...queryKeys.attention(spaceId), "queue", "prs", null, null],
         feed(queueItems),
       );
     }
@@ -397,7 +397,7 @@ function interactionRow(
     subject: {
       kind: "interaction",
       id,
-      companyId,
+      spaceId,
       title,
       identifier: null,
       status: "pending",
@@ -433,7 +433,7 @@ const INTERACTION_AUDIENCE_ITEMS: AttentionItem[] = [
   interactionRow("interaction-capped", "Approve the destructive cleanup", {
     ...OPEN_AUDIENCE,
     effectiveResolverPolicy: "human_only",
-    effectiveResolverPolicySource: "company_cap",
+    effectiveResolverPolicySource: "space_cap",
   }),
   interactionRow("interaction-legacy", "Confirm the pre-migration rollout", {
     ...OPEN_AUDIENCE,
@@ -447,7 +447,7 @@ const meta: Meta = {
   id: "pages-decisions-desk",
   title: "Tasks and conversations/Inbox, decisions, and search/Pages/Decisions Desk",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "inbox-search/decisions"
       ],
@@ -552,7 +552,7 @@ export const QueuePage: Story = {
 /**
  * Collapsed interaction rows, one per resolver audience (PAP-17287). Each row
  * states who the *server* will let respond before its compact Accept/Reject —
- * open default, a named addressee, a company cap to human-only, and a
+ * open default, a named addressee, a space cap to human-only, and a
  * pre-migration card that stays creator-excluded. Check at 1440×900 and 390×844:
  * the audience must stay legible above the verbs at both widths.
  */
@@ -564,7 +564,7 @@ export const CollapsedInteractionAudience: Story = {
           <AttentionQueueRow
             key={row.id}
             item={row}
-            companyId={companyId}
+            spaceId={spaceId}
             agents={AGENTS}
             expanded={false}
             onToggleExpand={() => {}}
@@ -587,7 +587,7 @@ export const CardTriageStrip: Story = {
       <div className="max-w-3xl space-y-2 p-6">
         <AttentionQueueRow
           item={TRIAGE_ITEM}
-          companyId={companyId}
+          spaceId={spaceId}
           agents={AGENTS}
           showTriage
           expanded

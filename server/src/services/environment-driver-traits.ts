@@ -120,7 +120,7 @@ export interface EnvironmentDriverTraits {
    * Only the `sandbox` driver has a consumer today. The `plugin` driver
    * implements `resolveCapabilities`, but no consumer reads a plugin
    * snapshot yet, so this stays `false` for `plugin` here. A change to
-   * `true` changes runtime behavior, so the board owns that decision.
+   * `true` changes runtime behavior, so the operator owns that decision.
    */
   readonly hasLeaseCapabilityModel: boolean;
 }

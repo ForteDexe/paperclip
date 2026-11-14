@@ -11,7 +11,7 @@
   "rows": [
     {
       "id": 38,
-      "companyId": "22f78234-c769-4fd7-b216-99dc12f088f2",
+      "spaceId": "22f78234-c769-4fd7-b216-99dc12f088f2",
       "runId": "5c1ddc98-5f3c-4469-ad1b-ae825af1fa44",
       "agentId": "ad45a4b4-067a-4c59-94de-db99c4674c54",
       "seq": 38,
@@ -80,7 +80,7 @@
     },
     {
       "id": 39,
-      "companyId": "22f78234-c769-4fd7-b216-99dc12f088f2",
+      "spaceId": "22f78234-c769-4fd7-b216-99dc12f088f2",
       "runId": "5c1ddc98-5f3c-4469-ad1b-ae825af1fa44",
       "agentId": "ad45a4b4-067a-4c59-94de-db99c4674c54",
       "seq": 39,
@@ -96,13 +96,13 @@
           "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_73aaed4624a44a448bd3d3fe0d0bdb8a",
           "payload": {
-            "name": "paperclip-get_task_context",
+            "name": "outpost-get_task_context",
             "output": "null",
             "schema": "outpost.tool.execution.v1",
             "status": "running",
             "target": null,
             "exitCode": null,
-            "progress": "paperclip-get_task_context (pending)",
+            "progress": "outpost-get_task_context (pending)",
             "readOnly": true,
             "namespace": null,
             "operation": "read",
@@ -134,7 +134,7 @@
     },
     {
       "id": 41,
-      "companyId": "22f78234-c769-4fd7-b216-99dc12f088f2",
+      "spaceId": "22f78234-c769-4fd7-b216-99dc12f088f2",
       "runId": "5c1ddc98-5f3c-4469-ad1b-ae825af1fa44",
       "agentId": "ad45a4b4-067a-4c59-94de-db99c4674c54",
       "seq": 41,
@@ -203,7 +203,7 @@
     },
     {
       "id": 42,
-      "companyId": "22f78234-c769-4fd7-b216-99dc12f088f2",
+      "spaceId": "22f78234-c769-4fd7-b216-99dc12f088f2",
       "runId": "5c1ddc98-5f3c-4469-ad1b-ae825af1fa44",
       "agentId": "ad45a4b4-067a-4c59-94de-db99c4674c54",
       "seq": 42,
@@ -277,7 +277,7 @@
                     "label": "Cancel"
                   }
                 ],
-                "threadId": "paperclip-80e180f467cfbdfe68e90384027c4b1fe0f65dc94991b7f6a67321043b66f912",
+                "threadId": "outpost-80e180f467cfbdfe68e90384027c4b1fe0f65dc94991b7f6a67321043b66f912",
                 "toolCallId": "call_ZURUpVXGfBtUt9Ev2V9mqCyN"
               },
               "requestId": "acpx-input-7ea2516111a915df66eb8c03",

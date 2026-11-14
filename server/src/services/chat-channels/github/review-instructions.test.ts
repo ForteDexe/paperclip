@@ -18,7 +18,7 @@ function boundRows(rows: ReturnType<typeof delivery>[]): Db {
   return { select: () => query } as unknown as Db;
 }
 const load = (rows: ReturnType<typeof delivery>[], commentIds: string[]) => resolveGitHubReviewInstructions({
-  db: boundRows(rows), companyId: "company", agentId: "agent", issueId: "task", commentIds,
+  db: boundRows(rows), spaceId: "space", agentId: "agent", issueId: "task", commentIds,
 });
 
 describe("admitted GitHub review configuration projection", () => {

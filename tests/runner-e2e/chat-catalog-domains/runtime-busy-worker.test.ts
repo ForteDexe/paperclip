@@ -9,10 +9,10 @@ const roots: string[] = [];
 afterEach(async () => { vi.unstubAllEnvs(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 async function fixture() {
   const root = await mkdtemp(path.join(tmpdir(), "runtime-task-gate-")); roots.push(root); vi.stubEnv("OUTPOST_RUNNER_E2E_TEMP_ROOT", root);
-  const cwd = path.join(root, "isolated-workspaces", "company", "task"); await mkdir(cwd, { recursive: true });
-  const task = { id: "task", companyId: "company", assigneeAgentId: "worker", executionWorkspaceId: "workspace" };
-  const workspace = { id: "workspace", companyId: "company", cwd };
-  const ctx = { input: { fixtures: { company: { id: "company" } }, api: { get: async (url: string) => url.endsWith("/workspace") ? { workspace } : task } } } as unknown as ChatCatalogContext;
+  const cwd = path.join(root, "isolated-workspaces", "space", "task"); await mkdir(cwd, { recursive: true });
+  const task = { id: "task", spaceId: "space", assigneeAgentId: "worker", executionWorkspaceId: "workspace" };
+  const workspace = { id: "workspace", spaceId: "space", cwd };
+  const ctx = { input: { fixtures: { space: { id: "space" } }, api: { get: async (url: string) => url.endsWith("/workspace") ? { workspace } : task } } } as unknown as ChatCatalogContext;
   return { root, cwd, task, workspace, ctx };
 }
 it("a real bounded Node utility creates readiness in actual task cwd and emits only the genuine released brief", async () => {
@@ -29,11 +29,11 @@ it("a real bounded Node utility creates readiness in actual task cwd and emits o
     expect(gate.gate.startsWith(await realpath(f.cwd) + path.sep)).toBe(true);
   } finally { if (child.exitCode === null) { child.kill("SIGTERM"); await exited; } }
 });
-it("rejects another company, assignee, active binding or changed workspace before reading/releasing", async () => {
+it("rejects another space, assignee, active binding or changed workspace before reading/releasing", async () => {
   const f = await fixture(), gate = taskBoundRuntimeGate("scope-test");
   f.task.assigneeAgentId = "other"; await expect(readRuntimeTaskGate(f.ctx, gate, "task", "worker")).rejects.toThrow("assignee");
-  f.task.assigneeAgentId = "worker"; f.workspace.companyId = "foreign"; await expect(readRuntimeTaskGate(f.ctx, gate, "task", "worker")).rejects.toThrow("company");
-  f.workspace.companyId = "company"; f.task.executionWorkspaceId = "other"; await expect(readRuntimeTaskGate(f.ctx, gate, "task", "worker")).rejects.toThrow("binding");
+  f.task.assigneeAgentId = "worker"; f.workspace.spaceId = "foreign"; await expect(readRuntimeTaskGate(f.ctx, gate, "task", "worker")).rejects.toThrow("space");
+  f.workspace.spaceId = "space"; f.task.executionWorkspaceId = "other"; await expect(readRuntimeTaskGate(f.ctx, gate, "task", "worker")).rejects.toThrow("binding");
   f.task.executionWorkspaceId = "workspace"; await readRuntimeTaskGate(f.ctx, gate, "task", "worker");
   f.workspace.id = "new"; f.task.executionWorkspaceId = "new";
   await expect(readRuntimeTaskGate(f.ctx, gate, "task", "worker")).rejects.toThrow("changed after admission");
@@ -53,11 +53,11 @@ it("retains neutral cleanup release and refuses timeout widening", async () => {
   expect(() => taskBoundRuntimeGate("too-long", 300001)).toThrow("bounded");
 });
 it("funds source and worker before task-bound history, without exposing an agent-home script or admitting work", async () => {
-  const f = await fixture(); vi.stubEnv("OUTPOST_HOME", path.join(f.root, "paperclip-home")); vi.stubEnv("OUTPOST_INSTANCE_ID", "owned-test");
+  const f = await fixture(); vi.stubEnv("OUTPOST_HOME", path.join(f.root, "outpost-home")); vi.stubEnv("OUTPOST_INSTANCE_ID", "owned-test");
   const funded: string[] = [];
-  const ctx = { input: { nonce: "history", execution: { environment: { id: "local" } }, fixtures: { company: { id: "company" }, agent: { id: "source-agent" } },
+  const ctx = { input: { nonce: "history", execution: { environment: { id: "local" } }, fixtures: { space: { id: "space" }, agent: { id: "source-agent" } },
     api: { post: async (_url: string, body: { scopeId: string; unpricedUsagePolicy: string }) => { expect(body.unpricedUsagePolicy).toBe("allow"); funded.push(body.scopeId); } } }, allRuns: async () => [] } as unknown as ChatCatalogContext;
   const prepared = await prepareRuntimeWorkerGate(ctx, { worker: { id: "worker" }, taskBound: true });
-  expect(funded).toEqual(["company", "worker", "source-agent"]);
+  expect(funded).toEqual(["space", "worker", "source-agent"]);
   expect(prepared.gate.scriptPath).toBe(""); expect(prepared.gate.command).not.toContain(f.root);
 });

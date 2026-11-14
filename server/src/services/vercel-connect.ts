@@ -97,7 +97,7 @@ export function vercelConnectIntegrationStatus(env: NodeJS.ProcessEnv = process.
 
 /**
  * Vercel permits plaintext callbacks only on the literal `localhost` host.
- * Paperclip's local board commonly runs on 127.0.0.1, which is the same
+ * Outpost's local operator commonly runs on 127.0.0.1, which is the same
  * loopback boundary but Vercel rejects it before authorization starts.
  */
 export function vercelConnectCallbackUrl(redirectUri: string, state: string): string {
@@ -226,21 +226,21 @@ function subjectHash(parts: string[]): string {
   return createHash("sha256").update(parts.join("\0")).digest("base64url").slice(0, 43);
 }
 
-/** Subjects are deterministic, company-bound and never accepted from clients. */
+/** Subjects are deterministic, space-bound and never accepted from clients. */
 export function deriveVercelConnectSubject(input: {
   credential: VercelConnectCredentialReference;
   connectionId: string;
-  companyId: string;
+  spaceId: string;
   grantKind: ConnectionGrantKind;
   subjectUserId?: string | null;
 }): { subject: ConnectTokenSubject; subjectId?: string } {
   if (input.credential.principalMode === "app") return { subject: { type: "app" } };
   const instanceId = process.env.OUTPOST_INSTANCE_ID
     ?? process.env.OUTPOST_DEPLOYMENT_ID
-    ?? "paperclip-instance";
+    ?? "outpost-instance";
   const subjectId = `pc_${subjectHash([
     instanceId,
-    input.companyId,
+    input.spaceId,
     input.connectionId,
     input.grantKind,
     input.grantKind === "user" ? input.subjectUserId ?? "missing-user" : "organization",
@@ -252,13 +252,13 @@ export function vercelTokenRequest(input: {
   credential: VercelConnectCredentialReference;
   grant: { kind: ConnectionGrantKind; subjectUserId: string | null; externalCredential?: VercelConnectGrantReference | null };
   connectionId: string;
-  companyId: string;
+  spaceId: string;
   resources?: string[];
 }): VercelConnectTokenRequest {
   const derived = deriveVercelConnectSubject({
     credential: input.credential,
     connectionId: input.connectionId,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     grantKind: input.grant.kind,
     subjectUserId: input.grant.subjectUserId,
   });

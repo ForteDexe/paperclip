@@ -1,11 +1,11 @@
 import { notifyMergeConfirmationWork } from "./merged-pr-confirmation-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 
-export type ChatConfirmationScope = { companyId: string; issueId?: string };
+export type ChatConfirmationScope = { spaceId: string; issueId?: string };
 
 export async function notifyChatConfirmationWork(tx: object, scope: ChatConfirmationScope) {
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.chatTerminalConfirmations,
-    JSON.stringify({ companyId: scope.companyId, issueId: scope.issueId }));
+    JSON.stringify({ spaceId: scope.spaceId, issueId: scope.issueId }));
 }
 
 /** Interaction resolution can release a callback parked while its human input

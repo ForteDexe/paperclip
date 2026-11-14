@@ -3,7 +3,7 @@ import { projectIdleExternalObjectSchedule, type IdleExternalObjectRow } from ".
 
 const now = Date.UTC(2099, 0, 1);
 function object(patch: Partial<IdleExternalObjectRow> = {}): IdleExternalObjectRow {
-  return { id: "object", companyId: "company", companyStatus: "active", revision: "row:1", eligible: true,
+  return { id: "object", spaceId: "space", spaceStatus: "active", revision: "row:1", eligible: true,
     nextRefreshAt: new Date(now + 60_000), refreshStartedAt: null, refreshToken: null, ...patch };
 }
 

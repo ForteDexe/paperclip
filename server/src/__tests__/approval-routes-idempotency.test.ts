@@ -25,7 +25,7 @@ const mockIssueApprovalService = vi.hoisted(() => ({
 }));
 
 const mockSecretService = vi.hoisted(() => ({
-  normalizeHireApprovalPayloadForPersistence: vi.fn(),
+  normalizeCreationApprovalPayloadForPersistence: vi.fn(),
 }));
 
 const mockLogActivity = vi.hoisted(() => vi.fn());
@@ -60,9 +60,9 @@ async function createApp(actorOverrides: Record<string, unknown> = {}) {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = {
-      type: "board",
+      type: "operator",
       userId: "user-1",
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
       source: "session",
       isInstanceAdmin: false,
       ...actorOverrides,
@@ -77,7 +77,7 @@ async function createApp(actorOverrides: Record<string, unknown> = {}) {
 function createRouteDb(contextSnapshot: Record<string, unknown> = {}, runId = "run-1", agentId = "agent-1") {
   const runRows = [{
     id: runId,
-    companyId: "company-1",
+    spaceId: "space-1",
     agentId,
     contextSnapshot,
   }];
@@ -102,7 +102,7 @@ async function createAgentApp(options: { runId?: string; contextSnapshot?: Recor
     (req as any).actor = {
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: options.runId ?? "run-1",
       source: "api_key",
       isInstanceAdmin: false,
@@ -129,12 +129,12 @@ describe("approval routes idempotent retries", () => {
     mockHeartbeatService.wakeup.mockReset();
     mockIssueApprovalService.listIssuesForApproval.mockReset();
     mockIssueApprovalService.linkManyForApproval.mockReset();
-    mockSecretService.normalizeHireApprovalPayloadForPersistence.mockReset();
+    mockSecretService.normalizeCreationApprovalPayloadForPersistence.mockReset();
     mockLogActivity.mockReset();
     mockAccessService.decide.mockReset();
     mockAccessService.decide.mockResolvedValue({
       allowed: true,
-      action: "company_scope:read",
+      action: "space_scope:read",
       reason: "allow_test",
       explanation: "Allowed by test mock.",
     });
@@ -146,8 +146,8 @@ describe("approval routes idempotent retries", () => {
   it("does not emit duplicate approval side effects when approve is already resolved", async () => {
     mockApprovalService.getById.mockResolvedValue({
       id: "approval-1",
-      companyId: "company-1",
-      type: "hire_agent",
+      spaceId: "space-1",
+      type: "create_agent",
       status: "approved",
       payload: {},
       requestedByAgentId: "agent-1",
@@ -155,8 +155,8 @@ describe("approval routes idempotent retries", () => {
     mockApprovalService.approve.mockResolvedValue({
       approval: {
         id: "approval-1",
-        companyId: "company-1",
-        type: "hire_agent",
+        spaceId: "space-1",
+        type: "create_agent",
         status: "approved",
         payload: {},
         requestedByAgentId: "agent-1",
@@ -177,16 +177,16 @@ describe("approval routes idempotent retries", () => {
   it("does not emit duplicate rejection logs when reject is already resolved", async () => {
     mockApprovalService.getById.mockResolvedValue({
       id: "approval-1",
-      companyId: "company-1",
-      type: "hire_agent",
+      spaceId: "space-1",
+      type: "create_agent",
       status: "rejected",
       payload: {},
     });
     mockApprovalService.reject.mockResolvedValue({
       approval: {
         id: "approval-1",
-        companyId: "company-1",
-        type: "hire_agent",
+        spaceId: "space-1",
+        type: "create_agent",
         status: "rejected",
         payload: {},
       },
@@ -201,11 +201,11 @@ describe("approval routes idempotent retries", () => {
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
-  it("rejects approval decisions for companies outside the caller scope", async () => {
+  it("rejects approval decisions for spaces outside the caller scope", async () => {
     mockApprovalService.getById.mockResolvedValue({
       id: "approval-2",
-      companyId: "company-2",
-      type: "hire_agent",
+      spaceId: "space-2",
+      type: "create_agent",
       status: "pending",
       payload: {},
     });
@@ -219,11 +219,11 @@ describe("approval routes idempotent retries", () => {
     expect(mockApprovalService.approve).not.toHaveBeenCalled();
   });
 
-  it("rejects approval revision requests for companies outside the caller scope", async () => {
+  it("rejects approval revision requests for spaces outside the caller scope", async () => {
     mockApprovalService.getById.mockResolvedValue({
       id: "approval-3",
-      companyId: "company-2",
-      type: "hire_agent",
+      spaceId: "space-2",
+      type: "create_agent",
       status: "pending",
       payload: {},
     });
@@ -240,8 +240,8 @@ describe("approval routes idempotent retries", () => {
   it("derives approval attribution from the authenticated actor on approve", async () => {
     mockApprovalService.getById.mockResolvedValue({
       id: "approval-4",
-      companyId: "company-1",
-      type: "hire_agent",
+      spaceId: "space-1",
+      type: "create_agent",
       status: "pending",
       payload: {},
       requestedByAgentId: null,
@@ -249,8 +249,8 @@ describe("approval routes idempotent retries", () => {
     mockApprovalService.approve.mockResolvedValue({
       approval: {
         id: "approval-4",
-        companyId: "company-1",
-        type: "hire_agent",
+        spaceId: "space-1",
+        type: "create_agent",
         status: "approved",
         payload: {},
         requestedByAgentId: null,
@@ -269,16 +269,16 @@ describe("approval routes idempotent retries", () => {
   it("derives approval attribution from the authenticated actor on reject", async () => {
     mockApprovalService.getById.mockResolvedValue({
       id: "approval-5",
-      companyId: "company-1",
-      type: "hire_agent",
+      spaceId: "space-1",
+      type: "create_agent",
       status: "pending",
       payload: {},
     });
     mockApprovalService.reject.mockResolvedValue({
       approval: {
         id: "approval-5",
-        companyId: "company-1",
-        type: "hire_agent",
+        spaceId: "space-1",
+        type: "create_agent",
         status: "rejected",
         payload: {},
       },
@@ -296,15 +296,15 @@ describe("approval routes idempotent retries", () => {
   it("derives approval attribution from the authenticated actor on request revision", async () => {
     mockApprovalService.getById.mockResolvedValue({
       id: "approval-6",
-      companyId: "company-1",
-      type: "hire_agent",
+      spaceId: "space-1",
+      type: "create_agent",
       status: "pending",
       payload: {},
     });
     mockApprovalService.requestRevision.mockResolvedValue({
       id: "approval-6",
-      companyId: "company-1",
-      type: "hire_agent",
+      spaceId: "space-1",
+      type: "create_agent",
       status: "revision_requested",
       payload: {},
     });
@@ -321,11 +321,11 @@ describe("approval routes idempotent retries", () => {
     );
   });
 
-  it("lets agents create generic issue-linked board approval requests", async () => {
+  it("lets agents create generic issue-linked operator approval requests", async () => {
     mockApprovalService.create.mockResolvedValue({
       id: "approval-1",
-      companyId: "company-1",
-      type: "request_board_approval",
+      spaceId: "space-1",
+      type: "request_operator_approval",
       requestedByAgentId: "agent-1",
       requestedByUserId: null,
       status: "pending",
@@ -338,22 +338,22 @@ describe("approval routes idempotent retries", () => {
     });
 
     const res = await request(await createAgentApp())
-      .post("/api/companies/company-1/approvals")
+      .post("/api/spaces/space-1/approvals")
       .send({
-        type: "request_board_approval",
+        type: "request_operator_approval",
         issueIds: ["00000000-0000-0000-0000-000000000001"],
         payload: { title: "Approve hosting spend" },
       });
 
     expect([200, 201], JSON.stringify(res.body)).toContain(res.status);
     expect(res.body).toMatchObject({
-      companyId: "company-1",
-      type: "request_board_approval",
+      spaceId: "space-1",
+      type: "request_operator_approval",
       requestedByAgentId: "agent-1",
       requestedByUserId: null,
       status: "pending",
     });
-    expect(mockSecretService.normalizeHireApprovalPayloadForPersistence).not.toHaveBeenCalled();
+    expect(mockSecretService.normalizeCreationApprovalPayloadForPersistence).not.toHaveBeenCalled();
     expect(mockIssueApprovalService.linkManyForApproval).toHaveBeenCalledWith(
       "approval-1",
       ["00000000-0000-0000-0000-000000000001"],
@@ -362,7 +362,7 @@ describe("approval routes idempotent retries", () => {
     expect(mockLogActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        companyId: "company-1",
+        spaceId: "space-1",
         actorType: "agent",
         actorId: "agent-1",
         action: "approval.created",
@@ -379,9 +379,9 @@ describe("approval routes idempotent retries", () => {
         resumeRequiresNormalModel: true,
       },
     }))
-      .post("/api/companies/company-1/approvals")
+      .post("/api/spaces/space-1/approvals")
       .send({
-        type: "request_board_approval",
+        type: "request_operator_approval",
         payload: { title: "Approve hosting spend" },
       });
 
@@ -394,8 +394,8 @@ describe("approval routes idempotent retries", () => {
   it("blocks status-only recovery runs from resubmitting approvals", async () => {
     mockApprovalService.getById.mockResolvedValue({
       id: "approval-7",
-      companyId: "company-1",
-      type: "request_board_approval",
+      spaceId: "space-1",
+      type: "request_operator_approval",
       status: "revision_requested",
       payload: {},
       requestedByAgentId: "agent-1",
@@ -420,8 +420,8 @@ describe("approval routes idempotent retries", () => {
   it("blocks status-only recovery runs from commenting on approvals", async () => {
     mockApprovalService.getById.mockResolvedValue({
       id: "approval-8",
-      companyId: "company-1",
-      type: "request_board_approval",
+      spaceId: "space-1",
+      type: "request_operator_approval",
       status: "pending",
       payload: {},
       requestedByAgentId: "agent-1",

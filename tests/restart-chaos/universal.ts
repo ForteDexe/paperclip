@@ -148,7 +148,7 @@ export function actionableItem(sample: TaskSample): string | null {
   const interruption = sample.interruption;
   // A named user action (for example `confirm_run_stopped`) is shown even while an accepted Retry waits.
   if (interruption?.userAction) return `user action ${interruption.userAction}`;
-  // Otherwise an accepted Retry that waits on the system ("Retry is waiting for Paperclip to ...") leaves nothing
+  // Otherwise an accepted Retry that waits on the system ("Retry is waiting for Outpost to ...") leaves nothing
   // for the person to do: the Retry button, the failed notice and the blocker describe work they already asked for.
   if (interruption?.retryWait) return null;
   if (interruption?.canRetry) return "Retry";

@@ -40,7 +40,7 @@ const LIVE_GRANTS = [
   "dependencies:write",
   "discovery:agents:read",
   "discovery:tasks:read",
-  "governance:approvals:request",
+  "approvals:approvals:request",
 ] as const;
 
 function promptFor(evalCase: RunnerWorkflowEvalCase): string {
@@ -53,7 +53,7 @@ function promptFor(evalCase: RunnerWorkflowEvalCase): string {
       "Immediately report one short progress update, inspect the workspace with a read-only command or search if available, then call finish_task exactly once. Preserve visible tool activity.",
     "verification-policy":
       "Call finish_task exactly once. Include one verification entry that is not_run with reasonCode tool_unavailable and explain the caveat without treating it as a blocker.",
-    "governed-interaction":
+    "controlled-interaction":
       "Call request_human_input once to ask a required single-select question. After the typed answer arrives, use it exactly and call finish_task once. Do not create a provider-native question.",
     "steering-causality":
       "A later message will narrow the requested format. On this turn provide a short draft and do not repeat work; after the follow-up, call finish_task exactly once.",
@@ -237,7 +237,7 @@ export async function advanceDelegationReturnMockState(input: {
     identity: {
       runId: childRunId,
       sessionId: childSessionId,
-      companyId: child.companyId,
+      spaceId: child.spaceId,
       issueId: child.id,
       agentId: actorId,
     },
@@ -267,7 +267,7 @@ export async function advanceDelegationReturnMockState(input: {
     identity: {
       runId: returnRunId,
       sessionId: input.parentSessionId,
-      companyId: initial.company.id,
+      spaceId: initial.space.id,
       issueId: input.parentTaskId,
       agentId: initial.actors[0]!.id,
     },
@@ -841,7 +841,7 @@ export async function executeLiveRunnerWorkflow(input: {
         actors: [
           {
             id: "actor-1",
-            companyId: "company-1",
+            spaceId: "space-1",
             name: "Workflow eval actor",
             role: "engineer",
             status: "active",
@@ -1091,7 +1091,7 @@ export async function executeLiveRunnerWorkflow(input: {
     check(
       "owned-wait",
       pendingInteractions === 0,
-      `${pendingInteractions} governed interaction(s) remain pending`,
+      `${pendingInteractions} controlled interaction(s) remain pending`,
     ),
   ];
   const continuationChecks = [

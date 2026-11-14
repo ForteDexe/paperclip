@@ -48,18 +48,18 @@ vi.mock("../context/ThemeContext", () => ({
   }),
 }));
 
-// The router's navigate wrapper reads the active company prefix from context.
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({
-    selectedCompany: null,
-    selectedCompanyId: null,
-    companies: [],
+// The router's navigate wrapper reads the active space prefix from context.
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({
+    selectedSpace: null,
+    selectedSpaceId: null,
+    spaces: [],
     selectionSource: "manual",
     loading: false,
     error: null,
-    setSelectedCompanyId: vi.fn(),
-    reloadCompanies: vi.fn(),
-    createCompany: vi.fn(),
+    setSelectedSpaceId: vi.fn(),
+    reloadSpaces: vi.fn(),
+    createSpace: vi.fn(),
   }),
 }));
 
@@ -128,7 +128,7 @@ describe("AuthPage", () => {
   }
 
   it.each(["https://my.outpost.app", "https://my-staging.outpost.app"])("recovers Cloud auth through %s without rendering an instance form", async (origin) => {
-    healthMock.mockResolvedValue({ cloud: { managed: true, managedBy: "paperclip-cloud", cloudBaseUrl: origin, stackSlug: "team" } });
+    healthMock.mockResolvedValue({ cloud: { managed: true, managedBy: "outpost-cloud", cloudBaseUrl: origin, stackSlug: "team" } });
     const { root } = await mount("/auth?next=%2FTEST%2Fissues%2FTEST-1%3Ftab%3Dactivity%23comment");
     await vi.waitFor(() => expect(beginCloudSignInMock).toHaveBeenCalledTimes(1));
     const target = new URL(beginCloudSignInMock.mock.calls[0][0]);
@@ -156,7 +156,7 @@ describe("AuthPage", () => {
   });
 
   it("offers a manual Cloud retry after the automatic recovery limit", async () => {
-    healthMock.mockResolvedValue({ cloud: { managed: true, managedBy: "paperclip-cloud", cloudBaseUrl: "https://my.outpost.app", stackSlug: "team" } });
+    healthMock.mockResolvedValue({ cloud: { managed: true, managedBy: "outpost-cloud", cloudBaseUrl: "https://my.outpost.app", stackSlug: "team" } });
     beginCloudSignInMock.mockReturnValue(false);
     const { root } = await mount();
     await vi.waitFor(() => expect(container.textContent).toContain("Continue to Outpost Cloud"));
@@ -165,7 +165,7 @@ describe("AuthPage", () => {
   });
 
   it("keeps incomplete Cloud configuration out of the instance form", async () => {
-    healthMock.mockResolvedValue({ cloud: { managed: true, managedBy: "paperclip-cloud", cloudBaseUrl: null, stackSlug: null } });
+    healthMock.mockResolvedValue({ cloud: { managed: true, managedBy: "outpost-cloud", cloudBaseUrl: null, stackSlug: null } });
     const { root } = await mount();
     await vi.waitFor(() => expect(container.textContent).toContain("Cloud sign-in is unavailable"));
     expect(container.querySelector("form")).toBeNull();
@@ -331,8 +331,8 @@ describe("CliAuthPage rate-limit recovery", () => {
   }
 
   function pending(expiresAt = new Date(Date.now() + 10 * 60_000).toISOString()) {
-    return { id: challengeId, status: "pending", command: "paperclipai auth login", clientName: "paperclipai cli",
-      requestedAccess: "board", requestedCompanyId: null, requestedCompanyName: null, approvedAt: null,
+    return { id: challengeId, status: "pending", command: "outpost auth login", clientName: "outpost cli",
+      requestedAccess: "operator", requestedSpaceId: null, requestedSpaceName: null, approvedAt: null,
       cancelledAt: null, expiresAt, approvedByUser: null, requiresSignIn: false, canApprove: true, currentUserId: "operator" };
   }
 

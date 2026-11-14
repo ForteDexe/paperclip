@@ -69,7 +69,7 @@ describe("owned maintenance artifacts", () => {
     const parent = await ownedRoot();
     await expect(startMaintenanceServer("not-a-database-url", { artifactRoot: parent })).rejects.toThrow("Invalid URL");
     const [name] = await readdir(parent);
-    expect(name).toMatch(/^paperclip-maintenance-/);
+    expect(name).toMatch(/^outpost-maintenance-/);
     expect(print).toHaveBeenCalledExactlyOnceWith(`[maintenance-test] retained artifacts: ${path.join(parent, name!)}\n`);
   });
 });

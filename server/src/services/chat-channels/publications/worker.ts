@@ -229,7 +229,7 @@ export function createChatPublicationWorker(db: Db, options: PublicationWorkerOp
     const leaseKey = `publication:${publication.id}:${publication.attempts + 1}`;
     const now = new Date();
     const owned = and(
-      eq(chatEndpointLeases.companyId, publication.companyId),
+      eq(chatEndpointLeases.spaceId, publication.spaceId),
       eq(chatEndpointLeases.endpointId, publication.endpointId),
       eq(chatEndpointLeases.leaseKey, leaseKey),
       eq(chatEndpointLeases.token, token),
@@ -242,7 +242,7 @@ export function createChatPublicationWorker(db: Db, options: PublicationWorkerOp
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, publication.companyId),
+            eq(chatPublications.spaceId, publication.spaceId),
             eq(chatPublications.id, publication.id),
             eq(chatPublications.state, publication.state),
             eq(chatPublications.attempts, publication.attempts),
@@ -256,7 +256,7 @@ export function createChatPublicationWorker(db: Db, options: PublicationWorkerOp
         .from(chatTeamsFileTransfers)
         .where(
           and(
-            eq(chatTeamsFileTransfers.companyId, publication.companyId),
+            eq(chatTeamsFileTransfers.spaceId, publication.spaceId),
             eq(chatTeamsFileTransfers.publicationId, current.id),
           ),
         )
@@ -280,7 +280,7 @@ export function createChatPublicationWorker(db: Db, options: PublicationWorkerOp
         .returning({ id: chatPublications.id });
       if (!row) return false;
       await tx.insert(chatEndpointLeases).values({
-        companyId: publication.companyId,
+        spaceId: publication.spaceId,
         endpointId: publication.endpointId,
         leaseKey,
         token,
@@ -567,7 +567,7 @@ export function createChatPublicationWorker(db: Db, options: PublicationWorkerOp
                   and(
                     eq(chatEndpointResources.id, conversation.resourceId),
                     eq(chatEndpointResources.endpointId, endpoint.id),
-                    eq(chatEndpointResources.companyId, endpoint.companyId),
+                    eq(chatEndpointResources.spaceId, endpoint.spaceId),
                   ),
                 )
                 .then((result) => result[0] ?? null)
@@ -606,7 +606,7 @@ export function createChatPublicationWorker(db: Db, options: PublicationWorkerOp
             .where(
               and(
                 eq(issueThreadInteractions.id, interactionId!),
-                eq(issueThreadInteractions.companyId, publication.companyId),
+                eq(issueThreadInteractions.spaceId, publication.spaceId),
                 eq(issueThreadInteractions.issueId, publication.issueId),
               ),
             )
@@ -669,7 +669,7 @@ export function createChatPublicationWorker(db: Db, options: PublicationWorkerOp
         }
         // Status is sampled when it reaches the head of the provider lane,
         // not when the command was admitted. If an already-streaming final
-        // publication won the race, this reply reflects Paperclip's latest
+        // publication won the race, this reply reflects Outpost's latest
         // authoritative task state after that earlier send commits.
         let payload = await currentTaskControlPayload(publication);
         await withCredentialMutationLease(
@@ -978,7 +978,7 @@ export function createChatPublicationWorker(db: Db, options: PublicationWorkerOp
                     ? null
                     : publication.commentId;
                   const messageLinkInsert = tx.insert(chatMessageLinks).values({
-                    companyId: publication.companyId,
+                    spaceId: publication.spaceId,
                     endpointId: publication.endpointId,
                     conversationId: publication.conversationId,
                     publicationId: publication.id,
@@ -1050,7 +1050,7 @@ export function createChatPublicationWorker(db: Db, options: PublicationWorkerOp
                   !publication.idempotencyKey.startsWith("control:status:")
                 ) {
                   await stageSlackSessionSync(tx, {
-                    companyId: publication.companyId,
+                    spaceId: publication.spaceId,
                     endpointId: publication.endpointId,
                     conversationId: publication.conversationId,
                     runtimeGeneration:

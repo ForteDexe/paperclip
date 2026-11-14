@@ -25,7 +25,7 @@ async function thirdPartyLinks(from:string,to:string,installedStore:string){
   };
   await mkdir(to,{recursive:true});
   for(const entry of await readdir(from,{withFileTypes:true})){
-    if([".cache",".bin","@paperclipai"].includes(entry.name))continue;
+    if([".cache",".bin","@outpost"].includes(entry.name))continue;
     const source=path.join(from,entry.name),destination=path.join(to,entry.name);
     if(entry.name.startsWith("@")){
       await mkdir(destination,{recursive:true});
@@ -62,7 +62,7 @@ export async function prepareReviewedSdkReference(original:string,directory:stri
   await thirdPartyLinks(path.join(original,"node_modules"),path.join(directory,"node_modules"),installedStore);
   for(const name of ["shared","plugins/sdk"])await thirdPartyLinks(path.join(original,"packages",name,"node_modules"),path.join(directory,"packages",name,"node_modules"),installedStore);
   for(const modules of ["node_modules","packages/plugins/sdk/node_modules"]){
-    const scope=path.join(directory,modules,"@paperclipai");await mkdir(scope,{recursive:true});
+    const scope=path.join(directory,modules,"@outpost");await mkdir(scope,{recursive:true});
     await symlink(path.join(directory,"packages/shared"),path.join(scope,"shared"));
   }
   const require=createRequire(path.join(directory,"packages/plugins/sdk/package.json"));

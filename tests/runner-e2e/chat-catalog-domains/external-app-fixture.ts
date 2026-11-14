@@ -12,14 +12,14 @@ const SYNTHETIC_NOTION_DESCRIPTION =
 
 export function ownedSyntheticConnection(
   connection: ToolConnection,
-  companyId: string,
+  spaceId: string,
   providerURL: string,
 ) {
   try {
     const provider = new URL(providerURL),
       saved = new URL(String(connection.config?.url));
     return (
-      connection.companyId === companyId &&
+      connection.spaceId === spaceId &&
       connection.transport === "mcp_remote" &&
       connection.status === "active" &&
       connection.enabled === true &&
@@ -40,13 +40,13 @@ export function ownedSyntheticConnection(
 export async function enableOwnedCatalogQuarantine(
   api: RunnerApi,
   connectionId: string,
-  companyId: string,
+  spaceId: string,
   providerURL: string,
 ) {
   const before = await api.get<ToolConnection>(
     `/api/tool-connections/${connectionId}`,
   );
-  if (!ownedSyntheticConnection(before, companyId, providerURL))
+  if (!ownedSyntheticConnection(before, spaceId, providerURL))
     throw new Error(
       "Quarantine prerequisite requires the actual active owned synthetic connection",
     );
@@ -57,7 +57,7 @@ export async function enableOwnedCatalogQuarantine(
     `/api/tool-connections/${connectionId}`,
   );
   if (
-    !ownedSyntheticConnection(after, companyId, providerURL) ||
+    !ownedSyntheticConnection(after, spaceId, providerURL) ||
     after.config?.quarantineNewEntries !== true ||
     after.transportConfig?.quarantineNewEntries !== true
   )
@@ -75,7 +75,7 @@ export function syntheticNotionBinding(
   application: ToolApplication,
   effective: ToolProfileEffectiveSummary,
   target: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     providerURL: string;
     readId: string;
@@ -85,12 +85,12 @@ export function syntheticNotionBinding(
   return (
     ownedSyntheticConnection(
       connection,
-      target.companyId,
+      target.spaceId,
       target.providerURL,
     ) &&
     connection.name === SYNTHETIC_NOTION_NAME &&
     application.id === connection.applicationId &&
-    application.companyId === target.companyId &&
+    application.spaceId === target.spaceId &&
     !application.metadata?.sourceTemplateKey &&
     application.description === SYNTHETIC_NOTION_DESCRIPTION &&
     effective.agentId === target.agentId &&
@@ -98,7 +98,7 @@ export function syntheticNotionBinding(
       (c) =>
         c.id === connection.id &&
         c.name === SYNTHETIC_NOTION_NAME &&
-        c.companyId === target.companyId,
+        c.spaceId === target.spaceId,
     ) &&
     effective.allowedTools.some(
       (t) =>
@@ -140,7 +140,7 @@ export async function observeSyntheticNotionBinding(
   api: RunnerApi,
   connectionId: string,
   target: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     providerURL: string;
     readId: string;
@@ -152,10 +152,10 @@ export async function observeSyntheticNotionBinding(
   );
   const [applications, effective] = await Promise.all([
     api.get<{ applications: ToolApplication[] }>(
-      `/api/companies/${target.companyId}/tools/applications`,
+      `/api/spaces/${target.spaceId}/tools/applications`,
     ),
     api.get<ToolProfileEffectiveSummary>(
-      `/api/companies/${target.companyId}/tools/profiles/effective/agents/${target.agentId}`,
+      `/api/spaces/${target.spaceId}/tools/profiles/effective/agents/${target.agentId}`,
     ),
   ]);
   const application = applications.applications.find(
@@ -163,7 +163,7 @@ export async function observeSyntheticNotionBinding(
   );
   if (!application)
     throw new Error(
-      "Actual synthetic application was not returned by the company-scoped public application inventory",
+      "Actual synthetic application was not returned by the space-scoped public application inventory",
     );
   return {
     matched: syntheticNotionBinding(connection, application, effective, target),

@@ -20,8 +20,8 @@ const unavailable = () => new ApiError("Outpost is restarting.", 503, { error: "
 const bridge: PluginBridgeContextValue = {
   pluginId: "files",
   hostContext: {
-    companyId: "company-1",
-    companyPrefix: null,
+    spaceId: "space-1",
+    spacePrefix: null,
     projectId: null,
     entityId: null,
     entityType: null,
@@ -87,7 +87,7 @@ describe("usePluginData", () => {
       "files",
       "file-content",
       { path: "b.txt" },
-      "company-1",
+      "space-1",
       null,
     );
     expect(last().loading).toBe(false);

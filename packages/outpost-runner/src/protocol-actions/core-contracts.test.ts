@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { OUTPOST_CORE_PROTOCOL_ACTIONS } from "./core.js";
 import { requestHumanInputExamples } from "./request-human-input.js";
 
-describe("core Paperclip protocol action contracts", () => {
+describe("core Outpost protocol action contracts", () => {
   const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true, strict: false });
 
   it("advertises a complete typed form for mixed text and choice questions", () => {
@@ -35,7 +35,7 @@ describe("core Paperclip protocol action contracts", () => {
     expect(ajv.validate(schema, { ...questions, payload: { version: 1 } })).toBe(false);
   });
 
-  it("accepts the payload version forms models naturally send, because Paperclip stores version 1 itself", () => {
+  it("accepts the payload version forms models naturally send, because Outpost stores version 1 itself", () => {
     // Recorded opencode/deepseek runs sent payload.version as the string "1" (or
     // omitted it after the rejection) and every call failed with
     // "/payload/version must be equal to constant". The server overwrites the

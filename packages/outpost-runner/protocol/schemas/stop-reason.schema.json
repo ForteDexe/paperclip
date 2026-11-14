@@ -29,7 +29,7 @@
     "decisionId": { "$ref": "#/$defs/stableId" },
     "limitClass": {
       "enum": [
-        "company_monthly",
+        "space_monthly",
         "actor_monthly",
         "project_monthly",
         "run_cost",

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { issuesApi } from "../api/issues";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { StatusIcon } from "../components/StatusIcon";
@@ -17,7 +17,7 @@ import { taskStatusIconProps } from "@/lib/task-status-presentation";
 
 export function MyIssues() {
   const { enabled: streamlinedUiEnabled } = useStreamlinedUiEnabled();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
 
   useEffect(() => {
@@ -25,14 +25,14 @@ export function MyIssues() {
   }, [setBreadcrumbs]);
 
   const issuesQuery = useQuery({
-    queryKey: queryKeys.issues.list(selectedCompanyId!),
-    queryFn: () => issuesApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.issues.list(selectedSpaceId!),
+    queryFn: () => issuesApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const { data: issues, isLoading } = issuesQuery;
   const issuesView = useQueryView(issuesQuery);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return (
       <EmptyState
         icon={ListTodo}

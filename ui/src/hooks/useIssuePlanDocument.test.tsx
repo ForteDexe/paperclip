@@ -12,7 +12,7 @@ import { useIssuePlanDocument } from "./useIssuePlanDocument";
 
 vi.mock("@/api/issues", () => ({ issuesApi: { get: vi.fn(), getDocument: vi.fn() } }));
 const issue = {
-  id: "task-id", identifier: "TASK-1", companyId: "company-id", title: "Saved task",
+  id: "task-id", identifier: "TASK-1", spaceId: "space-id", title: "Saved task",
   status: "todo", workMode: "standard", priority: "medium", projectId: null,
   parentId: null, description: null, assigneeAgentId: null, assigneeUserId: null,
   executionRunId: null, issueNumber: 1, requestDepth: 0, createdAt: new Date(), updatedAt: new Date(),

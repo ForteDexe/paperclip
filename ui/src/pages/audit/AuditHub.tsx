@@ -4,7 +4,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { PageTabBar } from "@/components/PageTabBar";
 import { Tabs } from "@/components/ui/tabs";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useNavigate, useSearchParams } from "@/lib/router";
 import { Timeline } from "@/pages/Timeline";
 import { AuditFeed, type AuditFeedMode } from "./AuditFeed";
@@ -20,7 +20,7 @@ import {
 
 export function AuditHub({ section }: { section: AuditSection }) {
   const navigate = useNavigate();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [searchParams, setSearchParams] = useSearchParams();
   const scope = auditScopeFromSearchParams(searchParams);
@@ -36,7 +36,7 @@ export function AuditHub({ section }: { section: AuditSection }) {
     "project.",
     "goal.",
     "tool_",
-    "company.",
+    "space.",
   ].includes(actionParam ?? "") ? actionParam! : "__all";
 
   useEffect(() => {
@@ -106,7 +106,7 @@ export function AuditHub({ section }: { section: AuditSection }) {
     }, { replace: true });
   }, [setSearchParams]);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <EmptyState icon={History} message="Select an outpost to view Audit." />;
   }
 
@@ -127,12 +127,12 @@ export function AuditHub({ section }: { section: AuditSection }) {
       </Tabs>
 
       {section === "commentary" ? (
-        <AgentCommentary key={selectedCompanyId} companyId={selectedCompanyId} />
+        <AgentCommentary key={selectedSpaceId} spaceId={selectedSpaceId} />
       ) : section === "activity" && routineId ? (
-        <RoutineAuditActivity companyId={selectedCompanyId} routineId={routineId} />
+        <RoutineAuditActivity spaceId={selectedSpaceId} routineId={routineId} />
       ) : section === "activity" ? (
         <AuditFeed
-          companyId={selectedCompanyId}
+          spaceId={selectedSpaceId}
           hideHeader
           mode={mode}
           onModeChange={handleModeChange}
@@ -152,11 +152,11 @@ export function AuditHub({ section }: { section: AuditSection }) {
           }
         />
       ) : section === "runs" ? (
-        <AuditRuns companyId={selectedCompanyId} routineId={routineId} />
+        <AuditRuns spaceId={selectedSpaceId} routineId={routineId} />
       ) : section === "timeline" ? (
         <Timeline embedded />
       ) : (
-        <AuditFeed companyId={selectedCompanyId} hideHeader />
+        <AuditFeed spaceId={selectedSpaceId} hideHeader />
       )}
     </div>
   );

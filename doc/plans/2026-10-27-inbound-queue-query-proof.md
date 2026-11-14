@@ -2,10 +2,10 @@
 
 ## Contract and cause
 
-Paperclip's inbound queue discovers its next deadline, selects each conversation
+Outpost's inbound queue discovers its next deadline, selects each conversation
 head, and selects ordinary ready deliveries. A retained processed delivery can
 still own the head while an issued or processing `inbound_wakeup` action remains.
-This work keeps that obligation, company and endpoint scope, lease expiry,
+This work keeps that obligation, space and endpoint scope, lease expiry,
 retry timestamps, ordering keys, lifecycle dependencies, and provider exclusions.
 It adds no cache, migration, producer, worker, or timer.
 
@@ -16,7 +16,7 @@ included a large correlated alternative. It can enable JIT at the normal 100000
 cost threshold. The deadline query also evaluated JSON conditions on retained
 processed history before rejecting rows with no pending action.
 
-The treatment uses a set of `(company_id, endpoint_id, delivery_id)` for pending
+The treatment uses a set of `(space_id, endpoint_id, delivery_id)` for pending
 ownership. Null delivery IDs cannot match and are excluded, so the predicate
 still returns a boolean. Duplicate actions do not multiply delivery rows.
 Ready-only probes retain their original scoped `EXISTS`. This keeps the
@@ -126,7 +126,7 @@ An exploratory malformed-retry test compared an actual OR selector against an
 AND-only oracle. That comparison was inconclusive. It must not be presented as
 proof of an introduced defect. The complete actual old and new OR selectors
 both return PostgreSQL error 22007 for unrelated malformed pending actions in
-the measured fixture, including other-company and null-delivery controls. The
+the measured fixture, including other-space and null-delivery controls. The
 selective direct head probe returns empty on both versions. The final fix leaves
 ready-only evaluation unchanged.
 

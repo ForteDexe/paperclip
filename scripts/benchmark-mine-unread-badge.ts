@@ -5,7 +5,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { sql } from "../server/node_modules/drizzle-orm/index.js";
-import { companies, createDb, applyPendingMigrations, inspectMigrations, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
+import { spaces, createDb, applyPendingMigrations, inspectMigrations, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
 import { issueService } from "../server/src/services/issues.js";
 import { issueReadSqlCondition } from "../server/src/services/authorization.js";
 
@@ -21,7 +21,7 @@ const fixtureFilter = process.argv.find(arg => arg.startsWith("--fixture="))?.sl
 assert.ok(fixtureFilter === undefined || ["small", "dense", "sparse"].includes(fixtureFilter), "--fixture must be small, dense or sparse");
 const verifyMigration = process.argv.includes("--verify-migration");
 const migrationName = "0395_tranquil_firestar.sql";
-const indexName = "activity_log_company_user_issue_actor_idx";
+const indexName = "activity_log_space_user_issue_actor_idx";
 const migrationSql = await fs.readFile(repositoryPath(`packages/db/src/migrations/${migrationName}`), "utf8");
 const migrationHash = createHash("sha256").update(migrationSql).digest("hex");
 const holdAfterReport = process.argv.find(arg => arg.startsWith("--hold-after-report="))?.slice(20);
@@ -136,41 +136,41 @@ try {
       return Reflect.get(target, key);
     } });
   }
-  const fixtureSeeds = new Map<string, { companyId: string; ids: string[]; payload: string }>();
+  const fixtureSeeds = new Map<string, { spaceId: string; ids: string[]; payload: string }>();
   async function seed(name: string, count: number, participatedCount: number, logsPerIssue: number, commentsPerIssue: number, target = db!) {
     const fixtureStart = performance.now();
-    const inputs = fixtureSeeds.get(name) ?? { companyId: randomUUID(), ids: Array.from({ length: count }, () => randomUUID()), payload: randomBytes(3072).toString("base64") };
+    const inputs = fixtureSeeds.get(name) ?? { spaceId: randomUUID(), ids: Array.from({ length: count }, () => randomUUID()), payload: randomBytes(3072).toString("base64") };
     fixtureSeeds.set(name, inputs);
-    const { companyId, ids, payload } = inputs, userId = `synthetic-${name}`;
-    await target.insert(companies).values({ id: companyId, name: `Synthetic Mine ${name}`, issuePrefix: name.toUpperCase() });
-    await target.$client.unsafe(`insert into issues(id,company_id,title,status,created_by_user_id,created_at,updated_at)
+    const { spaceId, ids, payload } = inputs, userId = `synthetic-${name}`;
+    await target.insert(spaces).values({ id: spaceId, name: `Synthetic Mine ${name}`, issuePrefix: name.toUpperCase() });
+    await target.$client.unsafe(`insert into issues(id,space_id,title,status,created_by_user_id,created_at,updated_at)
       select id,$2::uuid,'Synthetic '||n,'todo',case when n <= $4 and n%2=0 then $3 else 'unrelated-human' end,
         '2026-01-01'::timestamptz,'2026-01-01'::timestamptz+n*interval '1 second'
-      from unnest($1::uuid[]) with ordinality as f(id,n)`, [ids, companyId, userId, participatedCount]);
-    await target.$client.unsafe(`insert into activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
+      from unnest($1::uuid[]) with ordinality as f(id,n)`, [ids, spaceId, userId, participatedCount]);
+    await target.$client.unsafe(`insert into activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
       select $1::uuid,'issue',i.id::text,case when n=1 or n%10=0 then 'user' else 'agent' end,
         case when (n=1 or n%20=0) and i.id=ANY($5::uuid[]) then $4 when n=1 or n%10=0 then 'other-human' else 'synthetic-worker' end,
         case when n=1 or n%10=0 then 'issue.updated' when n%5=0 then 'issue.read_marked' else 'issue.updated' end,
         jsonb_build_object('padding',$2::text),'2026-01-01'::timestamptz+n*interval '1 second'
-      from issues i cross join generate_series(1,$3::int)n where company_id=$1::uuid order by n,i.id`, [companyId, payload, logsPerIssue, userId, ids.slice(0, participatedCount)]);
-    await target.$client.unsafe(`insert into issue_comments(company_id,issue_id,author_user_id,body,created_at)
+      from issues i cross join generate_series(1,$3::int)n where space_id=$1::uuid order by n,i.id`, [spaceId, payload, logsPerIssue, userId, ids.slice(0, participatedCount)]);
+    await target.$client.unsafe(`insert into issue_comments(space_id,issue_id,author_user_id,body,created_at)
       select $1::uuid,id,null,$2,'2026-01-02'::timestamptz+n*interval '1 second'
-      from issues cross join generate_series(1,$3::int)n where company_id=$1::uuid order by n,id`, [companyId, payload, commentsPerIssue]);
-    if (historyDecoys > 0 && name !== "small") await target.$client.unsafe(`insert into activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
+      from issues cross join generate_series(1,$3::int)n where space_id=$1::uuid order by n,id`, [spaceId, payload, commentsPerIssue]);
+    if (historyDecoys > 0 && name !== "small") await target.$client.unsafe(`insert into activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
       select $1::uuid,'heartbeat_run',gen_random_uuid()::text,'agent','synthetic-worker','heartbeat.run.created',
         jsonb_build_object('padding',left($2,256)),'2026-01-01'::timestamptz+n*interval '1 second'
-      from generate_series(1,$3::int)n`, [companyId, payload, historyDecoys]);
+      from generate_series(1,$3::int)n`, [spaceId, payload, historyDecoys]);
     await target.$client.unsafe("ANALYZE");
-    const [counts] = await target.$client.unsafe(`SELECT count(*)::int participants FROM issues i WHERE company_id=$1 AND
-      (created_by_user_id=$2 OR EXISTS(SELECT 1 FROM activity_log a WHERE a.company_id=$1 AND a.entity_type='issue' AND a.entity_id=i.id::text AND a.actor_type='user' AND a.actor_id=$2 AND a.action='issue.updated'))`, [companyId, userId]);
+    const [counts] = await target.$client.unsafe(`SELECT count(*)::int participants FROM issues i WHERE space_id=$1 AND
+      (created_by_user_id=$2 OR EXISTS(SELECT 1 FROM activity_log a WHERE a.space_id=$1 AND a.entity_type='issue' AND a.entity_id=i.id::text AND a.actor_type='user' AND a.actor_id=$2 AND a.action='issue.updated'))`, [spaceId, userId]);
     assert.equal(counts!.participants, participatedCount, "Fixture must include its complete declared personal set");
-    const [actorCounts] = await target.$client.unsafe("SELECT count(*)::int rows FROM activity_log WHERE company_id=$1 AND actor_type='user' AND actor_id=$2 AND entity_type='issue'", [companyId, userId]);
-    return { name, companyId, userId, issues: count, participatedCount, activityRows: count * logsPerIssue,
+    const [actorCounts] = await target.$client.unsafe("SELECT count(*)::int rows FROM activity_log WHERE space_id=$1 AND actor_type='user' AND actor_id=$2 AND entity_type='issue'", [spaceId, userId]);
+    return { name, spaceId, userId, issues: count, participatedCount, activityRows: count * logsPerIssue,
       commentRows: count * commentsPerIssue, targetUserActivityRows: actorCounts!.rows, createdParticipation: Math.floor(participatedCount / 2), activityParticipation: Math.ceil(participatedCount / 2), historyDecoys: name === "small" ? 0 : historyDecoys, payloadBytes: Buffer.byteLength(payload), fixtureMs: performance.now() - fixtureStart };
   }
   async function run(factory: typeof issueService, fixture: Awaited<ReturnType<typeof seed>>, readCondition: Awaited<ReturnType<typeof issueReadSqlCondition>>, sourceDb: Db) {
     const queries: Query[] = [], started = performance.now();
-    const result = await factory(captureDb(queries, false, sourceDb)).unreadInboxIssueIds(fixture.companyId, fixture.userId, readCondition);
+    const result = await factory(captureDb(queries, false, sourceDb)).unreadInboxIssueIds(fixture.spaceId, fixture.userId, readCondition);
     const elapsedMs = performance.now() - started;
     return { result, queries, elapsedMs, serialSqlMs: queries.reduce((total, query) => total + query.elapsedMs, 0) };
   }
@@ -188,10 +188,10 @@ try {
     const load = (async () => {
       while (!completed) {
         let start = performance.now();
-        await monitor.$client.unsafe("INSERT INTO activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action) VALUES($1,'issue',$2,'user','synthetic-migration-writer','issue.updated')", [fixture.companyId, fixtureSeeds.get(fixture.name)!.ids[0]!]);
+        await monitor.$client.unsafe("INSERT INTO activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action) VALUES($1,'issue',$2,'user','synthetic-migration-writer','issue.updated')", [fixture.spaceId, fixtureSeeds.get(fixture.name)!.ids[0]!]);
         writes.push(performance.now() - start);
         start = performance.now();
-        await monitor.$client.unsafe("SELECT id FROM issues WHERE company_id=$1 LIMIT 1", [fixture.companyId]);
+        await monitor.$client.unsafe("SELECT id FROM issues WHERE space_id=$1 LIMIT 1", [fixture.spaceId]);
         reads.push(performance.now() - start);
         await new Promise(resolve => setTimeout(resolve, 10));
       }
@@ -224,7 +224,7 @@ try {
     let interruptionCode: string | undefined;
     try {
       await blocker.unsafe("BEGIN");
-      await blocker.unsafe("INSERT INTO activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action) VALUES($1,'issue',$2,'agent','synthetic-blocker','issue.updated')", [fixture.companyId, fixtureSeeds.get(fixture.name)!.ids[0]!]);
+      await blocker.unsafe("INSERT INTO activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action) VALUES($1,'issue',$2,'agent','synthetic-blocker','issue.updated')", [fixture.spaceId, fixtureSeeds.get(fixture.name)!.ids[0]!]);
       const interrupted = applyPendingMigrations(baselineConnectionString).catch((error: { code?: string }) => { interruptionCode = error.code; });
       const deadline = Date.now() + 10_000;
       let cancelled = false;
@@ -267,13 +267,13 @@ try {
     if (sampleGateDir) {
       await fs.mkdir(sampleGateDir, { recursive: true });
       const release = path.join(sampleGateDir, `${fixture.name}.release`);
-      const scoped = await issueReadSqlCondition(db, { type: "board", source: "session", userId: fixture.userId, authorizingUserId: fixture.userId });
+      const scoped = await issueReadSqlCondition(db, { type: "operator", source: "session", userId: fixture.userId, authorizingUserId: fixture.userId });
       const estimatedPlans = [];
       await db.$client.unsafe("set jit = on");
       await baselineDb.$client.unsafe("set jit = on");
       for (const [arm, factory] of [["baseline", baseline.issueService], ["treatment", issueService]] as const) {
         const queries: Query[] = [];
-        try { await factory(captureDb(queries, true, arm === "baseline" ? baselineDb : db)).unreadInboxIssueIds(fixture.companyId, fixture.userId, scoped); }
+        try { await factory(captureDb(queries, true, arm === "baseline" ? baselineDb : db)).unreadInboxIssueIds(fixture.spaceId, fixture.userId, scoped); }
         catch (error) { if (error !== captured) throw error; }
         assert.equal(queries.length, 1);
         const query = queries[0]!;
@@ -293,7 +293,7 @@ try {
     const cases = [];
     for (const readMode of ["unrestricted", "scoped"]) {
     const readCondition = readMode === "unrestricted" ? sql<boolean>`true` : await issueReadSqlCondition(db, {
-      type: "board", source: "session", userId: fixture.userId, authorizingUserId: fixture.userId,
+      type: "operator", source: "session", userId: fixture.userId, authorizingUserId: fixture.userId,
     });
     for (const jit of ["on", "off"]) {
       await db.$client.unsafe(`set jit = ${jit}`);
@@ -302,7 +302,7 @@ try {
       if (diagnostic) {
         for (const [arm, factory] of [["baseline", baseline.issueService], ["treatment", issueService]] as const) {
           const queries: Query[] = [];
-          try { await factory(captureDb(queries, true, arm === "baseline" ? baselineDb : db)).unreadInboxIssueIds(fixture.companyId, fixture.userId, readCondition); }
+          try { await factory(captureDb(queries, true, arm === "baseline" ? baselineDb : db)).unreadInboxIssueIds(fixture.spaceId, fixture.userId, readCondition); }
           catch (error) { if (error !== captured) throw error; }
           assert.equal(queries.length, 1);
           const query = queries[0]!;
@@ -319,7 +319,7 @@ try {
           const sourceDb = arm === "before" ? baselineDb : db;
           const factory = arm === "before" || treatmentIsBaseline ? baseline.issueService : issueService;
           const start = performance.now();
-          const current = await factory(sourceDb).unreadInboxIssueIds(fixture.companyId, fixture.userId, readCondition);
+          const current = await factory(sourceDb).unreadInboxIssueIds(fixture.spaceId, fixture.userId, readCondition);
           const elapsedMs = performance.now() - start;
           if (arm === "before") { beforeResult = current; if (iteration >= 0) beforeTimes.push(elapsedMs); }
           else { afterResult = current; if (iteration >= 0) afterTimes.push(elapsedMs); }
@@ -354,8 +354,8 @@ try {
     results.push({ fixture, cases });
     if (sampleGateDir) await fs.writeFile(path.join(sampleGateDir, `${fixture.name}.done.json`), JSON.stringify({ fixture, cases }));
     if (verifyMigration && shape === selectedShapes[selectedShapes.length - 1]) migrationProof = await measureMigration(fixture);
-    if (!holdAfterReport) await db.$client.unsafe("TRUNCATE activity_log, issues, companies CASCADE");
-    if (!holdAfterReport) await baselineDb.$client.unsafe("TRUNCATE activity_log, issues, companies CASCADE");
+    if (!holdAfterReport) await db.$client.unsafe("TRUNCATE activity_log, issues, spaces CASCADE");
+    if (!holdAfterReport) await baselineDb.$client.unsafe("TRUNCATE activity_log, issues, spaces CASCADE");
   }
   const report = { baselineRevision, treatmentRevision: gitOutput(["rev-parse", "HEAD"]).trim(),
     treatmentIsBaseline, diagnostic, migrationProof, baselineIndexes, treatmentIndexes, sourceHashes: Object.fromEntries(await Promise.all(proofPaths.map(async file => [file, createHash("sha256").update(await fs.readFile(repositoryPath(file))).digest("hex")]))),

@@ -8,15 +8,15 @@ campaign. The machine-readable inventory is `chat-catalog-preservation.json`.
 
 The production baseline remains `39e811c9c5226979fce42e052a27cfb28301018a`.
 No production, workflow, lockfile or SDK source change is included. The real
-new-company, formal-hire and routine-history definitions retain prerequisites
+new-space, formal-hire and routine-history definitions retain prerequisites
 18103, 18105 and 18033 respectively. Those focused fixes are excluded here; their
 candidate outcomes remain separate from frozen-baseline qualification.
 
 Composition preserves the per-scenario descriptor union, both independent SDK
-privacy and new-company security sections, the final formal-hire clock module,
+privacy and new-space security sections, the final formal-hire clock module,
 and the stronger shared Notes provider used by status cards and routine history.
 The accepted original-deadline and multipart controls are included, as is the
-new-company successor's original phase deadline and remaining-time wizard clamp.
+new-space successor's original phase deadline and remaining-time wizard clamp.
 Frozen queries, contexts, outcomes, turn/human counts and overall caps are retained.
 
 The accepted SDK2 overlay binds least-scope setup to the actual public Agent
@@ -30,7 +30,7 @@ required outcome.
 The task prerequisite overlay binds two genuine ready owners to their completed
 public manual pauses, exact versions and holds before inventory seeding. It also
 adds the owned browser Origin to the existing human attachment upload, preserving
-the real board mutation guard and exact company/task/comment/byte checks. Neither
+the real board mutation guard and exact space/task/comment/byte checks. Neither
 overlay changes canonical messages, native/human counts, overall caps or an
 exhausted case's result. The production core fixes remain excluded.
 

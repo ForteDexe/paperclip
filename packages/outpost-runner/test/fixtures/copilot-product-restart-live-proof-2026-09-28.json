@@ -44,7 +44,7 @@
     }
   ],
   "question": {
-    "surface": "Paperclip semantic structured question",
+    "surface": "Outpost semantic structured question",
     "nativeCopilotAskUserCallback": false,
     "optionIds": [
       "cobalt",

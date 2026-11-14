@@ -15,7 +15,7 @@ vi.mock("@playwright/test", () => ({ expect: Object.assign(
 
 type Fault = "ignore-search" | "ignore-status" | "duplicate-result" | "unknown-result" | "reload-query"
   | "reload-status" | "back-query" | "back-status" | "wrong-route" | "reload-content"
-  | "saved-company" | "saved-description" | "target-run" | "control-run" | "missing-run-evidence"
+  | "saved-space" | "saved-description" | "target-run" | "control-run" | "missing-run-evidence"
   | "intent" | "receipt" | "missing-identifier" | "ignore-named-view" | "detached-snapshot";
 type UiNode = { key: string; role?: string; name?: string; title?: string; text?: string; href?: string;
   visible?: boolean; connected?: boolean; children?: UiNode[]; click?(): void; fill?(value: string): void; check?(): void;
@@ -173,12 +173,12 @@ function fixture(fault?: Fault, shell: "coordinator" | "streamlined" | "legacy" 
   };
   const api = {
     origin,
-    async post(route: string, body: Omit<SearchTask, "id" | "identifier" | "companyId">) {
-      expect(route).toBe("/api/companies/company-1/issues");
+    async post(route: string, body: Omit<SearchTask, "id" | "identifier" | "spaceId">) {
+      expect(route).toBe("/api/spaces/space-1/issues");
       // A mutation without durable ownership intent is unsafe, even if the
       // browser journey would otherwise produce all its success checks.
       expect(ownership.some(resource => !resource.id && resource.name === body.title)).toBe(true);
-      const task = { ...body, companyId: "company-1", id: `task-${tasks.length + 1}`, identifier: `QA-${tasks.length + 1}` };
+      const task = { ...body, spaceId: "space-1", id: `task-${tasks.length + 1}`, identifier: `QA-${tasks.length + 1}` };
       tasks.push(task);
       return fault === "missing-identifier" ? { id: task.id } : { id: task.id, identifier: task.identifier };
     },
@@ -192,7 +192,7 @@ function fixture(fault?: Fault, shell: "coordinator" | "streamlined" | "legacy" 
         if (fault === "missing-run-evidence") return null;
         return (fault === "target-run" && task.id === "task-1") || (fault === "control-run" && task.id === "task-3") ? [{ runId: "unexpected" }] : [];
       }
-      return { ...task, ...(fault === "saved-company" && task.id === "task-1" ? { companyId: "other-company" } : {}),
+      return { ...task, ...(fault === "saved-space" && task.id === "task-1" ? { spaceId: "other-space" } : {}),
         ...(fault === "saved-description" && task.id === "task-1" ? { description: "Different saved context" } : {}) };
     },
   };
@@ -201,8 +201,8 @@ function fixture(fault?: Fault, shell: "coordinator" | "streamlined" | "legacy" 
     ownership.push(resource);
   } } as unknown as TargetSession;
   const evidence = { checks: [] } as unknown as JourneyEvidence;
-  const context = { page, api, company: { id: "company-1", issuePrefix: "QA" }, user: { id: "user-1", name: "Board" },
-    capabilities: ["company", "board-user", "task-write"] } as unknown as JourneyContext;
+  const context = { page, api, space: { id: "space-1", issuePrefix: "QA" }, user: { id: "user-1", name: "Board" },
+    capabilities: ["space", "board-user", "task-write"] } as unknown as JourneyContext;
   return { run: () => taskSearchFilter(context, session, "campaign-1", evidence), tasks, ownership, reads, observed, evidence,
     navigated: () => navigated, context };
 }
@@ -242,7 +242,7 @@ describe("taskSearchFilter browser journey", () => {
     await expect(test.run()).rejects.toThrow();
     expect(test.evidence.checks.some(check => check.passed)).toBe(false);
   });
-  it.each<Fault>(["wrong-route", "saved-company", "saved-description", "target-run", "control-run", "missing-run-evidence"])
+  it.each<Fault>(["wrong-route", "saved-space", "saved-description", "target-run", "control-run", "missing-run-evidence"])
     ("fails independent verification for %s after otherwise valid UI actions", async fault => {
       const test = fixture(fault);
       await expect(test.run()).rejects.toMatchObject({ outcome: "failed", code: "task_search_evidence_mismatch" });
@@ -257,7 +257,7 @@ describe("taskSearchFilter browser journey", () => {
     if (fault === "missing-identifier") expect(test.ownership.at(-1)).toMatchObject({ id: "task-1" });
   });
   it("rejects unsupported capability before creating resources", async () => {
-    const test = fixture(); test.context.capabilities = ["company", "board-user"];
+    const test = fixture(); test.context.capabilities = ["space", "board-user"];
     await expect(test.run()).rejects.toMatchObject({ outcome: "unsupported", code: "missing_task-write" });
     expect(test.tasks).toEqual([]);
     expect(test.ownership).toEqual([]);

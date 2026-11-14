@@ -119,7 +119,7 @@ export async function withWorkspaceRestoreGitCommand<T>(command: WorkspaceRestor
   }
 }
 
-/** Only fixed codes and bounded numbers may enter the company-readable run log. */
+/** Only fixed codes and bounded numbers may enter the space-readable run log. */
 function diagnostic(error: unknown): ErrorDiagnostic {
   const result: ErrorDiagnostic = { errorCode: "unknown" };
   let current = error;

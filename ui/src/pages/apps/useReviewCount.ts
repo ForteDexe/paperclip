@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { toolsApi } from "@/api/tools";
 
@@ -11,11 +11,11 @@ import { toolsApi } from "@/api/tools";
  * the persistent review affordance on /apps.
  */
 export function useReviewCount(): number {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const query = useQuery({
-    queryKey: queryKeys.tools.actionRequests(selectedCompanyId ?? "__none__", "pending"),
-    queryFn: () => toolsApi.listActionRequests(selectedCompanyId!, "pending"),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.tools.actionRequests(selectedSpaceId ?? "__none__", "pending"),
+    queryFn: () => toolsApi.listActionRequests(selectedSpaceId!, "pending"),
+    enabled: !!selectedSpaceId,
     refetchInterval: 20_000,
   });
   return query.data?.actionRequests.length ?? 0;

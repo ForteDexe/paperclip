@@ -11,10 +11,10 @@ import { connectedUser, installPublicMcpFixture } from "../../fixtures/publicMcp
 
 function ConnectionJourney({ assistant = "opencode" }: { assistant?: "codex" | "claude" | "opencode" | "other" }) {
   return <PluginLauncherProvider><Routes>
-    <Route path="/:companyPrefix" element={<Layout />}>
+    <Route path="/:spacePrefix" element={<Layout />}>
       <Route path="apps" element={<Browse />} />
       <Route path="apps/assistant-connection" element={<AssistantConnection initialAssistant={assistant} />} />
-      <Route path="company/settings/instance/experimental" element={<InstanceExperimentalSettings />} />
+      <Route path="space/settings/instance/experimental" element={<InstanceExperimentalSettings />} />
       <Route path="*" element={<Link className="text-sm underline" to="/apps">Return to Connections</Link>} />
     </Route>
   </Routes></PluginLauncherProvider>;
@@ -26,8 +26,8 @@ const meta = {
   component: ConnectionJourney,
   parameters: {
     layout: "fullscreen", initialEntries: ["/PAP/apps"], fixture: { enabled: false, empty: true },
-    docs: { description: { component: "Begin inside Paperclip. Open Assistant Connection (MCP), follow its Experimental settings link if needed, then choose your assistant. These are production pages in the real app shell; API responses are fixtures. Follow the displayed commands in a live instance to launch browser sign-in and consent. Storybook does not run a terminal, grant access, or simulate a successful OpenCode conversation. Consent states have their own stories. The Connected checkpoint represents returning after a real grant, not clicking a mock connect button." } },
-    paperclip: {
+    docs: { description: { component: "Begin inside Outpost. Open Assistant Connection (MCP), follow its Experimental settings link if needed, then choose your assistant. These are production pages in the real app shell; API responses are fixtures. Follow the displayed commands in a live instance to launch browser sign-in and consent. Storybook does not run a terminal, grant access, or simulate a successful OpenCode conversation. Consent states have their own stories. The Connected checkpoint represents returning after a real grant, not clicking a mock connect button." } },
+    outpost: {
       "capabilities": [
         "gateways-profiles/client-connect"
       ],
@@ -47,8 +47,8 @@ export const OpenCodeSetup: Story = { parameters: { initialEntries: ["/PAP/apps/
 export const CodexSetup: Story = { ...OpenCodeSetup, args: { assistant: "codex" } };
 export const ClaudeSetup: Story = { ...OpenCodeSetup, args: { assistant: "claude" } };
 export const Connected: Story = { parameters: { initialEntries: ["/PAP/apps/assistant-connection"], fixture: { enabled: true, empty: false, connections: [
-  { id: "opencode", companyId: "company-storybook", companyName: "Paperclip", clientName: "OpenCode", user: connectedUser, scopes: ["paperclip:read", "paperclip:write", "offline_access"], createdAt: "2026-10-05T12:00:00Z", revokedAt: null },
-  { id: "other-org", companyId: "another-company", companyName: "Other organization", clientName: "Private other client", scopes: ["paperclip:read"], createdAt: "2026-10-05T12:00:00Z", revokedAt: null },
+  { id: "opencode", spaceId: "space-storybook", spaceName: "Outpost", clientName: "OpenCode", user: connectedUser, scopes: ["outpost:read", "outpost:write", "offline_access"], createdAt: "2026-10-05T12:00:00Z", revokedAt: null },
+  { id: "other-org", spaceId: "another-space", spaceName: "Other organization", clientName: "Private other client", scopes: ["outpost:read"], createdAt: "2026-10-05T12:00:00Z", revokedAt: null },
 ] } } };
 export const Unavailable: Story = { parameters: { initialEntries: ["/PAP/apps/assistant-connection"], fixture: { unavailable: true } } };
 export const Loading: Story = { parameters: { initialEntries: ["/PAP/apps/assistant-connection"], fixture: { loading: true } } };
@@ -60,7 +60,7 @@ export const NavigationCheck: Story = { play: async ({ canvasElement }) => {
   await userEvent.click(await c.findByRole("link", { name: "Set up an assistant connection" }));
   await expect(await c.findByRole("button", { name: "Copy invitation" })).toBeVisible();
   await userEvent.click(c.getByText("Set up manually"));
-  await expect(c.getByText("opencode mcp auth paperclip")).toBeVisible();
+  await expect(c.getByText("opencode mcp auth outpost")).toBeVisible();
   await expect(c.getByText(/No assistants connected/)).toBeVisible();
 } };
 
@@ -70,13 +70,13 @@ export const InvitationCopied: Story = { ...OpenCodeSetup, play: async ({ canvas
   const user = userEvent.setup({ document: canvasElement.ownerDocument });
   await user.click(await c.findByRole("button", { name: "Copy invitation" }));
   await expect(await within(canvasElement.ownerDocument.body).findByRole("button", { name: "Copied to clipboard" })).toBeVisible();
-  await expect(await navigator.clipboard.readText()).toContain("/mcp/setup?company=");
+  await expect(await navigator.clipboard.readText()).toContain("/mcp/setup?space=");
 } };
 export const ManualSetup: Story = { ...OpenCodeSetup, play: async ({ canvasElement }) => { await userEvent.click(await within(canvasElement).findByText("Set up manually")); } };
 
 export const RevokeConnection: Story = { ...Connected, play: async ({ canvasElement }) => {
   const c = within(canvasElement);
   await userEvent.click(await c.findByRole("button", { name: "Revoke Dotta’s OpenCode connection" }));
-  await expect(await c.findByText("No assistants connected to Paperclip Storybook yet.")).toBeVisible();
+  await expect(await c.findByText("No assistants connected to Outpost Storybook yet.")).toBeVisible();
   await expect(c.queryByText("Dotta’s OpenCode connection")).not.toBeInTheDocument();
 } };

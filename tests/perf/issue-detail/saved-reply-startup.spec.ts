@@ -16,15 +16,15 @@ test.beforeAll(async ({ request }) => {
     throw new Error("The saved-reply fixture requires a disposable loopback database ending in _test");
   }
   const { createDb, closeRegisteredClients, heartbeatRuns, heartbeatRunEvents, issueComments, activityLog } = await import("../../../packages/db/src/index");
-  const companyResponse = await request.post("/api/companies", { data: { name: `Saved reply startup ${Date.now()}` } });
-  expect(companyResponse.ok(), await companyResponse.text()).toBeTruthy();
-  const company = await companyResponse.json();
-  const agentResponse = await request.post(`/api/companies/${company.id}/agents`, { data: {
+  const spaceResponse = await request.post("/api/spaces", { data: { name: `Saved reply startup ${Date.now()}` } });
+  expect(spaceResponse.ok(), await spaceResponse.text()).toBeTruthy();
+  const space = await spaceResponse.json();
+  const agentResponse = await request.post(`/api/spaces/${space.id}/agents`, { data: {
     name: "Saved investigation author", role: "engineer", status: "paused", adapterType: "outpost_runner", adapterConfig: { provider: "codex" },
   } });
   expect(agentResponse.ok(), await agentResponse.text()).toBeTruthy();
   const agent = await agentResponse.json();
-  const issueResponse = await request.post(`/api/companies/${company.id}/issues`, { data: {
+  const issueResponse = await request.post(`/api/spaces/${space.id}/issues`, { data: {
     title: "Read the saved investigation", status: "backlog", description: "Review the latest findings and load older investigation history when needed.",
   } });
   expect(issueResponse.ok(), await issueResponse.text()).toBeTruthy();
@@ -44,11 +44,11 @@ test.beforeAll(async ({ request }) => {
       ? new Date(new Date(plan.updatedAt).getTime() + 50)
       : new Date(base + index * 60_000);
     const startedAt = index === 199 ? new Date(new Date(plan.updatedAt).getTime() - 1000) : new Date(+createdAt - 900);
-    runs.push({ id: runId, companyId: company.id, agentId: agent.id, issueId: issue.id, runtimeMode: "native", status: "succeeded",
+    runs.push({ id: runId, spaceId: space.id, agentId: agent.id, issueId: issue.id, runtimeMode: "native", status: "succeeded",
       createdAt: new Date(+startedAt - 100), startedAt, finishedAt: createdAt, contextSnapshot: { issueId: issue.id } });
-    comments.push({ id, companyId: company.id, issueId: issue.id, authorType: "agent", authorAgentId: agent.id,
+    comments.push({ id, spaceId: space.id, issueId: issue.id, authorType: "agent", authorAgentId: agent.id,
       createdByRunId: runId, body: `## Saved investigation ${index}\n\n${"Verified the saved evidence and checked the result. ".repeat(60)}`, createdAt, updatedAt: createdAt });
-    activity.push({ companyId: company.id, actorType: "agent", actorId: agent.id, agentId: agent.id, runId,
+    activity.push({ spaceId: space.id, actorType: "agent", actorId: agent.id, agentId: agent.id, runId,
       entityType: "issue", entityId: issue.id, action: "issue.comment_added", details: { commentId: id }, createdAt });
   }
   const last = comments.at(-1)!, runId = runs.at(-1)!.id!;
@@ -56,11 +56,11 @@ test.beforeAll(async ({ request }) => {
     for (let offset = 0; offset < runs.length; offset += 100) await db.insert(heartbeatRuns).values(runs.slice(offset, offset + 100));
     for (let offset = 0; offset < comments.length; offset += 100) await db.insert(issueComments).values(comments.slice(offset, offset + 100));
     for (let offset = 0; offset < activity.length; offset += 100) await db.insert(activityLog).values(activity.slice(offset, offset + 100));
-    await db.insert(heartbeatRunEvents).values({ companyId: company.id, agentId: agent.id, runId, seq: 1, eventType: "item.completed", createdAt: last.createdAt,
+    await db.insert(heartbeatRunEvents).values({ spaceId: space.id, agentId: agent.id, runId, seq: 1, eventType: "item.completed", createdAt: last.createdAt,
       payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, eventType: "item.completed", runId,
         emittedAt: last.createdAt!.toISOString(), itemId: `answer-${runId}`, payload: { kind: "agentMessage", text: last.body } } } });
   } finally { await closeRegisteredClients(databaseUrl); }
-  fixture = { prefix: company.issuePrefix, identifier: issue.identifier, runId, lastCommentId: last.id! };
+  fixture = { prefix: space.issuePrefix, identifier: issue.identifier, runId, lastCommentId: last.id! };
 });
 
 for (const coordinator of [false, true]) for (const mobile of [false, true]) test(`saved task replies reveal before historical output and keep their geometry (Coordinator=${coordinator}, mobile=${mobile})`, async ({ page }, info) => {

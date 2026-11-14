@@ -1,6 +1,6 @@
 CREATE TABLE "budget_resume_claims" (
 	"run_id" uuid PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"incident_id" uuid NOT NULL,
 	"actor_user_id" text NOT NULL,
 	"actor_source" text,
@@ -13,6 +13,6 @@ CREATE TABLE "budget_resume_claims" (
 );
 --> statement-breakpoint
 ALTER TABLE "budget_resume_claims" ADD CONSTRAINT "budget_resume_claims_run_id_heartbeat_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."heartbeat_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "budget_resume_claims" ADD CONSTRAINT "budget_resume_claims_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "budget_resume_claims" ADD CONSTRAINT "budget_resume_claims_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "budget_resume_claims" ADD CONSTRAINT "budget_resume_claims_incident_id_budget_incidents_id_fk" FOREIGN KEY ("incident_id") REFERENCES "public"."budget_incidents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "budget_resume_claims_pending_idx" ON "budget_resume_claims" USING btree ("company_id","run_id") WHERE "budget_resume_claims"."state" = 'pending';
+CREATE INDEX "budget_resume_claims_pending_idx" ON "budget_resume_claims" USING btree ("space_id","run_id") WHERE "budget_resume_claims"."state" = 'pending';

@@ -5,7 +5,7 @@ fn assigned_tool_discovery_repairs_invalid_arguments_through_codex_transport() {
     let directory = temporary_directory("assigned-discovery-repair");
     let config = provider_config(&directory, &["--repair-assigned-discovery"]);
     let operations = vec![AuthorizedTool {
-        operation_id: "paperclip_search_assigned_tools".to_owned(),
+        operation_id: "outpost_search_assigned_tools".to_owned(),
         version: 1,
         description: "Search assigned tools.".to_owned(),
         input_schema: json!({"type":"object", "required":["query"],
@@ -54,14 +54,14 @@ fn assigned_tool_discovery_repairs_invalid_arguments_through_codex_transport() {
                     assert_eq!(dispatched, 0);
                     assert_eq!(
                         event.payload["operationId"],
-                        "paperclip_search_assigned_tools"
+                        "outpost_search_assigned_tools"
                     );
                     assert_eq!(event.payload["callId"], "assigned-discovery");
                     assert_eq!(
                         event.payload["message"],
-                        "provider arguments for paperclip_search_assigned_tools failed JSON Schema validation"
+                        "provider arguments for outpost_search_assigned_tools failed JSON Schema validation"
                     );
-                    assert_eq!(event.payload["paperclipExecuted"], false);
+                    assert_eq!(event.payload["outpostExecuted"], false);
                     let guidance = event.payload["inputSchemaGuidance"]
                         .as_str()
                         .expect("denied input retains the safe guidance sent to the provider");
@@ -80,7 +80,7 @@ fn assigned_tool_discovery_repairs_invalid_arguments_through_codex_transport() {
                         json!({"query":"github"})
                     );
                     executor.execute(&command("result", 4, "semantic_tool.result", json!({
-                        "callId":"assigned-discovery", "operationId":"paperclip_search_assigned_tools",
+                        "callId":"assigned-discovery", "operationId":"outpost_search_assigned_tools",
                         "result":{"tools":[{"name":"app_github_read_pull_request"}]}, "isError":false
                     }))).unwrap();
                 }

@@ -1,7 +1,7 @@
 import type { Issue } from "@outpost/shared";
 import type { TaskListItem } from "@/components/TaskList";
 import type { TaskListColumnId } from "@/lib/task-list";
-import { createIssue, storybookAgentMap, storybookExecutionWorkspaces, storybookIssueLabels } from "../../fixtures/paperclipData";
+import { createIssue, storybookAgentMap, storybookExecutionWorkspaces, storybookIssueLabels } from "../../fixtures/outpostData";
 
 export const longTitle = "Document connector recovery behavior when an expired credential interrupts an active task and requires a human to reconnect the account";
 

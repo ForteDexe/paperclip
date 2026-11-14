@@ -1,13 +1,13 @@
 import { sql } from "drizzle-orm";
 import { index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { issues } from "./issues.js";
 
 export const issueReferenceMentions = pgTable(
   "issue_reference_mentions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     sourceIssueId: uuid("source_issue_id").notNull().references(() => issues.id, { onDelete: "cascade" }),
     targetIssueId: uuid("target_issue_id").notNull().references(() => issues.id, { onDelete: "cascade" }),
     sourceKind: text("source_kind").$type<"title" | "description" | "comment" | "document">().notNull(),
@@ -18,28 +18,28 @@ export const issueReferenceMentions = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companySourceIssueIdx: index("issue_reference_mentions_company_source_issue_idx").on(
-      table.companyId,
+    spaceSourceIssueIdx: index("issue_reference_mentions_space_source_issue_idx").on(
+      table.spaceId,
       table.sourceIssueId,
     ),
-    companyTargetIssueIdx: index("issue_reference_mentions_company_target_issue_idx").on(
-      table.companyId,
+    spaceTargetIssueIdx: index("issue_reference_mentions_space_target_issue_idx").on(
+      table.spaceId,
       table.targetIssueId,
     ),
-    companyIssuePairIdx: index("issue_reference_mentions_company_issue_pair_idx").on(
-      table.companyId,
+    spaceIssuePairIdx: index("issue_reference_mentions_space_issue_pair_idx").on(
+      table.spaceId,
       table.sourceIssueId,
       table.targetIssueId,
     ),
-    companySourceMentionWithRecordUq: uniqueIndex("issue_reference_mentions_company_source_mention_record_uq").on(
-      table.companyId,
+    spaceSourceMentionWithRecordUq: uniqueIndex("issue_reference_mentions_space_source_mention_record_uq").on(
+      table.spaceId,
       table.sourceIssueId,
       table.targetIssueId,
       table.sourceKind,
       table.sourceRecordId,
     ).where(sql`${table.sourceRecordId} is not null`),
-    companySourceMentionWithoutRecordUq: uniqueIndex("issue_reference_mentions_company_source_mention_null_record_uq").on(
-      table.companyId,
+    spaceSourceMentionWithoutRecordUq: uniqueIndex("issue_reference_mentions_space_source_mention_null_record_uq").on(
+      table.spaceId,
       table.sourceIssueId,
       table.targetIssueId,
       table.sourceKind,

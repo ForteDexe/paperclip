@@ -61,7 +61,7 @@ describe("Codex app-server Codex driver", () => {
       await session.startTurn({ message: { role: "user", text: "Check the published PR later." } });
       const report = { ...structuredClone(result), reportedWorkDisposition: "yielded", ...(nullable === "explicit" ? { continuation } : nullable ? { continuation: null } : {}) };
       const response = await transport.invoke({ id: "finish-monitor", method: "item/tool/call", params: {
-        threadId: "thread-1", turnId: "turn-1", callId: "finish-monitor", tool: "paperclip_finish", arguments: report,
+        threadId: "thread-1", turnId: "turn-1", callId: "finish-monitor", tool: "outpost_finish", arguments: report,
       } });
       expect(response).toMatchObject({ success: true });
       expect(dynamicToolHandler).toHaveBeenCalledExactlyOnceWith({ tool: "get_task_context", callId: "finish-monitor:continuation",
@@ -86,7 +86,7 @@ describe("Codex app-server Codex driver", () => {
     try {
       await session.startTurn({ message: { role: "user", text: "Continue the repository work." } });
       const response = await transport.invoke({ id: "finish-saved", method: "item/tool/call", params: {
-        threadId: "thread-1", turnId: "turn-1", callId: "finish-saved", tool: "paperclip_finish",
+        threadId: "thread-1", turnId: "turn-1", callId: "finish-saved", tool: "outpost_finish",
         arguments: { ...structuredClone(result), reportedWorkDisposition: "yielded" },
       } });
       expect(response).toMatchObject({ success: false });
@@ -105,7 +105,7 @@ describe("Codex app-server Codex driver", () => {
     });
     await session.startTurn({ message: { role: "user", text: "Finish" } });
     const call = (callId: string) => transport.invoke({ id: callId, method: "item/tool/call",
-      params: { threadId: "thread-1", turnId: "turn-1", callId, tool: "paperclip_finish", arguments: result } });
+      params: { threadId: "thread-1", turnId: "turn-1", callId, tool: "outpost_finish", arguments: result } });
     expect(await call("first")).toMatchObject({ success: false });
     expect((await session.snapshot()).semanticResult).toBeNull();
     expect(await call("corrected")).toMatchObject({ success: true,
@@ -114,7 +114,7 @@ describe("Codex app-server Codex driver", () => {
     await session.close({ reason: "fixture complete" });
   });
 
-  it("accepts an explicit response-wake yield through paperclip_finish", async () => {
+  it("accepts an explicit response-wake yield through outpost_finish", async () => {
     const transport = new FakeCodexTransport();
     const session = await makeDriver([transport]).openSession({
       runId: "run-response-wake",
@@ -151,7 +151,7 @@ describe("Codex app-server Codex driver", () => {
         threadId: "thread-1",
         turnId: "turn-1",
         callId: "response-wake",
-        tool: "paperclip_finish",
+        tool: "outpost_finish",
         arguments: yielded,
       },
     })).toMatchObject({ success: true });
@@ -183,7 +183,7 @@ describe("Codex app-server Codex driver", () => {
         threadId: "thread-1",
         turnId: "turn-1",
         callId: "same-agent-yield",
-        tool: "paperclip_finish",
+        tool: "outpost_finish",
         arguments: {
           ...yielded,
           continuation: {
@@ -208,7 +208,7 @@ describe("Codex app-server Codex driver", () => {
     const request = {
       id: 1,
       method: "item/tool/call",
-      paperclipTrace: {
+      outpostTrace: {
         sourceEventId: "event_runner_000101",
         sourceEventType: "semantic_tool.input",
       },
@@ -216,7 +216,7 @@ describe("Codex app-server Codex driver", () => {
         threadId: "thread-1",
         turnId: "turn-1",
         callId: "call-1",
-        tool: "paperclip_finish",
+        tool: "outpost_finish",
         arguments: result,
       },
     };
@@ -300,12 +300,12 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "tool-result",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: toolShaped,
         },
       }),
     ).toMatchObject({ success: true });
-    transport.push("paperclip/runResult", {
+    transport.push("outpost/runResult", {
       threadId: "thread-1",
       turnId: "turn-1",
       itemId: "tool-result",
@@ -410,7 +410,7 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "tool-result",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: result,
         },
       }),
@@ -457,7 +457,7 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "tool-result",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: result,
         },
       }),
@@ -524,7 +524,7 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "tool-result",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: changed,
         },
       }),
@@ -563,7 +563,7 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "tool-result",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: result,
         },
       }),
@@ -607,7 +607,7 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "tool-result",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: result,
         },
       }),
@@ -664,7 +664,7 @@ describe("Codex app-server Codex driver", () => {
             threadId,
             turnId,
             callId: "hostile-call",
-            tool: "paperclip_finish",
+            tool: "outpost_finish",
             arguments: result,
           },
         }),
@@ -759,7 +759,7 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "late-call",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: result,
         },
       }),
@@ -816,7 +816,7 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "large-call",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: { ...result, summary: "x".repeat(70 * 1024) },
         },
       }),
@@ -884,7 +884,7 @@ describe("Codex app-server Codex driver", () => {
         threadId: "thread-1",
         turnId: "turn-1",
         callId: "call-block",
-        tool: "paperclip_block",
+        tool: "outpost_block",
         arguments: blocked,
       },
     };
@@ -892,7 +892,7 @@ describe("Codex app-server Codex driver", () => {
       await transport.invoke({
         ...request,
         id: 9,
-        params: { ...request.params, tool: "paperclip_finish" },
+        params: { ...request.params, tool: "outpost_finish" },
       }),
     ).toMatchObject({ success: false });
     expect(await transport.invoke(request)).toMatchObject({ success: true });
@@ -927,7 +927,7 @@ describe("Codex app-server Codex driver", () => {
     };
     const requestHumanInput = {
       name: "request_human_input",
-      description: "Ask one structured question through Paperclip.",
+      description: "Ask one structured question through Outpost.",
       inputSchema: { type: "object", properties: {} },
     };
     const listChatAttachments = {

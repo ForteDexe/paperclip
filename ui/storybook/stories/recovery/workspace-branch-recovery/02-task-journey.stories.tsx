@@ -30,13 +30,13 @@ function TaskConversation() {
   </div>;
 }
 function Journey() {
-  return <PluginLauncherProvider><Routes><Route path="/:companyPrefix" element={<Layout />}><Route path="issues/:issueId" element={<TaskConversation />} /></Route></Routes></PluginLauncherProvider>;
+  return <PluginLauncherProvider><Routes><Route path="/:spacePrefix" element={<Layout />}><Route path="issues/:issueId" element={<TaskConversation />} /></Route></Routes></PluginLauncherProvider>;
 }
 const meta = {
   id: "workspace-branch-recovery-02-task-journey",
   title: "Projects and execution/Recovery/Workspace branch recovery/02 Task journey", component: Journey,
   parameters: { layout: "fullscreen", initialEntries: ["/PAP/issues/PAP-24"], docs: { description: { component: "Interactive proposal in the production app shell, using the shared task bubbles, composer and repair component. Save/retry and branch lookup are simulated. Use master or choose release/next; a missing branch shows an inline error. No live task is modified." }, story: { inline: false } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "recovery/workspace"
       ],

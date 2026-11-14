@@ -1,14 +1,14 @@
 import { pgTable, uuid, text, timestamp, index, jsonb } from "drizzle-orm/pg-core";
 import type { AgentApiKeyScope } from "@outpost/shared";
 import { agents } from "./agents.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 
 export const agentApiKeys = pgTable(
   "agent_api_keys",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     agentId: uuid("agent_id").notNull().references(() => agents.id),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     name: text("name").notNull(),
     keyHash: text("key_hash").notNull(),
     responsibleUserId: text("responsible_user_id"),
@@ -19,6 +19,6 @@ export const agentApiKeys = pgTable(
   },
   (table) => ({
     keyHashIdx: index("agent_api_keys_key_hash_idx").on(table.keyHash),
-    companyAgentIdx: index("agent_api_keys_company_agent_idx").on(table.companyId, table.agentId),
+    spaceAgentIdx: index("agent_api_keys_space_agent_idx").on(table.spaceId, table.agentId),
   }),
 );

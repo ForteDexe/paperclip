@@ -24,8 +24,8 @@ export function taskPluginPanelId(panel: TaskPluginPanel) {
   return `plugin:${panel.slot.pluginKey}:${panel.slot.id}:${panel.entityId}`;
 }
 
-export function taskPluginPanelActivationKey(panel: TaskPluginPanel, accountScope: string, issue: Pick<Issue, "companyId" | "id">) {
-  return JSON.stringify([accountScope, issue.companyId, issue.id, panel.runId, taskPluginPanelId(panel)]);
+export function taskPluginPanelActivationKey(panel: TaskPluginPanel, accountScope: string, issue: Pick<Issue, "spaceId" | "id">) {
+  return JSON.stringify([accountScope, issue.spaceId, issue.id, panel.runId, taskPluginPanelId(panel)]);
 }
 
 /** Plugins own their views; activity controls automatic opening. */
@@ -34,11 +34,11 @@ export function useTaskPluginPanels(issue: Issue | null | undefined, enabled = t
   const savedTask = enabled && !!issue && !issue.id.startsWith("chat:");
   const { slots: declaredSlots, errorMessage, isLoading } = usePluginSlots({
     slotTypes: ["detailTab"], entityType: "agent", taskSidePanel: true,
-    companyId: issue?.companyId, enabled: savedTask,
+    spaceId: issue?.spaceId, enabled: savedTask,
   });
   const declaredPanels = useMemo(() => declaredSlots.filter(slot => slot.taskSidePanel), [declaredSlots]);
   const connected = useTaskRunLiveUpdates({
-    companyId: savedTask && declaredPanels.length > 0 && !errorMessage ? issue?.companyId : null,
+    spaceId: savedTask && declaredPanels.length > 0 && !errorMessage ? issue?.spaceId : null,
     issueId: issue?.id, issueQueryRef: issue?.id ?? "pending", assigneeAgentId: issue?.assigneeAgentId,
   });
   const { data: runs, isError: runsError, isPending: runsPending } = useQuery({
@@ -53,14 +53,14 @@ export function useTaskPluginPanels(issue: Issue | null | undefined, enabled = t
     && (!issue?.executionRunId || run.id === issue.executionRunId));
   const agentId = (!runsError && run?.agentId) || issue?.assigneeAgentId;
   const { slots: panels, isLoading: environmentLoading } = useAgentEnvironmentSlots(
-    declaredPanels, savedTask && !errorMessage ? agentId : null, issue?.companyId,
+    declaredPanels, savedTask && !errorMessage ? agentId : null, issue?.spaceId,
   );
   const slots = useMemo(() => panels.filter(slot => slot.taskSidePanel?.activation), [panels]);
   const active = savedTask && slots.length > 0 && !!run && !runsError && !errorMessage;
   const declarations = slots.map(slot => [slot.pluginKey, slot.id, slot.pluginVersion,
     slot.taskSidePanel!.activation!.namespace, slot.taskSidePanel!.activation!.activityKey]);
   const activationScope = JSON.stringify(declarations);
-  const activationKey = ["task-plugin-panel-activations", issue?.companyId, issue?.id, run?.id, run?.agentId, activationScope];
+  const activationKey = ["task-plugin-panel-activations", issue?.spaceId, issue?.id, run?.id, run?.agentId, activationScope];
   // Keep unchanged declarations active while a new declaration scope loads.
   const retained = new Map<string, { pluginKey: string; slotId: string }>();
   for (const [key, panels] of queryClient.getQueriesData<Array<{ pluginKey: string; slotId: string }>>({ queryKey: activationKey.slice(0, 5) })) {
@@ -90,8 +90,8 @@ export function useTaskPluginPanels(issue: Issue | null | undefined, enabled = t
     retryDelay: 1000,
   });
   const activations = [...recordedActivations, ...retained.values()];
-  const stream = useTranscriptLiveStream(active ? [run!.id] : [], { companyId: issue?.companyId, enabled: active }, event => {
-    if (!active || !run || event.companyId !== issue?.companyId || event.payload.runId !== run.id
+  const stream = useTranscriptLiveStream(active ? [run!.id] : [], { spaceId: issue?.spaceId, enabled: active }, event => {
+    if (!active || !run || event.spaceId !== issue?.spaceId || event.payload.runId !== run.id
       || event.payload.agentId !== run.agentId || event.payload.issueId !== issue?.id
       || event.type !== "heartbeat.run.event" || event.payload.eventType !== "runtime.activity.recorded") return;
     const native = event.payload.payload as { orpEvent?: { eventType?: string; sourceKind?: string; payload?: unknown } } | null;
@@ -107,7 +107,7 @@ export function useTaskPluginPanels(issue: Issue | null | undefined, enabled = t
       return missing.length ? [...(previous ?? []), ...missing] : previous;
     });
     for (const panel of panels) void queryClient.invalidateQueries({
-      queryKey: ["task-plugin-panel", issue?.companyId, issue?.id, run.id, run.agentId, panel.pluginKey, panel.slotId],
+      queryKey: ["task-plugin-panel", issue?.spaceId, issue?.id, run.id, run.agentId, panel.pluginKey, panel.slotId],
       predicate: ({ state }) => state.status === "error" && state.fetchStatus === "idle"
         && !(state.error instanceof ApiError && state.error.status >= 400 && state.error.status < 500),
     });
@@ -115,13 +115,13 @@ export function useTaskPluginPanels(issue: Issue | null | undefined, enabled = t
   useEffect(() => {
     if (!active || !stream.healthy) return;
     let current = true;
-    void queryClient.invalidateQueries({ queryKey: ["task-plugin-panel", issue?.companyId, issue?.id, run?.id, run?.agentId] });
+    void queryClient.invalidateQueries({ queryKey: ["task-plugin-panel", issue?.spaceId, issue?.id, run?.id, run?.agentId] });
     // A pre-subscription history read must settle before the recovery read.
     createLiveQueryRecovery(queryClient, () => current, { queryKey: activationKey, exact: true })();
     return () => { current = false; };
-  }, [active, stream.healthy, stream.epoch, queryClient, issue?.companyId, issue?.id, run?.id, run?.agentId, activationScope]);
+  }, [active, stream.healthy, stream.epoch, queryClient, issue?.spaceId, issue?.id, run?.id, run?.agentId, activationScope]);
   const availability = useQueries({ queries: slots.map(slot => ({
-    queryKey: ["task-plugin-panel", issue?.companyId, issue?.id, run?.id, run?.agentId, slot.pluginKey, slot.id, slot.pluginVersion, slot.pluginId, slot.taskSidePanel!.availabilityPath],
+    queryKey: ["task-plugin-panel", issue?.spaceId, issue?.id, run?.id, run?.agentId, slot.pluginKey, slot.id, slot.pluginVersion, slot.pluginId, slot.taskSidePanel!.availabilityPath],
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
       const result = await api.get<{ available: boolean }>(
         `/plugins/${encodeURIComponent(slot.pluginId)}/api${slot.taskSidePanel!.availabilityPath.replace(":entityId", encodeURIComponent(run!.agentId))}?runId=${encodeURIComponent(run!.id)}&issueId=${encodeURIComponent(issue!.id)}`,

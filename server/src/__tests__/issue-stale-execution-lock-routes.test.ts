@@ -5,10 +5,10 @@ import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   authUsers,
-  companyMemberships,
+  spaceMemberships,
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issueComments,
@@ -39,7 +39,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-stale-execution-lock-routes-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-stale-execution-lock-routes-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -50,8 +50,8 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     await db.delete(issues);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
     await db.delete(authUsers);
   });
 
@@ -71,23 +71,23 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     return app;
   }
 
-  async function seedCompanyAgentAndRuns() {
-    const companyId = randomUUID();
+  async function seedSpaceAgentAndRuns() {
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const failedRunId = randomUUID();
     const currentRunId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
-    await db.insert(authUsers).values({ id: "board-user", name: "Board", email: "board@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "board-user", status: "active", membershipRole: "admin" });
+    await db.insert(authUsers).values({ id: "operator-user", name: "Operator", email: "operator@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "operator-user", status: "active", membershipRole: "admin" });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "active",
@@ -99,7 +99,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     await db.insert(heartbeatRuns).values([
       {
         id: failedRunId,
-        companyId,
+        spaceId,
         agentId,
         status: "failed",
         invocationSource: "manual",
@@ -107,7 +107,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
       },
       {
         id: currentRunId,
-        companyId,
+        spaceId,
         agentId,
         status: "running",
         invocationSource: "manual",
@@ -115,36 +115,36 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
       },
     ]);
 
-    return { companyId, agentId, failedRunId, currentRunId };
+    return { spaceId, agentId, failedRunId, currentRunId };
   }
 
-  function agentActor(companyId: string, agentId: string, runId: string): Express.Request["actor"] {
+  function agentActor(spaceId: string, agentId: string, runId: string): Express.Request["actor"] {
     return {
       type: "agent",
       agentId,
-      companyId,
+      spaceId,
       runId,
       source: "agent_jwt",
     };
   }
 
-  function boardActor(companyId: string): Express.Request["actor"] {
+  function operatorActor(spaceId: string): Express.Request["actor"] {
     return {
-      type: "board",
-      userId: "board-user",
-      companyIds: [companyId],
-      memberships: [{ companyId, membershipRole: "admin", status: "active" }],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [spaceId],
+      memberships: [{ spaceId, membershipRole: "admin", status: "active" }],
       isInstanceAdmin: false,
       source: "session",
     };
   }
 
   it("allows an assigned agent PATCH to recover a terminal stale executionRunId", async () => {
-    const { companyId, agentId, failedRunId, currentRunId } = await seedCompanyAgentAndRuns();
+    const { spaceId, agentId, failedRunId, currentRunId } = await seedSpaceAgentAndRuns();
     const issueId = randomUUID();
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Stale execution lock",
       status: "in_progress",
       priority: "high",
@@ -158,7 +158,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
       .set({ contextSnapshot: { issueId } })
       .where(eq(heartbeatRuns.id, currentRunId));
 
-    const res = await request(createApp(agentActor(companyId, agentId, currentRunId)))
+    const res = await request(createApp(agentActor(spaceId, agentId, currentRunId)))
       .patch(`/api/issues/${issueId}`)
       .send({ title: "Recovered execution lock" });
 
@@ -192,11 +192,11 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
   ])(
     "$title and clears execution locks",
     async ({ status, title, completedAt, cancelledAt, retainAssignee, expectedStatus = status }) => {
-      const { companyId, agentId, currentRunId } = await seedCompanyAgentAndRuns();
+      const { spaceId, agentId, currentRunId } = await seedSpaceAgentAndRuns();
       const issueId = randomUUID();
       await db.insert(issues).values({
         id: issueId,
-        companyId,
+        spaceId,
         title,
         status,
         priority: "medium",
@@ -209,7 +209,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
         ...(cancelledAt ? { cancelledAt } : {}),
       });
 
-      const res = await request(createApp(agentActor(companyId, agentId, currentRunId)))
+      const res = await request(createApp(agentActor(spaceId, agentId, currentRunId)))
         .post(`/api/issues/${issueId}/release`)
         .send();
 
@@ -244,12 +244,12 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
 
       const events = await db.select().from(activityLog).where(eq(activityLog.entityId, issueId));
       expect(events).toContainEqual(expect.objectContaining({
-        action: "issue.released", companyId, agentId, runId: currentRunId,
+        action: "issue.released", spaceId, agentId, runId: currentRunId,
       }));
 
       if (retainAssignee) {
-        // Repeated cleanup, including by the board, must not erase attribution.
-        const retried = await request(createApp(boardActor(companyId)))
+        // Repeated cleanup, including by the operator, must not erase attribution.
+        const retried = await request(createApp(operatorActor(spaceId)))
           .post(`/api/issues/${issueId}/release`)
           .send();
         expect(retried.status, JSON.stringify(retried.body)).toBe(200);
@@ -261,11 +261,11 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
   );
 
   it("allows the rightful assignee to release after the owning run failed", async () => {
-    const { companyId, agentId, failedRunId, currentRunId } = await seedCompanyAgentAndRuns();
+    const { spaceId, agentId, failedRunId, currentRunId } = await seedSpaceAgentAndRuns();
     const issueId = randomUUID();
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Failed run release",
       status: "in_progress",
       priority: "high",
@@ -276,7 +276,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
       executionLockedAt: new Date(),
     });
 
-    const res = await request(createApp(agentActor(companyId, agentId, currentRunId)))
+    const res = await request(createApp(agentActor(spaceId, agentId, currentRunId)))
       .post(`/api/issues/${issueId}/release`)
       .send();
 
@@ -303,12 +303,12 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
   });
 
   it("lets the current assignee recover a timed_out stale checkout owner during PATCH", async () => {
-    const { companyId, agentId, currentRunId } = await seedCompanyAgentAndRuns();
+    const { spaceId, agentId, currentRunId } = await seedSpaceAgentAndRuns();
     const timedOutRunId = randomUUID();
     const issueId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: timedOutRunId,
-      companyId,
+      spaceId,
       agentId,
       status: "timed_out",
       invocationSource: "manual",
@@ -316,7 +316,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Stale checkout lock",
       status: "in_progress",
       priority: "high",
@@ -330,7 +330,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
       .set({ contextSnapshot: { issueId } })
       .where(eq(heartbeatRuns.id, currentRunId));
 
-    const res = await request(createApp(agentActor(companyId, agentId, currentRunId)))
+    const res = await request(createApp(agentActor(spaceId, agentId, currentRunId)))
       .patch(`/api/issues/${issueId}`)
       .send({ title: "Recovered stale checkout lock" });
 
@@ -350,12 +350,12 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
   });
 
   it("still returns 409 when a different live checkout owner is active", async () => {
-    const { companyId, agentId, failedRunId } = await seedCompanyAgentAndRuns();
+    const { spaceId, agentId, failedRunId } = await seedSpaceAgentAndRuns();
     const liveOwnerRunId = randomUUID();
     const issueId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: liveOwnerRunId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       invocationSource: "manual",
@@ -363,7 +363,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Live checkout lock",
       status: "in_progress",
       priority: "high",
@@ -374,7 +374,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
       executionLockedAt: new Date(),
     });
 
-    const res = await request(createApp(agentActor(companyId, agentId, failedRunId)))
+    const res = await request(createApp(agentActor(spaceId, agentId, failedRunId)))
       .patch(`/api/issues/${issueId}`)
       .send({ title: "Should fail" });
 
@@ -383,12 +383,12 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
   });
 
   it("preserves live checkout ownership on checkout conflicts without retry side effects", async () => {
-    const { companyId, agentId, currentRunId } = await seedCompanyAgentAndRuns();
+    const { spaceId, agentId, currentRunId } = await seedSpaceAgentAndRuns();
     const contenderRunId = randomUUID();
     const issueId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: contenderRunId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       invocationSource: "assignment",
@@ -396,7 +396,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Live checkout race",
       status: "in_progress",
       priority: "high",
@@ -407,7 +407,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
       executionLockedAt: new Date(),
     });
 
-    const res = await request(createApp(agentActor(companyId, agentId, contenderRunId)))
+    const res = await request(createApp(agentActor(spaceId, agentId, contenderRunId)))
       .post(`/api/issues/${issueId}/checkout`)
       .send({
         agentId,
@@ -443,12 +443,12 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     expect(checkoutActivity).toHaveLength(0);
   });
 
-  it("restricts admin force-release to board users with company access and writes an audit event", async () => {
-    const { companyId, agentId, failedRunId, currentRunId } = await seedCompanyAgentAndRuns();
+  it("restricts admin force-release to operator users with space access and writes an audit event", async () => {
+    const { spaceId, agentId, failedRunId, currentRunId } = await seedSpaceAgentAndRuns();
     const issueId = randomUUID();
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Admin force release",
       status: "in_progress",
       priority: "high",
@@ -459,13 +459,13 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
       executionLockedAt: new Date(),
     });
 
-    await request(createApp(agentActor(companyId, agentId, currentRunId)))
+    await request(createApp(agentActor(spaceId, agentId, currentRunId)))
       .post(`/api/issues/${issueId}/admin/force-release`)
       .expect(403);
     await request(createApp({
-      type: "board",
+      type: "operator",
       userId: "outside-user",
-      companyIds: [],
+      spaceIds: [],
       memberships: [],
       isInstanceAdmin: false,
       source: "session",
@@ -473,7 +473,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
       .post(`/api/issues/${issueId}/admin/force-release`)
       .expect(404);
 
-    const res = await request(createApp(boardActor(companyId)))
+    const res = await request(createApp(operatorActor(spaceId)))
       .post(`/api/issues/${issueId}/admin/force-release?clearAssignee=true`)
       .send();
 
@@ -503,10 +503,10 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     expect(audit).toMatchObject({
       action: "issue.admin_force_release",
       actorType: "user",
-      actorId: "board-user",
+      actorId: "operator-user",
       details: {
         issueId,
-        actorUserId: "board-user",
+        actorUserId: "operator-user",
         prevCheckoutRunId: currentRunId,
         prevExecutionRunId: failedRunId,
         clearAssignee: true,
@@ -519,12 +519,12 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     // was cleared by releaseIssueExecutionAndPromote, but checkoutRunId stayed
     // pinned to the dead run. The new agent's POST /checkout would 409 forever
     // without the clearCheckoutRunIfTerminal helper in svc.checkout.
-    const { companyId, agentId, failedRunId, currentRunId } = await seedCompanyAgentAndRuns();
+    const { spaceId, agentId, failedRunId, currentRunId } = await seedSpaceAgentAndRuns();
     const issueId = randomUUID();
     const otherAgentId = randomUUID();
     await db.insert(agents).values({
       id: otherAgentId,
-      companyId,
+      spaceId,
       name: "OtherAgent",
       role: "engineer",
       status: "active",
@@ -535,7 +535,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Stale checkout lock after reassignment",
       // Status off in_progress + checkoutRunId still set — adoptStaleCheckoutRun
       // cannot recover from this; only clearCheckoutRunIfTerminal can.
@@ -548,7 +548,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
       executionLockedAt: null,
     });
 
-    const res = await request(createApp(agentActor(companyId, otherAgentId, currentRunId)))
+    const res = await request(createApp(agentActor(spaceId, otherAgentId, currentRunId)))
       .post(`/api/issues/${issueId}/checkout`)
       .send({
         agentId: otherAgentId,
@@ -579,13 +579,13 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     // A lead "pausing" work by editing statuses: before this guard the status
     // change released the execution lock and left the report's run running,
     // no longer bound to its task.
-    const { companyId, agentId: reportAgentId, currentRunId: reportRunId } = await seedCompanyAgentAndRuns();
+    const { spaceId, agentId: reportAgentId, currentRunId: reportRunId } = await seedSpaceAgentAndRuns();
     const leadAgentId = randomUUID();
     const leadRunId = randomUUID();
     const issueId = randomUUID();
     await db.insert(agents).values({
       id: leadAgentId,
-      companyId,
+      spaceId,
       name: "LaunchLead",
       role: "engineer",
       status: "active",
@@ -597,7 +597,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     await db.update(agents).set({ reportsTo: leadAgentId }).where(eq(agents.id, reportAgentId));
     await db.insert(heartbeatRuns).values({
       id: leadRunId,
-      companyId,
+      spaceId,
       agentId: leadAgentId,
       status: "running",
       invocationSource: "manual",
@@ -605,7 +605,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Build the launch website",
       status: "in_progress",
       priority: "high",
@@ -619,7 +619,7 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
       .set({ contextSnapshot: { issueId } })
       .where(eq(heartbeatRuns.id, reportRunId));
 
-    const res = await request(createApp(agentActor(companyId, leadAgentId, leadRunId)))
+    const res = await request(createApp(agentActor(spaceId, leadAgentId, leadRunId)))
       .patch(`/api/issues/${issueId}`)
       .send({ status: "backlog" });
 
@@ -651,11 +651,11 @@ describeEmbeddedPostgres("stale issue execution lock routes", () => {
   it("rejects a status change whose checked execution lock changed before the write", async () => {
     // The route checks the lock, then a checkout lands before the write. The
     // write must not release the newly acquired lock.
-    const { companyId, agentId, currentRunId } = await seedCompanyAgentAndRuns();
+    const { spaceId, agentId, currentRunId } = await seedSpaceAgentAndRuns();
     const issueId = randomUUID();
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Checked out after the check",
       status: "in_progress",
       priority: "high",

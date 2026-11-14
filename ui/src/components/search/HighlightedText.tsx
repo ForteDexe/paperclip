@@ -1,14 +1,14 @@
-import type { CompanySearchHighlight } from "@outpost/shared";
+import type { SpaceSearchHighlight } from "@outpost/shared";
 import { cn } from "@/lib/utils";
 
 export interface HighlightedTextProps {
   text: string;
-  highlights?: readonly CompanySearchHighlight[] | null;
+  highlights?: readonly SpaceSearchHighlight[] | null;
   className?: string;
   markClassName?: string;
 }
 
-function clampedRanges(text: string, highlights: readonly CompanySearchHighlight[]) {
+function clampedRanges(text: string, highlights: readonly SpaceSearchHighlight[]) {
   const result: Array<{ start: number; end: number }> = [];
   for (const range of highlights) {
     const start = Math.max(0, Math.min(text.length, range.start));

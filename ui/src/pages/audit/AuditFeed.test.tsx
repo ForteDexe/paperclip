@@ -16,17 +16,17 @@ const pushToastMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api/audit", () => ({
   auditApi: {
-    listAgentActions: (companyId: string, filters: unknown) => listAgentActionsMock(companyId, filters),
-    exportAgentActionsCsv: (companyId: string, filters: unknown) => exportCsvMock(companyId, filters),
+    listAgentActions: (spaceId: string, filters: unknown) => listAgentActionsMock(spaceId, filters),
+    exportAgentActionsCsv: (spaceId: string, filters: unknown) => exportCsvMock(spaceId, filters),
   },
 }));
 
 vi.mock("@/api/agents", () => ({
-  agentsApi: { list: (companyId: string) => listAgentsMock(companyId) },
+  agentsApi: { list: (spaceId: string) => listAgentsMock(spaceId) },
 }));
 
 vi.mock("@/api/access", () => ({
-  accessApi: { listUserDirectory: (companyId: string) => listUserDirectoryMock(companyId) },
+  accessApi: { listUserDirectory: (spaceId: string) => listUserDirectoryMock(spaceId) },
 }));
 
 vi.mock("@/context/ToastContext", () => ({
@@ -65,7 +65,7 @@ async function flushReact() {
 function record(overrides: Record<string, unknown> = {}) {
   return {
     id: "evt-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     actorType: "agent",
     actorId: "agent-1",
     action: "issue.comment_added",
@@ -108,7 +108,7 @@ describe("AuditFeed", () => {
 
   async function render(
     props: {
-      companyId?: string;
+      spaceId?: string;
       lockedAgentId?: string;
       lockedRunId?: string;
       lockedEntity?: { type: string; id: string; label?: string };
@@ -129,7 +129,7 @@ describe("AuditFeed", () => {
       root.render(
         <QueryClientProvider client={client}>
           <AuditFeed
-            companyId={props.companyId ?? "company-1"}
+            spaceId={props.spaceId ?? "space-1"}
             lockedAgentId={props.lockedAgentId}
             lockedRunId={props.lockedRunId}
             lockedEntity={props.lockedEntity}
@@ -204,7 +204,7 @@ describe("AuditFeed", () => {
     await render();
 
     expect(listAgentActionsMock).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({ actorScope: "all" }),
     );
     expect(container.textContent).toContain("Fable");
@@ -238,7 +238,7 @@ describe("AuditFeed", () => {
     await render({ actionDomain: "tool_" });
 
     expect(listAgentActionsMock).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({ action: "tool_" }),
     );
     expect(container.textContent).toContain("tested get repository on");
@@ -255,7 +255,7 @@ describe("AuditFeed", () => {
       nextCursor: null, accessTier: "full",
     });
     await render({ lockedEntity: { type: "case", id: "case-1" } });
-    expect(listAgentActionsMock).toHaveBeenCalledWith("company-1", expect.objectContaining({ entityType: "case", entityId: "case-1" }));
+    expect(listAgentActionsMock).toHaveBeenCalledWith("space-1", expect.objectContaining({ entityType: "case", entityId: "case-1" }));
     expect(container.textContent).toContain("updated details on");
     const caseLinks = container.querySelectorAll('a[href="/CAS/cases/CAS-C1"]');
     expect(caseLinks).toHaveLength(2);
@@ -265,10 +265,10 @@ describe("AuditFeed", () => {
     expect(avatar?.classList.contains("size-5")).toBe(true);
   });
 
-  it("keeps the Cases filter in the query for an ordinary company reader", async () => {
+  it("keeps the Cases filter in the query for an ordinary space reader", async () => {
     listAgentActionsMock.mockResolvedValue({ items: [], nextCursor: null, accessTier: "basic" });
     await render({ entityType: "case" });
-    expect(listAgentActionsMock).toHaveBeenCalledWith("company-1", expect.objectContaining({ entityType: "case" }));
+    expect(listAgentActionsMock).toHaveBeenCalledWith("space-1", expect.objectContaining({ entityType: "case" }));
     expect(container.textContent).toContain("Case");
     expect(container.textContent).toContain("No actions match these filters");
   });
@@ -333,7 +333,7 @@ describe("AuditFeed", () => {
 
   it("clears privileged filters and recovers the basic feed after an access downgrade", async () => {
     let permissionRevoked = false;
-    listAgentActionsMock.mockImplementation((_companyId: string, filters: { agentId?: string }) => {
+    listAgentActionsMock.mockImplementation((_spaceId: string, filters: { agentId?: string }) => {
       if (permissionRevoked && filters.agentId) {
         return Promise.reject(
           new ApiError("Missing permission: audit:view_agent_actions", 403, { error: "Missing permission" }),
@@ -378,7 +378,7 @@ describe("AuditFeed", () => {
 
   it("drops cached privileged pages when pagination observes an access downgrade", async () => {
     let permissionRevoked = false;
-    listAgentActionsMock.mockImplementation((_companyId: string, filters: { cursor?: string }) => {
+    listAgentActionsMock.mockImplementation((_spaceId: string, filters: { cursor?: string }) => {
       if (filters.cursor === "cursor-2") {
         return Promise.resolve({
           items: [record({
@@ -434,7 +434,7 @@ describe("AuditFeed", () => {
     // "Refreshing audit access…" forever with no way out.
     let downgraded = false;
     let calls = 0;
-    listAgentActionsMock.mockImplementation((_companyId: string, filters: { cursor?: string }) => {
+    listAgentActionsMock.mockImplementation((_spaceId: string, filters: { cursor?: string }) => {
       calls += 1;
       if (filters.cursor === "cursor-2") {
         downgraded = true;
@@ -470,7 +470,7 @@ describe("AuditFeed", () => {
     // Pathological but reachable: the refetch succeeds and still returns one
     // full page plus one basic page. The recovery has had its shot, so the feed
     // must render at the least-privileged tier instead of sitting on the banner.
-    listAgentActionsMock.mockImplementation((_companyId: string, filters: { cursor?: string }) =>
+    listAgentActionsMock.mockImplementation((_spaceId: string, filters: { cursor?: string }) =>
       filters.cursor === "cursor-2"
         ? Promise.resolve({
             items: [record({ id: "evt-2", agentId: null, runId: null, responsibleUserId: null, details: null })],
@@ -522,7 +522,7 @@ describe("AuditFeed", () => {
     // Mirror the page: the mode lives above the feed, so toggling re-queries.
     function Harness() {
       const [mode, setMode] = useState<"all" | "agents">("all");
-      return <AuditFeed companyId="company-1" mode={mode} onModeChange={setMode} />;
+      return <AuditFeed spaceId="space-1" mode={mode} onModeChange={setMode} />;
     }
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     root = createRoot(container);
@@ -552,9 +552,9 @@ describe("AuditFeed", () => {
     expect(container.textContent).toContain("Export CSV");
   });
 
-  it("resolves a basic-tier agent name from the company-readable actorId", async () => {
+  it("resolves a basic-tier agent name from the space-readable actorId", async () => {
     // The basic tier nulls privileged attribution but retains the acting
-    // principal, which is also available through the company agent directory.
+    // principal, which is also available through the space agent directory.
     listAgentActionsMock.mockResolvedValue({
       items: [record({ agentId: null, runId: null, responsibleUserId: null, details: null })],
       nextCursor: null,
@@ -647,7 +647,7 @@ describe("AuditFeed", () => {
   });
 
   it("loads more when a cursor is returned", async () => {
-    listAgentActionsMock.mockImplementation((_companyId: string, filters: { cursor?: string }) => {
+    listAgentActionsMock.mockImplementation((_spaceId: string, filters: { cursor?: string }) => {
       if (filters.cursor === "cursor-2") {
         return Promise.resolve({ items: [record({ id: "evt-2", entity: { issue: { id: "i2", identifier: "PAP-2", title: "Second" }, comment: null, document: null } })], nextCursor: null, accessTier: "full" });
       }
@@ -675,7 +675,7 @@ describe("AuditFeed", () => {
     await flushReact();
 
     expect(exportCsvMock).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({ actorScope: "all" }),
     );
     expect(createUrl).toHaveBeenCalled();

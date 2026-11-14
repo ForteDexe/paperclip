@@ -34,7 +34,7 @@ private-worker hold awaiting external evidence is not automatic retry debt.
 Null timestamps do not become invented completion times. New evidence can make
 that row actionable later.
 
-Discovery joins the recorded binding ID/generation, company, agent, and run.
+Discovery joins the recorded binding ID/generation, space, agent, and run.
 Revoked bindings are included when they still contain actionable work. New
 pairing creates a new binding row/generation; current agent configuration does
 not replace a prior assignment's execution contract.
@@ -52,7 +52,7 @@ remains a no-op. This is an owner-local protocol change, not provider parsing in
 shared startup or heartbeat code.
 
 Maintenance retains scoped hints across failed sweeps and drain. Scoped terminal
-hints inspect the affected run/binding/company; global startup and authority
+hints inspect the affected run/binding/space; global startup and authority
 signals retain their existing qualification/OAuth work. Concrete debt remaining
 after a bounded batch earns another retry. Running assignments and completed
 history do not. Passive pending checks use memory, and qualification deadlines
@@ -94,11 +94,11 @@ module supplies the notification contract; Muse owns its durable predicates.
 
 | Producer | Existing transaction and new wake | Scope / boundary |
 | --- | --- | --- |
-| Run lifecycle | Native terminal status and cancellation/failure helpers | Recorded company and run |
-| Native committed projection | Actual repair CAS, after finding a repairable row | Recorded company and run; no hint for unchanged projection |
-| Native finalization | Existing finalization fanout, live committed projection, exhausted/blocked finalization | Company/run/issue identifiers only |
+| Run lifecycle | Native terminal status and cancellation/failure helpers | Recorded space and run |
+| Native committed projection | Actual repair CAS, after finding a repairable row | Recorded space and run; no hint for unchanged projection |
+| Native finalization | Existing finalization fanout, live committed projection, exhausted/blocked finalization | Space/run/issue identifiers only |
 | Native recovery/execution | Stranded failure, restart failure, executor terminal failure, cancelled continuation | Existing native ownership checks stay in force |
-| Execution-control recovery | Terminal failure after its ownership checks | Recorded company and run |
+| Execution-control recovery | Terminal failure after its ownership checks | Recorded space and run |
 | Stale-run recovery and watchdog | Eligible run terminalization / resolved-source fold | Existing CAS and runtime-settlement guards stay in force |
 | Queue/run dispatch | Stale retry, discarded queued comment, superseded handoff, stopped recovery, and reassigned issue cancellation | Existing transaction; exact affected run |
 | Muse native result | `port.settle` before receipt, assignment, and independent hold writes | Original binding; identical stored outcome returns before notification |
@@ -195,13 +195,13 @@ resolution adds Muse settlement inside the existing ordinary issue/run guard
 in native finalization notifications. Packages equal the parent, including
 current Copilot profile 80 and preserved historical profile fixtures.
 
-A real Muse regression proves why the guard matters. Three routine company-only
+A real Muse regression proves why the guard matters. Three routine space-only
 finalization hints cause six settlement candidate SELECTs when only the new
 Muse fanout is moved outside the guard. That controlled baseline fails the quiet
 assertion. With the guard retained, the same case passes with zero candidate
 SELECTs; a real terminal run change still finalizes the assignment and returns
 to quiet. The test hash is identical across the red/green pair, and the temporary
-production change restores exactly. Real company or binding changes retain
+production change restores exactly. Real space or binding changes retain
 their existing global/scoped signals. No new table, poll, or producer wrappers
 were added.
 

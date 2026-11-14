@@ -34,7 +34,7 @@ for (const presentation of ["legacy", "spaced-legacy", "refreshed"] as const) {
 }
 
 const searchTasks: SearchTask[] = ["target", "status-control", "search-control"].map((name, index) => ({
-  id: name, identifier: `QA-${index + 1}`, companyId: "company", title: name, description: `${name} context`,
+  id: name, identifier: `QA-${index + 1}`, spaceId: "space", title: name, description: `${name} context`,
   status: index === 1 ? "done" : "backlog", assigneeUserId: "board", assigneeAgentId: null,
 }));
 const taskLink = (task: SearchTask) => `<a data-inbox-issue-link href="https://outpost.example.test/QA/issues/${task.identifier}">${task.title}</a>`;

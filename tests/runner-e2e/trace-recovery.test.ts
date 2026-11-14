@@ -8,12 +8,12 @@ import { readInterruptedAttemptTrace } from "./trace-recovery.js";
 it("finalizes a lost worker's original trace while rejecting unrelated or malformed snapshots", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "eval-trace-recovery-"));
   const projectId = "11111111-1111-4111-8111-111111111111";
-  const companyId = "22222222-2222-4222-8222-222222222222";
+  const spaceId = "22222222-2222-4222-8222-222222222222";
   const identity = { campaignId: "campaign", attemptId: "attempt", executionId: "execution", provider: "acpx", model: "claude", environment: "local" };
   const config = { projectId, apiKey: "synthetic-canary" };
   const trace = new EvalAttemptTrace(config, identity).snapshot();
-  const saved = { ...trace, companyId, nativeConfiguration: "configured", privateCanary: "must-not-copy", finalization: { status: "accepted" } };
-  const fixture = { companyId, executionId: identity.executionId };
+  const saved = { ...trace, spaceId, nativeConfiguration: "configured", privateCanary: "must-not-copy", finalization: { status: "accepted" } };
+  const fixture = { spaceId, executionId: identity.executionId };
   const snapshot = path.join(root, "snapshots/braintrust-trace.json");
   try {
     await mkdir(path.join(root, "snapshots"));
@@ -36,9 +36,9 @@ it("finalizes a lost worker's original trace while rejecting unrelated or malfor
     }, transport)).toMatchObject({ status: "accepted", outcome: "failed", verification: "unverified" });
     expect(transport).toHaveBeenCalledOnce();
     expect(JSON.parse(await readFile(snapshot, "utf8"))).toEqual(saved);
-    expect(await readInterruptedAttemptTrace(root, { projectId: companyId, executionId: identity.executionId })).toBeUndefined();
+    expect(await readInterruptedAttemptTrace(root, { projectId: spaceId, executionId: identity.executionId })).toBeUndefined();
     expect(await readInterruptedAttemptTrace(root, { projectId, executionId: "other" })).toBeUndefined();
-    for (const delta of [{ companyId: projectId }, { spanId: "0".repeat(16) }, { traceId: "invalid" }, { revision: "invalid" }, { nativeConfiguration: "unknown" }]) {
+    for (const delta of [{ spaceId: projectId }, { spanId: "0".repeat(16) }, { traceId: "invalid" }, { revision: "invalid" }, { nativeConfiguration: "unknown" }]) {
       await writeFile(snapshot, JSON.stringify({ ...saved, ...delta }));
       expect(await readInterruptedAttemptTrace(root, { projectId, executionId: identity.executionId })).toBeUndefined();
     }

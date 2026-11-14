@@ -10,9 +10,9 @@ import { RemoteMcpAccountChoice } from "./RemoteMcpAccountChoice";
 import { readConnectionIntentOAuthOutcome, type ConnectionSetupFlowProps } from "../ConnectionSetupFlow";
 import { agentsApi } from "@/api/agents";
 import { toolsApi } from "@/api/tools";
-import { resolveAccountUserId } from "@/api/companies-query";
+import { resolveAccountUserId } from "@/api/spaces-query";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { findAggregatorApp } from "@outpost/shared/aggregator-app-catalog";
 import { useNavigate, useSearchParams } from "@/lib/router";
 import { resolveAuthorizationTarget } from "@/lib/authorizationUrl";
@@ -40,20 +40,20 @@ export function RemoteMcpProductionSetup({ providerId, connection, host = "page"
     ? connection.agentInstructions ?? (template ? { ...defaultConnectionAgentInstructions(template)!, enabled: false } : null)
     : defaultConnectionAgentInstructions(template));
   const instructionsValid = !instructions || Boolean(instructions.text.trim());
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   let targetToolkit = searchParams.get("targetToolkit");
   if (!targetToolkit && connection && host === "page") {
-    try { targetToolkit = sessionStorage.getItem(`paperclip:mcp-upstream-app:${selectedCompanyId}:${connection.id}`); } catch { /* Storage may be disabled. */ }
+    try { targetToolkit = sessionStorage.getItem(`outpost:mcp-upstream-app:${selectedSpaceId}:${connection.id}`); } catch { /* Storage may be disabled. */ }
   }
   const targetApp = findAggregatorApp(providerId, targetToolkit);
   const targetRoute = targetApp?.routes.find((route) => route.provider === providerId);
   upstreamServiceName ??= targetApp?.name;
   const oauthOutcome = connection ? searchParams.get("oauth") : null;
   const queries = useQueryClient();
-  const accessDraftKey = `paperclip:mcp-access-draft:${selectedCompanyId}:${interactionId || providerId}`;
-  const intentDraftKey = `paperclip:mcp-intent-draft:${selectedCompanyId}:${interactionId}`;
+  const accessDraftKey = `outpost:mcp-access-draft:${selectedSpaceId}:${interactionId || providerId}`;
+  const intentDraftKey = `outpost:mcp-intent-draft:${selectedSpaceId}:${interactionId}`;
   const popup = useRef<Window | null>(null);
   useEffect(() => () => {
     popup.current?.close();
@@ -86,7 +86,7 @@ export function RemoteMcpProductionSetup({ providerId, connection, host = "page"
   const installs = useQuery({ queryKey: queryKeys.tools.connectionInstalls(connection?.id ?? "__new__"), queryFn: () => toolsApi.getConnectionInstalls(connection!.id), enabled: !!connection });
   const installsView = useQueryView(installs);
   const agents = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!), queryFn: () => agentsApi.list(selectedCompanyId!), enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!), queryFn: () => agentsApi.list(selectedSpaceId!), enabled: !!selectedSpaceId,
   });
   useEffect(() => {
     const savedInstalls = installs.data?.installs;
@@ -97,7 +97,7 @@ export function RemoteMcpProductionSetup({ providerId, connection, host = "page"
       hydratedAudience.current = key;
     }
     setState((s) => ({ ...s,
-      allAgents: savedAudience ? savedAudience === "all_agents" : savedInstalls.some((i) => i.targetType === "company"),
+      allAgents: savedAudience ? savedAudience === "all_agents" : savedInstalls.some((i) => i.targetType === "space"),
       agentIds: savedAudience ? savedAudience === "all_agents" ? [] : savedAudience.agentIds : savedInstalls.filter((i) => i.targetType === "agent").map((i) => i.targetId),
     }));
   }, [installs.data, requestedAgentId, savedAudience]);
@@ -133,7 +133,7 @@ export function RemoteMcpProductionSetup({ providerId, connection, host = "page"
     };
     window.addEventListener("message", receive);
     return () => { disposed = true; window.removeEventListener("message", receive); };
-  }, [host, interactionId, onComplete, onPhaseChange, navigate, queries, selectedCompanyId]);
+  }, [host, interactionId, onComplete, onPhaseChange, navigate, queries, selectedSpaceId]);
   const edit = (patch: Partial<RemoteMcpSetupState>) => setState((s) => ({ ...s, ...patch }));
   const finish = async (id: string) => {
     try { sessionStorage.removeItem(accessDraftKey); } catch { /* Storage can be disabled. */ }
@@ -148,11 +148,11 @@ export function RemoteMcpProductionSetup({ providerId, connection, host = "page"
     }
     if (onComplete) onComplete({ connectionId: id });
     else if (providerId === "composio") {
-      try { sessionStorage.removeItem(`paperclip:mcp-upstream-app:${selectedCompanyId}:${id}`); } catch { /* Storage may be disabled. */ }
+      try { sessionStorage.removeItem(`outpost:mcp-upstream-app:${selectedSpaceId}:${id}`); } catch { /* Storage may be disabled. */ }
       navigate(`/apps/${id}/permissions`);
     }
     else if (host === "page" && targetApp && targetRoute) {
-      try { sessionStorage.removeItem(`paperclip:mcp-upstream-app:${selectedCompanyId}:${id}`); } catch { /* Storage may be disabled. */ }
+      try { sessionStorage.removeItem(`outpost:mcp-upstream-app:${selectedSpaceId}:${id}`); } catch { /* Storage may be disabled. */ }
       navigate("/apps");
     } else if (isAppAggregator(providerId)) navigate("/apps");
     else navigate(`/apps/${id}/permissions`);
@@ -192,7 +192,7 @@ export function RemoteMcpProductionSetup({ providerId, connection, host = "page"
     return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", check); };
   }, [state.connectStatus, interactionId]);
   const submit = async (saveDraft = false) => {
-    if (busy.current || !selectedCompanyId || !instructionsValid || (connection && !installs.data)) return;
+    if (busy.current || !selectedSpaceId || !instructionsValid || (connection && !installs.data)) return;
     if (!saveDraft && (!connection || connection.status === "draft") && requiredAgentId && !state.allAgents && !state.agentIds.includes(requiredAgentId)) {
       edit({ notice: "Include the requesting agent or choose all agents to continue this task." });
       return;
@@ -226,7 +226,7 @@ export function RemoteMcpProductionSetup({ providerId, connection, host = "page"
         ? aggregatorManagementUrl("executor", state.managementUrl.trim()) : null;
       if (providerId === "executor" && state.managementUrl?.trim() && !managementUrl) throw new Error("Use an HTTPS console URL without credentials.");
       const prior = savedConnection.current;
-      const result = await toolsApi.connectApp(selectedCompanyId, {
+      const result = await toolsApi.connectApp(selectedSpaceId, {
         galleryKey: providerId, connectionMethodKey: REMOTE_MCP_CONNECTOR_METHODS[providerId],
         name: provider.name, link: state.url.trim(), grantKind: state.grantKind,
         authMode: state.auth === "headers" ? "custom_headers" : state.auth,
@@ -239,7 +239,7 @@ export function RemoteMcpProductionSetup({ providerId, connection, host = "page"
       }
       savedConnection.current = result.connection;
       if (host === "page" && targetRoute) {
-        try { sessionStorage.setItem(`paperclip:mcp-upstream-app:${selectedCompanyId}:${result.connectionId}`, targetRoute.toolkit); } catch { /* Storage may be disabled. */ }
+        try { sessionStorage.setItem(`outpost:mcp-upstream-app:${selectedSpaceId}:${result.connectionId}`, targetRoute.toolkit); } catch { /* Storage may be disabled. */ }
       }
       if (interactionId) {
         try { sessionStorage.setItem(intentDraftKey, result.connectionId); } catch { /* Storage may be disabled. */ }
@@ -247,7 +247,7 @@ export function RemoteMcpProductionSetup({ providerId, connection, host = "page"
       // Persist the Access step before leaving for OAuth. Reconnect retains its existing installs.
       if (!interactionId && !requestedAgentId && (!prior || prior.status === "draft")) {
         await toolsApi.putConnectionInstalls(result.connectionId, state.allAgents
-          ? [{ targetType: "company", targetId: selectedCompanyId }]
+          ? [{ targetType: "space", targetId: selectedSpaceId }]
           : state.agentIds.map((targetId) => ({ targetType: "agent", targetId })));
       }
       if (interactionId && (!connection || connection.status === "draft") && (saveDraft || result.auth?.kind === "oauth")) {
@@ -283,7 +283,7 @@ export function RemoteMcpProductionSetup({ providerId, connection, host = "page"
       // The server retains existing permissions when reconnecting. Only a fresh setup enables everything.
       {
         const enabled = new Set(result.catalog.filter((tool) => tool.status === "active").map((tool) => tool.id));
-        await toolsApi.finishApp(selectedCompanyId, result.connectionId, {
+        await toolsApi.finishApp(selectedSpaceId, result.connectionId, {
           enabledCatalogEntryIds: [...enabled],
           // PAP-659 C6a/C7: this path used to send an empty list, so the four
           // gateway connectors were the one place the armed write gate did not
@@ -307,7 +307,7 @@ export function RemoteMcpProductionSetup({ providerId, connection, host = "page"
     openProvider: (purpose) => {
       if (purpose === "sign_in" && authorizationUrl.current) {
         // The real anchor owns navigation, including in embedded browsers.
-        // Do not also redirect the board or open a second scripted window.
+        // Do not also redirect the operator or open a second scripted window.
         popup.current = null;
         edit({ connectStatus: "sign_in", notice: null });
         onPhaseChange?.("authorizing");
@@ -336,5 +336,5 @@ export function RemoteMcpProductionSetup({ providerId, connection, host = "page"
     : <p>Loading saved access…</p>}</div>;
   // Header Cancel abandons unsaved input, including invalid URLs. The separate
   // Save & exit action persists a resumable draft through actions.saveExit.
-  return <RemoteMcpConnectionSetup additionalSettings={template && instructions ? <ConnectionInstructionsEditor provider={provider.name} template={template} value={instructions} onChange={setInstructions} disabled={state.connectStatus === "connecting"} /> : undefined} settingsValid={instructionsValid} companyId={selectedCompanyId!} onCancel={onCancel ?? (() => navigate("/apps"))} upstreamServiceName={upstreamServiceName} host={host} lockedAgentId={requestedAgentId} authorizationUrl={authorizationUrl.current} provider={provider} connectionId={savedConnection.current?.id ?? ""} fixedGrantKind={savedConnection.current ? savedConnection.current.credentialPolicy === "per_user" ? "user" : "organization" : undefined} state={state} actions={actions} agents={agents.data ?? []} />;
+  return <RemoteMcpConnectionSetup additionalSettings={template && instructions ? <ConnectionInstructionsEditor provider={provider.name} template={template} value={instructions} onChange={setInstructions} disabled={state.connectStatus === "connecting"} /> : undefined} settingsValid={instructionsValid} spaceId={selectedSpaceId!} onCancel={onCancel ?? (() => navigate("/apps"))} upstreamServiceName={upstreamServiceName} host={host} lockedAgentId={requestedAgentId} authorizationUrl={authorizationUrl.current} provider={provider} connectionId={savedConnection.current?.id ?? ""} fixedGrantKind={savedConnection.current ? savedConnection.current.credentialPolicy === "per_user" ? "user" : "organization" : undefined} state={state} actions={actions} agents={agents.data ?? []} />;
 }

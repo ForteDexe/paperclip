@@ -62,7 +62,7 @@ async function handle({ id, command, params = {} }) {
   }
   send({ id, ok: true, result });
   if (command === "turn.start") event("runtime.tool_called", {
-    callId: `finish-${turnId}`, operationId: "paperclip_finish", input: {
+    callId: `finish-${turnId}`, operationId: "outpost_finish", input: {
       schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Fixture turn completed.",
       completionClaim: { contractRevision: "warm-pi-contract", objectiveSatisfied: true, criteria: [], remainingWork: [] },
       evidence: [], verification: [], attentionRequests: [], artifacts: [],

@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { StorageService } from "../storage/index.js";
-import { companies, companySkills, companySkillVersions, companySkillRepositorySnapshots, type Db } from "@outpost/db";
-import type { CompanySkillVersionFileInventoryEntry } from "@outpost/shared";
+import { spaces, spaceSkills, spaceSkillVersions, spaceSkillRepositorySnapshots, type Db } from "@outpost/db";
+import type { SpaceSkillVersionFileInventoryEntry } from "@outpost/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { notifySkillVersionRetention } from "./skill-version-retention-notifications.js";
@@ -9,14 +9,14 @@ import { skillPackageStore, skillPackageStorageEnabled, skillVersionFileMap, ski
 import { assertSkillSnapshotPath, MAX_SKILL_SNAPSHOT_BYTES, MAX_SKILL_SNAPSHOT_FILES, skillFileBytes, skillSnapshotHash } from "./skill-snapshot.js";
 
 export type SkillContentTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
-export type SkillContentRow = typeof companySkills.$inferSelect;
+export type SkillContentRow = typeof spaceSkills.$inferSelect;
 const contentMetadataFields = ["name", "description", "iconUrl", "color", "tagline", "authorName", "homepageUrl", "categories", "metadata"] as const;
 export type SkillContentActor = { type: "agent" | "user" | "system"; agentId?: string | null; userId?: string | null };
 export type PreparedSkillContent = {
-  files: CompanySkillVersionFileInventoryEntry[];
+  files: SpaceSkillVersionFileInventoryEntry[];
   packageSnapshotId: string | null;
-  packageFileMap: (typeof companySkillVersions.$inferInsert)["packageFileMap"];
-  implicitFileMap: (typeof companySkillVersions.$inferInsert)["packageFileMap"];
+  packageFileMap: (typeof spaceSkillVersions.$inferInsert)["packageFileMap"];
+  implicitFileMap: (typeof spaceSkillVersions.$inferInsert)["packageFileMap"];
   contentHash: string;
 };
 export type SkillContentPublication = {
@@ -31,13 +31,13 @@ export type SkillContentPublication = {
 export function managedSkillContent(db: Db, packageDb: Db = db, storage?: StorageService) {
   const packages = skillPackageStore(packageDb, storage);
 
-  async function read(companyId: string, skillId: string, versionId: string) {
-    const version = await packages.version(companyId, skillId, versionId);
+  async function read(spaceId: string, skillId: string, versionId: string) {
+    const version = await packages.version(spaceId, skillId, versionId);
     if (!version) throw notFound("Skill version not found");
     return { version, files: await packages.versionFiles(version) };
   }
 
-  async function prepare(companyId: string, files: CompanySkillVersionFileInventoryEntry[], signal?: AbortSignal): Promise<PreparedSkillContent> {
+  async function prepare(spaceId: string, files: SpaceSkillVersionFileInventoryEntry[], signal?: AbortSignal): Promise<PreparedSkillContent> {
     signal?.throwIfAborted();
     const paths = new Set<string>();
     let bytes = 0;
@@ -53,13 +53,13 @@ export function managedSkillContent(db: Db, packageDb: Db = db, storage?: Storag
     if (!files.some(file => file.path === "SKILL.md" && file.encoding !== "base64")) {
       throw unprocessable("A skill must contain a UTF-8 SKILL.md file.");
     }
-    const packageSnapshotId = skillPackageStorageEnabled() ? await packages.prepare(companyId, files, false, signal) : null;
-    if (packageSnapshotId && !await packages.verifyDurable(companyId, packageSnapshotId, signal)) {
+    const packageSnapshotId = skillPackageStorageEnabled() ? await packages.prepare(spaceId, files, false, signal) : null;
+    if (packageSnapshotId && !await packages.verifyDurable(spaceId, packageSnapshotId, signal)) {
       throw unprocessable("Skill package is not durably available.");
     }
     return { files, packageSnapshotId, contentHash: skillSnapshotHash(files),
       packageFileMap: packageSnapshotId ? skillVersionFileMap(files) : null,
-      implicitFileMap: packageSnapshotId ? skillVersionFileMap((await packages.manifest(companyId, packageSnapshotId, signal)).files) : null };
+      implicitFileMap: packageSnapshotId ? skillVersionFileMap((await packages.manifest(spaceId, packageSnapshotId, signal)).files) : null };
   }
 
   function fileMapIdentity(files: PreparedSkillContent["packageFileMap"]) {
@@ -68,50 +68,50 @@ export function managedSkillContent(db: Db, packageDb: Db = db, storage?: Storag
   }
 
   async function append(tx: SkillContentTransaction, skill: SkillContentRow, candidate: PreparedSkillContent,
-    actor: SkillContentActor | null, options: SkillContentPublication, fields: Partial<typeof companySkills.$inferInsert> = {}) {
+    actor: SkillContentActor | null, options: SkillContentPublication, fields: Partial<typeof spaceSkills.$inferInsert> = {}) {
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.skillPackages);
-    await notifySkillVersionRetention(tx, skill.companyId);
+    await notifySkillVersionRetention(tx, skill.spaceId);
     if (candidate.packageSnapshotId) {
-      const [receipt] = await tx.select({ storage: companySkillRepositorySnapshots.storage })
-        .from(companySkillRepositorySnapshots).where(and(eq(companySkillRepositorySnapshots.companyId, skill.companyId),
-          eq(companySkillRepositorySnapshots.id, candidate.packageSnapshotId))).for("update");
+      const [receipt] = await tx.select({ storage: spaceSkillRepositorySnapshots.storage })
+        .from(spaceSkillRepositorySnapshots).where(and(eq(spaceSkillRepositorySnapshots.spaceId, skill.spaceId),
+          eq(spaceSkillRepositorySnapshots.id, candidate.packageSnapshotId))).for("update");
       if (!receipt?.storage) throw conflict("Skill package changed during publication. Retry the operation.");
     }
     if (options.reuseCurrentVersion && skill.currentVersionId && candidate.packageSnapshotId) {
-      const [version] = await tx.select(skillVersionMetadataColumns).from(companySkillVersions).where(and(
-        eq(companySkillVersions.companyId, skill.companyId), eq(companySkillVersions.companySkillId, skill.id),
-        eq(companySkillVersions.id, skill.currentVersionId)));
+      const [version] = await tx.select(skillVersionMetadataColumns).from(spaceSkillVersions).where(and(
+        eq(spaceSkillVersions.spaceId, skill.spaceId), eq(spaceSkillVersions.spaceSkillId, skill.id),
+        eq(spaceSkillVersions.id, skill.currentVersionId)));
       if (version && !version.repositorySnapshotId && version.packageSnapshotId === candidate.packageSnapshotId
         && fileMapIdentity(version.packageFileMap ?? candidate.implicitFileMap) === fileMapIdentity(candidate.packageFileMap)) {
         if (!version.packageFileMap) {
-          await tx.update(companySkillVersions).set({ packageFileMap: candidate.packageFileMap })
-            .where(and(eq(companySkillVersions.companyId, skill.companyId), eq(companySkillVersions.id, version.id)));
+          await tx.update(spaceSkillVersions).set({ packageFileMap: candidate.packageFileMap })
+            .where(and(eq(spaceSkillVersions.spaceId, skill.spaceId), eq(spaceSkillVersions.id, version.id)));
           version.packageFileMap = candidate.packageFileMap ?? null;
         }
-        const [saved] = await tx.update(companySkills).set({ ...fields, updatedAt: new Date() })
-          .where(and(eq(companySkills.companyId, skill.companyId), eq(companySkills.id, skill.id))).returning();
+        const [saved] = await tx.update(spaceSkills).set({ ...fields, updatedAt: new Date() })
+          .where(and(eq(spaceSkills.spaceId, skill.spaceId), eq(spaceSkills.id, skill.id))).returning();
         await options.afterPublish?.(tx, saved!, version);
         return { skill: saved!, version };
       }
     }
-    const [revision] = await tx.select({ next: sql<number>`coalesce(max(${companySkillVersions.revisionNumber}), 0) + 1` })
-      .from(companySkillVersions).where(and(eq(companySkillVersions.companyId, skill.companyId), eq(companySkillVersions.companySkillId, skill.id)));
-    const [version] = await tx.insert(companySkillVersions).values({
-      companyId: skill.companyId, companySkillId: skill.id, revisionNumber: Number(revision!.next),
+    const [revision] = await tx.select({ next: sql<number>`coalesce(max(${spaceSkillVersions.revisionNumber}), 0) + 1` })
+      .from(spaceSkillVersions).where(and(eq(spaceSkillVersions.spaceId, skill.spaceId), eq(spaceSkillVersions.spaceSkillId, skill.id)));
+    const [version] = await tx.insert(spaceSkillVersions).values({
+      spaceId: skill.spaceId, spaceSkillId: skill.id, revisionNumber: Number(revision!.next),
       label: options.label ?? null, packageSnapshotId: candidate.packageSnapshotId, packageFileMap: candidate.packageFileMap,
       fileInventory: candidate.packageSnapshotId ? [] : candidate.files,
       migrationAt: candidate.packageSnapshotId ? null : new Date(),
       authorAgentId: actor?.type === "agent" ? actor.agentId : null,
       authorUserId: actor?.type === "user" ? actor.userId : null,
     }).returning();
-    const [saved] = await tx.update(companySkills).set({ ...fields, currentVersionId: version!.id, updatedAt: new Date() })
-      .where(and(eq(companySkills.companyId, skill.companyId), eq(companySkills.id, skill.id))).returning();
+    const [saved] = await tx.update(spaceSkills).set({ ...fields, currentVersionId: version!.id, updatedAt: new Date() })
+      .where(and(eq(spaceSkills.spaceId, skill.spaceId), eq(spaceSkills.id, skill.id))).returning();
     await options.afterPublish?.(tx, saved!, version!);
     return { skill: saved!, version: version! };
   }
 
-  async function publish(base: Pick<SkillContentRow, "id" | "companyId" | "slug" | "key" | "sourceType" | "currentVersionId" | typeof contentMetadataFields[number]> & { accessSourceId?: string | null }, candidate: PreparedSkillContent,
-    fields: Partial<typeof companySkills.$inferInsert>, actor: SkillContentActor | null = null,
+  async function publish(base: Pick<SkillContentRow, "id" | "spaceId" | "slug" | "key" | "sourceType" | "currentVersionId" | typeof contentMetadataFields[number]> & { accessSourceId?: string | null }, candidate: PreparedSkillContent,
+    fields: Partial<typeof spaceSkills.$inferInsert>, actor: SkillContentActor | null = null,
     options: SkillContentPublication = {}) {
     if (options.expectedVersionId !== undefined && options.expectedVersionId !== base.currentVersionId) {
       throw conflict("Skill version changed. Read the current version before retrying.");
@@ -119,9 +119,9 @@ export function managedSkillContent(db: Db, packageDb: Db = db, storage?: Storag
     return db.transaction(async tx => {
       await options.beforeLock?.(tx);
       for (const slug of [...new Set([base.slug, fields.slug ?? base.slug])].sort()) {
-        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${base.companyId}:${slug}`}, 0))`);
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${base.spaceId}:${slug}`}, 0))`);
       }
-      const [current] = await tx.select().from(companySkills).where(and(eq(companySkills.companyId, base.companyId), eq(companySkills.id, base.id))).for("update");
+      const [current] = await tx.select().from(spaceSkills).where(and(eq(spaceSkills.spaceId, base.spaceId), eq(spaceSkills.id, base.id))).for("update");
       if (!current) throw notFound("Skill not found");
       if (current.currentVersionId !== base.currentVersionId || current.key !== base.key || current.sourceType !== base.sourceType
         || current.accessSourceId !== (base.accessSourceId ?? null)) {
@@ -136,19 +136,19 @@ export function managedSkillContent(db: Db, packageDb: Db = db, storage?: Storag
     });
   }
 
-  async function create(values: typeof companySkills.$inferInsert, candidate: PreparedSkillContent,
+  async function create(values: typeof spaceSkills.$inferInsert, candidate: PreparedSkillContent,
     actor: SkillContentActor | null = null, options: SkillContentPublication = {}) {
     return db.transaction(async tx => {
-      const [company] = await tx.select({ id: companies.id }).from(companies)
-        .where(eq(companies.id, values.companyId)).for("share");
-      if (!company) throw notFound("Outpost not found");
+      const [space] = await tx.select({ id: spaces.id }).from(spaces)
+        .where(eq(spaces.id, values.spaceId)).for("share");
+      if (!space) throw notFound("Outpost not found");
       await options.beforeLock?.(tx);
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${values.companyId}:${values.slug}`}, 0))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${values.spaceId}:${values.slug}`}, 0))`);
       await options.validate?.(tx);
-      const [existing] = await tx.select({ id: companySkills.id }).from(companySkills)
-        .where(and(eq(companySkills.companyId, values.companyId), eq(companySkills.key, values.key)));
-      if (existing) throw conflict(`A company skill with slug "${values.slug}" already exists.`);
-      const [skill] = await tx.insert(companySkills).values(values).returning();
+      const [existing] = await tx.select({ id: spaceSkills.id }).from(spaceSkills)
+        .where(and(eq(spaceSkills.spaceId, values.spaceId), eq(spaceSkills.key, values.key)));
+      if (existing) throw conflict(`A space skill with slug "${values.slug}" already exists.`);
+      const [skill] = await tx.insert(spaceSkills).values(values).returning();
       return append(tx, skill!, candidate, actor, options);
     });
   }

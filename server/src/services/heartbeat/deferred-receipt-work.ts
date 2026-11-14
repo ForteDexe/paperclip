@@ -7,7 +7,7 @@ import type { DeferredExecutionScope, DeferredReceiptRecoveryOptions } from "../
 import { registerScopedDeadlineWork } from "../scoped-deadline-work.js";
 import { dependencyResolvedWakePayloadSql } from "../issue-dependency-wakeups.js";
 
-type Entry = { id: string; companyId: string; dueAt: number; immediate: boolean; operatorRetry?: boolean };
+type Entry = { id: string; spaceId: string; dueAt: number; immediate: boolean; operatorRetry?: boolean };
 type NativeIntentOptions = DeferredExecutionScope & {
   onDeferredDeadline(at: number): void;
   onError(error: unknown): void;
@@ -45,8 +45,8 @@ export function registerDeferredReceiptWork(
         if (kind === "native") dispatchNative = owner.createNativeBatch();
       },
       decodeScope: hint => hint === "*" ? undefined : JSON.parse(hint),
-      matches: (entry, scope) => !scope || entry.companyId === scope.companyId && (!scope.requestId || entry.id === scope.requestId),
-      // A busy company can invalidate a paginated scan before the pending
+      matches: (entry, scope) => !scope || entry.spaceId === scope.spaceId && (!scope.requestId || entry.id === scope.requestId),
+      // A busy space can invalidate a paginated scan before the pending
       // batch drains. Keep unread ready receipts ahead of freshly reloaded
       // receipts already checked; actual wait/claim deadlines still replace.
       mergeEntry: (pending, loaded) => pending.immediate && loaded.immediate
@@ -54,24 +54,24 @@ export function registerDeferredReceiptWork(
       priority: entry => entry.operatorRetry ? 1 : 0,
       onStop: releaseRefresh,
       load: async scope => {
-        const key = scope ? JSON.stringify({ companyId: scope.companyId, requestId: scope.requestId }) : "*";
+        const key = scope ? JSON.stringify({ spaceId: scope.spaceId, requestId: scope.requestId }) : "*";
         if (!enabled) { cursors.delete(key); return []; }
         const cursor = cursors.get(key);
         const operatorRetry = sql`coalesce(${agentWakeupRequests.reason}, '') = 'task_retry'
           and coalesce(${agentWakeupRequests.requestedByActorType}, '') = 'user'`;
-        const columns = { id: agentWakeupRequests.id, companyId: agentWakeupRequests.companyId,
+        const columns = { id: agentWakeupRequests.id, spaceId: agentWakeupRequests.spaceId,
           status: agentWakeupRequests.status, updatedAt: agentWakeupRequests.updatedAt,
           claimedAt: agentWakeupRequests.claimedAt, error: agentWakeupRequests.error,
           operatorRetry: sql<boolean>`${operatorRetry}`,
           delayed: sql<boolean>`${agentWakeupRequests.payload}->'queuedCommentInterrupt' is not null
             or ${agentWakeupRequests.payload}->'executionWait' is not null`,
           interruptedLegacy: sql<boolean>`exists (select 1 from heartbeat_runs r
-            where r.company_id = ${agentWakeupRequests.companyId} and r.agent_id = ${agentWakeupRequests.agentId}
+            where r.space_id = ${agentWakeupRequests.spaceId} and r.agent_id = ${agentWakeupRequests.agentId}
               and r.runtime_mode = 'legacy' and r.status = 'cancelled'
               and r.result_json->>'queuedCommentInterruptQueueId' = ${agentWakeupRequests.id}::text)`,
         };
         const eligible = and(
-          scope ? eq(agentWakeupRequests.companyId, scope.companyId) : undefined,
+          scope ? eq(agentWakeupRequests.spaceId, scope.spaceId) : undefined,
           scope?.requestId ? eq(agentWakeupRequests.id, scope.requestId) : undefined,
           kind === "native" ? and(
             eq(agentWakeupRequests.requestedByActorType, "system"),
@@ -83,11 +83,11 @@ export function registerDeferredReceiptWork(
               eq(agentWakeupRequests.reason, "task_retry"),
               sql`${agentWakeupRequests.payload}->'queuedCommentInterrupt' is not null`,
               sql`${agentWakeupRequests.payload}->'executionWait' is not null`,
-              sql`jsonb_typeof(${agentWakeupRequests.payload}#>'{_paperclipWakeContext,wakeCommentIds}') = 'array'
-                and ${agentWakeupRequests.payload}#>'{_paperclipWakeContext,wakeCommentIds}' <> '[]'::jsonb`,
+              sql`jsonb_typeof(${agentWakeupRequests.payload}#>'{_outpostWakeContext,wakeCommentIds}') = 'array'
+                and ${agentWakeupRequests.payload}#>'{_outpostWakeContext,wakeCommentIds}' <> '[]'::jsonb`,
               sql`${agentWakeupRequests.payload}->>'mutation' = 'interaction'`,
               dependencyResolvedWakePayloadSql,
-              sql`exists (select 1 from heartbeat_runs r where r.company_id = ${agentWakeupRequests.companyId}
+              sql`exists (select 1 from heartbeat_runs r where r.space_id = ${agentWakeupRequests.spaceId}
                 and r.runtime_mode = 'legacy' and r.status = 'cancelled'
                 and r.result_json->>'queuedCommentInterruptQueueId' = ${agentWakeupRequests.id}::text)`,
             )),
@@ -108,7 +108,7 @@ export function registerDeferredReceiptWork(
             : kind === "deferred" && row.delayed && !row.interruptedLegacy ? row.updatedAt.getTime() + 30_000
             : null;
           const immediate = deadline === null || deadline <= now;
-          return { id: row.id, companyId: row.companyId, dueAt: immediate ? now : deadline, immediate,
+          return { id: row.id, spaceId: row.spaceId, dueAt: immediate ? now : deadline, immediate,
             operatorRetry: kind === "deferred" && row.operatorRetry };
         }), complete };
       },
@@ -118,10 +118,10 @@ export function registerDeferredReceiptWork(
           const [current] = await db.select({ status: agentWakeupRequests.status, payload: agentWakeupRequests.payload,
             updatedAt: agentWakeupRequests.updatedAt, claimedAt: agentWakeupRequests.claimedAt, error: agentWakeupRequests.error,
             interruptedLegacy: sql<boolean>`exists (select 1 from heartbeat_runs r
-              where r.company_id = ${agentWakeupRequests.companyId} and r.agent_id = ${agentWakeupRequests.agentId}
+              where r.space_id = ${agentWakeupRequests.spaceId} and r.agent_id = ${agentWakeupRequests.agentId}
                 and r.runtime_mode = 'legacy' and r.status = 'cancelled'
                 and r.result_json->>'queuedCommentInterruptQueueId' = ${agentWakeupRequests.id}::text)`,
-          }).from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, entry.companyId),
+          }).from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, entry.spaceId),
             eq(agentWakeupRequests.id, entry.id)));
           if (!current) return null;
           const due = kind === "native" && current.status === "claimed" && current.claimedAt
@@ -134,7 +134,7 @@ export function registerDeferredReceiptWork(
         }
         const errors: unknown[] = [];
         let next: number | null = null;
-        const scope = { companyId: entry.companyId, requestId: entry.id };
+        const scope = { spaceId: entry.spaceId, requestId: entry.id };
         if (kind === "native") await dispatchNative({ ...scope,
           onDeferredDeadline: at => { next = next === null ? at : Math.min(next, at); },
           onError: error => { errors.push(error); },

@@ -318,7 +318,7 @@ mod tests {
     impl Fixture {
         fn new(name: &str) -> Self {
             let root = std::env::temp_dir().join(format!(
-                "paperclip-trusted-launch-root-{name}-{}-{}",
+                "outpost-trusted-launch-root-{name}-{}-{}",
                 std::process::id(),
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -362,7 +362,7 @@ mod tests {
         file.metadata().unwrap().nlink() == 0
             && link
                 .to_string_lossy()
-                .starts_with("/memfd:paperclip-verified-launch")
+                .starts_with("/memfd:outpost-verified-launch")
     }
 
     fn same_inode(artifact: &VerifiedProcessArtifact, path: &Path) -> bool {

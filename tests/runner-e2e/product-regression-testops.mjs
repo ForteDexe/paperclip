@@ -188,7 +188,7 @@ export function projectProductResults(campaign, selection, sourceSha) {
         historyId: sha(JSON.stringify([selected.fullName, selected.profile, provenance.model, selected.environment])),
         status, stage: 'finished', statusDetails: { message: provenance.note },
         labels: [{ name: 'AS_ID', value: String(selected.id) }, { name: 'parentSuite', value: 'Product E2E' },
-          { name: 'suite', value: selected.suite }, { name: 'framework', value: 'Paperclip Evals' },
+          { name: 'suite', value: selected.suite }, { name: 'framework', value: 'Outpost Evals' },
           ...(selected.signature ? [{ name: 'tag', value: `soak-${selected.signature}` }] : [])],
         parameters: [{ name: 'profile', value: selected.profile }, { name: 'environment', value: `${selected.environment} / GitHub Actions` },
           { name: 'declaredModel', value: selected.model }, { name: 'configuredModel', value: provenance.model ?? 'Not recorded' },

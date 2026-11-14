@@ -8,20 +8,20 @@ import { registerScopedDeadlineWork } from "../scoped-deadline-work.js";
 import type { ScheduledRetryCancellationScope } from "../scheduled-retry-cancellation-notifications.js";
 import type { CancelRunOptions } from "./run-control.js";
 
-type Deadline = { id: string; companyId: string; dueAt: number };
+type Deadline = { id: string; spaceId: string; dueAt: number };
 
 export function createScheduledRetryCancellationRecovery(db: Db, cancelRun: (
   runId: string, reason: string, options: Pick<CancelRunOptions, "expectedStatus" | "errorCode" | "resultJson">,
 ) => Promise<unknown>) {
   function candidates(scope?: ScheduledRetryCancellationScope, cursor?: string, full = false) {
-    return db.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId,
+    return db.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId,
       result: full ? sql<Record<string, unknown>>`${heartbeatRuns.resultJson}`
         : sql<Record<string, unknown>>`jsonb_build_object('cancellation', ${heartbeatRuns.resultJson}->'cancellation')`,
       errorCode: sql<unknown>`${heartbeatRuns.resultJson}->'startupCancellation'->'errorCode'`,
     }).from(heartbeatRuns).where(and(
       eq(heartbeatRuns.status, "scheduled_retry"),
       sql`jsonb_typeof(${heartbeatRuns.resultJson}->'startupCancellation') = 'object'`,
-      scope ? eq(heartbeatRuns.companyId, scope.companyId) : undefined,
+      scope ? eq(heartbeatRuns.spaceId, scope.spaceId) : undefined,
       scope?.runId ? eq(heartbeatRuns.id, scope.runId) : undefined,
       cursor ? gt(heartbeatRuns.id, cursor) : undefined,
     )).orderBy(asc(heartbeatRuns.id)).limit(100);
@@ -31,18 +31,18 @@ export function createScheduledRetryCancellationRecovery(db: Db, cancelRun: (
     const rows = await candidates(scope, cursor);
     if (!admitted()) throw new Error("Scheduled retry cancellation reconstruction stopped");
     const entries: Deadline[] = rows.filter(row => readRunCancellation(row.result)?.expected)
-      .map(row => ({ id: row.id, companyId: row.companyId, dueAt: 0 }));
+      .map(row => ({ id: row.id, spaceId: row.spaceId, dueAt: 0 }));
     return { rows: entries, complete: rows.length < 100, cursor: rows.at(-1)?.id };
   }
   async function check(entry: Deadline, admitted: () => boolean) {
-    const [run] = await candidates({ companyId: entry.companyId, runId: entry.id }, undefined, true);
+    const [run] = await candidates({ spaceId: entry.spaceId, runId: entry.id }, undefined, true);
     const cancellation = readRunCancellation(run?.result);
     if (!run || !cancellation?.expected) return null;
     if (!admitted()) throw new Error("Scheduled retry cancellation stopped");
     await cancelRun(run.id, cancellation.reason, { expectedStatus: "scheduled_retry",
       errorCode: typeof run.errorCode === "string" && run.errorCode.trim() ? run.errorCode.trim() : "cancelled",
       resultJson: run.result });
-    const [remaining] = await candidates({ companyId: entry.companyId, runId: entry.id });
+    const [remaining] = await candidates({ spaceId: entry.spaceId, runId: entry.id });
     if (remaining && readRunCancellation(remaining.result)?.expected)
       throw new Error("Scheduled retry cancellation remains pending");
     return null;
@@ -70,9 +70,9 @@ export function createScheduledRetryCancellationRecovery(db: Db, cancelRun: (
       batchSize: 20,
       decodeScope: (hint: string): ScheduledRetryCancellationScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
       matches: (entry: Deadline, scope?: ScheduledRetryCancellationScope) => !scope ||
-        entry.companyId === scope.companyId && (!scope.runId || entry.id === scope.runId),
+        entry.spaceId === scope.spaceId && (!scope.runId || entry.id === scope.runId),
       load: async (scope, signal) => {
-        const key = scope ? `${scope.companyId}:${scope.runId ?? "*"}` : "*";
+        const key = scope ? `${scope.spaceId}:${scope.runId ?? "*"}` : "*";
         if (!await canRecover()) { cursors.delete(key); return []; }
         const page = await load(scope, () => canRun() && !signal?.aborted, cursors.get(key));
         if (page.complete) cursors.delete(key); else cursors.set(key, page.cursor!);

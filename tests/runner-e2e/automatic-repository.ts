@@ -58,16 +58,16 @@ export interface AutomaticRepositoryObservation {
 }
 
 export function automaticRepositoryApiState(phase: string, issue: Record<string, unknown>, runs: readonly {
-  id?: string; companyId?: string; agentId?: string; issueId?: string | null; nativeIssueId?: string | null;
+  id?: string; spaceId?: string; agentId?: string; issueId?: string | null; nativeIssueId?: string | null;
   status?: string; runtimeMode?: string; nativePhase?: string | null; startedAt?: string | null; finishedAt?: string | null;
   errorCode?: string | null; wakeupRequestId?: string | null;
   contextSnapshot?: { source?: unknown; nativeStatusWakeIntentId?: unknown } | null;
   resultJson?: { finalizationPhase?: unknown } | null;
 }[], checks: ReturnType<typeof gradeAutomaticRepository>) {
   return { capturePhase: phase,
-    issue: { id: issue.id, companyId: issue.companyId, identifier: issue.identifier, status: issue.status,
+    issue: { id: issue.id, spaceId: issue.spaceId, identifier: issue.identifier, status: issue.status,
       assigneeAgentId: issue.assigneeAgentId, executionWorkspaceId: issue.executionWorkspaceId, statusVersion: issue.statusVersion },
-    runs: runs.map(run => ({ id: run.id, companyId: run.companyId, agentId: run.agentId, issueId: run.issueId,
+    runs: runs.map(run => ({ id: run.id, spaceId: run.spaceId, agentId: run.agentId, issueId: run.issueId,
       nativeIssueId: run.nativeIssueId, status: run.status, runtimeMode: run.runtimeMode, nativePhase: run.nativePhase,
       startedAt: run.startedAt, finishedAt: run.finishedAt, errorCode: run.errorCode, wakeupRequestId: run.wakeupRequestId,
       source: typeof run.contextSnapshot?.source === "string" ? run.contextSnapshot.source : null,
@@ -117,7 +117,7 @@ export function gradeAutomaticRepository(value: AutomaticRepositoryObservation) 
 
 export function automaticRepositoryDigest() {
   const hash = createHash("sha256");
-  for (const file of ["automatic-repository.ts", "automatic-repository-flow.ts", "registered-artifact.ts", "stock-harness.ts", "runner.spec.ts", "../../skills/paperclip/SKILL.md"])
+  for (const file of ["automatic-repository.ts", "automatic-repository-flow.ts", "registered-artifact.ts", "stock-harness.ts", "runner.spec.ts", "../../skills/outpost/SKILL.md"])
     hash.update(file).update(readFileSync(new URL(file, import.meta.url)));
   return hash.digest("hex");
 }

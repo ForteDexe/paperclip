@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { CompanySecret, UserSecretDefinition } from "@outpost/shared";
+import type { SpaceSecret, UserSecretDefinition } from "@outpost/shared";
 import {
   Dialog,
   DialogContent,
@@ -23,19 +23,19 @@ import { describeError } from "@/api/errors";
  * from a task or run failure. The removed Settings surface no longer imports it.
  */
 export function SetMyUserSecretDialog({
-  companyId,
+  spaceId,
   definition,
   existingSecret,
   open,
   onOpenChange,
   onSaved,
 }: {
-  companyId: string;
+  spaceId: string;
   definition: UserSecretDefinition | null;
-  existingSecret?: CompanySecret | null;
+  existingSecret?: SpaceSecret | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSaved?: (secret: CompanySecret) => void;
+  onSaved?: (secret: SpaceSecret) => void;
 }) {
   const queryClient = useQueryClient();
   const { pushToast } = useToastActions();
@@ -61,17 +61,17 @@ export function SetMyUserSecretDialog({
         : { value: value.trim() };
       if (existingSecret) {
         // A stored value already exists → rotate it in place.
-        return secretsApi.rotateMyUserSecret(companyId, existingSecret.id, payload);
+        return secretsApi.rotateMyUserSecret(spaceId, existingSecret.id, payload);
       }
-      return secretsApi.createMyUserSecret(companyId, {
+      return secretsApi.createMyUserSecret(spaceId, {
         definitionId: definition.id,
         definitionKey: definition.key,
         ...payload,
       });
     },
     onSuccess: (secret) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.secrets.myUserSecrets(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.secrets.userDefinitions(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.secrets.myUserSecrets(spaceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.secrets.userDefinitions(spaceId) });
       pushToast({
         title: existingSecret ? "Value updated" : "Value saved",
         body: definition?.name,

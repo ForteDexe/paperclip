@@ -17,7 +17,7 @@ describe("incoming call task selection", () => {
     mocks.incoming.mockResolvedValue([{id: "call", state: "awaiting_approval", approvalCode: "123456"}]);
   });
   afterEach(async () => {await act(async () => root.unmount()); client.clear(); container.remove(); vi.useRealTimers();});
-  async function render() {await act(async () => root.render(<MemoryRouter><QueryClientProvider client={client}><SpekoIncomingCalls companyId="company" endpointId="endpoint" agentId="agent" /></QueryClientProvider></MemoryRouter>));}
+  async function render() {await act(async () => root.render(<MemoryRouter><QueryClientProvider client={client}><SpekoIncomingCalls spaceId="space" endpointId="endpoint" agentId="agent" /></QueryClientProvider></MemoryRouter>));}
   it("shows task request failures and lets callers retry the existing task inventory", async () => {
     mocks.list.mockRejectedValueOnce(new Error("Offline")).mockResolvedValue(tasks); await render();
     await vi.waitFor(() => expect(container.textContent).toContain("Task list could not be loaded"));
@@ -32,7 +32,7 @@ describe("incoming call task selection", () => {
     mocks.list.mockResolvedValue(tasks); await render();
     await vi.waitFor(() => expect(container.querySelector('option[value="task"]')).not.toBeNull());
     mocks.list.mockRejectedValue(new Error("Offline"));
-    await act(async () => {await client.refetchQueries({queryKey: ["speko-approval-tasks", "company", "agent"]});});
+    await act(async () => {await client.refetchQueries({queryKey: ["speko-approval-tasks", "space", "agent"]});});
     await vi.waitFor(() => expect(container.textContent).toContain("Task list could not be loaded"));
     expect(container.querySelector('option[value="task"]')).not.toBeNull();
   });

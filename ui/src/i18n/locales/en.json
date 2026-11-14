@@ -1,9 +1,9 @@
 {
   "app": {
-    "noCompanies": {
+    "noSpaces": {
       "title": "Create your first outpost",
       "description": "Get started by creating an outpost.",
-      "newCompany": "New Outpost"
+      "newSpace": "New Outpost"
     }
   }
 }

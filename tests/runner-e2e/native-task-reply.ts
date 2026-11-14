@@ -5,7 +5,7 @@ import { taskReplyContentMatches, type ReplyContentPart } from "./task-reply-con
 type Row = Record<string, any>;
 export interface TaskReplyObservation {
   body: string; anchor: string | null; settled: boolean; nativeFinal: boolean; visible: boolean;
-  content?: ReplyContentPart[]; origin?: string; pageUrl?: string; knownCompanyPrefixes?: string[];
+  content?: ReplyContentPart[]; origin?: string; pageUrl?: string; knownSpacePrefixes?: string[];
 }
 export type BoundTaskFinalReply = Awaited<ReturnType<typeof readBoundTaskFinalReply>>;
 
@@ -15,7 +15,7 @@ export function nativeFinalReplyEvents(events: Row[], run: Row) {
   return events.flatMap(event => {
     const envelope = event.payload?.orpEvent, payload = envelope?.payload, item = payload?.item;
     if (!envelope || !Number.isSafeInteger(event.seq) || event.seq < 1 || !isValidNativePrpEnvelope(envelope, event.protocolSchemaVersion)
-      || event.runId !== run.id || event.companyId !== run.companyId || event.agentId !== run.agentId
+      || event.runId !== run.id || event.spaceId !== run.spaceId || event.agentId !== run.agentId
       || envelope.runId !== run.id || envelope.sourceKind !== "runner" || event.eventType !== "item.completed" || envelope.eventType !== event.eventType
       || typeof envelope.sourceEventId !== "string" || !envelope.sourceEventId || event.sourceEventId !== envelope.sourceEventId
       || typeof envelope.sourceInstanceId !== "string" || !envelope.sourceInstanceId || event.sourceInstanceId !== envelope.sourceInstanceId
@@ -89,14 +89,14 @@ export function observeTaskReplyElements(elements: Array<HTMLElement | SVGElemen
 /** Observe the real task thread after a fresh load, rather than a finish summary
  * or a provider's claimed result. The caller separately validates task/run scope. */
 export async function readBoundTaskFinalReply(input: {
-  page: Page; runId: string; agentId: string; expectedText?: string; deadlineAt: number; knownCompanyPrefixes: string[];
+  page: Page; runId: string; agentId: string; expectedText?: string; deadlineAt: number; knownSpacePrefixes: string[];
   load(): Promise<{ run: Row; comments: Row[]; events: Row[] }>;
 }) {
   await input.page.reload();
   const replies = input.page.getByTestId("task-chat-thread").getByTestId("task-chat-agent-bubble");
   const observe = () => replies.evaluateAll(observeTaskReplyElements);
   const read = async () => {
-    const state = await input.load(), all = (await observe()).map(row => ({ ...row, knownCompanyPrefixes: input.knownCompanyPrefixes }));
+    const state = await input.load(), all = (await observe()).map(row => ({ ...row, knownSpacePrefixes: input.knownSpacePrefixes }));
     const match = state.run.id === input.runId ? uniqueBoundTaskReply(all, state.run, input.agentId, state.comments, input.expectedText, state.events) : null;
     return { ...state, match };
   };

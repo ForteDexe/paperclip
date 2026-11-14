@@ -1,7 +1,7 @@
 import { observeCodexUsage, codexRunUsage } from "./codex-usage-baseline.js";
 import { codexRateLimitSnapshot, rateLimitNoticeEvent, rateLimitSnapshotChanged } from "../provider-rate-limits.js";
 import { classifyCodexNotification } from "./codex-notification-identity.js";
-import { paperclipWorkspaceFileReferencesFromText } from "../../live/workspace-file-reference.js";
+import { outpostWorkspaceFileReferencesFromText } from "../../live/workspace-file-reference.js";
 import { canonicalProviderEventsFromCodex, isCanonicalProviderEventType } from "../../provider-events.js";
 import { harnessRuntimeRequestOutcome } from "../../contracts/harness-driver.js";
 import { isNativeRestartInterruption, NativeSessionProtocolIntegrityError } from "../../contracts/native-session-backend.js";
@@ -56,7 +56,7 @@ const DELTA_KINDS: Record<string, string> = {
 // turn/completed is excluded: its replay still passes the fingerprint check.
 /** Methods that keep their own handling for a turn the history rule covers. */
 const HISTORY_RULE_EXEMPT_METHODS: ReadonlySet<string> = new Set([
-  "turn/completed", "turn/started", "thread/tokenUsage/updated", "paperclip/canonicalProviderEvent",
+  "turn/completed", "turn/started", "thread/tokenUsage/updated", "outpost/canonicalProviderEvent",
 ]);
 
 const REPLAYABLE_TURN_METHODS = new Set([
@@ -114,7 +114,7 @@ async function mapNotification(state: CodexSessionState, notification: CodexRpcN
       rejected = true;
       throw error;
     } finally {
-      const correlation = notification.paperclipTrace;
+      const correlation = notification.outpostTrace;
       if (correlation !== undefined) {
         const emittedEventIds: string[] = [];
         for (
@@ -152,7 +152,7 @@ async function mapNotification(state: CodexSessionState, notification: CodexRpcN
   }
 
 async function mapNotificationBody(state: CodexSessionState, notification: CodexRpcNotification): Promise<void> {
-    if (notification.method === "paperclip/runtimeActivityRecorded") {
+    if (notification.method === "outpost/runtimeActivityRecorded") {
       const params = notification.params;
       if ((params as Record<PropertyKey, unknown>)[RUNNERD_RUNTIME_ACTIVITY] !== true) return;
       const pending = state.pendingRunAttachment;
@@ -207,7 +207,7 @@ async function mapNotificationBody(state: CodexSessionState, notification: Codex
     // still fails, and canonical provider diagnostics keep flowing.
     // A lost turn that reports a result was not lost: never drop that outcome as history.
     if (identity.classification === "root" && identity.turnId !== null
-      && notification.method === "paperclip/runResult"
+      && notification.method === "outpost/runResult"
       && state.unconfirmedLostTurns.has(identity.turnId) && identity.turnId !== state.activeTurnId) {
       state.failProtocol("turn_binding_mismatch",
         "Provider reported a result for a turn the restore did not find live.");
@@ -250,7 +250,7 @@ async function mapNotificationBody(state: CodexSessionState, notification: Codex
       && REPLAYABLE_TURN_METHODS.has(notification.method)
       && ignoreRestoredTerminalReplay(state, notification.method, turnId)
     ) return;
-    if (notification.method === "paperclip/runtimeRequestExpired") {
+    if (notification.method === "outpost/runtimeRequestExpired") {
       const payload = record(params.payload);
       const requestId = text(payload.requestId);
       const pending = state.pendingRuntimeRequestMap.get(requestId);
@@ -271,7 +271,7 @@ async function mapNotificationBody(state: CodexSessionState, notification: Codex
       pending.settle(safeRequestResponse(pending.request.method, "cancel"));
       return;
     }
-    if (notification.method === "paperclip/canonicalProviderEvent") {
+    if (notification.method === "outpost/canonicalProviderEvent") {
       if (!isCanonicalProviderEventType(params.eventType)) {
         state.failProtocol("provider_event_type_invalid", "Unknown canonical provider event type.");
         return;
@@ -292,7 +292,7 @@ async function mapNotificationBody(state: CodexSessionState, notification: Codex
       state.emit(params.eventType, canonicalPayload, { turnId: turnId || undefined, itemId: itemId || undefined });
       return;
     }
-    if (notification.method === "paperclip/workspaceChange/updated") {
+    if (notification.method === "outpost/workspaceChange/updated") {
       if (!state.notificationNamesActiveTurn(turnId, "workspace change")) return;
       if (threadId.length > 0 && threadId !== state.opened.threadId) return;
       recordCanonicalWorkspaceChange(state,
@@ -478,7 +478,7 @@ async function mapNotificationBody(state: CodexSessionState, notification: Codex
       // not become a second acknowledgement beside the correlation-bound item.
       return;
     }
-    if (notification.method === "paperclip/runResult") {
+    if (notification.method === "outpost/runResult") {
       // Like a terminal, a semantic result can reach the notification channel
       // before turn/start's response binds its turn (for example, a restart
       // continuation). Bind it only after that start settles.
@@ -646,7 +646,7 @@ async function mapNotificationBody(state: CodexSessionState, notification: Codex
         { turnId, itemId },
       );
       if (text(item.type) === "agentMessage") {
-        for (const reference of paperclipWorkspaceFileReferencesFromText(
+        for (const reference of outpostWorkspaceFileReferencesFromText(
           state.opened.context.workingDirectory,
           text(item.text),
           turnId,

@@ -43,7 +43,7 @@ card previews follow the same rule; remote images appear as explicit links.
 CSV previews load only after the operator clicks **Preview data**. Opening a task
 does not fetch its CSV contents. Previews only fetch local attachment content endpoints. Malformed, oversized,
 or unavailable files retain the download action and explain the preview failure.
-The existing company-scoped APIs continue to authorize all content access.
+The existing space-scoped APIs continue to authorize all content access.
 Markdown attachments retain the existing server materialization and annotation
 workflow. Their body preview appears after that document has been created.
 

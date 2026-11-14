@@ -1,9 +1,9 @@
-import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
+import type { OutpostPluginManifestV1 } from "@outpost/plugin-sdk";
 
 const PLUGIN_ID = "outpost.modal-sandbox-provider";
 const PLUGIN_VERSION = "0.1.1";
 
-const manifest: PaperclipPluginManifestV1 = {
+const manifest: OutpostPluginManifestV1 = {
   id: PLUGIN_ID,
   apiVersion: 1,
   version: PLUGIN_VERSION,
@@ -31,7 +31,7 @@ const manifest: PaperclipPluginManifestV1 = {
             type: "string",
             description:
               "Modal App name used as the parent for sandboxes. The plugin calls `modal.apps.fromName(appName, { createIfMissing: true })`, so the App is created on first acquire if it does not already exist.",
-            default: "paperclip",
+            default: "outpost",
           },
           image: {
             type: "string",
@@ -43,7 +43,7 @@ const manifest: PaperclipPluginManifestV1 = {
             type: "string",
             format: "secret-ref",
             description:
-              "Modal token ID. Paste a token or an existing Outpost secret reference; saved environments store pasted values as company secrets. Required.",
+              "Modal token ID. Paste a token or an existing Outpost secret reference; saved environments store pasted values as space secrets. Required.",
           },
           tokenSecret: {
             type: "string",
@@ -58,7 +58,7 @@ const manifest: PaperclipPluginManifestV1 = {
           workdir: {
             type: "string",
             description: "Remote working directory inside the sandbox.",
-            default: "/workspace/paperclip",
+            default: "/workspace/outpost",
           },
           sandboxTimeoutMs: {
             type: "number",

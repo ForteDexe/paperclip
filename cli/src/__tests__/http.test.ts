@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiConnectionError, ApiRequestError, PaperclipApiClient } from "../client/http.js";
+import { ApiConnectionError, ApiRequestError, OutpostApiClient } from "../client/http.js";
 
-describe("PaperclipApiClient", () => {
+describe("OutpostApiClient", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -13,7 +13,7 @@ describe("PaperclipApiClient", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const client = new PaperclipApiClient({
+    const client = new OutpostApiClient({
       apiBase: "http://localhost:3100",
       apiKey: "token-123",
       runId: "run-abc",
@@ -27,7 +27,7 @@ describe("PaperclipApiClient", () => {
 
     const headers = call[1].headers as Record<string, string>;
     expect(headers.authorization).toBe("Bearer token-123");
-    expect(headers["x-paperclip-run-id"]).toBe("run-abc");
+    expect(headers["x-outpost-run-id"]).toBe("run-abc");
     expect(headers["content-type"]).toBe("application/json");
   });
 
@@ -37,7 +37,7 @@ describe("PaperclipApiClient", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const client = new PaperclipApiClient({ apiBase: "http://localhost:3100" });
+    const client = new OutpostApiClient({ apiBase: "http://localhost:3100" });
     const result = await client.get("/api/missing", { ignoreNotFound: true });
     expect(result).toBeNull();
   });
@@ -51,7 +51,7 @@ describe("PaperclipApiClient", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const client = new PaperclipApiClient({ apiBase: "http://localhost:3100" });
+    const client = new OutpostApiClient({ apiBase: "http://localhost:3100" });
 
     await expect(client.post("/api/issues/1/checkout", {})).rejects.toMatchObject({
       status: 409,
@@ -64,34 +64,34 @@ describe("PaperclipApiClient", () => {
     const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const client = new PaperclipApiClient({ apiBase: "http://localhost:3100" });
+    const client = new OutpostApiClient({ apiBase: "http://localhost:3100" });
 
-    await expect(client.post("/api/companies/import/preview", {})).rejects.toBeInstanceOf(ApiConnectionError);
-    await expect(client.post("/api/companies/import/preview", {})).rejects.toMatchObject({
-      url: "http://localhost:3100/api/companies/import/preview",
+    await expect(client.post("/api/spaces/import/preview", {})).rejects.toBeInstanceOf(ApiConnectionError);
+    await expect(client.post("/api/spaces/import/preview", {})).rejects.toMatchObject({
+      url: "http://localhost:3100/api/spaces/import/preview",
       method: "POST",
       causeMessage: "fetch failed",
     } satisfies Partial<ApiConnectionError>);
-    await expect(client.post("/api/companies/import/preview", {})).rejects.toThrow(
-      /Could not reach the Paperclip API\./,
+    await expect(client.post("/api/spaces/import/preview", {})).rejects.toThrow(
+      /Could not reach the Outpost API\./,
     );
-    await expect(client.post("/api/companies/import/preview", {})).rejects.toThrow(
+    await expect(client.post("/api/spaces/import/preview", {})).rejects.toThrow(
       /curl http:\/\/localhost:3100\/api\/health/,
     );
-    await expect(client.post("/api/companies/import/preview", {})).rejects.toThrow(
-      /pnpm dev|npx paperclipai run/,
+    await expect(client.post("/api/spaces/import/preview", {})).rejects.toThrow(
+      /pnpm dev|npx @outpost\/cli run/,
     );
   });
 
   it("retries once after interactive auth recovery", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ error: "Board access required" }), { status: 403 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: "Operator access required" }), { status: 403 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const recoverAuth = vi.fn().mockResolvedValue("board-token-123");
-    const client = new PaperclipApiClient({
+    const recoverAuth = vi.fn().mockResolvedValue("operator-token-123");
+    const client = new OutpostApiClient({
       apiBase: "http://localhost:3100",
       recoverAuth,
     });
@@ -102,6 +102,6 @@ describe("PaperclipApiClient", () => {
     expect(recoverAuth).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const retryHeaders = fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string>;
-    expect(retryHeaders.authorization).toBe("Bearer board-token-123");
+    expect(retryHeaders.authorization).toBe("Bearer operator-token-123");
   });
 });

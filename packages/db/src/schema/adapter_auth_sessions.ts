@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 import type { AdapterAuthSessionInternalStatus, AgentAdapterType } from "@outpost/shared";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { environments } from "./environments.js";
 
 // The merged state set for the unified login table. One column holds the state
@@ -9,7 +9,7 @@ import { environments } from "./environments.js";
 // joins the two prior state unions into one union. The set drops the dead
 // `persisting` state.
 //
-// The active states hold the company credential slot for one company, owner, and
+// The active states hold the space credential slot for one space, owner, and
 // adapter. The partial unique index applies to the active states only.
 //   - `starting`, `waiting_for_user`, `promoting`: the device-login active states.
 //   - `awaiting_code`, `submitting`: the setup-token active states.
@@ -46,7 +46,7 @@ export const adapterAuthSessions = pgTable(
   "adapter_auth_sessions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     environmentId: uuid("environment_id").notNull().references(() => environments.id, { onDelete: "cascade" }),
     aiConnection: jsonb("ai_connection").$type<import("@outpost/shared").AiConnectionLoginIntent>(),
     connectionId: uuid("connection_id"),
@@ -72,7 +72,7 @@ export const adapterAuthSessions = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     // The promotion claim deadline. The service sets this column when it moves the
     // row to `promoting`. While the deadline is in the future, the claim is live,
-    // so the reaper does not terminate the session or release the company slot.
+    // so the reaper does not terminate the session or release the space slot.
     // A null or past deadline means no live claim, so the reaper can reclaim a
     // stalled `promoting` row. The service clears the column on every terminal
     // transition.
@@ -89,8 +89,8 @@ export const adapterAuthSessions = pgTable(
     // conditional write that records the terminal status, so a claim can never
     // exist for a session that did not authenticate and a restart never loses
     // it. For a Codex device login this holds the account-binding claim: the
-    // opaque company secret id that names the login's account home, and
-    // whether the company default home stayed on a different account. Never a
+    // opaque space secret id that names the login's account home, and
+    // whether the space default home stayed on a different account. Never a
     // credential byte, never an account identifier. Null for every failure
     // and for flows that produce no claim.
     resultClaim: jsonb("result_claim").$type<Record<string, unknown>>(),
@@ -98,16 +98,16 @@ export const adapterAuthSessions = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyStatusIdx: index("adapter_auth_sessions_company_status_idx").on(
-      table.companyId,
+    spaceStatusIdx: index("adapter_auth_sessions_space_status_idx").on(
+      table.spaceId,
       table.status,
     ),
-    // Serialize on the company credential slot. Only one active session can hold
-    // the slot per company, owner, and adapter. The index applies to the active
-    // states of the merged set. It does not include the environment; the board
+    // Serialize on the space credential slot. Only one active session can hold
+    // the slot per space, owner, and adapter. The index applies to the active
+    // states of the merged set. It does not include the environment; the operator
     // rule scopes the slot to the owner, not the environment.
-    companyOwnerAdapterActiveUq: uniqueIndex("adapter_auth_sessions_company_owner_adapter_active_uq")
-      .on(table.companyId, table.startedByUserId, table.adapterType)
+    spaceOwnerAdapterActiveUq: uniqueIndex("adapter_auth_sessions_space_owner_adapter_active_uq")
+      .on(table.spaceId, table.startedByUserId, table.adapterType)
       .where(
         sql`${table.status} IN ('starting', 'waiting_for_user', 'promoting', 'awaiting_code', 'submitting')`,
       ),

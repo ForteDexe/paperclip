@@ -41,7 +41,7 @@ import {
   type EnvironmentCustomImageTerminalPayloadValidationResult,
 } from "../services/environment-custom-image-terminal-sessions.js";
 import {
-  readCustomImageSetupSessionCompanyId,
+  readCustomImageSetupSessionSpaceId,
   requireFutureCustomImageSetupExpiry,
 } from "../services/environment-custom-image-setup-session-utils.js";
 import {
@@ -59,7 +59,7 @@ import {
   assertAgentsReadyForEnvironmentChange,
 } from "../services/plugin-environment-driver.js";
 import { getConfiguredSecretProvider } from "../secrets/configured-provider.js";
-import { assertBoard, assertBoardOrgAccess, boardAccessRequired, getActorInfo } from "./authz.js";
+import { assertOperator, assertOperatorOrgAccess, operatorAccessRequired, getActorInfo } from "./authz.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import { environmentService } from "../services/environments.js";
 import { SANDBOX_PLATFORM_PROBE_METADATA_KEY } from "../services/environment-custom-image-runtime.js";
@@ -75,7 +75,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
  * Whether this environment row was provisioned by the platform: the
  * managed-config environment provisioner marker, the managed plugin
  * environment marker (`"<pluginKey>:<driverKey>"`, stamped next to
- * `managedByPaperclip` on a managed-config plugin entry's row), or the legacy
+ * `managedByOutpost` on a managed-config plugin entry's row), or the legacy
  * managed Kubernetes wrapper marker (rows created by builds that predate the
  * generalized provisioner and have not been adopted yet).
  */
@@ -83,7 +83,7 @@ export function isPlatformProvisionedEnvironment(environment: {
   metadata: Record<string, unknown> | null;
 }): boolean {
   return (
-    environment.metadata?.managedByPaperclip === true ||
+    environment.metadata?.managedByOutpost === true ||
     typeof environment.metadata?.[MANAGED_PLUGIN_ENVIRONMENT_MARKER_KEY] === "string" ||
     environment.metadata?.managedKubernetesSandbox === true
   );
@@ -150,13 +150,13 @@ function isTenantEditableManagedSandbox(environment: {
 }): boolean {
   return (
     environment.driver === "sandbox" &&
-    environment.metadata?.managedByPaperclip === true &&
+    environment.metadata?.managedByOutpost === true &&
     environment.metadata?.managedKubernetesSandbox !== true
   );
 }
 
 const PLATFORM_PROVISIONED_MARKER_KEYS = [
-  "managedByPaperclip",
+  "managedByOutpost",
   MANAGED_PLUGIN_ENVIRONMENT_MARKER_KEY,
   "managedKubernetesSandbox",
 ] as const;
@@ -206,7 +206,7 @@ function isManagedPluginEnvironmentDeclared(marker: string): boolean {
  *
  * - The single local row (`environments_local_driver_idx`): on a
  *   cloud-managed instance `ensureLocalEnvironment` adopts and stamps it
- *   from every caller (company creation, the heartbeat, run
+ *   from every caller (space creation, the heartbeat, run
  *   orchestration), so the local slot is platform-owned unconditionally.
  * - The single marked sandbox row (`environments_managed_sandbox_idx`):
  *   owned only while a managed-sandbox bootstrap path is configured —
@@ -239,7 +239,7 @@ async function isPlatformSlotEnvironment(
   }
   if (environment.driver !== "sandbox") return false;
   if (
-    environment.metadata?.managedByPaperclip === true &&
+    environment.metadata?.managedByOutpost === true &&
     isManagedSandboxProvisioningConfigured()
   ) {
     return true;
@@ -388,29 +388,29 @@ export function environmentRoutes(
   }
 
   function assertCanAccessInstanceEnvironments(req: Request) {
-    if (req.actor.type === "agent") throw boardAccessRequired(req);
-    if (req.actor.type !== "board") {
-      throw forbidden("Instance environment management is restricted to board operators");
+    if (req.actor.type === "agent") throw operatorAccessRequired(req);
+    if (req.actor.type !== "operator") {
+      throw forbidden("Instance environment management is restricted to operator operators");
     }
     if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return;
     throw forbidden("Instance admin access required");
   }
 
   function assertCanReadInstanceEnvironments(req: Request) {
-    assertBoardOrgAccess(req);
+    assertOperatorOrgAccess(req);
   }
 
-  function assertCustomImageCompanyAccess(req: Request, companyId: string) {
-    assertBoard(req);
+  function assertCustomImageSpaceAccess(req: Request, spaceId: string) {
+    assertOperator(req);
     if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return;
-    const allowedCompanies = req.actor.companyIds ?? [];
-    if (!allowedCompanies.includes(companyId)) {
-      throw forbidden("User does not have access to this company");
+    const allowedSpaces = req.actor.spaceIds ?? [];
+    if (!allowedSpaces.includes(spaceId)) {
+      throw forbidden("User does not have access to this space");
     }
   }
 
   function canReadFullInstanceEnvironment(req: Request) {
-    return req.actor.type === "board"
+    return req.actor.type === "operator"
       && (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin);
   }
 
@@ -466,9 +466,9 @@ export function environmentRoutes(
       : redactEnvironmentForRestrictedView(environment);
   }
 
-  async function assertCanReadSecretsForDraftProbe(req: Request, companyId: string) {
+  async function assertCanReadSecretsForDraftProbe(req: Request, spaceId: string) {
     assertCanAccessInstanceEnvironments(req);
-    return companyId;
+    return spaceId;
   }
 
   async function logInstanceEnvironmentActivity(input: {
@@ -477,11 +477,11 @@ export function environmentRoutes(
     entityId: string;
     details: Record<string, unknown>;
   }) {
-    const companyIds = await instanceSettings.listCompanyIds();
+    const spaceIds = await instanceSettings.listSpaceIds();
     await Promise.all(
-      companyIds.map((companyId) =>
+      spaceIds.map((spaceId) =>
         logActivity(db, {
-          companyId,
+          spaceId,
           actorType: input.actor.actorType,
           actorId: input.actor.actorId,
           agentId: input.actor.agentId,
@@ -497,13 +497,13 @@ export function environmentRoutes(
 
   async function logEnvironmentCustomImageActivity(input: {
     actor: ReturnType<typeof getActorInfo>;
-    companyId: string;
+    spaceId: string;
     action: string;
     entityId: string;
     details: Record<string, unknown>;
   }) {
     await logActivity(db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: input.actor.actorType,
       actorId: input.actor.actorId,
       agentId: input.actor.agentId,
@@ -515,83 +515,83 @@ export function environmentRoutes(
     });
   }
 
-  async function resolveCustomImageCompanyId(req: Request): Promise<string> {
-    const queryCompanyId =
-      typeof req.query.companyId === "string" && req.query.companyId.trim().length > 0
-        ? req.query.companyId.trim()
+  async function resolveCustomImageSpaceId(req: Request): Promise<string> {
+    const querySpaceId =
+      typeof req.query.spaceId === "string" && req.query.spaceId.trim().length > 0
+        ? req.query.spaceId.trim()
         : null;
-    if (queryCompanyId) {
-      assertCustomImageCompanyAccess(req, queryCompanyId);
-      return queryCompanyId;
+    if (querySpaceId) {
+      assertCustomImageSpaceAccess(req, querySpaceId);
+      return querySpaceId;
     }
-    if (req.actor.type === "board" && req.actor.companyIds?.length === 1) {
-      return req.actor.companyIds[0]!;
+    if (req.actor.type === "operator" && req.actor.spaceIds?.length === 1) {
+      return req.actor.spaceIds[0]!;
     }
-    const companyIds = await instanceSettings.listCompanyIds();
-    if (companyIds.length === 1 && companyIds[0]) {
-      const companyId = companyIds[0];
-      assertCustomImageCompanyAccess(req, companyId);
-      return companyId;
+    const spaceIds = await instanceSettings.listSpaceIds();
+    if (spaceIds.length === 1 && spaceIds[0]) {
+      const spaceId = spaceIds[0];
+      assertCustomImageSpaceAccess(req, spaceId);
+      return spaceId;
     }
-    throw unprocessable("companyId query parameter is required for environment customImage setup.");
+    throw unprocessable("spaceId query parameter is required for environment customImage setup.");
   }
 
-  async function resolveCustomImageSessionCompanyId(
+  async function resolveCustomImageSessionSpaceId(
     req: Request,
     session: { metadata?: Record<string, unknown> | null },
   ): Promise<string> {
-    const metadataCompanyId = readCustomImageSetupSessionCompanyId(session);
-    if (metadataCompanyId) {
-      assertCustomImageCompanyAccess(req, metadataCompanyId);
-      return metadataCompanyId;
+    const metadataSpaceId = readCustomImageSetupSessionSpaceId(session);
+    if (metadataSpaceId) {
+      assertCustomImageSpaceAccess(req, metadataSpaceId);
+      return metadataSpaceId;
     }
-    return await resolveCustomImageCompanyId(req);
+    return await resolveCustomImageSpaceId(req);
   }
 
   /**
-   * Pick the company context used to create new secrets from raw-pasted
+   * Pick the space context used to create new secrets from raw-pasted
    * values, normalize env-var bindings, and resolve probe secrets. An
-   * explicit route param / query wins, then the single company the
-   * environment's bindings already live in, then the actor's own company,
-   * then the instance's only company (when exactly one exists).
+   * explicit route param / query wins, then the single space the
+   * environment's bindings already live in, then the actor's own space,
+   * then the instance's only space (when exactly one exists).
    * Bindings must never veto an explicit caller context: config-derived
-   * bindings live in the company that owns each referenced secret (see
+   * bindings live in the space that owns each referenced secret (see
    * `replaceSecretRefsForInstanceTarget`), so an environment's bindings may
-   * legitimately sit in a different company — or several — than the board
+   * legitimately sit in a different space — or several — than the operator
    * that is editing it.
    */
-  async function resolveEnvironmentSecretContextCompanyId(
+  async function resolveEnvironmentSecretContextSpaceId(
     req: Request,
     environmentId: string,
     options: { required: boolean },
   ): Promise<string | null> {
-    const routeCompanyId =
-      typeof req.params.companyId === "string" && req.params.companyId.trim().length > 0
-        ? req.params.companyId.trim()
-        : typeof req.query.companyId === "string" && req.query.companyId.trim().length > 0
-          ? req.query.companyId.trim()
+    const routeSpaceId =
+      typeof req.params.spaceId === "string" && req.params.spaceId.trim().length > 0
+        ? req.params.spaceId.trim()
+        : typeof req.query.spaceId === "string" && req.query.spaceId.trim().length > 0
+          ? req.query.spaceId.trim()
           : null;
-    if (routeCompanyId) return routeCompanyId;
-    const bindingCompanyIds = await secrets.listBindingCompanyIdsForTarget({
+    if (routeSpaceId) return routeSpaceId;
+    const bindingSpaceIds = await secrets.listBindingSpaceIdsForTarget({
       targetType: "environment",
       targetId: environmentId,
     });
-    if (bindingCompanyIds.length === 1) return bindingCompanyIds[0] ?? null;
-    if (req.actor.type === "agent" && req.actor.companyId) return req.actor.companyId;
-    if (req.actor.type === "board" && Array.isArray(req.actor.companyIds) && req.actor.companyIds.length === 1) {
-      return req.actor.companyIds[0] ?? null;
+    if (bindingSpaceIds.length === 1) return bindingSpaceIds[0] ?? null;
+    if (req.actor.type === "agent" && req.actor.spaceId) return req.actor.spaceId;
+    if (req.actor.type === "operator" && Array.isArray(req.actor.spaceIds) && req.actor.spaceIds.length === 1) {
+      return req.actor.spaceIds[0] ?? null;
     }
-    // Single-company instances have exactly one possible secret scope, so an
-    // actor whose memberships cannot pin a company (none, or several — e.g. an
+    // Single-space instances have exactly one possible secret scope, so an
+    // actor whose memberships cannot pin a space (none, or several — e.g. an
     // instance admin provisioned without a membership row) still resolves.
-    // Mirrors the fallback in `resolveCustomImageCompanyId`.
-    const instanceCompanyIds = await instanceSettings.listCompanyIds();
-    if (instanceCompanyIds.length === 1 && instanceCompanyIds[0]) {
-      return instanceCompanyIds[0];
+    // Mirrors the fallback in `resolveCustomImageSpaceId`.
+    const instanceSpaceIds = await instanceSettings.listSpaceIds();
+    if (instanceSpaceIds.length === 1 && instanceSpaceIds[0]) {
+      return instanceSpaceIds[0];
     }
     if (!options.required) return null;
     throw unprocessable(
-      "Environment secret management requires a companyId context during the instance-scoped transition.",
+      "Environment secret management requires a spaceId context during the instance-scoped transition.",
     );
   }
 
@@ -740,7 +740,7 @@ export function environmentRoutes(
    * Managed-sandbox-only policy (`enableManagedSandboxOnly`): the local
    * environment disappears from every read surface — the list and the
    * by-id read — for every actor, including instance admins. The row
-   * itself stays in the database (company creation and the heartbeat
+   * itself stays in the database (space creation and the heartbeat
    * depend on `ensureLocalEnvironment`); run selection independently
    * refuses local under the same flag, so hiding here is presentation,
    * not the enforcement boundary.
@@ -749,7 +749,7 @@ export function environmentRoutes(
     return (await instanceSettings.getExperimental()).enableManagedSandboxOnly === true;
   }
 
-  router.get("/companies/:companyId/environments", async (req, res) => {
+  router.get("/spaces/:spaceId/environments", async (req, res) => {
     assertCanReadInstanceEnvironments(req);
     const rows = await svc.list({
       status: req.query.status as string | undefined,
@@ -771,7 +771,7 @@ export function environmentRoutes(
     res.json(impact);
   });
 
-  router.get("/companies/:companyId/environments/capabilities", async (req, res) => {
+  router.get("/spaces/:spaceId/environments/capabilities", async (req, res) => {
     assertCanReadInstanceEnvironments(req);
     const pluginDrivers = await listReadyPluginEnvironmentDrivers({
       db,
@@ -826,7 +826,7 @@ export function environmentRoutes(
 
   router.get("/environments/:environmentId/custom-image-template", async (req, res) => {
     assertCanAccessInstanceEnvironments(req);
-    await resolveCustomImageCompanyId(req);
+    await resolveCustomImageSpaceId(req);
     const overview = await customImages.getOverview({
       environmentId: req.params.environmentId as string,
     });
@@ -838,7 +838,7 @@ export function environmentRoutes(
     validate(startEnvironmentCustomImageSetupSessionSchema),
     async (req, res) => {
       assertCanAccessInstanceEnvironments(req);
-      const companyId = await resolveCustomImageCompanyId(req);
+      const spaceId = await resolveCustomImageSpaceId(req);
       const actor = getActorInfo(req);
       const result = await customImages.startSetupSession({
         environmentId: req.params.environmentId as string,
@@ -848,11 +848,11 @@ export function environmentRoutes(
           userId: actor.actorType === "user" ? actor.actorId : null,
           agentId: actor.agentId,
         },
-        secretContextCompanyId: companyId,
+        secretContextSpaceId: spaceId,
       });
       await logEnvironmentCustomImageActivity({
         actor,
-        companyId,
+        spaceId,
         action: "environment.custom_image_setup.started",
         entityId: result.session.environmentId,
         details: setupSessionActivityDetails(result.session),
@@ -868,7 +868,7 @@ export function environmentRoutes(
       res.status(404).json({ error: "Environment customImage setup session not found" });
       return;
     }
-    await resolveCustomImageSessionCompanyId(req, session);
+    await resolveCustomImageSessionSpaceId(req, session);
     const result = await customImages.refreshSetupSession({
       sessionId: session.id,
       includeConnectionPayload: true,
@@ -886,7 +886,7 @@ export function environmentRoutes(
         res.status(404).json({ error: "Environment customImage setup session not found" });
         return;
       }
-      const companyId = await resolveCustomImageSessionCompanyId(req, session);
+      const spaceId = await resolveCustomImageSessionSpaceId(req, session);
 
       const refreshed = await customImages.refreshSetupSession({
         sessionId: session.id,
@@ -904,7 +904,7 @@ export function environmentRoutes(
 
       const minted = environmentCustomImageTerminalSessionStore.create({
         setupSessionId: refreshed.session.id,
-        companyId,
+        spaceId,
         environmentId: refreshed.session.environmentId,
         provider: refreshed.session.provider,
         ssh: payloadValidation.ssh,
@@ -915,7 +915,7 @@ export function environmentRoutes(
       const actor = getActorInfo(req);
       await logEnvironmentCustomImageActivity({
         actor,
-        companyId,
+        spaceId,
         action: "environment.custom_image_terminal_session_token.created",
         entityId: refreshed.session.environmentId,
         details: {
@@ -951,7 +951,7 @@ export function environmentRoutes(
         res.status(404).json({ error: "Environment customImage setup session not found" });
         return;
       }
-      const companyId = await resolveCustomImageSessionCompanyId(req, session);
+      const spaceId = await resolveCustomImageSessionSpaceId(req, session);
       const actor = getActorInfo(req);
       const result = await customImages.finishSetupSession({
         sessionId: session.id,
@@ -961,7 +961,7 @@ export function environmentRoutes(
       environmentCustomImageTerminalConnectionRegistry.closeBySetupSessionId(session.id, "setup_finished");
       await logEnvironmentCustomImageActivity({
         actor,
-        companyId,
+        spaceId,
         action: "environment.custom_image_setup.finished",
         entityId: result.session.environmentId,
         details: {
@@ -983,7 +983,7 @@ export function environmentRoutes(
         res.status(404).json({ error: "Environment customImage setup session not found" });
         return;
       }
-      const companyId = await resolveCustomImageSessionCompanyId(req, session);
+      const spaceId = await resolveCustomImageSessionSpaceId(req, session);
       const actor = getActorInfo(req);
       const cancelled = await customImages.cancelSetupSession({
         sessionId: session.id,
@@ -993,7 +993,7 @@ export function environmentRoutes(
       environmentCustomImageTerminalConnectionRegistry.closeBySetupSessionId(session.id, "setup_cancelled");
       await logEnvironmentCustomImageActivity({
         actor,
-        companyId,
+        spaceId,
         action: "environment.custom_image_setup.cancelled",
         entityId: cancelled.environmentId,
         details: setupSessionActivityDetails(cancelled),
@@ -1004,14 +1004,14 @@ export function environmentRoutes(
 
   router.post("/environments/:environmentId/custom-image-template/rollback", async (req, res) => {
     assertCanAccessInstanceEnvironments(req);
-    const companyId = await resolveCustomImageCompanyId(req);
+    const spaceId = await resolveCustomImageSpaceId(req);
     const actor = getActorInfo(req);
     const result = await customImages.rollbackTemplate({
       environmentId: req.params.environmentId as string,
     });
     await logEnvironmentCustomImageActivity({
       actor,
-      companyId,
+      spaceId,
       action: "environment.custom_image_template.rolled_back",
       entityId: req.params.environmentId as string,
       details: {
@@ -1027,7 +1027,7 @@ export function environmentRoutes(
     validate(relinkEnvironmentCustomImageTemplateSchema),
     async (req, res) => {
       assertCanAccessInstanceEnvironments(req);
-      const companyId = await resolveCustomImageCompanyId(req);
+      const spaceId = await resolveCustomImageSpaceId(req);
       const actor = getActorInfo(req);
       // The service classifies drift, re-stamps the fingerprint, and writes the
       // activity row in one transaction. The route never classifies.
@@ -1041,7 +1041,7 @@ export function environmentRoutes(
           runId: actor.runId,
           agentApiKeyId: actor.agentApiKeyId,
         },
-        companyId,
+        spaceId,
       });
       res.json(result);
     },
@@ -1049,7 +1049,7 @@ export function environmentRoutes(
 
   router.delete("/environments/:environmentId/custom-image-template", async (req, res) => {
     assertCanAccessInstanceEnvironments(req);
-    const companyId = await resolveCustomImageCompanyId(req);
+    const spaceId = await resolveCustomImageSpaceId(req);
     const actor = getActorInfo(req);
     const template = await customImages.disableTemplate({
       environmentId: req.params.environmentId as string,
@@ -1057,7 +1057,7 @@ export function environmentRoutes(
     });
     await logEnvironmentCustomImageActivity({
       actor,
-      companyId,
+      spaceId,
       action: "environment.custom_image_template.disabled",
       entityId: req.params.environmentId as string,
       details: templateActivityDetails(template),
@@ -1065,8 +1065,8 @@ export function environmentRoutes(
     res.json(template);
   });
 
-  router.post("/companies/:companyId/environments", validate(createEnvironmentSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
+  router.post("/spaces/:spaceId/environments", validate(createEnvironmentSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
     assertCanAccessInstanceEnvironments(req);
     assertNoClientPlatformProvisionedMarkers(req.body.metadata);
     if (req.body.driver === "local") {
@@ -1079,13 +1079,13 @@ export function environmentRoutes(
     const input = {
       ...req.body,
       envVars: await secrets.normalizeEnvBindingsForPersistence(
-        companyId,
+        spaceId,
         req.body.envVars,
         { strictMode: strictSecretsMode, fieldPath: "envVars" },
       ),
       config: await normalizeEnvironmentConfigForPersistence({
         db,
-        companyId,
+        spaceId,
         environmentName: req.body.name,
         driver: req.body.driver,
         secretProvider: getConfiguredSecretProvider(),
@@ -1107,7 +1107,7 @@ export function environmentRoutes(
         { db: tx },
       );
       await secrets.syncEnvBindingsForTarget(
-        companyId,
+        spaceId,
         { targetType: "environment", targetId: created.id },
         created.envVars,
         { db: tx },
@@ -1144,9 +1144,9 @@ export function environmentRoutes(
       res.status(404).json({ error: "Environment not found" });
       return;
     }
-    // Metadata only (name / status / owning company) — never secret values.
-    // Environments are instance-scoped while secrets are company-scoped, so
-    // the editor needs this to render refs whose secret a given company's
+    // Metadata only (name / status / owning space) — never secret values.
+    // Environments are instance-scoped while secrets are space-scoped, so
+    // the editor needs this to render refs whose secret a given space's
     // picker cannot list. Gated by the same instance-level access check as
     // environment editing.
     const refs = await collectEnvironmentSecretRefs({ db, environment });
@@ -1215,9 +1215,9 @@ export function environmentRoutes(
     const actor = getActorInfo(req);
     const nextDriver = req.body.driver ?? existing.driver;
     const nextName = req.body.name ?? existing.name;
-    const companyIdForSecrets =
+    const spaceIdForSecrets =
       req.body.config !== undefined || req.body.driver !== undefined || req.body.envVars !== undefined
-        ? await resolveEnvironmentSecretContextCompanyId(req, existing.id, { required: true })
+        ? await resolveEnvironmentSecretContextSpaceId(req, existing.id, { required: true })
         : null;
     const configSource =
       req.body.config !== undefined
@@ -1235,7 +1235,7 @@ export function environmentRoutes(
       ...(req.body.envVars !== undefined
         ? {
             envVars: await secrets.normalizeEnvBindingsForPersistence(
-              companyIdForSecrets!,
+              spaceIdForSecrets!,
               req.body.envVars,
               { strictMode: strictSecretsMode, fieldPath: "envVars" },
             ),
@@ -1245,7 +1245,7 @@ export function environmentRoutes(
         ? {
             config: await normalizeEnvironmentConfigForPersistence({
               db,
-              companyId: companyIdForSecrets!,
+              spaceId: spaceIdForSecrets!,
               environmentName: nextName,
               driver: nextDriver,
               secretProvider: getConfiguredSecretProvider(),
@@ -1279,7 +1279,7 @@ export function environmentRoutes(
       }
       if (patch.envVars !== undefined) {
         await secrets.syncEnvBindingsForTarget(
-          companyIdForSecrets!,
+          spaceIdForSecrets!,
           { targetType: "environment", targetId: updated.id },
           updated.envVars,
           { db: tx },
@@ -1430,19 +1430,19 @@ export function environmentRoutes(
       }
       rejectEnvironmentDelete({ actor, environment: existing, impact: latestImpact });
     }
-    const companyIds = await instanceSettings.listCompanyIds();
+    const spaceIds = await instanceSettings.listSpaceIds();
     await Promise.all(
-      companyIds.flatMap((companyId) => [
-        executionWorkspaces.clearEnvironmentSelection(companyId, existing.id),
-        issues.clearExecutionWorkspaceEnvironmentSelection(companyId, existing.id),
-        projects.clearExecutionWorkspaceEnvironmentSelection(companyId, existing.id),
+      spaceIds.flatMap((spaceId) => [
+        executionWorkspaces.clearEnvironmentSelection(spaceId, existing.id),
+        issues.clearExecutionWorkspaceEnvironmentSelection(spaceId, existing.id),
+        projects.clearExecutionWorkspaceEnvironmentSelection(spaceId, existing.id),
         secrets.syncEnvBindingsForTarget(
-          companyId,
+          spaceId,
           { targetType: "environment", targetId: existing.id },
           {},
         ),
         secrets.syncSecretRefsForTarget(
-          companyId,
+          spaceId,
           { targetType: "environment", targetId: existing.id },
           [],
           { replaceAll: true },
@@ -1480,19 +1480,19 @@ export function environmentRoutes(
       return;
     }
     const actor = getActorInfo(req);
-    const companyIdForSecrets = await resolveEnvironmentSecretContextCompanyId(req, environment.id, { required: false });
-    const companyIdForProbe = companyIdForSecrets
-      ?? (environment.driver === "sandbox" ? await resolveCustomImageCompanyId(req) : null);
-    if (!companyIdForSecrets) {
+    const spaceIdForSecrets = await resolveEnvironmentSecretContextSpaceId(req, environment.id, { required: false });
+    const spaceIdForProbe = spaceIdForSecrets
+      ?? (environment.driver === "sandbox" ? await resolveCustomImageSpaceId(req) : null);
+    if (!spaceIdForSecrets) {
       const secretRefs = await collectEnvironmentSecretRefs({ db, environment });
       if (secretRefs.length > 0) {
         throw unprocessable(
-          "Environment probe requires an explicit companyId to resolve secret-backed config for this environment.",
+          "Environment probe requires an explicit spaceId to resolve secret-backed config for this environment.",
         );
       }
     }
     const probe = await probeEnvironment(db, environment, {
-      companyId: companyIdForProbe,
+      spaceId: spaceIdForProbe,
       pluginWorkerManager: options.pluginWorkerManager,
       applyCustomImageTemplate: environment.driver === "sandbox",
       acquireSandboxRuntimeLease: environment.driver === "sandbox",
@@ -1511,18 +1511,18 @@ export function environmentRoutes(
   });
 
   router.post(
-    "/companies/:companyId/environments/probe-config",
+    "/spaces/:spaceId/environments/probe-config",
     validate(probeEnvironmentConfigSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       assertCanAccessInstanceEnvironments(req);
       if (req.body.driver === "sandbox") {
-        await assertCanReadSecretsForDraftProbe(req, companyId);
+        await assertCanReadSecretsForDraftProbe(req, spaceId);
       }
       const actor = getActorInfo(req);
       const normalizedConfig = await normalizeEnvironmentConfigForProbe({
         db,
-        companyId,
+        spaceId,
         driver: req.body.driver,
         config: req.body.config,
         accessContext: {
@@ -1535,7 +1535,7 @@ export function environmentRoutes(
       });
       const environment = {
         id: "unsaved",
-        companyId,
+        spaceId,
         name: req.body.name?.trim() || "Unsaved environment",
         description: req.body.description ?? null,
         driver: req.body.driver,
@@ -1547,7 +1547,7 @@ export function environmentRoutes(
         updatedAt: new Date(),
       };
       const probe = await probeEnvironment(db, environment, {
-        companyId,
+        spaceId,
         pluginWorkerManager: options.pluginWorkerManager,
         resolvedConfig: {
           driver: req.body.driver,

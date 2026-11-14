@@ -14,9 +14,9 @@ import {
 } from "@outpost/db";
 import type {
   AskUserQuestionsInteraction,
-  PaperclipQuestionSetPayload,
+  OutpostQuestionSetPayload,
 } from "@outpost/shared";
-import type { PaperclipQuestionResponse } from "../vendor/outpost-runner/index.js";
+import type { OutpostQuestionResponse } from "../vendor/outpost-runner/index.js";
 import { isUniqueViolation } from "../db-errors.js";
 import { getTelemetryClient } from "../telemetry.js";
 import { logger } from "../middleware/logger.js";
@@ -83,8 +83,8 @@ export interface QuestionResponseDeliveryEnvelope {
   schema: "outpost.question_response_delivery.v1";
   interactionId: string;
   sourceRunId: string | null;
-  questionSet: PaperclipQuestionSetPayload;
-  response: PaperclipQuestionResponse;
+  questionSet: OutpostQuestionSetPayload;
+  response: OutpostQuestionResponse;
 }
 
 export interface QuestionResponseDeliveryOutcome {
@@ -122,7 +122,7 @@ function compactLine(value: unknown): string | null {
 
 function canonicalQuestionSet(
   interaction: Pick<AskUserQuestionsInteraction, "title" | "payload">,
-): PaperclipQuestionSetPayload {
+): OutpostQuestionSetPayload {
   if (interaction.payload.questionSet)
     return structuredClone(interaction.payload.questionSet);
   return {
@@ -181,7 +181,7 @@ export function buildQuestionResponseDeliveryEnvelope(
   const questionById = new Map(
     questionSet.questions.map((question) => [question.id, question]),
   );
-  const response: PaperclipQuestionResponse = {
+  const response: OutpostQuestionResponse = {
     schema: "outpost.question_response.v1",
     answers: Object.fromEntries(
       interaction.result.answers.map((answer) => {
@@ -290,7 +290,7 @@ export function questionResponseDeliveryValues(
 ) {
   const envelope = buildQuestionResponseDeliveryEnvelope(interaction);
   return {
-    companyId: interaction.companyId,
+    spaceId: interaction.spaceId,
     issueId: interaction.issueId,
     interactionId: interaction.id,
     sourceRunId: interaction.sourceRunId ?? null,
@@ -307,11 +307,11 @@ export function questionResponseDeliveryValues(
  */
 export async function isRetiredExternalChatQuestionSource(
   database: Db,
-  scope: { companyId: string; issueId: string; agentId: string; runId: string },
+  scope: { spaceId: string; issueId: string; agentId: string; runId: string },
 ): Promise<boolean> {
   const source = await database.select().from(heartbeatRuns).where(and(
     eq(heartbeatRuns.id, scope.runId),
-    eq(heartbeatRuns.companyId, scope.companyId),
+    eq(heartbeatRuns.spaceId, scope.spaceId),
     eq(heartbeatRuns.agentId, scope.agentId),
     eq(heartbeatRuns.nativeIssueId, scope.issueId),
     eq(heartbeatRuns.runtimeMode, "native"),
@@ -327,7 +327,7 @@ export async function isRetiredExternalChatQuestionSource(
     result.externalChatContinuation !== true ||
     typeof interactionId !== "string" || !uuid.test(interactionId) ||
     cancellation.schema !== "outpost.native-cancellation.v1" ||
-    cancellation.companyId !== scope.companyId ||
+    cancellation.spaceId !== scope.spaceId ||
     cancellation.runId !== scope.runId ||
     cancellation.issueId !== scope.issueId ||
     cancellation.scope !== "run" ||
@@ -338,7 +338,7 @@ export async function isRetiredExternalChatQuestionSource(
   ) return false;
   const interaction = await database.select().from(issueThreadInteractions).where(and(
     eq(issueThreadInteractions.id, interactionId),
-    eq(issueThreadInteractions.companyId, scope.companyId),
+    eq(issueThreadInteractions.spaceId, scope.spaceId),
     eq(issueThreadInteractions.issueId, scope.issueId),
     eq(issueThreadInteractions.createdByAgentId, scope.agentId),
     eq(issueThreadInteractions.sourceRunId, scope.runId),
@@ -353,7 +353,7 @@ export async function isRetiredExternalChatQuestionSource(
     return false;
   }
   const delivery = await database.select({ id: issueQuestionResponseDeliveries.id }).from(issueQuestionResponseDeliveries).where(and(
-    eq(issueQuestionResponseDeliveries.companyId, scope.companyId),
+    eq(issueQuestionResponseDeliveries.spaceId, scope.spaceId),
     eq(issueQuestionResponseDeliveries.issueId, scope.issueId),
     eq(issueQuestionResponseDeliveries.interactionId, interactionId),
     eq(issueQuestionResponseDeliveries.sourceRunId, scope.runId),
@@ -362,7 +362,7 @@ export async function isRetiredExternalChatQuestionSource(
   )).limit(1);
   if (!delivery.length) return false;
   const audits = await database.select().from(activityLog).where(and(
-    eq(activityLog.companyId, scope.companyId),
+    eq(activityLog.spaceId, scope.spaceId),
     eq(activityLog.agentId, scope.agentId),
     eq(activityLog.runId, scope.runId),
     eq(activityLog.entityType, "heartbeat_run"),
@@ -471,7 +471,7 @@ export function questionResponseDeliveryService(
       )
         return null;
       if (current.status !== "delivering") {
-        await notifyChatRunMilestones(tx, { companyId: current.companyId, issueId: current.issueId });
+        await notifyChatRunMilestones(tx, { spaceId: current.spaceId, issueId: current.issueId });
       }
       return tx
         .update(issueQuestionResponseDeliveries)
@@ -523,7 +523,7 @@ export function questionResponseDeliveryService(
   }): Promise<QuestionResponseDeliveryOutcome> {
     const at = now();
     const updated = await db.transaction(async (tx) => {
-      await notifyChatRunMilestones(tx, { companyId: input.delivery.companyId, issueId: input.delivery.issueId });
+      await notifyChatRunMilestones(tx, { spaceId: input.delivery.spaceId, issueId: input.delivery.issueId });
       const row = await tx
         .update(issueQuestionResponseDeliveries)
         .set({
@@ -549,7 +549,7 @@ export function questionResponseDeliveryService(
         .then((rows) => rows[0] ?? null);
       if (!row) return null;
       await logActivity(tx as unknown as Db, {
-        companyId: input.interaction.companyId,
+        spaceId: input.interaction.spaceId,
         actorType: "system",
         actorId: "question-response-delivery",
         agentId: input.interaction.resolvedByAgentId,
@@ -621,7 +621,7 @@ export function questionResponseDeliveryService(
         .from(issueQuestionResponseDeliveries).where(ownedClaim).for("update");
       if (!current) return;
       if (!exhausted) {
-        await notifyChatRunMilestones(tx, { companyId: delivery.companyId, issueId: delivery.issueId });
+        await notifyChatRunMilestones(tx, { spaceId: delivery.spaceId, issueId: delivery.issueId });
       }
       await tx.update(issueQuestionResponseDeliveries)
         .set({
@@ -721,7 +721,7 @@ export function questionResponseDeliveryService(
   }
 
   async function findDurableWakeRequest(input: {
-    companyId: string;
+    spaceId: string;
     idempotencyKey: string;
   }) {
     const request = await db
@@ -734,7 +734,7 @@ export function questionResponseDeliveryService(
       .from(agentWakeupRequests)
       .where(
         and(
-          eq(agentWakeupRequests.companyId, input.companyId),
+          eq(agentWakeupRequests.spaceId, input.spaceId),
           eq(agentWakeupRequests.idempotencyKey, input.idempotencyKey),
           inArray(agentWakeupRequests.status, [
             ...DURABLE_WAKE_REQUEST_STATUSES,
@@ -751,7 +751,7 @@ export function questionResponseDeliveryService(
       .where(
         and(
           eq(heartbeatRuns.id, request.runId),
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
           eq(heartbeatRuns.agentId, request.agentId),
         ),
       )
@@ -772,7 +772,7 @@ export function questionResponseDeliveryService(
       .where(
         and(
           eq(issueThreadInteractions.id, interactionId),
-          eq(issueThreadInteractions.companyId, claimed.companyId),
+          eq(issueThreadInteractions.spaceId, claimed.spaceId),
           eq(issueThreadInteractions.issueId, claimed.issueId),
         ),
       )
@@ -789,7 +789,7 @@ export function questionResponseDeliveryService(
           interaction ??
           ({
             id: interactionId,
-            companyId: claimed.companyId,
+            spaceId: claimed.spaceId,
             issueId: claimed.issueId,
             sourceRunId: claimed.sourceRunId,
             resolvedByAgentId: null,
@@ -810,7 +810,7 @@ export function questionResponseDeliveryService(
           .where(
             and(
               eq(issues.id, interaction.issueId),
-              eq(issues.companyId, interaction.companyId),
+              eq(issues.spaceId, interaction.spaceId),
             ),
           )
           .limit(1)
@@ -822,7 +822,7 @@ export function questionResponseDeliveryService(
               .where(
                 and(
                   eq(agents.id, interaction.createdByAgentId),
-                  eq(agents.companyId, interaction.companyId),
+                  eq(agents.spaceId, interaction.spaceId),
                 ),
               )
               .limit(1)
@@ -835,7 +835,7 @@ export function questionResponseDeliveryService(
               .where(
                 and(
                   eq(heartbeatRuns.id, interaction.sourceRunId),
-                  eq(heartbeatRuns.companyId, interaction.companyId),
+                  eq(heartbeatRuns.spaceId, interaction.spaceId),
                 ),
               )
               .limit(1)
@@ -846,7 +846,7 @@ export function questionResponseDeliveryService(
           .from(chatPublications)
           .where(
             and(
-              eq(chatPublications.companyId, interaction.companyId),
+              eq(chatPublications.spaceId, interaction.spaceId),
               eq(chatPublications.issueId, interaction.issueId),
               eq(
                 sql<string>`${chatPublications.payload}->>'interactionId'`,
@@ -890,7 +890,7 @@ export function questionResponseDeliveryService(
           .where(
             and(
               eq(issueComments.id, sourceCommentCandidate),
-              eq(issueComments.companyId, interaction.companyId),
+              eq(issueComments.spaceId, interaction.spaceId),
               eq(issueComments.issueId, interaction.issueId),
             ),
           )
@@ -903,7 +903,7 @@ export function questionResponseDeliveryService(
       .from(heartbeatRuns)
       .where(
         and(
-          eq(heartbeatRuns.companyId, interaction.companyId),
+          eq(heartbeatRuns.spaceId, interaction.spaceId),
           eq(heartbeatRuns.agentId, assigneeAgentId),
           inArray(heartbeatRuns.status, [
             "queued",
@@ -931,8 +931,8 @@ export function questionResponseDeliveryService(
             .where(
               and(
                 eq(
-                  issueQuestionResponseDeliveries.companyId,
-                  interaction.companyId,
+                  issueQuestionResponseDeliveries.spaceId,
+                  interaction.spaceId,
                 ),
                 inArray(
                   issueQuestionResponseDeliveries.targetRunId,
@@ -961,7 +961,7 @@ export function questionResponseDeliveryService(
             .from(chatPublications)
             .where(
               and(
-                eq(chatPublications.companyId, interaction.companyId),
+                eq(chatPublications.spaceId, interaction.spaceId),
                 eq(chatPublications.issueId, interaction.issueId),
                 inArray(chatPublications.state, [
                   "published",
@@ -1174,7 +1174,7 @@ export function questionResponseDeliveryService(
     const wakeIdempotencyKey = `question-response:${interaction.id}`;
     try {
       const existingWake = await findDurableWakeRequest({
-        companyId: interaction.companyId,
+        spaceId: interaction.spaceId,
         idempotencyKey: wakeIdempotencyKey,
       });
       const wakeRun =
@@ -1232,7 +1232,7 @@ export function questionResponseDeliveryService(
         (wakeRun
           ? null
           : await findDurableWakeRequest({
-              companyId: interaction.companyId,
+              spaceId: interaction.spaceId,
               idempotencyKey: wakeIdempotencyKey,
             }));
       if (!wakeRun && !durableWake) {
@@ -1270,7 +1270,7 @@ export function questionResponseDeliveryService(
         // preflight lookup. Reuse its committed receipt instead of consuming
         // an error retry or issuing another continuation.
         const durableWake = await findDurableWakeRequest({
-          companyId: interaction.companyId,
+          spaceId: interaction.spaceId,
           idempotencyKey: wakeIdempotencyKey,
         });
         if (durableWake) {
@@ -1328,7 +1328,7 @@ export function questionResponseDeliveryService(
     await db.transaction(async (tx) => {
       const staleClaims = await tx.select({
         id: issueQuestionResponseDeliveries.id,
-        companyId: issueQuestionResponseDeliveries.companyId,
+        spaceId: issueQuestionResponseDeliveries.spaceId,
         issueId: issueQuestionResponseDeliveries.issueId,
       }).from(issueQuestionResponseDeliveries).where(and(
         eq(issueQuestionResponseDeliveries.status, "delivering"),
@@ -1340,7 +1340,7 @@ export function questionResponseDeliveryService(
       if (staleClaims.length === 0) return;
       const notified = new Set<string>();
       for (const claim of staleClaims) {
-        const scope = `${claim.companyId}:${claim.issueId}`;
+        const scope = `${claim.spaceId}:${claim.issueId}`;
         if (notified.has(scope)) continue;
         await notifyChatRunMilestones(tx, claim);
         notified.add(scope);

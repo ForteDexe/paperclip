@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, heartbeatRuns, type Db } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, type Db } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import {
   getEmbeddedPostgresTestSupport,
@@ -32,11 +32,11 @@ const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : 
 describeEmbeddedPostgres("emitAgentTaskRun", () => {
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId!: string;
+  let spaceId!: string;
   let agentId!: string;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-agent-task-run-telemetry-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-agent-task-run-telemetry-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -44,28 +44,28 @@ describeEmbeddedPostgres("emitAgentTaskRun", () => {
     vi.clearAllMocks();
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompanyAndAgent(
+  async function seedSpaceAndAgent(
     agentOverrides: Partial<typeof agents.$inferInsert> = {},
   ) {
-    companyId = randomUUID();
+    spaceId = randomUUID();
     agentId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "responsible-user",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "active",
@@ -75,18 +75,18 @@ describeEmbeddedPostgres("emitAgentTaskRun", () => {
       permissions: {},
       ...agentOverrides,
     });
-    return { companyId, agentId };
+    return { spaceId, agentId };
   }
 
   it("emits one agent.task_run event for each of the five terminal states", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const states = ["succeeded", "interrupted", "failed", "cancelled", "timed_out"] as const;
     for (const state of states) {
       mockTrackAgentTaskRun.mockClear();
       const runId = randomUUID();
       const run = {
         id: runId,
-        companyId,
+        spaceId,
         agentId,
         status: state,
         startedAt: null,
@@ -106,9 +106,9 @@ describeEmbeddedPostgres("emitAgentTaskRun", () => {
   });
 
   it("emits the same event from a small scoped run read without loading execution payloads", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const payload = randomBytes(128 * 1024).toString("base64");
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "succeeded",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "succeeded",
       startedAt: new Date("2020-01-01T00:00:00Z"), finishedAt: new Date("2020-01-01T00:00:07Z"),
       contextSnapshot: { issueId: randomUUID(), prompt: payload }, runnerProfileJson: { instructions: payload },
       stdoutExcerpt: payload, resultJson: { stdout: payload }, usageJson: { model: "fixture", inputTokens: 12, outputTokens: 34, cachedInputTokens: 5 },
@@ -134,31 +134,31 @@ describeEmbeddedPostgres("emitAgentTaskRun", () => {
         return builder;
       };
     }});
-    await emitAgentTaskRunById(recorded, { companyId, runId: run.id });
+    await emitAgentTaskRunById(recorded, { spaceId, runId: run.id });
     expect(mockTrackAgentTaskRun).toHaveBeenCalledExactlyOnceWith(...expected);
     expect(reads).toHaveLength(1);
     expect(Buffer.byteLength(JSON.stringify(reads))).toBeLessThan(1024);
-    await emitAgentTaskRunById(recorded, { companyId: randomUUID(), runId: run.id });
+    await emitAgentTaskRunById(recorded, { spaceId: randomUUID(), runId: run.id });
     expect(mockTrackAgentTaskRun).toHaveBeenCalledTimes(1);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0]).toEqual(run);
   });
 
   it.each([null, [], 42, { issueId: 42 }, { issueId: "  fixture-task  " }, { issueId: "" }].map(context => ({ context })))("preserves telemetry task identity for $context", async ({ context }) => {
-    await seedCompanyAndAgent();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "failed",
+    await seedSpaceAndAgent();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "failed",
       contextSnapshot: context as Record<string, unknown> | null }).returning();
     await emitAgentTaskRun(db, run);
     const expected = mockTrackAgentTaskRun.mock.calls[0];
     mockTrackAgentTaskRun.mockClear();
-    await emitAgentTaskRunById(db, { companyId, runId: run.id });
+    await emitAgentTaskRunById(db, { spaceId, runId: run.id });
     expect(mockTrackAgentTaskRun).toHaveBeenCalledExactlyOnceWith(...expected);
   });
 
   it("omits durationSeconds when the run has no startedAt", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = {
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId,
       status: "succeeded",
       startedAt: null,
@@ -174,12 +174,12 @@ describeEmbeddedPostgres("emitAgentTaskRun", () => {
   });
 
   it("sends whole seconds from startedAt to finishedAt", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const startedAt = new Date("2026-01-01T00:00:00.000Z");
     const finishedAt = new Date("2026-01-01T00:00:07.400Z");
     const run = {
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId,
       status: "succeeded",
       startedAt,
@@ -196,12 +196,12 @@ describeEmbeddedPostgres("emitAgentTaskRun", () => {
   });
 
   it("never returns a negative durationSeconds when finishedAt precedes startedAt", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const startedAt = new Date("2026-01-01T00:00:10.000Z");
     const finishedAt = new Date("2026-01-01T00:00:05.000Z");
     const run = {
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId,
       status: "cancelled",
       startedAt,
@@ -217,10 +217,10 @@ describeEmbeddedPostgres("emitAgentTaskRun", () => {
   });
 
   it("omits model, the three token dimensions, and taskId when each source is absent", async () => {
-    await seedCompanyAndAgent({ adapterConfig: {} });
+    await seedSpaceAndAgent({ adapterConfig: {} });
     const run = {
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId,
       status: "failed",
       startedAt: null,
@@ -240,10 +240,10 @@ describeEmbeddedPostgres("emitAgentTaskRun", () => {
   });
 
   it("sends cachedTokens: 0 when usage exists and carries no cached value", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = {
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId,
       status: "succeeded",
       startedAt: null,
@@ -261,10 +261,10 @@ describeEmbeddedPostgres("emitAgentTaskRun", () => {
   });
 
   it("emits with no taskId when contextSnapshot carries no issueId", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = {
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId,
       status: "succeeded",
       startedAt: null,
@@ -280,11 +280,11 @@ describeEmbeddedPostgres("emitAgentTaskRun", () => {
   });
 
   it("passes the raw task identifier to trackAgentTaskRun without hashing it", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const rawIssueId = randomUUID();
     const run = {
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId,
       status: "succeeded",
       startedAt: null,
@@ -301,13 +301,13 @@ describeEmbeddedPostgres("emitAgentTaskRun", () => {
   });
 
   it("does not throw out of the status write when the emit fails", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     mockTrackAgentTaskRun.mockImplementationOnce(() => {
       throw new Error("telemetry backend unreachable");
     });
     const run = {
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId,
       status: "succeeded",
       startedAt: null,
@@ -320,10 +320,10 @@ describeEmbeddedPostgres("emitAgentTaskRun", () => {
   });
 
   it("omits adapterType and agentRole when the agent row is absent", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = {
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId: randomUUID(),
       status: "succeeded",
       startedAt: null,

@@ -23,7 +23,7 @@ vi.mock("./environment-execution-target.js", async importOriginal => {
     (input.leaseId ? targets.get(input.leaseId) : undefined) ?? actual.resolveEnvironmentExecutionTarget(input) };
 });
 
-/** An accepted run whose save failed on a full sandbox disk, handed to the board. */
+/** An accepted run whose save failed on a full sandbox disk, handed to the operator. */
 async function diskFullHold() {
   const f = await acceptedRemoteExport();
   const target = targets.get(f.lease.id)!, syncOut = target.runner!.syncOut!;
@@ -41,7 +41,7 @@ async function diskFullHold() {
   const retry = async () => (await request(receiptOnlyRecoveryApp()).post(`/api/issues/${f.issueId}/retry`)
     .send({ observedRunId: f.runId, idempotencyKey: randomUUID() }).expect(202)).body as { requestId: string; accepted: boolean; observedRunId: string };
   const runIds = async () => (await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
-    .where(eq(heartbeatRuns.companyId, f.companyId))).map(row => row.id).sort();
+    .where(eq(heartbeatRuns.spaceId, f.spaceId))).map(row => row.id).sort();
   const recoverAll = () => recoverRunHolds(f.input);
   return { ...f, disk, retry, runIds, recoverAll };
 }
@@ -56,7 +56,7 @@ async function expectSavedResultApplied(f: Awaited<ReturnType<typeof diskFullHol
     payload: { taskRetry: { strategy: "finalize_result" } } });
   expect(await coordinator(f.runId)).toMatchObject({ phase: "workspace_finalizing", resultId: f.resultId,
     recoveryHistory: [expect.objectContaining({ kind: "preserved_result_finalization", generationId: requestId, resultId: f.resultId })] });
-  expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.companyId),
+  expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.spaceId),
     eq(activityLog.action, "issue.saved_result_finalization_resumed")))).toEqual([expect.objectContaining({
     actorType: "system", entityId: f.issueId, runId: f.runId,
     details: expect.objectContaining({ requestId, resultId: f.resultId, strategy: "finalize_result" }) })]);
@@ -65,7 +65,7 @@ async function expectSavedResultApplied(f: Awaited<ReturnType<typeof diskFullHol
     .toMatchObject({ status: "done", executionRunId: null, checkoutRunId: null });
   expect((await run(f.runId)).status).toBe("succeeded");
   expect(await f.runIds()).toEqual(runsBefore);
-  expect(await db.select().from(costEvents).where(eq(costEvents.companyId, f.companyId))).toEqual([]);
+  expect(await db.select().from(costEvents).where(eq(costEvents.spaceId, f.spaceId))).toEqual([]);
 }
 
 describe("saved-work recovery on a full sandbox disk", () => {
@@ -85,7 +85,7 @@ describe("saved-work recovery on a full sandbox disk", () => {
     await recoverRetainedWorkspace(f.input);
     expect(f.disk.saves).toBe(savesAtFailure);
     const handedOff = await action(f.actionId);
-    expect(handedOff).toMatchObject({ status: "active", ownerType: "board" });
+    expect(handedOff).toMatchObject({ status: "active", ownerType: "operator" });
     expect(handedOff.nextAction).toMatch(/sandbox disk is full/);
     expect(handedOff.nextAction).toMatch(/Retry saves the files again/);
 
@@ -93,13 +93,13 @@ describe("saved-work recovery on a full sandbox disk", () => {
     expect(readRemoteWorkspaceAuthority(workspaceAfter.metadata)?.snapshotId)
       .toBe(readRemoteWorkspaceAuthority(workspaceBefore.metadata)?.snapshotId ?? null);
     expect(await readFile(path.join(f.remote, "saved.txt"), "utf8")).toBe("finished work\n");
-    const staging = path.join(f.remote, ".paperclip-runtime", "workspace-snapshots");
+    const staging = path.join(f.remote, ".outpost-runtime", "workspace-snapshots");
     for (const attempt of await readdir(staging).catch(() => [] as string[]))
       expect((await readdir(path.join(staging, attempt))).filter(name => name.startsWith("capture-"))).toEqual([]);
 
     const issue = (await db.select().from(issues).where(eq(issues.id, f.issueId)))[0];
     expect(await taskInterruptionPresentation(db, issue)).toMatchObject({ canRetry: true, observedRunId: f.runId });
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toMatchObject({ runId: f.runId,
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toMatchObject({ runId: f.runId,
       workspaceRecovery: { canRetry: true } });
     const runsBefore = await f.runIds();
 
@@ -112,7 +112,7 @@ describe("saved-work recovery on a full sandbox disk", () => {
     expect(readSystemRecovery(recovered.evidence)?.preservationOperationIds).toHaveLength(1);
     const authority = readRemoteWorkspaceAuthority((await db.select().from(executionWorkspaces)
       .where(eq(executionWorkspaces.id, f.workspaceId)))[0].metadata)!;
-    const saved = await createSavedWorkspaceLoader(db)({ companyId: f.companyId, workspaceId: f.workspaceId,
+    const saved = await createSavedWorkspaceLoader(db)({ spaceId: f.spaceId, workspaceId: f.workspaceId,
       snapshotId: authority.snapshotId! });
     try { expect(await readFile(path.join(saved.root, "saved.txt"), "utf8")).toBe("finished work\n"); }
     finally { await saved.cleanup(); }
@@ -124,9 +124,9 @@ describe("saved-work recovery on a full sandbox disk", () => {
     // (also replayed and concurrent). It applies the accepted result and
     // never starts another agent turn to repeat the finished work.
     const heartbeat = heartbeatService(db);
-    await Promise.all([heartbeat.resumeTaskRetry(f.companyId, receipt.requestId),
-      heartbeat.resumeTaskRetry(f.companyId, receipt.requestId)]);
-    await heartbeat.resumeTaskRetry(f.companyId, receipt.requestId);
+    await Promise.all([heartbeat.resumeTaskRetry(f.spaceId, receipt.requestId),
+      heartbeat.resumeTaskRetry(f.spaceId, receipt.requestId)]);
+    await heartbeat.resumeTaskRetry(f.spaceId, receipt.requestId);
     await expectSavedResultApplied(f, receipt.requestId, runsBefore);
   }, 60_000);
 
@@ -135,34 +135,34 @@ describe("saved-work recovery on a full sandbox disk", () => {
     const runsBefore = await f.runIds();
     f.disk.full = false;
     const receipt = await f.retry();
-    // The recovery worker saves the files for the board hold first and then
+    // The recovery worker saves the files for the operator hold first and then
     // dispatches, while the hold Retry added for the same run is still
     // scheduled. The saved files are already verified at that point.
     await recoverRetainedWorkspace(f.input);
     expect(readSystemRecovery((await action(f.actionId)).evidence)?.state).toBe("complete");
-    const pending = (await db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, f.companyId),
+    const pending = (await db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, f.spaceId),
       sql`${issueRecoveryActions.evidence}->>'runId' = ${f.runId}`))).filter(hold => hold.id !== f.actionId);
     expect(pending.map(hold => readSystemRecovery(hold.evidence)?.state)).toContain("scheduled");
     const heartbeat = heartbeatService(db);
-    await heartbeat.resumeTaskRetry(f.companyId, receipt.requestId);
+    await heartbeat.resumeTaskRetry(f.spaceId, receipt.requestId);
     expect(await f.runIds()).toEqual(runsBefore);
     expect(await wake(receipt.requestId)).toMatchObject({ status: "deferred_issue_execution",
       payload: { executionWait: { reason: "finalizing_saved_result" } } });
     await f.recoverAll();
-    await heartbeat.resumeTaskRetry(f.companyId, receipt.requestId);
+    await heartbeat.resumeTaskRetry(f.spaceId, receipt.requestId);
     await expectSavedResultApplied(f, receipt.requestId, runsBefore);
   }, 60_000);
 
   it("does not hold a Retry for a settling hold when the run records an operator Stop", async () => {
     const f = await diskFullHold();
     const source = await run(f.runId);
-    await db.update(heartbeatRuns).set({ resultJson: { ...source.resultJson, cancelledByUserId: "local-board" } })
+    await db.update(heartbeatRuns).set({ resultJson: { ...source.resultJson, cancelledByUserId: "local-operator" } })
       .where(eq(heartbeatRuns.id, f.runId));
     const runsBefore = await f.runIds();
     f.disk.full = false;
     const receipt = await f.retry();
     await recoverRetainedWorkspace(f.input);
-    await heartbeatService(db).resumeTaskRetry(f.companyId, receipt.requestId);
+    await heartbeatService(db).resumeTaskRetry(f.spaceId, receipt.requestId);
     expect((await f.runIds()).filter(id => !runsBefore.includes(id))).toHaveLength(1);
     expect(await coordinator(f.runId)).toMatchObject({ phase: "terminal_failure", recoveryHistory: [] });
   }, 60_000);
@@ -172,7 +172,7 @@ describe("saved-work recovery on a full sandbox disk", () => {
     const runsBefore = await f.runIds();
     const first = await f.retry();
     await f.recoverAll();
-    await heartbeatService(db).resumeTaskRetry(f.companyId, first.requestId);
+    await heartbeatService(db).resumeTaskRetry(f.spaceId, first.requestId);
     expect(readSystemRecovery((await action(f.actionId)).evidence)).toMatchObject({ state: "exhausted",
       failure: { retryClass: "user_action_required", cause: { label: "sandbox_disk_full" } } });
     await f.recoverAll();
@@ -186,7 +186,7 @@ describe("saved-work recovery on a full sandbox disk", () => {
     f.disk.full = false;
     const second = await f.retry();
     await f.recoverAll();
-    await heartbeatService(db).resumeTaskRetry(f.companyId, second.requestId);
+    await heartbeatService(db).resumeTaskRetry(f.spaceId, second.requestId);
     await expectSavedResultApplied(f, second.requestId, runsBefore);
   }, 60_000);
 
@@ -202,7 +202,7 @@ describe("saved-work recovery on a full sandbox disk", () => {
     // Stop, so applying the result is not provably wanted.
     { record: "an operator Stop recorded on the run", prepare: async (f: Awaited<ReturnType<typeof diskFullHold>>) => {
       const source = await run(f.runId);
-      await db.update(heartbeatRuns).set({ resultJson: { ...source.resultJson, cancelledByUserId: "local-board" } })
+      await db.update(heartbeatRuns).set({ resultJson: { ...source.resultJson, cancelledByUserId: "local-operator" } })
         .where(eq(heartbeatRuns.id, f.runId));
     } },
   ])("keeps today's Retry, one new run, with $record", async ({ prepare }) => {
@@ -213,8 +213,8 @@ describe("saved-work recovery on a full sandbox disk", () => {
     const receipt = await f.retry();
     await f.recoverAll();
     expect(readWorkspaceRecovery((await action(f.actionId)).evidence)?.status).toBe("recovered");
-    await heartbeatService(db).resumeTaskRetry(f.companyId, receipt.requestId);
-    const successors = (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId)))
+    await heartbeatService(db).resumeTaskRetry(f.spaceId, receipt.requestId);
+    const successors = (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId)))
       .filter(row => !runsBefore.includes(row.id));
     expect(successors).toHaveLength(1);
     expect(successors[0].contextSnapshot).toMatchObject({ previousRunId: f.runId, taskRetryRequestId: receipt.requestId });

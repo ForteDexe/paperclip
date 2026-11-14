@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { expect } from "@playwright/test";
 import { stringify } from "yaml";
 import type { IssueAttachment } from "../../../packages/shared/src/types/issue.js";
-import type { CompanyPortabilityFileEntry } from "../../../packages/shared/src/types/company-portability.js";
+import type { SpacePortabilityFileEntry } from "../../../packages/shared/src/types/space-portability.js";
 import type { ChatCatalogCase, ChatCatalogContext } from "../chat-catalog-contract.js";
 import { makeDefinition } from "./internal-definition.js";
 import { mainPerson } from "./internal-privacy.js";
@@ -21,7 +21,7 @@ export function buildHistoricalWebsiteImport(deliveryAt: string, nonce: string) 
     { slug: "website-draft", title: "Latest launch website draft", status: "backlog", at: new Date().toISOString(), filename: "website-draft.html", label: "Unapproved draft only, never delivered" },
     { slug: "restricted-final", title: `Restricted final website ${nonce}`, status: "done", at: deliveryAt, filename: "restricted-final.html", label: "Restricted final website delivered" },
   ];
-  const files: Record<string, CompanyPortabilityFileEntry> = { "COMPANY.md": '---\nschema: "agentcompanies/v1"\nname: "Historical website fixture"\n---\nSynthetic migration fixture; source task and comment timestamps are preserved by the supported import contract.\n' };
+  const files: Record<string, SpacePortabilityFileEntry> = { "COMPANY.md": '---\nschema: "agentcompanies/v1"\nname: "Historical website fixture"\n---\nSynthetic migration fixture; source task and comment timestamps are preserved by the supported import contract.\n' };
   const tasks: Record<string, unknown> = {};
   const receipts = specs.map(spec => {
     const body = `<!doctype html><html><body><h1>${spec.title}</h1><p>${nonce}-${spec.slug}</p></body></html>\n`; const digest = sha(body);
@@ -66,7 +66,7 @@ export async function readReturnedWebsiteFiles(ctx: ChatCatalogContext, o: Inter
     ...await ctx.input.api.get<IssueAttachment[]>(`/api/issues/${chat.id}/attachments`)];
   const returned: ReturnedFile[] = [];
   for (const attachment of attachments) {
-    if (!fileLink(o, attachment) || attachment.companyId !== o.companyId || attachment.sha256 !== o.state.finalHash
+    if (!fileLink(o, attachment) || attachment.spaceId !== o.spaceId || attachment.sha256 !== o.state.finalHash
       || attachment.byteSize !== (o.state.finalAttachment as IssueAttachment).byteSize) continue;
     const bytes = await ctx.input.api.getAttachmentContent(attachment.id);
     returned.push({ attachment, downloadedHash: sha(bytes), byteSize: bytes.byteLength });
@@ -80,7 +80,7 @@ function historySignature(history: SourceHistory) {
 }
 function verifiedReturnedFile(o: SearchObservation, target: Entity, original: IssueAttachment) {
   return o.returnedFiles?.find(({ attachment: a, downloadedHash, byteSize }) => !!fileLink(o, a)
-    && a.companyId === o.companyId && a.sha256 === o.state.finalHash && downloadedHash === o.state.finalHash
+    && a.spaceId === o.spaceId && a.sha256 === o.state.finalHash && downloadedHash === o.state.finalHash
     && a.byteSize === original.byteSize && byteSize === original.byteSize && a.originalFilename === original.originalFilename
     && (a.id === original.id && a.issueId === target.id || a.issueId === o.chatIssueId && a.createdByAgentId === o.leadId
       && o.runs.some(run => run.id === a.originatingRunId && run.status === "succeeded")));
@@ -94,7 +94,7 @@ export function gradeArtifactSearch(value: unknown) {
   c.add("original-last-week-delivery-not-import-time", o.currentSource.id === target.id && o.currentSource.completedAt === o.state.deliveryAt
     && Date.parse(String(o.state.deliveryAt)) >= Number(o.state.weekStart) && Date.parse(String(o.state.deliveryAt)) < Number(o.state.weekEnd)
     && o.deliveryComments.some(row => row.id === file.issueCommentId && row.createdAt === o.state.deliveryAt && (row.body ?? "").includes(file.sha256) && /Final approved website delivered/.test(row.body ?? ""))
-    && o.activity.some(row => row.action === "company.imported" && Date.parse(row.createdAt ?? "") >= Date.parse(String(o.finalAttachment.createdAt))
+    && o.activity.some(row => row.action === "space.imported" && Date.parse(row.createdAt ?? "") >= Date.parse(String(o.finalAttachment.createdAt))
       && Date.parse(row.createdAt ?? "") - Date.parse(String(o.finalAttachment.createdAt)) < 300000)
     && Date.parse(String(o.finalAttachment.createdAt)) > Date.parse(String(o.state.deliveryAt)),
     "The final belongs to the requested prior week through preserved completion and attachment-bound source-comment dates; the actual attachment import happened later.");
@@ -132,8 +132,8 @@ function findArtifact(): ChatCatalogCase {
     const number = (name: string) => Number(parts.find(part => part.type === name)?.value); const localDate = new Date(Date.UTC(number("year"), number("month") - 1, number("day")));
     const weekEnd = localDate.getTime() - ((localDate.getUTCDay() + 6) % 7) * 86400000; const weekStart = weekEnd - 7 * 86400000;
     const deliveryAt = new Date(weekStart + 2 * 86400000 + 12 * 3600000).toISOString();
-    const bundle = buildHistoricalWebsiteImport(deliveryAt, ctx.input.nonce); const root = `/api/companies/${ctx.input.fixtures.company.id}`;
-    const request = { source: { type: "inline", files: bundle.files, expectedFileCount: Object.keys(bundle.files).length }, include: { company: false, agents: false, projects: false, issues: true }, target: { mode: "existing_company", companyId: ctx.input.fixtures.company.id }, collisionStrategy: "rename", pauseAutomations: true };
+    const bundle = buildHistoricalWebsiteImport(deliveryAt, ctx.input.nonce); const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
+    const request = { source: { type: "inline", files: bundle.files, expectedFileCount: Object.keys(bundle.files).length }, include: { space: false, agents: false, projects: false, issues: true }, target: { mode: "existing_space", spaceId: ctx.input.fixtures.space.id }, collisionStrategy: "rename", pauseAutomations: true };
     const preview = await ctx.input.api.post(`${root}/imports/preview`, request);
     await ctx.input.evidence("chat-catalog-historical-import-preview.json", preview);
     if (!historicalWebsitePreviewMatches(preview, bundle)) throw new Error("Public historical preview omitted the original task dates, source comments or SHA-bound attachment linkage");
@@ -153,7 +153,7 @@ function findArtifact(): ChatCatalogCase {
     const originalHistory = await Promise.all(records.map(async row => ({ issueId: row.id, comments: await ctx.input.api.get<Entity[]>(`/api/issues/${row.id}/comments?order=asc`), attachments: await ctx.input.api.get<IssueAttachment[]>(`/api/issues/${row.id}/attachments`) })));
     const state = { originalHistory, project: p, task: records[0], finalAttachment: files[0], finalHash: bundle.receipts[0]!.sha256, deliveryAt, weekStart, weekEnd, timezone,
       originalTasks: records, distractors: records.slice(1), privateTask: records[3], privateAttachment: files[3], privateMarker: `${ctx.input.nonce}-restricted-final` };
-    await ctx.input.evidence("chat-catalog-public-historical-delivery-import.json", { preview, imported, state, provenance: "Synthetic historical migration through supported public company import. Original source completion/comment dates are preserved; attachments are re-uploaded at import time, not falsely backdated." }); return state;
+    await ctx.input.evidence("chat-catalog-public-historical-delivery-import.json", { preview, imported, state, provenance: "Synthetic historical migration through supported public space import. Original source completion/comment dates are preserved; attachments are re-uploaded at import time, not falsely backdated." }); return state;
   }, gradeArtifactSearch);
   return { ...base, oracleVersion: "outpost.chat-catalog.find-artifact.v2", authentication: "human-session", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-artifact-search.ts", "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts"],
     async observe(ctx, state): Promise<SearchObservation> {
@@ -162,7 +162,7 @@ function findArtifact(): ChatCatalogCase {
         const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(15000), headers: { Authorization: `Bearer ${key!.token}` } }); return readSearchProbeResponse(response); };
       const [currentSource, attachments, deliveryComments, bytes, search] = await Promise.all([
         ctx.input.api.get<HistoricalTask>(`/api/issues/${entity(state, "task").id}`), ctx.input.api.get<IssueAttachment[]>(`/api/issues/${entity(state, "task").id}/attachments`),
-        ctx.input.api.get<Entity[]>(`/api/issues/${entity(state, "task").id}/comments?order=asc`), ctx.input.api.getAttachmentContent(file.id), read(`/api/companies/${o.companyId}/search?q=website`),
+        ctx.input.api.get<Entity[]>(`/api/issues/${entity(state, "task").id}/comments?order=asc`), ctx.input.api.getAttachmentContent(file.id), read(`/api/spaces/${o.spaceId}/search?q=website`),
       ]);
       const hiddenUrl = new URL((state.privateAttachment as IssueAttachment).contentPath, ctx.input.api.baseURL);
       const denied = await fetch(hiddenUrl, { redirect: "error", signal: AbortSignal.timeout(15000), headers: { Authorization: `Bearer ${key.token}` } }); await denied.body?.cancel();

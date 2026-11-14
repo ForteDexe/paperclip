@@ -9,7 +9,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { executionWorkspaces } from "./execution_workspaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 import { issues } from "./issues.js";
@@ -18,7 +18,7 @@ export const workspaceOperations = pgTable(
   "workspace_operations",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     executionWorkspaceId: uuid("execution_workspace_id").references(() => executionWorkspaces.id, {
       onDelete: "set null",
     }),
@@ -47,18 +47,18 @@ export const workspaceOperations = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyRunStartedIdx: index("workspace_operations_company_run_started_idx").on(
-      table.companyId,
+    spaceRunStartedIdx: index("workspace_operations_space_run_started_idx").on(
+      table.spaceId,
       table.heartbeatRunId,
       table.startedAt,
     ),
-    companyWorkspaceStartedIdx: index("workspace_operations_company_workspace_started_idx").on(
-      table.companyId,
+    spaceWorkspaceStartedIdx: index("workspace_operations_space_workspace_started_idx").on(
+      table.spaceId,
       table.executionWorkspaceId,
       table.startedAt,
     ),
-    companyWorkspaceIssueStartedIdx: index("workspace_operations_company_workspace_issue_started_idx").on(
-      table.companyId,
+    spaceWorkspaceIssueStartedIdx: index("workspace_operations_space_workspace_issue_started_idx").on(
+      table.spaceId,
       table.executionWorkspaceId,
       table.issueId,
       table.startedAt,

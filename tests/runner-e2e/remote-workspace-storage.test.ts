@@ -21,18 +21,18 @@ function goodEvidence(): RemoteWorkspaceStorageEvidence {
 }
 
 function checkpointApi() {
-  const context = { companyId: id("6"), agentId: id("7"), issueId: id("8"), environmentId: id("9") };
+  const context = { spaceId: id("6"), agentId: id("7"), issueId: id("8"), environmentId: id("9") };
   const location = { environmentId: context.environmentId, leaseId: id("4"), providerLeaseId: "synthetic-provider", remoteCwd: "/workspace" };
   const receipt = { schema: "outpost.remote-workspace-run.v1", workspaceId: id("1"),
     leaseId: location.leaseId, providerLeaseId: location.providerLeaseId, remoteCwd: location.remoteCwd,
     epoch: 2, state: "saved", snapshotId: id("2") };
-  const workspace = { issueId: context.issueId, workspace: { id: id("1"), companyId: context.companyId,
+  const workspace = { issueId: context.issueId, workspace: { id: id("1"), spaceId: context.spaceId,
     providerType: "cloud_sandbox", metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1",
       epoch: 2, snapshotId: id("2"), source: { kind: "empty" }, location, writerRunId: null, dirty: false } } } };
   // activityService.runsForIssue returns runId, not full-run id or nativeIssueId.
   const summary = { runId: id("3"), runtimeMode: "native", status: "succeeded", agentId: context.agentId,
     finishedAt: "2026-10-31T13:21:00.000Z" };
-  const fullRun = { id: summary.runId, companyId: context.companyId, agentId: context.agentId,
+  const fullRun = { id: summary.runId, spaceId: context.spaceId, agentId: context.agentId,
     nativeIssueId: context.issueId, runtimeMode: "native", status: "succeeded", runnerProfileJson: { remoteWorkspace: receipt } };
   const file = { content: { encoding: "utf8", data: `${"a".repeat(32)}\n` },
     resource: { workspaceId: id("1"), workspaceKind: "execution_workspace", source: { kind: "live" } } };
@@ -63,7 +63,7 @@ describe("remote workspace Product E2E qualification", () => {
     const detached = { ...f.workspace, workspace: { ...f.workspace.workspace,
       metadata: { remoteWorkspace: { ...f.workspace.workspace.metadata.remoteWorkspace, location: null } } } };
     const file = { ...f.file, resource: { ...f.file.resource, source: { kind: "saved", snapshotId: f.receipt.snapshotId } } };
-    const lease = { id: location.leaseId, companyId: f.context.companyId, issueId: f.context.issueId,
+    const lease = { id: location.leaseId, spaceId: f.context.spaceId, issueId: f.context.issueId,
       providerLeaseId: location.providerLeaseId };
     const api = { get: async <T>(route: string): Promise<T> => {
       if (route.endsWith("/workspace")) return detached as T;
@@ -77,7 +77,7 @@ describe("remote workspace Product E2E qualification", () => {
     file.resource.source.snapshotId = id("5");
     expect(await readRemoteWorkspaceStorageCheckpoint(input)).toEqual({});
     file.resource.source.snapshotId = f.receipt.snapshotId;
-    lease.companyId = id("5");
+    lease.spaceId = id("5");
     expect(await readRemoteWorkspaceStorageCheckpoint(input)).toEqual({});
     const evidence = goodEvidence(); evidence.expectedFileSource = "saved";
     for (const point of [evidence.initial!, evidence.final!]) Object.assign(point, { fileSource: "saved", fileSnapshotId: point.snapshotId });
@@ -94,7 +94,7 @@ describe("remote workspace Product E2E qualification", () => {
     const originalGet = f.api.get;
     const api = { get: async <T>(route: string): Promise<T> => {
       if (route.includes("file-resources/content")) return savedFile as T;
-      if (route.endsWith("/leases")) return [{ id: location.leaseId, companyId: f.context.companyId,
+      if (route.endsWith("/leases")) return [{ id: location.leaseId, spaceId: f.context.spaceId,
         issueId: f.context.issueId, providerLeaseId: location.providerLeaseId }] as T;
       return originalGet<T>(route);
     } };
@@ -114,12 +114,12 @@ describe("remote workspace Product E2E qualification", () => {
     expect(gradeRemoteWorkspaceStorage(evidence).every(check => check.passed)).toBe(false);
   });
 
-  it.each(["run-id", "company", "agent", "native-issue", "runtime", "status", "schema", "workspace",
+  it.each(["run-id", "space", "agent", "native-issue", "runtime", "status", "schema", "workspace",
     "epoch", "snapshot", "save-state", "lease", "provider", "remote-root"] as const)(
     "rejects a full-run %s mismatch even when its public summary succeeds", async mismatch => {
       const fixture = checkpointApi();
       if (mismatch === "run-id") fixture.fullRun.id = id("5");
-      if (mismatch === "company") fixture.fullRun.companyId = id("5");
+      if (mismatch === "space") fixture.fullRun.spaceId = id("5");
       if (mismatch === "agent") fixture.fullRun.agentId = id("5");
       if (mismatch === "native-issue") fixture.fullRun.nativeIssueId = id("5");
       if (mismatch === "runtime") fixture.fullRun.runtimeMode = "legacy";
@@ -137,12 +137,12 @@ describe("remote workspace Product E2E qualification", () => {
     },
   );
 
-  it.each(["issue", "company", "schema", "snapshot", "dirty", "writer", "environment"] as const)(
+  it.each(["issue", "space", "schema", "snapshot", "dirty", "writer", "environment"] as const)(
     "holds a saved checkpoint with invalid current workspace %s", async mismatch => {
       const fixture = checkpointApi();
       const authority = fixture.workspace.workspace.metadata.remoteWorkspace;
       if (mismatch === "issue") fixture.workspace.issueId = id("5");
-      if (mismatch === "company") fixture.workspace.workspace.companyId = id("5");
+      if (mismatch === "space") fixture.workspace.workspace.spaceId = id("5");
       if (mismatch === "schema") authority.schema = "unknown";
       if (mismatch === "snapshot") authority.snapshotId = id("5");
       if (mismatch === "dirty") authority.dirty = true;
@@ -234,8 +234,8 @@ describe("remote workspace Product E2E qualification", () => {
   it("allows only the explicit storage override through the existing isolation guard", () => {
     const workspaceStorage = remoteWorkspaceStorageServerEnvironment({ executions: [execution()],
       env: { OUTPOST_RUNNER_E2E_WORKSPACE_STORAGE_BUCKET: "disposable-workspace-fixture" }, instanceId: "attempt-one" })!;
-    const expected = { temporaryRoot: "/tmp/fixture", paperclipHome: "/tmp/fixture/home", configPath: "/tmp/fixture/config.json" };
-    const env = { OUTPOST_HOME: expected.paperclipHome, OUTPOST_CONFIG: expected.configPath,
+    const expected = { temporaryRoot: "/tmp/fixture", outpostHome: "/tmp/fixture/home", configPath: "/tmp/fixture/config.json" };
+    const env = { OUTPOST_HOME: expected.outpostHome, OUTPOST_CONFIG: expected.configPath,
       XDG_CACHE_HOME: "/tmp/fixture/xdg-cache", OUTPOST_AGENT_JWT_SECRET: "synthetic", OUTPOST_DECISION_SIGNING_SECRET: "synthetic",
       OUTPOST_TOOL_ACTION_SIGNING_SECRET: "synthetic", BETTER_AUTH_SECRET: "synthetic", ...workspaceStorage };
     expect(() => assertIsolatedServerEnvironment(env, expected)).toThrow("OUTPOST_STORAGE_S3_BUCKET");

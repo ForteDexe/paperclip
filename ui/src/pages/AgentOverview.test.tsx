@@ -26,7 +26,7 @@ describe("AgentOverview", () => {
   it("leads with activity and run cards, then Profile and Recent tasks", () => {
     const agent = {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Codex Coder",
       urlKey: "codexcoder",
       role: "engineer",
@@ -42,7 +42,7 @@ describe("AgentOverview", () => {
     } as unknown as AgentDetail;
     const issue = {
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PAP-42",
       title: "Simplify agent information architecture",
       status: "in_progress",
@@ -88,7 +88,7 @@ describe("AgentOverview", () => {
   function renderOverview(createdByUserId: string | null, client: QueryClient) {
     const agent = {
       id: "agent-2",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Shared Agent",
       urlKey: "sharedagent",
       role: "engineer",
@@ -118,7 +118,7 @@ describe("AgentOverview", () => {
 
   function renderWithDirectory(createdByUserId: string, principalIds: string[]) {
     const client = new QueryClient();
-    client.setQueryData(queryKeys.access.companyUserDirectory("company-1"), {
+    client.setQueryData(queryKeys.access.spaceUserDirectory("space-1"), {
       users: principalIds.map((principalId) => ({
         principalId,
         status: "active",
@@ -128,20 +128,20 @@ describe("AgentOverview", () => {
     return renderOverview(createdByUserId, client);
   }
 
-  it("shows who created the agent when the company has more than one human user", () => {
+  it("shows who created the agent when the space has more than one human user", () => {
     const markup = renderWithDirectory("user-alice", ["user-alice", "user-bob"]);
     expect(markup).toContain("Created by");
     expect(markup).toContain("Alice Admin");
   });
 
-  it("hides the creator when only one human user shares the company with the Board", () => {
-    const markup = renderWithDirectory("user-alice", ["user-alice", "local-board"]);
+  it("hides the creator when only one human user shares the space with the Operator", () => {
+    const markup = renderWithDirectory("user-alice", ["user-alice", "local-operator"]);
     expect(markup).not.toContain("Created by");
   });
 
   function failedDirectoryClient() {
     const client = new QueryClient({ defaultOptions: { queries: { retryOnMount: false } } });
-    client.getQueryCache().build(client, { queryKey: queryKeys.access.companyUserDirectory("company-1") }).setState({
+    client.getQueryCache().build(client, { queryKey: queryKeys.access.spaceUserDirectory("space-1") }).setState({
       status: "error",
       error: new Error("Directory unavailable"),
       fetchStatus: "idle",
@@ -149,12 +149,12 @@ describe("AgentOverview", () => {
     return client;
   }
 
-  it("shows an error when the company user directory cannot be loaded", () => {
+  it("shows an error when the space user directory cannot be loaded", () => {
     const markup = renderOverview("user-alice", failedDirectoryClient());
     expect(markup).toContain("Could not load creator");
   });
 
-  it.each([null, "local-board"])("keeps the creator row hidden for creator %s when the directory failed", (createdByUserId) => {
+  it.each([null, "local-operator"])("keeps the creator row hidden for creator %s when the directory failed", (createdByUserId) => {
     const markup = renderOverview(createdByUserId, failedDirectoryClient());
     expect(markup).not.toContain("Created by");
     expect(markup).not.toContain("Could not load creator");

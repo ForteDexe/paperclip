@@ -3,7 +3,7 @@ import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "@/lib/router";
 import { agentsApi } from "@/api/agents";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAgentEnvironmentSlots } from "@/plugins/useAgentEnvironmentSlots";
 import { PluginSlotMount, usePluginSlots } from "@/plugins/slots";
@@ -15,17 +15,17 @@ export function AgentDetailPage() {
 }
 
 function AgentPluginDetail() {
-  const { agentId = "", companyPrefix, tab } = useParams<{ agentId: string; companyPrefix?: string; tab: string }>();
-  const { companies, selectedCompanyId } = useCompany();
-  const companyId = companies.find(company => company.issuePrefix.toUpperCase() === companyPrefix?.toUpperCase())?.id ?? selectedCompanyId;
+  const { agentId = "", spacePrefix, tab } = useParams<{ agentId: string; spacePrefix?: string; tab: string }>();
+  const { spaces, selectedSpaceId } = useSpace();
+  const spaceId = spaces.find(space => space.issuePrefix.toUpperCase() === spacePrefix?.toUpperCase())?.id ?? selectedSpaceId;
   const { data: agent, isLoading, error } = useQuery({
-    queryKey: [...queryKeys.agents.detail(agentId), companyId ?? null],
-    queryFn: () => agentsApi.get(agentId, companyId ?? undefined),
-    enabled: Boolean(agentId && companyId),
+    queryKey: [...queryKeys.agents.detail(agentId), spaceId ?? null],
+    queryFn: () => agentsApi.get(agentId, spaceId ?? undefined),
+    enabled: Boolean(agentId && spaceId),
   });
-  const { slots: declaredSlots, isLoading: slotsLoading, errorMessage } = usePluginSlots({ slotTypes: ["detailTab"], entityType: "agent", companyId: agent?.companyId, enabled: Boolean(agent) });
+  const { slots: declaredSlots, isLoading: slotsLoading, errorMessage } = usePluginSlots({ slotTypes: ["detailTab"], entityType: "agent", spaceId: agent?.spaceId, enabled: Boolean(agent) });
   const requestedSlots = useMemo(() => declaredSlots.filter(item => `plugin:${item.pluginKey}:${item.id}` === tab), [declaredSlots, tab]);
-  const { slots: [slot], isLoading: environmentLoading } = useAgentEnvironmentSlots(requestedSlots, agent?.id, agent?.companyId);
+  const { slots: [slot], isLoading: environmentLoading } = useAgentEnvironmentSlots(requestedSlots, agent?.id, agent?.spaceId);
   const { setBreadcrumbs } = useBreadcrumbs();
   useEffect(() => {
     setBreadcrumbs([
@@ -38,7 +38,7 @@ function AgentPluginDetail() {
   if (!agent || isLoading || slotsLoading || environmentLoading) return <p role="status">Loading agent view…</p>;
   return <div className="mx-auto max-w-5xl space-y-4">
     <Link to={`/agents/${encodeURIComponent(agentId)}/overview`} className="text-sm text-muted-foreground">{agent.name}</Link>
-    {slot ? <PluginSlotMount slot={slot} context={{ companyId: agent.companyId, companyPrefix: companyPrefix ?? null, entityId: agent.id, entityType: "agent" }} missingBehavior="placeholder" />
+    {slot ? <PluginSlotMount slot={slot} context={{ spaceId: agent.spaceId, spacePrefix: spacePrefix ?? null, entityId: agent.id, entityType: "agent" }} missingBehavior="placeholder" />
       : <p role="status">{errorMessage ? "Agent view unavailable" : "This plugin view is unavailable"}</p>}
   </div>;
 }

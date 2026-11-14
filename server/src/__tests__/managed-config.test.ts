@@ -59,23 +59,23 @@ describe("plugins.workerEnv", () => {
   });
 });
 
-describe("plugins.enabledCompanies", () => {
-  const companyId = "f0679247-e2be-5a76-adb6-6bd360e5a833";
-  const plugins = (enabledCompanies: unknown) => ({ plugins: { autoInstall: ["daytona"], enabledCompanies } });
+describe("plugins.enabledSpaces", () => {
+  const spaceId = "f0679247-e2be-5a76-adb6-6bd360e5a833";
+  const plugins = (enabledSpaces: unknown) => ({ plugins: { autoInstall: ["daytona"], enabledSpaces } });
 
-  it("accepts company ids for an auto-installed plugin", () => {
-    expect(parseManagedConfigEnv(envWith(validDoc(plugins({ daytona: [companyId] }))))?.plugins.enabledCompanies).toEqual({ daytona: [companyId] });
+  it("accepts space ids for an auto-installed plugin", () => {
+    expect(parseManagedConfigEnv(envWith(validDoc(plugins({ daytona: [spaceId] }))))?.plugins.enabledSpaces).toEqual({ daytona: [spaceId] });
   });
 
   it.each([
-    ["a plugin that is not auto-installed", { other: [companyId] }, /not in "plugins.autoInstall"/],
-    ["a non-object section", [companyId], /must be an object/],
+    ["a plugin that is not auto-installed", { other: [spaceId] }, /not in "plugins.autoInstall"/],
+    ["a non-object section", [spaceId], /must be an object/],
     ["an empty list", { daytona: [] }, /non-empty array/],
-    ["a value that is not a UUID", { daytona: ["all"] }, /lowercase company UUIDs/],
-    ["an uppercase UUID", { daytona: [companyId.toUpperCase()] }, /lowercase company UUIDs/],
-    ["a duplicate id", { daytona: [companyId, companyId] }, /duplicate entry/],
-  ])("refuses to start with %s", (_label, enabledCompanies, message) => {
-    expect(() => parseManagedConfigEnv(envWith(validDoc(plugins(enabledCompanies))))).toThrow(message);
+    ["a value that is not a UUID", { daytona: ["all"] }, /lowercase space UUIDs/],
+    ["an uppercase UUID", { daytona: [spaceId.toUpperCase()] }, /lowercase space UUIDs/],
+    ["a duplicate id", { daytona: [spaceId, spaceId] }, /duplicate entry/],
+  ])("refuses to start with %s", (_label, enabledSpaces, message) => {
+    expect(() => parseManagedConfigEnv(envWith(validDoc(plugins(enabledSpaces))))).toThrow(message);
   });
 });
 

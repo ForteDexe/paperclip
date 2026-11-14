@@ -6,11 +6,11 @@ import { collectConversationLinks, conversationLinkBindings, readConversationDom
 const card = '<div data-thread-item-kind="project_created" data-thread-anchor="project-created:project"><article aria-label="Project created: Launch"><div><p>Project created</p><a href="/RUN/projects/project">Launch</a></div></article></div>';
 const thread = (content = card) => `<div data-testid="task-chat-thread"><div data-testid="task-chat-history-content"><div data-testid="task-chat-scroller"><div id="comment-human" data-thread-item-kind="human">Create a project called Launch for the new website.</div>${content}<div id="comment-reply" data-thread-item-kind="agent">Created the Launch project. No repositories are connected yet.</div></div></div></div>`;
 function input(): ConversationLinkInput {
-  return { origin: "https://fixture.test", companyId: "company", companyPrefix: "RUN", sourceId: "source", leadId: "ceo",
-    comments: [{ id: "human", issueId: "source", companyId: "company" }, { id: "reply", issueId: "source", companyId: "company", authorAgentId: "ceo", createdByRunId: "run" }],
-    runs: [{ id: "run", companyId: "company", agentId: "ceo", status: "succeeded", contextSnapshot: { issueId: "source" } }],
-    projects: [{ id: "project", companyId: "company", name: "Launch" }],
-    activity: [{ id: "created", companyId: "company", action: "project.created", entityType: "project", entityId: "project", actorType: "agent", actorId: "ceo", agentId: "ceo", runId: "run" }] };
+  return { origin: "https://fixture.test", spaceId: "space", spacePrefix: "RUN", sourceId: "source", leadId: "ceo",
+    comments: [{ id: "human", issueId: "source", spaceId: "space" }, { id: "reply", issueId: "source", spaceId: "space", authorAgentId: "ceo", createdByRunId: "run" }],
+    runs: [{ id: "run", spaceId: "space", agentId: "ceo", status: "succeeded", contextSnapshot: { issueId: "source" } }],
+    projects: [{ id: "project", spaceId: "space", name: "Launch" }],
+    activity: [{ id: "created", spaceId: "space", action: "project.created", entityType: "project", entityId: "project", actorType: "agent", actorId: "ceo", agentId: "ceo", runId: "run" }] };
 }
 const collect = (value = input()) => readConversationDomLinks(conversationLinkBindings(value));
 beforeEach(() => { document.body.innerHTML = thread(); vi.spyOn(Element.prototype, "getClientRects").mockReturnValue([{ width: 20, height: 20 }] as unknown as DOMRectList); });
@@ -20,8 +20,8 @@ it("collects the real supported sibling project-card structure when reply-only c
   expect(collect()).toEqual([{ threadTestId: "task-chat-thread", href: "/RUN/projects/project", source: "project-created-card", conversationId: "source", anchorCommentId: "human", resourceId: "project", cardLabel: "Project created: Launch", createdByRunId: "run" }]);
 });
 it("keeps the original creation card usable on an idempotent retry without requiring another card", () => {
-  const value = input(); value.comments.push({ id: "retry", issueId: "source", companyId: "company", authorAgentId: "ceo", createdByRunId: "retry-run" });
-  value.runs.push({ id: "retry-run", companyId: "company", agentId: "ceo", status: "succeeded", contextSnapshot: { issueId: "source" } });
+  const value = input(); value.comments.push({ id: "retry", issueId: "source", spaceId: "space", authorAgentId: "ceo", createdByRunId: "retry-run" });
+  value.runs.push({ id: "retry-run", spaceId: "space", agentId: "ceo", status: "succeeded", contextSnapshot: { issueId: "source" } });
   document.querySelector('[data-testid="task-chat-scroller"]')!.insertAdjacentHTML('beforeend', '<div id="comment-retry">The project already exists.</div>');
   expect(collect(value).map(row => row.href)).toEqual(["/RUN/projects/project"]);
 });
@@ -30,22 +30,22 @@ it("retains visible ordinary reply links including task, goal and artifact links
   expect(collect().filter(row => row.source === 'reply').map(row => row.href)).toEqual(['/RUN/issues/task','/RUN/goals/goal','/api/attachments/file/content','https://github.com/owner/repository/issues/12']);
 });
 it.each([
-  ['wrong saved company', (v:ConversationLinkInput) => { v.projects[0]!.companyId='other'; }],
+  ['wrong saved space', (v:ConversationLinkInput) => { v.projects[0]!.spaceId='other'; }],
   ['wrong saved resource', (v:ConversationLinkInput) => { v.projects[0]!.id='other'; }],
   ['wrong saved name', (v:ConversationLinkInput) => { v.projects[0]!.name='Other'; }],
   ['missing creation audit', (v:ConversationLinkInput) => { v.activity=[]; }],
-  ['wrong audit company', (v:ConversationLinkInput) => { v.activity[0]!.companyId='other'; }],
+  ['wrong audit space', (v:ConversationLinkInput) => { v.activity[0]!.spaceId='other'; }],
   ['wrong audit actor type', (v:ConversationLinkInput) => { v.activity[0]!.actorType='user'; }],
   ['wrong audit actor', (v:ConversationLinkInput) => { v.activity[0]!.actorId='other'; }],
   ['wrong audit agent', (v:ConversationLinkInput) => { v.activity[0]!.agentId='other'; }],
   ['wrong audit entity type', (v:ConversationLinkInput) => { v.activity[0]!.entityType='issue'; }],
   ['wrong audit resource', (v:ConversationLinkInput) => { v.activity[0]!.entityId='other'; }],
   ['unrelated historical run', (v:ConversationLinkInput) => { v.activity[0]!.runId='old'; }],
-  ['run in another company', (v:ConversationLinkInput) => { v.runs[0]!.companyId='other'; }],
+  ['run in another space', (v:ConversationLinkInput) => { v.runs[0]!.spaceId='other'; }],
   ['run for another conversation', (v:ConversationLinkInput) => { v.runs[0]!.contextSnapshot={issueId:'other'}; }],
   ['wrong reply author', (v:ConversationLinkInput) => { v.comments[1]!.authorAgentId='other'; }],
   ['reply from another conversation', (v:ConversationLinkInput) => { v.comments[1]!.issueId='other'; }],
-  ['comments from another company', (v:ConversationLinkInput) => { v.comments.forEach(row=>row.companyId='other'); }],
+  ['comments from another space', (v:ConversationLinkInput) => { v.comments.forEach(row=>row.spaceId='other'); }],
 ] as const)('rejects %s instead of treating any matching project link as evidence', (_label, mutate) => { const value=input(); mutate(value); expect(collect(value)).toEqual([]); });
 it.each([
   ['sidebar only', () => { document.body.innerHTML=thread('')+`<aside>${card}</aside>`; }],
@@ -61,14 +61,14 @@ it.each([
   ['wrong item resource', () => { document.querySelector('[data-thread-item-kind="project_created"]')!.setAttribute('data-thread-anchor','project-created:other'); }],
   ['wrong card kind', () => { document.querySelector('article')!.setAttribute('aria-label','Goal created: Launch'); }],
   ['wrong card resource', () => { document.querySelector('article a')!.setAttribute('href','/RUN/projects/other'); }],
-  ['wrong company route', () => { document.querySelector('article a')!.setAttribute('href','/OTHER/projects/project'); }],
+  ['wrong space route', () => { document.querySelector('article a')!.setAttribute('href','/OTHER/projects/project'); }],
   ['other origin', () => { document.querySelector('article a')!.setAttribute('href','https://other.test/RUN/projects/project'); }],
   ['wrong resource kind', () => { document.querySelector('article a')!.setAttribute('href','/RUN/goals/project'); }],
   ['extra destination path', () => { document.querySelector('article a')!.setAttribute('href','/RUN/projects/project/other'); }],
   ['duplicate visible source conversation', () => { document.body.insertAdjacentHTML('beforeend',thread()); }],
 ] as const)('rejects %s in actual DOM scope', (_label, mutate) => { mutate(); expect(collect()).toEqual([]); });
-it("excludes hidden, wrong-company and unrelated inline anchors while keeping the current reply", () => {
-  document.querySelector('#comment-reply')!.innerHTML='<a href="/RUN/issues/task">Task</a><a hidden href="/RUN/issues/hidden">Hidden</a><a href="/OTHER/issues/task">Other company</a>';
+it("excludes hidden, wrong-space and unrelated inline anchors while keeping the current reply", () => {
+  document.querySelector('#comment-reply')!.innerHTML='<a href="/RUN/issues/task">Task</a><a hidden href="/RUN/issues/hidden">Hidden</a><a href="/OTHER/issues/task">Other space</a>';
   document.body.insertAdjacentHTML('beforeend','<aside><a href="/RUN/issues/sidebar">Sidebar</a></aside>');
   expect(collect().filter(row=>row.source==='reply').map(row=>row.href)).toEqual(['/RUN/issues/task']);
 });

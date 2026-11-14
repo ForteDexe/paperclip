@@ -40,7 +40,7 @@ export const privilegedInstanceCases = [{ ...privilegedDefinition("instance-oper
     const history = await ctx.input.api.get<Entity[]>(`/api/issues/${source.id}/comments?order=asc`);
     const url = ctx.input.page.url();
     const reply = history.filter(row => row.authorAgentId === ctx.input.fixtures.agent.id).at(-1)!;
-    const replyBody = () => ctx.input.page.locator(`[id=${JSON.stringify(`comment-${reply.id}`)}]`).locator(".paperclip-markdown").first();
+    const replyBody = () => ctx.input.page.locator(`[id=${JSON.stringify(`comment-${reply.id}`)}]`).locator(".outpost-markdown").first();
     await expect(replyBody()).toBeVisible();
     const renderedReplyBefore = await replyBody().innerText();
     if (!renderedReplyBefore.trim()) throw new Error("Pre-restart reply has no visible rendered body");
@@ -53,9 +53,9 @@ export const privilegedInstanceCases = [{ ...privilegedDefinition("instance-oper
     await ctx.input.restart();
     const receipt = JSON.parse(await readFile(runnerE2EServerControlPaths(process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT!).restartAcknowledgementPath, "utf8"));
     const log = (await readFile(logPath, "utf8")).slice(beforeLogLength);
-    const stop = log.indexOf(`Restart request ${state.expectedRequestId}: stopping Paperclip`);
-    const start = log.indexOf(`Restart request ${state.expectedRequestId}: starting Paperclip`);
-    const ready = log.indexOf(`Restart request ${state.expectedRequestId}: Paperclip is healthy`);
+    const stop = log.indexOf(`Restart request ${state.expectedRequestId}: stopping Outpost`);
+    const start = log.indexOf(`Restart request ${state.expectedRequestId}: starting Outpost`);
+    const ready = log.indexOf(`Restart request ${state.expectedRequestId}: Outpost is healthy`);
     state.stopStartLogVerified = stop >= 0 && start > stop && ready > start;
     state.restartReceipt = { requestId: receipt.requestId, status: receipt.status, completedAt: receipt.completedAt };
     await ctx.input.page.goto(url, { waitUntil: "domcontentloaded" });

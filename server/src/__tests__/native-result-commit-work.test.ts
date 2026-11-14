@@ -12,12 +12,12 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, companies, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations,
+import { agents, spaces, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations,
   statusDecisionEffects, statusDecisions, workspaceOperations, type Db } from "@outpost/db";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { nativeResultCommitWork } from "../services/native-runtime/native-result-commit-work.js";
 import { finalizeNativeRun, NativeFinalizationDeferredError } from "../services/native-runtime/native-run-finalizer.js";
-import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "../services/native-runtime/outpost-control-plane-port.js";
 import { NativeRunCoordinatorStore } from "../services/native-runtime/native-run-coordinator-store.js";
 import { workspaceOperationService } from "../services/workspace-operations.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
@@ -30,7 +30,7 @@ describe("accepted result commit lifecycle", () => {
   let db: Db, root: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let worker: ReturnType<ReturnType<typeof nativeResultCommitWork>["register"]> | undefined;
-  const companyId = randomUUID(), agentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID();
   const priorLogs = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH;
   let admitted = true;
   const errors: unknown[] = [];
@@ -40,8 +40,8 @@ describe("accepted result commit lifecycle", () => {
     const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_RESULT_COMMIT_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("native-result-commit-");
     db = createDb(external ?? temporary!.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Result commits", issuePrefix: `RC${randomUUID().slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Result worker", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Result commits", issuePrefix: `RC${randomUUID().slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Result worker", adapterType: "outpost_runner" });
   }, 30_000);
   beforeEach(() => {
     admitted = true; errors.length = 0;
@@ -50,7 +50,7 @@ describe("accepted result commit lifecycle", () => {
   afterEach(async () => {
     await coordinator?.stop(); coordinator = undefined; worker = undefined;
     vi.useRealTimers(); vi.restoreAllMocks();
-    await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, companyId));
+    await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, spaceId));
     expect(errors).toEqual([]);
   });
   afterAll(async () => {
@@ -80,21 +80,21 @@ describe("accepted result commit lifecycle", () => {
   }
   async function seed() {
     const runId = randomUUID(), issueId = randomUUID(), contractId = randomUUID(), sourceInstanceId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Commit accepted work", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Commit accepted work", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "result-worker-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "result-worker-v1", objective: "Finish", criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, runtimeMode: "native", status: "running",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, runtimeMode: "native", status: "running",
       nativeIssueId: issueId, nativeSessionId: runId, runnerInstanceId: sourceInstanceId,
       completionContractId: contractId, completionContractSha256: contractId, contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    return { companyId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
+    return { spaceId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
       completionContractSha256: contractId, sourceInstanceId, controlPlaneSourceInstanceId: "result-worker-test" };
   }
   async function complete(binding: Awaited<ReturnType<typeof seed>>, producer: "control_plane" | "coordinator", writer: Db = db) {
-    const port = producer === "control_plane" ? new PaperclipControlPlanePort(writer, binding)
+    const port = producer === "control_plane" ? new OutpostControlPlanePort(writer, binding)
       : new NativeRunCoordinatorStore(writer, { ...binding, normalizedSessionId: binding.sessionId,
         runnerSourceInstanceId: binding.sourceInstanceId,
         completionContractRevision: CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim.contractRevision,
@@ -103,7 +103,7 @@ describe("accepted result commit lifecycle", () => {
       callerResultId: `${binding.runId}:result` });
   }
   async function barrier(binding: Awaited<ReturnType<typeof seed>>) {
-    await workspaceOperationService(db).createRecorder({ companyId, issueId: binding.issueId, heartbeatRunId: binding.runId })
+    await workspaceOperationService(db).createRecorder({ spaceId, issueId: binding.issueId, heartbeatRunId: binding.runId })
       .recordOperation({ phase: "workspace_finalize", cwd: root, run: async () => ({ status: "succeeded", exitCode: 0 }) });
   }
   async function state(runId: string) {
@@ -137,7 +137,7 @@ describe("accepted result commit lifecycle", () => {
     await quiet(); await coordinator!.stop(); await start(); await flush(); await quiet();
     expect(await db.select().from(statusDecisions).where(eq(statusDecisions.runId, binding.runId))).toHaveLength(1);
   });
-  it("ignores routine company-only finalization hints and still commits accepted work", async () => {
+  it("ignores routine space-only finalization hints and still commits accepted work", async () => {
     await start(); await flush(); await quiet();
     const previous = db.$client.options.debug;
     const queries: string[] = [];
@@ -146,7 +146,7 @@ describe("accepted result commit lifecycle", () => {
     };
     try {
       for (let index = 0; index < 3; index += 1) {
-        await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, { companyId }); });
+        await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, { spaceId }); });
         await flush();
       }
       expect(queries).toEqual([]);
@@ -184,7 +184,7 @@ describe("accepted result commit lifecycle", () => {
   });
   it("reconstructs unfinished work at startup using any successful scoped barrier", async () => {
     const binding = await seed(); await complete(binding, "control_plane"); await barrier(binding);
-    await db.insert(workspaceOperations).values({ companyId, issueId: binding.issueId, heartbeatRunId: binding.runId,
+    await db.insert(workspaceOperations).values({ spaceId, issueId: binding.issueId, heartbeatRunId: binding.runId,
       phase: "workspace_finalize", status: "failed", createdAt: new Date(Date.now() + 1000) });
     await start(); await flush();
     expect((await state(binding.runId)).phase).toBe("committed"); await quiet();
@@ -280,7 +280,7 @@ describe("accepted result commit lifecycle", () => {
       if (!rescheduled) {
         rescheduled = true; retryAt = Date.now() + 60_000;
         await db.transaction(async tx => {
-          await notifyNativeResultCommit(tx, { companyId, runId: input.runId });
+          await notifyNativeResultCommit(tx, { spaceId, runId: input.runId });
           await tx.update(nativeRunFinalizations).set({ nextAttemptAt: new Date(retryAt) })
             .where(eq(nativeRunFinalizations.runId, input.runId));
         });

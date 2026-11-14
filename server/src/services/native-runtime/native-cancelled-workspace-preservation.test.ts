@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
-import { agents, agentWakeupRequests, companies, completionContracts, createDb, environmentLeases, environments,
+import { agents, agentWakeupRequests, spaces, completionContracts, createDb, environmentLeases, environments,
   executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults } from "@outpost/db";
 import { recoveryPostgresSupport, startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
 import { createDeliveryWorkCoordinator } from "../delivery-work-coordinator.js";
@@ -23,22 +23,22 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
       database = await startRecoveryPostgres("lifecycle-cancelled-workspace-");
       db = createDb(database.connectionString);
     }
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     fixtures.add(runId);
     const workspaceId = randomUUID(), leaseId = randomUUID(), environmentId = randomUUID();
     const providerLeaseId = `allocation-${randomUUID()}`, snapshotId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Stopped native files", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Stopped worker", adapterType: "outpost_runner",
+    await db.insert(spaces).values({ id: spaceId, name: "Stopped native files", issuePrefix: spaceId.slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Stopped worker", adapterType: "outpost_runner",
       status: "terminated", lifecycleState: "terminating" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Keep cancelled files", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Keep cancelled files", status: "in_progress", assigneeAgentId: agentId });
     await db.insert(environments).values({ id: environmentId, name: `Preservation ${runId}`, driver: "sandbox" });
     const reference = { schema: "outpost.remote-workspace-run.v1", workspaceId, leaseId, providerLeaseId,
       remoteCwd: "/work", epoch: 2, state: "prepared", snapshotId };
-    const nativeCancellation = { schema: "outpost.native-cancellation.v1", companyId, issueId, runId,
+    const nativeCancellation = { schema: "outpost.native-cancellation.v1", spaceId, issueId, runId,
       scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
       intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID(), acknowledgedAt: new Date().toISOString(),
       effects: ["release_run_resources"] };
-    const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId,
+    const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, nativeIssueId: issueId,
       runtimeMode: "native", runtimeModeResolvedAt: new Date(), nativePhase: "observed", status: "cancelled",
       errorCode: "cancelled", error: "Agent lifecycle stop requested", finishedAt: new Date(),
       costAccountingPending: true, usageJson: { inputTokens: 7 },
@@ -46,17 +46,17 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
       runnerProfileJson: { remoteWorkspace: reference, nativeResourceDisposition: "destroy" },
       resultJson: { nativeCancellation, startupCancellation: { beforeNativeSelection: false } },
     }).returning();
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "terminal_failure",
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "terminal_failure",
       failureCode: "native_continuation_requires_reconciliation", recoveryState: "blocked" });
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId,
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issueId,
       name: "Retained remote files", mode: "isolated", strategyType: "scratch", metadata: { remoteWorkspace: {
         schema: "outpost.remote-workspace.v1", epoch: 2, snapshotId, source: { kind: "empty" },
         location: { environmentId, leaseId, providerLeaseId, remoteCwd: "/work" }, writerRunId: runId, dirty: true,
       } } });
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId, heartbeatRunId: runId,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId, heartbeatRunId: runId,
       issueId, executionWorkspaceId: workspaceId, provider: "daytona", providerLeaseId, status: "active", leasePolicy: "ephemeral",
       metadata: { driver: "sandbox", pluginId: randomUUID(), sandboxProviderPlugin: true, remoteCwd: "/work" } });
-    return { companyId, agentId, issueId, runId, workspaceId, leaseId, reference, nativeCancellation, run };
+    return { spaceId, agentId, issueId, runId, workspaceId, leaseId, reference, nativeCancellation, run };
   }
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
   afterEach(async () => {
@@ -70,28 +70,28 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
     expect(run.resultJson).not.toHaveProperty("workspaceRestoreRecovery");
     expect((await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId)))[0])
       .toMatchObject({ status: "active", cleanupStatus: null, releasedAt: null });
-    expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId))).toHaveLength(0);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+    expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId))).toHaveLength(0);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
   }
 
   async function acceptResult(f: Awaited<ReturnType<typeof seed>>) {
-    const [contract] = await db.insert(completionContracts).values({ companyId: f.companyId, issueId: f.issueId,
+    const [contract] = await db.insert(completionContracts).values({ spaceId: f.spaceId, issueId: f.issueId,
       revision: 1, schemaVersion: "v1", policyVersion: "v1", risk: "low", completionAuthority: "agent",
       incompleteCriteriaPolicy: "block", contractJson: {}, canonicalSha256: "a".repeat(64),
       createdByActorType: "system", createdByActorId: "test" }).returning();
     await db.update(heartbeatRuns).set({ completionContractId: contract.id }).where(eq(heartbeatRuns.id, f.runId));
-    const [result] = await db.insert(nativeRunResults).values({ companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+    const [result] = await db.insert(nativeRunResults).values({ spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
       completionContractId: contract.id, serverFingerprint: "b".repeat(64), schemaStatus: "accepted",
       resultJson: {}, canonicalSha256: "c".repeat(64) }).returning();
     await db.update(nativeRunFinalizations).set({ resultId: result.id }).where(eq(nativeRunFinalizations.runId, f.runId));
     return result;
   }
 
-  it("reconstructs prepared remote files after an audited lifecycle Stop without a board actor", async () => {
+  it("reconstructs prepared remote files after an audited lifecycle Stop without a operator actor", async () => {
     const f = await seed();
-    const [historical] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
-      kind: "active_run_watchdog", status: "resolved", ownerType: "board", cause: "native_continuation_requires_reconciliation",
+    const [historical] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
+      kind: "active_run_watchdog", status: "resolved", ownerType: "operator", cause: "native_continuation_requires_reconciliation",
       fingerprint: randomUUID(), evidence: { runId: f.runId, originalFailureCode: "native_continuation_requires_reconciliation",
         nativeFailureBlock: true, automaticRecovery: { policy: "preserve_without_replay_v1", replay: "blocked", runId: f.runId } },
       nextAction: "The prior execution remains stopped.", resolvedAt: new Date() }).returning();
@@ -110,14 +110,14 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
       const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId));
       expect(lease).toMatchObject({ status: "pending_cleanup", leasePolicy: "retain_on_failure",
         metadata: { sandboxStopAndRetain: { runId: f.runId, leaseId: f.leaseId } } });
-      const actions = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId));
+      const actions = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId));
       expect(actions).toHaveLength(2);
       expect(actions.find(action => action.id === historical.id)).toEqual(historical);
       const preservation = actions.find(action => action.id !== historical.id)!;
       expect(preservation.evidence).toMatchObject({ runId: f.runId, workspaceRestoreRecovery: { leaseIds: [f.leaseId] } });
       await preserveCancelledNativeWorkspaces(db);
-      expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId))).toEqual(actions);
-      const source = { companyId: f.companyId, issueId: f.issueId, runId: f.runId, actionId: preservation.id };
+      expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId))).toEqual(actions);
+      const source = { spaceId: f.spaceId, issueId: f.issueId, runId: f.runId, actionId: preservation.id };
       expect((await inspectWorkspaceRecoverySource(db, source)).sources).toHaveLength(1);
       expect(worker.nextWakeAt()).toBeNull();
       vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
@@ -127,10 +127,10 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
       reads.mockRestore(); vi.useRealTimers();
       expect(await requestWorkspaceRecovery({ ...source, db, idempotencyKey: randomUUID(), actorId: "operator" }))
         .toMatchObject({ actionId: source.actionId, status: "queued" });
-      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
-      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
+      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
       expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0].status).toBe("in_progress");
-      expect((await db.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, f.companyId),
+      expect((await db.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.spaceId, f.spaceId),
         eq(nativeRunFinalizations.runId, f.runId))))[0]).toMatchObject({ phase: "terminal_failure", resultId: null,
         leaseOwner: null, failureCode: "native_continuation_requires_reconciliation" });
     } finally { await worker.stop(); }
@@ -148,7 +148,7 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
     }, nativeResourceDisposition: "destroy" } : f.run.runnerProfileJson;
     await db.update(heartbeatRuns).set({ resultJson, runnerProfileJson }).where(eq(heartbeatRuns.id, f.runId));
     if (kind === "native-sync") await db.update(executionWorkspaces).set({ metadata: {} })
-      .where(and(eq(executionWorkspaces.companyId, f.companyId), eq(executionWorkspaces.id, f.workspaceId)));
+      .where(and(eq(executionWorkspaces.spaceId, f.spaceId), eq(executionWorkspaces.id, f.workspaceId)));
     const worker = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError: error => { throw error; } });
     try {
       if (kind === "startup-scan") await preserveCancelledNativeWorkspaces(db);
@@ -164,11 +164,11 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
       expect(lease).toMatchObject({ status: "pending_cleanup", leasePolicy: "retain_on_failure",
           metadata: { sandboxStopAndRetain: { runId: f.runId, leaseId: f.leaseId } } });
       expect(lease.metadata).not.toHaveProperty("remoteExecutionTermination");
-      const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId));
-      expect((await inspectWorkspaceRecoverySource(db, { companyId: f.companyId, issueId: f.issueId,
+      const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId));
+      expect((await inspectWorkspaceRecoverySource(db, { spaceId: f.spaceId, issueId: f.issueId,
         runId: f.runId, actionId: action.id })).sources).toHaveLength(1);
-      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
-      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
+      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
       expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0].status).toBe("in_progress");
       expect(worker.nextWakeAt()).toBeNull();
     } finally { await worker.stop(); }
@@ -204,18 +204,18 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
       expect(retained).toMatchObject({ status: "cancelled", errorCode: "issue_reassigned", finishedAt: f.run.finishedAt });
       // The stop receipt and reusable policy stay exactly as the release left them.
       expect((await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId)))[0]).toEqual(stopped);
-      const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId));
-      expect(action).toMatchObject({ ownerType: "board", evidence: { runId: f.runId,
+      const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId));
+      expect(action).toMatchObject({ ownerType: "operator", evidence: { runId: f.runId,
         automaticRecovery: { replay: "blocked" }, workspaceRestoreRecovery: { leaseIds: [f.leaseId] } } });
-      expect((await inspectWorkspaceRecoverySource(db, { companyId: f.companyId, issueId: f.issueId,
+      expect((await inspectWorkspaceRecoverySource(db, { spaceId: f.spaceId, issueId: f.issueId,
         runId: f.runId, actionId: action.id })).sources).toHaveLength(1);
       // Preservation records the save obligation only. The stopped writer keeps
       // the workspace until the saved files are published; nothing replays it.
       const [workspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspaceId));
-      expect(await readRemoteWorkspaceWriterHold(db, { companyId: f.companyId,
+      expect(await readRemoteWorkspaceWriterHold(db, { spaceId: f.spaceId,
         authority: readRemoteWorkspaceAuthority(workspace.metadata)! })).toMatchObject({ kind: "held", writer: { runId: f.runId, ended: true } });
-      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
-      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
+      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
       expect(worker.nextWakeAt()).toBeNull();
     } finally { await worker.stop(); }
   }, 120_000);
@@ -244,10 +244,10 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     expect(run.resultJson).not.toHaveProperty("workspaceRestoreRecovery");
     expect((await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId)))[0]).toEqual(released);
-    expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId))).toHaveLength(0);
+    expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId))).toHaveLength(0);
   });
 
-  it.each(["pending", "missing-dispatch", "invalid-dispatch", "foreign-company", "foreign-issue", "foreign-run", "turn-scope",
+  it.each(["pending", "missing-dispatch", "invalid-dispatch", "foreign-space", "foreign-issue", "foreign-run", "turn-scope",
     "empty-intent-audit", "missing-ack-audit", "empty-ack-audit", "live-owner", "live-controller", "accepted-result",
     "foreign-allocation", "foreign-workspace", "foreign-cwd", "saved-reference", "unknown-reference", "running"] as const)
   ("does not admit preservation for %s", async invalid => {
@@ -256,7 +256,7 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
     if (invalid === "pending") intent.dispatchState = "pending";
     if (invalid === "missing-dispatch") delete intent.dispatched;
     if (invalid === "invalid-dispatch") intent.dispatched = "false";
-    if (invalid === "foreign-company") intent.companyId = randomUUID();
+    if (invalid === "foreign-space") intent.spaceId = randomUUID();
     if (invalid === "foreign-issue") intent.issueId = randomUUID();
     if (invalid === "foreign-run") intent.runId = randomUUID();
     if (invalid === "turn-scope") intent.scope = "turn";
@@ -293,10 +293,10 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
     const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId));
     const confirmedAt = new Date(lease.acquiredAt.getTime() + 1_000);
     const releasedAt = new Date(confirmedAt.getTime() + 1);
-    const termination = { schema: "outpost.remote-termination.v1", companyId: f.companyId, runId: f.runId,
+    const termination = { schema: "outpost.remote-termination.v1", spaceId: f.spaceId, runId: f.runId,
       leaseId: f.leaseId, provider: "daytona", providerLeaseId: f.reference.providerLeaseId, state: "stopped",
       confirmedAt: confirmedAt.toISOString() };
-    const receipt = { schema: "outpost.sandbox-stop-and-retain-receipt.v1", companyId: f.companyId, runId: f.runId,
+    const receipt = { schema: "outpost.sandbox-stop-and-retain-receipt.v1", spaceId: f.spaceId, runId: f.runId,
       leaseId: f.leaseId, provider: "daytona", providerLeaseId: f.reference.providerLeaseId, requestId: randomUUID(),
       method: "environmentStopLease", pluginId: lease.metadata?.pluginId, confirmedAt: confirmedAt.toISOString() };
     await db.update(environmentLeases).set({ status: "released", leasePolicy: "reuse_by_environment",
@@ -326,10 +326,10 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
       // The stopped allocation keeps its receipts. Preservation dispatches no
       // second stop and grants no execute right on the reusable sandbox.
       expect((await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId)))[0]).toEqual(stopped);
-      const actions = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId));
+      const actions = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId));
       expect(actions).toHaveLength(1);
       expect(actions[0].evidence).toMatchObject({ runId: f.runId, workspaceRestoreRecovery: { leaseIds: [f.leaseId] } });
-      expect((await inspectWorkspaceRecoverySource(db, { companyId: f.companyId, issueId: f.issueId,
+      expect((await inspectWorkspaceRecoverySource(db, { spaceId: f.spaceId, issueId: f.issueId,
         runId: f.runId, actionId: actions[0].id })).sources).toHaveLength(1);
       if (kind === "worker") expect(worker.nextWakeAt()).toBeNull();
       // A repeated pass records nothing again and starts no work.
@@ -339,10 +339,10 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
         await registerCancelledWorkspacePreservationWork(db, repeated, () => true, async () => true).ready;
         expect(repeated.nextWakeAt()).toBeNull();
       } finally { await repeated.stop(); }
-      expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId))).toEqual(actions);
+      expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId))).toEqual(actions);
       expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0].resultJson).toEqual(retained.resultJson);
-      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
-      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
+      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
       expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0])
         .toMatchObject({ phase: "terminal_failure", leaseOwner: null, resultId: null });
     } finally { await worker.stop(); }
@@ -354,7 +354,7 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
     const f = await seed();
     const result = await acceptResult(f);
     const nativeCancellation = { ...f.nativeCancellation, dispatched: false };
-    await db.update(heartbeatRuns).set({ nativePhase: "retryable_failure", error: "Cancelled by a board operator",
+    await db.update(heartbeatRuns).set({ nativePhase: "retryable_failure", error: "Cancelled by a operator operator",
       resultJson: { nativeCancellation, cancelledByActorType: "user", cancelledByUserId: "operator" } })
       .where(eq(heartbeatRuns.id, f.runId));
     await db.update(nativeRunFinalizations).set({ failureCode: "native_retry_cancelled",
@@ -376,19 +376,19 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
       expect(retained.resultJson).toMatchObject({ nativeCancellation, workspaceRestoreFailure: "restore_failed",
         workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [f.leaseId] } });
       expect(retained).toMatchObject({ status: "cancelled", finishedAt: f.run.finishedAt });
-      const actions = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId));
+      const actions = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId));
       expect(actions).toHaveLength(1);
       expect(actions[0].evidence).toMatchObject({ runId: f.runId, workspaceRestoreRecovery: { leaseIds: [f.leaseId] } });
-      expect((await inspectWorkspaceRecoverySource(db, { companyId: f.companyId, issueId: f.issueId,
+      expect((await inspectWorkspaceRecoverySource(db, { spaceId: f.spaceId, issueId: f.issueId,
         runId: f.runId, actionId: actions[0].id })).sources).toHaveLength(1);
       // The accepted result stays recorded and is never committed or replayed.
       expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0])
         .toMatchObject({ phase: "terminal_failure", resultId: result.id, failureCode: "native_retry_cancelled", leaseOwner: null });
       const [workspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspaceId));
-      expect(await readRemoteWorkspaceWriterHold(db, { companyId: f.companyId,
+      expect(await readRemoteWorkspaceWriterHold(db, { spaceId: f.spaceId,
         authority: readRemoteWorkspaceAuthority(workspace.metadata)! })).toMatchObject({ kind: "held", writer: { runId: f.runId, ended: true } });
-      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
-      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
+      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
       expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0].status).toBe("in_progress");
       if (kind !== "startup-scan") expect(worker.nextWakeAt()).toBeNull();
     } finally { await worker.stop(); }
@@ -398,20 +398,20 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
     const f = await seed();
     await stopAndRetainReusableSource(f);
     await preserveCancelledNativeWorkspaces(db);
-    const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId));
-    const source = { companyId: f.companyId, issueId: f.issueId, runId: f.runId, actionId: action.id };
+    const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId));
+    const source = { spaceId: f.spaceId, issueId: f.issueId, runId: f.runId, actionId: action.id };
     expect((await inspectWorkspaceRecoverySource(db, source)).sources).toHaveLength(1);
     // A live writer on the task blocks recovery from the retained files.
     const writerId = randomUUID();
     fixtures.add(writerId);
-    await db.insert(heartbeatRuns).values({ id: writerId, companyId: f.companyId, agentId: f.agentId, issueId: f.issueId,
+    await db.insert(heartbeatRuns).values({ id: writerId, spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId,
       status: "running", contextSnapshot: { issueId: f.issueId } });
     await expect(inspectWorkspaceRecoverySource(db, source)).rejects.toMatchObject({ code: "workspace_writer_active" });
     await db.update(heartbeatRuns).set({ status: "failed" }).where(eq(heartbeatRuns.id, writerId));
     // A later lease on the same reusable allocation is not a retired
     // predecessor. Ownership is ambiguous, so recovery stops.
     const [stopped] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId));
-    await db.insert(environmentLeases).values({ companyId: f.companyId, environmentId: stopped.environmentId,
+    await db.insert(environmentLeases).values({ spaceId: f.spaceId, environmentId: stopped.environmentId,
       heartbeatRunId: writerId, issueId: f.issueId, executionWorkspaceId: f.workspaceId, provider: "daytona",
       providerLeaseId: stopped.providerLeaseId, status: "active", leasePolicy: "reuse_by_environment",
       metadata: { ...stopped.metadata, remoteExecutionTermination: undefined, sandboxStopAndRetainReceipt: undefined } });
@@ -455,8 +455,8 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
       // No pass rewrites the run: no restore-failure marker, no new status delivery.
       expect(run).toEqual(before);
       expect((await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId)))[0]).toEqual(stopped);
-      expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId))).toHaveLength(0);
-      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId))).toHaveLength(0);
+      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
     } finally { await worker.stop(); }
   });
 
@@ -475,13 +475,13 @@ import { readRemoteWorkspaceAuthority } from "@outpost/shared";
       const [released] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspaceId));
       const authority = readRemoteWorkspaceAuthority(released.metadata)!;
       expect(authority).toMatchObject({ epoch: 2, snapshotId: f.reference.snapshotId, writerRunId: null, dirty: false });
-      expect(await readRemoteWorkspaceWriterHold(db, { companyId: f.companyId, authority })).toEqual({ kind: "free" });
+      expect(await readRemoteWorkspaceWriterHold(db, { spaceId: f.spaceId, authority })).toEqual({ kind: "free" });
       expect((await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId)))[0])
         .toMatchObject({ status: "active", leasePolicy: "ephemeral" });
-      expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId))).toHaveLength(0);
       // A later pass finds nothing left to keep.
       await preserveCancelledNativeWorkspaces(db);
-      expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId))).toHaveLength(0);
     } finally { await worker.stop(); }
   });
 

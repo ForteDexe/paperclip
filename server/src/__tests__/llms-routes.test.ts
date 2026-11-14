@@ -54,11 +54,11 @@ describe("llm routes", () => {
     ]);
   });
 
-  it("documents timer heartbeats as opt-in for new hires", async () => {
+  it("documents timer heartbeats as opt-in for new creations", async () => {
     const app = await createApp({
-      type: "board",
-      userId: "board-user",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: ["space-1"],
       source: "local_implicit",
       isInstanceAdmin: true,
     });
@@ -69,15 +69,15 @@ describe("llm routes", () => {
     expect(res.text).toContain("Create agents only when the human explicitly requests one");
     expect(res.text).toContain("desiredSkills");
     expect(res.text).toContain("sourceIssueId/sourceIssueIds");
-    expect(res.text).toContain("Timer heartbeats are opt-in for new hires.");
+    expect(res.text).toContain("Timer heartbeats are opt-in for new creations.");
     expect(res.text).toContain("Leave runtimeConfig.heartbeat.enabled false");
   });
 
   it("serves static Hermes Gateway configuration docs before the plugin is installed", async () => {
     const app = await createApp({
-      type: "board",
-      userId: "board-user",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: ["space-1"],
       source: "local_implicit",
       isInstanceAdmin: true,
     });
@@ -98,9 +98,9 @@ describe("llm routes", () => {
     expect(res.text).toContain("hermes gateway run --replace --accept-hooks");
     expect(res.text).toContain("Default Hermes API server port: 8642");
     expect(res.text).toContain("agentDefaultsPayload.apiBaseUrl");
-    expect(res.text).toContain("agentDefaultsPayload.paperclipApiUrl");
+    expect(res.text).toContain("agentDefaultsPayload.outpostApiUrl");
     expect(res.text).toContain("hermes_local");
-    expect(res.text).toContain("Hermes-originated Paperclip API usage");
+    expect(res.text).toContain("Hermes-originated Outpost API usage");
     expect(res.text).toContain("http://127.0.0.1:8642");
     expect(res.text).toContain("http://192.168.1.25:8642");
     expect(res.text).toContain("tailnet-name.ts.net:8642");

@@ -8,15 +8,15 @@ import { queryKeys } from "@/lib/queryKeys";
 import type { ResolvedPluginSlot } from "./slots";
 
 /** Environment requirements affect navigation, including manual task panels. */
-export function useAgentEnvironmentSlots(slots: ResolvedPluginSlot[], agentId: string | null | undefined, companyId: string | null | undefined) {
+export function useAgentEnvironmentSlots(slots: ResolvedPluginSlot[], agentId: string | null | undefined, spaceId: string | null | undefined) {
   const required = slots.some(slot => slot.agentEnvironmentDriver);
-  const enabled = required && Boolean(agentId && companyId);
+  const enabled = required && Boolean(agentId && spaceId);
   const agent = useQuery({
-    queryKey: [...queryKeys.agents.detail(agentId ?? "pending"), companyId ?? null],
-    queryFn: () => agentsApi.get(agentId!, companyId!),
+    queryKey: [...queryKeys.agents.detail(agentId ?? "pending"), spaceId ?? null],
+    queryFn: () => agentsApi.get(agentId!, spaceId!),
     enabled,
   });
-  const config = enabled && agent.data?.companyId === companyId && queryViewKind(agent) !== "error"
+  const config = enabled && agent.data?.spaceId === spaceId && queryViewKind(agent) !== "error"
     ? agent.data : undefined;
   const inherits = !!config && config.defaultEnvironmentId == null;
   const instance = useQuery({
@@ -27,8 +27,8 @@ export function useAgentEnvironmentSlots(slots: ResolvedPluginSlot[], agentId: s
   const environmentId = config?.defaultEnvironmentId
     ?? (inherits && queryViewKind(instance) !== "error" ? instance.data?.defaultEnvironmentId : null);
   const environments = useQuery({
-    queryKey: queryKeys.environments.list(companyId ?? "pending"),
-    queryFn: () => environmentsApi.list(companyId!),
+    queryKey: queryKeys.environments.list(spaceId ?? "pending"),
+    queryFn: () => environmentsApi.list(spaceId!),
     enabled: Boolean(environmentId),
   });
   const environment = environmentId && queryViewKind(environments) !== "error"

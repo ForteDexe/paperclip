@@ -23,14 +23,14 @@ const mockParams = vi.hoisted(() => ({ applicationId: "app-1", tab: "permissions
 
 vi.mock("@/api/tools", () => ({
   toolsApi: {
-    listApplications: (companyId: string) => listApplicationsMock(companyId),
-    listConnections: (companyId: string) => listConnectionsMock(companyId),
-    listGallery: (companyId: string) => listGalleryMock(companyId),
+    listApplications: (spaceId: string) => listApplicationsMock(spaceId),
+    listConnections: (spaceId: string) => listConnectionsMock(spaceId),
+    listGallery: (spaceId: string) => listGalleryMock(spaceId),
     listConnectionGrants: (connectionId: string) => listConnectionGrantsMock(connectionId),
     listConnectionActivity: (connectionId: string, limit: number) =>
       listConnectionActivityMock(connectionId, limit),
-    listActionRequests: (companyId: string, status: string) =>
-      listActionRequestsMock(companyId, status),
+    listActionRequests: (spaceId: string, status: string) =>
+      listActionRequestsMock(spaceId, status),
     updateApplication: (applicationId: string, input: unknown) =>
       updateApplicationMock(applicationId, input),
     approveActionRequest: vi.fn(),
@@ -41,13 +41,13 @@ vi.mock("@/api/tools", () => ({
 
 vi.mock("@/api/access", () => ({
   accessApi: {
-    listUserDirectory: (companyId: string) => listUserDirectoryMock(companyId),
+    listUserDirectory: (spaceId: string) => listUserDirectoryMock(spaceId),
   },
 }));
 
 vi.mock("@/api/agents", () => ({
   agentsApi: {
-    list: (companyId: string) => mockAgentsList(companyId),
+    list: (spaceId: string) => mockAgentsList(spaceId),
   },
 }));
 
@@ -63,10 +63,10 @@ vi.mock("@/lib/router", () => ({
   ),
 }));
 
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({
-    selectedCompanyId: "company-1",
-    selectedCompany: { id: "company-1", name: "Outpost" },
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({
+    selectedSpaceId: "space-1",
+    selectedSpace: { id: "space-1", name: "Outpost" },
   }),
 }));
 
@@ -101,7 +101,7 @@ async function flushReact() {
 function application(overrides: Record<string, unknown> = {}) {
   return {
     id: "app-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     applicationKey: "github",
     name: "GitHub",
     description: "Repository app",
@@ -121,7 +121,7 @@ function application(overrides: Record<string, unknown> = {}) {
 function connection(overrides: Record<string, unknown> = {}) {
   return {
     id: "conn-old",
-    companyId: "company-1",
+    spaceId: "space-1",
     applicationId: "app-1",
     name: "GitHub",
     connectionKind: "managed",
@@ -168,7 +168,7 @@ describe("AppNotConnected", () => {
       capabilities: {
         canConfigure: true,
         canCreateOrganizationGrant: true,
-        canSetCompanyInstall: true,
+        canSetSpaceInstall: true,
         canConnectAsCurrentUser: true,
         canManageAgentInstalls: true,
         canViewOtherPersonalIdentities: false,
@@ -216,7 +216,7 @@ describe("AppNotConnected", () => {
       otherRead.mockImplementationOnce(() => new Promise(resolve => { resume = () => resolve(otherResult); }));
       const client = await renderPage();
       try {
-        const otherKey = failed === "applications" ? queryKeys.tools.connections("company-1") : queryKeys.tools.applications("company-1");
+        const otherKey = failed === "applications" ? queryKeys.tools.connections("space-1") : queryKeys.tools.applications("space-1");
         const otherQuery = client.getQueryCache().find({ queryKey: otherKey, exact: true })!;
         await act(() => { otherQuery.setState({ fetchStatus: "paused" }); }); await flushReact();
         expect(container.querySelector('[data-query-view="error"]')).not.toBeNull();
@@ -454,7 +454,7 @@ describe("AppNotConnected", () => {
       capabilities: {
         canConfigure: true,
         canCreateOrganizationGrant: true,
-        canSetCompanyInstall: true,
+        canSetSpaceInstall: true,
         canConnectAsCurrentUser: true,
         canManageAgentInstalls: true,
         canViewOtherPersonalIdentities: true,

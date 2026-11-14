@@ -16,7 +16,7 @@ if (EXTERNAL_URL) {
   }
 }
 const BASE_URL = EXTERNAL_URL ?? `http://127.0.0.1:${PORT}`;
-const OUTPOST_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-issue-perf-home-"));
+const OUTPOST_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-issue-perf-home-"));
 const OUTPOST_INSTANCE_ID = "playwright-issue-perf";
 const OUTPOST_CONFIG = path.join(OUTPOST_HOME, "instances", OUTPOST_INSTANCE_ID, "config.json");
 
@@ -35,7 +35,7 @@ export default defineConfig({
     headless: true,
   },
   webServer: EXTERNAL_URL ? undefined : {
-    command: "pnpm paperclipai onboard --yes --run",
+    command: "pnpm outpost onboard --yes --run",
     url: `${BASE_URL}/api/health`,
     reuseExistingServer: false,
     timeout: 120_000,

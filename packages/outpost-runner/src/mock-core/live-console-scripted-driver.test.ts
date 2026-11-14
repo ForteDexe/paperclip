@@ -76,7 +76,7 @@ function reduce(events: readonly PrpEvent[]): SessionSnapshot {
       fixtureName: "live-console-demo",
       identity: {
         schema: "outpost.orp.identity.v1",
-        companyId: "package-local-demo",
+        spaceId: "package-local-demo",
         issueId: "live-console-demo",
         runId: events[0]?.runId ?? "run",
         environmentLeaseId: "package-local",

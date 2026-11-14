@@ -2,7 +2,7 @@
  * Work Timeline layout — pure transform from the Phase B endpoint contract
  * (`WorkTimelineResult`) into a renderable view model for the custom-SVG Gantt.
  *
- * Ports the board-locked "Direction C" logic (PAP-12422): agent/system rows only
+ * Ports the operator-locked "Direction C" logic (PAP-12422): agent/system rows only
  * (humans never get a row), overlapping runs packed into concurrency sub-lanes,
  * a kickoff actor derived per run (shown as an avatar chip — may be a human),
  * with each kickoff edge assigned to only its closest matching run,
@@ -121,7 +121,7 @@ export function isCancelledStatus(status: string): boolean {
 }
 
 /**
- * "Signal" encoding (PAP-12694, board-picked): colour spends on ONE meaning —
+ * "Signal" encoding (PAP-12694, operator-picked): colour spends on ONE meaning —
  * how the run started — instead of a per-issue hash rainbow. Delegated runs
  * (kicked off by another actor) read blue; automation/self-started runs read
  * amber. The blue/amber pair is colour-blind-safe and holds contrast on both

@@ -11,7 +11,7 @@ describe("MCP owner discovery snapshot",()=>{
     expect(personal).toMatchObject({issuer:snapshot.origin,authorization_endpoint:snapshot.authorizationOrigin+"/mcp/oauth/authorize",token_endpoint:snapshot.origin+"/mcp/oauth/token",scopes_supported:[...PUBLIC_MCP_SCOPES],client_id_metadata_document_supported:true});
     const dot = documents.find(entry=>entry.path==="/.well-known/oauth-authorization-server/mcp/runner/oauth")!.document;
     expect(dot).toMatchObject({issuer:snapshot.origin+"/mcp/runner/oauth",authorization_endpoint:snapshot.authorizationOrigin+"/mcp/runner/oauth/authorize",scopes_supported:[...DOT_RUNNER_MCP_SCOPES]});
-    expect(documents.find(entry=>entry.path==="/.well-known/oauth-protected-resource/mcp/paperclip")!.document.scopes_supported).toEqual(["paperclip:read","paperclip:write","paperclip:configure"]);
+    expect(documents.find(entry=>entry.path==="/.well-known/oauth-protected-resource/mcp/outpost")!.document.scopes_supported).toEqual(["outpost:read","outpost:write","outpost:configure"]);
     expect(mcpDiscoveryDocuments({...snapshot,profiles:["personal-mcp"]}).some(entry=>entry.path.includes("runner"))).toBe(false);
   });
   it("binds public snapshot changes to the private cycle generation and rejects unfamiliar shapes",()=>{

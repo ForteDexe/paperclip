@@ -73,9 +73,9 @@ describe("run contracts", () => {
     expect(true).toBe(true);
   });
 
-  it("test_session_fingerprint_identity_has_no_company_agent_or_task_member", () => {
+  it("test_session_fingerprint_identity_has_no_space_agent_or_task_member", () => {
     // None of the outer-key parts appear as a fingerprint field.
-    type ForbiddenKey = "companyId" | "agentId" | "taskKey";
+    type ForbiddenKey = "spaceId" | "agentId" | "taskKey";
     type LeakedKey = Extract<keyof SessionFingerprintIdentity, ForbiddenKey>;
     type _noLeak = Expect<Equal<LeakedKey, never>>;
 

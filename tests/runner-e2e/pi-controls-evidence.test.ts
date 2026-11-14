@@ -53,7 +53,7 @@ describe("Pi pending control identity", () => {
   it.each([
     ["wrong provider", (f: ReturnType<typeof piControlFixture>) => { f.request.origin.provider = "copilot"; }],
     ["foreign source", f => { event(f.events[1]!).sourceInstanceId = "other"; }],
-    ["foreign company", f => { f.events[0]!.companyId = "other"; }],
+    ["foreign space", f => { f.events[0]!.spaceId = "other"; }],
     ["changed write path", f => { f.tool.target = "other.txt"; }],
     ["write already ended", f => { f.append("tool.execution.completed", { ...f.tool, status: "failed" }); }],
     ["answered request", f => { f.append("runtime_request.resolved", { requestId: "request", action: "decline" }); }],

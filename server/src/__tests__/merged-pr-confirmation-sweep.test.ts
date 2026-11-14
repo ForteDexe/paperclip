@@ -6,7 +6,7 @@ import type { RequestConfirmationToolActionPayload } from "@outpost/shared";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   goals,
   issueThreadInteractions,
@@ -56,18 +56,18 @@ describe("merged pull-request confirmation extraction", () => {
 
   it("extracts and deduplicates full GitHub URLs and owner/repo#N shorthand", () => {
     expect(extractGitHubPullRequestReferences([
-      "Merge https://github.com/PaperclipAI/paperclip/pull/39.",
-      "Also paperclipai/paperclip#40 and PAPERCLIPAI/paperclip#40.",
+      "Merge https://github.com/ForteDexe/outpost/pull/39.",
+      "Also paperclipai/paperclip#40 and OUTPOST/outpost#40.",
     ])).toEqual([
-      { host: "github.com", owner: "PaperclipAI", repo: "paperclip", number: 39 },
-      { host: "github.com", owner: "paperclipai", repo: "paperclip", number: 40 },
+      { host: "github.com", owner: "ForteDexe", repo: "outpost", number: 39 },
+      { host: "github.com", owner: "outpost", repo: "outpost", number: 40 },
     ]);
   });
 
   it("requires merge intent and excludes document and tool-action confirmations", () => {
     const base = {
       kind: "request_confirmation",
-      title: "Merge PaperclipAI/paperclip#39?",
+      title: "Merge ForteDexe/outpost#39?",
       summary: null,
       payload: { version: 1, prompt: "Merge the pull request?" },
     } as const;
@@ -102,12 +102,12 @@ describe("merged pull-request confirmation extraction", () => {
         },
       },
     })).toEqual([
-      { host: "github.com", owner: "paperclipai", repo: "paperclip", number: 39 },
-      { host: "github.com", owner: "paperclipai", repo: "paperclip", number: 40 },
+      { host: "github.com", owner: "outpost", repo: "outpost", number: 39 },
+      { host: "github.com", owner: "outpost", repo: "outpost", number: 40 },
     ]);
   });
 
-  it("denies governed actions mentioned in details or custom target metadata", () => {
+  it("denies controlled actions mentioned in details or custom target metadata", () => {
     const base = {
       kind: "request_confirmation",
       title: "Merge the linked PR?",
@@ -159,7 +159,7 @@ describeEmbeddedPostgres("merged pull-request confirmation sweep", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    if (!external) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-merged-pr-confirmations-");
+    if (!external) tempDb = await startEmbeddedPostgresTestDatabase("outpost-merged-pr-confirmations-");
     db = createDb(external ?? tempDb!.connectionString, { maxConnections: 6 });
   }, 20_000);
 
@@ -169,7 +169,7 @@ describeEmbeddedPostgres("merged pull-request confirmation sweep", () => {
     await db.delete(issues);
     await db.delete(goals);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -178,26 +178,26 @@ describeEmbeddedPostgres("merged pull-request confirmation sweep", () => {
   });
 
   it("accepts only all-merged cards, wakes the assignee, and audits the system actor", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const goalId = randomUUID();
     const issueId = randomUUID();
     const agentId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "MPR",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(goals).values({
       id: goalId,
-      companyId,
+      spaceId,
       title: "Ship safely",
       level: "task",
       status: "active",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Coder",
       role: "engineer",
       status: "active",
@@ -208,7 +208,7 @@ describeEmbeddedPostgres("merged pull-request confirmation sweep", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       goalId,
       title: "Land the changes",
       status: "in_review",
@@ -218,14 +218,14 @@ describeEmbeddedPostgres("merged pull-request confirmation sweep", () => {
 
     const interactionIds = {
       merged: randomUUID(),
-      boardOrAgents: randomUUID(),
+      operatorOrAgents: randomUUID(),
       someOpen: randomUUID(),
       zeroRefs: randomUUID(),
       toolAction: randomUUID(),
       extraAction: randomUUID(),
     };
     const common = {
-      companyId,
+      spaceId,
       issueId,
       kind: "request_confirmation",
       status: "pending",
@@ -242,7 +242,7 @@ describeEmbeddedPostgres("merged pull-request confirmation sweep", () => {
       },
       {
         ...common,
-        id: interactionIds.boardOrAgents,
+        id: interactionIds.operatorOrAgents,
         title: "Merge paperclipai/paperclip#39?",
         requestedResolverPolicy: "anyone",
         effectiveResolverPolicy: "anyone",
@@ -283,7 +283,7 @@ describeEmbeddedPostgres("merged pull-request confirmation sweep", () => {
     ]);
 
     const wakeup = vi.fn(async () => ({ id: "wake-1" }));
-    const resolvePullRequestState = vi.fn(async (_resolvedCompanyId: string, reference: { number: number }) =>
+    const resolvePullRequestState = vi.fn(async (_resolvedSpaceId: string, reference: { number: number }) =>
       reference.number === 41 ? "open" as const : "merged" as const
     );
     const service = issueThreadInteractionService(db, {
@@ -292,9 +292,9 @@ describeEmbeddedPostgres("merged pull-request confirmation sweep", () => {
     });
 
     await expect(service.sweepMergedPullRequestConfirmations([{
-      companyId,
-      owner: "paperclipai",
-      repo: "paperclip",
+      spaceId,
+      owner: "outpost",
+      repo: "outpost",
       number: 39,
     }])).resolves.toEqual({
       checked: 3,
@@ -309,7 +309,7 @@ describeEmbeddedPostgres("merged pull-request confirmation sweep", () => {
       .where(inArray(issueThreadInteractions.id, Object.values(interactionIds)));
     expect(new Map(stored.map((row) => [row.id, row.status]))).toEqual(new Map([
       [interactionIds.merged, "accepted"],
-      [interactionIds.boardOrAgents, "accepted"],
+      [interactionIds.operatorOrAgents, "accepted"],
       [interactionIds.someOpen, "pending"],
       [interactionIds.zeroRefs, "pending"],
       [interactionIds.toolAction, "pending"],
@@ -323,7 +323,7 @@ describeEmbeddedPostgres("merged pull-request confirmation sweep", () => {
     expect(wakeup).toHaveBeenCalledWith(agentId, expect.objectContaining({
       requestedByActorType: "system",
       requestedByActorId: "system:pr-merged",
-      idempotencyKey: `interaction:${interactionIds.boardOrAgents}:accepted`,
+      idempotencyKey: `interaction:${interactionIds.operatorOrAgents}:accepted`,
     }));
     // The webhook hint resolves #39 immediately; only the other referenced PR
     // needs the periodic provider resolver.

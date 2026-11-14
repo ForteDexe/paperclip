@@ -4,13 +4,13 @@ import { Loader2, Plus, Trash2, Users } from "lucide-react";
 import type {
   Agent,
   AgentDesiredSkillEntry,
-  CompanySkillDetail,
-  CompanySkillUsageAgent,
-  CompanySkillVersionSummary,
+  SpaceSkillDetail,
+  SpaceSkillUsageAgent,
+  SpaceSkillVersionSummary,
 } from "@outpost/shared";
 import { Link } from "@/lib/router";
 import { agentsApi } from "@/api/agents";
-import { companySkillsApi } from "@/api/companySkills";
+import { spaceSkillsApi } from "@/api/spaceSkills";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAdapterCapabilities } from "@/adapters/use-adapter-capabilities";
 import { useOptionalToastActions } from "@/context/ToastContext";
@@ -46,12 +46,12 @@ type SkillChange =
  * stays declarative.
  */
 export function AgentsUsingSkillBadge({
-  companyId,
+  spaceId,
   skill,
   canManage = true,
 }: {
-  companyId: string;
-  skill: CompanySkillDetail;
+  spaceId: string;
+  skill: SpaceSkillDetail;
   canManage?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -77,7 +77,7 @@ export function AgentsUsingSkillBadge({
       <AgentsUsingSkillDialog
         open={open}
         onOpenChange={setOpen}
-        companyId={companyId}
+        spaceId={spaceId}
         skill={skill}
         canManage={canManage}
       />
@@ -95,14 +95,14 @@ export function AgentsUsingSkillBadge({
 export function AgentsUsingSkillDialog({
   open,
   onOpenChange,
-  companyId,
+  spaceId,
   skill,
   canManage = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  companyId: string;
-  skill: CompanySkillDetail;
+  spaceId: string;
+  skill: SpaceSkillDetail;
   canManage?: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -116,13 +116,13 @@ export function AgentsUsingSkillDialog({
   // never render a pin select, so their versions query stays disabled.
   const hasVersions = skill.currentVersion !== null;
   const versionsQuery = useQuery({
-    queryKey: queryKeys.companySkills.versions(companyId, skill.id),
-    queryFn: () => companySkillsApi.versions(companyId, skill.id),
+    queryKey: queryKeys.spaceSkills.versions(spaceId, skill.id),
+    queryFn: () => spaceSkillsApi.versions(spaceId, skill.id),
     enabled: open && hasVersions,
   });
   const agentsQuery = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
     enabled: open,
   });
 
@@ -130,7 +130,7 @@ export function AgentsUsingSkillDialog({
     if (!open) setConfirmRemoveId(null);
   }, [open]);
 
-  const versions = useMemo<CompanySkillVersionSummary[]>(
+  const versions = useMemo<SpaceSkillVersionSummary[]>(
     () => [...(versionsQuery.data ?? [])].sort((a, b) => b.revisionNumber - a.revisionNumber),
     [versionsQuery.data],
   );
@@ -145,7 +145,7 @@ export function AgentsUsingSkillDialog({
     [agentsQuery.data],
   );
 
-  // Company agents that support skills and don't already have this one — the
+  // Space agents that support skills and don't already have this one — the
   // footer add-agent picker.
   const attachedIds = useMemo(
     () => new Set(skill.usedByAgents.map((entry) => entry.id)),
@@ -169,11 +169,11 @@ export function AgentsUsingSkillDialog({
       agent,
       change,
     }: {
-      agent: Pick<CompanySkillUsageAgent, "id" | "name"> | Agent;
+      agent: Pick<SpaceSkillUsageAgent, "id" | "name"> | Agent;
       change: SkillChange;
     }) => {
       const skillKey = skill.key;
-      const snapshot = await agentsApi.skills(agent.id, companyId);
+      const snapshot = await agentsApi.skills(agent.id, spaceId);
       // Prefer the richer entries payload; fall back to bare keys (versionId
       // null = tracks latest) for older snapshots.
       const currentEntries: AgentDesiredSkillEntry[] =
@@ -189,13 +189,13 @@ export function AgentsUsingSkillDialog({
       if (desiredSetsEqual(currentEntries, nextEntries)) {
         return { agentId: agent.id, changed: false };
       }
-      await agentsApi.syncSkills(agent.id, nextEntries, "replace", companyId);
+      await agentsApi.syncSkills(agent.id, nextEntries, "replace", spaceId);
       return { agentId: agent.id, changed: true };
     },
     onSuccess: async ({ agentId }) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.detail(companyId, skill.id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.list(companyId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.spaceSkills.detail(spaceId, skill.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.spaceSkills.list(spaceId) }),
         // Keep the agent's own Skills tab (PAP-13194) in sync.
         queryClient.invalidateQueries({ queryKey: queryKeys.agents.skills(agentId) }),
       ]);
@@ -211,7 +211,7 @@ export function AgentsUsingSkillDialog({
   });
 
   async function applyChange(
-    agent: Pick<CompanySkillUsageAgent, "id" | "name"> | Agent,
+    agent: Pick<SpaceSkillUsageAgent, "id" | "name"> | Agent,
     change: SkillChange,
   ) {
     setPendingAgentId(agent.id);
@@ -304,11 +304,11 @@ function AgentRow({
   onRemove,
   onPin,
 }: {
-  agent: CompanySkillUsageAgent;
+  agent: SpaceSkillUsageAgent;
   icon: string | null;
   canManage: boolean;
   hasVersions: boolean;
-  versions: CompanySkillVersionSummary[];
+  versions: SpaceSkillVersionSummary[];
   latestRevision: number | null;
   pinnedRevision: number | null;
   busy: boolean;
@@ -471,7 +471,7 @@ function AddAgentPicker({
 /** Order-insensitive comparison of desired skill sets by (key, versionId). */
 function desiredSetsEqual(a: AgentDesiredSkillEntry[], b: AgentDesiredSkillEntry[]): boolean {
   if (a.length !== b.length) return false;
-  const encode = (entry: AgentDesiredSkillEntry) => `${entry.key} ${entry.versionId ?? ""}`;
+  const encode = (entry: AgentDesiredSkillEntry) => `${entry.key}${entry.versionId ?? ""}`;
   const setA = new Set(a.map(encode));
   return b.every((entry) => setA.has(encode(entry)));
 }

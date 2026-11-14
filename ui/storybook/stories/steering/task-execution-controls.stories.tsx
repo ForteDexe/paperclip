@@ -56,7 +56,7 @@ function TaskExecutionExample({
     cache.setQueryData(queryKeys.issues.detail("PAP-204"), {
       id: "task-parent",
       identifier: "PAP-204",
-      companyId: "demo",
+      spaceId: "demo",
       assigneeAgentId: "alex",
     });
     cache.setQueryData(queryKeys.issues.activeRun("PAP-204"), {
@@ -108,7 +108,7 @@ function TaskExecutionExample({
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [draftKey] = useState(() => {
-    const key = "paperclip:storybook:composer-stop";
+    const key = "outpost:storybook:composer-stop";
     clearDraft(key);
     if (draft) saveDraft(key, draft);
     return key;
@@ -264,7 +264,7 @@ function TaskExecutionExample({
           }}
           onAttachImage={async (file) => ({
             id: "attachment-story",
-            companyId: "company-storybook",
+            spaceId: "space-storybook",
             issueId: "issue-story",
             issueCommentId: null,
             assetId: "asset-story",
@@ -322,7 +322,7 @@ const meta = {
   title: "Tasks and conversations/Steering and queued messages/Composer/Execution controls",
   component: TaskExecutionExample,
   parameters: { layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "steering/stop-and-pause"
       ],

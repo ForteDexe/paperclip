@@ -203,7 +203,7 @@ function buildContext(root: string, overrides: Partial<AdapterExecutionContext> 
     runId: "run-1",
     agent: {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Gemini ACP",
       adapterType: "gemini_local",
       adapterConfig: {},
@@ -223,8 +223,8 @@ function buildContext(root: string, overrides: Partial<AdapterExecutionContext> 
     },
     context: {
       issueId: "issue-1",
-      paperclipTaskMarkdown: "Task context",
-      paperclipWorkspace: {
+      outpostTaskMarkdown: "Task context",
+      outpostWorkspace: {
         cwd: root,
         source: "project_workspace",
         workspaceId: "workspace-1",
@@ -268,7 +268,7 @@ describe("gemini_local ACP lane", () => {
   });
 
   it("keeps ACP selected and reports unavailable prerequisites for default and explicit engines", async () => {
-    const root = await makeTempRoot("paperclip-gemini-acp-default-");
+    const root = await makeTempRoot("outpost-gemini-acp-default-");
     const commandPath = path.join(root, "bin", "gemini");
     await fs.mkdir(path.dirname(commandPath), { recursive: true });
     await fs.writeFile(commandPath, "#!/usr/bin/env sh\n", "utf8");
@@ -388,7 +388,7 @@ describe("gemini_local ACP lane", () => {
   });
 
   it("executes Gemini through the shared ACP runtime", async () => {
-    const root = await fs.realpath(await makeTempRoot("paperclip-gemini-acp-run-"));
+    const root = await fs.realpath(await makeTempRoot("outpost-gemini-acp-run-"));
     process.env.HOME = path.join(root, "home");
     const runtime = new FakeRuntime({});
     const metas: AdapterInvocationMeta[] = [];
@@ -435,7 +435,7 @@ describe("gemini_local ACP lane", () => {
   });
 
   it("creates the ACP session on the in-sandbox workspace cwd for runner-backed remote runs", async () => {
-    const root = await makeTempRoot("paperclip-gemini-acp-remote-cwd-");
+    const root = await makeTempRoot("outpost-gemini-acp-remote-cwd-");
     process.env.HOME = path.join(root, "home");
     const localCwd = path.join(root, "worktree");
     const remoteCwd = path.join(root, "remote-workspace");
@@ -464,8 +464,8 @@ describe("gemini_local ACP lane", () => {
         },
         context: {
           issueId: "issue-1",
-          paperclipTaskMarkdown: "Task context",
-          paperclipWorkspace: { cwd: localCwd, source: "project_workspace", workspaceId: "workspace-1" },
+          outpostTaskMarkdown: "Task context",
+          outpostWorkspace: { cwd: localCwd, source: "project_workspace", workspaceId: "workspace-1" },
         },
         executionTarget: {
           kind: "remote",
@@ -485,7 +485,7 @@ describe("gemini_local ACP lane", () => {
   });
 
   it("seeds the managed Gemini home into the sandbox, repoints HOME, and keeps the key file-only", async () => {
-    const root = await makeTempRoot("paperclip-gemini-acp-home-seed-");
+    const root = await makeTempRoot("outpost-gemini-acp-home-seed-");
     const localCwd = path.join(root, "worktree");
     const remoteCwd = path.join(root, "remote-workspace");
     const hostHome = path.join(root, "home");
@@ -523,12 +523,12 @@ describe("gemini_local ACP lane", () => {
           // skills off the real ~/.gemini, and deliver the key via config env.
           env: { HOME: hostHome, GEMINI_API_KEY: SECRET_KEY },
           promptTemplate: "Do the assigned work.",
-          paperclipRuntimeSkills: [{ key: "company/review", runtimeName: "review", source: skillSource }],
-          paperclipSkillSync: { desiredSkills: ["company/review"] },
+          outpostRuntimeSkills: [{ key: "space/review", runtimeName: "review", source: skillSource }],
+          outpostSkillSync: { desiredSkills: ["space/review"] },
         },
         context: {
           issueId: "issue-1",
-          paperclipWorkspace: { cwd: localCwd, source: "project_workspace", workspaceId: "workspace-1" },
+          outpostWorkspace: { cwd: localCwd, source: "project_workspace", workspaceId: "workspace-1" },
         },
         executionTarget: {
           kind: "remote",
@@ -549,7 +549,7 @@ describe("gemini_local ACP lane", () => {
     // C2 — HOME repointed onto the in-sandbox managed runtime root, distinct from
     // the host home.
     expect(remappedHome).not.toBe(hostHome);
-    expect(remappedHome).toContain(".paperclip-runtime");
+    expect(remappedHome).toContain(".outpost-runtime");
     // Seeded: skills copied into $HOME/.gemini/skills (local runner = host FS).
     await expect(
       fs.readFile(path.join(remappedHome, ".gemini", "skills", "review", "SKILL.md"), "utf8"),
@@ -569,7 +569,7 @@ describe("gemini_local ACP lane", () => {
   });
 
   it("test_gemini_acp_seam_registers_workspace_sync_back", async () => {
-    const root = await makeTempRoot("paperclip-gemini-acp-syncback-");
+    const root = await makeTempRoot("outpost-gemini-acp-syncback-");
     const localCwd = path.join(root, "worktree");
     const remoteCwd = path.join(root, "remote-workspace");
     await fs.mkdir(localCwd, { recursive: true });
@@ -611,7 +611,7 @@ describe("gemini_local ACP lane", () => {
         },
         context: {
           issueId: "issue-1",
-          paperclipWorkspace: { cwd: localCwd, source: "project_workspace", workspaceId: "workspace-1" },
+          outpostWorkspace: { cwd: localCwd, source: "project_workspace", workspaceId: "workspace-1" },
         },
         executionTarget: {
           kind: "remote",
@@ -638,7 +638,7 @@ describe("gemini_local ACP lane", () => {
     // Clear the shared, hoisted mock first: earlier tests in this file also
     // call through it, and a leftover call could hide a real wiring bug.
     mockCreateWorkspaceRestoreTeardown.mockClear();
-    const root = await makeTempRoot("paperclip-gemini-acp-teardown-wiring-");
+    const root = await makeTempRoot("outpost-gemini-acp-teardown-wiring-");
     const localCwd = path.join(root, "worktree");
     const remoteCwd = path.join(root, "remote-workspace");
     await fs.mkdir(localCwd, { recursive: true });
@@ -658,7 +658,7 @@ describe("gemini_local ACP lane", () => {
         },
         context: {
           issueId: "issue-1",
-          paperclipWorkspace: { cwd: localCwd, source: "project_workspace", workspaceId: "workspace-1" },
+          outpostWorkspace: { cwd: localCwd, source: "project_workspace", workspaceId: "workspace-1" },
         },
         executionTarget: {
           kind: "remote",
@@ -681,7 +681,7 @@ describe("gemini_local ACP lane", () => {
   });
 
   it("does not persist an api-key auth selector from a host-only credential", async () => {
-    const root = await makeTempRoot("paperclip-gemini-acp-hostkey-");
+    const root = await makeTempRoot("outpost-gemini-acp-hostkey-");
     const localCwd = path.join(root, "worktree");
     const remoteCwd = path.join(root, "remote-workspace");
     const hostHome = path.join(root, "home");
@@ -717,7 +717,7 @@ describe("gemini_local ACP lane", () => {
         },
         context: {
           issueId: "issue-1",
-          paperclipWorkspace: { cwd: localCwd, source: "project_workspace", workspaceId: "workspace-1" },
+          outpostWorkspace: { cwd: localCwd, source: "project_workspace", workspaceId: "workspace-1" },
         },
         executionTarget: {
           kind: "remote",
@@ -735,7 +735,7 @@ describe("gemini_local ACP lane", () => {
 
     expect(result.exitCode).toBe(0);
     const remappedHome = String(meta[0]?.env?.HOME ?? "");
-    expect(remappedHome).toContain(".paperclip-runtime");
+    expect(remappedHome).toContain(".outpost-runtime");
     // No settings.json auth selector is written, because a host-only key is not a
     // reliable in-sandbox credential signal.
     await expect(
@@ -767,7 +767,7 @@ describe("gemini_local ACP lane", () => {
   });
 
   it("reports Gemini ACP environment readiness", async () => {
-    const root = await makeTempRoot("paperclip-gemini-acp-env-");
+    const root = await makeTempRoot("outpost-gemini-acp-env-");
     const bin = path.join(root, "bin");
     await fs.mkdir(bin, { recursive: true });
     await fs.writeFile(path.join(bin, "gemini"), "#!/usr/bin/env sh\n", "utf8");
@@ -777,7 +777,7 @@ describe("gemini_local ACP lane", () => {
 
     const result = await testGeminiAcpEnvironment({
       adapterType: "gemini_local",
-      companyId: "company-1",
+      spaceId: "space-1",
       config: {
         engine: "acp",
         cwd: root,

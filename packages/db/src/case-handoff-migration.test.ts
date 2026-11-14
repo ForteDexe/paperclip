@@ -39,7 +39,7 @@ const describePostgres = support.supported ? describe : describe.skip;
 afterEach(async () => { while (cleanups.length) await cleanups.pop()?.(); });
 
 async function database() {
-  const temporary = await startEmbeddedPostgresTestDatabase("paperclip-case-migration-");
+  const temporary = await startEmbeddedPostgresTestDatabase("outpost-case-migration-");
   cleanups.push(temporary.cleanup);
   const sql = postgres(temporary.connectionString, { max: 1, onnotice: () => {} });
   cleanups.push(() => sql.end());
@@ -47,23 +47,23 @@ async function database() {
 }
 
 async function seed(sql: postgres.Sql) {
-  const companyId = randomUUID(), agentId = randomUUID(), projectId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID(), projectId = randomUUID();
   const issueId = randomUUID(), doneIssueId = randomUUID(), caseId = randomUUID(), doneCaseId = randomUUID();
-  await sql`INSERT INTO companies (id, name, issue_prefix) VALUES (${companyId}, 'Case migration', 'CMG')`;
-  await sql`INSERT INTO agents (id, company_id, name, role, adapter_type) VALUES (${agentId}, ${companyId}, 'Case agent', 'engineer', 'process')`;
-  await sql`INSERT INTO projects (id, company_id, name, visibility) VALUES (${projectId}, ${companyId}, 'Private research', 'private')`;
-  await sql`INSERT INTO issues (id, company_id, title, status, assignee_agent_id) VALUES
-    (${issueId}, ${companyId}, 'Retained source', 'todo', ${agentId}),
-    (${doneIssueId}, ${companyId}, 'Completed work', 'done', ${agentId})`;
-  await sql`INSERT INTO cases (id, company_id, project_id, case_number, identifier, case_type, title, fields) VALUES
-    (${caseId}, ${companyId}, ${projectId}, 1, 'CMG-C1', 'receipt', 'Saved receipt', '{"items":[{"quantity":2,"unitPrice":3}]}'),
-    (${doneCaseId}, ${companyId}, null, 2, 'CMG-C2', 'receipt', 'Completed receipt', '{"total":6}')`;
-  await sql`INSERT INTO case_issue_links (company_id, case_id, issue_id, role) VALUES (${companyId}, ${caseId}, ${issueId}, 'work')`;
-  await sql`INSERT INTO case_events (company_id, case_id, kind, actor_type, payload) VALUES (${companyId}, ${caseId}, 'created', 'system', '{"saved":true}')`;
+  await sql`INSERT INTO spaces (id, name, issue_prefix) VALUES (${spaceId}, 'Case migration', 'CMG')`;
+  await sql`INSERT INTO agents (id, space_id, name, role, adapter_type) VALUES (${agentId}, ${spaceId}, 'Case agent', 'engineer', 'process')`;
+  await sql`INSERT INTO projects (id, space_id, name, visibility) VALUES (${projectId}, ${spaceId}, 'Private research', 'private')`;
+  await sql`INSERT INTO issues (id, space_id, title, status, assignee_agent_id) VALUES
+    (${issueId}, ${spaceId}, 'Retained source', 'todo', ${agentId}),
+    (${doneIssueId}, ${spaceId}, 'Completed work', 'done', ${agentId})`;
+  await sql`INSERT INTO cases (id, space_id, project_id, case_number, identifier, case_type, title, fields) VALUES
+    (${caseId}, ${spaceId}, ${projectId}, 1, 'CMG-C1', 'receipt', 'Saved receipt', '{"items":[{"quantity":2,"unitPrice":3}]}'),
+    (${doneCaseId}, ${spaceId}, null, 2, 'CMG-C2', 'receipt', 'Completed receipt', '{"total":6}')`;
+  await sql`INSERT INTO case_issue_links (space_id, case_id, issue_id, role) VALUES (${spaceId}, ${caseId}, ${issueId}, 'work')`;
+  await sql`INSERT INTO case_events (space_id, case_id, kind, actor_type, payload) VALUES (${spaceId}, ${caseId}, 'created', 'system', '{"saved":true}')`;
   const documentId = randomUUID();
-  await sql`INSERT INTO documents (id, company_id, title, latest_body) VALUES (${documentId}, ${companyId}, 'Research', 'Preserved findings')`;
-  await sql`INSERT INTO case_documents (company_id, case_id, document_id, key) VALUES (${companyId}, ${caseId}, ${documentId}, 'research')`;
-  return { companyId, agentId, projectId, issueId, doneIssueId, caseId, doneCaseId };
+  await sql`INSERT INTO documents (id, space_id, title, latest_body) VALUES (${documentId}, ${spaceId}, 'Research', 'Preserved findings')`;
+  await sql`INSERT INTO case_documents (space_id, case_id, document_id, key) VALUES (${spaceId}, ${caseId}, ${documentId}, 'research')`;
+  return { spaceId, agentId, projectId, issueId, doneIssueId, caseId, doneCaseId };
 }
 
 async function contents(sql: postgres.Sql) {
@@ -114,9 +114,9 @@ describePostgres("case handoff migration upgrades", () => {
     const row = await seed(sql);
     await sql`UPDATE cases SET work_issue_id = ${row.issueId}, phase = 'verification', handoff_version = 1 WHERE id = ${row.caseId}`;
     const handoffId = randomUUID();
-    await sql`INSERT INTO case_handoffs (id, company_id, case_id, issue_id, version, from_agent_id, destination_kind,
+    await sql`INSERT INTO case_handoffs (id, space_id, case_id, issue_id, version, from_agent_id, destination_kind,
       to_agent_id, phase, instructions, actor_type, actor_id, wakeup_request_id, idempotency_key, input_fingerprint, state) VALUES
-      (${handoffId}, ${row.companyId}, ${row.caseId}, ${row.issueId}, 1, ${row.agentId}, 'agent', ${row.agentId},
+      (${handoffId}, ${row.spaceId}, ${row.caseId}, ${row.issueId}, 1, ${row.agentId}, 'agent', ${row.agentId},
       'verification', 'Preserve legacy intent', 'agent', ${row.agentId}, ${randomUUID()}, 'legacy-context', 'fingerprint', 'pending_dispatch')`;
     const [before] = await sql`SELECT * FROM case_handoffs WHERE id = ${handoffId}`;
     expect(await sql`SELECT column_name FROM information_schema.columns
@@ -135,13 +135,13 @@ describePostgres("case handoff migration upgrades", () => {
     const row = await seed(sql);
     await sql`UPDATE cases SET work_issue_id = ${row.issueId}, phase = 'verification', handoff_version = 2 WHERE id = ${row.caseId}`;
     await sql`UPDATE cases SET work_issue_id = ${row.doneIssueId}, phase = 'done', handoff_version = 1, status = 'done', completed_at = now() WHERE id = ${row.doneCaseId}`;
-    await sql`INSERT INTO case_access_sources (company_id, case_id, source_kind, source_id) VALUES
-      (${row.companyId}, ${row.caseId}, 'issue', ${row.issueId}), (${row.companyId}, ${row.caseId}, 'project', ${row.projectId})`;
-    await sql`INSERT INTO case_handoffs (company_id, case_id, issue_id, version, from_agent_id, destination_kind, to_agent_id,
+    await sql`INSERT INTO case_access_sources (space_id, case_id, source_kind, source_id) VALUES
+      (${row.spaceId}, ${row.caseId}, 'issue', ${row.issueId}), (${row.spaceId}, ${row.caseId}, 'project', ${row.projectId})`;
+    await sql`INSERT INTO case_handoffs (space_id, case_id, issue_id, version, from_agent_id, destination_kind, to_agent_id,
       phase, instructions, actor_type, actor_id, wakeup_request_id, idempotency_key, input_fingerprint, state, completed_at) VALUES
-      (${row.companyId}, ${row.caseId}, ${row.issueId}, 2, ${row.agentId}, 'agent', ${row.agentId}, 'verification', 'Verify saved receipt', 'agent', ${row.agentId}, ${randomUUID()}, 'pending', 'fingerprint', 'pending_dispatch', null),
-      (${row.companyId}, ${row.doneCaseId}, ${row.doneIssueId}, 1, ${row.agentId}, 'done', null, 'done', 'Receipt completed', 'agent', ${row.agentId}, ${randomUUID()}, 'done', 'fingerprint', 'completed', now())`;
-    await sql`INSERT INTO case_events (company_id, case_id, kind, actor_type) VALUES (${row.companyId}, ${row.doneCaseId}, 'handoff_completed', 'system')`;
+      (${row.spaceId}, ${row.caseId}, ${row.issueId}, 2, ${row.agentId}, 'agent', ${row.agentId}, 'verification', 'Verify saved receipt', 'agent', ${row.agentId}, ${randomUUID()}, 'pending', 'fingerprint', 'pending_dispatch', null),
+      (${row.spaceId}, ${row.doneCaseId}, ${row.doneIssueId}, 1, ${row.agentId}, 'done', null, 'done', 'Receipt completed', 'agent', ${row.agentId}, ${randomUUID()}, 'done', 'fingerprint', 'completed', now())`;
+    await sql`INSERT INTO case_events (space_id, case_id, kind, actor_type) VALUES (${row.spaceId}, ${row.doneCaseId}, 'handoff_completed', 'system')`;
     await sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash IN ${sql(migrations.map(item => item.hash))}`;
     for (const [index, hash] of legacyHashes.entries()) {
       await sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (${hash}, ${1792415648299 + index})`;
@@ -165,9 +165,9 @@ describePostgres("case handoff migration upgrades", () => {
     const { sql, connectionString } = await database();
     const row = await seed(sql);
     await sql`UPDATE cases SET work_issue_id = ${row.issueId}, phase = 'verification', handoff_version = 1 WHERE id = ${row.caseId}`;
-    await sql`INSERT INTO case_handoffs (company_id, case_id, issue_id, version, from_agent_id, destination_kind,
+    await sql`INSERT INTO case_handoffs (space_id, case_id, issue_id, version, from_agent_id, destination_kind,
       to_agent_id, phase, instructions, actor_type, actor_id, actor_context, wakeup_request_id, idempotency_key, input_fingerprint, state) VALUES
-      (${row.companyId}, ${row.caseId}, ${row.issueId}, 1, ${row.agentId}, 'agent', ${row.agentId},
+      (${row.spaceId}, ${row.caseId}, ${row.issueId}, 1, ${row.agentId}, 'agent', ${row.agentId},
       'verification', 'Keep the existing authority context', 'agent', ${row.agentId}, '{"preserved":true}',
       ${randomUUID()}, 'previous-numbering', 'fingerprint', 'pending_dispatch')`;
     expect(migrations.map(migration => migration.hash)).toEqual(previousFeatureReceipts.map(receipt => receipt.hash));
@@ -188,9 +188,9 @@ describePostgres("case handoff migration upgrades", () => {
     const { sql, connectionString } = await database();
     const row = await seed(sql);
     await sql`ALTER TABLE case_handoffs DROP CONSTRAINT case_handoffs_destination_check, DROP CONSTRAINT case_handoffs_destination_state_check`;
-    await sql`INSERT INTO case_handoffs (company_id, case_id, issue_id, version, destination_kind, phase, instructions,
+    await sql`INSERT INTO case_handoffs (space_id, case_id, issue_id, version, destination_kind, phase, instructions,
       actor_type, actor_id, wakeup_request_id, idempotency_key, input_fingerprint, state) VALUES
-      (${row.companyId}, ${row.caseId}, ${row.issueId}, 1, 'invalid', 'triage', 'Legacy invalid destination',
+      (${row.spaceId}, ${row.caseId}, ${row.issueId}, 1, 'invalid', 'triage', 'Legacy invalid destination',
       'system', 'system', ${randomUUID()}, 'invalid', 'fingerprint', 'delivered')`;
     await sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash = ${migrations[3]!.hash}`;
     const before = await contents(sql), beforeGuards = await guards(sql);
@@ -205,7 +205,7 @@ describePostgres("case handoff migration upgrades", () => {
 
 async function contentsWithoutRouting(sql: postgres.Sql) {
   return {
-    cases: await sql`SELECT id, company_id, project_id, case_number, identifier, case_type, title, fields, status FROM cases ORDER BY id`,
+    cases: await sql`SELECT id, space_id, project_id, case_number, identifier, case_type, title, fields, status FROM cases ORDER BY id`,
     links: await sql`SELECT * FROM case_issue_links ORDER BY id`,
     events: await sql`SELECT * FROM case_events ORDER BY id`,
     documents: await sql`SELECT * FROM documents ORDER BY id`,

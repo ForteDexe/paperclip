@@ -26,45 +26,45 @@ describe("heartbeatsApi.list", () => {
   });
 
   it("requests summary rows for hot-path history consumers", async () => {
-    await heartbeatsApi.list("company-1", undefined, 200, { summary: true });
+    await heartbeatsApi.list("space-1", undefined, 200, { summary: true });
 
-    expect(mockApi.get).toHaveBeenCalledWith("/companies/company-1/heartbeat-runs?limit=200&summary=true");
+    expect(mockApi.get).toHaveBeenCalledWith("/spaces/space-1/heartbeat-runs?limit=200&summary=true");
   });
 
   it("bounds an omitted limit for agent history consumers", async () => {
-    await heartbeatsApi.list("company-1", "agent-1");
-    expect(mockApi.get).toHaveBeenCalledWith("/companies/company-1/heartbeat-runs?agentId=agent-1&limit=200");
+    await heartbeatsApi.list("space-1", "agent-1");
+    expect(mockApi.get).toHaveBeenCalledWith("/spaces/space-1/heartbeat-runs?agentId=agent-1&limit=200");
   });
 
   it("keeps full row requests as the default for run-history screens", async () => {
-    await heartbeatsApi.list("company-1", "agent-1", 25);
+    await heartbeatsApi.list("space-1", "agent-1", 25);
 
-    expect(mockApi.get).toHaveBeenCalledWith("/companies/company-1/heartbeat-runs?agentId=agent-1&limit=25");
+    expect(mockApi.get).toHaveBeenCalledWith("/spaces/space-1/heartbeat-runs?agentId=agent-1&limit=25");
   });
 });
 
-describe("heartbeatsApi.liveRunsForCompany", () => {
+describe("heartbeatsApi.liveRunsForSpace", () => {
   beforeEach(() => {
     mockApi.get.mockReset();
     mockApi.get.mockResolvedValue([]);
   });
 
   it("keeps the legacy numeric minCount signature", async () => {
-    await heartbeatsApi.liveRunsForCompany("company-1", 4);
+    await heartbeatsApi.liveRunsForSpace("space-1", 4);
 
-    expect(mockApi.get).toHaveBeenCalledWith("/companies/company-1/live-runs?minCount=4");
+    expect(mockApi.get).toHaveBeenCalledWith("/spaces/space-1/live-runs?minCount=4");
   });
 
-  it("passes minCount and limit options to the company live-runs endpoint", async () => {
-    await heartbeatsApi.liveRunsForCompany("company-1", { minCount: 50, limit: 50 });
+  it("passes minCount and limit options to the space live-runs endpoint", async () => {
+    await heartbeatsApi.liveRunsForSpace("space-1", { minCount: 50, limit: 50 });
 
-    expect(mockApi.get).toHaveBeenCalledWith("/companies/company-1/live-runs?minCount=50&limit=50");
+    expect(mockApi.get).toHaveBeenCalledWith("/spaces/space-1/live-runs?minCount=50&limit=50");
   });
 
   it("requests distinct task cards before the server applies the dashboard limit", async () => {
-    await heartbeatsApi.liveRunsForCompany("company-1", { minCount: 4, limit: 4, distinctTasks: true });
+    await heartbeatsApi.liveRunsForSpace("space-1", { minCount: 4, limit: 4, distinctTasks: true });
 
-    expect(mockApi.get).toHaveBeenCalledWith("/companies/company-1/live-runs?minCount=4&limit=4&distinctTasks=true");
+    expect(mockApi.get).toHaveBeenCalledWith("/spaces/space-1/live-runs?minCount=4&limit=4&distinctTasks=true");
   });
 });
 

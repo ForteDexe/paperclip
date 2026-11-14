@@ -28,22 +28,22 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 function catalogTeam(overrides: Record<string, unknown> = {}) {
   return {
-    id: "paperclipai:bundled:software-development:product-engineering",
-    key: "paperclipai/bundled/software-development/product-engineering",
+    id: "outpost:bundled:software-development:product-engineering",
+    key: "outpost/bundled/software-development/product-engineering",
     kind: "bundled",
     category: "software-development",
     slug: "product-engineering",
     name: "Product Engineering",
-    description: "A software development team with CTO, coder, and QA roles.",
+    description: "A software development team with Engineering Lead, coder, and QA roles.",
     path: "catalog/bundled/software-development/product-engineering",
     entrypoint: "TEAM.md",
     schema: "agentcompanies/v1",
     defaultInstall: true,
-    recommendedForCompanyTypes: ["software"],
+    recommendedForSpaceTypes: ["software"],
     tags: ["engineering"],
     counts: { agents: 3, projects: 1, tasks: 1, routines: 0, localSkills: 0, catalogSkills: 1, externalSkillSources: 0 },
-    rootAgentSlugs: ["cto"],
-    agentSlugs: ["cto", "senior-coder", "qa"],
+    rootAgentSlugs: ["engineering_lead"],
+    agentSlugs: ["engineering_lead", "senior-coder", "qa"],
     projectSlugs: ["product-engineering"],
     requiredSkills: [],
     envInputs: [],
@@ -58,8 +58,8 @@ function catalogTeam(overrides: Record<string, unknown> = {}) {
 
 function installedCatalogTeam(overrides: Record<string, unknown> = {}) {
   return {
-    catalogId: "paperclipai:bundled:software-development:product-engineering",
-    catalogKey: "paperclipai/bundled/software-development/product-engineering",
+    catalogId: "outpost:bundled:software-development:product-engineering",
+    catalogKey: "outpost/bundled/software-development/product-engineering",
     present: true,
     currentContentHash: "sha256:catalog-team",
     installedOriginHashes: ["sha256:catalog-team"],
@@ -78,7 +78,7 @@ describe("teams CLI commands", () => {
     process.env = { ...ORIGINAL_ENV };
     delete process.env.OUTPOST_API_URL;
     delete process.env.OUTPOST_API_KEY;
-    delete process.env.OUTPOST_COMPANY_ID;
+    delete process.env.OUTPOST_SPACE_ID;
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -116,7 +116,7 @@ describe("teams CLI commands", () => {
     );
     const rendered = logSpy.mock.calls.map((call: unknown[]) => String(call[0])).join("\n");
     expect(rendered).toContain("id");
-    expect(rendered).toContain("paperclipai:bundled:software-development:product-engineering");
+    expect(rendered).toContain("outpost:bundled:software-development:product-engineering");
   });
 
   it("searches catalog teams as JSON", async () => {
@@ -143,13 +143,13 @@ describe("teams CLI commands", () => {
     expect(JSON.parse(String(logSpy.mock.calls[0]?.[0]))).toEqual(rows);
   });
 
-  it("lists catalog teams with installed status for a company", async () => {
+  it("lists catalog teams with installed status for a space", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse([
         catalogTeam(),
         catalogTeam({
-          id: "paperclipai:optional:content:content-machine",
-          key: "paperclipai/optional/content/content-machine",
+          id: "outpost:optional:content:content-machine",
+          key: "outpost/optional/content/content-machine",
           kind: "optional",
           category: "content",
           slug: "content-machine",
@@ -170,8 +170,8 @@ describe("teams CLI commands", () => {
       "list",
       "--kind",
       "bundled",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -185,7 +185,7 @@ describe("teams CLI commands", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "http://outpost.test/api/companies/company-1/teams/catalog/installed",
+      "http://outpost.test/api/spaces/space-1/teams/catalog/installed",
       expect.objectContaining({ method: "GET" }),
     );
     const rendered = logSpy.mock.calls.map((call: unknown[]) => String(call[0])).join("\n");
@@ -200,8 +200,8 @@ describe("teams CLI commands", () => {
       .mockResolvedValueOnce(jsonResponse([
         installedCatalogTeam(),
         installedCatalogTeam({
-          catalogId: "paperclipai:removed:team",
-          catalogKey: "paperclipai/removed/team",
+          catalogId: "outpost:removed:team",
+          catalogKey: "outpost/removed/team",
           present: false,
           currentContentHash: null,
           installedOriginHashes: ["sha256:removed"],
@@ -212,8 +212,8 @@ describe("teams CLI commands", () => {
     await runCommand([
       "teams",
       "list",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -224,15 +224,15 @@ describe("teams CLI commands", () => {
     const rows = JSON.parse(String(logSpy.mock.calls[0]?.[0]));
     expect(rows).toMatchObject([
       {
-        catalogId: "paperclipai:bundled:software-development:product-engineering",
-        catalogKey: "paperclipai/bundled/software-development/product-engineering",
+        catalogId: "outpost:bundled:software-development:product-engineering",
+        catalogKey: "outpost/bundled/software-development/product-engineering",
         installedStatus: "installed",
         installedAgentCount: 3,
         outOfDate: false,
       },
       {
-        catalogId: "paperclipai:removed:team",
-        catalogKey: "paperclipai/removed/team",
+        catalogId: "outpost:removed:team",
+        catalogKey: "outpost/removed/team",
         installedStatus: "installed_missing",
         installedAgentCount: 2,
         present: false,
@@ -247,7 +247,7 @@ describe("teams CLI commands", () => {
     await runCommand([
       "teams",
       "inspect",
-      "paperclipai/bundled/software-development/product-engineering",
+      "outpost/bundled/software-development/product-engineering",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -256,7 +256,7 @@ describe("teams CLI commands", () => {
     ]);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://outpost.test/api/teams/catalog/ref?ref=paperclipai%2Fbundled%2Fsoftware-development%2Fproduct-engineering",
+      "http://outpost.test/api/teams/catalog/ref?ref=outpost%2Fbundled%2Fsoftware-development%2Fproduct-engineering",
       expect.objectContaining({ method: "GET" }),
     );
     expect(JSON.parse(String(logSpy.mock.calls[0]?.[0]))).toEqual(detail);
@@ -266,7 +266,7 @@ describe("teams CLI commands", () => {
     const result = {
       team: catalogTeam(),
       portabilityPreview: {
-        plan: { companyAction: "none", agentPlans: [], projectPlans: [], issuePlans: [] },
+        plan: { spaceAction: "none", agentPlans: [], projectPlans: [], issuePlans: [] },
         warnings: [],
         errors: [],
       },
@@ -283,8 +283,8 @@ describe("teams CLI commands", () => {
       "--target-manager-slug",
       "engineering-lead",
       "--allow-external-sources",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -293,7 +293,7 @@ describe("teams CLI commands", () => {
     ]);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://outpost.test/api/companies/company-1/teams/catalog/ref/preview?ref=product-engineering",
+      "http://outpost.test/api/spaces/space-1/teams/catalog/ref/preview?ref=product-engineering",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -309,7 +309,7 @@ describe("teams CLI commands", () => {
     const result = {
       team: catalogTeam(),
       portabilityImport: {
-        company: { id: "company-1", name: "Paperclip", action: "unchanged" },
+        space: { id: "space-1", name: "Outpost", action: "unchanged" },
         agents: [],
         projects: [],
         envInputs: [],
@@ -325,17 +325,17 @@ describe("teams CLI commands", () => {
       "install",
       "product-engineering",
       "--agent",
-      "cto",
+      "engineering_lead",
       "--selected-file",
-      "agents/cto/AGENTS.md",
+      "agents/engineering_lead/AGENTS.md",
       "--collision-strategy",
       "skip",
       "--secret-value",
-      "agent:cto:OPENAI_API_KEY=sk-test",
+      "agent:engineering_lead:OPENAI_API_KEY=sk-test",
       "--adapter-override",
-      "cto=opencode_local",
-      "--company-id",
-      "company/1",
+      "engineering_lead=opencode_local",
+      "--space-id",
+      "space/1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -344,26 +344,26 @@ describe("teams CLI commands", () => {
     ]);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://outpost.test/api/companies/company%2F1/teams/catalog/ref/install?ref=product-engineering",
+      "http://outpost.test/api/spaces/space%2F1/teams/catalog/ref/install?ref=product-engineering",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          agents: ["cto"],
+          agents: ["engineering_lead"],
           collisionStrategy: "skip",
-          selectedFiles: ["agents/cto/AGENTS.md"],
-          adapterOverrides: { cto: { adapterType: "opencode_local" } },
-          secretValues: { "agent:cto:OPENAI_API_KEY": "sk-test" },
+          selectedFiles: ["agents/engineering_lead/AGENTS.md"],
+          adapterOverrides: { engineering_lead: { adapterType: "opencode_local" } },
+          secretValues: { "agent:engineering_lead:OPENAI_API_KEY": "sk-test" },
         }),
       }),
     );
     expect(JSON.parse(String(logSpy.mock.calls[0]?.[0]))).toEqual(result);
   });
 
-  it("requests board approval when agent-run install lacks create-agent permission", async () => {
+  it("requests operator approval when agent-run install lacks create-agent permission", async () => {
     const approval = {
       id: "approval-1",
-      companyId: "company-1",
-      type: "request_board_approval",
+      spaceId: "space-1",
+      type: "request_operator_approval",
       requestedByAgentId: "agent-1",
       requestedByUserId: null,
       status: "pending",
@@ -387,9 +387,9 @@ describe("teams CLI commands", () => {
       "--collision-strategy",
       "rename",
       "--secret-value",
-      "agent:cto:OPENAI_API_KEY=sk-live-secret",
-      "--company-id",
-      "company-1",
+      "agent:engineering_lead:OPENAI_API_KEY=sk-live-secret",
+      "--space-id",
+      "space-1",
       "--request-approval-on-forbidden",
       "--approval-issue-id",
       "11111111-1111-4111-8111-111111111111",
@@ -402,20 +402,20 @@ describe("teams CLI commands", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "http://outpost.test/api/companies/company-1/teams/catalog/ref/install?ref=product-engineering",
+      "http://outpost.test/api/spaces/space-1/teams/catalog/ref/install?ref=product-engineering",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
           targetManagerAgentId: "manager-1",
           collisionStrategy: "rename",
-          secretValues: { "agent:cto:OPENAI_API_KEY": "sk-live-secret" },
+          secretValues: { "agent:engineering_lead:OPENAI_API_KEY": "sk-live-secret" },
         }),
       }),
     );
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "http://outpost.test/api/companies/company-1/approvals",
+      "http://outpost.test/api/spaces/space-1/approvals",
       expect.objectContaining({
         method: "POST",
         body: expect.any(String),
@@ -423,12 +423,12 @@ describe("teams CLI commands", () => {
     );
     const approvalPayload = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
     expect(approvalPayload).toMatchObject({
-      type: "request_board_approval",
+      type: "request_operator_approval",
       issueIds: ["11111111-1111-4111-8111-111111111111"],
       payload: {
         title: "Approve catalog team install: product-engineering",
         installAttempt: {
-          companyId: "company-1",
+          spaceId: "space-1",
           catalogRef: "product-engineering",
           deniedReason: "Missing permission: can create agents",
           options: {
@@ -443,13 +443,13 @@ describe("teams CLI commands", () => {
       status: "approval_requested",
       approval,
       installAttempt: {
-        companyId: "company-1",
+        spaceId: "space-1",
         catalogRef: "product-engineering",
         deniedReason: "Missing permission: can create agents",
         options: {
           targetManagerAgentId: "manager-1",
           collisionStrategy: "rename",
-          secretValues: { "agent:cto:OPENAI_API_KEY": "[redacted]" },
+          secretValues: { "agent:engineering_lead:OPENAI_API_KEY": "[redacted]" },
         },
       },
     });
@@ -458,12 +458,12 @@ describe("teams CLI commands", () => {
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
-  it("auto-requests board approval for forbidden installs inside a Paperclip task run", async () => {
+  it("auto-requests operator approval for forbidden installs inside a Outpost task run", async () => {
     process.env.OUTPOST_TASK_ID = "11111111-1111-4111-8111-111111111111";
     const approval = {
       id: "approval-2",
-      companyId: "company-1",
-      type: "request_board_approval",
+      spaceId: "space-1",
+      type: "request_operator_approval",
       requestedByAgentId: "agent-1",
       requestedByUserId: null,
       status: "pending",
@@ -482,8 +482,8 @@ describe("teams CLI commands", () => {
       "teams",
       "install",
       "product-engineering",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -493,7 +493,7 @@ describe("teams CLI commands", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "http://outpost.test/api/companies/company-1/approvals",
+      "http://outpost.test/api/spaces/space-1/approvals",
       expect.objectContaining({
         method: "POST",
         body: expect.any(String),
@@ -501,11 +501,11 @@ describe("teams CLI commands", () => {
     );
     const approvalPayload = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
     expect(approvalPayload).toMatchObject({
-      type: "request_board_approval",
+      type: "request_operator_approval",
       issueIds: ["11111111-1111-4111-8111-111111111111"],
       payload: {
         installAttempt: {
-          companyId: "company-1",
+          spaceId: "space-1",
           catalogRef: "product-engineering",
           deniedReason: "Missing permission: can create agents",
         },
@@ -518,8 +518,8 @@ describe("teams CLI commands", () => {
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
-  it("does not request board approval for unrelated forbidden install errors", async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ error: "Agent key cannot access another company" }, 403));
+  it("does not request operator approval for unrelated forbidden install errors", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: "Agent key cannot access another space" }, 403));
     vi.spyOn(process, "exit").mockImplementation(((code?: string | number | null) => {
       throw new Error(`exit:${code ?? 0}`);
     }) as typeof process.exit);
@@ -528,8 +528,8 @@ describe("teams CLI commands", () => {
       "teams",
       "install",
       "product-engineering",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--request-approval-on-forbidden",
       "--api-base",
       "http://outpost.test",
@@ -539,13 +539,13 @@ describe("teams CLI commands", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://outpost.test/api/companies/company-1/teams/catalog/ref/install?ref=product-engineering",
+      "http://outpost.test/api/spaces/space-1/teams/catalog/ref/install?ref=product-engineering",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({}),
       }),
     );
-    expect(String(errorSpy.mock.calls[0]?.[0])).toContain("Agent key cannot access another company");
+    expect(String(errorSpy.mock.calls[0]?.[0])).toContain("Agent key cannot access another space");
   });
 
   it("surfaces server blocks for unsafe local-path catalog team sources", async () => {
@@ -560,8 +560,8 @@ describe("teams CLI commands", () => {
       "teams",
       "install",
       "unsafe-local-team",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -569,7 +569,7 @@ describe("teams CLI commands", () => {
     ])).rejects.toThrow("exit:1");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://outpost.test/api/companies/company-1/teams/catalog/ref/install?ref=unsafe-local-team",
+      "http://outpost.test/api/spaces/space-1/teams/catalog/ref/install?ref=unsafe-local-team",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({}),

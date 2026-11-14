@@ -7,7 +7,7 @@ and output contracts.
 
 The catalog is descriptive. Importing it or finding an operation in it does not
 grant permission to show or call that operation. A run-scoped dispatcher can
-project only actions that have current actor, task, company, claim, mode, and
+project only actions that have current actor, task, space, claim, mode, and
 application-binding authority. It rechecks that authority before each call.
 The package still adds no application binding, credential, server route, or
 Codex tool installation. Until a later server integration supplies those
@@ -22,18 +22,18 @@ reviewed schemas and authority boundaries.
 ```ts
 import {
   OUTPOST_SEMANTIC_ACTION_CATALOG,
-  paperclipSemanticAction,
+  outpostSemanticAction,
 } from "@outpost/outpost-runner";
 
-const writeDocument = paperclipSemanticAction("write_document");
+const writeDocument = outpostSemanticAction("write_document");
 ```
 
 `OUTPOST_SEMANTIC_ACTION_CATALOG` and every nested declaration are frozen.
-`paperclipSemanticAction` returns `undefined` for unknown operation IDs.
+`outpostSemanticAction` returns `undefined` for unknown operation IDs.
 
 ## Run-scoped authority
 
-`PaperclipSemanticDispatcher` accepts a current-context provider and an
+`OutpostSemanticDispatcher` accepts a current-context provider and an
 explicit list of application bindings. Unbound actions are absent. Actor claims
 and run-delegated claims are intersected. Optional discovery returns only bound
 actions that pass the same authorization check. Mutation actions also require

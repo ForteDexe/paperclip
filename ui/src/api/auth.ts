@@ -1,6 +1,6 @@
 import {
   authSessionSchema,
-  type BoardBootstrapSession,
+  type OperatorBootstrapSession,
   readBoardBootstrap,
 } from "@outpost/shared";
 import { redactUrlSecrets } from "@/lib/redact-url-secrets";
@@ -36,11 +36,11 @@ export class AuthApiError extends Error {
   }
 }
 
-function toSession(value: unknown): BoardBootstrapSession | null {
+function toSession(value: unknown): OperatorBootstrapSession | null {
   const direct = authSessionSchema.safeParse(value);
   if (direct.success) {
-    const boardBootstrap = readBoardBootstrap((value as Record<string, unknown>).boardBootstrap, direct.data.user.id);
-    return boardBootstrap ? { ...direct.data, boardBootstrap } : direct.data;
+    const operatorBootstrap = readBoardBootstrap((value as Record<string, unknown>).operatorBootstrap, direct.data.user.id);
+    return operatorBootstrap ? { ...direct.data, operatorBootstrap } : direct.data;
   }
 
   if (!value || typeof value !== "object") return null;
@@ -144,7 +144,7 @@ async function authPost(path: string, body: Record<string, unknown>): Promise<un
 }
 
 export const authApi = {
-  getSession: async (): Promise<BoardBootstrapSession | null> => {
+  getSession: async (): Promise<OperatorBootstrapSession | null> => {
     const res = await apiFetch("/api/auth/get-session", {
       credentials: "include",
       headers: { Accept: "application/json" },

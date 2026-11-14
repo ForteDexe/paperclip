@@ -11,12 +11,12 @@ import { resolveCodexAuthCacheDir, withAccountHomeSecretMutationLock } from "@ou
 import {
   activityLog,
   agents,
-  companies,
-  companyMemberships,
-  companySecretBindings,
-  companySecretProviderConfigs,
-  companySecretVersions,
-  companySecrets,
+  spaces,
+  spaceMemberships,
+  spaceSecretBindings,
+  spaceSecretProviderConfigs,
+  spaceSecretVersions,
+  spaceSecrets,
   createDb,
   heartbeatRuns,
   secretAccessEvents,
@@ -149,7 +149,7 @@ describeEmbeddedPostgres("secretService", () => {
   let stopDb: (() => Promise<void>) | null = null;
   let db!: ReturnType<typeof createDb>;
   const previousKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
-  const secretsTmpDir = path.join(os.tmpdir(), `paperclip-secrets-service-${randomUUID()}`);
+  const secretsTmpDir = path.join(os.tmpdir(), `outpost-secrets-service-${randomUUID()}`);
 
   beforeAll(async () => {
     mkdirSync(secretsTmpDir, { recursive: true });
@@ -164,15 +164,15 @@ describeEmbeddedPostgres("secretService", () => {
     await db.delete(activityLog);
     await db.delete(secretAccessEvents);
     await db.delete(userSecretDeclarations);
-    await db.delete(companySecretBindings);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
+    await db.delete(spaceSecretBindings);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
     await db.delete(userSecretDefinitions);
-    await db.delete(companySecretProviderConfigs);
-    await db.delete(companyMemberships);
+    await db.delete(spaceSecretProviderConfigs);
+    await db.delete(spaceMemberships);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -208,7 +208,7 @@ describeEmbeddedPostgres("secretService", () => {
     };
   }
 
-  function managedAwsVersionRow(secretId: string, externalRef: string): typeof companySecretVersions.$inferInsert {
+  function managedAwsVersionRow(secretId: string, externalRef: string): typeof spaceSecretVersions.$inferInsert {
     return {
       secretId,
       version: 1,
@@ -225,36 +225,36 @@ describeEmbeddedPostgres("secretService", () => {
     };
   }
 
-  async function seedCompany(name = "Acme") {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+  async function seedSpace(name = "Acme") {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name,
-      issuePrefix: `T${companyId.slice(0, 7)}`.toUpperCase(),
+      issuePrefix: `T${spaceId.slice(0, 7)}`.toUpperCase(),
       status: "active",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    return companyId;
+    return spaceId;
   }
 
-  // Creates a real directory under this company's Codex account-home cache
+  // Creates a real directory under this space's Codex account-home cache
   // root, so a test can prove the write-time directory-validity check reads
   // an actual filesystem entry, the same way the production cleanup and the
   // production secret write do.
-  async function makeAccountHomeDir(companyId: string, accountHandle: string): Promise<string> {
-    const accountHomeDir = path.join(resolveCodexAuthCacheDir(undefined, companyId), accountHandle);
+  async function makeAccountHomeDir(spaceId: string, accountHandle: string): Promise<string> {
+    const accountHomeDir = path.join(resolveCodexAuthCacheDir(undefined, spaceId), accountHandle);
     await mkdir(accountHomeDir, { recursive: true });
     return accountHomeDir;
   }
 
-  async function seedCompanyMember(
-    companyId: string,
+  async function seedSpaceMember(
+    spaceId: string,
     userId: string,
     membershipRole: "owner" | "member" | "viewer" = "member",
   ) {
-    await db.insert(companyMemberships).values({
-      companyId,
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "user",
       principalId: userId,
       status: "active",
@@ -264,11 +264,11 @@ describeEmbeddedPostgres("secretService", () => {
     });
   }
 
-  async function seedAgentRun(companyId: string, permissions: Record<string, unknown> = {}) {
+  async function seedAgentRun(spaceId: string, permissions: Record<string, unknown> = {}) {
     const agentId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Secret reader",
       role: "engineer",
       adapterType: "codex_local",
@@ -281,7 +281,7 @@ describeEmbeddedPostgres("secretService", () => {
     const heartbeatRunId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: heartbeatRunId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       startedAt: new Date(),
@@ -291,54 +291,54 @@ describeEmbeddedPostgres("secretService", () => {
     return { agentId, heartbeatRunId };
   }
 
-  it("rejects cross-company secret references during env normalization", async () => {
-    const companyA = await seedCompany("A");
-    const companyB = await seedCompany("B");
+  it("rejects cross-space secret references during env normalization", async () => {
+    const spaceA = await seedSpace("A");
+    const spaceB = await seedSpace("B");
     const svc = secretService(db);
-    const foreignSecret = await svc.create(companyB, {
+    const foreignSecret = await svc.create(spaceB, {
       name: `foreign-${randomUUID()}`,
       provider: "local_encrypted",
       value: "secret-value",
     });
 
     await expect(
-      svc.normalizeEnvBindingsForPersistence(companyA, {
+      svc.normalizeEnvBindingsForPersistence(spaceA, {
         API_KEY: { type: "secret_ref", secretId: foreignSecret.id, version: "latest" },
       }),
-    ).rejects.toThrow(/same company/i);
+    ).rejects.toThrow(/same space/i);
   });
 
-  it("replaceSecretRefsForInstanceTarget moves the binding to the referenced secret's company", async () => {
-    const companyA = await seedCompany("A");
-    const companyB = await seedCompany("B");
+  it("replaceSecretRefsForInstanceTarget moves the binding to the referenced secret's space", async () => {
+    const spaceA = await seedSpace("A");
+    const spaceB = await seedSpace("B");
     const svc = secretService(db);
-    const secretA = await svc.create(companyA, {
+    const secretA = await svc.create(spaceA, {
       name: `provider-key-a-${randomUUID()}`,
       provider: "local_encrypted",
       value: "a",
     });
-    const secretB = await svc.create(companyB, {
+    const secretB = await svc.create(spaceB, {
       name: `provider-key-b-${randomUUID()}`,
       provider: "local_encrypted",
       value: "b",
     });
-    const envSecretA = await svc.create(companyA, {
+    const envSecretA = await svc.create(spaceA, {
       name: `env-var-a-${randomUUID()}`,
       provider: "local_encrypted",
       value: "env",
     });
     const environmentId = randomUUID();
     await svc.createBinding({
-      companyId: companyA,
+      spaceId: spaceA,
       secretId: secretA.id,
       targetType: "environment",
       targetId: environmentId,
       configPath: "apiKey",
     });
-    // A company-scoped env-var binding on the same environment target must
+    // A space-scoped env-var binding on the same environment target must
     // survive config-ref replacement untouched.
-    await db.insert(companySecretBindings).values({
-      companyId: companyA,
+    await db.insert(spaceSecretBindings).values({
+      spaceId: spaceA,
       secretId: envSecretA.id,
       targetType: "environment",
       targetId: environmentId,
@@ -355,30 +355,30 @@ describeEmbeddedPostgres("secretService", () => {
 
     const rows = await db
       .select()
-      .from(companySecretBindings)
+      .from(spaceSecretBindings)
       .where(
         and(
-          eq(companySecretBindings.targetType, "environment"),
-          eq(companySecretBindings.targetId, environmentId),
+          eq(spaceSecretBindings.targetType, "environment"),
+          eq(spaceSecretBindings.targetId, environmentId),
         ),
       );
     const configRows = rows.filter((row) => row.configPath === "apiKey");
     expect(configRows).toHaveLength(1);
-    expect(configRows[0]?.companyId).toBe(companyB);
+    expect(configRows[0]?.spaceId).toBe(spaceB);
     expect(configRows[0]?.secretId).toBe(secretB.id);
     expect(rows.filter((row) => row.configPath === "env.EXTRA")).toHaveLength(1);
   });
 
-  it("replaceSecretRefsForInstanceTarget writes each binding under its own secret's company", async () => {
-    const companyA = await seedCompany("A");
-    const companyB = await seedCompany("B");
+  it("replaceSecretRefsForInstanceTarget writes each binding under its own secret's space", async () => {
+    const spaceA = await seedSpace("A");
+    const spaceB = await seedSpace("B");
     const svc = secretService(db);
-    const secretA = await svc.create(companyA, {
+    const secretA = await svc.create(spaceA, {
       name: `api-key-${randomUUID()}`,
       provider: "local_encrypted",
       value: "a",
     });
-    const secretB = await svc.create(companyB, {
+    const secretB = await svc.create(spaceB, {
       name: `ssh-key-${randomUUID()}`,
       provider: "local_encrypted",
       value: "b",
@@ -393,32 +393,32 @@ describeEmbeddedPostgres("secretService", () => {
       ],
     );
 
-    expect(refs.map((ref) => ref.companyId).sort()).toEqual([companyA, companyB].sort());
+    expect(refs.map((ref) => ref.spaceId).sort()).toEqual([spaceA, spaceB].sort());
     const rows = await db
       .select()
-      .from(companySecretBindings)
+      .from(spaceSecretBindings)
       .where(
         and(
-          eq(companySecretBindings.targetType, "environment"),
-          eq(companySecretBindings.targetId, environmentId),
+          eq(spaceSecretBindings.targetType, "environment"),
+          eq(spaceSecretBindings.targetId, environmentId),
         ),
       );
     expect(rows).toHaveLength(2);
-    expect(rows.find((row) => row.configPath === "apiKey")?.companyId).toBe(companyA);
-    expect(rows.find((row) => row.configPath === "privateKeySecretRef")?.companyId).toBe(companyB);
+    expect(rows.find((row) => row.configPath === "apiKey")?.spaceId).toBe(spaceA);
+    expect(rows.find((row) => row.configPath === "privateKeySecretRef")?.spaceId).toBe(spaceB);
   });
 
   it("replaceSecretRefsForInstanceTarget rejects unknown secrets without touching existing bindings", async () => {
-    const companyA = await seedCompany("A");
+    const spaceA = await seedSpace("A");
     const svc = secretService(db);
-    const secretA = await svc.create(companyA, {
+    const secretA = await svc.create(spaceA, {
       name: `provider-key-${randomUUID()}`,
       provider: "local_encrypted",
       value: "a",
     });
     const environmentId = randomUUID();
     await svc.createBinding({
-      companyId: companyA,
+      spaceId: spaceA,
       secretId: secretA.id,
       targetType: "environment",
       targetId: environmentId,
@@ -434,28 +434,28 @@ describeEmbeddedPostgres("secretService", () => {
 
     const rows = await db
       .select()
-      .from(companySecretBindings)
+      .from(spaceSecretBindings)
       .where(
         and(
-          eq(companySecretBindings.targetType, "environment"),
-          eq(companySecretBindings.targetId, environmentId),
+          eq(spaceSecretBindings.targetType, "environment"),
+          eq(spaceSecretBindings.targetId, environmentId),
         ),
       );
     expect(rows).toHaveLength(1);
     expect(rows[0]?.secretId).toBe(secretA.id);
-    expect(rows[0]?.companyId).toBe(companyA);
+    expect(rows[0]?.spaceId).toBe(spaceA);
   });
 
-  it("describeSecretRefs names secrets across companies and omits unknown ids", async () => {
-    const companyA = await seedCompany("Alpha");
-    const companyB = await seedCompany("Beta");
+  it("describeSecretRefs names secrets across spaces and omits unknown ids", async () => {
+    const spaceA = await seedSpace("Alpha");
+    const spaceB = await seedSpace("Beta");
     const svc = secretService(db);
-    const secretA = await svc.create(companyA, {
+    const secretA = await svc.create(spaceA, {
       name: "PROVIDER_KEY_A",
       provider: "local_encrypted",
       value: "a",
     });
-    const secretB = await svc.create(companyB, {
+    const secretB = await svc.create(spaceB, {
       name: "PROVIDER_KEY_B",
       provider: "local_encrypted",
       value: "b",
@@ -473,36 +473,36 @@ describeEmbeddedPostgres("secretService", () => {
         secretId: secretA.id,
         name: "PROVIDER_KEY_A",
         status: "active",
-        companyId: companyA,
-        companyName: "Alpha",
+        spaceId: spaceA,
+        spaceName: "Alpha",
       },
       {
         configPath: "privateKeySecretRef",
         secretId: secretB.id,
         name: "PROVIDER_KEY_B",
         status: "active",
-        companyId: companyB,
-        companyName: "Beta",
+        spaceId: spaceB,
+        spaceName: "Beta",
       },
     ]);
   });
 
   it("prevents duplicate bindings for a target config path", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const firstSecret = await svc.create(companyId, {
+    const firstSecret = await svc.create(spaceId, {
       name: `first-${randomUUID()}`,
       provider: "local_encrypted",
       value: "one",
     });
-    const secondSecret = await svc.create(companyId, {
+    const secondSecret = await svc.create(spaceId, {
       name: `second-${randomUUID()}`,
       provider: "local_encrypted",
       value: "two",
     });
 
     await svc.createBinding({
-      companyId,
+      spaceId,
       secretId: firstSecret.id,
       targetType: "agent",
       targetId: "agent-1",
@@ -511,7 +511,7 @@ describeEmbeddedPostgres("secretService", () => {
 
     await expect(
       svc.createBinding({
-        companyId,
+        spaceId,
         secretId: secondSecret.id,
         targetType: "agent",
         targetId: "agent-1",
@@ -520,15 +520,15 @@ describeEmbeddedPostgres("secretService", () => {
     ).rejects.toThrow(/already exists/i);
   });
 
-  it("serializes two local_encrypted secret creates in the same company so their writes never overlap", async () => {
+  it("serializes two local_encrypted secret creates in the same space so their writes never overlap", async () => {
     // An account-home cleanup's claimant scan and a `local_encrypted` secret
     // write share one lock (`withAccountHomeSecretMutationLock`), so a write
     // can never commit inside the exact window the scan already used to
     // decide no secret claims a directory it is about to delete. This proves
     // the lock itself enforces that: two `local_encrypted` creates in the
-    // SAME company never run their provider write at the same time,
+    // SAME space never run their provider write at the same time,
     // whichever caller goes first.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
     const originalCreateSecret = localEncryptedProvider.createSecret.bind(localEncryptedProvider);
     const createSecretSpy = vi.spyOn(localEncryptedProvider, "createSecret");
@@ -541,10 +541,10 @@ describeEmbeddedPostgres("secretService", () => {
       createSecretSpy,
       originalCreateSecret,
       () =>
-        svc.create(companyId, {
+        svc.create(spaceId, {
           name: `baseline-${randomUUID()}`,
           provider: "local_encrypted",
-          value: "/company/codex-home/acct-baseline",
+          value: "/space/codex-home/acct-baseline",
         }),
     );
 
@@ -569,10 +569,10 @@ describeEmbeddedPostgres("secretService", () => {
         return originalCreateSecret(input);
       });
 
-    const firstCreate = svc.create(companyId, {
+    const firstCreate = svc.create(spaceId, {
       name: `account-home-${randomUUID()}`,
       provider: "local_encrypted",
-      value: "/company/codex-home/acct-a",
+      value: "/space/codex-home/acct-a",
     });
     let secondCreate: ReturnType<typeof svc.create> | undefined;
     let outcomes: PromiseSettledResult<unknown>[] = [];
@@ -586,10 +586,10 @@ describeEmbeddedPostgres("secretService", () => {
       // own throw site, instead of hanging this wait until the test
       // timeout.
       await awaitEntryOrOperationFailure(firstEntered.promise, firstCreate, "firstCreate");
-      secondCreate = svc.create(companyId, {
+      secondCreate = svc.create(spaceId, {
         name: `hand-named-${randomUUID()}`,
         provider: "local_encrypted",
-        value: "/company/codex-home/acct-a",
+        value: "/space/codex-home/acct-a",
       });
       // Wait a safety multiple of the measured uncontended entry duration,
       // or until the second call itself confirms it reached its provider
@@ -620,16 +620,16 @@ describeEmbeddedPostgres("secretService", () => {
     expect(events).toEqual(["first-provider-enter", "first-provider-exit", "second-provider-enter"]);
   });
 
-  it("serializes a local_encrypted secret rotate against a concurrent create of a different secret in the same company", async () => {
+  it("serializes a local_encrypted secret rotate against a concurrent create of a different secret in the same space", async () => {
     // Same lock, the other write path: a rotate that writes a new
     // `local_encrypted` value must serialize against a concurrent create the
     // same way a create serializes against another create.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const existing = await svc.create(companyId, {
+    const existing = await svc.create(spaceId, {
       name: `existing-${randomUUID()}`,
       provider: "local_encrypted",
-      value: "/company/codex-home/acct-b",
+      value: "/space/codex-home/acct-b",
     });
     const originalCreateSecret = localEncryptedProvider.createSecret.bind(localEncryptedProvider);
     const createSecretSpy = vi.spyOn(localEncryptedProvider, "createSecret");
@@ -641,10 +641,10 @@ describeEmbeddedPostgres("secretService", () => {
       createSecretSpy,
       originalCreateSecret,
       () =>
-        svc.create(companyId, {
+        svc.create(spaceId, {
           name: `baseline-${randomUUID()}`,
           provider: "local_encrypted",
-          value: "/company/codex-home/acct-baseline",
+          value: "/space/codex-home/acct-baseline",
         }),
     );
 
@@ -669,7 +669,7 @@ describeEmbeddedPostgres("secretService", () => {
       return originalCreateSecret(input);
     });
 
-    const rotateCall = svc.rotate(existing.id, { value: "/company/codex-home/acct-b-rotated" });
+    const rotateCall = svc.rotate(existing.id, { value: "/space/codex-home/acct-b-rotated" });
     let createCall: ReturnType<typeof svc.create> | undefined;
     let outcomes: PromiseSettledResult<unknown>[] = [];
     try {
@@ -682,10 +682,10 @@ describeEmbeddedPostgres("secretService", () => {
       // own throw site, instead of hanging this wait until the test
       // timeout.
       await awaitEntryOrOperationFailure(rotateEntered.promise, rotateCall, "rotateCall");
-      createCall = svc.create(companyId, {
+      createCall = svc.create(spaceId, {
         name: `hand-named-${randomUUID()}`,
         provider: "local_encrypted",
-        value: "/company/codex-home/acct-b",
+        value: "/space/codex-home/acct-b",
       });
       // Wait a safety multiple of the measured uncontended entry duration,
       // or until the create call itself confirms it reached its provider
@@ -724,9 +724,9 @@ describeEmbeddedPostgres("secretService", () => {
     // the rotate call's insert proceeds and the call reaches its final
     // transaction, where it then queues behind this same held row for its
     // "mark the old version previous" update.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `lock-order-${randomUUID()}`,
       provider: "local_encrypted",
       value: "original-value",
@@ -739,9 +739,9 @@ describeEmbeddedPostgres("secretService", () => {
     });
     const holder = db.transaction(async (tx) => {
       await tx
-        .select({ id: companySecretVersions.id })
-        .from(companySecretVersions)
-        .where(and(eq(companySecretVersions.secretId, secret.id), eq(companySecretVersions.version, 1)))
+        .select({ id: spaceSecretVersions.id })
+        .from(spaceSecretVersions)
+        .where(and(eq(spaceSecretVersions.secretId, secret.id), eq(spaceSecretVersions.version, 1)))
         .for("update");
       const [backend] = (await tx.execute(sql`select pg_backend_pid() as pid`)) as unknown as Array<{ pid: number }>;
       holderPidReady.resolve(backend.pid);
@@ -776,7 +776,7 @@ describeEmbeddedPostgres("secretService", () => {
       // that write happen first.
       const probe = await db
         .transaction(async (tx) => {
-          await tx.execute(sql`select 1 from company_secrets where id = ${secret.id} for update nowait`);
+          await tx.execute(sql`select 1 from space_secrets where id = ${secret.id} for update nowait`);
         })
         .then(() => null)
         .catch((error: unknown) => error);
@@ -795,9 +795,9 @@ describeEmbeddedPostgres("secretService", () => {
     // directory, and releases the lock, a create that was only queued behind
     // it must not go on to commit that now-deleted directory as a secret
     // value. It must fail instead.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const accountHomeDir = await makeAccountHomeDir(companyId, "acct-queued-create");
+    const accountHomeDir = await makeAccountHomeDir(spaceId, "acct-queued-create");
     const originalCreateSecret = localEncryptedProvider.createSecret.bind(localEncryptedProvider);
     const createSecretSpy = vi.spyOn(localEncryptedProvider, "createSecret");
 
@@ -808,10 +808,10 @@ describeEmbeddedPostgres("secretService", () => {
       createSecretSpy,
       originalCreateSecret,
       () =>
-        svc.create(companyId, {
+        svc.create(spaceId, {
           name: `baseline-${randomUUID()}`,
           provider: "local_encrypted",
-          value: "/company/codex-home/acct-baseline",
+          value: "/space/codex-home/acct-baseline",
         }),
     );
 
@@ -822,7 +822,7 @@ describeEmbeddedPostgres("secretService", () => {
     const cleanupGate = new Promise<void>((resolve) => {
       releaseCleanup = resolve;
     });
-    const cleanupCall = withAccountHomeSecretMutationLock(undefined, companyId, async () => {
+    const cleanupCall = withAccountHomeSecretMutationLock(undefined, spaceId, async () => {
       events.push("cleanup-enter");
       cleanupEntered.resolve();
       await cleanupGate;
@@ -844,7 +844,7 @@ describeEmbeddedPostgres("secretService", () => {
       // cleanup ever reaches the lock surfaces immediately, at its own
       // throw site, instead of hanging this wait until the test timeout.
       await awaitEntryOrOperationFailure(cleanupEntered.promise, cleanupCall, "cleanupCall");
-      createCall = svc.create(companyId, {
+      createCall = svc.create(spaceId, {
         name: `account-home-${randomUUID()}`,
         provider: "local_encrypted",
         value: accountHomeDir,
@@ -878,21 +878,21 @@ describeEmbeddedPostgres("secretService", () => {
     // Same race, the other write path: a rotate that would commit a
     // now-deleted account-home directory must fail the same way a create
     // does.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const existing = await svc.create(companyId, {
+    const existing = await svc.create(spaceId, {
       name: `hand-named-${randomUUID()}`,
       provider: "local_encrypted",
       value: "/some/unrelated/placeholder/value",
     });
-    const accountHomeDir = await makeAccountHomeDir(companyId, "acct-queued-rotate");
+    const accountHomeDir = await makeAccountHomeDir(spaceId, "acct-queued-rotate");
     const originalCreateVersion = localEncryptedProvider.createVersion.bind(localEncryptedProvider);
     const createVersionSpy = vi.spyOn(localEncryptedProvider, "createVersion");
 
     // The contended call below is a rotate, so measure how long an
     // uncontended rotate takes to reach its own provider write. The wait
     // later in this test uses that measured duration, not a guessed sleep.
-    const baselineSecret = await svc.create(companyId, {
+    const baselineSecret = await svc.create(spaceId, {
       name: `baseline-${randomUUID()}`,
       provider: "local_encrypted",
       value: "/some/unrelated/placeholder/baseline",
@@ -910,7 +910,7 @@ describeEmbeddedPostgres("secretService", () => {
     const cleanupGate = new Promise<void>((resolve) => {
       releaseCleanup = resolve;
     });
-    const cleanupCall = withAccountHomeSecretMutationLock(undefined, companyId, async () => {
+    const cleanupCall = withAccountHomeSecretMutationLock(undefined, spaceId, async () => {
       events.push("cleanup-enter");
       cleanupEntered.resolve();
       await cleanupGate;
@@ -964,16 +964,16 @@ describeEmbeddedPostgres("secretService", () => {
     // create now takes the SAME `withAccountHomeSecretMutationLock` a
     // `local_encrypted` create takes, not only when the create's own
     // provider is `local_encrypted`.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const createSecretSpy = vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/aws-secret", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const createSecretSpy = vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/aws-secret", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
 
     const originalProviderWrite = createSecretSpy.getMockImplementation()!;
     const uncontendedEntryDurationMs = await measureUncontendedEntryDurationMs(
       createSecretSpy,
       originalProviderWrite,
-      () => svc.create(companyId, {
+      () => svc.create(spaceId, {
         name: `aws-baseline-${randomUUID()}`,
         provider: "aws_secrets_manager",
         providerConfigId: awsVault.id,
@@ -993,7 +993,7 @@ describeEmbeddedPostgres("secretService", () => {
     const cleanupGate = new Promise<void>((resolve) => {
       releaseCleanup = resolve;
     });
-    const cleanupCall = withAccountHomeSecretMutationLock(undefined, companyId, async () => {
+    const cleanupCall = withAccountHomeSecretMutationLock(undefined, spaceId, async () => {
       events.push("cleanup-enter");
       cleanupEntered.resolve();
       await cleanupGate;
@@ -1003,7 +1003,7 @@ describeEmbeddedPostgres("secretService", () => {
     let outcomes: PromiseSettledResult<unknown>[] = [];
     try {
       await awaitEntryOrOperationFailure(cleanupEntered.promise, cleanupCall, "cleanupCall");
-      createCall = svc.create(companyId, {
+      createCall = svc.create(spaceId, {
         name: `aws-secret-${randomUUID()}`,
         provider: "aws_secrets_manager",
         providerConfigId: awsVault.id,
@@ -1029,19 +1029,19 @@ describeEmbeddedPostgres("secretService", () => {
     // Same reasoning as the create test above, the other write path: a
     // non-local rotate must also take the lock, not only a
     // `local_encrypted` rotate.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/aws-secret-rotate", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
-    const createVersionSpy = vi.spyOn(awsSecretsManagerProvider, "createVersion").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/aws-secret-rotate", "aws-version-2", "value-sha-2", "fingerprint-sha-2"));
-    const existing = await svc.create(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/aws-secret-rotate", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
+    const createVersionSpy = vi.spyOn(awsSecretsManagerProvider, "createVersion").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/aws-secret-rotate", "aws-version-2", "value-sha-2", "fingerprint-sha-2"));
+    const existing = await svc.create(spaceId, {
       name: `aws-secret-rotate-${randomUUID()}`,
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
       value: "runtime-secret",
     });
 
-    const baselineSecret = await svc.create(companyId, {
+    const baselineSecret = await svc.create(spaceId, {
       name: `aws-baseline-${randomUUID()}`,
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
@@ -1066,7 +1066,7 @@ describeEmbeddedPostgres("secretService", () => {
     const cleanupGate = new Promise<void>((resolve) => {
       releaseCleanup = resolve;
     });
-    const cleanupCall = withAccountHomeSecretMutationLock(undefined, companyId, async () => {
+    const cleanupCall = withAccountHomeSecretMutationLock(undefined, spaceId, async () => {
       events.push("cleanup-enter");
       cleanupEntered.resolve();
       await cleanupGate;
@@ -1100,19 +1100,19 @@ describeEmbeddedPostgres("secretService", () => {
     // the SAME lock a cleanup (or a promotion's terminal-commit re-check)
     // holds for its whole critical section, so an update can never land
     // inside that section.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `CODEX_HOME_update-${randomUUID()}`,
       provider: "local_encrypted",
-      value: "/company/codex-home/acct-update",
+      value: "/space/codex-home/acct-update",
     });
 
     let releaseCleanup!: () => void;
     const cleanupGate = new Promise<void>((resolve) => {
       releaseCleanup = resolve;
     });
-    const cleanupCall = withAccountHomeSecretMutationLock(undefined, companyId, async () => {
+    const cleanupCall = withAccountHomeSecretMutationLock(undefined, spaceId, async () => {
       await cleanupGate;
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -1137,19 +1137,19 @@ describeEmbeddedPostgres("secretService", () => {
     // Same reasoning as the update test above: a delete must also take the
     // lock, so it can never land inside a cleanup's, or a promotion's
     // terminal-commit re-check's, critical section.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `CODEX_HOME_delete-${randomUUID()}`,
       provider: "local_encrypted",
-      value: "/company/codex-home/acct-delete",
+      value: "/space/codex-home/acct-delete",
     });
 
     let releaseCleanup!: () => void;
     const cleanupGate = new Promise<void>((resolve) => {
       releaseCleanup = resolve;
     });
-    const cleanupCall = withAccountHomeSecretMutationLock(undefined, companyId, async () => {
+    const cleanupCall = withAccountHomeSecretMutationLock(undefined, spaceId, async () => {
       await cleanupGate;
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -1174,11 +1174,11 @@ describeEmbeddedPostgres("secretService", () => {
   it("commits a local_encrypted secret naming an account-home directory that still exists", async () => {
     // A regression guard for the check above: a create whose value names a
     // directory that is still present must keep succeeding, unblocked.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const accountHomeDir = await makeAccountHomeDir(companyId, "acct-still-present");
+    const accountHomeDir = await makeAccountHomeDir(spaceId, "acct-still-present");
 
-    const created = await svc.create(companyId, {
+    const created = await svc.create(spaceId, {
       name: `account-home-${randomUUID()}`,
       provider: "local_encrypted",
       value: accountHomeDir,
@@ -1193,16 +1193,16 @@ describeEmbeddedPostgres("secretService", () => {
     // directory check as `svc.create` and `svc.rotate`, so an adapter
     // schema secret can never commit an account-home directory a cleanup
     // already removed while this call waited for the lock.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const accountHomeDir = await makeAccountHomeDir(companyId, "acct-queued-adapter-secret");
+    const accountHomeDir = await makeAccountHomeDir(spaceId, "acct-queued-adapter-secret");
 
     const events: string[] = [];
     let releaseCleanup!: () => void;
     const cleanupGate = new Promise<void>((resolve) => {
       releaseCleanup = resolve;
     });
-    const cleanupCall = withAccountHomeSecretMutationLock(undefined, companyId, async () => {
+    const cleanupCall = withAccountHomeSecretMutationLock(undefined, spaceId, async () => {
       events.push("cleanup-enter");
       await cleanupGate;
       await rm(accountHomeDir, { recursive: true, force: true });
@@ -1212,7 +1212,7 @@ describeEmbeddedPostgres("secretService", () => {
     // config normalization starts racing for the same lock.
     await new Promise((resolve) => setTimeout(resolve, 20));
     const normalizeCall = svc.normalizeAdapterConfigForPersistence(
-      companyId,
+      spaceId,
       { apiKey: accountHomeDir },
       { adapterType: "hermes_gateway" },
     );
@@ -1229,11 +1229,11 @@ describeEmbeddedPostgres("secretService", () => {
     // A regression guard for the check above: an adapter schema secret whose
     // value is not an account-home directory (an ordinary API key, for
     // example) must keep succeeding, unblocked.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
 
     const normalized = await svc.normalizeAdapterConfigForPersistence(
-      companyId,
+      spaceId,
       { apiKey: `plain-api-key-${randomUUID()}` },
       { adapterType: "hermes_gateway" },
     );
@@ -1244,16 +1244,16 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("validates the access namespace as agent-only with env-style aliases", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `access-validation-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
     });
 
     await expect(svc.createBinding({
-      companyId,
+      spaceId,
       secretId: secret.id,
       targetType: "project",
       targetId: randomUUID(),
@@ -1261,7 +1261,7 @@ describeEmbeddedPostgres("secretService", () => {
     })).rejects.toThrow(/must target an agent/i);
 
     await expect(svc.createBinding({
-      companyId,
+      spaceId,
       secretId: secret.id,
       targetType: "agent",
       targetId: randomUUID(),
@@ -1270,23 +1270,23 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("resolves env and access bindings through the run-bound agent resolver with dual audit", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const { agentId, heartbeatRunId } = await seedAgentRun(companyId);
-    const secret = await svc.create(companyId, {
+    const { agentId, heartbeatRunId } = await seedAgentRun(spaceId);
+    const secret = await svc.create(spaceId, {
       name: `agent-read-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
     });
     await svc.createBinding({
-      companyId,
+      spaceId,
       secretId: secret.id,
       targetType: "agent",
       targetId: agentId,
       configPath: "access.API_KEY",
     });
     await svc.createBinding({
-      companyId,
+      spaceId,
       secretId: secret.id,
       targetType: "agent",
       targetId: agentId,
@@ -1295,7 +1295,7 @@ describeEmbeddedPostgres("secretService", () => {
     const redactedValues: string[] = [];
 
     for (const configPath of ["access.API_KEY", "env.API_KEY"]) {
-      await expect(svc.resolveSecretValueForAgentAccess(companyId, secret.id, "latest", {
+      await expect(svc.resolveSecretValueForAgentAccess(spaceId, secret.id, "latest", {
         agentId,
         configPath,
         actorSource: "agent_jwt",
@@ -1305,7 +1305,7 @@ describeEmbeddedPostgres("secretService", () => {
     }
 
     expect(redactedValues).toEqual(["runtime-secret", "runtime-secret"]);
-    const events = await svc.listAccessEvents(companyId, secret.id);
+    const events = await svc.listAccessEvents(spaceId, secret.id);
     expect(events).toHaveLength(2);
     expect(events).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -1335,16 +1335,16 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("rejects long-lived, mismatched-run, and unbound agent secret reads", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const { agentId, heartbeatRunId } = await seedAgentRun(companyId);
-    const secret = await svc.create(companyId, {
+    const { agentId, heartbeatRunId } = await seedAgentRun(spaceId);
+    const secret = await svc.create(spaceId, {
       name: `agent-read-denied-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
     });
     await svc.createBinding({
-      companyId,
+      spaceId,
       secretId: secret.id,
       targetType: "agent",
       targetId: agentId,
@@ -1352,7 +1352,7 @@ describeEmbeddedPostgres("secretService", () => {
     });
     const registerForRedaction = vi.fn();
 
-    await expect(svc.resolveSecretValueForAgentAccess(companyId, secret.id, "latest", {
+    await expect(svc.resolveSecretValueForAgentAccess(spaceId, secret.id, "latest", {
       agentId,
       configPath: "access.API_KEY",
       actorSource: "agent_key",
@@ -1360,7 +1360,7 @@ describeEmbeddedPostgres("secretService", () => {
       registerForRedaction,
     })).rejects.toThrow(/run-bound agent token/i);
 
-    await expect(svc.resolveSecretValueForAgentAccess(companyId, secret.id, "latest", {
+    await expect(svc.resolveSecretValueForAgentAccess(spaceId, secret.id, "latest", {
       agentId,
       configPath: "access.GRANTED",
       actorSource: "agent_jwt",
@@ -1369,7 +1369,7 @@ describeEmbeddedPostgres("secretService", () => {
       registerForRedaction,
     })).rejects.toThrow(/skill-test.*secret/i);
 
-    await expect(svc.resolveSecretValueForAgentAccess(companyId, secret.id, "latest", {
+    await expect(svc.resolveSecretValueForAgentAccess(spaceId, secret.id, "latest", {
       agentId,
       configPath: "access.API_KEY",
       actorSource: "agent_jwt",
@@ -1377,7 +1377,7 @@ describeEmbeddedPostgres("secretService", () => {
       registerForRedaction,
     })).rejects.toThrow(/verified heartbeat run/i);
 
-    await expect(svc.resolveSecretValueForAgentAccess(companyId, secret.id, "latest", {
+    await expect(svc.resolveSecretValueForAgentAccess(spaceId, secret.id, "latest", {
       agentId,
       configPath: "access.API_KEY",
       actorSource: "agent_jwt",
@@ -1386,12 +1386,12 @@ describeEmbeddedPostgres("secretService", () => {
     })).rejects.toThrow(/not granted/i);
 
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, heartbeatRunId));
-    await expect(svc.listAgentSecretAccess(companyId, {
+    await expect(svc.listAgentSecretAccess(spaceId, {
       agentId,
       actorSource: "agent_jwt",
       heartbeatRunId,
     })).rejects.toThrow(/verified heartbeat run/i);
-    await expect(svc.resolveSecretValueForAgentAccess(companyId, secret.id, "latest", {
+    await expect(svc.resolveSecretValueForAgentAccess(spaceId, secret.id, "latest", {
       agentId,
       configPath: "access.GRANTED",
       actorSource: "agent_jwt",
@@ -1400,7 +1400,7 @@ describeEmbeddedPostgres("secretService", () => {
     })).rejects.toThrow(/verified heartbeat run/i);
 
     expect(registerForRedaction).not.toHaveBeenCalled();
-    const events = await svc.listAccessEvents(companyId, secret.id);
+    const events = await svc.listAccessEvents(spaceId, secret.id);
     expect(events).toEqual([
       expect.objectContaining({
         consumerType: "agent_api",
@@ -1413,9 +1413,9 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("preserves low-trust authorization denial for agent secret reads", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const { agentId, heartbeatRunId } = await seedAgentRun(companyId, {
+    const { agentId, heartbeatRunId } = await seedAgentRun(spaceId, {
       trustPreset: LOW_TRUST_REVIEW_PRESET,
       authorizationPolicy: {
         trustBoundary: {
@@ -1424,20 +1424,20 @@ describeEmbeddedPostgres("secretService", () => {
         },
       },
     });
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `low-trust-agent-read-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
     });
     await svc.createBinding({
-      companyId,
+      spaceId,
       secretId: secret.id,
       targetType: "agent",
       targetId: agentId,
       configPath: "access.API_KEY",
     });
 
-    await expect(svc.resolveSecretValueForAgentAccess(companyId, secret.id, "latest", {
+    await expect(svc.resolveSecretValueForAgentAccess(spaceId, secret.id, "latest", {
       agentId,
       configPath: "access.API_KEY",
       actorSource: "agent_jwt",
@@ -1445,41 +1445,41 @@ describeEmbeddedPostgres("secretService", () => {
       registerForRedaction: vi.fn(),
     })).rejects.toThrow(/low[_-]trust.*secrets:read/i);
 
-    expect(await svc.listAccessEvents(companyId, secret.id)).toEqual([]);
+    expect(await svc.listAccessEvents(spaceId, secret.id)).toEqual([]);
   });
 
   it("syncs top-level secret refs idempotently", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const firstSecret = await svc.create(companyId, {
+    const firstSecret = await svc.create(spaceId, {
       name: `top-level-first-${randomUUID()}`,
       provider: "local_encrypted",
       value: "one",
     });
-    const secondSecret = await svc.create(companyId, {
+    const secondSecret = await svc.create(spaceId, {
       name: `top-level-second-${randomUUID()}`,
       provider: "local_encrypted",
       value: "two",
     });
     const target = { targetType: "environment" as const, targetId: "env-1" };
 
-    await svc.syncSecretRefsForTarget(companyId, target, [
+    await svc.syncSecretRefsForTarget(spaceId, target, [
       { secretId: firstSecret.id, configPath: "apiKey" },
     ]);
-    await svc.syncSecretRefsForTarget(companyId, target, [
+    await svc.syncSecretRefsForTarget(spaceId, target, [
       { secretId: firstSecret.id, configPath: "apiKey" },
     ]);
-    await svc.syncSecretRefsForTarget(companyId, target, [
+    await svc.syncSecretRefsForTarget(spaceId, target, [
       { secretId: secondSecret.id, configPath: "apiKey" },
     ]);
 
     const bindings = await db
       .select()
-      .from(companySecretBindings)
-      .where(eq(companySecretBindings.targetId, target.targetId));
+      .from(spaceSecretBindings)
+      .where(eq(spaceSecretBindings.targetId, target.targetId));
     expect(bindings).toHaveLength(1);
     expect(bindings[0]).toMatchObject({
-      companyId,
+      spaceId,
       targetType: "environment",
       targetId: target.targetId,
       configPath: "apiKey",
@@ -1488,9 +1488,9 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("reports reference counts and resolves binding target labels", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `referenced-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
@@ -1498,7 +1498,7 @@ describeEmbeddedPostgres("secretService", () => {
     const [agent] = await db
       .insert(agents)
       .values({
-        companyId,
+        spaceId,
         name: "CodexCoder",
         role: "engineer",
         adapterType: "codex_local",
@@ -1507,17 +1507,17 @@ describeEmbeddedPostgres("secretService", () => {
       .returning();
 
     await svc.syncEnvBindingsForTarget(
-      companyId,
+      spaceId,
       { targetType: "agent", targetId: agent!.id },
       {
         OPENAI_API_KEY: { type: "secret_ref", secretId: secret.id, version: "latest" },
       },
     );
 
-    const listed = await svc.list(companyId);
+    const listed = await svc.list(spaceId);
     expect(listed.find((row) => row.id === secret.id)?.referenceCount).toBe(1);
 
-    const bindings = await svc.listBindingReferences(companyId, secret.id);
+    const bindings = await svc.listBindingReferences(spaceId, secret.id);
     expect(bindings).toHaveLength(1);
     expect(bindings[0]?.target).toMatchObject({
       type: "agent",
@@ -1529,9 +1529,9 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("enforces binding context and records value-free access events", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `runtime-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
@@ -1540,10 +1540,10 @@ describeEmbeddedPostgres("secretService", () => {
       API_KEY: { type: "secret_ref" as const, secretId: secret.id, version: "latest" as const },
     };
 
-    await svc.syncEnvBindingsForTarget(companyId, { targetType: "agent", targetId: "agent-1" }, env);
+    await svc.syncEnvBindingsForTarget(spaceId, { targetType: "agent", targetId: "agent-1" }, env);
 
     await expect(
-      svc.resolveEnvBindings(companyId, env, {
+      svc.resolveEnvBindings(spaceId, env, {
         consumerType: "agent",
         consumerId: "agent-2",
         actorType: "agent",
@@ -1551,7 +1551,7 @@ describeEmbeddedPostgres("secretService", () => {
       }),
     ).rejects.toThrow(/not bound/i);
 
-    const resolved = await svc.resolveEnvBindings(companyId, env, {
+    const resolved = await svc.resolveEnvBindings(spaceId, env, {
       consumerType: "agent",
       consumerId: "agent-1",
       actorType: "agent",
@@ -1559,17 +1559,17 @@ describeEmbeddedPostgres("secretService", () => {
     });
 
     expect(resolved.env.API_KEY).toBe("runtime-secret");
-    const events = await svc.listAccessEvents(companyId, secret.id);
+    const events = await svc.listAccessEvents(spaceId, secret.id);
     expect(events).toHaveLength(2);
     expect(events.map((event) => event.outcome).sort()).toEqual(["failure", "success"]);
     expect(JSON.stringify(events)).not.toContain("runtime-secret");
   });
 
   it("collects declared secret refs that have no binding without resolving values", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
     const secretName = `unbound-${randomUUID()}`;
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: secretName,
       provider: "local_encrypted",
       value: "runtime-secret",
@@ -1579,7 +1579,7 @@ describeEmbeddedPostgres("secretService", () => {
       PLAIN_VALUE: "not-a-secret",
     };
 
-    const missing = await svc.collectMissingRuntimeBindings(companyId, env, {
+    const missing = await svc.collectMissingRuntimeBindings(spaceId, env, {
       consumerType: "agent",
       consumerId: "agent-1",
     });
@@ -1594,11 +1594,11 @@ describeEmbeddedPostgres("secretService", () => {
       secretName,
     });
     // Value-free validation: no access events recorded.
-    expect(await svc.listAccessEvents(companyId, secret.id)).toHaveLength(0);
+    expect(await svc.listAccessEvents(spaceId, secret.id)).toHaveLength(0);
 
-    await svc.syncEnvBindingsForTarget(companyId, { targetType: "agent", targetId: "agent-1" }, env);
+    await svc.syncEnvBindingsForTarget(spaceId, { targetType: "agent", targetId: "agent-1" }, env);
 
-    const afterBinding = await svc.collectMissingRuntimeBindings(companyId, env, {
+    const afterBinding = await svc.collectMissingRuntimeBindings(spaceId, env, {
       consumerType: "agent",
       consumerId: "agent-1",
     });
@@ -1606,9 +1606,9 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("denies runtime secret resolution outside the low-trust binding allowlist", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `low-trust-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
@@ -1617,12 +1617,12 @@ describeEmbeddedPostgres("secretService", () => {
       API_KEY: { type: "secret_ref" as const, secretId: secret.id, version: "latest" as const },
     };
 
-    await svc.syncEnvBindingsForTarget(companyId, { targetType: "agent", targetId: "agent-1" }, env);
-    const [binding] = await svc.listBindings(companyId, secret.id);
+    await svc.syncEnvBindingsForTarget(spaceId, { targetType: "agent", targetId: "agent-1" }, env);
+    const [binding] = await svc.listBindings(spaceId, secret.id);
     expect(binding?.id).toBeTruthy();
 
     await expect(
-      svc.resolveEnvBindings(companyId, env, {
+      svc.resolveEnvBindings(spaceId, env, {
         consumerType: "agent",
         consumerId: "agent-1",
         actorType: "agent",
@@ -1634,7 +1634,7 @@ describeEmbeddedPostgres("secretService", () => {
       details: { code: "binding_not_allowed" },
     });
 
-    const resolved = await svc.resolveEnvBindings(companyId, env, {
+    const resolved = await svc.resolveEnvBindings(spaceId, env, {
       consumerType: "agent",
       consumerId: "agent-1",
       actorType: "agent",
@@ -1646,9 +1646,9 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("fails closed at runtime for class-3 env lease rows outside the allowlist", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `runtime-class3-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
@@ -1663,8 +1663,8 @@ describeEmbeddedPostgres("secretService", () => {
       },
     };
 
-    await db.insert(companySecretBindings).values({
-      companyId,
+    await db.insert(spaceSecretBindings).values({
+      spaceId,
       secretId: secret.id,
       targetType: "agent",
       targetId: "agent-1",
@@ -1674,7 +1674,7 @@ describeEmbeddedPostgres("secretService", () => {
     });
 
     await expect(
-      svc.resolveEnvBindings(companyId, env, {
+      svc.resolveEnvBindings(spaceId, env, {
         consumerType: "agent",
         consumerId: "agent-1",
         actorType: "agent",
@@ -1687,10 +1687,10 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("denies user secret resolution outside the low-trust declaration allowlist", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "local_encrypted",
@@ -1699,8 +1699,8 @@ describeEmbeddedPostgres("secretService", () => {
       GITHUB_TOKEN: { type: "user_secret_ref" as const, key: "github_token", version: "latest" as const },
     };
 
-    await svc.syncEnvBindingsForTarget(companyId, { targetType: "agent", targetId: "agent-1" }, env);
-    await svc.createCurrentUserSecretValue(companyId, "user-1", {
+    await svc.syncEnvBindingsForTarget(spaceId, { targetType: "agent", targetId: "agent-1" }, env);
+    await svc.createCurrentUserSecretValue(spaceId, "user-1", {
       definitionKey: "github_token",
       value: "user-one-secret",
     });
@@ -1711,7 +1711,7 @@ describeEmbeddedPostgres("secretService", () => {
     expect(declaration?.id).toBeTruthy();
 
     await expect(
-      svc.resolveEnvBindings(companyId, env, {
+      svc.resolveEnvBindings(spaceId, env, {
         consumerType: "agent",
         consumerId: "agent-1",
         actorType: "agent",
@@ -1724,7 +1724,7 @@ describeEmbeddedPostgres("secretService", () => {
       details: { code: "binding_not_allowed" },
     });
 
-    const resolved = await svc.resolveEnvBindings(companyId, env, {
+    const resolved = await svc.resolveEnvBindings(spaceId, env, {
       consumerType: "agent",
       consumerId: "agent-1",
       actorType: "agent",
@@ -1737,9 +1737,9 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("resolves routine env secret refs through routine bindings and records value-free access metadata", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `routine-secret-${randomUUID()}`,
       provider: "local_encrypted",
       value: "routine-super-secret",
@@ -1747,9 +1747,9 @@ describeEmbeddedPostgres("secretService", () => {
     const env = {
       ROUTINE_API_KEY: { type: "secret_ref" as const, secretId: secret.id, version: "latest" as const },
     };
-    await svc.syncEnvBindingsForTarget(companyId, { targetType: "routine", targetId: "routine-1" }, env);
+    await svc.syncEnvBindingsForTarget(spaceId, { targetType: "routine", targetId: "routine-1" }, env);
 
-    const resolved = await svc.resolveEnvBindings(companyId, env, {
+    const resolved = await svc.resolveEnvBindings(spaceId, env, {
       consumerType: "routine",
       consumerId: "routine-1",
       actorType: "agent",
@@ -1766,10 +1766,10 @@ describeEmbeddedPostgres("secretService", () => {
       }),
     ]);
 
-    const events = await svc.listAccessEvents(companyId, secret.id);
+    const events = await svc.listAccessEvents(spaceId, secret.id);
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
-      companyId,
+      spaceId,
       secretId: secret.id,
       consumerType: "routine",
       consumerId: "routine-1",
@@ -1782,11 +1782,11 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("resolves user secret refs through responsible-user values and records owner metadata", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
-    await seedCompanyMember(companyId, "user-2", "member");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
+    await seedSpaceMember(spaceId, "user-2", "member");
     const svc = secretService(db);
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "local_encrypted",
@@ -1795,14 +1795,14 @@ describeEmbeddedPostgres("secretService", () => {
       GITHUB_TOKEN: { type: "user_secret_ref" as const, key: "github_token", version: "latest" as const },
     };
 
-    await svc.syncEnvBindingsForTarget(companyId, { targetType: "agent", targetId: "agent-1" }, env);
-    const userOneSecret = await svc.createCurrentUserSecretValue(companyId, "user-1", {
+    await svc.syncEnvBindingsForTarget(spaceId, { targetType: "agent", targetId: "agent-1" }, env);
+    const userOneSecret = await svc.createCurrentUserSecretValue(spaceId, "user-1", {
       definitionKey: "github_token",
       value: "user-one-secret",
     });
 
     await expect(
-      svc.resolveEnvBindings(companyId, env, {
+      svc.resolveEnvBindings(spaceId, env, {
         consumerType: "agent",
         consumerId: "agent-1",
         actorType: "agent",
@@ -1811,7 +1811,7 @@ describeEmbeddedPostgres("secretService", () => {
       }),
     ).rejects.toThrow(/not configured/i);
     await expect(
-      svc.collectMissingRuntimeBindings(companyId, env, {
+      svc.collectMissingRuntimeBindings(spaceId, env, {
         consumerType: "agent",
         consumerId: "agent-1",
         responsibleUserId: "user-2",
@@ -1836,16 +1836,16 @@ describeEmbeddedPostgres("secretService", () => {
         required: false,
       },
     };
-    await svc.syncEnvBindingsForTarget(companyId, { targetType: "agent", targetId: "agent-optional" }, optionalEnv);
+    await svc.syncEnvBindingsForTarget(spaceId, { targetType: "agent", targetId: "agent-optional" }, optionalEnv);
     await expect(
-      svc.collectMissingRuntimeBindings(companyId, optionalEnv, {
+      svc.collectMissingRuntimeBindings(spaceId, optionalEnv, {
         consumerType: "agent",
         consumerId: "agent-optional",
         responsibleUserId: "user-2",
       }),
     ).resolves.toEqual([]);
     await expect(
-      svc.resolveEnvBindings(companyId, optionalEnv, {
+      svc.resolveEnvBindings(spaceId, optionalEnv, {
         consumerType: "agent",
         consumerId: "agent-optional",
         actorType: "agent",
@@ -1862,7 +1862,7 @@ describeEmbeddedPostgres("secretService", () => {
       .set({ status: "disabled" })
       .where(eq(userSecretDefinitions.id, definition.id));
     await expect(
-      svc.collectMissingRuntimeBindings(companyId, env, {
+      svc.collectMissingRuntimeBindings(spaceId, env, {
         consumerType: "agent",
         consumerId: "agent-1",
         responsibleUserId: "user-2",
@@ -1880,7 +1880,7 @@ describeEmbeddedPostgres("secretService", () => {
       }),
     ]);
     await expect(
-      svc.resolveEnvBindings(companyId, optionalEnv, {
+      svc.resolveEnvBindings(spaceId, optionalEnv, {
         consumerType: "agent",
         consumerId: "agent-optional",
         actorType: "agent",
@@ -1896,7 +1896,7 @@ describeEmbeddedPostgres("secretService", () => {
       .set({ status: "deleted", deletedAt: new Date() })
       .where(eq(userSecretDefinitions.id, definition.id));
     await expect(
-      svc.resolveEnvBindings(companyId, optionalEnv, {
+      svc.resolveEnvBindings(spaceId, optionalEnv, {
         consumerType: "agent",
         consumerId: "agent-optional",
         actorType: "agent",
@@ -1912,7 +1912,7 @@ describeEmbeddedPostgres("secretService", () => {
       .set({ status: "active", deletedAt: null })
       .where(eq(userSecretDefinitions.id, definition.id));
 
-    const resolved = await svc.resolveEnvBindings(companyId, env, {
+    const resolved = await svc.resolveEnvBindings(spaceId, env, {
       consumerType: "agent",
       consumerId: "agent-1",
       actorType: "agent",
@@ -1928,9 +1928,9 @@ describeEmbeddedPostgres("secretService", () => {
       secretKey: userOneSecret.key,
       outcome: "success",
     });
-    expect((await svc.list(companyId)).map((secret) => secret.id)).not.toContain(userOneSecret.id);
+    expect((await svc.list(spaceId)).map((secret) => secret.id)).not.toContain(userOneSecret.id);
     await expect(
-      svc.resolveSecretValue(companyId, userOneSecret.id, "latest", {
+      svc.resolveSecretValue(spaceId, userOneSecret.id, "latest", {
         consumerType: "agent",
         consumerId: "agent-1",
         configPath: "env.GITHUB_TOKEN",
@@ -1943,7 +1943,7 @@ describeEmbeddedPostgres("secretService", () => {
       .where(eq(secretAccessEvents.secretId, userOneSecret.id));
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
-      companyId,
+      spaceId,
       secretId: userOneSecret.id,
       userSecretDefinitionId: definition.id,
       secretScope: "user",
@@ -1957,17 +1957,17 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("can skip user-secret refs while resolving adapter config for non-runtime skill discovery", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    await svc.createUserSecretDefinition(companyId, {
+    await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "local_encrypted",
     });
-    const companySecret = await svc.create(companyId, {
-      name: `company-token-${randomUUID()}`,
+    const spaceSecret = await svc.create(spaceId, {
+      name: `space-token-${randomUUID()}`,
       provider: "local_encrypted",
-      value: "company-secret-value",
+      value: "space-secret-value",
     });
     const adapterConfig = {
       apiBaseUrl: "http://127.0.0.1:9119/api",
@@ -1979,9 +1979,9 @@ describeEmbeddedPostgres("secretService", () => {
       },
       env: {
         HOME: "/home/agent",
-        COMPANY_TOKEN: {
+        SPACE_TOKEN: {
           type: "secret_ref" as const,
-          secretId: companySecret.id,
+          secretId: spaceSecret.id,
           version: "latest" as const,
         },
         GH_TOKEN: {
@@ -1994,14 +1994,14 @@ describeEmbeddedPostgres("secretService", () => {
     };
 
     await expect(
-      svc.resolveAdapterConfigForRuntime(companyId, adapterConfig, undefined, { adapterType: "hermes_gateway" }),
+      svc.resolveAdapterConfigForRuntime(spaceId, adapterConfig, undefined, { adapterType: "hermes_gateway" }),
     ).rejects.toMatchObject({
       status: 422,
       details: { code: "responsible_user_missing" },
     });
 
     const resolved = await svc.resolveAdapterConfigForRuntime(
-      companyId,
+      spaceId,
       adapterConfig,
       undefined,
       { adapterType: "hermes_gateway", skipUserSecrets: true },
@@ -2010,33 +2010,33 @@ describeEmbeddedPostgres("secretService", () => {
     expect(resolved.config).not.toHaveProperty("apiKey");
     expect(resolved.config.env).toEqual({
       HOME: "/home/agent",
-      COMPANY_TOKEN: "company-secret-value",
+      SPACE_TOKEN: "space-secret-value",
     });
-    expect(resolved.secretKeys).toEqual(new Set(["COMPANY_TOKEN"]));
+    expect(resolved.secretKeys).toEqual(new Set(["SPACE_TOKEN"]));
     expect(resolved.manifest).toEqual([
       expect.objectContaining({
-        secretId: companySecret.id,
+        secretId: spaceSecret.id,
         outcome: "success",
       }),
     ]);
   });
 
   it("returns conflict when concurrent user secret value creation races the unique index", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "local_encrypted",
     });
 
     const results = await Promise.allSettled([
-      svc.createCurrentUserSecretValue(companyId, "user-1", {
+      svc.createCurrentUserSecretValue(spaceId, "user-1", {
         definitionId: definition.id,
         value: "first-secret",
       }),
-      svc.createCurrentUserSecretValue(companyId, "user-1", {
+      svc.createCurrentUserSecretValue(spaceId, "user-1", {
         definitionId: definition.id,
         value: "second-secret",
       }),
@@ -2054,17 +2054,17 @@ describeEmbeddedPostgres("secretService", () => {
 
     const rows = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.userSecretDefinitionId, definition.id));
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.userSecretDefinitionId, definition.id));
     expect(rows.filter((row) => row.ownerUserId === "user-1" && row.status === "active")).toHaveLength(1);
   });
 
   it("reports current-user secret rollback failures when AWS create cleanup cannot remove the reserved row", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "aws_secrets_manager",
@@ -2078,7 +2078,7 @@ describeEmbeddedPostgres("secretService", () => {
         operation: "createSecret",
         message: "AWS Secrets Manager denied the request. Check IAM permissions for this provider vault.",
         rawMessage:
-          "AccessDeniedException: arn:aws:sts::123456789012:assumed-role/prod/Paperclip cannot create secret",
+          "AccessDeniedException: arn:aws:sts::123456789012:assumed-role/prod/Outpost cannot create secret",
       }),
     );
     vi.spyOn(db, "delete").mockImplementationOnce(() => {
@@ -2086,13 +2086,13 @@ describeEmbeddedPostgres("secretService", () => {
     });
 
     await expect(
-      svc.createCurrentUserSecretValue(companyId, "user-1", {
+      svc.createCurrentUserSecretValue(spaceId, "user-1", {
         definitionId: definition.id,
         value: "runtime-secret",
       }),
     ).rejects.toMatchObject({
       status: 500,
-      message: "Secret create failed and Paperclip could not roll back the local secret reservation.",
+      message: "Secret create failed and Outpost could not roll back the local secret reservation.",
       details: {
         code: "secret_create_rollback_failed",
         provider: "aws_secrets_manager",
@@ -2111,25 +2111,25 @@ describeEmbeddedPostgres("secretService", () => {
 
     const persisted = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.companyId, companyId));
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.spaceId, spaceId));
     expect(persisted).toHaveLength(1);
     expect(JSON.stringify(persisted)).not.toContain("runtime-secret");
   });
 
   it("reports current-user secret persistence rollback failures when local cleanup cannot remove the reserved row", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
     });
     const externalRef =
-      "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/user/github-token";
+      "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/user/github-token";
     vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion(externalRef, "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
     vi.spyOn(awsSecretsManagerProvider, "deleteOrArchive").mockResolvedValue();
     vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("db activate failed"));
@@ -2138,13 +2138,13 @@ describeEmbeddedPostgres("secretService", () => {
     });
 
     await expect(
-      svc.createCurrentUserSecretValue(companyId, "user-1", {
+      svc.createCurrentUserSecretValue(spaceId, "user-1", {
         definitionId: definition.id,
         value: "runtime-secret",
       }),
     ).rejects.toMatchObject({
       status: 500,
-      message: "Secret create failed and Paperclip could not roll back the local secret reservation.",
+      message: "Secret create failed and Outpost could not roll back the local secret reservation.",
       details: {
         code: "secret_create_rollback_failed",
         provider: "aws_secrets_manager",
@@ -2155,23 +2155,23 @@ describeEmbeddedPostgres("secretService", () => {
 
     const persisted = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.companyId, companyId));
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.spaceId, spaceId));
     expect(persisted).toHaveLength(1);
     expect(JSON.stringify(persisted)).not.toContain("runtime-secret");
   });
 
   it("returns conflict when concurrent user secret definition creation races the unique index", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
 
     const results = await Promise.allSettled([
-      svc.createUserSecretDefinition(companyId, {
+      svc.createUserSecretDefinition(spaceId, {
         key: "github_token",
         name: "GitHub token",
         provider: "local_encrypted",
       }),
-      svc.createUserSecretDefinition(companyId, {
+      svc.createUserSecretDefinition(spaceId, {
         key: "github_token",
         name: "GitHub token duplicate",
         provider: "local_encrypted",
@@ -2191,17 +2191,17 @@ describeEmbeddedPostgres("secretService", () => {
     const rows = await db
       .select()
       .from(userSecretDefinitions)
-      .where(eq(userSecretDefinitions.companyId, companyId));
+      .where(eq(userSecretDefinitions.spaceId, spaceId));
     expect(rows.filter((row) => row.key === "github_token" && row.deletedAt === null)).toHaveLength(1);
   });
 
   it("removes user secret values and provider material when deleting a definition", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
-    await seedCompanyMember(companyId, "user-2", "member");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
+    await seedSpaceMember(spaceId, "user-2", "member");
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "aws_secrets_manager",
@@ -2211,24 +2211,24 @@ describeEmbeddedPostgres("secretService", () => {
     vi.spyOn(awsSecretsManagerProvider, "createSecret").mockImplementation(async (input) => {
       nextVersion += 1;
       const externalRef =
-        `arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/${input.context!.secretKey}`;
+        `arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/${input.context!.secretKey}`;
       return preparedAwsVersion(externalRef, `aws-version-${nextVersion}`, `value-sha-${nextVersion}`, `fingerprint-sha-${nextVersion}`);
     });
     const deleteSpy = vi.spyOn(awsSecretsManagerProvider, "deleteOrArchive").mockResolvedValue();
-    const userOneSecret = await svc.createCurrentUserSecretValue(companyId, "user-1", {
+    const userOneSecret = await svc.createCurrentUserSecretValue(spaceId, "user-1", {
       definitionId: definition.id,
       value: "user-one-secret",
     });
-    const userTwoSecret = await svc.createCurrentUserSecretValue(companyId, "user-2", {
+    const userTwoSecret = await svc.createCurrentUserSecretValue(spaceId, "user-2", {
       definitionId: definition.id,
       value: "user-two-secret",
     });
 
-    const removed = await svc.removeUserSecretDefinition(companyId, definition.id, { userId: "admin-user" });
+    const removed = await svc.removeUserSecretDefinition(spaceId, definition.id, { userId: "admin-user" });
     const remainingValues = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.userSecretDefinitionId, definition.id));
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.userSecretDefinitionId, definition.id));
 
     expect(removed).toMatchObject({
       id: definition.id,
@@ -2242,7 +2242,7 @@ describeEmbeddedPostgres("secretService", () => {
       externalRef: userOneSecret.externalRef,
       providerConfig: expect.objectContaining({ id: awsVault.id }),
       context: {
-        companyId,
+        spaceId,
         secretKey: userOneSecret.key,
         secretName: userOneSecret.name,
         version: 1,
@@ -2253,7 +2253,7 @@ describeEmbeddedPostgres("secretService", () => {
       externalRef: userTwoSecret.externalRef,
       providerConfig: expect.objectContaining({ id: awsVault.id }),
       context: {
-        companyId,
+        spaceId,
         secretKey: userTwoSecret.key,
         secretName: userTwoSecret.name,
         version: 1,
@@ -2263,33 +2263,33 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("removes user secret values and provider material when update deletes a definition", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
     });
-    vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/user-secret", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
+    vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/user-secret", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
     const deleteSpy = vi.spyOn(awsSecretsManagerProvider, "deleteOrArchive").mockResolvedValue();
-    const userSecret = await svc.createCurrentUserSecretValue(companyId, "user-1", {
+    const userSecret = await svc.createCurrentUserSecretValue(spaceId, "user-1", {
       definitionId: definition.id,
       value: "user-one-secret",
     });
 
     const removed = await svc.updateUserSecretDefinition(
-      companyId,
+      spaceId,
       definition.id,
       { status: "deleted" },
       { userId: "admin-user" },
     );
     const remainingValues = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.userSecretDefinitionId, definition.id));
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.userSecretDefinitionId, definition.id));
 
     expect(removed).toMatchObject({
       id: definition.id,
@@ -2302,7 +2302,7 @@ describeEmbeddedPostgres("secretService", () => {
       externalRef: userSecret.externalRef,
       providerConfig: expect.objectContaining({ id: awsVault.id }),
       context: {
-        companyId,
+        spaceId,
         secretKey: userSecret.key,
         secretName: userSecret.name,
         version: 1,
@@ -2312,20 +2312,20 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("treats nullable user-secret value patches as non-rotation updates", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    await svc.createUserSecretDefinition(companyId, {
+    await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "local_encrypted",
     });
-    const secret = await svc.createCurrentUserSecretValue(companyId, "user-1", {
+    const secret = await svc.createCurrentUserSecretValue(spaceId, "user-1", {
       definitionKey: "github_token",
       value: "user-one-secret",
     });
 
-    const updated = await svc.updateCurrentUserSecretValue(companyId, "user-1", secret.id, {
+    const updated = await svc.updateCurrentUserSecretValue(spaceId, "user-1", secret.id, {
       value: null,
       externalRef: null,
       providerVersionRef: null,
@@ -2336,18 +2336,18 @@ describeEmbeddedPostgres("secretService", () => {
     expect(updated!.status).toBe(secret.status);
     const versions = await db
       .select()
-      .from(companySecretVersions)
-      .where(eq(companySecretVersions.secretId, secret.id));
+      .from(spaceSecretVersions)
+      .where(eq(spaceSecretVersions.secretId, secret.id));
     expect(versions).toHaveLength(1);
     expect(versions[0]).toMatchObject({ version: secret.latestVersion, status: "current" });
     expect(versions[0]?.material).toBeTruthy();
   });
 
   it("reports missing adapter-config user secret refs before runtime resolution", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "hermes_api_key",
       name: "Hermes API key",
       provider: "local_encrypted",
@@ -2356,7 +2356,7 @@ describeEmbeddedPostgres("secretService", () => {
       apiBaseUrl: "http://127.0.0.1:9119/api",
       apiKey: { type: "user_secret_ref" as const, key: "hermes_api_key", version: "latest" as const },
     };
-    await svc.syncUserSecretDeclarationsForTarget(companyId, {
+    await svc.syncUserSecretDeclarationsForTarget(spaceId, {
       targetType: "agent",
       targetId: "agent-1",
     }, [
@@ -2369,7 +2369,7 @@ describeEmbeddedPostgres("secretService", () => {
 
     await expect(
       svc.collectMissingAdapterConfigRuntimeBindings(
-        companyId,
+        spaceId,
         adapterConfig,
         "hermes_gateway",
         {
@@ -2392,7 +2392,7 @@ describeEmbeddedPostgres("secretService", () => {
 
     await expect(
       svc.collectMissingAdapterConfigRuntimeBindings(
-        companyId,
+        spaceId,
         {
           ...adapterConfig,
           apiKey: {
@@ -2417,7 +2417,7 @@ describeEmbeddedPostgres("secretService", () => {
       .where(eq(userSecretDefinitions.id, definition.id));
     await expect(
       svc.collectMissingAdapterConfigRuntimeBindings(
-        companyId,
+        spaceId,
         adapterConfig,
         "hermes_gateway",
         {
@@ -2441,22 +2441,22 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("skips optional user secret refs when the declaration is missing at runtime", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1", "owner");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1", "owner");
     const svc = secretService(db);
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_api_token",
       name: "GitHub API token",
       provider: "local_encrypted",
     });
-    await svc.createCurrentUserSecretValue(companyId, "user-1", {
+    await svc.createCurrentUserSecretValue(spaceId, "user-1", {
       definitionId: definition.id,
       value: "ghp_secret",
     });
 
     await expect(
       svc.resolveUserSecretValue(
-        companyId,
+        spaceId,
         {
           definitionKey: "github_api_token",
           responsibleUserId: "user-1",
@@ -2472,7 +2472,7 @@ describeEmbeddedPostgres("secretService", () => {
 
     await expect(
       svc.resolveUserSecretValue(
-        companyId,
+        spaceId,
         {
           definitionKey: "github_api_token",
           responsibleUserId: "user-1",
@@ -2489,9 +2489,9 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("records stable redacted failure codes for routine env secret resolution", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `routine-failure-codes-${randomUUID()}`,
       provider: "local_encrypted",
       value: "routine-super-secret",
@@ -2505,42 +2505,42 @@ describeEmbeddedPostgres("secretService", () => {
       actorType: "agent" as const,
       actorId: "agent-1",
     };
-    await svc.syncEnvBindingsForTarget(companyId, { targetType: "routine", targetId: "routine-1" }, env);
+    await svc.syncEnvBindingsForTarget(spaceId, { targetType: "routine", targetId: "routine-1" }, env);
 
     await expect(
-      svc.resolveEnvBindings(companyId, env, { ...context, consumerId: "routine-2" }),
+      svc.resolveEnvBindings(spaceId, env, { ...context, consumerId: "routine-2" }),
     ).rejects.toThrow(/not bound/i);
 
-    await db.update(companySecrets).set({ status: "disabled" }).where(eq(companySecrets.id, secret.id));
-    await expect(svc.resolveEnvBindings(companyId, env, context)).rejects.toThrow(/not active/i);
+    await db.update(spaceSecrets).set({ status: "disabled" }).where(eq(spaceSecrets.id, secret.id));
+    await expect(svc.resolveEnvBindings(spaceId, env, context)).rejects.toThrow(/not active/i);
 
-    await db.update(companySecrets).set({ status: "active" }).where(eq(companySecrets.id, secret.id));
+    await db.update(spaceSecrets).set({ status: "active" }).where(eq(spaceSecrets.id, secret.id));
     await expect(
-      svc.resolveSecretValue(companyId, secret.id, 999, {
+      svc.resolveSecretValue(spaceId, secret.id, 999, {
         ...context,
         configPath: "env.ROUTINE_API_KEY",
       }),
     ).rejects.toThrow(/version not found/i);
 
     await db
-      .update(companySecretVersions)
+      .update(spaceSecretVersions)
       .set({ status: "disabled" })
-      .where(eq(companySecretVersions.secretId, secret.id));
-    await expect(svc.resolveEnvBindings(companyId, env, context)).rejects.toThrow(/version is not active/i);
+      .where(eq(spaceSecretVersions.secretId, secret.id));
+    await expect(svc.resolveEnvBindings(spaceId, env, context)).rejects.toThrow(/version is not active/i);
 
     await db
-      .update(companySecretVersions)
+      .update(spaceSecretVersions)
       .set({ status: "current" })
-      .where(eq(companySecretVersions.secretId, secret.id));
+      .where(eq(spaceSecretVersions.secretId, secret.id));
     vi.spyOn(localEncryptedProvider, "resolveVersion").mockRejectedValueOnce(
       new Error("provider leaked value routine-super-secret"),
     );
-    await expect(svc.resolveEnvBindings(companyId, env, context)).rejects.toThrow(/provider leaked value/i);
+    await expect(svc.resolveEnvBindings(spaceId, env, context)).rejects.toThrow(/provider leaked value/i);
 
-    await db.update(companySecrets).set({ status: "deleted" }).where(eq(companySecrets.id, secret.id));
-    await expect(svc.resolveEnvBindings(companyId, env, context)).rejects.toThrow(/not found/i);
+    await db.update(spaceSecrets).set({ status: "deleted" }).where(eq(spaceSecrets.id, secret.id));
+    await expect(svc.resolveEnvBindings(spaceId, env, context)).rejects.toThrow(/not found/i);
 
-    const events = await svc.listAccessEvents(companyId, secret.id);
+    const events = await svc.listAccessEvents(spaceId, secret.id);
     expect(events.map((event) => event.errorCode).sort()).toEqual([
       "binding_missing",
       "provider_error",
@@ -2554,50 +2554,50 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("scopes env binding sync deletes to the env path prefix", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const runtimeSecret = await svc.create(companyId, {
+    const runtimeSecret = await svc.create(spaceId, {
       name: `runtime-ref-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
     });
-    const envSecret = await svc.create(companyId, {
+    const envSecret = await svc.create(spaceId, {
       name: `env-ref-${randomUUID()}`,
       provider: "local_encrypted",
       value: "env-secret",
     });
 
     await svc.createBinding({
-      companyId,
+      spaceId,
       secretId: runtimeSecret.id,
       targetType: "agent",
       targetId: "agent-1",
       configPath: "runtime.token",
     });
     await svc.syncEnvBindingsForTarget(
-      companyId,
+      spaceId,
       { targetType: "agent", targetId: "agent-1" },
       {
         API_KEY: { type: "secret_ref", secretId: envSecret.id, version: "latest" },
       },
     );
     await svc.syncEnvBindingsForTarget(
-      companyId,
+      spaceId,
       { targetType: "agent", targetId: "agent-1" },
       {},
     );
 
     const bindings = await db
       .select()
-      .from(companySecretBindings)
-      .where(eq(companySecretBindings.targetId, "agent-1"));
+      .from(spaceSecretBindings)
+      .where(eq(spaceSecretBindings.targetId, "agent-1"));
     expect(bindings.map((binding) => binding.configPath)).toEqual(["runtime.token"]);
   });
 
   it("returns resolved secrets even when success metadata writes fail", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `metadata-write-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
@@ -2605,7 +2605,7 @@ describeEmbeddedPostgres("secretService", () => {
     const env = {
       API_KEY: { type: "secret_ref" as const, secretId: secret.id, version: "latest" as const },
     };
-    await svc.syncEnvBindingsForTarget(companyId, { targetType: "agent", targetId: "agent-1" }, env);
+    await svc.syncEnvBindingsForTarget(spaceId, { targetType: "agent", targetId: "agent-1" }, env);
 
     vi.spyOn(db, "update").mockImplementationOnce(
       () => ({
@@ -2615,7 +2615,7 @@ describeEmbeddedPostgres("secretService", () => {
       }) as unknown as ReturnType<typeof db.update>,
     );
 
-    const resolved = await svc.resolveEnvBindings(companyId, env, {
+    const resolved = await svc.resolveEnvBindings(spaceId, env, {
       consumerType: "agent",
       consumerId: "agent-1",
       actorType: "agent",
@@ -2626,11 +2626,11 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("stores external references without requiring or persisting secret values", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
 
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `external-${randomUUID()}`,
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
@@ -2644,15 +2644,15 @@ describeEmbeddedPostgres("secretService", () => {
 
     const versions = await db
       .select()
-      .from(companySecretVersions)
-      .where(eq(companySecretVersions.secretId, secret.id));
+      .from(spaceSecretVersions)
+      .where(eq(spaceSecretVersions.secretId, secret.id));
     expect(versions).toHaveLength(1);
     expect(versions[0]?.providerVersionRef).toBe("version-1");
     expect(JSON.stringify(versions[0])).not.toContain("runtime-secret");
     expect(JSON.stringify(versions[0])).not.toContain("sk-");
 
     await expect(
-      svc.resolveSecretValue(companyId, secret.id, "latest", {
+      svc.resolveSecretValue(spaceId, secret.id, "latest", {
         consumerType: "system",
         consumerId: "system",
         configPath: "env.EXTERNAL_SECRET",
@@ -2661,15 +2661,15 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("preserves the original resolution error when failure access logging fails", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `resolution-failure-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
     });
     await svc.createBinding({
-      companyId,
+      spaceId,
       secretId: secret.id,
       targetType: "system",
       targetId: "system",
@@ -2680,7 +2680,7 @@ describeEmbeddedPostgres("secretService", () => {
     );
 
     await expect(
-      svc.resolveSecretValue(companyId, secret.id, "latest", {
+      svc.resolveSecretValue(spaceId, secret.id, "latest", {
         consumerType: "system",
         consumerId: "system",
         configPath: "env.API_KEY",
@@ -2689,32 +2689,32 @@ describeEmbeddedPostgres("secretService", () => {
     ).rejects.toThrow("provider resolution failed");
   });
 
-  it("keeps one default provider vault per company provider", async () => {
-    const companyId = await seedCompany();
+  it("keeps one default provider vault per space provider", async () => {
+    const spaceId = await seedSpace();
     const svc = secretService(db);
 
-    const first = await svc.createProviderConfig(companyId, {
+    const first = await svc.createProviderConfig(spaceId, {
       provider: "local_encrypted",
       displayName: "Local primary",
       isDefault: true,
       config: {},
     });
-    const second = await svc.createProviderConfig(companyId, {
+    const second = await svc.createProviderConfig(spaceId, {
       provider: "local_encrypted",
       displayName: "Local secondary",
       isDefault: true,
       config: {},
     });
 
-    const rows = await svc.listProviderConfigs(companyId);
+    const rows = await svc.listProviderConfigs(spaceId);
     expect(rows.find((row) => row.id === first.id)?.isDefault).toBe(false);
     expect(rows.find((row) => row.id === second.id)?.isDefault).toBe(true);
   });
 
   it("does not set a disabled provider vault as default", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const vault = await svc.createProviderConfig(companyId, {
+    const vault = await svc.createProviderConfig(spaceId, {
       provider: "local_encrypted",
       displayName: "Local disabled",
       config: {},
@@ -2727,10 +2727,10 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("removes provider vault config locally without deleting remote AWS secrets", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const vault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const secret = await svc.create(companyId, {
+    const vault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const secret = await svc.create(spaceId, {
       name: `external-${randomUUID()}`,
       provider: "aws_secrets_manager",
       providerConfigId: vault.id,
@@ -2745,17 +2745,17 @@ describeEmbeddedPostgres("secretService", () => {
     await expect(svc.getProviderConfigById(vault.id)).resolves.toBeNull();
     const [persistedSecret] = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.id, secret.id));
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.id, secret.id));
     expect(persistedSecret?.providerConfigId).toBeNull();
     expect(deleteSpy).not.toHaveBeenCalled();
   });
 
   it("hides soft-deleted secrets and allows name/key reuse", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
     const secretName = `reusable-${randomUUID()}`;
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: secretName,
       key: "reusable-key",
       provider: "local_encrypted",
@@ -2763,8 +2763,8 @@ describeEmbeddedPostgres("secretService", () => {
     });
 
     await svc.remove(secret.id);
-    const listed = await svc.list(companyId);
-    const recreated = await svc.create(companyId, {
+    const listed = await svc.list(spaceId);
+    const recreated = await svc.create(spaceId, {
       name: secretName,
       key: "reusable-key",
       provider: "local_encrypted",
@@ -2778,10 +2778,10 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("rejects bindings and env refs to soft-deleted external reference secrets", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const deleted = await svc.create(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const deleted = await svc.create(spaceId, {
       name: "Deleted external",
       key: "deleted-external",
       provider: "aws_secrets_manager",
@@ -2793,7 +2793,7 @@ describeEmbeddedPostgres("secretService", () => {
 
     await expect(
       svc.createBinding({
-        companyId,
+        spaceId,
         secretId: deleted.id,
         targetType: "agent",
         targetId: "agent-1",
@@ -2801,17 +2801,17 @@ describeEmbeddedPostgres("secretService", () => {
       }),
     ).rejects.toThrow(/not found/i);
     await expect(
-      svc.normalizeEnvBindingsForPersistence(companyId, {
+      svc.normalizeEnvBindingsForPersistence(spaceId, {
         API_KEY: { type: "secret_ref", secretId: deleted.id, version: "latest" },
       }),
     ).rejects.toThrow(/not found/i);
   });
 
   it("rejects updates to already soft-deleted external reference secrets", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const deleted = await svc.create(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const deleted = await svc.create(spaceId, {
       name: "Deleted patch target",
       key: "deleted-patch-target",
       provider: "aws_secrets_manager",
@@ -2827,12 +2827,12 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("allows re-importing a remote secret after the prior external reference is soft-deleted", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
     const externalRef =
       "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/reimportable";
-    const deleted = await svc.create(companyId, {
+    const deleted = await svc.create(spaceId, {
       name: "Deleted external",
       key: "deleted-external",
       provider: "aws_secrets_manager",
@@ -2853,10 +2853,10 @@ describeEmbeddedPostgres("secretService", () => {
       ],
     });
 
-    const preview = await svc.previewRemoteImport(companyId, {
+    const preview = await svc.previewRemoteImport(spaceId, {
       providerConfigId: awsVault.id,
     });
-    const result = await svc.importRemoteSecrets(companyId, {
+    const result = await svc.importRemoteSecrets(spaceId, {
       providerConfigId: awsVault.id,
       secrets: [
         {
@@ -2876,10 +2876,10 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("ignores soft-deleted name and key conflicts during remote import", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const deleted = await svc.create(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const deleted = await svc.create(spaceId, {
       name: "Deleted external",
       key: "deleted-external",
       provider: "aws_secrets_manager",
@@ -2899,10 +2899,10 @@ describeEmbeddedPostgres("secretService", () => {
       ],
     });
 
-    const preview = await svc.previewRemoteImport(companyId, {
+    const preview = await svc.previewRemoteImport(spaceId, {
       providerConfigId: awsVault.id,
     });
-    const result = await svc.importRemoteSecrets(companyId, {
+    const result = await svc.importRemoteSecrets(spaceId, {
       providerConfigId: awsVault.id,
       secrets: [
         {
@@ -2921,38 +2921,38 @@ describeEmbeddedPostgres("secretService", () => {
     expect(result).toMatchObject({ importedCount: 1, skippedCount: 0, errorCount: 0 });
   });
 
-  it("rejects provider vaults from another company when creating a secret", async () => {
-    const companyA = await seedCompany("A");
-    const companyB = await seedCompany("B");
+  it("rejects provider vaults from another space when creating a secret", async () => {
+    const spaceA = await seedSpace("A");
+    const spaceB = await seedSpace("B");
     const svc = secretService(db);
-    const foreignVault = await svc.createProviderConfig(companyB, {
+    const foreignVault = await svc.createProviderConfig(spaceB, {
       provider: "local_encrypted",
       displayName: "Foreign vault",
       config: {},
     });
 
     await expect(
-      svc.create(companyA, {
+      svc.create(spaceA, {
         name: `managed-${randomUUID()}`,
         provider: "local_encrypted",
         providerConfigId: foreignVault.id,
         value: "runtime-secret",
       }),
-    ).rejects.toThrow(/same company/i);
+    ).rejects.toThrow(/same space/i);
   });
 
   it("blocks coming-soon provider vaults from secret selection", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const draftVault = await svc.createProviderConfig(companyId, {
+    const draftVault = await svc.createProviderConfig(spaceId, {
       provider: "gcp_secret_manager",
       displayName: "GCP draft",
-      config: { projectId: "paperclip-prod1" },
+      config: { projectId: "outpost-prod1" },
     });
 
     expect(draftVault.status).toBe("coming_soon");
     await expect(
-      svc.create(companyId, {
+      svc.create(spaceId, {
         name: `draft-${randomUUID()}`,
         provider: "gcp_secret_manager",
         providerConfigId: draftVault.id,
@@ -2962,30 +2962,30 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("passes selected provider vault config through create, rotate, and resolve", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, {
       provider: "aws_secrets_manager",
       displayName: "AWS production",
       config: {
         region: "us-east-1",
         namespace: "prod-use1",
-        secretNamePrefix: "paperclip",
+        secretNamePrefix: "outpost",
       },
     });
 
-    const createSpy = vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/openai-api-key", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
-    const createVersionSpy = vi.spyOn(awsSecretsManagerProvider, "createVersion").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/openai-api-key", "aws-version-2", "value-sha-2", "fingerprint-sha-2"));
+    const createSpy = vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/openai-api-key", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
+    const createVersionSpy = vi.spyOn(awsSecretsManagerProvider, "createVersion").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/openai-api-key", "aws-version-2", "value-sha-2", "fingerprint-sha-2"));
     const resolveSpy = vi.spyOn(awsSecretsManagerProvider, "resolveVersion").mockResolvedValue("resolved-secret");
 
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `aws-managed-${randomUUID()}`,
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
       value: "runtime-secret",
     });
     const rotated = await svc.rotate(secret.id, { value: "rotated-runtime-secret" });
-    const resolved = await svc.resolveSecretValue(companyId, rotated.id, "latest");
+    const resolved = await svc.resolveSecretValue(spaceId, rotated.id, "latest");
 
     expect(resolved).toBe("resolved-secret");
     expect(createSpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -3006,16 +3006,16 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("cleans up managed provider secrets when create persistence fails", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const prepared = preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/create-rollback", "aws-version-1", "value-sha-1", "fingerprint-sha-1");
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const prepared = preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/create-rollback", "aws-version-1", "value-sha-1", "fingerprint-sha-1");
     vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(prepared);
     const deleteSpy = vi.spyOn(awsSecretsManagerProvider, "deleteOrArchive").mockResolvedValue();
     vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("db insert failed"));
 
     await expect(
-      svc.create(companyId, {
+      svc.create(spaceId, {
         name: "Create Rollback",
         key: "create-rollback",
         provider: "aws_secrets_manager",
@@ -3030,24 +3030,24 @@ describeEmbeddedPostgres("secretService", () => {
       mode: "delete",
       providerConfig: expect.objectContaining({ id: awsVault.id }),
       context: {
-        companyId,
+        spaceId,
         secretKey: "create-rollback",
         secretName: "Create Rollback",
         version: 1,
       },
     }));
 
-    const persisted = await svc.getByName(companyId, "Create Rollback");
+    const persisted = await svc.getByName(spaceId, "Create Rollback");
     expect(persisted).toBeNull();
-    const versions = await db.select().from(companySecretVersions);
+    const versions = await db.select().from(spaceSecretVersions);
     expect(versions).toHaveLength(0);
   });
 
   it("keeps a local cleanup handle when create rollback cleanup fails", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const prepared = preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/create-cleanup-handle", "aws-version-1", "value-sha-1", "fingerprint-sha-1");
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const prepared = preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/create-cleanup-handle", "aws-version-1", "value-sha-1", "fingerprint-sha-1");
     vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(prepared);
     vi.spyOn(awsSecretsManagerProvider, "deleteOrArchive").mockRejectedValue(
       new Error("cleanup failed"),
@@ -3055,7 +3055,7 @@ describeEmbeddedPostgres("secretService", () => {
     vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("db activate failed"));
 
     await expect(
-      svc.create(companyId, {
+      svc.create(spaceId, {
         name: "Create Cleanup Handle",
         key: "create-cleanup-handle",
         provider: "aws_secrets_manager",
@@ -3064,7 +3064,7 @@ describeEmbeddedPostgres("secretService", () => {
       }),
     ).rejects.toMatchObject({
       status: 500,
-      message: "Secret create failed and Paperclip could not clean up the remote provider secret.",
+      message: "Secret create failed and Outpost could not clean up the remote provider secret.",
       details: {
         code: "secret_create_provider_cleanup_failed",
         provider: "aws_secrets_manager",
@@ -3074,7 +3074,7 @@ describeEmbeddedPostgres("secretService", () => {
       },
     });
 
-    const persisted = await svc.getByName(companyId, "Create Cleanup Handle");
+    const persisted = await svc.getByName(spaceId, "Create Cleanup Handle");
     expect(persisted).toMatchObject({
       key: "create-cleanup-handle",
       status: "archived",
@@ -3084,8 +3084,8 @@ describeEmbeddedPostgres("secretService", () => {
 
     const version = await db
       .select()
-      .from(companySecretVersions)
-      .where(eq(companySecretVersions.secretId, persisted!.id))
+      .from(spaceSecretVersions)
+      .where(eq(spaceSecretVersions.secretId, persisted!.id))
       .then((rows) => rows[0] ?? null);
     expect(version).toMatchObject({
       version: 1,
@@ -3095,10 +3095,10 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("reports managed secret persistence rollback failures when local cleanup cannot remove the reserved row", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const prepared = preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/create-local-cleanup", "aws-version-1", "value-sha-1", "fingerprint-sha-1");
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const prepared = preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/create-local-cleanup", "aws-version-1", "value-sha-1", "fingerprint-sha-1");
     vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(prepared);
     vi.spyOn(awsSecretsManagerProvider, "deleteOrArchive").mockResolvedValue();
     vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("db activate failed"));
@@ -3107,7 +3107,7 @@ describeEmbeddedPostgres("secretService", () => {
     });
 
     await expect(
-      svc.create(companyId, {
+      svc.create(spaceId, {
         name: "Create Local Cleanup",
         key: "create-local-cleanup",
         provider: "aws_secrets_manager",
@@ -3116,7 +3116,7 @@ describeEmbeddedPostgres("secretService", () => {
       }),
     ).rejects.toMatchObject({
       status: 500,
-      message: "Secret create failed and Paperclip could not roll back the local secret reservation.",
+      message: "Secret create failed and Outpost could not roll back the local secret reservation.",
       details: {
         code: "secret_create_rollback_failed",
         provider: "aws_secrets_manager",
@@ -3127,25 +3127,25 @@ describeEmbeddedPostgres("secretService", () => {
 
     const persisted = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.companyId, companyId));
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.spaceId, spaceId));
     expect(persisted).toHaveLength(1);
     expect(JSON.stringify(persisted)).not.toContain("runtime-secret");
   });
 
   it("archives managed provider versions when rotate persistence fails", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/rotate-rollback", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
-    const secret = await svc.create(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/rotate-rollback", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
+    const secret = await svc.create(spaceId, {
       name: "Rotate Rollback",
       key: "rotate-rollback",
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
       value: "runtime-secret",
     });
-    const prepared = preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/rotate-rollback", "aws-version-2", "value-sha-2", "fingerprint-sha-2");
+    const prepared = preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/rotate-rollback", "aws-version-2", "value-sha-2", "fingerprint-sha-2");
     vi.spyOn(awsSecretsManagerProvider, "createVersion").mockResolvedValue(prepared);
     const deleteSpy = vi.spyOn(awsSecretsManagerProvider, "deleteOrArchive").mockResolvedValue();
     vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("db rotate failed"));
@@ -3160,7 +3160,7 @@ describeEmbeddedPostgres("secretService", () => {
       mode: "archive",
       providerConfig: expect.objectContaining({ id: awsVault.id }),
       context: {
-        companyId,
+        spaceId,
         secretKey: "rotate-rollback",
         secretName: "Rotate Rollback",
         version: 2,
@@ -3169,18 +3169,18 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("keeps a disabled version cleanup handle when rotate rollback cleanup fails", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/rotate-cleanup-handle", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
-    const secret = await svc.create(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/rotate-cleanup-handle", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
+    const secret = await svc.create(spaceId, {
       name: "Rotate Cleanup Handle",
       key: "rotate-cleanup-handle",
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
       value: "runtime-secret",
     });
-    const prepared = preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/rotate-cleanup-handle", "aws-version-2", "value-sha-2", "fingerprint-sha-2");
+    const prepared = preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/rotate-cleanup-handle", "aws-version-2", "value-sha-2", "fingerprint-sha-2");
     vi.spyOn(awsSecretsManagerProvider, "createVersion").mockResolvedValue(prepared);
     vi.spyOn(awsSecretsManagerProvider, "deleteOrArchive").mockRejectedValue(
       new Error("cleanup failed"),
@@ -3196,8 +3196,8 @@ describeEmbeddedPostgres("secretService", () => {
 
     const versions = await db
       .select()
-      .from(companySecretVersions)
-      .where(eq(companySecretVersions.secretId, secret.id));
+      .from(spaceSecretVersions)
+      .where(eq(spaceSecretVersions.secretId, secret.id));
     expect(versions).toEqual(expect.arrayContaining([
       expect.objectContaining({ version: 1, status: "current" }),
       expect.objectContaining({
@@ -3209,20 +3209,20 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("rejects generic provider vault reassignment for managed secrets", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const firstVault = await svc.createProviderConfig(companyId, {
+    const firstVault = await svc.createProviderConfig(spaceId, {
       provider: "aws_secrets_manager",
       displayName: "AWS primary",
       config: { region: "us-east-1", namespace: "prod-use1" },
     });
-    const secondVault = await svc.createProviderConfig(companyId, {
+    const secondVault = await svc.createProviderConfig(spaceId, {
       provider: "aws_secrets_manager",
       displayName: "AWS secondary",
       config: { region: "us-west-2", namespace: "prod-usw2" },
     });
-    vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company/vault-reassign", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
-    const secret = await svc.create(companyId, {
+    vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue(preparedAwsVersion("arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space/vault-reassign", "aws-version-1", "value-sha-1", "fingerprint-sha-1"));
+    const secret = await svc.create(spaceId, {
       name: "Vault Reassign",
       key: "vault-reassign",
       provider: "aws_secrets_manager",
@@ -3238,9 +3238,9 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("rejects rotation for non-active secrets", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `disabled-rotation-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
@@ -3252,25 +3252,25 @@ describeEmbeddedPostgres("secretService", () => {
     );
 
     const stored = await db
-      .select({ latestVersion: companySecrets.latestVersion })
-      .from(companySecrets)
-      .where(eq(companySecrets.id, secret.id))
+      .select({ latestVersion: spaceSecrets.latestVersion })
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.id, secret.id))
       .then((rows) => rows[0]);
     expect(stored?.latestVersion).toBe(1);
   });
 
   it("previews AWS remote import candidates with duplicate and collision enrichment", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const duplicate = await svc.create(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const duplicate = await svc.create(spaceId, {
       name: "Existing duplicate",
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
       managedMode: "external_reference",
       externalRef: "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/duplicate",
     });
-    const nameConflict = await svc.create(companyId, {
+    const nameConflict = await svc.create(spaceId, {
       name: "Prod Conflict",
       provider: "local_encrypted",
       value: "runtime-secret",
@@ -3300,7 +3300,7 @@ describeEmbeddedPostgres("secretService", () => {
       ],
     });
 
-    const preview = await svc.previewRemoteImport(companyId, {
+    const preview = await svc.previewRemoteImport(spaceId, {
       providerConfigId: awsVault.id,
       query: "prod",
       pageSize: 25,
@@ -3334,11 +3334,11 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("sanitizes AWS remote import preview provider errors before crossing the service boundary", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
     const rawProviderMessage =
-      "AccessDeniedException: User: arn:aws:sts::123456789012:assumed-role/prod/Paperclip is not authorized to perform secretsmanager:ListSecrets";
+      "AccessDeniedException: User: arn:aws:sts::123456789012:assumed-role/prod/Outpost is not authorized to perform secretsmanager:ListSecrets";
 
     vi.spyOn(awsSecretsManagerProvider, "listRemoteSecrets").mockRejectedValueOnce(
       new SecretProviderClientError({
@@ -3352,7 +3352,7 @@ describeEmbeddedPostgres("secretService", () => {
 
     let thrown: unknown;
     try {
-      await svc.previewRemoteImport(companyId, { providerConfigId: awsVault.id });
+      await svc.previewRemoteImport(spaceId, { providerConfigId: awsVault.id });
     } catch (error) {
       thrown = error;
     }
@@ -3368,11 +3368,11 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("sanitizes AWS managed secret create failures and removes the reserved row", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
     const rawProviderMessage =
-      "AccessDeniedException: User: arn:aws:sts::123456789012:assumed-role/prod/Paperclip is not authorized to perform secretsmanager:CreateSecret on arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1";
+      "AccessDeniedException: User: arn:aws:sts::123456789012:assumed-role/prod/Outpost is not authorized to perform secretsmanager:CreateSecret on arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1";
 
     vi.spyOn(awsSecretsManagerProvider, "createSecret").mockRejectedValueOnce(
       new SecretProviderClientError({
@@ -3386,12 +3386,12 @@ describeEmbeddedPostgres("secretService", () => {
 
     let thrown: unknown;
     try {
-      await svc.create(companyId, {
+      await svc.create(spaceId, {
         name: "Vercel token",
         key: "vercel_token",
         provider: "aws_secrets_manager",
         providerConfigId: awsVault.id,
-        managedMode: "paperclip_managed",
+        managedMode: "outpost_managed",
         value: "vcp_test",
       });
     } catch (error) {
@@ -3411,7 +3411,7 @@ describeEmbeddedPostgres("secretService", () => {
       },
     });
     expect(((thrown as HttpError).details as { actionableMessage?: string } | undefined)?.actionableMessage).toContain(
-      "Ensure the Paperclip server runtime can resolve valid AWS credentials",
+      "Ensure the Outpost server runtime can resolve valid AWS credentials",
     );
     expect(JSON.stringify(thrown)).not.toContain("arn:aws");
     expect(JSON.stringify(thrown)).not.toContain("123456789012");
@@ -3419,15 +3419,15 @@ describeEmbeddedPostgres("secretService", () => {
 
     const persisted = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.companyId, companyId));
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.spaceId, spaceId));
     expect(persisted).toHaveLength(0);
   });
 
   it("reports rollback failures when AWS managed secret create cleanup cannot remove the reserved row", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
 
     vi.spyOn(awsSecretsManagerProvider, "createSecret").mockRejectedValueOnce(
       new SecretProviderClientError({
@@ -3436,7 +3436,7 @@ describeEmbeddedPostgres("secretService", () => {
         operation: "createSecret",
         message: "AWS Secrets Manager denied the request. Check IAM permissions for this provider vault.",
         rawMessage:
-          "AccessDeniedException: arn:aws:sts::123456789012:assumed-role/prod/Paperclip cannot create secret",
+          "AccessDeniedException: arn:aws:sts::123456789012:assumed-role/prod/Outpost cannot create secret",
       }),
     );
     vi.spyOn(db, "delete").mockImplementationOnce(() => {
@@ -3444,17 +3444,17 @@ describeEmbeddedPostgres("secretService", () => {
     });
 
     await expect(
-      svc.create(companyId, {
+      svc.create(spaceId, {
         name: "Vercel token",
         key: "vercel_token",
         provider: "aws_secrets_manager",
         providerConfigId: awsVault.id,
-        managedMode: "paperclip_managed",
+        managedMode: "outpost_managed",
         value: "vcp_test",
       }),
     ).rejects.toMatchObject({
       status: 500,
-      message: "Secret create failed and Paperclip could not roll back the local secret reservation.",
+      message: "Secret create failed and Outpost could not roll back the local secret reservation.",
       details: {
         code: "secret_create_rollback_failed",
         provider: "aws_secrets_manager",
@@ -3473,20 +3473,20 @@ describeEmbeddedPostgres("secretService", () => {
 
     const persisted = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.companyId, companyId));
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.spaceId, spaceId));
     expect(persisted).toHaveLength(1);
     expect(JSON.stringify(persisted)).not.toContain("vcp_test");
   });
 
   it("previews AWS provider vault discovery from draft config without persisting a provider vault", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
     const discoverSpy = vi.spyOn(awsSecretsManagerProvider, "discoverProviderConfigs").mockResolvedValue({
       provider: "aws_secrets_manager",
       nextToken: null,
       sampledSecretCount: 1,
-      skippedForeignPaperclipSampleCount: 0,
+      skippedForeignOutpostSampleCount: 0,
       candidates: [
         {
           provider: "aws_secrets_manager",
@@ -3494,25 +3494,25 @@ describeEmbeddedPostgres("secretService", () => {
           config: {
             region: "us-east-1",
             namespace: "prod-use1",
-            secretNamePrefix: "paperclip",
+            secretNamePrefix: "outpost",
             kmsKeyId: null,
             ownerTag: "platform",
             environmentTag: "production",
           },
           sampleCount: 1,
           samples: [
-            { name: "paperclip/prod-use1/company-1/openai", hasKmsKey: false, tagKeys: ["paperclip:environment"] },
+            { name: "outpost/prod-use1/space-1/openai", hasKmsKey: false, tagKeys: ["outpost:environment"] },
           ],
           signals: {
             namespace: "prod-use1",
-            secretNamePrefix: "paperclip",
+            secretNamePrefix: "outpost",
             environmentTag: "production",
             ownerTag: "platform",
             kmsKeyId: null,
             hasKmsKey: false,
             sampleCount: 1,
-            paperclipManagedSampleCount: 0,
-            skippedForeignPaperclipSampleCount: 0,
+            outpostManagedSampleCount: 0,
+            skippedForeignOutpostSampleCount: 0,
           },
           warnings: [],
         },
@@ -3520,7 +3520,7 @@ describeEmbeddedPostgres("secretService", () => {
       warnings: [],
     });
 
-    const preview = await svc.previewProviderConfigDiscovery(companyId, {
+    const preview = await svc.previewProviderConfigDiscovery(spaceId, {
       provider: "aws_secrets_manager",
       config: { region: "us-east-1" },
       query: "openai",
@@ -3528,9 +3528,9 @@ describeEmbeddedPostgres("secretService", () => {
     });
 
     expect(discoverSpy).toHaveBeenCalledWith({
-      companyId,
+      spaceId,
       providerConfig: {
-        id: `discovery-preview-${companyId}`,
+        id: `discovery-preview-${spaceId}`,
         provider: "aws_secrets_manager",
         status: "ready",
         config: { region: "us-east-1" },
@@ -3544,15 +3544,15 @@ describeEmbeddedPostgres("secretService", () => {
       namespace: "prod-use1",
     });
     expect(JSON.stringify(preview)).not.toContain("runtime-secret");
-    const persistedVaults = await db.select().from(companySecretProviderConfigs);
+    const persistedVaults = await db.select().from(spaceSecretProviderConfigs);
     expect(persistedVaults).toHaveLength(0);
   });
 
   it("sanitizes AWS provider vault discovery errors before crossing the service boundary", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
     const rawProviderMessage =
-      "AccessDeniedException: User: arn:aws:sts::123456789012:assumed-role/prod/Paperclip is not authorized to perform secretsmanager:ListSecrets";
+      "AccessDeniedException: User: arn:aws:sts::123456789012:assumed-role/prod/Outpost is not authorized to perform secretsmanager:ListSecrets";
 
     vi.spyOn(awsSecretsManagerProvider, "discoverProviderConfigs").mockRejectedValueOnce(
       new SecretProviderClientError({
@@ -3566,7 +3566,7 @@ describeEmbeddedPostgres("secretService", () => {
 
     let thrown: unknown;
     try {
-      await svc.previewProviderConfigDiscovery(companyId, {
+      await svc.previewProviderConfigDiscovery(spaceId, {
         provider: "aws_secrets_manager",
         config: { region: "us-east-1" },
       });
@@ -3584,10 +3584,10 @@ describeEmbeddedPostgres("secretService", () => {
         providerConfigId: "discovery-preview",
         providerVaultContext: "draft_config",
         region: "us-east-1",
-        credentialPath: "Paperclip server runtime/provider credential path",
+        credentialPath: "Outpost server runtime/provider credential path",
         requiredCapability: "secretsmanager:ListSecrets",
         actionableMessage:
-          "AWS discovery preview needs secretsmanager:ListSecrets in the selected region for the Paperclip server runtime/provider credential path.",
+          "AWS discovery preview needs secretsmanager:ListSecrets in the selected region for the Outpost server runtime/provider credential path.",
         safeAlternative:
           "If the operator already knows the exact AWS Secrets Manager ARN, paste/link that ARN instead of using discovery. Exact-resource DescribeSecret and runtime read permissions are still required.",
       },
@@ -3598,11 +3598,11 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("writes external reference rotations through the provider when a value is given", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
     const externalRef = "arn:aws:secretsmanager:us-east-1:123456789012:secret:shared/neon-admin";
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `external-${randomUUID()}`,
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
@@ -3640,8 +3640,8 @@ describeEmbeddedPostgres("secretService", () => {
 
     const versions = await db
       .select()
-      .from(companySecretVersions)
-      .where(eq(companySecretVersions.secretId, secret.id));
+      .from(spaceSecretVersions)
+      .where(eq(spaceSecretVersions.secretId, secret.id));
     const current = versions.find((row) => row.status === "current");
     expect(current?.version).toBe(2);
     expect(current?.providerVersionRef).toBeNull();
@@ -3649,11 +3649,11 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("restores the provider current version when external value rotation persistence fails", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
     const externalRef = "arn:aws:secretsmanager:us-east-1:123456789012:secret:shared/rollback";
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: "External rollback",
       key: "external-rollback",
       provider: "aws_secrets_manager",
@@ -3689,7 +3689,7 @@ describeEmbeddedPostgres("secretService", () => {
       mode: "archive",
       providerConfig: expect.objectContaining({ id: awsVault.id }),
       context: {
-        companyId,
+        spaceId,
         secretKey: "external-rollback",
         secretName: "External rollback",
         version: 2,
@@ -3698,10 +3698,10 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("rejects external value rotations that also retarget or pin versions", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const secret = await svc.create(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const secret = await svc.create(spaceId, {
       name: `external-${randomUUID()}`,
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
@@ -3721,9 +3721,9 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("rejects external value rotations when the provider cannot write values", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `external-${randomUUID()}`,
       provider: "vault",
       managedMode: "external_reference",
@@ -3736,10 +3736,10 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("imports AWS remote references row-by-row without fetching plaintext", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const duplicate = await svc.create(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const duplicate = await svc.create(spaceId, {
       name: "Existing duplicate",
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
@@ -3749,7 +3749,7 @@ describeEmbeddedPostgres("secretService", () => {
 
     const resolveSpy = vi.spyOn(awsSecretsManagerProvider, "resolveVersion");
     const result = await svc.importRemoteSecrets(
-      companyId,
+      spaceId,
       {
         providerConfigId: awsVault.id,
         secrets: [
@@ -3781,11 +3781,11 @@ describeEmbeddedPostgres("secretService", () => {
 
     const imported = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.key, "openai-api-key"))
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.key, "openai-api-key"))
       .then((rows) => rows[0]);
     expect(imported).toMatchObject({
-      companyId,
+      spaceId,
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
       managedMode: "external_reference",
@@ -3797,19 +3797,19 @@ describeEmbeddedPostgres("secretService", () => {
 
     const versions = await db
       .select()
-      .from(companySecretVersions)
-      .where(eq(companySecretVersions.secretId, imported!.id));
+      .from(spaceSecretVersions)
+      .where(eq(spaceSecretVersions.secretId, imported!.id));
     expect(versions).toHaveLength(1);
     expect(JSON.stringify(versions[0])).not.toContain("runtime-secret");
     expect(JSON.stringify(versions[0])).not.toContain("sk-");
   });
 
   it("sanitizes AWS remote import row provider errors", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
     const rawProviderMessage =
-      "AccessDeniedException: User: arn:aws:sts::123456789012:assumed-role/prod/Paperclip is not authorized to perform secretsmanager:DescribeSecret on arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/openai";
+      "AccessDeniedException: User: arn:aws:sts::123456789012:assumed-role/prod/Outpost is not authorized to perform secretsmanager:DescribeSecret on arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/openai";
     vi.spyOn(awsSecretsManagerProvider, "linkExternalSecret").mockRejectedValueOnce(
       new SecretProviderClientError({
         code: "access_denied",
@@ -3820,7 +3820,7 @@ describeEmbeddedPostgres("secretService", () => {
       }),
     );
 
-    const result = await svc.importRemoteSecrets(companyId, {
+    const result = await svc.importRemoteSecrets(spaceId, {
       providerConfigId: awsVault.id,
       secrets: [
         {
@@ -3847,28 +3847,28 @@ describeEmbeddedPostgres("secretService", () => {
     expect(JSON.stringify(result.results[0]?.reason)).not.toContain("123456789012");
   });
 
-  it("rejects Paperclip-managed AWS namespace refs during preview and import commit", async () => {
-    const companyId = await seedCompany();
+  it("rejects Outpost-managed AWS namespace refs during preview and import commit", async () => {
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
 
     vi.spyOn(awsSecretsManagerProvider, "listRemoteSecrets").mockResolvedValue({
       secrets: [
         {
           externalRef:
-            "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company-b/openai",
-          name: "paperclip/prod-use1/company-b/openai",
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space-b/openai",
+          name: "outpost/prod-use1/space-b/openai",
           providerVersionRef: null,
           metadata: {
-            arn: "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company-b/openai",
+            arn: "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space-b/openai",
             description: "must not leak",
-            tags: [{ Key: "paperclip:company-id", Value: "company-b" }],
+            tags: [{ Key: "outpost:space-id", Value: "space-b" }],
           },
         },
       ],
     });
 
-    const preview = await svc.previewRemoteImport(companyId, {
+    const preview = await svc.previewRemoteImport(spaceId, {
       providerConfigId: awsVault.id,
     });
 
@@ -3879,19 +3879,19 @@ describeEmbeddedPostgres("secretService", () => {
       providerMetadata: null,
     });
     expect(JSON.stringify(preview)).not.toContain("must not leak");
-    expect(JSON.stringify(preview)).not.toContain("paperclip:company-id");
+    expect(JSON.stringify(preview)).not.toContain("outpost:space-id");
 
-    const result = await svc.importRemoteSecrets(companyId, {
+    const result = await svc.importRemoteSecrets(spaceId, {
       providerConfigId: awsVault.id,
       secrets: [
         {
           externalRef:
-            "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company-b/openai",
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space-b/openai",
           name: "Foreign managed secret",
           key: "foreign-managed-secret",
           providerMetadata: {
             description: "client-submitted metadata must not persist",
-            tags: [{ Key: "paperclip:company-id", Value: "company-b" }],
+            tags: [{ Key: "outpost:space-id", Value: "space-b" }],
           },
         },
       ],
@@ -3903,17 +3903,17 @@ describeEmbeddedPostgres("secretService", () => {
       errorCount: 1,
       results: [expect.objectContaining({ status: "error" })],
     });
-    expect(result.results[0]?.reason).toMatch(/Paperclip-managed namespace/i);
-    const imported = await db.select().from(companySecrets).where(eq(companySecrets.key, "foreign-managed-secret"));
+    expect(result.results[0]?.reason).toMatch(/Outpost-managed namespace/i);
+    const imported = await db.select().from(spaceSecrets).where(eq(spaceSecrets.key, "foreign-managed-secret"));
     expect(imported).toHaveLength(0);
   });
 
   it("skips duplicate AWS remote imports for the same provider vault and canonical ref", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
 
-    const first = await svc.importRemoteSecrets(companyId, {
+    const first = await svc.importRemoteSecrets(spaceId, {
       providerConfigId: awsVault.id,
       secrets: [
         {
@@ -3923,7 +3923,7 @@ describeEmbeddedPostgres("secretService", () => {
         },
       ],
     });
-    const second = await svc.importRemoteSecrets(companyId, {
+    const second = await svc.importRemoteSecrets(spaceId, {
       providerConfigId: awsVault.id,
       secrets: [
         {
@@ -3941,38 +3941,38 @@ describeEmbeddedPostgres("secretService", () => {
       errorCount: 0,
       results: [expect.objectContaining({ reason: "exact_reference_duplicate" })],
     });
-    const imported = await db.select().from(companySecrets).where(eq(companySecrets.providerConfigId, awsVault.id));
+    const imported = await db.select().from(spaceSecrets).where(eq(spaceSecrets.providerConfigId, awsVault.id));
     expect(imported).toHaveLength(1);
   });
 
-  it("rejects remote import for disabled or cross-company provider vaults", async () => {
-    const companyA = await seedCompany("A");
-    const companyB = await seedCompany("B");
+  it("rejects remote import for disabled or cross-space provider vaults", async () => {
+    const spaceA = await seedSpace("A");
+    const spaceB = await seedSpace("B");
     const svc = secretService(db);
-    const disabledVault = await svc.createProviderConfig(companyA, {
+    const disabledVault = await svc.createProviderConfig(spaceA, {
       provider: "aws_secrets_manager",
       displayName: "AWS disabled",
       status: "disabled",
       config: { region: "us-east-1" },
     });
-    const foreignVault = await svc.createProviderConfig(companyB, {
+    const foreignVault = await svc.createProviderConfig(spaceB, {
       provider: "aws_secrets_manager",
       displayName: "AWS foreign",
       config: { region: "us-east-1" },
     });
 
     await expect(
-      svc.previewRemoteImport(companyA, { providerConfigId: disabledVault.id }),
+      svc.previewRemoteImport(spaceA, { providerConfigId: disabledVault.id }),
     ).rejects.toThrow(/disabled/i);
     await expect(
-      svc.previewRemoteImport(companyA, { providerConfigId: foreignVault.id }),
-    ).rejects.toThrow(/same company/i);
+      svc.previewRemoteImport(spaceA, { providerConfigId: foreignVault.id }),
+    ).rejects.toThrow(/same space/i);
   });
 
   it("rejects externalRef overrides on managed secrets", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `managed-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
@@ -3980,23 +3980,23 @@ describeEmbeddedPostgres("secretService", () => {
 
     await expect(
       svc.update(secret.id, {
-        externalRef: "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod/company-b/openai-api-key",
+        externalRef: "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod/space-b/openai-api-key",
       }),
     ).rejects.toThrow(/Managed secrets cannot override externalRef/i);
 
     await expect(
       svc.rotate(secret.id, {
         value: "rotated-runtime-secret",
-        externalRef: "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod/company-b/openai-api-key",
+        externalRef: "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod/space-b/openai-api-key",
       }),
     ).rejects.toThrow(/Managed secrets cannot override externalRef/i);
   });
 
   it("rejects generic update retargeting for external reference secrets", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const awsVault = await svc.createProviderConfig(companyId, awsVaultInput());
-    const secret = await svc.create(companyId, {
+    const awsVault = await svc.createProviderConfig(spaceId, awsVaultInput());
+    const secret = await svc.create(spaceId, {
       name: `external-${randomUUID()}`,
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
@@ -4017,9 +4017,9 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("rejects generic soft deletion for managed secrets", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `managed-delete-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
@@ -4034,19 +4034,19 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("passes managed AWS secret context into provider delete during removal", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
     const externalRef =
-      "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company-1/openai-api-key";
+      "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space-1/openai-api-key";
 
     const secret = await db
-      .insert(companySecrets)
+      .insert(spaceSecrets)
       .values({
-        companyId,
+        spaceId,
         key: "openai-api-key",
         name: "OpenAI API Key",
         provider: "aws_secrets_manager",
-        managedMode: "paperclip_managed",
+        managedMode: "outpost_managed",
         externalRef,
         latestVersion: 1,
         status: "active",
@@ -4054,15 +4054,15 @@ describeEmbeddedPostgres("secretService", () => {
       .returning()
       .then((rows) => rows[0]);
 
-    await db.insert(companySecretVersions).values(managedAwsVersionRow(secret.id, externalRef));
+    await db.insert(spaceSecretVersions).values(managedAwsVersionRow(secret.id, externalRef));
 
     const deleteSpy = vi.spyOn(awsSecretsManagerProvider, "deleteOrArchive").mockResolvedValue();
 
     const removed = await svc.remove(secret.id);
     const persisted = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.id, secret.id))
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.id, secret.id))
       .then((rows) => rows[0] ?? null);
 
     expect(removed?.id).toBe(secret.id);
@@ -4076,7 +4076,7 @@ describeEmbeddedPostgres("secretService", () => {
       },
       externalRef,
       context: {
-        companyId,
+        spaceId,
         secretKey: "openai-api-key",
         secretName: "OpenAI API Key",
         version: 1,
@@ -4088,18 +4088,18 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("renames name and key during removal before provider deletion", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
     const externalRef =
-      "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company-1/remove-failure";
+      "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space-1/remove-failure";
     const secret = await db
-      .insert(companySecrets)
+      .insert(spaceSecrets)
       .values({
-        companyId,
+        spaceId,
         key: "remove-failure",
         name: "Remove Failure",
         provider: "aws_secrets_manager",
-        managedMode: "paperclip_managed",
+        managedMode: "outpost_managed",
         externalRef,
         latestVersion: 1,
         status: "active",
@@ -4107,7 +4107,7 @@ describeEmbeddedPostgres("secretService", () => {
       .returning()
       .then((rows) => rows[0]);
 
-    await db.insert(companySecretVersions).values(managedAwsVersionRow(secret.id, externalRef));
+    await db.insert(spaceSecretVersions).values(managedAwsVersionRow(secret.id, externalRef));
     vi.spyOn(awsSecretsManagerProvider, "deleteOrArchive").mockRejectedValueOnce(
       new Error("provider delete failed"),
     );
@@ -4115,10 +4115,10 @@ describeEmbeddedPostgres("secretService", () => {
     await expect(svc.remove(secret.id)).rejects.toThrow("provider delete failed");
     const persisted = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.id, secret.id))
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.id, secret.id))
       .then((rows) => rows[0] ?? null);
-    const recreated = await svc.create(companyId, {
+    const recreated = await svc.create(spaceId, {
       name: "Remove Failure",
       key: "remove-failure",
       provider: "local_encrypted",
@@ -4134,24 +4134,24 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("treats missing provider secrets as already removed during removal retry", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
     const externalRef =
-      "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/company-1/retry-delete";
+      "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/space-1/retry-delete";
     const secretId = randomUUID();
-    await db.insert(companySecrets).values({
+    await db.insert(spaceSecrets).values({
       id: secretId,
-      companyId,
+      spaceId,
       key: `retry-delete__deleted__${secretId}`,
       name: `Retry Delete__deleted__${secretId}`,
       provider: "aws_secrets_manager",
-      managedMode: "paperclip_managed",
+      managedMode: "outpost_managed",
       externalRef,
       latestVersion: 1,
       status: "deleted",
       deletedAt: new Date(),
     });
-    await db.insert(companySecretVersions).values(managedAwsVersionRow(secretId, externalRef));
+    await db.insert(spaceSecretVersions).values(managedAwsVersionRow(secretId, externalRef));
     const deleteSpy = vi.spyOn(awsSecretsManagerProvider, "deleteOrArchive").mockRejectedValueOnce(
       new SecretProviderClientError({
         code: "not_found",
@@ -4164,8 +4164,8 @@ describeEmbeddedPostgres("secretService", () => {
     await expect(svc.remove(secretId)).resolves.toMatchObject({ id: secretId });
     const persisted = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.id, secretId))
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.id, secretId))
       .then((rows) => rows[0] ?? null);
 
     expect(deleteSpy).toHaveBeenCalledTimes(1);
@@ -4173,9 +4173,9 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("removes DB rows even when the attached provider vault is disabled", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const vault = await svc.createProviderConfig(companyId, {
+    const vault = await svc.createProviderConfig(spaceId, {
       provider: "aws_secrets_manager",
       displayName: "AWS disabled later",
       config: {
@@ -4184,16 +4184,16 @@ describeEmbeddedPostgres("secretService", () => {
       },
     });
     const externalRef =
-      "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod/company-1/openai-api-key";
+      "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod/space-1/openai-api-key";
     const secret = await db
-      .insert(companySecrets)
+      .insert(spaceSecrets)
       .values({
-        companyId,
+        spaceId,
         key: "openai-api-key",
         name: "OpenAI API Key",
         provider: "aws_secrets_manager",
         providerConfigId: vault.id,
-        managedMode: "paperclip_managed",
+        managedMode: "outpost_managed",
         externalRef,
         latestVersion: 1,
         status: "active",
@@ -4201,15 +4201,15 @@ describeEmbeddedPostgres("secretService", () => {
       .returning()
       .then((rows) => rows[0]);
 
-    await db.insert(companySecretVersions).values(managedAwsVersionRow(secret.id, externalRef));
+    await db.insert(spaceSecretVersions).values(managedAwsVersionRow(secret.id, externalRef));
     await svc.disableProviderConfig(vault.id);
     const deleteSpy = vi.spyOn(awsSecretsManagerProvider, "deleteOrArchive").mockResolvedValue();
 
     await expect(svc.remove(secret.id)).resolves.toMatchObject({ id: secret.id });
     const persisted = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.id, secret.id))
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.id, secret.id))
       .then((rows) => rows[0] ?? null);
 
     expect(deleteSpy).not.toHaveBeenCalled();
@@ -4217,36 +4217,36 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("refuses to resolve secrets once they are disabled or archived", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `managed-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
     });
 
     await svc.update(secret.id, { status: "disabled" });
-    await expect(svc.resolveSecretValue(companyId, secret.id, "latest")).rejects.toThrow(
+    await expect(svc.resolveSecretValue(spaceId, secret.id, "latest")).rejects.toThrow(
       /not active/i,
     );
 
     await svc.update(secret.id, { status: "archived" });
-    await expect(svc.resolveSecretValue(companyId, secret.id, "latest")).rejects.toThrow(
+    await expect(svc.resolveSecretValue(spaceId, secret.id, "latest")).rejects.toThrow(
       /not active/i,
     );
   });
 
   it("records audited ephemeral secret access without requiring a persisted binding", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `ephemeral-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
     });
-    await seedCompanyMember(companyId, "user-1");
+    await seedSpaceMember(spaceId, "user-1");
 
-    const resolved = await svc.resolveSecretValueForEphemeralAccess(companyId, secret.id, "latest", {
+    const resolved = await svc.resolveSecretValueForEphemeralAccess(spaceId, secret.id, "latest", {
       consumerType: "system",
       consumerId: "environment-probe-config",
       configPath: "apiKey",
@@ -4255,10 +4255,10 @@ describeEmbeddedPostgres("secretService", () => {
     });
 
     expect(resolved).toBe("runtime-secret");
-    const events = await svc.listAccessEvents(companyId, secret.id);
+    const events = await svc.listAccessEvents(spaceId, secret.id);
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
-      companyId,
+      spaceId,
       secretId: secret.id,
       consumerType: "system",
       consumerId: "environment-probe-config",
@@ -4270,21 +4270,21 @@ describeEmbeddedPostgres("secretService", () => {
     expect(JSON.stringify(events)).not.toContain("runtime-secret");
   });
 
-  it("preserves local implicit board authorization for ephemeral secret access", async () => {
-    const companyId = await seedCompany();
+  it("preserves local implicit operator authorization for ephemeral secret access", async () => {
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
-      name: `ephemeral-local-board-${randomUUID()}`,
+    const secret = await svc.create(spaceId, {
+      name: `ephemeral-local-operator-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
     });
 
-    const resolved = await svc.resolveSecretValueForEphemeralAccess(companyId, secret.id, "latest", {
+    const resolved = await svc.resolveSecretValueForEphemeralAccess(spaceId, secret.id, "latest", {
       consumerType: "system",
       consumerId: "environment-probe-config",
       configPath: "apiKey",
       actorType: "user",
-      actorId: "local-board",
+      actorId: "local-operator",
       actorSource: "local_implicit",
     });
 
@@ -4292,9 +4292,9 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("preserves agent jwt source for ephemeral secret authorization", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `ephemeral-agent-jwt-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
@@ -4302,7 +4302,7 @@ describeEmbeddedPostgres("secretService", () => {
     const agentId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "JWT Agent",
       role: "engineer",
       adapterType: "codex_local",
@@ -4312,7 +4312,7 @@ describeEmbeddedPostgres("secretService", () => {
       updatedAt: new Date(),
     });
 
-    const resolved = await svc.resolveSecretValueForEphemeralAccess(companyId, secret.id, "latest", {
+    const resolved = await svc.resolveSecretValueForEphemeralAccess(spaceId, secret.id, "latest", {
       consumerType: "system",
       consumerId: "environment-probe-config",
       configPath: "apiKey",
@@ -4325,16 +4325,16 @@ describeEmbeddedPostgres("secretService", () => {
   });
 
   it("rejects ephemeral secret access for actors without secret-read authorization", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `ephemeral-denied-${randomUUID()}`,
       provider: "local_encrypted",
       value: "runtime-secret",
     });
 
     await expect(
-      svc.resolveSecretValueForEphemeralAccess(companyId, secret.id, "latest", {
+      svc.resolveSecretValueForEphemeralAccess(spaceId, secret.id, "latest", {
         consumerType: "system",
         consumerId: "environment-probe-config",
         configPath: "apiKey",

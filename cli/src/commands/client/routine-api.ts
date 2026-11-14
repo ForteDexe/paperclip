@@ -8,12 +8,12 @@ import {
   type BaseClientOptions,
 } from "./common.js";
 
-interface CompanyOptions extends BaseClientOptions {
-  companyId?: string;
+interface SpaceOptions extends BaseClientOptions {
+  spaceId?: string;
   projectId?: string;
 }
 
-interface JsonOptions extends CompanyOptions {
+interface JsonOptions extends SpaceOptions {
   payloadJson?: string;
   limit?: string;
 }
@@ -24,20 +24,20 @@ export function registerRoutineApiCommands(program: Command): void {
     routine
       .command("list")
       .description("List routines")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .option("--project-id <id>", "Filter by project ID")
-      .action(async (opts: CompanyOptions) => {
+      .action(async (opts: SpaceOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const query = opts.projectId ? `?${new URLSearchParams({ projectId: opts.projectId }).toString()}` : "";
-          printOutput(await ctx.api.get(`${apiPath`/api/companies/${ctx.companyId}/routines`}${query}`), { json: ctx.json });
+          printOutput(await ctx.api.get(`${apiPath`/api/spaces/${ctx.spaceId}/routines`}${query}`), { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
-  addCompanyPost(routine, "create", "Create a routine", "routines");
+  addSpacePost(routine, "create", "Create a routine", "routines");
   addIdGet(routine, "get", "Get a routine", "routines");
   addIdPatch(routine, "update", "Update a routine", "routines");
   addIdGet(routine, "revisions", "List routine revisions", "routines", "revisions");
@@ -94,15 +94,15 @@ export function registerRoutineApiCommands(program: Command): void {
   );
 }
 
-function addCompanyPost(parent: Command, name: string, description: string, path: string): void {
-  addCommonClientOptions(parent.command(name).description(description).option("-C, --company-id <id>", "Outpost ID").requiredOption("--payload-json <json>", "JSON payload").action(async (opts: JsonOptions) => {
+function addSpacePost(parent: Command, name: string, description: string, path: string): void {
+  addCommonClientOptions(parent.command(name).description(description).option("-C, --space-id <id>", "Outpost ID").requiredOption("--payload-json <json>", "JSON payload").action(async (opts: JsonOptions) => {
     try {
-      const ctx = resolveCommandContext(opts, { requireCompany: true });
-      printOutput(await ctx.api.post(`${apiPath`/api/companies/${ctx.companyId}`}/${path}`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });
+      const ctx = resolveCommandContext(opts, { requireSpace: true });
+      printOutput(await ctx.api.post(`${apiPath`/api/spaces/${ctx.spaceId}`}/${path}`, parseJson(opts.payloadJson ?? "{}")), { json: ctx.json });
     } catch (err) {
       handleCommandError(err);
     }
-  }), { includeCompany: false });
+  }), { includeSpace: false });
 }
 
 function addIdGet(parent: Command, name: string, description: string, resource: string, suffix?: string): void {

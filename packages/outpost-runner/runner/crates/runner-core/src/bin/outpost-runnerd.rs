@@ -878,7 +878,7 @@ mod tests {
         ))
         .unwrap();
         let encoded = json!({
-            "schema":"outpost.acpx-candidate-admission.v1", "companyId":"company-1", "agent":"antigravity", "model":"exact-model",
+            "schema":"outpost.acpx-candidate-admission.v1", "spaceId":"space-1", "agent":"antigravity", "model":"exact-model",
             "profileDigest":profiles["profiles"]["antigravity"]["commandDigest"],
             "nativeClosureDigest":format!("sha256:{}",distributions["platforms"]["darwin-arm64"]["closureSha256"].as_str().unwrap()),
             "platform":"darwin", "architecture":"arm64", "expiresAt":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64 + 60_000,

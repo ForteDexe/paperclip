@@ -21,13 +21,13 @@ PSTN/interruption qualification.
 
 Private voice routes accept both local authenticated sessions and trusted Cloud
 user sessions. Cloud callers keep their authenticated user ID and current
-company scope. Cloud owners use current company membership even when temporary
+space scope. Cloud owners use current space membership even when temporary
 Cloud administrator access is enabled; they do not need a persisted local
 instance-admin role. Board API keys, MCP OAuth callers, Cloud control credentials,
 and raw Cloud user headers do not create private caller authority.
 
 On a Cloud workspace, verify that the signed-in operator can load call history
-and start a browser session. Repeat with a user outside the company and confirm
+and start a browser session. Repeat with a user outside the space and confirm
 access is denied. Provider configuration alone does not qualify conversation
 or spoken result delivery.
 
@@ -56,9 +56,9 @@ that an open call survives an orderly app restart, its repeated answer callback
 uses the original receipt, and explicit Repeat retrieves the saved response
 without creating sessions, comments or runs. The
 second uses 3482/3483, real Better Auth signup and invitation APIs, and separate
-operator/member/outsider/anonymous contexts. It checks two-company isolation,
+operator/member/outsider/anonymous contexts. It checks two-space isolation,
 private tasks, caller ownership and mid-call membership revocation. Only Speko
-transport/media and execution are stubbed. No Paperclip API response is mocked.
+transport/media and execution are stubbed. No Outpost API response is mocked.
 
 Each suite shuts down its own server/database. Its generated HTML report stays
 under `tests/speko-native/playwright-report/` or `playwright-report-auth/`.
@@ -84,7 +84,7 @@ only `/api/voice-webhooks` through the explicitly configured HTTPS origin. Prese
 other services on any shared proxy. Do not run builds or edit server imports
 during a live call. The static UI avoids Vite reloads interrupting media tests.
 
-In the temporary UI, create an acceptance company and existing agent. The harness
+In the temporary UI, create an acceptance space and existing agent. The harness
 substitutes only the `process` execution adapter with a 61-second fixture. Other
 adapters, including the catalog template's `claude_local`, remain real. Install
 the optional receptionist template through the team catalog when testing that path; Apps setup selects an existing agent. Give it an
@@ -93,15 +93,15 @@ word `marigold`; do not point acceptance work at private project files.
 
 Create a dedicated hosted Speko persona per endpoint. Its signed tools are managed
 by the actual setup UI. Save a private fixture at
-`~/.paperclip/speko-proof/native-fixture.json` (existing agent) or
+`~/.outpost/speko-proof/native-fixture.json` (existing agent) or
 `native-template-fixture.json` (template), mode 0600:
 
 ```json
 {
-  "companyId": "temporary-company-uuid",
-  "companyPrefix": "SPE",
+  "spaceId": "temporary-space-uuid",
+  "spacePrefix": "SPE",
   "agentId": "selected-agent-uuid",
-  "agentName": "Existing Paperclip Agent",
+  "agentName": "Existing Outpost Agent",
   "providerAgentId": "agent_dedicated_persona",
   "endpointId": "optional-resumable-endpoint-uuid"
 }
@@ -112,7 +112,7 @@ using `SPEKO_MCP_API_KEY` from `~/.secrets` and persists only the endpoint ID in
 fixture. Do not record Playwright traces around credential entry.
 
 Prepare synthetic input using `say` and `ffmpeg`, saving mono 48 kHz signed 16-bit
-little-endian PCM files under `.paperclip-local/speko-proof-audio/`:
+little-endian PCM files under `.outpost-local/speko-proof-audio/`:
 
 - `start.pcm`: “Start the test.”
 - `followup.pcm`: “Add a follow-up.”
@@ -146,7 +146,7 @@ normal integration pass.
 Inspect `instance.json`, `evidence.json` and `execution.jsonl` in the temporary
 home for durable session/delivery/publication/task evidence. Each browser run
 writes a private source manifest, report, screenshots and received audio under
-`~/.paperclip/speko-proof/native-browser-*`. The checked-in reports contain only
+`~/.outpost/speko-proof/native-browser-*`. The checked-in reports contain only
 synthetic results and numeric references. On cleanup, end active provider calls,
 stop only this launcher, and remove only this test's proxy path.
 
@@ -162,16 +162,16 @@ npx --yes pnpm@9.15.4 exec vitest run \
 ```
 
 This harness is a live-provider qualification tool, not the complete deterministic
-two-company E01–E16 browser suite described below.
+two-space E01–E16 browser suite described below.
 
 ## Product contract and gate
 
 Build a native experimental Apps voice connection beside Slack/Discord. Speko
 owns hosted audio, conversational acknowledgment, and telephony; the selected
-Paperclip agent keeps its runtime, tools, task context, and work. Support browser
+Outpost agent keeps its runtime, tools, task context, and work. Support browser
 voice, inbound telephone, and authenticated “Call my phone.” Recommend the
-optional **Speko Company Phone Agent** catalog template, while permitting any
-existing agent. Do not automatically install the template in every company.
+optional **Speko Space Phone Agent** catalog template, while permitting any
+existing agent. Do not automatically install the template in every space.
 
 Before production changes, prove a hosted live conversation can wait for work
 lasting at least 60 seconds, handle an interruption and additional instruction,
@@ -199,11 +199,11 @@ research input, not the live voice runtime. Keep general MCP tools separate.
 1. Add explicit voice runtime/transport to the shared app/channel contracts and
    validators, database constraints, server lifecycle and UI API clients. Keep
    `enableChatConnectors` as the discovery/setup gate.
-2. Reuse company endpoints, identities, task bindings, durable deliveries,
+2. Reuse space endpoints, identities, task bindings, durable deliveries,
    external publications and activity logging. Vault API/signing secrets. Each
-   endpoint binds one Speko persona and one Paperclip agent; preserve historical
+   endpoint binds one Speko persona and one Outpost agent; preserve historical
    assignments when configuration changes.
-3. Persist session company, endpoint, provider ID, caller authority, task,
+3. Persist session space, endpoint, provider ID, caller authority, task,
    generation, lifecycle, expiry and reply cursor. Authenticated APIs create,
    inspect, approve/deny private inbound sessions and end calls. Signed callbacks
    verify raw body, time, session identity and idempotency before side effects.
@@ -217,30 +217,30 @@ research input, not the live voice runtime. Keep general MCP tools separate.
    controls, transcript, incoming-call approval, history and connection management.
 6. Package the recommended agent in the existing template catalog: greeting,
    intake, clarification, delegation and concise follow-up. Creation follows
-   normal company permissions and is idempotent.
+   normal space permissions and is idempotent.
 
 Browser authority inherits the signed-in user's current access; only short-lived
 media credentials enter the browser. Inbound caller ID grants no private access.
 Private calls require authenticated approval of the specific live call. Guest
 intake is explicitly enabled and cannot browse private tasks or approve governed
 actions. Recheck current authorization throughout a session, including after a
-company switch, revocation, pause or removal.
+space switch, revocation, pause or removal.
 
 Callbacks require reachable HTTPS; local instances need a configured tunnel or
 reverse proxy. No private relay is included. Retain transcripts/task history,
 explain provider recording behavior and do not download recordings by default.
 Set session-duration limits separately from join-token TTL and display Speko
-charges separately from Paperclip agent costs. Exclude SMS, WhatsApp, campaigns,
+charges separately from Outpost agent costs. Exclude SMS, WhatsApp, campaigns,
 autonomous outbound calls and general telephony administration.
 
 ## A. Deterministic UI and integrated browser qualification
 
 Extend the existing chat UI suite for fixtures. Add a separate integration suite
-with a real Paperclip server, isolated database, permissions, queues and external
+with a real Outpost server, isolated database, permissions, queues and external
 publication path. Stub **only** Speko's transport and the execution provider.
-Use temporary instances, two companies, operator/member/guest contexts, the
+Use temporary instances, two spaces, operator/member/guest contexts, the
 template agent and an existing agent. Do not reuse the existing UI suite's
-mocked Paperclip responses as evidence that the backend works.
+mocked Outpost responses as evidence that the backend works.
 
 Every row must assert visible UI, resulting task state and durable session and
 delivery records. Wait on observable transitions and receipts, not fixed sleeps.
@@ -255,19 +255,19 @@ delivery records. Wait on observable transitions and receipts, not fixed sleeps.
 | E06 | Interrupt and follow up | Playback stops; ordered follow-ups reach same task; work continues unless explicitly cancelled |
 | E07 | Cancel versus hang up | Independent work/call lifecycles; history and running work survive hangup |
 | E08 | Private inbound | No private disclosure before approval; approve/deny/expiry; spoofed caller ID confers no authority |
-| E09 | Company guest intake | Restricted intake succeeds; private task lookup and governed actions fail |
+| E09 | Space guest intake | Restricted intake succeeds; private task lookup and governed actions fail |
 | E10 | Call my phone | Authenticated caller/task; duplicate click does not redial; ambiguous provider result reconciles first |
 | E11 | Questions and approvals | Permitted question answers steer work; governed approvals retain existing checks |
 | E12 | Provider/network failure | Timeouts, rate limits, credential expiry, disconnect and reload yield actionable recoverable state |
 | E13 | Restart/retry | Duplicate and out-of-order callbacks plus process restart never duplicate tasks/comments or replay stale speech |
-| E14 | Permissions/lifecycle | Revocation, pause, reconnect, removal and company switch enforce current access mid-call |
+| E14 | Permissions/lifecycle | Revocation, pause, reconnect, removal and space switch enforce current access mid-call |
 | E15 | History/reports | Transcript/task references agree; repeated report updates one record; no recording download |
 | E16 | Media/responsiveness | Denied/missing mic, mute, navigation, unmount and end clean up media; usable narrow layout |
 
 ## B. Protocol, security and persistence
 
 Test valid/invalid signatures, exact raw-body tampering, stale/future timestamps,
-replay, secret rotation overlap, cross-company/endpoint/session substitutions,
+replay, secret rotation overlap, cross-space/endpoint/session substitutions,
 stale generations, closed sessions, cursor bounds and replay of already spoken
 publications. Verify scoped admission and current authority again at delivery.
 Probe event redaction for keys, raw agent logs, tool outputs, private comments and
@@ -314,7 +314,7 @@ Storybook interactions/accessibility and visual tests. Report anything blocked.
 Use the repository PR template if submitting a PR.
 
 Qualification records must include UTC date, tested SHA/dirty patch, case IDs,
-fixture/live environment, roles/company boundaries, observed timings, sanitized
+fixture/live environment, roles/space boundaries, observed timings, sanitized
 session/task references, screenshot/report paths, failures and reproduction steps.
 The current first-gate report is `2026-09-11-speko-voice-qualification.md`.
 
@@ -324,7 +324,7 @@ The current first-gate report is `2026-09-11-speko-voice-qualification.md`.
 The user explicitly authorized the Cloudflare test tunnel. The approved proxy
 forwards only POST `/api/voice-webhooks/:publicId/tools`; board/UI routes and
 all other APIs return 404. Provider signatures, session capabilities and current
-company/task authority remain enforced. Quick-tunnel URLs are temporary;
+space/task authority remain enforced. Quick-tunnel URLs are temporary;
 verify the origin before each run and retain no promise of permanent availability.
 
 Audit received audio independently of the UI transcript. A passing live-browser
@@ -354,7 +354,7 @@ approvals, human audio, Safari or telephone journeys.
    signed voice callbacks through explicitly configured reachable HTTPS.
 2. In connection **Settings → Call my phone**, save your own E.164 number and
    enable **Allow this agent to call me about my tasks**. Speko charges and
-   recording settings apply; Paperclip does not download recordings.
+   recording settings apply; Outpost does not download recordings.
 3. Create an ordinary task assigned to that agent with yourself as responsible
    person, requesting one call using the assigned `call_my_phone` connection
    tool. The tool accepts no destination parameter and returns no media token.
@@ -366,7 +366,7 @@ approvals, human audio, Safari or telephone journeys.
    add an instruction. Assert signed callbacks, durable ordered comments,
    selected runtime execution and correct approved audio without repeated caller
    prompting. Measure acknowledgment/result/interruption with the stated targets.
-5. Hang up and verify provider/Paperclip reconciliation. Rejoin only on an
+5. Hang up and verify provider/Outpost reconciliation. Rejoin only on an
    explicitly authorized fresh attempt; uncertain creation must not blindly
    redial. Revoking personal opt-in/current access must stop private delivery.
 6. Retain sanitized task/session references and status. Do not include personal
@@ -374,7 +374,7 @@ approvals, human audio, Safari or telephone journeys.
    consent before any audio capture; never automatically download recordings.
 
 The integrated `tests/speko-native/integrated.spec.ts` E10 extension uses real
-Paperclip routes, database, task queue, run identity and runtime MCP. Only external
+Outpost routes, database, task queue, run identity and runtime MCP. Only external
 Speko and execution are fixtures. It saves callback settings through the UI,
 reloads, asks the execution fixture to discover/call its actual assigned tool,
 rejects a simultaneous second request, verifies one outgoing durable/provider
@@ -383,7 +383,7 @@ opt-in. It does not qualify real telephone audio or call-screening behavior.
 
 ## October 7 completion-audit procedure
 
-Current private PSTN setup uses per-live-call approval in Paperclip; caller ID alone grants no access. A signed call creates one short-lived admission without a task. Approve its exact six-digit code while selecting an authorized task, or deny it; expiry and hangup close admission. Discard speech submitted before approval. Guest mode must be explicitly enabled and writes bounded low-trust intake without waking an agent, exposing private work or approving governed actions. Promote only the exact live call through authenticated Paperclip approval.
+Current private PSTN setup uses per-live-call approval in Outpost; caller ID alone grants no access. A signed call creates one short-lived admission without a task. Approve its exact six-digit code while selecting an authorized task, or deny it; expiry and hangup close admission. Discard speech submitted before approval. Guest mode must be explicitly enabled and writes bounded low-trust intake without waking an agent, exposing private work or approving governed actions. Promote only the exact live call through authenticated Outpost approval.
 
 Phone polling is enabled in signed phone pre-call hints, never by mutating shared persona defaults on each dial. Verify that a subsequent browser call never reads idle polling instructions aloud. Provider final-report timestamps may be camelCase and durations fractional; the safe projection excludes application control hints, keys, system turns and recording URLs. Check both new and existing history entries.
 
@@ -411,7 +411,7 @@ Run the real-server native suite and the 44 page/call-entry Storybook stories. F
 
 After activating a Speko connection, open Settings and verify the bundled provider logo and Open Speko link. There must be no browser Conversation selector, Start voice button, Your calls region or callback introduction. Save/reload outgoing phone settings and incoming number settings normally. Setup's optional voice test remains available, and assigned tasks retain their task voice launcher. E10 checks the simplified Settings surface before saving callback preferences; E08/E09 still exercise signed incoming approval and restricted guest intake.
 
-The current private inbound flow requires the caller to also use signed-in Paperclip: enter the code spoken during this live call, select a permitted task and approve. The pending private admission expires after two minutes. This is a browser-mediated pairing flow, not sign-in by phone. Guest intake can record a message as quarantined work for review; it does not run the agent or expose private task information. This UI change preserves those authorization semantics.
+The current private inbound flow requires the caller to also use signed-in Outpost: enter the code spoken during this live call, select a permitted task and approve. The pending private admission expires after two minutes. This is a browser-mediated pairing flow, not sign-in by phone. Guest intake can record a message as quarantined work for review; it does not run the agent or expose private task information. This UI change preserves those authorization semantics.
 
 The Conversations empty state now directs users to Talk to agent on an assigned task. The Settings cleanup passed three real-server integrated journeys, 180 page/form/task-launcher interaction/accessibility checks plus four long-header checks, UI typecheck/build and token gates. Test evidence uses `/tmp/speko-settings-cleanup-*.log`; microphone/provider calls were not made for this change. Visual review covers the changed header and shorter forms in both themes; broader live-provider and repository-wide acceptance remains separate.
 
@@ -423,7 +423,7 @@ New calls admitted with **Let callers start new low-trust tasks without sign-in*
 
 For E09, configure an active sandbox on the incoming line (or use the selected agent's sandbox), enable isolated workspaces, and supply an approved agent-scoped model connection. This affects only new low-trust incoming tasks; it does not change the agent/instance default environment or historical task assignments. Missing isolation fails closed. Browser/outgoing task conversations keep their existing authenticated authority.
 
-1. Call the configured company number from a telephone. Verify the greeting asks what to work on without a Paperclip code or sign-in. Confirm exactly one new task/session/admission.
+1. Call the configured space number from a telephone. Verify the greeting asks what to work on without a Outpost code or sign-in. Confirm exactly one new task/session/admission.
 2. Submit work, interrupt playback, and add a follow-up. Verify both requests and approved agent replies remain on that task, in order. A playback interruption does not cancel work.
 3. Ask for another private task or a governed approval. Verify the low-trust boundary refuses it. Do not expand privileges or copy a caller-ID identity to make the test pass.
 4. End the call. The task and already accepted work survive hangup; new call requests fail. When Speko's report arrives, verify the task's **Phone conversation transcript** document contains both caller and voice-agent turns, interruptions included, with quarantined source trust. Repeated reports must not create duplicate documents or revisions. No recording is downloaded.
@@ -451,4 +451,4 @@ SPEKO_NATIVE_AUDIO_DIR=<synthetic-audio-directory> \
 node tests/speko-native/live-browser.mjs
 ```
 
-The fixture specifies companyId, companyPrefix, agentId, agentName, endpointId, and providerAgentId. Use an authorized disposable task already pinned to the real Daytona environment. The current disk scenario expects the test environment's 10 GiB root disk and approximately 9.7 GiB free; it is not a generic capacity test for arbitrary agents. For delayed delivery, the first recording requests a 65-second wait before inspecting only the root filesystem; the follow-up requests a one-sentence answer. Verify actual execution duration, two accepted submit_request receipts, same-task comments, urgent context in all task-markdown variants, approved publications, media cleanup, and synthetic output audio independently. A browser cascade result does not qualify telephone speech-to-speech or PSTN transport.
+The fixture specifies spaceId, spacePrefix, agentId, agentName, endpointId, and providerAgentId. Use an authorized disposable task already pinned to the real Daytona environment. The current disk scenario expects the test environment's 10 GiB root disk and approximately 9.7 GiB free; it is not a generic capacity test for arbitrary agents. For delayed delivery, the first recording requests a 65-second wait before inspecting only the root filesystem; the follow-up requests a one-sentence answer. Verify actual execution duration, two accepted submit_request receipts, same-task comments, urgent context in all task-markdown variants, approved publications, media cleanup, and synthetic output audio independently. A browser cascade result does not qualify telephone speech-to-speech or PSTN transport.

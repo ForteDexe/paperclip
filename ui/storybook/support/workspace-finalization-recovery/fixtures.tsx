@@ -5,8 +5,8 @@ export const stopEvidence = "The deployment platform confirms that previous-cont
 
 export const recoveryAction: IssueRecoveryAction = {
   id: "00000000-0000-4000-8000-000000000825",
-  companyId: "company-storybook", sourceIssueId: issueId, recoveryIssueId: null,
-  kind: "active_run_watchdog", status: "escalated", ownerType: "board",
+  spaceId: "space-storybook", sourceIssueId: issueId, recoveryIssueId: null,
+  kind: "active_run_watchdog", status: "escalated", ownerType: "operator",
   ownerAgentId: null, ownerUserId: null, previousOwnerAgentId: null, returnOwnerAgentId: null,
   cause: "native_workspace_finalization_owner_unverified", fingerprint: "storybook-saved-result",
   evidence: { runId: "00000000-0000-4000-8000-000000000826", owner: {

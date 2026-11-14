@@ -37,7 +37,7 @@ async function request(message) {
             const base = process.env.OUTPOST_API_URL.replace(/\/api\/?$/, '').replace(/\/$/, '');
             const response = await fetch(`${base}/api/issues/${process.env.OUTPOST_TASK_ID}`, {
               method: 'PATCH',
-              headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.OUTPOST_API_KEY}`, 'X-Paperclip-Run-Id': process.env.OUTPOST_RUN_ID },
+              headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.OUTPOST_API_KEY}`, 'X-Outpost-Run-Id': process.env.OUTPOST_RUN_ID },
               body: JSON.stringify({ status: 'done' }),
             });
             if (!response.ok) throw new Error(`Task completion failed: ${response.status} ${await response.text()}`);

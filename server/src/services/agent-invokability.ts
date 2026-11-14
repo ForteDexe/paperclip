@@ -7,7 +7,7 @@ type AgentStatus = (typeof agents.$inferSelect)["status"];
 
 export type AgentOrgRow = Pick<
   typeof agents.$inferSelect,
-  "id" | "companyId" | "name" | "reportsTo" | "status"
+  "id" | "spaceId" | "name" | "reportsTo" | "status"
 >;
 
 export type AgentInvokabilityBlockReason =
@@ -17,7 +17,7 @@ export type AgentInvokabilityBlockReason =
   | "pending_approval"
   | "unknown_status"
   | "manager_missing"
-  | "manager_company_mismatch"
+  | "manager_space_mismatch"
   | "manager_terminated"
   | "reporting_cycle"
   | "reporting_chain_too_deep";
@@ -57,7 +57,7 @@ function statusBlockReason(status: AgentStatus): AgentInvokabilityBlockReason | 
 function toEligibilityAgent(row: AgentOrgRow): AgentEligibilityAgent {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     name: row.name,
     status: row.status,
     reportsTo: row.reportsTo,
@@ -72,7 +72,7 @@ function invalidChainReason(health: AgentOrgChainHealth): AgentInvokabilityBlock
 
 export function evaluateAgentInvokability(
   agent: AgentOrgRow | null | undefined,
-  companyAgents: AgentOrgRow[],
+  spaceAgents: AgentOrgRow[],
 ): AgentInvokability {
   if (!agent) {
     return blocked("missing", "Agent no longer exists", {}, false);
@@ -80,7 +80,7 @@ export function evaluateAgentInvokability(
 
   const eligibility = getAgentWorkEligibility({
     agent: toEligibilityAgent(agent),
-    agents: companyAgents.map(toEligibilityAgent),
+    agents: spaceAgents.map(toEligibilityAgent),
   });
 
   if (eligibility.invokable) return { invokable: true };
@@ -120,25 +120,25 @@ export async function evaluateAgentInvokabilityFromDb(
   agent: AgentOrgRow | null | undefined,
 ): Promise<AgentInvokability> {
   if (!agent) return evaluateAgentInvokability(agent, []);
-  const companyAgents = await db
+  const spaceAgents = await db
     .select({
       id: agents.id,
-      companyId: agents.companyId,
+      spaceId: agents.spaceId,
       name: agents.name,
       reportsTo: agents.reportsTo,
       status: agents.status,
     })
     .from(agents)
-    .where(eq(agents.companyId, agent.companyId));
-  return evaluateAgentInvokability(agent, companyAgents);
+    .where(eq(agents.spaceId, agent.spaceId));
+  return evaluateAgentInvokability(agent, spaceAgents);
 }
 
 export function listInvalidOrgChainDescendantIds(
   terminatedAgentId: string,
-  companyAgents: AgentOrgRow[],
+  spaceAgents: AgentOrgRow[],
 ): string[] {
   const byManager = new Map<string | null, AgentOrgRow[]>();
-  for (const row of companyAgents) {
+  for (const row of spaceAgents) {
     const siblings = byManager.get(row.reportsTo ?? null) ?? [];
     siblings.push(row);
     byManager.set(row.reportsTo ?? null, siblings);

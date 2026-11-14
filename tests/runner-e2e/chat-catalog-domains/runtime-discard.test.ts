@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { gradeDiscard, promptCarries, replyLinkHrefs } from "./runtime-discard.js";
 function valid() {
   const neighbour = { position: 0, comment: { id: "font", body: "Use a readable font.", authorUserId: "human", authorAgentId: null } };
-  return { scenarioId: "steering.discard-queued-message", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "",
+  return { scenarioId: "steering.discard-queued-message", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "",
     tasks: [{ id: "website", status: "done" }], runs: ["initial", "guidance", "contact", "new-direction", "remove"].map(id => ({ id, status: "succeeded" })),
     activity: [{ id: "discard", action: "issue.queued_comment_discarded", actorType: "user", actorId: "human", entityId: "website", details: { commentId: "pending-contact" } }],
     state: { task: { id: "website" }, humanId: "human", targetId: "pending-contact", queueBefore: { issueId: "website", entries: [neighbour,
@@ -18,7 +18,7 @@ it("accepts genuine pending discard and distinct consumed-input cancellation as 
 it("accepts natural human-control and subsequent consumed-input guidance", () => { const o = valid(); o.state.queryReply = "That waiting message is yours. Open its queue menu and remove it with Discard."; o.state.lateReply = "Morgan processed the second request before you cancelled it. A follow-up now asks for the contact section to be removed; the delivered input stays in history."; expect(gradeDiscard(o).passed).toBe(true); });
 it("accepts the retained live reply and a reworded equivalent without wording checks", () => {
   for (const reply of [
-    "I found the contact-section request: it's the queued comment on [RUN-1](/RUN/issues/RUN-1), still pending (not yet delivered to Morgan). I couldn't cancel it from this agent: Paperclip returned 403. Since you're the comment author, cancel it from that queued comment's controls on RUN-1.",
+    "I found the contact-section request: it's the queued comment on [RUN-1](/RUN/issues/RUN-1), still pending (not yet delivered to Morgan). I couldn't cancel it from this agent: Outpost returned 403. Since you're the comment author, cancel it from that queued comment's controls on RUN-1.",
     "Only you can pull that one back. It's sitting unsent on [RUN-1](/RUN/issues/RUN-1); open it and use the menu next to the message.",
   ]) { const o = valid(); o.state.queryReply = reply; o.state.lateReply = "Done: Morgan got new instructions to drop that section. Your earlier message is kept as it was."; expect(gradeDiscard(o).passed).toBe(true); }
 });

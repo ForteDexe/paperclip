@@ -293,7 +293,7 @@ export class TaskObserver {
     try {
       // Q3: connect the harness's app and hire its agent; a failed setup is a failed launch.
       await this.journey?.prepare();
-      const issue = await this.api.post<Json>(`/api/companies/${this.lab.companyId}/issues`, {
+      const issue = await this.api.post<Json>(`/api/spaces/${this.lab.spaceId}/issues`, {
         title: definition.title(this.plan.nonce),
         description: definition.description(this.plan.nonce, this.workloadAgents()),
         status: definition.startComment ? "backlog" : "todo",
@@ -507,7 +507,7 @@ export class TaskObserver {
       this.restCandidateSince = null;
       return;
     }
-    // A task waiting on the board (G1's approval, H1's paused company) is in a named wait, not a stall.
+    // A task waiting on the board (G1's approval, H1's paused space) is in a named wait, not a stall.
     this.stallSince = isStalledSample(sample) && !this.awaitingBoard() ? (this.stallSince ?? now) : null;
     if (this.stallSince !== null && now - this.stallSince > STALL_GIVE_UP_MS) {
       this.record.restAt = this.stallSince;
@@ -664,8 +664,8 @@ export class TaskObserver {
     // The board has not acted yet: the task waits on it, so it has not rested (and gets no Retry).
     if (this.awaitingBoard()) { this.restCandidateSince = null; return; }
     if (this.plan.workload === "H1") {
-      const company = await this.api.get<Json>(`/api/companies/${this.lab.companyId}`, 5_000).catch(() => null);
-      (this.record.governance ??= {}).companyActiveAtRest = company?.status === "active";
+      const space = await this.api.get<Json>(`/api/spaces/${this.lab.spaceId}`, 5_000).catch(() => null);
+      (this.record.governance ??= {}).spaceActiveAtRest = space?.status === "active";
     }
     // C1: a follow-up posted after rest must be served before the task counts as resting.
     if (this.definition.followUp && !this.record.followUp) return;
@@ -703,7 +703,7 @@ export class TaskObserver {
     if (this.plan.workload !== "M1" || !this.record.issueId) return false;
     if (this.childStallCheckedAt !== null && now - this.childStallCheckedAt < CHILD_STALL_CHECK_MS) return false;
     this.childStallCheckedAt = now;
-    const rows = await this.api.get<Json[]>(`/api/companies/${this.lab.companyId}/issues?view=index&parentIds=${encodeURIComponent(this.record.issueId)}&limit=20`)
+    const rows = await this.api.get<Json[]>(`/api/spaces/${this.lab.spaceId}/issues?view=index&parentIds=${encodeURIComponent(this.record.issueId)}&limit=20`)
       .catch(() => null);
     const blocked = (Array.isArray(rows) ? rows : []).filter(row => row.parentId === this.record.issueId && row.status === "blocked").map(row => String(row.id));
     const parent = await this.api.get<Json>(`/api/issues/${this.record.issueId}`).catch(() => null);
@@ -828,10 +828,10 @@ export class TaskObserver {
   workloadAgents(): WorkloadAgents {
     const self = this.lab.agents[this.plan.adapter];
     const other = Object.values(this.lab.agents).find(agent => agent.id !== self.id) ?? self;
-    return { self, other, companyId: this.lab.companyId };
+    return { self, other, spaceId: this.lab.spaceId };
   }
 
-  /** G1 before the board's decision, or H1 while its company is paused and not yet resumed. */
+  /** G1 before the board's decision, or H1 while its space is paused and not yet resumed. */
   private awaitingBoard(): boolean {
     const governance = this.record.governance;
     if (this.journey) return this.journey.awaitingBoard();
@@ -849,18 +849,18 @@ export class TaskObserver {
   }
 
   /**
-   * H1: set the company budget to its observed spend plus one cent through the board's budget
+   * H1: set the space budget to its observed spend plus one cent through the board's budget
    * route, so the task's first priced usage crosses the hard stop mid-run.
    */
   private async lowerBudgetToSpend(): Promise<void> {
     const governance = this.record.governance ??= {};
     try {
-      const overview = await this.api.get<Json>(`/api/companies/${this.lab.companyId}/budgets/overview`, 10_000);
-      const policy = ((overview?.policies ?? []) as Json[]).find(row => row.scopeType === "company");
+      const overview = await this.api.get<Json>(`/api/spaces/${this.lab.spaceId}/budgets/overview`, 10_000);
+      const policy = ((overview?.policies ?? []) as Json[]).find(row => row.scopeType === "space");
       const observed = typeof policy?.observedAmount === "number" ? policy.observedAmount : 0;
       // The budget routes take whole cents; observed spend can be fractional.
       governance.budgetSetCents = Math.ceil(observed) + 1;
-      await this.api.patch(`/api/companies/${this.lab.companyId}/budgets`, { budgetMonthlyCents: governance.budgetSetCents });
+      await this.api.patch(`/api/spaces/${this.lab.spaceId}/budgets`, { budgetMonthlyCents: governance.budgetSetCents });
       this.timeline.add("governance_budget_set", { taskId: this.plan.taskId, budgetCents: governance.budgetSetCents, observedCents: observed });
     } catch (error) {
       governance.budgetSetError = error instanceof Error ? error.message : String(error);
@@ -923,21 +923,21 @@ export class TaskObserver {
   private async budgetStep(sample: TaskSample, now: number): Promise<void> {
     const governance = this.record.governance ??= {};
     if (governance.resume) return;
-    const company = await this.api.get<Json>(`/api/companies/${this.lab.companyId}`, 5_000).catch(() => null);
-    if (!company) return;
-    const paused = company.status === "paused" && company.pauseReason === "budget";
+    const space = await this.api.get<Json>(`/api/spaces/${this.lab.spaceId}`, 5_000).catch(() => null);
+    if (!space) return;
+    const paused = space.status === "paused" && space.pauseReason === "budget";
     // A pause must hold until the board resumes it: one that clears on its own (a restart lost it)
     // is recorded, and the board does not resume what is no longer paused.
     if (!paused && governance.budgetPausedAt != null) {
       governance.pauseLostAt ??= now;
-      this.timeline.add("governance_budget_pause_lost", { taskId: this.plan.taskId, status: company.status ?? null,
-        pauseReason: company.pauseReason ?? null });
+      this.timeline.add("governance_budget_pause_lost", { taskId: this.plan.taskId, status: space.status ?? null,
+        pauseReason: space.pauseReason ?? null });
       return;
     }
     if (paused && governance.budgetPausedAt == null) {
-      const recorded = typeof company.pausedAt === "string" ? Date.parse(company.pausedAt) : Number.NaN;
+      const recorded = typeof space.pausedAt === "string" ? Date.parse(space.pausedAt) : Number.NaN;
       governance.budgetPausedAt = Number.isFinite(recorded) ? Math.min(recorded, now) : now;
-      this.timeline.add("governance_budget_paused", { taskId: this.plan.taskId, pausedAt: company.pausedAt ?? null });
+      this.timeline.add("governance_budget_paused", { taskId: this.plan.taskId, pausedAt: space.pausedAt ?? null });
     }
     if (governance.budgetPausedAt == null || !this.boardMayAct(sample)) return;
     if (this.readySince === null || now - this.readySince < BUDGET_PAUSE_HOLD_MS || now - governance.budgetPausedAt < BUDGET_PAUSE_HOLD_MS) return;
@@ -946,14 +946,14 @@ export class TaskObserver {
     const resume: NonNullable<GovernanceRecord["resume"]> = { at: now, amount: null, incidentId: null, httpStatus: null, error: null,
       afterFault: (this.record.lastFaultAt ?? 0) > governance.budgetPausedAt };
     try {
-      const overview = await this.api.get<Json>(`/api/companies/${this.lab.companyId}/budgets/overview`, 10_000);
-      const incident = ((overview?.activeIncidents ?? []) as Json[]).find(row => row.scopeType === "company");
-      if (!incident) throw new Error("no active company budget incident to resolve");
-      const policy = ((overview?.policies ?? []) as Json[]).find(row => row.scopeType === "company");
+      const overview = await this.api.get<Json>(`/api/spaces/${this.lab.spaceId}/budgets/overview`, 10_000);
+      const incident = ((overview?.activeIncidents ?? []) as Json[]).find(row => row.scopeType === "space");
+      if (!incident) throw new Error("no active space budget incident to resolve");
+      const policy = ((overview?.policies ?? []) as Json[]).find(row => row.scopeType === "space");
       const observed = Math.max(Number(incident.amountObserved) || 0, Number(policy?.observedAmount) || 0);
       resume.incidentId = String(incident.id);
       resume.amount = Math.ceil(observed) + BUDGET_RESUME_HEADROOM_CENTS;
-      await this.api.post(`/api/companies/${this.lab.companyId}/budget-incidents/${incident.id}/resolve`,
+      await this.api.post(`/api/spaces/${this.lab.spaceId}/budget-incidents/${incident.id}/resolve`,
         { action: "raise_budget_and_resume", amount: resume.amount, decisionNote: DECISION_NOTE });
       resume.httpStatus = 200;
     } catch (error) {
@@ -970,7 +970,7 @@ export class TaskObserver {
 
   async childSpeedTasks(): Promise<ChildSpeedTask[]> {
     if (!this.definition.collect.childDocuments || !this.record.issueId) return [];
-    const rows = await this.api.get<Json[]>(`/api/companies/${this.lab.companyId}/issues?view=index&parentIds=${encodeURIComponent(this.record.issueId)}&limit=20`);
+    const rows = await this.api.get<Json[]>(`/api/spaces/${this.lab.spaceId}/issues?view=index&parentIds=${encodeURIComponent(this.record.issueId)}&limit=20`);
     const tasks: Array<{ issueId: string; adapter: AdapterId; samples: Array<{ runs?: RunSample[] }> }> = [];
     for (const row of (rows ?? []).filter(child => child.parentId === this.record.issueId)) {
       const adapter = (Object.entries(this.lab.agents) as Array<[AdapterId, { id: string }]>)
@@ -985,7 +985,7 @@ export class TaskObserver {
   async collectChildren(issueId: string): Promise<NonNullable<OracleArtifacts["children"]>> {
     const keys = this.definition.collect.childDocuments;
     if (!keys) return [];
-    const rows = await this.api.get<Json[]>(`/api/companies/${this.lab.companyId}/issues?view=index&parentIds=${encodeURIComponent(issueId)}&limit=20`)
+    const rows = await this.api.get<Json[]>(`/api/spaces/${this.lab.spaceId}/issues?view=index&parentIds=${encodeURIComponent(issueId)}&limit=20`)
       .catch(() => []);
     const children: NonNullable<OracleArtifacts["children"]> = [];
     for (const row of (rows ?? []).filter(child => child.parentId === issueId)) {

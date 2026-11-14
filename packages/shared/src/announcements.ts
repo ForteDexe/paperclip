@@ -8,11 +8,11 @@ export const ANNOUNCEMENT_ANIMATION_MAX_BYTES = 128 * 1024;
 // response additionally applies CSP sandbox (not supported in a meta tag).
 export const ANNOUNCEMENT_ANIMATION_CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'";
 
-// Only stable, company-relative board pages. Never API paths, entity IDs, or
+// Only stable, space-relative operator pages. Never API paths, entity IDs, or
 // routes that depend on an experimental feature being enabled.
 export const ANNOUNCEMENT_APP_ROUTES = [
   "/dashboard", "/issues", "/projects", "/agents", "/skills", "/apps",
-  "/routines", "/artifacts", "/company/settings",
+  "/routines", "/artifacts", "/space/settings",
 ] as const;
 
 export const announcementIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,95}$/);
@@ -46,7 +46,7 @@ export const announcementSchema = z.object({
   secondaryLink: announcementActionSchema.optional(),
   primaryAction: announcementActionSchema,
   expiresAt: z.string().datetime({ offset: true }).optional(),
-  minimumPaperclipVersion: z.string().regex(/^\d+\.\d+\.\d+$/).optional(),
+  minimumOutpostVersion: z.string().regex(/^\d+\.\d+\.\d+$/).optional(),
 }).strict().refine((value) => !value.animation || Boolean(value.image), {
   message: "An animation requires a static fallback image", path: ["image"],
 });
@@ -55,17 +55,17 @@ export const announcementManifestSchema = z.object({
   schemaVersion: z.literal(1),
   announcement: announcementSchema.nullable(),
 }).strict();
-export const dismissAnnouncementSchema = z.object({ companyId: z.string().uuid() }).strict();
+export const dismissAnnouncementSchema = z.object({ spaceId: z.string().uuid() }).strict();
 export type AnnouncementAction = z.infer<typeof announcementActionSchema>;
 export type Announcement = z.infer<typeof announcementSchema>;
 export type AnnouncementManifest = z.infer<typeof announcementManifestSchema>;
 
 export function isAnnouncementEligible(announcement: Announcement, version: string, now = Date.now()): boolean {
   if (announcement.expiresAt && Date.parse(announcement.expiresAt) <= now) return false;
-  if (!announcement.minimumPaperclipVersion) return true;
+  if (!announcement.minimumOutpostVersion) return true;
   const installed = /^(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.exec(version);
   if (!installed) return false;
-  const minimum = announcement.minimumPaperclipVersion.split(".").map(Number);
+  const minimum = announcement.minimumOutpostVersion.split(".").map(Number);
   for (let i = 0; i < 3; i++) {
     const difference = Number(installed[i + 1]) - minimum[i]!;
     if (difference !== 0) return difference > 0;

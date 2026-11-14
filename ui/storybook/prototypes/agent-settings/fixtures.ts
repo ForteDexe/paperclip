@@ -2,27 +2,27 @@ import type {
   AgentDetail,
   AgentInstructionsBundle,
   AgentSkillSnapshot,
-  CompanySkillListItem,
+  SpaceSkillListItem,
 } from "@outpost/shared";
 import {
   storybookHiredAgent,
   storybookAgents,
   storybookIssues,
   storybookSecrets,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 import { models as claudeModels } from "@outpost/adapter-claude-local";
 import { models as openCodeModels } from "@outpost/adapter-opencode-local";
 import { storybookEnvironments } from "../../fixtures/onboardingEnvironment";
 import { models as codexModels } from "@outpost/adapter-codex-local";
 import { runtimeTestResult, type TestOutcome } from "../new-agent-fixtures";
-export const COMPANY = "company-storybook";
+export const SPACE = "space-storybook";
 export const ID = "agent-settings-preview";
 export const REF = "nova";
 
 export const library = [
   [
-    "paperclip",
-    "Paperclip",
+    "outpost",
+    "Outpost",
     "Coordinate tasks, report progress, and work with your team.",
   ],
   [
@@ -42,7 +42,7 @@ export const library = [
   ],
 ].map(([key, name, description]) => ({
   id: `settings-skill-${key}`,
-  companyId: COMPANY,
+  spaceId: SPACE,
   key,
   slug: key,
   name,
@@ -71,15 +71,15 @@ export const library = [
   authorName: null,
   homepageUrl: null,
   categories: [],
-  sharingScope: "company",
+  sharingScope: "space",
   publicShareToken: null,
   forkedFromSkillId: null,
-  forkedFromCompanyId: null,
+  forkedFromSpaceId: null,
   starCount: 0,
   installCount: 1,
   forkCount: 0,
   currentVersionId: null,
-})) as CompanySkillListItem[];
+})) as SpaceSkillListItem[];
 
 export function createSettingsFixtures(
   adapterType = "claude_local",
@@ -118,7 +118,7 @@ export function createSettingsFixtures(
       grants: [],
     },
   };
-  let desiredSkills = ["paperclip", "design-guide"];
+  let desiredSkills = ["outpost", "design-guide"];
   let desiredSkillEntries = desiredSkills.map(key => ({ key, versionId: null as string | null }));
   const files: Record<string, string> = {
     "AGENTS.md":
@@ -126,13 +126,13 @@ export function createSettingsFixtures(
     "workflow.md":
       "# Delivery checklist\n\n1. Understand the user’s goal.\n2. Make a focused change.\n3. Verify the result.\n4. Explain what changed and how it was tested.\n",
     "references/product.md":
-      "# Product context\n\nPaperclip helps people coordinate teams of agents. Prefer simple workflows with visible progress.\n",
+      "# Product context\n\nOutpost helps people coordinate teams of agents. Prefer simple workflows with visible progress.\n",
   };
   let bundleMode: "managed" | "external" = "managed";
   let entryFile = "AGENTS.md";
   const bundle = (): AgentInstructionsBundle => ({
     agentId: ID,
-    companyId: COMPANY,
+    spaceId: SPACE,
     mode: bundleMode,
     rootPath: `/managed/agents/${ID}`,
     managedRootPath: `/managed/agents/${ID}`,
@@ -166,8 +166,8 @@ export function createSettingsFixtures(
       desired: true,
       managed: true,
       state: "configured",
-      origin: "company_managed",
-      originLabel: "Managed by Paperclip",
+      origin: "space_managed",
+      originLabel: "Managed by Outpost",
       readOnly: false,
       sourcePath: `skills/${key}`,
       targetPath: null,
@@ -186,7 +186,7 @@ export function createSettingsFixtures(
   let revisions = [
     {
       id: "71c4f91a-initial",
-      companyId: COMPANY,
+      spaceId: SPACE,
       agentId: ID,
       createdByAgentId: null,
       createdByUserId: "user-board",
@@ -201,7 +201,7 @@ export function createSettingsFixtures(
   let installs = [{ targetType: "agent", targetId: ID }];
   const connection = () => ({
     id: "settings-github",
-    companyId: COMPANY,
+    spaceId: SPACE,
     name: "GitHub",
     enabled: true,
     status: "active",
@@ -289,11 +289,11 @@ export function createSettingsFixtures(
           });
         if (url.pathname === "/api/instance/settings/general")
           return json({ executionMode: "any" });
-        if (url.pathname === `/api/companies/${COMPANY}/environments`)
+        if (url.pathname === `/api/spaces/${SPACE}/environments`)
           return json(storybookEnvironments());
-        if (url.pathname === `/api/companies/${COMPANY}/agents`)
+        if (url.pathname === `/api/spaces/${SPACE}/agents`)
           return json([...storybookAgents, agent]);
-        if (url.pathname === `/api/companies/${COMPANY}/secrets`) {
+        if (url.pathname === `/api/spaces/${SPACE}/secrets`) {
           if (method === "POST") {
             const data = await payload();
             const secret = {
@@ -308,7 +308,7 @@ export function createSettingsFixtures(
           }
           return json(secrets);
         }
-        if (url.pathname === `/api/companies/${COMPANY}/skills`)
+        if (url.pathname === `/api/spaces/${SPACE}/skills`)
           return json(library);
         if (url.pathname.match(/\/adapters\/[^/]+\/models$/))
           return json(
@@ -329,19 +329,19 @@ export function createSettingsFixtures(
               url.pathname.split("/").at(-2) ?? agent.adapterType,
               outcome,
               data.adapterConfig?.model ?? "",
-              "Paperclip Sandbox",
+              "Outpost Sandbox",
             ),
           );
         }
-        if (url.pathname === `/api/companies/${COMPANY}/tools/connections`)
+        if (url.pathname === `/api/spaces/${SPACE}/tools/connections`)
           return json({ connections: [connection()] });
-        if (url.pathname === `/api/companies/${COMPANY}/tools/profiles`)
+        if (url.pathname === `/api/spaces/${SPACE}/tools/profiles`)
           return json({ profiles: [] });
-        if (url.pathname === `/api/companies/${COMPANY}/chat-endpoints`)
+        if (url.pathname === `/api/spaces/${SPACE}/chat-endpoints`)
           return json([]);
-        if (url.pathname === `/api/companies/${COMPANY}/secret-proposals`)
+        if (url.pathname === `/api/spaces/${SPACE}/secret-proposals`)
           return json([]);
-        if (url.pathname === `/api/companies/${COMPANY}/tools/policies`)
+        if (url.pathname === `/api/spaces/${SPACE}/tools/policies`)
           return json({ policies: [] });
         if (url.pathname.includes("/tools/profiles/effective/agents/"))
           return json({
@@ -349,7 +349,7 @@ export function createSettingsFixtures(
               {
                 id: "profile-engineering",
                 name: "Engineering",
-                summary: { isCompanyDefault: true },
+                summary: { isSpaceDefault: true },
               },
             ],
             entries: [{ effect: "include", connectionId: "settings-github" }],
@@ -364,7 +364,7 @@ export function createSettingsFixtures(
           return json({ connectionId: "settings-github", installs });
         }
         if (
-          url.pathname === `/api/companies/${COMPANY}/issues` &&
+          url.pathname === `/api/spaces/${SPACE}/issues` &&
           method === "POST"
         ) {
           const data = await payload();

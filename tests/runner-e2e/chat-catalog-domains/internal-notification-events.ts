@@ -1,5 +1,5 @@
 export interface NotificationPublicFrame {
-  eventId: number; companyId: string; taskId: string; actorType: "user" | "agent"; actorId: string;
+  eventId: number; spaceId: string; taskId: string; actorType: "user" | "agent"; actorId: string;
   eventCreatedAt: string; eligible: boolean; at: number;
 }
 export interface NotificationBoundFrame {
@@ -14,29 +14,29 @@ export interface NotificationObserverInput {
 }
 const nonempty = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 const time = (v: unknown) => typeof v === "string" ? Date.parse(v) : NaN;
-export function publicNotificationFrame(value: unknown, companyId: string, taskId: string, at: number): NotificationPublicFrame | null {
+export function publicNotificationFrame(value: unknown, spaceId: string, taskId: string, at: number): NotificationPublicFrame | null {
   const message = value as Record<string, unknown> | null;
   const payload = message?.payload as Record<string, unknown> | undefined;
-  if (!message || !payload || message.companyId !== companyId || message.type !== "activity.logged" || payload.action !== "issue.comment_added"
+  if (!message || !payload || message.spaceId !== spaceId || message.type !== "activity.logged" || payload.action !== "issue.comment_added"
     || payload.entityType !== "issue" || payload.entityId !== taskId || !Number.isSafeInteger(message.id) || Number(message.id) <= 0
     || !["user", "agent"].includes(String(payload.actorType)) || !nonempty(payload.actorId) || typeof message.toastEligible !== "boolean"
     || !Number.isFinite(time(message.createdAt)) || !Number.isFinite(at) || at < time(message.createdAt)) return null;
-  return { eventId: Number(message.id), companyId, taskId, actorType: payload.actorType as "user" | "agent", actorId: payload.actorId,
+  return { eventId: Number(message.id), spaceId, taskId, actorType: payload.actorType as "user" | "agent", actorId: payload.actorId,
     eventCreatedAt: String(message.createdAt), eligible: message.toastEligible, at };
 }
-export function bindNotificationPublicEvents(companyId: string, taskId: string, observers: [NotificationObserverInput, NotificationObserverInput]) {
+export function bindNotificationPublicEvents(spaceId: string, taskId: string, observers: [NotificationObserverInput, NotificationObserverInput]) {
   const reject = (reason: string) => ({ complete: false, reason, frames: [[], []] as NotificationBoundFrame[][] });
-  if (!companyId || !taskId || observers[0].principalId === observers[1].principalId
+  if (!spaceId || !taskId || observers[0].principalId === observers[1].principalId
     || observers.some(o => !o.principalId || o.principalId !== o.sessionPrincipalId || o.overflow)) return reject("principal-or-capture-invalid");
   if (observers.some(o => o.baselineCommentIds.length || o.activity.some(a => o.baselineActivityIds.includes(String(a.id)) && a.entityType === "issue" && a.entityId === taskId && a.action === "issue.comment_added"))) return reject("not-a-fresh-comment-boundary");
   const normalized = [];
   for (const observer of observers) {
     if (new Set(observer.frames.map(f => f.eventId)).size !== observer.frames.length) return reject("duplicate-public-event");
-    if (observer.frames.some(f => f.companyId !== companyId || f.taskId !== taskId || !Number.isSafeInteger(f.eventId) || f.eventId <= 0
+    if (observer.frames.some(f => f.spaceId !== spaceId || f.taskId !== taskId || !Number.isSafeInteger(f.eventId) || f.eventId <= 0
       || !["user", "agent"].includes(f.actorType) || !f.actorId || typeof f.eligible !== "boolean" || !Number.isFinite(time(f.eventCreatedAt))
       || !Number.isFinite(f.at) || f.at < time(f.eventCreatedAt))) return reject("public-event-scope-invalid");
-    const comments = observer.comments.filter(c => !observer.baselineCommentIds.includes(String(c.id)) && c.companyId === companyId && c.issueId === taskId);
-    const activity = observer.activity.filter(a => !observer.baselineActivityIds.includes(String(a.id)) && a.companyId === companyId
+    const comments = observer.comments.filter(c => !observer.baselineCommentIds.includes(String(c.id)) && c.spaceId === spaceId && c.issueId === taskId);
+    const activity = observer.activity.filter(a => !observer.baselineActivityIds.includes(String(a.id)) && a.spaceId === spaceId
       && a.entityType === "issue" && a.entityId === taskId && a.action === "issue.comment_added");
     if (new Set(comments.map(c => c.id)).size !== comments.length || new Set(activity.map(a => a.id)).size !== activity.length) return reject("duplicate-saved-evidence");
     const rows = [];

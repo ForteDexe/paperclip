@@ -21,13 +21,13 @@ async function executeFailure(
   mode = "oneshot",
   createRuntime?: AcpxEngineExecutorOptions["createRuntime"],
 ) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-acp-quota-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-acp-quota-"));
   roots.push(root);
   const logs: string[] = [];
   const execute = createCodexAcpExecutor({ now: () => now.getTime(), createRuntime });
   const result = await execute({
     runId: "typed-quota",
-    agent: { id: "quota-agent", companyId: "quota-company" },
+    agent: { id: "quota-agent", spaceId: "quota-space" },
     runtime: {},
     config: {
       agentCommand: `${JSON.stringify(process.execPath.replaceAll("\\", "/"))} ${JSON.stringify(fixture.replaceAll("\\", "/"))}`,

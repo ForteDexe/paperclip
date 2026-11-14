@@ -110,7 +110,7 @@ jobs:
             fi
           done
 
-      - name: Resolve requested Paperclip branch to an immutable commit
+      - name: Resolve requested Outpost branch to an immutable commit
         id: target
         env:
           GH_TOKEN: ${{ github.token }}
@@ -200,7 +200,7 @@ jobs:
           set -euo pipefail
           if [ "$ACCOUNTING_MODE" != controlled ] && [ "$AWS_PAID_RUNNER_ENABLED" = true ]; then
             {
-              echo 'runner=runs-on/fleet=paperclip-public-pr-x64/env=public-ci'
+              echo 'runner=runs-on/fleet=outpost-public-pr-x64/env=public-ci'
               echo 'max_parallel_default=100'
               echo 'max_parallel_limit=100'
             } >> "$GITHUB_OUTPUT"
@@ -357,7 +357,7 @@ jobs:
         with:
           repository: paperclipai/paperclip-evals
           ref: ${{ needs.authorize.outputs.evals_sha }}
-          path: .paperclip-evals
+          path: .outpost-evals
           token: ${{ steps.evals_token.outputs.value }}
           persist-credentials: false
 
@@ -387,7 +387,7 @@ jobs:
             MAX_PARALLEL="$MAX_PARALLEL_LIMIT"
           fi
           node packages/outpost-runner/scripts/runner-protocol-eval-campaign.mjs catalog \
-            --evals-root .paperclip-evals \
+            --evals-root .outpost-evals \
             --rosters "$ROSTERS" \
             --grok-authentication "$GROK_AUTHENTICATION" \
             --campaign-id "gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
@@ -424,7 +424,7 @@ jobs:
       - name: Require the chat-report renderer before paid execution
         run: |
           set -euo pipefail
-          python3 .paperclip-evals/evals/outpost-runner/tools/eval_program.py report --help | grep -q -- --public-viewer
+          python3 .outpost-evals/evals/outpost-runner/tools/eval_program.py report --help | grep -q -- --public-viewer
 
       - name: Upload immutable campaign catalog
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -492,7 +492,7 @@ jobs:
       - name: Materialize the pinned Grok executable when the target includes it
         run: |
           if [ -f packages/outpost-runner/scripts/provision-grok.mjs ]; then
-            sudo node packages/outpost-runner/scripts/provision-grok.mjs /opt/paperclip/providers/grok/1.0.13/grok
+            sudo node packages/outpost-runner/scripts/provision-grok.mjs /opt/outpost/providers/grok/1.0.13/grok
           fi
 
       - name: Build runner CLI, daemon, and canonical attempt viewer
@@ -502,7 +502,7 @@ jobs:
           pnpm --filter @outpost/outpost-runner build:runner-binaries
           pnpm --filter @outpost/outpost-runner build:issue-thread
           # Older target refs must fail before paid cells, not publish an empty viewer.
-          grep -q 'paperclip-eval-report' packages/outpost-runner/dist-issue-thread/assets/*.js
+          grep -q 'outpost-eval-report' packages/outpost-runner/dist-issue-thread/assets/*.js
           grep -q 'evalbook-site' packages/outpost-runner/dist-issue-thread/assets/*.css
 
       - name: Package a portable provider runtime
@@ -652,7 +652,7 @@ jobs:
         with:
           repository: paperclipai/paperclip-evals
           ref: ${{ needs.authorize.outputs.evals_sha }}
-          path: .paperclip-evals
+          path: .outpost-evals
           token: ${{ steps.evals_token.outputs.value }}
           persist-credentials: false
 
@@ -708,13 +708,13 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git -C .paperclip-evals rev-parse HEAD)" = "$OUTPOST_PROTOCOL_EVALS_SHA"
-          python3 .paperclip-evals/evals/outpost-runner/tools/eval_program.py report --help | grep -q -- --controller-manifest
+          test "$(git -C .outpost-evals rev-parse HEAD)" = "$OUTPOST_PROTOCOL_EVALS_SHA"
+          python3 .outpost-evals/evals/outpost-runner/tools/eval_program.py report --help | grep -q -- --controller-manifest
           (cd runner-protocol-build && sha256sum --check runner-protocol-build.tar.gz.sha256)
           mkdir runner-protocol-build/extracted
           tar -xzf runner-protocol-build/runner-protocol-build.tar.gz -C runner-protocol-build/extracted
           worker="/tmp/outpost-runner-controlled-${GITHUB_RUN_ID}"
-          python3 .paperclip-evals/evals/outpost-runner/tools/prepare_controlled_campaign.py \
+          python3 .outpost-evals/evals/outpost-runner/tools/prepare_controlled_campaign.py \
             --catalog runner-protocol-catalog/runner-protocol-eval-catalog.json \
             --runnerd runner-protocol-build/extracted/outpost-runnerd \
             --worker-runnerd "$worker/runner/outpost-runnerd" \
@@ -805,7 +805,7 @@ jobs:
         with:
           repository: paperclipai/paperclip-evals
           ref: ${{ needs.authorize.outputs.evals_sha }}
-          path: .paperclip-evals
+          path: .outpost-evals
           token: ${{ steps.evals_token.outputs.value }}
           persist-credentials: false
 
@@ -885,8 +885,8 @@ jobs:
           if (!binary.startsWith(root + "/node_modules/.pnpm/") || !binary.endsWith(suffix) || !/^[/A-Za-z0-9_.@+\-]+$/.test(binary)) {
             throw new Error("Codex executable is outside the resolved dependency tree");
           }
-          const name = `paperclip-e2e-codex-${createHash("sha256").update(binary).digest("hex").slice(0,16)}`;
-          const profilePath = path.join(process.env.RUNNER_TEMP, "paperclip-codex-userns.apparmor");
+          const name = `outpost-e2e-codex-${createHash("sha256").update(binary).digest("hex").slice(0,16)}`;
+          const profilePath = path.join(process.env.RUNNER_TEMP, "outpost-codex-userns.apparmor");
           writeFileSync(profilePath, `abi <abi/4.0>,\ninclude <tunables/global>\nprofile ${name} "${binary}" flags=(unconfined) {\n  userns,\n}\n`, {mode:0o600, flag:"wx"});
           execFileSync("sudo", ["-n", "apparmor_parser", "-r", profilePath], {timeout:15000, stdio:"pipe"});
           NODE
@@ -1010,8 +1010,8 @@ jobs:
             runnerd="$root/runner/outpost-runnerd"
           fi
           set +e
-          python3 .paperclip-evals/evals/outpost-runner/tools/run_live_roster.py run \
-            --roster ".paperclip-evals/evals/outpost-runner/rosters/$ROSTER_FILE" \
+          python3 .outpost-evals/evals/outpost-runner/tools/run_live_roster.py run \
+            --roster ".outpost-evals/evals/outpost-runner/rosters/$ROSTER_FILE" \
             --case "$CASE_ID" \
             --runner-cli "$runner_cli" \
             --runner-package "$runner_package" \
@@ -1125,7 +1125,7 @@ jobs:
         with:
           repository: paperclipai/paperclip-evals
           ref: ${{ needs.authorize.outputs.evals_sha }}
-          path: .paperclip-evals
+          path: .outpost-evals
           token: ${{ steps.evals_token.outputs.value }}
           persist-credentials: false
 
@@ -1252,7 +1252,7 @@ jobs:
           node packages/outpost-runner/scripts/runner-protocol-eval-campaign.mjs aggregate \
             --catalog runner-protocol-catalog/runner-protocol-eval-catalog.json \
             --downloads downloaded-runner-protocol-evals \
-            --evals-root .paperclip-evals \
+            --evals-root .outpost-evals \
             --runs-out runner-protocol-merged/runs \
             --campaign-out runner-protocol-merged/campaign.json
 
@@ -1263,12 +1263,12 @@ jobs:
             control_args=(--controller-manifest "$OUTPOST_RUNNER_EVAL_CONTROL_MANIFEST" --controller-archive-cli "$OUTPOST_RUNNER_EVAL_ARCHIVE_CLI")
           fi
           set +e
-          python3 .paperclip-evals/evals/outpost-runner/tools/eval_program.py report "${control_args[@]}" \
+          python3 .outpost-evals/evals/outpost-runner/tools/eval_program.py report "${control_args[@]}" \
             --runs-root runner-protocol-merged/runs \
             --output runner-protocol-merged/report \
             --viewer-root runner-protocol-build/extracted/dist-issue-thread \
-            --inventory .paperclip-evals/evals/outpost-runner/inventory.json \
-            --coverage-matrix .paperclip-evals/evals/outpost-runner/coverage-matrix.json > runner-protocol-merged/accounting-report.json
+            --inventory .outpost-evals/evals/outpost-runner/inventory.json \
+            --coverage-matrix .outpost-evals/evals/outpost-runner/coverage-matrix.json > runner-protocol-merged/accounting-report.json
           status=$?
           set -e
           cp runner-protocol-merged/campaign.json runner-protocol-merged/report/campaign.json
@@ -1287,13 +1287,13 @@ jobs:
       - name: Render the same canonical grid from a public-safe evidence projection
         if: needs.authorize.outputs.accounting_mode == 'legacy'
         run: |
-          python3 .paperclip-evals/evals/outpost-runner/tools/eval_program.py report \
+          python3 .outpost-evals/evals/outpost-runner/tools/eval_program.py report \
             --runs-root runner-protocol-merged/public-runs \
             --output runner-protocol-merged/public-report \
             --viewer-root runner-protocol-build/extracted/dist-issue-thread \
             --public-viewer \
-            --inventory .paperclip-evals/evals/outpost-runner/inventory.json \
-            --coverage-matrix .paperclip-evals/evals/outpost-runner/coverage-matrix.json
+            --inventory .outpost-evals/evals/outpost-runner/inventory.json \
+            --coverage-matrix .outpost-evals/evals/outpost-runner/coverage-matrix.json
           cp runner-protocol-merged/campaign.json runner-protocol-merged/public-report/campaign.json
 
       - name: Create the closed TestOps projection inside the report boundary
@@ -1354,7 +1354,7 @@ jobs:
           {
             echo '## Runner direct live protocol evals'
             echo
-            jq -r '"- Cells: \(.totals.passed)/\(.totals.selected) passed\n- Behavior failures: \(.totals.behaviorFailures)\n- Infrastructure failures: \(.totals.infrastructureFailures)\n- Paperclip: `\(.source.outpost.sha)`\n- Evals: `\(.source.evals.sha)`"' runner-protocol-merged/campaign.json
+            jq -r '"- Cells: \(.totals.passed)/\(.totals.selected) passed\n- Behavior failures: \(.totals.behaviorFailures)\n- Infrastructure failures: \(.totals.infrastructureFailures)\n- Outpost: `\(.source.outpost.sha)`\n- Evals: `\(.source.evals.sha)`"' runner-protocol-merged/campaign.json
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Retain controlled Evalbook and accounting in private storage

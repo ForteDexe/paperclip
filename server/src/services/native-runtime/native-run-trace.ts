@@ -255,7 +255,7 @@ function safeAttributes(
 }
 
 /**
- * Run-scoped tracing for the native Paperclip runner path.
+ * Run-scoped tracing for the native Outpost runner path.
  *
  * A scope owns a real OpenTelemetry parent context. While work runs inside a
  * scope, nested native measurements and the existing sandbox/provider tracing
@@ -703,7 +703,7 @@ export function createNativeRunTrace(input: {
   };
 
   /** Restart recovery latency: control plane ready to the recovered run's
-   * next provider event, checked once per run. Only Paperclip's share is
+   * next provider event, checked once per run. Only Outpost's share is
    * judged: ready to the start of the provider's session load (or to the
    * event when nothing reloads). It is judged as soon as both are known: at
    * the check when the load span is already recorded or nothing reloads (a

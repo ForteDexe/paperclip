@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, completionContracts, createDb, heartbeatRuns, issueWorkProducts, issues, nativeRunFinalizations,
+import { agents, spaces, completionContracts, createDb, heartbeatRuns, issueWorkProducts, issues, nativeRunFinalizations,
   nativeRunResults, statusDecisions, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
@@ -21,7 +21,7 @@ describe("stale owner completion policy", () => {
   });
   it.each([
     ["another agent", { ...owner, assigneeAgentId: "agent-b" }],
-    ["a board user", { ...owner, assigneeAgentId: null, assigneeUserId: "user-1" }],
+    ["a operator user", { ...owner, assigneeAgentId: null, assigneeUserId: "user-1" }],
     ["nobody", { ...owner, assigneeAgentId: null }],
   ])("preserves status when the task now belongs to %s", (_label, issue) => {
     expect(supersedeStaleOwnerCompletion(done, issue, "agent-a")).toEqual({ ...done, statusAction: "preserve",
@@ -55,29 +55,29 @@ describe.skipIf(!support.supported)("native completion after reassignment", () =
    * pendingEvidence, the server arbiter waits for review of a work product.
    */
   async function acceptedDoneResult(options: { pendingEvidence?: boolean } = {}) {
-    const companyId = randomUUID(), agentId = randomUUID(), successorId = randomUUID(), issueId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), successorId = randomUUID(), issueId = randomUUID();
     const runId = randomUUID(), sessionId = randomUUID(), runnerId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Stale owner fixture", issuePrefix: companyId.slice(0, 8) });
+    await db.insert(spaces).values({ id: spaceId, name: "Stale owner fixture", issuePrefix: spaceId.slice(0, 8) });
     await db.insert(agents).values([
-      { id: agentId, companyId, name: "Original owner", adapterType: "outpost_runner" },
-      { id: successorId, companyId, name: "New owner", adapterType: "outpost_runner" },
+      { id: agentId, spaceId, name: "Original owner", adapterType: "outpost_runner" },
+      { id: successorId, spaceId, name: "New owner", adapterType: "outpost_runner" },
     ]);
-    await db.insert(issues).values({ id: issueId, companyId, title: "FizzBuzz variants", status: "in_progress",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "FizzBuzz variants", status: "in_progress",
       assigneeAgentId: agentId, description: "Write fizzbuzz with tests and mark done." });
-    const [contract] = await db.insert(completionContracts).values({ companyId, issueId, revision: 1,
+    const [contract] = await db.insert(completionContracts).values({ spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: options.pendingEvidence ? "standard" : "low",
       completionAuthority: options.pendingEvidence ? "server_arbiter" : "agent_claim_policy",
       incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: { revision: "test", objective: "Write fizzbuzz", criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: `stale-owner-${issueId}`, createdByActorType: "system", createdByActorId: "test" }).returning();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, nativeSessionId: sessionId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId, nativeSessionId: sessionId,
       runnerInstanceId: runnerId, completionContractId: contract.id, completionContractSha256: contract.canonicalSha256,
       status: "running", runtimeMode: "native", contextSnapshot: { issueId, source: "issue.assigned" } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     const workProductId = randomUUID();
-    if (options.pendingEvidence) await db.insert(issueWorkProducts).values({ id: workProductId, companyId, issueId,
-      type: "artifact", provider: "paperclip", title: "fizzbuzz.py", status: "ready_for_review", reviewState: "none" });
+    if (options.pendingEvidence) await db.insert(issueWorkProducts).values({ id: workProductId, spaceId, issueId,
+      type: "artifact", provider: "outpost", title: "fizzbuzz.py", status: "ready_for_review", reviewState: "none" });
     const evidenceRef = options.pendingEvidence ? `work_product:${workProductId}` : `task:${issueId}`;
-    const port = new NativeRunCoordinatorStore(db, { companyId, issueId, runId, agentId, normalizedSessionId: sessionId,
+    const port = new NativeRunCoordinatorStore(db, { spaceId, issueId, runId, agentId, normalizedSessionId: sessionId,
       runnerSourceInstanceId: runnerId, completionContractId: contract.id, completionContractSha256: contract.canonicalSha256,
       completionContractRevision: "test", completionContractCriterionIds: ["objective"] });
     await port.completeRun({ result: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done",
@@ -87,10 +87,10 @@ describe.skipIf(!support.supported)("native completion after reassignment", () =
       verification: [{ commandOrCheck: "pytest -q", status: "passed", detail: "6 passed", artifactRef: evidenceRef }], attentionRequests: [], artifacts: [] },
     terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed",
       reportedWorkDisposition: "done" }, turnId: "fizzbuzz-turn" });
-    return { companyId, agentId, successorId, issueId, runId, workProductId };
+    return { spaceId, agentId, successorId, issueId, runId, workProductId };
   }
 
-  /** The board's reassignment: new owner, and the old run loses execution. */
+  /** The operator's reassignment: new owner, and the old run loses execution. */
   async function reassign(f: Awaited<ReturnType<typeof acceptedDoneResult>>) {
     await db.update(issues).set({ assigneeAgentId: f.successorId, executionRunId: null, checkoutRunId: null })
       .where(eq(issues.id, f.issueId));
@@ -98,13 +98,13 @@ describe.skipIf(!support.supported)("native completion after reassignment", () =
       .where(eq(heartbeatRuns.id, f.runId));
   }
 
-  /** The board's Stop, then the user's continue comment starts a new run that holds the task. */
+  /** The operator's Stop, then the user's continue comment starts a new run that holds the task. */
   async function stopAndContinue(f: Awaited<ReturnType<typeof acceptedDoneResult>>) {
     await db.update(heartbeatRuns).set({ status: "cancelled", errorCode: "cancelled", finishedAt: new Date() })
       .where(eq(heartbeatRuns.id, f.runId));
     await db.update(issues).set({ executionRunId: null, checkoutRunId: null }).where(eq(issues.id, f.issueId));
     const continuationRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: continuationRunId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: continuationRunId, spaceId: f.spaceId, agentId: f.agentId,
       nativeIssueId: f.issueId, status: "running", runtimeMode: "native",
       contextSnapshot: { issueId: f.issueId, source: "issue.comment" } });
     await db.update(issues).set({ executionRunId: continuationRunId, checkoutRunId: continuationRunId })

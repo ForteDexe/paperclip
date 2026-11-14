@@ -72,7 +72,7 @@ repository rejection. Explicit completion and review modes remain distinct from
 an unfinished standard-task yield. They do not establish the live matrix.
 
 A fresh local provider pilot exposed a separate repository authorization defect:
-the native API retained the local-board identity while the workspace fence
+the native API retained the local-operator identity while the workspace fence
 expected its older null representation. A native-tool/HTTP/PostgreSQL regression
 reproduces the rejection before the fix. The repaired authorization cohort passes
 78 checks, including revoked membership, changed sponsor, and restricted child

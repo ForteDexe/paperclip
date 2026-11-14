@@ -38,7 +38,7 @@ const mockDbSelectWhere = vi.hoisted(() => vi.fn(() => ({
     then: (onFulfilled: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
       Promise.resolve([{
         id: "55555555-5555-4555-8555-555555555555",
-        companyId: "company-1",
+        spaceId: "space-1",
         agentId: "33333333-3333-4333-8333-333333333333",
         contextSnapshot: { issueId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
         permissions: null,
@@ -47,7 +47,7 @@ const mockDbSelectWhere = vi.hoisted(() => vi.fn(() => ({
   then: (onFulfilled: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
     Promise.resolve([{
       id: "55555555-5555-4555-8555-555555555555",
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "33333333-3333-4333-8333-333333333333",
       contextSnapshot: { issueId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
       permissions: null,
@@ -86,27 +86,27 @@ function registerModuleMocks() {
   }));
 
   vi.doMock("../services/index.js", () => ({
-    companyService: () => ({
-      getById: vi.fn(async () => ({ id: "company-1" })),
+    spaceService: () => ({
+      getById: vi.fn(async () => ({ id: "space-1" })),
     }),
     accessService: () => mockAccessService,
     agentService: () => ({
       getById: vi.fn(async (agentId: string) => ({
         id: agentId,
-        companyId: "company-1",
+        spaceId: "space-1",
         permissions: null,
       })),
-      resolveByReference: vi.fn(async (_companyId: string, reference: string) => ({
+      resolveByReference: vi.fn(async (_spaceId: string, reference: string) => ({
         ambiguous: false,
         agent: {
           id: reference,
-          companyId: "company-1",
+          spaceId: "space-1",
           status: "idle",
           orgChainHealth: { status: "healthy" },
         },
       })),
     }),
-    companySkillService: () => ({
+    spaceSkillService: () => ({
       completeTestRunForIssue: vi.fn(async () => null),
     }),
     documentAnnotationService: () => ({ remapOpenThreadsForDocument: async () => [] }),
@@ -129,7 +129,7 @@ function registerModuleMocks() {
           feedbackDataSharingPreference: "prompt",
         },
       })),
-      listCompanyIds: vi.fn(async () => ["company-1"]),
+      listSpaceIds: vi.fn(async () => ["space-1"]),
     }),
     issueApprovalService: () => mockIssueApprovalService,
     issueReferenceService: () => ({
@@ -162,16 +162,16 @@ function registerModuleMocks() {
 
 type TestActor =
   | {
-      type: "board";
+      type: "operator";
       userId: string;
-      companyIds: string[];
+      spaceIds: string[];
       source: "local_implicit";
       isInstanceAdmin: boolean;
     }
   | {
       type: "agent";
       agentId: string;
-      companyId: string;
+      spaceId: string;
       runId: string | null;
     };
 
@@ -188,9 +188,9 @@ async function createApp(actor?: TestActor) {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = actor ?? {
-      type: "board",
-      userId: "local-board",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "local-operator",
+      spaceIds: ["space-1"],
       source: "local_implicit",
       isInstanceAdmin: false,
     };
@@ -228,10 +228,10 @@ describe("issue execution policy routes", () => {
       if (name !== "issues" && name !== "agents") return { where: mockDbSelectWhere };
       return { where: (condition: SQL) => {
         const ids = [...new Set(new PgDialect().sqlToQuery(condition).params
-          .filter((value): value is string => typeof value === "string" && value !== "company-1"))];
+          .filter((value): value is string => typeof value === "string" && value !== "space-1"))];
         const rows = async () => name === "issues"
           ? (await Promise.all(ids.map(id => mockIssueService.getById(id)))).filter(row => row && ids.includes(row.id))
-          : ids.map(id => ({ id, companyId: "company-1", permissions: null }));
+          : ids.map(id => ({ id, spaceId: "space-1", permissions: null }));
         const query = {
           orderBy: () => query,
           for: () => query,
@@ -246,7 +246,7 @@ describe("issue execution policy routes", () => {
         then: (onFulfilled: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
           Promise.resolve([{
             id: "55555555-5555-4555-8555-555555555555",
-            companyId: "company-1",
+            spaceId: "space-1",
             agentId: "33333333-3333-4333-8333-333333333333",
             contextSnapshot: { issueId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
             permissions: null,
@@ -255,7 +255,7 @@ describe("issue execution policy routes", () => {
       then: (onFulfilled: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
         Promise.resolve([{
           id: "55555555-5555-4555-8555-555555555555",
-          companyId: "company-1",
+          spaceId: "space-1",
           agentId: "33333333-3333-4333-8333-333333333333",
           contextSnapshot: { issueId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
           permissions: null,
@@ -264,7 +264,7 @@ describe("issue execution policy routes", () => {
     mockIssueService.createChild.mockResolvedValue({
       issue: {
         id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-        companyId: "company-1",
+        spaceId: "space-1",
         identifier: "PAP-1002",
         title: "Child issue",
       },
@@ -272,10 +272,10 @@ describe("issue execution policy routes", () => {
     });
     mockAccessService.canUser.mockResolvedValue(false);
     mockAccessService.decide.mockImplementation(async (input: { actor?: { type?: string; source?: string }; action?: string }) => {
-      const allowed = input.actor?.type === "board" && input.actor.source === "local_implicit"
+      const allowed = input.actor?.type === "operator" && input.actor.source === "local_implicit"
         ? true
         : input.actor?.type === "agent" && [
-            "company_scope:read",
+            "space_scope:read",
             "issue:read",
             "issue:mutate",
             "runtime:manage",
@@ -300,7 +300,7 @@ describe("issue execution policy routes", () => {
     { interrupt: true },
     { comment: "Continue now" },
   ])("rejects mixed snapshot-guarded updates before execution side effects: %j", async (controlFields) => {
-    const res = await request(await createApp({ type: "board", source: "local_implicit", userId: "local-board", companyIds: ["company-1"], isInstanceAdmin: false }))
+    const res = await request(await createApp({ type: "operator", source: "local_implicit", userId: "local-operator", spaceIds: ["space-1"], isInstanceAdmin: false }))
       .patch("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
       .send({ expectedExecutionPolicy: null, executionPolicy: null, ...controlFields });
     expect(res.status).toBe(422);
@@ -312,7 +312,7 @@ describe("issue execution policy routes", () => {
   });
 
   it("rejects a snapshot without a policy update", async () => {
-    const res = await request(await createApp({ type: "board", source: "local_implicit", userId: "local-board", companyIds: ["company-1"], isInstanceAdmin: false }))
+    const res = await request(await createApp({ type: "operator", source: "local_implicit", userId: "local-operator", spaceIds: ["space-1"], isInstanceAdmin: false }))
       .patch("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
       .send({ expectedExecutionPolicy: null });
     expect(res.status).toBe(422);
@@ -322,7 +322,7 @@ describe("issue execution policy routes", () => {
 
   it("rejects a stale status version before changing or waking a task", async () => {
     const issue = {
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", companyId: "company-1",
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId: "space-1",
       status: "backlog", statusVersion: 8, title: "Prepared task", identifier: "TEST-1",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333", assigneeUserId: null,
     };
@@ -340,14 +340,14 @@ describe("issue execution policy routes", () => {
 
   it("does not adopt a checkout when a prepared task became active before promotion", async () => {
     const issue = {
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", companyId: "company-1",
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId: "space-1",
       status: "in_progress", statusVersion: 8, title: "Active task", identifier: "TEST-1",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333", assigneeUserId: null,
     };
     mockIssueService.getById.mockResolvedValue(issue);
     mockIssueService.assertCheckoutOwner.mockResolvedValueOnce({ adoptedFromRunId: "previous-run" });
     const res = await request(await createApp({
-      type: "agent", agentId: issue.assigneeAgentId, companyId: "company-1",
+      type: "agent", agentId: issue.assigneeAgentId, spaceId: "space-1",
       runId: "55555555-5555-4555-8555-555555555555",
     })).patch(`/api/issues/${issue.id}`).send({ status: "todo", expectedStatusVersion: 7 });
     expect(res.status).toBe(409);
@@ -358,7 +358,7 @@ describe("issue execution policy routes", () => {
 
   it("forwards a matching status version to the locked update", async () => {
     const issue = {
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", companyId: "company-1",
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId: "space-1",
       status: "backlog", statusVersion: 7, title: "Prepared task", identifier: "TEST-1",
       assigneeAgentId: null, assigneeUserId: null,
     };
@@ -374,7 +374,7 @@ describe("issue execution policy routes", () => {
 
   it("does not audit or wake a promotion rejected by the locked version check", async () => {
     const issue = {
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", companyId: "company-1",
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId: "space-1",
       status: "backlog", statusVersion: 7, title: "Prepared task", identifier: "TEST-1",
       assigneeAgentId: null, assigneeUserId: null,
     };
@@ -408,12 +408,12 @@ describe("issue execution policy routes", () => {
   it("reauthorizes a terminal verdict against the review policy held under the update lock", async () => {
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "in_review",
       reviewPolicy: "anyone",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1002",
       title: "Concurrent policy update",
       executionPolicy: null,
@@ -428,7 +428,7 @@ describe("issue execution policy routes", () => {
     const res = await request(await createApp({
       type: "agent",
       agentId: "33333333-3333-4333-8333-333333333333",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "55555555-5555-4555-8555-555555555555",
     }))
       .patch("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
@@ -449,11 +449,11 @@ describe("issue execution policy routes", () => {
   it("rejects an agent-authored in_review transition without a review path", async () => {
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "todo",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1003",
       title: "Missing review path",
       executionPolicy: null,
@@ -464,7 +464,7 @@ describe("issue execution policy routes", () => {
     const res = await request(await createApp({
       type: "agent",
       agentId: "33333333-3333-4333-8333-333333333333",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "55555555-5555-4555-8555-555555555555",
     }))
       .patch("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
@@ -483,11 +483,11 @@ describe("issue execution policy routes", () => {
   it("allows an agent-authored in_review transition with a pending confirmation interaction", async () => {
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "todo",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1004",
       title: "Pending confirmation",
       executionPolicy: null,
@@ -512,7 +512,7 @@ describe("issue execution policy routes", () => {
     const res = await request(await createApp({
       type: "agent",
       agentId: "33333333-3333-4333-8333-333333333333",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "55555555-5555-4555-8555-555555555555",
     }))
       .patch("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
@@ -538,11 +538,11 @@ describe("issue execution policy routes", () => {
   it("binds an explicitly designated same-run confirmation to the review transition", async () => {
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "todo",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1004",
       title: "Pending confirmation",
       executionPolicy: null,
@@ -566,7 +566,7 @@ describe("issue execution policy routes", () => {
     const res = await request(await createApp({
       type: "agent",
       agentId: "33333333-3333-4333-8333-333333333333",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "55555555-5555-4555-8555-555555555555",
     }))
       .patch("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
@@ -596,11 +596,11 @@ describe("issue execution policy routes", () => {
   it("binds a user-designated confirmation to the review transition activity", async () => {
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "todo",
       assigneeAgentId: null,
-      assigneeUserId: "local-board",
-      createdByUserId: "local-board",
+      assigneeUserId: "local-operator",
+      createdByUserId: "local-operator",
       identifier: "PAP-1004",
       title: "Pending confirmation",
       executionPolicy: null,
@@ -612,7 +612,7 @@ describe("issue execution policy routes", () => {
       kind: "request_confirmation",
       status: "pending",
       createdByAgentId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       sourceRunId: null,
       payload: { version: 1, prompt: "Approve this review?" },
     }]);
@@ -641,7 +641,7 @@ describe("issue execution policy routes", () => {
       expect.objectContaining({
         action: "issue.updated",
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         details: expect.objectContaining({
           reviewInteractionId: "11111111-1111-4111-8111-111111111111",
         }),
@@ -653,11 +653,11 @@ describe("issue execution policy routes", () => {
   it("keeps a review transition and its confirmation binding in one rollback boundary", async () => {
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "todo",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1004",
       title: "Pending confirmation",
       executionPolicy: null,
@@ -683,7 +683,7 @@ describe("issue execution policy routes", () => {
     const res = await request(await createApp({
       type: "agent",
       agentId: "33333333-3333-4333-8333-333333333333",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "55555555-5555-4555-8555-555555555555",
     }))
       .patch("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
@@ -702,11 +702,11 @@ describe("issue execution policy routes", () => {
   it("rejects a review binding to a confirmation from another run", async () => {
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "todo",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1004",
       title: "Pending confirmation",
       executionPolicy: null,
@@ -725,7 +725,7 @@ describe("issue execution policy routes", () => {
     const res = await request(await createApp({
       type: "agent",
       agentId: "33333333-3333-4333-8333-333333333333",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "55555555-5555-4555-8555-555555555555",
     }))
       .patch("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
@@ -745,11 +745,11 @@ describe("issue execution policy routes", () => {
   it("allows an agent-authored in_review transition with a typed execution participant", async () => {
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "todo",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1005",
       title: "Execution participant",
       executionPolicy: null,
@@ -774,7 +774,7 @@ describe("issue execution policy routes", () => {
     const res = await request(await createApp({
       type: "agent",
       agentId: "33333333-3333-4333-8333-333333333333",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "55555555-5555-4555-8555-555555555555",
     }))
       .patch("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
@@ -800,11 +800,11 @@ describe("issue execution policy routes", () => {
   it("allows an agent-authored in_review transition with a scheduled monitor", async () => {
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "todo",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1006",
       title: "External review monitor",
       executionPolicy: null,
@@ -825,7 +825,7 @@ describe("issue execution policy routes", () => {
     const res = await request(await createApp({
       type: "agent",
       agentId: "33333333-3333-4333-8333-333333333333",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "55555555-5555-4555-8555-555555555555",
     }))
       .patch("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
@@ -851,16 +851,16 @@ describe("issue execution policy routes", () => {
     );
   });
 
-  it("allows board-authored in_review repair updates without a review path", async () => {
+  it("allows operator-authored in_review repair updates without a review path", async () => {
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "todo",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1007",
-      title: "Board repair",
+      title: "Operator repair",
       executionPolicy: null,
       executionState: null,
     };
@@ -882,7 +882,7 @@ describe("issue execution policy routes", () => {
       expect.objectContaining({
         action: "issue.updated",
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         details: expect.objectContaining({ status: "in_review" }),
       }),
       expect.any(Array),
@@ -892,7 +892,7 @@ describe("issue execution policy routes", () => {
     expect(mockIssueApprovalService.listApprovalsForIssue).not.toHaveBeenCalled();
   });
 
-  it("allows a board user to cancel an active agent review task", async () => {
+  it("allows a operator user to cancel an active agent review task", async () => {
     const policy = normalizeIssueExecutionPolicy({
       stages: [
         {
@@ -904,11 +904,11 @@ describe("issue execution policy routes", () => {
     })!;
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "in_review",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1008",
       title: "Active review",
       executionPolicy: policy,
@@ -942,7 +942,7 @@ describe("issue execution policy routes", () => {
         status: "cancelled",
         executionState: null,
         actorAgentId: null,
-        actorUserId: "local-board",
+        actorUserId: "local-operator",
       }),
       expect.anything(),
       undefined,
@@ -951,7 +951,7 @@ describe("issue execution policy routes", () => {
     expect(mockHeartbeatService.cancelRun).not.toHaveBeenCalled();
   });
 
-  it("allows a board user to cancel a drifted pending agent review task", async () => {
+  it("allows a operator user to cancel a drifted pending agent review task", async () => {
     const policy = normalizeIssueExecutionPolicy({
       stages: [
         {
@@ -963,11 +963,11 @@ describe("issue execution policy routes", () => {
     })!;
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "blocked",
       assigneeAgentId: "44444444-4444-4444-8444-444444444444",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1009",
       title: "Drifted active review",
       executionPolicy: policy,
@@ -1001,7 +1001,7 @@ describe("issue execution policy routes", () => {
         status: "cancelled",
         executionState: null,
         actorAgentId: null,
-        actorUserId: "local-board",
+        actorUserId: "local-operator",
       }),
       expect.anything(),
       undefined,
@@ -1014,7 +1014,7 @@ describe("issue execution policy routes", () => {
     expect(mockHeartbeatService.cancelRun).not.toHaveBeenCalled();
   });
 
-  it("keeps the review stage pending when a board user reassigns to an eligible participant", async () => {
+  it("keeps the review stage pending when a operator user reassigns to an eligible participant", async () => {
     const policy = normalizeIssueExecutionPolicy({
       stages: [
         {
@@ -1029,11 +1029,11 @@ describe("issue execution policy routes", () => {
     })!;
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "in_review",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1010",
       title: "Reassigned review",
       executionPolicy: policy,
@@ -1075,7 +1075,7 @@ describe("issue execution policy routes", () => {
     expect(mockHeartbeatService.cancelRun).not.toHaveBeenCalled();
   });
 
-  it("dissolves the review when a board user reassigns an in_review task to a non-participant", async () => {
+  it("dissolves the review when a operator user reassigns an in_review task to a non-participant", async () => {
     const policy = normalizeIssueExecutionPolicy({
       stages: [
         {
@@ -1087,11 +1087,11 @@ describe("issue execution policy routes", () => {
     })!;
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "in_review",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1011",
       title: "Reassigned away from review",
       executionPolicy: policy,
@@ -1138,11 +1138,11 @@ describe("issue execution policy routes", () => {
     })!;
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "in_review",
       assigneeAgentId: null,
-      assigneeUserId: "local-board",
-      createdByUserId: "local-board",
+      assigneeUserId: "local-operator",
+      createdByUserId: "local-operator",
       identifier: "PAP-999",
       title: "Execution policy edit",
       executionPolicy: null,
@@ -1165,7 +1165,7 @@ describe("issue execution policy routes", () => {
       expect.objectContaining({
         executionPolicy: policy,
         actorAgentId: null,
-        actorUserId: "local-board",
+        actorUserId: "local-operator",
       }),
     );
     const updatePatch = mockIssueService.update.mock.calls[0]?.[1] as Record<string, unknown>;
@@ -1179,18 +1179,18 @@ describe("issue execution policy routes", () => {
   it.each(["in_progress", "blocked"])("triggers a scheduled monitor on an %s task from the dedicated route", async (status) => {
     const issue = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status,
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1001",
       title: "Manual monitor trigger",
       executionPolicy: normalizeIssueExecutionPolicy({
         monitor: {
           nextCheckAt: "2026-04-11T12:30:00.000Z",
           notes: "Check deployment",
-          scheduledBy: "board",
+          scheduledBy: "operator",
         },
       }),
       executionState: null,
@@ -1207,7 +1207,7 @@ describe("issue execution policy routes", () => {
       "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       expect.objectContaining({
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         agentId: null,
       }),
     );
@@ -1215,7 +1215,7 @@ describe("issue execution policy routes", () => {
 
   it.each(["execution_reconciliation_required", "monitor_dispatch_deferred", "monitor_replaced"])("does not claim success for a skipped monitor check: %s", async (reason) => {
     mockIssueService.getById.mockResolvedValue({
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", companyId: "company-1", status: "blocked",
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId: "space-1", status: "blocked",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333", assigneeUserId: null,
     });
     mockHeartbeatService.triggerIssueMonitor.mockResolvedValueOnce({ outcome: "skipped", reason });
@@ -1227,14 +1227,14 @@ describe("issue execution policy routes", () => {
     expect(res.body.ok).toBeUndefined();
   });
 
-  it("lets a board user create a child issue with a scheduled monitor", async () => {
+  it("lets a operator user create a child issue with a scheduled monitor", async () => {
     mockIssueService.getById.mockResolvedValue({
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "in_progress",
       assigneeAgentId: "11111111-1111-4111-8111-111111111111",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1001",
       title: "Parent issue",
       executionPolicy: null,
@@ -1259,13 +1259,13 @@ describe("issue execution policy routes", () => {
     const createPayload = mockIssueService.createChild.mock.calls[0]?.[1] as {
       executionPolicy: { monitor: { scheduledBy: string } };
     };
-    expect(createPayload.executionPolicy.monitor.scheduledBy).toBe("board");
+    expect(createPayload.executionPolicy.monitor.scheduledBy).toBe("operator");
     expect(mockLogActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         action: "issue.monitor_scheduled",
         details: expect.objectContaining({
-          scheduledBy: "board",
+          scheduledBy: "operator",
         }),
       }),
     );
@@ -1275,11 +1275,11 @@ describe("issue execution policy routes", () => {
     mockAccessService.hasPermission.mockResolvedValue(true);
     mockIssueService.getById.mockResolvedValue({
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "in_progress",
       assigneeAgentId: "11111111-1111-4111-8111-111111111111",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1001",
       title: "Parent issue",
       executionPolicy: null,
@@ -1289,7 +1289,7 @@ describe("issue execution policy routes", () => {
     const res = await request(await createApp({
       type: "agent",
       agentId: "22222222-2222-4222-8222-222222222222",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "run-1",
     }))
       .post("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/children")
@@ -1300,13 +1300,13 @@ describe("issue execution policy routes", () => {
         executionPolicy: {
           monitor: {
             nextCheckAt: "2026-04-11T12:30:00.000Z",
-            scheduledBy: "board",
+            scheduledBy: "operator",
           },
         },
       });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe("Only the assignee agent or a board user can manage issue monitors");
+    expect(res.body.error).toBe("Only the assignee agent or a operator user can manage issue monitors");
     expect(mockIssueService.createChild).not.toHaveBeenCalled();
   });
 
@@ -1314,11 +1314,11 @@ describe("issue execution policy routes", () => {
     mockAccessService.hasPermission.mockResolvedValue(true);
     mockIssueService.getById.mockResolvedValue({
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "in_progress",
       assigneeAgentId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       identifier: "PAP-1001",
       title: "Parent issue",
       executionPolicy: null,
@@ -1328,7 +1328,7 @@ describe("issue execution policy routes", () => {
     const res = await request(await createApp({
       type: "agent",
       agentId: "33333333-3333-4333-8333-333333333333",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "run-1",
     }))
       .post("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/children")
@@ -1339,7 +1339,7 @@ describe("issue execution policy routes", () => {
         executionPolicy: {
           monitor: {
             nextCheckAt: "2026-04-11T12:30:00.000Z",
-            scheduledBy: "board",
+            scheduledBy: "operator",
             externalRef: "https://example.test/deploy?token=secret",
           },
         },

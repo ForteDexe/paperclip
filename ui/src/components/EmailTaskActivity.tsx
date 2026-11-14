@@ -12,16 +12,16 @@ import type { EmailPublicationSummary } from "@outpost/shared";
 // Email actions belong to the agent's task conversation. Only surface mail
 // without a task comment yet and delivery outcomes that need attention here.
 export function EmailTaskActivity({
-  companyId,
+  spaceId,
   issueId,
 }: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
 }) {
   const cache = useQueryClient();
-  const threadKey = ["email-thread", companyId, issueId];
-  const queryEnabled = Boolean(companyId && issueId) && !issueId.startsWith("chat:");
-  const thread = useEmailThread(companyId, issueId);
+  const threadKey = ["email-thread", spaceId, issueId];
+  const queryEnabled = Boolean(spaceId && issueId) && !issueId.startsWith("chat:");
+  const thread = useEmailThread(spaceId, issueId);
   const threadView = useQueryView(thread);
   if (!queryEnabled) return null;
   if (threadView.kind === "stale" || threadView.kind === "ready") {
@@ -47,7 +47,7 @@ export function EmailTaskActivity({
         {publications.map((p) => (
           <EmailDelivery
             key={p.id}
-            companyId={companyId}
+            spaceId={spaceId}
             publication={p}
             onResolved={() => {
               void cache.invalidateQueries({ queryKey: threadKey });
@@ -74,18 +74,18 @@ export function EmailTaskActivity({
 }
 
 function EmailDelivery({
-  companyId,
+  spaceId,
   publication: p,
   onResolved,
 }: {
-  companyId: string;
+  spaceId: string;
   publication: EmailPublicationSummary;
   onResolved: () => void;
 }) {
   const [messageId, setMessageId] = useState("");
   const resolve = useMutation({
     mutationFn: (outcome: "sent" | "failed") =>
-      emailApi.resolve(companyId, p.id, outcome, messageId || undefined),
+      emailApi.resolve(spaceId, p.id, outcome, messageId || undefined),
     onSuccess: onResolved,
   });
   return (

@@ -9,12 +9,12 @@ import { allTaskListColumns, defaultTaskListColumns } from "@/lib/task-list";
 const host = document.createElement("div");
 const root = createRoot(host);
 let controls: ReturnType<typeof useTaskListColumnPreferences>;
-function Probe({ user = "viewer", company = "company" }) {
-  controls = useTaskListColumnPreferences({ companyId: company, collectionKey: `coordinator-tasks:${user}` }, defaultTaskListColumns);
+function Probe({ user = "viewer", space = "space" }) {
+  controls = useTaskListColumnPreferences({ spaceId: space, collectionKey: `coordinator-tasks:${user}` }, defaultTaskListColumns);
   return <output>{JSON.stringify({ columns: controls.columns, order: controls.order })}</output>;
 }
 afterEach(async () => { await act(() => root.render(null)); localStorage.clear(); vi.restoreAllMocks(); });
-it("retains columns and their order across remounts, while isolating each person and company", async () => {
+it("retains columns and their order across remounts, while isolating each person and space", async () => {
   await act(() => root.render(<Probe />));
   await act(() => { controls.setColumns(["task", "project"]); controls.setOrder([...allTaskListColumns].reverse()); });
   await act(() => root.render(null));
@@ -23,7 +23,7 @@ it("retains columns and their order across remounts, while isolating each person
   expect(controls.order).toEqual([...allTaskListColumns].reverse());
   await act(() => root.render(<Probe user="someone-else" />));
   expect(controls.columns).toEqual(defaultTaskListColumns);
-  await act(() => root.render(<Probe company="another-company" />));
+  await act(() => root.render(<Probe space="another-space" />));
   expect(controls.columns).toEqual(defaultTaskListColumns);
   await act(() => root.render(<Probe />));
   expect(controls.columns).toEqual(["task", "project"]);

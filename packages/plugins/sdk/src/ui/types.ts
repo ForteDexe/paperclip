@@ -1,5 +1,5 @@
 /**
- * Paperclip plugin UI SDK — types for plugin frontend components.
+ * Outpost plugin UI SDK — types for plugin frontend components.
  *
  * Plugin UI bundles import from `@outpost/plugin-sdk/ui`.  This subpath
  * provides the bridge hooks, component prop interfaces, and error types that
@@ -55,7 +55,7 @@ export type {
  * Error codes:
  * - `WORKER_UNAVAILABLE` — plugin worker is not running
  * - `CAPABILITY_DENIED` — plugin lacks the required capability
- * - `INVOCATION_SCOPE_DENIED` — plugin call escaped the invocation company scope
+ * - `INVOCATION_SCOPE_DENIED` — plugin call escaped the invocation space scope
  * - `WORKER_ERROR` — worker returned an error from its handler
  * - `TIMEOUT` — worker did not respond within the configured timeout
  * - `UNKNOWN` — unexpected bridge-level failure
@@ -81,16 +81,16 @@ export interface PluginBridgeError {
 /**
  * Read-only host context passed to every plugin component via `useHostContext()`.
  *
- * Plugin components use this to know which company, project, or entity is
+ * Plugin components use this to know which space, project, or entity is
  * currently active so they can scope their data requests accordingly.
  *
  * @see PLUGIN_SPEC.md §19 — UI Extension Model
  */
 export interface PluginHostContext {
-  /** UUID of the currently active company, if any. */
-  companyId: string | null;
-  /** URL prefix for the current company (e.g. `"my-company"`). */
-  companyPrefix: string | null;
+  /** UUID of the currently active space, if any. */
+  spaceId: string | null;
+  /** URL prefix for the current space (e.g. `"my-space"`). */
+  spacePrefix: string | null;
   /** UUID of the currently active project, if any. */
   projectId: string | null;
   /** UUID of the current entity (for detail tab contexts), if any. */
@@ -142,7 +142,7 @@ export interface PluginRenderEnvironmentContext
 // ---------------------------------------------------------------------------
 
 /**
- * Options for host-managed Paperclip navigation from plugin UI.
+ * Options for host-managed Outpost navigation from plugin UI.
  */
 export interface HostNavigationOptions {
   /** Replace the current history entry instead of pushing a new one. */
@@ -196,9 +196,9 @@ export interface HostLocation {
  */
 export interface HostNavigation {
   /**
-   * Resolve a Paperclip-internal path using the active company prefix.
+   * Resolve a Outpost-internal path using the active space prefix.
    *
-   * For example, in company `PAP`, `resolveHref("/wiki")` returns
+   * For example, in space `PAP`, `resolveHref("/wiki")` returns
    * `"/PAP/wiki"`, while `resolveHref("/PAP/wiki")` stays unchanged.
    */
   resolveHref(to: string): string;
@@ -221,10 +221,10 @@ export interface HostNavigation {
 /**
  * Props passed to a plugin page component.
  *
- * A page is a full-page extension at `/plugins/:pluginId` or `/:company/plugins/:pluginId`.
+ * A page is a full-page extension at `/plugins/:pluginId` or `/:space/plugins/:pluginId`.
  *
  * @see PLUGIN_SPEC.md §19.1 — Global Operator Routes
- * @see PLUGIN_SPEC.md §19.2 — Company-Context Routes
+ * @see PLUGIN_SPEC.md §19.2 — Space-Context Routes
  */
 export interface PluginPageProps {
   /** The current host context. */
@@ -232,14 +232,14 @@ export interface PluginPageProps {
 }
 
 /**
- * Props passed to a plugin company settings page component.
+ * Props passed to a plugin space settings page component.
  *
- * A company settings page is mounted at
- * `/:companyPrefix/company/settings/:routePath` and always receives the active
- * company id and prefix when available.
+ * A space settings page is mounted at
+ * `/:spacePrefix/space/settings/:routePath` and always receives the active
+ * space id and prefix when available.
  */
-export interface PluginCompanySettingsPageProps {
-  /** The current host context, including company id and prefix. */
+export interface PluginSpaceSettingsPageProps {
+  /** The current host context, including space id and prefix. */
   context: PluginHostContext;
 }
 
@@ -277,9 +277,9 @@ export interface PluginDetailTabProps {
  * These values/callbacks are presentation context, never authorization. */
 export interface PluginOrganizationSwitcherProps {
   organizationSwitcher: {
-    /** Host-local company branding, not an external account/organization label.
+    /** Host-local space branding, not an external account/organization label.
      * Plugins resolve external organization identity at their owning service. */
-    currentCompany: { name: string; logoUrl: string | null } | null;
+    currentSpace: { name: string; logoUrl: string | null } | null;
     collapsed: boolean;
     open: boolean;
     onOpenChange(open: boolean): void;
@@ -307,7 +307,7 @@ export interface PluginSidebarProps {
 /**
  * Props passed to a plugin route sidebar component.
  *
- * A route sidebar replaces the normal company sidebar while the user is on a
+ * A route sidebar replaces the normal space sidebar while the user is on a
  * matching plugin page route declared with the same `routePath`.
  *
  * @see PLUGIN_SPEC.md §19.5 — Sidebar Entries
@@ -502,7 +502,7 @@ export interface PluginStreamResult<T = unknown> {
  * @example
  * ```tsx
  * const resync = usePluginAction("resync");
- * <button onClick={() => resync({ companyId }).catch(err => console.error(err))}>
+ * <button onClick={() => resync({ spaceId }).catch(err => console.error(err))}>
  *   Resync Now
  * </button>
  * ```

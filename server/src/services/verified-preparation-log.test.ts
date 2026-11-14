@@ -6,13 +6,13 @@ const fixture = vi.hoisted(() => ({ read: vi.fn() }));
 vi.mock("./run-log-store.js", () => ({ getRunLogStore: () => ({ read: fixture.read }) }));
 
 function source() {
-  const companyId = randomUUID(), agentId = randomUUID(), id = randomUUID(), ts = new Date();
+  const spaceId = randomUUID(), agentId = randomUUID(), id = randomUUID(), ts = new Date();
   const chunk = "[outpost] Enabled run-scoped skills from issue mentions: fixture/status-report\n";
   const record = { ts: ts.toISOString(), attemptId: randomUUID(), stream: "stdout", chunk, seq: 1 };
   const content = JSON.stringify(record) + "\n";
-  const run: Parameters<typeof hasVerifiedPreparationLog>[0] = { companyId, agentId, id,
+  const run: Parameters<typeof hasVerifiedPreparationLog>[0] = { spaceId, agentId, id,
     contextSnapshot: { skillSelectionSnapshot: true, skillVersions: { "fixture/status-report": randomUUID() } },
-    logStore: "s3_segments", logRef: `${companyId}/${agentId}/${id}`, logBytes: Buffer.byteLength(content),
+    logStore: "s3_segments", logRef: `${spaceId}/${agentId}/${id}`, logBytes: Buffer.byteLength(content),
     logSha256: createHash("sha256").update(content).digest("hex"), logCompressed: false,
     stdoutExcerpt: chunk, stderrExcerpt: "", lastOutputAt: ts, lastOutputSeq: 1,
     lastOutputStream: "stdout", lastOutputBytes: Buffer.byteLength(content) };

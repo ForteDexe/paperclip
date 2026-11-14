@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRuns } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -43,14 +43,14 @@ describeEmbeddedPostgres("dashboard service", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-dashboard-service-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-dashboard-service-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
   afterEach(async () => {
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -58,8 +58,8 @@ describeEmbeddedPostgres("dashboard service", () => {
   });
 
   it("selects distinct task cards before limiting and keeps taskless runs separate", async () => {
-    const companyId = randomUUID();
-    const otherCompanyId = randomUUID();
+    const spaceId = randomUUID();
+    const otherSpaceId = randomUUID();
     const agentId = randomUUID();
     const otherAgentId = randomUUID();
     const repeatedIssueId = randomUUID();
@@ -68,58 +68,58 @@ describeEmbeddedPostgres("dashboard service", () => {
     const otherTaskRunId = randomUUID();
     const tasklessRunId = randomUUID();
 
-    await db.insert(companies).values([
-      { id: companyId, name: "Dashboard cards", issuePrefix: "CARDS" },
-      { id: otherCompanyId, name: "Other company", issuePrefix: "OTHER" },
+    await db.insert(spaces).values([
+      { id: spaceId, name: "Dashboard cards", issuePrefix: "CARDS" },
+      { id: otherSpaceId, name: "Other space", issuePrefix: "OTHER" },
     ]);
     await db.insert(agents).values([
-      { id: agentId, companyId, name: "Builder", role: "engineer", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} },
-      { id: otherAgentId, companyId: otherCompanyId, name: "Other", role: "engineer", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} },
+      { id: agentId, spaceId, name: "Builder", role: "engineer", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} },
+      { id: otherAgentId, spaceId: otherSpaceId, name: "Other", role: "engineer", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} },
     ]);
     await db.insert(heartbeatRuns).values([
       ...Array.from({ length: 6 }, (_, index) => ({
-        id: randomUUID(), companyId, agentId, status: "succeeded",
+        id: randomUUID(), spaceId, agentId, status: "succeeded",
         contextSnapshot: { issueId: repeatedIssueId },
         createdAt: new Date(`2026-04-10T10:0${index}:00.000Z`),
       })),
-      { id: activeRunId, companyId, agentId, status: "running", contextSnapshot: { issueId: repeatedIssueId }, createdAt: new Date("2026-04-10T08:00:00.000Z") },
-      { id: otherTaskRunId, companyId, agentId, status: "succeeded", contextSnapshot: { issueId: otherIssueId }, createdAt: new Date("2026-04-10T09:04:00.000Z") },
-      { id: tasklessRunId, companyId, agentId, status: "succeeded", createdAt: new Date("2026-04-10T09:03:00.000Z") },
-      { id: randomUUID(), companyId: otherCompanyId, agentId: otherAgentId, status: "running", contextSnapshot: { issueId: otherIssueId }, createdAt: new Date("2026-04-10T11:00:00.000Z") },
+      { id: activeRunId, spaceId, agentId, status: "running", contextSnapshot: { issueId: repeatedIssueId }, createdAt: new Date("2026-04-10T08:00:00.000Z") },
+      { id: otherTaskRunId, spaceId, agentId, status: "succeeded", contextSnapshot: { issueId: otherIssueId }, createdAt: new Date("2026-04-10T09:04:00.000Z") },
+      { id: tasklessRunId, spaceId, agentId, status: "succeeded", createdAt: new Date("2026-04-10T09:03:00.000Z") },
+      { id: randomUUID(), spaceId: otherSpaceId, agentId: otherAgentId, status: "running", contextSnapshot: { issueId: otherIssueId }, createdAt: new Date("2026-04-10T11:00:00.000Z") },
     ]);
 
-    expect(await selectDashboardRunIds(db, companyId, 3)).toEqual([
+    expect(await selectDashboardRunIds(db, spaceId, 3)).toEqual([
       activeRunId, otherTaskRunId, tasklessRunId,
     ]);
   });
 
   it("aggregates the full 14-day run activity window without recent-run truncation", async () => {
-    const companyId = randomUUID();
-    const otherCompanyId = randomUUID();
+    const spaceId = randomUUID();
+    const otherSpaceId = randomUUID();
     const agentId = randomUUID();
     const otherAgentId = randomUUID();
     const today = utcDay(0);
     const weekAgo = utcDay(-7);
 
-    await db.insert(companies).values([
+    await db.insert(spaces).values([
       {
-        id: companyId,
-        name: "Paperclip",
-        issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-        requireBoardApprovalForNewAgents: false,
+        id: spaceId,
+        name: "Outpost",
+        issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+        requireOperatorApprovalForNewAgents: false,
       },
       {
-        id: otherCompanyId,
+        id: otherSpaceId,
         name: "Other",
-        issuePrefix: `T${otherCompanyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-        requireBoardApprovalForNewAgents: false,
+        issuePrefix: `T${otherSpaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+        requireOperatorApprovalForNewAgents: false,
       },
     ]);
 
     await db.insert(agents).values([
       {
         id: agentId,
-        companyId,
+        spaceId,
         name: "CodexCoder",
         role: "engineer",
         status: "running",
@@ -130,7 +130,7 @@ describeEmbeddedPostgres("dashboard service", () => {
       },
       {
         id: otherAgentId,
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         name: "OtherAgent",
         role: "engineer",
         status: "running",
@@ -144,7 +144,7 @@ describeEmbeddedPostgres("dashboard service", () => {
     await db.insert(heartbeatRuns).values([
       ...Array.from({ length: 105 }, () => ({
         id: randomUUID(),
-        companyId,
+        spaceId,
         agentId,
         invocationSource: "assignment",
         status: "succeeded",
@@ -152,7 +152,7 @@ describeEmbeddedPostgres("dashboard service", () => {
       })),
       {
         id: randomUUID(),
-        companyId,
+        spaceId,
         agentId,
         invocationSource: "assignment",
         status: "failed",
@@ -160,7 +160,7 @@ describeEmbeddedPostgres("dashboard service", () => {
       },
       {
         id: randomUUID(),
-        companyId,
+        spaceId,
         agentId,
         invocationSource: "assignment",
         status: "timed_out",
@@ -168,7 +168,7 @@ describeEmbeddedPostgres("dashboard service", () => {
       },
       {
         id: randomUUID(),
-        companyId,
+        spaceId,
         agentId,
         invocationSource: "assignment",
         status: "cancelled",
@@ -176,7 +176,7 @@ describeEmbeddedPostgres("dashboard service", () => {
       },
       {
         id: randomUUID(),
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         agentId: otherAgentId,
         invocationSource: "assignment",
         status: "succeeded",
@@ -184,7 +184,7 @@ describeEmbeddedPostgres("dashboard service", () => {
       },
     ]);
 
-    const summary = await dashboardService(db).summary(companyId);
+    const summary = await dashboardService(db).summary(spaceId);
 
     expect(summary.runActivity).toHaveLength(14);
     const todayBucket = summary.runActivity.find((bucket) => bucket.date === utcDateKey(today));
@@ -210,20 +210,20 @@ describeEmbeddedPostgres("dashboard service", () => {
   });
 
   it("separates recovered restart kills from true failures and breaks failures down by error code", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const day = utcDay(-2);
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "running",
@@ -234,7 +234,7 @@ describeEmbeddedPostgres("dashboard service", () => {
     });
 
     const base = {
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "assignment",
       createdAt: day,
@@ -259,7 +259,7 @@ describeEmbeddedPostgres("dashboard service", () => {
       { ...base, id: trueFailure, status: "failed", errorCode: "provider_quota" },
     ]);
 
-    const summary = await dashboardService(db).summary(companyId);
+    const summary = await dashboardService(db).summary(spaceId);
     const bucket = summary.runActivity.find((b) => b.date === utcDateKey(day));
 
     expect(bucket).toMatchObject({
@@ -276,22 +276,22 @@ describeEmbeddedPostgres("dashboard service", () => {
   });
 
   it("counts a recovered shutdown interrupt toward recovered, not other", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const day = utcDay(-1);
     const shutdown = randomUUID();
     const shutdownRetry = randomUUID();
     const stranded = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "running",
@@ -302,7 +302,7 @@ describeEmbeddedPostgres("dashboard service", () => {
     });
 
     const base = {
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "assignment" as const,
       createdAt: day,
@@ -313,7 +313,7 @@ describeEmbeddedPostgres("dashboard service", () => {
       { ...base, id: stranded, status: "interrupted", errorCode: "server_shutdown_interrupted" },
     ]);
 
-    const summary = await dashboardService(db).summary(companyId);
+    const summary = await dashboardService(db).summary(spaceId);
     const bucket = summary.runActivity.find((entry) => entry.date === utcDateKey(day));
     expect(bucket).toMatchObject({
       succeeded: 1,

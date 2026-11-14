@@ -1,7 +1,7 @@
 import type { ActivityPublication } from "../../types/activity-publication.js";
 import { AgentLifecycleConflict } from "./domain/policy.js";
-import { hireApprovalService as approvalRecords, type HireDecisionTarget } from "./adapters/approvals.js";
-import { agents, companies } from "@outpost/db";
+import { creationApprovalService as approvalRecords, type CreationDecisionTarget } from "./adapters/approvals.js";
+import { agents, spaces } from "@outpost/db";
 import { and, asc, desc, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import type { LifecycleEffects } from "./adapters/effects.js";
@@ -11,16 +11,16 @@ import type { AgentConfigurationPatch, UpdateAgentOptions } from "../../lib/agen
 import { purgeAgent } from "./adapters/deletion.js";
 import { agentRecords } from "./adapters/records.js";
 import { assertRootDatabase, createLifecycleStore, pendingLifecycleWork, lifecycleSignalWait, requestAgentLifecycleRecheckInTransaction } from "./adapters/postgres.js";
-import { hasCompanyHoldMismatch, projectCompanyHolds } from "./adapters/company-policy.js";
+import { hasSpaceHoldMismatch, projectSpaceHolds } from "./adapters/space-policy.js";
 import { createLifecycleWorker } from "./application/worker.js";
 import type { LifecycleDriver } from "./application/ports.js";
 
 export { applyAgentPolicyHoldsInTransaction, releaseAgentLifecycleLeaseOfHolderInTransaction, requestAgentLifecycleRecheckInTransaction } from "./adapters/postgres.js";
-export { companyHoldMismatch, fenceActiveCompanyAgentStopsInTransaction } from "./adapters/company-policy.js";
+export { spaceHoldMismatch, fenceActiveSpaceAgentStopsInTransaction } from "./adapters/space-policy.js";
 
 export { AgentLifecycleConflict, canConfigureAgentConnection, isAgentAwaitingSetup, isAgentSetupDraft } from "./domain/policy.js";
 
-export type { HireDecisionTarget } from "./adapters/approvals.js";
+export type { CreationDecisionTarget } from "./adapters/approvals.js";
 export type { LifecycleDriver, LifecycleAgent, LifecycleFailure } from "./application/ports.js";
 
 const wakes = new WeakMap<Db, () => void>();
@@ -52,12 +52,12 @@ export function initializeImportedAgentConfigurationInTransaction(tx: Db, effect
   return updateAgentConfiguration(tx, effects, id, data, undefined, publications);
 }
 
-export async function requestAgentHireInTransaction(tx: Db, effects: LifecycleEffects, publications: ActivityPublication[],
+export async function requestAgentCreationInTransaction(tx: Db, effects: LifecycleEffects, publications: ActivityPublication[],
   ...args: Parameters<ReturnType<typeof agentRecords>["create"]>) {
-  if (!("nestedIndex" in tx)) throw new AgentLifecycleConflict("Imported hires require a database transaction");
-  const records = agentRecords(tx, { ...effects, transaction: async (database, companyId, work) => {
-    const [company] = await database.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId)).for("no key update");
-    if (!company) throw new AgentLifecycleConflict("Import company is unavailable");
+  if (!("nestedIndex" in tx)) throw new AgentLifecycleConflict("Imported creations require a database transaction");
+  const records = agentRecords(tx, { ...effects, transaction: async (database, spaceId, work) => {
+    const [space] = await database.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, spaceId)).for("no key update");
+    if (!space) throw new AgentLifecycleConflict("Import space is unavailable");
     return work(database, publications);
   } });
   return records.create(...args);
@@ -72,30 +72,30 @@ export function createAgentLifecycle(db: Db, effects: LifecycleEffects) {
     if (result) scheduleAgentLifecycle(db, id);
     return result ? records.getById(id) : null;
   }
-  async function decideHire(target: HireDecisionTarget, decision: "approved" | "rejected", userId: string, note?: string | null) {
+  async function decideCreate(target: CreationDecisionTarget, decision: "approved" | "rejected", userId: string, note?: string | null) {
     const result = await approvalRecords(db, effects).decide(target, decision, userId, note);
-    if (result?.hireApprovedAgentId) scheduleAgentLifecycle(db, result.hireApprovedAgentId);
+    if (result?.createApprovedAgentId) scheduleAgentLifecycle(db, result.createApprovedAgentId);
     return result;
   }
   return {
     async get(id: string) {
       const agent = await store.get(id);
       return agent ? {
-        id: agent.id, companyId: agent.companyId, lifecycleState: agent.lifecycleState,
+        id: agent.id, spaceId: agent.spaceId, lifecycleState: agent.lifecycleState,
         lifecycleVersion: agent.lifecycleVersion, lifecycleError: agent.lifecycleError,
       } : null;
     },
-    async requestHire(...args: Parameters<typeof records.create>) {
+    async requestCreation(...args: Parameters<typeof records.create>) {
       const agent = await records.create(...args);
       scheduleAgentLifecycle(db, agent.id);
       return agent;
     },
-    approveHire: (target: HireDecisionTarget, userId = "board", note?: string | null) => decideHire(target, "approved", userId, note),
-    rejectHire: (target: HireDecisionTarget, userId = "board", note?: string | null) => decideHire(target, "rejected", userId, note),
+    approveCreation: (target: CreationDecisionTarget, userId = "operator", note?: string | null) => decideCreate(target, "approved", userId, note),
+    rejectCreation: (target: CreationDecisionTarget, userId = "operator", note?: string | null) => decideCreate(target, "rejected", userId, note),
     async updateConfiguration(id: string, data: AgentConfigurationPatch, options?: UpdateAgentOptions) {
       const existing = await records.getById(id);
       if (!existing) return null;
-      const agent = await effects.transaction(db, existing.companyId, (tx, publications) =>
+      const agent = await effects.transaction(db, existing.spaceId, (tx, publications) =>
         updateAgentConfiguration(tx, effects, id, data, options, publications));
       scheduleAgentLifecycle(db, id);
       return agent;
@@ -103,7 +103,7 @@ export function createAgentLifecycle(db: Db, effects: LifecycleEffects) {
     async updateAndTransition(id: string, command: "pause" | "resume" | "terminate", data: AgentConfigurationPatch, options?: UpdateAgentOptions) {
       const existing = await records.getById(id);
       if (!existing) return null;
-      const agent = await effects.transaction(db, existing.companyId, async (tx, publications) => {
+      const agent = await effects.transaction(db, existing.spaceId, async (tx, publications) => {
         await updateAgentConfiguration(tx, effects, id, data, options, publications);
         await createLifecycleStore(tx, effects).change(id, command, { reason: command === "resume" ? "user" : "manual" });
         return agentRecords(tx, effects).getById(id);
@@ -141,14 +141,14 @@ export function startAgentLifecycle(db: Db, effects: LifecycleEffects, driver: L
   async function recoverPage() {
     await initializeRecovery();
     if (recoveryDone || !recoveryThrough) return;
-    const page = await db.select({ id: agents.id, companyId: agents.companyId, version: agents.lifecycleVersion })
-      .from(agents).innerJoin(companies, eq(companies.id, agents.companyId))
-      .where(and(recoveryCondition, eq(companies.status, "active"), lte(agents.id, recoveryThrough),
+    const page = await db.select({ id: agents.id, spaceId: agents.spaceId, version: agents.lifecycleVersion })
+      .from(agents).innerJoin(spaces, eq(spaces.id, agents.spaceId))
+      .where(and(recoveryCondition, eq(spaces.status, "active"), lte(agents.id, recoveryThrough),
         recoveryAfter ? gt(agents.id, recoveryAfter) : undefined)).orderBy(asc(agents.id)).limit(100);
     for (const agent of page) {
       if (stopped || !canRun()) return;
-      await effects.transaction(db, agent.companyId, tx => requestAgentLifecycleRecheckInTransaction(tx,
-        { companyId: agent.companyId, agentId: agent.id, expectedVersion: agent.version, onlyIfWaiting: true },
+      await effects.transaction(db, agent.spaceId, tx => requestAgentLifecycleRecheckInTransaction(tx,
+        { spaceId: agent.spaceId, agentId: agent.id, expectedVersion: agent.version, onlyIfWaiting: true },
         () => effects.notifyWork(tx)));
       recoveryAfter = agent.id;
     }
@@ -174,12 +174,12 @@ export function startAgentLifecycle(db: Db, effects: LifecycleEffects, driver: L
       // Already-due work uses the coordinator's bounded retry. A zero-delay
       // deadline would spin if plugins are not ready to process it yet.
       nextDeadline = due !== null && due > now ? due : null;
-      return (due !== null && due <= now) || await hasCompanyHoldMismatch(db);
+      return (due !== null && due <= now) || await hasSpaceHoldMismatch(db);
     },
     sweep() {
       if (stopped || !canRun()) return Promise.resolve();
       return running ??= (async () => {
-        try { await projectCompanyHolds(db, effects); }
+        try { await projectSpaceHolds(db, effects); }
         catch (error) { effects.reportFailure({ stage: "policy_scan" }, error); throw error; }
         try { await recoverPage(); }
         catch (error) { effects.reportFailure({ stage: "scan" }, error); throw error; }

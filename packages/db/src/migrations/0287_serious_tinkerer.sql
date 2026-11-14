@@ -1,16 +1,16 @@
 -- Retain preview instruction rows and pending captures when upgrading PR #14325.
 CREATE TABLE IF NOT EXISTS "agent_instruction_heads" (
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"entry_file" text NOT NULL,
 	"revision_id" uuid NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "agent_instruction_heads_identity_uq" UNIQUE("company_id","agent_id","entry_file")
+	CONSTRAINT "agent_instruction_heads_identity_uq" UNIQUE("space_id","agent_id","entry_file")
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "agent_instruction_revisions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"entry_file" text NOT NULL,
 	"content_base64" text NOT NULL,
@@ -25,12 +25,12 @@ CREATE TABLE IF NOT EXISTS "agent_instruction_revisions" (
 	"source_run_id" uuid,
 	"source" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "agent_instruction_revisions_identity_uq" UNIQUE("company_id","agent_id","entry_file","id")
+	CONSTRAINT "agent_instruction_revisions_identity_uq" UNIQUE("space_id","agent_id","entry_file","id")
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "agent_instruction_working_copies" (
 	"run_id" uuid PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"responsible_user_id" text NOT NULL,
 	"entry_file" text NOT NULL,
@@ -52,10 +52,10 @@ CREATE TABLE IF NOT EXISTS "agent_instruction_working_copies" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-DO $$ BEGIN ALTER TABLE "agent_instruction_heads" ADD CONSTRAINT "agent_instruction_heads_company_id_agent_id_entry_file_revision_id_agent_instruction_revisions_company_id_agent_id_entry_file_id_fk" FOREIGN KEY ("company_id","agent_id","entry_file","revision_id") REFERENCES "public"."agent_instruction_revisions"("company_id","agent_id","entry_file","id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
-DO $$ BEGIN ALTER TABLE "agent_instruction_revisions" ADD CONSTRAINT "agent_instruction_revisions_company_id_agent_id_agents_company_id_id_fk" FOREIGN KEY ("company_id","agent_id") REFERENCES "public"."agents"("company_id","id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "agent_instruction_heads" ADD CONSTRAINT "agent_instruction_heads_space_id_agent_id_entry_file_revision_id_agent_instruction_revisions_space_id_agent_id_entry_file_id_fk" FOREIGN KEY ("space_id","agent_id","entry_file","revision_id") REFERENCES "public"."agent_instruction_revisions"("space_id","agent_id","entry_file","id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "agent_instruction_revisions" ADD CONSTRAINT "agent_instruction_revisions_space_id_agent_id_agents_space_id_id_fk" FOREIGN KEY ("space_id","agent_id") REFERENCES "public"."agents"("space_id","id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
 DO $$ BEGIN ALTER TABLE "agent_instruction_working_copies" ADD CONSTRAINT "agent_instruction_working_copies_run_id_heartbeat_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."heartbeat_runs"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
-DO $$ BEGIN ALTER TABLE "agent_instruction_working_copies" ADD CONSTRAINT "agent_instruction_working_copies_company_id_agent_id_agents_company_id_id_fk" FOREIGN KEY ("company_id","agent_id") REFERENCES "public"."agents"("company_id","id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "agent_instruction_revisions_history_idx" ON "agent_instruction_revisions" USING btree ("company_id","agent_id","entry_file","created_at","id");--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "agent_instruction_working_copies" ADD CONSTRAINT "agent_instruction_working_copies_space_id_agent_id_agents_space_id_id_fk" FOREIGN KEY ("space_id","agent_id") REFERENCES "public"."agents"("space_id","id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "agent_instruction_revisions_history_idx" ON "agent_instruction_revisions" USING btree ("space_id","agent_id","entry_file","created_at","id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "agent_instruction_copies_pending_idx" ON "agent_instruction_working_copies" USING btree ("state","next_attempt_at");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "agent_instruction_copies_agent_idx" ON "agent_instruction_working_copies" USING btree ("company_id","agent_id","created_at");
+CREATE INDEX IF NOT EXISTS "agent_instruction_copies_agent_idx" ON "agent_instruction_working_copies" USING btree ("space_id","agent_id","created_at");

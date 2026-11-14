@@ -1,4 +1,4 @@
-import { agents, companies, createDb, type Db } from "@outpost/db";
+import { agents, spaces, createDb, type Db } from "@outpost/db";
 import { asc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { startAgentLifecycle } from "../index.js";
@@ -14,20 +14,20 @@ const support = await getEmbeddedPostgresTestSupport();
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-lifecycle-policy-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-lifecycle-policy-");
     db = createDb(database.connectionString);
   }, 90_000);
   afterAll(async () => { await database?.cleanup(); });
 
-  it("projects only company mismatches in pages of 100 using one transaction per page", async () => {
-    const [company] = await db.insert(companies).values({ name: "Policy pages", issuePrefix: "POL" }).returning();
+  it("projects only space mismatches in pages of 100 using one transaction per page", async () => {
+    const [space] = await db.insert(spaces).values({ name: "Policy pages", issuePrefix: "POL" }).returning();
     const eligible = await db.insert(agents).values(Array.from({ length: 101 }, (_, index) => ({
-      companyId: company.id, name: `Agent ${index}`, status: "idle", lifecycleState: "ready" as const,
-      lifecycleHolds: ["company_paused"], pauseReason: "company_paused",
+      spaceId: space.id, name: `Agent ${index}`, status: "idle", lifecycleState: "ready" as const,
+      lifecycleHolds: ["space_paused"], pauseReason: "space_paused",
     }))).returning();
     const excluded = await db.insert(agents).values((["pending_approval", "terminating", "cleaning_up", "terminated", "rejected"] as const).map(lifecycleState => ({
-      companyId: company.id, name: lifecycleState, status: "terminated", lifecycleState,
-      lifecycleHolds: ["company_paused"], pauseReason: "company_paused",
+      spaceId: space.id, name: lifecycleState, status: "terminated", lifecycleState,
+      lifecycleHolds: ["space_paused"], pauseReason: "space_paused",
       // Ineligible lifecycle work is not due while this test projects policy.
       lifecycleOperation: { id: "saved", hostComplete: false, completedPluginIds: [], attempts: 1, retryAt: new Date(Date.now() + 60_000).toISOString() },
     }))).returning();
@@ -37,7 +37,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const work = startAgentLifecycle(db, effects, {
       requiredPluginIds: async () => [], runHost: async () => "pending", runPlugin: async () => "pending",
     }, () => true);
-    const rows = () => db.select().from(agents).where(eq(agents.companyId, company.id)).orderBy(asc(agents.id));
+    const rows = () => db.select().from(agents).where(eq(agents.spaceId, space.id)).orderBy(asc(agents.id));
     try {
       expect(await work.hasPending()).toBe(true);
       await work.sweep();
@@ -56,9 +56,9 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("repairs an inherited hold whose lifecycle phase was not projected before restart", async () => {
-    const [company] = await db.insert(companies).values({ name: "Interrupted projection", issuePrefix: "INT", status: "paused" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Interrupted agent",
-      status: "paused", lifecycleState: "preparing", lifecycleHolds: ["company_paused"], pauseReason: "company_paused" }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Interrupted projection", issuePrefix: "INT", status: "paused" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Interrupted agent",
+      status: "paused", lifecycleState: "preparing", lifecycleHolds: ["space_paused"], pauseReason: "space_paused" }).returning();
     const host = vi.fn(async () => "complete" as const);
     const work = startAgentLifecycle(db, createAgentLifecycleEffects(), {
       requiredPluginIds: async () => [], runHost: host, runPlugin: host,
@@ -67,7 +67,7 @@ const support = await getEmbeddedPostgresTestSupport();
       expect(await work.hasPending()).toBe(true);
       await work.sweep();
       expect((await db.select().from(agents).where(eq(agents.id, agent.id)))[0]).toMatchObject({
-        lifecycleState: "paused", lifecycleHolds: ["company_paused"],
+        lifecycleState: "paused", lifecycleHolds: ["space_paused"],
       });
       expect(host).toHaveBeenCalledWith(expect.objectContaining({ id: agent.id, lifecycleState: "pausing" }));
       expect(await work.hasPending()).toBe(false);
@@ -87,29 +87,29 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("applies a supplied agent budget hold inside the caller transaction without reading policies", async () => {
-    const [company] = await db.insert(companies).values({ name: "Scoped hold", issuePrefix: "SCP" }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Scoped hold", issuePrefix: "SCP" }).returning();
     const [target, other] = await db.insert(agents).values(["Target", "Other"].map(name => ({
-      companyId: company.id, name, status: "paused", lifecycleState: "paused" as const,
+      spaceId: space.id, name, status: "paused", lifecycleState: "paused" as const,
       lifecycleHolds: ["manual"], pauseReason: "manual",
     }))).returning();
     const effects = createAgentLifecycleEffects();
     const transaction = vi.spyOn(effects, "transaction");
     const policy = vi.spyOn(effects, "policyBlocks").mockRejectedValue(new Error("No policy lookup allowed"));
     try {
-      await withAccountingTransaction(db, company.id, tx =>
-        applyAgentPolicyHoldsInTransaction(tx, effects, company.id, target.id, { budget: true }));
+      await withAccountingTransaction(db, space.id, tx =>
+        applyAgentPolicyHoldsInTransaction(tx, effects, space.id, target.id, { budget: true }));
       expect(transaction).not.toHaveBeenCalled();
       expect(policy).not.toHaveBeenCalled();
-      const current = await db.select().from(agents).where(eq(agents.companyId, company.id));
+      const current = await db.select().from(agents).where(eq(agents.spaceId, space.id));
       expect(current.find(row => row.id === target.id)?.lifecycleHolds).toEqual(["manual", "budget"]);
       expect(current.find(row => row.id === other.id)?.lifecycleHolds).toEqual(["manual"]);
-      await expect(withAccountingTransaction(db, company.id, async tx => {
-        await applyAgentPolicyHoldsInTransaction(tx, effects, company.id, target.id, { budget: false });
+      await expect(withAccountingTransaction(db, space.id, async tx => {
+        await applyAgentPolicyHoldsInTransaction(tx, effects, space.id, target.id, { budget: false });
         throw new Error("Rollback accounting");
       })).rejects.toThrow("Rollback accounting");
       expect((await db.select().from(agents).where(eq(agents.id, target.id)))[0].lifecycleHolds).toEqual(["manual", "budget"]);
-      await withAccountingTransaction(db, company.id, tx =>
-        applyAgentPolicyHoldsInTransaction(tx, effects, company.id, target.id, { budget: false }));
+      await withAccountingTransaction(db, space.id, tx =>
+        applyAgentPolicyHoldsInTransaction(tx, effects, space.id, target.id, { budget: false }));
       expect((await db.select().from(agents).where(eq(agents.id, target.id)))[0]).toMatchObject({
         lifecycleState: "paused", lifecycleHolds: ["manual"], pauseReason: "manual",
       });
@@ -117,13 +117,13 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("recovers committed holds on startup and wakes after new commits without idle polling", async () => {
-    const [company] = await db.insert(companies).values({ name: "Durable lifecycle", issuePrefix: "DUR" }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Durable lifecycle", issuePrefix: "DUR" }).returning();
     const [recover, later] = await db.insert(agents).values(["Recover", "Later"].map(name => ({
-      companyId: company.id, name, status: "idle", lifecycleState: "ready" as const,
+      spaceId: space.id, name, status: "idle", lifecycleState: "ready" as const,
     }))).returning();
     const effects = createAgentLifecycleEffects();
-    await withAccountingTransaction(db, company.id, tx =>
-      applyAgentPolicyHoldsInTransaction(tx, effects, company.id, recover.id, { budget: true }));
+    await withAccountingTransaction(db, space.id, tx =>
+      applyAgentPolicyHoldsInTransaction(tx, effects, space.id, recover.id, { budget: true }));
     const host = vi.fn(async () => "complete" as const);
     const work = startAgentLifecycle(db, effects, { requiredPluginIds: async () => [], runHost: host, runPlugin: host }, () => true);
     const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError: error => { throw error; } });
@@ -135,13 +135,13 @@ const support = await getEmbeddedPostgresTestSupport();
     try {
       await registered.ready;
       expect(await current(recover.id)).toMatchObject({ lifecycleState: "paused", lifecycleHolds: ["budget"] });
-      await expect(withAccountingTransaction(db, company.id, async tx => {
-        await applyAgentPolicyHoldsInTransaction(tx, effects, company.id, later.id, { budget: true });
+      await expect(withAccountingTransaction(db, space.id, async tx => {
+        await applyAgentPolicyHoldsInTransaction(tx, effects, space.id, later.id, { budget: true });
         throw new Error("Rollback producer");
       })).rejects.toThrow("Rollback producer");
       expect(await current(later.id)).toMatchObject({ lifecycleState: "ready", lifecycleHolds: [] });
-      await withAccountingTransaction(db, company.id, tx =>
-        applyAgentPolicyHoldsInTransaction(tx, effects, company.id, later.id, { budget: true }));
+      await withAccountingTransaction(db, space.id, tx =>
+        applyAgentPolicyHoldsInTransaction(tx, effects, space.id, later.id, { budget: true }));
       await vi.waitFor(async () => expect(await current(later.id)).toMatchObject({ lifecycleState: "paused", lifecycleHolds: ["budget"] }));
       await new Promise(resolve => setTimeout(resolve, 50));
       const reads = vi.spyOn(db, "select");

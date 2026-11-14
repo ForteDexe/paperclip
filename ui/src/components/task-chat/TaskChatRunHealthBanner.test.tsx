@@ -18,7 +18,7 @@ const RUN_ID = "10000000-0000-4000-8000-000000000001";
 function event(seq: number, eventType: string, payload: Record<string, unknown>): HeartbeatRunEvent {
   return {
     id: seq,
-    companyId: "10000000-0000-4000-8000-000000000002",
+    spaceId: "10000000-0000-4000-8000-000000000002",
     runId: RUN_ID,
     agentId: "10000000-0000-4000-8000-000000000003",
     seq,
@@ -94,7 +94,7 @@ describe("run health banner", () => {
 
   it("lifts a failed MCP start out of the timeline into one banner under the header", () => {
     render([
-      mcpFailure(1, "paperclip", "program not found: paperclip-mcp"),
+      mcpFailure(1, "outpost", "program not found: outpost-mcp"),
       event(2, "provider.notice.recorded", {
         schema: "outpost.provider.notice.v1", noticeId: "other", severity: "warning",
         category: "auth", scope: "session", recoverable: true, userActionable: true, summary: "Sign in again",
@@ -102,7 +102,7 @@ describe("run health banner", () => {
     ]);
     const banners = container.querySelectorAll('[data-testid="task-chat-run-health-banner"]');
     expect(banners).toHaveLength(1);
-    expect(banners[0].textContent).toBe("paperclip MCP server failed to start: program not found: paperclip-mcp");
+    expect(banners[0].textContent).toBe("outpost MCP server failed to start: program not found: outpost-mcp");
     const inline = container.querySelectorAll('[data-activity-family="provider_notice"]');
     expect([...inline].map((row) => row.textContent)).toEqual([expect.stringContaining("Sign in again")]);
     const header = container.querySelector('[data-testid="task-chat-runner-identity-row"]');

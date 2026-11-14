@@ -6,7 +6,7 @@ import {
   activityLog,
   agents,
   authUsers,
-  companyMemberships,
+  spaceMemberships,
   costEvents,
   issueComments,
   issues,
@@ -19,9 +19,9 @@ import type {
 } from "@outpost/shared";
 import { notFound } from "../errors.js";
 import { visibleIssueCondition } from "../services/issue-visibility.js";
-import { assertCompanyAccess } from "./authz.js";
+import { assertSpaceAccess } from "./authz.js";
 
-type CompanyUserRow = {
+type SpaceUserRow = {
   id: string;
   principalId: string;
   status: string;
@@ -49,7 +49,7 @@ function slugifyUserPart(value: string | null | undefined) {
   return normalized || null;
 }
 
-function userSlugCandidates(row: CompanyUserRow) {
+function userSlugCandidates(row: SpaceUserRow) {
   const candidates = new Set<string>();
   const add = (value: string | null | undefined) => {
     const slug = slugifyUserPart(value);
@@ -73,31 +73,31 @@ function userSlugSql(value: SQLWrapper) {
     '[^a-z0-9]+', '-', 'g'), '-')`;
 }
 
-async function resolveCompanyUser(db: Db, companyId: string, rawSlug: string): Promise<CompanyUserRow | null> {
+async function resolveSpaceUser(db: Db, spaceId: string, rawSlug: string): Promise<SpaceUserRow | null> {
   const slug = slugifyUserPart(rawSlug);
   if (!slug) return null;
 
   const select = () => db.select({
-    id: companyMemberships.id,
-    principalId: companyMemberships.principalId,
-    status: companyMemberships.status,
-    membershipRole: companyMemberships.membershipRole,
-    createdAt: companyMemberships.createdAt,
+    id: spaceMemberships.id,
+    principalId: spaceMemberships.principalId,
+    status: spaceMemberships.status,
+    membershipRole: spaceMemberships.membershipRole,
+    createdAt: spaceMemberships.createdAt,
     userId: authUsers.id,
     name: authUsers.name,
     email: authUsers.email,
     image: authUsers.image,
   })
-      .from(companyMemberships)
-      .leftJoin(authUsers, eq(authUsers.id, companyMemberships.principalId));
-  const scope = and(eq(companyMemberships.companyId, companyId), eq(companyMemberships.principalType, "user"));
-  const order = [desc(companyMemberships.updatedAt), desc(companyMemberships.id)];
+      .from(spaceMemberships)
+      .leftJoin(authUsers, eq(authUsers.id, spaceMemberships.principalId));
+  const scope = and(eq(spaceMemberships.spaceId, spaceId), eq(spaceMemberships.principalType, "user"));
+  const order = [desc(spaceMemberships.updatedAt), desc(spaceMemberships.id)];
 
   // Known-user links use principal IDs. Prefer an indexed exact identity over
   // a namesake's display slug, including older memberships beyond row 200.
   const [exact] = await select()
-    .where(and(scope, inArray(companyMemberships.principalId, [...new Set([rawSlug, slug])])))
-    .orderBy(desc(sql`${companyMemberships.principalId} = ${rawSlug}`), ...order)
+    .where(and(scope, inArray(spaceMemberships.principalId, [...new Set([rawSlug, slug])])))
+    .orderBy(desc(sql`${spaceMemberships.principalId} = ${rawSlug}`), ...order)
     .limit(1);
   if (exact) return exact;
 
@@ -108,14 +108,14 @@ async function resolveCompanyUser(db: Db, companyId: string, rawSlug: string): P
       eq(userSlugSql(authUsers.name), slug),
       eq(userSlugSql(sql`split_part(${authUsers.email}, '@', 1)`), slug),
       eq(userSlugSql(authUsers.email), slug),
-      eq(userSlugSql(companyMemberships.principalId), slug),
+      eq(userSlugSql(spaceMemberships.principalId), slug),
     )))
     .orderBy(...order)
     .limit(1);
   return match ?? null;
 }
 
-function userIssueInvolvementSql(companyId: string, userId: string) {
+function userIssueInvolvementSql(spaceId: string, userId: string) {
   return sql<boolean>`
     (
       ${issues.createdByUserId} = ${userId}
@@ -123,7 +123,7 @@ function userIssueInvolvementSql(companyId: string, userId: string) {
       OR EXISTS (
         SELECT 1
         FROM ${issueComments}
-        WHERE ${issueComments.companyId} = ${companyId}
+        WHERE ${issueComments.spaceId} = ${spaceId}
           AND ${issueComments.issueId} = ${issues.id}
           AND ${issueComments.authorUserId} = ${userId}
       )
@@ -154,13 +154,13 @@ function sumNumber(column: typeof costEvents.costCents | typeof costEvents.input
 
 async function loadWindowStats(
   db: Db,
-  companyId: string,
+  spaceId: string,
   userId: string,
   key: UserProfileWindowStats["key"],
   label: string,
   from: Date | null,
 ): Promise<UserProfileWindowStats> {
-  const involvement = userIssueInvolvementSql(companyId, userId);
+  const involvement = userIssueInvolvementSql(spaceId, userId);
   const openStatuses = ["backlog", "todo", "in_progress", "in_review", "blocked"];
   const fromIso = from?.toISOString();
 
@@ -172,10 +172,10 @@ async function loadWindowStats(
       assignedOpenIssues: sql<number>`count(distinct case when ${issues.assigneeUserId} = ${userId} and ${issues.status} in (${sql.join(openStatuses.map((status) => sql`${status}`), sql`, `)}) then ${issues.id} end)::int`,
     })
     .from(issues)
-    .where(and(eq(issues.companyId, companyId), visibleIssueCondition()));
+    .where(and(eq(issues.spaceId, spaceId), visibleIssueCondition()));
 
   const commentConditions = [
-    eq(issueComments.companyId, companyId),
+    eq(issueComments.spaceId, spaceId),
     eq(issueComments.authorUserId, userId),
   ];
   if (from) commentConditions.push(gte(issueComments.createdAt, from));
@@ -185,7 +185,7 @@ async function loadWindowStats(
     .where(and(...commentConditions));
 
   const activityConditions = [
-    eq(activityLog.companyId, companyId),
+    eq(activityLog.spaceId, spaceId),
     eq(activityLog.actorType, "user"),
     eq(activityLog.actorId, userId),
   ];
@@ -196,8 +196,8 @@ async function loadWindowStats(
     .where(and(...activityConditions));
 
   const costConditions = [
-    eq(costEvents.companyId, companyId),
-    userIssueInvolvementSql(companyId, userId),
+    eq(costEvents.spaceId, spaceId),
+    userIssueInvolvementSql(spaceId, userId),
   ];
   if (from) costConditions.push(gte(costEvents.occurredAt, from));
   const [costStats] = await db
@@ -209,7 +209,7 @@ async function loadWindowStats(
       costEventCount: sql<number>`count(${costEvents.id})::int`,
     })
     .from(costEvents)
-    .innerJoin(issues, and(eq(issues.id, costEvents.issueId), eq(issues.companyId, costEvents.companyId)))
+    .innerJoin(issues, and(eq(issues.id, costEvents.issueId), eq(issues.spaceId, costEvents.spaceId)))
     .where(and(...costConditions));
 
   return {
@@ -229,7 +229,7 @@ async function loadWindowStats(
   };
 }
 
-async function loadDailyStats(db: Db, companyId: string, userId: string): Promise<UserProfileDailyPoint[]> {
+async function loadDailyStats(db: Db, spaceId: string, userId: string): Promise<UserProfileDailyPoint[]> {
   const firstDay = startOfUtcDay(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000));
   const points = new Map<string, UserProfileDailyPoint>();
   for (let index = 0; index < 14; index += 1) {
@@ -254,7 +254,7 @@ async function loadDailyStats(db: Db, companyId: string, userId: string): Promis
     .from(activityLog)
     .where(
       and(
-        eq(activityLog.companyId, companyId),
+        eq(activityLog.spaceId, spaceId),
         eq(activityLog.actorType, "user"),
         eq(activityLog.actorId, userId),
         gte(activityLog.createdAt, firstDay),
@@ -276,11 +276,11 @@ async function loadDailyStats(db: Db, companyId: string, userId: string): Promis
     .from(issues)
     .where(
       and(
-        eq(issues.companyId, companyId),
+        eq(issues.spaceId, spaceId),
         visibleIssueCondition(),
         eq(issues.status, "done"),
         gte(issues.completedAt, firstDay),
-        userIssueInvolvementSql(companyId, userId),
+        userIssueInvolvementSql(spaceId, userId),
       ),
     )
     .groupBy(completedDay);
@@ -300,12 +300,12 @@ async function loadDailyStats(db: Db, companyId: string, userId: string): Promis
       outputTokens: sumNumber(costEvents.outputTokens),
     })
     .from(costEvents)
-    .innerJoin(issues, and(eq(issues.id, costEvents.issueId), eq(issues.companyId, costEvents.companyId)))
+    .innerJoin(issues, and(eq(issues.id, costEvents.issueId), eq(issues.spaceId, costEvents.spaceId)))
     .where(
       and(
-        eq(costEvents.companyId, companyId),
+        eq(costEvents.spaceId, spaceId),
         gte(costEvents.occurredAt, firstDay),
-        userIssueInvolvementSql(companyId, userId),
+        userIssueInvolvementSql(spaceId, userId),
       ),
     )
     .groupBy(costDay);
@@ -325,12 +325,12 @@ async function loadDailyStats(db: Db, companyId: string, userId: string): Promis
 export function userProfileRoutes(db: Db) {
   const router = Router();
 
-  router.get("/companies/:companyId/users/:userSlug/profile", async (req, res) => {
-    const companyId = req.params.companyId as string;
+  router.get("/spaces/:spaceId/users/:userSlug/profile", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
     const userSlug = req.params.userSlug as string;
-    assertCompanyAccess(req, companyId);
+    assertSpaceAccess(req, spaceId);
 
-    const row = await resolveCompanyUser(db, companyId, userSlug);
+    const row = await resolveSpaceUser(db, spaceId, userSlug);
     if (!row) throw notFound("User not found");
     const canonicalSlug = userSlugCandidates(row)[0] ?? row.principalId;
     const userId = row.userId ?? row.principalId;
@@ -338,10 +338,10 @@ export function userProfileRoutes(db: Db) {
     const [stats, daily, recentIssues, recentActivity, topAgents, topProviders] = await Promise.all([
       Promise.all(
         PROFILE_WINDOWS.map((entry) =>
-          loadWindowStats(db, companyId, userId, entry.key, entry.label, windowStart(entry.days)),
+          loadWindowStats(db, spaceId, userId, entry.key, entry.label, windowStart(entry.days)),
         ),
       ),
-      loadDailyStats(db, companyId, userId),
+      loadDailyStats(db, spaceId, userId),
       db
         .select({
           id: issues.id,
@@ -358,9 +358,9 @@ export function userProfileRoutes(db: Db) {
         .from(issues)
         .where(
           and(
-            eq(issues.companyId, companyId),
+            eq(issues.spaceId, spaceId),
             visibleIssueCondition(),
-            userIssueInvolvementSql(companyId, userId),
+            userIssueInvolvementSql(spaceId, userId),
           ),
         )
         .orderBy(desc(issues.updatedAt))
@@ -377,7 +377,7 @@ export function userProfileRoutes(db: Db) {
         .from(activityLog)
         .where(
           and(
-            eq(activityLog.companyId, companyId),
+            eq(activityLog.spaceId, spaceId),
             eq(activityLog.actorType, "user"),
             eq(activityLog.actorId, userId),
           ),
@@ -394,9 +394,9 @@ export function userProfileRoutes(db: Db) {
           outputTokens: sumNumber(costEvents.outputTokens),
         })
         .from(costEvents)
-        .innerJoin(issues, and(eq(issues.id, costEvents.issueId), eq(issues.companyId, costEvents.companyId)))
+        .innerJoin(issues, and(eq(issues.id, costEvents.issueId), eq(issues.spaceId, costEvents.spaceId)))
         .leftJoin(agents, eq(agents.id, costEvents.agentId))
-        .where(and(eq(costEvents.companyId, companyId), userIssueInvolvementSql(companyId, userId)))
+        .where(and(eq(costEvents.spaceId, spaceId), userIssueInvolvementSql(spaceId, userId)))
         .groupBy(costEvents.agentId, agents.name)
         .orderBy(desc(sumNumber(costEvents.costCents)))
         .limit(5),
@@ -411,8 +411,8 @@ export function userProfileRoutes(db: Db) {
           outputTokens: sumNumber(costEvents.outputTokens),
         })
         .from(costEvents)
-        .innerJoin(issues, and(eq(issues.id, costEvents.issueId), eq(issues.companyId, costEvents.companyId)))
-        .where(and(eq(costEvents.companyId, companyId), userIssueInvolvementSql(companyId, userId)))
+        .innerJoin(issues, and(eq(issues.id, costEvents.issueId), eq(issues.spaceId, costEvents.spaceId)))
+        .where(and(eq(costEvents.spaceId, spaceId), userIssueInvolvementSql(spaceId, userId)))
         .groupBy(costEvents.provider, costEvents.biller, costEvents.model)
         .orderBy(desc(sumNumber(costEvents.costCents)))
         .limit(5),

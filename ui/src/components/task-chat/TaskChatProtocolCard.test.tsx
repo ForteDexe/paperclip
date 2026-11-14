@@ -22,7 +22,7 @@ import { stateChipFor } from "./RichWorkProductCard";
 function workProduct(overrides: Partial<IssueWorkProduct> = {}): IssueWorkProduct {
   return {
     id: "work-product-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     issueId: "issue-1",
     executionWorkspaceId: null,
@@ -160,7 +160,7 @@ describe("TaskChatProtocolCard", () => {
   it("shows pending artifacts with a dashed Pending chip", () => {
     const product = workProduct({
       type: "artifact",
-      provider: "paperclip",
+      provider: "outpost",
       url: "/api/attachments/attachment-1/content",
       status: "pending",
       title: "demo.png",
@@ -238,8 +238,8 @@ describe("TaskChatProtocolCard", () => {
         workProduct={workProduct({
           type: "branch",
           provider: "git",
-          title: "Company skill update entrypoint",
-          summary: "Uncommitted implementation changes are in the execution working tree on branch company-skill-update-entrypoint.",
+          title: "Space skill update entrypoint",
+          summary: "Uncommitted implementation changes are in the execution working tree on branch space-skill-update-entrypoint.",
           url: null,
           metadata: null,
           status: "active",
@@ -362,7 +362,7 @@ describe("TaskChatProtocolCard", () => {
   ] as const)("renders %s runtime with %s health", (status, healthStatus, visible, absent) => {
     const product = workProduct({
       type: "runtime_service",
-      provider: "paperclip",
+      provider: "outpost",
       status,
       healthStatus,
       title: "Storybook",
@@ -556,7 +556,7 @@ describe("TaskChatProtocolCard", () => {
 
   it("renders committed ACP permission choices and preserves its exact resolution binding", async () => {
     const event: HeartbeatRunEvent = {
-      id: 1, seq: 1, companyId: "company-1", runId: "run-1", agentId: "agent-1",
+      id: 1, seq: 1, spaceId: "space-1", runId: "run-1", agentId: "agent-1",
       eventType: "runtime_request.created", stream: "system", level: "info", color: null, message: null,
       createdAt: new Date("2026-09-28T12:00:00Z"),
       payload: { orpEvent: {
@@ -671,7 +671,7 @@ describe("TaskChatProtocolCard", () => {
     expect(context?.textContent).toContain("https://provider.invalid/track.png");
     expect(context?.querySelector("img, video, audio, iframe, object, embed, image, link")).toBeNull();
     expect(context?.querySelector('.language-mermaid')?.textContent).toContain('https://provider.invalid/diagram.png');
-    expect(context?.querySelector('.paperclip-mermaid')).toBeNull();
+    expect(context?.querySelector('.outpost-mermaid')).toBeNull();
   });
 
   it("submits the canonical response from a v2 harness question set", async () => {

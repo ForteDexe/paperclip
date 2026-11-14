@@ -37,7 +37,7 @@ describe("capability story API boundary", () => {
       .spyOn(window, "fetch")
       .mockResolvedValue(Response.json({ unexpected: true }));
     cleanup = installFixtureApi([]).cleanup;
-    const reply = await window.fetch("/api/companies/company-storybook", {
+    const reply = await window.fetch("/api/spaces/space-storybook", {
       method: "PATCH",
       body: "{}",
     });
@@ -61,9 +61,9 @@ describe("capability story API boundary", () => {
     expect(fixture.requests[0].body).toEqual({ value: 42 });
     expect(handler).not.toHaveBeenCalled();
   });
-  it("keeps prerequisite flags available during a subject error and restores fetch and company selection", async () => {
+  it("keeps prerequisite flags available during a subject error and restores fetch and space selection", async () => {
     const previous = window.fetch;
-    localStorage.setItem("outpost.selectedCompanyId", "original-company");
+    localStorage.setItem("outpost.selectedSpaceId", "original-space");
     const fixture = installFixtureApi(
       [
         { path: "/api/flags", state: "ready", read: () => ({ enabled: true }) },
@@ -79,8 +79,8 @@ describe("capability story API boundary", () => {
     fixture.cleanup();
     cleanup = undefined;
     expect(window.fetch).toBe(previous);
-    expect(localStorage.getItem("outpost.selectedCompanyId")).toBe(
-      "original-company",
+    expect(localStorage.getItem("outpost.selectedSpaceId")).toBe(
+      "original-space",
     );
   });
 });

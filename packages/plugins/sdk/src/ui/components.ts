@@ -342,7 +342,7 @@ export interface IssuesListFilters {
 }
 
 export interface IssuesListProps {
-  companyId: string | null;
+  spaceId: string | null;
   projectId?: string | null;
   filters?: IssuesListFilters;
   viewStateKey?: string;
@@ -357,8 +357,8 @@ export interface AssigneePickerSelection {
 }
 
 export interface AssigneePickerProps {
-  /** Company whose agents and users should be listed. Defaults to host context. */
-  companyId?: string | null;
+  /** Space whose agents and users should be listed. Defaults to host context. */
+  spaceId?: string | null;
   /** Controlled value. Use `agent:<id>`, `user:<id>`, or an empty string. */
   value: string;
   /** Called with the encoded value plus parsed assignee IDs. */
@@ -371,7 +371,7 @@ export interface AssigneePickerProps {
   searchPlaceholder?: string;
   /** Empty search result message. */
   emptyMessage?: string;
-  /** Include active board users alongside agents. Defaults to true. */
+  /** Include active operators alongside agents. Defaults to true. */
   includeUsers?: boolean;
   /** Include terminated agents. Defaults to false. */
   includeTerminatedAgents?: boolean;
@@ -382,8 +382,8 @@ export interface AssigneePickerProps {
 }
 
 export interface ProjectPickerProps {
-  /** Company whose projects should be listed. Defaults to host context. */
-  companyId?: string | null;
+  /** Space whose projects should be listed. Defaults to host context. */
+  spaceId?: string | null;
   /** Controlled project id, or an empty string for no project. */
   value: string;
   /** Called with the selected project id. Empty string means no project. */
@@ -474,7 +474,7 @@ export interface ManagedRoutinesListProps {
  * @see PLUGIN_SPEC.md §19.6 — Shared Components
  */
 function createSdkUiComponent<TProps>(name: string): React.ComponentType<TProps> {
-  return function PaperclipSdkUiComponent(props: TProps) {
+  return function OutpostSdkUiComponent(props: TProps) {
     return renderSdkUiComponent(name, props) as React.ReactNode;
   };
 }
@@ -510,7 +510,7 @@ export const TimeseriesChart = createSdkUiComponent<TimeseriesChartProps>("Times
 export const MarkdownBlock = createSdkUiComponent<MarkdownBlockProps>("MarkdownBlock");
 
 /**
- * Renders Paperclip's shared Markdown editor.
+ * Renders Outpost's shared Markdown editor.
  *
  * @see PLUGIN_SPEC.md §19.6 — Shared Components
  */
@@ -576,7 +576,7 @@ export const ErrorBoundary = createSdkUiComponent<ErrorBoundaryProps>("ErrorBoun
 export const FileTree = createSdkUiComponent<FileTreeProps>("FileTree");
 
 /**
- * Renders Paperclip's native issue list component for company-scoped plugin
+ * Renders Outpost's native issue list component for space-scoped plugin
  * pages that need a standard board issue view.
  */
 export const IssuesList = createSdkUiComponent<IssuesListProps>("IssuesList");
@@ -592,6 +592,6 @@ export const AssigneePicker = createSdkUiComponent<AssigneePickerProps>("Assigne
 export const ProjectPicker = createSdkUiComponent<ProjectPickerProps>("ProjectPicker");
 
 /**
- * Renders Paperclip's native managed routines list for plugin settings pages.
+ * Renders Outpost's native managed routines list for plugin settings pages.
  */
 export const ManagedRoutinesList = createSdkUiComponent<ManagedRoutinesListProps>("ManagedRoutinesList");

@@ -34,31 +34,31 @@ async function fixture(options: { preexisting?: boolean; intentFails?: boolean; 
   vi.spyOn(globalThis, "setTimeout").mockImplementation(((callback: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) =>
     realTimeout(callback, delay === 1000 ? 0 : delay, ...args)) as typeof setTimeout);
   const current = () => f.points[stage]!;
-  const companyActivity = [
+  const spaceActivity = [
     ...Array.from({ length: options.unrelatedActivity ?? 0 }, (_, index) => ({ id: `unrelated-${index}`,
-      companyId: f.scope.companyId, agentId: "other-agent", runId: "other-run", action: "project.created", entityType: "project", entityId: `other-project-${index}` })),
-    ...(options.provisioningActor ? [{ id: "provisioned-agent", companyId: f.scope.companyId,
+      spaceId: f.scope.spaceId, agentId: "other-agent", runId: "other-run", action: "project.created", entityType: "project", entityId: `other-project-${index}` })),
+    ...(options.provisioningActor ? [{ id: "provisioned-agent", spaceId: f.scope.spaceId,
       agentId: options.provisioningActor === "board" ? null : f.scope.agentId, runId: null,
       action: "agent.created", entityType: "agent", entityId: f.scope.agentId }] : []),
   ];
-  const companyRuns = Array.from({ length: options.unrelatedActivity ?? 0 }, (_, index) => ({ id: `unrelated-run-${index}`,
-    companyId: f.scope.companyId, agentId: "other-agent", status: "succeeded" }));
-  if (options.priorAgentStatus) companyRuns.push({ id: "prior-owned-run", companyId: f.scope.companyId, agentId: f.scope.agentId, status: options.priorAgentStatus });
+  const spaceRuns = Array.from({ length: options.unrelatedActivity ?? 0 }, (_, index) => ({ id: `unrelated-run-${index}`,
+    spaceId: f.scope.spaceId, agentId: "other-agent", status: "succeeded" }));
+  if (options.priorAgentStatus) spaceRuns.push({ id: "prior-owned-run", spaceId: f.scope.spaceId, agentId: f.scope.agentId, status: options.priorAgentStatus });
   const get = vi.fn(async (route: string) => {
     if (route === "/api/instance/settings/experimental") return { enableAgentChat: true };
-    if (route === "/api/companies/company/heartbeat-runs?agentId=agent&limit=1&summary=true") {
+    if (route === "/api/spaces/space/heartbeat-runs?agentId=agent&limit=1&summary=true") {
       actions.push("history");
-      if (options.mixedAgentHistory) return [{ id: "foreign-run", companyId: "foreign-company", agentId: "other-agent", status: "running" }];
-      return companyRuns.filter(run => run.agentId === f.scope.agentId).slice(0, 1);
+      if (options.mixedAgentHistory) return [{ id: "foreign-run", spaceId: "foreign-space", agentId: "other-agent", status: "running" }];
+      return spaceRuns.filter(run => run.agentId === f.scope.agentId).slice(0, 1);
     }
-    if (route === "/api/companies/company/chats/agent") return stage < 0 ? null : structuredClone(current().chat);
+    if (route === "/api/spaces/space/chats/agent") return stage < 0 ? null : structuredClone(current().chat);
     if (route === "/api/issues/chat/runs") return current().runs.map(run => ({ runId: run.id, agentId: run.agentId, status: run.status,
       contextIssueId: run.contextSnapshot.issueId, wakeCommentId: run.contextSnapshot.wakeCommentId,
       resultJson: run.contextSnapshot.conversationReset ? { conversationReset: true } : {} }));
     if (route === "/api/issues/chat/comments?order=asc") return structuredClone(current().comments);
-    if (route === "/api/companies/company/issues?view=index&assigneeAgentId=agent&includeAgentCreatedTasks=true&limit=2") return [];
-    if (route === "/api/companies/company/activity?agentId=agent&limit=500") {
-      return (options.ignoreActivityScope ? companyActivity : companyActivity.filter(row => row.agentId === f.scope.agentId)).slice(0, 500);
+    if (route === "/api/spaces/space/issues?view=index&assigneeAgentId=agent&includeAgentCreatedTasks=true&limit=2") return [];
+    if (route === "/api/spaces/space/activity?agentId=agent&limit=500") {
+      return (options.ignoreActivityScope ? spaceActivity : spaceActivity.filter(row => row.agentId === f.scope.agentId)).slice(0, 500);
     }
     if (/\/api\/heartbeat-runs\/run-\d\/events\?/.test(route)) return structuredClone(current().events ?? []);
     const id = route.match(/^\/api\/heartbeat-runs\/(run-\d)$/)?.[1];
@@ -76,7 +76,7 @@ async function fixture(options: { preexisting?: boolean; intentFails?: boolean; 
     if (options.intentFails && !resource.id) throw new Error("ownership intent failed");
   });
   const context = { page, api: { get, origin: "https://qa.example.test" },
-    company: { id: f.scope.companyId, issuePrefix: "QA" }, user: { id: f.scope.userId, name: "QA" },
+    space: { id: f.scope.spaceId, issuePrefix: "QA" }, user: { id: f.scope.userId, name: "QA" },
     environmentId: f.scope.environmentId, agent: { id: f.scope.agentId, name: f.scope.agentName,
       provider: f.scope.provider, model: f.scope.model, runtimeMode: "native" } } as unknown as JourneyContext;
   const evidence: JourneyEvidence = { outcome: "passed", startingState: "recipe", phases: [], checks: [], resourceDisposition: "released", privacy: "private" };
@@ -95,7 +95,7 @@ async function fixture(options: { preexisting?: boolean; intentFails?: boolean; 
     return structuredClone(point.reply!);
   });
   mocks.capture.mockResolvedValue(undefined);
-  return { ...f, context, evidence, own, directory, messages, actions, page, get, companyActivity,
+  return { ...f, context, evidence, own, directory, messages, actions, page, get, spaceActivity,
     run: () => runChatContinuity(context, { own } as unknown as TargetSession, f.scope.campaignId, evidence,
       { directory, deadlineAt: Date.now() + 10_000 }) };
 }
@@ -118,7 +118,7 @@ describe("chat continuity journey controls", () => {
     expect(saved.points.map((point: { phase: string }) => point.phase)).toEqual(["initial", "returned", "recalled", "reset", "fresh", "reopened"]);
     expect(saved.checks.every((check: { passed: boolean }) => check.passed)).toBe(true);
   });
-  it("accepts compact details with original reset summaries despite more than 500 unrelated company events", async () => {
+  it("accepts compact details with original reset summaries despite more than 500 unrelated space events", async () => {
     const f = await fixture({ compactRuns: true, unrelatedActivity: 750 });
     await f.run();
     expect(f.evidence.checks.every(check => check.passed)).toBe(true);
@@ -135,7 +135,7 @@ describe("chat continuity journey controls", () => {
   });
   it("accepts board provisioning whose created entity is the owned agent, rather than treating its entity id as the actor", async () => {
     const f = await fixture({ provisioningActor: "board", unrelatedActivity: 750 });
-    expect(f.companyActivity.at(-1)).toMatchObject({ action: "agent.created", agentId: null, entityId: f.scope.agentId });
+    expect(f.spaceActivity.at(-1)).toMatchObject({ action: "agent.created", agentId: null, entityId: f.scope.agentId });
     await f.run();
     expect(f.evidence.checks.every(check => check.passed)).toBe(true);
     const saved = JSON.parse(await readFile(path.join(f.directory, "chat-continuity.json"), "utf8"));

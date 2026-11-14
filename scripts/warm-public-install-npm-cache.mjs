@@ -24,7 +24,7 @@ const cache = process.env.OUTPOST_PUBLIC_INSTALL_NPM_CACHE;
 assert.ok(cache, 'Set OUTPOST_PUBLIC_INSTALL_NPM_CACHE to the cache directory the verifier will use');
 mkdirSync(cache, { recursive: true });
 const started = performance.now();
-const scratch = mkdtempSync(join(tmpdir(), 'paperclip-public-install-warm-'));
+const scratch = mkdtempSync(join(tmpdir(), 'outpost-public-install-warm-'));
 try {
   const { dependencies, optionalDependencies } = publicRegistryDependencies(publicInstallClosure(repo));
   writeFileSync(join(scratch, 'package.json'), JSON.stringify({ private: true, dependencies, optionalDependencies }));

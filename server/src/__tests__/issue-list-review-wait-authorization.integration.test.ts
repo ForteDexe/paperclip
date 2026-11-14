@@ -34,23 +34,23 @@ describePostgres("issue list review-wait authorization", () => {
     // A second waiting conversation, on the other in-review issue, from the
     // same linked person.
     const otherConversationId = randomUUID(), otherCommentId = randomUUID(), deliveryId = randomUUID();
-    await db.insert(chatConversations).values({ id: otherConversationId, companyId: f.companyId,
+    await db.insert(chatConversations).values({ id: otherConversationId, spaceId: f.spaceId,
       endpointId: f.endpointId, resourceId: f.resourceId, issueId: f.otherIssueId,
       externalConversationId: "channel-1", externalThreadId: "thread-2", externalLabel: "Other thread", state: "active" });
-    await db.insert(issueComments).values({ id: otherCommentId, companyId: f.companyId, issueId: f.otherIssueId,
+    await db.insert(issueComments).values({ id: otherCommentId, spaceId: f.spaceId, issueId: f.otherIssueId,
       authorType: "user", authorUserId: f.userId, body: "Another request" });
-    await db.insert(chatDeliveries).values({ id: deliveryId, companyId: f.companyId, endpointId: f.endpointId,
+    await db.insert(chatDeliveries).values({ id: deliveryId, spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: otherConversationId, principalId: f.principalId, providerEventId: deliveryId,
       deduplicationKey: deliveryId, eventKind: "message", normalizedEvent: {}, state: "processed", processedAt: new Date() });
-    await db.insert(chatMessageLinks).values({ companyId: f.companyId, endpointId: f.endpointId,
+    await db.insert(chatMessageLinks).values({ spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: otherConversationId, deliveryId, commentId: otherCommentId,
       providerMessageId: otherCommentId, direction: "inbound" });
     // Each issue waits on the reply that its succeeded native run asked for.
     const otherRunId = randomUUID();
     await db.insert(heartbeatRuns).values([
-      { id: f.runId, companyId: f.companyId, agentId: f.agentId, status: "succeeded", runtimeMode: "native",
+      { id: f.runId, spaceId: f.spaceId, agentId: f.agentId, status: "succeeded", runtimeMode: "native",
         nativeIssueId: f.issueId, contextSnapshot: f.context },
-      { id: otherRunId, companyId: f.companyId, agentId: f.agentId, status: "succeeded", runtimeMode: "native",
+      { id: otherRunId, spaceId: f.spaceId, agentId: f.agentId, status: "succeeded", runtimeMode: "native",
         nativeIssueId: f.otherIssueId, contextSnapshot: { ...f.context, wakeCommentIds: [otherCommentId] } },
     ]);
     for (const [issueId, runId] of [[f.issueId, f.runId], [f.otherIssueId, otherRunId]] as const) {
@@ -58,7 +58,7 @@ describePostgres("issue list review-wait authorization", () => {
       // The decision's assessment chain is not part of this read.
       await db.transaction(async (tx) => {
         await tx.execute(sql`set local session_replication_role = replica`);
-        await tx.insert(statusDecisions).values({ id: decisionId, companyId: f.companyId, issueId, runId,
+        await tx.insert(statusDecisions).values({ id: decisionId, spaceId: f.spaceId, issueId, runId,
           assessmentId: randomUUID(), decisionVersion: 1, policyVersion: "test", fromStatus: "in_progress",
           toStatus: "in_review", reasonCode: "external_chat_response_waiting", decisionJson: {},
           decisionDigest: decisionId, applicationState: "applied", appliedAt: new Date() });
@@ -84,14 +84,14 @@ describePostgres("issue list review-wait authorization", () => {
 
   it("authorizes every wait of a page with one message read", async () => {
     const { result, reads } = await boundRunLinkReads(() =>
-      listExternalReviewWaits(db, f.companyId, [f.issueId, f.otherIssueId]));
+      listExternalReviewWaits(db, f.spaceId, [f.issueId, f.otherIssueId]));
     expect(result.map((wait) => wait.issueId).sort()).toEqual([f.issueId, f.otherIssueId].sort());
     expect(reads).toBe(1);
   });
 
   it("reads the waits of an issue-list request once, for both attention maps", async () => {
     const { result, reads } = await boundRunLinkReads(() =>
-      issueService(db).list(f.companyId, { includeBlockedInboxAttention: true }));
+      issueService(db).list(f.spaceId, { includeBlockedInboxAttention: true }));
     expect(result.map((row) => row.id).sort()).toEqual([f.issueId, f.otherIssueId].sort());
     expect(reads).toBe(1);
   });

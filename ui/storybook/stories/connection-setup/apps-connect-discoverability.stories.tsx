@@ -21,7 +21,7 @@ import { PasteConfigTab } from "@/pages/tools/PasteConfigTab";
  *     the gallery's link flow.
  */
 
-const COMPANY = "company-storybook";
+const SPACE = "space-storybook";
 
 const GALLERY: AppDefinition[] = CONNECTABLE_APP_DEFINITIONS.slice(0, 6) as AppDefinition[];
 
@@ -31,7 +31,7 @@ function seededClient() {
       queries: { staleTime: Infinity, gcTime: Infinity, retry: false, refetchOnMount: false },
     },
   });
-  c.setQueryData(queryKeys.apps.gallery(COMPANY), { apps: GALLERY });
+  c.setQueryData(queryKeys.apps.gallery(SPACE), { apps: GALLERY });
   return c;
 }
 
@@ -51,7 +51,7 @@ function PasteConfigHost() {
   return (
     <QueryClientProvider client={client}>
       <div className="mx-auto max-w-3xl p-6">
-        <PasteConfigTab companyId={COMPANY} />
+        <PasteConfigTab spaceId={SPACE} />
       </div>
     </QueryClientProvider>
   );
@@ -61,7 +61,7 @@ const meta: Meta = {
   id: "apps-connect-discoverability-pap-11091",
   title: "Apps, channels, and extensions/Connection setup/Apps/Connect discoverability (PAP-11091)",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "connection-setup/catalog"
       ],
@@ -140,7 +140,7 @@ function PreviewHost({ preview, snippet }: { preview: McpJsonImportPreview; snip
   return (
     <QueryClientProvider client={client}>
       <div className="mx-auto max-w-3xl p-6">
-        <PasteConfigTab companyId={COMPANY} />
+        <PasteConfigTab spaceId={SPACE} />
       </div>
     </QueryClientProvider>
   );
@@ -189,7 +189,7 @@ const MIXED_PREVIEW: McpJsonImportPreview = {
         { name: "GITHUB_TOKEN", secretId: "draft-2", placement: "env", key: "GITHUB_TOKEN" },
       ],
       credentialFields: [],
-      warnings: ["Imported stdio commands stay draft-only unless mapped to an approved Paperclip template."],
+      warnings: ["Imported stdio commands stay draft-only unless mapped to an approved Outpost template."],
     },
   ],
 };
@@ -205,7 +205,7 @@ const STDIO_PREVIEW: McpJsonImportPreview = {
         { name: "GITHUB_TOKEN", secretId: "draft-3", placement: "env", key: "GITHUB_TOKEN" },
       ],
       credentialFields: [],
-      warnings: ["Imported stdio commands stay draft-only unless mapped to an approved Paperclip template."],
+      warnings: ["Imported stdio commands stay draft-only unless mapped to an approved Outpost template."],
     },
   ],
 };

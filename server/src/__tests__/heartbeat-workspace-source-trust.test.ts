@@ -11,14 +11,14 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, environments, executionWorkspaces, heartbeatRuns, issues, issueAccessGrants, principalPermissionGrants, projects, projectAccessMembers, projectWorkspaces } from "@outpost/db";
+import { agents, authUsers, spaces, spaceMemberships, createDb, environments, executionWorkspaces, heartbeatRuns, issues, issueAccessGrants, principalPermissionGrants, projects, projectAccessMembers, projectWorkspaces } from "@outpost/db";
 import { setExpensiveWorkspaceGitExecutor } from "@outpost/adapter-utils/git-workspace-sync";
 import { buildProjectMentionHref } from "@outpost/shared";
 import { createWorkspaceGitOperationScheduler, WorkspaceGitScanError } from "../services/workspace-git-operation-scheduler.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { heartbeatService } from "../services/heartbeat.ts";
 import { createHeartbeatWorkspaceResolver } from "../services/heartbeat/workspaces.js";
-import { resolveManagedProjectWorkspaceDir, resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveManagedProjectWorkspaceDir, resolveOutpostInstanceRoot } from "../home-paths.js";
 import { issueService } from "../services/issues.js";
 import { accessService } from "../services/access.js";
 import { instanceSettingsService } from "../services/instance-settings.ts";
@@ -42,7 +42,7 @@ suite("heartbeat physical workspace source trust", () => {
   let root: string;
   let heartbeat: ReturnType<typeof heartbeatService>;
   beforeAll(async () => {
-    root = await mkdtemp(path.join(os.tmpdir(), "paperclip-project-repos-"));
+    root = await mkdtemp(path.join(os.tmpdir(), "outpost-project-repos-"));
     vi.stubEnv("OUTPOST_HOME", path.join(root, "home"));
     vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC", "false");
     database = await startEmbeddedPostgresTestDatabase("project-repositories");
@@ -74,12 +74,12 @@ suite("heartbeat physical workspace source trust", () => {
   it.each(["current", "retained", "sandbox", "provision_current", "provision_retained"] as const)("uses current selected trust without inferring policy from unrelated physical aliases (%s)", async scenario => {
     const sandbox = scenario === "sandbox";
     const provision = scenario.startsWith("provision_");
-    const companyId = randomUUID(), projectId = randomUUID(), sourceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    const spaceId = randomUUID(), projectId = randomUUID(), sourceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
     await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });
-    const cwd = path.join(root, companyId, "low-trust-source");
+    const cwd = path.join(root, spaceId, "low-trust-source");
     await mkdir(cwd, { recursive: true });
     await writeFile(path.join(cwd, "work.txt"), "Low-trust source files");
-    const base = path.join(root, companyId, "base");
+    const base = path.join(root, spaceId, "base");
     if (provision || sandbox) {
       await mkdir(base, { recursive: true });
       await writeFile(path.join(base, "source.txt"), "source");
@@ -94,24 +94,24 @@ suite("heartbeat physical workspace source trust", () => {
       git("worktree", "add", "-b", "task", cwd);
     }
     const provisionCommand = `printf host-provisioned > '${path.join(cwd, "provision-ran")}'`;
-    await db.insert(companies).values({ id: companyId, name: "Physical trust", issuePrefix: `F${companyId.slice(0, 6)}`, defaultResponsibleUserId: "responsible-user" });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "owner" });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Low-trust folder owner", executionWorkspacePolicy: {
-      trustPreset: "low_trust_review", authorizationPolicy: { trustPreset: "low_trust_review", trustBoundary: { mode: "low_trust_review", companyId, rootIssueId: issueId, projectIds: [projectId] } },
+    await db.insert(spaces).values({ id: spaceId, name: "Physical trust", issuePrefix: `F${spaceId.slice(0, 6)}`, defaultResponsibleUserId: "responsible-user" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "owner" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Low-trust folder owner", executionWorkspacePolicy: {
+      trustPreset: "low_trust_review", authorizationPolicy: { trustPreset: "low_trust_review", trustBoundary: { mode: "low_trust_review", spaceId, rootIssueId: issueId, projectIds: [projectId] } },
     } });
-    await db.insert(projectWorkspaces).values({ id: sourceId, companyId, projectId, name: "Source", sourceType: "local_path", cwd: sandbox ? base : cwd, isPrimary: true });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Standard local worker", status: "idle", adapterType: "codex_local", adapterConfig: {}, permissions: {} });
-    await db.insert(companyMemberships).values({ companyId, principalType: "agent", principalId: agentId, status: "active", membershipRole: "member" });
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId, name: "Projectless alias", cwd, projectId: sandbox ? projectId : null, mode: sandbox ? "isolated_workspace" : "shared_workspace", strategyType: sandbox ? "git_worktree" : "project_primary",
+    await db.insert(projectWorkspaces).values({ id: sourceId, spaceId, projectId, name: "Source", sourceType: "local_path", cwd: sandbox ? base : cwd, isPrimary: true });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Standard local worker", status: "idle", adapterType: "codex_local", adapterConfig: {}, permissions: {} });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "agent", principalId: agentId, status: "active", membershipRole: "member" });
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId, name: "Projectless alias", cwd, projectId: sandbox ? projectId : null, mode: sandbox ? "isolated_workspace" : "shared_workspace", strategyType: sandbox ? "git_worktree" : "project_primary",
       ...(sandbox ? { projectWorkspaceId: sourceId, providerRef: cwd, branchName: "task", baseRef: "main", config: { provisionCommand: "bash ./scripts/provision-worktree.sh" } } : {}),
       ...(provision ? { branchName: "task", baseRef: "main", config: { provisionCommand } } : {}) }).returning();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Standard task", status: "todo", assigneeAgentId: agentId,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Standard task", status: "todo", assigneeAgentId: agentId,
       executionWorkspaceId: workspace.id, projectWorkspaceId: sandbox ? sourceId : null, executionWorkspacePreference: "reuse_existing", executionWorkspaceSettings: { mode: sandbox || provision ? "isolated_workspace" : "shared_workspace",
         ...(provision ? { workspaceStrategy: { type: "git_worktree", provisionCommand } } : {}) },
       workspaceSelection: { version: 1, source: "explicit", selection: { kind: "existing", workspaceId: workspace.id } } });
     if (scenario === "retained" || scenario === "provision_retained") {
       const { projectService } = await import("../services/projects.js");
-      await projectService(db).updateWorkspace(projectId, sourceId, { cwd: path.join(root, companyId, "relocated") });
+      await projectService(db).updateWorkspace(projectId, sourceId, { cwd: path.join(root, spaceId, "relocated") });
     }
     let driver = heartbeat;
     if (sandbox) {
@@ -152,10 +152,10 @@ suite("heartbeat physical workspace source trust", () => {
   ] as const)("places standard source %s provisioning with %s grants on %s", async (provisionKind, grants, placement) => {
     const implicitDefault = placement.startsWith("local_");
     const newerDefault = placement === "local_new_default" || placement === "local_new_primary";
-    const companyId = randomUUID(), projectId = randomUUID(), sourceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    const spaceId = randomUUID(), projectId = randomUUID(), sourceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
     await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });
-    const cwd = path.join(root, companyId, "read-only-source");
-    const marker = path.join(root, companyId, "host-script-ran");
+    const cwd = path.join(root, spaceId, "read-only-source");
+    const marker = path.join(root, spaceId, "host-script-ran");
     await mkdir(path.join(cwd, "scripts"), { recursive: true });
     await writeFile(path.join(cwd, "source.txt"), "read-only source bytes");
     await writeFile(path.join(cwd, "scripts", "provision-worktree.sh"), `printf host-script-ran > '${marker}'\n`);
@@ -163,42 +163,42 @@ suite("heartbeat physical workspace source trust", () => {
     git("init", "-b", "main"); git("add", ".");
     git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "-m", "source");
     git("remote", "add", "origin", pathToFileURL(cwd).href);
-    await db.insert(companies).values({ id: companyId, name: "Read-only source", issuePrefix: `R${companyId.slice(0, 6)}`, defaultResponsibleUserId: "responsible-user" });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "owner" });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Protected source", executionWorkspacePolicy: {
+    await db.insert(spaces).values({ id: spaceId, name: "Read-only source", issuePrefix: `R${spaceId.slice(0, 6)}`, defaultResponsibleUserId: "responsible-user" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "owner" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Protected source", executionWorkspacePolicy: {
       authorizationPolicy: { assignmentPolicy: { mode: "protected" } },
       ...(placement === "local_new_default" ? { defaultProjectWorkspaceId: sourceId } : {}),
     } });
-    if (newerDefault) await db.insert(projectWorkspaces).values({ id: randomUUID(), companyId, projectId, name: "Older source", sourceType: "local_path", cwd: path.join(root, companyId, "older-source"), isPrimary: placement === "local_new_default", createdAt: new Date(0) });
-    await db.insert(projectWorkspaces).values({ id: sourceId, companyId, projectId, name: "Source", sourceType: "local_path", cwd, repoUrl: pathToFileURL(cwd).href, isPrimary: placement !== "local_new_default" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Reader", status: "idle", adapterType: "codex_local", adapterConfig: { fullAuto: grants === "both",
+    if (newerDefault) await db.insert(projectWorkspaces).values({ id: randomUUID(), spaceId, projectId, name: "Older source", sourceType: "local_path", cwd: path.join(root, spaceId, "older-source"), isPrimary: placement === "local_new_default", createdAt: new Date(0) });
+    await db.insert(projectWorkspaces).values({ id: sourceId, spaceId, projectId, name: "Source", sourceType: "local_path", cwd, repoUrl: pathToFileURL(cwd).href, isPrimary: placement !== "local_new_default" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Reader", status: "idle", adapterType: "codex_local", adapterConfig: { fullAuto: grants === "both",
       ...(placement === "local_effective_strategy" ? { workspaceStrategy: { type: "project_primary" } } : {}) }, permissions: {} });
-    await db.insert(companyMemberships).values({ companyId, principalType: "agent", principalId: agentId, status: "active", membershipRole: "member" });
-    const taskInput = { id: issueId, companyId, projectId: implicitDefault ? projectId : null, title: "Read-only isolated source", status: "todo" as const, assigneeAgentId: agentId,
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "agent", principalId: agentId, status: "active", membershipRole: "member" });
+    const taskInput = { id: issueId, spaceId, projectId: implicitDefault ? projectId : null, title: "Read-only isolated source", status: "todo" as const, assigneeAgentId: agentId,
       projectWorkspaceId: sourceId, executionWorkspaceSettings: { mode: "isolated_workspace", workspaceStrategy: { type: "git_worktree",
-        worktreeParentDir: path.join(root, companyId, "worktrees"), ...(provisionKind === "configured" ? { provisionCommand: `printf host-script-ran > '${marker}'` } : {}) } },
+        worktreeParentDir: path.join(root, spaceId, "worktrees"), ...(provisionKind === "configured" ? { provisionCommand: `printf host-script-ran > '${marker}'` } : {}) } },
       workspaceSelection: implicitDefault ? null : { version: 1 as const, source: "explicit" as const, selection: { kind: "configured_source" as const, projectWorkspaceId: sourceId, mode: "managed_isolated" as const } } };
     if (newerDefault || placement === "local_effective_strategy") {
       const { projectWorkspaceId: _source, workspaceSelection: _selection, ...createInput } = taskInput;
-      const created = await issueService(db).create(companyId, createInput);
+      const created = await issueService(db).create(spaceId, createInput);
       expect(created.projectWorkspaceId).toBe(sourceId);
       expect(created.workspaceSelection).toMatchObject({ source: "project" });
     } else await db.insert(issues).values(taskInput);
-    if (grants !== "none") await db.insert(principalPermissionGrants).values({ companyId, principalType: "agent", principalId: agentId,
+    if (grants !== "none") await db.insert(principalPermissionGrants).values({ spaceId, principalType: "agent", principalId: agentId,
       permissionKey: "tasks:assign_scope", scope: { projectId, assigneeAgentId: agentId } });
-    if (grants === "both") await db.insert(principalPermissionGrants).values({ companyId, principalType: "user", principalId: "responsible-user",
+    if (grants === "both") await db.insert(principalPermissionGrants).values({ spaceId, principalType: "user", principalId: "responsible-user",
       permissionKey: "tasks:assign_scope", scope: { projectId, assigneeAgentId: agentId } });
-    const actor = { type: "agent" as const, agentId, companyId, source: "agent_jwt" as const, onBehalfOfUserId: "responsible-user" };
-    expect(await accessService(db).decide({ actor, action: "project:read", resource: { type: "project", companyId, projectId } })).toMatchObject({ allowed: true });
-    expect(await accessService(db).decide({ actor, action: "project:write_workspace", resource: { type: "issue", companyId, projectId, issueId, assigneeAgentId: agentId }, scope: { projectId, assigneeAgentId: agentId } })).toMatchObject({ allowed: grants === "both" });
+    const actor = { type: "agent" as const, agentId, spaceId, source: "agent_jwt" as const, onBehalfOfUserId: "responsible-user" };
+    expect(await accessService(db).decide({ actor, action: "project:read", resource: { type: "project", spaceId, projectId } })).toMatchObject({ allowed: true });
+    expect(await accessService(db).decide({ actor, action: "project:write_workspace", resource: { type: "issue", spaceId, projectId, issueId, assigneeAgentId: agentId }, scope: { projectId, assigneeAgentId: agentId } })).toMatchObject({ allowed: grants === "both" });
     if (placement === "local_effective_strategy") {
       const selection = { kind: "configured_source" as const, projectWorkspaceId: sourceId, mode: "managed_isolated" as const };
-      await expect(executionWorkspaceService(db).validateSelection({ companyId, actor, issueId, selection })).resolves.toMatchObject({ projectWorkspaceId: sourceId });
-      await expect(executionWorkspaceService(db).validateSelection({ companyId, actor, issueId,
+      await expect(executionWorkspaceService(db).validateSelection({ spaceId, actor, issueId, selection })).resolves.toMatchObject({ projectWorkspaceId: sourceId });
+      await expect(executionWorkspaceService(db).validateSelection({ spaceId, actor, issueId,
         selection: { ...selection, mode: "shared" }, preserveImplicitDefaultSettings: true })).rejects.toThrow("Task workspace default changed");
     }
     const environmentId = randomUUID();
-    await db.insert(environments).values({ id: environmentId, name: `Standard sandbox ${companyId}`, driver: "sandbox", status: "active", config: { provider: "fake", image: "fake:test" } });
+    await db.insert(environments).values({ id: environmentId, name: `Standard sandbox ${spaceId}`, driver: "sandbox", status: "active", config: { provider: "fake", image: "fake:test" } });
     await db.update(agents).set({ defaultEnvironmentId: placement === "sandbox" ? environmentId : null }).where(eq(agents.id, agentId));
     const driver = heartbeatService(db, { environmentRuntime: { ...environmentRuntimeService(db), execute: async input => ({
       exitCode: 0, stdout: execFileSync(input.command, input.args ?? [], { cwd: root, input: input.stdin, encoding: "utf8", env: { ...process.env, ...input.env } }),

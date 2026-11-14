@@ -33,7 +33,7 @@ describe("CommentAttributionChip", () => {
   });
 
   it("is keyboard focusable so the tooltip is not hover-only", () => {
-    // Badge renders a span; without tabIndex a sighted keyboard user could never
+    // Badge renders a span; without tabIndex a sighted keyoperator could never
     // open the explanation of whose authority the comment rode.
     expect(render(<CommentAttributionChip userName="Dotta" />)).toContain('tabindex="0"');
   });

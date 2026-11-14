@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  agents, applyPendingMigrations, companies, createDb, environmentLeases, environments, heartbeatRunEvents,
+  agents, applyPendingMigrations, spaces, createDb, environmentLeases, environments, heartbeatRunEvents,
   heartbeatRuns, issues, nativeRunFinalizations,
 } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
@@ -26,7 +26,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   let db: ReturnType<typeof createDb>;
   let runtimeRoot: string;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   beforeAll(async () => {
     if (externalUrl) {
@@ -36,8 +36,8 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       temporary = await startEmbeddedPostgresTestDatabase("native-restart-recovery-isolation-");
       db = createDb(temporary.connectionString);
     }
-    await db.insert(companies).values({ id: companyId, name: "Restart isolation", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Engineer", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Restart isolation", issuePrefix: spaceId.slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Engineer", adapterType: "outpost_runner" });
     runtimeRoot = await mkdtemp(resolve(tmpdir(), "restart-isolation-authority-"));
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "83".repeat(32));
   }, 30_000);
@@ -50,34 +50,34 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   async function seedScheduledResume(options: { lock: "self" | "none"; routine?: { id: string; fingerprint: string } }) {
     const issueId = randomUUID(), runId = randomUUID(), sessionId = randomUUID();
     const failedAt = new Date(Date.now() - 5 * 60_000);
-    await db.insert(issues).values({ id: issueId, companyId, title: "Hourly report", status: "in_progress",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Hourly report", status: "in_progress",
       assigneeAgentId: agentId,
       ...(options.routine ? { originKind: "routine_execution", originId: options.routine.id,
         originFingerprint: options.routine.fingerprint } : {}) });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, nativeIssueId: issueId,
       runtimeMode: "native", status: "failed", nativePhase: "retryable_failure", nativeSessionId: sessionId,
       processPid: 4_242, processStartedAt: failedAt, startedAt: failedAt, finishedAt: new Date(),
       errorCode: "native_session_interrupted", contextSnapshot: { issueId } });
     const [environment] = await db.insert(environments).values({ name: `Restart isolation ${runId}`, driver: "sandbox" }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId: runId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId: runId,
       environmentId: environment.id, provider: "daytona", providerLeaseId: randomUUID(), status: "active",
       leasePolicy: "ephemeral", metadata: { driver: "sandbox", remoteCwd: "/work" } }).returning();
     await db.update(heartbeatRuns).set({ runnerProfileJson: {
-      nativeExecutionInput: { binding: { companyId, issueId, runId, agentId } },
+      nativeExecutionInput: { binding: { spaceId, issueId, runId, agentId } },
       nativeWorkspaceSync: {
         schema: "outpost.native-workspace-sync/v3", state: "prepared", descriptorSha256: "a".repeat(64),
         baselineSha256: "b".repeat(64), finalHostSha256: null, workspaceId: runId,
         leaseId: lease.id, providerLeaseId: lease.providerLeaseId, remoteCwd: "/work", resourceDisposition: "destroy",
       },
       sessionCheckpoint: { sessionId: "driver-session", providerSessionId: "provider-session",
-        identity: { runId, companyId, issueId, agentId, sessionId } },
+        identity: { runId, spaceId, issueId, agentId, sessionId } },
     } }).where(eq(heartbeatRuns.id, runId));
     if (options.lock === "self") {
       await db.update(issues).set({ executionRunId: runId, checkoutRunId: runId, executionLockedAt: failedAt })
         .where(eq(issues.id, issueId));
     }
     const owner = { bootId: randomUUID(), generation: 1, leaseOwner: randomUUID() };
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "retryable_failure", attempt: 1,
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "retryable_failure", attempt: 1,
       controllerBootId: owner.bootId, controllerGeneration: owner.generation,
       leaseOwner: owner.leaseOwner, leaseExpiresAt: new Date(Date.now() + 60_000),
       nextAttemptAt: new Date(Date.now() - 60_000), recoveryState: "resuming_session",
@@ -89,7 +89,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
         environmentLeaseId: lease.id, turnId: randomUUID(), itemId: randomUUID() },
       expectedRunnerVersion: "restart-isolation-fixture", expectedRunnerDigest: `sha256:${"a".repeat(64)}` });
     authority.setCheckpointPersistence(nativeRunnerCheckpointWriter(db, {
-      companyId, issueId, runId, authorityRunId: runId, ...owner,
+      spaceId, issueId, runId, authorityRunId: runId, ...owner,
     }));
     await authority.flushCheckpoint();
     await authority.stop();
@@ -100,10 +100,10 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 
   async function seedRoutineSlotHolder(routine: { id: string; fingerprint: string }) {
     const issueId = randomUUID(), runId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Hourly report", status: "in_progress",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Hourly report", status: "in_progress",
       assigneeAgentId: agentId, originKind: "routine_execution", originId: routine.id,
       originFingerprint: routine.fingerprint });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, status: "running",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, status: "running",
       startedAt: new Date(), contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId, executionLockedAt: new Date() }).where(eq(issues.id, issueId));
     return { issueId, runId };

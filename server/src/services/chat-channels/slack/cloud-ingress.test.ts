@@ -22,7 +22,7 @@ it("missing or failed runtime owner retains the leased event; retired owner clea
 });
 
 it.each([404, 422])("current ingress keeps credential failure %s as unacknowledged attention before callback admission", async status => {
-  const endpoint = { id: "00000000-0000-4000-8000-000000000001", companyId: "company", publicId: "public", connectionId: "connection",
+  const endpoint = { id: "00000000-0000-4000-8000-000000000001", spaceId: "space", publicId: "public", connectionId: "connection",
     provider: "slack", status: "active", providerAccountId: "TTEST", setup: { slackCloudEvents: {
       version: 1, bindingId: "binding", runtimeGeneration: 1, teamId: "TTEST", appId: "ATEST" } } };
   const db = { select: () => {
@@ -39,7 +39,7 @@ it.each([404, 422])("current ingress keeps credential failure %s as unacknowledg
   try {
     await expect(dispatchSlackCloudEvent(db, { id: "receipt", provider: "slack", event: "event_callback", installationId: "binding",
       bindingIds: ["binding"], createdAt: new Date().toISOString(), payload: { slackEvent: {
-        endpointId: endpoint.id, companyId: endpoint.companyId, publicId: endpoint.publicId,
+        endpointId: endpoint.id, spaceId: endpoint.spaceId, publicId: endpoint.publicId,
         connectionId: endpoint.connectionId, runtimeGeneration: 1 } } }))
       .rejects.toMatchObject({ code: "signing_credential_unavailable", disposition: "attention" });
     expect(handleWebhook).not.toHaveBeenCalled();

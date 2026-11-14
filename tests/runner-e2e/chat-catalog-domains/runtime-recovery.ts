@@ -19,10 +19,10 @@ export async function currentControllerFile(ctx: ChatCatalogContext, name: strin
   const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT; if (!root) throw new Error("Continuity inspection requires the isolated attempt root");
   await ctx.refreshIssue(); const source = ctx.issue();
   if (!source) throw new Error("Continuity file inspection requires its actual source");
-  const issue = await ctx.input.api.get<{ companyId: string; executionWorkspaceId: string | null }>(`/api/issues/${source.id}`);
-  const { workspace } = await ctx.input.api.get<{ workspace: { id: string; companyId: string; cwd: string } }>(`/api/issues/${source.id}/workspace`);
-  if (issue.companyId !== ctx.input.fixtures.company.id || workspace.companyId !== issue.companyId
-    || workspace.id !== issue.executionWorkspaceId) throw new Error("Continuity workspace is not the actual same-company source binding");
+  const issue = await ctx.input.api.get<{ spaceId: string; executionWorkspaceId: string | null }>(`/api/issues/${source.id}`);
+  const { workspace } = await ctx.input.api.get<{ workspace: { id: string; spaceId: string; cwd: string } }>(`/api/issues/${source.id}/workspace`);
+  if (issue.spaceId !== ctx.input.fixtures.space.id || workspace.spaceId !== issue.spaceId
+    || workspace.id !== issue.executionWorkspaceId) throw new Error("Continuity workspace is not the actual same-space source binding");
   const home = await realpath(workspace.cwd);
   const isolated = await realpath(root);
   if (!home.startsWith(`${isolated}${path.sep}`) || path.basename(name) !== name) throw new Error("Continuity file escapes its owned fixture directory");

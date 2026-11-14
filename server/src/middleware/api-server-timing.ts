@@ -1,12 +1,12 @@
 import type { RequestHandler, Response } from "express";
 
-// Adds `paperclip_api;dur=<ms>` to every API response: the server time from
+// Adds `outpost_api;dur=<ms>` to every API response: the server time from
 // request arrival until headers are written, including admission waits. Browser
 // resource timing exposes it, so page-load investigations can tell server time
 // from network and queueing time without traces. Route-specific phases (for
-// example `paperclip_issue`) are preserved; this entry is appended after them.
+// example `outpost_issue`) are preserved; this entry is appended after them.
 // The header carries only a duration, never request or tenant data.
-export const API_SERVER_TIMING_METRIC = "paperclip_api";
+export const API_SERVER_TIMING_METRIC = "outpost_api";
 
 export function apiServerTiming(): RequestHandler {
   return (_req, res, next) => {

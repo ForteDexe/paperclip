@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, agentWakeupRequests, companies, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issueThreadInteractions, issues, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, type Db } from "@outpost/db";
+import { activityLog, agents, agentWakeupRequests, spaces, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issueThreadInteractions, issues, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { filterRunMessageInteractionDelivery, hasAutomaticInteractionDeliveryHold, preparedRunInteractionDeliveryDenied, recheckQueuedCommentInteractionDelivery,
   recheckQueuedRunInteractions, withInteractionDeliveryOrigin } from "./agent-interaction-delivery.js";
@@ -22,15 +22,15 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
   async function seed() {
-    const [company] = await db.insert(companies).values({ name: "Delivery", issuePrefix: `D${randomUUID().slice(0, 5)}` }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Delivery", issuePrefix: `D${randomUUID().slice(0, 5)}` }).returning();
     const [sender, recipient] = await db.insert(agents).values([
-      { companyId: company!.id, name: "Sender", adapterType: "process" },
-      { companyId: company!.id, name: "Recipient", adapterType: "process" },
+      { spaceId: space!.id, name: "Sender", adapterType: "process" },
+      { spaceId: space!.id, name: "Recipient", adapterType: "process" },
     ]).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company!.id, title: "Work", status: "todo", assigneeAgentId: recipient!.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company!.id, agentId: recipient!.id, status: "queued",
+    const [issue] = await db.insert(issues).values({ spaceId: space!.id, title: "Work", status: "todo", assigneeAgentId: recipient!.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space!.id, agentId: recipient!.id, status: "queued",
       invocationSource: "assignment", contextSnapshot: { issueId: issue!.id }, nativeIssueId: issue!.id }).returning();
-    return { companyId: company!.id, sender: sender!.id, recipient: recipient!.id, issueId: issue!.id, run: run! };
+    return { spaceId: space!.id, sender: sender!.id, recipient: recipient!.id, issueId: issue!.id, run: run! };
   }
   type Fixture = Awaited<ReturnType<typeof seed>>;
   const restriction = (id: string, interactions: Record<string, boolean>) => db.update(agents)
@@ -38,17 +38,17 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
   const readRun = async (id: string) => (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, id)))[0]!;
   async function wake(f: Fixture, input: { commentIds?: string[]; actorType?: string | null; actorId?: string | null } = {}) {
     const context = { issueId: f.issueId, ...(input.commentIds ? { wakeCommentIds: input.commentIds, wakeCommentId: input.commentIds.at(-1) } : {}) };
-    const [receipt] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.recipient,
+    const [receipt] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.recipient,
       source: "assignment", reason: input.commentIds ? "issue_commented" : "issue_assigned", runId: f.run.id,
       requestedByActorType: input.actorType === undefined ? "agent" : input.actorType,
       requestedByActorId: input.actorId === undefined ? f.sender : input.actorId,
-      payload: { issueId: f.issueId, _paperclipWakeContext: context },
+      payload: { issueId: f.issueId, _outpostWakeContext: context },
     }).returning();
     await db.update(heartbeatRuns).set({ wakeupRequestId: receipt!.id, contextSnapshot: context }).where(eq(heartbeatRuns.id, f.run.id));
     return receipt!;
   }
   async function comment(f: Fixture, kind: "agent" | "user") {
-    const [value] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId, body: `${kind} input`,
+    const [value] = await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId, body: `${kind} input`,
       authorType: kind, ...(kind === "agent" ? { authorAgentId: f.sender } : { authorUserId: "human" }),
     }).returning();
     return value!.id;
@@ -65,7 +65,7 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
     const f = await seed(); const message = await comment(f, "agent"); const receipt = await wake(f, { commentIds: [message] });
     const run = await readRun(f.run.id);
     await db.update(heartbeatRuns).set({ contextSnapshot: { ...run.contextSnapshot,
-      executionContinuation: { messages: [{ id: message, body: "saved input" }] }, paperclipWake: { retained: true },
+      executionContinuation: { messages: [{ id: message, body: "saved input" }] }, outpostWake: { retained: true },
     } }).where(eq(heartbeatRuns.id, run.id));
     const before = await readRun(run.id);
     const wakeBefore = (await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, receipt.id)))[0];
@@ -97,7 +97,7 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
     expect(result.denials[agentComment]).toMatchObject({ permission: "canReceiveCommentsFromAgents" });
     const savedWake = (await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, receipt.id)))[0]!;
     expect(savedWake.status).toBe("queued");
-    expect((savedWake.payload?._paperclipWakeContext as Record<string, unknown>).wakeCommentIds).toEqual([humanComment]);
+    expect((savedWake.payload?._outpostWakeContext as Record<string, unknown>).wakeCommentIds).toEqual([humanComment]);
     expect(await db.select().from(issueComments).where(eq(issueComments.issueId, f.issueId))).toHaveLength(2);
   });
 
@@ -112,10 +112,10 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
       const reason = assignmentFirst ? "issue_commented" : "issue_assigned";
       const context = { issueId: f.issueId, wakeReason: reason, ...(assignmentFirst ? { wakeCommentId: messageId, wakeCommentIds: [messageId] } : {}) };
       const actorType = assignmentFirst ? "user" : "agent", actorId = assignmentFirst ? "human" : f.sender;
-      const payload = withInteractionDeliveryOrigin({ issueId: f.issueId, _paperclipWakeContext: context }, actorType, actorId);
+      const payload = withInteractionDeliveryOrigin({ issueId: f.issueId, _outpostWakeContext: context }, actorType, actorId);
       await db.transaction(tx => createWakeAdmissionWriter().coalesceIntoActiveExecutionRun(
-        createAdmissionTransactionScope(f.companyId, tx as unknown as Db), {
-          companyId: f.companyId, agentId: f.recipient, activeExecutionRunId: f.run.id, activeExecutionRunStatus: "queued",
+        createAdmissionTransactionScope(f.spaceId, tx as unknown as Db), {
+          spaceId: f.spaceId, agentId: f.recipient, activeExecutionRunId: f.run.id, activeExecutionRunStatus: "queued",
           mergedContextSnapshot: { ...context, wakeCommentId: messageId, wakeCommentIds: [messageId] },
           source: "assignment", triggerDetail: "system", payload, requestedByActorType: actorType,
           requestedByActorId: actorId, idempotencyKey: null,
@@ -140,7 +140,7 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
         .toMatchObject({ status: "skipped", error: "agent_interaction_delivery_denied", requestedByActorId: f.sender });
       expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]?.assigneeAgentId).toBe(f.recipient);
       expect(await db.select().from(issueComments).where(eq(issueComments.id, messageId))).toHaveLength(1);
-      const retained = (await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId)))
+      const retained = (await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId)))
         .filter(row => row.status === "deferred_issue_execution");
       expect(retained).toHaveLength(1);
       expect(retained[0]).toMatchObject({ requestedByActorType: "user", requestedByActorId: "human", runId: null });
@@ -166,7 +166,7 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
 
   it.each(["queued", "prepared"] as const)("recovers an older %s assignment's audit origin when its wake is missing and comments were added", async boundary => {
     const f = await seed(); const messageId = await comment(f, "user");
-    await db.insert(activityLog).values({ companyId: f.companyId, entityType: "issue", entityId: f.issueId,
+    await db.insert(activityLog).values({ spaceId: f.spaceId, entityType: "issue", entityId: f.issueId,
       actorType: "agent", actorId: f.sender, agentId: f.sender, action: "issue.updated",
       createdAt: new Date(f.run.createdAt.getTime() - 1), details: { assigneeAgentId: f.recipient } });
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, wakeReason: "issue_assigned",
@@ -185,8 +185,8 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
     const f = await seed(); const message = await comment(f, "agent"); const receipt = await wake(f, { commentIds: [message] });
     await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, f.run.id));
     await restriction(f.sender, { canCommentOnOtherTasks: false });
-    const input = { companyId: f.companyId, issueId: f.issueId, agentId: f.recipient, commentId: message, queueId: receipt.id };
-    await expect(withPluginInteractionOrigin({ companyId: f.companyId, agentId: f.recipient }, () =>
+    const input = { spaceId: f.spaceId, issueId: f.issueId, agentId: f.recipient, commentId: message, queueId: receipt.id };
+    await expect(withPluginInteractionOrigin({ spaceId: f.spaceId, agentId: f.recipient }, () =>
       recheckQueuedCommentInteractionDelivery(db, input))).rejects.toMatchObject({ status: 403 });
     expect((await readRun(f.run.id)).status).toBe("running");
     await restriction(f.sender, {});
@@ -205,7 +205,7 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
 
   it.each(["wake", "run"])("recovers old assignment provenance within the same millisecond as its %s receipt", async source => {
     const f = await seed();
-    await db.insert(activityLog).values({ companyId: f.companyId, entityType: "issue", entityId: f.issueId,
+    await db.insert(activityLog).values({ spaceId: f.spaceId, entityType: "issue", entityId: f.issueId,
       actorType: "agent", actorId: f.sender, agentId: f.sender, action: "issue.updated",
       details: { assigneeAgentId: f.recipient }, createdAt: sql`'2026-11-09T12:00:00.000100Z'::timestamptz` });
     if (source === "wake") {
@@ -235,7 +235,7 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
 
   it.each(["dismissed", "pending", "other_agent"])("delivers a dismissal wake only for a person's dismissal of the recipient's question (%s)", async mode => {
     const f = await seed();
-    const [question] = await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issueId,
+    const [question] = await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issueId,
       createdByAgentId: mode === "other_agent" ? f.sender : f.recipient, kind: "ask_user_questions", status: "pending",
       title: "Codename", payload: { version: 1, questions: [] },
       ...(mode === "pending" ? {} : { dismissedAt: new Date(), dismissedByUserId: "human" }) }).returning();
@@ -251,18 +251,18 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
   it("recovers an older automatic retry's initiating agent from its predecessor", async () => {
     const f = await seed(); await wake(f);
     await db.update(heartbeatRuns).set({ status: "failed", errorCode: "controller_lease_lost" }).where(eq(heartbeatRuns.id, f.run.id));
-    const [retry] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.recipient, status: "queued",
+    const [retry] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.recipient, status: "queued",
       retryOfRunId: f.run.id, invocationSource: "automation", contextSnapshot: { issueId: f.issueId }, nativeIssueId: f.issueId }).returning();
     await restriction(f.sender, { canAssignTasksToAgents: false });
     expect((await recheckQueuedRunInteractions(db, retry!)).denials.assignment)
       .toMatchObject({ actorAgentId: f.sender, permission: "canAssignTasksToAgents" });
   });
 
-  it("preserves a server-authorized import routine's source company at delivery", async () => {
+  it("preserves a server-authorized import routine's source space at delivery", async () => {
     const source = await seed(), target = await seed();
     const receipt = await wake(target, { actorType: "agent", actorId: source.sender });
     await db.update(agentWakeupRequests).set({ payload: withInteractionDeliveryOrigin(receipt.payload,
-      "agent", source.sender, undefined, source.companyId) }).where(eq(agentWakeupRequests.id, receipt.id));
+      "agent", source.sender, undefined, source.spaceId) }).where(eq(agentWakeupRequests.id, receipt.id));
     expect((await recheckQueuedRunInteractions(db, await readRun(target.run.id))).denied).toBe(false);
     await restriction(source.sender, { canAssignTasksToAgents: false });
     expect((await recheckQueuedRunInteractions(db, await readRun(target.run.id))).denials.assignment)
@@ -271,8 +271,8 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
 
   it("uses an originating agent run even when a decision effect is presented as a human comment", async () => {
     const f = await seed();
-    const [origin] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.sender, status: "succeeded" }).returning();
-    const [message] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+    const [origin] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.sender, status: "succeeded" }).returning();
+    const [message] = await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
       authorUserId: "human", authorType: "user", createdByRunId: origin!.id, body: "Agent-originated effect" }).returning();
     await wake(f, { commentIds: [message!.id], actorType: "user", actorId: "human" });
     await restriction(f.sender, { canCommentOnOtherTasks: false });
@@ -287,7 +287,7 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
     await restriction(f.recipient, { canReceiveCommentsFromAgents: false });
     expect(await preparedRunInteractionDeliveryDenied(db, await readRun(f.run.id))).toBe(true);
     await restriction(f.recipient, {});
-    expect(await filterRunMessageInteractionDelivery(db, { companyId: f.companyId, runId: f.run.id, issueId: f.issueId, commentIds: [message] })).toEqual(new Set());
+    expect(await filterRunMessageInteractionDelivery(db, { spaceId: f.spaceId, runId: f.run.id, issueId: f.issueId, commentIds: [message] })).toEqual(new Set());
   });
 
   it("retains allowed human input once when a mixed rendered startup must be refused", async () => {
@@ -296,17 +296,17 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
     await restriction(f.recipient, { canReceiveCommentsFromAgents: false });
     expect(await preparedRunInteractionDeliveryDenied(db, await readRun(f.run.id))).toBe(true);
     expect(await preparedRunInteractionDeliveryDenied(db, await readRun(f.run.id))).toBe(true);
-    const retained = (await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId)))
+    const retained = (await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId)))
       .filter(row => row.status === "deferred_issue_execution");
     expect(retained).toHaveLength(1);
     expect(retained[0]).toMatchObject({ requestedByActorType: "user", requestedByActorId: "human", runId: null });
-    expect((retained[0]!.payload?._paperclipWakeContext as Record<string, unknown>).wakeCommentIds).toEqual([humanComment]);
+    expect((retained[0]!.payload?._outpostWakeContext as Record<string, unknown>).wakeCommentIds).toEqual([humanComment]);
   });
 
   it("does not revoke recovery of an already accepted provider turn", async () => {
     const f = await seed(); await wake(f);
     await db.update(heartbeatRuns).set({ status: "running", startedAt: new Date() }).where(eq(heartbeatRuns.id, f.run.id));
-    await db.insert(heartbeatRunEvents).values({ companyId: f.companyId, agentId: f.recipient, runId: f.run.id,
+    await db.insert(heartbeatRunEvents).values({ spaceId: f.spaceId, agentId: f.recipient, runId: f.run.id,
       seq: 1, eventType: "turn.accepted", stream: "system", level: "info" });
     await restriction(f.recipient, { canReceiveAssignmentsFromAgents: false });
     expect(await preparedRunInteractionDeliveryDenied(db, await readRun(f.run.id))).toBe(false);
@@ -343,7 +343,7 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
     const recovery = recoveryService(db, { enqueueWakeup });
     await restriction(f.recipient, {});
     for (let attempt = 0; attempt < 2; attempt++) {
-      expect(await recovery.reconcileStrandedAssignedIssues({ companyId: f.companyId, issueId: f.issueId }))
+      expect(await recovery.reconcileStrandedAssignedIssues({ spaceId: f.spaceId, issueId: f.issueId }))
         .toMatchObject({ skipped: 1, dispatchRequeued: 0, continuationRequeued: 0, escalated: 0 });
     }
     expect(enqueueWakeup).not.toHaveBeenCalled();
@@ -354,14 +354,14 @@ describe.skipIf(!support.supported)("pending agent interaction delivery", () => 
       source: "assignment", reason: "issue_assignment_recovery", requestedByActorType: "system",
       requestedByActorId: "recovery", contextSnapshot: { issueId: f.issueId },
     })).toBeNull();
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(1);
     expect(await hasAutomaticInteractionDeliveryHold(db, {
-      companyId: f.companyId, issueId: f.issueId, agentId: f.recipient, payload: {}, context: {}, actorType: "user", actorId: "human",
+      spaceId: f.spaceId, issueId: f.issueId, agentId: f.recipient, payload: {}, context: {}, actorType: "user", actorId: "human",
     })).toBe(false);
     const humanMessage = await comment(f, "user");
     expect(await hasAutomaticInteractionDeliveryHold(db, {
-      companyId: f.companyId, issueId: f.issueId, agentId: f.recipient, payload: {}, context: { wakeCommentId: humanMessage }, actorType: "system",
+      spaceId: f.spaceId, issueId: f.issueId, agentId: f.recipient, payload: {}, context: { wakeCommentId: humanMessage }, actorType: "system",
     })).toBe(false);
   });
 });
@@ -373,8 +373,8 @@ describe("wake provenance", () => {
     expect(withInteractionDeliveryOrigin({ interactionOrigin: { actorType: "user" } })).toEqual({});
   });
   it("captures the host's invoking agent despite a plugin's user presentation", () => {
-    expect(withPluginInteractionOrigin({ companyId: "company", agentId: "invoker" }, () =>
+    expect(withPluginInteractionOrigin({ spaceId: "space", agentId: "invoker" }, () =>
       withInteractionDeliveryOrigin({}, "user", "human")))
-      .toEqual({ interactionOrigin: { actorType: "agent", actorId: "invoker", actorCompanyId: "company" } });
+      .toEqual({ interactionOrigin: { actorType: "agent", actorId: "invoker", actorSpaceId: "space" } });
   });
 });

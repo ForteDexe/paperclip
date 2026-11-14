@@ -24,7 +24,7 @@ API: `present` — GET /api/issues/{id}/interactions.
 
 Agent access: `available` — agent REST, CLI issue interactions, native get_task_context or admitted call_api reads; each actual runtime needs its binding.
 
-Policy: Company/issue read authorization, private-task and responsible-user visibility. GET does not persist lifecycle expiration.
+Policy: Space/issue read authorization, private-task and responsible-user visibility. GET does not persist lifecycle expiration.
 
 Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
@@ -38,7 +38,7 @@ API: `present` — POST /api/issues/{id}/interactions, kind ask_user_questions.
 
 Agent access: `available` — native request_human_input(interactionKind=questions) in standard/planning/ask/skill_test when advertised; permitted legacy REST/CLI interaction:create. Muse closed native profile omits this tool.
 
-Policy: Agent mutation requires authenticated source run and low-trust/issue boundaries; sourceRunId is server-stamped. Chat addressee defaults to immutable owner. User/agent addressee mutually exclusive; agent cannot address self, foreign or uninvokable agent. Company kind governance clamps policy. Native dedicated input does not expose arbitrary addressee/policy fields.
+Policy: Agent mutation requires authenticated source run and low-trust/issue boundaries; sourceRunId is server-stamped. Chat addressee defaults to immutable owner. User/agent addressee mutually exclusive; agent cannot address self, foreign or uninvokable agent. Space kind governance clamps policy. Native dedicated input does not expose arbitrary addressee/policy fields.
 
 Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
@@ -56,7 +56,7 @@ API: `present` — POST /api/issues/{id}/interactions/{interactionId}/respond.
 
 Agent access: `partial` — eligible responder REST; CLI interaction:respond; admitted native call_api standard/skill_test; request_human_input creates requests rather than answers.
 
-Policy: Same company/readable issue and current effective audience; agents need matching authenticated run/company/agent/responsible user, issue mutation or admitted watchdog containment, no low-trust boundary violation and cross-issue influence allowance. Current review policy can narrow audience; service rechecks cancellation/write authority under lock. Board chat responder must own the conversation. Only pending ask_user_questions; normalize/validate question and option IDs, required single/multi/custom/text constraints. Save answer/actor/run and durable outbox atomically. Human-only does not permit agent resolution.
+Policy: Same space/readable issue and current effective audience; agents need matching authenticated run/space/agent/responsible user, issue mutation or admitted watchdog containment, no low-trust boundary violation and cross-issue influence allowance. Current review policy can narrow audience; service rechecks cancellation/write authority under lock. Board chat responder must own the conversation. Only pending ask_user_questions; normalize/validate question and option IDs, required single/multi/custom/text constraints. Save answer/actor/run and durable outbox atomically. Human-only does not permit agent resolution.
 
 Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts), [answer delivery](../../server/src/services/question-response-delivery.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
@@ -118,13 +118,13 @@ Saved dismissal, local drafts, and response decisions are distinct states.
 
 API: `present` — GET /api/issues/{id}/interactions.
 
-Agent access: `available` — permitted REST/native API/CLI interaction reads under current task/company/privacy authority.
+Agent access: `available` — permitted REST/native API/CLI interaction reads under current task/space/privacy authority.
 
 Policy: Shared interaction reads retain domain authorization. Reading a pending question does not answer it or change its stored status.
 
 Evidence: `source-only` — [dismissal state](../../ui/src/hooks/useDismissedTaskQuestions.ts), [task thread](../../ui/src/components/TaskChatThread.tsx), [interaction service](../../server/src/services/issue-thread-interactions.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
-Verification: `not-run` — Read the same pending question before and after browser dismissal; compare its ID, pending status and absence of a response-delivery record. Reject inaccessible task/company reads.
+Verification: `not-run` — Read the same pending question before and after browser dismissal; compare its ID, pending status and absence of a response-delivery record. Reject inaccessible task/space reads.
 
 Gaps: Drafts and raw runtime dismissal remain browser-local.
 
@@ -134,7 +134,7 @@ API: `present` — POST /api/issues/{id}/interactions/{interactionId}/dismiss.
 
 Agent access: `restricted` — board-only; an agent cannot dismiss its own pending request. Authorized agents can read dismissal in interaction/task context.
 
-Policy: Task/company read access and resolver audience apply. Current issue review policy is rechecked under the task lock; an excluded review requester cannot defer the review. Saves dismissal under task/interaction locks without resolving, executing, or waking. Ordinary requests stop gating completion. Tool/secret/connection/document/company-policy and configured review gates retain authority, with no repeated reminder. Raw runtime dismissal remains a browser preference.
+Policy: Task/space read access and resolver audience apply. Current issue review policy is rechecked under the task lock; an excluded review requester cannot defer the review. Saves dismissal under task/interaction locks without resolving, executing, or waking. Ordinary requests stop gating completion. Tool/secret/connection/document/space-policy and configured review gates retain authority, with no repeated reminder. Raw runtime dismissal remains a browser preference.
 
 Evidence: `source-only` — [route](../../server/src/routes/issues.ts), [service](../../server/src/services/issue-thread-interactions.ts), [completion predicate](../../server/src/services/issue-question-context.ts), and [task thread](../../ui/src/components/TaskChatThread.tsx).
 
@@ -197,7 +197,7 @@ API: `present` — POST /api/issues/{id}/interactions/{interactionId}/accept or 
 
 Agent access: `partial` — eligible human/agent resolver REST, CLI interaction:accept/reject and native call_api in standard/skill_test; board-only governed callback remains separate.
 
-Policy: Same company/readable issue and current effective audience; agents need matching authenticated run/company/agent/responsible user, issue mutation or admitted watchdog containment, no low-trust boundary violation and cross-issue influence allowance. Current review policy can narrow audience; service rechecks cancellation/write authority under lock. Board chat responder must own the conversation. Pending/open/current target required; request-confirmation acceptance checks source workspace readiness. Reject reason follows payload requirement. Generic repeated terminal resolution conflicts rather than universally deduplicating.
+Policy: Same space/readable issue and current effective audience; agents need matching authenticated run/space/agent/responsible user, issue mutation or admitted watchdog containment, no low-trust boundary violation and cross-issue influence allowance. Current review policy can narrow audience; service rechecks cancellation/write authority under lock. Board chat responder must own the conversation. Pending/open/current target required; request-confirmation acceptance checks source workspace readiness. Reject reason follows payload requirement. Generic repeated terminal resolution conflicts rather than universally deduplicating.
 
 Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
@@ -211,7 +211,7 @@ API: `present` — POST /api/issues/{id}/interactions/{interactionId}/accept wit
 
 Agent access: `partial` — permitted resolver REST/CLI/native call_api; agent task effects require independent task creation/assignment authority.
 
-Policy: Same company/readable issue and current effective audience; agents need matching authenticated run/company/agent/responsible user, issue mutation or admitted watchdog containment, no low-trust boundary violation and cross-issue influence allowance. Current review policy can narrow audience; service rechecks cancellation/write authority under lock. Board chat responder must own the conversation. Checkbox IDs/min/max validated; direct accept may use documented defaults if field absent. Suggested tasks require rooted selected tree, same-company parent/project and independent task-bridge/assignment checks for every created task. Persist selected/skipped/created IDs.
+Policy: Same space/readable issue and current effective audience; agents need matching authenticated run/space/agent/responsible user, issue mutation or admitted watchdog containment, no low-trust boundary violation and cross-issue influence allowance. Current review policy can narrow audience; service rechecks cancellation/write authority under lock. Board chat responder must own the conversation. Checkbox IDs/min/max validated; direct accept may use documented defaults if field absent. Suggested tasks require rooted selected tree, same-space parent/project and independent task-bridge/assignment checks for every created task. Persist selected/skipped/created IDs.
 
 Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
@@ -225,7 +225,7 @@ API: `present` — POST /api/issues/{id}/interactions/{interactionId}/verdicts.
 
 Agent access: `partial` — authorized REST/native call_api standard/skill_test; no dedicated CLI verdict wrapper found.
 
-Policy: Same company/readable issue and current effective audience; agents need matching authenticated run/company/agent/responsible user, issue mutation or admitted watchdog containment, no low-trust boundary violation and cross-issue influence allowance. Current review policy can narrow audience; service rechecks cancellation/write authority under lock. Board chat responder must own the conversation. Only request_item_verdicts; enabled verdicts/IDs/required reason checked. First decision retained for repeated item IDs; partial result persists, complete after all items. New item IDs trigger continuation; replay same items does not.
+Policy: Same space/readable issue and current effective audience; agents need matching authenticated run/space/agent/responsible user, issue mutation or admitted watchdog containment, no low-trust boundary violation and cross-issue influence allowance. Current review policy can narrow audience; service rechecks cancellation/write authority under lock. Board chat responder must own the conversation. Only request_item_verdicts; enabled verdicts/IDs/required reason checked. First decision retained for repeated item IDs; partial result persists, complete after all items. New item IDs trigger continuation; replay same items does not.
 
 Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
@@ -336,7 +336,7 @@ Evidence: `source-only` — [interaction routes](../../server/src/routes/issues.
 
 Verification: `not-run` — Inspect submitted work through a real bound reviewer, accept or reject with a reason, replay the exact decision, and reject retargeting, missing/stale binding, creator exclusion and conflicting verdict. Compare reviewer receipt, task ownership and all required review outcomes.
 
-Gaps: A declared scenario review tool is not an admitted review run. Review verdict and the reviewer’s own paperclip_finish report are separate obligations.
+Gaps: A declared scenario review tool is not an admitted review run. Review verdict and the reviewer’s own outpost_finish report are separate obligations.
 
 ### `resolve-chat-plan-continuation`
 
@@ -354,15 +354,15 @@ Gaps: Prompt/source contract requires actual agent handoff outcome; scripted bro
 
 ### `chat-project-and-task-handoff`
 
-API: `present` — GET /api/companies/{companyId}/projects; GET /api/companies/{companyId}/project-repositories; POST /api/companies/{companyId}/projects; POST /api/companies/{companyId}/issues with the intended project, assignee, initialPlan and stable creation key.
+API: `present` — GET /api/spaces/{spaceId}/projects; GET /api/spaces/{spaceId}/project-repositories; POST /api/spaces/{spaceId}/projects; POST /api/spaces/{spaceId}/issues with the intended project, assignee, initialPlan and stable creation key.
 
 Agent access: `partial` — advertised native list_projects/list_project_repositories/create_project/create_task; admitted legacy project-MCP wrapper or direct REST. Actual client binding required.
 
-Policy: After accepted scope, reauthorize run/task/generation/standard-or-skill_test project write, same-company project/repository, responsible user and assignment/trust. Native conversation create_task fixes parentId null/standard mode and persists initialPlan atomically before wake. Project/task receipts prevent duplicates and compare fingerprints. Legacy wrapper fixes todo/blocked, omits person-assignee/status parity. Generic schema does not guarantee suitable project/copied plan; verify result.
+Policy: After accepted scope, reauthorize run/task/generation/standard-or-skill_test project write, same-space project/repository, responsible user and assignment/trust. Native conversation create_task fixes parentId null/standard mode and persists initialPlan atomically before wake. Project/task receipts prevent duplicates and compare fingerprints. Legacy wrapper fixes todo/blocked, omits person-assignee/status parity. Generic schema does not guarantee suitable project/copied plan; verify result.
 
 Evidence: `source-only` — [legacy wrappers](../../server/src/services/project-tools.ts), [project authority](../../server/src/services/project-tool-context.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [project receipts](../../server/src/routes/projects.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
-Verification: `not-run` — Inspect suitable project, standalone assigned tasks and relevant persisted plan before first execution; source plan unchanged. Replay/concurrent exact key -> one task/project, changed payload conflicts. Deny stale generation/project/repository/assignee/company and restricted mode.
+Verification: `not-run` — Inspect suitable project, standalone assigned tasks and relevant persisted plan before first execution; source plan unchanged. Replay/concurrent exact key -> one task/project, changed payload conflicts. Deny stale generation/project/repository/assignee/space and restricted mode.
 
 Gaps: Native/legacy field differences persist. Real model choosing project/plan subset remains live gap; cross-link agent-chat/handoff.
 
@@ -372,7 +372,7 @@ API: `present` — GET /api/issues/{id}/interactions and GET /api/issues/{id}/do
 
 Agent access: `partial` — bound native task context; legacy description/context may carry explicit source IDs. No universal source browsing guarantee.
 
-Policy: Same-company originRunId points to conversation; newest eligible accepted plan resolved before task creation joins exact stored revision with source privacy. Pending/later/foreign/nonconversation gives no approval; Muse additionally filters trust. This informs source scope, not approval of new task plan/changed work. No atomic copied-plan equality or current-generation guarantee.
+Policy: Same-space originRunId points to conversation; newest eligible accepted plan resolved before task creation joins exact stored revision with source privacy. Pending/later/foreign/nonconversation gives no approval; Muse additionally filters trust. This informs source scope, not approval of new task plan/changed work. No atomic copied-plan equality or current-generation guarantee.
 
 Evidence: `source-only` — [source approval selector](../../server/src/services/native-runtime/handoff-plan-context.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
@@ -394,7 +394,7 @@ API: `present` — GET /api/issues/{id}/interactions; POST /api/issues/{id}/inte
 
 Agent access: `partial` — permitted REST create/read; native dedicated producer lacks arbitrary audience fields.
 
-Policy: Company kind cap/default, server-owned governed clamp, immutable chat user and valid same-company addressee. human_only and not_creator independent constraints; legacy provenance preserves creator/source-run exclusion. Binding review policy may narrow, never widen persisted audience.
+Policy: Space kind cap/default, server-owned governed clamp, immutable chat user and valid same-space addressee. human_only and not_creator independent constraints; legacy provenance preserves creator/source-run exclusion. Binding review policy may narrow, never widen persisted audience.
 
 Evidence: `source-only` — [resolver audience](../../server/src/services/issue-thread-interaction-resolution.ts), [interaction service](../../server/src/services/issue-thread-interactions.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
@@ -426,25 +426,25 @@ Formal approval request/read/revision/decision operations retain independent boa
 
 ### `read-and-context`
 
-API: `present` — GET /api/companies/{companyId}/approvals; GET /api/approvals/{id}; GET /api/approvals/{id}/issues; GET /api/approvals/{id}/comments.
+API: `present` — GET /api/spaces/{spaceId}/approvals; GET /api/approvals/{id}; GET /api/approvals/{id}/issues; GET /api/approvals/{id}/comments.
 
-Agent access: `available` — agent REST/CLI approval list/get; native list_approvals/get_approval/get_approval_context; public MCP paperclip_pending_approvals returns links only.
+Agent access: `available` — agent REST/CLI approval list/get; native list_approvals/get_approval/get_approval_context; public MCP outpost_pending_approvals returns links only.
 
-Policy: Company_scope:read where route requires; every ID route hides approval unless all linked/payload tasks readable, including responsible-user/private scope. Native context filters linked tasks. Read capability doesn't grant decisions.
+Policy: Space_scope:read where route requires; every ID route hides approval unless all linked/payload tasks readable, including responsible-user/private scope. Native context filters linked tasks. Read capability doesn't grant decisions.
 
 Evidence: `source-only` — [approval routes](../../server/src/routes/approvals.ts), [approval privacy](../../server/src/services/authorization.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [assistant pending links](../../server/src/services/public-mcp/capabilities.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
 Verification: `not-run` — Read visible approvals/history/context; foreign/private-linked/payload task hidden and no secret values; pending link alone can't decide.
 
-Gaps: Different read routes have different company-scope checks; live native/MCP identity separately qualify.
+Gaps: Different read routes have different space-scope checks; live native/MCP identity separately qualify.
 
 ### `request-and-comment`
 
-API: `present` — POST /api/companies/{companyId}/approvals; POST /api/approvals/{id}/comments.
+API: `present` — POST /api/spaces/{spaceId}/approvals; POST /api/approvals/{id}/comments.
 
 Agent access: `available` — permitted agent REST/CLI approval create/comment, native call_api standard/skill_test; human REST.
 
-Policy: Company/source visibility; creation resets pending/actor attribution and deduplicates linked IDs; hire payload secret normalization/redaction. Explicit status-only recovery agent cannot create/comment. Legacy route does not require universal active run when absent.
+Policy: Space/source visibility; creation resets pending/actor attribution and deduplicates linked IDs; hire payload secret normalization/redaction. Explicit status-only recovery agent cannot create/comment. Legacy route does not require universal active run when absent.
 
 Evidence: `source-only` — [approval routes](../../server/src/routes/approvals.ts), [linking](../../server/src/services/issue-approvals.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
@@ -456,7 +456,7 @@ Gaps: Creation/linking/each payload-specific governed effect needs separate evid
 
 API: `present` — POST /api/approvals/{id}/approve, /reject, /request-revision.
 
-Agent access: `restricted` — board/company/approval visibility; CLI only with board context. Agent REST/native call_api and personal assistant cannot decide.
+Agent access: `restricted` — board/space/approval visibility; CLI only with board context. Agent REST/native call_api and personal assistant cannot decide.
 
 Policy: Auth actor supplies decidedByUserId; body cannot spoof. Approve/reject pending or revision_requested with conditional update; repeated same terminal verdict no-op/no repeated effect, opposing verdict 422. requestRevision only pending; no equal replay guarantee. Newly applied decision alone triggers reviewed lifecycle/adapter/linked continuation.
 
@@ -506,9 +506,9 @@ Gaps: Optional MCP client/scenario declaration doesn't establish production assi
 
 API: `present` — GET /api/issues/{id}/interactions.
 
-Agent access: `available` — permitted task-local REST/native/CLI reads under task/company/privacy authorization.
+Agent access: `available` — permitted task-local REST/native/CLI reads under task/space/privacy authorization.
 
-Policy: Reading a task review card does not grant approval or company-wide queue access. Preserve exact connection, tool and argument scope.
+Policy: Reading a task review card does not grant approval or space-wide queue access. Preserve exact connection, tool and argument scope.
 
 Evidence: `source-only` — [tool execution](../../server/src/services/tool-gateway.ts), [queue](../../server/src/routes/tool-access.ts), [interaction routes](../../server/src/routes/issues.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
@@ -518,35 +518,35 @@ Gaps: Optional MCP client/scenario declaration doesn't establish production assi
 
 ### `read-board-queue`
 
-API: `present` — GET /api/companies/{companyId}/tools/action-requests with the supported status filter.
+API: `present` — GET /api/spaces/{spaceId}/tools/action-requests with the supported status filter.
 
-Agent access: `restricted` — board company queue; ordinary agents use their permitted task-local context.
+Agent access: `restricted` — board space queue; ordinary agents use their permitted task-local context.
 
-Policy: The queue enforces board identity and company access independently of task-local card reads. Queue visibility does not approve an action or imply provider execution.
+Policy: The queue enforces board identity and space access independently of task-local card reads. Queue visibility does not approve an action or imply provider execution.
 
 Evidence: `source-only` — [tool execution](../../server/src/services/tool-gateway.ts), [queue](../../server/src/routes/tool-access.ts), [interaction routes](../../server/src/routes/issues.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
-Verification: `not-run` — Read the queue as a permitted board person and match the task card/request after reload. Reject ordinary agent and foreign-company queue reads; inspect decision affordances separately.
+Verification: `not-run` — Read the queue as a permitted board person and match the task card/request after reload. Reject ordinary agent and foreign-space queue reads; inspect decision affordances separately.
 
 Gaps: Optional MCP client/scenario declaration doesn't establish production assigned tool availability.
 
 ### `approve-once-or-decline`
 
-API: `present` — POST /api/tool-gateway/action-requests/{id}/approve or /decline with companyId; task accept/reject dispatches same callback.
+API: `present` — POST /api/tool-gateway/action-requests/{id}/approve or /decline with spaceId; task accept/reject dispatches same callback.
 
-Agent access: `restricted` — board nonviewer active company membership (local implicit/instance-admin exceptions); service rejects agent actor; native fallback preserves denial.
+Agent access: `restricted` — board nonviewer active space membership (local implicit/instance-admin exceptions); service rejects agent actor; native fallback preserves denial.
 
 Policy: Exact task/card/request/invocation signed binding, open/unexpired pending state, resolver addressee/human policy. Definition/connection/identity/current policy rechecked; required formal approval must be approved. Same settled decision returns current state; conflicting decision fails. Approval may execute stored request; decline never does.
 
 Evidence: `source-only` — [review route](../../server/src/routes/tool-gateway.ts), [review transaction](../../server/src/services/tool-action-review.ts), [execution checks](../../server/src/services/tool-gateway.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
-Verification: `not-run` — Decide concurrently from task/queue, reload synchronized one receipt/provider call. Reject wrong context/company/agent/viewer/stale/expired/revoked/snapshot/formal-gate request. Provider failure remains approved+failed.
+Verification: `not-run` — Decide concurrently from task/queue, reload synchronized one receipt/provider call. Reject wrong context/space/agent/viewer/stale/expired/revoked/snapshot/formal-gate request. Provider failure remains approved+failed.
 
 Gaps: Decision acceptance isn't provider delivery/termination proof; uncertain action never replayed automatically.
 
 ### `approve-and-remember`
 
-API: `present` — POST /api/tool-gateway/action-requests/{id}/approve with rememberAction. Separate administration uses POST /api/companies/{companyId}/tools/action-requests/{actionRequestId}/trust-rule and POST /api/companies/{companyId}/tools/trust-rules/{policyId}/revoke.
+API: `present` — POST /api/tool-gateway/action-requests/{id}/approve with rememberAction. Separate administration uses POST /api/spaces/{spaceId}/tools/action-requests/{actionRequestId}/trust-rule and POST /api/spaces/{spaceId}/tools/trust-rules/{policyId}/revoke.
 
 Agent access: `restricted` — human review authority; trust administration active board tool membership; no agent self-allow.
 
@@ -556,11 +556,11 @@ Evidence: `source-only` — [remember transaction](../../server/src/services/too
 
 Verification: `not-run` — Approve remember then safe changed args obey rule; Off/definition change still blocks/reviews. Failed rule save leaves pending/no execution. Revoke rule then next action follows current policy.
 
-Gaps: Cross-link app-permissions for full trust administration; not company-wide blanket trust.
+Gaps: Cross-link app-permissions for full trust administration; not space-wide blanket trust.
 
 ### `execution-and-continuation`
 
-API: `present` — GET /api/companies/{companyId}/tools/action-requests and GET /api/issues/{id}/interactions expose saved decision/outcome. Delivery workers process the accepted signed request and eligible continuation.
+API: `present` — GET /api/spaces/{spaceId}/tools/action-requests and GET /api/issues/{id}/interactions expose saved decision/outcome. Delivery workers process the accepted signed request and eligible continuation.
 
 Agent access: `partial` — agent receives own settled tool result/continuation, board inspects; no authority from local dismissal.
 
@@ -614,7 +614,7 @@ API: `present` — POST /api/issues/{id}/interactions/{interactionId}/respond re
 
 Agent access: `partial` — configured provider-linked sender; assigned channel tools/runtime receive server-bound response. Browser response isn't external-provider proof.
 
-Policy: External chat source cannot steer/coalesce into unrelated provider turn. Source waiting process must retire before isolated continuation; preserve original company/task/provider/message provenance and identity grants; failed/unknown retirement stays visible.
+Policy: External chat source cannot steer/coalesce into unrelated provider turn. Source waiting process must retire before isolated continuation; preserve original space/task/provider/message provenance and identity grants; failed/unknown retirement stays visible.
 
 Evidence: `source-only` — [answer delivery](../../server/src/services/question-response-delivery.ts), [channel authority](../../server/src/services/chat-channels.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
@@ -624,8 +624,8 @@ Slack presentation uses opaque native response tokens for text, choices,
 multiple selections, custom answers, validated text, ordinary confirmations,
 checklists, item verdicts, suggested tasks, and connection decline. Permission
 grants, governed approvals, and forms that exceed native limits retain authenticated
-Paperclip review. Link clicks are passive and confer no decision authority.
-Current company, audience, identity, connection, and governed-action checks apply.
+Outpost review. Link clicks are passive and confer no decision authority.
+Current space, audience, identity, connection, and governed-action checks apply.
 Selections map back to the canonical response through the existing transaction
 and callback receipt. Terminal cards retain the submitted answer only in the
 original authorized conversation. Native multi-choice continuation validates the

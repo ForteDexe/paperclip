@@ -38,7 +38,7 @@ describe("OpenCode local skill injection", () => {
   let configHome: string;
 
   beforeEach(async () => {
-    configHome = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-opencode-test-config-"));
+    configHome = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-opencode-test-config-"));
     vi.stubEnv("XDG_CONFIG_HOME", configHome);
   });
 
@@ -58,7 +58,7 @@ describe("OpenCode local skill injection", () => {
     let prompt = "";
     const result = await execute({
       runId: "chat-run",
-      agent: { id: "agent-1", companyId: "company-1", name: "OpenCode", adapterType: "opencode_local", adapterConfig: {} },
+      agent: { id: "agent-1", spaceId: "space-1", name: "OpenCode", adapterType: "opencode_local", adapterConfig: {} },
       runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
       config: {
         command: commandPath, cwd: configHome, model: "openai/gpt-5", env: { OPENCODE_ALLOW_ALL_MODELS: "1" },
@@ -66,8 +66,8 @@ describe("OpenCode local skill injection", () => {
       },
       context: {
         conversationMode: true,
-        paperclipTaskMarkdown: directive,
-        paperclipWake: {
+        outpostTaskMarkdown: directive,
+        outpostWake: {
           reason: "issue_commented", issue: { id: "chat-1", status: "in_progress", workMode: "planning" },
           interactionKind: "request_confirmation", interactionStatus: "accepted",
         },
@@ -92,7 +92,7 @@ describe("OpenCode local skill injection", () => {
       .mockResolvedValueOnce(probeResult({ stdout: JSON.stringify({ type: "text", sessionID: "fresh", part: { text: "done" } }) }));
     await execute({
       runId: "run-context-fallback",
-      agent: { id: "agent-1", companyId: "company-1", name: "OpenCode", adapterType: "opencode_local", adapterConfig: {} },
+      agent: { id: "agent-1", spaceId: "space-1", name: "OpenCode", adapterType: "opencode_local", adapterConfig: {} },
       runtime: { sessionId: "previous", sessionParams: null, sessionDisplayId: null, taskKey: null },
       config: { command: commandPath, cwd: configHome, model: "openai/gpt-5", env: { OPENCODE_ALLOW_ALL_MODELS: "1" } },
       context: createPromptContextFixture(),
@@ -108,12 +108,12 @@ describe("OpenCode local skill injection", () => {
   });
 
   it("injects runtime skills into the configured child HOME", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-opencode-configured-home-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-opencode-configured-home-"));
     const processHome = path.join(root, "process-home");
     const configuredHome = path.join(root, "configured-home");
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "opencode");
-    const skillSource = await createSkillDir(path.join(root, "runtime-skills"), "paperclip");
+    const skillSource = await createSkillDir(path.join(root, "runtime-skills"), "outpost");
     await fs.mkdir(workspace, { recursive: true });
     await fs.writeFile(commandPath, "#!/bin/sh\nexit 0\n", "utf8");
     await fs.chmod(commandPath, 0o755);
@@ -134,7 +134,7 @@ describe("OpenCode local skill injection", () => {
         runId: "run-configured-home",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "OpenCode Coder",
           adapterType: "opencode_local",
           adapterConfig: {},
@@ -153,12 +153,12 @@ describe("OpenCode local skill injection", () => {
             HOME: configuredHome,
             OPENCODE_ALLOW_ALL_MODELS: "1",
           },
-          paperclipRuntimeSkills: [{
-            key: "paperclipai/paperclip/paperclip",
-            runtimeName: "paperclip",
+          outpostRuntimeSkills: [{
+            key: "outpost/outpost/outpost",
+            runtimeName: "outpost",
             source: skillSource,
           }],
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -166,10 +166,10 @@ describe("OpenCode local skill injection", () => {
       });
 
       expect(result.exitCode).toBe(0);
-      const installedSkill = path.join(configuredHome, ".claude", "skills", "paperclip");
+      const installedSkill = path.join(configuredHome, ".claude", "skills", "outpost");
       expect((await fs.lstat(installedSkill)).isSymbolicLink()).toBe(true);
       expect(await fs.realpath(installedSkill)).toBe(await fs.realpath(skillSource));
-      await expect(fs.lstat(path.join(processHome, ".claude", "skills", "paperclip"))).rejects.toThrow();
+      await expect(fs.lstat(path.join(processHome, ".claude", "skills", "outpost"))).rejects.toThrow();
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
@@ -178,7 +178,7 @@ describe("OpenCode local skill injection", () => {
   });
 
   it.each([false, true])("preserves API billing in streamed usage and final results without leaking keys (timedOut=%s)", async (timedOut) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-opencode-openrouter-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-opencode-openrouter-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "opencode");
     const apiKey = "openrouter-test-secret";
@@ -202,7 +202,7 @@ describe("OpenCode local skill injection", () => {
         runId: "run-openrouter",
         agent: {
           id: "agent-openrouter",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "OpenRouter Coder",
           adapterType: "opencode_local",
           adapterConfig: {},

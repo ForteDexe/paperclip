@@ -6,18 +6,18 @@ Status: ready for CTO review. Final voice/copy pass pending sign-off.
 
 ## TL;DR
 
-Paperclip now governs every MCP tool call an agent makes. Operators install managed connections, define profiles and policies, approve high-risk actions, and read an append-only audit log. Default-deny on unknown tools; quarantine on schema drift; approval required by default for writes; trust rules to lift human-in-the-loop on safe repeats.
+Outpost now governs every MCP tool call an agent makes. Operators install managed connections, define profiles and policies, approve high-risk actions, and read an append-only audit log. Default-deny on unknown tools; quarantine on schema drift; approval required by default for writes; trust rules to lift human-in-the-loop on safe repeats.
 
 ## Why this exists
 
-Agents that can call arbitrary MCP tools can also leak data, modify accounts, or run destructive operations the operator never approved. Previous Paperclip releases relied on the agent's runtime trusting whatever MCP server it was pointed at. That is the wrong default for production. MCP Access Governance moves the trust boundary to Paperclip itself: every call is selected, evaluated, audited, and (when needed) gated on a human.
+Agents that can call arbitrary MCP tools can also leak data, modify accounts, or run destructive operations the operator never approved. Previous Outpost releases relied on the agent's runtime trusting whatever MCP server it was pointed at. That is the wrong default for production. MCP Access Governance moves the trust boundary to Outpost itself: every call is selected, evaluated, audited, and (when needed) gated on a human.
 
 ## What's new for operators
 
-- **Tools & Access UI** — A new settings surface (`/<prefix>/companies/<companyId>/tools`) covering Applications, Connections, Profiles, Policies, Runtime slots, Audit, and bundled Examples. Built for board users and CloudOps.
+- **Tools & Access UI** — A new settings surface (`/<prefix>/spaces/<spaceId>/tools`) covering Applications, Connections, Profiles, Policies, Runtime slots, Audit, and bundled Examples. Built for board users and CloudOps.
 - **Managed connections** — Two transports: `remote_http` (preferred, hosted SaaS MCP) and `local_stdio` (approved-template-only, gated by deployment trust). Operators never paste raw stdio commands; templates ship in the build.
 - **Catalog with risk classification** — Every discovered tool gets a `read` / `write` / `destructive` risk level inferred from MCP annotations. Destructive tools and unexpected new write tools are auto-quarantined.
-- **Profiles + bindings** — Named bundles of include/exclude entries over the catalog, bound to a `company`, `agent`, `project`, `routine`, or `issue`. Narrowest binding wins.
+- **Profiles + bindings** — Named bundles of include/exclude entries over the catalog, bound to a `space`, `agent`, `project`, `routine`, or `issue`. Narrowest binding wins.
 - **Policies** — `allow`, `block`, `require_approval`, `rate_limit`, and `trust_rule`. Deny beats allow. Policies stack with profiles and run in priority order.
 - **Approval flow** — High-risk calls open an action request with signed arguments and an expiry. Human approver decides; agent resumes on approval, fails cleanly on rejection or expiry.
 - **Trust rules** — Promote an approval into a scoped allow rule tied to the canonical argument hash and the catalog schema hash. When schemas drift, trust rules stop applying and the gateway falls back to approval. Revocations are first-class and audited.
@@ -27,7 +27,7 @@ Agents that can call arbitrary MCP tools can also leak data, modify accounts, or
 
 ## What's new for agents
 
-- Agents speak MCP only to the Paperclip gateway. The gateway returns the agent's effective tool list, validates each call against profile + policies, and records the result.
+- Agents speak MCP only to the Outpost gateway. The gateway returns the agent's effective tool list, validates each call against profile + policies, and records the result.
 - When a call resolves to `require_approval`, the agent's call blocks until a human decides. The agent does not see *why* a call was denied — that detail is in the audit log for the operator. This is deliberate: agents must not learn to route around denials.
 - Tool call arguments and results are subject to a redaction plan recorded on each call event.
 
@@ -42,11 +42,11 @@ Agents that can call arbitrary MCP tools can also leak data, modify accounts, or
 
 ## Upgrade and migration
 
-This release introduces new tables (`tool_applications`, `tool_connections`, `tool_catalog_entries`, `tool_profiles`, `tool_profile_entries`, `tool_profile_bindings`, `tool_policies`, `tool_runtime_slots`, `tool_gateway_sessions`, `tool_invocations`, `tool_action_requests`, `tool_call_events`, `tool_rate_limit_counters`, `tool_access_audit_events`) and supporting migrations through `0098_tool_gateway_sessions.sql`. No data migration is required for existing companies — the tool access stack is opt-in and inert until an operator installs the first connection or example.
+This release introduces new tables (`tool_applications`, `tool_connections`, `tool_catalog_entries`, `tool_profiles`, `tool_profile_entries`, `tool_profile_bindings`, `tool_policies`, `tool_runtime_slots`, `tool_gateway_sessions`, `tool_invocations`, `tool_action_requests`, `tool_call_events`, `tool_rate_limit_counters`, `tool_access_audit_events`) and supporting migrations through `0098_tool_gateway_sessions.sql`. No data migration is required for existing spaces — the tool access stack is opt-in and inert until an operator installs the first connection or example.
 
 Upgrade steps for existing deployments:
 
-1. Apply DB migrations as usual (`pnpm paperclipai migrate`).
+1. Apply DB migrations as usual (`pnpm outpost migrate`).
 2. Confirm the Tools & Access tab appears in the UI for board users.
 3. From **Examples**, install `safe-read-only-todo-kv` and run the bundled smoke. Expect `ok: true` across all three checks (`allow_read_tool`, `deny_write_tool`, `audit_written`).
 4. For each existing agent runtime that previously called MCP servers directly: replace direct MCP wiring with a managed connection. Until you do, those agents have no governed tool access on this release.
@@ -64,7 +64,7 @@ There is no downgrade path that preserves audit history. If you must roll back, 
 - Trust rules match exact argument shapes only. Pattern-based trust rules are post-v1.
 - Rate limits are per-policy, not cross-policy aggregates.
 - Action request expiry is fixed by policy; approvers cannot extend from the UI.
-- Endpoint mode (Paperclip's own `/mcp` surface) is not subject to the profile/policy stack.
+- Endpoint mode (Outpost's own `/mcp` surface) is not subject to the profile/policy stack.
 - Local stdio runtime slots do not migrate across workers; capacity is per-worker, not per-cluster.
 
 ## Verification commands
@@ -73,16 +73,16 @@ After upgrading, run these to confirm the stack is healthy:
 
 ```sh
 # Sanity-check runtime health
-curl -fsS -H "Authorization: Bearer $BOARD_API_KEY" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/runtime-health" | jq '{status, alerts}'
+curl -fsS -H "Authorization: Bearer $OPERATOR_API_KEY" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/runtime-health" | jq '{status, alerts}'
 
 # Install the bundled example + run the smoke
-curl -fsS -X POST -H "Authorization: Bearer $BOARD_API_KEY" -H "Content-Type: application/json" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/examples/safe-read-only-todo-kv/install" \
+curl -fsS -X POST -H "Authorization: Bearer $OPERATOR_API_KEY" -H "Content-Type: application/json" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/examples/safe-read-only-todo-kv/install" \
   -d '{}' | jq .
 
-curl -fsS -X POST -H "Authorization: Bearer $BOARD_API_KEY" -H "Content-Type: application/json" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/examples/safe-read-only-todo-kv/smoke" \
+curl -fsS -X POST -H "Authorization: Bearer $OPERATOR_API_KEY" -H "Content-Type: application/json" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/examples/safe-read-only-todo-kv/smoke" \
   -d '{}' | jq '{ok, checks: [.checks[] | {name, ok, decision, reasonCode}]}'
 ```
 

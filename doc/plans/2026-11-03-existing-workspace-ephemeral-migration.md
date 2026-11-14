@@ -62,7 +62,7 @@ old Git object store. Invalid or unavailable retained data still blocks import.
 
 Administrative migration can recover a missing empty task-directory payload only
 when storage confirms that its object is absent. The existing encrypted key
-envelope must authenticate the exact empty payload hash and length, company,
+envelope must authenticate the exact empty payload hash and length, space,
 workspace, restore-point ID, and generation. Metadata counters alone never
 establish emptiness. This path leaves the original reference and missing object
 unchanged and publishes the recovered bytes through the normal verified remote
@@ -71,7 +71,7 @@ nonempty or forged payloads, unreadable objects, and unknown object absence stil
 block migration.
 
 An archived isolated checkout can be gone while its recorded deleted commit
-survives in the company/project Git cache. After validating the exact successful
+survives in the space/project Git cache. After validating the exact successful
 branch-deletion receipt, the importer can read immutable objects from that
 namespace- and origin-checked cache. It reconstructs only the recorded commit,
 never today's working tree. Ordinary private-checkout and restore-point
@@ -119,7 +119,7 @@ An old failed follow-up can retain a database snapshot while its warm supervisor
 still contains the preceding successful turn. Migration preserves the failed
 run's database state and archives its available controller and supervisor files.
 The archive requires the exact older snapshot to match a completed successful
-run in the same company, agent, task, native session, and Runner instance. Its
+run in the same space, agent, task, native session, and Runner instance. Its
 provider thread must also match the failed source. Existing durable controller
 checkpoints, active owners, changed snapshots, and foreign bindings still block
 this archive path. The archive remains readable after removing the old home.
@@ -178,7 +178,7 @@ possible blocker in advance or skip blocked rows.
 Controller leases, in-flight recovery, active writers, and uncertain workspace
 operations remain blockers. Tests must prove migration leaves failure state
 intact, rejects stale copyback even if the old folder exists, and preserves
-recovery source validation and company boundaries.
+recovery source validation and space boundaries.
 
 ## Queued turns during offline enrollment
 
@@ -231,7 +231,7 @@ stop can also predate a later logical failure caused by recovery timeout. These
 proofs use the recorded execution start and never rewrite lifecycle timestamps.
 
 A missing managed task checkout can still have its runtime-owned branch in the
-verified company and project Git cache. Preserve that exact commit when the
+verified space and project Git cache. Preserve that exact commit when the
 recorded private path matches, no other workspace owns the branch, and Git has
 no surviving worktree registration or index for it. Pin and recheck the commit
 before publication. This saves the surviving committed tree; it does not
@@ -250,7 +250,7 @@ must not hide that original retained commit.
 
 When a retained source already has a valid typed database checkpoint, derive its
 small recovery metadata from that authority and the current admitted input. Do
-not consult a stale or absent local warm supervisor. Validate the same company,
+not consult a stale or absent local warm supervisor. Validate the same space,
 agent, task, normalized session and Runner bindings and retain the checkpoint,
 snapshot, owner and session pointer unchanged. Offline warm import without a
 supervisor still requires this existing typed authority; normal runtime import
@@ -361,7 +361,7 @@ owner checks without changing the failed outcome. A terminal failed controller
 that cannot earn executable recovery authority instead gets an encrypted
 evidence archive through the existing native harness object owner.
 
-Online archival verifies the exact retained session pointer, company, agent,
+Online archival verifies the exact retained session pointer, space, agent,
 task, admitted source binding, terminal run and released coordinator. It rejects
 related queued/running work, checkout, expired-but-retained ownership and a busy
 physical finalizer. Source/profile/coordinator fingerprints and original file

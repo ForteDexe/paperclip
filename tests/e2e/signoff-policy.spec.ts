@@ -4,7 +4,7 @@ import { test, expect, request as pwRequest, type APIRequestContext } from "@pla
  * E2E: Signoff execution policy flow.
  *
  * Validates the full signoff lifecycle through the API and UI:
- *   1. Create a company with executor + reviewer + approver agents
+ *   1. Create a space with executor + reviewer + approver agents
  *   2. Create an issue with a two-stage execution policy (review → approval)
  *   3. Executor marks done → issue routes to reviewer (in_review)
  *   4. Reviewer approves → issue routes to approver
@@ -23,7 +23,7 @@ import { test, expect, request as pwRequest, type APIRequestContext } from "@pla
 
 const PORT = Number(process.env.OUTPOST_E2E_PORT ?? 3199);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
-const COMPANY_NAME = `E2E-Signoff-${Date.now()}`;
+const SPACE_NAME = `E2E-Signoff-${Date.now()}`;
 
 interface AgentAuth {
   agentId: string;
@@ -33,8 +33,8 @@ interface AgentAuth {
 }
 
 interface TestContext {
-  companyId: string;
-  companyPrefix: string;
+  spaceId: string;
+  spacePrefix: string;
   executor: AgentAuth;
   reviewer: AgentAuth;
   approver: AgentAuth;
@@ -43,7 +43,7 @@ interface TestContext {
 }
 
 interface IssueRunLockState {
-  companyId: string;
+  spaceId: string;
   assigneeAgentId: string | null;
   checkoutRunId: string | null;
   executionRunId: string | null;
@@ -230,7 +230,7 @@ async function invokeHeartbeat(
     if (verifiedExecution) return verifiedExecution.id;
 
     const recentRunsRes = await board.get(
-      `${BASE_URL}/api/companies/${issueRunLock.companyId}/heartbeat-runs?agentId=${agentId}&limit=20`,
+      `${BASE_URL}/api/spaces/${issueRunLock.spaceId}/heartbeat-runs?agentId=${agentId}&limit=20`,
     );
     if (recentRunsRes.ok()) {
       const recentRuns = await recentRunsRes.json();
@@ -269,7 +269,7 @@ async function getIssueRunLockState(board: APIRequestContext, issueId: string): 
   expect(res.ok()).toBe(true);
   const issue = await res.json();
   return {
-    companyId: issue.companyId,
+    spaceId: issue.spaceId,
     assigneeAgentId: issue.assigneeAgentId ?? null,
     checkoutRunId: issue.checkoutRunId ?? null,
     executionRunId: issue.executionRunId ?? null,
@@ -323,7 +323,7 @@ async function retryAgentPatchWithCurrentLockOnConflict(
     // Read the current lock again; never PATCH under that cancelled run.
     if (!(await waitForFixtureRun(board, agent.agentId, issueId, lockedRunId, true))) continue;
     res = await agent.request.patch(`${BASE_URL}/api/issues/${issueId}`, {
-      headers: { "X-Paperclip-Run-Id": lockedRunId },
+      headers: { "X-Outpost-Run-Id": lockedRunId },
       data: patchData,
     });
   }
@@ -366,7 +366,7 @@ async function agentPatch(
   await waitForFixtureRun(board, agent.agentId, issueId, runId);
   const patchWith = (patchRunId: string) =>
     agent.request.patch(`${BASE_URL}/api/issues/${issueId}`, {
-      headers: { "X-Paperclip-Run-Id": patchRunId },
+      headers: { "X-Outpost-Run-Id": patchRunId },
       data,
     });
 
@@ -395,14 +395,14 @@ async function agentCheckoutAndPatch(
   const runId = await invokeHeartbeat(board, agent.agentId, issueId);
   await waitForFixtureRun(board, agent.agentId, issueId, runId);
   const directPatchRes = await agent.request.patch(`${BASE_URL}/api/issues/${issueId}`, {
-    headers: { "X-Paperclip-Run-Id": runId },
+    headers: { "X-Outpost-Run-Id": runId },
     data: patchData,
   });
   if (directPatchRes.ok()) return directPatchRes;
 
   // Checkout (sets executionRunId so PATCH is allowed)
   const checkoutRes = await agent.request.post(`${BASE_URL}/api/issues/${issueId}/checkout`, {
-    headers: { "X-Paperclip-Run-Id": runId },
+    headers: { "X-Outpost-Run-Id": runId },
     data: { agentId: agent.agentId, expectedStatuses },
   });
   if (!checkoutRes.ok()) {
@@ -435,7 +435,7 @@ async function agentCheckoutAndPatch(
   }
   // PATCH with agent identity
   const res = await agent.request.patch(`${BASE_URL}/api/issues/${issueId}`, {
-    headers: { "X-Paperclip-Run-Id": runId },
+    headers: { "X-Outpost-Run-Id": runId },
     data: patchData,
   });
   const retried = await retryAgentPatchWithCurrentLockOnConflict(
@@ -457,7 +457,7 @@ async function agentCheckoutAndPatch(
   return board.patch(`${BASE_URL}/api/issues/${issueId}`, { data: patchData });
 }
 
-async function setupCompany(boardRequest: APIRequestContext): Promise<TestContext> {
+async function setupSpace(boardRequest: APIRequestContext): Promise<TestContext> {
   // Verify server is in local_trusted mode
   const healthRes = await boardRequest.get(`${BASE_URL}/api/health`);
   expect(healthRes.ok()).toBe(true);
@@ -470,21 +470,21 @@ async function setupCompany(boardRequest: APIRequestContext): Promise<TestContex
     );
   }
 
-  // Create company
-  const companyRes = await boardRequest.post(`${BASE_URL}/api/companies`, {
-    data: { name: COMPANY_NAME },
+  // Create space
+  const spaceRes = await boardRequest.post(`${BASE_URL}/api/spaces`, {
+    data: { name: SPACE_NAME },
   });
-  if (!companyRes.ok()) {
-    const errBody = await companyRes.text();
-    throw new Error(`POST /api/companies → ${companyRes.status()}: ${errBody}`);
+  if (!spaceRes.ok()) {
+    const errBody = await spaceRes.text();
+    throw new Error(`POST /api/spaces → ${spaceRes.status()}: ${errBody}`);
   }
-  const company = await companyRes.json();
-  const companyId = company.id;
-  const companyPrefix = company.issuePrefix ?? company.prefix ?? company.urlKey ?? "E2E";
+  const space = await spaceRes.json();
+  const spaceId = space.id;
+  const spacePrefix = space.issuePrefix ?? space.prefix ?? space.urlKey ?? "E2E";
 
   // Helper: hire/approve agent + API key + request context
   async function createAgent(name: string, role: string, title: string): Promise<AgentAuth> {
-    const agentRes = await boardRequest.post(`${BASE_URL}/api/companies/${companyId}/agent-hires`, {
+    const agentRes = await boardRequest.post(`${BASE_URL}/api/spaces/${spaceId}/agent-hires`, {
       data: {
         name,
         role,
@@ -525,8 +525,8 @@ async function setupCompany(boardRequest: APIRequestContext): Promise<TestContex
   const approver = await createAgent("Approver", "cto", "CTO");
 
   return {
-    companyId,
-    companyPrefix,
+    spaceId,
+    spacePrefix,
     executor,
     reviewer,
     approver,
@@ -540,7 +540,7 @@ async function createIssueWithPolicy(ctx: TestContext, title: string, stages?: u
     { type: "review", participants: [{ type: "agent", agentId: ctx.reviewer.agentId }] },
     { type: "approval", participants: [{ type: "agent", agentId: ctx.approver.agentId }] },
   ];
-  const res = await ctx.boardRequest.post(`${BASE_URL}/api/companies/${ctx.companyId}/issues`, {
+  const res = await ctx.boardRequest.post(`${BASE_URL}/api/spaces/${ctx.spaceId}/issues`, {
     data: {
       title,
       status: "in_progress",
@@ -569,8 +569,8 @@ test("a deferred signoff wake ignores cancelled history from an earlier stage", 
     get: async (url: string) => {
       reads.push(url);
       if (url === `${BASE_URL}/api/heartbeat-runs/reviewer-turn`) return json({ status: "succeeded" });
-      if (url === `${BASE_URL}/api/issues/${issueId}`) return json({ companyId: "company", assigneeAgentId: actingAgent });
-      if (url === `${BASE_URL}/api/companies/company/heartbeat-runs?agentId=${actingAgent}&limit=20`) return json([
+      if (url === `${BASE_URL}/api/issues/${issueId}`) return json({ spaceId: "space", assigneeAgentId: actingAgent });
+      if (url === `${BASE_URL}/api/spaces/space/heartbeat-runs?agentId=${actingAgent}&limit=20`) return json([
         { id: "cancelled-earlier-stage", agentId: actingAgent, status: "cancelled", errorCode: "issue_assignee_changed", contextSnapshot: { issueId } },
         { id: "current-executor-turn", agentId: actingAgent, status: "running", contextSnapshot: { issueId } },
       ]);
@@ -583,7 +583,7 @@ test("a deferred signoff wake ignores cancelled history from an earlier stage", 
   expect(await invokeHeartbeat(board, actingAgent, issueId)).toBe("current-executor-turn");
   expect(wakes).toBe(1);
   expect(reads).toContain(`${BASE_URL}/api/heartbeat-runs/current-executor-turn`);
-  expect(reads).toContain(`${BASE_URL}/api/companies/company/heartbeat-runs?agentId=${actingAgent}&limit=20`);
+  expect(reads).toContain(`${BASE_URL}/api/spaces/space/heartbeat-runs?agentId=${actingAgent}&limit=20`);
 });
 
 test.describe("Signoff execution policy", () => {
@@ -591,7 +591,7 @@ test.describe("Signoff execution policy", () => {
 
   test.beforeEach(async () => {
     const boardRequest = await pwRequest.newContext({ baseURL: BASE_URL });
-    ctx = await setupCompany(boardRequest);
+    ctx = await setupSpace(boardRequest);
   });
 
   test.afterEach(async () => {
@@ -603,7 +603,7 @@ test.describe("Signoff execution policy", () => {
       await agent.request.dispose();
     }
 
-    // Clean up issues, keys, agents, company (best-effort)
+    // Clean up issues, keys, agents, space (best-effort)
     for (const issueId of ctx.issueIds) {
       await board.patch(`${BASE_URL}/api/issues/${issueId}`, {
         data: { status: "cancelled", comment: "E2E test cleanup." },
@@ -613,7 +613,7 @@ test.describe("Signoff execution policy", () => {
       await board.delete(`${BASE_URL}/api/agents/${agent.agentId}/keys/${agent.keyId}`).catch(() => {});
       await board.delete(`${BASE_URL}/api/agents/${agent.agentId}`).catch(() => {});
     }
-    await board.delete(`${BASE_URL}/api/companies/${ctx.companyId}`).catch(() => {});
+    await board.delete(`${BASE_URL}/api/spaces/${ctx.spaceId}`).catch(() => {});
     await board.dispose();
   });
 
@@ -647,9 +647,9 @@ test.describe("Signoff execution policy", () => {
 
     // Step 2: Navigate to issue in UI and verify execution label
     await page.route("**/api/workspace-preferences/me", route => route.fulfill({ json: {
-      userId: "local-board", coordinatorWorkspaceEnabled: false, updatedAt: null,
+      userId: "local-operator", coordinatorWorkspaceEnabled: false, updatedAt: null,
     } }));
-    await page.goto(`/${ctx.companyPrefix}/issues/${issue.identifier}`);
+    await page.goto(`/${ctx.spacePrefix}/issues/${issue.identifier}`);
     await expect(page.locator("text=Review pending")).toBeVisible({ timeout: 10_000 });
 
     // Step 3: Reviewer approves → should route to approver

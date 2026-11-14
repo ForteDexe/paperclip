@@ -2,7 +2,7 @@ import { createAgentLifecycle, configureAgentLifecycle } from "../services/agent
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
-import { agentApiKeys, agents, budgetPolicies, companies, costEvents, createDb, pluginCompanySettings, pluginLifecycleAcknowledgments, pluginLifecycleResourceCursors, plugins, projects, resourceLifecycleEvents, type Db } from "@outpost/db";
+import { agentApiKeys, agents, budgetPolicies, spaces, costEvents, createDb, pluginSpaceSettings, pluginLifecycleAcknowledgments, pluginLifecycleResourceCursors, plugins, projects, resourceLifecycleEvents, type Db } from "@outpost/db";
 import { createHostClientHandlers } from "@outpost/plugin-sdk";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -22,11 +22,11 @@ if (!support.supported) console.warn(`Skipping lifecycle event database tests: $
 describePostgres("Resource lifecycle events", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
-  let companyId: string;
+  let spaceId: string;
   let worker: ReturnType<typeof configureAgentLifecycle>;
 
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-resource-events-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-resource-events-");
     db = createDb(database.connectionString);
   }, 90_000);
   afterAll(async () => { await worker?.stop(); await database?.cleanup(); });
@@ -35,14 +35,14 @@ describePostgres("Resource lifecycle events", () => {
     vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", undefined);
     await worker?.stop();
     worker = configureAgentLifecycle(db, { requiredPluginIds: async () => [], runPlugin: async () => "complete", runHost: async () => "complete" });
-    companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Lifecycle fixture", issuePrefix: `L${companyId.replaceAll("-", "").slice(0, 6)}` });
+    spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Lifecycle fixture", issuePrefix: `L${spaceId.replaceAll("-", "").slice(0, 6)}` });
   });
   afterEach(() => { vi.unstubAllEnvs(); });
 
-  const events = () => db.select().from(resourceLifecycleEvents).where(and(eq(resourceLifecycleEvents.companyId, companyId), ne(resourceLifecycleEvents.resourceType, "agent_runtime")));
+  const events = () => db.select().from(resourceLifecycleEvents).where(and(eq(resourceLifecycleEvents.spaceId, spaceId), ne(resourceLifecycleEvents.resourceType, "agent_runtime")));
   const createAgent = async (status: "idle" | "pending_approval" | "terminated" = "idle", database: Db = db) => {
-    const agent = await createAgentLifecycle(database).requestHire(companyId, { name: "Lifecycle agent", adapterType: "process", adapterConfig: {}, status });
+    const agent = await createAgentLifecycle(database).requestCreation(spaceId, { name: "Lifecycle agent", adapterType: "process", adapterConfig: {}, status });
     await worker.process(agent.id);
     return (await agentService(db).getById(agent.id))!;
   };
@@ -51,61 +51,61 @@ describePostgres("Resource lifecycle events", () => {
     return plugin;
   };
 
-  it("records direct and approval-free hires once, including concurrent duplicate submissions", async () => {
+  it("records direct and approval-free creations once, including concurrent duplicate submissions", async () => {
     const agent = await createAgent();
-    await Promise.all(Array.from({ length: 5 }, () => db.transaction(tx => recordResourceCreationEvent(tx as unknown as Db, companyId, "agent", agent.id))));
+    await Promise.all(Array.from({ length: 5 }, () => db.transaction(tx => recordResourceCreationEvent(tx as unknown as Db, spaceId, "agent", agent.id))));
     expect(await events()).toEqual([expect.objectContaining({ resourceType: "agent", resourceId: agent.id, action: "create" })]);
   });
 
-  it("records pending hires only after approval and ignores repeated approval", async () => {
+  it("records pending creations only after approval and ignores repeated approval", async () => {
     const agent = await createAgent("pending_approval");
     expect(await events()).toEqual([]);
-    const approval = await approvalService(db).create(companyId, { type: "hire_agent", status: "pending", payload: { agentId: agent.id } });
-    await approvalService(db).approve(approval.id, "fixture-board");
-    await approvalService(db).approve(approval.id, "fixture-board");
-    await createAgentLifecycle(db).approveHire(agent.id);
+    const approval = await approvalService(db).create(spaceId, { type: "create_agent", status: "pending", payload: { agentId: agent.id } });
+    await approvalService(db).approve(approval.id, "fixture-operator");
+    await approvalService(db).approve(approval.id, "fixture-operator");
+    await createAgentLifecycle(db).approveCreation(agent.id);
     expect(await events()).toEqual([expect.objectContaining({ resourceType: "agent", resourceId: agent.id })]);
   });
 
   it("records legacy approvals that create the agent at approval time", async () => {
-    const approval = await approvalService(db).create(companyId, { type: "hire_agent", status: "pending", payload: { name: "Legacy hire", adapterType: "process" } });
-    await approvalService(db).approve(approval.id, "fixture-board");
+    const approval = await approvalService(db).create(spaceId, { type: "create_agent", status: "pending", payload: { name: "Legacy create", adapterType: "process" } });
+    await approvalService(db).approve(approval.id, "fixture-operator");
     const [intent] = await events();
     if (intent) await worker.process(intent.resourceId);
     expect(intent?.resourceType).toBe("agent");
-    expect(await agentService(db).getById(intent!.resourceId)).toMatchObject({ status: "idle", companyId });
+    expect(await agentService(db).getById(intent!.resourceId)).toMatchObject({ status: "idle", spaceId });
   });
 
-  it("does not allocate for rejected or terminated hires", async () => {
+  it("does not allocate for rejected or terminated creations", async () => {
     const agent = await createAgent("pending_approval");
-    const approval = await approvalService(db).create(companyId, { type: "hire_agent", status: "pending", payload: { agentId: agent.id } });
-    await approvalService(db).reject(approval.id, "fixture-board");
+    const approval = await approvalService(db).create(spaceId, { type: "create_agent", status: "pending", payload: { agentId: agent.id } });
+    await approvalService(db).reject(approval.id, "fixture-operator");
     await createAgent("terminated");
     expect(await events()).toEqual([expect.objectContaining({ action: "terminate", resourceId: agent.id })]);
   });
 
-  it("rolls back hire rejection if termination cannot record its hook, allowing a retry", async () => {
+  it("rolls back create rejection if termination cannot record its hook, allowing a retry", async () => {
     const agent = await createAgent("pending_approval");
     const service = approvalService(db);
-    const approval = await service.create(companyId, { type: "hire_agent", status: "pending", payload: { agentId: agent.id } });
+    const approval = await service.create(spaceId, { type: "create_agent", status: "pending", payload: { agentId: agent.id } });
     await db.execute(sql`ALTER TABLE resource_lifecycle_events ADD CONSTRAINT fixture_reject_hook CHECK (false) NOT VALID`);
     try {
-      await expect(service.reject(approval.id, "fixture-board")).rejects.toThrow();
+      await expect(service.reject(approval.id, "fixture-operator")).rejects.toThrow();
       expect(await service.getById(approval.id)).toMatchObject({ status: "pending" });
       expect(await agentService(db).getById(agent.id)).toMatchObject({ status: "pending_approval" });
       expect(await events()).toEqual([]);
     } finally {
       await db.execute(sql`ALTER TABLE resource_lifecycle_events DROP CONSTRAINT fixture_reject_hook`);
     }
-    expect(await service.reject(approval.id, "fixture-board")).toMatchObject({ applied: true, approval: { status: "rejected" } });
+    expect(await service.reject(approval.id, "fixture-operator")).toMatchObject({ applied: true, approval: { status: "rejected" } });
     expect(await agentService(db).getById(agent.id)).toMatchObject({ status: "terminated" });
-    expect(await service.reject(approval.id, "fixture-board")).toMatchObject({ applied: false });
+    expect(await service.reject(approval.id, "fixture-operator")).toMatchObject({ applied: false });
     expect(await events()).toEqual([expect.objectContaining({ action: "terminate", resourceId: agent.id })]);
   });
 
   it("records projects with zero or multiple repository workspaces without storing repository data", async () => {
-    const empty = await projectService(db).create(companyId, { name: "Empty project" });
-    const project = await projectService(db).createWithRepositories(companyId, { name: "Repository project" }, [
+    const empty = await projectService(db).create(spaceId, { name: "Empty project" });
+    const project = await projectService(db).createWithRepositories(spaceId, { name: "Repository project" }, [
       { id: "1", fullName: "fixture/one", url: "https://github.com/fixture/one", connections: [] },
       { id: "2", fullName: "fixture/two", url: "https://github.com/fixture/two", connections: [] },
     ]);
@@ -113,14 +113,14 @@ describePostgres("Resource lifecycle events", () => {
     const rows = await events();
     expect(rows.map(row => row.resourceId).sort()).toEqual([empty.id, project.id].sort());
     expect(rows.every(row => row.resourceType === "project")).toBe(true);
-    expect(Object.keys(rows[0]).sort()).toEqual(["action", "companyId", "createdAt", "id", "resourceId", "resourceType"]);
+    expect(Object.keys(rows[0]).sort()).toEqual(["action", "spaceId", "createdAt", "id", "resourceId", "resourceType"]);
   });
 
   it("records every pause/resume cycle and termination in resource order, without duplicate hooks", async () => {
     const agent = await createAgent();
     const service = agentService(db);
   const serviceLifecycle = createAgentLifecycle(db);
-    await db.insert(agentApiKeys).values({ agentId: agent.id, companyId, name: "Lifecycle key", keyHash: "fixture-hash" });
+    await db.insert(agentApiKeys).values({ agentId: agent.id, spaceId, name: "Lifecycle key", keyHash: "fixture-hash" });
     await Promise.all(Array.from({ length: 4 }, () => serviceLifecycle.pauseAgent(agent.id)));
     await worker.process(agent.id);
     await Promise.all(Array.from({ length: 4 }, () => serviceLifecycle.resumeAgent(agent.id)));
@@ -141,7 +141,7 @@ describePostgres("Resource lifecycle events", () => {
     await expect(serviceLifecycle.resumeAgent(agent.id)).rejects.toMatchObject({ name: "AgentLifecycleConflict" });
   });
 
-  it("does not bypass pending hire approval with pause or resume", async () => {
+  it("does not bypass pending create approval with pause or resume", async () => {
     const agent = await createAgent("pending_approval");
     await expect(createAgentLifecycle(db).pauseAgent(agent.id)).rejects.toMatchObject({ name: "AgentLifecycleConflict" });
     await expect(createAgentLifecycle(db).resumeAgent(agent.id)).rejects.toMatchObject({ name: "AgentLifecycleConflict" });
@@ -151,15 +151,15 @@ describePostgres("Resource lifecycle events", () => {
   it("records budget pause and resume hooks without replaying repeated budget evaluation", async () => {
     const agent = await createAgent();
     const service = budgetService(db);
-    await db.insert(budgetPolicies).values({ companyId, scopeType: "agent", scopeId: agent.id, metric: "billed_cents", windowKind: "calendar_month_utc", amount: 100, notifyEnabled: false });
-    const [event] = await db.insert(costEvents).values({ companyId, agentId: agent.id, provider: "fixture", model: "fixture", costCents: 150, occurredAt: new Date() }).returning();
+    await db.insert(budgetPolicies).values({ spaceId, scopeType: "agent", scopeId: agent.id, metric: "billed_cents", windowKind: "calendar_month_utc", amount: 100, notifyEnabled: false });
+    const [event] = await db.insert(costEvents).values({ spaceId, agentId: agent.id, provider: "fixture", model: "fixture", costCents: 150, occurredAt: new Date() }).returning();
     await service.evaluateCostEvent(event);
-    await flushBudgetEvaluationWork(db, { companyId });
+    await flushBudgetEvaluationWork(db, { spaceId });
     await service.evaluateCostEvent(event);
-    await flushBudgetEvaluationWork(db, { companyId });
+    await flushBudgetEvaluationWork(db, { spaceId });
     expect(await agentService(db).getById(agent.id)).toMatchObject({ status: "paused", pauseReason: "budget" });
-    await service.upsertPolicy(companyId, { scopeType: "agent", scopeId: agent.id, amount: 200 }, "fixture-board");
-    await flushBudgetEvaluationWork(db, { companyId });
+    await service.upsertPolicy(spaceId, { scopeType: "agent", scopeId: agent.id, amount: 200 }, "fixture-operator");
+    await flushBudgetEvaluationWork(db, { spaceId });
     await worker.process(agent.id);
     expect(await agentService(db).getById(agent.id)).toMatchObject({ status: "idle", pauseReason: null });
     expect((await events()).sort((a, b) => a.id - b.id).map(row => row.action)).toEqual(["create", "pause", "resume"]);
@@ -170,7 +170,7 @@ describePostgres("Resource lifecycle events", () => {
     const paused = await createAgent();
     await createAgentLifecycle(db).pauseAgent(paused.id);
     await worker.process(paused.id);
-    await db.insert(agentApiKeys).values({ agentId: agent.id, companyId, name: "Retained key", keyHash: "fixture-retained-hash" });
+    await db.insert(agentApiKeys).values({ agentId: agent.id, spaceId, name: "Retained key", keyHash: "fixture-retained-hash" });
     const before = await events();
     await db.execute(sql`ALTER TABLE resource_lifecycle_events ADD CONSTRAINT fixture_reject_hook CHECK (false) NOT VALID`);
     try {
@@ -192,9 +192,9 @@ describePostgres("Resource lifecycle events", () => {
     const projectId = randomUUID();
     await expect(db.transaction(async tx => {
       const txDb = tx as unknown as Db;
-      await tx.insert(agents).values({ id: agentId, companyId, name: "Rolled back agent" });
-      await recordResourceCreationEvent(txDb, companyId, "agent", agentId);
-      await projectService(txDb).createWithRepositories(companyId, { id: projectId, name: "Rolled back project" }, []);
+      await tx.insert(agents).values({ id: agentId, spaceId, name: "Rolled back agent" });
+      await recordResourceCreationEvent(txDb, spaceId, "agent", agentId);
+      await projectService(txDb).createWithRepositories(spaceId, { id: projectId, name: "Rolled back project" }, []);
       throw new Error("rollback fixture");
     })).rejects.toThrow("rollback fixture");
     expect(await events()).toEqual([]);
@@ -204,15 +204,15 @@ describePostgres("Resource lifecycle events", () => {
 
   it("fails creation and activation atomically if the intent cannot be persisted", async () => {
     const pending = await createAgent("pending_approval");
-    const approval = await approvalService(db).create(companyId, { type: "hire_agent", status: "pending", payload: { agentId: pending.id } });
+    const approval = await approvalService(db).create(spaceId, { type: "create_agent", status: "pending", payload: { agentId: pending.id } });
     await db.execute(sql`ALTER TABLE resource_lifecycle_events ADD CONSTRAINT fixture_reject_intent CHECK (false) NOT VALID`);
     try {
       await expect(createAgent()).rejects.toThrow();
-      await expect(projectService(db).create(companyId, { name: "Rejected project" })).rejects.toThrow();
-      await expect(approvalService(db).approve(approval.id, "fixture-board")).rejects.toThrow();
+      await expect(projectService(db).create(spaceId, { name: "Rejected project" })).rejects.toThrow();
+      await expect(approvalService(db).approve(approval.id, "fixture-operator")).rejects.toThrow();
       expect(await approvalService(db).getById(approval.id)).toMatchObject({ status: "pending" });
-      expect(await db.select().from(agents).where(eq(agents.companyId, companyId))).toEqual([expect.objectContaining({ id: pending.id, status: "pending_approval" })]);
-      expect(await db.select().from(projects).where(eq(projects.companyId, companyId))).toEqual([]);
+      expect(await db.select().from(agents).where(eq(agents.spaceId, spaceId))).toEqual([expect.objectContaining({ id: pending.id, status: "pending_approval" })]);
+      expect(await db.select().from(projects).where(eq(projects.spaceId, spaceId))).toEqual([]);
       expect(await events()).toEqual([]);
     } finally {
       await db.execute(sql`ALTER TABLE resource_lifecycle_events DROP CONSTRAINT fixture_reject_intent`);
@@ -224,34 +224,34 @@ describePostgres("Resource lifecycle events", () => {
     vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", undefined);
     const oldAgentId = randomUUID();
     const oldProjectId = randomUUID();
-    await db.insert(agents).values({ id: oldAgentId, companyId, name: "Existing agent" });
-    await db.insert(projects).values({ id: oldProjectId, companyId, name: "Existing project" });
+    await db.insert(agents).values({ id: oldAgentId, spaceId, name: "Existing agent" });
+    await db.insert(projects).values({ id: oldProjectId, spaceId, name: "Existing project" });
     await agentService(db).update(oldAgentId, { name: "Renamed agent" });
     await projectService(db).update(oldProjectId, { name: "Renamed project" });
     expect(await events()).toEqual([expect.objectContaining({ action: "update", resourceId: oldProjectId })]);
     const agent = await createAgent();
-    const project = await projectService(db).create(companyId, { name: "New project" });
+    const project = await projectService(db).create(spaceId, { name: "New project" });
     expect((await events()).filter(row => row.action === "create").map(row => row.resourceId).sort()).toEqual([agent.id, project.id].sort());
   });
 
-  it("scopes resource identities by company and type", async () => {
+  it("scopes resource identities by space and type", async () => {
     vi.stubEnv("OUTPOST_MANAGED_CONFIG", undefined);
     vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "fixture-token");
     const id = randomUUID();
-    await db.transaction(tx => recordResourceCreationEvent(tx as unknown as Db, companyId, "agent", id));
-    await db.transaction(tx => recordResourceCreationEvent(tx as unknown as Db, companyId, "project", id));
-    const otherCompanyId = randomUUID();
-    await db.insert(companies).values({ id: otherCompanyId, name: "Other company", issuePrefix: "OTHER" });
-    await db.transaction(tx => recordResourceCreationEvent(tx as unknown as Db, otherCompanyId, "agent", id));
+    await db.transaction(tx => recordResourceCreationEvent(tx as unknown as Db, spaceId, "agent", id));
+    await db.transaction(tx => recordResourceCreationEvent(tx as unknown as Db, spaceId, "project", id));
+    const otherSpaceId = randomUUID();
+    await db.insert(spaces).values({ id: otherSpaceId, name: "Other space", issuePrefix: "OTHER" });
+    await db.transaction(tx => recordResourceCreationEvent(tx as unknown as Db, otherSpaceId, "agent", id));
     expect(await events()).toHaveLength(2);
-    expect(await db.select().from(resourceLifecycleEvents).where(eq(resourceLifecycleEvents.companyId, otherCompanyId))).toHaveLength(1);
-    await db.delete(companies).where(eq(companies.id, otherCompanyId));
-    expect(await db.select().from(resourceLifecycleEvents).where(eq(resourceLifecycleEvents.companyId, otherCompanyId))).toEqual([]);
+    expect(await db.select().from(resourceLifecycleEvents).where(eq(resourceLifecycleEvents.spaceId, otherSpaceId))).toHaveLength(1);
+    await db.delete(spaces).where(eq(spaces.id, otherSpaceId));
+    expect(await db.select().from(resourceLifecycleEvents).where(eq(resourceLifecycleEvents.spaceId, otherSpaceId))).toEqual([]);
   });
 
   it("captures project and workspace updates and batches repository replacement", async () => {
     const service = projectService(db);
-    const project = await service.createWithRepositories(companyId, { name: "Mutable project" }, [
+    const project = await service.createWithRepositories(spaceId, { name: "Mutable project" }, [
       { id: "1", fullName: "fixture/one", url: "https://github.com/fixture/one", connections: [] },
     ]);
     expect((await events()).map(row => row.action)).toEqual(["create"]);
@@ -272,7 +272,7 @@ describePostgres("Resource lifecycle events", () => {
 
   it("records deletion atomically and retains the event after removing the project", async () => {
     const service = projectService(db);
-    const project = await service.create(companyId, { name: "Delete fixture" });
+    const project = await service.create(spaceId, { name: "Delete fixture" });
     await db.execute(sql`ALTER TABLE resource_lifecycle_events ADD CONSTRAINT fixture_reject_delete CHECK (action <> 'delete') NOT VALID`);
     try {
       await expect(service.remove(project.id)).rejects.toThrow();
@@ -289,7 +289,7 @@ describePostgres("Resource lifecycle events", () => {
 
   it("records archive once per transition and update on restore, retaining repositories", async () => {
     const service = projectService(db);
-    const project = await service.createWithRepositories(companyId, { name: "Archive fixture" }, [
+    const project = await service.createWithRepositories(spaceId, { name: "Archive fixture" }, [
       { id: "1", fullName: "fixture/one", url: "https://github.com/fixture/one", connections: [] },
     ]);
     await Promise.all([
@@ -307,7 +307,7 @@ describePostgres("Resource lifecycle events", () => {
 
   it("rolls back archive and combined edits when the archive record fails", async () => {
     const service = projectService(db);
-    const project = await service.create(companyId, { name: "Retained project" });
+    const project = await service.create(spaceId, { name: "Retained project" });
     const before = await events();
     await db.execute(sql`ALTER TABLE resource_lifecycle_events ADD CONSTRAINT fixture_reject_archive CHECK (action <> 'archive') NOT VALID`);
     try {
@@ -321,7 +321,7 @@ describePostgres("Resource lifecycle events", () => {
 
   it("rolls back project and repository mutations when their update record fails", async () => {
     const service = projectService(db);
-    const project = await service.create(companyId, { name: "Retained project" });
+    const project = await service.create(spaceId, { name: "Retained project" });
     const workspace = await service.createWorkspace(project.id, { repoUrl: "https://github.com/fixture/retained" });
     const before = await events();
     await db.execute(sql`ALTER TABLE resource_lifecycle_events ADD CONSTRAINT fixture_reject_update CHECK (action <> 'update') NOT VALID`);
@@ -349,23 +349,23 @@ describePostgres("Resource lifecycle events", () => {
 
   it("backfills a current-state baseline once without bypassing approval or reordering partial histories", async () => {
     const [live, paused, terminated, pending, partial, resumed] = await db.insert(agents).values([
-      { companyId, name: "Legacy live", status: "idle" },
-      { companyId, name: "Legacy paused", status: "paused" },
-      { companyId, name: "Legacy terminated", status: "terminated" },
-      { companyId, name: "Legacy pending", status: "pending_approval" },
-      { companyId, name: "Partial pause", status: "paused" },
-      { companyId, name: "Partial resume", status: "idle" },
+      { spaceId, name: "Legacy live", status: "idle" },
+      { spaceId, name: "Legacy paused", status: "paused" },
+      { spaceId, name: "Legacy terminated", status: "terminated" },
+      { spaceId, name: "Legacy pending", status: "pending_approval" },
+      { spaceId, name: "Partial pause", status: "paused" },
+      { spaceId, name: "Partial resume", status: "idle" },
     ]).returning();
-    const [archived] = await db.insert(projects).values({ companyId, name: "Archived baseline", archivedAt: new Date(0) }).returning();
-    const [restored] = await db.insert(projects).values({ companyId, name: "Restored baseline" }).returning();
-    await db.insert(resourceLifecycleEvents).values({ companyId, resourceType: "project", resourceId: restored.id, action: "archive" });
+    const [archived] = await db.insert(projects).values({ spaceId, name: "Archived baseline", archivedAt: new Date(0) }).returning();
+    const [restored] = await db.insert(projects).values({ spaceId, name: "Restored baseline" }).returning();
+    await db.insert(resourceLifecycleEvents).values({ spaceId, resourceType: "project", resourceId: restored.id, action: "archive" });
     const existing = await createAgent();
     const [earlyPause] = await db.insert(resourceLifecycleEvents).values([
-      { companyId, resourceType: "agent", resourceId: partial.id, action: "pause" },
-      { companyId, resourceType: "agent", resourceId: resumed.id, action: "pause" },
+      { spaceId, resourceType: "agent", resourceId: partial.id, action: "pause" },
+      { spaceId, resourceType: "agent", resourceId: resumed.id, action: "pause" },
     ]).returning();
     const deletedId = randomUUID();
-    const [deleted] = await db.insert(resourceLifecycleEvents).values({ companyId, resourceType: "agent", resourceId: deletedId, action: "terminate" }).returning();
+    const [deleted] = await db.insert(resourceLifecycleEvents).values({ spaceId, resourceType: "agent", resourceId: deletedId, action: "terminate" }).returning();
     await backfillBaseline();
     const baseline = (await events()).sort((a, b) => a.id - b.id);
     const actions = (id: string) => baseline.filter(e => e.resourceId === id).map(e => e.action);
@@ -381,24 +381,24 @@ describePostgres("Resource lifecycle events", () => {
     expect(baseline.find(e => e.id === deleted.id)).toEqual(deleted);
     const plugin = await createPlugin();
     const inbox = pluginLifecycleInbox(db, plugin.id);
-    const creation = (await inbox.list(companyId)).find(e => e.resourceId === partial.id)!;
+    const creation = (await inbox.list(spaceId)).find(e => e.resourceId === partial.id)!;
     expect(creation.action).toBe("create");
     expect(Number(creation.id)).toBeGreaterThan(earlyPause.id);
-    await expect(inbox.acknowledge(companyId, String(earlyPause.id))).rejects.toMatchObject({ status: 409 });
-    await inbox.acknowledge(companyId, creation.id);
-    expect((await inbox.list(companyId)).find(e => e.resourceId === partial.id)).toMatchObject({ id: String(earlyPause.id), action: "pause" });
-    const projectCreate = (await inbox.list(companyId)).find(e => e.resourceId === archived.id)!;
-    await inbox.acknowledge(companyId, projectCreate.id);
-    const archive = (await inbox.list(companyId)).find(e => e.resourceId === archived.id)!;
+    await expect(inbox.acknowledge(spaceId, String(earlyPause.id))).rejects.toMatchObject({ status: 409 });
+    await inbox.acknowledge(spaceId, creation.id);
+    expect((await inbox.list(spaceId)).find(e => e.resourceId === partial.id)).toMatchObject({ id: String(earlyPause.id), action: "pause" });
+    const projectCreate = (await inbox.list(spaceId)).find(e => e.resourceId === archived.id)!;
+    await inbox.acknowledge(spaceId, projectCreate.id);
+    const archive = (await inbox.list(spaceId)).find(e => e.resourceId === archived.id)!;
     expect(archive.action).toBe("archive");
-    await inbox.acknowledge(companyId, archive.id);
-    expect((await inbox.list(companyId)).find(e => e.resourceId === archived.id)).toBeUndefined();
+    await inbox.acknowledge(spaceId, archive.id);
+    expect((await inbox.list(spaceId)).find(e => e.resourceId === archived.id)).toBeUndefined();
     await backfillBaseline();
     expect((await events()).sort((a, b) => a.id - b.id)).toEqual(baseline);
   });
 
   it("keeps delivery unavailable when the baseline migration fails", async () => {
-    await db.insert(agents).values({ companyId, name: "Legacy paused", status: "paused" });
+    await db.insert(agents).values({ spaceId, name: "Legacy paused", status: "paused" });
     await db.execute(sql`ALTER TABLE resource_lifecycle_events ALTER COLUMN id DROP IDENTITY`);
     await db.execute(sql`DROP TABLE plugin_lifecycle_acknowledgments`);
     await db.execute(sql`DROP INDEX resource_lifecycle_events_resource_order_idx`);
@@ -431,16 +431,16 @@ describePostgres("Resource lifecycle events", () => {
     await worker.process(agent.id);
     const journal = (await events()).sort((a, b) => a.id - b.id);
     const inbox = pluginLifecycleInbox(db, first.id);
-    const [event] = await inbox.list(companyId);
+    const [event] = await inbox.list(spaceId);
     expect(event).toMatchObject({ id: String(journal[0].id), resourceId: agent.id, action: "create" });
-    expect(await pluginLifecycleInbox(db, first.id).list(companyId)).toEqual([event]);
-    await expect(inbox.acknowledge(companyId, String(journal[1].id))).rejects.toMatchObject({ status: 409 });
-    await Promise.all([inbox.acknowledge(companyId, event.id), inbox.acknowledge(companyId, event.id)]);
-    expect(await inbox.list(companyId)).toEqual([expect.objectContaining({ action: "pause" })]);
-    expect(await pluginLifecycleInbox(db, second.id).list(companyId)).toEqual([event]);
-    await inbox.acknowledge(companyId, String(journal[1].id));
-    await inbox.acknowledge(companyId, String(journal[2].id));
-    expect(await inbox.list(companyId)).toEqual([]);
+    expect(await pluginLifecycleInbox(db, first.id).list(spaceId)).toEqual([event]);
+    await expect(inbox.acknowledge(spaceId, String(journal[1].id))).rejects.toMatchObject({ status: 409 });
+    await Promise.all([inbox.acknowledge(spaceId, event.id), inbox.acknowledge(spaceId, event.id)]);
+    expect(await inbox.list(spaceId)).toEqual([expect.objectContaining({ action: "pause" })]);
+    expect(await pluginLifecycleInbox(db, second.id).list(spaceId)).toEqual([event]);
+    await inbox.acknowledge(spaceId, String(journal[1].id));
+    await inbox.acknowledge(spaceId, String(journal[2].id));
+    expect(await inbox.list(spaceId)).toEqual([]);
     await db.delete(plugins).where(eq(plugins.id, first.id));
     expect(await db.select().from(pluginLifecycleAcknowledgments).where(eq(pluginLifecycleAcknowledgments.pluginId, first.id))).toEqual([]);
   });
@@ -449,17 +449,17 @@ describePostgres("Resource lifecycle events", () => {
     const plugin = await createPlugin();
     const inbox = pluginLifecycleInbox(db, plugin.id);
     await db.insert(resourceLifecycleEvents).values(Array.from({ length: 101 }, () => ({
-      companyId, resourceType: "agent" as const, resourceId: randomUUID(), action: "create" as const,
+      spaceId, resourceType: "agent" as const, resourceId: randomUUID(), action: "create" as const,
     })));
-    const first = await inbox.list(companyId, 100);
-    await db.insert(resourceLifecycleEvents).values({ companyId, resourceType: "agent", resourceId: first[0].resourceId, action: "pause" });
-    const next = await inbox.list(companyId, 100, first.at(-1)!.id);
+    const first = await inbox.list(spaceId, 100);
+    await db.insert(resourceLifecycleEvents).values({ spaceId, resourceType: "agent", resourceId: first[0].resourceId, action: "pause" });
+    const next = await inbox.list(spaceId, 100, first.at(-1)!.id);
     expect(next).toHaveLength(1);
     expect(next[0].resourceId).not.toBe(first[0].resourceId);
-    await inbox.acknowledge(companyId, next[0].id);
-    expect(await inbox.list(companyId, 100, first.at(-1)!.id)).toEqual([]);
-    expect(await inbox.list(companyId, 100)).toEqual(first);
-    await expect(inbox.list(companyId, 100, "invalid")).rejects.toMatchObject({ status: 400 });
+    await inbox.acknowledge(spaceId, next[0].id);
+    expect(await inbox.list(spaceId, 100, first.at(-1)!.id)).toEqual([]);
+    expect(await inbox.list(spaceId, 100)).toEqual(first);
+    await expect(inbox.list(spaceId, 100, "invalid")).rejects.toMatchObject({ status: 400 });
   });
 
   it("lists a resource's head without rechecking its acknowledged backlog for every later event", async () => {
@@ -473,18 +473,18 @@ describePostgres("Resource lifecycle events", () => {
     const acknowledged = 2_000;
     const backlog = 2_000;
     const rows = await db.insert(resourceLifecycleEvents).values([
-      { companyId, resourceType: "agent" as const, resourceId, action: "create" as const },
+      { spaceId, resourceType: "agent" as const, resourceId, action: "create" as const },
       ...Array.from({ length: acknowledged + backlog }, (_, index) => ({
-        companyId, resourceType: "agent" as const, resourceId, action: index % 2 ? "resume" as const : "pause" as const,
+        spaceId, resourceType: "agent" as const, resourceId, action: index % 2 ? "resume" as const : "pause" as const,
       })),
     ]).returning({ id: resourceLifecycleEvents.id });
     await db.insert(pluginLifecycleAcknowledgments)
       .values(rows.slice(0, acknowledged + 1).map(row => ({ pluginId: plugin.id, eventId: row.id })));
     const other = randomUUID();
-    await db.insert(resourceLifecycleEvents).values({ companyId, resourceType: "agent", resourceId: other, action: "create" });
+    await db.insert(resourceLifecycleEvents).values({ spaceId, resourceType: "agent", resourceId: other, action: "create" });
 
     const started = performance.now();
-    const listed = await inbox.list(companyId, 100);
+    const listed = await inbox.list(spaceId, 100);
     const elapsedMs = performance.now() - started;
 
     expect(listed.map(event => [event.resourceId, event.id])).toEqual([
@@ -495,56 +495,56 @@ describePostgres("Resource lifecycle events", () => {
     expect(elapsedMs).toBeLessThan(2_000);
 
     // Acknowledgement applies the same head rule that the list used.
-    await expect(inbox.acknowledge(companyId, String(rows[acknowledged + 2].id))).rejects.toMatchObject({ status: 409 });
-    await inbox.acknowledge(companyId, listed[0].id);
-    expect((await inbox.list(companyId, 100))[0]).toMatchObject({ resourceId, id: String(rows[acknowledged + 2].id) });
+    await expect(inbox.acknowledge(spaceId, String(rows[acknowledged + 2].id))).rejects.toMatchObject({ status: 409 });
+    await inbox.acknowledge(spaceId, listed[0].id);
+    expect((await inbox.list(spaceId, 100))[0]).toMatchObject({ resourceId, id: String(rows[acknowledged + 2].id) });
   }, 120_000);
 
   it("lists exactly one head per resource across acknowledged history, late creations, gaps, and pages", async () => {
     const plugin = await createPlugin();
     const other = await createPlugin();
     const inbox = pluginLifecycleInbox(db, plugin.id);
-    const decoyCompanyId = randomUUID();
-    await db.insert(companies).values({ id: decoyCompanyId, name: "Lifecycle decoy", issuePrefix: `D${decoyCompanyId.replaceAll("-", "").slice(0, 6)}` });
+    const decoySpaceId = randomUUID();
+    await db.insert(spaces).values({ id: decoySpaceId, name: "Lifecycle decoy", issuePrefix: `D${decoySpaceId.replaceAll("-", "").slice(0, 6)}` });
     const agentId = randomUUID(), lateCreateId = randomUUID(), gapId = randomUUID(), doneId = randomUUID(), projectId = randomUUID();
     type Row = typeof resourceLifecycleEvents.$inferInsert;
     const insert = async (rows: Row[]) => db.insert(resourceLifecycleEvents).values(rows).returning();
     const ack = async (ids: number[], pluginId = plugin.id) => {
       if (ids.length) await db.insert(pluginLifecycleAcknowledgments).values(ids.map(eventId => ({ pluginId, eventId })));
     };
-    const [agentCreate] = await insert([{ companyId, resourceType: "agent", resourceId: agentId, action: "create" }]);
+    const [agentCreate] = await insert([{ spaceId, resourceType: "agent", resourceId: agentId, action: "create" }]);
     // The same id as a different resource type is an independent stream.
-    const runtime = await insert(Array.from({ length: 12 }, () => ({ companyId, resourceType: "agent_runtime" as const, resourceId: agentId, action: "update" as const })));
-    const [latePause] = await insert([{ companyId, resourceType: "agent", resourceId: lateCreateId, action: "pause" }]);
-    const gap = await insert([0, 1, 2].map(() => ({ companyId, resourceType: "project" as const, resourceId: gapId, action: "update" as const })));
-    const done = await insert([{ companyId, resourceType: "agent", resourceId: doneId, action: "create" }, { companyId, resourceType: "agent", resourceId: doneId, action: "pause" }]);
-    const [lateCreate] = await insert([{ companyId, resourceType: "agent", resourceId: lateCreateId, action: "create" }]);
+    const runtime = await insert(Array.from({ length: 12 }, () => ({ spaceId, resourceType: "agent_runtime" as const, resourceId: agentId, action: "update" as const })));
+    const [latePause] = await insert([{ spaceId, resourceType: "agent", resourceId: lateCreateId, action: "pause" }]);
+    const gap = await insert([0, 1, 2].map(() => ({ spaceId, resourceType: "project" as const, resourceId: gapId, action: "update" as const })));
+    const done = await insert([{ spaceId, resourceType: "agent", resourceId: doneId, action: "create" }, { spaceId, resourceType: "agent", resourceId: doneId, action: "pause" }]);
+    const [lateCreate] = await insert([{ spaceId, resourceType: "agent", resourceId: lateCreateId, action: "create" }]);
     const [projectCreate, projectArchive] = await insert([
-      { companyId, resourceType: "project", resourceId: projectId, action: "create" }, { companyId, resourceType: "project", resourceId: projectId, action: "archive" }]);
-    await insert([{ companyId: decoyCompanyId, resourceType: "agent", resourceId: randomUUID(), action: "create" }]);
+      { spaceId, resourceType: "project", resourceId: projectId, action: "create" }, { spaceId, resourceType: "project", resourceId: projectId, action: "archive" }]);
+    await insert([{ spaceId: decoySpaceId, resourceType: "agent", resourceId: randomUUID(), action: "create" }]);
     await ack([agentCreate.id, ...runtime.slice(0, 9).map(e => e.id), gap[1].id, ...done.map(e => e.id), projectCreate.id]);
     await ack(runtime.map(e => e.id), other.id);
 
     const all = ["agent", "project", "agent_runtime"] as const;
-    expect((await inbox.list(companyId, 100, undefined, [...all])).map(e => Number(e.id))).toEqual(
+    expect((await inbox.list(spaceId, 100, undefined, [...all])).map(e => Number(e.id))).toEqual(
       [runtime[9].id, gap[0].id, lateCreate.id, projectArchive.id].sort((a, b) => a - b));
-    expect((await inbox.list(companyId)).map(e => [e.resourceId, e.action])).toEqual(
+    expect((await inbox.list(spaceId)).map(e => [e.resourceId, e.action])).toEqual(
       [[gapId, "update"], [lateCreateId, "create"], [projectId, "archive"]]);
-    expect(await inbox.list(companyId, 2, undefined, [...all])).toEqual((await inbox.list(companyId, 100, undefined, [...all])).slice(0, 2));
-    expect((await inbox.list(companyId, 100, String(gap[0].id), [...all])).map(e => Number(e.id))).toEqual([lateCreate.id, projectArchive.id]);
-    expect(await pluginLifecycleInbox(db, other.id).list(companyId, 100, undefined, ["agent_runtime"])).toEqual([]);
-    expect(await pluginLifecycleInbox(db, other.id).hasPending(companyId, ["agent_runtime"])).toBe(false);
-    expect(await inbox.hasPending(companyId, ["agent_runtime"])).toBe(true);
-    expect(await inbox.hasPending(companyId)).toBe(true);
-    expect(await inbox.list(decoyCompanyId, 100, undefined, [...all])).toEqual([expect.objectContaining({ companyId: decoyCompanyId })]);
-    const [head] = await inbox.list(companyId, 1, undefined, ["project"]);
-    expect(head).toEqual({ id: String(gap[0].id), companyId, resourceType: "project", resourceId: gapId, action: "update", createdAt: gap[0].createdAt.toISOString() });
+    expect(await inbox.list(spaceId, 2, undefined, [...all])).toEqual((await inbox.list(spaceId, 100, undefined, [...all])).slice(0, 2));
+    expect((await inbox.list(spaceId, 100, String(gap[0].id), [...all])).map(e => Number(e.id))).toEqual([lateCreate.id, projectArchive.id]);
+    expect(await pluginLifecycleInbox(db, other.id).list(spaceId, 100, undefined, ["agent_runtime"])).toEqual([]);
+    expect(await pluginLifecycleInbox(db, other.id).hasPending(spaceId, ["agent_runtime"])).toBe(false);
+    expect(await inbox.hasPending(spaceId, ["agent_runtime"])).toBe(true);
+    expect(await inbox.hasPending(spaceId)).toBe(true);
+    expect(await inbox.list(decoySpaceId, 100, undefined, [...all])).toEqual([expect.objectContaining({ spaceId: decoySpaceId })]);
+    const [head] = await inbox.list(spaceId, 1, undefined, ["project"]);
+    expect(head).toEqual({ id: String(gap[0].id), spaceId, resourceType: "project", resourceId: gapId, action: "update", createdAt: gap[0].createdAt.toISOString() });
 
     // Acknowledging a head exposes that resource's next unacknowledged event, skipping acknowledged gaps.
-    await inbox.acknowledge(companyId, String(gap[0].id));
-    await inbox.acknowledge(companyId, String(lateCreate.id));
-    expect((await inbox.list(companyId)).map(e => Number(e.id))).toEqual([latePause.id, gap[2].id, projectArchive.id].sort((a, b) => a - b));
-    await expect(inbox.acknowledge(companyId, String(runtime[10].id))).rejects.toMatchObject({ status: 409 });
+    await inbox.acknowledge(spaceId, String(gap[0].id));
+    await inbox.acknowledge(spaceId, String(lateCreate.id));
+    expect((await inbox.list(spaceId)).map(e => Number(e.id))).toEqual([latePause.id, gap[2].id, projectArchive.id].sort((a, b) => a - b));
+    await expect(inbox.acknowledge(spaceId, String(runtime[10].id))).rejects.toMatchObject({ status: 409 });
   });
 
   it("carries acknowledgments from an earlier release into resource cursors without redelivery or loss", async () => {
@@ -560,17 +560,17 @@ describePostgres("Resource lifecycle events", () => {
       if (ids.length) await db.insert(pluginLifecycleAcknowledgments).values(ids.map(eventId => ({ pluginId, eventId })));
     };
     const [agentCreate, ...agentTransitions] = await insert([
-      { companyId, resourceType: "agent", resourceId: agentId, action: "create" },
-      ...Array.from({ length: 6 }, (_, index) => ({ companyId, resourceType: "agent" as const, resourceId: agentId, action: index % 2 ? "resume" as const : "pause" as const })),
+      { spaceId, resourceType: "agent", resourceId: agentId, action: "create" },
+      ...Array.from({ length: 6 }, (_, index) => ({ spaceId, resourceType: "agent" as const, resourceId: agentId, action: index % 2 ? "resume" as const : "pause" as const })),
     ]);
-    const gap = await insert([0, 1, 2].map(() => ({ companyId, resourceType: "project" as const, resourceId: gapId, action: "update" as const })));
-    const runtime = await insert(Array.from({ length: 5 }, () => ({ companyId, resourceType: "agent_runtime" as const, resourceId: runtimeId, action: "update" as const })));
-    const [createdOnly] = await insert([{ companyId, resourceType: "agent", resourceId: createdOnlyId, action: "create" }]);
+    const gap = await insert([0, 1, 2].map(() => ({ spaceId, resourceType: "project" as const, resourceId: gapId, action: "update" as const })));
+    const runtime = await insert(Array.from({ length: 5 }, () => ({ spaceId, resourceType: "agent_runtime" as const, resourceId: runtimeId, action: "update" as const })));
+    const [createdOnly] = await insert([{ spaceId, resourceType: "agent", resourceId: createdOnlyId, action: "create" }]);
     await ack([agentCreate.id, ...agentTransitions.slice(0, 3).map(e => e.id), gap[1].id, ...runtime.map(e => e.id), createdOnly.id]);
     await ack([gap[0].id], other.id);
 
-    const before = await inbox.list(companyId, 100, undefined, [...all]);
-    const otherBefore = await pluginLifecycleInbox(db, other.id).list(companyId, 100, undefined, [...all]);
+    const before = await inbox.list(spaceId, 100, undefined, [...all]);
+    const otherBefore = await pluginLifecycleInbox(db, other.id).list(spaceId, 100, undefined, [...all]);
     expect(before.map(e => Number(e.id))).toEqual([agentTransitions[3].id, gap[0].id]);
 
     const migration = readFileSync(new URL("../../../packages/db/src/migrations/0462_plugin_lifecycle_resource_cursors.sql", import.meta.url), "utf8");
@@ -579,7 +579,7 @@ describePostgres("Resource lifecycle events", () => {
     await db.execute(sql.raw(backfill[0]));
     await db.execute(sql.raw(backfill[0]));
 
-    const cursors = await db.select().from(pluginLifecycleResourceCursors).where(eq(pluginLifecycleResourceCursors.companyId, companyId));
+    const cursors = await db.select().from(pluginLifecycleResourceCursors).where(eq(pluginLifecycleResourceCursors.spaceId, spaceId));
     expect(cursors.map(c => [c.pluginId, c.resourceType, c.resourceId, c.acknowledgedThroughId]).sort()).toEqual([
       [plugin.id, "agent", agentId, agentTransitions[2].id],
       // The cursor stops before the unacknowledged gap, so the gap is still delivered.
@@ -588,22 +588,22 @@ describePostgres("Resource lifecycle events", () => {
       [plugin.id, "agent", createdOnlyId, createdOnly.id],
       [other.id, "project", gapId, gap[0].id],
     ].sort());
-    expect(await inbox.list(companyId, 100, undefined, [...all])).toEqual(before);
-    expect(await pluginLifecycleInbox(db, other.id).list(companyId, 100, undefined, [...all])).toEqual(otherBefore);
-    expect(await inbox.hasPending(companyId, ["agent_runtime"])).toBe(false);
+    expect(await inbox.list(spaceId, 100, undefined, [...all])).toEqual(before);
+    expect(await pluginLifecycleInbox(db, other.id).list(spaceId, 100, undefined, [...all])).toEqual(otherBefore);
+    expect(await inbox.hasPending(spaceId, ["agent_runtime"])).toBe(false);
 
     // Reads use the cursor: history at or below it stays acknowledged without its rows.
     await db.delete(pluginLifecycleAcknowledgments).where(and(eq(pluginLifecycleAcknowledgments.pluginId, plugin.id), inArray(pluginLifecycleAcknowledgments.eventId, runtime.map(e => e.id))));
-    expect(await inbox.hasPending(companyId, ["agent_runtime"])).toBe(false);
-    await inbox.acknowledge(companyId, String(runtime[2].id));
-    expect(await inbox.list(companyId, 100, undefined, ["agent_runtime"])).toEqual([]);
+    expect(await inbox.hasPending(spaceId, ["agent_runtime"])).toBe(false);
+    await inbox.acknowledge(spaceId, String(runtime[2].id));
+    expect(await inbox.list(spaceId, 100, undefined, ["agent_runtime"])).toEqual([]);
 
     // Acknowledging the gap moves the cursor and skips the event that the earlier release acknowledged.
-    await expect(inbox.acknowledge(companyId, String(gap[2].id))).rejects.toMatchObject({ status: 409 });
-    await inbox.acknowledge(companyId, String(gap[0].id));
-    expect((await inbox.list(companyId, 100, undefined, ["project"])).map(e => Number(e.id))).toEqual([gap[2].id]);
-    await inbox.acknowledge(companyId, String(gap[2].id));
-    expect(await inbox.list(companyId, 100, undefined, ["project"])).toEqual([]);
+    await expect(inbox.acknowledge(spaceId, String(gap[2].id))).rejects.toMatchObject({ status: 409 });
+    await inbox.acknowledge(spaceId, String(gap[0].id));
+    expect((await inbox.list(spaceId, 100, undefined, ["project"])).map(e => Number(e.id))).toEqual([gap[2].id]);
+    await inbox.acknowledge(spaceId, String(gap[2].id));
+    expect(await inbox.list(spaceId, 100, undefined, ["project"])).toEqual([]);
     const [gapCursor] = await db.select().from(pluginLifecycleResourceCursors)
       .where(and(eq(pluginLifecycleResourceCursors.pluginId, plugin.id), eq(pluginLifecycleResourceCursors.resourceId, gapId)));
     expect(gapCursor.acknowledgedThroughId).toBe(gap[2].id);
@@ -613,11 +613,11 @@ describePostgres("Resource lifecycle events", () => {
     expect(rows.map(r => r.eventId).sort((a, b) => a - b)).toEqual(gap.map(e => e.id));
 
     // A new transition after the cursor is delivered, and a later one waits behind it.
-    const [late, later] = await insert([{ companyId, resourceType: "agent_runtime", resourceId: runtimeId, action: "update" }, { companyId, resourceType: "agent_runtime", resourceId: runtimeId, action: "delete" }]);
-    expect((await inbox.list(companyId, 100, undefined, ["agent_runtime"])).map(e => Number(e.id))).toEqual([late.id]);
-    await expect(inbox.acknowledge(companyId, String(later.id))).rejects.toMatchObject({ status: 409 });
-    await inbox.acknowledge(companyId, String(late.id));
-    expect((await inbox.list(companyId, 100, undefined, ["agent_runtime"])).map(e => Number(e.id))).toEqual([later.id]);
+    const [late, later] = await insert([{ spaceId, resourceType: "agent_runtime", resourceId: runtimeId, action: "update" }, { spaceId, resourceType: "agent_runtime", resourceId: runtimeId, action: "delete" }]);
+    expect((await inbox.list(spaceId, 100, undefined, ["agent_runtime"])).map(e => Number(e.id))).toEqual([late.id]);
+    await expect(inbox.acknowledge(spaceId, String(later.id))).rejects.toMatchObject({ status: 409 });
+    await inbox.acknowledge(spaceId, String(late.id));
+    expect((await inbox.list(spaceId, 100, undefined, ["agent_runtime"])).map(e => Number(e.id))).toEqual([later.id]);
 
     await db.delete(plugins).where(eq(plugins.id, plugin.id));
     expect(await db.select().from(pluginLifecycleResourceCursors).where(eq(pluginLifecycleResourceCursors.pluginId, plugin.id))).toEqual([]);
@@ -627,12 +627,12 @@ describePostgres("Resource lifecycle events", () => {
     const plugin = await createPlugin();
     const inbox = pluginLifecycleInbox(db, plugin.id);
     await db.insert(resourceLifecycleEvents).values(Array.from({ length: 101 }, () => ({
-      companyId, resourceType: "agent" as const, resourceId: randomUUID(), action: "create" as const,
+      spaceId, resourceType: "agent" as const, resourceId: randomUUID(), action: "create" as const,
     })));
-    const page = await inbox.list(companyId, 100, undefined, ["agent", "agent"]);
+    const page = await inbox.list(spaceId, 100, undefined, ["agent", "agent"]);
     expect(page).toHaveLength(100);
-    expect(page).toEqual(await inbox.list(companyId, 100, undefined, ["agent"]));
-    expect(await inbox.list(companyId, 100, page.at(-1)!.id, ["agent", "agent"])).toHaveLength(1);
+    expect(page).toEqual(await inbox.list(spaceId, 100, undefined, ["agent"]));
+    expect(await inbox.list(spaceId, 100, page.at(-1)!.id, ["agent", "agent"])).toHaveLength(1);
   });
 
   it("keeps the cursor behind a pending transition when a late creation is acknowledged first", async () => {
@@ -641,27 +641,27 @@ describePostgres("Resource lifecycle events", () => {
     const lateId = randomUUID(), freshId = randomUUID();
     const through = async (resourceId: string) => (await db.select().from(pluginLifecycleResourceCursors)
       .where(and(eq(pluginLifecycleResourceCursors.pluginId, plugin.id), eq(pluginLifecycleResourceCursors.resourceId, resourceId))))[0]?.acknowledgedThroughId;
-    const [pause] = await db.insert(resourceLifecycleEvents).values({ companyId, resourceType: "agent", resourceId: lateId, action: "pause" }).returning();
-    const [create] = await db.insert(resourceLifecycleEvents).values({ companyId, resourceType: "agent", resourceId: lateId, action: "create" }).returning();
-    const [freshCreate] = await db.insert(resourceLifecycleEvents).values({ companyId, resourceType: "agent", resourceId: freshId, action: "create" }).returning();
-    expect((await inbox.list(companyId)).map(e => Number(e.id))).toEqual([create.id, freshCreate.id]);
-    await inbox.acknowledge(companyId, String(create.id));
-    await inbox.acknowledge(companyId, String(freshCreate.id));
+    const [pause] = await db.insert(resourceLifecycleEvents).values({ spaceId, resourceType: "agent", resourceId: lateId, action: "pause" }).returning();
+    const [create] = await db.insert(resourceLifecycleEvents).values({ spaceId, resourceType: "agent", resourceId: lateId, action: "create" }).returning();
+    const [freshCreate] = await db.insert(resourceLifecycleEvents).values({ spaceId, resourceType: "agent", resourceId: freshId, action: "create" }).returning();
+    expect((await inbox.list(spaceId)).map(e => Number(e.id))).toEqual([create.id, freshCreate.id]);
+    await inbox.acknowledge(spaceId, String(create.id));
+    await inbox.acknowledge(spaceId, String(freshCreate.id));
     // The earlier pause is still pending, so the creation does not move the cursor past it.
     expect(await through(lateId)).toBeUndefined();
     expect(await through(freshId)).toBe(freshCreate.id);
-    expect((await inbox.list(companyId)).map(e => Number(e.id))).toEqual([pause.id]);
-    await inbox.acknowledge(companyId, String(pause.id));
+    expect((await inbox.list(spaceId)).map(e => Number(e.id))).toEqual([pause.id]);
+    await inbox.acknowledge(spaceId, String(pause.id));
     expect(await through(lateId)).toBe(pause.id);
     // The creation above the cursor stays acknowledged through its row.
-    expect(await inbox.list(companyId)).toEqual([]);
-    expect(await inbox.hasPending(companyId)).toBe(false);
-    const [resume] = await db.insert(resourceLifecycleEvents).values({ companyId, resourceType: "agent", resourceId: lateId, action: "resume" }).returning();
-    expect(await inbox.hasPending(companyId)).toBe(true);
-    expect((await inbox.list(companyId)).map(e => Number(e.id))).toEqual([resume.id]);
-    await inbox.acknowledge(companyId, String(resume.id));
+    expect(await inbox.list(spaceId)).toEqual([]);
+    expect(await inbox.hasPending(spaceId)).toBe(false);
+    const [resume] = await db.insert(resourceLifecycleEvents).values({ spaceId, resourceType: "agent", resourceId: lateId, action: "resume" }).returning();
+    expect(await inbox.hasPending(spaceId)).toBe(true);
+    expect((await inbox.list(spaceId)).map(e => Number(e.id))).toEqual([resume.id]);
+    await inbox.acknowledge(spaceId, String(resume.id));
     expect(await through(lateId)).toBe(resume.id);
-    expect(await inbox.list(companyId)).toEqual([]);
+    expect(await inbox.list(spaceId)).toEqual([]);
   });
 
   it("acknowledges a head without reading the resource's acknowledged history", async () => {
@@ -671,70 +671,70 @@ describePostgres("Resource lifecycle events", () => {
     const inbox = pluginLifecycleInbox(db, plugin.id);
     const resourceId = randomUUID();
     const rows = await db.insert(resourceLifecycleEvents).values(Array.from({ length: 50 }, () => ({
-      companyId, resourceType: "agent_runtime" as const, resourceId, action: "update" as const,
+      spaceId, resourceType: "agent_runtime" as const, resourceId, action: "update" as const,
     }))).returning({ id: resourceLifecycleEvents.id });
-    for (const row of rows.slice(0, 40)) await inbox.acknowledge(companyId, String(row.id));
+    for (const row of rows.slice(0, 40)) await inbox.acknowledge(spaceId, String(row.id));
     await db.delete(pluginLifecycleAcknowledgments).where(eq(pluginLifecycleAcknowledgments.pluginId, plugin.id));
     const all = ["agent_runtime"] as const;
-    expect((await inbox.list(companyId, 100, undefined, [...all])).map(e => Number(e.id))).toEqual([rows[40].id]);
-    await inbox.acknowledge(companyId, String(rows[40].id));
-    expect((await inbox.list(companyId, 100, undefined, [...all])).map(e => Number(e.id))).toEqual([rows[41].id]);
+    expect((await inbox.list(spaceId, 100, undefined, [...all])).map(e => Number(e.id))).toEqual([rows[40].id]);
+    await inbox.acknowledge(spaceId, String(rows[40].id));
+    expect((await inbox.list(spaceId, 100, undefined, [...all])).map(e => Number(e.id))).toEqual([rows[41].id]);
   });
 
   it("never skips a lower event id that commits after a higher id is acknowledged", async () => {
     const plugin = await createPlugin();
     const inbox = pluginLifecycleInbox(db, plugin.id);
     await db.transaction(async tx => {
-      const [low] = await tx.insert(agents).values({ companyId, name: "Delayed commit" }).returning();
-      await recordResourceCreationEvent(tx as unknown as Db, companyId, "agent", low.id);
+      const [low] = await tx.insert(agents).values({ spaceId, name: "Delayed commit" }).returning();
+      await recordResourceCreationEvent(tx as unknown as Db, spaceId, "agent", low.id);
       const high = await createAgent();
-      const [visible] = await inbox.list(companyId);
+      const [visible] = await inbox.list(spaceId);
       expect(visible.resourceId).toBe(high.id);
-      await inbox.acknowledge(companyId, visible.id);
-      expect(await inbox.list(companyId)).toEqual([]);
+      await inbox.acknowledge(spaceId, visible.id);
+      expect(await inbox.list(spaceId)).toEqual([]);
       expect(low.id).not.toBe(high.id);
     });
-    expect(await inbox.list(companyId)).toEqual([expect.objectContaining({ action: "create" })]);
+    expect(await inbox.list(spaceId)).toEqual([expect.objectContaining({ action: "create" })]);
   });
 
   it.each([{ resourceLifecycle: ["project"] }, { resourceLifecycle: ["agent_runtime"] }] as const)("preserves legacy manual streams with automatic subscription %j", async ({ resourceLifecycle }) => {
     const plugin = await createPlugin();
     await createAgent();
-    await db.insert(resourceLifecycleEvents).values({ companyId, resourceType: "project", resourceId: randomUUID(), action: "create" });
+    await db.insert(resourceLifecycleEvents).values({ spaceId, resourceType: "project", resourceId: randomUUID(), action: "create" });
     const services = buildHostServices(db, plugin.id, plugin.pluginKey, createPluginEventBus(), undefined, { manifest: { resourceLifecycle } as never });
     const handlers = createHostClientHandlers({ pluginId: plugin.id, capabilities: ["events.subscribe"], services });
     try {
-      const rows = await handlers["events.listLifecycle"]({ companyId }, { invocationScope: { companyId } });
+      const rows = await handlers["events.listLifecycle"]({ spaceId }, { invocationScope: { spaceId } });
       expect(new Set(rows.map(row => row.resourceType))).toEqual(new Set(resourceLifecycle[0] === "agent_runtime" ? ["agent", "project", "agent_runtime"] : ["agent", "project"]));
     } finally { services.dispose(); }
   });
 
-  it("enforces capability, invocation company, plugin availability, and company boundaries through host RPC", async () => {
+  it("enforces capability, invocation space, plugin availability, and space boundaries through host RPC", async () => {
     const plugin = await createPlugin();
     await createAgent();
     const services = buildHostServices(db, plugin.id, plugin.pluginKey, createPluginEventBus());
     const handlers = createHostClientHandlers({ pluginId: plugin.id, capabilities: ["events.subscribe"], services });
-    const scope = { invocationScope: { companyId } };
+    const scope = { invocationScope: { spaceId } };
     try {
-      await expect(handlers["events.listLifecycle"]({ companyId })).rejects.toThrow("company context");
+      await expect(handlers["events.listLifecycle"]({ spaceId })).rejects.toThrow("space context");
       const other = randomUUID();
-      await expect(handlers["events.listLifecycle"]({ companyId: other }, scope)).rejects.toThrow("requested company");
+      await expect(handlers["events.listLifecycle"]({ spaceId: other }, scope)).rejects.toThrow("requested space");
       const denied = createHostClientHandlers({ pluginId: plugin.id, capabilities: [], services });
-      await expect(denied["events.listLifecycle"]({ companyId }, scope)).rejects.toThrow("events.subscribe");
-      await expect(denied["events.acknowledgeLifecycle"]({ companyId, eventId: "1" }, scope)).rejects.toThrow("events.subscribe");
-      const [event] = await handlers["events.listLifecycle"]({ companyId }, scope);
-      await expect(handlers["events.acknowledgeLifecycle"]({ companyId: other, eventId: event.id }, scope)).rejects.toThrow("requested company");
+      await expect(denied["events.listLifecycle"]({ spaceId }, scope)).rejects.toThrow("events.subscribe");
+      await expect(denied["events.acknowledgeLifecycle"]({ spaceId, eventId: "1" }, scope)).rejects.toThrow("events.subscribe");
+      const [event] = await handlers["events.listLifecycle"]({ spaceId }, scope);
+      await expect(handlers["events.acknowledgeLifecycle"]({ spaceId: other, eventId: event.id }, scope)).rejects.toThrow("requested space");
       await expect(pluginLifecycleInbox(db, plugin.id).acknowledge(other, event.id)).rejects.toMatchObject({ status: 404 });
-      await db.insert(pluginCompanySettings).values({ pluginId: plugin.id, companyId, enabled: false });
-      await expect(handlers["events.listLifecycle"]({ companyId }, scope)).rejects.toMatchObject({ status: 403 });
-      await expect(handlers["events.acknowledgeLifecycle"]({ companyId, eventId: event.id }, scope)).rejects.toMatchObject({ status: 403 });
-      await db.update(pluginCompanySettings).set({ enabled: true }).where(eq(pluginCompanySettings.pluginId, plugin.id));
-      await expect(handlers["events.listLifecycle"]({ companyId, limit: 0 }, scope)).rejects.toMatchObject({ status: 400 });
-      await expect(handlers["events.acknowledgeLifecycle"]({ companyId, eventId: "1e2" }, scope)).rejects.toMatchObject({ status: 400 });
-      await handlers["events.acknowledgeLifecycle"]({ companyId, eventId: event.id }, scope);
-      expect(await handlers["events.listLifecycle"]({ companyId }, scope)).toEqual([]);
+      await db.insert(pluginSpaceSettings).values({ pluginId: plugin.id, spaceId, enabled: false });
+      await expect(handlers["events.listLifecycle"]({ spaceId }, scope)).rejects.toMatchObject({ status: 403 });
+      await expect(handlers["events.acknowledgeLifecycle"]({ spaceId, eventId: event.id }, scope)).rejects.toMatchObject({ status: 403 });
+      await db.update(pluginSpaceSettings).set({ enabled: true }).where(eq(pluginSpaceSettings.pluginId, plugin.id));
+      await expect(handlers["events.listLifecycle"]({ spaceId, limit: 0 }, scope)).rejects.toMatchObject({ status: 400 });
+      await expect(handlers["events.acknowledgeLifecycle"]({ spaceId, eventId: "1e2" }, scope)).rejects.toMatchObject({ status: 400 });
+      await handlers["events.acknowledgeLifecycle"]({ spaceId, eventId: event.id }, scope);
+      expect(await handlers["events.listLifecycle"]({ spaceId }, scope)).toEqual([]);
       await db.update(plugins).set({ status: "disabled" }).where(eq(plugins.id, plugin.id));
-      await expect(handlers["events.listLifecycle"]({ companyId }, scope)).rejects.toMatchObject({ status: 403 });
+      await expect(handlers["events.listLifecycle"]({ spaceId }, scope)).rejects.toMatchObject({ status: 403 });
     } finally {
       services.dispose();
     }

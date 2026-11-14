@@ -34,7 +34,7 @@ const SAMPLE_FINGERPRINT_IDENTITY: SessionFingerprintIdentity = {
   additionalSourcesIdentity: {},
   skillsIdentity: {},
   skillPromptInstructions: "",
-  paperclipClaudeSettings: null,
+  outpostClaudeSettings: null,
   mcpServers: [],
   secretManifestHash: "0000",
   adapterEnvHash: "0000",
@@ -51,8 +51,8 @@ describe("acpx identity split and launch environment", () => {
     // The compile-time assertions live in an unexecuted function.
     function _assertOnlyIdentity(): void {
       // An outer-key field is not a fingerprint field, so the builder rejects it.
-      // @ts-expect-error companyId is not a SessionFingerprintIdentity field.
-      buildSessionFingerprint({ ...SAMPLE_FINGERPRINT_IDENTITY, companyId: "c" });
+      // @ts-expect-error spaceId is not a SessionFingerprintIdentity field.
+      buildSessionFingerprint({ ...SAMPLE_FINGERPRINT_IDENTITY, spaceId: "c" });
       // @ts-expect-error taskKey is not a SessionFingerprintIdentity field.
       buildSessionFingerprint({ ...SAMPLE_FINGERPRINT_IDENTITY, taskKey: "t" });
     }

@@ -121,14 +121,14 @@ export function createInboundReactions(db: Db, options: InboundReactionsOptions)
       .innerJoin(
         chatConversations,
         and(
-          eq(chatConversations.companyId, chatMessageLinks.companyId),
+          eq(chatConversations.spaceId, chatMessageLinks.spaceId),
           eq(chatConversations.endpointId, chatMessageLinks.endpointId),
           eq(chatConversations.id, chatMessageLinks.conversationId),
         ),
       )
       .where(
         and(
-          eq(chatMessageLinks.companyId, endpoint.companyId),
+          eq(chatMessageLinks.spaceId, endpoint.spaceId),
           eq(chatMessageLinks.endpointId, endpoint.id),
           eq(chatMessageLinks.providerMessageId, providerMessageId),
           direction ? eq(chatMessageLinks.direction, direction) : undefined,
@@ -160,7 +160,7 @@ export function createInboundReactions(db: Db, options: InboundReactionsOptions)
       .from(chatConversations)
       .where(
         and(
-          eq(chatConversations.companyId, endpoint.companyId),
+          eq(chatConversations.spaceId, endpoint.spaceId),
           eq(chatConversations.endpointId, endpoint.id),
           eq(chatConversations.id, candidate.id),
         ),
@@ -183,7 +183,7 @@ export function createInboundReactions(db: Db, options: InboundReactionsOptions)
       .from(chatMessageLinks)
       .where(
         and(
-          eq(chatMessageLinks.companyId, endpoint.companyId),
+          eq(chatMessageLinks.spaceId, endpoint.spaceId),
           eq(chatMessageLinks.endpointId, endpoint.id),
           eq(chatMessageLinks.conversationId, current.id),
           eq(chatMessageLinks.providerMessageId, providerMessageId),
@@ -209,14 +209,14 @@ export function createInboundReactions(db: Db, options: InboundReactionsOptions)
       .innerJoin(
         chatPublications,
         and(
-          eq(chatPublications.companyId, chatConversations.companyId),
+          eq(chatPublications.spaceId, chatConversations.spaceId),
           eq(chatPublications.endpointId, chatConversations.endpointId),
           eq(chatPublications.conversationId, chatConversations.id),
         ),
       )
       .where(
         and(
-          eq(chatConversations.companyId, endpoint.companyId),
+          eq(chatConversations.spaceId, endpoint.spaceId),
           eq(chatConversations.endpointId, endpoint.id),
           or(
             inArray(chatConversations.state, ["active", "waiting"]),
@@ -251,7 +251,7 @@ export function createInboundReactions(db: Db, options: InboundReactionsOptions)
       .from(chatConversations)
       .where(
         and(
-          eq(chatConversations.companyId, endpoint.companyId),
+          eq(chatConversations.spaceId, endpoint.spaceId),
           eq(chatConversations.endpointId, endpoint.id),
           eq(chatConversations.id, candidate.id),
           or(
@@ -273,7 +273,7 @@ export function createInboundReactions(db: Db, options: InboundReactionsOptions)
       .from(chatPublications)
       .where(
         and(
-          eq(chatPublications.companyId, endpoint.companyId),
+          eq(chatPublications.spaceId, endpoint.spaceId),
           eq(chatPublications.endpointId, endpoint.id),
           eq(chatPublications.conversationId, current.id),
           eq(chatPublications.state, "streaming"),
@@ -297,7 +297,7 @@ export function createInboundReactions(db: Db, options: InboundReactionsOptions)
             .from(chatEndpointResources)
             .where(
               and(
-                eq(chatEndpointResources.companyId, endpoint.companyId),
+                eq(chatEndpointResources.spaceId, endpoint.spaceId),
                 eq(chatEndpointResources.endpointId, endpoint.id),
                 eq(chatEndpointResources.id, conversation.resourceId),
               ),
@@ -450,7 +450,7 @@ export function createInboundReactions(db: Db, options: InboundReactionsOptions)
           .from(chatMessageLinks)
           .where(
             and(
-              eq(chatMessageLinks.companyId, currentEndpoint.companyId),
+              eq(chatMessageLinks.spaceId, currentEndpoint.spaceId),
               eq(chatMessageLinks.endpointId, currentEndpoint.id),
               eq(chatMessageLinks.conversationId, linkedConversation.id),
               eq(chatMessageLinks.providerMessageId, event.event.messageId),
@@ -517,7 +517,7 @@ export function createInboundReactions(db: Db, options: InboundReactionsOptions)
       const inserted = await tx
         .insert(chatDeliveries)
         .values({
-          companyId: currentEndpoint.companyId,
+          spaceId: currentEndpoint.spaceId,
           endpointId: currentEndpoint.id,
           conversationId: linkedConversation?.id ?? null,
           principalId: principal.principal.id,

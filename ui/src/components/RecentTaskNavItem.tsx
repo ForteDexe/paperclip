@@ -18,7 +18,7 @@ export function RecentTaskNavItem({
   ...props
 }: Omit<ComponentProps<typeof SidebarNavItem>, "to" | "linkHandlers"> & {
   task: { id: string; identifier: string | null };
-  /** Defaults to the board-relative task path. */
+  /** Defaults to the operator-relative task path. */
   to?: string;
 }) {
   const pathRef = recentTaskPathRef(task);

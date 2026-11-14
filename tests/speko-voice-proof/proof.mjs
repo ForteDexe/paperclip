@@ -1,5 +1,5 @@
 /**
- * Provider feasibility probe only. No Paperclip access, real tasks, or production
+ * Provider feasibility probe only. No Outpost access, real tasks, or production
  * credentials. A synthetic result is withheld for 60 seconds to test whether the
  * hosted voice worker keeps fetching it without another spoken user prompt.
  */
@@ -18,7 +18,7 @@ const digest = (value) => createHash("sha256").update(value).digest("hex");
 const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const boundedId = (value) => typeof value === "string" && /^[A-Za-z0-9_:-]{1,200}$/.test(value);
 
-export const PROOF_PROMPT = `You are a voice transport feasibility test, not a real company agent.
+export const PROOF_PROMPT = `You are a voice transport feasibility test, not a real space agent.
 When the caller asks to start the test, call submit_request with their request.
 Acknowledge that the work is running. Call get_updates with cursor 0 immediately.
 When it returns pending, call it again using the returned cursor, without waiting
@@ -102,7 +102,7 @@ export function createProof({ signingSecret, now = Date.now, wait = sleep, delay
     if (!result && remaining > 0) await wait(Math.min(WAIT_MS, remaining));
     if (closed || now() - createdAt >= TTL_MS) return { status: 410, body: { error: "proof_expired" } };
     if (!result && now() >= startedAt + delayMs) {
-      result = { cursor: 1, text: `Paperclip proof complete. Verification number ${randomInt(1_000, 10_000)}. Follow-up count ${requests - 1}.` };
+      result = { cursor: 1, text: `Outpost proof complete. Verification number ${randomInt(1_000, 10_000)}. Follow-up count ${requests - 1}.` };
       emit("result_ready", { requestCount: requests, jobElapsedMs: now() - startedAt });
     }
     const updates = result && envelope.args.cursor < result.cursor ? [result] : [];

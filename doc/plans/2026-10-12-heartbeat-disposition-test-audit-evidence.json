@@ -70,7 +70,7 @@
   "coverageMap": {
     "fixture": "seedStrandedIssueFixture({ status: \"in_progress\", runStatus: \"succeeded\", livenessState: \"advanced\" })",
     "sharedAction": "heartbeatService(db).reconcileStrandedAssignedIssues() once",
-    "additionalKeeperPreconditions": "Pure reads verify in-progress source ownership, no active company runs, no queued/deferred company wakes before reconcile. They do not mutate fixture or authorize another run.",
+    "additionalKeeperPreconditions": "Pure reads verify in-progress source ownership, no active space runs, no queued/deferred space wakes before reconcile. They do not mutate fixture or authorize another run.",
     "uniqueChecksTransferred": [
       "successfulContinuationObserved=0",
       "continuationRequeued=1",
@@ -78,7 +78,7 @@
       "post-reconcile issue.status=in_progress",
       "two agent wakeup rows",
       "conditional waitForRunToSettle on exact retryRun.id",
-      "two agent runs across all companies via original selectRecoveryRunsByAgent query, alongside original keeper company+agent count"
+      "two agent runs across all spaces via original selectRecoveryRunsByAgent query, alongside original keeper space+agent count"
     ],
     "allSharedChecksPreserved": [
       "productiveContinuationObserved=0",
@@ -91,7 +91,7 @@
     "keeperExtraChecksPreserved": [
       "no stranded recovery children",
       "precondition in_progress/assigneeAgentId/assigneeUserId/executionRunId",
-      "no active company runs and no live company wakes",
+      "no active space runs and no live space wakes",
       "continuationRequeued+escalated=1"
     ],
     "diff": {
@@ -783,13 +783,13 @@
         2440,
         2452
       ],
-      "name": "rejects foreign result, company, and issue bindings for native finalization",
+      "name": "rejects foreign result, space, and issue bindings for native finalization",
       "kind": "ordinary",
       "sourceSHA256": "bcbb500ee7c0b767f72fefd59bfe5fb6c0211c2f3490f758a6080a6d11b5c05d",
       "runtimeCaseCount": 1,
       "runtimeCases": [
         {
-          "title": "rejects foreign result, company, and issue bindings for native finalization",
+          "title": "rejects foreign result, space, and issue bindings for native finalization",
           "status": "passed"
         }
       ],
@@ -2429,7 +2429,7 @@
           "status": "passed"
         },
         {
-          "title": "releases holds for real process bootstrap failures: {\"command\":\"/nonexistent-paperclip-bootstrap-command\"}",
+          "title": "releases holds for real process bootstrap failures: {\"command\":\"/nonexistent-outpost-bootstrap-command\"}",
           "status": "passed"
         }
       ],
@@ -5426,7 +5426,7 @@
       "sha256": "03ad97a27a50ae6df337c3f1062ec1294a6de4752ca6807bad604832c119f5e2"
     },
     {
-      "name": "recoveryCompanyRow",
+      "name": "recoverySpaceRow",
       "line": 500,
       "endLine": 511,
       "sha256": "e2701b5368a92fe7de4770607a4f24406ea7f9b73ea8db839944283dcf5dc4c4"
@@ -5462,7 +5462,7 @@
       "sha256": "a6f625a0c7fc538259c23b3992990e4fad0198b59c4d9eaeec99933a36d2727a"
     },
     {
-      "name": "selectStrandedRecoveryIssuesForCompany",
+      "name": "selectStrandedRecoveryIssuesForSpace",
       "line": 571,
       "endLine": 581,
       "sha256": "4e2398c5a97e7aea11ed206afd386f29fbd8a6adca7ea76add620b1981eedd90"
@@ -5582,7 +5582,7 @@
       "sha256": "6fa3a72c0ffc6b41be0c19203e17d9cae59c8a37fdea9a5d705173e11c7795f9"
     },
     {
-      "name": "withTempPaperclipHome",
+      "name": "withTempOutpostHome",
       "line": 3277,
       "endLine": 3308,
       "sha256": "c1983186ccc78b1aa0d1adae8b949632b5c30438cad698fdad9a3dbaf1459dd4"

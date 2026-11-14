@@ -5,7 +5,7 @@ export async function recordPhotonPublicationRetry(tx: DbTransaction, endpointId
   await tx
     .insert(chatActions)
     .values({
-      companyId: publication.companyId,
+      spaceId: publication.spaceId,
       endpointId,
       conversationId: publication.conversationId,
       kind: "photon_publication_retry",

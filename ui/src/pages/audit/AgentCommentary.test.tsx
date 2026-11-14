@@ -11,9 +11,9 @@ import { AgentCommentary } from "./AgentCommentary";
 const mocks = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn() }));
 vi.mock("@/api/agentCommentary", () => ({ agentCommentaryApi: mocks }));
 vi.mock("@/api/agents", () => ({ agentsApi: { list: async () => [] } }));
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompany: { issuePrefix: "TES" } }),
-  useOptionalCompany: () => null,
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpace: { issuePrefix: "TES" } }),
+  useOptionalSpace: () => null,
 }));
 
 const entry = {
@@ -32,7 +32,7 @@ describe("Commentary links and pagination", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.history.replaceState(null, "", "/TES/activity/commentary");
-    mocks.list.mockImplementation(async (_companyId, filters) => ({
+    mocks.list.mockImplementation(async (_spaceId, filters) => ({
       items: [entry], total: 51, limit: 50, offset: filters.offset,
     }));
     mocks.get.mockResolvedValue(entry);
@@ -49,7 +49,7 @@ describe("Commentary links and pagination", () => {
   function render() {
     flushSync(() => root.render(
       <QueryClientProvider client={client}><ThemeProvider><BrowserRouter>
-        <AgentCommentary companyId="company-1" />
+        <AgentCommentary spaceId="space-1" />
       </BrowserRouter></ThemeProvider></QueryClientProvider>,
     ));
   }
@@ -57,9 +57,9 @@ describe("Commentary links and pagination", () => {
   it("loads pages of 50 and preserves the page in a shareable message URL", async () => {
     render();
     await vi.waitFor(() => expect(container.querySelector('[aria-label="Read suggestion from Writer"]')).not.toBeNull());
-    expect(mocks.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({ limit: 50, offset: 0 }), expect.anything());
+    expect(mocks.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({ limit: 50, offset: 0 }), expect.anything());
     flushSync(() => container.querySelector<HTMLButtonElement>('[aria-label="Next page"]')!.click());
-    await vi.waitFor(() => expect(mocks.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({ limit: 50, offset: 50 }), expect.anything()));
+    await vi.waitFor(() => expect(mocks.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({ limit: 50, offset: 50 }), expect.anything()));
     await vi.waitFor(() => expect(container.querySelector('[aria-label="Read suggestion from Writer"]')).not.toBeNull());
     flushSync(() => container.querySelector<HTMLButtonElement>('[aria-label="Read suggestion from Writer"]')!.click());
     await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')?.textContent).toContain(entry.body));
@@ -75,7 +75,7 @@ describe("Commentary links and pagination", () => {
     window.history.replaceState(null, "", `/TES/activity/commentary?kind=suggestion&entry=${entry.id}`);
     render();
     await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')?.textContent).toContain(entry.body));
-    expect(mocks.get).toHaveBeenCalledWith("company-1", entry.id, expect.anything());
-    expect(mocks.list).toHaveBeenCalledWith("company-1", expect.objectContaining({ kind: "suggestion", limit: 50 }), expect.anything());
+    expect(mocks.get).toHaveBeenCalledWith("space-1", entry.id, expect.anything());
+    expect(mocks.list).toHaveBeenCalledWith("space-1", expect.objectContaining({ kind: "suggestion", limit: 50 }), expect.anything());
   });
 });

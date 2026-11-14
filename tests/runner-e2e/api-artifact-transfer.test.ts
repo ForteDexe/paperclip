@@ -10,7 +10,7 @@ describe("verified API artifact transfer evidence", () => {
   const sha256 = createHash("sha256").update(content).digest("hex");
   const identity = { artifactId: "22222222-2222-4222-8222-222222222222", byteSize: Buffer.byteLength(content), sha256 };
   const proof = { content, sha256 };
-  const runIdentity = { companyId: "company", runId: "run", agentId: "agent" };
+  const runIdentity = { spaceId: "space", runId: "run", agentId: "agent" };
   const captureActivity = { id: "capture-activity", ...runIdentity, actorType: "agent", actorId: "agent",
     action: "asset.created", entityType: "asset", entityId: identity.artifactId,
     details: { source: "runner.call_api", byteSize: identity.byteSize } };
@@ -60,7 +60,7 @@ describe("verified API artifact transfer evidence", () => {
     const bytes = vi.fn().mockResolvedValue(Buffer.from(content));
     const api = { get, bytes } as unknown as RunnerApi;
     expect(await readArtifactTransferSource(api, [...source(), ...install()], runIdentity)).toEqual(storedSource);
-    expect(get).toHaveBeenCalledExactlyOnceWith(`/api/companies/company/activity?entityType=asset&entityId=${identity.artifactId}&limit=20`);
+    expect(get).toHaveBeenCalledExactlyOnceWith(`/api/spaces/space/activity?entityType=asset&entityId=${identity.artifactId}&limit=20`);
     expect(bytes).toHaveBeenCalledExactlyOnceWith(`/api/assets/${identity.artifactId}/content`);
     get.mockClear(); bytes.mockClear();
     expect(await readArtifactTransferSource(api, source(), runIdentity)).toBeNull();
@@ -78,14 +78,14 @@ describe("verified API artifact transfer evidence", () => {
   });
   it("rejects an uploaded substitute with identical bytes and a successful source read", () => {
     const uploadedSubstitute = { ...storedSource, captureActivity: {
-      companyId: "company", runId: "run", agentId: "agent", actorType: "agent", actorId: "agent",
+      spaceId: "space", runId: "run", agentId: "agent", actorType: "agent", actorId: "agent",
       action: "asset.created", entityType: "asset", entityId: identity.artifactId,
       details: { source: "runner.output", byteSize: identity.byteSize },
     } };
     expect(gradeApiArtifactTransfer([...source(), ...install()], "source-issue", proof, description, uploadedSubstitute, runIdentity).passed).toBe(false);
   });
   it.each([
-    { companyId: "other" }, { runId: "other" }, { agentId: "other" }, { actorId: "other" },
+    { spaceId: "other" }, { runId: "other" }, { agentId: "other" }, { actorId: "other" },
     { actorType: "user" }, { entityId: "other" }, { action: "other" }, { entityType: "other" },
     { details: { source: "runner.assigned_tool", byteSize: identity.byteSize } },
     { details: { source: "runner.call_api", byteSize: identity.byteSize - 1 } },

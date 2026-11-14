@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { HeartbeatRun, HeartbeatRunEvent, LiveEvent } from "@outpost/shared";
 import { afterEach, expect, it, vi } from "vitest";
-import { __liveUpdatesTestUtils, type CompanyLiveEventHandler } from "../context/LiveUpdatesProvider";
+import { __liveUpdatesTestUtils, type SpaceLiveEventHandler } from "../context/LiveUpdatesProvider";
 import { LiveTranscriptInterests } from "../lib/live-transcript-interests";
 import { ApiError } from "../api/client";
 import { ConnectivityProvider, createConnectivityStore } from "../lib/connectivity";
@@ -32,7 +32,7 @@ it("retains legacy history and reads only the next offset on visibility recovery
   const first = row(1, "retained history");
   const second = row(2, "new output");
   log.mockResolvedValueOnce({ content: first, nextOffset: first.length });
-  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "succeeded", logRef: "log" } as HeartbeatRun;
+  const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: "succeeded", logRef: "log" } as HeartbeatRun;
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -71,11 +71,11 @@ it("uses shared streaming and retains fallback reads until negotiation", async (
   const socket = vi.fn();
   vi.stubGlobal("WebSocket", class { constructor() { socket(); } });
   log.mockResolvedValue({ content: "", nextOffset: 0 });
-  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "running", logRef: "log" } as HeartbeatRun;
+  const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: "running", logRef: "log" } as HeartbeatRun;
   const root = createRoot(document.createElement("div"));
   const transcripts = new LiveTranscriptInterests();
   const messages: Array<{ revision?: number; runIds?: string[] }> = [];
-  const subscription = { companyId: "company-1", transcripts, subscribe: () => () => {} };
+  const subscription = { spaceId: "space-1", transcripts, subscribe: () => () => {} };
   const { LiveEventSubscriptionContext } = __liveUpdatesTestUtils;
   try {
     await act(async () => root.render(<LiveEventSubscriptionContext.Provider value={subscription}><LogViewer run={run} adapterType="codex_local" /></LiveEventSubscriptionContext.Provider>));
@@ -105,7 +105,7 @@ it("catches persisted log output on a brief reconnect and resync without waiting
   const row = (seq: number, chunk: string) => JSON.stringify({ seq, ts: "2025-01-01T00:00:00Z", stream: "stdout", chunk }) + "\n";
   let saved = row(1, "Initial output");
   log.mockImplementation(async (_runId, offset) => ({ content: saved.slice(offset), nextOffset: saved.length }));
-  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "running", logRef: "log" } as HeartbeatRun;
+  const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: "running", logRef: "log" } as HeartbeatRun;
   const transcripts = new LiveTranscriptInterests();
   const messages: Array<{ revision?: number }> = [];
   const connect = () => {
@@ -113,7 +113,7 @@ it("catches persisted log output on a brief reconnect and resync without waiting
     transcripts.receive({ type: "live.capabilities", version: 1, capabilities: ["run-interests"] });
     transcripts.receive({ type: "live.subscribed", version: 1, revision: messages.at(-1)?.revision });
   };
-  const subscription = { companyId: run.companyId, transcripts, subscribe: () => () => {} };
+  const subscription = { spaceId: run.spaceId, transcripts, subscribe: () => () => {} };
   const { LiveEventSubscriptionContext } = __liveUpdatesTestUtils;
   const container = document.createElement("div");
   const root = createRoot(container);
@@ -137,13 +137,13 @@ it("re-enables cancelled history paging after hiding and showing a completed run
   const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   log.mockResolvedValue({ content: "", nextOffset: 0 });
   const rows = Array.from({ length: 1001 }, (_, index) => ({ id: index + 1, seq: index + 1,
-    runId: "run-1", companyId: "company-1", agentId: "agent-1", createdAt: new Date(),
+    runId: "run-1", spaceId: "space-1", agentId: "agent-1", createdAt: new Date(),
     eventType: "output", stream: "system" as const, level: "info" as const, color: null, message: null, payload: null }));
   let finishCancelled!: (rows: HeartbeatRunEvent[]) => void;
   events.mockResolvedValueOnce(rows.slice(0, 1000));
   events.mockImplementationOnce(() => new Promise(resolve => { finishCancelled = resolve; }));
   events.mockResolvedValueOnce(rows.slice(1000));
-  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "succeeded" } as HeartbeatRun;
+  const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: "succeeded" } as HeartbeatRun;
   const container = document.createElement("div");
   const root = createRoot(container);
   const more = () => [...container.querySelectorAll("button")].find(button => /Load more events|Loading\.\.\./.test(button.textContent ?? ""));
@@ -171,11 +171,11 @@ it("bounds automatic event history and pages further only on request", async () 
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   log.mockResolvedValue({ content: "", nextOffset: 0 });
   const rows = Array.from({ length: 2_001 }, (_, index) => ({ id: index + 1, seq: index + 1,
-    runId: "run-1", companyId: "company-1", agentId: "agent-1", createdAt: new Date(),
+    runId: "run-1", spaceId: "space-1", agentId: "agent-1", createdAt: new Date(),
     eventType: index === 0 ? "adapter.invoke" : "output", stream: "system" as const, level: "info" as const,
     color: null, message: null, payload: index === 0 ? { command: "invocation-retained-proof", args: [], cwd: "/workspace" } : null }));
   events.mockImplementation(async (_runId?: string, cursor = 0) => rows.filter(row => row.seq > cursor).slice(0, 1000));
-  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "succeeded" } as HeartbeatRun;
+  const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: "succeeded" } as HeartbeatRun;
   const container = document.createElement("div");
   const root = createRoot(container);
   try {
@@ -200,18 +200,18 @@ it("preserves saved event details and catches up payload-free commit signals", a
   vi.useFakeTimers();
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   log.mockResolvedValue({ content: "", nextOffset: 0 });
-  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "running" } as HeartbeatRun;
+  const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: "running" } as HeartbeatRun;
   const row = (seq: number, message: string): HeartbeatRunEvent => ({ id: seq, seq, runId: run.id,
-    companyId: run.companyId, agentId: run.agentId, eventType: "item.completed", message,
+    spaceId: run.spaceId, agentId: run.agentId, eventType: "item.completed", message,
     stream: null, level: null, color: null, payload: { detail: message }, createdAt: new Date() });
   events.mockResolvedValue([row(1, "saved event details")]);
   const transcripts = new LiveTranscriptInterests();
-  const listeners = new Set<CompanyLiveEventHandler>();
+  const listeners = new Set<SpaceLiveEventHandler>();
   const messages: Array<{ revision?: number }> = [];
-  const subscription = { companyId: run.companyId, transcripts,
-    subscribe(fn: CompanyLiveEventHandler) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
+  const subscription = { spaceId: run.spaceId, transcripts,
+    subscribe(fn: SpaceLiveEventHandler) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
   const emit = (seq: number, details?: HeartbeatRunEvent) => {
-    const event: LiveEvent = { id: seq, companyId: run.companyId, type: "heartbeat.run.event",
+    const event: LiveEvent = { id: seq, spaceId: run.spaceId, type: "heartbeat.run.event",
       createdAt: new Date().toISOString(), payload: details ? { ...details } : {
         runId: run.id, agentId: run.agentId, eventType: "item.completed", seq,
       } };
@@ -259,18 +259,18 @@ it("merges saved and live rows with colliding database and run-sequence IDs", as
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
   log.mockResolvedValue({ content: "", nextOffset: 0 });
-  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "running" } as HeartbeatRun;
+  const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: "running" } as HeartbeatRun;
   const row = (id: number, seq: number, message: string): HeartbeatRunEvent => ({ id, seq, runId: run.id,
-    companyId: run.companyId, agentId: run.agentId, eventType: "item.completed", message,
+    spaceId: run.spaceId, agentId: run.agentId, eventType: "item.completed", message,
     stream: null, level: null, color: null, payload: {}, createdAt: new Date() });
   events.mockResolvedValueOnce([row(2, 1, "saved first row")]);
-  const listeners = new Set<CompanyLiveEventHandler>();
-  const subscription = { companyId: run.companyId, transcripts: new LiveTranscriptInterests(),
-    subscribe(fn: CompanyLiveEventHandler) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
+  const listeners = new Set<SpaceLiveEventHandler>();
+  const subscription = { spaceId: run.spaceId, transcripts: new LiveTranscriptInterests(),
+    subscribe(fn: SpaceLiveEventHandler) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
   const container = document.createElement("div"), root = createRoot(container);
   const { LiveEventSubscriptionContext } = __liveUpdatesTestUtils;
   const emit = (seq: number, message: string) => {
-    const event: LiveEvent = { id: seq, companyId: run.companyId, type: "heartbeat.run.event",
+    const event: LiveEvent = { id: seq, spaceId: run.spaceId, type: "heartbeat.run.event",
       createdAt: new Date().toISOString(), payload: { ...row(seq, seq, message) } };
     for (const listener of listeners) listener(event);
   };
@@ -291,18 +291,18 @@ it.each([
   vi.useFakeTimers();
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   log.mockResolvedValue({ content: "" });
-  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "running", logRef: "log" } as HeartbeatRun;
+  const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: "running", logRef: "log" } as HeartbeatRun;
   const row = (seq: number): HeartbeatRunEvent => ({ id: seq, seq, runId: run.id,
-    companyId: run.companyId, agentId: run.agentId, eventType: "item.completed", message: `event ${seq}`,
+    spaceId: run.spaceId, agentId: run.agentId, eventType: "item.completed", message: `event ${seq}`,
     stream: null, level: null, color: null, payload: {}, createdAt: new Date() });
   const logRow = (seq: number) => JSON.stringify({ seq, ts: "2026-10-24T00:00:00Z", stream: "stdout", chunk: `shell ${seq}` }) + "\n";
   const transcripts = new LiveTranscriptInterests();
-  const listeners = new Set<CompanyLiveEventHandler>();
+  const listeners = new Set<SpaceLiveEventHandler>();
   const messages: Array<{ revision?: number }> = [];
-  const subscription = { companyId: run.companyId, transcripts,
-    subscribe(fn: CompanyLiveEventHandler) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
+  const subscription = { spaceId: run.spaceId, transcripts,
+    subscribe(fn: SpaceLiveEventHandler) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
   const emit = (type: LiveEvent["type"], seq: number) => {
-    for (const listener of listeners) listener({ id: seq, companyId: run.companyId, type,
+    for (const listener of listeners) listener({ id: seq, spaceId: run.spaceId, type,
       createdAt: new Date().toISOString(), payload: { runId: run.id, agentId: run.agentId, seq, eventType: "item.completed", truncated: true, status: "succeeded" } });
   };
   const container = document.createElement("div");
@@ -352,7 +352,7 @@ it("shows and retries an initial event-history failure instead of claiming empty
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   log.mockResolvedValue({ content: "", nextOffset: 0 });
   events.mockRejectedValue(new Error("history unavailable"));
-  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "succeeded" } as HeartbeatRun;
+  const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: "succeeded" } as HeartbeatRun;
   const container = document.createElement("div");
   const root = createRoot(container);
   try {
@@ -362,7 +362,7 @@ it("shows and retries an initial event-history failure instead of claiming empty
     await act(async () => vi.advanceTimersByTimeAsync(2000));
     expect(events).toHaveBeenCalledTimes(2);
     expect(container.textContent).toContain("Could not load events. Try again.");
-    events.mockResolvedValueOnce([{ id: 1, seq: 1, runId: run.id, companyId: run.companyId, agentId: run.agentId,
+    events.mockResolvedValueOnce([{ id: 1, seq: 1, runId: run.id, spaceId: run.spaceId, agentId: run.agentId,
       eventType: "item.completed", message: "Recovered history", payload: {}, stream: null, level: null,
       color: null, createdAt: new Date() }]);
     const retry = [...container.querySelectorAll("button")].find(button => button.textContent === "Retry events");
@@ -379,21 +379,21 @@ it("shows and retries an initial event-history failure instead of claiming empty
 it("recovers a paginated live tail and preserves pages explicitly loaded afterward", async () => {
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   log.mockResolvedValue({ content: "", nextOffset: 0 });
-  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "running" } as HeartbeatRun;
+  const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: "running" } as HeartbeatRun;
   const rows: HeartbeatRunEvent[] = Array.from({ length: 5_000 }, (_, index) => ({ id: index + 1, seq: index + 1,
-    runId: run.id, companyId: run.companyId, agentId: run.agentId, createdAt: new Date(), eventType: "output",
+    runId: run.id, spaceId: run.spaceId, agentId: run.agentId, createdAt: new Date(), eventType: "output",
     stream: "system", level: "info", color: null, message: `activity-proof-${index + 1}-end`, payload: null }));
   events.mockImplementation(async (_runId?: string, cursor = 0) => rows.filter(row => row.seq > cursor).slice(0, 1_000));
   const transcripts = new LiveTranscriptInterests();
-  const listeners = new Set<CompanyLiveEventHandler>();
+  const listeners = new Set<SpaceLiveEventHandler>();
   const sent: Array<{ revision?: number }> = [];
-  const subscription = { companyId: run.companyId, transcripts,
-    subscribe(fn: CompanyLiveEventHandler) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
+  const subscription = { spaceId: run.spaceId, transcripts,
+    subscribe(fn: SpaceLiveEventHandler) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
   const container = document.createElement("div"), root = createRoot(container);
   const { LiveEventSubscriptionContext } = __liveUpdatesTestUtils;
   const render = async (status = "running") => act(async () => root.render(<LiveEventSubscriptionContext.Provider value={subscription}><LogViewer run={{ ...run, status } as HeartbeatRun} adapterType="outpost_runner" /></LiveEventSubscriptionContext.Provider>));
   const emit = (row: HeartbeatRunEvent) => { for (const listener of listeners) listener({ id: row.seq,
-    companyId: run.companyId, type: "heartbeat.run.event", createdAt: row.createdAt.toISOString(), payload: { ...row } }); };
+    spaceId: run.spaceId, type: "heartbeat.run.event", createdAt: row.createdAt.toISOString(), payload: { ...row } }); };
   try {
     await render();
     expect(events).toHaveBeenCalledTimes(1);
@@ -428,9 +428,9 @@ it.each(["completed-return", "catchup-retry"].map(mode => ({ mode })))("preserve
   vi.useFakeTimers();
   const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   log.mockResolvedValue({ content: "", nextOffset: 0 });
-  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: mode === "completed-return" ? "succeeded" : "running" } as HeartbeatRun;
+  const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: mode === "completed-return" ? "succeeded" : "running" } as HeartbeatRun;
   const rows: HeartbeatRunEvent[] = Array.from({ length: mode === "completed-return" ? 2_001 : 5_000 }, (_, index) => ({
-    id: index + 1, seq: index + 1, runId: run.id, companyId: run.companyId, agentId: run.agentId,
+    id: index + 1, seq: index + 1, runId: run.id, spaceId: run.spaceId, agentId: run.agentId,
     createdAt: new Date(), eventType: "output", stream: "system", level: "info", color: null,
     message: `mode-proof-${index + 1}-end`, payload: null,
   }));
@@ -440,7 +440,7 @@ it.each(["completed-return", "catchup-retry"].map(mode => ({ mode })))("preserve
     return rows.filter(row => row.seq > cursor).slice(0, 1_000);
   });
   const transcripts = new LiveTranscriptInterests(), sent: Array<{ revision?: number }> = [];
-  const subscription = { companyId: run.companyId, transcripts, subscribe: () => () => {} };
+  const subscription = { spaceId: run.spaceId, transcripts, subscribe: () => () => {} };
   const container = document.createElement("div"), root = createRoot(container);
   const { LiveEventSubscriptionContext } = __liveUpdatesTestUtils;
   try {
@@ -474,9 +474,9 @@ it("recovers the latest saved tail when acknowledgement aborts the initial histo
   vi.useFakeTimers();
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   log.mockResolvedValue({ content: "", nextOffset: 0 });
-  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "running" } as HeartbeatRun;
+  const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: "running" } as HeartbeatRun;
   const rows: HeartbeatRunEvent[] = Array.from({ length: 5_000 }, (_, index) => ({
-    id: index + 1, seq: index + 1, runId: run.id, companyId: run.companyId, agentId: run.agentId,
+    id: index + 1, seq: index + 1, runId: run.id, spaceId: run.spaceId, agentId: run.agentId,
     createdAt: new Date(), eventType: "output", stream: "system", level: "info", color: null,
     message: `initial-ack-proof-${index + 1}-end`, payload: null,
   }));
@@ -484,7 +484,7 @@ it("recovers the latest saved tail when acknowledgement aborts the initial histo
   events.mockImplementation((_id, cursor = 0) => Promise.resolve(rows.filter(row => row.seq > cursor).slice(0, 1_000)));
   events.mockImplementationOnce(() => new Promise(resolve => { finishInitial = resolve; }));
   const transcripts = new LiveTranscriptInterests(), sent: Array<{ revision?: number }> = [];
-  const subscription = { companyId: run.companyId, transcripts, subscribe: () => () => {} };
+  const subscription = { spaceId: run.spaceId, transcripts, subscribe: () => () => {} };
   const container = document.createElement("div"), root = createRoot(container);
   const { LiveEventSubscriptionContext } = __liveUpdatesTestUtils;
   try {
@@ -517,7 +517,7 @@ it.each([429, 503])("keeps completed event-only history pending after an initial
   vi.useFakeTimers();
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   events.mockRejectedValueOnce(new ApiError("Temporarily unavailable", status, {}));
-  const run = { id: "run-pending", companyId: "company-1", agentId: "agent-1", status: "succeeded" } as HeartbeatRun;
+  const run = { id: "run-pending", spaceId: "space-1", agentId: "agent-1", status: "succeeded" } as HeartbeatRun;
   const container = document.createElement("div");
   const root = createRoot(container);
   try {
@@ -542,12 +542,12 @@ it("retries an unfilled legacy log gap on a healthy stream and stops after it is
   const prefix = row(1, "Retained prefix");
   let history = prefix;
   log.mockImplementation(async () => ({ content: history }));
-  const run = { id: "run-gap", companyId: "company-1", agentId: "agent-1", status: "running", logRef: "log" } as HeartbeatRun;
+  const run = { id: "run-gap", spaceId: "space-1", agentId: "agent-1", status: "running", logRef: "log" } as HeartbeatRun;
   const transcripts = new LiveTranscriptInterests();
-  const listeners = new Set<CompanyLiveEventHandler>();
+  const listeners = new Set<SpaceLiveEventHandler>();
   const messages: Array<{ revision?: number }> = [];
-  const subscription = { companyId: run.companyId, transcripts,
-    subscribe(fn: CompanyLiveEventHandler) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
+  const subscription = { spaceId: run.spaceId, transcripts,
+    subscribe(fn: SpaceLiveEventHandler) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
   const container = document.createElement("div"), root = createRoot(container);
   const { LiveEventSubscriptionContext } = __liveUpdatesTestUtils;
   try {
@@ -558,7 +558,7 @@ it("retries an unfilled legacy log gap on a healthy stream and stops after it is
       transcripts.receive({ type: "live.subscribed", version: 1, revision: messages.at(-1)?.revision });
     });
     await act(async () => {
-      for (const listener of listeners) listener({ id: 2, companyId: run.companyId, type: "heartbeat.run.log", createdAt: new Date().toISOString(),
+      for (const listener of listeners) listener({ id: 2, spaceId: run.spaceId, type: "heartbeat.run.log", createdAt: new Date().toISOString(),
         payload: { runId: run.id, agentId: run.agentId, logRef: "log", seq: 2, truncated: true } });
     });
     const staleReads = log.mock.calls.length;

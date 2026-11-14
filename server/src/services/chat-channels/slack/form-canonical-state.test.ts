@@ -3,7 +3,7 @@ import { parseSlackFormAckWork } from "./form-ack-work.js";
 import { parseSlackFormFinalizedReceipt } from "./ack-receipt.js";
 import { parseSlackFormBinding } from "./cloud-forms.js";
 
-const binding = parseSlackFormBinding({ version: 1, instanceId: "instance", companyId: "company", endpointId: "endpoint", publicId: "p".repeat(43), connectionId: "connection",
+const binding = parseSlackFormBinding({ version: 1, instanceId: "instance", spaceId: "space", endpointId: "endpoint", publicId: "p".repeat(43), connectionId: "connection",
   runtimeGeneration: 1, teamId: "TTEST", appId: "ATEST", eventBindingId: "slack-event:" + "a".repeat(64), credentialFingerprint: "b".repeat(64) });
 const receipt = parseSlackFormFinalizedReceipt({ version: 1, kind: "slack_form_finalized", environment: "test", binding,
   operationId: "c".repeat(64), deliveryId: "slack_form_" + "c".repeat(64), appReceiptId: "11111111-1111-4111-8111-111111111111",

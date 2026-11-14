@@ -74,7 +74,7 @@ describe("Capability issue-thread fixtures", () => {
       const snapshot = capabilityIssueThreadFixture(slug);
       expect(snapshot.schema).toBe(CAPABILITY_ISSUE_THREAD_VIEW_SCHEMA);
       expect(snapshot.turns.length).toBeGreaterThan(0);
-      expect(snapshot.identity.controlPlaneLabel).toBe("Mock Paperclip");
+      expect(snapshot.identity.controlPlaneLabel).toBe("Mock Outpost");
       expect(snapshot.issue.identifier.startsWith("MCK-")).toBe(true);
       for (const section of CAPABILITY_EVIDENCE_SECTIONS) {
         expect(Array.isArray(snapshot.evidence[section.id])).toBe(true);
@@ -220,7 +220,7 @@ describe("Capability live projection", () => {
       tasks: [
         {
           id: "task-31",
-          companyId: "company-1",
+          spaceId: "space-1",
           identifier: "MCK-31",
           title: "Wire the runner spike to the mock control plane",
           description: null,
@@ -241,7 +241,7 @@ describe("Capability live projection", () => {
       identity: {
         runId: "run-7g-1",
         sessionId: "session-7g-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "task-31",
         agentId: "actor-1",
       },
@@ -267,7 +267,7 @@ describe("Capability live projection", () => {
       authority: {
         active: true,
         runId: "run-7g-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         actorId: "actor-1",
         taskId: "task-31",
         sessionId: "session-7g-1",
@@ -387,7 +387,7 @@ describe("Capability live projection", () => {
         },
       ],
       process: null,
-      networkEvidence: { realPaperclipRequests: 0, childOutpostEnvironmentKeys: [] },
+      networkEvidence: { realOutpostRequests: 0, childOutpostEnvironmentKeys: [] },
     } as CapabilityLiveSessionSnapshot;
   }
 

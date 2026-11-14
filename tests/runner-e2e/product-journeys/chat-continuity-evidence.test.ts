@@ -20,7 +20,7 @@ describe("chat reload and new-session evidence", () => {
   });
   it("rejects an unscoped activity response even below the truncation limit", () => {
     const f = chatContinuityFixture();
-    f.points[5]!.activity.push({ id: "foreign-event", companyId: "foreign", agentId: "other-agent", action: "project.created",
+    f.points[5]!.activity.push({ id: "foreign-event", spaceId: "foreign", agentId: "other-agent", action: "project.created",
       entityType: "project", entityId: "foreign-project", runId: "other-run" });
     expect(allPass(f)).toBe(false);
   });
@@ -46,7 +46,7 @@ describe("chat reload and new-session evidence", () => {
   const mutants: ReadonlyArray<readonly [string, (f: ReturnType<typeof chatContinuityFixture>) => void]> = [
     ["missing point", (f: ReturnType<typeof chatContinuityFixture>) => { f.points.pop(); }],
     ["duplicate phase", (f) => { f.points[5]!.phase = "fresh"; }],
-    ["foreign chat", (f) => { f.points[1]!.chat.companyId = "foreign"; }],
+    ["foreign chat", (f) => { f.points[1]!.chat.spaceId = "foreign"; }],
     ["different user", (f) => { f.points[3]!.chat.conversationUserId = "foreign"; }],
     ["replaced backing issue", (f) => { f.points[5]!.chat.id = "replacement"; }],
     ["active conversation", (f) => { f.points[5]!.chat.conversationState = "running"; }],
@@ -71,7 +71,7 @@ describe("chat reload and new-session evidence", () => {
     ["missing fresh-admission session evidence", (f) => { delete f.points[4]!.runs[3]!.sessionIdBefore; }],
     ["undefined fresh-admission session evidence", (f) => { f.points[4]!.runs[3]!.sessionIdBefore = undefined; }],
     ["empty fresh-admission session evidence", (f) => { f.points[4]!.runs[3]!.sessionIdBefore = ""; }],
-    ["old phrase leaked in native context", (f) => { f.points[4]!.runs[3]!.contextSnapshot.paperclipTaskMarkdown += f.scenario.remembered; }],
+    ["old phrase leaked in native context", (f) => { f.points[4]!.runs[3]!.contextSnapshot.outpostTaskMarkdown += f.scenario.remembered; }],
     ["old phrase returned after reset", (f) => { f.points[4]!.reply!.body = f.scenario.remembered; }],
     ["fresh marker absent", (f) => { f.points[4]!.reply!.body = "I have no phrase"; }],
     ["extra run", (f) => { f.points[5]!.runs.push({ ...f.points[5]!.runs[3], id: "extra" }); }],
@@ -79,7 +79,7 @@ describe("chat reload and new-session evidence", () => {
     ["missing reset", (f) => { f.points[5]!.runs.splice(2, 1); }],
     ["missing synthetic reset receipt", (f) => { f.points[5]!.resetReceipts.splice(0); }],
     ["foreign reset summary agent", (f) => { f.points[5]!.resetReceipts[0]!.agentId = "foreign"; }],
-    ["foreign reset summary company", (f) => { f.points[5]!.resetReceipts[0]!.companyId = "foreign"; }],
+    ["foreign reset summary space", (f) => { f.points[5]!.resetReceipts[0]!.spaceId = "foreign"; }],
     ["foreign reset summary issue", (f) => { f.points[5]!.resetReceipts[0]!.contextIssueId = "foreign"; }],
     ["wrong reset summary run", (f) => { f.points[5]!.resetReceipts[0]!.runId = "run-0"; }],
     ["wrong reset summary wake", (f) => { f.points[5]!.resetReceipts[0]!.wakeCommentId = "user-0"; }],
@@ -97,7 +97,7 @@ describe("chat reload and new-session evidence", () => {
     ["reply not observed after reload", (f) => { f.points[5]!.reply!.observedAfterReload = false; }],
     ["hidden final reply", (f) => { f.points[5]!.reply!.visible = false; }],
     ["created work", (f) => { f.points[5]!.tasks.push({ id: "unexpected" }); }],
-    ["created project", (f) => { f.points[5]!.activity.push({ id: "created-project", companyId: f.scope.companyId, agentId: f.scope.agentId,
+    ["created project", (f) => { f.points[5]!.activity.push({ id: "created-project", spaceId: f.scope.spaceId, agentId: f.scope.agentId,
       runId: "run-1", action: "project.created", entityType: "project", entityId: "unexpected" }); }],
     ["truncated creation history", (f) => { f.points[5]!.activity = Array.from({ length: 500 }, () => ({})); }],
     ["missing run collection", (f) => { f.points[5]!.runs = undefined as unknown as Row[]; }],
@@ -110,12 +110,12 @@ describe("chat reload and new-session evidence", () => {
   });
   it("rejects another agent's activity rather than filtering an unscoped response", () => {
     const f = chatContinuityFixture();
-    f.points[5]!.activity.push({ companyId: f.scope.companyId, agentId: "other-agent", runId: "other-run", action: "project.created" });
+    f.points[5]!.activity.push({ spaceId: f.scope.spaceId, agentId: "other-agent", runId: "other-run", action: "project.created" });
     expect(allPass(f)).toBe(false);
   });
   it("accepts complete owned activity and rejects unaccounted creation by that same agent", () => {
     const f = chatContinuityFixture();
-    const row = { id: "owned-event", companyId: f.scope.companyId, agentId: f.scope.agentId,
+    const row = { id: "owned-event", spaceId: f.scope.spaceId, agentId: f.scope.agentId,
       runId: "run-0", action: "heartbeat.run_completed", entityType: "heartbeat_run", entityId: "run-0" };
     f.points[5]!.activity.push(row);
     expect(allPass(f)).toBe(true);

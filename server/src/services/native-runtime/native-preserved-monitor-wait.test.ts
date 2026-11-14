@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, agentWakeupRequests, companies, completionContracts, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns,
+import { agents, agentWakeupRequests, spaces, completionContracts, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns,
   issueComments, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, statusDecisions, subscribeDatabaseWork, workspaceOperations, workAssessments } from "@outpost/db";
 import { PROVIDER_QUOTA_MONITOR_SERVICE_NAME } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { finalizeNativeRun, repairCommittedNativeChatResponse } from "./native-run-finalizer.js";
 import { nativeSha256 } from "./canonical.js";
 import * as monitorDelivery from "./native-monitor-delivery.js";
@@ -27,23 +27,23 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
     db = createDb(external ?? temporary.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => { await db?.$client.end(); await temporary?.cleanup(); });
-  beforeEach(async () => { await db.execute(sql`truncate table companies restart identity cascade`); });
+  beforeEach(async () => { await db.execute(sql`truncate table spaces restart identity cascade`); });
 
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     const contractId = randomUUID(), resultId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Saved monitor", issuePrefix: `P${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner", status: "active" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Saved follow-up", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId,
+    await db.insert(spaces).values({ id: spaceId, name: "Saved monitor", issuePrefix: `P${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "outpost_runner", status: "active" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Saved follow-up", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId,
       runtimeMode: "native", status: "running", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     const nextCheckAt = new Date(Date.now() + 3_600_000).toISOString();
-    const authority = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId });
+    const authority = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId });
     await authority.execute({ tool: "set_task_monitor", callId: randomUUID(), arguments: {
       idempotencyKey: "saved-monitor", monitor: { nextCheckAt, notes: "Check the saved result." },
     } });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "test", criteria: [] }, canonicalSha256: randomUUID(),
@@ -56,15 +56,15 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
       terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: "yielded" } };
     const finishedAt = new Date("2020-01-01T00:00:00Z");
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt, completionContractId: contractId }).where(eq(heartbeatRuns.id, runId));
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId, completionContractId: contractId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId, completionContractId: contractId,
       serverFingerprint: randomUUID(), canonicalSha256: randomUUID(), schemaStatus: "accepted", resultJson: result });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "retryable_failure", resultId });
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "retryable_failure", resultId });
     await db.update(issues).set({ executionRunId: null, checkoutRunId: null }).where(eq(issues.id, issueId));
     const readIssue = async () => (await db.select().from(issues).where(eq(issues.id, issueId)))[0]!;
     const finalize = (workspaceFinalizeStatus: "succeeded" | "failed" = "succeeded") => finalizeNativeRun({
       db, runId, workspaceFinalizeStatus, projectRunStatus: true,
     });
-    return { companyId, agentId, issueId, runId, resultId, result, finishedAt, nextCheckAt, readIssue, finalize };
+    return { spaceId, agentId, issueId, runId, resultId, result, finishedAt, nextCheckAt, readIssue, finalize };
   }
 
   it.each(["original", "rescheduled", "past_due"])("keeps the saved monitor and settles a released successful result (%s)", async state => {
@@ -77,9 +77,9 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
       } }).where(eq(issues.id, f.issueId));
     }
     const issueBefore = await f.readIssue();
-    const [hold] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
+    const [hold] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
       kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", fingerprint: randomUUID(),
-      status: "active", ownerType: "board", nextAction: "Preserve independent recovery.", evidence: { runId: randomUUID() },
+      status: "active", ownerType: "operator", nextAction: "Preserve independent recovery.", evidence: { runId: randomUUID() },
     }).returning();
     await f.finalize();
     const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
@@ -93,8 +93,8 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0].finishedAt).toEqual(f.finishedAt);
     expect((await db.select().from(nativeRunResults).where(eq(nativeRunResults.id, f.resultId)))[0].resultJson).toEqual(f.result);
     expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, hold!.id))).toEqual([hold]);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toEqual([]);
-    expect(await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toEqual([{ id: f.runId }]);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toEqual([]);
+    expect(await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toEqual([{ id: f.runId }]);
     await f.finalize();
     expect(await db.select().from(statusDecisions).where(eq(statusDecisions.runId, f.runId))).toEqual(decisions);
   });
@@ -110,7 +110,7 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
       } }).where(eq(issues.id, f.issueId));
       if (state === "other_agent") await db.update(issues).set({ assigneeAgentId: null }).where(eq(issues.id, f.issueId));
       if (state === "owner" || state === "checkout") {
-        const [owner] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running" }).returning();
+        const [owner] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "running" }).returning();
         await db.update(issues).set(state === "owner" ? { executionRunId: owner!.id } : { checkoutRunId: owner!.id }).where(eq(issues.id, f.issueId));
       }
       if (state === "unfinished") await db.update(heartbeatRuns).set({ finishedAt: null }).where(eq(heartbeatRuns.id, f.runId));
@@ -159,7 +159,7 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
     for (const before of old) expect(after.find(decision => decision.id === before.id)).toEqual(before);
     expect(after.some(decision => decision.reasonCode === "scheduled_monitor_preserved")).toBe(true);
     expect((await db.select().from(nativeRunResults).where(eq(nativeRunResults.id, f.resultId)))[0].resultJson).toEqual(f.result);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toEqual([]);
     expect(await f.readIssue()).toMatchObject({ monitorNextCheckAt: scheduled.monitorNextCheckAt,
       executionRunId: null, checkoutRunId: null });
     await f.finalize();
@@ -171,7 +171,7 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
     const f = await fixture();
     const scheduler = heartbeatService(db, { runtimeEnv: {} });
     const observedDeadlines: Promise<number | null>[] = [];
-    expect(await hasPendingRunCleanup(db, f.companyId, f.runId)).toBe(true);
+    expect(await hasPendingRunCleanup(db, f.spaceId, f.runId)).toBe(true);
     expect(await scheduler.nextIssueMonitorAt()).toBeNull();
     const unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.issueMonitors, event => {
       if (event === "settled") observedDeadlines.push(scheduler.nextIssueMonitorAt());
@@ -183,12 +183,12 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
 
       expect(await Promise.all(observedDeadlines)).toContain(deadline);
       expect(await scheduler.nextIssueMonitorAt()).toBe(deadline);
-      expect(await hasPendingRunCleanup(db, f.companyId, f.runId)).toBe(false);
+      expect(await hasPendingRunCleanup(db, f.spaceId, f.runId)).toBe(false);
       const decisions = await db.select().from(statusDecisions).where(eq(statusDecisions.runId, f.runId));
       await f.finalize();
       expect(await scheduler.nextIssueMonitorAt()).toBe(deadline);
       expect(await db.select().from(statusDecisions).where(eq(statusDecisions.runId, f.runId))).toEqual(decisions);
-      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toEqual([]);
+      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toEqual([]);
     } finally {
       unsubscribe();
       await Promise.all(observedDeadlines);
@@ -205,8 +205,8 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
       contextSnapshot: { issueId: f.issueId, ...(mode === "recovered" ? { skipIssueComment: true } : {}) },
     }).where(eq(heartbeatRuns.id, f.runId));
     const comments = () => db.select({ id: issueComments.id, body: issueComments.body }).from(issueComments)
-      .where(and(eq(issueComments.companyId, f.companyId), eq(issueComments.createdByRunId, f.runId)));
-    const repair = () => repairCommittedNativeChatResponse(db, { companyId: f.companyId, issueId: f.issueId, runId: f.runId });
+      .where(and(eq(issueComments.spaceId, f.spaceId), eq(issueComments.createdByRunId, f.runId)));
+    const repair = () => repairCommittedNativeChatResponse(db, { spaceId: f.spaceId, issueId: f.issueId, runId: f.runId });
     await f.finalize();
     if (mode === "recovered") {
       expect(await comments()).toEqual([]);
@@ -220,28 +220,28 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
     expect(await comments()).toEqual(published);
     expect((await f.readIssue()).monitorNextCheckAt).toEqual(before.monitorNextCheckAt);
     expect((await db.select().from(nativeRunResults).where(eq(nativeRunResults.id, f.resultId)))[0].resultJson).toEqual(f.result);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toEqual([]);
   });
 
   async function newerUserRequest(state: "queued" | "consumed", existing?: Awaited<ReturnType<typeof fixture>>) {
     const f = existing ?? await fixture();
     if (!existing) await db.update(issues).set({ status: "blocked", statusVersion: 5 }).where(eq(issues.id, f.issueId));
-    const [comment] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+    const [comment] = await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
       authorType: "user", authorUserId: "operator", body: "Continue with the new objective." }).returning();
     const successorId = state === "consumed" ? randomUUID() : null;
-    if (successorId) await db.insert(heartbeatRuns).values({ id: successorId, companyId: f.companyId, agentId: f.agentId,
+    if (successorId) await db.insert(heartbeatRuns).values({ id: successorId, spaceId: f.spaceId, agentId: f.agentId,
       nativeIssueId: f.issueId, runtimeMode: "native", status: "failed", errorCode: "native_continuation_requires_reconciliation",
       contextSnapshot: { issueId: f.issueId, commentId: comment!.id, wakeCommentId: comment!.id,
-        executionContinuation: { companyId: f.companyId, issueId: f.issueId,
+        executionContinuation: { spaceId: f.spaceId, issueId: f.issueId,
           objectiveSource: { kind: "comment", id: comment!.id, revision: comment!.updatedAt.toISOString() },
           resumeDelta: { baseRunId: f.runId } } },
       resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
     });
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId,
       source: "automation", reason: "issue_reopened_via_comment", requestedByActorType: "user", requestedByActorId: "operator",
       status: successorId ? "failed" : "queued", runId: successorId,
       payload: { issueId: f.issueId, commentId: comment!.id,
-        _paperclipWakeContext: { issueId: f.issueId, wakeCommentId: comment!.id, wakeCommentIds: [comment!.id] } },
+        _outpostWakeContext: { issueId: f.issueId, wakeCommentId: comment!.id, wakeCommentIds: [comment!.id] } },
     }).returning();
     if (successorId) await db.update(heartbeatRuns).set({ wakeupRequestId: wake!.id }).where(eq(heartbeatRuns.id, successorId));
     if (!existing) await db.update(nativeRunFinalizations).set({ attempt: 1 }).where(eq(nativeRunFinalizations.runId, f.runId));
@@ -260,12 +260,12 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
         monitor: { ...(task.executionPolicy?.monitor as Record<string, unknown>), nextCheckAt: nextCheckAt.toISOString() } } })
         .where(eq(issues.id, f.issueId));
     }
-    expect(await hasPendingRunCleanup(db, f.companyId, f.runId)).toBe(true);
+    expect(await hasPendingRunCleanup(db, f.spaceId, f.runId)).toBe(true);
     const before = await f.readIssue();
     await f.finalize();
     const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
     expect(coordinator).toMatchObject({ phase: "committed", nextAttemptAt: null, failureCode: null, attempt: 2 });
-    expect(await hasPendingRunCleanup(db, f.companyId, f.runId)).toBe(false);
+    expect(await hasPendingRunCleanup(db, f.spaceId, f.runId)).toBe(false);
     expect(await heartbeatService(db, { runtimeEnv: {} }).tickIssueMonitors(new Date(Date.parse(f.nextCheckAt) + 1)))
       .toMatchObject({ triggered: 0 });
     expect(await f.readIssue()).toMatchObject({ status: before.status, statusVersion: before.statusVersion,
@@ -273,7 +273,7 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
       executionRunId: before.executionRunId, checkoutRunId: before.checkoutRunId,
       executionPolicy: before.executionPolicy, monitorNextCheckAt: before.monitorNextCheckAt,
       monitorAttemptCount: before.monitorAttemptCount, workMode: before.workMode });
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toEqual([wake]);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toEqual([wake]);
     expect(await db.select().from(issueComments).where(eq(issueComments.id, comment!.id))).toEqual([comment]);
     expect((await db.select().from(nativeRunResults).where(eq(nativeRunResults.id, f.resultId)))[0].resultJson).toEqual(f.result);
     expect(await db.select().from(issueComments).where(eq(issueComments.createdByRunId, f.runId))).toEqual([]);
@@ -299,12 +299,12 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
     const { comment, wake, successorId } = await newerUserRequest(state, f);
     let hold: typeof issueRecoveryActions.$inferSelect | undefined;
     if (successorId) {
-      const action = await issueRecoveryActionService(db).upsertSourceScoped({ companyId: f.companyId, sourceIssueId: f.issueId,
+      const action = await issueRecoveryActionService(db).upsertSourceScoped({ spaceId: f.spaceId, sourceIssueId: f.issueId,
         kind: "active_run_watchdog", cause: "native_continuation_requires_reconciliation", fingerprint: randomUUID(),
-        ownerType: "board", nextAction: "Recover the current user request.", evidence: { runId: successorId }, supersedeOnIdentityChange: true });
+        ownerType: "operator", nextAction: "Recover the current user request.", evidence: { runId: successorId }, supersedeOnIdentityChange: true });
       [hold] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, action.id));
     }
-    await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId, heartbeatRunId: f.runId,
+    await db.insert(workspaceOperations).values({ spaceId: f.spaceId, issueId: f.issueId, heartbeatRunId: f.runId,
       phase: "workspace_finalize", status: "succeeded", finishedAt: new Date() });
     await db.update(nativeRunFinalizations).set({ nextAttemptAt: null, leaseOwner: null, leaseExpiresAt: null,
       controllerBootId: randomUUID() }).where(eq(nativeRunFinalizations.runId, f.runId));
@@ -320,11 +320,11 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
         commentId: comment.id, wakeId: wake.id, successorRunId: successorId } } });
     expect(await db.select().from(workAssessments).where(eq(workAssessments.id, prior.assessmentId!))).toEqual(oldAssessment);
     expect(await db.select().from(statusDecisions).where(eq(statusDecisions.id, prior.decisionId!))).toEqual(oldDecision);
-    expect(await hasPendingRunCleanup(db, f.companyId, f.runId)).toBe(false);
+    expect(await hasPendingRunCleanup(db, f.spaceId, f.runId)).toBe(false);
     expect(await f.readIssue()).toMatchObject({ status: before.status, statusVersion: before.statusVersion,
       executionPolicy: before.executionPolicy, monitorNextCheckAt: before.monitorNextCheckAt,
       executionRunId: before.executionRunId, checkoutRunId: before.checkoutRunId });
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toEqual([wake]);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toEqual([wake]);
     expect(await db.select().from(issueComments).where(eq(issueComments.id, comment.id))).toEqual([comment]);
     if (hold) expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, hold.id))).toEqual([hold]);
     const decisions = await db.select().from(statusDecisions).where(eq(statusDecisions.runId, f.runId));
@@ -332,7 +332,7 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
     expect((await db.select().from(nativeRunResults).where(eq(nativeRunResults.id, f.resultId)))[0].resultJson).toEqual(f.result);
   });
 
-  it.each(["missing_wake", "actor", "foreign_task", "foreign_company", "untrusted_comment", "deleted_comment", "edited_comment",
+  it.each(["missing_wake", "actor", "foreign_task", "foreign_space", "untrusted_comment", "deleted_comment", "edited_comment",
     "prior_comment", "foreign_run", "foreign_base", "wrong_objective", "cancelled_request", "source_stop", "missing_monitor_receipt",
     "workspace_failed"])("keeps the old monitor held without exact newer user-request proof (%s)", async state => {
       const consumed = ["foreign_run", "foreign_base", "wrong_objective"].includes(state);
@@ -341,9 +341,9 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
       if (state === "actor") await db.update(agentWakeupRequests).set({ requestedByActorType: "agent" }).where(eq(agentWakeupRequests.id, wake.id));
       if (state === "foreign_task") await db.update(agentWakeupRequests).set({ payload: { ...wake.payload, issueId: randomUUID() } })
         .where(eq(agentWakeupRequests.id, wake.id));
-      if (state === "foreign_company") {
+      if (state === "foreign_space") {
         const other = await fixture();
-        await db.update(agentWakeupRequests).set({ companyId: other.companyId, agentId: other.agentId })
+        await db.update(agentWakeupRequests).set({ spaceId: other.spaceId, agentId: other.agentId })
           .where(eq(agentWakeupRequests.id, wake.id));
       }
       if (state === "untrusted_comment") await db.update(issueComments).set({ sourceTrust: { preset: "low_trust_review", disposition: "quarantined" } }).where(eq(issueComments.id, comment.id));
@@ -352,8 +352,8 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
       if (state === "prior_comment") await db.update(issueComments).set({ createdAt: new Date(f.finishedAt.getTime() - 1),
         updatedAt: new Date(f.finishedAt.getTime() - 1) }).where(eq(issueComments.id, comment.id));
       if (state === "foreign_run") {
-        const [otherIssue] = await db.insert(issues).values({ companyId: f.companyId, title: "Other task", status: "blocked" }).returning();
-        const [otherRun] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+        const [otherIssue] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Other task", status: "blocked" }).returning();
+        const [otherRun] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
           nativeIssueId: otherIssue!.id, runtimeMode: "native", status: "failed", wakeupRequestId: wake.id,
           contextSnapshot: { issueId: otherIssue!.id } }).returning();
         await db.update(agentWakeupRequests).set({ runId: otherRun!.id }).where(eq(agentWakeupRequests.id, wake.id));
@@ -429,7 +429,7 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
 
   it.each(["cleared", "owner", "receipt", "rescheduled"])("rechecks monitor proof under the task lock (%s)", async state => {
     const f = await fixture(), scheduled = await f.readIssue();
-    const [owner] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running" }).returning();
+    const [owner] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "running" }).returning();
     const nextCheckAt = new Date(Date.now() + 7_200_000).toISOString();
     const original = monitorDelivery.readNativePreservedMonitorWait;
     const scheduler = heartbeatService(db, { runtimeEnv: {} });
@@ -454,6 +454,6 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
     expect(task.monitorNextCheckAt?.toISOString() ?? null).toBe(state === "cleared" ? null : state === "rescheduled" ? nextCheckAt : f.nextCheckAt);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, owner!.id)))[0].status).toBe("running");
     expect((await db.select().from(nativeRunResults).where(eq(nativeRunResults.id, f.resultId)))[0].resultJson).toEqual(f.result);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toEqual([]);
   });
 });

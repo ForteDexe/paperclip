@@ -1,4 +1,4 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { AgentIdentity } from "../components/AgentIdentity";
 import { TaskSummaryList } from "../components/TaskSummaryList";
 import { useDesignSandbox } from "../context/DesignSandboxContext";
@@ -10,8 +10,8 @@ import { activityApi } from "../api/activity";
 import { accessApi } from "../api/access";
 import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
-import { buildCompanyUserProfileMap } from "../lib/company-members";
-import { useCompany } from "../context/CompanyContext";
+import { buildSpaceUserProfileMap } from "../lib/space-members";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { MetricCard } from "../components/MetricCard";
@@ -52,9 +52,9 @@ export type PausedAgentBanner =
 /**
  * Which paused-agents banner the dashboard should show. Import-paused agents
  * get the specific banner with a bulk resume (they were parked by the import
- * safety default and stay parked until someone acts); otherwise a company
+ * safety default and stay parked until someone acts); otherwise a space
  * whose agents are ALL paused gets a generic explanation, because from the
- * outside it is indistinguishable from a broken company.
+ * outside it is indistinguishable from a broken space.
  */
 export function derivePausedAgentBanner(agents: Agent[] | undefined): PausedAgentBanner {
   if (!agents || agents.length === 0) return null;
@@ -70,7 +70,7 @@ export function derivePausedAgentBanner(agents: Agent[] | undefined): PausedAgen
 
 export function Dashboard() {
   const designSandbox = useDesignSandbox();
-  const { selectedCompanyId, companies } = useCompany();
+  const { selectedSpaceId, spaces } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [animatedActivityIds, setAnimatedActivityIds] = useState<Set<string>>(new Set());
   const seenActivityIdsRef = useRef<Set<string>>(new Set());
@@ -78,15 +78,15 @@ export function Dashboard() {
   const activityAnimationTimersRef = useRef<number[]>([]);
 
   // `isFetching` is read alongside the data: a cached list is served while its
-  // refetch runs, and an empty one from before the first hire must not pass
-  // for the company's current state — see `shouldRouteAgentlessCompanyToOnboarding`.
+  // refetch runs, and an empty one from before the first create must not pass
+  // for the space's current state — see `shouldRouteAgentlessSpaceToOnboarding`.
   const { data: agents, isFetching: agentsRefreshing } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
-  // Bulk resume for agents parked by a company import. Sequential on purpose
+  // Bulk resume for agents parked by a space import. Sequential on purpose
   // (mirrors the import page's activation checklist); a per-agent failure is
   // tolerated so one bad agent never blocks the rest, and the refetch below
   // re-renders the banner with whatever remains paused.
@@ -97,7 +97,7 @@ export function Dashboard() {
       if (!targets || targets.kind !== "imported") return;
       for (const agentId of targets.pausedImportedAgentIds) {
         try {
-          await agentsApi.resume(agentId, selectedCompanyId ?? undefined);
+          await agentsApi.resume(agentId, selectedSpaceId ?? undefined);
         } catch {
           // Leave the agent paused; the banner re-renders with the remainder.
         }
@@ -105,8 +105,8 @@ export function Dashboard() {
     },
     onSettled: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedCompanyId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(selectedCompanyId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedSpaceId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(selectedSpaceId!) }),
       ]);
     },
   });
@@ -115,56 +115,56 @@ export function Dashboard() {
     setBreadcrumbs([{ label: "Dashboard" }]);
   }, [setBreadcrumbs]);
 
-  const dashboardQueryKey = queryKeys.dashboard(selectedCompanyId!);
+  const dashboardQueryKey = queryKeys.dashboard(selectedSpaceId!);
   const sharedDashboard = useSharedPollingQuery({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     resourceKey: "dashboard",
     queryKey: dashboardQueryKey,
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
   });
   const dashboardQuery = useQuery({
     queryKey: dashboardQueryKey,
-    queryFn: () => dashboardApi.summary(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryFn: () => dashboardApi.summary(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const { data, isLoading, dataUpdatedAt: dashboardUpdatedAt } = dashboardQuery;
   const dashboardView = useQueryView(dashboardQuery);
   usePublishSharedQueryData(sharedDashboard, data, dashboardUpdatedAt);
 
-  const activityQueryKey = [...queryKeys.activity(selectedCompanyId!), { limit: DASHBOARD_ACTIVITY_LIMIT }] as const;
+  const activityQueryKey = [...queryKeys.activity(selectedSpaceId!), { limit: DASHBOARD_ACTIVITY_LIMIT }] as const;
   const sharedActivity = useSharedPollingQuery({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     resourceKey: `activity:limit:${DASHBOARD_ACTIVITY_LIMIT}`,
     queryKey: activityQueryKey,
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
   });
   const { data: activity, dataUpdatedAt: activityUpdatedAt } = useQuery({
     queryKey: activityQueryKey,
-    queryFn: () => activityApi.list(selectedCompanyId!, { limit: DASHBOARD_ACTIVITY_LIMIT }),
-    enabled: !!selectedCompanyId,
+    queryFn: () => activityApi.list(selectedSpaceId!, { limit: DASHBOARD_ACTIVITY_LIMIT }),
+    enabled: !!selectedSpaceId,
   });
   usePublishSharedQueryData(sharedActivity, activity, activityUpdatedAt);
 
   const { data: issues } = useQuery({
-    queryKey: queryKeys.issues.list(selectedCompanyId!),
-    queryFn: () => issuesApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.issues.list(selectedSpaceId!),
+    queryFn: () => issuesApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const { data: projects } = useQuery({
-    ...companyProjectsQuery(selectedCompanyId!, { includeArchived: true }),
-    enabled: !!selectedCompanyId,
+    ...spaceProjectsQuery(selectedSpaceId!, { includeArchived: true }),
+    enabled: !!selectedSpaceId,
   });
 
-  const { data: companyMembers } = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(selectedCompanyId!),
-    queryFn: () => accessApi.listUserDirectory(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+  const { data: spaceMembers } = useQuery({
+    queryKey: queryKeys.access.spaceUserDirectory(selectedSpaceId!),
+    queryFn: () => accessApi.listUserDirectory(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const userProfileMap = useMemo(
-    () => buildCompanyUserProfileMap(companyMembers?.users),
-    [companyMembers?.users],
+    () => buildSpaceUserProfileMap(spaceMembers?.users),
+    [spaceMembers?.users],
   );
 
   const recentIssues = issues ? getRecentIssues(issues) : [];
@@ -178,7 +178,7 @@ export function Dashboard() {
     seenActivityIdsRef.current = new Set();
     hydratedActivityRef.current = false;
     setAnimatedActivityIds(new Set());
-  }, [selectedCompanyId]);
+  }, [selectedSpaceId]);
 
   useEffect(() => {
     if (recentActivity.length === 0) return;
@@ -250,8 +250,8 @@ export function Dashboard() {
     return agents.find((a) => a.id === id)?.name ?? null;
   };
 
-  if (!selectedCompanyId) {
-    if (companies.length === 0) {
+  if (!selectedSpaceId) {
+    if (spaces.length === 0) {
       return (
         <EmptyState
           icon={LayoutDashboard}
@@ -282,7 +282,7 @@ export function Dashboard() {
   }
 
   // Same rule as the auto-offer above: a list still being refreshed may be the
-  // empty one cached before the first hire, and the banner's "Create one here"
+  // empty one cached before the first create, and the banner's "Create one here"
   // opens the same agent step the offer does.
   const hasNoAgents = agents !== undefined && !agentsRefreshing && agents.length === 0;
   const pausedBanner = derivePausedAgentBanner(agents);
@@ -341,7 +341,7 @@ export function Dashboard() {
         </div>
       )}
 
-      <ActiveAgentsPanel companyId={selectedCompanyId!} dedupeLinkedTasks />
+      <ActiveAgentsPanel spaceId={selectedSpaceId!} dedupeLinkedTasks />
 
       {data && (
         <>
@@ -387,7 +387,7 @@ export function Dashboard() {
             />
           </div>
 
-          <SmokeLabDashboardCard companyId={selectedCompanyId!} />
+          <SmokeLabDashboardCard spaceId={selectedSpaceId!} />
 
           <div className={cn("grid grid-cols-2 gap-4", SHOW_TASK_PRIORITY_UI ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
             <ChartCard title="Run Activity" subtitle="Last 14 days">
@@ -409,7 +409,7 @@ export function Dashboard() {
 
           <PluginSlotOutlet
             slotTypes={["dashboardWidget"]}
-            context={{ companyId: selectedCompanyId }}
+            context={{ spaceId: selectedSpaceId }}
             className="grid gap-4 md:grid-cols-2"
             // design-allow(card-pattern): class-string prop consumed by the plugin outlet; a component can't be passed here (C5a Run 3)
             itemClassName="rounded-lg border bg-card p-4 shadow-sm"

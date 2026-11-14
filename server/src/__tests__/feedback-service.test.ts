@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   documentRevisions,
   documents,
@@ -48,7 +48,7 @@ describeEmbeddedPostgres("feedbackService local votes", () => {
     await db.delete(issueComments);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -57,18 +57,18 @@ describeEmbeddedPostgres("feedbackService local votes", () => {
   });
 
   async function seedIssue() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Outpost",
-      issuePrefix: `O${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+      issuePrefix: `O${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Rocky",
       role: "worker",
       status: "active",
@@ -79,13 +79,13 @@ describeEmbeddedPostgres("feedbackService local votes", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Local feedback",
       status: "todo",
       priority: "medium",
       createdByUserId: "user-1",
     });
-    return { companyId, agentId, issueId };
+    return { spaceId, agentId, issueId };
   }
 
   async function seedAgentComment() {
@@ -93,7 +93,7 @@ describeEmbeddedPostgres("feedbackService local votes", () => {
     const commentId = randomUUID();
     await db.insert(issueComments).values({
       id: commentId,
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       issueId: seeded.issueId,
       authorAgentId: seeded.agentId,
       body: "Agent result",
@@ -147,12 +147,12 @@ describeEmbeddedPostgres("feedbackService local votes", () => {
   });
 
   it("supports an agent-authored document revision target", async () => {
-    const { companyId, agentId, issueId } = await seedIssue();
+    const { spaceId, agentId, issueId } = await seedIssue();
     const documentId = randomUUID();
     const revisionId = randomUUID();
     await db.insert(documents).values({
       id: documentId,
-      companyId,
+      spaceId,
       title: "Plan",
       format: "markdown",
       latestBody: "Agent plan",
@@ -163,14 +163,14 @@ describeEmbeddedPostgres("feedbackService local votes", () => {
     });
     await db.insert(documentRevisions).values({
       id: revisionId,
-      companyId,
+      spaceId,
       documentId,
       revisionNumber: 1,
       body: "Agent plan",
       createdByAgentId: agentId,
     });
     await db.insert(issueDocuments).values({
-      companyId,
+      spaceId,
       issueId,
       documentId,
       key: "plan",
@@ -188,11 +188,11 @@ describeEmbeddedPostgres("feedbackService local votes", () => {
   });
 
   it("rejects feedback on human-authored comments", async () => {
-    const { companyId, issueId } = await seedIssue();
+    const { spaceId, issueId } = await seedIssue();
     const commentId = randomUUID();
     await db.insert(issueComments).values({
       id: commentId,
-      companyId,
+      spaceId,
       issueId,
       authorUserId: "user-1",
       body: "Human comment",

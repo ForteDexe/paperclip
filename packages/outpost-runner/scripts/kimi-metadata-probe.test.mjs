@@ -13,7 +13,7 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sha = bytes => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 
 test("Kimi metadata CLI is self-contained and rejects incomplete assets without inheriting credentials or making requests", { timeout: 20_000 }, async t => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-kimi-metadata-cli-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-kimi-metadata-cli-")));
   t.after(() => rm(root, { recursive: true, force: true }));
   const bundles = await bundleVerifiedProviderEntrypoints({ write: false });
   const bundle = bundles.find(value => value.entrypoint.name === "kimi-metadata-probe");
@@ -59,7 +59,7 @@ test("Kimi metadata CLI is self-contained and rejects incomplete assets without 
   const node = await stat(pinnedNode).then(() => pinnedNode, () => process.execPath);
   const profile = JSON.parse(await readFile(join(packageRoot, "acpx-profiles.json"), "utf8")).profiles.kimi;
   const { KIMI_DISTRIBUTION_CLOSURE_SHA256 } = await import(new URL("../src/drivers/acpx/kimi-closure-pins.ts", import.meta.url));
-  const admission = { schema: "outpost.acpx-candidate-admission.v1", companyId: "metadata-cli-company", agent: "kimi", model: "selected-model",
+  const admission = { schema: "outpost.acpx-candidate-admission.v1", spaceId: "metadata-cli-space", agent: "kimi", model: "selected-model",
     profileDigest: profile.commandDigest, nativeClosureDigest: `sha256:${KIMI_DISTRIBUTION_CLOSURE_SHA256[`${process.platform}-${process.arch}`]}`,
     platform: process.platform, architecture: process.arch, expiresAt: Date.now() + 60_000,
     runId: "metadata-operation", normalizedSessionId: "metadata-session" };

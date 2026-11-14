@@ -11,9 +11,9 @@ import { api } from "./client";
 /**
  * Smoke Lab API client (PAP-13347 / S2, plan §D3). Mirrors the S1 results API
  * shipped in `server/src/routes/smoke-lab.ts` (PAP-13346). Every endpoint is
- * company-scoped and gated server-side on `experimental.enableSmokeLab`,
+ * space-scoped and gated server-side on `experimental.enableSmokeLab`,
  * `deploymentMode === local_trusted`, and a non-production environment — the UI
- * only ever surfaces these screens when the board-readable experimental flag is
+ * only ever surfaces these screens when the operator-readable experimental flag is
  * on, but the server stays authoritative.
  */
 
@@ -38,31 +38,31 @@ export interface SmokeLabRunDetailResponse {
   steps: SmokeRunStep[];
 }
 
-const base = (companyId: string) => `/companies/${companyId}/smoke-lab`;
+const base = (spaceId: string) => `/spaces/${spaceId}/smoke-lab`;
 
 export const smokeLabApi = {
-  listServices: (companyId: string) =>
-    api.get<SmokeLabServicesResponse>(`${base(companyId)}/services`),
-  startServices: (companyId: string) =>
-    api.post<SmokeLabServicesResponse>(`${base(companyId)}/services/start`, {}),
-  stopServices: (companyId: string) =>
-    api.post<SmokeLabServicesResponse>(`${base(companyId)}/services/stop`, {}),
-  installFixtures: (companyId: string) =>
-    api.post<SmokeLabInstallFixturesResponse>(`${base(companyId)}/install-fixtures`, {}),
-  reset: (companyId: string) =>
-    api.post<{ reset: boolean }>(`${base(companyId)}/reset`, {}),
+  listServices: (spaceId: string) =>
+    api.get<SmokeLabServicesResponse>(`${base(spaceId)}/services`),
+  startServices: (spaceId: string) =>
+    api.post<SmokeLabServicesResponse>(`${base(spaceId)}/services/start`, {}),
+  stopServices: (spaceId: string) =>
+    api.post<SmokeLabServicesResponse>(`${base(spaceId)}/services/stop`, {}),
+  installFixtures: (spaceId: string) =>
+    api.post<SmokeLabInstallFixturesResponse>(`${base(spaceId)}/install-fixtures`, {}),
+  reset: (spaceId: string) =>
+    api.post<{ reset: boolean }>(`${base(spaceId)}/reset`, {}),
 
-  listRuns: (companyId: string) =>
-    api.get<SmokeLabRunsResponse>(`${base(companyId)}/runs`),
-  getRun: (companyId: string, runId: string) =>
-    api.get<SmokeLabRunDetailResponse>(`${base(companyId)}/runs/${runId}`),
-  createRun: (companyId: string, input: CreateSmokeRun) =>
-    api.post<{ run: SmokeRun }>(`${base(companyId)}/runs`, input),
-  updateRun: (companyId: string, runId: string, input: UpdateSmokeRun) =>
-    api.patch<{ run: SmokeRun }>(`${base(companyId)}/runs/${runId}`, input),
-  recordStep: (companyId: string, runId: string, input: RecordSmokeRunStep) =>
+  listRuns: (spaceId: string) =>
+    api.get<SmokeLabRunsResponse>(`${base(spaceId)}/runs`),
+  getRun: (spaceId: string, runId: string) =>
+    api.get<SmokeLabRunDetailResponse>(`${base(spaceId)}/runs/${runId}`),
+  createRun: (spaceId: string, input: CreateSmokeRun) =>
+    api.post<{ run: SmokeRun }>(`${base(spaceId)}/runs`, input),
+  updateRun: (spaceId: string, runId: string, input: UpdateSmokeRun) =>
+    api.patch<{ run: SmokeRun }>(`${base(spaceId)}/runs/${runId}`, input),
+  recordStep: (spaceId: string, runId: string, input: RecordSmokeRunStep) =>
     api.post<{ step: SmokeRunStep; summary: Record<string, unknown> }>(
-      `${base(companyId)}/runs/${runId}/steps`,
+      `${base(spaceId)}/runs/${runId}/steps`,
       input,
     ),
 };

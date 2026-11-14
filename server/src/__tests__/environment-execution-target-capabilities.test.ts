@@ -78,7 +78,7 @@ async function buildSandboxTarget(input: {
 
   const target = await resolveEnvironmentExecutionTarget({
     db: {} as never,
-    companyId: "company-1",
+    spaceId: "space-1",
     adapterType: "codex_local",
     environment: { id: "env-1", driver: "sandbox", config: { provider: "daytona" } },
     leaseId: "lease-1",
@@ -112,7 +112,7 @@ describe("resolveEnvironmentExecutionTarget effective capability snapshot", () =
 
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       environment: { id: "env-1", driver: "sandbox", config: { provider: "daytona" } },
       leaseId: "lease-1",
@@ -147,7 +147,7 @@ describe("resolveEnvironmentExecutionTarget effective capability snapshot", () =
 
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       environment: { id: "env-1", driver: "sandbox", config: { provider: "daytona" } },
       leaseId: "lease-1",
@@ -187,7 +187,7 @@ describe("resolveEnvironmentExecutionTarget effective capability snapshot", () =
 
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       environment: { id: "env-1", driver: "ssh", config: {} },
       leaseId: "lease-1",
@@ -235,7 +235,7 @@ describe("resolveEnvironmentExecutionTarget effective capability snapshot", () =
     });
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       // This substrate PR does not advertise remote outpost_runner support
       // until the Rust WSS transport lands. A supported direct adapter exercises
       // the same host-owned acquisition contract without widening rollout here.

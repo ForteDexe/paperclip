@@ -8,11 +8,11 @@ scenarios:
     capabilities:
       - projects/lifecycle
     context: >-
-      No Launch project exists; the CEO can create projects in the active company.
+      No Launch project exists; the CEO can create projects in the active space.
     query: >-
       Create a project called Launch for the new website.
     expected_outcome: >-
-      One company-scoped project is saved with the requested identity and a usable link. The
+      One space-scoped project is saved with the requested identity and a usable link. The
       agent checks for an existing intended project before duplicating it on retry. Creation
       alone is not described as a ready repository, running task or deployed website.
   - id: projects.archive-project
@@ -93,7 +93,7 @@ scenarios:
       Create a private project for the acquisition research.
     expected_outcome: >-
       The new project is private with ownership derived from the authorized person and correct
-      access for the acting agent. Its tasks inherit the appropriate restrictions. Company-wide
+      access for the acting agent. Its tasks inherit the appropriate restrictions. Space-wide
       search and unrelated agents cannot discover its protected contents, and chat returns only
       authorized links.
   - id: projects.share-project

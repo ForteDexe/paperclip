@@ -11,7 +11,7 @@ import { gunzipSync } from "node:zlib";
 import { assertMetadata, tarManifest, versionFor } from "./preview-artifacts.mjs";
 
 export const artifactBase = "https://d1p6rlowie26tp.cloudfront.net/cloud-migrators/v1";
-export const artifactBucket = "paperclipai-runner-e2e-history-078455283791-us-east-1";
+export const artifactBucket = "outpostai-runner-e2e-history-078455283791-us-east-1";
 const prefix = "cloud-migrators/v1/";
 const names = ["db", "shared"];
 const maximumBytes = 32 * 1024 * 1024;
@@ -151,7 +151,7 @@ export function assertLockfile(lock, manifest) {
   for (const [key, entry] of Object.entries(lock.packages)) {
     if (key === "") continue;
     if (!entry || typeof entry !== "object" || entry.link) throw new Error("Invalid migrator lockfile entry.");
-    if (/(?:^|\/)node_modules\/@paperclipai\/[^/]+$/.test(key) && !names.some((name) => key === `node_modules/@outpost/${name}`)) throw new Error("Unexpected internal migrator dependency.");
+    if (/(?:^|\/)node_modules\/@outpost\/[^/]+$/.test(key) && !names.some((name) => key === `node_modules/@outpost/${name}`)) throw new Error("Unexpected internal migrator dependency.");
     if (entry.inBundle === true) {
       if (!key.startsWith("node_modules/@outpost/db/node_modules/")) throw new Error("Unexpected bundled dependency.");
       continue;
@@ -176,7 +176,7 @@ export function buildBundle(directory, sha, { exec = execFileSync, classify } = 
   const scratch = mkdtempSync(path.join(os.tmpdir(), "cloud-migrator-lock-"));
   try {
     for (const name of names) copyFileSync(path.join(directory, `${name}.tgz`), path.join(scratch, `${name}.tgz`));
-    const root = { name: "paperclip-migrator-install-root", version: "0.0.0", private: true,
+    const root = { name: "outpost-migrator-install-root", version: "0.0.0", private: true,
       dependencies: { "@outpost/db": "file:db.tgz", "@outpost/shared": "file:shared.tgz" } };
     writeFileSync(path.join(scratch, "package.json"), JSON.stringify(root));
     exec("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund", "--registry=https://registry.npmjs.org"], { cwd: scratch, stdio: "inherit", timeout: 180_000 });
@@ -229,12 +229,12 @@ export function verifyInstall(directory, sha, { exec = execFileSync } = {}) {
       // smoke install; exact versions, integrity, root and transitive pins stay.
       lock.packages[`node_modules/@outpost/${name}`].resolved = `file:${name}.tgz`;
     }
-    writeFileSync(path.join(scratch, "package.json"), JSON.stringify({ name: "paperclip-migrator-install-root", version: "0.0.0", private: true,
+    writeFileSync(path.join(scratch, "package.json"), JSON.stringify({ name: "outpost-migrator-install-root", version: "0.0.0", private: true,
       dependencies: { "@outpost/db": manifest.packageVersion } }));
     writeFileSync(path.join(scratch, "package-lock.json"), JSON.stringify(lock));
     exec("npm", ["ci", "--ignore-scripts", "--no-audit", "--no-fund", "--update-notifier=false", "--cache", path.join(scratch, "empty-cache"),
       "--registry=https://registry.npmjs.org"], { cwd: scratch, stdio: "inherit", timeout: 180_000 });
-    for (const name of names) assertMetadata(JSON.parse(readFileSync(path.join(scratch, "node_modules", "@paperclipai", name, "package.json"), "utf8")), `@outpost/${name}`, sha);
+    for (const name of names) assertMetadata(JSON.parse(readFileSync(path.join(scratch, "node_modules", "@outpost", name, "package.json"), "utf8")), `@outpost/${name}`, sha);
     exec(process.execPath, ["--input-type=module", "--eval", "await import('@outpost/db'); await import('@outpost/shared');"], { cwd: scratch, stdio: "inherit", timeout: 30_000 });
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 }

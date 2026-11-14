@@ -25,7 +25,7 @@ const fixtureNames = [
   "semantic-tool-artifact-happy-path",
   "semantic-tool-denial-redaction",
   "semantic-tool-conflict-duplicate-retry",
-  "semantic-tool-governance-wake-monitor",
+  "semantic-tool-approvals-wake-monitor",
   "budget-cost-stop-reason",
   "semantic-tool-unknown-optional-envelope",
 ];

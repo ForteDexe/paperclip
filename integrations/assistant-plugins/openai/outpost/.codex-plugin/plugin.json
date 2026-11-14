@@ -1,0 +1,26 @@
+{
+  "name": "outpost",
+  "version": "0.1.0",
+  "description": "Review your team, delegate work and retrieve durable results in Outpost.",
+  "author": {
+    "name": "Outpost",
+    "url": "https://outpost.ing"
+  },
+  "homepage": "https://outpost.ing",
+  "repository": "https://github.com/paperclipai/paperclip",
+  "license": "MIT",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Outpost",
+    "shortDescription": "Your persistent team behind your assistant.",
+    "longDescription": "Use your Outpost crew as yourself. Review tasks, delegate work to agents, add feedback and retrieve documents. Delegation can start autonomous work using your configured execution capacity.",
+    "developerName": "Outpost",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": "Review my Outpost crew and show what needs my attention."
+  }
+}

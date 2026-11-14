@@ -2,11 +2,11 @@ import type { ChatProvider, ToolConnectionTransport } from "@outpost/shared";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../../delivery-work-notifications.js";
 import { leasedChatProvider } from "./receiver-policy.js";
 
-export type ReceiverScope = { kind: "endpoint" | "connection" | "company"; id: string };
+export type ReceiverScope = { kind: "endpoint" | "connection" | "space"; id: string };
 export function receiverScope(hint: string): ReceiverScope | undefined {
   if (hint === "*") return undefined;
   const [kind, id, extra] = hint.split(":");
-  if (!id || extra !== undefined || (kind !== "endpoint" && kind !== "connection" && kind !== "company"))
+  if (!id || extra !== undefined || (kind !== "endpoint" && kind !== "connection" && kind !== "space"))
     throw new Error("Invalid receiver discovery scope");
   return { kind, id };
 }
@@ -19,6 +19,6 @@ export async function notifyChatConnectionReceiver(transaction: object, connecti
   if (transport === "chat_sdk")
     await notifyDeliveryWork(transaction, DELIVERY_QUEUES.chatReceivers, receiverScopeHint({ kind: "connection", id: connectionId }));
 }
-export async function notifyChatCompanyReceivers(transaction: object, companyId: string) {
-  await notifyDeliveryWork(transaction, DELIVERY_QUEUES.chatReceivers, receiverScopeHint({ kind: "company", id: companyId }));
+export async function notifyChatSpaceReceivers(transaction: object, spaceId: string) {
+  await notifyDeliveryWork(transaction, DELIVERY_QUEUES.chatReceivers, receiverScopeHint({ kind: "space", id: spaceId }));
 }

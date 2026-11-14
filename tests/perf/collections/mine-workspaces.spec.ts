@@ -1,9 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 import { isolatedWorkspaceSettings, workspaceFixture, WORKSPACE_COUNT, type WorkspaceFixture } from "./workspace-fixture";
 
-// Mine must not wait on a company-wide execution-workspace list. With thousands
+// Mine must not wait on a space-wide execution-workspace list. With thousands
 // of workspaces that list was megabytes and seconds long, and Mine held every
-// row hidden until it finished. These checks run against a company with
+// row hidden until it finished. These checks run against a space with
 // WORKSPACE_COUNT workspaces and Mine rows that each reference their own.
 let fixture: WorkspaceFixture;
 test.beforeAll(async ({ request }) => {
@@ -11,12 +11,12 @@ test.beforeAll(async ({ request }) => {
   fixture = await workspaceFixture(request);
 });
 
-const workspaceListPath = () => `/api/companies/${fixture.company.id}/execution-workspaces`;
-const minePage = () => `/${fixture.company.issuePrefix}/issues?view=mine`;
+const workspaceListPath = () => `/api/spaces/${fixture.space.id}/execution-workspaces`;
+const minePage = () => `/${fixture.space.issuePrefix}/issues?view=mine`;
 const mineLink = (page: Page, identifier: string) => page.locator(`[data-inbox-issue-link][href$="/${identifier}"]`);
 const mineRow = (page: Page, identifier: string) => page.locator("[data-inbox-item]", { has: mineLink(page, identifier) });
 const showWorkspaceColumn = (page: Page) => page.addInitScript(() => {
-  localStorage.setItem("paperclip:inbox:issue-columns", JSON.stringify(["status", "id", "workspace", "updated"]));
+  localStorage.setItem("outpost:inbox:issue-columns", JSON.stringify(["status", "id", "workspace", "updated"]));
 });
 function recordWorkspaceReads(page: Page) {
   const reads: URL[] = [];
@@ -47,7 +47,7 @@ test("Mine reads only the execution workspaces its rows reference", async ({ pag
   // Late reads (background refetches) must follow the same rule.
   await page.waitForTimeout(1_000);
   const unfiltered = reads.filter(url => !url.searchParams.has("ids")).map(url => `${url.pathname}${url.search}`);
-  expect(unfiltered, `Mine requested the company-wide list of ${WORKSPACE_COUNT} workspaces`).toEqual([]);
+  expect(unfiltered, `Mine requested the space-wide list of ${WORKSPACE_COUNT} workspaces`).toEqual([]);
   const expected = fixture.mine.map(row => row.workspaceId).sort();
   expect([...new Set(reads.flatMap(url => url.searchParams.get("ids")!.split(",")))].sort()).toEqual(expected);
   for (const url of reads) {

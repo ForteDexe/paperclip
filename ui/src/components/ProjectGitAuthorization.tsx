@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 
 export function ProjectGitAuthorization({ project }: { project: Project }) {
   const client = useQueryClient();
-  const key = ["project-git-authorization", project.companyId, project.id];
+  const key = ["project-git-authorization", project.spaceId, project.id];
   const authorization = useQuery({
     queryKey: key,
     queryFn: () => projectsApi.gitAuthorization(project.id),

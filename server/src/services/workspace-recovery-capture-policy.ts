@@ -29,13 +29,13 @@ export async function rearmExhaustedCapturePolicy(db: Db, input: WorkspaceRecove
   if (!isCapturePolicyRearmable(observed)) return false;
   const outcome = await db.transaction(async tx => {
     // Lock order shared with the fallback and the stop-proof re-arm: task, coordinator, run, recovery action.
-    const [issue] = await tx.select({ id: issues.id }).from(issues).where(and(eq(issues.companyId, input.companyId),
+    const [issue] = await tx.select({ id: issues.id }).from(issues).where(and(eq(issues.spaceId, input.spaceId),
       eq(issues.id, input.issueId))).for("update");
-    const [coordinator] = await tx.select(coordinatorOwnerColumns).from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, input.companyId),
+    const [coordinator] = await tx.select(coordinatorOwnerColumns).from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.spaceId, input.spaceId),
         eq(nativeRunFinalizations.runId, input.runId))).for("update");
-    const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId),
+    const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId),
       eq(heartbeatRuns.id, input.runId))).for("update");
-    const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, input.companyId),
+    const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, input.spaceId),
       eq(issueRecoveryActions.sourceIssueId, input.issueId), eq(issueRecoveryActions.id, input.actionId))).for("update");
     if (!issue || !run || !action) return null;
     const system = readSystemRecovery(action.evidence);
@@ -56,7 +56,7 @@ export async function rearmExhaustedCapturePolicy(db: Db, input: WorkspaceRecove
       previousPolicyVersion: system.capturePolicyVersion ?? 1, generationId: next.generationId,
       previousGenerationId: system.generationId, rearmedAt: now, ...(releasedLapsedOwner ? { releasedLapsedOwner: true } : {}) };
     const prior = action.evidence.workspaceRecovery as { requestIds?: unknown } | undefined;
-    await notifyIssueRecovery(tx, { companyId: input.companyId });
+    await notifyIssueRecovery(tx, { spaceId: input.spaceId });
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.workspaceRecovery);
     await tx.update(issueRecoveryActions).set({ ownerType: "system", ownerAgentId: null, ownerUserId: null,
       nextAction: CAPTURE_POLICY_REARM_MESSAGE, updatedAt: at,
@@ -64,8 +64,8 @@ export async function rearmExhaustedCapturePolicy(db: Db, input: WorkspaceRecove
         workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: run.id, status: "queued", stage: "verifying_stop",
           attempt: 0, attemptLimit: 6, retryable: true, message: CAPTURE_POLICY_REARM_MESSAGE,
           requestIds: Array.isArray(prior?.requestIds) ? prior.requestIds : [] } },
-    }).where(and(eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, action.id)));
-    return persistActivity(tx as unknown as Db, { companyId: input.companyId, actorType: "system", actorId: "workspace-recovery",
+    }).where(and(eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, action.id)));
+    return persistActivity(tx as unknown as Db, { spaceId: input.spaceId, actorType: "system", actorId: "workspace-recovery",
       action: "issue.workspace_recovery_rearmed", entityType: "issue", entityId: input.issueId, runId: run.id,
       details: { recoveryActionId: action.id, reason: "capture_policy_changed", failureCode: system.failure?.code ?? null,
         policyVersion: marker.policyVersion, previousPolicyVersion: marker.previousPolicyVersion,

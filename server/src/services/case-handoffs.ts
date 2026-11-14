@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { assertAgentInteraction } from "./agent-interaction-policy.js";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { agents, caseAccessSources, caseEvents, caseHandoffs, caseIssueLinks, cases, chatConversations, companies, heartbeatRuns, issues, projects } from "@outpost/db";
+import { agents, caseAccessSources, caseEvents, caseHandoffs, caseIssueLinks, cases, chatConversations, spaces, heartbeatRuns, issues, projects } from "@outpost/db";
 import { handoffCaseSchema, isUuidLike, type DoneCaseHandoffInput, type HandoffCaseInput, type HandoffCaseResult } from "@outpost/shared";
 import { conflict, forbidden, HttpError, notFound, unprocessable } from "../errors.js";
 import { casesDisabledError } from "./cases-disabled.js";
@@ -42,13 +42,13 @@ function canonical(value: unknown): string {
 
 function identity(actor: AuthorizationActor) {
   if (actor.type === "agent" && actor.agentId) return { actorType: "agent" as const, actorId: actor.agentId };
-  if (actor.type === "board") return { actorType: "user" as const, actorId: actor.userId ?? "board" };
-  throw forbidden("Authenticated agent or board access required");
+  if (actor.type === "operator") return { actorType: "user" as const, actorId: actor.userId ?? "operator" };
+  throw forbidden("Authenticated agent or operator access required");
 }
 
-function companyAllowed(actor: AuthorizationActor, companyId: string) {
-  return actor.type === "agent" ? actor.companyId === companyId
-    : actor.type === "board" && (actor.source === "local_implicit" || actor.companyIds?.includes(companyId));
+function spaceAllowed(actor: AuthorizationActor, spaceId: string) {
+  return actor.type === "agent" ? actor.spaceId === spaceId
+    : actor.type === "operator" && (actor.source === "local_implicit" || actor.spaceIds?.includes(spaceId));
 }
 
 async function assertEnabled(db: Db) {
@@ -64,12 +64,12 @@ function result(row: CaseHandoffRow, issue: Pick<IssueRow, "id" | "identifier">,
 async function event(tx: Db, row: CaseHandoffRow, kind: "handoff_requested" | "handoff_applied" | "handoff_delivered" | "handoff_cancelled", publications: ActivityPublication[], actor?: AuthorizationActor) {
   const who = actor ? identity(actor) : { actorType: row.actorType, actorId: row.actorId };
   const runId = actor ? actor.runId ?? null : row.sourceRunId;
-  await tx.insert(caseEvents).values({ companyId: row.companyId, caseId: row.caseId, kind,
+  await tx.insert(caseEvents).values({ spaceId: row.spaceId, caseId: row.caseId, kind,
     actorType: who.actorType, actorUserId: who.actorType === "user" ? who.actorId : null,
     actorAgentId: who.actorType === "agent" ? who.actorId : null, runId,
     payload: { handoffId: row.id, issueId: row.issueId, phase: row.phase, version: row.version, destinationKind: row.destinationKind,
       fromAgentId: row.fromAgentId, toAgentId: row.toAgentId, workflowTransition: row.workflowTransition } });
-  const saved = await persistActivity(tx, { companyId: row.companyId, ...who,
+  const saved = await persistActivity(tx, { spaceId: row.spaceId, ...who,
     agentId: who.actorType === "agent" ? who.actorId : null, runId, issueId: row.issueId,
     action: `case.${kind}`, entityType: "case", entityId: row.caseId, responsibleUserIdOverride: row.responsibleUserId,
     details: { handoffId: row.id, issueId: row.issueId, phase: row.phase, version: row.version, state: row.state, destinationKind: row.destinationKind,
@@ -77,13 +77,13 @@ async function event(tx: Db, row: CaseHandoffRow, kind: "handoff_requested" | "h
   publications.push(saved.publication);
 }
 
-async function authorizeTask(tx: Db, actor: AuthorizationActor, companyId: string, issue: IssueRow | null, projectId: string | null, toAgentId: string, options: {
+async function authorizeTask(tx: Db, actor: AuthorizationActor, spaceId: string, issue: IssueRow | null, projectId: string | null, toAgentId: string, options: {
   validateRecipient?: boolean;
   invalidRecipientAsUnprocessable?: boolean;
   parentIssueId?: string | null;
 } = {}) {
   const parentIssueId = options.parentIssueId ?? issue?.parentId ?? null;
-  const resource = { type: "issue" as const, companyId, issueId: issue?.id ?? null, projectId,
+  const resource = { type: "issue" as const, spaceId, issueId: issue?.id ?? null, projectId,
     parentIssueId, assigneeAgentId: toAgentId, assigneeUserId: null };
   if (issue) {
     const read = await authorizationService(tx).decide({ actor, action: "issue:read", resource: { ...resource, assigneeAgentId: issue.assigneeAgentId, assigneeUserId: issue.assigneeUserId } });
@@ -95,7 +95,7 @@ async function authorizeTask(tx: Db, actor: AuthorizationActor, companyId: strin
   if (!assignment.allowed) throw forbidden(assignment.explanation, authorizationDeniedDetails(assignment));
   if (options.validateRecipient !== false) {
     try {
-      await assertAssignableAgent(tx, companyId, toAgentId, { kind: "work" });
+      await assertAssignableAgent(tx, spaceId, toAgentId, { kind: "work" });
     } catch (error) {
       if (options.invalidRecipientAsUnprocessable && error instanceof HttpError && (error.status === 404 || error.status === 409)) {
         throw unprocessable(error.message, error.details);
@@ -108,13 +108,13 @@ async function authorizeTask(tx: Db, actor: AuthorizationActor, companyId: strin
 /** Closing a case does not assign work. Retain ordinary task mutation authority. */
 async function authorizeTerminalTask(tx: Db, actor: AuthorizationActor, issue: IssueRow) {
   const access = authorizationService(tx);
-  const resource = { type: "issue" as const, companyId: issue.companyId, issueId: issue.id, projectId: issue.projectId,
+  const resource = { type: "issue" as const, spaceId: issue.spaceId, issueId: issue.id, projectId: issue.projectId,
     parentIssueId: issue.parentId, assigneeAgentId: issue.assigneeAgentId, assigneeUserId: issue.assigneeUserId, status: issue.status };
   if (!(await access.decide({ actor, action: "issue:read", resource })).allowed) throw notFound("Task not found");
   if (actor.type === "agent" && (issue.assigneeAgentId !== actor.agentId || issue.assigneeUserId)) {
     const task = issue.identifier ?? issue.id;
     const [owner] = issue.assigneeAgentId && !issue.assigneeUserId ? await tx.select({ name: agents.name }).from(agents)
-      .where(and(eq(agents.id, issue.assigneeAgentId), eq(agents.companyId, issue.companyId))).limit(1) : [];
+      .where(and(eq(agents.id, issue.assigneeAgentId), eq(agents.spaceId, issue.spaceId))).limit(1) : [];
     throw forbidden(owner
       ? `Agents may complete only their own case work. ${owner.name} (agent ${issue.assigneeAgentId}) owns primary task ${task} and records the terminal handoff. Ask that agent on ${task} to close the case.`
       : `Agents may complete only their own case work. Primary task ${task} has no assigned agent to close the case.`,
@@ -133,11 +133,11 @@ const TERMINAL_CASE_STATUSES = new Set(["done", "cancelled"]);
  * completion passes its normal gates.
  */
 export async function assertCaseStatusWriteAuthority(tx: Db, actor: AuthorizationActor,
-  current: { companyId: string; status: string; workIssueId: string | null }, nextStatus: string | undefined) {
+  current: { spaceId: string; status: string; workIssueId: string | null }, nextStatus: string | undefined) {
   if (actor.type !== "agent" || nextStatus === undefined || nextStatus === current.status || !current.workIssueId) return;
   if (!TERMINAL_CASE_STATUSES.has(nextStatus) && !TERMINAL_CASE_STATUSES.has(current.status)) return;
   const [issue] = await tx.select().from(issues)
-    .where(and(eq(issues.id, current.workIssueId), eq(issues.companyId, current.companyId))).limit(1);
+    .where(and(eq(issues.id, current.workIssueId), eq(issues.spaceId, current.spaceId))).limit(1);
   if (!issue) throw notFound("Task not found");
   await authorizeTerminalTask(tx, actor, issue);
   if (nextStatus === "done") {
@@ -148,12 +148,12 @@ export async function assertCaseStatusWriteAuthority(tx: Db, actor: Authorizatio
 async function authorizeHandoffControl(tx: Db, actor: AuthorizationActor, row: CaseHandoffRow, issue: IssueRow, validateRecipient = true) {
   if (row.destinationKind === "done") return authorizeTerminalTask(tx, actor, issue);
   if (!row.toAgentId) throw conflict("Agent handoff has no recipient");
-  return authorizeTask(tx, actor, row.companyId, issue, issue.projectId, row.toAgentId, { validateRecipient });
+  return authorizeTask(tx, actor, row.spaceId, issue, issue.projectId, row.toAgentId, { validateRecipient });
 }
 
 /** Match ordinary implicit delegation: an unusable default parent falls back to
  * standalone work. A retained private source cannot lose its access edge. */
-async function resolveHandoffTaskParent(tx: Db, actor: AuthorizationActor, companyId: string, projectId: string | null,
+async function resolveHandoffTaskParent(tx: Db, actor: AuthorizationActor, spaceId: string, projectId: string | null,
   toAgentId: string, candidate: IssueRow | null, required: boolean): Promise<IssueRow | null> {
   if (!candidate || candidate.conversationAgentId) {
     if (required) throw forbidden("Retained private source requires an eligible primary task");
@@ -162,7 +162,7 @@ async function resolveHandoffTaskParent(tx: Db, actor: AuthorizationActor, compa
   const access = authorizationService(tx);
   let allowed = true;
   for (const action of ["issue:read", "issue:mutate"] as const) {
-    if (!(await access.decide({ actor, action, resource: { type: "issue", companyId,
+    if (!(await access.decide({ actor, action, resource: { type: "issue", spaceId,
       issueId: candidate.id, projectId: candidate.projectId, parentIssueId: candidate.parentId,
       assigneeAgentId: candidate.assigneeAgentId, assigneeUserId: candidate.assigneeUserId, status: candidate.status } })).allowed) {
       allowed = false; break;
@@ -172,7 +172,7 @@ async function resolveHandoffTaskParent(tx: Db, actor: AuthorizationActor, compa
     await issueService(tx).findOpenAncestorCreatedByAgent(candidate.id, toAgentId)) allowed = false;
   if (allowed) {
     const scope = { projectId, parentIssueId: candidate.id, assigneeAgentId: toAgentId, assigneeUserId: null };
-    allowed = (await access.decide({ actor, action: "tasks:assign", resource: { type: "issue", companyId, issueId: null, ...scope }, scope })).allowed;
+    allowed = (await access.decide({ actor, action: "tasks:assign", resource: { type: "issue", spaceId, issueId: null, ...scope }, scope })).allowed;
   }
   if (allowed) return candidate;
   if (required) throw forbidden("Retained private source task does not allow creating delegated work");
@@ -181,7 +181,7 @@ async function resolveHandoffTaskParent(tx: Db, actor: AuthorizationActor, compa
 
 async function eligible(tx: Db, issue: IssueRow) {
   if (issue.conversationAgentId || (await tx.select({ id: chatConversations.id }).from(chatConversations)
-    .where(and(eq(chatConversations.companyId, issue.companyId), eq(chatConversations.issueId, issue.id))).limit(1)).length) {
+    .where(and(eq(chatConversations.spaceId, issue.spaceId), eq(chatConversations.issueId, issue.id))).limit(1)).length) {
     throw unprocessable("Case handoffs require an ordinary work task");
   }
   if (issue.workMode !== "standard" || !["todo", "in_progress"].includes(issue.status) || issue.executionState?.status === "pending") {
@@ -197,12 +197,12 @@ async function assertCaseContentsFitTask(tx: Db, caseRow: CaseRow, issue: IssueR
   for (const source of retained) {
     if (source.sourceKind === "issue" && source.sourceId === issue.id) continue;
     if (source.sourceKind === "project") {
-      const [project] = await tx.select().from(projects).where(and(eq(projects.id, source.sourceId), eq(projects.companyId, issue.companyId)));
+      const [project] = await tx.select().from(projects).where(and(eq(projects.id, source.sourceId), eq(projects.spaceId, issue.spaceId)));
       if (!project) throw notFound("Case source project not found");
       if (project.visibility === "private" && issue.projectId !== project.id) throw unprocessable("Primary task must preserve the case's private project boundary");
       continue;
     }
-    const [sourceIssue] = await tx.select().from(issues).where(and(eq(issues.id, source.sourceId), eq(issues.companyId, issue.companyId)));
+    const [sourceIssue] = await tx.select().from(issues).where(and(eq(issues.id, source.sourceId), eq(issues.spaceId, issue.spaceId)));
     if (!sourceIssue) throw notFound("Case source task not found");
     const [project] = sourceIssue.projectId ? await tx.select().from(projects).where(eq(projects.id, sourceIssue.projectId)) : [];
     if (project?.visibility === "private" && issue.projectId !== sourceIssue.projectId) throw unprocessable("Primary task must preserve the case's private project boundary");
@@ -213,14 +213,14 @@ async function assertCaseContentsFitTask(tx: Db, caseRow: CaseRow, issue: IssueR
       // UNION limits traversal to distinct task identities, including cycles.
       const [ancestry] = await tx.execute<{ inherited: boolean }>(sql`
         WITH RECURSIVE privacy_ancestors AS (
-          SELECT p.id, p.company_id, p.privacy_parent_issue_id FROM issues p
-          WHERE p.id = ${issue.id} AND p.company_id = ${issue.companyId}
+          SELECT p.id, p.space_id, p.privacy_parent_issue_id FROM issues p
+          WHERE p.id = ${issue.id} AND p.space_id = ${issue.spaceId}
           UNION
-          SELECT p.id, p.company_id, p.privacy_parent_issue_id FROM issues p
-          JOIN privacy_ancestors child ON p.id = child.privacy_parent_issue_id AND p.company_id = child.company_id
+          SELECT p.id, p.space_id, p.privacy_parent_issue_id FROM issues p
+          JOIN privacy_ancestors child ON p.id = child.privacy_parent_issue_id AND p.space_id = child.space_id
           WHERE p.visibility = 'private' OR EXISTS (
             SELECT 1 FROM projects project WHERE project.id = p.project_id
-              AND project.company_id = p.company_id AND project.visibility = 'private'
+              AND project.space_id = p.space_id AND project.visibility = 'private'
           )
         )
         SELECT EXISTS (SELECT 1 FROM privacy_ancestors WHERE id = ${sourceIssue.id}) AS inherited
@@ -245,7 +245,7 @@ export async function cancelPendingCaseHandoffsForIssue(db: Db, issueId: string,
   const cancel = async (tx: Db) => {
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.caseHandoffs, issueId);
     await tx.select({ id: issues.id }).from(issues).where(eq(issues.id, issueId)).for("update");
-    if (actor?.type === "agent" && actor.runId) await assertAgentRunWriteAllowed(tx, actor.companyId!, { agentId: actor.agentId, runId: actor.runId });
+    if (actor?.type === "agent" && actor.runId) await assertAgentRunWriteAllowed(tx, actor.spaceId!, { agentId: actor.agentId, runId: actor.runId });
     const rows = await tx.update(caseHandoffs).set({ state: "cancelled", cancelledAt: new Date(), updatedAt: new Date(),
       leaseExpiresAt: null, lastErrorCode: "superseded", lastError: reason }).where(and(eq(caseHandoffs.issueId, issueId), inArray(caseHandoffs.state, PENDING),
         handoffId ? eq(caseHandoffs.id, handoffId) : undefined)).returning();
@@ -263,7 +263,7 @@ export function caseHandoffService(db: Db) {
   async function visible(actor: AuthorizationActor, caseId: string, tx = db) {
     if (!isUuidLike(caseId)) throw notFound("Case not found");
     const [row] = await tx.select().from(cases).where(eq(cases.id, caseId));
-    if (!row || !companyAllowed(actor, row.companyId)) throw notFound("Case not found");
+    if (!row || !spaceAllowed(actor, row.spaceId)) throw notFound("Case not found");
     await assertActorCanReadCase(tx, actor, row);
     return row;
   }
@@ -279,25 +279,25 @@ export function caseHandoffService(db: Db) {
     // Acceptance does not reserve permission. Recheck the original principal at
     // the actual transfer, while it still owns/reads the outgoing task.
     try {
-      await authorizeTask(tx, assigningActor, row.companyId, issue, issue.projectId, row.toAgentId);
+      await authorizeTask(tx, assigningActor, row.spaceId, issue, issue.projectId, row.toAgentId);
     } catch (error) {
       // The records were just locked and exist. A hidden task is a revocable
       // actor-access hold, not a deleted task that should cancel durable intent.
       if (!originalActor && error instanceof HttpError && error.status === 404) throw forbidden("Handoff original actor can no longer access the task");
       throw error;
     }
-    const actor: AuthorizationActor = { type: "agent", agentId: row.toAgentId, companyId: row.companyId, onBehalfOfUserId: row.responsibleUserId };
-    await assertAssignableAgent(tx, row.companyId, row.toAgentId, { kind: "work" });
+    const actor: AuthorizationActor = { type: "agent", agentId: row.toAgentId, spaceId: row.spaceId, onBehalfOfUserId: row.responsibleUserId };
+    await assertAssignableAgent(tx, row.spaceId, row.toAgentId, { kind: "work" });
     if (!(await canActorReceiveCase(tx, actor, caseRow, issue.id, row.toAgentId))) throw forbidden("Recipient cannot access the case");
     if (issue.executionRunId && issue.executionRunId !== row.sourceRunId) throw conflict("A newer execution owns this task");
     if (issue.checkoutRunId && issue.checkoutRunId !== row.sourceRunId) throw conflict("A newer checkout owns this task");
     const workflowTransition = await applyCaseWorkflow(tx, row, publications);
     const updated = await issueService(tx).update(issue.id, { assigneeAgentId: row.toAgentId, assigneeUserId: null,
       status: "todo", executionRunId: null, checkoutRunId: null, executionAgentNameKey: null,
-      companyGuard: row.companyId, caseHandoffId: row.id, actorAgentId: row.actorType === "agent" ? row.actorId : null,
+      spaceGuard: row.spaceId, caseHandoffId: row.id, actorAgentId: row.actorType === "agent" ? row.actorId : null,
       actorUserId: row.actorType === "user" ? row.actorId : null }, tx, publications, []);
     if (!updated) throw notFound("Task not found");
-    publications.push((await persistActivity(tx, { companyId: row.companyId, actorType: row.actorType, actorId: row.actorId,
+    publications.push((await persistActivity(tx, { spaceId: row.spaceId, actorType: row.actorType, actorId: row.actorId,
       agentId: row.actorType === "agent" ? row.actorId : null, runId: row.sourceRunId, issueId: issue.id,
       action: "issue.reassigned", entityType: "issue", entityId: issue.id,
       details: { previousAssigneeAgentId: issue.assigneeAgentId, previousAssigneeUserId: issue.assigneeUserId,
@@ -311,26 +311,26 @@ export function caseHandoffService(db: Db) {
     return applied!;
   }
 
-  async function acceptTerminal(tx: Db, companyId: string, actor: AuthorizationActor, input: DoneCaseHandoffInput,
+  async function acceptTerminal(tx: Db, spaceId: string, actor: AuthorizationActor, input: DoneCaseHandoffInput,
     source: typeof heartbeatRuns.$inferSelect | null, sourceIssue: IssueRow | null, fingerprint: string,
     publications: ActivityPublication[]) {
     let caseRow = await visible(actor, input.case.id, tx);
-    if (caseRow.companyId !== companyId) throw notFound("Case not found");
+    if (caseRow.spaceId !== spaceId) throw notFound("Case not found");
     if (!caseRow.workIssueId) throw unprocessable("Terminal handoff requires an existing primary task");
     const primaryId = caseRow.workIssueId;
-    const [issue] = await tx.select().from(issues).where(and(eq(issues.id, primaryId), eq(issues.companyId, companyId))).for("update");
+    const [issue] = await tx.select().from(issues).where(and(eq(issues.id, primaryId), eq(issues.spaceId, spaceId))).for("update");
     if (!issue) throw notFound("Task not found");
     await authorizeTerminalTask(tx, actor, issue);
     if (issue.statusVersion !== input.expectedIssueStatusVersion) throw conflict("Task changed; reload before handing off");
     if (issue.assigneeUserId) throw unprocessable("Terminal case handoff requires agent-assigned or unassigned work");
     if (issue.workMode !== "standard" || !["todo", "in_progress", "in_review", "blocked", "done"].includes(issue.status)
       || issue.conversationAgentId || (await tx.select({ id: chatConversations.id }).from(chatConversations)
-        .where(and(eq(chatConversations.companyId, companyId), eq(chatConversations.issueId, issue.id))).limit(1)).length) {
+        .where(and(eq(chatConversations.spaceId, spaceId), eq(chatConversations.issueId, issue.id))).limit(1)).length) {
       throw unprocessable("Terminal handoff requires an ordinary standard work task");
     }
     if (actor.type === "agent" && ((source && sourceIssue?.id !== issue.id)
       || (issue.executionRunId && issue.executionRunId !== source?.id))) throw conflict("Another execution owns this task");
-    [caseRow] = await tx.select().from(cases).where(and(eq(cases.id, caseRow.id), eq(cases.companyId, companyId))).for("update");
+    [caseRow] = await tx.select().from(cases).where(and(eq(cases.id, caseRow.id), eq(cases.spaceId, spaceId))).for("update");
     if (!caseRow || caseRow.workIssueId !== primaryId || caseRow.handoffVersion !== input.expectedHandoffVersion) {
       throw conflict("Case routing changed; reload before handing off");
     }
@@ -342,46 +342,46 @@ export function caseHandoffService(db: Db) {
     const who = identity(actor);
     const trust = await resolveActorSourceTrustForIssue({ db: tx, issue, actor: { ...who,
       agentId: actor.type === "agent" ? actor.agentId! : null, runId: source?.id ?? null } });
-    if (trust) throw forbidden("Low-trust work must use its governed review path before completing case work");
+    if (trust) throw forbidden("Low-trust work must use its controlled review path before completing case work");
     const comment = await issueService(tx).addComment(issue.id, `Case completion requested\n\n${input.instructions}`, {
       agentId: actor.type === "agent" ? actor.agentId! : undefined,
-      userId: actor.type === "board" ? actor.userId ?? undefined : undefined, runId: source?.id,
+      userId: actor.type === "operator" ? actor.userId ?? undefined : undefined, runId: source?.id,
     }, { sourceTrust: trust ?? undefined }, tx);
     const version = caseRow.handoffVersion + 1;
-    const workflow = await captureCaseWorkflow(tx, companyId, caseRow, issue.id, "done");
+    const workflow = await captureCaseWorkflow(tx, spaceId, caseRow, issue.id, "done");
     await tx.update(cases).set({ handoffVersion: version, updatedAt: new Date() }).where(eq(cases.id, caseRow.id));
-    const [row] = await tx.insert(caseHandoffs).values({ id: randomUUID(), companyId, caseId: caseRow.id, issueId: issue.id,
+    const [row] = await tx.insert(caseHandoffs).values({ id: randomUUID(), spaceId, caseId: caseRow.id, issueId: issue.id,
       version, ...workflow, destinationKind: "done", fromAgentId: issue.assigneeAgentId, toAgentId: null, phase: "done",
-      instructions: input.instructions, commentId: comment.id, ...who, actorContext: caseHandoffActorContext(actor, companyId), sourceRunId: source?.id ?? null,
+      instructions: input.instructions, commentId: comment.id, ...who, actorContext: caseHandoffActorContext(actor, spaceId), sourceRunId: source?.id ?? null,
       responsibleUserId: issue.responsibleUserId, expectedIssueStatusVersion: issue.statusVersion,
       idempotencyKey: input.idempotencyKey, inputFingerprint: fingerprint, wakeupRequestId: randomUUID(), state: "awaiting_completion",
     }).returning();
     await event(tx, row!, "handoff_requested", publications);
-    if (issue.status === "done") await completeTerminalCaseHandoffsForIssue(tx, { companyId, issueId: issue.id, publications });
+    if (issue.status === "done") await completeTerminalCaseHandoffsForIssue(tx, { spaceId, issueId: issue.id, publications });
     const [current] = await tx.select().from(caseHandoffs).where(eq(caseHandoffs.id, row!.id));
     return result(current!, issue, actor, false);
   }
 
   return {
-    async handoff(companyId: string, actor: AuthorizationActor, rawInput: HandoffCaseInput, options: {
+    async handoff(spaceId: string, actor: AuthorizationActor, rawInput: HandoffCaseInput, options: {
       /** Transport-specific execution authority; called only for fresh intent inside the write transaction. */
       beforeAccept?: (tx: Db) => Promise<void>;
     } = {}): Promise<HandoffCaseResult> {
       await assertEnabled(db);
-      if (!companyAllowed(actor, companyId)) throw notFound("Outpost not found");
+      if (!spaceAllowed(actor, spaceId)) throw notFound("Outpost not found");
       const who = identity(actor), input = handoffCaseSchema.parse(rawInput);
       const fingerprint = createHash("sha256").update(canonical(input)).digest("hex");
       const publications: ActivityPublication[] = [];
       const outcome = await db.transaction(async transaction => {
         const tx = transaction as unknown as Db;
-        if (input.to !== "done") await notifyDeliveryWork(tx, DELIVERY_QUEUES.caseHandoffs, companyId);
-        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`case-handoff:${companyId}:${who.actorType}:${who.actorId}:${input.idempotencyKey}`}, 0))`);
-        const [prior] = await tx.select().from(caseHandoffs).where(and(eq(caseHandoffs.companyId, companyId), eq(caseHandoffs.actorType, who.actorType),
+        if (input.to !== "done") await notifyDeliveryWork(tx, DELIVERY_QUEUES.caseHandoffs, spaceId);
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`case-handoff:${spaceId}:${who.actorType}:${who.actorId}:${input.idempotencyKey}`}, 0))`);
+        const [prior] = await tx.select().from(caseHandoffs).where(and(eq(caseHandoffs.spaceId, spaceId), eq(caseHandoffs.actorType, who.actorType),
           eq(caseHandoffs.actorId, who.actorId), eq(caseHandoffs.idempotencyKey, input.idempotencyKey))).limit(1);
         if (prior) {
           await visible(actor, prior.caseId, tx);
           if (prior.inputFingerprint !== fingerprint) throw conflict("Idempotency key was used for a different handoff");
-          const [issue] = await tx.select().from(issues).where(and(eq(issues.id, prior.issueId), eq(issues.companyId, companyId)));
+          const [issue] = await tx.select().from(issues).where(and(eq(issues.id, prior.issueId), eq(issues.spaceId, spaceId)));
           if (!issue) throw notFound("Task not found");
           return result(prior, issue, actor, true);
         }
@@ -389,32 +389,32 @@ export function caseHandoffService(db: Db) {
         let source: typeof heartbeatRuns.$inferSelect | null = null;
         let sourceIssue: IssueRow | null = null;
         if (actor.type === "agent" && actor.runId) {
-          [source] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, actor.runId), eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, actor.agentId!))).limit(1);
+          [source] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, actor.runId), eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, actor.agentId!))).limit(1);
           if (!source || source.status !== "running") throw conflict("Source run no longer has execution authority");
           const sourceId = source.nativeIssueId ?? source.issueId ?? source.contextSnapshot?.issueId;
-          if (typeof sourceId === "string") [sourceIssue] = await tx.select().from(issues).where(and(eq(issues.id, sourceId), eq(issues.companyId, companyId))).for("update");
-          const authorizedSource = await assertAgentRunWriteAllowed(tx, companyId, { agentId: actor.agentId, runId: source.id });
+          if (typeof sourceId === "string") [sourceIssue] = await tx.select().from(issues).where(and(eq(issues.id, sourceId), eq(issues.spaceId, spaceId))).for("update");
+          const authorizedSource = await assertAgentRunWriteAllowed(tx, spaceId, { agentId: actor.agentId, runId: source.id });
           if (!authorizedSource || authorizedSource.status !== "running") throw conflict("Source run no longer has execution authority");
-          [source] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, actor.runId), eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, actor.agentId!)));
+          [source] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, actor.runId), eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, actor.agentId!)));
           if (!source) throw conflict("Source run no longer exists");
           const pinned = source.runnerProfileJson?.nativeExecutionInput as Record<string, unknown> | undefined;
           const provider = pinned?.provider as Record<string, unknown> | undefined;
           if (["openai_dot_mcp", "grok_bot_mcp", "muse_external"].includes(source.driverKind ?? "") || ["openai_dot", "grok_bot", "muse"].includes(String(provider?.kind))) {
             let execution: ReturnType<typeof parseNativeExecutionInput>;
             try { execution = parseNativeExecutionInput(pinned); } catch { throw forbidden("External handoff requires its pinned execution authority"); }
-            if (execution.binding.companyId !== companyId || execution.binding.agentId !== actor.agentId || execution.binding.runId !== source.id || execution.binding.issueId !== sourceIssue?.id) throw forbidden("External handoff execution binding changed");
+            if (execution.binding.spaceId !== spaceId || execution.binding.agentId !== actor.agentId || execution.binding.runId !== source.id || execution.binding.issueId !== sourceIssue?.id) throw forbidden("External handoff execution binding changed");
             const { assertExternalNativeRunAuthority } = await import("./native-runtime/external-native-authority.js");
-            await withExternalAdmissionGuard(tx as unknown as ExternalAdmissionTransaction, companyId, actor.agentId!, () => assertExternalNativeRunAuthority(tx, execution, tx));
+            await withExternalAdmissionGuard(tx as unknown as ExternalAdmissionTransaction, spaceId, actor.agentId!, () => assertExternalNativeRunAuthority(tx, execution, tx));
           }
-          const [sourceAgent] = await tx.select({ status: agents.status }).from(agents).where(and(eq(agents.id, actor.agentId!), eq(agents.companyId, companyId)));
+          const [sourceAgent] = await tx.select({ status: agents.status }).from(agents).where(and(eq(agents.id, actor.agentId!), eq(agents.spaceId, spaceId)));
           if (!sourceAgent || ["paused", "terminated", "pending_approval", "error"].includes(sourceAgent.status)) throw forbidden("Source agent no longer has execution authority");
           if (!sourceIssue || sourceIssue.assigneeAgentId !== actor.agentId || sourceIssue.assigneeUserId || sourceIssue.executionRunId !== source.id) throw conflict("Source run no longer owns its task");
           if (sourceIssue && sourceIssue.workMode !== "standard") throw unprocessable("Case handoff is available in standard work mode");
         }
-        if (input.to === "done") return acceptTerminal(tx, companyId, actor, input, source, sourceIssue, fingerprint, publications);
+        if (input.to === "done") return acceptTerminal(tx, spaceId, actor, input, source, sourceIssue, fingerprint, publications);
         let caseRow = "id" in input.case ? await visible(actor, input.case.id, tx) : null;
         const priorWorkIssueId = caseRow?.workIssueId ?? null;
-        if (caseRow && caseRow.companyId !== companyId) throw notFound("Case not found");
+        if (caseRow && caseRow.spaceId !== spaceId) throw notFound("Case not found");
         const targetId = caseRow?.workIssueId ?? input.bindIssueId;
         if (targetId && input.initialDocuments?.length) throw unprocessable("Initial documents require a newly created primary task");
         if (caseRow && targetId && input.workflow_document_text !== undefined) throw unprocessable("Workflow text is only accepted when starting a new workflow task");
@@ -422,7 +422,7 @@ export function caseHandoffService(db: Db) {
         if (caseRow?.workIssueId && input.bindIssueId) throw unprocessable("The case already has its primary task");
         let issue: IssueRow | null = null;
         if (targetId) {
-          [issue] = await tx.select().from(issues).where(and(eq(issues.id, targetId), eq(issues.companyId, companyId))).for("update");
+          [issue] = await tx.select().from(issues).where(and(eq(issues.id, targetId), eq(issues.spaceId, spaceId))).for("update");
           if (!issue) throw notFound("Task not found");
           if (input.expectedIssueStatusVersion === undefined) throw unprocessable("expectedIssueStatusVersion is required for an existing task");
           if (issue.statusVersion !== input.expectedIssueStatusVersion) throw conflict("Task changed; reload before handing off");
@@ -431,7 +431,7 @@ export function caseHandoffService(db: Db) {
           if (actor.type === "agent" && issue.executionRunId && issue.executionRunId !== source?.id) throw conflict("Another run owns this task");
           if ("create" in input.case) {
             const mutation = await authorizationService(tx).decide({ actor, action: "issue:mutate", resource: {
-              type: "issue", companyId, issueId: issue.id, projectId: issue.projectId, parentIssueId: issue.parentId,
+              type: "issue", spaceId, issueId: issue.id, projectId: issue.projectId, parentIssueId: issue.parentId,
               assigneeAgentId: issue.assigneeAgentId, assigneeUserId: issue.assigneeUserId, status: issue.status,
             } });
             if (!mutation.allowed) throw forbidden(mutation.explanation, authorizationDeniedDetails(mutation));
@@ -439,7 +439,7 @@ export function caseHandoffService(db: Db) {
         }
         // Lock task before case, matching task mutation admission and dispatch.
         if (caseRow) {
-          [caseRow] = await tx.select().from(cases).where(and(eq(cases.id, caseRow.id), eq(cases.companyId, companyId))).for("update");
+          [caseRow] = await tx.select().from(cases).where(and(eq(cases.id, caseRow.id), eq(cases.spaceId, spaceId))).for("update");
           if (!caseRow || caseRow.handoffVersion !== input.expectedHandoffVersion || caseRow.workIssueId !== priorWorkIssueId) throw conflict("Case routing changed; reload before handing off");
           await assertCaseTrustedForExecution(tx, caseRow);
         }
@@ -449,16 +449,16 @@ export function caseHandoffService(db: Db) {
           const retained = await tx.select().from(caseAccessSources).where(eq(caseAccessSources.caseId, caseRow.id));
           const sourceIssues = retained.filter(item => item.sourceKind === "issue");
           if (sourceIssues.length > 1) {
-            const sourceRows = await tx.select().from(issues).where(and(eq(issues.companyId, companyId), inArray(issues.id, sourceIssues.map(item => item.sourceId))));
+            const sourceRows = await tx.select().from(issues).where(and(eq(issues.spaceId, spaceId), inArray(issues.id, sourceIssues.map(item => item.sourceId))));
             const projectIds = [...new Set(sourceRows.map(item => item.projectId).filter((id): id is string => !!id))];
             const sourceProjects = projectIds.length ? await tx.select({ id: projects.id, visibility: projects.visibility }).from(projects)
-              .where(and(eq(projects.companyId, companyId), inArray(projects.id, projectIds))) : [];
+              .where(and(eq(projects.spaceId, spaceId), inArray(projects.id, projectIds))) : [];
             if (sourceRows.length !== sourceIssues.length || sourceRows.some(item => item.visibility !== "open") ||
               sourceProjects.length !== projectIds.length || sourceProjects.some(item => item.visibility !== "open")) {
               throw unprocessable("A case with multiple private task boundaries needs an existing eligible primary task");
             }
           } else if (sourceIssues[0]) {
-            [casePrivacyParent] = await tx.select().from(issues).where(and(eq(issues.id, sourceIssues[0].sourceId), eq(issues.companyId, companyId)));
+            [casePrivacyParent] = await tx.select().from(issues).where(and(eq(issues.id, sourceIssues[0].sourceId), eq(issues.spaceId, spaceId)));
             if (!casePrivacyParent) throw notFound("Case source task not found");
             if (projectId && projectId !== casePrivacyParent.projectId) throw unprocessable("Case project and retained task boundary must agree before starting work");
             projectId = casePrivacyParent.projectId;
@@ -467,15 +467,15 @@ export function caseHandoffService(db: Db) {
         }
         if (!projectId && !issue && sourceIssue && !sourceIssue.conversationAgentId && !casePrivacyParent) projectId = sourceIssue.projectId;
         if (projectId) {
-          const decision = await authorizationService(tx).decide({ actor, action: "project:read", resource: { type: "project", companyId, projectId } });
+          const decision = await authorizationService(tx).decide({ actor, action: "project:read", resource: { type: "project", spaceId, projectId } });
           if (!decision.allowed) throw notFound("Project not found");
         }
-        const parent = issue ? null : await resolveHandoffTaskParent(tx, actor, companyId, projectId, input.toAgentId,
+        const parent = issue ? null : await resolveHandoffTaskParent(tx, actor, spaceId, projectId, input.toAgentId,
           casePrivacyParent ?? sourceIssue, casePrivacyParent?.visibility === "private");
-        await authorizeTask(tx, actor, companyId, issue, issue?.projectId ?? projectId, input.toAgentId, {
+        await authorizeTask(tx, actor, spaceId, issue, issue?.projectId ?? projectId, input.toAgentId, {
           invalidRecipientAsUnprocessable: true, ...(issue ? {} : { parentIssueId: parent?.id ?? null }),
         });
-        await assertAgentInteraction(tx, { companyId, actorAgentId: actor.type === "agent" ? actor.agentId : null,
+        await assertAgentInteraction(tx, { spaceId, actorAgentId: actor.type === "agent" ? actor.agentId : null,
           operation: "assign", issueId: issue?.id, parentIssueId: parent?.id, targetAgentId: input.toAgentId,
           texts: [JSON.stringify(input)], lock: true });
         if (caseRow && (await tx.select({ id: caseHandoffs.id }).from(caseHandoffs).where(and(eq(caseHandoffs.caseId, caseRow.id), inArray(caseHandoffs.state, PENDING))).limit(1)).length) throw conflict("A handoff is already pending for this case");
@@ -484,30 +484,30 @@ export function caseHandoffService(db: Db) {
         if (!caseRow) {
           const create = "create" in input.case ? input.case.create : null;
           if (!create) throw notFound("Case not found");
-          await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`paperclip:cases:${companyId}`}))`);
-          const [company] = await tx.select({ prefix: companies.issuePrefix }).from(companies).where(eq(companies.id, companyId));
-          if (!company) throw notFound("Outpost not found");
-          const [max] = await tx.select({ number: sql<number>`coalesce(max(${cases.caseNumber}), 0)` }).from(cases).where(eq(cases.companyId, companyId));
+          await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`outpost:cases:${spaceId}`}))`);
+          const [space] = await tx.select({ prefix: spaces.issuePrefix }).from(spaces).where(eq(spaces.id, spaceId));
+          if (!space) throw notFound("Outpost not found");
+          const [max] = await tx.select({ number: sql<number>`coalesce(max(${cases.caseNumber}), 0)` }).from(cases).where(eq(cases.spaceId, spaceId));
           const caseNumber = Number(max?.number ?? 0) + 1;
-          [caseRow] = await tx.insert(cases).values({ companyId, ...create, projectId, caseNumber, identifier: `${company.prefix.toUpperCase()}-C${caseNumber}`,
-            createdByAgentId: actor.type === "agent" ? actor.agentId : null, createdByUserId: actor.type === "board" ? actor.userId ?? null : null }).returning();
-          await tx.insert(caseEvents).values({ companyId, caseId: caseRow!.id, kind: "created", actorType: who.actorType,
+          [caseRow] = await tx.insert(cases).values({ spaceId, ...create, projectId, caseNumber, identifier: `${space.prefix.toUpperCase()}-C${caseNumber}`,
+            createdByAgentId: actor.type === "agent" ? actor.agentId : null, createdByUserId: actor.type === "operator" ? actor.userId ?? null : null }).returning();
+          await tx.insert(caseEvents).values({ spaceId, caseId: caseRow!.id, kind: "created", actorType: who.actorType,
             actorUserId: who.actorType === "user" ? who.actorId : null, actorAgentId: actor.type === "agent" ? actor.agentId : null, runId: source?.id });
         }
         if (!issue) {
-          const sourceTrust = await resolveActorSourceTrustForIssue({ db: tx, issue: { id: randomUUID(), companyId, projectId }, actor: {
+          const sourceTrust = await resolveActorSourceTrustForIssue({ db: tx, issue: { id: randomUUID(), spaceId, projectId }, actor: {
             ...who, agentId: actor.type === "agent" ? actor.agentId! : null, runId: source?.id ?? null,
           } });
           // Cases have no artifact-promotion surface: a contained run cannot turn
           // quarantined instructions into ordinary successor authority.
-          if (sourceTrust) throw forbidden("Low-trust work must use its governed review path before starting case work");
-          issue = await issueService(tx).create(companyId, { title: caseRow!.title, description: caseRow!.summary ?? caseRow!.title,
+          if (sourceTrust) throw forbidden("Low-trust work must use its controlled review path before starting case work");
+          issue = await issueService(tx).create(spaceId, { title: caseRow!.title, description: caseRow!.summary ?? caseRow!.title,
             projectId, parentId: parent?.id ?? null, status: "todo", workMode: "standard", assigneeAgentId: input.toAgentId,
-            createdByAgentId: actor.type === "agent" ? actor.agentId : null, createdByUserId: actor.type === "board" ? actor.userId ?? null : null,
+            createdByAgentId: actor.type === "agent" ? actor.agentId : null, createdByUserId: actor.type === "operator" ? actor.userId ?? null : null,
             actorRunId: source?.id ?? null, actorResponsibleUserId: actor.onBehalfOfUserId ?? actor.userId ?? null,
             workspaceSelectionActor: actor, originRunId: source?.id ?? null, idempotencyKey: `case-handoff:${id}`, allowDuplicate: true,
           }, tx);
-          publications.push((await persistActivity(tx, { companyId, ...who, agentId: actor.type === "agent" ? actor.agentId : null,
+          publications.push((await persistActivity(tx, { spaceId, ...who, agentId: actor.type === "agent" ? actor.agentId : null,
             runId: source?.id ?? null, issueId: issue.id, action: "issue.created", entityType: "issue", entityId: issue.id,
             details: { identifier: issue.identifier, title: issue.title, parentId: issue.parentId,
               assigneeAgentId: issue.assigneeAgentId, assigneeUserId: issue.assigneeUserId, status: issue.status, source: "case_handoff" } })).publication);
@@ -515,14 +515,14 @@ export function caseHandoffService(db: Db) {
         if (input.workflow_document_text !== undefined || input.initialDocuments?.length) {
           const sourceTrust = await resolveActorSourceTrustForIssue({ db: tx, issue, actor: { ...who,
             agentId: actor.type === "agent" ? actor.agentId! : null, runId: source?.id ?? null } });
-          if (sourceTrust) throw forbidden("Low-trust work must use its governed review path before writing workflow documents");
+          if (sourceTrust) throw forbidden("Low-trust work must use its controlled review path before writing workflow documents");
           const initialDocuments = [...(input.workflow_document_text === undefined ? [] : [{ key: "workflow", title: "Workflow", body: input.workflow_document_text }]), ...(input.initialDocuments ?? [])];
           for (const initial of initialDocuments) {
             const saved = await documentService(tx).upsertIssueDocument({ issueId: issue.id, ...initial, format: "markdown",
               baseRevisionId: null, createdByAgentId: actor.type === "agent" ? actor.agentId : null,
-              createdByUserId: actor.type === "board" ? actor.userId ?? null : null, createdByRunId: source?.id ?? null,
+              createdByUserId: actor.type === "operator" ? actor.userId ?? null : null, createdByRunId: source?.id ?? null,
               sourceTrust, lockedDocumentStrategy: "conflict" }, { initialTaskCreation: !targetId });
-            publications.push((await persistActivity(tx, { companyId, ...who, agentId: actor.type === "agent" ? actor.agentId : null,
+            publications.push((await persistActivity(tx, { spaceId, ...who, agentId: actor.type === "agent" ? actor.agentId : null,
               runId: source?.id ?? null, issueId: issue.id, action: "issue.document_created", entityType: "issue", entityId: issue.id,
               details: { key: saved.document.key, documentId: saved.document.id, title: saved.document.title,
                 format: saved.document.format, revisionNumber: saved.document.latestRevisionNumber, source: "case_handoff" } })).publication);
@@ -530,27 +530,27 @@ export function caseHandoffService(db: Db) {
         }
         if (caseRow!.workIssueId && caseRow!.workIssueId !== issue.id) throw conflict("Primary task cannot be replaced");
         if (input.bindIssueId && sourceIssue && sourceIssue.id !== issue.id) await retainCaseAccessSource(tx, {
-          companyId, caseId: caseRow!.id, sourceKind: "issue", sourceId: sourceIssue.id,
+          spaceId, caseId: caseRow!.id, sourceKind: "issue", sourceId: sourceIssue.id,
         });
         await assertCaseContentsFitTask(tx, caseRow!, issue);
-        await retainCaseAccessSource(tx, { companyId, caseId: caseRow!.id, sourceKind: "issue", sourceId: issue.id });
-        await tx.insert(caseIssueLinks).values({ companyId, caseId: caseRow!.id, issueId: issue.id, role: "work", createdByRunId: source?.id }).onConflictDoNothing();
+        await retainCaseAccessSource(tx, { spaceId, caseId: caseRow!.id, sourceKind: "issue", sourceId: issue.id });
+        await tx.insert(caseIssueLinks).values({ spaceId, caseId: caseRow!.id, issueId: issue.id, role: "work", createdByRunId: source?.id }).onConflictDoNothing();
         if (!(await canActorReceiveCase(tx, actor, caseRow!, issue.id, input.toAgentId))) throw forbidden("Recipient cannot access the case");
         const trust = await resolveActorSourceTrustForIssue({ db: tx, issue, actor: { ...who, agentId: actor.type === "agent" ? actor.agentId! : null, runId: source?.id ?? null } });
-        if (trust) throw forbidden("Low-trust work must use its governed review path before handing off");
+        if (trust) throw forbidden("Low-trust work must use its controlled review path before handing off");
         const comment = await issueService(tx).addComment(issue.id, `Handoff to ${input.phase}\n\n${input.instructions}`, {
-          agentId: actor.type === "agent" ? actor.agentId! : undefined, userId: actor.type === "board" ? actor.userId ?? undefined : undefined, runId: source?.id,
+          agentId: actor.type === "agent" ? actor.agentId! : undefined, userId: actor.type === "operator" ? actor.userId ?? undefined : undefined, runId: source?.id,
         }, { sourceTrust: trust ?? undefined }, tx);
         const sourceRunId = issue.executionRunId ?? issue.checkoutRunId;
-        const workflow = await captureCaseWorkflow(tx, companyId, caseRow!, issue.id, input.phase, input.workflowId);
+        const workflow = await captureCaseWorkflow(tx, spaceId, caseRow!, issue.id, input.phase, input.workflowId);
         if ((workflow.workflowPrompt?.length ?? 0) + (input.initialDocuments ?? []).reduce((total, doc) => total + doc.body.length, 0) > 200_000) {
           throw unprocessable("Workflow and initial document bodies must total at most 200000 characters");
         }
         const version = caseRow!.handoffVersion + 1;
         [caseRow] = await tx.update(cases).set({ workIssueId: issue.id, handoffVersion: version, updatedAt: new Date() }).where(eq(cases.id, caseRow!.id)).returning();
-        const [saved] = await tx.insert(caseHandoffs).values({ id, companyId, caseId: caseRow!.id, issueId: issue.id, version, ...workflow,
+        const [saved] = await tx.insert(caseHandoffs).values({ id, spaceId, caseId: caseRow!.id, issueId: issue.id, version, ...workflow,
           fromAgentId: issue.assigneeAgentId, toAgentId: input.toAgentId, phase: input.phase, instructions: input.instructions,
-          commentId: comment.id, ...who, actorContext: caseHandoffActorContext(actor, companyId), sourceRunId, responsibleUserId: issue.responsibleUserId, expectedIssueStatusVersion: issue.statusVersion,
+          commentId: comment.id, ...who, actorContext: caseHandoffActorContext(actor, spaceId), sourceRunId, responsibleUserId: issue.responsibleUserId, expectedIssueStatusVersion: issue.statusVersion,
           idempotencyKey: input.idempotencyKey, inputFingerprint: fingerprint, wakeupRequestId: randomUUID(), state: sourceRunId ? "awaiting_release" : "pending_dispatch",
         }).returning();
         let row = saved!;
@@ -608,10 +608,10 @@ export function caseHandoffService(db: Db) {
       const retried = await db.transaction(async tx => {
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.caseHandoffs, row.id);
         await tx.select({ id: issues.id }).from(issues).where(eq(issues.id, row.issueId)).for("update");
-        if (actor.type === "agent" && actor.runId) await assertAgentRunWriteAllowed(tx as unknown as Db, row.companyId, { agentId: actor.agentId, runId: actor.runId });
+        if (actor.type === "agent" && actor.runId) await assertAgentRunWriteAllowed(tx as unknown as Db, row.spaceId, { agentId: actor.agentId, runId: actor.runId });
         const [updated] = await tx.update(caseHandoffs).set({ nextAttemptAt: new Date(), lastError: null, lastErrorCode: null, updatedAt: new Date() })
           .where(and(eq(caseHandoffs.id, row.id), inArray(caseHandoffs.state, PENDING))).returning();
-        if (updated) publication = (await persistActivity(tx as unknown as Db, { companyId: row.companyId, ...identity(actor),
+        if (updated) publication = (await persistActivity(tx as unknown as Db, { spaceId: row.spaceId, ...identity(actor),
           agentId: actor.type === "agent" ? actor.agentId : null, runId: actor.runId, issueId: row.issueId,
           action: "case.handoff_retry_requested", entityType: "case", entityId: row.caseId, details: { handoffId: row.id } })).publication;
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.caseHandoffs, row.id); return updated ?? row;

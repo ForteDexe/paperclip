@@ -23,7 +23,7 @@ const mockIssuesApi = vi.hoisted(() => ({
   update: vi.fn(),
 }));
 const mockAgentsApi = vi.hoisted(() => ({ list: vi.fn() }));
-const mockHeartbeatsApi = vi.hoisted(() => ({ liveRunsForCompany: vi.fn() }));
+const mockHeartbeatsApi = vi.hoisted(() => ({ liveRunsForSpace: vi.fn() }));
 const mockBudgetsApi = vi.hoisted(() => ({ overview: vi.fn(), upsertPolicy: vi.fn() }));
 const mockExecutionWorkspacesApi = vi.hoisted(() => ({ list: vi.fn() }));
 const mockInstanceSettingsApi = vi.hoisted(() => ({ getExperimental: vi.fn() }));
@@ -41,9 +41,9 @@ const mockLocation = vi.hoisted(() => ({
   pathname: "/projects/project-1/plugin-operations",
   search: "",
 }));
-const mockCompanyContext = vi.hoisted(() => ({
-  companies: [{ id: "company-1", issuePrefix: "PAP" }] as Array<{ id: string; issuePrefix: string }>,
-  selectedCompanyId: "company-1" as string | null,
+const mockSpaceContext = vi.hoisted(() => ({
+  spaces: [{ id: "space-1", issuePrefix: "PAP" }] as Array<{ id: string; issuePrefix: string }>,
+  selectedSpaceId: "space-1" as string | null,
 }));
 const mockUsePluginSlots = vi.hoisted(() => vi.fn(() => ({ slots: [] as unknown[], isLoading: false })));
 const mockPluginSlotMount = vi.hoisted(() => vi.fn());
@@ -66,11 +66,11 @@ vi.mock("@/lib/router", () => ({
   useParams: () => mockParams,
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({
-    companies: mockCompanyContext.companies,
-    selectedCompanyId: mockCompanyContext.selectedCompanyId,
-    setSelectedCompanyId: vi.fn(),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({
+    spaces: mockSpaceContext.spaces,
+    selectedSpaceId: mockSpaceContext.selectedSpaceId,
+    setSelectedSpaceId: vi.fn(),
   }),
 }));
 vi.mock("../context/PanelContext", () => ({ usePanel: () => ({ closePanel: vi.fn() }) }));
@@ -133,7 +133,7 @@ function project(overrides: Partial<Project> = {}): Project {
   const now = new Date("2026-05-01T00:00:00Z");
   return {
     id: "project-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     urlKey: "project-1",
     goalId: null,
     goalIds: [],
@@ -190,15 +190,15 @@ describe("ProjectDetail", () => {
     mockLocation.pathname = "/projects/project-1/plugin-operations";
     mockLocation.search = "";
     mockParams.projectId = "project-1";
-    mockCompanyContext.companies = [{ id: "company-1", issuePrefix: "PAP" }];
-    mockCompanyContext.selectedCompanyId = "company-1";
+    mockSpaceContext.spaces = [{ id: "space-1", issuePrefix: "PAP" }];
+    mockSpaceContext.selectedSpaceId = "space-1";
     mockUsePluginSlots.mockReturnValue({ slots: [], isLoading: false });
     mockProjectsApi.get.mockResolvedValue(project());
     mockProjectsApi.list.mockResolvedValue([project()]);
     mockIssuesApi.list.mockResolvedValue([]);
     mockIssuesApi.listAll.mockResolvedValue([]);
     mockAgentsApi.list.mockResolvedValue([]);
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([]);
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([]);
     mockBudgetsApi.overview.mockResolvedValue({ policies: [] });
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableIsolatedWorkspaces: false });
     mockExecutionWorkspacesApi.list.mockResolvedValue([]);
@@ -222,7 +222,7 @@ describe("ProjectDetail", () => {
     vi.clearAllMocks();
   });
 
-  it.each(["alias", "other project", "other company"])("preserves a draft only for a same-project route alias (%s)", async target => {
+  it.each(["alias", "other project", "other space"])("preserves a draft only for a same-project route alias (%s)", async target => {
     const loaded = project({ urlKey: "managed-project" });
     mockLocation.pathname = "/projects/project-1/configuration";
     mockProjectsApi.get.mockResolvedValueOnce(loaded);
@@ -236,7 +236,7 @@ describe("ProjectDetail", () => {
     draft!.value = "Unsaved repository removal";
     mockProjectsApi.get.mockImplementation(() => new Promise(() => {}));
     mockParams.projectId = target === "other project" ? "different-project" : "managed-project";
-    if (target === "other company") mockCompanyContext.selectedCompanyId = "company-2";
+    if (target === "other space") mockSpaceContext.selectedSpaceId = "space-2";
     mockLocation.pathname = `/projects/${mockParams.projectId}/configuration`;
     await act(render);
     const after = container.querySelector<HTMLInputElement>('input[aria-label="Unsaved project field"]');
@@ -260,7 +260,7 @@ describe("ProjectDetail", () => {
     await settle();
     await act(() => [...container.querySelectorAll("button")].find(button => button.textContent === "Open project through autosave")!.click());
     await settle();
-    expect(mockProjectsApi.update).toHaveBeenCalledWith("project-1", { visibility: "open" }, "company-1");
+    expect(mockProjectsApi.update).toHaveBeenCalledWith("project-1", { visibility: "open" }, "space-1");
     expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
     queryClient.clear();
   });
@@ -268,14 +268,14 @@ describe("ProjectDetail", () => {
   it.each(["issues", "plugin-operations"])("removes cached %s after a real task-list denial", async tab => {
     mockLocation.pathname = `/projects/project-1/${tab}`;
     const read = tab === "issues" ? mockIssuesApi.listAll : mockIssuesApi.list;
-    read.mockResolvedValue([{ id: "private-task", companyId: "company-1" }]);
+    read.mockResolvedValue([{ id: "private-task", spaceId: "space-1" }]);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     root = createRoot(container);
     try {
       await act(() => root!.render(<QueryClientProvider client={client}><ProjectDetail /></QueryClientProvider>));
       await vi.waitFor(() => expect(mockIssuesList.mock.calls.at(-1)?.[0]).toMatchObject({ issues: [{ id: "private-task" }] }));
       read.mockRejectedValue(new ApiError("forbidden", 403, null));
-      await act(async () => { await client.invalidateQueries({ queryKey: queryKeys.issues.list("company-1") }); });
+      await act(async () => { await client.invalidateQueries({ queryKey: queryKeys.issues.list("space-1") }); });
       await vi.waitFor(() => expect(container.textContent).toContain("You don’t have permission to do that."));
       expect(container.querySelector('[data-testid="issues-list"]')).toBeNull();
     } finally { client.clear(); }
@@ -300,7 +300,7 @@ describe("ProjectDetail", () => {
     expect(container.textContent).toContain("Managed by Missions");
     expect(container.textContent).toContain("Project summary card");
     expect(mockSummarySlotCard).toHaveBeenCalledWith(expect.objectContaining({
-      companyId: "company-1",
+      spaceId: "space-1",
       scopeKind: "project",
       scopeId: "project-1",
       title: "Project summary",
@@ -309,7 +309,7 @@ describe("ProjectDetail", () => {
     const summaryCard = container.querySelector('[data-testid="summary-slot-card"]');
     expect(titleEditor && summaryCard ? Boolean(titleEditor.compareDocumentPosition(summaryCard) & Node.DOCUMENT_POSITION_FOLLOWING) : false).toBe(true);
     expect(container.textContent).toContain("Plugin operations");
-    expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", {
+    expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1", {
       projectId: "project-1",
       originKindPrefix: "plugin:outpost.missions",
     });
@@ -338,14 +338,14 @@ describe("ProjectDetail", () => {
   });
 
   describe("plugin detail-tab deep links", () => {
-    const PLUGIN_TAB = "plugin:paperclipai.plugin-llm-wiki:project-knowledge";
+    const PLUGIN_TAB = "plugin:outpost.plugin-llm-wiki:project-knowledge";
     const knowledgeSlot = {
       id: "project-knowledge",
       type: "detailTab",
       displayName: "Knowledge",
       entityTypes: ["project"],
       pluginId: "plugin-llm-wiki",
-      pluginKey: "paperclipai.plugin-llm-wiki",
+      pluginKey: "outpost.plugin-llm-wiki",
       pluginDisplayName: "LLM Wiki",
       pluginVersion: "0.2.0",
     };
@@ -377,13 +377,13 @@ describe("ProjectDetail", () => {
       expect(container.querySelector('[data-testid="plugin-slot-mount"]')).toBeNull();
     });
 
-    it("does not bounce to the issues tab before the company for the slots query resolves", async () => {
-      // Cold reload race: the slots query is disabled until a company is
+    it("does not bounce to the issues tab before the space for the slots query resolves", async () => {
+      // Cold reload race: the slots query is disabled until a space is
       // known, and a disabled query reports isLoading=false.
       mockLocation.pathname = "/projects/project-1";
       mockLocation.search = `?tab=${encodeURIComponent(PLUGIN_TAB)}`;
-      mockCompanyContext.companies = [];
-      mockCompanyContext.selectedCompanyId = null;
+      mockSpaceContext.spaces = [];
+      mockSpaceContext.selectedSpaceId = null;
       mockUsePluginSlots.mockReturnValue({ slots: [], isLoading: false });
 
       await renderDetail();
@@ -401,7 +401,7 @@ describe("ProjectDetail", () => {
       expect(container.querySelector('[data-testid="navigate"]')).toBeNull();
       expect(container.querySelector('[data-testid="plugin-slot-mount"]')).not.toBeNull();
       expect(mockPluginSlotMount).toHaveBeenCalledWith(expect.objectContaining({
-        slot: expect.objectContaining({ id: "project-knowledge", pluginKey: "paperclipai.plugin-llm-wiki" }),
+        slot: expect.objectContaining({ id: "project-knowledge", pluginKey: "outpost.plugin-llm-wiki" }),
       }));
       expect(container.textContent).toContain("Knowledge");
     });

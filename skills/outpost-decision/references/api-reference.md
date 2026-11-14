@@ -7,7 +7,7 @@ POST /api/issues/:taskId/interactions
 GET  /api/issues/:taskId/interactions
 ```
 
-Use bearer authentication and `X-Paperclip-Run-Id` on the POST.
+Use bearer authentication and `X-Outpost-Run-Id` on the POST.
 
 ## Yes/no confirmation
 

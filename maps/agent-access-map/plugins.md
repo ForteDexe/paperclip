@@ -24,7 +24,7 @@ API: `present` — representative operation IDs:
 Agent access: `restricted` — Instance-admin REST / CLI plugin.
 
 Policy: Instance plugin management requires board/admin; declared tools and scoped APIs
-apply their own company/agent policy.
+apply their own space/agent policy.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/plugins.ts#L965) at
 the reviewed commit above.
@@ -50,7 +50,7 @@ API: `present` — representative operation IDs:
 Agent access: `restricted` — Board read/admin write; CLI plugin.
 
 Policy: Instance plugin management requires board/admin; declared tools and scoped APIs
-apply their own company/agent policy.
+apply their own space/agent policy.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/plugins.ts#L965) at
 the reviewed commit above.
@@ -59,12 +59,12 @@ Verification: `not-run` — assert the documented agent denial with an owned tes
 verify any listed agent request/result path separately. A delegated operation needs its
 own policy and access review.
 
-Gaps: Company-scoped configuration value does not turn the instance management route
+Gaps: Space-scoped configuration value does not turn the instance management route
 into an agent route.
 
 Runtime synchronization is a host-to-plugin contract. An opt-in `agent_runtime`
 subscriber receives committed changes through `onResourceLifecycle`. The runtime
-reader requires `agents.lifecycle.manage`, the invocation company, and selection
+reader requires `agents.lifecycle.manage`, the invocation space, and selection
 as that agent's owning lifecycle plugin. Disabled and unrelated plugins cannot
 read its instance secrets. See [contract](../../doc/plugins/AGENT_RUNTIME_SYNC.md)
 and [database regressions](../../server/src/__tests__/agent-runtime-hooks.test.ts).
@@ -85,14 +85,14 @@ Agent access: `partial` — Agent REST plus assigned native/gateway plugin tools
 scoped plugin APIs.
 
 Policy: Instance plugin management requires board/admin; declared tools and scoped APIs
-apply their own company/agent policy.
+apply their own space/agent policy.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/plugins.ts#L965) at
 the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Actual plugin tool use exists; a contributed UI route alone does not prove that
@@ -112,7 +112,7 @@ API: `present` — representative operation IDs:
 Agent access: `restricted` — Instance-admin REST / CLI plugin; dev watcher for reload.
 
 Policy: Instance plugin management requires board/admin; declared tools and scoped APIs
-apply their own company/agent policy.
+apply their own space/agent policy.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/plugins.ts#L965) at
 the reviewed commit above.
@@ -122,7 +122,7 @@ verify any listed agent request/result path separately. A delegated operation ne
 own policy and access review.
 
 Gaps: Disable/remove and development reload are management workflows with no default
-company agent access.
+space agent access.
 
 ## Project Git authorization
 

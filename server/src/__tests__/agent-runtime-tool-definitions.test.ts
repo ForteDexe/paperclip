@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, plugins, toolApplications, toolConnections, toolCatalogEntries, toolProfiles, toolProfileEntries, toolProfileBindings, toolPolicies, resourceLifecycleEvents, type Db } from "@outpost/db";
+import { agents, spaces, createDb, plugins, toolApplications, toolConnections, toolCatalogEntries, toolProfiles, toolProfileEntries, toolProfileBindings, toolPolicies, resourceLifecycleEvents, type Db } from "@outpost/db";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { toolAccessService } from "../services/tool-access.js";
@@ -12,24 +12,24 @@ const describeDatabase = support.supported ? describe : describe.skip;
 describeDatabase("tool definition runtime synchronization", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
-  let companyId: string;
+  let spaceId: string;
   let agentId: string;
   let peerId: string;
   let pluginId: string;
   let applicationId: string;
   let connectionId: string;
-  beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("paperclip-runtime-definitions-"); db = createDb(database.connectionString); }, 90_000);
+  beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("outpost-runtime-definitions-"); db = createDb(database.connectionString); }, 90_000);
   afterAll(async () => { await database?.cleanup(); });
   afterEach(() => vi.unstubAllEnvs());
   beforeEach(async () => {
-    companyId = randomUUID(); agentId = randomUUID(); peerId = randomUUID(); pluginId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Connector runtime fixture", issuePrefix: `C${companyId.slice(0, 6)}` });
+    spaceId = randomUUID(); agentId = randomUUID(); peerId = randomUUID(); pluginId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Connector runtime fixture", issuePrefix: `C${spaceId.slice(0, 6)}` });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "runtime-fixture", version: "1.0.0", status: "ready", manifestJson: { resourceLifecycle: ["agent_runtime"], capabilities: ["events.subscribe", "agents.lifecycle.manage"] } as never });
-    await db.insert(agents).values([agentId, peerId].map(id => ({ id, companyId, name: id, adapterType: "outpost_runner", lifecycleRequiredPluginIds: [pluginId] })));
-    const [application] = await db.insert(toolApplications).values({ companyId, name: "Fixture MCP", type: "mcp_http" }).returning(); applicationId = application.id;
-    const [connection] = await db.insert(toolConnections).values({ companyId, applicationId, name: "Fixture connection", uid: randomUUID(), transport: "mcp_remote", authKind: "none", enabled: true, status: "active" }).returning(); connectionId = connection.id;
+    await db.insert(agents).values([agentId, peerId].map(id => ({ id, spaceId, name: id, adapterType: "outpost_runner", lifecycleRequiredPluginIds: [pluginId] })));
+    const [application] = await db.insert(toolApplications).values({ spaceId, name: "Fixture MCP", type: "mcp_http" }).returning(); applicationId = application.id;
+    const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId, name: "Fixture connection", uid: randomUUID(), transport: "mcp_remote", authKind: "none", enabled: true, status: "active" }).returning(); connectionId = connection.id;
   });
-  const events = () => db.select().from(resourceLifecycleEvents).where(and(eq(resourceLifecycleEvents.companyId, companyId), eq(resourceLifecycleEvents.resourceType, "agent_runtime"))).orderBy(resourceLifecycleEvents.id);
+  const events = () => db.select().from(resourceLifecycleEvents).where(and(eq(resourceLifecycleEvents.spaceId, spaceId), eq(resourceLifecycleEvents.resourceType, "agent_runtime"))).orderBy(resourceLifecycleEvents.id);
 
   it("captures settings and removal while ignoring health bookkeeping and empty writes", async () => {
     const before = (await events()).length;
@@ -42,9 +42,9 @@ describeDatabase("tool definition runtime synchronization", () => {
     await db.delete(toolConnections).where(eq(toolConnections.id, connectionId));
     expect(await events()).toHaveLength(changed + 2);
   });
-  it("batches catalog refresh fanout once per company per statement", async () => {
+  it("batches catalog refresh fanout once per space per statement", async () => {
     const before = (await events()).length;
-    await db.insert(toolCatalogEntries).values(Array.from({ length: 250 }, (_, index) => ({ companyId, applicationId, connectionId, name: `tool-${index}`, toolName: `tool-${index}`, versionHash: `fixture-${index}` })));
+    await db.insert(toolCatalogEntries).values(Array.from({ length: 250 }, (_, index) => ({ spaceId, applicationId, connectionId, name: `tool-${index}`, toolName: `tool-${index}`, versionHash: `fixture-${index}` })));
     expect(await events()).toHaveLength(before + 2);
     await db.update(toolCatalogEntries).set({ status: "quarantined" }).where(eq(toolCatalogEntries.connectionId, connectionId));
     expect(await events()).toHaveLength(before + 4);
@@ -92,8 +92,8 @@ describeDatabase("tool definition runtime synchronization", () => {
     };
     await toolAccessService(db, options).refreshCatalog(connectionId);
     const [entry] = await db.update(toolCatalogEntries).set({ status: "quarantined" }).where(eq(toolCatalogEntries.connectionId, connectionId)).returning();
-    const [profile] = await db.select().from(toolProfiles).where(and(eq(toolProfiles.companyId, companyId), eq(toolProfiles.profileKey, `app:${connectionId}`)));
-    const [policy] = change === "policy edit" ? await db.insert(toolPolicies).values({ companyId, name: "Managed search review", policyType: "require_approval", selectors: { catalogEntryId: entry.id }, config: { source: "app_gallery_finish", connectionId, catalogEntryId: entry.id } }).returning() : [];
+    const [profile] = await db.select().from(toolProfiles).where(and(eq(toolProfiles.spaceId, spaceId), eq(toolProfiles.profileKey, `app:${connectionId}`)));
+    const [policy] = change === "policy edit" ? await db.insert(toolPolicies).values({ spaceId, name: "Managed search review", policyType: "require_approval", selectors: { catalogEntryId: entry.id }, config: { source: "app_gallery_finish", connectionId, catalogEntryId: entry.id } }).returning() : [];
     if (change === "catalog refresh") description = "Changed search";
     let locked!: () => void; let release!: () => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
@@ -115,13 +115,13 @@ describeDatabase("tool definition runtime synchronization", () => {
       const [row] = await db.execute(sql`SELECT wait_event_type FROM pg_stat_activity WHERE pid = ${pids[index]}`);
       expect(row.wait_event_type).toBe("Lock");
     }, { timeout: 5000 });
-    const finish = run(writer => writer.finishGalleryAppConnection(companyId, connectionId, { enabledCatalogEntryIds: [entry.id], askFirstCatalogEntryIds: change === "policy edit" ? [entry.id] : [], reviewedCatalogEntryIds: [entry.id], access: "all_agents" }));
+    const finish = run(writer => writer.finishGalleryAppConnection(spaceId, connectionId, { enabledCatalogEntryIds: [entry.id], askFirstCatalogEntryIds: change === "policy edit" ? [entry.id] : [], reviewedCatalogEntryIds: [entry.id], access: "all_agents" }));
     let refresh: Promise<unknown> | undefined;
     try {
       await waitForLock(0);
       refresh = run((writer, policies) => change === "catalog refresh" ? writer.refreshCatalog(connectionId)
         : change === "profile edit" ? writer.updateProfile(profile.id, { description: "Edited concurrently" })
-        : policies.updatePolicy({ companyId, policyId: policy!.id, body: { description: "Edited concurrently", config: null } }));
+        : policies.updatePolicy({ spaceId, policyId: policy!.id, body: { description: "Edited concurrently", config: null } }));
       await waitForLock(1);
     } finally { release(); await blocker; }
     const results = await Promise.allSettled([finish, refresh]);
@@ -134,9 +134,9 @@ describeDatabase("tool definition runtime synchronization", () => {
   }, 15000);
   it("orders managed policy reorder with install saves by policy ID", async () => {
     await db.update(toolConnections).set({ config: { mcpAgentAccessConfigured: true } }).where(eq(toolConnections.id, connectionId));
-    await db.insert(toolProfiles).values({ companyId, profileKey: `app:${connectionId}`, name: "Install profile" });
+    await db.insert(toolProfiles).values({ spaceId, profileKey: `app:${connectionId}`, name: "Install profile" });
     const [lower, higher] = [randomUUID(), randomUUID()].sort();
-    await db.insert(toolPolicies).values([higher, lower].map((id, index) => ({ id, companyId, name: `Managed policy ${index}`, policyType: "require_approval" as const, priority: (index + 1) * 100, config: { source: "app_gallery_finish", connectionId } })));
+    await db.insert(toolPolicies).values([higher, lower].map((id, index) => ({ id, spaceId, name: `Managed policy ${index}`, policyType: "require_approval" as const, priority: (index + 1) * 100, config: { source: "app_gallery_finish", connectionId } })));
     let locked!: () => void; let release!: () => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
     const resume = new Promise<void>(resolve => { release = resolve; });
@@ -165,20 +165,20 @@ describeDatabase("tool definition runtime synchronization", () => {
     let reorder: Promise<unknown> | undefined;
     try {
       await waitForLock(0);
-      reorder = run(client => toolAccessPolicyService(client).reorderPolicies(companyId, { policyIds: [lower, higher] }), true);
+      reorder = run(client => toolAccessPolicyService(client).reorderPolicies(spaceId, { policyIds: [lower, higher] }), true);
       await waitForLock(1);
     } finally { release(); await blocker; }
     const results = await Promise.allSettled([install, reorder]);
     for (const result of results) if (result.status === "rejected") throw result.reason;
     expect(results.map(result => result.status)).toEqual(["fulfilled", "fulfilled"]);
-    expect((await toolAccessPolicyService(db).listPolicies(companyId)).map(policy => [policy.id, policy.priority])).toEqual([[lower, 100], [higher, 200]]);
-    expect((await toolAccessService(db).listConnectionInstalls(connectionId, companyId)).map(install => install.targetId)).toEqual([peerId]);
+    expect((await toolAccessPolicyService(db).listPolicies(spaceId)).map(policy => [policy.id, policy.priority])).toEqual([[lower, 100], [higher, 200]]);
+    expect((await toolAccessService(db).listConnectionInstalls(connectionId, spaceId)).map(install => install.targetId)).toEqual([peerId]);
   }, 15000);
   it("ignores real trust-rule hits while retaining meaningful rule changes", async () => {
-    const [entry] = await db.insert(toolCatalogEntries).values({ companyId, applicationId, connectionId, name: "Search", toolName: "search", versionHash: "fixture" }).returning();
-    const [rule] = await db.insert(toolPolicies).values({ companyId, name: "Trusted search", policyType: "trust_rule", selectors: { agentId, connectionId, toolName: "search" }, config: { trustRule: { hitCount: 0 } } }).returning();
+    const [entry] = await db.insert(toolCatalogEntries).values({ spaceId, applicationId, connectionId, name: "Search", toolName: "search", versionHash: "fixture" }).returning();
+    const [rule] = await db.insert(toolPolicies).values({ spaceId, name: "Trusted search", policyType: "trust_rule", selectors: { agentId, connectionId, toolName: "search" }, config: { trustRule: { hitCount: 0 } } }).returning();
     const before = await events();
-    const decision = await toolAccessPolicyService(db).decide({ companyId, actor: { actorType: "agent", actorId: agentId, agentId }, request: { connectionId, catalogEntryId: entry.id, toolName: "search", arguments: {} }, consumeRateLimit: true });
+    const decision = await toolAccessPolicyService(db).decide({ spaceId, actor: { actorType: "agent", actorId: agentId, agentId }, request: { connectionId, catalogEntryId: entry.id, toolName: "search", arguments: {} }, consumeRateLimit: true });
     expect(decision).toMatchObject({ allowed: true, reasonCode: "allow_trust_rule" });
     const [used] = await db.select().from(toolPolicies).where(eq(toolPolicies.id, rule.id));
     expect(used.config).toMatchObject({ trustRule: { hitCount: 1, lastHitAt: expect.any(String) } });
@@ -199,7 +199,7 @@ describeDatabase("tool definition runtime synchronization", () => {
     };
     await toolAccessService(db, options).refreshCatalog(connectionId);
     const [entry] = await db.update(toolCatalogEntries).set({ status: "quarantined" }).where(eq(toolCatalogEntries.connectionId, connectionId)).returning();
-    const [profile] = await db.select().from(toolProfiles).where(and(eq(toolProfiles.companyId, companyId), eq(toolProfiles.profileKey, `app:${connectionId}`)));
+    const [profile] = await db.select().from(toolProfiles).where(and(eq(toolProfiles.spaceId, spaceId), eq(toolProfiles.profileKey, `app:${connectionId}`)));
     const [profileEntry] = await db.select().from(toolProfileEntries).where(eq(toolProfileEntries.profileId, profile.id));
     let locked!: () => void; let release!: () => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
@@ -230,7 +230,7 @@ describeDatabase("tool definition runtime synchronization", () => {
     let finishResult: Promise<PromiseSettledResult<unknown>[]> | undefined;
     try {
       await waitForLock(0);
-      finishResult = Promise.allSettled([run(writer => writer.finishGalleryAppConnection(companyId, connectionId, { enabledCatalogEntryIds: [entry.id], askFirstCatalogEntryIds: [], reviewedCatalogEntryIds: [entry.id], access: "all_agents" }))]);
+      finishResult = Promise.allSettled([run(writer => writer.finishGalleryAppConnection(spaceId, connectionId, { enabledCatalogEntryIds: [entry.id], askFirstCatalogEntryIds: [], reviewedCatalogEntryIds: [entry.id], access: "all_agents" }))]);
       await waitForLock(1);
     } finally { release(); await blocker; }
     for (const result of [...await mutationResult, ...await finishResult!]) if (result.status === "rejected") throw result.reason;
@@ -239,8 +239,8 @@ describeDatabase("tool definition runtime synchronization", () => {
   }, 15000);
 
   it("orders connection removal before setup finalization and runtime fanout", async () => {
-    const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: `app:${connectionId}`, name: "Removal fixture" }).returning();
-    await db.insert(toolProfileEntries).values({ companyId, profileId: profile.id, selectorType: "connection", connectionId, applicationId });
+    const [profile] = await db.insert(toolProfiles).values({ spaceId, profileKey: `app:${connectionId}`, name: "Removal fixture" }).returning();
+    await db.insert(toolProfileEntries).values({ spaceId, profileId: profile.id, selectorType: "connection", connectionId, applicationId });
     const single = createDb(database.connectionString, { maxConnections: 1 });
     await single.execute(sql`SET lock_timeout = '8s'`);
     const [removalPid] = await single.execute(sql`SELECT pg_backend_pid() AS pid`);
@@ -265,11 +265,11 @@ describeDatabase("tool definition runtime synchronization", () => {
           await tx.execute(sql`SET LOCAL lock_timeout = '8s'`);
           const [row] = await tx.execute(sql`SELECT pg_backend_pid() AS pid`);
           finishPid = Number(row.pid);
-          return toolAccessService(tx as unknown as Db).finishGalleryAppConnection(companyId, connectionId, { enabledCatalogEntryIds: [], askFirstCatalogEntryIds: [], access: "all_agents" });
+          return toolAccessService(tx as unknown as Db).finishGalleryAppConnection(spaceId, connectionId, { enabledCatalogEntryIds: [], askFirstCatalogEntryIds: [], access: "all_agents" });
         })]);
         await vi.waitFor(() => expect(finishPid).toBeDefined(), { timeout: 5000 });
         await waitForLock(finishPid!);
-        removal = Promise.allSettled([toolAccessService(single).archiveConnection(connectionId, companyId)]);
+        removal = Promise.allSettled([toolAccessService(single).archiveConnection(connectionId, spaceId)]);
         await waitForLock(Number(removalPid.pid));
       } finally { release(); await blocker; }
       for (const result of [...await removal!, ...await finish!]) if (result.status === "rejected") throw result.reason;
@@ -278,9 +278,9 @@ describeDatabase("tool definition runtime synchronization", () => {
   }, 15000);
 
   it.each(["add", "edit", "delete", "replace"] as const)("completes profile entry %s with a single database connection", async change => {
-    const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: "single-entry", name: "Single entry" }).returning();
+    const [profile] = await db.insert(toolProfiles).values({ spaceId, profileKey: "single-entry", name: "Single entry" }).returning();
     const input = { selectorType: "connection" as const, effect: "include" as const, applicationId, connectionId };
-    const [entry] = await db.insert(toolProfileEntries).values({ companyId, profileId: profile.id, ...input }).returning();
+    const [entry] = await db.insert(toolProfileEntries).values({ spaceId, profileId: profile.id, ...input }).returning();
     const single = createDb(database.connectionString, { maxConnections: 1 });
     const service = toolAccessService(single);
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -298,10 +298,10 @@ describeDatabase("tool definition runtime synchronization", () => {
   }, 10000);
 
   it.each(["entry", "policy"] as const)("keeps repeated single-agent %s changes scoped and atomic", async change => {
-    const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: "scoped", name: "Scoped" }).returning();
-    await db.insert(toolProfileBindings).values({ companyId, profileId: profile.id, targetType: "agent", targetId: agentId });
-    const [entry] = await db.insert(toolProfileEntries).values({ companyId, profileId: profile.id, selectorType: "connection", connectionId }).returning();
-    const [policy] = await db.insert(toolPolicies).values({ companyId, name: "Scoped", policyType: "block", selectors: { agentId } }).returning();
+    const [profile] = await db.insert(toolProfiles).values({ spaceId, profileKey: "scoped", name: "Scoped" }).returning();
+    await db.insert(toolProfileBindings).values({ spaceId, profileId: profile.id, targetType: "agent", targetId: agentId });
+    const [entry] = await db.insert(toolProfileEntries).values({ spaceId, profileId: profile.id, selectorType: "connection", connectionId }).returning();
+    const [policy] = await db.insert(toolPolicies).values({ spaceId, name: "Scoped", policyType: "block", selectors: { agentId } }).returning();
     for (let index = 0; index < 4; index++) {
       const before = (await events()).length;
       if (change === "entry") await db.update(toolProfileEntries).set({ effect: index % 2 ? "include" : "exclude" }).where(eq(toolProfileEntries.id, entry.id));
@@ -318,7 +318,7 @@ describeDatabase("tool definition runtime synchronization", () => {
   });
 
   it("uses old and new policy selectors with the execution match semantics", async () => {
-    const [policy] = await db.insert(toolPolicies).values({ companyId, name: "Retarget", policyType: "block", selectors: { agentId } }).returning();
+    const [policy] = await db.insert(toolPolicies).values({ spaceId, name: "Retarget", policyType: "block", selectors: { agentId } }).returning();
     const write = async (selectors: Record<string, unknown>, expected: string[]) => {
       const before = (await events()).length;
       await db.update(toolPolicies).set({ selectors }).where(eq(toolPolicies.id, policy.id));
@@ -343,13 +343,13 @@ describeDatabase("tool definition runtime synchronization", () => {
   });
 
   it("uses both profile-entry parents and skips profiles outside standing assignments", async () => {
-    const profiles = await db.insert(toolProfiles).values(["first", "second", "unassigned"].map(profileKey => ({ companyId, profileKey, name: profileKey }))).returning();
+    const profiles = await db.insert(toolProfiles).values(["first", "second", "unassigned"].map(profileKey => ({ spaceId, profileKey, name: profileKey }))).returning();
     await db.insert(toolProfileBindings).values([
-      { companyId, profileId: profiles[0].id, targetType: "agent", targetId: agentId },
-      { companyId, profileId: profiles[1].id, targetType: "agent", targetId: peerId },
-      { companyId, profileId: profiles[2].id, targetType: "project", targetId: randomUUID() },
+      { spaceId, profileId: profiles[0].id, targetType: "agent", targetId: agentId },
+      { spaceId, profileId: profiles[1].id, targetType: "agent", targetId: peerId },
+      { spaceId, profileId: profiles[2].id, targetType: "project", targetId: randomUUID() },
     ]);
-    const [entry] = await db.insert(toolProfileEntries).values({ companyId, profileId: profiles[0].id, selectorType: "connection", connectionId }).returning();
+    const [entry] = await db.insert(toolProfileEntries).values({ spaceId, profileId: profiles[0].id, selectorType: "connection", connectionId }).returning();
     let before = (await events()).length;
     await db.update(toolProfileEntries).set({ profileId: profiles[1].id }).where(eq(toolProfileEntries.id, entry.id));
     expect((await events()).slice(before).map(row => row.resourceId).sort()).toEqual([agentId, peerId].sort());
@@ -361,29 +361,29 @@ describeDatabase("tool definition runtime synchronization", () => {
     expect(await events()).toHaveLength(before);
   });
 
-  it("coalesces scoped definitions and preserves explicit company recipients", async () => {
-    const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: "coalesced", name: "Coalesced" }).returning();
-    await db.insert(toolProfileBindings).values({ companyId, profileId: profile.id, targetType: "agent", targetId: agentId });
-    const [entry] = await db.insert(toolProfileEntries).values({ companyId, profileId: profile.id, selectorType: "connection", connectionId }).returning();
-    const [policy] = await db.insert(toolPolicies).values({ companyId, name: "Coalesced", policyType: "block", selectors: { agentId } }).returning();
+  it("coalesces scoped definitions and preserves explicit space recipients", async () => {
+    const [profile] = await db.insert(toolProfiles).values({ spaceId, profileKey: "coalesced", name: "Coalesced" }).returning();
+    await db.insert(toolProfileBindings).values({ spaceId, profileId: profile.id, targetType: "agent", targetId: agentId });
+    const [entry] = await db.insert(toolProfileEntries).values({ spaceId, profileId: profile.id, selectorType: "connection", connectionId }).returning();
+    const [policy] = await db.insert(toolPolicies).values({ spaceId, name: "Coalesced", policyType: "block", selectors: { agentId } }).returning();
     let before = (await events()).length;
     await db.transaction(async tx => {
       await tx.update(toolProfileEntries).set({ effect: "exclude" }).where(eq(toolProfileEntries.id, entry.id));
       await tx.update(toolPolicies).set({ description: "Scoped" }).where(eq(toolPolicies.id, policy.id));
     });
     expect((await events()).slice(before).map(row => row.resourceId)).toEqual([agentId]);
-    await db.insert(toolProfileBindings).values({ companyId, profileId: profile.id, targetType: "company", targetId: companyId });
+    await db.insert(toolProfileBindings).values({ spaceId, profileId: profile.id, targetType: "space", targetId: spaceId });
     before = (await events()).length;
     await db.transaction(async tx => {
       await tx.update(toolProfileEntries).set({ effect: "include" }).where(eq(toolProfileEntries.id, entry.id));
-      await tx.update(toolPolicies).set({ description: "Company" }).where(eq(toolPolicies.id, policy.id));
+      await tx.update(toolPolicies).set({ description: "Space" }).where(eq(toolPolicies.id, policy.id));
     });
     expect((await events()).slice(before).map(row => row.resourceId).sort()).toEqual([agentId, peerId].sort());
   });
 
-  it("orders scoped policy reorder before company agent fanout", async () => {
+  it("orders scoped policy reorder before space agent fanout", async () => {
     const [lower, higher] = [agentId, peerId].sort();
-    const policies = await db.insert(toolPolicies).values([higher, lower].map((target, index) => ({ companyId, name: `Scoped ${index}`, policyType: "block" as const, priority: (index + 5) * 100, selectors: { agentId: target } }))).returning();
+    const policies = await db.insert(toolPolicies).values([higher, lower].map((target, index) => ({ spaceId, name: `Scoped ${index}`, policyType: "block" as const, priority: (index + 5) * 100, selectors: { agentId: target } }))).returning();
     let locked!: () => void; let release!: () => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
     const resume = new Promise<void>(resolve => { release = resolve; });
@@ -408,18 +408,18 @@ describeDatabase("tool definition runtime synchronization", () => {
     let reorder: Promise<PromiseSettledResult<unknown>[]> | undefined;
     try {
       await waitForLock(0);
-      reorder = Promise.allSettled([run(client => toolAccessPolicyService(client).reorderPolicies(companyId, { policyIds: policies.map(row => row.id) }))]);
+      reorder = Promise.allSettled([run(client => toolAccessPolicyService(client).reorderPolicies(spaceId, { policyIds: policies.map(row => row.id) }))]);
       await waitForLock(1);
     } finally { release(); await blocker; }
     for (const result of [...await settings, ...await reorder!]) if (result.status === "rejected") throw result.reason;
-    expect((await toolAccessPolicyService(db).listPolicies(companyId)).map(row => row.id)).toEqual(policies.map(row => row.id));
+    expect((await toolAccessPolicyService(db).listPolicies(spaceId)).map(row => row.id)).toEqual(policies.map(row => row.id));
   }, 15000);
 
   it("locks old profile references before replacement and application deletion", async () => {
-    const [application] = await db.insert(toolApplications).values({ companyId, name: "Old application", type: "mcp_http" }).returning();
-    const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: "old-reference", name: "Old reference" }).returning();
-    await db.insert(toolProfileBindings).values({ companyId, profileId: profile.id, targetType: "agent", targetId: agentId });
-    await db.insert(toolProfileEntries).values({ companyId, profileId: profile.id, selectorType: "application", applicationId: application.id });
+    const [application] = await db.insert(toolApplications).values({ spaceId, name: "Old application", type: "mcp_http" }).returning();
+    const [profile] = await db.insert(toolProfiles).values({ spaceId, profileKey: "old-reference", name: "Old reference" }).returning();
+    await db.insert(toolProfileBindings).values({ spaceId, profileId: profile.id, targetType: "agent", targetId: agentId });
+    await db.insert(toolProfileEntries).values({ spaceId, profileId: profile.id, selectorType: "application", applicationId: application.id });
     let locked!: () => void; let release!: () => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
     const resume = new Promise<void>(resolve => { release = resolve; });
@@ -454,10 +454,10 @@ describeDatabase("tool definition runtime synchronization", () => {
   }, 15000);
 
   it("retries changed old references before taking profile runtime locks", async () => {
-    const [oldApp, newApp] = await db.insert(toolApplications).values(["Old retry app", "New retry app"].map(name => ({ companyId, name, type: "mcp_http" as const }))).returning();
-    const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: "retry-references", name: "Retry references" }).returning();
-    await db.insert(toolProfileBindings).values({ companyId, profileId: profile.id, targetType: "agent", targetId: agentId });
-    const [entry] = await db.insert(toolProfileEntries).values({ companyId, profileId: profile.id, selectorType: "application", applicationId: oldApp.id }).returning();
+    const [oldApp, newApp] = await db.insert(toolApplications).values(["Old retry app", "New retry app"].map(name => ({ spaceId, name, type: "mcp_http" as const }))).returning();
+    const [profile] = await db.insert(toolProfiles).values({ spaceId, profileKey: "retry-references", name: "Retry references" }).returning();
+    await db.insert(toolProfileBindings).values({ spaceId, profileId: profile.id, targetType: "agent", targetId: agentId });
+    const [entry] = await db.insert(toolProfileEntries).values({ spaceId, profileId: profile.id, selectorType: "application", applicationId: oldApp.id }).returning();
     const single = createDb(database.connectionString, { maxConnections: 1 });
     await single.execute(sql`SET lock_timeout = '8s'`);
     const [replacementPid] = await single.execute(sql`SELECT pg_backend_pid() AS pid`);

@@ -21,16 +21,16 @@ describe("assignee selection helpers", () => {
   });
 
   it("encodes and parses current-user assignees", () => {
-    const [option] = currentUserAssigneeOption("local-board");
+    const [option] = currentUserAssigneeOption("local-operator");
 
     expect(option).toEqual({
-      id: "user:local-board",
+      id: "user:local-operator",
       label: "Me",
-      searchText: "me human user local-board",
+      searchText: "me human user local-operator",
     });
     expect(parseAssigneeValue(option.id)).toEqual({
       assigneeAgentId: null,
-      assigneeUserId: "local-board",
+      assigneeUserId: "local-operator",
     });
   });
 
@@ -48,27 +48,27 @@ describe("assignee selection helpers", () => {
     });
   });
 
-  it("formats current and board user labels consistently", () => {
+  it("formats current and operator user labels consistently", () => {
     expect(formatAssigneeUserLabel("user-1", "user-1")).toBe("You");
-    expect(formatAssigneeUserLabel("local-board", "someone-else")).toBe("You");
+    expect(formatAssigneeUserLabel("local-operator", "someone-else")).toBe("You");
     expect(formatAssigneeUserLabel("user-abcdef", "someone-else")).toBe("user-");
   });
 
   it("formats actual user labels without current-user substitution", () => {
     expect(formatUserLabel("user-1", new Map([["user-1", "Dotta"]]))).toBe("Dotta");
     expect(formatUserLabel("user-1", new Map([["user-2", "Someone Else"]]))).toBe("user-");
-    expect(formatUserLabel("local-board")).toBe("You");
+    expect(formatUserLabel("local-operator")).toBe("You");
   });
 
   it("suggests the last non-me commenter without changing the actual assignee encoding", () => {
     expect(
       suggestedCommentAssigneeValue(
-        { assigneeUserId: "board-user" },
+        { assigneeUserId: "operator-user" },
         [
-          { authorUserId: "board-user" },
+          { authorUserId: "operator-user" },
           { authorAgentId: "agent-123" },
         ],
-        "board-user",
+        "operator-user",
       ),
     ).toBe("agent:agent-123");
   });
@@ -76,9 +76,9 @@ describe("assignee selection helpers", () => {
   it("leaves the recipient empty instead of defaulting to the current human", () => {
     expect(
       suggestedCommentAssigneeValue(
-        { assigneeUserId: "board-user" },
-        [{ authorUserId: "board-user" }],
-        "board-user",
+        { assigneeUserId: "operator-user" },
+        [{ authorUserId: "operator-user" }],
+        "operator-user",
       ),
     ).toBe("");
   });
@@ -86,9 +86,9 @@ describe("assignee selection helpers", () => {
   it("skips the current agent when choosing a suggested commenter assignee", () => {
     expect(
       suggestedCommentAssigneeValue(
-        { assigneeUserId: "board-user" },
+        { assigneeUserId: "operator-user" },
         [
-          { authorUserId: "board-user" },
+          { authorUserId: "operator-user" },
           { authorAgentId: "agent-self" },
           { authorAgentId: "agent-123" },
         ],
@@ -102,7 +102,7 @@ describe("assignee selection helpers", () => {
 
 describe("assignment history suggestions", () => {
   const assignment = (actorId: string, date: string, details: Record<string, unknown> = {}): ActivityEvent => ({
-    companyId: "company", entityType: "issue", entityId: "task", agentId: actorId, runId: null,
+    spaceId: "space", entityType: "issue", entityId: "task", agentId: actorId, runId: null,
     id: actorId, actorType: "agent", actorId, action: "issue.updated",
     createdAt: new Date(date), details: { assigneeUserId: "me", _previous: { assigneeUserId: null }, ...details },
   });
@@ -144,7 +144,7 @@ describe("assignment history suggestions", () => {
 
 it("prefers a newer native reassignment over a REST assignment and ignores native no-ops", () => {
   const event = (actorId: string, action: string, createdAt: string, details: Record<string, unknown>): ActivityEvent => ({
-    id: actorId, companyId: "company", entityType: "issue", entityId: "task", agentId: actorId, runId: null,
+    id: actorId, spaceId: "space", entityType: "issue", entityId: "task", agentId: actorId, runId: null,
     actorType: "agent", actorId, action, createdAt: new Date(createdAt), details,
   });
   const history = [
@@ -158,7 +158,7 @@ it("prefers a newer native reassignment over a REST assignment and ignores nativ
 
 it.each(["issue.created", "issue.child_created"])("uses a REST %s receipt assigned to the current human", (action) => {
   const event: ActivityEvent = {
-    id: "creation", companyId: "company", entityType: "issue", entityId: "task",
+    id: "creation", spaceId: "space", entityType: "issue", entityId: "task",
     agentId: "creator", runId: null, actorType: "agent", actorId: "creator", action,
     createdAt: new Date("2026-02-01"),
     details: { title: "Task", identifier: "PAP-1", status: "todo", assigneeAgentId: null, assigneeUserId: "me" },

@@ -9,7 +9,7 @@ import {
 import { unauthorized } from "../errors.js";
 import { resolveSentryDsns } from "../sentry-dsn.js";
 import { logger } from "../middleware/logger.js";
-import { loadBoardBootstrap } from "../services/board-bootstrap.js";
+import { loadBoardBootstrap } from "../services/operator-bootstrap.js";
 
 async function loadCurrentUserProfile(db: Db, userId: string) {
   const user = await db
@@ -39,22 +39,22 @@ export function authRoutes(db: Db) {
   const router = Router();
 
   router.get("/get-session", async (req, res) => {
-    if (req.actor.type !== "board" || !req.actor.userId) {
-      throw unauthorized("Board authentication required");
+    if (req.actor.type !== "operator" || !req.actor.userId) {
+      throw unauthorized("Operator authentication required");
     }
 
     const bootstrap = (req.actor.source === "session" || req.actor.source === "cloud_tenant")
-      && Array.isArray(req.actor.companyIds)
-      ? loadBoardBootstrap(db, { userId: req.actor.userId, companyIds: req.actor.companyIds }).catch((err) => {
-        logger.warn({ err }, "failed to load optional board bootstrap");
+      && Array.isArray(req.actor.spaceIds)
+      ? loadBoardBootstrap(db, { userId: req.actor.userId, spaceIds: req.actor.spaceIds }).catch((err) => {
+        logger.warn({ err }, "failed to load optional operator bootstrap");
         return undefined;
       })
       : Promise.resolve(undefined);
-    const [user, boardBootstrap] = await Promise.all([loadCurrentUserProfile(db, req.actor.userId), bootstrap]);
+    const [user, operatorBootstrap] = await Promise.all([loadCurrentUserProfile(db, req.actor.userId), bootstrap]);
     res.setHeader("Cache-Control", "private, no-store");
     const session = authSessionSchema.parse({
       session: {
-        id: `paperclip:${req.actor.source ?? "none"}:${req.actor.userId}`,
+        id: `outpost:${req.actor.source ?? "none"}:${req.actor.userId}`,
         userId: req.actor.userId,
       },
       user,
@@ -66,7 +66,7 @@ export function authRoutes(db: Db) {
       // Match the server SDK's runtime environment, including in reused images.
       sentryEnvironment: process.env.SENTRY_ENVIRONMENT || null,
     });
-    res.json({ ...session, ...(boardBootstrap ? { boardBootstrap } : {}) });
+    res.json({ ...session, ...(operatorBootstrap ? { operatorBootstrap } : {}) });
   });
 
   return router;

@@ -74,11 +74,11 @@ submitting the already-authorized action. It does not prove that the bot alone
 completed every browser step. Record who performed consent, app attachment,
 catalog refresh, and reboot during qualification.
 
-Consent should preview the exact company, agent, access scope and duration before
+Consent should preview the exact space, agent, access scope and duration before
 submission. A one-use pairing code can preauthorize that exact agent without
 handing an operator password or board session to the external computer. Keep
 preview read-only and code consumption atomic. Revalidate current permissions at
-redemption, including when the creator has since left the company.
+redemption, including when the creator has since left the space.
 
 The historical user authorized a specific plugin-creation risk notice through
 this exact extra prompt paragraph:
@@ -104,10 +104,10 @@ human to resolve that; use a supported direct approval path when authorized.
 4. **Subscription and assignment leases:** bounded and separately renewed; a
    persistent account connection does not make a task's authority permanent.
 
-The Dot user requested no Paperclip inactivity expiration. Migration preserved
+The Dot user requested no Outpost inactivity expiration. Migration preserved
 currently valid connections; it did not revive expired, consumed, or revoked
 credentials. Test renewal, rotation, replay and revocation independently. Do not
-promise that Paperclip's lifetime policy controls the provider's own account rules.
+promise that Outpost's lifetime policy controls the provider's own account rules.
 
 ## Generate instructions the receiving agent can execute
 
@@ -115,20 +115,20 @@ Adapt the following to the provider's supported protocol and actual tool names.
 Do not send placeholder values, credentials, or a URL from an old environment.
 
 ```text
-Connect yourself to Paperclip as <agent> in <company>.
+Connect yourself to Outpost as <agent> in <space>.
 
 Add or reuse the private plugin for this exact server URL: <MCP_URL>.
 Use the supported OAuth flow. Reuse an existing definition only if its URL matches;
 if the name belongs to another URL, choose a distinct name instead of replacing it.
 Use this one-use pairing code on the consent page: <PAIRING_CODE>.
-Review the exact company, agent, permissions, and duration. Complete the authorized
+Review the exact space, agent, permissions, and duration. Complete the authorized
 steps; if a required approval is missing, request that specific approval.
 
 Verify an actual read-only call through this connection. If the installed plugin's
 tools are absent in your runtime, refresh/attach it through the provider's supported
 flow and report any remaining blocker. Do not claim access from a settings listing.
 
-Enable the task-update subscription returned by Paperclip. Follow its event
+Enable the task-update subscription returned by Outpost. Follow its event
 instructions, drain the inbox from your saved cursor, and confirm the readiness
 challenge. Do not create a task just to confirm readiness.
 
@@ -138,12 +138,12 @@ work requested while idle, use the governed intake tool and poll the same reques
 if admission is pending; do not ask the human to create a placeholder task.
 
 Use your own relevant tools, apps, plugins, skills, and capabilities to complete
-the request, then return the result and deliverables to the Paperclip task.
-The Paperclip catalog describes Paperclip operations. It does not disable your
+the request, then return the result and deliverables to the Outpost task.
+The Outpost catalog describes Outpost operations. It does not disable your
 native tools or require those tools to appear in that catalog. Respect the tools'
-existing permissions and approvals. Keep Paperclip operations within the current
-connection's authorized company, agent, and task; do not use another identity to
-bypass a denied Paperclip operation.
+existing permissions and approvals. Keep Outpost operations within the current
+connection's authorized space, agent, and task; do not use another identity to
+bypass a denied Outpost operation.
 
 Report which connection checks actually succeeded and any exact blocker.
 ```
@@ -176,8 +176,8 @@ to use its already-connected native Slack.
 Use a narrowly scoped qualification instruction:
 
 ```text
-For qualification task <CASE_ID> only, send Paperclip operations through
-<TEST_CONNECTION> for <TEST_COMPANY>. This selects the Paperclip destination;
+For qualification task <CASE_ID> only, send Outpost operations through
+<TEST_CONNECTION> for <TEST_SPACE>. This selects the Outpost destination;
 it does not restrict your relevant native tools. Do not alter other connections.
 After this case, these test-only restrictions end. Return results to its task
 using the normal reporting and completion tools.
@@ -189,11 +189,11 @@ tool case to detect leakage of the test restriction into normal behavior.
 
 ## Keep optional identity polish narrowly scoped
 
-Dot's avatar tool accepts image bytes for its own bound Paperclip agent, re-encodes
+Dot's avatar tool accepts image bytes for its own bound Outpost agent, re-encodes
 them, and never grants generic agent administration. Validate format, byte and
 pixel limits; remove metadata; make replay safe. A private asset ID cannot simply
-be exported to another company. Preserve portable name/character/palette and omit
-or remap company-local image IDs on import.
+be exported to another space. Preserve portable name/character/palette and omit
+or remap space-local image IDs on import.
 
 Do not invent an avatar-export API or extract an unrelated image just because the
 UI has an avatar. Ask the bot to upload its current avatar only if available; lack

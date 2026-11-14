@@ -148,10 +148,10 @@ it.skipIf(process.platform === "win32")("final cleanup still retires the old run
 
 
 it("normalizes only the exact Linux comm truncation, never a nearby role name", () => {
-  expect(diagnosticProcessKind("/tmp/paperclip-runne", "linux")).toBe("outpost-runnerd");
+  expect(diagnosticProcessKind("/tmp/outpost-runne", "linux")).toBe("outpost-runnerd");
   expect(diagnosticProcessKind("/tmp/outpost-runnerd", "darwin")).toBe("outpost-runnerd");
-  expect(diagnosticProcessKind("paperclip-runne", "darwin")).toBe("other");
-  for (const name of ["paperclip-runn", "outpost-runner", "paperclip-runneX", "outpost-runnerd-other"]) {
+  expect(diagnosticProcessKind("outpost-runne", "darwin")).toBe("other");
+  for (const name of ["outpost-runn", "outpost-runner", "outpost-runneX", "outpost-runnerd-other"]) {
     expect(diagnosticProcessKind(name, "linux")).toBe("other");
   }
 });

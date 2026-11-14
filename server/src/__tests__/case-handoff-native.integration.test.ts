@@ -8,7 +8,7 @@ import { join } from "node:path";
 import express from "express";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, agentTaskSessions, agentWakeupRequests, authUsers, caseDocuments, caseEvents, caseHandoffs, cases, companies, companyMemberships, createDb, documents, heartbeatRuns, issueDocuments, issues } from "@outpost/db";
+import { agents, agentTaskSessions, agentWakeupRequests, authUsers, caseDocuments, caseEvents, caseHandoffs, cases, spaces, spaceMemberships, createDb, documents, heartbeatRuns, issueDocuments, issues } from "@outpost/db";
 import { actorMiddleware } from "../middleware/auth.js";
 import { errorHandler } from "../middleware/error-handler.js";
 import { caseRoutes } from "../routes/cases.js";
@@ -40,7 +40,7 @@ suite("case handoff through the assembled native runner", () => {
     root = await mkdtemp(join(tmpdir(), "case-native-integration-"));
     for (const key of ["OUTPOST_AGENT_JWT_SECRET", "OUTPOST_API_URL", "OUTPOST_HOME", "OUTPOST_INSTANCE_ID", "OUTPOST_RUNNER_STATE_DIR"]) restore.set(key, process.env[key]);
     process.env.OUTPOST_AGENT_JWT_SECRET = "case-native-integration-secret";
-    process.env.OUTPOST_HOME = join(root, "paperclip-home");
+    process.env.OUTPOST_HOME = join(root, "outpost-home");
     process.env.OUTPOST_INSTANCE_ID = "case-native-integration";
     process.env.OUTPOST_RUNNER_STATE_DIR = join(root, "runner-state");
     await mkdir(process.env.OUTPOST_HOME, { recursive: true });
@@ -82,17 +82,17 @@ suite("case handoff through the assembled native runner", () => {
   });
 
   it("yields through A→B→A, resumes each agent's own session, then closes only after accepted task completion", async () => {
-    const companyId = randomUUID(), triage = randomUUID(), engineer = randomUUID(), userId = randomUUID();
+    const spaceId = randomUUID(), triage = randomUUID(), engineer = randomUUID(), userId = randomUUID();
     const sourceHome = join(root, "provider-home"), workspace = join(root, "workspace"), bin = join(root, "bin");
     await Promise.all([sourceHome, workspace, bin].map(path => mkdir(path, { recursive: true })));
     await db.insert(authUsers).values({ id: userId, name: "Factory operator", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companies).values({ id: companyId, name: "Native factory proof", issuePrefix: `N${companyId.slice(0, 6)}`, defaultResponsibleUserId: userId });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "operator", status: "active" });
-    for (const [id, role] of [[triage, "ceo"], [engineer, "engineer"]] as const) await db.insert(agents).values({ id, companyId, name: role,
+    await db.insert(spaces).values({ id: spaceId, name: "Native factory proof", issuePrefix: `N${spaceId.slice(0, 6)}`, defaultResponsibleUserId: userId });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "operator", status: "active" });
+    for (const [id, role] of [[triage, "lead"], [engineer, "engineer"]] as const) await db.insert(agents).values({ id, spaceId, name: role,
       role, ...(id === engineer ? { reportsTo: triage } : {}), status: "idle", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex", model: "gpt-5.6-sol", cwd: workspace, lifecycleMode: "per_turn", codexPermissionMode: "never", timeoutSec: 30,
         env: { CODEX_HOME: sourceHome, OPENAI_API_KEY: "", CODEX_API_KEY: "" } }, runtimeConfig: { heartbeat: { enabled: false } } });
-    const initial = await caseHandoffService(db).handoff(companyId, { type: "board", source: "local_implicit", userId }, {
+    const initial = await caseHandoffService(db).handoff(spaceId, { type: "operator", source: "local_implicit", userId }, {
       idempotencyKey: "native-factory-start", case: { create: { caseType: "work", title: "Native factory proof", fields: { specification: "persisted native specification canary" } } },
       workflow_document_text: "Workflow routing canary: triage reads the brief, implementation saves evidence, verification checks it, and finalization closes this same task.",
       toAgentId: triage, phase: "triage", instructions: "Research then hand this same task to implementation",
@@ -145,7 +145,7 @@ for await (const line of createInterface({input:process.stdin})) {
     else if(finishing&&step===2) {
       writeFileSync(config.terminal,JSON.stringify(value));
       if(!contract) throw new Error('fixture did not receive the current completion contract');
-      call('paperclip_finish',{reportedWorkDisposition:'done',summary:'Saved the native handoff observation document and completed this same task.',completionClaim:{contractRevision:contract.revision,objectiveSatisfied:true,criteria:contract.criteria.map(c=>({criterionId:c.id,status:'satisfied',evidenceRefs:[]})),remainingWork:[]},evidence:[],verification:[],attentionRequests:[],artifacts:[]});
+      call('outpost_finish',{reportedWorkDisposition:'done',summary:'Saved the native handoff observation document and completed this same task.',completionClaim:{contractRevision:contract.revision,objectiveSatisfied:true,criteria:contract.criteria.map(c=>({criterionId:c.id,status:'satisfied',evidenceRefs:[]})),remainingWork:[]},evidence:[],verification:[],attentionRequests:[],artifacts:[]});
     } else if(returning) {active=false;send({method:'turn/completed',params:{threadId:thread,turn:{id:turn,status:'completed'}}});}
     else if(step===2) {
       const response=value.result??value;
@@ -197,7 +197,7 @@ for await (const line of createInterface({input:process.stdin})) {
       while (Date.now() < deadline) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 20)); }
       const state = await db.select({ id: heartbeatRuns.id, agentId: heartbeatRuns.agentId, status: heartbeatRuns.status, error: heartbeatRuns.error, result: heartbeatRuns.resultJson }).from(heartbeatRuns);
       const ledger = await db.select().from(caseHandoffs).where(eq(caseHandoffs.caseId, initial.caseId));
-      const wakes = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId));
+      const wakes = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId));
       throw new Error(`${label}: runs=${JSON.stringify(state)}; handoffs=${JSON.stringify(ledger)}; wakes=${JSON.stringify(wakes)}; provider=${await readFile(config.errors, "utf8").catch(() => "no scripted-provider error")}`);
     };
     const delivery = caseHandoffDeliveryService(db, { heartbeat });
@@ -216,17 +216,17 @@ for await (const line of createInterface({input:process.stdin})) {
     expect(receipt).toMatchObject({ taskId: initial.taskId, state: "awaiting_release", callerMustYield: true });
     expect(JSON.parse(await readFile(config.exposed, "utf8")).names).toContain("create_case");
     expect(JSON.parse(await readFile(config.exposed, "utf8")).creationSchema.required).toContain("kickoff");
-    expect(await db.select().from(cases).where(eq(cases.companyId, companyId))).toHaveLength(1);
+    expect(await db.select().from(cases).where(eq(cases.spaceId, spaceId))).toHaveLength(1);
     // No provider finish call exists in the script. Only the production native
-    // governed-wait observer can settle this run successfully.
+    // controlled-wait observer can settle this run successfully.
     await heartbeat.drainActiveRunExecutions();
-    const [source] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, triage)));
+    const [source] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, triage)));
     expect(source).toMatchObject({ runtimeMode: "native", status: "succeeded" });
     expect(source!.resultJson).toMatchObject({ caseHandoffExecutionReleased: { issueId: initial.taskId },
       nativeResult: { reportedWorkDisposition: "yielded", continuation: { kind: "case_handoff", handoffId: receipt.handoffId } } });
     const [sourceSession] = await db.select().from(agentTaskSessions).where(and(eq(agentTaskSessions.agentId, triage), eq(agentTaskSessions.taskKey, initial.taskId)));
     expect(sourceSession).toMatchObject({ lastRunId: source!.id, sessionParamsJson: {
-      __paperclipConfigFingerprint: expect.any(String), __paperclipConfigFingerprintVersion: expect.any(Number),
+      __outpostConfigFingerprint: expect.any(String), __outpostConfigFingerprintVersion: expect.any(Number),
     } });
     expect(sourceSession!.sessionDisplayId).toBeTruthy();
     expect(() => process.kill(accepted.pid, 0)).toThrow();
@@ -238,14 +238,14 @@ for await (const line of createInterface({input:process.stdin})) {
     expect(observed).toMatchObject({ actorId: engineer, taskId: initial.taskId });
     const [successor] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, engineer));
     expect(successor).toMatchObject({ runtimeMode: "native", nativeIssueId: initial.taskId });
-    expect(successor!.contextSnapshot?.paperclipCase).toMatchObject({ phase: "implementation", handoffVersion: 2, taskId: initial.taskId,
+    expect(successor!.contextSnapshot?.outpostCase).toMatchObject({ phase: "implementation", handoffVersion: 2, taskId: initial.taskId,
       incomingHandoff: { instructions: expect.stringContaining("Implement the persisted native specification canary") } });
     const [document] = await db.select({ body: documents.latestBody }).from(issueDocuments)
       .innerJoin(documents, eq(documents.id, issueDocuments.documentId))
       .where(and(eq(issueDocuments.issueId, initial.taskId), eq(issueDocuments.key, "native-handoff-observed")));
     expect(JSON.parse(document!.body)).toMatchObject({ taskId: initial.taskId, caseId: initial.caseId, freshPrompt: true });
     expect((await db.select().from(cases).where(eq(cases.id, initial.caseId)))[0]?.fields).toMatchObject({ verified: true });
-    expect(await db.select().from(issues).where(eq(issues.companyId, companyId))).toHaveLength(1);
+    expect(await db.select().from(issues).where(eq(issues.spaceId, spaceId))).toHaveLength(1);
     await heartbeat.drainActiveRunExecutions();
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, successor!.id)))[0]).toMatchObject({
       status: "succeeded", resultJson: { nativeResult: { reportedWorkDisposition: "yielded" } },
@@ -276,7 +276,7 @@ for await (const line of createInterface({input:process.stdin})) {
     const terminalValue = JSON.parse(await readFile(config.terminal, "utf8"));
     const terminalReceipt = terminalValue.result?.handoffId ? terminalValue.result : terminalValue;
     expect(terminalReceipt).toMatchObject({ taskId: initial.taskId, state: "awaiting_completion", callerMustYield: false });
-    const finished = (await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, triage)))).find(run => run.resultJson?.nativeResult && (run.resultJson.nativeResult as { reportedWorkDisposition?: string }).reportedWorkDisposition === "done");
+    const finished = (await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, triage)))).find(run => run.resultJson?.nativeResult && (run.resultJson.nativeResult as { reportedWorkDisposition?: string }).reportedWorkDisposition === "done");
     expect(finished).toMatchObject({ status: "succeeded", sessionIdBefore: sourceSession!.sessionDisplayId,
       usageJson: { sessionReused: true, taskSessionReused: true, freshSession: false },
       resultJson: { nativeResult: { reportedWorkDisposition: "done" }, configFreshness: { session: { reset: false, storedFingerprintPresent: true } } } });

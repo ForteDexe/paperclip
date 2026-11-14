@@ -8,7 +8,7 @@
  *   2. Persist `executionMode` into instance general settings (so the per-run
  *      heartbeat guard enforces it).
  *   3. Idempotently ensure a configured Kubernetes sandbox environment for every
- *      company (mirrors `ensureLocalEnvironment`).
+ *      space (mirrors `ensureLocalEnvironment`).
  *
  * The boot hook is *configuration convenience*; the actual security gate is the
  * per-run guard in the heartbeat (see `execution-allowlist.ts`). Even with no
@@ -134,37 +134,37 @@ export function parseExecutionPolicyBootstrapEnv(
 /**
  * Apply the parsed bootstrap to the database: persist `executionMode` into
  * instance settings and ensure a configured Kubernetes environment for every
- * company. Idempotent; safe to call on every boot.
+ * space. Idempotent; safe to call on every boot.
  */
 export async function applyExecutionPolicyBootstrap(
   db: Db,
   bootstrap: ExecutionPolicyBootstrap,
-): Promise<{ executionMode: InstanceExecutionMode; companiesConfigured: number }> {
+): Promise<{ executionMode: InstanceExecutionMode; spacesConfigured: number }> {
   const instanceSettings = instanceSettingsService(db);
   const environments = environmentService(db);
 
   await instanceSettings.updateGeneral({ executionMode: bootstrap.executionMode });
 
-  const companyIds = await instanceSettings.listCompanyIds();
+  const spaceIds = await instanceSettings.listSpaceIds();
   let configured = 0;
-  const failedCompanyIds: string[] = [];
-  for (const companyId of companyIds) {
+  const failedSpaceIds: string[] = [];
+  for (const spaceId of spaceIds) {
     try {
-      await environments.ensureKubernetesEnvironment(companyId, bootstrap.kubernetesConfig);
+      await environments.ensureKubernetesEnvironment(spaceId, bootstrap.kubernetesConfig);
       configured += 1;
     } catch (err) {
       logger.error(
-        { err, companyId },
+        { err, spaceId },
         "failed to ensure managed Kubernetes environment during execution-policy bootstrap",
       );
-      failedCompanyIds.push(companyId);
+      failedSpaceIds.push(spaceId);
     }
   }
 
   logger.info(
     {
       executionMode: bootstrap.executionMode,
-      companiesConfigured: configured,
+      spacesConfigured: configured,
       backend: bootstrap.kubernetesConfig.backend,
       runtimeClassName: bootstrap.kubernetesConfig.runtimeClassName,
       egressMode: bootstrap.kubernetesConfig.egressMode,
@@ -172,13 +172,13 @@ export async function applyExecutionPolicyBootstrap(
     "applied forced Kubernetes execution policy",
   );
 
-  if (failedCompanyIds.length > 0) {
+  if (failedSpaceIds.length > 0) {
     throw new Error(
-      `execution-policy bootstrap: ${failedCompanyIds.length} of ${companyIds.length} companies failed to get a managed Kubernetes environment under executionMode=${bootstrap.executionMode}; refusing to start (companies: ${failedCompanyIds.join(", ")})`,
+      `execution-policy bootstrap: ${failedSpaceIds.length} of ${spaceIds.length} spaces failed to get a managed Kubernetes environment under executionMode=${bootstrap.executionMode}; refusing to start (spaces: ${failedSpaceIds.join(", ")})`,
     );
   }
 
-  return { executionMode: bootstrap.executionMode, companiesConfigured: configured };
+  return { executionMode: bootstrap.executionMode, spacesConfigured: configured };
 }
 
 /**
@@ -187,7 +187,7 @@ export async function applyExecutionPolicyBootstrap(
 export async function bootstrapExecutionPolicyFromEnv(
   db: Db,
   env: ExecutionPolicyBootstrapEnv = process.env,
-): Promise<{ executionMode: InstanceExecutionMode; companiesConfigured: number } | null> {
+): Promise<{ executionMode: InstanceExecutionMode; spacesConfigured: number } | null> {
   const bootstrap = parseExecutionPolicyBootstrapEnv(env);
   if (!bootstrap) return null;
   return applyExecutionPolicyBootstrap(db, bootstrap);

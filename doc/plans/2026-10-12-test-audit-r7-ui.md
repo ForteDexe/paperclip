@@ -15,7 +15,7 @@ The branch starts at pinned parent `e868e6645ce0d598d756d3458f0b3d71afd6db4a`, t
 
 Each helper contains one synchronous `root.render` statement. It creates the same complete JSX subtree on each call. The invitation helper also creates a fresh initial-route array. Helpers accept the existing root and query client. They create no root or query client, add no await, and contain no assertion. The roster helper retains QueryClientProvider → ToastProvider → Agents. The distinct table render of production and streamlined AgentList remains inline. Every original outer `act`, flush, timer, input, assertion, cleanup and provider order remains, outside the single declared migration below.
 
-The audit read the actual invitation, roster and shell owners, their App routes, production-shell/roster counterparts, current tests and source history. It inspected analogous invitation-access, shell-route, company-selection, sidebar, plugin-overlay and roster surfaces. Permission gates, membership/account cache checks, keyboard/hover controls, accessibility, pending state and routing cases retain their own registrations.
+The audit read the actual invitation, roster and shell owners, their App routes, production-shell/roster counterparts, current tests and source history. It inspected analogous invitation-access, shell-route, space-selection, sidebar, plugin-overlay and roster surfaces. Permission gates, membership/account cache checks, keyboard/hover controls, accessibility, pending state and routing cases retain their own registrations.
 
 ## Exact retirement and keeper
 
@@ -23,7 +23,7 @@ Retired: Agents `uses the built-in agents route segment as the built-in filter`.
 
 Keeper: Agents `shows and filters built-in agents when the experimental flag is enabled`.
 
-Both cases came from commit `8b6a06ee254` and use `/agents/builtin`, the enabled built-in flag, and the same built-in and regular agent/org rows. The keeper now copies the retired case's exact setup, including the populated BuiltInAgentState.agent pointing to the same built-in object as the agent list. It also carries the retired `1 agent` assertion. Its original checks remain: company-scoped built-in API request, Built-in tab text, included built-in name, excluded regular name, absent old badge, and no redirect to the all-agents route.
+Both cases came from commit `8b6a06ee254` and use `/agents/builtin`, the enabled built-in flag, and the same built-in and regular agent/org rows. The keeper now copies the retired case's exact setup, including the populated BuiltInAgentState.agent pointing to the same built-in object as the agent list. It also carries the retired `1 agent` assertion. Its original checks remain: space-scoped built-in API request, Built-in tab text, included built-in name, excluded regular name, absent old badge, and no redirect to the all-agents route.
 
 The former keeper's null nested agent fixture does not supply a separate ready/list behavior: the actual roster uses entry.agentId and entry.status on that path. The setup modal is not mounted for a ready entry. Copying the retired populated fixture preserves the stronger keeper's observations while retaining every retired observation. Other built-in enable/disable and production-versus-streamlined registrations remain.
 
@@ -40,7 +40,7 @@ No other case retires. In particular, invitation error presentation remains dist
 
 The original total is 150, compared with candidate 149. These are actual Vitest registrations, including table rows. The sixty helper counts are source call expansions, not retired executions. Complete-file runs have no name filter. Separate name-filtered mutation controls intentionally select one keeper and do not count their unselected cases as complete-suite proof.
 
-Commands run from `ui/` use `pnpm exec vitest run` followed by the complete file paths. Changed-owner paths are `src/pages/InviteLanding.test.tsx`, `src/pages/Agents.test.tsx` and `src/components/Layout.test.tsx`. Siblings are SidebarAgents, ActiveAgentsPanel, access/InvitesSection, useCompanyInviteAccess, shell-navigation, company-selection, PluginAppShellOverlays and SidebarShell.
+Commands run from `ui/` use `pnpm exec vitest run` followed by the complete file paths. Changed-owner paths are `src/pages/InviteLanding.test.tsx`, `src/pages/Agents.test.tsx` and `src/components/Layout.test.tsx`. Siblings are SidebarAgents, ActiveAgentsPanel, access/InvitesSection, useSpaceInviteAccess, shell-navigation, space-selection, PluginAppShellOverlays and SidebarShell.
 
 Dependencies were installed offline with the frozen lockfile in this checkout. Initial dependency-link exploration and two startup-error attempts were discarded; none counts as baseline proof. Accepted runs use this checkout's workspace packages.
 
@@ -54,7 +54,7 @@ All three positive keeper controls passed. All deliberate production regressions
 |---|---|
 | Return all agents from the built-in filter | Migrated `1 agent` count guard. |
 | Omit actual invite auth aria-invalid state | Email input's fixed `aria-invalid === "true"` guard. |
-| Bypass the settings sidebar branch | Visible Company settings sidebar guard. |
+| Bypass the settings sidebar branch | Visible Space settings sidebar guard. |
 
 These failures are direct assertions, not timeout/setup/worker errors. Each owner was restored byte for byte and checked against the pinned Git source. The final diff has no production changes. Mutation controls use fixed literal expected values from the original tests; helpers supply no oracle.
 

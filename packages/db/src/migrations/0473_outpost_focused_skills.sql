@@ -1,59 +1,59 @@
-DELETE FROM "company_skill_mutation_receipts"
-WHERE "key" = 'paperclipai/paperclip/paperclip';
+DELETE FROM "space_skill_mutation_receipts"
+WHERE "key" = 'outpost/outpost/outpost';
 --> statement-breakpoint
-UPDATE "company_skills"
+UPDATE "space_skills"
 SET
-  "key" = 'paperclipai/paperclip/outpost-task',
+  "key" = 'outpost/outpost/outpost-task',
   "slug" = 'outpost-task',
   "name" = 'outpost-task',
   "updated_at" = now()
-WHERE "key" = 'paperclipai/paperclip/paperclip'
+WHERE "key" = 'outpost/outpost/outpost'
   AND NOT EXISTS (
     SELECT 1
-    FROM "company_skills" AS existing
-    WHERE existing."company_id" = "company_skills"."company_id"
-      AND existing."key" = 'paperclipai/paperclip/outpost-task'
+    FROM "space_skills" AS existing
+    WHERE existing."space_id" = "space_skills"."space_id"
+      AND existing."key" = 'outpost/outpost/outpost-task'
   );
 --> statement-breakpoint
-DELETE FROM "company_skills"
-WHERE "key" = 'paperclipai/paperclip/paperclip';
+DELETE FROM "space_skills"
+WHERE "key" = 'outpost/outpost/outpost';
 --> statement-breakpoint
 UPDATE "agents"
 SET "adapter_config" = jsonb_set(
   "adapter_config",
-  '{paperclipSkillSync,desiredSkills}',
+  '{outpostSkillSync,desiredSkills}',
   (
     SELECT jsonb_agg(
       CASE
         WHEN jsonb_typeof(entry.value) = 'string'
-          AND lower(trim(entry.value#>>'{}')) IN ('paperclip', 'paperclipai/paperclip/paperclip')
-          THEN to_jsonb('paperclipai/paperclip/outpost-task'::text)
+          AND lower(trim(entry.value#>>'{}')) IN ('outpost', 'outpost/outpost/outpost')
+          THEN to_jsonb('outpost/outpost/outpost-task'::text)
         WHEN jsonb_typeof(entry.value) = 'object'
-          AND lower(trim(entry.value->>'key')) IN ('paperclip', 'paperclipai/paperclip/paperclip')
-          THEN jsonb_set(entry.value, '{key}', to_jsonb('paperclipai/paperclip/outpost-task'::text))
+          AND lower(trim(entry.value->>'key')) IN ('outpost', 'outpost/outpost/outpost')
+          THEN jsonb_set(entry.value, '{key}', to_jsonb('outpost/outpost/outpost-task'::text))
         ELSE entry.value
       END
       ORDER BY entry.ordinality
     )
-    FROM jsonb_array_elements("agents"."adapter_config"#>'{paperclipSkillSync,desiredSkills}')
+    FROM jsonb_array_elements("agents"."adapter_config"#>'{outpostSkillSync,desiredSkills}')
       WITH ORDINALITY AS entry(value, ordinality)
   ),
   false
 )
-WHERE jsonb_typeof("adapter_config"#>'{paperclipSkillSync,desiredSkills}') = 'array'
+WHERE jsonb_typeof("adapter_config"#>'{outpostSkillSync,desiredSkills}') = 'array'
   AND EXISTS (
     SELECT 1
-    FROM jsonb_array_elements("adapter_config"#>'{paperclipSkillSync,desiredSkills}') AS entry(value)
+    FROM jsonb_array_elements("adapter_config"#>'{outpostSkillSync,desiredSkills}') AS entry(value)
     WHERE lower(trim(CASE
       WHEN jsonb_typeof(entry.value) = 'string' THEN entry.value#>>'{}'
       WHEN jsonb_typeof(entry.value) = 'object' THEN entry.value->>'key'
       ELSE ''
-    END)) IN ('paperclip', 'paperclipai/paperclip/paperclip')
+    END)) IN ('outpost', 'outpost/outpost/outpost')
   );
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION paperclip_skill_runtime_changed() RETURNS trigger
+CREATE OR REPLACE FUNCTION outpost_skill_runtime_changed() RETURNS trigger
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
-DECLARE previous jsonb; current jsonb; keys text[]; company uuid; candidate uuid;
+DECLARE previous jsonb; current jsonb; keys text[]; space uuid; candidate uuid;
 BEGIN
   IF TG_OP <> 'INSERT' THEN previous := to_jsonb(OLD); END IF;
   IF TG_OP <> 'DELETE' THEN current := to_jsonb(NEW); END IF;
@@ -64,30 +64,30 @@ BEGIN
     jsonb_build_array(NEW.key, NEW.slug, NEW.markdown, NEW.source_type, NEW.source_locator, NEW.source_ref,
       NEW.file_inventory, NEW.current_version_id, NEW.access_source_id, NEW.compatibility, NEW.trust_level, NEW.metadata)
     THEN RETURN NEW; END IF;
-  company := coalesce((current->>'company_id')::uuid, (previous->>'company_id')::uuid);
+  space := coalesce((current->>'space_id')::uuid, (previous->>'space_id')::uuid);
   SELECT array_agg(DISTINCT lower(reference)) INTO keys FROM (
     SELECT row->>'key' AS reference FROM unnest(ARRAY[previous, current]) row
     UNION ALL SELECT regexp_replace(row->>'key', '.*/', '') FROM unnest(ARRAY[previous, current]) row
-    UNION ALL SELECT CASE WHEN row->>'key' LIKE 'paperclipai/paperclip/%' THEN row->>'slug'
+    UNION ALL SELECT CASE WHEN row->>'key' LIKE 'outpost/outpost/%' THEN row->>'slug'
       ELSE (row->>'slug') || '--' || left(encode(sha256(convert_to(row->>'key', 'UTF8')), 'hex'), 10) END
       FROM unnest(ARRAY[previous, current]) row
   ) refs WHERE reference IS NOT NULL;
-  FOR candidate IN SELECT a.id FROM agents a WHERE a.company_id = company
+  FOR candidate IN SELECT a.id FROM agents a WHERE a.space_id = space
     AND a.status NOT IN ('pending_approval', 'terminated') AND (
       (a.adapter_type <> 'outpost_runner' AND keys && ARRAY[
-        'paperclipai/paperclip/outpost-task',
-        'paperclipai/paperclip/outpost-decision',
-        'paperclipai/paperclip/outpost-artifact',
-        'paperclipai/paperclip/outpost-case',
-        'paperclipai/paperclip/outpost-north-star',
-        'paperclipai/paperclip/outpost-delegation'
+        'outpost/outpost/outpost-task',
+        'outpost/outpost/outpost-decision',
+        'outpost/outpost/outpost-artifact',
+        'outpost/outpost/outpost-case',
+        'outpost/outpost/outpost-north-star',
+        'outpost/outpost/outpost-delegation'
       ]) OR
-      EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(a.adapter_config#>'{paperclipSkillSync,desiredSkills}') = 'array'
-        THEN a.adapter_config#>'{paperclipSkillSync,desiredSkills}' ELSE '[]'::jsonb END) choice
+      EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(a.adapter_config#>'{outpostSkillSync,desiredSkills}') = 'array'
+        THEN a.adapter_config#>'{outpostSkillSync,desiredSkills}' ELSE '[]'::jsonb END) choice
         WHERE lower(trim(CASE WHEN jsonb_typeof(choice) = 'string' THEN choice#>>'{}' ELSE choice->>'key' END)) = ANY(keys))
-      OR paperclip_environment_selects_runtime_skill(company, a.default_environment_id, coalesce((current->>'id')::uuid, (previous->>'id')::uuid)))
+      OR outpost_environment_selects_runtime_skill(space, a.default_environment_id, coalesce((current->>'id')::uuid, (previous->>'id')::uuid)))
     ORDER BY a.id FOR NO KEY UPDATE LOOP
-    PERFORM paperclip_record_agent_runtime(company, candidate);
+    PERFORM outpost_record_agent_runtime(space, candidate);
   END LOOP;
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;

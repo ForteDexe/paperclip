@@ -84,7 +84,7 @@ export function canEnterAppsConnect(
   ) return false;
   // A retained connection may belong to a provider hidden from fresh catalog
   // setup. Admit only known providers here; the setup flow then proves the
-  // exact reconnect or incomplete-draft target belongs to the selected company
+  // exact reconnect or incomplete-draft target belongs to the selected space
   // and matches this provider before resolving the hidden definition.
   if (
     getConnectableAppDefinition(source)

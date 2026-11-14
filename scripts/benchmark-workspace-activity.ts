@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { agents, applyPendingMigrations, companies, createDb, executionWorkspaces, issues, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
+import { agents, applyPendingMigrations, spaces, createDb, executionWorkspaces, issues, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
 import * as expiration from "../server/src/services/git-workspace-expiration.js";
 
 type Query = { sql: string; params: unknown[] };
@@ -49,18 +49,18 @@ let baselineDir: string | undefined;
 
 async function startDatabase() {
   if (!dockerPostgres) return startEmbeddedPostgresTestDatabase("workspace-activity-benchmark-");
-  const container = `paperclip-workspace-activity-${randomUUID()}`;
+  const container = `outpost-workspace-activity-${randomUUID()}`;
   const docker = (...args: string[]) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-  docker("run", "--detach", "--rm", "--name", container, "--publish", "127.0.0.1::5432", "--env", "POSTGRES_USER=paperclip", "--env", "POSTGRES_PASSWORD=paperclip", "--env", "POSTGRES_DB=paperclip", "postgres:17");
+  docker("run", "--detach", "--rm", "--name", container, "--publish", "127.0.0.1::5432", "--env", "POSTGRES_USER=outpost", "--env", "POSTGRES_PASSWORD=outpost", "--env", "POSTGRES_DB=outpost", "postgres:17");
   const cleanup = async () => { docker("rm", "--force", container); };
   try {
     let ready = false;
     for (let attempt = 0; attempt < 100; attempt++) {
-      try { docker("exec", container, "pg_isready", "-h", "127.0.0.1", "-U", "paperclip"); ready = true; break; } catch { await new Promise(resolve => setTimeout(resolve, 100)); }
+      try { docker("exec", container, "pg_isready", "-h", "127.0.0.1", "-U", "outpost"); ready = true; break; } catch { await new Promise(resolve => setTimeout(resolve, 100)); }
     }
     assert.ok(ready, "Disposable Docker PostgreSQL did not become ready");
     const port = docker("port", container, "5432/tcp").split(":").at(-1);
-    const connectionString = `postgres://paperclip:paperclip@127.0.0.1:${port}/paperclip`;
+    const connectionString = `postgres://outpost:outpost@127.0.0.1:${port}/outpost`;
     await applyPendingMigrations(connectionString);
     return { connectionString, cleanup };
   } catch (error) { await cleanup(); throw error; }
@@ -102,17 +102,17 @@ try {
   await fs.writeFile(path.join(outputDir, "baseline-git-workspace-expiration.ts"), source);
   await fs.writeFile(path.join(outputDir, "treatment-git-workspace-expiration.ts"), treatmentSource);
   const baseline = await import(pathToFileURL(baselinePath).href) as typeof expiration;
-  const companyId = randomUUID(), agentId = randomUUID(), otherCompanyId = randomUUID(), otherAgentId = randomUUID(), unrelatedIssueId = randomUUID();
-  await db.insert(companies).values([{ id: companyId, name: "Synthetic workspace activity", issuePrefix: "WAB" }, { id: otherCompanyId, name: "Other tenant", issuePrefix: "WAO" }]);
-  await db.insert(agents).values([{ id: agentId, companyId, name: "Fixture" }, { id: otherAgentId, companyId: otherCompanyId, name: "Other fixture" }]);
-  await db.insert(issues).values({ id: unrelatedIssueId, companyId, title: "Unrelated", updatedAt: old });
+  const spaceId = randomUUID(), agentId = randomUUID(), otherSpaceId = randomUUID(), otherAgentId = randomUUID(), unrelatedIssueId = randomUUID();
+  await db.insert(spaces).values([{ id: spaceId, name: "Synthetic workspace activity", issuePrefix: "WAB" }, { id: otherSpaceId, name: "Other tenant", issuePrefix: "WAO" }]);
+  await db.insert(agents).values([{ id: agentId, spaceId, name: "Fixture" }, { id: otherAgentId, spaceId: otherSpaceId, name: "Other fixture" }]);
+  await db.insert(issues).values({ id: unrelatedIssueId, spaceId, title: "Unrelated", updatedAt: old });
   const workspaces: Workspace[] = [];
   for (let n = 0; n < 8; n++) {
     const issueId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: `Target ${n}`, status: "done", completedAt: old, updatedAt: old });
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId, sourceIssueId: issueId, mode: "isolated_workspace", strategyType: "git_worktree", name: `Target ${n}`, cwd: `/tmp/synthetic-workspace-activity-${n}`, updatedAt: old }).returning();
+    await db.insert(issues).values({ id: issueId, spaceId, title: `Target ${n}`, status: "done", completedAt: old, updatedAt: old });
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId, sourceIssueId: issueId, mode: "isolated_workspace", strategyType: "git_worktree", name: `Target ${n}`, cwd: `/tmp/synthetic-workspace-activity-${n}`, updatedAt: old }).returning();
     workspaces.push(workspace);
-    await db.insert(issues).values(Array.from({ length: descendantsPerWorkspace }, (_, child) => ({ companyId, parentId: issueId,
+    await db.insert(issues).values(Array.from({ length: descendantsPerWorkspace }, (_, child) => ({ spaceId, parentId: issueId,
       title: `Child ${n}/${child}`, status: "done", completedAt: old, updatedAt: old })));
   }
   const padding = randomBytes(24 * 1024).toString("base64");
@@ -121,8 +121,8 @@ try {
   // incompressible and wide enough to live in TOAST. Existing indexes are retained.
   for (let n = 0; n < 8; n++) {
     const workspace = workspaces[n];
-    await db.$client.unsafe(`INSERT INTO heartbeat_runs (company_id, agent_id, status, scope_kind, issue_id, native_issue_id, created_at, started_at, finished_at, context_snapshot, result_json)
-      SELECT $1::uuid, $2::uuid, 'succeeded', CASE WHEN i <= ${bindingRows} THEN 'issue' ELSE 'company' END,
+    await db.$client.unsafe(`INSERT INTO heartbeat_runs (space_id, agent_id, status, scope_kind, issue_id, native_issue_id, created_at, started_at, finished_at, context_snapshot, result_json)
+      SELECT $1::uuid, $2::uuid, 'succeeded', CASE WHEN i <= ${bindingRows} THEN 'issue' ELSE 'space' END,
         CASE WHEN i <= ${bindingRows} THEN $3::uuid END, CASE WHEN i > ${bindingRows} AND i <= ${bindingRows * 2} THEN $3::uuid END,
         $6::timestamptz + i * interval '1 second', $6::timestamptz + i * interval '2 seconds', $6::timestamptz + i * interval '3 seconds',
         jsonb_build_object('issueId', CASE WHEN i > ${bindingRows * 2} AND i <= ${bindingRows * 3} THEN $3::text WHEN i % 50 = 0 THEN $5::text ELSE gen_random_uuid()::text END,
@@ -130,7 +130,7 @@ try {
           'executionWorkspaceId', CASE WHEN i > ${bindingRows * 4} AND i <= ${bindingRows * 5} THEN $4::text ELSE gen_random_uuid()::text END,
           'fixtureRun', ${n * runsPerWorkspace} + i, 'padding', $7::text),
         jsonb_build_object('stdout', $7::text)
-      FROM generate_series(1, ${runsPerWorkspace}) i`, [companyId, agentId, workspace.sourceIssueId, workspace.id, unrelatedIssueId, old.toISOString(), padding]);
+      FROM generate_series(1, ${runsPerWorkspace}) i`, [spaceId, agentId, workspace.sourceIssueId, workspace.id, unrelatedIssueId, old.toISOString(), padding]);
   }
   // Malformed JSON shapes and noncanonical IDs must retain ->> semantics, never
   // throw on a cast or accidentally match another tenant's run.
@@ -138,9 +138,9 @@ try {
     12, "string", { issueId: workspaces[0].sourceIssueId!.toUpperCase() }, { issueId: 12 }, { issueId: { value: workspaces[0].sourceIssueId } },
     { taskId: workspaces[0].sourceIssueId }, { executionWorkspaceId: workspaces[0].id }];
   for (const context of unusualContexts) {
-    await db.$client.unsafe(`INSERT INTO heartbeat_runs (company_id, agent_id, status, created_at, finished_at, context_snapshot) VALUES ($1::uuid, $2::uuid, 'succeeded', $3::timestamptz, $3::timestamptz, $4::jsonb)`, [companyId, agentId, old.toISOString(), JSON.stringify(context)]);
+    await db.$client.unsafe(`INSERT INTO heartbeat_runs (space_id, agent_id, status, created_at, finished_at, context_snapshot) VALUES ($1::uuid, $2::uuid, 'succeeded', $3::timestamptz, $3::timestamptz, $4::jsonb)`, [spaceId, agentId, old.toISOString(), JSON.stringify(context)]);
   }
-  await db.$client.unsafe(`INSERT INTO heartbeat_runs (company_id, agent_id, status, created_at, context_snapshot) VALUES ($1::uuid, $2::uuid, 'running', $3::timestamptz, $4::jsonb)`, [otherCompanyId, otherAgentId, now.toISOString(), JSON.stringify({ issueId: workspaces[0].sourceIssueId, executionWorkspaceId: workspaces[0].id })]);
+  await db.$client.unsafe(`INSERT INTO heartbeat_runs (space_id, agent_id, status, created_at, context_snapshot) VALUES ($1::uuid, $2::uuid, 'running', $3::timestamptz, $4::jsonb)`, [otherSpaceId, otherAgentId, now.toISOString(), JSON.stringify({ issueId: workspaces[0].sourceIssueId, executionWorkspaceId: workspaces[0].id })]);
   await db.$client.unsafe("ALTER TABLE heartbeat_runs ENABLE TRIGGER heartbeat_runs_set_scope_kind");
   await db.$client.unsafe("ANALYZE");
   const [settings] = await db.$client.unsafe("SELECT version(), current_setting('work_mem') AS work_mem, pg_total_relation_size('heartbeat_runs') AS total_run_bytes");

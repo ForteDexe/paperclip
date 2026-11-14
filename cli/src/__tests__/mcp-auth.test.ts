@@ -6,7 +6,7 @@ import { once } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { credentialPath, mcpAccessToken, mcpResource, mcpRpc, replaceMcpCredential, withMcpCredentialLock } from "../client/mcp-auth.js";
 
-const resource = "https://outpost.example/mcp/paperclip";
+const resource = "https://outpost.example/mcp/outpost";
 let home: string;
 beforeEach(async () => { home = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-credentials-")); vi.stubEnv("OUTPOST_HOME", home); });
 afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); await fs.rm(home, { recursive: true, force: true }); });
@@ -16,12 +16,12 @@ async function seed(value: unknown, mode = 0o600) {
   await fs.writeFile(file, typeof value === "string" ? value : JSON.stringify(value), { mode });
   return file;
 }
-const stored = () => ({ resource, issuer: "https://outpost.example", clientId: "client", companyId: "company", accessToken: "private-access", refreshToken: "private-refresh", expiresAt: 0 });
+const stored = () => ({ resource, issuer: "https://outpost.example", clientId: "client", spaceId: "space", accessToken: "private-access", refreshToken: "private-refresh", expiresAt: 0 });
 describe("MCP protected credential transport", () => {
   it("rejects noncanonical resources and isolates credential files by resource", () => {
-    for (const url of ["http://evil.example/mcp/paperclip", resource + "?token=secret", resource + "#x", "https://u:p@outpost.example/mcp/paperclip", "https://outpost.example/other"]) expect(() => mcpResource(url)).toThrow();
-    expect(mcpResource("http://127.0.0.1:3100/mcp/paperclip")).toContain("127.0.0.1");
-    expect(credentialPath(resource)).not.toBe(credentialPath("https://other.example/mcp/paperclip"));
+    for (const url of ["http://evil.example/mcp/outpost", resource + "?token=secret", resource + "#x", "https://u:p@outpost.example/mcp/outpost", "https://outpost.example/other"]) expect(() => mcpResource(url)).toThrow();
+    expect(mcpResource("http://127.0.0.1:3100/mcp/outpost")).toContain("127.0.0.1");
+    expect(credentialPath(resource)).not.toBe(credentialPath("https://other.example/mcp/outpost"));
   });
   it("serializes rotating refreshes and persists only the replacement token privately", async () => {
     const file = await seed(stored()); let refreshes = 0;
@@ -54,7 +54,7 @@ describe("MCP protected credential transport", () => {
   });
   it("does not expose upstream response text in protocol errors or retry writes", async () => {
     const fetcher = vi.fn(async () => new Response("private-upstream-token", { status: 200 })); vi.stubGlobal("fetch", fetcher);
-    await expect(mcpRpc(resource, "private-access", "tools/call", { name: "paperclip_create_task" })).rejects.toThrow("invalid response");
+    await expect(mcpRpc(resource, "private-access", "tools/call", { name: "outpost_create_task" })).rejects.toThrow("invalid response");
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it("releases the refresh mutex after failed work", async () => {
@@ -108,6 +108,6 @@ describe("MCP protected credential transport", () => {
       return new Response(null, { status: 503 });
     }));
     await replaceMcpCredential(file, { ...stored(), accessToken: "new-access" }, notify);
-    expect(notify).toHaveBeenCalledWith(expect.stringContaining("revoke it in Paperclip Connections"));
+    expect(notify).toHaveBeenCalledWith(expect.stringContaining("revoke it in Outpost Connections"));
   });
 });

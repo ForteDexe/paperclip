@@ -18,7 +18,7 @@ export interface RemoteRestartEvent {
   payloadSha256: string; sha256: string;
 }
 export interface RemoteRestartBoundary {
-  identity: { runId: string; companyId: string; agentId: string; issueId: string;
+  identity: { runId: string; spaceId: string; agentId: string; issueId: string;
     runnerInstanceId: string; nativeSessionId: string; processPid: number | null; processStartedAt: string | null;
     taskIdentitySha256?: string };
   lease: { id: string; environmentId: string; executionWorkspaceId: string | null; providerLeaseSha256: string };
@@ -50,7 +50,7 @@ export async function waitForRemoteRestartBoundary(input: {
 }
 
 export function projectRemoteRestartRun(run: StoryRun): StoryRun {
-  return { id: run.id, companyId: run.companyId, agentId: run.agentId, nativeIssueId: run.nativeIssueId,
+  return { id: run.id, spaceId: run.spaceId, agentId: run.agentId, nativeIssueId: run.nativeIssueId,
     status: run.status, runtimeMode: run.runtimeMode, runnerInstanceId: run.runnerInstanceId, nativeSessionId: run.nativeSessionId,
     nativePhase: run.nativePhase === "committed" ? "committed" : null,
     resultJson: { finalizationPhase: run.resultJson?.finalizationPhase === "committed" ? "committed" : null,
@@ -70,7 +70,7 @@ export function projectRemoteRestartEvents(run: StoryRun, rows: readonly Row[]):
     const runnerSource = event.sourceKind === "runner" && source === run.runnerInstanceId;
     const controllerSource = event.sourceKind === "control_plane" && source === `${run.runnerInstanceId}:control`
       && ["run.result.accepted", "run.terminal"].includes(String(event.eventType));
-    if (row.companyId !== run.companyId || row.runId !== run.id || !isValidNativePrpEnvelope(event, row.protocolSchemaVersion)
+    if (row.spaceId !== run.spaceId || row.runId !== run.id || !isValidNativePrpEnvelope(event, row.protocolSchemaVersion)
       || event.runId !== run.id || event.normalizedSessionId !== run.nativeSessionId || event.eventType !== row.eventType
       || (!runnerSource && !controllerSource) || !id(source) || !id(event.sourceEventId)
       || !Number.isSafeInteger(row.seq) || Number(row.seq) <= lastSeq || !Number.isSafeInteger(event.sourceSeq)
@@ -92,14 +92,14 @@ export function projectRemoteRestartEvents(run: StoryRun, rows: readonly Row[]):
 }
 
 export function observeRemoteRestartBoundary(run: StoryRun, rows: readonly Row[], leases: readonly Row[], scope: {
-  companyId: string; agentId: string; issueId: string; environmentId: string;
+  spaceId: string; agentId: string; issueId: string; environmentId: string;
 }, recovered = false): RemoteRestartBoundary {
-  if (run.companyId !== scope.companyId || run.agentId !== scope.agentId || run.nativeIssueId !== scope.issueId
+  if (run.spaceId !== scope.spaceId || run.agentId !== scope.agentId || run.nativeIssueId !== scope.issueId
     || !(run.status === "running" || (recovered && run.status === "succeeded"))
     || run.runtimeMode !== "native" || !id(run.id) || !id(run.runnerInstanceId) || !id(run.nativeSessionId)) {
     throw new Error("Remote restart boundary requires the original live native process");
   }
-  const owned = leases.filter(lease => lease.companyId === scope.companyId && lease.environmentId === scope.environmentId
+  const owned = leases.filter(lease => lease.spaceId === scope.spaceId && lease.environmentId === scope.environmentId
     && lease.issueId === scope.issueId && lease.heartbeatRunId === run.id
     && (lease.provider === "daytona" || lease.provider === "plugin" || String(lease.provider).startsWith("plugin:"))
     && ((lease.status === "active" && lease.releasedAt == null) || (recovered && run.status === "succeeded"))
@@ -134,7 +134,7 @@ export function observeRemoteRestartBoundary(run: StoryRun, rows: readonly Row[]
     throw new Error("Remote restart boundary has no completed tool in an active original provider turn");
   }
   return {
-    identity: { runId: run.id, companyId: scope.companyId, agentId: scope.agentId, issueId: scope.issueId,
+    identity: { runId: run.id, spaceId: scope.spaceId, agentId: scope.agentId, issueId: scope.issueId,
       runnerInstanceId: run.runnerInstanceId, nativeSessionId: run.nativeSessionId,
       processPid: plugin ? null : Number(run.processPid), processStartedAt: plugin ? null : run.processStartedAt!,
       ...(plugin ? { taskIdentitySha256: digest({ runnerId: task.runnerId, leaseId: task.leaseId,
@@ -157,7 +157,7 @@ export function gradeRemoteRestart(evidence: RemoteRestartEvidence | undefined):
     && digest(before.lease) === digest(after.lease) && retainsPrefix(before.events, after.events));
   const run = final?.run;
   const identity = before?.identity;
-  const finalIdentity = Boolean(identity && run && run.id === identity.runId && run.companyId === identity.companyId
+  const finalIdentity = Boolean(identity && run && run.id === identity.runId && run.spaceId === identity.spaceId
     && run.agentId === identity.agentId && run.nativeIssueId === identity.issueId && run.runtimeMode === "native"
     && run.runnerInstanceId === identity.runnerInstanceId && run.nativeSessionId === identity.nativeSessionId);
   const events = final?.events ?? [];
@@ -184,7 +184,7 @@ export function gradeRemoteRestart(evidence: RemoteRestartEvidence | undefined):
   const saved = finalIdentity && run?.status === "succeeded" && run.nativePhase === "committed"
     && run.resultJson?.finalizationPhase === "committed" && run.resultJson.workspaceFinalizeStatus === "succeeded"
     && run.resultJson.nextAttemptAt == null && run.resultJson.failureCode == null
-    && operations.some(operation => operation.companyId === identity?.companyId && operation.heartbeatRunId === identity?.runId
+    && operations.some(operation => operation.spaceId === identity?.spaceId && operation.heartbeatRunId === identity?.runId
       && operation.issueId === identity?.issueId && operation.phase === "workspace_finalize" && operation.status === "succeeded"
       && operation.executionWorkspaceId === before?.lease.executionWorkspaceId)
     && !operations.some(operation => ["pending", "queued", "running"].includes(String(operation.status)))
@@ -199,7 +199,7 @@ export function gradeRemoteRestart(evidence: RemoteRestartEvidence | undefined):
         && retainsPrefix(step.before.events, step.after.events);
       const authenticated = validControllerReplacementReceipt(step.outage) && validControllerRecoveryReceipt(step.outage)
         && step.outage.recovery?.binding.runId === step.before.identity.runId
-        && step.outage.recovery.binding.companyId === step.before.identity.companyId
+        && step.outage.recovery.binding.spaceId === step.before.identity.spaceId
         && step.outage.recovery.binding.issueId === step.before.identity.issueId
         && step.outage.recovery.runnerInstanceId === step.before.identity.runnerInstanceId
         && step.outage.recovery.nativeSessionId === step.before.identity.nativeSessionId;

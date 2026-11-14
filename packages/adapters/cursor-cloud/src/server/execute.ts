@@ -20,11 +20,11 @@ import {
   isForbiddenConfigEnvKey,
   joinPromptSections,
   parseObject,
-  readPaperclipIssueWorkModeFromContext,
+  readOutpostIssueWorkModeFromContext,
   hydrateFreshSessionHandoff,
-  selectPaperclipPromptSections,
+  selectOutpostPromptSections,
   selectInitialCommunicationGuidance,
-  isPaperclipRecoveryWakePayload,
+  isOutpostRecoveryWakePayload,
   renderTemplate,
 } from "@outpost/adapter-utils/server-utils";
 
@@ -117,7 +117,7 @@ function buildWakeEnv(ctx: AdapterExecutionContext, configEnv: Record<string, st
     OUTPOST_RUN_ID: runId,
   };
   // OUTPOST_API_KEY is never accepted from config — the harness-minted run
-  // token is the only source of Paperclip API identity.
+  // token is the only source of Outpost API identity.
   delete env.OUTPOST_API_KEY;
   // Wake context travels in the prompt; a configured copy can exceed spawn limits.
   delete env.OUTPOST_WAKE_PAYLOAD_JSON;
@@ -130,7 +130,7 @@ function buildWakeEnv(ctx: AdapterExecutionContext, configEnv: Record<string, st
   const linkedIssueIds = Array.isArray(context.issueIds)
     ? context.issueIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     : [];
-  const issueWorkMode = readPaperclipIssueWorkModeFromContext(context);
+  const issueWorkMode = readOutpostIssueWorkModeFromContext(context);
 
   if (wakeTaskId) env.OUTPOST_TASK_ID = wakeTaskId;
   if (wakeReason) env.OUTPOST_WAKE_REASON = wakeReason;
@@ -144,12 +144,12 @@ function buildWakeEnv(ctx: AdapterExecutionContext, configEnv: Record<string, st
   }
 
   // cursor_cloud runs remotely in Cursor's cloud and is intentionally not
-  // issued a Paperclip run JWT (registry: supportsLocalAgentJwt=false).
+  // issued a Outpost run JWT (registry: supportsLocalAgentJwt=false).
   // buildOutpostEnv always sets OUTPOST_API_URL, defaulting to the local
   // runtime host — which a remote worker can neither reach nor authenticate
-  // against, so any agent-initiated Paperclip API call would fail with a 401
+  // against, so any agent-initiated Outpost API call would fail with a 401
   // (or be unreachable) and add noise. When there is no usable key, drop the
-  // callback wiring so cloud-side Paperclip tools degrade to a clean no-op.
+  // callback wiring so cloud-side Outpost tools degrade to a clean no-op.
   // Run results are delivered server-side via the Cursor Agent SDK (getRun /
   // wait), not through this callback, so nothing is lost.
   if (!trimNullable(env.OUTPOST_API_KEY)) {
@@ -157,7 +157,7 @@ function buildWakeEnv(ctx: AdapterExecutionContext, configEnv: Record<string, st
     delete env.OUTPOST_API_BRIDGE_MODE;
   }
 
-  const workspace = parseObject(context.paperclipWorkspace);
+  const workspace = parseObject(context.outpostWorkspace);
   const workspaceMappings: Array<[string, unknown]> = [
     ["OUTPOST_WORKSPACE_CWD", workspace.cwd],
     ["OUTPOST_WORKSPACE_SOURCE", workspace.source],
@@ -175,7 +175,7 @@ function buildWakeEnv(ctx: AdapterExecutionContext, configEnv: Record<string, st
 
   delete env.CURSOR_API_KEY;
   // Cursor rejects the entire request when any envVars value is empty.
-  // Paperclip may use empty values to unset optional host credentials; remote
+  // Outpost may use empty values to unset optional host credentials; remote
   // workers do not inherit those host variables, so omit the empty entries.
   return Object.fromEntries(Object.entries(env).filter(([, value]) => value.length > 0));
 }
@@ -364,7 +364,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     };
   }
 
-  const workspace = parseObject(context.paperclipWorkspace);
+  const workspace = parseObject(context.outpostWorkspace);
   const repoUrl =
     asString(config.repoUrl, "").trim() ||
     asString(workspace.repoUrl, "").trim();
@@ -412,16 +412,16 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const bootstrapPromptTemplate = asString(config.bootstrapPromptTemplate, "");
   const templateData = {
     agentId: agent.id,
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     runId,
-    company: { id: agent.companyId },
+    space: { id: agent.spaceId },
     agent,
     run: { id: runId, source: "on_demand" },
     context,
   };
   const instructions = await buildInstructionsPrefix(config, onLog);
   await hydrateFreshSessionHandoff(ctx, { resumedSession: canReuseSession });
-  const { taskContextNote, wakePrompt } = selectPaperclipPromptSections(context, {
+  const { taskContextNote, wakePrompt } = selectOutpostPromptSections(context, {
     resumedSession: canReuseSession,
     includeCommunicationGuidance: false,
   });
@@ -430,7 +430,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       ? renderTemplate(bootstrapPromptTemplate, templateData).trim()
       : "";
   const renderedPrompt =
-    (canReuseSession && wakePrompt.length > 0) || isPaperclipRecoveryWakePayload(context.paperclipWake)
+    (canReuseSession && wakePrompt.length > 0) || isOutpostRecoveryWakePayload(context.outpostWake)
       ? ""
       : renderTemplate(promptTemplate, templateData).trim();
   const outpostEnvNote = renderOutpostEnvNote(remoteEnv);
@@ -443,7 +443,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     outpostEnvNote,
     renderedPrompt,
   ]);
-  const sessionHandoffNote = asString(context.paperclipSessionHandoffMarkdown, "").trim();
+  const sessionHandoffNote = asString(context.outpostSessionHandoffMarkdown, "").trim();
   const finalPrompt = joinPromptSections([prompt, sessionHandoffNote]);
   const promptMetrics = {
     promptChars: finalPrompt.length,

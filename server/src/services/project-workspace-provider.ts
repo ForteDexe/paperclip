@@ -1,12 +1,12 @@
 import { and, eq, notInArray } from "drizzle-orm";
-import { pluginCompanySettings, plugins, type Db } from "@outpost/db";
-import type { Environment, PaperclipPluginManifestV1, ProjectExecutionWorkspacePolicy, ProjectWorkspaceProviderConfiguration } from "@outpost/shared";
+import { pluginSpaceSettings, plugins, type Db } from "@outpost/db";
+import type { Environment, OutpostPluginManifestV1, ProjectExecutionWorkspacePolicy, ProjectWorkspaceProviderConfiguration } from "@outpost/shared";
 import { parseProjectExecutionWorkspacePolicy } from "./execution-workspace-policy.js";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
 import { workspaceWorkerRefusal } from "./workspace-provider-failure.js";
 import { conflict } from "../errors.js";
 
-export function isWorkspaceProvider(manifest: PaperclipPluginManifestV1) {
+export function isWorkspaceProvider(manifest: OutpostPluginManifestV1) {
   return Boolean(manifest.workspaceProvider && manifest.capabilities.includes("workspaces.manage") &&
     manifest.resourceLifecycle?.includes("project"));
 }
@@ -17,7 +17,7 @@ export type WorkspaceWorkers = Pick<PluginWorkerManager, "call" | "getWorker">;
 export async function requireWorkspaceProviderWorker(
   db: ProviderDb,
   workers: WorkspaceWorkers | undefined,
-  companyId: string,
+  spaceId: string,
   pluginId: string,
   /** Before a call, a ready provider whose worker is not running is a retryable refusal: no request is sent. */
   beforeCall = false,
@@ -28,11 +28,11 @@ export async function requireWorkspaceProviderWorker(
     .where(eq(plugins.id, pluginId));
   const [settings] = await db
     .select()
-    .from(pluginCompanySettings)
+    .from(pluginSpaceSettings)
     .where(
       and(
-        eq(pluginCompanySettings.pluginId, pluginId),
-        eq(pluginCompanySettings.companyId, companyId),
+        eq(pluginSpaceSettings.pluginId, pluginId),
+        eq(pluginSpaceSettings.spaceId, spaceId),
       ),
     );
   const worker = workers?.getWorker(pluginId);
@@ -52,11 +52,11 @@ export async function requireWorkspaceProviderWorker(
   return plugin;
 }
 
-export async function listProjectWorkspaceProviders(db: ProviderDb, companyId: string) {
-  const rows = await db.select({ plugin: plugins, enabled: pluginCompanySettings.enabled })
+export async function listProjectWorkspaceProviders(db: ProviderDb, spaceId: string) {
+  const rows = await db.select({ plugin: plugins, enabled: pluginSpaceSettings.enabled })
     .from(plugins)
-    .leftJoin(pluginCompanySettings, and(eq(pluginCompanySettings.pluginId, plugins.id),
-      eq(pluginCompanySettings.companyId, companyId)))
+    .leftJoin(pluginSpaceSettings, and(eq(pluginSpaceSettings.pluginId, plugins.id),
+      eq(pluginSpaceSettings.spaceId, spaceId)))
     .where(notInArray(plugins.status, ["disabled", "uninstalled"]));
   return rows.filter(row => row.enabled !== false && isWorkspaceProvider(row.plugin.manifestJson))
     .map(row => row.plugin);
@@ -109,8 +109,8 @@ export function sourcelessProjectWorkspacePolicy(rawPolicy: unknown): ProjectExe
   return Object.keys(settings).some(key => key !== "enabled") ? settings : null;
 }
 
-export async function effectiveProjectWorkspacePolicy(db: ProviderDb, companyId: string, rawPolicy: unknown, hasGitSource: boolean) {
-  const configuration = resolveProjectWorkspaceProvider(rawPolicy, await listProjectWorkspaceProviders(db, companyId), hasGitSource);
+export async function effectiveProjectWorkspacePolicy(db: ProviderDb, spaceId: string, rawPolicy: unknown, hasGitSource: boolean) {
+  const configuration = resolveProjectWorkspaceProvider(rawPolicy, await listProjectWorkspaceProviders(db, spaceId), hasGitSource);
   if (configuration.error) throw conflict(configuration.error);
   return configuration.effectivePolicy;
 }

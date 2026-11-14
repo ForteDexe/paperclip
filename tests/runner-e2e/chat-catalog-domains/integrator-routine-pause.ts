@@ -44,9 +44,9 @@ export function gradeIntegratorRoutinePause(value: unknown) {
 }
 export const integratorRoutinePauseCases = [integratorDefinition("routines", "routines.pause-owned", async ctx => {
   const p = await project(ctx, "Launch"); const worker = await fixtureWorker(ctx);
-  for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: worker.id }])
-    await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
-  const routine = await ctx.input.api.post<RoutineDetail>(`/api/companies/${ctx.input.fixtures.company.id}/routines`, { title: "Daily launch summaries", projectId: p.id, assigneeAgentId: ctx.input.fixtures.agent.id,
+  for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: worker.id }])
+    await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+  const routine = await ctx.input.api.post<RoutineDetail>(`/api/spaces/${ctx.input.fixtures.space.id}/routines`, { title: "Daily launch summaries", projectId: p.id, assigneeAgentId: ctx.input.fixtures.agent.id,
     description: "Save one short factual Launch summary in a task comment, then complete this summary task. Do not create other work.", concurrencyPolicy: "always_enqueue" });
   // Public manual execution supports a one-invocation assignee override. The
   // routine remains owned by the CEO while this ordinary task runs as Morgan.
@@ -65,7 +65,7 @@ export const integratorRoutinePauseCases = [integratorDefinition("routines", "ro
       activeNativeRunId: phase.runs.find(run => run.contextSnapshot?.issueId === activeInvocation.linkedIssueId)?.id, gateObserved: gate.calls.some(call => call.authorized) };
   } catch (error) { await gate.close(); gates.delete(ctx); throw error; }
 }, observePause, gradeIntegratorRoutinePause, async (ctx, state) => {
-  const routine = state.routine as RoutineDetail; await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/routines/${routine.id}/history`, routine.title);
+  const routine = state.routine as RoutineDetail; await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/routines/${routine.id}/history`, routine.title);
 }, { sourceFiles: ["chat-catalog-domains/integrator-routine-pause.ts", "chat-catalog-domains/internal-run-brief.ts", "chat-catalog-domains/internal-definition.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/integrator-support.ts", "chat-scenarios/routines.yaml"],
   oracleVersion: "outpost.chat-catalog.routine-pause.structural.v2", expectedRunCount: 3, attemptTimeoutMs: 720_000,
   setupPolicy: { readiness: "preserve-scenario", invariantCheckIds: ["lead-ready", "owned-routine-real-active-task"] },

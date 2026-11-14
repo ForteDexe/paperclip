@@ -84,8 +84,8 @@ export const runtimeQueueCases = [runtimeDefinition("steering.queue-follow-up", 
     c.add("lead-ready", lead.lifecycleState === "ready" && ["active", "idle"].includes(lead.status ?? ""), "The actual controller is admitted normally.");
     c.add("real-busy-worker", worker.lifecycleState === "ready" && ["active", "running"].includes(worker.status ?? "") && run?.status === "running" && state.workerWasReallyWaiting === true,
     "Morgan is genuinely busy in a native tool wait, without a fabricated busy state.");
-    c.add("worker-task-scope", run?.agentId === worker.id && run.companyId === ctx.input.fixtures.company.id
-      && [run.contextSnapshot?.issueId, (run as typeof run & { nativeIssueId?: string })?.nativeIssueId].includes((state.task as Entity).id), "The actual active owner belongs to the exact task and company.");
+    c.add("worker-task-scope", run?.agentId === worker.id && run.spaceId === ctx.input.fixtures.space.id
+      && [run.contextSnapshot?.issueId, (run as typeof run & { nativeIssueId?: string })?.nativeIssueId].includes((state.task as Entity).id), "The actual active owner belongs to the exact task and space.");
     return c.result();
   },
   async act(ctx, state) {
@@ -99,13 +99,13 @@ export const runtimeQueueCases = [runtimeDefinition("steering.queue-follow-up", 
     state.canonicalRunId = canonical.id; state.workerStatusAtReply = phase.runs.find(run => run.id === state.workerRunId)!.status;
     state.queuedAtReply = phase.queue; state.queryReply = (await observeRuntime(ctx, state)).reply;
     const source = ctx.input.page.url(), task = state.task as Entity;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     const requirement = savedRequirement(phase.queue, ctx.input.fixtures.agent.id)!;
     await expect(ctx.input.page.getByTestId(`task-chat-queued-message-${requirement.comment.id}`)).toBeVisible();
     await ctx.input.capture("actual-contact-followup-queue", "Contact requirement remains visibly queued behind real active work", "runtime-contact-queue.png");
     await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });
     const marker = `Original website brief ${ctx.input.nonce}`; state.briefMarker = marker;
-    await writeFile((state.gate as { gate: string }).gate, `The human brief is now ready: save an initial task document with the exact reference ${marker}, then finish this current turn normally. Keep all prior user requirements queued by Paperclip intact for normal delivery; do not create tasks or external effects.`, "utf8");
+    await writeFile((state.gate as { gate: string }).gate, `The human brief is now ready: save an initial task document with the exact reference ${marker}, then finish this current turn normally. Keep all prior user requirements queued by Outpost intact for normal delivery; do not create tasks or external effects.`, "utf8");
     const delivered = await pollUntil({ label: "Normal successor receives actual queued contact requirement", deadlineAt: Date.now() + 240_000,
       load: async () => ({ task: await ctx.input.api.get<Entity>(`/api/issues/${task.id}`), runs: await ctx.allRuns(), queue: await ctx.input.api.get<IssueQueuedCommentQueue>(`/api/issues/${task.id}/queued-comments`) }),
       accept: value => value.task.status === "done" && value.runs.length === 3 && value.runs.every(run => run.status === "succeeded") && value.queue.entries.length === 0,
@@ -138,7 +138,7 @@ export const runtimeQueueCases = [runtimeDefinition("steering.queue-follow-up", 
   },
   async verifyResult(ctx, state) {
     const source = ctx.input.page.url(), task = state.task as Entity;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("heading", { name: task.title!, exact: true }).first()).toBeVisible();
     await expect(ctx.input.page.getByTestId("task-chat-queued-messages")).toHaveCount(0);

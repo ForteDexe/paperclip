@@ -4,7 +4,7 @@ import { prepareTestDriveEnvironment, testDriveCommand } from "../../../cli/src/
 const options = {
   harness: "codex",
   apiKeyEnv: "BOOTSTRAP_FIXTURE_KEY",
-  companyName: "Workspace Recovery QA",
+  spaceName: "Workspace Recovery QA",
   browser: false,
 } as const;
 

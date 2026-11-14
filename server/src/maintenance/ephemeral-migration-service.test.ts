@@ -24,7 +24,7 @@ it("keeps the original key out of health/status and exports only after authentic
   expect((await request("/status", "GET", false)).status).toBe(401);
   expect((await request("/export", "POST", false)).status).toBe(401);
   expect((await request("/export", "POST")).status).toBe(409);
-  expect((await request("/api/companies")).status).toBe(404);
+  expect((await request("/api/spaces")).status).toBe(404);
   finish(original); await service!.finished;
   const status = await request("/status");
   expect(status.headers.get("cache-control")).toBe("no-store");

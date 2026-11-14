@@ -34,7 +34,7 @@ export interface OperationGroupsSource {
     operationIds: string[];
   }>;
   behaviorGroups: BehaviorGroupSource[];
-  rules: Record<"companyAuthorization" | "taskModes" | "redaction" | "idempotency" | "sideEffects", string[]>;
+  rules: Record<"spaceAuthorization" | "taskModes" | "redaction" | "idempotency" | "sideEffects", string[]>;
   documentLifecycle: {
     scope: string[];
     operations: Array<{
@@ -438,7 +438,7 @@ export function renderOperationGroupsDocument(input: OperationGroupsInput): stri
   }
 
   lines.push("", "## Authorization and execution invariants");
-  pushRuleSection(lines, "Outpost and actor authorization", source.rules.companyAuthorization);
+  pushRuleSection(lines, "Outpost and actor authorization", source.rules.spaceAuthorization);
   pushRuleSection(lines, "Task modes and exposure", source.rules.taskModes);
   pushRuleSection(lines, "Redaction", source.rules.redaction);
   pushRuleSection(lines, "Idempotency and replay", source.rules.idempotency);
@@ -461,7 +461,7 @@ export function renderOperationGroupsDocument(input: OperationGroupsInput): stri
   }
   lines.push(
     "",
-    "All document writes produce a normalized receipt. Success includes the document key/id, prior and new revision identity, idempotency key, and audit reference. Missing/stale bases return `base_revision_required` or `stale_base_revision` with the current revision. Authorization, cross-company, and lock failures use stable redacted denial codes. The runner never overwrites after a conflict without a fresh read and explicit reconciled write.",
+    "All document writes produce a normalized receipt. Success includes the document key/id, prior and new revision identity, idempotency key, and audit reference. Missing/stale bases return `base_revision_required` or `stale_base_revision` with the current revision. Authorization, cross-space, and lock failures use stable redacted denial codes. The runner never overwrites after a conflict without a fresh read and explicit reconciled write.",
     "",
     "## Provenance, generation, and drift gates",
     "",
@@ -530,7 +530,7 @@ export function renderOperationGroupsDocument(input: OperationGroupsInput): stri
     "",
     "### ORP expressiveness boundary",
     "",
-    "ORP v1 already represents runner/session/turn/item lifecycle, replay identity, capability negotiation, request/interaction routing, result negotiation, attention, work assessment, issue-status decision, and terminal causality. Provider-neutral semantic-operation receipts (including authorization/redaction/idempotency/conflict facts) and explicit budget-stop reasons are additive v1 work. Destructive administration, cross-company actions, board-only governance, document lock/unlock/delete, checkout selection, audit persistence, and final arbitration remain control-plane-local and do not become model tools or generic ORP commands.",
+    "ORP v1 already represents runner/session/turn/item lifecycle, replay identity, capability negotiation, request/interaction routing, result negotiation, attention, work assessment, issue-status decision, and terminal causality. Provider-neutral semantic-operation receipts (including authorization/redaction/idempotency/conflict facts) and explicit budget-stop reasons are additive v1 work. Destructive administration, cross-space actions, operator-only approvals, document lock/unlock/delete, checkout selection, audit persistence, and final arbitration remain control-plane-local and do not become model tools or generic ORP commands.",
     "",
   );
   return `${lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd()}\n`;
@@ -621,6 +621,6 @@ function slug(value: string): string {
 }
 
 function scenarioUrl(source: OperationGroupsSource, scenario: OperationGroupsScenario): string {
-  const relative = scenario.sourceAnchor.replace(/^paperclip-evals\//, "");
+  const relative = scenario.sourceAnchor.replace(/^outpost-evals\//, "");
   return `${source.evalRepositoryUrl}${relative}`;
 }

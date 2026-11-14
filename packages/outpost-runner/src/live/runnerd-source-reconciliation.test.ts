@@ -55,9 +55,9 @@ async function sourceFixture(registration?: CapabilityRunnerdCodexTransportOptio
     for (const bundle of bundles.reverse()) { await bundle.transport.close().catch(() => undefined); const evidence = bundle.evidence(); kill(evidence.runnerPid); kill(evidence.codexPid); }
     await rm(root, { recursive: true, force: true });
   };
-  const nativeIdentity = { companyId: "company", agentId: "agent", issueId: "issue", runId: identity.runId, sessionId: identity.normalizedSessionId };
+  const nativeIdentity = { spaceId: "space", agentId: "agent", issueId: "issue", runId: identity.runId, sessionId: identity.normalizedSessionId };
   const execution: NativeExecutionInput = { schema: "outpost.native-execution-input.v1",
-    binding: { companyId: nativeIdentity.companyId, agentId: nativeIdentity.agentId, issueId: nativeIdentity.issueId,
+    binding: { spaceId: nativeIdentity.spaceId, agentId: nativeIdentity.agentId, issueId: nativeIdentity.issueId,
       runId: identity.runId, executionWorkspaceId: "workspace" },
     task: { identifier: "TASK-1", title: "Complete fake work", description: null, prompt: "Complete fake work", workMode: "standard" },
     workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },
@@ -193,7 +193,7 @@ it.each([["launch", "default"], ["adopt", "default"], ["adopt-denied", "default"
       permissions: provider.readOnly ? "outpost-runner-workspace-read-only" : "outpost-runner-workspace-only",
       conversationMode: provider.conversationMode,
       config: { include_collaboration_mode_instructions: provider.includeCollaborationModeInstructions !== false },
-    }, null, "You are a Paperclip agent.");
+    }, null, "You are a Outpost agent.");
     const prepare = vi.fn(async (input: RunnerProviderLaunchRequirements) => ({ configurationId: input.identity.runId === fixture.identity.runId ? "new-source-incarnation" : "target-configuration", requirementsDigest: runnerLaunchRequirementsDigest(input),
       provider: createRunnerProviderLaunch(input, { options: fixture.options, root: fixture.root, cwd: provider.cwd,
         codexHome: join(fixture.root, "codex-home"), codexCommand: fakeCodex, providerNodeCommand: "", opencodeProxyPath: "", acpxSidecarPath: "" }) }));

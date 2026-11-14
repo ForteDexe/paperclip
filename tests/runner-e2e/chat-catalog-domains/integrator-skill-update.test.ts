@@ -12,15 +12,15 @@ vi.mock("./integrator-skill-versions.js", () => ({ readSkillVersionHistory: asyn
 
 const bytes = { old: readFileSync(new URL("../fixtures/accessibility-source/0.4.SKILL.md", import.meta.url), "utf8"), next: readFileSync(new URL("../fixtures/accessibility-source/0.5.SKILL.md", import.meta.url), "utf8") };
 function valid(old: string, next: string) {
-  const upstream = { id: "up", companyId: "company", name: "accessibility", editable: false, sourceRef: pins.oldCommit, currentVersionId: "old", markdown: old };
+  const upstream = { id: "up", spaceId: "space", name: "accessibility", editable: false, sourceRef: pins.oldCommit, currentVersionId: "old", markdown: old };
   const local = { id: "fork", editable: true, forkedFromSkillId: "up", currentVersionId: "local", markdown: `${old}\nORCHID customer notes` };
   const versions = [{ id: "old", fileInventory: [{ path: "SKILL.md", content: old }] }]; const localVersions = [{ id: "local" }];
-  const base = { scenarioId: "skills.review-update", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { upstream: structuredClone(upstream), localFork: structuredClone(local), localVersions: structuredClone(localVersions) }, upstream, localFork: local, upstreamVersions: versions, forkVersions: localVersions,
+  const base = { scenarioId: "skills.review-update", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { upstream: structuredClone(upstream), localFork: structuredClone(local), localVersions: structuredClone(localVersions) }, upstream, localFork: local, upstreamVersions: versions, forkVersions: localVersions,
     source: { id: "source", lastScanCommit: pins.oldCommit, trackingRef: pins.newCommit, automaticUpdates: false }, updateStatus: { supported: true, hasUpdate: true, currentRef: pins.oldCommit, latestRef: pins.newCommit },
     tasks: [], projects: [], goals: [], documents: [], revisions: [], comments: [], humanQueries: [], links: [], runs: [], activity: [],
     reply: "The currently installed version is 0.4. The new revision adds continuous accessibility regression tests and splits long forms into smaller steps; it also discourages crowded interface patterns. I have not applied it." };
   return { ...base, upstream: { ...upstream, sourceRef: pins.newCommit, currentVersionId: "new", markdown: next }, source: { ...base.source, lastScanCommit: pins.newCommit },
-    upstreamVersions: [...versions, { id: "new", fileInventory: [{ path: "SKILL.md", content: next }] }], activity: [{ agentId: "ceo", action: "company.skill_source_refreshed", entityId: "source" }], state: { ...base.state, reviewCheckpoint: structuredClone(base) },
+    upstreamVersions: [...versions, { id: "new", fileInventory: [{ path: "SKILL.md", content: next }] }], activity: [{ agentId: "ceo", action: "space.skill_source_refreshed", entityId: "source" }], state: { ...base.state, reviewCheckpoint: structuredClone(base) },
     reply: `${base.reply}\nI updated the accessibility skill to the reviewed source version. The local copy is unchanged.` };
 }
 describe("genuine immutable public skill update qualification", () => {
@@ -60,7 +60,7 @@ describe("genuine immutable public skill update qualification", () => {
     const first = value.state.reviewCheckpoint as typeof value.state.reviewCheckpoint & { visibleReview?: unknown };
     Object.assign(first.state, { sourceIssueId: "source" });
     const summary = first.reply;
-    const run = { id: "review-run", runtimeMode: "native", companyId: "company", agentId: "ceo", status: "succeeded", nativeIssueId: "source",
+    const run = { id: "review-run", runtimeMode: "native", spaceId: "space", agentId: "ceo", status: "succeeded", nativeIssueId: "source",
       contextSnapshot: { issueId: "source", commentId: "human" }, resultJson: { summary, finalizationPhase: "committed",
         finalizationReasonCode: "conversation_turn_finished", orpRunTerminalState: "succeeded", orpTurnTerminalState: "completed",
         nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary } } };
@@ -75,7 +75,7 @@ describe("genuine immutable public skill update qualification", () => {
       const original = first.visibleReview; first.visibleReview = { ...original as object, ...patch };
       expect(check()).toBe(false); first.visibleReview = original;
     }
-    for (const patch of [{ companyId: "foreign" }, { agentId: "foreign" }, { status: "failed" }, { nativeIssueId: "foreign" }, { contextSnapshot: { issueId: "source", commentId: "other" } }, { resultJson: { ...run.resultJson, finalizationPhase: "pending" } }]) {
+    for (const patch of [{ spaceId: "foreign" }, { agentId: "foreign" }, { status: "failed" }, { nativeIssueId: "foreign" }, { contextSnapshot: { issueId: "source", commentId: "other" } }, { resultJson: { ...run.resultJson, finalizationPhase: "pending" } }]) {
       const original = first.runs; Object.assign(first, { runs: [{ ...run, ...patch }] });
       expect(check()).toBe(false); first.runs = original;
     }
@@ -97,8 +97,8 @@ it("requires the actual pinned update prerequisite before admitting the human re
   const real = { supported: true, hasUpdate: true, currentRef: pins.oldCommit, latestRef: pins.newCommit, trackingRef: pins.newCommit };
   const evidence = vi.fn(async (_name: string, _value: unknown) => {});
   const read = vi.fn(async (): Promise<{ supported: boolean; hasUpdate: boolean; currentRef: string; latestRef: string; trackingRef: string }> => real);
-  const ctx = { observationDeadlineAt: Date.now() + 30_000, input: { api: { getSkillSourceUpdateStatus: read }, fixtures: { company: { id: "company" } }, evidence } } as unknown as Parameters<typeof requireSkillUpdatePrerequisite>[0];
-  await requireSkillUpdatePrerequisite(ctx, "selected"); expect(read).toHaveBeenCalledWith("company", "selected", { timeout: expect.any(Number) });
+  const ctx = { observationDeadlineAt: Date.now() + 30_000, input: { api: { getSkillSourceUpdateStatus: read }, fixtures: { space: { id: "space" } }, evidence } } as unknown as Parameters<typeof requireSkillUpdatePrerequisite>[0];
+  await requireSkillUpdatePrerequisite(ctx, "selected"); expect(read).toHaveBeenCalledWith("space", "selected", { timeout: expect.any(Number) });
   expect(evidence).toHaveBeenCalledWith("chat-skill-update-prerequisite.json", expect.objectContaining({ currentPinnedRevisionMatched: true, latestPinnedRevisionMatched: true }));
   for (const bad of [{ ...real, supported: false }, { ...real, hasUpdate: false }, { ...real, currentRef: pins.newCommit }, { ...real, latestRef: pins.oldCommit }, { ...real, trackingRef: "wrong" }]) {
     read.mockResolvedValueOnce(bad); await expect(requireSkillUpdatePrerequisite(ctx, "selected")).rejects.toThrow("unavailable");
@@ -111,7 +111,7 @@ function setupFixture(unavailable: boolean) {
   const source = { id: "source", revision: 1, entries: [{ path: pins.path, skillId: "up" }], lastScanCommit: pins.oldCommit, trackingRef: pins.newCommit, automaticUpdates: false };
   const prerequisite = vi.fn(async () => { if (unavailable) throw new SkillSourceUpdateReadError(422, "skill_source_ref_unavailable", 422);
     return { supported: true, hasUpdate: true, currentRef: pins.oldCommit, latestRef: pins.newCommit, trackingRef: pins.newCommit }; });
-  const ctx = { observationDeadlineAt: Date.now() + 30_000, input: { fixtures: { company: { id: "company" } }, evidence: vi.fn(async (_name: string, _value: unknown) => {}), api: {
+  const ctx = { observationDeadlineAt: Date.now() + 30_000, input: { fixtures: { space: { id: "space" } }, evidence: vi.fn(async (_name: string, _value: unknown) => {}), api: {
     post: async () => ({ source, imported: [{ id: "up" }] }), patch: async () => source,
     get: async () => ({ id: "up", sourceType: "github", sourceRef: pins.oldCommit, markdown: bytes.old, editable: false }), getSkillSourceUpdateStatus: prerequisite,
   } } } as unknown as Parameters<typeof requireSkillUpdatePrerequisite>[0];

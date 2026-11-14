@@ -38,7 +38,7 @@ function seed(runId: string, sessionId: string): SessionSnapshot {
     fixtureName: "live-console-demo",
     identity: {
       schema: "outpost.orp.identity.v1",
-      companyId: "package-local-demo",
+      spaceId: "package-local-demo",
       issueId: "live-console-demo",
       runId,
       environmentLeaseId: "package-local",

@@ -1,9 +1,9 @@
-import type { CompanySearchResponse, CompanySearchScope, CompanySearchSort, IssuePriority, IssueDisplayStatus } from "@outpost/shared";
+import type { SpaceSearchResponse, SpaceSearchScope, SpaceSearchSort, IssuePriority, IssueDisplayStatus } from "@outpost/shared";
 import { api } from "./client";
 
-export interface CompanySearchParams {
+export interface SpaceSearchParams {
   q: string;
-  scope?: CompanySearchScope;
+  scope?: SpaceSearchScope;
   limit?: number;
   offset?: number;
   status?: IssueDisplayStatus[];
@@ -14,7 +14,7 @@ export interface CompanySearchParams {
   labelId?: string;
   updatedWithin?: string;
   updatedAfter?: string;
-  sort?: CompanySearchSort;
+  sort?: SpaceSearchSort;
 }
 
 function appendMulti(search: URLSearchParams, key: string, values: readonly string[] | undefined) {
@@ -22,7 +22,7 @@ function appendMulti(search: URLSearchParams, key: string, values: readonly stri
 }
 
 export const searchApi = {
-  search: (companyId: string, params: CompanySearchParams) => {
+  search: (spaceId: string, params: SpaceSearchParams) => {
     const search = new URLSearchParams();
     search.set("q", params.q);
     if (params.scope) search.set("scope", params.scope);
@@ -38,8 +38,8 @@ export const searchApi = {
     if (params.updatedAfter !== undefined) search.set("updatedAfter", params.updatedAfter);
     if (params.sort !== undefined) search.set("sort", params.sort);
     const qs = search.toString();
-    return api.get<CompanySearchResponse>(
-      `/companies/${companyId}/search${qs ? `?${qs}` : ""}`,
+    return api.get<SpaceSearchResponse>(
+      `/spaces/${spaceId}/search${qs ? `?${qs}` : ""}`,
     );
   },
 };

@@ -7,7 +7,7 @@ export function planToolChanges(snapshot: AgentConfigurationSnapshot, document: 
   const next = document.spec.tools;
   if (!next) return;
   const before = snapshot.document.spec.tools!;
-  const { id: agentId, companyId } = snapshot.agent;
+  const { id: agentId, spaceId } = snapshot.agent;
   unique(next.connections.map(row => row.connectionId), "tools.connections");
   unique(next.profiles.flatMap(row => row.profileId ? [row.profileId] : []), "tools.profiles");
   unique(next.policies.flatMap(row => row.id ? [row.id] : []), "tools.policies");
@@ -18,10 +18,10 @@ export function planToolChanges(snapshot: AgentConfigurationSnapshot, document: 
     const installed = next.connections.find(row => row.connectionId === previous.connectionId)?.installed ?? false;
     if (installed === previous.installed) continue;
     const connection = snapshot.connections.find(row => row.id === previous.connectionId)!;
-    if (connection.installs?.some(row => row.targetType === "company")) throw new Error(`${connection.name} is installed across the Outpost. Its inherited installation cannot be overridden for one agent.`);
+    if (connection.installs?.some(row => row.targetType === "space")) throw new Error(`${connection.name} is installed across the Outpost. Its inherited installation cannot be overridden for one agent.`);
     add(`Tool installation: ${connection.name}`, async () => {
       const current = await toolsApi.getConnectionInstalls(connection.id);
-      if (current.installs.some(row => row.targetType === "company") || current.installs.some(row => row.targetType === "agent" && row.targetId === agentId) !== previous.installed) {
+      if (current.installs.some(row => row.targetType === "space") || current.installs.some(row => row.targetType === "agent" && row.targetId === agentId) !== previous.installed) {
         throw new Error(`Installation for ${connection.name} changed. Reload before saving.`);
       }
       const installs = current.installs.filter(row => !(row.targetType === "agent" && row.targetId === agentId))
@@ -43,14 +43,14 @@ export function planToolChanges(snapshot: AgentConfigurationSnapshot, document: 
     }
     add(`Tool profile${row.updateSharedDefinition ? " (shared definition)" : ""}: ${row.configuration.name}`, async () => {
       let profileId = row.profileId;
-      if (!profileId) profileId = (await toolsApi.createProfile(companyId, row.configuration)).id;
+      if (!profileId) profileId = (await toolsApi.createProfile(spaceId, row.configuration)).id;
       else if (existing && !equal(profileConfiguration(existing), row.configuration)) await toolsApi.updateProfile(profileId, row.configuration);
-      return toolsApi.bindProfile(companyId, profileId, { targetType: "agent", targetId: agentId, priority: row.priority, metadata: row.metadata });
+      return toolsApi.bindProfile(spaceId, profileId, { targetType: "agent", targetId: agentId, priority: row.priority, metadata: row.metadata });
     });
   }
   for (const previous of before.profiles) {
     if (!next.profiles.some(row => row.profileId === previous.profileId)) add(`Unbind tool profile: ${previous.configuration.name}`,
-      () => toolsApi.unbindProfile(companyId, previous.profileId!, { targetType: "agent", targetId: agentId }));
+      () => toolsApi.unbindProfile(spaceId, previous.profileId!, { targetType: "agent", targetId: agentId }));
   }
   for (const row of next.policies) {
     const previous = row.id ? requireItem(before.policies, policy => policy.id === row.id, `Agent policy ${row.id}`) : null;
@@ -62,11 +62,11 @@ export function planToolChanges(snapshot: AgentConfigurationSnapshot, document: 
     const configuration = { ...row.configuration, selectors };
     if (previous && equal(previous.configuration, row.configuration)) continue;
     add(`Tool policy: ${configuration.name}`, () => row.id
-      ? toolsApi.updatePolicy(companyId, row.id, configuration)
-      : toolsApi.createPolicy(companyId, configuration));
+      ? toolsApi.updatePolicy(spaceId, row.id, configuration)
+      : toolsApi.createPolicy(spaceId, configuration));
   }
   for (const previous of before.policies) {
     if (!next.policies.some(row => row.id === previous.id)) add(`Remove tool policy: ${previous.configuration.name}`,
-      () => toolsApi.deletePolicy(companyId, previous.id!));
+      () => toolsApi.deletePolicy(spaceId, previous.id!));
   }
 }

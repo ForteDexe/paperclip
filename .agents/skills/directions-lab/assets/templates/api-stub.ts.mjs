@@ -1,4 +1,4 @@
-export default (ctx) => `import { COMPANY } from "./fixtures";
+export default (ctx) => `import { SPACE } from "./fixtures";
 
 export type ApiRoute = (pathname: string, method: string) => unknown | undefined;
 
@@ -17,9 +17,9 @@ function respond(pathname: string, method: string): Response {
     if (body !== undefined) return json(body);
   }
   if (pathname.endsWith("/auth/get-session")) {
-    return json({ session: { id: "lab-session", userId: "lab-user" }, user: { id: "lab-user", name: "Lab", email: \`lab@\${COMPANY.name}.example\` } });
+    return json({ session: { id: "lab-session", userId: "lab-user" }, user: { id: "lab-user", name: "Lab", email: \`lab@\${SPACE.name}.example\` } });
   }
-  if (pathname.endsWith("/companies")) return json([COMPANY]);
+  if (pathname.endsWith("/spaces")) return json([SPACE]);
   console.debug("${ctx.tag} unhandled", method, pathname);
   return json({});
 }

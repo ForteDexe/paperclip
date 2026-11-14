@@ -3,7 +3,7 @@ import type { Issue } from "@outpost/shared";
 import { ChevronDown, ChevronRight, GitBranch } from "lucide-react";
 import { buildIssueTree } from "../lib/issue-tree";
 import { issueFilterLabel } from "../lib/issue-filters";
-import { paperclipHumanAvatarUrl } from "../lib/issue-chat-human-author";
+import { outpostHumanAvatarUrl } from "../lib/issue-chat-human-author";
 import { defaultTaskListColumns, defaultTaskListSort, isTaskListColumnSort, taskListOrderToIssueSort, type TaskListColumnId, type TaskListSort, type TaskListOrder } from "../lib/task-list";
 import { sortIssues } from "../lib/issue-sort";
 import { timeAgo } from "../lib/timeAgo";
@@ -63,13 +63,13 @@ export function topRenderedTaskRefs(rows: Iterable<Pick<Issue, "id" | "identifie
 }
 
 /** Preloads the chats of a list's top rows. A component, so lists without it need no query client. */
-function TaskChatPreload({ companyId, refs }: { companyId: string; refs: readonly string[] }) {
-  usePreloadTaskChats(companyId, refs, true);
+function TaskChatPreload({ spaceId, refs }: { spaceId: string; refs: readonly string[] }) {
+  usePreloadTaskChats(spaceId, refs, true);
   return null;
 }
 
 /** Opt-in collection built from the reviewed row, hierarchy and column primitives. */
-export function TaskList({ items, allItems = items, initialColumns = defaultTaskListColumns, density = "comfortable", collapsedIds, onCollapsedIdsChange, groupBy = "none", emptyState, issueLinkState, collectionKey, preferenceLocation, sort: controlledSort, onSortChange, preloadCompanyId }: {
+export function TaskList({ items, allItems = items, initialColumns = defaultTaskListColumns, density = "comfortable", collapsedIds, onCollapsedIdsChange, groupBy = "none", emptyState, issueLinkState, collectionKey, preferenceLocation, sort: controlledSort, onSortChange, preloadSpaceId }: {
   items: readonly TaskListItem[];
   allItems?: readonly TaskListItem[];
   initialColumns?: readonly TaskListColumnId[];
@@ -79,13 +79,13 @@ export function TaskList({ items, allItems = items, initialColumns = defaultTask
   groupBy?: TaskListGrouping;
   emptyState?: ReactNode;
   issueLinkState?: unknown;
-  /** Company/person/view/filter identity; membership changes do not reset it. */
+  /** Space/person/view/filter identity; membership changes do not reset it. */
   collectionKey?: string;
   preferenceLocation?: TaskCollectionPreferenceLocation;
   sort?: TaskListOrder;
   onSortChange?: (sort: TaskListSort | undefined) => void;
-  /** Preload the chat of the top rows for this company. Only a page's main task list sets this. */
-  preloadCompanyId?: string | null;
+  /** Preload the chat of the top rows for this space. Only a page's main task list sets this. */
+  preloadSpaceId?: string | null;
 }) {
   const localKey = useId();
   const { columns, order: columnOrder, setColumns, setOrder: setColumnOrder } = useTaskListColumnPreferences(preferenceLocation, initialColumns);
@@ -126,7 +126,7 @@ export function TaskList({ items, allItems = items, initialColumns = defaultTask
     const parent = issue.parentId ? byId.get(issue.parentId)?.issue : null;
     const branch = issue.currentExecutionWorkspace?.branchName;
     const assigneeName = item.assignee ?? (issue.assigneeAgentId ? "Unknown agent" : issue.assigneeUserId ? "User" : "Unassigned");
-    const assigneeUserAvatarUrl = paperclipHumanAvatarUrl(item.assigneeUserAvatarUrl);
+    const assigneeUserAvatarUrl = outpostHumanAvatarUrl(item.assigneeUserAvatarUrl);
     return (
       <Fragment key={issue.id}>
         <IssueRow
@@ -176,7 +176,7 @@ export function TaskList({ items, allItems = items, initialColumns = defaultTask
     }
     for (const groupRoots of groups.values()) for (const root of groupRoots) yield* branch(root);
   }
-  const preloadRefs = preloadCompanyId ? topRenderedTaskRefs(displayedRows(), renderedIds, CHAT_BOOTSTRAP_PRELOAD_LIMIT) : [];
+  const preloadRefs = preloadSpaceId ? topRenderedTaskRefs(displayedRows(), renderedIds, CHAT_BOOTSTRAP_PRELOAD_LIMIT) : [];
   return (
     <TaskListViewport visibleColumns={columns} columnOrder={columnOrder} controls={<TaskListColumnSettings visibleColumns={columns} onVisibleColumnsChange={updateColumns} onColumnOrderChange={setColumnOrder} onResetDefaults={() => setSort(undefined)} />}>
       <TaskListColumnHeader sort={sort && isTaskListColumnSort(sort) ? sort : undefined} onSortChange={setSort} onColumnOrderChange={setColumnOrder} />
@@ -195,7 +195,7 @@ export function TaskList({ items, allItems = items, initialColumns = defaultTask
         <span>Rendering {Math.min(limit, rowIds.length)} of {rowIds.length} tasks</span>
         <Button variant="outline" size="sm" onClick={loadMore}>Show more tasks</Button>
       </div> : null}
-      {preloadCompanyId && preloadRefs.length ? <TaskChatPreload companyId={preloadCompanyId} refs={preloadRefs} /> : null}
+      {preloadSpaceId && preloadRefs.length ? <TaskChatPreload spaceId={preloadSpaceId} refs={preloadRefs} /> : null}
     </TaskListViewport>
   );
 }

@@ -19,8 +19,8 @@ const request: TaskChatMessageItem = {
 };
 
 const OUTPOST_FAILED: TaskChatMcpStartupFailure = {
-  id: "mcp:paperclip",
-  serverName: "paperclip",
+  id: "mcp:outpost",
+  serverName: "outpost",
   reason: "handshaking with MCP server failed: connection closed: initialize response",
 };
 const GITHUB_FAILED: TaskChatMcpStartupFailure = {
@@ -46,7 +46,7 @@ const answer: TaskChatMessageItem = {
   kind: "message",
   author: "agent",
   channel: "final",
-  text: "I couldn't reach the Paperclip tools in this run, so I can't post the findings to the task or update its status. From the code: the retry path re-enqueues a delivery before the first attempt records its event id, so a slow first attempt and its retry both send. I've drafted an idempotency check on the event id; the fix is in `delivery-worker.ts`.",
+  text: "I couldn't reach the Outpost tools in this run, so I can't post the findings to the task or update its status. From the code: the retry path re-enqueues a delivery before the first attempt records its event id, so a slow first attempt and its retry both send. I've drafted an idempotency check on the event id; the fix is in `delivery-worker.ts`.",
 };
 
 const completedItems: TaskChatItem[] = [
@@ -165,7 +165,7 @@ const meta = {
   parameters: {
     layout: "fullscreen",
     throwPlayFunctionExceptions: true,
-    paperclip: {
+    outpost: {
       capabilities: ["tasks/discussion", "runs-adapters/runs"],
       status: "current",
       implementation: "production",
@@ -188,7 +188,7 @@ export const InTaskChat: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const banner = await canvas.findByTestId("task-chat-run-health-banner");
-    await expect(banner).toHaveTextContent("paperclip MCP server failed to start");
+    await expect(banner).toHaveTextContent("outpost MCP server failed to start");
     const toggle = within(banner).getByRole("button");
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(toggle);

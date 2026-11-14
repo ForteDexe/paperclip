@@ -14,7 +14,7 @@ scenarios:
       What in my inbox needs my attention today?
     expected_outcome: >-
       The agent uses the permitted personal-attention scope, prioritizes actionable items and
-      links to their sources. It does not substitute its own task queue or all company work for
+      links to their sources. It does not substitute its own task queue or all space work for
       the person's inbox. If the user-only aggregation is unavailable to this agent, it states
       that limitation and links to Mine rather than inventing unread counts.
   - id: inbox-search.archive-done
@@ -34,7 +34,7 @@ scenarios:
     capabilities:
       - inbox-search/triage
     context: >-
-      The CEO can read company tasks but has no opt-in or effective grant to archive this
+      The CEO can read space tasks but has no opt-in or effective grant to archive this
       person's inbox.
     query: >-
       Archive everything in my inbox that is marked done.
@@ -66,7 +66,7 @@ scenarios:
     expected_outcome: >-
       The agent restores only the items archived by that operation for the same person. Task
       status and other users' preferences remain unchanged. It reports any item that can no
-      longer be restored instead of unarchiving every historical item in the company.
+      longer be restored instead of unarchiving every historical item in the space.
   - id: inbox-search.show-decisions
     capabilities:
       - inbox-search/decisions

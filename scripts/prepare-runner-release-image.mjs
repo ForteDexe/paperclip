@@ -35,7 +35,7 @@ export function selectReleaseArtifacts(artifacts, runId, attempt) {
 
 export function validateReleaseImageBase(base) {
   if (!/^ghcr\.io\/paperclipai\/paperclip-daytona-runner@sha256:[a-f0-9]{64}$/.test(base)) {
-    throw Error('Release image base must be an immutable Paperclip Daytona image');
+    throw Error('Release image base must be an immutable Outpost Daytona image');
   }
   return base;
 }
@@ -131,7 +131,7 @@ if kind<2:
  if set(names)!=expected[kind]: raise RuntimeError('Unexpected release artifact entries')
 else:
  import re
- if 'manifest.json' not in names or any(not re.fullmatch(r'(manifest.json|paperclipai-[a-z0-9.-]+\\.tgz)',n) for n in names): raise RuntimeError('Unexpected public package entries')
+ if 'manifest.json' not in names or any(not re.fullmatch(r'(manifest.json|outpost-[a-z0-9.-]+\\.tgz)',n) for n in names): raise RuntimeError('Unexpected public package entries')
 if sum(e.file_size for e in entries)>4*1024**3 or any(stat.S_ISLNK(e.external_attr>>16) for e in entries): raise RuntimeError('Unsafe artifact extraction')
 z.extractall(dest)
 `, archive, dir, String(index)], { stdio: 'pipe' });
@@ -154,7 +154,7 @@ z.extractall(dest)
   const packages = JSON.parse(await readFile(join(dirs[2], 'manifest.json'), 'utf8'));
   if (packages.schema !== 'outpost.runner.public-packages/v1' || packages.sourceRevision !== source) throw Error('Wrong public-package source');
   const server = packages.archives?.filter(a => a.name === '@outpost/server');
-  if (server?.length !== 1 || !/^paperclipai-server-[a-z0-9.-]+\.tgz$/.test(server[0].file)
+  if (server?.length !== 1 || !/^outpost-server-[a-z0-9.-]+\.tgz$/.test(server[0].file)
     || !/^[a-f0-9]{64}$/.test(server[0].sha256)) throw Error('Invalid server archive');
   const serverArchive = join(dirs[2], server[0].file);
   if (await digestFile(serverArchive) !== server[0].sha256) throw Error('Server archive digest mismatch');

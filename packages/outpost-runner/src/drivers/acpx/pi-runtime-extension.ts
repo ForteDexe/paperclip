@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 
 export const PI_PERMISSION_TITLE_PREFIX = "outpost.pi.permission.v1:";
 export const PI_PERMISSION_OPTIONS = ["Allow once", "Allow for this session", "Deny"] as const;
-export const PI_NATIVE_QUESTION_TOOL = "paperclip_native_question";
+export const PI_NATIVE_QUESTION_TOOL = "outpost_native_question";
 const MAX_CONFIGURATION_BYTES = 64 * 1024;
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 const MAX_TOOLS = 512;
@@ -311,7 +311,7 @@ export async function installPiRuntimeExtension(
   request: typeof piMcpRequest = piMcpRequest,
 ): Promise<void> {
   // Registered names are held in this closure; provider-originated metadata
-  // cannot promote a tool to the authenticated Paperclip bridge.
+  // cannot promote a tool to the authenticated Outpost bridge.
   const identities = new PiToolIdentities(config.invocationNamespace);
   pi.on("turn_start", () => identities.begin());
   pi.on("turn_end", () => identities.end());
@@ -409,7 +409,7 @@ export async function installPiRuntimeExtension(
   });
   let count = 0;
   for (const server of config.servers) {
-    await request(server, "initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "paperclip-pi", version: "1" } }, `pi-init-${server.name}`);
+    await request(server, "initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "outpost-pi", version: "1" } }, `pi-init-${server.name}`);
     const catalog = await request(server, "tools/list", {}, `pi-tools-${server.name}`);
     if (!Array.isArray(catalog.tools) || catalog.nextCursor) throw new Error("Pi MCP catalog is incomplete");
     for (const rawTool of catalog.tools) {
@@ -453,13 +453,13 @@ export async function installPiRuntimeExtension(
   // Pi reports extension-load failures and may continue. The wrapper requires
   // this exact sentinel before admitting prompts, so a failed extension cannot
   // silently leave native tools unguarded. Register only after every MCP binds.
-  pi.registerCommand("paperclip-runtime-ready-v1", {
+  pi.registerCommand("outpost-runtime-ready-v1", {
     description: "Outpost runtime gate v1",
     async handler() {},
   });
 }
 
-export default async function paperclipPiExtension(pi: PiExtensionApi): Promise<void> {
+export default async function outpostPiExtension(pi: PiExtensionApi): Promise<void> {
   const configuration = readPiRuntimeConfiguration(process.env);
   // Do not let the model's shell tool inherit authenticated MCP credentials.
   delete process.env.OUTPOST_PI_RUNTIME_CONFIGURATION;

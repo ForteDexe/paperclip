@@ -5,7 +5,7 @@ import { Eye, ExternalLink, OctagonAlert, RefreshCw, TriangleAlert } from "lucid
 import { IssueRecoveryActionCard } from "@/components/IssueRecoveryActionCard";
 import { IssueRow } from "@/components/IssueRow";
 import { IssueBlockedNotice } from "@/components/IssueBlockedNotice";
-import { storybookAgentMap, storybookAgents, createIssue } from "../../fixtures/paperclipData";
+import { storybookAgentMap, storybookAgents, createIssue } from "../../fixtures/outpostData";
 
 const claudeAgent = storybookAgents.find((agent) => agent.name.toLowerCase().startsWith("claude")) ?? storybookAgents[0]!;
 const codexAgent = storybookAgents.find((agent) => agent.name.toLowerCase().startsWith("codex")) ?? storybookAgents[0]!;
@@ -38,7 +38,7 @@ function StoryFrame({ title, description, children }: { title: string; descripti
 function buildAction(overrides: Partial<IssueRecoveryAction> = {}): IssueRecoveryAction {
   return {
     id: "00000000-0000-0000-0000-0000000000aa",
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     sourceIssueId: "00000000-0000-0000-0000-0000000000ff",
     recoveryIssueId: null,
     kind: "missing_disposition",
@@ -292,7 +292,7 @@ function RetryLineagePanel() {
         caption="Lane 3 · Board escalation — still not a change of task ownership"
         action={buildRecoveryLaneAction({
           status: "escalated",
-          ownerType: "board",
+          ownerType: "operator",
           ownerAgentId: null,
           attemptCount: 3,
           maxAttempts: 3,
@@ -355,7 +355,7 @@ function buildBlocker(
   return {
     id: "blocker-1",
     identifier: "PAP-9065",
-    title: "Add full company search page",
+    title: "Add full space search page",
     status: "in_progress",
     priority: "medium",
     assigneeAgentId: claudeAgent.id,
@@ -497,7 +497,7 @@ function ActiveRunPanel() {
     <div className="grid gap-4 sm:grid-cols-2">
       <ActiveRunCardMock
         identifier="PAP-9065"
-        title="Add full company search page"
+        title="Add full space search page"
         recoveryState="needed"
       />
       <ActiveRunCardMock
@@ -527,7 +527,7 @@ function InboxRowPanel() {
         issue={{
           ...baseIssue,
           identifier: "PAP-9065",
-          title: "Add full company search page",
+          title: "Add full space search page",
           status: "in_progress",
           activeRecoveryAction: buildAction(),
         }}
@@ -574,11 +574,11 @@ function InboxRowPanel() {
 }
 
 const meta = {
-  id: "paperclip-source-issue-recovery",
-  title: "Projects and execution/Recovery/Paperclip/Source Issue Recovery",
+  id: "outpost-source-issue-recovery",
+  title: "Projects and execution/Recovery/Outpost/Source Issue Recovery",
   component: AllStatesPanel,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "recovery/diagnosis",
         "recovery/source-action"

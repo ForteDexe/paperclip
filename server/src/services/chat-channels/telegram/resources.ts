@@ -72,7 +72,7 @@ export async function migrateTelegramResourceConversations(
   providerResourceId: string, migratedLabel: string, now: Date,
 ) {
   const affected = and(
-    eq(chatConversations.companyId, currentEndpoint.companyId),
+    eq(chatConversations.spaceId, currentEndpoint.spaceId),
     eq(chatConversations.endpointId, currentEndpoint.id),
     eq(chatConversations.resourceId, previousResource.id),
   );
@@ -81,7 +81,7 @@ export async function migrateTelegramResourceConversations(
   // Migration restores the binding before generic resource availability runs.
   // Register the wake here, within the same owning transaction as that change.
   for (const issueId of new Set(migrated.map(row => row.issueId))) {
-    await notifyChatRunMilestones(tx, { companyId: currentEndpoint.companyId, issueId });
+    await notifyChatRunMilestones(tx, { spaceId: currentEndpoint.spaceId, issueId });
   }
   const previousThreadPrefix = `telegram:${previousProviderResourceId}`;
   const migratedThreadPrefix = `telegram:${providerResourceId}`;

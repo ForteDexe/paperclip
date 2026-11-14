@@ -20,14 +20,14 @@ describe("Outpost monetary policy compatibility", () => {
   it("never gates admission or evaluates a monetary scope", async () => {
     const service = budgetServiceInTransaction(databaseThatMustNotBeRead);
 
-    await expect(service.evaluateAdmission("company", "agent", { projectId: "project" })).resolves.toEqual({
+    await expect(service.evaluateAdmission("space", "agent", { projectId: "project" })).resolves.toEqual({
       block: null,
       policies: [],
       observations: [],
     });
-    await expect(service.getInvocationBlock("company", "agent", { projectId: "project" })).resolves.toBeNull();
-    await expect(service.reconcileScope("company", "agent", "agent")).resolves.toBeNull();
-    await expect(service.evaluateAffectedScopes("company", "agent", "project")).resolves.toBeUndefined();
+    await expect(service.getInvocationBlock("space", "agent", { projectId: "project" })).resolves.toBeNull();
+    await expect(service.reconcileScope("space", "agent", "agent")).resolves.toBeNull();
+    await expect(service.evaluateAffectedScopes("space", "agent", "project")).resolves.toBeUndefined();
   });
 
   it("does not inspect or deliver legacy monetary work", async () => {

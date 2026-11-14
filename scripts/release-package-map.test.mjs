@@ -27,7 +27,7 @@ test("release package list only contains CI-enrolled packages", () => {
 test("release package list publishes the installable channel entrypoint last", () => {
   const enabledPackages = getReleasePackages();
 
-  assert.equal(enabledPackages.at(-1)?.name, "paperclipai");
+  assert.equal(enabledPackages.at(-1)?.name, "@outpost/cli");
   assert.ok(enabledPackages.slice(0, -1).some((pkg) => pkg.name === "@outpost/server"));
 });
 
@@ -76,8 +76,8 @@ test("guard flags a publishFromCi:true package depending on a publishFromCi:fals
   ]);
 
   assert.equal(problems.length, 1);
-  assert.match(problems[0], /@paperclipai\/server/);
-  assert.match(problems[0], /@paperclipai\/skills-catalog/);
+  assert.match(problems[0], /@outpost\/server/);
+  assert.match(problems[0], /@outpost\/skills-catalog/);
 });
 
 test("guard inspects optional and peer dependency sections too", () => {
@@ -94,7 +94,7 @@ test("guard inspects optional and peer dependency sections too", () => {
   assert.equal(problems.length, 2);
 });
 
-test("guard treats a workspace dep on an unknown @paperclipai package as unpublishable", () => {
+test("guard treats a workspace dep on an unknown @outpost package as unpublishable", () => {
   const problems = findUnpublishableWorkspaceEdges([
     pkg("@outpost/server", {
       publishFromCi: true,

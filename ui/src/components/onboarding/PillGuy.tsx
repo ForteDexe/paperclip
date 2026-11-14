@@ -7,7 +7,7 @@ import { cn } from "../../lib/utils";
  *
  * Two states from one silhouette: `dormant` is grey and closed-eyed, waiting to
  * be configured; `alive` is the gradient-lit version with open eyes and a tuft,
- * shown once the agent is hired and ready. The arc's job is to get from one to
+ * shown once the agent is created and ready. The arc's job is to get from one to
  * the other, so the transition between them is the arc's payoff — not
  * decoration on top of it.
  *

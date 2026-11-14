@@ -7,7 +7,7 @@ import { join } from "node:path";
 import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, approvals, companies, companyMemberships, createDb, connectionGrants, heartbeatRuns, issues, toolActionRequests, toolCatalogEntries, toolConnections, toolOauthStates, toolPolicies } from "@outpost/db";
+import { agents, approvals, spaces, spaceMemberships, createDb, connectionGrants, heartbeatRuns, issues, toolActionRequests, toolCatalogEntries, toolConnections, toolOauthStates, toolPolicies } from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import { toolAccessService } from "../services/tool-access.js";
 import { toolAccessRoutes } from "../routes/tool-access.js";
@@ -49,11 +49,11 @@ describe("tool OAuth over local HTTP", () => {
     { authMethod: "client_secret_basic", grantKind: "user", scopeMode: "explicit" },
   ] as const)("approves a $grantKind $authMethod OAuth action after refresh and delayed review ($scopeMode)", async ({ authMethod, grantKind, scopeMode }) => {
     const userId = `oauth-user-${randomUUID()}`;
-    const [company] = await db.insert(companies).values({
+    const [space] = await db.insert(spaces).values({
       name: "OAuth protocol fixture", issuePrefix: `O${randomUUID().slice(0, 5)}`,
     }).returning();
-    await db.insert(companyMemberships).values({
-      companyId: company.id, principalType: "user", principalId: userId,
+    await db.insert(spaceMemberships).values({
+      spaceId: space.id, principalType: "user", principalId: userId,
       status: "active", membershipRole: "admin",
     });
     const calls: Array<{ path: string; authorization?: string; body: string }> = [];
@@ -130,13 +130,13 @@ describe("tool OAuth over local HTTP", () => {
       const app = express();
       app.use(express.json());
       app.use((req, _res, next) => {
-        req.actor = { type: "board", userId, source: "local_implicit", isInstanceAdmin: true };
+        req.actor = { type: "operator", userId, source: "local_implicit", isInstanceAdmin: true };
         next();
       });
-      app.use("/api", toolAccessRoutes(db, { deploymentMode: "local_trusted", deploymentExposure: "private", paperclipCloudConnector: null }));
+      app.use("/api", toolAccessRoutes(db, { deploymentMode: "local_trusted", deploymentExposure: "private", outpostCloudConnector: null }));
       app.use(errorHandler);
 
-      const connected = await request(app).post(`/api/companies/${company.id}/tools/apps/connect`)
+      const connected = await request(app).post(`/api/spaces/${space.id}/tools/apps/connect`)
         .send({ link: `${origin}/mcp`, name: "Local OAuth", grantKind }).expect(201);
       const authorization = new URL(connected.body.auth.startUrl);
       expect(authorization.origin).toBe(origin);
@@ -145,20 +145,20 @@ describe("tool OAuth over local HTTP", () => {
       expect(authorization.searchParams.get("resource")).toBe(`${origin}/mcp`);
       const state = authorization.searchParams.get("state")!;
       const [pending] = await db.select().from(toolOauthStates).where(eq(toolOauthStates.state, state));
-      expect(pending.companyId).toBe(company.id);
+      expect(pending.spaceId).toBe(space.id);
 
       const completed = await request(app).get("/api/tools/oauth/callback")
         .query({ state, code: "fixture-code", iss: origin }).expect(200);
       expect(completed.body.catalog).toEqual([expect.objectContaining({ toolName: "create_fixture", riskLevel: "write" })]);
       if (grantKind === "user") {
-        await request(app).post(`/api/companies/${company.id}/tools/apps/${connected.body.connectionId}/finalize-oauth-access`)
+        await request(app).post(`/api/spaces/${space.id}/tools/apps/${connected.body.connectionId}/finalize-oauth-access`)
           .send({ grantKind }).expect(200);
       }
-      await request(app).post(`/api/companies/${company.id}/tools/apps/${connected.body.connectionId}/finish`)
+      await request(app).post(`/api/spaces/${space.id}/tools/apps/${connected.body.connectionId}/finish`)
         .send({ enabledCatalogEntryIds: completed.body.catalog.map((entry: { id: string }) => entry.id), askFirstCatalogEntryIds: [], access: "all_agents" }).expect(200);
 
       const [connection] = await db.select().from(toolConnections).where(eq(toolConnections.id, connected.body.connectionId));
-      expect(connection).toMatchObject({ companyId: company.id, status: "active", enabled: true, ownership: "dcr" });
+      expect(connection).toMatchObject({ spaceId: space.id, status: "active", enabled: true, ownership: "dcr" });
       expect(connection.config.oauth).toMatchObject({ clientId: "fixture-client", clientTokenEndpointAuthMethod: authMethod, clientIssuer: origin });
       expect(JSON.stringify(connection.config)).not.toMatch(/fixture-(access|refresh|secret)/);
       if (grantKind === "organization") expect(connection.credentialSecretRefs.map((ref) => ref.configPath))
@@ -181,24 +181,24 @@ describe("tool OAuth over local HTTP", () => {
       const consentedAt = grant.providerTenant?.oauth?.consentedAt;
       expect(consentedAt).toEqual(expect.any(String));
       expect(Number.isFinite(Date.parse(consentedAt!))).toBe(true);
-      const [agent] = await db.insert(agents).values({ companyId: company.id, name: "OAuth approval agent",
+      const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "OAuth approval agent",
         role: "engineer", adapterType: "process" }).returning();
-      const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Delayed OAuth approval",
+      const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Delayed OAuth approval",
         status: "in_progress", assigneeAgentId: agent.id }).returning();
-      const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
         invocationSource: "assignment", status: "running", contextSnapshot: { issueId: issue.id } }).returning();
-      await initializeRunIdentity(db, { companyId: company.id, runId: run.id, issueId: issue.id,
+      await initializeRunIdentity(db, { spaceId: space.id, runId: run.id, issueId: issue.id,
         responsibleUserId: userId, cause: "instruction" });
-      await db.insert(toolPolicies).values({ companyId: company.id, name: "Review OAuth actions",
+      await db.insert(toolPolicies).values({ spaceId: space.id, name: "Review OAuth actions",
         policyType: "require_approval", selectors: { connectionId: connection.id } });
-      const options = { deploymentMode: "local_trusted" as const, deploymentExposure: "private" as const, paperclipCloudConnector: null };
+      const options = { deploymentMode: "local_trusted" as const, deploymentExposure: "private" as const, outpostCloudConnector: null };
       const first = toolAccessService(db, options);
       const second = toolAccessService(db, options);
       const signingSecret = "oauth-protocol-approval-signing-secret";
       const gatewayOptions = { toolActionSigningSecret: signingSecret,
         oauthGrantRefresher: first.refreshOAuthGrantCredentials };
       const gateway = createToolGatewayService(db, gatewayOptions);
-      const session = await gateway.createSession({ companyId: company.id, agentId: agent.id, runId: run.id });
+      const session = await gateway.createSession({ spaceId: space.id, agentId: agent.id, runId: run.id });
       const tool = (await gateway.listToolsForSession(session.token)).find(entry => entry.connectionId === connection.id)!;
       expect(tool).toBeDefined();
       const reviewActions = ["after refresh", "tomorrow", "connection repair", "changed authorization", "withdrawn formal approval", "expired authorization"];
@@ -217,7 +217,7 @@ describe("tool OAuth over local HTTP", () => {
         ...grant.providerTenant,
         oauth: { ...grant.providerTenant?.oauth, accessTokenExpiresAt: new Date(0).toISOString() },
       } }).where(eq(connectionGrants.id, grant.id));
-      const refreshInput = { companyId: company.id, connectionId: connection.id, grantId: grant.id, actor: { actorType: "user" as const, actorId: userId } };
+      const refreshInput = { spaceId: space.id, connectionId: connection.id, grantId: grant.id, actor: { actorType: "user" as const, actorId: userId } };
       const refreshed = await Promise.all([
         first.refreshOAuthGrantCredentials(refreshInput),
         second.refreshOAuthGrantCredentials(refreshInput),
@@ -250,7 +250,7 @@ describe("tool OAuth over local HTTP", () => {
       // rather than the original session or its old tokens, owns execution.
       await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, run.id));
       const restarted = createToolGatewayService(db, gatewayOptions);
-      const approve = (id: string) => restarted.approveActionRequest({ companyId: company.id,
+      const approve = (id: string) => restarted.approveActionRequest({ spaceId: space.id,
         actionRequestId: id, actor: { userId } });
       const [currentGrant] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, grant.id));
       const catalog = completed.body.catalog[0];
@@ -283,12 +283,12 @@ describe("tool OAuth over local HTTP", () => {
       await db.update(connectionGrants).set({ status: "needs_reauthorization", updatedAt: new Date() })
         .where(eq(connectionGrants.id, grant.id));
       await expect(approve(pendingActions[2].id)).resolves.toMatchObject({ status: "approved" });
-      const [formal] = await db.insert(approvals).values({ companyId: company.id,
-        type: "request_board_approval", status: "approved", payload: {} }).returning();
+      const [formal] = await db.insert(approvals).values({ spaceId: space.id,
+        type: "request_operator_approval", status: "approved", payload: {} }).returning();
       await db.update(toolActionRequests).set({ approvalId: formal.id }).where(eq(toolActionRequests.id, pendingActions[4].id));
       await expect(approve(pendingActions[4].id)).resolves.toMatchObject({ status: "approved" });
       await db.update(approvals).set({ status: "rejected" }).where(eq(approvals.id, formal.id));
-      await restarted.recoverApprovedActionReviews(company.id);
+      await restarted.recoverApprovedActionReviews(space.id);
       expect((await db.select().from(toolActionRequests).where(eq(toolActionRequests.id, pendingActions[4].id)))[0].status)
         .toBe("cancelled");
       const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true,
@@ -296,10 +296,10 @@ describe("tool OAuth over local HTTP", () => {
       try {
         await registerToolReviewRecoveryWork(coordinator, restarted, () => true).ready;
         await vi.waitFor(() => expect(coordinator.nextWakeAt()).toBeNull(), { timeout: 5000 });
-        await expect(restarted.recoverApprovedActionReviews(company.id)).resolves.toMatchObject({ retry: false });
+        await expect(restarted.recoverApprovedActionReviews(space.id)).resolves.toMatchObject({ retry: false });
         // The supported connection writer wakes recovery after commit. No
         // second approval or agent run is needed for the same authorization.
-        await writeToolConnectionHealthChange(db, { companyId: company.id, id: connection.id }, async tx => {
+        await writeToolConnectionHealthChange(db, { spaceId: space.id, id: connection.id }, async tx => {
           await tx.update(connectionGrants).set({ status: "active", updatedAt: new Date(Date.now() + 1) })
             .where(eq(connectionGrants.id, grant.id));
         });
@@ -317,7 +317,7 @@ describe("tool OAuth over local HTTP", () => {
         oauth: { ...beforeReauthGrant.providerTenant?.oauth, accessTokenExpiresAt: new Date(0).toISOString() },
       } }).where(eq(connectionGrants.id, grant.id));
       await expect(approve(pendingActions[5].id)).resolves.toMatchObject({ status: "approved" });
-      await restarted.recoverApprovedActionReviews(company.id);
+      await restarted.recoverApprovedActionReviews(space.id);
       expect((await db.select().from(toolActionRequests).where(eq(toolActionRequests.id, pendingActions[5].id)))[0].status)
         .toBe("approved");
       const deadline = new Date(Date.now() - 1);

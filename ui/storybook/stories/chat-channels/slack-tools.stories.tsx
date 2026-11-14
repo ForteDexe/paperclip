@@ -56,7 +56,7 @@ export default {
   title: "Apps, channels, and extensions/External chat and email/Connections/Slack/Task tools",
   component: Preview,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "chat-channels/conversation"
       ],

@@ -81,7 +81,7 @@ export function selectConfiguredRuntimeServiceRows(
 
 export async function listCurrentRuntimeServicesForProjectWorkspaces(
   db: RuntimeServiceReadDb,
-  companyId: string,
+  spaceId: string,
   projectWorkspaceIds: string[],
 ) {
   if (projectWorkspaceIds.length === 0) return new Map<string, WorkspaceRuntimeServiceRow[]>();
@@ -91,7 +91,7 @@ export async function listCurrentRuntimeServicesForProjectWorkspaces(
     .from(workspaceRuntimeServices)
     .where(
       and(
-        eq(workspaceRuntimeServices.companyId, companyId),
+        eq(workspaceRuntimeServices.spaceId, spaceId),
         inArray(workspaceRuntimeServices.projectWorkspaceId, projectWorkspaceIds),
         eq(workspaceRuntimeServices.scopeType, "project_workspace"),
       ),
@@ -116,7 +116,7 @@ export async function listCurrentRuntimeServicesForProjectWorkspaces(
 
 export async function listCurrentRuntimeServicesForExecutionWorkspaces(
   db: RuntimeServiceReadDb,
-  companyId: string,
+  spaceId: string,
   executionWorkspaceIds: string[],
 ) {
   if (executionWorkspaceIds.length === 0) return new Map<string, WorkspaceRuntimeServiceRow[]>();
@@ -126,7 +126,7 @@ export async function listCurrentRuntimeServicesForExecutionWorkspaces(
     .from(workspaceRuntimeServices)
     .where(
       and(
-        eq(workspaceRuntimeServices.companyId, companyId),
+        eq(workspaceRuntimeServices.spaceId, spaceId),
         inArray(workspaceRuntimeServices.executionWorkspaceId, executionWorkspaceIds),
       ),
     )

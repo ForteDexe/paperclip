@@ -3,7 +3,7 @@ import type { ChatCatalogCase, ChatCatalogContext } from "../chat-catalog-contra
 import { observeInternal, type Entity, type InternalObservation } from "./internal-support.js";
 
 export interface IdentityObservation extends InternalObservation {
-  companies: Entity[]; company: Entity; agents: Entity[]; interactions: Interaction[];
+  spaces: Entity[]; space: Entity; agents: Entity[]; interactions: Interaction[];
 }
 export interface Interaction extends Entity {
   idempotencyKey?: string | null;
@@ -12,25 +12,25 @@ export interface Interaction extends Entity {
   resolvedByUserId?: string; resolvedByAgentId?: string; sourceRunId?: string;
 }
 export async function openStandingChat(ctx: ChatCatalogContext) {
-  await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/chats/${ctx.input.fixtures.agent.id}`);
+  await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/chats/${ctx.input.fixtures.agent.id}`);
   await ctx.refreshIssue();
   if (!ctx.issue()) throw new Error("Public standing-chat creation did not persist");
   return ctx.issue()!;
 }
 export async function observeIdentity(ctx: ChatCatalogContext, state: Record<string, unknown>): Promise<IdentityObservation> {
   const internal = await observeInternal(ctx, state);
-  const root = `/api/companies/${ctx.input.fixtures.company.id}`;
-  const [companies, company, agents, interactions] = await Promise.all([
-    ctx.input.api.get<Entity[]>("/api/companies"), ctx.input.api.get<Entity>(root),
+  const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
+  const [spaces, space, agents, interactions] = await Promise.all([
+    ctx.input.api.get<Entity[]>("/api/spaces"), ctx.input.api.get<Entity>(root),
     ctx.input.api.get<Entity[]>(`${root}/agents`),
     ctx.issue() ? ctx.input.api.get<Interaction[]>(`/api/issues/${ctx.issue()!.id}/interactions`) : Promise.resolve([]),
   ]);
-  return { ...internal, companies, company, agents, interactions };
+  return { ...internal, spaces, space, agents, interactions };
 }
 export function identityObservation(value: unknown): IdentityObservation | undefined {
   const o = value as IdentityObservation | undefined;
-  return o && typeof o.companyId === "string" && typeof o.leadId === "string" && !!o.state && !!o.company
-    && [o.tasks, o.projects, o.goals, o.activity, o.documents, o.links, o.runs, o.companies, o.agents, o.interactions].every(Array.isArray) ? o : undefined;
+  return o && typeof o.spaceId === "string" && typeof o.leadId === "string" && !!o.state && !!o.space
+    && [o.tasks, o.projects, o.goals, o.activity, o.documents, o.links, o.runs, o.spaces, o.agents, o.interactions].every(Array.isArray) ? o : undefined;
 }
 export function identityDefinition(scenarioId: string, setup: ChatCatalogCase["setup"], grade: ChatCatalogCase["grade"], extra: Partial<ChatCatalogCase> = {}): ChatCatalogCase {
   const definition: ChatCatalogCase = { scenarioId, setup, grade, observe: observeIdentity, oracleVersion: "outpost.chat-catalog.identity.v1",
@@ -69,8 +69,8 @@ export async function identityWorker(ctx: ChatCatalogContext, name = "Morgan") {
   const payload = { ...base, name, role: "engineer", title: "Website engineer", reportsTo: fixtures.agent.id,
     runtimeConfig: { ...(base.runtimeConfig as Record<string, unknown>), heartbeat: { enabled: false, maxConcurrentRuns: 1 } } };
   const { codexSubscriptionAgentConfig } = await import("../codex-subscription-fixture.js");
-  return api.post<Entity>(`/api/companies/${fixtures.company.id}/agents`, execution.profile.credential === "CODEX_AUTH_JSON"
-    ? codexSubscriptionAgentConfig(payload, process.env, fixtures.company.id) : payload);
+  return api.post<Entity>(`/api/spaces/${fixtures.space.id}/agents`, execution.profile.credential === "CODEX_AUTH_JSON"
+    ? codexSubscriptionAgentConfig(payload, process.env, fixtures.space.id) : payload);
 }
 /** Real agent bearer, public route and HTTP status. Never pass bearer into
  * Playwright requests, case state, screenshots, model context or evidence. */

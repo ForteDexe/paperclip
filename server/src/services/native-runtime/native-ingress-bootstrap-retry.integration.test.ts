@@ -16,7 +16,7 @@ import { canonicalNativeRuntimeContextDigest, createNativeSessionBackend, create
   type RunnerProcessHandle } from "../../vendor/outpost-runner/index.js";
 import { nativeRestartFixture, describeEmbeddedPostgres, stopOwnedProcessGroup } from "../../__tests__/helpers/native-restart.js";
 import { canonicalNativeJson, nativeSha256 } from "./canonical.js";
-import { executePaperclipNativeSession, nativeSessionWorkspaceScope, resolveNativeBilling } from "./native-session-executor.js";
+import { executeOutpostNativeSession, nativeSessionWorkspaceScope, resolveNativeBilling } from "./native-session-executor.js";
 import { createNativeRunnerExecutionDriver } from "./native-runner-execution-driver.js";
 import { claimNativeSessionResumptions, reconcileNativeFinalizations } from "./native-finalization-reconciler.js";
 import { currentNativeControllerIdentity } from "./native-restart-recovery.js";
@@ -45,7 +45,7 @@ describeEmbeddedPostgres("native ingress bootstrap retry through the real Runner
   it.each(["codex", "opencode"] as const)("reacquires %s ingress and commits exactly one result on the automatic second attempt", async provider => {
     const fixture = await environment.seedRun(`INGRESS-BOOTSTRAP-RETRY-${provider}`);
     const { db, runId, issueId, native } = fixture;
-    const { companyId, agentId, runtimeRoot } = environment.current;
+    const { spaceId, agentId, runtimeRoot } = environment.current;
     const [issue] = await db.select().from(issues).where(eq(issues.id, issueId));
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issueId));
     const sandbox = join(runtimeRoot, `ingress-sandbox-${provider}`);
@@ -55,19 +55,19 @@ describeEmbeddedPostgres("native ingress bootstrap retry through the real Runner
     await mkdir(sandbox, { recursive: true });
     await mkdir(codexHome, { recursive: true });
     await mkdir(join(filesystem, "codex-home"), { recursive: true });
-    await db.insert(executionWorkspaces).values({ id: runId, companyId, sourceIssueId: issueId,
+    await db.insert(executionWorkspaces).values({ id: runId, spaceId, sourceIssueId: issueId,
       mode: "isolated", strategyType: "directory", name: "Owned retry fixture", cwd: sandbox });
     await db.update(issues).set({ executionWorkspaceId: runId }).where(eq(issues.id, issueId));
     const runtimeContext = nativeRuntimeContextFixture();
     const skillContent = "---\nname: retry-fixture\ndescription: Controlled sealed retry skill.\n---\nKeep the admitted task and configuration.\n";
     runtimeContext.instructions.bundle = await materializeAsset([{ path: "AGENTS.md", mode: 0o444,
       content: Buffer.from("Complete only the controlled fixture task.\n") }]);
-    if (provider === "codex") runtimeContext.skills = [{ key: "company/retry-fixture", runtimeName: "retry-fixture",
+    if (provider === "codex") runtimeContext.skills = [{ key: "space/retry-fixture", runtimeName: "retry-fixture",
       versionId: "fixture-v1", bundle: await materializeAsset([{ path: "SKILL.md", mode: 0o444, content: Buffer.from(skillContent) }]) }];
     runtimeContext.aggregateDigest = canonicalNativeRuntimeContextDigest(runtimeContext);
     const execution = parseNativeExecutionInput({
       schema: "outpost.native-execution-input.v5", executionMode: "default", planningContext: null, runtimeContext,
-      binding: { companyId, agentId, issueId, runId, executionWorkspaceId: runId },
+      binding: { spaceId, agentId, issueId, runId, executionWorkspaceId: runId },
       provider: provider === "codex" ? { kind: "codex", model: "fixture-model", approvalPolicy: "never" }
         : { kind: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017", permissionMode: "allow" },
       task: { identifier: "fixture", title: issue!.title, description: null,
@@ -80,7 +80,7 @@ describeEmbeddedPostgres("native ingress bootstrap retry through the real Runner
     });
     await db.update(heartbeatRuns).set({ runnerProfileJson: sql`coalesce(${heartbeatRuns.runnerProfileJson}, '{}'::jsonb)
       || ${JSON.stringify({ nativeExecutionInput: execution })}::jsonb` }).where(eq(heartbeatRuns.id, runId));
-    const root = join(stateBase, nativeSha256({ schema: "outpost.native-session-scope.v2", companyId, agentId,
+    const root = join(stateBase, nativeSha256({ schema: "outpost.native-session-scope.v2", spaceId, agentId,
       workspace: nativeSessionWorkspaceScope(execution), provider: { driverKind: execution.session.driverKind,
         identity: { kind: provider } }, normalizedSessionId: native.normalizedSessionId }));
     const digest = (file: string) => `sha256:${createHash("sha256").update(readFileSync(file)).digest("hex")}`;
@@ -220,7 +220,7 @@ describeEmbeddedPostgres("native ingress bootstrap retry through the real Runner
         bundles.push(bundle); return bundle.transport;
       },
     });
-    const execute = (leaseOwner?: string) => executePaperclipNativeSession({ db, execution,
+    const execute = (leaseOwner?: string) => executeOutpostNativeSession({ db, execution,
       runnerInstanceId: native.runnerInstanceId, useRunnerd: true, runnerExecutionTarget: target,
       backend: backend(), leaseOwner, turnTimeoutMs: 15_000 });
     try {
@@ -241,7 +241,7 @@ describeEmbeddedPostgres("native ingress bootstrap retry through the real Runner
       const [claim] = await claimNativeSessionResumptions({ db, runnerInstanceId: "fixture-resumption", runIds: [runId],
         now: new Date(failed!.nextAttemptAt!.getTime() + 1), deferIneligible: false });
       expect(claim).toBeDefined();
-      usageDelivery = await createNativeUsageDelivery(db, { companyId, runId, runnerInstanceId: native.runnerInstanceId,
+      usageDelivery = await createNativeUsageDelivery(db, { spaceId, runId, runnerInstanceId: native.runnerInstanceId,
         provider: execution.provider, billing: resolveNativeBilling(execution.provider) });
       healthy = true;
       let timer: ReturnType<typeof setTimeout> | undefined;

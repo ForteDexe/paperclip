@@ -1,7 +1,7 @@
 /**
  * Runner-side crash points: the same `OUTPOST_CRASH_POINT` contract as
  * `@outpost/shared/crash-points`, for the controller code in this package
- * (it runs inside the Paperclip server process). This package does not depend
+ * (it runs inside the Outpost server process). This package does not depend
  * on `@outpost/shared`, so it keeps this small copy; the names are checked
  * against the shared registry by server/src/__tests__/crash-point-call-sites.test.ts.
  *

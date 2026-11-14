@@ -348,7 +348,7 @@ export async function workspaceArchive(input: {
   };
   const gitStatePath = async (repo: string, name: string) => (await git(repo, ["rev-parse", "--path-format=absolute", "--git-path", name])).trim();
   // The checks of `git fsck --full --no-dangling` without its single-threaded
-  // re-hash of every packed object, which took ~20 s for a Paperclip-sized
+  // re-hash of every packed object, which took ~20 s for a Outpost-sized
   // history on every save. Connectivity proves every reachable object (refs,
   // index, saved Git state) is present; each loose object must hash to its
   // name; index-pack --verify hashes every packed object on several threads.
@@ -418,7 +418,7 @@ export async function workspaceArchive(input: {
     excludedPaths.add(relative);
   }
   const excluded = (next: string) => input.exclude?.some(item => next === item || next.startsWith(`${item}/`))
-    || next === ".paperclip-runtime" || next.startsWith(".paperclip-runtime/");
+    || next === ".outpost-runtime" || next.startsWith(".outpost-runtime/");
   const walk = async (root: string, skipGit = false) => {
     const entries: Entry[] = [];
     // One bound for the whole walk, including nested directories. Reserve each

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import {
   createDuplexRouteSlotController,
   createPluginWorkerHandle,
@@ -13,13 +13,13 @@ const DUPLEX_CHANNEL_WORKER_ENTRYPOINT = path.join(
   "plugin-worker-duplex-channel.cjs",
 );
 
-const TEST_MANIFEST: PaperclipPluginManifestV1 = {
+const TEST_MANIFEST: OutpostPluginManifestV1 = {
   id: "test.plugin",
   apiVersion: 1,
   version: "1.0.0",
   displayName: "Test plugin",
   description: "Test plugin",
-  author: "Paperclip",
+  author: "Outpost",
   categories: ["automation"],
   capabilities: [],
   entrypoints: { worker: "dist/worker.js" },
@@ -40,10 +40,10 @@ function makeDuplexHandle(extra?: Record<string, unknown>) {
 // The test directive rides in `providerLeaseId`, an opaque field the manager
 // forwards to the worker unchanged. The duplex channel is generic, so the
 // command is a plain fixed string with no allowlist.
-function duplexOpenInput(directive: unknown, companyId = "company-1") {
+function duplexOpenInput(directive: unknown, spaceId = "space-1") {
   return {
     driverKey: "daytona",
-    companyId,
+    spaceId,
     environmentId: "env-1",
     providerLeaseId: JSON.stringify(directive),
     command: ["bridge-callback"],
@@ -291,15 +291,15 @@ describe("plugin worker manager duplex channel route", () => {
     }
   });
 
-  it("routes two concurrent cross-company duplex routes by the exact pair with no cross-talk", async () => {
+  it("routes two concurrent cross-space duplex routes by the exact pair with no cross-talk", async () => {
     const handle = makeDuplexHandle();
     try {
       await handle.start();
       const routeA = await handle.openDuplexChannel(
-        duplexOpenInput({ workerSessionId: "ws-A", data: [{ chunk: "a-1" }], exitCode: 0 }, "company-A"),
+        duplexOpenInput({ workerSessionId: "ws-A", data: [{ chunk: "a-1" }], exitCode: 0 }, "space-A"),
       );
       const routeB = await handle.openDuplexChannel(
-        duplexOpenInput({ workerSessionId: "ws-B", data: [{ chunk: "b-1" }], exitCode: 0 }, "company-B"),
+        duplexOpenInput({ workerSessionId: "ws-B", data: [{ chunk: "b-1" }], exitCode: 0 }, "space-B"),
       );
       const aChunks: string[] = [];
       const bChunks: string[] = [];

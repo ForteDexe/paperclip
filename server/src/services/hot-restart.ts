@@ -3,9 +3,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { readLinuxProcessStartedAt, type LinuxProcessStartOptions } from "../vendor/outpost-runner/index.js";
 import {
-  resolvePaperclipHomeDir,
-  resolvePaperclipInstanceId,
-  resolvePaperclipInstanceRoot,
+  resolveOutpostHomeDir,
+  resolveOutpostInstanceId,
+  resolveOutpostInstanceRoot,
 } from "../home-paths.js";
 
 export const HOT_RESTART_INTENT_FILENAME = "hot-restart-intent.json";
@@ -18,7 +18,7 @@ type ProcessCommandRunner = (command: string, args: string[]) => Promise<string>
 
 export type HotRestartIntentRun = {
   runId: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   adapterType: string;
   status: string;
@@ -78,11 +78,11 @@ export type HotRestartReport = {
 };
 
 function resolveHotRestartPath(filename: string, homeDir?: string) {
-  return path.join(resolvePaperclipInstanceRoot({ homeDir }), filename);
+  return path.join(resolveOutpostInstanceRoot({ homeDir }), filename);
 }
 
 function resolveLegacyHotRestartPath(filename: string, homeDir?: string) {
-  return path.join(resolvePaperclipHomeDir(homeDir), filename);
+  return path.join(resolveOutpostHomeDir(homeDir), filename);
 }
 
 export function resolveHotRestartIntentPath(homeDir?: string) {
@@ -392,14 +392,14 @@ function isSameHotRestartRequest(left: HotRestartIntent, right: HotRestartIntent
 function parseRun(value: unknown): HotRestartIntentRun | null {
   if (!isRecord(value)) return null;
   const runId = asString(value.runId);
-  const companyId = asString(value.companyId);
+  const spaceId = asString(value.spaceId);
   const agentId = asString(value.agentId);
   const adapterType = asString(value.adapterType);
   const status = asString(value.status);
-  if (!runId || !companyId || !agentId || !adapterType || !status) return null;
+  if (!runId || !spaceId || !agentId || !adapterType || !status) return null;
   return {
     runId,
-    companyId,
+    spaceId,
     agentId,
     adapterType,
     status,
@@ -472,7 +472,7 @@ export async function readHotRestartIntent(homeDir?: string) {
   if (!instanceIntent) {
     // The home-root marker predates instances. Only the default instance may
     // consume it without an instance-root request to correlate against.
-    return resolvePaperclipInstanceId() === "default" ? legacyIntent : null;
+    return resolveOutpostInstanceId() === "default" ? legacyIntent : null;
   }
   if (!legacyIntent || !isSameHotRestartRequest(instanceIntent, legacyIntent)) {
     return instanceIntent;

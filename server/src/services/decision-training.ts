@@ -32,7 +32,7 @@ import { DECISION_TRAINING_RETENTION_POLICY } from "@outpost/shared";
 import { conflict, notFound } from "../errors.js";
 
 type CaptureInput = {
-  companyId: string;
+  spaceId: string;
   sourceKind: DecisionTrainingSourceKind;
   sourceId: string;
   issueId: string;
@@ -55,7 +55,7 @@ type ListInput = {
 };
 
 type ScrubDeletedCommentsInput = {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   commentIds: string[];
   deletedAt: Date;
@@ -91,7 +91,7 @@ async function loadSourceDecision(db: Db, input: CaptureInput, capturedAt: Date)
     const row = await db.query.issueThreadInteractions.findFirst({
       where: and(
         eq(issueThreadInteractions.id, input.sourceId),
-        eq(issueThreadInteractions.companyId, input.companyId),
+        eq(issueThreadInteractions.spaceId, input.spaceId),
         eq(issueThreadInteractions.issueId, input.issueId),
       ),
     });
@@ -121,9 +121,9 @@ async function loadSourceDecision(db: Db, input: CaptureInput, capturedAt: Date)
       .innerJoin(issueApprovals, and(
         eq(issueApprovals.approvalId, approvals.id),
         eq(issueApprovals.issueId, input.issueId),
-        eq(issueApprovals.companyId, input.companyId),
+        eq(issueApprovals.spaceId, input.spaceId),
       ))
-      .where(and(eq(approvals.id, input.sourceId), eq(approvals.companyId, input.companyId)))
+      .where(and(eq(approvals.id, input.sourceId), eq(approvals.spaceId, input.spaceId)))
       .limit(1);
     const row = rows[0]?.approval;
     if (!row) throw notFound("Decision approval not found");
@@ -142,7 +142,7 @@ async function loadSourceDecision(db: Db, input: CaptureInput, capturedAt: Date)
   const row = await db.query.issueExecutionDecisions.findFirst({
     where: and(
       eq(issueExecutionDecisions.id, input.sourceId),
-      eq(issueExecutionDecisions.companyId, input.companyId),
+      eq(issueExecutionDecisions.spaceId, input.spaceId),
       eq(issueExecutionDecisions.issueId, input.issueId),
     ),
   });
@@ -162,7 +162,7 @@ export async function captureDecisionSnapshot(
   capturedAt = new Date(),
 ): Promise<{ cutoffAt: Date; decisionOutcome: string | null; snapshot: DecisionTrainingSnapshotV1 }> {
   const issue = await db.query.issues.findFirst({
-    where: and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId)),
+    where: and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId)),
   });
   if (!issue) throw notFound("Issue not found");
 
@@ -171,7 +171,7 @@ export async function captureDecisionSnapshot(
     .select()
     .from(issueComments)
     .where(and(
-      eq(issueComments.companyId, input.companyId),
+      eq(issueComments.spaceId, input.spaceId),
       eq(issueComments.issueId, input.issueId),
       lte(issueComments.createdAt, decision.cutoffAt),
     ))
@@ -180,7 +180,7 @@ export async function captureDecisionSnapshot(
     .select()
     .from(heartbeatRuns)
     .where(and(
-      eq(heartbeatRuns.companyId, input.companyId),
+      eq(heartbeatRuns.spaceId, input.spaceId),
       isNotNull(heartbeatRuns.startedAt),
       lte(heartbeatRuns.startedAt, decision.cutoffAt),
       lte(heartbeatRuns.updatedAt, decision.cutoffAt),
@@ -196,7 +196,7 @@ export async function captureDecisionSnapshot(
       .select()
       .from(projectWorkspaces)
       .where(and(
-        eq(projectWorkspaces.companyId, input.companyId),
+        eq(projectWorkspaces.spaceId, input.spaceId),
         eq(projectWorkspaces.projectId, issue.projectId),
         lte(projectWorkspaces.createdAt, decision.cutoffAt),
         lte(projectWorkspaces.updatedAt, decision.cutoffAt),
@@ -208,7 +208,7 @@ export async function captureDecisionSnapshot(
     .select()
     .from(executionWorkspaces)
     .where(and(
-      eq(executionWorkspaces.companyId, input.companyId),
+      eq(executionWorkspaces.spaceId, input.spaceId),
       eq(executionWorkspaces.sourceIssueId, input.issueId),
       lte(executionWorkspaces.openedAt, decision.cutoffAt),
       lte(executionWorkspaces.lastUsedAt, decision.cutoffAt),
@@ -280,7 +280,7 @@ export function decisionTrainingService(db: Db) {
       const rows = await db
         .insert(decisionTrainingExamples)
         .values({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           sourceKind: input.sourceKind,
           sourceId: input.sourceId,
           issueId: input.issueId,
@@ -303,8 +303,8 @@ export function decisionTrainingService(db: Db) {
       if (!rows[0]) throw conflict("This decision is already trained by this user");
       return rows[0];
     },
-    list: async (companyId: string, input: ListInput = {}) => {
-      const filters: SQL[] = [eq(decisionTrainingExamples.companyId, companyId)];
+    list: async (spaceId: string, input: ListInput = {}) => {
+      const filters: SQL[] = [eq(decisionTrainingExamples.spaceId, spaceId)];
       if (input.readCondition) filters.push(input.readCondition);
       if (input.projectId) filters.push(eq(issues.projectId, input.projectId));
       if (input.kind) filters.push(eq(decisionTrainingExamples.sourceKind, input.kind));
@@ -354,7 +354,7 @@ export function decisionTrainingService(db: Db) {
         .select({ id: decisionTrainingExamples.id, snapshot: decisionTrainingExamples.snapshot })
         .from(decisionTrainingExamples)
         .where(and(
-          eq(decisionTrainingExamples.companyId, input.companyId),
+          eq(decisionTrainingExamples.spaceId, input.spaceId),
           eq(decisionTrainingExamples.issueId, input.issueId),
         ));
       let updatedCount = 0;

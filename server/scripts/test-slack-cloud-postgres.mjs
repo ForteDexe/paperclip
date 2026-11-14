@@ -25,7 +25,7 @@ if (urls[0].pathname === urls[1].pathname) throw new Error('Slack app and Cloud 
 if (!process.env.SLACK_TEST_CLOUD_DIST || !path.isAbsolute(process.env.SLACK_TEST_CLOUD_DIST)
   || !existsSync(path.join(process.env.SLACK_TEST_CLOUD_DIST, 'connections/broker.js'))) throw new Error('SLACK_TEST_CLOUD_DIST must name the compiled companion Cloud dist directory');
 const vitest = path.join(path.dirname(require.resolve('vitest/package.json')), 'vitest.mjs');
-const ownedHome = mkdtempSync(path.join(tmpdir(), 'paperclip-slack-paired-'));
+const ownedHome = mkdtempSync(path.join(tmpdir(), 'outpost-slack-paired-'));
 const env = {
   PATH: process.env.PATH, HOME: process.env.HOME, CODEX_HOME: process.env.CODEX_HOME,
   LANG: process.env.LANG, TMPDIR: ownedHome, OUTPOST_HOME: ownedHome,

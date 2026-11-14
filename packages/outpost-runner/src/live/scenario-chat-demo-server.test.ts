@@ -61,7 +61,7 @@ describe("Scenario chat deployment boundary", () => {
     await runtime.initialize();
     expect(runtime.health()).toMatchObject({ ready: true, commitSha: "deadbeef" });
     const setCookie = scenarioChatCapabilityCookieForOrigin(new URL(publicOrigin), "capability");
-    expect(setCookie).toContain("paperclip_scenario-chat=capability");
+    expect(setCookie).toContain("outpost_scenario-chat=capability");
     expect(setCookie).not.toContain("__Host-");
     expect(setCookie).not.toMatch(/; Secure(?:;|$)/);
     expect(setCookie).toContain("SameSite=Strict");
@@ -100,10 +100,10 @@ describe("Scenario chat deployment boundary", () => {
 
     for (const [path, source] of closure) {
       expect(source, path).not.toMatch(/\bimport\s*\(/);
-      expect(source, path).not.toMatch(/PaperclipControlPlanePort|OUTPOST_API_(?:URL|KEY)|@paperclipai\/db/);
+      expect(source, path).not.toMatch(/OutpostControlPlanePort|OUTPOST_API_(?:URL|KEY)|@outpost\/db/);
       for (const specifier of importSpecifiers(source)) {
         expect(specifier, `${path} imports outside the standalone boundary`).not.toMatch(
-          /^(?:server|ui|cli)(?:\/|$)|^@paperclipai\/(?!outpost-runner(?:\/|$))/,
+          /^(?:server|ui|cli)(?:\/|$)|^@outpost\/(?!outpost-runner(?:\/|$))/,
         );
       }
     }
@@ -174,7 +174,7 @@ describe("Scenario chat deployment boundary", () => {
       expect(await request("/api/capability/sessions", {
         method: "POST",
         headers: mutationHeaders(),
-        body: JSON.stringify({ scenarioId: SCENARIO_ID, adapter: "paperclip" }),
+        body: JSON.stringify({ scenarioId: SCENARIO_ID, adapter: "outpost" }),
       })).toMatchObject({ status: 422, body: { error: { code: "unexpected_field" } } });
     });
   });
@@ -184,7 +184,7 @@ describe("Scenario chat deployment boundary", () => {
       const created = await createSession(request, "alice@example.com");
       const failures = [
         mutationHeaders("alice@example.com"),
-        { ...mutationHeaders("alice@example.com"), cookie: "__Host-paperclip_scenario-chat=foreign" },
+        { ...mutationHeaders("alice@example.com"), cookie: "__Host-outpost_scenario-chat=foreign" },
         { ...mutationHeaders("mallory@example.com"), cookie: created.cookie },
       ];
       for (const headers of failures) {

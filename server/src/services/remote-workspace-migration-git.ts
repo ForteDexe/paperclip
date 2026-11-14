@@ -18,7 +18,7 @@ import { materializeManagedProjectWorkspace } from "./managed-repository-checkou
 import { isRuntimeOwnedGitBranch } from "./execution-workspace-branch-ownership.js";
 import { physicalPath } from "./remote-workspace-migration-tree.js";
 import { formatCommandForDisplay } from "./workspace-command-display.js";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 import { recordedIsolatedRemoteSource } from "./isolated-remote-workspace-source.js";
 
 type Workspace = typeof executionWorkspaces.$inferSelect;
@@ -47,7 +47,7 @@ function originalRecordedCommit(workspace: Workspace) {
 function originalDeletionReceipt(workspace: Workspace, operation: typeof workspaceOperations.$inferSelect | undefined) {
   return Boolean(operation && workspace.closedAt && operation.phase === "worktree_cleanup" && operation.status === "succeeded"
     && operation.exitCode === 0 && operation.finishedAt && operation.finishedAt >= operation.startedAt && operation.startedAt >= workspace.closedAt
-    && operation.companyId === workspace.companyId && operation.executionWorkspaceId === workspace.id
+    && operation.spaceId === workspace.spaceId && operation.executionWorkspaceId === workspace.id
     && (!operation.issueId || operation.issueId === workspace.sourceIssueId)
     && operation.metadata?.cleanupAction === "branch_delete"
     && operation.metadata.workspaceId === workspace.id && operation.metadata.workspacePath === (workspace.providerRef ?? workspace.cwd)
@@ -65,7 +65,7 @@ async function verifiedOriginalLocalSource(workspace: Workspace, sourcePath: str
     const present = await fs.lstat(primary).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return null; throw error; });
     if (present || await physicalPath(primary) !== primary) throw unavailable();
   }
-  const root = resolvePaperclipInstanceRoot(), relative = path.relative(root, sourcePath), full = originalRecordedCommit(workspace);
+  const root = resolveOutpostInstanceRoot(), relative = path.relative(root, sourcePath), full = originalRecordedCommit(workspace);
   if (!originalLocalSource(workspace, sourcePath) || !relative || relative === ".." || relative.startsWith(`..${path.sep}`)
     || path.isAbsolute(relative) || path.resolve(sourcePath) !== sourcePath || await fs.realpath(root) !== root
     || typeof full !== "string" || !/^[a-f0-9]{40}$/.test(full)) throw unavailable();
@@ -167,14 +167,14 @@ export async function inspectArchivedGitMigrationSource(db: Pick<Db, "select">, 
   if (workspace.providerType !== "git_worktree" || workspace.metadata?.gitBranchOwnershipVersion !== 1) return null;
   const [projectWorkspace] = workspace.projectWorkspaceId ? await db.select({ cwd: projectWorkspaces.cwd, repoUrl: projectWorkspaces.repoUrl })
     .from(projectWorkspaces).where(and(eq(projectWorkspaces.id, workspace.projectWorkspaceId),
-      eq(projectWorkspaces.companyId, workspace.companyId), workspace.projectId ? eq(projectWorkspaces.projectId, workspace.projectId) : undefined)) : [];
+      eq(projectWorkspaces.spaceId, workspace.spaceId), workspace.projectId ? eq(projectWorkspaces.projectId, workspace.projectId) : undefined)) : [];
   const privateSource = recordedIsolatedRemoteSource(workspace);
   const privatePresent = privateSource ? await fs.lstat(privateSource).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return null;
     throw error;
   }) : null;
   const [journal] = options.operationId ? await db.select({ metadata: workspaceOperations.metadata }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, workspace.companyId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
+    eq(workspaceOperations.spaceId, workspace.spaceId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
     eq(workspaceOperations.id, options.operationId), eq(workspaceOperations.phase, "remote_workspace_migration"),
   )) : [];
   const saved = journal?.metadata?.archivedGitSource;
@@ -183,7 +183,7 @@ export async function inspectArchivedGitMigrationSource(db: Pick<Db, "select">, 
   let sourcePath = savedPath ?? (privatePresent && privateSource ? privateSource : projectWorkspace?.cwd ?? managedSourcePaths(workspace)[0]);
   if (!sourcePath || !privatePresent && projectWorkspace?.repoUrl && projectWorkspace.repoUrl !== workspace.repoUrl) throw unavailable();
   const [operation] = archived && workspace.closedAt ? await db.select().from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, workspace.companyId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
+    eq(workspaceOperations.spaceId, workspace.spaceId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
     eq(workspaceOperations.phase, "worktree_cleanup"), eq(workspaceOperations.status, "succeeded"),
     or(eq(workspaceOperations.command, `git branch -d ${workspace.branchName}`), and(
       sql`${workspaceOperations.metadata}->>'cleanupAction' = 'branch_delete'`,
@@ -197,9 +197,9 @@ export async function inspectArchivedGitMigrationSource(db: Pick<Db, "select">, 
     // not certify lost untracked files. Any surviving worktree registration
     // can retain additional index/files authority and must stay blocked.
     if (workspace.mode !== "isolated_workspace" || !workspace.projectId || !managedSourcePaths(workspace).includes(sourcePath)) return null;
-    await assertNoRetainedWorktree(sourcePath, path.join(sourcePath, ".paperclip", "worktrees", workspace.branchName), workspace.branchName);
+    await assertNoRetainedWorktree(sourcePath, path.join(sourcePath, ".outpost", "worktrees", workspace.branchName), workspace.branchName);
     await git(sourcePath, ["check-ref-format", `refs/heads/${workspace.branchName}`]);
-    const expected = path.join(sourcePath, ".paperclip", "worktrees", workspace.branchName);
+    const expected = path.join(sourcePath, ".outpost", "worktrees", workspace.branchName);
     if (workspace.cwd !== expected || workspace.providerRef && workspace.providerRef !== expected) return null;
     let removalId: string | null = null;
     if (!isRuntimeOwnedGitBranch(workspace.metadata)) {
@@ -208,7 +208,7 @@ export async function inspectArchivedGitMigrationSource(db: Pick<Db, "select">, 
       // converting that receipt into branch-deletion authority.
       if (workspace.metadata?.createdByRuntime !== false || !archived || !workspace.closedAt) return null;
       const [removal] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-        eq(workspaceOperations.companyId, workspace.companyId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
+        eq(workspaceOperations.spaceId, workspace.spaceId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
         eq(workspaceOperations.phase, "worktree_cleanup"), eq(workspaceOperations.status, "succeeded"),
         eq(workspaceOperations.command, formatCommandForDisplay("git", ["worktree", "remove", expected])), isNotNull(workspaceOperations.finishedAt),
         gte(workspaceOperations.startedAt, workspace.closedAt),
@@ -222,7 +222,7 @@ export async function inspectArchivedGitMigrationSource(db: Pick<Db, "select">, 
     }
     await verifiedManagedGitObjectSource(workspace, sourcePath);
     const [other] = await db.select({ id: executionWorkspaces.id }).from(executionWorkspaces).where(and(
-      eq(executionWorkspaces.companyId, workspace.companyId), eq(executionWorkspaces.projectId, workspace.projectId),
+      eq(executionWorkspaces.spaceId, workspace.spaceId), eq(executionWorkspaces.projectId, workspace.projectId),
       eq(executionWorkspaces.repoUrl, workspace.repoUrl), eq(executionWorkspaces.branchName, workspace.branchName),
       ne(executionWorkspaces.id, workspace.id),
     )).limit(1);
@@ -256,7 +256,7 @@ export async function inspectArchivedGitMigrationSource(db: Pick<Db, "select">, 
 async function authorizeNestedSource(db: Pick<Db, "select">, workspace: Workspace, saved: ManagedCheckoutSource, lock = false) {
   if (!workspace.projectId) throw unavailable();
   const query = db.select({ repoUrl: projectWorkspaces.repoUrl }).from(projectWorkspaces).where(and(
-    eq(projectWorkspaces.id, saved.id), eq(projectWorkspaces.companyId, workspace.companyId),
+    eq(projectWorkspaces.id, saved.id), eq(projectWorkspaces.spaceId, workspace.spaceId),
     eq(projectWorkspaces.projectId, workspace.projectId),
   ));
   const [row] = await (lock ? query.for("share", { noWait: true }) : query);
@@ -266,9 +266,9 @@ async function authorizeNestedSource(db: Pick<Db, "select">, workspace: Workspac
 export async function lockArchivedGitMigrationSources(db: Pick<Db, "select">, workspace: Workspace, source: ArchivedGitMigrationSource) {
   if (originalLocalSource(workspace, source.sourcePath)) {
     const [configured] = await db.select({ repoUrl: projectWorkspaces.repoUrl }).from(projectWorkspaces).where(and(
-      eq(projectWorkspaces.companyId, workspace.companyId), eq(projectWorkspaces.id, workspace.projectWorkspaceId!),
+      eq(projectWorkspaces.spaceId, workspace.spaceId), eq(projectWorkspaces.id, workspace.projectWorkspaceId!),
       eq(projectWorkspaces.projectId, workspace.projectId!))).for("share", { noWait: true });
-    const [receipt] = await db.select().from(workspaceOperations).where(and(eq(workspaceOperations.companyId, workspace.companyId),
+    const [receipt] = await db.select().from(workspaceOperations).where(and(eq(workspaceOperations.spaceId, workspace.spaceId),
       eq(workspaceOperations.executionWorkspaceId, workspace.id), eq(workspaceOperations.id, source.cleanupOperationId!))).for("share", { noWait: true });
     if (!configured || configured.repoUrl !== workspace.repoUrl || !receipt || !originalDeletionReceipt(workspace, receipt)
       || source.commit !== originalRecordedCommit(workspace)) throw unavailable();
@@ -289,7 +289,7 @@ export async function materializeArchivedGitMigrationSource(input: {
   if (!workspace.sourceIssueId || !workspace.repoUrl || !workspace.branchName) throw unavailable();
   const original = originalLocalSource(workspace, source.sourcePath), runGit = original ? localGit : git;
   if (original && (source.recipe || !source.cleanupOperationId || source.retainedBranch || source.commit !== originalRecordedCommit(workspace))) throw unavailable();
-  const resolveGitAuth = original ? async () => { throw unavailable(); } : createIssueGitRemoteAuthProvider(input.db, workspace.companyId, workspace.sourceIssueId);
+  const resolveGitAuth = original ? async () => { throw unavailable(); } : createIssueGitRemoteAuthProvider(input.db, workspace.spaceId, workspace.sourceIssueId);
   const present = await fs.lstat(source.sourcePath).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return null;
     throw error;
@@ -336,7 +336,7 @@ export async function materializeArchivedGitMigrationSource(input: {
   if (source.recipe?.restorePoint) await applyGitRestorePointToWorktree({ storage: input.storage, workspace,
     ref: source.recipe.restorePoint, repositoryCwd: cwd, worktreePath: cwd, preserveImportedHistory: true });
   const approvedLocalSources = new Set<string>();
-  await restoreGitWorkspaceContents({ cwd, companyId: workspace.companyId, workspaceId: workspace.id,
+  await restoreGitWorkspaceContents({ cwd, spaceId: workspace.spaceId, workspaceId: workspace.id,
     projectId: workspace.projectId, contents: source.recipe?.contents, storage: input.storage, resolveGitAuth, isolateRepositories: true,
     authorizeSource: async saved => {
       await authorizeNestedSource(input.db, workspace, saved);

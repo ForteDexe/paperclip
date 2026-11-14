@@ -31,9 +31,9 @@ function absent(pid: number): boolean {
 /** A fresh workspace is not process containment. Bind an OS observation to
  * the original host, process birth, and launch event before accepting it. */
 export async function recordedLocalExecutionStopped(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "processPid" | "processGroupId" | "processStartedAt"> & { processHostHash?: string | null }) {
+  "id" | "spaceId" | "processPid" | "processGroupId" | "processStartedAt"> & { processHostHash?: string | null }) {
   const [identity] = await db.select({ eventType: heartbeatRunEvents.eventType, payload: heartbeatRunEvents.payload }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     inArray(heartbeatRunEvents.eventType, [PROCESS_START_REQUESTED, PROCESS_IDENTITY_RECORDED]),
     isNull(heartbeatRunEvents.sourceEventId),
   )).orderBy(desc(heartbeatRunEvents.seq)).limit(1);
@@ -58,21 +58,21 @@ export async function recordedLocalExecutionStopped(db: Db, run: Pick<typeof hea
  * process IDs in the control-plane host's process table.
  */
 export async function recordNativeLocalProcessStop(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "runtimeMode" | "processPid" | "processGroupId" | "processStartedAt">) {
+  "id" | "spaceId" | "agentId" | "runtimeMode" | "processPid" | "processGroupId" | "processStartedAt">) {
   if (run.runtimeMode !== "native" || (!run.processPid && !run.processGroupId)) return false;
   const leases = await db.select({ provider: environmentLeases.provider })
     .from(environmentLeases)
     .where(and(
-      eq(environmentLeases.companyId, run.companyId),
+      eq(environmentLeases.spaceId, run.spaceId),
       eq(environmentLeases.heartbeatRunId, run.id),
     ));
   if (leases.some(lease => lease.provider !== "local")) return false;
   if ((run.processPid && !absent(run.processPid)) ||
       (run.processGroupId && !absent(-run.processGroupId))) return false;
   await notifyDeliveryWork(db, DELIVERY_QUEUES.executionReplacement,
-    JSON.stringify({ companyId: run.companyId, runId: run.id }));
+    JSON.stringify({ spaceId: run.spaceId, runId: run.id }));
   await appendHeartbeatRunEvent(db, {
-    companyId: run.companyId,
+    spaceId: run.spaceId,
     runId: run.id,
     agentId: run.agentId,
     eventType: LOCAL_PROCESS_STOPPED,
@@ -90,16 +90,16 @@ export async function recordNativeLocalProcessStop(db: Db, run: Pick<typeof hear
  * whose final receipt can no longer arrive. */
 export async function recordNativeLocalProcessStopInTransaction(tx: Db, run: Parameters<typeof recordNativeLocalProcessStop>[1]) {
   const recorded = await recordNativeLocalProcessStop(tx, run);
-  if (recorded) await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, run.companyId);
+  if (recorded) await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, run.spaceId);
   return recorded;
 }
 
 /** Only server-authored evidence counts. A later launch invalidates the receipt. */
-export async function hasNativeLocalProcessStop(db: Db, companyId: string, runId: string) {
+export async function hasNativeLocalProcessStop(db: Db, spaceId: string, runId: string) {
   const [event] = await db.select({ eventType: heartbeatRunEvents.eventType })
     .from(heartbeatRunEvents)
     .where(and(
-      eq(heartbeatRunEvents.companyId, companyId),
+      eq(heartbeatRunEvents.spaceId, spaceId),
       eq(heartbeatRunEvents.runId, runId),
       isNull(heartbeatRunEvents.sourceEventId),
       inArray(heartbeatRunEvents.eventType, [PROCESS_START_REQUESTED, PROCESS_IDENTITY_RECORDED, LOCAL_PROCESS_STOPPED]),
@@ -117,18 +117,18 @@ export async function hasNativeLocalProcessStop(db: Db, companyId: string, runId
  * verified PID. A later launch request invalidates the receipt as usual.
  */
 export async function recordUnidentifiedLocalRunnerStop(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "runtimeMode" | "processPid" | "processGroupId" | "runnerProfileJson">,
+  "id" | "spaceId" | "agentId" | "runtimeMode" | "processPid" | "processGroupId" | "runnerProfileJson">,
   options: { record: boolean } = { record: true }): Promise<boolean> {
   if (run.runtimeMode !== "native" || run.processPid || run.processGroupId) return false;
   const [latest, previous] = await db.select({ eventType: heartbeatRunEvents.eventType, payload: heartbeatRunEvents.payload }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     isNull(heartbeatRunEvents.sourceEventId),
     inArray(heartbeatRunEvents.eventType, [PROCESS_START_REQUESTED, PROCESS_IDENTITY_RECORDED, LOCAL_PROCESS_STOPPED]),
   )).orderBy(desc(heartbeatRunEvents.seq)).limit(2);
   // Only the host that requested the launch can inspect its process table.
   if (latest?.eventType !== PROCESS_START_REQUESTED || latest.payload?.hostname !== os.hostname()) return false;
   const leases = await db.select({ provider: environmentLeases.provider }).from(environmentLeases)
-    .where(and(eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id)));
+    .where(and(eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id)));
   if (leases.some(lease => lease.provider !== "local")) return false;
   const requestedAt = typeof latest.payload?.requestedAt === "string" ? Date.parse(latest.payload.requestedAt) : Number.NaN;
   const launchRequestedAt = (!previous || previous.eventType === LOCAL_PROCESS_STOPPED) && Number.isFinite(requestedAt)
@@ -138,7 +138,7 @@ export async function recordUnidentifiedLocalRunnerStop(db: Db, run: Pick<typeof
     launchRequestedAt })) return false;
   if (!options.record) return true;
   await appendHeartbeatRunEvent(db, {
-    companyId: run.companyId,
+    spaceId: run.spaceId,
     runId: run.id,
     agentId: run.agentId,
     eventType: LOCAL_PROCESS_STOPPED,
@@ -158,7 +158,7 @@ export class UnidentifiedRunnerStopRefusedError extends Error {
 }
 
 type UnidentifiedLaunchRun = Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "runtimeMode" | "status" | "finishedAt" | "processPid" | "processGroupId">;
+  "id" | "spaceId" | "runtimeMode" | "status" | "finishedAt" | "processPid" | "processGroupId">;
 type LaunchRefusal = { code: string; message: string } | "already_stopped" | null;
 
 export async function unidentifiedLocalLaunchRefusals(db: Db, runs: UnidentifiedLaunchRun[]): Promise<Map<string, LaunchRefusal>> {
@@ -173,15 +173,15 @@ export async function unidentifiedLocalLaunchRefusals(db: Db, runs: Unidentified
   }
   if (!candidates.length) return result;
   const ids = candidates.map(run => run.id);
-  const companyIds = [...new Set(candidates.map(run => run.companyId))];
+  const spaceIds = [...new Set(candidates.map(run => run.spaceId))];
   const latest = await db.selectDistinctOn([heartbeatRunEvents.runId], { runId: heartbeatRunEvents.runId,
     eventType: heartbeatRunEvents.eventType, payload: heartbeatRunEvents.payload }).from(heartbeatRunEvents).where(and(
-    inArray(heartbeatRunEvents.companyId, companyIds), inArray(heartbeatRunEvents.runId, ids),
+    inArray(heartbeatRunEvents.spaceId, spaceIds), inArray(heartbeatRunEvents.runId, ids),
     isNull(heartbeatRunEvents.sourceEventId),
     inArray(heartbeatRunEvents.eventType, [PROCESS_START_REQUESTED, PROCESS_IDENTITY_RECORDED, LOCAL_PROCESS_STOPPED]),
   )).orderBy(heartbeatRunEvents.runId, desc(heartbeatRunEvents.seq));
   const remote = new Set((await db.select({ runId: environmentLeases.heartbeatRunId }).from(environmentLeases).where(and(
-    inArray(environmentLeases.companyId, companyIds), inArray(environmentLeases.heartbeatRunId, ids),
+    inArray(environmentLeases.spaceId, spaceIds), inArray(environmentLeases.heartbeatRunId, ids),
     sql`${environmentLeases.provider} is distinct from 'local'`,
   ))).map(row => row.runId));
   const latestByRun = new Map(latest.map(row => [row.runId, row]));
@@ -204,11 +204,11 @@ export async function unidentifiedLocalLaunchRefusal(db: Db, run: UnidentifiedLa
 }
 
 export async function confirmUnidentifiedLocalRunnerStopped(db: Db, input: {
-  companyId: string; issueId: string; runId: string; actorId: string;
+  spaceId: string; issueId: string; runId: string; actorId: string;
 }): Promise<{ runId: string; alreadyStopped: boolean }> {
   const refuse = (code: string, message: string) => { throw new UnidentifiedRunnerStopRefusedError(code, message); };
   const [run] = await db.select().from(heartbeatRuns)
-    .where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId)));
+    .where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId)));
   if (!run || ![run.issueId, run.nativeIssueId, record(run.contextSnapshot).issueId].includes(input.issueId))
     return refuse("run_not_found", "This run does not belong to the task.");
   const refusal = await unidentifiedLocalLaunchRefusal(db, run);
@@ -219,22 +219,22 @@ export async function confirmUnidentifiedLocalRunnerStopped(db: Db, input: {
     return refuse("runner_still_running", "A runner for this run is still running on this host. Stop it first.");
   await db.transaction(async tx => {
     const [locked] = await tx.select().from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.id, run.id))).for("update");
+      .where(and(eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.id, run.id))).for("update");
     const current = locked ? await unidentifiedLocalLaunchRefusal(tx as unknown as Db, locked) : null;
     if (!locked || current === "already_stopped" || current !== null || locked.finishedAt?.getTime() !== run.finishedAt?.getTime())
       return refuse("run_changed", "This run changed while its stop was being confirmed. Check it again.");
     await appendHeartbeatRunEvent(tx as unknown as Db, {
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       runId: run.id,
       agentId: run.agentId,
       eventType: LOCAL_PROCESS_STOPPED,
       stream: "system",
       level: "info",
-      message: "A board operator confirmed that this run's runner and its agent processes have stopped.",
+      message: "A operator operator confirmed that this run's runner and its agent processes have stopped.",
       payload: { processPid: null, processGroupId: null, processStartedAt: null, basis: "operator_attested",
         attestedByUserId: input.actorId },
     });
-    await notifyDeliveryWork(tx as unknown as Db, DELIVERY_QUEUES.accounting, run.companyId);
+    await notifyDeliveryWork(tx as unknown as Db, DELIVERY_QUEUES.accounting, run.spaceId);
   });
   return { runId: run.id, alreadyStopped: false };
 }
@@ -260,16 +260,16 @@ function record(value: unknown): Record<string, unknown> {
  *   in any build.
  * Any launch request, identity record or runner event keeps the normal stop
  * proofs. */
-async function hasRunEvent(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId">, eventType: string) {
+async function hasRunEvent(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId">, eventType: string) {
   const [event] = await db.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     isNull(heartbeatRunEvents.sourceEventId), eq(heartbeatRunEvents.eventType, eventType),
   )).limit(1);
   return Boolean(event);
 }
 
 export async function nativeRunNeverLaunched(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "runtimeMode" | "status" | "errorCode" | "processPid" | "processGroupId" |
+  "id" | "spaceId" | "runtimeMode" | "status" | "errorCode" | "processPid" | "processGroupId" |
   "nativeSessionId" | "runnerInstanceId" | "nativeIssueId">): Promise<boolean> {
   if (run.runtimeMode !== "native" || !SETTLED_RUN_STATUSES.includes(run.status) || run.processPid || run.processGroupId) return false;
   const refusedBeforeLaunch = run.status === "failed" && (run.errorCode === "native_session_cleanup_quarantined" ||
@@ -280,7 +280,7 @@ export async function nativeRunNeverLaunched(db: Db, run: Pick<typeof heartbeatR
     if (run.nativeSessionId || run.runnerInstanceId || run.nativeIssueId) return false;
   }
   const [launch] = await db.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     or(isNotNull(heartbeatRunEvents.sourceEventId),
       inArray(heartbeatRunEvents.eventType, ["adapter.invoke", PROCESS_START_REQUESTED, PROCESS_IDENTITY_RECORDED])),
   )).limit(1);
@@ -292,10 +292,10 @@ export async function nativeRunNeverLaunched(db: Db, run: Pick<typeof heartbeatR
  * the same session; that process is checked separately. This run launched
  * nothing of its own. */
 export async function nativeGatedRunNeverLaunched(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "runtimeMode" | "status" | "errorCode">): Promise<boolean> {
+  "id" | "spaceId" | "runtimeMode" | "status" | "errorCode">): Promise<boolean> {
   if (run.runtimeMode !== "native" || run.status !== "failed" || run.errorCode !== "native_session_cleanup_quarantined") return false;
   const [launch] = await db.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     or(isNotNull(heartbeatRunEvents.sourceEventId),
       inArray(heartbeatRunEvents.eventType, ["adapter.invoke", PROCESS_START_REQUESTED, PROCESS_IDENTITY_RECORDED])),
   )).limit(1);
@@ -308,12 +308,12 @@ export async function nativeGatedRunNeverLaunched(db: Db, run: Pick<typeof heart
  * The caller must hold the run/controller locks and verify local lease cleanup.
  */
 export async function hasHistoricalSuspendedNativeSession(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "runtimeMode" | "processPid" | "processGroupId" |
+  "id" | "spaceId" | "agentId" | "runtimeMode" | "processPid" | "processGroupId" |
   "nativeSessionId" | "runnerInstanceId" | "nativeIssueId" | "runnerProfileJson">) {
   if (run.runtimeMode !== "native" || run.processPid || run.processGroupId ||
       !run.nativeSessionId || !run.runnerInstanceId || !run.nativeIssueId) return false;
   const [modernProcessEvidence] = await db.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     isNull(heartbeatRunEvents.sourceEventId),
     inArray(heartbeatRunEvents.eventType, [PROCESS_START_REQUESTED, PROCESS_IDENTITY_RECORDED, LOCAL_PROCESS_STOPPED]),
   )).limit(1);
@@ -326,7 +326,7 @@ export async function hasHistoricalSuspendedNativeSession(db: Db, run: Pick<type
   const { nativeFailedRunRetryStateIsSafe } = await import("./native-runtime/native-session-executor.js");
   return nativeFailedRunRetryStateIsSafe({
     execution: run.runnerProfileJson?.nativeExecutionInput,
-    companyId: run.companyId, issueId: run.nativeIssueId, agentId: run.agentId, runId: run.id,
+    spaceId: run.spaceId, issueId: run.nativeIssueId, agentId: run.agentId, runId: run.id,
     nativeSessionId: run.nativeSessionId, runnerInstanceId: run.runnerInstanceId,
     processPid: null, processGroupId: null,
     providerSessionId: typeof checkpoint?.sessionId === "string" ? checkpoint.sessionId : null,
@@ -336,20 +336,20 @@ export async function hasHistoricalSuspendedNativeSession(db: Db, run: Pick<type
 }
 
 export async function withReleasedNativeRunProcess<T extends {
-  id: string; companyId: string; processPid: number | null; processGroupId: number | null; processStartedAt: Date | null;
+  id: string; spaceId: string; processPid: number | null; processGroupId: number | null; processStartedAt: Date | null;
 }>(db: Db, run: T): Promise<T> {
   if (run.processPid !== null || run.processGroupId !== null || run.processStartedAt !== null) return run;
-  const stopped = await readNativeLocalProcessStop(db, run.companyId, run.id);
+  const stopped = await readNativeLocalProcessStop(db, run.spaceId, run.id);
   if (!stopped) return run;
   return { ...run, processPid: stopped.processPid, processGroupId: stopped.processGroupId,
     processStartedAt: stopped.processStartedAt ? new Date(stopped.processStartedAt) : null };
 }
 
 /** Recover the exact stopped identity after the mutable run fields were cleared. */
-export async function readUnidentifiedLocalRunnerStop(db: Db, companyId: string, runId: string): Promise<boolean> {
+export async function readUnidentifiedLocalRunnerStop(db: Db, spaceId: string, runId: string): Promise<boolean> {
   const [latest, launch] = await db.select({ eventType: heartbeatRunEvents.eventType, payload: heartbeatRunEvents.payload })
     .from(heartbeatRunEvents)
-    .where(and(eq(heartbeatRunEvents.companyId, companyId), eq(heartbeatRunEvents.runId, runId),
+    .where(and(eq(heartbeatRunEvents.spaceId, spaceId), eq(heartbeatRunEvents.runId, runId),
       isNull(heartbeatRunEvents.sourceEventId),
       inArray(heartbeatRunEvents.eventType, [PROCESS_START_REQUESTED, PROCESS_IDENTITY_RECORDED, LOCAL_PROCESS_STOPPED])))
     .orderBy(desc(heartbeatRunEvents.seq)).limit(2);
@@ -359,10 +359,10 @@ export async function readUnidentifiedLocalRunnerStop(db: Db, companyId: string,
   return noLocalRunnerProcessForRun(runId);
 }
 
-export async function readNativeLocalProcessStop(db: Db, companyId: string, runId: string) {
+export async function readNativeLocalProcessStop(db: Db, spaceId: string, runId: string) {
   const [event] = await db.select({ eventType: heartbeatRunEvents.eventType, payload: heartbeatRunEvents.payload })
     .from(heartbeatRunEvents)
-    .where(and(eq(heartbeatRunEvents.companyId, companyId), eq(heartbeatRunEvents.runId, runId),
+    .where(and(eq(heartbeatRunEvents.spaceId, spaceId), eq(heartbeatRunEvents.runId, runId),
       isNull(heartbeatRunEvents.sourceEventId),
       inArray(heartbeatRunEvents.eventType, [PROCESS_START_REQUESTED, PROCESS_IDENTITY_RECORDED, LOCAL_PROCESS_STOPPED])))
     .orderBy(desc(heartbeatRunEvents.seq)).limit(1);
@@ -379,11 +379,11 @@ type SettledProcessRelease = "released" | "pending" | "skipped";
 
 export function settledNativeProcessIdentityCondition(db: Db) {
   const identity = db.select({ payload: heartbeatRunEvents.payload }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, heartbeatRuns.companyId), eq(heartbeatRunEvents.runId, heartbeatRuns.id),
+    eq(heartbeatRunEvents.spaceId, heartbeatRuns.spaceId), eq(heartbeatRunEvents.runId, heartbeatRuns.id),
     eq(heartbeatRunEvents.eventType, PROCESS_IDENTITY_RECORDED), isNull(heartbeatRunEvents.sourceEventId),
   )).orderBy(desc(heartbeatRunEvents.seq)).limit(1).as("settled_process_identity");
   return or(isNotNull(heartbeatRuns.processStartedAt), exists(db.select({ id: environmentLeases.id })
-    .from(environmentLeases).where(and(eq(environmentLeases.companyId, heartbeatRuns.companyId),
+    .from(environmentLeases).where(and(eq(environmentLeases.spaceId, heartbeatRuns.spaceId),
       eq(environmentLeases.heartbeatRunId, heartbeatRuns.id), sql`${environmentLeases.provider} <> 'local'`))),
     and(gt(heartbeatRuns.processPid, 1), eq(heartbeatRuns.processPid, heartbeatRuns.processGroupId),
       exists(db.select({ payload: identity.payload }).from(identity).where(and(
@@ -396,7 +396,7 @@ export function settledNativeProcessIdentityCondition(db: Db) {
 export async function releaseSettledNativeRunProcess(db: Db, runId: string, options: { onDeferredDeadline?: (at: number) => void } = {}): Promise<SettledProcessRelease> {
   const outcome = await db.transaction(async transaction => {
     const tx = transaction as unknown as Db;
-    const [run] = await tx.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+    const [run] = await tx.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
       runtimeMode: heartbeatRuns.runtimeMode, status: heartbeatRuns.status, finishedAt: heartbeatRuns.finishedAt,
       processPid: heartbeatRuns.processPid, processGroupId: heartbeatRuns.processGroupId, processStartedAt: heartbeatRuns.processStartedAt,
       hasSessionCheckpoint: sql<boolean>`coalesce(${heartbeatRuns.runnerProfileJson}->'sessionCheckpoint', 'null'::jsonb) <> 'null'::jsonb`,
@@ -409,14 +409,14 @@ export async function releaseSettledNativeRunProcess(db: Db, runId: string, opti
     if (!run.hasSessionCheckpoint &&
         !(await nativeSessionProviderEvidence(tx, [run.id])).has(run.id)) return "skipped";
     const leases = await tx.select().from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+      eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
     ));
     if (leases.some(lease => lease.provider !== "local")) {
       if (!leases.every(hasRemoteTerminationReceipt)) return "pending";
     } else {
       if (leases.some(lease => !lease.releasedAt || lease.status === "pending_cleanup" || lease.cleanupStatus === "failed")) return "pending";
       const [identity] = await tx.select({ payload: heartbeatRunEvents.payload }).from(heartbeatRunEvents).where(and(
-        eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+        eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
         eq(heartbeatRunEvents.eventType, PROCESS_IDENTITY_RECORDED), isNull(heartbeatRunEvents.sourceEventId),
       )).orderBy(desc(heartbeatRunEvents.seq)).limit(1);
       if (identity?.payload?.targetKind !== "local" || identity.payload.hostname !== os.hostname() ||
@@ -428,10 +428,10 @@ export async function releaseSettledNativeRunProcess(db: Db, runId: string, opti
         return "pending";
       }
     }
-    await notifyLiveRunRecovery(tx, { companyId: run.companyId, runId: run.id, agentId: run.agentId });
-    await notifyRetainedNativeSessionCleanup(tx, { companyId: run.companyId, runId: run.id });
+    await notifyLiveRunRecovery(tx, { spaceId: run.spaceId, runId: run.id, agentId: run.agentId });
+    await notifyRetainedNativeSessionCleanup(tx, { spaceId: run.spaceId, runId: run.id });
     // Local and remote stops both close the run's usage source.
-    await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, run.companyId);
+    await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, run.spaceId);
     await tx.update(heartbeatRuns).set({
       processPid: null, processGroupId: null, processStartedAt: null, updatedAt: new Date(),
     }).where(eq(heartbeatRuns.id, run.id));

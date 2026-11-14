@@ -11,7 +11,7 @@ export function HelloWorldDashboardWidget({ context }: PluginWidgetProps) {
       <strong>Hello world</strong>
       <div>This widget was added by @outpost/plugin-hello-world-example.</div>
       {/* Include host context so authors can see where scoped IDs come from. */}
-      <div>Outpost context: {context.companyId}</div>
+      <div>Outpost context: {context.spaceId}</div>
     </section>
   );
 }

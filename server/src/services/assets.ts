@@ -4,10 +4,10 @@ import { assets } from "@outpost/db";
 
 export function assetService(db: Db) {
   return {
-    create: (companyId: string, data: Omit<typeof assets.$inferInsert, "companyId">) =>
+    create: (spaceId: string, data: Omit<typeof assets.$inferInsert, "spaceId">) =>
       db
         .insert(assets)
-        .values({ ...data, companyId })
+        .values({ ...data, spaceId })
         .returning()
         .then((rows) => rows[0]),
 

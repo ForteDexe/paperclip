@@ -17,11 +17,11 @@ export const REMOTE_WORKSPACE_ABANDONED_EPOCH_SCHEMA = "outpost.remote-workspace
  * workspace last.
  */
 export async function abandonUnverifiedRemoteWorkspaceEpoch(tx: Transaction, input: {
-  companyId: string; workspaceId: string; runId: string; epoch: number; snapshotId: string | null;
+  spaceId: string; workspaceId: string; runId: string; epoch: number; snapshotId: string | null;
   location: NonNullable<RemoteWorkspaceAuthority["location"]>;
 }) {
   const [workspace] = await tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.workspaceId),
-    eq(executionWorkspaces.companyId, input.companyId))).for("update");
+    eq(executionWorkspaces.spaceId, input.spaceId))).for("update");
   const current = workspace ? readRemoteWorkspaceAuthority(workspace.metadata) : null;
   const location = current?.location;
   if (!workspace || !current || !location || current.writerRunId !== input.runId || current.epoch !== input.epoch
@@ -41,8 +41,8 @@ export async function abandonUnverifiedRemoteWorkspaceEpoch(tx: Transaction, inp
   // The migration receipt names the old root as the next preparation's root.
   delete metadata.nativeWorkspaceMigration;
   const [saved] = await tx.update(executionWorkspaces).set({ providerRef: null, cwd: `/workspaces/${workspace.id}`, metadata,
-    updatedAt: new Date() }).where(and(eq(executionWorkspaces.id, workspace.id), eq(executionWorkspaces.companyId, input.companyId))).returning();
-  await persistActivity(tx as unknown as Db, { companyId: input.companyId, actorType: "system", actorId: "remote-workspaces",
+    updatedAt: new Date() }).where(and(eq(executionWorkspaces.id, workspace.id), eq(executionWorkspaces.spaceId, input.spaceId))).returning();
+  await persistActivity(tx as unknown as Db, { spaceId: input.spaceId, actorType: "system", actorId: "remote-workspaces",
     action: "workspace.remote_epoch_abandoned", entityType: "execution_workspace", entityId: workspace.id, runId: input.runId,
     details: { abandonedEpoch: current.epoch, epoch: next.epoch, snapshotId: next.snapshotId } });
   return { workspace: saved!, authority: next };

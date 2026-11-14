@@ -47,7 +47,7 @@ export function createCustomerOwnedSetup(store: SlackRegistrationStore) {
       // No provider creation has happened until this intent is durable.
       await endpoint(endpointId, actor);
       await lease.assertOwned();
-      const values = { companyId: current.endpoint.companyId, requestId: input.requestId, status: "creating" as const,
+      const values = { spaceId: current.endpoint.spaceId, requestId: input.requestId, status: "creating" as const,
         manifest, manifestHash: createHash("sha256").update(JSON.stringify(manifest)).digest("hex"), callbackUri: redirect,
         createdByUserId: actor.userId, managerGrantId: managed?.grantId ?? null, workspaceId: managed?.workspaceId ?? null, errorCode: null, updatedAt: new Date() };
       const [row] = await db.insert(chatSlackRegistrations).values({ endpointId, ...values })
@@ -93,12 +93,12 @@ export function createCustomerOwnedSetup(store: SlackRegistrationStore) {
       await endpoint(row.endpointId, actor);
       await lease.assertOwned();
       // Cloud ingress requires a tenant session. Send the preset PNG bytes so
-      // Slack does not need to fetch an authenticated Paperclip URL.
+      // Slack does not need to fetch an authenticated Outpost URL.
       const render = renderAvatar;
       const appearance = { ...resolveAgentAppearance(current.agentAppearance, current.endpoint.assignedAgentId) };
       delete appearance.customAvatarAssetId; // The preset renderer cannot read private uploaded assets.
       const png = await render({ appearance,
-        size: 512, scale: 1, pose: "rest", muted: false, background: "paperclip-dark" });
+        size: 512, scale: 1, pose: "rest", muted: false, background: "outpost-dark" });
       await endpoint(row.endpointId, actor);
       await lease.assertOwned();
       const upload = new FormData();

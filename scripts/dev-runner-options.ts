@@ -2,8 +2,8 @@ import path from "node:path";
 import {
   DEFAULT_OUTPOST_INSTANCE_ID,
   expandHomePrefix,
-  resolvePaperclipConfigPathForInstance,
-  resolvePaperclipInstanceId,
+  resolveOutpostConfigPathForInstance,
+  resolveOutpostInstanceId,
 } from "../packages/shared/src/home-paths.ts";
 
 export interface AppliedDevRunnerOptions {
@@ -57,11 +57,11 @@ export function applyDevRunnerOptions(
 
   env.OUTPOST_HOME = dataDir;
   if (!hasExplicitConfig) {
-    const instanceId = resolvePaperclipInstanceId(
+    const instanceId = resolveOutpostInstanceId(
       env.OUTPOST_INSTANCE_ID ?? DEFAULT_OUTPOST_INSTANCE_ID,
     );
     env.OUTPOST_INSTANCE_ID = instanceId;
-    env.OUTPOST_CONFIG = resolvePaperclipConfigPathForInstance({
+    env.OUTPOST_CONFIG = resolveOutpostConfigPathForInstance({
       homeDir: dataDir,
       instanceId,
     });

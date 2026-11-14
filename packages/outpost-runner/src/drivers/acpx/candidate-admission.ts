@@ -5,7 +5,7 @@ import { QUALIFIED_ACPX_PROFILES, assertAcpxProfileReleased, type QualifiedAcpxP
 /** Operator authority travels only through trusted Runner startup, never agent configuration. */
 export interface AcpxCandidateAdmission {
   schema: "outpost.acpx-candidate-admission.v1";
-  companyId: string;
+  spaceId: string;
   agent: "antigravity" | "kimi";
   model: string;
   profileDigest: string;
@@ -21,13 +21,13 @@ export interface AcpxCandidateStartupAdmission extends AcpxCandidateAdmission {
   normalizedSessionId: string;
 }
 
-const BASE_FIELDS = ["schema", "companyId", "agent", "model", "profileDigest", "nativeClosureDigest", "platform", "architecture", "expiresAt"];
+const BASE_FIELDS = ["schema", "spaceId", "agent", "model", "profileDigest", "nativeClosureDigest", "platform", "architecture", "expiresAt"];
 const stableId = (value: unknown): value is string => typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,239}$/.test(value);
 const invalid = (): never => { throw Object.assign(new Error("ACPX candidate admission is missing, expired, or does not match the exact authorized execution"), { code: "ACPX_CANDIDATE_ADMISSION_INVALID", retryable: false }); };
 
 export function parseAcpxCandidateAdmission(
   value: unknown,
-  expected: { companyId: string; agent: string; model: string },
+  expected: { spaceId: string; agent: string; model: string },
   now = Date.now(),
 ): AcpxCandidateAdmission {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return invalid();
@@ -41,7 +41,7 @@ export function parseAcpxCandidateAdmission(
       ? KIMI_DISTRIBUTION_CLOSURE_SHA256[target] : undefined;
   if (!Number.isSafeInteger(now) || now < 0 || Object.keys(entry).length !== BASE_FIELDS.length || Object.keys(entry).some(key => !BASE_FIELDS.includes(key))
     || entry.schema !== "outpost.acpx-candidate-admission.v1"
-    || !stableId(entry.companyId) || entry.companyId !== expected.companyId
+    || !stableId(entry.spaceId) || entry.spaceId !== expected.spaceId
     || !profile || entry.agent !== expected.agent
     || entry.agent === "kimi" && profile.qualificationStatus !== "pending"
     || typeof entry.model !== "string" || entry.model !== expected.model || !entry.model.trim()
@@ -62,7 +62,7 @@ export function bindAcpxCandidateAdmission(
   return { ...parseAcpxCandidateAdmission(admission, admission), runId: identity.runId, normalizedSessionId: identity.normalizedSessionId };
 }
 
-/** The company field here is only a receipt of upstream authorization. This
+/** The space field here is only a receipt of upstream authorization. This
  * parser is called on the trusted runner/sidecar startup channel; agent or
  * provider configuration must never be promoted into that channel. */
 export function parseAcpxCandidateStartupAdmission(
@@ -75,7 +75,7 @@ export function parseAcpxCandidateStartupAdmission(
   if (!stableId(runId) || runId.length > 160 || !stableId(normalizedSessionId) || normalizedSessionId.length > 160
     || expected.runId !== undefined && expected.runId !== runId
     || expected.normalizedSessionId !== undefined && expected.normalizedSessionId !== normalizedSessionId) return invalid();
-  const admission = parseAcpxCandidateAdmission(base, { ...expected, companyId: String(base.companyId) }, now);
+  const admission = parseAcpxCandidateAdmission(base, { ...expected, spaceId: String(base.spaceId) }, now);
   return { ...admission, runId, normalizedSessionId };
 }
 

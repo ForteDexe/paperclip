@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "decision_training_examples" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
+  "space_id" uuid NOT NULL REFERENCES "spaces"("id") ON DELETE CASCADE,
   "source_kind" text NOT NULL,
   "source_id" uuid NOT NULL,
   "issue_id" uuid NOT NULL REFERENCES "issues"("id") ON DELETE CASCADE,
@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS "decision_training_examples" (
   CONSTRAINT "decision_training_examples_source_kind_check"
     CHECK ("source_kind" IN ('interaction', 'approval', 'execution_decision'))
 );--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "decision_training_examples_company_created_at_idx"
-  ON "decision_training_examples" USING btree ("company_id", "created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "decision_training_examples_space_created_at_idx"
+  ON "decision_training_examples" USING btree ("space_id", "created_at");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "decision_training_examples_issue_idx"
   ON "decision_training_examples" USING btree ("issue_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "decision_training_examples_source_author_uq"

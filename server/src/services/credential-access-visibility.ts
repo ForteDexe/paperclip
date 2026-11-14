@@ -10,15 +10,15 @@ export function credentialAccessConnectionNameSql(viewerUserId: string | null) {
   and (${heartbeatRuns.responsibleUserId} = ${viewerUserId}
     or exists (
       select 1 from ${connectionGrants}
-      where ${connectionGrants.companyId} = ${heartbeatRuns.companyId}
+      where ${connectionGrants.spaceId} = ${heartbeatRuns.spaceId}
         and ${connectionGrants.id}::text = ${heartbeatRuns.resultJson} #>> '{configurationIncomplete,credentialAccess,grantId}'
         and ((${connectionGrants.kind} = 'user' and ${connectionGrants.subjectUserId} = ${viewerUserId})
           or (${connectionGrants.kind} = 'organization' and (
             not exists (select 1 from ${connectionGrantMembers}
-              where ${connectionGrantMembers.companyId} = ${connectionGrants.companyId}
+              where ${connectionGrantMembers.spaceId} = ${connectionGrants.spaceId}
                 and ${connectionGrantMembers.grantId} = ${connectionGrants.id})
             or exists (select 1 from ${connectionGrantMembers}
-              where ${connectionGrantMembers.companyId} = ${connectionGrants.companyId}
+              where ${connectionGrantMembers.spaceId} = ${connectionGrants.spaceId}
                 and ${connectionGrantMembers.grantId} = ${connectionGrants.id}
                 and ${connectionGrantMembers.subjectType} = 'user'
                 and ${connectionGrantMembers.subjectId} = ${viewerUserId})

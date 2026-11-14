@@ -1,4 +1,4 @@
-import { agents, applyPendingMigrations, companies, createDb, issues, routines, routineTriggers } from "@outpost/db";
+import { agents, applyPendingMigrations, spaces, createDb, issues, routines, routineTriggers } from "@outpost/db";
 import { sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -17,7 +17,7 @@ describe.skipIf(!support.supported)("scheduled deadline database queries", () =>
   let db: Db;
   beforeAll(async () => {
     if (external) await applyPendingMigrations(external);
-    else database = await startEmbeddedPostgresTestDatabase("paperclip-scheduled-deadlines");
+    else database = await startEmbeddedPostgresTestDatabase("outpost-scheduled-deadlines");
     db = createDb(external ?? database.connectionString);
   }, 30_000);
   afterEach(() => vi.useRealTimers());
@@ -27,33 +27,33 @@ describe.skipIf(!support.supported)("scheduled deadline database queries", () =>
     vi.useFakeTimers({ toFake: ["Date"] });
     const now = Date.now();
     const at = (minutes: number) => new Date(now + minutes * 60_000);
-    const [company, pausedCompany] = await db.insert(companies).values([
+    const [space, pausedSpace] = await db.insert(spaces).values([
       { name: "Active schedules", issuePrefix: "SCH" },
       { name: "Paused schedules", issuePrefix: "PAU", status: "paused" },
     ]).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company!.id, name: "Scheduled agent" }).returning();
-    const [active, paused, otherCompany] = await db.insert(routines).values([
-      { companyId: company!.id, title: "Active routine" },
-      { companyId: company!.id, title: "Paused routine", status: "paused" },
-      { companyId: pausedCompany!.id, title: "Paused company routine" },
+    const [agent] = await db.insert(agents).values({ spaceId: space!.id, name: "Scheduled agent" }).returning();
+    const [active, paused, otherSpace] = await db.insert(routines).values([
+      { spaceId: space!.id, title: "Active routine" },
+      { spaceId: space!.id, title: "Paused routine", status: "paused" },
+      { spaceId: pausedSpace!.id, title: "Paused space routine" },
     ]).returning();
-    const trigger = { companyId: company!.id, routineId: active!.id, kind: "schedule", cronExpression: "0 * * * *", timezone: "UTC" };
+    const trigger = { spaceId: space!.id, routineId: active!.id, kind: "schedule", cronExpression: "0 * * * *", timezone: "UTC" };
     await db.insert(routineTriggers).values([
       { ...trigger, nextRunAt: at(10) },
       { ...trigger, enabled: false, nextRunAt: at(1) },
       { ...trigger, archived: true, nextRunAt: at(2) },
       { ...trigger, routineId: paused!.id, nextRunAt: at(3) },
-      { ...trigger, companyId: pausedCompany!.id, nextRunAt: at(4) },
-      { ...trigger, companyId: pausedCompany!.id, routineId: otherCompany!.id, nextRunAt: at(5) },
+      { ...trigger, spaceId: pausedSpace!.id, nextRunAt: at(4) },
+      { ...trigger, spaceId: pausedSpace!.id, routineId: otherSpace!.id, nextRunAt: at(5) },
       { ...trigger, nextRunAt: at(-1) },
     ]);
-    const monitor = { companyId: company!.id, title: "Monitor", status: "in_progress", assigneeAgentId: agent!.id };
+    const monitor = { spaceId: space!.id, title: "Monitor", status: "in_progress", assigneeAgentId: agent!.id };
     await db.insert(issues).values([
       { ...monitor, monitorNextCheckAt: at(15) },
       { ...monitor, status: "done", monitorNextCheckAt: at(1) },
       { ...monitor, assigneeUserId: "fixture-user", monitorNextCheckAt: at(2) },
       { ...monitor, assigneeAgentId: null, monitorNextCheckAt: at(3) },
-      { ...monitor, companyId: pausedCompany!.id, monitorNextCheckAt: at(4) },
+      { ...monitor, spaceId: pausedSpace!.id, monitorNextCheckAt: at(4) },
       { ...monitor, monitorNextCheckAt: at(-1) },
     ]);
     type Task = Parameters<ReturnType<typeof createDeliveryWorkCoordinator>["register"]>[1];
@@ -69,7 +69,7 @@ describe.skipIf(!support.supported)("scheduled deadline database queries", () =>
     expect(tasks.get(DELIVERY_QUEUES.routineSchedules)!.nextRunAt!()).toBeGreaterThan(now);
     expect(await heartbeatService(db).nextIssueMonitorAt()).toBe(at(-1).getTime());
     expect(tasks.get(DELIVERY_QUEUES.issueMonitors)!.nextRunAt!()).toBe(now + 60_000);
-    await db.execute(sql`truncate table companies restart identity cascade`);
+    await db.execute(sql`truncate table spaces restart identity cascade`);
     vi.setSystemTime(at(2));
     for (const task of tasks.values()) await task.run(new AbortController().signal);
     for (const task of tasks.values()) expect(task.nextRunAt!()).toBeNull();

@@ -144,10 +144,10 @@ import { processAdapter } from "./process/index.js";
 import { httpAdapter } from "./http/index.js";
 import {
   DEFAULT_OPENCODE_RUNNER_MODEL,
-  PaperclipRunnerProviderProfileError,
+  OutpostRunnerProviderProfileError,
   DEFAULT_ACPX_RUNNER_MODELS,
   QUALIFIED_OPENCODE_RUNNER_VERSION,
-  resolvePaperclipRunnerProviderProfile,
+  resolveOutpostRunnerProviderProfile,
 } from "../services/native-runtime/provider-profile.js";
 
 async function verifyNativeAcpxApiKey(
@@ -392,7 +392,7 @@ const codexLocalAdapter: ServerAdapterModule = {
   loginCapability: codexLoginCapability,
 };
 
-const paperclipRunnerAdapter: ServerAdapterModule = {
+const outpostRunnerAdapter: ServerAdapterModule = {
   type: "outpost_runner",
   runtimeToolDelivery: "environment",
   async execute(ctx) {
@@ -418,13 +418,13 @@ const paperclipRunnerAdapter: ServerAdapterModule = {
     };
   },
   async testEnvironment(context) {
-    let profile: ReturnType<typeof resolvePaperclipRunnerProviderProfile>;
+    let profile: ReturnType<typeof resolveOutpostRunnerProviderProfile>;
     try {
-      profile = resolvePaperclipRunnerProviderProfile(context.config, { companyId: context.companyId });
+      profile = resolveOutpostRunnerProviderProfile(context.config, { spaceId: context.spaceId });
     } catch (error) {
-      const profileError = error instanceof PaperclipRunnerProviderProfileError
+      const profileError = error instanceof OutpostRunnerProviderProfileError
         ? error
-        : new PaperclipRunnerProviderProfileError(
+        : new OutpostRunnerProviderProfileError(
             "outpost_runner_provider_unsupported",
             "Outpost Runner provider configuration is invalid.",
           );
@@ -507,13 +507,13 @@ const paperclipRunnerAdapter: ServerAdapterModule = {
           const environment = context.config.env as Record<string, unknown> | undefined;
           if (typeof environment?.KIMI_API_KEY !== "string" || !environment.KIMI_API_KEY.trim()) {
             return { adapterType: "outpost_runner", status: "fail" as const, testedAt: new Date().toISOString(),
-              checks: [{ code: "KIMI_AUTH_REQUIRED", level: "error" as const, message: "Bind a company secret to KIMI_API_KEY in the agent environment." }] };
+              checks: [{ code: "KIMI_AUTH_REQUIRED", level: "error" as const, message: "Bind a space secret to KIMI_API_KEY in the agent environment." }] };
           }
         }
         const target = context.executionTarget;
         if (profile.acpxAgent === "kimi") {
           const { probeKimiExecutionTarget } = await import("../services/kimi-connection-probe.js");
-          await probeKimiExecutionTarget((context.config.env as Record<string, string>).KIMI_API_KEY, target, profile.model, { companyId: context.companyId });
+          await probeKimiExecutionTarget((context.config.env as Record<string, string>).KIMI_API_KEY, target, profile.model, { spaceId: context.spaceId });
           return { adapterType: "outpost_runner", status: "pass" as const, testedAt: new Date().toISOString(),
             checks: [{ code: "kimi_metadata_verified", level: "info" as const,
               message: "The selected environment verified the pinned Kimi Code runtime. Its Code model catalog accepted the credential and lists the exact selected model. No model prompt was sent." }] };
@@ -546,7 +546,7 @@ const paperclipRunnerAdapter: ServerAdapterModule = {
         if (error instanceof NativeEnvironmentProbeCleanupError) throw error;
         if (profile.acpxAgent === "antigravity") {
           const { antigravityConnectionProbeFailure } = await import("../services/antigravity-connection-probe.js");
-          return antigravityConnectionProbeFailure(context.companyId, error);
+          return antigravityConnectionProbeFailure(context.spaceId, error);
         }
         if (profile.acpxAgent === "copilot") {
           const details = error instanceof HttpError && error.details && typeof error.details === "object" && !Array.isArray(error.details)
@@ -644,7 +644,7 @@ const paperclipRunnerAdapter: ServerAdapterModule = {
         )
       : buildNpmRuntimeCommandSpec(config, "codex", "@openai/codex@0.160.0"),
   agentConfigurationDoc:
-    "# Outpost Runner\n\nAdapter: outpost_runner\n\nRuns Codex, OpenCode, Claude Managed, AWS AgentCore, or ACPX Claude/Grok Build/Cursor/Pi through the Rust Outpost runner and authenticated ORP transport. Pi accepts an explicit provider/model ID and uses the outpost credentials bound to the agent environment. GitHub Copilot requires a saved GitHub token and an explicitly selected available model. Managed providers use outpost-scoped qualified profiles and explicit retention acknowledgement. A board operator creates each Claude Managed (Anthropic managed agent) profile through POST /api/companies/{companyId}/managed-agent-profiles; agent credentials cannot create, qualify or list one.\n",
+    "# Outpost Runner\n\nAdapter: outpost_runner\n\nRuns Codex, OpenCode, Claude Managed, AWS AgentCore, or ACPX Claude/Grok Build/Cursor/Pi through the Rust Outpost runner and authenticated ORP transport. Pi accepts an explicit provider/model ID and uses the outpost credentials bound to the agent environment. GitHub Copilot requires a saved GitHub token and an explicitly selected available model. Managed providers use outpost-scoped qualified profiles and explicit retention acknowledgement. A operator operator creates each Claude Managed (Anthropic managed agent) profile through POST /api/spaces/{spaceId}/managed-agent-profiles; agent credentials cannot create, qualify or list one.\n",
   getConfigSchema: () => ({
     fields: [
       {
@@ -660,7 +660,7 @@ const paperclipRunnerAdapter: ServerAdapterModule = {
           { value: "acpx", label: "ACP agents" },
           { value: "cursor_cloud", label: "Cursor Cloud (experimental)" },
         ],
-        hint: "Select a local provider, company-qualified managed provider, or an ACP agent.",
+        hint: "Select a local provider, space-qualified managed provider, or an ACP agent.",
       },
       {
         key: "acpxAgent", label: "ACP agent", type: "select" as const, default: "claude",
@@ -710,7 +710,7 @@ const paperclipRunnerAdapter: ServerAdapterModule = {
           { value: "plan", label: "Plan" },
           { value: "ask", label: "Ask" },
         ],
-        hint: "Select Cursor's session mode. Permissions and company approval rules still apply.",
+        hint: "Select Cursor's session mode. Permissions and space approval rules still apply.",
         meta: { visibleWhen: { key: "acpxAgent", value: "cursor" } },
       },
       {
@@ -798,7 +798,7 @@ const paperclipRunnerAdapter: ServerAdapterModule = {
           { value: "per_turn", label: "Turn by turn" },
           { value: "warm", label: "Warm session" },
         ],
-        hint: "Warm sessions retain runnerd and Codex between governed runs.",
+        hint: "Warm sessions retain runnerd and Codex between controlled runs.",
       },
       {
         key: "idleTimeoutMs",
@@ -1009,7 +1009,7 @@ function registerBuiltInAdapters() {
     acpxLocalAdapter,
     claudeLocalAdapter,
     codexLocalAdapter,
-    paperclipRunnerAdapter,
+    outpostRunnerAdapter,
     openCodeLocalAdapter,
     piLocalAdapter,
     cursorCloudAdapter,

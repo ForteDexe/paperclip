@@ -9,13 +9,13 @@ import type {
   ChatConversation,
   ChatIdentityLink,
 } from "@/api/chatEndpoints";
-import { STORYBOOK_COMPANY_ID } from "../../fixtures/onboardingDraft";
-import { storybookAgents } from "../../fixtures/paperclipData";
+import { STORYBOOK_SPACE_ID } from "../../fixtures/onboardingDraft";
+import { storybookAgents } from "../../fixtures/outpostData";
 
 export const agent = { ...storybookAgents[0], name: "Maya" };
 export const endpoint: ChatEndpoint = {
   id: "story-github-bot",
-  companyId: STORYBOOK_COMPANY_ID,
+  spaceId: STORYBOOK_SPACE_ID,
   provider: "github",
   status: "active",
   assignedAgentId: agent.id,
@@ -90,8 +90,8 @@ export const links: ChatIdentityLink[] = [
     githubUserId: "42",
     githubLogin: "mayacoder",
     externalLabel: "mayacoder",
-    paperclipUserId: "user-board",
-    paperclipUserLabel: "Maya Chen",
+    outpostUserId: "user-board",
+    outpostUserLabel: "Maya Chen",
     status: "linked",
   },
   {
@@ -100,8 +100,8 @@ export const links: ChatIdentityLink[] = [
     githubUserId: "43",
     githubLogin: "vin-dev",
     externalLabel: "vin-dev",
-    paperclipUserId: "vin-member",
-    paperclipUserLabel: "Vin Patel",
+    outpostUserId: "vin-member",
+    outpostUserLabel: "Vin Patel",
     status: "linked",
   },
 ];
@@ -128,7 +128,7 @@ export function review(
 ): GitHubTaskReview {
   return {
     id,
-    companyId: endpoint.companyId,
+    spaceId: endpoint.spaceId,
     endpointId: endpoint.id,
     issueId: `task-${id}`,
     runId: null,

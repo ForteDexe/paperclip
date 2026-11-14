@@ -2,7 +2,7 @@ import { it, expect } from "vitest";
 import { gradeRememberPreview, gradeBrowserReconnect } from "./runtime-history.js";
 function preview() {
   const artifact = { contentVerified: true, attachmentId: "blue", sha256: "hash", content: "<h1>Blue Selected Orchid</h1>", workProductId: "product" };
-  return { scenarioId: "agent-chat.remember-and-follow-up", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  return { scenarioId: "agent-chat.remember-and-follow-up", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { previewBefore: artifact, previewAfter: { ...artifact }, designMarker: "Selected Orchid", filename: "blue-preview.html", reloaded: true, historyRetained: true,
       choiceEstablished: true, canonicalRunIds: ["query"], queryReply: "Here is the blue preview we selected.", queryLinks: ["/api/attachments/blue/content?download=1"],
       linkedPreviews: [{ attachmentId: "blue", issueId: "source", originalFilename: "blue-preview.html", sha256: "hash", contentVerified: true }],
@@ -26,7 +26,7 @@ it("rejects fabricating the unestablished alternate preview", () => { const o = 
 it("rejects changing saved documents before the clarification is answered", () => { const o = preview(); o.state.unknownDesignPhase.createdRevisions = ["green-selection"]; expect(gradeRememberPreview(o).passed).toBe(false); });
 it("rejects clarification from the wrong execution phase", () => { const o = preview(); o.state.unknownDesignPhase.answeredTurn = false; expect(gradeRememberPreview(o).passed).toBe(false); });
 function reconnect() {
-  return { scenarioId: "recovery.browser-reconnect", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  return { scenarioId: "recovery.browser-reconnect", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { task: { id: "website", identifier: "ACORN-1" }, worker: { id: "morgan" }, workerRunId: "worker",
       workerWasReallyWaiting: true, offlineObserved: true, workerStatusBeforeDisconnect: "running", workerStatusWhileOffline: "succeeded",
       taskStatusWhileOffline: "done", serverAdvancedWhileOffline: true, reconnected: true, historyRetained: true,

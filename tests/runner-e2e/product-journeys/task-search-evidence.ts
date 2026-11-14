@@ -1,7 +1,7 @@
 export interface SearchTask {
   id: string;
   identifier: string;
-  companyId: string;
+  spaceId: string;
   title: string;
   description: string;
   status: string;
@@ -34,10 +34,10 @@ export function taskSearchEvidencePasses(input: {
   descriptionVisible: boolean;
 }) {
   const [target, statusControl, searchControl] = input.expected;
-  const validFixture = input.expected.length === 3 && Boolean(target?.id && target.identifier && target.companyId
+  const validFixture = input.expected.length === 3 && Boolean(target?.id && target.identifier && target.spaceId
     && target.assigneeUserId && input.marker) && new Set(input.expected.map(task => task.id)).size === 3
     && new Set(input.expected.map(task => task.identifier)).size === 3
-    && input.expected.every(task => task.companyId === target!.companyId && task.assigneeUserId === target!.assigneeUserId
+    && input.expected.every(task => task.spaceId === target!.spaceId && task.assigneeUserId === target!.assigneeUserId
       && task.assigneeAgentId === null && task.description.length > 0)
     && target!.status === "backlog" && statusControl?.status === "done" && searchControl?.status === "backlog"
     && target!.title.includes(input.marker) && statusControl!.title.includes(input.marker)

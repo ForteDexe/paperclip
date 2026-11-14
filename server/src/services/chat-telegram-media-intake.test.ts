@@ -14,7 +14,7 @@ import {
 
 const options = {
   callbacks: { onMessage() {} },
-  companyId: "fixture-company",
+  spaceId: "fixture-space",
   endpointId: "fixture-endpoint",
   logger: "silent" as const,
   persistence: {
@@ -169,7 +169,7 @@ describe("Telegram source-bound optional media identification", () => {
     "fileUniqueId",
     "metadataSha256",
     "endpointId",
-    "companyId",
+    "spaceId",
   ])("refuses changed durable %s binding", async (field) => {
     const runtime = createChatSdkEndpointRuntime(options);
     try {

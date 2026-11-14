@@ -33,7 +33,7 @@ const runStatusLabels: Record<string, string> = {
 };
 
 interface ActiveAgentsPanelProps {
-  companyId: string;
+  spaceId: string;
   title?: string;
   minRunCount?: number;
   fetchLimit?: number;
@@ -48,7 +48,7 @@ interface ActiveAgentsPanelProps {
 }
 
 export function ActiveAgentsPanel({
-  companyId,
+  spaceId,
   title = "Agents",
   minRunCount = MIN_DASHBOARD_RUNS,
   fetchLimit,
@@ -62,17 +62,17 @@ export function ActiveAgentsPanel({
   dedupeLinkedTasks = false,
 }: ActiveAgentsPanelProps) {
   const effectiveFetchLimit = fetchLimit;
-  const liveRunsQueryKey = [...queryKeys.liveRuns(companyId), queryScope, { minRunCount, fetchLimit: effectiveFetchLimit, dedupeLinkedTasks }] as const;
+  const liveRunsQueryKey = [...queryKeys.liveRuns(spaceId), queryScope, { minRunCount, fetchLimit: effectiveFetchLimit, dedupeLinkedTasks }] as const;
   const sharedLiveRuns = useSharedPollingQuery({
-    companyId,
+    spaceId,
     resourceKey: `live-runs:${queryScope}:${minRunCount}:${effectiveFetchLimit ?? "default"}:${dedupeLinkedTasks}`,
     queryKey: liveRunsQueryKey,
-    enabled: !!companyId,
+    enabled: !!spaceId,
     leaderOnly: true,
   });
   const { data: liveRuns, dataUpdatedAt: liveRunsUpdatedAt } = useQuery({
     queryKey: liveRunsQueryKey,
-    queryFn: () => heartbeatsApi.liveRunsForCompany(companyId, {
+    queryFn: () => heartbeatsApi.liveRunsForSpace(spaceId, {
       minCount: minRunCount,
       limit: effectiveFetchLimit,
       distinctTasks: dedupeLinkedTasks,
@@ -121,7 +121,7 @@ export function ActiveAgentsPanel({
 
   const { transcriptByRun, hasOutputForRun } = useLiveRunTranscripts({
     runs: showTranscripts ? visibleRuns : EMPTY_RUNS,
-    companyId,
+    spaceId,
     maxChunksPerRun: DASHBOARD_MAX_CHUNKS_PER_RUN,
     logPollIntervalMs: DASHBOARD_LOG_POLL_INTERVAL_MS,
     logReadLimitBytes: DASHBOARD_LOG_READ_LIMIT_BYTES,
@@ -142,7 +142,7 @@ export function ActiveAgentsPanel({
           {visibleRuns.map((run) => (
             <AgentRunCard
               key={run.id}
-              companyId={companyId}
+              spaceId={spaceId}
               run={run}
               issue={run.issueId ? issueById.get(run.issueId) : undefined}
               transcript={transcriptByRun.get(run.id) ?? EMPTY_TRANSCRIPT}
@@ -168,7 +168,7 @@ export function ActiveAgentsPanel({
 }
 
 export const AgentRunCard = memo(function AgentRunCard({
-  companyId,
+  spaceId,
   run,
   issue,
   transcript = EMPTY_TRANSCRIPT,
@@ -177,7 +177,7 @@ export const AgentRunCard = memo(function AgentRunCard({
   issueLoadFailed = false,
   className,
 }: {
-  companyId: string;
+  spaceId: string;
   run: LiveRunForIssue;
   issue?: Pick<Issue, "identifier" | "title" | "status" | "externalConversationState">;
   transcript?: TranscriptEntry[];
@@ -252,7 +252,7 @@ export const AgentRunCard = memo(function AgentRunCard({
             run={run}
             transcript={transcript}
             hasOutput={hasOutput}
-            companyId={companyId}
+            spaceId={spaceId}
           />
         </div>
       )}

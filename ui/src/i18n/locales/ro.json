@@ -1,9 +1,9 @@
 {
   "app": {
-    "noCompanies": {
+    "noSpaces": {
       "title": "Creați prima companie",
       "description": "Începeți prin crearea unei companii.",
-      "newCompany": "Companie nouă"
+      "newSpace": "Companie nouă"
     }
   }
 }

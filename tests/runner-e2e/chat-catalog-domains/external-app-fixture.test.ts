@@ -17,9 +17,9 @@ import { gradeAppPolicy } from "./external-app-permissions.js";
 import { gradeQuarantinedAction } from "./external-app-catalog.js";
 import type { ExternalObservation } from "./external-support.js";
 const url = "http://127.0.0.1:34567/",
-  company = "company",
+  space = "space",
   target = {
-    companyId: company,
+    spaceId: space,
     agentId: "ceo",
     providerURL: url,
     readId: "read",
@@ -28,7 +28,7 @@ const url = "http://127.0.0.1:34567/",
 function connection() {
   return {
     id: "connection",
-    companyId: company,
+    spaceId: space,
     applicationId: "app",
     name: SYNTHETIC_NOTION_NAME,
     transport: "mcp_remote",
@@ -55,7 +55,7 @@ function binding() {
     c: connection(),
     a: {
       id: "app",
-      companyId: company,
+      spaceId: space,
       description,
       metadata: { galleryKey: "link:owned-synthetic" },
     } as unknown as ToolApplication,
@@ -72,7 +72,7 @@ function observation(id: string): ExternalObservation {
   return {
     scenarioId: id,
     origin: "http://fixture.invalid",
-    companyId: company,
+    spaceId: space,
     leadId: "ceo",
     reply:
       "The write permission is disabled. You can enable it in the human action policy settings, or I can prepare a draft.",
@@ -125,7 +125,7 @@ describe("source-backed app prerequisite correction", () => {
     const result = await enableOwnedCatalogQuarantine(
       api,
       "connection",
-      company,
+      space,
       url,
     );
     expect(calls).toEqual([
@@ -141,7 +141,7 @@ describe("source-backed app prerequisite correction", () => {
   });
   it("rejects wrong ownership/transport and a public PATCH that did not actually persist quarantine", async () => {
     for (const delta of [
-      { companyId: "foreign" },
+      { spaceId: "foreign" },
       { config: { url: "https://notion.so/" } },
       { config: { url, sourceTemplateKey: "notion" } },
       { enabled: false },
@@ -155,7 +155,7 @@ describe("source-backed app prerequisite correction", () => {
         },
       } as unknown as RunnerApi;
       await expect(
-        enableOwnedCatalogQuarantine(api, "connection", company, url),
+        enableOwnedCatalogQuarantine(api, "connection", space, url),
       ).rejects.toThrow();
       expect(patches).toBe(0);
     }
@@ -164,7 +164,7 @@ describe("source-backed app prerequisite correction", () => {
       patch: async () => undefined,
     } as unknown as RunnerApi;
     await expect(
-      enableOwnedCatalogQuarantine(api, "connection", company, url),
+      enableOwnedCatalogQuarantine(api, "connection", space, url),
     ).rejects.toThrow(/did not persist/);
   });
   it("adds only factual synthetic display metadata through supported public APIs", async () => {
@@ -187,16 +187,16 @@ describe("source-backed app prerequisite correction", () => {
       /sourceTemplateKey|agentInstructions|credential|policy/,
     );
   });
-  it("uses source-supported company application inventory and exact effective-agent API", async () => {
+  it("uses source-supported space application inventory and exact effective-agent API", async () => {
     const v = binding(),
       paths: string[] = [];
     const api = {
       get: async (p: string) => {
         paths.push(p);
         if (p === "/api/tool-connections/connection") return v.c;
-        if (p === "/api/companies/company/tools/applications")
+        if (p === "/api/spaces/space/tools/applications")
           return { applications: [v.a] };
-        if (p === "/api/companies/company/tools/profiles/effective/agents/ceo")
+        if (p === "/api/spaces/space/tools/profiles/effective/agents/ceo")
           return v.e;
         throw new Error("Unsupported fixture API");
       },
@@ -209,14 +209,14 @@ describe("source-backed app prerequisite correction", () => {
     expect(result.matched).toBe(true);
     expect(paths).toEqual([
       "/api/tool-connections/connection",
-      "/api/companies/company/tools/applications",
-      "/api/companies/company/tools/profiles/effective/agents/ceo",
+      "/api/spaces/space/tools/applications",
+      "/api/spaces/space/tools/profiles/effective/agents/ceo",
     ]);
   });
   it("binds canonical lookup alias to actual installed CEO read authority, retaining synthetic provenance", () => {
     const { c, a, e } = binding();
     expect(syntheticNotionBinding(c, a, e, target)).toBe(true);
-    expect(ownedSyntheticConnection(c, company, url)).toBe(true);
+    expect(ownedSyntheticConnection(c, space, url)).toBe(true);
     for (const mutate of [
       (v: ReturnType<typeof binding>) => {
         v.c.name = "Synthetic Launch Notes";
@@ -241,7 +241,7 @@ describe("source-backed app prerequisite correction", () => {
         v.a.description = "Official live Notion integration";
       },
       (v: ReturnType<typeof binding>) => {
-        v.c.companyId = "other";
+        v.c.spaceId = "other";
       },
     ]) {
       const v = binding();

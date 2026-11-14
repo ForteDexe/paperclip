@@ -6,7 +6,7 @@ import { accessApi } from "@/api/access";
 import { ApiError } from "@/api/client";
 import { describeError } from "@/api/errors";
 import { routinesApi } from "@/api/routines";
-import { buildCompanyUserProfileMap } from "@/lib/company-members";
+import { buildSpaceUserProfileMap } from "@/lib/space-members";
 import { queryKeys } from "@/lib/queryKeys";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "./ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
@@ -16,11 +16,11 @@ export function RoutineResponsibleUser({ routine }: { routine: RoutineDetail }) 
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   const directory = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(routine.companyId),
-    queryFn: () => accessApi.listUserDirectory(routine.companyId),
+    queryKey: queryKeys.access.spaceUserDirectory(routine.spaceId),
+    queryFn: () => accessApi.listUserDirectory(routine.spaceId),
   });
   const directoryView = useQueryView(directory);
-  const profiles = buildCompanyUserProfileMap(directory.data?.users);
+  const profiles = buildSpaceUserProfileMap(directory.data?.users);
   const label = routine.responsibleUserId
     ? profiles.get(routine.responsibleUserId)?.label
       ?? (directory.isPending ? "Loading…" : "Unavailable user")
@@ -36,9 +36,9 @@ export function RoutineResponsibleUser({ routine }: { routine: RoutineDetail }) 
       ));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.detail(routine.id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(routine.companyId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(routine.spaceId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.revisions(routine.id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(routine.companyId, routine.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(routine.spaceId, routine.id) }),
       ]);
     },
   });

@@ -1,6 +1,6 @@
-CREATE TABLE IF NOT EXISTS "company_skill_source_entries" (
+CREATE TABLE IF NOT EXISTS "space_skill_source_entries" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"source_id" uuid NOT NULL,
 	"path" text NOT NULL,
 	"name" text NOT NULL,
@@ -11,9 +11,9 @@ CREATE TABLE IF NOT EXISTS "company_skill_source_entries" (
 	"error" text
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "company_skill_sources" (
+CREATE TABLE IF NOT EXISTS "space_skill_sources" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"repository_id" text,
 	"repository_url" text NOT NULL,
 	"full_name" text NOT NULL,
@@ -32,36 +32,36 @@ CREATE TABLE IF NOT EXISTS "company_skill_sources" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'company_skill_source_entries_company_id_companies_id_fk' AND conrelid = 'company_skill_source_entries'::regclass) THEN
-    ALTER TABLE "company_skill_source_entries" ADD CONSTRAINT "company_skill_source_entries_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'space_skill_source_entries_space_id_spaces_id_fk' AND conrelid = 'space_skill_source_entries'::regclass) THEN
+    ALTER TABLE "space_skill_source_entries" ADD CONSTRAINT "space_skill_source_entries_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'company_skill_source_entries_source_id_company_skill_sources_id_fk' AND conrelid = 'company_skill_source_entries'::regclass) THEN
-    ALTER TABLE "company_skill_source_entries" ADD CONSTRAINT "company_skill_source_entries_source_id_company_skill_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "public"."company_skill_sources"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'space_skill_source_entries_source_id_space_skill_sources_id_fk' AND conrelid = 'space_skill_source_entries'::regclass) THEN
+    ALTER TABLE "space_skill_source_entries" ADD CONSTRAINT "space_skill_source_entries_source_id_space_skill_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "public"."space_skill_sources"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'company_skill_source_entries_skill_id_company_skills_id_fk' AND conrelid = 'company_skill_source_entries'::regclass) THEN
-    ALTER TABLE "company_skill_source_entries" ADD CONSTRAINT "company_skill_source_entries_skill_id_company_skills_id_fk" FOREIGN KEY ("skill_id") REFERENCES "public"."company_skills"("id") ON DELETE set null ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'space_skill_source_entries_skill_id_space_skills_id_fk' AND conrelid = 'space_skill_source_entries'::regclass) THEN
+    ALTER TABLE "space_skill_source_entries" ADD CONSTRAINT "space_skill_source_entries_skill_id_space_skills_id_fk" FOREIGN KEY ("skill_id") REFERENCES "public"."space_skills"("id") ON DELETE set null ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'company_skill_sources_company_id_companies_id_fk' AND conrelid = 'company_skill_sources'::regclass) THEN
-    ALTER TABLE "company_skill_sources" ADD CONSTRAINT "company_skill_sources_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'space_skill_sources_space_id_spaces_id_fk' AND conrelid = 'space_skill_sources'::regclass) THEN
+    ALTER TABLE "space_skill_sources" ADD CONSTRAINT "space_skill_sources_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'company_skill_sources_connection_id_tool_connections_id_fk' AND conrelid = 'company_skill_sources'::regclass) THEN
-    ALTER TABLE "company_skill_sources" ADD CONSTRAINT "company_skill_sources_connection_id_tool_connections_id_fk" FOREIGN KEY ("connection_id") REFERENCES "public"."tool_connections"("id") ON DELETE set null ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'space_skill_sources_connection_id_tool_connections_id_fk' AND conrelid = 'space_skill_sources'::regclass) THEN
+    ALTER TABLE "space_skill_sources" ADD CONSTRAINT "space_skill_sources_connection_id_tool_connections_id_fk" FOREIGN KEY ("connection_id") REFERENCES "public"."tool_connections"("id") ON DELETE set null ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "company_skill_source_entries_source_path_idx" ON "company_skill_source_entries" USING btree ("source_id","path");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "company_skill_source_entries_company_skill_idx" ON "company_skill_source_entries" USING btree ("company_id","skill_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "company_skill_sources_repository_ref_idx" ON "company_skill_sources" USING btree ("company_id","repository_url","tracking_ref");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "company_skill_sources_identity_ref_idx" ON "company_skill_sources" USING btree ("company_id","repository_id","tracking_ref");
+CREATE UNIQUE INDEX IF NOT EXISTS "space_skill_source_entries_source_path_idx" ON "space_skill_source_entries" USING btree ("source_id","path");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "space_skill_source_entries_space_skill_idx" ON "space_skill_source_entries" USING btree ("space_id","skill_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "space_skill_sources_repository_ref_idx" ON "space_skill_sources" USING btree ("space_id","repository_url","tracking_ref");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "space_skill_sources_identity_ref_idx" ON "space_skill_sources" USING btree ("space_id","repository_id","tracking_ref");
 --> statement-breakpoint
--- Adopt only actual GitHub imports. Keyset batches use company_skills' primary
+-- Adopt only actual GitHub imports. Keyset batches use space_skills' primary
 -- key; only source provenance is added, with no provider requests, content rewrites, or credential assumptions.
 DO $$
 DECLARE
@@ -77,11 +77,11 @@ BEGIN
   LOOP
     batch_count := 0;
     FOR skill IN
-      SELECT id, company_id, name, description, slug, metadata, source_ref
-      FROM company_skills
+      SELECT id, space_id, name, description, slug, metadata, source_ref
+      FROM space_skills
       WHERE id > last_id AND source_type = 'github'
         AND coalesce(metadata->>'hostname', 'github.com') = 'github.com'
-        AND coalesce(metadata->>'sourceKind', '') NOT IN ('paperclip_bundled', 'catalog')
+        AND coalesce(metadata->>'sourceKind', '') NOT IN ('outpost_bundled', 'catalog')
         AND metadata->>'catalogId' IS NULL
         AND metadata->>'owner' ~ '^[A-Za-z0-9_.-]+$'
         AND metadata->>'repo' ~ '^[A-Za-z0-9_.-]+$'
@@ -102,17 +102,17 @@ BEGIN
       skill_path := trim(both '/' from coalesce(skill.metadata->>'repoSkillDir', skill.slug));
       IF skill_path = '.' THEN skill_path := ''; END IF;
       skill_path := CASE WHEN skill_path = '' THEN 'SKILL.md' ELSE skill_path || '/SKILL.md' END;
-      INSERT INTO company_skill_sources (company_id, repository_url, full_name, tracking_ref)
-        VALUES (skill.company_id, repo_url, repo_name, adopted_tracking_ref)
-        ON CONFLICT (company_id, repository_url, tracking_ref) DO NOTHING;
-      SELECT id INTO adopted_source_id FROM company_skill_sources
-        WHERE company_id = skill.company_id AND repository_url = repo_url AND company_skill_sources.tracking_ref = adopted_tracking_ref;
-      INSERT INTO company_skill_source_entries (company_id, source_id, path, name, description, skill_id, selection)
-        VALUES (skill.company_id, adopted_source_id, skill_path, skill.name, skill.description, skill.id, 'selected')
+      INSERT INTO space_skill_sources (space_id, repository_url, full_name, tracking_ref)
+        VALUES (skill.space_id, repo_url, repo_name, adopted_tracking_ref)
+        ON CONFLICT (space_id, repository_url, tracking_ref) DO NOTHING;
+      SELECT id INTO adopted_source_id FROM space_skill_sources
+        WHERE space_id = skill.space_id AND repository_url = repo_url AND space_skill_sources.tracking_ref = adopted_tracking_ref;
+      INSERT INTO space_skill_source_entries (space_id, source_id, path, name, description, skill_id, selection)
+        VALUES (skill.space_id, adopted_source_id, skill_path, skill.name, skill.description, skill.id, 'selected')
         ON CONFLICT (source_id, path) DO NOTHING;
-      UPDATE company_skills SET metadata = coalesce(metadata, '{}'::jsonb)
+      UPDATE space_skills SET metadata = coalesce(metadata, '{}'::jsonb)
         || jsonb_build_object('legacySkillSourceId', adopted_source_id, 'skillSourcePath', skill_path)
-        WHERE id = skill.id AND company_id = skill.company_id;
+        WHERE id = skill.id AND space_id = skill.space_id;
     END LOOP;
     EXIT WHEN batch_count < 500;
   END LOOP;

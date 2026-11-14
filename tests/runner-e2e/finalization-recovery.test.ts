@@ -3,7 +3,7 @@ import { runnerMatrix } from "./catalog.js";
 import { FINALIZATION_PAYLOAD_BYTES, finalizationResultDigest, parseFinalizationProof, gradeFinalizationRecovery, type FinalizationRecoveryObservation } from "./finalization-recovery.js";
 
 function fixture(): FinalizationRecoveryObservation {
-  const binding = { companyId: "company", issueId: "task", runId: "run" }, observedAt = "2026-10-21T12:00:00.000Z";
+  const binding = { spaceId: "space", issueId: "task", runId: "run" }, observedAt = "2026-10-21T12:00:00.000Z";
   return { binding,
     before: { resultDigest: "a".repeat(64), acceptedResults: 1, providerTurns: 1, operationIds: ["unfinished"], artifactId: "original", artifactSha256: "b".repeat(64) },
     crash: { ...binding, nativePhase: "workspace_finalizing", observedAt },
@@ -19,7 +19,7 @@ describe("finalization restart without provider replay", () => {
   it.each([
     ["no saved result", (v: FinalizationRecoveryObservation) => { v.before = null; }],
     ["no crash receipt", (v: FinalizationRecoveryObservation) => { v.crash = null; }],
-    ["foreign crash company", (v: FinalizationRecoveryObservation) => { v.crash!.companyId = "foreign"; }],
+    ["foreign crash space", (v: FinalizationRecoveryObservation) => { v.crash!.spaceId = "foreign"; }],
     ["foreign crash task", (v: FinalizationRecoveryObservation) => { v.crash!.issueId = "foreign"; }],
     ["foreign crash run", (v: FinalizationRecoveryObservation) => { v.crash!.runId = "foreign"; }],
     ["crash during provider work", (v: FinalizationRecoveryObservation) => { v.crash!.nativePhase = "running"; }],

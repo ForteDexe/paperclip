@@ -37,8 +37,8 @@ const explanations: Record<CostDataQualityReason, { label: string; description: 
   },
 };
 
-export function CostDataQualityNotice({ companyId, from, to, reportKey, unpricedCount, pendingCount, unknownBillingCount }: {
-  companyId: string; from?: string; to?: string; reportKey: readonly unknown[];
+export function CostDataQualityNotice({ spaceId, from, to, reportKey, unpricedCount, pendingCount, unknownBillingCount }: {
+  spaceId: string; from?: string; to?: string; reportKey: readonly unknown[];
   unpricedCount: number; pendingCount: number; unknownBillingCount: number;
 }) {
   const [open, setOpen] = useState(false);
@@ -50,21 +50,21 @@ export function CostDataQualityNotice({ companyId, from, to, reportKey, unpriced
   const key = [...reportKey, "data-quality"];
   const { data, error, isPending, refetch } = useQuery({
     queryKey: key,
-    queryFn: () => costsApi.dataQuality(companyId, from, to),
+    queryFn: () => costsApi.dataQuality(spaceId, from, to),
     enabled: open && hasCostGaps,
     refetchInterval: open && hasCostGaps ? 30_000 : false,
   });
   const retry = useMutation({
-    mutationFn: (runId: string) => costsApi.retryAccounting(companyId, runId),
+    mutationFn: (runId: string) => costsApi.retryAccounting(spaceId, runId),
     onSuccess: result => {
       pushToast({
         title: result.accounted ? "Costs recorded." : "No new cost data is available.",
         body: "The agent was not rerun.",
         tone: result.accounted ? "success" : "info",
       });
-      client.invalidateQueries({ queryKey: ["costs", companyId] });
+      client.invalidateQueries({ queryKey: ["costs", spaceId] });
       client.invalidateQueries({ queryKey: key });
-      client.invalidateQueries({ queryKey: ["cost-subscriptions", companyId] });
+      client.invalidateQueries({ queryKey: ["cost-subscriptions", spaceId] });
     },
   });
   const label = unavailableCount > 0

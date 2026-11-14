@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerPluginCommands } from "../commands/client/plugin.js";
 import { registerRoutineApiCommands } from "../commands/client/routine-api.js";
 
-const COMPANY_ID = "22222222-2222-4222-8222-222222222222";
+const SPACE_ID = "22222222-2222-4222-8222-222222222222";
 const ROUTINE_ID = "33333333-3333-4333-8333-333333333333";
 const REVISION_ID = "44444444-4444-4444-8444-444444444444";
 const TRIGGER_ID = "55555555-5555-4555-8555-555555555555";
@@ -18,7 +18,7 @@ function createProgram(): Command {
 }
 
 async function run(args: string[]): Promise<void> {
-  await createProgram().parseAsync([...args, "--api-base", "http://localhost:3100", "--api-key", "board-token"], { from: "user" });
+  await createProgram().parseAsync([...args, "--api-base", "http://localhost:3100", "--api-key", "operator-token"], { from: "user" });
 }
 
 describe("routine and plugin parity commands", () => {
@@ -38,8 +38,8 @@ describe("routine and plugin parity commands", () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse()));
     vi.stubGlobal("fetch", fetchMock);
 
-    await run(["routine", "list", "--company-id", COMPANY_ID, "--project-id", "p1"]);
-    await run(["routine", "create", "--company-id", COMPANY_ID, "--payload-json", "{}"]);
+    await run(["routine", "list", "--space-id", SPACE_ID, "--project-id", "p1"]);
+    await run(["routine", "create", "--space-id", SPACE_ID, "--payload-json", "{}"]);
     await run(["routine", "get", ROUTINE_ID]);
     await run(["routine", "update", ROUTINE_ID, "--payload-json", "{}"]);
     await run(["routine", "revisions", ROUTINE_ID]);
@@ -53,8 +53,8 @@ describe("routine and plugin parity commands", () => {
     await run(["routine", "trigger:fire", "public-id"]);
 
     expect(fetchMock.mock.calls.map((call) => [call[1]?.method ?? "GET", call[0]])).toEqual([
-      ["GET", `http://localhost:3100/api/companies/${COMPANY_ID}/routines?projectId=p1`],
-      ["POST", `http://localhost:3100/api/companies/${COMPANY_ID}/routines`],
+      ["GET", `http://localhost:3100/api/spaces/${SPACE_ID}/routines?projectId=p1`],
+      ["POST", `http://localhost:3100/api/spaces/${SPACE_ID}/routines`],
       ["GET", `http://localhost:3100/api/routines/${ROUTINE_ID}`],
       ["PATCH", `http://localhost:3100/api/routines/${ROUTINE_ID}`],
       ["GET", `http://localhost:3100/api/routines/${ROUTINE_ID}/revisions`],
@@ -79,9 +79,9 @@ describe("routine and plugin parity commands", () => {
     await run(["plugin", "health", "plug"]);
     await run(["plugin", "logs", "plug"]);
     await run(["plugin", "upgrade", "plug"]);
-    await run(["plugin", "config", "plug", "--company-id", COMPANY_ID]);
-    await run(["plugin", "config:set", "plug", "--company-id", COMPANY_ID, "--payload-json", "{}"]);
-    await run(["plugin", "config:test", "plug", "--company-id", COMPANY_ID, "--payload-json", "{}"]);
+    await run(["plugin", "config", "plug", "--space-id", SPACE_ID]);
+    await run(["plugin", "config:set", "plug", "--space-id", SPACE_ID, "--payload-json", "{}"]);
+    await run(["plugin", "config:test", "plug", "--space-id", SPACE_ID, "--payload-json", "{}"]);
     await run(["plugin", "jobs", "plug"]);
     await run(["plugin", "job:runs", "plug", "job1"]);
     await run(["plugin", "job:trigger", "plug", "job1"]);
@@ -92,10 +92,10 @@ describe("routine and plugin parity commands", () => {
     await run(["plugin", "bridge:stream", "plug", "events", "--duration-ms", "1"]);
     await run(["plugin", "data", "plug", "key", "--payload-json", "{}"]);
     await run(["plugin", "action", "plug", "key", "--payload-json", "{}"]);
-    await run(["plugin", "local-folders", "plug", "--company-id", COMPANY_ID]);
-    await run(["plugin", "local-folder:status", "plug", "source", "--company-id", COMPANY_ID]);
-    await run(["plugin", "local-folder:validate", "plug", "source", "--company-id", COMPANY_ID, "--payload-json", "{}"]);
-    await run(["plugin", "local-folder:set", "plug", "source", "--company-id", COMPANY_ID, "--payload-json", "{}"]);
+    await run(["plugin", "local-folders", "plug", "--space-id", SPACE_ID]);
+    await run(["plugin", "local-folder:status", "plug", "source", "--space-id", SPACE_ID]);
+    await run(["plugin", "local-folder:validate", "plug", "source", "--space-id", SPACE_ID, "--payload-json", "{}"]);
+    await run(["plugin", "local-folder:set", "plug", "source", "--space-id", SPACE_ID, "--payload-json", "{}"]);
 
     expect(fetchMock.mock.calls.map((call) => [call[1]?.method ?? "GET", call[0]])).toEqual([
       ["GET", "http://localhost:3100/api/plugins/ui-contributions"],
@@ -104,7 +104,7 @@ describe("routine and plugin parity commands", () => {
       ["GET", "http://localhost:3100/api/plugins/plug/health"],
       ["GET", "http://localhost:3100/api/plugins/plug/logs"],
       ["POST", "http://localhost:3100/api/plugins/plug/upgrade"],
-      ["GET", `http://localhost:3100/api/plugins/plug/config?companyId=${COMPANY_ID}`],
+      ["GET", `http://localhost:3100/api/plugins/plug/config?spaceId=${SPACE_ID}`],
       ["POST", "http://localhost:3100/api/plugins/plug/config"],
       ["POST", "http://localhost:3100/api/plugins/plug/config/test"],
       ["GET", "http://localhost:3100/api/plugins/plug/jobs"],
@@ -117,22 +117,22 @@ describe("routine and plugin parity commands", () => {
       ["GET", "http://localhost:3100/api/plugins/plug/bridge/stream/events"],
       ["POST", "http://localhost:3100/api/plugins/plug/data/key"],
       ["POST", "http://localhost:3100/api/plugins/plug/actions/key"],
-      ["GET", `http://localhost:3100/api/plugins/plug/companies/${COMPANY_ID}/local-folders`],
-      ["GET", `http://localhost:3100/api/plugins/plug/companies/${COMPANY_ID}/local-folders/source/status`],
-      ["POST", `http://localhost:3100/api/plugins/plug/companies/${COMPANY_ID}/local-folders/source/validate`],
-      ["PUT", `http://localhost:3100/api/plugins/plug/companies/${COMPANY_ID}/local-folders/source`],
+      ["GET", `http://localhost:3100/api/plugins/plug/spaces/${SPACE_ID}/local-folders`],
+      ["GET", `http://localhost:3100/api/plugins/plug/spaces/${SPACE_ID}/local-folders/source/status`],
+      ["POST", `http://localhost:3100/api/plugins/plug/spaces/${SPACE_ID}/local-folders/source/validate`],
+      ["PUT", `http://localhost:3100/api/plugins/plug/spaces/${SPACE_ID}/local-folders/source`],
     ]);
   });
 
-  it("resolves plugin config company context from the environment", async () => {
+  it("resolves plugin config space context from the environment", async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse()));
     vi.stubGlobal("fetch", fetchMock);
-    process.env.OUTPOST_COMPANY_ID = COMPANY_ID;
+    process.env.OUTPOST_SPACE_ID = SPACE_ID;
 
     await run(["plugin", "config", "plug"]);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `http://localhost:3100/api/plugins/plug/config?companyId=${COMPANY_ID}`,
+      `http://localhost:3100/api/plugins/plug/config?spaceId=${SPACE_ID}`,
       expect.objectContaining({ method: "GET" }),
     );
   });

@@ -12,11 +12,11 @@ const nextRun = { ...oldRun, id: "next", status: "succeeded", createdAt: "2025-0
 const hold: ExecutionProjection = {
   phase: "recovery_needed", label: "Stopped", cause: "uncertain_provider_action",
   lastConfirmedActivityAt: null, retryAt: null, attempt: 1, maxAttempts: 3,
-  recoveryOwner: "board", nextAction: "Check the execution", permittedActions: ["inspect_recovery"],
+  recoveryOwner: "operator", nextAction: "Check the execution", permittedActions: ["inspect_recovery"],
   predecessorRunId: null, successorRunId: null,
 };
 const notice: IssueChatComment = {
-  id: "notice", companyId: "company", issueId: "issue", authorType: "system",
+  id: "notice", spaceId: "space", issueId: "issue", authorType: "system",
   authorAgentId: null, authorUserId: null, body: "Execution needs attention.",
   presentation: null, metadata: { version: 1, sourceRunId: "old", sections: [] },
   createdAt: new Date("2025-01-01T10:00:30Z"), updatedAt: new Date("2025-01-01T10:00:30Z"),

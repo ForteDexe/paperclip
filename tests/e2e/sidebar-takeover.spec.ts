@@ -13,49 +13,49 @@ import { test, expect, request as pwRequest, type APIRequestContext } from "@pla
 
 const PORT = Number(process.env.OUTPOST_E2E_PORT ?? 3199);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
-const COMPANY_NAME_PREFIX = "E2E-SidebarTakeover";
+const SPACE_NAME_PREFIX = "E2E-SidebarTakeover";
 const COLLAPSED_STORAGE_KEY = "outpost.sidebar.collapsed";
 const APP_SIDEBAR_EXPANDED_MARKER = "Collapse sidebar";
 
-async function createCompany(board: APIRequestContext): Promise<{ id: string; prefix: string }> {
+async function createSpace(board: APIRequestContext): Promise<{ id: string; prefix: string }> {
   const healthRes = await board.get(`${BASE_URL}/api/health`);
   expect(healthRes.ok()).toBe(true);
   const health = await healthRes.json();
   expect(health.deploymentMode).toBe("local_trusted");
 
-  const companyRes = await board.post(`${BASE_URL}/api/companies`, {
-    data: { name: `${COMPANY_NAME_PREFIX}-${Date.now()}` },
+  const spaceRes = await board.post(`${BASE_URL}/api/spaces`, {
+    data: { name: `${SPACE_NAME_PREFIX}-${Date.now()}` },
   });
-  if (!companyRes.ok()) {
-    throw new Error(`POST /api/companies → ${companyRes.status()}: ${await companyRes.text()}`);
+  if (!spaceRes.ok()) {
+    throw new Error(`POST /api/spaces → ${spaceRes.status()}: ${await spaceRes.text()}`);
   }
-  const company = await companyRes.json();
+  const space = await spaceRes.json();
   return {
-    id: company.id,
-    prefix: company.issuePrefix ?? company.prefix ?? company.urlKey ?? "E2E",
+    id: space.id,
+    prefix: space.issuePrefix ?? space.prefix ?? space.urlKey ?? "E2E",
   };
 }
 
 test.describe("Contextual sidebar companion", () => {
   let board: APIRequestContext;
-  let companyId: string;
+  let spaceId: string;
   let prefix: string;
 
   test.beforeAll(async () => {
     board = await pwRequest.newContext({ baseURL: BASE_URL });
-    const company = await createCompany(board);
-    companyId = company.id;
-    prefix = company.prefix;
+    const space = await createSpace(board);
+    spaceId = space.id;
+    prefix = space.prefix;
   });
 
   test.afterAll(async () => {
-    await board.delete(`${BASE_URL}/api/companies/${companyId}`).catch(() => {});
+    await board.delete(`${BASE_URL}/api/spaces/${spaceId}`).catch(() => {});
     await board.dispose();
   });
 
   test.beforeEach(async ({ page }) => {
     await page.route("**/api/workspace-preferences/me", route => route.fulfill({ json: {
-      userId: "local-board", coordinatorWorkspaceEnabled: false, updatedAt: null,
+      userId: "local-operator", coordinatorWorkspaceEnabled: false, updatedAt: null,
     } }));
     await page.addInitScript((key) => {
       window.localStorage.removeItem(key);
@@ -64,7 +64,7 @@ test.describe("Contextual sidebar companion", () => {
   });
 
   test("renders contextual labels at full width", async ({ page }) => {
-    await page.goto(`/${prefix}/company/settings`);
+    await page.goto(`/${prefix}/space/settings`);
 
     const contextual = page.locator('[data-contextual-sidebar="settings"]');
     await expect(contextual).toBeVisible();
@@ -86,7 +86,7 @@ test.describe("Contextual sidebar companion", () => {
   });
 
   test("keeps the retired collapse control absent across contextual navigation", async ({ page }) => {
-    await page.goto(`/${prefix}/company/settings`);
+    await page.goto(`/${prefix}/space/settings`);
     await expect(page.locator('[data-contextual-sidebar="settings"]')).toBeVisible();
     await expect(page.getByRole("link", { name: "Back to app" })).toBeVisible();
     await expect(page.getByLabel(APP_SIDEBAR_EXPANDED_MARKER)).toHaveCount(0);
@@ -99,7 +99,7 @@ test.describe("Contextual sidebar companion", () => {
   });
 
   test("uses Dashboard as the destination for a direct Settings link", async ({ page }) => {
-    await page.goto(`/${prefix}/company/settings`);
+    await page.goto(`/${prefix}/space/settings`);
     await page.getByRole("link", { name: "Back to app" }).click();
 
     await expect(page).toHaveURL(new RegExp(`/${prefix}/dashboard$`));

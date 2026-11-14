@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 export interface PluginInteractionOrigin {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   runId?: string | null;
 }

@@ -76,7 +76,7 @@ it("observes identical native poll results with the actual actor and no traced r
   const rows = [{ id: "11111111-1111-4111-8111-111111111111", status: "running" }];
   const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify(rows), { status: 200 }));
   vi.stubGlobal("fetch", fetcher);
-  const endpoint = "/api/companies/22222222-2222-4222-8222-222222222222/heartbeat-runs?limit=100";
+  const endpoint = "/api/spaces/22222222-2222-4222-8222-222222222222/heartbeat-runs?limit=100";
   await expect(api.getRunObservation(endpoint, { timeout: 1234 })).resolves.toEqual(rows);
   expect(get).not.toHaveBeenCalled(); expect(fetcher).toHaveBeenCalledTimes(1);
   expect(String(fetcher.mock.calls[0]![0])).toBe(`http://127.0.0.1:3100${endpoint}`);
@@ -84,8 +84,8 @@ it("observes identical native poll results with the actual actor and no traced r
   expect((fetcher.mock.calls[0]![1] as RequestInit).signal).toBeInstanceOf(AbortSignal);
 });
 it.each([
-  "/api/companies/22222222-2222-4222-8222-222222222222/issues?includeAgentCreatedTasks=true&limit=1000",
-  "/api/companies/22222222-2222-4222-8222-222222222222/activity?limit=1000",
+  "/api/spaces/22222222-2222-4222-8222-222222222222/issues?includeAgentCreatedTasks=true&limit=1000",
+  "/api/spaces/22222222-2222-4222-8222-222222222222/activity?limit=1000",
 ])("reads the repeated catalog inventory observation %s outside the Playwright trace", async endpoint => {
   vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100");
   const get = vi.fn(() => { throw new Error("Inventory poll must not enter the Playwright API recorder"); });
@@ -104,12 +104,12 @@ it("keeps local-trusted run observations cookie-free and preserves typed HTTP fa
 });
 it.each([
   "https://foreign.invalid/api/heartbeat-runs/11111111-1111-4111-8111-111111111111",
-  "/api/companies/22222222-2222-4222-8222-222222222222/agents",
+  "/api/spaces/22222222-2222-4222-8222-222222222222/agents",
   "/api/heartbeat-runs/11111111-1111-4111-8111-111111111111?token=anything",
   "/api/heartbeat-runs/11111111-1111-4111-8111-111111111111/events?afterSeq=0&limit=10&extra=1",
-  "/api/companies/22222222-2222-4222-8222-222222222222/issues?limit=1000",
-  "/api/companies/22222222-2222-4222-8222-222222222222/issues?includeAgentCreatedTasks=true&limit=1000&q=x",
-  "/api/companies/22222222-2222-4222-8222-222222222222/activity?limit=1000&limit=1000",
+  "/api/spaces/22222222-2222-4222-8222-222222222222/issues?limit=1000",
+  "/api/spaces/22222222-2222-4222-8222-222222222222/issues?includeAgentCreatedTasks=true&limit=1000&q=x",
+  "/api/spaces/22222222-2222-4222-8222-222222222222/activity?limit=1000&limit=1000",
 ])("rejects non-observation transport target %s before dispatch", async endpoint => {
   vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "3100");
   const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);

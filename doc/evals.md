@@ -1,4 +1,4 @@
-# Paperclip evaluation guide
+# Outpost evaluation guide
 
 The optional Product regression TestOps lane in `runner-full-stack-e2e.yml`
 maps the standing 20-case plan to existing isolated Product E2E cells: native
@@ -156,7 +156,7 @@ saved output, unchanged approved scope, and reload persistence. Deterministic
 PostgreSQL producer/consumer tests run in ordinary CI; native provider cells
 require an explicit paid selection and a recorded live result.
 
-The deployment-targeted [saved skill journey](../tests/runner-e2e/product-journeys/saved-skill-use.md) checks one company skill assigned by key, its exact admitted immutable version, a bound native source read/load, and a run-authored saved result from skill-only inputs. It uses the reusable Product journey target and remains unqualified until a real target run passes.
+The deployment-targeted [saved skill journey](../tests/runner-e2e/product-journeys/saved-skill-use.md) checks one space skill assigned by key, its exact admitted immutable version, a bound native source read/load, and a run-authored saved result from skill-only inputs. It uses the reusable Product journey target and remains unqualified until a real target run passes.
 
 The explicit-only [case handoff workflow](../tests/runner-e2e/README.md#persistent-case-handoffs-explicit-only)
 contains arithmetic and receipt smoke cells for a same-task round trip among three native agents using real case/task
@@ -168,7 +168,7 @@ ordinary native task document reads/writes, and case-page rollup readback.
 Earlier case-document campaign results remain preserved and do not qualify
 this subsequent document ownership change. The suite has
 separately selectable local Codex API-key and subscription profiles with the
-same model and limits. The API profile uses an encrypted company-secret
+same model and limits. The API profile uses an encrypted space-secret
 reference; the subscription profile receives only an explicitly supplied private
 login fixture. The original arithmetic cell remains subscription-only.
 The receipt cell declares exactly four task work runs, 90-second work-run limits,
@@ -206,7 +206,7 @@ Product E2E campaign. Synthetic receiver tests cannot qualify personal Muse;
 real setup, clarification and fresh-conversation collaboration remain separate
 release gates.
 
-Paperclip has two live eval families with different questions, owners, and
+Outpost has two live eval families with different questions, owners, and
 evidence. Choose the family before selecting a model, profile, or case.
 
 The explicit-only [native instruction consolidation comparison](plans/2026-10-03-native-completion-consolidation.md)
@@ -218,9 +218,9 @@ retained content. Neither source admission nor a scripted pass proves model
 behavior.
 
 - **Runner Evals:** real Runner/provider behavior against a seeded mock control
-  plane. Definitions live in `paperclip-evals/evals/outpost-runner`; see the
+  plane. Definitions live in `outpost-evals/evals/outpost-runner`; see the
   [direct live protocol evals](../packages/outpost-runner/docs/runner-protocol-live-evals.md).
-- **Product E2E Evals:** real browser, Paperclip server, database, Runner,
+- **Product E2E Evals:** real browser, Outpost server, database, Runner,
   provider, and (where selected) Daytona, using an isolated instance and
   grading oracle. See [`tests/runner-e2e`](../tests/runner-e2e/README.md) and
   [Everyday Workflows](../tests/runner-e2e/EVERYDAY-WORKFLOWS.md).
@@ -234,7 +234,7 @@ are not registered runnable cells and contribute no passing coverage or scores.
 Runner Evals answer whether a real runner/provider can perform a bounded
 protocol operation against the expected control-plane contract. Product E2E
 Evals answer whether a person can complete a product workflow through the real
-Paperclip surfaces and whether the resulting artifact and state are usable.
+Outpost surfaces and whether the resulting artifact and state are usable.
 The names describe the system under test; “headless” is an execution option,
 not an eval category.
 
@@ -271,7 +271,7 @@ All remain unqualified until measured on the exact candidate runtime and harness
 
 Use **Runner Evals** for a runner protocol, adapter, transport, native session,
 tool grant, or one-turn provider qualification question. The workflow checks
-out an exact `paperclip-evals` revision, builds the Runner and viewer, runs a
+out an exact `outpost-evals` revision, builds the Runner and viewer, runs a
 live roster, and renders the canonical Evalbook report. The control plane is a
 seeded test authority, so a passing result does not prove browser UX, production
 server behavior, database persistence, Daytona behavior, or a real third-party
@@ -281,13 +281,13 @@ Use **Product E2E Evals** for browser interaction, issue/task lifecycle,
 approval and clarification UI, project/repository selection, persistence over a
 controller restart, artifact delivery, billing/evidence behavior, or runner
 continuity in local or Daytona environments. The harness creates a fresh
-Paperclip instance per cell and uses public APIs and the production browser
+Outpost instance per cell and uses public APIs and the production browser
 surface. The suite's [Everyday Workflows](../tests/runner-e2e/EVERYDAY-WORKFLOWS.md)
 are Product E2E even when their results are imported into Evalbook.
 
 Do not combine a partial Runner campaign and a partial Product E2E campaign into
 one score. A campaign is comparable when its definition/grader, model/profile,
-environment, and contract match. The evaluated Paperclip revision may
+environment, and contract match. The evaluated Outpost revision may
 intentionally differ for a before/after fix comparison; record it as a
 comparison axis.
 
@@ -306,7 +306,7 @@ harness are under `tests/runner-e2e`; the package scripts are `test:e2e:runner`,
 `test:e2e:runner:unit`, `test:e2e:runner:typecheck`, and
 `test:e2e:runner:report`. `README.md`, `FIXTURES.md`, `SECURITY.md`, and
 `EVERYDAY-WORKFLOWS.md` are the detailed sources of truth. The harness starts
-the server and embedded database, creates the company/agent/task through the
+the server and embedded database, creates the space/agent/task through the
 real APIs, drives Chromium, and invokes the selected local or Daytona runner.
 
 The explicit-only `agent-chat-hardening` Product E2E suite covers native chat
@@ -330,7 +330,7 @@ The explicit-only `context-integrity` Product E2E suite covers ordered public
 comment continuation and explicit invocation of an assigned pinned skill across
 the seven selected legacy/native local profiles. Select it by suite or exact
 execution ID because `--all` excludes explicit-only suites. Each cell applies a
-1,000-cent company and agent budget hard stop before task creation and records
+1,000-cent space and agent budget hard stop before task creation and records
 both limits in its evidence.
 
 The explicit-only [stock-harness suite](../tests/runner-e2e/STOCK-HARNESS.md)
@@ -348,7 +348,7 @@ fixture-driven file wait and persisted-plan oracle are documented in the
 onboarding wizard or change the native API-tool rollout defaults.
 
 The explicit-only `grok-qualification` and `grok-subscription-qualification`
-Product suites exercise Grok Build with API and company subscription
+Product suites exercise Grok Build with API and space subscription
 authentication respectively. Keep their results separate; the subscription
 fixture seeds an explicitly supplied login and does not qualify interactive
 login. See the [Grok fixture contract](../tests/runner-e2e/README.md#grok-build-qualification).
@@ -410,7 +410,7 @@ the user's stated scope when selecting them.
 
 Record the primary failure class and preserve the evidence that supports it.
 
-- **Product failure:** evidence shows Paperclip or Runner behavior violates the
+- **Product failure:** evidence shows Outpost or Runner behavior violates the
   authored case or a hard invariant, such as wrong task state, missing approval
   gate, lost persistence, bad artifact, or incorrect protocol operation.
 - **Model/provider behavior failure:** the provider turn completed with usable
@@ -424,7 +424,7 @@ Record the primary failure class and preserve the evidence that supports it.
   unavailability, transport admission failure, service startup failure, a
   missing credential/image, or inability to produce usable evidence. Startup,
   transport, and timeout symptoms can instead be product defects when evidence
-  implicates Paperclip or Runner; classify from the observed failure and
+  implicates Outpost or Runner; classify from the observed failure and
   supported cause, rather than the symptom name alone. Preserve the artifact.
 
 Missing usage or price data means unknown, not free. Keep provider-reported
@@ -444,15 +444,15 @@ keeps last-absent/first-present bounds, resolution, strict or inclusive targets,
 and pass/fail/inconclusive timing verdicts alongside the unchanged workflow grade.
 
 Retained result snapshots and dated measurement reports belong in
-`paperclip-evals`; application tests, Product E2E fixtures/graders, and executable
+`outpost-evals`; application tests, Product E2E fixtures/graders, and executable
 scenario inventories remain in this repository. Keep a compact results index
 with immutable archive links and public report links, as in the
-[lifecycle baseline](../tests/lifecycle-baseline/README.md#recorded-results-moved-to-paperclip-evals).
+[lifecycle baseline](../tests/lifecycle-baseline/README.md#recorded-results-moved-to-outpost-evals).
 The private archive is not a dependency of app test execution. Keep large logs,
 traces, and videos in the existing campaign artifact storage.
 
 An Evalbook report is a presentation of immutable attempt records, not the
-source of truth. Keep the campaign ID, Paperclip commit, `paperclip-evals`
+source of truth. Keep the campaign ID, Outpost commit, `outpost-evals`
 commit, catalog/roster or definition fingerprint, model/profile, environment,
 grader version, selected cells, retries, and provider/runtime usage with the
 report. Public projections follow each family's reviewed allowlist and may
@@ -489,7 +489,7 @@ and [Runner Product E2E history](https://d1p6rlowie26tp.cloudfront.net/runner-e2
 The consolidated eval hub is at
 [pages.outpost.ing/evals](https://pages.outpost.ing/evals/).
 
-For a repeatable workflow, use the matching skill: [paperclip-evals](../.agents/skills/paperclip-evals/SKILL.md),
+For a repeatable workflow, use the matching skill: [outpost-evals](../.agents/skills/outpost-evals/SKILL.md),
 [add-runner-eval](../.agents/skills/add-runner-eval/SKILL.md), or
 [add-product-e2e-eval](../.agents/skills/add-product-e2e-eval/SKILL.md).
 
@@ -569,14 +569,14 @@ fresh attempt for a retryable failure.
 
 The reviewable sources live in this repository's `.agents/skills`. For a
 multi-repository workspace, install the three skills at
-`~/paperclipai/.agents/skills` (not `~/paperclipai/skills`). From the Paperclip
+`~/outpostai/.agents/skills` (not `~/outpostai/skills`). From the Outpost
 checkout, run:
 
 ```sh
-for skill in paperclip-evals add-runner-eval add-product-e2e-eval; do
-  install -d "$HOME/paperclipai/.agents/skills/$skill"
+for skill in outpost-evals add-runner-eval add-product-e2e-eval; do
+  install -d "$HOME/outpostai/.agents/skills/$skill"
   install -m 644 ".agents/skills/$skill/SKILL.md" \
-    "$HOME/paperclipai/.agents/skills/$skill/SKILL.md"
+    "$HOME/outpostai/.agents/skills/$skill/SKILL.md"
 done
 ```
 
@@ -594,7 +594,7 @@ Build from the public history feeds and check its summary logic:
 
 ```sh
 python3 -m unittest discover -s scripts/evals-hub -p 'test_*.py'
-python3 scripts/evals-hub/build.py --output .paperclip/evals-hub
+python3 scripts/evals-hub/build.py --output .outpost/evals-hub
 ```
 
 The hub checks need Python 3 and do not call model providers.
@@ -604,7 +604,7 @@ For offline checks, pass `--history-dir <directory>` containing
 For a pre-merge preview, pass `--docs-ref <branch-or-sha>` to link the guide
 at that revision. The default guide link uses `master`.
 
-Publish with the [Paperclip page helper](../.agents/skills/paperclip-page/SKILL.md)
+Publish with the [Outpost page helper](../.agents/skills/outpost-page/SKILL.md)
 and the configured page-uploader credentials. Use Bash 4 or newer; macOS's
 system Bash 3 cannot run this helper. On macOS with Homebrew Bash installed,
 put `$(brew --prefix bash)/bin` first in `PATH` before these commands:
@@ -613,12 +613,12 @@ put `$(brew --prefix bash)/bin` first in `PATH` before these commands:
 export OUTPOST_PAGE_BUCKET=pages.outpost.ing
 export OUTPOST_PAGE_BASE_URL=https://pages.outpost.ing
 export AWS_REGION=us-east-1
-bash .agents/skills/paperclip-page/scripts/publish.sh .paperclip/evals-hub --slug evals --dry-run
-bash .agents/skills/paperclip-page/scripts/publish.sh .paperclip/evals-hub --slug evals
+bash .agents/skills/outpost-page/scripts/publish.sh .outpost/evals-hub --slug evals --dry-run
+bash .agents/skills/outpost-page/scripts/publish.sh .outpost/evals-hub --slug evals
 ```
 
 For later refreshes, rebuild in the same output directory and publish with
-`--update`. Keep its ignored `.paperclip-page/state.json` ownership record;
+`--update`. Keep its ignored `.outpost-page/state.json` ownership record;
 without that record, the helper will refuse to overwrite an existing prefix.
 Verify the public page and its links after publication. This manual refresh
 does not add a scheduled workflow. Preserve the measurement date when choosing

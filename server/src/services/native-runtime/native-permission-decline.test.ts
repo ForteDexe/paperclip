@@ -5,7 +5,7 @@ import type { PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { hasCompletedNativePermissionDecline, readCompletedNativePermissionDecline } from "./native-permission-decline.js";
 
 const provider = { kind: "acpx", agent: "cursor" };
-const binding = { companyId: "company", runId: "run", agentId: "agent" };
+const binding = { spaceId: "space", runId: "run", agentId: "agent" };
 function row(seq: number, eventType: string, payload: unknown): any {
   const event = { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn",
     normalizedSessionId: "session", sourceInstanceId: "runner", sourceEventId: `runner:${seq}`, sourceSeq: seq, eventType, payload };
@@ -29,9 +29,9 @@ describe("completed Cursor permission decline", () => {
   it("fences a committed denial without treating it as semantic success or requiring provider billing", () => {
     const f = facts(); expect(hasCompletedNativePermissionDecline(f.rows, binding, f.terminal, provider)).toBe(true);
   });
-  it.each(["company", "agent", "run", "turn", "session", "source", "provider", "method", "accept", "expired", "duplicate", "order", "terminal"])("rejects %s mismatches and ambiguous proof", mutation => {
+  it.each(["space", "agent", "run", "turn", "session", "source", "provider", "method", "accept", "expired", "duplicate", "order", "terminal"])("rejects %s mismatches and ambiguous proof", mutation => {
     const f = facts(), created = f.rows[0], resolved = f.rows[1];
-    if (mutation === "company") created.companyId = "foreign";
+    if (mutation === "space") created.spaceId = "foreign";
     if (mutation === "agent") created.agentId = "foreign";
     if (mutation === "run") created.runId = "foreign";
     if (mutation === "turn") created.payload.orpEvent.turnId = "foreign";
@@ -64,7 +64,7 @@ describe("permission decline reader event budget", () => {
     expect(predicate.sql).toContain("->'orpEvent'->>'turnId'");
     expect(predicate.sql).toContain("->'orpEvent'->>'normalizedSessionId'");
     expect(predicate.sql).toContain('"source_instance_id"');
-    expect(predicate.params.slice(0, 6)).toEqual(["company", "run", "agent", "turn", "session", "runner"]);
+    expect(predicate.params.slice(0, 6)).toEqual(["space", "run", "agent", "turn", "session", "runner"]);
     expect(query.limit).toHaveBeenCalledWith(1001);
     expect(query.where.mock.invocationCallOrder[0]).toBeLessThan(query.limit.mock.invocationCallOrder[0]!);
   });

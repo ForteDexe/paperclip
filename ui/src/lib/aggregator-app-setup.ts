@@ -1,6 +1,6 @@
 import { aggregatorContinuationInstruction, type Agent, type ToolConnection } from "@outpost/shared";
 import type { AggregatorAppRoute } from "@outpost/shared/aggregator-app-catalog";
-import { isAgentTaskTarget } from "./company-members";
+import { isAgentTaskTarget } from "./space-members";
 
 // Connect consumer accounts live in For You, separately from developer projects.
 // Composio resolves the organization placeholder for the signed-in user.
@@ -19,13 +19,13 @@ export function aggregatorSetupAgent(agents: SetupAgent[]) {
     }
     return seen.size - 1;
   };
-  const leadership: Partial<Record<Agent["role"], number>> = { ceo: 0, cto: 1, cfo: 2, cmo: 3 };
+  const leadership: Partial<Record<Agent["role"], number>> = { lead: 0, engineering_lead: 1, operations: 2, product: 3 };
   const createdAt = (agent: SetupAgent) => {
     const time = new Date(agent.createdAt).getTime();
     return Number.isFinite(time) ? time : Number.MAX_SAFE_INTEGER;
   };
   const isDefault = (agent: SetupAgent) => agent.name.trim().toLowerCase() === "default agent";
-  // Prefer the named default, then organizational rank, then the oldest hire.
+  // Prefer the named default, then organizational rank, then the oldest create.
   return agents.filter(isAgentTaskTarget).sort((a, b) =>
     Number(isDefault(b)) - Number(isDefault(a))
     || depth(a) - depth(b)
@@ -47,6 +47,6 @@ export function aggregatorAppSetupTask(appName: string, route: AggregatorAppRout
     navigateOnCreate: true,
     ...(agent ? { assigneeAgentId: agent.id } : {}),
     title: `Connect ${appName} through ${providerName}`,
-    description: `Help me connect ${appName} through ${providerName}, using my existing ${providerName} gateway.${accountInstruction} The provider toolkit is ${route.toolkit}. Do not switch providers or create another gateway.\n\nHandle this connection setup directly. Do not hire agents or delegate the setup. If a human needs to sign in or authorize access, provide the browser link and wait for them.\n\n${permissionInstruction}\n\n${aggregatorContinuationInstruction(route.provider, appName)}`,
+    description: `Help me connect ${appName} through ${providerName}, using my existing ${providerName} gateway.${accountInstruction} The provider toolkit is ${route.toolkit}. Do not switch providers or create another gateway.\n\nHandle this connection setup directly. Do not create agents or delegate the setup. If a human needs to sign in or authorize access, provide the browser link and wait for them.\n\n${permissionInstruction}\n\n${aggregatorContinuationInstruction(route.provider, appName)}`,
   };
 }

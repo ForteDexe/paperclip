@@ -55,7 +55,7 @@ describe("useNativeRunTranscripts", () => {
   it("expands from sequence zero without duplicating the preview or withholding new runs", async () => {
     let state: ReturnType<typeof useNativeRunTranscripts>;
     const event = (seq: number, text: string) => ({
-      id: `event-${seq}`, runId: "old", companyId: "company", seq, eventType: "item.completed", createdAt: new Date().toISOString(),
+      id: `event-${seq}`, runId: "old", spaceId: "space", seq, eventType: "item.completed", createdAt: new Date().toISOString(),
       payload: { orpEvent: { schema: "outpost.orp.event.v1", eventType: "item.completed", runId: "old", schemaVersion: 1, emittedAt: new Date().toISOString(), itemId: `item-${seq}`, payload: { kind: "agentMessage", text } } },
     });
     conversationEventsMock.mockResolvedValue([event(3, "Latest answer")]);
@@ -78,15 +78,15 @@ describe("useNativeRunTranscripts", () => {
   it("reopens saved terminal history immediately and catches up without duplicating saved events", async () => {
     const client = new QueryClient();
     let latest!: ReturnType<typeof useNativeRunTranscripts>;
-    const row = (seq: number) => ({ id: `event-${seq}`, runId: "saved", companyId: "company", createdAt: new Date().toISOString(), seq, eventType: "item.completed", payload: { orpEvent: {
+    const row = (seq: number) => ({ id: `event-${seq}`, runId: "saved", spaceId: "space", createdAt: new Date().toISOString(), seq, eventType: "item.completed", payload: { orpEvent: {
       schema: "outpost.orp.event.v1", schemaVersion: 1, eventType: "item.completed", runId: "saved",
       emittedAt: new Date().toISOString(), itemId: `answer-${seq}`, payload: { kind: "agentMessage", text: `Answer ${seq}` },
     } } });
-    function Saved({ companyId = "company", compact = true, status = "succeeded", extra = false }) {
+    function Saved({ spaceId = "space", compact = true, status = "succeeded", extra = false }) {
       latest = useNativeRunTranscripts([
         { id: "saved", status, runtimeMode: "native", conversationOnly: compact },
         ...(extra ? [{ id: "earlier", status, runtimeMode: "native" as const, conversationOnly: compact }] : []),
-      ], { companyId });
+      ], { spaceId });
       return null;
     }
     async function mount(props = {}) {
@@ -120,7 +120,7 @@ describe("useNativeRunTranscripts", () => {
     await mount({ extra: true });
     expect(latest.transcriptByRun.get("saved")?.filter(entry => entry.kind === "assistant").map(entry => entry.text)).toEqual(["Answer 1", "Answer 2"]);
     conversationEventsMock.mockImplementation(() => new Promise(() => {}));
-    for (const props of [{ companyId: "other" }, { compact: false }, { status: "running" }]) {
+    for (const props of [{ spaceId: "other" }, { compact: false }, { status: "running" }]) {
       await leave();
       eventsMock.mockImplementation(() => new Promise(() => {}));
       await mount(props);
@@ -155,7 +155,7 @@ describe("useNativeRunTranscripts", () => {
       id: `saved-${index}`, status: "succeeded", runtimeMode: "native" as const, conversationOnly: true,
     }));
     for (const run of runs) {
-      client.setQueryData(["native-run-transcript", "company", run.id, true, run.status], { events: [], cursor: 0 });
+      client.setQueryData(["native-run-transcript", "space", run.id, true, run.status], { events: [], cursor: 0 });
     }
     const originalRead = client.getQueryData.bind(client);
     let reads = 0;
@@ -166,7 +166,7 @@ describe("useNativeRunTranscripts", () => {
     conversationEventsMock.mockImplementation(() => new Promise(() => {}));
     let state!: ReturnType<typeof useNativeRunTranscripts>;
     function Window({ tick }: { tick: number }) {
-      state = useNativeRunTranscripts(runs, { companyId: "company" });
+      state = useNativeRunTranscripts(runs, { spaceId: "space" });
       return <span>{tick}</span>;
     }
     for (let tick = 0; tick < 3; tick++) {

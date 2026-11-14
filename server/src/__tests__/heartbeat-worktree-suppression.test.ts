@@ -8,9 +8,9 @@ import {
   authUsers,
   agentWakeupRequests,
   agentRuntimeState,
-  companySkills,
-  companies,
-  companyMemberships,
+  spaceSkills,
+  spaces,
+  spaceMemberships,
   createDb,
   documentRevisions,
   documents,
@@ -90,10 +90,10 @@ describeEmbeddedPostgres("heartbeat worktree suppression", () => {
     await db.delete(agentWakeupRequests);
     await db.delete(issues);
     await db.delete(agentRuntimeState);
-    await db.delete(companySkills);
+    await db.delete(spaceSkills);
     await db.delete(agents);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
     await db.delete(instanceSettings);
   });
 
@@ -102,24 +102,24 @@ describeEmbeddedPostgres("heartbeat worktree suppression", () => {
   }, 60_000);
 
   async function insertAgentAndIssue() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       status: "active",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "responsible-user",
     });
-    await db.insert(companyMemberships).values(["responsible-user", "operator"].map(principalId => ({ companyId,
+    await db.insert(spaceMemberships).values(["responsible-user", "operator"].map(principalId => ({ spaceId,
       principalType: "user", principalId, membershipRole: "operator", status: "active" })));
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Worktree Agent",
       role: "engineer",
       status: "idle",
@@ -140,7 +140,7 @@ describeEmbeddedPostgres("heartbeat worktree suppression", () => {
 
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Assigned work",
       status: "todo",
       priority: "high",
@@ -148,7 +148,7 @@ describeEmbeddedPostgres("heartbeat worktree suppression", () => {
       responsibleUserId: "responsible-user",
     });
 
-    return { companyId, agentId, issueId };
+    return { spaceId, agentId, issueId };
   }
 
   async function armWorktreeRunExecution(cutoff: Date) {
@@ -232,11 +232,11 @@ describeEmbeddedPostgres("heartbeat worktree suppression", () => {
   });
 
   it("does not replay copied queued runs or timer wakes while worktree scheduling is suppressed", async () => {
-    const { companyId, agentId, issueId } = await insertAgentAndIssue();
+    const { spaceId, agentId, issueId } = await insertAgentAndIssue();
     const runId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "assignment",
       triggerDetail: "system",

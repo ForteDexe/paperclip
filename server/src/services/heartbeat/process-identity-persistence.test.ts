@@ -1,12 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { PROCESS_IDENTITY_RECORDED } from "../native-local-process-stop.js";
 import { persistHeartbeatRunProcessMetadata, retryTransientRunWrite } from "./run-lifecycle.js";
 
 const support = await getEmbeddedPostgresTestSupport();
-const companyId = "30000000-0000-4000-8000-000000000001";
+const spaceId = "30000000-0000-4000-8000-000000000001";
 const agentId = "30000000-0000-4000-8000-000000000002";
 const issueId = "30000000-0000-4000-8000-000000000003";
 const predecessorRunId = "30000000-0000-4000-8000-000000000004";
@@ -20,15 +20,15 @@ describe.skipIf(!support.supported)("spawn process identity persistence", () => 
   let other: ReturnType<typeof createDb>;
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-process-identity-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-process-identity-");
     db = createDb(temporary.connectionString);
     other = createDb(temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Identity", issuePrefix: "PID" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Identity agent" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Retry me" });
+    await db.insert(spaces).values({ id: spaceId, name: "Identity", issuePrefix: "PID" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Identity agent" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Retry me" });
     await db.insert(heartbeatRuns).values([
-      { id: predecessorRunId, companyId, agentId, issueId, scopeKind: "issue", status: "failed" },
-      { id: runId, companyId, agentId, issueId, scopeKind: "issue", status: "running", retryOfRunId: predecessorRunId },
+      { id: predecessorRunId, spaceId, agentId, issueId, scopeKind: "issue", status: "failed" },
+      { id: runId, spaceId, agentId, issueId, scopeKind: "issue", status: "running", retryOfRunId: predecessorRunId },
     ]);
   });
 
@@ -40,7 +40,7 @@ describe.skipIf(!support.supported)("spawn process identity persistence", () => 
   // row (the issue or predecessor run) FOR UPDATE. Writing the identity
   // and then reserving the event sequence updated the run row twice, and the
   // second UPDATE re-checked heartbeat_runs' foreign keys (KEY SHARE on those
-  // parents; the event row's own agent/company keys are checked either way). It waited behind the holder and then failed, so the live run
+  // parents; the event row's own agent/space keys are checked either way). It waited behind the holder and then failed, so the live run
   // ended as native_session_interrupted.
   it.each([
     ["issue", (tx: Tx) => tx.select({ id: issues.id }).from(issues).where(eq(issues.id, issueId))],

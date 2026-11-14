@@ -22,7 +22,7 @@ function revisionColumns(columns: Record<string, AnyPgColumn>) {
 /** Only authorization fields participate: receiving messages must not reset sessions. */
 export async function slackAuthorizationRevision(
   db: Db,
-  companyId: string,
+  spaceId: string,
   endpointId: string,
   connectionId: string,
   agentId: string,
@@ -38,7 +38,7 @@ export async function slackAuthorizationRevision(
       .from(chatEndpointResources)
       .where(
         and(
-          eq(chatEndpointResources.companyId, companyId),
+          eq(chatEndpointResources.spaceId, spaceId),
           eq(chatEndpointResources.endpointId, endpointId),
         ),
       )
@@ -47,15 +47,15 @@ export async function slackAuthorizationRevision(
       .select(revisionColumns({
         id: chatIdentityLinks.id,
         status: chatIdentityLinks.status,
-        user: chatIdentityLinks.paperclipUserId,
+        user: chatIdentityLinks.outpostUserId,
         updatedAt: chatIdentityLinks.updatedAt,
       }))
       .from(chatIdentityLinks)
       .where(
         and(
-          eq(chatIdentityLinks.companyId, companyId),
+          eq(chatIdentityLinks.spaceId, spaceId),
           eq(chatIdentityLinks.endpointId, endpointId),
-          eq(chatIdentityLinks.paperclipUserId, userId),
+          eq(chatIdentityLinks.outpostUserId, userId),
         ),
       )
       .orderBy(chatIdentityLinks.id),
@@ -68,7 +68,7 @@ export async function slackAuthorizationRevision(
       .from(connectionGrants)
       .where(
         and(
-          eq(connectionGrants.companyId, companyId),
+          eq(connectionGrants.spaceId, spaceId),
           eq(connectionGrants.connectionId, connectionId),
           eq(connectionGrants.subjectUserId, userId),
         ),
@@ -84,7 +84,7 @@ export async function slackAuthorizationRevision(
       .from(toolCatalogEntries)
       .where(
         and(
-          eq(toolCatalogEntries.companyId, companyId),
+          eq(toolCatalogEntries.spaceId, spaceId),
           eq(toolCatalogEntries.connectionId, connectionId),
         ),
       )
@@ -92,24 +92,24 @@ export async function slackAuthorizationRevision(
     db
       .select(revisionColumns(getTableColumns(toolPolicies)))
       .from(toolPolicies)
-      .where(eq(toolPolicies.companyId, companyId))
+      .where(eq(toolPolicies.spaceId, spaceId))
       .orderBy(toolPolicies.id),
     db
       .select(revisionColumns(getTableColumns(toolProfiles)))
       .from(toolProfiles)
-      .where(eq(toolProfiles.companyId, companyId))
+      .where(eq(toolProfiles.spaceId, spaceId))
       .orderBy(toolProfiles.id),
     db
       .select(revisionColumns(getTableColumns(toolProfileEntries)))
       .from(toolProfileEntries)
-      .where(eq(toolProfileEntries.companyId, companyId))
+      .where(eq(toolProfileEntries.spaceId, spaceId))
       .orderBy(toolProfileEntries.id),
     db
       .select(revisionColumns(getTableColumns(toolProfileBindings)))
       .from(toolProfileBindings)
       .where(
         and(
-          eq(toolProfileBindings.companyId, companyId),
+          eq(toolProfileBindings.spaceId, spaceId),
           eq(toolProfileBindings.targetId, agentId),
         ),
       )

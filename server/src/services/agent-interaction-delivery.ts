@@ -42,31 +42,31 @@ export function isInteractionDeliveryDeniedRun(run: { errorCode?: string | null 
 }
 
 export async function hasAutomaticInteractionDeliveryHold(db: Executor, input: {
-  companyId: string; issueId: string; agentId: string; payload: unknown; context: unknown;
+  spaceId: string; issueId: string; agentId: string; payload: unknown; context: unknown;
   actorType?: string; actorId?: string | null;
 }) {
   const origin = record(record(input.payload)[ORIGIN_KEY]);
   const actorType = origin.actorType === "agent" ? "agent" : input.actorType;
   if (actorType === "user" || actorType === "agent" || commentIds(input.context).length || commentIds(input.payload).length) return false;
   const [latest] = await db.select({ errorCode: heartbeatRuns.errorCode }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.agentId, input.agentId),
+    eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.agentId, input.agentId),
     or(eq(heartbeatRuns.nativeIssueId, input.issueId), eq(heartbeatRuns.issueId, input.issueId),
       sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${input.issueId}`),
   )).orderBy(desc(heartbeatRuns.createdAt), desc(heartbeatRuns.id)).limit(1);
   return isInteractionDeliveryDeniedRun(latest);
 }
 
-export function withInteractionDeliveryOrigin(payload: unknown, actorType?: string, actorId?: string | null, savedOrigin?: unknown, actorCompanyId?: string) {
+export function withInteractionDeliveryOrigin(payload: unknown, actorType?: string, actorId?: string | null, savedOrigin?: unknown, actorSpaceId?: string) {
   const next = { ...record(payload) };
   delete next[ORIGIN_KEY];
   const saved = record(savedOrigin);
   if (saved.actorType === "agent" && string(saved.actorId)) {
-    actorType = "agent"; actorId = string(saved.actorId); actorCompanyId = string(saved.actorCompanyId) ?? actorCompanyId;
+    actorType = "agent"; actorId = string(saved.actorId); actorSpaceId = string(saved.actorSpaceId) ?? actorSpaceId;
   }
   const pluginOrigin = currentPluginInteractionOrigin();
-  if (pluginOrigin && !string(saved.actorId)) { actorType = "agent"; actorId = pluginOrigin.agentId; actorCompanyId = pluginOrigin.companyId; }
+  if (pluginOrigin && !string(saved.actorId)) { actorType = "agent"; actorId = pluginOrigin.agentId; actorSpaceId = pluginOrigin.spaceId; }
   if (actorType && actorId) next[ORIGIN_KEY] = { actorType, actorId,
-    ...(actorCompanyId ? { actorCompanyId } : {}),
+    ...(actorSpaceId ? { actorSpaceId } : {}),
     ...(saved.operation === "comment" ? { operation: "comment" } : {}),
   };
   return next;
@@ -80,7 +80,7 @@ function commentIds(context: unknown): string[] {
 
 function requiresWakeOriginCheck(wake: Wake): boolean {
   const payload = record(wake.payload);
-  const context = record(payload._paperclipWakeContext);
+  const context = record(payload._outpostWakeContext);
   const reason = string(context.wakeReason) ?? wake.reason;
   const operation = record(payload[ORIGIN_KEY]).operation;
   if (operation === "assign" || operation === "comment") return true;
@@ -110,45 +110,45 @@ async function recheckAssignmentWakes(db: Executor, run: Run, wakes: Wake[], iss
   return denial;
 }
 
-async function unknownOriginDenial(db: Executor, companyId: string, targetAgentId: string,
+async function unknownOriginDenial(db: Executor, spaceId: string, targetAgentId: string,
   operation: "assign" | "comment", issueId: string | null): Promise<DeliveryDenial | null> {
   const [target] = await db.select({ permissions: agents.permissions }).from(agents)
-    .where(and(eq(agents.id, targetAgentId), eq(agents.companyId, companyId)));
+    .where(and(eq(agents.id, targetAgentId), eq(agents.spaceId, spaceId)));
   const key = operation === "comment" ? "canReceiveCommentsFromAgents" : "canReceiveAssignmentsFromAgents";
   return record(record(target?.permissions).interactions)[key] === false
     ? { code: "agent_interaction_provenance_unavailable", operation, targetAgentId, issueId } : null;
 }
 
 export async function queuedCommentInteractionDenial(db: Executor, input: {
-  companyId: string; issueId: string; agentId: string; commentId: string; lock?: boolean;
+  spaceId: string; issueId: string; agentId: string; commentId: string; lock?: boolean;
 }): Promise<DeliveryDenial | null> {
   const [comment] = await db.select().from(issueComments).where(and(
-    eq(issueComments.companyId, input.companyId), eq(issueComments.issueId, input.issueId),
+    eq(issueComments.spaceId, input.spaceId), eq(issueComments.issueId, input.issueId),
     eq(issueComments.id, input.commentId)));
   let actorAgentId = comment?.authorAgentId ?? comment?.derivedAuthorAgentId;
   if (!actorAgentId && comment?.createdByRunId) {
     const [run] = await db.select({ agentId: heartbeatRuns.agentId }).from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.id, comment.createdByRunId), eq(heartbeatRuns.companyId, input.companyId)));
+      .where(and(eq(heartbeatRuns.id, comment.createdByRunId), eq(heartbeatRuns.spaceId, input.spaceId)));
     actorAgentId = run?.agentId;
   }
   if (actorAgentId) return agentInteractionDeliveryDenial(db, {
-    companyId: input.companyId, actorAgentId, operation: "comment", issueId: input.issueId,
+    spaceId: input.spaceId, actorAgentId, operation: "comment", issueId: input.issueId,
     targetAgentId: input.agentId, texts: [comment!.body], delivery: true, lock: input.lock,
   });
   if (comment?.authorUserId || comment?.authorType === "system") return null;
   const [interaction] = comment ? [] : await db.select().from(issueThreadInteractions).where(and(
-    eq(issueThreadInteractions.companyId, input.companyId), eq(issueThreadInteractions.issueId, input.issueId),
+    eq(issueThreadInteractions.spaceId, input.spaceId), eq(issueThreadInteractions.issueId, input.issueId),
     eq(issueThreadInteractions.id, input.commentId)));
   if (interaction?.resolvedByAgentId) return agentInteractionDeliveryDenial(db, {
-    companyId: input.companyId, actorAgentId: interaction.resolvedByAgentId, operation: "comment",
+    spaceId: input.spaceId, actorAgentId: interaction.resolvedByAgentId, operation: "comment",
     issueId: input.issueId, targetAgentId: input.agentId, delivery: true, lock: input.lock,
   });
   if (interaction?.resolvedByUserId) return null;
-  return unknownOriginDenial(db, input.companyId, input.agentId, "comment", input.issueId);
+  return unknownOriginDenial(db, input.spaceId, input.agentId, "comment", input.issueId);
 }
 
 export async function filterQueuedInteractionComments(db: Executor, input: {
-  companyId: string; issueId: string; agentId: string; commentIds: string[];
+  spaceId: string; issueId: string; agentId: string; commentIds: string[];
   wake?: Wake | null; lock?: boolean;
 }): Promise<{ allowedIds: string[]; denials: Record<string, unknown> }> {
   const previous = record(record(input.wake?.payload)[DENIALS_KEY]);
@@ -177,7 +177,7 @@ async function assignmentDenial(db: Executor, run: Run, wake: Wake | undefined, 
   let actorId = capturedAgent ?? wake?.requestedByActorId;
   if (wake && (actorType === "system" || !actorType)) {
     const [handoff] = await db.select({ actorType: caseHandoffs.actorType, actorId: caseHandoffs.actorId })
-      .from(caseHandoffs).where(and(eq(caseHandoffs.companyId, run.companyId), eq(caseHandoffs.wakeupRequestId, wake.id),
+      .from(caseHandoffs).where(and(eq(caseHandoffs.spaceId, run.spaceId), eq(caseHandoffs.wakeupRequestId, wake.id),
         eq(caseHandoffs.toAgentId, run.agentId)));
     if (handoff) { actorType = handoff.actorType; actorId = handoff.actorId; }
   }
@@ -185,20 +185,20 @@ async function assignmentDenial(db: Executor, run: Run, wake: Wake | undefined, 
     const dismissedId = string(record(wake.payload).dismissedInteractionId);
     const [dismissed] = dismissedId && /^[0-9a-f-]{36}$/i.test(dismissedId)
       ? await db.select({ userId: issueThreadInteractions.dismissedByUserId }).from(issueThreadInteractions).where(and(
-        eq(issueThreadInteractions.companyId, run.companyId), eq(issueThreadInteractions.issueId, issueId),
+        eq(issueThreadInteractions.spaceId, run.spaceId), eq(issueThreadInteractions.issueId, issueId),
         eq(issueThreadInteractions.id, dismissedId), eq(issueThreadInteractions.createdByAgentId, run.agentId)))
       : [];
     if (dismissed?.userId) return null;
   }
   if (wake && (actorType === "system" || !actorType) && reason !== "issue_blockers_resolved") {
-    const payload = record(wake.payload), context = record(payload._paperclipWakeContext);
+    const payload = record(wake.payload), context = record(payload._outpostWakeContext);
     const decisionId = string(payload.nativeDecisionId) ?? string(payload.nativeReviewDecisionId)
       ?? string(payload.nativeChildCompletionDecisionId) ?? string(context.nativeReviewDecisionId)
       ?? string(context.nativeChildCompletionDecisionId);
     if (decisionId && /^[0-9a-f-]{36}$/i.test(decisionId)) {
       const [source] = await db.select({ agentId: heartbeatRuns.agentId }).from(statusDecisions)
-        .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, statusDecisions.runId), eq(heartbeatRuns.companyId, statusDecisions.companyId)))
-        .where(and(eq(statusDecisions.id, decisionId), eq(statusDecisions.companyId, run.companyId)));
+        .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, statusDecisions.runId), eq(heartbeatRuns.spaceId, statusDecisions.spaceId)))
+        .where(and(eq(statusDecisions.id, decisionId), eq(statusDecisions.spaceId, run.spaceId)));
       if (source) { actorType = "agent"; actorId = source.agentId; }
       if (reason === "issue_children_completed") operation = "comment";
     }
@@ -210,59 +210,59 @@ async function assignmentDenial(db: Executor, run: Run, wake: Wake | undefined, 
     const reviewId = string(payload.nativeReviewInteractionId);
     if (reviewId && /^[0-9a-f-]{36}$/i.test(reviewId)) {
       const [review] = await db.select({ summary: issueThreadInteractions.summary, payload: issueThreadInteractions.payload })
-        .from(issueThreadInteractions).where(and(eq(issueThreadInteractions.companyId, run.companyId), eq(issueThreadInteractions.id, reviewId)));
+        .from(issueThreadInteractions).where(and(eq(issueThreadInteractions.spaceId, run.spaceId), eq(issueThreadInteractions.id, reviewId)));
       for (const value of [review?.summary, record(review?.payload).prompt, record(review?.payload).detailsMarkdown]) {
         if (typeof value === "string") texts.push(value);
       }
     }
     return agentInteractionDeliveryDenial(db, {
-      companyId: run.companyId, actorAgentId: actorId, operation, targetAgentId: run.agentId,
-      actorCompanyId: string(origin.actorCompanyId) ?? undefined,
+      spaceId: run.spaceId, actorAgentId: actorId, operation, targetAgentId: run.agentId,
+      actorSpaceId: string(origin.actorSpaceId) ?? undefined,
       issueId, texts, delivery: true, lock: true,
     });
   }
   if (run.retryOfRunId && (actorType === "system" || !actorType)) {
-    if (depth >= 16) return unknownOriginDenial(db, run.companyId, run.agentId, operation, issueId);
+    if (depth >= 16) return unknownOriginDenial(db, run.spaceId, run.agentId, operation, issueId);
     const [source] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, run.retryOfRunId),
-      eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.agentId, run.agentId)));
+      eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.agentId, run.agentId)));
     if (source) {
       const [sourceWake] = source.wakeupRequestId ? await db.select().from(agentWakeupRequests)
-        .where(and(eq(agentWakeupRequests.id, source.wakeupRequestId), eq(agentWakeupRequests.companyId, run.companyId))) : [];
+        .where(and(eq(agentWakeupRequests.id, source.wakeupRequestId), eq(agentWakeupRequests.spaceId, run.spaceId))) : [];
       const savedDenial = record(record(source.resultJson)[DENIALS_KEY]).assignment;
       return savedDenial as DeliveryDenial | undefined ?? assignmentDenial(db, source, sourceWake, issueId, depth + 1);
     }
   }
   if (actorType === "system" && wake?.requestedByActorId?.startsWith("native-status") && reason !== "issue_blockers_resolved") {
-    return unknownOriginDenial(db, run.companyId, run.agentId, reason === "issue_children_completed" ? "comment" : operation, issueId);
+    return unknownOriginDenial(db, run.spaceId, run.agentId, reason === "issue_children_completed" ? "comment" : operation, issueId);
   }
   if (actorType === "system" && reason !== "issue_assigned" && reason !== "issue_created") return null;
   if (wake?.source !== "assignment" && run.invocationSource !== "assignment") return null;
   if (issueId) {
     if (!actorType || actorType === "system") {
       const requestedAt = wake
-        ? sql`(select ${agentWakeupRequests.requestedAt} from ${agentWakeupRequests} where ${agentWakeupRequests.id} = ${wake.id} and ${agentWakeupRequests.companyId} = ${run.companyId})`
-        : sql`(select ${heartbeatRuns.createdAt} from ${heartbeatRuns} where ${heartbeatRuns.id} = ${run.id} and ${heartbeatRuns.companyId} = ${run.companyId})`;
+        ? sql`(select ${agentWakeupRequests.requestedAt} from ${agentWakeupRequests} where ${agentWakeupRequests.id} = ${wake.id} and ${agentWakeupRequests.spaceId} = ${run.spaceId})`
+        : sql`(select ${heartbeatRuns.createdAt} from ${heartbeatRuns} where ${heartbeatRuns.id} = ${run.id} and ${heartbeatRuns.spaceId} = ${run.spaceId})`;
       const [assignment] = await db.select({ actorType: activityLog.actorType, actorId: activityLog.actorId })
-        .from(activityLog).where(and(eq(activityLog.companyId, run.companyId), eq(activityLog.entityType, "issue"),
+        .from(activityLog).where(and(eq(activityLog.spaceId, run.spaceId), eq(activityLog.entityType, "issue"),
           eq(activityLog.entityId, issueId), lte(activityLog.createdAt, requestedAt),
           or(eq(activityLog.action, "issue.created"), eq(activityLog.action, "issue.updated")),
           sql`${activityLog.details}->>'assigneeAgentId' = ${run.agentId}`))
         .orderBy(desc(activityLog.createdAt), desc(activityLog.id)).limit(1);
       if (assignment?.actorType === "agent") return agentInteractionDeliveryDenial(db, {
-        companyId: run.companyId, actorAgentId: assignment.actorId, operation: "assign",
+        spaceId: run.spaceId, actorAgentId: assignment.actorId, operation: "assign",
         targetAgentId: run.agentId, issueId, delivery: true, lock: true,
       });
       if (assignment?.actorType === "user") return null;
     }
     const [issue] = await db.select({ createdByAgentId: issues.createdByAgentId, createdByUserId: issues.createdByUserId })
-      .from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)));
+      .from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId)));
     if (reason === "issue_created" && issue?.createdByAgentId) return agentInteractionDeliveryDenial(db, {
-      companyId: run.companyId, actorAgentId: issue.createdByAgentId, operation: "assign",
+      spaceId: run.spaceId, actorAgentId: issue.createdByAgentId, operation: "assign",
       targetAgentId: run.agentId, issueId, delivery: true, lock: true,
     });
     if (reason === "issue_created" && issue?.createdByUserId) return null;
   }
-  return unknownOriginDenial(db, run.companyId, run.agentId, "assign", issueId);
+  return unknownOriginDenial(db, run.spaceId, run.agentId, "assign", issueId);
 }
 
 export async function recheckQueuedRunInteractions(db: Db, run: Run): Promise<{
@@ -272,32 +272,32 @@ export async function recheckQueuedRunInteractions(db: Db, run: Run): Promise<{
   const issueId = run.nativeIssueId ?? run.issueId ?? string(record(run.contextSnapshot).issueId);
   return db.transaction(async tx => {
     if (issueId) await tx.select({ id: issues.id }).from(issues)
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId))).for("update");
+      .where(and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId))).for("update");
     const wakes = await tx.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+      eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
       or(eq(agentWakeupRequests.runId, run.id), run.wakeupRequestId ? eq(agentWakeupRequests.id, run.wakeupRequestId) : undefined),
     )).orderBy(asc(agentWakeupRequests.id)).for("update");
     const [current] = await tx.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId))).for("update");
+      eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId))).for("update");
     if (!current || current.status !== "queued") return { run: current ?? run, denied: false, denials: {} };
     if (record(current.resultJson).interactionDeliveryDenied === true) {
       return { run: current, denied: true, denials: record(record(current.resultJson)[DENIALS_KEY]) };
     }
     const allIds = [...new Set([...commentIds(current.contextSnapshot), ...wakes.flatMap(wake =>
-      [...commentIds(wake.payload), ...commentIds(record(wake.payload)._paperclipWakeContext)])])];
+      [...commentIds(wake.payload), ...commentIds(record(wake.payload)._outpostWakeContext)])])];
     const denials: Record<string, unknown> = {};
     const allowed = new Set(allIds);
     if (issueId && allIds.length) {
       for (const wake of wakes) {
-        const wakeIds = [...new Set([...commentIds(wake.payload), ...commentIds(record(wake.payload)._paperclipWakeContext)])];
+        const wakeIds = [...new Set([...commentIds(wake.payload), ...commentIds(record(wake.payload)._outpostWakeContext)])];
         const checked = await filterQueuedInteractionComments(tx, {
-          companyId: run.companyId, issueId, agentId: run.agentId, commentIds: wakeIds, wake, lock: true,
+          spaceId: run.spaceId, issueId, agentId: run.agentId, commentIds: wakeIds, wake, lock: true,
         });
         Object.assign(denials, checked.denials);
         for (const id of wakeIds) if (!checked.allowedIds.includes(id)) allowed.delete(id);
       }
       const remaining = await filterQueuedInteractionComments(tx, {
-        companyId: run.companyId, issueId, agentId: run.agentId, commentIds: [...allowed], lock: true,
+        spaceId: run.spaceId, issueId, agentId: run.agentId, commentIds: [...allowed], lock: true,
       });
       Object.assign(denials, remaining.denials);
       for (const id of [...allowed]) if (!remaining.allowedIds.includes(id)) allowed.delete(id);
@@ -325,25 +325,25 @@ export async function recheckQueuedRunInteractions(db: Db, run: Run): Promise<{
 }
 
 export async function assertQueuedCommentInteractionDelivery(db: Executor, input: {
-  companyId: string; issueId: string; agentId: string; commentId: string; lock?: boolean;
+  spaceId: string; issueId: string; agentId: string; commentId: string; lock?: boolean;
 }) {
   const denial = await queuedCommentInteractionDenial(db, input);
   if (denial) throw forbidden("Queued agent input is no longer permitted.", { ...denial, deliveryCode: INTERACTION_DELIVERY_DENIED });
 }
 
 export async function recheckQueuedCommentInteractionDelivery(db: Db, input: {
-  companyId: string; issueId: string; agentId: string; commentId: string; queueId: string;
+  spaceId: string; issueId: string; agentId: string; commentId: string; queueId: string;
 }) {
   const denial = await db.transaction(async tx => {
     await tx.select({ id: issues.id }).from(issues).where(and(
-      eq(issues.id, input.issueId), eq(issues.companyId, input.companyId))).for("update");
+      eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId))).for("update");
     const [wake] = await tx.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.id, input.queueId), eq(agentWakeupRequests.companyId, input.companyId),
+      eq(agentWakeupRequests.id, input.queueId), eq(agentWakeupRequests.spaceId, input.spaceId),
       eq(agentWakeupRequests.agentId, input.agentId))).for("update");
     if (!wake || string(record(wake.payload).issueId) !== input.issueId) return null;
     const previous = record(record(wake.payload)[DENIALS_KEY])[input.commentId];
     if (previous) return previous;
-    const pendingIds = [...new Set([...commentIds(wake.payload), ...commentIds(record(wake.payload)._paperclipWakeContext)])];
+    const pendingIds = [...new Set([...commentIds(wake.payload), ...commentIds(record(wake.payload)._outpostWakeContext)])];
     if (!pendingIds.includes(input.commentId)) return null;
     const checked = await filterQueuedInteractionComments(tx, { ...input, commentIds: pendingIds, wake, lock: true });
     return checked.denials[input.commentId] ?? null;
@@ -354,11 +354,11 @@ export async function recheckQueuedCommentInteractionDelivery(db: Db, input: {
 }
 
 export async function filterRunMessageInteractionDelivery(db: Executor, input: {
-  companyId: string; runId: string; issueId: string; commentIds: string[];
+  spaceId: string; runId: string; issueId: string; commentIds: string[];
 }): Promise<Set<string>> {
   if (!input.commentIds.length) return new Set();
   const [run] = await db.select({ agentId: heartbeatRuns.agentId, resultJson: heartbeatRuns.resultJson })
-    .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId)));
+    .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId)));
   if (!run) return new Set();
   const previous = record(record(run.resultJson)[DENIALS_KEY]);
   const allowed = new Set<string>();
@@ -379,16 +379,16 @@ export async function filterRunMessageInteractionDelivery(db: Executor, input: {
 export async function preparedRunInteractionDeliveryDenied(db: Db, run: Run): Promise<boolean> {
   if (run.processPid) return false;
   const [accepted] = await db.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     or(eq(heartbeatRunEvents.eventType, "turn.accepted"), eq(heartbeatRunEvents.eventType, "turn.started")),
   )).limit(1);
   if (accepted) return false;
   const issueId = run.nativeIssueId ?? run.issueId ?? string(record(run.contextSnapshot).issueId);
   const inputIds = commentIds(run.contextSnapshot);
   const allowed = issueId && inputIds.length ? await filterRunMessageInteractionDelivery(db,
-    { companyId: run.companyId, runId: run.id, issueId, commentIds: inputIds }) : new Set<string>();
+    { spaceId: run.spaceId, runId: run.id, issueId, commentIds: inputIds }) : new Set<string>();
   const wakes = await db.select().from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+    eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
     or(eq(agentWakeupRequests.runId, run.id), run.wakeupRequestId ? eq(agentWakeupRequests.id, run.wakeupRequestId) : undefined),
   )).orderBy(asc(agentWakeupRequests.id));
   const denial = await recheckAssignmentWakes(db, run, wakes, issueId, inputIds.length > 0);
@@ -403,7 +403,7 @@ export async function preparedRunInteractionDeliveryDenied(db: Db, run: Run): Pr
 }
 
 async function retainAllowedMessages(tx: Executor, run: Run, issueId: string, allowedIds: string[]) {
-    await tx.select({ id: issues.id }).from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId))).for("update");
+    await tx.select({ id: issues.id }).from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId))).for("update");
     const [current] = await tx.select({ resultJson: heartbeatRuns.resultJson }).from(heartbeatRuns)
       .where(eq(heartbeatRuns.id, run.id)).for("update");
     if (!current) return;
@@ -411,12 +411,12 @@ async function retainAllowedMessages(tx: Executor, run: Run, issueId: string, al
     for (const commentId of allowedIds) {
       if (retained[commentId]) continue;
       const [comment] = await tx.select().from(issueComments).where(and(eq(issueComments.id, commentId),
-        eq(issueComments.companyId, run.companyId), eq(issueComments.issueId, issueId)));
+        eq(issueComments.spaceId, run.spaceId), eq(issueComments.issueId, issueId)));
       if (!comment) continue;
       let actorAgentId = comment.authorAgentId ?? comment.derivedAuthorAgentId;
       if (!actorAgentId && comment.createdByRunId) {
         actorAgentId = await tx.select({ agentId: heartbeatRuns.agentId }).from(heartbeatRuns)
-          .where(and(eq(heartbeatRuns.id, comment.createdByRunId), eq(heartbeatRuns.companyId, run.companyId)))
+          .where(and(eq(heartbeatRuns.id, comment.createdByRunId), eq(heartbeatRuns.spaceId, run.spaceId)))
           .then(rows => rows[0]?.agentId ?? null);
       }
       const actorType = actorAgentId ? "agent" : comment.authorUserId ? "user" : "system";
@@ -424,11 +424,11 @@ async function retainAllowedMessages(tx: Executor, run: Run, issueId: string, al
       const context = { issueId, taskId: issueId, wakeReason: "issue_commented", source: "interaction.permission_recheck",
         wakeCommentId: commentId, wakeCommentIds: [commentId] };
       const payload = withPluginInteractionOrigin(undefined, () =>
-        withInteractionDeliveryOrigin({ issueId, commentId, _paperclipWakeContext: context }, actorType, actorId));
+        withInteractionDeliveryOrigin({ issueId, commentId, _outpostWakeContext: context }, actorType, actorId));
       const wakeId = randomUUID();
-      await notifyDeferredExecutionWork(tx, { companyId: run.companyId, requestId: wakeId });
+      await notifyDeferredExecutionWork(tx, { spaceId: run.spaceId, requestId: wakeId });
       const [wake] = await tx.insert(agentWakeupRequests).values({
-        id: wakeId, companyId: run.companyId, agentId: run.agentId, source: "assignment", triggerDetail: "system",
+        id: wakeId, spaceId: run.spaceId, agentId: run.agentId, source: "assignment", triggerDetail: "system",
         reason: "issue_commented", status: "deferred_issue_execution", requestedByActorType: actorType,
         requestedByActorId: actorId, payload, idempotencyKey: `interaction-retained:${run.id}:${commentId}`,
       }).returning({ id: agentWakeupRequests.id });

@@ -28,7 +28,7 @@
  * pair there under an open lease with no listener bound, which is the exact
  * incident this file reproduces, so a scan that starts there could seize a
  * pair a live instance still owns. The scan also rejects a port that any
- * local Paperclip instance's on-disk service registry still names, even with
+ * local Outpost instance's on-disk service registry still names, even with
  * no listener bound — the same open-lease shape, for a real instance instead
  * of this suite's own fixture, which a listener-only probe cannot see. Guests
  * do bind the two selected pairs on loopback, so the readiness and exposure
@@ -47,7 +47,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   activityLog,
-  companies,
+  spaces,
   createDb,
   executionWorkspaces,
   projectWorkspaces,
@@ -97,18 +97,18 @@ let NEXT_APP_PORT: number;
 let NEXT_HMR_PORT: number;
 
 /**
- * The real, unredirected Paperclip home directory. `beforeEach` later points
+ * The real, unredirected Outpost home directory. `beforeEach` later points
  * `OUTPOST_HOME` at a throwaway temp dir for the suite under test, so this
  * must be read before that happens. Mirrors the default in
- * `resolvePaperclipHomeDir`.
+ * `resolveOutpostHomeDir`.
  */
 const REAL_OUTPOST_HOME = process.env.OUTPOST_TEST_HOST_HOME?.trim()
   || process.env.OUTPOST_HOME?.trim()
-  || path.join(os.homedir(), ".paperclip");
+  || path.join(os.homedir(), ".outpost");
 
 /**
- * Every port a local Paperclip instance's on-disk service registry currently
- * records, read once per case from the real, unredirected Paperclip home. A
+ * Every port a local Outpost instance's on-disk service registry currently
+ * records, read once per case from the real, unredirected Outpost home. A
  * registry record survives a stopped process with no listener, so it can
  * still name the port even after the exact "listener-free lease" condition
  * this suite reproduces. A listener-only scan cannot see that: it would treat
@@ -263,7 +263,7 @@ const DECLARED_EXPOSE = {
   type: "tailscale_https",
   hostname: "auto",
   publicPort: "same",
-  includePaperclipViteHmr: true,
+  includeOutpostViteHmr: true,
   failurePolicy: "fail_closed",
 } as const;
 
@@ -288,7 +288,7 @@ const GUEST_COMMAND =
     let db: Db;
     let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
     let previousHttpsMode: string | undefined;
-    let previousPaperclipHome: string | undefined;
+    let previousOutpostHome: string | undefined;
     let previousInstanceId: string | undefined;
     /**
      * An EMPTY workspace root, never the repo checkout.
@@ -298,7 +298,7 @@ const GUEST_COMMAND =
      * blow the test timeout and has nothing to do with what is under test.
      */
     let workspaceRoot: string;
-    let paperclipHome: string;
+    let outpostHome: string;
 
     beforeAll(async () => {
       tempDb = await startEmbeddedPostgresTestDatabase("pap17419-reservation-");
@@ -318,13 +318,13 @@ const GUEST_COMMAND =
       NEXT_HMR_PORT = deriveViteHmrPort(NEXT_APP_PORT);
 
       workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pap17419-workspace-"));
-      paperclipHome = await fs.mkdtemp(path.join(os.tmpdir(), "pap17419-home-"));
+      outpostHome = await fs.mkdtemp(path.join(os.tmpdir(), "pap17419-home-"));
       // Redirect the local-service registry into a throwaway instance. Without
       // this the suite would write runtime-service records into the real
-      // Paperclip instance on this host and could confuse a live server.
-      previousPaperclipHome = process.env.OUTPOST_HOME;
+      // Outpost instance on this host and could confuse a live server.
+      previousOutpostHome = process.env.OUTPOST_HOME;
       previousInstanceId = process.env.OUTPOST_INSTANCE_ID;
-      process.env.OUTPOST_HOME = paperclipHome;
+      process.env.OUTPOST_HOME = outpostHome;
       process.env.OUTPOST_INSTANCE_ID = `pap17419-${randomUUID()}`;
     });
 
@@ -337,19 +337,19 @@ const GUEST_COMMAND =
     afterEach(async () => {
       // Terminate first, while the suite's fake broker is still installed.
       await resetRuntimeServicesForTests({ terminateProcesses: true });
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
       if (previousInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
       else process.env.OUTPOST_INSTANCE_ID = previousInstanceId;
       await fs.rm(workspaceRoot, { recursive: true, force: true });
-      await fs.rm(paperclipHome, { recursive: true, force: true });
+      await fs.rm(outpostHome, { recursive: true, force: true });
       await db.delete(workspaceRuntimeServices);
       await db.delete(executionWorkspaces);
       await db.delete(projectWorkspaces);
       await db.delete(projects);
-      // Drift reporting writes activity rows, which hold a company FK.
+      // Drift reporting writes activity rows, which hold a space FK.
       await db.delete(activityLog);
-      await db.delete(companies);
+      await db.delete(spaces);
     });
 
     /**
@@ -358,23 +358,23 @@ const GUEST_COMMAND =
      * workspace that will ask for a pair next.
      */
     async function seedIncident(options?: { leaseStatus?: string; leasedRowStatus?: string }) {
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const projectId = randomUUID();
       const projectWorkspaceId = randomUUID();
       const leasedWorkspaceId = randomUUID();
       const otherWorkspaceId = randomUUID();
       const leasedRuntimeId = randomUUID();
 
-      await db.insert(companies).values({
-        id: companyId,
-        name: "Paperclip",
-        issuePrefix: `Q${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-        requireBoardApprovalForNewAgents: false,
+      await db.insert(spaces).values({
+        id: spaceId,
+        name: "Outpost",
+        issuePrefix: `Q${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+        requireOperatorApprovalForNewAgents: false,
       });
-      await db.insert(projects).values({ id: projectId, companyId, name: "Paperclip App", status: "in_progress" });
+      await db.insert(projects).values({ id: projectId, spaceId, name: "Outpost App", status: "in_progress" });
       await db.insert(projectWorkspaces).values({
         id: projectWorkspaceId,
-        companyId,
+        spaceId,
         projectId,
         name: "Primary",
         cwd: workspaceRoot,
@@ -383,7 +383,7 @@ const GUEST_COMMAND =
       for (const [id, name] of [[leasedWorkspaceId, "lane-b"], [otherWorkspaceId, "posthog-mcp"]] as const) {
         await db.insert(executionWorkspaces).values({
           id,
-          companyId,
+          spaceId,
           projectId,
           projectWorkspaceId,
           mode: "isolated_workspace",
@@ -404,7 +404,7 @@ const GUEST_COMMAND =
       // `port` column is the only surviving record of the leased pair.
       await db.insert(workspaceRuntimeServices).values({
         id: leasedRuntimeId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         executionWorkspaceId: leasedWorkspaceId,
@@ -430,13 +430,13 @@ const GUEST_COMMAND =
         stoppedAt: new Date(),
       });
 
-      return { companyId, projectId, projectWorkspaceId, leasedWorkspaceId, otherWorkspaceId, leasedRuntimeId };
+      return { spaceId, projectId, projectWorkspaceId, leasedWorkspaceId, otherWorkspaceId, leasedRuntimeId };
     }
 
     function startInput(seed: Awaited<ReturnType<typeof seedIncident>>, executionWorkspaceId: string) {
       return {
         invocationId: "pap-17419-reservation",
-        actor: { id: null, name: "Paperclip", companyId: seed.companyId },
+        actor: { id: null, name: "Outpost", spaceId: seed.spaceId },
         issue: null,
         db,
         workspace: {

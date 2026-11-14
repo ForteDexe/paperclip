@@ -36,7 +36,7 @@ import type {
  * Both "apply an available stock update" and "reset drifted edits" route
  * through the same scoped reset (`onResetResource(kind)` →
  * `built-in-agents/:key/reset { resources: [kind] }`), which re-materializes
- * that one resource to Paperclip's newest shipped default without touching
+ * that one resource to Outpost's newest shipped default without touching
  * adapter credentials or the other resources.
  */
 
@@ -262,7 +262,7 @@ export function BuiltInBundlePanel({
   let adapterDetail: string | undefined;
   if (status === "pending_approval") {
     adapterChip = "pending_approval";
-    adapterDetail = "Waiting on board hire approval before this coach can run.";
+    adapterDetail = "Waiting on operator create approval before this coach can run.";
   } else if (!adapterReady) {
     adapterChip = "needs_setup";
     adapterDetail = "Pick an adapter this coach can run on.";

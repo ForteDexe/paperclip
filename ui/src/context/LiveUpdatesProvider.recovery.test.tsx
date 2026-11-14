@@ -5,10 +5,10 @@ import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-quer
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "../lib/queryKeys";
 
-const { pushToast, companySelection, routeSelection } = vi.hoisted(() => ({ pushToast: vi.fn(), companySelection: { id: "company-1" }, routeSelection: { pathname: "/tasks" } }));
+const { pushToast, spaceSelection, routeSelection } = vi.hoisted(() => ({ pushToast: vi.fn(), spaceSelection: { id: "space-1" }, routeSelection: { pathname: "/tasks" } }));
 const { sessionRead, healthRead } = vi.hoisted(() => ({ sessionRead: vi.fn(), healthRead: vi.fn() }));
-vi.mock("./CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: companySelection.id, selectedCompany: { id: companySelection.id } }),
+vi.mock("./SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: spaceSelection.id, selectedSpace: { id: spaceSelection.id } }),
 }));
 vi.mock("./ToastContext", () => ({ useToastActions: () => ({ pushToast }) }));
 vi.mock("../lib/router", () => ({ useLocation: () => routeSelection }));
@@ -16,7 +16,7 @@ vi.mock("../api/auth", () => ({
   authApi: { getSession: sessionRead },
 }));
 vi.mock("../api/health", () => ({ healthApi: { get: healthRead } }));
-import { LiveUpdatesProvider, useHasCompanyLiveConnection, useTaskRunLiveUpdates } from "./LiveUpdatesProvider";
+import { LiveUpdatesProvider, useHasSpaceLiveConnection, useTaskRunLiveUpdates } from "./LiveUpdatesProvider";
 import { CONNECTED_ACTIVE_RUN_REFETCH_MS, liveRunRefetchInterval } from "../lib/live-runs-cache";
 import { taskBrowsersQueryKey } from "../lib/task-browsers-refresh";
 import { taskBrowsersRefetchInterval } from "../hooks/useTaskBrowsers";
@@ -45,7 +45,7 @@ describe("LiveUpdatesProvider connection recovery", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    companySelection.id = "company-1";
+    spaceSelection.id = "space-1";
     routeSelection.pathname = "/tasks";
     pollRead.mockReset().mockResolvedValue([]);
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
@@ -71,7 +71,7 @@ describe("LiveUpdatesProvider connection recovery", () => {
 
   async function render() {
     function Tasks() {
-      const { data } = useQuery({ queryKey: ["company-1", "tasks"], queryFn: read });
+      const { data } = useQuery({ queryKey: ["space-1", "tasks"], queryFn: read });
       return <span>{data}</span>;
     }
     await act(async () => root.render(
@@ -80,18 +80,18 @@ describe("LiveUpdatesProvider connection recovery", () => {
     await act(async () => vi.advanceTimersByTimeAsync(1));
   }
 
-  function IdleRuns({ companyId }: { companyId: string }) {
-    const connected = useHasCompanyLiveConnection(companyId);
+  function IdleRuns({ spaceId }: { spaceId: string }) {
+    const connected = useHasSpaceLiveConnection(spaceId);
     useQuery({
-      queryKey: [companyId, "idle-run-fixture"],
+      queryKey: [spaceId, "idle-run-fixture"],
       queryFn: pollRead,
       refetchInterval: (query) => liveRunRefetchInterval(connected, query.state, 1000),
     });
     return <span>{connected ? "connected" : "fallback"}</span>;
   }
 
-  async function renderPolling(companyId = companySelection.id, withProvider = true) {
-    const child = <IdleRuns companyId={companyId} />;
+  async function renderPolling(spaceId = spaceSelection.id, withProvider = true) {
+    const child = <IdleRuns spaceId={spaceId} />;
     await act(async () => root.render(
       <QueryClientProvider client={client}>
         {withProvider ? <LiveUpdatesProvider>{child}</LiveUpdatesProvider> : child}
@@ -131,10 +131,10 @@ describe("LiveUpdatesProvider connection recovery", () => {
       await act(async () => vi.advanceTimersByTimeAsync(1));
     }
     expect(pollRead).toHaveBeenCalledTimes(2);
-    expect(client.getQueryData(["company-1", "idle-run-fixture"])).toEqual(next);
+    expect(client.getQueryData(["space-1", "idle-run-fixture"])).toEqual(next);
   });
 
-  it.each(["unmount", "disconnect", "company", "session", "hidden"])("discards a queued resync-ack refresh after %s", async change => {
+  it.each(["unmount", "disconnect", "space", "session", "hidden"])("discards a queued resync-ack refresh after %s", async change => {
     vi.stubGlobal("WebSocket", Socket);
     await renderPolling();
     const socket = Socket.instances[0];
@@ -151,7 +151,7 @@ describe("LiveUpdatesProvider connection recovery", () => {
     await deliver("live.subscribed", { revision: socket.sent.at(-1)!.revision });
     if (change === "unmount") await act(async () => root.unmount());
     if (change === "disconnect") await act(async () => socket.onerror?.());
-    if (change === "company") { companySelection.id = "company-2"; await renderPolling(); }
+    if (change === "space") { spaceSelection.id = "space-2"; await renderPolling(); }
     if (change === "session") {
       const next = { user: { id: "viewer" }, session: { id: "replacement", userId: "viewer" } };
       sessionRead.mockResolvedValue(next);
@@ -209,7 +209,7 @@ describe("LiveUpdatesProvider connection recovery", () => {
     let release!: (value: unknown) => void;
     const browsersRead = vi.fn<() => Promise<unknown>>().mockResolvedValue(started);
     function Browsers() {
-      const connected = useHasCompanyLiveConnection("company-1");
+      const connected = useHasSpaceLiveConnection("space-1");
       useQuery({
         queryKey: taskBrowsersQueryKey("task-1"), queryFn: browsersRead,
         refetchInterval: (query) => taskBrowsersRefetchInterval(connected, query.state as Parameters<typeof taskBrowsersRefetchInterval>[1]),
@@ -234,7 +234,7 @@ describe("LiveUpdatesProvider connection recovery", () => {
     vi.stubGlobal("WebSocket", Socket);
     const browsersRead = vi.fn<() => Promise<unknown>>().mockResolvedValue([]);
     function Browsers() {
-      const connected = useHasCompanyLiveConnection("company-1");
+      const connected = useHasSpaceLiveConnection("space-1");
       useQuery({
         queryKey: taskBrowsersQueryKey("task-1"), queryFn: browsersRead,
         refetchInterval: (query) => taskBrowsersRefetchInterval(connected, query.state as Parameters<typeof taskBrowsersRefetchInterval>[1]),
@@ -278,14 +278,14 @@ describe("LiveUpdatesProvider connection recovery", () => {
     await renderPolling();
     await act(async () => Socket.instances[0].onopen?.());
     pollRead.mockRejectedValue(new Error("Read unavailable"));
-    await act(async () => { await client.invalidateQueries({ queryKey: ["company-1", "idle-run-fixture"] }); });
-    expect(client.getQueryState(["company-1", "idle-run-fixture"])?.status).toBe("error");
+    await act(async () => { await client.invalidateQueries({ queryKey: ["space-1", "idle-run-fixture"] }); });
+    expect(client.getQueryState(["space-1", "idle-run-fixture"])?.status).toBe("error");
     pollRead.mockClear();
     await advancePolls(3);
     expect(pollRead.mock.calls.length).toBeGreaterThanOrEqual(3);
     pollRead.mockResolvedValue([]);
     await advancePolls(1);
-    expect(client.getQueryState(["company-1", "idle-run-fixture"])?.status).toBe("success");
+    expect(client.getQueryState(["space-1", "idle-run-fixture"])?.status).toBe("success");
     const afterRecovery = pollRead.mock.calls.length;
     await advancePolls(5);
     expect(pollRead).toHaveBeenCalledTimes(afterRecovery);
@@ -298,11 +298,11 @@ describe("LiveUpdatesProvider connection recovery", () => {
     await renderPolling();
     await act(async () => Socket.instances[0].onopen?.());
     expect(container.textContent).toBe("connected");
-    expect(client.getQueryState(["company-1", "idle-run-fixture"])?.status).toBe("pending");
+    expect(client.getQueryState(["space-1", "idle-run-fixture"])?.status).toBe("pending");
     expect(pollRead).toHaveBeenCalledTimes(1);
     await act(async () => resolveRead([]));
     await act(async () => vi.advanceTimersByTimeAsync(1));
-    expect(client.getQueryData(["company-1", "idle-run-fixture"])).toEqual([]);
+    expect(client.getQueryData(["space-1", "idle-run-fixture"])).toEqual([]);
     await advancePolls(5);
     expect(pollRead).toHaveBeenCalledTimes(1);
   });
@@ -327,14 +327,14 @@ describe("LiveUpdatesProvider connection recovery", () => {
     expect(pollRead).toHaveBeenCalledTimes(afterRecovery);
   });
 
-  it.each(["company", "session"])("requires a new connection after a %s change and ignores stale callbacks", async (scope) => {
+  it.each(["space", "session"])("requires a new connection after a %s change and ignores stale callbacks", async (scope) => {
     vi.stubGlobal("WebSocket", Socket);
     await renderPolling();
     const first = Socket.instances[0];
     await act(async () => first.onopen?.());
     const oldOpen = first.onopen, oldClose = first.onclose, oldError = first.onerror;
-    if (scope === "company") {
-      companySelection.id = "company-2";
+    if (scope === "space") {
+      spaceSelection.id = "space-2";
       await renderPolling();
     } else {
       const nextSession = { user: { id: "viewer" }, session: { id: "replacement-session", userId: "viewer" } };
@@ -363,7 +363,7 @@ describe("LiveUpdatesProvider connection recovery", () => {
     const runRead = vi.fn<() => Promise<unknown>>().mockResolvedValue([]);
     const activeRead = vi.fn<() => Promise<unknown>>().mockResolvedValue(null);
     function TaskRuns() {
-      const connected = useTaskRunLiveUpdates({ companyId: "company-1", issueId: "issue-1", issueQueryRef: queryRef, assigneeAgentId: "agent-1" });
+      const connected = useTaskRunLiveUpdates({ spaceId: "space-1", issueId: "issue-1", issueQueryRef: queryRef, assigneeAgentId: "agent-1" });
       const runs = useQuery({ queryKey: queryKeys.issues.liveRuns(queryRef), queryFn: runRead,
         refetchInterval: (query) => liveRunRefetchInterval(connected, query.state, 1000) });
       useQuery({ queryKey: queryKeys.issues.activeRun(queryRef), queryFn: activeRead,
@@ -378,27 +378,27 @@ describe("LiveUpdatesProvider connection recovery", () => {
     await advancePolls(5);
     expect(runRead).not.toHaveBeenCalled();
     expect(activeRead).not.toHaveBeenCalled();
-    const deliver = async (companyId: string, payload: Record<string, unknown>, type = "heartbeat.run.queued") => {
-      await act(async () => socket.onmessage?.({ data: JSON.stringify({ id: 1, companyId,
+    const deliver = async (spaceId: string, payload: Record<string, unknown>, type = "heartbeat.run.queued") => {
+      await act(async () => socket.onmessage?.({ data: JSON.stringify({ id: 1, spaceId,
         type, createdAt: "2020-01-01T00:00:00Z", payload }) }));
       await act(async () => vi.advanceTimersByTimeAsync(1));
     };
-    await deliver("company-2", { issueId: "issue-1", agentId: "agent-1", runId: "foreign" });
-    await deliver("company-1", { issueId: "other-issue", agentId: "agent-1", runId: "other" });
+    await deliver("space-2", { issueId: "issue-1", agentId: "agent-1", runId: "foreign" });
+    await deliver("space-1", { issueId: "other-issue", agentId: "agent-1", runId: "other" });
     expect(runRead).not.toHaveBeenCalled();
     expect(activeRead).not.toHaveBeenCalled();
     runRead.mockResolvedValue([{ id: "new-run", status: "running" }]);
     activeRead.mockResolvedValue({ id: "new-run", status: "running" });
-    await deliver("company-1", { issueId: "issue-1", agentId: "new-agent", runId: "new-run" });
+    await deliver("space-1", { issueId: "issue-1", agentId: "new-agent", runId: "new-run" });
     expect(runRead).toHaveBeenCalledTimes(1);
     expect(activeRead).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain("new-run");
-    await deliver("company-1", { agentId: "reviewer-agent", runId: "reviewer-run-without-task-id" });
+    await deliver("space-1", { agentId: "reviewer-agent", runId: "reviewer-run-without-task-id" });
     expect(runRead).toHaveBeenCalledTimes(2);
     expect(activeRead).toHaveBeenCalledTimes(2);
     runRead.mockResolvedValue([]);
     activeRead.mockResolvedValue(null);
-    await deliver("company-1", { issueId: "issue-1", agentId: "agent-1", runId: "new-run", status: "succeeded" }, "heartbeat.run.status");
+    await deliver("space-1", { issueId: "issue-1", agentId: "agent-1", runId: "new-run", status: "succeeded" }, "heartbeat.run.status");
     expect(client.getQueryData(queryKeys.issues.liveRuns(queryRef))).toEqual([]);
     expect(container.textContent).not.toContain("new-run");
   });
@@ -412,7 +412,7 @@ describe("LiveUpdatesProvider connection recovery", () => {
     const older = new Promise((resolve) => { resolveOlder = resolve; });
     if (phase !== "background") runRead.mockImplementationOnce(() => older);
     function TaskRuns() {
-      const connected = useTaskRunLiveUpdates({ companyId: "company-1", issueId: "issue-1", issueQueryRef: "DEMO-1", assigneeAgentId: "agent-1" });
+      const connected = useTaskRunLiveUpdates({ spaceId: "space-1", issueId: "issue-1", issueQueryRef: "DEMO-1", assigneeAgentId: "agent-1" });
       const { data } = useQuery({ queryKey, queryFn: runRead,
         refetchInterval: (query) => liveRunRefetchInterval(connected, query.state, 1000) });
       return <span>{JSON.stringify(data)}</span>;
@@ -430,7 +430,7 @@ describe("LiveUpdatesProvider connection recovery", () => {
     expect(runRead).toHaveBeenCalledTimes(1);
     await act(async () => {
       for (let id = 1; phase !== "connection setup" && id <= 3; id += 1) socket.onmessage?.({ data: JSON.stringify({ id,
-        companyId: "company-1", type: "heartbeat.run.queued", createdAt: "2020-01-01T00:00:00Z",
+        spaceId: "space-1", type: "heartbeat.run.queued", createdAt: "2020-01-01T00:00:00Z",
         payload: { issueId: "issue-1", agentId: "agent-1", runId: "new-run" } }) });
     });
     expect(runRead).toHaveBeenCalledTimes(1);
@@ -441,14 +441,14 @@ describe("LiveUpdatesProvider connection recovery", () => {
     expect(container.textContent).toContain("new-run");
   });
 
-  it.each(["unmount", "disconnect", "company", "session", "task"])("discards the old follow-up refresh after %s during an older read", async (change) => {
+  it.each(["unmount", "disconnect", "space", "session", "task"])("discards the old follow-up refresh after %s during an older read", async (change) => {
     vi.stubGlobal("WebSocket", Socket);
     let resolveOlder!: (value: unknown) => void;
     const older = new Promise((resolve) => { resolveOlder = resolve; });
     const runRead = vi.fn<() => Promise<unknown>>().mockResolvedValue([]).mockImplementationOnce(() => older);
     function TaskRuns({ task = "1" }: { task?: string }) {
       const queryRef = `DEMO-${task}`;
-      const connected = useTaskRunLiveUpdates({ companyId: "company-1", issueId: `issue-${task}`, issueQueryRef: queryRef, assigneeAgentId: "agent-1" });
+      const connected = useTaskRunLiveUpdates({ spaceId: "space-1", issueId: `issue-${task}`, issueQueryRef: queryRef, assigneeAgentId: "agent-1" });
       useQuery({ queryKey: queryKeys.issues.liveRuns(queryRef), queryFn: runRead,
         refetchInterval: (query) => liveRunRefetchInterval(connected, query.state, 1000) });
       return null;
@@ -460,12 +460,12 @@ describe("LiveUpdatesProvider connection recovery", () => {
     await render();
     const socket = Socket.instances[0];
     await act(async () => socket.onopen?.());
-    await act(async () => socket.onmessage?.({ data: JSON.stringify({ id: 1, companyId: "company-1",
+    await act(async () => socket.onmessage?.({ data: JSON.stringify({ id: 1, spaceId: "space-1",
       type: "heartbeat.run.queued", createdAt: "2020-01-01T00:00:00Z",
       payload: { issueId: "issue-1", agentId: "agent-1", runId: "new-run" } }) }));
     if (change === "unmount") await act(async () => root.unmount());
     if (change === "disconnect") await act(async () => socket.onerror?.());
-    if (change === "company") { companySelection.id = "company-2"; await render(); }
+    if (change === "space") { spaceSelection.id = "space-2"; await render(); }
     if (change === "task") await render("2");
     if (change === "session") {
       const nextSession = { user: { id: "viewer" }, session: { id: "replacement-session", userId: "viewer" } };
@@ -486,7 +486,7 @@ describe("LiveUpdatesProvider connection recovery", () => {
     vi.spyOn(document, "hasFocus").mockReturnValue(focus === "focused");
     routeSelection.pathname = "/DEMO/issues/DEMO-1";
     const queryRef = "DEMO-1";
-    client.setQueryData(queryKeys.issues.detail(queryRef), { id: "issue-1", companyId: "company-1", assigneeAgentId: "agent-1" });
+    client.setQueryData(queryKeys.issues.detail(queryRef), { id: "issue-1", spaceId: "space-1", assigneeAgentId: "agent-1" });
     const runRead = vi.fn<() => Promise<unknown>>().mockResolvedValue([]);
     const activeRead = vi.fn<() => Promise<unknown>>().mockResolvedValue(null);
     function Reads({ connected, interval }: { connected: boolean; interval: number }) {
@@ -497,7 +497,7 @@ describe("LiveUpdatesProvider connection recovery", () => {
       return null;
     }
     function TaskRuns() {
-      const connected = useTaskRunLiveUpdates({ companyId: "company-1", issueId: "issue-1", issueQueryRef: queryRef, assigneeAgentId: "agent-1" });
+      const connected = useTaskRunLiveUpdates({ spaceId: "space-1", issueId: "issue-1", issueQueryRef: queryRef, assigneeAgentId: "agent-1" });
       return <><Reads connected={connected} interval={1000} /><Reads connected={connected} interval={3000} /></>;
     }
     await act(async () => root.render(<QueryClientProvider client={client}><LiveUpdatesProvider><TaskRuns /></LiveUpdatesProvider></QueryClientProvider>));
@@ -506,7 +506,7 @@ describe("LiveUpdatesProvider connection recovery", () => {
     await act(async () => socket.onopen?.());
     await act(async () => vi.advanceTimersByTimeAsync(301));
     runRead.mockClear(); activeRead.mockClear();
-    await act(async () => socket.onmessage?.({ data: JSON.stringify({ id: 1, companyId: "company-1",
+    await act(async () => socket.onmessage?.({ data: JSON.stringify({ id: 1, spaceId: "space-1",
       type: "heartbeat.run.queued", createdAt: "2020-01-01T00:00:00Z",
       payload: { agentId: "agent-1", runId: "new-run" } }) }));
     await act(async () => vi.advanceTimersByTimeAsync(301));
@@ -517,7 +517,7 @@ describe("LiveUpdatesProvider connection recovery", () => {
   it("keeps polling unassigned tasks even with a healthy shared connection", async () => {
     vi.stubGlobal("WebSocket", Socket);
     function UnassignedTask() {
-      const connected = useTaskRunLiveUpdates({ companyId: "company-1", issueId: "issue-1", issueQueryRef: "issue-1", assigneeAgentId: null });
+      const connected = useTaskRunLiveUpdates({ spaceId: "space-1", issueId: "issue-1", issueQueryRef: "issue-1", assigneeAgentId: null });
       useQuery({ queryKey: queryKeys.issues.liveRuns("issue-1"), queryFn: pollRead,
         refetchInterval: (query) => liveRunRefetchInterval(connected, query.state, 1000) });
       return <span>{connected ? "connected" : "fallback"}</span>;
@@ -531,15 +531,15 @@ describe("LiveUpdatesProvider connection recovery", () => {
     expect(pollRead.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("retains polling for another company and outside the provider", async () => {
+  it("retains polling for another space and outside the provider", async () => {
     vi.stubGlobal("WebSocket", Socket);
-    await renderPolling("company-2");
+    await renderPolling("space-2");
     await act(async () => Socket.instances[0].onopen?.());
     expect(container.textContent).toBe("fallback");
     pollRead.mockClear();
     await advancePolls(2);
     expect(pollRead.mock.calls.length).toBeGreaterThanOrEqual(2);
-    await renderPolling("company-2", false);
+    await renderPolling("space-2", false);
     expect(container.textContent).toBe("fallback");
     pollRead.mockClear();
     await advancePolls(2);

@@ -1,5 +1,5 @@
 import { AGENT_CHAT_DIRECTIVE } from "../server/src/services/agent-conversations.js";
-/** JSONL worker for the companion paperclip-evals API suite. Never selects cases or retries. */
+/** JSONL worker for the companion outpost-evals API suite. Never selects cases or retries. */
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, realpathSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -115,7 +115,7 @@ try {
           runnerBinary: defaultCapabilityRunnerdBinary(), stateDirectory: join(server.root, `runner-${request.attemptId}`),
           lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null },
           orpIdentity: { runnerInstanceId: `runner-${fixture.runId}`, environmentLeaseId: `lease-${fixture.runId}`, runId: fixture.runId, normalizedSessionId: `session-${fixture.runId}`, turnId: `turn-${fixture.runId}`, itemId: `item-${fixture.runId}` },
-          controlPlaneRegistration: (orp) => registerRunnerPrpAuthority({ companyId: fixture.companyId, runId: fixture.runId, authority: orp }),
+          controlPlaneRegistration: (orp) => registerRunnerPrpAuthority({ spaceId: fixture.spaceId, runId: fixture.runId, authority: orp }),
         });
         const active = bundle;
         timer = setTimeout(() => { error = "Attempt exceeded 120 seconds"; void active.transport.close(error); }, 120_000);
@@ -130,7 +130,7 @@ try {
           completionContract: { revision: "runner-api-eval-v1", criterionIds: ["objective"] },
           config: { ...createSkilllessCodexThreadConfig(fixture.workspace), model_reasoning_effort: "low" },
           permissions: "outpost-runner-workspace-only", runtimeWorkspaceRoots: [fixture.workspace], approvalPolicy: "never",
-          baseInstructions: "You are operating a disposable real Paperclip company. Use the provided tools to do the user's task. Do not use shell, network, skills, or credentials. Stop when the requested work is verified. " + (request.arm === "baseline" ? "" : "Prefer available dedicated tools. Only use search_api and call_api when no dedicated tool supports the required operation or parameters. Do not search before ordinary dedicated tool use.") + "\n" + CONNECTION_INTENT_AGENT_GUIDANCE + (request.conversation ? "\n" + AGENT_CHAT_DIRECTIVE : ""),
+          baseInstructions: "You are operating a disposable real Outpost space. Use the provided tools to do the user's task. Do not use shell, network, skills, or credentials. Stop when the requested work is verified. " + (request.arm === "baseline" ? "" : "Prefer available dedicated tools. Only use search_api and call_api when no dedicated tool supports the required operation or parameters. Do not search before ordinary dedicated tool use.") + "\n" + CONNECTION_INTENT_AGENT_GUIDANCE + (request.conversation ? "\n" + AGENT_CHAT_DIRECTIVE : ""),
           dynamicTools: definitions, experimentalRawEvents: true, persistExtendedHistory: true,
         });
         if (request.preflight) {

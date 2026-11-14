@@ -5,7 +5,7 @@ import type { PlanSkillSource } from "./plan-task-skills.js";
 
 export type PlanInvocation = { name: string; assetDigest: string };
 
-/** Native context uses one immutable SKILL.md file for each company copy. */
+/** Native context uses one immutable SKILL.md file for each space copy. */
 export function planInvocations(sources: PlanSkillSource[], snapshot: PlanRow): PlanInvocation[] {
   return sources.filter(s => s.selected).map(source => {
     const entries = snapshot.entries?.filter((e: PlanRow) => e.key === source.key && e.desired);

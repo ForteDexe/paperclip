@@ -9,7 +9,7 @@ import { NativeSessionCloseUnrecoverableError, executeNativeSession, parseNative
 import { describeEmbeddedPostgres, nativeRestartFixture, processAlive, realProcessIt, waitForCondition } from "../../__tests__/helpers/native-restart.js";
 import { buildNativeExecutionInput } from "./native-execution-input.js";
 import { buildNativeCompletionContract } from "./completion-contracts.js";
-import { executePaperclipNativeSession, scopedRunnerdStateRoot } from "./native-session-executor.js";
+import { executeOutpostNativeSession, scopedRunnerdStateRoot } from "./native-session-executor.js";
 import { prepareNativeHeartbeatRun } from "./prepare-native-run.js";
 import { materializeAsset } from "./runtime-context.js";
 import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
@@ -36,7 +36,7 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
   realProcessIt("keeps the cut-off turn closed and completes a fresh Retry run", async () => {
     const fixture = await environment.seedRun("CUT-TURN-START");
     const { db, issueId } = fixture;
-    const { companyId, agentId, runtimeRoot } = environment.current;
+    const { spaceId, agentId, runtimeRoot } = environment.current;
     const stateBase = join(runtimeRoot, `cut-turn-start-state-${fixture.runId}`);
     const sandbox = join(runtimeRoot, `cut-turn-start-workspace-${fixture.runId}`);
     const codexHome = join(runtimeRoot, `cut-turn-start-codex-home-${fixture.runId}`);
@@ -50,7 +50,7 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
       content: Buffer.from("Complete only the controlled fixture task.\n") }]);
     runtimeContext.aggregateDigest = canonicalNativeRuntimeContextDigest(runtimeContext);
     const executionFor = (runId: string, normalizedSessionId: string) => buildNativeExecutionInput({
-      companyId, agentId, runId, provider: "codex",
+      spaceId, agentId, runId, provider: "codex",
       issue: { id: issueId, identifier: "NRR-CUT", title: issue!.title, description: null, workMode: "standard" },
       taskPrompt: "Write the brief once.",
       workspace: { id: runId, cwd: sandbox, repoUrl: null, repoRef: null, branchName: null },
@@ -89,7 +89,7 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
           bundles.push(bundle);
           return bundle.transport;
         } });
-      return { root, outcome: executePaperclipNativeSession({ db, execution: runExecution, backend, useRunnerd: true,
+      return { root, outcome: executeOutpostNativeSession({ db, execution: runExecution, backend, useRunnerd: true,
         runnerInstanceId, turnTimeoutMs: 15_000 }) };
     };
     const kill = (pid: number | null) => {
@@ -144,9 +144,9 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
       // runner died, so this process can keep an operator-required cleanup
       // quarantine for the task. Whether the real close lands there is
       // timing-dependent; pin that state so Retry is checked against it.
-      if (nativeSessionCleanupBlock({ companyId, issueId }) !== "operator_required") {
+      if (nativeSessionCleanupBlock({ spaceId, issueId }) !== "operator_required") {
         const capabilities = { resume: true, typedEvents: true, steering: false, interruption: false, structuredResult: true };
-        const identity = { runId: fixture.runId, sessionId: fixture.native.normalizedSessionId, companyId, issueId, agentId };
+        const identity = { runId: fixture.runId, sessionId: fixture.native.normalizedSessionId, spaceId, issueId, agentId };
         await expect(executeNativeSession({ input: parseNativeExecutionInput({ schema: "outpost.native-execution-input.v1",
           provider: { kind: "codex", model: null }, binding: execution.binding,
           task: { identifier: "NRR-CUT", title: issue!.title, description: null, prompt: "Write the brief once.", workMode: "standard" },
@@ -166,7 +166,7 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
             replayEvents: async () => ({ events: [], highestContiguousSourceSeq: 0 }), completeRun: async () => {} },
           runnerInstanceId: fixture.native.runnerInstanceId, controlPlaneInstanceId: "cut-turn-start-owner" })).rejects.toThrow("owner runner exited");
       }
-      expect(nativeSessionCleanupBlock({ companyId, issueId })).toBe("operator_required");
+      expect(nativeSessionCleanupBlock({ spaceId, issueId })).toBe("operator_required");
       const startsBeforeRetry = (await readFile(calls, "utf8")).match(/^turn\/start$/gm)?.length ?? 0;
       expect(startsBeforeRetry).toBe(1);
 
@@ -185,7 +185,7 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
       // the "Automatic recovery stopped" action that offers Retry.
       await db.update(nativeRunFinalizations).set({ phase: "terminal_failure",
         failureCode: "native_continuation_requires_reconciliation" }).where(eq(nativeRunFinalizations.runId, followUpId));
-      await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId, kind: "active_run_watchdog",
+      await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId, kind: "active_run_watchdog",
         cause: "native_continuation_requires_reconciliation", fingerprint: followUpId, status: "resolved", outcome: "blocked",
         nextAction: "Automatic recovery stopped.", evidence: { runId: followUpId, automaticRecovery: { replay: "blocked" } } });
       const [refusedRun] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, followUpId));
@@ -200,14 +200,14 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
       // Admission must not wait for a stop record of a process it never had.
       const retryId = randomUUID();
       const blocked: string[] = [];
-      const admitted = await admitExplicitNativeContinuation({ db, companyId, issueId, agentId, actorType: "user",
-        actorId: "local-board", reason: "retry_failed_run", failedRunId: followUpId, commentId: null,
+      const admitted = await admitExplicitNativeContinuation({ db, spaceId, issueId, agentId, actorType: "user",
+        actorId: "local-operator", reason: "retry_failed_run", failedRunId: followUpId, commentId: null,
         successorRunId: retryId, onBlocked: reason => blocked.push(reason) });
       expect(blocked).toEqual([]);
       expect(admitted).toMatchObject({ previousRunId: followUpId });
       // Admission proved the owner's runner, Codex and tools stopped and
       // released the task's cleanup quarantine; nothing old is resumed.
-      expect(nativeSessionCleanupBlock({ companyId, issueId })).toBeNull();
+      expect(nativeSessionCleanupBlock({ spaceId, issueId })).toBeNull();
       expect(await db.select({ type: heartbeatRunEvents.eventType }).from(heartbeatRunEvents).where(and(
         eq(heartbeatRunEvents.runId, followUpId), eq(heartbeatRunEvents.eventType, "native.stopped_conversation_verified"))))
         .toHaveLength(1);
@@ -237,7 +237,7 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
     }
 
     async function admitRun(runId: string, nativeSessionId: string | null, retryOf?: string) {
-      const [row] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running",
+      const [row] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running",
         runtimeMode: "native", nativeIssueId: issueId, nativeSessionId, invocationSource: "on_demand", triggerDetail: "manual",
         runnerInstanceId: nativeSessionId ? fixture.native.runnerInstanceId : null,
         retryOfRunId: retryOf ?? null,
@@ -247,7 +247,7 @@ describeEmbeddedPostgres("Retry after a turn start cut off once Codex recorded t
       const native = await prepareNativeHeartbeatRun({ db, run: row!,
         issue: { id: issueId, title: issue!.title, description: null, reviewPolicy: null },
         environmentLeaseId: `lease-${runId}` });
-      await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed" });
+      await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed" });
       await db.update(heartbeatRuns).set({ runnerProfileJson: { ...(row!.runnerProfileJson ?? {}),
         nativeExecutionInput: executionFor(runId, native.normalizedSessionId) } }).where(eq(heartbeatRuns.id, runId));
       return native;

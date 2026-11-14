@@ -1,4 +1,4 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
 import { useShowAgentCreatedTasks } from "../hooks/useShowAgentCreatedTasks";
 import { useCoordinatorWorkspaceEnabled } from "../hooks/useCoordinatorWorkspaceEnabled";
@@ -12,7 +12,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
 import { heartbeatsApi } from "../api/heartbeats";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { collectLiveIssueIds } from "../lib/liveIssueIds";
 import { usePublishSharedQueryData, useSharedPollingQuery } from "@/hooks/useSharedPolling";
@@ -110,9 +110,9 @@ export function Issues() {
 function StreamlinedTasks() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { openNewIssue } = useDialogActions();
-  const inboxBadge = useInboxBadge(selectedCompanyId);
+  const inboxBadge = useInboxBadge(selectedSpaceId);
 
   const requestedView = searchParams.get(TASK_VIEW_PARAM);
   const hasOrganizationScopedParam = ORGANIZATION_SCOPED_PARAMS.some(
@@ -174,7 +174,7 @@ function OrganizationIssues({
 }: { toolbarContext?: ReactNode; initialStatuses?: string[] } = {}) {
   const { enabled: streamlinedUiEnabled } = useStreamlinedUiEnabled();
   const issuesPresentation = resolveIssuesPresentation(streamlinedUiEnabled);
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -188,7 +188,7 @@ function OrganizationIssues({
     }
     return urlSearch;
   }, [searchOverride, urlSearch, location.search]);
-  const showAgentCreatedTasks = useShowAgentCreatedTasks(selectedCompanyId, "paperclip:issues-view");
+  const showAgentCreatedTasks = useShowAgentCreatedTasks(selectedSpaceId, "outpost:issues-view");
   const sort = useMemo(() => readIssueSortParams(searchParams), [searchParams]);
   const includeBlockedBy = sort?.sortField === "workflow";
   const serverSortField = sort?.sortField === "created" ? "created" : "updated";
@@ -230,29 +230,29 @@ function OrganizationIssues({
   }, []);
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const { data: projects } = useQuery({
-    ...companyProjectsQuery(selectedCompanyId!, { includeArchived: true }),
-    enabled: !!selectedCompanyId,
+    ...spaceProjectsQuery(selectedSpaceId!, { includeArchived: true }),
+    enabled: !!selectedSpaceId,
   });
 
-  const liveRunsQueryKey = queryKeys.liveRuns(selectedCompanyId!);
+  const liveRunsQueryKey = queryKeys.liveRuns(selectedSpaceId!);
   const sharedLiveRuns = useSharedPollingQuery({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     resourceKey: "live-runs",
     queryKey: liveRunsQueryKey,
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
     // Event-sourced via LiveUpdatesProvider (GitHub issue 9627); no interval poll needed.
     refetchInterval: false,
     leaderOnly: true,
   });
   const { data: liveRuns, dataUpdatedAt: liveRunsUpdatedAt } = useQuery({
     queryKey: liveRunsQueryKey,
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedCompanyId!),
+    queryFn: () => heartbeatsApi.liveRunsForSpace(selectedSpaceId!),
     enabled: sharedLiveRuns.enabled,
     refetchInterval: sharedLiveRuns.refetchInterval,
   });
@@ -276,7 +276,7 @@ function OrganizationIssues({
 
   const issuesQuery = useInfiniteQuery({
     queryKey: [
-      ...queryKeys.issues.list(selectedCompanyId!),
+      ...queryKeys.issues.list(selectedSpaceId!),
       "participant-agent",
       participantAgentId ?? "__all__",
       "workspace",
@@ -291,7 +291,7 @@ function OrganizationIssues({
       serverSortDir,
       includeBlockedBy,
     ],
-    queryFn: ({ pageParam, signal }) => issuesApi.listCompact(selectedCompanyId!, {
+    queryFn: ({ pageParam, signal }) => issuesApi.listCompact(selectedSpaceId!, {
       projection: streamlinedUiEnabled ? "index" : undefined,
       participantAgentId,
       workspaceId: workspaceIdFilter,
@@ -307,7 +307,7 @@ function OrganizationIssues({
     initialPageParam: 0,
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>
       getNextIssuesPageOffset(lastPage.length, lastPageParam, issuePageSize),
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
     placeholderData: (previousData) => previousData,
   });
 
@@ -326,9 +326,9 @@ function OrganizationIssues({
   }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   // Optimistic, rolls back with a readable toast, and resends after an outage.
-  const updateIssue = useUpdateIssueMutation({ companyId: selectedCompanyId });
+  const updateIssue = useUpdateIssueMutation({ spaceId: selectedSpaceId });
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return (
       <EmptyState
         icon={CircleDot}
@@ -350,7 +350,7 @@ function OrganizationIssues({
       agents={agents}
       projects={projects}
       liveIssueIds={liveIssueIds}
-      viewStateKey="paperclip:issues-view"
+      viewStateKey="outpost:issues-view"
       rowPresentation={issuesPresentation.rowPresentation}
       toolbarPresentation={issuesPresentation.toolbarPresentation}
       issueLinkState={issueLinkState}

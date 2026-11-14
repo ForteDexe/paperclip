@@ -11,7 +11,7 @@ const mockIssueService = vi.hoisted(() => ({
   getByIdentifier: vi.fn(),
   getAttachmentById: vi.fn(),
 }));
-const mockCompanyService = vi.hoisted(() => ({
+const mockSpaceService = vi.hoisted(() => ({
   getById: vi.fn(),
 }));
 const mockWorkProductService = vi.hoisted(() => ({
@@ -66,8 +66,8 @@ function registerRouteMocks() {
     agentService: () => ({
       getById: vi.fn(),
     }),
-    companySkillService: () => ({}),
-    companyService: () => mockCompanyService,
+    spaceSkillService: () => ({}),
+    spaceService: () => mockSpaceService,
     documentAnnotationService: () => ({ remapOpenThreadsForDocument: async () => [] }),
     documentService: () => ({}),
     executionWorkspaceService: () => ({}),
@@ -91,7 +91,7 @@ function registerRouteMocks() {
           feedbackDataSharingPreference: "prompt",
         },
       })),
-      listCompanyIds: vi.fn(async () => ["company-1"]),
+      listSpaceIds: vi.fn(async () => ["space-1"]),
     }),
     issueApprovalService: () => ({}),
     issueReferenceService: () => ({
@@ -136,7 +136,7 @@ function createStorageService(): StorageService {
   } as unknown as StorageService;
 }
 
-async function createApp(options?: { companyIds?: string[] }) {
+async function createApp(options?: { spaceIds?: string[] }) {
   // Both modules traverse the reset/mocked service graph; concurrent imports
   // can wait on each other's partially evaluated modules.
   const { errorHandler } = await vi.importActual<typeof import("../middleware/index.js")>("../middleware/index.js");
@@ -145,9 +145,9 @@ async function createApp(options?: { companyIds?: string[] }) {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = {
-      type: "board",
-      userId: "local-board",
-      companyIds: options?.companyIds ?? ["company-1"],
+      type: "operator",
+      userId: "local-operator",
+      spaceIds: options?.spaceIds ?? ["space-1"],
       source: "local_implicit",
       isInstanceAdmin: false,
     };
@@ -161,7 +161,7 @@ async function createApp(options?: { companyIds?: string[] }) {
 function makeIssue() {
   return {
     id: ISSUE_ID,
-    companyId: "company-1",
+    spaceId: "space-1",
     identifier: "PAP-1",
     projectId: null,
     status: "in_progress",
@@ -174,10 +174,10 @@ function makeWorkProduct(overrides: Record<string, unknown> = {}) {
   const contentPath = `/api/attachments/${attachmentId}/content`;
   return {
     id: WORK_PRODUCT_ID,
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: ISSUE_ID,
     type: "artifact",
-    provider: "paperclip",
+    provider: "outpost",
     title: "Verification report",
     metadata: {
       attachmentId,
@@ -197,7 +197,7 @@ function makeWorkProduct(overrides: Record<string, unknown> = {}) {
 function makeDocument(overrides: Record<string, unknown> = {}) {
   return {
     id: "33333333-3333-4333-8333-333333333333",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: ISSUE_ID,
     key: `artifact-review-${WORK_PRODUCT_ID}`,
     title: "Verification report",
@@ -260,7 +260,7 @@ describe("work product review-document route", () => {
     expect(res.status).toBe(201);
     expect(res.body.key).toBe(`artifact-review-${WORK_PRODUCT_ID}`);
     expect(mockEnsureForWorkProduct).toHaveBeenCalledWith({
-      issue: { id: ISSUE_ID, companyId: "company-1" },
+      issue: { id: ISSUE_ID, spaceId: "space-1" },
       workProduct: expect.objectContaining({ id: WORK_PRODUCT_ID }),
     });
     expect(mockLogActivity).toHaveBeenCalledWith(
@@ -327,7 +327,7 @@ describe("work product review-document route", () => {
 
     expect(res.status).toBe(200);
     expect(mockEnsureForWorkProduct).toHaveBeenCalledWith({
-      issue: { id: ISSUE_ID, companyId: "company-1" },
+      issue: { id: ISSUE_ID, spaceId: "space-1" },
       workProduct: renamed,
     });
   });

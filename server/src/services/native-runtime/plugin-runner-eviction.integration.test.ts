@@ -17,8 +17,8 @@ import { createRunnerProviderLaunch, runnerLaunchRequirementsDigest, canonicalNa
 import { materializeAsset } from "./runtime-context.js";
 import { spawnRunner } from "../../vendor/outpost-runner/testing.js";
 import { describeEmbeddedPostgres, nativeRestartFixture, realProcessIt, fakeCodexAppServer, waitForCondition } from "../../__tests__/helpers/native-restart.js";
-import { executePaperclipNativeSession, closeIdleWarmNativeSessionsForRestart, readNativeSessionIdleWork, claimWarmNativeInstructionCopy } from "./native-session-executor.js";
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { executeOutpostNativeSession, closeIdleWarmNativeSessionsForRestart, readNativeSessionIdleWork, claimWarmNativeInstructionCopy } from "./native-session-executor.js";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 import { environmentRuntimeService } from "../environment-runtime.js";
 import { environmentService } from "../environments.js";
 import { resolveEnvironmentExecutionTarget } from "../environment-execution-target.js";
@@ -55,7 +55,7 @@ describeEmbeddedPostgres("plugin Runner eviction through the Core execution entr
     const instructionCopy = (id: string) => ({ runId: id, root: workspace, preparationKey: "unchanged-fixture-instructions", hasChanges: async () => false, collectStopped: async () => {} });
     const first = await environment.seedRun(`RELEASE-ENTRY-${harness}-${mode}-${exit}`);
     const { db, runId, issueId, native } = first;
-    const { companyId, agentId, runtimeRoot } = environment.current;
+    const { spaceId, agentId, runtimeRoot } = environment.current;
     const root = join(runtimeRoot, runId), workspace = join(root, "workspace"), home = join(root, "credential-home");
     await mkdir(workspace, { recursive: true }); await mkdir(home, { recursive: true });
     await writeFile(join(home, "auth.json"), JSON.stringify({ OPENAI_API_KEY: "synthetic-fixture" }), { mode: 0o600 });
@@ -64,10 +64,10 @@ describeEmbeddedPostgres("plugin Runner eviction through the Core execution entr
     const metadata = { driver: "plugin", pluginId, driverKey: "tasks", runnerTaskLease: true };
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "eviction-fixture", version: "1.0.0", status: "ready", manifestJson: { capabilities: ["environment.drivers.register", "agents.lifecycle.manage"], resourceLifecycle: ["agent_runtime"], environmentDrivers: [{ driverKey: "tasks", supportsTasks: true }] } as never });
     await db.update(agents).set({ lifecycleRequiredPluginIds: [pluginId] }).where(eq(agents.id, agentId));
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId,
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issueId,
       mode: "isolated", strategyType: "directory", name: "Release fixture", cwd: workspace });
     await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "plugin", config: { pluginKey: pluginId, driverKey: "tasks" } });
-    await db.insert(environmentLeases).values({ id: leaseA, companyId, environmentId, heartbeatRunId: runId, issueId,
+    await db.insert(environmentLeases).values({ id: leaseA, spaceId, environmentId, heartbeatRunId: runId, issueId,
       executionWorkspaceId: workspaceId, provider: providerKey, providerLeaseId: taskA, status: "active", leasePolicy: "reuse_by_environment", metadata: { ...metadata, remoteCwd: workspace } });
     const [issue] = await db.select().from(issues).where(eq(issues.id, issueId));
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issueId));
@@ -76,7 +76,7 @@ describeEmbeddedPostgres("plugin Runner eviction through the Core execution entr
     runtimeContext.aggregateDigest = canonicalNativeRuntimeContextDigest(runtimeContext);
     const { permissionPolicy: _permissionPolicy, ...claudeProfile } = QUALIFIED_ACPX_PROFILES.claude;
     const execution = parseNativeExecutionInput({ schema: "outpost.native-execution-input.v5", executionMode: "default", planningContext: null,
-      runtimeContext, binding: { companyId, agentId, issueId, runId, executionWorkspaceId: workspaceId },
+      runtimeContext, binding: { spaceId, agentId, issueId, runId, executionWorkspaceId: workspaceId },
       provider: harness === "codex" ? { kind: "codex", model: "fixture-model", approvalPolicy: "never" }
         : { kind: "acpx", agent: "claude", model: "claude-sonnet-4-6", permissionMode: "approve-all", profile: claudeProfile },
       task: { identifier: "RELEASE-ENTRY", title: issue!.title, description: null, prompt: "Complete the controlled task.", workMode: "standard" },
@@ -243,7 +243,7 @@ describeEmbeddedPostgres("plugin Runner eviction through the Core execution entr
       return { kind: "accepted", taskId };
     };
     const supervisor = async () => {
-      const directory = join(resolvePaperclipInstanceRoot(), "runtime/outpost-runner/sessions");
+      const directory = join(resolveOutpostInstanceRoot(), "runtime/outpost-runner/sessions");
       for (const file of await readdir(directory)) {
         const envelope = JSON.parse(await readFile(join(directory, file), "utf8"));
         if (envelope.snapshot?.identity.sessionId === native.normalizedSessionId) return envelope;
@@ -258,12 +258,12 @@ describeEmbeddedPostgres("plugin Runner eviction through the Core execution entr
     } } as unknown as PluginWorkerManager;
     const dispatch = (leaseId: string, operation: PluginEnvironmentTaskOperation, options?: { executionContext?: unknown; expectedTaskId?: string }) => {
       if (operation.kind === "read_state" && operation.resumeFrom === taskA) sourceReadRequests++;
-      return executeEnvironmentTask(db, workers, { companyId, leaseId, operation, ...options });
+      return executeEnvironmentTask(db, workers, { spaceId, leaseId, operation, ...options });
     };
     const execute = async (current: typeof execution, leaseId: string) => {
       await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: current }, runnerInstanceId: native.runnerInstanceId, completionContractId: contract!.id, completionContractSha256: contract!.canonicalSha256, nativeSessionId: current.session.normalizedSessionId })
         .where(eq(heartbeatRuns.id, current.binding.runId));
-      const target = reusesLease ? await resolveEnvironmentExecutionTarget({ db, companyId, adapterType: "outpost_runner",
+      const target = reusesLease ? await resolveEnvironmentExecutionTarget({ db, spaceId, adapterType: "outpost_runner",
         environment: { id: environmentId, driver: "plugin", config: { pluginKey: pluginId, driverKey: "tasks" } }, leaseId,
         lease: await environmentService(db).getLeaseById(leaseId), leaseMetadata: metadata,
         environmentRuntime: environmentRuntimeService(db, { pluginWorkerManager: workers }) }) : {
@@ -271,7 +271,7 @@ describeEmbeddedPostgres("plugin Runner eviction through the Core execution entr
           runnerTask: (operation: unknown, options?: { executionContext?: unknown; expectedTaskId?: string }) => dispatch(leaseId, operation as PluginEnvironmentTaskOperation, options),
           sandboxLeaseAcquisition: { outcome: "created" as const, providerLeaseId: leaseId === leaseA ? taskA : taskB } };
       if (!target) throw new Error("Fixture execution target unavailable");
-      return executePaperclipNativeSession({ db, execution: current, runnerInstanceId: native.runnerInstanceId, useRunnerd: true, runnerIngressAuthorized: true,
+      return executeOutpostNativeSession({ db, execution: current, runnerInstanceId: native.runnerInstanceId, useRunnerd: true, runnerIngressAuthorized: true,
         runnerEnvironment: harness === "claude" ? { ANTHROPIC_API_KEY: "synthetic-fixture" } : {},
         ...(mode === "prepared copy" ? { instructionWorkingCopy: instructionCopy(current.binding.runId) } : {}),
         managedAiCredentialHome: home, managedAiCredentialIdentity: "fixture-revision", managedAiAccountIdentity: "fixture-account", turnTimeoutMs: 15_000,
@@ -325,11 +325,11 @@ describeEmbeddedPostgres("plugin Runner eviction through the Core execution entr
       if (!reusesLease) await evict();
       const admitNext = async () => {
         const runB = randomUUID(), leaseB = randomUUID();
-        await db.insert(heartbeatRuns).values({ id: runB, companyId, agentId, nativeIssueId: issueId, status: "running", runtimeMode: "native" });
-        await db.insert(nativeRunFinalizations).values({ runId: runB, companyId, issueId, phase: "observed" });
+        await db.insert(heartbeatRuns).values({ id: runB, spaceId, agentId, nativeIssueId: issueId, status: "running", runtimeMode: "native" });
+        await db.insert(nativeRunFinalizations).values({ runId: runB, spaceId, issueId, phase: "observed" });
         await db.update(issues).set({ executionRunId: runB, status: "in_progress" }).where(eq(issues.id, issueId));
         const [oldLease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, leaseA));
-        await db.insert(environmentLeases).values({ id: leaseB, companyId, environmentId, heartbeatRunId: runB, issueId, executionWorkspaceId: workspaceId,
+        await db.insert(environmentLeases).values({ id: leaseB, spaceId, environmentId, heartbeatRunId: runB, issueId, executionWorkspaceId: workspaceId,
           provider: providerKey, providerLeaseId: reusesLease ? taskA : taskB, status: "active", leasePolicy: "reuse_by_environment",
           metadata: reusesLease ? { ...oldLease!.metadata, runnerTaskReused: true, runnerTaskPreviousLeaseId: leaseA,
             runnerTaskExecutionStopped: false } : { ...metadata, remoteCwd: workspace } });
@@ -339,7 +339,7 @@ describeEmbeddedPostgres("plugin Runner eviction through the Core execution entr
         }
         const next = { ...execution, binding: { ...execution.binding, runId: runB } };
         const releasePreparation = mode === "prepared copy" ? await claimWarmNativeInstructionCopy({ priorExecution: execution,
-          companyId, agentId, executionWorkspaceId: workspaceId, workspace: execution.workspace, environmentId, runId: runB,
+          spaceId, agentId, executionWorkspaceId: workspaceId, workspace: execution.workspace, environmentId, runId: runB,
           preparationKey: "unchanged-fixture-instructions", adopt: async () => instructionCopy(runB) }) : null;
         if (mode === "prepared copy") expect(releasePreparation).toBeTypeOf("function");
         pendingFollowup = execute(next, leaseB);

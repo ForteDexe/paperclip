@@ -21,7 +21,7 @@ function act(callback: () => void) {
 function event(overrides: Partial<ToolCallEvent>): ToolCallEvent {
   return {
     id: "evt-1",
-    companyId: "co-1",
+    spaceId: "co-1",
     eventType: "call_completed",
     actorType: "agent",
     actorId: null,

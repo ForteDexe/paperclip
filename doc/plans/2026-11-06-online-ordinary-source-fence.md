@@ -6,12 +6,12 @@ instance-wide offline admission gate.
 
 ## Ownership
 
-`workspace-source-lock.ts` retains the existing per-company/task source advisory
+`workspace-source-lock.ts` retains the existing per-space/task source advisory
 key and adds a managed-project key. The project key covers the physical project
 namespace, including new issues that have no workspace row yet. Heartbeat source
 selection/materialization and workspace lifecycle owners retain the same key.
 Configured aliases of canonical isolated task directories retain that directory's
-original task key. Cross-company aliases are rejected.
+original task key. Cross-space aliases are rejected.
 
 The filesystem materializer keeps its database-free API. It retains physical
 keys when called inside an admission owned by the database service. The runtime
@@ -59,14 +59,14 @@ allocations, finalization checkpoints and task warnings remain present. Unknown
 file recovery and other aliases' unproven recovery remain blockers.
 
 The finalizer's known failed-export watchdog can retain a prepared source. Its
-company, task, run, failure cause and canonical action fingerprint must match.
+space, task, run, failure cause and canonical action fingerprint must match.
 The coordinator must have a terminal failure with no owner or future retry.
 The board-owned action must have no wake policy or separate file-recovery marker.
 The proof retains `preparedSource` explicitly and never calls it finalized. The
 original action, prepared descriptor and allocations remain unchanged. Its full
 action/source fingerprint is checked under the same physical finalizer lock.
 
-The separate company-scoped `reconcileOnlineWorkspaceOperations` entry retires
+The separate space-scoped `reconcileOnlineWorkspaceOperations` entry retires
 only a superseded operation with an exact later successful finalization receipt,
 an accepted result and a committed ownerless finalizer. It reuses the canonical
 row/advisory locks and writes the audit in the same transaction. It does not run
@@ -119,23 +119,23 @@ filesystem restore after it publishes admission. Its visible running operation
 continues to block migration between admission and restore. The later service
 start retains its existing independent lifecycle fence.
 
-`reconcileOnlineWorkspaceOperations(db, { companyId, signal })` is an explicit
+`reconcileOnlineWorkspaceOperations(db, { spaceId, signal })` is an explicit
 operator apply entry. The source qualification console can call this owner
-with one exact company before online imports. Inventory never invokes it and
+with one exact space before online imports. Inventory never invokes it and
 never settles operation rows as a side effect. The existing offline maintenance
 entry retains its independent all-writers-stopped prerequisites.
 
-Alias inspection bounds the company cohort to 1,000 records. A separate
+Alias inspection bounds the space cohort to 1,000 records. A separate
 minimal-path scan checks foreign physical aliases in pages of 256, up to
 10,240 records. This safety bound remains conservative because lexical-prefix
 filtering could hide a foreign symlink alias. Foreign rows do not consume the
-company cohort bound. An inaccessible path or scan limit leaves the managed
+space cohort bound. An inaccessible path or scan limit leaves the managed
 source explicitly unproven. It cannot fall back to a weaker singleton import.
 No foreign metadata is returned.
 
 Runtime service exclusion also uses the physical working directory. An active
 project service can have a different project-workspace ID and no execution
-workspace ID. The company-scoped service scan checks up to 1,000 unsettled
+workspace ID. The space-scoped service scan checks up to 1,000 unsettled
 rows; local path uncertainty blocks the import. Both runtime startup owners
 hold the workspace, base and configured service source keys before provision
 or persistence. The final rendered service CWD must already be fenced before

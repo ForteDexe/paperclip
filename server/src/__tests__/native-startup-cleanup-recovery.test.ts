@@ -4,11 +4,11 @@ import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { PluginEnvironmentTaskOperation } from "@outpost/plugin-sdk";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  activityLog, agents, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases,
+  activityLog, agents, spaces, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases,
   environments, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, plugins, sandboxCreationOperations,
 } from "@outpost/db";
 import { recoveryPostgresSupport, startRecoveryPostgres } from "./helpers/recovery-postgres.js";
@@ -44,15 +44,15 @@ describePostgres("durable cleanup after a native startup timeout", () => {
   let db: ReturnType<typeof createDb>;
   let home: ReturnType<typeof createIsolatedTestHome>;
   const originalHome = process.env.OUTPOST_HOME;
-  const companyId = randomUUID(), agentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID();
 
   beforeAll(async () => {
     home = createIsolatedTestHome();
     process.env.OUTPOST_HOME = home.home;
     temporary = await startRecoveryPostgres("native-startup-cleanup-");
     db = createDb(temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Startup cleanup", issuePrefix: "NSC" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", role: "engineer", status: "running",
+    await db.insert(spaces).values({ id: spaceId, name: "Startup cleanup", issuePrefix: "NSC" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Runner", role: "engineer", status: "running",
       adapterType: "outpost_runner", adapterConfig: { provider: "codex" }, runtimeConfig: {}, permissions: {} });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
@@ -66,20 +66,20 @@ describePostgres("durable cleanup after a native startup timeout", () => {
   async function fixture(requiresPreparationStop = false) {
     const runId = randomUUID(), issueId = randomUUID(), leaseId = randomUUID(), taskId = randomUUID();
     const contextId = randomUUID(), leaseOwner = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, identifier: `NSC-${issueId}`, title: "Timed out startup",
+    await db.insert(issues).values({ id: issueId, spaceId, identifier: `NSC-${issueId}`, title: "Timed out startup",
       status: "in_progress", priority: "medium", assigneeAgentId: agentId });
-    const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running",
+    const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running",
       runtimeMode: "native", nativeIssueId: issueId, invocationSource: "manual", contextSnapshot: { issueId } }).returning();
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     await prepareNativeHeartbeatRun({ db, run, issue: { id: issueId, title: "Timed out startup", description: null }, environmentLeaseId: leaseId });
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed", attempt: 1,
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed", attempt: 1,
       controllerGeneration: 1, controllerBootId: randomUUID(), controllerPid: process.pid,
       controllerProcessStartedAt: new Date(), leaseOwner, leaseExpiresAt: new Date(Date.now() + 60_000) });
     const [environment] = await db.insert(environments).values({ name: `Cleanup ${runId}`, driver: "plugin", status: "active", config: {} }).returning();
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId: environment.id, heartbeatRunId: runId,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId: environment.id, heartbeatRunId: runId,
       issueId, status: "active", provider: "plugin", providerLeaseId: taskId, leasePolicy: "reuse_by_environment",
       metadata: { runnerTaskLease: true, runnerTaskReused: true } });
-    const request = { companyId, agentId, runId, contextId, leaseOwner, deadlineAtMs: Date.now() - 1, requiresPreparationStop };
+    const request = { spaceId, agentId, runId, contextId, leaseOwner, deadlineAtMs: Date.now() - 1, requiresPreparationStop };
     const reload = () => db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)).then(rows => rows[0]!);
     const owner = () => db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, runId)).then(rows => rows[0]!);
     const lease = () => db.select().from(environmentLeases).where(eq(environmentLeases.id, leaseId)).then(rows => rows[0]!);
@@ -91,7 +91,7 @@ describePostgres("durable cleanup after a native startup timeout", () => {
     };
     const acceptedResult = async () => {
       const current = await reload(), resultId = randomUUID();
-      await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId,
+      await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId,
         completionContractId: current.completionContractId!, serverFingerprint: resultId, schemaStatus: "accepted",
         resultJson: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Completed work" }, canonicalSha256: "a".repeat(64) });
       await db.update(nativeRunFinalizations).set({ resultId, phase: "workspace_finalizing" }).where(eq(nativeRunFinalizations.runId, runId));
@@ -102,7 +102,7 @@ describePostgres("durable cleanup after a native startup timeout", () => {
 
   async function saveEarlyContext(f: Awaited<ReturnType<typeof fixture>>) {
     const run = await f.reload(), owner = await f.owner(), lease = await f.lease();
-    const context = { schema: "outpost.native-startup-context.v1", companyId, agentId, runId: run.id,
+    const context = { schema: "outpost.native-startup-context.v1", spaceId, agentId, runId: run.id,
       contextId: f.request.contextId, deadlineAtMs: f.request.deadlineAtMs, leaseId: lease.id,
       leaseOwner: owner.leaseOwner, controllerGeneration: owner.controllerGeneration, attempt: owner.attempt };
     await db.update(heartbeatRuns).set({ runnerProfileJson: { ...run.runnerProfileJson, nativeStartupContext: context } }).where(eq(heartbeatRuns.id, run.id));
@@ -113,7 +113,7 @@ describePostgres("durable cleanup after a native startup timeout", () => {
     const f = await fixture(true), original = await f.lease();
     let reply!: (result: { providerLeaseId: string }) => void, creating!: () => void;
     const entered = new Promise<void>(resolve => { creating = resolve; });
-    const acquiring = createOwnedSandbox(db, { companyId, environmentId: original.environmentId!, heartbeatRunId: f.request.runId,
+    const acquiring = createOwnedSandbox(db, { spaceId, environmentId: original.environmentId!, heartbeatRunId: f.request.runId,
       issueId: original.issueId, provider: original.provider!, driverKey: "tasks", config: {}, requestKey: original.providerLeaseId!,
       metadata: { runnerTaskLease: true, runnerTaskCreationContextId: f.request.contextId } }, async () => new Promise(resolve => { reply = resolve; creating(); }));
     await entered;
@@ -129,12 +129,12 @@ describePostgres("durable cleanup after a native startup timeout", () => {
       const inspect = vi.fn(async () => null);
       await recoverSandboxCreations(db, inspect);
       expect(inspect).not.toHaveBeenCalled();
-      await expect(queueSandboxCreationCleanup(db, { id: pending.id, companyId, environmentId: original.environmentId!,
+      await expect(queueSandboxCreationCleanup(db, { id: pending.id, spaceId, environmentId: original.environmentId!,
         providerLeaseId: "unproven-task" })).rejects.toThrow("ownership changed");
     }
     reply({ providerLeaseId: "late-replacement" });
     const fresh = await acquiring;
-    await recordSandboxCreationResource(db, { id: String(fresh.metadata!.creationOperationId), companyId,
+    await recordSandboxCreationResource(db, { id: String(fresh.metadata!.creationOperationId), spaceId,
       environmentId: original.environmentId!, providerLeaseId: fresh.providerLeaseId!, providerMetadata: { binding: "actual" } });
     if (state === "pending") await db.update(sandboxCreationOperations).set({ nextAttemptAt: new Date(0) })
       .where(eq(sandboxCreationOperations.id, String(fresh.metadata!.creationOperationId)));
@@ -145,13 +145,13 @@ describePostgres("durable cleanup after a native startup timeout", () => {
     const [creation] = await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.id, String(fresh.metadata!.creationOperationId)));
     await expect(verifyNativeStartupCleanup(db, await f.reload(), async () => {})).rejects.toThrow("cleanup is still pending");
     const replacement = (await environmentService(db).getLeaseById(creation.leaseId!))!;
-    await queueSandboxCreationCleanup(db, { id: creation.id, companyId, environmentId: original.environmentId!, providerLeaseId: fresh.providerLeaseId! });
+    await queueSandboxCreationCleanup(db, { id: creation.id, spaceId, environmentId: original.environmentId!, providerLeaseId: fresh.providerLeaseId! });
     expect((await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.id, creation.id)))[0].leaseId).toBe(replacement.id);
-    await expect(queueSandboxCreationCleanup(db, { id: creation.id, companyId, environmentId: original.environmentId!, providerLeaseId: "foreign-task" })).rejects.toThrow("ownership changed");
+    await expect(queueSandboxCreationCleanup(db, { id: creation.id, spaceId, environmentId: original.environmentId!, providerLeaseId: "foreign-task" })).rejects.toThrow("ownership changed");
     await environmentService(db).releaseLease(replacement.id, "released", { cleanupStatus: "success",
       remoteExecutionTermination: remoteTerminationReceipt(replacement, { providerLeaseId: replacement.providerLeaseId, state: "stopped" }) });
     expect((await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.id, creation.id)))[0].state).toBe("resolved");
-    await queueSandboxCreationCleanup(db, { id: creation.id, companyId, environmentId: original.environmentId!, providerLeaseId: fresh.providerLeaseId! });
+    await queueSandboxCreationCleanup(db, { id: creation.id, spaceId, environmentId: original.environmentId!, providerLeaseId: fresh.providerLeaseId! });
     expect((await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.id, creation.id)))[0])
       .toMatchObject({ state: "resolved", leaseId: replacement.id });
     await verifyNativeStartupCleanup(db, await f.reload(), async () => {});
@@ -286,16 +286,16 @@ describePostgres("durable cleanup after a native startup timeout", () => {
     expect(run.resultJson?.startupCancellation).toMatchObject({ requestedAt: expect.any(String) });
     expect(isNativeRunnerOwnershipHeld(run)).toBe(false);
     expect(await db.select({ id: activityLog.id }).from(activityLog).where(and(eq(activityLog.id, marker.auditId),
-      eq(activityLog.companyId, companyId), eq(activityLog.action, "native.startup_cleanup_requested")))).toHaveLength(1);
+      eq(activityLog.spaceId, spaceId), eq(activityLog.action, "native.startup_cleanup_requested")))).toHaveLength(1);
     const restarted = createDb(temporary.connectionString), release = vi.fn(f.stopReceipt);
     await verifyNativeStartupCleanup(restarted, await f.reload(), release);
     await verifyNativeStartupCleanup(restarted, await f.reload(), release);
     expect(release).toHaveBeenCalledOnce();
     expect(readNativeStartupCleanup(await f.reload())?.state).toBe("complete");
-    await acknowledgeNativeStartupCleanup(restarted, { companyId, runId: run.id });
+    await acknowledgeNativeStartupCleanup(restarted, { spaceId, runId: run.id });
     expect((await f.owner()).controlDeadlineAt).not.toBeNull();
     await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, run.id));
-    await acknowledgeNativeStartupCleanup(restarted, { companyId, runId: run.id });
+    await acknowledgeNativeStartupCleanup(restarted, { spaceId, runId: run.id });
     expect(await f.owner()).toMatchObject({ leaseOwner: null, leaseExpiresAt: null, controlDeadlineAt: null, recoveryState: null });
   });
 
@@ -345,14 +345,14 @@ rl.on("line",line=>{const m=JSON.parse(line);
  else if(m.method==="shutdown"){send(m.id,{});setImmediate(()=>process.exit(0));}
 });
 `, { mode: 0o600 });
-    const manifest: PaperclipPluginManifestV1 = { id: "test.startup-cleanup", apiVersion: 1, version: "1.0.0",
-      displayName: "Cleanup fixture", description: "Cleanup fixture", author: "Paperclip", categories: ["automation"],
+    const manifest: OutpostPluginManifestV1 = { id: "test.startup-cleanup", apiVersion: 1, version: "1.0.0",
+      displayName: "Cleanup fixture", description: "Cleanup fixture", author: "Outpost", categories: ["automation"],
       capabilities: [], entrypoints: { worker: "worker.cjs" } };
     const manager = createPluginWorkerManager();
     await manager.startWorker(manifest.id, { entrypointPath, manifest, config: {},
       instanceInfo: { instanceId: "cleanup", hostVersion: "1.0.0" }, apiVersion: 1, hostHandlers: {} });
-    const context = new NativeExecutionContext({ binding: { companyId, agentId, runId: f.request.runId } } as NativeExecutionInput, 100);
-    const params = { companyId, agentId, runId: f.request.runId, environmentId: lease.environmentId, issueId: lease.issueId,
+    const context = new NativeExecutionContext({ binding: { spaceId, agentId, runId: f.request.runId } } as NativeExecutionInput, 100);
+    const params = { spaceId, agentId, runId: f.request.runId, environmentId: lease.environmentId, issueId: lease.issueId,
       driverKey: "tasks", taskId: lease.providerLeaseId!, config: {}, projectIds: [], lease: { providerLeaseId: lease.providerLeaseId! } };
     const operation = { kind: "prepare", projectIds: [], requirements: { schema: "outpost.runner.launch-requirements.v1",
       identity: { runnerInstanceId: "fixture", environmentLeaseId: lease.id, runId: f.request.runId,
@@ -376,7 +376,7 @@ rl.on("line",line=>{const m=JSON.parse(line);
       await expect(cancelNativeSession(f.request.runId, "Startup timeout", { db, scope: "run" })).resolves.toMatchObject({ auditId: expect.any(String) });
       await expect(verifyNativeStartupCleanup(db, await f.reload(), release)).rejects.toThrow("pending");
       expect((await f.reload()).status).toBe("running");
-      await manager.call(manifest.id, "configChanged", { companyId, config: { release: true } });
+      await manager.call(manifest.id, "configChanged", { spaceId, config: { release: true } });
       expect(context.pending).toBe(false);
       await verifyNativeStartupCleanup(createDb(temporary.connectionString), await f.reload(), release);
       expect(readNativeStartupCleanup(await f.reload())?.state).toBe("complete");
@@ -483,9 +483,9 @@ rl.on("line",line=>{const m=JSON.parse(line);
     const deps = callbacks(restarted);
     deps.verifyStartupCleanup = run => verifyNativeStartupCleanup(restarted, run, release);
     const control = createHeartbeatRunControl(restarted, deps);
-    const reconcile = vi.fn(async (scope: { companyId: string; runId: string }) => {
+    const reconcile = vi.fn(async (scope: { spaceId: string; runId: string }) => {
       if (scope.runId !== f.request.runId) return;
-      expect(scope.companyId).toBe(companyId);
+      expect(scope.spaceId).toBe(spaceId);
       await control.cancelRunInternal(scope.runId, "Startup timeout recovered after restart");
       await acknowledgeNativeStartupCleanup(restarted, scope);
     });
@@ -642,7 +642,7 @@ rl.on("line",line=>{const m=JSON.parse(line);
   it("clears only its owned startup context before fallback and leaves no expired cleanup authority", async () => {
     const f = await fixture();
     await saveEarlyContext(f);
-    const scope = { companyId, runId: f.request.runId, contextId: f.request.contextId,
+    const scope = { spaceId, runId: f.request.runId, contextId: f.request.contextId,
       leaseOwner: f.request.leaseOwner, controllerGeneration: 1 };
     await expect(clearNativeStartupContext(db, { ...scope, controllerGeneration: 2 })).rejects.toThrow("lost authority");
     expect((await f.reload()).runnerProfileJson?.nativeStartupContext).toBeDefined();
@@ -659,7 +659,7 @@ rl.on("line",line=>{const m=JSON.parse(line);
     await saveEarlyContext(f);
     if (winner === "cleanup") await requestNativeStartupCleanup(db, f.request);
     else await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, f.request.runId));
-    await expect(clearNativeStartupContext(db, { companyId, runId: f.request.runId, contextId: f.request.contextId,
+    await expect(clearNativeStartupContext(db, { spaceId, runId: f.request.runId, contextId: f.request.contextId,
       leaseOwner: f.request.leaseOwner, controllerGeneration: 1 })).rejects.toThrow("lost authority");
     expect((await f.reload()).runnerProfileJson?.nativeStartupContext).toBeDefined();
     if (winner === "cleanup") expect(readNativeStartupCleanup(await f.reload())).toMatchObject({ state: "pending" });
@@ -671,11 +671,11 @@ rl.on("line",line=>{const m=JSON.parse(line);
       manifestJson: { capabilities: ["environment.drivers.register"], environmentDrivers: [{ driverKey: "tasks", supportsTasks: true }] } as never });
     await db.update(environments).set({ config: { pluginKey: pluginId, driverKey: "tasks", driverConfig: {} } })
       .where(eq(environments.id, original.environmentId!));
-    const fresh = await createOwnedSandbox(db, { companyId, environmentId: original.environmentId!, heartbeatRunId: f.request.runId,
+    const fresh = await createOwnedSandbox(db, { spaceId, environmentId: original.environmentId!, heartbeatRunId: f.request.runId,
       issueId: original.issueId, provider: original.provider!, pluginId, driverKey: "tasks", config: {}, requestKey: original.providerLeaseId!,
       metadata: { driver: "plugin", pluginId, pluginKey: pluginId, driverKey: "tasks", runnerTaskLease: true, agentId,
         runnerTaskCreationContextId: f.request.contextId } }, async () => ({ providerLeaseId: "late-never-dispatched" }));
-    await queueSandboxCreationCleanup(db, { id: String(fresh.metadata!.creationOperationId), companyId,
+    await queueSandboxCreationCleanup(db, { id: String(fresh.metadata!.creationOperationId), spaceId,
       environmentId: original.environmentId!, providerLeaseId: fresh.providerLeaseId! });
     const creation = async () => (await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.id, String(fresh.metadata!.creationOperationId))))[0]!;
     const replacement = async () => (await environmentService(db).getLeaseById((await creation()).leaseId!))!;
@@ -706,7 +706,7 @@ rl.on("line",line=>{const m=JSON.parse(line);
     const control = createHeartbeatRunControl(db, stopDeps);
     for (const missing of ["void", "running", "foreign"] as const) {
       proof = missing;
-      const swept = await recovery.sweepPendingCleanupLeases({ explicitRetry: { companyId, runId: f.request.runId, actorId: "operator" } });
+      const swept = await recovery.sweepPendingCleanupLeases({ explicitRetry: { spaceId, runId: f.request.runId, actorId: "operator" } });
       const cancelled = await control.cancelRunInternal(f.request.runId, "Startup cleanup retry").then(() => true, () => false);
       const lease = await replacement();
       expect({ destroyed: swept.destroyed, status: lease.status, verifiedReceipt: hasRemoteTerminationReceipt(lease),
@@ -715,7 +715,7 @@ rl.on("line",line=>{const m=JSON.parse(line);
       });
     }
     proof = "exact";
-    expect((await recovery.sweepPendingCleanupLeases({ explicitRetry: { companyId, runId: f.request.runId, actorId: "operator" } })).destroyed).toBe(1);
+    expect((await recovery.sweepPendingCleanupLeases({ explicitRetry: { spaceId, runId: f.request.runId, actorId: "operator" } })).destroyed).toBe(1);
     expect(calls).toContain("stop");
     expect(calls).toContain("status");
     expect(calls).toContain("complete");

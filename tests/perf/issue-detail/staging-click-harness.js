@@ -1,7 +1,7 @@
 // Task-open click harness for real instances (staging, production, local).
 //
 // Paste into DevTools (or run via a browser automation tool) on an Issues list
-// page such as /<company>/issues?view=mine, then call:
+// page such as /<space>/issues?view=mine, then call:
 //
 //   await __taskOpenHarness.measure("ABC-123")          // click the row, time it
 //   await __taskOpenHarness.series(["ABC-1", "ABC-2"])  // back to the list between samples
@@ -20,7 +20,7 @@
 // reference. In request paths it replaces query values and every path segment
 // that contains a digit (UUIDs, task references, numeric ids) with a
 // placeholder. Review the output before you share it: other path segments,
-// such as a company prefix, can stay. The harness reads only what the browser
+// such as a space prefix, can stay. The harness reads only what the browser
 // already received; nothing is sent.
 (() => {
   const visible = (el) =>
@@ -40,7 +40,7 @@
   };
   const isApi = (url) => new URL(url, location.href).pathname.includes("/api/");
   const serverMs = (entry) => {
-    const metric = (entry.serverTiming || []).find((timing) => timing.name === "paperclip_api");
+    const metric = (entry.serverTiming || []).find((timing) => timing.name === "outpost_api");
     return metric ? Math.round(metric.duration) : null;
   };
 

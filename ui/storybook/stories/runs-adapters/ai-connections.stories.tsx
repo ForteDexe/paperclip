@@ -15,7 +15,7 @@ const meta = {
   title: "Agents and reusable capabilities/Runs, harnesses, and model accounts/AI Connections/Review",
   component: AiConnectionsReview,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "runs-adapters/validation"
       ],
@@ -48,7 +48,7 @@ const groups = [
     [
       ["Responsible user", "responsible-user"],
       ["Same bot, another user’s API key", "responsible-user-api-key"],
-      ["Company shared", "shared-selected"],
+      ["Space shared", "shared-selected"],
       ["Human access denied", "shared-audience-denied"],
       ["Another responsible user", "another-user-missing"],
       ["Incompatible selection", "incompatible-selection"],
@@ -94,7 +94,7 @@ export const ReviewIndex: Story = {
         viewports.
       </p>
       <p className="text-sm">
-        Personal defaults are per company, user, and provider; subscription or API key.
+        Personal defaults are per space, user, and provider; subscription or API key.
         Connection selection never changes harness or model. Unavailable
         accounts block without fallback.
       </p>
@@ -160,15 +160,15 @@ export const IdentityMatrix: Story = {
 export const ResponsibleUser: Story = {};
 export const ResponsibleUserApiKey: Story = {
   args: {
-    requirement: { companyId: AI_REVIEW_REQUIREMENT.companyId, provider: "anthropic" },
+    requirement: { spaceId: AI_REVIEW_REQUIREMENT.spaceId, provider: "anthropic" },
     currentUserId: "sam",
     initialBinding: AI_REVIEW_BINDING,
     initialConnections: [...AI_REVIEW_CONNECTIONS, {
-      id: "sam-api", grantId: "sam-api-grant", companyId: AI_REVIEW_REQUIREMENT.companyId,
+      id: "sam-api", grantId: "sam-api-grant", spaceId: AI_REVIEW_REQUIREMENT.spaceId,
       provider: "anthropic", method: "api_key", name: "My Claude API key",
       ownership: "personal", ownerUserId: "sam", ownerName: "Sam", isDefault: true, status: "connected",
     }, {
-      id: "shared-api", grantId: "shared-api-grant", companyId: AI_REVIEW_REQUIREMENT.companyId,
+      id: "shared-api", grantId: "shared-api-grant", spaceId: AI_REVIEW_REQUIREMENT.spaceId,
       provider: "anthropic", method: "api_key", name: "Engineering Claude API",
       ownership: "shared", status: "connected",
     }],
@@ -239,7 +239,7 @@ export const SharedAudienceDenied: Story = {
         ? {
             ...row,
             unavailableReason:
-              "The responsible user is not permitted to use this company account.",
+              "The responsible user is not permitted to use this space account.",
           }
         : row,
     ),
@@ -271,7 +271,7 @@ const connectorDefaultAccounts = AI_REVIEW_CONNECTIONS.map(account => account.id
 
 export const ConnectorDefaultMenu: Story = {
   args: { host: "connections", initialConnections: connectorDefaultAccounts },
-  parameters: { paperclip: { capabilities: ["runs-adapters/validation", "connection-setup/catalog"], status: "current", implementation: "production", boundary: "fixtures",
+  parameters: { outpost: { capabilities: ["runs-adapters/validation", "connection-setup/catalog"], status: "current", implementation: "production", boundary: "fixtures",
     notes: "Production Browse/ConnectorCard crown and dropdown. Fixture API persists one default per owner/provider across methods; provider authentication and real API authorization are not exercised." } },
   play: async ({ canvasElement }) => {
     const heading = await within(canvasElement).findByRole("heading", { name: "OpenAI" });

@@ -1,4 +1,4 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { useQueryView } from "@/components/QueryView";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { SelectPopover } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { useSearchParams } from "@/lib/router";
 import { caseListView, DEFAULT_CASE_COLUMNS } from "@/lib/case-list-view";
@@ -40,7 +40,7 @@ function CaseFilter({ label, value, options, onChange, disabled }: {
 }
 
 export function Cases() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [params, setParams] = useSearchParams();
   const latestParams = useRef(params);
@@ -72,22 +72,22 @@ export function Cases() {
   useEffect(() => setBreadcrumbs([{ label: "Cases" }]), [setBreadcrumbs]);
 
   const casesQuery = useQuery({
-    queryKey: [...queryKeys.cases.list(selectedCompanyId ?? ""), filters],
-    queryFn: () => casesApi.list(selectedCompanyId!, filters),
-    enabled: !!selectedCompanyId,
-    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === selectedCompanyId ? previous : undefined,
+    queryKey: [...queryKeys.cases.list(selectedSpaceId ?? ""), filters],
+    queryFn: () => casesApi.list(selectedSpaceId!, filters),
+    enabled: !!selectedSpaceId,
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === selectedSpaceId ? previous : undefined,
   });
   const casesQueryView = useQueryView(casesQuery);
   const casesWaiting = ["loading", "reconnecting"].includes(casesQueryView.kind);
   const typesQuery = useQuery({
-    queryKey: [...queryKeys.cases.list(selectedCompanyId ?? ""), "types"],
-    queryFn: () => casesApi.listTypes(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: [...queryKeys.cases.list(selectedSpaceId ?? ""), "types"],
+    queryFn: () => casesApi.listTypes(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const typesQueryView = useQueryView(typesQuery);
   const projectsQuery = useQuery({
-    ...companyProjectsQuery(selectedCompanyId ?? "", { includeArchived: true }),
-    enabled: !!selectedCompanyId,
+    ...spaceProjectsQuery(selectedSpaceId ?? "", { includeArchived: true }),
+    enabled: !!selectedSpaceId,
   });
   const projectsQueryView = useQueryView(projectsQuery);
   const records = (casesQuery.data ?? []).slice(0, PAGE_SIZE);
@@ -136,7 +136,7 @@ export function Cases() {
   };
   const clearFilters = () => setView({ q: "", status: "", type: "", project: "" });
 
-  if (!selectedCompanyId) return <EmptyState icon={FolderOpen} message="Select a Space to view cases." />;
+  if (!selectedSpaceId) return <EmptyState icon={FolderOpen} message="Select a Space to view cases." />;
 
   return (
     <div className="mx-auto max-w-6xl space-y-4" data-testid="case-pages">

@@ -25,8 +25,8 @@ vi.mock("@tanstack/react-query", async () => {
   };
 });
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 
 vi.mock("@/lib/router", () => ({
@@ -45,7 +45,7 @@ beforeEach(() => { visibility.visible = true; visibility.loaded = true; });
 function createExecutionWorkspace(overrides: Partial<ExecutionWorkspace> = {}): ExecutionWorkspace {
   return {
     id: "workspace-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     projectWorkspaceId: "project-workspace-1",
     sourceIssueId: null,
@@ -57,7 +57,7 @@ function createExecutionWorkspace(overrides: Partial<ExecutionWorkspace> = {}): 
     cwd: "/tmp/issue-sandbox",
     repoUrl: null,
     baseRef: null,
-    branchName: "paperclip/papa-81",
+    branchName: "outpost/papa-81",
     providerType: "git_worktree",
     providerRef: null,
     derivedFromExecutionWorkspaceId: null,
@@ -86,7 +86,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
   return {
     id: "issue-1",
     identifier: "PAPA-81",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     projectWorkspaceId: "project-workspace-1",
     goalId: null,

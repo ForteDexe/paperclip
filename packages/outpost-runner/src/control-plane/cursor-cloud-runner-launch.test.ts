@@ -93,7 +93,7 @@ it("settles a create rejected during real-facade Stop before cold recovery and t
   await writeFile(proxyPath, Buffer.concat([built.subarray(0, firstLine), prelude, built.subarray(firstLine)]), { mode: 0o600 });
   await mkdir(runtime, { mode: 0o700 });
   const cursorCloud = { schema: "outpost.cursor-cloud.config.v1" as const, repos: [{ url: "https://github.com/example/repo" }] };
-  await writeFile(configPath, JSON.stringify({ ...cursorCloud, binding: { companyId: "company", agentId: "agent", issueId: "issue", normalizedSessionId } }), { mode: 0o600 });
+  await writeFile(configPath, JSON.stringify({ ...cursorCloud, binding: { spaceId: "space", agentId: "agent", issueId: "issue", normalizedSessionId } }), { mode: 0o600 });
   const identity = { runnerInstanceId: "runner-cloud-rejected", environmentLeaseId: "lease-cloud-rejected", runId: "00000000-0000-4000-8000-000000000781", normalizedSessionId, turnId: "turn-rejected", itemId: "item-rejected" };
   const environment = { PATH: process.env.PATH, CURSOR_API_KEY: "synthetic-key", OUTPOST_CURSOR_CLOUD_CONFIG_PATH: configPath,
     OUTPOST_CURSOR_CLOUD_ARTIFACT_ROOT: join(runtime, "artifacts"), OUTPOST_CURSOR_CLOUD_RELAY_SOCKET_PATH: socketPath,
@@ -162,7 +162,7 @@ it("opens and closes the real Cloud facade without a provider prompt", async () 
   await mkdir(runtime, { mode: 0o700 });
   const normalizedSessionId = "cloud-launch-session";
   const cursorCloud = { schema: "outpost.cursor-cloud.config.v1" as const, repos: [{ url: "https://github.com/example/repo" }] };
-  await writeFile(configPath, JSON.stringify({ ...cursorCloud, binding: { companyId: "company", agentId: "agent", issueId: "issue", normalizedSessionId } }), { mode: 0o600 });
+  await writeFile(configPath, JSON.stringify({ ...cursorCloud, binding: { spaceId: "space", agentId: "agent", issueId: "issue", normalizedSessionId } }), { mode: 0o600 });
   const bundle = createRunnerdCodexTransport({
     provider: "cursor_cloud", cursorCloud,
     stateDirectory: join(root, "runner-session"),
@@ -243,7 +243,7 @@ it("preserves native Cloud tool identity and redacted output through the real Ru
   await mkdir(runtime, { mode: 0o700 });
   const normalizedSessionId = "cloud-tool-facade-session";
   const cursorCloud = { schema: "outpost.cursor-cloud.config.v1" as const, repos: [{ url: "https://github.com/example/repo" }] };
-  await writeFile(configPath, JSON.stringify({ ...cursorCloud, binding: { companyId: "company", agentId: "agent", issueId: "issue", normalizedSessionId } }), { mode: 0o600 });
+  await writeFile(configPath, JSON.stringify({ ...cursorCloud, binding: { spaceId: "space", agentId: "agent", issueId: "issue", normalizedSessionId } }), { mode: 0o600 });
   let authority: DurablePrpControlPlane | undefined;
   const bundle = createRunnerdCodexTransport({
     provider: "cursor_cloud", cursorCloud, stateDirectory: join(root, "runner-session"),
@@ -289,7 +289,7 @@ it("preserves native Cloud tool identity and redacted output through the real Ru
   }
 }, 30_000);
 
-async function cloudQuestionHandoff(terminalDelayMs: number, governed: boolean, planning = false) {
+async function cloudQuestionHandoff(terminalDelayMs: number, controlled: boolean, planning = false) {
   const root = await mkdtemp("/tmp/cc-question-");
   const runtime = join(root, "cloud");
   const configPath = join(runtime, "config.json");
@@ -313,7 +313,7 @@ async function cloudQuestionHandoff(terminalDelayMs: number, governed: boolean, 
         if (${planning}) {
           const body = JSON.parse(String(init.body));
           assert.equal(body.mode, 'agent');
-          const envelope = JSON.parse(body.prompt.text.split('\\n\\nPaperclip task:\\n').at(-1));
+          const envelope = JSON.parse(body.prompt.text.split('\\n\\nOutpost task:\\n').at(-1));
           assert.equal(envelope.executionMode, 'plan');
           assert.equal(envelope.task.workMode, 'planning');
           assert.equal(envelope.planningContext.baseRevisionId, 'plan-revision-3');
@@ -337,7 +337,7 @@ async function cloudQuestionHandoff(terminalDelayMs: number, governed: boolean, 
   await mkdir(runtime, { mode: 0o700 });
   const normalizedSessionId = "cloud-question-session";
   const cursorCloud = { schema: "outpost.cursor-cloud.config.v1" as const, repos: [{ url: "https://github.com/example/repo" }] };
-  await writeFile(configPath, JSON.stringify({ ...cursorCloud, binding: { companyId: "company", agentId: "agent", issueId: "issue", normalizedSessionId } }), { mode: 0o600 });
+  await writeFile(configPath, JSON.stringify({ ...cursorCloud, binding: { spaceId: "space", agentId: "agent", issueId: "issue", normalizedSessionId } }), { mode: 0o600 });
   let authority: DurablePrpControlPlane | undefined;
   const bundle = createRunnerdCodexTransport({
     provider: "cursor_cloud", cursorCloud, stateDirectory: join(root, "runner-session"),
@@ -369,7 +369,7 @@ async function cloudQuestionHandoff(terminalDelayMs: number, governed: boolean, 
     });
   };
   try {
-    if (governed) {
+    if (controlled) {
       await writeFile(join(root, "AGENTS.md"), "Keep assigned instructions.");
       const digest = "0".repeat(64);
       const context = {
@@ -381,7 +381,7 @@ async function cloudQuestionHandoff(terminalDelayMs: number, governed: boolean, 
         schema: "outpost.native-execution-input.v5", executionMode: planning ? "plan" : "default",
         planningContext: planning ? { documentId: "plan-document", baseRevisionId: "plan-revision-3", baseRevisionNumber: 3,
           markdown: "# Pinned canonical plan", sha256: createHash("sha256").update("# Pinned canonical plan").digest("hex"), reviewContext: { feedback: "Keep the requested scope" } } : null,
-        binding: { companyId: "company", agentId: "agent", issueId: "issue", runId: "00000000-0000-4000-8000-000000000763", executionWorkspaceId: "workspace" },
+        binding: { spaceId: "space", agentId: "agent", issueId: "issue", runId: "00000000-0000-4000-8000-000000000763", executionWorkspaceId: "workspace" },
         task: { identifier: "CLOUD-QUESTION", title: "Ask the assigned question", description: null, prompt: "Ask before proceeding.", workMode: planning ? "planning" : "standard" },
         workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },
         session: { normalizedSessionId, driverKind: "cursor_cloud_api", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
@@ -408,7 +408,7 @@ async function cloudQuestionHandoff(terminalDelayMs: number, governed: boolean, 
           async appendEvent(event: PrpEvent) { history.push(event); return { cursor: history.length, highestContiguousSourceSeq: event.sourceSeq, disposition: "committed" }; },
           async replayEvents(replay) { return { events: history.filter(event => event.sourceInstanceId === replay.sourceInstanceId && event.sourceSeq > replay.afterSourceSeq), highestContiguousSourceSeq: 0 }; },
         },
-        resolveGovernedWait: ({ event }) => event.eventType === "item.completed" && event.payload.kind === "dynamicToolCall" ? yielded : null,
+        resolveControlledWait: ({ event }) => event.eventType === "item.completed" && event.payload.kind === "dynamicToolCall" ? yielded : null,
       });
       void execution.catch(() => undefined);
       await Promise.race([execution, vi.waitFor(() => expect(authority?.store.state.commands.some(command => command.type === "turn.start" && command.status === "completed")).toBe(true), { timeout: 10_000 })]);
@@ -450,7 +450,7 @@ it.each([0, 18_000])("delivers an applied Cloud question and courtesy-interrupt 
   await cloudQuestionHandoff(terminalDelayMs, false);
 }, 40_000);
 
-it.each([0, 18_000])("settles a governed Cloud question after its allowed cancellation latency (%ims)", async terminalDelayMs => {
+it.each([0, 18_000])("settles a controlled Cloud question after its allowed cancellation latency (%ims)", async terminalDelayMs => {
   await cloudQuestionHandoff(terminalDelayMs, true);
 }, 45_000);
 
@@ -510,7 +510,7 @@ async function cloudColdAuthorityRotation(instructions: string, validShutdown = 
   await mkdir(runtime, { mode: 0o700 });
   const normalizedSessionId = "cloud-cold-session";
   const cursorCloud = { schema: "outpost.cursor-cloud.config.v1" as const, repos: [{ url: "https://github.com/example/repo" }] };
-  await writeFile(configPath, JSON.stringify({ ...cursorCloud, binding: { companyId: "company", agentId: "agent", issueId: "issue", normalizedSessionId } }), { mode: 0o600 });
+  await writeFile(configPath, JSON.stringify({ ...cursorCloud, binding: { spaceId: "space", agentId: "agent", issueId: "issue", normalizedSessionId } }), { mode: 0o600 });
   const identity = { runnerInstanceId: "runner-cloud-cold", environmentLeaseId: "lease-cloud-cold", runId: "00000000-0000-4000-8000-000000000771", normalizedSessionId, turnId: "turn-first", itemId: "item-first" };
   const nextIdentity = { ...identity, runId: "00000000-0000-4000-8000-000000000772", turnId: "turn-second", itemId: "item-second" };
   const tool = (name: string) => ({ name, description: name, inputSchema: { type: "object", properties: {}, additionalProperties: false } });
@@ -626,7 +626,7 @@ async function cloudColdAuthorityRotation(instructions: string, validShutdown = 
     expect((secondAuthority!.store.state.runAttachTemplate!.provider as Record<string, unknown>).instructions).toBe(instructions);
     expect(JSON.parse(await readFile(join(stateDirectory, "runner", "codex-provider-state.json"), "utf8")).config.instructions).toBe(instructions);
     expect(creates[1].body.prompt.text).not.toContain("FIRST instruction grant");
-    expect(creates[1].body.mcpServers).toEqual([{ name: "paperclip", type: "http", url: `https://relay.example.test/mcp/native-runs/${nextIdentity.runId}`, headers: { Authorization: "Bearer token-second", [RUNNER_TOOL_SCOPE_TOKEN_HEADER]: await currentCloudScopeHeader(runtime, normalizedSessionId) } }]);
+    expect(creates[1].body.mcpServers).toEqual([{ name: "outpost", type: "http", url: `https://relay.example.test/mcp/native-runs/${nextIdentity.runId}`, headers: { Authorization: "Bearer token-second", [RUNNER_TOOL_SCOPE_TOKEN_HEADER]: await currentCloudScopeHeader(runtime, normalizedSessionId) } }]);
     const remote = JSON.parse(await readFile(remoteStatePath, "utf8"));
     expect(new Set(remote.runs.map((run: { id: string }) => run.id)).size).toBe(2);
     expect(remote.runs.every((run: { status: string }) => run.status === "FINISHED")).toBe(true);

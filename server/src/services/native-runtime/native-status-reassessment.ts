@@ -9,14 +9,14 @@ import { decisionHasRetiredAutomaticReview } from "./automatic-completion-review
 import { classifyNativeEvidence } from "./evidence-classifier.js";
 import { hasPendingNativeChildCompletion } from "./native-child-completion-delivery.js";
 import { resolveNativeReconciliationStatus, type NativeReconciliationFacts } from "./native-reconciliation-status.js";
-import { pendingNativeGovernance, resolveNativeFinalizerStatus } from "./native-run-finalizer.js";
+import { pendingNativePolicy, resolveNativeFinalizerStatus } from "./native-run-finalizer.js";
 import { gateDoneOnConfiguredReview, NATIVE_STATUS_ARBITER_POLICY_VERSION, supersedeStaleOwnerCompletion, type NativeAuthoritativeIssueStatus, type NativeStatusDecision } from "./status-arbiter.js";
 import { commitNativeStatusDecision, NativeStatusRaceError } from "./status-decision-committer.js";
 import { recordNativeWorkAssessment } from "./work-assessments.js";
 import { readPreservedNativeResultFinalization } from "./preserved-native-result-finalization.js";
 
 export type NativeStatusReassessmentSource = {
-  runId: string; companyId: string; agentId: string; issueId: string;
+  runId: string; spaceId: string; agentId: string; issueId: string;
   issueStatus: string; issueStatusVersion: number; issueDecisionId: string | null;
   coordinatorPhase: string; assessmentId: string; decisionId: string | null;
   nativeStatusWakeIntentId: unknown;
@@ -59,11 +59,11 @@ export async function nativeStatusReassessmentSourceIsSuperseded(
     || row.issueDecisionId === null || row.issueDecisionId === row.decisionId) return false;
   const [decision] = await db.select({ decisionJson: statusDecisions.decisionJson })
     .from(statusDecisions).where(and(eq(statusDecisions.id, row.decisionId),
-      eq(statusDecisions.companyId, row.companyId), eq(statusDecisions.issueId, row.issueId))).limit(1);
+      eq(statusDecisions.spaceId, row.spaceId), eq(statusDecisions.issueId, row.issueId))).limit(1);
   if (!decision) throw new Error("native_committed_decision_missing");
   const [assessment] = await db.select({ priorDecisionId: workAssessments.priorDecisionId })
     .from(workAssessments).where(and(eq(workAssessments.id, row.assessmentId),
-      eq(workAssessments.companyId, row.companyId), eq(workAssessments.issueId, row.issueId))).limit(1);
+      eq(workAssessments.spaceId, row.spaceId), eq(workAssessments.issueId, row.issueId))).limit(1);
   return isSupersededSource(row, record(decision.decisionJson), assessment?.priorDecisionId);
 }
 
@@ -84,12 +84,12 @@ export async function reassessNativeStatusFromSource(
     createdAt: workAssessments.createdAt,
   }).from(workAssessments).where(and(
     eq(workAssessments.id, row.assessmentId),
-    eq(workAssessments.companyId, row.companyId),
+    eq(workAssessments.spaceId, row.spaceId),
     eq(workAssessments.issueId, row.issueId),
   )).limit(1).then((entries) => entries[0] ?? null);
   const changedEvidence = assessment
     ? await db.select({ id: issueWorkProducts.id }).from(issueWorkProducts).where(and(
-        eq(issueWorkProducts.companyId, row.companyId),
+        eq(issueWorkProducts.spaceId, row.spaceId),
         eq(issueWorkProducts.issueId, row.issueId),
         or(
           gt(issueWorkProducts.createdAt, assessment.createdAt),
@@ -100,7 +100,7 @@ export async function reassessNativeStatusFromSource(
   const currentDecision = row.decisionId
     ? await db.select().from(statusDecisions).where(and(
         eq(statusDecisions.id, row.decisionId),
-        eq(statusDecisions.companyId, row.companyId),
+        eq(statusDecisions.spaceId, row.spaceId),
         eq(statusDecisions.issueId, row.issueId),
       )).limit(1).then((entries) => entries[0] ?? null)
     : null;
@@ -139,20 +139,20 @@ export async function reassessNativeStatusFromSource(
     [resultRow, contractRow] = await Promise.all([
       db.select().from(nativeRunResults).where(and(
         eq(nativeRunResults.id, assessment.resultId),
-        eq(nativeRunResults.companyId, row.companyId),
+        eq(nativeRunResults.spaceId, row.spaceId),
         eq(nativeRunResults.issueId, row.issueId),
         eq(nativeRunResults.runId, row.runId),
       )).limit(1).then((entries) => entries[0] ?? null),
       db.select().from(completionContracts).where(and(
         eq(completionContracts.id, assessment.contractId),
-        eq(completionContracts.companyId, row.companyId),
+        eq(completionContracts.spaceId, row.spaceId),
         eq(completionContracts.issueId, row.issueId),
       )).limit(1).then((entries) => entries[0] ?? null),
     ]);
     if (!resultRow || !contractRow) throw new Error("native_reconciliation_evidence_binding_missing");
     reassessment = await classifyNativeEvidence({
       db,
-      companyId: row.companyId,
+      spaceId: row.spaceId,
       issueId: row.issueId,
       runId: row.runId,
       contract: record(contractRow.contractJson),
@@ -174,29 +174,29 @@ export async function reassessNativeStatusFromSource(
       throw new Error("native_reconciliation_reassessment_missing");
     }
     const currentIssue = await db.select().from(issues)
-      .where(and(eq(issues.id, row.issueId), eq(issues.companyId, row.companyId))).then((entries) => entries[0]);
+      .where(and(eq(issues.id, row.issueId), eq(issues.spaceId, row.spaceId))).then((entries) => entries[0]);
     const readiness = retiredAutomaticReview ? await issueService(db).getDependencyReadiness(row.issueId, db) : null;
     const currentRun = retiredAutomaticReview ? await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, row.runId)).then((entries) => entries[0]) : null;
     const latestContract = retiredAutomaticReview ? await db.select({ id: completionContracts.id }).from(completionContracts)
-      .where(and(eq(completionContracts.companyId, row.companyId), eq(completionContracts.issueId, row.issueId)))
+      .where(and(eq(completionContracts.spaceId, row.spaceId), eq(completionContracts.issueId, row.issueId)))
       .orderBy(desc(completionContracts.revision)).limit(1).then((entries) => entries[0]) : null;
     if (retiredAutomaticReview && (!currentIssue || currentRun?.status !== "succeeded"
       || (options.onlyWhenDue && hasNativeWorkspaceFinalizationOwner(currentRun.runnerProfileJson))
       || latestContract?.id !== contractRow.id
       || (currentIssue.executionRunId && currentIssue.executionRunId !== row.runId))) return { kind: "deferred" };
     const reviewBarrier = retiredAutomaticReview ? await db.select({ status: workspaceOperations.status })
-      .from(workspaceOperations).where(and(eq(workspaceOperations.companyId, row.companyId),
+      .from(workspaceOperations).where(and(eq(workspaceOperations.spaceId, row.spaceId),
         eq(workspaceOperations.heartbeatRunId, row.runId), eq(workspaceOperations.phase, "workspace_finalize")))
       .orderBy(desc(workspaceOperations.createdAt)).limit(1).then((entries) => entries[0]) : null;
     if (reviewBarrier && reviewBarrier.status !== "succeeded") return { kind: "deferred" };
     const childCompletionRecipient = {
-      companyId: row.companyId, issueId: row.issueId, agentId: row.agentId, runId: row.runId,
+      spaceId: row.spaceId, issueId: row.issueId, agentId: row.agentId, runId: row.runId,
       sourceIntentId: typeof row.nativeStatusWakeIntentId === "string" ? row.nativeStatusWakeIntentId : null,
     };
     const hasPendingChildCompletion = await hasPendingNativeChildCompletion(db, childCompletionRecipient);
     const reassessmentRow = await recordNativeWorkAssessment({
       db,
-      companyId: row.companyId,
+      spaceId: row.spaceId,
       issueId: row.issueId,
       runId: row.runId,
       turnId: resultRow.turnId,
@@ -212,8 +212,8 @@ export async function reassessNativeStatusFromSource(
       supersedesAssessmentId: assessment.id,
     });
     const hasUnresolvedIssueBlockers = (readiness?.unresolvedBlockerCount ?? 0) > 0;
-    const governanceGate = retiredAutomaticReview && currentIssue
-      ? await pendingNativeGovernance({ db, companyId: row.companyId, issueId: row.issueId,
+    const policyGate = retiredAutomaticReview && currentIssue
+      ? await pendingNativePolicy({ db, spaceId: row.spaceId, issueId: row.issueId,
           runId: row.runId, executionState: record(currentIssue.executionState) }) : null;
     const qualityReview = currentIssue ? await readRequiredQualityReview(db, currentIssue) : null;
     // The configured review policy gates Done here exactly as in the finalizer.
@@ -225,7 +225,7 @@ export async function reassessNativeStatusFromSource(
           executionReviewStageStarts: reviewStage.kind === "starts",
           requiredQualityReviewSatisfied: qualityReview?.satisfied,
           assessment: reassessment, terminalState: "succeeded", workspaceFinalizeStatus: "succeeded",
-          governanceGate,
+          policyGate,
           completionClaimPolicyAccepted: contractRow.risk === "low" && contractRow.completionAuthority === "agent_claim_policy",
           hasUnresolvedIssueBlockers,
           reviewOwnerUserId: currentIssue.responsibleUserId ?? currentIssue.createdByUserId,
@@ -250,7 +250,7 @@ export async function reassessNativeStatusFromSource(
     try {
       committed = await commitNativeStatusDecision({
         db,
-        companyId: row.companyId,
+        spaceId: row.spaceId,
         issueId: row.issueId,
         runId: row.runId,
         assessmentId: reassessmentRow.id,
@@ -260,7 +260,7 @@ export async function reassessNativeStatusFromSource(
         decision,
         requireReassessmentSource: options.onlyWhenDue ? {
           phase: row.coordinatorPhase, resultId: resultRow.id, assessmentId: assessment.id,
-          decisionId: row.decisionId, agentId: row.agentId, retiredAutomaticReview: retiredAutomaticReview ? { contractId: contractRow.id, governanceGate, hasUnresolvedIssueBlockers } : null,
+          decisionId: row.decisionId, agentId: row.agentId, retiredAutomaticReview: retiredAutomaticReview ? { contractId: contractRow.id, policyGate, hasUnresolvedIssueBlockers } : null,
         } : undefined,
         requireNoPendingChildCompletion: decision.statusAction === "done" ? childCompletionRecipient : undefined,
         supersedesCommittedDecisionId: row.coordinatorPhase === "committed"

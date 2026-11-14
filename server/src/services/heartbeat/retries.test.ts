@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "@outpost/db";
-import { agents, agentWakeupRequests, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRunEvents, heartbeatRuns, issues, projects, projectWorkspaces } from "@outpost/db";
+import { agents, agentWakeupRequests, spaces, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRunEvents, heartbeatRuns, issues, projects, projectWorkspaces } from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { writePaperclipSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
+import { writeOutpostSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
 import { HttpError } from "../../errors.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { createRunDispatch, isResolvedInteractionContinuationWakeContext, type PostCommitEffect } from "../../modules/run-dispatch/index.js";
@@ -51,7 +51,7 @@ function guardedDatabase() {
 
 function unitRun(): Run {
   const run: Partial<Run> = {
-    id: "run", companyId: "company", agentId: "agent", status: "running",
+    id: "run", spaceId: "space", agentId: "agent", status: "running",
     scopeKind: "issue", issueId: "issue",
     wakeupRequestId: "wake", scheduledRetryAttempt: 0,
     contextSnapshot: { issueId: "issue", timerClaimWasFirstHeartbeat: true },
@@ -162,7 +162,7 @@ describe("heartbeat retry module callbacks", () => {
     const now = new Date("2026-10-08T12:00:00Z");
     const cutoff = new Date("2026-10-08T11:00:00Z");
     const effect: PostCommitEffect = {
-      kind: "run_queued", runId: "retry", companyId: "company", agentId: "agent",
+      kind: "run_queued", runId: "retry", spaceId: "space", agentId: "agent",
       invocationSource: "automation", triggerDetail: "system", wakeupRequestId: "wake",
     };
     deps.getWorktreeExecutionCutoff.mockResolvedValue(cutoff);
@@ -265,14 +265,14 @@ describePostgres("heartbeat retry module database wiring", () => {
     await db.delete(heartbeatRuns);
     await db.delete(agentWakeupRequests);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   function boundRetries() {
     const state = createHeartbeatRunState(db);
     const deps = {
       ...callbacks(), getRun: state.getRun, getAgent: state.getAgent,
-      hasCaseHandoffForRun: async (run: Pick<Run, "id" | "companyId">) => Boolean(await pendingCaseHandoffForRun(db, run.id, run.companyId)),
+      hasCaseHandoffForRun: async (run: Pick<Run, "id" | "spaceId">) => Boolean(await pendingCaseHandoffForRun(db, run.id, run.spaceId)),
       resolveSessionBeforeForWakeup: state.resolveSessionBeforeForWakeup,
       getAgentInvokability: (agent: Agent | null | undefined) => evaluateAgentInvokabilityFromDb(db, agent),
       runDispatch: createRunDispatch(db),
@@ -281,26 +281,26 @@ describePostgres("heartbeat retry module database wiring", () => {
   }
 
   async function fixture() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Retries", issuePrefix: `R${companyId.slice(0, 8)}` });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Retry agent", adapterType: "codex_local", status: "active" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Retry task", status: "in_progress", assigneeAgentId: agent.id }).returning();
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Retries", issuePrefix: `R${spaceId.slice(0, 8)}` });
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Retry agent", adapterType: "codex_local", status: "active" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Retry task", status: "in_progress", assigneeAgentId: agent.id }).returning();
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId, agentId: agent.id, scopeKind: "issue", issueId: issue.id,
+      spaceId, agentId: agent.id, scopeKind: "issue", issueId: issue.id,
       status: "failed", errorCode: "codex_transient_upstream", finishedAt: now,
       resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
       contextSnapshot: { issueId: issue.id },
     }).returning();
     await db.update(issues).set({ executionRunId: run.id, checkoutRunId: run.id }).where(eq(issues.id, issue.id));
-    return { companyId, agent, issue, run };
+    return { spaceId, agent, issue, run };
   }
 
   it.each([false, true])("records a workspace wait only for the deferral's workspace (task moved after cancel: %s)", async (moved) => {
-    const { run, agent, issue, companyId } = await fixture();
-    const [project] = await db.insert(projects).values({ companyId, name: "Shared" }).returning();
+    const { run, agent, issue, spaceId } = await fixture();
+    const [project] = await db.insert(projects).values({ spaceId, name: "Shared" }).returning();
     const [deferredOn, movedTo] = await db.insert(projectWorkspaces).values([
-      { companyId, projectId: project.id, name: "Deferred", sourceType: "local_path", cwd: "/tmp/deferred" },
-      { companyId, projectId: project.id, name: "Moved", sourceType: "local_path", cwd: "/tmp/moved" },
+      { spaceId, projectId: project.id, name: "Deferred", sourceType: "local_path", cwd: "/tmp/deferred" },
+      { spaceId, projectId: project.id, name: "Moved", sourceType: "local_path", cwd: "/tmp/moved" },
     ]).returning();
     try {
       await db.update(issues).set({ projectId: project.id, projectWorkspaceId: deferredOn.id }).where(eq(issues.id, issue.id));
@@ -322,19 +322,19 @@ describePostgres("heartbeat retry module database wiring", () => {
       if (moved) expect(wait).toBeUndefined();
       else expect(wait).toMatchObject({ key: `project:${deferredOn.id}`, issueProjectWorkspaceId: deferredOn.id, issueExecutionWorkspaceId: null });
     } finally {
-      await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.companyId, companyId));
-      await db.delete(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
-      await db.delete(issues).where(eq(issues.companyId, companyId));
-      await db.delete(projectWorkspaces).where(eq(projectWorkspaces.companyId, companyId));
-      await db.delete(projects).where(eq(projects.companyId, companyId));
+      await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.spaceId, spaceId));
+      await db.delete(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId));
+      await db.delete(issues).where(eq(issues.spaceId, spaceId));
+      await db.delete(projectWorkspaces).where(eq(projectWorkspaces.spaceId, spaceId));
+      await db.delete(projects).where(eq(projects.spaceId, spaceId));
     }
   });
 
   // A run that could not retire its predecessor re-queues in the uncharged lane
   // with the answered interaction's own wake, so the retry still carries it.
   it("keeps an answered interaction in an uncharged interrupted-preparation retry that keeps its wake", async () => {
-    const { run, agent, companyId } = await fixture();
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId, agentId: agent.id,
+    const { run, agent, spaceId } = await fixture();
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId, agentId: agent.id,
       runId: run.id, source: "automation", status: "failed" }).returning();
     const contextSnapshot = { ...run.contextSnapshot, interactionId: randomUUID(), interactionStatus: "answered",
       interactionKind: "ask_user_questions", mutation: "interaction", wakeReason: "issue_commented" };
@@ -352,8 +352,8 @@ describePostgres("heartbeat retry module database wiring", () => {
   });
 
   it("bounds answered chat attestation retries across restarts and escalates their exhaustion", async () => {
-    const { run, agent, companyId } = await fixture();
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId, agentId: agent.id,
+    const { run, agent, spaceId } = await fixture();
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId, agentId: agent.id,
       runId: run.id, source: "automation", status: "failed" }).returning();
     const contextSnapshot = { ...run.contextSnapshot, source: "issue.interaction.respond", externalChatContinuation: true,
       interactionId: randomUUID(), interactionStatus: "answered", interactionKind: "ask_user_questions",
@@ -384,7 +384,7 @@ describePostgres("heartbeat retry module database wiring", () => {
     expect(deps.escalatePlanApprovalResumeFailureNeedsAttention).toHaveBeenCalledOnce();
     expect(deps.escalatePlanApprovalResumeFailureNeedsAttention)
       .toHaveBeenCalledWith(expect.objectContaining({ attempt: 2, maxAttempts: 2, run: predecessor }));
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId))).toHaveLength(3);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId))).toHaveLength(3);
   });
 
   it("keeps the accepted interaction owner and its catalog provider deadline", async () => {
@@ -459,9 +459,9 @@ describePostgres("heartbeat retry module database wiring", () => {
 
   it("resolves current skills on a retry while retaining the failed attempt snapshot", async () => {
     const {run,agent}=await fixture();
-    const snapshot={...run.contextSnapshot,skillVersions:{"company/review":"v1"},skillSelectionSnapshot:true,shadowedSkills:[{key:"old",shadowedBy:"company/review"}]};
+    const snapshot={...run.contextSnapshot,skillVersions:{"space/review":"v1"},skillSelectionSnapshot:true,shadowedSkills:[{key:"old",shadowedBy:"space/review"}]};
     await db.update(heartbeatRuns).set({contextSnapshot:snapshot}).where(eq(heartbeatRuns.id,run.id));
-    await db.update(agents).set({adapterConfig:writePaperclipSkillSyncPreference({},[{key:"company/review",versionId:"v2"}])}).where(eq(agents.id,agent.id));
+    await db.update(agents).set({adapterConfig:writeOutpostSkillSyncPreference({},[{key:"space/review",versionId:"v2"}])}).where(eq(agents.id,agent.id));
     const result=await boundRetries().retries.scheduleBoundedRetryForRun({...run,contextSnapshot:snapshot},agent,{now,random:()=>0});
     expect(result.outcome).toBe("scheduled");
     const [successor]=await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.retryOfRunId,run.id));
@@ -473,7 +473,7 @@ describePostgres("heartbeat retry module database wiring", () => {
   });
 
   it("reuses one successor across concurrent factories and keeps writes committed before callbacks", async () => {
-    const { run, agent, issue, companyId } = await fixture();
+    const { run, agent, issue, spaceId } = await fixture();
     const first = boundRetries(), second = boundRetries();
     for (const binding of [first, second]) {
       binding.deps.appendRunEvent.mockImplementation(async (_source, event) => {
@@ -487,7 +487,7 @@ describePostgres("heartbeat retry module database wiring", () => {
       second.retries.scheduleBoundedRetryForRun(run, agent, { now, random: () => 0 }),
     ]);
     expect(results.every((result) => result.outcome === "scheduled")).toBe(true);
-    const successors = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.retryOfRunId, run.id)));
+    const successors = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.retryOfRunId, run.id)));
     expect(successors).toHaveLength(1);
     const successor = successors[0];
     expect(successor).toMatchObject({

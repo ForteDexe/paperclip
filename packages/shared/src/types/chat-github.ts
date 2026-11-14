@@ -1,4 +1,4 @@
-/** GitHub is a channel into an ordinary Paperclip task, not another executor. */
+/** GitHub is a channel into an ordinary Outpost task, not another executor. */
 export const GITHUB_REVIEW_EVENTS = [
   "opened",
   "synchronize",
@@ -124,7 +124,7 @@ export type GitHubReviewConclusion =
 /** Stored evidence attached to a task/run. Never independently scheduled. */
 export interface GitHubTaskReview {
   id: string;
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   issueId: string;
   runId: string | null;

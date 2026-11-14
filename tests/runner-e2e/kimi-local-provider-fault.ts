@@ -116,12 +116,12 @@ export function selectKimiLocalTarget(input: {
   const matches = [];
   for (const candidate of input.processes) {
     if (candidate.pid === root.pid || candidate.cwd !== input.workspacePath || candidate.bootId !== root.bootId) continue;
-    const match = /^(\/[^\u0000-\u0020]*\/paperclip-acpx-native-[A-Za-z0-9_-]+\/distribution)\/node\/bin\/node$/u.exec(candidate.executable);
+    const match = /^(\/[^\u0000-\u0020]*\/outpost-acpx-native-[A-Za-z0-9_-]+\/distribution)\/node\/bin\/node$/u.exec(candidate.executable);
     if (!match) continue;
     const distribution = match[1]!, parent = byPid.get(candidate.ppid);
     if (!parent || parent.cwd !== input.workspacePath || parent.bootId !== root.bootId) continue;
     if (!Array.isArray(parent.argv) || parent.argv.length !== 10 || parent.argv[1] !== "--eval" || parent.argv[3] !== distribution
-      || JSON.stringify(parent.argv.slice(4)) !== JSON.stringify([".paperclip-native-entry.cjs", "0", "0", "commonjs", "[]", "0"])
+      || JSON.stringify(parent.argv.slice(4)) !== JSON.stringify([".outpost-native-entry.cjs", "0", "0", "commonjs", "[]", "0"])
       || sha(parent.argv[2]!) !== input.guardLoaderSha256) continue;
     const ancestry = [candidate]; let cursor = candidate;
     while (cursor.pid !== root.pid) {
@@ -166,8 +166,8 @@ export function terminateKimiLocalProvider(input: { authority: RunProcessAuthori
   const entries = parseNativeAcpxDistributionEntries(metadata, contract.closureSha256);
   const node = sealedFile(join(before.distribution, "node/bin/node"), 256 * 1024 * 1024);
   const entry = sealedFile(join(before.distribution, KIMI_FAULT_ENTRY), 256 * 1024 * 1024);
-  const guard = sealedFile(join(before.distribution, ".paperclip-native-module-guard.cjs"), 4 * 1024 * 1024);
-  const bootstrap = sealedFile(join(before.distribution, ".paperclip-native-entry.cjs"), 65536);
+  const guard = sealedFile(join(before.distribution, ".outpost-native-module-guard.cjs"), 4 * 1024 * 1024);
+  const bootstrap = sealedFile(join(before.distribution, ".outpost-native-entry.cjs"), 65536);
   demand(node.dev === before.target.executableDev && node.ino === before.target.executableIno
     && node.digest === contract.nodeSha256 && node.digest === `sha256:${entries.find(row => row.path === "node/bin/node")?.sha256}`
     && entry.digest === `sha256:${entries.find(row => row.path === KIMI_FAULT_ENTRY)?.sha256}`

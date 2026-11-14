@@ -52,14 +52,14 @@ test('fails a new migration the classifier cannot prove safe under the running r
   assert.equal(result.errors.length, 1);
   assert.match(result.errors[0], /0232_plain_index\.sql/);
   assert.match(result.errors[0], /lock_hazard_create_index/);
-  assert.match(result.errors[0], /-- paperclip:migration-compat online_compatible: </);
+  assert.match(result.errors[0], /-- outpost:migration-compat online_compatible: </);
   assert.match(result.errors[0], /expand migration now and a contract migration in a later release/);
 });
 
 test('passes an unknown migration with a justified in-file override', async () => {
   const result = await checkMigrationCompatibility([{
     fileName: migration('0232_plain_index'),
-    sql: '-- paperclip:migration-compat online_compatible: issues stays under 10k rows on every stack\nCREATE INDEX "issues_note_idx" ON "issues" ("note");',
+    sql: '-- outpost:migration-compat online_compatible: issues stays under 10k rows on every stack\nCREATE INDEX "issues_note_idx" ON "issues" ("note");',
   }]);
 
   assert.equal(result.passed, true);
@@ -69,7 +69,7 @@ test('passes an unknown migration with a justified in-file override', async () =
 test('fails an override that has no justification', async () => {
   const result = await checkMigrationCompatibility([{
     fileName: migration('0232_plain_index'),
-    sql: '-- paperclip:migration-compat online_compatible:\nCREATE INDEX "issues_note_idx" ON "issues" ("note");',
+    sql: '-- outpost:migration-compat online_compatible:\nCREATE INDEX "issues_note_idx" ON "issues" ("note");',
   }]);
 
   assert.equal(result.passed, false);

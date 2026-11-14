@@ -8,11 +8,11 @@ import {
   type BaseClientOptions,
 } from "./common.js";
 
-interface CompanyOptions extends BaseClientOptions {
-  companyId?: string;
+interface SpaceOptions extends BaseClientOptions {
+  spaceId?: string;
 }
 
-interface JsonPayloadOptions extends CompanyOptions {
+interface JsonPayloadOptions extends SpaceOptions {
   payloadJson: string;
 }
 
@@ -20,19 +20,19 @@ interface RuntimeActionOptions extends BaseClientOptions {
   payloadJson?: string;
 }
 
-interface OrgOutputOptions extends CompanyOptions {
+interface OrgOutputOptions extends SpaceOptions {
   out?: string;
 }
 
 export function registerWorkspaceCommands(program: Command): void {
   const org = program.command("org").description("Outpost chart operations");
-  addCompanyGet(org, "get", "Get org chart data", "org");
-  addBinaryCompanyGet(org, "svg", "Download org chart SVG", "org.svg");
-  addBinaryCompanyGet(org, "png", "Download org chart PNG", "org.png");
-  addCompanyGet(program.command("agent-config").description("Agent configuration summaries"), "list", "List agent configurations", "agent-configurations");
+  addSpaceGet(org, "get", "Get org chart data", "org");
+  addBinarySpaceGet(org, "svg", "Download org chart SVG", "org.svg");
+  addBinarySpaceGet(org, "png", "Download org chart PNG", "org.png");
+  addSpaceGet(program.command("agent-config").description("Agent configuration summaries"), "list", "List agent configurations", "agent-configurations");
 
   const workspace = program.command("workspace").description("Execution workspace operations");
-  addCompanyGet(workspace, "list", "List execution workspaces", "execution-workspaces");
+  addSpaceGet(workspace, "list", "List execution workspaces", "execution-workspaces");
   addIdGet(workspace, "get", "Get an execution workspace", "execution-workspaces");
   addIdGet(workspace, "close-readiness", "Check execution workspace close readiness", "execution-workspaces", "close-readiness");
   addIdGet(workspace, "operations", "List execution workspace operations", "execution-workspaces", "workspace-operations");
@@ -41,9 +41,9 @@ export function registerWorkspaceCommands(program: Command): void {
   addRuntimeAction(workspace, "runtime-command", "Run an execution workspace runtime command", "execution-workspaces", "runtime-commands");
 
   const environment = program.command("environment").description("Environment operations");
-  addCompanyGet(environment, "list", "List environments", "environments");
-  addCompanyGet(environment, "capabilities", "Get environment capabilities", "environments/capabilities");
-  addCompanyPostJson(environment, "create", "Create an environment", "environments");
+  addSpaceGet(environment, "list", "List environments", "environments");
+  addSpaceGet(environment, "capabilities", "Get environment capabilities", "environments/capabilities");
+  addSpacePostJson(environment, "create", "Create an environment", "environments");
   addIdGet(environment, "get", "Get an environment", "environments");
   addIdGet(environment, "leases", "List environment leases", "environments", "leases");
   addCommonClientOptions(
@@ -64,7 +64,7 @@ export function registerWorkspaceCommands(program: Command): void {
   addPatchJson(environment, "update", "Update an environment", "environments");
   addDelete(environment, "delete", "Delete an environment", "environments");
   addPostEmpty(environment, "probe", "Probe an environment", "environments", "probe");
-  addCompanyPostJson(environment, "probe-config", "Probe an environment config", "environments/probe-config");
+  addSpacePostJson(environment, "probe-config", "Probe an environment config", "environments/probe-config");
 
   const projectWorkspace = program.command("project-workspace").description("Project workspace operations");
   addCommonClientOptions(
@@ -104,36 +104,36 @@ export function registerWorkspaceCommands(program: Command): void {
   addProjectRuntimeAction(projectWorkspace, "runtime-command", "Run a project workspace runtime command", "runtime-commands");
 }
 
-function addCompanyGet(parent: Command, name: string, description: string, path: string): void {
+function addSpaceGet(parent: Command, name: string, description: string, path: string): void {
   addCommonClientOptions(
     parent
       .command(name)
       .description(description)
-      .option("-C, --company-id <id>", "Outpost ID")
-      .action(async (opts: CompanyOptions) => {
+      .option("-C, --space-id <id>", "Outpost ID")
+      .action(async (opts: SpaceOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const result = await ctx.api.get(`${apiPath`/api/companies/${ctx.companyId}`}/${path}`);
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const result = await ctx.api.get(`${apiPath`/api/spaces/${ctx.spaceId}`}/${path}`);
           printOutput(result, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 
-function addBinaryCompanyGet(parent: Command, name: string, description: string, path: string): void {
+function addBinarySpaceGet(parent: Command, name: string, description: string, path: string): void {
   addCommonClientOptions(
     parent
       .command(name)
       .description(description)
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .option("--out <path>", "Write output to file")
       .action(async (opts: OrgOutputOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const response = await fetch(buildApiUrl(ctx.api.apiBase, `${apiPath`/api/companies/${ctx.companyId}`}/${path}`), {
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const response = await fetch(buildApiUrl(ctx.api.apiBase, `${apiPath`/api/spaces/${ctx.spaceId}`}/${path}`), {
             headers: ctx.api.apiKey ? { authorization: `Bearer ${ctx.api.apiKey}` } : undefined,
           });
           const bytes = Buffer.from(await response.arrayBuffer());
@@ -149,27 +149,27 @@ function addBinaryCompanyGet(parent: Command, name: string, description: string,
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 
-function addCompanyPostJson(parent: Command, name: string, description: string, path: string): void {
+function addSpacePostJson(parent: Command, name: string, description: string, path: string): void {
   addCommonClientOptions(
     parent
       .command(name)
       .description(description)
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "JSON payload")
       .action(async (opts: JsonPayloadOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const result = await ctx.api.post(`${apiPath`/api/companies/${ctx.companyId}`}/${path}`, parseJson(opts.payloadJson));
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const result = await ctx.api.post(`${apiPath`/api/spaces/${ctx.spaceId}`}/${path}`, parseJson(opts.payloadJson));
           printOutput(result, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 

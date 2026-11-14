@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "@outpost/db";
 import { healthRoutes } from "../routes/health.js";
 import {
-  WORKSPACE_EXECUTION_WORKSPACE_COMPANY_ID_ENV_KEY,
+  WORKSPACE_EXECUTION_WORKSPACE_SPACE_ID_ENV_KEY,
   WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY,
   WORKSPACE_HANDOFF_KEY_ENV_KEY,
   WORKSPACE_READINESS_TOKEN_ENV_KEY,
@@ -22,7 +22,7 @@ const envKeys = [
   WORKSPACE_HANDOFF_KEY_ENV_KEY,
   WORKSPACE_READINESS_TOKEN_ENV_KEY,
   WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY,
-  WORKSPACE_EXECUTION_WORKSPACE_COMPANY_ID_ENV_KEY,
+  WORKSPACE_EXECUTION_WORKSPACE_SPACE_ID_ENV_KEY,
 ] as const;
 const previousEnv = new Map<string, string | undefined>();
 
@@ -34,7 +34,7 @@ function setEnv(values: Record<string, string>) {
 }
 
 function createSeededWorkspace() {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "paperclip-health-workspace-"));
+  const dir = mkdtempSync(path.join(os.tmpdir(), "outpost-health-workspace-"));
   tempDirs.push(dir);
   writeFileSync(path.join(dir, "config.json"), "{}\n", "utf8");
   writeFileSync(
@@ -54,7 +54,7 @@ function stubDb() {
   return {
     execute: vi.fn().mockResolvedValue([{ "?column?": 1 }]),
     select: vi.fn((projection?: Record<string, unknown>) => {
-      const rows = projection && "count" in projection ? [{ count: 1 }] : [{ companyId: "company-1" }];
+      const rows = projection && "count" in projection ? [{ count: 1 }] : [{ spaceId: "space-1" }];
       const chain: Record<string, unknown> = {};
       for (const method of ["from", "where", "innerJoin", "limit", "orderBy", "groupBy"]) {
         chain[method] = vi.fn(() => chain);
@@ -65,7 +65,7 @@ function stubDb() {
   } as unknown as Db;
 }
 
-function createApp(actorType: "board" | "none") {
+function createApp(actorType: "operator" | "none") {
   const app = express();
   app.use((req, _res, next) => {
     (req as express.Request & { actor: { type: string } }).actor = { type: actorType };
@@ -77,7 +77,7 @@ function createApp(actorType: "board" | "none") {
       deploymentMode: "authenticated",
       deploymentExposure: "private",
       authReady: true,
-      companyDeletionEnabled: true,
+      spaceDeletionEnabled: true,
     }),
   );
   return app;
@@ -94,14 +94,14 @@ afterEach(() => {
 });
 
 describe("GET /api/health workspace readiness", () => {
-  it("exposes readiness to a board actor of a managed workspace", async () => {
+  it("exposes readiness to a operator actor of a managed workspace", async () => {
     setEnv({
       OUTPOST_CONFIG: createSeededWorkspace(),
       [WORKSPACE_HANDOFF_KEY_ENV_KEY]: "handoff-key",
       [WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY]: "ews-1",
-      [WORKSPACE_EXECUTION_WORKSPACE_COMPANY_ID_ENV_KEY]: "company-1",
+      [WORKSPACE_EXECUTION_WORKSPACE_SPACE_ID_ENV_KEY]: "space-1",
     });
-    const response = await request(createApp("board")).get("/api/health").expect(200);
+    const response = await request(createApp("operator")).get("/api/health").expect(200);
     expect(response.body.workspace).toMatchObject({
       state: "ready",
       databaseReady: true,
@@ -109,7 +109,7 @@ describe("GET /api/health workspace readiness", () => {
       authHandoffReady: true,
       seedState: "verified",
       executionWorkspaceId: "ews-1",
-      companyId: "company-1",
+      spaceId: "space-1",
     });
   });
 
@@ -119,7 +119,7 @@ describe("GET /api/health workspace readiness", () => {
       [WORKSPACE_HANDOFF_KEY_ENV_KEY]: "handoff-key",
       [WORKSPACE_READINESS_TOKEN_ENV_KEY]: "probe-token",
       [WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY]: "ews-1",
-      [WORKSPACE_EXECUTION_WORKSPACE_COMPANY_ID_ENV_KEY]: "company-1",
+      [WORKSPACE_EXECUTION_WORKSPACE_SPACE_ID_ENV_KEY]: "space-1",
     });
     const response = await request(createApp("none")).get("/api/health").expect(200);
     expect(response.body.status).toBe("ok");
@@ -133,7 +133,7 @@ describe("GET /api/health workspace readiness", () => {
       [WORKSPACE_HANDOFF_KEY_ENV_KEY]: "handoff-key",
       [WORKSPACE_READINESS_TOKEN_ENV_KEY]: "probe-token",
       [WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY]: "ews-1",
-      [WORKSPACE_EXECUTION_WORKSPACE_COMPANY_ID_ENV_KEY]: "company-1",
+      [WORKSPACE_EXECUTION_WORKSPACE_SPACE_ID_ENV_KEY]: "space-1",
     });
     const response = await request(createApp("none"))
       .get("/api/health")
@@ -156,7 +156,7 @@ describe("GET /api/health workspace readiness", () => {
       [WORKSPACE_HANDOFF_KEY_ENV_KEY]: "handoff-key",
       [WORKSPACE_READINESS_TOKEN_ENV_KEY]: "probe-token",
       [WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY]: "ews-1",
-      [WORKSPACE_EXECUTION_WORKSPACE_COMPANY_ID_ENV_KEY]: "company-1",
+      [WORKSPACE_EXECUTION_WORKSPACE_SPACE_ID_ENV_KEY]: "space-1",
     });
     const response = await request(createApp("none"))
       .get("/api/health")
@@ -166,13 +166,13 @@ describe("GET /api/health workspace readiness", () => {
   });
 
   it("omits readiness entirely on an instance that is not a cloned workspace", async () => {
-    const dir = mkdtempSync(path.join(os.tmpdir(), "paperclip-health-primary-"));
+    const dir = mkdtempSync(path.join(os.tmpdir(), "outpost-health-primary-"));
     tempDirs.push(dir);
     writeFileSync(path.join(dir, "config.json"), "{}\n", "utf8");
     setEnv({ OUTPOST_CONFIG: path.join(dir, "config.json") });
     delete process.env[WORKSPACE_HANDOFF_KEY_ENV_KEY];
     delete process.env[WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY];
-    const response = await request(createApp("board")).get("/api/health").expect(200);
+    const response = await request(createApp("operator")).get("/api/health").expect(200);
     expect(response.body.workspace).toBeUndefined();
   });
 });

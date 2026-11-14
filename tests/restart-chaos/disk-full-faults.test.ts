@@ -11,7 +11,7 @@ import type { TaskRecord } from "./types.js";
 const IMAGE = `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:${"a".repeat(64)}`;
 const diskFullIssue = (label = "sandbox_disk_full", canRetry = true) => ({
   status: "blocked", interruption: { canRetry },
-  activeRecoveryAction: { ownerType: "board", evidence: { systemRecovery: { failure: {
+  activeRecoveryAction: { ownerType: "operator", evidence: { systemRecovery: { failure: {
     code: "export_interrupted", retryClass: "user_action_required", cause: { label, code: "ENOSPC", status: null } } } } },
 });
 
@@ -72,7 +72,7 @@ describe("DF1 control file", () => {
 describe("DF1 clear timing", () => {
   it("waits at an unfinished rest until the board names the full disk, then up to the settle bound", () => {
     const disk = { kind: "DF1" as const, armedAt: 1, clearedAt: null, rest: null };
-    const checking = diskFullRest({ status: "blocked", interruption: { canRetry: true }, activeRecoveryAction: { ownerType: "board", evidence: {} } }, 0);
+    const checking = diskFullRest({ status: "blocked", interruption: { canRetry: true }, activeRecoveryAction: { ownerType: "operator", evidence: {} } }, 0);
     expect(diskFullRestReady(disk, checking, 1_000)).toBe(false);
     expect(diskFullRestReady(disk, checking, 1_000 + DISK_FULL_REST_SETTLE_MS - 1)).toBe(false);
     expect(diskFullRestReady(disk, diskFullRest(diskFullIssue(), 0), 2_000)).toBe(true);

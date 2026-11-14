@@ -3,12 +3,12 @@
 The main task list ranks tasks by the greatest task update, comment, or canonical
 activity timestamp. The activity subquery used the existing entity index, then
 read every activity row for each candidate task. The new B-tree index orders
-`(company_id, entity_type, entity_id, created_at)`. PostgreSQL can read backward
+`(space_id, entity_type, entity_id, created_at)`. PostgreSQL can read backward
 until the first activity that passes the existing exclusions.
 
 The task service, conversation-state helper, and authorization helper are
 unchanged. Permissions and waiting-conversation filters still run before
-pagination. The index preserves raw text entity IDs, company scope, automatic
+pagination. The index preserves raw text entity IDs, space scope, automatic
 read-cleanup and local inbox exclusions, null behavior, all sort directions,
 priority order, offsets, and one-child-per-parent selection.
 
@@ -16,7 +16,7 @@ priority order, offsets, and one-child-per-parent selection.
 
 Query-only alternatives failed a required control. Reusing live conversation
 state was neutral on the measured six-Slack-conversation workload: SQL
-56.09 to 52.94 ms, service 67.66 to 72.93 ms. Grouping all company activity
+56.09 to 52.94 ms, service 67.66 to 72.93 ms. Grouping all space activity
 improved a broad list but regressed a one-visible-task list from 23.70 to
 52.09 ms. A direct join kept the narrow case fast but retained 1,199 history
 probes and improved the broad case only 1.14 times. An eligible-ID CTE and
@@ -24,7 +24,7 @@ array lookup repaired the narrow case but still touched 67,401 activity buffers
 and improved the broad case only 1.06 times. Those rewrites were rejected.
 
 All seven existing activity indexes were inspected. None orders timestamps after
-both company and entity equality. The new index permits the original query and
+both space and entity equality. The new index permits the original query and
 all its filters to stay intact. It does not encode JSON or bound action values
 in a partial-index predicate. The ordinary index build was rejected by the
 migration safety gate. The final migration uses the existing concurrent-index
@@ -61,7 +61,7 @@ Initial paired samples on Docker PostgreSQL 17.11, ordinary Docker storage,
 | Case | SQL median before → after | SQL range before → after | Service median before → after |
 | --- | --- | --- | --- |
 | Full scoped list, 100 rows | 96.78 → 45.07 ms | 84.44–109.24 → 39.35–49.09 ms | 126.74 → 70.19 ms |
-| Same company, one visible task | 10.55 → 12.67 ms | 9.84–12.07 → 10.53–13.58 ms | 19.82 → 20.20 ms |
+| Same space, one visible task | 10.55 → 12.67 ms | 9.84–12.07 → 10.53–13.58 ms | 19.82 → 20.20 ms |
 
 The primary SQL gain is 2.15 times. Activity work falls from 50 rows per probe
 and 63,547 buffer hits to one qualifying row per probe and 4,796 hits. The
@@ -106,7 +106,7 @@ DDL or deployment was performed.
 The final work assertion fails on the pre-index schema: eight activity rows per
 probe exceed the required one qualifying row. The indexed test passes. A real
 service oracle checks excluded cleanup and all four inbox actions, foreign
-company and malformed/uppercase entity IDs, comments, timestamp ties, ascending,
+space and malformed/uppercase entity IDs, comments, timestamp ties, ascending,
 default and descending order, pagination, permissions, empty results, and
 one-child-per-parent selection.
 

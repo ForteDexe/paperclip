@@ -31,7 +31,7 @@ for (const theme of ["dark", "light"]) {
         await pr.focus();
         await expect(pr).toBeFocused();
         await pr.blur();
-        const settings = main.getByRole("link", { name: "company settings" });
+        const settings = main.getByRole("link", { name: "space settings" });
         await expect(settings).not.toHaveAttribute("target");
         await expect(main.locator("a[data-github-link] .lucide-external-link")).toHaveCount(0);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

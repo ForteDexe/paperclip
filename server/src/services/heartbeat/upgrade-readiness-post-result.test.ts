@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, inArray, sql } from "drizzle-orm";
-import { agents, companies, completionContracts, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, environments, executionWorkspaces,
+import { agents, spaces, completionContracts, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, environments, executionWorkspaces,
   heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, statusDecisions, workAssessments, workspaceOperations } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { DurablePrpControlPlane } from "../../vendor/outpost-runner/index.js";
@@ -32,7 +32,7 @@ describe("post-result upgrade readiness", () => {
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); vi.unstubAllEnvs(); });
 
   async function seed() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     const contractId = randomUUID(), workspaceId = randomUUID(), environmentId = randomUUID(), leaseId = randomUUID();
     const resultId = randomUUID(), runnerInstanceId = randomUUID(), nativeSessionId = randomUUID();
     const controller = await currentNativeControllerIdentity();
@@ -41,41 +41,41 @@ describe("post-result upgrade readiness", () => {
       remoteCwd: "/workspace", epoch: 1, state: "prepared", snapshotId: null };
     const authority = { schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: null, source: { kind: "empty" },
       location: { environmentId, leaseId, providerLeaseId: "sandbox", remoteCwd: "/workspace" }, writerRunId: runId, dirty: true };
-    await db.insert(companies).values({ id: companyId, name: "Upgrade", issuePrefix: `P${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Accepted work", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(spaces).values({ id: spaceId, name: "Upgrade", issuePrefix: `P${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Runner", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Accepted work", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "fixture", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: {},
       canonicalSha256: "a".repeat(64), createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId, mode: "isolated_workspace",
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issueId, mode: "isolated_workspace",
       strategyType: "local_directory", name: "Remote", cwd: "/workspace", providerType: "cloud_sandbox", metadata: { remoteWorkspace: authority } });
     await db.insert(environments).values({ id: environmentId, name: `Sandbox ${environmentId}`, driver: "sandbox" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId, status: "running",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, nativeIssueId: issueId, status: "running",
       runtimeMode: "native", nativePhase: "observed", runnerInstanceId, nativeSessionId, completionContractId: contractId,
       processPid: process.pid, processStartedAt: controller.processStartedAt,
       runnerProfileJson: { remoteWorkspace: remote, nativeExecutionInput: { binding: { executionWorkspaceId: workspaceId } } },
       contextSnapshot: { executionWorkspaceId: workspaceId } });
     runs.push(runId);
     await db.update(issues).set({ executionRunId: runId, checkoutRunId: runId, executionWorkspaceId: workspaceId }).where(eq(issues.id, issueId));
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId, executionWorkspaceId: workspaceId,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId, executionWorkspaceId: workspaceId,
       issueId, heartbeatRunId: runId, provider: "daytona", providerLeaseId: "sandbox", leasePolicy: "retain_on_failure" });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "observed", leaseOwner,
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "observed", leaseOwner,
       leaseExpiresAt: new Date(Date.now() + 60_000), controllerBootId: controller.bootId, controllerPid: controller.pid,
       controllerProcessStartedAt: controller.processStartedAt, controllerGeneration: 1 });
     const root = await mkdtemp(path.join(os.tmpdir(), "post-result-header-"));
     const core = new DurablePrpControlPlane({ stateDirectory: root, identity: { runId, runnerInstanceId,
       normalizedSessionId: nativeSessionId, environmentLeaseId: workspaceId, turnId: "turn", itemId: "item" },
       expectedRunnerVersion: "0.3.0", expectedRunnerDigest: `sha256:${"a".repeat(64)}` });
-    const writer = nativeRunnerCheckpointWriter(db, { companyId, issueId, runId, leaseOwner, bootId: controller.bootId,
+    const writer = nativeRunnerCheckpointWriter(db, { spaceId, issueId, runId, leaseOwner, bootId: controller.bootId,
       authorityRunId: runId, generation: 1 });
     core.setCheckpointPersistence(writer);
     try { core.issueBootstrapTicket(); await core.flushCheckpoint(); }
     finally { await core.stop(); await rm(root, { recursive: true, force: true }); }
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId, completionContractId: contractId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId, completionContractId: contractId,
       serverFingerprint: resultId, schemaStatus: "accepted", resultJson: { terminal: { runTerminalState: "succeeded" } }, canonicalSha256: "b".repeat(64) });
     await db.update(nativeRunFinalizations).set({ phase: "workspace_finalizing", resultId }).where(eq(nativeRunFinalizations.runId, runId));
-    return { companyId, issueId, runId, agentId, contractId, resultId, workspaceId, environmentId, leaseId, remote, authority, controller,
+    return { spaceId, issueId, runId, agentId, contractId, resultId, workspaceId, environmentId, leaseId, remote, authority, controller,
       probe: () => readUpgradeReadiness(db, { activeRunIds: new Set([runId]), counters: () => ({ activeRuns: 1, pendingWakes: 0, draining: false }) }) };
   }
 
@@ -126,7 +126,7 @@ describe("post-result upgrade readiness", () => {
     expect((await f.probe()).ready).toBe(false);
     await db.update(nativeRunResults).set({ schemaStatus: "accepted" }).where(eq(nativeRunResults.id, f.resultId));
     const foreignCheckout = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: foreignCheckout, companyId: f.companyId, agentId: f.agentId, status: "succeeded" });
+    await db.insert(heartbeatRuns).values({ id: foreignCheckout, spaceId: f.spaceId, agentId: f.agentId, status: "succeeded" });
     for (const patch of [{ executionRunId: null }, { checkoutRunId: foreignCheckout }, { status: "cancelled" }, { assigneeAgentId: null }]) {
       await db.update(issues).set(patch).where(eq(issues.id, f.issueId));
       expect((await f.probe()).ready).toBe(false);
@@ -181,17 +181,17 @@ describe("post-result upgrade readiness", () => {
 
   it("requires the applied decision and saved workspace before certifying committed projection", async () => {
     const f = await seed(), assessmentId = randomUUID(), decisionId = randomUUID();
-    await db.insert(workAssessments).values({ id: assessmentId, companyId: f.companyId, issueId: f.issueId, runId: f.runId,
-      contractId: f.contractId, resultId: f.resultId, triggerKind: "native_result", triggerActorCompanyId: f.companyId,
+    await db.insert(workAssessments).values({ id: assessmentId, spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
+      contractId: f.contractId, resultId: f.resultId, triggerKind: "native_result", triggerActorSpaceId: f.spaceId,
       priorIssueStatus: "in_progress", priorStatusVersion: 0, policyVersion: "fixture", assessmentJson: {}, inputDigest: assessmentId });
-    await db.insert(statusDecisions).values({ id: decisionId, companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+    await db.insert(statusDecisions).values({ id: decisionId, spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
       assessmentId, decisionVersion: 1, policyVersion: "fixture", fromStatus: "in_progress", toStatus: "done",
       reasonCode: "completion_contract_satisfied", decisionJson: {}, decisionDigest: decisionId, applicationState: "applied", appliedAt: new Date() });
     await db.update(nativeRunFinalizations).set({ phase: "committed", assessmentId, decisionId, leaseOwner: null, leaseExpiresAt: null })
       .where(eq(nativeRunFinalizations.runId, f.runId));
     await db.update(issues).set({ status: "done", executionRunId: null, checkoutRunId: null }).where(eq(issues.id, f.issueId));
     expect((await f.probe()).ready).toBe(false);
-    const [barrier] = await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId,
+    const [barrier] = await db.insert(workspaceOperations).values({ spaceId: f.spaceId, issueId: f.issueId,
       heartbeatRunId: f.runId, executionWorkspaceId: f.workspaceId, phase: "workspace_finalize", status: "succeeded", finishedAt: new Date() }).returning();
     expect((await f.probe()).ready).toBe(true);
     for (const patch of [{ applicationState: "proposed" }, { applicationState: "superseded" }]) {
@@ -223,9 +223,9 @@ describe("post-result upgrade readiness", () => {
     const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       expect(JSON.parse(String(init?.body))).toEqual({ runId: f.runId, ownerToken: owner.token, worker });
       if (!stopped) return new Response(null, { status: 409 });
-      const header = Buffer.from(JSON.stringify({ alg: "EdDSA", typ: "paperclip-workspace-worker-stop+jwt", kid: "fixture" })).toString("base64url");
+      const header = Buffer.from(JSON.stringify({ alg: "EdDSA", typ: "outpost-workspace-worker-stop+jwt", kid: "fixture" })).toString("base64url");
       const iat = Math.floor(Date.now() / 1000);
-      const payload = Buffer.from(JSON.stringify({ v: 1, iss: "paperclip-cloud", aud: "paperclip-workspace-worker-stop/v1",
+      const payload = Buffer.from(JSON.stringify({ v: 1, iss: "outpost-cloud", aud: "outpost-workspace-worker-stop/v1",
         sub: "stack", runId: f.runId, ownerToken: owner.token, worker, stopped: true, iat, exp: iat + 60 })).toString("base64url");
       return Response.json({ receipt: `${header}.${payload}.${sign(null, Buffer.from(`${header}.${payload}`), privateKey).toString("base64url")}` });
     });
@@ -235,7 +235,7 @@ describe("post-result upgrade readiness", () => {
       vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "replacement");
       await db.update(heartbeatRuns).set({ runnerProfileJson: { ...run.runnerProfileJson,
         nativeWorkspaceFinalizationOwner: { ...owner, hostname: "previous-container", controllerBootId: "previous-boot" } } }).where(eq(heartbeatRuns.id, f.runId));
-      const scope = { db, companyId: f.companyId, runId: f.runId };
+      const scope = { db, spaceId: f.spaceId, runId: f.runId };
       const copyback = vi.fn();
       expect(await withNativeWorkspaceFinalizationOwnership(scope, copyback)).toEqual({ acquired: false, reason: "platform_stop_pending" });
       expect(copyback).not.toHaveBeenCalled();
@@ -245,7 +245,7 @@ describe("post-result upgrade readiness", () => {
       const joined = new Promise<void>(resolve => { release = resolve; });
       const first = withNativeWorkspaceFinalizationOwnership(scope, async ownership => {
         await ownership.assertHeld(); copyback(); enter(); await joined;
-        await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId, heartbeatRunId: f.runId,
+        await db.insert(workspaceOperations).values({ spaceId: f.spaceId, issueId: f.issueId, heartbeatRunId: f.runId,
           executionWorkspaceId: f.workspaceId, phase: "workspace_finalize", status: "succeeded", finishedAt: new Date() });
       });
       try {

@@ -33,7 +33,7 @@ const sessionIdSql = sql<string | null>`(${heartbeatRunEvents.payload} -> 'orpEv
  */
 export async function issueContextUsage(
   db: Db,
-  companyId: string,
+  spaceId: string,
   issue: { id: string; assigneeAgentId: string | null },
 ): Promise<IssueContextUsage | null> {
   if (!issue.assigneeAgentId) return null;
@@ -41,7 +41,7 @@ export async function issueContextUsage(
     .select({ id: heartbeatRuns.id })
     .from(heartbeatRuns)
     .where(and(
-      eq(heartbeatRuns.companyId, companyId),
+      eq(heartbeatRuns.spaceId, spaceId),
       eq(heartbeatRuns.agentId, issue.assigneeAgentId),
       or(eq(heartbeatRuns.issueId, issue.id), eq(heartbeatRuns.nativeIssueId, issue.id)),
     ))
@@ -51,7 +51,7 @@ export async function issueContextUsage(
   const runIds = runs.map((run) => run.id);
 
   const recentUsage = and(
-    eq(heartbeatRunEvents.companyId, companyId),
+    eq(heartbeatRunEvents.spaceId, spaceId),
     inArray(heartbeatRunEvents.runId, runIds),
     usageItem,
   );
@@ -95,7 +95,7 @@ export async function issueContextUsage(
     })
     .from(heartbeatRunEvents)
     .where(and(
-      eq(heartbeatRunEvents.companyId, companyId),
+      eq(heartbeatRunEvents.spaceId, spaceId),
       eq(heartbeatRunEvents.eventType, "context.compacted"),
       sql`${sessionIdSql} = ${sessionId}`,
     ));

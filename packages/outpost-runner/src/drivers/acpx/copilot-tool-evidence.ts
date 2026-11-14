@@ -1,7 +1,7 @@
 import { parseSemanticToolReceipt, readNativeSemanticReceipt, sameSemanticReceipt, semanticInputSha256, type SemanticToolReceipt } from "../semantic-tool-receipt.js";
 import { updateSingleReadEvidence, type SingleReadEvidence } from "./single-read-evidence.js";
 import { createHash } from "node:crypto";
-import { redactPaperclipSemanticValue } from "../../semantic-tools/redaction.js";
+import { redactOutpostSemanticValue } from "../../semantic-tools/redaction.js";
 import type { CanonicalProviderEvent } from "../../provider-events.js";
 import { safeCopilotEditTarget } from "./copilot-permission-context.js";
 
@@ -54,7 +54,7 @@ export function createCopilotToolEvidence(binding: {
       incomplete = true; stage = "evidence_incomplete"; fields = { reason: "notice_limit" };
     }
     const itemId = `copilot-evidence-${digest(`${binding.sessionId}:${binding.turnId}`).slice(0, 24)}-${++sequence}`;
-    binding.emit({ eventType: "provider.notice.recorded", itemId, payload: redactPaperclipSemanticValue({
+    binding.emit({ eventType: "provider.notice.recorded", itemId, payload: redactOutpostSemanticValue({
       schema: "outpost.provider.notice.v1", noticeId: itemId, severity: "info",
       category, scope: "turn", recoverable: true, userActionable: false,
       summary: stage === "semantic_result" ? "Outpost returned a semantic tool result." : stage === "evidence_incomplete" ? "Some Copilot activity details are unavailable."
@@ -207,7 +207,7 @@ export function createCopilotToolEvidence(binding: {
           return;
         }
         semanticReceipts.set(parsed.callIdentitySha256, parsed);
-        notice("semantic_result", undefined, { ...parsed }, "paperclip/semantic_tool_result", parsed.schema === "outpost.semantic_tool_receipt.v2" ? "paperclip_semantic_tool_receipt_v2" : "paperclip_semantic_tool_receipt_v1");
+        notice("semantic_result", undefined, { ...parsed }, "outpost/semantic_tool_result", parsed.schema === "outpost.semantic_tool_receipt.v2" ? "outpost_semantic_tool_receipt_v2" : "outpost_semantic_tool_receipt_v1");
       }); };
     },
     tool: (event: unknown) => { safely(() => projection.tool(event)); },

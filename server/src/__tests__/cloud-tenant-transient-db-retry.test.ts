@@ -8,7 +8,7 @@ import {
 /** The shape drizzle produces: a wrapper whose `cause` is the driver error. */
 function driverConnectionError(code: string): Error {
   const driver = Object.assign(new Error(`write ${code} db.example.internal:5432`), { code });
-  return new Error("Failed query: insert into \"companies\" (…)", { cause: driver });
+  return new Error("Failed query: insert into \"spaces\" (…)", { cause: driver });
 }
 
 describe("isTransientDbConnectionError", () => {

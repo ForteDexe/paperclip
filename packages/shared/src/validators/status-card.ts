@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { companySearchQuerySchema } from "./search.js";
+import { spaceSearchQuerySchema } from "./search.js";
 
 export const STATUS_CARD_AGENT_MAX_CARDS = 20;
 export const STATUS_CARD_AGENT_MAX_INTEREST_PROMPT_LENGTH = 4_000;
@@ -68,13 +68,13 @@ export const statusCardFingerprintSchema = z.record(
 
 export const statusCardSchema = z.object({
   id: z.string().guid(),
-  companyId: z.string().guid(),
+  spaceId: z.string().guid(),
   createdByUserId: z.string().nullable(),
   createdByAgentId: z.string().guid().nullable(),
   title: z.string().nullable(),
   titlePinned: z.boolean(),
   interestPrompt: z.string(),
-  queries: z.array(companySearchQuerySchema),
+  queries: z.array(spaceSearchQuerySchema),
   queryVersion: z.number().int().nonnegative(),
   queryCompiledAt: z.string().datetime().nullable(),
   queryCompiledByAgentId: z.string().guid().nullable(),
@@ -102,7 +102,7 @@ export const statusCardSchema = z.object({
   watchedIssueCount: z.number().int().nonnegative().optional(),
   todayTokens: z.number().int().nonnegative().optional(),
   todayCostCents: z.number().nonnegative().optional(),
-  /** Company-scoped board route where people view, restore and refresh the card. */
+  /** Space-scoped operator route where people view, restore and refresh the card. */
   href: z.string().optional(),
 });
 
@@ -174,7 +174,7 @@ export const refreshStatusCardSchema = z.object({
 });
 
 export const writeStatusCardQuerySchema = z.object({
-  queries: z.array(companySearchQuerySchema).min(1).max(10),
+  queries: z.array(spaceSearchQuerySchema).min(1).max(10),
   title: z.string().trim().min(1).max(300),
   changeSummary: z.string().trim().min(1).max(2_000),
   generationIssueId: z.string().guid(),

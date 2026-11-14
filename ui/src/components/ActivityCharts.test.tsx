@@ -36,7 +36,7 @@ function render(ui: ReactNode) {
 function createRun(overrides: Partial<HeartbeatRun> = {}): HeartbeatRun {
   return {
     id: "run-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     agentId: "agent-1",
     issueId: null,
     responsibleUserId: null,
@@ -83,7 +83,7 @@ function createRun(overrides: Partial<HeartbeatRun> = {}): HeartbeatRun {
     createdAt: new Date("2026-04-20T11:58:00.000Z"),
     updatedAt: new Date("2026-04-20T11:59:00.000Z"),
     ...overrides,
-    scopeKind: overrides.scopeKind ?? "company",
+    scopeKind: overrides.scopeKind ?? "space",
   };
 }
 

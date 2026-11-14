@@ -16,9 +16,9 @@ export const PI_DEATH_MARKER = "pi-provider-death-answer.json";
 
 /** All events are public durable production receipts, never a fault fixture's events. */
 export function gradePiProviderDeath(state: State, events: readonly Row[], pending: PiRestartPending, originalQuestion: unknown) {
-  demand(state.issue.id === pending.issueId && state.issue.companyId === pending.companyId && state.issue.status === "blocked" && state.runs.length === 1, "foreign issue, wrong blocked disposition or second run");
+  demand(state.issue.id === pending.issueId && state.issue.spaceId === pending.spaceId && state.issue.status === "blocked" && state.runs.length === 1, "foreign issue, wrong blocked disposition or second run");
   const run = state.runs[0]!;
-  demand(run.id === pending.runId && run.companyId === pending.companyId && run.nativeIssueId === pending.issueId && run.runtimeMode === "native"
+  demand(run.id === pending.runId && run.spaceId === pending.spaceId && run.nativeIssueId === pending.issueId && run.runtimeMode === "native"
     && run.nativeSessionId === pending.nativeSessionId && run.runnerInstanceId === pending.sourceInstanceId
     && run.status === "failed" && run.resultJson?.nativeCancellation == null && run.resultJson?.startupCancellation == null,
   "original provider did not fail independently of Stop");
@@ -27,7 +27,7 @@ export function gradePiProviderDeath(state: State, events: readonly Row[], pendi
   const ids = new Set<string>(), seqs = new Set<number>(), cursors = new Map<string, number>();
   for (const row of rows) {
     const e = row.payload.orpEvent;
-    demand(row.companyId === pending.companyId && row.runId === pending.runId && row.eventType === e.eventType
+    demand(row.spaceId === pending.spaceId && row.runId === pending.runId && row.eventType === e.eventType
       && Number.isSafeInteger(row.seq) && row.seq > 0 && !seqs.has(row.seq) && isValidNativePrpEnvelope(e, row.protocolSchemaVersion)
       && e.runId === pending.runId && e.normalizedSessionId === pending.nativeSessionId
       && ((e.sourceKind === "runner" && e.sourceInstanceId === pending.sourceInstanceId)
@@ -51,7 +51,7 @@ export function gradePiProviderDeath(state: State, events: readonly Row[], pendi
     && failed[0]!.payload.orpEvent.turnId === pending.turnId && !of("turn.completed").length && !of("turn.cancelled").length
     && of("turn.started").length === 1 && !of("run.result.proposed").length, "wrong terminal or replacement turn");
   const card = state.interactions.find(card => card.id === pending.interactionId);
-  demand(card?.companyId === pending.companyId && card.issueId === pending.issueId && card.sourceRunId === pending.runId
+  demand(card?.spaceId === pending.spaceId && card.issueId === pending.issueId && card.sourceRunId === pending.runId
     && card.idempotencyKey === `outpost-runner-question:${pending.runId}:${pending.requestId}` && card.continuationPolicy === "none"
     && card.status === "expired" && card.result?.version === 1 && Array.isArray(card.result.answers) && card.result.answers.length === 0
     && card.kind === "ask_user_questions" && card.resolverPolicy === "human_only" && card.payload?.runtimeRequestId === pending.requestId && hash(card.payload.questionSet) === hash(originalQuestion), "original durable card did not expire");
@@ -59,7 +59,7 @@ export function gradePiProviderDeath(state: State, events: readonly Row[], pendi
   demand(fallback.length <= 1, "duplicate fallback interaction");
   if (fallback.length) {
     const next = fallback[0]!;
-    demand(next.id !== pending.interactionId && next.companyId === pending.companyId && next.issueId === pending.issueId && next.sourceRunId === pending.runId
+    demand(next.id !== pending.interactionId && next.spaceId === pending.spaceId && next.issueId === pending.issueId && next.sourceRunId === pending.runId
       && next.kind === "ask_user_questions" && next.status === "pending" && next.result == null && next.continuationPolicy === "wake_assignee"
       && next.idempotencyKey === `runtime-input-durable:v1:${pending.runId}:${pending.requestId}`
       && card!.result.expirationReason === "superseded_by_newer_interaction" && card!.result.supersededByInteractionId === next.id
@@ -69,7 +69,7 @@ export function gradePiProviderDeath(state: State, events: readonly Row[], pendi
 }
 
 export async function runPiPendingProviderDeath(input: {
-  page: Page; api: RunnerApi; companyId: string; deadlineAt: number; fixture: RemoteNativeFixture;
+  page: Page; api: RunnerApi; spaceId: string; deadlineAt: number; fixture: RemoteNativeFixture;
   load(): Promise<State>; events(runId: string): Promise<Row[]>;
   capture(id: string, label: string, file: string): Promise<void>; evidence(name: string, value: unknown): Promise<void>;
 }): Promise<Check[]> {
@@ -84,9 +84,9 @@ export async function runPiPendingProviderDeath(input: {
     await pollUntil({ label: "Pi native input before provider death", deadlineAt: input.deadlineAt, load: input.load,
       accept: s => s.interactions.some(c => c.status === "pending"), reject: s => s.runs.length > 1 || s.runs.some(r => ["succeeded", "failed", "cancelled", "timed_out"].includes(r.status)) ? "Provider ended before fault admission" : undefined });
     const before = await snapshot("pi-provider-death-before.json");
-    const pending = observePiPendingNativeInput(before.state, before.events, input.companyId, "Pi native provider death");
+    const pending = observePiPendingNativeInput(before.state, before.events, input.spaceId, "Pi native provider death");
     const run = before.state.runs[0]!, question = before.state.interactions[0]!.payload.questionSet;
-    demand(input.fixture.binding.runId === pending.runId && input.fixture.binding.companyId === pending.companyId && input.fixture.terminatePiProvider,
+    demand(input.fixture.binding.runId === pending.runId && input.fixture.binding.spaceId === pending.spaceId && input.fixture.terminatePiProvider,
       "missing exact owned Daytona fault capability");
     // createRunnerdBackend's default ORP lease is the execution workspace ID;
     // reject alternate/recovered authority instead of guessing that identity.
@@ -99,7 +99,7 @@ export async function runPiPendingProviderDeath(input: {
     await input.capture("pi-provider-death-pending", "Unanswered native Pi input before provider loss", "pi-provider-death-pending.png");
     // Refresh immediately before the one-shot irreversible fault.
     const fresh = await snapshot("pi-provider-death-admission.json");
-    check("death-original-pending-input", hash(observePiPendingNativeInput(fresh.state, fresh.events, input.companyId, "Pi native provider death")) === hash(pending), "Fault admits only the unchanged original native input");
+    check("death-original-pending-input", hash(observePiPendingNativeInput(fresh.state, fresh.events, input.spaceId, "Pi native provider death")) === hash(pending), "Fault admits only the unchanged original native input");
     fault = await input.fixture.terminatePiProvider!(workspaceId);
     await input.evidence("pi-provider-death-fault.json", fault);
     await pollUntil({ label: "production expiry after Pi provider loss", deadlineAt: input.deadlineAt, load: input.load,

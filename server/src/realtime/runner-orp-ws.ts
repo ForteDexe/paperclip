@@ -19,7 +19,7 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface RegisteredAuthority {
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly issueId: string | null;
   readonly agentId: string | null;
   readonly authority: DurablePrpControlPlane;
@@ -36,18 +36,18 @@ interface CurrentLiveAuthority {
 }
 
 interface RunnerPrpUpgradeRequest extends IncomingMessage {
-  paperclipWebSocketHandled?: boolean;
+  outpostWebSocketHandled?: boolean;
 }
 
 const registrations = new Map<string, RegisteredAuthority>();
 const currentLiveAuthorities = new Map<string, CurrentLiveAuthority>();
 
 function liveAuthorityKey(input: {
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly issueId: string;
   readonly agentId: string;
 }): string {
-  return JSON.stringify([input.companyId, input.issueId, input.agentId]);
+  return JSON.stringify([input.spaceId, input.issueId, input.agentId]);
 }
 
 function rejectUpgrade(
@@ -82,8 +82,8 @@ export function setupRunnerPrpWebSocketServer(
       if (!url.pathname.startsWith(CONNECT_PATH_PREFIX)) return;
 
       const ownedRequest = request as RunnerPrpUpgradeRequest;
-      if (ownedRequest.paperclipWebSocketHandled) return;
-      ownedRequest.paperclipWebSocketHandled = true;
+      if (ownedRequest.outpostWebSocketHandled) return;
+      ownedRequest.outpostWebSocketHandled = true;
       socket.on("error", (error) => {
         logger.warn(
           { errorName: error.name },
@@ -107,7 +107,7 @@ export function setupRunnerPrpWebSocketServer(
 }
 
 export async function registerRunnerPrpAuthority(input: {
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly issueId?: string;
   readonly agentId?: string;
   readonly runId: string;
@@ -116,7 +116,7 @@ export async function registerRunnerPrpAuthority(input: {
   const apiUrl = new URL(resolveLocalRuntimeApiUrl());
   apiUrl.protocol = "ws:";
   const loopbackOrigin = apiUrl.origin;
-  if (!UUID_PATTERN.test(input.runId) || input.companyId.length === 0) {
+  if (!UUID_PATTERN.test(input.runId) || input.spaceId.length === 0) {
     throw new Error("runner_orp_authority_binding_invalid");
   }
   if (registrations.has(input.runId)) {
@@ -124,7 +124,7 @@ export async function registerRunnerPrpAuthority(input: {
   }
   const generation = Symbol(input.runId);
   const registeredAuthority: RegisteredAuthority = {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     issueId: input.issueId ?? null,
     agentId: input.agentId ?? null,
     authority: input.authority,
@@ -134,7 +134,7 @@ export async function registerRunnerPrpAuthority(input: {
   registrations.set(input.runId, registeredAuthority);
   const currentKey = input.issueId && input.agentId
     ? liveAuthorityKey({
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         issueId: input.issueId,
         agentId: input.agentId,
       })
@@ -165,7 +165,7 @@ export async function registerRunnerPrpAuthority(input: {
 }
 
 export function queueLiveRunnerPrpCommand(input: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   agentId: string;
   type: string;
@@ -235,7 +235,7 @@ export class RunnerPrpRuntimeRequestResolutionError extends Error {
  */
 export function queueRunnerPrpRuntimeRequestResolution(input: {
   readonly commandId?: string;
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly runId: string;
   readonly pendingRequest: PendingNativeRuntimeRequest;
   readonly actor: NativeRuntimeRequestResolver;
@@ -244,7 +244,7 @@ export function queueRunnerPrpRuntimeRequestResolution(input: {
   const registration = registrations.get(input.runId);
   if (
     !registration
-    || registration.companyId !== input.companyId
+    || registration.spaceId !== input.spaceId
     // Warm attachment briefly registers two routes for the same mutable core.
     // A route is not dispatch authority before or after its exact run epoch.
     || registration.authority.store.state.identity.runId !== input.runId
@@ -255,7 +255,7 @@ export function queueRunnerPrpRuntimeRequestResolution(input: {
   }
   const pending = input.pendingRequest;
   if (
-    pending.companyId !== input.companyId
+    pending.spaceId !== input.spaceId
     || pending.runId !== input.runId
   ) {
     throw new RunnerPrpRuntimeRequestResolutionError(
@@ -305,10 +305,10 @@ export function queueRunnerPrpRuntimeRequestResolution(input: {
 export const runnerPrpWebSocketInternals = {
   connectPathPrefix: CONNECT_PATH_PREFIX,
   activeRegistration(input: {
-    readonly companyId: string;
+    readonly spaceId: string;
     readonly runId: string;
   }): boolean {
-    return registrations.get(input.runId)?.companyId === input.companyId;
+    return registrations.get(input.runId)?.spaceId === input.spaceId;
   },
   resetForTests(): void {
     registrations.clear();

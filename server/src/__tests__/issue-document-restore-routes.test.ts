@@ -3,7 +3,7 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const issueId = "11111111-1111-4111-8111-111111111111";
-const companyId = "22222222-2222-4222-8222-222222222222";
+const spaceId = "22222222-2222-4222-8222-222222222222";
 
 const mockIssueService = vi.hoisted(() => ({
   getById: vi.fn(),
@@ -40,7 +40,7 @@ const mockInstanceSettingsService = vi.hoisted(() => ({
   })),
   getExperimental: vi.fn(async () => ({})),
   getGeneral: vi.fn(async () => ({ feedbackDataSharingPreference: "prompt" })),
-  listCompanyIds: vi.fn(async () => [companyId]),
+  listSpaceIds: vi.fn(async () => [spaceId]),
 }));
 const mockRoutineService = vi.hoisted(() => ({
   syncRunStatusForIssue: vi.fn(async () => undefined),
@@ -53,7 +53,7 @@ const mockIssueThreadInteractionService = vi.hoisted(() => ({
 
 const planDocument = {
   id: "document-1",
-  companyId,
+  spaceId,
   issueId,
   key: "plan",
   title: "Plan",
@@ -62,9 +62,9 @@ const planDocument = {
   latestRevisionId: "revision-2",
   latestRevisionNumber: 2,
   createdByAgentId: null,
-  createdByUserId: "board-user",
+  createdByUserId: "operator-user",
   updatedByAgentId: null,
-  updatedByUserId: "board-user",
+  updatedByUserId: "operator-user",
   createdAt: new Date("2026-03-26T12:00:00.000Z"),
   updatedAt: new Date("2026-03-26T12:10:00.000Z"),
 };
@@ -111,12 +111,12 @@ function registerModuleMocks() {
   }));
 
   vi.doMock("../services/index.js", () => ({
-    companyService: () => ({
-      getById: vi.fn(async () => ({ id: "company-1" })),
+    spaceService: () => ({
+      getById: vi.fn(async () => ({ id: "space-1" })),
     }),
     accessService: () => mockAccessService,
     agentService: () => mockAgentService,
-    companySkillService: () => ({
+    spaceSkillService: () => ({
       completeTestRunForIssue: vi.fn(async () => null),
     }),
     documentAnnotationService: () => ({ remapOpenThreadsForDocument: async () => [] }),
@@ -161,7 +161,7 @@ function createRunContextDb(contextSnapshot: Record<string, unknown>) {
           then: async (resolve: (rows: unknown[]) => unknown) =>
             resolve([{
               id: "run-1",
-              companyId,
+              spaceId,
               agentId: "agent-1",
               contextSnapshot,
             }]),
@@ -173,9 +173,9 @@ function createRunContextDb(contextSnapshot: Record<string, unknown>) {
 
 async function createApp(
   actor: Express.Request["actor"] = {
-    type: "board",
-    userId: "board-user",
-    companyIds: [companyId],
+    type: "operator",
+    userId: "operator-user",
+    spaceIds: [spaceId],
     source: "local_implicit",
     isInstanceAdmin: false,
   },
@@ -221,7 +221,7 @@ describe("issue document revision routes", () => {
     });
     mockIssueService.getById.mockResolvedValue({
       id: issueId,
-      companyId,
+      spaceId,
       identifier: "PAP-881",
       title: "Document revisions",
       status: "in_progress",
@@ -233,7 +233,7 @@ describe("issue document revision routes", () => {
     mockDocumentsService.listIssueDocumentRevisions.mockResolvedValue([
       {
         id: "revision-2",
-        companyId,
+        spaceId,
         documentId: "document-1",
         issueId,
         key: "plan",
@@ -243,7 +243,7 @@ describe("issue document revision routes", () => {
         body: "# Two",
         changeSummary: null,
         createdByAgentId: null,
-        createdByUserId: "board-user",
+        createdByUserId: "operator-user",
         createdByRunId: "33333333-3333-4333-8333-333333333333",
         createdAt: new Date("2026-03-26T12:00:00.000Z"),
       },
@@ -253,7 +253,7 @@ describe("issue document revision routes", () => {
       restoredFromRevisionNumber: 1,
       document: {
         id: "document-1",
-        companyId,
+        spaceId,
         issueId,
         key: "plan",
         title: "Plan v1",
@@ -262,9 +262,9 @@ describe("issue document revision routes", () => {
         latestRevisionId: "revision-3",
         latestRevisionNumber: 3,
         createdByAgentId: null,
-        createdByUserId: "board-user",
+        createdByUserId: "operator-user",
         updatedByAgentId: null,
-        updatedByUserId: "board-user",
+        updatedByUserId: "operator-user",
         createdAt: new Date("2026-03-26T12:00:00.000Z"),
         updatedAt: new Date("2026-03-26T12:10:00.000Z"),
       },
@@ -280,7 +280,7 @@ describe("issue document revision routes", () => {
     });
     mockInstanceSettingsService.getExperimental.mockResolvedValue({});
     mockInstanceSettingsService.getGeneral.mockResolvedValue({ feedbackDataSharingPreference: "prompt" });
-    mockInstanceSettingsService.listCompanyIds.mockResolvedValue([companyId]);
+    mockInstanceSettingsService.listSpaceIds.mockResolvedValue([spaceId]);
     mockRoutineService.syncRunStatusForIssue.mockResolvedValue(undefined);
     mockLogActivity.mockResolvedValue(undefined);
   });
@@ -339,7 +339,7 @@ describe("issue document revision routes", () => {
       key: "plan",
       revisionId: "revision-1",
       createdByAgentId: null,
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
     expect(mockLogActivity).toHaveBeenCalledWith(
       expect.anything(),
@@ -363,7 +363,7 @@ describe("issue document revision routes", () => {
   it("blocks status-only recovery runs from restoring issue documents", async () => {
     mockIssueService.getById.mockResolvedValueOnce({
       id: issueId,
-      companyId,
+      spaceId,
       identifier: "PAP-881",
       title: "Document revisions",
       status: "todo",
@@ -374,7 +374,7 @@ describe("issue document revision routes", () => {
       {
         type: "agent",
         agentId: "agent-1",
-        companyId,
+        spaceId,
         runId: "run-1",
         source: "agent_jwt",
       },

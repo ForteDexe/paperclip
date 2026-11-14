@@ -7,7 +7,7 @@
   <a href="https://docs.outpost.ing"><strong>Docs</strong></a> &middot;
   <a href="https://github.com/paperclipai/paperclip"><strong>GitHub</strong></a> &middot;
   <a href="https://discord.gg/paperclipai"><strong>Discord</strong></a> &middot;
-  <a href="https://x.com/papercliping"><strong>Twitter</strong></a> &middot;
+  <a href="https://x.com/outposting"><strong>Twitter</strong></a> &middot;
   <a href="https://outpost.ing"><strong>Website</strong></a>
 </p>
 
@@ -349,7 +349,7 @@ Share the [installation guide](https://docs.outpost.ing/reference/cli/installati
 With **Node.js 24.11 or newer** installed:
 
 ```bash
-npx paperclipai@latest onboard --yes
+npx @outpost/cli@latest onboard --yes
 ```
 
 The CLI runs from npm's cache; your instance configuration and data persist locally.
@@ -361,9 +361,9 @@ agent, use `test-drive`. It stays in the foreground, never installs a service
 or creates a first task, and opens the browser only after setup succeeds:
 
 ```bash
-ANTHROPIC_API_KEY=... npx paperclipai test-drive
-OPENAI_API_KEY=... npx paperclipai test-drive --harness codex
-OPENROUTER_API_KEY=... npx paperclipai test-drive \
+ANTHROPIC_API_KEY=... npx @outpost/cli test-drive
+OPENAI_API_KEY=... npx @outpost/cli test-drive --harness codex
+OPENROUTER_API_KEY=... npx @outpost/cli test-drive \
   --harness opencode \
   --model openrouter/anthropic/claude-sonnet-4.5
 ```
@@ -377,7 +377,7 @@ reuse behavior.
 
 > **Troubleshooting: private npm registry `.npmrc`**
 >
-> If this fails with an `E404` for `paperclipai` (or similar) and you use a private npm registry (for example GitHub Packages) via a global `~/.npmrc`, `npx` may be resolving `paperclipai` against that private registry instead of the public npm registry.
+> If this fails with an `E404` for `@outpost/cli` (or similar) and you use a private npm registry (for example GitHub Packages) via a global `~/.npmrc`, `npx` may be resolving `@outpost/cli` against that private registry instead of the public npm registry.
 >
 > Diagnostic:
 >
@@ -388,24 +388,24 @@ reuse behavior.
 > Workaround (cross-platform; force the public npm registry for this command):
 >
 > ```bash
-> npx --registry https://registry.npmjs.org paperclipai@latest onboard --yes
+> npx --registry https://registry.npmjs.org @outpost/cli@latest onboard --yes
 > ```
 
 That quickstart path now defaults to trusted local loopback mode for the fastest first run. To start in authenticated/private mode instead, choose a bind preset explicitly:
 
 ```bash
-npx paperclipai@latest onboard --yes --bind lan
+npx @outpost/cli@latest onboard --yes --bind lan
 # or:
-npx paperclipai@latest onboard --yes --bind tailnet
+npx @outpost/cli@latest onboard --yes --bind tailnet
 ```
 
-If you already have Outpost configured, rerunning `onboard` keeps the existing config in place. Use `npx paperclipai configure` to edit settings.
+If you already have Outpost configured, rerunning `onboard` keeps the existing config in place. Use `npx @outpost/cli configure` to edit settings.
 
 Or manually:
 
 ```bash
-git clone https://github.com/paperclipai/outpost.git
-cd paperclip
+git clone https://github.com/paperclipai/paperclip.git
+cd outpost
 pnpm install
 pnpm dev
 ```
@@ -439,7 +439,7 @@ For remote access, use authenticated mode with a private-network bind such as Ta
 
 **Q: Can I run multiple outposts?**
 
-**A:** Yes. A single deployment can host multiple outposts. Existing storage and APIs retain their legacy `company` identifiers for compatibility.
+**A:** Yes. A single deployment can host multiple outposts. Existing storage and APIs retain their legacy `space` identifiers for compatibility.
 
 <br/>
 
@@ -490,7 +490,7 @@ See [doc/DEVELOPING.md](doc/DEVELOPING.md) for the full development guide.
 
 - ✅ Plugin system (e.g. add a knowledge base, custom tracing, queues, etc)
 - ✅ Get OpenClaw / claw-style agent employees
-- ✅ Outpost import and export (`company` remains the compatibility command)
+- ✅ Outpost import and export (`space` remains the compatibility command)
 - ✅ Easy AGENTS.md configurations
 - ✅ Skills Manager, Skill Studio & Skills Store
 - ✅ Scheduled Routines
@@ -528,7 +528,7 @@ This is the short roadmap preview. See the full roadmap in [ROADMAP.md](ROADMAP.
 
 ## Community & Plugins
 
-Find Plugins and more at [awesome-paperclip](https://github.com/gsxdsm/awesome-paperclip)
+Find Plugins and more at [awesome-outpost](https://github.com/gsxdsm/awesome-outpost)
 
 ## Observability
 
@@ -545,7 +545,7 @@ We welcome contributions. See the [contributing guide](CONTRIBUTING.md) for deta
 ## Community
 
 - [Discord](https://discord.gg/paperclipai) — Join the community
-- [Twitter / X](https://x.com/papercliping) — Follow updates and announcements
+- [Twitter / X](https://x.com/outposting) — Follow updates and announcements
 - [GitHub Issues](https://github.com/paperclipai/paperclip/issues) — bugs and feature requests
 - [GitHub Discussions](https://github.com/paperclipai/paperclip/discussions) — ideas and RFC
 
@@ -557,7 +557,7 @@ MIT &copy; 2026 [Outpost Labs, Inc](https://outpost.ing)
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=paperclipai%2Fpaperclip&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=outpost%2Foutpost&type=date&legend=top-left">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=paperclipai/paperclip&type=date&theme=dark&legend=top-left&sealed_token=hFjuwFq41bQD5cevvXVv5cTru2swWRZujwJYKlHhtBh6n0H5-VvJZW2SAlcQKB8u4KxhyEB9JqFg1yccJ8WLv9wPBcoWpWcak4gx0MYTWu_pOs2jKOaDluH7KsLeTKt6DHGkHiN3LsqV9s--MTDQcC6Xl7zV51W0-YezQXo-pVPgoFDFAGf2CY5fiP5Q" />
     <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=paperclipai/paperclip&type=date&legend=top-left&sealed_token=hFjuwFq41bQD5cevvXVv5cTru2swWRZujwJYKlHhtBh6n0H5-VvJZW2SAlcQKB8u4KxhyEB9JqFg1yccJ8WLv9wPBcoWpWcak4gx0MYTWu_pOs2jKOaDluH7KsLeTKt6DHGkHiN3LsqV9s--MTDQcC6Xl7zV51W0-YezQXo-pVPgoFDFAGf2CY5fiP5Q" />

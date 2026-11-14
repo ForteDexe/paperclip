@@ -44,7 +44,7 @@ const RESOLVER_POLICY_LABELS: Record<IssueThreadInteractionCanonicalResolverPoli
 
 /**
  * Plain-language preview of what a policy *does*, phrased for a surface that is
- * choosing it for future cards (company defaults and caps). Card-specific copy
+ * choosing it for future cards (space defaults and caps). Card-specific copy
  * that names the real creator/addressee comes from
  * {@link describeInteractionAudience}.
  */
@@ -56,12 +56,12 @@ const RESOLVER_POLICY_EFFECTS: Record<IssueThreadInteractionCanonicalResolverPol
   human_only: "Only a human can respond. Agents are turned away.",
 };
 
-/** Accepts canonical values and the deprecated `board_*` compatibility aliases. */
+/** Accepts canonical values and the deprecated `operator_*` compatibility aliases. */
 export function resolverPolicyLabel(policy: IssueThreadInteractionResolverPolicy): string {
   return RESOLVER_POLICY_LABELS[normalizeIssueThreadInteractionResolverPolicy(policy)];
 }
 
-/** Accepts canonical values and the deprecated `board_*` compatibility aliases. */
+/** Accepts canonical values and the deprecated `operator_*` compatibility aliases. */
 export function resolverPolicyEffect(policy: IssueThreadInteractionResolverPolicy): string {
   return RESOLVER_POLICY_EFFECTS[normalizeIssueThreadInteractionResolverPolicy(policy)];
 }
@@ -86,8 +86,8 @@ export const RESOLVER_POLICY_CHOICES: readonly {
 /** Why an effective audience ended up narrower than the requested one. */
 export type InteractionAudienceNarrowing =
   | "requested"
-  | "company_cap"
-  | "governed_action"
+  | "space_cap"
+  | "controlled_action"
   | "addressee"
   | "legacy_restriction";
 
@@ -105,7 +105,7 @@ export interface InteractionAudienceDescription {
    * audience beside compact decision buttons (collapsed attention rows).
    */
   shortSummary: string;
-  /** True when the card is open to the whole company with no addressee. */
+  /** True when the card is open to the whole space with no addressee. */
   isOpen: boolean;
   /** Set when something narrows the audience below the open default. */
   narrowedBy: InteractionAudienceNarrowing | null;
@@ -133,7 +133,7 @@ export interface InteractionAudienceFacts {
  *
  * Precedence mirrors the server evaluator's *narrowing* order so the copy can
  * never promise a wider audience than the API allows: `human_only` (including a
- * governed-action clamp) beats a named addressee, which beats `not_creator`,
+ * controlled-action clamp) beats a named addressee, which beats `not_creator`,
  * which beats the open default.
  */
 export function describeInteractionAudience({
@@ -216,21 +216,21 @@ export function describeResolverAudience({
   const provenance = facts.resolverPolicyProvenance;
 
   // Narrowing the requester did *not* ask for is the only thing worth an extra
-  // sentence: a governed-action clamp, a company cap, or a card created before
+  // sentence: a controlled-action clamp, a space cap, or a card created before
   // open resolution existed. An explicitly requested restriction is already
   // fully described by `summary`.
-  const narrowedNote = source === "governed_action"
-    ? "This card runs a governed action, so it stays human-only whatever audience was requested."
-    : source === "company_cap"
-      ? `Outpost interaction governance narrowed this from ${RESOLVER_POLICY_LABELS[requestedPolicy]} to ${RESOLVER_POLICY_LABELS[policy]}.`
+  const narrowedNote = source === "controlled_action"
+    ? "This card runs a controlled action, so it stays human-only whatever audience was requested."
+    : source === "space_cap"
+      ? `Outpost interaction policy narrowed this from ${RESOLVER_POLICY_LABELS[requestedPolicy]} to ${RESOLVER_POLICY_LABELS[policy]}.`
       : provenance === "legacy_inherited_restriction"
         ? "Created before Anyone became the default, so it stays restricted. A new card would be open."
         : null;
 
-  const narrowedBy: InteractionAudienceNarrowing | null = source === "governed_action"
-    ? "governed_action"
-    : source === "company_cap"
-      ? "company_cap"
+  const narrowedBy: InteractionAudienceNarrowing | null = source === "controlled_action"
+    ? "controlled_action"
+    : source === "space_cap"
+      ? "space_cap"
       : provenance === "legacy_inherited_restriction"
         ? "legacy_restriction"
         : policy !== "anyone"

@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import {
   createDb,
-  companies,
+  spaces,
   agents,
   activityLog,
   costEvents,
@@ -49,7 +49,7 @@ function makeDb(overrides: Record<string, unknown> = {}) {
   };
 }
 
-const mockCompanyService = vi.hoisted(() => ({
+const mockSpaceService = vi.hoisted(() => ({
   getById: vi.fn(),
   update: vi.fn(),
 }));
@@ -96,7 +96,7 @@ const mockFinanceService = vi.hoisted(() => ({
 }));
 const mockBudgetService = vi.hoisted(() => ({
   overview: vi.fn().mockResolvedValue({
-    companyId: "company-1",
+    spaceId: "space-1",
     policies: [],
     activeIncidents: [],
     pausedAgentCount: 0,
@@ -116,7 +116,7 @@ function registerModuleMocks() {
     budgetService: () => mockBudgetService,
     costService: () => mockCostService,
     financeService: () => mockFinanceService,
-    companyService: () => mockCompanyService,
+    spaceService: () => mockSpaceService,
     agentService: () => mockAgentService,
     issueService: () => mockIssueService,
     heartbeatService: () => mockHeartbeatService,
@@ -142,7 +142,7 @@ describe("cost routes", () => {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", userId: "board-user", source: "local_implicit" };
+      req.actor = { type: "operator", userId: "operator-user", source: "local_implicit" };
       next();
     });
     app.use("/api", costRoutes(makeDb() as any));
@@ -173,38 +173,38 @@ describe("cost routes", () => {
     mockAccessService.decide.mockReset();
     mockAccessService.decide.mockResolvedValue({
       allowed: true,
-      action: "company_scope:read",
+      action: "space_scope:read",
       reason: "allow_test",
       explanation: "Allowed by test mock.",
     });
-    mockCompanyService.update.mockResolvedValue({
-      id: "company-1",
-      name: "Paperclip",
+    mockSpaceService.update.mockResolvedValue({
+      id: "space-1",
+      name: "Outpost",
       budgetMonthlyCents: 100,
       spentMonthlyCents: 0,
     });
     mockAgentService.getById.mockResolvedValue({
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Budget Agent",
       budgetMonthlyCents: 100,
       spentMonthlyCents: 0,
     });
     mockAgentService.update.mockResolvedValue({
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Budget Agent",
       budgetMonthlyCents: 100,
       spentMonthlyCents: 0,
     });
     mockIssueService.getById.mockResolvedValue({
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PC1A2-1",
     });
     mockIssueService.getByIdentifier.mockResolvedValue({
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PC1A2-1",
     });
     mockBudgetService.upsertPolicy.mockResolvedValue(undefined);
@@ -249,7 +249,7 @@ describe("cost routes", () => {
   it("returns finance summary rows for valid requests", async () => {
     const app = createApp();
     const res = await request(app)
-      .get("/api/companies/company-1/costs/finance-summary")
+      .get("/api/spaces/space-1/costs/finance-summary")
       .query({ from: "2026-02-01T00:00:00.000Z", to: "2026-02-28T23:59:59.999Z" });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
@@ -267,7 +267,7 @@ describe("cost routes", () => {
 
     expect(res.status).toBe(200);
     expect(mockIssueService.getByIdentifier).toHaveBeenCalledWith("PC1A2-1");
-    expect(mockCostService.issueTreeSummary).toHaveBeenCalledWith("company-1", "issue-1", {
+    expect(mockCostService.issueTreeSummary).toHaveBeenCalledWith("space-1", "issue-1", {
       excludeRoot: false,
     });
     expect(res.body).toEqual({
@@ -293,30 +293,30 @@ describe("cost routes", () => {
     expect(parseCostLimit({ limit: "25" })).toBe(25);
   });
 
-  it("rejects company budget updates for board users outside the company", async () => {
+  it("rejects space budget updates for operator users outside the space", async () => {
     const app = createAppWithActor({
-      type: "board",
-      userId: "board-user",
+      type: "operator",
+      userId: "operator-user",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: ["company-2"],
+      spaceIds: ["space-2"],
     });
 
     const res = await request(app)
-      .patch("/api/companies/company-1/budgets")
+      .patch("/api/spaces/space-1/budgets")
       .send({ budgetMonthlyCents: 2500 });
 
     expect(res.status).toBe(403);
-    expect(mockCompanyService.update).not.toHaveBeenCalled();
+    expect(mockSpaceService.update).not.toHaveBeenCalled();
   });
 
-  it("rejects agent budget updates for board users outside the agent company", async () => {
+  it("rejects agent budget updates for operator users outside the agent space", async () => {
     const app = createAppWithActor({
-      type: "board",
-      userId: "board-user",
+      type: "operator",
+      userId: "operator-user",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: ["company-2"],
+      spaceIds: ["space-2"],
     });
 
     const res = await request(app)
@@ -332,7 +332,7 @@ describe("cost routes", () => {
     const app = createAppWithActor({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "run-1",
     });
 
@@ -341,17 +341,17 @@ describe("cost routes", () => {
       .send({ budgetMonthlyCents: 2500 });
 
     expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: "Board access required", code: "board_access_required" });
+    expect(res.body).toMatchObject({ error: "Operator access required", code: "operator_access_required" });
     expect(mockAgentService.update).not.toHaveBeenCalled();
     expect(mockBudgetService.upsertPolicy).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
-  it("rejects agent budget updates from another same-company agent without changing the budget policy", async () => {
+  it("rejects agent budget updates from another same-space agent without changing the budget policy", async () => {
     const app = createAppWithActor({
       type: "agent",
       agentId: "agent-2",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "run-2",
     });
 
@@ -360,28 +360,28 @@ describe("cost routes", () => {
       .send({ budgetMonthlyCents: 2500 });
 
     expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: "Board access required", code: "board_access_required" });
+    expect(res.body).toMatchObject({ error: "Operator access required", code: "operator_access_required" });
     expect(mockAgentService.update).not.toHaveBeenCalled();
     expect(mockBudgetService.upsertPolicy).not.toHaveBeenCalled();
     expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
-  it("allows authorized board users to update an agent budget and budget policy", async () => {
-    mockAgentService.getById.mockResolvedValueOnce({ id: "agent-1", companyId: "company-1", name: "Budget Agent", budgetMonthlyCents: 100, spentMonthlyCents: 0 });
+  it("allows authorized operator users to update an agent budget and budget policy", async () => {
+    mockAgentService.getById.mockResolvedValueOnce({ id: "agent-1", spaceId: "space-1", name: "Budget Agent", budgetMonthlyCents: 100, spentMonthlyCents: 0 });
     mockAgentService.getById.mockResolvedValueOnce({
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Budget Agent",
       budgetMonthlyCents: 2500,
       spentMonthlyCents: 0,
     });
     const app = createAppWithActor({
-      type: "board",
-      userId: "board-user",
+      type: "operator",
+      userId: "operator-user",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
-      memberships: [{ companyId: "company-1", status: "active", membershipRole: "admin" }],
+      spaceIds: ["space-1"],
+      memberships: [{ spaceId: "space-1", status: "active", membershipRole: "admin" }],
     });
 
     const res = await request(app)
@@ -393,7 +393,7 @@ describe("cost routes", () => {
     expect(mockAgentService.update).not.toHaveBeenCalled();
     expect(mockBudgetService.upsertPolicy).toHaveBeenCalledTimes(1);
     expect(mockBudgetService.upsertPolicy).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       {
         scopeType: "agent",
         scopeId: "agent-1",
@@ -401,7 +401,7 @@ describe("cost routes", () => {
         isActive: true,
         windowKind: "calendar_month_utc",
       },
-      "board-user",
+      "operator-user",
     );
     // Policy mutation owns the atomic entity update and activity log.
     expect(mockLogActivity).not.toHaveBeenCalled();
@@ -418,7 +418,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-costs-service-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-costs-service-");
     db = createDb(tempDb.connectionString);
     costs = costService(db);
     finance = financeService(db);
@@ -432,7 +432,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
     await db.delete(issues);
     await db.delete(projects);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -440,18 +440,18 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
   });
 
   it("persists unpriced token usage without inflating monthly spend", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CLI Agent",
       role: "engineer",
       status: "active",
@@ -461,7 +461,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       permissions: {},
     });
 
-    const event = await costs.createEvent(companyId, {
+    const event = await costs.createEvent(spaceId, {
       agentId,
       provider: "openai",
       biller: "chatgpt",
@@ -477,55 +477,55 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
 
     expect(event.costStatus).toBe("unpriced");
     expect(event.inputTokens).toBe(2_732_577);
-    expect(await costs.summary(companyId)).toMatchObject({ eventCount: 1, spendCents: 0, spendCentsExact: "0.0000000" });
-    const [usage] = await costs.byAgent(companyId);
+    expect(await costs.summary(spaceId)).toMatchObject({ eventCount: 1, spendCents: 0, spendCentsExact: "0.0000000" });
+    const [usage] = await costs.byAgent(spaceId);
     expect(usage).toMatchObject({ agentId, costCents: 0, inputTokens: 2_732_577,
       cachedInputTokens: 2_632_998, outputTokens: 32_644 });
   });
 
   it("marks metered usage with no known price as unpriced in the agent, model and project reports", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const projectId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
-      id: agentId, companyId, name: "Morgan", role: "engineer", status: "active",
+      id: agentId, spaceId, name: "Morgan", role: "engineer", status: "active",
       adapterType: "opencode_local", adapterConfig: {}, runtimeConfig: {}, permissions: {},
     });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Launch" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Launch" });
     const base = { agentId, projectId, provider: "deepseek", biller: "openrouter", billingType: "metered_api" as const,
       inputTokens: 100, cachedInputTokens: 0, outputTokens: 10, occurredAt: new Date() };
-    await costs.createEvent(companyId, { ...base, model: "priced-model", costStatus: "reported", costCents: 137 });
-    await costs.createEvent(companyId, { ...base, model: "unpriced-model", costStatus: "unpriced", costCents: 0 });
+    await costs.createEvent(spaceId, { ...base, model: "priced-model", costStatus: "reported", costCents: 137 });
+    await costs.createEvent(spaceId, { ...base, model: "unpriced-model", costStatus: "unpriced", costCents: 0 });
 
-    const [byAgentRow] = await costs.byAgent(companyId);
+    const [byAgentRow] = await costs.byAgent(spaceId);
     expect(byAgentRow).toMatchObject({ agentId, costCents: 137, eventCount: 2, unpricedEventCount: 1 });
-    const modelRows = await costs.byAgentModel(companyId);
+    const modelRows = await costs.byAgentModel(spaceId);
     expect(modelRows.find(row => row.model === "unpriced-model")).toMatchObject({ costCents: 0, unpricedEventCount: 1 });
     expect(modelRows.find(row => row.model === "priced-model")).toMatchObject({ costCents: 137, unpricedEventCount: 0 });
-    const [byProjectRow] = await costs.byProject(companyId);
+    const [byProjectRow] = await costs.byProject(spaceId);
     expect(byProjectRow).toMatchObject({ projectId, costCents: 137, eventCount: 2, unpricedEventCount: 1 });
   });
 
   it("aggregates cost event sums above int32 without raising Postgres integer overflow", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const projectId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Cost Agent",
       role: "engineer",
       status: "active",
@@ -536,14 +536,14 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Overflow Project",
       status: "active",
     });
 
     await db.insert(costEvents).values([
       {
-        companyId,
+        spaceId,
         agentId,
         projectId,
         provider: "openai",
@@ -557,7 +557,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
         occurredAt: new Date("2026-04-10T00:00:00.000Z"),
       },
       {
-        companyId,
+        spaceId,
         agentId,
         projectId,
         provider: "openai",
@@ -578,9 +578,9 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       to: new Date("2026-04-15T23:59:59.999Z"),
     };
 
-    const [byAgentRow] = await costs.byAgent(companyId, range);
-    const [byProjectRow] = await costs.byProject(companyId, range);
-    const [byAgentModelRow] = await costs.byAgentModel(companyId, range);
+    const [byAgentRow] = await costs.byAgent(spaceId, range);
+    const [byProjectRow] = await costs.byProject(spaceId, range);
+    const [byAgentModelRow] = await costs.byAgentModel(spaceId, range);
 
     expect(byAgentRow?.costCents).toBe(4_000_000_000);
     // Historical OpenAI input includes these ten cached tokens.
@@ -588,7 +588,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
     expect(byAgentRow!.inputTokens + byAgentRow!.cachedInputTokens).toBe(4_000_000_000);
     expect(byProjectRow?.costCents).toBe(4_000_000_000);
     expect(byProjectRow).toMatchObject({ eventCount: 2, estimatedEventCount: 1 });
-    const [firstDayProject] = await costs.byProject(companyId, {
+    const [firstDayProject] = await costs.byProject(spaceId, {
       ...range, to: new Date("2026-04-10T23:59:59.999Z"),
     });
     expect(firstDayProject).toMatchObject({ eventCount: 1, estimatedEventCount: 0 });
@@ -596,7 +596,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
   });
 
   it("aggregates issue costs across recursive descendants only", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const rootIssueId = randomUUID();
     const childIssueId = randomUUID();
@@ -604,15 +604,15 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
     const harnessIssueId = randomUUID();
     const siblingIssueId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Cost Agent",
       role: "engineer",
       status: "active",
@@ -624,7 +624,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
     await db.insert(issues).values([
       {
         id: rootIssueId,
-        companyId,
+        spaceId,
         title: "Root",
         status: "in_progress",
         priority: "medium",
@@ -633,7 +633,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       },
       {
         id: childIssueId,
-        companyId,
+        spaceId,
         parentId: rootIssueId,
         title: "Child",
         status: "done",
@@ -643,7 +643,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       },
       {
         id: grandchildIssueId,
-        companyId,
+        spaceId,
         parentId: childIssueId,
         title: "Grandchild",
         status: "done",
@@ -653,7 +653,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       },
       {
         id: harnessIssueId,
-        companyId,
+        spaceId,
         parentId: rootIssueId,
         title: "Hidden skill test harness",
         status: "done",
@@ -665,7 +665,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       },
       {
         id: siblingIssueId,
-        companyId,
+        spaceId,
         title: "Sibling",
         status: "done",
         priority: "medium",
@@ -675,7 +675,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
     ]);
     await db.insert(costEvents).values([
       {
-        companyId,
+        spaceId,
         agentId,
         issueId: rootIssueId,
         provider: "openai",
@@ -689,7 +689,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
         occurredAt: new Date("2026-04-10T00:00:00.000Z"),
       },
       {
-        companyId,
+        spaceId,
         agentId,
         issueId: childIssueId,
         provider: "openai",
@@ -703,7 +703,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
         occurredAt: new Date("2026-04-10T00:01:00.000Z"),
       },
       {
-        companyId,
+        spaceId,
         agentId,
         issueId: grandchildIssueId,
         provider: "openai",
@@ -717,7 +717,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
         occurredAt: new Date("2026-04-10T00:02:00.000Z"),
       },
       {
-        companyId,
+        spaceId,
         agentId,
         issueId: siblingIssueId,
         provider: "openai",
@@ -732,7 +732,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       },
     ]);
 
-    const summary = await costs.issueTreeSummary(companyId, rootIssueId);
+    const summary = await costs.issueTreeSummary(spaceId, rootIssueId);
 
     expect(summary).toEqual({
       issueId: rootIssueId,
@@ -749,7 +749,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
   });
 
   it("aggregates run wall-clock duration across the recursive issue tree", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const rootIssueId = randomUUID();
     const childIssueId = randomUUID();
@@ -757,15 +757,15 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
     const harnessIssueId = randomUUID();
     const siblingIssueId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Run Agent",
       role: "engineer",
       status: "active",
@@ -777,7 +777,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
     await db.insert(issues).values([
       {
         id: rootIssueId,
-        companyId,
+        spaceId,
         title: "Root",
         status: "in_progress",
         priority: "medium",
@@ -786,7 +786,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       },
       {
         id: childIssueId,
-        companyId,
+        spaceId,
         parentId: rootIssueId,
         title: "Child",
         status: "in_progress",
@@ -796,7 +796,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       },
       {
         id: grandchildIssueId,
-        companyId,
+        spaceId,
         parentId: childIssueId,
         title: "Grandchild",
         status: "done",
@@ -806,7 +806,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       },
       {
         id: siblingIssueId,
-        companyId,
+        spaceId,
         title: "Sibling",
         status: "done",
         priority: "medium",
@@ -815,7 +815,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       },
       {
         id: harnessIssueId,
-        companyId,
+        spaceId,
         parentId: rootIssueId,
         title: "Harness child",
         status: "done",
@@ -838,7 +838,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       // 60s run linked to root via contextSnapshot.issueId
       {
         id: linkedViaContextRunId,
-        companyId,
+        spaceId,
         agentId,
         invocationSource: "on_demand",
         status: "completed",
@@ -849,7 +849,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       // 120s run linked to child via activity_log
       {
         id: linkedViaActivityRunId,
-        companyId,
+        spaceId,
         agentId,
         invocationSource: "on_demand",
         status: "completed",
@@ -859,7 +859,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       // 30s run linked to grandchild
       {
         id: grandchildRunId,
-        companyId,
+        spaceId,
         agentId,
         invocationSource: "on_demand",
         status: "completed",
@@ -870,7 +870,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       // 45s harness run under root - should be excluded from visible issue tree rollups
       {
         id: harnessRunId,
-        companyId,
+        spaceId,
         agentId,
         invocationSource: "on_demand",
         status: "completed",
@@ -881,7 +881,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       // sibling run NOT under root – should be excluded
       {
         id: siblingRunId,
-        companyId,
+        spaceId,
         agentId,
         invocationSource: "on_demand",
         status: "completed",
@@ -892,7 +892,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       // Still-running run on child (no finishedAt) – should contribute (now - startedAt)
       {
         id: livePartialRunId,
-        companyId,
+        spaceId,
         agentId,
         invocationSource: "on_demand",
         status: "running",
@@ -902,7 +902,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
     ]);
 
     await db.insert(activityLog).values({
-      companyId,
+      spaceId,
       runId: linkedViaActivityRunId,
       actorType: "agent",
       actorId: agentId,
@@ -913,7 +913,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       details: {},
     });
 
-    const summary = await costs.issueTreeSummary(companyId, rootIssueId);
+    const summary = await costs.issueTreeSummary(spaceId, rootIssueId);
 
     expect(summary.issueCount).toBe(3);
     // 3 finished runs in tree (root, child via activity, grandchild) + 1 live run
@@ -925,7 +925,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
 
     // excludeRoot drops the root issue's own runs (the 60s contextSnapshot run)
     // while keeping the child + grandchild runs and any live child run.
-    const descendantsOnly = await costs.issueTreeSummary(companyId, rootIssueId, {
+    const descendantsOnly = await costs.issueTreeSummary(spaceId, rootIssueId, {
       excludeRoot: true,
     });
     expect(descendantsOnly.issueCount).toBe(2);
@@ -936,18 +936,18 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
   });
 
   it("aggregates finance event sums above int32 without raising Postgres integer overflow", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(financeEvents).values([
       {
-        companyId,
+        spaceId,
         biller: "openai",
         eventKind: "invoice",
         amountCents: 2_000_000_000,
@@ -957,7 +957,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
         occurredAt: new Date("2026-04-10T00:00:00.000Z"),
       },
       {
-        companyId,
+        spaceId,
         biller: "openai",
         eventKind: "invoice",
         amountCents: 2_000_000_000,
@@ -973,8 +973,8 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       to: new Date("2026-04-15T23:59:59.999Z"),
     };
 
-    const summary = await finance.summary(companyId, range);
-    const [byKindRow] = await finance.byKind(companyId, range);
+    const summary = await finance.summary(spaceId, range);
+    const [byKindRow] = await finance.byKind(spaceId, range);
 
     expect(summary.debitCents).toBe(4_000_000_000);
     expect(summary.estimatedDebitCents).toBe(2_000_000_000);

@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { agents } from "./agents.js";
-import { companySecrets } from "./company_secrets.js";
+import { spaceSecrets } from "./space_secrets.js";
 import { dotAgentBindings, dotRunnerAssignments } from "./dot_runner.js";
 import { mcpOauthGrants } from "./public_mcp.js";
 
@@ -10,12 +10,12 @@ import { mcpOauthGrants } from "./public_mcp.js";
 // Routine material is one encrypted secret version, never an agent config field.
 export const grokBotRoutines = pgTable("grok_bot_routines", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
   bindingId: uuid("binding_id").notNull().references(() => dotAgentBindings.id, { onDelete: "cascade" }),
   bindingGeneration: integer("binding_generation").notNull(),
   botName: text("bot_name").notNull(),
-  secretId: uuid("secret_id").notNull().references(() => companySecrets.id),
+  secretId: uuid("secret_id").notNull().references(() => spaceSecrets.id),
   secretVersion: integer("secret_version").notNull(),
   revision: integer("revision").notNull().default(1),
   verifiedGrantId: uuid("verified_grant_id").references(() => mcpOauthGrants.id, { onDelete: "set null" }),
@@ -25,11 +25,11 @@ export const grokBotRoutines = pgTable("grok_bot_routines", {
   recoveryReason: text("recovery_reason").$type<"dispatch" | "work_session">(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, t => [uniqueIndex("grok_routines_binding_uq").on(t.bindingId), index("grok_routines_company_agent_idx").on(t.companyId, t.agentId)]);
+}, t => [uniqueIndex("grok_routines_binding_uq").on(t.bindingId), index("grok_routines_space_agent_idx").on(t.spaceId, t.agentId)]);
 
 export const grokBotDispatches = pgTable("grok_bot_dispatches", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   routineId: uuid("routine_id").notNull().references(() => grokBotRoutines.id, { onDelete: "cascade" }),
   bindingId: uuid("binding_id").notNull().references(() => dotAgentBindings.id, { onDelete: "cascade" }),
   bindingGeneration: integer("binding_generation").notNull(),
@@ -51,6 +51,6 @@ export const grokBotDispatches = pgTable("grok_bot_dispatches", {
 }, t => [
   uniqueIndex("grok_dispatch_event_uq").on(t.bindingId, t.bindingGeneration, t.routineRevision, t.sourceEventId),
   index("grok_dispatch_prepared_idx").on(t.createdAt, t.id).where(sql`${t.status} = 'prepared'`),
-  index("grok_dispatch_company_status_idx").on(t.companyId, t.status),
+  index("grok_dispatch_space_status_idx").on(t.spaceId, t.status),
   index("grok_dispatch_assignment_kind_idx").on(t.assignmentId, t.kind),
 ]);

@@ -22,7 +22,7 @@ describe("self-service Slack identity confirmation", () => {
   let container: HTMLDivElement;
   let root: Root;
   let client: QueryClient;
-  const identity = { provider: "slack", externalLabel: "Dotta", companyName: "Acme", botLabel: "CEO", selfService: true, canConfirm: true };
+  const identity = { provider: "slack", externalLabel: "Dotta", spaceName: "Acme", botLabel: "Default agent", selfService: true, canConfirm: true };
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.getSession.mockResolvedValue({ user: { id: "user-a", name: "Dotta" } });

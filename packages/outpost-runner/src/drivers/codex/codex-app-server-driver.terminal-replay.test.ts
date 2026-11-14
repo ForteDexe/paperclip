@@ -222,7 +222,7 @@ describe("Codex driver terminal-turn history replay", () => {
   it.each([
     ["an ordinary failure", { method: "turn/completed", params: { threadId: "thread-1", turn: { id: "turn-lost", status: "failed", items: [],
       error: { code: "provider_failed", message: "real failure", recoverable: false } } } }],
-    ["a semantic result", { method: "paperclip/runResult", params: { threadId: "thread-1", turnId: "turn-lost", result: { status: "completed" } } }],
+    ["a semantic result", { method: "outpost/runResult", params: { threadId: "thread-1", turnId: "turn-lost", result: { status: "completed" } } }],
   ])("fails closed on %s from an accepted turn the restore did not find live", async (_label, report) => {
     const { session, transport } = await recoverWithUnadoptedAcceptedTurn("run-lost-outcome");
     transport.push(report.method, report.params);

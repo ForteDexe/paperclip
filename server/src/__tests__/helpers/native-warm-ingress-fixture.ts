@@ -10,32 +10,32 @@ import { nativeRuntimeContextFixture } from "../../services/native-runtime/runti
 export async function createNativeWarmIngressFixture(base: NativeExecutionInputV1, cwd: string) {
   const database = await startRecoveryPostgres("shared-ingress-owner-");
   const db = tables.createDb(database.connectionString);
-  const companyId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID(), workspaceId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID(), workspaceId = randomUUID();
   const providerLeaseId = `allocation-${randomUUID()}`;
-  await db.insert(tables.companies).values({ id: companyId, name: "Shared ingress", issuePrefix: `I${companyId.slice(0, 7)}` });
-  await db.insert(tables.agents).values({ id: agentId, companyId, name: "Shared worker", adapterType: "outpost_runner" });
+  await db.insert(tables.spaces).values({ id: spaceId, name: "Shared ingress", issuePrefix: `I${spaceId.slice(0, 7)}` });
+  await db.insert(tables.agents).values({ id: agentId, spaceId, name: "Shared worker", adapterType: "outpost_runner" });
   await db.insert(tables.environments).values({ id: environmentId, name: "Shared allocation", driver: "sandbox" });
-  await db.insert(tables.executionWorkspaces).values({ id: workspaceId, companyId, name: "Shared workspace", mode: "shared_workspace",
+  await db.insert(tables.executionWorkspaces).values({ id: workspaceId, spaceId, name: "Shared workspace", mode: "shared_workspace",
     strategyType: "project_primary", providerType: "cloud_sandbox", cwd });
-  const defaultCompanyId = companyId, defaultAgentId = agentId, defaultWorkspaceId = workspaceId, defaultProviderLeaseId = providerLeaseId;
+  const defaultSpaceId = spaceId, defaultAgentId = agentId, defaultWorkspaceId = workspaceId, defaultProviderLeaseId = providerLeaseId;
   let epoch = 0;
-  async function admit(options?: { companyId?: string; agentId?: string; workspaceId?: string; providerLeaseId?: string }) {
-    const ownerCompanyId = options?.companyId ?? defaultCompanyId, ownerAgentId = options?.agentId ?? defaultAgentId;
+  async function admit(options?: { spaceId?: string; agentId?: string; workspaceId?: string; providerLeaseId?: string }) {
+    const ownerSpaceId = options?.spaceId ?? defaultSpaceId, ownerAgentId = options?.agentId ?? defaultAgentId;
     const ownerWorkspaceId = options?.workspaceId ?? defaultWorkspaceId, ownerProviderLeaseId = options?.providerLeaseId ?? defaultProviderLeaseId;
-    const companyId = ownerCompanyId, agentId = ownerAgentId, workspaceId = ownerWorkspaceId, providerLeaseId = ownerProviderLeaseId;
+    const spaceId = ownerSpaceId, agentId = ownerAgentId, workspaceId = ownerWorkspaceId, providerLeaseId = ownerProviderLeaseId;
     const issueId = randomUUID(), runId = randomUUID(), leaseId = randomUUID();
-    const [issue] = await db.insert(tables.issues).values({ id: issueId, companyId, title: "Shared handoff", status: "in_progress",
+    const [issue] = await db.insert(tables.issues).values({ id: issueId, spaceId, title: "Shared handoff", status: "in_progress",
       assigneeAgentId: agentId, executionWorkspaceId: workspaceId }).returning();
-    const [run] = await db.insert(tables.heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId,
+    const [run] = await db.insert(tables.heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId,
       status: "running", runtimeMode: "native", contextSnapshot: { issueId } }).returning();
     await db.update(tables.issues).set({ executionRunId: runId }).where(eq(tables.issues.id, issueId));
-    await db.insert(tables.environmentLeases).values({ id: leaseId, companyId, environmentId, executionWorkspaceId: workspaceId,
+    await db.insert(tables.environmentLeases).values({ id: leaseId, spaceId, environmentId, executionWorkspaceId: workspaceId,
       issueId, heartbeatRunId: runId, provider: "daytona", providerLeaseId, leasePolicy: "reuse_by_environment" });
-    await db.insert(tables.nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed" });
+    await db.insert(tables.nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed" });
     await prepareNativeHeartbeatRun({ db, run, issue, environmentLeaseId: leaseId });
     const [contract] = await db.select().from(tables.completionContracts).where(eq(tables.completionContracts.issueId, issueId));
     const execution: NativeExecutionInputV3 = { ...base, schema: "outpost.native-execution-input.v3", executionMode: "default", planningContext: null,
-      runtimeContext: nativeRuntimeContextFixture(), binding: { companyId, agentId, issueId, runId, executionWorkspaceId: workspaceId },
+      runtimeContext: nativeRuntimeContextFixture(), binding: { spaceId, agentId, issueId, runId, executionWorkspaceId: workspaceId },
       completionContract: { id: contract.id, sha256: contract.canonicalSha256, schemaVersion: "outpost.completion-contract.v1",
         contract: buildNativeCompletionContract(issue, { revision: contract.revision }) },
       workspace: { cwd, repoUrl: null, repoRef: null, branchName: null },
@@ -51,7 +51,7 @@ export async function createNativeWarmIngressFixture(base: NativeExecutionInputV
   }
   async function settle(owner: Awaited<ReturnType<typeof admit>>, result: Record<string, unknown>) {
     const resultId = randomUUID();
-    await db.insert(tables.nativeRunResults).values({ id: resultId, companyId, issueId: owner.issueId, runId: owner.runId,
+    await db.insert(tables.nativeRunResults).values({ id: resultId, spaceId, issueId: owner.issueId, runId: owner.runId,
       completionContractId: owner.execution.completionContract.id, schemaStatus: "accepted", resultJson: result,
       serverFingerprint: randomUUID(), canonicalSha256: randomUUID() });
     await db.update(tables.nativeRunFinalizations).set({ phase: "committed", resultId, leaseOwner: null, leaseExpiresAt: null }).where(eq(tables.nativeRunFinalizations.runId, owner.runId));
@@ -60,5 +60,5 @@ export async function createNativeWarmIngressFixture(base: NativeExecutionInputV
     await db.update(tables.environmentLeases).set({ status: "expired", cleanupStatus: "success", releasedAt: new Date() }).where(eq(tables.environmentLeases.id, owner.leaseId));
     return resultId;
   }
-  return { db, companyId, agentId, environmentId, workspaceId, providerLeaseId, admit, settle, cleanup: () => database.cleanup() };
+  return { db, spaceId, agentId, environmentId, workspaceId, providerLeaseId, admit, settle, cleanup: () => database.cleanup() };
 }

@@ -15,7 +15,7 @@ it.skipIf(process.env.OUTPOST_CHAT_EVAL_SECRET_ROUTE_CANARY !== "1")("reads the 
     const shortPrompt = "Save confirmation for current-definition";
     await page.setContent(`<div data-testid="task-chat-composer-takeover"><p>${shortPrompt}</p><details><summary>Details</summary><div>${prompt}</div></details><button>Confirm</button></div>`);
     await expect(readVisiblePersonalSecretConfirmation(page, { prompt: shortPrompt }, target, personalSecretGuidance, () => 500)).resolves.toMatchObject({ definitionVisible: true });
-    await render('<a href="https://outpost.example/RUN/company/settings/secrets?definition=current-definition">Open My secrets</a>');
+    await render('<a href="https://outpost.example/RUN/space/settings/secrets?definition=current-definition">Open My secrets</a>');
     await expect(readVisiblePersonalSecretConfirmation(page, { prompt }, target, personalSecretGuidance, () => 500)).resolves.toMatchObject({ definitionVisible: true });
     for (const details of ['<span hidden>current-definition</span>', '<span style="opacity:0">current-definition</span>', '<span style="position:absolute;left:-9999px">current-definition</span>', 'Definition: foreign-definition']) {
       await render(details);

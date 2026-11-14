@@ -18,13 +18,13 @@ import { gatewaysQueryKey } from "./NewGatewayDialog";
 import { describeError } from "@/api/errors";
 
 export function EditGatewayDialog({
-  companyId,
+  spaceId,
   gateway,
   profiles,
   open,
   onOpenChange,
 }: {
-  companyId: string;
+  spaceId: string;
   gateway: ToolMcpGatewayWithTokens;
   profiles: ToolProfileWithDetails[];
   open: boolean;
@@ -46,14 +46,14 @@ export function EditGatewayDialog({
   const activeProfiles = profiles.filter((profile) => profile.status !== "archived");
   const updateMutation = useMutation({
     mutationFn: () =>
-      toolsApi.updateGateway(companyId, gateway.id, {
+      toolsApi.updateGateway(spaceId, gateway.id, {
         name: name.trim(),
         description: description.trim() || null,
         profileId,
       }),
     onSuccess: async (updated) => {
       pushToast({ title: "Gateway updated", body: updated.name, tone: "success" });
-      await queryClient.invalidateQueries({ queryKey: gatewaysQueryKey(companyId) });
+      await queryClient.invalidateQueries({ queryKey: gatewaysQueryKey(spaceId) });
       onOpenChange(false);
     },
     onError: (error) => {

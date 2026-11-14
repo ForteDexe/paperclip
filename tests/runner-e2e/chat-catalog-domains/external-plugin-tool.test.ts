@@ -3,12 +3,12 @@ import { failedPreviewReply, gradePluginTool, previewToolManifest } from "./exte
 
 function valid() {
   return {
-    scenarioId: "plugins.use-plugin-tool", companyId: "company", leadId: "ceo", reply: "The website artifact is missing, so I cannot produce a new preview.",
+    scenarioId: "plugins.use-plugin-tool", spaceId: "space", leadId: "ceo", reply: "The website artifact is missing, so I cannot produce a new preview.",
     phaseReplies: [{ runId: "first", body: "Open the website preview." }, { runId: "second", body: "The website artifact is missing, so I cannot produce a new preview." }],
     runs: [{ id: "first", status: "succeeded" }, { id: "second", status: "succeeded" }],
     connections: [], profiles: [], secrets: [], endpoints: [], interactions: [], activity: [], links: [], humanQueries: [],
     state: { pluginReady: true, toolVisibleToAgent: true, artifactExistsBefore: true, artifactSha256: "actual-sha", projectId: "project", initialRunId: "first", initialPreviewLinkMatched: true, initialPreviewVisible: true, artifactRemovedBeforeRepeat: true,
-      receipts: [{ runId: "first", companyId: "company", agentId: "ceo", projectId: "project", failed: false, sha256: "actual-sha" }, { runId: "second", companyId: "company", agentId: "ceo", projectId: "project", failed: true }],
+      receipts: [{ runId: "first", spaceId: "space", agentId: "ceo", projectId: "project", failed: false, sha256: "actual-sha" }, { runId: "second", spaceId: "space", agentId: "ceo", projectId: "project", failed: true }],
     },
   };
 }
@@ -33,7 +33,7 @@ describe("real admitted website preview contribution", () => {
     for (const mutate of [
       (o: ReturnType<typeof valid>) => { o.state.toolVisibleToAgent = false; },
       (o: ReturnType<typeof valid>) => { o.state.initialPreviewVisible = false; },
-      (o: ReturnType<typeof valid>) => { o.state.receipts[0]!.companyId = "another-company"; },
+      (o: ReturnType<typeof valid>) => { o.state.receipts[0]!.spaceId = "another-space"; },
       (o: ReturnType<typeof valid>) => { o.state.receipts[0]!.projectId = "another-project"; },
       (o: ReturnType<typeof valid>) => { o.state.receipts[0]!.sha256 = "stale-artifact"; },
       (o: ReturnType<typeof valid>) => { o.state.receipts[1]!.runId = "first"; },

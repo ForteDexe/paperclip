@@ -4,7 +4,7 @@ import { noteNativeHarnessBackupChange } from "../native-harness-backup-expirati
 import { removeNativeHarnessBackup } from "./native-harness-backup-cleanup.js";
 
 export async function publishNativeHarnessBackup(input: {
-  db: object; companyId: string; scopeDigest: string; backupRoot: string; pendingRoot: string;
+  db: object; spaceId: string; scopeDigest: string; backupRoot: string; pendingRoot: string;
   stamp?: (currentRoot: string) => Promise<void>;
 }) {
   const currentRoot = resolve(input.backupRoot, "current");
@@ -24,5 +24,5 @@ export async function publishNativeHarnessBackup(input: {
     throw error;
   }
   await removeNativeHarnessBackup(previousRoot);
-  noteNativeHarnessBackupChange(input.db, { companyId: input.companyId, scopeDigest: input.scopeDigest });
+  noteNativeHarnessBackupChange(input.db, { spaceId: input.spaceId, scopeDigest: input.scopeDigest });
 }

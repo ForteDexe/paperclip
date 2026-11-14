@@ -5,7 +5,7 @@ import { redactRegisteredSecretValues } from "../run-secret-redaction.js";
 import type { PersistedNativeSession } from "../../vendor/outpost-runner/index.js";
 
 const snapshot: PersistedNativeSession = { backendKind: "mock", sessionId: "provider",
-  identity: { companyId: "company", agentId: "agent", issueId: "issue", runId: "run", sessionId: "session" } };
+  identity: { spaceId: "space", agentId: "agent", issueId: "issue", runId: "run", sessionId: "session" } };
 const compatibility = { configDigest: `sha256:${"a".repeat(64)}`, processConfigDigest: null };
 const binding = { runId: "run", runnerInstanceId: "runner", normalizedSessionId: "session" };
 

@@ -11,7 +11,7 @@ type Params = Record<string, unknown>;
 
 type RoomRow = {
   id: string;
-  company_id: string;
+  space_id: string;
   project_id: string | null;
   name: string;
   created_at: string;
@@ -52,8 +52,8 @@ function requiredString(value: unknown, name: string): string {
   return value.trim();
 }
 
-function companyId(params: Params): string {
-  return requiredString(params.companyId, "companyId");
+function spaceId(params: Params): string {
+  return requiredString(params.spaceId, "spaceId");
 }
 
 export function normalizeRoomName(value: unknown): string {
@@ -82,9 +82,9 @@ export function mentionHandles(body: string): string[] {
 
 async function listRooms(ctx: PluginContext, cid: string): Promise<RoomRow[]> {
   return ctx.db.query<RoomRow>(
-    `SELECT id, company_id, project_id, name, created_at, updated_at
+    `SELECT id, space_id, project_id, name, created_at, updated_at
        FROM ${table(ctx, "rooms")}
-      WHERE company_id = $1
+      WHERE space_id = $1
       ORDER BY updated_at DESC, created_at ASC`,
     [cid],
   );
@@ -92,9 +92,9 @@ async function listRooms(ctx: PluginContext, cid: string): Promise<RoomRow[]> {
 
 async function requireRoom(ctx: PluginContext, cid: string, roomId: string): Promise<RoomRow> {
   const rows = await ctx.db.query<RoomRow>(
-    `SELECT id, company_id, project_id, name, created_at, updated_at
+    `SELECT id, space_id, project_id, name, created_at, updated_at
        FROM ${table(ctx, "rooms")}
-      WHERE id = $1 AND company_id = $2`,
+      WHERE id = $1 AND space_id = $2`,
     [roomId, cid],
   );
   if (!rows[0]) throw new Error("Campfire room not found");
@@ -107,10 +107,10 @@ async function listMembers(ctx: PluginContext, cid: string, roomId: string): Pro
             a.name, a.status, a.adapter_type,
             s.session_id
        FROM ${table(ctx, "room_members")} m
-       JOIN public.agents a ON a.id = m.agent_id AND a.company_id = m.company_id
+       JOIN public.agents a ON a.id = m.agent_id AND a.space_id = m.space_id
        LEFT JOIN ${table(ctx, "agent_sessions")} s
          ON s.room_id = m.room_id AND s.agent_id = m.agent_id AND s.status = 'active'
-      WHERE m.room_id = $1 AND m.company_id = $2
+      WHERE m.room_id = $1 AND m.space_id = $2
       ORDER BY m.joined_at ASC`,
     [roomId, cid],
   );
@@ -124,7 +124,7 @@ async function listMessages(ctx: PluginContext, cid: string, roomId: string): Pr
        LEFT JOIN public.agents a ON a.id = m.author_agent_id
        LEFT JOIN ${table(ctx, "room_members")} rm
          ON rm.room_id = m.room_id AND rm.agent_id = m.author_agent_id
-      WHERE m.room_id = $1 AND m.company_id = $2
+      WHERE m.room_id = $1 AND m.space_id = $2
       ORDER BY m.seq ASC
       LIMIT 500`,
     [roomId, cid],
@@ -132,19 +132,19 @@ async function listMessages(ctx: PluginContext, cid: string, roomId: string): Pr
 }
 
 async function roomState(ctx: PluginContext, params: Params) {
-  const cid = companyId(params);
+  const cid = spaceId(params);
   const rooms = await listRooms(ctx, cid);
   const requestedRoomId = typeof params.roomId === "string" ? params.roomId : null;
   const room = requestedRoomId
     ? await requireRoom(ctx, cid, requestedRoomId)
     : rooms[0] ?? null;
   const members = room ? await listMembers(ctx, cid, room.id) : [];
-  const allAgents = await ctx.agents.list({ companyId: cid, limit: 200 });
+  const allAgents = await ctx.agents.list({ spaceId: cid, limit: 200 });
   const bookings = await ctx.db.query<{ agent_id: string; room_id: string; room_name: string }>(
     `SELECT m.agent_id, m.room_id, r.name AS room_name
        FROM ${table(ctx, "room_members")} m
        JOIN ${table(ctx, "rooms")} r ON r.id = m.room_id
-      WHERE m.company_id = $1`,
+      WHERE m.space_id = $1`,
     [cid],
   );
   const bookingByAgent = new Map(bookings.map((entry) => [entry.agent_id, entry]));
@@ -167,7 +167,7 @@ async function roomState(ctx: PluginContext, params: Params) {
 async function insertMessage(
   ctx: PluginContext,
   input: {
-    companyId: string;
+    spaceId: string;
     roomId: string;
     authorKind: "human" | "agent" | "system";
     authorAgentId?: string | null;
@@ -177,13 +177,13 @@ async function insertMessage(
   const id = randomUUID();
   await ctx.db.execute(
     `INSERT INTO ${table(ctx, "messages")}
-       (id, room_id, company_id, author_kind, author_agent_id, body)
+       (id, room_id, space_id, author_kind, author_agent_id, body)
      VALUES ($1, $2, $3, $4, $5, $6)`,
-    [id, input.roomId, input.companyId, input.authorKind, input.authorAgentId ?? null, input.body],
+    [id, input.roomId, input.spaceId, input.authorKind, input.authorAgentId ?? null, input.body],
   );
   await ctx.db.execute(
-    `UPDATE ${table(ctx, "rooms")} SET updated_at = now() WHERE id = $1 AND company_id = $2`,
-    [input.roomId, input.companyId],
+    `UPDATE ${table(ctx, "rooms")} SET updated_at = now() WHERE id = $1 AND space_id = $2`,
+    [input.roomId, input.spaceId],
   );
   return id;
 }
@@ -200,7 +200,7 @@ async function persistentSession(
 ) {
   const existing = await ctx.db.query<{ session_id: string }>(
     `SELECT session_id FROM ${table(ctx, "agent_sessions")}
-      WHERE room_id = $1 AND company_id = $2 AND agent_id = $3 AND status = 'active'`,
+      WHERE room_id = $1 AND space_id = $2 AND agent_id = $3 AND status = 'active'`,
     [roomId, cid, agentId],
   );
   if (existing[0]) return existing[0].session_id;
@@ -211,7 +211,7 @@ async function persistentSession(
   });
   await ctx.db.execute(
     `INSERT INTO ${table(ctx, "agent_sessions")}
-       (room_id, company_id, agent_id, session_id, status)
+       (room_id, space_id, agent_id, session_id, status)
      VALUES ($1, $2, $3, $4, 'active')
      ON CONFLICT (room_id, agent_id) DO UPDATE SET
        session_id = EXCLUDED.session_id,
@@ -234,18 +234,18 @@ export function agentPrompt(room: RoomRow, member: MemberRow, body: string): str
 
 async function saveAgentReply(
   ctx: PluginContext,
-  input: { companyId: string; roomId: string; agentId: string; body: string },
+  input: { spaceId: string; roomId: string; agentId: string; body: string },
 ) {
   const body = input.body.trim();
   if (!body) return;
   await insertMessage(ctx, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     roomId: input.roomId,
     authorKind: "agent",
     authorAgentId: input.agentId,
     body,
   });
-  emitChanged(ctx, input.companyId, input.roomId, "agent-reply");
+  emitChanged(ctx, input.spaceId, input.roomId, "agent-reply");
 }
 
 async function deliver(
@@ -265,9 +265,9 @@ async function deliver(
   let chunks = "";
   let terminalHandled = false;
   try {
-    const sessionId = await persistentSession(ctx, room.company_id, room.id, member.agent_id);
-    const result = await ctx.agents.sessions.sendMessage(sessionId, room.company_id, {
-      prompt: agentPrompt(room, member, await messageBody(ctx, room.company_id, sourceMessageId)),
+    const sessionId = await persistentSession(ctx, room.space_id, room.id, member.agent_id);
+    const result = await ctx.agents.sessions.sendMessage(sessionId, room.space_id, {
+      prompt: agentPrompt(room, member, await messageBody(ctx, room.space_id, sourceMessageId)),
       reason: `Campfire #${room.name}`,
       onEvent: (event: AgentSessionEvent) => {
         if (event.eventType === "chunk" && event.stream !== "stderr" && event.message) {
@@ -285,7 +285,7 @@ async function deliver(
           void (async () => {
             if (event.eventType === "done") {
               await saveAgentReply(ctx, {
-                companyId: room.company_id,
+                spaceId: room.space_id,
                 roomId: room.id,
                 agentId: member.agent_id,
                 body: finalBody,
@@ -328,10 +328,10 @@ async function deliver(
   }
 }
 
-async function messageBody(ctx: PluginContext, companyId: string, messageId: string): Promise<string> {
+async function messageBody(ctx: PluginContext, spaceId: string, messageId: string): Promise<string> {
   const rows = await ctx.db.query<{ body: string }>(
-    `SELECT body FROM ${table(ctx, "messages")} WHERE id = $1 AND company_id = $2`,
-    [messageId, companyId],
+    `SELECT body FROM ${table(ctx, "messages")} WHERE id = $1 AND space_id = $2`,
+    [messageId, spaceId],
   );
   if (!rows[0]) throw new Error("Campfire source message not found");
   return rows[0].body;
@@ -342,12 +342,12 @@ const plugin = definePlugin({
     ctx.data.register("room-state", (params) => roomState(ctx, params));
 
     ctx.actions.register("create-room", async (params) => {
-      const cid = companyId(params);
+      const cid = spaceId(params);
       const name = normalizeRoomName(params.name);
       const projectId = typeof params.projectId === "string" && params.projectId ? params.projectId : null;
       const id = randomUUID();
       await ctx.db.execute(
-        `INSERT INTO ${table(ctx, "rooms")} (id, company_id, project_id, name)
+        `INSERT INTO ${table(ctx, "rooms")} (id, space_id, project_id, name)
          VALUES ($1, $2, $3, $4)`,
         [id, cid, projectId, name],
       );
@@ -355,7 +355,7 @@ const plugin = definePlugin({
     });
 
     ctx.actions.register("add-member", async (params) => {
-      const cid = companyId(params);
+      const cid = spaceId(params);
       const roomId = requiredString(params.roomId, "roomId");
       const agentId = requiredString(params.agentId, "agentId");
       await requireRoom(ctx, cid, roomId);
@@ -368,20 +368,20 @@ const plugin = definePlugin({
         `SELECT m.room_id, r.name AS room_name
            FROM ${table(ctx, "room_members")} m
            JOIN ${table(ctx, "rooms")} r ON r.id = m.room_id
-          WHERE m.company_id = $1 AND m.agent_id = $2`,
+          WHERE m.space_id = $1 AND m.agent_id = $2`,
         [cid, agentId],
       );
       if (existing[0] && existing[0].room_id !== roomId) {
         throw new Error(`${agent.name} is already booked in #${existing[0].room_name}`);
       }
       await ctx.db.execute(
-        `INSERT INTO ${table(ctx, "room_members")} (room_id, company_id, agent_id, handle)
+        `INSERT INTO ${table(ctx, "room_members")} (room_id, space_id, agent_id, handle)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (room_id, agent_id) DO UPDATE SET handle = EXCLUDED.handle`,
         [roomId, cid, agentId, handle],
       );
       await insertMessage(ctx, {
-        companyId: cid,
+        spaceId: cid,
         roomId,
         authorKind: "system",
         body: `${agent.name} (@${handle}) joined Campfire.`,
@@ -390,7 +390,7 @@ const plugin = definePlugin({
     });
 
     ctx.actions.register("remove-member", async (params) => {
-      const cid = companyId(params);
+      const cid = spaceId(params);
       const roomId = requiredString(params.roomId, "roomId");
       const agentId = requiredString(params.agentId, "agentId");
       const room = await requireRoom(ctx, cid, roomId);
@@ -407,14 +407,14 @@ const plugin = definePlugin({
         });
       }
       await insertMessage(ctx, {
-        companyId: cid,
+        spaceId: cid,
         roomId,
         authorKind: "system",
         body: `${member.name} (@${member.handle}) left Campfire.`,
       });
       await ctx.db.execute(
         `DELETE FROM ${table(ctx, "room_members")}
-          WHERE room_id = $1 AND company_id = $2 AND agent_id = $3`,
+          WHERE room_id = $1 AND space_id = $2 AND agent_id = $3`,
         [roomId, cid, agentId],
       );
       ctx.streams.open(STREAM_CHANNEL, cid);
@@ -424,7 +424,7 @@ const plugin = definePlugin({
     });
 
     ctx.actions.register("send-message", async (params) => {
-      const cid = companyId(params);
+      const cid = spaceId(params);
       const roomId = requiredString(params.roomId, "roomId");
       const body = requiredString(params.body, "body");
       if (body.length > 100_000) throw new Error("Messages are limited to 100,000 characters");
@@ -440,7 +440,7 @@ const plugin = definePlugin({
         ? handles.map((handle) => byHandle.get(handle)!)
         : members;
       const messageId = await insertMessage(ctx, {
-        companyId: cid,
+        spaceId: cid,
         roomId,
         authorKind: "human",
         body,

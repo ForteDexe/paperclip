@@ -7,7 +7,7 @@ import { notifyChatPublicationWork } from "../../chat-work-notifications.js";
 
 import { type CredentialMutationLeaseGuard } from "../../chat-credential-mutation-lease.js";
 
-import { authorizeSlackBoardPublication } from "../../slack-board-authority.js";
+import { authorizeSlackBoardPublication } from "../../slack-operator-authority.js";
 
 import { slackPublicationAllowed } from "../../connectors/slack-access.js";
 
@@ -115,7 +115,7 @@ export function createChatPublicationAuthorization(db: Db, options: PublicationA
             .from(chatConversations)
             .where(
               and(
-                eq(chatConversations.companyId, endpoint.companyId),
+                eq(chatConversations.spaceId, endpoint.spaceId),
                 eq(chatConversations.endpointId, endpoint.id),
                 eq(chatConversations.id, input.publication.conversationId),
                 inArray(chatConversations.state, [
@@ -135,7 +135,7 @@ export function createChatPublicationAuthorization(db: Db, options: PublicationA
               .from(chatEndpointResources)
               .where(
                 and(
-                  eq(chatEndpointResources.companyId, endpoint.companyId),
+                  eq(chatEndpointResources.spaceId, endpoint.spaceId),
                   eq(chatEndpointResources.endpointId, endpoint.id),
                   eq(chatEndpointResources.id, conversation.resourceId),
                 ),
@@ -150,7 +150,7 @@ export function createChatPublicationAuthorization(db: Db, options: PublicationA
               .from(chatConversations)
               .where(
                 and(
-                  eq(chatConversations.companyId, conversation.companyId),
+                  eq(chatConversations.spaceId, conversation.spaceId),
                   eq(chatConversations.endpointId, conversation.endpointId),
                   eq(
                     chatConversations.externalThreadId,
@@ -178,7 +178,7 @@ export function createChatPublicationAuthorization(db: Db, options: PublicationA
               .from(chatActions)
               .where(
                 and(
-                  eq(chatActions.companyId, endpoint.companyId),
+                  eq(chatActions.spaceId, endpoint.spaceId),
                   eq(chatActions.endpointId, endpoint.id),
                   eq(chatActions.conversationId, conversation?.id ?? ""),
                   eq(chatActions.kind, "task_control_authorization"),
@@ -195,7 +195,7 @@ export function createChatPublicationAuthorization(db: Db, options: PublicationA
       const destinationAllowed =
         endpoint !== null &&
         conversation !== null &&
-        (endpoint.provider !== "slack" || await slackPublicationAllowed(tx, endpoint.companyId, endpoint.id, input.publication.issueId, conversation.externalConversationId, null)) &&
+        (endpoint.provider !== "slack" || await slackPublicationAllowed(tx, endpoint.spaceId, endpoint.id, input.publication.issueId, conversation.externalConversationId, null)) &&
         (conversation.isDirectMessage
           ? endpoint.allowDirectMessages
           : nonDirectDestinationAllowed(endpoint, resource));
@@ -240,27 +240,27 @@ export function createChatPublicationAuthorization(db: Db, options: PublicationA
             heartbeatRuns,
             and(
               eq(heartbeatRuns.id, issueComments.createdByRunId),
-              eq(heartbeatRuns.companyId, issueComments.companyId),
+              eq(heartbeatRuns.spaceId, issueComments.spaceId),
             ),
           )
           .where(
             and(
               eq(issueComments.id, input.publication.commentId),
-              eq(issueComments.companyId, endpoint.companyId),
+              eq(issueComments.spaceId, endpoint.spaceId),
               eq(issueComments.issueId, input.publication.issueId),
             ),
           )
           .limit(1);
         if (
           origin?.resultJson?.finalizationReasonCode ===
-          "governed_response_waiting"
+          "controlled_response_waiting"
         ) {
           try {
             if (
               !(await authorizeNativeChatReviewPresentation(
                 tx as unknown as Db,
                 {
-                  companyId: endpoint.companyId,
+                  spaceId: endpoint.spaceId,
                   issueId: input.publication.issueId,
                   runId: origin.runId,
                   resultJson: origin.resultJson,

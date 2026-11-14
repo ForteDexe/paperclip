@@ -21,7 +21,7 @@ vi.mock("@/api/tools", () => ({
   },
 }));
 
-vi.mock("@/api/companies-query", () => ({
+vi.mock("@/api/spaces-query", () => ({
   useAccountIdentity: () => ({ userId: "user-1", settled: true, failed: false, bootstrap: undefined, updatedAt: 0 }),
 }));
 
@@ -52,9 +52,9 @@ async function flushReact() {
 function token(overrides: Partial<ToolMcpGatewayToken> = {}): ToolMcpGatewayToken {
   return {
     id: "token-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     gatewayId: "gateway-1",
-    name: "cto-cursor",
+    name: "engineering_lead-cursor",
     tokenPrefix: "pcgw_live_8x4Pa",
     subjectType: "gateway_client",
     subjectId: null,
@@ -79,11 +79,11 @@ function token(overrides: Partial<ToolMcpGatewayToken> = {}): ToolMcpGatewayToke
 function gateway(overrides: Partial<ToolMcpGatewayWithTokens> = {}): ToolMcpGatewayWithTokens {
   return {
     id: "gateway-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     gatewayPublicId: "gw",
-    name: "CTO agents",
-    displaySlug: "cto-agents",
-    slug: "cto-agents",
+    name: "Engineering Lead agents",
+    displaySlug: "engineering_lead-agents",
+    slug: "engineering_lead-agents",
     description: null,
     status: "active",
     profileId: "profile-1",
@@ -94,7 +94,7 @@ function gateway(overrides: Partial<ToolMcpGatewayWithTokens> = {}): ToolMcpGate
     projectId: null,
     issueId: null,
     approvalIssueId: null,
-    endpointPath: "/g/cto-agents/mcp",
+    endpointPath: "/g/engineering_lead-agents/mcp",
     authConfig: {} as ToolMcpGatewayWithTokens["authConfig"],
     headerPolicy: {} as ToolMcpGatewayWithTokens["headerPolicy"],
     metadataPolicy: {} as ToolMcpGatewayWithTokens["metadataPolicy"],
@@ -168,7 +168,7 @@ describe("TokensPanel", () => {
   }
 
   it("masks existing tokens and never renders the full secret at rest", async () => {
-    await render(<TokensPanel companyId="company-1" gateway={gateway({ tokens: [token()] })} />);
+    await render(<TokensPanel spaceId="space-1" gateway={gateway({ tokens: [token()] })} />);
     expect(container.textContent).not.toContain("pcgw_live_8x4Pa•••");
     expect(container.textContent).toContain("fresh one-hour runtime token");
     expect(container.textContent).toContain("one run may leave two revoked rows");
@@ -184,14 +184,14 @@ describe("TokensPanel", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
 
-    await render(<TokensPanel companyId="company-1" gateway={gateway()} />);
+    await render(<TokensPanel spaceId="space-1" gateway={gateway()} />);
 
     await clickButton("Issue token");
     const form = container.querySelector("form");
     if (!form) throw new Error("token form not found");
     const nameInput = form.querySelector<HTMLInputElement>('input:not([type="date"])');
     if (!nameInput) throw new Error("token name input not found");
-    expect(nameInput.value).toMatch(/^cto-agents-\d{12}$/);
+    expect(nameInput.value).toMatch(/^engineering_lead-agents-\d{12}$/);
     await act(async () => {
       form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
@@ -199,7 +199,7 @@ describe("TokensPanel", () => {
 
     expect(createGatewayTokenMock).toHaveBeenCalledTimes(1);
     expect(createGatewayTokenMock).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "gateway-1",
       expect.objectContaining({
         name: nameInput.value,
@@ -218,7 +218,7 @@ describe("TokensPanel", () => {
   it("lets the person reveal an agent-created token value once, outside the folded history", async () => {
     const pending = token({ id: "agent-token", name: "Replacement client", createdByAgentId: "agent-1", createdByUserId: null, responsibleUserId: "user-1", pendingReveal: true });
     revealGatewayTokenMock.mockResolvedValue({ ...pending, pendingReveal: false, token: "pcgw_live_REVEALEDVALUE" });
-    await render(<TokensPanel companyId="company-1" gateway={gateway({ tokens: [pending] })} />);
+    await render(<TokensPanel spaceId="space-1" gateway={gateway({ tokens: [pending] })} />);
 
     expect(container.textContent).toContain("Waiting for you to reveal");
     expect(container.textContent).toContain("Replacement client");
@@ -226,27 +226,27 @@ describe("TokensPanel", () => {
 
     await clickButton("Reveal token");
     await flushReact();
-    expect(revealGatewayTokenMock).toHaveBeenCalledWith("company-1", "agent-token");
+    expect(revealGatewayTokenMock).toHaveBeenCalledWith("space-1", "agent-token");
     expect(container.textContent).toContain("New token — copy now");
     expect(container.textContent).toContain("pcgw_live_REVEALEDVALUE");
   });
 
   it("does not offer to reveal a token that expired before its reveal", async () => {
     const pending = token({ id: "agent-token", name: "Expired client", createdByAgentId: "agent-1", createdByUserId: null, responsibleUserId: "user-1", pendingReveal: true, expiresAt: "2026-06-01T00:00:00.000Z" });
-    await render(<TokensPanel companyId="company-1" gateway={gateway({ tokens: [pending] })} />);
+    await render(<TokensPanel spaceId="space-1" gateway={gateway({ tokens: [pending] })} />);
     expect(container.textContent).not.toContain("Waiting for you to reveal");
   });
 
   it("does not offer to reveal a token that acts for another person", async () => {
     const pending = token({ id: "agent-token", name: "Someone else's client", createdByAgentId: "agent-1", createdByUserId: null, responsibleUserId: "user-2", pendingReveal: true });
-    await render(<TokensPanel companyId="company-1" gateway={gateway({ tokens: [pending] })} />);
+    await render(<TokensPanel spaceId="space-1" gateway={gateway({ tokens: [pending] })} />);
     expect(container.textContent).not.toContain("Waiting for you to reveal");
     expect([...container.querySelectorAll("button")].some((el) => el.textContent?.trim() === "Reveal token")).toBe(false);
   });
 
   it("gates revoke behind a typed confirmation matching the token name", async () => {
     revokeGatewayTokenMock.mockResolvedValue(token({ revokedAt: "2026-06-16T12:00:00.000Z" }));
-    await render(<TokensPanel companyId="company-1" gateway={gateway({ tokens: [token()] })} />);
+    await render(<TokensPanel spaceId="space-1" gateway={gateway({ tokens: [token()] })} />);
 
     await clickButtonContaining("Token history");
     await clickButton("Revoke");
@@ -255,12 +255,12 @@ describe("TokensPanel", () => {
     ) as HTMLButtonElement;
     expect(confirmButton.disabled).toBe(true);
 
-    await setInput('input[aria-label="Type the token name to confirm"]', "cto-cursor");
+    await setInput('input[aria-label="Type the token name to confirm"]', "engineering_lead-cursor");
     expect(confirmButton.disabled).toBe(false);
 
     await clickButton("Revoke token");
     await flushReact();
-    expect(revokeGatewayTokenMock).toHaveBeenCalledWith("company-1", "token-1");
+    expect(revokeGatewayTokenMock).toHaveBeenCalledWith("space-1", "token-1");
   });
 
   it("paginates the folded token log and labels past expiry as expired", async () => {
@@ -272,7 +272,7 @@ describe("TokensPanel", () => {
       revokedAt: index === 0 ? "2026-06-10T00:00:00.000Z" : null,
       createdAt: new Date(Date.UTC(2026, 5, index + 1)).toISOString(),
     }));
-    await render(<TokensPanel companyId="company-1" gateway={gateway({ tokens })} />);
+    await render(<TokensPanel spaceId="space-1" gateway={gateway({ tokens })} />);
 
     expect(container.textContent).not.toContain("client-10");
     await clickButtonContaining("Token history");

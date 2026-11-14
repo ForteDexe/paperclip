@@ -12,7 +12,7 @@ const id = (n: number) =>
   `10000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const params: PluginWorkspaceParams = {
   pluginId: id(1),
-  companyId: id(2),
+  spaceId: id(2),
   projectId: id(3),
   executionWorkspaceId: id(4),
   operationId: "stable",

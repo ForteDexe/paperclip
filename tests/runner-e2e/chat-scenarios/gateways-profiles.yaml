@@ -13,7 +13,7 @@ scenarios:
     query: >-
       Create a gateway for our website team's tools.
     expected_outcome: >-
-      Exactly one gateway is saved for the intended profile and company, created by the agent
+      Exactly one gateway is saved for the intended profile and space, created by the agent
       under delegated authority or by the person after the agent hands them the step. The reply
       or a question card links the person to the saved gateway (or to the gateways page when the
       person creates it). Any token the agent creates has no value until the person reveals it,
@@ -22,14 +22,14 @@ scenarios:
     capabilities:
       - gateways-profiles/profiles
     context: >-
-      The company wants a reusable read-only notes profile and has no matching profile;
+      The space wants a reusable read-only notes profile and has no matching profile;
       management is board-only.
     query: >-
       Make a tools profile with Notion reads and no write actions.
     expected_outcome: >-
       The human configuration path saves the intended account and allowed read actions while
       excluding writes. Chat distinguishes a profile draft from a published effective
-      assignment. Empty agent selections, company-wide access and action policy are not
+      assignment. Empty agent selections, space-wide access and action policy are not
       conflated.
   - id: gateways-profiles.connect-client
     capabilities:
@@ -64,7 +64,7 @@ scenarios:
     capabilities:
       - gateways-profiles/activity
     context: >-
-      A tool call failed and the agent has its own receipt; company-wide gateway audit requires
+      A tool call failed and the agent has its own receipt; space-wide gateway audit requires
       board permission.
     query: >-
       Why did the notes tool fail for Morgan?

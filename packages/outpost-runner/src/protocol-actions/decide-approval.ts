@@ -8,25 +8,25 @@ export const decideApprovalAction = {
       "live"
     ],
     "placement": "optional_agent_tool",
-    "optionalGroup": "governance",
+    "optionalGroup": "approvals",
     "requiredClaims": [
-      "governance:approvals:decide"
+      "approvals:approvals:decide"
     ],
     "taskModes": [
       "standard",
       "skill_test"
     ],
     "allowedRoles": [
-      "board",
+      "operator",
       "approver",
       "security"
     ],
-    "sideEffectClass": "governance",
+    "sideEffectClass": "approvals",
     "idempotency": "required",
     "disabledByDefault": false,
     "realBindingStatus": "live_codex",
     "realServiceBinding": "unbound",
-    "orpEvidence": "approval lifecycle plus governed-wait continuation and audit events",
+    "orpEvidence": "approval lifecycle plus controlled-wait continuation and audit events",
     "orpBindingStatus": "audit_pending",
     "legacyAliases": []
   },
@@ -80,14 +80,14 @@ export const decideApprovalAction = {
       "description": "Decide an approval as an explicitly authorized approver.",
       "exposure": "optional",
       "requiredClaims": [
-        "governance:approvals:decide"
+        "approvals:approvals:decide"
       ],
       "allowedModes": [
         "standard",
         "skill_test"
       ],
       "allowedRoles": [
-        "board",
+        "operator",
         "approver",
         "security"
       ],
@@ -185,7 +185,7 @@ export const decideApprovalAction = {
       "operationId": "decide_approval",
       "version": 1,
       "title": "Decide Approval",
-      "description": "Decide Approval through the Capability governance capability set.",
+      "description": "Decide Approval through the Capability approvals capability set.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -248,12 +248,12 @@ export const decideApprovalAction = {
         "additionalProperties": false
       },
       "disposition": "optional_agent_tool",
-      "optionalGroup": "governance",
+      "optionalGroup": "approvals",
       "requiredClaims": [
-        "governance:approvals:decide"
+        "approvals:approvals:decide"
       ],
       "allowedRoles": [
-        "board",
+        "operator",
         "approver",
         "security"
       ],
@@ -261,7 +261,7 @@ export const decideApprovalAction = {
         "standard",
         "skill_test"
       ],
-      "sideEffectClass": "governance",
+      "sideEffectClass": "approvals",
       "idempotency": "required",
       "redaction": [],
       "mockCommandMapping": {

@@ -35,9 +35,9 @@ export class NativeExecutionContext {
     this.signal.throwIfAborted();
   }
 
-  assertScope(scope: { companyId: string; agentId: string; runId: string }): void {
+  assertScope(scope: { spaceId: string; agentId: string; runId: string }): void {
     const binding = this.execution.binding;
-    if (scope.companyId !== binding.companyId || scope.agentId !== binding.agentId || scope.runId !== binding.runId) {
+    if (scope.spaceId !== binding.spaceId || scope.agentId !== binding.agentId || scope.runId !== binding.runId) {
       throw new Error("native_execution_context_scope_mismatch");
     }
     this.assertOpen();

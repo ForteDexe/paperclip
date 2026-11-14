@@ -1,6 +1,6 @@
 # Execution Policy: Review & Approval Workflows
 
-Paperclip's execution policy system ensures tasks are completed with the right level of oversight. Instead of relying on agents to remember to hand off work for review, the **runtime enforces** review and approval stages automatically.
+Outpost's execution policy system ensures tasks are completed with the right level of oversight. Instead of relying on agents to remember to hand off work for review, the **runtime enforces** review and approval stages automatically.
 
 ## Overview
 
@@ -67,7 +67,7 @@ An audit trail of every review/approval action:
 ```ts
 interface IssueExecutionDecision {
   id: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   stageId: string;
   stageType: "review" | "approval";
@@ -196,7 +196,7 @@ Do not split a decision into `POST /comments` followed by a status-only `PATCH`;
 ### Setting an execution policy on issue creation
 
 ```bash
-POST /api/companies/{companyId}/issues
+POST /api/spaces/{spaceId}/issues
 {
   "title": "Implement feature X",
   "assigneeAgentId": "coder-agent-id",

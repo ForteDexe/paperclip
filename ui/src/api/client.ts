@@ -11,15 +11,15 @@ const BASE = "/api";
 //
 // Reproduces a deploy blip without a deploy. Dev and QA builds only:
 //
-//   localStorage.paperclipSimulateOutage = "503:tenant_app_unavailable"     // until removed
-//   localStorage.paperclipSimulateOutage = "503:tenant_app_unavailable@20"  // for 20 seconds
-//   localStorage.paperclipSimulateOutage = "502"       // non-JSON proxy page
-//   localStorage.paperclipSimulateOutage = "network"   // fetch rejects (connection drop)
+//   localStorage.outpostSimulateOutage = "503:tenant_app_unavailable"     // until removed
+//   localStorage.outpostSimulateOutage = "503:tenant_app_unavailable@20"  // for 20 seconds
+//   localStorage.outpostSimulateOutage = "502"       // non-JSON proxy page
+//   localStorage.outpostSimulateOutage = "network"   // fetch rejects (connection drop)
 //
 // Every same-origin API request made through `apiFetch` (the client, health,
 // session) fails with the chosen shape. Remove the key to end the outage.
 
-export const OUTAGE_SIMULATOR_STORAGE_KEY = "paperclipSimulateOutage";
+export const OUTAGE_SIMULATOR_STORAGE_KEY = "outpostSimulateOutage";
 
 export type SimulatedOutage =
   | { kind: "network"; durationMs: number | null }
@@ -121,11 +121,11 @@ function abortError(): DOMException {
  * these as scheduling/telemetry only and never as security signals.
  */
 function applyObservabilityHeaders(headers: Headers) {
-  if (headers.has("X-Paperclip-Tab-Visible")) return; // caller override wins
+  if (headers.has("X-Outpost-Tab-Visible")) return; // caller override wins
   const visibility = getPageVisibility();
-  headers.set("X-Paperclip-Tab-Visible", getVisibilityHeaderValue(visibility));
+  headers.set("X-Outpost-Tab-Visible", getVisibilityHeaderValue(visibility));
   if (typeof window !== "undefined" && window.location) {
-    headers.set("X-Paperclip-Route", window.location.pathname);
+    headers.set("X-Outpost-Route", window.location.pathname);
   }
 }
 

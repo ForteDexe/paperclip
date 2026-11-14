@@ -332,7 +332,7 @@ const DENIED_TOOLS_DISPLAY_LIMIT = 30;
  * prompt can narrow the list but never expand it, and the side panel explains
  * which access profiles and rules shape the final list.
  */
-export function AgentToolsTab({ agent, companyId }: { agent: AgentDetailRecord; companyId: string }) {
+export function AgentToolsTab({ agent, spaceId }: { agent: AgentDetailRecord; spaceId: string }) {
   const queryClient = useQueryClient();
   const [installDraft, setInstallDraft] = useState<Record<string, boolean>>({});
   const lastSavedInstallRef = useRef<Record<string, boolean>>({});
@@ -340,18 +340,18 @@ export function AgentToolsTab({ agent, companyId }: { agent: AgentDetailRecord; 
   const failedInstallDraftRef = useRef<{ connectionId: string; installed: boolean } | null>(null);
 
   const effective = useQuery({
-    queryKey: queryKeys.tools.effectiveProfilesForAgent(companyId, agent.id),
-    queryFn: () => toolsApi.getEffectiveProfilesForAgent(companyId, agent.id),
+    queryKey: queryKeys.tools.effectiveProfilesForAgent(spaceId, agent.id),
+    queryFn: () => toolsApi.getEffectiveProfilesForAgent(spaceId, agent.id),
   });
 
   const connectionsQuery = useQuery({
-    queryKey: queryKeys.tools.connections(companyId),
-    queryFn: () => toolsApi.listConnections(companyId),
+    queryKey: queryKeys.tools.connections(spaceId),
+    queryFn: () => toolsApi.listConnections(spaceId),
   });
 
   const policiesQuery = useQuery({
-    queryKey: queryKeys.tools.policies(companyId),
-    queryFn: () => toolsApi.listPolicies(companyId),
+    queryKey: queryKeys.tools.policies(spaceId),
+    queryFn: () => toolsApi.listPolicies(spaceId),
   });
 
   const connectionList = connectionsQuery.data?.connections ?? [];
@@ -406,7 +406,7 @@ export function AgentToolsTab({ agent, companyId }: { agent: AgentDetailRecord; 
       }
       return toolsApi.putConnectionInstalls(
         connection.id,
-        installPayload(connection.companyId ?? companyId, nextState),
+        installPayload(connection.spaceId ?? spaceId, nextState),
       );
     },
     onSuccess: async (_snapshot, variables) => {
@@ -416,8 +416,8 @@ export function AgentToolsTab({ agent, companyId }: { agent: AgentDetailRecord; 
         [variables.connection.id]: variables.installed,
       };
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(companyId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.tools.effectiveProfilesForAgent(companyId, agent.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(spaceId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tools.effectiveProfilesForAgent(spaceId, agent.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.tools.testAgentAccessesForConnection(variables.connection.id) }),
       ]);
     },
@@ -434,7 +434,7 @@ export function AgentToolsTab({ agent, companyId }: { agent: AgentDetailRecord; 
     lastSavedInstallRef.current = {};
     skipNextInstallAutosaveRef.current = true;
     failedInstallDraftRef.current = null;
-  }, [agent.id, companyId]);
+  }, [agent.id, spaceId]);
 
   useEffect(() => {
     const next = Object.fromEntries(
@@ -481,7 +481,7 @@ export function AgentToolsTab({ agent, companyId }: { agent: AgentDetailRecord; 
   }, [connectionList, installDraft, syncInstall.isPending, syncInstall.mutate]);
 
   // The effective endpoint returns the *allowed* slice of the catalog. To show
-  // "Denied tools (suppressed)" we need the full company catalog, which is only
+  // "Denied tools (suppressed)" we need the full space catalog, which is only
   // exposed per-connection — same aggregation the Applications tab uses.
   const catalogQueries = useQueries({
     queries: connectionList.map((connection) => ({
@@ -542,7 +542,7 @@ export function AgentToolsTab({ agent, companyId }: { agent: AgentDetailRecord; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effective.data?.allowedTools, catalogStamp]);
 
-  const governingPolicies = useMemo(() => {
+  const controllingPolicies = useMemo(() => {
     const policies = policiesQuery.data?.policies ?? [];
     return policies
       .map((policy, index) => ({ policy, order: index + 1 }))
@@ -694,7 +694,7 @@ export function AgentToolsTab({ agent, companyId }: { agent: AgentDetailRecord; 
                       >
                         {profile.name}
                       </Link>
-                      {profile.summary.isCompanyDefault ? (
+                      {profile.summary.isSpaceDefault ? (
                         <div className="mt-1">
                           <span className="rounded border border-border px-1.5 py-0.5 text-(length:--text-nano) uppercase text-muted-foreground">
                             Outpost default
@@ -714,12 +714,12 @@ export function AgentToolsTab({ agent, companyId }: { agent: AgentDetailRecord; 
               </div>
               {policiesQuery.isLoading ? (
                 <p className="text-xs text-muted-foreground">Loading policies…</p>
-              ) : governingPolicies.length === 0 ? (
+              ) : controllingPolicies.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
                   No enabled policy currently mutates this agent's allow list.
                 </p>
               ) : (
-                governingPolicies.map(({ policy, order }) => (
+                controllingPolicies.map(({ policy, order }) => (
                   <div key={policy.id} className="rounded-md border border-border/70 px-2.5 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <span

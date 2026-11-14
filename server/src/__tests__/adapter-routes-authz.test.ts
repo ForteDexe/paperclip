@@ -94,7 +94,7 @@ function registerRouteMocks() {
 }
 
 const EXTERNAL_ADAPTER_TYPE = "external_admin_test";
-const EXTERNAL_PACKAGE_NAME = "paperclip-external-adapter";
+const EXTERNAL_PACKAGE_NAME = "outpost-external-adapter";
 let adapterRoutes: typeof import("../routes/adapters.js").adapterRoutes;
 let errorHandler: typeof import("../middleware/index.js").errorHandler;
 let registerServerAdapter: typeof import("../adapters/registry.js").registerServerAdapter;
@@ -133,9 +133,9 @@ function createApp(actor: Express.Request["actor"]) {
   app.use((req, _res, next) => {
     req.actor = {
       ...actor,
-      companyIds: Array.isArray(actor.companyIds)
-        ? [...actor.companyIds]
-        : actor.companyIds,
+      spaceIds: Array.isArray(actor.spaceIds)
+        ? [...actor.spaceIds]
+        : actor.spaceIds,
       memberships: Array.isArray(actor.memberships)
         ? actor.memberships.map((membership) => ({ ...membership }))
         : actor.memberships,
@@ -175,20 +175,20 @@ async function requestApp(
   }
 }
 
-function boardMember(
+function operatorMember(
   membershipRole: "admin" | "operator" | "viewer",
 ): Express.Request["actor"] {
   return {
-    type: "board",
+    type: "operator",
     userId: `${membershipRole}-user`,
     userName: null,
     userEmail: null,
     source: "session",
     isInstanceAdmin: false,
-    companyIds: ["company-1"],
+    spaceIds: ["space-1"],
     memberships: [
       {
-        companyId: "company-1",
+        spaceId: "space-1",
         membershipRole,
         status: "active",
       },
@@ -197,13 +197,13 @@ function boardMember(
 }
 
 const instanceAdmin: Express.Request["actor"] = {
-  type: "board",
+  type: "operator",
   userId: "instance-admin",
   userName: null,
   userEmail: null,
   source: "session",
   isInstanceAdmin: true,
-  companyIds: [],
+  spaceIds: [],
   memberships: [],
 };
 
@@ -291,7 +291,7 @@ describe("adapter management route authorization", () => {
       ...mocks.externalRecords.values(),
     ]);
     mocks.getAdapterPluginsDir.mockReturnValue(
-      "/tmp/paperclip-adapter-route-authz-test",
+      "/tmp/outpost-adapter-route-authz-test",
     );
     mocks.getDisabledAdapterTypes.mockReturnValue([]);
     mocks.setAdapterDisabled.mockReturnValue(true);
@@ -307,7 +307,7 @@ describe("adapter management route authorization", () => {
     setOverridePaused("claude_local", false);
   });
 
-  it("rejects mutating adapter routes for a non-instance-admin board user with company membership", async () => {
+  it("rejects mutating adapter routes for a non-instance-admin operator user with space membership", async () => {
     for (const routeName of [
       "install",
       "disable",
@@ -318,7 +318,7 @@ describe("adapter management route authorization", () => {
     ]) {
       resetInstalledExternalAdapterState();
       seedInstalledExternalAdapter();
-      const app = createApp(boardMember("admin"));
+      const app = createApp(operatorMember("admin"));
 
       const res = await sendMutatingRequest(app, routeName);
 
@@ -350,11 +350,11 @@ describe("adapter management route authorization", () => {
   });
 
   it.each(["viewer", "operator"] as const)(
-    "does not let a company %s trigger adapter npm install or reload",
+    "does not let a space %s trigger adapter npm install or reload",
     async (membershipRole) => {
       seedInstalledExternalAdapter();
-      const installApp = createApp(boardMember(membershipRole));
-      const reloadApp = createApp(boardMember(membershipRole));
+      const installApp = createApp(operatorMember(membershipRole));
+      const reloadApp = createApp(operatorMember(membershipRole));
 
       const install = await requestApp(installApp, (baseUrl) =>
         request(baseUrl)
@@ -440,7 +440,7 @@ describe("adapter management route authorization", () => {
 
     it("keeps adapter reads open while the surface is hidden", async () => {
       seedInstalledExternalAdapter();
-      const app = createApp(boardMember("admin"));
+      const app = createApp(operatorMember("admin"));
 
       const res = await requestApp(app, (baseUrl) =>
         request(baseUrl).get("/api/adapters"),

@@ -1,22 +1,22 @@
 import { z } from "zod";
 
-export const COMPANY_ARTIFACTS_DEFAULT_LIMIT = 30;
-export const COMPANY_ARTIFACTS_MAX_LIMIT = 100;
-export const COMPANY_ARTIFACTS_MAX_QUERY_LENGTH = 160;
+export const SPACE_ARTIFACTS_DEFAULT_LIMIT = 30;
+export const SPACE_ARTIFACTS_MAX_LIMIT = 100;
+export const SPACE_ARTIFACTS_MAX_QUERY_LENGTH = 160;
 
-export const companyArtifactSourceSchema = z.enum(["document", "attachment", "work_product"]);
+export const spaceArtifactSourceSchema = z.enum(["document", "attachment", "work_product"]);
 
-export const companyArtifactMediaKindSchema = z.enum(["image", "video", "text", "document", "file", "empty"]);
+export const spaceArtifactMediaKindSchema = z.enum(["image", "video", "text", "document", "file", "empty"]);
 
-export const companyArtifactGroupBySchema = z.enum(["none", "task", "parent_task"]);
+export const spaceArtifactGroupBySchema = z.enum(["none", "task", "parent_task"]);
 
-export const companyArtifactsQuerySchema = z.object({
+export const spaceArtifactsQuerySchema = z.object({
   kind: z.enum(["image", "video", "text", "document", "file", "all"]).optional().default("all"),
   projectId: z.string().guid().optional(),
   /** Only artifacts attributed to this agent (the `createdByAgent` on each result). */
   agentId: z.string().guid().optional(),
-  q: z.string().trim().max(COMPANY_ARTIFACTS_MAX_QUERY_LENGTH).optional(),
-  groupBy: companyArtifactGroupBySchema.optional().default("none"),
+  q: z.string().trim().max(SPACE_ARTIFACTS_MAX_QUERY_LENGTH).optional(),
+  groupBy: spaceArtifactGroupBySchema.optional().default("none"),
   groupIssueId: z.string().guid().optional(),
   starred: z.preprocess(
     (value) => value === "true" ? true : value === "false" ? false : value,
@@ -26,16 +26,16 @@ export const companyArtifactsQuerySchema = z.object({
     .number()
     .int()
     .min(1)
-    .max(COMPANY_ARTIFACTS_MAX_LIMIT)
+    .max(SPACE_ARTIFACTS_MAX_LIMIT)
     .optional()
-    .default(COMPANY_ARTIFACTS_DEFAULT_LIMIT),
+    .default(SPACE_ARTIFACTS_DEFAULT_LIMIT),
   cursor: z.string().min(1).optional(),
 });
 
-export const companyArtifactSchema = z.object({
+export const spaceArtifactSchema = z.object({
   id: z.string().min(1),
-  source: companyArtifactSourceSchema,
-  mediaKind: companyArtifactMediaKindSchema,
+  source: spaceArtifactSourceSchema,
+  mediaKind: spaceArtifactMediaKindSchema,
   title: z.string(),
   previewText: z.string().nullable(),
   contentType: z.string().nullable(),
@@ -59,9 +59,9 @@ export const companyArtifactSchema = z.object({
   href: z.string().min(1),
 });
 
-export const companyArtifactGroupSchema = z.object({
+export const spaceArtifactGroupSchema = z.object({
   id: z.string().min(1),
-  groupBy: companyArtifactGroupBySchema.exclude(["none"]),
+  groupBy: spaceArtifactGroupBySchema.exclude(["none"]),
   issue: z.object({
     id: z.string().guid(),
     identifier: z.string(),
@@ -69,17 +69,17 @@ export const companyArtifactGroupSchema = z.object({
   }),
   title: z.string(),
   count: z.number().int().min(0),
-  mediaKinds: z.array(companyArtifactMediaKindSchema),
-  previewArtifacts: z.array(companyArtifactSchema),
+  mediaKinds: z.array(spaceArtifactMediaKindSchema),
+  previewArtifacts: z.array(spaceArtifactSchema),
   updatedAt: z.string().datetime(),
   href: z.string().min(1),
 });
 
-export const companyArtifactsResponseSchema = z.object({
-  artifacts: z.array(companyArtifactSchema),
-  groups: z.array(companyArtifactGroupSchema).optional(),
-  selectedGroup: companyArtifactGroupSchema.nullable().optional(),
+export const spaceArtifactsResponseSchema = z.object({
+  artifacts: z.array(spaceArtifactSchema),
+  groups: z.array(spaceArtifactGroupSchema).optional(),
+  selectedGroup: spaceArtifactGroupSchema.nullable().optional(),
   nextCursor: z.string().nullable(),
 });
 
-export type CompanyArtifactsQuery = z.infer<typeof companyArtifactsQuerySchema>;
+export type SpaceArtifactsQuery = z.infer<typeof spaceArtifactsQuerySchema>;

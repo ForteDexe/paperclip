@@ -12,8 +12,8 @@ import {
   assertIsolatedServerEnvironment,
   buildOutpostServerEnvironment,
   buildRunnerE2EProcessEnvironment,
-  resolvePaperclipRemoteRunnerBinaryForHarness,
-  resolvePaperclipRunnerBinaryForHarness,
+  resolveOutpostRemoteRunnerBinaryForHarness,
+  resolveOutpostRunnerBinaryForHarness,
   runnerE2EServerControlPaths,
 } from "./harness-env.js";
 import { runnerExecutionById, runnerMatrix } from "./catalog.js";
@@ -132,7 +132,7 @@ describe("runner E2E local binary resolution", () => {
 
   it("uses the debug runner binary built by the E2E workflow", () => {
     expect(
-      resolvePaperclipRunnerBinaryForHarness(
+      resolveOutpostRunnerBinaryForHarness(
         [localNativeExecution],
         "/repository",
         undefined,
@@ -148,7 +148,7 @@ describe("runner E2E local binary resolution", () => {
 
   it("preserves an explicit runner binary override", () => {
     expect(
-      resolvePaperclipRunnerBinaryForHarness(
+      resolveOutpostRunnerBinaryForHarness(
         [localNativeExecution],
         "/repository",
         "/custom/outpost-runnerd",
@@ -158,7 +158,7 @@ describe("runner E2E local binary resolution", () => {
   });
 
   it("uses and stages the same build-once binary for remote native cells", () => {
-    const runnerBinary = resolvePaperclipRunnerBinaryForHarness(
+    const runnerBinary = resolveOutpostRunnerBinaryForHarness(
       [remoteNativeExecution],
       "/repository",
       undefined,
@@ -171,7 +171,7 @@ describe("runner E2E local binary resolution", () => {
       ),
     );
     expect(
-      resolvePaperclipRemoteRunnerBinaryForHarness(
+      resolveOutpostRemoteRunnerBinaryForHarness(
         [remoteNativeExecution],
         runnerBinary,
         undefined,
@@ -180,7 +180,7 @@ describe("runner E2E local binary resolution", () => {
       ),
     ).toBe(runnerBinary);
     expect(
-      resolvePaperclipRemoteRunnerBinaryForHarness(
+      resolveOutpostRemoteRunnerBinaryForHarness(
         [localNativeExecution],
         runnerBinary,
         undefined,
@@ -189,7 +189,7 @@ describe("runner E2E local binary resolution", () => {
       ),
     ).toBeUndefined();
     expect(
-      resolvePaperclipRemoteRunnerBinaryForHarness(
+      resolveOutpostRemoteRunnerBinaryForHarness(
         [remoteNativeExecution],
         runnerBinary,
         undefined,
@@ -197,17 +197,17 @@ describe("runner E2E local binary resolution", () => {
       ),
     ).toBeUndefined();
     expect(
-      resolvePaperclipRemoteRunnerBinaryForHarness(
+      resolveOutpostRemoteRunnerBinaryForHarness(
         [remoteNativeExecution],
         runnerBinary,
         "/cross-compiled/outpost-runnerd",
         "darwin",
       ),
     ).toBe("/cross-compiled/outpost-runnerd");
-    expect(resolvePaperclipRemoteRunnerBinaryForHarness(
+    expect(resolveOutpostRemoteRunnerBinaryForHarness(
       [remoteNativeExecution], runnerBinary, undefined, "linux", "arm64",
     )).toBeUndefined();
-    expect(resolvePaperclipRemoteRunnerBinaryForHarness(
+    expect(resolveOutpostRemoteRunnerBinaryForHarness(
       [remoteNativeExecution], runnerBinary, "/cross-compiled/linux-x64-runnerd", "linux", "arm64",
     )).toBe("/cross-compiled/linux-x64-runnerd");
   });
@@ -305,8 +305,8 @@ describe("runner E2E sensitive API boundary", () => {
     vi.stubGlobal("fetch", fetchMock);
     const api = new RunnerApi({} as never);
     api.setBrowserSession("fixture.session=opaque");
-    await api.postSensitive("/api/companies/company/secrets", { value: "fixture-value" });
-    expect(fetchMock).toHaveBeenCalledWith(new URL("http://127.0.0.1:43123/api/companies/company/secrets"), expect.objectContaining({ headers: { "content-type": "application/json", Cookie: "fixture.session=opaque", Origin: "http://127.0.0.1:43123" } }));
+    await api.postSensitive("/api/spaces/space/secrets", { value: "fixture-value" });
+    expect(fetchMock).toHaveBeenCalledWith(new URL("http://127.0.0.1:43123/api/spaces/space/secrets"), expect.objectContaining({ headers: { "content-type": "application/json", Cookie: "fixture.session=opaque", Origin: "http://127.0.0.1:43123" } }));
   });
   it("keeps secret request bodies out of Playwright API tracing", async () => {
     vi.stubEnv("OUTPOST_RUNNER_E2E_PORT", "43123");
@@ -321,13 +321,13 @@ describe("runner E2E sensitive API boundary", () => {
     const api = new RunnerApi({ post: playwrightPost } as never);
 
     await expect(
-      api.postSensitive("/api/companies/company-id/secrets", {
+      api.postSensitive("/api/spaces/space-id/secrets", {
         value: "fixture-secret-value",
       }),
     ).resolves.toEqual({ id: "secret-id" });
     expect(playwrightPost).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledWith(
-      new URL("http://127.0.0.1:43123/api/companies/company-id/secrets"),
+      new URL("http://127.0.0.1:43123/api/spaces/space-id/secrets"),
       expect.objectContaining({ method: "POST" }),
     );
   });
@@ -378,18 +378,18 @@ describe("runner E2E fixture registry", () => {
     const events: string[] = [];
     const registry = new FixtureRegistry()
       .register({
-        id: "company",
+        id: "space",
         setup: async () => {
-          events.push("setup-company");
+          events.push("setup-space");
           return "c";
         },
         teardown: async () => {
-          events.push("teardown-company");
+          events.push("teardown-space");
         },
       })
       .register({
         id: "agent",
-        dependencies: ["company"],
+        dependencies: ["space"],
         setup: async () => {
           events.push("setup-agent");
           return "a";
@@ -401,20 +401,20 @@ describe("runner E2E fixture registry", () => {
     const active = await registry.setupAll();
     await active.teardown();
     expect(events).toEqual([
-      "setup-company",
+      "setup-space",
       "setup-agent",
       "teardown-agent",
-      "teardown-company",
+      "teardown-space",
     ]);
   });
 
   it("tears down partial setup after a failure", async () => {
     const cleanup = vi.fn();
     const registry = new FixtureRegistry()
-      .register({ id: "company", setup: async () => "c", teardown: cleanup })
+      .register({ id: "space", setup: async () => "c", teardown: cleanup })
       .register({
         id: "agent",
-        dependencies: ["company"],
+        dependencies: ["space"],
         setup: async () => {
           throw new Error("boom");
         },
@@ -426,7 +426,7 @@ describe("runner E2E fixture registry", () => {
   it("preserves setup and partial-cleanup failures", async () => {
     const registry = new FixtureRegistry()
       .register({
-        id: "company",
+        id: "space",
         setup: async () => "c",
         teardown: async () => {
           throw new Error("cleanup transport returned 503");
@@ -434,7 +434,7 @@ describe("runner E2E fixture registry", () => {
       })
       .register({
         id: "agent",
-        dependencies: ["company"],
+        dependencies: ["space"],
         setup: async () => {
           throw new Error("agent setup failed");
         },
@@ -464,7 +464,7 @@ describe("runner E2E matchers", () => {
         { kind: "runtime_mode", expected: "native" },
       ],
       {
-        message: "  complete   PAPERCLIP\\_E2E\\_OK\\_nonce  ",
+        message: "  complete   OUTPOST\\_E2E\\_OK\\_nonce  ",
         issueStatus: "done",
         runtimeMode: "native",
       },
@@ -578,9 +578,9 @@ describe("runner E2E run observations", () => {
       taskId: "hello-complete",
       expectedMarker,
       finalRunMessage:
-        "I'll complete this deterministic hello task by calling paperclip_finish once.",
+        "I'll complete this deterministic hello task by calling outpost_finish once.",
       allAgentMessages:
-        "I'll complete this deterministic hello task by calling paperclip_finish once.",
+        "I'll complete this deterministic hello task by calling outpost_finish once.",
       semanticSummary: expectedMarker,
       issueStatus: "done",
       runStatuses: ["succeeded"],
@@ -925,7 +925,7 @@ describe("runner E2E server isolation", () => {
     });
   });
 
-  it("strips database and paid-provider credentials from the Paperclip process", () => {
+  it("strips database and paid-provider credentials from the Outpost process", () => {
     const env = buildOutpostServerEnvironment(
       {
         PATH: "/bin",
@@ -952,8 +952,8 @@ describe("runner E2E server isolation", () => {
         OUTPOST_STORAGE_S3_BUCKET: "production-bucket",
       },
       {
-        OUTPOST_HOME: "/tmp/cell/paperclip-home",
-        OUTPOST_CONFIG: "/tmp/cell/paperclip-home/instances/e2e/config.json",
+        OUTPOST_HOME: "/tmp/cell/outpost-home",
+        OUTPOST_CONFIG: "/tmp/cell/outpost-home/instances/e2e/config.json",
         XDG_CACHE_HOME: "/tmp/cell/xdg-cache",
         OUTPOST_AGENT_JWT_SECRET: "generated-agent-jwt",
         OUTPOST_DECISION_SIGNING_SECRET: "generated-decision-key",
@@ -984,8 +984,8 @@ describe("runner E2E server isolation", () => {
     expect(() =>
       assertIsolatedServerEnvironment(env, {
         temporaryRoot: "/tmp/cell",
-        paperclipHome: "/tmp/cell/paperclip-home",
-        configPath: "/tmp/cell/paperclip-home/instances/e2e/config.json",
+        outpostHome: "/tmp/cell/outpost-home",
+        configPath: "/tmp/cell/outpost-home/instances/e2e/config.json",
       }),
     ).not.toThrow();
   });
@@ -993,11 +993,11 @@ describe("runner E2E server isolation", () => {
   it("admits only the wave's own generated secrets master key", () => {
     const expected = {
       temporaryRoot: "/tmp/cell",
-      paperclipHome: "/tmp/cell/paperclip-home",
-      configPath: "/tmp/cell/paperclip-home/instances/e2e/config.json",
+      outpostHome: "/tmp/cell/outpost-home",
+      configPath: "/tmp/cell/outpost-home/instances/e2e/config.json",
     };
     const env = (extra: NodeJS.ProcessEnv) => ({
-      OUTPOST_HOME: expected.paperclipHome,
+      OUTPOST_HOME: expected.outpostHome,
       OUTPOST_CONFIG: expected.configPath,
       XDG_CACHE_HOME: "/tmp/cell/xdg-cache",
       OUTPOST_AGENT_JWT_SECRET: "generated-agent-jwt",
@@ -1017,12 +1017,12 @@ describe("runner E2E server isolation", () => {
   });
 
   it("uses absolute repository paths for the Playwright web server", () => {
-    const command = runnerE2EWebServerCommand("/workspace/paperclip");
+    const command = runnerE2EWebServerCommand("/workspace/outpost");
     expect(command).toContain(
-      "'/workspace/paperclip/cli/node_modules/tsx/dist/cli.mjs'",
+      "'/workspace/outpost/cli/node_modules/tsx/dist/cli.mjs'",
     );
     expect(command).toContain(
-      "'/workspace/paperclip/tests/runner-e2e/server.ts'",
+      "'/workspace/outpost/tests/runner-e2e/server.ts'",
     );
   });
 
@@ -1031,14 +1031,14 @@ describe("runner E2E server isolation", () => {
       path.join(os.tmpdir(), "runner-e2e-instance-isolation-test-"),
     );
     cleanupDirectories.push(root);
-    const database = path.join(root, "paperclip-home", "db");
+    const database = path.join(root, "outpost-home", "db");
     const secretsKey = path.join(
       root,
-      "paperclip-home",
+      "outpost-home",
       "secrets",
       "master.key",
     );
-    const configPath = path.join(root, "paperclip-home", "config.json");
+    const configPath = path.join(root, "outpost-home", "config.json");
     await mkdir(database, { recursive: true });
     await mkdir(path.dirname(secretsKey), { recursive: true });
     await writeFile(secretsKey, "generated-master-key");
@@ -1269,13 +1269,13 @@ describe("runner E2E evidence redaction", () => {
   });
 
   it("recognizes managed and durable Codex runtime auth files", () => {
-    const root = path.join(os.tmpdir(), "paperclip-home");
+    const root = path.join(os.tmpdir(), "outpost-home");
     expect(
       isEphemeralCodexRuntimeAuthFile(
         root,
         path.join(
           root,
-          "instances/instance-1/companies/company-1/agents/agent-1/codex-home/auth.json",
+          "instances/instance-1/spaces/space-1/agents/agent-1/codex-home/auth.json",
         ),
       ),
     ).toBe(true);

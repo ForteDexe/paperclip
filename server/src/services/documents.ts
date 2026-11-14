@@ -45,7 +45,7 @@ export function extractLegacyPlanBody(description: string | null | undefined) {
 export function mapIssueDocumentRow(
   row: {
     id: string;
-    companyId: string;
+    spaceId: string;
     issueId: string;
     key: string;
     title: string | null;
@@ -68,7 +68,7 @@ export function mapIssueDocumentRow(
 ) {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     issueId: row.issueId,
     key: row.key,
     title: row.title,
@@ -91,7 +91,7 @@ export function mapIssueDocumentRow(
 
 export const issueDocumentSelect = {
   id: documents.id,
-  companyId: documents.companyId,
+  spaceId: documents.spaceId,
   issueId: issueDocuments.issueId,
   key: issueDocuments.key,
   title: documents.title,
@@ -176,7 +176,7 @@ export function documentService(db: Db) {
     getIssueDocumentRevision: async (issueId: string, rawKey: string, revisionId: string) => {
       const key = normalizeDocumentKey(rawKey);
       const [revision] = await db.select({
-        id: documentRevisions.id, companyId: documentRevisions.companyId,
+        id: documentRevisions.id, spaceId: documentRevisions.spaceId,
         documentId: documentRevisions.documentId, issueId: issueDocuments.issueId, key: issueDocuments.key,
         revisionNumber: documentRevisions.revisionNumber, title: documentRevisions.title,
         format: documentRevisions.format, body: documentRevisions.body, changeSummary: documentRevisions.changeSummary,
@@ -185,7 +185,7 @@ export function documentService(db: Db) {
         latestRevisionId: documents.latestRevisionId, latestRevisionNumber: documents.latestRevisionNumber,
       }).from(issueDocuments)
         .innerJoin(documents, eq(issueDocuments.documentId, documents.id))
-        .innerJoin(documentRevisions, and(eq(documentRevisions.documentId, documents.id), eq(documentRevisions.companyId, documents.companyId)))
+        .innerJoin(documentRevisions, and(eq(documentRevisions.documentId, documents.id), eq(documentRevisions.spaceId, documents.spaceId)))
         .where(and(eq(issueDocuments.issueId, issueId), eq(issueDocuments.key, key), eq(documentRevisions.id, revisionId))).limit(1);
       return revision ? { ...revision, isLatest: revision.latestRevisionId === revision.id } : null;
     },
@@ -195,7 +195,7 @@ export function documentService(db: Db) {
       return db
         .select({
           id: documentRevisions.id,
-          companyId: documentRevisions.companyId,
+          spaceId: documentRevisions.spaceId,
           documentId: documentRevisions.documentId,
           issueId: issueDocuments.issueId,
           key: issueDocuments.key,
@@ -232,7 +232,7 @@ export function documentService(db: Db) {
     }, options: { initialTaskCreation?: boolean } = {}) => {
       const key = normalizeDocumentKey(input.key);
       const issue = await db
-        .select({ id: issues.id, companyId: issues.companyId })
+        .select({ id: issues.id, spaceId: issues.spaceId })
         .from(issues)
         .where(eq(issues.id, input.issueId))
         .then((rows) => rows[0] ?? null);
@@ -242,12 +242,12 @@ export function documentService(db: Db) {
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         try {
           return await db.transaction(async (tx) => {
-          await notifyStatusCardIssueChange(tx, issue.companyId);
+          await notifyStatusCardIssueChange(tx, issue.spaceId);
           const now = new Date();
           const existing = await tx
             .select({
               id: documents.id,
-              companyId: documents.companyId,
+              spaceId: documents.spaceId,
               issueId: issueDocuments.issueId,
               key: issueDocuments.key,
               title: documents.title,
@@ -272,7 +272,7 @@ export function documentService(db: Db) {
             .then((rows) => rows[0] ?? null);
 
           await assertAgentInteraction(tx, {
-            companyId: issue.companyId, actorAgentId: input.createdByAgentId,
+            spaceId: issue.spaceId, actorAgentId: input.createdByAgentId,
             operation: options.initialTaskCreation && !existing ? "mention" : "edit", issueId: issue.id,
             texts: [
               ...(!existing || input.body !== existing.latestBody ? [input.body] : []),
@@ -290,11 +290,11 @@ export function documentService(db: Db) {
                   .where(eq(issueDocuments.issueId, issue.id));
                 const fallbackKey = nextAvailableDocumentKey(key, issueDocumentKeys.map((row) => row.key));
 
-                await notifyIssueRecovery(tx, { companyId: issue.companyId });
+                await notifyIssueRecovery(tx, { spaceId: issue.spaceId });
                 const [document] = await tx
                   .insert(documents)
                   .values({
-                    companyId: issue.companyId,
+                    spaceId: issue.spaceId,
                     title: input.title ?? null,
                     format: input.format,
                     latestBody: input.body,
@@ -316,7 +316,7 @@ export function documentService(db: Db) {
                 const [revision] = await tx
                   .insert(documentRevisions)
                   .values({
-                    companyId: issue.companyId,
+                    spaceId: issue.spaceId,
                     documentId: document.id,
                     revisionNumber: 1,
                     title: input.title ?? null,
@@ -336,7 +336,7 @@ export function documentService(db: Db) {
                   .where(eq(documents.id, document.id));
 
                 await tx.insert(issueDocuments).values({
-                  companyId: issue.companyId,
+                  spaceId: issue.spaceId,
                   issueId: issue.id,
                   documentId: document.id,
                   key: fallbackKey,
@@ -352,7 +352,7 @@ export function documentService(db: Db) {
                   },
                   document: {
                     id: document.id,
-                    companyId: issue.companyId,
+                    spaceId: issue.spaceId,
                     issueId: issue.id,
                     key: fallbackKey,
                     title: document.title,
@@ -392,12 +392,12 @@ export function documentService(db: Db) {
               });
             }
 
-            await notifyIssueRecovery(tx, { companyId: issue.companyId });
+            await notifyIssueRecovery(tx, { spaceId: issue.spaceId });
             const nextRevisionNumber = existing.latestRevisionNumber + 1;
             const [revision] = await tx
               .insert(documentRevisions)
               .values({
-                companyId: issue.companyId,
+                spaceId: issue.spaceId,
                 documentId: existing.id,
                 revisionNumber: nextRevisionNumber,
                 title: input.title ?? null,
@@ -455,11 +455,11 @@ export function documentService(db: Db) {
             throw conflict("Document does not exist yet", { key });
           }
 
-          await notifyIssueRecovery(tx, { companyId: issue.companyId });
+          await notifyIssueRecovery(tx, { spaceId: issue.spaceId });
           const [document] = await tx
             .insert(documents)
             .values({
-              companyId: issue.companyId,
+              spaceId: issue.spaceId,
               title: input.title ?? null,
               format: input.format,
               latestBody: input.body,
@@ -481,7 +481,7 @@ export function documentService(db: Db) {
           const [revision] = await tx
             .insert(documentRevisions)
             .values({
-              companyId: issue.companyId,
+              spaceId: issue.spaceId,
               documentId: document.id,
               revisionNumber: 1,
               title: input.title ?? null,
@@ -501,7 +501,7 @@ export function documentService(db: Db) {
             .where(eq(documents.id, document.id));
 
           await tx.insert(issueDocuments).values({
-            companyId: issue.companyId,
+            spaceId: issue.spaceId,
             issueId: issue.id,
             documentId: document.id,
             key,
@@ -513,7 +513,7 @@ export function documentService(db: Db) {
             created: true as const,
             document: {
               id: document.id,
-              companyId: issue.companyId,
+              spaceId: issue.spaceId,
               issueId: issue.id,
               key,
               title: document.title,
@@ -535,7 +535,7 @@ export function documentService(db: Db) {
           };
           });
         } catch (error) {
-          if (isUniqueViolation(error, "issue_documents_company_issue_key_uq")) {
+          if (isUniqueViolation(error, "issue_documents_space_issue_key_uq")) {
             if (input.lockedDocumentStrategy === "create_new_document" && attempt < maxAttempts - 1) {
               continue;
             }
@@ -549,7 +549,7 @@ export function documentService(db: Db) {
     },
 
     /**
-     * Batched issue-document insert for company import.
+     * Batched issue-document insert for space import.
      *
      * Every imported document is a fresh create (the issue is brand new), so we
      * skip {@link upsertIssueDocument}'s per-row existence/lock/base-revision
@@ -569,7 +569,7 @@ export function documentService(db: Db) {
         const revisionId = randomUUID();
         documentRows.push({
           id: documentId,
-          companyId: row.companyId,
+          spaceId: row.spaceId,
           title: row.title ?? null,
           format: row.format,
           latestBody: row.body,
@@ -588,7 +588,7 @@ export function documentService(db: Db) {
         });
         revisionRows.push({
           id: revisionId,
-          companyId: row.companyId,
+          spaceId: row.spaceId,
           documentId,
           revisionNumber: 1,
           title: row.title ?? null,
@@ -601,7 +601,7 @@ export function documentService(db: Db) {
           createdAt: now,
         });
         linkRows.push({
-          companyId: row.companyId,
+          spaceId: row.spaceId,
           issueId: row.issueId,
           documentId,
           key,
@@ -610,9 +610,9 @@ export function documentService(db: Db) {
         });
       }
       await db.transaction(async (tx) => {
-        for (const companyId of new Set(rows.map(row => row.companyId))) {
-          await notifyStatusCardIssueChange(tx, companyId);
-          await notifyIssueRecovery(tx, { companyId });
+        for (const spaceId of new Set(rows.map(row => row.spaceId))) {
+          await notifyStatusCardIssueChange(tx, spaceId);
+          await notifyIssueRecovery(tx, { spaceId });
         }
         await insertRowsInChunks(tx, documents, documentRows);
         await insertRowsInChunks(tx, documentRevisions, revisionRows);
@@ -648,7 +648,7 @@ export function documentService(db: Db) {
         const revision = await tx
           .select({
             id: documentRevisions.id,
-            companyId: documentRevisions.companyId,
+            spaceId: documentRevisions.spaceId,
             documentId: documentRevisions.documentId,
             revisionNumber: documentRevisions.revisionNumber,
             title: documentRevisions.title,
@@ -661,7 +661,7 @@ export function documentService(db: Db) {
 
         if (!revision) throw notFound("Document revision not found");
         await assertAgentInteraction(tx, {
-          companyId: existing.companyId, actorAgentId: input.createdByAgentId,
+          spaceId: existing.spaceId, actorAgentId: input.createdByAgentId,
           operation: "edit", issueId: input.issueId, texts: [revision.body, revision.title ?? ""], lock: true,
         });
         if (existing.latestRevisionId === revision.id) {
@@ -670,13 +670,13 @@ export function documentService(db: Db) {
           });
         }
 
-        await notifyIssueRecovery(tx, { companyId: existing.companyId });
+        await notifyIssueRecovery(tx, { spaceId: existing.spaceId });
         const now = new Date();
         const nextRevisionNumber = existing.latestRevisionNumber + 1;
         const [restoredRevision] = await tx
           .insert(documentRevisions)
           .values({
-            companyId: existing.companyId,
+            spaceId: existing.spaceId,
             documentId: existing.id,
             revisionNumber: nextRevisionNumber,
             title: revision.title ?? null,
@@ -689,7 +689,7 @@ export function documentService(db: Db) {
           })
           .returning();
 
-        await notifyStatusCardIssueChange(tx, existing.companyId);
+        await notifyStatusCardIssueChange(tx, existing.spaceId);
         await tx
           .update(documents)
           .set({
@@ -744,7 +744,7 @@ export function documentService(db: Db) {
 
         if (!existing) throw notFound("Document not found");
         await assertAgentInteraction(tx, {
-          companyId: existing.companyId, actorAgentId: input.lockedByAgentId,
+          spaceId: existing.spaceId, actorAgentId: input.lockedByAgentId,
           operation: "edit", issueId: input.issueId, lock: true,
         });
         if (existing.lockedAt) {
@@ -754,7 +754,7 @@ export function documentService(db: Db) {
           };
         }
 
-        await notifyIssueRecovery(tx, { companyId: existing.companyId });
+        await notifyIssueRecovery(tx, { spaceId: existing.spaceId });
         const now = new Date();
         await tx
           .update(documents)
@@ -796,7 +796,7 @@ export function documentService(db: Db) {
 
         if (!existing) throw notFound("Document not found");
         await assertAgentInteraction(tx, {
-          companyId: existing.companyId, actorAgentId, operation: "edit", issueId, lock: true,
+          spaceId: existing.spaceId, actorAgentId, operation: "edit", issueId, lock: true,
         });
         if (!existing.lockedAt) {
           return {
@@ -805,7 +805,7 @@ export function documentService(db: Db) {
           };
         }
 
-        await notifyIssueRecovery(tx, { companyId: existing.companyId });
+        await notifyIssueRecovery(tx, { spaceId: existing.spaceId });
         const now = new Date();
         await tx
           .update(documents)
@@ -847,7 +847,7 @@ export function documentService(db: Db) {
 
         if (!existing) return null;
         await assertAgentInteraction(tx, {
-          companyId: existing.companyId, actorAgentId, operation: "edit", issueId, lock: true,
+          spaceId: existing.spaceId, actorAgentId, operation: "edit", issueId, lock: true,
         });
         if (existing.lockedAt) {
           throw conflict("Document is locked", {
@@ -857,9 +857,9 @@ export function documentService(db: Db) {
           });
         }
 
-        await notifyIssueRecovery(tx, { companyId: existing.companyId });
+        await notifyIssueRecovery(tx, { spaceId: existing.spaceId });
         await tx.delete(issueDocuments).where(eq(issueDocuments.documentId, existing.id));
-        await notifyStatusCardIssueChange(tx, existing.companyId);
+        await notifyStatusCardIssueChange(tx, existing.spaceId);
         await tx.delete(documents).where(eq(documents.id, existing.id));
 
         return {

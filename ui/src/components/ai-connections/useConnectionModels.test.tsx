@@ -13,8 +13,8 @@ vi.mock("@/api/agents", () => ({ agentsApi: { adapterModels: vi.fn() } }));
 
 const binding: AiConnectionBinding = { provider: "openrouter", method: "api_key", mode: "shared", connectionId: "router", grantId: "grant" };
 const account: AiManagedConnectionSummary = {
-  id: "router", grantId: "grant", companyId: "company", provider: "openrouter", method: "api_key",
-  name: "Company OpenRouter", ownership: "shared", isDefault: false, status: "connected",
+  id: "router", grantId: "grant", spaceId: "space", provider: "openrouter", method: "api_key",
+  name: "Space OpenRouter", ownership: "shared", isDefault: false, status: "connected",
   routing: { kind: "openrouter", protocol: "chat", auth: "bearer", models: [] },
 };
 const catalog = [
@@ -39,10 +39,10 @@ afterEach(async () => {
 
 async function mount(accounts: AiManagedConnectionSummary[] = [account], harness = "opencode_local", value: AiConnectionBinding | undefined = binding) {
   client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  client.setQueryData(["ai-connections", "company"], { currentUserId: "you", connections: accounts });
+  client.setQueryData(["ai-connections", "space"], { currentUserId: "you", connections: accounts });
   root = createRoot(document.createElement("div"));
   function Probe({ value }: { value: AiConnectionBinding | undefined }) {
-    result = useConnectionModels("company", value, harness);
+    result = useConnectionModels("space", value, harness);
     return null;
   }
   render = async next => { await act(async () => root.render(<QueryClientProvider client={client}><Probe value={next} /></QueryClientProvider>)); };
@@ -52,7 +52,7 @@ async function mount(accounts: AiManagedConnectionSummary[] = [account], harness
 it.each(["opencode_local", "pi_local", "codex_local", "claude_local", "hermes_local"])("automatically discovers an empty OpenRouter connection's models for %s", async harness => {
   await mount([account], harness);
   await vi.waitFor(() => expect(result?.models).toHaveLength(3));
-  expect(agentsApi.adapterModels).toHaveBeenCalledWith("company", "opencode_local", { provider: "openrouter" });
+  expect(agentsApi.adapterModels).toHaveBeenCalledWith("space", "opencode_local", { provider: "openrouter" });
   expect(result?.models.map(m => m.id)).toEqual(catalog.map(m => ["opencode_local", "pi_local"].includes(harness) ? m.id : m.id.slice("openrouter/".length)));
   expect(result?.models.map(m => m.label)).toEqual(catalog.map(m => m.label));
   expect(result?.resolveModel("anthropic/custom-model")).toBe(["opencode_local", "pi_local"].includes(harness) ? "openrouter/anthropic/custom-model" : "anthropic/custom-model");
@@ -64,8 +64,8 @@ it("also discovers models for legacy OpenRouter connections without routing meta
 });
 
 it("preserves an explicit connection model list instead of replacing it with the public catalog", async () => {
-  await mount([{ ...account, routing: { ...account.routing!, models: [{ id: "company/model", label: "Approved model" }] } }]);
-  expect(result?.models).toEqual([{ id: "openrouter/company/model", label: "Approved model" }]);
+  await mount([{ ...account, routing: { ...account.routing!, models: [{ id: "space/model", label: "Approved model" }] } }]);
+  expect(result?.models).toEqual([{ id: "openrouter/space/model", label: "Approved model" }]);
   expect(agentsApi.adapterModels).not.toHaveBeenCalled();
 });
 
@@ -75,7 +75,7 @@ it("does not reuse public OpenRouter models after switching to a custom gateway"
   await vi.waitFor(() => expect(result?.models).toEqual(catalog));
   await render({ provider: "openai", method: "api_key", mode: "shared", connectionId: gateway.id, grantId: gateway.grantId });
   expect(result?.models).toEqual([]);
-  expect(result?.resolveModel("private-model")).toBe("paperclip/private-model");
+  expect(result?.resolveModel("private-model")).toBe("outpost/private-model");
   expect(result?.refreshModels).toBeUndefined();
 });
 

@@ -133,7 +133,7 @@ export function MuseConnectionChecks({ state }: { state: MuseConnectionState }) 
 
 /** Shared presentation for the invitation flow. The caller owns invitations and watching. */
 export function ExternalAgentInviteContent({
-  preset, prompt, companyName, connection, onSelect, onBack, onClose, onCopied, onRetry, onNewPrompt,
+  preset, prompt, spaceName, connection, onSelect, onBack, onClose, onCopied, onRetry, onNewPrompt,
   dotDisabledReason, grokDisabledReason, busy = false, error, approvalHref, museEnabled = false, museConnection, museDraft, onMuseDraftChange, onMuseContinue,
 }: {
   museEnabled?: boolean;
@@ -148,7 +148,7 @@ export function ExternalAgentInviteContent({
   approvalHref?: string;
   preset: ExternalAgentPreset | null;
   prompt: string;
-  companyName: string;
+  spaceName: string;
   connection: DotConnectionState;
   onSelect: (preset: ExternalAgentPreset) => void;
   onBack: () => void;
@@ -181,13 +181,13 @@ export function ExternalAgentInviteContent({
             {!provider ? "Invite an external agent" : muse ? ready ? "Muse is connected" : museDetails || museAwaitingInvitation ? "Invite your Muse" : "Connect your Muse" : dot ? ready ? "Your Dot is connected" : "Connect your Dot" : preset === "hermes" ? "Invite your Hermes agent" : "Invite your agent"}
           </DialogTitle>
           <DialogDescription className="text-sm leading-relaxed">
-            {!provider ? `Bring an agent you already use into ${companyName}.`
-              : muse ? museDetails ? `Give your personal Muse a name in ${companyName}.`
+            {!provider ? `Bring an agent you already use into ${spaceName}.`
+              : muse ? museDetails ? `Give your personal Muse a name in ${spaceName}.`
               : museAwaitingInvitation ? "Muse requires an authenticated Outpost instance with a public HTTPS URL and a outpost operator account."
-              : ready ? `Muse can receive assignments and work with ${companyName}.`
+              : ready ? `Muse can receive assignments and work with ${spaceName}.`
               : !prompt && !museConnection?.paired ? "We’re checking whether this instance can prepare Muse setup."
               : "Paste the setup prompt into your current Muse conversation. Complete Connect Outpost if Muse asks, then approve this Outpost hostname. Muse keeps the connection credential in its secure vault. The hostname permission applies to future requests."
-              : ready ? `Your Dot can now receive assignments and work with ${companyName}.`
+              : ready ? `Your Dot can now receive assignments and work with ${spaceName}.`
               : connection.problem === "agent_unavailable" ? "Your Dot is connected. This agent must be available in Outpost before it can receive assignments."
               : connection.phase === "finishing" ? "Your Dot has connected and confirmed task updates. Outpost is preparing it for assignments."
               : connecting ? "Your Dot has connected. We’re checking that task updates can travel both ways."
@@ -221,7 +221,7 @@ export function ExternalAgentInviteContent({
           {connection.phase === "waiting" && <p className="mt-4 text-xs text-muted-foreground">Dot uses your OpenAI account. Provider usage details aren’t imported into Outpost.</p>}</div>
         {connection.problem === "event_timeout" && <Button variant="outline" disabled={busy} onClick={onRetry}>Retry test event</Button>}
         {connection.problem === "offline" && <Button variant="outline" disabled={busy} onClick={onRetry}>Reconnect updates</Button>}
-      </> : <p className="text-sm leading-relaxed text-muted-foreground">The invitation includes everything your agent needs to join {companyName}. You can review its request before granting access.</p>}
+      </> : <p className="text-sm leading-relaxed text-muted-foreground">The invitation includes everything your agent needs to join {spaceName}. You can review its request before granting access.</p>}
     </div>
     <div className="flex items-center justify-between gap-3 border-t px-6 py-4 sm:px-8">
       <div className="flex items-center gap-2">

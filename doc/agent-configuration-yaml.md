@@ -2,7 +2,7 @@
 
 Status: v1, compact editor updated October 29, 2026.
 
-The **Advanced** tab at `/:companyPrefix/agents/:agentRef/advanced` edits an
+The **Advanced** tab at `/:spacePrefix/agents/:agentRef/advanced` edits an
 agent's settings as one YAML document. It covers the configuration tabs through
 their existing APIs. The database and resource services remain authoritative;
 this is not a file on the agent's computer or a harness-specific format.
@@ -32,7 +32,7 @@ credential values. AgentMail provisioning remains owned by its connection flow.
 ## Document contract
 
 ```yaml
-apiVersion: paperclip/v1
+apiVersion: outpost/v1
 kind: Agent
 spec:
   name: Codie
@@ -55,7 +55,7 @@ spec:
     mode: managed
     entryFile: AGENTS.md
   skills:
-    - paperclip
+    - outpost
   tools:
     profiles:
       - profileKey: engineering
@@ -63,7 +63,7 @@ spec:
 
 This illustrates the compact format; model, paths, and references depend on the
 installation. The default editor contains agent-specific settings and references.
-It does not embed company catalogs, inherited profile definitions, history,
+It does not embed space catalogs, inherited profile definitions, history,
 credential metadata, or instruction file contents. Empty commands, unset nullable
 fields, zero budget, empty maps/lists, and standard permission defaults are omitted.
 Unpinned skills use their key strings. Non-default values remain explicit.
@@ -106,13 +106,13 @@ and an empty `files: {}` are preserved. The entry file cannot be removed.
 Binary/read-only/virtual files remain visible in Instructions. A legacy virtual
 prompt template can still be edited explicitly with `adapterConfig.promptTemplate`.
 It is hidden by default and preserved when another adapter setting changes.
-Managed root paths are assigned by Paperclip and omitted from the default YAML.
+Managed root paths are assigned by Outpost and omitted from the default YAML.
 
 Changing the mode, root, or entry file is a separate save from editing file
 contents. That save loads the destination files without writing the old YAML's
 contents over them. The native bundle service may seed an empty destination or
 a missing entry file from the previous bundle. Review the freshly loaded files
-before editing them. A managed root is assigned by Paperclip; choose `external`
+before editing them. A managed root is assigned by Outpost; choose `external`
 mode to select another directory.
 
 Skills accept a key string or `{ key, versionId }`; `versionId: null` follows
@@ -120,7 +120,7 @@ the current version. An empty list unassigns skills through the normal sync
 API. These keys are organization-library references, not embedded skill source.
 
 The `instructionsBundleMode`, `instructionsRootPath`, `instructionsEntryFile`,
-`instructionsFilePath`, and `paperclipSkillSync` adapter keys are represented by
+`instructionsFilePath`, and `outpostSkillSync` adapter keys are represented by
 the dedicated sections. Direct edits to those adapter keys are rejected so two
 sections cannot disagree about the same setting.
 
@@ -129,15 +129,15 @@ sections cannot disagree about the same setting.
 `tools.connections` contains only selected direct agent installations.
 Each row has `connectionId`; omitted `installed` means `true`. Use
 `installed: false` or remove a row from an explicitly supplied list to uninstall.
-Inherited company installations remain in Tools. Removing a direct installation
+Inherited space installations remain in Tools. Removing a direct installation
 row has the same effect as `installed: false`. Saves preserve other agents'
-installations. Company installations cannot be overridden here.
+installations. Space installations cannot be overridden here.
 The installation service can add an access profile and binding for an installed
 connection. The compact reload references those generated profiles by key.
 
 Existing profiles normally use a reference: `{ profileKey: engineering }`.
 `profileId` is also accepted. If both are provided, they must identify the same
-company profile. Optional `priority` and `metadata` affect only this binding;
+space profile. Optional `priority` and `metadata` affect only this binding;
 omission preserves an existing binding or uses 100/null for a new one.
 A reference never updates the shared definition. Omit `tools.profiles` to
 preserve bindings; use `profiles: []` to unbind all direct profiles.
@@ -276,7 +276,7 @@ revision calculation without a server restart. Managed instruction files and
 entry revisions enforce hash/revision preconditions. External supporting file
 writes/deletions do not enforce these preconditions. Other resources retain
 their own API guarantees; changes between preflight and an unversioned resource
-write are not atomically protected. Every mutation uses its existing company/actor authorization,
+write are not atomically protected. Every mutation uses its existing space/actor authorization,
 approval, validation, audit and revision behavior.
 
 A multi-resource save runs sequentially and is **not atomic**. On an interrupted
@@ -314,7 +314,7 @@ Run the browser acceptance suite against its disposable checkout instance:
 pnpm exec playwright test --config tests/e2e/playwright.config.ts tests/e2e/agent-configuration.spec.ts
 ```
 
-The suite checks compact output with large company catalogs and instruction
+The suite checks compact output with large space catalogs and instruction
 files, sparse saves, profile-key bindings, resource saves and explicit clears, one-time key receipts, secret
 redaction, stale drafts, a lost creation response, instruction relocation, and
 revision restore through real APIs. It enables and restores the Beta skills and

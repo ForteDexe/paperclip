@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  agents, closeRegisteredClients, companies, createDb, environmentLeases, environments,
+  agents, closeRegisteredClients, spaces, createDb, environmentLeases, environments,
   executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, issues, workspaceOperations,
 } from "@outpost/db";
 import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
@@ -52,14 +52,14 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
   });
 
   async function preparedFailure() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Save lock order", issuePrefix: `S${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Preserve saved work", status: "blocked", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, runtimeMode: "legacy",
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Save lock order", issuePrefix: `S${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Preserve saved work", status: "blocked", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, runtimeMode: "legacy",
       status: "running", executionStage: "preparing", contextSnapshot: { issueId } });
     const [environment] = await db.insert(environments).values({ name: runId, driver: "sandbox" }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId: runId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId: runId,
       environmentId: environment.id, provider: "daytona", providerLeaseId: randomUUID(), status: "active" }).returning();
     const storage = { ...createStorageService(createLocalDiskStorageProvider(path.join(root, runId, "objects"))), provider: "s3" as const };
     const remoteCwd = path.join(root, runId, "remote");
@@ -81,7 +81,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
           pid: process.pid, startedAt: new Date().toISOString() };
       } },
     };
-    const reserved = await reserveRemoteWorkspace({ db, storage, companyId, issueId, runId, agentId,
+    const reserved = await reserveRemoteWorkspace({ db, storage, spaceId, issueId, runId, agentId,
       environmentId: environment.id, projectId: null, projectWorkspaceId: null, existingWorkspaceId: null, source: { kind: "empty" } });
     const prepared = await prepareRemoteWorkspace({ db, storage, workspace: reserved, runId,
       lease: lease as EnvironmentLease, target });
@@ -95,7 +95,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
         { providerLeaseId: lease.providerLeaseId, state: "stopped" }) } }).where(eq(environmentLeases.id, lease.id)).returning();
     const [workspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, reserved.id));
     const snapshots = await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id));
-    return { companyId, agentId, issueId, runId, workspace, environmentId: environment.id,
+    return { spaceId, agentId, issueId, runId, workspace, environmentId: environment.id,
       lease: stoppedLease as EnvironmentLease, target, storage, snapshotCount: snapshots.length,
       generation: Math.max(0, ...snapshots.map(snapshot => snapshot.generation)) };
   }
@@ -107,7 +107,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
   ] as const)("saves once beside actual $mode ($stage)", async ({ mode, stage }) => {
     const f = await preparedFailure();
     const nextRunId = randomUUID();
-    if (mode === "reserve") await db.insert(heartbeatRuns).values({ id: nextRunId, companyId: f.companyId,
+    if (mode === "reserve") await db.insert(heartbeatRuns).values({ id: nextRunId, spaceId: f.spaceId,
       agentId: f.agentId, issueId: f.issueId, runtimeMode: "legacy", status: "running", contextSnapshot: { issueId: f.issueId } });
     const saveDb = createDb(database.connectionString, { maxConnections: 1, applicationName: "save-order-save" });
     const peerDb = createDb(database.connectionString, { maxConnections: 1, applicationName: "save-order-preserve" });
@@ -130,7 +130,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
     let saving: Promise<PromiseSettledResult<Awaited<ReturnType<typeof saveRemoteWorkspace>>>> | undefined;
     let preserving: Promise<PromiseSettledResult<unknown>> | undefined;
     const reserveNext = () => reserveRemoteWorkspace({ db: peerDb, storage: f.storage,
-      companyId: f.companyId, issueId: f.issueId, runId: nextRunId, agentId: f.agentId,
+      spaceId: f.spaceId, issueId: f.issueId, runId: nextRunId, agentId: f.agentId,
       environmentId: f.environmentId, projectId: null, projectWorkspaceId: null,
       existingWorkspaceId: f.workspace.id, source: { kind: "empty" } });
     const settle = <T,>(work: Promise<T>): Promise<PromiseSettledResult<T>> => work.then(
@@ -157,16 +157,16 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
       const restarted = createDb(database.connectionString);
       const [workspace] = await restarted.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspace.id));
       expect(readRemoteWorkspaceAuthority(workspace.metadata)).toMatchObject({ dirty: false, snapshotId: saved.snapshotId });
-      const snapshots = await restarted.select().from(executionWorkspaceSnapshots).where(and(eq(executionWorkspaceSnapshots.companyId, f.companyId),
+      const snapshots = await restarted.select().from(executionWorkspaceSnapshots).where(and(eq(executionWorkspaceSnapshots.spaceId, f.spaceId),
         eq(executionWorkspaceSnapshots.sourceRunId, f.runId)));
       expect(snapshots).toHaveLength(f.snapshotCount + 1);
       expect(snapshots.filter(snapshot => snapshot.status === "committed"))
         .toEqual([expect.objectContaining({ id: saved.snapshotId, generation: f.generation + 1 })]);
-      expect(await restarted.select().from(workspaceOperations).where(and(eq(workspaceOperations.companyId, f.companyId),
+      expect(await restarted.select().from(workspaceOperations).where(and(eq(workspaceOperations.spaceId, f.spaceId),
         eq(workspaceOperations.heartbeatRunId, f.runId), eq(workspaceOperations.phase, "remote_workspace_snapshot"),
         sql`${workspaceOperations.metadata}->>'boundary' = 'final'`)))
         .toEqual([expect.objectContaining({ status: "succeeded" })]);
-      const loaded = await createSavedWorkspaceLoader(restarted, f.storage)({ companyId: f.companyId,
+      const loaded = await createSavedWorkspaceLoader(restarted, f.storage)({ spaceId: f.spaceId,
         workspaceId: f.workspace.id, snapshotId: saved.snapshotId });
       try { expect(await readFile(path.join(loaded.root, "saved.txt"), "utf8")).toBe("one preserved result\n"); }
       finally { await loaded.cleanup(); }
@@ -187,16 +187,16 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
   }, 30_000);
 
   it("lets a retry prepare the workspace again after its first writer was killed during preparation", async () => {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), retryId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Killed preparation", issuePrefix: `K${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Prepare twice", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, status: "running", executionStage: "preparing",
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), retryId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Killed preparation", issuePrefix: `K${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Prepare twice", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, status: "running", executionStage: "preparing",
       contextSnapshot: { issueId } });
     const [environment] = await db.insert(environments).values({ name: runId, driver: "sandbox" }).returning();
     const storage = { ...createStorageService(createLocalDiskStorageProvider(path.join(root, runId, "objects"))), provider: "s3" as const };
     const allocate = async (heartbeatRunId: string, directory: string, killSave = false) => {
-      const [lease] = await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId, environmentId: environment.id,
+      const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId, environmentId: environment.id,
         provider: "daytona", providerLeaseId: randomUUID(), status: "active" }).returning();
       const remoteCwd = path.join(root, runId, directory);
       await mkdir(remoteCwd, { recursive: true });
@@ -219,7 +219,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
       return { lease: lease as EnvironmentLease, target, remoteCwd };
     };
     const first = await allocate(runId, "first", true);
-    const reserved = await reserveRemoteWorkspace({ db, storage, companyId, issueId, runId, agentId, environmentId: environment.id,
+    const reserved = await reserveRemoteWorkspace({ db, storage, spaceId, issueId, runId, agentId, environmentId: environment.id,
       projectId: null, projectWorkspaceId: null, existingWorkspaceId: null, source: { kind: "empty" } });
     await expect(prepareRemoteWorkspace({ db, storage, workspace: reserved, runId, lease: first.lease, target: first.target }))
       .rejects.toThrow();
@@ -229,7 +229,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
 
     await db.update(heartbeatRuns).set({ status: "failed", errorCode: "process_lost", finishedAt: new Date() })
       .where(eq(heartbeatRuns.id, runId));
-    await db.insert(heartbeatRuns).values({ id: retryId, companyId, agentId, issueId, status: "running", executionStage: "preparing",
+    await db.insert(heartbeatRuns).values({ id: retryId, spaceId, agentId, issueId, status: "running", executionStage: "preparing",
       contextSnapshot: { issueId, retryOfRunId: runId } });
     await runOwnershipReconciliationPass(db, { state: createOwnershipReportState() });
     await runOwnershipReconciliationPass(db, { state: createOwnershipReportState() });
@@ -238,7 +238,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
 
     const second = await allocate(retryId, "second");
     const [workspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, reserved.id));
-    const retried = await reserveRemoteWorkspace({ db, storage, companyId, issueId, runId: retryId, agentId,
+    const retried = await reserveRemoteWorkspace({ db, storage, spaceId, issueId, runId: retryId, agentId,
       environmentId: environment.id, projectId: null, projectWorkspaceId: null, existingWorkspaceId: workspace.id, source: { kind: "empty" } });
     const reprepared = await prepareRemoteWorkspace({ db, storage, workspace: retried, runId: retryId,
       lease: second.lease, target: second.target });
@@ -260,7 +260,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
       }
       return execute(input);
     };
-    const provision = () => provisionRemoteWorkspace({ db, companyId: f.companyId, workspaceId: f.workspace.id,
+    const provision = () => provisionRemoteWorkspace({ db, spaceId: f.spaceId, workspaceId: f.workspace.id,
       runId: f.runId, epoch: authority.epoch, remoteCwd: authority.location!.remoteCwd, target: f.target, commands: [command] });
     const provisioning = provision();
     try {
@@ -286,7 +286,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
       if (input.command === "bash" && input.args?.[1] === command) { calls++; throw new Error("command response lost"); }
       return result;
     };
-    const provision = () => provisionRemoteWorkspace({ db, companyId: f.companyId, workspaceId: f.workspace.id,
+    const provision = () => provisionRemoteWorkspace({ db, spaceId: f.spaceId, workspaceId: f.workspace.id,
       runId: f.runId, epoch: authority.epoch, remoteCwd: authority.location!.remoteCwd, target: f.target, commands: [command] });
     await expect(provision()).rejects.toThrow("command response lost");
     await expect(provision()).rejects.toThrow("remote_workspace_provision_unverified");
@@ -294,17 +294,17 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
     expect(await readFile(path.join(authority.location!.remoteCwd, "unknown-effect.txt"), "utf8")).toBe("one effect\n");
     const [workspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspace.id));
     expect(readRemoteWorkspaceAuthority(workspace.metadata)).toEqual(authority);
-    expect(await db.select().from(workspaceOperations).where(and(eq(workspaceOperations.companyId, f.companyId),
+    expect(await db.select().from(workspaceOperations).where(and(eq(workspaceOperations.spaceId, f.spaceId),
       eq(workspaceOperations.heartbeatRunId, f.runId), eq(workspaceOperations.phase, "remote_workspace_provision"))))
       .toEqual([expect.objectContaining({ status: "running", metadata: expect.objectContaining({ uncertain: true }) })]);
   }, 30_000);
 
   it("does not admit Save before an administrative import publishes remote authority", async () => {
     const f = await preparedFailure(), workspaceId = randomUUID();
-    const [issue] = await db.insert(issues).values({ companyId: f.companyId, title: "Import legacy files" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Import legacy files" }).returning();
     const cwd = path.join(root, workspaceId); await mkdir(cwd);
     await writeFile(path.join(cwd, "local.txt"), "retained local work\n");
-    const [workspace] = await db.insert(executionWorkspaces).values({ id: workspaceId, companyId: f.companyId,
+    const [workspace] = await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId: f.spaceId,
       sourceIssueId: issue.id, mode: "isolated_workspace", strategyType: "project_primary", providerType: "local_fs",
       name: "Legacy files", cwd, providerRef: cwd }).returning();
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, issue.id));
@@ -312,13 +312,13 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
     const storage = { ...f.storage, putFile: async (input: Parameters<typeof f.storage.putFile>[0]) => {
       const saved = await f.storage.putFile(input); ready.resolve(); await release.promise; return saved;
     } };
-    const migrating = migrateRemoteWorkspace({ db, storage, companyId: f.companyId, workspaceId, apply: true })
+    const migrating = migrateRemoteWorkspace({ db, storage, spaceId: f.spaceId, workspaceId, apply: true })
       .then(value => ({ value }), error => ({ error }));
     try {
       await ready.promise;
       await expect(saveRemoteWorkspace({ db, storage, workspace, runId: f.runId,
         lease: f.lease, target: f.target, assertOwned: async () => undefined })).rejects.toThrow("remote_workspace_save_binding_mismatch");
-      await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, issueId: issue.id,
+      await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, issueId: issue.id,
         runtimeMode: "legacy", status: "running", contextSnapshot: { issueId: issue.id } });
       release.resolve();
       expect(await migrating).toMatchObject({ error: expect.objectContaining({ message: expect.stringContaining("active_execution") }) });
@@ -330,7 +330,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
 
   it("rechecks the migration source task after waiting for the workspace", async () => {
     const f = await preparedFailure();
-    const [other] = await db.insert(issues).values({ companyId: f.companyId, title: "Changed source" }).returning();
+    const [other] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Changed source" }).returning();
     const peerDb = createDb(database.connectionString, { maxConnections: 1, applicationName: "save-order-migration-binding" });
     const ready = deferred(), release = deferred();
     const barrier = db.transaction(async tx => {
@@ -340,7 +340,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
       await tx.update(executionWorkspaces).set({ sourceIssueId: other.id }).where(eq(executionWorkspaces.id, f.workspace.id));
     });
     await ready.promise;
-    const migrating = migrateRemoteWorkspace({ db: peerDb, storage: f.storage, companyId: f.companyId,
+    const migrating = migrateRemoteWorkspace({ db: peerDb, storage: f.storage, spaceId: f.spaceId,
       workspaceId: f.workspace.id, apply: true }).then(value => ({ value }), error => ({ error }));
     try {
       await expect.poll(async () => (await db.execute<{ waiting: boolean }>(sql`select exists(select 1 from pg_stat_activity
@@ -359,10 +359,10 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
 
   it("keeps import publication and an arriving legacy reservation in parent order", async () => {
     const f = await preparedFailure(), workspaceId = randomUUID();
-    const [issue] = await db.insert(issues).values({ companyId: f.companyId, title: "Import before admission" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Import before admission" }).returning();
     const cwd = path.join(root, workspaceId); await mkdir(cwd);
     await writeFile(path.join(cwd, "local.txt"), "retained local work\n");
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId: f.companyId, sourceIssueId: issue.id,
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId: f.spaceId, sourceIssueId: issue.id,
       mode: "isolated_workspace", strategyType: "project_primary", providerType: "local_fs", name: "Legacy files", cwd, providerRef: cwd });
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, issue.id));
     const migrationDb = createDb(database.connectionString, { maxConnections: 1, applicationName: "save-order-import-peer" });
@@ -372,7 +372,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
     const storage = { ...f.storage, putFile: async (input: Parameters<typeof f.storage.putFile>[0]) => {
       const saved = await f.storage.putFile(input); uploadReady.resolve(); await uploadRelease.promise; return saved;
     } };
-    const migrating = migrateRemoteWorkspace({ db: migrationDb, storage, companyId: f.companyId, workspaceId, apply: true })
+    const migrating = migrateRemoteWorkspace({ db: migrationDb, storage, spaceId: f.spaceId, workspaceId, apply: true })
       .then(value => ({ value }), error => ({ error }));
     let barrier: Promise<void> | undefined, reserving: Promise<{ error: unknown } | { value: unknown }> | undefined;
     try {
@@ -383,14 +383,14 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
         lockReady.resolve(); await lockRelease.promise;
       });
       await lockReady.promise;
-      const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
         issueId: issue.id, runtimeMode: "legacy", status: "running", contextSnapshot: { issueId: issue.id } }).returning();
       uploadRelease.resolve();
       const waiting = async (application: string) => (await db.execute<{ query: string; blockers: number[] }>(sql`
         select query, pg_blocking_pids(pid) as blockers from pg_stat_activity
         where datname = current_database() and application_name = ${application} and wait_event_type = 'Lock'`))[0];
       await expect.poll(async () => (await waiting("save-order-import-peer"))?.query, { timeout: 5000 }).toContain('"execution_workspaces"');
-      reserving = reserveRemoteWorkspace({ db: reserveDb, storage: f.storage, companyId: f.companyId, issueId: issue.id,
+      reserving = reserveRemoteWorkspace({ db: reserveDb, storage: f.storage, spaceId: f.spaceId, issueId: issue.id,
         runId: run.id, agentId: f.agentId, environmentId: f.environmentId, projectId: null,
         projectWorkspaceId: null, existingWorkspaceId: workspaceId, source: { kind: "empty" } })
         .then(value => ({ value }), error => ({ error }));
@@ -410,7 +410,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
       expect(await readFile(path.join(cwd, "local.txt"), "utf8")).toBe("retained local work\n");
       const snapshots = await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.executionWorkspaceId, workspaceId));
       expect(snapshots).toEqual([expect.objectContaining({ status: "uploaded" })]);
-      expect((await f.storage.headObject(f.companyId, snapshots[0].objectKey!)).exists).toBe(true);
+      expect((await f.storage.headObject(f.spaceId, snapshots[0].objectKey!)).exists).toBe(true);
     } finally {
       uploadRelease.resolve(); lockRelease.resolve(); await barrier; await Promise.all([migrating, reserving]);
       await migrationDb.$client.end(); await reserveDb.$client.end();
@@ -436,7 +436,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
     });
     await ready.promise;
     const command = "printf 'effect\\n' >> provision-count.txt";
-    const provision = () => provisionRemoteWorkspace({ db: peerDb, companyId: f.companyId, workspaceId: f.workspace.id,
+    const provision = () => provisionRemoteWorkspace({ db: peerDb, spaceId: f.spaceId, workspaceId: f.workspace.id,
       runId: f.runId, epoch: authority.epoch, remoteCwd: authority.location!.remoteCwd, target: f.target, commands: [command] });
     const settle = <T,>(work: Promise<T>): Promise<PromiseSettledResult<T>> => work.then(
       value => ({ status: "fulfilled", value }), reason => ({ status: "rejected", reason }));
@@ -449,7 +449,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
       peer = settle<unknown>(mode === "prepare" ? prepareRemoteWorkspace({ db: peerDb, storage: f.storage,
         workspace: f.workspace, runId: f.runId, lease: lease as EnvironmentLease, target: f.target })
         : mode === "provision" ? provision() : migrateRemoteWorkspace({ db: peerDb, storage: f.storage,
-          companyId: f.companyId, workspaceId: f.workspace.id, apply: true }));
+          spaceId: f.spaceId, workspaceId: f.workspace.id, apply: true }));
       await expect.poll(async () => (await waiting("save-order-reverse-peer"))?.query,
         { timeout: 5000 }).toContain('"execution_workspaces"');
       const peerWait = await waiting("save-order-reverse-peer");
@@ -469,14 +469,14 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
       if (mode === "provision") {
         await provision();
         expect(await readFile(path.join(authority.location!.remoteCwd, "provision-count.txt"), "utf8")).toBe("effect\n");
-        expect(await db.select().from(workspaceOperations).where(and(eq(workspaceOperations.companyId, f.companyId),
+        expect(await db.select().from(workspaceOperations).where(and(eq(workspaceOperations.spaceId, f.spaceId),
           eq(workspaceOperations.heartbeatRunId, f.runId), eq(workspaceOperations.phase, "remote_workspace_provision"))))
           .toEqual([expect.objectContaining({ issueId: f.issueId, status: "succeeded", metadata: expect.objectContaining({ uncertain: false }) })]);
       }
       const [current] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspace.id));
       const saved = await saveRemoteWorkspace({ db: saveDb, storage: f.storage, workspace: current,
         runId: f.runId, lease: lease as EnvironmentLease, target: f.target, assertOwned: async () => undefined });
-      const loaded = await createSavedWorkspaceLoader(db, f.storage)({ companyId: f.companyId,
+      const loaded = await createSavedWorkspaceLoader(db, f.storage)({ spaceId: f.spaceId,
         workspaceId: f.workspace.id, snapshotId: saved.snapshotId });
       try {
         expect(await readFile(path.join(loaded.root, "saved.txt"), "utf8")).toBe("one preserved result\n");
@@ -488,11 +488,11 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
     }
   }, 30_000);
 
-  it.each([false, true])("preserves immutable task identity while waiting for its lock (foreign company=%s)", async foreignCompany => {
+  it.each([false, true])("preserves immutable task identity while waiting for its lock (foreign space=%s)", async foreignSpace => {
     const f = await preparedFailure();
-    const companyId = foreignCompany ? randomUUID() : f.companyId;
-    if (foreignCompany) await db.insert(companies).values({ id: companyId, name: "Other owner", issuePrefix: `S${companyId.slice(0, 6)}` });
-    const [otherIssue] = await db.insert(issues).values({ companyId, title: "Other task", status: "blocked" }).returning();
+    const spaceId = foreignSpace ? randomUUID() : f.spaceId;
+    if (foreignSpace) await db.insert(spaces).values({ id: spaceId, name: "Other owner", issuePrefix: `S${spaceId.slice(0, 6)}` });
+    const [otherIssue] = await db.insert(issues).values({ spaceId, title: "Other task", status: "blocked" }).returning();
     const saveDb = createDb(database.connectionString, { maxConnections: 1, applicationName: "save-order-binding" });
     const ready = deferred(), release = deferred();
     const barrier = db.transaction(async tx => {
@@ -509,7 +509,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
           and wait_event_type = 'Lock' and query like '%"issues"%') as waiting`))[0]?.waiting,
       { timeout: 5000 }).toBe(true);
       await expect(db.update(heartbeatRuns).set({ issueId: otherIssue.id }).where(and(
-        eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.id, f.runId))))
+        eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.id, f.runId))))
         .rejects.toMatchObject({ cause: { code: "P0001", message: "run task binding is immutable" } });
       release.resolve(); await barrier;
       const result = await saving;
@@ -520,7 +520,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
       expect(readRemoteWorkspaceAuthority(workspace.metadata)).toMatchObject({ dirty: false, writerRunId: null });
       expect(await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id)))
         .toHaveLength(f.snapshotCount + 1);
-      expect(await db.select().from(workspaceOperations).where(and(eq(workspaceOperations.companyId, f.companyId),
+      expect(await db.select().from(workspaceOperations).where(and(eq(workspaceOperations.spaceId, f.spaceId),
         eq(workspaceOperations.heartbeatRunId, f.runId), sql`${workspaceOperations.metadata}->>'boundary' = 'final'`)))
         .toEqual([expect.objectContaining({ issueId: f.issueId, status: "succeeded" })]);
     } finally {
@@ -544,7 +544,7 @@ describe.skipIf(!support.supported)("remote workspace save parent lock order", (
     expect(snapshots).toHaveLength(f.snapshotCount + 1);
     const uploaded = snapshots.filter(snapshot => snapshot.status === "uploaded");
     expect(uploaded).toHaveLength(1);
-    expect((await f.storage.headObject(f.companyId, uploaded[0].objectKey!)).exists).toBe(true);
+    expect((await f.storage.headObject(f.spaceId, uploaded[0].objectKey!)).exists).toBe(true);
     expect(snapshots.filter(snapshot => snapshot.status === "committed")).toHaveLength(1);
     expect(await readFile(path.join(authority.location!.remoteCwd, "saved.txt"), "utf8")).toBe("one preserved result\n");
   }, 30_000);

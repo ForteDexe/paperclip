@@ -24,11 +24,11 @@ export async function startTimelineVerifier(ctx: ChatCatalogContext, taskId: str
       const checkout = async (expectedRunId?: string, expectedAgentId?: string) => {
         // Worker credentials remain limited to ordinary task access. Only the
         // trusted fixture reads the board-only file route after this live join.
-        const current = await get(`/api/issues/${taskId}`) as { id?: string; companyId?: string; executionRunId?: string; assigneeAgentId?: string };
+        const current = await get(`/api/issues/${taskId}`) as { id?: string; spaceId?: string; executionRunId?: string; assigneeAgentId?: string };
         const runs = await ctx.allRuns();
         const live = runs.find(run => run.id === current.executionRunId);
-        if (current.id !== taskId || current.companyId !== ctx.input.fixtures.company.id || !current.executionRunId
-          || !agentIds.includes(current.assigneeAgentId ?? "") || !live || live.companyId !== current.companyId
+        if (current.id !== taskId || current.spaceId !== ctx.input.fixtures.space.id || !current.executionRunId
+          || !agentIds.includes(current.assigneeAgentId ?? "") || !live || live.spaceId !== current.spaceId
           || live.agentId !== current.assigneeAgentId || live.status !== "running" || live.runtimeMode !== "native"
           || (live.contextSnapshot?.issueId !== taskId && live.contextSnapshot?.taskId !== taskId)
           || expectedRunId !== undefined && current.executionRunId !== expectedRunId
@@ -57,7 +57,7 @@ export async function startTimelineVerifier(ctx: ChatCatalogContext, taskId: str
   try { port = await listenOnFetchAllowedPort(server); }
   catch (error) { await ctx.input.api.delete(`/api/agents/${agentIds[0]}/keys/${key.id}`, { allowNotFound: true }); throw error; }
   try {
-    const root = `/api/companies/${ctx.input.fixtures.company.id}`;
+    const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
     const app = await ctx.input.api.postSensitive<{ connectionId: string; actions: { readOnly: { catalogEntryId: string }[] } }>(`${root}/tools/apps/connect`, { link: `http://127.0.0.1:${port}/`, name: "Launch verification", authMode: "bearer", credentialValues: { "credentials.authorization": token }, grantKind: "organization" }); connectionId = app.connectionId;
     if (app.actions.readOnly.length !== 1) throw new Error("Verification action was not discovered");
     await ctx.input.api.post(`${root}/tools/apps/${connectionId}/finish`, { enabledCatalogEntryIds: app.actions.readOnly.map(row => row.catalogEntryId), askFirstCatalogEntryIds: [], access: { agentIds } });

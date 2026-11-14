@@ -8,22 +8,22 @@ import { gradeLifecycleBaseline } from "./lifecycle-baseline.js";
 type Row = Record<string, any>;
 function recording(provider = false): any[] {
   const contract = necessaryQuestionContract(), scenario = continuationScenario("necessary-free-text", "nonce");
-  const card: Row = { id: "card", kind: "ask_user_questions", status: "pending", companyId: "company", issueId: "task", createdByAgentId: "agent",
+  const card: Row = { id: "card", kind: "ask_user_questions", status: "pending", spaceId: "space", issueId: "task", createdByAgentId: "agent",
     sourceRunId: "first", continuationPolicy: provider ? "none" : "wake_assignee",
     idempotencyKey: provider ? "outpost-runner-question:first:request" : "question",
     payload: { ...(provider ? { runtimeRequestId: "request" } : {}), questionSet: { schema: "outpost.question_set.v1", description: contract.context,
       questions: [{ id: "reference", answerMode: "text", prompt: contract.prompt, required: true }] } } };
-  const run: Row = { id: "first", companyId: "company", issueId: "task", agentId: "agent", status: provider ? "running" : "succeeded", runtimeMode: "native",
+  const run: Row = { id: "first", spaceId: "space", issueId: "task", agentId: "agent", status: provider ? "running" : "succeeded", runtimeMode: "native",
     nativePhase: provider ? "running" : "committed", resultJson: { finalizationPhase: provider ? null : "committed", semanticToolReceipts: provider ? {} : {
       question: { operationId: "request_human_input", result: { disposition: "applied", interaction: structuredClone(card) } },
     } } };
-  const initial = { phase: "initial", issue: { id: "task", companyId: "company", assigneeAgentId: "agent", status: provider ? "in_progress" : "in_review" },
+  const initial = { phase: "initial", issue: { id: "task", spaceId: "space", assigneeAgentId: "agent", status: provider ? "in_progress" : "in_review" },
     lifecycle: { executionRunId: provider ? "first" : null, scheduledRetry: null, activeRecoveryAction: null, monitorNextCheckAt: null },
     runs: [run], interactions: [card], documents: [], children: [], attachments: [], comments: [],
     questionPresentation: { interactionId: "card", promptVisible: true, contextVisible: true } };
   const final = structuredClone(initial) as Row;
   final.phase = "final"; final.issue.status = "done"; final.lifecycle.executionRunId = null;
-  final.interactions[0] = { ...final.interactions[0], status: "answered", resolvedByUserId: "local-board",
+  final.interactions[0] = { ...final.interactions[0], status: "answered", resolvedByUserId: "local-operator",
     result: { answers: [{ questionId: "reference", optionIds: [], otherText: scenario.answer }] } };
   if (provider) { final.runs[0].status = "succeeded"; final.runs[0].nativePhase = "committed"; final.runs[0].resultJson.finalizationPhase = "committed"; }
   else final.runs.push({ ...structuredClone(run), id: "second", contextSnapshot: { issueId: "task", sourceRunId: "first",
@@ -49,8 +49,8 @@ describe("necessary free-text question journey", () => {
     ["hidden context", (points: Row[]) => { points[0].questionPresentation.contextVisible = false; }],
     ["unrelated rendered card", (points: Row[]) => { points[0].questionPresentation.interactionId = "foreign"; }],
     ["missing semantic receipt", (points: Row[]) => { points[0].runs[0].resultJson.semanticToolReceipts = {}; }],
-    ["foreign question", (points: Row[]) => { points[0].interactions[0].companyId = "foreign"; }],
-    ["foreign resolved company", (points: Row[]) => { points[1].interactions[0].companyId = "foreign"; }],
+    ["foreign question", (points: Row[]) => { points[0].interactions[0].spaceId = "foreign"; }],
+    ["foreign resolved space", (points: Row[]) => { points[1].interactions[0].spaceId = "foreign"; }],
     ["changed creator", (points: Row[]) => { points[1].interactions[0].createdByAgentId = "foreign"; }],
     ["changed idempotency key", (points: Row[]) => { points[1].interactions[0].idempotencyKey = "foreign"; }],
     ["changed continuation policy", (points: Row[]) => { points[1].interactions[0].continuationPolicy = "none"; }],

@@ -32,22 +32,22 @@ describePostgres("workspace source ownership during preparation", () => {
   });
 
   it("keeps preparation exclusive beyond the idle timeout while the ordinary pool stays usable", async () => {
-    const companyId = randomUUID(), issueId = randomUUID();
+    const spaceId = randomUUID(), issueId = randomUUID();
     let entered!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
-    const preparation = withIsolatedRepositorySourceLock(db, companyId, issueId, async () => {
+    const preparation = withIsolatedRepositorySourceLock(db, spaceId, issueId, async () => {
       await db.execute(sql`select 1`);
       entered();
       await pending;
-      return withIsolatedRepositorySourceLock(db, companyId, issueId, async () => "prepared");
+      return withIsolatedRepositorySourceLock(db, spaceId, issueId, async () => "prepared");
     }).then(value => ({ value }), error => ({ error }));
 
     try {
       await started;
       await delay(1400);
       await expect(db.execute(sql`select 1 as usable`)).resolves.toMatchObject([{ usable: 1 }]);
-      await expect(withIsolatedRepositorySourceLock(db, companyId, issueId, async () => "overlap", true))
+      await expect(withIsolatedRepositorySourceLock(db, spaceId, issueId, async () => "overlap", true))
         .rejects.toBeInstanceOf(IsolatedRepositorySourceBusy);
       await expect(withIsolatedRepositorySourceLock(db, randomUUID(), issueId, async () => "independent", true))
         .resolves.toBe("independent");
@@ -56,18 +56,18 @@ describePostgres("workspace source ownership during preparation", () => {
       await preparation;
     }
     expect(await preparation).toEqual({ value: "prepared" });
-    await expect(withIsolatedRepositorySourceLock(db, companyId, issueId, async () => "next", true))
+    await expect(withIsolatedRepositorySourceLock(db, spaceId, issueId, async () => "next", true))
       .resolves.toBe("next");
   });
 
   it("releases a failed preparation and preserves the original failure", async () => {
-    const companyId = randomUUID(), issueId = randomUUID();
+    const spaceId = randomUUID(), issueId = randomUUID();
     const failure = new Error("source preparation failed");
-    await expect(withIsolatedRepositorySourceLock(db, companyId, issueId, async () => {
+    await expect(withIsolatedRepositorySourceLock(db, spaceId, issueId, async () => {
       await delay(1400);
       throw failure;
     })).rejects.toBe(failure);
-    await expect(withIsolatedRepositorySourceLock(db, companyId, issueId, async () => "recovered", true))
+    await expect(withIsolatedRepositorySourceLock(db, spaceId, issueId, async () => "recovered", true))
       .resolves.toBe("recovered");
   });
 
@@ -75,14 +75,14 @@ describePostgres("workspace source ownership during preparation", () => {
   // reattached run. Its preparation joined the committed scope and failed with
   // `Failed query: select pg_try_advisory_xact_lock(...)` on a closed connection.
   it("gives work detached from a finished scope its own source lock", async () => {
-    const companyId = randomUUID(), outerIssueId = randomUUID(), laterIssueId = randomUUID();
+    const spaceId = randomUUID(), outerIssueId = randomUUID(), laterIssueId = randomUUID();
     let fire!: () => void, entered!: () => void, release!: () => void;
     const fired = new Promise<void>(resolve => { fire = resolve; });
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
     let detached!: Promise<unknown>;
-    await withIsolatedRepositorySourceLock(db, companyId, outerIssueId, async () => {
-      detached = fired.then(() => withIsolatedRepositorySourceLock(db, companyId, laterIssueId, async () => {
+    await withIsolatedRepositorySourceLock(db, spaceId, outerIssueId, async () => {
+      detached = fired.then(() => withIsolatedRepositorySourceLock(db, spaceId, laterIssueId, async () => {
         entered();
         await pending;
         return "prepared";
@@ -91,7 +91,7 @@ describePostgres("workspace source ownership during preparation", () => {
     fire();
     expect(await Promise.race([started.then(() => "entered"), detached])).toBe("entered");
     try {
-      await expect(withIsolatedRepositorySourceLock(db, companyId, laterIssueId, async () => "overlap", true))
+      await expect(withIsolatedRepositorySourceLock(db, spaceId, laterIssueId, async () => "overlap", true))
         .rejects.toBeInstanceOf(IsolatedRepositorySourceBusy);
     } finally {
       release();
@@ -100,13 +100,13 @@ describePostgres("workspace source ownership during preparation", () => {
   });
 
   it("keeps an independent preparation's lock after the scope that started it commits", async () => {
-    const companyId = randomUUID(), outerIssueId = randomUUID(), runIssueId = randomUUID();
+    const spaceId = randomUUID(), outerIssueId = randomUUID(), runIssueId = randomUUID();
     let entered!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
     let preparation!: Promise<unknown>;
-    await withIsolatedRepositorySourceLock(db, companyId, outerIssueId, async () => {
-      preparation = withIndependentWorkspaceSourceLocks(db, { companyId, issueIds: [runIssueId] }, async () => {
+    await withIsolatedRepositorySourceLock(db, spaceId, outerIssueId, async () => {
+      preparation = withIndependentWorkspaceSourceLocks(db, { spaceId, issueIds: [runIssueId] }, async () => {
         entered();
         await pending;
         return "prepared";
@@ -114,7 +114,7 @@ describePostgres("workspace source ownership during preparation", () => {
       await started;
     });
     try {
-      await expect(withIsolatedRepositorySourceLock(db, companyId, runIssueId, async () => "overlap", true))
+      await expect(withIsolatedRepositorySourceLock(db, spaceId, runIssueId, async () => "overlap", true))
         .rejects.toBeInstanceOf(IsolatedRepositorySourceBusy);
     } finally {
       release();

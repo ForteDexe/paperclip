@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import { executeRunnerApi, RUNNER_API_INLINE_BYTES, type RunnerApiIo } from "./runner-api-client.js";
-const context = { companyId: "company-a", issueId: "issue-a", runId: "run-a", workMode: "standard" };
-const projects = "GET /api/companies/{companyId}/projects";
+const context = { spaceId: "space-a", issueId: "issue-a", runId: "run-a", workMode: "standard" };
+const projects = "GET /api/spaces/{spaceId}/projects";
 const io = (fetcher: typeof fetch): RunnerApiIo => ({
   apiUrl: "http://127.0.0.1:3100", token: "private-agent-token", fetch: fetcher,
   readFile: async () => { throw new Error("not an upload"); },
@@ -34,7 +34,7 @@ describe("explicit read response artifacts", () => {
 describe("complete authorized read export", () => {
   it.each(["[]", "null", "{\n \"body\": \"é🧭\\n\\\"quoted\\\"\"\n}", ...[RUNNER_API_INLINE_BYTES - 1, RUNNER_API_INLINE_BYTES, RUNNER_API_INLINE_BYTES + 1, 100000].map(n => "x".repeat(n))])("preserves source bytes and integrity for response %#", async source => {
     const bytes = Buffer.from(source);
-    const fetcher = vi.fn(async () => new Response(bytes, { headers: { "content-type": "text/plain", "x-paperclip-has-more": "true", "x-paperclip-next-offset": "2" } }));
+    const fetcher = vi.fn(async () => new Response(bytes, { headers: { "content-type": "text/plain", "x-outpost-has-more": "true", "x-outpost-next-offset": "2" } }));
     const reserve = vi.fn(async () => vi.fn(async () => {}));
     const result = await executeRunnerApi({ operationId: projects, saveResponse: true }, context, { ...io(fetcher), reserveResponseCapture: reserve });
     expect(result).toMatchObject({ ok: true, artifact: { byteSize: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }, pagination: { hasMore: true, nextOffset: 2 } });
@@ -67,10 +67,10 @@ describe("complete authorized read export", () => {
   });
 
   it.each([
-    { operationId: "POST /api/companies/{companyId}/projects" },
-    { operationId: "GET /api/board-api-keys" },
+    { operationId: "POST /api/spaces/{spaceId}/projects" },
+    { operationId: "GET /api/operator-api-keys" },
     { operationId: projects, responseText: {} },
-    { operationId: projects, pathParams: { companyId: "foreign" } },
+    { operationId: projects, pathParams: { spaceId: "foreign" } },
   ])("rejects invalid export before dispatch: %j", async args => {
     const fetcher = vi.fn(fetch);
     await expect(executeRunnerApi({ ...args, saveResponse: true }, context, io(fetcher))).rejects.toThrow();

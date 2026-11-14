@@ -8,10 +8,10 @@ const dirs: string[] = [];
 afterEach(async () => { await Promise.all(dirs.splice(0).map(dir => fs.rm(dir, { recursive: true, force: true }))); });
 
 async function localWorkspace(createdByRuntime: boolean) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-retained-dir-")); dirs.push(root);
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-retained-dir-")); dirs.push(root);
   const cwd = path.join(root, "task-directory");
   await fs.mkdir(cwd); await fs.writeFile(path.join(cwd, "website-fixture.txt"), "saved\n");
-  return { cwd, workspace: { id: "workspace-1", companyId: "company-1", cwd, providerType: "local_fs", providerRef: null,
+  return { cwd, workspace: { id: "workspace-1", spaceId: "space-1", cwd, providerType: "local_fs", providerRef: null,
     branchName: null, repoUrl: null, baseRef: null, projectId: null, projectWorkspaceId: null, sourceIssueId: "issue-1",
     metadata: { createdByRuntime } } };
 }

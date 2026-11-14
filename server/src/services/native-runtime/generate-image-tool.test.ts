@@ -4,12 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { activityLog, agents, authUsers, budgetPolicies, companies, companyMemberships, costEvents, createDb, heartbeatRuns, issues, projects } from "@outpost/db";
+import { activityLog, agents, authUsers, budgetPolicies, spaces, spaceMemberships, costEvents, createDb, heartbeatRuns, issues, projects } from "@outpost/db";
 import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
 import { aiConnectionService } from "../ai-connections.js";
 import { accountRunCost } from "../run-cost-accounting.js";
 import { budgetServiceInTransaction } from "../budgets.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { imageGenerationBindingForRun, priceGeneratedImage, requestOpenAiImage } from "./generate-image-tool.js";
 
 // One transparent 1x1 PNG. The handler only needs real PNG bytes to save.
@@ -23,10 +23,10 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
   const workspaces: string[] = [];
 
   beforeAll(async () => {
-    home = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-image-tool-home-")));
+    home = await realpath(await mkdtemp(path.join(os.tmpdir(), "outpost-image-tool-home-")));
     vi.stubEnv("OUTPOST_HOME", home);
     vi.stubEnv("OUTPOST_INSTANCE_ID", "image-tool-fixture");
-    temporary = await startRecoveryPostgres("paperclip-image-tool-");
+    temporary = await startRecoveryPostgres("outpost-image-tool-");
     db = createDb(temporary.connectionString);
     await db.insert(authUsers).values({ id: "alice", name: "Alice", email: "alice@example.test", createdAt: new Date(), updatedAt: new Date() });
   }, 90_000);
@@ -39,28 +39,28 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
     vi.unstubAllEnvs();
   });
 
-  /** An onboarding-style company: one Codex agent running on an OpenAI API key. */
+  /** An onboarding-style space: one Codex agent running on an OpenAI API key. */
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Pixel Bakery", issuePrefix: `PX${companyId.slice(0, 4).toUpperCase()}` });
-    await db.insert(companyMemberships).values({ companyId, principalId: "alice", principalType: "user", status: "active", membershipRole: "owner" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Head baker", adapterType: "outpost_runner",
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Pixel Bakery", issuePrefix: `PX${spaceId.slice(0, 4).toUpperCase()}` });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: "alice", principalType: "user", status: "active", membershipRole: "owner" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Head baker", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" }, status: "active" });
-    const connection = await aiConnectionService(db).save(companyId, "alice", {
+    const connection = await aiConnectionService(db).save(spaceId, "alice", {
       provider: "openai", method: "api_key", name: "OpenAI", ownership: "shared",
       apiKey: OPENAI_KEY, agentIds: [], allAgents: true,
     } as never, OPENAI_KEY);
-    await db.insert(issues).values({ id: issueId, companyId, title: "Create printable cake menu and logo",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Create printable cake menu and logo",
       status: "in_progress", workMode: "standard", assigneeAgentId: agentId });
     const aiConnection = { connectionId: connection.connectionId, grantId: connection.grantId,
       provider: "openai", method: "api_key", mode: "shared", responsibleUserId: "alice" };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
       nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system", responsibleUserId: "alice",
       contextSnapshot: { issueId, aiConnection } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    const workspaceRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-image-tool-ws-")));
+    const workspaceRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "outpost-image-tool-ws-")));
     workspaces.push(workspaceRoot);
-    const binding = { companyId, agentId, issueId, runId, workspaceRoot,
+    const binding = { spaceId, agentId, issueId, runId, workspaceRoot,
       imageGeneration: { connectionId: connection.connectionId, grantId: connection.grantId } };
     return { ...binding, binding, aiConnection };
   }
@@ -77,7 +77,7 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
   it("lets an API-key Codex agent make an image with its existing OpenAI key, saved in its workspace and billed", async () => {
     const f = await fixture();
     const fetchMock = stubOpenAiImages();
-    const authority = new PaperclipRunnerToolAuthority(db, f.binding as never);
+    const authority = new OutpostRunnerToolAuthority(db, f.binding as never);
 
     expect(authority.definitions().map(tool => tool.name)).toContain("generate_image");
 
@@ -108,7 +108,7 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
     // 50 text tokens at $5/M + 1000 image output tokens at $30/M = $0.03025.
     expect(Number(costs[0]!.costCents)).toBeCloseTo(3.025, 6);
 
-    const activity = await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.companyId), eq(activityLog.action, "runner.image_generate")));
+    const activity = await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.spaceId), eq(activityLog.action, "runner.image_generate")));
     expect(activity.map(row => (row.details as Record<string, unknown>).outcome)).toEqual(expect.arrayContaining(["started", "completed"]));
     expect(JSON.stringify(activity)).not.toContain(OPENAI_KEY);
 
@@ -125,7 +125,7 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
   it("is not offered without a server-verified OpenAI API-key binding", async () => {
     const f = await fixture();
     const { imageGeneration: _omitted, ...withoutBinding } = f.binding;
-    const authority = new PaperclipRunnerToolAuthority(db, withoutBinding);
+    const authority = new OutpostRunnerToolAuthority(db, withoutBinding);
     expect(authority.definitions().map(tool => tool.name)).not.toContain("generate_image");
     await expect(authority.execute({ tool: "generate_image", callId: randomUUID(), arguments: { prompt: "logo" } }))
       .rejects.toThrow();
@@ -135,7 +135,7 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
     const f = await fixture();
     const fetchMock = stubOpenAiImages();
     await db.update(agents).set({ status: "paused" }).where(eq(agents.id, f.agentId));
-    const authority = new PaperclipRunnerToolAuthority(db, f.binding as never);
+    const authority = new OutpostRunnerToolAuthority(db, f.binding as never);
     await expect(authority.execute({ tool: "generate_image", callId: randomUUID(), arguments: { prompt: "logo" } }))
       .rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -146,7 +146,7 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
     const f = await fixture();
     const fetchMock = stubOpenAiImages();
     await rm(f.workspaceRoot, { recursive: true, force: true });
-    const authority = new PaperclipRunnerToolAuthority(db, f.binding as never);
+    const authority = new OutpostRunnerToolAuthority(db, f.binding as never);
     const callId = randomUUID();
     await expect(authority.execute({ tool: "generate_image", callId, arguments: { prompt: "logo" } })).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -160,9 +160,9 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
   it("refuses before calling OpenAI when the task's project budget has stopped work", async () => {
     const f = await fixture();
     const fetchMock = stubOpenAiImages();
-    const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Menu", pausedAt: new Date(), pauseReason: "budget" }).returning();
+    const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Menu", pausedAt: new Date(), pauseReason: "budget" }).returning();
     await db.update(issues).set({ projectId: project!.id }).where(eq(issues.id, f.issueId));
-    const authority = new PaperclipRunnerToolAuthority(db, f.binding as never);
+    const authority = new OutpostRunnerToolAuthority(db, f.binding as never);
     await expect(authority.execute({ tool: "generate_image", callId: randomUUID(), arguments: { prompt: "logo" } }))
       .rejects.toThrow("budget");
     expect(fetchMock).not.toHaveBeenCalled();
@@ -171,7 +171,7 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
   it("settles a paid image whose run stopped before the charge was recorded, without buying another", async () => {
     const f = await fixture();
     const fetchMock = stubOpenAiImages();
-    const authority = new PaperclipRunnerToolAuthority(db, f.binding as never);
+    const authority = new OutpostRunnerToolAuthority(db, f.binding as never);
     const callId = randomUUID();
     const input = { prompt: "logo", size: "1024x1024", quality: "auto" };
     // The state a crash leaves after OpenAI charged but before accounting committed.
@@ -216,7 +216,7 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
     const f = await fixture();
     const fetchMock = vi.fn(async () => { throw new TypeError("fetch failed: socket hang up"); });
     vi.stubGlobal("fetch", fetchMock);
-    const authority = new PaperclipRunnerToolAuthority(db, f.binding as never);
+    const authority = new OutpostRunnerToolAuthority(db, f.binding as never);
     const callId = randomUUID();
     await expect(authority.execute({ tool: "generate_image", callId, arguments: { prompt: "logo" } })).rejects.toThrow("may have been billed");
     const costs = await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.runId));
@@ -226,16 +226,16 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.runId))).toHaveLength(1);
     // A budget that blocks unpriced spend now holds further paid work.
-    await db.insert(budgetPolicies).values({ companyId: f.companyId, scopeType: "agent", scopeId: f.agentId, windowKind: "calendar_month_utc",
+    await db.insert(budgetPolicies).values({ spaceId: f.spaceId, scopeType: "agent", scopeId: f.agentId, windowKind: "calendar_month_utc",
       amount: 100_000, unpricedUsagePolicy: "block" });
-    expect(await budgetServiceInTransaction(db).getInvocationBlock(f.companyId, f.agentId, { issueId: f.issueId })).toMatchObject({
+    expect(await budgetServiceInTransaction(db).getInvocationBlock(f.spaceId, f.agentId, { issueId: f.issueId })).toMatchObject({
       reason: expect.stringContaining("no reliable price") });
   });
 
   it("records no spend when OpenAI rejects the request", async () => {
     const f = await fixture();
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: { message: "Your request was rejected by the safety system" } }), { status: 400 })));
-    const authority = new PaperclipRunnerToolAuthority(db, f.binding as never);
+    const authority = new OutpostRunnerToolAuthority(db, f.binding as never);
     await expect(authority.execute({ tool: "generate_image", callId: randomUUID(), arguments: { prompt: "logo" } })).rejects.toThrow("safety system");
     expect(await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.runId))).toHaveLength(0);
   });
@@ -253,7 +253,7 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
       end $$;
       create trigger n12_stop_on_image_start after insert on activity_log for each row execute function n12_stop_on_image_start();`));
     try {
-      const authority = new PaperclipRunnerToolAuthority(db, f.binding as never);
+      const authority = new OutpostRunnerToolAuthority(db, f.binding as never);
       await expect(authority.execute({ tool: "generate_image", callId: randomUUID(), arguments: { prompt: "logo" } })).rejects.toThrow();
       expect(fetchMock).not.toHaveBeenCalled();
       expect(await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.runId))).toHaveLength(0);
@@ -274,7 +274,7 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
       end $$;
       create trigger n12_revoke_on_image_start after insert on activity_log for each row execute function n12_revoke_on_image_start();`));
     try {
-      const authority = new PaperclipRunnerToolAuthority(db, f.binding as never);
+      const authority = new OutpostRunnerToolAuthority(db, f.binding as never);
       await expect(authority.execute({ tool: "generate_image", callId: randomUUID(), arguments: { prompt: "logo" } })).rejects.toThrow();
       expect(fetchMock).not.toHaveBeenCalled();
       expect(await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.runId))).toHaveLength(0);
@@ -286,7 +286,7 @@ describe("generate_image for OpenAI API-key Codex agents (N-12)", () => {
   it("refuses when the run's AI connection is no longer an active OpenAI API key", async () => {
     const f = await fixture();
     const fetchMock = stubOpenAiImages();
-    const authority = new PaperclipRunnerToolAuthority(db, { ...f.binding,
+    const authority = new OutpostRunnerToolAuthority(db, { ...f.binding,
       imageGeneration: { connectionId: f.binding.imageGeneration.connectionId, grantId: randomUUID() } } as never);
     await expect(authority.execute({ tool: "generate_image", callId: randomUUID(), arguments: { prompt: "logo" } }))
       .rejects.toThrow();

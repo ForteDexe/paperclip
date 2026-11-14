@@ -72,7 +72,7 @@ async function flushUi(callback: () => void) {
 function createProject(): Project {
   return {
     id: "project-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     urlKey: "workspace-project",
     goalId: null,
     goalIds: [],
@@ -100,8 +100,8 @@ function createProject(): Project {
       defaultRef: null,
       repoName: null,
       localFolder: null,
-      managedFolder: "/tmp/paperclip/project-1",
-      effectiveLocalFolder: "/tmp/paperclip/project-1",
+      managedFolder: "/tmp/outpost/project-1",
+      effectiveLocalFolder: "/tmp/outpost/project-1",
       origin: "managed_checkout",
     },
     workspaces: [],
@@ -114,7 +114,7 @@ function createProject(): Project {
 function createAgent(): Agent {
   return {
     id: "agent-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Routine Agent",
     role: "engineer",
     title: null,
@@ -141,7 +141,7 @@ function createAgent(): Agent {
 function createExecutionWorkspace(): ExecutionWorkspace {
   return {
     id: "workspace-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     projectWorkspaceId: "project-workspace-1",
     sourceIssueId: null,
@@ -150,7 +150,7 @@ function createExecutionWorkspace(): ExecutionWorkspace {
     name: "PAP-1634",
     status: "active",
     deliveryState: "unknown",
-    cwd: "/tmp/paperclip/PAP-1634",
+    cwd: "/tmp/outpost/PAP-1634",
     repoUrl: null,
     baseRef: "main",
     branchName: "pap-1634-routine-branch",
@@ -202,7 +202,7 @@ async function renderRoutineRunDialog(container: HTMLDivElement, props: {
         <RoutineRunVariablesDialog
           open
           onOpenChange={() => {}}
-          companyId="company-1"
+          spaceId="space-1"
           projects={[]}
           agents={[createAgent()]}
           defaultAssigneeAgentId="agent-1"
@@ -260,7 +260,7 @@ describe("RoutineRunVariablesDialog", () => {
           <RoutineRunVariablesDialog
             open
             onOpenChange={() => {}}
-            companyId="company-1"
+            spaceId="space-1"
             projects={[createProject()]}
             agents={[createAgent()]}
             defaultProjectId="project-1"
@@ -290,7 +290,7 @@ describe("RoutineRunVariablesDialog", () => {
     const workspace = createExecutionWorkspace();
     await flushUi(() => root.render(
       <QueryClientProvider client={queryClient}>
-        <RoutineRunVariablesDialog open onOpenChange={() => {}} companyId="company-1"
+        <RoutineRunVariablesDialog open onOpenChange={() => {}} spaceId="space-1"
           projects={[createProject()]} agents={[createAgent()]} defaultProjectId="project-1"
           defaultAssigneeAgentId="agent-1" defaultExecutionWorkspace={workspace}
           variables={[{ name: "workspaceBranch", required: true } as RoutineVariable]}
@@ -320,7 +320,7 @@ describe("RoutineRunVariablesDialog", () => {
           <RoutineRunVariablesDialog
             open
             onOpenChange={() => {}}
-            companyId="company-1"
+            spaceId="space-1"
             projects={[createProject()]}
             agents={[createAgent()]}
             defaultProjectId="project-1"
@@ -352,7 +352,7 @@ describe("RoutineRunVariablesDialog", () => {
           <RoutineRunVariablesDialog
             open
             onOpenChange={() => {}}
-            companyId="company-1"
+            spaceId="space-1"
             projects={[createProject()]}
             agents={[createAgent()]}
             defaultProjectId="project-1"
@@ -418,7 +418,7 @@ describe("RoutineRunVariablesDialog", () => {
           <RoutineRunVariablesDialog
             open
             onOpenChange={() => {}}
-            companyId="company-1"
+            spaceId="space-1"
             projects={[createProject()]}
             agents={[createAgent()]}
             defaultProjectId="project-1"
@@ -499,7 +499,7 @@ describe("RoutineRunVariablesDialog", () => {
           <RoutineRunVariablesDialog
             open
             onOpenChange={() => {}}
-            companyId="company-1"
+            spaceId="space-1"
             projects={[createProject()]}
             agents={[createAgent()]}
             defaultProjectId="project-1"

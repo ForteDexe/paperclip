@@ -1,7 +1,7 @@
 import type { PluginEvent } from "@outpost/plugin-sdk";
 
 export interface ActivityPublication {
-  companyId: string;
+  spaceId: string;
   payload: Record<string, unknown>;
   pluginEvent: PluginEvent | null;
 }

@@ -108,7 +108,7 @@ function currentUtcDayWindow(now = new Date()) {
 type TimerAgent = typeof agents.$inferSelect;
 type TimerPolicy = ReturnType<typeof parseHeartbeatPolicy>;
 type DailyCap = { reason: string; observed: number; limit: number } | null;
-const timerKey = (companyId: string, agentId: string) => JSON.stringify([companyId, agentId]);
+const timerKey = (spaceId: string, agentId: string) => JSON.stringify([spaceId, agentId]);
 function dailyRunConditions(scope: SQL, now: Date) {
   const { start, end } = currentUtcDayWindow(now);
   return and(scope, gte(heartbeatRuns.startedAt, start), lt(heartbeatRuns.startedAt, end),
@@ -149,21 +149,21 @@ export function createHeartbeatTimerPolicy(db: Pick<Db, "select">) {
     const now = options.now ?? new Date();
     if (options.checkRunCap !== false && policy.maxDailyRuns !== null) {
       const [row] = await client.select({ total: sql<number>`count(*)::integer` }).from(heartbeatRuns)
-        .where(dailyRunConditions(and(eq(heartbeatRuns.companyId, agent.companyId), eq(heartbeatRuns.agentId, agent.id),
+        .where(dailyRunConditions(and(eq(heartbeatRuns.spaceId, agent.spaceId), eq(heartbeatRuns.agentId, agent.id),
           options.excludeRunId ? sql`${heartbeatRuns.id} <> ${options.excludeRunId}` : undefined)!, now));
       const cap = heartbeatDailyCapFromTotals(policy, { runs: Number(row?.total ?? 0) }, { checkCostCap: false });
       if (cap) return cap;
     }
     if (options.checkCostCap !== false && policy.maxDailyCostCents !== null) {
       const [row] = await client.select({ total: sql<string>`coalesce(sum(${costEvents.costCents}), 0)::text` }).from(costEvents)
-        .where(dailyCostConditions(and(eq(costEvents.companyId, agent.companyId), eq(costEvents.agentId, agent.id))!, now));
+        .where(dailyCostConditions(and(eq(costEvents.spaceId, agent.spaceId), eq(costEvents.agentId, agent.id))!, now));
       return heartbeatDailyCapFromTotals(policy, { cost: String(row?.total ?? 0) }, { checkRunCap: false });
     }
     return null;
   }
   async function hasActionableTimerWork(agent: TimerAgent) {
     const rows = await db.select({ id: issues.id }).from(issues)
-      .where(actionableConditions(and(eq(issues.companyId, agent.companyId), eq(issues.assigneeAgentId, agent.id))!)).limit(1);
+      .where(actionableConditions(and(eq(issues.spaceId, agent.spaceId), eq(issues.assigneeAgentId, agent.id))!)).limit(1);
     return rows.length > 0;
   }
   async function readTimerHeartbeatSchedule(agent: TimerAgent, now = new Date()) {
@@ -176,7 +176,7 @@ export function createHeartbeatTimerPolicy(db: Pick<Db, "select">) {
   }
   async function readTimerHeartbeatSchedules(candidates: TimerAgent[], now: Date, checkBudget: () => void = () => {}) {
     if (candidates.length > 10_000) return;
-    const allowed = new Set(candidates.map(agent => timerKey(agent.companyId, agent.id)));
+    const allowed = new Set(candidates.map(agent => timerKey(agent.spaceId, agent.id)));
     if (allowed.size !== candidates.length) return;
     const eligible = candidates.filter(agent => {
       const p = parseHeartbeatPolicy(agent);
@@ -189,14 +189,14 @@ export function createHeartbeatTimerPolicy(db: Pick<Db, "select">) {
     const state: unknown[] = [];
     if (runIds.length) {
       checkBudget();
-      const rows = await db.select({ companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+      const rows = await db.select({ spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
         total: sql<number>`count(*)::integer` }).from(heartbeatRuns)
         .where(dailyRunConditions(inArray(heartbeatRuns.agentId, runIds), now))
-        .groupBy(heartbeatRuns.companyId, heartbeatRuns.agentId).orderBy(heartbeatRuns.companyId, heartbeatRuns.agentId).limit(10_001);
+        .groupBy(heartbeatRuns.spaceId, heartbeatRuns.agentId).orderBy(heartbeatRuns.spaceId, heartbeatRuns.agentId).limit(10_001);
       if (rows.length > 10_000) return;
       for (const row of rows) {
         checkBudget();
-        const key = timerKey(row.companyId, row.agentId);
+        const key = timerKey(row.spaceId, row.agentId);
         if (!allowed.has(key) || runs.has(key) || typeof row.total !== "number" || !Number.isSafeInteger(row.total) || row.total < 0) return;
         runs.set(key, row.total);
       }
@@ -204,15 +204,15 @@ export function createHeartbeatTimerPolicy(db: Pick<Db, "select">) {
     }
     if (costIds.length) {
       checkBudget();
-      const rows = await db.select({ companyId: costEvents.companyId, agentId: costEvents.agentId,
+      const rows = await db.select({ spaceId: costEvents.spaceId, agentId: costEvents.agentId,
         total: sql<string>`coalesce(sum(${costEvents.costCents}), 0)::text` }).from(costEvents)
         .where(dailyCostConditions(inArray(costEvents.agentId, costIds), now))
-        .groupBy(costEvents.companyId, costEvents.agentId).orderBy(costEvents.companyId, costEvents.agentId).limit(10_001);
+        .groupBy(costEvents.spaceId, costEvents.agentId).orderBy(costEvents.spaceId, costEvents.agentId).limit(10_001);
       if (rows.length > 10_000) return;
       for (const row of rows) {
         checkBudget();
         if (!row.agentId) return;
-        const key = timerKey(row.companyId, row.agentId);
+        const key = timerKey(row.spaceId, row.agentId);
         if (!allowed.has(key) || costs.has(key) || typeof row.total !== "string" || !/^-?\d+(?:\.\d+)?$/.test(row.total)) return;
         costs.set(key, row.total);
       }
@@ -220,14 +220,14 @@ export function createHeartbeatTimerPolicy(db: Pick<Db, "select">) {
     }
     if (actionableIds.length) {
       checkBudget();
-      const rows = await db.select({ companyId: issues.companyId, agentId: issues.assigneeAgentId }).from(issues)
+      const rows = await db.select({ spaceId: issues.spaceId, agentId: issues.assigneeAgentId }).from(issues)
         .where(actionableConditions(inArray(issues.assigneeAgentId, actionableIds)))
-        .groupBy(issues.companyId, issues.assigneeAgentId).orderBy(issues.companyId, issues.assigneeAgentId).limit(10_001);
+        .groupBy(issues.spaceId, issues.assigneeAgentId).orderBy(issues.spaceId, issues.assigneeAgentId).limit(10_001);
       if (rows.length > 10_000) return;
       for (const row of rows) {
         checkBudget();
         if (!row.agentId) return;
-        const key = timerKey(row.companyId, row.agentId);
+        const key = timerKey(row.spaceId, row.agentId);
         if (!allowed.has(key) || actionable.has(key)) return;
         actionable.add(key);
       }
@@ -236,7 +236,7 @@ export function createHeartbeatTimerPolicy(db: Pick<Db, "select">) {
     const schedules = new Map<string, ReturnType<typeof projectTimerHeartbeatSchedule>>();
     for (const agent of candidates) {
       checkBudget();
-      const policy = parseHeartbeatPolicy(agent), key = timerKey(agent.companyId, agent.id);
+      const policy = parseHeartbeatPolicy(agent), key = timerKey(agent.spaceId, agent.id);
       schedules.set(agent.id, projectTimerHeartbeatSchedule(agent, now, {
         actionable: policy.skipTimerWhenNoActionableWork ? actionable.has(key) : null,
         cap: heartbeatDailyCapFromTotals(policy, { runs: runs.get(key), cost: costs.get(key) }),

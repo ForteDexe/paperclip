@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AdapterExecutionTarget } from "./execution-target.js";
 import {
   buildDirectRunnerConnectUrl,
-  resolvePaperclipRunnerTransport,
+  resolveOutpostRunnerTransport,
   type RunnerIngressEndpoint,
 } from "./runner-connectivity.js";
 
@@ -33,7 +33,7 @@ function ingress(): RunnerIngressEndpoint {
 
 describe("outpost runner transport routing", () => {
   it("keeps same-host runnerd on plaintext loopback", async () => {
-    const result = await resolvePaperclipRunnerTransport({
+    const result = await resolveOutpostRunnerTransport({
       target: { kind: "local" },
       runId: "00000000-0000-4000-8000-000000000001",
       localConnectUrl:
@@ -54,7 +54,7 @@ describe("outpost runner transport routing", () => {
       effectiveCapabilities: capabilities,
       getRunnerIngressEndpoint,
     };
-    const result = await resolvePaperclipRunnerTransport({
+    const result = await resolveOutpostRunnerTransport({
       target,
       runId: "00000000-0000-4000-8000-000000000001",
       localConnectUrl: "ws://127.0.0.1/unused",
@@ -76,7 +76,7 @@ describe("outpost runner transport routing", () => {
       getRunnerIngressEndpoint: vi.fn(async () => ingress()),
     };
 
-    const result = await resolvePaperclipRunnerTransport({
+    const result = await resolveOutpostRunnerTransport({
       target,
       runId: "00000000-0000-4000-8000-000000000001",
       localConnectUrl: "ws://127.0.0.1/unused",
@@ -98,7 +98,7 @@ describe("outpost runner transport routing", () => {
       getRunnerIngressEndpoint,
     };
     await expect(
-      resolvePaperclipRunnerTransport({
+      resolveOutpostRunnerTransport({
         target,
         runId: "00000000-0000-4000-8000-000000000001",
         localConnectUrl: "ws://127.0.0.1/unused",
@@ -111,9 +111,9 @@ describe("outpost runner transport routing", () => {
       target,
       runId: "00000000-0000-4000-8000-000000000002",
       localConnectUrl: "ws://127.0.0.1/unused",
-    } as Parameters<typeof resolvePaperclipRunnerTransport>[0];
+    } as Parameters<typeof resolveOutpostRunnerTransport>[0];
     await expect(
-      resolvePaperclipRunnerTransport(missingAuthorization),
+      resolveOutpostRunnerTransport(missingAuthorization),
     ).rejects.toMatchObject({ code: "runner_ingress_unavailable" });
     expect(getRunnerIngressEndpoint).not.toHaveBeenCalled();
   });
@@ -134,19 +134,19 @@ describe("outpost runner transport routing", () => {
         strictHostKeyChecking: true,
       },
     };
-    const result = await resolvePaperclipRunnerTransport({
+    const result = await resolveOutpostRunnerTransport({
       target,
       runId: "00000000-0000-4000-8000-000000000001",
       localConnectUrl: "ws://127.0.0.1/unused",
       runnerPublicUrl: "wss://outpost.example.test/runner-base/",
-      runnerCaBundlePath: "/etc/paperclip/runner-ca.pem",
+      runnerCaBundlePath: "/etc/outpost/runner-ca.pem",
       runnerIngressAuthorized: false,
     });
     expect(result).toEqual({
       mode: "direct_outbound",
       connectUrl:
         "wss://outpost.example.test/runner-base/api/runner/v1/connect/00000000-0000-4000-8000-000000000001",
-      caBundlePath: "/etc/paperclip/runner-ca.pem",
+      caBundlePath: "/etc/outpost/runner-ca.pem",
     });
   });
 
@@ -163,7 +163,7 @@ describe("outpost runner transport routing", () => {
       },
     };
     await expect(
-      resolvePaperclipRunnerTransport({
+      resolveOutpostRunnerTransport({
         target,
         runId: "00000000-0000-4000-8000-000000000001",
         localConnectUrl: "ws://127.0.0.1/unused",
@@ -186,7 +186,7 @@ describe("outpost runner transport routing", () => {
       },
     };
     await expect(
-      resolvePaperclipRunnerTransport({
+      resolveOutpostRunnerTransport({
         target,
         runId: "00000000-0000-4000-8000-000000000001",
         localConnectUrl: "ws://127.0.0.1/unused",

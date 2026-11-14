@@ -13,7 +13,7 @@ vi.mock("node:fs/promises", async importOriginal => {
   return { ...actual, writeFile: vi.fn(actual.writeFile) };
 });
 
-const run = { id: "run", companyId: "company", agentId: "agent", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "chat" } };
+const run = { id: "run", spaceId: "space", agentId: "agent", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "chat" } };
 const valid = {
   first: "Read the brief", followup: "Change the launch day", reference: "BRIEF123", marker: "UPDATED123", issueId: "chat",
   boundaryRun: { ...run, status: "running" }, activeAtFollowup: { ...run, status: "running" },

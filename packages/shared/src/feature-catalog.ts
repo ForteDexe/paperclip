@@ -45,7 +45,7 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
   enableEnvironments: {
     title: "Environments",
     description:
-      "Show environment management in company settings and allow project and agent environment assignment controls.",
+      "Show environment management in space settings and allow project and agent environment assignment controls.",
     tier: "managed",
     cloudDefault: false,
     selfHostedDefault: false,
@@ -155,7 +155,7 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
   enableChatConnectors: {
     title: "Chat connectors",
     description:
-      "Show experimental chat connector setup and Board surfaces. Existing connections keep running when hidden; AgentMail, GitHub review bots, and tool connectors are unaffected.",
+      "Show experimental chat connector setup and Operator surfaces. Existing connections keep running when hidden; AgentMail, GitHub review bots, and tool connectors are unaffected.",
     tier: "managed",
     cloudDefault: false,
     selfHostedDefault: false,
@@ -167,7 +167,7 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     cloudDefault: false,
     selfHostedDefault: false,
   },
-  enablePaperclipNotebook: {
+  enableOutpostNotebook: {
     title: "Outpost Notebook",
     description: "Allow Outpost Notebook connections and publishing through an explicitly enabled instance rollout.",
     tier: "managed",
@@ -253,7 +253,7 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
   enableStatusCards: {
     title: "Status Cards",
     description:
-      "Enable the experimental shared status-card board, update engine, and gated API.",
+      "Enable the experimental shared status-card operator, update engine, and gated API.",
     tier: "managed",
     cloudDefault: false,
     selfHostedDefault: false,
@@ -336,7 +336,7 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     cloudDefault: false,
     selfHostedDefault: false,
   },
-  enablePaperclipDeveloperMode: {
+  enableOutpostDeveloperMode: {
     title: "Outpost Developer Mode",
     description:
       "Show internal Outpost maintainer tools and observability links, including Honeycomb trace queries on run pages.",

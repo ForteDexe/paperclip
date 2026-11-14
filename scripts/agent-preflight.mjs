@@ -71,7 +71,7 @@ function writeJson(file, value) {
 }
 
 function stateDirectory(root) {
-  return path.join(root, "node_modules", ".cache", "paperclip-agent-preflight");
+  return path.join(root, "node_modules", ".cache", "outpost-agent-preflight");
 }
 
 // --- install ---------------------------------------------------------------
@@ -110,11 +110,11 @@ function installStep(root, options, toolchain) {
 // server modules, such as the restart-chaos harness) cannot start without it.
 // ensure-plugin-build-deps builds it and its @outpost/shared dependency,
 // skips both when its content fingerprints show the outputs are current, and
-// takes the same lock as its other callers (CI, `paperclipai run`, typecheck).
+// takes the same lock as its other callers (CI, `outpost run`, typecheck).
 // The two packages compile in about two seconds, so they skip the shared
 // cache: a clone of their dist would save almost nothing.
-export const PLUGIN_SDK_BUILD_MARKERS = ["packages/shared/dist/.paperclip-build-complete",
-  "packages/plugins/sdk/dist/.paperclip-build-complete"];
+export const PLUGIN_SDK_BUILD_MARKERS = ["packages/shared/dist/.outpost-build-complete",
+  "packages/plugins/sdk/dist/.outpost-build-complete"];
 
 function markerState(root, marker) {
   try {
@@ -264,7 +264,7 @@ function binaryState(file) {
 
 function debugBinsStep(root, cache, toolchain, bins) {
   const debug = path.join(targetDirectory(root), "debug");
-  const stampFile = path.join(debug, ".paperclip-agent-debug-bins.json");
+  const stampFile = path.join(debug, ".outpost-agent-debug-bins.json");
   const key = debugBinsKey(root, toolchain);
   const stamp = readJson(stampFile);
   const states = () => Object.fromEntries(bins.map(bin => [bin, binaryState(path.join(debug, bin))]));

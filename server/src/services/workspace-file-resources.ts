@@ -50,7 +50,7 @@ export interface WorkspaceFileScanContext {
 
 const DENIED_SEGMENTS = new Set([
   ".git",
-  ".paperclip",
+  ".outpost",
   "node_modules",
   ".pnpm-store",
   ".yarn",
@@ -119,7 +119,7 @@ type ExecutionWorkspaceRow = typeof executionWorkspaces.$inferSelect;
 type ProjectWorkspaceRow = typeof projectWorkspaces.$inferSelect;
 
 type WorkspaceCandidate = {
-  companyId: string;
+  spaceId: string;
   workspaceKind: WorkspaceFileWorkspaceKind;
   workspaceId: string;
   projectId?: string | null;
@@ -496,7 +496,7 @@ function candidateFromExecutionWorkspace(row: ExecutionWorkspaceRow): WorkspaceC
   const rootPath = row.cwd || row.providerRef || null;
   const remote = Boolean(row.metadata?.remoteWorkspace) || !["local_fs", "git_worktree"].includes(provider) || !rootPath || row.status !== "active" || row.closedAt != null;
   return {
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     workspaceKind: "execution_workspace",
     workspaceId: row.id,
     provider,
@@ -515,7 +515,7 @@ function candidateFromProjectWorkspace(
   const rootPath = row.cwd ?? null;
   const remote = !LOCAL_PROJECT_WORKSPACE_SOURCE_TYPES.has(row.sourceType) || !rootPath;
   return {
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     workspaceKind: "project_workspace",
     workspaceId: row.id,
     projectId: project?.id ?? row.projectId,
@@ -1068,7 +1068,7 @@ async function listChangedWorkspaceFiles(input: {
 export function workspaceFileResourceService(db: Db, actor?: AuthorizationActor, options: { remoteFiles?: RemoteWorkspaceFiles } = {}) {
   async function remoteAccess(candidate: WorkspaceCandidate, signal?: AbortSignal) {
     if (!options.remoteFiles || candidate.workspaceKind !== "execution_workspace") return null;
-    return options.remoteFiles.open({ companyId: candidate.companyId, workspaceId: candidate.workspaceId, signal });
+    return options.remoteFiles.open({ spaceId: candidate.spaceId, workspaceId: candidate.workspaceId, signal });
   }
 
   function remoteEntryResource(candidate: WorkspaceCandidate, entry: RemoteWorkspaceFileEntry, access: RemoteWorkspaceFileAccess): ResolvedWorkspaceResource {
@@ -1107,21 +1107,21 @@ export function workspaceFileResourceService(db: Db, actor?: AuthorizationActor,
     for (const candidate of candidates) {
       const rows = candidate.workspaceKind === "execution_workspace"
         ? await db.select({ id: executionWorkspaces.id }).from(executionWorkspaces)
-          .where(and(eq(executionWorkspaces.id, candidate.workspaceId), eq(executionWorkspaces.companyId, candidate.companyId)))
+          .where(and(eq(executionWorkspaces.id, candidate.workspaceId), eq(executionWorkspaces.spaceId, candidate.spaceId)))
         : await db.select({ id: projectWorkspaces.id }).from(projectWorkspaces)
           .innerJoin(projects, eq(projects.id, projectWorkspaces.projectId))
           .where(and(eq(projectWorkspaces.id, candidate.workspaceId), await projectReadSqlCondition(db, actor)));
       if (!rows.length) continue;
       if (candidate.workspaceKind === "execution_workspace") {
         // A task-bound root grants file navigation, never disclosure of the workspace record.
-        if (!task || task.companyId !== candidate.companyId) continue;
+        if (!task || task.spaceId !== candidate.spaceId) continue;
         if (task.executionWorkspaceId !== candidate.workspaceId) {
           const [owner] = await db.select({ sourceIssueId: executionWorkspaces.sourceIssueId })
-            .from(executionWorkspaces).where(and(eq(executionWorkspaces.id, candidate.workspaceId), eq(executionWorkspaces.companyId, task.companyId)));
+            .from(executionWorkspaces).where(and(eq(executionWorkspaces.id, candidate.workspaceId), eq(executionWorkspaces.spaceId, task.spaceId)));
           if (owner?.sourceIssueId !== task.id) {
             if (!task.parentId || owner?.sourceIssueId !== task.parentId) continue;
             const [parent] = await db.select({ id: issues.id }).from(issues).where(and(
-              eq(issues.id, task.parentId), eq(issues.companyId, task.companyId), await issueReadSqlCondition(db, actor)));
+              eq(issues.id, task.parentId), eq(issues.spaceId, task.spaceId), await issueReadSqlCondition(db, actor)));
             if (!parent) continue;
           }
         }
@@ -1175,8 +1175,8 @@ export function workspaceFileResourceService(db: Db, actor?: AuthorizationActor,
     const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
     const [workspace] = await db.select().from(projectWorkspaces).where(eq(projectWorkspaces.id, workspaceId)).limit(1);
     if (!project || !workspace) throw notFound("Project workspace not found");
-    if (project.companyId !== issue.companyId || workspace.companyId !== issue.companyId) {
-      throw new HttpError(403, "Project workspace belongs to another company", { code: "cross_company_workspace" });
+    if (project.spaceId !== issue.spaceId || workspace.spaceId !== issue.spaceId) {
+      throw new HttpError(403, "Project workspace belongs to another space", { code: "cross_space_workspace" });
     }
     if (workspace.projectId !== project.id) {
       throw unprocessable("Workspace does not belong to the selected project", { code: "workspace_project_mismatch" });
@@ -1202,7 +1202,7 @@ export function workspaceFileResourceService(db: Db, actor?: AuthorizationActor,
       if (executionIds.length > 0) {
         executionRows = await db.select().from(executionWorkspaces).where(
           and(
-            eq(executionWorkspaces.companyId, issue.companyId),
+            eq(executionWorkspaces.spaceId, issue.spaceId),
             inArray(executionWorkspaces.id, executionIds),
           ),
         );
@@ -1211,7 +1211,7 @@ export function workspaceFileResourceService(db: Db, actor?: AuthorizationActor,
       if (sourceIssueIds.length > 0) {
         const activeRows = await db.select().from(executionWorkspaces).where(
           and(
-            eq(executionWorkspaces.companyId, issue.companyId),
+            eq(executionWorkspaces.spaceId, issue.spaceId),
             inArray(executionWorkspaces.sourceIssueId, sourceIssueIds),
             eq(executionWorkspaces.status, "active"),
             isNull(executionWorkspaces.closedAt),
@@ -1231,7 +1231,7 @@ export function workspaceFileResourceService(db: Db, actor?: AuthorizationActor,
       if (issue.projectWorkspaceId) {
         const rows = await db.select().from(projectWorkspaces).where(
           and(
-            eq(projectWorkspaces.companyId, issue.companyId),
+            eq(projectWorkspaces.spaceId, issue.spaceId),
             eq(projectWorkspaces.id, issue.projectWorkspaceId),
           ),
         ).limit(1);
@@ -1239,7 +1239,7 @@ export function workspaceFileResourceService(db: Db, actor?: AuthorizationActor,
       }
       const primaryRows = issue.projectId ? await db.select().from(projectWorkspaces).where(
         and(
-          eq(projectWorkspaces.companyId, issue.companyId),
+          eq(projectWorkspaces.spaceId, issue.spaceId),
           eq(projectWorkspaces.projectId, issue.projectId),
           eq(projectWorkspaces.isPrimary, true),
         ),
@@ -1280,9 +1280,9 @@ export function workspaceFileResourceService(db: Db, actor?: AuthorizationActor,
       const workspace = workspaceById.get(item.query.workspaceId!);
       if (!project || !workspace) {
         targets.set(targetKey, { error: notFound("Project workspace not found") });
-      } else if (project.companyId !== issue.companyId || workspace.companyId !== issue.companyId) {
+      } else if (project.spaceId !== issue.spaceId || workspace.spaceId !== issue.spaceId) {
         targets.set(targetKey, {
-          error: new HttpError(403, "Project workspace belongs to another company", { code: "cross_company_workspace" }),
+          error: new HttpError(403, "Project workspace belongs to another space", { code: "cross_space_workspace" }),
         });
       } else if (workspace.projectId !== project.id) {
         targets.set(targetKey, {
@@ -1301,7 +1301,7 @@ export function workspaceFileResourceService(db: Db, actor?: AuthorizationActor,
     return targets;
   }
 
-  async function sameCompanyProjectWorkspaceCandidates(
+  async function sameSpaceProjectWorkspaceCandidates(
     issue: IssueRow,
     excludedWorkspaceIds: Set<string>,
   ): Promise<WorkspaceCandidate[]> {
@@ -1315,8 +1315,8 @@ export function workspaceFileResourceService(db: Db, actor?: AuthorizationActor,
       .from(projectWorkspaces)
       .innerJoin(projects, eq(projectWorkspaces.projectId, projects.id))
       .where(and(
-        eq(projectWorkspaces.companyId, issue.companyId),
-        eq(projects.companyId, issue.companyId),
+        eq(projectWorkspaces.spaceId, issue.spaceId),
+        eq(projects.spaceId, issue.spaceId),
       ))
       .orderBy(desc(projectWorkspaces.isPrimary), desc(projectWorkspaces.updatedAt));
 
@@ -1335,7 +1335,7 @@ export function workspaceFileResourceService(db: Db, actor?: AuthorizationActor,
     excludedWorkspaceIds: Set<string>,
     check: (candidate: WorkspaceCandidate) => Promise<T>,
   ): Promise<AutoDiscovered<T>> {
-    const candidates = await sameCompanyProjectWorkspaceCandidates(issue, excludedWorkspaceIds);
+    const candidates = await sameSpaceProjectWorkspaceCandidates(issue, excludedWorkspaceIds);
     const matches: T[] = [];
     for (const candidate of candidates) {
       if (candidate.remote) continue;
@@ -1389,14 +1389,14 @@ export function workspaceFileResourceService(db: Db, actor?: AuthorizationActor,
     const needsDiscovery = initialCandidates.some((candidate) => !candidate.remote)
       && untargetedQueries.some((item) => item.query.workspace === "auto");
     const discoveryCandidates = needsDiscovery
-      ? await sameCompanyProjectWorkspaceCandidates(issue, new Set(initialCandidates.map((candidate) => candidate.workspaceId)))
+      ? await sameSpaceProjectWorkspaceCandidates(issue, new Set(initialCandidates.map((candidate) => candidate.workspaceId)))
       : [];
     const explicitTargets = await loadAvailabilityTargets(issue, queries);
     const remoteAccesses = new Map<string, Promise<RemoteWorkspaceFileAccess | null>>();
     const requestAccess = (candidate: WorkspaceCandidate) => {
       // UUIDs can be equal across workspace tables; project roots never borrow task access.
       if (!options.remoteFiles || candidate.workspaceKind !== "execution_workspace") return Promise.resolve(null);
-      const key = `${candidate.companyId}:${candidate.workspaceId}`;
+      const key = `${candidate.spaceId}:${candidate.workspaceId}`;
       const existing = remoteAccesses.get(key);
       if (existing) return existing;
       if (remoteAccesses.size >= MAX_AVAILABILITY_REMOTE_WORKSPACES) {

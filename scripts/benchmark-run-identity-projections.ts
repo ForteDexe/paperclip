@@ -72,9 +72,9 @@ try {
       else {
         const snapshot = value as Record<string, unknown>;
         for (const [name, selected] of Object.entries(snapshot)) {
-          if (name !== "paperclipIssue") assert.deepEqual(selected, before.run.contextSnapshot?.[name] ?? null, `Retained context ${name}`);
+          if (name !== "outpostIssue") assert.deepEqual(selected, before.run.contextSnapshot?.[name] ?? null, `Retained context ${name}`);
           else for (const [nested, item] of Object.entries(selected as Record<string, unknown>))
-            assert.deepEqual(item, (before.run.contextSnapshot?.paperclipIssue as Record<string, unknown>)?.[nested] ?? null, `Retained nested ${nested}`);
+            assert.deepEqual(item, (before.run.contextSnapshot?.outpostIssue as Record<string, unknown>)?.[nested] ?? null, `Retained nested ${nested}`);
         }
       }
     }

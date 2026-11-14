@@ -16,18 +16,18 @@ type TitleMutationResult = { result: TitleResult; publication: ActivityPublicati
 const MAX_TASK_TITLE_RECEIPTS_PER_RUN = 64;
 
 /** Caller owns the transaction and publishes the activity only after commit. */
-export function setIssueTitle(tx: Db, companyId: string, issueId: string, input: SetIssueTitle, actor: TitleActor): Promise<TitleMutationResult>;
-export function setIssueTitle(tx: Db, companyId: string, issueId: string, input: SetIssueTitle, actor: TitleActor, options: { receiptOnly: true }): Promise<TitleMutationResult | null>;
+export function setIssueTitle(tx: Db, spaceId: string, issueId: string, input: SetIssueTitle, actor: TitleActor): Promise<TitleMutationResult>;
+export function setIssueTitle(tx: Db, spaceId: string, issueId: string, input: SetIssueTitle, actor: TitleActor, options: { receiptOnly: true }): Promise<TitleMutationResult | null>;
 export async function setIssueTitle(
   tx: Db,
-  companyId: string,
+  spaceId: string,
   issueId: string,
   input: SetIssueTitle,
   actor: TitleActor,
   options?: { receiptOnly: true },
 ): Promise<TitleMutationResult | null> {
   const { title, onlyIfProvisional, idempotencyKey } = setIssueTitleSchema.parse(input);
-  const predicate = and(eq(issues.id, issueId), eq(issues.companyId, companyId));
+  const predicate = and(eq(issues.id, issueId), eq(issues.spaceId, spaceId));
   const [issue] = await tx.select().from(issues).where(predicate).for("update");
   if (!issue) throw notFound("Task not found");
   let authorizedRun: typeof heartbeatRuns.$inferSelect | undefined;
@@ -36,7 +36,7 @@ export async function setIssueTitle(
       throw forbidden("Setting a task title requires its assigned agent's active run");
     }
     const [run] = await tx.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, actor.runId), eq(heartbeatRuns.companyId, companyId),
+      eq(heartbeatRuns.id, actor.runId), eq(heartbeatRuns.spaceId, spaceId),
       eq(heartbeatRuns.agentId, actor.actorId),
     )).for("update");
     const snapshot = run?.contextSnapshot ?? {};
@@ -79,14 +79,14 @@ export async function setIssueTitle(
     || (issue.title === title && !issue.titleNeedsGeneration)) {
     return { result: await saveReceipt({ id: issue.id, title: issue.title, titleNeedsGeneration: issue.titleNeedsGeneration, changed: false }), publication: null };
   }
-  await notifyStatusCardIssueChange(tx, companyId);
-  await assertAgentInteraction(tx, { companyId, actorAgentId: actor.actorType === "agent" ? actor.actorId : null,
+  await notifyStatusCardIssueChange(tx, spaceId);
+  await assertAgentInteraction(tx, { spaceId, actorAgentId: actor.actorType === "agent" ? actor.actorId : null,
     operation: "edit", issueId, texts: title === issue.title ? [] : [title], lock: true });
-  await notifyAttentionRetentionWork(tx, { companyId });
+  await notifyAttentionRetentionWork(tx, { spaceId });
   await tx.update(issues).set({ title, titleNeedsGeneration: false, updatedAt: new Date() }).where(predicate);
   await issueReferenceService(tx).syncIssue(issueId, tx);
   const { publication } = await persistActivity(tx, {
-    ...actor, companyId, action: "issue.updated", entityType: "issue", entityId: issueId,
+    ...actor, spaceId, action: "issue.updated", entityType: "issue", entityId: issueId,
     details: { title, previous: { title: issue.title }, titleNeedsGeneration: false },
   });
   return { result: await saveReceipt({ id: issueId, title, titleNeedsGeneration: false, changed: true }), publication };

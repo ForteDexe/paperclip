@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ToolConnection } from "@outpost/shared";
 import { isConnectableAppSlug } from "@outpost/shared";
 import { Navigate, useNavigate, useParams } from "@/lib/router";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { toolsApi } from "@/api/tools";
@@ -26,24 +26,24 @@ import { appApplicationTabHref, appTabHref, appTabLabel, isAppTabKey, type AppTa
 export function AppNotConnected() {
   const { applicationId = "", tab } = useParams<{ applicationId: string; tab?: string }>();
   const navigate = useNavigate();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const activeTab: AppTabKey | null = isAppTabKey(tab) ? tab : null;
 
   const applicationsQuery = useQuery({
-    queryKey: queryKeys.tools.applications(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listApplications(selectedCompanyId!),
-    enabled: !!selectedCompanyId && !!activeTab,
+    queryKey: queryKeys.tools.applications(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listApplications(selectedSpaceId!),
+    enabled: !!selectedSpaceId && !!activeTab,
   });
   const connectionsQuery = useQuery({
-    queryKey: queryKeys.tools.connections(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listConnections(selectedCompanyId!),
-    enabled: !!selectedCompanyId && !!activeTab,
+    queryKey: queryKeys.tools.connections(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listConnections(selectedSpaceId!),
+    enabled: !!selectedSpaceId && !!activeTab,
   });
   const galleryQuery = useQuery({
-    queryKey: queryKeys.apps.gallery(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listGallery(selectedCompanyId!),
-    enabled: !!selectedCompanyId && !!activeTab,
+    queryKey: queryKeys.apps.gallery(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listGallery(selectedSpaceId!),
+    enabled: !!selectedSpaceId && !!activeTab,
   });
 
   const application = useMemo(
@@ -96,7 +96,7 @@ export function AppNotConnected() {
   if (tab === "setup" || tab === "test") {
     return <Navigate to={appApplicationTabHref(applicationId, "permissions")} replace />;
   }
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <div className="p-6 text-sm text-muted-foreground">Select an outpost to manage apps.</div>;
   }
   if (!applicationId || !activeTab) {

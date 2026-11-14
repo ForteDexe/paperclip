@@ -1,5 +1,5 @@
-import { useAccountIdentity } from "@/api/companies-query";
-import { useCompany } from "@/context/CompanyContext";
+import { useAccountIdentity } from "@/api/spaces-query";
+import { useSpace } from "@/context/SpaceContext";
 import { useDialogState } from "@/context/DialogContext";
 import { useLocation } from "@/lib/router";
 import { isOnboardingPath } from "@/lib/onboarding-route";
@@ -9,7 +9,7 @@ import { PluginSlotMount, usePluginSlots, type PluginSlotContext } from "@/plugi
 function AppShellEntries({ context }: { context: PluginSlotContext }) {
   const { slots, errorMessage } = usePluginSlots({
     slotTypes: ["appShellOverlay"],
-    companyId: context.companyId,
+    spaceId: context.spaceId,
   });
   // Optional extensions must not replace the application's normal error UI.
   if (errorMessage || slots.length === 0) return null;
@@ -29,30 +29,30 @@ function AppShellEntries({ context }: { context: PluginSlotContext }) {
 
 /**
  * One persistent mount in each application shell. Navigation preserves the
- * plugin tree; changing account/company, signing out, or entering onboarding
+ * plugin tree; changing account/space, signing out, or entering onboarding
  * disposes it. Plugins must cancel their requests/subscriptions on disposal.
  * Host context is display context, never proof of server authorization.
  */
 export function PluginAppShellOverlays({ localTrusted = false }: { localTrusted?: boolean }) {
   const { userId, settled } = useAccountIdentity();
-  const { selectedCompanyId, selectedCompany, loading } = useCompany();
+  const { selectedSpaceId, selectedSpace, loading } = useSpace();
   const { onboardingOpen, onboardingRouteDismissed } = useDialogState();
   const { pathname } = useLocation();
   // Local-trusted instances intentionally have no login requirement. Still
   // prefer any real account and wait for identity resolution so account changes
   // cannot reuse the prior account's in-memory plugin state.
-  const identity = settled ? userId ?? (localTrusted ? "local-board" : null) : null;
+  const identity = settled ? userId ?? (localTrusted ? "local-operator" : null) : null;
   const onboardingVisible = onboardingOpen || (!onboardingRouteDismissed && isOnboardingPath(pathname));
   if (!identity || loading || onboardingVisible) return null;
   const context: PluginSlotContext & PluginHostContext = {
-    companyId: selectedCompanyId,
-    companyPrefix: selectedCompany?.issuePrefix ?? null,
+    spaceId: selectedSpaceId,
+    spacePrefix: selectedSpace?.issuePrefix ?? null,
     projectId: null, entityId: null, entityType: null, parentEntityId: null,
     userId,
   };
   return (
     <AppShellEntries
-      key={JSON.stringify([identity, selectedCompanyId])}
+      key={JSON.stringify([identity, selectedSpaceId])}
       context={context}
     />
   );

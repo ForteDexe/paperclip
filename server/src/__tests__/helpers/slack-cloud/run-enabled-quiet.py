@@ -182,7 +182,7 @@ def journey():
 primary=None
 try:
  auth=authority();pins()
- PRIVATE=pathlib.Path(tempfile.mkdtemp(prefix='paperclip-slack-quiet-'));os.chmod(PRIVATE,0o700)
+ PRIVATE=pathlib.Path(tempfile.mkdtemp(prefix='outpost-slack-quiet-'));os.chmod(PRIVATE,0o700)
  write('controller-started.json',{'pid':os.getpid(),'pgid':os.getpgrp(),'mode':MODE,'authority':auth,'privateRoot':str(PRIVATE),'sourcePinsSHA':hashlib.sha256(json.dumps(sourcePins,sort_keys=True).encode()).hexdigest(),'started':time.time()})
  journey()
 except BaseException as error:

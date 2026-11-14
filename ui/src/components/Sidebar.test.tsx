@@ -13,7 +13,7 @@ vi.mock("@/hooks/useCoordinatorWorkspaceEnabled", () => ({
 }));
 
 const mockHeartbeatsApi = vi.hoisted(() => ({
-  liveRunsForCompany: vi.fn(),
+  liveRunsForSpace: vi.fn(),
 }));
 
 const mockAttentionApi = vi.hoisted(() => ({
@@ -49,10 +49,10 @@ vi.mock("../context/DialogContext", () => ({
   }),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({
-    selectedCompanyId: "company-1",
-    selectedCompany: { id: "company-1", issuePrefix: "PAP", name: "Outpost" },
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({
+    selectedSpaceId: "space-1",
+    selectedSpace: { id: "space-1", issuePrefix: "PAP", name: "Outpost" },
   }),
 }));
 
@@ -100,8 +100,8 @@ vi.mock("@/plugins/launchers", () => ({
   ),
 }));
 
-vi.mock("./SidebarCompanyMenu", () => ({
-  SidebarCompanyMenu: () => <div>Company menu</div>,
+vi.mock("./SidebarSpaceMenu", () => ({
+  SidebarSpaceMenu: () => <div>Space menu</div>,
 }));
 
 vi.mock("./SidebarAgents", () => ({
@@ -157,7 +157,7 @@ describe("Sidebar", () => {
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([]);
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([]);
     mockAttentionApi.list.mockResolvedValue({ items: [] });
     mockSidebar.isMobile = false;
     mockSidebar.collapsed = false;
@@ -616,7 +616,7 @@ describe("Sidebar", () => {
     expect(container.querySelector('button[aria-label="Collapse sidebar"]')).toBeNull();
     expect(container.querySelector('button[aria-label="Expand sidebar"]')).toBeNull();
     expect(container.querySelector('button[aria-label="Keep sidebar expanded"]')).toBeNull();
-    expect(container.textContent).toContain("Company menu");
+    expect(container.textContent).toContain("Space menu");
 
     flushSync(() => {
       root.unmount();

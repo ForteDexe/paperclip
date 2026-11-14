@@ -19,7 +19,7 @@ const mockProjectService = vi.hoisted(() => ({
 }));
 
 const mockInstanceSettingsService = vi.hoisted(() => ({
-  listCompanyIds: vi.fn(),
+  listSpaceIds: vi.fn(),
 }));
 
 const mockEnvironmentService = vi.hoisted(() => ({
@@ -53,7 +53,7 @@ const mockExecutionWorkspaceService = vi.hoisted(() => ({
 const mockSecretService = vi.hoisted(() => ({
   create: vi.fn(),
   normalizeEnvBindingsForPersistence: vi.fn(),
-  listBindingCompanyIdsForTarget: vi.fn(),
+  listBindingSpaceIdsForTarget: vi.fn(),
   resolveSecretValueForEphemeralAccess: vi.fn(),
   syncEnvBindingsForTarget: vi.fn(),
   syncSecretRefsForTarget: vi.fn(),
@@ -130,7 +130,7 @@ function createEnvironment(overrides: Record<string, unknown> = {}) {
 function createTemplate(overrides: Record<string, unknown> = {}) {
   return {
     id: "template-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     environmentId: "env-1",
     provider: "daytona",
     templateKind: "snapshot",
@@ -153,7 +153,7 @@ function createTemplate(overrides: Record<string, unknown> = {}) {
 function createSession(overrides: Record<string, unknown> = {}) {
   return {
     id: "session-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     environmentId: "env-1",
     templateId: "template-1",
     promotedTemplateId: null,
@@ -176,7 +176,7 @@ function createSession(overrides: Record<string, unknown> = {}) {
     },
     connectionSecretRef: null,
     metadata: {
-      setupRpcCompanyId: "company-1",
+      setupRpcSpaceId: "space-1",
       safeLabel: "setup",
       connectUrl: "https://203.0.113.10/setup",
     },
@@ -202,12 +202,12 @@ function createApp(actor: Express.Request["actor"]) {
   return app;
 }
 
-function boardActor(overrides: Partial<Express.Request["actor"]> = {}): Express.Request["actor"] {
+function operatorActor(overrides: Partial<Express.Request["actor"]> = {}): Express.Request["actor"] {
   return {
-    type: "board",
+    type: "operator",
     userId: "user-1",
     source: "session",
-    companyIds: ["company-1"],
+    spaceIds: ["space-1"],
     isInstanceAdmin: true,
     ...overrides,
   };
@@ -217,7 +217,7 @@ function agentActor(): Express.Request["actor"] {
   return {
     type: "agent",
     agentId: "agent-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     source: "agent_key",
     runId: "run-1",
   };
@@ -235,7 +235,7 @@ describe("environment customImage setup routes", () => {
   beforeEach(() => {
     mockIssueService.clearExecutionWorkspaceEnvironmentSelection.mockReset();
     mockProjectService.clearExecutionWorkspaceEnvironmentSelection.mockReset();
-    mockInstanceSettingsService.listCompanyIds.mockReset();
+    mockInstanceSettingsService.listSpaceIds.mockReset();
     Object.values(mockEnvironmentService).forEach((mock) => mock.mockReset());
     Object.values(mockEnvironmentCustomImageService).forEach((mock) => mock.mockReset());
     mockExecutionWorkspaceService.clearEnvironmentSelection.mockReset();
@@ -244,7 +244,7 @@ describe("environment customImage setup routes", () => {
     environmentCustomImageTerminalSessionStore.clear();
     environmentCustomImageTerminalConnectionRegistry.clear();
 
-    mockInstanceSettingsService.listCompanyIds.mockResolvedValue(["company-1"]);
+    mockInstanceSettingsService.listSpaceIds.mockResolvedValue(["space-1"]);
     mockEnvironmentService.getById.mockResolvedValue(createEnvironment());
     mockEnvironmentCustomImageService.getOverview.mockResolvedValue({
       activeTemplate: null,
@@ -302,8 +302,8 @@ describe("environment customImage setup routes", () => {
   });
 
   it("starts a setup session, returns the live payload, and logs redacted details", async () => {
-    const res = await request(createApp(boardActor()))
-      .post("/api/environments/env-1/custom-image-setup-sessions?companyId=company-1")
+    const res = await request(createApp(operatorActor()))
+      .post("/api/environments/env-1/custom-image-setup-sessions?spaceId=space-1")
       .send({ ttlSeconds: 3600 });
 
     expect(res.status).toBe(201);
@@ -316,7 +316,7 @@ describe("environment customImage setup routes", () => {
         userId: "user-1",
         agentId: null,
       },
-      secretContextCompanyId: "company-1",
+      secretContextSpaceId: "space-1",
     });
     const activity = loggedActivityJson();
     expect(activity).not.toContain("203.0.113.10");
@@ -324,10 +324,10 @@ describe("environment customImage setup routes", () => {
     expect(activity).not.toContain("snapshot-secret-ref");
   });
 
-  it("refreshes active setup status and can return the live payload to board admins", async () => {
+  it("refreshes active setup status and can return the live payload to operator admins", async () => {
     mockEnvironmentCustomImageService.getSessionById.mockResolvedValue(createSession());
 
-    const res = await request(createApp(boardActor()))
+    const res = await request(createApp(operatorActor()))
       .get("/api/environment-custom-image-setup-sessions/session-1");
 
     expect(res.status).toBe(200);
@@ -360,7 +360,7 @@ describe("environment customImage setup routes", () => {
       },
     });
 
-    const res = await request(createApp(boardActor()))
+    const res = await request(createApp(operatorActor()))
       .post("/api/environment-custom-image-setup-sessions/session-1/terminal-session-token")
       .send({});
 
@@ -402,9 +402,9 @@ describe("environment customImage setup routes", () => {
     expect(mockEnvironmentCustomImageService.refreshSetupSession).not.toHaveBeenCalled();
   });
 
-  it("denies terminal token minting to non-admin board users before connection payload refresh", async () => {
-    const res = await request(createApp(boardActor({
-      companyIds: ["company-2"],
+  it("denies terminal token minting to non-admin operator users before connection payload refresh", async () => {
+    const res = await request(createApp(operatorActor({
+      spaceIds: ["space-2"],
       isInstanceAdmin: false,
     })))
       .post("/api/environment-custom-image-setup-sessions/session-1/terminal-session-token")
@@ -427,7 +427,7 @@ describe("environment customImage setup routes", () => {
       },
     });
 
-    const res = await request(createApp(boardActor()))
+    const res = await request(createApp(operatorActor()))
       .post("/api/environment-custom-image-setup-sessions/session-1/terminal-session-token")
       .send({});
 
@@ -448,7 +448,7 @@ describe("environment customImage setup routes", () => {
       },
     });
 
-    const res = await request(createApp(boardActor()))
+    const res = await request(createApp(operatorActor()))
       .post("/api/environment-custom-image-setup-sessions/session-1/terminal-session-token")
       .send({});
 
@@ -467,7 +467,7 @@ describe("environment customImage setup routes", () => {
       },
     });
 
-    const unsupportedType = await request(createApp(boardActor()))
+    const unsupportedType = await request(createApp(operatorActor()))
       .post("/api/environment-custom-image-setup-sessions/session-1/terminal-session-token")
       .send({});
 
@@ -483,7 +483,7 @@ describe("environment customImage setup routes", () => {
       },
     });
 
-    const unsupportedShape = await request(createApp(boardActor()))
+    const unsupportedShape = await request(createApp(operatorActor()))
       .post("/api/environment-custom-image-setup-sessions/session-1/terminal-session-token")
       .send({});
 
@@ -506,7 +506,7 @@ describe("environment customImage setup routes", () => {
       },
     });
 
-    const invalidExpiry = await request(createApp(boardActor()))
+    const invalidExpiry = await request(createApp(operatorActor()))
       .post("/api/environment-custom-image-setup-sessions/session-1/terminal-session-token")
       .send({});
 
@@ -522,7 +522,7 @@ describe("environment customImage setup routes", () => {
       },
     });
 
-    const expiredPayload = await request(createApp(boardActor()))
+    const expiredPayload = await request(createApp(operatorActor()))
       .post("/api/environment-custom-image-setup-sessions/session-1/terminal-session-token")
       .send({});
 
@@ -533,7 +533,7 @@ describe("environment customImage setup routes", () => {
   it("denies agent API key actors before customImage state or payloads are read", async () => {
     const app = createApp(agentActor());
     const start = await request(app)
-      .post("/api/environments/env-1/custom-image-setup-sessions?companyId=company-1")
+      .post("/api/environments/env-1/custom-image-setup-sessions?spaceId=space-1")
       .send({});
     const status = await request(app)
       .get("/api/environment-custom-image-setup-sessions/session-1");
@@ -545,11 +545,11 @@ describe("environment customImage setup routes", () => {
     expect(mockEnvironmentCustomImageService.refreshSetupSession).not.toHaveBeenCalled();
   });
 
-  it("denies non-admin board users before connection payload refresh", async () => {
+  it("denies non-admin operator users before connection payload refresh", async () => {
     mockEnvironmentCustomImageService.getSessionById.mockResolvedValue(createSession());
 
-    const res = await request(createApp(boardActor({
-      companyIds: ["company-2"],
+    const res = await request(createApp(operatorActor({
+      spaceIds: ["space-2"],
       isInstanceAdmin: false,
     })))
       .get("/api/environment-custom-image-setup-sessions/session-1");
@@ -559,11 +559,11 @@ describe("environment customImage setup routes", () => {
     expect(mockEnvironmentCustomImageService.refreshSetupSession).not.toHaveBeenCalled();
   });
 
-  it("denies single-company fallback when the board actor is not a member", async () => {
-    mockInstanceSettingsService.listCompanyIds.mockResolvedValue(["company-2"]);
+  it("denies single-space fallback when the operator actor is not a member", async () => {
+    mockInstanceSettingsService.listSpaceIds.mockResolvedValue(["space-2"]);
 
-    const res = await request(createApp(boardActor({
-      companyIds: ["company-1"],
+    const res = await request(createApp(operatorActor({
+      spaceIds: ["space-1"],
       isInstanceAdmin: false,
     })))
       .post("/api/environments/env-1/custom-image-setup-sessions")
@@ -577,7 +577,7 @@ describe("environment customImage setup routes", () => {
     mockEnvironmentCustomImageService.getSessionById.mockResolvedValue(createSession());
     const terminal = environmentCustomImageTerminalSessionStore.create({
       setupSessionId: "session-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       provider: "daytona",
       ssh: { username: "token-secret", host: "203.0.113.10", port: 2222 },
@@ -589,7 +589,7 @@ describe("environment customImage setup routes", () => {
       close: (reason) => closeReasons.push(reason),
     });
 
-    const res = await request(createApp(boardActor()))
+    const res = await request(createApp(operatorActor()))
       .post("/api/environment-custom-image-setup-sessions/session-1/finish")
       .send({ metadata: { safeLabel: "done" } });
 
@@ -613,7 +613,7 @@ describe("environment customImage setup routes", () => {
   it("cancels active sessions without logging lease details", async () => {
     mockEnvironmentCustomImageService.getSessionById.mockResolvedValue(createSession());
 
-    const res = await request(createApp(boardActor()))
+    const res = await request(createApp(operatorActor()))
       .post("/api/environment-custom-image-setup-sessions/session-1/cancel")
       .send({ reason: "operator requested" });
 
@@ -626,13 +626,13 @@ describe("environment customImage setup routes", () => {
     expect(loggedActivityJson()).not.toContain("lease-secret");
   });
 
-  it("rolls back and disables active templates through company-scoped routes", async () => {
-    const app = createApp(boardActor());
+  it("rolls back and disables active templates through space-scoped routes", async () => {
+    const app = createApp(operatorActor());
     const rollback = await request(app)
-      .post("/api/environments/env-1/custom-image-template/rollback?companyId=company-1")
+      .post("/api/environments/env-1/custom-image-template/rollback?spaceId=space-1")
       .send({});
     const disable = await request(app)
-      .delete("/api/environments/env-1/custom-image-template?companyId=company-1&deleteProviderTemplate=true");
+      .delete("/api/environments/env-1/custom-image-template?spaceId=space-1&deleteProviderTemplate=true");
 
     expect(rollback.status).toBe(200);
     expect(disable.status).toBe(200);
@@ -649,9 +649,9 @@ describe("environment customImage setup routes", () => {
     expect(activity).not.toContain("disabled-template-secret");
   });
 
-  it("relinks the active template through the company-scoped route", async () => {
-    const res = await request(createApp(boardActor()))
-      .post("/api/environments/env-1/custom-image-template/relink?companyId=company-1")
+  it("relinks the active template through the space-scoped route", async () => {
+    const res = await request(createApp(operatorActor()))
+      .post("/api/environments/env-1/custom-image-template/relink?spaceId=space-1")
       .send({ confirmBootSourceDrift: true });
 
     expect(res.status).toBe(200);
@@ -666,14 +666,14 @@ describe("environment customImage setup routes", () => {
         runId: null,
         agentApiKeyId: null,
       },
-      companyId: "company-1",
+      spaceId: "space-1",
     });
   });
 
   it("defaults the confirmation flag to false and rejects unknown body keys", async () => {
-    const app = createApp(boardActor());
+    const app = createApp(operatorActor());
     const withoutFlag = await request(app)
-      .post("/api/environments/env-1/custom-image-template/relink?companyId=company-1")
+      .post("/api/environments/env-1/custom-image-template/relink?spaceId=space-1")
       .send({});
     expect(withoutFlag.status).toBe(200);
     expect(mockEnvironmentCustomImageService.relinkActiveTemplate).toHaveBeenCalledExactlyOnceWith(
@@ -683,7 +683,7 @@ describe("environment customImage setup routes", () => {
     // The strict schema rejects unknown keys before the handler runs, so the
     // relink service is never reached for the malformed body.
     const unknownKey = await request(app)
-      .post("/api/environments/env-1/custom-image-template/relink?companyId=company-1")
+      .post("/api/environments/env-1/custom-image-template/relink?spaceId=space-1")
       .send({ confirmBootSourceDrift: false, unexpected: true });
     expect(unknownKey.status).not.toBe(200);
     expect(mockEnvironmentCustomImageService.relinkActiveTemplate).toHaveBeenCalledTimes(1);
@@ -697,8 +697,8 @@ describe("environment customImage setup routes", () => {
       });
     });
 
-    const res = await request(createApp(boardActor()))
-      .post("/api/environments/env-1/custom-image-template/relink?companyId=company-1")
+    const res = await request(createApp(operatorActor()))
+      .post("/api/environments/env-1/custom-image-template/relink?spaceId=space-1")
       .send({});
 
     expect(res.status).toBe(409);
@@ -706,18 +706,18 @@ describe("environment customImage setup routes", () => {
 
   it("denies agent API key actors before the relink service is called", async () => {
     const res = await request(createApp(agentActor()))
-      .post("/api/environments/env-1/custom-image-template/relink?companyId=company-1")
+      .post("/api/environments/env-1/custom-image-template/relink?spaceId=space-1")
       .send({});
     expect(res.status).toBe(403);
     expect(mockEnvironmentCustomImageService.relinkActiveTemplate).not.toHaveBeenCalled();
   });
 
-  it("denies non-admin board users before the relink service is called", async () => {
-    const res = await request(createApp(boardActor({
-      companyIds: ["company-2"],
+  it("denies non-admin operator users before the relink service is called", async () => {
+    const res = await request(createApp(operatorActor({
+      spaceIds: ["space-2"],
       isInstanceAdmin: false,
     })))
-      .post("/api/environments/env-1/custom-image-template/relink?companyId=company-1")
+      .post("/api/environments/env-1/custom-image-template/relink?spaceId=space-1")
       .send({});
     expect(res.status).toBe(403);
     expect(mockEnvironmentCustomImageService.relinkActiveTemplate).not.toHaveBeenCalled();

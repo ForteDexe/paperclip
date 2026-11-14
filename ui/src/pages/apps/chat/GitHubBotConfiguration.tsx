@@ -11,7 +11,7 @@ import {
 import { accessApi } from "@/api/access";
 import { chatEndpointsApi } from "@/api/chatEndpoints";
 import { githubChatApi } from "@/api/githubChat";
-import { useOptionalCompany } from "@/context/CompanyContext";
+import { useOptionalSpace } from "@/context/SpaceContext";
 import { Button } from "@/components/ui/button";
 import {
   AtSign,
@@ -575,22 +575,22 @@ export function GitHubPolicyEditor({
 
 export function GitHubAccessEditor({
   endpointId,
-  companyId,
+  spaceId,
   configuration,
   onChange,
 }: {
   endpointId: string;
-  companyId: string;
+  spaceId: string;
   configuration: GitHubChatConfiguration;
   onChange: (configuration: GitHubChatConfiguration) => void;
 }) {
-  const company = useOptionalCompany()?.companies.find((item) => item.id === companyId);
+  const space = useOptionalSpace()?.spaces.find((item) => item.id === spaceId);
   const accountLink = useRef<HTMLAnchorElement>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [dialog, setDialog] = useState<"member" | "guest" | null>(null);
   const members = useQuery({
-    queryKey: ["github-members", companyId],
-    queryFn: () => accessApi.listMembers(companyId),
+    queryKey: ["github-members", spaceId],
+    queryFn: () => accessApi.listMembers(spaceId),
   });
   const links = useQuery({
     queryKey: ["github-linked-members", endpointId],
@@ -634,14 +634,14 @@ export function GitHubAccessEditor({
       .filter(
         (link) =>
           link.githubUserId &&
-          link.paperclipUserId &&
+          link.outpostUserId &&
           !configuration.people.some(
             (person) => person.githubUserId === link.githubUserId,
           ),
       )
       .map((link): GitHubAllowedPerson => ({
         kind: "member",
-        userId: link.paperclipUserId!,
+        userId: link.outpostUserId!,
         githubUserId: link.githubUserId!,
         login: link.githubLogin ?? link.externalLabel,
       })),
@@ -703,7 +703,7 @@ export function GitHubAccessEditor({
               <p className="text-xs text-muted-foreground">
                 {person.kind === "guest"
                   ? `Sponsored by ${memberName(person.sponsorUserId)}`
-                  : (identity?.paperclipUserLabel ?? "Outpost member")}
+                  : (identity?.outpostUserLabel ?? "Outpost member")}
               </p>
               {!linked && (
                 <p className="mt-1 text-xs text-destructive">
@@ -797,7 +797,7 @@ export function GitHubAccessEditor({
           label="Allow mentions from all linked members"
           description={
             configuration.memberAccess === "all_linked"
-              ? `Includes members from ${company?.name ?? "this outpost"} who link their GitHub account later.`
+              ? `Includes members from ${space?.name ?? "this outpost"} who link their GitHub account later.`
               : "Only members you enable below can mention this bot."
           }
           checked={configuration.memberAccess === "all_linked"}

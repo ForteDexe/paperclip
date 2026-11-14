@@ -11,7 +11,7 @@ const meta = {
   title: "Agents and reusable capabilities/Runs, harnesses, and model accounts/AI Connections/Provider routing/03 Agent",
   component: AgentSetup,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "runs-adapters/validation"
       ],
@@ -81,16 +81,16 @@ export const ChangeConnection: Story = {
       options.getByRole("option", { name: "My ChatGPT subscription" }),
     ).toHaveAttribute("aria-selected", "true");
     await expect(
-      options.getByRole("option", { name: "Company OpenAI" }),
+      options.getByRole("option", { name: "Space OpenAI" }),
     ).toBeVisible();
     await expect(
       options.getByRole("option", { name: "Engineering gateway" }),
     ).toBeVisible();
     await expect(
-      options.getByRole("option", { name: "Company OpenRouter" }),
+      options.getByRole("option", { name: "Space OpenRouter" }),
     ).toBeVisible();
     await expect(
-      options.getByRole("option", { name: "Company Bedrock" }),
+      options.getByRole("option", { name: "Space Bedrock" }),
     ).toBeVisible();
     await expect(
       options.queryByRole("option", { name: "My Claude subscription" }),
@@ -116,7 +116,7 @@ export const ChangeAccountWalkthrough: Story = {
     await userEvent.click(change);
     await userEvent.click(
       within(await body.findByRole("listbox")).getByRole("option", {
-        name: "Company OpenAI",
+        name: "Space OpenAI",
       }),
     );
     await waitFor(() =>
@@ -124,7 +124,7 @@ export const ChangeAccountWalkthrough: Story = {
     );
     await expect(
       canvas.getByRole("combobox", { name: "Connection" }),
-    ).toHaveTextContent("Company OpenAI");
+    ).toHaveTextContent("Space OpenAI");
     await expect(
       canvas.getByRole("group", { name: "Model selection" }),
     ).toHaveTextContent("gpt-5.4");
@@ -158,16 +158,16 @@ export const HarnessConnectionFiltering: Story = {
       options.getByRole("option", { name: "My Claude subscription" }),
     ).toBeVisible();
     await expect(
-      options.getByRole("option", { name: "Company OpenRouter" }),
+      options.getByRole("option", { name: "Space OpenRouter" }),
     ).toBeVisible();
     await expect(
-      options.getByRole("option", { name: "Company Bedrock" }),
+      options.getByRole("option", { name: "Space Bedrock" }),
     ).toBeVisible();
     for (const name of [
       "My ChatGPT subscription",
-      "Company OpenAI",
+      "Space OpenAI",
       "Engineering gateway",
-      "Company Gemini",
+      "Space Gemini",
       "Local model service",
     ]) {
       await expect(

@@ -101,7 +101,7 @@ export function projectTaskChatThread(issue: Row, comments: Row[], interactions:
  * when the journey has restored the disabled Agent Chat setting. */
 export async function captureTaskChat(input: {
   get: <T>(route: string) => Promise<T>;
-  companyId: string;
+  spaceId: string;
   issueIds?: readonly string[];
   secrets: readonly string[];
 }): Promise<TaskChatEvidence> {
@@ -115,16 +115,16 @@ export async function captureTaskChat(input: {
   const issues = new Map<string, Row>();
   let names = new Map<string, string>();
   try {
-    names = new Map(rows(await get(`/api/companies/${input.companyId}/agents`)).map(agent => [agent.id, text(agent.name) || "Agent"]));
+    names = new Map(rows(await get(`/api/spaces/${input.spaceId}/agents`)).map(agent => [agent.id, text(agent.name) || "Agent"]));
   } catch { evidence.missing.push("agent-names"); }
   try {
     let cursor = "";
     for (let page = 0; ; page++) {
       if (page === 100) throw new Error("Task discovery exceeded page bound");
-      const batch = rows(await get(`/api/companies/${input.companyId}/issues?includeAgentCreatedTasks=true&includeRoutineExecutions=true&includePluginOperations=true&sortField=id&sortDir=asc&limit=100${cursor ? `&afterId=${encodeURIComponent(cursor)}` : ""}`));
+      const batch = rows(await get(`/api/spaces/${input.spaceId}/issues?includeAgentCreatedTasks=true&includeRoutineExecutions=true&includePluginOperations=true&sortField=id&sortDir=asc&limit=100${cursor ? `&afterId=${encodeURIComponent(cursor)}` : ""}`));
       if (batch.length > 100) throw new Error("Oversized task discovery page");
       for (const issue of batch) {
-        if (!text(issue.id) || issue.id <= cursor || issues.has(issue.id) || issue.companyId !== input.companyId) throw new Error("Invalid task discovery page");
+        if (!text(issue.id) || issue.id <= cursor || issues.has(issue.id) || issue.spaceId !== input.spaceId) throw new Error("Invalid task discovery page");
         issues.set(issue.id, issue);
         cursor = issue.id;
       }
@@ -134,8 +134,8 @@ export async function captureTaskChat(input: {
   // Avoid a disabled-chat 404: the setting is often restored by the journey.
   try {
     const settings = await get<Row>("/api/instance/settings/experimental");
-    if (settings.enableAgentChat) for (const issue of rows(await get(`/api/companies/${input.companyId}/chats`))) {
-      if (issue.companyId !== input.companyId || !text(issue.id)) throw new Error("Foreign chat");
+    if (settings.enableAgentChat) for (const issue of rows(await get(`/api/spaces/${input.spaceId}/chats`))) {
+      if (issue.spaceId !== input.spaceId || !text(issue.id)) throw new Error("Foreign chat");
       issues.set(issue.id, issue);
     }
   } catch { evidence.missing.push("chat-discovery"); }
@@ -143,7 +143,7 @@ export async function captureTaskChat(input: {
     if (issues.has(id)) continue;
     try {
       const issue = await get<Row>(`/api/issues/${encodeURIComponent(id)}`);
-      if (issue.companyId !== input.companyId || issue.id !== id) throw new Error("Foreign task");
+      if (issue.spaceId !== input.spaceId || issue.id !== id) throw new Error("Foreign task");
       issues.set(id, issue);
     } catch { evidence.missing.push("task-read"); }
   }

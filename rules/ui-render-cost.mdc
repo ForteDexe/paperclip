@@ -9,7 +9,7 @@ alwaysApply: false
 Applies to components (`ui/src/**/*.tsx`) and hooks (`ui/src/**/use*.ts`) that
 iterate over a collection during render, in a `useMemo`, or in a selector, when
 the collection can be large. Large means hundreds of items or more. Examples are
-catalogs shipped with the app and lists that grow with a company's data, such
+catalogs shipped with the app and lists that grow with a space's data, such
 as tasks, runs, agents, connections and activity.
 
 ## Why

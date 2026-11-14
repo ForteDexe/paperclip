@@ -8,7 +8,7 @@ import {
 
 type PgTable = Parameters<typeof getTableConfig>[0];
 
-const ACTIVE_INDEX = "adapter_auth_sessions_company_owner_adapter_active_uq";
+const ACTIVE_INDEX = "adapter_auth_sessions_space_owner_adapter_active_uq";
 
 function findIndex(table: PgTable, indexName: string) {
   return getTableConfig(table).indexes.find((candidate) => candidate.config.name === indexName);
@@ -43,12 +43,12 @@ function activeIndexMigrationSql(): string {
 }
 
 describe("adapter auth sessions schema", () => {
-  it("serializes the active slot on company, owner, and adapter", () => {
+  it("serializes the active slot on space, owner, and adapter", () => {
     const active = findIndex(adapterAuthSessions, ACTIVE_INDEX);
     expect(active).toBeDefined();
     expect(active?.config.unique).toBe(true);
     expect(indexColumns(adapterAuthSessions, ACTIVE_INDEX)).toEqual([
-      "company_id",
+      "space_id",
       "started_by_user_id",
       "adapter_type",
     ]);
@@ -109,7 +109,7 @@ describe("adapter auth sessions schema", () => {
   it("generates the partial unique index over the merged active states", () => {
     const sql = activeIndexMigrationSql();
     expect(sql).toContain(`CREATE UNIQUE INDEX "${ACTIVE_INDEX}"`);
-    expect(sql).toContain('("company_id","started_by_user_id","adapter_type")');
+    expect(sql).toContain('("space_id","started_by_user_id","adapter_type")');
     expect(sql).toContain(
       "'starting', 'waiting_for_user', 'promoting', 'awaiting_code', 'submitting'",
     );

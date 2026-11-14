@@ -5,9 +5,9 @@ import path from "node:path";
 import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRuns } from "@outpost/db";
-import { companySkillRoutes } from "../routes/company-skills.js";
-import { companySkillService } from "../services/company-skills.js";
+import { agents, spaces, createDb, heartbeatRuns } from "@outpost/db";
+import { spaceSkillRoutes } from "../routes/space-skills.js";
+import { spaceSkillService } from "../services/space-skills.js";
 import { agentRoutes } from "../routes/agents.js";
 import { errorHandler } from "../middleware/error-handler.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -29,15 +29,15 @@ if (!support.supported) console.warn(`Planning fixture API calibration skipped: 
   let api: Pick<RunnerApi, "get" | "post">;
   let app: express.Express;
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-plan-fixture-");
-    root = await mkdtemp(path.join(os.tmpdir(), "paperclip-plan-fixture-home-"));
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-plan-fixture-");
+    root = await mkdtemp(path.join(os.tmpdir(), "outpost-plan-fixture-home-"));
     process.env.OUTPOST_HOME = root;
     process.env.OUTPOST_INSTANCE_ID = "default";
     db = createDb(tempDb.connectionString);
     app = express();
     app.use(express.json());
-    app.use((req, _res, next) => { (req as any).actor = { type: "board", source: "local_implicit", isInstanceAdmin: true, userId: "local-board" }; next(); });
-    app.use("/api", companySkillRoutes(db));
+    app.use((req, _res, next) => { (req as any).actor = { type: "operator", source: "local_implicit", isInstanceAdmin: true, userId: "local-operator" }; next(); });
+    app.use("/api", spaceSkillRoutes(db));
     app.use("/api", agentRoutes(db));
     app.use(errorHandler);
     api = {
@@ -60,19 +60,19 @@ if (!support.supported) console.warn(`Planning fixture API calibration skipped: 
     if (root) await rm(root, { recursive: true, force: true });
   });
   it.each(PLAN_VARIANTS)("admits %s through real creation, readback and selection APIs", async variant => {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Planning calibration", issuePrefix: `P${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture Lead", role: "general", adapterType: "outpost_runner", adapterConfig: {} });
-    const before = await api.get<any[]>(`/api/companies/${companyId}/skills`);
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Planning calibration", issuePrefix: `P${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture Lead", role: "general", adapterType: "outpost_runner", adapterConfig: {} });
+    const before = await api.get<any[]>(`/api/spaces/${spaceId}/skills`);
     const bundled = before.find(s => s.key === PLAN_SKILLS[0].key);
     expect(bundled).toBeDefined();
-    const sources = await preparePlanSkills(api, companyId, variant);
+    const sources = await preparePlanSkills(api, spaceId, variant);
     expect(sources).toHaveLength(2);
-    expect(sources.every(s => s.key.startsWith(`company/${companyId}/eval-`))).toBe(true);
-    const selected = await selectPlanSkills(api, companyId, agentId, sources);
+    expect(sources.every(s => s.key.startsWith(`space/${spaceId}/eval-`))).toBe(true);
+    const selected = await selectPlanSkills(api, spaceId, agentId, sources);
     const invocations = planInvocations(sources, selected);
     const contextSkills: Array<{ key: string; runtimeName: string; versionId: string; bundle: { rootPath: string } }> = [];
-    await companySkillService(db).withRuntimeSkillEntries(companyId, {
+    await spaceSkillService(db).withRuntimeSkillEntries(spaceId, {
       onlyKeys: new Set(sources.filter(source => source.selected).map(source => source.key)), snapshotLatest: true,
     }, async entries => { for (const source of sources.filter(s => s.selected)) {
       const entry = (selected as any).entries.find((e: any) => e.key === source.key && e.desired);
@@ -94,15 +94,15 @@ if (!support.supported) console.warn(`Planning fixture API calibration skipped: 
     expect(resolveRunnerdCodexSkillInputs(inputs.map(i => ({ ...i })), context, providerHome)).toEqual(inputs.map(i => ({
       ...i, path: path.join(providerHome, "skills", i.name, "SKILL.md"),
     })));
-    await verifyPlanSelection(api, companyId, agentId, sources);
-    await verifyPlanSkills(api, companyId, sources);
-    const after = await api.get<any[]>(`/api/companies/${companyId}/skills`);
+    await verifyPlanSelection(api, spaceId, agentId, sources);
+    await verifyPlanSkills(api, spaceId, sources);
+    const after = await api.get<any[]>(`/api/spaces/${spaceId}/skills`);
     expect(after.find(s => s.key === bundled.key)?.id).toBe(bundled.id);
     expect(after.find(s => s.key === bundled.key)?.markdown).toBe(bundled.markdown);
     expect(await db.select().from(heartbeatRuns)).toHaveLength(0);
     // Fail closed if a later actor changes either selection or source bytes.
     const swapped = sources.map(s => ({ ...s, selected: !s.selected }));
-    await expect(verifyPlanSelection(api, companyId, agentId, swapped)).rejects.toThrow("selection differs");
-    await expect(verifyPlanSkills(api, companyId, [{ ...sources[0]!, sha256: "wrong" }])).rejects.toThrow("guidance changed");
+    await expect(verifyPlanSelection(api, spaceId, agentId, swapped)).rejects.toThrow("selection differs");
+    await expect(verifyPlanSkills(api, spaceId, [{ ...sources[0]!, sha256: "wrong" }])).rejects.toThrow("guidance changed");
   }, 30_000);
 });

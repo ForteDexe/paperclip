@@ -4,7 +4,7 @@ Status: proposed design, for its own reviewed task. Not implemented.
 
 ## Problem
 
-Paperclip keeps a remote sandbox after its run in two cases:
+Outpost keeps a remote sandbox after its run in two cases:
 
 - **Warm reuse** (`reuse_by_environment`): the next turn on the same workspace
   resumes the sandbox.
@@ -106,7 +106,7 @@ retried with backoff.
      the issue attachment and `artifact` work product, the comment, and a
      `workspaceOperations` receipt (`kept_sandbox_salvage`, archive sha256),
      as `quarantineRetainedRoot` already does. `createAttachment` always
-     inserts and assets are unique on `(company_id, object_key)`, so a retry
+     inserts and assets are unique on `(space_id, object_key)`, so a retry
      first looks up an existing receipt or asset by object key and reuses it.
      It never creates a second artifact or comment.
    - The re-stop happens in the single resume window's `finally` (see Fencing),

@@ -17,13 +17,13 @@ describe("concurrent git worktree creation", () => {
 
   /** A clone of an origin repository: each new branch from origin/main records its upstream in .git/config. */
   async function clonedRepository() {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-worktree-race-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-worktree-race-"));
     roots.push(root);
     const origin = path.join(root, "origin");
     await fs.mkdir(origin);
     await git(origin, ["init", "--initial-branch", "main"]);
-    await git(origin, ["config", "user.email", "paperclip@example.com"]);
-    await git(origin, ["config", "user.name", "Paperclip Test"]);
+    await git(origin, ["config", "user.email", "outpost@example.com"]);
+    await git(origin, ["config", "user.name", "Outpost Test"]);
     await fs.writeFile(path.join(origin, "README.md"), "hello\n");
     await git(origin, ["add", "README.md"]);
     await git(origin, ["commit", "-m", "Initial commit"]);
@@ -47,7 +47,7 @@ describe("concurrent git worktree creation", () => {
           repoUrl: null, repoRef: "origin/main" },
         config: { workspaceStrategy: { type: "git_worktree", branchTemplate: "{{issue.identifier}}-{{slug}}" } },
         issue: { id: "issue-lock", identifier: "PAP-900", title: "Locked config" },
-        agent: { id: "agent-1", name: "Codex Coder", companyId: "company-1" },
+        agent: { id: "agent-1", name: "Codex Coder", spaceId: "space-1" },
       });
       expect(workspace).toMatchObject({ created: true, branchCreatedByRuntime: true });
       expect(await git(repoRoot, ["config", "--get", `branch.${workspace.branchName}.remote`])).toBe("origin");
@@ -61,7 +61,7 @@ describe("concurrent git worktree creation", () => {
       repoUrl: null, repoRef: "origin/main" },
     config: { workspaceStrategy: { type: "git_worktree", branchTemplate: "{{issue.identifier}}-{{slug}}" } },
     issue: { id: `issue-${identifier}`, identifier, title: `Task ${identifier}` },
-    agent: { id: "agent-1", name: "Codex Coder", companyId: "company-1" },
+    agent: { id: "agent-1", name: "Codex Coder", spaceId: "space-1" },
   });
 
   it("leaves no half-created branch when the lock outlasts every retry, so a later retry creates it cleanly", async () => {
@@ -128,7 +128,7 @@ describe("concurrent git worktree creation", () => {
         repoUrl: null, repoRef: "origin/main" },
       config: { workspaceStrategy: { type: "git_worktree", branchTemplate: "{{issue.identifier}}-{{slug}}" } },
       issue: { id: `issue-${index}`, identifier: `PAP-${index}`, title: `Concurrent task ${index}` },
-      agent: { id: "agent-1", name: "Codex Coder", companyId: "company-1" },
+      agent: { id: "agent-1", name: "Codex Coder", spaceId: "space-1" },
     })));
     for (const [position, workspace] of workspaces.entries()) {
       // Each task got a fresh branch it owns, not a fallback attach after a failed create.

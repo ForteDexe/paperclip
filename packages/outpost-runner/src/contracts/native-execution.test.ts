@@ -17,7 +17,7 @@ import {
 const input: NativeExecutionInputV1 = {
   schema: "outpost.native-execution-input.v1",
   binding: {
-    companyId: "company-1",
+    spaceId: "space-1",
     runId: "run-1",
     issueId: "issue-1",
     agentId: "agent-1",
@@ -97,7 +97,7 @@ describe("NativeExecutionInputV1", () => {
         bundle: { schema: NATIVE_RUNTIME_ASSET_SCHEMA, digest, manifestDigest: digest, rootPath: "/runtime/instructions", fileCount: 2, totalBytes: 42 },
       },
       skills: [{
-        key: "company/research",
+        key: "space/research",
         runtimeName: "research",
         versionId: "version-1",
         bundle: { schema: NATIVE_RUNTIME_ASSET_SCHEMA, digest, manifestDigest: digest, rootPath: "/runtime/skills/research", fileCount: 2, totalBytes: 42 },
@@ -115,7 +115,7 @@ describe("NativeExecutionInputV1", () => {
       expect(() => parseNativeExecutionInput({ ...preconfigured, executionMode: "plan",
         provider: { kind: "acpx", agent, permissionMode: "approve-all" } })).toThrow("preconfigured ACPX read-only execution is not supported");
     }
-    for (const permissionMode of ["approve-reads", "approve-paperclip", "deny-all"]) {
+    for (const permissionMode of ["approve-reads", "approve-outpost", "deny-all"]) {
       expect(() => parseNativeExecutionInput({ ...preconfigured, provider: { kind: "acpx", agent: "codex", permissionMode } })).toThrow("requires ACPX approve-all");
     }
     expect(() => parseNativeExecutionInput({ ...preconfigured, provider: { kind: "acpx", agent: "codex", permissionMode: "approve-all" } })).toThrow("cannot protect Runner state");
@@ -173,7 +173,7 @@ describe("NativeExecutionInputV1", () => {
       schema: "outpost.native-continuation.v1",
       events: '{"messages":[{"authorType":"user","body":"Just this new comment"}]}',
       completion: { revision: "1", criterionIds: ["objective"],
-        instruction: "Before ending this turn, obtain one accepted paperclip_finish or paperclip_block result. Earlier reports belong to earlier turns; a final message alone does not complete this turn." },
+        instruction: "Before ending this turn, obtain one accepted outpost_finish or outpost_block result. Earlier reports belong to earlier turns; a final message alone does not complete this turn." },
     });
     expect(JSON.stringify(delta)).not.toContain(input.task.title);
     expect(JSON.stringify(delta)).not.toContain(input.completionContract.contract.objective);
@@ -244,7 +244,7 @@ describe("NativeExecutionInputV1", () => {
     const parsed = parseNativeExecutionInput(input);
     const model = buildNativeModelEnvelope(parsed);
     const serialized = JSON.stringify(model);
-    expect(serialized).not.toContain("company-1");
+    expect(serialized).not.toContain("space-1");
     expect(serialized).not.toContain("run-1");
     expect(serialized).not.toContain("opaque-binding");
     expect(model.task.title).toBe("Safe task");
@@ -337,14 +337,14 @@ describe("NativeExecutionInputV1", () => {
           accountId: "123456789012",
           harnessArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:harness/harness-1",
           harnessVersion: "3",
-          endpointArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:harness-endpoint/harness-1/paperclip",
-          endpointQualifier: "paperclip",
+          endpointArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:harness-endpoint/harness-1/outpost",
+          endpointQualifier: "outpost",
           agentRuntimeArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/runtime-1",
           memoryArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:memory/memory-1",
           memoryId: "memory-1",
-          invocationRoleArn: "arn:aws:iam::123456789012:role/paperclip-agentcore-runner",
-          contextBucket: "paperclip-agentcore-context",
-          contextPrefix: "paperclip/runtime",
+          invocationRoleArn: "arn:aws:iam::123456789012:role/outpost-agentcore-runner",
+          contextBucket: "outpost-agentcore-context",
+          contextPrefix: "outpost/runtime",
           contextKmsKeyArn: "arn:aws:kms:us-east-1:123456789012:key/test",
           qualificationRevision: "aws-agentcore-harness-context-v2",
           eventExpiryDays: 90,
@@ -549,7 +549,7 @@ describe("NativeExecutionInputV2 planning", () => {
     });
   });
 
-  it("fails closed when plan mode omits its pinned Paperclip context", () => {
+  it("fails closed when plan mode omits its pinned Outpost context", () => {
     expect(() => parseNativeExecutionInput({ ...planning, planningContext: null }))
       .toThrow("planningContext is required");
     expect(() => parseNativeExecutionInput({
@@ -670,7 +670,7 @@ describe("native task context ownership", () => {
     } },
     { driverKind: "openai_dot_mcp", provider: {
       kind: "openai_dot", model: null,
-      binding: { bindingId: "dot-binding", bindingGeneration: 1, companyId: input.binding.companyId, agentId: input.binding.agentId,
+      binding: { bindingId: "dot-binding", bindingGeneration: 1, spaceId: input.binding.spaceId, agentId: input.binding.agentId,
         acceptByUnixMs: 1_000, expiresAtUnixMs: 2_000 },
     } },
   ])("preserves an unregistered saved prompt for $provider.kind", ({ driverKind, provider }) => {

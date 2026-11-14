@@ -65,15 +65,15 @@ export function agentTaskSettled(state: TaskState, count: number) {
     && state.interactions.every(row => row.status !== "pending");
 }
 
-/** Owned-task observations only: other work in a persistent QA company cannot affect this grade. */
+/** Owned-task observations only: other work in a persistent QA space cannot affect this grade. */
 export function validateAgentTaskState(context: JourneyContext, issueId: string, state: TaskState, maxRuns: number, allowedCancelled: string[] = []) {
   const agent = context.agent!;
-  if (state.currentIssue.id !== issueId || state.currentIssue.companyId !== context.company.id
+  if (state.currentIssue.id !== issueId || state.currentIssue.spaceId !== context.space.id
     || state.currentIssue.assigneeAgentId !== agent.id || state.taskRuns.length > maxRuns) throw new JourneyError("failed", "agent_task_binding_mismatch");
   for (const run of state.taskRuns) {
     const provider = run.runnerProfileJson?.nativeExecutionInput?.provider;
     const boundIssueId = run.issueId ?? run.nativeIssueId ?? run.contextSnapshot?.issueId ?? run.contextSnapshot?.taskId;
-    if (run.companyId !== context.company.id || run.agentId !== agent.id || boundIssueId !== issueId) throw new JourneyError("failed", "agent_run_binding_mismatch");
+    if (run.spaceId !== context.space.id || run.agentId !== agent.id || boundIssueId !== issueId) throw new JourneyError("failed", "agent_run_binding_mismatch");
     // The retired wake stays in the raw record and in the run limit above.
     if (retiredBeforeProviderStart(run)) continue;
     if (!active(run) && (run.runtimeMode !== "native" || run.contextSnapshot?.outpostEnvironment?.id !== context.environmentId
@@ -105,10 +105,10 @@ export async function runAgentJourney(id: AgentJourney, context: JourneyContext,
     if (!passed) throw new JourneyError("failed", id.replaceAll("-", "_"));
   };
   const retain = async (name: string, value: unknown) => writeFile(path.join(options.directory, name), JSON.stringify(value, null, 2), { mode: 0o600 });
-  const open = async (issue: Row) => context.page.goto(`${context.api.origin}/${context.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`, { waitUntil: "domcontentloaded" });
+  const open = async (issue: Row) => context.page.goto(`${context.api.origin}/${context.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`, { waitUntil: "domcontentloaded" });
   const create = async (suffix: string, prompt: string, workMode: "standard" | "planning" = "standard") => {
     const title = `Journey QA ${id}${suffix} ${campaignId}`;
-    const created = await createTaskThroughUi({ page: context.page, origin: context.api.origin, issuePrefix: context.company.issuePrefix,
+    const created = await createTaskThroughUi({ page: context.page, origin: context.api.origin, issuePrefix: context.space.issuePrefix,
       agentName: agent.name, title, prompt, workMode, requireExplicitTitle: true,
       beforeDispatch: () => session.own({ kind: "issue", name: title, journeyId: id }) });
     await session.own({ kind: "issue", name: title, id: created.issueId, journeyId: id });
@@ -133,9 +133,9 @@ export async function runAgentJourney(id: AgentJourney, context: JourneyContext,
     const runs = state.taskRuns.filter(run => run.status === "succeeded");
     if (!runs.length || runs.some(run => !Number.isFinite(Date.parse(run.finishedAt)))) throw new JourneyError("failed", "final_run_time_missing");
     const run = [...runs].sort((a, b) => Date.parse(a.finishedAt) - Date.parse(b.finishedAt)).at(-1)!;
-    const companies = await context.api.get<Row[]>("/api/companies?scope=accessible");
-    if (!Array.isArray(companies) || !companies.some(row => row.id === context.company.id)
-      || companies.some(row => typeof row.issuePrefix !== "string" || !row.issuePrefix)) throw new JourneyError("failed", "reply_company_context_missing");
+    const spaces = await context.api.get<Row[]>("/api/spaces?scope=accessible");
+    if (!Array.isArray(spaces) || !spaces.some(row => row.id === context.space.id)
+      || spaces.some(row => typeof row.issuePrefix !== "string" || !row.issuePrefix)) throw new JourneyError("failed", "reply_space_context_missing");
     await open(issue);
     const receipt = await readBoundTaskFinalReply({ page: context.page, runId: run.id, agentId: agent.id,
       load: async () => {
@@ -143,7 +143,7 @@ export async function runAgentJourney(id: AgentJourney, context: JourneyContext,
           context.api.get(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=${limit}`))]);
         return { run: latest.taskRuns.find(row => row.id === run.id)!, comments: latest.comments, events };
       },
-      expectedText: marker, deadlineAt: options.deadlineAt, knownCompanyPrefixes: companies.map(row => row.issuePrefix) });
+      expectedText: marker, deadlineAt: options.deadlineAt, knownSpacePrefixes: spaces.map(row => row.issuePrefix) });
     await retain(`${issue.id}-final-reply.json`, receipt);
     return receipt;
   };
@@ -172,7 +172,7 @@ export async function runAgentJourney(id: AgentJourney, context: JourneyContext,
     const fixture = runnerTasks.find(task => task.id === id)!;
     const issue = await create("", fixture.buildPrompt(nonce), "planning");
     const receipt = await runPlanRevisionAcceptance({ page: context.page, api: context.api, origin: context.api.origin,
-      issue: { id: issue.id, identifier: issue.identifier }, issuePrefix: context.company.issuePrefix, native: true,
+      issue: { id: issue.id, identifier: issue.identifier }, issuePrefix: context.space.issuePrefix, native: true,
       planMarkers: fixture.buildPlanMarkers!(nonce), revisionRequest: fixture.buildRevisionRequest!(nonce), deadlineAt: options.deadlineAt,
       load: () => read(issue), retryOnError: error => !(error instanceof JourneyError), reject: () => undefined, capture: options.capture });
     await retain("plan-revision.json", receipt);
@@ -196,18 +196,18 @@ export async function runAgentJourney(id: AgentJourney, context: JourneyContext,
     await session.own({ kind: "skill", name: skillName });
     const issue = await create("", prompt);
     const completed = await settled(issue, 1);
-    const skills = await context.api.get<Row[]>(`/api/companies/${context.company.id}/skills`);
+    const skills = await context.api.get<Row[]>(`/api/spaces/${context.space.id}/skills`);
     const owned = skills.filter(skill => skill.slug === skillName && skill.name === skillName);
     check("created-skill-persisted", owned.length === 1);
     const skill = owned[0];
     await session.own({ kind: "skill", name: skillName, id: skill.id });
     const activity = await context.api.get<Row[]>(`/api/issues/${issue.id}/activity`);
-    check("skill-creation-attributed", activity.filter(row => row.action === "company.skill_created" && row.entityId === skill.id
+    check("skill-creation-attributed", activity.filter(row => row.action === "space.skill_created" && row.entityId === skill.id
       && row.runId === completed.taskRuns[0]!.id && row.agentId === agent.id && row.details?.sourceIssueId === issue.id).length === 1);
     await open(issue);
     await editCreatedSkillThroughStudio({ page: context.page, skillId: skill.id, skillName,
       marker: `Studio edit marker: ${campaignId}`, deadlineAt: options.deadlineAt,
-      read: () => context.api.get(`/api/companies/${context.company.id}/skills/${skill.id}`) });
+      read: () => context.api.get(`/api/spaces/${context.space.id}/skills/${skill.id}`) });
     check("skill-studio-edit-persisted");
   } else if (id === "protected-actions") {
     const service = context.fixtures?.reviewService;
@@ -231,7 +231,7 @@ export async function runAgentJourney(id: AgentJourney, context: JourneyContext,
         const nativeFinalReply = await finalReply(issue, final);
         const refreshed = await read(issue);
         const connectionAfter = await context.api.get<Row>(`/api/tool-connections/${service.connectionId}`);
-        const unchanged = (row: Row) => JSON.stringify({ id: row.id, companyId: row.companyId, status: row.status, enabled: row.enabled,
+        const unchanged = (row: Row) => JSON.stringify({ id: row.id, spaceId: row.spaceId, status: row.status, enabled: row.enabled,
           installs: row.installs?.filter((install: Row) => install.targetType === "agent" && install.targetId === agent.id) });
         const checks = gradeConnectionGuidanceDecline({ caseId: "service-decline", decisionId: decision.id,
           decisions: refreshed.interactions as any, leadAgentId: agent.id, issueId: issue.id, replies: refreshed.comments, nativeFinalReply,
@@ -277,7 +277,7 @@ export async function runAgentJourney(id: AgentJourney, context: JourneyContext,
       awaitRetirement: async () => {
         const stopped = await waitFor(options.deadlineAt, () => read(issue), value => {
           const run = value.taskRuns.find(row => row.id === original.id);
-          return run?.status === "cancelled" && nativeStopAcknowledged(run, context.company.id, issue.id, context.user.id);
+          return run?.status === "cancelled" && nativeStopAcknowledged(run, context.space.id, issue.id, context.user.id);
         }, "stop_not_acknowledged");
         await retain("stop-after.json", stopped);
         beforeEvents = await waitFor(options.deadlineAt, async () => {
@@ -290,7 +290,7 @@ export async function runAgentJourney(id: AgentJourney, context: JourneyContext,
       },
       beforeRedirect: async () => {
         const leases = await waitFor(options.deadlineAt, () => context.api.get<Row[]>(`/api/environments/${context.environmentId}/leases`), rows => {
-          const owned = rows.filter(row => row.companyId === context.company.id && row.issueId === issue.id && row.heartbeatRunId === original.id);
+          const owned = rows.filter(row => row.spaceId === context.space.id && row.issueId === issue.id && row.heartbeatRunId === original.id);
           return owned.length > 0 && owned.every(row => ["released", "retained", "expired"].includes(row.status) && row.cleanupStatus === "success");
         }, "stopped_run_resources_not_released");
         await retain("stop-leases.json", leases.filter(row => row.issueId === issue.id && row.heartbeatRunId === original.id));

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { Inbox } from "@/pages/Inbox";
 import { instanceExperimentalSettingsSchema } from "@outpost/shared";
-import { storybookIssues } from "../../fixtures/paperclipData";
+import { storybookIssues } from "../../fixtures/outpostData";
 import {
   prepareFixtureApi,
   type FixtureState,
@@ -17,7 +17,7 @@ const meta = {
   component: InboxHost,
   args: { tab: "mine" },
   parameters: { layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "inbox-search/views"
       ],
@@ -31,12 +31,12 @@ const meta = {
     const api = prepareFixtureApi(
       [
         {
-          path: "/api/companies/company-storybook/issues",
+          path: "/api/spaces/space-storybook/issues",
           read: () =>
             parameters.fixtureState === "empty" ? [] : storybookIssues,
         },
         {
-          path: /^\/api\/companies\/company-storybook\/(approvals|join-requests|heartbeat-runs)$/,
+          path: /^\/api\/spaces\/space-storybook\/(approvals|join-requests|heartbeat-runs)$/,
           read: () => [],
         },
       ],

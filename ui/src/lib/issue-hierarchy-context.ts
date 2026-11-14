@@ -33,7 +33,7 @@ export function includeIssueHierarchyContext(matches: Issue[], context: Issue[])
 
 /** Batch each breadth-first frontier; leaf-heavy lists need one read, not one per task. */
 export async function loadIssueHierarchyChildren(
-  companyId: string,
+  spaceId: string,
   matches: Issue[],
   collapsedParents: string[],
   rowBudget: number,
@@ -61,7 +61,7 @@ export async function loadIssueHierarchyChildren(
       const markers = await readChildren(batch, batch.length, 0, true);
       probes += batch.length;
       for (const child of markers) {
-        if (child.companyId !== companyId || fetched.has(child.id)) continue;
+        if (child.spaceId !== spaceId || fetched.has(child.id)) continue;
         fetched.add(child.id);
         context.push(child);
       }
@@ -77,7 +77,7 @@ export async function loadIssueHierarchyChildren(
         const limit = Math.min(100, rowBudget - loadedRows);
         const rows = await readChildren(parentIds, limit, offset);
         for (const child of rows) {
-          if (child.companyId !== companyId || fetched.has(child.id)) continue;
+          if (child.spaceId !== spaceId || fetched.has(child.id)) continue;
           fetched.add(child.id);
           context.push(child);
           loadedRows += 1;

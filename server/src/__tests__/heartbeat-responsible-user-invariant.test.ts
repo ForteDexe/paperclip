@@ -8,10 +8,10 @@ import {
   agents,
   agentRuntimeState,
   agentWakeupRequests,
-  companies,
+  spaces,
   authUsers,
-  companyMemberships,
-  companySkills,
+  spaceMemberships,
+  spaceSkills,
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -89,7 +89,7 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-responsible-user-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-heartbeat-responsible-user-");
     db = createDb(tempDb.connectionString);
     heartbeat = heartbeatService(db);
     const baseExecute = mockAdapterExecute.getMockImplementation()!;
@@ -120,9 +120,9 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
     await db.delete(agentRuntimeState);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companySkills);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceSkills);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
     await db.delete(authUsers);
   });
 
@@ -130,23 +130,23 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
     await tempDb?.cleanup();
   }, 60_000);
 
-  async function seedCompany() {
-    const companyId = randomUUID();
+  async function seedSpace() {
+    const spaceId = randomUUID();
     const ownerUserId = `owner-${randomUUID()}`;
     const agentId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `R${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `R${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
       defaultResponsibleUserId: ownerUserId,
     });
     await db.insert(authUsers).values({
-      id: ownerUserId, name: "Company owner", email: `${ownerUserId}@example.test`,
+      id: ownerUserId, name: "Space owner", email: `${ownerUserId}@example.test`,
       createdAt: new Date(), updatedAt: new Date(),
     });
-    await db.insert(companyMemberships).values({
-      companyId,
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "user",
       principalId: ownerUserId,
       membershipRole: "owner",
@@ -154,7 +154,7 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "active",
@@ -164,13 +164,13 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
       permissions: {},
     });
 
-    return { companyId, ownerUserId, agentId };
+    return { spaceId, ownerUserId, agentId };
   }
 
-  it("dispatches saved work on readiness with company scoping and normal admission checks", async () => {
-    const { companyId, agentId, ownerUserId } = await seedCompany();
+  it("dispatches saved work on readiness with space scoping and normal admission checks", async () => {
+    const { spaceId, agentId, ownerUserId } = await seedSpace();
     await db.update(agents).set({ status: "paused", lifecycleState: "verifying" }).where(eq(agents.id, agentId));
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "queued",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "queued",
       invocationSource: "on_demand", contextSnapshot: { responsibleUserId: ownerUserId } }).returning();
     const driver = createLifecycleDriver(db, {} as never);
     const currentAgent = async () => (await db.select().from(agents).where(eq(agents.id, agentId)))[0];
@@ -189,24 +189,24 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
   });
 
   it.each(["todo", "done"] as const)("dispatches an interrupted queue on a %s task under the clicking operator through the real startup path", async (status) => {
-    const { companyId, agentId, ownerUserId } = await seedCompany();
+    const { spaceId, agentId, ownerUserId } = await seedSpace();
     const operatorId = `operator-${randomUUID()}`, issueId = randomUUID(), commentId = randomUUID(), queueId = randomUUID();
     await db.insert(authUsers).values({
       id: operatorId, name: "Clicking operator", email: `${operatorId}@example.test`,
       createdAt: new Date(), updatedAt: new Date(),
     });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: operatorId,
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: operatorId,
       membershipRole: "operator", status: "active" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Interrupted queue", status,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Interrupted queue", status,
       assigneeAgentId: agentId, responsibleUserId: ownerUserId });
-    await db.insert(issueComments).values({ id: commentId, companyId, issueId, authorUserId: ownerUserId, body: "Continue the task" });
-    await db.insert(agentWakeupRequests).values({ id: queueId, companyId, agentId,
+    await db.insert(issueComments).values({ id: commentId, spaceId, issueId, authorUserId: ownerUserId, body: "Continue the task" });
+    await db.insert(agentWakeupRequests).values({ id: queueId, spaceId, agentId,
       source: "automation", status: "deferred_issue_execution", requestedByActorType: "system",
       payload: { issueId, commentId, queuedCommentInterrupt: { actorId: operatorId, requestedAt: new Date().toISOString() },
-        _paperclipWakeContext: { wakeCommentIds: [commentId], responsibleUserId: ownerUserId,
+        _outpostWakeContext: { wakeCommentIds: [commentId], responsibleUserId: ownerUserId,
           retryOfRunId: randomUUID(), originIdentityContextId: randomUUID() } },
     });
-    await heartbeat.resumeQueuedCommentInterrupt(companyId, queueId);
+    await heartbeat.resumeQueuedCommentInterrupt(spaceId, queueId);
     const [receipt] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, queueId));
     expect(receipt.status).toBe("coalesced");
     const completed = await waitForRun(db, receipt.runId!);
@@ -216,10 +216,10 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
     expect(completed?.contextSnapshot?.originIdentityContextId).toBeUndefined();
     expect(completed?.contextSnapshot?.retryOfRunId).toBeUndefined();
     expect(completed?.contextSnapshot?.wakeCommentIds).toEqual([commentId]);
-    await heartbeat.resumeQueuedCommentInterrupt(companyId, queueId);
+    await heartbeat.resumeQueuedCommentInterrupt(spaceId, queueId);
     expect(mockAdapterExecute).toHaveBeenCalledOnce();
     await drainHeartbeatRunsToQuiescence(db, heartbeat);
-    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
+    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId));
     expect(runs.every(run => run.responsibleUserId === operatorId && run.status === "succeeded")).toBe(true);
     expect((await db.select().from(issueComments).where(eq(issueComments.id, commentId)))[0].authorUserId).toBe(ownerUserId);
   });
@@ -229,45 +229,45 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
     { status: "done", explicitSend: false, paused: false },
     { status: "done", explicitSend: true, paused: true },
   ] as const)("keeps saved input held on $status with explicit Send=$explicitSend", async ({ status, explicitSend, paused }) => {
-    const { companyId, agentId, ownerUserId } = await seedCompany();
+    const { spaceId, agentId, ownerUserId } = await seedSpace();
     const issueId = randomUUID(), commentId = randomUUID(), queueId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Saved follow-up", status,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Saved follow-up", status,
       assigneeAgentId: agentId, responsibleUserId: ownerUserId });
-    await db.insert(issueComments).values({ id: commentId, companyId, issueId,
+    await db.insert(issueComments).values({ id: commentId, spaceId, issueId,
       authorUserId: ownerUserId, body: "Show the unread count as a number" });
-    await db.insert(agentWakeupRequests).values({ id: queueId, companyId, agentId,
+    await db.insert(agentWakeupRequests).values({ id: queueId, spaceId, agentId,
       source: "automation", reason: "issue_commented", status: "deferred_issue_execution",
       requestedByActorType: "user", requestedByActorId: ownerUserId,
-      payload: { issueId, commentId, _paperclipWakeContext: { wakeCommentIds: [commentId] },
+      payload: { issueId, commentId, _outpostWakeContext: { wakeCommentIds: [commentId] },
         ...(explicitSend ? { queuedCommentInterrupt: { actorId: ownerUserId, requestedAt: new Date().toISOString() } } : {}) },
     });
     if (paused) {
       await db.update(agents).set({ status: "paused" }).where(eq(agents.id, agentId));
-      await expect(heartbeat.resumeQueuedCommentInterrupt(companyId, queueId)).rejects.toThrow();
-    } else if (explicitSend) await heartbeat.resumeQueuedCommentInterrupt(companyId, queueId);
-    else await heartbeat.resumeExecutionWaitComments({ companyId, requestId: queueId });
+      await expect(heartbeat.resumeQueuedCommentInterrupt(spaceId, queueId)).rejects.toThrow();
+    } else if (explicitSend) await heartbeat.resumeQueuedCommentInterrupt(spaceId, queueId);
+    else await heartbeat.resumeExecutionWaitComments({ spaceId, requestId: queueId });
     const [receipt] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, queueId));
     expect(receipt).toMatchObject({ status: "deferred_issue_execution", runId: null });
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId))).toEqual([]);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId))).toEqual([]);
     expect(mockAdapterExecute).not.toHaveBeenCalled();
     expect((await db.select().from(issues).where(eq(issues.id, issueId)))[0].status).toBe(status);
   });
 
-  it("keeps a board manual wake under its caller even when it adopts someone else's queue", async () => {
-    const { companyId, agentId, ownerUserId } = await seedCompany();
+  it("keeps a operator manual wake under its caller even when it adopts someone else's queue", async () => {
+    const { spaceId, agentId, ownerUserId } = await seedSpace();
     const operatorId = `operator-${randomUUID()}`, issueId = randomUUID(), commentId = randomUUID(), queueId = randomUUID();
     await db.insert(authUsers).values({
       id: operatorId, name: "Clicking operator", email: `${operatorId}@example.test`,
       createdAt: new Date(), updatedAt: new Date(),
     });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: operatorId,
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: operatorId,
       membershipRole: "operator", status: "active" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Manual wake", status: "todo",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Manual wake", status: "todo",
       assigneeAgentId: agentId, responsibleUserId: ownerUserId });
-    await db.insert(issueComments).values({ id: commentId, companyId, issueId, authorUserId: ownerUserId, body: "Pending work" });
-    await db.insert(agentWakeupRequests).values({ id: queueId, companyId, agentId,
+    await db.insert(issueComments).values({ id: commentId, spaceId, issueId, authorUserId: ownerUserId, body: "Pending work" });
+    await db.insert(agentWakeupRequests).values({ id: queueId, spaceId, agentId,
       source: "automation", reason: "issue_commented", status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: ownerUserId,
-      payload: { issueId, commentId, _paperclipWakeContext: { wakeCommentIds: [commentId] } },
+      payload: { issueId, commentId, _outpostWakeContext: { wakeCommentIds: [commentId] } },
     });
     const run = await heartbeat.wakeup(agentId, { manualUserWake: true, source: "on_demand", triggerDetail: "manual",
       payload: { issueId }, requestedByActorType: "user", requestedByActorId: operatorId,
@@ -283,15 +283,15 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
   });
 
   it("keeps the clicking user when a manual wake merges into an older deferred receipt", async () => {
-    const { companyId, agentId, ownerUserId } = await seedCompany();
+    const { spaceId, agentId, ownerUserId } = await seedSpace();
     const operatorId = `operator-${randomUUID()}`, issueId = randomUUID(), commentId = randomUUID(), queueId = randomUUID();
     await db.insert(authUsers).values({
       id: operatorId, name: "Clicking operator", email: `${operatorId}@example.test`,
       createdAt: new Date(), updatedAt: new Date(),
     });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: operatorId,
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: operatorId,
       membershipRole: "operator", status: "active" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Deferred manual wake", status: "todo",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Deferred manual wake", status: "todo",
       assigneeAgentId: agentId, responsibleUserId: ownerUserId });
     let finish!: () => void;
     const blocked = new Promise<void>(resolve => { finish = resolve; });
@@ -301,11 +301,11 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
       requestedByActorType: "user", requestedByActorId: ownerUserId });
     try {
       await vi.waitFor(() => expect(mockAdapterExecute).toHaveBeenCalled(), { timeout: 5_000 });
-      await db.insert(issueComments).values({ id: commentId, companyId, issueId, authorUserId: ownerUserId, body: "Pending work" });
-      await db.insert(agentWakeupRequests).values({ id: queueId, companyId, agentId,
+      await db.insert(issueComments).values({ id: commentId, spaceId, issueId, authorUserId: ownerUserId, body: "Pending work" });
+      await db.insert(agentWakeupRequests).values({ id: queueId, spaceId, agentId,
         source: "automation", reason: "issue_commented", status: "deferred_issue_execution",
         requestedByActorType: "user", requestedByActorId: ownerUserId,
-        payload: { issueId, commentId, _paperclipWakeContext: { wakeCommentIds: [commentId] } },
+        payload: { issueId, commentId, _outpostWakeContext: { wakeCommentIds: [commentId] } },
       });
       expect(await heartbeat.wakeup(agentId, { manualUserWake: true, source: "on_demand", triggerDetail: "manual",
         payload: { issueId }, requestedByActorType: "user", requestedByActorId: operatorId,
@@ -324,13 +324,13 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
   });
 
   it("starts an unscoped manual wake with its own user instead of joining another user's run", async () => {
-    const { companyId, agentId, ownerUserId } = await seedCompany();
+    const { spaceId, agentId, ownerUserId } = await seedSpace();
     const operatorId = `operator-${randomUUID()}`;
     await db.insert(authUsers).values({
       id: operatorId, name: "Clicking operator", email: `${operatorId}@example.test`,
       createdAt: new Date(), updatedAt: new Date(),
     });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: operatorId,
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: operatorId,
       membershipRole: "operator", status: "active" });
     let finish!: () => void;
     const blocked = new Promise<void>(resolve => { finish = resolve; });
@@ -354,9 +354,9 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
   });
 
   it("denies a manual wake of another user's private conversation", async () => {
-    const { companyId, agentId, ownerUserId } = await seedCompany();
+    const { spaceId, agentId, ownerUserId } = await seedSpace();
     const issueId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Private conversation", status: "todo",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Private conversation", status: "todo",
       assigneeAgentId: agentId, responsibleUserId: ownerUserId, conversationAgentId: agentId, conversationUserId: ownerUserId, conversationState: "active" });
     await expect(heartbeat.wakeup(agentId, { manualUserWake: true, source: "on_demand", triggerDetail: "manual",
       payload: { issueId }, requestedByActorType: "user", requestedByActorId: "another-user" })).rejects.toThrow("conversation owner");
@@ -365,7 +365,7 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
   });
 
   it("does not accept a caller-supplied manual-wake authority marker", async () => {
-    const { companyId, agentId, ownerUserId } = await seedCompany();
+    const { spaceId, agentId, ownerUserId } = await seedSpace();
     const run = await heartbeat.wakeup(agentId, { source: "on_demand", triggerDetail: "manual",
       requestedByActorType: "agent", requestedByActorId: agentId, payload: { manualUserWake: true },
       contextSnapshot: { responsibleUserId: ownerUserId } });
@@ -375,15 +375,15 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
   });
 
   it("uses the issue responsible user for automated dependency wakes without a message context", async () => {
-    const { companyId, agentId } = await seedCompany();
+    const { spaceId, agentId } = await seedSpace();
     const issueResponsibleUserId = `issue-owner-${randomUUID()}`;
     const commenterUserId = `commenter-${randomUUID()}`;
     await db.insert(authUsers).values([issueResponsibleUserId, commenterUserId].map(id => ({ id, name: "Fixture user", email: `${id}@example.test`, createdAt: new Date(), updatedAt: new Date() })));
-    await db.insert(companyMemberships).values([issueResponsibleUserId, commenterUserId].map(principalId => ({ companyId, principalType: "user" as const, principalId, status: "active", membershipRole: "member" })));
+    await db.insert(spaceMemberships).values([issueResponsibleUserId, commenterUserId].map(principalId => ({ spaceId, principalType: "user" as const, principalId, status: "active", membershipRole: "member" })));
     const issueId = randomUUID();
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Issue-owned work",
       status: "todo",
       assigneeAgentId: agentId,
@@ -433,16 +433,16 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
   it.each(["issue_commented"])(
     "uses the persisted message author for %s without changing issue ownership",
     async (wakeReason) => {
-      const { companyId, agentId } = await seedCompany();
+      const { spaceId, agentId } = await seedSpace();
       const issueResponsibleUserId = `issue-owner-${randomUUID()}`;
       const commenterUserId = `commenter-${randomUUID()}`;
       await db.insert(authUsers).values([issueResponsibleUserId, commenterUserId].map(id => ({ id, name: "Fixture user", email: `${id}@example.test`, createdAt: new Date(), updatedAt: new Date() })));
-      await db.insert(companyMemberships).values([issueResponsibleUserId, commenterUserId].map(principalId => ({ companyId, principalType: "user" as const, principalId, status: "active", membershipRole: "member" })));
+      await db.insert(spaceMemberships).values([issueResponsibleUserId, commenterUserId].map(principalId => ({ spaceId, principalType: "user" as const, principalId, status: "active", membershipRole: "member" })));
       const issueId = randomUUID();
       const commentId = randomUUID();
       await db.insert(issues).values({
         id: issueId,
-        companyId,
+        spaceId,
         title: "Message-authored work",
         status: "todo",
         assigneeAgentId: agentId,
@@ -450,7 +450,7 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
       });
       await db.insert(issueComments).values({
         id: commentId,
-        companyId,
+        spaceId,
         issueId,
         authorUserId: commenterUserId,
         body: `Current request for ${wakeReason}`,
@@ -474,14 +474,14 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
       const [issue] = await db.select().from(issues).where(eq(issues.id, issueId));
       expect(issue?.responsibleUserId).toBe(issueResponsibleUserId);
       await drainHeartbeatRunsToQuiescence(db, heartbeat);
-      const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
+      const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId));
       expect(runs.every(row => row.responsibleUserId === commenterUserId)).toBe(true);
       expect(mockAdapterExecute).toHaveBeenCalledTimes(runs.length);
     },
   );
 
   it("uses the triggering user for manual UI/API runs", async () => {
-    const { agentId } = await seedCompany();
+    const { agentId } = await seedSpace();
     const triggeringUserId = `manual-${randomUUID()}`;
     const run = await heartbeat.wakeup(agentId, {
       source: "on_demand",
@@ -495,8 +495,8 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
     expect(completed?.responsibleUserId).toBe(triggeringUserId);
   });
 
-  it("falls back to the company default for system-originated runs without an issue", async () => {
-    const { agentId, ownerUserId } = await seedCompany();
+  it("falls back to the space default for system-originated runs without an issue", async () => {
+    const { agentId, ownerUserId } = await seedSpace();
     const run = await heartbeat.wakeup(agentId, {
       source: "automation",
       triggerDetail: "system",
@@ -512,12 +512,12 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
   });
 
   it("does not use an issue creator as an implicit responsible user for automated issue runs", async () => {
-    const { companyId, agentId, ownerUserId } = await seedCompany();
+    const { spaceId, agentId, ownerUserId } = await seedSpace();
     const creatorUserId = `creator-${randomUUID()}`;
     const issueId = randomUUID();
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Creator is not credential owner",
       status: "todo",
       assigneeAgentId: agentId,
@@ -540,17 +540,17 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
   });
 
   it("fails automated issue dispatch instead of falling back to the issue creator when no default exists", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Creator-only",
-      issuePrefix: `C${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      issuePrefix: `C${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "active",
@@ -561,7 +561,7 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Creator-only issue",
       status: "todo",
       assigneeAgentId: agentId,
@@ -584,21 +584,21 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
     const runs = await db
       .select()
       .from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, agentId)));
+      .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, agentId)));
     expect(runs).toHaveLength(0);
   });
 
   it("fails dispatch before creating a run when no responsible user can be resolved", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Ownerless",
-      issuePrefix: `O${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      issuePrefix: `O${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "active",
@@ -620,7 +620,7 @@ describeEmbeddedPostgres("heartbeat responsible-user invariant", () => {
     const runs = await db
       .select()
       .from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, agentId)));
+      .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, agentId)));
     expect(runs).toHaveLength(0);
   });
 });

@@ -9,7 +9,7 @@ export const getApprovalContextAction = {
     "placement": "optional_agent_tool",
     "optionalGroup": null,
     "requiredClaims": [
-      "governance:approvals:read"
+      "approvals:approvals:read"
     ],
     "taskModes": [
       "standard",
@@ -55,7 +55,7 @@ export const getApprovalContextAction = {
       "description": "Read one approval, its comments, and linked tasks.",
       "exposure": "optional",
       "requiredClaims": [
-        "governance:approvals:read"
+        "approvals:approvals:read"
       ],
       "allowedModes": [
         "standard",

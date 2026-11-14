@@ -18,13 +18,13 @@ import { SetMyUserSecretDialog } from "./SetMyUserSecretDialog";
  * active definition the user has not set.
  */
 export function MissingUserSecretsBanner({
-  companyId,
+  spaceId,
   definitionKeys,
   title = "Set your user secrets",
   secretsPath,
   className,
 }: {
-  companyId: string;
+  spaceId: string;
   definitionKeys?: string[];
   title?: string;
   /** Optional legacy route for hosts that still expose bulk secret management. */
@@ -34,8 +34,8 @@ export function MissingUserSecretsBanner({
   const [dialogFor, setDialogFor] = useState<MyUserSecretEntry | null>(null);
 
   const mySecretsQuery = useQuery({
-    queryKey: queryKeys.secrets.myUserSecrets(companyId),
-    queryFn: () => secretsApi.listMyUserSecrets(companyId),
+    queryKey: queryKeys.secrets.myUserSecrets(spaceId),
+    queryFn: () => secretsApi.listMyUserSecrets(spaceId),
   });
 
   const keyFilter = definitionKeys ? new Set(definitionKeys) : null;
@@ -92,7 +92,7 @@ export function MissingUserSecretsBanner({
       </div>
 
       <SetMyUserSecretDialog
-        companyId={companyId}
+        spaceId={spaceId}
         definition={dialogFor?.definition ?? null}
         existingSecret={dialogFor?.secret ?? null}
         open={dialogFor !== null}

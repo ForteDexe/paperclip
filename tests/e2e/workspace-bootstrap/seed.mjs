@@ -15,8 +15,8 @@ export async function seedWorkspaceBootstrap(base, persistent = false) {
   };
   const health = await api("/health");
   assert.equal(health.deploymentMode, "local_trusted");
-  const [company] = await api("/companies");
-  assert.equal(company.name, "Workspace Recovery QA");
+  const [space] = await api("/spaces");
+  assert.equal(space.name, "Workspace Recovery QA");
   const source = await mkdtemp(path.join(os.tmpdir(), "workspace-bootstrap-source-"));
   const git = (...args) => execFileSync(process.env.BOOTSTRAP_REAL_GIT || "/usr/bin/git", args, { cwd: source, stdio: "ignore" });
   git("init", "-b", "main");
@@ -28,9 +28,9 @@ export async function seedWorkspaceBootstrap(base, persistent = false) {
   await writeFile(path.join(source, "private.secret"), "test-only secret\n");
   await writeFile(path.join(source, ".git", persistent ? "bootstrap-fail-always" : "bootstrap-fail-once"), "armed\n");
   const suffix = path.basename(source).slice(-6);
-  const project = await api(`/companies/${company.id}/projects`, "POST", { name: `${persistent ? "Persistent scan failure" : "Recoverable repository"} ${suffix}`, status: "in_progress", workspace: { name: "Anchor", cwd: source, isPrimary: true } });
+  const project = await api(`/spaces/${space.id}/projects`, "POST", { name: `${persistent ? "Persistent scan failure" : "Recoverable repository"} ${suffix}`, status: "in_progress", workspace: { name: "Anchor", cwd: source, isPrimary: true } });
   await api(`/projects/${project.id}/workspaces`, "POST", { name: "Source copy", cwd: source, repoUrl: pathToFileURL(source).href, isPrimary: false });
-  const agent = await api(`/companies/${company.id}/agents`, "POST", {
+  const agent = await api(`/spaces/${space.id}/agents`, "POST", {
     name: `${persistent ? "Persistent failure worker" : "Recovery worker"} ${suffix}`, role: "engineer", adapterType: "process",
     adapterConfig: { command: process.execPath, args: [path.resolve(import.meta.dirname, "worker.mjs")], cwd: source,
       workspaceRuntime: { services: [{ name: "fixture-web", lifecycle: "ephemeral", stopPolicy: { type: "on_run_finish" },
@@ -40,7 +40,7 @@ export async function seedWorkspaceBootstrap(base, persistent = false) {
     },
     runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },
   });
-  return { base, companyId: company.id, prefix: company.issuePrefix, projectId: project.id, agentId: agent.id, agentName: agent.name, projectName: project.name, source };
+  return { base, spaceId: space.id, prefix: space.issuePrefix, projectId: project.id, agentId: agent.id, agentName: agent.name, projectName: project.name, source };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

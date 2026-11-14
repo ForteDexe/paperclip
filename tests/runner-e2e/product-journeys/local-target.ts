@@ -24,9 +24,9 @@ export const provider: TargetProvider = {
         if (Object.keys(input.config.baseline.features).length) await api.patch("/api/instance/settings/experimental", input.config.baseline.features);
         const effective = await api.get<Record<string, unknown>>("/api/instance/settings/experimental");
         if (Object.entries(input.config.baseline.features).some(([key, value]) => effective[key] !== value)) throw new JourneyError("failed", "configuration_did_not_converge");
-        const company = await api.post<{ id: string; issuePrefix: string }>("/api/companies", { name: `Journey QA ${input.campaignId}` });
+        const space = await api.post<{ id: string; issuePrefix: string }>("/api/spaces", { name: `Journey QA ${input.campaignId}` });
         const { user } = await api.get<{ user: { id: string; name: string } }>("/api/auth/get-session");
-        return { page, api, company, user, identity: await identity(), capabilities: ["company", "board-user", "task-write"], startingState: "recipe" };
+        return { page, api, space, user, identity: await identity(), capabilities: ["space", "board-user", "task-write"], startingState: "recipe" };
       },
       identity,
       async own() { /* Entire managed database belongs to this attempt. */ },

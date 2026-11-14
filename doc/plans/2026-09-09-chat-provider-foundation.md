@@ -21,9 +21,9 @@ The foundation exports the connection-purpose type needed by the schema, but
 does not add the channel transport or application kind to existing consumers.
 Durable command-registration and Teams transfer stores remain in the second
 change alongside their service authorization. Tenant foreign keys bind task,
-agent, comment, delivery, and action references to their company. Nullable
+agent, comment, delivery, and action references to their space. Nullable
 deletion uses an ID-only `SET NULL` action plus a tenant `NO ACTION` constraint,
-so deleting a parent cannot clear the required company ID. Action references to
+so deleting a parent cannot clear the required space ID. Action references to
 conversation and principal retain history instead of silently detaching it.
 These corrections use forward migrations; historical SQL remains unchanged.
 
@@ -34,7 +34,7 @@ callback context before starting a Gateway connection.
 
 ## Second change: gated service and Board integration
 
-Add company-scoped durable admission, identity and reach authorization, leases,
+Add space-scoped durable admission, identity and reach authorization, leases,
 queues, publications, native controls, and the Board user journey. This includes
 the provider-specific registration and service wiring for Slack, Discord,
 Telegram, Teams, and GitHub. Keep activation behind the experimental channel

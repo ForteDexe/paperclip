@@ -1,9 +1,9 @@
 {
   "app": {
-    "noCompanies": {
+    "noSpaces": {
       "title": "Hozza létre első vállalatát",
       "description": "Kezdje egy vállalat létrehozásával.",
-      "newCompany": "Új vállalat"
+      "newSpace": "Új vállalat"
     }
   }
 }

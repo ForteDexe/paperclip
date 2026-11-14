@@ -10,18 +10,18 @@ import { AppLogo } from "../apps/AppLogo";
 
 const SHOWN_LOGOS = 3;
 
-export function AgentAllowedConnectors({ agentId, companyId }: { agentId: string; companyId: string }) {
+export function AgentAllowedConnectors({ agentId, spaceId }: { agentId: string; spaceId: string }) {
   const effective = useQuery({
-    queryKey: queryKeys.tools.effectiveProfilesForAgent(companyId, agentId),
-    queryFn: () => toolsApi.getEffectiveProfilesForAgent(companyId, agentId),
+    queryKey: queryKeys.tools.effectiveProfilesForAgent(spaceId, agentId),
+    queryFn: () => toolsApi.getEffectiveProfilesForAgent(spaceId, agentId),
   });
   const connections = useQuery({
-    queryKey: queryKeys.tools.connections(companyId),
-    queryFn: () => toolsApi.listConnections(companyId),
+    queryKey: queryKeys.tools.connections(spaceId),
+    queryFn: () => toolsApi.listConnections(spaceId),
   });
   const applications = useQuery({
-    queryKey: queryKeys.tools.applications(companyId),
-    queryFn: () => toolsApi.listApplications(companyId),
+    queryKey: queryKeys.tools.applications(spaceId),
+    queryFn: () => toolsApi.listApplications(spaceId),
   });
 
   const apps = useMemo(() => {

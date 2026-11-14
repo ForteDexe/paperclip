@@ -21,18 +21,18 @@ Capability ID: `chat-channels/providers`.
 
 Review: `operation-reviewed`.
 
-### `get-companies-chat-endpoints`
+### `get-spaces-chat-endpoints`
 
-API: `present` — `GET /api/companies/{companyId}/chat-endpoints`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/chat-endpoints`; JSON REST.
 Agent access: `available` — agent REST and default native `search_api` / `call_api`.
 Policy: `tools:manage_connections`; [shared management policy](../../doc/plans/2026-10-13-connection-api-parity.md#authorization-contract). Resolved resources and every affected target are checked; personal ownership remains the responsible user.
 Evidence: `source-only` — [route](../../server/src/routes/chat-channels.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: This individual operation has source review but no recorded HTTP verification. Provider availability and live setup remain unqualified.
 
-### `post-companies-chat-endpoints`
+### `post-spaces-chat-endpoints`
 
-API: `present` — `POST /api/companies/{companyId}/chat-endpoints`; JSON REST.
+API: `present` — `POST /api/spaces/{spaceId}/chat-endpoints`; JSON REST.
 Agent access: `available` — agent REST and default native `search_api` / `call_api`.
 Policy: `tools:manage_connections`; [shared management policy](../../doc/plans/2026-10-13-connection-api-parity.md#authorization-contract). Resolved resources and every affected target are checked; personal ownership remains the responsible user.
 Evidence: `verified` — [route](../../server/src/routes/chat-channels.ts); reviewed in the working tree based on the source commit above. [Authenticated fixtures](../../server/src/__tests__/connection-management.integration.test.ts) passed with database persistence and actual bearer/session middleware.
@@ -48,9 +48,9 @@ Evidence: `verified` — [route](../../server/src/routes/chat-channels.ts); revi
 Verification: `passed` — deterministic provider fixtures / local assembled server; no live provider qualification.
 Gaps: Provider fixtures do not qualify live provider setup or availability.
 
-### `get-companies-chat-slack-setup-options`
+### `get-spaces-chat-slack-setup-options`
 
-API: `present` — `GET /api/companies/{companyId}/chat-slack/setup-options`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/chat-slack/setup-options`; JSON REST.
 Agent access: `available` — agent REST and default native `search_api` / `call_api`.
 Policy: `tools:manage_connections`; [shared management policy](../../doc/plans/2026-10-13-connection-api-parity.md#authorization-contract). Resolved resources and every affected target are checked; personal ownership remains the responsible user.
 Evidence: `source-only` — [route](../../server/src/routes/chat-channels.ts); reviewed in the working tree based on the source commit above.
@@ -70,14 +70,14 @@ Gaps: This individual operation has source review but no recorded HTTP verificat
 
 API: `present` — `POST /api/chat-endpoints/{endpointId}/slack/managed/provision`; JSON REST.
 Agent access: `available` — agent REST and default native `search_api` / `call_api`.
-Policy: `tools:manage_connections`; [shared management policy](../../doc/plans/2026-10-13-connection-api-parity.md#authorization-contract). Resolved resources and every affected target are checked. The request body's grantId resolves from the Slack manager-grant registry; its company and owner must match the endpoint and current responsible user. A tool-connection grant does not authorize Slack provisioning.
+Policy: `tools:manage_connections`; [shared management policy](../../doc/plans/2026-10-13-connection-api-parity.md#authorization-contract). Resolved resources and every affected target are checked. The request body's grantId resolves from the Slack manager-grant registry; its space and owner must match the endpoint and current responsible user. A tool-connection grant does not authorize Slack provisioning.
 Evidence: `source-only` — [route](../../server/src/routes/chat-channels.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: This individual operation has source review but no recorded HTTP verification. Provider availability and live setup remain unqualified.
 
-### `delete-companies-chat-slack-manager-grants`
+### `delete-spaces-chat-slack-manager-grants`
 
-API: `present` — `DELETE /api/companies/{companyId}/chat-slack/manager-grants/{grantId}`; JSON REST.
+API: `present` — `DELETE /api/spaces/{spaceId}/chat-slack/manager-grants/{grantId}`; JSON REST.
 Agent access: `available` — agent REST and default native `search_api` / `call_api`.
 Policy: `tools:manage_connections`; [shared management policy](../../doc/plans/2026-10-13-connection-api-parity.md#authorization-contract). Resolved resources and every affected target are checked; personal ownership remains the responsible user.
 Evidence: `source-only` — [route](../../server/src/routes/chat-channels.ts); reviewed in the working tree based on the source commit above.
@@ -88,7 +88,7 @@ Gaps: This individual operation has source review but no recorded HTTP verificat
 
 API: `present` — `GET /api/chat-slack/managed/oauth/callback`; browser/provider/MCP protocol.
 Agent access: `restricted` — browser authentication return.
-Policy: Provider state/signature or gateway-token verification, company and resource binding; browser returns require the configuring human. Agent-issued durable gateway tokens retain both issuer and responsible-user authority.
+Policy: Provider state/signature or gateway-token verification, space and resource binding; browser returns require the configuring human. Agent-issued durable gateway tokens retain both issuer and responsible-user authority.
 Evidence: `source-only` — [route](../../server/src/routes/chat-channels.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: Agent invocation is denied by the stated policy. The authorized human or operator must perform this step; this entry does not claim delegated execution.
@@ -115,7 +115,7 @@ Gaps: This individual operation has source review but no recorded HTTP verificat
 
 API: `present` — `GET /api/chat-slack/oauth/callback`; browser/provider/MCP protocol.
 Agent access: `restricted` — browser authentication return.
-Policy: Provider state/signature or gateway-token verification, company and resource binding; browser returns require the configuring human. Agent-issued durable gateway tokens retain both issuer and responsible-user authority.
+Policy: Provider state/signature or gateway-token verification, space and resource binding; browser returns require the configuring human. Agent-issued durable gateway tokens retain both issuer and responsible-user authority.
 Evidence: `source-only` — [route](../../server/src/routes/chat-channels.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: Agent invocation is denied by the stated policy. The authorized human or operator must perform this step; this entry does not claim delegated execution.
@@ -301,72 +301,72 @@ Evidence: `source-only` — [route](../../server/src/routes/chat-channels.ts); r
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: This individual operation has source review but no recorded HTTP verification. Provider availability and live setup remain unqualified.
 
-### `get-companies-email-connections`
+### `get-spaces-email-connections`
 
-API: `present` — `GET /api/companies/{companyId}/email/connections`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/email/connections`; JSON REST.
 Agent access: `available` — agent REST and default native `search_api` / `call_api`.
 Policy: `tools:manage_connections`; [shared management policy](../../doc/plans/2026-10-13-connection-api-parity.md#authorization-contract). Resolved resources and every affected target are checked; personal ownership remains the responsible user.
 Evidence: `verified` — [route](../../server/src/routes/email.ts); reviewed in the working tree based on the source commit above. [Authenticated fixtures](../../server/src/__tests__/connection-management.integration.test.ts) passed with database persistence and actual bearer/session middleware.
 Verification: `passed` — deterministic provider fixtures / local assembled server; no live provider qualification.
 Gaps: Provider fixtures do not qualify live provider setup or availability.
 
-### `post-companies-email-connections`
+### `post-spaces-email-connections`
 
-API: `present` — `POST /api/companies/{companyId}/email/connections`; JSON REST.
+API: `present` — `POST /api/spaces/{spaceId}/email/connections`; JSON REST.
 Agent access: `available` — agent REST and default native `search_api` / `call_api`.
 Policy: `tools:manage_connections`; [shared management policy](../../doc/plans/2026-10-13-connection-api-parity.md#authorization-contract). Resolved resources and every affected target are checked; personal ownership remains the responsible user.
 Evidence: `verified` — [route](../../server/src/routes/email.ts); reviewed in the working tree based on the source commit above. [Authenticated fixtures](../../server/src/__tests__/connection-management.integration.test.ts) passed with database persistence and actual bearer/session middleware.
 Verification: `passed` — deterministic provider fixtures / local assembled server; no live provider qualification.
 Gaps: Provider fixtures do not qualify live provider setup or availability.
 
-### `post-companies-email-connections-inspect`
+### `post-spaces-email-connections-inspect`
 
-API: `present` — `POST /api/companies/{companyId}/email/connections/{connectionId}/inspect`; JSON REST.
+API: `present` — `POST /api/spaces/{spaceId}/email/connections/{connectionId}/inspect`; JSON REST.
 Agent access: `available` — agent REST and default native `search_api` / `call_api`.
 Policy: `tools:manage_connections`; [shared management policy](../../doc/plans/2026-10-13-connection-api-parity.md#authorization-contract). Resolved resources and every affected target are checked; personal ownership remains the responsible user.
 Evidence: `source-only` — [route](../../server/src/routes/email.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: This individual operation has source review but no recorded HTTP verification. Provider availability and live setup remain unqualified.
 
-### `post-companies-email-connections-check-address`
+### `post-spaces-email-connections-check-address`
 
-API: `present` — `POST /api/companies/{companyId}/email/connections/{connectionId}/check-address`; JSON REST.
+API: `present` — `POST /api/spaces/{spaceId}/email/connections/{connectionId}/check-address`; JSON REST.
 Agent access: `available` — agent REST and default native `search_api` / `call_api`.
 Policy: `tools:manage_connections`; [shared management policy](../../doc/plans/2026-10-13-connection-api-parity.md#authorization-contract). Resolved resources and every affected target are checked; personal ownership remains the responsible user.
 Evidence: `source-only` — [route](../../server/src/routes/email.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: This individual operation has source review but no recorded HTTP verification. Provider availability and live setup remain unqualified.
 
-### `get-companies-email-inboxes`
+### `get-spaces-email-inboxes`
 
-API: `present` — `GET /api/companies/{companyId}/email/inboxes`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/email/inboxes`; JSON REST.
 Agent access: `available` — existing REST/native runtime tool or scoped gateway client, as documented by the linked route.
 Policy: Existing run-bound tool, scoped credential lease, execution policy, or assigned-email-agent checks; connection-management grants do not bypass these controls.
 Evidence: `source-only` — [route](../../server/src/routes/email.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: This individual operation has source review but no recorded HTTP verification. Provider availability and live setup remain unqualified.
 
-### `post-companies-email-inspect`
+### `post-spaces-email-inspect`
 
-API: `present` — `POST /api/companies/{companyId}/email/inspect`; JSON REST.
+API: `present` — `POST /api/spaces/{spaceId}/email/inspect`; JSON REST.
 Agent access: `available` — agent REST and default native `search_api` / `call_api`.
 Policy: `tools:manage_connections`; [shared management policy](../../doc/plans/2026-10-13-connection-api-parity.md#authorization-contract). Resolved resources and every affected target are checked; personal ownership remains the responsible user.
 Evidence: `source-only` — [route](../../server/src/routes/email.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: This individual operation has source review but no recorded HTTP verification. Provider availability and live setup remain unqualified.
 
-### `post-companies-email-inboxes`
+### `post-spaces-email-inboxes`
 
-API: `present` — `POST /api/companies/{companyId}/email/inboxes`; JSON REST.
+API: `present` — `POST /api/spaces/{spaceId}/email/inboxes`; JSON REST.
 Agent access: `available` — agent REST and default native `search_api` / `call_api`.
 Policy: `tools:manage_connections`; [shared management policy](../../doc/plans/2026-10-13-connection-api-parity.md#authorization-contract). Resolved resources and every affected target are checked; personal ownership remains the responsible user.
 Evidence: `source-only` — [route](../../server/src/routes/email.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: This individual operation has source review but no recorded HTTP verification. Provider availability and live setup remain unqualified.
 
-### `get-companies-email-deliveries`
+### `get-spaces-email-deliveries`
 
-API: `present` — `GET /api/companies/{companyId}/email/deliveries/{publicationId}`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/email/deliveries/{publicationId}`; JSON REST.
 Agent access: `available` — existing REST/native runtime tool or scoped gateway client, as documented by the linked route.
 Policy: Existing run-bound tool, scoped credential lease, execution policy, or assigned-email-agent checks; connection-management grants do not bypass these controls.
 Evidence: `source-only` — [route](../../server/src/routes/email.ts); reviewed in the working tree based on the source commit above.
@@ -463,7 +463,7 @@ Gaps: Agent invocation is denied by the stated policy. The authorized human or o
 
 API: `present` — `GET /api/chat-github/manifest/callback`; browser/provider/MCP protocol.
 Agent access: `restricted` — browser authentication return.
-Policy: Provider state/signature or gateway-token verification, company and resource binding; browser returns require the configuring human. Agent-issued durable gateway tokens retain both issuer and responsible-user authority.
+Policy: Provider state/signature or gateway-token verification, space and resource binding; browser returns require the configuring human. Agent-issued durable gateway tokens retain both issuer and responsible-user authority.
 Evidence: `source-only` — [route](../../server/src/app.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: Agent invocation is denied by the stated policy. The authorized human or operator must perform this step; this entry does not claim delegated execution.
@@ -472,7 +472,7 @@ Gaps: Agent invocation is denied by the stated policy. The authorized human or o
 
 API: `present` — `GET /api/chat-github/cloud/callback`; browser/provider/MCP protocol.
 Agent access: `restricted` — browser authentication return.
-Policy: Provider state/signature or gateway-token verification, company and resource binding; browser returns require the configuring human. Agent-issued durable gateway tokens retain both issuer and responsible-user authority.
+Policy: Provider state/signature or gateway-token verification, space and resource binding; browser returns require the configuring human. Agent-issued durable gateway tokens retain both issuer and responsible-user authority.
 Evidence: `source-only` — [route](../../server/src/app.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: Agent invocation is denied by the stated policy. The authorized human or operator must perform this step; this entry does not claim delegated execution.
@@ -481,7 +481,7 @@ Gaps: Agent invocation is denied by the stated policy. The authorized human or o
 
 API: `present` — `GET /api/chat-github/identity/callback`; browser/provider/MCP protocol.
 Agent access: `restricted` — browser authentication return.
-Policy: Provider state/signature or gateway-token verification, company and resource binding; browser returns require the configuring human. Agent-issued durable gateway tokens retain both issuer and responsible-user authority.
+Policy: Provider state/signature or gateway-token verification, space and resource binding; browser returns require the configuring human. Agent-issued durable gateway tokens retain both issuer and responsible-user authority.
 Evidence: `verified` — [route](../../server/src/app.ts); reviewed in the working tree based on the source commit above. [Authenticated fixtures](../../server/src/__tests__/connection-management.integration.test.ts) passed with database persistence and actual bearer/session middleware.
 Verification: `passed` — deterministic provider fixtures / local assembled server; no live provider qualification.
 Gaps: Agent invocation is denied by the stated policy. The authorized human or operator must perform this step; this entry does not claim delegated execution.
@@ -549,23 +549,23 @@ Gaps: This individual operation has source review but no recorded HTTP verificat
 
 API: `present` — `POST /api/chat-webhooks/{publicId}/{provider}`; provider webhook ingress.
 Agent access: `not-applicable` — provider-signed inbound events; agent keys and gateway tokens cannot authenticate this route.
-Policy: The provider verifies the payload signature and binds the endpoint/company. The request has no agent principal.
+Policy: The provider verifies the payload signature and binds the endpoint/space. The request has no agent principal.
 Evidence: `source-only` — [route](../../server/src/routes/chat-channels.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: Provider ingress has no agent invocation path. Provider signature validation remains required.
 
-### `post-companies-email-send`
+### `post-spaces-email-send`
 
-API: `present` — `POST /api/companies/{companyId}/email/send`; JSON REST.
+API: `present` — `POST /api/spaces/{spaceId}/email/send`; JSON REST.
 Agent access: `available` — existing REST/native runtime tool or scoped gateway client, as documented by the linked route.
 Policy: Existing run-bound tool, scoped credential lease, execution policy, or assigned-email-agent checks; connection-management grants do not bypass these controls.
 Evidence: `source-only` — [route](../../server/src/routes/email.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: This individual operation has source review but no recorded HTTP verification. Provider availability and live setup remain unqualified.
 
-### `get-companies-email-tasks`
+### `get-spaces-email-tasks`
 
-API: `present` — `GET /api/companies/{companyId}/email/tasks/{issueId}`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/email/tasks/{issueId}`; JSON REST.
 Agent access: `available` — existing REST/native runtime tool or scoped gateway client, as documented by the linked route.
 Policy: Existing run-bound tool, scoped credential lease, execution policy, or assigned-email-agent checks; connection-management grants do not bypass these controls.
 Evidence: `source-only` — [route](../../server/src/routes/email.ts); reviewed in the working tree based on the source commit above.
@@ -576,12 +576,12 @@ Gaps: This individual operation has source review but no recorded HTTP verificat
 
 API: `present` — `POST /api/chat-webhooks/agentmail/{publicId}`; provider webhook ingress.
 Agent access: `not-applicable` — provider-signed inbound events; agent keys and gateway tokens cannot authenticate this route.
-Policy: The provider verifies the payload signature and binds the endpoint/company. The request has no agent principal.
+Policy: The provider verifies the payload signature and binds the endpoint/space. The request has no agent principal.
 Evidence: `source-only` — [route](../../server/src/routes/email.ts); reviewed in the working tree based on the source commit above.
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: Provider ingress has no agent invocation path. Provider signature validation remains required.
 Monitor publication lineage uses the admitted wake and its source run's matching
-`set_task_monitor` receipt, including company, task, immutable agent, requester,
+`set_task_monitor` receipt, including space, task, immutable agent, requester,
 and scheduled time. A source ID in context cannot grant publication. The normal
 delivery worker rechecks current endpoint and sender authority. Database fixtures
 exercise lineage and finalization recovery; live Slack qualification remains
@@ -623,7 +623,7 @@ the two text fields. Saved assessments, tool authority, and publication policy
 are unchanged. The PostgreSQL-backed publication fixture checks a newly
 configured bot with simulated GitHub responses; this is not live model proof.
 
-GitHub main-response identity (2026-10-19): PR requests share a company-, App-,
+GitHub main-response identity (2026-10-19): PR requests share a space-, App-,
 repository- and PR-bound comment. Agents still supply no comment destination.
 Current sender, assignee, repository and publication authority are checked before
 edits, including maintenance failure notices. Leading mentions for another
@@ -642,7 +642,7 @@ without authorizing a new send or counting an old shared receipt as a current-ru
 reply. Existing final App/marker-owned PR content survives progress acknowledgements;
 new canonical review publication remains the writer for replacement assessments.
 
-Speko browser sessions use `POST /api/companies/{companyId}/voice-sessions`,
+Speko browser sessions use `POST /api/spaces/{spaceId}/voice-sessions`,
 with GET inspection/notification and POST `/{sessionId}/end` operations below
 that collection. These routes require board identity; ordinary agent credentials
 cannot start a private voice session. Start and notification also require the
@@ -674,7 +674,7 @@ The pinned SDK transport regression is covered in
 acknowledgement speed needs a separate provider test.
 
 Slack assignment and tool discovery bound concurrent endpoint preparation to
-two. Every endpoint keeps the live task, company, agent and linked-user checks;
+two. Every endpoint keeps the live task, space, agent and linked-user checks;
 403 denials omit only that endpoint. Preparation waits for both active checks
 before it returns an ordered result or propagates an error. Tool authority reads
 the current bot token without resolving unrelated webhook credentials. See the
@@ -686,7 +686,7 @@ Native tool gateways use the durable run task binding for discovery and policy
 checks, with legacy JSON task fields as a fallback. GitHub and Slack follow
 accepted request provenance across task continuations. GitHub can retain the
 originating conversation after a board follow-up from the same accepted user.
-An inherited origin cannot cross a task, agent, company, or requester boundary.
+An inherited origin cannot cross a task, agent, space, or requester boundary.
 Cycle checks reject invalid history without a fixed limit on valid continuations.
 Endpoint settings, linked identity, tool profiles, and invocation policy still
 apply on each call. The native tool contract rotates older provider sessions so
@@ -700,7 +700,7 @@ Failure replies cannot replace final answers inherited from an earlier run.
 These fixtures do not prove live provider delivery.
 
 Catalog authorization projection (2026-10-17): tool discovery uses the same live
-service-owned task, company, agent, requester, endpoint and credential checks as
+service-owned task, space, agent, requester, endpoint and credential checks as
 full authority resolution. It omits the revision digest and search-action token,
 which catalog descriptors do not consume. Connector assignments and governed
 operations retain full revision resolution; invocation policy is still checked
@@ -717,38 +717,38 @@ An existing conversation keeps its task binding. See
 
 ### `post-voice-sessions`
 
-API: `present` — `POST /api/companies/{companyId}/voice-sessions`; JSON REST.
+API: `present` — `POST /api/spaces/{spaceId}/voice-sessions`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ### `get-voice-session`
 
-API: `present` — `GET /api/companies/{companyId}/voice-sessions/{sessionId}`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/voice-sessions/{sessionId}`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ### `get-voice-notification`
 
-API: `present` — `GET /api/companies/{companyId}/voice-sessions/{sessionId}/notification`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/voice-sessions/{sessionId}/notification`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ### `get-voice-report`
 
-API: `present` — `GET /api/companies/{companyId}/voice-sessions/{sessionId}/report`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/voice-sessions/{sessionId}/report`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ## `attachments`
@@ -761,16 +761,16 @@ Review: `operation-reviewed`.
 
 API: `present` — `GET /api/issues/{id}/attachments`; JSON REST.
 Agent access: `available` — agent REST and native `search_api` / `call_api` for the attachment list.
-Policy: Current company membership and task read/privacy authority. Connection management grants do not replace task access.
+Policy: Current space membership and task read/privacy authority. Connection management grants do not replace task access.
 Evidence: `source-only` — [asset routes](../../server/src/routes/assets.ts).
 Verification: `not-run` — list attachments with actual agent authentication and deny a foreign or private task.
 Gaps: This operation has source review, not current-head HTTP verification.
 
-### `post-companies-issues-attachments`
+### `post-spaces-issues-attachments`
 
-API: `present` — `POST /api/companies/{companyId}/issues/{issueId}/attachments`; multipart upload.
+API: `present` — `POST /api/spaces/{spaceId}/issues/{issueId}/attachments`; multipart upload.
 Agent access: `partial` — agent REST upload; native attachment tools and `register_deliverable` use their admitted resource paths and server-owned chat delivery. JSON-only `call_api` does not upload multipart content.
-Policy: Task mutation/privacy authority, company/resource bounds, storage limits, and admitted native tool scope. Server-owned delivery does not grant endpoint administration.
+Policy: Task mutation/privacy authority, space/resource bounds, storage limits, and admitted native tool scope. Server-owned delivery does not grant endpoint administration.
 Evidence: `source-only` — [asset routes](../../server/src/routes/assets.ts) and [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts).
 Verification: `not-run` — upload through an admitted agent path, inspect the stored task attachment and outbound delivery, and deny a foreign task.
 Gaps: Multipart upload is not a JSON native API call. Live chat file delivery remains unqualified by this connection setup audit.
@@ -802,9 +802,9 @@ Evidence: `source-only` — [route](../../server/src/routes/chat-channels.ts); r
 Verification: `not-run` — individual operation not executed in this audit; shared authorization and representative family flows are exercised by the authenticated integration suite. Follow the route schema, inspect persistence/audit, and assert owner, scope and revoked-authority denial.
 Gaps: Agent invocation is denied by the stated policy. The authorized human or operator must perform this step; this entry does not claim delegated execution.
 
-### `post-companies-email-deliveries-resolve`
+### `post-spaces-email-deliveries-resolve`
 
-API: `present` — `POST /api/companies/{companyId}/email/deliveries/{publicationId}/resolve`; JSON REST.
+API: `present` — `POST /api/spaces/{spaceId}/email/deliveries/{publicationId}/resolve`; JSON REST.
 Agent access: `restricted` — human connection manager records the outcome of an uncertain external delivery. Agents use normal governed send/status operations.
 Policy: Existing run-bound tool, scoped credential lease, execution policy, or assigned-email-agent checks; connection-management grants do not bypass these controls.
 Evidence: `source-only` — [route](../../server/src/routes/email.ts); reviewed in the working tree based on the source commit above.
@@ -911,7 +911,7 @@ Inherited GitHub review waits (2026-10-26): an explicit native `response_wake`
 after tree resume or same-agent continuation may retain the provider-event path
 through accepted requester identity lineage and the latest processed review
 publication for that task/conversation. This does not grant monitor management
-or publication authority. Current task/agent/company binding, repository,
+or publication authority. Current task/agent/space binding, repository,
 principal and endpoint checks remain effective. PostgreSQL regressions cover
 quiet repeated finalization, historical publication reuse, newer unreviewed
 heads and revoked access; live GitHub delivery remains separate acceptance.
@@ -923,83 +923,83 @@ unchanged; explicit malformed input is not coerced.
 
 ### `post-voice-end`
 
-API: `present` — `POST /api/companies/{companyId}/voice-sessions/{sessionId}/end`; JSON REST.
+API: `present` — `POST /api/spaces/{spaceId}/voice-sessions/{sessionId}/end`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ### `get-voice-callbacks`
 
-API: `present` — `GET /api/companies/{companyId}/voice-callbacks/{endpointId}`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/voice-callbacks/{endpointId}`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ### `put-voice-callbacks`
 
-API: `present` — `PUT /api/companies/{companyId}/voice-callbacks/{endpointId}`; JSON REST.
+API: `present` — `PUT /api/spaces/{spaceId}/voice-callbacks/{endpointId}`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ### `get-voice-phone`
 
-API: `present` — `GET /api/companies/{companyId}/voice-phone/{endpointId}`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/voice-phone/{endpointId}`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ### `put-voice-phone`
 
-API: `present` — `PUT /api/companies/{companyId}/voice-phone/{endpointId}`; JSON REST.
+API: `present` — `PUT /api/spaces/{spaceId}/voice-phone/{endpointId}`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ### `get-voice-incoming`
 
-API: `present` — `GET /api/companies/{companyId}/voice-phone/{endpointId}/incoming`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/voice-phone/{endpointId}/incoming`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ### `post-voice-incoming-decision`
 
-API: `present` — `POST /api/companies/{companyId}/voice-phone/{endpointId}/incoming/{callId}`; JSON REST.
+API: `present` — `POST /api/spaces/{spaceId}/voice-phone/{endpointId}/incoming/{callId}`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ### `get-voice-phone-history`
 
-API: `present` — `GET /api/companies/{companyId}/voice-phone/{endpointId}/history`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/voice-phone/{endpointId}/history`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ### `get-voice-history`
 
-API: `present` — `GET /api/companies/{companyId}/voice-history/{endpointId}`; JSON REST.
+API: `present` — `GET /api/spaces/{spaceId}/voice-history/{endpointId}`; JSON REST.
 Agent access: `operator-only` — the private voice caller must be an authenticated board user (or local operator); agent bearer credentials are rejected.
-Policy: Company access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
+Policy: Space access and the service's current caller/session/endpoint authority apply. Browser start, notification, and callback preferences also require experimental chat connectors. Private microphone access, callback preferences, and incoming-call approval remain human identity/consent steps; connection-management grants do not impersonate that caller.
 Evidence: `source-only` — [voice routes](../../server/src/routes/voice-sessions.ts), reviewed in this working tree.
-Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-company calls. No live telephone or browser audio qualification is claimed.
+Verification: `not-run` — verify the board caller's own state and reject agent, wrong-user, and foreign-space calls. No live telephone or browser audio qualification is claimed.
 Gaps: This is an explicit human boundary. Authorized agents configure the underlying connection through its endpoint API; the human controls private calling and incoming-call consent.
 
 ## `outbound-email`
@@ -1008,21 +1008,21 @@ Capability ID: `chat-channels/outbound-email`.
 
 Review: `baseline`.
 
-API: `present` — GET /api/companies/{companyId}/email/inboxes; POST /api/companies/{companyId}/email/send for both send/reply; GET /api/companies/{companyId}/email/tasks/{issueId}; GET /api/companies/{companyId}/email/deliveries/{publicationId}. Administrative uncertain-outcome resolution uses POST /api/companies/{companyId}/email/deliveries/{publicationId}/resolve.
+API: `present` — GET /api/spaces/{spaceId}/email/inboxes; POST /api/spaces/{spaceId}/email/send for both send/reply; GET /api/spaces/{spaceId}/email/tasks/{issueId}; GET /api/spaces/{spaceId}/email/deliveries/{publicationId}. Administrative uncertain-outcome resolution uses POST /api/spaces/{spaceId}/email/deliveries/{publicationId}/resolve.
 
 Agent access: `partial` — the assigned agent can use the email REST/CLI path with its actual active run and admitted email.send/email.reply policy. Board writers use their own credential authority. Availability of a CLI or scenario email tool does not establish that a native run has that tool binding or generic fallback admitted.
 
-Policy: Agent sends require ownership of the inbox and source task, task read access, an available agent within budget, a running task run that owns execution/checkout, standard work mode, and no restricted external execution. Active endpoint, connection, credential access, and email.send/email.reply policy are rechecked. Authenticated board sends require active company membership and credential access; viewer sends additionally require instance-admin status. Local implicit authority skips the membership check. Agent reads retain task/inbox/company checks; board thread/delivery reads use the route’s company-access boundary. Delivery resolution requires board tools:manage_connections or existing elevated operator authority, not ordinary agent access.
+Policy: Agent sends require ownership of the inbox and source task, task read access, an available agent within budget, a running task run that owns execution/checkout, standard work mode, and no restricted external execution. Active endpoint, connection, credential access, and email.send/email.reply policy are rechecked. Authenticated board sends require active space membership and credential access; viewer sends additionally require instance-admin status. Local implicit authority skips the membership check. Agent reads retain task/inbox/space checks; board thread/delivery reads use the route’s space-access boundary. Delivery resolution requires board tools:manage_connections or existing elevated operator authority, not ordinary agent access.
 
 Evidence: `source-only` — reviewed at `9ef434fe79c57d976b8b03b14c5242db270b8320`. [Email CLI](../../cli/src/commands/client/email.ts), [request schema](../../packages/shared/src/validators/email.ts), [email routes](../../server/src/routes/email.ts), and [email authority/publication](../../server/src/services/email-channels.ts).
 
-Verification: `not-run` — Use the actual permitted writer and run to create one child/publication, confirm recipient delivery and an exact-message reply, and repeat idempotent requests without duplicate sends. Assert run/owner/mode/budget/company/credential/attachment denials and separate read access. Inspect the provider before resolving an unknown write outcome; a 202 or queued publication alone is not proof of delivery.
+Verification: `not-run` — Use the actual permitted writer and run to create one child/publication, confirm recipient delivery and an exact-message reply, and repeat idempotent requests without duplicate sends. Assert run/owner/mode/budget/space/credential/attachment denials and separate read access. Inspect the provider before resolving an unknown write outcome; a 202 or queued publication alone is not proof of delivery.
 
 Gaps: Real AgentMail transport, recipient delivery, and each native tool binding still need live proof. Controlled provider receipts and inbound-reply recipes do not establish a newly initiated external email journey.
 
 Ordinary task Retry can select newer linked-human GitHub input whose original
 admission was skipped by a budget or agent-availability gate. The chat owner
-revalidates its exact processed delivery, company/task/agent/principal, unchanged
+revalidates its exact processed delivery, space/task/agent/principal, unchanged
 comment, session generation, and admitted instruction snapshot. A separate retry
 receipt preserves the original skipped receipt and older failed native result.
 Current access and normal native stop/cleanup guards still govern execution;

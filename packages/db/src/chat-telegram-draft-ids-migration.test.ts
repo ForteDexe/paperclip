@@ -21,7 +21,7 @@ describeEmbeddedPostgres("Telegram draft ID migration", () => {
       // Exhaustion is deliberately tested only in this disposable cluster, not
       // in a shared fixture database or the configured application database.
       const database = await startEmbeddedPostgresTestDatabase(
-        "paperclip-telegram-draft-ids-",
+        "outpost-telegram-draft-ids-",
       );
       cleanups.push(database.cleanup);
       const sql = postgres(database.connectionString, {
@@ -44,7 +44,7 @@ describeEmbeddedPostgres("Telegram draft ID migration", () => {
         cache: 1,
         cycle: false,
       });
-      // No table owns this content-free sequence: deleting a company or its
+      // No table owns this content-free sequence: deleting a space or its
       // endpoint cannot cascade away the non-reuse boundary.
       const dependencies = await sql`
         SELECT 1 FROM pg_depend

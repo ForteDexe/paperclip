@@ -2,7 +2,7 @@ import type { AgentAdapterType, FinanceDirection, FinanceEventKind, FinanceUnit 
 
 export interface FinanceEvent {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string | null;
   issueId: string | null;
   projectId: string | null;
@@ -53,7 +53,7 @@ export interface FinanceSummary {
   /** Compatibility totals below are USD only; no implicit currency conversion. */
   currency: "USD";
   currencies: FinanceCurrencySummary[];
-  companyId: string;
+  spaceId: string;
   debitCents: number;
   debitCentsExact?: string;
   creditCents: number;

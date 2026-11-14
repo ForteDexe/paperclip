@@ -19,7 +19,7 @@ import {
   readRecoveryReconcileWorkspaceId,
 } from "../lib/recovery-reconcile";
 
-/** The run errorCode Paperclip stamps when it declines a run over a git workspace it can't validate. */
+/** The run errorCode Outpost stamps when it declines a run over a git workspace it can't validate. */
 export const WORKSPACE_VALIDATION_RUN_ERROR_CODE = "workspace_validation_failed";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -57,7 +57,7 @@ export function RunWorkspaceRecoverySurface({ run }: { run: HeartbeatRun }) {
   const issueId = readRunIssueId(run);
   const cause = run.execution?.cause ?? run.errorCode;
   if (issueId && (isNativeWorkspaceExportRepairCause(cause) || cause === "native_workspace_sync_out_unrecoverable"))
-    return <RunWorkspaceSourceInspection key={run.id} issueId={issueId} runId={run.id} companyId={run.companyId} />;
+    return <RunWorkspaceSourceInspection key={run.id} issueId={issueId} runId={run.id} spaceId={run.spaceId} />;
   return <WorkspaceValidationRecoverySurface run={run} />;
 }
 
@@ -76,14 +76,14 @@ function WorkspaceValidationRecoverySurface({ run }: { run: HeartbeatRun }) {
     enabled: Boolean(isWorkspaceValidationFailure && issueId),
   });
 
-  const { data: boardAccess } = useQuery({
+  const { data: operatorAccess } = useQuery({
     queryKey: queryKeys.access.currentBoardAccess,
     queryFn: () => accessApi.getCurrentBoardAccess(),
     enabled: Boolean(isWorkspaceValidationFailure && issueId),
   });
 
   const recoveryAction = issue?.activeRecoveryAction ?? null;
-  const canManageBoardRuntime = canBoardManageRuntime(run.companyId, boardAccess);
+  const canManageBoardRuntime = canBoardManageRuntime(run.spaceId, operatorAccess);
   // Prefer the workspace pinned by the recovery action's evidence (the workspace that actually
   // diverged) over the page-level id, which can drift after a re-issue rebinds the issue.
   const reconcileWorkspaceId =
@@ -146,7 +146,7 @@ function WorkspaceValidationRecoverySurface({ run }: { run: HeartbeatRun }) {
         "",
         issue.description ?? "",
       ];
-      return issuesApi.create(issue.companyId, {
+      return issuesApi.create(issue.spaceId, {
         title: `Re-issue (isolated): ${issue.title ?? sourceLabel}`,
         description: descriptionLines.join("\n"),
         priority: issue.priority,

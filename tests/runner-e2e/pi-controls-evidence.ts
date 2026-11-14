@@ -7,7 +7,7 @@ import { isValidNativePrpEnvelope } from "./native-event-envelope.js";
 import type { ActiveStopCaller } from "./native-active-stop-evidence.js";
 
 type Row = Record<string, any>;
-export interface PiControlScope { companyId: string; issueId: string; runId: string; target: string }
+export interface PiControlScope { spaceId: string; issueId: string; runId: string; target: string }
 export interface PiControlState { run: Row; issue: Row; events: readonly unknown[]; bootstrapApproval?: PiBootstrapApproval }
 export interface PiControlPending {
   schema: "outpost.e2e.pi-control-pending.v1"; bootstrapApproval?: PiBootstrapApproval; scope: PiControlScope; requestId: string; toolCallId: string; executionId: string;
@@ -25,13 +25,13 @@ const controlSettlementTypes = new Set(["run.result.accepted", "run.terminal"]);
 /** Consume the actual Product projection. Pi does not emit Cursor/Copilot native
  * diagnostic notices; never manufacture those to reuse another provider's oracle. */
 function origin(events: readonly unknown[], scope: PiControlScope, bootstrapApproval?: PiBootstrapApproval) {
-  if (bootstrapApproval) requireProof(bootstrapApproval.companyId === scope.companyId && bootstrapApproval.issueId === scope.issueId && bootstrapApproval.runId === scope.runId, "foreign bootstrap approval");
+  if (bootstrapApproval) requireProof(bootstrapApproval.spaceId === scope.spaceId && bootstrapApproval.issueId === scope.issueId && bootstrapApproval.runId === scope.runId, "foreign bootstrap approval");
   const gradingRows = new Set(withoutApprovedPiBootstrapRequests(events, bootstrapApproval));
   requireProof(Object.values(scope).every(id) && events.length > 0 && events.length <= 20_000, "bounded exact scope required");
   const projected = events.map(rec).filter(row => rec(row.payload).orpEvent !== undefined).map(row => ({ row, event: rec(rec(row.payload).orpEvent) })).sort((a, b) => a.row.seq - b.row.seq);
   const seqs = new Set<number>(), sourceIds = new Set<string>(), last = new Map<string, number>();
   for (const { row, event: e } of projected) {
-    requireProof(row.companyId === scope.companyId && row.runId === scope.runId && isValidNativePrpEnvelope(e, row.protocolSchemaVersion)
+    requireProof(row.spaceId === scope.spaceId && row.runId === scope.runId && isValidNativePrpEnvelope(e, row.protocolSchemaVersion)
       && (e.sourceKind === "runner" || (e.sourceKind === "control_plane" && controlSettlementTypes.has(e.eventType)))
       && e.runId === scope.runId && e.eventType === row.eventType && Number.isSafeInteger(row.seq) && row.seq > 0 && !seqs.has(row.seq)
       && id(e.sourceInstanceId) && Number.isSafeInteger(e.sourceSeq) && e.sourceSeq > (last.get(e.sourceInstanceId) ?? 0)
@@ -84,8 +84,8 @@ function origin(events: readonly unknown[], scope: PiControlScope, bootstrapAppr
 }
 export function observePiControlPending(input: PiControlState & { scope: PiControlScope }): PiControlPending {
   const { run, issue, scope } = input, p = origin(input.events, scope, input.bootstrapApproval);
-  requireProof(run.id === scope.runId && run.companyId === scope.companyId && run.nativeIssueId === scope.issueId && run.status === "running" && run.runtimeMode === "native"
-    && issue.id === scope.issueId && issue.companyId === scope.companyId && issue.status === "in_progress"
+  requireProof(run.id === scope.runId && run.spaceId === scope.spaceId && run.nativeIssueId === scope.issueId && run.status === "running" && run.runtimeMode === "native"
+    && issue.id === scope.issueId && issue.spaceId === scope.spaceId && issue.status === "in_progress"
     && run.resultJson?.startupCancellation == null && run.resultJson?.nativeCancellation == null, "run is not fresh active work");
   requireProof(!p.rows.some(x => terminalTypes.has(x.event.eventType) || closureTypes.has(x.event.eventType)
     || (x.event.eventType === "tool.execution.completed" && x.event.payload.executionId === p.executionId)), "permission already answered or provider settled");
@@ -109,7 +109,7 @@ export function readPiStopSettlement(input: PiControlState & { pending: PiContro
   const b = input.pending, p = retained(input), { run, issue, caller } = input;
   requireProof(/^[1-9][0-9]{0,29}$/u.test(b.observedMonotonicNs) && /^[1-9][0-9]{0,29}$/u.test(input.dispatchMonotonicNs)
     && BigInt(b.observedMonotonicNs) < BigInt(input.dispatchMonotonicNs) && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(input.cancellationRequestId)
-    && caller.type === "board" && caller.userId === "local-board" && caller.source === "local_implicit", "pre-dispatch caller proof missing");
+    && caller.type === "board" && caller.userId === "local-operator" && caller.source === "local_implicit", "pre-dispatch caller proof missing");
   const closed = p.rows.filter(x => closureTypes.has(x.event.eventType)), terminal = p.rows.filter(x => terminalTypes.has(x.event.eventType));
   requireProof(closed.length === 1 && terminal.length === 1, "one cancellation closure and terminal required");
   const c = closed[0]!, t = terminal[0]!, cp = rec(c.event.payload), tp = rec(t.event.payload);
@@ -118,10 +118,10 @@ export function readPiStopSettlement(input: PiControlState & { pending: PiContro
     && t.event.eventType === "turn.cancelled" && tp.status === "cancelled" && tp.error === null && c.event.sourceSeq > Math.max(b.requestSourceSeq, b.startedSourceSeq) && t.event.sourceSeq > c.event.sourceSeq
     && p.rows.filter(x => x.event.eventType.startsWith("tool.execution.")).every(x => x.event.sourceSeq < t.event.sourceSeq), "unanswered callback did not close through cancellation");
   const stop = rec(run.resultJson?.nativeCancellation), startup = rec(run.resultJson?.startupCancellation);
-  requireProof(run.id === b.scope.runId && run.companyId === b.scope.companyId && run.nativeIssueId === b.scope.issueId && run.status === "cancelled" && run.runtimeMode === "native"
-    && issue.id === b.scope.issueId && issue.companyId === b.scope.companyId && issue.status === "in_progress"
+  requireProof(run.id === b.scope.runId && run.spaceId === b.scope.spaceId && run.nativeIssueId === b.scope.issueId && run.status === "cancelled" && run.runtimeMode === "native"
+    && issue.id === b.scope.issueId && issue.spaceId === b.scope.spaceId && issue.status === "in_progress"
     && startup.requestedBy?.type === caller.type && startup.requestedBy?.userId === caller.userId && startup.cancellationRequestId === input.cancellationRequestId
-    && stop.schema === "outpost.native-cancellation.v1" && stop.intentId === `native-cancellation:${input.cancellationRequestId}` && stop.companyId === b.scope.companyId && stop.runId === run.id && stop.issueId === issue.id
+    && stop.schema === "outpost.native-cancellation.v1" && stop.intentId === `native-cancellation:${input.cancellationRequestId}` && stop.spaceId === b.scope.spaceId && stop.runId === run.id && stop.issueId === issue.id
     && stop.scope === "run" && stop.dispatched === true && stop.dispatchState === "acknowledged" && stop.reasonCode === "cancellation_run_only"
     && Array.isArray(stop.effects) && stop.effects.length === 1 && stop.effects[0] === "release_run_resources" && id(stop.intentAuditId) && id(stop.acknowledgementAuditId) && stop.intentAuditId !== stop.acknowledgementAuditId, "same-scope caller Stop acknowledgement missing");
   return { schema: "outpost.e2e.pi-stop-settlement.v1", pending: b, cancellationRequestId: input.cancellationRequestId, dispatchMonotonicNs: input.dispatchMonotonicNs,
@@ -133,7 +133,7 @@ export function readPiSteeringAcknowledgement(input: PiControlState & { pending:
   // Rust's raw acpx-control hash is a transport echo. The Product facade
   // suppresses it (codex-session-notifications.ts) and CodexHarnessSession.steer
   // emits this correlation-bound item only after request() is acknowledged.
-  requireProof(input.run.id === b.scope.runId && input.run.companyId === b.scope.companyId && input.run.nativeIssueId === b.scope.issueId && input.run.runtimeMode === "native"
+  requireProof(input.run.id === b.scope.runId && input.run.spaceId === b.scope.spaceId && input.run.nativeIssueId === b.scope.issueId && input.run.runtimeMode === "native"
     && id(input.commentId) && id(input.queueId) && saved.status === "acknowledged" && saved.queueId === input.queueId && saved.turnId === b.turnId && Number.isFinite(Date.parse(saved.acknowledgedAt))
     && receipts.length === 1 && receipts[0]!.event.itemId === `${b.turnId}:steer:${input.commentId}` && receipts[0]!.event.payload.status === "acknowledged"
     && receipts[0]!.event.payload.mode === "steer" && receipts[0]!.event.sourceSeq > Math.max(b.requestSourceSeq, b.startedSourceSeq), "same-turn steering acknowledgement missing");
@@ -152,8 +152,8 @@ export function readPiSteeringSettlement(input: PiControlState & { pending: PiCo
     && closed[0]!.event.payload.action === "decline" && closed[0]!.event.sourceSeq > ack.sourceSeq
     && failed.length === 1 && failed[0]!.event.sourceSeq > closed[0]!.event.sourceSeq && typeof failed[0]!.event.payload.output === "string" && failed[0]!.event.payload.output.includes("Pi operation was denied or cancelled")
     && terminal.length === 1 && terminal[0]!.event.eventType === "turn.completed" && terminal[0]!.event.sourceSeq > failed[0]!.event.sourceSeq
-    && input.run.id === b.scope.runId && input.run.companyId === b.scope.companyId && input.run.nativeIssueId === b.scope.issueId && input.run.runtimeMode === "native" && input.run.status === "succeeded"
-    && input.issue.id === b.scope.issueId && input.issue.companyId === b.scope.companyId && input.issue.status === "done"
+    && input.run.id === b.scope.runId && input.run.spaceId === b.scope.spaceId && input.run.nativeIssueId === b.scope.issueId && input.run.runtimeMode === "native" && input.run.status === "succeeded"
+    && input.issue.id === b.scope.issueId && input.issue.spaceId === b.scope.spaceId && input.issue.status === "done"
     && input.run.resultJson?.nativeCancellation == null && input.run.resultJson?.startupCancellation == null
     && /^PI-STEER-[a-f0-9]{32}$/u.test(input.marker) && input.finalMessage === input.marker, "steering was not consumed in the original denied-write turn");
   return { schema: "outpost.e2e.pi-steering-settlement.v1", pending: b, acknowledgement: ack, marker: input.marker, terminalRowSha256: hash(terminal[0]!.row), nativeFollowUpTested: false };

@@ -118,9 +118,9 @@ async function createApp() {
   app.use((req, _res, next) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (req as any).actor = {
-      type: "board",
-      userId: "board-user",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: ["space-1"],
       source: "local_implicit",
       isInstanceAdmin: false,
     };
@@ -135,7 +135,7 @@ async function createApp() {
 function buildProject(overrides: Record<string, unknown> = {}) {
   return {
     id: "project-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     urlKey: "project-1",
     goalId: null,
     goalIds: [],
@@ -173,11 +173,11 @@ function buildProject(overrides: Record<string, unknown> = {}) {
 function buildWorkspace(overrides: Record<string, unknown> = {}) {
   return {
     id: "workspace-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     name: "Primary",
     sourceType: "local_path",
-    cwd: "/srv/projects/paperclip",
+    cwd: "/srv/projects/outpost",
     repoUrl: null,
     isPrimary: true,
     ...overrides,
@@ -214,7 +214,7 @@ describe("project workspace host-path floor", () => {
     mockProjectService.createWorkspace.mockResolvedValue(buildWorkspace());
     mockProjectService.updateWorkspace.mockResolvedValue(buildWorkspace());
     mockProjectService.listWorkspaces.mockResolvedValue([buildWorkspace()]);
-    mockSecretService.normalizeEnvBindingsForPersistence.mockImplementation(async (_companyId, env) => env);
+    mockSecretService.normalizeEnvBindingsForPersistence.mockImplementation(async (_spaceId, env) => env);
     setManagedSandboxOnly(false);
   });
 
@@ -222,12 +222,12 @@ describe("project workspace host-path floor", () => {
     const app = await createApp();
     const res = await request(app)
       .post("/api/projects/project-1/workspaces")
-      .send({ name: "Primary", cwd: "/srv/projects/paperclip" });
+      .send({ name: "Primary", cwd: "/srv/projects/outpost" });
 
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     expect(mockProjectService.createWorkspace).toHaveBeenCalledWith(
       "project-1",
-      expect.objectContaining({ cwd: "/srv/projects/paperclip" }),
+      expect.objectContaining({ cwd: "/srv/projects/outpost" }),
     );
   });
 
@@ -236,7 +236,7 @@ describe("project workspace host-path floor", () => {
     const app = await createApp();
     const res = await request(app)
       .post("/api/projects/project-1/workspaces")
-      .send({ name: "Primary", cwd: "/srv/projects/paperclip" });
+      .send({ name: "Primary", cwd: "/srv/projects/outpost" });
 
     expect(res.status, JSON.stringify(res.body)).toBe(422);
     expect(res.body.error).toBe(MANAGED_SANDBOX_CWD_ERROR);
@@ -248,7 +248,7 @@ describe("project workspace host-path floor", () => {
     const app = await createApp();
     const res = await request(app)
       .patch("/api/projects/project-1/workspaces/workspace-1")
-      .send({ cwd: "/srv/projects/paperclip" });
+      .send({ cwd: "/srv/projects/outpost" });
 
     expect(res.status, JSON.stringify(res.body)).toBe(422);
     expect(res.body.error).toBe(MANAGED_SANDBOX_CWD_ERROR);
@@ -275,13 +275,13 @@ describe("project workspace host-path floor", () => {
     const app = await createApp();
     const res = await request(app)
       .patch("/api/projects/project-1/workspaces/workspace-1")
-      .send({ cwd: "/srv/projects/paperclip" });
+      .send({ cwd: "/srv/projects/outpost" });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockProjectService.updateWorkspace).toHaveBeenCalledWith(
       "project-1",
       "workspace-1",
-      expect.objectContaining({ cwd: "/srv/projects/paperclip" }),
+      expect.objectContaining({ cwd: "/srv/projects/outpost" }),
     );
   });
 
@@ -289,10 +289,10 @@ describe("project workspace host-path floor", () => {
     setManagedSandboxOnly(true);
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/projects")
+      .post("/api/spaces/space-1/projects")
       .send({
         name: "Project",
-        workspace: { name: "Primary", cwd: "/srv/projects/paperclip" },
+        workspace: { name: "Primary", cwd: "/srv/projects/outpost" },
       });
 
     expect(res.status, JSON.stringify(res.body)).toBe(422);
@@ -306,7 +306,7 @@ describe("project workspace host-path floor", () => {
     setManagedSandboxOnly(true);
     const app = await createApp();
     const res = await request(app)
-      .post("/api/companies/company-1/projects")
+      .post("/api/spaces/space-1/projects")
       .send({
         name: "Project",
         workspace: { name: "Primary", repoUrl: "https://github.com/paperclipai/paperclip" },

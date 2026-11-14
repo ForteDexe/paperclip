@@ -142,10 +142,10 @@ export function isSupportedCodexNotificationMethod(method: string): boolean {
     method === "model/safetyBuffering/updated" ||
     method === "mcpServer/startupStatus/updated" ||
     method.startsWith("item/") ||
-    method === "paperclip/canonicalProviderEvent" ||
-    method === "paperclip/runtimeRequestExpired" ||
-    method === "paperclip/workspaceChange/updated" ||
-    method === "paperclip/runResult" ||
+    method === "outpost/canonicalProviderEvent" ||
+    method === "outpost/runtimeRequestExpired" ||
+    method === "outpost/workspaceChange/updated" ||
+    method === "outpost/runResult" ||
     method === "turn/diff/updated" ||
     method === "turn/plan/updated"
   );
@@ -161,7 +161,7 @@ export function isBoundCodexNotification(
 ): boolean {
   if (!isSupportedCodexNotificationMethod(notification.method)) return false;
   const params = record(notification.params);
-  const claimedRunId = text(params.runId, text(params.paperclipRunId));
+  const claimedRunId = text(params.runId, text(params.outpostRunId));
   if (claimedRunId.length > 0 && claimedRunId !== binding.runId) return false;
 
   const allowedThreads = new Set(binding.threadIds);

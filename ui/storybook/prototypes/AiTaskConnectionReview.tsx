@@ -7,11 +7,11 @@ import { ConnectionSetupFlow, type ConnectionSetupFlowProps } from "@/features/c
 import { pendingConnectionIntentInteraction } from "@/fixtures/issueThreadInteractionFixtures";
 import { AiConnectionAuth, type AiAuthState } from "@/components/ai-connections/AiConnectionAuth";
 import { AI_REVIEW_CONNECTIONS } from "../fixtures/aiConnections";
-import { storybookAgents } from "../fixtures/paperclipData";
+import { storybookAgents } from "../fixtures/outpostData";
 
 const initial: ConnectionIntentInteraction = {
   ...pendingConnectionIntentInteraction,
-  id: "ai-task-request", companyId: "company-storybook", addresseeUserId: "dotta",
+  id: "ai-task-request", spaceId: "space-storybook", addresseeUserId: "dotta",
   payload: { version: 1, purpose: "ai", serviceSlug: "anthropic", serviceName: "Claude", serviceLogoUrl: "/brands/claude-color.svg", requestingAgentId: "nova", requestingAgentName: "Nova", phase: "requested" },
 };
 
@@ -36,8 +36,8 @@ export function AiTaskConnectionReview({ reuse = false }: { reuse?: boolean }) {
           aiConnection: { provider: "anthropic", method: "subscription", mode: "responsible_user" }, requestedAgentId: "nova", existingConnections: reuse ? [{ id: "claude-dotta", applicationId: "app-anthropic", name: AI_REVIEW_CONNECTIONS[0].name, status: "active", enabled: true }] : [],
         } : interaction);
       }
-      if (path === "/api/companies/company-storybook/tools/gallery") return Response.json({ apps: [{ ...app, name: "Claude" }], capabilities: { canCreateOrganizationGrant: false, canSetCompanyInstall: false } });
-      if (path === "/api/companies/company-storybook/agents") return Response.json([{ ...storybookAgents[0], id: "nova", name: "Nova" }]);
+      if (path === "/api/spaces/space-storybook/tools/gallery") return Response.json({ apps: [{ ...app, name: "Claude" }], capabilities: { canCreateOrganizationGrant: false, canSetSpaceInstall: false } });
+      if (path === "/api/spaces/space-storybook/agents") return Response.json([{ ...storybookAgents[0], id: "nova", name: "Nova" }]);
       if (path === "/api/ai-review-interactions") return Response.json([interaction]);
       return previous(input, init);
     };

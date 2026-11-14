@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { chromium, test, type Cookie } from "@playwright/test";
 import { containsPrivateCredential, type PrivateKeyReceipt } from "./runtime-private-key.js";
 import { collectRunEvents } from "../run-observations.js";
-interface Request { mode: "agent-key" | "canary"; baseURL: string; profileURL?: string; companyId?: string; agentId?: string; sourceIssueId?: string; cookies: Cookie[]; canary?: string; executablePath?: string; channel?: string }
+interface Request { mode: "agent-key" | "canary"; baseURL: string; profileURL?: string; spaceId?: string; agentId?: string; sourceIssueId?: string; cookies: Cookie[]; canary?: string; executablePath?: string; channel?: string }
 async function main(): Promise<PrivateKeyReceipt> {
   let attached = false; try { test.info(); attached = true; } catch { /* expected in standalone process */ }
   if (attached) throw new Error("Private key worker cannot execute in Playwright Test");
@@ -28,7 +28,7 @@ async function main(): Promise<PrivateKeyReceipt> {
       receipt.canaryContained = await page.locator("code").textContent() === input.canary;
       return receipt;
     }
-    if (![input.agentId, input.companyId, input.sourceIssueId].every(id => typeof id === "string" && /^[a-f0-9-]{36}$/i.test(id)) || !input.profileURL || new URL(input.profileURL).origin !== base.origin) throw new Error("Invalid exact private key resource binding");
+    if (![input.agentId, input.spaceId, input.sourceIssueId].every(id => typeof id === "string" && /^[a-f0-9-]{36}$/i.test(id)) || !input.profileURL || new URL(input.profileURL).origin !== base.origin) throw new Error("Invalid exact private key resource binding");
     // The profile replaces an id route with the agent's urlKey and remounts the key form, which drops a name typed before then.
     const { urlKey } = await json<{ urlKey: string }>(`/api/agents/${input.agentId}`);
     await page.goto(input.profileURL, { waitUntil: "domcontentloaded" });
@@ -45,11 +45,11 @@ async function main(): Promise<PrivateKeyReceipt> {
     if (!token || token.length < 20) throw new Error("Missing private one-time credential");
     const identity = await fetch(new URL("/api/agents/me", base), { redirect: "error", signal: AbortSignal.timeout(15_000), headers: { Authorization: `Bearer ${token}` } });
     if (!identity.ok) { await identity.body?.cancel(); throw new Error("Human credential authentication failed"); }
-    const actor = await identity.json() as { id: string; companyId: string };
+    const actor = await identity.json() as { id: string; spaceId: string };
     const keys = await json<Array<{ id: string; name: string; revokedAt: string | null }>>(`/api/agents/${input.agentId}/keys`), created = keys.filter(row => row.name === "local integration" && !row.revokedAt);
     if (created.length !== 1) throw new Error("Human key operation did not create exactly one key");
     keyId = created[0]!.id; receipt.createdKey = { id: keyId, name: "local integration", revokedAt: null };
-    receipt.createdKeyAgentId = actor.id; receipt.createdKeyCompanyId = actor.companyId; receipt.humanCreated = true; receipt.tokenShownOnce = true;
+    receipt.createdKeyAgentId = actor.id; receipt.createdKeySpaceId = actor.spaceId; receipt.humanCreated = true; receipt.tokenShownOnce = true;
     await page.getByRole("button", { name: "Dismiss", exact: true }).click(); await page.reload({ waitUntil: "domcontentloaded" });
     receipt.tokenAbsentAfterReload = !(await page.locator("body").textContent())?.includes(token);
     await page.getByText("local integration", { exact: true }).locator("..").locator("..").getByRole("button", { name: "Revoke", exact: true }).click();
@@ -57,7 +57,7 @@ async function main(): Promise<PrivateKeyReceipt> {
     const denied = await fetch(new URL("/api/agents/me", base), { redirect: "error", signal: AbortSignal.timeout(15_000), headers: { Authorization: `Bearer ${token}` } });
     receipt.revokedCredentialStatus = denied.status; await denied.body?.cancel();
     try {
-      const root = `/api/issues/${input.sourceIssueId}`, parts: unknown[] = [await json(`${root}/comments?order=asc`), await json(`/api/agents/${input.agentId}/keys`), await json(`/api/companies/${input.companyId}/activity?limit=1000`)];
+      const root = `/api/issues/${input.sourceIssueId}`, parts: unknown[] = [await json(`${root}/comments?order=asc`), await json(`/api/agents/${input.agentId}/keys`), await json(`/api/spaces/${input.spaceId}/activity?limit=1000`)];
       const documents = await json<Array<{ key: string }>>(`${root}/documents`);
       for (const doc of documents) { const url = `${root}/documents/${encodeURIComponent(doc.key)}`; parts.push(await json(url), await json(`${url}/revisions`)); }
       parts.push(await json(`${root}/work-products`));
@@ -67,7 +67,7 @@ async function main(): Promise<PrivateKeyReceipt> {
         const content = await response(`/api/attachments/${attachment.id}/content`); if (!content.ok) { await content.body?.cancel(); throw new Error("Private attachment read failed"); }
         parts.push(Buffer.from(await content.arrayBuffer()).toString("utf8"));
       }
-      const runs = await json<Array<{ id: string }>>(`/api/companies/${input.companyId}/heartbeat-runs?limit=100`); parts.push(runs);
+      const runs = await json<Array<{ id: string }>>(`/api/spaces/${input.spaceId}/heartbeat-runs?limit=100`); parts.push(runs);
       if (runs.length >= 100) throw new Error("Private run scan requires complete bounded run inventory");
       let logBytes = 0;
       for (const run of runs) {
@@ -84,7 +84,7 @@ async function main(): Promise<PrivateKeyReceipt> {
     } catch { receipt.privateScanComplete = false; receipt.artifactScanComplete = false; receipt.runEvidenceScanComplete = false; }
     return receipt;
   } finally {
-    if (keyId && input.agentId) { try { const result = await response(`/api/agents/${input.agentId}/keys/${keyId}`, { method: "DELETE" }); await result.body?.cancel(); } catch { /* company cleanup retains final ownership */ } }
+    if (keyId && input.agentId) { try { const result = await response(`/api/agents/${input.agentId}/keys/${keyId}`, { method: "DELETE" }); await result.body?.cancel(); } catch { /* space cleanup retains final ownership */ } }
     await browser.close();
   }
 }

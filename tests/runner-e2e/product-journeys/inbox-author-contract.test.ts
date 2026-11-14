@@ -1,14 +1,14 @@
 import { expect, it } from "vitest";
 import { inboxAuthorCommentMatches } from "./inbox-author-contract.js";
 
-const expected = { companyId: "company", issueId: "issue", ownerUserId: "owner", authorUserId: "fixture-human", body: "Fresh fixture update" };
-const comment = { id: "comment", companyId: "company", issueId: "issue", body: expected.body,
+const expected = { spaceId: "space", issueId: "issue", ownerUserId: "owner", authorUserId: "fixture-human", body: "Fresh fixture update" };
+const comment = { id: "comment", spaceId: "space", issueId: "issue", body: expected.body,
   authorUserId: "fixture-human", authorAgentId: null, createdByRunId: null };
 it("requires the independently authenticated human's exact saved activity", () => {
   expect(inboxAuthorCommentMatches(comment, expected)).toBe(true);
 });
 it.each([
-  undefined, null, { ...comment, id: "" }, { ...comment, companyId: "foreign" }, { ...comment, issueId: "foreign" },
+  undefined, null, { ...comment, id: "" }, { ...comment, spaceId: "foreign" }, { ...comment, issueId: "foreign" },
   { ...comment, body: "stale or replaced activity" }, { ...comment, authorUserId: "owner" },
   { ...comment, authorUserId: null, authorAgentId: "fixture-agent" },
   { ...comment, authorAgentId: "agent" }, { ...comment, createdByRunId: "run" },

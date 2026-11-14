@@ -67,7 +67,7 @@ describeEmbeddedPostgres("Better Auth credential sign-up against the real schema
     // the sign-up and sign-in this suite issues back to back.
     process.env.OUTPOST_AUTH_RATE_LIMIT_ENABLED = "false";
 
-    database = await startEmbeddedPostgresTestDatabase("paperclip-better-auth-signup-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-better-auth-signup-");
     db = createDb(database.connectionString);
 
     const auth = createBetterAuthInstance(db, testConfig(), [ORIGIN]);

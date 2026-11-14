@@ -6,7 +6,7 @@
   "rows": [
     {
       "id": 126,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 126,
@@ -71,7 +71,7 @@
     },
     {
       "id": 127,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 127,
@@ -87,12 +87,12 @@
           "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_935e5397ac7f4b609a3379e40f2e0999",
           "payload": {
-            "name": "paperclip-search_api",
+            "name": "outpost-search_api",
             "schema": "outpost.tool.execution.v1",
             "status": "running",
             "target": null,
             "exitCode": null,
-            "progress": "paperclip-search_api (pending): get_task_context paperclip_finish",
+            "progress": "outpost-search_api (pending): get_task_context outpost_finish",
             "readOnly": true,
             "namespace": null,
             "operation": "search",
@@ -124,7 +124,7 @@
     },
     {
       "id": 129,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 129,
@@ -176,12 +176,12 @@
                 "value": "null"
               }
             ],
-            "summary": "Paperclip returned a semantic tool result.",
-            "category": "paperclip_semantic_tool_receipt_v2",
+            "summary": "Outpost returned a semantic tool result.",
+            "category": "outpost_semantic_tool_receipt_v2",
             "noticeId": "copilot-evidence-c23fbff431f43ac046ac58f9-2",
             "severity": "info",
             "provenance": {
-              "method": "paperclip/semantic_tool_result",
+              "method": "outpost/semantic_tool_result",
               "turnId": "turn_lab_935e5397ac7f4b609a3379e40f2e0999",
               "eventType": "semantic_result",
               "sessionId": "91510691-ffc0-4edd-b373-7a35b312fcbd"
@@ -209,7 +209,7 @@
     },
     {
       "id": 130,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 130,
@@ -298,7 +298,7 @@
     },
     {
       "id": 131,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 131,
@@ -314,7 +314,7 @@
           "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_935e5397ac7f4b609a3379e40f2e0999",
           "payload": {
-            "name": "paperclip-search_api",
+            "name": "outpost-search_api",
             "schema": "outpost.tool.execution.v1",
             "status": "completed",
             "target": null,
@@ -351,7 +351,7 @@
     },
     {
       "id": 137,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 137,
@@ -416,7 +416,7 @@
     },
     {
       "id": 138,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 138,
@@ -432,12 +432,12 @@
           "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_935e5397ac7f4b609a3379e40f2e0999",
           "payload": {
-            "name": "paperclip-search_api",
+            "name": "outpost-search_api",
             "schema": "outpost.tool.execution.v1",
             "status": "running",
             "target": null,
             "exitCode": null,
-            "progress": "paperclip-search_api (pending): get_task_context",
+            "progress": "outpost-search_api (pending): get_task_context",
             "readOnly": true,
             "namespace": null,
             "operation": "search",
@@ -469,7 +469,7 @@
     },
     {
       "id": 140,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 140,
@@ -521,12 +521,12 @@
                 "value": "null"
               }
             ],
-            "summary": "Paperclip returned a semantic tool result.",
-            "category": "paperclip_semantic_tool_receipt_v2",
+            "summary": "Outpost returned a semantic tool result.",
+            "category": "outpost_semantic_tool_receipt_v2",
             "noticeId": "copilot-evidence-c23fbff431f43ac046ac58f9-5",
             "severity": "info",
             "provenance": {
-              "method": "paperclip/semantic_tool_result",
+              "method": "outpost/semantic_tool_result",
               "turnId": "turn_lab_935e5397ac7f4b609a3379e40f2e0999",
               "eventType": "semantic_result",
               "sessionId": "91510691-ffc0-4edd-b373-7a35b312fcbd"
@@ -554,7 +554,7 @@
     },
     {
       "id": 141,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 141,
@@ -643,7 +643,7 @@
     },
     {
       "id": 142,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 142,
@@ -659,7 +659,7 @@
           "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_935e5397ac7f4b609a3379e40f2e0999",
           "payload": {
-            "name": "paperclip-search_api",
+            "name": "outpost-search_api",
             "schema": "outpost.tool.execution.v1",
             "status": "completed",
             "target": null,
@@ -696,7 +696,7 @@
     },
     {
       "id": 232,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 232,
@@ -765,7 +765,7 @@
     },
     {
       "id": 233,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 233,
@@ -781,12 +781,12 @@
           "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_935e5397ac7f4b609a3379e40f2e0999",
           "payload": {
-            "name": "paperclip-get_task_context",
+            "name": "outpost-get_task_context",
             "schema": "outpost.tool.execution.v1",
             "status": "running",
             "target": null,
             "exitCode": null,
-            "progress": "paperclip-get_task_context (pending)",
+            "progress": "outpost-get_task_context (pending)",
             "readOnly": true,
             "namespace": null,
             "operation": "read",
@@ -818,7 +818,7 @@
     },
     {
       "id": 235,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 235,
@@ -870,12 +870,12 @@
                 "value": "null"
               }
             ],
-            "summary": "Paperclip returned a semantic tool result.",
-            "category": "paperclip_semantic_tool_receipt_v2",
+            "summary": "Outpost returned a semantic tool result.",
+            "category": "outpost_semantic_tool_receipt_v2",
             "noticeId": "copilot-evidence-c23fbff431f43ac046ac58f9-8",
             "severity": "info",
             "provenance": {
-              "method": "paperclip/semantic_tool_result",
+              "method": "outpost/semantic_tool_result",
               "turnId": "turn_lab_935e5397ac7f4b609a3379e40f2e0999",
               "eventType": "semantic_result",
               "sessionId": "91510691-ffc0-4edd-b373-7a35b312fcbd"
@@ -903,7 +903,7 @@
     },
     {
       "id": 236,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 236,
@@ -996,7 +996,7 @@
     },
     {
       "id": 237,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 237,
@@ -1012,7 +1012,7 @@
           "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_935e5397ac7f4b609a3379e40f2e0999",
           "payload": {
-            "name": "paperclip-get_task_context",
+            "name": "outpost-get_task_context",
             "schema": "outpost.tool.execution.v1",
             "status": "completed",
             "target": null,
@@ -1049,7 +1049,7 @@
     },
     {
       "id": 315,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 315,
@@ -1130,7 +1130,7 @@
     },
     {
       "id": 316,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 316,
@@ -1151,7 +1151,7 @@
             "status": "running",
             "target": null,
             "exitCode": null,
-            "progress": "Run supplied settlement fixture command (pending): '/private/tmp/paperclip-pi-v5-node-20260928/darwin-arm64/node' '/tmp/pc-copilot-WNx3b9/client.cjs' '/tmp/pc-copilot-WNx3b9/private/socket' '1a7c8079769fc96d4255a468bbd2343b'",
+            "progress": "Run supplied settlement fixture command (pending): '/private/tmp/outpost-pi-v5-node-20260928/darwin-arm64/node' '/tmp/pc-copilot-WNx3b9/client.cjs' '/tmp/pc-copilot-WNx3b9/private/socket' '1a7c8079769fc96d4255a468bbd2343b'",
             "readOnly": false,
             "namespace": null,
             "operation": "execute",
@@ -1183,7 +1183,7 @@
     },
     {
       "id": 330,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 330,
@@ -1276,7 +1276,7 @@
     },
     {
       "id": 331,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 331,
@@ -1329,7 +1329,7 @@
     },
     {
       "id": 408,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 408,
@@ -1394,7 +1394,7 @@
     },
     {
       "id": 409,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 409,
@@ -1410,12 +1410,12 @@
           "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_935e5397ac7f4b609a3379e40f2e0999",
           "payload": {
-            "name": "paperclip-paperclip_finish",
+            "name": "outpost-outpost_finish",
             "schema": "outpost.tool.execution.v1",
             "status": "running",
             "target": null,
             "exitCode": null,
-            "progress": "paperclip-paperclip_finish (pending)",
+            "progress": "outpost-outpost_finish (pending)",
             "readOnly": false,
             "namespace": null,
             "operation": "execute",
@@ -1447,7 +1447,7 @@
     },
     {
       "id": 410,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 410,
@@ -1500,7 +1500,7 @@
     },
     {
       "id": 423,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 423,
@@ -1556,7 +1556,7 @@
     },
     {
       "id": 424,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 424,
@@ -1585,7 +1585,7 @@
               },
               {
                 "name": "operationId",
-                "value": "paperclip_finish"
+                "value": "outpost_finish"
               },
               {
                 "name": "callIdentitySha256",
@@ -1608,12 +1608,12 @@
                 "value": "0051f5d3863c6d3ebcc843ac32d4f90b5fa5a601b250c91532e7e5683ed44207"
               }
             ],
-            "summary": "Paperclip returned a semantic tool result.",
-            "category": "paperclip_semantic_tool_receipt_v2",
+            "summary": "Outpost returned a semantic tool result.",
+            "category": "outpost_semantic_tool_receipt_v2",
             "noticeId": "copilot-evidence-c23fbff431f43ac046ac58f9-13",
             "severity": "info",
             "provenance": {
-              "method": "paperclip/semantic_tool_result",
+              "method": "outpost/semantic_tool_result",
               "turnId": "turn_lab_935e5397ac7f4b609a3379e40f2e0999",
               "eventType": "semantic_result",
               "sessionId": "91510691-ffc0-4edd-b373-7a35b312fcbd"
@@ -1641,7 +1641,7 @@
     },
     {
       "id": 425,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 425,
@@ -1674,7 +1674,7 @@
               },
               {
                 "name": "semanticOperationId",
-                "value": "paperclip_finish"
+                "value": "outpost_finish"
               },
               {
                 "name": "semanticCallIdentitySha256",
@@ -1730,7 +1730,7 @@
     },
     {
       "id": 426,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 426,
@@ -1746,7 +1746,7 @@
           "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_935e5397ac7f4b609a3379e40f2e0999",
           "payload": {
-            "name": "paperclip-paperclip_finish",
+            "name": "outpost-outpost_finish",
             "schema": "outpost.tool.execution.v1",
             "status": "completed",
             "target": null,
@@ -1783,7 +1783,7 @@
     },
     {
       "id": 430,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 430,
@@ -1856,7 +1856,7 @@
     },
     {
       "id": 431,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 431,
@@ -1909,7 +1909,7 @@
     },
     {
       "id": 432,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 432,
@@ -1994,7 +1994,7 @@
     },
     {
       "id": 433,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 433,
@@ -2047,7 +2047,7 @@
     },
     {
       "id": 466,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 466,
@@ -2085,7 +2085,7 @@
     },
     {
       "id": 469,
-      "companyId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
+      "spaceId": "73879fd2-bd85-4d5c-873e-f53d1a493ad3",
       "runId": "f93aae13-d84e-496a-a986-717f4cf079cc",
       "agentId": "23b98756-c577-4492-bbcf-e42f60e772a9",
       "seq": 469,

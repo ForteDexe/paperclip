@@ -22,7 +22,7 @@ import { and, eq } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 import { activityLog, agentRuntimeState, agentTaskSessions, agentWakeupRequests, agents, applyPendingMigrations, authUsers,
   chatActions, chatConversations, chatEndpoints, chatExternalPrincipals, chatPublications, chatSlackRegistrations,
-  closeCheckpointDb, closeFileStorageDb, closeLivenessDb, companies, companyMemberships, companySecrets, companySkills,
+  closeCheckpointDb, closeFileStorageDb, closeLivenessDb, spaces, spaceMemberships, spaceSecrets, spaceSkills,
   costEvents, createDb, financeEvents, heartbeatRunEvents, heartbeatRuns, issueComments, issues, toolApplications, toolConnections } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { guardSlackFixtureNetwork } from "./helpers/slack-cloud/transport.js";
@@ -54,7 +54,7 @@ type HostState = {
   bindings: { id: string; profile?: string; metadata?: Record<string, unknown> }[];
 };
 type Fixture = {
-  companyId: string; endpointId: string; connectionId: string; applicationId: string; agentId: string; actorId: string;
+  spaceId: string; endpointId: string; connectionId: string; applicationId: string; agentId: string; actorId: string;
   instanceId: string; publicId: string; teamId: string; appId: string; botId: string; userId: string; channelId: string; threadTs: string;
   botToken: string; signingSecret: string; controlNonce: string; signPrivate: string; sealPrivate: string; controlJwks: unknown; origin: string; tenantOrigin: string;
 };
@@ -113,22 +113,22 @@ it.skipIf(!appUrl || !stateFile)("enabled Slack finishes ordinary useful tasks a
       OUTPOST_AGENT_JWT_SECRET: `${randomUUID()}${randomUUID()}`, OUTPOST_API_URL: f.tenantOrigin,
     })) vi.stubEnv(key, value);
     const now = new Date();
-    await db.insert(companies).values({ id: f.companyId, name: "Form boundary journey", issuePrefix: `F${f.companyId.slice(0, 7)}` });
+    await db.insert(spaces).values({ id: f.spaceId, name: "Form boundary journey", issuePrefix: `F${f.spaceId.slice(0, 7)}` });
     await db.insert(authUsers).values({ id: f.actorId, name: "Form operator", email: `${f.actorId}@example.test`, emailVerified: true, createdAt: now, updatedAt: now });
-    await db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: f.actorId, status: "active", membershipRole: "operator" });
-    await db.insert(agents).values({ id: f.agentId, companyId: f.companyId, name: "Scoped useful process", adapterType: "codex_local", status: "idle",
+    await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: f.actorId, status: "active", membershipRole: "operator" });
+    await db.insert(agents).values({ id: f.agentId, spaceId: f.spaceId, name: "Scoped useful process", adapterType: "codex_local", status: "idle",
       adapterConfig: { engine: "cli", command: fileURLToPath(new URL("./helpers/slack-cloud/controlled-codex-cli.cjs", import.meta.url)), cwd: directory,
         env: { SLACK_FORM_FIXTURE_PEER_ORIGIN: f.tenantOrigin, CODEX_HOME: path.join(directory, "owned-controlled-cli-home"),
           OPENAI_API_KEY: "controlled-command-no-real-provider-authority" }, timeoutSec: 10, graceSec: 1 },
       runtimeConfig: { heartbeat: { wakeOnDemand: true, intervalSec: 0 } } });
-    await db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "agent", principalId: f.agentId, status: "active", membershipRole: "member" });
-    await db.insert(toolApplications).values({ id: f.applicationId, companyId: f.companyId, name: "Slack", type: "chat" });
-    await db.insert(toolConnections).values({ id: f.connectionId, companyId: f.companyId, applicationId: f.applicationId, name: "Slack form", uid: f.endpointId,
+    await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "agent", principalId: f.agentId, status: "active", membershipRole: "member" });
+    await db.insert(toolApplications).values({ id: f.applicationId, spaceId: f.spaceId, name: "Slack", type: "chat" });
+    await db.insert(toolConnections).values({ id: f.connectionId, spaceId: f.spaceId, applicationId: f.applicationId, name: "Slack form", uid: f.endpointId,
       transport: "chat_sdk", connectionPurpose: "channel", enabled: true, status: "active" });
-    await db.insert(chatEndpoints).values({ id: f.endpointId, companyId: f.companyId, connectionId: f.connectionId, assignedAgentId: f.agentId, publicId: f.publicId,
+    await db.insert(chatEndpoints).values({ id: f.endpointId, spaceId: f.spaceId, connectionId: f.connectionId, assignedAgentId: f.agentId, publicId: f.publicId,
       provider: "slack", status: "draft", sponsorUserId: f.actorId, allowGroupChats: true, allowUnlinkedPeople: false,
       capabilities: CAPABILITIES.slack, setup: { step: "provider_setup" } });
-    await db.insert(chatSlackRegistrations).values({ companyId: f.companyId, endpointId: f.endpointId, requestId: randomUUID(), status: "configured", appId: f.appId,
+    await db.insert(chatSlackRegistrations).values({ spaceId: f.spaceId, endpointId: f.endpointId, requestId: randomUUID(), status: "configured", appId: f.appId,
       manifest: {}, manifestHash: "fixture", callbackUri: `https://tenant.example/api/chat-webhooks/${f.publicId}/slack`, createdByUserId: f.actorId });
     const runtime = new ChatRuntime(), replace = runtime.replaceEndpoint.bind(runtime);
     vi.spyOn(runtime, "replaceEndpoint").mockImplementation(input => {
@@ -181,7 +181,7 @@ it.skipIf(!appUrl || !stateFile)("enabled Slack finishes ordinary useful tasks a
         cancelWorkForScope: ownedHeartbeat.cancelBudgetScopeWork,
         deliverResumeContinuations: () => deliverBudgetResumeContinuations(database, {
           prepareChatRetry: channels.prepareFailedChatRunRetry,
-          resumeTaskRetry: (companyId, requestId) => ownedHeartbeat.resumeTaskRetry(companyId, requestId),
+          resumeTaskRetry: (spaceId, requestId) => ownedHeartbeat.resumeTaskRetry(spaceId, requestId),
         }),
       });
       worker = registerGitHubConnectionEventWork(database, coordinator, githubConnectionEventService(database), canDispatch);
@@ -193,7 +193,7 @@ it.skipIf(!appUrl || !stateFile)("enabled Slack finishes ordinary useful tasks a
     await service.configure(f.endpointId, { action: "configure", credentials: { botToken: f.botToken, signingSecret: f.signingSecret } }, f.actorId);
     expect((await post(signed({ type: "url_verification", team_id: f.teamId, api_app_id: f.appId, challenge: "form-journey-challenge" }), tenantOrigin)).status).toBe(200);
     await service.configure(f.endpointId, { action: "verify" }, f.actorId);
-    const [principal] = await db.insert(chatExternalPrincipals).values({ companyId: f.companyId, provider: "slack", providerAccountId: f.teamId, externalId: f.userId, kind: "user", displayName: "Operator" }).returning();
+    const [principal] = await db.insert(chatExternalPrincipals).values({ spaceId: f.spaceId, provider: "slack", providerAccountId: f.teamId, externalId: f.userId, kind: "user", displayName: "Operator" }).returning();
     expect(principal).toBeDefined();
     const link = await service.createLinkIntent(f.endpointId, principal!.id, 1800);
     const token = new URL(link.confirmationUrl).searchParams.get("token"); if (!token) throw new Error("Missing normal identity link token");
@@ -215,25 +215,25 @@ it.skipIf(!appUrl || !stateFile)("enabled Slack finishes ordinary useful tasks a
     await vi.waitFor(async () => expect(await conversation()).toBeDefined(), { timeout: 15_000 });
     const current = (await conversation())!;
     const enabledIdentity = async () => {
-      const [endpoint] = await database.select().from(chatEndpoints).where(and(eq(chatEndpoints.companyId, f.companyId), eq(chatEndpoints.id, f.endpointId)));
-      const [connection] = await database.select().from(toolConnections).where(and(eq(toolConnections.companyId, f.companyId), eq(toolConnections.id, f.connectionId)));
+      const [endpoint] = await database.select().from(chatEndpoints).where(and(eq(chatEndpoints.spaceId, f.spaceId), eq(chatEndpoints.id, f.endpointId)));
+      const [connection] = await database.select().from(toolConnections).where(and(eq(toolConnections.spaceId, f.spaceId), eq(toolConnections.id, f.connectionId)));
       expect(endpoint?.status).toBe("active"); expect(connection?.enabled).toBe(true);
       return { endpointId: endpoint!.id, connectionId: connection!.id, capabilities: endpoint!.capabilities, setup: endpoint!.setup };
     };
     const configured = await enabledIdentity();
     const usefulRuns = async (count: number) => {
-      const runs = await database.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.agentId, f.agentId)));
+      const runs = await database.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.agentId, f.agentId)));
       expect(runs).toHaveLength(count);
       const receipts = [];
       for (const run of runs) {
         expect(run.status).toBe("succeeded"); expect(run.exitCode).toBe(0);
         const issueId = run.contextSnapshot?.issueId;
         if (typeof issueId !== "string") throw new Error("Missing admitted actual task identity");
-        const [task] = await database.select().from(issues).where(and(eq(issues.companyId, f.companyId), eq(issues.id, issueId)));
+        const [task] = await database.select().from(issues).where(and(eq(issues.spaceId, f.spaceId), eq(issues.id, issueId)));
         expect(task?.status).toBe("done"); expect(task?.checkoutRunId).toBeNull(); expect(task?.executionRunId).toBeNull();
         const replies = await database.select().from(issueComments).where(and(eq(issueComments.issueId, issueId), eq(issueComments.createdByRunId, run.id), eq(issueComments.authorAgentId, f.agentId)));
         expect(replies).toHaveLength(1); expect(replies[0]?.body).toBe(`Scoped Slack useful reply for run ${run.id}`);
-        const publications = await database.select().from(chatPublications).where(and(eq(chatPublications.companyId, f.companyId), eq(chatPublications.endpointId, f.endpointId), eq(chatPublications.commentId, replies[0]!.id)));
+        const publications = await database.select().from(chatPublications).where(and(eq(chatPublications.spaceId, f.spaceId), eq(chatPublications.endpointId, f.endpointId), eq(chatPublications.commentId, replies[0]!.id)));
         expect(publications).toHaveLength(1); expect(publications[0]?.state).toBe("published"); expect(publications[0]?.providerMessageId).toBeTruthy();
         const platform = await control("state");
         expect(platform.usefulReplies?.filter(reply => reply.runId === run.id && reply.id === publications[0]!.providerMessageId)).toHaveLength(1);
@@ -331,22 +331,22 @@ it.skipIf(!appUrl || !stateFile)("enabled Slack finishes ordinary useful tasks a
     if (db && fixture) {
       const f = fixture;
       try {
-        await db.delete(chatEndpoints).where(eq(chatEndpoints.companyId, f.companyId));
-        await db.delete(financeEvents).where(eq(financeEvents.companyId, f.companyId));
-        await db.delete(costEvents).where(eq(costEvents.companyId, f.companyId));
-        await db.delete(activityLog).where(eq(activityLog.companyId, f.companyId));
-        await db.delete(agentTaskSessions).where(eq(agentTaskSessions.companyId, f.companyId));
-        await db.delete(agentRuntimeState).where(eq(agentRuntimeState.companyId, f.companyId));
-        await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.companyId, f.companyId));
-        await db.delete(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId));
-        await db.delete(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId));
-        await db.delete(issueComments).where(eq(issueComments.companyId, f.companyId));
-        await db.delete(issues).where(eq(issues.companyId, f.companyId));
-        await db.delete(agents).where(eq(agents.companyId, f.companyId));
-        await db.delete(companyMemberships).where(eq(companyMemberships.companyId, f.companyId));
-        await db.delete(companySecrets).where(eq(companySecrets.companyId, f.companyId));
-        await db.delete(companySkills).where(eq(companySkills.companyId, f.companyId));
-        await db.delete(companies).where(eq(companies.id, f.companyId)); await db.delete(authUsers).where(eq(authUsers.id, f.actorId));
+        await db.delete(chatEndpoints).where(eq(chatEndpoints.spaceId, f.spaceId));
+        await db.delete(financeEvents).where(eq(financeEvents.spaceId, f.spaceId));
+        await db.delete(costEvents).where(eq(costEvents.spaceId, f.spaceId));
+        await db.delete(activityLog).where(eq(activityLog.spaceId, f.spaceId));
+        await db.delete(agentTaskSessions).where(eq(agentTaskSessions.spaceId, f.spaceId));
+        await db.delete(agentRuntimeState).where(eq(agentRuntimeState.spaceId, f.spaceId));
+        await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.spaceId, f.spaceId));
+        await db.delete(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId));
+        await db.delete(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId));
+        await db.delete(issueComments).where(eq(issueComments.spaceId, f.spaceId));
+        await db.delete(issues).where(eq(issues.spaceId, f.spaceId));
+        await db.delete(agents).where(eq(agents.spaceId, f.spaceId));
+        await db.delete(spaceMemberships).where(eq(spaceMemberships.spaceId, f.spaceId));
+        await db.delete(spaceSecrets).where(eq(spaceSecrets.spaceId, f.spaceId));
+        await db.delete(spaceSkills).where(eq(spaceSkills.spaceId, f.spaceId));
+        await db.delete(spaces).where(eq(spaces.id, f.spaceId)); await db.delete(authUsers).where(eq(authUsers.id, f.actorId));
       } catch (error) { errors.push(error); }
       for (const close of [closeCheckpointDb, closeFileStorageDb, closeLivenessDb]) { try { await close(db, 1); } catch (error) { errors.push(error); } }
       try { await db.$client.end({ timeout: 1 }); } catch (error) { errors.push(error); }

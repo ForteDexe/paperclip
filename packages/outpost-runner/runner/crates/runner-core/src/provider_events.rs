@@ -1008,7 +1008,7 @@ pub fn normalize_codex_notification_in(
     };
 
     match method {
-        "paperclip/providerPerformance" => {
+        "outpost/providerPerformance" => {
             let spans = provider_performance_spans(params);
             if !spans.is_empty() {
                 push(
@@ -1130,7 +1130,7 @@ pub fn normalize_codex_notification_in(
                 }),
             );
         }
-        "paperclip/resumeUsageSnapshot" => push(
+        "outpost/resumeUsageSnapshot" => push(
             &mut events,
             "harness.diagnostic",
             EventPriority::P0,
@@ -1280,7 +1280,7 @@ pub fn normalize_codex_notification_in(
                 "hook.completed"
             },
             EventPriority::P2,
-            crate::governance_events::codex_hook_payload(method, params),
+            crate::approval_events::codex_hook_payload(method, params),
         ),
         "item/autoApprovalReview/started" | "item/autoApprovalReview/completed" => push(
             &mut events,
@@ -1290,7 +1290,7 @@ pub fn normalize_codex_notification_in(
                 "safety.review.completed"
             },
             EventPriority::P1,
-            crate::governance_events::codex_safety_review_payload(method, params),
+            crate::approval_events::codex_safety_review_payload(method, params),
         ),
         "item/agentMessage/delta" => push(
             &mut events,
@@ -1498,7 +1498,7 @@ pub fn normalize_codex_notification_in(
                 // Preserve only actual terminal invocation identity in the compatibility
                 // projection. Arguments, arbitrary tool names and result bodies stay omitted.
                 if item_type == "tool_call" {
-                    if let Some(name @ ("paperclip_finish" | "paperclip_block")) =
+                    if let Some(name @ ("outpost_finish" | "outpost_block")) =
                         provider_item.get("name").and_then(Value::as_str)
                     {
                         payload
@@ -1791,7 +1791,7 @@ fn normalize_acpx_status(
             .or_else(|| breakdown.get("cacheWriteTokens"));
         // ACPX marks every breakdown field optional and defines omission as
         // unknown. Only advertise a complete per-turn delta when every field
-        // that feeds a Paperclip token budget is explicitly present.
+        // that feeds a Outpost token budget is explicitly present.
         let run_delta_available = breakdown
             .get("inputTokens")
             .and_then(Value::as_u64)
@@ -2505,7 +2505,7 @@ mod tests {
             );
         }
         let events =
-            normalize_codex_notification("paperclip/providerPerformance", &json!({"spans":spans}));
+            normalize_codex_notification("outpost/providerPerformance", &json!({"spans":spans}));
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_type, "harness.diagnostic");
         assert_eq!(events[0].priority, EventPriority::P1);
@@ -2517,7 +2517,7 @@ mod tests {
         );
         assert!(!events[0].payload.to_string().contains("private"));
         assert!(normalize_codex_notification(
-            "paperclip/providerPerformance",
+            "outpost/providerPerformance",
             &json!({"spans":[
                 {"name":"provider.model.stream","startedAtMs":10,"endedAtMs":1},
                 {"name":"provider.model.stream","startedAtMs":0,"endedAtMs":86400001}
@@ -2773,13 +2773,13 @@ mod tests {
             let events = normalize_codex_notification(
                 method,
                 &json!({"item": {
-                    "id": "finish-1", "type": "dynamicToolCall", "tool": "paperclip_finish",
+                    "id": "finish-1", "type": "dynamicToolCall", "tool": "outpost_finish",
                     "status": if method == "item/started" { "inProgress" } else { "completed" },
                     "arguments": {"secret": "not-for-the-log"}
                 }}),
             );
             assert_eq!(events.len(), 1);
-            assert_eq!(events[0].payload["name"], "paperclip_finish");
+            assert_eq!(events[0].payload["name"], "outpost_finish");
             assert_eq!(events[0].payload["transport"], "dynamic");
             assert_eq!(events[0].payload["executionId"], "finish-1");
             assert!(events[0].event_type.starts_with("tool.execution."));
@@ -2803,10 +2803,10 @@ mod tests {
         }
         for (item_type, name) in [
             ("tool_call", Some("write_document")),
-            ("tool_call", Some("mcp.paperclip_finish")),
+            ("tool_call", Some("mcp.outpost_finish")),
             ("tool_call", None),
-            ("agentMessage", Some("paperclip_finish")),
-            ("tool_result", Some("paperclip_block")),
+            ("agentMessage", Some("outpost_finish")),
+            ("tool_result", Some("outpost_block")),
         ] {
             let events = normalize_codex_notification(
                 "item/completed",
@@ -2985,7 +2985,7 @@ mod tests {
             let events = normalize_acpx_tool_call(
                 &json!({
                     "type": "tool_call", "tag": "tool_call_update", "status": "pending",
-                    "title": "mcp__paperclip__hire_agent", "inputUpdated": input_updated,
+                    "title": "mcp__outpost__create_agent", "inputUpdated": input_updated,
                     "rawInput": {"private": "secret-input"},
                 }),
                 "provider-tool-id",
@@ -3308,14 +3308,14 @@ mod tests {
         let blocked = normalize_acpx_runtime_event(
             AcpxRuntimeEventKind::ToolCall,
             &json!({"type": "tool_call", "toolCallId": "toolu_3", "status": "failed", "title": "rm -rf build",
-                "toolDetail": {"toolName": "mcp__paperclip__delete", "blockedReason": "Denied by rule"}}),
+                "toolDetail": {"toolName": "mcp__outpost__delete", "blockedReason": "Denied by rule"}}),
             Some("unknown"),
             "fallback",
             "turn-1",
             0,
         );
         assert_eq!(blocked[0].payload["name"], "delete");
-        assert_eq!(blocked[0].payload["namespace"], "paperclip");
+        assert_eq!(blocked[0].payload["namespace"], "outpost");
         assert_eq!(blocked[0].payload["transport"], "mcp");
         assert_eq!(blocked[0].payload["blockedReason"], "Denied by rule");
 

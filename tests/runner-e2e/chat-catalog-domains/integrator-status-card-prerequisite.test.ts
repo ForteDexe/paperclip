@@ -23,15 +23,15 @@ function fixture(key: string, deadline: number | undefined) {
   });
   const post = vi.fn(async (path: string) => {
     if (path.endsWith("/projects")) return { id: "project" };
-    if (path.endsWith("/issues")) return { id: "source", companyId: "company", title: "Payment approval blocks launch", status: "blocked" };
+    if (path.endsWith("/issues")) return { id: "source", spaceId: "space", title: "Payment approval blocks launch", status: "blocked" };
     if (path.endsWith("/keys")) return { id: "owned-key", token: "synthetic-fixture-key" };
     if (path.endsWith("/budgets/policies")) return {};
     throw Error("Unexpected fixture write");
   });
-  const remove = vi.fn(async () => ({})), patch = vi.fn(async () => ({ id: "source", companyId: "company", status: "done" }));
+  const remove = vi.fn(async () => ({})), patch = vi.fn(async () => ({ id: "source", spaceId: "space", status: "done" }));
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ id: "card" }) })));
   const ctx = { scenario: { id: key }, observationDeadlineAt: deadline,
-    input: { nonce: "synthetic", privateSecrets: [], fixtures: { company: { id: "company", issuePrefix: "ACORN" }, agent: { id: "ceo" } },
+    input: { nonce: "synthetic", privateSecrets: [], fixtures: { space: { id: "space", issuePrefix: "ACORN" }, agent: { id: "ceo" } },
       api: { baseURL: "https://fixture.test", get, post, postSensitive: post, patch, delete: remove }, evidence: async () => {} },
     allRuns: async () => { if (lateNative) vi.setSystemTime(deadline! + 1); return noWork ? [] : [{ id: "prerequisite", status: runStatus }]; },
   } as unknown as ChatCatalogContext;

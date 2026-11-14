@@ -16,13 +16,13 @@ const ATTACHMENT_ID = "00000000-0000-4000-8000-000000000001";
 
 const deckPdf = {
   id: "work-product-1",
-  companyId: "company-1",
+  spaceId: "space-1",
   projectId: null,
   issueId: "issue-1",
   executionWorkspaceId: null,
   runtimeServiceId: null,
   type: "artifact",
-  provider: "paperclip",
+  provider: "outpost",
   externalId: null,
   title: "Interface Craft revision — PDF",
   url: null,

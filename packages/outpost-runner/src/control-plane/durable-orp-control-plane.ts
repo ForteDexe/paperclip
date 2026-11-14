@@ -373,7 +373,7 @@ function checkpointRunId(state: StoredCoreState): string {
   if (state.stagedRunAttachment) return state.stagedRunAttachment.targetIdentity.runId;
   if (state.warmTransition) return state.warmTransition.receipt.newIdentity.runId;
   const attachment = state.commands.findLast(command => command.type === "run.attach");
-  const next = attachment?.payload.paperclipNextAuthority as { identity?: { runId?: string } } | undefined;
+  const next = attachment?.payload.outpostNextAuthority as { identity?: { runId?: string } } | undefined;
   return next?.identity?.runId ?? state.identity.runId;
 }
 
@@ -795,7 +795,7 @@ function warmTransitionReceipt(
   runnerVersion: string,
   runnerDigest: string,
 ): DurableWarmRunTransition {
-  const boundary = command.payload.paperclipNextAuthority;
+  const boundary = command.payload.outpostNextAuthority;
   if (
     !exactIdentity(identity) ||
     !isRecord(boundary) ||
@@ -976,9 +976,9 @@ function unsettledSemanticInput(
 
 function stagedCommandMatches(staged: Pick<StagedRunAttachment, "targetIdentity" | "templateDigest" | "commandId">, command: DurableRecoveryCoreCommand): boolean {
   if (command.type !== "run.attach" || command.commandId !== staged.commandId) return false;
-  const { paperclipNextAuthority, ...template } = command.payload;
-  return isRecord(paperclipNextAuthority)
-    && canonicalJson(paperclipNextAuthority.identity) === canonicalJson(staged.targetIdentity)
+  const { outpostNextAuthority, ...template } = command.payload;
+  return isRecord(outpostNextAuthority)
+    && canonicalJson(outpostNextAuthority.identity) === canonicalJson(staged.targetIdentity)
     && `sha256:${canonicalDigest(template)}` === staged.templateDigest;
 }
 
@@ -989,7 +989,7 @@ function stagedAttachmentTemplate(state: StoredCoreState): Record<string, unknow
   const command = state.commands?.find(command => command.commandId === staged.commandId)
     ?? state.warmTransition?.command ?? state.completedWarmTransition?.command;
   if (!command || !stagedCommandMatches(staged, command)) return null;
-  const { paperclipNextAuthority: _authority, ...template } = command.payload;
+  const { outpostNextAuthority: _authority, ...template } = command.payload;
   return template;
 }
 
@@ -1014,7 +1014,7 @@ function validStagedRunAttachment(state: StoredCoreState, headerOnly = false): b
       staged.sourceIdentity[key as keyof DurableRecoveryIdentity] === staged.targetIdentity[key as keyof DurableRecoveryIdentity])
     && /^sha256:[0-9a-f]{64}$/.test(staged.templateDigest)
     && (headerOnly || staged.commandId !== null || (isRecord(staged.runAttachTemplate) && isRecord(staged.runAttachTemplate.provider)
-      && staged.runAttachTemplate.paperclipNextAuthority === undefined
+      && staged.runAttachTemplate.outpostNextAuthority === undefined
       && `sha256:${canonicalDigest(staged.runAttachTemplate)}` === staged.templateDigest
       && Buffer.byteLength(JSON.stringify(staged.runAttachTemplate)) <= maxCommandBytes))
     && (staged.commandId === null || (typeof staged.commandId === "string" && stableIdPattern.test(staged.commandId))))) return false;
@@ -2552,7 +2552,7 @@ export class DurablePrpControlPlane {
       canonicalJson(identity) === canonicalJson(this.#identity) &&
       canonicalJson(identity) === canonicalJson(completed.receipt.newIdentity)
     ) {
-      const { paperclipNextAuthority: _boundary, ...template } =
+      const { outpostNextAuthority: _boundary, ...template } =
         completed.command.payload;
       if (
         runAttachTemplate !== undefined &&
@@ -2579,7 +2579,7 @@ export class DurablePrpControlPlane {
       // The new authenticated peer, not an attach-result observer, owns the
       // activation boundary. Keep the old credential and command replay lane.
       if (runAttachTemplate !== undefined) {
-        const { paperclipNextAuthority: _boundary, ...expectedTemplate } =
+        const { outpostNextAuthority: _boundary, ...expectedTemplate } =
           transition.command.payload;
         if (
           canonicalJson(runAttachTemplate) !== canonicalJson(expectedTemplate)
@@ -2844,9 +2844,9 @@ export class DurablePrpControlPlane {
     const prior = commandId ? this.#getCommand(commandId) : undefined;
     if (authorityRunId !== undefined && retainedSource !== authorityRunId
       && !isRunnerRecoveryMaintenanceCommand(type)
-      && !(type === "run.attach" && isRecord(payload.paperclipNextAuthority)
-        && isRecord(payload.paperclipNextAuthority.identity)
-        && payload.paperclipNextAuthority.identity.runId === authorityRunId)
+      && !(type === "run.attach" && isRecord(payload.outpostNextAuthority)
+        && isRecord(payload.outpostNextAuthority.identity)
+        && payload.outpostNextAuthority.identity.runId === authorityRunId)
       && !(prior && prior.status !== "pending" && prior.type === type && canonicalJson(prior.payload) === canonicalJson(payload))) {
       throw new Error("native_runner_source_attachment_pending");
     }
@@ -2856,9 +2856,9 @@ export class DurablePrpControlPlane {
         && !["runner.drain", "session.snapshot", "turn.stop", "runner.suspend", "session.close"].includes(type)));
     if (staged && !retireStaged) {
       if (type === "run.attach") {
-        const { paperclipNextAuthority, ...template } = payload;
-        if (!isRecord(paperclipNextAuthority)
-          || canonicalJson(paperclipNextAuthority.identity) !== canonicalJson(staged.targetIdentity)
+        const { outpostNextAuthority, ...template } = payload;
+        if (!isRecord(outpostNextAuthority)
+          || canonicalJson(outpostNextAuthority.identity) !== canonicalJson(staged.targetIdentity)
           || `sha256:${canonicalDigest(template)}` !== staged.templateDigest
           || (staged.commandId !== null && staged.commandId !== commandId)) throw new Error("Staged run attachment command conflicts.");
       } else if (!stagedTargetActivated(this.#store.state) && !["runner.drain", "session.open", "session.snapshot", "turn.stop", "runner.suspend", "session.close", "semantic_tool.result"].includes(type)) {
@@ -2879,7 +2879,7 @@ export class DurablePrpControlPlane {
     }
     if (
       type === "run.attach" &&
-      payload.paperclipNextAuthority !== undefined &&
+      payload.outpostNextAuthority !== undefined &&
       ![...this.#connections].some(
         (connection) =>
           connection.secureChannel !== null &&
@@ -3028,7 +3028,7 @@ export class DurablePrpControlPlane {
     wire.acceptInitialData(head);
   }
 
-  /** Attach either an accepted inbound WebSocket or a Paperclip-opened peer. */
+  /** Attach either an accepted inbound WebSocket or a Outpost-opened peer. */
   attachWireConnection(wire: PrpWireConnection): PrpWireAttachment {
     let connection!: AuthorityConnection;
     let processing = Promise.resolve();
@@ -3475,7 +3475,7 @@ export class DurablePrpControlPlane {
           (command) =>
             command.status === "pending" &&
             command.type === "run.attach" &&
-            command.payload.paperclipNextAuthority !== undefined,
+            command.payload.outpostNextAuthority !== undefined,
         )
       )
         return null;
@@ -3823,7 +3823,7 @@ export class DurablePrpControlPlane {
           phase: "activated",
         };
         candidate.leases = { [lease.credentialId]: structuredClone(lease) };
-        const { paperclipNextAuthority: _authority, ...runAttachTemplate } = transition.command.payload;
+        const { outpostNextAuthority: _authority, ...runAttachTemplate } = transition.command.payload;
         candidate.runAttachTemplate = structuredClone(runAttachTemplate);
         this.#store.commit(candidate);
         this.#identity = structuredClone(candidate.identity);
@@ -4105,7 +4105,7 @@ export class DurablePrpControlPlane {
     }
     if (
       command.type === "run.attach" &&
-      command.payload.paperclipNextAuthority !== undefined &&
+      command.payload.outpostNextAuthority !== undefined &&
       status === "completed"
     ) {
       if (connection.warmTransitionVersion !== 1 || connection.lease === null) {

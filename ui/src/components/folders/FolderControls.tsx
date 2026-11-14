@@ -468,7 +468,7 @@ export function MobileFolderSheet({
               <div className="px-2 pb-0.5 pt-2 text-(length:--text-micro) font-medium uppercase tracking-wide text-muted-foreground">
                 Outpost
               </div>
-              {model.company.map((node) => renderBranch(node))}
+              {model.space.map((node) => renderBranch(node))}
               {model.projects ? renderBranch(model.projects, "Projects") : null}
               {model.bundled ? renderBranch(model.bundled, "Bundled") : null}
             </>

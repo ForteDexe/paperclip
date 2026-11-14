@@ -77,7 +77,7 @@ export function parseProviderIdentity(
   if (
     permissionMode !== undefined &&
     permissionMode !== "approve-all" &&
-    permissionMode !== "approve-paperclip" &&
+    permissionMode !== "approve-outpost" &&
     permissionMode !== "approve-reads" &&
     permissionMode !== "deny-all"
   ) {

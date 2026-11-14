@@ -6,7 +6,7 @@ export type { ActivityPublication } from "../types/activity-publication.js";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { activityLog, agentApiKeys, companies, heartbeatRuns, issues } from "@outpost/db";
+import { activityLog, agentApiKeys, spaces, heartbeatRuns, issues } from "@outpost/db";
 import { isUuidLike, PLUGIN_EVENT_TYPES, type PluginEventType } from "@outpost/shared";
 import type { PluginEvent } from "@outpost/plugin-sdk";
 import { publishLiveEvent } from "./live-events.js";
@@ -57,7 +57,7 @@ export function publishPluginDomainEvent(event: PluginEvent): void {
 }
 
 export interface LogActivityInput {
-  companyId: string;
+  spaceId: string;
   actorType: "agent" | "user" | "system" | "plugin";
   actorId: string;
   action: string;
@@ -102,7 +102,7 @@ export async function resolveResponsibleUserIdForActivity(db: Db, input: LogActi
     const run = await db
       .select({ responsibleUserId: heartbeatRuns.responsibleUserId })
       .from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, runId)))
+      .where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, runId)))
       .then((rows) => rows[0] ?? null);
     const runResponsibleUserId = readNonEmptyString(run?.responsibleUserId);
     if (runResponsibleUserId) return runResponsibleUserId;
@@ -118,7 +118,7 @@ export async function resolveResponsibleUserIdForActivity(db: Db, input: LogActi
         createdByUserId: issues.createdByUserId,
       })
       .from(issues)
-      .where(and(eq(issues.companyId, input.companyId), eq(issues.id, issueId)))
+      .where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, issueId)))
       .then((rows) => rows[0] ?? null);
     const issueResponsibleUserId = readNonEmptyString(issue?.responsibleUserId)
       ?? readNonEmptyString(issue?.createdByUserId);
@@ -132,7 +132,7 @@ export async function resolveResponsibleUserIdForActivity(db: Db, input: LogActi
       .select({ responsibleUserId: agentApiKeys.responsibleUserId })
       .from(agentApiKeys)
       .where(and(
-        eq(agentApiKeys.companyId, input.companyId),
+        eq(agentApiKeys.spaceId, input.spaceId),
         eq(agentApiKeys.id, agentApiKeyId),
         ...(agentId && isUuidLike(agentId) ? [eq(agentApiKeys.agentId, agentId)] : []),
       ))
@@ -141,19 +141,19 @@ export async function resolveResponsibleUserIdForActivity(db: Db, input: LogActi
     if (apiKeyResponsibleUserId) return apiKeyResponsibleUserId;
   }
 
-  const company = await db
-    .select({ defaultResponsibleUserId: companies.defaultResponsibleUserId })
-    .from(companies)
-    .where(eq(companies.id, input.companyId))
+  const space = await db
+    .select({ defaultResponsibleUserId: spaces.defaultResponsibleUserId })
+    .from(spaces)
+    .where(eq(spaces.id, input.spaceId))
     .then((rows) => rows[0] ?? null);
-  return readNonEmptyString(company?.defaultResponsibleUserId);
+  return readNonEmptyString(space?.defaultResponsibleUserId);
 }
 
 export function publishActivity(publication: ActivityPublication) {
   const finish = beginRunPhase("execution.realtime");
   try {
   publishLiveEvent({
-    companyId: publication.companyId,
+    spaceId: publication.spaceId,
     type: "activity.logged",
     payload: publication.payload,
   });
@@ -169,7 +169,7 @@ export async function persistActivity(db: Db, input: LogActivityInput, receipt?:
   const responsibleUserId = await resolveResponsibleUserIdForActivity(db, input);
   const insert = (runner: Db) => runner.insert(activityLog).values({
     ...(receipt ? { id: receipt.id } : {}),
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     actorType: input.actorType,
     actorId: input.actorId,
     action: input.action,
@@ -184,7 +184,7 @@ export async function persistActivity(db: Db, input: LogActivityInput, receipt?:
     ? await db.transaction(async tx => {
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpEvents, `task:${input.entityId}`);
       if (input.runId && input.action === "issue.updated" && ["done", "cancelled"].includes(String(input.details?.status)))
-        await notifyActiveRunSilence(tx, { companyId: input.companyId, runId: input.runId });
+        await notifyActiveRunSilence(tx, { spaceId: input.spaceId, runId: input.runId });
       return insert(tx as unknown as Db);
     })
     : await insert(db);
@@ -211,7 +211,7 @@ export async function persistActivity(db: Db, input: LogActivityInput, receipt?:
         actorType: input.actorType,
         entityId: input.entityId,
         entityType: input.entityType,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         payload: {
           ...redactedDetails,
           agentId: input.agentId ?? null,
@@ -224,7 +224,7 @@ export async function persistActivity(db: Db, input: LogActivityInput, receipt?:
   return {
     activity,
     publication: {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       payload,
       pluginEvent,
     } satisfies ActivityPublication,

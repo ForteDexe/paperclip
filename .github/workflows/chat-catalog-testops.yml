@@ -33,12 +33,12 @@ env:
 
 jobs:
   authorize:
-    runs-on: ${{ github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.workflow_ref == 'paperclipai/paperclip/.github/workflows/chat-catalog-testops.yml@refs/heads/master' && github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch' && github.actor_id == '34892728' && github.run_attempt == '1' && github.triggering_actor == github.actor && 'runs-on/fleet=paperclip-public-pr-x64/env=public-ci' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.workflow_ref == 'paperclipai/paperclip/.github/workflows/chat-catalog-testops.yml@refs/heads/master' && github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch' && github.actor_id == '34892728' && github.run_attempt == '1' && github.triggering_actor == github.actor && 'runs-on/fleet=outpost-public-pr-x64/env=public-ci' || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
       operation: ${{ steps.guard.outputs.operation }}
       target_sha: ${{ steps.guard.outputs.target_sha }}
-      runner: runs-on/fleet=paperclip-public-pr-x64/env=public-ci
+      runner: runs-on/fleet=outpost-public-pr-x64/env=public-ci
     steps:
       - &checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

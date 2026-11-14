@@ -6,16 +6,16 @@ const runId = "d1111111-1111-4111-8111-111111111111";
 function fixture() {
   const boundary = { interactionStatus: "pending", invocationStatus: "awaiting_approval", actionStatus: "pending", providerWrites: 0, trustRuleIds: [] as string[] };
   const send = vi.fn<typeof fetch>(async (_url, options) => {
-    expect(new Headers(options?.headers).get("x-paperclip-run-id")).toBe(runId);
+    expect(new Headers(options?.headers).get("x-outpost-run-id")).toBe(runId);
     expect(new Headers(options?.headers).get("authorization")).toBe("Bearer private-probe-token");
     expect(acceptIssueThreadInteractionSchema.parse(JSON.parse(options?.body as string))).toEqual({ rememberAction: true });
     return Response.json({ code: "interaction_governed_action_denied", error: "withheld", extra: "private value must not be retained" }, { status: 403 });
   });
   const input = {
-    baseURL: "https://fixture.example", companyId: "company", agentId: "ceo", issueId: "source",
+    baseURL: "https://fixture.example", spaceId: "space", agentId: "ceo", issueId: "source",
     interaction: { id: "card", status: "pending", sourceRunId: runId },
-    run: { id: runId, companyId: "company", agentId: "ceo", status: "succeeded", contextSnapshot: { issueId: "source" } },
-    invocation: { companyId: "company", agentId: "ceo", issueId: "source", runId, status: "awaiting_approval" },
+    run: { id: runId, spaceId: "space", agentId: "ceo", status: "succeeded", contextSnapshot: { issueId: "source" } },
+    invocation: { spaceId: "space", agentId: "ceo", issueId: "source", runId, status: "awaiting_approval" },
     privateSecrets: [] as string[], createKey: vi.fn(async () => ({ id: "key", token: "private-probe-token" })),
     revokeKey: vi.fn(async () => undefined), boundary: vi.fn(async () => ({ ...boundary })), send,
   };
@@ -30,9 +30,9 @@ it("uses a real pending source attribution, schema-valid body and bounded typed 
   expect(input.boundary).toHaveBeenCalledTimes(2);
 });
 
-it.each(["company", "actor", "source", "run", "failed", "cancelled", "nonpending", "invocation"])("refuses a foreign or invalid %s before creating a key", async fault => {
+it.each(["space", "actor", "source", "run", "failed", "cancelled", "nonpending", "invocation"])("refuses a foreign or invalid %s before creating a key", async fault => {
   const { input } = fixture();
-  if (fault === "company") input.run.companyId = "foreign";
+  if (fault === "space") input.run.spaceId = "foreign";
   if (fault === "actor") input.run.agentId = "foreign";
   if (fault === "source") input.run.contextSnapshot.issueId = "foreign";
   if (fault === "run") input.interaction.sourceRunId = "foreign";

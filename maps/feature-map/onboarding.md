@@ -4,7 +4,7 @@ navigation: {"section":"Getting started and access","sectionOrder":10,"order":10
 
 # Onboarding and first work
 
-An operator can start an instance, create a company, configure its first agent, and reach a real first task. Instance setup and company onboarding are separate steps.
+An operator can start an instance, create a space, configure its first agent, and reach a real first task. Instance setup and space onboarding are separate steps.
 
 Feature ID: `onboarding`.
 
@@ -15,7 +15,7 @@ Agent access: [companion](../agent-access-map/onboarding.md).
 ## Sub-features
 
 - `instance`: `onboarding/instance` — choose local instance configuration and start the server.
-- `company`: `onboarding/company` — create a company with its identity and initial agent.
+- `space`: `onboarding/space` — create a space with its identity and initial agent.
 - `adapter`: `onboarding/adapter` — choose an available harness, model, account, and execution environment.
 - `first-task`: `onboarding/first-task` — leave setup with a task whose execution or missing prerequisite is visible.
 
@@ -31,10 +31,10 @@ recipe, not a claim of a completed Cloud run or strict browser-only discovery.
 
 ### `web-wizard`
 
-Open `/onboarding` or the onboarding launcher in an empty company context.
-Use `/<company-prefix>/onboarding` to resume an existing company's agent setup;
+Open `/onboarding` or the onboarding launcher in an empty space context.
+Use `/<space-prefix>/onboarding` to resume an existing space's agent setup;
 the unprefixed route starts at organization naming on self-hosted instances.
-Cloud-managed instances reuse their existing company for agent setup.
+Cloud-managed instances reuse their existing space for agent setup.
 
 First-agent onboarding offers only Claude and Codex, subject to instance adapter
 availability. Other providers remain available through Add agent after onboarding.
@@ -42,9 +42,9 @@ A saved draft for another provider requires a new choice.
 
 ### `cli-setup`
 
-Use `paperclipai onboard --help` or `paperclipai run --help` to select an isolated data directory before setup.
+Use `outpost onboard --help` or `outpost run --help` to select an isolated data directory before setup.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a new isolated data directory and record deployment mode. A configured adapter may still need account authentication.
 
@@ -52,20 +52,20 @@ Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use 
 
 The onboarding wizard is retired. Agents use already authenticated local Codex or Claude CLIs; historical browser coverage remains only as migration context.
 
-- **Create company and resume.** Start a fresh empty instance and run doctor using
-  the [verification skill](../../.agents/skills/verify-paperclip/SKILL.md). Run
-  `node .agents/skills/verify-paperclip/scripts/onboarding-smoke.mjs --evidence-dir "$VERIFY_EVIDENCE_DIR"`.
+- **Create space and resume.** Start a fresh empty instance and run doctor using
+  the [verification skill](../../.agents/skills/verify-outpost/SKILL.md). Run
+  `node .agents/skills/verify-outpost/scripts/onboarding-smoke.mjs --evidence-dir "$VERIFY_EVIDENCE_DIR"`.
   The helper opens `/onboarding` in a fresh self-hosted instance, enters a unique
   name in `e.g. Northwind Labs`, and chooses `Continue`. The agent-name field must
-  appear and the saved company must have no invented goal. Reopen the
-  company-prefixed onboarding route and reload; the agent step must appear
-  without creating another company. Screenshots and a trace capture the real UI action and result.
-  This proves company creation/resumption, not hiring or a first model run.
+  appear and the saved space must have no invented goal. Reopen the
+  space-prefixed onboarding route and reload; the agent step must appear
+  without creating another space. Screenshots and a trace capture the real UI action and result.
+  This proves space creation/resumption, not hiring or a first model run.
 
-Manual: Create a disposable company and first agent. Leave midway, reopen the
-company's onboarding route, and finish; drafts save automatically. Follow the
-created first task, verify the selected agent and company, and inspect its output
-or explicit authentication gate. Reload both company and task.
+Manual: Create a disposable space and first agent. Leave midway, reopen the
+space's onboarding route, and finish; drafts save automatically. Follow the
+created first task, verify the selected agent and space, and inspect its output
+or explicit authentication gate. Reload both space and task.
 
 For Codex or Claude, choose the harness to prove automatic first-agent runner
 selection. On a qualified target it saves Outpost Runner. The wizard has no
@@ -105,7 +105,7 @@ separate gate.
 For a new Codex agent with Auto on a saved immutable OCI sandbox, Connect first
 uses the existing saved environment probe when authoritative qualification is
 absent. The board actor needs the existing instance-environment administration
-permission. Refresh company/environment-scoped discovery before testing the
+permission. Refresh space/environment-scoped discovery before testing the
 selected runtime. A denied probe, unconfirmed cleanup or setup failure must be
 visible and retryable through setup. Creation and discovery
 themselves allocate no target. A valid measured unsupported target follows the
@@ -125,7 +125,7 @@ The explicit manual Product E2E cell
 `confirmation-replies.runner-codex.daytona.task-card-accept` covers this fresh
 managed wizard path without fixture agent creation or a fixture preprobe. Its
 existing attachment oracle checks a downloaded physical file and follow-up
-continuity. Setup evidence must correlate both lease IDs with the same company,
+continuity. Setup evidence must correlate both lease IDs with the same space,
 environment and provider; missing responses or unmatched rows keep cost coverage
 unknown. Run this cell only on an eligible target with separately authorized
 provider, runtime and cleanup reservations. Its source and mock controls are
@@ -153,14 +153,14 @@ recover the harness and runner, and a changed harness or runner invalidates stal
 test results. Existing Legacy agents remain Legacy when their onboarding/setup
 configuration is reopened; this journey does not migrate them.
 
-Reload both `/onboarding` and the company-prefixed route after the first agent is
+Reload both `/onboarding` and the space-prefixed route after the first agent is
 saved but before Get started. The authorized draft must retain its current step
-and that agent's execution choice. An explicit new-company opening still starts
-fresh. Opening another company must clear the previous company's resource IDs;
+and that agent's execution choice. An explicit new-space opening still starts
+fresh. Opening another space must clear the previous space's resource IDs;
 an unauthorized account must not restore its draft. Existing component controls
 cover these boundaries; they do not substitute for the managed first-task eval.
 The existing mocked-login browser case reopens and reloads Connect directly. It
-checks the saved company/name/harness/runner, exact active authorization session,
+checks the saved space/name/harness/runner, exact active authorization session,
 one login start and no hire while login is pending. This is login UI evidence,
 not a provider or managed-environment qualification.
 
@@ -168,11 +168,11 @@ not a provider or managed-environment qualification.
 
 Automated: [CLI onboarding](../../cli/src/__tests__/onboard.test.ts) and [isolated test drive](../../cli/src/__tests__/test-drive.test.ts) cover their setup contracts; they do not establish that every model account is usable.
 
-Manual: Run setup in the disposable directory, open the URL it prints, and confirm the instance identity and company. Restart using that same configuration and verify saved state. Exercise an unavailable adapter and confirm an actionable error.
+Manual: Run setup in the disposable directory, open the URL it prints, and confirm the instance identity and space. Restart using that same configuration and verify saved state. Exercise an unavailable adapter and confirm an actionable error.
 
 ## Gotchas
 
-- An empty company, an empty instance, and an unauthenticated browser are different states.
+- An empty space, an empty instance, and an unauthenticated browser are different states.
 - Creating an agent does not prove its provider login or first execution succeeded.
 - See [access](./access.md) for authenticated deployments and [agents](./agents.md) for later hiring.
 
@@ -183,8 +183,8 @@ Manual: Run setup in the disposable directory, open the URL it prints, and confi
 Capability ID: `onboarding/resume`.
 
 Scope: ui
-Storybook: Restored incomplete wizard; invalid or unauthorized saved company; temporarily withheld draft; account switch; storage failure.
-Production: Reload company-prefixed onboarding without duplicating company; restore only authorized account/company draft and retain input after recoverable loading failure.
+Storybook: Restored incomplete wizard; invalid or unauthorized saved space; temporarily withheld draft; account switch; storage failure.
+Production: Reload space-prefixed onboarding without duplicating space; restore only authorized account/space draft and retain input after recoverable loading failure.
 Sources: [onboarding-state.ts](../../ui/src/lib/onboarding-state.ts). Tests: [onboarding-state.test.ts](../../ui/src/lib/onboarding-state.test.ts), [onboarding.spec.ts](../../tests/e2e/onboarding.spec.ts)
 
 #### `instance`

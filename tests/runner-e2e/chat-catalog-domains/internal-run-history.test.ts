@@ -3,9 +3,9 @@ import { gradeRunHistory, readTaskRunHistory } from "./internal-run-history.js";
 import { savedCall } from "./api-read-receipts.test-fixtures.js";
 function valid() {
   const task = { id: "task", title: "Website task", status: "done", assigneeAgentId: "morgan" };
-  const interruptedRun = { id: "interrupted", companyId: "company", agentId: "morgan", status: "cancelled", contextSnapshot: { issueId: "task" } };
-  const continuationRun = { id: "continuation", companyId: "company", agentId: "morgan", status: "succeeded", contextSnapshot: { issueId: "task" } };
-  return { scenarioId: "activity.find-runs", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { task, worker: { id: "morgan" }, interruptedRun, continuationRun, interruptedTask: { ...task, status: "in_progress", executionRunId: "interrupted" }, gateCalls: [{ authorized: true, operation: "read_website_brief" }] },
+  const interruptedRun = { id: "interrupted", spaceId: "space", agentId: "morgan", status: "cancelled", contextSnapshot: { issueId: "task" } };
+  const continuationRun = { id: "continuation", spaceId: "space", agentId: "morgan", status: "succeeded", contextSnapshot: { issueId: "task" } };
+  return { scenarioId: "activity.find-runs", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { task, worker: { id: "morgan" }, interruptedRun, continuationRun, interruptedTask: { ...task, status: "in_progress", executionRunId: "interrupted" }, gateCalls: [{ authorized: true, operation: "read_website_brief" }] },
     tasks: [task], projects: [], goals: [], comments: [], activity: [] as Array<{ entityId: string; agentId: string; action: string }>, documents: [], revisions: [], humanQueries: [],
     reply: "Morgan's interrupted attempt [cancelled](/RUN/agents/morgan/runs/interrupted).\nMorgan's continuation [succeeded](/RUN/agents/morgan/runs/continuation).", links: ["/RUN/issues/task", "/RUN/agents/morgan/runs/interrupted", "/RUN/agents/morgan/runs/continuation"],
     runs: [interruptedRun, continuationRun], agentRunReadStatuses: [200, 200], runHistoryRead: true, currentTask: task };

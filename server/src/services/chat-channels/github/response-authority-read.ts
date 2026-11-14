@@ -14,7 +14,7 @@ const authorizationEvent = sql<Record<string, unknown>>`case
 export const githubResponseAuthorityFields = {
   endpoint: {
     id: chatEndpoints.id,
-    companyId: chatEndpoints.companyId,
+    spaceId: chatEndpoints.spaceId,
     assignedAgentId: chatEndpoints.assignedAgentId,
     botExternalId: chatEndpoints.botExternalId,
     botUsername: chatEndpoints.botUsername,

@@ -29,7 +29,7 @@ function fixture(input: { due?: number; suppressed?: boolean; draining?: boolean
     if (state.due !== null && state.due <= Date.now()) state.due = null;
   });
   const next = vi.fn(async () => state.due);
-  const dispatch = vi.fn(async (_scope?: { companyId: string }) => {});
+  const dispatch = vi.fn(async (_scope?: { spaceId: string }) => {});
   const coordinator = createDeliveryWorkCoordinator({ owner: db,
     canRun: () => !state.draining && !state.standby, canReconcile: () => !state.standby, onError: vi.fn() });
   const worker = registerRunDispatchWork(coordinator, {
@@ -39,7 +39,7 @@ function fixture(input: { due?: number; suppressed?: boolean; draining?: boolean
   cleanup.push(() => coordinator.stop());
   return { db, state, promote, next, dispatch, coordinator, worker,
     notifyRetry: () => db.transaction(tx => notifyScheduledRetryDispatch(tx)),
-    notify: (scope?: { companyId: string }) => db.transaction(tx => notifyRunDispatch(tx, scope)),
+    notify: (scope?: { spaceId: string }) => db.transaction(tx => notifyRunDispatch(tx, scope)),
     settle: () => vi.advanceTimersByTimeAsync(1_000) };
 }
 
@@ -69,10 +69,10 @@ describe("run dispatch obligations", () => {
     const before = f.next.mock.calls.length;
     await vi.advanceTimersByTimeAsync(20 * 60_000); expect(f.next).toHaveBeenCalledTimes(before);
   });
-  it("batches repeated tenant writes and passes only their company to queued dispatch", async () => {
+  it("batches repeated tenant writes and passes only their space to queued dispatch", async () => {
     const f = fixture(); await f.worker.ready;
     for (let index = 0; index < 100; index++) {
-      const source = { companyId: "company-a", issueId: `issue-${index % 2}`,
+      const source = { spaceId: "space-a", issueId: `issue-${index % 2}`,
         runId: `run-${index}`, agentId: `agent-${index}`, interactionBody: "not a dispatch key" };
       await f.notify(source);
       await vi.advanceTimersByTimeAsync(10);
@@ -80,8 +80,8 @@ describe("run dispatch obligations", () => {
     expect(f.promote).toHaveBeenCalledOnce();
     expect(f.dispatch.mock.calls.length).toBeLessThanOrEqual(2);
     await f.settle();
-    expect(f.dispatch).toHaveBeenLastCalledWith({ companyId: "company-a" });
-    for (const [scope] of f.dispatch.mock.calls.slice(1)) expect(scope).toEqual({ companyId: "company-a" });
+    expect(f.dispatch).toHaveBeenLastCalledWith({ spaceId: "space-a" });
+    for (const [scope] of f.dispatch.mock.calls.slice(1)) expect(scope).toEqual({ spaceId: "space-a" });
     expect(f.coordinator.nextWakeAt()).toBeNull();
     const count = f.dispatch.mock.calls.length;
     await vi.advanceTimersByTimeAsync(20 * 60_000); expect(f.dispatch).toHaveBeenCalledTimes(count);

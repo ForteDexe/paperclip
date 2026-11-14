@@ -94,14 +94,14 @@ describe("cursor environment diagnostics", () => {
   it("creates a missing working directory when cwd is absolute", async () => {
     const cwd = path.join(
       os.tmpdir(),
-      `paperclip-cursor-local-cwd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-cursor-local-cwd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       "workspace",
     );
 
     await fs.rm(path.dirname(cwd), { recursive: true, force: true });
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "cursor",
       config: {
         command: process.execPath,
@@ -119,7 +119,7 @@ describe("cursor environment diagnostics", () => {
   it("adds --yolo to hello probe args by default", async () => {
     const root = path.join(
       os.tmpdir(),
-      `paperclip-cursor-local-probe-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-cursor-local-probe-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const binDir = path.join(root, "bin");
     const cwd = path.join(root, "workspace");
@@ -128,7 +128,7 @@ describe("cursor environment diagnostics", () => {
     await writeFakeAgentCommand(binDir, argsCapturePath);
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "cursor",
       config: {
         command: "agent",
@@ -150,7 +150,7 @@ describe("cursor environment diagnostics", () => {
   it("does not auto-add --yolo when extraArgs already bypass trust", async () => {
     const root = path.join(
       os.tmpdir(),
-      `paperclip-cursor-local-probe-extra-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-cursor-local-probe-extra-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const binDir = path.join(root, "bin");
     const cwd = path.join(root, "workspace");
@@ -159,7 +159,7 @@ describe("cursor environment diagnostics", () => {
     await writeFakeAgentCommand(binDir, argsCapturePath);
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "cursor",
       config: {
         command: "agent",
@@ -183,7 +183,7 @@ describe("cursor environment diagnostics", () => {
   it("prefers ~/.local/bin/cursor-agent for remote sandbox probes when using the default command", async () => {
     const root = path.join(
       os.tmpdir(),
-      `paperclip-cursor-sandbox-probe-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-cursor-sandbox-probe-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const homeDir = path.join(root, "home");
     const remoteCwd = path.join(root, "workspace");
@@ -197,7 +197,7 @@ describe("cursor environment diagnostics", () => {
 
     try {
       const result = await testEnvironment({
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType: "cursor",
         executionTarget: {
           kind: "remote",
@@ -234,7 +234,7 @@ describe("cursor environment diagnostics", () => {
   it("emits cursor_native_auth_present when cli-config.json has authInfo and CURSOR_API_KEY is unset", async () => {
     const root = path.join(
       os.tmpdir(),
-      `paperclip-cursor-auth-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-cursor-auth-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const cursorHome = path.join(root, ".cursor");
     const cwd = path.join(root, "workspace");
@@ -253,7 +253,7 @@ describe("cursor environment diagnostics", () => {
       );
 
       const result = await testEnvironment({
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType: "cursor",
         config: {
           command: process.execPath,
@@ -274,7 +274,7 @@ describe("cursor environment diagnostics", () => {
   it("emits cursor_api_key_missing when neither env var nor native auth exists", async () => {
     const root = path.join(
       os.tmpdir(),
-      `paperclip-cursor-noauth-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-cursor-noauth-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const cursorHome = path.join(root, ".cursor");
     const cwd = path.join(root, "workspace");
@@ -284,7 +284,7 @@ describe("cursor environment diagnostics", () => {
       // No cli-config.json written
 
       const result = await testEnvironment({
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType: "cursor",
         config: {
           command: process.execPath,

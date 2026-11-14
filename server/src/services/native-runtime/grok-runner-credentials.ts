@@ -7,7 +7,7 @@ import { readLocalAiCredentialFile } from "../local-ai-credential-file.js";
  * selected credential, never an ambient host home or an implicit API key.
  */
 export async function prepareGrokRunnerCredentials(input: {
-  companyId: string;
+  spaceId: string;
   environment: NodeJS.ProcessEnv;
   remote: boolean;
   managedHome?: string;
@@ -19,10 +19,10 @@ export async function prepareGrokRunnerCredentials(input: {
   if (environment.XAI_API_KEY?.trim()) return { environment, home: null };
   delete environment.XAI_API_KEY;
   // Credential discovery belongs to the controller instance. Agent-supplied
-  // OUTPOST_HOME/INSTANCE_ID values must not redirect company login reads.
-  const companyHome = resolveManagedGrokHomeDir(process.env, input.companyId);
-  const home = configuredHome ?? (await grokHomeHasUsableAuth(companyHome)
-    ? companyHome : input.remote ? companyHome : join(homedir(), ".grok"));
+  // OUTPOST_HOME/INSTANCE_ID values must not redirect space login reads.
+  const spaceHome = resolveManagedGrokHomeDir(process.env, input.spaceId);
+  const home = configuredHome ?? (await grokHomeHasUsableAuth(spaceHome)
+    ? spaceHome : input.remote ? spaceHome : join(homedir(), ".grok"));
   try {
     environment.OUTPOST_ACPX_GROK_AUTH_JSON_SECRET = await readLocalAiCredentialFile(join(home, "auth.json"));
   } catch {

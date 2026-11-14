@@ -3,7 +3,7 @@ import { heartbeatRuns, type Db } from "@outpost/db";
 
 export function loadAgentRunAuthentication(db: Db, input: {
   runId: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
 }) {
   return db.select({
@@ -20,7 +20,7 @@ export function loadAgentRunAuthentication(db: Db, input: {
     )`,
   }).from(heartbeatRuns).where(and(
     eq(heartbeatRuns.id, input.runId),
-    eq(heartbeatRuns.companyId, input.companyId),
+    eq(heartbeatRuns.spaceId, input.spaceId),
     eq(heartbeatRuns.agentId, input.agentId),
   ));
 }

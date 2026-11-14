@@ -71,7 +71,7 @@ function createSandboxRunner(options: { homeDir: string; installCommandPath: str
 
 describe("cursor testEnvironment", () => {
   it("shows the probe failure after an informational retrieval trace notice", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-cursor-probe-diagnostic-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-cursor-probe-diagnostic-"));
     const command = path.join(root, "agent");
     await fs.writeFile(command, `#!/bin/sh
 if [ "$1" = "--version" ]; then
@@ -83,7 +83,7 @@ exit 7
 `, { mode: 0o755 });
     try {
       const result = await testEnvironment({
-        companyId: "company-1", adapterType: "cursor",
+        spaceId: "space-1", adapterType: "cursor",
         config: { command: "agent", cwd: root, env: { PATH: `${root}${path.delimiter}${process.env.PATH ?? ""}`, CURSOR_API_KEY: "fixture-cursor-key" } },
       });
       expect(result.checks).toEqual(expect.arrayContaining([
@@ -95,7 +95,7 @@ exit 7
   });
 
   it("re-resolves the installed agent under ~/.cursor/bin and verifies --version before the hello probe", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-cursor-envtest-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-cursor-envtest-"));
     const homeDir = path.join(root, "home");
     const workspace = path.join(root, "workspace");
     const remoteWorkspace = path.join(root, "remote-workspace");
@@ -110,7 +110,7 @@ exit 7
 
     try {
       const result = await testEnvironment({
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType: "cursor",
         config: {
           command: "agent",

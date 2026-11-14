@@ -44,7 +44,7 @@ describe("Sentry directory-merge lock timeout context", () => {
     const { captureException, sentryReady } = await importFreshSentry();
     await sentryReady;
 
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-sentry-lock-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-sentry-lock-"));
     cleanupDirs.push(rootDir);
     vi.stubEnv("OUTPOST_HOME", path.join(rootDir, "home"));
     vi.stubEnv("OUTPOST_INSTANCE_ID", "test-instance");

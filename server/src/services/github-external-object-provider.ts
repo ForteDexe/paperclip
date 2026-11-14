@@ -15,7 +15,7 @@ type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 type GitHubObjectResolver = Omit<ExternalObjectResolver, "resolve"> & {
   resolve(input: {
-    companyId: string;
+    spaceId: string;
     object: { externalId: string; sanitizedCanonicalUrl: string | null };
     signal?: AbortSignal;
   }): Promise<ExternalObjectResolveResult>;
@@ -24,12 +24,12 @@ type GitHubObjectResolver = Omit<ExternalObjectResolver, "resolve"> & {
 export interface GitHubExternalObjectProviderOptions {
   fetch?: FetchLike;
   requestTimeoutMs?: number;
-  tokenProvider?: (companyId: string) => Promise<string | null> | string | null;
+  tokenProvider?: (spaceId: string) => Promise<string | null> | string | null;
   /**
    * Resolve the credential and its source. Prefer this over `tokenProvider` when the
-   * caller must treat a server-environment token differently from a company credential.
+   * caller must treat a server-environment token differently from a space credential.
    */
-  credentialProvider?: (companyId: string) => Promise<GitHubApiCredential | null> | GitHubApiCredential | null;
+  credentialProvider?: (spaceId: string) => Promise<GitHubApiCredential | null> | GitHubApiCredential | null;
   secretNames?: readonly string[];
 }
 
@@ -222,7 +222,7 @@ function notFoundSnapshot(identity: GitHubObjectIdentity, etag: string | null): 
       // to be visible, so this not-found verdict is definitive, not a stale
       // guess from a time when credentials could not see the repo. The due
       // sweep uses this flag to avoid re-polling a confirmed-deleted object
-      // forever and exhausting the company's GitHub API budget.
+      // forever and exhausting the space's GitHub API budget.
       probeVerified: true,
     },
   };
@@ -414,34 +414,34 @@ export function createGitHubExternalObjectProvider(
   const secretNames = opts.secretNames ?? DEFAULT_GITHUB_TOKEN_SECRET_NAMES;
   // `credentialProvider` is the preferred seam; `tokenProvider` stays for callers that
   // only care about the token string. A token from `tokenProvider` is treated as
-  // company-scoped, because the caller supplied it explicitly.
-  const credentialProvider: (companyId: string) => Promise<GitHubApiCredential | null> =
+  // space-scoped, because the caller supplied it explicitly.
+  const credentialProvider: (spaceId: string) => Promise<GitHubApiCredential | null> =
     opts.credentialProvider
-      ? async (companyId: string) => normalizeCredential(await opts.credentialProvider!(companyId))
+      ? async (spaceId: string) => normalizeCredential(await opts.credentialProvider!(spaceId))
       : Object.prototype.hasOwnProperty.call(opts, "tokenProvider") && opts.tokenProvider !== undefined
-        ? async (companyId: string) => {
-            const raw = typeof opts.tokenProvider === "function" ? await opts.tokenProvider(companyId) : opts.tokenProvider;
+        ? async (spaceId: string) => {
+            const raw = typeof opts.tokenProvider === "function" ? await opts.tokenProvider(spaceId) : opts.tokenProvider;
             const token = raw?.trim();
-            return token ? { token, source: "company_secret", secretName: null } : null;
+            return token ? { token, source: "space_secret", secretName: null } : null;
           }
-        : (companyId: string) => resolveGitHubApiCredential(db, companyId, { secretNames });
+        : (spaceId: string) => resolveGitHubApiCredential(db, spaceId, { secretNames });
 // Cache repository-visibility probe results so many objects in the same repo
   // share a single probe instead of each issuing its own request every refresh
   // cycle. Only determined outcomes ("visible"/"hidden") are cached; uncertain
-  // probes are retried on the next cycle. The cache is keyed per company+repo+
+  // probes are retried on the next cycle. The cache is keyed per space+repo+
   // credential fingerprint so a verdict obtained under one token is never
-  // reused after the company rotates its credentials — that would freeze a
+  // reused after the space rotates its credentials — that would freeze a
   // reference as "probe-verified not-found" using an out-of-date result.
 
   const probeCache = new Map<string, { outcome: RepoProbeOutcome; expiresAt: number }>();
   async function cachedProbeRepoVisibility(
-    companyId: string,
+    spaceId: string,
     identity: GitHubObjectIdentity,
     headers: Record<string, string>,
     signal: AbortSignal,
   ): Promise<RepoProbeOutcome> {
     const credentialFingerprint = createHash("sha256").update(headers.authorization ?? "anonymous").digest("hex");
-    const key = `${companyId}\u0000${credentialFingerprint}\u0000${identity.owner.toLowerCase()}\u0000${identity.repo.toLowerCase()}`;
+    const key = `${spaceId}\u0000${credentialFingerprint}\u0000${identity.owner.toLowerCase()}\u0000${identity.repo.toLowerCase()}`;
     const cached = probeCache.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.outcome;
     const outcome = await probeRepoVisibility(identity, { fetch: fetchImpl, headers, signal });
@@ -476,7 +476,7 @@ export function createGitHubExternalObjectProvider(
     return {
       providerKey: "github",
       objectType,
-      async resolve({ companyId, object, signal: ownerSignal }) {
+      async resolve({ spaceId, object, signal: ownerSignal }) {
         const deadline = AbortSignal.timeout(opts.requestTimeoutMs ?? 10_000);
         const signal = ownerSignal ? AbortSignal.any([ownerSignal, deadline]) : deadline;
         const identity = parseGitHubObject(object);
@@ -492,7 +492,7 @@ export function createGitHubExternalObjectProvider(
 
         let credential: GitHubApiCredential | null = null;
         try {
-          credential = await credentialProvider(companyId);
+          credential = await credentialProvider(spaceId);
         } catch {
           return {
             ok: false,
@@ -505,19 +505,19 @@ export function createGitHubExternalObjectProvider(
         const token = credential?.token?.trim() || null;
         const authenticated = Boolean(token);
         // A server-environment token is instance-wide, so it can see repositories this
-        // company cannot. Only a company-scoped credential may resolve a private
-        // repository for company display; a server token is limited to public repos.
-        const companyScoped = credential?.source !== "server_env";
+        // space cannot. Only a space-scoped credential may resolve a private
+        // repository for space display; a server token is limited to public repos.
+        const spaceScoped = credential?.source !== "server_env";
         const headers: Record<string, string> = {
           accept: "application/vnd.github+json",
-          "user-agent": "paperclip-external-object-resolver",
+          "user-agent": "outpost-external-object-resolver",
           "x-github-api-version": "2022-11-28",
         };
         if (token) headers.authorization = `Bearer ${token}`;
 
-        if (!companyScoped) {
+        if (!spaceScoped) {
           // A server-environment token is instance-wide, so it can read repositories
-          // this company cannot. Before reading with it, verify that the repository is
+          // this space cannot. Before reading with it, verify that the repository is
           // public RIGHT NOW. Never serve this authorization decision from the probe
           // cache: a repository can become private inside the cache TTL, and a cached
           // "public" verdict must not authorize a later read of its private contents.
@@ -548,16 +548,16 @@ export function createGitHubExternalObjectProvider(
           // Require positive proof that the repository is public before reading
           // with the instance-wide server token. A private verdict and a probe
           // response that does not confirm public visibility both fail closed, so
-          // the server token can never fetch private details for a company that
+          // the server token can never fetch private details for a space that
           // did not authorize it.
           if (probe.isPrivate !== false) {
             return {
               ok: false,
               liveness: "auth_required",
-              errorCode: "github_repo_requires_company_token",
+              errorCode: "github_repo_requires_space_token",
               errorMessage: probe.isPrivate === true
-                ? `The ${identity.owner}/${identity.repo} repository is private. Add a GitHub token for this company to refresh this object.`
-                : `The ${identity.owner}/${identity.repo} repository visibility could not be confirmed as public. Add a GitHub token for this company to refresh this object.`,
+                ? `The ${identity.owner}/${identity.repo} repository is private. Add a GitHub token for this space to refresh this object.`
+                : `The ${identity.owner}/${identity.repo} repository visibility could not be confirmed as public. Add a GitHub token for this space to refresh this object.`,
               retryAfterSeconds: GITHUB_OBJECT_TTL_SECONDS,
             };
           }
@@ -587,7 +587,7 @@ export function createGitHubExternalObjectProvider(
           // Probe the repository metadata to classify: if the repo itself is visible
           // the object truly is gone; if it is not, surface credentials-needed
           // instead of permanently freezing a reference as "Not found".
-          const probe = await cachedProbeRepoVisibility(companyId, identity, headers, signal);
+          const probe = await cachedProbeRepoVisibility(spaceId, identity, headers, signal);
           if (probe.visibility === "visible") {
             return { ok: true, snapshot: notFoundSnapshot(identity, etag) };
           }

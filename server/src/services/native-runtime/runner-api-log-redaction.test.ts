@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { redactRunnerApiEvent, redactRunnerApiPayloads } from "./runner-api-log-redaction.js";
 
 describe("API payload persistence redaction", () => {
-  it.each(["POST /api/agents/me/secrets/{key}/value", "POST /api/companies/{companyId}/exports", "GET /api/projects/{id}"])("preserves private HTTP results on the wire, but omits %s from history", operationId => {
+  it.each(["POST /api/agents/me/secrets/{key}/value", "POST /api/spaces/{spaceId}/exports", "GET /api/projects/{id}"])("preserves private HTTP results on the wire, but omits %s from history", operationId => {
     const result = { operationId: "call_api", apiOperationId: operationId, status: 200, ok: true, data: { value: "private-fixture-value" } };
     const event = { item: { type: "tool_result", result } };
     const saved = redactRunnerApiPayloads(event);
@@ -29,7 +29,7 @@ describe("API payload persistence redaction", () => {
   it.each(["call_api", "create_case"])("keeps %s denial metadata out of the API-body exception", operationId => {
     const payload = {
       provider: "codex", operationId, callId: "schema-denied", code: "semantic_tool_denied",
-      paperclipExecuted: false, message: "Provider arguments failed JSON Schema validation.",
+      outpostExecuted: false, message: "Provider arguments failed JSON Schema validation.",
       inputSchemaGuidance: "Invalid tool arguments. Check these input schema locations: /properties/title/type.",
     };
     const event = { sourceKind: "runner", eventType: "harness.diagnostic", payload };

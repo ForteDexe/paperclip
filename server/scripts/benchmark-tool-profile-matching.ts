@@ -25,10 +25,10 @@ const observedDb = new Proxy(db, { get(target, key) {
   };
 } });
 try {
-  const { company, agent } = await createToolProfileMatchingFixture(db);
+  const { space, agent } = await createToolProfileMatchingFixture(db);
   const dependencies = {
-    assertOptionalAgent: async (companyId: string, agentId: string | null | undefined) => {
-      const valid = await observedDb.select({ id: agents.id }).from(agents).where(and(eq(agents.companyId, companyId), eq(agents.id, agentId!)));
+    assertOptionalAgent: async (spaceId: string, agentId: string | null | undefined) => {
+      const valid = await observedDb.select({ id: agents.id }).from(agents).where(and(eq(agents.spaceId, spaceId), eq(agents.id, agentId!)));
       assert.equal(valid.length, 1);
     },
     resolveInstalledConnectionsForAgent: async () => [],
@@ -36,7 +36,7 @@ try {
   };
   const before = baselineFactory(observedDb, dependencies);
   const after = createToolProfileResolver(observedDb, dependencies);
-  const invoke = (resolver: typeof after) => resolver.getEffectiveToolAssignmentsForAgent(company.id, agent.id);
+  const invoke = (resolver: typeof after) => resolver.getEffectiveToolAssignmentsForAgent(space.id, agent.id);
   assert.deepEqual(await invoke(after), await invoke(before));
   for (let i = 0; i < 2; i++) { await invoke(before); await invoke(after); }
   for (let round = 0; round < 7; round++) {

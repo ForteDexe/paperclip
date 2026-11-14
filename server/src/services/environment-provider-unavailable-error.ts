@@ -104,7 +104,7 @@ function transientDatabaseFailure(error: unknown): boolean {
  */
 export function readTransientLeaseAcquisitionFailure(
   error: unknown,
-  run: { id: string; companyId: string },
+  run: { id: string; spaceId: string },
 ): TransientProviderEvidence | null {
   const provider = readTransientEnvironmentProviderFailure(error);
   if (provider) return provider;

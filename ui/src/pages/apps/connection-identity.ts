@@ -33,7 +33,7 @@ const ORGANIZATION_NAME_SUFFIX = " for the outpost";
 /**
  * Connections created before the rename persisted the old suffix. Treat it as
  * the same suffix so a legacy row reads "Slack for the organization" and never
- * "Slack for the company for the organization" — the setup flow persists this
+ * "Slack for the space for the organization" — the setup flow persists this
  * name when a draft resumes, so a doubled suffix would outlive the render.
  */
 const LEGACY_ORGANIZATION_NAME_SUFFIX = " for the outpost";

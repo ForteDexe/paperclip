@@ -19,7 +19,7 @@ async function createSkillDir(root: string, name: string) {
 }
 
 describe("cursor local skill sync", () => {
-  const paperclipKey = "paperclipai/paperclip/paperclip";
+  const outpostKey = "outpost/outpost/outpost";
   const cleanupDirs = new Set<string>();
 
   afterEach(async () => {
@@ -27,13 +27,13 @@ describe("cursor local skill sync", () => {
     cleanupDirs.clear();
   });
 
-  it("defaults and installs the operational Paperclip skill in the Cursor skills home", async () => {
-    const home = await makeTempDir("paperclip-cursor-skill-sync-");
+  it("defaults and installs the operational Outpost skill in the Cursor skills home", async () => {
+    const home = await makeTempDir("outpost-cursor-skill-sync-");
     cleanupDirs.add(home);
 
     const ctx = {
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "cursor",
       config: {
         env: {
@@ -44,55 +44,55 @@ describe("cursor local skill sync", () => {
 
     const before = await listCursorSkills(ctx);
     expect(before.mode).toBe("persistent");
-    expect(before.desiredSkills).toContain(paperclipKey);
-    expect(before.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("missing");
+    expect(before.desiredSkills).toContain(outpostKey);
+    expect(before.entries.find((entry) => entry.key === outpostKey)?.state).toBe("missing");
 
-    const after = await syncCursorSkills(ctx, [paperclipKey]);
-    expect(after.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("installed");
-    expect((await fs.lstat(path.join(home, ".cursor", "skills", "paperclip"))).isSymbolicLink()).toBe(true);
+    const after = await syncCursorSkills(ctx, [outpostKey]);
+    expect(after.entries.find((entry) => entry.key === outpostKey)?.state).toBe("installed");
+    expect((await fs.lstat(path.join(home, ".cursor", "skills", "outpost"))).isSymbolicLink()).toBe(true);
   });
 
   it("keeps the operational skill installed after an explicit empty replacement", async () => {
-    const home = await makeTempDir("paperclip-cursor-required-skill-");
+    const home = await makeTempDir("outpost-cursor-required-skill-");
     cleanupDirs.add(home);
 
     const snapshot = await syncCursorSkills({
       agentId: "agent-required",
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "cursor",
       config: {
         env: { HOME: home },
-        paperclipSkillSync: { desiredSkills: [] },
+        outpostSkillSync: { desiredSkills: [] },
       },
     }, []);
 
-    expect(snapshot.desiredSkills).toEqual([paperclipKey]);
-    expect(snapshot.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("installed");
-    expect((await fs.lstat(path.join(home, ".cursor", "skills", "paperclip"))).isSymbolicLink()).toBe(true);
+    expect(snapshot.desiredSkills).toEqual([outpostKey]);
+    expect(snapshot.entries.find((entry) => entry.key === outpostKey)?.state).toBe("installed");
+    expect((await fs.lstat(path.join(home, ".cursor", "skills", "outpost"))).isSymbolicLink()).toBe(true);
   });
 
-  it("recognizes company-library runtime skills supplied outside the bundled Paperclip directory", async () => {
-    const home = await makeTempDir("paperclip-cursor-runtime-skills-home-");
-    const runtimeSkills = await makeTempDir("paperclip-cursor-runtime-skills-src-");
+  it("recognizes space-library runtime skills supplied outside the bundled Outpost directory", async () => {
+    const home = await makeTempDir("outpost-cursor-runtime-skills-home-");
+    const runtimeSkills = await makeTempDir("outpost-cursor-runtime-skills-src-");
     cleanupDirs.add(home);
     cleanupDirs.add(runtimeSkills);
 
-    const paperclipDir = await createSkillDir(runtimeSkills, "paperclip");
+    const outpostDir = await createSkillDir(runtimeSkills, "outpost");
     const asciiHeartDir = await createSkillDir(runtimeSkills, "ascii-heart");
 
     const ctx = {
       agentId: "agent-3",
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "cursor",
       config: {
         env: {
           HOME: home,
         },
-        paperclipRuntimeSkills: [
+        outpostRuntimeSkills: [
           {
-            key: "paperclip",
-            runtimeName: "paperclip",
-            source: paperclipDir,
+            key: "outpost",
+            runtimeName: "outpost",
+            source: outpostDir,
           },
           {
             key: "ascii-heart",
@@ -100,7 +100,7 @@ describe("cursor local skill sync", () => {
             source: asciiHeartDir,
           },
         ],
-        paperclipSkillSync: {
+        outpostSkillSync: {
           desiredSkills: ["ascii-heart"],
         },
       },

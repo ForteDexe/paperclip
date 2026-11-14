@@ -31,14 +31,14 @@ import {
 } from "lucide-react";
 import type {
   Agent,
-  CompanySkillDetail,
-  CompanySkillListItem,
-  CompanySkillTestInput,
-  CompanySkillTestRun,
-  CompanySkillTestRunDetail,
-  CompanySkillTestRunTemplate,
-  CompanySkillTestRunTemplateCreateRequest,
-  CompanySkillTestRunTemplateUpdateRequest,
+  SpaceSkillDetail,
+  SpaceSkillListItem,
+  SpaceSkillTestInput,
+  SpaceSkillTestRun,
+  SpaceSkillTestRunDetail,
+  SpaceSkillTestRunTemplate,
+  SpaceSkillTestRunTemplateCreateRequest,
+  SpaceSkillTestRunTemplateUpdateRequest,
   IssueDocument,
   IssueThreadInteraction,
   AskUserQuestionsInteraction,
@@ -51,17 +51,17 @@ import {
   type SearchableSelectOption,
 } from "@/components/SearchableSelect";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useOptionalToastActions } from "../context/ToastContext";
 import { classifySkillDenial } from "@/lib/skill-policy-denial";
 import { agentsApi } from "@/api/agents";
-import { companySkillsApi } from "@/api/companySkills";
+import { spaceSkillsApi } from "@/api/spaceSkills";
 import { ApiError } from "@/api/client";
 import { issuesApi } from "@/api/issues";
 import { queryKeys } from "@/lib/queryKeys";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { useCopyToast } from "@/lib/use-copy-action";
-import { skillStudioNewRoute, skillStudioRoute } from "@/lib/company-skill-routes";
+import { skillStudioNewRoute, skillStudioRoute } from "@/lib/space-skill-routes";
 import {
   buildBlankSkillDraft,
   buildForkSkillDraft,
@@ -82,7 +82,7 @@ import {
 } from "@/components/skill-studio/SkillProvenance";
 import { isProjectScanSkill } from "@/lib/skill-fork";
 import { cn, relativeTime } from "@/lib/utils";
-import { SkillCardIcon, type DiscoveryCard } from "./CompanySkills";
+import { SkillCardIcon, type DiscoveryCard } from "./SpaceSkills";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -184,7 +184,7 @@ const PANE_STORAGE_KEY = "skillStudio.paneSizes";
 const RUN_TEMPLATE_STORAGE_KEY_PREFIX = "skillStudio.runTemplate";
 const MOBILE_BREAKPOINT = 900;
 const POLL_MS = 2000;
-const EMPTY_RUN_TEMPLATES: CompanySkillTestRunTemplate[] = [];
+const EMPTY_RUN_TEMPLATES: SpaceSkillTestRunTemplate[] = [];
 
 /**
  * Surface a mutation rejection as an error toast. Every Studio mutation routes
@@ -196,9 +196,9 @@ function useMutationErrorToast() {
   return useCallback(
     (title: string) => (error: unknown) => {
       // Under the open default there is no permission chrome. When an action is
-      // actually denied — by an explicit company policy (State B) or a platform
+      // actually denied — by an explicit space policy (State B) or a platform
       // safety invariant (State C) — show the actionable denial title/remediation
-      // instead of a generic "try again" error (`doc/company-skill-policy.md`, PAP-13865). Transient
+      // instead of a generic "try again" error (`doc/space-skill-policy.md`, PAP-13865). Transient
       // failures keep the plain error toast.
       const denial = classifySkillDenial(error);
       if (denial) {
@@ -238,21 +238,21 @@ function loadPaneLayout(): PaneLayout {
   return DEFAULT_LAYOUT;
 }
 
-function runTemplateStorageKey(companyId: string) {
-  return `${RUN_TEMPLATE_STORAGE_KEY_PREFIX}.${companyId}`;
+function runTemplateStorageKey(spaceId: string) {
+  return `${RUN_TEMPLATE_STORAGE_KEY_PREFIX}.${spaceId}`;
 }
 
-function loadRunTemplateSelection(companyId: string): RunTemplateSelection {
+function loadRunTemplateSelection(spaceId: string): RunTemplateSelection {
   try {
-    return parseRunTemplateSelection(localStorage.getItem(runTemplateStorageKey(companyId)));
+    return parseRunTemplateSelection(localStorage.getItem(runTemplateStorageKey(spaceId)));
   } catch {
     return DEFAULT_TEST_RUN_TEMPLATE_ID;
   }
 }
 
-function persistRunTemplateSelection(companyId: string, selection: RunTemplateSelection) {
+function persistRunTemplateSelection(spaceId: string, selection: RunTemplateSelection) {
   try {
-    localStorage.setItem(runTemplateStorageKey(companyId), serializeRunTemplateSelection(selection));
+    localStorage.setItem(runTemplateStorageKey(spaceId), serializeRunTemplateSelection(selection));
   } catch {
     /* storage may be unavailable (private mode) — non-fatal */
   }
@@ -278,10 +278,10 @@ export function SkillStudio() {
   const { skillId = "" } = useParams<{ skillId: string }>();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
-  const companyId = selectedCompanyId ?? "";
+  const spaceId = selectedSpaceId ?? "";
   const isCreateMode = location.pathname.replace(/\/+$/, "").endsWith("/skills/studio/new");
   const forkFromSkillId = isCreateMode ? searchParams.get("forkFrom")?.trim() || null : null;
   // New skills created from a folder context (e.g. My Skills) carry their
@@ -290,21 +290,21 @@ export function SkillStudio() {
   const newSkillFolderId = isCreateMode ? searchParams.get("folderId")?.trim() || null : null;
 
   const skillsQuery = useQuery({
-    queryKey: queryKeys.companySkills.list(companyId),
-    queryFn: () => companySkillsApi.list(companyId, { sort: "alphabetical" }),
-    enabled: Boolean(companyId),
+    queryKey: queryKeys.spaceSkills.list(spaceId),
+    queryFn: () => spaceSkillsApi.list(spaceId, { sort: "alphabetical" }),
+    enabled: Boolean(spaceId),
   });
 
   const detailQuery = useQuery({
-    queryKey: queryKeys.companySkills.detail(companyId, skillId),
-    queryFn: () => companySkillsApi.detail(companyId, skillId),
-    enabled: Boolean(companyId && skillId && !isCreateMode),
+    queryKey: queryKeys.spaceSkills.detail(spaceId, skillId),
+    queryFn: () => spaceSkillsApi.detail(spaceId, skillId),
+    enabled: Boolean(spaceId && skillId && !isCreateMode),
   });
   const detailView = useQueryView(detailQuery);
   const forkDetailQuery = useQuery({
-    queryKey: queryKeys.companySkills.detail(companyId, forkFromSkillId ?? ""),
-    queryFn: () => companySkillsApi.detail(companyId, forkFromSkillId!),
-    enabled: Boolean(companyId && forkFromSkillId),
+    queryKey: queryKeys.spaceSkills.detail(spaceId, forkFromSkillId ?? ""),
+    queryFn: () => spaceSkillsApi.detail(spaceId, forkFromSkillId!),
+    enabled: Boolean(spaceId && forkFromSkillId),
   });
   const skill = detailQuery.data ?? null;
 
@@ -335,13 +335,13 @@ export function SkillStudio() {
     if (skill?.id) trackRecentStudioSkill(skill.id);
   }, [skill?.id]);
 
-  if (!companyId) {
+  if (!spaceId) {
     return <StudioMessage message="Select an outpost to open Skill Studio." />;
   }
   if (isCreateMode) {
     return (
       <StudioCreateMode
-        companyId={companyId}
+        spaceId={spaceId}
         skills={skillsQuery.data ?? []}
         skillsLoading={skillsQuery.isLoading}
         forkFromSkillId={forkFromSkillId}
@@ -356,7 +356,7 @@ export function SkillStudio() {
   if (!skillId) {
     return (
       <StudioLanding
-        companyId={companyId}
+        spaceId={spaceId}
         skills={skillsQuery.data ?? []}
         skillsLoading={skillsQuery.isLoading}
         onSelectSkill={(nextSkillId) => navigate(skillStudioRoute(nextSkillId))}
@@ -385,7 +385,7 @@ export function SkillStudio() {
 
   return (
     <StudioShell
-      companyId={companyId}
+      spaceId={spaceId}
       skill={detailQuery.data}
       skills={skillsQuery.data ?? []}
       skillsLoading={skillsQuery.isLoading}
@@ -394,7 +394,7 @@ export function SkillStudio() {
 }
 
 function StudioCreateMode({
-  companyId,
+  spaceId,
   skills,
   skillsLoading,
   forkFromSkillId,
@@ -404,12 +404,12 @@ function StudioCreateMode({
   forkError,
   onSelectSkill,
 }: {
-  companyId: string;
-  skills: CompanySkillListItem[];
+  spaceId: string;
+  skills: SpaceSkillListItem[];
   skillsLoading: boolean;
   forkFromSkillId: string | null;
   folderId: string | null;
-  forkSkill: CompanySkillDetail | null;
+  forkSkill: SpaceSkillDetail | null;
   forkLoading: boolean;
   forkError: boolean;
   onSelectSkill: (skillId: string) => void;
@@ -429,7 +429,7 @@ function StudioCreateMode({
         <SkillsPageNavigation activeView="authored" />
         <div className="min-h-0 flex-1 overflow-y-auto">
           <StudioNewSkillPanel
-            companyId={companyId}
+            spaceId={spaceId}
             forkFromSkillId={forkFromSkillId}
             folderId={folderId}
             forkSkill={forkSkill}
@@ -443,17 +443,17 @@ function StudioCreateMode({
 }
 
 function StudioNewSkillPanel({
-  companyId,
+  spaceId,
   forkFromSkillId,
   folderId,
   forkSkill,
   forkLoading,
   forkError,
 }: {
-  companyId: string;
+  spaceId: string;
   forkFromSkillId: string | null;
   folderId: string | null;
-  forkSkill: CompanySkillDetail | null;
+  forkSkill: SpaceSkillDetail | null;
   forkLoading: boolean;
   forkError: boolean;
 }) {
@@ -484,12 +484,12 @@ function StudioNewSkillPanel({
   }
 
   const createSkill = useMutation({
-    mutationFn: () => companySkillsApi.create(companyId, skillCreateDraftToPayload({
+    mutationFn: () => spaceSkillsApi.create(spaceId, skillCreateDraftToPayload({
       ...draft,
       categories: parsedCategories,
     })),
     onSuccess: async (skill) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.list(companyId) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.spaceSkills.list(spaceId) });
       toast?.pushToast({
         tone: "success",
         title: skill.forkedFromSkillId ? "Skill fork created" : "Skill created",
@@ -668,7 +668,7 @@ function StudioNewSkillPanel({
           <p className="text-xs text-muted-foreground">Choose who can discover this skill inside Outpost.</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-3">
-          {(["company", "private"] as const).map((scope) => (
+          {(["space", "private"] as const).map((scope) => (
             <button
               key={scope}
               type="button"
@@ -678,9 +678,9 @@ function StudioNewSkillPanel({
                 draft.sharingScope === scope ? "border-foreground bg-accent/50" : "border-border",
               )}
             >
-              <span className="block font-medium">{scope === "company" ? "Outpost" : "Private"}</span>
+              <span className="block font-medium">{scope === "space" ? "Outpost" : "Private"}</span>
               <span className="mt-1 block text-xs text-muted-foreground">
-                {scope === "company" ? "Visible inside this outpost." : "Only visible in your library."}
+                {scope === "space" ? "Visible inside this outpost." : "Only visible in your library."}
               </span>
             </button>
           ))}
@@ -731,7 +731,7 @@ function StudioEmptyState({
   onSelectSkill,
   onCreateNew,
 }: {
-  skills: CompanySkillListItem[];
+  skills: SpaceSkillListItem[];
   skillsLoading: boolean;
   onSelectSkill: (skillId: string) => void;
   onCreateNew: () => void;
@@ -767,14 +767,14 @@ function StudioEmptyState({
 // ---------------------------------------------------------------------------
 
 function StudioLanding({
-  companyId,
+  spaceId,
   skills,
   skillsLoading,
   onSelectSkill,
   onCreateNew,
 }: {
-  companyId: string;
-  skills: CompanySkillListItem[];
+  spaceId: string;
+  skills: SpaceSkillListItem[];
   skillsLoading: boolean;
   onSelectSkill: (skillId: string) => void;
   onCreateNew: () => void;
@@ -783,9 +783,9 @@ function StudioLanding({
   // source for both landing sections. Kept separate from the alphabetical
   // switcher list so each cache stays sorted the way its consumer expects.
   const recentQuery = useQuery({
-    queryKey: queryKeys.companySkills.listRecent(companyId),
-    queryFn: () => companySkillsApi.list(companyId, { sort: "recent", include: ["lastEditor"] }),
-    enabled: Boolean(companyId),
+    queryKey: queryKeys.spaceSkills.listRecent(spaceId),
+    queryFn: () => spaceSkillsApi.list(spaceId, { sort: "recent", include: ["lastEditor"] }),
+    enabled: Boolean(spaceId),
   });
   const recentSkills = recentQuery.data ?? [];
 
@@ -854,7 +854,7 @@ function StudioLandingSection({
   onSelectSkill,
 }: {
   title: string;
-  skills: CompanySkillListItem[];
+  skills: SpaceSkillListItem[];
   onSelectSkill: (skillId: string) => void;
 }) {
   if (skills.length === 0) return null;
@@ -880,7 +880,7 @@ function StudioLandingRow({
   skill,
   onSelect,
 }: {
-  skill: CompanySkillListItem;
+  skill: SpaceSkillListItem;
   onSelect: () => void;
 }) {
   const editor = skillEditorAvatar(skill.lastEditor);
@@ -917,7 +917,7 @@ function StudioLandingRow({
   );
 }
 
-function SkillLandingIcon({ skill }: { skill: CompanySkillListItem }) {
+function SkillLandingIcon({ skill }: { skill: SpaceSkillListItem }) {
   if (skill.iconUrl) {
     return (
       <img
@@ -945,14 +945,14 @@ function SkillLandingIcon({ skill }: { skill: CompanySkillListItem }) {
 // ---------------------------------------------------------------------------
 
 function StudioShell({
-  companyId,
+  spaceId,
   skill,
   skills,
   skillsLoading,
 }: {
-  companyId: string;
-  skill: CompanySkillDetail;
-  skills: CompanySkillListItem[];
+  spaceId: string;
+  skill: SpaceSkillDetail;
+  skills: SpaceSkillListItem[];
   skillsLoading: boolean;
 }) {
   const skillId = skill.id;
@@ -991,9 +991,9 @@ function StudioShell({
   }, [selectedInputId, selectedRunId]);
 
   const inputsQuery = useQuery({
-    queryKey: queryKeys.companySkills.testInputs(companyId, skillId),
-    queryFn: () => companySkillsApi.testInputs(companyId, skillId),
-    enabled: Boolean(companyId && skillId),
+    queryKey: queryKeys.spaceSkills.testInputs(spaceId, skillId),
+    queryFn: () => spaceSkillsApi.testInputs(spaceId, skillId),
+    enabled: Boolean(spaceId && skillId),
   });
 
   const persistLayout = useCallback((layout: Record<string, number>) => {
@@ -1015,7 +1015,7 @@ function StudioShell({
 
   const leftPane = (
     <SkillPane
-      companyId={companyId}
+      spaceId={spaceId}
       skill={skill}
       onDirtyChange={setSkillDirty}
       onEditACopy={() => setForkDialogOpen(true)}
@@ -1024,7 +1024,7 @@ function StudioShell({
   const projectScan = isProjectScanSkill(skill.metadata);
   const middlePane = (
     <InputPane
-      companyId={companyId}
+      spaceId={spaceId}
       skillId={skillId}
       inputs={inputs}
       loading={inputsQuery.isLoading}
@@ -1045,7 +1045,7 @@ function StudioShell({
   );
   const rightPane = (
     <RunsPane
-      companyId={companyId}
+      spaceId={spaceId}
       skill={skill}
       inputs={inputs}
       selectedInput={selectedInput}
@@ -1065,7 +1065,7 @@ function StudioShell({
     <TooltipProvider delayDuration={200}>
       <div className="flex h-full min-h-0 flex-col">
         <StudioHeader
-          companyId={companyId}
+          spaceId={spaceId}
           skill={skill}
           skillDirty={skillDirty}
           skills={skills}
@@ -1112,18 +1112,18 @@ function StudioShell({
       <VersionHistorySheet
         open={versionSheetOpen}
         onOpenChange={setVersionSheetOpen}
-        companyId={companyId}
+        spaceId={spaceId}
         skill={skill}
         onRestored={() => {
           setSkillDirty(false);
           queryClient.invalidateQueries({
-            queryKey: queryKeys.companySkills.detail(companyId, skillId),
+            queryKey: queryKeys.spaceSkills.detail(spaceId, skillId),
           });
         }}
         onFilterRuns={(inputId) => setSelectedInputId(inputId)}
       />
       <ForkSkillDialog
-        companyId={companyId}
+        spaceId={spaceId}
         skill={skill}
         open={forkDialogOpen}
         onOpenChange={setForkDialogOpen}
@@ -1137,7 +1137,7 @@ function StudioShell({
 // ---------------------------------------------------------------------------
 
 function StudioHeader({
-  companyId,
+  spaceId,
   skill,
   skillDirty,
   skills,
@@ -1145,10 +1145,10 @@ function StudioHeader({
   onSelectSkill,
   onOpenVersions,
 }: {
-  companyId: string;
-  skill: CompanySkillDetail;
+  spaceId: string;
+  skill: SpaceSkillDetail;
   skillDirty: boolean;
-  skills: CompanySkillListItem[];
+  skills: SpaceSkillListItem[];
   skillsLoading: boolean;
   onSelectSkill: (skillId: string) => void;
   onOpenVersions: () => void;
@@ -1185,11 +1185,11 @@ function StudioHeader({
       ) : null}
       {skill.forkedFromSkillId ? (
         <SkillLineageChip
-          companyId={companyId}
+          spaceId={spaceId}
           forkedFromSkillId={skill.forkedFromSkillId}
         />
       ) : null}
-      <AgentsUsingSkillBadge companyId={companyId} skill={skill} />
+      <AgentsUsingSkillBadge spaceId={spaceId} skill={skill} />
       <div className="ml-auto flex items-center gap-1">
         <Button variant="ghost" size="sm" onClick={onOpenVersions}>
           <History className="mr-1.5 h-3.5 w-3.5" />
@@ -1213,7 +1213,7 @@ function StudioHeader({
 }
 
 type SkillSwitcherOption = SearchableSelectOption<string> & {
-  skill: CompanySkillListItem | CompanySkillDetail;
+  skill: SpaceSkillListItem | SpaceSkillDetail;
 };
 
 function SkillSwitcher({
@@ -1223,8 +1223,8 @@ function SkillSwitcher({
   onSelectSkill,
   emptyLabel = "Select skill",
 }: {
-  skill: CompanySkillDetail | null;
-  skills: CompanySkillListItem[];
+  skill: SpaceSkillDetail | null;
+  skills: SpaceSkillListItem[];
   loading: boolean;
   onSelectSkill: (skillId: string) => void;
   emptyLabel?: string;
@@ -1270,9 +1270,9 @@ function SkillSwitcher({
 }
 
 function withCurrentSkill(
-  skills: CompanySkillListItem[],
-  skill: CompanySkillDetail | null,
-): Array<CompanySkillListItem | CompanySkillDetail> {
+  skills: SpaceSkillListItem[],
+  skill: SpaceSkillDetail | null,
+): Array<SpaceSkillListItem | SpaceSkillDetail> {
   if (!skill) return skills;
   return skills.some((candidate) => candidate.id === skill.id) ? skills : [skill, ...skills];
 }
@@ -1282,13 +1282,13 @@ function withCurrentSkill(
 // ---------------------------------------------------------------------------
 
 function SkillPane({
-  companyId,
+  spaceId,
   skill,
   onDirtyChange,
   onEditACopy,
 }: {
-  companyId: string;
-  skill: CompanySkillDetail;
+  spaceId: string;
+  skill: SpaceSkillDetail;
   onDirtyChange: (dirty: boolean) => void;
   onEditACopy: () => void;
 }) {
@@ -1326,9 +1326,9 @@ function SkillPane({
   const currentDraftRef = useRef({ skillId, selectedFile, draft });
   currentDraftRef.current = { skillId, selectedFile, draft };
   const fileQuery = useQuery({
-    queryKey: queryKeys.companySkills.file(companyId, skillId, selectedFile),
-    queryFn: () => companySkillsApi.file(companyId, skillId, selectedFile),
-    enabled: Boolean(companyId && skillId && selectedFile),
+    queryKey: queryKeys.spaceSkills.file(spaceId, skillId, selectedFile),
+    queryFn: () => spaceSkillsApi.file(spaceId, skillId, selectedFile),
+    enabled: Boolean(spaceId && skillId && selectedFile),
   });
 
   useEffect(() => {
@@ -1365,22 +1365,22 @@ function SkillPane({
 
   const saveMutation = useMutation({
     mutationFn: ({ path, content, versionId }: { path: string; content: string; versionId: string | null | undefined }) =>
-      companySkillsApi.updateFile(companyId, skillId, path, content, { expectedVersionId: versionId }),
+      spaceSkillsApi.updateFile(spaceId, skillId, path, content, { expectedVersionId: versionId }),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKeys.companySkills.file(companyId, skillId, updated.path), updated);
+      queryClient.setQueryData(queryKeys.spaceSkills.file(spaceId, skillId, updated.path), updated);
       if (draftFileRef.current === updated.path) {
         setBaseVersionId(updated.versionId);
         setSavedContent(updated.content);
         setVersionConflict(false);
       }
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.detail(companyId, skillId),
+        queryKey: queryKeys.spaceSkills.detail(spaceId, skillId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.list(companyId),
+        queryKey: queryKeys.spaceSkills.list(spaceId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.versions(companyId, skillId),
+        queryKey: queryKeys.spaceSkills.versions(spaceId, skillId),
       });
     },
     onError: (error) => {
@@ -1406,22 +1406,22 @@ function SkillPane({
 
   const createMutation = useMutation({
     mutationFn: ({ path, content }: { path: string; content: string }) =>
-      companySkillsApi.updateFile(companyId, skillId, path, content, { expectedVersionId: baseVersionId ?? skill.currentVersionId }),
+      spaceSkillsApi.updateFile(spaceId, skillId, path, content, { expectedVersionId: baseVersionId ?? skill.currentVersionId }),
     onSuccess: (created) => {
       setBaseVersionId(created.versionId);
-      queryClient.setQueryData(queryKeys.companySkills.file(companyId, skillId, created.path), created);
+      queryClient.setQueryData(queryKeys.spaceSkills.file(spaceId, skillId, created.path), created);
       setSelectedFile(created.path);
       setDraft(created.content);
       setSavedContent(created.content);
       setCreateDialog(null);
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.detail(companyId, skillId),
+        queryKey: queryKeys.spaceSkills.detail(spaceId, skillId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.list(companyId),
+        queryKey: queryKeys.spaceSkills.list(spaceId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.versions(companyId, skillId),
+        queryKey: queryKeys.spaceSkills.versions(spaceId, skillId),
       });
     },
     onError: onError("Couldn't create file"),
@@ -1429,22 +1429,22 @@ function SkillPane({
 
   const deleteMutation = useMutation({
     mutationFn: (input: { path: string; target: "file" | "folder" }) =>
-      companySkillsApi.deleteFile(companyId, skillId, { ...input, expectedVersionId: baseVersionId ?? skill.currentVersionId }),
+      spaceSkillsApi.deleteFile(spaceId, skillId, { ...input, expectedVersionId: baseVersionId ?? skill.currentVersionId }),
     onSuccess: (result) => {
       setBaseVersionId(result.versionId);
-      queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.file(companyId, skillId, selectedFile) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.spaceSkills.file(spaceId, skillId, selectedFile) });
       const deleted = new Set(result.deletedPaths);
       const remaining = paths.filter((path) => !deleted.has(path));
       setSelectedFile(remaining.find((path) => /skill\.md$/i.test(path)) ?? remaining[0] ?? "SKILL.md");
       setDeleteFolderOpen(false);
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.detail(companyId, skillId),
+        queryKey: queryKeys.spaceSkills.detail(spaceId, skillId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.list(companyId),
+        queryKey: queryKeys.spaceSkills.list(spaceId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.versions(companyId, skillId),
+        queryKey: queryKeys.spaceSkills.versions(spaceId, skillId),
       });
     },
     onError: onError("Couldn't delete file"),
@@ -1951,7 +1951,7 @@ function DeleteFolderDialog({
 // ---------------------------------------------------------------------------
 
 function InputPane({
-  companyId,
+  spaceId,
   skillId,
   inputs,
   loading,
@@ -1962,9 +1962,9 @@ function InputPane({
   onSelectInput,
   onSelectAdHoc,
 }: {
-  companyId: string;
+  spaceId: string;
   skillId: string;
-  inputs: CompanySkillTestInput[];
+  inputs: SpaceSkillTestInput[];
   loading: boolean;
   selectedInputId: string | null;
   adHocMode: boolean;
@@ -2044,31 +2044,31 @@ function InputPane({
 
   const updateMutation = useMutation({
     mutationFn: (payload: { content: string }) =>
-      companySkillsApi.updateTestInput(companyId, skillId, selectedInput!.id, payload),
+      spaceSkillsApi.updateTestInput(spaceId, skillId, selectedInput!.id, payload),
     onSuccess: (updated) => {
       setSavedInputDraft({
         inputId: updated.id,
         draft: updated.content,
         baselineContent: updated.content,
       });
-      queryClient.setQueryData<CompanySkillTestInput[]>(
-        queryKeys.companySkills.testInputs(companyId, skillId),
+      queryClient.setQueryData<SpaceSkillTestInput[]>(
+        queryKeys.spaceSkills.testInputs(spaceId, skillId),
         (current) => current?.map((input) => input.id === updated.id ? updated : input),
       );
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.testInputs(companyId, skillId),
+        queryKey: queryKeys.spaceSkills.testInputs(spaceId, skillId),
       });
     },
     onError: onError("Couldn't save input"),
   });
   const deleteMutation = useMutation({
-    mutationFn: (inputId: string) => companySkillsApi.deleteTestInput(companyId, skillId, inputId),
+    mutationFn: (inputId: string) => spaceSkillsApi.deleteTestInput(spaceId, skillId, inputId),
     onSuccess: (deleted) => {
       if (deleted.id === selectedInputId) {
         onSelectAdHoc();
       }
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.testInputs(companyId, skillId),
+        queryKey: queryKeys.spaceSkills.testInputs(spaceId, skillId),
       });
     },
     onError: onError("Couldn't delete input"),
@@ -2244,7 +2244,7 @@ function InputPane({
       <SaveInputDialog
         open={saveDialogOpen}
         onOpenChange={setSaveDialogOpen}
-        companyId={companyId}
+        spaceId={spaceId}
         skillId={skillId}
         initialContent={draft}
         onSaved={(input) => {
@@ -2259,17 +2259,17 @@ function InputPane({
 function SaveInputDialog({
   open,
   onOpenChange,
-  companyId,
+  spaceId,
   skillId,
   initialContent,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  companyId: string;
+  spaceId: string;
   skillId: string;
   initialContent: string;
-  onSaved: (input: CompanySkillTestInput) => void;
+  onSaved: (input: SpaceSkillTestInput) => void;
 }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
@@ -2283,10 +2283,10 @@ function SaveInputDialog({
   }, [open, initialContent]);
 
   const createMutation = useMutation({
-    mutationFn: () => companySkillsApi.createTestInput(companyId, skillId, { name: name.trim(), content }),
+    mutationFn: () => spaceSkillsApi.createTestInput(spaceId, skillId, { name: name.trim(), content }),
     onSuccess: (input) => {
-      queryClient.setQueryData<CompanySkillTestInput[]>(
-        queryKeys.companySkills.testInputs(companyId, skillId),
+      queryClient.setQueryData<SpaceSkillTestInput[]>(
+        queryKeys.spaceSkills.testInputs(spaceId, skillId),
         (current) => {
           const withoutDuplicate = (current ?? []).filter((item) => item.id !== input.id);
           return [...withoutDuplicate, input].sort((a, b) =>
@@ -2295,7 +2295,7 @@ function SaveInputDialog({
         },
       );
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.testInputs(companyId, skillId),
+        queryKey: queryKeys.spaceSkills.testInputs(spaceId, skillId),
       });
       onSaved(input);
     },
@@ -2352,12 +2352,12 @@ function SaveInputDialog({
 // ---------------------------------------------------------------------------
 
 type RunTemplateDialogState =
-  | { mode: "create"; source?: CompanySkillTestRunTemplate | null }
-  | { mode: "edit"; source: CompanySkillTestRunTemplate }
+  | { mode: "create"; source?: SpaceSkillTestRunTemplate | null }
+  | { mode: "edit"; source: SpaceSkillTestRunTemplate }
   | null;
 
 function RunsPane({
-  companyId,
+  spaceId,
   skill,
   inputs,
   selectedInput,
@@ -2371,10 +2371,10 @@ function RunsPane({
   filterInput,
   onClearFilter,
 }: {
-  companyId: string;
-  skill: CompanySkillDetail;
-  inputs: CompanySkillTestInput[];
-  selectedInput: CompanySkillTestInput | null;
+  spaceId: string;
+  skill: SpaceSkillDetail;
+  inputs: SpaceSkillTestInput[];
+  selectedInput: SpaceSkillTestInput | null;
   adHocMode: boolean;
   adHocContent: string;
   selectedRunId: string | null;
@@ -2382,7 +2382,7 @@ function RunsPane({
   selectedAgentId: string | null;
   onSelectAgent: (id: string | null) => void;
   skillDirty: boolean;
-  filterInput: CompanySkillTestInput | null;
+  filterInput: SpaceSkillTestInput | null;
   onClearFilter: () => void;
 }) {
   const skillId = skill.id;
@@ -2391,31 +2391,31 @@ function RunsPane({
   const toast = useOptionalToastActions();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<RunTemplateSelection>(
-    () => loadRunTemplateSelection(companyId),
+    () => loadRunTemplateSelection(spaceId),
   );
   const [templateDialog, setTemplateDialog] = useState<RunTemplateDialogState>(null);
 
   const agentsQuery = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
-    enabled: Boolean(companyId),
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
+    enabled: Boolean(spaceId),
   });
   const agents = agentsQuery.data ?? [];
   const selectedAgent = agents.find((a) => a.id === selectedAgentId) ?? null;
 
   useEffect(() => {
-    setSelectedTemplateId(loadRunTemplateSelection(companyId));
-  }, [companyId]);
+    setSelectedTemplateId(loadRunTemplateSelection(spaceId));
+  }, [spaceId]);
 
   const updateTemplateSelection = useCallback((selection: RunTemplateSelection) => {
     setSelectedTemplateId(selection);
-    persistRunTemplateSelection(companyId, selection);
-  }, [companyId]);
+    persistRunTemplateSelection(spaceId, selection);
+  }, [spaceId]);
 
   const templatesQuery = useQuery({
-    queryKey: queryKeys.companySkills.testRunTemplates(companyId),
-    queryFn: () => companySkillsApi.testRunTemplates(companyId),
-    enabled: Boolean(companyId),
+    queryKey: queryKeys.spaceSkills.testRunTemplates(spaceId),
+    queryFn: () => spaceSkillsApi.testRunTemplates(spaceId),
+    enabled: Boolean(spaceId),
   });
   const templatesQueryView = useQueryView(templatesQuery);
   const templates = templatesQuery.data ?? EMPTY_RUN_TEMPLATES;
@@ -2429,10 +2429,10 @@ function RunsPane({
       tone: "warn",
       title: "Run template reset",
       body: "The saved run template is no longer available. Default test template is selected.",
-      dedupeKey: `skill-studio-template-reset:${companyId}`,
+      dedupeKey: `skill-studio-template-reset:${spaceId}`,
     });
   }, [
-    companyId,
+    spaceId,
     selectedTemplateId,
     templates,
     templatesQuery.isSuccess,
@@ -2442,12 +2442,12 @@ function RunsPane({
 
   const filterInputId = filterInput?.id ?? null;
   const runsQuery = useQuery({
-    queryKey: queryKeys.companySkills.testRuns(companyId, skillId, filterInputId),
+    queryKey: queryKeys.spaceSkills.testRuns(spaceId, skillId, filterInputId),
     queryFn: () =>
-      companySkillsApi.testRuns(companyId, skillId, filterInputId ? { inputId: filterInputId } : {}),
-    enabled: Boolean(companyId && skillId),
+      spaceSkillsApi.testRuns(spaceId, skillId, filterInputId ? { inputId: filterInputId } : {}),
+    enabled: Boolean(spaceId && skillId),
     refetchInterval: (query) => {
-      const data = query.state.data as CompanySkillTestRun[] | undefined;
+      const data = query.state.data as SpaceSkillTestRun[] | undefined;
       return data?.some((r) => shouldPollRun(r.status)) ? POLL_MS : false;
     },
   });
@@ -2467,13 +2467,13 @@ function RunsPane({
       : null;
 
   const createTemplateMutation = useMutation({
-    mutationFn: (payload: CompanySkillTestRunTemplateCreateRequest) =>
-      companySkillsApi.createTestRunTemplate(companyId, payload),
+    mutationFn: (payload: SpaceSkillTestRunTemplateCreateRequest) =>
+      spaceSkillsApi.createTestRunTemplate(spaceId, payload),
     onSuccess: (template) => {
       setTemplateDialog(null);
       updateTemplateSelection(template.id);
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.testRunTemplates(companyId),
+        queryKey: queryKeys.spaceSkills.testRunTemplates(spaceId),
       });
       toast?.pushToast({
         tone: "success",
@@ -2487,13 +2487,13 @@ function RunsPane({
   const updateTemplateMutation = useMutation({
     mutationFn: ({ templateId, payload }: {
       templateId: string;
-      payload: CompanySkillTestRunTemplateUpdateRequest;
-    }) => companySkillsApi.updateTestRunTemplate(companyId, templateId, payload),
+      payload: SpaceSkillTestRunTemplateUpdateRequest;
+    }) => spaceSkillsApi.updateTestRunTemplate(spaceId, templateId, payload),
     onSuccess: (template) => {
       setTemplateDialog(null);
       updateTemplateSelection(template.id);
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.testRunTemplates(companyId),
+        queryKey: queryKeys.spaceSkills.testRunTemplates(spaceId),
       });
       toast?.pushToast({
         tone: "success",
@@ -2505,14 +2505,14 @@ function RunsPane({
   });
 
   const deleteTemplateMutation = useMutation({
-    mutationFn: (templateId: string) => companySkillsApi.deleteTestRunTemplate(companyId, templateId),
+    mutationFn: (templateId: string) => spaceSkillsApi.deleteTestRunTemplate(spaceId, templateId),
     onSuccess: (template) => {
       const fallback = resolveRunTemplateSelection(selectedTemplateId, templates.filter((entry) => entry.id !== template.id));
       if (selectedTemplateId === template.id || fallback.recovered) {
         updateTemplateSelection(fallback.selection);
       }
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.testRunTemplates(companyId),
+        queryKey: queryKeys.spaceSkills.testRunTemplates(spaceId),
       });
       toast?.pushToast({
         tone: "success",
@@ -2541,7 +2541,7 @@ function RunsPane({
         updateTemplateSelection(resolution.selection);
         throw new Error("Selected run template is no longer available. The selection was reset.");
       }
-      return companySkillsApi.createTestRun(companyId, skillId, buildCreateRunRequest({
+      return spaceSkillsApi.createTestRun(spaceId, skillId, buildCreateRunRequest({
         agentId: selectedAgentId!,
         inputId: adHocMode ? null : selectedInput?.id ?? null,
         content: adHocMode ? adHocContent : selectedInput ? null : adHocContent,
@@ -2550,7 +2550,7 @@ function RunsPane({
     },
     onSuccess: (run) => {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.testRuns(companyId, skillId, filterInputId),
+        queryKey: queryKeys.spaceSkills.testRuns(spaceId, skillId, filterInputId),
       });
       onSelectRun(run.id);
     },
@@ -2560,7 +2560,7 @@ function RunsPane({
   if (selectedRunId) {
     return (
       <RunDetailView
-        companyId={companyId}
+        spaceId={spaceId}
         skill={skill}
         runId={selectedRunId}
         agents={agents}
@@ -2706,17 +2706,17 @@ function RunTemplateAdvancedPanel({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  templates: CompanySkillTestRunTemplate[];
+  templates: SpaceSkillTestRunTemplate[];
   templatesLoading: boolean;
   templatesError: boolean;
   selectedTemplateId: RunTemplateSelection;
-  selectedTemplate: CompanySkillTestRunTemplate | null;
+  selectedTemplate: SpaceSkillTestRunTemplate | null;
   selectedTemplateName: string;
   onSelectTemplate: (selection: RunTemplateSelection) => void;
   onCreateTemplate: () => void;
-  onEditTemplate: (template: CompanySkillTestRunTemplate) => void;
-  onDuplicateTemplate: (template: CompanySkillTestRunTemplate) => void;
-  onDeleteTemplate: (template: CompanySkillTestRunTemplate) => void;
+  onEditTemplate: (template: SpaceSkillTestRunTemplate) => void;
+  onDuplicateTemplate: (template: SpaceSkillTestRunTemplate) => void;
+  onDeleteTemplate: (template: SpaceSkillTestRunTemplate) => void;
   deletingTemplateId: string | null;
   actionPending: boolean;
 }) {
@@ -2730,7 +2730,7 @@ function RunTemplateAdvancedPanel({
       builtIn: true,
       searchText: "no template plain input",
     };
-    const toOption = (template: CompanySkillTestRunTemplate): RunTemplateOption => ({
+    const toOption = (template: SpaceSkillTestRunTemplate): RunTemplateOption => ({
       key: template.id,
       value: template.id,
       label: template.name,
@@ -2899,7 +2899,7 @@ function RunTemplateDialog({
   state: RunTemplateDialogState;
   pending: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (payload: CompanySkillTestRunTemplateCreateRequest) => void;
+  onSubmit: (payload: SpaceSkillTestRunTemplateCreateRequest) => void;
 }) {
   const source = state?.source ?? null;
   const [name, setName] = useState("");
@@ -2988,7 +2988,7 @@ function RunHistoryRow({
   agents,
   onSelect,
 }: {
-  run: CompanySkillTestRun;
+  run: SpaceSkillTestRun;
   agents: Agent[];
   onSelect: () => void;
 }) {
@@ -3078,15 +3078,15 @@ function AgentPicker({
 // ---------------------------------------------------------------------------
 
 function RunDetailView({
-  companyId,
+  spaceId,
   skill,
   runId,
   agents,
   onBack,
   onSelectRun,
 }: {
-  companyId: string;
-  skill: CompanySkillDetail;
+  spaceId: string;
+  skill: SpaceSkillDetail;
   runId: string;
   agents: Agent[];
   onBack: () => void;
@@ -3096,20 +3096,20 @@ function RunDetailView({
   const queryClient = useQueryClient();
   const onError = useMutationErrorToast();
   const detailQuery = useQuery({
-    queryKey: queryKeys.companySkills.testRunDetail(companyId, skillId, runId),
-    queryFn: () => companySkillsApi.testRunDetail(companyId, skillId, runId),
-    enabled: Boolean(companyId && skillId && runId),
+    queryKey: queryKeys.spaceSkills.testRunDetail(spaceId, skillId, runId),
+    queryFn: () => spaceSkillsApi.testRunDetail(spaceId, skillId, runId),
+    enabled: Boolean(spaceId && skillId && runId),
     refetchInterval: (query) => {
-      const data = query.state.data as CompanySkillTestRunDetail | undefined;
+      const data = query.state.data as SpaceSkillTestRunDetail | undefined;
       return data && shouldPollRun(data.status) ? POLL_MS : false;
     },
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () => companySkillsApi.cancelTestRun(companyId, skillId, runId),
+    mutationFn: () => spaceSkillsApi.cancelTestRun(spaceId, skillId, runId),
     onSuccess: () =>
       queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.testRunDetail(companyId, skillId, runId),
+        queryKey: queryKeys.spaceSkills.testRunDetail(spaceId, skillId, runId),
       }),
     onError: onError("Couldn't cancel run"),
   });
@@ -3122,11 +3122,11 @@ function RunDetailView({
     mutationFn: () => {
       const d = detailQuery.data;
       if (!d) throw new Error("Run details are still loading.");
-      return companySkillsApi.createTestRun(companyId, skillId, buildReRunRequest(d));
+      return spaceSkillsApi.createTestRun(spaceId, skillId, buildReRunRequest(d));
     },
     onSuccess: (run) => {
       queryClient.invalidateQueries({
-        queryKey: ["outpost-skills", companyId, skillId, "test-runs"],
+        queryKey: ["outpost-skills", spaceId, skillId, "test-runs"],
       });
       onSelectRun(run.id);
     },
@@ -3134,10 +3134,10 @@ function RunDetailView({
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => companySkillsApi.deleteTestRun(companyId, skillId, runId),
+    mutationFn: () => spaceSkillsApi.deleteTestRun(spaceId, skillId, runId),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["outpost-skills", companyId, skillId, "test-runs"],
+        queryKey: ["outpost-skills", spaceId, skillId, "test-runs"],
       });
       onSelectRun(null);
     },
@@ -3264,12 +3264,12 @@ function RunDetailView({
 
         {/* Interactions */}
         <InteractionSection
-          companyId={companyId}
+          spaceId={spaceId}
           detail={detail}
           agents={agents}
           onAnswered={() =>
             queryClient.invalidateQueries({
-              queryKey: queryKeys.companySkills.testRunDetail(companyId, skillId, runId),
+              queryKey: queryKeys.spaceSkills.testRunDetail(spaceId, skillId, runId),
             })
           }
         />
@@ -3364,7 +3364,7 @@ function RunDocumentsSection({ documents }: { documents: IssueDocument[] }) {
               </span>
               <span className="ml-auto shrink-0">{relativeTime(document.updatedAt)}</span>
             </div>
-            <MarkdownBody className="paperclip-edit-in-place-content text-sm leading-7" softBreaks={false}>
+            <MarkdownBody className="outpost-edit-in-place-content text-sm leading-7" softBreaks={false}>
               {document.body}
             </MarkdownBody>
           </article>
@@ -3375,13 +3375,13 @@ function RunDocumentsSection({ documents }: { documents: IssueDocument[] }) {
 }
 
 function InteractionSection({
-  companyId,
+  spaceId,
   detail,
   agents,
   onAnswered,
 }: {
-  companyId: string;
-  detail: CompanySkillTestRunDetail;
+  spaceId: string;
+  detail: SpaceSkillTestRunDetail;
   agents: Agent[];
   onAnswered: () => void;
 }) {
@@ -3477,24 +3477,24 @@ function InteractionSection({
 function VersionHistorySheet({
   open,
   onOpenChange,
-  companyId,
+  spaceId,
   skill,
   onRestored,
   onFilterRuns,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  companyId: string;
-  skill: CompanySkillDetail;
+  spaceId: string;
+  skill: SpaceSkillDetail;
   onRestored: () => void;
   onFilterRuns: (inputId: string) => void;
 }) {
   const skillId = skill.id;
   const queryClient = useQueryClient();
   const versionsQuery = useQuery({
-    queryKey: queryKeys.companySkills.versions(companyId, skillId),
-    queryFn: () => companySkillsApi.versions(companyId, skillId),
-    enabled: open && Boolean(companyId && skillId),
+    queryKey: queryKeys.spaceSkills.versions(spaceId, skillId),
+    queryFn: () => spaceSkillsApi.versions(spaceId, skillId),
+    enabled: open && Boolean(spaceId && skillId),
   });
   const versions = versionsQuery.data ?? [];
   const [leftId, setLeftId] = useState<string | null>(null);
@@ -3503,37 +3503,37 @@ function VersionHistorySheet({
   const restore = useMutation({
     mutationFn: async (selection: { id: string }) => {
       if (skill.sourceType === "local_path") {
-        const version = await companySkillsApi.version(companyId, skillId, selection.id);
+        const version = await spaceSkillsApi.version(spaceId, skillId, selection.id);
         let expectedVersionId = skill.currentVersionId;
         for (const file of version.fileInventory) {
-          const saved = await companySkillsApi.updateFile(companyId, skillId, file.path, file.content, {
+          const saved = await spaceSkillsApi.updateFile(spaceId, skillId, file.path, file.content, {
             encoding: file.encoding, executable: file.executable ?? false, expectedVersionId,
           });
           expectedVersionId = saved.versionId ?? expectedVersionId;
         }
-        return companySkillsApi.createVersion(companyId, skillId, {
+        return spaceSkillsApi.createVersion(spaceId, skillId, {
           label: `Restore of v${version.revisionNumber}`, expectedVersionId,
         });
       }
-      return companySkillsApi.createVersion(companyId, skillId, {
+      return spaceSkillsApi.createVersion(spaceId, skillId, {
         sourceVersionId: selection.id, expectedVersionId: skill.currentVersionId,
         label: "Restored saved version",
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.versions(companyId, skillId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.spaceSkills.versions(spaceId, skillId) });
       onRestored();
     },
   });
 
   const leftQuery = useQuery({
-    queryKey: [...queryKeys.companySkills.versions(companyId, skillId), leftId],
-    queryFn: () => companySkillsApi.version(companyId, skillId, leftId!),
+    queryKey: [...queryKeys.spaceSkills.versions(spaceId, skillId), leftId],
+    queryFn: () => spaceSkillsApi.version(spaceId, skillId, leftId!),
     enabled: open && Boolean(leftId && rightId),
   });
   const rightQuery = useQuery({
-    queryKey: [...queryKeys.companySkills.versions(companyId, skillId), rightId],
-    queryFn: () => companySkillsApi.version(companyId, skillId, rightId!),
+    queryKey: [...queryKeys.spaceSkills.versions(spaceId, skillId), rightId],
+    queryFn: () => spaceSkillsApi.version(spaceId, skillId, rightId!),
     enabled: open && Boolean(leftId && rightId),
   });
   const left = leftQuery.data ?? null;

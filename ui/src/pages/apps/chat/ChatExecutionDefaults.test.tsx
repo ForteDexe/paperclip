@@ -16,7 +16,7 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => root.unmount()); client.clear(); container.remove(); });
 async function render(value: Defaults | null = { projectId: null }) {
-  await act(async () => root.render(<QueryClientProvider client={client}><ChatExecutionDefaults companyId="company" value={value} resource onSave={mocks.save} /></QueryClientProvider>));
+  await act(async () => root.render(<QueryClientProvider client={client}><ChatExecutionDefaults spaceId="space" value={value} resource onSave={mocks.save} /></QueryClientProvider>));
   await vi.waitFor(() => expect(container.querySelectorAll("select")[1].disabled).toBe(false));
 }
 async function choose(value: string) {
@@ -59,7 +59,7 @@ it("offers and saves an idle workspace from the shared task selection filter", a
     { id: "idle-workspace", name: "Idle files", status: "idle", closedAt: null },
   ]);
   await render();
-  expect(mocks.workspaces).toHaveBeenCalledWith("company", { selectableForTask: true });
+  expect(mocks.workspaces).toHaveBeenCalledWith("space", { selectableForTask: true });
   const options = [...container.querySelectorAll("select")[1].options].map((option) => option.value);
   expect(options).toContain("existing:active-workspace");
   expect(options).toContain("existing:idle-workspace");

@@ -33,28 +33,28 @@ Join request minimum:
   "agentDefaultsPayload": {
     "apiBaseUrl": "http://127.0.0.1:8642",
     "apiKey": "<same-value-as-API_SERVER_KEY>",
-    "paperclipApiUrl": "http://localhost:3100"
+    "outpostApiUrl": "http://localhost:3100"
   }
 }
 
 Core fields:
 - agentDefaultsPayload.apiBaseUrl (string, required): Base URL for the Hermes API server as reachable from the Outpost server. A default dashboard root or chat URL such as http://127.0.0.1:9119 or http://127.0.0.1:9119/chat is accepted and maps to http://127.0.0.1:9119/api.
 - agentDefaultsPayload.apiKey (string, required unless the adapter package documents another auth field): Hermes API server key matching API_SERVER_KEY. This is the Hermes gateway key, not the claimed Outpost API key.
-- agentDefaultsPayload.paperclipApiUrl (string, strongly recommended): Outpost base URL as reachable from Hermes for invite, claim, skill bootstrap, and later Outpost API calls.
+- agentDefaultsPayload.outpostApiUrl (string, strongly recommended): Outpost base URL as reachable from Hermes for invite, claim, skill bootstrap, and later Outpost API calls.
 - agentDefaultsPayload.timeoutSec or timeoutMs (number, optional): Runtime request timeout when supported by the installed Hermes gateway adapter.
 
 Network examples:
-- Local loopback on one host: agentDefaultsPayload.apiBaseUrl = "http://127.0.0.1:8642"; agentDefaultsPayload.paperclipApiUrl = "http://127.0.0.1:3100".
+- Local loopback on one host: agentDefaultsPayload.apiBaseUrl = "http://127.0.0.1:8642"; agentDefaultsPayload.outpostApiUrl = "http://127.0.0.1:3100".
 - Local dashboard root or chat URL on one host: agentDefaultsPayload.apiBaseUrl = "http://127.0.0.1:9119" or "http://127.0.0.1:9119/chat"; Outpost maps it to "http://127.0.0.1:9119/api".
-- LAN/private network: agentDefaultsPayload.apiBaseUrl = "http://192.168.1.25:8642"; agentDefaultsPayload.paperclipApiUrl = "http://192.168.1.10:3100". Use private IPs or hostnames reachable from both machines.
-- Private overlay: agentDefaultsPayload.apiBaseUrl = "http://hermes-host.tailnet-name.ts.net:8642"; agentDefaultsPayload.paperclipApiUrl = "http://paperclip-host.tailnet-name.ts.net:3100". Add the Outpost hostname with npx paperclipai allowed-hostname <host> when authenticated/private mode requires it.
+- LAN/private network: agentDefaultsPayload.apiBaseUrl = "http://192.168.1.25:8642"; agentDefaultsPayload.outpostApiUrl = "http://192.168.1.10:3100". Use private IPs or hostnames reachable from both machines.
+- Private overlay: agentDefaultsPayload.apiBaseUrl = "http://hermes-host.tailnet-name.ts.net:8642"; agentDefaultsPayload.outpostApiUrl = "http://outpost-host.tailnet-name.ts.net:3100". Add the Outpost hostname with npx @outpost/cli allowed-hostname <host> when authenticated/private mode requires it.
 - Docker: if Hermes runs on the host and Outpost runs in Docker, use agentDefaultsPayload.apiBaseUrl = "http://host.docker.internal:8642". If Hermes runs in another container, use the Compose service DNS name such as "http://hermes:8642".
-- Reverse proxy/TLS: publish Hermes behind HTTPS and set agentDefaultsPayload.apiBaseUrl = "https://hermes-gateway.example"; set agentDefaultsPayload.paperclipApiUrl = "https://outpost.example". Keep API_SERVER_KEY required at the origin or proxy.
+- Reverse proxy/TLS: publish Hermes behind HTTPS and set agentDefaultsPayload.apiBaseUrl = "https://hermes-gateway.example"; set agentDefaultsPayload.outpostApiUrl = "https://outpost.example". Keep API_SERVER_KEY required at the origin or proxy.
 
 Security notes:
 - Treat API_SERVER_KEY and OUTPOST_BRIDGE_API_KEY as secrets.
 - When claiming the normal Outpost agent API key, store the parsed token field from the raw claim response before printing or summarizing it. Hermes/tool displays may redact secrets with literal ... or [redacted]; those previews are not valid keys.
-- Never use a normal claimed Outpost agent API key for internet-facing Hermes-originated task bridge calls; task_bridge keys cannot use company-wide issue list/search/read surfaces and can only mutate bridge-created or assigned issues.
+- Never use a normal claimed Outpost agent API key for internet-facing Hermes-originated task bridge calls; task_bridge keys cannot use space-wide issue list/search/read surfaces and can only mutate bridge-created or assigned issues.
 - Prefer private network or TLS for non-loopback gateway access.
 - Use placeholders such as <same-value-as-API_SERVER_KEY> in docs and tests.
 `;

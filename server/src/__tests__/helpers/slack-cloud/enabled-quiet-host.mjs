@@ -9,7 +9,7 @@ import { realpath, readFile } from "node:fs/promises";
 
 const cloudRoot = await realpath(process.env.OUTPOST_CLOUD_REPO_ROOT ?? "");
 const cloudPackage = JSON.parse(await readFile(path.join(cloudRoot, "package.json"), "utf8"));
-assert.equal(cloudPackage.name, "@paperclip/cloud-harness");
+assert.equal(cloudPackage.name, "@outpost/cloud-harness");
 const { createIdleIncomingWakeCapability } = await import(pathToFileURL(path.join(cloudRoot, "dist/sleep/incoming-wake-capability.js")).href);
 const { default: pg } = await import(pathToFileURL(path.join(cloudRoot, "node_modules/pg/lib/index.js")).href);
 const { PostgresCloudHarnessRegistry } = await import(pathToFileURL(path.join(cloudRoot, "dist/registry/postgres.js")).href);
@@ -49,7 +49,7 @@ const signer = createRuntimeIdentitySignerFromEnv({
 }, { required: true });
 assert.ok(signer?.signControlAssertion);
 const fixture = {
-  companyId: randomUUID(), endpointId: randomUUID(), connectionId: randomUUID(), applicationId: randomUUID(), agentId: randomUUID(),
+  spaceId: randomUUID(), endpointId: randomUUID(), connectionId: randomUUID(), applicationId: randomUUID(), agentId: randomUUID(),
   actorId: `form-owner-${randomUUID()}`, instanceId: `form-stack-${randomUUID()}`, publicId: randomBytes(32).toString("base64url"),
   teamId: "TTEST", appId: "ATEST", botId: "UBOT", userId: "UOPERATOR", channelId: "CTEST", threadTs: "1788.100000",
   botToken: "xoxb-controlled-journey-only", signingSecret: randomBytes(16).toString("hex"), controlNonce: randomBytes(32).toString("base64url"),
@@ -186,7 +186,7 @@ const platform = async (req, res, pathname) => {
     assert.equal(targets.rows.length, 1, "the original target must be durable before trigger spend");
     assert.equal(body.view.notify_on_close, true);
     assert.ok(!body.view.blocks.some(block => block.type === "input"));
-    assert.equal(body.view.callback_id, "paperclip_slack_form_loading_v1");
+    assert.equal(body.view.callback_id, "outpost_slack_form_loading_v1");
     const view = { ...body.view, id: "VJOURNEY", hash: "loading-hash", app_id: fixture.appId, state: { values: {} } };
     views.set(view.id, view); return json(res, 200, { ok: true, view });
   }
@@ -230,7 +230,7 @@ const server = createServer((req, res) => { void (async () => {
       assert.ok(broker.slackEvents && broker.slackForms);
       for (let index = 1; index < 500; index++) {
         const event = await broker.slackEvents.enroll(instance, fixture.actorId, {
-          companyId: fixture.companyId, endpointId: randomUUID(), connectionId: randomUUID(), publicId: randomBytes(32).toString("base64url"),
+          spaceId: fixture.spaceId, endpointId: randomUUID(), connectionId: randomUUID(), publicId: randomBytes(32).toString("base64url"),
           runtimeGeneration: 1, teamId: fixture.teamId, appId: `AHEADER${index}`, signingSecret: randomBytes(16).toString("hex"),
         });
         await broker.slackForms.enroll(instance, fixture.actorId, event, `xoxb-controlled-header-${index}`);
@@ -238,7 +238,7 @@ const server = createServer((req, res) => { void (async () => {
       const rows = await store.listWebhookBindings(fixture.instanceId); assert.equal(rows.length, 1000);
       const start = signer.signControlAssertion({ stackId: fixture.instanceId, action: "task-drain:start", requestId: randomUUID() });
       const started = await fetch(`${tenantOrigin}/api/instance/task-drain`, { method: "POST", redirect: "error",
-        headers: { "content-type": "application/json", "x-paperclip-cloud-control": start }, body: JSON.stringify({ purpose: "idle", ttlMs: 30000 }), signal: AbortSignal.timeout(10000) });
+        headers: { "content-type": "application/json", "x-outpost-cloud-control": start }, body: JSON.stringify({ purpose: "idle", ttlMs: 30000 }), signal: AbortSignal.timeout(10000) });
       assert.equal(started.status, 200); const drain = await started.json(); assert.equal(typeof drain.ownerId, "string");
       let primary, result;
       try {
@@ -249,9 +249,9 @@ const server = createServer((req, res) => { void (async () => {
         const url = `${tenantOrigin}/api/instance/task-drain?idleSleepSafety=1&idleSleepDiagnostics=1&ownerId=${encodeURIComponent(drain.ownerId)}`;
         const baseline = signer.signControlAssertion({ stackId: fixture.instanceId, action: "task-drain:read", requestId: randomUUID() });
         const tampered = baseline.slice(0, -1) + (baseline.endsWith("A") ? "B" : "A");
-        const denied = await fetch(url, { headers: { "x-paperclip-cloud-control": tampered }, redirect: "error", signal: AbortSignal.timeout(10000) });
+        const denied = await fetch(url, { headers: { "x-outpost-cloud-control": tampered }, redirect: "error", signal: AbortSignal.timeout(10000) });
         const tamperedStatus = denied.status; await denied.arrayBuffer(); assert.equal(tamperedStatus, 401);
-        const response = await fetch(url, { headers: { "x-paperclip-cloud-control": token }, redirect: "error", signal: AbortSignal.timeout(10000) });
+        const response = await fetch(url, { headers: { "x-outpost-cloud-control": token }, redirect: "error", signal: AbortSignal.timeout(10000) });
         const raw = await response.text(); let report; try { report = JSON.parse(raw); } catch {}
         result = { bindingCount: rows.length, coverageEntries: incomingWake.slackBroker.entries.length,
           headerBytes: Buffer.byteLength(token), responseStatus: response.status, normalRouteReached: !!report?.idleSleepSafety, tamperedStatus };
@@ -260,7 +260,7 @@ const server = createServer((req, res) => { void (async () => {
       finally {
         const token = signer.signControlAssertion({ stackId: fixture.instanceId, action: "task-drain:stop", requestId: randomUUID() });
         try { const response = await fetch(`${tenantOrigin}/api/instance/task-drain?ownerId=${encodeURIComponent(drain.ownerId)}`, { method: "DELETE",
-          headers: { "x-paperclip-cloud-control": token }, redirect: "error", signal: AbortSignal.timeout(10000) });
+          headers: { "x-outpost-cloud-control": token }, redirect: "error", signal: AbortSignal.timeout(10000) });
           assert.equal(response.status, 200); await response.arrayBuffer();
         } catch (error) { throw primary ? new AggregateError([primary, error], "Header preflight and normal hold cleanup failed") : error; }
       }
@@ -270,7 +270,7 @@ const server = createServer((req, res) => { void (async () => {
       assert.ok(tenantOrigin);
       const request = async (method, action, suffix, body, idleCapabilities) => {
         const response = await fetch(`${tenantOrigin}/api/instance/task-drain${suffix}`, { method, redirect: "error",
-          headers: { "content-type": "application/json", "x-paperclip-cloud-control": signer.signControlAssertion({ stackId: fixture.instanceId,
+          headers: { "content-type": "application/json", "x-outpost-cloud-control": signer.signControlAssertion({ stackId: fixture.instanceId,
             action, requestId: randomUUID(), ...(idleCapabilities ? { idleCapabilities } : {}) }) },
           ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(10_000) });
         assert.equal(response.status, 200); return await response.json();
@@ -379,9 +379,9 @@ try {
   await new CloudStackProvisioner({ provider: new FakeCloudStackProvider(), registry }).provisionDevelopmentStack({
     idempotencyKey: fixture.instanceId, accountGroup: { id: `account-${fixture.instanceId}`, slug: fixture.instanceId, displayName: "Form journey" }, owner: { id: fixture.actorId, email: `${fixture.actorId}@example.test` },
     stack: { stackId: fixture.instanceId, accountGroupId: `account-${fixture.instanceId}`, stackSlug: fixture.instanceId, displayName: "Form journey", kind: "demo", primaryHost: "tenant.example", region: "us-east-1" },
-    versionPlan: { appVersion: "fixture", schemaVersion: "fixture", rolloutTrack: "stable" }, sleepPolicy: { desiredState: "awake" }, primaryCompany: { paperclipCompanyId: fixture.companyId, displayName: "Form journey", defaultBudgetCents: 0 },
+    versionPlan: { appVersion: "fixture", schemaVersion: "fixture", rolloutTrack: "stable" }, sleepPolicy: { desiredState: "awake" }, primarySpace: { outpostSpaceId: fixture.spaceId, displayName: "Form journey", defaultBudgetCents: 0 },
   });
-  await store.putCloudStackInstance({ id: fixture.instanceId, kind: "cloud_stack", companyStackId: fixture.instanceId, environment: "test", ownerUserId: fixture.actorId,
+  await store.putCloudStackInstance({ id: fixture.instanceId, kind: "cloud_stack", spaceStackId: fixture.instanceId, environment: "test", ownerUserId: fixture.actorId,
     signPublicKey: signing.publicKey.export({ format: "jwk" }).x, sealPublicKey: sealing.publicKey.export({ format: "jwk" }).x,
     origins: ["https://tenant.example"], activeOrigin: "https://tenant.example", label: "Form journey", status: "active", createdAt: new Date(), updatedAt: new Date() });
   server.listen(0, "127.0.0.1"); await once(server, "listening");

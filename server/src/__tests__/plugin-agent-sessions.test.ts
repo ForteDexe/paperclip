@@ -42,7 +42,7 @@ function createEventBusStub() {
 
 function createSessionLookupDb(session: {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   taskKey: string;
 }) {
@@ -77,19 +77,19 @@ describe("plugin agent sessions", () => {
     resolveSecretVersion.mockReset().mockImplementation(async ({ material }) => material.synthetic);
   });
   it("redacts registered native run secrets before notifying the plugin worker", async () => {
-    const session = { id: "session-1", companyId: "company-1", agentId: "agent-1", taskKey: "plugin:outpost.gateway:session:session-1" };
+    const session = { id: "session-1", spaceId: "space-1", agentId: "agent-1", taskKey: "plugin:outpost.gateway:session:session-1" };
     const db = createRunRedactionDb(session);
     const secret = "synthetic-registered-run-secret";
-    await createRunSecretRedactionRegistry(db as never).register(session.companyId, "run-1", secret);
+    await createRunSecretRedactionRegistry(db as never).register(session.spaceId, "run-1", secret);
     const notifyWorker = vi.fn();
     mockWakeup.mockResolvedValue({ id: "run-1" });
     const services = buildHostServices(db as never, "plugin-record-id", "outpost.gateway", createEventBusStub(), notifyWorker);
     try {
-      await services.agentSessions.sendMessage({ sessionId: session.id, companyId: session.companyId, prompt: "synthetic" });
+      await services.agentSessions.sendMessage({ sessionId: session.id, spaceId: session.spaceId, prompt: "synthetic" });
       const native = { runId: "run-1", seq: 1, message: `output ${secret}`, payload: {
         orpEvent: { payload: { text: `output ${secret}`, apiKey: "unregistered-credential", cwd: `${homedir()}/synthetic` } },
       } };
-      publishLiveEvent({ companyId: session.companyId, type: "heartbeat.run.event", payload: native });
+      publishLiveEvent({ spaceId: session.spaceId, type: "heartbeat.run.event", payload: native });
       await vi.waitFor(() => expect(notifyWorker).toHaveBeenCalledOnce());
       const delivered = notifyWorker.mock.calls[0][1];
       expect(JSON.stringify(delivered)).not.toContain(secret);
@@ -97,10 +97,10 @@ describe("plugin agent sessions", () => {
       expect(JSON.stringify(delivered)).not.toContain(`${homedir()}/synthetic`);
       expect(delivered.message).toBe(`output ${REDACTED_EVENT_VALUE}`);
       expect(native.message).toContain(secret);
-      publishLiveEvent({ companyId: session.companyId, type: "heartbeat.run.log",
+      publishLiveEvent({ spaceId: session.spaceId, type: "heartbeat.run.log",
         payload: { runId: "run-1", seq: 2, chunk: `legacy ${secret}` } });
       await vi.waitFor(() => expect(notifyWorker).toHaveBeenCalledTimes(2));
-      publishLiveEvent({ companyId: session.companyId, type: "heartbeat.run.status",
+      publishLiveEvent({ spaceId: session.spaceId, type: "heartbeat.run.status",
         payload: { runId: "run-1", status: "succeeded", finalText: `done ${secret}` } });
       await vi.waitFor(() => expect(notifyWorker.mock.calls.at(-1)![1].eventType).toBe("done"));
       expect(notifyWorker).toHaveBeenCalledTimes(3);
@@ -110,18 +110,18 @@ describe("plugin agent sessions", () => {
   });
 
   it.each(["settings", "registered secret"])("ends plugin delivery with a safe error when final-status %s redaction fails", async source => {
-    const session = { id: "session-1", companyId: "company-1", agentId: "agent-1", taskKey: "plugin:outpost.gateway:session:session-1" };
+    const session = { id: "session-1", spaceId: "space-1", agentId: "agent-1", taskKey: "plugin:outpost.gateway:session:session-1" };
     const db = createRunRedactionDb(session);
     const secret = "synthetic-final-run-secret";
-    await createRunSecretRedactionRegistry(db as never).register(session.companyId, "run-1", secret);
+    await createRunSecretRedactionRegistry(db as never).register(session.spaceId, "run-1", secret);
     mockWakeup.mockResolvedValue({ id: "run-1" });
     const notifyWorker = vi.fn();
     const services = buildHostServices(db as never, "plugin-record-id", "outpost.gateway", createEventBusStub(), notifyWorker);
     try {
-      await services.agentSessions.sendMessage({ sessionId: session.id, companyId: session.companyId, prompt: "synthetic" });
+      await services.agentSessions.sendMessage({ sessionId: session.id, spaceId: session.spaceId, prompt: "synthetic" });
       if (source === "settings") readSettings.mockRejectedValueOnce(new Error(`unavailable ${secret}`));
       else resolveSecretVersion.mockRejectedValueOnce(new Error(`unavailable ${secret}`));
-      publishLiveEvent({ companyId: session.companyId, type: "heartbeat.run.status",
+      publishLiveEvent({ spaceId: session.spaceId, type: "heartbeat.run.status",
         payload: { runId: "run-1", status: "succeeded", finalText: `done ${secret}` } });
       await vi.waitFor(() => expect(notifyWorker).toHaveBeenCalledOnce());
       expect(notifyWorker).toHaveBeenCalledWith("agents.sessions.event", {
@@ -131,9 +131,9 @@ describe("plugin agent sessions", () => {
       expect(JSON.stringify(notifyWorker.mock.calls)).not.toContain(secret);
       readSettings.mockClear();
       resolveSecretVersion.mockClear();
-      publishLiveEvent({ companyId: session.companyId, type: "heartbeat.run.event",
+      publishLiveEvent({ spaceId: session.spaceId, type: "heartbeat.run.event",
         payload: { runId: "run-1", seq: 2, message: `later ${secret}` } });
-      publishLiveEvent({ companyId: session.companyId, type: "heartbeat.run.status",
+      publishLiveEvent({ spaceId: session.spaceId, type: "heartbeat.run.status",
         payload: { runId: "run-1", status: "succeeded", finalText: `later ${secret}` } });
       await setImmediate();
       expect(notifyWorker).toHaveBeenCalledOnce();
@@ -144,16 +144,16 @@ describe("plugin agent sessions", () => {
 
   it("finishes an expired plugin subscription with a delivery error", async () => {
     vi.useFakeTimers();
-    const session = { id: "session-1", companyId: "company-1", agentId: "agent-1", taskKey: "plugin:outpost.gateway:session:session-1" };
+    const session = { id: "session-1", spaceId: "space-1", agentId: "agent-1", taskKey: "plugin:outpost.gateway:session:session-1" };
     mockWakeup.mockResolvedValue({ id: "run-1" });
     const notifyWorker = vi.fn();
     const services = buildHostServices(createSessionLookupDb(session), "plugin-record-id", "outpost.gateway", createEventBusStub(), notifyWorker);
     try {
-      await services.agentSessions.sendMessage({ sessionId: session.id, companyId: session.companyId, prompt: "synthetic" });
+      await services.agentSessions.sendMessage({ sessionId: session.id, spaceId: session.spaceId, prompt: "synthetic" });
       await vi.advanceTimersByTimeAsync(30 * 60 * 1_000);
       expect(notifyWorker).toHaveBeenCalledOnce();
       expect(notifyWorker.mock.calls[0][1]).toMatchObject({ eventType: "error", payload: { reason: "delivery_unavailable" } });
-      publishLiveEvent({ companyId: session.companyId, type: "heartbeat.run.status",
+      publishLiveEvent({ spaceId: session.spaceId, type: "heartbeat.run.status",
         payload: { runId: "run-1", status: "succeeded", finalText: "late result" } });
       await vi.advanceTimersByTimeAsync(30 * 60 * 1_000);
       expect(notifyWorker).toHaveBeenCalledOnce();
@@ -167,24 +167,24 @@ describe("plugin agent sessions", () => {
   it("cannot notify a disposed plugin when an earlier redaction read settles", async () => {
     let release!: (value: { censorUsernameInLogs: boolean }) => void;
     readSettings.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
-    const session = { id: "session-1", companyId: "company-1", agentId: "agent-1", taskKey: "plugin:outpost.gateway:session:session-1" };
+    const session = { id: "session-1", spaceId: "space-1", agentId: "agent-1", taskKey: "plugin:outpost.gateway:session:session-1" };
     mockWakeup.mockResolvedValue({ id: "run-1" });
     const notifyWorker = vi.fn();
     const services = buildHostServices(createSessionLookupDb(session), "plugin-record-id", "outpost.gateway", createEventBusStub(), notifyWorker);
-    await services.agentSessions.sendMessage({ sessionId: session.id, companyId: session.companyId, prompt: "synthetic" });
-    publishLiveEvent({ companyId: session.companyId, type: "heartbeat.run.event", payload: { runId: "run-1", seq: 1 } });
+    await services.agentSessions.sendMessage({ sessionId: session.id, spaceId: session.spaceId, prompt: "synthetic" });
+    publishLiveEvent({ spaceId: session.spaceId, type: "heartbeat.run.event", payload: { runId: "run-1", seq: 1 } });
     await vi.waitFor(() => expect(readSettings).toHaveBeenCalledOnce());
     services.dispose();
     readSettings.mockClear();
     release({ censorUsernameInLogs: true });
     await setImmediate();
-    publishLiveEvent({ companyId: session.companyId, type: "heartbeat.run.status", payload: { runId: "run-1", status: "succeeded" } });
+    publishLiveEvent({ spaceId: session.spaceId, type: "heartbeat.run.status", payload: { runId: "run-1", status: "succeeded" } });
     await setImmediate();
     expect(notifyWorker).not.toHaveBeenCalled();
     expect(readSettings).not.toHaveBeenCalled();
   });
   it("delivers the message body in wake context and returns final assistant text on done", async () => {
-    const companyId = "company-1";
+    const spaceId = "space-1";
     const agentId = "agent-1";
     const sessionId = "session-1";
     const notifyWorker = vi.fn();
@@ -194,7 +194,7 @@ describe("plugin agent sessions", () => {
     const services = buildHostServices(
       createSessionLookupDb({
         id: sessionId,
-        companyId,
+        spaceId,
         agentId,
         taskKey: "plugin:outpost.gateway:session:session-1",
       }),
@@ -207,7 +207,7 @@ describe("plugin agent sessions", () => {
     await expect(
       services.agentSessions.sendMessage({
         sessionId,
-        companyId,
+        spaceId,
         prompt: "hello",
         reason: "gateway_chat_message",
       }),
@@ -222,7 +222,7 @@ describe("plugin agent sessions", () => {
           wakeReason: "gateway_chat_message",
           wakeSource: "automation",
           wakeTriggerDetail: "system",
-          paperclipAgentMessage: {
+          outpostAgentMessage: {
             text: "hello",
             source: "plugin_session",
             pluginKey: "outpost.gateway",
@@ -233,7 +233,7 @@ describe("plugin agent sessions", () => {
     );
 
     publishLiveEvent({
-      companyId,
+      spaceId,
       type: "heartbeat.run.status",
       payload: {
         runId: "run-1",

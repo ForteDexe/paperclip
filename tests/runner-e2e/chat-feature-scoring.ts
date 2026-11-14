@@ -3,12 +3,12 @@ import type { ChatFeatureCase } from "./chat-feature-cases.js";
 import { isReassignedUnstartedWake } from "./non-execution-wake.js";
 
 export interface FeatureTask {
-  id: string; companyId: string; title: string; description?: string | null; identifier?: string; status: string;
+  id: string; spaceId: string; title: string; description?: string | null; identifier?: string; status: string;
   assigneeAgentId?: string | null; projectId?: string | null; parentId?: string | null;
   completedAt?: string | null; conversationState?: string; scheduledRetry?: unknown; activeRecoveryAction?: unknown;
 }
 export interface FeatureRun {
-  id: string; companyId: string; agentId: string; status: string; runtimeMode?: string;
+  id: string; spaceId: string; agentId: string; status: string; runtimeMode?: string;
   errorCode?: string | null;
   nativeIssueId?: string | null; startedAt?: string | null; finishedAt?: string | null;
   contextSnapshot?: Record<string, any>; resultJson?: Record<string, any>;
@@ -18,13 +18,13 @@ export interface FeatureComment {
   authorAgentId?: string | null; authorUserId?: string | null; createdByRunId?: string | null;
 }
 export interface FeatureDocument {
-  id: string; issueId?: string; companyId: string; key: string; body: string;
+  id: string; issueId?: string; spaceId: string; key: string; body: string;
   latestRevisionId: string; createdByAgentId?: string; updatedByAgentId?: string;
-  document?: { id: string; companyId: string; createdByAgentId?: string; updatedByAgentId?: string };
+  document?: { id: string; spaceId: string; createdByAgentId?: string; updatedByAgentId?: string };
   revisions: Array<{ id: string; body: string; createdByAgentId?: string; createdByRunId?: string; createdAt: string }>;
 }
 export interface ChatFeatureObservation {
-  caseId: ChatFeatureCase; companyId: string; leadId: string; workerId: string; projectId: string;
+  caseId: ChatFeatureCase; spaceId: string; leadId: string; workerId: string; projectId: string;
   source: FeatureTask | null; tasks: FeatureTask[]; runs: FeatureRun[];
   comments: FeatureComment[]; documents: FeatureDocument[];
   activity: Array<{ action: string; agentId?: string | null; details?: Record<string, unknown> }>;
@@ -54,7 +54,7 @@ export function chatFeatureExecutionRuns(input: ChatFeatureObservation): Feature
   if (input.caseId !== "delegate-announcement" || input.tasks.length !== 1) return input.runs;
   const task = input.tasks[0]!;
   return input.runs.filter(run => !(isReassignedUnstartedWake(run)
-    && run.companyId === input.companyId && task.companyId === input.companyId
+    && run.spaceId === input.spaceId && task.spaceId === input.spaceId
     && run.agentId === input.leadId && task.assigneeAgentId === input.workerId
     && task.id !== input.source?.id && run.contextSnapshot?.issueId === task.id));
 }
@@ -71,7 +71,7 @@ export function gradeChatFeature(input: ChatFeatureObservation) {
   const replies = input.comments.filter(comment => comment.authorAgentId === input.leadId && sourceRuns.some(run => run.id === comment.createdByRunId));
   add("one-human-request", savedQuery.length === 1 && input.comments.filter(comment => !comment.authorAgentId).length === 1,
     "Exactly the YAML query was submitted once; no hidden follow-up nudged completion.");
-  add("one-assigned-task", input.tasks.length === 1 && !!task && task.companyId === input.companyId
+  add("one-assigned-task", input.tasks.length === 1 && !!task && task.spaceId === input.spaceId
     && task.projectId === input.projectId && task.assigneeAgentId === input.workerId && task.parentId == null && task.id !== source?.id,
   "One ordinary task belongs to Launch and Morgan, separate from the standing conversation.");
   const taskText = `${task?.title ?? ""}\n${task?.description ?? ""}`;
@@ -81,10 +81,10 @@ export function gradeChatFeature(input: ChatFeatureObservation) {
   add("agent-created-task", creations.length === 1 && creations[0]!.agentId === input.leadId,
     "The CEO's actual creation audit proves the harness did not create the result.");
   add("bounded-native-work", runs.length === (input.caseId === "create-backlog" ? 1 : 3)
-    && runs.every(run => run.companyId === input.companyId && run.runtimeMode === "native" && run.status === "succeeded")
+    && runs.every(run => run.spaceId === input.spaceId && run.runtimeMode === "native" && run.status === "succeeded")
     && runs.length === sourceRuns.length + taskRuns.length,
   "All work runs are native, succeeded, and task-bound; proven superseded unstarted assignments remain in the ledger.");
-  add("conversation-retained", !!source && source.companyId === input.companyId && source.assigneeAgentId === input.leadId
+  add("conversation-retained", !!source && source.spaceId === input.spaceId && source.assigneeAgentId === input.leadId
     && source.status === "in_review" && source.conversationState === "waiting" && !source.scheduledRetry && !source.activeRecoveryAction,
   "The source conversation remains available and settled without recovery.");
   add("chat-task-link", !!task && input.renderedLinks.some(link => replies.some(reply => reply.id === link.commentId) && linksFeatureTask(link.href, task)),
@@ -102,7 +102,7 @@ export function gradeChatFeature(input: ChatFeatureObservation) {
     const outputs = input.documents.filter(document => document.issueId === task?.id && !["plan", "summary", "proposal"].includes(document.key.toLowerCase()));
     add("grounded-worker-document", outputs.some(document => {
       const metadata = document.document ?? document;
-      return metadata.companyId === input.companyId && metadata.createdByAgentId === input.workerId && metadata.updatedByAgentId === input.workerId
+      return metadata.spaceId === input.spaceId && metadata.createdByAgentId === input.workerId && metadata.updatedByAgentId === input.workerId
         && announcementMatchesBrief(document.body, input.marker)
         && document.revisions.some(revision => revision.id === document.latestRevisionId && revision.body === document.body
           && revision.createdByAgentId === input.workerId && taskRuns.some(run => run.id === revision.createdByRunId

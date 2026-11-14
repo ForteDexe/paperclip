@@ -14,7 +14,7 @@ authorized inboxes, `pap15838-qa@agentmail.to` and
   was inspected in the browser and showed Connected with no stdio error.
 - Sandbox callback routing omitted task-email endpoints. It now allows assigned
   inbox discovery, task-thread reads, delivery reads, and explicit sends. Server
-  company, inbox, task/run, and action-policy authorization remains in force.
+  space, inbox, task/run, and action-policy authorization remains in force.
   Setup, credentials, reconnect, and operator delivery resolution stay denied.
 - Shell-backed sandbox reads did not preserve ENOENT for a missing optional
   Codex `auth.json`, causing cleanup to fail after a successful email send. Reads
@@ -36,9 +36,9 @@ bridge to discover its assigned inbox and queue the send, and created
 - Runtime verified by the agent: Linux, x86_64; hostname matched the sandbox.
 - Run: `cd7b934a-5555-4361-b0e5-b8106c1510ce`.
 - Publication: `d5b7bf41-a583-4f9f-90c0-4d21680e39c2`, **Delivered**.
-- Subject: `[Paperclip E2E] Daytona sandbox — Sep 11`.
-- Provider key remained in Paperclip's vault. The sandbox used its injected
-  Paperclip run credential, and the model key was separately vaulted.
+- Subject: `[Outpost E2E] Daytona sandbox — Sep 11`.
+- Provider key remained in Outpost's vault. The sandbox used its injected
+  Outpost run credential, and the model key was separately vaulted.
 
 The first fixture launches exposed an unavailable default ACP executable and a
 host `service_tier` setting incompatible with the fleet image's Codex CLI. The

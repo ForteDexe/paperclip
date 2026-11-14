@@ -5,27 +5,27 @@ import { remoteExecutionHasStopped } from "../remote-execution-termination.js";
 import { readSystemRecovery } from "../system-recovery-state.js";
 
 type NativeRemoteExecutionScope = {
-  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "runnerProfileJson">;
+  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId" | "runnerProfileJson">;
   issueId: string;
 };
 
 export async function readNativeRemoteExecutionOwnershipForRuns(db: Db, inputs: readonly NativeRemoteExecutionScope[]) {
-  const key = (companyId: string, issueId: string, runId: string) => `${companyId}:${issueId}:${runId}`;
-  const leases = inputs.length ? await db.select({ id: environmentLeases.id, companyId: environmentLeases.companyId,
+  const key = (spaceId: string, issueId: string, runId: string) => `${spaceId}:${issueId}:${runId}`;
+  const leases = inputs.length ? await db.select({ id: environmentLeases.id, spaceId: environmentLeases.spaceId,
     issueId: environmentLeases.issueId, runId: environmentLeases.heartbeatRunId,
     metadata: sql<Record<string, unknown>>`jsonb_build_object('runnerTaskStartup', ${environmentLeases.metadata}->'runnerTaskStartup')`,
   }).from(environmentLeases).where(and(
-    or(...inputs.map(input => and(eq(environmentLeases.companyId, input.run.companyId),
+    or(...inputs.map(input => and(eq(environmentLeases.spaceId, input.run.spaceId),
       eq(environmentLeases.issueId, input.issueId), eq(environmentLeases.heartbeatRunId, input.run.id)))),
     sql`${environmentLeases.metadata}->>'runnerTaskLease' = 'true'`,
   )).orderBy(desc(environmentLeases.createdAt)) : [];
   const byScope = new Map<string, typeof leases[number]>();
   for (const lease of leases) {
-    const scope = key(lease.companyId, lease.issueId!, lease.runId!);
+    const scope = key(lease.spaceId, lease.issueId!, lease.runId!);
     if (!byScope.has(scope)) byScope.set(scope, lease);
   }
   return inputs.map(input => {
-    const pluginTask = byScope.get(key(input.run.companyId, input.issueId, input.run.id));
+    const pluginTask = byScope.get(key(input.run.spaceId, input.issueId, input.run.id));
     return { pluginTask, remoteProcess: input.run.runnerProfileJson?.nativeWorkspaceSync != null
       || input.run.runnerProfileJson?.remoteWorkspace != null || !!pluginTask };
   });
@@ -36,35 +36,35 @@ export async function readNativeRemoteExecutionOwnership(db: Db, input: NativeRe
 }
 
 export const nativeManualAdmissionOwnerColumns = {
-  runId: nativeRunFinalizations.runId, companyId: nativeRunFinalizations.companyId,
+  runId: nativeRunFinalizations.runId, spaceId: nativeRunFinalizations.spaceId,
   issueId: nativeRunFinalizations.issueId, phase: nativeRunFinalizations.phase,
   resultId: nativeRunFinalizations.resultId, failureCode: nativeRunFinalizations.failureCode,
   failureDetail: sql<Record<string, unknown>>`jsonb_build_object('systemRecovery', ${nativeRunFinalizations.failureDetail}->'systemRecovery')`,
 };
 type ManualAdmissionOwner = Pick<typeof nativeRunFinalizations.$inferSelect,
-  "runId" | "companyId" | "issueId" | "phase" | "resultId" | "failureCode" | "failureDetail">;
+  "runId" | "spaceId" | "issueId" | "phase" | "resultId" | "failureCode" | "failureDetail">;
 
-export function nativeManualAdmissionHoldMatches(scope: { companyId: string; runId: string; issueId?: string },
+export function nativeManualAdmissionHoldMatches(scope: { spaceId: string; runId: string; issueId?: string },
   owner: Partial<ManualAdmissionOwner> | null | undefined): boolean {
   const policy = readSystemRecovery(owner?.failureDetail);
-  return Boolean(owner?.runId === scope.runId && owner.companyId === scope.companyId &&
+  return Boolean(owner?.runId === scope.runId && owner.spaceId === scope.spaceId &&
     (!scope.issueId || owner.issueId === scope.issueId) && owner.phase === "terminal_failure" && owner.resultId === null &&
     ["native_restart_recovery_blocked", "native_retry_cancelled"].includes(owner.failureCode ?? "") &&
     policy?.state === "exhausted" && policy.sourceRunId === scope.runId);
 }
 
 export async function nativeManualAdmissionHoldsExecution(db: Db, scope: {
-  companyId: string; runId: string; issueId?: string;
+  spaceId: string; runId: string; issueId?: string;
 }): Promise<boolean> {
   const [hold] = await db.select(nativeManualAdmissionOwnerColumns).from(heartbeatRuns)
-    .innerJoin(nativeRunFinalizations, and(eq(nativeRunFinalizations.companyId, heartbeatRuns.companyId),
+    .innerJoin(nativeRunFinalizations, and(eq(nativeRunFinalizations.spaceId, heartbeatRuns.spaceId),
       eq(nativeRunFinalizations.runId, heartbeatRuns.id), eq(nativeRunFinalizations.issueId, heartbeatRuns.nativeIssueId)))
-    .where(and(eq(heartbeatRuns.companyId, scope.companyId), eq(heartbeatRuns.id, scope.runId),
+    .where(and(eq(heartbeatRuns.spaceId, scope.spaceId), eq(heartbeatRuns.id, scope.runId),
       eq(heartbeatRuns.runtimeMode, "native"), scope.issueId ? eq(heartbeatRuns.nativeIssueId, scope.issueId) : undefined,
       eq(nativeRunFinalizations.phase, "terminal_failure"), inArray(nativeRunFinalizations.failureCode, ["native_restart_recovery_blocked", "native_retry_cancelled"]),
       isNull(nativeRunFinalizations.resultId),
     )).limit(1);
-  return nativeManualAdmissionHoldMatches(scope, hold) && !await remoteExecutionHasStopped(db, scope.companyId, scope.runId);
+  return nativeManualAdmissionHoldMatches(scope, hold) && !await remoteExecutionHasStopped(db, scope.spaceId, scope.runId);
 }
 
 export const NATIVE_OWNERSHIP_UNVERIFIED_ERROR_CODE =
@@ -116,10 +116,10 @@ export function nativeRunnerOwnershipNotHeldCondition() {
  * expose the token itself. expiryEpoch must come from Postgres numeric epoch
  * text, which is timezone independent and retains timestamp microseconds. */
 export function nativeControllerAuthorityDigest(owner: Pick<typeof nativeRunFinalizations.$inferSelect,
-  "companyId" | "issueId" | "runId" | "leaseOwner" | "controllerGeneration" | "controllerBootId" |
+  "spaceId" | "issueId" | "runId" | "leaseOwner" | "controllerGeneration" | "controllerBootId" |
   "controllerHostHash" | "controllerPid" | "controllerProcessStartedAt">, expiryEpoch: string | null): string {
   return createHash("sha256").update(JSON.stringify([
-    "outpost.native-controller-authority.v1", owner.companyId, owner.issueId, owner.runId,
+    "outpost.native-controller-authority.v1", owner.spaceId, owner.issueId, owner.runId,
     owner.leaseOwner, owner.controllerGeneration, owner.controllerBootId, owner.controllerHostHash,
     owner.controllerPid, owner.controllerProcessStartedAt?.toISOString() ?? null, expiryEpoch,
   ])).digest("hex");

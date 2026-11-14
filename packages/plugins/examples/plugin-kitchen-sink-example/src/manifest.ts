@@ -1,4 +1,4 @@
-import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
+import type { OutpostPluginManifestV1 } from "@outpost/plugin-sdk";
 import {
   DEFAULT_CONFIG,
   EXPORT_NAMES,
@@ -11,7 +11,7 @@ import {
   WEBHOOK_KEYS,
 } from "./constants.js";
 
-const manifest: PaperclipPluginManifestV1 = {
+const manifest: OutpostPluginManifestV1 = {
   id: PLUGIN_ID,
   apiVersion: 1,
   version: PLUGIN_VERSION,
@@ -20,7 +20,7 @@ const manifest: PaperclipPluginManifestV1 = {
   author: "Outpost",
   categories: ["ui", "automation", "workspace", "connector"],
   capabilities: [
-    "companies.read",
+    "spaces.read",
     "projects.read",
     "project.workspaces.read",
     "issues.read",
@@ -157,9 +157,9 @@ const manifest: PaperclipPluginManifestV1 = {
       },
     },
     {
-      name: TOOL_NAMES.companySummary,
+      name: TOOL_NAMES.spaceSummary,
       displayName: "Kitchen Sink Outpost Summary",
-      description: "Summarizes the current company using the Outpost domain APIs.",
+      description: "Summarizes the current space using the Outpost domain APIs.",
       parametersSchema: {
         type: "object",
         properties: {},
@@ -195,10 +195,10 @@ const manifest: PaperclipPluginManifestV1 = {
         exportName: EXPORT_NAMES.settingsPage,
       },
       {
-        type: "companySettingsPage",
-        id: SLOT_IDS.companySettingsPage,
+        type: "spaceSettingsPage",
+        id: SLOT_IDS.spaceSettingsPage,
         displayName: "Kitchen Sink",
-        exportName: EXPORT_NAMES.companySettingsPage,
+        exportName: EXPORT_NAMES.spaceSettingsPage,
         routePath: "kitchen-sink",
       },
       {

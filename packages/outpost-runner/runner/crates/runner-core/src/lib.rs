@@ -25,7 +25,7 @@ pub mod external_provider_backend;
 pub mod fake_harness;
 mod generated_acpx_profiles;
 pub mod generated_acpx_sidecar_contract;
-mod governance_events;
+mod approval_events;
 #[cfg(unix)]
 pub mod host_control;
 pub mod local_runner;
@@ -66,7 +66,7 @@ pub const CONFORMANCE_EXPECTED_OUTPUT: &str =
 pub struct NativeRunIdentity {
     pub run_id: String,
     pub session_id: String,
-    pub company_id: String,
+    pub space_id: String,
     pub issue_id: String,
     pub agent_id: String,
 }
@@ -147,7 +147,7 @@ pub fn validate_conformance_fixture(input: &str) -> Result<ConformanceFixture, C
     for (path, value) in [
         ("run.runId", fixture.run.run_id.as_str()),
         ("run.sessionId", fixture.run.session_id.as_str()),
-        ("run.companyId", fixture.run.company_id.as_str()),
+        ("run.spaceId", fixture.run.space_id.as_str()),
         ("run.issueId", fixture.run.issue_id.as_str()),
         ("run.agentId", fixture.run.agent_id.as_str()),
     ] {

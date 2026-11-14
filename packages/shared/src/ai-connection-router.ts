@@ -40,13 +40,13 @@ export type AiConnectionPoolMember = z.infer<typeof aiConnectionPoolMemberSchema
 export type AiConnectionPoolConfig = z.infer<typeof aiConnectionPoolConfigSchema>;
 export interface AiConnectionPool extends AiConnectionPoolConfig {
   id: string;
-  companyId: string;
+  spaceId: string;
   pluginKey: string;
   revision: number;
 }
 /** Host-authorized metadata only. No credentials or raw provider responses. */
 export interface AiConnectionRouterRequest {
-  companyId: string;
+  spaceId: string;
   pool: AiConnectionPool;
   agentId: string;
   taskKey: string;
@@ -63,7 +63,7 @@ export type AiConnectionRouterResult =
   | { kind: "exhausted"; retryAt: string; skipped: Record<string, string> }
   | { kind: "unavailable"; skipped: Record<string, string> };
 export interface AiConnectionPoolSaveInput {
-  companyId: string;
+  spaceId: string;
   id?: string;
   expectedRevision?: number;
   config: AiConnectionPoolConfig;

@@ -5,8 +5,8 @@ import { setupLiveFixtures } from "./live-fixtures.js";
 
 const optIn = "OUTPOST_CURSOR_CLOUD_ALLOW_UNPRICED_QUALIFICATION";
 const execution = runnerMatrix.find(cell => cell.id === "cursor-cloud.runner-cursor-cloud.local.cloud-followup")!;
-const companyId = "fixture-company", agentId = "fixture-agent";
-const policyDefaults = { companyId, metric: "billed_cents", windowKind: "calendar_month_utc",
+const spaceId = "fixture-space", agentId = "fixture-agent";
+const policyDefaults = { spaceId, metric: "billed_cents", windowKind: "calendar_month_utc",
   amount: 1_000, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" };
 function fixtureApi(changeOverview?: (overview: Record<string, any>) => unknown) {
   const calls: Array<{ method: string; path: string; body?: any }> = [];
@@ -16,7 +16,7 @@ function fixtureApi(changeOverview?: (overview: Record<string, any>) => unknown)
       calls.push({ method: "GET", path });
       if (path.endsWith("/environments?driver=local")) return [{ id: "local", driver: "local" }];
       if (path.endsWith("/budgets/overview")) {
-        const overview = { companyId, policies };
+        const overview = { spaceId, policies };
         return changeOverview ? changeOverview(overview) : overview;
       }
       throw new Error(`Unexpected GET ${path}`);
@@ -24,8 +24,8 @@ function fixtureApi(changeOverview?: (overview: Record<string, any>) => unknown)
     async postSensitive(path: string) { calls.push({ method: "SECRET", path }); return { id: "fixture-secret" }; },
     async post(path: string, body: Record<string, any>) {
       calls.push({ method: "POST", path, body });
-      if (path === "/api/companies") return { id: companyId, name: "Test" };
-      if (path.endsWith("/agents")) return { ...body, id: agentId, companyId };
+      if (path === "/api/spaces") return { id: spaceId, name: "Test" };
+      if (path.endsWith("/agents")) return { ...body, id: agentId, spaceId };
       if (path.endsWith("/budgets/policies")) {
         const policy = { ...policyDefaults, ...body, unpricedEventCount: 1, excludedDiagnostic: "not-evidence" };
         policies.push(policy);
@@ -50,23 +50,23 @@ describe("Cursor Cloud qualification budgets", () => {
     expect(calls).toEqual([]);
   });
 
-  it("verifies only the owned company and agent policies with known-cost hard stops intact", async () => {
+  it("verifies only the owned space and agent policies with known-cost hard stops intact", async () => {
     vi.stubEnv(optIn, "1");
     const { api, calls } = fixtureApi();
     const fixtures = await setup(api);
-    expect(calls.find(call => call.path === "/api/companies")!.body.budgetMonthlyCents).toBe(1_000);
+    expect(calls.find(call => call.path === "/api/spaces")!.body.budgetMonthlyCents).toBe(1_000);
     expect(calls.find(call => call.path.endsWith("/agents"))!.body.budgetMonthlyCents).toBe(1_000);
     const writes = calls.filter(call => call.path.endsWith("/budgets/policies"));
     expect(writes.map(call => ({ path: call.path, body: call.body }))).toEqual([
-      { path: `/api/companies/${companyId}/budgets/policies`, body: { scopeType: "company", scopeId: companyId,
+      { path: `/api/spaces/${spaceId}/budgets/policies`, body: { scopeType: "space", scopeId: spaceId,
         metric: "billed_cents", windowKind: "calendar_month_utc", amount: 1_000, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" } },
-      { path: `/api/companies/${companyId}/budgets/policies`, body: { scopeType: "agent", scopeId: agentId,
+      { path: `/api/spaces/${spaceId}/budgets/policies`, body: { scopeType: "agent", scopeId: agentId,
         metric: "billed_cents", windowKind: "calendar_month_utc", amount: 1_000, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" } },
     ]);
-    expect(calls.at(-1)).toEqual({ method: "GET", path: `/api/companies/${companyId}/budgets/overview` });
+    expect(calls.at(-1)).toEqual({ method: "GET", path: `/api/spaces/${spaceId}/budgets/overview` });
     expect((fixtures as unknown as Record<string, unknown>).qualificationBudget).toEqual({
       schema: "outpost.e2e.cursor-cloud.qualification-budget.v1", unpricedUsageOptIn: true,
-      policies: [{ ...policyDefaults, scopeType: "company", scopeId: companyId }, { ...policyDefaults, scopeType: "agent", scopeId: agentId }],
+      policies: [{ ...policyDefaults, scopeType: "space", scopeId: spaceId }, { ...policyDefaults, scopeType: "agent", scopeId: agentId }],
     });
     await fixtures.teardown();
   });
@@ -74,8 +74,8 @@ describe("Cursor Cloud qualification budgets", () => {
   it.each([
     ["missing agent", (value: any) => { value.policies.pop(); }],
     ["foreign scope", (value: any) => { value.policies[1].scopeId = "foreign-agent"; }],
-    ["foreign company", (value: any) => { value.policies[1].companyId = "foreign-company"; }],
-    ["foreign overview", (value: any) => { value.companyId = "foreign-company"; }],
+    ["foreign space", (value: any) => { value.policies[1].spaceId = "foreign-space"; }],
+    ["foreign overview", (value: any) => { value.spaceId = "foreign-space"; }],
     ["zero limit", (value: any) => { value.policies[0].amount = 0; }],
     ["hard stop disabled", (value: any) => { value.policies[1].hardStopEnabled = false; }],
     ["inactive guard", (value: any) => { value.policies[0].isActive = false; }],

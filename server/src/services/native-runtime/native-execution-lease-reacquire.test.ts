@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  agents, closeLivenessDb, companies, createDb, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults,
+  agents, closeLivenessDb, spaces, createDb, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults,
 } from "@outpost/db";
 import {
   lockNativeExecutionLeaseForReacquire, nativeExecutionLeaseHeldCondition, renewNativeSessionExecutionLease,
@@ -30,19 +30,19 @@ describeEmbeddedPostgres("native execution lease taken back after a host sleep",
   let db!: ReturnType<typeof createDb>;
   let owner!: ReturnType<typeof createDb>;
   let stopDatabase: (() => Promise<void>) | undefined;
-  let companyId!: string;
+  let spaceId!: string;
   let agentId!: string;
 
   beforeAll(async () => {
-    const started = await startEmbeddedPostgresTestDatabase("paperclip-native-lease-reacquire-");
+    const started = await startEmbeddedPostgresTestDatabase("outpost-native-lease-reacquire-");
     stopDatabase = started.cleanup;
     db = createDb(started.connectionString);
     owner = createDb(started.connectionString);
-    companyId = randomUUID();
+    spaceId = randomUUID();
     agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Lease", issuePrefix: "LRA",
-      requireBoardApprovalForNewAgents: false });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", role: "engineer", status: "active",
+    await db.insert(spaces).values({ id: spaceId, name: "Lease", issuePrefix: "LRA",
+      requireOperatorApprovalForNewAgents: false });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Runner", role: "engineer", status: "active",
       adapterType: "outpost_runner", adapterConfig: { provider: "codex" }, runtimeConfig: {}, permissions: {} });
   }, 120_000);
 
@@ -59,16 +59,16 @@ describeEmbeddedPostgres("native execution lease taken back after a host sleep",
     const issueId = randomUUID();
     const runId = randomUUID();
     const leaseOwner = `runner-${label}:${randomUUID()}`;
-    await db.insert(issues).values({ id: issueId, companyId, identifier: `LRA-${runId.slice(0, 8)}`,
+    await db.insert(issues).values({ id: issueId, spaceId, identifier: `LRA-${runId.slice(0, 8)}`,
       title: label, status: "in_progress", priority: "medium", workMode: "standard", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
       nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId } });
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed", attempt: 1,
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed", attempt: 1,
       leaseOwner, leaseExpiresAt: sql`clock_timestamp() - interval '40 minutes'`,
       controllerBootId: controller.bootId, controllerPid: controller.pid,
       controllerProcessStartedAt: controller.processStartedAt, controllerHostHash: "host-a",
       controllerGeneration: GENERATION });
-    const binding = { runId, companyId, issueId };
+    const binding = { runId, spaceId, issueId };
     const renewal = { db: owner, ...binding, leaseOwner, attempt: 1, controller,
       reacquire: { controllerGeneration: GENERATION } };
     return { ...binding, leaseOwner, renewal };
@@ -163,7 +163,7 @@ describeEmbeddedPostgres("native execution lease taken back after a host sleep",
       .set({ status: "failed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, run.runId))],
     ["the run was cancelled", run => db.update(heartbeatRuns)
       .set({ status: "cancelled", finishedAt: new Date() }).where(eq(heartbeatRuns.id, run.runId))],
-    ["the board confirmed the controller stopped", run => db.update(nativeRunFinalizations)
+    ["the operator confirmed the controller stopped", run => db.update(nativeRunFinalizations)
       .set({ controllerHostHash: OPERATOR_ATTESTED_CONTROLLER_HOST }).where(eq(nativeRunFinalizations.runId, run.runId))],
     ["another server's orphan sweep marked ownership unverified", run => db.update(heartbeatRuns)
       .set({ errorCode: NATIVE_OWNERSHIP_UNVERIFIED_ERROR_CODE, error: "unverified" })
@@ -296,7 +296,7 @@ describeEmbeddedPostgres("native execution lease taken back after a host sleep",
     // completion-contract foreign keys rather than seed a whole contract.
     const [result] = await db.transaction(async tx => {
       await tx.execute(sql`set local session_replication_role = replica`);
-      return tx.insert(nativeRunResults).values({ companyId, issueId: accepted.issueId, runId: accepted.runId,
+      return tx.insert(nativeRunResults).values({ spaceId, issueId: accepted.issueId, runId: accepted.runId,
         completionContractId: randomUUID(), serverFingerprint: randomUUID(), schemaStatus: "accepted", resultJson: {},
         canonicalSha256: "a".repeat(64) }).returning({ id: nativeRunResults.id });
     });

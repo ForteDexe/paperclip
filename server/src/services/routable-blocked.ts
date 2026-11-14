@@ -39,7 +39,7 @@ export async function deliverAgentUnblockNotification(input: {
   }
 
   const owner = issue.unblockDescriptor.owner;
-  if (owner === "board" || !("agentId" in owner)) return false;
+  if (owner === "operator" || !("agentId" in owner)) return false;
 
   await input.wakeup(owner.agentId, {
     source: "automation",

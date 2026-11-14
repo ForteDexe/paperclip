@@ -53,9 +53,9 @@ export type EnvBinding = string | EnvPlainBinding | EnvSecretRefBinding | EnvUse
 
 export type AgentEnvConfig = Record<string, EnvBinding>;
 
-export interface CompanySecret {
+export interface SpaceSecret {
   id: string;
-  companyId: string;
+  spaceId: string;
   scope: SecretScope;
   ownerUserId: string | null;
   userSecretDefinitionId: string | null;
@@ -81,7 +81,7 @@ export interface CompanySecret {
 
 export interface UserSecretDefinition {
   id: string;
-  companyId: string;
+  spaceId: string;
   key: string;
   name: string;
   description: string | null;
@@ -102,7 +102,7 @@ export interface UserSecretDefinition {
 
 export interface UserSecretDeclaration {
   id: string;
-  companyId: string;
+  spaceId: string;
   userSecretDefinitionId: string;
   targetType: SecretBindingTargetType;
   targetId: string;
@@ -173,9 +173,9 @@ export interface SecretProviderConfigHealthDetails {
   guidance?: string[];
 }
 
-export interface CompanySecretProviderConfig {
+export interface SpaceSecretProviderConfig {
   id: string;
-  companyId: string;
+  spaceId: string;
   provider: SecretProvider;
   displayName: string;
   status: SecretProviderConfigStatus;
@@ -209,8 +209,8 @@ export interface SecretProviderConfigDiscoverySignal {
   kmsKeyId: string | null;
   hasKmsKey: boolean;
   sampleCount: number;
-  paperclipManagedSampleCount: number;
-  skippedForeignPaperclipSampleCount: number;
+  outpostManagedSampleCount: number;
+  skippedForeignOutpostSampleCount: number;
 }
 
 export interface SecretProviderConfigDiscoverySample {
@@ -233,12 +233,12 @@ export interface SecretProviderConfigDiscoveryPreviewResult {
   provider: SecretProvider;
   nextToken: string | null;
   sampledSecretCount: number;
-  skippedForeignPaperclipSampleCount: number;
+  skippedForeignOutpostSampleCount: number;
   candidates: SecretProviderConfigDiscoveryCandidate[];
   warnings: string[];
 }
 
-export interface CompanySecretVersion {
+export interface SpaceSecretVersion {
   id: string;
   secretId: string;
   version: number;
@@ -250,9 +250,9 @@ export interface CompanySecretVersion {
   revokedAt: Date | null;
 }
 
-export interface CompanySecretBinding {
+export interface SpaceSecretBinding {
   id: string;
-  companyId: string;
+  spaceId: string;
   secretId: string;
   targetType: SecretBindingTargetType;
   targetId: string;
@@ -266,7 +266,7 @@ export interface CompanySecretBinding {
   updatedAt: Date;
 }
 
-export interface CompanySecretBindingTarget {
+export interface SpaceSecretBindingTarget {
   type: SecretBindingTargetType;
   id: string;
   label: string;
@@ -274,13 +274,13 @@ export interface CompanySecretBindingTarget {
   status: string | null;
 }
 
-export interface CompanySecretUsageBinding extends CompanySecretBinding {
-  target: CompanySecretBindingTarget;
+export interface SpaceSecretUsageBinding extends SpaceSecretBinding {
+  target: SpaceSecretBindingTarget;
 }
 
 export interface SecretAccessEvent {
   id: string;
-  companyId: string;
+  spaceId: string;
   secretId: string | null;
   userSecretDefinitionId: string | null;
   secretScope: SecretScope;
@@ -382,13 +382,13 @@ export interface SecretProposalIssueRef {
 }
 
 /**
- * Board-facing view of a secret/binding proposal. The proposed value is NEVER
+ * Operator-facing view of a secret/binding proposal. The proposed value is NEVER
  * included — secret-kind proposals expose only `valueFingerprintSha256` and
  * `valueLength`, mirroring the no-human-value-read posture (plan §Security 4).
  */
 export interface SecretProposalView {
   id: string;
-  companyId: string;
+  spaceId: string;
   kind: SecretProposalKind;
   status: SecretProposalStatus;
   justification: string;
@@ -434,7 +434,7 @@ export interface SecretProposalView {
   /**
    * Server-computed permission preflight for the current viewer, mirroring the
    * exact authz the approve path enforces. Secret-kind approval uses the same
-   * company-secret write boundary as the normal company-secret create route;
+   * space-secret write boundary as the normal space-secret create route;
    * binding-kind approval additionally requires `agent_config:update` on the
    * target agent. Approve is disabled with `approveBlockReason` shown when this
    * is `false`.

@@ -34,7 +34,7 @@ export const runtimeRetirementCases = [runtimeDefinition("agents.retire-agent", 
   const state = await busyRuntimeWorker(ctx, { observationDeadlineAt: chatCatalogOriginalPhaseDeadline(ctx) });
   // Truthful historical fixture: this was completed by the human and assigned
   // to Morgan for recordkeeping. It does not impersonate prior provider work.
-  const historicalTask = await ctx.input.api.post<Entity>(`/api/companies/${ctx.input.fixtures.company.id}/issues`, {
+  const historicalTask = await ctx.input.api.post<Entity>(`/api/spaces/${ctx.input.fixtures.space.id}/issues`, {
     title: "Historical launch notes", status: "done", assigneeAgentId: state.worker.id,
     description: "Historical fixture authored and completed by the human; preserve its saved notes and attribution. No claim of prior model execution." });
   const historicalDocument = await ctx.input.api.putSensitive<Entity>(`/api/issues/${historicalTask.id}/documents/plan`, {
@@ -54,12 +54,12 @@ export const runtimeRetirementCases = [runtimeDefinition("agents.retire-agent", 
     const current = await ctx.input.api.get<RuntimeAgent>(`/api/agents/${worker.id}`); const run = (await ctx.allRuns()).find(row => row.id === state.workerRunId);
     c.add("lead-ready", lead.lifecycleState === "ready" && ["active", "idle"].includes(lead.status ?? ""), "The actual speaking agent is admitted normally.");
     c.add("real-active-assignment", current.lifecycleState === "ready" && ["running", "active"].includes(current.status ?? "")
-      && run?.status === "running" && run.agentId === worker.id && run.companyId === ctx.input.fixtures.company.id
+      && run?.status === "running" && run.agentId === worker.id && run.spaceId === ctx.input.fixtures.space.id
       && [run.contextSnapshot?.issueId, (run as typeof run & { nativeIssueId?: string })?.nativeIssueId].includes((state.task as Entity).id),
-    "A genuine native process owns Morgan's exact current task in this company.");
+    "A genuine native process owns Morgan's exact current task in this space.");
     const historical = await ctx.input.api.get<Entity>(`/api/issues/${(state.historicalTask as Entity).id}`);
     c.add("truthful-historical-work", historical.status === "done" && historical.assigneeAgentId === worker.id
-      && historical.companyId === ctx.input.fixtures.company.id && !historical.createdByAgentId && !historical.createdByRunId,
+      && historical.spaceId === ctx.input.fixtures.space.id && !historical.createdByAgentId && !historical.createdByRunId,
     "The independently read prior completed record has genuine human provenance, without forged model history.");
     const workerRuns = (await ctx.allRuns()).filter(row => row.agentId === worker.id);
     c.add("historical-record-starts-no-work", workerRuns.length === 1 && workerRuns[0]?.id === state.workerRunId,
@@ -98,7 +98,7 @@ export const runtimeRetirementCases = [runtimeDefinition("agents.retire-agent", 
   },
   async verifyResult(ctx, state) {
     const source = ctx.input.page.url(); const task = state.historicalTask as Entity;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("heading", { name: task.title!, exact: true }).first()).toBeVisible();
     await ctx.input.evidence("runtime-retired-historical-task-ui.json", { workerId: (state.worker as Entity).id, historicalTaskId: task.id, url: ctx.input.page.url() });

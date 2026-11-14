@@ -6,7 +6,7 @@ import { join } from "node:path";
 import express from "express";
 import request from "supertest";
 import { and, eq } from "drizzle-orm";
-import { agents, agentTaskSessions, agentWakeupRequests, authUsers, companies, companyMemberships, companySecretVersions, createDb, heartbeatRuns,
+import { agents, agentTaskSessions, agentWakeupRequests, authUsers, spaces, spaceMemberships, spaceSecretVersions, createDb, heartbeatRuns,
   issues, issueWorkProducts, nativeRunResults } from "@outpost/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NativeExecutionInput, NativeSession, NativeSessionBackend, PrpEvent } from "../../vendor/outpost-runner/index.js";
@@ -36,7 +36,7 @@ describeRecoveryPostgres("native idle sleep cold continuation", () => {
   });
 
   it("retires a completed warm owner and resumes saved work through an ordinary authorized comment", async () => {
-    const { companyId, agentId, runtimeRoot, temporary } = fixture.current;
+    const { spaceId, agentId, runtimeRoot, temporary } = fixture.current;
     vi.stubEnv("DATABASE_URL", temporary.connectionString);
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "89".repeat(32));
     const db = createDb(temporary.connectionString, { maxConnections: 2 });
@@ -47,15 +47,15 @@ describeRecoveryPostgres("native idle sleep cold continuation", () => {
     const cwd = join(runtimeRoot, "ordinary-task");
     await mkdir(cwd, { recursive: true });
     await db.insert(authUsers).values({ id: userId, name: "Task owner", email: `${userId}@example.invalid`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "owner" });
-    await db.update(companies).set({ defaultResponsibleUserId: userId }).where(eq(companies.id, companyId));
-    await db.insert(issues).values({ id: issueId, companyId, title: "Continue saved work", status: "todo", assigneeAgentId: agentId });
-    await db.insert(issueWorkProducts).values({ id: productId, companyId, issueId, type: "artifact", provider: "paperclip",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "owner" });
+    await db.update(spaces).set({ defaultResponsibleUserId: userId }).where(eq(spaces.id, spaceId));
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Continue saved work", status: "todo", assigneeAgentId: agentId });
+    await db.insert(issueWorkProducts).values({ id: productId, spaceId, issueId, type: "artifact", provider: "outpost",
       title: "Saved and continued work", status: "ready_for_review", reviewState: "approved" });
     const secrets = secretService(db), credential = `synthetic-${randomUUID()}`;
-    const secret = await secrets.create(companyId, { name: "Idle continuation credential", provider: "local_encrypted", value: credential });
+    const secret = await secrets.create(spaceId, { name: "Idle continuation credential", provider: "local_encrypted", value: credential });
     const binding = { SLEEP_CREDENTIAL: { type: "secret_ref", secretId: secret.id, version: "latest" } };
-    await secrets.syncEnvBindingsForTarget(companyId, { targetType: "agent", targetId: agentId }, binding);
+    await secrets.syncEnvBindingsForTarget(spaceId, { targetType: "agent", targetId: agentId }, binding);
     await db.update(agents).set({ status: "idle", adapterConfig: { provider: "codex", model: "gpt-6.1-sol", cwd,
       lifecycleMode: "warm", idleTimeoutMs: 300_000, env: binding },
       runtimeConfig: { heartbeat: { enabled: false, maxConcurrentRuns: 1 } } }).where(eq(agents.id, agentId));
@@ -67,7 +67,7 @@ describeRecoveryPostgres("native idle sleep cold continuation", () => {
     const backendFactory = (execution: NativeExecutionInput): NativeSessionBackend => {
       executions.push(execution);
       const makeSession = (): NativeSession => {
-        const identity = { companyId, agentId, issueId, runId: execution.binding.runId, sessionId: execution.session.normalizedSessionId! };
+        const identity = { spaceId, agentId, issueId, runId: execution.binding.runId, sessionId: execution.session.normalizedSessionId! };
         const turnId = `turn-${identity.runId}`;
         let start!: () => void;
         const started = new Promise<void>(resolve => { start = resolve; });
@@ -94,7 +94,7 @@ describeRecoveryPostgres("native idle sleep cold continuation", () => {
               priority: 0, emittedAt: new Date().toISOString(), payload: {} } satisfies PrpEvent;
           },
           async startTurn() {
-            const resolved = await secretService(db).resolveEnvBindings(companyId, binding);
+            const resolved = await secretService(db).resolveEnvBindings(spaceId, binding);
             expect(resolved.env.SLEEP_CREDENTIAL).toBe(credential);
             if (turns.length === 0) {
               await writeFile(join(execution.workspace.cwd!, "work.txt"), "first useful work\n");
@@ -132,7 +132,7 @@ describeRecoveryPostgres("native idle sleep cold continuation", () => {
       await heartbeat.invoke(agentId, "on_demand", { issueId }, "manual", { actorType: "user", actorId: userId });
       await heartbeat.drainActiveRunExecutions();
       await heartbeat.reconcileCostAccounting();
-      await flushBudgetEvaluationWork(db, { companyId });
+      await flushBudgetEvaluationWork(db, { spaceId });
       expect(turns).toHaveLength(1);
       expect(opened).toHaveLength(1);
       const [first] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, turns[0]));
@@ -140,10 +140,10 @@ describeRecoveryPostgres("native idle sleep cold continuation", () => {
       expect(await db.select().from(nativeRunResults).where(and(eq(nativeRunResults.runId, first.id), eq(nativeRunResults.schemaStatus, "accepted")))).toHaveLength(1);
       expect(JSON.stringify(first.runnerProfileJson)).not.toContain(credential);
       expect(readNativeSessionIdleWork()).toBe("present");
-      const sessionsBefore = await db.select().from(agentTaskSessions).where(and(eq(agentTaskSessions.companyId, companyId), eq(agentTaskSessions.agentId, agentId)));
+      const sessionsBefore = await db.select().from(agentTaskSessions).where(and(eq(agentTaskSessions.spaceId, spaceId), eq(agentTaskSessions.agentId, agentId)));
       expect(sessionsBefore).toHaveLength(1);
       expect(JSON.stringify(sessionsBefore)).toContain("saved-provider-session");
-      const [encryptedBefore] = await db.select().from(companySecretVersions).where(eq(companySecretVersions.secretId, secret.id));
+      const [encryptedBefore] = await db.select().from(spaceSecretVersions).where(eq(spaceSecretVersions.secretId, secret.id));
       expect(encryptedBefore.material).toMatchObject({ scheme: "local_encrypted_v1", ciphertext: expect.any(String) });
       expect(JSON.stringify(encryptedBefore.material)).not.toContain(credential);
       closeGate = new Promise<void>(resolve => { finishClose = resolve; });
@@ -172,7 +172,7 @@ describeRecoveryPostgres("native idle sleep cold continuation", () => {
       expect(await db.select().from(agentTaskSessions).where(eq(agentTaskSessions.id, sessionsBefore[0].id))).toEqual(sessionsBefore);
       const app = express();
       app.use(express.json());
-      app.use((req, _res, next) => { req.actor = { type: "board", userId, source: "local_implicit" }; next(); });
+      app.use((req, _res, next) => { req.actor = { type: "operator", userId, source: "local_implicit" }; next(); });
       app.use("/api", issueRoutes(db, {} as Parameters<typeof issueRoutes>[1]));
       app.use(errorHandler);
       const commentServer = createServer(app);
@@ -183,7 +183,7 @@ describeRecoveryPostgres("native idle sleep cold continuation", () => {
         expect(commentServer.address()).toMatchObject({ address: "127.0.0.1" });
         await request(commentServer).post(`/api/issues/${issueId}/comments`).send({ body: "Continue the saved work and record the continuation.", reopen: true, resume: true }).expect(201);
         await vi.waitFor(async () => {
-          const wakes = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.reason, "issue_reopened_via_comment")));
+          const wakes = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.reason, "issue_reopened_via_comment")));
           expect(wakes).toHaveLength(1);
           expect(wakes[0].requestedByActorId).toBe(userId);
           expect(heartbeat.getTaskDrainStatus().pendingWakes).toBe(0);
@@ -198,7 +198,7 @@ describeRecoveryPostgres("native idle sleep cold continuation", () => {
       await heartbeat.resumeQueuedRuns();
       await heartbeat.drainActiveRunExecutions();
       await heartbeat.reconcileCostAccounting();
-      await flushBudgetEvaluationWork(db, { companyId });
+      await flushBudgetEvaluationWork(db, { spaceId });
       expect(turns).toHaveLength(2);
       expect(new Set(turns).size).toBe(2);
       expect(opened).toHaveLength(2);
@@ -209,7 +209,7 @@ describeRecoveryPostgres("native idle sleep cold continuation", () => {
       expect(continued.status).toBe("succeeded");
       expect(await db.select().from(nativeRunResults).where(and(eq(nativeRunResults.runId, continued.id), eq(nativeRunResults.schemaStatus, "accepted")))).toHaveLength(1);
       expect(await readFile(join(executions[1].workspace.cwd!, "continued.txt"), "utf8")).toBe("continued first useful work\n");
-      expect((await db.select().from(companySecretVersions).where(eq(companySecretVersions.id, encryptedBefore.id)))[0].material).toEqual(encryptedBefore.material);
+      expect((await db.select().from(spaceSecretVersions).where(eq(spaceSecretVersions.id, encryptedBefore.id)))[0].material).toEqual(encryptedBefore.material);
     } finally {
       finishClose?.();
       heartbeat.stopTaskDrain();

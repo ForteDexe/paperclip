@@ -26,7 +26,7 @@ export function asToolConnection(connection: Connection): ToolConnection {
   return {
     id: connection.id,
     uid: connection.id,
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     applicationId: `provider-routing-${connection.provider}`,
     name: connection.name,
     connectionKind: "managed",
@@ -39,7 +39,7 @@ export function asToolConnection(connection: Connection): ToolConnection {
         : connection.method === "No authentication"
           ? "none"
           : "api_key",
-    credentialSource: "paperclip_vault",
+    credentialSource: "outpost_vault",
     credentialPolicy: connection.ownership === "shared" ? "shared" : "per_user",
     status: connection.status === "connected" ? "active" : "disabled",
     enabled: connection.status === "connected",
@@ -109,7 +109,7 @@ export function ConnectionCatalog({
             applications: [
               {
                 id: `provider-routing-${provider.value}`,
-                companyId: "company-storybook",
+                spaceId: "space-storybook",
                 applicationKey: provider.value,
                 name: provider.label,
                 description: provider.description,
@@ -140,7 +140,7 @@ export function ConnectionCatalog({
                 return (
                   <p className="text-xs text-muted-foreground">
                     {connection.ownership === "shared"
-                      ? "Company account"
+                      ? "Space account"
                       : "Personal account"}{" "}
                     · {connection.method}
                   </p>
@@ -205,13 +205,13 @@ export function ProviderCatalogReview() {
   const [query, setQuery] = useState("");
   const [client] = useState(() => {
     const value = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-    value.setQueryData(["ai-connections", "company-storybook", undefined], { canManageConnections: true, connections: [] });
-    value.setQueryData(["agents", "company-storybook", "provider-access"], [{ id: "nova", name: "Nova" }]);
+    value.setQueryData(["ai-connections", "space-storybook", undefined], { canManageConnections: true, connections: [] });
+    value.setQueryData(["agents", "space-storybook", "provider-access"], [{ id: "nova", name: "Nova" }]);
     return value;
   });
   const preset = source ? aiProviderSetupPreset(source) : undefined;
   if (source) return <QueryClientProvider client={client}><AiProviderSetup
-    companyId="company-storybook" initialProvider={preset?.provider ?? source as "openai" | "anthropic" | "xai"}
+    spaceId="space-storybook" initialProvider={preset?.provider ?? source as "openai" | "anthropic" | "xai"}
     initialProtocol={preset?.protocol} providerLabel={preset?.label}
     onCancel={() => setSource(undefined)} onComplete={() => setSource(undefined)}
   /></QueryClientProvider>;

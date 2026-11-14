@@ -81,7 +81,7 @@ describe("Paste a config — MCP config help", () => {
       nextRoot.render(
         <QueryClientProvider client={queryClient}>
           <MemoryRouter>
-            <PasteConfigTab companyId="company-1" />
+            <PasteConfigTab spaceId="space-1" />
           </MemoryRouter>
         </QueryClientProvider>,
       );
@@ -214,7 +214,7 @@ describe("MCP_CONFIG_HELP_PROMPT contract", () => {
   });
 
   it("interpolates nothing — it is a constant, so it cannot leak tenant data", () => {
-    // A template hole is the only way company/config/secret data could reach the
+    // A template hole is the only way space/config/secret data could reach the
     // clipboard from here.
     expect(MCP_CONFIG_HELP_PROMPT).not.toMatch(/\$\{/);
   });

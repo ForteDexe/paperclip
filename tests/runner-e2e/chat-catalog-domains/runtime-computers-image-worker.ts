@@ -8,7 +8,7 @@ let phase: "input" | "session" | "terminal-token" | "browser" | "terminal" | "ca
 async function main(): Promise<ImagePreparationReceipt> {
   let attached = false; try { test.info(); attached = true; } catch { /* standalone operator child */ } if (attached) throw new Error("Image terminal cannot run inside Test");
   const r = JSON.parse(await readFile(process.argv[2]!, "utf8")) as ImagePreparationRequest & { executablePath: string }, base = new URL(r.baseURL);
-  if (base.protocol !== "http:" || base.hostname !== "127.0.0.1" || ![r.companyId, r.environmentId].every(x => /^[a-f0-9-]{36}$/i.test(x))) throw new Error("Invalid owned image binding");
+  if (base.protocol !== "http:" || base.hostname !== "127.0.0.1" || ![r.spaceId, r.environmentId].every(x => /^[a-f0-9-]{36}$/i.test(x))) throw new Error("Invalid owned image binding");
   const headers = { Cookie: r.cookies.map(x => `${x.name}=${x.value}`).join("; "), Origin: base.origin, "Content-Type": "application/json" };
   async function api<T>(pathname: string, body?: unknown) {
     const response = await fetch(new URL(pathname, base), { method: body === undefined ? "GET" : "POST", headers, body: body === undefined ? undefined : JSON.stringify(body), redirect: "error", signal: AbortSignal.timeout(300000) });
@@ -16,9 +16,9 @@ async function main(): Promise<ImagePreparationReceipt> {
   }
   let sessionId: string | undefined, promoted = false;
   try {
-    phase = "session"; const start = await api<{ session: EnvironmentCustomImageSetupSession }>(`/api/environments/${r.environmentId}/custom-image-setup-sessions?companyId=${r.companyId}`, { ttlSeconds: 600 }); sessionId = start.session.id;
+    phase = "session"; const start = await api<{ session: EnvironmentCustomImageSetupSession }>(`/api/environments/${r.environmentId}/custom-image-setup-sessions?spaceId=${r.spaceId}`, { ttlSeconds: 600 }); sessionId = start.session.id;
     if (start.session.environmentId !== r.environmentId || !start.session.startedByUserId || start.session.startedByAgentId || start.session.status !== "waiting_for_user") throw new Error("Actual owned human setup session is not interactive");
-    phase = "terminal-token"; const token = await api<EnvironmentCustomImageTerminalSessionToken>(`/api/environment-custom-image-setup-sessions/${sessionId}/terminal-session-token?companyId=${r.companyId}`, {});
+    phase = "terminal-token"; const token = await api<EnvironmentCustomImageTerminalSessionToken>(`/api/environment-custom-image-setup-sessions/${sessionId}/terminal-session-token?spaceId=${r.spaceId}`, {});
     const url = new URL(token.websocketPath, base); if (url.origin !== base.origin || token.setupSessionId !== sessionId || token.environmentId !== r.environmentId) throw new Error("Terminal token is not the exact setup session"); url.protocol = "ws:";
     const nonce = randomBytes(12).toString("hex"), marker = `__PC_${nonce}_TOOLS_OK__`;
     phase = "browser"; const browser = await chromium.launch({ headless: true, executablePath: r.executablePath });
@@ -39,12 +39,12 @@ async function main(): Promise<ImagePreparationReceipt> {
       }))`;
       await page.evaluate(`${script}(${JSON.stringify({ url: url.href, token: token.token, nonce, marker })})`);
     } finally { await browser.close(); }
-    phase = "capture"; const finish = await api<{ session: EnvironmentCustomImageSetupSession; template: EnvironmentCustomImageTemplate }>(`/api/environment-custom-image-setup-sessions/${sessionId}/finish?companyId=${r.companyId}`, {});
-    phase = "saved-proof"; const saved = await api<EnvironmentCustomImageSetupSession>(`/api/environment-custom-image-setup-sessions/${sessionId}?companyId=${r.companyId}`);
+    phase = "capture"; const finish = await api<{ session: EnvironmentCustomImageSetupSession; template: EnvironmentCustomImageTemplate }>(`/api/environment-custom-image-setup-sessions/${sessionId}/finish?spaceId=${r.spaceId}`, {});
+    phase = "saved-proof"; const saved = await api<EnvironmentCustomImageSetupSession>(`/api/environment-custom-image-setup-sessions/${sessionId}?spaceId=${r.spaceId}`);
     if (finish.template.environmentId !== r.environmentId || finish.template.status !== "active" || !finish.template.templateRef || !finish.template.capturedAt || !finish.template.createdByUserId || finish.template.createdByAgentId || saved.status !== "promoted" || saved.promotedTemplateId !== finish.template.id) throw new Error("Actual provider image was not captured/promoted"); promoted = true;
     return { processIsolation: true, testRunnerAttached: false, sessionId, templateId: finish.template.id, templateRefSha256: createHash("sha256").update(finish.template.templateRef).digest("hex"), actualToolsVerified: true, promoted: true, sourceEnvironmentId: r.environmentId };
   } finally {
-    if (sessionId && !promoted) await api(`/api/environment-custom-image-setup-sessions/${sessionId}/cancel?companyId=${r.companyId}`, { reason: "Owned eval operator setup cleanup" });
+    if (sessionId && !promoted) await api(`/api/environment-custom-image-setup-sessions/${sessionId}/cancel?spaceId=${r.spaceId}`, { reason: "Owned eval operator setup cleanup" });
   }
 }
 main().then(x => process.stdout.write(JSON.stringify(x))).catch(() => { process.stderr.write(`image-private-phase:${phase}`); process.exitCode = 1; });

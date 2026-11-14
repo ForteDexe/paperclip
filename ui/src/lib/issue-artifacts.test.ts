@@ -22,7 +22,7 @@ it.each([undefined, null])("treats a missing document key (%s) as not general", 
 
 function makeAttachment(overrides: Partial<IssueAttachment> & { id: string }): IssueAttachment {
   return {
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     issueCommentId: null,
     assetId: "asset-1",
@@ -44,13 +44,13 @@ function makeAttachment(overrides: Partial<IssueAttachment> & { id: string }): I
 function makePromotingWorkProduct(attachmentId: string): IssueWorkProduct {
   return {
     id: `wp-${attachmentId}`,
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     issueId: "issue-1",
     executionWorkspaceId: null,
     runtimeServiceId: null,
     type: "artifact",
-    provider: "paperclip",
+    provider: "outpost",
     externalId: null,
     title: "output.png",
     url: null,
@@ -173,7 +173,7 @@ describe("getAttachmentBackedWorkProductAttachmentIds", () => {
     expect(ids).toEqual(new Set([imageId, markdownId]));
   });
 
-  it("ignores non-canonical or non-paperclip work products", () => {
+  it("ignores non-canonical or non-outpost work products", () => {
     const attachmentId = "00000000-0000-4000-8000-000000000003";
     const foreign = { ...makePromotingWorkProduct(attachmentId), provider: "github" };
     const invalid = {

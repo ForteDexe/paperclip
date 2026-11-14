@@ -15,21 +15,21 @@ import { RoutineActivityRow } from "../RoutineActivityRow";
 import { useRoutineDetail } from "./context";
 
 export function RunsSection() {
-  const { routine, companyId, agents, projects, hasLiveRun, activeIssueId } = useRoutineDetail();
+  const { routine, spaceId, agents, projects, hasLiveRun, activeIssueId } = useRoutineDetail();
   const queryClient = useQueryClient();
   const { pushToast } = useToastActions();
   const filters = { originKind: "routine_execution", originId: routine.id };
-  const issueQueryKey = [...queryKeys.issues.list(companyId), "routine", routine.id];
+  const issueQueryKey = [...queryKeys.issues.list(spaceId), "routine", routine.id];
   const issuesQuery = useQuery({
     queryKey: issueQueryKey,
-    queryFn: () => issuesApi.list(companyId, filters),
+    queryFn: () => issuesApi.list(spaceId, filters),
   });
   const { data: issues, isLoading } = issuesQuery;
   const issuesView = useQueryView(issuesQuery);
   const updateIssue = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => issuesApi.update(id, data),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(spaceId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.routines.detail(routine.id) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.routines.runs(routine.id) });
     },
@@ -46,7 +46,7 @@ export function RunsSection() {
       agents={agents}
       projects={projects}
       liveIssueIds={new Set(hasLiveRun && activeIssueId ? [activeIssueId] : [])}
-      viewStateKey={`paperclip:routine-runs:${companyId}:${routine.id}`}
+      viewStateKey={`outpost:routine-runs:${spaceId}:${routine.id}`}
       searchFilters={filters}
       issueLinkState={createIssueDetailLocationState("Runs", routineDetailHref(routine.id, "runs"))}
       rowPresentation="task"

@@ -23,7 +23,7 @@ type OwnershipOptions = {
   readonly discordGatewayLeaseTtlMs?: number;
   readonly discordGatewayLeaseRenewalIntervalMs?: number;
   readonly discordGatewayLeaseWaitMs?: number;
-  readonly renewDiscordGatewayLease?: (input: { companyId: string; credentialFingerprint: string; endpointId: string; expiresAt: Date; generation: number; leaseKey: string; token: string }) => Promise<boolean>;
+  readonly renewDiscordGatewayLease?: (input: { spaceId: string; credentialFingerprint: string; endpointId: string; expiresAt: Date; generation: number; leaseKey: string; token: string }) => Promise<boolean>;
 };
 const DISCORD_GATEWAY_LEASE_TTL_MS = 15_000;
 const DISCORD_GATEWAY_LEASE_WAIT_MS = 20_000;
@@ -56,7 +56,7 @@ export function createChatReceiverOwnership(db: Db, options: OwnershipOptions) {
       .delete(chatEndpointLeases)
       .where(
         and(
-          eq(chatEndpointLeases.companyId, ownership.companyId),
+          eq(chatEndpointLeases.spaceId, ownership.spaceId),
           eq(chatEndpointLeases.endpointId, ownership.endpointId),
           eq(chatEndpointLeases.leaseKey, ownership.leaseKey),
           eq(chatEndpointLeases.token, ownership.token),
@@ -142,7 +142,7 @@ export function createChatReceiverOwnership(db: Db, options: OwnershipOptions) {
     if (
       options.renewDiscordGatewayLease &&
       !(await options.renewDiscordGatewayLease({
-        companyId: ownership.companyId,
+        spaceId: ownership.spaceId,
         credentialFingerprint: ownership.context.credentialFingerprint,
         endpointId: ownership.endpointId,
         expiresAt: proposedExpiresAt,
@@ -164,7 +164,7 @@ export function createChatReceiverOwnership(db: Db, options: OwnershipOptions) {
         },
         ["verifying", "active", "attention"],
       );
-      if (!current || current.companyId !== ownership.companyId || !leasedChatProvider(current.provider)
+      if (!current || current.spaceId !== ownership.spaceId || !leasedChatProvider(current.provider)
           || !canRenewLocalOwnership(ownership)) return false;
       const expiresAt = new Date(
         now.getTime() +
@@ -175,7 +175,7 @@ export function createChatReceiverOwnership(db: Db, options: OwnershipOptions) {
         .set({ expiresAt, updatedAt: now })
         .where(
           and(
-            eq(chatEndpointLeases.companyId, ownership.companyId),
+            eq(chatEndpointLeases.spaceId, ownership.spaceId),
             eq(chatEndpointLeases.endpointId, ownership.endpointId),
             eq(chatEndpointLeases.leaseKey, ownership.leaseKey),
             eq(chatEndpointLeases.token, ownership.token),
@@ -224,7 +224,7 @@ export function createChatReceiverOwnership(db: Db, options: OwnershipOptions) {
       .set({ expiresAt, updatedAt: now })
       .where(
         and(
-          eq(chatEndpointLeases.companyId, ownership.companyId),
+          eq(chatEndpointLeases.spaceId, ownership.spaceId),
           eq(chatEndpointLeases.endpointId, ownership.endpointId),
           eq(chatEndpointLeases.leaseKey, ownership.leaseKey),
           eq(chatEndpointLeases.token, ownership.token),
@@ -347,7 +347,7 @@ export function createChatReceiverOwnership(db: Db, options: OwnershipOptions) {
       const inserted = await db
         .insert(chatEndpointLeases)
         .values({
-          companyId: endpoint.companyId,
+          spaceId: endpoint.spaceId,
           endpointId: endpoint.id,
           leaseKey: receiverLeaseKey,
           token,
@@ -362,7 +362,7 @@ export function createChatReceiverOwnership(db: Db, options: OwnershipOptions) {
           .set({ token, expiresAt, updatedAt: now })
           .where(
             and(
-              eq(chatEndpointLeases.companyId, endpoint.companyId),
+              eq(chatEndpointLeases.spaceId, endpoint.spaceId),
               eq(chatEndpointLeases.endpointId, endpoint.id),
               eq(chatEndpointLeases.leaseKey, receiverLeaseKey),
               lte(chatEndpointLeases.expiresAt, now),
@@ -371,7 +371,7 @@ export function createChatReceiverOwnership(db: Db, options: OwnershipOptions) {
           .returning({ id: chatEndpointLeases.id });
       if (reclaimed.length) {
         const ownership: DiscordGatewayOwnership = {
-          companyId: endpoint.companyId,
+          spaceId: endpoint.spaceId,
           context,
           endpointId: endpoint.id,
           expiresAt,

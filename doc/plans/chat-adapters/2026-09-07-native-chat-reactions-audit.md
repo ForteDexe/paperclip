@@ -2,7 +2,7 @@
 
 ## Environment and journey
 
-Isolated Board `http://127.0.0.1:3103`, company Chat Adapter E2E, native Maya
+Isolated Board `http://127.0.0.1:3103`, space Chat Adapter E2E, native Maya
 E2E (`outpost_runner` → `codex` → `gpt-5.6-luna`). The running backend was
 `639bf1a20`; the updated UI was served through the development middleware.
 These tests do not start model turns and do not qualify model quota recovery.
@@ -24,7 +24,7 @@ message bodies, or model reasoning were copied into this evidence.
 
 All four were processed, bound to the existing conversation, and had no error.
 From **18:27:28.160** through **18:29:52.686 UTC**, counts remained Maya runs
-**86**, company tasks **17**, internal comments **216**, and publications
+**86**, space tasks **17**, internal comments **216**, and publications
 **200**. Reactions were not interpreted as a message, answer, or authority.
 The test reactions were removed; the bot's existing eyes reactions were not
 changed.
@@ -78,7 +78,7 @@ must retain stable provider dispatch identity so actual duplicate delivery is
 still deduplicated while distinct add/remove cycles remain auditable. No
 history row was fabricated or replayed to claim a pass.
 
-The follow-up adapter revision `paperclip-discord-v5` preserves the Gateway
+The follow-up adapter revision `outpost-discord-v5` preserves the Gateway
 session fingerprint, shard, event type, and sequence with the exact raw packet.
 Only a one-way session fingerprint is carried, never the resumable session ID.
 A packet-scoped WeakMap and a guarded, synchronous packet-handler wrapper keep
@@ -98,7 +98,7 @@ needed. Live repeated-cycle qualification still requires the restart below.
 
 In the same signed-in browser, added thumbs-up to the native file-reading reply
 at **18:39:26.594 UTC** and removed it at **18:40:13.685**. Telegram showed the
-reaction, but Paperclip recorded neither event. That provider message
+reaction, but Outpost recorded neither event. That provider message
 `417200359:43` belongs to completed DM generation **5**, conversation
 `3f13f43b-b9a7-44d9-9b8c-846ce77b0305`.
 
@@ -114,7 +114,7 @@ no bot acknowledgement was changed.
 The reaction handler chose the newest conversation before checking the exact
 message link, so an older generation's message was silently dropped. The new
 regression failed before the fix with zero rows instead of four. The fix
-resolves the conversation through its exact, company/endpoint/thread-scoped
+resolves the conversation through its exact, space/endpoint/thread-scoped
 message link before choosing a generation. Existing current reach, principal
 authorization, runtime fencing, and conversation-state checks still apply.
 The first focused PostgreSQL reaction run passed **9/9**; this is local

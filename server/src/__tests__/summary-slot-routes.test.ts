@@ -2,8 +2,8 @@ import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const companyId = "22222222-2222-4222-8222-222222222222";
-const otherCompanyId = "33333333-3333-4333-8333-333333333333";
+const spaceId = "22222222-2222-4222-8222-222222222222";
+const otherSpaceId = "33333333-3333-4333-8333-333333333333";
 const agentId = "11111111-1111-4111-8111-111111111111";
 const projectId = "44444444-4444-4444-8444-444444444444";
 const slotId = "55555555-5555-4555-8555-555555555555";
@@ -31,7 +31,7 @@ const mockHeartbeatWakeup = vi.hoisted(() => vi.fn());
 function slot(overrides: Record<string, unknown> = {}) {
   return {
     id: slotId,
-    companyId,
+    spaceId,
     scopeKind: "project",
     scopeId: projectId,
     slotKey: "header",
@@ -87,10 +87,10 @@ async function createApp(actor: Record<string, unknown>) {
   return app;
 }
 
-const boardActor = {
-  type: "board",
-  userId: "board-user",
-  companyIds: [companyId],
+const operatorActor = {
+  type: "operator",
+  userId: "operator-user",
+  spaceIds: [spaceId],
   source: "session",
   isInstanceAdmin: false,
 };
@@ -98,12 +98,12 @@ const boardActor = {
 const agentActor = {
   type: "agent",
   agentId,
-  companyId,
+  spaceId,
   source: "agent_jwt",
   runId: "run-123",
 };
 
-const slotPath = `/api/companies/${companyId}/summary-slots/project/header?scopeId=${projectId}`;
+const slotPath = `/api/spaces/${spaceId}/summary-slots/project/header?scopeId=${projectId}`;
 
 describe("summary slot routes", () => {
   beforeEach(() => {
@@ -123,28 +123,28 @@ describe("summary slot routes", () => {
     });
     mockSummarySlotService.write.mockResolvedValue({
       slot: slot({ documentId: "doc-1", status: "idle" }),
-      document: { id: "doc-1", companyId, format: "markdown", body: "# Summary" },
+      document: { id: "doc-1", spaceId, format: "markdown", body: "# Summary" },
       revision: { id: "rev-1", documentId: "doc-1", revisionNumber: 1 },
     });
   });
 
   describe("read routes", () => {
-    it("returns slot state for actors with company access", async () => {
-      const app = await createApp(boardActor);
+    it("returns slot state for actors with space access", async () => {
+      const app = await createApp(operatorActor);
       const res = await request(app).get(slotPath);
       expect(res.status, JSON.stringify(res.body)).toBe(200);
       expect(mockSummarySlotService.getSlot).toHaveBeenCalledWith({
-        companyId,
+        spaceId,
         scopeKind: "project",
         slotKey: "header",
         scopeId: projectId,
       });
     });
 
-    it("lists revisions for actors with company access", async () => {
-      const app = await createApp(boardActor);
+    it("lists revisions for actors with space access", async () => {
+      const app = await createApp(operatorActor);
       const res = await request(app).get(
-        `/api/companies/${companyId}/summary-slots/project/header/revisions?scopeId=${projectId}`,
+        `/api/spaces/${spaceId}/summary-slots/project/header/revisions?scopeId=${projectId}`,
       );
       expect(res.status, JSON.stringify(res.body)).toBe(200);
       expect(mockSummarySlotService.listRevisions).toHaveBeenCalledOnce();
@@ -152,14 +152,14 @@ describe("summary slot routes", () => {
 
     it("returns 404 and does not load state when the summaries flag is disabled", async () => {
       mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableSummaries: false });
-      const app = await createApp(boardActor);
+      const app = await createApp(operatorActor);
       const res = await request(app).get(slotPath);
       expect(res.status, JSON.stringify(res.body)).toBe(404);
       expect(mockSummarySlotService.getSlot).not.toHaveBeenCalled();
     });
 
-    it("denies reads outside the actor company boundary", async () => {
-      const app = await createApp({ ...boardActor, companyIds: [otherCompanyId] });
+    it("denies reads outside the actor space boundary", async () => {
+      const app = await createApp({ ...operatorActor, spaceIds: [otherSpaceId] });
       const res = await request(app).get(slotPath);
       expect(res.status, JSON.stringify(res.body)).toBe(403);
       expect(mockSummarySlotService.getSlot).not.toHaveBeenCalled();
@@ -167,16 +167,16 @@ describe("summary slot routes", () => {
   });
 
   describe("generate route", () => {
-    it("creates a generation task and logs activity for board operators", async () => {
-      const app = await createApp(boardActor);
+    it("creates a generation task and logs activity for operator operators", async () => {
+      const app = await createApp(operatorActor);
       const res = await request(app).post(
-        `/api/companies/${companyId}/summary-slots/project/header/generate`,
+        `/api/spaces/${spaceId}/summary-slots/project/header/generate`,
       ).send({ scopeId: projectId });
       expect(res.status, JSON.stringify(res.body)).toBe(202);
       expect(res.body.alreadyGenerating).toBe(false);
       expect(mockSummarySlotService.generate).toHaveBeenCalledWith(
-        { companyId, scopeKind: "project", slotKey: "header", scopeId: projectId },
-        expect.objectContaining({ userId: "board-user", agentId: null }),
+        { spaceId, scopeKind: "project", slotKey: "header", scopeId: projectId },
+        expect.objectContaining({ userId: "operator-user", agentId: null }),
       );
       expect(mockLogActivity).toHaveBeenCalledWith(
         expect.anything(),
@@ -192,11 +192,11 @@ describe("summary slot routes", () => {
           reason: "summary_slot_generation_requested",
           payload: expect.objectContaining({
             issueId: generatingIssueId,
-            taskKey: `summary-slot:${companyId}:project:${projectId}:header`,
+            taskKey: `summary-slot:${spaceId}:project:${projectId}:header`,
           }),
           contextSnapshot: expect.objectContaining({
             issueId: generatingIssueId,
-            taskKey: `summary-slot:${companyId}:project:${projectId}:header`,
+            taskKey: `summary-slot:${spaceId}:project:${projectId}:header`,
           }),
         }),
       );
@@ -208,9 +208,9 @@ describe("summary slot routes", () => {
         generatingIssue: generatingIssue(),
         alreadyGenerating: true,
       });
-      const app = await createApp(boardActor);
+      const app = await createApp(operatorActor);
       const res = await request(app).post(
-        `/api/companies/${companyId}/summary-slots/project/header/generate`,
+        `/api/spaces/${spaceId}/summary-slots/project/header/generate`,
       ).send({});
       expect(res.status, JSON.stringify(res.body)).toBe(200);
       expect(res.body.alreadyGenerating).toBe(true);
@@ -219,9 +219,9 @@ describe("summary slot routes", () => {
 
     it("denies generate when the operator lacks tasks:assign", async () => {
       mockAccessService.canUser.mockResolvedValue(false);
-      const app = await createApp(boardActor);
+      const app = await createApp(operatorActor);
       const res = await request(app).post(
-        `/api/companies/${companyId}/summary-slots/project/header/generate`,
+        `/api/spaces/${spaceId}/summary-slots/project/header/generate`,
       ).send({});
       expect(res.status, JSON.stringify(res.body)).toBe(403);
       expect(mockSummarySlotService.generate).not.toHaveBeenCalled();
@@ -230,7 +230,7 @@ describe("summary slot routes", () => {
     it("denies generate for agent actors", async () => {
       const app = await createApp(agentActor);
       const res = await request(app).post(
-        `/api/companies/${companyId}/summary-slots/project/header/generate`,
+        `/api/spaces/${spaceId}/summary-slots/project/header/generate`,
       ).send({});
       expect(res.status, JSON.stringify(res.body)).toBe(403);
       expect(mockSummarySlotService.generate).not.toHaveBeenCalled();
@@ -238,9 +238,9 @@ describe("summary slot routes", () => {
 
     it("returns 404 when the summaries flag is disabled", async () => {
       mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableSummaries: false });
-      const app = await createApp(boardActor);
+      const app = await createApp(operatorActor);
       const res = await request(app).post(
-        `/api/companies/${companyId}/summary-slots/project/header/generate`,
+        `/api/spaces/${spaceId}/summary-slots/project/header/generate`,
       ).send({});
       expect(res.status, JSON.stringify(res.body)).toBe(404);
       expect(mockSummarySlotService.generate).not.toHaveBeenCalled();
@@ -257,7 +257,7 @@ describe("summary slot routes", () => {
       expect(res.status, JSON.stringify(res.body)).toBe(200);
       expect(mockSummarySlotService.write).toHaveBeenCalledWith(
         expect.objectContaining({
-          companyId,
+          spaceId,
           scopeKind: "project",
           slotKey: "header",
           scopeId: projectId,
@@ -272,8 +272,8 @@ describe("summary slot routes", () => {
       );
     });
 
-    it("rejects writes from board actors", async () => {
-      const app = await createApp(boardActor);
+    it("rejects writes from operator actors", async () => {
+      const app = await createApp(operatorActor);
       const res = await request(app).put(slotPath).send({ markdown: "# Summary" });
       expect(res.status, JSON.stringify(res.body)).toBe(403);
       expect(mockSummarySlotService.write).not.toHaveBeenCalled();

@@ -2,6 +2,6 @@ import type { PrimaryAgentPreference, UpdatePrimaryAgent } from "@outpost/shared
 import { api } from "./client";
 
 export const primaryAgentApi = {
-  get: (companyId: string) => api.get<PrimaryAgentPreference>(`/companies/${companyId}/primary-agent/me`),
-  set: (companyId: string, body: UpdatePrimaryAgent) => api.put<PrimaryAgentPreference>(`/companies/${companyId}/primary-agent/me`, body),
+  get: (spaceId: string) => api.get<PrimaryAgentPreference>(`/spaces/${spaceId}/primary-agent/me`),
+  set: (spaceId: string, body: UpdatePrimaryAgent) => api.put<PrimaryAgentPreference>(`/spaces/${spaceId}/primary-agent/me`, body),
 };

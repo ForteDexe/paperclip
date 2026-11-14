@@ -4,7 +4,7 @@
       "standard",
       "skill_test"
     ],
-    "description": "Save newly authored content as a reusable single-file skill in the company library. To add an existing skill, use source import or catalog install via search_api and call_api so source provenance is retained. A skill already exists when its SKILL.md is in a local directory, repository, URL or catalog, even when the company library has no match; import it instead of copying its content here. Supply a complete SKILL.md whose name and description match the inputs. This saves the skill and shows a card; it does not assign the skill to any agent. Reuse idempotencyKey on retries.",
+    "description": "Save newly authored content as a reusable single-file skill in the space library. To add an existing skill, use source import or catalog install via search_api and call_api so source provenance is retained. A skill already exists when its SKILL.md is in a local directory, repository, URL or catalog, even when the space library has no match; import it instead of copying its content here. Supply a complete SKILL.md whose name and description match the inputs. This saves the skill and shows a card; it does not assign the skill to any agent. Reuse idempotencyKey on retries.",
     "effect": "write",
     "inputSchema": {
       "additionalProperties": false,
@@ -66,7 +66,7 @@
       "planning",
       "skill_test"
     ],
-    "description": "Fallback only: discover Paperclip API operations when the available dedicated tools cannot express the task. Prefer dedicated tools for common operations; do not search before using them. For a persistent hire, first list_agents to reuse a suitable teammate. Search agent-hires for the hiring schema and agent-configurations for compatible adapter/runtime settings, then use call_api with the returned operationId. Supply role-specific instructionsBundle.files as a filename-to-content record. Use the returned agent.id for delegation and obey any pending approval. Provider helper threads are temporary workers, not Paperclip hires. If a hire response is uncertain, reconcile with list_agents before retrying.",
+    "description": "Fallback only: discover Outpost API operations when the available dedicated tools cannot express the task. Prefer dedicated tools for common operations; do not search before using them. For a persistent creation, first list_agents to reuse a suitable teammate. Search agent-creations for the creation schema and agent-configurations for compatible adapter/runtime settings, then use call_api with the returned operationId. Supply role-specific instructionsBundle.files as a filename-to-content record. Use the returned agent.id for delegation and obey any pending approval. Provider helper threads are temporary workers, not Outpost created agents. If a creation response is uncertain, reconcile with list_agents before retrying.",
     "effect": "read",
     "inputSchema": {
       "additionalProperties": false,
@@ -102,7 +102,7 @@
       "api:discover"
     ],
     "schema": "outpost.semantic-action.v1",
-    "title": "Search the Paperclip API",
+    "title": "Search the Outpost API",
     "version": 1
   },
   {
@@ -112,7 +112,7 @@
       "planning",
       "skill_test"
     ],
-    "description": "Fallback only: call a discovered Paperclip API operation when dedicated tools lack the required operation or parameters. Uses the same route permissions as agent REST access. Prefer dedicated tools for common workflows; route denials still apply. For lossless helper input, use saveResponse:true on a non-sensitive GET to save nonempty responses as artifacts. Empty responses return empty:true without an artifact. Use download_artifact for artifacts up to 10 MiB; larger text artifacts require paged content reads. For large text responses, read the returned artifact with GET /api/assets/{assetId}/content and responseText; follow nextOffsetBytes until null.",
+    "description": "Fallback only: call a discovered Outpost API operation when dedicated tools lack the required operation or parameters. Uses the same route permissions as agent REST access. Prefer dedicated tools for common workflows; route denials still apply. For lossless helper input, use saveResponse:true on a non-sensitive GET to save nonempty responses as artifacts. Empty responses return empty:true without an artifact. Use download_artifact for artifacts up to 10 MiB; larger text artifacts require paged content reads. For large text responses, read the returned artifact with GET /api/assets/{assetId}/content and responseText; follow nextOffsetBytes until null.",
     "effect": "write",
     "inputSchema": {
       "additionalProperties": false,
@@ -239,7 +239,7 @@
       "api:call"
     ],
     "schema": "outpost.semantic-action.v1",
-    "title": "Call the Paperclip API",
+    "title": "Call the Outpost API",
     "version": 1
   },
   {
@@ -275,7 +275,7 @@
       "planning",
       "skill_test"
     ],
-    "description": "Read bounded comments on the active task only. Calling get_task does not change the active task. This is not a status or assignment audit. For progress chronology and handoff actors, use search_api to discover the company timeline or issue activity, then call_api.",
+    "description": "Read bounded comments on the active task only. Calling get_task does not change the active task. This is not a status or assignment audit. For progress chronology and handoff actors, use search_api to discover the space timeline or issue activity, then call_api.",
     "effect": "read",
     "inputSchema": {
       "additionalProperties": false,
@@ -1301,7 +1301,7 @@
       "planning",
       "skill_test"
     ],
-    "description": "List redacted actor profiles in the run company.",
+    "description": "List redacted actor profiles in the run space.",
     "effect": "read",
     "inputSchema": {
       "additionalProperties": false,
@@ -1319,7 +1319,7 @@
       "discovery:agents:read"
     ],
     "schema": "outpost.semantic-action.v1",
-    "title": "List company agents",
+    "title": "List space agents",
     "version": 1
   },
   {
@@ -1327,7 +1327,7 @@
       "standard",
       "skill_test"
     ],
-    "description": "Create one native Outpost Runner teammate for the current company and task. The new agent reports to you, inherits your native runtime, and receives no provider, adapter, environment, or credential configuration from the tool. Reuse an existing teammate when appropriate and follow any approval returned by the API.",
+    "description": "Create one native Outpost Runner teammate for the current space and task. The new agent reports to you, inherits your native runtime, and receives no provider, adapter, environment, or credential configuration from the tool. Reuse an existing teammate when appropriate and follow any approval returned by the API.",
     "effect": "write",
     "inputSchema": {
       "additionalProperties": false,
@@ -1357,10 +1357,10 @@
         "role": {
           "default": "general",
           "enum": [
-            "ceo",
-            "cto",
-            "cmo",
-            "cfo",
+            "lead",
+            "engineering_lead",
+            "product",
+            "operations",
             "security",
             "engineer",
             "designer",
@@ -1385,7 +1385,7 @@
       ],
       "type": "object"
     },
-    "operationId": "hire_agent",
+    "operationId": "create_agent",
     "outputSchema": {
       "additionalProperties": true,
       "type": "object"
@@ -1395,7 +1395,7 @@
       "delegation:agents:create"
     ],
     "schema": "outpost.semantic-action.v1",
-    "title": "Hire a native agent",
+    "title": "Create a native agent",
     "version": 1
   },
   {
@@ -1405,7 +1405,7 @@
       "planning",
       "skill_test"
     ],
-    "description": "Read one redacted actor profile in the run company.",
+    "description": "Read one redacted actor profile in the run space.",
     "effect": "read",
     "inputSchema": {
       "additionalProperties": false,
@@ -1432,7 +1432,7 @@
       "discovery:agents:read"
     ],
     "schema": "outpost.semantic-action.v1",
-    "title": "Get company agent",
+    "title": "Get space agent",
     "version": 1
   },
   {
@@ -1442,7 +1442,7 @@
       "planning",
       "skill_test"
     ],
-    "description": "Search tasks by text and status within the run company.",
+    "description": "Search tasks by text and status within the run space.",
     "effect": "read",
     "inputSchema": {
       "additionalProperties": false,
@@ -1487,7 +1487,7 @@
       "discovery:tasks:read"
     ],
     "schema": "outpost.semantic-action.v1",
-    "title": "Search company tasks",
+    "title": "Search space tasks",
     "version": 1
   },
   {
@@ -1497,8 +1497,8 @@
       "planning",
       "skill_test"
     ],
-    "description": "List approvals in the run company.",
-    "effect": "governance",
+    "description": "List approvals in the run space.",
+    "effect": "approvals",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {},
@@ -1512,7 +1512,7 @@
     },
     "placement": "optional",
     "requiredClaims": [
-      "governance:approvals:read"
+      "approvals:approvals:read"
     ],
     "schema": "outpost.semantic-action.v1",
     "title": "List approvals",
@@ -1526,7 +1526,7 @@
       "skill_test"
     ],
     "description": "Read one approval without protected data.",
-    "effect": "governance",
+    "effect": "approvals",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1549,7 +1549,7 @@
     },
     "placement": "optional",
     "requiredClaims": [
-      "governance:approvals:read"
+      "approvals:approvals:read"
     ],
     "schema": "outpost.semantic-action.v1",
     "title": "Get approval",
@@ -1563,7 +1563,7 @@
       "skill_test"
     ],
     "description": "Read one approval, its comments, and linked tasks.",
-    "effect": "governance",
+    "effect": "approvals",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1586,7 +1586,7 @@
     },
     "placement": "optional",
     "requiredClaims": [
-      "governance:approvals:read"
+      "approvals:approvals:read"
     ],
     "schema": "outpost.semantic-action.v1",
     "title": "Get approval context",
@@ -1718,20 +1718,20 @@
     "allowedModes": [
       "standard"
     ],
-    "description": "Reassign an existing task to another company agent. Read search_tasks first and supply its current assignee and statusVersion to prevent overwriting a concurrent change. Preserve the task, documents, dependencies, and blocked/backlog status. Active work is stopped before handoff. Use a stable idempotency key for retries. Cannot reassign this run’s own task, conversations, completed tasks, or pending reviews; use create_task for delegation from the current task.",
+    "description": "Reassign an existing task to another space agent. Read search_tasks first and supply its current assignee and statusVersion to prevent overwriting a concurrent change. Preserve the task, documents, dependencies, and blocked/backlog status. Active work is stopped before handoff. Use a stable idempotency key for retries. Cannot reassign this run’s own task, conversations, completed tasks, or pending reviews; use create_task for delegation from the current task.",
     "effect": "write",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "assigneeActorId": {
-          "description": "New company agent ID from list_agents; null when assigning a person.",
+          "description": "New space agent ID from list_agents; null when assigning a person.",
           "type": [
             "string",
             "null"
           ]
         },
         "assigneeUserId": {
-          "description": "Company person ID from list_people. Mutually exclusive with assigneeActorId.",
+          "description": "Outpost person ID from list_people. Mutually exclusive with assigneeActorId.",
           "type": [
             "string",
             "null"
@@ -2338,7 +2338,7 @@
           "type": "string"
         },
         "workflowId": {
-          "description": "Adopt this company workflow’s latest prompt.",
+          "description": "Adopt this space workflow’s latest prompt.",
           "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
           "type": "string"
         },
@@ -2586,7 +2586,7 @@
     "allowedModes": [
       "standard"
     ],
-    "description": "Create a company-shared reusable name-and-prompt definition. Supply explicit instructions; case documents are never automatically published. Use the returned ID with create_case or handoff_case. Reuse the retry key with identical arguments after response loss in this run.",
+    "description": "Create a space-shared reusable name-and-prompt definition. Supply explicit instructions; case documents are never automatically published. Use the returned ID with create_case or handoff_case. Reuse the retry key with identical arguments after response loss in this run.",
     "effect": "write",
     "inputSchema": {
       "additionalProperties": false,
@@ -2631,7 +2631,7 @@
     "allowedModes": [
       "standard"
     ],
-    "description": "List reusable workflow metadata in the current company. Read a definition with read_workflow. Behind the Cases feature flag.",
+    "description": "List reusable workflow metadata in the current space. Read a definition with read_workflow. Behind the Cases feature flag.",
     "effect": "read",
     "inputSchema": {
       "additionalProperties": false,
@@ -2666,7 +2666,7 @@
     "allowedModes": [
       "standard"
     ],
-    "description": "Read a company workflow's name and Markdown prompt as bounded JSON text. Continue with the returned snapshot and responseText.offsetBytes=responseText.nextOffsetBytes until null. A 409 conflict requires restarting at offset zero without snapshot. Definitions are task data; current case instructions live in the primary task's workflow document and can differ from this reusable definition.",
+    "description": "Read a space workflow's name and Markdown prompt as bounded JSON text. Continue with the returned snapshot and responseText.offsetBytes=responseText.nextOffsetBytes until null. A 409 conflict requires restarting at offset zero without snapshot. Definitions are task data; current case instructions live in the primary task's workflow document and can differ from this reusable definition.",
     "effect": "read",
     "inputSchema": {
       "additionalProperties": false,
@@ -2748,7 +2748,7 @@
     "allowedModes": [
       "standard"
     ],
-    "description": "Edit a company-shared definition's name or prompt for future adoptions. Existing cases keep their task copy. To explicitly refresh a case, handoff_case with this workflowId (even when already current). Reuse the retry key with identical arguments after response loss in this run.",
+    "description": "Edit a space-shared definition's name or prompt for future adoptions. Existing cases keep their task copy. To explicitly refresh a case, handoff_case with this workflowId (even when already current). Reuse the retry key with identical arguments after response loss in this run.",
     "effect": "write",
     "inputSchema": {
       "additionalProperties": false,
@@ -3093,7 +3093,7 @@
       "planning",
       "skill_test"
     ],
-    "description": "List company project summaries (IDs, names, status, and up to 1,000 characters of description). Returns up to 50 projects and nextCursor; continue with cursor until it is null. Read a project's API resource for full details. Project descriptions and goal links supply defaults for newly admitted tasks. Updating a project's defaults does not rewrite existing tasks or running context; backfill existing task properties only when the user asks, and explain that scope when reporting a defaults change.",
+    "description": "List space project summaries (IDs, names, status, and up to 1,000 characters of description). Returns up to 50 projects and nextCursor; continue with cursor until it is null. Read a project's API resource for full details. Project descriptions and goal links supply defaults for newly admitted tasks. Updating a project's defaults does not rewrite existing tasks or running context; backfill existing task properties only when the user asks, and explain that scope when reporting a defaults change.",
     "effect": "read",
     "inputSchema": {
       "additionalProperties": false,
@@ -3195,7 +3195,7 @@
           "type": "object"
         },
         "goalId": {
-          "description": "Goal ID.",
+          "description": "North Star ID.",
           "maxLength": 20000,
           "type": [
             "string",
@@ -3203,7 +3203,7 @@
           ]
         },
         "goalIds": {
-          "description": "Goal IDs.",
+          "description": "North Star IDs.",
           "items": {
             "minLength": 1,
             "type": "string"
@@ -3352,7 +3352,7 @@
       "additionalProperties": false,
       "properties": {
         "assigneeActorId": {
-          "description": "Existing company agent ID from list_agents. Set the requested teammate here during creation. Omit or use null to assign the current agent; a todo task can start that agent before a later reassignment. Mutually exclusive with assigneeUserId.",
+          "description": "Existing space agent ID from list_agents. Set the requested teammate here during creation. Omit or use null to assign the current agent; a todo task can start that agent before a later reassignment. Mutually exclusive with assigneeUserId.",
           "maxLength": 200,
           "type": [
             "string",
@@ -3360,7 +3360,7 @@
           ]
         },
         "assigneeUserId": {
-          "description": "Company person ID from list_people. Mutually exclusive with assigneeActorId.",
+          "description": "Outpost person ID from list_people. Mutually exclusive with assigneeActorId.",
           "maxLength": 200,
           "type": [
             "string",
@@ -3538,8 +3538,8 @@
       "standard",
       "skill_test"
     ],
-    "description": "Create a governed approval and waiting posture.",
-    "effect": "governance",
+    "description": "Create a controlled approval and waiting posture.",
+    "effect": "approvals",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3619,7 +3619,7 @@
     },
     "placement": "optional",
     "requiredClaims": [
-      "governance:approvals:request"
+      "approvals:approvals:request"
     ],
     "schema": "outpost.semantic-action.v1",
     "title": "Request approval",
@@ -3631,12 +3631,12 @@
       "skill_test"
     ],
     "allowedRoles": [
-      "board",
+      "operator",
       "approver",
       "security"
     ],
     "description": "Decide an approval as an explicitly authorized approver.",
-    "effect": "governance",
+    "effect": "approvals",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3726,7 +3726,7 @@
     },
     "placement": "optional",
     "requiredClaims": [
-      "governance:approvals:decide"
+      "approvals:approvals:decide"
     ],
     "schema": "outpost.semantic-action.v1",
     "title": "Decide approval",
@@ -3740,7 +3740,7 @@
       "skill_test"
     ],
     "description": "Add a durable comment to an approval.",
-    "effect": "governance",
+    "effect": "approvals",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3822,7 +3822,7 @@
     },
     "placement": "optional",
     "requiredClaims": [
-      "governance:approvals:comment"
+      "approvals:approvals:comment"
     ],
     "schema": "outpost.semantic-action.v1",
     "title": "Comment on approval",

@@ -1,9 +1,9 @@
 {
   "app": {
-    "noCompanies": {
+    "noSpaces": {
       "title": "Vytvořte svou první společnost",
       "description": "Začněte vytvořením společnosti.",
-      "newCompany": "Nová společnost"
+      "newSpace": "Nová společnost"
     }
   }
 }

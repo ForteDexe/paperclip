@@ -3,7 +3,7 @@
   "fixtureName": "Semantic tool denial and redaction",
   "identity": {
     "schema": "outpost.orp.identity.v1",
-    "companyId": "company_semantic_denied",
+    "spaceId": "space_semantic_denied",
     "issueId": "issue_semantic_denied",
     "runId": "run_semantic_denied",
     "environmentLeaseId": "lease_semantic_denied",
@@ -34,7 +34,7 @@
           "availability": "denied",
           "redactionDisposition": "digest_only",
           "requiredClaims": [
-            "governance:approvals:decide"
+            "approvals:approvals:decide"
           ],
           "reasonCode": "required_claim_missing"
         }
@@ -51,7 +51,7 @@
   "proposedResult": {
     "schema": "outpost.run_result.v1",
     "reportedWorkDisposition": "needs_review",
-    "summary": "The governed action was denied without fallback.",
+    "summary": "The controlled action was denied without fallback.",
     "completionClaim": {
       "contractRevision": "semantic-receipts-v1",
       "objectiveSatisfied": false,
@@ -110,7 +110,7 @@
       "sourceSeq": 3,
       "eventType": "run.result.proposed",
       "emittedAt": "2026-08-11T10:10:00.020Z",
-      "summary": "The governed action was denied without fallback."
+      "summary": "The controlled action was denied without fallback."
     },
     {
       "position": 4,

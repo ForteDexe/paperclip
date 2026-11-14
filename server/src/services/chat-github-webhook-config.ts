@@ -726,7 +726,7 @@ export async function resyncGitHubAppWebhook(input: {
     });
   } catch {
     // A fetch error can embed request bodies, headers, or a proxy response.
-    // Keep it out of endpoint health, the audit log, and the board response.
+    // Keep it out of endpoint health, the audit log, and the operator response.
     throw new Error(
       "GitHub webhook configuration could not be confirmed. Reconnect to retry; repository access was not changed.",
     );

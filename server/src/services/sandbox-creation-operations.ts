@@ -2,9 +2,9 @@ import { collectSecretRefPaths, isUuidSecretRef, parseSecretRefBindingObject, re
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, lte, or, sql } from "drizzle-orm";
 import { currentControllerProcess } from "./controller-process-identity.js";
-import { companies, environments, heartbeatRuns, sandboxCreationOperations, type Db } from "@outpost/db";
+import { spaces, environments, heartbeatRuns, sandboxCreationOperations, type Db } from "@outpost/db";
 import { readEnvironmentCreationCleanupError, type PluginEnvironmentLease, type PluginEnvironmentLeaseObservation } from "@outpost/plugin-sdk";
-import { assertEnvironmentCompanyBinding, environmentService } from "./environments.js";
+import { assertEnvironmentSpaceBinding, environmentService } from "./environments.js";
 import { ENVIRONMENT_CLEANUP_RETRY_MS, recoverableSandboxCreationCondition } from "./environment-cleanup-state.js";
 import { logger } from "../middleware/logger.js";
 import { notifyEnvironmentCleanup, writeEnvironmentCleanup } from "./environment-cleanup-notifications.js";
@@ -34,7 +34,7 @@ export function recoverablePluginCreation(operation: Pick<SandboxCreationOperati
 }
 
 type CreationOwner = {
-  companyId: string;
+  spaceId: string;
   environmentId: string;
   executionWorkspaceId?: string | null;
   issueId?: string | null;
@@ -71,10 +71,10 @@ export async function createOwnedSandbox(
   const settleAt = new Date(Date.now() + Math.max(CREATION_SETTLE_FLOOR_MS, (owner.timeoutMs ?? 0) + 60_000));
   const creationController = await currentControllerProcess();
   const operation = await db.transaction(async tx => {
-    await notifyEnvironmentCleanup(tx, { companyId: owner.companyId, runId: owner.heartbeatRunId ?? undefined });
-    await assertEnvironmentCompanyBinding(tx as unknown as Db, owner.environmentId, owner.companyId);
+    await notifyEnvironmentCleanup(tx, { spaceId: owner.spaceId, runId: owner.heartbeatRunId ?? undefined });
+    await assertEnvironmentSpaceBinding(tx as unknown as Db, owner.environmentId, owner.spaceId);
     const [inserted] = await tx.insert(sandboxCreationOperations).values({
-      id, companyId: owner.companyId, environmentId: owner.environmentId, originalEnvironmentId: owner.environmentId,
+      id, spaceId: owner.spaceId, environmentId: owner.environmentId, originalEnvironmentId: owner.environmentId,
       runId, requestKey: owner.requestKey ?? "run", issueId: owner.issueId, executionWorkspaceId: owner.executionWorkspaceId,
       provider: owner.provider, pluginId: owner.pluginId, driverKey: owner.driverKey,
       config: owner.config, metadata: { ...owner.metadata, creationHeartbeatRunId: owner.heartbeatRunId ?? null, creationCredentialHashes: credentialHashes,
@@ -83,7 +83,7 @@ export async function createOwnedSandbox(
     }).onConflictDoNothing().returning();
     if (inserted) return inserted;
     const [existing] = await tx.select().from(sandboxCreationOperations).where(and(
-      eq(sandboxCreationOperations.companyId, owner.companyId), eq(sandboxCreationOperations.originalEnvironmentId, owner.environmentId),
+      eq(sandboxCreationOperations.spaceId, owner.spaceId), eq(sandboxCreationOperations.originalEnvironmentId, owner.environmentId),
       eq(sandboxCreationOperations.runId, runId), eq(sandboxCreationOperations.requestKey, owner.requestKey ?? "run"),
     ));
     if (!existing) throw new Error("Sandbox creation ownership was not recorded");
@@ -106,9 +106,9 @@ export async function createOwnedSandbox(
       try {
         await writeEnvironmentCleanup(db, tx => tx.update(sandboxCreationOperations).set({ nextAttemptAt: new Date(), updatedAt: new Date() })
           .where(and(eq(sandboxCreationOperations.id, id), recoverableSandboxCreationCondition())),
-        { companyId: operation.companyId, runId: owner.heartbeatRunId ?? undefined });
+        { spaceId: operation.spaceId, runId: owner.heartbeatRunId ?? undefined });
       } catch {
-        logger.warn({ errorKind: "task_creation_recovery_wakeup_failed", operationId: id, companyId: operation.companyId },
+        logger.warn({ errorKind: "task_creation_recovery_wakeup_failed", operationId: id, spaceId: operation.spaceId },
           "Task creation recovery retains its saved deadline");
       }
     }
@@ -119,7 +119,7 @@ export async function createOwnedSandbox(
 /** Keep an already returned resource identity even when task attachment fails.
  * This enriches the existing owner; it never transfers or reopens ownership. */
 export async function recordSandboxCreationResource(db: Db, input: {
-  id: string; companyId: string; environmentId: string; providerLeaseId: string;
+  id: string; spaceId: string; environmentId: string; providerLeaseId: string;
   providerMetadata?: Record<string, unknown>;
 }): Promise<void> {
   await writeEnvironmentCleanup(db, async tx => {
@@ -127,23 +127,23 @@ export async function recordSandboxCreationResource(db: Db, input: {
       nextAttemptAt: sql`case when ${sandboxCreationOperations.state} = 'needs_reconciliation' then clock_timestamp() else ${sandboxCreationOperations.nextAttemptAt} end`,
       metadata: sql`coalesce(${sandboxCreationOperations.metadata}, '{}'::jsonb) || ${JSON.stringify({ creationProviderLeaseId: input.providerLeaseId, ...(input.providerMetadata ? { creationProviderMetadata: input.providerMetadata } : {}) })}::jsonb`,
       updatedAt: new Date(),
-    }).where(and(eq(sandboxCreationOperations.id, input.id), eq(sandboxCreationOperations.companyId, input.companyId),
+    }).where(and(eq(sandboxCreationOperations.id, input.id), eq(sandboxCreationOperations.spaceId, input.spaceId),
       eq(sandboxCreationOperations.originalEnvironmentId, input.environmentId),
       or(sql`${sandboxCreationOperations.metadata}->>'creationProviderLeaseId' is null`,
         sql`${sandboxCreationOperations.metadata}->>'creationProviderLeaseId' = ${input.providerLeaseId}`),
     )).returning({ id: sandboxCreationOperations.id });
     if (!recorded) throw new Error("Sandbox creation resource identity changed");
-  }, { companyId: input.companyId });
+  }, { spaceId: input.spaceId });
 }
 
 export async function queueSandboxCreationCleanup(db: Db, input: {
-  id: string; companyId: string; environmentId: string; providerLeaseId: string;
+  id: string; spaceId: string; environmentId: string; providerLeaseId: string;
   providerMetadata?: Record<string, unknown>;
 }): Promise<void> {
   await db.transaction(async tx => {
     await tx.select({ id: environments.id }).from(environments).where(eq(environments.id, input.environmentId)).for("update");
     const [operation] = await tx.select().from(sandboxCreationOperations).where(and(eq(sandboxCreationOperations.id, input.id),
-      eq(sandboxCreationOperations.companyId, input.companyId), eq(sandboxCreationOperations.originalEnvironmentId, input.environmentId))).for("update");
+      eq(sandboxCreationOperations.spaceId, input.spaceId), eq(sandboxCreationOperations.originalEnvironmentId, input.environmentId))).for("update");
     if (!operation || (operation.metadata.creationProviderLeaseId && operation.metadata.creationProviderLeaseId !== input.providerLeaseId)) {
       throw new Error("Sandbox creation cleanup ownership changed");
     }
@@ -155,18 +155,18 @@ export async function queueSandboxCreationCleanup(db: Db, input: {
     // The non-null runId also correlates agentless creation attempts. Only the
     // original optional heartbeat reference belongs in the lease's foreign key.
     // Older task intents predate that explicit field; retain their relationship
-    // only when an actual same-company heartbeat row still exists.
+    // only when an actual same-space heartbeat row still exists.
     const heartbeatReference = Object.hasOwn(operation.metadata, "creationHeartbeatRunId")
       ? operation.metadata.creationHeartbeatRunId : operation.runId;
     const [heartbeat] = typeof heartbeatReference === "string"
       ? await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-          eq(heartbeatRuns.id, heartbeatReference), eq(heartbeatRuns.companyId, operation.companyId),
+          eq(heartbeatRuns.id, heartbeatReference), eq(heartbeatRuns.spaceId, operation.spaceId),
         )).for("key share")
       : [];
     const heartbeatRunId = heartbeat?.id ?? null;
-    await notifyEnvironmentCleanup(tx, { companyId: operation.companyId, runId: heartbeatRunId ?? undefined });
+    await notifyEnvironmentCleanup(tx, { spaceId: operation.spaceId, runId: heartbeatRunId ?? undefined });
     const lease = await environmentService(tx as unknown as Db).insertPendingCleanupLease({
-      companyId: operation.companyId, environmentId: operation.originalEnvironmentId,
+      spaceId: operation.spaceId, environmentId: operation.originalEnvironmentId,
       heartbeatRunId, issueId: operation.issueId, executionWorkspaceId: operation.executionWorkspaceId,
       provider: operation.provider, providerLeaseId: input.providerLeaseId,
       metadata: { ...operation.metadata, creationOperationId: operation.id, environmentId: operation.originalEnvironmentId,
@@ -200,14 +200,14 @@ export async function recoverSandboxCreations(db: Db,
     try {
       if (candidate.metadata.runnerTaskLease === true && typeof candidate.metadata.runnerTaskCreationContextId === "string" &&
           typeof candidate.metadata.creationProviderLeaseId === "string") {
-        await queueSandboxCreationCleanup(db, { id: candidate.id, companyId: candidate.companyId,
+        await queueSandboxCreationCleanup(db, { id: candidate.id, spaceId: candidate.spaceId,
           environmentId: candidate.originalEnvironmentId, providerLeaseId: candidate.metadata.creationProviderLeaseId });
         if (recoverableTaskCreation(candidate)) await onTaskRecovered?.(candidate);
         continue;
       }
-      const [existingCompany] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, candidate.companyId)).limit(1);
-      const observation = existingCompany ? await inspect(candidate) : null;
-      if (existingCompany && recoverablePluginCreation(candidate) && observation?.creationLease) {
+      const [existingSpace] = await db.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, candidate.spaceId)).limit(1);
+      const observation = existingSpace ? await inspect(candidate) : null;
+      if (existingSpace && recoverablePluginCreation(candidate) && observation?.creationLease) {
         const lease = observation.creationLease;
         // The inspect call is scoped to this creation operation. Providers may
         // assign a different resource ID; require the receipt/envelope to agree,
@@ -216,50 +216,50 @@ export async function recoverSandboxCreations(db: Db,
             !lease.metadata || typeof lease.metadata !== "object" || Array.isArray(lease.metadata)) {
           throw new Error("Plugin allocation creation recovery returned foreign ownership");
         }
-        const identity = { id: candidate.id, companyId: candidate.companyId, environmentId: candidate.originalEnvironmentId,
+        const identity = { id: candidate.id, spaceId: candidate.spaceId, environmentId: candidate.originalEnvironmentId,
           providerLeaseId: lease.providerLeaseId, providerMetadata: lease.metadata };
         await recordSandboxCreationResource(db, identity);
         await queueSandboxCreationCleanup(db, identity);
         await onTaskRecovered?.(candidate);
         continue;
       }
-      if (existingCompany && candidate.metadata.purpose === "login" && observation?.state === "destroyed" && observation.providerLeaseId === candidate.id) {
+      if (existingSpace && candidate.metadata.purpose === "login" && observation?.state === "destroyed" && observation.providerLeaseId === candidate.id) {
         const settledAt = Date.parse(typeof candidate.metadata.creationSettleAt === "string" ? candidate.metadata.creationSettleAt : "");
         if (!Number.isFinite(settledAt) || Date.now() < settledAt) throw new Error("Login allocation creation has not settled yet");
         await writeEnvironmentCleanup(db, tx => tx.update(sandboxCreationOperations).set({ state: "resolved", updatedAt: new Date() })
-          .where(and(eq(sandboxCreationOperations.id, candidate.id), eq(sandboxCreationOperations.state, "pending"))), { companyId: candidate.companyId });
+          .where(and(eq(sandboxCreationOperations.id, candidate.id), eq(sandboxCreationOperations.state, "pending"))), { spaceId: candidate.spaceId });
         continue;
       }
-      if (existingCompany && recoverablePluginCreation(candidate)) throw new Error("Plugin allocation creation identity is not available yet");
+      if (existingSpace && recoverablePluginCreation(candidate)) throw new Error("Plugin allocation creation identity is not available yet");
       const cleanup = observation?.creationCleanup ? readEnvironmentCreationCleanupError({ data: {
-        schema: "paperclip/environment-creation-cleanup/v1", cleanup: observation.creationCleanup,
+        schema: "outpost/environment-creation-cleanup/v1", cleanup: observation.creationCleanup,
       } }) : null;
-      if (cleanup && (cleanup.companyId !== candidate.companyId || cleanup.environmentId !== candidate.originalEnvironmentId ||
+      if (cleanup && (cleanup.spaceId !== candidate.spaceId || cleanup.environmentId !== candidate.originalEnvironmentId ||
         cleanup.runId !== candidate.runId || cleanup.attemptId !== candidate.id || cleanup.providerLeaseId !== observation!.providerLeaseId)) {
         throw new Error("Sandbox creation recovery returned foreign ownership");
       }
       // An early lookup after a lost creator may precede provider materialization.
-      if (existingCompany && !cleanup && creationAbsenceInconclusive(candidate)) {
+      if (existingSpace && !cleanup && creationAbsenceInconclusive(candidate)) {
         throw new Error("Sandbox creation has not settled yet");
       }
       await db.transaction(async tx => {
-        const [company] = await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, candidate.companyId)).for("key share");
+        const [space] = await tx.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, candidate.spaceId)).for("key share");
         await tx.select({ id: environments.id }).from(environments).where(eq(environments.id, candidate.originalEnvironmentId)).for("update");
         const [operation] = await tx.select().from(sandboxCreationOperations)
           .where(eq(sandboxCreationOperations.id, candidate.id)).for("update");
         if (!operation || operation.state !== "pending") return;
-        await notifyEnvironmentCleanup(tx, { companyId: operation.companyId });
-        if (!company || !cleanup) {
-          logger.warn({ errorKind: "sandbox_creation_needs_reconciliation", operationId: operation.id, companyId: operation.companyId },
+        await notifyEnvironmentCleanup(tx, { spaceId: operation.spaceId });
+        if (!space || !cleanup) {
+          logger.warn({ errorKind: "sandbox_creation_needs_reconciliation", operationId: operation.id, spaceId: operation.spaceId },
             "Sandbox creation could not be identified; operator reconciliation is required");
           await tx.update(sandboxCreationOperations).set({ state: "needs_reconciliation", updatedAt: new Date(),
-            metadata: { ...operation.metadata, creationReconciliationReason: company ? "creation_identity_unavailable" : "company_deleted" },
+            metadata: { ...operation.metadata, creationReconciliationReason: space ? "creation_identity_unavailable" : "space_deleted" },
           })
             .where(eq(sandboxCreationOperations.id, operation.id));
           return;
         }
         const lease = await environmentService(tx as unknown as Db).insertPendingCleanupLease({
-          companyId: operation.companyId, environmentId: operation.originalEnvironmentId,
+          spaceId: operation.spaceId, environmentId: operation.originalEnvironmentId,
           provider: operation.provider, providerLeaseId: cleanup.providerLeaseId,
           metadata: { ...operation.metadata, creationOperationId: operation.id, failedCreateCleanup: cleanup },
           failureReason: "interrupted_sandbox_creation",
@@ -269,17 +269,17 @@ export async function recoverSandboxCreations(db: Db,
       });
     } catch {
       const retry = await db.transaction(async tx => {
-        const [company] = await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, candidate.companyId)).for("key share");
-        await notifyEnvironmentCleanup(tx, { companyId: candidate.companyId });
-        await tx.update(sandboxCreationOperations).set(company
+        const [space] = await tx.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, candidate.spaceId)).for("key share");
+        await notifyEnvironmentCleanup(tx, { spaceId: candidate.spaceId });
+        await tx.update(sandboxCreationOperations).set(space
           ? { nextAttemptAt: new Date(Date.now() + ENVIRONMENT_CLEANUP_RETRY_MS), updatedAt: new Date() }
           : { state: "needs_reconciliation", updatedAt: new Date(),
-            metadata: sql`coalesce(${sandboxCreationOperations.metadata}, '{}'::jsonb) || '{"creationReconciliationReason":"company_deleted"}'::jsonb` })
+            metadata: sql`coalesce(${sandboxCreationOperations.metadata}, '{}'::jsonb) || '{"creationReconciliationReason":"space_deleted"}'::jsonb` })
           .where(and(eq(sandboxCreationOperations.id, candidate.id), recoverableSandboxCreationCondition()));
-        return Boolean(company);
+        return Boolean(space);
       });
-      logger.warn({ errorKind: retry ? "sandbox_creation_recovery_failed" : "sandbox_creation_needs_reconciliation", operationId: candidate.id, companyId: candidate.companyId },
-        retry ? "Sandbox creation recovery will retry at its saved deadline" : "Sandbox creation company was deleted; operator reconciliation is required");
+      logger.warn({ errorKind: retry ? "sandbox_creation_recovery_failed" : "sandbox_creation_needs_reconciliation", operationId: candidate.id, spaceId: candidate.spaceId },
+        retry ? "Sandbox creation recovery will retry at its saved deadline" : "Sandbox creation space was deleted; operator reconciliation is required");
     }
   }
 }

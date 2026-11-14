@@ -28,18 +28,18 @@ function continuation(
   const decision = decideLegacyContinuation({
     run: {
       id: "run",
-      companyId: "company",
+      spaceId: "space",
       agentId: "agent",
       status: input.runStatus,
       runtimeMode: "legacy",
     } as DecisionInput["run"],
     issue: {
       id: "issue",
-      companyId: "company",
+      spaceId: "space",
       status: input.issue!.status,
       assigneeAgentId: "agent",
     },
-    agent: { id: "agent", companyId: "company", status: "idle" },
+    agent: { id: "agent", spaceId: "space", status: "idle" },
     episode: legacyDispositionEpisode({ id: "run", continuationAttempt: input.continuationAttempt ?? 0 }),
     gates: { stopped: false, paused: false, budgetBlocked: false, pendingWait: false,
       activeExecution: false, ownedLifecycle: false, conversation: false, agentInvokable: true },
@@ -154,12 +154,12 @@ describe("LCA narrative authority baseline", () => {
     ["budget", { gate: "budgetBlocked" }],
     ["duplicate", { gate: "activeExecution" }],
     [
-      "wrong-company",
-      { agent: { id: "agent", companyId: "other", status: "idle" } },
+      "wrong-space",
+      { agent: { id: "agent", spaceId: "other", status: "idle" } },
     ],
     [
       "paused-agent",
-      { agent: { id: "agent", companyId: "company", status: "paused" } },
+      { agent: { id: "agent", spaceId: "space", status: "paused" } },
     ],
   ] as const)(
     "LCA-10 LCA-12 legacy gate %s survives encouraging prose",

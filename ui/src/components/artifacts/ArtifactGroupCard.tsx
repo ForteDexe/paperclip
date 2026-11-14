@@ -1,13 +1,13 @@
 import { Layers } from "lucide-react";
 import type { To } from "react-router-dom";
-import type { CompanyArtifactGroup } from "@/api/artifacts";
+import type { SpaceArtifactGroup } from "@/api/artifacts";
 import { Link } from "@/lib/router";
 import { ArtifactPreview } from "@/components/artifacts/ArtifactCard";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 interface ArtifactGroupCardProps {
-  group: CompanyArtifactGroup;
+  group: SpaceArtifactGroup;
   /** Destination for opening this stack (preserves active filters/search). */
   to: To;
 }

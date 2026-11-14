@@ -6,13 +6,13 @@ const fixture = vi.hoisted(() => ({ interactions: [] as unknown[] }));
 vi.mock("../services/issue-thread-interactions.js", () => ({
   issueThreadInteractionService: () => ({ listForIssue: async () => fixture.interactions }),
 }));
-const binding = { version: 1, instanceId: "instance", companyId: "company", endpointId: "endpoint", connectionId: "connection",
+const binding = { version: 1, instanceId: "instance", spaceId: "space", endpointId: "endpoint", connectionId: "connection",
   publicId: "p".repeat(43), runtimeGeneration: 1, teamId: "TTEST", appId: "ATEST",
   eventBindingId: "slack-event:" + "a".repeat(64), credentialFingerprint: "b".repeat(64) };
 const { credentialFingerprint: _fingerprint, eventBindingId, ...identity } = binding;
 const enrollment = { ...identity, bindingId: eventBindingId };
 const scheduledIntent = { version: 1, id: "intent", active: true, subject: "actor", instanceId: "instance",
-  companyId: "company", endpointId: "endpoint", connectionId: "connection", publicId: binding.publicId,
+  spaceId: "space", endpointId: "endpoint", connectionId: "connection", publicId: binding.publicId,
   runtimeGeneration: 1, teamId: "TTEST", appId: "ATEST", attempts: 0, nextAttemptAt: "2030-01-01T00:00:00Z" };
 const confirmedSetup = { runtimeGeneration: 1, slackCloudInstanceId: "instance", slackCloudSubject: "actor",
   slackCloudEvents: { version: 1, runtimeGeneration: 1, bindingId: eventBindingId, teamId: "TTEST", appId: "ATEST" } };
@@ -22,7 +22,7 @@ function currentOwner() {
 }
 function inputs(setup: Record<string, unknown>, owners: unknown[] = []) {
   const endpoint: typeof chatEndpoints.$inferSelect = {
-    id: "endpoint", companyId: "company", connectionId: "connection", provider: "slack",
+    id: "endpoint", spaceId: "space", connectionId: "connection", provider: "slack",
     setup: { step: "provider_setup", ...setup }, status: "active", publicId: binding.publicId, providerAccountId: "TTEST",
     assignedAgentId: "agent", sponsorUserId: "actor", publicationMode: "automatic", externalExecutionPolicy: "restricted",
     deploymentMode: "direct", providerAccountLabel: null, botExternalId: null, botUsername: null, botDisplayName: null,
@@ -34,10 +34,10 @@ function inputs(setup: Record<string, unknown>, owners: unknown[] = []) {
     healthMessage: null, lastEventAt: null, lastPublicationAt: null, lastError: null, activatedAt: null, archivedAt: null,
     createdAt: new Date(0), updatedAt: new Date(0),
   };
-  const publication = { id: "publication", conversationId: "conversation", companyId: endpoint.companyId,
+  const publication = { id: "publication", conversationId: "conversation", spaceId: endpoint.spaceId,
     endpointId: endpoint.id, issueId: "issue", payload: { interactionId: "interaction" } } as typeof chatPublications.$inferSelect;
-  const connection = { id: "connection", companyId: "company", status: "active", enabled: true };
-  fixture.interactions = [{ id: "interaction", companyId: "company", issueId: "issue", status: "pending", kind: "ask_user_questions",
+  const connection = { id: "connection", spaceId: "space", status: "active", enabled: true };
+  fixture.interactions = [{ id: "interaction", spaceId: "space", issueId: "issue", status: "pending", kind: "ask_user_questions",
     payload: { version: 1, title: "Choose", questions: ["first", "second"].map(id => ({ id, prompt: "Choose",
       selectionMode: "single", options: [{ id: "a", label: "A" }] })) } }];
   const select = vi.fn((columns?: unknown) => ({ from: (table: unknown) => ({ where: () => ({ limit: async () =>
@@ -101,13 +101,13 @@ describe("Slack form publication enrollment readiness", () => {
         fault === "missing" ? [] : fault === "ambiguous" ? [owner, { ...owner, id: "duplicate" }] : [owner]);
       await expect(f.prepare(f.endpoint, f.publication)).rejects.toMatchObject({ code: "form_publication_enrollment_pending", disposition: "retry" });
     });
-  it.each(["attention", "inactive", "generation", "company", "retired", "connection"] as const)(
+  it.each(["attention", "inactive", "generation", "space", "retired", "connection"] as const)(
     "does not grant budget-free polling to a %s events intent", async fault => {
       const intent = { ...scheduledIntent, nextAttemptAt: scheduledIntent.nextAttemptAt as string | null };
       if (fault === "attention") intent.nextAttemptAt = null;
       if (fault === "inactive") intent.active = false;
       if (fault === "generation") intent.runtimeGeneration = 2;
-      if (fault === "company") intent.companyId = "foreign";
+      if (fault === "space") intent.spaceId = "foreign";
       const f = inputs({ slackCloudInstanceId: "instance", runtimeGeneration: 1, slackCloudIntent: intent,
         ...(fault === "retired" ? { slackCloudRetiredGeneration: 1 } : {}) });
       if (fault === "connection") f.connection.enabled = false;

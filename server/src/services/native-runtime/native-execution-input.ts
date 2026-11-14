@@ -1,5 +1,5 @@
-import type { PaperclipTurnContext } from "@outpost/adapter-utils/server-utils";
-import { resolvePaperclipRunnerCursorMode, resolvePaperclipRunnerPiThinkingLevel } from "@outpost/adapter-utils";
+import type { OutpostTurnContext } from "@outpost/adapter-utils/server-utils";
+import { resolveOutpostRunnerCursorMode, resolveOutpostRunnerPiThinkingLevel } from "@outpost/adapter-utils";
 import { createHash } from "node:crypto";
 import { buildNativeContinuationPrompt } from "./native-continuation.js";
 import {
@@ -34,20 +34,20 @@ import {
   resolveQualifiedAcpxProfile,
 } from "../../vendor/outpost-runner/index.js";
 import {
-  isPaperclipExternalChatContractTurn,
-  isPaperclipExternalChatQuestionResponseTurn,
-  selectPaperclipPromptSections,
+  isOutpostExternalChatContractTurn,
+  isOutpostExternalChatQuestionResponseTurn,
+  selectOutpostPromptSections,
 } from "@outpost/adapter-utils/server-utils";
 
 const NATIVE_GITHUB_ATTACHMENT_RECOVERY_GUIDANCE = [
   "## GitHub attachment recovery navigation",
-  "Outpost owns recovery navigation for unavailable GitHub attachments. It may append an authenticated task link after an accepted response, only when the current source remains authorized and a safe configured Board URL is available. The model does not select or authorize that link.",
+  "Outpost owns recovery navigation for unavailable GitHub attachments. It may append an authenticated task link after an accepted response, only when the current source remains authorized and a safe configured Operator URL is available. The model does not select or authorize that link.",
   "A task URL missing from your prompt or tool results is not evidence that no task link can be provided; do not claim that a link is unavailable merely because you cannot see its URL. Do not invent a URL or promise that a link will appear. Briefly explain the unavailable input and ask the user to attach it directly to this Outpost task or paste the needed text. Never infer the file's contents or substitute an older file.",
 ].join("\n");
 
 /** Closed constructor: callers cannot spread legacy context or environment data. */
 export interface BuildNativeExecutionInput {
-  companyId: string;
+  spaceId: string;
   runId: string;
   issue: {
     id: string;
@@ -61,7 +61,7 @@ export interface BuildNativeExecutionInput {
   /** Bounded, redacted background restored only after a fresh provider bootstrap. */
   freshSessionHandoff?: string | null;
   /**
-   * The already-sanitized Paperclip wake envelope for this run. Native drivers
+   * The already-sanitized Outpost wake envelope for this run. Native drivers
    * receive a closed execution input rather than the legacy adapter context,
    * so the constructor must deliberately project the same bounded wake delta
    * that legacy adapters place in their provider prompt.
@@ -77,7 +77,7 @@ export interface BuildNativeExecutionInput {
     task: { title: string; description: string | null };
     githubReviewConfigurationKeys?: string[];
     nativeExecutionInput?: {
-      binding: { companyId: string; runId: string; issueId: string; agentId: string };
+      binding: { spaceId: string; runId: string; issueId: string; agentId: string };
       session: { normalizedSessionId: string | null };
       task: { prompt: string };
       continuationPrompt?: string | null;
@@ -148,8 +148,8 @@ export function buildNativeExecutionInput(input: BuildNativeExecutionInput): Nat
   if (input.issue.workMode !== "standard" && input.issue.workMode !== "planning" && input.issue.workMode !== "ask" && input.issue.workMode !== "skill_test") {
     throw new Error("native_execution_input_invalid: issue work mode must be standard, planning, ask, or skill_test");
   }
-  const mode = resolvePaperclipRunnerCursorMode(input.provider, input.acpxAgent, input.acpxSessionMode);
-  const piThinkingLevel = resolvePaperclipRunnerPiThinkingLevel(input.provider, input.acpxAgent, input.piThinkingLevel);
+  const mode = resolveOutpostRunnerCursorMode(input.provider, input.acpxAgent, input.acpxSessionMode);
+  const piThinkingLevel = resolveOutpostRunnerPiThinkingLevel(input.provider, input.acpxAgent, input.piThinkingLevel);
   const executionMode = input.executionMode
     ?? (input.issue.workMode === "planning" ? "plan" : "default");
   const acpxProfile = input.provider === "acpx"
@@ -211,9 +211,9 @@ export function buildNativeExecutionInput(input: BuildNativeExecutionInput): Nat
   const caseMarkdown = caseExecutionMarkdown(input.caseContext ?? null);
   const assignmentPrompt = caseMarkdown && !input.taskPrompt.includes(caseMarkdown)
     ? caseMarkdown + input.taskPrompt : input.taskPrompt;
-  const { taskContextNote, wakePrompt } = selectPaperclipPromptSections({
-    paperclipTaskMarkdownAssignment: assignmentPrompt,
-    paperclipWake: bootstrapWakePayload,
+  const { taskContextNote, wakePrompt } = selectOutpostPromptSections({
+    outpostTaskMarkdownAssignment: assignmentPrompt,
+    outpostWake: bootstrapWakePayload,
     conversationMode: input.conversationMode,
   }, {
     resumedSession: false,
@@ -221,8 +221,8 @@ export function buildNativeExecutionInput(input: BuildNativeExecutionInput): Nat
     nativeWakeReaderAvailable: true,
   });
   const externalChatTurn =
-    isPaperclipExternalChatContractTurn(wakePayload) ||
-    isPaperclipExternalChatQuestionResponseTurn(wakePayload);
+    isOutpostExternalChatContractTurn(wakePayload) ||
+    isOutpostExternalChatQuestionResponseTurn(wakePayload);
   const configuredGitHubSkillKeys = new Set(input.githubInstructionSkillKeys ?? []);
   const configuredGitHubSkills = externalChatTurn && wake?.externalChatProvider === "github"
     ? input.runtimeContext.skills.filter((skill) => configuredGitHubSkillKeys.has(skill.key))
@@ -249,7 +249,7 @@ export function buildNativeExecutionInput(input: BuildNativeExecutionInput): Nat
     : [];
   const previousExecution = input.previousTurn?.nativeExecutionInput;
   const previousCaseProjection = previousExecution && input.previousTurn && input.normalizedSessionId &&
-    previousExecution.binding.companyId === input.companyId &&
+    previousExecution.binding.spaceId === input.spaceId &&
     previousExecution.binding.agentId === input.agentId &&
     previousExecution.binding.issueId === input.issue.id &&
     previousExecution.binding.runId === input.previousTurn.runId &&
@@ -273,7 +273,7 @@ export function buildNativeExecutionInput(input: BuildNativeExecutionInput): Nat
         previousGitHubReviewConfigurationKeys: input.previousTurn.githubReviewConfigurationKeys,
         allowExternalChat: true,
         issue: input.issue,
-        // A stored paperclipCase alone does not prove that the provider ever
+        // A stored outpostCase alone does not prove that the provider ever
         // received it. Old/unknown projections take the full bootstrap path.
         caseContext: input.caseContext,
         workflowCase,
@@ -282,7 +282,7 @@ export function buildNativeExecutionInput(input: BuildNativeExecutionInput): Nat
     executionMode,
     planningContext: input.planningContext ?? null,
     binding: {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       runId: input.runId,
       issueId: input.issue.id,
       agentId: input.agentId,
@@ -407,7 +407,7 @@ function verifiedCompletionSources(
   sources: Array<{ id: string; source: NativeCompletionSource }>,
 ): Array<{ id: string; source: NativeCompletionSource }> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-  const context = value as Partial<PaperclipTurnContext>;
+  const context = value as Partial<OutpostTurnContext>;
   if (context.version !== 1) return [];
   return sources.filter(({ source }) => {
     if (source.kind === "description") {

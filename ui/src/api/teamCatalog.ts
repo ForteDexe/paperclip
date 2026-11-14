@@ -36,22 +36,22 @@ export const teamCatalogApi = {
   },
   catalogDetail: (catalogRef: string) =>
     api.get<CatalogTeam>(`/teams/catalog/${encodeURIComponent(catalogRef)}`),
-  installed: (companyId: string) =>
+  installed: (spaceId: string) =>
     api.get<InstalledCatalogTeam[]>(
-      `/companies/${encodeURIComponent(companyId)}/teams/catalog/installed`,
+      `/spaces/${encodeURIComponent(spaceId)}/teams/catalog/installed`,
     ),
   catalogFile: (catalogRef: string, relativePath = "TEAM.md") =>
     api.get<CatalogTeamFileDetail>(
       `/teams/catalog/${encodeURIComponent(catalogRef)}/files?path=${encodeURIComponent(relativePath)}`,
     ),
-  preview: (companyId: string, catalogRef: string, options: CatalogTeamImportOptions = {}) =>
+  preview: (spaceId: string, catalogRef: string, options: CatalogTeamImportOptions = {}) =>
     api.post<CatalogTeamImportPreviewResult>(
-      `/companies/${encodeURIComponent(companyId)}/teams/catalog/${encodeURIComponent(catalogRef)}/preview`,
+      `/spaces/${encodeURIComponent(spaceId)}/teams/catalog/${encodeURIComponent(catalogRef)}/preview`,
       options,
     ),
-  install: (companyId: string, catalogRef: string, options: CatalogTeamInstallOptions = {}) =>
+  install: (spaceId: string, catalogRef: string, options: CatalogTeamInstallOptions = {}) =>
     api.post<CatalogTeamInstallResult>(
-      `/companies/${encodeURIComponent(companyId)}/teams/catalog/${encodeURIComponent(catalogRef)}/install`,
+      `/spaces/${encodeURIComponent(spaceId)}/teams/catalog/${encodeURIComponent(catalogRef)}/install`,
       options,
     ),
 };

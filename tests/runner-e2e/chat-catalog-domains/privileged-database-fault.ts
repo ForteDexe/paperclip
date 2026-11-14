@@ -5,7 +5,7 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { getPostgresDataDirectory, closeRegisteredClients } from "../../../packages/db/src/index.js";
 import { databaseCheck } from "../../../cli/src/checks/database-check.js";
-import type { PaperclipConfig } from "../../../packages/shared/src/config-schema.js";
+import type { OutpostConfig } from "../../../packages/shared/src/config-schema.js";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 import { prepareOwnedDockerDatabase } from "./privileged-docker-database.js";
 const execute = promisify(execFile);
@@ -23,7 +23,7 @@ export async function prepareOwnedDatabaseFault(ctx: ChatCatalogContext) {
   if (!temp || !configPath) throw new Error("Database fault requires the launcher's private owned config");
   const root = await realpath(temp), configFile = await realpath(configPath);
   if (!configFile.startsWith(root + path.sep)) throw new Error("Database fault config is outside its owned attempt");
-  const config = JSON.parse(await readFile(configFile, "utf8")) as PaperclipConfig;
+  const config = JSON.parse(await readFile(configFile, "utf8")) as OutpostConfig;
   if (config.database.mode === "postgres") {
     const docker = await prepareOwnedDockerDatabase(root, configFile);
     if (!ctx.input.privateSecrets) throw new Error("Owned Docker fault requires a private redaction sink");
@@ -43,7 +43,7 @@ export async function prepareOwnedDatabaseFault(ctx: ChatCatalogContext) {
   if (!directory.startsWith(root + path.sep) || (await stat(directory)).uid !== process.getuid?.()) throw new Error("Database directory owner differs from the current attempt owner");
   const port = config.database.embeddedPostgresPort;
   if (!Number.isSafeInteger(port) || !port || port < 1) throw new Error("Owned PostgreSQL port is invalid");
-  const connection = `postgres://paperclip:paperclip@127.0.0.1:${port}/paperclip`;
+  const connection = `postgres://outpost:outpost@127.0.0.1:${port}/outpost`;
   if (await getPostgresDataDirectory(connection) !== directory) throw new Error("Live database directory differs from the owned config");
   ctx.input.privateSecrets?.push(connection);
   const initial = (await readFile(path.join(directory, "postmaster.pid"), "utf8")).split("\n");

@@ -427,7 +427,7 @@ async function verifyLiveRunnerAdoption(
       }, { timeout: 5_000 });
       if (pendingCompletion) {
         expect(recoveredTool).not.toHaveBeenCalled();
-        expect(redispatchedTool).toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ tool: "paperclip_finish" }) }));
+        expect(redispatchedTool).toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ tool: "outpost_finish" }) }));
       } else expect(redispatchedTool).not.toHaveBeenCalled();
     }
     expect(adopted.evidence().runnerPid).toBe(runnerPid);

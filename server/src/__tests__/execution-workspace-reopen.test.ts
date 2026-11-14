@@ -13,9 +13,9 @@ import {
   activityLog,
   agents,
   authUsers,
-  companyMemberships,
+  spaceMemberships,
   issueAccessGrants,
-  companies,
+  spaces,
   createDb,
   executionWorkspaces,
   issues,
@@ -53,7 +53,7 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   const tempDirs: string[] = [];
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-reopen-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-reopen-");
     db = createDb(tempDb.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
@@ -63,9 +63,9 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     await db.delete(executionWorkspaces);
     await db.delete(projectWorkspaces);
     await db.delete(projects);
-    await db.delete(companyMemberships);
+    await db.delete(spaceMemberships);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     await db.delete(authUsers);
     await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   });
@@ -75,41 +75,41 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   });
 
   async function makeExistingDir(): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), "paperclip-reopen-cwd-"));
+    const dir = await mkdtemp(join(tmpdir(), "outpost-reopen-cwd-"));
     tempDirs.push(dir);
     return dir;
   }
 
-  async function seedCompanyProject() {
-    const companyId = randomUUID();
+  async function seedSpaceProject() {
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `PAP-${companyId.slice(0, 8)}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `PAP-${spaceId.slice(0, 8)}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Reopen project",
       status: "in_progress",
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       sourceType: "local_path",
-      cwd: "/tmp/paperclip-reopen-project",
+      cwd: "/tmp/outpost-reopen-project",
       isPrimary: true,
     });
-    return { companyId, projectId, projectWorkspaceId };
+    return { spaceId, projectId, projectWorkspaceId };
   }
 
   async function seedClosedWorkspace(input: {
-    companyId: string;
+    spaceId: string;
     projectId: string;
     projectWorkspaceId: string;
     cwd: string;
@@ -120,7 +120,7 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     const closed = (input.status ?? "archived") !== "active";
     await db.insert(executionWorkspaces).values({
       id: workspaceId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       projectId: input.projectId,
       projectWorkspaceId: input.projectWorkspaceId,
       mode: "isolated_workspace",
@@ -141,41 +141,41 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     return workspaceId;
   }
 
-  // Seed a company and project whose primary project workspace has a null cwd.
+  // Seed a space and project whose primary project workspace has a null cwd.
   // This models a managed_checkout project: the base is not a local folder, so
   // the live managed checkout supplies the base path at rebuild time.
   async function seedManagedCheckoutProject() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `PAP-${companyId.slice(0, 8)}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `PAP-${spaceId.slice(0, 8)}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Managed checkout project",
       status: "in_progress",
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       sourceType: "managed_checkout",
       cwd: null,
       isPrimary: true,
     });
-    return { companyId, projectId, projectWorkspaceId };
+    return { spaceId, projectId, projectWorkspaceId };
   }
 
   // Seed one closed isolated git_worktree row. The reaper already removed the
   // worktree directory, so cwd points at a path that is not on disk.
   async function seedClosedGitWorktreeWorkspace(input: {
-    companyId: string;
+    spaceId: string;
     projectId: string;
     projectWorkspaceId: string;
     cwd: string;
@@ -185,7 +185,7 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     const workspaceId = randomUUID();
     await db.insert(executionWorkspaces).values({
       id: workspaceId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       projectId: input.projectId,
       projectWorkspaceId: input.projectWorkspaceId,
       mode: "isolated_workspace",
@@ -232,7 +232,7 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   }
 
   async function seedIssue(input: {
-    companyId: string;
+    spaceId: string;
     projectId: string;
     workspaceId: string;
     issueNumber: number;
@@ -240,7 +240,7 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     const issueId = randomUUID();
     await db.insert(issues).values({
       id: issueId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       projectId: input.projectId,
       identifier: `PAP-${input.issueNumber}`,
       issueNumber: input.issueNumber,
@@ -262,7 +262,7 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
 
   describe.each(["configured", "builtin"] as const)("reopen %s host provision containment", kind => {
     it.each(["task", "agent", "organization", "source", "same-source", "trusted", "explicit", "projectless", "nondefault", "foreign-source-task", "retained-missing", "retained-false", "retained-null"] as const)("honors persisted %s policy before running repository scripts", async restriction => {
-      const { companyId, projectId, projectWorkspaceId } = await seedCompanyProject();
+      const { spaceId, projectId, projectWorkspaceId } = await seedSpaceProject();
       const directory = await makeExistingDir();
       const base = join(directory, "source"), target = join(directory, "target"), marker = join(directory, "host-provision-ran");
       initManagedGitRepo(base, "reopen-feature");
@@ -273,22 +273,22 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
         env: { ...process.env, GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "test@example.com", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "test@example.com" } });
       git("add", "scripts"); git("commit", "-m", "Host provision fixture"); git("branch", "-f", "reopen-feature", "HEAD");
       await db.update(projectWorkspaces).set({ cwd: base }).where(eq(projectWorkspaces.id, projectWorkspaceId));
-      const workspaceId = await seedClosedGitWorktreeWorkspace({ companyId, projectId, projectWorkspaceId,
+      const workspaceId = await seedClosedGitWorktreeWorkspace({ spaceId, projectId, projectWorkspaceId,
         cwd: target, repoUrl: pathToFileURL(base).href, branchName: "reopen-feature" });
       if (kind === "configured") await db.update(executionWorkspaces).set({ metadata: {
         [EXECUTION_WORKSPACE_LIFECYCLE_GENERATION_METADATA_KEY]: 1, config: { provisionCommand: command },
       } }).where(eq(executionWorkspaces.id, workspaceId));
-      const issueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4199 });
+      const issueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4199 });
       let organizationId: string | null = restriction === "projectless" ? null : projectId;
       if (restriction === "organization") {
         organizationId = randomUUID();
-        await db.insert(projects).values({ id: organizationId, companyId, name: "Organizational policy" });
+        await db.insert(projects).values({ id: organizationId, spaceId, name: "Organizational policy" });
       }
       const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustPreset: "low_trust_review",
-        trustBoundary: { mode: "low_trust_review", companyId, rootIssueId: issueId,
+        trustBoundary: { mode: "low_trust_review", spaceId, rootIssueId: issueId,
           projectIds: [...new Set([projectId, ...(organizationId ? [organizationId] : [])])] } } };
       const agentId = randomUUID();
-      await db.insert(agents).values({ id: agentId, companyId, name: "Reopen assignee",
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Reopen assignee",
         permissions: restriction === "agent" ? policy : {} });
       await db.update(issues).set({ projectId: organizationId, assigneeAgentId: agentId,
         executionPolicy: restriction === "task" ? policy : null }).where(eq(issues.id, issueId));
@@ -303,11 +303,11 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
       }
       if (restriction === "nondefault") {
         await db.update(projectWorkspaces).set({ isPrimary: false }).where(eq(projectWorkspaces.id, projectWorkspaceId));
-        await db.insert(projectWorkspaces).values({ companyId, projectId, name: "Earlier default",
+        await db.insert(projectWorkspaces).values({ spaceId, projectId, name: "Earlier default",
           sourceType: "local_path", cwd: base, isPrimary: true, createdAt: new Date(0) });
       }
       if (restriction === "foreign-source-task") {
-        const sourceIssueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4198 });
+        const sourceIssueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4198 });
         await db.update(executionWorkspaces).set({ sourceIssueId }).where(eq(executionWorkspaces.id, workspaceId));
       }
       if (restriction.startsWith("retained-")) {
@@ -322,9 +322,9 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
         expect((await readWorkspace(workspaceId))?.metadata).toMatchObject({ _controllerProvisionCopyOnly: true });
       }
       const result = await executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({
-        workspaceId, issue: { id: issueId, companyId, projectId: organizationId },
+        workspaceId, issue: { id: issueId, spaceId, projectId: organizationId },
         actor: { agentId: null, actorType: "user" },
-        authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true },
+        authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true },
       });
       expect(result).toMatchObject({ ok: true, reopened: true });
       await expect(readFile(join(target, "README.md"), "utf8")).resolves.toBe("seed\n");
@@ -339,19 +339,19 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   });
 
   it("reopens the archived row in place, keeps the issue link, and raises the generation", async () => {
-    const { companyId, projectId, projectWorkspaceId } = await seedCompanyProject();
+    const { spaceId, projectId, projectWorkspaceId } = await seedSpaceProject();
     const cwd = await makeExistingDir();
-    const workspaceId = await seedClosedWorkspace({ companyId, projectId, projectWorkspaceId, cwd, generation: 3 });
-    const issueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4100 });
+    const workspaceId = await seedClosedWorkspace({ spaceId, projectId, projectWorkspaceId, cwd, generation: 3 });
+    const issueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4100 });
 
     const svc = executionWorkspaceService(db);
     const events: string[] = [];
     const unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.terminalWorkspaces, event => events.push(event));
     const result = await svc.reopenClosedIsolatedExecutionWorkspaceForIssue({
       workspaceId,
-      issue: { id: issueId, companyId, projectId },
+      issue: { id: issueId, spaceId, projectId },
       actor: { agentId: null, actorType: "user" },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true },
     }).finally(unsubscribe);
 
     expect(events).toEqual(["intent", "settled"]);
@@ -375,34 +375,34 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   });
 
   it("reopens the persisted source after the task leaves its organizational project", async () => {
-    const { companyId, projectId, projectWorkspaceId } = await seedCompanyProject();
+    const { spaceId, projectId, projectWorkspaceId } = await seedSpaceProject();
     const cwd = await makeExistingDir();
-    const workspaceId = await seedClosedWorkspace({ companyId, projectId, projectWorkspaceId, cwd });
-    const issueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4105 });
+    const workspaceId = await seedClosedWorkspace({ spaceId, projectId, projectWorkspaceId, cwd });
+    const issueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4105 });
     await db.update(issues).set({ projectId: null }).where(eq(issues.id, issueId));
     const result = await executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({
       workspaceId,
-      issue: { id: issueId, companyId, projectId: null },
+      issue: { id: issueId, spaceId, projectId: null },
       actor: { agentId: null, actorType: "user" },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true },
     });
     expect(result.ok).toBe(true);
     expect((await readWorkspace(workspaceId))?.projectId).toBe(projectId);
   });
 
   it("keeps access for every issue that shares the reopened row", async () => {
-    const { companyId, projectId, projectWorkspaceId } = await seedCompanyProject();
+    const { spaceId, projectId, projectWorkspaceId } = await seedSpaceProject();
     const cwd = await makeExistingDir();
-    const workspaceId = await seedClosedWorkspace({ companyId, projectId, projectWorkspaceId, cwd });
-    const firstIssueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4101 });
-    const secondIssueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4102 });
+    const workspaceId = await seedClosedWorkspace({ spaceId, projectId, projectWorkspaceId, cwd });
+    const firstIssueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4101 });
+    const secondIssueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4102 });
 
     const svc = executionWorkspaceService(db);
     const result = await svc.reopenClosedIsolatedExecutionWorkspaceForIssue({
       workspaceId,
-      issue: { id: firstIssueId, companyId, projectId },
+      issue: { id: firstIssueId, spaceId, projectId },
       actor: { agentId: null, actorType: "user" },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true },
     });
     expect(result.ok).toBe(true);
 
@@ -416,24 +416,24 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   });
 
   it("fails closed and keeps the row closed when the rebuild fails", async () => {
-    const { companyId, projectId, projectWorkspaceId } = await seedCompanyProject();
+    const { spaceId, projectId, projectWorkspaceId } = await seedSpaceProject();
     // A directory that does not exist. The project_primary rebuild returns null.
-    const missingDir = join(tmpdir(), `paperclip-reopen-missing-${randomUUID()}`);
+    const missingDir = join(tmpdir(), `outpost-reopen-missing-${randomUUID()}`);
     const workspaceId = await seedClosedWorkspace({
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       cwd: missingDir,
       generation: 2,
     });
-    const issueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4103 });
+    const issueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4103 });
 
     const svc = executionWorkspaceService(db);
     const result = await svc.reopenClosedIsolatedExecutionWorkspaceForIssue({
       workspaceId,
-      issue: { id: issueId, companyId, projectId },
+      issue: { id: issueId, spaceId, projectId },
       actor: { agentId: null, actorType: "user" },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true },
     });
 
     expect(result.ok).toBe(false);
@@ -451,35 +451,35 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
 
   it("resolves the managed base checkout for a git_worktree row when the project workspace cwd is null", async () => {
     const previousHome = process.env.OUTPOST_HOME;
-    const tempHome = await mkdtemp(join(tmpdir(), "paperclip-reopen-home-"));
+    const tempHome = await mkdtemp(join(tmpdir(), "outpost-reopen-home-"));
     tempDirs.push(tempHome);
     process.env.OUTPOST_HOME = tempHome;
     try {
-      const { companyId, projectId, projectWorkspaceId } = await seedManagedCheckoutProject();
+      const { spaceId, projectId, projectWorkspaceId } = await seedManagedCheckoutProject();
       const repoUrl = "https://example.test/acme/widget.git";
       const branchName = "reopen-feature";
       // Build the live managed checkout that the rebuild must spawn git in.
-      const managedDir = resolveManagedProjectWorkspaceDir({ companyId, projectId, repoName: "widget" });
+      const managedDir = resolveManagedProjectWorkspaceDir({ spaceId, projectId, repoName: "widget" });
       initManagedGitRepo(managedDir, branchName);
 
       // The archived worktree path. The reaper already removed it from disk.
       const deletedWorktree = join(tempHome, "worktrees", "reopen-worktree");
       const workspaceId = await seedClosedGitWorktreeWorkspace({
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         cwd: deletedWorktree,
         repoUrl,
         branchName,
       });
-      const issueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4305 });
+      const issueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4305 });
 
       const svc = executionWorkspaceService(db);
       const result = await svc.reopenClosedIsolatedExecutionWorkspaceForIssue({
         workspaceId,
-        issue: { id: issueId, companyId, projectId },
+        issue: { id: issueId, spaceId, projectId },
         actor: { agentId: null, actorType: "user" },
-        authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true },
+        authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true },
       });
 
       expect(result.ok).toBe(true);
@@ -501,7 +501,7 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   });
 
   it("reopens from a configured repository subdirectory using its concrete Git root", async () => {
-    const { companyId, projectId, projectWorkspaceId } = await seedCompanyProject();
+    const { spaceId, projectId, projectWorkspaceId } = await seedSpaceProject();
     const directory = await makeExistingDir();
     const source = join(directory, "source");
     const nested = join(source, "nested");
@@ -509,12 +509,12 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     initManagedGitRepo(source, "reopen-nested");
     mkdirSync(nested);
     await db.update(projectWorkspaces).set({ cwd: nested }).where(eq(projectWorkspaces.id, projectWorkspaceId));
-    const workspaceId = await seedClosedGitWorktreeWorkspace({ companyId, projectId, projectWorkspaceId,
+    const workspaceId = await seedClosedGitWorktreeWorkspace({ spaceId, projectId, projectWorkspaceId,
       cwd: target, repoUrl: pathToFileURL(source).href, branchName: "reopen-nested" });
-    const issueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4900 });
+    const issueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4900 });
     const reopened = await executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({ workspaceId,
-      issue: { id: issueId, companyId, projectId }, actor: { agentId: null, actorType: "user" },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true },
+      issue: { id: issueId, spaceId, projectId }, actor: { agentId: null, actorType: "user" },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true },
     });
     expect(reopened).toMatchObject({ ok: true, reopened: true });
     expect((await stat(target)).isDirectory()).toBe(true);
@@ -529,11 +529,11 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     process.env.OUTPOST_HOME = home;
     process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
     try {
-      const { companyId, projectId, projectWorkspaceId } = await seedManagedCheckoutProject();
+      const { spaceId, projectId, projectWorkspaceId } = await seedManagedCheckoutProject();
       const readerId = randomUUID();
       await db.insert(authUsers).values({ id: readerId, name: "Reader", email: `${readerId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-      await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: readerId, status: "active", membershipRole: "member" });
-      const authorizationActor = { type: "board" as const, source: "session" as const, userId: readerId, companyIds: [companyId], isInstanceAdmin: false };
+      await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: readerId, status: "active", membershipRole: "member" });
+      const authorizationActor = { type: "operator" as const, source: "session" as const, userId: readerId, spaceIds: [spaceId], isInstanceAdmin: false };
       const source = join(home, "private-source"), target = join(home, "worktree-copy");
       initManagedGitRepo(source, "reopen-feature");
       writeFileSync(join(source, "private.txt"), "PRIVATE_REOPEN_BYTES");
@@ -543,17 +543,17 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
       const repoUrl = pathToFileURL(source).href;
       await db.update(projectWorkspaces).set({ repoUrl }).where(eq(projectWorkspaces.id, projectWorkspaceId));
       const privateIssueId = randomUUID();
-      await db.insert(issues).values({ id: privateIssueId, companyId, title: "Private source", visibility: "private", status: "todo", responsibleUserId: "another-owner" });
-      await db.insert(executionWorkspaces).values({ companyId, projectId: null, sourceIssueId: privateIssueId, name: "Private owner", mode: "shared_workspace", strategyType: "project_primary", cwd: source, providerType: "local_fs", status: "active" });
-      const workspaceId = await seedClosedGitWorktreeWorkspace({ companyId, projectId, projectWorkspaceId, cwd: target, repoUrl, branchName: "reopen-feature" });
+      await db.insert(issues).values({ id: privateIssueId, spaceId, title: "Private source", visibility: "private", status: "todo", responsibleUserId: "another-owner" });
+      await db.insert(executionWorkspaces).values({ spaceId, projectId: null, sourceIssueId: privateIssueId, name: "Private owner", mode: "shared_workspace", strategyType: "project_primary", cwd: source, providerType: "local_fs", status: "active" });
+      const workspaceId = await seedClosedGitWorktreeWorkspace({ spaceId, projectId, projectWorkspaceId, cwd: target, repoUrl, branchName: "reopen-feature" });
       if (!provisionFails && !revokeDuringProvision) {
         await db.update(executionWorkspaces).set({ sourceIssueId: privateIssueId }).where(eq(executionWorkspaces.id, workspaceId));
       }
       const waitingProvision = `node -e 'const fs = require("node:fs"); fs.writeFileSync("dirty.txt", "DIRTY_REOPEN_BYTES"); fs.writeFileSync("provision-started", "ready"); const deadline = Date.now() + 15000; const timer = setInterval(() => { if (fs.existsSync("provision-continue")) { clearInterval(timer); process.exit(0); } if (Date.now() > deadline) process.exit(2); }, 20);'`;
       if (provisionFails || revokeDuringProvision) await db.update(executionWorkspaces).set({ metadata: { [EXECUTION_WORKSPACE_LIFECYCLE_GENERATION_METADATA_KEY]: 1, config: { provisionCommand: provisionFails ? "exit 42" : waitingProvision } } }).where(eq(executionWorkspaces.id, workspaceId));
-      const issueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4901 });
+      const issueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4901 });
       if (revokeDuringProvision) await db.update(issues).set({ status: "done" }).where(eq(issues.id, issueId));
-      const reopen = () => executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({ workspaceId, issue: { id: issueId, companyId, projectId }, actor: { actorType: "user", agentId: null }, authorizationActor });
+      const reopen = () => executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({ workspaceId, issue: { id: issueId, spaceId, projectId }, actor: { actorType: "user", agentId: null }, authorizationActor });
       const attempt = revokeDuringProvision ? reopen() : null;
       if (attempt) {
         try {
@@ -582,12 +582,12 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     }
   }, 30_000);
 
-  it("refuses to reopen a workspace in another company", async () => {
-    const first = await seedCompanyProject();
-    const second = await seedCompanyProject();
+  it("refuses to reopen a workspace in another space", async () => {
+    const first = await seedSpaceProject();
+    const second = await seedSpaceProject();
     const cwd = await makeExistingDir();
     const workspaceId = await seedClosedWorkspace({
-      companyId: first.companyId,
+      spaceId: first.spaceId,
       projectId: first.projectId,
       projectWorkspaceId: first.projectWorkspaceId,
       cwd,
@@ -596,10 +596,10 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     const svc = executionWorkspaceService(db);
     const result = await svc.reopenClosedIsolatedExecutionWorkspaceForIssue({
       workspaceId,
-      // The issue belongs to a different company than the workspace.
-      issue: { id: randomUUID(), companyId: second.companyId, projectId: second.projectId },
+      // The issue belongs to a different space than the workspace.
+      issue: { id: randomUUID(), spaceId: second.spaceId, projectId: second.projectId },
       actor: { agentId: null, actorType: "user" },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true },
     });
 
     expect(result.ok).toBe(false);
@@ -611,24 +611,24 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   });
 
   it("reports success without a rebuild when the workspace is already active", async () => {
-    const { companyId, projectId, projectWorkspaceId } = await seedCompanyProject();
+    const { spaceId, projectId, projectWorkspaceId } = await seedSpaceProject();
     const cwd = await makeExistingDir();
     const workspaceId = await seedClosedWorkspace({
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       cwd,
       status: "active",
       generation: 5,
     });
-    const issueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4104 });
+    const issueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4104 });
 
     const svc = executionWorkspaceService(db);
     const result = await svc.reopenClosedIsolatedExecutionWorkspaceForIssue({
       workspaceId,
-      issue: { id: issueId, companyId, projectId },
+      issue: { id: issueId, spaceId, projectId },
       actor: { agentId: null, actorType: "user" },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true },
     });
 
     expect(result.ok).toBe(true);
@@ -641,9 +641,9 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   });
 
   it("runs the destroy under the fence when the generation matches, and skips it after a reopen", async () => {
-    const { companyId, projectId, projectWorkspaceId } = await seedCompanyProject();
+    const { spaceId, projectId, projectWorkspaceId } = await seedSpaceProject();
     const cwd = await makeExistingDir();
-    const workspaceId = await seedClosedWorkspace({ companyId, projectId, projectWorkspaceId, cwd, generation: 7 });
+    const workspaceId = await seedClosedWorkspace({ spaceId, projectId, projectWorkspaceId, cwd, generation: 7 });
 
     const svc = executionWorkspaceService(db);
 
@@ -681,18 +681,18 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   });
 
   it("clears the reopen-pending flag after an unconsumed reopen and stays idempotent", async () => {
-    const { companyId, projectId, projectWorkspaceId } = await seedCompanyProject();
+    const { spaceId, projectId, projectWorkspaceId } = await seedSpaceProject();
     const cwd = await makeExistingDir();
-    const workspaceId = await seedClosedWorkspace({ companyId, projectId, projectWorkspaceId, cwd });
-    const issueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4109 });
+    const workspaceId = await seedClosedWorkspace({ spaceId, projectId, projectWorkspaceId, cwd });
+    const issueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4109 });
 
     const svc = executionWorkspaceService(db);
     // The reopen publishes the row as active and sets the reopen-pending flag.
     const reopenResult = await svc.reopenClosedIsolatedExecutionWorkspaceForIssue({
       workspaceId,
-      issue: { id: issueId, companyId, projectId },
+      issue: { id: issueId, spaceId, projectId },
       actor: { agentId: null, actorType: "user" },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true },
     });
     expect(reopenResult.ok).toBe(true);
     if (!reopenResult.ok) throw new Error("reopen failed");
@@ -707,7 +707,7 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     // The caller never consumed the reopen, so clear the flag at its generation.
     const cleared = await svc.clearReopenPendingConsumptionForUnconsumedReopen({
       workspaceId,
-      issue: { id: issueId, companyId },
+      issue: { id: issueId, spaceId },
       actor: { agentId: null, actorType: "user" },
       expectedGeneration: reopenGeneration,
     });
@@ -731,7 +731,7 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     // A second call finds no flag and does nothing.
     const second = await svc.clearReopenPendingConsumptionForUnconsumedReopen({
       workspaceId,
-      issue: { id: issueId, companyId },
+      issue: { id: issueId, spaceId },
       actor: { agentId: null, actorType: "user" },
       expectedGeneration: reopenGeneration,
     });
@@ -744,17 +744,17 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
   });
 
   it("does not clear a newer reopen's fence when a stale request presents an old generation", async () => {
-    const { companyId, projectId, projectWorkspaceId } = await seedCompanyProject();
+    const { spaceId, projectId, projectWorkspaceId } = await seedSpaceProject();
     const cwd = await makeExistingDir();
-    const workspaceId = await seedClosedWorkspace({ companyId, projectId, projectWorkspaceId, cwd });
-    const issueId = await seedIssue({ companyId, projectId, workspaceId, issueNumber: 4115 });
+    const workspaceId = await seedClosedWorkspace({ spaceId, projectId, projectWorkspaceId, cwd });
+    const issueId = await seedIssue({ spaceId, projectId, workspaceId, issueNumber: 4115 });
 
     const svc = executionWorkspaceService(db);
     const reopenResult = await svc.reopenClosedIsolatedExecutionWorkspaceForIssue({
       workspaceId,
-      issue: { id: issueId, companyId, projectId },
+      issue: { id: issueId, spaceId, projectId },
       actor: { agentId: null, actorType: "user" },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true },
     });
     expect(reopenResult.ok).toBe(true);
     if (!reopenResult.ok) throw new Error("reopen failed");
@@ -778,7 +778,7 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     // not clear the newer reopen's live fence.
     const staleClear = await svc.clearReopenPendingConsumptionForUnconsumedReopen({
       workspaceId,
-      issue: { id: issueId, companyId },
+      issue: { id: issueId, spaceId },
       actor: { agentId: null, actorType: "user" },
       expectedGeneration: staleGeneration,
     });
@@ -791,7 +791,7 @@ describeEmbeddedPostgres("reopen archived isolated execution workspace", () => {
     // The newer owner clears its own fence at the matching generation.
     const ownerClear = await svc.clearReopenPendingConsumptionForUnconsumedReopen({
       workspaceId,
-      issue: { id: issueId, companyId },
+      issue: { id: issueId, spaceId },
       actor: { agentId: null, actorType: "user" },
       expectedGeneration: newerGeneration,
     });

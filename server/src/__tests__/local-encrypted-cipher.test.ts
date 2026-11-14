@@ -10,7 +10,7 @@ describe("operation-scoped local encryption", () => {
   let keyFile: string;
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), "paperclip-encryption-batch-"));
+    root = mkdtempSync(join(tmpdir(), "outpost-encryption-batch-"));
     keyFile = join(root, "master.key");
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "");
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", keyFile);

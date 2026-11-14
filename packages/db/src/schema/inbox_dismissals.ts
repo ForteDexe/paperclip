@@ -1,11 +1,11 @@
 import { pgTable, uuid, text, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 
 export const inboxDismissals = pgTable(
   "inbox_dismissals",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     userId: text("user_id").notNull(),
     itemKey: text("item_key").notNull(),
     kind: text("kind").$type<"dismiss" | "snooze">().notNull().default("dismiss"),
@@ -15,10 +15,10 @@ export const inboxDismissals = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyUserIdx: index("inbox_dismissals_company_user_idx").on(table.companyId, table.userId),
-    companyItemIdx: index("inbox_dismissals_company_item_idx").on(table.companyId, table.itemKey),
-    companyUserItemUnique: uniqueIndex("inbox_dismissals_company_user_item_idx").on(
-      table.companyId,
+    spaceUserIdx: index("inbox_dismissals_space_user_idx").on(table.spaceId, table.userId),
+    spaceItemIdx: index("inbox_dismissals_space_item_idx").on(table.spaceId, table.itemKey),
+    spaceUserItemUnique: uniqueIndex("inbox_dismissals_space_user_item_idx").on(
+      table.spaceId,
       table.userId,
       table.itemKey,
     ),

@@ -23,7 +23,7 @@
 
 import type {
   AdapterExecutionTarget,
-  AdapterExecutionTargetPaperclipBridgeHandle,
+  AdapterExecutionTargetOutpostBridgeHandle,
   AdapterExecutionTargetProcessSessionBridgeHandle,
   AdapterManagedRuntimeAsset,
   PreparedAdapterExecutionTargetRuntime,
@@ -133,10 +133,10 @@ export interface SandboxRunSiteOptions {
   readonly publishStagedProjectHints: (stagedProjectDirs: Record<string, string>) => void;
   readonly onReuseLog: () => Promise<void>;
 
-  /** Start the host-side paperclip callback bridge. */
+  /** Start the host-side outpost callback bridge. */
   readonly startOutpostBridge: (
     runtimeRootDir: string | null,
-  ) => Promise<AdapterExecutionTargetPaperclipBridgeHandle | null>;
+  ) => Promise<AdapterExecutionTargetOutpostBridgeHandle | null>;
   /** Start the host-side process-session bridge with a deferred launch env. */
   readonly startProcessSessionBridge: (input: {
     runtimeRootDir: string | null;
@@ -154,7 +154,7 @@ export interface SandboxRunSiteOptions {
 
   /** Stop both bridges and run the managed-home copy-back on teardown. */
   readonly stopBridges: (input: {
-    controlBridge: AdapterExecutionTargetPaperclipBridgeHandle | null;
+    controlBridge: AdapterExecutionTargetOutpostBridgeHandle | null;
     agentBridge: AdapterExecutionTargetProcessSessionBridgeHandle | null;
   }) => Promise<void>;
 }
@@ -177,12 +177,12 @@ export interface SandboxRunSite {
   /** The staged workspace the run installed or reused, or null before `placeWorkspace`. */
   readonly staged: StagedWorkspace | null;
   /**
-   * The paperclip callback bridge the run started, or null before
+   * The outpost callback bridge the run started, or null before
    * `startTransport` or on the host lane. `startTransport` sets it before it
    * rethrows a partial-bring-up failure, so an abandon path can stop the bridge
    * that started when its sibling threw.
    */
-  readonly controlBridge: AdapterExecutionTargetPaperclipBridgeHandle | null;
+  readonly controlBridge: AdapterExecutionTargetOutpostBridgeHandle | null;
   /** The process-session bridge the run started, or null before `startTransport`. */
   readonly agentBridge: AdapterExecutionTargetProcessSessionBridgeHandle | null;
   /**
@@ -216,7 +216,7 @@ export function createSandboxRunSite(options: SandboxRunSiteOptions): SandboxRun
   // a run keeps its lease across its whole lifetime.
   let leaseRelease: (() => void) | null = null;
   let staged: StagedWorkspace | null = null;
-  let controlBridge: AdapterExecutionTargetPaperclipBridgeHandle | null = null;
+  let controlBridge: AdapterExecutionTargetOutpostBridgeHandle | null = null;
   let agentBridge: AdapterExecutionTargetProcessSessionBridgeHandle | null = null;
 
   return {
@@ -332,7 +332,7 @@ export function createSandboxRunSite(options: SandboxRunSiteOptions): SandboxRun
     async startTransport(): Promise<SandboxRunSiteTransport> {
       // Bring up both host-side bridges concurrently. Their remote subtrees are
       // disjoint, so their env-independent setup overlaps. The one real
-      // dependency — the paperclip bridge's returned env must reach the
+      // dependency — the outpost bridge's returned env must reach the
       // process-session launch — is sequenced by `launchEnv`, a memoized thunk the
       // process-session bridge awaits right before its launch.
       const stagedRootDir = staged?.stagedRuntime.runtimeRootDir ?? null;
@@ -347,7 +347,7 @@ export function createSandboxRunSite(options: SandboxRunSiteOptions): SandboxRun
       const finalizeLaunchEnv = (): Promise<Record<string, string>> =>
         (launchEnvPromise ??= (async () => {
           const outpost = await outpostStart;
-          // The paperclip bridge token is run-scoped: it lives for this run only and
+          // The outpost bridge token is run-scoped: it lives for this run only and
           // never enters a reuse payload (Amendment B). The site hands it to the
           // engine's `finalizeLaunchEnv`, the sole consumer of a contribution, and
           // retains nothing.
@@ -415,7 +415,7 @@ export function createSandboxRunSite(options: SandboxRunSiteOptions): SandboxRun
       return staged;
     },
 
-    get controlBridge(): AdapterExecutionTargetPaperclipBridgeHandle | null {
+    get controlBridge(): AdapterExecutionTargetOutpostBridgeHandle | null {
       return controlBridge;
     },
 

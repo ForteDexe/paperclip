@@ -6,7 +6,7 @@
     "agentProfileVersion": 11,
     "acpxVersion": "0.13.1",
     "agentServerVersion": "2026.09.26-dd393fe",
-    "patchVersion": "paperclip-cursor-usage-v4",
+    "patchVersion": "outpost-cursor-usage-v4",
     "distribution": {
       "schema": "outpost.cursor_distribution.v1",
       "version": "2026.09.26-dd393fe",
@@ -36,7 +36,7 @@
           "vendorClosureSha256": "bf04ef8ea6a63191067a6b3e15139aa2c793d8419daab246aa3f0a012e1bbcd9"
         }
       },
-      "patchVersion": "paperclip-cursor-usage-v4"
+      "patchVersion": "outpost-cursor-usage-v4"
     },
     "agentFilesBinding": "registered-runtime-context-v1",
     "instructionBinding": "native-global-rules-v1",

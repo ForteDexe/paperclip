@@ -78,8 +78,8 @@ export function createSpekoProvider(apiKey: string, transport: typeof fetch = fe
         mode: "cascade", agentId: providerId.parse(input.agentId), ttlSeconds: 120, maxDurationSeconds,
         systemPrompt: input.systemPrompt,
         firstMessage: "Hi, what would you like me to work on?",
-        metadata: { paperclipVoiceBindingId: input.bindingId },
-        toolSecrets: { paperclip_session_token: input.toolToken },
+        metadata: { outpostVoiceBindingId: input.bindingId },
+        toolSecrets: { outpost_session_token: input.toolToken },
       });
       const parsed = sessionSchema.safeParse(result);
       if (!parsed.success) throw new SpekoProviderError("invalid_response", true);
@@ -95,8 +95,8 @@ export function createSpekoProvider(apiKey: string, transport: typeof fetch = fe
         runMode: "s2s",
         agentId, to, maxDurationSeconds,
         systemPrompt: input.systemPrompt, firstMessage: "Hi, this is your Outpost agent calling as requested. Is now a good time?",
-        metadata: { paperclipVoiceBindingId: input.bindingId },
-        toolSecrets: { paperclip_session_token: input.toolToken },
+        metadata: { outpostVoiceBindingId: input.bindingId },
+        toolSecrets: { outpost_session_token: input.toolToken },
         telephony: { amd: { mode: "disabled" } },
         turnHandling: { profile: "conversational", onMachine: "hangup" },
       });

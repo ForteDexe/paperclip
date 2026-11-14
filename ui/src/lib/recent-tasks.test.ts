@@ -14,9 +14,9 @@ import {
   writeRecentTasks,
 } from "./recent-tasks";
 
-const issue = (id: string, companyId = "company-1") => ({
+const issue = (id: string, spaceId = "space-1") => ({
   id,
-  companyId,
+  spaceId,
   title: `Task ${id}`,
   identifier: `PAP-${id}`,
   status: "todo" as const,
@@ -28,12 +28,12 @@ const storageMethods = window.localStorage instanceof window.Storage ? window.St
 describe("recent task persistence", () => {
   beforeEach(() => window.localStorage.clear());
 
-  it("is account and company scoped", () => {
-    expect(getRecentTasksStorageKey("company-1", "user-1")).not.toBe(
-      getRecentTasksStorageKey("company-1", "user-2"),
+  it("is account and space scoped", () => {
+    expect(getRecentTasksStorageKey("space-1", "user-1")).not.toBe(
+      getRecentTasksStorageKey("space-1", "user-2"),
     );
-    expect(getRecentTasksStorageKey("company-1", "user-1")).not.toBe(
-      getRecentTasksStorageKey("company-2", "user-1"),
+    expect(getRecentTasksStorageKey("space-1", "user-1")).not.toBe(
+      getRecentTasksStorageKey("space-2", "user-1"),
     );
   });
 
@@ -43,12 +43,12 @@ describe("recent task persistence", () => {
     }
     recordRecentTask(issue("4"), "user-1", 4);
 
-    let entries = readRecentTasks(getRecentTasksStorageKey("company-1", "user-1"), "company-1");
+    let entries = readRecentTasks(getRecentTasksStorageKey("space-1", "user-1"), "space-1");
     expect(entries[0]?.id).toBe("19");
 
     recordRecentTask(issue("4"), "user-1", 99);
 
-    entries = readRecentTasks(getRecentTasksStorageKey("company-1", "user-1"), "company-1");
+    entries = readRecentTasks(getRecentTasksStorageKey("space-1", "user-1"), "space-1");
     expect(entries).toHaveLength(20);
     expect(entries[0]?.id).toBe("4");
     expect(entries.filter((entry) => entry.id === "4")).toHaveLength(1);
@@ -57,9 +57,9 @@ describe("recent task persistence", () => {
   it("refreshes conversation readiness when review or delivery changes without a task edit", () => {
     const task = { ...issue("1"), status: "in_review" as const, externalConversationState: "waiting" as const };
     recordRecentTask(task, "user-1");
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
-    updateRecentTaskSnapshots(storageKey, "company-1", [{ ...task, externalConversationState: "active" }]);
-    expect(readRecentTasks(storageKey, "company-1")[0]?.externalConversationState).toBe("active");
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
+    updateRecentTaskSnapshots(storageKey, "space-1", [{ ...task, externalConversationState: "active" }]);
+    expect(readRecentTasks(storageKey, "space-1")[0]?.externalConversationState).toBe("active");
   });
 
   it("keeps the covered-blocker state so the sidebar shows the same queued glyph as the task pane (BUG-07)", () => {
@@ -69,40 +69,40 @@ describe("recent task persistence", () => {
     };
     const blocked = { ...issue("1"), status: "blocked" as const, updatedAt: new Date(10) };
     recordRecentTask({ ...blocked, blockerAttention: covered }, "user-1");
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
-    expect(readRecentTasks(storageKey, "company-1")[0]?.blockerAttention).toEqual(covered);
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
+    expect(readRecentTasks(storageKey, "space-1")[0]?.blockerAttention).toEqual(covered);
     // A same-version summary refresh can change only the derived blocker state.
     const attention = { ...covered, state: "needs_attention" as const, reason: "attention_required" as const, coveredBlockerCount: 0, attentionBlockerCount: 1 };
-    updateRecentTaskSnapshots(storageKey, "company-1", [{ ...blocked, externalConversationState: null, blockerAttention: attention }]);
-    expect(readRecentTasks(storageKey, "company-1")[0]?.blockerAttention).toEqual(attention);
+    updateRecentTaskSnapshots(storageKey, "space-1", [{ ...blocked, externalConversationState: null, blockerAttention: attention }]);
+    expect(readRecentTasks(storageKey, "space-1")[0]?.blockerAttention).toEqual(attention);
   });
 
   it("accepts server settlement after an optimistic run-lock clear", () => {
     const running = { ...issue("1"), status: "in_progress" as const, externalConversationState: "active" as const, executionRunId: "run-1", updatedAt: new Date(10) } as Issue;
     recordRecentTask(running, "user-1");
     recordRecentTask(clearIssueExecutionRun(running, "run-1")!, "user-1");
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
-    updateRecentTaskSnapshots(storageKey, "company-1", [{ ...running, status: "in_review", externalConversationState: "waiting", updatedAt: new Date(20) }]);
-    expect(readRecentTasks(storageKey, "company-1")[0]).toMatchObject({ status: "in_review", externalConversationState: "waiting", snapshotUpdatedAt: 20 });
-    updateRecentTaskSnapshots(storageKey, "company-1", [{ ...running, updatedAt: new Date(30) }]);
-    updateRecentTaskSnapshots(storageKey, "company-1", [{ ...running, status: "in_review", externalConversationState: "waiting", updatedAt: new Date(20) }]);
-    expect(readRecentTasks(storageKey, "company-1")[0]).toMatchObject({ status: "in_progress", externalConversationState: "active", snapshotUpdatedAt: 30 });
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
+    updateRecentTaskSnapshots(storageKey, "space-1", [{ ...running, status: "in_review", externalConversationState: "waiting", updatedAt: new Date(20) }]);
+    expect(readRecentTasks(storageKey, "space-1")[0]).toMatchObject({ status: "in_review", externalConversationState: "waiting", snapshotUpdatedAt: 20 });
+    updateRecentTaskSnapshots(storageKey, "space-1", [{ ...running, updatedAt: new Date(30) }]);
+    updateRecentTaskSnapshots(storageKey, "space-1", [{ ...running, status: "in_review", externalConversationState: "waiting", updatedAt: new Date(20) }]);
+    expect(readRecentTasks(storageKey, "space-1")[0]).toMatchObject({ status: "in_progress", externalConversationState: "active", snapshotUpdatedAt: 30 });
   });
 
   it("keeps readiness and task status together when a turn settles at the same timestamp", () => {
     const task = { ...issue("1"), status: "in_progress" as const, externalConversationState: "active" as const };
     recordRecentTask(task, "user-1");
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
-    updateRecentTaskSnapshots(storageKey, "company-1", [{ ...task, status: "in_review", externalConversationState: "waiting" }]);
-    expect(readRecentTasks(storageKey, "company-1")[0]).toMatchObject({ status: "in_review", externalConversationState: "waiting" });
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
+    updateRecentTaskSnapshots(storageKey, "space-1", [{ ...task, status: "in_review", externalConversationState: "waiting" }]);
+    expect(readRecentTasks(storageKey, "space-1")[0]).toMatchObject({ status: "in_review", externalConversationState: "waiting" });
   });
 
   it("refreshes Monitoring when a run starts without a new task version", () => {
     const task = { ...issue("1"), status: "in_progress" as const, displayStatus: "monitoring" as const, externalConversationState: null };
     recordRecentTask(task, "user-1");
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
-    updateRecentTaskSnapshots(storageKey, "company-1", [{ ...task, displayStatus: "in_progress" }]);
-    expect(readRecentTasks(storageKey, "company-1")[0]?.displayStatus).toBe("in_progress");
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
+    updateRecentTaskSnapshots(storageKey, "space-1", [{ ...task, displayStatus: "in_progress" }]);
+    expect(readRecentTasks(storageKey, "space-1")[0]?.displayStatus).toBe("in_progress");
   });
 
   it("publishes same-tab updates", () => {
@@ -120,24 +120,24 @@ describe("recent task persistence", () => {
     const task = { ...issue("1"), status: "in_progress" as const, displayStatus: "monitoring" as const };
     recordRecentTask(task, "user-1");
     recordRecentTask({ ...task, displayStatus: "in_progress" }, "user-1");
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
-    expect(readRecentTasks(storageKey, "company-1")[0]?.displayStatus).toBe("in_progress");
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
+    expect(readRecentTasks(storageKey, "space-1")[0]?.displayStatus).toBe("in_progress");
   });
 
   it("prunes unavailable tasks and refreshes stored snapshots", () => {
     recordRecentTask(issue("1"), "user-1", 1);
     recordRecentTask(issue("2"), "user-1", 2);
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
 
-    updateRecentTaskSnapshots(storageKey, "company-1", [{
+    updateRecentTaskSnapshots(storageKey, "space-1", [{
       ...issue("2"),
       title: "Updated task",
       status: "in_progress",
       updatedAt: new Date(3),
     }]);
-    pruneRecentTasks(storageKey, "company-1", new Set(["1"]));
+    pruneRecentTasks(storageKey, "space-1", new Set(["1"]));
 
-    expect(readRecentTasks(storageKey, "company-1")).toEqual([
+    expect(readRecentTasks(storageKey, "space-1")).toEqual([
       expect.objectContaining({
         id: "2",
         title: "Updated task",
@@ -148,7 +148,7 @@ describe("recent task persistence", () => {
   });
 
   it("does not demote recent comment activity when older task details arrive", () => {
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
     recordRecentTask({ ...issue("1"), updatedAt: new Date(50) }, "user-1", 100);
     recordRecentTask({ ...issue("2"), updatedAt: new Date(80) }, "user-1", 90);
     const listener = vi.fn();
@@ -156,53 +156,53 @@ describe("recent task persistence", () => {
 
     for (let index = 0; index < 10; index += 1) {
       recordRecentTask({ ...issue("1"), updatedAt: new Date(50) }, "user-1");
-      updateRecentTaskSnapshots(storageKey, "company-1", [
+      updateRecentTaskSnapshots(storageKey, "space-1", [
         { ...issue("1"), updatedAt: new Date(50) },
         { ...issue("2"), updatedAt: new Date(80) },
       ]);
     }
 
-    expect(readRecentTasks(storageKey, "company-1").map(({ id, recordedAt }) => ({ id, recordedAt }))).toEqual([
+    expect(readRecentTasks(storageKey, "space-1").map(({ id, recordedAt }) => ({ id, recordedAt }))).toEqual([
       { id: "1", recordedAt: 100 },
       { id: "2", recordedAt: 90 },
     ]);
     expect(listener).not.toHaveBeenCalled();
     window.removeEventListener(RECENT_TASKS_UPDATED_EVENT, listener);
 
-    updateRecentTaskSnapshots(storageKey, "company-1", [{
+    updateRecentTaskSnapshots(storageKey, "space-1", [{
       ...issue("1"), title: "Renamed task", status: "done", updatedAt: new Date(60),
     }]);
-    expect(readRecentTasks(storageKey, "company-1")[0]).toMatchObject({
+    expect(readRecentTasks(storageKey, "space-1")[0]).toMatchObject({
       id: "1", title: "Renamed task", status: "done", recordedAt: 100,
     });
   });
 
-  it("ignores malformed and cross-company entries", () => {
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
+  it("ignores malformed and cross-space entries", () => {
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
     window.localStorage.setItem(storageKey, JSON.stringify([
-      issue("other", "company-2"),
+      issue("other", "space-2"),
       { nonsense: true },
       { ...issue("invalid-version"), recordedAt: 1, snapshotUpdatedAt: "invalid" },
     ]));
-    expect(readRecentTasks(storageKey, "company-1")).toEqual([]);
+    expect(readRecentTasks(storageKey, "space-1")).toEqual([]);
   });
 
   it("settles conflicting tab snapshots without further writes or notifications", () => {
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
     const older = { ...issue("1"), title: "Old title", updatedAt: new Date(10) };
     const newer = { ...issue("1"), title: "New title", status: "done" as const, updatedAt: new Date(20) };
     recordRecentTask(older, "user-1");
-    updateRecentTaskSnapshots(storageKey, "company-1", [newer]);
+    updateRecentTaskSnapshots(storageKey, "space-1", [newer]);
     const setItem = vi.spyOn(storageMethods, "setItem");
     const listener = vi.fn();
     window.addEventListener(RECENT_TASKS_UPDATED_EVENT, listener);
     try {
       for (let index = 0; index < 20; index += 1) {
-        updateRecentTaskSnapshots(storageKey, "company-1", [older]);
+        updateRecentTaskSnapshots(storageKey, "space-1", [older]);
         recordRecentTask(older, "user-1");
-        updateRecentTaskSnapshots(storageKey, "company-1", [newer]);
+        updateRecentTaskSnapshots(storageKey, "space-1", [newer]);
       }
-      expect(readRecentTasks(storageKey, "company-1")[0]).toMatchObject({
+      expect(readRecentTasks(storageKey, "space-1")[0]).toMatchObject({
         title: "New title", status: "done", snapshotUpdatedAt: 20, recordedAt: 20,
       });
       expect(setItem).not.toHaveBeenCalled();
@@ -214,28 +214,28 @@ describe("recent task persistence", () => {
   });
 
   it("promotes a new comment without overwriting newer task details", () => {
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
     recordRecentTask({ ...issue("1"), title: "Done", status: "done", updatedAt: new Date(20) }, "user-1");
     recordRecentTask({ ...issue("1"), updatedAt: new Date(10) }, "user-1", 30);
-    expect(readRecentTasks(storageKey, "company-1")[0]).toMatchObject({
+    expect(readRecentTasks(storageKey, "space-1")[0]).toMatchObject({
       title: "Done", status: "done", snapshotUpdatedAt: 20, recordedAt: 30,
     });
   });
 
   it("retains the current snapshot for equal or invalid versions", () => {
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
     recordRecentTask(issue("1"), "user-1");
     for (const updatedAt of [new Date(0), new Date("invalid")]) {
-      updateRecentTaskSnapshots(storageKey, "company-1", [{ ...issue("1"), title: "Conflict", updatedAt }]);
+      updateRecentTaskSnapshots(storageKey, "space-1", [{ ...issue("1"), title: "Conflict", updatedAt }]);
     }
-    expect(readRecentTasks(storageKey, "company-1")[0]).toMatchObject({ title: "Task 1", snapshotUpdatedAt: 0 });
+    expect(readRecentTasks(storageKey, "space-1")[0]).toMatchObject({ title: "Task 1", snapshotUpdatedAt: 0 });
   });
 
   it("does not write or publish an unchanged normalized list", () => {
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
     recordRecentTask(issue("1"), "user-1", 1);
     recordRecentTask(issue("2"), "user-1", 2);
-    const entries = readRecentTasks(storageKey, "company-1");
+    const entries = readRecentTasks(storageKey, "space-1");
     const setItem = vi.spyOn(storageMethods, "setItem");
     const listener = vi.fn();
     window.addEventListener(RECENT_TASKS_UPDATED_EVENT, listener);
@@ -250,32 +250,32 @@ describe("recent task persistence", () => {
   });
 
   it("migrates legacy tasks once and isolates subsequent old-tab writes", () => {
-    const legacyKey = "outpost.recentTasks:company-1:user-1";
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
+    const legacyKey = "outpost.recentTasks:space-1:user-1";
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
     const legacy = [{ ...issue("1"), recordedAt: 100 }];
     window.localStorage.setItem(legacyKey, JSON.stringify(legacy));
-    expect(readRecentTasks(storageKey, "company-1")[0]?.id).toBe("1");
+    expect(readRecentTasks(storageKey, "space-1")[0]?.id).toBe("1");
     expect(window.localStorage.getItem(storageKey)).toBeNull();
-    migrateRecentTasks(storageKey, "company-1");
+    migrateRecentTasks(storageKey, "space-1");
     expect(window.localStorage.getItem(legacyKey)).toBe(JSON.stringify(legacy));
     // The first versioned refresh can update legacy metadata, even after a comment.
-    updateRecentTaskSnapshots(storageKey, "company-1", [{ ...issue("1"), title: "Fresh", updatedAt: new Date(20) }]);
-    expect(readRecentTasks(storageKey, "company-1")[0]).toMatchObject({
+    updateRecentTaskSnapshots(storageKey, "space-1", [{ ...issue("1"), title: "Fresh", updatedAt: new Date(20) }]);
+    expect(readRecentTasks(storageKey, "space-1")[0]).toMatchObject({
       title: "Fresh", snapshotUpdatedAt: 20, recordedAt: 100,
     });
     window.localStorage.setItem(legacyKey, JSON.stringify([{ ...issue("old-tab"), recordedAt: 200 }]));
-    migrateRecentTasks(storageKey, "company-1");
-    expect(readRecentTasks(storageKey, "company-1")[0]?.title).toBe("Fresh");
-    pruneRecentTasks(storageKey, "company-1", new Set(["1"]));
-    migrateRecentTasks(storageKey, "company-1");
-    expect(readRecentTasks(storageKey, "company-1")).toEqual([]);
+    migrateRecentTasks(storageKey, "space-1");
+    expect(readRecentTasks(storageKey, "space-1")[0]?.title).toBe("Fresh");
+    pruneRecentTasks(storageKey, "space-1", new Set(["1"]));
+    migrateRecentTasks(storageKey, "space-1");
+    expect(readRecentTasks(storageKey, "space-1")).toEqual([]);
   });
 
   it("does not import legacy tasks that appear after an empty migration", () => {
-    const storageKey = getRecentTasksStorageKey("company-1", "user-1");
-    migrateRecentTasks(storageKey, "company-1");
-    window.localStorage.setItem("outpost.recentTasks:company-1:user-1", JSON.stringify([{ ...issue("1"), recordedAt: 1 }]));
-    migrateRecentTasks(storageKey, "company-1");
-    expect(readRecentTasks(storageKey, "company-1")).toEqual([]);
+    const storageKey = getRecentTasksStorageKey("space-1", "user-1");
+    migrateRecentTasks(storageKey, "space-1");
+    window.localStorage.setItem("outpost.recentTasks:space-1:user-1", JSON.stringify([{ ...issue("1"), recordedAt: 1 }]));
+    migrateRecentTasks(storageKey, "space-1");
+    expect(readRecentTasks(storageKey, "space-1")).toEqual([]);
   });
 });

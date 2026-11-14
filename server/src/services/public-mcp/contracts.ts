@@ -17,14 +17,14 @@ export class McpCapabilityError extends Error {}
 
 export type ApiDispatch = (principal: McpPrincipal, method: "GET" | "POST" | "PATCH" | "PUT", path: string, body?: unknown) => Promise<unknown>;
 
-export const company = { companyId: z.uuid().describe("The company explicitly authorized by this connection. Copy the exact companyId from paperclip_connection and wait for that result before dependent tool calls. Never guess an ID or use a placeholder.") };
-export const task = { ...company, taskId: z.uuid().describe("The exact task UUID returned by paperclip_search_tasks or paperclip_create_task. Search by title or human-readable identifier first; never derive a UUID from a title or identifier.") };
+export const space = { spaceId: z.uuid().describe("The space explicitly authorized by this connection. Copy the exact spaceId from outpost_connection and wait for that result before dependent tool calls. Never guess an ID or use a placeholder.") };
+export const task = { ...space, taskId: z.uuid().describe("The exact task UUID returned by outpost_search_tasks or outpost_create_task. Search by title or human-readable identifier first; never derive a UUID from a title or identifier.") };
 export const requestId = z.uuid().describe("A new UUID for this intended action. Reuse this UUID and identical arguments on retries; never invent a second ID after an uncertain result.");
 export const boundedLimit = z.number().int().min(1).max(100).default(30);
 export const object = (v: unknown): Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
 export const pick = (v: unknown, keys: string[]) => Object.fromEntries(keys.filter((k) => k in object(v)).map((k) => [k, object(v)[k]]));
 export const rows = (v: unknown) => Array.isArray(v) ? v : [];
-export const taskFields = ["id", "companyId", "identifier", "title", "description", "status", "priority", "assigneeAgentId", "assigneeUserId", "projectId", "parentId", "blockedByIssueIds", "unblockDescriptor", "executionState", "createdAt", "updatedAt", "completedAt"];
+export const taskFields = ["id", "spaceId", "identifier", "title", "description", "status", "priority", "assigneeAgentId", "assigneeUserId", "projectId", "parentId", "blockedByIssueIds", "unblockDescriptor", "executionState", "createdAt", "updatedAt", "completedAt"];
 export const commentFields = ["id", "issueId", "body", "authorUserId", "authorAgentId", "createdAt"];
 export const documentFields = ["id", "issueId", "key", "title", "format", "body", "latestRevisionId", "latestRevisionNumber", "updatedAt"];
 export const pathId = (id: unknown) => encodeURIComponent(String(id));

@@ -7,7 +7,7 @@ import { NativeEnvironmentProbeCleanupError, probeNativeRunnerEnvironment, resol
 import { logger } from "../middleware/logger.js";
 import { resolveAntigravityCandidateAdmission } from "./native-runtime/acpx-qualification.js";
 import { antigravityCredentialTurn, prepareAntigravityRunnerCredentials } from "./native-runtime/antigravity-runner-credentials.js";
-import { resolvePaperclipRunnerBinary } from "./native-runtime/native-codex-runner.js";
+import { resolveOutpostRunnerBinary } from "./native-runtime/native-codex-runner.js";
 
 const TRANSPORT_KEYS = ["PATH", "LANG", "LANGUAGE", "TZ", "TMPDIR", "TEMP", "TMP", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY"];
 
@@ -16,7 +16,7 @@ const asRecord = (value: unknown): Record<string, unknown> | null => value && ty
 /** Project only closed Rust admission categories from the private authenticated
  * command result. Provider output and the outer serialized Error stay private.
  */
-export function antigravityConnectionProbeFailure(companyId: string, error: unknown): AdapterEnvironmentTestResult {
+export function antigravityConnectionProbeFailure(spaceId: string, error: unknown): AdapterEnvironmentTestResult {
   if (error instanceof NativeEnvironmentProbeCleanupError) throw error;
   const command = asRecord(asRecord(error)?.runnerCommandResult);
   const result = command?.commandType === "session.open" && command.status === "failed" ? asRecord(command.result) : null;
@@ -26,7 +26,7 @@ export function antigravityConnectionProbeFailure(companyId: string, error: unkn
   const installation = admission?.[2] === "admission_installation";
   const code = installation ? "antigravity_installation_check_failed" : "antigravity_admission_failed";
   const errorClass = error instanceof Error && ["Error", "TypeError", "RangeError", "AggregateError"].includes(error.name) ? error.name : "Error";
-  logger.warn({ companyId, code, errorClass,
+  logger.warn({ spaceId, code, errorClass,
     commandCode: admission ? "command_execution_failed" : "unclassified",
     classification: admission?.[2] ?? "unclassified",
     ...(admission ? { retryable: admission[1] === "true" } : {}),
@@ -42,8 +42,8 @@ export function antigravityConnectionProbeFailure(companyId: string, error: unkn
 /** The ordinary Test uses the selected managed account and no model turn. */
 export async function testAntigravityConnection(context: AdapterEnvironmentTestContext, model: string): Promise<AdapterEnvironmentTestResult> {
   if (context.executionTarget?.kind === "remote") throw new Error("Google Antigravity candidate testing requires the Outpost host.");
-  const admission = resolveAntigravityCandidateAdmission({ companyId: context.companyId, model });
-  if (!admission) throw new Error("Google Antigravity is not available for this company.");
+  const admission = resolveAntigravityCandidateAdmission({ spaceId: context.spaceId, model });
+  if (!admission) throw new Error("Google Antigravity is not available for this space.");
   const configured = context.config.env;
   const environment = Object.fromEntries([
     ...TRANSPORT_KEYS.flatMap(key => typeof process.env[key] === "string" ? [[key, process.env[key]!]] : []),
@@ -52,14 +52,14 @@ export async function testAntigravityConnection(context: AdapterEnvironmentTestC
   ]);
   const credentials = await prepareAntigravityRunnerCredentials({ environment, remote: false,
     managedHome: context.managedAiCredentialHome, lifecycleMode: "per_turn" });
-  const runtimeDirectory = await realpath(await mkdtemp(join(tmpdir(), "paperclip-antigravity-setup-")));
+  const runtimeDirectory = await realpath(await mkdtemp(join(tmpdir(), "outpost-antigravity-setup-")));
   const acpxRuntimeDirectory = join(runtimeDirectory, "acpx");
   const nonce = randomUUID(), normalizedSessionId = `setup-${nonce}`;
   let nativeHome: string, runnerBinary: string;
   try {
     await mkdir(acpxRuntimeDirectory, { mode: 0o700 });
     nativeHome = join(await resolveAcpxRuntimeRoot(acpxRuntimeDirectory, normalizedSessionId), "antigravity-home");
-    runnerBinary = resolvePaperclipRunnerBinary();
+    runnerBinary = resolveOutpostRunnerBinary();
   } catch (error) {
     await rm(runtimeDirectory, { recursive: true, force: true });
     throw error;

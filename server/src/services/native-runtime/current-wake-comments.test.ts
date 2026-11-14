@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   type Db,
   heartbeatRuns,
@@ -17,7 +17,7 @@ import {
   readCurrentWakeComments,
   resolveCurrentWakeCommentsBinding,
 } from "./current-wake-comments.js";
-import { buildPaperclipTaskMarkdown } from "../heartbeat.js";
+import { buildOutpostTaskMarkdown } from "../heartbeat.js";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -46,7 +46,7 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
 
   beforeAll(async () => {
     const started = await startEmbeddedPostgresTestDatabase(
-      "paperclip-current-wake-comments-",
+      "outpost-current-wake-comments-",
     );
     db = createDb(started.connectionString);
     tempDb = started;
@@ -62,21 +62,21 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
     fallbackFetchNeeded?: boolean;
     attachmentOmissionReasons?: Record<string, number>;
   }) {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
     const runId = randomUUID();
-    const issuePrefix = `W${companyId.replaceAll("-", "").slice(0, 6)}`;
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    const issuePrefix = `W${spaceId.replaceAll("-", "").slice(0, 6)}`;
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
-      defaultResponsibleUserId: "local-board",
+      requireOperatorApprovalForNewAgents: false,
+      defaultResponsibleUserId: "local-operator",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Chat agent",
       role: "engineer",
       status: "running",
@@ -87,11 +87,11 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "External chat",
       status: "in_progress",
       priority: "medium",
-      responsibleUserId: "local-board",
+      responsibleUserId: "local-operator",
       assigneeAgentId: agentId,
       issueNumber: 1,
       identifier: `${issuePrefix}-1`,
@@ -100,10 +100,10 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
       .insert(issueComments)
       .values(
         input.bodies.map((body) => ({
-          companyId,
+          spaceId,
           issueId,
           authorType: "user" as const,
-          authorUserId: "local-board",
+          authorUserId: "local-operator",
           body,
         })),
       )
@@ -111,7 +111,7 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
     const commentIds = comments.map((comment) => comment.id);
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       nativeIssueId: issueId,
       invocationSource: "assignment",
@@ -121,7 +121,7 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
       contextSnapshot: {
         issueId,
         taskId: issueId,
-        paperclipWake: {
+        outpostWake: {
           reason: "External chat message received",
           externalChatProvider: "slack",
           checkedOutByHarness: true,
@@ -154,7 +154,7 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
         executionLockedAt: new Date(),
       })
       .where(eq(issues.id, issueId));
-    return { companyId, agentId, issueId, runId, comments, commentIds };
+    return { spaceId, agentId, issueId, runId, comments, commentIds };
   }
 
   it("exposes no reader for an inline-complete wake", async () => {
@@ -185,10 +185,10 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
     );
     const seeded = await seed({ bodies });
     await db.insert(issueComments).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       issueId: seeded.issueId,
       authorType: "user",
-      authorUserId: "local-board",
+      authorUserId: "local-operator",
       body: "This older task-history comment is not part of the accepted wake.",
     });
     const binding = await resolveCurrentWakeCommentsBinding(db, seeded);
@@ -197,7 +197,7 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
 
     await expect(
       readCurrentWakeComments(db, binding, { cursor: "forged" }),
-    ).rejects.toThrow("paperclip_current_wake_comments_cursor_out_of_order");
+    ).rejects.toThrow("outpost_current_wake_comments_cursor_out_of_order");
 
     let cursor: string | null = null;
     const reconstructed = new Map<string, string>();
@@ -258,7 +258,7 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
       .where(eq(issueComments.id, seeded.commentIds[0]!));
     await expect(
       readCurrentWakeComments(db, binding, { cursor: first.nextCursor }),
-    ).rejects.toThrow("paperclip_current_wake_comments_snapshot_changed");
+    ).rejects.toThrow("outpost_current_wake_comments_snapshot_changed");
 
     const restarted = await readCurrentWakeComments(db, binding, {});
     expect(restarted.snapshotDigest).not.toBe(first.snapshotDigest);
@@ -302,11 +302,11 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
     const page = await readCurrentWakeComments(db, binding, {});
     expect(page.complete).toBe(true);
     expect(page.comments[0]?.attachmentImportNotice).toBe(
-      "Paperclip could not import every attachment from this exact external message: 2 attachments were omitted (unsupported type: 1, processing failed: 1). Treat omitted attachments as unavailable; do not infer their contents or substitute an older workspace file.",
+      "Outpost could not import every attachment from this exact external message: 2 attachments were omitted (unsupported type: 1, processing failed: 1). Treat omitted attachments as unavailable; do not infer their contents or substitute an older workspace file.",
     );
     expect(JSON.stringify(page)).not.toContain("credential_token");
     expect(
-      buildPaperclipTaskMarkdown({
+      buildOutpostTaskMarkdown({
         issue: {
           id: seeded.issueId,
           identifier: "WAKE-1",
@@ -341,7 +341,7 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
     const contextSnapshot = structuredClone(
       run!.contextSnapshot as Record<string, unknown>,
     );
-    const wake = contextSnapshot.paperclipWake as Record<string, unknown>;
+    const wake = contextSnapshot.outpostWake as Record<string, unknown>;
     wake.attachmentOmissions = [
       {
         commentId: seeded.commentIds[0],
@@ -368,10 +368,10 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
     const [coalesced] = await db
       .insert(issueComments)
       .values({
-        companyId: seeded.companyId,
+        spaceId: seeded.spaceId,
         issueId: seeded.issueId,
         authorType: "user",
-        authorUserId: "local-board",
+        authorUserId: "local-operator",
         body: "second request accepted during finalization",
       })
       .returning();
@@ -389,7 +389,7 @@ describeEmbeddedPostgres("current external-chat wake comment reader", () => {
               contextSnapshot: {
                 issueId: seeded.issueId,
                 taskId: seeded.issueId,
-                paperclipWake: {
+                outpostWake: {
                   reason: "External chat message received",
                   externalChatProvider: "slack",
                   checkedOutByHarness: true,

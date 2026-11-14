@@ -7,7 +7,7 @@ export type SandboxTemplateIdentity = { id: string; capturedAt: string | null; t
 
 export function usesManagedCloudSandboxImage(environment: Environment, template: SandboxTemplateIdentity): boolean {
   return isCloudManagedInstance() && environment.driver === "sandbox"
-    && environment.metadata?.managedByPaperclip === true && template === null
+    && environment.metadata?.managedByOutpost === true && template === null
     && !!getManagedInstanceConfig()?.environments.some(spec => spec.provider === environment.config.provider);
 }
 
@@ -44,28 +44,28 @@ export function isQualifiableDaytonaSnapshot(
 /** Keep an invalidated snapshot binding distinct from an environment that has
  * never required an immutable qualification. A failed probe cannot unpin a run.
  */
-export function hasSandboxSnapshotQualification(environment: Environment, companyId: string): boolean {
+export function hasSandboxSnapshotQualification(environment: Environment, spaceId: string): boolean {
   const proofs = environment.metadata?.[SANDBOX_PLATFORM_PROBE_METADATA_KEY];
   if (!proofs || typeof proofs !== "object" || Array.isArray(proofs)) return false;
-  const proof = (proofs as Record<string, unknown>)[companyId];
+  const proof = (proofs as Record<string, unknown>)[spaceId];
   return !!proof && typeof proof === "object" && !Array.isArray(proof)
     && (proof as Record<string, unknown>).v === 2;
 }
 
-/** Discovery reads only saved, company-scoped proof. Execution pins the same
+/** Discovery reads only saved, space-scoped proof. Execution pins the same
  * provider ID rather than resolving the mutable name again. A new config or
  * captured template needs a new probe; deleting the pinned snapshot fails at
  * the provider instead of silently selecting its replacement. */
 export function qualifiedSandboxSnapshotId(
-  environment: Environment, companyId: string, config: SandboxEnvironmentConfig, template: SandboxTemplateIdentity,
+  environment: Environment, spaceId: string, config: SandboxEnvironmentConfig, template: SandboxTemplateIdentity,
 ): string | null {
   if (!isQualifiableDaytonaSnapshot(config, template)) return null;
   const proofs = environment.metadata?.[SANDBOX_PLATFORM_PROBE_METADATA_KEY];
   if (!proofs || typeof proofs !== "object" || Array.isArray(proofs)) return null;
-  const proof = (proofs as Record<string, unknown>)[companyId];
+  const proof = (proofs as Record<string, unknown>)[spaceId];
   if (!proof || typeof proof !== "object" || Array.isArray(proof)) return null;
   const value = proof as Record<string, unknown>;
-  if (value.v !== 2 || value.invalidated === true || value.companyId !== companyId
+  if (value.v !== 2 || value.invalidated === true || value.spaceId !== spaceId
     || value.baseConfigFingerprint !== fingerprintEnvironmentSandboxProviderConfig(environment.config as SandboxEnvironmentConfig)
     || value.runtimeConfigFingerprint !== fingerprintEnvironmentSandboxProviderConfig(config)
     || value.snapshot !== config.snapshot || JSON.stringify(value.template) !== JSON.stringify(template)) return null;

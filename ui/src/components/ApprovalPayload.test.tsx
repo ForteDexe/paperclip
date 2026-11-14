@@ -10,12 +10,12 @@ import { ThemeProvider } from "../context/ThemeContext";
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("approvalLabel", () => {
-  it("uses payload titles for generic board approvals", () => {
+  it("uses payload titles for generic operator approvals", () => {
     expect(
-      approvalLabel("request_board_approval", {
+      approvalLabel("request_operator_approval", {
         title: "Reply with an ASCII frog",
       }),
-    ).toBe("Board Approval: Reply with an ASCII frog");
+    ).toBe("Operator Approval: Reply with an ASCII frog");
   });
 });
 
@@ -31,17 +31,17 @@ describe("ApprovalPayloadRenderer", () => {
     container.remove();
   });
 
-  it("renders request_board_approval payload fields without falling back to raw JSON", () => {
+  it("renders request_operator_approval payload fields without falling back to raw JSON", () => {
     const root = createRoot(container);
 
     act(() => {
       root.render(
         <ThemeProvider>
           <ApprovalPayloadRenderer
-            type="request_board_approval"
+            type="request_operator_approval"
             payload={{
               title: "Reply with an ASCII frog",
-              summary: "Board asked for approval before posting the frog.",
+              summary: "Operator asked for approval before posting the frog.",
               recommendedAction: "Approve the frog reply.",
               nextActionOnApproval: "Post the frog comment on the issue.",
               risks: ["The frog might be too powerful."],
@@ -53,7 +53,7 @@ describe("ApprovalPayloadRenderer", () => {
     });
 
     expect(container.textContent).toContain("Reply with an ASCII frog");
-    expect(container.textContent).toContain("Board asked for approval before posting the frog.");
+    expect(container.textContent).toContain("Operator asked for approval before posting the frog.");
     expect(container.textContent).toContain("Approve the frog reply.");
     expect(container.textContent).toContain("Post the frog comment on the issue.");
     expect(container.textContent).toContain("The frog might be too powerful.");
@@ -65,14 +65,14 @@ describe("ApprovalPayloadRenderer", () => {
     });
   });
 
-  it("renders markdown in board approval prose fields", () => {
+  it("renders markdown in operator approval prose fields", () => {
     const root = createRoot(container);
 
     act(() => {
       root.render(
         <ThemeProvider>
           <ApprovalPayloadRenderer
-            type="request_board_approval"
+            type="request_operator_approval"
             payload={{
               title: "Reply with an ASCII frog",
               summary: "**Bold** and `code` and [a link](https://example.com).",
@@ -85,7 +85,7 @@ describe("ApprovalPayloadRenderer", () => {
       );
     });
 
-    const bodies = container.querySelectorAll(".paperclip-markdown");
+    const bodies = container.querySelectorAll(".outpost-markdown");
     expect(bodies.length).toBe(4);
 
     const summary = bodies[0];
@@ -115,7 +115,7 @@ describe("ApprovalPayloadRenderer", () => {
       root.render(
         <ThemeProvider>
           <ApprovalPayloadRenderer
-            type="request_board_approval"
+            type="request_operator_approval"
             payload={{
               title: "Reply with an ASCII frog",
               risks: [
@@ -131,7 +131,7 @@ describe("ApprovalPayloadRenderer", () => {
       );
     });
 
-    const bodies = container.querySelectorAll(".paperclip-markdown");
+    const bodies = container.querySelectorAll(".outpost-markdown");
     expect(bodies.length).toBe(5);
     for (const body of bodies) {
       expect(body.querySelector("ul")).toBeNull();
@@ -164,7 +164,7 @@ describe("ApprovalPayloadRenderer", () => {
         root.render(
           <ThemeProvider>
             <ApprovalPayloadRenderer
-              type="request_board_approval"
+              type="request_operator_approval"
               payload={{
                 title: "Reply with an ASCII frog",
                 risks: ["- Low probability", "* Low probability"],
@@ -174,7 +174,7 @@ describe("ApprovalPayloadRenderer", () => {
         );
       });
 
-      expect(container.querySelectorAll(".paperclip-markdown").length).toBe(2);
+      expect(container.querySelectorAll(".outpost-markdown").length).toBe(2);
       expect(errors).toEqual([]);
     } finally {
       console.error = originalError;
@@ -191,18 +191,18 @@ describe("ApprovalPayloadRenderer", () => {
       root.render(
         <ThemeProvider>
           <ApprovalPayloadRenderer
-            type="request_board_approval"
+            type="request_operator_approval"
             hidePrimaryTitle
             payload={{
               title: "Reply with an ASCII frog",
-              summary: "Board asked for approval before posting the frog.",
+              summary: "Operator asked for approval before posting the frog.",
             }}
           />
         </ThemeProvider>,
       );
     });
 
-    expect(container.textContent).toContain("Board asked for approval before posting the frog.");
+    expect(container.textContent).toContain("Operator asked for approval before posting the frog.");
     expect(container.textContent).not.toContain("TitleReply with an ASCII frog");
 
     act(() => {

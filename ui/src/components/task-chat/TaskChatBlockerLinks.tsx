@@ -144,7 +144,7 @@ type LiveWorkBlocker = IssueRelationIssueSummary | IssueBlockerAttentionIssueSum
  * cards use supplies them; until it loads, the relation status is used.
  */
 function useLiveWorkStatusPresentation(
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   blockers: LiveWorkBlocker[],
 ): (blocker: LiveWorkBlocker) => TaskStatusPresentationInput {
   const { userId } = useCoordinatorWorkspaceEnabled();
@@ -159,9 +159,9 @@ function useLiveWorkStatusPresentation(
   }, [blockers]);
   const results = useQueries({
     queries: batches.map((ids) => ({
-      queryKey: queryKeys.issues.summaryBatch(companyId ?? "__none__", userId, ids),
-      queryFn: ({ signal }: { signal: AbortSignal }) => issuesApi.summaries(companyId!, ids, { signal }),
-      enabled: Boolean(companyId),
+      queryKey: queryKeys.issues.summaryBatch(spaceId ?? "__none__", userId, ids),
+      queryFn: ({ signal }: { signal: AbortSignal }) => issuesApi.summaries(spaceId!, ids, { signal }),
+      enabled: Boolean(spaceId),
     })),
   });
   const summaries = results.flatMap((result) => result.data ?? []);
@@ -237,18 +237,18 @@ export function TaskChatBlockerLinks({
 export function TaskChatLiveWorkLinks({
   liveWork,
   placement,
-  companyId,
+  spaceId,
 }: {
   liveWork: ResolvedTaskChatLiveWork;
   placement: "top" | "bottom";
-  companyId?: string | null;
+  spaceId?: string | null;
 }) {
   const streamlined = useStreamlinedTaskChatPresentation();
   const listedBlockers = useMemo(
     () => [...liveWork.steps.map((step) => step.blocker), ...liveWork.nowRunning],
     [liveWork],
   );
-  const presentationFor = useLiveWorkStatusPresentation(companyId, listedBlockers);
+  const presentationFor = useLiveWorkStatusPresentation(spaceId, listedBlockers);
   const heading = streamlined && placement === "bottom" ? "Still waiting on live work" : "Waiting on live work";
   return (
     <div

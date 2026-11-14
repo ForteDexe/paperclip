@@ -74,7 +74,7 @@ GET /api/agents/me/secret-proposals
 DELETE /api/agents/me/secret-proposals/{proposalId}
 ```
 
-An agent can ask Paperclip to bind an existing secret under a new path without
+An agent can ask Outpost to bind an existing secret under a new path without
 knowing a secret ID. Set `kind` to `binding` and identify the source by the
 agent's own existing `env.*` or `access.*` config path:
 
@@ -107,7 +107,7 @@ freshly authorized binding write. Card acceptance is not execution. Read
 
 - `executed` means the binding write completed.
 - `failed` means the card was accepted but execution failed. The card renders
-  **FAILED**, exposes a non-secret `errorCode`, and Paperclip posts a **Secret
+  **FAILED**, exposes a non-secret `errorCode`, and Outpost posts a **Secret
   binding execution failed** comment with `Binding created: no`.
 - `rejected`, `withdrawn`, or `expired` means no binding was created.
 
@@ -121,7 +121,7 @@ treated as unavailable until a fresh proposal executes successfully.
 ## List Secrets
 
 ```
-GET /api/companies/{companyId}/secrets
+GET /api/spaces/{spaceId}/secrets
 ```
 
 Returns secret metadata (not decrypted values).
@@ -129,7 +129,7 @@ Returns secret metadata (not decrypted values).
 ## Create Secret
 
 ```
-POST /api/companies/{companyId}/secrets
+POST /api/spaces/{spaceId}/secrets
 {
   "name": "anthropic-api-key",
   "value": "sk-ant-..."
@@ -138,7 +138,7 @@ POST /api/companies/{companyId}/secrets
 
 The value is encrypted at rest. Only the secret ID and metadata are returned.
 
-To link a provider-owned secret without copying the value into Paperclip, create
+To link a provider-owned secret without copying the value into Outpost, create
 an external-reference secret:
 
 ```json
@@ -146,19 +146,19 @@ an external-reference secret:
   "name": "prod-stripe-key",
   "provider": "aws_secrets_manager",
   "managedMode": "external_reference",
-  "externalRef": "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod/stripe",
+  "externalRef": "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod/stripe",
   "providerVersionRef": "version-id-or-label"
 }
 ```
 
-Paperclip stores the provider reference and a non-sensitive fingerprint only.
+Outpost stores the provider reference and a non-sensitive fingerprint only.
 The value is resolved, when the provider is configured, through the server
 runtime path that enforces binding context and records access events.
 
 ## Provider Health
 
 ```
-GET /api/companies/{companyId}/secret-providers/health
+GET /api/spaces/{spaceId}/secret-providers/health
 ```
 
 Returns provider setup diagnostics, warnings, and local backup guidance. Health
@@ -167,22 +167,22 @@ responses must not include secret values or provider credentials.
 For `aws_secrets_manager`, an unready health response names the missing
 non-secret provider environment variables, the AWS SDK default credential source
 expected by the server runtime, and the custody rule that AWS bootstrap
-credentials must not be stored in Paperclip `company_secrets`.
+credentials must not be stored in Outpost `space_secrets`.
 
 The equivalent CLI check is:
 
 ```sh
-npx paperclipai secrets doctor --company-id {companyId}
+npx @outpost/cli secrets doctor --space-id {spaceId}
 ```
 
 ## Provider Vaults
 
-Provider vaults are named, company-scoped configurations that route secret
+Provider vaults are named, space-scoped configurations that route secret
 material to one of the supported provider backends. See the
 [secrets deploy guide](/deploy/secrets#provider-vaults) for the operator model
 and custody rules.
 
-All routes below require board auth and company access. Mutating routes emit
+All routes below require board auth and space access. Mutating routes emit
 `secret_provider_config.*` activity-log entries. No route in this surface
 returns provider credential values; submitting credential-shaped fields in
 `config` is rejected at validation time.
@@ -190,10 +190,10 @@ returns provider credential values; submitting credential-shaped fields in
 ### List Vaults
 
 ```
-GET /api/companies/{companyId}/secret-provider-configs
+GET /api/spaces/{spaceId}/secret-provider-configs
 ```
 
-Returns every vault for the company (including disabled rows for audit), each
+Returns every vault for the space (including disabled rows for audit), each
 with id, provider, displayName, status, isDefault, non-sensitive `config`,
 latest health snapshot (`healthStatus`, `healthCheckedAt`, `healthMessage`,
 `healthDetails`), `disabledAt`, and audit columns.
@@ -201,15 +201,15 @@ latest health snapshot (`healthStatus`, `healthCheckedAt`, `healthMessage`,
 ### Create Vault
 
 ```
-POST /api/companies/{companyId}/secret-provider-configs
+POST /api/spaces/{spaceId}/secret-provider-configs
 {
   "provider": "aws_secrets_manager",
   "displayName": "Prod US-East",
   "isDefault": true,
   "config": {
     "region": "us-east-1",
-    "namespace": "paperclip",
-    "secretNamePrefix": "paperclip",
+    "namespace": "outpost",
+    "secretNamePrefix": "outpost",
     "kmsKeyId": "arn:aws:kms:us-east-1:123456789012:key/abcd-...",
     "environmentTag": "production"
   }
@@ -307,24 +307,24 @@ provider modules.
 
 ### Selecting A Vault When Creating Or Rotating Secrets
 
-`POST /api/companies/{companyId}/secrets` and
+`POST /api/spaces/{spaceId}/secrets` and
 `POST /api/secrets/{secretId}/rotate` both accept an optional
 `providerConfigId` field that pins the secret to a specific vault. When
 omitted (or null), the operation runs through the deployment-level provider
 configuration — the same path existing installs already use. The board UI
-preselects the company's default vault for the chosen provider before
+preselects the space's default vault for the chosen provider before
 submitting, so callers should usually send an explicit `providerConfigId`.
 Coming-soon and disabled vaults are rejected with a 422; a vault that does not
 match the secret's provider is rejected the same way.
 
 ```json
-POST /api/companies/{companyId}/secrets
+POST /api/spaces/{spaceId}/secrets
 {
   "name": "prod-stripe-key",
   "provider": "aws_secrets_manager",
   "providerConfigId": "<vault-uuid>",
   "managedMode": "external_reference",
-  "externalRef": "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod/stripe"
+  "externalRef": "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod/stripe"
 }
 ```
 
@@ -342,13 +342,13 @@ Every route in this surface enforces the same redaction contract:
 
 ## Remote Import From AWS Secrets Manager
 
-Remote import links existing AWS Secrets Manager entries into Paperclip as
+Remote import links existing AWS Secrets Manager entries into Outpost as
 `external_reference` secrets. Import stores provider reference metadata only; it
-does not copy the remote secret plaintext into Paperclip.
+does not copy the remote secret plaintext into Outpost.
 
-The routes are board-only and company-scoped. `providerConfigId` must point to
-a same-company AWS provider vault with status `ready` or `warning`. Disabled,
-coming-soon, non-AWS, and cross-company vaults are rejected. Imported secrets
+The routes are board-only and space-scoped. `providerConfigId` must point to
+a same-space AWS provider vault with status `ready` or `warning`. Disabled,
+coming-soon, non-AWS, and cross-space vaults are rejected. Imported secrets
 resolve later through the selected vault, so runtime reads still need
 `secretsmanager:GetSecretValue` and any required KMS decrypt permission on the
 selected external secret.
@@ -356,7 +356,7 @@ selected external secret.
 ### Preview Remote Import Candidates
 
 ```
-POST /api/companies/{companyId}/secrets/remote-import/preview
+POST /api/spaces/{spaceId}/secrets/remote-import/preview
 {
   "providerConfigId": "<aws-vault-uuid>",
   "query": "stripe",
@@ -406,19 +406,19 @@ decisions:
 Candidate statuses:
 
 - `ready`: the row can be selected for import.
-- `duplicate`: a Paperclip secret already links the same canonical provider
+- `duplicate`: a Outpost secret already links the same canonical provider
   reference for the same provider vault.
 - `conflict`: the row has a name/key collision or provider guardrail failure.
 
 Conflict types are `exact_reference`, `name`, `key`, and
-`provider_guardrail`. AWS refs under Paperclip's own managed namespace are
-blocked as external references; use the Paperclip-managed secret flow for those
+`provider_guardrail`. AWS refs under Outpost's own managed namespace are
+blocked as external references; use the Outpost-managed secret flow for those
 resources instead.
 
 ### Import Selected Remote References
 
 ```
-POST /api/companies/{companyId}/secrets/remote-import
+POST /api/spaces/{spaceId}/secrets/remote-import
 {
   "providerConfigId": "<aws-vault-uuid>",
   "secrets": [
@@ -437,9 +437,9 @@ POST /api/companies/{companyId}/secrets/remote-import
 ```
 
 The `secrets` array accepts 1-100 rows. Each row may override the suggested
-Paperclip `name`, `key`, optional Paperclip `description`,
+Outpost `name`, `key`, optional Outpost `description`,
 `providerVersionRef`, and sanitized `providerMetadata`. Blank descriptions are
-stored as `null`; AWS provider descriptions are not copied into Paperclip
+stored as `null`; AWS provider descriptions are not copied into Outpost
 descriptions. The backend re-checks duplicate refs and name/key conflicts at
 submit time; a stale preview does not bypass those checks.
 
@@ -459,7 +459,7 @@ The import response is row-level:
       "key": "stripe-production-key",
       "status": "imported",
       "reason": null,
-      "secretId": "<paperclip-secret-id>",
+      "secretId": "<outpost-secret-id>",
       "conflicts": []
     }
   ]
@@ -468,7 +468,7 @@ The import response is row-level:
 
 Row statuses:
 
-- `imported`: Paperclip created an active `external_reference` secret and one
+- `imported`: Outpost created an active `external_reference` secret and one
   metadata-only version row.
 - `skipped`: the row had an exact-reference duplicate or name/key conflict.
 - `error`: the provider rejected the reference or the row failed validation.
@@ -507,7 +507,7 @@ Reference secrets in agent adapter config instead of inline values:
 ```
 
 The server resolves and decrypts secret references at runtime, injecting the
-real value into the agent process environment. Paperclip's custody guarantees
+real value into the agent process environment. Outpost's custody guarantees
 end at injection: the agent process can read, log, or forward the value, so
 treat any secret bound to an agent as exposed to that agent. See the custody
 boundaries note in the [secrets deploy guide](/deploy/secrets#custody-boundaries).
@@ -532,18 +532,18 @@ User-specific env bindings use a definition key instead of a concrete
 `required` defaults to `true` and `allowMissingOverride` defaults to `false`.
 Missing required user-secret values must fail closed before adapter dispatch.
 Optional missing values omit the environment variable; they must not inject an
-empty string or another user's value. Paperclip records value-free access
+empty string or another user's value. Outpost records value-free access
 events with `secretScope`, `responsibleUserId`, `credentialOwnerUserId`, and
 `userSecretDefinitionId`.
 
 ## Portability
 
-Company export/import APIs represent agent and project environment requirements
+Space export/import APIs represent agent and project environment requirements
 as declarations in the package manifest. Exports omit secret values, secret IDs,
 provider references, and encrypted provider material. Use:
 
 ```sh
-npx paperclipai secrets declarations --company-id {companyId}
+npx @outpost/cli secrets declarations --space-id {spaceId}
 ```
 
 to inspect the declarations that an export would emit before moving a package.

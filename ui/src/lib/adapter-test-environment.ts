@@ -85,7 +85,7 @@ export function resolveAdapterTestEnvironmentId(input: {
 /**
  * Find the active managed sandbox environment id in an environment list. The
  * platform provisioner stamps the managed environment with
- * `metadata.managedByPaperclip` (see `isPlatformManagedEnvironment`). The
+ * `metadata.managedByOutpost` (see `isPlatformManagedEnvironment`). The
  * local-default environment and managed plugin environment rows also carry
  * that stamp, so this function requires the `sandbox` driver and never
  * mistakes a plugin row for the managed sandbox. The function selects only an `active` environment, never an `archived` one, so the Test
@@ -103,7 +103,7 @@ export function resolveManagedSandboxEnvironmentId(
     (environment) =>
       environment.driver === "sandbox" &&
       environment.status === "active" &&
-      environment.metadata?.managedByPaperclip === true,
+      environment.metadata?.managedByOutpost === true,
   );
   return managed?.id ?? null;
 }

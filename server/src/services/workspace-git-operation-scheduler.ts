@@ -61,7 +61,7 @@ export interface WorkspaceGitScanInput {
   /**
    * Stable, non-secret scheduling dimensions. Jobs sharing any recently-served
    * dimension are deprioritized, so changing issue ids cannot bypass fairness
-   * for the same company, actor, or repository.
+   * for the same space, actor, or repository.
    */
   fairnessKeys?: readonly string[];
   signal?: AbortSignal;
@@ -534,7 +534,7 @@ export class WorkspaceGitOperationScheduler {
     let selectedEnqueuedAt = Number.POSITIVE_INFINITY;
     for (let index = 0; index < this.queue.length; index += 1) {
       const scan = this.queue[index]!;
-      // Average recency across every dimension so a common repository/company
+      // Average recency across every dimension so a common repository/space
       // key cannot mask a fresh actor or issue. Repeatedly changing only one
       // dimension therefore cannot jump ahead of a wholly unserved group.
       const score = scan.fairnessKeys.reduce(

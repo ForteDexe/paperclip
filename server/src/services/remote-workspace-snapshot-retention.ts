@@ -22,12 +22,12 @@ export function notifyRemoteWorkspaceSnapshots(transaction: object, hint?: strin
 
 export function snapshotAttemptKeys(row: Snapshot) {
   const uploads = Array.isArray(row.metadata?.uploads) ? row.metadata.uploads as Array<{ objectKey?: unknown }> : [];
-  const prefix = `${row.companyId}/workspace-snapshots/${row.executionWorkspaceId}/${row.id}/`;
+  const prefix = `${row.spaceId}/workspace-snapshots/${row.executionWorkspaceId}/${row.id}/`;
   return [...new Set(uploads.flatMap(upload => typeof upload?.objectKey === "string" && upload.objectKey !== row.objectKey
     && upload.objectKey.startsWith(prefix) && !upload.objectKey.includes("..") ? [upload.objectKey] : []))];
 }
 
-export async function abortSnapshotAttemptUploads(storage: StorageService, companyId: string, keys: Iterable<string>, signal?: AbortSignal) {
+export async function abortSnapshotAttemptUploads(storage: StorageService, spaceId: string, keys: Iterable<string>, signal?: AbortSignal) {
   const abort = storage.abortIncompleteUploads?.bind(storage);
   const pending = [...keys];
   if (!abort || !pending.length) return 0;
@@ -38,17 +38,17 @@ export async function abortSnapshotAttemptUploads(storage: StorageService, compa
   const worker = async () => {
     for (let key = pending.shift(); key !== undefined && !deadline.aborted; key = pending.shift()) {
       try {
-        const count = await abort(companyId, key, { signal: deadline });
+        const count = await abort(spaceId, key, { signal: deadline });
         aborted += count;
       } catch (error) {
         if (signal?.aborted) throw error;
-        logger.warn({ err: error, companyId, objectKey: key }, "workspace snapshot multipart upload abort failed");
+        logger.warn({ err: error, spaceId, objectKey: key }, "workspace snapshot multipart upload abort failed");
       }
     }
   };
   await Promise.all(Array.from({ length: Math.min(SNAPSHOT_ABORT_CONCURRENCY, pending.length) }, worker));
   signal?.throwIfAborted();
-  if (pending.length) logger.warn({ companyId, remaining: pending.length }, "workspace snapshot multipart upload abort ran out of time");
+  if (pending.length) logger.warn({ spaceId, remaining: pending.length }, "workspace snapshot multipart upload abort ran out of time");
   return aborted;
 }
 
@@ -61,11 +61,11 @@ function abandonedUploadOperationId(row: Snapshot) {
 async function pinned(db: ReadDb, row: Snapshot) {
   const [workspace] = await db.select({ id: executionWorkspaces.id, sourceIssueId: executionWorkspaces.sourceIssueId,
     metadata: executionWorkspaces.metadata }).from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, row.companyId), eq(executionWorkspaces.id, row.executionWorkspaceId),
+    eq(executionWorkspaces.spaceId, row.spaceId), eq(executionWorkspaces.id, row.executionWorkspaceId),
   ));
   if ((workspace?.metadata?.remoteWorkspace as { snapshotId?: unknown } | undefined)?.snapshotId === row.id) return true;
   const [importedBy] = await db.select({ id: executionWorkspaceSnapshots.id }).from(executionWorkspaceSnapshots).where(and(
-    eq(executionWorkspaceSnapshots.companyId, row.companyId), ne(executionWorkspaceSnapshots.status, "deleted"),
+    eq(executionWorkspaceSnapshots.spaceId, row.spaceId), ne(executionWorkspaceSnapshots.status, "deleted"),
     sql`${executionWorkspaceSnapshots.metadata} ? 'importedWorkspaceChildren'`,
     sql`${executionWorkspaceSnapshots.metadata}->'importedWorkspaceChildren' @> ${JSON.stringify([
       { workspaceId: row.executionWorkspaceId, snapshotId: row.id },
@@ -73,7 +73,7 @@ async function pinned(db: ReadDb, row: Snapshot) {
   )).limit(1);
   if (importedBy) return true;
   const [operation] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, row.companyId), eq(workspaceOperations.executionWorkspaceId, row.executionWorkspaceId),
+    eq(workspaceOperations.spaceId, row.spaceId), eq(workspaceOperations.executionWorkspaceId, row.executionWorkspaceId),
     or(inArray(workspaceOperations.status, ["running", "pending"]),
       // A failed save keeps its snapshot pinned for its retry, as while it ran,
       // until the final save retires it.
@@ -90,18 +90,18 @@ async function pinned(db: ReadDb, row: Snapshot) {
   )).limit(1);
   if (operation) return true;
   const [child] = await db.select({ id: executionWorkspaceSnapshots.id }).from(executionWorkspaceSnapshots).where(and(
-    eq(executionWorkspaceSnapshots.companyId, row.companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, row.executionWorkspaceId),
+    eq(executionWorkspaceSnapshots.spaceId, row.spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, row.executionWorkspaceId),
     eq(executionWorkspaceSnapshots.parentSnapshotId, row.id), inArray(executionWorkspaceSnapshots.status, ["pending", "uploaded"]),
   )).limit(1);
   if (child) return true;
-  const [run] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, row.companyId),
+  const [run] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, row.spaceId),
     inArray(heartbeatRuns.status, ["queued", "running"]),
     sql`${heartbeatRuns.runnerProfileJson}->'remoteWorkspace'->>'workspaceId' = ${row.executionWorkspaceId}`,
     sql`${heartbeatRuns.runnerProfileJson}->'remoteWorkspace'->>'snapshotId' = ${row.id}`,
   )).limit(1);
   if (run) return true;
   const [recovery] = await db.select({ id: issueRecoveryActions.id }).from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, row.companyId), inArray(issueRecoveryActions.status, ["active", "escalated"]),
+    eq(issueRecoveryActions.spaceId, row.spaceId), inArray(issueRecoveryActions.status, ["active", "escalated"]),
     sql`(${workspace?.sourceIssueId ? sql`${issueRecoveryActions.sourceIssueId} = ${workspace.sourceIssueId}::uuid` : sql`false`}
       or ${issueRecoveryActions.evidence}->>'snapshotId' = ${row.id}
       or ${issueRecoveryActions.evidence}->>'workspaceId' = ${row.executionWorkspaceId}
@@ -129,7 +129,7 @@ export function remoteWorkspaceSnapshotRetentionService(db: Db, options: {
       // deadline still needs one pass to clear it; orphaned versions need grace.
       or(ne(executionWorkspaceSnapshots.status, "committed"), isNotNull(executionWorkspaceSnapshots.deleteAfter),
         sql`not exists (select 1 from ${executionWorkspaces} w
-          where w.company_id = ${executionWorkspaceSnapshots.companyId}
+          where w.space_id = ${executionWorkspaceSnapshots.spaceId}
             and w.id = ${executionWorkspaceSnapshots.executionWorkspaceId}
             and w.metadata->'remoteWorkspace'->>'snapshotId' = ${executionWorkspaceSnapshots.id}::text)`),
       or(isNull(executionWorkspaceSnapshots.deleteAfter),
@@ -179,15 +179,15 @@ export function remoteWorkspaceSnapshotRetentionService(db: Db, options: {
           keys.add((value as { objectKey: string }).objectKey);
         }
         if (claimed.objectKey) keys.add(claimed.objectKey);
-        const prefix = `${claimed.companyId}/workspace-snapshots/${claimed.executionWorkspaceId}/${claimed.id}/`;
+        const prefix = `${claimed.spaceId}/workspace-snapshots/${claimed.executionWorkspaceId}/${claimed.id}/`;
         for (const key of keys) {
           if (!key.startsWith(prefix) || key.includes("..") || key.includes("\\")) throw new Error("snapshot_upload_scope_invalid");
         }
-        await abortSnapshotAttemptUploads(options.storage, claimed.companyId, keys, signal);
+        await abortSnapshotAttemptUploads(options.storage, claimed.spaceId, keys, signal);
         for (const key of keys) {
           signal?.throwIfAborted();
-          await options.storage.deleteObject(claimed.companyId, key, { signal, allVersions: true });
-          if ((await options.storage.headObject(claimed.companyId, key, { signal })).exists) throw new Error("snapshot_object_still_present");
+          await options.storage.deleteObject(claimed.spaceId, key, { signal, allVersions: true });
+          if ((await options.storage.headObject(claimed.spaceId, key, { signal })).exists) throw new Error("snapshot_object_still_present");
         }
         await db.update(executionWorkspaceSnapshots).set({ status: "deleted", deleteAfter: null, lastError: null, updatedAt: at })
           .where(and(eq(executionWorkspaceSnapshots.id, claimed.id), eq(executionWorkspaceSnapshots.status, "delete_requested")));
@@ -239,7 +239,7 @@ export async function clearRemoteWorkspaceLocationForReleasedLease(input: { db: 
   if (!hasRemoteTerminationReceipt(input.lease)
     || (input.lease.metadata?.remoteExecutionTermination as { state?: unknown } | undefined)?.state !== "destroyed") return;
   const workspaces = await input.db.select().from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, input.lease.companyId),
+    eq(executionWorkspaces.spaceId, input.lease.spaceId),
     sql`${executionWorkspaces.metadata}->'remoteWorkspace'->'location'->>'leaseId' = ${input.lease.id}`,
   )).for("update");
   for (const workspace of workspaces) {
@@ -247,7 +247,7 @@ export async function clearRemoteWorkspaceLocationForReleasedLease(input: { db: 
     if (!authority?.location || authority.dirty || !authority.snapshotId || authority.writerRunId
       || authority.location.providerLeaseId !== input.lease.providerLeaseId || authority.location.environmentId !== input.lease.environmentId) continue;
     const [saved] = await input.db.select({ id: executionWorkspaceSnapshots.id }).from(executionWorkspaceSnapshots).where(and(
-      eq(executionWorkspaceSnapshots.companyId, workspace.companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
+      eq(executionWorkspaceSnapshots.spaceId, workspace.spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
       eq(executionWorkspaceSnapshots.id, authority.snapshotId), eq(executionWorkspaceSnapshots.status, "committed")));
     if (!saved) continue;
     await notifyRemoteWorkspaceSnapshots(input.db, `workspace:${workspace.id}`);

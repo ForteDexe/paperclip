@@ -13,7 +13,7 @@ import {
 
 /**
  * Minimal select stub shaped like the one chain pickAvailableIssuePrefix uses:
- * select(...).from(companies).where(condition).then(...).
+ * select(...).from(spaces).where(condition).then(...).
  */
 function stubPrefixReadDb(takenPrefixes: string[]) {
   const conditions: unknown[] = [];
@@ -75,12 +75,12 @@ describe("issuePrefixSuffixForAttempt", () => {
 
 describe("isIssuePrefixConflict", () => {
   it("matches the raw driver error", () => {
-    expect(isIssuePrefixConflict({ code: "23505", constraint: "companies_issue_prefix_idx" })).toBe(true);
+    expect(isIssuePrefixConflict({ code: "23505", constraint: "spaces_issue_prefix_idx" })).toBe(true);
   });
 
   it("walks the cause chain Drizzle wraps the driver error in", () => {
     const wrapped = new Error("Failed query") as Error & { cause?: unknown };
-    wrapped.cause = { code: "23505", constraint_name: "companies_issue_prefix_idx" };
+    wrapped.cause = { code: "23505", constraint_name: "spaces_issue_prefix_idx" };
     expect(isIssuePrefixConflict(wrapped)).toBe(true);
   });
 
@@ -89,7 +89,7 @@ describe("isIssuePrefixConflict", () => {
   });
 
   it("ignores a different error code on the same constraint", () => {
-    expect(isIssuePrefixConflict({ code: "23503", constraint: "companies_issue_prefix_idx" })).toBe(false);
+    expect(isIssuePrefixConflict({ code: "23503", constraint: "spaces_issue_prefix_idx" })).toBe(false);
   });
 
   it("terminates on a self-referential cause chain", () => {
@@ -113,7 +113,7 @@ describe("pickAvailableIssuePrefix", () => {
     // never interpreted as one.
     expect(conditions).toHaveLength(1);
     const query = new PgDialect().sqlToQuery(conditions[0] as SQL);
-    expect(query.sql).toBe('left("companies"."issue_prefix", $1::int) = $2');
+    expect(query.sql).toBe('left("spaces"."issue_prefix", $1::int) = $2');
     expect(query.params).toEqual([3, "ACM"]);
   });
 

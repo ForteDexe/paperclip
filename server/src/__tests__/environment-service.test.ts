@@ -7,9 +7,9 @@ import {
   activityLog,
   agents,
   builtInManagedResources,
-  companies,
-  companySecretBindings,
-  companySecrets,
+  spaces,
+  spaceSecretBindings,
+  spaceSecrets,
   createDb,
   closeRegisteredClients,
   environmentCustomImageSetupSessions,
@@ -26,7 +26,7 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 import { environmentService } from "../services/environments.ts";
-import { attachPaperclipSessionMetadataToSessionParams, buildEffectiveRunSessionConfigMetadata, resolveTaskSessionConfigFreshness } from "../services/heartbeat/workspaces.js";
+import { attachOutpostSessionMetadataToSessionParams, buildEffectiveRunSessionConfigMetadata, resolveTaskSessionConfigFreshness } from "../services/heartbeat/workspaces.js";
 
 const externalTestDatabaseUrl = process.env.OUTPOST_TEST_DATABASE_URL;
 if (externalTestDatabaseUrl && !new URL(externalTestDatabaseUrl).pathname.endsWith("_test")) {
@@ -60,7 +60,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
 
   afterEach(async () => {
     await db.delete(activityLog);
-    await db.delete(companySecretBindings);
+    await db.delete(spaceSecretBindings);
     await db.delete(environmentCustomImageSetupSessions);
     await db.delete(environmentLeases);
     await db.delete(heartbeatRuns);
@@ -70,8 +70,8 @@ describeEmbeddedPostgres("environmentService leases", () => {
     await db.delete(agents);
     await db.delete(instanceSettings);
     await db.delete(environments);
-    await db.delete(companySecrets);
-    await db.delete(companies);
+    await db.delete(spaceSecrets);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -79,13 +79,13 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   async function seedEnvironment() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const environmentId = randomUUID();
     const runId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: new Date(),
@@ -93,7 +93,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "active",
@@ -113,14 +113,14 @@ describeEmbeddedPostgres("environmentService leases", () => {
         host: "fixture.example.test",
         port: 22,
         username: "fixture",
-        remoteWorkspacePath: "/srv/paperclip",
+        remoteWorkspacePath: "/srv/outpost",
       },
       createdAt: new Date(),
       updatedAt: new Date(),
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "manual",
       status: "running",
@@ -128,19 +128,19 @@ describeEmbeddedPostgres("environmentService leases", () => {
       updatedAt: new Date(),
     });
 
-    return { companyId, agentId, environmentId, runId };
+    return { spaceId, agentId, environmentId, runId };
   }
 
-  async function seedCompany(name = "Acme") {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+  async function seedSpace(name = "Acme") {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name,
       status: "active",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    return companyId;
+    return spaceId;
   }
 
   it("clears user metadata to null when no private platform proof exists", async () => {
@@ -150,16 +150,16 @@ describeEmbeddedPostgres("environmentService leases", () => {
 
   it.each(["clear", "replace", "unrelated", "status", "config", "driver"] as const)(
     "handles %s saves atomically after a concurrent platform probe record", async operation => {
-      const companyId = await seedCompany();
+      const spaceId = await seedSpace();
       const config = { provider: "daytona", image: `registry.example.test/runtime@sha256:${"a".repeat(64)}` };
       const staleProof = { v: 1, marker: "old" };
       const freshProof = { v: 1, marker: "new" };
       const created = await svc.create({ name: "Concurrent metadata", driver: "sandbox", status: "active", envVars: {}, config,
-        metadata: { userNote: "old", _paperclipManagedArchiveToken: "old-archive-token",
-          [SANDBOX_PLATFORM_PROBE_METADATA_KEY]: { [companyId]: staleProof } } });
+        metadata: { userNote: "old", _outpostManagedArchiveToken: "old-archive-token",
+          [SANDBOX_PLATFORM_PROBE_METADATA_KEY]: { [spaceId]: staleProof } } });
       const patches: Record<typeof operation, UpdateEnvironment> = {
         clear: { metadata: null },
-        replace: { metadata: { userNote: "replacement", [SANDBOX_PLATFORM_PROBE_METADATA_KEY]: { [companyId]: staleProof } } },
+        replace: { metadata: { userNote: "replacement", [SANDBOX_PLATFORM_PROBE_METADATA_KEY]: { [spaceId]: staleProof } } },
         unrelated: { description: "unrelated save" },
         status: { status: "active" },
         config: { config: { ...config, image: `registry.example.test/runtime@sha256:${"b".repeat(64)}` } },
@@ -177,7 +177,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
                   return {
                     async returning() {
                       expect(await svc.recordSandboxPlatformProbe({
-                        environmentId: created.id, companyId, config, proof: freshProof,
+                        environmentId: created.id, spaceId, config, proof: freshProof,
                       })).toBe(true);
                       return pending.returning();
                     },
@@ -192,18 +192,18 @@ describeEmbeddedPostgres("environmentService leases", () => {
       if (operation === "config" || operation === "driver") {
         expect(saved?.metadata).not.toHaveProperty(SANDBOX_PLATFORM_PROBE_METADATA_KEY);
       } else {
-        expect(saved?.metadata?.[SANDBOX_PLATFORM_PROBE_METADATA_KEY]).toEqual({ [companyId]: freshProof });
+        expect(saved?.metadata?.[SANDBOX_PLATFORM_PROBE_METADATA_KEY]).toEqual({ [spaceId]: freshProof });
       }
-      if (operation === "clear") expect(saved?.metadata).toEqual({ [SANDBOX_PLATFORM_PROBE_METADATA_KEY]: { [companyId]: freshProof } });
+      if (operation === "clear") expect(saved?.metadata).toEqual({ [SANDBOX_PLATFORM_PROBE_METADATA_KEY]: { [spaceId]: freshProof } });
       else expect(saved?.metadata?.userNote).toBe(operation === "replace" ? "replacement" : "old");
-      if (operation !== "unrelated") expect(saved?.metadata).not.toHaveProperty("_paperclipManagedArchiveToken");
+      if (operation !== "unrelated") expect(saved?.metadata).not.toHaveProperty("_outpostManagedArchiveToken");
     },
   );
 
   it.each(["expired", "retained"] as const)("keeps cleanup completion fenced and atomic for %s leases", async status => {
-    const { companyId, environmentId, runId } = await seedEnvironment();
+    const { spaceId, environmentId, runId } = await seedEnvironment();
     const attemptId = randomUUID();
-    const lease = await svc.acquireLease({ companyId, environmentId, heartbeatRunId: runId,
+    const lease = await svc.acquireLease({ spaceId, environmentId, heartbeatRunId: runId,
       provider: "fake", leasePolicy: "reuse_by_environment" });
     await db.update(environmentLeases).set({ status: "pending_cleanup", cleanupStatus: "failed",
       metadata: { pendingCleanupAttemptId: attemptId, pendingCleanupInFlight: true,
@@ -223,10 +223,10 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("acquires and releases a lease for a run", async () => {
-    const { companyId, environmentId, runId } = await seedEnvironment();
+    const { spaceId, environmentId, runId } = await seedEnvironment();
 
     const lease = await svc.acquireLease({
-      companyId,
+      spaceId,
       environmentId,
       heartbeatRunId: runId,
       metadata: { driver: "local" },
@@ -242,12 +242,12 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("releases all active leases for a run without touching unrelated rows", async () => {
-    const { companyId, agentId, environmentId, runId } = await seedEnvironment();
+    const { spaceId, agentId, environmentId, runId } = await seedEnvironment();
     const otherRunId = randomUUID();
 
     await db.insert(heartbeatRuns).values({
       id: otherRunId,
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "manual",
       status: "running",
@@ -256,12 +256,12 @@ describeEmbeddedPostgres("environmentService leases", () => {
     });
 
     const targetLease = await svc.acquireLease({
-      companyId,
+      spaceId,
       environmentId,
       heartbeatRunId: runId,
     });
     const otherLease = await svc.acquireLease({
-      companyId,
+      spaceId,
       environmentId,
       heartbeatRunId: otherRunId,
     });
@@ -275,8 +275,8 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("aggregates delete blast radius counts into static and active tiers", async () => {
-    const companyId = randomUUID();
-    const otherCompanyId = randomUUID();
+    const spaceId = randomUUID();
+    const otherSpaceId = randomUUID();
     const environmentId = randomUUID();
     const otherEnvironmentId = randomUUID();
     const projectId = randomUUID();
@@ -286,9 +286,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const otherSecretId = randomUUID();
     const now = new Date();
 
-    await db.insert(companies).values([
+    await db.insert(spaces).values([
       {
-        id: companyId,
+        id: spaceId,
         name: "Acme",
         status: "active",
         issuePrefix: "ACM",
@@ -296,7 +296,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
         updatedAt: now,
       },
       {
-        id: otherCompanyId,
+        id: otherSpaceId,
         name: "Other Co",
         status: "active",
         issuePrefix: "OTH",
@@ -314,7 +314,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
           host: "fixture.example.test",
           port: 22,
           username: "fixture",
-          remoteWorkspacePath: "/srv/paperclip",
+          remoteWorkspacePath: "/srv/outpost",
         },
         createdAt: now,
         updatedAt: now,
@@ -328,7 +328,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
           host: "other.example.test",
           port: 22,
           username: "fixture",
-          remoteWorkspacePath: "/srv/paperclip",
+          remoteWorkspacePath: "/srv/outpost",
         },
         createdAt: now,
         updatedAt: now,
@@ -344,7 +344,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     });
     await db.insert(agents).values([
       {
-        companyId,
+        spaceId,
         name: "CodexCoder",
         role: "engineer",
         status: "active",
@@ -357,7 +357,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
         updatedAt: now,
       },
       {
-        companyId,
+        spaceId,
         name: "OtherCoder",
         role: "engineer",
         status: "active",
@@ -372,7 +372,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     ]);
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Project",
       status: "in_progress",
       executionWorkspacePolicy: {
@@ -385,7 +385,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       title: "Issue",
       status: "todo",
@@ -399,7 +399,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     });
     await db.insert(executionWorkspaces).values({
       id: workspaceId,
-      companyId,
+      spaceId,
       projectId,
       sourceIssueId: issueId,
       mode: "isolated_workspace",
@@ -415,10 +415,10 @@ describeEmbeddedPostgres("environmentService leases", () => {
       createdAt: now,
       updatedAt: now,
     });
-    await db.insert(companySecrets).values([
+    await db.insert(spaceSecrets).values([
       {
         id: secretId,
-        companyId,
+        spaceId,
         key: "env-secret",
         name: "Env Secret",
         provider: "local_encrypted",
@@ -427,7 +427,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       },
       {
         id: otherSecretId,
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         key: "other-env-secret",
         name: "Other Env Secret",
         provider: "local_encrypted",
@@ -435,9 +435,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
         updatedAt: now,
       },
     ]);
-    await db.insert(companySecretBindings).values([
+    await db.insert(spaceSecretBindings).values([
       {
-        companyId,
+        spaceId,
         secretId,
         targetType: "environment",
         targetId: environmentId,
@@ -446,7 +446,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
         updatedAt: now,
       },
       {
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         secretId: otherSecretId,
         targetType: "environment",
         targetId: environmentId,
@@ -455,7 +455,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
         updatedAt: now,
       },
       {
-        companyId,
+        spaceId,
         secretId,
         targetType: "agent",
         targetId: "agent-1",
@@ -465,11 +465,11 @@ describeEmbeddedPostgres("environmentService leases", () => {
       },
     ]);
     await svc.acquireLease({
-      companyId,
+      spaceId,
       environmentId,
     });
     const releasedLease = await svc.acquireLease({
-      companyId,
+      spaceId,
       environmentId,
     });
     await svc.releaseLease(releasedLease.id);
@@ -534,7 +534,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
           host: "default.example.test",
           port: 22,
           username: "fixture",
-          remoteWorkspacePath: "/srv/paperclip",
+          remoteWorkspacePath: "/srv/outpost",
         },
         createdAt: now,
         updatedAt: now,
@@ -548,7 +548,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
           host: "delete.example.test",
           port: 22,
           username: "fixture",
-          remoteWorkspacePath: "/srv/paperclip",
+          remoteWorkspacePath: "/srv/outpost",
         },
         createdAt: now,
         updatedAt: now,
@@ -584,11 +584,11 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("blocks delete while a pending_cleanup lease still holds the sandbox reference", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const environmentId = randomUUID();
     const now = new Date();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: now,
@@ -603,13 +603,13 @@ describeEmbeddedPostgres("environmentService leases", () => {
         host: "pending.example.test",
         port: 22,
         username: "fixture",
-        remoteWorkspacePath: "/srv/paperclip",
+        remoteWorkspacePath: "/srv/outpost",
       },
       createdAt: now,
       updatedAt: now,
     });
     await svc.insertPendingCleanupLease({
-      companyId,
+      spaceId,
       environmentId,
       provider: "fake-plugin",
       providerLeaseId: "sandbox-1",
@@ -629,11 +629,11 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("atomically blocks delete while a reusable sandbox lease is still live", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const environmentId = randomUUID();
     const now = new Date();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: now,
@@ -657,7 +657,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const workspaceId = randomUUID();
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Project",
       status: "in_progress",
       createdAt: now,
@@ -665,7 +665,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       identifier: "ACME-7",
       title: "Reusable lease holder",
@@ -676,7 +676,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     });
     await db.insert(executionWorkspaces).values({
       id: workspaceId,
-      companyId,
+      spaceId,
       projectId,
       sourceIssueId: issueId,
       mode: "isolated_workspace",
@@ -689,7 +689,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       updatedAt: now,
     });
     const lease = await svc.acquireLease({
-      companyId,
+      spaceId,
       environmentId,
       executionWorkspaceId: workspaceId,
       issueId,
@@ -748,11 +748,11 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("allows delete with an active ephemeral lease", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const environmentId = randomUUID();
     const now = new Date();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: now,
@@ -768,7 +768,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       updatedAt: now,
     });
     await svc.acquireLease({
-      companyId,
+      spaceId,
       environmentId,
       leasePolicy: "ephemeral",
       provider: "fake",
@@ -783,11 +783,11 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("allows delete once the pending_cleanup lease resolves", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const environmentId = randomUUID();
     const now = new Date();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: now,
@@ -802,13 +802,13 @@ describeEmbeddedPostgres("environmentService leases", () => {
         host: "resolved.example.test",
         port: 22,
         username: "fixture",
-        remoteWorkspacePath: "/srv/paperclip",
+        remoteWorkspacePath: "/srv/outpost",
       },
       createdAt: now,
       updatedAt: now,
     });
     const lease = await svc.insertPendingCleanupLease({
-      companyId,
+      spaceId,
       environmentId,
       provider: "fake-plugin",
       providerLeaseId: "sandbox-1",
@@ -834,11 +834,11 @@ describeEmbeddedPostgres("environmentService leases", () => {
     // A delete wins the untracked window before the orphan record lands. The
     // record must still persist, so the sweep keeps a durable handle to the
     // remote sandbox.
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const environmentId = randomUUID();
     const now = new Date();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: now,
@@ -853,7 +853,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
         host: "deleted.example.test",
         port: 22,
         username: "fixture",
-        remoteWorkspacePath: "/srv/paperclip",
+        remoteWorkspacePath: "/srv/outpost",
       },
       createdAt: now,
       updatedAt: now,
@@ -866,7 +866,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     // environment and stores a null reference with the immutable provider
     // metadata, so the teardown still runs later.
     const lease = await svc.insertPendingCleanupLease({
-      companyId,
+      spaceId,
       environmentId,
       provider: "fake-plugin",
       providerLeaseId: "sandbox-orphan-1",
@@ -893,11 +893,11 @@ describeEmbeddedPostgres("environmentService leases", () => {
     // environment row `for update`, and the delete refuses while a
     // `pending_cleanup` lease exists, so the two writes serialize into one of
     // two safe outcomes. The orphan row persists in both.
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const environmentId = randomUUID();
     const now = new Date();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: now,
@@ -912,7 +912,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
         host: "race.example.test",
         port: 22,
         username: "fixture",
-        remoteWorkspacePath: "/srv/paperclip",
+        remoteWorkspacePath: "/srv/outpost",
       },
       createdAt: now,
       updatedAt: now,
@@ -921,7 +921,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const [removed, lease] = await Promise.all([
       svc.removeIfDeletable(environmentId),
       svc.insertPendingCleanupLease({
-        companyId,
+        spaceId,
         environmentId,
         provider: "fake-plugin",
         providerLeaseId: "sandbox-orphan-2",
@@ -961,11 +961,11 @@ describeEmbeddedPostgres("environmentService leases", () => {
     // provider. The recorded lease must keep the original provider and its
     // immutable teardown metadata, so a later retry targets the original
     // provider, never the reconfigured one.
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const environmentId = randomUUID();
     const now = new Date();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: now,
@@ -987,7 +987,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
         config: { provider: "provider-b" },
       }),
       svc.insertPendingCleanupLease({
-        companyId,
+        spaceId,
         environmentId,
         provider: "provider-a",
         providerLeaseId: "sandbox-orphan-3",
@@ -1012,18 +1012,18 @@ describeEmbeddedPostgres("environmentService leases", () => {
     expect((environmentRows[0]?.config as { provider?: string } | null)?.provider).toBe("provider-b");
   });
 
-  it("creates and then reuses the default local environment for a company", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+  it("creates and then reuses the default local environment for a space", async () => {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
-    const created = await svc.ensureLocalEnvironment(companyId);
-    const reused = await svc.ensureLocalEnvironment(companyId);
+    const created = await svc.ensureLocalEnvironment(spaceId);
+    const reused = await svc.ensureLocalEnvironment(spaceId);
 
     expect(created.driver).toBe("local");
     expect(reused.id).toBe(created.id);
@@ -1034,9 +1034,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("leaves an existing default local environment untouched", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: new Date(),
@@ -1057,7 +1057,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       })
       .returning();
 
-    const ensured = await svc.ensureLocalEnvironment(companyId);
+    const ensured = await svc.ensureLocalEnvironment(spaceId);
 
     expect(ensured.id).toBe(existing?.id);
     expect(ensured.name).toBe("Archived Local");
@@ -1070,9 +1070,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("adopts a pre-existing local row on a cloud-managed instance by stamping the platform marker", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: new Date(),
@@ -1093,11 +1093,11 @@ describeEmbeddedPostgres("environmentService leases", () => {
 
     process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = "test-server-token";
     try {
-      const adopted = await svc.ensureLocalEnvironment(companyId);
+      const adopted = await svc.ensureLocalEnvironment(spaceId);
 
       expect(adopted.id).toBe(existing?.id);
       expect(adopted.name).toBe("Tenant Local");
-      expect(adopted.metadata).toEqual({ owner: "operator", managedByPaperclip: true });
+      expect(adopted.metadata).toEqual({ owner: "operator", managedByOutpost: true });
 
       // Re-ensuring an already-adopted row must not rewrite it.
       const adoptedRow = await db
@@ -1105,8 +1105,8 @@ describeEmbeddedPostgres("environmentService leases", () => {
         .from(environments)
         .where(eq(environments.driver, "local"))
         .then((rows) => rows[0]);
-      const reused = await svc.ensureLocalEnvironment(companyId);
-      expect(reused.metadata).toEqual({ owner: "operator", managedByPaperclip: true });
+      const reused = await svc.ensureLocalEnvironment(spaceId);
+      expect(reused.metadata).toEqual({ owner: "operator", managedByOutpost: true });
       const reusedRow = await db
         .select()
         .from(environments)
@@ -1119,9 +1119,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("does not stamp the platform marker on self-hosted instances (regression)", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: new Date(),
@@ -1137,15 +1137,15 @@ describeEmbeddedPostgres("environmentService leases", () => {
       updatedAt: new Date(),
     });
 
-    const ensured = await svc.ensureLocalEnvironment(companyId);
+    const ensured = await svc.ensureLocalEnvironment(spaceId);
 
     expect(ensured.metadata).toEqual({ owner: "operator" });
   });
 
   it("deduplicates concurrent default local environment creation", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: new Date(),
@@ -1153,7 +1153,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     });
 
     const results = await Promise.all(
-      Array.from({ length: 8 }, () => svc.ensureLocalEnvironment(companyId)),
+      Array.from({ length: 8 }, () => svc.ensureLocalEnvironment(spaceId)),
     );
 
     expect(new Set(results.map((environment) => environment.id)).size).toBe(1);
@@ -1165,9 +1165,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("ensures, refreshes, and finds a managed Kubernetes sandbox environment", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: new Date(),
@@ -1175,9 +1175,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
     });
 
     // No managed k8s env yet.
-    expect(await svc.findKubernetesEnvironment(companyId)).toBeNull();
+    expect(await svc.findKubernetesEnvironment(spaceId)).toBeNull();
 
-    const created = await svc.ensureKubernetesEnvironment(companyId, {
+    const created = await svc.ensureKubernetesEnvironment(spaceId, {
       backend: "job",
       inCluster: true,
       runtimeClassName: "gvisor",
@@ -1192,7 +1192,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     expect(created.metadata?.managedKubernetesSandbox).toBe(true);
 
     // Idempotent: second call refreshes config in place, no new row.
-    const refreshed = await svc.ensureKubernetesEnvironment(companyId, {
+    const refreshed = await svc.ensureKubernetesEnvironment(spaceId, {
       backend: "job",
       inCluster: true,
       egressMode: "cilium",
@@ -1204,7 +1204,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       "api.openai.com",
     ]);
 
-    const found = await svc.findKubernetesEnvironment(companyId);
+    const found = await svc.findKubernetesEnvironment(spaceId);
     expect(found?.id).toBe(created.id);
 
     const rows = await db
@@ -1215,9 +1215,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("deduplicates concurrent managed Kubernetes environment creation", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: new Date(),
@@ -1228,7 +1228,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     // post-insert convergence (prefer the oldest row, delete the loser).
     const results = await Promise.all(
       Array.from({ length: 8 }, () =>
-        svc.ensureKubernetesEnvironment(companyId, { inCluster: true, backend: "job" }),
+        svc.ensureKubernetesEnvironment(spaceId, { inCluster: true, backend: "job" }),
       ),
     );
 
@@ -1243,10 +1243,10 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("renames the managed sandbox in place without changing defaults, agent bindings, or leases", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const input = {
-      companyId,
-      name: "Paperclip Computer",
+      spaceId,
+      name: "Outpost Computer",
       description: "Managed execution environment.",
       provider: "daytona",
       config: { snapshot: "managed-snapshot", cpu: 4, memory: 4 },
@@ -1256,7 +1256,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const envVars = { PROJECT_MODE: "retained" };
     await db.update(environments).set({ envVars }).where(eq(environments.id, created.id));
     const [agent] = await db.insert(agents).values({
-      companyId,
+      spaceId,
       name: "Sandbox agent",
       role: "engineer",
       adapterType: "codex_local",
@@ -1267,17 +1267,17 @@ describeEmbeddedPostgres("environmentService leases", () => {
       set: { defaultEnvironmentId: created.id },
     });
     const [lease] = await db.insert(environmentLeases).values({
-      companyId,
+      spaceId,
       environmentId: created.id,
       provider: "daytona",
       providerLeaseId: "retained-sandbox-lease",
     }).returning();
 
-    const renamed = await svc.ensureManagedSandboxEnvironment({ ...input, name: "Paperclip Sandbox" });
+    const renamed = await svc.ensureManagedSandboxEnvironment({ ...input, name: "Outpost Sandbox" });
     expect(renamed.action).toBe("updated");
     expect(renamed.environment).toMatchObject({
       id: created.id,
-      name: "Paperclip Sandbox",
+      name: "Outpost Sandbox",
       description: input.description,
       config: created.config,
       envVars,
@@ -1289,12 +1289,12 @@ describeEmbeddedPostgres("environmentService leases", () => {
     expect(settings?.defaultEnvironmentId).toBe(created.id);
     expect(savedLease).toEqual(lease);
     expect(await db.select().from(environments)).toHaveLength(1);
-    expect((await svc.ensureManagedSandboxEnvironment({ ...input, name: "Paperclip Sandbox" })).action).toBe("unchanged");
+    expect((await svc.ensureManagedSandboxEnvironment({ ...input, name: "Outpost Sandbox" })).action).toBe("unchanged");
   });
 
   it("preserves task sessions across cosmetic managed sandbox reconciliation", async () => {
-    const companyId = await seedCompany();
-    const input = { companyId, name: "Managed computer", description: "Original description", provider: "daytona",
+    const spaceId = await seedSpace();
+    const input = { spaceId, name: "Managed computer", description: "Original description", provider: "daytona",
       config: { snapshot: "snapshot-a" }, platformFullyManaged: true };
     const created = (await svc.ensureManagedSandboxEnvironment(input)).environment;
     const revision = new Date("2026-01-01T00:00:00.000Z");
@@ -1309,7 +1309,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       environmentEnv: environment.envVars, projectEnv: null, routineEnv: null, runtimeSkills: [],
     });
     const before = await metadata({ ...created, updatedAt: revision });
-    const taskSessionParams = attachPaperclipSessionMetadataToSessionParams({ sessionId: "saved-session" }, "model-a", before);
+    const taskSessionParams = attachOutpostSessionMetadataToSessionParams({ sessionId: "saved-session" }, "model-a", before);
     const reconciled = await svc.ensureManagedSandboxEnvironment({ ...input, name: "Managed sandbox",
       description: "New description", extraMetadata: { platformLabel: "new label" } });
     expect(reconciled.action).toBe("updated");
@@ -1317,7 +1317,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       taskSessionParams, configMetadata: await metadata(reconciled.environment) });
     expect(freshness).toMatchObject({ reset: false, changedCategories: [] });
     expect(reconciled.environment.updatedAt).toEqual(revision);
-    expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, companyId),
+    expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, spaceId),
       eq(activityLog.action, "environment.managed_stock_updated")))).toHaveLength(1);
     const changed = await svc.ensureManagedSandboxEnvironment({ ...input, name: "Managed sandbox",
       description: "New description", extraMetadata: { platformLabel: "new label" }, config: { snapshot: "snapshot-b" } });
@@ -1329,9 +1329,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("ensures and refreshes a managed sandbox environment for an arbitrary provider", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const createdResult = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       description: "Managed Daytona sandbox environment.",
       provider: "daytona",
@@ -1344,13 +1344,13 @@ describeEmbeddedPostgres("environmentService leases", () => {
     expect(created.name).toBe("Daytona");
     expect(created.config.provider).toBe("daytona");
     expect(created.config.target).toBe("us");
-    expect(created.metadata?.managedByPaperclip).toBe(true);
+    expect(created.metadata?.managedByOutpost).toBe(true);
     expect(created.metadata?.managedSandboxProvider).toBe("daytona");
 
     // A stock update advances config and name in place, and a description
     // omitted from the spec is cleared rather than pinned forever.
     const refreshedResult = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona (EU)",
       provider: "daytona",
       config: { target: "eu" },
@@ -1369,7 +1369,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       .select()
       .from(builtInManagedResources)
       .where(and(
-        eq(builtInManagedResources.companyId, companyId),
+        eq(builtInManagedResources.spaceId, spaceId),
         eq(builtInManagedResources.resourceKind, "environment"),
       ));
     expect(binding).toMatchObject({
@@ -1379,7 +1379,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const activity = await db
       .select({ action: activityLog.action })
       .from(activityLog)
-      .where(eq(activityLog.companyId, companyId))
+      .where(eq(activityLog.spaceId, spaceId))
       .orderBy(activityLog.createdAt);
     expect(activity.map((entry) => entry.action)).toEqual([
       "environment.managed_stock_added",
@@ -1393,31 +1393,31 @@ describeEmbeddedPostgres("environmentService leases", () => {
     expect(rows).toHaveLength(1);
   });
 
-  it("lists the companies that own a managed sandbox environment", async () => {
-    const companyA = randomUUID();
-    const companyB = randomUUID();
-    await db.insert(companies).values([
-      { id: companyA, name: "Company A", status: "active", issuePrefix: "CA", createdAt: new Date(), updatedAt: new Date() },
-      { id: companyB, name: "Company B", status: "active", issuePrefix: "CB", createdAt: new Date(), updatedAt: new Date() },
+  it("lists the spaces that own a managed sandbox environment", async () => {
+    const spaceA = randomUUID();
+    const spaceB = randomUUID();
+    await db.insert(spaces).values([
+      { id: spaceA, name: "Space A", status: "active", issuePrefix: "CA", createdAt: new Date(), updatedAt: new Date() },
+      { id: spaceB, name: "Space B", status: "active", issuePrefix: "CB", createdAt: new Date(), updatedAt: new Date() },
     ]);
-    // Two companies provision the same managed sandbox slot, so both bind to the
+    // Two spaces provision the same managed sandbox slot, so both bind to the
     // one environment row.
     const created = await svc.ensureManagedSandboxEnvironment({
-      companyId: companyA,
+      spaceId: spaceA,
       name: "Daytona",
       provider: "daytona",
       config: { target: "us" },
     });
     const environmentId = created.environment.id;
     await svc.ensureManagedSandboxEnvironment({
-      companyId: companyB,
+      spaceId: spaceB,
       name: "Daytona",
       provider: "daytona",
       config: { target: "us" },
     });
 
-    const owners = await svc.listBoundCompanyIds(environmentId);
-    expect(owners.slice().sort()).toEqual([companyA, companyB].sort());
+    const owners = await svc.listBoundSpaceIds(environmentId);
+    expect(owners.slice().sort()).toEqual([spaceA, spaceB].sort());
 
     // An operator-created environment has no managed binding, so it lists no
     // owner and stays instance-global.
@@ -1431,7 +1431,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    expect(await svc.listBoundCompanyIds(unboundId)).toEqual([]);
+    expect(await svc.listBoundSpaceIds(unboundId)).toEqual([]);
   });
 
   it("preserves tenant env vars across managed sandbox boot reconciles", async () => {
@@ -1439,9 +1439,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
     // to the managed sandbox environment. The provisioner reconciles
     // name/config/metadata/status on every boot; it must never touch the
     // tenant's env vars, or a redeploy would silently wipe them.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const created = (await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       provider: "daytona",
       config: { target: "us" },
@@ -1451,7 +1451,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     await svc.update(created.id, { envVars: { MY_TOOL_TOKEN_REF: "binding-ref", PLAIN: "value" } });
 
     const reconciled = (await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona (EU)",
       provider: "daytona",
       config: { target: "eu" },
@@ -1462,9 +1462,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("treats stock_current as an environment-row no-op and preserves user-owned fields", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const created = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       description: "Managed stock",
       provider: "daytona",
@@ -1486,14 +1486,14 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const [bindingBefore] = await db
       .select()
       .from(builtInManagedResources)
-      .where(eq(builtInManagedResources.companyId, companyId));
+      .where(eq(builtInManagedResources.spaceId, spaceId));
     const activityBefore = await db
       .select({ id: activityLog.id })
       .from(activityLog)
-      .where(eq(activityLog.companyId, companyId));
+      .where(eq(activityLog.spaceId, spaceId));
 
     const reconciled = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       description: "Managed stock",
       provider: "daytona",
@@ -1503,7 +1503,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const [bindingAfter] = await db
       .select()
       .from(builtInManagedResources)
-      .where(eq(builtInManagedResources.companyId, companyId));
+      .where(eq(builtInManagedResources.spaceId, spaceId));
 
     expect(reconciled).toMatchObject({
       action: "unchanged",
@@ -1517,14 +1517,14 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const activityAfter = await db
       .select({ id: activityLog.id })
       .from(activityLog)
-      .where(eq(activityLog.companyId, companyId));
+      .where(eq(activityLog.spaceId, spaceId));
     expect(activityAfter).toHaveLength(activityBefore.length);
   });
 
   it("classifies operator drift, preserves the row, and exposes the pending stock update", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const created = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       description: "Managed stock",
       provider: "daytona",
@@ -1534,7 +1534,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const [bindingBefore] = await db
       .select()
       .from(builtInManagedResources)
-      .where(eq(builtInManagedResources.companyId, companyId));
+      .where(eq(builtInManagedResources.spaceId, spaceId));
     const operatorUpdatedAt = new Date("2026-08-06T12:01:00.000Z");
     await db
       .update(environments)
@@ -1546,7 +1546,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       .where(eq(environments.id, created.environment.id));
 
     const reconciled = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona v2",
       description: "Managed stock v2",
       provider: "daytona",
@@ -1556,7 +1556,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const [bindingAfter] = await db
       .select()
       .from(builtInManagedResources)
-      .where(eq(builtInManagedResources.companyId, companyId));
+      .where(eq(builtInManagedResources.spaceId, spaceId));
 
     expect(reconciled).toMatchObject({
       action: "skipped",
@@ -1575,15 +1575,15 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const activity = await db
       .select({ action: activityLog.action })
       .from(activityLog)
-      .where(eq(activityLog.companyId, companyId))
+      .where(eq(activityLog.spaceId, spaceId))
       .orderBy(activityLog.createdAt);
     expect(activity.at(-1)?.action).toBe("environment.managed_stock_skipped");
   });
 
   it("platformFullyManaged applies drift instead of preserving it, since no operator can edit this row", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const created = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       description: "Managed stock",
       provider: "daytona",
@@ -1608,7 +1608,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       .where(eq(environments.id, created.environment.id));
 
     const reconciled = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona v2",
       description: "Managed stock v2",
       provider: "daytona",
@@ -1630,15 +1630,15 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const [bindingAfter] = await db
       .select()
       .from(builtInManagedResources)
-      .where(eq(builtInManagedResources.companyId, companyId));
+      .where(eq(builtInManagedResources.spaceId, spaceId));
     expect(bindingAfter?.stockVersion).toBe("v2");
     expect(bindingAfter?.stockHash).toBe(reconciled.stockHash);
   });
 
   it("platformFullyManaged still preserves an operator-reaffirmed archive decision", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const created = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       provider: "daytona",
       config: { target: "us" },
@@ -1650,7 +1650,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       .toBe("archived");
 
     const reconciled = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       provider: "daytona",
       config: { target: "us" },
@@ -1665,12 +1665,12 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("adopts the managed slot on a provider switch and drops the stale kubernetes marker", async () => {
-    const companyId = await seedCompany();
-    const kubernetes = await svc.ensureKubernetesEnvironment(companyId, { inCluster: true, backend: "job" });
+    const spaceId = await seedSpace();
+    const kubernetes = await svc.ensureKubernetesEnvironment(spaceId, { inCluster: true, backend: "job" });
     expect(kubernetes.metadata?.managedKubernetesSandbox).toBe(true);
 
     const daytona = (await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       provider: "daytona",
       config: { target: "us" },
@@ -1685,18 +1685,18 @@ describeEmbeddedPostgres("environmentService leases", () => {
     expect(await svc.findKubernetesEnvironment()).toBeNull();
 
     // And back: the kubernetes wrapper re-adopts the same row.
-    const restored = await svc.ensureKubernetesEnvironment(companyId, { inCluster: true, backend: "job" });
+    const restored = await svc.ensureKubernetesEnvironment(spaceId, { inCluster: true, backend: "job" });
     expect(restored.id).toBe(kubernetes.id);
     expect(restored.metadata?.managedKubernetesSandbox).toBe(true);
   });
 
   it("archives the managed sandbox row only for its own provider and reactivates on ensure", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     // Nothing provisioned yet: archiving is a no-op.
     expect(await svc.archiveManagedSandboxEnvironment({ provider: "daytona" })).toBeNull();
 
     const created = (await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       provider: "daytona",
       config: { target: "us" },
@@ -1713,7 +1713,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       .select({ action: activityLog.action })
       .from(activityLog)
       .where(and(
-        eq(activityLog.companyId, companyId),
+        eq(activityLog.spaceId, spaceId),
         eq(activityLog.entityId, created.id),
       ))
       .orderBy(activityLog.createdAt);
@@ -1726,7 +1726,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
 
     // The next healthy boot's ensure re-activates the same row.
     const restored = (await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       provider: "daytona",
       config: { target: "us" },
@@ -1736,9 +1736,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("reactivates a reconciler-archived row without replacing operator drift", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const created = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       description: "Managed stock",
       provider: "daytona",
@@ -1758,14 +1758,14 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const [archivedBinding] = await db
       .select()
       .from(builtInManagedResources)
-      .where(eq(builtInManagedResources.companyId, companyId));
+      .where(eq(builtInManagedResources.spaceId, spaceId));
     expect(archivedBinding?.defaultsJson).toMatchObject({
       description: "Managed stock",
       status: "archived",
     });
 
     const restored = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona v2",
       description: "Managed stock v2",
       provider: "daytona",
@@ -1786,7 +1786,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     const [reactivatedBinding] = await db
       .select()
       .from(builtInManagedResources)
-      .where(eq(builtInManagedResources.companyId, companyId));
+      .where(eq(builtInManagedResources.spaceId, spaceId));
     expect(reactivatedBinding?.defaultsJson).toMatchObject({
       description: "Managed stock",
       status: "active",
@@ -1796,9 +1796,9 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("preserves an operator archive decision made after provider archival", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const created = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       provider: "daytona",
       config: { target: "us" },
@@ -1809,7 +1809,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
       .toBe("archived");
 
     const reconciled = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       provider: "daytona",
       config: { target: "us" },
@@ -1823,7 +1823,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("preserves an existing unmanaged sandbox row holding the desired name", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const handMade = await svc.create({
       name: "Daytona",
       driver: "sandbox",
@@ -1831,10 +1831,10 @@ describeEmbeddedPostgres("environmentService leases", () => {
       envVars: {},
       config: { provider: "daytona", target: "us" },
     });
-    expect(handMade.metadata?.managedByPaperclip).toBeUndefined();
+    expect(handMade.metadata?.managedByOutpost).toBeUndefined();
 
     const reconciliation = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       provider: "daytona",
       config: { target: "eu" },
@@ -1846,7 +1846,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     });
     expect(reconciliation.environment.id).toBe(handMade.id);
     expect(reconciliation.environment.config.target).toBe("us");
-    expect(reconciliation.environment.metadata?.managedByPaperclip).toBeUndefined();
+    expect(reconciliation.environment.metadata?.managedByOutpost).toBeUndefined();
 
     const rows = await db
       .select()
@@ -1861,7 +1861,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     // `operator_modified` too, but there is no prior platform pass for it to
     // have drifted from — the bypass must require a binding for this exact
     // row, or it would overwrite the tenant's config and stamp it managed.
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const handMade = await svc.create({
       name: "Daytona",
       driver: "sandbox",
@@ -1869,10 +1869,10 @@ describeEmbeddedPostgres("environmentService leases", () => {
       envVars: {},
       config: { provider: "daytona", target: "us" },
     });
-    expect(handMade.metadata?.managedByPaperclip).toBeUndefined();
+    expect(handMade.metadata?.managedByOutpost).toBeUndefined();
 
     const reconciliation = await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       provider: "daytona",
       config: { target: "eu" },
@@ -1885,7 +1885,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     });
     expect(reconciliation.environment.id).toBe(handMade.id);
     expect(reconciliation.environment.config.target).toBe("us");
-    expect(reconciliation.environment.metadata?.managedByPaperclip).toBeUndefined();
+    expect(reconciliation.environment.metadata?.managedByOutpost).toBeUndefined();
 
     const rows = await db
       .select()
@@ -1895,7 +1895,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("keeps the current name when the desired name belongs to another row", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     await svc.create({
       name: "Daytona",
       driver: "ssh",
@@ -1905,15 +1905,15 @@ describeEmbeddedPostgres("environmentService leases", () => {
         host: "fixture.example.test",
         port: 22,
         username: "fixture",
-        remoteWorkspacePath: "/srv/paperclip",
+        remoteWorkspacePath: "/srv/outpost",
       },
     });
-    const kubernetes = await svc.ensureKubernetesEnvironment(companyId, { inCluster: true });
+    const kubernetes = await svc.ensureKubernetesEnvironment(spaceId, { inCluster: true });
 
     // The managed slot is adopted, but the rename would collide with the ssh
     // row on environments_name_idx; the ensure keeps the existing name.
     const adopted = (await svc.ensureManagedSandboxEnvironment({
-      companyId,
+      spaceId,
       name: "Daytona",
       provider: "daytona",
       config: { target: "us" },
@@ -1935,7 +1935,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
         host: "fixture.example.test",
         port: 22,
         username: "fixture",
-        remoteWorkspacePath: "/srv/paperclip",
+        remoteWorkspacePath: "/srv/outpost",
       },
     });
 
@@ -1985,10 +1985,10 @@ describeEmbeddedPostgres("environmentService leases", () => {
     expect(original?.name).toBe("Lease Fixture");
   });
 
-  it("rejects a second managed-sandbox row for the same company at the DB level", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+  it("rejects a second managed-sandbox row for the same space at the DB level", async () => {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: new Date(),
@@ -2001,21 +2001,21 @@ describeEmbeddedPostgres("environmentService leases", () => {
       driver: "sandbox",
       status: "active",
       config: { provider: "kubernetes" },
-      metadata: { managedByPaperclip: true, managedKubernetesSandbox: true },
+      metadata: { managedByOutpost: true, managedKubernetesSandbox: true },
       createdAt: now,
       updatedAt: now,
     });
 
-    // Partial unique index environments_company_managed_sandbox_idx rejects a
-    // second row matching driver='sandbox' AND managedByPaperclip=true for the
-    // same company. This is the DB-level invariant that replaced the previous
+    // Partial unique index environments_space_managed_sandbox_idx rejects a
+    // second row matching driver='sandbox' AND managedByOutpost=true for the
+    // same space. This is the DB-level invariant that replaced the previous
     // application-side post-insert convergence loop.
     const secondInsert = db.insert(environments).values({
       name: "Second",
       driver: "sandbox",
       status: "active",
       config: { provider: "kubernetes" },
-      metadata: { managedByPaperclip: true, managedKubernetesSandbox: true },
+      metadata: { managedByOutpost: true, managedKubernetesSandbox: true },
       createdAt: new Date(now.getTime() + 1),
       updatedAt: new Date(now.getTime() + 1),
     });
@@ -2031,7 +2031,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     }
     expect(raisedConstraint).toBe("environments_managed_sandbox_idx");
 
-    // Index does NOT cover tenant-created sandbox rows (no managedByPaperclip
+    // Index does NOT cover tenant-created sandbox rows (no managedByOutpost
     // marker) — operators must be able to keep multiple tenant sandbox envs.
     await db.insert(environments).values({
       name: "Tenant Sandbox",
@@ -2051,15 +2051,15 @@ describeEmbeddedPostgres("environmentService leases", () => {
   });
 
   it("does not treat a non-kubernetes sandbox environment as the managed k8s env", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    await svc.create(companyId, {
+    await svc.create(spaceId, {
       name: "Fake Sandbox",
       driver: "sandbox",
       status: "active",
@@ -2067,13 +2067,13 @@ describeEmbeddedPostgres("environmentService leases", () => {
       config: { provider: "fake", image: "busybox", reuseLease: false },
     });
 
-    expect(await svc.findKubernetesEnvironment(companyId)).toBeNull();
+    expect(await svc.findKubernetesEnvironment(spaceId)).toBeNull();
   });
 
   it("ignores a config.provider=kubernetes sandbox env without the managed marker", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: new Date(),
@@ -2083,7 +2083,7 @@ describeEmbeddedPostgres("environmentService leases", () => {
     // A tenant-created sandbox env with config.provider "kubernetes" but WITHOUT
     // the managed metadata marker must NOT be treated as the managed k8s env,
     // otherwise it would bypass the operator gVisor runtimeClass / Cilium egress.
-    await svc.create(companyId, {
+    await svc.create(spaceId, {
       name: "Tenant K8s Sandbox",
       driver: "sandbox",
       status: "active",
@@ -2091,37 +2091,37 @@ describeEmbeddedPostgres("environmentService leases", () => {
       config: { provider: "kubernetes", reuseLease: false },
     });
 
-    expect(await svc.findKubernetesEnvironment(companyId)).toBeNull();
+    expect(await svc.findKubernetesEnvironment(spaceId)).toBeNull();
 
     // The managed env (created via ensureKubernetesEnvironment) carries the
     // marker and is the only one found.
-    const managed = await svc.ensureKubernetesEnvironment(companyId, {
+    const managed = await svc.ensureKubernetesEnvironment(spaceId, {
       backend: "job",
       inCluster: true,
       runtimeClassName: "gvisor",
     });
-    const found = await svc.findKubernetesEnvironment(companyId);
+    const found = await svc.findKubernetesEnvironment(spaceId);
     expect(found?.id).toBe(managed.id);
   });
 
-  it("allows multiple SSH environments for the same company", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+  it("allows multiple SSH environments for the same space", async () => {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
-    const first = await svc.create(companyId, {
+    const first = await svc.create(spaceId, {
       name: "Production SSH",
       driver: "ssh",
       status: "active",
       envVars: {},
       config: { host: "prod.example.com", username: "deploy" },
     });
-    const second = await svc.create(companyId, {
+    const second = await svc.create(spaceId, {
       name: "Staging SSH",
       driver: "ssh",
       status: "active",
@@ -2135,12 +2135,12 @@ describeEmbeddedPostgres("environmentService leases", () => {
     expect(rows.filter((row) => row.driver === "ssh")).toHaveLength(2);
   });
 
-  describe("acquireLease company-binding guard", () => {
+  describe("acquireLease space-binding guard", () => {
     async function seedSandboxEnvironment(name = "Managed Sandbox") {
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const environmentId = randomUUID();
-      await db.insert(companies).values({
-        id: companyId,
+      await db.insert(spaces).values({
+        id: spaceId,
         name,
         status: "active",
         createdAt: new Date(),
@@ -2155,12 +2155,12 @@ describeEmbeddedPostgres("environmentService leases", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      return { companyId, environmentId };
+      return { spaceId, environmentId };
     }
 
-    async function bindEnvironmentToCompany(environmentId: string, companyId: string) {
+    async function bindEnvironmentToSpace(environmentId: string, spaceId: string) {
       await db.insert(builtInManagedResources).values({
-        companyId,
+        spaceId,
         bundleKey: "managed-environment",
         resourceKind: "environment",
         resourceKey: "managed-sandbox",
@@ -2171,25 +2171,25 @@ describeEmbeddedPostgres("environmentService leases", () => {
     }
 
     it("rejects an acquire when a bind lands after the route check", async () => {
-      const { companyId, environmentId } = await seedSandboxEnvironment();
-      // The other company owns a managed binding that a reconciliation committed
+      const { spaceId, environmentId } = await seedSandboxEnvironment();
+      // The other space owns a managed binding that a reconciliation committed
       // after the route guard read an empty binding list.
-      const otherCompanyId = randomUUID();
-      await db.insert(companies).values({
-        id: otherCompanyId,
+      const otherSpaceId = randomUUID();
+      await db.insert(spaces).values({
+        id: otherSpaceId,
         name: "Other Co",
         issuePrefix: "OTA",
         status: "active",
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      await bindEnvironmentToCompany(environmentId, otherCompanyId);
+      await bindEnvironmentToSpace(environmentId, otherSpaceId);
 
       await expect(
-        svc.acquireLease({ companyId, environmentId, assertCompanyBinding: true }),
+        svc.acquireLease({ spaceId, environmentId, assertSpaceBinding: true }),
       ).rejects.toMatchObject({
         status: 403,
-        details: { code: "environment_company_mismatch" },
+        details: { code: "environment_space_mismatch" },
       });
       // The insert never ran, so the caller holds no lease.
       const leaseRows = await db
@@ -2200,37 +2200,37 @@ describeEmbeddedPostgres("environmentService leases", () => {
     });
 
     it("acquires when the environment is unbound (instance-global)", async () => {
-      const { companyId, environmentId } = await seedSandboxEnvironment("Unbound Sandbox");
+      const { spaceId, environmentId } = await seedSandboxEnvironment("Unbound Sandbox");
 
-      const lease = await svc.acquireLease({ companyId, environmentId, assertCompanyBinding: true });
+      const lease = await svc.acquireLease({ spaceId, environmentId, assertSpaceBinding: true });
       expect(lease.status).toBe("active");
-      expect(lease.companyId).toBe(companyId);
+      expect(lease.spaceId).toBe(spaceId);
     });
 
-    it("acquires when the environment is bound to the caller company", async () => {
-      const { companyId, environmentId } = await seedSandboxEnvironment("Own Sandbox");
-      await bindEnvironmentToCompany(environmentId, companyId);
+    it("acquires when the environment is bound to the caller space", async () => {
+      const { spaceId, environmentId } = await seedSandboxEnvironment("Own Sandbox");
+      await bindEnvironmentToSpace(environmentId, spaceId);
 
-      const lease = await svc.acquireLease({ companyId, environmentId, assertCompanyBinding: true });
+      const lease = await svc.acquireLease({ spaceId, environmentId, assertSpaceBinding: true });
       expect(lease.status).toBe("active");
     });
 
     it("does not check the binding for callers that omit the flag", async () => {
-      const { companyId, environmentId } = await seedSandboxEnvironment("Legacy Path Sandbox");
-      const otherCompanyId = randomUUID();
-      await db.insert(companies).values({
-        id: otherCompanyId,
+      const { spaceId, environmentId } = await seedSandboxEnvironment("Legacy Path Sandbox");
+      const otherSpaceId = randomUUID();
+      await db.insert(spaces).values({
+        id: otherSpaceId,
         name: "Other Co 2",
         issuePrefix: "OTB",
         status: "active",
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      await bindEnvironmentToCompany(environmentId, otherCompanyId);
+      await bindEnvironmentToSpace(environmentId, otherSpaceId);
 
       // The heartbeat run path does not set the flag, so the binding check does
       // not run and the lease acquires as before.
-      const lease = await svc.acquireLease({ companyId, environmentId });
+      const lease = await svc.acquireLease({ spaceId, environmentId });
       expect(lease.status).toBe("active");
     });
   });

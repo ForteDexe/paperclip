@@ -83,7 +83,7 @@ same-process-ID guarantee.
 
 `resume` requests that same logical session using the source `identity` and a
 fresh `bootstrapTicket`. Both operations retain the outer request's authorized
-company, environment, task, lease and run scope. Resume requires an authenticated
+space, environment, task, lease and run scope. Resume requires an authenticated
 current claimant run and lease; reject a null `runId`. Verify the source, account,
 workspace and current authority before installing the ticket or reserving reuse.
 The ticket is bounded transient authentication input, as on submission. Never
@@ -309,12 +309,12 @@ is absent or its identity differs. Do not return credentials or environment valu
 
 ## Lease authority
 
-Core calls `environmentRuntimeService.task` with a company ID, a saved lease ID,
+Core calls `environmentRuntimeService.task` with a space ID, a saved lease ID,
 and an operation. It derives the plugin and driver from the lease. A change to
 the environment configuration cannot redirect cleanup to a new provider.
 
 Before preparation or submission, Core checks the active lease, run, issue, and every project
-in the company. It checks the submitting run ID separately from a retained ORP
+in the space. It checks the submitting run ID separately from a retained ORP
 identity. Session reuse requires the same agent, environment, workspace, and
 provider. Checkpoint resumption also requires a retained source task and proof of termination.
 Opt-in Codex warm reuse instead hands off the same retained process through an
@@ -402,7 +402,7 @@ Core does not require a particular Git or filesystem layout.
 Each file descriptor contains a trusted host path, SHA-256, and byte size. These
 paths are host-authored transfer sources, never user-supplied paths or URLs.
 Providers verify the bytes and safely materialize each snapshot separately at
-`.paperclip-recovered/<operationId>` beneath the new working directory. Preserve
+`.outpost-recovered/<operationId>` beneath the new working directory. Preserve
 file links safely and include provenance. Never overlay recovered files onto the
 clean working tree or overwrite an earlier attachment. Core includes those
 relative attachment paths in the new attempt's continuation context.
@@ -439,9 +439,9 @@ back to reading remote paths on the server. Existing artifact uploads are unchan
 ## Login allocations on an existing computer
 
 A login-capable environment driver can host authorization on a saved agent's
-computer. Core checks the company, environment, agent lifecycle, manifest, and
+computer. Core checks the space, environment, agent lifecycle, manifest, and
 live worker hooks before acquisition. Managed AI Connection requests can omit
-the agent ID so Core selects an eligible agent from the company and environment.
+the agent ID so Core selects an eligible agent from the space and environment.
 Core uses that ID throughout the login. The chosen agent is a transport target
 and the signed-in account retains its own owner and agent grants.
 

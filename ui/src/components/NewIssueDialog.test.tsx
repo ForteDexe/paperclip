@@ -41,18 +41,18 @@ const dialogContentState = vi.hoisted(() => ({
   }) => void),
 }));
 
-const companyState = vi.hoisted(() => ({
-  companies: [
+const spaceState = vi.hoisted(() => ({
+  spaces: [
     {
-      id: "company-1",
+      id: "space-1",
       name: "Outpost",
       status: "active",
       issuePrefix: "PAP",
     },
   ],
-  selectedCompanyId: "company-1",
-  selectedCompany: {
-    id: "company-1",
+  selectedSpaceId: "space-1",
+  selectedSpace: {
+    id: "space-1",
     name: "Outpost",
     status: "active",
     issuePrefix: "PAP",
@@ -105,8 +105,8 @@ vi.mock("../context/DialogContext", () => ({
 
 vi.mock("../context/SidebarContext", () => ({ useSidebar: () => ({ isMobile: false }) }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => companyState,
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => spaceState,
 }));
 
 vi.mock("../context/ToastContext", () => ({
@@ -368,7 +368,7 @@ describe("NewIssueDialog", () => {
 
   beforeEach(() => {
     coordinatorState.enabled = false;
-    primaryState.primaryAgentId = "ceo";
+    primaryState.primaryAgentId = "lead";
     primaryState.loading = false;
     vi.useRealTimers();
     originalResizeObserver = globalThis.ResizeObserver;
@@ -415,7 +415,7 @@ describe("NewIssueDialog", () => {
     storedFiles.clear();
     mockIssuesApi.create.mockResolvedValue({
       id: "issue-2",
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PAP-2",
     });
   });
@@ -437,14 +437,14 @@ describe("NewIssueDialog", () => {
 
   const defaultAgents = [
     { id: "worker", name: "Worker", role: "engineer", status: "idle", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} },
-    { id: "ceo", name: "Lead", role: "general", status: "idle", adapterType: "claude_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} },
+    { id: "lead", name: "Lead", role: "general", status: "idle", adapterType: "claude_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} },
   ];
 
   it("submits remembered effort with the agent's default model", async () => {
-    mockAgentsApi.list.mockResolvedValue(defaultAgents.map((agent) => agent.id === "ceo"
+    mockAgentsApi.list.mockResolvedValue(defaultAgents.map((agent) => agent.id === "lead"
       ? { ...agent, adapterConfig: { model: "claude-opus-5" } } : agent));
     mockAgentsApi.adapterModels.mockResolvedValue([{ id: "claude-opus-5", label: "Claude Opus 5" }]);
-    rememberComposerEffort("company-1", "high");
+    rememberComposerEffort("space-1", "high");
     const { root } = renderDialog(container);
     await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-model-label"]')?.textContent).toBe("Claude Opus 5"));
     await typeTextareaValue(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Describe a task…"]')!, "Check effort memory");
@@ -461,8 +461,8 @@ describe("NewIssueDialog", () => {
     { recent: "agent:deleted", expected: "Lead" },
   ])("defaults to $expected for recent selection $recent without inserting a mention", async ({ recent, expected }) => {
     mockAgentsApi.list.mockResolvedValue(defaultAgents);
-    if (recent.startsWith("agent:")) trackRecentAssignee(recent.slice(6), "company-1");
-    if (recent.startsWith("user:")) trackRecentAssigneeUser(recent.slice(5), "company-1");
+    if (recent.startsWith("agent:")) trackRecentAssignee(recent.slice(6), "space-1");
+    if (recent.startsWith("user:")) trackRecentAssigneeUser(recent.slice(5), "space-1");
     const { root } = renderDialog(container);
     await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe(expected));
     expect(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Describe a task…"]')?.value).toBe("");
@@ -472,24 +472,24 @@ describe("NewIssueDialog", () => {
 
   it.each([
     { recent: null, explicit: null, draft: null, primary: "worker", expected: "Worker" },
-    { recent: "ceo", explicit: null, draft: null, primary: "worker", expected: "Lead" },
-    { recent: "worker", explicit: "ceo", draft: null, primary: "worker", expected: "Lead" },
-    { recent: "worker", explicit: null, draft: "ceo", primary: "worker", expected: "Lead" },
+    { recent: "lead", explicit: null, draft: null, primary: "worker", expected: "Lead" },
+    { recent: "worker", explicit: "lead", draft: null, primary: "worker", expected: "Lead" },
+    { recent: "worker", explicit: null, draft: "lead", primary: "worker", expected: "Lead" },
     { recent: null, explicit: null, draft: null, primary: "missing", expected: "Worker" },
   ])("preserves task selection precedence ($recent, $explicit, $draft, $primary)", async ({ recent, explicit, draft, primary, expected }) => {
     mockAgentsApi.list.mockResolvedValue(defaultAgents);
     primaryState.primaryAgentId = primary;
-    if (recent) trackRecentAssignee(recent, "company-1");
+    if (recent) trackRecentAssignee(recent, "space-1");
     if (explicit) dialogState.newIssueDefaults = { assigneeAgentId: explicit };
-    if (draft) localStorage.setItem("paperclip:issue-draft:user-1", JSON.stringify({ title: "Saved request", description: "", assigneeValue: `agent:${draft}`, projectId: "" }));
+    if (draft) localStorage.setItem("outpost:issue-draft:user-1", JSON.stringify({ title: "Saved request", description: "", assigneeValue: `agent:${draft}`, projectId: "" }));
     const { root } = renderDialog(container);
     await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe(expected));
     act(() => root.unmount());
   });
 
-  it("ignores another company's remembered human and keeps explicit launch assignees", async () => {
+  it("ignores another space's remembered human and keeps explicit launch assignees", async () => {
     mockAgentsApi.list.mockResolvedValue(defaultAgents);
-    trackRecentAssigneeUser("user-1", "company-2");
+    trackRecentAssigneeUser("user-1", "space-2");
     dialogState.newIssueDefaults = { assigneeAgentId: "worker" };
     const { root } = renderDialog(container);
     await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe("Worker"));
@@ -500,10 +500,10 @@ describe("NewIssueDialog", () => {
     act(() => next.root.unmount());
   });
 
-  it("uses older agent history only when the agent belongs to the current company", async () => {
+  it("uses older agent history only when the agent belongs to the current space", async () => {
     mockAgentsApi.list.mockResolvedValue(defaultAgents);
     trackRecentAssignee("worker");
-    trackRecentAssignee("another-company-agent");
+    trackRecentAssignee("another-space-agent");
     const { root } = renderDialog(container);
     await waitForAssertion(() => expect(container.querySelector('[data-testid="task-chat-composer-assignee-label"]')?.textContent).toBe("Worker"));
     act(() => root.unmount());
@@ -516,7 +516,7 @@ describe("NewIssueDialog", () => {
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Select assignee"]')!.click());
     const me = [...container.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((button) => button.textContent?.includes("Me"))!;
     act(() => me.click());
-    expect(localStorage.getItem("paperclip:recent-assignees:company-1")).toContain("user:user-1");
+    expect(localStorage.getItem("outpost:recent-assignees:space-1")).toContain("user:user-1");
     expect(container.querySelector('[data-testid="task-chat-composer-model-label"]')).toBeNull();
     expect(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Describe a task…"]')?.value).toBe("");
     act(() => root.unmount());
@@ -639,7 +639,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     await waitForAssertion(() => {
-      expect(mockExecutionWorkspacesApi.listSummaries).toHaveBeenCalledWith("company-1", {
+      expect(mockExecutionWorkspacesApi.listSummaries).toHaveBeenCalledWith("space-1", {
         projectId: "project-1",
         reuseEligible: true,
       });
@@ -659,7 +659,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         title: "Child issue",
         parentId: "issue-1",
@@ -674,7 +674,7 @@ describe("NewIssueDialog", () => {
   });
 
   it("restores private visibility from a saved draft without a project", async () => {
-    localStorage.setItem("paperclip:issue-draft:user-1", JSON.stringify({ title: "Private draft", description: "", status: "todo", priority: "", projectId: "", isPrivate: true }));
+    localStorage.setItem("outpost:issue-draft:user-1", JSON.stringify({ title: "Private draft", description: "", status: "todo", priority: "", projectId: "", isPrivate: true }));
     const { root } = renderDialog(container);
     await flush();
     const toggle = container.querySelector<HTMLButtonElement>('button[data-testid="composer-private-chip"]')!;
@@ -682,7 +682,7 @@ describe("NewIssueDialog", () => {
     const submit = Array.from(container.querySelectorAll("button")).find(button => button.getAttribute("aria-label") === "Create task")!;
     await act(async () => submit.click());
     await flush();
-    expect(mockIssuesApi.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ title: "Private draft", visibility: "private" }));
+    expect(mockIssuesApi.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ title: "Private draft", visibility: "private" }));
     act(() => root.unmount());
   });
 
@@ -721,7 +721,7 @@ describe("NewIssueDialog", () => {
   });
 
   it("locks inherited privacy and submits the child as private", async () => {
-    mockIssuesApi.get.mockResolvedValue({ id: "issue-1", visibility: "private", title: "Board briefing" });
+    mockIssuesApi.get.mockResolvedValue({ id: "issue-1", visibility: "private", title: "Operator briefing" });
     dialogState.newIssueDefaults = { parentId: "issue-1", title: "Private child" };
     const { root } = renderDialog(container);
     await flush();
@@ -729,28 +729,28 @@ describe("NewIssueDialog", () => {
     const toggle = container.querySelector<HTMLButtonElement>('button[data-testid="composer-private-chip"]')!;
     await waitForAssertion(() => expect(toggle).not.toBeNull());
     expect(toggle.disabled).toBe(true);
-    expect(toggle.title).toBe("Subtask of private task Board briefing");
+    expect(toggle.title).toBe("Subtask of private task Operator briefing");
     await typeTextareaValue(container.querySelector('textarea')!, "Private child draft");
     // Saving this form must retain only the explicit toggle choice. A later
     // standalone draft must not acquire a sticky private flag from its parent.
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 850)); });
-    expect(JSON.parse(localStorage.getItem("paperclip:issue-draft:user-1")!).isPrivate).toBe(false);
+    expect(JSON.parse(localStorage.getItem("outpost:issue-draft:user-1")!).isPrivate).toBe(false);
     const submit = Array.from(container.querySelectorAll("button")).find(button => button.getAttribute("aria-label") === "Create sub-task")!;
     await act(async () => submit.click());
     await flush();
-    expect(mockIssuesApi.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ parentId: "issue-1", visibility: "private" }));
+    expect(mockIssuesApi.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ parentId: "issue-1", visibility: "private" }));
     act(() => root.unmount());
   });
 
   it("names the private project inherited through an open parent", async () => {
-    mockIssuesApi.get.mockResolvedValue({ id: "issue-1", visibility: "open", title: "Board briefing", project: { id: "private-project", name: "Executive planning", visibility: "private" } });
+    mockIssuesApi.get.mockResolvedValue({ id: "issue-1", visibility: "open", title: "Operator briefing", project: { id: "private-project", name: "Leadership planning", visibility: "private" } });
     dialogState.newIssueDefaults = { parentId: "issue-1", title: "Private child" };
     const { root } = renderDialog(container);
     await flush();
     await waitForAssertion(() => {
       const chip = container.querySelector<HTMLButtonElement>('[data-testid="composer-private-chip"]');
       expect(chip?.disabled).toBe(true);
-      expect(chip?.title).toBe("In private project Executive planning");
+      expect(chip?.title).toBe("In private project Leadership planning");
     });
     act(() => root.unmount());
   });
@@ -759,7 +759,7 @@ describe("NewIssueDialog", () => {
     mockProjectsApi.list.mockResolvedValue([
       {
         id: "personal-project",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "My private tasks",
         visibility: "private",
         personalOwnerUserId: "user-1",
@@ -785,7 +785,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         title: "Private scratch task",
         visibility: "private",
@@ -932,7 +932,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         title: "Planned from defaults",
         workMode: "planning",
@@ -967,7 +967,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         title: "Question from defaults",
         workMode: "ask",
@@ -983,7 +983,7 @@ describe("NewIssueDialog", () => {
       id: "project-1", name: "Alpha", workspaces: [{ id: "source-default", isPrimary: true }],
       executionWorkspacePolicy: { enabled: true, defaultMode: "isolated_workspace" },
     }]);
-    localStorage.setItem("paperclip:issue-draft:user-1", JSON.stringify({
+    localStorage.setItem("outpost:issue-draft:user-1", JSON.stringify({
       title: "Draft task", description: "", status: "todo", priority: "medium", assigneeValue: "",
       reviewerValue: "", approverValue: "", projectId: "project-1",
       projectWorkspaceId: "stale-source", selectedExecutionWorkspaceId: "stale-workspace", executionWorkspaceMode: "reuse_existing",
@@ -1095,7 +1095,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     await waitForAssertion(() => {
-      expect(queryClient.getQueryData(queryKeys.executionWorkspaces.summaryList("company-1", {
+      expect(queryClient.getQueryData(queryKeys.executionWorkspaces.summaryList("space-1", {
         projectId: "project-1", reuseEligible: true,
       }))).toEqual(expect.arrayContaining([expect.objectContaining({ id: "workspace-1" })]));
     });
@@ -1113,7 +1113,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         title: "Follow-up issue",
         projectId: "project-1",
@@ -1171,7 +1171,7 @@ describe("NewIssueDialog", () => {
     }]);
     const { root } = renderDialog(container);
     await waitForAssertion(() => expect(container.querySelector('[cmdk-item][data-value="reuse:worktree-secondary"]')).not.toBeNull());
-    expect(mockExecutionWorkspacesApi.listSummaries).toHaveBeenCalledWith("company-1", { projectId: "project-1", reuseEligible: true });
+    expect(mockExecutionWorkspacesApi.listSummaries).toHaveBeenCalledWith("space-1", { projectId: "project-1", reuseEligible: true });
     if (!inherited) selectWorktree("reuse:worktree-secondary");
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Create task"]')!.click());
     await waitForAssertion(() => expect(mockIssuesApi.create).toHaveBeenCalled());
@@ -1212,7 +1212,7 @@ describe("NewIssueDialog", () => {
 
 
   it("restores a description-only draft", async () => {
-    localStorage.setItem("paperclip:issue-draft:user-1", JSON.stringify({
+    localStorage.setItem("outpost:issue-draft:user-1", JSON.stringify({
       title: "", description: "Keep the request without a title", status: "todo", priority: "medium",
       assigneeValue: "", reviewerValue: "", approverValue: "", projectId: "",
       assigneeModelOverride: "", assigneeThinkingEffort: "", assigneeChrome: false,
@@ -1236,7 +1236,7 @@ describe("NewIssueDialog", () => {
     await vi.waitFor(() => expect(submit.hasAttribute("disabled")).toBe(false));
     await act(async () => { submit.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     await flush();
-    expect(mockIssuesApi.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ description: "Investigate the sign-in redirect and fix it" }));
+    expect(mockIssuesApi.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ description: "Investigate the sign-in redirect and fix it" }));
     expect(mockIssuesApi.create.mock.calls[0][1]).not.toHaveProperty("title");
     await act(async () => root.unmount());
   });
@@ -1268,7 +1268,7 @@ describe("NewIssueDialog", () => {
     { enabled: true, description: "Write the launch post", criteria: " \n ", expected: "Write the launch post" },
   ])("restores legacy draft criteria into the editable description (Coordinator $enabled, criteria '$criteria')", async ({ enabled, description, criteria, expected }) => {
     coordinatorState.enabled = enabled;
-    localStorage.setItem("paperclip:issue-draft:user-1", JSON.stringify({
+    localStorage.setItem("outpost:issue-draft:user-1", JSON.stringify({
       title: "", description, successCriteria: criteria, status: "todo", priority: "medium",
       assigneeValue: "", reviewerValue: "", approverValue: "", projectId: "",
       assigneeModelOverride: "", assigneeThinkingEffort: "", assigneeChrome: false,
@@ -1281,7 +1281,7 @@ describe("NewIssueDialog", () => {
     const editedDescription = `${expected}\nKeep this edit.`;
     await typeTextareaValue(descriptionInput, editedDescription);
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 850)); });
-    const savedDraft = JSON.parse(localStorage.getItem("paperclip:issue-draft:user-1")!);
+    const savedDraft = JSON.parse(localStorage.getItem("outpost:issue-draft:user-1")!);
     expect(savedDraft.description).toBe(editedDescription);
     expect(savedDraft).not.toHaveProperty("successCriteria");
     await act(async () => root.unmount());
@@ -1362,7 +1362,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         title: "Typed issue",
         description: "Typed description",
@@ -1477,7 +1477,7 @@ describe("NewIssueDialog", () => {
 
   it("navigates to the returned task ID when it has no identifier", async () => {
     dialogState.newIssueDefaults = { title: "Connect Circleback through Composio", navigateOnCreate: true };
-    mockIssuesApi.create.mockResolvedValue({ id: "created-task", companyId: "company-1", identifier: null });
+    mockIssuesApi.create.mockResolvedValue({ id: "created-task", spaceId: "space-1", identifier: null });
     const { root } = renderDialog(container);
     await flush();
     act(() => Array.from(container.querySelectorAll("button"))
@@ -1518,7 +1518,7 @@ describe("NewIssueDialog", () => {
     dialogState.newIssueDefaults = { title: "Created during a deploy" };
     mockIssuesApi.create
       .mockRejectedValueOnce(new ApiError("Unavailable", 503, { error: "tenant_app_unavailable" }))
-      .mockResolvedValue({ id: "issue-created", identifier: "PAP-9", companyId: "company-1", projectId: null });
+      .mockResolvedValue({ id: "issue-created", identifier: "PAP-9", spaceId: "space-1", projectId: null });
     const { root } = renderDialog(container);
     await flush();
     const button = (label: string) => Array.from(container.querySelectorAll("button"))
@@ -1527,7 +1527,7 @@ describe("NewIssueDialog", () => {
     act(() => button("Create task").click());
     await waitForAssertion(() => expect(container.textContent).toContain("Sending when reconnected…"));
     expect(container.textContent).not.toContain("tenant_app_unavailable");
-    expect(localStorage.getItem("paperclip:issue-draft:pending-create:user-1")).toContain(
+    expect(localStorage.getItem("outpost:issue-draft:pending-create:user-1")).toContain(
       mockIssuesApi.create.mock.calls[0][1].idempotencyKey,
     );
 
@@ -1538,7 +1538,7 @@ describe("NewIssueDialog", () => {
     await waitForAssertion(() => expect(mockIssuesApi.create).toHaveBeenCalledTimes(2));
     expect(mockIssuesApi.create.mock.calls[1][1].idempotencyKey).toBe(mockIssuesApi.create.mock.calls[0][1].idempotencyKey);
     await waitForAssertion(() => expect(dialogState.closeNewIssue).toHaveBeenCalled());
-    expect(localStorage.getItem("paperclip:issue-draft:pending-create:user-1")).toBeNull();
+    expect(localStorage.getItem("outpost:issue-draft:pending-create:user-1")).toBeNull();
     act(() => root.unmount());
   });
 
@@ -1564,14 +1564,14 @@ describe("NewIssueDialog", () => {
 
   it("never creates a restored task without the files it was submitted with", async () => {
     dialogState.newIssueDefaults = { title: "Has files" };
-    localStorage.setItem("paperclip:issue-draft:pending-create:user-1", JSON.stringify({
+    localStorage.setItem("outpost:issue-draft:pending-create:user-1", JSON.stringify({
       version: 1,
-      key: "paperclip:issue-draft:pending-create:user-1",
+      key: "outpost:issue-draft:pending-create:user-1",
       idempotencyKey: "create-key-123",
       createdAt: Date.now(),
       payload: {
         fingerprint: "{}",
-        data: { companyId: "company-1", title: "Has files" },
+        data: { spaceId: "space-1", title: "Has files" },
         stagedFileNames: ["spec.pdf"],
       },
     }));
@@ -1583,33 +1583,33 @@ describe("NewIssueDialog", () => {
     await act(async () => { container.querySelector<HTMLButtonElement>('[aria-label="Create task"]')!.click(); });
     await flush();
     expect(mockIssuesApi.create).not.toHaveBeenCalled();
-    expect(localStorage.getItem("paperclip:issue-draft:pending-create:user-1")).toBeNull();
+    expect(localStorage.getItem("outpost:issue-draft:pending-create:user-1")).toBeNull();
     // The original key outlives the rejection, so it survives another reload.
-    expect(localStorage.getItem("paperclip:issue-draft:create-awaiting-files:user-1")).toContain("create-key-123");
+    expect(localStorage.getItem("outpost:issue-draft:create-awaiting-files:user-1")).toContain("create-key-123");
     act(() => root.unmount());
 
     const reloaded = renderDialog(container);
     await flush();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("spec.pdf");
-    expect(localStorage.getItem("paperclip:issue-draft:create-awaiting-files:user-1")).toContain("create-key-123");
+    expect(localStorage.getItem("outpost:issue-draft:create-awaiting-files:user-1")).toContain("create-key-123");
     expect(mockIssuesApi.create).not.toHaveBeenCalled();
     act(() => reloaded.root.unmount());
   });
 
   it.each([false, true])("keeps restored create payload immutable when files are reattached (changed title: %s)", async changed => {
-    mockIssuesApi.create.mockResolvedValue({ id: "issue-1", identifier: "PAP-1", companyId: "company-1" });
+    mockIssuesApi.create.mockResolvedValue({ id: "issue-1", identifier: "PAP-1", spaceId: "space-1" });
     mockIssuesApi.uploadAttachment.mockResolvedValue({});
     dialogState.newIssueDefaults = { title: "Has files" };
     const spec = new File(["a"], "spec.pdf", { lastModified: 1 });
     const notes = new File(["bb"], "notes.pdf", { lastModified: 2 });
-    localStorage.setItem("paperclip:issue-draft:pending-create:user-1", JSON.stringify({
+    localStorage.setItem("outpost:issue-draft:pending-create:user-1", JSON.stringify({
       version: 1,
-      key: "paperclip:issue-draft:pending-create:user-1",
+      key: "outpost:issue-draft:pending-create:user-1",
       idempotencyKey: "create-key-123",
       createdAt: Date.now(),
       payload: {
         fingerprint: JSON.stringify({ stagedFiles: ["attachment::spec.pdf:1:1", "attachment::notes.pdf:2:2"] }),
-        data: { companyId: "company-1", title: "Has files" },
+        data: { spaceId: "space-1", title: "Has files" },
         stagedFileNames: ["spec.pdf", "notes.pdf"],
       },
     }));
@@ -1641,8 +1641,8 @@ describe("NewIssueDialog", () => {
   it("drops an account's restored create and staged files when the account changes", async () => {
     dialogState.newIssueDefaults = { title: "Account A saved task" };
     const file = new File(["a"], "spec.pdf", { lastModified: 1 });
-    const original = JSON.stringify({ version: 1, key: "paperclip:issue-draft:create-awaiting-files:user-1", idempotencyKey: "account-a-create-key", createdAt: Date.now(), payload: { fingerprint: JSON.stringify({ stagedFiles: ["attachment::spec.pdf:1:1"] }), data: { companyId: "company-1", title: "Account A saved task" }, stagedFileNames: ["spec.pdf"] } });
-    localStorage.setItem("paperclip:issue-draft:create-awaiting-files:user-1", original);
+    const original = JSON.stringify({ version: 1, key: "outpost:issue-draft:create-awaiting-files:user-1", idempotencyKey: "account-a-create-key", createdAt: Date.now(), payload: { fingerprint: JSON.stringify({ stagedFiles: ["attachment::spec.pdf:1:1"] }), data: { spaceId: "space-1", title: "Account A saved task" }, stagedFileNames: ["spec.pdf"] } });
+    localStorage.setItem("outpost:issue-draft:create-awaiting-files:user-1", original);
     const { root, queryClient } = renderDialog(container);
     try {
       await waitForAssertion(() => expect(container.textContent).toContain("spec.pdf"));
@@ -1653,9 +1653,9 @@ describe("NewIssueDialog", () => {
       queryClient.setQueryData(queryKeys.auth.session, { user: { id: "user-2" } });
       await waitForAssertion(() => expect(container.querySelector<HTMLInputElement>('input[aria-label="Task title"]')?.value ?? "").toBe(""));
       expect(container.textContent).not.toContain("spec.pdf");
-      expect(localStorage.getItem("paperclip:issue-draft:create-awaiting-files:user-1")).toBe(original);
+      expect(localStorage.getItem("outpost:issue-draft:create-awaiting-files:user-1")).toBe(original);
       await typeTextareaValue(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Describe a task…"]')!, "Account B fresh task");
-      mockIssuesApi.create.mockResolvedValue({ id: "task-b", identifier: "PAP-2", companyId: "company-1" });
+      mockIssuesApi.create.mockResolvedValue({ id: "task-b", identifier: "PAP-2", spaceId: "space-1" });
       await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Create task"]')!.click());
       await waitForAssertion(() => expect(mockIssuesApi.create).toHaveBeenCalledTimes(1));
       expect(mockIssuesApi.create.mock.calls[0][1].description).toBe("Account B fresh task");
@@ -1666,9 +1666,9 @@ describe("NewIssueDialog", () => {
 
   it.each(["user-1", "user-2"])("waits for fresh session verification before restoring a pending create (%s)", async verifiedUser => {
     dialogState.newIssueDefaults = { title: "Saved task" };
-    localStorage.setItem("paperclip:issue-draft:pending-create:user-1", JSON.stringify({ version: 1,
-      key: "paperclip:issue-draft:pending-create:user-1", idempotencyKey: "unverified-create-key", createdAt: Date.now(),
-      payload: { fingerprint: "{}", data: { companyId: "company-1", title: "Saved task" }, stagedFileNames: [] } }));
+    localStorage.setItem("outpost:issue-draft:pending-create:user-1", JSON.stringify({ version: 1,
+      key: "outpost:issue-draft:pending-create:user-1", idempotencyKey: "unverified-create-key", createdAt: Date.now(),
+      payload: { fingerprint: "{}", data: { spaceId: "space-1", title: "Saved task" }, stagedFileNames: [] } }));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
     client.setQueryData(queryKeys.auth.session, { user: { id: "user-1" } });
     const cache = startPersistedQueryCache(client, { storage: null, buildId: "test", eventTarget: null });
@@ -1696,7 +1696,7 @@ describe("NewIssueDialog", () => {
 
   it.each([false, true])("retains a restored task backup after the debounce (session known=%s)", async (sessionKnown) => {
     if (!sessionKnown) mockAuthApi.getSession.mockReturnValue(new Promise(() => {}));
-    localStorage.setItem("paperclip:issue-draft:user-1", JSON.stringify({
+    localStorage.setItem("outpost:issue-draft:user-1", JSON.stringify({
       title: "", description: "Keep this restored backup", status: "todo", priority: "",
       assigneeValue: "", reviewerValue: "", approverValue: "", watchdogAgentId: "", watchdogInstructions: "",
       projectId: "", projectWorkspaceId: "", assigneeModelLane: "primary", assigneeModelOverride: "",
@@ -1709,7 +1709,7 @@ describe("NewIssueDialog", () => {
       if (!sessionKnown) queryClient.setQueryData(queryKeys.auth.session, { user: { id: "user-1" } });
       await waitForAssertion(() => expect(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Describe a task…"]')?.value).toBe("Keep this restored backup"));
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 850)); });
-      expect(JSON.parse(localStorage.getItem("paperclip:issue-draft:user-1") ?? "null")?.description).toBe("Keep this restored backup");
+      expect(JSON.parse(localStorage.getItem("outpost:issue-draft:user-1") ?? "null")?.description).toBe("Keep this restored backup");
       dialogState.newIssueOpen = false;
       act(() => root.render(<QueryClientProvider client={queryClient}><NewIssueDialog /></QueryClientProvider>));
       await flush();
@@ -1722,7 +1722,7 @@ describe("NewIssueDialog", () => {
 
   it.each([false, true])("keeps erased task text erased after reopening (session known=%s)", async (sessionKnown) => {
     if (!sessionKnown) mockAuthApi.getSession.mockReturnValue(new Promise(() => {}));
-    localStorage.setItem("paperclip:issue-draft:user-1", JSON.stringify({ title: "", description: "Older saved text" }));
+    localStorage.setItem("outpost:issue-draft:user-1", JSON.stringify({ title: "", description: "Older saved text" }));
     const { root, queryClient } = renderDialog(container);
     try {
       await flush();
@@ -1731,7 +1731,7 @@ describe("NewIssueDialog", () => {
       await typeTextareaValue(editor, "");
       if (!sessionKnown) queryClient.setQueryData(queryKeys.auth.session, { user: { id: "user-1" } });
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 850)); });
-      await waitForAssertion(() => expect(localStorage.getItem("paperclip:issue-draft:user-1")).toBeNull());
+      await waitForAssertion(() => expect(localStorage.getItem("outpost:issue-draft:user-1")).toBeNull());
       dialogState.newIssueOpen = false;
       act(() => root.render(<QueryClientProvider client={queryClient}><NewIssueDialog /></QueryClientProvider>));
       await flush();
@@ -1754,14 +1754,14 @@ describe("NewIssueDialog", () => {
       queryClient.setQueryData(queryKeys.auth.session, { user: { id: "user-1" } });
       await flush(); await flush();
       expect(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Describe a task…"]')?.value).toBe("Typed before account lookup");
-      if (!unavailable) expect(localStorage.getItem("paperclip:issue-draft:user-1")).toContain("Typed before account lookup");
+      if (!unavailable) expect(localStorage.getItem("outpost:issue-draft:user-1")).toContain("Typed before account lookup");
       expect(mockIssuesApi.create).not.toHaveBeenCalled();
     } finally { storage?.mockRestore(); act(() => root.unmount()); queryClient.clear(); }
   });
 
   it.each([["image/png", "picker"], ["", "picker"], ["application/octet-stream", "picker"], ["image/png", "screen drop"]])("shows staged images with MIME '%s' from %s and uploads only retained files", async (type, source) => {
     dialogState.newIssueDefaults = { title: "Review image references" };
-    mockIssuesApi.create.mockResolvedValue({ id: "image-task", identifier: "PAP-1", companyId: "company-1" });
+    mockIssuesApi.create.mockResolvedValue({ id: "image-task", identifier: "PAP-1", spaceId: "space-1" });
     mockIssuesApi.uploadAttachment.mockResolvedValue({});
     const { root, queryClient } = renderDialog(container);
     try {
@@ -1788,7 +1788,7 @@ describe("NewIssueDialog", () => {
       await act(async () => { container.querySelector<HTMLButtonElement>('[aria-label="Remove removed.png"]')!.click(); });
       await act(async () => { container.querySelector<HTMLButtonElement>('[aria-label="Create task"]')!.click(); });
       await waitForAssertion(() => expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledTimes(1));
-      expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledWith("company-1", "image-task", retained);
+      expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledWith("space-1", "image-task", retained);
       expect(mockIssuesApi.create.mock.calls[0][1].description).toBe("Keep this caption");
       expect(mockAssetsApi.uploadImage).not.toHaveBeenCalled();
     } finally { act(() => root.unmount()); queryClient.clear(); }
@@ -1804,7 +1804,7 @@ describe("NewIssueDialog", () => {
     Object.defineProperty(input, "files", { configurable: true, value: [file] });
     await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
     await flush();
-    expect(storedFiles.get(JSON.stringify(["user-1", "company-1"]))?.[0].file).toBe(file);
+    expect(storedFiles.get(JSON.stringify(["user-1", "space-1"]))?.[0].file).toBe(file);
     act(() => first.root.unmount());
     first.queryClient.clear();
     const second = renderDialog(container);
@@ -1812,8 +1812,8 @@ describe("NewIssueDialog", () => {
       await flush();
       await waitForAssertion(() => expect(container.querySelector('img[alt="reference.png"]')).not.toBeNull());
       await act(async () => { container.querySelector<HTMLButtonElement>('[aria-label="Create task"]')!.click(); });
-      await waitForAssertion(() => expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledWith("company-1", "issue-2", file));
-      await waitForAssertion(() => expect(storedFiles.get(JSON.stringify(["user-1", "company-1"])) ?? []).toEqual([]));
+      await waitForAssertion(() => expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledWith("space-1", "issue-2", file));
+      await waitForAssertion(() => expect(storedFiles.get(JSON.stringify(["user-1", "space-1"])) ?? []).toEqual([]));
     } finally { act(() => second.root.unmount()); second.queryClient.clear(); }
   });
 
@@ -1821,7 +1821,7 @@ describe("NewIssueDialog", () => {
     dialogState.newIssueDefaults = { title: "Account A in-flight task" };
     let finish!: (value: unknown) => void;
     const waiting = new Promise(resolve => { finish = resolve; });
-    const created = { id: "task-a", identifier: "PAP-1", companyId: "company-1" };
+    const created = { id: "task-a", identifier: "PAP-1", spaceId: "space-1" };
     mockIssuesApi.create.mockImplementation(() => during === "create" ? waiting : Promise.resolve(created));
     mockIssuesApi.uploadAttachment.mockImplementation(() => during === "upload" ? waiting : Promise.resolve({}));
     const { root, queryClient } = renderDialog(container);
@@ -1844,18 +1844,18 @@ describe("NewIssueDialog", () => {
       });
       expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledTimes(during === "create" ? 0 : 1);
       expect(dialogState.closeNewIssue).not.toHaveBeenCalled();
-      expect(localStorage.getItem("paperclip:issue-draft:pending-create:user-1")).toContain(key);
+      expect(localStorage.getItem("outpost:issue-draft:pending-create:user-1")).toContain(key);
       expect(container.textContent).not.toContain("Account A in-flight task");
     } finally { act(() => root.unmount()); queryClient.clear(); }
   });
 
   it("restores original document keys when colliding document names are reattached in reverse", async () => {
     dialogState.newIssueDefaults = { title: "Has documents" };
-    mockIssuesApi.create.mockResolvedValue({ id: "issue-1", identifier: "PAP-1", companyId: "company-1" });
+    mockIssuesApi.create.mockResolvedValue({ id: "issue-1", identifier: "PAP-1", spaceId: "space-1" });
     mockIssuesApi.upsertDocument.mockResolvedValue({});
     const markdown = new File(["a"], "notes.md", { type: "text/markdown", lastModified: 1 });
     const text = new File(["bb"], "notes.txt", { type: "text/plain", lastModified: 2 });
-    localStorage.setItem("paperclip:issue-draft:create-awaiting-files:user-1", JSON.stringify({ version: 1, key: "paperclip:issue-draft:create-awaiting-files:user-1", idempotencyKey: "original-doc-create-key", createdAt: Date.now(), payload: { fingerprint: JSON.stringify({ stagedFiles: ["document:notes:notes.md:1:1", "document:notes-2:notes.txt:2:2"] }), data: { companyId: "company-1", title: "Has documents" }, stagedFileNames: ["notes.md", "notes.txt"] } }));
+    localStorage.setItem("outpost:issue-draft:create-awaiting-files:user-1", JSON.stringify({ version: 1, key: "outpost:issue-draft:create-awaiting-files:user-1", idempotencyKey: "original-doc-create-key", createdAt: Date.now(), payload: { fingerprint: JSON.stringify({ stagedFiles: ["document:notes:notes.md:1:1", "document:notes-2:notes.txt:2:2"] }), data: { spaceId: "space-1", title: "Has documents" }, stagedFileNames: ["notes.md", "notes.txt"] } }));
     const { root } = renderDialog(container);
     try {
       await waitForAssertion(() => expect(container.textContent).toContain("notes.md"));
@@ -1873,14 +1873,14 @@ describe("NewIssueDialog", () => {
 
   it("restores a saved subtask's parent and goal when opened from the normal New Task action", async () => {
     dialogState.newIssueDefaults = {};
-    mockIssuesApi.create.mockResolvedValue({ id: "issue-1", identifier: "PAP-1", companyId: "company-1" });
+    mockIssuesApi.create.mockResolvedValue({ id: "issue-1", identifier: "PAP-1", spaceId: "space-1" });
     mockIssuesApi.uploadAttachment.mockResolvedValue({});
     mockIssuesApi.get.mockResolvedValue({ id: "parent-1", identifier: "PAP-2", title: "Parent", isPrivate: false });
-    localStorage.setItem("paperclip:issue-draft:user-1", JSON.stringify({ title: "Saved subtask", description: "", status: "todo", priority: "", projectId: "", assigneeValue: "" }));
-    localStorage.setItem("paperclip:issue-draft:create-awaiting-files:user-1", JSON.stringify({
-      version: 1, key: "paperclip:issue-draft:create-awaiting-files:user-1", idempotencyKey: "subtask-key-123", createdAt: Date.now(),
+    localStorage.setItem("outpost:issue-draft:user-1", JSON.stringify({ title: "Saved subtask", description: "", status: "todo", priority: "", projectId: "", assigneeValue: "" }));
+    localStorage.setItem("outpost:issue-draft:create-awaiting-files:user-1", JSON.stringify({
+      version: 1, key: "outpost:issue-draft:create-awaiting-files:user-1", idempotencyKey: "subtask-key-123", createdAt: Date.now(),
       payload: { fingerprint: JSON.stringify({ stagedFiles: ["attachment::spec.pdf:1:1"] }),
-        data: { companyId: "company-1", title: "Saved subtask", parentId: "parent-1", goalId: "goal-1" }, stagedFileNames: ["spec.pdf"] },
+        data: { spaceId: "space-1", title: "Saved subtask", parentId: "parent-1", goalId: "goal-1" }, stagedFileNames: ["spec.pdf"] },
     }));
     const { root } = renderDialog(container);
     await flush();
@@ -1925,7 +1925,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         title,
         description,
@@ -1964,7 +1964,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         description: "Plan this first",
         workMode: "planning",
@@ -2002,7 +2002,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         description: "Answer this first",
         workMode: "ask",
@@ -2148,7 +2148,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         title: "Child issue",
         parentId: "issue-1",
@@ -2327,7 +2327,7 @@ describe("NewIssueDialog", () => {
 
     // PAP-411: the priority control is hidden, but the data-model default must survive.
     expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         title: "Priority default persists",
         priority: "medium",
@@ -2342,7 +2342,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     const menu = document.createElement("div");
-    menu.setAttribute("data-paperclip-floating-ui", "");
+    menu.setAttribute("data-outpost-floating-ui", "");
     const option = document.createElement("button");
     menu.appendChild(option);
     document.body.appendChild(menu);
@@ -2365,7 +2365,7 @@ describe("NewIssueDialog", () => {
       enableIsolatedWorkspaces: false,
     });
     localStorage.setItem(
-      "paperclip:issue-draft:user-1",
+      "outpost:issue-draft:user-1",
       JSON.stringify({
         title: "Watched task",
         description: "",
@@ -2401,7 +2401,7 @@ describe("NewIssueDialog", () => {
     await flush();
 
     expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         title: "Watched task",
         watchdog: { agentId: "agent-9", instructions: "Keep it moving" },
@@ -2429,7 +2429,7 @@ describe("NewIssueDialog", () => {
 
   it("restores shared model, effort, and fast settings into the created task", async () => {
     mockAgentsApi.list.mockResolvedValue([{ id: "agent-1", name: "Coder", status: "active", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} }]);
-    localStorage.setItem("paperclip:issue-draft:user-1", JSON.stringify({
+    localStorage.setItem("outpost:issue-draft:user-1", JSON.stringify({
       title: "", description: "Use the saved run settings", status: "todo", priority: "medium",
       assigneeValue: "agent:agent-1", projectId: "", workMode: "planning",
       composerSettings: { model: "gpt-6-astra", effort: "ultra", fast: true },
@@ -2437,7 +2437,7 @@ describe("NewIssueDialog", () => {
     const { root } = renderDialog(container);
     await waitForAssertion(() => expect(container.textContent).toContain("Coder"));
     await act(async () => { container.querySelector<HTMLButtonElement>('[aria-label="Create task"]')!.click(); });
-    await waitForAssertion(() => expect(mockIssuesApi.create).toHaveBeenCalledWith("company-1", expect.objectContaining({
+    await waitForAssertion(() => expect(mockIssuesApi.create).toHaveBeenCalledWith("space-1", expect.objectContaining({
       assigneeAgentId: "agent-1", workMode: "planning",
       assigneeAdapterOverrides: { adapterConfig: { model: "gpt-6-astra", modelReasoningEffort: "ultra", fastMode: true } },
     })));
@@ -2480,7 +2480,7 @@ describe("addStagedFilesToIssue", () => {
     let owned = true;
     const assertCurrentOwner = () => { if (!owned) throw new Error("Account changed"); };
     mockIssuesApi.uploadAttachment.mockResolvedValue({}).mockImplementationOnce(async () => { owned = false; return {}; });
-    const input = { companyId: "company-1", issueId: "task-1", stagedFiles: files, idempotencyKey: "original-upload-request", assertCurrentOwner };
+    const input = { spaceId: "space-1", issueId: "task-1", stagedFiles: files, idempotencyKey: "original-upload-request", assertCurrentOwner };
     await expect(addStagedFilesToIssue(input)).rejects.toThrow("Account changed");
     expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledTimes(1);
     owned = true;
@@ -2495,7 +2495,7 @@ describe("addStagedFilesToIssue", () => {
       file: new File([body], "report.txt", { lastModified: 123 }),
     }));
     mockIssuesApi.uploadAttachment.mockResolvedValue({});
-    expect(await addStagedFilesToIssue({ companyId: "company-1", issueId: "issue-1", idempotencyKey: "metadata-collision", stagedFiles })).toEqual([]);
+    expect(await addStagedFilesToIssue({ spaceId: "space-1", issueId: "issue-1", idempotencyKey: "metadata-collision", stagedFiles })).toEqual([]);
     expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledTimes(2);
     expect(mockIssuesApi.uploadAttachment.mock.calls[0]?.[2]).toBe(stagedFiles[0]!.file);
     expect(mockIssuesApi.uploadAttachment.mock.calls[1]?.[2]).toBe(stagedFiles[1]!.file);
@@ -2508,7 +2508,7 @@ describe("addStagedFilesToIssue", () => {
       file: new File([body], "report.txt", { lastModified: 123 }),
     }));
     mockIssuesApi.uploadAttachment.mockResolvedValue({});
-    expect(await addStagedFilesToIssue({ companyId: "company-1", issueId: "issue-1", idempotencyKey: "hashing-unavailable", stagedFiles })).toEqual([]);
+    expect(await addStagedFilesToIssue({ spaceId: "space-1", issueId: "issue-1", idempotencyKey: "hashing-unavailable", stagedFiles })).toEqual([]);
     expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledTimes(2);
   });
 
@@ -2516,7 +2516,7 @@ describe("addStagedFilesToIssue", () => {
     const spec = { id: "staged-1", kind: "attachment" as const, file: new File(["a"], "spec.pdf", { lastModified: 1 }) };
     const notes = { id: "staged-2", kind: "attachment" as const, file: new File(["bb"], "notes.txt", { lastModified: 2 }) };
     mockIssuesApi.uploadAttachment.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("Upload interrupted"));
-    const target = { companyId: "company-1", issueId: "issue-1", idempotencyKey: "create-key-123" };
+    const target = { spaceId: "space-1", issueId: "issue-1", idempotencyKey: "create-key-123" };
     expect(await addStagedFilesToIssue({ ...target, stagedFiles: [spec, notes] })).toEqual(["notes.txt"]);
 
     // Reattached after a reload: new staging ids, the same files, the same key.

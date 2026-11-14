@@ -10,15 +10,15 @@ import type { connectSpekoVoiceMedia } from "@/lib/speko-voice-media";
 import { voiceStoryLifecycle } from "../../../support/speko/voiceStoryLifecycle";
 
 function Fixture({ longConversation = false }: { longConversation?: boolean }) {
-  const [companyId, setCompany] = useState("company-storybook");
+  const [spaceId, setSpace] = useState("space-storybook");
   const [userId, setUser] = useState<string | null>("operator");
   const [page, setPage] = useState("agent");
   const [started, setStarted] = useState(0), [closed, setClosed] = useState(0);
   const [intent, setIntent] = useState("none");
   const fixture = useMemo(() => {
-    const session: VoiceSession = { id: "fixture-call", companyId: "company-storybook", endpointId: "fixture-endpoint", issueId: "fixture-task", assignedAgentId: "agent-codex", state: "active", mode: "browser", generation: 1, callerAuthority: "member", replyCursor: 0, createdAt: "2026-10-07T12:00:00Z", expiresAt: "2026-10-07T12:10:00Z", endedAt: null, errorCode: null };
+    const session: VoiceSession = { id: "fixture-call", spaceId: "space-storybook", endpointId: "fixture-endpoint", issueId: "fixture-task", assignedAgentId: "agent-codex", state: "active", mode: "browser", generation: 1, callerAuthority: "member", replyCursor: 0, createdAt: "2026-10-07T12:00:00Z", expiresAt: "2026-10-07T12:10:00Z", endedAt: null, errorCode: null };
     const client: typeof voiceSessionsApi = {
-      async start(_company, input) { setStarted(n => n + 1); setIntent(input.newConversation ? "new" : "continue"); return { session, media: { sessionId: session.id, generation: 1, transportToken: "fixture-only", transportUrl: "wss://fixture.invalid" } }; },
+      async start(_space, input) { setStarted(n => n + 1); setIntent(input.newConversation ? "new" : "continue"); return { session, media: { sessionId: session.id, generation: 1, transportToken: "fixture-only", transportUrl: "wss://fixture.invalid" } }; },
       async get() { return session; }, async end() { return { ...session, state: "ended" }; }, async notification() { return null; },
     };
     const connect: typeof connectSpekoVoiceMedia = async (_credentials, callbacks) => {
@@ -28,16 +28,16 @@ function Fixture({ longConversation = false }: { longConversation?: boolean }) {
     };
     return { client, connect };
   }, [longConversation]);
-  return <StrictMode><VoiceCallProvider companyId={companyId} userId={userId}>
+  return <StrictMode><VoiceCallProvider spaceId={spaceId} userId={userId}>
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-2"><Button onClick={() => setPage(p => p === "agent" ? "tasks" : "agent")}>Navigate</Button><Button onClick={() => setCompany("another-company")}>Switch company</Button><Button onClick={() => setUser(null)}>Sign out</Button></div>
+      <div className="flex flex-wrap gap-2"><Button onClick={() => setPage(p => p === "agent" ? "tasks" : "agent")}>Navigate</Button><Button onClick={() => setSpace("another-space")}>Switch space</Button><Button onClick={() => setUser(null)}>Sign out</Button></div>
       <p data-testid="page">{page === "agent" ? "Agent page" : "Tasks page"}</p>
       <p data-testid="calls">Started: {started}; media closed: {closed}; intent: {intent}</p>
-      {page === "agent" && <NativeVoiceConversation companyId={companyId} endpointId="fixture-endpoint" agentName="Company Phone Agent" {...fixture} />}
+      {page === "agent" && <NativeVoiceConversation spaceId={spaceId} endpointId="fixture-endpoint" agentName="Space Phone Agent" {...fixture} />}
     </div>
   </VoiceCallProvider></StrictMode>;
 }
-const meta: Meta<typeof VoiceCallProvider> = { ...voiceStoryLifecycle, id: "connections-speko-call-provider", title: "Apps, channels, and extensions/External chat and email/Speko/Call provider", component: VoiceCallProvider, render: () => <Fixture />, parameters: { layout: "padded", paperclip: {"capabilities": ["chat-channels/conversation", "chat-channels/lifecycle"], "status": "current", "implementation": "production", "boundary": "fixtures", "notes": "Production route-persistent call host with fixture client/media. Demonstrates navigation and cleanup presentation, not live media or provider hangup."} } };
+const meta: Meta<typeof VoiceCallProvider> = { ...voiceStoryLifecycle, id: "connections-speko-call-provider", title: "Apps, channels, and extensions/External chat and email/Speko/Call provider", component: VoiceCallProvider, render: () => <Fixture />, parameters: { layout: "padded", outpost: {"capabilities": ["chat-channels/conversation", "chat-channels/lifecycle"], "status": "current", "implementation": "production", "boundary": "fixtures", "notes": "Production route-persistent call host with fixture client/media. Demonstrates navigation and cleanup presentation, not live media or provider hangup."} } };
 export default meta;
 type Story = StoryObj<typeof meta>;
 const start: NonNullable<Story["play"]> = async ({ canvasElement }) => {
@@ -60,9 +60,9 @@ export const NewConversation: Story = { play: async context => {
   await userEvent.selectOptions(c.getByRole("combobox", { name: "Conversation" }), "new");
   await start(context); await expect(c.getByTestId("calls")).toHaveTextContent("intent: new");
 } };
-export const CompanyChange: Story = { play: async context => {
+export const SpaceChange: Story = { play: async context => {
   await start(context); const c = within(context.canvasElement);
-  await userEvent.click(c.getByRole("button", { name: "Switch company" }));
+  await userEvent.click(c.getByRole("button", { name: "Switch space" }));
   await waitFor(() => expect(c.getByTestId("calls")).toHaveTextContent("media closed: 1"));
   await expect(c.queryByRole("complementary", { name: "Current voice call" })).not.toBeInTheDocument();
 } };

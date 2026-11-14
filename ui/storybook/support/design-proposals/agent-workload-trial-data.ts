@@ -1,5 +1,5 @@
 import type { Agent, Issue } from "@outpost/shared";
-import { createIssue, storybookAgents, storybookAuthSession, storybookCompanies } from "../../fixtures/paperclipData";
+import { createIssue, storybookAgents, storybookAuthSession, storybookSpaces } from "../../fixtures/outpostData";
 
 export const workloadAgentIds = {
   mira: "agent-workload-trial-mira",
@@ -10,13 +10,13 @@ export const workloadAgentIds = {
   ember: "agent-workload-trial-ember",
 } as const;
 
-const companyId = storybookCompanies[0]!.id;
+const spaceId = storybookSpaces[0]!.id;
 const now = Date.now();
 const ago = (minutes: number) => new Date(now - minutes * 60_000);
 
 function agent(id: string, name: string, title: string, status: Agent["status"], role: Agent["role"] = "engineer"): Agent {
   return {
-    ...storybookAgents[0]!, id, companyId, name, title, role,
+    ...storybookAgents[0]!, id, spaceId, name, title, role,
     urlKey: id, status, reportsTo: null,
     capabilities: title, adapterConfig: {}, runtimeConfig: {},
     budgetMonthlyCents: 50_000, spentMonthlyCents: 0,
@@ -39,7 +39,7 @@ export const workloadAgents: Agent[] = [
 function task(number: number, assigneeAgentId: string, title: string, status: Issue["status"], minutesAgo: number): Issue {
   const updatedAt = ago(minutesAgo);
   return createIssue({
-    id: `agent-workload-trial-task-${number}`, companyId, assigneeAgentId,
+    id: `agent-workload-trial-task-${number}`, spaceId, assigneeAgentId,
     assigneeUserId: null, responsibleUserId: storybookAuthSession.user.id,
     identifier: `PAP-${number}`, issueNumber: number, title,
     description: `Synthetic workload example: ${title}.`, status, priority: "medium",

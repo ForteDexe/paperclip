@@ -28,8 +28,8 @@ it("matches the actual review presentation and selected request opener in produc
   expect(review).toContain('role="img" aria-label={payload.appDisplayName || payload.toolDisplayName}');
 });
 function declined(): IdentityObservation {
-  return { scenarioId: "questions-and-approvals.decline-tool", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo", company: { id: "company" },
-    companies: [], agents: [], tasks: [], projects: [], goals: [], comments: [], documents: [], revisions: [], runs: [], activity: [], links: [], humanQueries: [],
+  return { scenarioId: "questions-and-approvals.decline-tool", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo", space: { id: "space" },
+    spaces: [], agents: [], tasks: [], projects: [], goals: [], comments: [], documents: [], revisions: [], runs: [], activity: [], links: [], humanQueries: [],
     reply: "I did not read the app because you declined.", interactions: [{ id: "selected-review", kind: "request_confirmation", status: "rejected", resolvedByUserId: "actual-person",
       payload: { toolAction: { connectionId: "selected-connection", actionRequestId: "actual-action" } } }],
     state: { connectionId: "selected-connection", decisionId: "selected-review", beforeDecisionCalls: 0, reviewVisible: true, syntheticProvider: true, providerCalls: 0,

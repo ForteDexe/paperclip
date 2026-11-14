@@ -22,8 +22,8 @@ export function taskWorkspacePrompt(nonce: string, turn: 1 | 2 | 3, native: bool
   const files = taskWorkspaceFiles(nonce);
   const inspect = native ? "Use get_workspace to inspect your admitted task workspace."
     : "GET /api/issues/$OUTPOST_TASK_ID/workspace through the authenticated public API to inspect your task workspace.";
-  const api = native ? "Use the real Paperclip semantic tools."
-    : 'Use the injected OUTPOST_API_URL, OUTPOST_API_KEY and OUTPOST_RUN_ID for the public API. Normalize API_ORIGIN="${OUTPOST_API_URL%/}"; API_ORIGIN="${API_ORIGIN%/api}". Include Authorization: Bearer and X-Paperclip-Run-Id on API requests. Never print credentials.';
+  const api = native ? "Use the real Outpost semantic tools."
+    : 'Use the injected OUTPOST_API_URL, OUTPOST_API_KEY and OUTPOST_RUN_ID for the public API. Normalize API_ORIGIN="${OUTPOST_API_URL%/}"; API_ORIGIN="${API_ORIGIN%/api}". Include Authorization: Bearer and X-Outpost-Run-Id on API requests. Never print credentials.';
   const content = turn === 1 ? [
     "This is the first of three separately requested steps. Do only this step now; a later user message will request the next step.",
     inspect,
@@ -47,9 +47,9 @@ export function taskWorkspacePrompt(nonce: string, turn: 1 | 2 | 3, native: bool
     `Register ${files.proof} as a downloadable artifact work product with exact title ${files.proof}.`,
   ];
   return [...content, "The quoted \\n escapes denote actual LF bytes. Include the final LF when writing each exact string; verify byte counts before finishing.", api,
-    turn < 3 ? "Save a short Paperclip task document describing this completed step as its durable work product. Then complete this step and mark the task Done; do not wait for the next user message."
+    turn < 3 ? "Save a short Outpost task document describing this completed step as its durable work product. Then complete this step and mark the task Done; do not wait for the next user message."
       : "Validate the written and downloaded-proof source bytes before completing the task.",
-    native ? "Use paperclip_finish with reportedWorkDisposition done, the current completion contract revision, satisfied objective criterion, real evidence references, and no remaining work for THIS requested step."
+    native ? "Use outpost_finish with reportedWorkDisposition done, the current completion contract revision, satisfied objective criterion, real evidence references, and no remaining work for THIS requested step."
       : "Complete through the normal public task API after saving the work product.",
     `Use TASK-WORKSPACE-${turn}-${nonce} as the completion summary and final response. Do not do unrelated work.`,
   ].join("\n");

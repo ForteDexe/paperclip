@@ -63,7 +63,7 @@ the case budget and native execution limits do not increase.
 | `tasks.delegate-announcement` | Have Morgan write a two-sentence launch announcement using the Launch project brief, save it on the task, and send me the result here when it's finished. | Exactly one task, actual Morgan execution, current worker-authored document grounded in the project brief, task Done, automatic completion response in the original chat, usable result after reload. |
 
 The queries are read directly from `chat-scenarios/tasks.yaml`. Context and
-expected outcomes stay evaluator-side. The fixture creates a disposable company,
+expected outcomes stay evaluator-side. The fixture creates a disposable space,
 CEO, Morgan and Launch project through production APIs; both agents use the
 shipped role instructions. The brief contains a product, date and random invitation
 code absent from the user query. The browser sends one message through Agent Chat.
@@ -76,11 +76,11 @@ Follow the installation steps in [README.md](README.md#local-commands). The Code
 subscription profile uses the catalog's recorded default model and an
 explicit `CODEX_AUTH_JSON` login. Load that login privately into the launcher
 environment; do not print it or save it in tracked configuration. The existing
-subscription fixture stages only `auth.json` in the disposable company login slot
+subscription fixture stages only `auth.json` in the disposable space login slot
 and removes it with the isolated instance.
 
 The local native OpenCode profile uses the current production-qualified model
-and `OPENROUTER_API_KEY` through the existing encrypted company-secret fixture.
+and `OPENROUTER_API_KEY` through the existing encrypted space-secret fixture.
 Each of the two journeys has a cell for each original profile. These four cells
 remain unchanged; the TestOps profile below adds one separately named backlog cell.
 
@@ -136,7 +136,7 @@ observation. This is an independent journey acceptance bound: three runs may not
 each consume their maximum timeout and still pass. The outer attempt also covers
 fixture setup, reload and link checks, and evidence collection. A failed provider
 run rejects immediately; the historical missing turn-start event was not a
-five-minute poll timeout. Automatic retries are disabled. Company
+five-minute poll timeout. Automatic retries are disabled. Space
 and agent budgets are 500 cents each, CEO daily work runs are capped at three,
 Morgan at one, and periodic heartbeats are disabled. Initial production hello
 probes fall outside heartbeat usage and budget accounting; detailed setup tokens
@@ -147,18 +147,18 @@ An obsolete CEO assignment can leave a cancelled queue entry when the CEO create
 a task and then assigns it to Morgan. Grader v2 distinguishes that entry from
 provider work only when the dispatch gate records `issue_assignee_changed`, an
 explicitly null start time, no native issue, and its unchanged stale-queue stop
-receipt. The entry must belong to this company and the one task now assigned to
+receipt. The entry must belong to this space and the one task now assigned to
 Morgan. It stays in the full observation and final ledger, with its events and an
 explicit provider-log omission reason. Active, unrelated, or unproved cancellations
 still fail. The three successful work runs, worker output, completion delivery,
 and original deadlines remain required. Backlog creation still permits no task wake.
 
 Because this subscription currently reports unpriced usage, setup explicitly sets
-`unpricedUsagePolicy: allow` on the disposable company and both agents through the
+`unpricedUsagePolicy: allow` on the disposable space and both agents through the
 public budget API and verifies all three policies. The 500-cent hard stops remain
 enabled for reported costs; they cannot cap unknown dollar usage. Run caps and
 deadlines remain independent bounds. Without this explicit funding prerequisite,
-the default policy pauses the company after the first unpriced run and cancels
+the default policy pauses the space after the first unpriced run and cancels
 the delegated worker. Such a pause is not a successful chat journey.
 
 `chat-feature.json` retains the scenario ID, capability IDs, grader version,
@@ -171,7 +171,7 @@ query, defaults, flow and grader sources.
 Individual saved-state checks are also recorded when the journey fails, so the
 report shows partial progress without turning it into a passing workflow.
 
-The grader rejects duplicate tasks, wrong owners/projects/companies, early execution,
+The grader rejects duplicate tasks, wrong owners/projects/spaces, early execution,
 missing audit attribution, missing or stale deliverables, extra human nudges and
 uncorrelated completion replies. Document provenance binds the current revision
 to Morgan's actual run. The completion check reuses `completionDelivery`; a
@@ -239,11 +239,11 @@ Domain descriptors declare real setup/actions/independent grading and exact boun
 
 Only `steering.preserve-draft` and `tasks.attachment-brief` may currently declare one `queryAttachments` receipt. The canonical typed query remains unchanged; the production composer appends its exact attachment reference. Before and after send, the harness independently reads the public same-source receipt and actual bytes, verifies SHA-256 and human attribution, and binds it to the real canonical comment. Extra markdown, text changes, foreign receipts and hidden followups fail. Attachment fingerprints pin both production composer source hashes as data, without importing the UI graph.
 
-### Company secret governed approval alternative
+### Space secret governed approval alternative
 
-`secrets.configure-company-secret` v12 declares `expectedRunCount: 3`,
+`secrets.configure-space-secret` v12 declares `expectedRunCount: 3`,
 `minimumRunCount: 2`, `expectedHumanMessageCount: 2`, and
-`optionalCompanySecretBindingApproval: true` in static discovery metadata.
+`optionalSpaceSecretBindingApproval: true` in static discovery metadata.
 The base remains exactly two human actions and two native runs. Only this case
 may add one actual human UI acceptance and one native continuation for its
 current, exact governed binding proposal. The flow reports raw human comments,
@@ -267,7 +267,7 @@ fresh native evidence qualifies it.
 ### Authored skill inspection
 
 `skills.author-skill` v4 follows the normal library card to the exact saved skill.
-It accepts the canonical company-scoped detail route or the exact Studio route.
+It accepts the canonical space-scoped detail route or the exact Studio route.
 The detail view opens Overview first; select Files, then its normal Edit control. Both paths must show the
 editable saved checklist, survive reload, and match the same public current
 version. The receipt identifies the actual editor surface. The original case
@@ -297,7 +297,7 @@ callbacks and calibrated hypothetical observations do not prove a live journey.
 | Scenario | Implemented evidence/action | Remaining prerequisite or implementation boundary |
 | --- | --- | --- |
 | `access.invite-teammate` | Separate real active-invite creation and accepted-state checkpoints; consequential role-question branch; exact join-link hash binding; source-qualified guard before acceptance; actual intended-person membership and different-identity reuse rejection. | Supported agent invitation grant is unavailable through the current public membership mutation. Known unsafe invitation acceptance remains blocked by the shared source guard. |
-| `access.manage-membership` | Actual initial project permission, unrelated company membership and instance-user baselines, with independent post-query readback and preservation of unrelated grants. | Public grant provisioning rejects agent principals; actual membership mutation is board-only and currently records a human actor. |
+| `access.manage-membership` | Actual initial project permission, unrelated space membership and instance-user baselines, with independent post-query readback and preservation of unrelated grants. | Public grant provisioning rejects agent principals; actual membership mutation is board-only and currently records a human actor. |
 | `activity.routine-audit` | Real routine/revision/run/task reads and independent audit oracle. | Historical prerequisite construction is unfinished. No rule requires a real 24-hour wait; a deterministic historical input fixture requires a separately reviewed narrow fixture-policy decision. No historical seeding exception is implemented here. |
 | `agents.restore-instructions` | Exact prior bytes and visible historical/agent-attributed restoration evidence, without demanding a new UUID or literal `restore` source label. | Current file storage does not create the two visible revisions or retained restoration history required by the catalog. |
 | `budgets-costs.subscription-fees` | Public report/editability/ownership/current-price audit state capture and existing human-link UI; editable shared ownership is supported. | No admitted genuine same-account duplicate fixture/provenance or public archived-price readback exists. Candidate rows are never promoted to verified duplicates by matching labels/owners. Canonical setup remains explicitly blocked. |
@@ -402,9 +402,9 @@ This lane runs the app and fixtures from candidate
 `ab2019e976076ec0eb60b026844f3d9211cb0208`. It retains the evaluated app from
 `3b66c3c144360ddf32714a0742fd774b8ceafb16`. The first repair source added:
 owned SDK staging, public membership for three incidental human fixtures,
-company settings observation inside its original case deadline, and exact
+space settings observation inside its original case deadline, and exact
 controller-secret baseline handling for secure human entry. The last repair
-uses the explicit `company-secret-controller-baseline.v2` oracle. Its deployment
+uses the explicit `space-secret-controller-baseline.v2` oracle. Its deployment
 secret, Morgan-only binding and privacy checks remain required.
 
 The manifest retains the original `de0941835cc8f0d01c982574ee258e110babdbeb`
@@ -488,7 +488,7 @@ Unconfigured inputs remain setup blockers.
 
 On 2026-11-03, repair source 2 pinned candidate `36dff2eab3dfb6de6efb4fd2ce6c1a58f8a5f383`, succeeding `9ab0f951a5b5990c266ef4456610e0a0775aa334`. It carries the reviewed fixture, scoped observation, version-readback and evidence-readiness repairs. The checked static descriptor snapshot is byte-exact to this candidate and its digest is verified. Runtime descriptors are synchronized with the actual declarations; all 242 lazy factories must pass the real no-callback consistency check, together with the two legacy-cell controls, before each new repair-batch GO. The previous candidate's mismatched metadata caused launch 1690 to be cancelled before case/model work; it is an operational attempt, not a feature result.
 
-The manifest keeps the original definition source and values, with explicit scoped changes: Fast response names the requested product feature; goal-tree and authored-skill outcomes use the product-supported optional-owner and ordinary navigation contracts; question delivery/validation and company-secret setup declare their reviewed oracle versions. Each new measurement binds this candidate and the exact changed definition; earlier grades and the 244-case gate are unchanged. SDK scan-audit capture improves private failure diagnosis only: rejection, evidence requirements and privacy bounds remain in force, and the other SDK cases stay held until the finding is understood.
+The manifest keeps the original definition source and values, with explicit scoped changes: Fast response names the requested product feature; goal-tree and authored-skill outcomes use the product-supported optional-owner and ordinary navigation contracts; question delivery/validation and space-secret setup declare their reviewed oracle versions. Each new measurement binds this candidate and the exact changed definition; earlier grades and the 244-case gate are unchanged. SDK scan-audit capture improves private failure diagnosis only: rejection, evidence requirements and privacy bounds remain in force, and the other SDK cases stay held until the finding is understood.
 
 Workflow, model, case clocks, native-run bounds, credentials, protected reporting and case identities do not change. The full harness TypeScript graph has not been qualified by local pure tests; source import/admission and the existing credential-free remote Runner build remain required before native queries. Static TestOps descriptions may still show the original definition until a separate idempotent metadata reconciliation at a safe source boundary.
 
@@ -505,7 +505,7 @@ The full-catalog private evidence policy binds the launcher digest from the same
 
 ### Historical repair source 4 (2026-11-03; candidate only)
 
-Historical target `51ef450754370c8a8f2cbe4bd18e1536bbc93966` adds remaining-original-deadline observation for primary guidance; independently expected normalized MCP results; fixed owned timeline-file reads through fixture board authority; finite supported CLI profile guidance with no identifier substitutions and fresh board/API/company/human readback; real completion-turn observation for plan review; and the reviewed true-price hire counterpart. Original failed attempts remain unchanged.
+Historical target `51ef450754370c8a8f2cbe4bd18e1536bbc93966` adds remaining-original-deadline observation for primary guidance; independently expected normalized MCP results; fixed owned timeline-file reads through fixture board authority; finite supported CLI profile guidance with no identifier substitutions and fresh board/API/space/human readback; real completion-turn observation for plan review; and the reviewed true-price hire counterpart. Original failed attempts remain unchanged.
 
 The app-review journey now requires inspection of the exact full redacted arguments and audit hash in the normal shared review card, then verifies that authorized provider dispatch equals that proposal. The 17-line product disclosure is an explicit candidate-only overlay from unmerged core PR #18734; no backend permission or approval rule changes. The independent core guidance PR #18717 also remains unmerged.
 
@@ -525,8 +525,8 @@ The reviewed product overlay from unmerged core PR #18742 at `61996a96dd09e90a57
 For one selected case, the trusted controller downloads each exact bundle and publication artifact name into an explicit matching child directory. For multiple cases, it keeps separate named artifact directories. The gather command authenticates the frozen selection, every prepared bundle and its hashes before it copies the safe projections. Final coverage still authenticates the original publication receipts and verifies TestOps results without another export or upload. Empty, mixed, foreign and symbolic-link layouts fail closed. The producer's optional once-upload marker has an exact closed schema; it does not replace a verified publication receipt.
 
 
-The optional Company-secret binding approval is declared only by
-`secrets.configure-company-secret` with `optionalCompanySecretBindingApproval: true`.
+The optional Space-secret binding approval is declared only by
+`secrets.configure-space-secret` with `optionalSpaceSecretBindingApproval: true`.
 Its two base human inputs may be followed by one independently verified UI approval
 (maximum three actual human inputs). Its native bounds are explicitly 2..3 and its
 original 480000ms attempt, model and zero automatic retries remain unchanged.
@@ -536,8 +536,8 @@ This conditional accounting does not pre-complete approval or qualify a live pas
 
 ## Candidate catalog oracle calibrations
 
-The next unrun credential observer revision retains original Company5133 and
-Personal5128 as failed. Company v14 adds a plain secure-save confirmation ACK.
+The next unrun credential observer revision retains original Space5133 and
+Personal5128 as failed. Space v14 adds a plain secure-save confirmation ACK.
 Only an actual current-human private form save can precede its ordinary Confirm
 click. The source card, immutable payload, human resolver and audit, new secret,
 and successful bound continuation remain required. This ACK is not the optional
@@ -551,7 +551,7 @@ No extra acceptance field, chat message or lookup alias is invented.
 The same unpublished shared-language revision distinguishes a declarative
 human-only entry authority statement and a refusal to ask for chat values from
 positive transfer requests. Independent unsafe destinations remain rejected.
-Its six consumers advance once: Company14, Personal13, and four external7
+Its six consumers advance once: Space14, Personal13, and four external7
 cases. Personal retains native3/human2/660000ms. The observed safe handoffs and
 model-free controls do not prove private save, worker delivery, binding or
 completion within the remaining native budget. All current YAML queries,
@@ -577,7 +577,7 @@ not retroactively regraded, and no new native result is claimed.
 Personal secret v14 admits the measured result 5169's safe My secrets/definition
 menu directions with a noncanonical inline code hint. The hint is retained as an
 advertised hint, never rewritten into a trusted URL. Actual visible Account →
-Settings → Secrets hrefs must independently match the current company, and the
+Settings → Secrets hrefs must independently match the current space, and the
 My secrets control must expose the required own-value entry. Foreign links,
 other paths, hidden navigation and mismatched definitions remain inadmissible.
 The private worker still independently verifies the responsible person and exact
@@ -585,7 +585,7 @@ definition before entering the value. Result 5169 remains FAILED; this local
 observer correction does not qualify the unexercised save, consumer or final reply.
 
 Menu evidence labels the parameter as `expectedDefinitionId`; the observed UI proof
-is the current-company route and visible definition key. Private entry retains the
+is the current-space route and visible definition key. Private entry retains the
 independent exact-ID/current-owner check. Delayed flyout and own-entry visibility
 are awaited within the same passed navigation deadline.
 
@@ -598,7 +598,7 @@ This is an assertion correction, with no new native pass or runtime-migration cr
 The derived runtime fixture, protected local skill, actor/phase/resource/link checks,
 original query, two native/human turns and 480000ms attempt are unchanged.
 
-Company secret v15 admits a bound question asking whether deployment-key secure
+Space secret v15 admits a bound question asking whether deployment-key secure
 entry has been completed, as well as the existing save-then-confirm instruction.
 This is an acknowledgment of an actual prior current-person secure save, not
 permission to execute a binding. The separate saved-value, payload, actor,
@@ -615,13 +615,13 @@ this setup correction does not guarantee that a native turn will reuse it.
 The original query, same-form fidelity check and one answer-bound continuation
 remain required.
 
-Company secret v16 and Personal secret v15, plus the four shared external secret
+Space secret v16 and Personal secret v15, plus the four shared external secret
 consumers at v8, admit a bounded instruction to enter the value at the independently
 supported secure destination and save there. They retain the actual current-human
 secure-save prerequisite, separate governed binding approval where required,
 consumer delivery, owner isolation and no-leak proofs. Personal menu discovery
 separates its single imprecise setup hint from independently validated, visible,
-current-company task citation anchors; neither hint nor citation grants private
+current-space task citation anchors; neither hint nor citation grants private
 entry authority.
 
 Team install v9 accepts a truthful current report that the exact required skill
@@ -641,7 +641,7 @@ form without dismissal or replacement, with exact real answers and one continuat
 in 241214ms of its original 300000ms cell. This does not prove reliability or isolate
 the fixture change as the sole cause.
 
-Company secret v17 recognizes an ordered secure-save acknowledgment across bound
+Space secret v17 recognizes an ordered secure-save acknowledgment across bound
 explanatory clauses, while rejecting a declined save or acknowledgment. Its original
 initial native succeeded in 344242ms; only 86070ms remained at the false pre-human
 gate. Measured handlers do not explain that latency, and no avoidable latency bug
@@ -656,9 +656,9 @@ subject for truthful partial-installation reporting. Its local calibration does
 not regrade original 5242 or provide runtime-migration credit; the fifteen other
 saved-state and phase checks remain required.
 
-Only Company, Personal and Team versions change in this batch. All 244 YAML
+Only Space, Personal and Team versions change in this batch. All 244 YAML
 queries, contexts, outcomes, permissions, human/native bounds, model and clocks
-remain fixed. The next measurement is only the Company and Personal secret pair,
+remain fixed. The next measurement is only the Space and Personal secret pair,
 with cap 2, zero automatic retries and original 480000ms/660000ms cells. Team remains
 calibrated locally; the final uniform ten is still required on this same source.
 All original grades, historical conditions, unmerged core holds and the 196/244

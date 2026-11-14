@@ -16,7 +16,7 @@ function orderDecisionCard(o: DependencyObservation, website: DependencyTask, de
   const runIds = new Set(o.runs.map(run => run.id));
   return (o.conversationInteractions ?? []).some(row => {
     const card = row as Entity & Record<string, unknown>;
-    if (card.kind !== "ask_user_questions" || card.status !== "pending" || card.companyId !== o.companyId
+    if (card.kind !== "ask_user_questions" || card.status !== "pending" || card.spaceId !== o.spaceId
       || card.createdByAgentId !== o.leadId || !runIds.has(card.sourceRunId as string) || !chatCatalogHumanQuestionPolicies(card as { resolverPolicy?: unknown })) return false;
     const parsed = askUserQuestionsPayloadSchema.safeParse(card.payload);
     if (!parsed.success || !parsed.data.questions.some(question => question.options.length >= 2)) return false;
@@ -36,8 +36,8 @@ export function gradeDependencyCycle(value: unknown) {
   c.add("original-edge-retained-reverse-edge-absent", !!currentWebsite && !!currentDesign
     && blockers(currentWebsite)?.length === 0 && blockers(currentDesign)?.length === 1 && blockers(currentDesign)?.[0] === website.id,
     "Design still waits for Website; the requested reverse edge is rejected without removing the original prerequisite.");
-  c.add("same-company-unchanged-task-records", !!currentWebsite && !!currentDesign && sameTask(website, currentWebsite)
-    && sameTask(design, currentDesign) && [currentWebsite, currentDesign].every(row => row.companyId === o.companyId) && o.tasks.length === 2,
+  c.add("same-space-unchanged-task-records", !!currentWebsite && !!currentDesign && sameTask(website, currentWebsite)
+    && sameTask(design, currentDesign) && [currentWebsite, currentDesign].every(row => row.spaceId === o.spaceId) && o.tasks.length === 2,
     "Cycle rejection preserves the two task identities, ownership and ordinary properties.");
   const replyDecision = /\bWebsite\b/i.test(o.reply) && /\bDesign\b/i.test(o.reply)
     && /cycl|circular|already.*depend|deadlock/i.test(o.reply) && /choose|which|instead|remove|order|first/i.test(o.reply);
@@ -60,7 +60,7 @@ export const runtimeTaskCoordinationCases = [runtimeDefinition("task-coordinatio
 }, gradeDependencyCycle, { oracleVersion: "outpost.chat-catalog.runtime.v3", observe: observeDependencies, async verifyResult(ctx, state) {
   const source = ctx.input.page.url();
   for (const row of [state.task as Entity, state.design as Entity]) {
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${row.identifier ?? row.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${row.identifier ?? row.id}`, { waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("heading", { name: row.title!, exact: true }).first()).toBeVisible();
   }
   await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });

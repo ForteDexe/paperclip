@@ -74,13 +74,13 @@ export async function runPiControlsFlow(input: {
   };
   const load = async (): Promise<PiControlState> => {
     if (issue.id) issue = await api.get<Row>(`/api/issues/${issue.id}`);
-    const list = await api.get<Row[]>(`/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100`);
+    const list = await api.get<Row[]>(`/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100`);
     runs = await Promise.all(list.map(run => api.get<Row>(`/api/heartbeat-runs/${run.id}`)));
     if (runs.length > 1) throw new Error("Stopped waiting for Pi controls: extra provider run");
     events = runs[0] ? await collectRunEvents<Row>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${runs[0]!.id}/events?afterSeq=${afterSeq}&limit=${limit}`)) : [];
     observeProcesses(); input.observe(issue, runs); return { run: runs[0] ?? {}, issue, events, bootstrapApproval };
   };
-  const scope = (): PiControlScope => ({ companyId: fixtures.company.id, issueId: issue.id, runId: runs[0]!.id, target });
+  const scope = (): PiControlScope => ({ spaceId: fixtures.space.id, issueId: issue.id, runId: runs[0]!.id, target });
   const readPresentation = async (state: PiControlState) => {
     const commentsApiPath = `/api/issues/${state.issue.id}/comments`;
     const comments = await api.get<Array<{ id: string; createdByRunId?: string | null; body?: string | null }>>(commentsApiPath);
@@ -97,7 +97,7 @@ export async function runPiControlsFlow(input: {
       // the persisted comment selected by the Product.
       await input.evidence(`pi-steering-presentation${phase === "after-cleanup" ? "-after-cleanup" : ""}.json`, {
         schema: "outpost.e2e.pi-steering-presentation.v1", phase,
-        companyId: fixtures.company.id, issueId: state.issue.id, runId: state.run.id, ...presentation,
+        spaceId: fixtures.space.id, issueId: state.issue.id, runId: state.run.id, ...presentation,
       });
       return readPiSteeringSettlement({ ...presentation, ...steered, finalMessage: finalMessage(presentation) });
     }
@@ -144,27 +144,27 @@ export async function runPiControlsFlow(input: {
     const agent = await api.get<Row>(`/api/agents/${fixtures.agent.id}`);
     const configured = await api.patch<Row>(`/api/agents/${fixtures.agent.id}`, { adapterConfig: { ...agent.adapterConfig, acpxPermissionMode: "approve-reads", lifecycleMode: "per_turn", timeoutSec: 120 } });
     check("explicit-per-turn-policy", configured.adapterConfig?.acpxPermissionMode === "approve-reads" && configured.adapterConfig?.lifecycleMode === "per_turn", "Native write requires a human decision before startup");
-    const project = await api.post<Row>(`/api/companies/${fixtures.company.id}/projects`, { name: `Pi controls ${nonce}`, executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", sharedWorkspaceConcurrency: "serialize", allowIssueOverride: false, environmentId: fixtures.environment.id, workspaceStrategy: { type: "project_primary" } }, workspace: { name: "Primary", sourceType: "local_path", cwd: input.workspacePath, isPrimary: true } });
+    const project = await api.post<Row>(`/api/spaces/${fixtures.space.id}/projects`, { name: `Pi controls ${nonce}`, executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", sharedWorkspaceConcurrency: "serialize", allowIssueOverride: false, environmentId: fixtures.environment.id, workspaceStrategy: { type: "project_primary" } }, workspace: { name: "Primary", sourceType: "local_path", cwd: input.workspacePath, isPrimary: true } });
     if (!remote) await sample("before-request");
-    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt: remote ? input.remoteBootstrap!.prompt(nonce) : prompt, workMode: "standard", projectName: project.name, requireExplicitTitle: true });
+    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt: remote ? input.remoteBootstrap!.prompt(nonce) : prompt, workMode: "standard", projectName: project.name, requireExplicitTitle: true });
     issue = await api.get<Row>(`/api/issues/${createdTask.issueId}`);
-    check("created-task-identity", issue.id === createdTask.issueId && issue.companyId === fixtures.company.id && issue.assigneeAgentId === fixtures.agent.id, "Creation response binds the exact company-scoped assigned task before native control");
+    check("created-task-identity", issue.id === createdTask.issueId && issue.spaceId === fixtures.space.id && issue.assigneeAgentId === fixtures.agent.id, "Creation response binds the exact space-scoped assigned task before native control");
     if (remote) {
       await pollUntil({ label: "Pi control remote bootstrap", deadlineAt: input.deadlineAt, load, accept: state => state.run.status === "running" });
       const bound = await input.remoteBootstrap!.bindAndRelease({ issueId: issue.id, runId: runs[0]!.id, targets: [target], actionPrompt: async value => {
         fixture = value;
-        const prepared = await prepareCopilotRemoteAction({ fixture: value, companyId: fixtures.company.id, environmentId: fixtures.environment.id, runId: runs[0]!.id, target, prompt });
+        const prepared = await prepareCopilotRemoteAction({ fixture: value, spaceId: fixtures.space.id, environmentId: fixtures.environment.id, runId: runs[0]!.id, target, prompt });
         baseline = prepared.baseline; remoteObservations.push({ phase: "before-request", source: "live-snapshot", snapshot: baseline });
         await input.evidence("pi-control-before-request-remote.json", baseline); return prepared.prompt;
       } });
       if (bound !== fixture) throw new Error("Pi remote action identity changed");
-      bootstrapApproval = await approvePiBootstrapRead({ api, fixture: bound, companyId: fixtures.company.id, issueId: issue.id, runId: runs[0]!.id,
+      bootstrapApproval = await approvePiBootstrapRead({ api, fixture: bound, spaceId: fixtures.space.id, issueId: issue.id, runId: runs[0]!.id,
         deadlineAt: input.deadlineAt, load, evidence: input.evidence });
     }
     await pollUntil({ label: "Pi unanswered native write", deadlineAt: input.deadlineAt, intervalMs: 200,
       load: async () => { const state = await load(); if (["failed", "timed_out", "cancelled", "succeeded"].includes(state.run.status)) throw new Error("Stopped waiting for Pi unanswered native write: no active pending permission"); return state; },
       accept: state => { observePiControlPending({ ...state, scope: scope() }); return true; } });
-    await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
+    await page.goto(`/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
     // A resolved bootstrap read remains visible in the transcript. Only the
     // pending permission has decision buttons; the public event oracle and
     // browser POST below still bind the decision to the exact write request.

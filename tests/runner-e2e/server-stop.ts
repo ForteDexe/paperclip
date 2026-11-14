@@ -1,7 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 import { createProcessTreeOwner, incompleteTreeFallback, settleUncertainIdentity, type RestartRunnerIdentity } from "./process-tree-owner.js";
 
-// The wrapper receives Playwright's group signal; only it signals Paperclip.
+// The wrapper receives Playwright's group signal; only it signals Outpost.
 export const runnerE2EServerDetached = process.platform !== "win32";
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
@@ -69,7 +69,7 @@ export function createRunnerE2EServerStopper(options: {
     }
     if (restarting) throw new Error("Controller restart did not retire non-durable children within its graceful deadline");
     if (!state.escalationLogged) {
-      options.log(`\nPaperclip did not stop within ${options.gracefulTimeoutMs}ms; sending SIGKILL\n`);
+      options.log(`\nOutpost did not stop within ${options.gracefulTimeoutMs}ms; sending SIGKILL\n`);
       state.escalationLogged = true;
     }
     state.forcedDeadline ??= finalForcedDeadline ?? Date.now() + options.forcedTimeoutMs;
@@ -81,7 +81,7 @@ export function createRunnerE2EServerStopper(options: {
       if (exited(child) && !state.owner.liveGroups().length) { state.owner.stopObserving(); return; }
       await wait(25);
     } while (Date.now() < state.forcedDeadline);
-    throw new Error("Paperclip server or observed descendants did not exit after SIGKILL");
+    throw new Error("Outpost server or observed descendants did not exit after SIGKILL");
   }
   const stop = (child: ChildProcess, signal: NodeJS.Signals = "SIGTERM"): Promise<void> => {
     options.markExpectedStop(child);
@@ -141,7 +141,7 @@ export function createRunnerE2EServerStopper(options: {
               refused.push(group.processGroupId);
             }
           }
-          options.log(`Warning: SIGKILL of the Paperclip process groups reported EPERM after server pid=${child.pid} exited; `
+          options.log(`Warning: SIGKILL of the Outpost process groups reported EPERM after server pid=${child.pid} exited; `
             + `groups still refusing SIGKILL: ${refused.join(",") || "none"}; continuing cleanup\n`);
         }
         await stopOnce(child, state, "SIGKILL");

@@ -74,7 +74,7 @@ test.describe("Capability issue thread", () => {
         monoStatuses: statuses(monoFamily),
         symbolStatuses: statuses(symbolFamily),
         sansWeightsLoaded: [400, 500, 600, 700].every((weight) =>
-          document.fonts.check(`${weight} 16px "${sansFamily}"`, "Paperclip"),
+          document.fonts.check(`${weight} 16px "${sansFamily}"`, "Outpost"),
         ),
         monoWeightsLoaded: [400, 700].every((weight) =>
           document.fonts.check(`${weight} 16px "${monoFamily}"`, "TASK-17003"),
@@ -84,9 +84,9 @@ test.describe("Capability issue thread", () => {
     });
 
     expect(probe).toEqual({
-      sansFamily: "Paperclip Issue Thread Inter",
-      monoFamily: "Paperclip Issue Thread DejaVu Sans Mono",
-      symbolFamily: "Paperclip Issue Thread Symbols",
+      sansFamily: "Outpost Issue Thread Inter",
+      monoFamily: "Outpost Issue Thread DejaVu Sans Mono",
+      symbolFamily: "Outpost Issue Thread Symbols",
       sansStatuses: ["loaded"],
       monoStatuses: ["loaded", "loaded"],
       symbolStatuses: ["loaded", "loaded"],
@@ -103,7 +103,7 @@ test.describe("Capability issue thread", () => {
     const chips = page.getByTestId("identity-chips");
     await expect(chips.getByTestId("agent-chip")).toHaveText("Fake agent");
     await expect(chips.getByTestId("runner-chip")).toContainText("In-process runner");
-    await expect(chips.getByTestId("control-plane-chip")).toHaveText("Mock Paperclip");
+    await expect(chips.getByTestId("control-plane-chip")).toHaveText("Mock Outpost");
 
     await expect(page.locator("h1")).toHaveCount(1);
     await expect(page.locator('[data-turn-id]')).toHaveCount(3);
@@ -501,7 +501,7 @@ const DEVTOOLS_API = "**/api/capability/ui/devtools?*";
 
 function devtoolsPayload() {
   const state = {
-    company: { id: "company-1", name: "Mock Paperclip" },
+    space: { id: "space-1", name: "Mock Outpost" },
     actors: [], tasks: [], comments: [], interactions: [], approvals: [], artifacts: [],
     workProducts: [], blockers: [], workspaceServices: [], budgets: [], runs: [], wakes: [],
     audit: [], decisions: [], idempotency: [], faults: [],
@@ -525,8 +525,8 @@ function cleanRoomView(identifier: string, withTurn: boolean) {
     id: `network-guard-session-${identifier}`,
     turnId: "turn-0",
     category: "session",
-    outcome: "no_real_paperclip_request",
-    reason: "Real Paperclip API requests: 0. Child OUTPOST_* environment keys: none.",
+    outcome: "no_real_outpost_request",
+    reason: "Real Outpost API requests: 0. Child OUTPOST_* environment keys: none.",
     stateRevision: 3,
     threadAnchorId: null,
   };
@@ -538,8 +538,8 @@ function cleanRoomView(identifier: string, withTurn: boolean) {
       agentLabel: "Real Codex",
       runnerLabel: "Real runnerd",
       runnerAttached: true,
-      controlPlaneLabel: "Mock Paperclip",
-      controlPlaneTooltip: "All issue records are mock. No real Paperclip API is reachable.",
+      controlPlaneLabel: "Mock Outpost",
+      controlPlaneTooltip: "All issue records are mock. No real Outpost API is reachable.",
       replaySource: null,
     },
     issue: {
@@ -566,7 +566,7 @@ function cleanRoomView(identifier: string, withTurn: boolean) {
                 kind: "user_message",
                 id: "transcript-1",
                 at: "2026-08-10T12:00:00.000Z",
-                author: "You (board user)",
+                author: "You (operator)",
                 body: "Read this issue and record a status.",
               },
               {
@@ -616,7 +616,7 @@ function cleanRoomPayload(identifier: string, withTurn = false) {
     identity: {
       token: identifier.toLowerCase().replace("mck-", "tok"),
       sequence: Number(identifier.slice(4)),
-      companyId: `company-cleanroom-${identifier}`,
+      spaceId: `space-cleanroom-${identifier}`,
       actorId: `actor-cleanroom-${identifier}`,
       taskId: `task-cleanroom-${identifier}`,
       identifier,
@@ -688,7 +688,7 @@ test.describe("Capability clean-room chat", () => {
   test("a new chat opens a blank live thread with no scenario controls", async ({ page }) => {
     await openCleanRoom(page);
 
-    await expect(page).toHaveTitle("🫧 Mock Paperclip · Issue thread");
+    await expect(page).toHaveTitle("🫧 Mock Outpost · Issue thread");
     await expect(page.locator('[data-surface="chat"]')).toBeVisible();
     await expect(page.getByTestId("clean-room-empty")).toBeVisible();
     await expect(page.locator("[data-turn-id]")).toHaveCount(0);
@@ -699,7 +699,7 @@ test.describe("Capability clean-room chat", () => {
     const chips = page.getByTestId("identity-chips");
     await expect(chips.getByTestId("agent-chip")).toHaveText("Real Codex");
     await expect(chips.getByTestId("runner-chip")).toContainText("Real runnerd");
-    await expect(chips.getByTestId("control-plane-chip")).toHaveText("Mock Paperclip");
+    await expect(chips.getByTestId("control-plane-chip")).toHaveText("Mock Outpost");
     await expect(page.locator('[data-composer-state="ready"]')).toHaveCount(1);
   });
 
@@ -712,10 +712,10 @@ test.describe("Capability clean-room chat", () => {
     await page.getByTestId("evidence-toggle").click();
     await expect(page.locator(".pit-panel")).toBeVisible();
     await page.getByRole("button", { name: /Control plane/ }).click();
-    await expect(page.getByText("Real Paperclip API requests: 0")).toBeVisible();
+    await expect(page.getByText("Real Outpost API requests: 0")).toBeVisible();
   });
 
-  test("documents written to company state are readable in DevTools", async ({ page }) => {
+  test("documents written to space state are readable in DevTools", async ({ page }) => {
     await page.route(DEVTOOLS_API, async (route) => {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(devtoolsPayload()) });
     });
@@ -966,7 +966,7 @@ function interactionView(
           kind: "user_message",
           id: "transcript-3",
           at: "2026-08-10T12:01:00.000Z",
-          author: "You (board user)",
+          author: "You (operator)",
           body: "Carry on with the plan.",
         },
         {

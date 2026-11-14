@@ -97,7 +97,7 @@ export const createAgentSchema = z.object({
   capabilities: z.string().optional().nullable(),
   desiredSkills: z.array(agentDesiredSkillSelectionSchema).optional(),
   adapterType: agentAdapterTypeSchema,
-  runner: z.enum(["auto", "paperclip", "legacy"]).optional(),
+  runner: z.enum(["auto", "outpost", "legacy"]).optional(),
   adapterConfig: adapterConfigSchema.optional().default({}),
   instructionsBundle: createAgentInstructionsBundleSchema.optional(),
   runtimeConfig: agentRuntimeConfigSchema.optional().default({}),
@@ -114,11 +114,11 @@ export const createAgentSchema = z.object({
   // round trip. The server permits the no-claim bind only for a user actor and
   // only when that owner already has a stored value. It carries no token.
   applyStoredClaudeLogin: z.boolean().optional(),
-  // Narrow intent flag set by the onboarding wizard when it hires the very first
+  // Narrow intent flag set by the onboarding wizard when it creations the very first
   // agent (the chief of staff). It is not an agent column: the server consumes
   // it to seed the server-owned chief-of-staff persona over the agent's entry
   // instruction file instead of the generic default, and honors it only for
-  // board-authored requests. Mirrors onboardingFirstTask on issue create.
+  // operator-authored requests. Mirrors onboardingFirstTask on issue create.
   onboardingFirstAgent: z.boolean().optional(),
 });
 
@@ -126,7 +126,7 @@ export type CreateAgent = z.infer<typeof createAgentSchema>;
 
 export const builtInAgentProvisionSchema = z.object({
   adapterType: agentAdapterTypeSchema.optional(),
-  runner: z.enum(["auto", "paperclip", "legacy"]).optional(),
+  runner: z.enum(["auto", "outpost", "legacy"]).optional(),
   adapterConfig: adapterConfigSchema.optional(),
   budgetMonthlyCents: z.number().int().nonnegative().optional(),
 }).strict();
@@ -143,16 +143,16 @@ export const builtInAgentResetSchema = z.object({
 
 export type BuiltInAgentReset = z.infer<typeof builtInAgentResetSchema>;
 
-export const createAgentHireSchema = createAgentSchema.omit({ setupId: true }).extend({
+export const createAgentCreationSchema = createAgentSchema.omit({ setupId: true }).extend({
   setupAgentId: z.string().guid().optional(),
   sourceIssueId: z.string().guid().optional().nullable(),
   sourceIssueIds: z.array(z.string().guid()).optional(),
-  // Agent-authored hires may explicitly request the caller's native runner
+  // Agent-authored creations may explicitly request the caller's native runner
   // settings. The server consumes this intent; it is never an agent column.
   inheritRuntimeFrom: z.literal("caller").optional(),
 });
 
-export type CreateAgentHire = z.infer<typeof createAgentHireSchema>;
+export type CreateAgentCreation = z.infer<typeof createAgentCreationSchema>;
 
 // Narrow intent used by roster bulk edits. The server merges only these fields
 // into the latest configuration and rejects stale previews.
@@ -284,7 +284,7 @@ export const resetAgentSessionSchema = z.object({
 export type ResetAgentSession = z.infer<typeof resetAgentSessionSchema>;
 
 export const testAdapterEnvironmentSchema = z.object({
-  runner: z.enum(["auto", "paperclip", "legacy"]).optional(),
+  runner: z.enum(["auto", "outpost", "legacy"]).optional(),
   aiConnection: aiConnectionBindingSchema.optional(),
   /** Saved agent whose redacted environment entries are restored for this probe. */
   agentId: z.string().guid().optional(),
@@ -307,7 +307,7 @@ export const testAdapterEnvironmentSchema = z.object({
   adapterConfig: adapterConfigSchema.optional().default({}),
   /**
    * Optional environment to run the adapter test inside. When omitted, the
-   * test runs against the local Paperclip host. When provided and the
+   * test runs against the local Outpost host. When provided and the
    * environment is non-local (SSH/sandbox), the test probes are executed
    * inside that environment so the result reflects real agent execution.
    */

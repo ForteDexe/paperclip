@@ -63,9 +63,9 @@ vi.mock("../services/agent-action-audit.js", () => ({
 
 async function createApp(
   actor: Record<string, unknown> = {
-    type: "board",
+    type: "operator",
     userId: "user-1",
-    companyIds: ["company-1"],
+    spaceIds: ["space-1"],
     source: "session",
     isInstanceAdmin: false,
   },
@@ -81,7 +81,7 @@ async function createApp(
   app.use((req, _res, next) => {
     (req as any).actor = {
       ...actor,
-      companyIds: Array.isArray(actor.companyIds) ? [...actor.companyIds] : actor.companyIds,
+      spaceIds: Array.isArray(actor.spaceIds) ? [...actor.spaceIds] : actor.spaceIds,
     };
     next();
   });
@@ -130,7 +130,7 @@ describe("activity routes", () => {
     mockAgentActionAuditService.list.mockReset();
     mockAccessService.decide.mockResolvedValue({
       allowed: true,
-      action: "company_scope:read",
+      action: "space_scope:read",
       reason: "allow_test",
       explanation: "Allowed by test mock.",
     });
@@ -139,15 +139,15 @@ describe("activity routes", () => {
 
   it("lets an agent read activity for an authorized issue", async () => {
     mockIssueService.getByIdentifier.mockResolvedValue({
-      id: "issue-1", companyId: "company-1", projectId: null, parentId: null,
+      id: "issue-1", spaceId: "space-1", projectId: null, parentId: null,
       assigneeAgentId: "agent-1", assigneeUserId: null, status: "done",
     });
     mockActivityService.forIssue.mockResolvedValue([{ action: "issue.recovery_action_resolved", actorType: "system" }]);
-    const app = await createApp({ type: "agent", companyId: "company-1", agentId: "agent-1" });
+    const app = await createApp({ type: "agent", spaceId: "space-1", agentId: "agent-1" });
     const res = await requestApp(app, baseUrl => request(baseUrl).get("/api/issues/TEST-1/activity"));
     expect(res.status).toBe(200);
     expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
-      action: "issue:read", resource: expect.objectContaining({ companyId: "company-1", issueId: "issue-1" }),
+      action: "issue:read", resource: expect.objectContaining({ spaceId: "space-1", issueId: "issue-1" }),
     }));
     expect(mockActivityService.forIssue).toHaveBeenCalledWith("issue-1");
     expect(res.body).toEqual([{ action: "issue.recovery_action_resolved", actorType: "system" }]);
@@ -155,12 +155,12 @@ describe("activity routes", () => {
 
   it("reads bounded input facts with the same issue access checks", async () => {
     const commentId = "11111111-1111-4111-8111-111111111111";
-    mockIssueService.getByIdentifier.mockResolvedValue({ id: "issue-1", companyId: "company-1" });
+    mockIssueService.getByIdentifier.mockResolvedValue({ id: "issue-1", spaceId: "space-1" });
     mockActivityService.inputFactsForIssue.mockResolvedValue([{ action: "issue.queued_comment_steered" }]);
-    const app = await createApp({ type: "agent", companyId: "company-1", agentId: "agent-1" });
+    const app = await createApp({ type: "agent", spaceId: "space-1", agentId: "agent-1" });
     const res = await requestApp(app, baseUrl => request(baseUrl).get(`/api/issues/TEST-1/activity?view=comment-inputs&commentIds=${commentId}`));
     expect(res.status).toBe(200);
-    expect(mockActivityService.inputFactsForIssue).toHaveBeenCalledWith("company-1", "issue-1", [commentId]);
+    expect(mockActivityService.inputFactsForIssue).toHaveBeenCalledWith("space-1", "issue-1", [commentId]);
     expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({ action: "issue:read" }));
     const invalid = await requestApp(app, baseUrl => request(baseUrl).get("/api/issues/TEST-1/activity?view=comment-inputs&commentIds=invalid"));
     expect(invalid.status).toBe(400);
@@ -169,30 +169,30 @@ describe("activity routes", () => {
     expect(mockActivityService.inputFactsForIssue).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["boundary", "company"])("denies agent activity reads outside the %s scope", async (kind) => {
-    const issue = { id: "issue-1", companyId: kind === "company" ? "company-2" : "company-1" };
+  it.each(["boundary", "space"])("denies agent activity reads outside the %s scope", async (kind) => {
+    const issue = { id: "issue-1", spaceId: kind === "space" ? "space-2" : "space-1" };
     mockIssueService.getById.mockResolvedValue(issue);
     mockIssueService.getByIdentifier.mockResolvedValue(issue);
     mockAccessService.decide.mockResolvedValue({ allowed: false });
-    const app = await createApp({ type: "agent", companyId: "company-1", agentId: "agent-1" });
+    const app = await createApp({ type: "agent", spaceId: "space-1", agentId: "agent-1" });
     const res = await requestApp(app, baseUrl => request(baseUrl).get("/api/issues/issue-1/activity"));
-    expect(res.status).toBe(kind === "company" ? 404 : 403);
+    expect(res.status).toBe(kind === "space" ? 404 : 403);
     expect(mockActivityService.forIssue).not.toHaveBeenCalled();
     const inputs = await requestApp(app, baseUrl => request(baseUrl).get("/api/issues/issue-1/activity?view=comment-inputs"));
-    expect(inputs.status).toBe(kind === "company" ? 404 : 403);
+    expect(inputs.status).toBe(kind === "space" ? 404 : 403);
     expect(mockActivityService.inputFactsForIssue).not.toHaveBeenCalled();
   });
 
-  it("returns redacted all-actors rows to a basic company reader", async () => {
+  it("returns redacted all-actors rows to a basic space reader", async () => {
     mockAgentActionAuditService.list.mockResolvedValue({
       items: [{
         id: "activity-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         actorType: "plugin",
         actorId: "plugin-1",
         action: "plugin.synced",
-        entityType: "company",
-        entityId: "company-1",
+        entityType: "space",
+        entityId: "space-1",
         agentId: "agent-1",
         runId: "run-1",
         responsibleUserId: "user-2",
@@ -205,11 +205,11 @@ describe("activity routes", () => {
 
     const app = await createApp();
     const res = await request(app)
-      .get("/api/companies/company-1/audit/agent-actions?actorScope=all");
+      .get("/api/spaces/space-1/audit/agent-actions?actorScope=all");
 
     expect(res.status).toBe(200);
     expect(mockAgentActionAuditService.list).toHaveBeenCalledWith({
-      companyId: "company-1",
+      spaceId: "space-1",
       actorScope: "all",
       limit: 50,
       caseReadCondition,
@@ -218,8 +218,8 @@ describe("activity routes", () => {
       actorType: "plugin",
       actorId: "plugin-1",
       action: "plugin.synced",
-      entityType: "company",
-      entityId: "company-1",
+      entityType: "space",
+      entityId: "space-1",
       createdAt: "2026-08-04T00:00:00.000Z",
       agentId: null,
       runId: null,
@@ -232,7 +232,7 @@ describe("activity routes", () => {
   it("rejects attribution filters for a basic all-actors reader", async () => {
     const app = await createApp();
     const res = await request(app)
-      .get("/api/companies/company-1/audit/agent-actions?actorScope=all&runId=00000000-0000-4000-8000-000000000001");
+      .get("/api/spaces/space-1/audit/agent-actions?actorScope=all&runId=00000000-0000-4000-8000-000000000001");
 
     expect(res.status).toBe(403);
     expect(res.body.error).toContain("audit:view_agent_actions");
@@ -254,11 +254,11 @@ describe("activity routes", () => {
 
     const app = await createApp();
     const res = await request(app)
-      .get("/api/companies/company-1/audit/agent-actions?actorScope=all&actorType=system");
+      .get("/api/spaces/space-1/audit/agent-actions?actorScope=all&actorType=system");
 
     expect(res.status).toBe(200);
     expect(mockAgentActionAuditService.list).toHaveBeenCalledWith({
-      companyId: "company-1",
+      spaceId: "space-1",
       actorScope: "all",
       actorType: "system",
       limit: 50,
@@ -273,15 +273,15 @@ describe("activity routes", () => {
     expect(res.body.accessTier).toBe("full");
   });
 
-  it("limits company activity lists by default", async () => {
+  it("limits space activity lists by default", async () => {
     mockActivityService.list.mockResolvedValue([]);
 
     const app = await createApp();
-    const res = await requestApp(app, (baseUrl) => request(baseUrl).get("/api/companies/company-1/activity"));
+    const res = await requestApp(app, (baseUrl) => request(baseUrl).get("/api/spaces/space-1/activity"));
 
     expect(res.status).toBe(200);
     expect(mockActivityService.list).toHaveBeenCalledWith({
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: undefined,
       entityType: undefined,
       entityId: undefined,
@@ -291,17 +291,17 @@ describe("activity routes", () => {
     });
   });
 
-  it("caps requested company activity list limits", async () => {
+  it("caps requested space activity list limits", async () => {
     mockActivityService.list.mockResolvedValue([]);
 
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
-      request(baseUrl).get("/api/companies/company-1/activity?limit=5000&entityType=issue"),
+      request(baseUrl).get("/api/spaces/space-1/activity?limit=5000&entityType=issue"),
     );
 
     expect(res.status).toBe(200);
     expect(mockActivityService.list).toHaveBeenCalledWith({
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: undefined,
       entityType: "issue",
       entityId: undefined,
@@ -314,7 +314,7 @@ describe("activity routes", () => {
   it("resolves alphanumeric issue identifiers before loading runs", async () => {
     mockIssueService.getByIdentifier.mockResolvedValue({
       id: "issue-uuid-1",
-      companyId: "company-1",
+      spaceId: "space-1",
     });
     mockActivityService.runsForIssue.mockResolvedValue([
       {
@@ -329,28 +329,28 @@ describe("activity routes", () => {
     expect(res.status).toBe(200);
     expect(mockIssueService.getByIdentifier).toHaveBeenCalledWith("PC1A2-475");
     expect(mockIssueService.getById).not.toHaveBeenCalled();
-    expect(mockActivityService.runsForIssue).toHaveBeenCalledWith("company-1", "issue-uuid-1", "user-1");
+    expect(mockActivityService.runsForIssue).toHaveBeenCalledWith("space-1", "issue-uuid-1", "user-1");
     expect(res.body).toEqual([{ runId: "run-1", adapterType: "codex_local" }]);
   });
 
   it("validates bounded run IDs before using the authorized issue projection", async () => {
     const runId = "10000000-0000-4000-8000-000000000001";
-    mockIssueService.getByIdentifier.mockResolvedValue({ id: "issue-uuid-1", companyId: "company-1" });
+    mockIssueService.getByIdentifier.mockResolvedValue({ id: "issue-uuid-1", spaceId: "space-1" });
     mockActivityService.runsForIssue.mockResolvedValue([{ runId }]);
     const app = await createApp();
     const response = await requestApp(app, base => request(base).get(`/api/issues/PAP-1/runs?runIds=${runId}`));
     expect(response.status).toBe(200);
-    expect(mockActivityService.runsForIssue).toHaveBeenCalledWith("company-1", "issue-uuid-1", "user-1", undefined, [runId]);
+    expect(mockActivityService.runsForIssue).toHaveBeenCalledWith("space-1", "issue-uuid-1", "user-1", undefined, [runId]);
     for (const ids of ["", "not-a-uuid", Array.from({ length: 101 }, () => runId).join(",")]) {
       const denied = await requestApp(app, base => request(base).get("/api/issues/PAP-1/runs").query({ runIds: ids }));
       expect(denied.status).toBe(400);
     }
   });
 
-  it("requires company access before creating activity events", async () => {
+  it("requires space access before creating activity events", async () => {
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) => request(baseUrl)
-      .post("/api/companies/company-2/activity")
+      .post("/api/spaces/space-2/activity")
       .send({
         actorId: "user-1",
         action: "test.event",
@@ -362,8 +362,8 @@ describe("activity routes", () => {
     expect(mockActivityService.create).not.toHaveBeenCalled();
   });
 
-  it.each([null, { id: "issue-uuid-1", companyId: "company-2" }])(
-    "does not start run reads or retries for a missing or cross-company task", async (issue) => {
+  it.each([null, { id: "issue-uuid-1", spaceId: "space-2" }])(
+    "does not start run reads or retries for a missing or cross-space task", async (issue) => {
       mockIssueService.getByIdentifier.mockResolvedValue(issue);
       const app = await createApp();
       const res = await request(app).get("/api/issues/TEST-1/runs");
@@ -374,7 +374,7 @@ describe("activity routes", () => {
   );
 
   it("does not start run reads or retries when task read authorization is denied", async () => {
-    mockIssueService.getByIdentifier.mockResolvedValue({ id: "issue-uuid-1", companyId: "company-1" });
+    mockIssueService.getByIdentifier.mockResolvedValue({ id: "issue-uuid-1", spaceId: "space-1" });
     mockAccessService.decide.mockResolvedValue({ allowed: false, reason: "denied", explanation: "Denied by test policy." });
     const app = await createApp();
     const res = await request(app).get("/api/issues/TEST-1/runs");
@@ -382,28 +382,28 @@ describe("activity routes", () => {
     expect(mockActivityService.runsForIssue).not.toHaveBeenCalled();
   });
 
-  it("passes task read filtering when listing links for a readable company run", async () => {
+  it("passes task read filtering when listing links for a readable space run", async () => {
     mockHeartbeatService.getRunReadAccess.mockResolvedValue({
-      id: "run-1", companyId: "company-1", scopeKind: "company", issueId: null,
+      id: "run-1", spaceId: "space-1", scopeKind: "space", issueId: null,
     });
     mockActivityService.issuesForRun.mockResolvedValue([{ issueId: "public-issue", title: "Visible task" }]);
-    const app = await createApp({ type: "agent", companyId: "company-1", agentId: "agent-1" });
+    const app = await createApp({ type: "agent", spaceId: "space-1", agentId: "agent-1" });
     const res = await requestApp(app, baseUrl => request(baseUrl).get("/api/heartbeat-runs/run-1/issues"));
     expect(res.status).toBe(200);
     expect(mockHeartbeatService.getRunReadAccess).toHaveBeenCalledWith("run-1");
     expect(mockHeartbeatService.getRun).not.toHaveBeenCalled();
     const { issueReadSqlCondition } = await import("../services/authorization.js");
     expect(issueReadSqlCondition).toHaveBeenCalledWith({}, expect.objectContaining({
-      type: "agent", companyId: "company-1", agentId: "agent-1",
+      type: "agent", spaceId: "space-1", agentId: "agent-1",
     }));
     expect(mockActivityService.issuesForRun).toHaveBeenCalledWith("run-1", {});
     expect(res.body).toEqual([{ issueId: "public-issue", title: "Visible task" }]);
   });
 
-  it("returns 200 [] (not 404) when listing issues for another company's run, preserving API contract and the cross-tenant oracle", async () => {
+  it("returns 200 [] (not 404) when listing issues for another space's run, preserving API contract and the cross-tenant oracle", async () => {
     mockHeartbeatService.getRunReadAccess.mockResolvedValue({
       id: "run-2",
-      companyId: "company-2",
+      spaceId: "space-2",
     });
 
     const app = await createApp();
@@ -437,7 +437,7 @@ describe("activity routes", () => {
 
   it.each([true, false])("preserves issue-scoped run authorization when read permission is %s", async (allowed) => {
     mockHeartbeatService.getRunReadAccess.mockResolvedValue({
-      id: "run-1", companyId: "company-1", scopeKind: "issue", issueId: "issue-private",
+      id: "run-1", spaceId: "space-1", scopeKind: "issue", issueId: "issue-private",
     });
     mockAccessService.decide.mockImplementation(async ({ action }) => ({
       allowed: action === "issue:read" ? allowed : true,
@@ -446,12 +446,12 @@ describe("activity routes", () => {
     const db = {
       select: () => ({ from: () => ({ where: async () => [{ id: "issue-private" }] }) }),
     };
-    const app = await createApp({ type: "agent", companyId: "company-1", agentId: "agent-1" }, db);
+    const app = await createApp({ type: "agent", spaceId: "space-1", agentId: "agent-1" }, db);
     const res = await requestApp(app, baseUrl => request(baseUrl).get("/api/heartbeat-runs/run-1/issues"));
     expect(res.status).toBe(200);
     expect(res.body).toEqual(allowed ? [{ issueId: "visible-issue" }] : []);
     expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
-      action: "issue:read", resource: expect.objectContaining({ companyId: "company-1", issueId: "issue-private" }),
+      action: "issue:read", resource: expect.objectContaining({ spaceId: "space-1", issueId: "issue-private" }),
     }));
     expect(mockHeartbeatService.getRunReadAccess).toHaveBeenCalledWith("run-1");
     expect(mockHeartbeatService.getRun).not.toHaveBeenCalled();
@@ -460,7 +460,7 @@ describe("activity routes", () => {
 
   it("does not read issue links for a run without a trusted issue binding", async () => {
     mockHeartbeatService.getRunReadAccess.mockResolvedValue({
-      id: "run-1", companyId: "company-1", scopeKind: "issue", issueId: null,
+      id: "run-1", spaceId: "space-1", scopeKind: "issue", issueId: null,
     });
     const app = await createApp();
     const res = await requestApp(app, baseUrl => request(baseUrl).get("/api/heartbeat-runs/run-1/issues"));

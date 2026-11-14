@@ -26,10 +26,10 @@ try {
   const service = createToolProfileService(measuredDb, () => new Date("2026-02-01T00:00:00Z"));
   const invoke = async (label: "before" | "after") => {
     if (label === "before") {
-      const profiles = await service.listProfiles(f.company.id);
+      const profiles = await service.listProfiles(f.space.id);
       return { profiles, selected: legacyConnectionConfiguration(profiles, f.connection.id) };
     }
-    const profiles = await service.listConnectionProfileConfiguration(f.company.id, f.connection.id, async rows => rows);
+    const profiles = await service.listConnectionProfileConfiguration(f.space.id, f.connection.id, async rows => rows);
     return { profiles, selected: profiles };
   };
   const baseline = await invoke("before"), treatment = await invoke("after");

@@ -24,7 +24,7 @@ for (const layout of ["collapsed", "artifacts", "launcher", "classic"] as const)
         }, 200);
         </script>` });
     });
-    const context = { page, api: { origin: "https://document-navigation.test" }, company: { issuePrefix: "QA" } } as JourneyContext;
+    const context = { page, api: { origin: "https://document-navigation.test" }, space: { issuePrefix: "QA" } } as JourneyContext;
     await reopenTaskDocument(context, issue);
     await expect(page.locator("#document-qa-note")).toHaveText("Saved revision two");
     expect(taskLoads).toBe(2);
@@ -36,7 +36,7 @@ test("document reopen fails when the task has no authoring controls", async ({ p
     const list = new URL(route.request().url()).pathname.endsWith("/issues");
     await route.fulfill({ contentType: "text/html", body: list ? '<a href="/QA/issues/QA-201">Journey QA document navigation</a>' : '<main>Task without document permissions</main>' });
   });
-  const context = { page, api: { origin: "https://document-navigation.test" }, company: { issuePrefix: "QA" } } as JourneyContext;
+  const context = { page, api: { origin: "https://document-navigation.test" }, space: { issuePrefix: "QA" } } as JourneyContext;
   await expect(reopenTaskDocument(context, { title: "Journey QA document navigation" })).rejects.toThrow();
   await expect(page.getByRole("button", { name: "New document", exact: true })).toHaveCount(0);
 });

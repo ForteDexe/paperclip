@@ -47,20 +47,20 @@ unset native configurations retain their provider default. See Grok's
 
 Grok Build speaks [ACP over stdio](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/15-agent-mode.md).
 The runner owns `grok agent --no-leader stdio` through ACPX, including session
-identity, cancellation, recovery and the authenticated Paperclip MCP bridge.
+identity, cancellation, recovery and the authenticated Outpost MCP bridge.
 ACP permission requests are approved by the runner under the default full-auto
 policy. It does not add `--always-approve`: permission decisions remain under
 the selected ACPX policy. Grok's ACP metadata cannot independently establish
-Paperclip tool authority, so explicitly selecting `approve-paperclip` or
+Outpost tool authority, so explicitly selecting `approve-outpost` or
 `approve-reads` returns the approval-required outcome; `deny-all` rejects requests.
-Full auto does not bypass Paperclip's company permissions, governed approvals,
+Full auto does not bypass Outpost's space permissions, governed approvals,
 or execution-environment boundaries. Isolated ask
 rules override project allow rules, and compatible always-approve settings are
 locked off. Compatible hook/MCP discovery and shell login capture are disabled.
 
 ## Installation and identity
 
-Grok support ships inside the native runner and the public Paperclip server npm
+Grok support ships inside the native runner and the public Outpost server npm
 artifact. There is no separate Grok npm package, binary payload, or npm lifecycle
 download. The built-in launcher is identified as `builtin:grok-acp` version 1;
 its native runtime identity is `native:grok` version 1.0.13. The historical
@@ -78,11 +78,11 @@ but they do not authorize a fresh launch. After changing the launcher, run
 `check:acpx-profiles` build gate refuses a stale digest.
 
 Provision Grok Build 1.0.13 at
-`/opt/paperclip/providers/grok/1.0.13/grok` in the selected execution environment.
+`/opt/outpost/providers/grok/1.0.13/grok` in the selected execution environment.
 The sandbox provisioning helper is explicit and is never run by npm:
 
 ```sh
-sudo node packages/outpost-runner/scripts/provision-grok.mjs /opt/paperclip/providers/grok/1.0.13/grok
+sudo node packages/outpost-runner/scripts/provision-grok.mjs /opt/outpost/providers/grok/1.0.13/grok
 ```
 
 The standard Daytona image provisions it separately from the provider pack.
@@ -102,11 +102,11 @@ unknown when Grok does not report them; missing usage is not zero usage.
 
 ## Authentication
 
-Use the existing Grok company connection/login flow for subscription execution.
-An explicitly selected company-secret `XAI_API_KEY` selects paid API execution.
+Use the existing Grok space connection/login flow for subscription execution.
+An explicitly selected space-secret `XAI_API_KEY` selects paid API execution.
 There is no automatic subscription-to-API fallback. Remote execution cannot
 borrow the operator's home credentials. Local execution can use the operator's
-existing Grok login when no company login has been selected.
+existing Grok login when no space login has been selected.
 
 Only the selected credential is staged in the private runtime home. An ownership
 lease fences concurrent processes. Before ACP startup, an expiring subscription
@@ -122,7 +122,7 @@ to Grok.
 
 ## Evaluation
 
-The private `paperclip-evals` repository maintains `live-acpx-grok-4.7.json` and
+The private `outpost-evals` repository maintains `live-acpx-grok-4.7.json` and
 `rosters/live-acpx-grok.json`. The roster covers all 39 protocol cases. Its campaign
 lane remains disabled pending complete live qualification.
 
@@ -135,7 +135,7 @@ scheduled `--all`. Use the canonical Product E2E dashboard and Evalbook reports.
 
 The separate `grok-subscription-qualification` suite covers the same workflows
 with the explicit `GROK_AUTH_JSON` fixture credential. It seeds only the disposable
-company's private login home and supplies no API key. It does not exercise the
+space's private login home and supplies no API key. It does not exercise the
 interactive sign-in UI. Authentication mode remains part of the profile identity.
 After a subscription upgrade, a fresh `grok login` may be needed if the existing
 login still reports the previous entitlement through ACP.

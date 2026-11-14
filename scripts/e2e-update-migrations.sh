@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end proof that `paperclipai update` works ACROSS VERSIONS, including
+# End-to-end proof that `outpost update` works ACROSS VERSIONS, including
 # database migrations, against a real managed install with a live service.
 #
 # Journey (real GitHub, real embedded Postgres, real systemd/launchd service):
@@ -30,15 +30,15 @@ BASE_REF="${E2E_UPDATE_BASE_REF:?E2E_UPDATE_BASE_REF is required}"
 NEXT_REF="${E2E_UPDATE_NEXT_REF:?E2E_UPDATE_NEXT_REF is required}"
 E2E_SERVICE_TIMEOUT_SECS="${E2E_SERVICE_TIMEOUT_SECS:-300}"
 
-# Clean environment, then isolate ALL Paperclip state (managed store, config,
+# Clean environment, then isolate ALL Outpost state (managed store, config,
 # embedded Postgres, backups) under a dedicated home for this test.
 for var in $(env | grep -o '^OUTPOST_[A-Z_]*' || true); do unset "$var"; done
 unset NODE_ENV npm_config_prefix 2>/dev/null || true
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 export CI="${CI:-1}"
-export OUTPOST_HOME="$HOME/.paperclip-e2e-update"
+export OUTPOST_HOME="$HOME/.outpost-e2e-update"
 
-SHIM="$HOME/.local/bin/paperclipai"
+SHIM="$HOME/.local/bin/outpost"
 STORE="$OUTPOST_HOME/cli"
 BACKUP_DIR="$OUTPOST_HOME/instances/default/data/backups"
 RESULTS=()
@@ -83,7 +83,7 @@ command -v corepack >/dev/null || npm install -g corepack
 if [ "$(uname -s)" = "Linux" ] && [ ! -S "/run/user/$(id -u)/bus" ]; then
   echo "no systemd user bus at /run/user/$(id -u)/bus — this test needs a real service"; exit 2
 fi
-echo "repo=$E2E_REPO base=$BASE_REF next=$NEXT_REF paperclip_home=$OUTPOST_HOME"
+echo "repo=$E2E_REPO base=$BASE_REF next=$NEXT_REF outpost_home=$OUTPOST_HOME"
 
 if [ -n "${E2E_BOOTSTRAP_CLI:-}" ] && [ -f "$E2E_BOOTSTRAP_CLI" ]; then
   BOOTSTRAP_CLI="$E2E_BOOTSTRAP_CLI"
@@ -103,7 +103,7 @@ else
   mkdir -p "$HOME/e2e-upd-bootstrap-cli"
   ( cd "$HOME/e2e-upd-bootstrap-cli" && npm install --no-fund --no-audit "$BOOT/cli/$TARBALL" > "$HOME/e2e-upd-bootstrap-npm.log" 2>&1 ) \
     || { tail -40 "$HOME/e2e-upd-bootstrap-npm.log"; fail_ "1c bootstrap npm install"; exit 1; }
-  BOOTSTRAP_CLI="$HOME/e2e-upd-bootstrap-cli/node_modules/paperclipai/dist/index.js"
+  BOOTSTRAP_CLI="$HOME/e2e-upd-bootstrap-cli/node_modules/@outpost/cli/dist/index.js"
 fi
 node "$BOOTSTRAP_CLI" --version >/dev/null || { fail_ "1d bootstrap CLI smoke"; exit 1; }
 pass "1 bootstrap CLI ready"

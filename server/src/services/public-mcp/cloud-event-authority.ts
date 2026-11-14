@@ -1,7 +1,7 @@
 import {z} from "zod";
 import type {Db} from "@outpost/db";
 import {getCloudRuntimeIdentity} from "../cloud-runtime-identity.js";
-import {outpostCloudConnectorConfigFromEnv} from "../paperclip-cloud-connector.js";
+import {outpostCloudConnectorConfigFromEnv} from "../outpost-cloud-connector.js";
 import {instanceSettingsService} from "../instance-settings.js";
 import {readIdleMcpClientMirror} from "./idle-client-mirror.js";
 import {McpEventError} from "./event-webhooks.js";
@@ -11,7 +11,7 @@ export const cloudEventAuthoritySchema=z.object({token:z.string().min(1).max(240
 export type CloudEventAuthority=z.infer<typeof cloudEventAuthoritySchema>;
 export function currentTenantEventOrigin(config:PublicMcpConfig){
   const identity=getCloudRuntimeIdentity();
-  if(!identity||config.origin!==identity.canonicalOrigin||config.resource!==identity.canonicalOrigin+"/mcp/paperclip"||config.authorizationOrigin&&config.authorizationOrigin!==identity.canonicalOrigin)throw new McpEventError(-32602,"The hosted subscription authority changed.");
+  if(!identity||config.origin!==identity.canonicalOrigin||config.resource!==identity.canonicalOrigin+"/mcp/outpost"||config.authorizationOrigin&&config.authorizationOrigin!==identity.canonicalOrigin)throw new McpEventError(-32602,"The hosted subscription authority changed.");
   return identity;
 }
 export async function cloudEventValidationOrigin(db:Db,config:PublicMcpConfig,centralOrigin:string|undefined,authority:CloudEventAuthority){

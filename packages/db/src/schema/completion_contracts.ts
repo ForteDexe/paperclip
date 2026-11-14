@@ -9,14 +9,14 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { issues } from "./issues.js";
 
 export const completionContracts = pgTable(
   "completion_contracts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     issueId: uuid("issue_id").notNull(),
     revision: integer("revision").notNull(),
     schemaVersion: text("schema_version").notNull(),
@@ -32,19 +32,19 @@ export const completionContracts = pgTable(
     supersedesContractId: uuid("supersedes_contract_id"),
   },
   (table) => ({
-    companyIssueIdUq: unique("completion_contracts_company_issue_id_uq").on(
-      table.companyId,
+    spaceIssueIdUq: unique("completion_contracts_space_issue_id_uq").on(
+      table.spaceId,
       table.issueId,
       table.id,
     ),
-    issueCompanyFk: foreignKey({
-      columns: [table.companyId, table.issueId],
-      foreignColumns: [issues.companyId, issues.id],
-      name: "completion_contracts_issue_company_fk",
+    issueSpaceFk: foreignKey({
+      columns: [table.spaceId, table.issueId],
+      foreignColumns: [issues.spaceId, issues.id],
+      name: "completion_contracts_issue_space_fk",
     }),
     supersedesOwnerFk: foreignKey({
-      columns: [table.companyId, table.issueId, table.supersedesContractId],
-      foreignColumns: [table.companyId, table.issueId, table.id],
+      columns: [table.spaceId, table.issueId, table.supersedesContractId],
+      foreignColumns: [table.spaceId, table.issueId, table.id],
       name: "completion_contracts_supersedes_owner_fk",
     }),
     issueRevisionUq: uniqueIndex("completion_contracts_issue_revision_uq").on(

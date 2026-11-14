@@ -142,7 +142,7 @@ Coverage includes real archived-evidence expiry, filesystem and path safety,
 inclusive retention boundaries, retry and paged continuation, preserved finite
 checkpoint startup work, backup cleanup/configuration, server wiring, shared
 deadline/coordinator and idle-work behavior, plus retained skill-cache behavior
-and its own-company expiry regression. Database build, production server
+and its own-space expiry regression. Database build, production server
 typechecking/build, module boundaries, target migration order and Runner profile
 identity passed before the fixture-only correction; runtime source did not change
 afterward. Two fresh PostgreSQL 17 schemas plus per-file fixtures applied all 412

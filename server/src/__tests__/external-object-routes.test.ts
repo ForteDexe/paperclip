@@ -3,7 +3,7 @@ import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const issueId = "11111111-1111-4111-8111-111111111111";
-const companyId = "22222222-2222-4222-8222-222222222222";
+const spaceId = "22222222-2222-4222-8222-222222222222";
 const ownerAgentId = "33333333-3333-4333-8333-333333333333";
 const peerAgentId = "44444444-4444-4444-8444-444444444444";
 const ownerRunId = "55555555-5555-4555-8555-555555555555";
@@ -56,11 +56,11 @@ function registerRouteMocks() {
   vi.doMock("../services/index.js", () => ({
     accessService: () => mockAccessService,
     agentService: () => mockAgentService,
-    companySkillService: () => ({}),
-    companyService: () => ({
+    spaceSkillService: () => ({}),
+    spaceService: () => ({
       getById: vi.fn(async () => null),
     }),
-    companySearchService: () => ({}),
+    spaceSearchService: () => ({}),
     documentAnnotationService: () => ({}),
     documentService: () => ({}),
     executionWorkspaceService: () => ({}),
@@ -90,7 +90,7 @@ function registerRouteMocks() {
 function makeIssue(overrides: Record<string, unknown> = {}) {
   return {
     id: issueId,
-    companyId,
+    spaceId,
     status: "in_progress",
     priority: "medium",
     projectId: null,
@@ -128,13 +128,13 @@ async function createApp(actor: Express.Request["actor"]) {
   return app;
 }
 
-function boardActor(): Express.Request["actor"] {
+function operatorActor(): Express.Request["actor"] {
   return {
-    type: "board",
-    userId: "board-user",
+    type: "operator",
+    userId: "operator-user",
     userName: null,
     userEmail: null,
-    companyIds: [companyId],
+    spaceIds: [spaceId],
     memberships: [],
     isInstanceAdmin: false,
     source: "local_implicit",
@@ -145,7 +145,7 @@ function ownerActor(): Express.Request["actor"] {
   return {
     type: "agent",
     agentId: ownerAgentId,
-    companyId,
+    spaceId,
     keyId: "key-1",
     runId: ownerRunId,
     source: "agent_key",
@@ -156,7 +156,7 @@ function peerActor(): Express.Request["actor"] {
   return {
     type: "agent",
     agentId: peerAgentId,
-    companyId,
+    spaceId,
     keyId: "key-2",
     runId: "66666666-6666-4666-8666-666666666666",
     source: "agent_key",
@@ -172,7 +172,7 @@ describe("external object routes", () => {
   // graph and reset their state between tests instead of reloading the modules.
   beforeAll(async () => {
     registerRouteMocks();
-    await createApp(boardActor());
+    await createApp(operatorActor());
   });
 
   beforeEach(() => {
@@ -185,11 +185,11 @@ describe("external object routes", () => {
       explanation: "Denied by test mock",
     }));
     mockAgentService.list.mockResolvedValue([
-      { id: ownerAgentId, companyId, reportsTo: null, permissions: { canCreateAgents: false } },
-      { id: peerAgentId, companyId, reportsTo: null, permissions: { canCreateAgents: false } },
+      { id: ownerAgentId, spaceId, reportsTo: null, permissions: { canCreateAgents: false } },
+      { id: peerAgentId, spaceId, reportsTo: null, permissions: { canCreateAgents: false } },
     ]);
     mockExternalObjectsService.getIssueSummary.mockResolvedValue({ total: 1, objects: [] });
-    mockExternalObjectsService.getIssueSummaries.mockImplementation(async (_companyId: string, issueIds: string[]) =>
+    mockExternalObjectsService.getIssueSummaries.mockImplementation(async (_spaceId: string, issueIds: string[]) =>
       new Map(issueIds.map((id) => [id, { total: 1, objects: [] }])),
     );
     mockExternalObjectsService.listForIssue.mockResolvedValue([]);
@@ -201,8 +201,8 @@ describe("external object routes", () => {
     });
   });
 
-  it("enforces company access on read routes", async () => {
-    const app = await createApp({ ...ownerActor(), companyId: "other-company" });
+  it("enforces space access on read routes", async () => {
+    const app = await createApp({ ...ownerActor(), spaceId: "other-space" });
 
     const res = await request(app).get(`/api/issues/${issueId}/external-object-summary`);
 
@@ -212,8 +212,8 @@ describe("external object routes", () => {
     expect(mockExternalObjectsService.getIssueSummary).not.toHaveBeenCalled();
   });
 
-  it("allows board users to read issue external object summaries", async () => {
-    const app = await createApp(boardActor());
+  it("allows operator users to read issue external object summaries", async () => {
+    const app = await createApp(operatorActor());
 
     const res = await request(app).get(`/api/issues/${issueId}/external-object-summary`);
 
@@ -240,16 +240,16 @@ describe("external object routes", () => {
     expect(mockExternalObjectsService.listForIssue).not.toHaveBeenCalled();
   });
 
-  it("allows board users to fetch company-scoped external object summaries in bulk", async () => {
-    const app = await createApp(boardActor());
+  it("allows operator users to fetch space-scoped external object summaries in bulk", async () => {
+    const app = await createApp(operatorActor());
 
     const res = await request(app)
-      .post(`/api/companies/${companyId}/issues/external-object-summaries`)
+      .post(`/api/spaces/${spaceId}/issues/external-object-summaries`)
       .send({ issueIds: [issueId] });
 
     expect(res.status).toBe(200);
     expect(res.body.summaries[issueId].total).toBe(1);
-    expect(mockExternalObjectsService.getIssueSummaries).toHaveBeenCalledWith(companyId, [issueId]);
+    expect(mockExternalObjectsService.getIssueSummaries).toHaveBeenCalledWith(spaceId, [issueId]);
   });
 
   it("filters bulk external object summaries through issue read access", async () => {
@@ -260,19 +260,19 @@ describe("external object routes", () => {
     const app = await createApp(ownerActor());
 
     const res = await request(app)
-      .post(`/api/companies/${companyId}/issues/external-object-summaries`)
+      .post(`/api/spaces/${spaceId}/issues/external-object-summaries`)
       .send({ issueIds: [issueId] });
 
     expect(res.status).toBe(200);
     expect(res.body.summaries).toEqual({});
-    expect(mockExternalObjectsService.getIssueSummaries).toHaveBeenCalledWith(companyId, []);
+    expect(mockExternalObjectsService.getIssueSummaries).toHaveBeenCalledWith(spaceId, []);
   });
 
-  it("enforces company access on bulk external object summaries", async () => {
-    const app = await createApp({ ...ownerActor(), companyId: "other-company" });
+  it("enforces space access on bulk external object summaries", async () => {
+    const app = await createApp({ ...ownerActor(), spaceId: "other-space" });
 
     const res = await request(app)
-      .post(`/api/companies/${companyId}/issues/external-object-summaries`)
+      .post(`/api/spaces/${spaceId}/issues/external-object-summaries`)
       .send({ issueIds: [issueId] });
 
     expect(res.status).toBe(403);
@@ -301,7 +301,7 @@ describe("external object routes", () => {
     expect(res.status).toBe(200);
     expect(mockIssueService.assertCheckoutOwner).toHaveBeenCalledWith(issueId, ownerAgentId, ownerRunId);
     expect(mockExternalObjectsService.refreshIssueObjects).toHaveBeenCalledWith(issueId, expect.objectContaining({
-      companyId,
+      spaceId,
       actor: expect.objectContaining({ actorType: "agent", actorId: ownerAgentId }),
     }));
   });

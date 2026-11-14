@@ -31,8 +31,8 @@ vi.mock("../api/secrets", () => ({ secretsApi: { list: vi.fn().mockResolvedValue
 vi.mock("../api/environments", () => ({ environmentsApi: { list: vi.fn().mockResolvedValue([]) } }));
 vi.mock("../api/instanceSettings", () => ({ instanceSettingsApi: { getExperimental: vi.fn().mockResolvedValue({ enableIsolatedWorkspaces: true }) } }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({ companies: [{ id: "company-1", issuePrefix: "PAP" }], selectedCompanyId: "company-1", setSelectedCompanyId: vi.fn() }),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({ spaces: [{ id: "space-1", issuePrefix: "PAP" }], selectedSpaceId: "space-1", setSelectedSpaceId: vi.fn() }),
 }));
 
 // Heavy children that are unrelated to this control.
@@ -62,7 +62,7 @@ function primedClient(hiddenSettings: string[] = []) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   client.setQueryData(queryKeys.health, { hiddenSettings });
   client.setQueryData(queryKeys.instance.experimentalSettings, { enableIsolatedWorkspaces: true });
-  client.setQueryData(queryKeys.projects.environments("company-1"), environmentOptions);
+  client.setQueryData(queryKeys.projects.environments("space-1"), environmentOptions);
   return client;
 }
 
@@ -155,31 +155,31 @@ describe("ProjectProperties — workspace storage availability", () => {
   const core = { source: "core" as const, pluginId: null, displayName: "Core / local", error: null, effectivePolicy: null, providers: inherited.providers };
   function note() { return container.querySelector('[data-testid="project-storage-availability"]'); }
   it("offers no storage or environment control", () => {
-    render(makeProject({ companyId: "company-1", executionWorkspacePolicy: null, workspaceProvider: core }), vi.fn());
+    render(makeProject({ spaceId: "space-1", executionWorkspacePolicy: null, workspaceProvider: core }), vi.fn());
     expect(container.querySelector('select[aria-label="Workspace storage provider"]')).toBeNull();
     expect(container.querySelector('select[id^="project-environment-"]')).toBeNull();
   });
   it("hides the note when no storage plugin is installed", () => {
-    render(makeProject({ companyId: "company-1", executionWorkspacePolicy: null, workspaceProvider: { ...core, providers: [] } }), vi.fn());
+    render(makeProject({ spaceId: "space-1", executionWorkspacePolicy: null, workspaceProvider: { ...core, providers: [] } }), vi.fn());
     expect(note()).toBeNull();
     expect(container.textContent).not.toContain("Available in");
   });
   it("lists the environments that share a core project's storage when a plugin is installed", () => {
-    render(makeProject({ companyId: "company-1", executionWorkspacePolicy: null, workspaceProvider: core }), vi.fn());
+    render(makeProject({ spaceId: "space-1", executionWorkspacePolicy: null, workspaceProvider: core }), vi.fn());
     expect(note()?.textContent).toContain("Available in");
     expect(note()?.textContent).toContain("Local, Outpost Sandbox");
     expect(note()?.textContent).not.toContain("Agent computers");
     expect(note()?.textContent).toContain("Core / local workspace storage was chosen when this project was created");
   });
   it("lists the plugin's environments for a plugin-backed project", () => {
-    render(makeProject({ companyId: "company-1", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: "provider-one" },
+    render(makeProject({ spaceId: "space-1", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: "provider-one" },
       workspaceProvider: { ...inherited, source: "project" as const, pluginId: "provider-one" } }), vi.fn());
     expect(note()?.textContent).toContain("Agent computers");
     expect(note()?.textContent).not.toContain("Outpost Sandbox");
     expect(note()?.textContent).toContain("Managed storage workspace storage");
   });
   it("reports an uninstalled storage plugin instead of hiding the note", () => {
-    render(makeProject({ companyId: "company-1", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: "provider-one" },
+    render(makeProject({ spaceId: "space-1", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: "provider-one" },
       workspaceProvider: { ...inherited, source: "project" as const, pluginId: "provider-one", displayName: "Unavailable provider",
         providers: [], error: "The workspace storage plugin is unavailable" } }), vi.fn());
     expect(note()?.querySelector('[role="alert"]')?.textContent).toBe("Storage plugin unavailable");

@@ -36,7 +36,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
   return {
     id: "issue-1",
     identifier: "PAP-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     parentId: null,
     title: "Fast link target",

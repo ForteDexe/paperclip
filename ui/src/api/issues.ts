@@ -285,17 +285,17 @@ function issueListSearchParams(filters?: IssueListFilters) {
 }
 
 export const issuesApi = {
-  inboxMine: (companyId: string, options?: RequestOptions) => {
-    const path = `/companies/${companyId}/inbox/mine`;
+  inboxMine: (spaceId: string, options?: RequestOptions) => {
+    const path = `/spaces/${spaceId}/inbox/mine`;
     detachInflightGet(path);
     return api.get<InboxMineSnapshot>(path, { ...options, cache: "no-store" });
   },
-  summaries: async (companyId: string, issueIds: readonly string[], options?: RequestOptions): Promise<IssueSummary[]> => {
+  summaries: async (spaceId: string, issueIds: readonly string[], options?: RequestOptions): Promise<IssueSummary[]> => {
     if (issueIds.length > ISSUE_SUMMARIES_MAX_IDS) throw new Error("Too many issue summary IDs");
     const ids = [...new Set(issueIds.map((id) => id.trim().toLowerCase()))].sort();
     if (ids.length === 0) return [];
     const params = new URLSearchParams({ ids: ids.join(",") });
-    const path = `/companies/${companyId}/issues/summaries?${params}`;
+    const path = `/spaces/${spaceId}/issues/summaries?${params}`;
     // React Query deduplicates within an account; URL-only HTTP coalescing must
     // never join a request sent with the previous account's cookie.
     detachInflightGet(path);
@@ -306,51 +306,51 @@ export const issuesApi = {
    * item's fields have the shape of the matching single-task endpoint;
    * missing and unreadable tasks are omitted.
    */
-  chatBootstrap: (companyId: string, issueRefs: readonly string[], options?: RequestOptions) => {
+  chatBootstrap: (spaceId: string, issueRefs: readonly string[], options?: RequestOptions) => {
     const refs = [...new Set(issueRefs.map((ref) => ref.trim()).filter(Boolean))];
     if (refs.length === 0 || refs.length > ISSUE_CHAT_BOOTSTRAP_MAX_IDS) throw new Error("Chat bootstrap needs one to ten task references");
-    const path = `/companies/${companyId}/issues/chat-bootstrap?${new URLSearchParams({ ids: refs.join(",") })}`;
+    const path = `/spaces/${spaceId}/issues/chat-bootstrap?${new URLSearchParams({ ids: refs.join(",") })}`;
     // Never join a request sent with the previous account's cookie.
     detachInflightGet(path);
     return api.get<IssueChatBootstrap<RunForIssue, LiveRunForIssue, ActiveRunForIssue>>(path, { ...options, cache: "no-store" });
   },
   /** Fetch every page for bounded task-detail relations, not just the default first page. */
-  listAll: async (companyId: string, filters: Omit<IssueListFilters, "limit" | "offset" | "sortField" | "sortDir" | "afterId" | "attention">, options?: RequestOptions): Promise<Issue[]> => {
+  listAll: async (spaceId: string, filters: Omit<IssueListFilters, "limit" | "offset" | "sortField" | "sortDir" | "afterId" | "attention">, options?: RequestOptions): Promise<Issue[]> => {
     const pageSize = 500;
     const tasks = new Map<string, Issue>();
     let afterId: string | undefined;
     for (;;) {
-      const page = await issuesApi.list(companyId, { ...filters, limit: pageSize, sortField: "id", sortDir: "asc", afterId }, options);
+      const page = await issuesApi.list(spaceId, { ...filters, limit: pageSize, sortField: "id", sortDir: "asc", afterId }, options);
       for (const task of page) tasks.set(task.id, task);
       if (page.length < pageSize) return [...tasks.values()];
       afterId = page[page.length - 1]!.id;
     }
   },
   list: (
-    companyId: string,
+    spaceId: string,
     filters?: IssueListFilters,
     options?: RequestOptions,
   ) => {
     const params = issueListSearchParams(filters);
     const qs = params.toString();
-    const path = `/companies/${companyId}/issues${qs ? `?${qs}` : ""}`;
+    const path = `/spaces/${spaceId}/issues${qs ? `?${qs}` : ""}`;
     return options ? api.get<Issue[]>(path, options) : api.get<Issue[]>(path);
   },
   listCompact: (
-    companyId: string,
+    spaceId: string,
     filters?: IssueListFilters,
     options?: RequestOptions,
   ) => {
     const params = issueListSearchParams(filters);
     params.set("view", filters?.projection ?? "compact");
     if (filters?.ids) params.set("ids", filters.ids.join(","));
-    const path = `/companies/${companyId}/issues?${params.toString()}`;
+    const path = `/spaces/${spaceId}/issues?${params.toString()}`;
     return options
       ? api.get<CompactIssue[]>(path, options)
       : api.get<CompactIssue[]>(path);
   },
   count: (
-    companyId: string,
+    spaceId: string,
     filters: {
       attention: "blocked";
       status?: string;
@@ -372,13 +372,13 @@ export const issuesApi = {
     if (filters.labelId) params.set("labelId", filters.labelId);
     if (filters.q) params.set("q", filters.q);
     return api.get<{ count: number }>(
-      `/companies/${companyId}/issues/count?${params.toString()}`,
+      `/spaces/${spaceId}/issues/count?${params.toString()}`,
     );
   },
-  listLabels: (companyId: string) =>
-    api.get<IssueLabel[]>(`/companies/${companyId}/labels`),
-  createLabel: (companyId: string, data: { name: string; color: string }) =>
-    api.post<IssueLabel>(`/companies/${companyId}/labels`, data),
+  listLabels: (spaceId: string) =>
+    api.get<IssueLabel[]>(`/spaces/${spaceId}/labels`),
+  createLabel: (spaceId: string, data: { name: string; color: string }) =>
+    api.post<IssueLabel>(`/spaces/${spaceId}/labels`, data),
   deleteLabel: (id: string) => api.delete<IssueLabel>(`/labels/${id}`),
   getCore: (id: string, options?: RequestOptions) => api.get<Issue>(`/issues/${id}?view=core`, options),
   recentComments: (id: string, options?: RequestOptions) => api.get<IssueRecentComments>(`/issues/${id}/recent-comments`, options),
@@ -419,8 +419,8 @@ export const issuesApi = {
     ),
   setTitle: (id: string, data: SetIssueTitle) =>
     api.put<{ id: string; title: string; titleNeedsGeneration: boolean; changed: boolean }>(`/issues/${id}/title`, data),
-  create: (companyId: string, data: Record<string, unknown>) =>
-    api.post<Issue>(`/companies/${companyId}/issues`, data),
+  create: (spaceId: string, data: Record<string, unknown>) =>
+    api.post<Issue>(`/spaces/${spaceId}/issues`, data),
   update: (id: string, data: Record<string, unknown>) => {
     const response = api.patch<IssueUpdateResponse>(`/issues/${id}`, data);
     return typeof data.comment === "string"
@@ -772,7 +772,7 @@ export const issuesApi = {
   listAttachments: (id: string) =>
     api.get<IssueAttachment[]>(`/issues/${id}/attachments`),
   uploadAttachment: (
-    companyId: string,
+    spaceId: string,
     issueId: string,
     file: File,
     issueCommentId?: string | null,
@@ -783,7 +783,7 @@ export const issuesApi = {
       form.append("issueCommentId", issueCommentId);
     }
     return api.postForm<IssueAttachment>(
-      `/companies/${companyId}/issues/${issueId}/attachments`,
+      `/spaces/${spaceId}/issues/${issueId}/attachments`,
       form,
     );
   },

@@ -131,12 +131,12 @@ async function main() {
         "Public human session does not match actual fixture person",
       );
     const operator = await context.newPage();
-    const identity = `<p>Operator ${esc(i.operatorRef)}. Authorized synthetic ChatGPT account reference ${esc(i.authorizationRef)}. Company ${esc(i.companyName)} (${esc(i.companyId)}).</p>`;
+    const identity = `<p>Operator ${esc(i.operatorRef)}. Authorized synthetic ChatGPT account reference ${esc(i.authorizationRef)}. Space ${esc(i.spaceName)} (${esc(i.spaceId)}).</p>`;
     const common = {
       operation: i.operation,
       executionId: i.executionId,
       attemptId: i.attemptId,
-      companyId: i.companyId,
+      spaceId: i.spaceId,
       humanId: i.humanId,
       processIsolation: true,
       testRunnerAttached: false,
@@ -186,7 +186,7 @@ async function main() {
     if (
       !setup.enabled ||
       url.origin !== i.publicOrigin ||
-      url.pathname !== "/mcp/paperclip" ||
+      url.pathname !== "/mcp/outpost" ||
       url.search ||
       url.hash
     )
@@ -202,11 +202,11 @@ async function main() {
       beforeRuns = await json<Array<{ id: string }>>(
         c,
         i.publicOrigin,
-        `/api/companies/${i.companyId}/heartbeat-runs?limit=100`,
+        `/api/spaces/${i.spaceId}/heartbeat-runs?limit=100`,
       );
     if (beforeRuns.length >= 100)
-      throw new Error("Cannot prove complete bounded company native inventory");
-    const appName = `Paperclip ${i.prefix} setup ${i.attemptId.slice(0, 8)}`;
+      throw new Error("Cannot prove complete bounded space native inventory");
+    const appName = `Outpost ${i.prefix} setup ${i.attemptId.slice(0, 8)}`;
     removeOwnedApp = async () => {
       if (!appId || providerAppRemoved) return;
       let deleted = false;
@@ -231,7 +231,7 @@ async function main() {
           operator,
           "Remove only this newly created ChatGPT test app",
           identity +
-            `<p>In the actual ChatGPT Apps/Plugins settings, open <strong>${esc(appName)}</strong> and complete its Delete/Remove confirmation. Do not remove another app or conversation. Only a successful provider deletion response bound to this actual new app ID qualifies. Paperclip separately revokes only this test grant.</p>`,
+            `<p>In the actual ChatGPT Apps/Plugins settings, open <strong>${esc(appName)}</strong> and complete its Delete/Remove confirmation. Do not remove another app or conversation. Only a successful provider deletion response bound to this actual new app ID qualifies. Outpost separately revokes only this test grant.</p>`,
           [],
           "I opened the exact new app's delete confirmation",
         );
@@ -282,7 +282,7 @@ async function main() {
       operator,
       "Create only the real private ChatGPT test app",
       identity +
-        `<p>Use the other official ChatGPT tab. Sign in to the designated account, then open its current Apps/Create custom MCP settings (or its supported private custom-server flow). Do not publish anything to a workspace or adopt an existing app.</p><p>New app name: <strong>${esc(appName)}</strong></p><p>Use this exact URL copied from the real Paperclip browser setup instructions:</p><textarea readonly>${esc(setup.serverUrl)}</textarea><p>Choose OAuth. Stop at the actual Paperclip consent page and review the next private instruction panel. Do not paste any token, cookie, OAuth code or state into chat.</p>`,
+        `<p>Use the other official ChatGPT tab. Sign in to the designated account, then open its current Apps/Create custom MCP settings (or its supported private custom-server flow). Do not publish anything to a workspace or adopt an existing app.</p><p>New app name: <strong>${esc(appName)}</strong></p><p>Use this exact URL copied from the real Outpost browser setup instructions:</p><textarea readonly>${esc(setup.serverUrl)}</textarea><p>Choose OAuth. Stop at the actual Outpost consent page and review the next private instruction panel. Do not paste any token, cookie, OAuth code or state into chat.</p>`,
       [],
       "I opened the actual provider flow",
     );
@@ -309,7 +309,7 @@ async function main() {
     }
     if (!consent || new URL(chatgpt.url()).origin !== "https://chatgpt.com")
       throw new Error(
-        "Actual named ChatGPT UI did not produce its real Paperclip OAuth request",
+        "Actual named ChatGPT UI did not produce its real Outpost OAuth request",
       );
     await stage("consent");
     const request = await json<McpConnectionRequest>(
@@ -317,23 +317,23 @@ async function main() {
       i.publicOrigin,
       `/api/mcp/requests/${requestId}`,
     );
-    if (!namedChatgptRequest(request, i.companyId))
+    if (!namedChatgptRequest(request, i.spaceId))
       throw new Error(
-        "Actual ChatGPT client/company/write request does not match qualification",
+        "Actual ChatGPT client/space/write request does not match qualification",
       );
-    const consentLabel = consent.getByText("Write all of your Paperclip data", {
+    const consentLabel = consent.getByText("Write all of your Outpost data", {
       exact: true,
     });
     await consentLabel.waitFor({ state: "visible" });
     const consentWording = await consentLabel.innerText();
     await pane(
       operator,
-      "Review and approve the actual Paperclip consent",
+      "Review and approve the actual Outpost consent",
       identity +
-        `<p>On the real Paperclip consent tab, select this exact company and explicitly approve read and write access for the single controlled qualification below. ${request.requestedConfigure ? "Configuration authority is also requested. The actual broad Write all of your Paperclip data choice includes configuring agents, projects and skills in this isolated company; explicitly acknowledge that authority here, then knowingly accept the real broad write choice on the actual consent tab." : "No configuration authority is requested or accepted."} Never approve agent/impersonation scope. Click Connect organization THERE, then finish creating the private ChatGPT app. This panel never approves consent.</p>`,
+        `<p>On the real Outpost consent tab, select this exact space and explicitly approve read and write access for the single controlled qualification below. ${request.requestedConfigure ? "Configuration authority is also requested. The actual broad Write all of your Outpost data choice includes configuring agents, projects and skills in this isolated space; explicitly acknowledge that authority here, then knowingly accept the real broad write choice on the actual consent tab." : "No configuration authority is requested or accepted."} Never approve agent/impersonation scope. Click Connect organization THERE, then finish creating the private ChatGPT app. This panel never approves consent.</p>`,
       request.requestedConfigure
         ? [
-            "I explicitly accept the requested configuration authority for this isolated company under the real broad write consent choice.",
+            "I explicitly accept the requested configuration authority for this isolated space under the real broad write consent choice.",
           ]
         : [],
       "I reviewed the real consent tab",
@@ -360,20 +360,20 @@ async function main() {
     const response = await submitted,
       payload = response.request().postDataJSON() as {
         decision?: string;
-        companyId?: string;
+        spaceId?: string;
         allowWrites?: boolean;
         allowConfiguration?: boolean;
       };
     if (
       !response.ok() ||
       payload.decision !== "approve" ||
-      payload.companyId !== i.companyId ||
+      payload.spaceId !== i.spaceId ||
       payload.allowWrites !== true ||
       Boolean(payload.allowConfiguration) !==
         Boolean(request.requestedConfigure)
     )
       throw new Error(
-        "Actual human consent did not explicitly approve the exact company/read-write scope",
+        "Actual human consent did not explicitly approve the exact space/read-write scope",
       );
     const redirect = (await response.json()) as { redirectUrl?: string };
     if (
@@ -394,7 +394,7 @@ async function main() {
       ).filter(
         (g) =>
           !beforeGrants.some((old) => old.id === g.id) &&
-          g.companyId === i.companyId &&
+          g.spaceId === i.spaceId &&
           !g.revokedAt,
       );
       if (rows.length > 1) throw new Error("Duplicate new assistant grants");
@@ -405,13 +405,13 @@ async function main() {
     if (
       !grant ||
       !/^(?:ChatGPT|OpenAI|OpenAI ChatGPT)$/i.test(grant.clientName) ||
-      !grant.scopes.includes("paperclip:read") ||
-      !grant.scopes.includes("paperclip:write") ||
+      !grant.scopes.includes("outpost:read") ||
+      !grant.scopes.includes("outpost:write") ||
       !exactAcceptedChatgptScopes(
         [
-          "paperclip:read",
-          "paperclip:write",
-          ...(request.requestedConfigure ? ["paperclip:configure"] : []),
+          "outpost:read",
+          "outpost:write",
+          ...(request.requestedConfigure ? ["outpost:configure"] : []),
           ...(request.offlineAccess ? ["offline_access"] : []),
         ],
         grant.scopes,
@@ -422,13 +422,13 @@ async function main() {
         "Actual named ChatGPT grant does not preserve explicitly accepted access",
       );
     cleanupGrantId = grant.id;
-    const qualify = `Using only the newly connected Paperclip app, read task ${i.control!.identifier} in ${i.companyName}. Then add exactly one neutral comment to that same task: “Setup check: the launch owner is [the actual launch owner from the task description].” Replace the bracketed phrase with the observed owner. Do not assign, start, modify, mention anyone, or comment on any other task. Do not repeat the write with a different requestId. Return the real comment link.`;
+    const qualify = `Using only the newly connected Outpost app, read task ${i.control!.identifier} in ${i.spaceName}. Then add exactly one neutral comment to that same task: “Setup check: the launch owner is [the actual launch owner from the task description].” Replace the bracketed phrase with the observed owner. Do not assign, start, modify, mention anyone, or comment on any other task. Do not repeat the write with a different requestId. Return the real comment link.`;
     await stage("qualification");
     await pane(
       operator,
       "Use only the newly connected ChatGPT app",
       identity +
-        `<p>Finish the app's actual Create step if still pending. Select this exact app in a real ChatGPT conversation and send this one bounded instruction. Approve only its one comment when ChatGPT asks. No separate REST client or manual Paperclip comment is permitted.</p><textarea readonly rows="8">${esc(qualify)}</textarea>`,
+        `<p>Finish the app's actual Create step if still pending. Select this exact app in a real ChatGPT conversation and send this one bounded instruction. Approve only its one comment when ChatGPT asks. No separate REST client or manual Outpost comment is permitted.</p><textarea readonly rows="8">${esc(qualify)}</textarea>`,
       [],
       "I sent the limited instruction to the real ChatGPT app",
     );
@@ -473,7 +473,7 @@ async function main() {
         entityId: string;
         details?: Record<string, unknown>;
       }>
-    >(c, i.publicOrigin, `/api/companies/${i.companyId}/activity?limit=1000`);
+    >(c, i.publicOrigin, `/api/spaces/${i.spaceId}/activity?limit=1000`);
     const tool = events.filter(
       (e) => e.action === "mcp.tool_called" && e.entityId === grant!.id,
     );
@@ -481,7 +481,7 @@ async function main() {
       tool.length !== 1 ||
       tool[0]!.actorType !== "user" ||
       tool[0]!.actorId !== i.humanId ||
-      tool[0]!.details?.operation !== "paperclip_add_comment" ||
+      tool[0]!.details?.operation !== "outpost_add_comment" ||
       tool[0]!.details?.requestId !== comment.clientRequestId
     )
       throw new Error(
@@ -490,7 +490,7 @@ async function main() {
     const afterRuns = await json<Array<{ id: string }>>(
       c,
       i.publicOrigin,
-      `/api/companies/${i.companyId}/heartbeat-runs?limit=100`,
+      `/api/spaces/${i.spaceId}/heartbeat-runs?limit=100`,
     );
     if (
       afterRuns.length >= 100 ||
@@ -527,9 +527,9 @@ async function main() {
       boundMcpComment: true,
       zeroNativeAdmissions: true,
       requestedScopes: [
-        "paperclip:read",
-        "paperclip:write",
-        ...(request.requestedConfigure ? ["paperclip:configure"] : []),
+        "outpost:read",
+        "outpost:write",
+        ...(request.requestedConfigure ? ["outpost:configure"] : []),
         ...(request.offlineAccess ? ["offline_access"] : []),
       ],
       acceptedScopes: [...grant.scopes],

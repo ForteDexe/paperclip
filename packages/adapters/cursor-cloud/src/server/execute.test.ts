@@ -86,7 +86,7 @@ function createContext(
   const meta: Record<string, unknown>[] = [];
   const agent = overrides.agent ?? {
     id: "agent-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Cursor Cloud Agent",
     adapterType: "cursor_cloud",
     adapterConfig: {},
@@ -102,7 +102,7 @@ function createContext(
       CURSOR_API_KEY: "cursor-secret",
       EXTRA_FLAG: "1",
     },
-    repoUrl: "https://github.com/paperclipai/outpost.git",
+    repoUrl: "https://github.com/example/outpost.git",
     repoStartingRef: "main",
     runtimeEnvType: "cloud",
     promptTemplate: "Do the work for {{agent.name}}",
@@ -120,7 +120,7 @@ function createContext(
     runtime,
     config,
     context,
-    authToken: "paperclip-run-jwt",
+    authToken: "outpost-run-jwt",
     onLog: async (stream, chunk) => {
       logs.push({ stream, chunk });
     },
@@ -153,8 +153,8 @@ describe("cursor_cloud execute", () => {
     ctx.context = {
       ...ctx.context,
       conversationMode: true,
-      paperclipTaskMarkdown: directive,
-      paperclipWake: {
+      outpostTaskMarkdown: directive,
+      outpostWake: {
         reason: "issue_commented",
         issue: { id: "issue-1", workMode: "planning", status: "in_progress" },
         interactionKind: "request_confirmation",
@@ -192,7 +192,7 @@ describe("cursor_cloud execute", () => {
     const ctx = createContext();
     const description = "start " + "context ".repeat(25_000) + " end";
     ctx.config.env = { CURSOR_API_KEY: "cursor-secret", OUTPOST_WAKE_PAYLOAD_JSON: description };
-    ctx.context.paperclipWake = {
+    ctx.context.outpostWake = {
       reason: "issue_assigned",
       issue: { id: "issue-1", description },
     };
@@ -225,11 +225,11 @@ describe("cursor_cloud execute", () => {
     expect(getRunMock).not.toHaveBeenCalled();
     expect(createMock.mock.calls[0]?.[0]).toMatchObject({
       apiKey: "cursor-secret",
-      name: "Paperclip Cursor Cloud Agent",
+      name: "Outpost Cursor Cloud Agent",
       model: { id: "gpt-5.4" },
       cloud: {
         env: { type: "cloud" },
-        repos: [{ url: "https://github.com/paperclipai/outpost.git", startingRef: "main" }],
+        repos: [{ url: "https://github.com/example/outpost.git", startingRef: "main" }],
       },
     });
     expect(createMock.mock.calls[0]?.[0]?.cloud?.envVars).toMatchObject({
@@ -237,10 +237,10 @@ describe("cursor_cloud execute", () => {
       OUTPOST_RUN_ID: "run-heartbeat-1",
       OUTPOST_TASK_ID: "issue-1",
       OUTPOST_WAKE_REASON: "issue_commented",
-      OUTPOST_API_KEY: "paperclip-run-jwt",
+      OUTPOST_API_KEY: "outpost-run-jwt",
     });
     // When a run JWT is present the callback URL is retained so the worker can
-    // authenticate its Paperclip API calls.
+    // authenticate its Outpost API calls.
     expect(createMock.mock.calls[0]?.[0]?.cloud?.envVars).toHaveProperty("OUTPOST_API_URL");
     expect(createMock.mock.calls[0]?.[0]?.cloud?.envVars).not.toHaveProperty("CURSOR_API_KEY");
 
@@ -255,7 +255,7 @@ describe("cursor_cloud execute", () => {
         latestRunId: "run-123",
         runtime: "cloud",
         envType: "cloud",
-        repos: [{ url: "https://github.com/paperclipai/outpost.git", startingRef: "main" }],
+        repos: [{ url: "https://github.com/example/outpost.git", startingRef: "main" }],
       },
     });
     expect(ctx.logs.map((entry) => entry.chunk)).toEqual(
@@ -281,7 +281,7 @@ describe("cursor_cloud execute", () => {
       CURSOR_API_KEY: "cursor-secret",
       OUTPOST_AGENT_KEY_ID: "configured-override",
       OUTPOST_AGENT_PRIVATE_KEY: "configured-override",
-      paperclip_agent_private_key: "configured-override",
+      outpost_agent_private_key: "configured-override",
     };
 
     await execute(ctx);
@@ -292,7 +292,7 @@ describe("cursor_cloud execute", () => {
       OUTPOST_AGENT_PUBLIC_KEY: identity.publicKeyPem,
       OUTPOST_AGENT_PRIVATE_KEY: identity.privateKeyPem,
     });
-    expect(env).not.toHaveProperty("paperclip_agent_private_key");
+    expect(env).not.toHaveProperty("outpost_agent_private_key");
     const challenge = Buffer.from("managed cloud identity");
     expect(verify(null, challenge, identity.publicKeyPem,
       sign(null, challenge, env.OUTPOST_AGENT_PRIVATE_KEY))).toBe(true);
@@ -339,7 +339,7 @@ describe("cursor_cloud execute", () => {
     expect(onDispatch.mock.invocationCallOrder[0]).toBeLessThan(createMock.mock.invocationCallOrder[0]!);
   });
 
-  it("omits the Paperclip API callback when no run JWT is issued (remote worker cannot call home)", async () => {
+  it("omits the Outpost API callback when no run JWT is issued (remote worker cannot call home)", async () => {
     const run = createMockRun({ agentId: "agent-no-jwt" });
     const sdkAgent = createMockSdkAgent({ agentId: "agent-no-jwt", sendRun: run });
     createMock.mockResolvedValue(sdkAgent);
@@ -358,7 +358,7 @@ describe("cursor_cloud execute", () => {
     expect(envVars).toMatchObject({
       OUTPOST_RUN_ID: "run-heartbeat-1",
       OUTPOST_AGENT_ID: "agent-1",
-      OUTPOST_COMPANY_ID: "company-1",
+      OUTPOST_SPACE_ID: "space-1",
     });
   });
 
@@ -377,7 +377,7 @@ describe("cursor_cloud execute", () => {
           latestRunId: "run-previous",
           runtime: "cloud",
           envType: "cloud",
-          repos: [{ url: "https://github.com/paperclipai/outpost.git", startingRef: "main" }],
+          repos: [{ url: "https://github.com/example/outpost.git", startingRef: "main" }],
         },
       },
     });
@@ -437,7 +437,7 @@ describe("cursor_cloud execute", () => {
           latestRunId: "run-attached",
           runtime: "cloud",
           envType: "cloud",
-          repos: [{ url: "https://github.com/paperclipai/outpost.git", startingRef: "main" }],
+          repos: [{ url: "https://github.com/example/outpost.git", startingRef: "main" }],
         },
       },
     });
@@ -469,7 +469,7 @@ describe("cursor_cloud execute", () => {
     expect(ctx.meta[0]?.context).toMatchObject({
       cursorCloud: {
         canReuseSession: true,
-        repoUrl: "https://github.com/paperclipai/outpost.git",
+        repoUrl: "https://github.com/example/outpost.git",
       },
     });
   });
@@ -499,12 +499,12 @@ describe("cursor_cloud execute", () => {
     const result = await execute(createContext());
 
     expect(result.exitCode).toBe(1);
-    expect(result.errorMessage).toContain("Cursor's GitHub integration can access https://github.com/paperclipai/outpost.git");
+    expect(result.errorMessage).toContain("Cursor's GitHub integration can access https://github.com/example/outpost.git");
     expect(result.errorMessage).toContain("https://cursor.com/dashboard/cloud-agents");
     expect(sdkAgent.send).toHaveBeenCalledTimes(1);
   });
 
-  it("maps non-finished Cursor results to failing Paperclip runs", async () => {
+  it("maps non-finished Cursor results to failing Outpost runs", async () => {
     const cancelledRun = createMockRun({
       id: "run-cancelled",
       agentId: "agent-cancelled",

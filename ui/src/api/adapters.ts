@@ -34,7 +34,7 @@ export interface AcpTargetDescriptor {
 }
 
 export interface AdapterInfo {
-  /** Exact operator-authorized candidates for the requested company and target. */
+  /** Exact operator-authorized candidates for the requested space and target. */
   candidateHarnesses?: Array<{ agent: "antigravity"; model: string }>;
   supportedRunners?: import("@outpost/shared").AgentRunner[];
   defaultRunner?: import("@outpost/shared").AgentRunner;
@@ -67,10 +67,10 @@ export interface AdapterInstallResult {
 
 export const adaptersApi = {
   /** List all registered adapters (built-in + external). */
-  list: (context?: { companyId: string; environmentId?: string | null }, options?: RequestOptions) => {
+  list: (context?: { spaceId: string; environmentId?: string | null }, options?: RequestOptions) => {
     const query = new URLSearchParams();
     if (context) {
-      query.set("companyId", context.companyId);
+      query.set("spaceId", context.spaceId);
       if (context.environmentId) query.set("environmentId", context.environmentId);
     }
     return api.get<AdapterInfo[]>(`/adapters${query.size ? `?${query}` : ""}`, options);

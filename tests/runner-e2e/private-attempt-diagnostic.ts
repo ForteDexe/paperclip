@@ -151,15 +151,15 @@ const failures = new Map([
   ["Invalid canonical report source", "report-source"],
 ]);
 const phases = [["Real prior active Launch checkout", "held-work-timeout"], ["Canonical project-defaults turn settles", "canonical-turn-timeout"], ["Actual new native task reads inherited project context", "future-work-timeout"]];
-const toolNames = ["bash", "paperclip_call_api", "paperclip_finish", "paperclip_get_workspace", "paperclip_get_run", "paperclip_list_runs"];
+const toolNames = ["bash", "outpost_call_api", "outpost_finish", "outpost_get_workspace", "outpost_get_run", "outpost_list_runs"];
 const recognizedTools = new Set([...toolNames, "read", "glob", "grep", "task", "todowrite", "question",
-  ...OUTPOST_PROTOCOL_ACTIONS.map(action => `paperclip_${action.id}`)]);
+  ...OUTPOST_PROTOCOL_ACTIONS.map(action => `outpost_${action.id}`)]);
 const toolName = (value: unknown) => typeof value === "string" && recognizedTools.has(value) ? value : "other";
 const apiOperations = new Map([
   ["GET /api/projects/{id}", "read-project"], ["PATCH /api/projects/{id}", "update-project"],
-  ["GET /api/companies/{companyId}/projects", "list-projects"], ["GET /api/companies/{companyId}/goals", "list-goals"],
+  ["GET /api/spaces/{spaceId}/projects", "list-projects"], ["GET /api/spaces/{spaceId}/goals", "list-goals"],
   ["GET /api/issues/{id}", "read-task"], ["PATCH /api/issues/{id}", "update-task"],
-  ["GET /api/companies/{companyId}/issues", "list-tasks"], ["GET /api/companies/{companyId}/agents", "list-agents"],
+  ["GET /api/spaces/{spaceId}/issues", "list-tasks"], ["GET /api/spaces/{spaceId}/agents", "list-agents"],
 ]);
 function sourceProgress(value: unknown) {
   const rows = Array.isArray(value) ? value : [];
@@ -175,7 +175,7 @@ function sourceProgress(value: unknown) {
       ["criteria", /completionClaim\.criteria must contain exactly/i], ["incomplete", /done report includes unfinished work/i],
       ["approval", /requires a persisted human decision|Required human quality review is incomplete/i],
     ] as const).map(([label, pattern]) => [label, Math.min(tools.filter(event => event.eventType === "tool.execution.completed"
-      && record(event.payload).name === "paperclip_finish" && pattern.test(String(record(event.payload).output ?? ""))).length, 1000)])),
+      && record(event.payload).name === "outpost_finish" && pattern.test(String(record(event.payload).output ?? ""))).length, 1000)])),
     tools: Object.fromEntries(names.map(name => [name, Object.fromEntries(["started", "progressed", "completed"].map(status =>
       [status, Math.min(tools.filter(event => event.eventType === `tool.execution.${status}` &&
         toolName(record(event.payload).name) === name).length, 10000)]))])),

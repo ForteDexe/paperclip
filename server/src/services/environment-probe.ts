@@ -35,9 +35,9 @@ export function parseSandboxPlatformFacts(output: string): PlatformFacts {
     ...(libc === "glibc" ? { glibcVersion: version?.trim() ?? "unknown" } : {}) };
 }
 /** The immutable runner image or snapshot identity of a sandbox environment, or null. */
-export async function sandboxBinding(db: Db, environment: Environment, companyId: string) {
+export async function sandboxBinding(db: Db, environment: Environment, spaceId: string) {
   const selectedTemplate: { value: SandboxTemplateIdentity } = { value: null };
-  const parsed = await resolveEnvironmentDriverConfigForRuntime(db, companyId, environment, {
+  const parsed = await resolveEnvironmentDriverConfigForRuntime(db, spaceId, environment, {
     applyCustomImageTemplate: true, readOnlyCustomImageTemplate: true,
     onResolvedCustomImageTemplate: identity => { selectedTemplate.value = identity; },
   });
@@ -46,17 +46,17 @@ export async function sandboxBinding(db: Db, environment: Environment, companyId
   const template = selectedTemplate.value;
   if (isQualifiableDaytonaSnapshot(parsed.config, template)) {
     return { baseConfigFingerprint: fingerprint(environment.config), runtimeConfigFingerprint: fingerprint(parsed.config),
-      snapshot: parsed.config.snapshot, template, qualifiedSnapshotId: qualifiedSandboxSnapshotId(environment, companyId, parsed.config, template) };
+      snapshot: parsed.config.snapshot, template, qualifiedSnapshotId: qualifiedSandboxSnapshotId(environment, spaceId, parsed.config, template) };
   }
   if (!isImmutableImage(image) || ["snapshot", "template", "templateRef"].some(key => record(parsed.config)[key])
     || (template && (template.templateKind !== "image" || template.bindingField !== "image"))) return null;
   return { baseConfigFingerprint: fingerprint(environment.config), runtimeConfigFingerprint: fingerprint(parsed.config as unknown as Record<string, unknown>), image, template };
 }
 
-export async function readSandboxPlatformQualification(db: Db, environment: Environment, companyId: string): Promise<PlatformFacts | null> {
-  const proof = record(record(environment.metadata?.[SANDBOX_PLATFORM_PROBE_METADATA_KEY])[companyId]);
-  if (![1, 2].includes(Number(proof.v)) || proof.companyId !== companyId || proof.baseConfigFingerprint !== fingerprint(environment.config)) return null;
-  const binding = await sandboxBinding(db, environment, companyId);
+export async function readSandboxPlatformQualification(db: Db, environment: Environment, spaceId: string): Promise<PlatformFacts | null> {
+  const proof = record(record(environment.metadata?.[SANDBOX_PLATFORM_PROBE_METADATA_KEY])[spaceId]);
+  if (![1, 2].includes(Number(proof.v)) || proof.spaceId !== spaceId || proof.baseConfigFingerprint !== fingerprint(environment.config)) return null;
+  const binding = await sandboxBinding(db, environment, spaceId);
   if (!binding || (proof.v === 2 ? !("qualifiedSnapshotId" in binding && binding.qualifiedSnapshotId)
     : !("image" in binding) || proof.image !== binding.image)
     || proof.runtimeConfigFingerprint !== binding.runtimeConfigFingerprint
@@ -72,24 +72,24 @@ export async function probeEnvironment(
   db: Db,
   environment: Environment,
   options: {
-    companyId?: string | null;
+    spaceId?: string | null;
     pluginWorkerManager?: PluginWorkerManager;
     resolvedConfig?: ParsedEnvironmentConfig;
     applyCustomImageTemplate?: boolean;
     acquireSandboxRuntimeLease?: boolean;
-    assertCompanyBinding?: boolean;
+    assertSpaceBinding?: boolean;
   } = {},
 ): Promise<EnvironmentProbeResult> {
-  const resolvedCompanyId = options.companyId ?? null;
-  const savedSandboxProbe = environment.driver === "sandbox" && options.acquireSandboxRuntimeLease === true && resolvedCompanyId;
+  const resolvedSpaceId = options.spaceId ?? null;
+  const savedSandboxProbe = environment.driver === "sandbox" && options.acquireSandboxRuntimeLease === true && resolvedSpaceId;
   const environments = environmentService(db);
   if (savedSandboxProbe) await environments.recordSandboxPlatformProbe({ environmentId: environment.id,
-    companyId: savedSandboxProbe, config: environment.config, proof: null });
+    spaceId: savedSandboxProbe, config: environment.config, proof: null });
   const parsed = options.resolvedConfig ?? (
     options.acquireSandboxRuntimeLease === true
       ? parseEnvironmentDriverConfig(environment)
-      : resolvedCompanyId || options.applyCustomImageTemplate === true
-      ? await resolveEnvironmentDriverConfigForRuntime(db, resolvedCompanyId, environment, {
+      : resolvedSpaceId || options.applyCustomImageTemplate === true
+      ? await resolveEnvironmentDriverConfigForRuntime(db, resolvedSpaceId, environment, {
           applyCustomImageTemplate: options.applyCustomImageTemplate === true,
         })
       : parseEnvironmentDriverConfig(environment)
@@ -109,11 +109,11 @@ export async function probeEnvironment(
 
   if (parsed.driver === "sandbox") {
     if (options.acquireSandboxRuntimeLease) {
-      if (!resolvedCompanyId) {
+      if (!resolvedSpaceId) {
         return {
           ok: false,
           driver: "sandbox",
-          summary: "Sandbox environment probe requires a companyId context.",
+          summary: "Sandbox environment probe requires a spaceId context.",
           details: {
             provider: parsed.config.provider,
           },
@@ -142,7 +142,7 @@ export async function probeEnvironment(
       let details: Record<string, unknown> | null = null;
       try {
         leaseRecord = await runtime.acquireRunLease({
-          companyId: resolvedCompanyId,
+          spaceId: resolvedSpaceId,
           environment: probeEnvironmentConfig,
           issueId: null,
           agentId: null,
@@ -150,7 +150,7 @@ export async function probeEnvironment(
           persistedExecutionWorkspace: null,
           adapterType: null,
           resolveSnapshotIdentity: true,
-          assertCompanyBinding: options.assertCompanyBinding,
+          assertSpaceBinding: options.assertSpaceBinding,
           applyCustomImageTemplate: options.applyCustomImageTemplate === true,
         });
         const metadata = leaseRecord.lease.metadata ?? {};
@@ -163,7 +163,7 @@ export async function probeEnvironment(
           platformQualificationDiagnostic: "Platform qualification requires an immutable OCI image or a Daytona snapshot with a verified provider ID. Update the provider plugin and probe again, or select Legacy runner." };
         if ((isImmutableImage(metadata.image) && !metadata.snapshot) || metadata.snapshotIdentity) {
           try {
-            const binding = await sandboxBinding(db, environment, resolvedCompanyId);
+            const binding = await sandboxBinding(db, environment, resolvedSpaceId);
             const snapshotIdentity = binding && "snapshot" in binding ? readSnapshotIdentity(metadata.snapshotIdentity, binding.snapshot) : null;
             if (binding && (("image" in binding && metadata.image === binding.image && !metadata.snapshot)
               || (snapshotIdentity && metadata.snapshot === binding.snapshot && provider === "daytona"))) {
@@ -177,7 +177,7 @@ export async function probeEnvironment(
                 && (facts.platform !== "linux" || facts.libc !== "unknown")
                 && (facts.libc !== "glibc" || /^(?:glibc\s+)?\d+\.\d+(?:\.\d+)?$/.test(facts.glibcVersion ?? ""))) {
                 const { qualifiedSnapshotId: _qualifiedSnapshotId, ...recordedBinding } = { qualifiedSnapshotId: null, ...binding };
-                qualification = { v: snapshotIdentity ? 2 : 1, companyId: resolvedCompanyId, ...recordedBinding,
+                qualification = { v: snapshotIdentity ? 2 : 1, spaceId: resolvedSpaceId, ...recordedBinding,
                   ...(snapshotIdentity ? { snapshotIdentity } : {}), facts, probedAt: new Date().toISOString() };
                 delete details.platformQualificationDiagnostic;
               } else details.platformQualificationDiagnostic = "The sandbox OS, architecture or libc could not be identified. Legacy remains the creation default.";
@@ -216,10 +216,10 @@ export async function probeEnvironment(
             });
             if (qualification && driver && savedSandboxProbe
               && releasedLease?.id === leaseRecord.lease.id
-              && releasedLease.companyId === resolvedCompanyId
+              && releasedLease.spaceId === resolvedSpaceId
               && releasedLease.environmentId === environment.id
               && releasedLease.status === "released" && releasedLease.cleanupStatus === "success") {
-              const recorded = await environments.recordSandboxPlatformProbe({ environmentId: environment.id, companyId: savedSandboxProbe,
+              const recorded = await environments.recordSandboxPlatformProbe({ environmentId: environment.id, spaceId: savedSandboxProbe,
                 config: environment.config, proof: qualification });
               if (details) {
                 details.platformQualificationRecorded = recorded;
@@ -254,7 +254,7 @@ export async function probeEnvironment(
       return await probePluginSandboxProviderDriver({
         db,
         workerManager: options.pluginWorkerManager,
-        companyId: resolvedCompanyId ?? "instance",
+        spaceId: resolvedSpaceId ?? "instance",
         environmentId: environment.id,
         provider: parsed.config.provider,
         config: parsed.config as unknown as Record<string, unknown>,
@@ -278,7 +278,7 @@ export async function probeEnvironment(
     return await probePluginEnvironmentDriver({
       db,
       workerManager: options.pluginWorkerManager,
-      companyId: resolvedCompanyId ?? "instance",
+      spaceId: resolvedSpaceId ?? "instance",
       environmentId: environment.id,
       config: parsed.config,
     });

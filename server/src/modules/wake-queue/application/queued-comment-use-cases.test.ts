@@ -22,7 +22,7 @@ import type {
 
 const ISSUE: QueuedCommentIssueContext = {
   id: "issue-1",
-  companyId: "company-1",
+  spaceId: "space-1",
   assigneeAgentId: "agent-1",
   executionRunId: null,
 };
@@ -43,7 +43,7 @@ const AGENT_ACTOR: QueuedCommentActor = {
 };
 
 function activityPublicationFixture(overrides: Partial<QueuedCommentActivityPublication> = {}): QueuedCommentActivityPublication {
-  return { companyId: ISSUE.companyId, payload: {}, pluginEvent: null, ...overrides };
+  return { spaceId: ISSUE.spaceId, payload: {}, pluginEvent: null, ...overrides };
 }
 
 function wakeRow(overrides: Partial<QueuedCommentWakeRow> = {}): QueuedCommentWakeRow {
@@ -57,7 +57,7 @@ function runRow(overrides: Partial<QueuedCommentRunRow> = {}): QueuedCommentRunR
 function commentFixture(overrides: Partial<IssueComment> = {}): IssueComment {
   return {
     id: "comment-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     authorType: "user",
     authorAgentId: null,

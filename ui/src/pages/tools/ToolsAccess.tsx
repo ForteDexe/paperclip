@@ -3,7 +3,7 @@ import { Wrench } from "lucide-react";
 import { Link, Navigate, useParams } from "@/lib/router";
 import { cn } from "@/lib/utils";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { ProfilesIndex } from "./profiles/ProfilesIndex";
 import { GatewaysTab } from "./GatewaysTab";
 import { PasteConfigTab } from "./PasteConfigTab";
@@ -16,22 +16,22 @@ import {
   type ToolTabKey,
 } from "./tool-tabs";
 
-function renderTab(tab: ToolTabKey, companyId: string) {
+function renderTab(tab: ToolTabKey, spaceId: string) {
   switch (tab) {
     case "profiles":
-      return <ProfilesIndex companyId={companyId} />;
+      return <ProfilesIndex spaceId={spaceId} />;
     case "gateways":
-      return <GatewaysTab companyId={companyId} />;
+      return <GatewaysTab spaceId={spaceId} />;
     case "smoke-lab":
-      return <SmokeLabTab companyId={companyId} />;
+      return <SmokeLabTab spaceId={spaceId} />;
     case "paste-config":
     default:
-      return <PasteConfigTab companyId={companyId} />;
+      return <PasteConfigTab spaceId={spaceId} />;
   }
 }
 
 export function ToolsAccess() {
-  const { selectedCompany, selectedCompanyId } = useCompany();
+  const { selectedSpace, selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const params = useParams<{ tab?: string }>();
   const activeTab = (TOOL_TABS.find((t) => t.key === params.tab)?.key ?? "paste-config") as ToolTabKey;
@@ -40,7 +40,7 @@ export function ToolsAccess() {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: selectedCompany?.name ?? "Outpost", href: "/dashboard" },
+      { label: selectedSpace?.name ?? "Outpost", href: "/dashboard" },
       { label: "Apps", href: "/apps" },
       ...(advanced
         ? [{ label: "Advanced setup" }]
@@ -50,9 +50,9 @@ export function ToolsAccess() {
           ]),
     ]);
     return () => setBreadcrumbs([]);
-  }, [setBreadcrumbs, selectedCompany?.name, advanced, tabLabel]);
+  }, [setBreadcrumbs, selectedSpace?.name, advanced, tabLabel]);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <div className="p-6 text-sm text-muted-foreground">Select an outpost to open advanced setup.</div>;
   }
 
@@ -118,7 +118,7 @@ export function ToolsAccess() {
           ))}
         </nav>
 
-        <div className="min-h-(--sz-300px)">{renderTab(activeTab, selectedCompanyId)}</div>
+        <div className="min-h-(--sz-300px)">{renderTab(activeTab, selectedSpaceId)}</div>
 
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Wrench className="h-3.5 w-3.5" />
@@ -131,5 +131,5 @@ export function ToolsAccess() {
     );
   }
 
-  return <div className="max-w-5xl">{renderTab(activeTab, selectedCompanyId)}</div>;
+  return <div className="max-w-5xl">{renderTab(activeTab, selectedSpaceId)}</div>;
 }

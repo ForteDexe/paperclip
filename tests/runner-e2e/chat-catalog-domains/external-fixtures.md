@@ -35,7 +35,7 @@ of credential environment variables belong there. The file schema is:
 configured is **only a prerequisite receipt**, never an assertion that the
 provider, callback, permission or scenario works. Every provider call must still
 be observed independently. Existing production accounts are never adopted by
-inference. No connector/grant may be created outside the disposable company or
+inference. No connector/grant may be created outside the disposable space or
 against a resource outside its explicit allowlist.
 
 Notion needs synthetic recent/background launch pages, separately authorized
@@ -56,10 +56,10 @@ receipts contain only scenario, provider, configured boolean and missing field
 names. Never persist the parsed private file, credential values, session state or
 raw provider receipts into tracked files/public evidence.
 
-`secrets.configure-company-secret` needs no external account. It generates one
+`secrets.configure-space-secret` needs no external account. It generates one
 synthetic value in the selected attempt's private redactor and uses the finite
-`company-secret-create` browser operation. That operation permits only the local
-instance's company secret page, creates `Deployment API key` through its actual
+`space-secret-create` browser operation. That operation permits only the local
+instance's space secret page, creates `Deployment API key` through its actual
 form using `local_encrypted`, and returns a closed receipt containing its UUID
 and booleans. The value stays out of argv, environment and Playwright Test
 instrumentation. Morgan's reference is then selected and saved through the
@@ -76,8 +76,8 @@ authorized disposable owner/repository. The scoped credential must independently
 expose those identities through the production GitHub connection. The audited
 query binding replaces only `acorn/site`, `acorn/site-old`, or `acorn/site-new`
 with the corresponding current provider identity after independent public API
-readback validates its company, active connection and allowlisted numeric ID.
-The remaining catalog prose is unchanged. The fixture creates a company-owned encrypted secret and public
+readback validates its space, active connection and allowlisted numeric ID.
+The remaining catalog prose is unchanged. The fixture creates a space-owned encrypted secret and public
 connection, verifies current repository discovery, and deletes both on cleanup.
 Ambient `gh` authentication and personal credentials are never adopted.
 
@@ -121,7 +121,7 @@ collection. These are harness privacy controls, not provider or scenario passes.
 
 Synthetic notes apps, MCP gateways, local plugins, team packages, local encrypted
 secrets and test endpoints do not require this file. They use real public
-Paperclip APIs and controlled fixture implementations; they cannot count as live
+Outpost APIs and controlled fixture implementations; they cannot count as live
 proof of Notion, Slack, AgentMail or vault operation.
 
 During execution, the launcher copies only the selected case's declared
@@ -156,7 +156,7 @@ The `assistant-connections.use-scoped-client` companion declares a separate
 external-model surface: selected `OPENAI_API_KEY`, the existing qualified
 `gpt-5.4-mini` model, at most six provider requests, four tool invocations and
 2048 total output tokens. It receives the original canonical query and actual
-public MCP catalog, with no board API or native Agent Chat credential. Current
+public MCP catalog, with no operator API or native Agent Chat credential. Current
 public scope names alone do not qualify a creation-only grant: valid comment
 and update attempts against a separate readable control task must actually be
 denied, leaving the control unchanged, before model dispatch. The requested
@@ -203,7 +203,7 @@ scope, and the same worker stays running for five seconds after revocation. A
 neutral release then lets that original worker finish normally. No provider
 account is discovered, adopted, or mutated by this fixture.
 
-`secrets.secret-proposal` uses a synthetic local-encrypted company secret and
+`secrets.secret-proposal` uses a synthetic local-encrypted space secret and
 Morgan's missing publishing reference; it needs no external account. The actual
 admitted model creates one binding proposal per explicit request. The first is
 rejected through the public Proposals review UI and its delivery state is read
@@ -290,7 +290,7 @@ a real authorized disposable Notion session, workspace/pages, and owned origin.
 `notion-wrong-account` additionally requires `sharedWorkspaceId`,
 `sharedApiTokenEnv`, and `sharedMcpTokenEnv`, with both workspace IDs and personal
 page IDs explicitly allowlisted. The existing shared connection is prepared via
-the supported board API, independently matched to its real MCP and REST
+the supported operator API, independently matched to its real MCP and REST
 workspace, and its healthy REST credential must actually receive 403/404 for the
 known-existing personal page. This historical fixture is separate from the
 human's evaluated personal OAuth setup. The real supported `new=1` personal
@@ -328,15 +328,15 @@ credential/session/origin stays separate from authored callback completeness.
 selected disposable binding's `resourceIds`. These are private reference names,
 not a ChatGPT API key, browser-cookie import, or authority inferred from an
 ambient account. It also requires the exact attempt's validated owned HTTPS
-origin and genuine public sign-in of the same generated Paperclip fixture person.
+origin and genuine public sign-in of the same generated Outpost fixture person.
 
 The finite standalone headed browser first asks the designated human to confirm
 availability. After the unchanged canonical CEO query, that person actually uses
-ChatGPT's supported private custom MCP app UI and the real Paperclip consent tab.
+ChatGPT's supported private custom MCP app UI and the real Outpost consent tab.
 The child observes the actual named-client request, official ChatGPT callback,
-explicit company and scope acceptance, and one new saved grant. Configuration
+explicit space and scope acceptance, and one new saved grant. Configuration
 scope is permitted only when actually requested and explicitly accepted by the
-authorized person under the real broad **Write all of your Paperclip data**
+authorized person under the real broad **Write all of your Outpost data**
 choice. The private prompt separately requires that person's explicit
 acknowledgement of the requested configuration authority; it does not require
 an invented separate picker or literal agents/projects/skills enumeration on
@@ -349,10 +349,10 @@ The only qualification mutation is the approved one neutral setup-check comment
 on a newly owned human-controlled backlog task. A real ChatGPT tool read supplies
 the substantive synthetic owner fact; its one actual MCP comment must join the
 same grant/person/client/request ID in public audit. No agent assignment,
-watchdog, mention, REST comment surrogate or new company native run is allowed.
+watchdog, mention, REST comment surrogate or new space native run is allowed.
 Actual provider browser creation identifies the unique new private app for
 subsequent human UI deletion; a successful provider response bound to that exact
-app ID is required. The Paperclip grant and owned control task are separately
+app ID is required. The Outpost grant and owned control task are separately
 removed through public APIs. Private provider state remains in the child and is
 never exported. The case declares one canonical human message/native run and a
 25-minute attempt ceiling; human setup, provider callback, qualification and

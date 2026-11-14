@@ -33,8 +33,8 @@ function regularFile(path, maximumSize) {
 
 async function metadataContract() {
   const { OUTPOST_RUNNER_BUILD_METADATA } = await import("../dist/evals/build-metadata.js");
-  const { parsePaperclipRunnerdBuildMetadata } = await import("../dist/evals/runnerd-artifact.js");
-  return metadata => verifyReleaseRunnerMetadata(parsePaperclipRunnerdBuildMetadata(metadata), OUTPOST_RUNNER_BUILD_METADATA);
+  const { parseOutpostRunnerdBuildMetadata } = await import("../dist/evals/runnerd-artifact.js");
+  return metadata => verifyReleaseRunnerMetadata(parseOutpostRunnerdBuildMetadata(metadata), OUTPOST_RUNNER_BUILD_METADATA);
 }
 export function verifyReleaseRunnerMetadata(metadata, expected) {
   if (metadata.binaryContractVersion !== expected.contracts.runnerdArtifact

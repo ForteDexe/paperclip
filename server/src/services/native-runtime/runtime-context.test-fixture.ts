@@ -21,7 +21,7 @@ export function nativeRuntimeContextFixture(): NativeRuntimeContextSnapshot {
         schema: NATIVE_RUNTIME_ASSET_SCHEMA,
         digest,
         manifestDigest: digest,
-        rootPath: "/tmp/paperclip-runtime-context-fixture",
+        rootPath: "/tmp/outpost-runtime-context-fixture",
         fileCount: 1,
         totalBytes: 1,
       },

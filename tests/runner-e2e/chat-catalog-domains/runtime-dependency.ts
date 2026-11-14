@@ -11,19 +11,19 @@ import { runtimeDefinition, runtimeWorker, runtimeObservation, observeRuntime } 
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 /**
  * Whether a run re-read Website's saved state (its own retained events, never reply text): a successful
- * call_api read of the task, its documents or the company task list, bound by its saved input digest
+ * call_api read of the task, its documents or the space task list, bound by its saved input digest
  * (bodies are redacted before saving), or a completed dedicated task tool whose output names the task.
  */
-export function readTaskState(events: readonly Record<string, unknown>[], task: { id?: string; identifier?: string | null; companyId?: string | null }) {
+export function readTaskState(events: readonly Record<string, unknown>[], task: { id?: string; identifier?: string | null; spaceId?: string | null }) {
   const params = recordParams("id", task.id, task.identifier);
   if (task.id && readRecord(events, [
     ...["GET /api/issues/{id}", "GET /api/issues/{id}/documents", "GET /api/issues/{id}/work-products"].map(operationId => ({ operationId, pathParams: params })),
-    { operationId: "GET /api/companies/{companyId}/issues", pathParams: [...recordParams("companyId", task.companyId), undefined], paged: true },
+    { operationId: "GET /api/spaces/{spaceId}/issues", pathParams: [...recordParams("spaceId", task.spaceId), undefined], paged: true },
   ])) return true;
   return events.some(row => {
     const envelope = record(record(row.payload).orpEvent), payload = record(envelope.payload), output = typeof payload.output === "string" ? payload.output : "";
     return row.eventType === "tool.execution.completed" && envelope.sourceKind === "runner" && payload.status === "completed"
-      && ["paperclip_get_task", "paperclip_search_tasks"].includes(String(payload.name))
+      && ["outpost_get_task", "outpost_search_tasks"].includes(String(payload.name))
       && [task.id, task.identifier].some(id => !!id && output.includes(id));
   });
 }
@@ -41,7 +41,7 @@ export function gradeDesignDependency(value: unknown) {
   const c = checks(), o = runtimeObservation(value);
   c.add("actual-dependency-and-native-admission-evidence", !!o, "The saved dependency, real unfinished prerequisite and later eligible native result must be independently read."); if (!o) return c.result();
   const s = o.state, task = s.task as Entity, design = s.design as Entity, waiting = s.waitingTask as Issue, finished = o.tasks.find(row => row.id === task.id);
-  c.add("actual-first-class-blocker-saved", waiting?.id === task.id && waiting.companyId === o.companyId && waiting.assigneeAgentId === (s.worker as Entity).id
+  c.add("actual-first-class-blocker-saved", waiting?.id === task.id && waiting.spaceId === o.spaceId && waiting.assigneeAgentId === (s.worker as Entity).id
     && waiting.blockedBy?.length === 1 && waiting.blockedBy[0]?.id === design.id && s.designUnfinishedAtWait === true
     && o.activity.some(row => row.action === "issue.blockers_updated" && row.entityId === task.id && row.agentId === o.leadId
       && (row.details?.addedBlockedByIssueIds as string[] | undefined)?.includes(design.id)),
@@ -62,8 +62,8 @@ export function gradeDesignDependency(value: unknown) {
   return c.result();
 }
 export const runtimeDependencyCases = [runtimeDefinition("task-coordination.block-on-design", async ctx => {
-  const worker = await runtimeWorker(ctx), root = `/api/companies/${ctx.input.fixtures.company.id}`, marker = `Approved website ${ctx.input.nonce}`;
-  for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: worker.id }])
+  const worker = await runtimeWorker(ctx), root = `/api/spaces/${ctx.input.fixtures.space.id}`, marker = `Approved website ${ctx.input.nonce}`;
+  for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: worker.id }])
     await ctx.input.api.post(`${root}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
   const design = await ctx.input.api.post<Entity>(`${root}/issues`, { title: "Design", status: "backlog", description: `A semantic HTML website with accessible labels. Await the actual human approval; reference ${marker}.` });
   const task = await ctx.input.api.post<Entity>(`${root}/issues`, { title: "Website", status: "backlog", assigneeAgentId: worker.id,
@@ -90,7 +90,7 @@ export const runtimeDependencyCases = [runtimeDefinition("task-coordination.bloc
     // step can only time out on a missing row (gha-43088288923), which reads as a harness defect; stop with the cause.
     if (!(state.waitingTask as Issue).blockedBy?.some(row => row.id === design.id))
       throw new Error("The CEO did not save Design as a blocker on Website before approval; a reply or comment alone does not hold the work");
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     // A backlog task shows its blockers in the properties panel; the thread's blocker banner appears only once it is Blocked.
     const blockedBy = ctx.input.page.locator('[data-property-row]:not([inert] *):not([aria-hidden="true"] *)')
       .filter({ has: ctx.input.page.locator('[data-property-label="Blocked by"]') }).filter({ visible: true });
@@ -113,14 +113,14 @@ export const runtimeDependencyCases = [runtimeDefinition("task-coordination.bloc
     state.noWebsiteResultBeforeApproval = (await ctx.input.api.get<Entity[]>(`${websiteRoot}/documents`)).length === 0
       && !["in_progress", "in_review", "done"].includes((await ctx.input.api.get<Issue>(websiteRoot)).status);
     await ctx.input.capture("actual-design-dependency-wait", "Website retains its actual Design blocker before human approval", "runtime-design-blocker.png");
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${design.identifier ?? design.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${design.identifier ?? design.id}`, { waitUntil: "domcontentloaded" });
     await chooseStatus(ctx.input.page, "Done");
     const approved = await pollUntil({ label: "Real human Design completion", deadlineAt: Date.now() + 20_000,
       load: () => ctx.input.api.get<Issue>(`/api/issues/${design.id}`), accept: row => row.status === "done" });
     state.humanApprovedDesign = approved.status === "done"; state.designApprovedAt = Date.now();
     const website = await ctx.input.api.get<Issue>(websiteRoot);
     if (website.status === "backlog") {
-      await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+      await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
       await chooseStatus(ctx.input.page, "Todo");
     }
     const interactionCount = (state.preApprovalInteractionRunIds as string[]).length;
@@ -154,7 +154,7 @@ export const runtimeDependencyCases = [runtimeDefinition("task-coordination.bloc
   },
   async verifyResult(ctx, state) {
     const source = ctx.input.page.url(), task = state.task as Entity;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("heading", { name: "Website", exact: true }).first()).toBeVisible();
     await expect(ctx.input.page.getByRole("button", { name: "Change status (current: Done)", exact: true }).first()).toBeVisible();

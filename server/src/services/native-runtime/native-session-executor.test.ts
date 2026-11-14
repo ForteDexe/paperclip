@@ -45,7 +45,7 @@ import { execFile, execFileSync, spawn, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { inspect } from "node:util";
 import { basename, dirname, join, relative } from "node:path";
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 import {
   activityLog,
   budgetReservations,
@@ -99,14 +99,14 @@ import {
   NativeProviderSideEffectPendingError,
   NativeProviderStateIncompatibleError,
   NativeProviderTerminalFailure,
-  NativeGovernedWaitSettlementPendingError,
+  NativeControlledWaitSettlementPendingError,
   NativeSessionProtocolIntegrityError,
 } from "../../vendor/outpost-runner/index.js";
 import * as issueServiceModule from "../issues.js";
 import * as runEventWriter from "../heartbeat-run-events.js";
 import { NativePermissionDeclinedError } from "./native-permission-decline.js";
 import { NativeExecutionContext } from "./native-execution-context.js";
-import { resolvePaperclipRunnerNativeProviderInput } from "./provider-profile.js";
+import { resolveOutpostRunnerNativeProviderInput } from "./provider-profile.js";
 import {
   createNativeHarnessBackupStamp,
   verifyNativeHarnessBackupStamp,
@@ -205,7 +205,7 @@ type RunnerTransportOptions = {
   lifecyclePolicy?: NativeExecutionInput["session"]["lifecyclePolicy"];
   opencodePermissionMode?: "allow" | "ask" | "deny";
   acpxAgent?: "claude" | "codex";
-  acpxPermissionMode?: "approve-all" | "approve-paperclip" | "approve-reads" | "deny-all";
+  acpxPermissionMode?: "approve-all" | "approve-outpost" | "approve-reads" | "deny-all";
   resumeActiveTurnId?: string | null;
   resumeProviderSession?: {
     driverSessionId: string;
@@ -268,7 +268,7 @@ const state = vi.hoisted(() => ({
           : "native-cancellation-ack-audit",
     },
     publication: {
-      companyId: "company",
+      spaceId: "space",
       payload: { action: input.action },
       pluginEvent: null,
     },
@@ -299,10 +299,10 @@ const state = vi.hoisted(() => ({
 vi.mock("../../runtime-api.js", async importOriginal => ({ ...await importOriginal<typeof import("../../runtime-api.js")>(), resolveLocalRuntimeApiUrl: state.localRuntimeApiUrl }));
 
 const accountingEvents = vi.hoisted(() => ({ committed: undefined as undefined | ((event: PrpEvent) => Promise<void>), duplicate: undefined as undefined | ((event: PrpEvent) => Promise<void>) }));
-vi.mock("./paperclip-control-plane-port.js", async importOriginal => {
-  const original = await importOriginal<typeof import("./paperclip-control-plane-port.js")>();
-  return { ...original, PaperclipControlPlanePort: class extends original.PaperclipControlPlanePort {
-    constructor(...args: ConstructorParameters<typeof original.PaperclipControlPlanePort>) {
+vi.mock("./outpost-control-plane-port.js", async importOriginal => {
+  const original = await importOriginal<typeof import("./outpost-control-plane-port.js")>();
+  return { ...original, OutpostControlPlanePort: class extends original.OutpostControlPlanePort {
+    constructor(...args: ConstructorParameters<typeof original.OutpostControlPlanePort>) {
       super(...args);
       accountingEvents.committed = args[2]?.onCommittedEvent ? event => args[2]!.onCommittedEvent!(event, 1) : undefined;
       accountingEvents.duplicate = args[2]?.onDuplicateEvent ? event => args[2]!.onDuplicateEvent!(event, 1) : undefined;
@@ -331,7 +331,7 @@ vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => {
     retainedRunnerdMaintenanceIsIdle: state.maintenanceIdle,
     drainRetainedRunnerdMaintenanceOperations: state.drainMaintenance,
     completeRetainedNativeSessionCleanup: state.retireCleanup,
-    parsePaperclipQuestionSet: (value: unknown) => value,
+    parseOutpostQuestionSet: (value: unknown) => value,
   };
 });
 
@@ -343,7 +343,7 @@ vi.mock("@outpost/adapter-codex-local/server", async (importOriginal) => ({
 }));
 
 vi.mock("./outpost-runner-tool-authority.js", () => ({
-  PaperclipRunnerToolAuthority: class {
+  OutpostRunnerToolAuthority: class {
     close() {}
     readonly binding: Record<string, unknown>;
 
@@ -401,9 +401,9 @@ vi.mock("../issue-recovery-actions.js", () => ({
 }));
 
 vi.mock("./native-codex-runner.js", () => ({
-  resolvePaperclipRunnerBinary: state.resolveRunnerBinary,
-  resolvePaperclipRunnerBinaryAsync: async (...args: unknown[]) => state.resolveRunnerBinary(...(args as [])),
-  resolveRemotePaperclipRunnerBinary: state.resolveRemoteRunnerBinary,
+  resolveOutpostRunnerBinary: state.resolveRunnerBinary,
+  resolveOutpostRunnerBinaryAsync: async (...args: unknown[]) => state.resolveRunnerBinary(...(args as [])),
+  resolveRemoteOutpostRunnerBinary: state.resolveRemoteRunnerBinary,
   // Resolves through the (mocked) vendor bundle, like the production checks.
   verifiedBundledRemoteRunnerBinary: async () =>
     (await import("../../vendor/outpost-runner/index.js")).bundledRemoteRunnerBinary(),
@@ -423,7 +423,7 @@ import {
   reserveWarmNativeInstructionDirectory,
   closeIdleWarmNativeSessionsForRestart,
   readNativeSessionIdleWork,
-  createGovernedWaitEventObservation,
+  createControlledWaitEventObservation,
   createRemoteRunnerProcessLauncher,
   createRunnerdBackend,
   noteRemoteBootstrapRestartProven,
@@ -431,7 +431,7 @@ import {
   hasRemoteBootstrapRestartProof,
   takeRemoteBootstrapRestartProof,
   unidentifiedLocalRunnerProvenAbsent,
-  executePaperclipNativeSession,
+  executeOutpostNativeSession,
   detachNativeSessionsForRestart,
   NativeControllerDetachedForRestartError,
   NativeCancellationPendingRecoveryError,
@@ -455,7 +455,7 @@ import {
   nativePreviousStartupFailureSignature,
   nativeStartupFailureSignature,
   nativeSessionRecoveryProjection,
-  nativeGovernedWaitResult,
+  nativeControlledWaitResult,
   nativeConversationReplyResult,
   nativeToolsRefreshWaitResult,
   parseRemoteExecutableCandidate,
@@ -739,7 +739,7 @@ describe("remote controller restart adoption", () => {
   });
   it.each(["execution", "stop_cleanup", "invalid_cleanup"] as const)("wires remote adoption when only controller state survived on the host (%s)", async purpose => {
     const stateBase = await mkdtemp(
-      join(tmpdir(), "paperclip-remote-reattach-"),
+      join(tmpdir(), "outpost-remote-reattach-"),
     );
     const previous = process.env.OUTPOST_RUNNER_STATE_DIR;
     process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
@@ -803,7 +803,7 @@ describe("remote controller restart adoption", () => {
       await rm(stateBase, { recursive: true, force: true });
     }
   });
-  it("answers a local run's held Paperclip tool calls after a restart (restart chaos t101)", async () => {
+  it("answers a local run's held Outpost tool calls after a restart (restart chaos t101)", async () => {
     state.createBackend.mockClear();
     state.createTransport.mockClear();
     await createRunnerdBackend({ db: leaseDb(execution), execution, runnerInstanceId: "runner" });
@@ -1201,7 +1201,7 @@ describe("remote controller restart adoption", () => {
     ["launches from", settledSuspension],
     ["stays fail-closed for", { ...settledSuspension, lifecycle: "turn_active" }],
   ] as const)("%s an exited runner when a scheduled retry builds its backend", async (outcome, runnerState) => {
-    const stateBase = await mkdtemp(join(tmpdir(), "paperclip-remote-settled-exit-"));
+    const stateBase = await mkdtemp(join(tmpdir(), "outpost-remote-settled-exit-"));
     const previous = process.env.OUTPOST_RUNNER_STATE_DIR;
     process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
     const current = {
@@ -1445,7 +1445,7 @@ describe("remote runner process supervision", () => {
   it("confirms no replacement process exists when staging fails before the launch RPC", async () => {
     // A full sandbox disk rejects the runtime-context upload before dispatch.
     const stagingError = new Error(
-      "/home/daytona/paperclip-workspace/.paperclip-upload-1.tar.gz: create: no space left on device",
+      "/home/daytona/outpost-workspace/.outpost-upload-1.tar.gz: create: no space left on device",
     );
     const execute = vi.fn();
     const handle = createRemoteRunnerProcessLauncher({
@@ -2600,7 +2600,7 @@ describe("native provider usage normalization", () => {
 describe("remote provider pack manifest", () => {
   it.each(["arm64", "x64"].flatMap(architecture => [false, true].map(explicit => ({ architecture, explicit }))))(
     "keeps explicit Mac SSH assets at their existing pack integrity gate ($architecture, explicit=$explicit)", async ({ architecture, explicit }) => {
-      const root = await mkdtemp(join(tmpdir(), "paperclip-explicit-mac-pack-"));
+      const root = await mkdtemp(join(tmpdir(), "outpost-explicit-mac-pack-"));
       const daemonPath = join(root, "outpost-runnerd");
       const daemon = Buffer.alloc(64);
       daemon.writeUInt32LE(0xfeedfacf);
@@ -2649,7 +2649,7 @@ describe("remote provider pack manifest", () => {
     const claude = provider.startsWith("claude-");
     const opencode = provider.startsWith("opencode");
     const diagnostics = provider.startsWith("opencode-diagnostics");
-    const root = await mkdtemp(join(tmpdir(), "paperclip-bundled-image-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-bundled-image-"));
     const digest = "sha256:" + "a".repeat(64);
     const artifacts = Object.fromEntries(Object.entries({
       grokLauncher: "dist/providers/grok/launcher.cjs", nodeCommand: "node_modules/node/bin/node",
@@ -2695,7 +2695,7 @@ describe("remote provider pack manifest", () => {
       if (provider !== "opencode-diagnostics") installed.payload.artifacts.opencodeProxy.sha256 = "sha256:" + "e".repeat(64);
       installed.digest = "sha256:" + createHash("sha256").update(canonical(installed.payload)).digest("hex");
     }
-    const launchRoot = `/home/runtime-account/.paperclip-runtime/outpost-runner/provider-artifacts/${installed.digest.slice(7)}`;
+    const launchRoot = `/home/runtime-account/.outpost-runtime/outpost-runner/provider-artifacts/${installed.digest.slice(7)}`;
     const newReceipt = { schema: "outpost.native-provider-artifacts.v1" as const, artifactId: randomUUID(),
       closureDigest: "sha256:" + "9".repeat(64), providerPackDigest: installed.digest, manifest: installed, launchRoot, accountUid: 1000 };
     const providerState = { schema: "outpost.runner.codex-provider-state.v1", lifecycle: "prepared", threadId: "new-opencode-thread",
@@ -2718,7 +2718,7 @@ describe("remote provider pack manifest", () => {
     const preparedDb = leaseDb(remoteExecution), select = preparedDb.select.bind(preparedDb);
     if (firstDurable) preparedDb.select = ((fields?: Record<string, unknown>) => ({ from: (table: unknown) => {
       if (table !== environmentLeases) return select(fields as never).from(table as never);
-      const rows = [{ metadata: {}, providerLeaseId: "new-session-sandbox", companyId: remoteExecution.binding.companyId,
+      const rows = [{ metadata: {}, providerLeaseId: "new-session-sandbox", spaceId: remoteExecution.binding.spaceId,
         heartbeatRunId: remoteExecution.binding.runId }];
       const query = { then: Promise.resolve(rows).then.bind(Promise.resolve(rows)), where: () => query, limit: () => query };
       return query;
@@ -2795,7 +2795,7 @@ describe("remote provider pack manifest", () => {
         expect(bundledRemoteProviderPackManifestPath).toHaveBeenCalledWith(undefined, `linux-${architecture}`);
       }
       expect(syncIn).toHaveBeenCalledWith([expect.objectContaining({ files: [expect.objectContaining({
-        sourcePath: state.bundledRunnerBinary, targetPath: "/workspace/.paperclip-runtime/outpost-runner/bin/outpost-runnerd",
+        sourcePath: state.bundledRunnerBinary, targetPath: "/workspace/.outpost-runtime/outpost-runner/bin/outpost-runnerd",
       })] })]);
       expect(execute.mock.calls.some(([call]) => call.args?.[1] === "uname -s; uname -m")).toBe(false);
       expect(existsSync(join(transport.stateDirectory!, "provider-pack-authority.json"))).toBe(false);
@@ -2817,7 +2817,7 @@ describe("remote provider pack manifest", () => {
           expect(existsSync(join(transport.stateDirectory!, "provider-pack-authority.json"))).toBe(true);
         } else expect(admittedNativeProviderPack(opened, identity)).toMatchObject({
           schema: "outpost.native-provider-pack-admission.v1", stage: "session_admitted", authority: "core_verified_selection",
-          companyId: identity.companyId, agentId: identity.agentId, runId: identity.runId, sessionId: identity.sessionId,
+          spaceId: identity.spaceId, agentId: identity.agentId, runId: identity.runId, sessionId: identity.sessionId,
           runnerInstanceId: transport.orpIdentity!.runnerInstanceId, runnerEnvironmentLeaseId: transport.orpIdentity!.environmentLeaseId,
           providerPackDigest: installed.digest, opencodeProxySha256: installed.payload.artifacts.opencodeProxy.sha256,
           sourceRevision: installed.payload.runnerSourceRevision,
@@ -2891,7 +2891,7 @@ describe("remote provider pack manifest", () => {
         if (provider === "opencode-continuation-no-receipt") await rm(receiptPath);
         const cold = provider === "opencode-continuation-cold";
         const legacyDurable = provider === "opencode-continuation-legacy-durable";
-        const launchRoot = `/home/runtime-account/.paperclip-runtime/outpost-runner/provider-artifacts/${installed.digest.slice(7)}`;
+        const launchRoot = `/home/runtime-account/.outpost-runtime/outpost-runner/provider-artifacts/${installed.digest.slice(7)}`;
         const artifactReceipt = { schema: "outpost.native-provider-artifacts.v1" as const, artifactId: randomUUID(),
           closureDigest: "sha256:" + "9".repeat(64), providerPackDigest: installed.digest, manifest: installed, launchRoot, accountUid: 1000 };
         if (cold || legacyDurable) {
@@ -2948,7 +2948,7 @@ describe("remote provider pack manifest", () => {
         });
         if (cold) {
           expect(providerArtifactStorage.restoreNativeProviderArtifacts).toHaveBeenCalledWith(expect.objectContaining({
-            companyId: remoteExecution.binding.companyId, receipt: artifactReceipt }));
+            spaceId: remoteExecution.binding.spaceId, receipt: artifactReceipt }));
           expect(state.createTransport.mock.calls.at(-1)![0]).toMatchObject({
             providerNodeCommand: `${launchRoot}/${installed.payload.artifacts.nodeCommand.path}`,
             opencodeCommand: `${launchRoot}/${installed.payload.artifacts.opencodeExecutable.path}`,
@@ -2975,7 +2975,7 @@ describe("remote provider pack manifest", () => {
         const identity = transport.orpIdentity!;
         const artifact = { version: "0.0.0", digest: "sha256:" + createHash("sha256").update(daemon).digest("hex") };
         resolveRemoteProviderPackAuthority({ stateDirectory: transport.stateDirectory!,
-          binding: { companyId: remoteExecution.binding.companyId, agentId: remoteExecution.binding.agentId,
+          binding: { spaceId: remoteExecution.binding.spaceId, agentId: remoteExecution.binding.agentId,
             workspaceId: remoteExecution.binding.executionWorkspaceId, sessionId: remoteExecution.session.normalizedSessionId!,
             runnerInstanceId: identity.runnerInstanceId, environmentLeaseId: identity.environmentLeaseId,
             remoteCwd: "/workspace", providerDigest: nativeSha256(remoteExecution.provider) },
@@ -3117,7 +3117,7 @@ describe("remote provider pack manifest", () => {
   });
 
   it("accepts a fully digested pack and rejects artifact tampering", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-provider-pack-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-provider-pack-"));
     await mkdir(join(root, "dist", "cli"), { recursive: true });
     await mkdir(join(root, "node_modules", "node", "bin"), { recursive: true });
     await mkdir(join(root, "node_modules", ".bin"), { recursive: true });
@@ -3228,7 +3228,7 @@ describe("remote provider pack manifest", () => {
       let transferred = false;
       const syncIn = vi.fn(async (operations: { files: { sourcePath?: string; targetPath: string; kind: string }[] }[]) => {
         expect(operations[0]?.files[0]).toMatchObject({ sourcePath: root,
-          targetPath: "/workspace/.paperclip-runtime/outpost-runner/provider-pack", kind: "directory" });
+          targetPath: "/workspace/.outpost-runtime/outpost-runner/provider-pack", kind: "directory" });
         transferred = true;
         return { operations: [] };
       });
@@ -3251,7 +3251,7 @@ describe("remote provider pack manifest", () => {
       });
       if (mode === "failed-final") await expect(preparation).rejects.toThrow("provider pack verification");
       else if (mode === "missing-transport") await expect(preparation).rejects.toThrow("transport cannot stage a provider pack");
-      else await expect(preparation).resolves.toMatchObject({ source: mode, root: "/workspace/.paperclip-runtime/outpost-runner/provider-pack",
+      else await expect(preparation).resolves.toMatchObject({ source: mode, root: "/workspace/.outpost-runtime/outpost-runner/provider-pack",
         manifest: selectedPack.manifest });
       expect(syncIn).toHaveBeenCalledTimes(mode === "uploaded" || mode === "failed-final" ? 1 : 0);
     }
@@ -3266,7 +3266,7 @@ describe("remote provider pack manifest", () => {
     expect(readRemoteProviderPackManifest(root).payload.providers?.cursor?.version).toBe(QUALIFIED_ACPX_PROFILES.cursor.agentServerVersion);
     // The run path streams the same checks off the event loop.
     await expect(verifyRemoteProviderPackManifest(root)).resolves.toEqual(readRemoteProviderPackManifest(root));
-    const releaseMetadata = await mkdtemp(join(tmpdir(), "paperclip-image-identity-"));
+    const releaseMetadata = await mkdtemp(join(tmpdir(), "outpost-image-identity-"));
     const manifestPath = join(releaseMetadata, "provider-pack.json");
     await cp(join(root, "provider-pack.json"), manifestPath);
     expect(readBundledRemoteProviderPackManifest(manifestPath).digest).toBe(readRemoteProviderPackManifest(root).digest);
@@ -3467,7 +3467,7 @@ describe("provider pack read diagnostics", () => {
   });
 
   it("classifies a JSON null manifest as incompatible instead of a TypeError", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-null-pack-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-null-pack-"));
     try {
       await writeFile(join(root, "provider-pack.json"), "null");
       expect(() => readRemoteProviderPackManifest(root)).toThrow(
@@ -3477,7 +3477,7 @@ describe("provider pack read diagnostics", () => {
   });
 
   it.each(["missing", "invalid_json", "invalid_path_type"])("reports %s without putting the path in the terminal message", async (reason) => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-private-pack-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-private-pack-"));
     try {
       const manifestPath = join(root, "provider-pack.json");
       if (reason === "invalid_json") await writeFile(manifestPath, "{ private-invalid-json");
@@ -3580,7 +3580,7 @@ describe("native harness persistence profiles", () => {
       provider: { kind: "opencode" },
       session: {
         driverKind: "opencode_server",
-        normalizedSessionId: "company:agent/session 1",
+        normalizedSessionId: "space:agent/session 1",
         protocolVersion: 1,
         lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null },
       },
@@ -3589,8 +3589,8 @@ describe("native harness persistence profiles", () => {
       opencode.directories.find((directory) => directory.name === "opencode"),
     ).toMatchObject({
       excludeEntries: [
-        "company_agent_session_1/homes",
-        "company_agent_session_1/config/opencode/node_modules",
+        "space_agent_session_1/homes",
+        "space_agent_session_1/config/opencode/node_modules",
       ],
     });
   });
@@ -3639,7 +3639,7 @@ describe("verified native harness backups", () => {
   const backupExecution = {
     provider: { kind: "codex", model: "gpt-5.6-sol", approvalPolicy: "never" },
     binding: {
-      companyId: "company",
+      spaceId: "space",
       runId: "run",
       issueId: "issue",
       agentId: "agent",
@@ -3649,7 +3649,7 @@ describe("verified native harness backups", () => {
       cwd: "/workspace",
       repoUrl: "https://example.test/repo.git",
       repoRef: "main",
-      branchName: "paperclip/test",
+      branchName: "outpost/test",
     },
     session: {
       normalizedSessionId: "native-session",
@@ -3676,7 +3676,7 @@ describe("verified native harness backups", () => {
     },
   });
 
-  it("allows only identity-stable ACPX rotation after a governed interaction", () => {
+  it("allows only identity-stable ACPX rotation after a controlled interaction", () => {
     const execution = {
       ...backupExecution,
       provider: {
@@ -3735,7 +3735,7 @@ describe("verified native harness backups", () => {
     ).toBe(false);
   });
 
-  it("binds Cursor mode across governed and identical recovery identities", () => {
+  it("binds Cursor mode across controlled and identical recovery identities", () => {
     const execution = {
       ...backupExecution,
       provider: { kind: "acpx", agent: "cursor", model: "explicit-model", mode: "plan" },
@@ -3765,7 +3765,7 @@ describe("verified native harness backups", () => {
     }
   });
 
-  it("binds Pi thinking across governed and identical recovery identities", () => {
+  it("binds Pi thinking across controlled and identical recovery identities", () => {
     const execution = {
       ...backupExecution,
       provider: { kind: "acpx", agent: "pi", model: "explicit-model", piThinkingLevel: "low" },
@@ -3829,7 +3829,7 @@ describe("verified native harness backups", () => {
   });
 
   it("accepts a complete digest-matched backup and rejects corruption", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-harness-backup-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-harness-backup-"));
     try {
       const current = join(root, "failover-backups", "current");
       await mkdir(join(current, "runner"), { recursive: true });
@@ -3924,7 +3924,7 @@ describe("verified native harness backups", () => {
 
   it("rejects a backup whose provider identity or harness contract changed", async () => {
     const root = await mkdtemp(
-      join(tmpdir(), "paperclip-harness-backup-identity-"),
+      join(tmpdir(), "outpost-harness-backup-identity-"),
     );
     try {
       const current = join(root, "failover-backups", "current");
@@ -3953,7 +3953,7 @@ describe("verified native harness backups", () => {
   });
 
   it("verifies the lease stamp and all backup directory digests before replacement", async () => {
-    const stateBase = await mkdtemp(join(tmpdir(), "paperclip-harness-stamp-"));
+    const stateBase = await mkdtemp(join(tmpdir(), "outpost-harness-stamp-"));
     const previousStateDirectory = process.env.OUTPOST_RUNNER_STATE_DIR;
     process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
     try {
@@ -4022,7 +4022,7 @@ describe("verified native harness backups", () => {
 
   it("rejects a digest-valid legacy stamp for remote lease authorization", async () => {
     const stateBase = await mkdtemp(
-      join(tmpdir(), "paperclip-legacy-harness-stamp-"),
+      join(tmpdir(), "outpost-legacy-harness-stamp-"),
     );
     const previousStateDirectory = process.env.OUTPOST_RUNNER_STATE_DIR;
     process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
@@ -4087,7 +4087,7 @@ describe("split durable provider checkpoint identity", () => {
     ({
       provider,
       binding: {
-        companyId: "company",
+        spaceId: "space",
         runId: "run",
         issueId: "issue",
         agentId: "agent",
@@ -4387,7 +4387,7 @@ describe("remote provider checkpoint snapshots", () => {
       provider: { kind: "opencode" },
       driverKind: "opencode_server",
       directory: "opencode",
-      sessionPath: "company_agent_session_1",
+      sessionPath: "space_agent_session_1",
       kept: {
         "workspace": "/workspace\n",
         "data/opencode/opencode.db": "history",
@@ -4406,7 +4406,7 @@ describe("remote provider checkpoint snapshots", () => {
       provider: { kind: "acpx", agent: "pi" },
       driverKind: "acpx_runtime",
       directory: "acpx",
-      sessionPath: `acpx/${acpxRuntimeSessionDirectoryName("company:agent/session 1")}`,
+      sessionPath: `acpx/${acpxRuntimeSessionDirectoryName("space:agent/session 1")}`,
       kept: {
         "workspace": "/workspace\n",
         "pi-home/sessions/session.jsonl": "history",
@@ -4433,7 +4433,7 @@ describe("remote provider checkpoint snapshots", () => {
       }
       const persistence = resolveNativeHarnessPersistenceProfile({
         provider,
-        session: { normalizedSessionId: "company:agent/session 1", driverKind },
+        session: { normalizedSessionId: "space:agent/session 1", driverKind },
       } as unknown as NativeExecutionInputV1);
       const excludeEntries = persistence.directories.find(entry => entry.name === directory)!.excludeEntries;
       const execute = async ({ command, args }: { command: string; args: string[] }) => ({
@@ -4551,7 +4551,7 @@ describe("remote provider checkpoint snapshots", () => {
     await syncRemoteRunnerDirectoryOut({
       runner: { execute, syncOut } as never,
       sourcePath: "/remote/session/filesystem/codex-home",
-      targetPath: "/tmp/paperclip-checkpoint-test-codex-home",
+      targetPath: "/tmp/outpost-checkpoint-test-codex-home",
       mode: 0o700,
       excludeEntries: ["tmp", ".tmp", "auth.json", "config.toml"],
     });
@@ -4577,14 +4577,14 @@ describe("remote provider checkpoint snapshots", () => {
     const batch = syncOut.mock.calls[0]?.[0]?.[0];
     expect(batch?.files[0]).toMatchObject({
       sourcePath: expect.stringMatching(
-        /^\/remote\/session\/filesystem\/\.paperclip-checkpoint-/,
+        /^\/remote\/session\/filesystem\/\.outpost-checkpoint-/,
       ),
-      targetPath: "/tmp/paperclip-checkpoint-test-codex-home",
+      targetPath: "/tmp/outpost-checkpoint-test-codex-home",
       kind: "directory",
       mode: 0o700,
     });
     expect(String(execute.mock.calls[2]?.[0]?.args?.[1])).toMatch(
-      /^rm -rf -- '\/remote\/session\/filesystem\/\.paperclip-checkpoint-/,
+      /^rm -rf -- '\/remote\/session\/filesystem\/\.outpost-checkpoint-/,
     );
   });
 
@@ -4607,7 +4607,7 @@ describe("remote provider checkpoint snapshots", () => {
     await syncRemoteRunnerDirectoryOut({
       runner: { execute, syncOut } as never,
       sourcePath: "/remote/session/filesystem/acpx",
-      targetPath: "/tmp/paperclip-checkpoint-test-acpx",
+      targetPath: "/tmp/outpost-checkpoint-test-acpx",
       mode: 0o700,
       excludeEntries: excluded,
     });
@@ -4690,14 +4690,14 @@ describe("remote provider checkpoint snapshots", () => {
     await expect(syncRemoteRunnerDirectoryOut({
       runner: { execute, syncOut } as never,
       sourcePath: "/remote/session/filesystem/codex-home",
-      targetPath: "/tmp/paperclip-checkpoint-test-codex-home",
+      targetPath: "/tmp/outpost-checkpoint-test-codex-home",
       mode: 0o700,
       excludeEntries: ["tmp", "auth.json"],
     })).rejects.toThrow("runner_remote_checkpoint_snapshot_failed");
     expect(syncOut).not.toHaveBeenCalled();
     expect(execute).toHaveBeenCalledTimes(3);
     expect(String(execute.mock.calls[2]?.[0]?.args?.[1])).toMatch(
-      /^rm -rf -- '\/remote\/session\/filesystem\/\.paperclip-checkpoint-/,
+      /^rm -rf -- '\/remote\/session\/filesystem\/\.outpost-checkpoint-/,
     );
   });
 
@@ -4712,7 +4712,7 @@ describe("remote provider checkpoint snapshots", () => {
       syncRemoteRunnerDirectoryOut({
         runner: { execute, syncOut: vi.fn() } as never,
         sourcePath: "/remote/codex-home",
-        targetPath: "/tmp/paperclip-checkpoint-invalid-codex-home",
+        targetPath: "/tmp/outpost-checkpoint-invalid-codex-home",
         mode: 0o700,
         excludeEntries: ["../outside"],
       }),
@@ -4720,7 +4720,7 @@ describe("remote provider checkpoint snapshots", () => {
   });
 
   it("rejects unsafe fallback archives without replacing durable state", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-checkpoint-unsafe-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-checkpoint-unsafe-"));
     const archiveSource = join(root, "archive-source");
     const targetPath = join(root, "durable-target");
     try {
@@ -4767,7 +4767,7 @@ describe("remote provider checkpoint snapshots", () => {
 
 describe("remote provider checkpoint restores", () => {
   it.each(["auth.json", "config.toml"].flatMap(name => ["hard", "symbolic"].map(kind => ({ name, kind }))))("atomically stages an SSH launch file without following a retained $kind link ($name)", async ({ name, kind }) => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-ssh-stage-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-ssh-stage-"));
     try {
       const sourcePath = join(root, "selected"), outside = join(root, "outside");
       const targetPath = join(root, `target with 'quotes'`, name);
@@ -4792,7 +4792,7 @@ describe("remote provider checkpoint restores", () => {
   });
 
   it("preserves the prior SSH launch file and clears temporary data after a failed transfer", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-ssh-stage-failure-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-ssh-stage-failure-"));
     try {
       const sourcePath = join(root, "selected"), targetPath = join(root, "target", "auth.json");
       await mkdir(dirname(targetPath));
@@ -4810,7 +4810,7 @@ describe("remote provider checkpoint restores", () => {
   });
 
   it.each([false, true])("rejects an SSH file destination that resolves to a directory (linked: %s)", async linked => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-ssh-stage-directory-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-ssh-stage-directory-"));
     try {
       const sourcePath = join(root, "selected"), outside = join(root, "outside");
       const targetPath = linked ? join(root, "directory-link") : outside;
@@ -4831,7 +4831,7 @@ describe("remote provider checkpoint restores", () => {
   });
 
   it("stages and verifies read-only context with non-contiguous archive entries", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-readonly-restore-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-readonly-restore-"));
     const sourcePath = join(root, "source");
     const targetPath = join(root, "target with 'quotes'");
     try {
@@ -4895,7 +4895,7 @@ describe("remote provider checkpoint restores", () => {
   });
 
   it("rejects context staging through a symlink", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-context-symlink-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-context-symlink-"));
     const sourcePath = join(root, "source");
     const preservedPath = join(root, "preserved");
     const targetPath = join(root, "target");
@@ -4924,7 +4924,7 @@ describe("remote provider checkpoint restores", () => {
 
   it("does not upload excluded Codex scratch trees or credentials", async () => {
     const sourcePath = await mkdtemp(
-      join(tmpdir(), "paperclip-codex-restore-source-"),
+      join(tmpdir(), "outpost-codex-restore-source-"),
     );
     try {
       await mkdir(join(sourcePath, "sessions"), { recursive: true });
@@ -4983,7 +4983,7 @@ describe("remote provider checkpoint restores", () => {
 
 describe("remote preinstalled executable discovery", () => {
   it("stages a relative-path CLI shim without changing its installation or losing arguments", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-codex-shim-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-codex-shim-"));
     try {
       const installation = join(root, "image install's bin");
       const target = join(root, "workspace", "bin", "codex");
@@ -5260,7 +5260,7 @@ describe("runtime question fallback", () => {
             {
               id: "replicas",
               selectionMode: "single",
-              options: [{ id: "__paperclip_text__", freeText: true }],
+              options: [{ id: "__outpost_text__", freeText: true }],
             },
           ],
         },
@@ -5359,7 +5359,7 @@ describe("native provider bootstrap environment", () => {
       GOOGLE_APPLICATION_CREDENTIALS: "/ambient-google-credential.json", OUTPOST_ACPX_ANTIGRAVITY_AUTH_JSON_SECRET: "ambient-google-subscription",
       OUTPOST_ACPX_CREDENTIAL_BINDING: "ambient-forged-binding" };
     expect(resolveNativeProviderEnvironment(provider, undefined, host)).toEqual({ PATH: "/host/bin", HOME: "/host/home" });
-    const explicit = { COPILOT_GITHUB_TOKEN: "explicit-company-binding" };
+    const explicit = { COPILOT_GITHUB_TOKEN: "explicit-space-binding" };
     expect(resolveNativeProviderEnvironment(provider, explicit, host)).toBe(explicit);
   });
 
@@ -5414,12 +5414,12 @@ describe("native provider bootstrap environment", () => {
           OUTPOST_WORKSPACE_CWD: "/untrusted/configured-workspace",
         },
         { HOME: "/Users/runner" },
-        "/Users/runner/.paperclip/instances/default/workspaces/agent-1",
+        "/Users/runner/.outpost/instances/default/workspaces/agent-1",
       ),
     ).toEqual({
       HOME: "/Users/runner",
       OUTPOST_WORKSPACE_CWD:
-        "/Users/runner/.paperclip/instances/default/workspaces/agent-1",
+        "/Users/runner/.outpost/instances/default/workspaces/agent-1",
     });
   });
 });
@@ -5428,7 +5428,7 @@ const execution = {
   schema: "outpost.native-execution-input.v1",
   provider: { kind: "codex", model: null },
   binding: {
-    companyId: "company",
+    spaceId: "space",
     runId: "run-native-cancel",
     issueId: "issue",
     agentId: "agent",
@@ -5442,7 +5442,7 @@ const execution = {
     workMode: "standard",
   },
   workspace: {
-    cwd: "/tmp/paperclip-native-session-test",
+    cwd: "/tmp/outpost-native-session-test",
     repoUrl: null,
     repoRef: null,
     branchName: null,
@@ -5475,7 +5475,7 @@ describe("retained native cleanup activation", () => {
     const original = new Promise<void>(resolve => { release = resolve; });
     state.drainMaintenance.mockReturnValueOnce(original);
     let finished = false;
-    const operation = reconcileRetainedNativeSessionCleanup(db, { companyId: "company", runId: "run" })
+    const operation = reconcileRetainedNativeSessionCleanup(db, { spaceId: "space", runId: "run" })
       .catch(error => error).finally(() => { finished = true; });
     try {
       await vi.waitFor(() => expect(state.drainMaintenance).toHaveBeenCalledTimes(1));
@@ -5491,7 +5491,7 @@ describe("retained native cleanup activation", () => {
     new Error("commit acknowledgement unavailable"),
   ])("preserves a pre-claim database failure for recovery: %s", async failure => {
     const db = { transaction: vi.fn().mockRejectedValue(failure) } as unknown as Db;
-    await expect(reconcileRetainedNativeSessionCleanup(db, { companyId: "company", runId: "run" }))
+    await expect(reconcileRetainedNativeSessionCleanup(db, { spaceId: "space", runId: "run" }))
       .rejects.toBe(failure);
     expect(state.cleanup).not.toHaveBeenCalled();
     expect(state.retireCleanup).not.toHaveBeenCalled();
@@ -5577,7 +5577,7 @@ describe("retained native cleanup activation", () => {
     "active_provider_process",
   ])("preserves exact original evidence for %s", async (mode) => {
     const directory = await mkdtemp(
-      join(tmpdir(), "paperclip-maintenance-activation-"),
+      join(tmpdir(), "outpost-maintenance-activation-"),
     );
     let providerHomeDatabase: DatabaseSync | undefined;
     let releaseMaintenance!: () => void;
@@ -5607,7 +5607,7 @@ describe("retained native cleanup activation", () => {
       .update(
         canonical({
           schema: "outpost.native-session-scope.v2",
-          companyId: execution.binding.companyId,
+          spaceId: execution.binding.spaceId,
           agentId: execution.binding.agentId,
           workspace: {
             kind: "managed",
@@ -5694,7 +5694,7 @@ describe("retained native cleanup activation", () => {
       sourcePayloadSha256:
         mode === "bad_identity_hash" ? "bad" : nativeSha256(normalizedIdentity),
     };
-    const semanticResult = nativeGovernedWaitResult({
+    const semanticResult = nativeControlledWaitResult({
       interaction: { id: "answered", title: "Next response", summary: null },
       completionContract: execution.completionContract.contract,
     });
@@ -5732,7 +5732,7 @@ describe("retained native cleanup activation", () => {
     const semantic = {
       ...createPrpSemanticToolInputEnvelope({
         callId: "finish-call",
-        operationId: "paperclip_finish",
+        operationId: "outpost_finish",
         correlation,
         content: semanticInput,
       }),
@@ -5755,7 +5755,7 @@ describe("retained native cleanup activation", () => {
       payload: {
         semantic_tool: createPrpSemanticToolResultEnvelope({
           callId: "finish-call",
-          operationId: "paperclip_finish",
+          operationId: "outpost_finish",
           correlation,
           content: semanticInput,
           outcome: "succeeded",
@@ -5867,7 +5867,7 @@ describe("retained native cleanup activation", () => {
         // same cleanup transaction; this fixture has one issue and no ancestors.
         const statement = new PgDialect().sqlToQuery(query);
         expect(transactionOpen).toBe(true);
-        expect(statement.params).toContain(run.companyId);
+        expect(statement.params).toContain(run.spaceId);
         if (statement.sql.includes("from heartbeat_runs")) return [{ id: run.nativeIssueId }];
         if (statement.sql.includes("origin_kind")) return [{ id: run.nativeIssueId, originKind: null, originId: null }];
         if (statement.sql.includes("with recursive affected")) return [{ issueId: run.nativeIssueId }];
@@ -6386,7 +6386,7 @@ describe("retained native cleanup activation", () => {
             version: 1,
             phase: "prepared",
             requestId: "native-cleanup:prepared-fixture",
-            companyId: run.companyId,
+            spaceId: run.spaceId,
             agentId: run.agentId,
             runId: run.id,
             nativeSessionId: run.nativeSessionId,
@@ -6533,7 +6533,7 @@ describe("retained native cleanup activation", () => {
           ).toEqual(legacyBytes);
           expect(proofSpy).toHaveBeenCalledOnce();
           expect(proofSpy.mock.calls[0]![0]).toMatchObject({
-            companyId: run.companyId,
+            spaceId: run.spaceId,
             agentId: run.agentId,
             identity,
             requestId: "native-cleanup:prior",
@@ -6613,7 +6613,7 @@ describe("retained native cleanup activation", () => {
       }
       const pendingOutcome = reconcileRetainedNativeSessionCleanup(
         db as unknown as Db,
-        { companyId: run.companyId, runId: run.id },
+        { spaceId: run.spaceId, runId: run.id },
       );
       if (
         [
@@ -6675,8 +6675,8 @@ describe("retained native cleanup activation", () => {
       const outcome = await pendingOutcome;
       if (mode === "legacy_busy_copy") {
         expect(maintenanceReleased).toHaveBeenCalledExactlyOnceWith(
-          { companyId: run.companyId, runId: run.id },
-          { companyId: run.companyId, runId: run.id },
+          { spaceId: run.spaceId, runId: run.id },
+          { spaceId: run.spaceId, runId: run.id },
         );
         unsubscribeMaintenance?.();
       }
@@ -7034,7 +7034,7 @@ describe("retained native cleanup activation", () => {
         if (waitingFor === "environment_release") environmentReleased = true;
         if (waitingFor === "lease_expiry") coordinator.leaseExpiresAt = new Date(Date.now() - 1000);
         await expect(reconcileRetainedNativeSessionCleanup(db as unknown as Db, {
-          companyId: run.companyId, runId: run.id,
+          spaceId: run.spaceId, runId: run.id,
         })).resolves.toEqual({ status: "settled", runId: run.id });
         expect(state.cleanup).toHaveBeenCalledTimes(1);
         expect(state.retireCleanup).toHaveBeenCalledTimes(1);
@@ -7056,7 +7056,7 @@ describe("retained native cleanup activation", () => {
 describe("stopped native conversation physical cleanup", () => {
   it.each(["codex", "acpx"].flatMap(provider => [
     "stopped", "provider_alive", "worker_alive", "missing_receipt", "wrong_receipt", "new_launch",
-    "foreign_run", "foreign_company", "foreign_runner", "remote", "unreleased", "changed_state", "changed_pid", "symlink", "startup_intent", "pending_identity", "wrong_schema", "replacement", "replacement_alive", "agent_alive", "checkpoint_owner_alive", "diagnostic_owner_alive", "normalized_session_receipt",
+    "foreign_run", "foreign_space", "foreign_runner", "remote", "unreleased", "changed_state", "changed_pid", "symlink", "startup_intent", "pending_identity", "wrong_schema", "replacement", "replacement_alive", "agent_alive", "checkpoint_owner_alive", "diagnostic_owner_alive", "normalized_session_receipt",
   ].map(mode => ({ provider, mode }))))("$provider $mode", async ({ provider, mode }) => {
     const base = await mkdtemp(join(tmpdir(), "native-conversation-cleanup-"));
     const previous = process.env.OUTPOST_RUNNER_STATE_DIR;
@@ -7073,7 +7073,7 @@ describe("stopped native conversation physical cleanup", () => {
       : JSON.stringify(value);
     const hash = (value: unknown) => createHash("sha256").update(canonical(value)).digest("hex");
     const providerScope = input.provider.kind === "acpx" ? { kind: "acpx", agent: input.provider.agent, profile: input.provider.profile } : { kind: "codex" };
-    const root = join(base, hash({ schema: "outpost.native-session-scope.v2", companyId: input.binding.companyId,
+    const root = join(base, hash({ schema: "outpost.native-session-scope.v2", spaceId: input.binding.spaceId,
       agentId: input.binding.agentId, workspace: { kind: "managed", executionWorkspaceId: input.binding.executionWorkspaceId },
       provider: { driverKind: input.session.driverKind, identity: providerScope }, normalizedSessionId: input.session.normalizedSessionId }));
     const identity = { runId: input.binding.runId, normalizedSessionId: input.session.normalizedSessionId,
@@ -7110,7 +7110,7 @@ describe("stopped native conversation physical cleanup", () => {
       const q: any = { from: () => q, where: () => q, orderBy: () => q, limit: () => q,
         then: Promise.resolve(rows).then.bind(Promise.resolve(rows)) }; return q;
     } } as unknown as Db;
-    const run = { id: input.binding.runId, companyId: mode === "foreign_company" ? "foreign" : input.binding.companyId,
+    const run = { id: input.binding.runId, spaceId: mode === "foreign_space" ? "foreign" : input.binding.spaceId,
       agentId: input.binding.agentId, nativeIssueId: input.binding.issueId, runtimeMode: "native", status: "failed", finishedAt: new Date(),
       nativeSessionId: input.session.normalizedSessionId, runnerInstanceId: mode === "foreign_runner" ? "foreign" : identity.runnerInstanceId,
       runnerProfileJson: { sessionCheckpoint: { process: { codexPid: mode === "checkpoint_owner_alive" ? process.pid : null } }, nativeExecutionInput: input, nativeToolContractFingerprint: nativeToolContractFingerprintForTarget("local") } } as unknown as typeof heartbeatRuns.$inferSelect;
@@ -7161,7 +7161,7 @@ describe("explicit failed native retry physical evidence", () => {
     "unselected_result",
   ])("observes %s without mutating the retained root", async (kind) => {
     const stateBase = await mkdtemp(
-      join(tmpdir(), "paperclip-failed-retry-state-"),
+      join(tmpdir(), "outpost-failed-retry-state-"),
     );
     const previous = process.env.OUTPOST_RUNNER_STATE_DIR;
     process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
@@ -7176,7 +7176,7 @@ describe("explicit failed native retry physical evidence", () => {
       .update(
         canonical({
           schema: "outpost.native-session-scope.v2",
-          companyId: execution.binding.companyId,
+          spaceId: execution.binding.spaceId,
           agentId: execution.binding.agentId,
           workspace: {
             kind: "managed",
@@ -7558,7 +7558,7 @@ describe("native conversation replies", () => {
   );
 });
 
-describe("native governed waits", () => {
+describe("native controlled waits", () => {
   it("yields to an existing tools-refresh wake without claiming completion or a human interaction", () => {
     const result = nativeToolsRefreshWaitResult({
       wakeId: "wake-1",
@@ -7583,7 +7583,7 @@ describe("native governed waits", () => {
 
   it("turns a durable pending interaction into a response-wake result", () => {
     expect(
-      nativeGovernedWaitResult({
+      nativeControlledWaitResult({
         interaction: {
           id: "interaction-1",
           title: "Choose an output format",
@@ -7648,7 +7648,7 @@ describe("native governed waits", () => {
   });
 
   it("consumes an exact replay observation once without leaking stale state", async () => {
-    const waitResult = nativeGovernedWaitResult({
+    const waitResult = nativeControlledWaitResult({
       interaction: {
         id: "interaction-replayed",
         title: "Approve the replayed operation",
@@ -7660,7 +7660,7 @@ describe("native governed waits", () => {
         criteria: [{ id: "objective", requirement: "Complete it" }],
       },
     });
-    const observation = createGovernedWaitEventObservation(
+    const observation = createControlledWaitEventObservation(
       async () => waitResult,
     );
     const replayedEvent: PrpEvent = {
@@ -7680,10 +7680,10 @@ describe("native governed waits", () => {
     };
 
     // The durable fallback preserves the question after provider loss, but
-    // cannot turn that lost execution into a successful governed wait.
+    // cannot turn that lost execution into a successful controlled wait.
     const providerLost = { ...replayedEvent, eventType: "runtime_request.expired" as const,
       payload: { reason: "provider_process_lost", replayAllowed: false } };
-    const lostObservation = createGovernedWaitEventObservation(async () => waitResult);
+    const lostObservation = createControlledWaitEventObservation(async () => waitResult);
     await lostObservation.observe(providerLost, true);
     expect(lostObservation.consume(providerLost)).toBeNull();
     await lostObservation.observe(replayedEvent, true);
@@ -7727,7 +7727,7 @@ describe("native governed waits", () => {
     expect(observation.consume(replayedEvent)).toBeNull();
 
     let resolveLookup!: (value: typeof waitResult) => void;
-    const delayedObservation = createGovernedWaitEventObservation(
+    const delayedObservation = createControlledWaitEventObservation(
       () =>
         new Promise<typeof waitResult>((resolve) => {
           resolveLookup = resolve;
@@ -7748,7 +7748,7 @@ type LeaseCoordinator = {
   recoveryState?: string;
   recoveryHistory?: Array<Record<string, unknown>>;
   runId: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   phase: string;
   attempt: number;
@@ -7768,7 +7768,7 @@ function leaseDb(
 ): Db {
   const coordinator: LeaseCoordinator = {
     runId: boundExecution.binding.runId,
-    companyId: boundExecution.binding.companyId,
+    spaceId: boundExecution.binding.spaceId,
     issueId: boundExecution.binding.issueId,
     phase: "observed",
     attempt: 0,
@@ -7804,7 +7804,7 @@ function leaseDb(
                 {
                   id: boundExecution.binding.runId,
                   agentId: boundExecution.binding.agentId,
-                  companyId: boundExecution.binding.companyId,
+                  spaceId: boundExecution.binding.spaceId,
                   nativeIssueId: boundExecution.binding.issueId,
                   nativeSessionId: boundExecution.session.normalizedSessionId ?? `session-${boundExecution.binding.runId}`,
                   runnerInstanceId: "runner",
@@ -7820,7 +7820,7 @@ function leaseDb(
               ? [
                   {
                     id: boundExecution.binding.issueId,
-                    companyId: boundExecution.binding.companyId,
+                    spaceId: boundExecution.binding.spaceId,
                     assigneeAgentId: boundExecution.binding.agentId,
                     status: "in_progress",
                     executionRunId: boundExecution.binding.runId,
@@ -7876,7 +7876,7 @@ function cancellationDb(options?: {
     decisionId?: string | null;
     phase?: string;
     failureCode?: string | null;
-    companyId?: string;
+    spaceId?: string;
     issueId?: string;
     resultId?: string | null;
     failureDetail?: Record<string, unknown> | null;
@@ -7889,7 +7889,7 @@ function cancellationDb(options?: {
   const initialRun = {
     id: options?.runId ?? execution.binding.runId,
     agentId: execution.binding.agentId,
-    companyId: execution.binding.companyId,
+    spaceId: execution.binding.spaceId,
     nativeIssueId: execution.binding.issueId,
     runtimeMode: "native",
     status: options?.status ?? "running",
@@ -8028,7 +8028,7 @@ describe("native startup cancellation fence", () => {
       lost = () => Promise.resolve(input.onLost());
       return originalRenewal(input);
     });
-    const running = executePaperclipNativeSession({ db: leaseDb(current), execution: current, useRunnerd: true,
+    const running = executeOutpostNativeSession({ db: leaseDb(current), execution: current, useRunnerd: true,
       runnerInstanceId: "source-caller-runner", runnerRemoteBinaryPath: daemonPath, runnerRemoteProviderPackPath: root,
       runnerEnvironment: { ...configuredEnvironmentProjection({}), OUTPOST_NATIVE_MCP_NAME: "source-caller", OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1/mcp/gateways/source-caller", OUTPOST_NATIVE_MCP_TOKEN: "owned-fixture" },
       runnerIngressAuthorized: true, runnerExecutionTarget: { kind: "remote", transport: "sandbox", remoteCwd: "/workspace", environmentId: "environment", leaseId: "lease", providerKey: "daytona",
@@ -8066,7 +8066,7 @@ describe("native startup cancellation fence", () => {
         await options.onSession(replacement);
         return { ...result, turnId: "third" };
       });
-    await executePaperclipNativeSession({ db: leaseDb(first), execution: first, runnerInstanceId: `reuse-log-${mode}` });
+    await executeOutpostNativeSession({ db: leaseDb(first), execution: first, runnerInstanceId: `reuse-log-${mode}` });
     const originalRenewal = nativeLeaseRenewal.startNativeSessionExecutionLeaseRenewal;
     const renewal = vi.spyOn(nativeLeaseRenewal, "startNativeSessionExecutionLeaseRenewal").mockImplementationOnce(input => ({
       ...originalRenewal(input), remainingMs: () => mode === "deadline" ? 250 : 60_000,
@@ -8076,7 +8076,7 @@ describe("native startup cancellation fence", () => {
     const written = new Promise<void>(resolve => { release = resolve; });
     const db = leaseDb(second);
     try {
-      const startup = executePaperclipNativeSession({ db, execution: second, runnerInstanceId: `reuse-log-${mode}`,
+      const startup = executeOutpostNativeSession({ db, execution: second, runnerInstanceId: `reuse-log-${mode}`,
         onEvent: async event => {
           if (event.eventType === "run.startup.reuse" && event.payload?.layer === "runner") { entered(); await written; }
         } });
@@ -8087,7 +8087,7 @@ describe("native startup cancellation fence", () => {
       await stopping;
       expect(close).toHaveBeenCalledOnce();
       release();
-      await executePaperclipNativeSession({ db: leaseDb(third), execution: third, runnerInstanceId: `reuse-log-${mode}` });
+      await executeOutpostNativeSession({ db: leaseDb(third), execution: third, runnerInstanceId: `reuse-log-${mode}` });
       expect(state.execute).toHaveBeenCalledTimes(2);
     } finally { release(); renewal.mockRestore(); await closeIdleWarmNativeSessionsForRestart(); }
   });
@@ -8118,13 +8118,13 @@ describe("native startup cancellation fence", () => {
       finally { await options.onSession(null); }
       throw new Error("unexpected provider dispatch");
     });
-    await executePaperclipNativeSession({ db: leaseDb(first), execution: first, runnerInstanceId: "local-context" });
+    await executeOutpostNativeSession({ db: leaseDb(first), execution: first, runnerInstanceId: "local-context" });
     const createRenewal = nativeLeaseRenewal.startNativeSessionExecutionLeaseRenewal;
     const renewal = vi.spyOn(nativeLeaseRenewal, "startNativeSessionExecutionLeaseRenewal").mockImplementation(input => ({
       ...createRenewal(input), remainingMs: () => 1_000.75,
     }));
     onTestFinished(() => renewal.mockRestore());
-    await expect(executePaperclipNativeSession({ db: leaseDb(second, {}, stopped), execution: second, runnerInstanceId: "local-context" }))
+    await expect(executeOutpostNativeSession({ db: leaseDb(second, {}, stopped), execution: second, runnerInstanceId: "local-context" }))
       .rejects.toThrow("native_cancellation_pending_recovery");
     expect(cancel).toHaveBeenCalledOnce();
     expect(submit).not.toHaveBeenCalled();
@@ -8142,7 +8142,7 @@ describe("native startup cancellation fence", () => {
         reason: "Operator requested Stop", recordedAt: new Date().toISOString() },
       executionCancellation: { state: "requested", requestedAt: new Date().toISOString() } } : {}),
       nativeCancellation: { schema: "outpost.native-cancellation.v1", scope: "run",
-      companyId: execution.binding.companyId, runId: execution.binding.runId, issueId: execution.binding.issueId,
+      spaceId: execution.binding.spaceId, runId: execution.binding.runId, issueId: execution.binding.issueId,
       dispatchState: "pending", dispatched: false, intentId: `native-cancellation:${randomUUID()}`,
       intentAuditId: randomUUID(), reasonCode: "cancellation_run_only", effects: ["release_run_resources"] } };
     const cancel = vi.fn(() => ({ cleanup: Promise.resolve() })), submit = vi.fn();
@@ -8155,7 +8155,7 @@ describe("native startup cancellation fence", () => {
       controllerPid: controller.pid, controllerGeneration: 2, attempt: 1,
       leaseExpiresAt: new Date(Date.now() + 60_000), recoveryState: "awaiting_runner_reattach",
       recoveryHistory: [{ disposition: "reattach_remote_runner", controllerGeneration: 2, providerAttempt: 1 }] }, resultJson);
-    await expect(executePaperclipNativeSession({ db, execution, runnerInstanceId: "recovered-stop",
+    await expect(executeOutpostNativeSession({ db, execution, runnerInstanceId: "recovered-stop",
       leaseOwner: "stop-recovery", restartRecovery: { kind: "reattach_remote_runner", runId: execution.binding.runId,
         leaseOwner: "stop-recovery", controllerGeneration: mode === "current" ? 2 : 1, providerAttempt: 1,
         restartKind: "graceful", recoveryRequestId: null, remote: { providerLeaseId: "fixture", remoteCwd: "/workspace" } },
@@ -8186,14 +8186,14 @@ describe("native startup cancellation fence", () => {
     const db = leaseDb(execution, {}, resultJson), released = vi.fn();
     const unsubscribe = onRetainedNativeSessionCleanupRelease(db, released);
     try {
-      await expect(executePaperclipNativeSession({
+      await expect(executeOutpostNativeSession({
         db, execution, runnerInstanceId: "startup-stop",
       })).rejects.toThrow("native_cancellation_pending_recovery");
       expect(cancel).toHaveBeenCalledOnce();
       expect(submit).not.toHaveBeenCalled();
       expect(released).toHaveBeenCalledWith(
-        { companyId: execution.binding.companyId, agentId: execution.binding.agentId },
-        { companyId: execution.binding.companyId, runId: execution.binding.runId, issueId: execution.binding.issueId },
+        { spaceId: execution.binding.spaceId, agentId: execution.binding.agentId },
+        { spaceId: execution.binding.spaceId, runId: execution.binding.runId, issueId: execution.binding.issueId },
       );
     } finally { unsubscribe(); }
   });
@@ -8225,7 +8225,7 @@ describe("native startup restart detachment", () => {
       throw new NativeControllerDetachedForRestartError();
     });
     try {
-      const admission = executePaperclipNativeSession({ db, execution: current, runnerInstanceId: "runner",
+      const admission = executeOutpostNativeSession({ db, execution: current, runnerInstanceId: "runner",
         leaseOwner: "recovered-controller", ...(mode === "ordinary" ? {} : { restartRecovery: {
           kind: "bootstrap_incomplete" as const, runId: current.binding.runId, leaseOwner: "recovered-controller",
           controllerGeneration: mode === "stale-claim" ? 1 : 2, providerAttempt: 1,
@@ -8265,7 +8265,7 @@ describe("native startup restart detachment", () => {
         throw new Error("startup fixture released");
       });
     }
-    const outcomes = inputs.map(input => executePaperclipNativeSession({
+    const outcomes = inputs.map(input => executeOutpostNativeSession({
       db: leaseDb(input), execution: input, runnerInstanceId: "runner",
     }).catch(error => error));
     await Promise.all(ready);
@@ -8332,7 +8332,7 @@ describe("native startup restart detachment", () => {
         await options.onSession(null);
       }
     });
-    const outcome = executePaperclipNativeSession({ db, execution: restarting, runnerInstanceId: "runner" }).catch(error => error);
+    const outcome = executeOutpostNativeSession({ db, execution: restarting, runnerInstanceId: "runner" }).catch(error => error);
     const completed = vi.fn();
     let stopping: Promise<boolean> | undefined;
     let shutdown: Promise<unknown> | undefined;
@@ -8410,18 +8410,18 @@ describe("native startup restart detachment", () => {
         await options.onSession(null);
         throw new Error("healthy controller detached");
       });
-    const stoppedOutcome = executePaperclipNativeSession({ db: leaseDb(stoppingExecution), execution: stoppingExecution, runnerInstanceId: "runner" }).catch(error => error);
+    const stoppedOutcome = executeOutpostNativeSession({ db: leaseDb(stoppingExecution), execution: stoppingExecution, runnerInstanceId: "runner" }).catch(error => error);
     await openingStarted;
     const stopping = mode === "startup" ? cancelNativeSession(stoppingExecution.binding.runId, "Stop while opening") : null;
     open();
     await stopPublished;
     await stopping;
-    const healthyOutcome = executePaperclipNativeSession({ db: leaseDb(healthyExecution), execution: healthyExecution, runnerInstanceId: "runner" }).catch(error => error);
+    const healthyOutcome = executeOutpostNativeSession({ db: leaseDb(healthyExecution), execution: healthyExecution, runnerInstanceId: "runner" }).catch(error => error);
     await healthyPublished;
     if (mode === "active") await cancelNativeSession(stoppingExecution.binding.runId, "operator Stop after active admission");
     const snapshotRows = [stoppingExecution, healthyExecution].map(item => ({
       adapterType: "outpost_runner", adapterConfig: {},
-      run: { id: item.binding.runId, companyId: item.binding.companyId, agentId: item.binding.agentId,
+      run: { id: item.binding.runId, spaceId: item.binding.spaceId, agentId: item.binding.agentId,
         runtimeMode: "native", nativeSessionId: item.session.normalizedSessionId, status: "running", contextSnapshot: {} },
     }));
     const snapshotDb = { select: () => ({ from: () => ({ innerJoin: () => ({ where: async () => snapshotRows }) }) }) } as unknown as Db;
@@ -8489,7 +8489,7 @@ describe("native startup restart detachment", () => {
     state.execute.mockReset().mockImplementationOnce(async options => {
       try { return await executeNativeSession({ ...options, onSessionAdmission: undefined }); } catch (error) { runtimeError = error; throw error; }
     });
-    const outcome = executePaperclipNativeSession({ db: leaseDb(restarting), execution: restarting,
+    const outcome = executeOutpostNativeSession({ db: leaseDb(restarting), execution: restarting,
       runnerInstanceId: "runner", backend: backend as never }).catch(error => error);
     await Promise.race([pending, outcome.then(error => { throw runtimeError ?? error; })]);
     const stopping = stopped ? cancelNativeSession(restarting.binding.runId, "operator Stop during startup") : null;
@@ -8541,7 +8541,7 @@ describe("native startup restart detachment", () => {
       try { await options.onSession({ detachControllerForRestart: detach, cancel }); }
       finally { cleaning(); await cleanup; }
     });
-    const outcome = executePaperclipNativeSession({ db: leaseDb(restarting), execution: restarting, runnerInstanceId: "runner" }).catch(error => error);
+    const outcome = executeOutpostNativeSession({ db: leaseDb(restarting), execution: restarting, runnerInstanceId: "runner" }).catch(error => error);
     await pending;
     const stopping = cancelNativeSession(restarting.binding.runId, "operator Stop before restart");
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -8557,22 +8557,22 @@ describe("native startup restart detachment", () => {
     } finally { vi.useRealTimers(); open(); releaseCleanup(); await stopping; await outcome; await shutdown; }
   });
 
-  it("waits for a checkpointed governed settlement before relinquishing its controller", async () => {
+  it("waits for a checkpointed controlled settlement before relinquishing its controller", async () => {
     const restarting = structuredClone(execution);
-    restarting.binding.runId = "restart-governed-settlement";
+    restarting.binding.runId = "restart-controlled-settlement";
     let release!: () => void, announce!: () => void;
     const accounting = new Promise<void>(resolve => { release = resolve; });
     const checkpointed = new Promise<void>(resolve => { announce = resolve; });
     const detach = vi.fn(async () => undefined);
     state.execute.mockReset().mockImplementationOnce(async options => {
       await options.onSession({ detachControllerForRestart: detach });
-      await options.onCheckpoint({ governedWait: { sourceEvent: { turnId: "settling-turn" } } });
+      await options.onCheckpoint({ controlledWait: { sourceEvent: { turnId: "settling-turn" } } });
       announce();
       await accounting;
       await options.onSession(null);
       throw new Error("settlement test complete");
     });
-    const outcome = executePaperclipNativeSession({ db: leaseDb(restarting), execution: restarting, runnerInstanceId: "runner" }).catch(error => error);
+    const outcome = executeOutpostNativeSession({ db: leaseDb(restarting), execution: restarting, runnerInstanceId: "runner" }).catch(error => error);
     await checkpointed;
     const detached = detachNativeSessionsForRestart([restarting.binding.runId]);
     try {
@@ -8584,9 +8584,9 @@ describe("native startup restart detachment", () => {
       expect(detach).not.toHaveBeenCalled();
     } finally { release(); await outcome; await detached; }
   });
-  it("bounds governed settlement without allowing the detached controller to publish success", async () => {
+  it("bounds controlled settlement without allowing the detached controller to publish success", async () => {
     const restarting = structuredClone(execution);
-    restarting.binding.runId = "restart-governed-settlement-timeout";
+    restarting.binding.runId = "restart-controlled-settlement-timeout";
     let release!: () => void, announce!: () => void;
     const accounting = new Promise<void>(resolve => { release = resolve; });
     const checkpointed = new Promise<void>(resolve => { announce = resolve; });
@@ -8594,12 +8594,12 @@ describe("native startup restart detachment", () => {
     const onUsage = vi.fn(async () => undefined);
     state.execute.mockReset().mockImplementationOnce(async options => {
       await options.onSession({ detachControllerForRestart: detach });
-      await options.onCheckpoint({ governedWait: { sourceEvent: { turnId: "settling-turn" } } });
+      await options.onCheckpoint({ controlledWait: { sourceEvent: { turnId: "settling-turn" } } });
       announce(); await accounting;
       await options.onSession(null);
       return { result: {}, terminal: { runTerminalState: "succeeded" }, usage: null };
     });
-    const outcome = executePaperclipNativeSession({ db: leaseDb(restarting), execution: restarting, runnerInstanceId: "runner", onUsage }).catch(error => error);
+    const outcome = executeOutpostNativeSession({ db: leaseDb(restarting), execution: restarting, runnerInstanceId: "runner", onUsage }).catch(error => error);
     await checkpointed;
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     const detaching = detachNativeSessionsForRestart([restarting.binding.runId]);
@@ -8633,7 +8633,7 @@ describe("native startup restart detachment", () => {
       await options.onSession(null);
       throw new Error("detachment closed the old event stream");
     });
-    const running = executePaperclipNativeSession({ db: leaseDb(restarting), execution: restarting, runnerInstanceId: "runner", useRunnerd: true });
+    const running = executeOutpostNativeSession({ db: leaseDb(restarting), execution: restarting, runnerInstanceId: "runner", useRunnerd: true });
     const outcome = running.catch(error => error);
     let detaching: Promise<unknown> | undefined;
     try {
@@ -8658,7 +8658,7 @@ describe("native startup restart detachment", () => {
     }
   });
 
-  it("rejects a governed completion returned successfully by an already detached controller", async () => {
+  it("rejects a controlled completion returned successfully by an already detached controller", async () => {
     const restarting = structuredClone(execution);
     restarting.binding.runId = "restart-successful-old-consumer";
     const detach = vi.fn(async () => undefined);
@@ -8670,7 +8670,7 @@ describe("native startup restart detachment", () => {
       return { result: {},
         terminal: { runTerminalState: "succeeded" }, usage: null };
     });
-    await expect(executePaperclipNativeSession({ db: leaseDb(restarting), execution: restarting,
+    await expect(executeOutpostNativeSession({ db: leaseDb(restarting), execution: restarting,
       runnerInstanceId: "runner", onUsage })).rejects.toBeInstanceOf(NativeControllerDetachedForRestartError);
     expect(detach).toHaveBeenCalledOnce();
     expect(onUsage).not.toHaveBeenCalled();
@@ -8691,7 +8691,7 @@ describe("native startup restart detachment", () => {
       await opening;
       throw new Error("bootstrap failed before session publication");
     });
-    const outcome = executePaperclipNativeSession({ db: leaseDb(restarting), execution: restarting, runnerInstanceId: "runner", useRunnerd: true }).catch(error => error);
+    const outcome = executeOutpostNativeSession({ db: leaseDb(restarting), execution: restarting, runnerInstanceId: "runner", useRunnerd: true }).catch(error => error);
     try {
       await admitted;
       if (exceedDeadline) vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -8719,7 +8719,7 @@ describe("native startup restart detachment", () => {
     restarting.binding.runId = "restart-new-startup-after-drain";
     await expect(detachNativeSessionsForRestart([restarting.binding.runId])).resolves.toMatchObject({ inactiveRunIds: [restarting.binding.runId] });
     state.execute.mockReset();
-    await expect(executePaperclipNativeSession({ db: leaseDb(restarting), execution: restarting, runnerInstanceId: "runner" })).rejects.toBeInstanceOf(NativeControllerDetachedForRestartError);
+    await expect(executeOutpostNativeSession({ db: leaseDb(restarting), execution: restarting, runnerInstanceId: "runner" })).rejects.toBeInstanceOf(NativeControllerDetachedForRestartError);
     expect(state.execute).not.toHaveBeenCalled();
   });
 });
@@ -8742,7 +8742,7 @@ describe("native terminal-turn accounting", () => {
         driverKind: "cursor_cloud_api", driverVersion: "cursor-cloud-v1", nativeEventCount: 1,
         highestContiguousSourceSeq: 1, usage: { runDelta: zero, runDeltaComplete: true } };
     });
-    const result = await executePaperclipNativeSession({ db: leaseDb(current), execution: current,
+    const result = await executeOutpostNativeSession({ db: leaseDb(current), execution: current,
       runnerInstanceId: "cloud-accounting-controller", onUsage });
     expect(result).toMatchObject({ usageComplete: true, costUsd: null, costStatus: "unpriced", provider: "cursor", biller: "cursor",
       billingType: "unknown", resultJson: { providerAccounting: { usage: null, cost: null, externallyBilled: true } } });
@@ -8768,7 +8768,7 @@ describe("native terminal-turn accounting", () => {
         normalizedSessionId: current.session.normalizedSessionId, providerSessionId: "cloud-agent", driverKind: "cursor_cloud_api",
         driverVersion: "cursor-cloud-v1", nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
     });
-    const result = await executePaperclipNativeSession({ db: leaseDb(current, {}, {}, [], {}, "running", proof === "recovered" ? [terminal] : []),
+    const result = await executeOutpostNativeSession({ db: leaseDb(current, {}, {}, [], {}, "running", proof === "recovered" ? [terminal] : []),
       execution: current, runnerInstanceId: `cloud-terminal-${proof}`, onUsage });
     expect(result.usageComplete).toBe(proof === "recovered");
     expect(onUsage).toHaveBeenLastCalledWith(expect.objectContaining({ complete: proof === "recovered", costStatus: "unpriced", costUsd: null }));
@@ -8789,25 +8789,25 @@ describe("native terminal-turn accounting", () => {
     try {
       let scenarioIndex = 0;
       for (const scenario of ["complete-allow", "complete-block", "question-allow", "question-block", "missing", "foreign-turn", "unproven", "capture-failed", "replaced"]) {
-        const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), issueId = randomUUID(), contractId = randomUUID();
+        const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), issueId = randomUUID(), contractId = randomUUID();
         const policy = scenario.endsWith("block") ? "block" : "allow";
         const proven = !["missing", "foreign-turn", "unproven"].includes(scenario);
         const ready = proven && !["capture-failed", "replaced"].includes(scenario);
-        await db.insert(tables.companies).values({ id: companyId, name: "Cursor accounting", issuePrefix: `CA${String.fromCharCode(65 + scenarioIndex++)}` });
-        await db.insert(tables.agents).values({ id: agentId, companyId, name: "Cloud", adapterType: "outpost_runner", status: "active" });
-        await db.insert(tables.issues).values({ id: issueId, companyId, title: "Cloud accounting", status: "in_progress", assigneeAgentId: agentId });
-        await db.insert(tables.completionContracts).values({ id: contractId, companyId, issueId, revision: 1, schemaVersion: "outpost.completion-contract.v1",
+        await db.insert(tables.spaces).values({ id: spaceId, name: "Cursor accounting", issuePrefix: `CA${String.fromCharCode(65 + scenarioIndex++)}` });
+        await db.insert(tables.agents).values({ id: agentId, spaceId, name: "Cloud", adapterType: "outpost_runner", status: "active" });
+        await db.insert(tables.issues).values({ id: issueId, spaceId, title: "Cloud accounting", status: "in_progress", assigneeAgentId: agentId });
+        await db.insert(tables.completionContracts).values({ id: contractId, spaceId, issueId, revision: 1, schemaVersion: "outpost.completion-contract.v1",
           policyVersion: "v1", risk: "low", completionAuthority: "agent", incompleteCriteriaPolicy: "block", contractJson: {},
           canonicalSha256: "a".repeat(64), createdByActorType: "user", createdByActorId: "fixture" });
-        await db.insert(tables.heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId,
+        await db.insert(tables.heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId,
           completionContractId: contractId, status: "running", runtimeMode: "native", costAccountingPending: true,
           usageJson: scenario === "capture-failed" ? { accountingCaptureFailed: true } : {} });
-        await db.insert(tables.budgetPolicies).values(["company", "agent"].map(scopeType => ({ companyId,
-          scopeType, scopeId: scopeType === "company" ? companyId : agentId, metric: "billed_cents", windowKind: "calendar_month_utc",
+        await db.insert(tables.budgetPolicies).values(["space", "agent"].map(scopeType => ({ spaceId,
+          scopeType, scopeId: scopeType === "space" ? spaceId : agentId, metric: "billed_cents", windowKind: "calendar_month_utc",
           amount: 1000, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: policy })));
-        const recorder = await createRunUsageRecorder(db, { companyId, runId, adapterType: "outpost_runner" }, join(directory, runId));
-        if (scenario === "replaced") await createRunUsageRecorder(db, { companyId, runId, adapterType: "outpost_runner" }, join(directory, `${runId}-replacement`));
-        const current = { ...execution, binding: { ...execution.binding, companyId, agentId, runId, issueId },
+        const recorder = await createRunUsageRecorder(db, { spaceId, runId, adapterType: "outpost_runner" }, join(directory, runId));
+        if (scenario === "replaced") await createRunUsageRecorder(db, { spaceId, runId, adapterType: "outpost_runner" }, join(directory, `${runId}-replacement`));
+        const current = { ...execution, binding: { ...execution.binding, spaceId, agentId, runId, issueId },
           provider: { kind: "cursor_cloud", model: "explicit-cloud-model", cursorCloud: {
             schema: "outpost.cursor-cloud.config.v1", repos: [{ url: "https://github.com/acme/fixture" }],
           } } } as NativeExecutionInput;
@@ -8824,30 +8824,30 @@ describe("native terminal-turn accounting", () => {
             nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
         });
         const checkpoints: AdapterUsageCheckpoint[] = [];
-        const result = await executePaperclipNativeSession({ db: leaseDb(current), execution: current,
+        const result = await executeOutpostNativeSession({ db: leaseDb(current), execution: current,
           runnerInstanceId: `cloud-${scenario}`, onUsage: async checkpoint => { checkpoints.push(checkpoint); await recorder.capture(checkpoint); } });
         await recorder.complete(result);
         expect(result.usageComplete, scenario).toBe(proven);
         expect(checkpoints.every(checkpoint => checkpoint.usage === undefined && checkpoint.costUsd === null && checkpoint.costStatus === "unpriced"), scenario).toBe(true);
         const [before] = await db.select().from(tables.heartbeatRuns).where(eq(tables.heartbeatRuns.id, runId));
         expect(before.usageJson?.accountingReceiptReady, scenario).toBe(ready);
-        const [nativeResult] = await db.insert(tables.nativeRunResults).values({ companyId, issueId, runId, completionContractId: contractId,
+        const [nativeResult] = await db.insert(tables.nativeRunResults).values({ spaceId, issueId, runId, completionContractId: contractId,
           serverFingerprint: scenario, schemaStatus: "accepted", resultJson: {}, canonicalSha256: "b".repeat(64) }).returning();
-        await db.insert(tables.nativeRunFinalizations).values({ companyId, issueId, runId, phase: "committed", resultId: nativeResult.id });
+        await db.insert(tables.nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "committed", resultId: nativeResult.id });
         await db.update(tables.heartbeatRuns).set({ status: "succeeded", finishedAt: new Date(),
-          resultJson: scenario.startsWith("question") ? { runLiveness: { outcome: "governed_response_waiting" } } : {} }).where(eq(tables.heartbeatRuns.id, runId));
+          resultJson: scenario.startsWith("question") ? { runLiveness: { outcome: "controlled_response_waiting" } } : {} }).where(eq(tables.heartbeatRuns.id, runId));
         expect(await accountRunCost(db, runId, {}, new Map()), scenario).toBe(ready);
         const [settled] = await db.select().from(tables.heartbeatRuns).where(eq(tables.heartbeatRuns.id, runId));
         expect(settled.costAccountingPending, scenario).toBe(!ready);
         const ledger = await db.select().from(tables.costEvents).where(eq(tables.costEvents.heartbeatRunId, runId));
         expect(ledger, scenario).toHaveLength(ready ? 1 : 0);
         if (ready) expect(ledger[0], scenario).toMatchObject({ costStatus: "unpriced", billingType: "unknown" });
-        const block = await budgetService(db).getInvocationBlock(companyId, agentId);
+        const block = await budgetService(db).getInvocationBlock(spaceId, agentId);
         if (ready && policy === "allow") {
           expect(block, scenario).toBeNull();
           const nextRun = randomUUID();
-          await db.insert(tables.heartbeatRuns).values({ id: nextRun, companyId, agentId, status: "queued", runtimeMode: "native" });
-          await expect(reserveRunBudget(db, companyId, nextRun, null)).resolves.toMatchObject({ reused: false });
+          await db.insert(tables.heartbeatRuns).values({ id: nextRun, spaceId, agentId, status: "queued", runtimeMode: "native" });
+          await expect(reserveRunBudget(db, spaceId, nextRun, null)).resolves.toMatchObject({ reused: false });
         // Only a settled unpriced charge under a blocking policy refuses work.
         // Pending accounting is exposure, never a gate (invariant 3).
         } else if (ready) expect(block, scenario).not.toBeNull();
@@ -8867,7 +8867,7 @@ describe("native terminal-turn accounting", () => {
       await accountingEvents.committed!({ eventType: "turn.interrupted", turnId: "turn", payload: {} } as unknown as PrpEvent);
       return { result: { summary: "Waiting for approval" }, terminal: { runTerminalState: "succeeded" }, turnId: "turn", normalizedSessionId: "session", providerSessionId: null, driverKind: "acpx_runtime", driverVersion: "1", nativeEventCount: 2, highestContiguousSourceSeq: 2, usage: null };
     });
-    await executePaperclipNativeSession({ db: leaseDb(), execution: { ...execution, provider: { kind: "acpx", agent: "claude", model: "claude-sonnet-5" } } as NativeExecutionInput, runnerInstanceId: "runner", runnerEnvironment: { ANTHROPIC_API_KEY: "fixture" }, onUsage });
+    await executeOutpostNativeSession({ db: leaseDb(), execution: { ...execution, provider: { kind: "acpx", agent: "claude", model: "claude-sonnet-5" } } as NativeExecutionInput, runnerInstanceId: "runner", runnerEnvironment: { ANTHROPIC_API_KEY: "fixture" }, onUsage });
     const receipt = onUsage.mock.calls.at(-1)![0];
     const priced = priceAnthropicReceipt(receipt);
     if (complete) expect(priced).toMatchObject({ complete: true, costStatus: "estimated", costUsdExact: "0.000150000" });
@@ -8896,7 +8896,7 @@ describe("native terminal-turn accounting", () => {
         normalizedSessionId: "session", providerSessionId: null, driverKind: "acpx_runtime", driverVersion: "1",
         nativeEventCount: 6, highestContiguousSourceSeq: 6, usage: null };
     });
-    const result = await executePaperclipNativeSession({ db: leaseDb(execution, {}, {}, [], {}, "running", restart ? first : []),
+    const result = await executeOutpostNativeSession({ db: leaseDb(execution, {}, {}, [], {}, "running", restart ? first : []),
       execution: { ...execution, provider: { kind: "acpx", agent, model: agent === "codex" ? "gpt-6-astra" : "claude-sonnet-4-6" } } as NativeExecutionInput,
       runnerInstanceId: "runner", runnerEnvironment: { OPENAI_API_KEY: "fixture" }, onUsage });
     expect(result).toMatchObject({ usageComplete: !partialFirst,
@@ -8935,7 +8935,7 @@ describe("native terminal-turn accounting", () => {
         normalizedSessionId: "session", providerSessionId: null, driverKind: "acpx_runtime", driverVersion: "1",
         nativeEventCount: 5, highestContiguousSourceSeq: 124, usage: null };
     });
-    const result = await executePaperclipNativeSession({ db: leaseDb(execution, {}, {}, [], {}, "running", replay ? before : []),
+    const result = await executeOutpostNativeSession({ db: leaseDb(execution, {}, {}, [], {}, "running", replay ? before : []),
       execution: { ...execution, provider: { kind: "acpx", agent: "claude", model: "claude-sonnet-5" } } as NativeExecutionInput,
       runnerInstanceId: "runner", runnerEnvironment: { ANTHROPIC_API_KEY: "fixture" }, onUsage });
     expect(result).toMatchObject({ usageComplete: true });
@@ -8969,7 +8969,7 @@ describe("native terminal-turn accounting", () => {
         normalizedSessionId: "session", providerSessionId: null, driverKind: "acpx_runtime", driverVersion: "1", nativeEventCount: 2, highestContiguousSourceSeq: 2,
         usage: { runDelta: full, runDeltaComplete: true } };
     });
-    const result = await executePaperclipNativeSession({ db: leaseDb(), execution: { ...execution,
+    const result = await executeOutpostNativeSession({ db: leaseDb(), execution: { ...execution,
       provider: { kind: "acpx", agent, model: agent === "codex" ? "gpt-6-astra" : "claude-sonnet-4-6" } } as NativeExecutionInput,
       runnerInstanceId: "runner", onUsage });
     expect(result).toMatchObject({ usageComplete: complete });
@@ -8991,7 +8991,7 @@ describe("native terminal-turn accounting", () => {
       return { result: { summary: "interrupted" }, terminal: { runTerminalState: "cancelled" }, turnId: "turn",
         normalizedSessionId: "session", providerSessionId: null, driverKind: "test", driverVersion: "1", nativeEventCount: 2, highestContiguousSourceSeq: 2, usage: { total } };
     });
-    const result = await executePaperclipNativeSession({ db: leaseDb(), execution: { ...execution, provider: { kind: "aws_agentcore", model: "managed-model", agentCoreProfile: { profileId: "agentcore-test" } } } as unknown as NativeExecutionInput, runnerInstanceId: "runner", onUsage });
+    const result = await executeOutpostNativeSession({ db: leaseDb(), execution: { ...execution, provider: { kind: "aws_agentcore", model: "managed-model", agentCoreProfile: { profileId: "agentcore-test" } } } as unknown as NativeExecutionInput, runnerInstanceId: "runner", onUsage });
     expect(result).toMatchObject({ usageComplete: false, costStatus: "unpriced", billingType: "metered_api" });
   });
 
@@ -9012,7 +9012,7 @@ describe("native terminal-turn accounting", () => {
       return { result: { summary: "cancelled" }, terminal: { runTerminalState: "cancelled" },
         turnId: "turn", normalizedSessionId: "session", providerSessionId: null, driverKind: "test", driverVersion: "1", nativeEventCount: 2, highestContiguousSourceSeq: 2, usage: { total } };
     });
-    const result = await executePaperclipNativeSession({ db: leaseDb(), execution: { ...execution, provider: { kind, model: "managed-model", managedProfile: { profileId: "managed-test" }, agentCoreProfile: { profileId: "agentcore-test" } } } as unknown as NativeExecutionInput, runnerInstanceId: "runner", onUsage });
+    const result = await executeOutpostNativeSession({ db: leaseDb(), execution: { ...execution, provider: { kind, model: "managed-model", managedProfile: { profileId: "managed-test" }, agentCoreProfile: { profileId: "agentcore-test" } } } as unknown as NativeExecutionInput, runnerInstanceId: "runner", onUsage });
     expect(result).toMatchObject({ usageComplete: true, costUsd: 0.25, billingType: "metered_api", costStatus: kind === "aws_agentcore" ? "estimated" : undefined });
   });
 
@@ -9037,7 +9037,7 @@ describe("native terminal-turn accounting", () => {
         normalizedSessionId: "session", providerSessionId: null, driverKind: "test", driverVersion: "1", nativeEventCount: 6,
         highestContiguousSourceSeq: 6, usage: null };
     });
-    const result = await executePaperclipNativeSession({
+    const result = await executeOutpostNativeSession({
       db: leaseDb(execution, {}, {}, [], {}, "running", restart ? first : []),
       execution: { ...execution, provider: { kind: provider, model: provider === "opencode" ? "openai/test" : "gpt-6-astra" } } as NativeExecutionInput,
       runnerInstanceId: "runner", onUsage,
@@ -9073,7 +9073,7 @@ describe("native terminal-turn accounting", () => {
         normalizedSessionId: "session", providerSessionId: null, driverKind: "test", driverVersion: "1", nativeEventCount: seq,
         highestContiguousSourceSeq: seq, usage: null };
     });
-    const result = await executePaperclipNativeSession({ db: leaseDb(),
+    const result = await executeOutpostNativeSession({ db: leaseDb(),
       execution: { ...execution, provider: { kind: "opencode", model: "openai/test" } } as NativeExecutionInput,
       runnerInstanceId: "runner", onUsage });
     const complete = ["unknown_price", "late_update"].includes(scenario);
@@ -9095,7 +9095,7 @@ describe("native terminal-turn accounting", () => {
       expect(onUsage).toHaveBeenLastCalledWith(expect.objectContaining({ complete: true, costUsd: 0.25, usage: { inputTokens: 20, cachedInputTokens: 100, outputTokens: 10 } }));
       throw failure;
     });
-    await expect(executePaperclipNativeSession({ db: leaseDb(), execution: { ...execution, provider: { kind: "codex", model: "gpt-6-astra" } } as NativeExecutionInput, runnerInstanceId: "runner", onUsage })).rejects.toBe(failure);
+    await expect(executeOutpostNativeSession({ db: leaseDb(), execution: { ...execution, provider: { kind: "codex", model: "gpt-6-astra" } } as NativeExecutionInput, runnerInstanceId: "runner", onUsage })).rejects.toBe(failure);
     expect(onUsage).toHaveBeenLastCalledWith(expect.objectContaining({ complete: true }));
     expect(usageRecorder.create).not.toHaveBeenCalled();
   });
@@ -9239,9 +9239,9 @@ describe("native terminal-turn accounting", () => {
         turnId: "turn", normalizedSessionId: "session", providerSessionId: null, driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
     });
     const database = leaseDb(execution, {}, {}, updates);
-    await executePaperclipNativeSession({ db: database, execution, runnerInstanceId: "runner" });
+    await executeOutpostNativeSession({ db: database, execution, runnerInstanceId: "runner" });
     expect(usageRecorder.create).toHaveBeenCalledExactlyOnceWith(database, {
-      companyId: execution.binding.companyId, runId: execution.binding.runId, adapterType: "outpost_runner",
+      spaceId: execution.binding.spaceId, runId: execution.binding.runId, adapterType: "outpost_runner",
     });
     expect(usageRecorder.capture).toHaveBeenNthCalledWith(1, expect.objectContaining({
       complete: false, costStatus: "unpriced", costUsd: 0.25, usageBasis: "per_run",
@@ -9261,7 +9261,7 @@ describe("native terminal-turn accounting", () => {
       } as unknown as PrpEvent);
       throw new Error("Execution must not advance past failed accounting capture");
     });
-    await expect(executePaperclipNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner" })).rejects.toBe(failure);
+    await expect(executeOutpostNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner" })).rejects.toBe(failure);
     expect(usageRecorder.create).toHaveBeenCalledOnce();
     if (stage === "recorder_creation") expect(usageRecorder.capture).not.toHaveBeenCalled();
     else expect(usageRecorder.capture).toHaveBeenCalledOnce();
@@ -9284,7 +9284,7 @@ describe("native terminal-turn accounting", () => {
         usage: { runDelta: scenario === "stale_warm_zero" ? { inputTokens: 0, outputTokens: 0, providerCostUsd: 0 } : runDelta },
       };
     });
-    const result = await executePaperclipNativeSession({ db: leaseDb(), execution: { ...execution, provider: { kind: "codex", model: "gpt-6-astra" } } as NativeExecutionInput, runnerInstanceId: "runner", runnerEnvironment: { OPENAI_API_KEY: "fixture" }, onUsage });
+    const result = await executeOutpostNativeSession({ db: leaseDb(), execution: { ...execution, provider: { kind: "codex", model: "gpt-6-astra" } } as NativeExecutionInput, runnerInstanceId: "runner", runnerEnvironment: { OPENAI_API_KEY: "fixture" }, onUsage });
     const complete = ["fresh", "fresh_zero"].includes(scenario);
     expect(result.usageComplete).toBe(complete);
     expect(onUsage).toHaveBeenLastCalledWith(expect.objectContaining({ complete }));
@@ -9305,7 +9305,7 @@ describe("native terminal-turn accounting", () => {
       if (scenario !== "missing_terminal") await accountingEvents.committed!({ eventType: scenario.startsWith("turn.") ? scenario : "turn.failed", turnId: scenario === "different_turn" ? "another-turn" : "turn", emittedAt: new Date().toISOString(), payload: { status: "failed" } } as unknown as PrpEvent);
       throw failure;
     });
-    await expect(executePaperclipNativeSession({ db: leaseDb(), execution: { ...execution, provider: { kind: "codex", model: "gpt-6-astra" } } as NativeExecutionInput, runnerInstanceId: "runner", onUsage })).rejects.toBe(failure);
+    await expect(executeOutpostNativeSession({ db: leaseDb(), execution: { ...execution, provider: { kind: "codex", model: "gpt-6-astra" } } as NativeExecutionInput, runnerInstanceId: "runner", onUsage })).rejects.toBe(failure);
     if (scenario === "session_total") expect(onUsage).not.toHaveBeenCalled();
     else if (scenario === "empty_usage") expect(onUsage).toHaveBeenLastCalledWith(expect.objectContaining({ complete: false, usage: undefined, costUsd: null, costStatus: "unpriced" }));
     else {
@@ -9349,7 +9349,7 @@ describe("native resumed preparation timing", () => {
           driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1 };
       });
       try {
-        await executePaperclipNativeSession({
+        await executeOutpostNativeSession({
           db: leaseDb(), execution, runnerInstanceId: "runner",
           preparationSpans: ingress === "native_dispatch" ? [] : [{ name: ingress, startedAtMs, endedAtMs: startedAtMs + 100 }],
           onEvent: async (event) => { events.push(event); },
@@ -9387,7 +9387,7 @@ describe("native resumed preparation timing", () => {
         driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1 };
     });
     try {
-      await executePaperclipNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner",
+      await executeOutpostNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner",
         preparationSpans: [{ name: "heartbeat.queue", startedAtMs, endedAtMs: startedAtMs + 100 }],
         onEvent: async (event) => {
           events.push(event);
@@ -9425,7 +9425,7 @@ describe("native resumed preparation timing", () => {
         driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1 };
     });
     try {
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(), execution, runnerInstanceId: "runner",
         preparationSpans: [{ name: "heartbeat.queue", startedAtMs, endedAtMs: startedAtMs + 100 }],
         onEvent: async (event) => { events.push(event); },
@@ -9457,7 +9457,7 @@ describe("native resumed preparation timing", () => {
         turnId: "turn", normalizedSessionId: "session", providerSessionId: null,
         driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1 };
     });
-    await executePaperclipNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner",
+    await executeOutpostNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner",
       onEvent: async (event) => { events.push(event); } });
     const ttft = events.filter((event) => event.payload?.span === "task.time_to_first_token");
     expect(ttft).toHaveLength(1);
@@ -9473,7 +9473,7 @@ describe("native resumed preparation timing", () => {
     } as unknown as ReturnType<typeof issueServiceModule.issueService>);
     state.execute.mockReset().mockRejectedValueOnce(failure);
     try {
-      await expect(executePaperclipNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner",
+      await expect(executeOutpostNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner",
         onEvent: async (event) => { events.push(event); },
       })).rejects.toBe(failure);
     } finally { issueProjection.mockRestore(); }
@@ -9496,7 +9496,7 @@ describe("native resumed preparation timing", () => {
     });
     const clock = vi.spyOn(Date, "now").mockReturnValue(answeredAtMs + 100);
     try {
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(),
         execution,
         runnerInstanceId: "runner",
@@ -9555,7 +9555,7 @@ describe("native resumed preparation timing", () => {
       .spyOn(Date, "now")
       .mockReturnValue(attemptStartedAtMs + 50);
     try {
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(),
         execution,
         runnerInstanceId: "runner",
@@ -9648,7 +9648,7 @@ describe("native session cancellation", () => {
       };
     });
     const runResultJson: Record<string, unknown> = {};
-    const running = executePaperclipNativeSession({
+    const running = executeOutpostNativeSession({
       db: leaseDb(execution, {}, runResultJson), execution, runnerInstanceId: "runner", useRunnerd,
     });
     const outcome = running.catch(error => error);
@@ -9657,7 +9657,7 @@ describe("native session cancellation", () => {
     let acknowledged = false;
     try {
       await admitted;
-      await expect(executePaperclipNativeSession({
+      await expect(executeOutpostNativeSession({
         db: leaseDb(), execution, runnerInstanceId: "duplicate-runner", useRunnerd,
       })).rejects.toThrow("native_session_supervisor_busy");
       stopping = cancelNativeSession(execution.binding.runId, "operator Stop during startup", {
@@ -9703,7 +9703,7 @@ describe("native session cancellation", () => {
       submitTurn();
       throw new Error("a stopped startup must not reach prompt submission");
     });
-    const outcome = executePaperclipNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner", useRunnerd }).catch(error => error);
+    const outcome = executeOutpostNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner", useRunnerd }).catch(error => error);
     const persistence = cancellationDb();
     try {
       await admitted;
@@ -9743,7 +9743,7 @@ describe("native session cancellation", () => {
     });
     const runResultJson: Record<string, unknown> = {};
     const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
-    const outcome = executePaperclipNativeSession({ db: leaseDb(execution, {}, runResultJson, updates), execution, runnerInstanceId: "runner" })
+    const outcome = executeOutpostNativeSession({ db: leaseDb(execution, {}, runResultJson, updates), execution, runnerInstanceId: "runner" })
       .catch(error => error);
     const persistence = cancellationDb();
     try {
@@ -9790,7 +9790,7 @@ describe("native session cancellation", () => {
     });
     const runResultJson: Record<string, unknown> = {};
     const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
-    const outcome = executePaperclipNativeSession({ db: leaseDb(execution, {}, runResultJson, updates), execution, runnerInstanceId: "runner" })
+    const outcome = executeOutpostNativeSession({ db: leaseDb(execution, {}, runResultJson, updates), execution, runnerInstanceId: "runner" })
       .catch(error => error);
     const persistence = cancellationDb();
     try {
@@ -9826,7 +9826,7 @@ describe("native session cancellation", () => {
   });
 
   it("records no pre-turn proof for a Stop after the provider handle was published", async () => {
-    const running = executePaperclipNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner" });
+    const running = executeOutpostNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner" });
     await vi.waitFor(() => expect(state.release).toBeTypeOf("function"));
     const persistence = cancellationDb();
     try {
@@ -9856,7 +9856,7 @@ describe("native session cancellation", () => {
       submitTurn();
       throw new Error("a stopped startup must not reach prompt submission");
     });
-    const outcome = executePaperclipNativeSession({ db, execution: current, runnerInstanceId: "runner",
+    const outcome = executeOutpostNativeSession({ db, execution: current, runnerInstanceId: "runner",
       leaseOwner: "recovered-controller", restartRecovery: { kind: "bootstrap_incomplete" as const, runId: current.binding.runId,
         leaseOwner: "recovered-controller", controllerGeneration: 2, providerAttempt: 1, restartKind: "hard" as const,
         recoveryRequestId: null } }).catch(error => error);
@@ -9875,7 +9875,7 @@ describe("native session cancellation", () => {
   });
 
   it("routes control-plane cancellation to the active normalized session and removes the handle", async () => {
-    const running = executePaperclipNativeSession({
+    const running = executeOutpostNativeSession({
       db: leaseDb(),
       execution,
       runnerInstanceId: "runner",
@@ -9904,7 +9904,7 @@ describe("native session cancellation", () => {
   it("keeps duplicate Stop callers waiting for the same provider cleanup", async () => {
     let releaseCleanup!: () => void;
     state.cancel.mockReturnValue({ cleanup: new Promise<void>(resolve => { releaseCleanup = resolve; }) });
-    const running = executePaperclipNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner" });
+    const running = executeOutpostNativeSession({ db: leaseDb(), execution, runnerInstanceId: "runner" });
     await vi.waitFor(() => expect(state.release).toBeTypeOf("function"));
     const first = cancelNativeSession(execution.binding.runId, "operator Stop");
     await vi.waitFor(() => expect(state.cancel).toHaveBeenCalledOnce());
@@ -9923,7 +9923,7 @@ describe("native session cancellation", () => {
     state.cancel.mockImplementationOnce(() => {
       throw new Error("transport unavailable");
     });
-    const running = executePaperclipNativeSession({
+    const running = executeOutpostNativeSession({
       db: leaseDb(),
       execution,
       runnerInstanceId: "runner",
@@ -9949,7 +9949,7 @@ describe("native session cancellation", () => {
     state.cancel.mockImplementationOnce(() => ({
       cleanup: Promise.reject(new Error("provider cleanup failed")),
     }));
-    const running = executePaperclipNativeSession({
+    const running = executeOutpostNativeSession({
       db: leaseDb(),
       execution,
       runnerInstanceId: "runner",
@@ -9996,7 +9996,7 @@ describe("native session cancellation", () => {
     expect(state.persistActivity).toHaveBeenCalledWith(
       persistence.tx,
       expect.objectContaining({
-        companyId: execution.binding.companyId,
+        spaceId: execution.binding.spaceId,
         issueId: execution.binding.issueId,
         runId: execution.binding.runId,
       }),
@@ -10007,7 +10007,7 @@ describe("native session cancellation", () => {
   it.each(["terminal_failure", "observed", "committed"])("rejects retry phase %s that changed after caller reservation, before any native effect", async phase => {
     const id = "11111111-1111-4111-8111-111111111111";
     const persistence = cancellationDb({ status: "failed",
-      coordinator: { runId: execution.binding.runId, assessmentId: null, phase, failureCode: "board_recovery" },
+      coordinator: { runId: execution.binding.runId, assessmentId: null, phase, failureCode: "operator_recovery" },
       resultJson: { startupCancellation: { cancellationRequestId: id, retryCancellation: true } } });
     await expect(cancelNativeSession(execution.binding.runId, "operator Stop", { db: persistence.db,
       scope: "run", cancellationRequestId: id })).rejects.toMatchObject({ status: 409, message: "Native retry is no longer cancellable" });
@@ -10017,7 +10017,7 @@ describe("native session cancellation", () => {
   });
 
   it.each([
-    { companyId: "another-company" }, { runId: "another-run" }, { issueId: "another-issue" },
+    { spaceId: "another-space" }, { runId: "another-run" }, { issueId: "another-issue" },
     { scope: "issue" }, { effects: ["cancel_issue"] }, { intentAuditId: null },
   ])("does not fence a failed retry for a foreign or stale Stop receipt %j", async changed => {
     const intent = { schema: "outpost.native-cancellation.v1", intentId: "native-cancellation:earlier-stop",
@@ -10055,7 +10055,7 @@ describe("native session cancellation", () => {
       new SystemRecoveryFailure("source_binding_invalid", "user_action_required"));
     const persistence = cancellationDb({ status: "failed", runId,
       coordinator: { runId, assessmentId: null, phase: manualHold ? "terminal_failure" : "retryable_failure",
-        ...(manualHold ? { companyId: execution.binding.companyId, issueId: execution.binding.issueId, resultId: null,
+        ...(manualHold ? { spaceId: execution.binding.spaceId, issueId: execution.binding.issueId, resultId: null,
           failureCode: "native_restart_recovery_blocked", failureDetail: { systemRecovery: policy } } : {}) },
       resultJson: { startupCancellation: { cancellationRequestId: id, retryCancellation: true } } });
     const first = await cancelNativeSession(runId, "operator Stop", { db: persistence.db, scope: "run", cancellationRequestId: id });
@@ -10090,7 +10090,7 @@ describe("native session cancellation", () => {
     expect(persistence.getResultJsonUpdateCount()).toBe(0);
     expect(state.cancel).not.toHaveBeenCalled();
     expect(state.persistActivity).not.toHaveBeenCalled();
-    const stopped = { id: execution.binding.runId, companyId: execution.binding.companyId,
+    const stopped = { id: execution.binding.runId, spaceId: execution.binding.spaceId,
       nativeIssueId: execution.binding.issueId, status: "cancelled", processPid: null, processGroupId: null,
       resultJson: { ...persistence.getResultJson(), cancelledByActorType: "user", cancelledByUserId: "operator" } };
     const lease = { provider: "daytona", providerLeaseId: "unconfirmed-provider-resource", status: "active",
@@ -10130,7 +10130,7 @@ describe("native session cancellation", () => {
 
   it("recovers a post-dispatch persistence failure without cancelling the provider twice", async () => {
     const persistence = cancellationDb({ failResultJsonUpdateAt: 2 });
-    const running = executePaperclipNativeSession({
+    const running = executeOutpostNativeSession({
       db: leaseDb(),
       execution,
       runnerInstanceId: "runner",
@@ -10229,7 +10229,7 @@ describe("native session cancellation", () => {
 
 describe("native session execution lease fencing", () => {
   it("persists current admission from the executor callback and never writes for null publication", async () => {
-    const identity = { runId: execution.binding.runId, companyId: execution.binding.companyId, agentId: execution.binding.agentId,
+    const identity = { runId: execution.binding.runId, spaceId: execution.binding.spaceId, agentId: execution.binding.agentId,
       issueId: execution.binding.issueId, sessionId: execution.session.normalizedSessionId! };
     const session = { identity: () => identity } as never;
     const artifact = { path: "/fixture/provider", sha256: "sha256:" + "a".repeat(64) };
@@ -10274,7 +10274,7 @@ describe("native session execution lease fencing", () => {
         normalizedSessionId: identity.sessionId, providerSessionId: null, driverKind: "test", driverVersion: "1",
         nativeEventCount: 0, highestContiguousSourceSeq: 0, usage: null };
     });
-    await executePaperclipNativeSession({ db, execution, runnerInstanceId: "actual-runner" });
+    await executeOutpostNativeSession({ db, execution, runnerInstanceId: "actual-runner" });
     expect(profile.preserved).toEqual({ value: "unchanged" });
     expect(profile.nativeProviderPackAdmission).toEqual(admittedNativeProviderPack(session, identity));
     expect(profile.nativeProviderPackAdmissionState).toMatchObject({ state: "verified", admissionEpoch: expect.any(String) });
@@ -10302,7 +10302,7 @@ describe("native session execution lease fencing", () => {
         normalizedSessionId: "session", providerSessionId: null, driverKind: "test", driverVersion: "1",
         nativeEventCount: 0, highestContiguousSourceSeq: 0, usage: null };
     });
-    await executePaperclipNativeSession({ db: leaseDb(execution, {}, {}, updates, profile), execution, runnerInstanceId: "runner" });
+    await executeOutpostNativeSession({ db: leaseDb(execution, {}, {}, updates, profile), execution, runnerInstanceId: "runner" });
     expect(state.execute).toHaveBeenCalledOnce();
     expect(observed).toEqual({ nativeProviderPackAdmissionState: { schema: "outpost.native-provider-pack-admission-state.v1",
       state: "pending", admissionEpoch: expect.any(String) } });
@@ -10323,7 +10323,7 @@ describe("native session execution lease fencing", () => {
       } }) as unknown as Db) as never);
     } });
     state.execute.mockClear(); state.createBackend.mockClear(); state.createTransport.mockClear();
-    await expect(executePaperclipNativeSession({ db, execution, runnerInstanceId: "runner" })).rejects.toBe(failed);
+    await expect(executeOutpostNativeSession({ db, execution, runnerInstanceId: "runner" })).rejects.toBe(failed);
     expect(state.execute).not.toHaveBeenCalled();
     expect(state.createBackend).not.toHaveBeenCalled();
     expect(state.createTransport).not.toHaveBeenCalled();
@@ -10340,7 +10340,7 @@ describe("native session execution lease fencing", () => {
     const input = {
       db,
       runId: "run-lease",
-      companyId: "company-lease",
+      spaceId: "space-lease",
       issueId: "issue-lease",
       leaseOwner: "owner-lease",
       attempt: 4,
@@ -10362,7 +10362,7 @@ describe("native session execution lease fencing", () => {
     state.createTransport.mockClear();
 
     await expect(
-      executePaperclipNativeSession({
+      executeOutpostNativeSession({
         db: leaseDb(execution, {
           phase: "workspace_finalizing",
           resultId: "native-result-1",
@@ -10384,7 +10384,7 @@ describe("native session execution lease fencing", () => {
       state.createTransport.mockClear();
 
       await expect(
-        executePaperclipNativeSession({
+        executeOutpostNativeSession({
           db: leaseDb(
             execution,
             {},
@@ -10393,7 +10393,7 @@ describe("native session execution lease fencing", () => {
                 schema: "outpost.native-cancellation.v1",
                 intentId: "native-cancellation:intent-1",
                 intentAuditId: "native-cancellation-audit",
-                companyId: execution.binding.companyId,
+                spaceId: execution.binding.spaceId,
                 runId: execution.binding.runId,
                 issueId: execution.binding.issueId,
                 scope: "run",
@@ -10454,7 +10454,7 @@ describe("native runtime request resolution", () => {
   });
 
   it("revalidates lifecycle after provider reads and blocks stale dispatch", async () => {
-    const running = executePaperclipNativeSession({
+    const running = executeOutpostNativeSession({
       db: leaseDb(),
       execution,
       runnerInstanceId: "runner",
@@ -10483,7 +10483,7 @@ describe("native runtime request resolution", () => {
   });
 
   it("atomically joins duplicate responses and rejects a concurrent conflict", async () => {
-    const running = executePaperclipNativeSession({
+    const running = executeOutpostNativeSession({
       db: leaseDb(),
       execution,
       runnerInstanceId: "runner",
@@ -10540,7 +10540,7 @@ describe("native runtime request resolution", () => {
   });
 
   it("clears completed response reservations when the session tears down", async () => {
-    const firstSession = executePaperclipNativeSession({
+    const firstSession = executeOutpostNativeSession({
       db: leaseDb(),
       execution,
       runnerInstanceId: "runner",
@@ -10557,7 +10557,7 @@ describe("native runtime request resolution", () => {
     await firstSession;
 
     state.release = null;
-    const secondSession = executePaperclipNativeSession({
+    const secondSession = executeOutpostNativeSession({
       db: leaseDb(),
       execution,
       runnerInstanceId: "runner",
@@ -10609,7 +10609,7 @@ describe("native session same-turn steering", () => {
   });
 
   async function startActiveSession() {
-    const running = executePaperclipNativeSession({
+    const running = executeOutpostNativeSession({
       db: leaseDb(),
       execution,
       runnerInstanceId: "runner",
@@ -10740,9 +10740,9 @@ describe("native warm session supervision", () => {
     process.env.OUTPOST_HOME = home;
     const database = await startRecoveryPostgres("warm-remote-db-");
     const db = tables.createDb(database.connectionString);
-    const companyId = randomUUID(), agentId = randomUUID(), userId = randomUUID(), environmentId = randomUUID(), issueId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), userId = randomUUID(), environmentId = randomUUID(), issueId = randomUUID();
     const { resolveManagedInstructionsRoot } = await import("../agent-instructions.js");
-    const canonical = resolveManagedInstructionsRoot({ id: agentId, companyId, name: "Warm remote", adapterConfig: {} }), remoteCwd = join(home, "remote");
+    const canonical = resolveManagedInstructionsRoot({ id: agentId, spaceId, name: "Warm remote", adapterConfig: {} }), remoteCwd = join(home, "remote");
     let currentLease = "", failCleanup = false, failProbe = false, closed = false;
     const commands: Array<{ leaseId: string; command: string }> = [];
     const commandRunner = (leaseId: string): import("@outpost/adapter-utils/command-managed-runtime").CommandManagedRuntimeRunner => ({ execute: async input => {
@@ -10766,7 +10766,7 @@ describe("native warm session supervision", () => {
       return { exitCode: 0, signal: null, timedOut: false, ...result, pid: null, startedAt: new Date().toISOString() };
     } });
     let copies = agentInstructionWorkingCopyService(db);
-    const agent = { id: agentId, companyId, name: "Warm remote", adapterConfig: {
+    const agent = { id: agentId, spaceId, name: "Warm remote", adapterConfig: {
       instructionsBundleMode: "managed", instructionsRootPath: canonical, instructionsEntryFile: "AGENTS.md" } };
     let active: Awaited<ReturnType<typeof copies.prepare>>;
     const session = { close: vi.fn(async () => { closed = true; }) };
@@ -10778,13 +10778,13 @@ describe("native warm session supervision", () => {
     });
     let bodyFailure: unknown;
     try {
-      await db.insert(tables.companies).values({ id: companyId, name: "Warm tests", issuePrefix: "WARM" });
+      await db.insert(tables.spaces).values({ id: spaceId, name: "Warm tests", issuePrefix: "WARM" });
       await db.insert(tables.authUsers).values({ id: userId, name: "Editor", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
       await db.insert(tables.agents).values(agent);
-      await db.insert(tables.companyMemberships).values([{ companyId, principalType: "user", principalId: userId, membershipRole: "operator" }, { companyId, principalType: "agent", principalId: agentId, membershipRole: "member" }]);
-      await db.insert(tables.principalPermissionGrants).values({ companyId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [agentId] } });
+      await db.insert(tables.spaceMemberships).values([{ spaceId, principalType: "user", principalId: userId, membershipRole: "operator" }, { spaceId, principalType: "agent", principalId: agentId, membershipRole: "member" }]);
+      await db.insert(tables.principalPermissionGrants).values({ spaceId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [agentId] } });
       await db.insert(tables.environments).values({ id: environmentId, name: "Owned fake remote", driver: "sandbox" });
-      const [issue] = await db.insert(tables.issues).values({ id: issueId, companyId, title: "Warm remote", status: "in_progress", assigneeAgentId: agentId }).returning();
+      const [issue] = await db.insert(tables.issues).values({ id: issueId, spaceId, title: "Warm remote", status: "in_progress", assigneeAgentId: agentId }).returning();
       await mkdir(canonical, { recursive: true }); await mkdir(remoteCwd);
       await writeFile(join(canonical, "AGENTS.md"), "Retain this exact directory.\n");
       await writeFile(join(canonical, "optional-memory.txt"), "Optional memory\n");
@@ -10797,12 +10797,12 @@ describe("native warm session supervision", () => {
           await db.update(tables.heartbeatRuns).set({ status: "succeeded" }).where(eq(tables.heartbeatRuns.id, prior!.binding.runId));
         }
         currentLease = randomUUID();
-        const [run] = await db.insert(tables.heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", responsibleUserId: userId,
+        const [run] = await db.insert(tables.heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "on_demand", responsibleUserId: userId,
           status: "running", runtimeMode: "native", nativeIssueId: issueId, nativeSessionId: environmentId, runnerInstanceId: environmentId,
           contextSnapshot: { issueId } }).returning();
-        await db.insert(tables.nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed" });
+        await db.insert(tables.nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed" });
         await db.update(tables.issues).set({ executionRunId: runId }).where(eq(tables.issues.id, issueId));
-        await db.insert(tables.environmentLeases).values({ id: currentLease, companyId, environmentId, heartbeatRunId: runId,
+        await db.insert(tables.environmentLeases).values({ id: currentLease, spaceId, environmentId, heartbeatRunId: runId,
           provider: "daytona", providerLeaseId: "same-owned-allocation", leasePolicy: "reuse_by_environment", metadata: { remoteCwd } });
         // Match the production preparation seam and existing native DB tests:
         // pin the issue's completion contract and durable run/lease identities.
@@ -10812,22 +10812,22 @@ describe("native warm session supervision", () => {
         const current: NativeExecutionInputV3 = { ...execution, schema: "outpost.native-execution-input.v3",
           executionMode: "default", planningContext: null, runtimeContext: nativeRuntimeContextFixture(),
           completionContract: { id: contract!.id, sha256: contract!.canonicalSha256, schemaVersion: "outpost.completion-contract.v1",
-            contract: buildNativeCompletionContract(issue!, { revision: contract!.revision }) }, binding: { companyId, agentId, issueId, runId, executionWorkspaceId: runId },
+            contract: buildNativeCompletionContract(issue!, { revision: contract!.revision }) }, binding: { spaceId, agentId, issueId, runId, executionWorkspaceId: runId },
           workspace: { cwd: remoteCwd, repoUrl: null, repoRef: null, branchName: null },
           session: { ...execution.session, normalizedSessionId: environmentId, lifecyclePolicy: { mode: "warm", idleTimeoutMs: 60_000 } } };
         const preparationKey = turn === 1 && ending === "claim-config" ? "changed-config" : "same-config";
         let retiredReceipt: Record<string, unknown> | null = null;
-        const capability = () => ({ runId, preparationKey, hasChanges: () => copies.hasChanges({ companyId, runId, target }),
-          collectStopped: async () => { expect(closed).toBe(true); retiredReceipt = (await copies.get(companyId, runId))?.receipt ?? null;
+        const capability = () => ({ runId, preparationKey, hasChanges: () => copies.hasChanges({ spaceId, runId, target }),
+          collectStopped: async () => { expect(closed).toBe(true); retiredReceipt = (await copies.get(spaceId, runId))?.receipt ?? null;
             const { collectStoppedInstructionCopyWithRetries } = await import("../agent-instruction-working-copies.js");
-            await collectStoppedInstructionCopyWithRetries(() => copies.collectStopped({ companyId, runId, target }));
-          }, retirementFailed: async () => { await copies.reportRetirementUnconfirmed(companyId, runId); } });
+            await collectStoppedInstructionCopyWithRetries(() => copies.collectStopped({ spaceId, runId, target }));
+          }, retirementFailed: async () => { await copies.reportRetirementUnconfirmed(spaceId, runId); } });
         let release: (() => Promise<void>) | null = null;
         if (prior) {
           // Same environment is insufficient: reject a different physical allocation.
           await db.update(tables.environmentLeases).set({ providerLeaseId: "foreign-allocation" }).where(eq(tables.environmentLeases.id, currentLease));
           const before = commands.length;
-          expect(await copies.adopt({ companyId, agentId, runId, previousRunId: prior.binding.runId, target, cwd: remoteCwd })).toBeNull();
+          expect(await copies.adopt({ spaceId, agentId, runId, previousRunId: prior.binding.runId, target, cwd: remoteCwd })).toBeNull();
           expect(commands).toHaveLength(before);
           await db.update(tables.environmentLeases).set({ providerLeaseId: "same-owned-allocation" }).where(eq(tables.environmentLeases.id, currentLease));
           if (ending === "claim-edit") await writeFile(join(originalRoot, "AGENTS.md"), "Remote edit before next claim\n");
@@ -10837,13 +10837,13 @@ describe("native warm session supervision", () => {
           if (ending === "claim-canonical") await writeFile(join(canonical, "AGENTS.md"), "Canonical edit before next claim\n");
           if (["claim-edit", "claim-add", "claim-remove", "claim-remove-entry", "claim-canonical"].includes(ending)) {
             // Ordinary adoption remains unchanged-only and cannot alias this owner.
-            expect(await copies.adopt({ companyId, agentId, runId, previousRunId: prior.binding.runId, target, cwd: remoteCwd })).toBeNull();
-            expect((await copies.get(companyId, prior.binding.runId))?.receipt?.retainedByRunId).toBeUndefined();
+            expect(await copies.adopt({ spaceId, agentId, runId, previousRunId: prior.binding.runId, target, cwd: remoteCwd })).toBeNull();
+            expect((await copies.get(spaceId, prior.binding.runId))?.receipt?.retainedByRunId).toBeUndefined();
           }
           failProbe = ending === "claim-uncertain";
-          release = await claimWarmNativeInstructionCopy({ priorExecution: prior, companyId, agentId, executionWorkspaceId: runId,
+          release = await claimWarmNativeInstructionCopy({ priorExecution: prior, spaceId, agentId, executionWorkspaceId: runId,
             workspace: current.workspace, environmentId, runId, preparationKey, adopt: async previousRunId => {
-              active = await copies.adopt({ companyId, agentId, runId, previousRunId, target, cwd: remoteCwd, allowRetirementHandoff: true });
+              active = await copies.adopt({ spaceId, agentId, runId, previousRunId, target, cwd: remoteCwd, allowRetirementHandoff: true });
               return active ? capability() : null;
             } });
           if (ending.startsWith("claim-")) {
@@ -10852,8 +10852,8 @@ describe("native warm session supervision", () => {
             expect(state.execute).toHaveBeenCalledOnce(); // No reuse was admitted.
             if (ending !== "claim-config") expect(retiredReceipt).toMatchObject({ retirementRequired: true });
             expect(retiredReceipt).toMatchObject({ materializationRunId, cleanup: { leaseId: currentLease, remoteCwd } });
-            expect((await copies.get(companyId, runId))?.processStoppedAt).toBeInstanceOf(Date);
-            const compact = (await copies.get(companyId, runId))!.receipt;
+            expect((await copies.get(spaceId, runId))?.processStoppedAt).toBeInstanceOf(Date);
+            const compact = (await copies.get(spaceId, runId))!.receipt;
             expect(compact).toMatchObject({ materializationRunId, cleanupPending: false });
             expect(compact?.baseline).toBeUndefined();
             await expect(access(originalRoot)).rejects.toMatchObject({ code: "ENOENT" });
@@ -10861,34 +10861,34 @@ describe("native warm session supervision", () => {
             if (ending === "claim-add") expect(await readFile(join(canonical, "memory.txt"), "utf8")).toBe("Remote addition before next claim\n");
             if (ending === "claim-remove") await expect(access(join(canonical, "optional-memory.txt"))).rejects.toMatchObject({ code: "ENOENT" });
             if (ending === "claim-remove-entry") {
-              expect((await copies.get(companyId, runId))!).toMatchObject({ state: "unavailable", errorCode: "AGENT_FILES_SAVE_FAILED" });
+              expect((await copies.get(spaceId, runId))!).toMatchObject({ state: "unavailable", errorCode: "AGENT_FILES_SAVE_FAILED" });
               expect(await readFile(join(canonical, "AGENTS.md"), "utf8")).toBe("Retain this exact directory.\n");
             }
             if (ending === "claim-canonical") expect(await readFile(join(canonical, "AGENTS.md"), "utf8")).toBe("Canonical edit before next claim\n");
             // Heartbeat rematerializes only after the successor proved retirement.
-            active = await copies.prepare({ companyId, agentId, runId, target, cwd: remoteCwd });
+            active = await copies.prepare({ spaceId, agentId, runId, target, cwd: remoteCwd });
             expect(active).toMatchObject({ state: "prepared", executionRoot: originalRoot, processStoppedAt: null });
             expect(active!.receipt?.retirementRequired).toBeUndefined();
-            expect(await copies.hasChanges({ companyId, runId, target })).toBe(false);
-            await copies.reportUnavailable(companyId, prior.binding.runId);
-            await copies.release(companyId, prior.binding.runId);
+            expect(await copies.hasChanges({ spaceId, runId, target })).toBe(false);
+            await copies.reportUnavailable(spaceId, prior.binding.runId);
+            await copies.release(spaceId, prior.binding.runId);
             expect((await lstat(originalRoot)).isDirectory()).toBe(true);
-            await copies.collectStopped({ companyId, runId, target });
+            await copies.collectStopped({ spaceId, runId, target });
             return;
           }
           expect(release).toBeTypeOf("function");
-          await copies.reportUnavailable(companyId, prior.binding.runId);
-          await copies.release(companyId, prior.binding.runId);
+          await copies.reportUnavailable(spaceId, prior.binding.runId);
+          await copies.release(spaceId, prior.binding.runId);
           expect(active!.receipt).toMatchObject({ materializationRunId, cleanup: { leaseId: currentLease, remoteCwd } });
         } else {
-          active = await copies.prepare({ companyId, agentId, runId, target, cwd: remoteCwd });
+          active = await copies.prepare({ spaceId, agentId, runId, target, cwd: remoteCwd });
           originalRoot = active!.executionRoot; materializationRunId = runId;
         }
         expect(active!.executionRoot).toBe(originalRoot);
         current.runtimeContext = await buildNativeRuntimeContext({ db, agent, runId, runtimeConfig: {}, runtimeSkillEntries: [],
           instructionWorkingCopy: { rootPath: active!.executionRoot, entryPath: "AGENTS.md", kind: "agent_files" } });
         expect(current.runtimeContext.instructions.workingCopy?.rootPath).toBe(originalRoot);
-        await executePaperclipNativeSession({ db, execution: current, runnerInstanceId: environmentId, runnerExecutionTarget: target, instructionWorkingCopy: capability() });
+        await executeOutpostNativeSession({ db, execution: current, runnerInstanceId: environmentId, runnerExecutionTarget: target, instructionWorkingCopy: capability() });
         if (prior) expect(state.execute.mock.calls.at(-1)?.[0].existingSession).toBe(session);
         expect(closed).toBe(false);
         await release?.(); expect(closed).toBe(false);
@@ -10907,7 +10907,7 @@ describe("native warm session supervision", () => {
         const before = commands.length;
         await closeWarmNativeSessionsForEnvironment({ environmentId, reason: "lease identity changed" });
         expect(commands).toHaveLength(before);
-        const pending = (await copies.get(companyId, prior!.binding.runId))!;
+        const pending = (await copies.get(spaceId, prior!.binding.runId))!;
         expect(pending.state).toBe("pending_collection");
         expect(pending.receipt?.baseline).toBeDefined();
         expect(await readFile(join(originalRoot, "late-memory.txt"), "utf8")).toBe("Latest owner's remote bytes");
@@ -10917,15 +10917,15 @@ describe("native warm session supervision", () => {
         session.close.mockImplementationOnce(async () => { throw new Error("owned close not yet confirmed"); });
         const before = commands.length;
         expect(await closeWarmNativeSessionsForEnvironment({ environmentId, reason: "first retirement" })).toMatchObject({ failed: 1 });
-        await copies.reportUnavailable(companyId, prior!.binding.runId);
-        await copies.reportUnavailable(companyId, materializationRunId);
-        await copies.release(companyId, prior!.binding.runId);
-        await copies.release(companyId, materializationRunId);
-        expect(await copies.get(companyId, prior!.binding.runId)).toMatchObject({ state: "pending_collection", errorCode: "INSTRUCTION_STOP_UNCONFIRMED", processStoppedAt: null });
+        await copies.reportUnavailable(spaceId, prior!.binding.runId);
+        await copies.reportUnavailable(spaceId, materializationRunId);
+        await copies.release(spaceId, prior!.binding.runId);
+        await copies.release(spaceId, materializationRunId);
+        expect(await copies.get(spaceId, prior!.binding.runId)).toMatchObject({ state: "pending_collection", errorCode: "INSTRUCTION_STOP_UNCONFIRMED", processStoppedAt: null });
         expect(commands).toHaveLength(before);
         expect(await readFile(join(originalRoot, "late-memory.txt"), "utf8")).toBe("Latest owner's remote bytes");
         expect(await closeWarmNativeSessionsForEnvironment({ environmentId, reason: "verified later retirement" })).toMatchObject({ closed: 1, failed: 0 });
-        expect(await copies.get(companyId, prior!.binding.runId)).toMatchObject({ state: "saved", receipt: { cleanupPending: false } });
+        expect(await copies.get(spaceId, prior!.binding.runId)).toMatchObject({ state: "saved", receipt: { cleanupPending: false } });
         expect(await readFile(join(canonical, "late-memory.txt"), "utf8")).toBe("Latest owner's remote bytes");
         await expect(access(originalRoot)).rejects.toMatchObject({ code: "ENOENT" });
         return;
@@ -10939,14 +10939,14 @@ describe("native warm session supervision", () => {
         const before = commands.length;
         await copies.recoverStopped(); // The original remote collector is still cached.
         expect(commands).toHaveLength(before);
-        const recovered = (await copies.get(companyId, prior!.binding.runId))!;
+        const recovered = (await copies.get(spaceId, prior!.binding.runId))!;
         expect(recovered.state).toBe(ending === "destroyed" ? "unavailable" : "pending_collection");
         await expect(access(join(canonical, "late-memory.txt"))).rejects.toMatchObject({ code: "ENOENT" });
         if (ending === "stopped") {
           expect(await readFile(join(originalRoot, "late-memory.txt"), "utf8")).toBe("Latest owner's remote bytes");
           expect(recovered.receipt?.baseline).toBeDefined();
-          await copies.collectStopped({ companyId, runId: prior!.binding.runId });
-          await copies.release(companyId, prior!.binding.runId);
+          await copies.collectStopped({ spaceId, runId: prior!.binding.runId });
+          await copies.release(spaceId, prior!.binding.runId);
           expect(commands).toHaveLength(before);
         } else await expect(access(active!.localRoot)).rejects.toMatchObject({ code: "ENOENT" });
         await closeWarmNativeSessionsForEnvironment({ environmentId, reason: "already terminated owner" });
@@ -10957,7 +10957,7 @@ describe("native warm session supervision", () => {
       await closeWarmNativeSessionsForEnvironment({ environmentId, reason: "test retirement" });
       expect(session.close).toHaveBeenCalledOnce();
       expect(await readFile(join(canonical, "late-memory.txt"), "utf8")).toBe("Latest owner's remote bytes");
-      const saved = (await copies.get(companyId, prior!.binding.runId))!;
+      const saved = (await copies.get(spaceId, prior!.binding.runId))!;
       expect(saved).toMatchObject({ state: "saved", receipt: { cleanupPending: true, materializationRunId, cleanup: { leaseId: currentLease } } });
       const cleanup = vi.fn(async input => {
         expect(input.lease.id).toBe(currentLease);
@@ -10969,7 +10969,7 @@ describe("native warm session supervision", () => {
       await copies.recoverCaptured();
       expect(cleanup).toHaveBeenCalledOnce();
       await expect(access(originalRoot)).rejects.toMatchObject({ code: "ENOENT" });
-      expect((await copies.get(companyId, prior!.binding.runId))!.receipt?.cleanupPending).toBe(false);
+      expect((await copies.get(spaceId, prior!.binding.runId))!.receipt?.cleanupPending).toBe(false);
     } catch (error) { bodyFailure = error; throw error; }
     finally {
       const cleanupFailures: unknown[] = [];
@@ -11014,24 +11014,24 @@ describe("native warm session supervision", () => {
     const original = { ...warmSessionReleaseWait };
     warmSessionReleaseWait.timeoutMs = releaseFinishes ? 5_000 : 200;
     try {
-      await executePaperclipNativeSession({ db: leaseDb(warmExecution), execution: warmExecution, runnerInstanceId: identity,
+      await executeOutpostNativeSession({ db: leaseDb(warmExecution), execution: warmExecution, runnerInstanceId: identity,
         runnerExecutionTarget: { kind: "remote", transport: "sandbox", environmentId: identity, remoteCwd: `/tmp/${identity}` },
         instructionWorkingCopy: copy(identity) });
       const second = { ...warmExecution, binding: { ...warmExecution.binding, runId: `${identity}-second` } };
       const secondCopy = copy(second.binding.runId, true);
       expect(await claimWarmNativeInstructionCopy({ priorExecution: warmExecution,
-        companyId: second.binding.companyId, agentId: second.binding.agentId,
+        spaceId: second.binding.spaceId, agentId: second.binding.agentId,
         executionWorkspaceId: second.binding.executionWorkspaceId, workspace: second.workspace,
         environmentId: identity, runId: second.binding.runId, preparationKey: "same", adopt: async () => secondCopy })).toBeTypeOf("function");
       armPostTurnHold = true;
-      const previous = executePaperclipNativeSession({ db: leaseDb(second), execution: second, runnerInstanceId: identity,
+      const previous = executeOutpostNativeSession({ db: leaseDb(second), execution: second, runnerInstanceId: identity,
         runnerExecutionTarget: { kind: "remote", transport: "sandbox", environmentId: identity, remoteCwd: `/tmp/${identity}` },
         instructionWorkingCopy: secondCopy });
       await reachedSettle;
       // A follow-up wakes 43 ms after the turn settled, while its release runs.
       const followUpRunId = `${identity}-follow-up`;
       const followUp = claimWarmNativeInstructionCopy({ priorExecution: second,
-        companyId: second.binding.companyId, agentId: second.binding.agentId,
+        spaceId: second.binding.spaceId, agentId: second.binding.agentId,
         executionWorkspaceId: second.binding.executionWorkspaceId, workspace: second.workspace,
         environmentId: identity, runId: followUpRunId, preparationKey: "same", adopt: async () => copy(followUpRunId) });
       if (releaseFinishes) {
@@ -11041,7 +11041,7 @@ describe("native warm session supervision", () => {
         // The follow-up's own execution is admitted at once: the previous owner
         // handed every scope back before the claim returned.
         const followUpExecution = { ...second, binding: { ...second.binding, runId: followUpRunId } };
-        await expect(executePaperclipNativeSession({ db: leaseDb(followUpExecution), execution: followUpExecution,
+        await expect(executeOutpostNativeSession({ db: leaseDb(followUpExecution), execution: followUpExecution,
           runnerInstanceId: identity, runnerExecutionTarget: { kind: "remote", transport: "sandbox", environmentId: identity,
             remoteCwd: `/tmp/${identity}` }, instructionWorkingCopy: copy(followUpRunId) })).resolves.toBeDefined();
         await previous;
@@ -11076,12 +11076,12 @@ describe("native warm session supervision", () => {
       collectStopped: async () => undefined });
     const target = { kind: "remote" as const, transport: "sandbox" as const, environmentId: identity, remoteCwd: `/tmp/${identity}` };
     try {
-      await executePaperclipNativeSession({ db: leaseDb(warmExecution), execution: warmExecution, runnerInstanceId: identity,
+      await executeOutpostNativeSession({ db: leaseDb(warmExecution), execution: warmExecution, runnerInstanceId: identity,
         runnerExecutionTarget: target, instructionWorkingCopy: copy(identity) });
       const second = { ...warmExecution, binding: { ...warmExecution.binding, runId: `${identity}-second` } };
       const secondCopy = copy(second.binding.runId);
       expect(await claimWarmNativeInstructionCopy({ priorExecution: warmExecution,
-        companyId: second.binding.companyId, agentId: second.binding.agentId,
+        spaceId: second.binding.spaceId, agentId: second.binding.agentId,
         executionWorkspaceId: second.binding.executionWorkspaceId, workspace: second.workspace,
         environmentId: identity, runId: second.binding.runId, preparationKey: "same", adopt: async () => secondCopy })).toBeTypeOf("function");
       // Hold the previous run's post-turn coordinator release: the warm session
@@ -11096,20 +11096,20 @@ describe("native warm session supervision", () => {
         if (turnDone) { held(); await gate; }
         return transaction(...args);
       }) as typeof transaction;
-      const previous = executePaperclipNativeSession({ db: secondDb, execution: second, runnerInstanceId: identity,
+      const previous = executeOutpostNativeSession({ db: secondDb, execution: second, runnerInstanceId: identity,
         runnerExecutionTarget: target, instructionWorkingCopy: secondCopy });
       await reachedHold;
       const followUpRunId = `${identity}-follow-up`;
       const followUpCopy = copy(followUpRunId);
       const claim = claimWarmNativeInstructionCopy({ priorExecution: second,
-        companyId: second.binding.companyId, agentId: second.binding.agentId,
+        spaceId: second.binding.spaceId, agentId: second.binding.agentId,
         executionWorkspaceId: second.binding.executionWorkspaceId, workspace: second.workspace,
         environmentId: identity, runId: followUpRunId, preparationKey: "same", adopt: async () => followUpCopy });
       setTimeout(openGate, 100);
       const release = await claim;
       const followUp = { ...second, binding: { ...second.binding, runId: followUpRunId } };
       // Admitted at once: no native_session_supervisor_busy from the old owner's scopes.
-      await expect(executePaperclipNativeSession({ db: leaseDb(followUp), execution: followUp, runnerInstanceId: identity,
+      await expect(executeOutpostNativeSession({ db: leaseDb(followUp), execution: followUp, runnerInstanceId: identity,
         runnerExecutionTarget: target, ...(release ? { instructionWorkingCopy: followUpCopy } : {}) })).resolves.toBeDefined();
       await previous;
       await release?.();
@@ -11140,11 +11140,11 @@ describe("native warm session supervision", () => {
     const target = (providerLeaseId: string, outcome: "created" | "resumed" | "replacement") => ({ kind: "remote" as const,
       transport: "sandbox" as const, environmentId: identity, remoteCwd: `/tmp/${identity}`, sandboxLeaseAcquisition: { outcome, providerLeaseId } });
     const claim = (runId: string, claimTarget: ReturnType<typeof target>) => claimWarmNativeInstructionCopy({ priorExecution: warmExecution,
-      companyId: warmExecution.binding.companyId, agentId: warmExecution.binding.agentId,
+      spaceId: warmExecution.binding.spaceId, agentId: warmExecution.binding.agentId,
       executionWorkspaceId: warmExecution.binding.executionWorkspaceId, workspace: warmExecution.workspace,
       environmentId: identity, target: claimTarget, runId, preparationKey: "changed", adopt: async () => copy(runId) });
     try {
-      await executePaperclipNativeSession({ db: leaseDb(warmExecution), execution: warmExecution, runnerInstanceId: identity,
+      await executeOutpostNativeSession({ db: leaseDb(warmExecution), execution: warmExecution, runnerInstanceId: identity,
         runnerExecutionTarget: target("sandbox-a", "created"), instructionWorkingCopy: copy(identity) });
       await expect(claim(`${identity}-reused`, target("sandbox-a", "resumed")))
         .rejects.toMatchObject({ code: "native_predecessor_retirement_unproven", predecessorRunId: identity, providerLeaseId: "sandbox-a" });
@@ -11165,7 +11165,7 @@ describe("native warm session supervision", () => {
     await mkdir(localRoot, { recursive: true });
     await writeFile(join(localRoot, "AGENTS.md"), "Keep the registered directory.\n");
     const snapshot = await captureDirectorySnapshot(localRoot);
-    let row = { companyId: execution.binding.companyId, agentId: execution.binding.agentId,
+    let row = { spaceId: execution.binding.spaceId, agentId: execution.binding.agentId,
       runId: "warm-real-agent-files", localRoot, executionRoot: localRoot, location: "local",
       entryFile: "AGENTS.md", state: "prepared", attempts: 0, processStoppedAt: null,
       baseRevisionId: null, candidateBase64: null, candidateHash: null, errorCode: null, errorMessage: null, nextAttemptAt: null,
@@ -11195,7 +11195,7 @@ describe("native warm session supervision", () => {
         driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
     });
     try {
-      await executePaperclipNativeSession({ db: leaseDb(warmExecution), execution: warmExecution,
+      await executeOutpostNativeSession({ db: leaseDb(warmExecution), execution: warmExecution,
         runnerInstanceId: identity, runnerExecutionTarget: { kind: "remote", transport: "sandbox", environmentId: identity, remoteCwd: `/tmp/${identity}` },
         instructionWorkingCopy: { runId: identity, root: localRoot, preparationKey: "same-preparation", hasChanges: () => copies.hasChanges(row), collectStopped } });
       expect(close).not.toHaveBeenCalled();
@@ -11211,20 +11211,20 @@ describe("native warm session supervision", () => {
           { ...second.workspace, cwd: "/different" }, { ...second.workspace, repoUrl: "https://example.test/other" },
           { ...second.workspace, repoRef: "other" }, { ...second.workspace, branchName: "other" },
         ]) expect(await claimWarmNativeInstructionCopy({ priorExecution: warmExecution,
-          companyId: second.binding.companyId, agentId: second.binding.agentId, executionWorkspaceId: second.binding.runId,
+          spaceId: second.binding.spaceId, agentId: second.binding.agentId, executionWorkspaceId: second.binding.runId,
           workspace: changed, environmentId: identity, runId: second.binding.runId, preparationKey: "same-preparation", adopt })).toBeNull();
         expect(await claimWarmNativeInstructionCopy({ priorExecution: warmExecution,
-          companyId: second.binding.companyId, agentId: second.binding.agentId, executionWorkspaceId: "managed-workspace",
+          spaceId: second.binding.spaceId, agentId: second.binding.agentId, executionWorkspaceId: "managed-workspace",
           workspace: second.workspace, environmentId: identity, runId: second.binding.runId, preparationKey: "same-preparation", adopt })).toBeNull();
         expect(adopt).not.toHaveBeenCalled(); expect(close).not.toHaveBeenCalled();
       }
       const release = await claimWarmNativeInstructionCopy({ priorExecution: warmExecution,
-        companyId: warmExecution.binding.companyId, agentId: warmExecution.binding.agentId,
+        spaceId: warmExecution.binding.spaceId, agentId: warmExecution.binding.agentId,
         executionWorkspaceId: second.binding.executionWorkspaceId, workspace: second.workspace,
         environmentId: identity, runId: second.binding.runId, preparationKey: "same-preparation",
         adopt: async () => currentCopy });
       expect(release).toBeTypeOf("function");
-      await executePaperclipNativeSession({ db: leaseDb(second), execution: second, runnerInstanceId: identity,
+      await executeOutpostNativeSession({ db: leaseDb(second), execution: second, runnerInstanceId: identity,
         runnerExecutionTarget: { kind: "remote", transport: "sandbox", environmentId: identity, remoteCwd: `/tmp/${identity}` },
         instructionWorkingCopy: currentCopy });
       expect(state.execute.mock.calls.at(-1)?.[0].existingSession).toBe(session);
@@ -11241,7 +11241,7 @@ describe("native warm session supervision", () => {
         if (ending === "remove") await rm(join(localRoot, "AGENTS.md"));
         const adopt = vi.fn(async () => ({ ...currentCopy, runId: `${identity}-third` }));
         expect(await claimWarmNativeInstructionCopy({ priorExecution: second,
-          companyId: second.binding.companyId, agentId: second.binding.agentId,
+          spaceId: second.binding.spaceId, agentId: second.binding.agentId,
           executionWorkspaceId: second.binding.executionWorkspaceId, workspace: second.workspace,
           environmentId: identity, runId: `${identity}-third`, preparationKey: "same-preparation", adopt })).toBeNull();
         expect(adopt).toHaveBeenCalledOnce();
@@ -11253,7 +11253,7 @@ describe("native warm session supervision", () => {
     }
   });
 
-  it.each(["final-config", "changed-root", "late-edit", "close-failure", "abandon", "concurrent", "foreign-company", "foreign-workspace"])("fences owned instruction preparation: %s", async scenario => {
+  it.each(["final-config", "changed-root", "late-edit", "close-failure", "abandon", "concurrent", "foreign-space", "foreign-workspace"])("fences owned instruction preparation: %s", async scenario => {
     const identity = `warm-copy-${scenario}`;
     const order: string[] = [];
     let allowClose = scenario !== "close-failure";
@@ -11276,14 +11276,14 @@ describe("native warm session supervision", () => {
     const current = { ...copy, runId: second.binding.runId,
       ...(scenario === "changed-root" ? { root: `/tmp/${identity}/other-instructions` } : {}) };
     const adopt = vi.fn(async () => current);
-    const claim = { priorExecution: first, companyId: first.binding.companyId, agentId: first.binding.agentId,
+    const claim = { priorExecution: first, spaceId: first.binding.spaceId, agentId: first.binding.agentId,
       executionWorkspaceId: first.binding.executionWorkspaceId, workspace: first.workspace, environmentId: identity,
       runId: second.binding.runId, preparationKey: "key", adopt };
     try {
-      await executePaperclipNativeSession({ db: leaseDb(first), execution: first, runnerInstanceId: identity, runnerExecutionTarget: target, instructionWorkingCopy: copy });
+      await executeOutpostNativeSession({ db: leaseDb(first), execution: first, runnerInstanceId: identity, runnerExecutionTarget: target, instructionWorkingCopy: copy });
       if (scenario.startsWith("foreign")) {
         expect(await claimWarmNativeInstructionCopy({ ...claim,
-          ...(scenario === "foreign-company" ? { companyId: "other" } : { executionWorkspaceId: "other" }) })).toBeNull();
+          ...(scenario === "foreign-space" ? { spaceId: "other" } : { executionWorkspaceId: "other" }) })).toBeNull();
         expect(adopt).not.toHaveBeenCalled(); expect(session.close).not.toHaveBeenCalled();
       } else {
         const release = await claimWarmNativeInstructionCopy(claim);
@@ -11291,7 +11291,7 @@ describe("native warm session supervision", () => {
         if (scenario === "final-config" || scenario === "changed-root" || scenario === "late-edit") {
           lateEdit = scenario === "late-edit";
           const changed = scenario !== "final-config" ? second : { ...second, session: { ...second.session, lifecyclePolicy: { mode: "warm" as const, idleTimeoutMs: 99_000 } } };
-          await expect(executePaperclipNativeSession({ db: leaseDb(changed), execution: changed, runnerInstanceId: identity,
+          await expect(executeOutpostNativeSession({ db: leaseDb(changed), execution: changed, runnerInstanceId: identity,
             runnerExecutionTarget: target, instructionWorkingCopy: current })).rejects.toThrow(scenario === "late-edit"
               ? "native_instruction_preparation_copy_changed" : "native_instruction_preparation_configuration_changed");
           expect(state.execute).toHaveBeenCalledOnce();
@@ -11334,9 +11334,9 @@ describe("native warm session supervision", () => {
       return scenario === "wrong-capability" ? { ...current, runId: "foreign" } : current;
     });
     try {
-      await executePaperclipNativeSession({ db: leaseDb(first), execution: first, runnerInstanceId: identity, runnerExecutionTarget: target, instructionWorkingCopy: priorCopy });
+      await executeOutpostNativeSession({ db: leaseDb(first), execution: first, runnerInstanceId: identity, runnerExecutionTarget: target, instructionWorkingCopy: priorCopy });
       priorCopy.hasChanges.mockClear();
-      const claiming = claimWarmNativeInstructionCopy({ priorExecution: first, companyId: first.binding.companyId, agentId: first.binding.agentId,
+      const claiming = claimWarmNativeInstructionCopy({ priorExecution: first, spaceId: first.binding.spaceId, agentId: first.binding.agentId,
         executionWorkspaceId: first.binding.executionWorkspaceId, workspace: first.workspace, environmentId: identity,
         runId: current.runId, preparationKey: current.preparationKey, forceRetirement: scenario === "reset", adopt });
       if (["unavailable", "auth", "wrong-capability", "retirement-failure"].includes(scenario)) {
@@ -11384,10 +11384,10 @@ describe("native warm session supervision", () => {
       });
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
-      await executePaperclipNativeSession({ db: leaseDb(current), execution: current, runnerInstanceId: name,
+      await executeOutpostNativeSession({ db: leaseDb(current), execution: current, runnerInstanceId: name,
         runnerEnvironment: configuredEnvironmentProjection(before) });
       const next = { ...current, binding: { ...current.binding, runId: `${name}-two` } };
-      await executePaperclipNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: name,
+      await executeOutpostNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: name,
         runnerEnvironment: configuredEnvironmentProjection(after) });
       expect(first.close).toHaveBeenCalledTimes(replaced ? 1 : 0);
       if (replaced) expect(first.close).toHaveBeenCalledWith({ reason: "warm native session configuration changed" });
@@ -11423,7 +11423,7 @@ describe("native warm session supervision", () => {
       return terminalResult;
     });
     try {
-      const result = await executePaperclipNativeSession({ db: leaseDb(current), execution: current,
+      const result = await executeOutpostNativeSession({ db: leaseDb(current), execution: current,
         runnerInstanceId: name, runnerExecutionTarget: target, ...(managedFiles ? { instructionWorkingCopy: copy } : {}) });
       expect(result.exitCode).toBe(1);
       // Heartbeat stops failed/cancelled sandboxes after the native executor
@@ -11434,7 +11434,7 @@ describe("native warm session supervision", () => {
       expect(checkpointWarm).toHaveBeenCalledTimes(managedFiles ? 1 : 0);
       if (managedFiles) expect(checkpointWarm.mock.invocationCallOrder[0]).toBeLessThan(close.mock.invocationCallOrder[0]!);
       sandboxStopped = true;
-      expect(await reserveWarmNativeInstructionDirectory({ companyId: current.binding.companyId,
+      expect(await reserveWarmNativeInstructionDirectory({ spaceId: current.binding.spaceId,
         agentId: current.binding.agentId, previousRunId: current.binding.runId, runId: `${name}-two`,
         target, canReuse: async () => true })).toBeNull();
       // A corrected credential rotates the native identity on the next run.
@@ -11445,7 +11445,7 @@ describe("native warm session supervision", () => {
         expect(options.existingSession).toBeUndefined();
         return { ...terminalResult, terminal: { runTerminalState: "succeeded" } };
       });
-      await expect(executePaperclipNativeSession({ db: leaseDb(next), execution: next,
+      await expect(executeOutpostNativeSession({ db: leaseDb(next), execution: next,
         runnerInstanceId: `${name}-two`, runnerExecutionTarget: target })).resolves.toMatchObject({ exitCode: 0 });
       expect(close).toHaveBeenCalledOnce();
     } finally {
@@ -11470,7 +11470,7 @@ describe("native warm session supervision", () => {
         turnId: name, normalizedSessionId: name, providerSessionId: name, driverKind: "test", driverVersion: "1",
         nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
     });
-    await expect(executePaperclipNativeSession({ db: leaseDb(current), execution: current, runnerInstanceId: name,
+    await expect(executeOutpostNativeSession({ db: leaseDb(current), execution: current, runnerInstanceId: name,
       instructionWorkingCopy: { runId: name, root: `/tmp/${name}`, checkpointWarm, collectStopped, hasChanges: vi.fn() },
     })).resolves.toMatchObject({ exitCode: 1 });
     expect(checkpointWarm).toHaveBeenCalledOnce();
@@ -11501,7 +11501,7 @@ describe("native warm session supervision", () => {
         turnId: name, normalizedSessionId: name, providerSessionId: name, driverKind: "test", driverVersion: "1",
         nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
     });
-    await expect(executePaperclipNativeSession({ db: leaseDb(current), execution: current, runnerInstanceId: name,
+    await expect(executeOutpostNativeSession({ db: leaseDb(current), execution: current, runnerInstanceId: name,
       instructionWorkingCopy: { runId: name, root: `/tmp/${name}`, collectStopped, hasChanges: vi.fn(),
         checkpointWarm: async () => { throw failure; } },
     })).rejects.toBe(failure);
@@ -11528,7 +11528,7 @@ describe("native warm session supervision", () => {
         turnId: name, normalizedSessionId: name, providerSessionId: name, driverKind: "test", driverVersion: "1",
         nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
     });
-    await expect(executePaperclipNativeSession({ db: leaseDb(current), execution: current, runnerInstanceId: name,
+    await expect(executeOutpostNativeSession({ db: leaseDb(current), execution: current, runnerInstanceId: name,
       instructionWorkingCopy: { runId: name, root: `/tmp/${name}`, checkpointWarm, collectStopped, hasChanges: vi.fn() },
     })).resolves.toMatchObject({ exitCode: 1 });
     expect(checkpointWarm).toHaveBeenCalledOnce();
@@ -11552,11 +11552,11 @@ describe("native warm session supervision", () => {
       const target = { kind: "remote" as const, transport: "sandbox" as const, environmentId: name, remoteCwd: `/tmp/${name}`, sandboxLeaseAcquisition: { outcome: "created" as const, providerLeaseId: name } };
       const copy = { runId: current.binding.runId, root: `/tmp/${name}/home`, collectStopped, checkpointWarm, hasChanges: vi.fn(async () => true) };
       state.execute.mockReset().mockImplementationOnce(async options => { await options.onSession?.(session); return result; });
-      const run = (next: NativeExecutionInputV1, nextCopy = copy) => executePaperclipNativeSession({
+      const run = (next: NativeExecutionInputV1, nextCopy = copy) => executeOutpostNativeSession({
         db: leaseDb(next), execution: next, runnerInstanceId: name, runnerExecutionTarget: target, instructionWorkingCopy: nextCopy });
       await run(current);
       const reserve = (canReuse: () => Promise<boolean>, nextTarget = target) => reserveWarmNativeInstructionDirectory({
-        companyId: current.binding.companyId, agentId: current.binding.agentId, previousRunId: current.binding.runId,
+        spaceId: current.binding.spaceId, agentId: current.binding.agentId, previousRunId: current.binding.runId,
         runId: `${name}-two`, target: nextTarget, canReuse });
       return { current, copy, close, session, target, run, reserve };
     }
@@ -11665,7 +11665,7 @@ describe("native warm session supervision", () => {
       });
       const next = { ...f.current, binding: { ...f.current.binding, runId: nextCopy.runId },
         session: { ...f.current.session, normalizedSessionId: `${name}-rotated` } } as NativeExecutionInputV1;
-      await expect(executePaperclipNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: name,
+      await expect(executeOutpostNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: name,
         runnerExecutionTarget: f.target, instructionWorkingCopy: nextCopy })).resolves.toMatchObject({ exitCode: 0 });
       expect(state.execute).toHaveBeenCalledTimes(2);
       await reservation!.release();
@@ -11687,7 +11687,7 @@ describe("native warm session supervision", () => {
       reservation!.adopt(nextCopy.root, nextCopy.collectStopped);
       const next = { ...f.current, binding: { ...f.current.binding, runId: nextCopy.runId },
         session: { ...f.current.session, normalizedSessionId: `${name}-rotated` } } as NativeExecutionInputV1;
-      const outcome = await executePaperclipNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: name,
+      const outcome = await executeOutpostNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: name,
         runnerExecutionTarget: f.target, instructionWorkingCopy: nextCopy, useRunnerd: true }).then(() => null, (error: Error) => error);
       expect(outcome?.message ?? "").not.toContain("native_session_supervisor_busy");
       expect(f.close).toHaveBeenCalledOnce();
@@ -11701,7 +11701,7 @@ describe("native warm session supervision", () => {
       const next = { ...f.current, binding: { ...f.current.binding, runId: "managed-identity-foreign-three" },
         session: { ...f.current.session, normalizedSessionId: "managed-identity-foreign-rotated" } } as NativeExecutionInputV1;
       state.execute.mockClear();
-      await expect(executePaperclipNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: "foreign",
+      await expect(executeOutpostNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: "foreign",
         runnerExecutionTarget: f.target, instructionWorkingCopy: { ...f.copy, runId: next.binding.runId } }))
         .rejects.toThrow("native_session_supervisor_busy");
       expect(state.execute).not.toHaveBeenCalled();
@@ -11739,7 +11739,7 @@ describe("native warm session supervision", () => {
         turnId: identity, normalizedSessionId: identity, providerSessionId: identity,
         driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
     });
-    const running = executePaperclipNativeSession({ db: leaseDb(warmExecution), execution: warmExecution,
+    const running = executeOutpostNativeSession({ db: leaseDb(warmExecution), execution: warmExecution,
       runnerInstanceId: identity, runnerExecutionTarget: { kind: "remote", transport: "sandbox", environmentId: identity, remoteCwd: `/tmp/${identity}` },
       instructionWorkingCopy: { hasChanges, collectStopped } });
     const observed = running.then(() => null, error => error);
@@ -11799,7 +11799,7 @@ describe("native warm session supervision", () => {
       } as NativeExecutionInputV1;
       const next = { ...base, binding: { ...base.binding, runId: `${name}-second` },
         session: { ...base.session, normalizedSessionId: `${name}-new` } };
-      const run = (input: NativeExecutionInputV1) => executePaperclipNativeSession({
+      const run = (input: NativeExecutionInputV1) => executeOutpostNativeSession({
         db: leaseDb(input), execution: input, runnerInstanceId: "runner",
       });
       return { base, next, run };
@@ -11836,7 +11836,7 @@ describe("native warm session supervision", () => {
         if (activeClose) await expect(closeIdleWarmNativeSessionsForRestart()).resolves.toMatchObject({ busy: 1 });
         return result;
       });
-      await executePaperclipNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner", useRunnerd: true, onLog: firstLog });
+      await executeOutpostNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner", useRunnerd: true, onLog: firstLog });
       const currentDb = leaseDb(next);
       const nextDb = { ...currentDb, select: (columns?: Record<string, unknown>) => columns?.status && columns?.runnerProfileJson
         ? { from: () => ({ where: () => ({ limit: () => Promise.resolve([
@@ -11846,14 +11846,14 @@ describe("native warm session supervision", () => {
       const released = vi.fn();
       const unsubscribe = onRetainedNativeSessionCleanupRelease(nextDb, released);
       let completed = false;
-      const execution = executePaperclipNativeSession({ db: nextDb, execution: next, runnerInstanceId: "runner", useRunnerd: true, onLog: secondLog }).then(value => { completed = true; return value; });
+      const execution = executeOutpostNativeSession({ db: nextDb, execution: next, runnerInstanceId: "runner", useRunnerd: true, onLog: secondLog }).then(value => { completed = true; return value; });
       try {
         if (mode === "stalled") {
           await vi.waitFor(() => expect(secondLog).toHaveBeenCalled());
           await new Promise(resolve => setImmediate(resolve));
           expect(completed).toBe(true);
           expect(activeNativeExecutionRunIds.has(next.binding.runId)).toBe(false);
-          expect(released).toHaveBeenCalledWith(expect.objectContaining({ companyId: next.binding.companyId }),
+          expect(released).toHaveBeenCalledWith(expect.objectContaining({ spaceId: next.binding.spaceId }),
             expect.objectContaining({ runId: next.binding.runId }));
           expect(await cancelNativeSession(next.binding.runId, "provider already retired")).toBe(false);
         }
@@ -11903,13 +11903,13 @@ describe("native warm session supervision", () => {
         try { return await actual.executeNativeSession(options as never); }
         catch (error) { attachmentFailure = error; throw error; }
       });
-      await executePaperclipNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner", useRunnerd: true, onLog: firstLog });
+      await executeOutpostNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner", useRunnerd: true, onLog: firstLog });
       const current = leaseDb(next);
       const nextDb = { ...current, select: (columns?: Record<string, unknown>) => columns?.status && columns?.runnerProfileJson
         ? { from: () => ({ where: () => ({ limit: () => Promise.resolve([{ status: "succeeded", runnerProfileJson: { nativeExecutionInput: base } }]) }) }) }
         : current.select(columns as never) } as unknown as Db;
       firstLog.mockClear();
-      const failed = await executePaperclipNativeSession({ db: nextDb, execution: next, runnerInstanceId: "runner", useRunnerd: true,
+      const failed = await executeOutpostNativeSession({ db: nextDb, execution: next, runnerInstanceId: "runner", useRunnerd: true,
         onLog: nextLog }).catch(error => error);
       expect(failed).toBeInstanceOf(Error);
       expect(attachmentFailure).toBeInstanceOf(Error);
@@ -11933,8 +11933,8 @@ describe("native warm session supervision", () => {
         else expect(close).not.toHaveBeenCalled();
         return result;
       });
-      await executePaperclipNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner", observability: observability("revision-one") });
-      await executePaperclipNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: "runner", observability: observability(changed ? "revision-two" : "revision-one") });
+      await executeOutpostNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner", observability: observability("revision-one") });
+      await executeOutpostNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: "runner", observability: observability(changed ? "revision-two" : "revision-one") });
       expect(state.execute).toHaveBeenCalledTimes(2);
     });
 
@@ -11949,8 +11949,8 @@ describe("native warm session supervision", () => {
         expect(options.existingSession).toBeUndefined();
         return result;
       });
-      await executePaperclipNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner" });
-      await executePaperclipNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: "runner",
+      await executeOutpostNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner" });
+      await executeOutpostNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: "runner",
         runnerEnvironment: { OUTPOST_AGENT_KEY_ID: "sha256:identity-key" } });
       expect(state.execute).toHaveBeenCalledTimes(2);
     });
@@ -11978,7 +11978,7 @@ describe("native warm session supervision", () => {
       expect(state.execute).toHaveBeenCalledTimes(2);
     });
 
-    it.each(["completed", "different-allocation", "foreign-company", "different-workspace", "live-owner", "unaccounted-owner", "changed-controller", "forged-allocation", "foreign-writer", "foreign-active-lease", "reassigned-child", "parent-already-started", "writer-lock-race", "stop-after-claim", "controller-change-during-close", "stop-during-close", "writer-change-during-close", "retirement-fails", "foreign-logical-session", "stopped-parent"] as const)("retires the completed child listener before a different parent task uses the same sandbox: %s", async scenario => {
+    it.each(["completed", "different-allocation", "foreign-space", "different-workspace", "live-owner", "unaccounted-owner", "changed-controller", "forged-allocation", "foreign-writer", "foreign-active-lease", "reassigned-child", "parent-already-started", "writer-lock-race", "stop-after-claim", "controller-change-during-close", "stop-during-close", "writer-change-during-close", "retirement-fails", "foreign-logical-session", "stopped-parent"] as const)("retires the completed child listener before a different parent task uses the same sandbox: %s", async scenario => {
       const { createServer } = await import("node:net");
       const { createNativeWarmIngressFixture } = await import("../../__tests__/helpers/native-warm-ingress-fixture.js");
       const { eq } = await import("drizzle-orm");
@@ -12021,19 +12021,19 @@ describe("native warm session supervision", () => {
       });
       try {
         const child = await f.admit();
-        await executePaperclipNativeSession({ db: f.db, execution: child.execution, runnerInstanceId: "child-runner", useRunnerd: true,
+        await executeOutpostNativeSession({ db: f.db, execution: child.execution, runnerInstanceId: "child-runner", useRunnerd: true,
           backend: {} as never, runnerExecutionTarget: child.target });
         const resultId = await f.settle(child, result);
         const options: Parameters<typeof f.admit>[0] = {};
         if (scenario === "different-allocation") options.providerLeaseId = `different-${f.providerLeaseId}`;
-        if (scenario === "different-workspace" || scenario === "foreign-company") {
+        if (scenario === "different-workspace" || scenario === "foreign-space") {
           options.workspaceId = randomUUID();
-          if (scenario === "foreign-company") {
-            options.companyId = randomUUID(); options.agentId = randomUUID();
-            await f.db.insert(tables.companies).values({ id: options.companyId, name: "Foreign tenant", issuePrefix: `F${options.companyId.slice(0, 7)}` });
-            await f.db.insert(tables.agents).values({ id: options.agentId, companyId: options.companyId, name: "Foreign worker", adapterType: "outpost_runner" });
+          if (scenario === "foreign-space") {
+            options.spaceId = randomUUID(); options.agentId = randomUUID();
+            await f.db.insert(tables.spaces).values({ id: options.spaceId, name: "Foreign tenant", issuePrefix: `F${options.spaceId.slice(0, 7)}` });
+            await f.db.insert(tables.agents).values({ id: options.agentId, spaceId: options.spaceId, name: "Foreign worker", adapterType: "outpost_runner" });
           }
-          await f.db.insert(tables.executionWorkspaces).values({ id: options.workspaceId, companyId: options.companyId ?? f.companyId,
+          await f.db.insert(tables.executionWorkspaces).values({ id: options.workspaceId, spaceId: options.spaceId ?? f.spaceId,
             name: "Other workspace", mode: "shared_workspace", strategyType: "project_primary", providerType: "cloud_sandbox", cwd: child.execution.workspace.cwd });
         }
         const parent = await f.admit(options);
@@ -12051,9 +12051,9 @@ describe("native warm session supervision", () => {
         if (scenario === "parent-already-started") await f.db.update(heartbeatRuns).set({ processPid: 2147483000 }).where(eq(heartbeatRuns.id, parent.runId));
         if (scenario === "foreign-active-lease") {
           const issueId = randomUUID(), runId = randomUUID();
-          await f.db.insert(tables.issues).values({ id: issueId, companyId: f.companyId, title: "Live sibling", assigneeAgentId: f.agentId, status: "in_progress" });
-          await f.db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, nativeIssueId: issueId, runtimeMode: "native", status: "running" });
-          await f.db.insert(environmentLeases).values({ companyId: f.companyId, environmentId: f.environmentId, executionWorkspaceId: f.workspaceId,
+          await f.db.insert(tables.issues).values({ id: issueId, spaceId: f.spaceId, title: "Live sibling", assigneeAgentId: f.agentId, status: "in_progress" });
+          await f.db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId, nativeIssueId: issueId, runtimeMode: "native", status: "running" });
+          await f.db.insert(environmentLeases).values({ spaceId: f.spaceId, environmentId: f.environmentId, executionWorkspaceId: f.workspaceId,
             issueId, heartbeatRunId: runId, provider: "daytona", providerLeaseId: f.providerLeaseId, status: "active" });
         }
         if (scenario === "foreign-logical-session") parent.execution.session.normalizedSessionId = child.execution.session.normalizedSessionId;
@@ -12072,7 +12072,7 @@ describe("native warm session supervision", () => {
           });
           await lockObserved;
         }
-        const start = executePaperclipNativeSession({ db: f.db, execution: parent.execution, runnerInstanceId: "parent-runner", useRunnerd: true,
+        const start = executeOutpostNativeSession({ db: f.db, execution: parent.execution, runnerInstanceId: "parent-runner", useRunnerd: true,
           backend: {} as never, runnerExecutionTarget: parent.target, onExecutionLeaseAcquired: async () => {
             claimed();
             if (scenario === "stop-after-claim") await f.db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, parent.runId));
@@ -12126,7 +12126,7 @@ describe("native warm session supervision", () => {
       await run(base);
       // Normal runtime selection already converted preparation to native and
       // inserted an unclaimed observed coordinator before calling this facade.
-      await executePaperclipNativeSession({ db: leaseDb(next, {}, {}, updates),
+      await executeOutpostNativeSession({ db: leaseDb(next, {}, {}, updates),
         execution: next, runnerInstanceId: "runner", useRunnerd: true });
       expect(close).toHaveBeenCalledOnce();
       expect(state.execute).toHaveBeenCalledTimes(2);
@@ -12142,7 +12142,7 @@ describe("native warm session supervision", () => {
       state.stageNativeRunnerWakeAttachments.mockClear();
       const db = leaseDb(next, denial === "foreign-owner" ? { leaseOwner: "different-controller" } : {},
         {}, [], {}, denial === "cancelled" ? "cancelled" : "running");
-      await expect(executePaperclipNativeSession({ db, execution: next, runnerInstanceId: "runner", useRunnerd: true })).rejects.toThrow();
+      await expect(executeOutpostNativeSession({ db, execution: next, runnerInstanceId: "runner", useRunnerd: true })).rejects.toThrow();
       expect(close).not.toHaveBeenCalled();
       expect(state.stageNativeRunnerWakeAttachments).not.toHaveBeenCalled();
       expect(state.execute).toHaveBeenCalledTimes(1);
@@ -12166,7 +12166,7 @@ describe("native warm session supervision", () => {
       await authority.stop();
       const controller = await import("./native-restart-recovery.js").then(module => module.currentNativeControllerIdentity());
       const owner = "exact-stop-cleanup";
-      const resultJson = { cancelledByActorType: "user", cancelledByUserId: "test-board",
+      const resultJson = { cancelledByActorType: "user", cancelledByUserId: "test-operator",
         startupCancellation: { beforeNativeSelection: false }, nativeCancellation: {
           schema: "outpost.native-cancellation.v1", scope: "run", reasonCode: "cancellation_run_only", ...next.binding,
           intentId: `native-cancellation:${randomUUID()}`, intentAuditId: randomUUID(), dispatchState: "pending", dispatched: false,
@@ -12187,7 +12187,7 @@ describe("native warm session supervision", () => {
         finally { await options.onSession?.(null); }
       });
       try {
-        await expect(executePaperclipNativeSession({ db, execution: next, runnerInstanceId: "stop-cleanup", useRunnerd: true,
+        await expect(executeOutpostNativeSession({ db, execution: next, runnerInstanceId: "stop-cleanup", useRunnerd: true,
           backend: {} as never, runnerExecutionTarget: { kind: "remote", transport: "sandbox", remoteCwd: "/workspace",
             sandboxLeaseAcquisition: { outcome: "resumed", providerLeaseId: "existing-sandbox" }, runner: { execute: async request => ({
               exitCode: 0, signal: null, pid: 123, startedAt: new Date().toISOString(), timedOut: false, stderr: "", stdout: request.args?.[1]?.includes("base64")
@@ -12277,7 +12277,7 @@ describe("native warm session supervision", () => {
         const session = { close };
         // Without a task owner, a close error other than proven suspension still blocks.
         if (mode !== "unbound" && mode !== "suspended-unbound" && mode !== "other-error") backend.bindManagedSession(session as never);
-        // A governed-wait park leaves its Core tool callback unsettled, and a
+        // A controlled-wait park leaves its Core tool callback unsettled, and a
         // failed Launcher stop leaves no receipt: neither belongs to the new session.
         const succeeds = mode === "retired" || mode === "pending-semantic" || mode === "stop-unconfirmed-at-close" || mode === "suspended-unbound" || drainTimedOut;
         const collectStopped = vi.fn(async () => {
@@ -12293,12 +12293,12 @@ describe("native warm session supervision", () => {
           return result;
         });
         try {
-          await executePaperclipNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner",
+          await executeOutpostNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner",
             instructionWorkingCopy: { hasChanges: async () => false, collectStopped, retirementFailed } });
           // First poison the retained owner through the real configuration
           // retirement path. An explicit reset must not need a process restart.
           const changed = { ...base, binding: { ...base.binding, runId: `${base.binding.runId}-changed` } };
-          await expect(executePaperclipNativeSession({ db: leaseDb(changed), execution: changed,
+          await expect(executeOutpostNativeSession({ db: leaseDb(changed), execution: changed,
             runnerInstanceId: "runner", refreshTools: true })).rejects.toThrow(failure.message);
           expect(close).toHaveBeenCalledOnce();
           expect(collectStopped).not.toHaveBeenCalled();
@@ -12308,7 +12308,7 @@ describe("native warm session supervision", () => {
             : mode === "same-id-provider" ? { ...next, session: base.session,
                 provider: { kind: "opencode" as const, model: "openai/test", permissionMode: "allow" as const } } : next;
           const attempt = () => mode === "same-session"
-            ? executePaperclipNativeSession({ db: leaseDb(replacement), execution: replacement, runnerInstanceId: "runner", refreshTools: true })
+            ? executeOutpostNativeSession({ db: leaseDb(replacement), execution: replacement, runnerInstanceId: "runner", refreshTools: true })
             : run(replacement);
           if (succeeds) {
             await attempt();
@@ -12384,7 +12384,7 @@ describe("native warm session supervision", () => {
           await options.onSession?.(session); return result;
         });
         try {
-          await executePaperclipNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner",
+          await executeOutpostNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner",
             instructionWorkingCopy: { hasChanges: async () => false, collectStopped, retirementFailed },
             runnerExecutionTarget: { kind: "remote", transport: "sandbox", environmentId, remoteCwd: `/tmp/${environmentId}`,
               sandboxLeaseAcquisition: { outcome: "created", providerLeaseId: "parked-sandbox" } } });
@@ -12427,16 +12427,16 @@ describe("native warm session supervision", () => {
         state.execute.mockReset().mockImplementationOnce(async options => {
           await options.onSession?.({ close }); return result;
         });
-        const lease = { id: "lease-gone", companyId: base.binding.companyId, environmentId, heartbeatRunId: "pending-cleanup-run",
+        const lease = { id: "lease-gone", spaceId: base.binding.spaceId, environmentId, heartbeatRunId: "pending-cleanup-run",
           provider: "daytona", providerLeaseId: "gone-sandbox", status: "released", releasedAt: new Date(), cleanupStatus: "success",
           leasePolicy: "reuse_by_environment",
           metadata: receipt === "unproven" ? {} : { remoteExecutionTermination: { schema: "outpost.remote-termination.v1",
-            companyId: base.binding.companyId, runId: "pending-cleanup-run", leaseId: "lease-gone", provider: "daytona",
+            spaceId: base.binding.spaceId, runId: "pending-cleanup-run", leaseId: "lease-gone", provider: "daytona",
             providerLeaseId: "gone-sandbox", state: receipt, confirmedAt: new Date().toISOString() } } };
         const where = vi.fn(async () => [lease]);
         const db = { select: () => ({ from: () => ({ where }) }) } as never;
         try {
-          await executePaperclipNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner",
+          await executeOutpostNativeSession({ db: leaseDb(base), execution: base, runnerInstanceId: "runner",
             instructionWorkingCopy: { hasChanges: async () => false, collectStopped: async () => {}, retirementFailed },
             runnerExecutionTarget: { kind: "remote", transport: "sandbox", environmentId, remoteCwd: `/tmp/${environmentId}`,
               sandboxLeaseAcquisition: { outcome: "created", providerLeaseId: "gone-sandbox" } } });
@@ -12487,7 +12487,7 @@ describe("native warm session supervision", () => {
         remoteCwd: "/tmp/identity-unretirable", sandboxLeaseAcquisition: { outcome, providerLeaseId } });
       const run = (input: NativeExecutionInputV1, runId: string, runnerExecutionTarget: ReturnType<typeof target>) => {
         const execution = { ...input, binding: { ...input.binding, runId } };
-        return executePaperclipNativeSession({ db: leaseDb(execution), execution, runnerInstanceId: "runner", runnerExecutionTarget });
+        return executeOutpostNativeSession({ db: leaseDb(execution), execution, runnerInstanceId: "runner", runnerExecutionTarget });
       };
       await run(base, base.binding.runId, target("sandbox-a", "created"));
       const failure = await run(next, `${next.binding.runId}-reused`, target("sandbox-a", "resumed")).catch(error => error);
@@ -12506,7 +12506,7 @@ describe("native warm session supervision", () => {
       expect(close).toHaveBeenCalledTimes(closes);
     });
 
-    it.each(["companyId", "agentId", "issueId", "executionWorkspaceId"] as const)(
+    it.each(["spaceId", "agentId", "issueId", "executionWorkspaceId"] as const)(
       "does not retire an unrelated %s owner", async field => {
         const { base, next, run } = fixture(`identity-isolation-${field}`);
         const close = vi.fn(async () => undefined);
@@ -12540,7 +12540,7 @@ describe("native warm session supervision", () => {
           highestContiguousSourceSeq: 1,
         };
       });
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(),
         execution,
         runnerInstanceId: "runner",
@@ -12573,7 +12573,7 @@ describe("native warm session supervision", () => {
       };
     });
     await expect(
-      executePaperclipNativeSession({
+      executeOutpostNativeSession({
         db: leaseDb(),
         execution,
         runnerInstanceId: "runner",
@@ -12607,7 +12607,7 @@ describe("native warm session supervision", () => {
     });
     try {
       expect(readNativeSessionIdleWork()).toBe("none");
-      await executePaperclipNativeSession({ db: leaseDb(warmExecution), execution: warmExecution, runnerInstanceId: "runner" });
+      await executeOutpostNativeSession({ db: leaseDb(warmExecution), execution: warmExecution, runnerInstanceId: "runner" });
       expect(close).not.toHaveBeenCalled();
       expect(readNativeSessionIdleWork()).toBe("present");
       expect(await readIdleLocalWork()).toBe("present");
@@ -12636,7 +12636,7 @@ describe("native warm session supervision", () => {
         nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
     });
     try {
-      await executePaperclipNativeSession({ db: leaseDb(warmExecution), execution: warmExecution, runnerInstanceId: "runner" });
+      await executeOutpostNativeSession({ db: leaseDb(warmExecution), execution: warmExecution, runnerInstanceId: "runner" });
       expect(readNativeSessionIdleWork()).toBe("present");
       if (retirement === "controller restart") {
         expect(await closeIdleWarmNativeSessionsForRestart()).toMatchObject({ closed: 0, busy: 0, failed: 1 });
@@ -12646,7 +12646,7 @@ describe("native warm session supervision", () => {
       expect(readNativeSessionIdleWork()).toBe("present");
       const next = { ...warmExecution, binding: { ...warmExecution.binding, runId: "run-retirement-retry-next" } };
       // A new run reports the unretired predecessor as its typed pre-provider failure.
-      await expect(executePaperclipNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: "runner" }))
+      await expect(executeOutpostNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: "runner" }))
         .rejects.toMatchObject({ code: "native_predecessor_retirement_unproven", cause: failure });
       expect(state.execute).toHaveBeenCalledOnce();
       expect(readNativeSessionIdleWork()).toBe("present");
@@ -12666,7 +12666,7 @@ describe("native warm session supervision", () => {
       return heartbeatService(leaseDb()).prepareIdleWarmNativeSessionsForSleep(input);
     }
     async function start(name: string, close = vi.fn<() => Promise<void>>(async () => undefined), onTurn?: () => Promise<void>,
-      instructionWorkingCopy?: Parameters<typeof executePaperclipNativeSession>[0]["instructionWorkingCopy"]) {
+      instructionWorkingCopy?: Parameters<typeof executeOutpostNativeSession>[0]["instructionWorkingCopy"]) {
       const current = { ...execution, binding: { ...execution.binding,
         runId: name, agentId: `agent-${name}`, executionWorkspaceId: name }, session: { ...execution.session,
         normalizedSessionId: name, lifecyclePolicy: { mode: "warm" as const, idleTimeoutMs: 60_000 } } } as NativeExecutionInputV1;
@@ -12678,7 +12678,7 @@ describe("native warm session supervision", () => {
         await onTurn?.();
         return result;
       });
-      await executePaperclipNativeSession({ db: leaseDb(current), execution: current, runnerInstanceId: name, instructionWorkingCopy });
+      await executeOutpostNativeSession({ db: leaseDb(current), execution: current, runnerInstanceId: name, instructionWorkingCopy });
       return { close, current, result };
     }
     afterEach(async () => { await closeIdleWarmNativeSessionsForRestart(); });
@@ -12794,7 +12794,7 @@ describe("native warm session supervision", () => {
         expect(options.existingSession).toBeUndefined();
         return { ...f.result, result: { summary: "Continued after sleep retirement" } };
       });
-      expect(await executePaperclipNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: "sleep-next" }))
+      expect(await executeOutpostNativeSession({ db: leaseDb(next), execution: next, runnerInstanceId: "sleep-next" }))
         .toMatchObject({ exitCode: 0, summary: "Continued after sleep retirement", sessionId: "sleep-retry",
           resultJson: { nativeResult: { summary: "Continued after sleep retirement" } } });
       expect(state.execute).toHaveBeenCalledTimes(2);
@@ -12838,7 +12838,7 @@ describe("native warm session supervision", () => {
       };
     });
 
-    await executePaperclipNativeSession({
+    await executeOutpostNativeSession({
       db: leaseDb(warmExecution),
       execution: warmExecution,
       runnerInstanceId: "runner-warm-environment-delete",
@@ -12869,8 +12869,8 @@ describe("native warm session supervision", () => {
   });
 
   it.each(["checkpoint first", "turn first"])("serializes restart checkpoint and turn admission: %s", async (order) => {
-    const stateBase = await mkdtemp(join(tmpdir(), "paperclip-close-race-"));
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
+    const stateBase = await mkdtemp(join(tmpdir(), "outpost-close-race-"));
+    const previousOutpostHome = process.env.OUTPOST_HOME;
     process.env.OUTPOST_HOME = stateBase;
     let finishClose!: () => void;
     const closing = new Promise<void>((resolve) => { finishClose = resolve; });
@@ -12905,7 +12905,7 @@ describe("native warm session supervision", () => {
         await options.onSession?.({ close });
         return result;
       });
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(first), execution: first,
         runnerInstanceId: "runner-close-race", useRunnerd: true,
       });
@@ -12921,7 +12921,7 @@ describe("native warm session supervision", () => {
       });
       const shutdown = order === "checkpoint first" ? closeIdleWarmNativeSessionsForRestart() : undefined;
       if (shutdown) await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
-      const continuation = executePaperclipNativeSession({
+      const continuation = executeOutpostNativeSession({
         db: leaseDb(second), execution: second,
         runnerInstanceId: "runner-close-race", useRunnerd: true,
       }).catch((error) => error);
@@ -12942,15 +12942,15 @@ describe("native warm session supervision", () => {
     } finally {
       finishClose();
       await closeIdleWarmNativeSessionsForRestart();
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
       await rm(stateBase, { recursive: true, force: true });
     }
   });
 
   it.each(["idle expiry first", "turn first"])("serializes idle expiry and turn admission: %s", async (order) => {
-    const stateBase = await mkdtemp(join(tmpdir(), "paperclip-idle-race-"));
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
+    const stateBase = await mkdtemp(join(tmpdir(), "outpost-idle-race-"));
+    const previousOutpostHome = process.env.OUTPOST_HOME;
     process.env.OUTPOST_HOME = stateBase;
     let finishClose!: () => void;
     const closing = new Promise<void>((resolve) => { finishClose = resolve; });
@@ -12986,7 +12986,7 @@ describe("native warm session supervision", () => {
         await options.onSession?.({ close });
         return result;
       });
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(first), execution: first,
         runnerInstanceId: "runner-idle-race", useRunnerd: true,
       });
@@ -13004,7 +13004,7 @@ describe("native warm session supervision", () => {
       if (order === "idle expiry first") {
         await vi.waitFor(() => expect(close).toHaveBeenCalledOnce(), { timeout: 2_000 });
       }
-      const continuation = executePaperclipNativeSession({
+      const continuation = executeOutpostNativeSession({
         db: leaseDb(second), execution: second,
         runnerInstanceId: "runner-idle-race", useRunnerd: true,
       }).catch((error) => error);
@@ -13022,8 +13022,8 @@ describe("native warm session supervision", () => {
     } finally {
       finishClose();
       await closeIdleWarmNativeSessionsForRestart();
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
       await rm(stateBase, { recursive: true, force: true });
     }
   });
@@ -13067,7 +13067,7 @@ describe("native warm session supervision", () => {
       };
     });
     let settled = false;
-    const running = executePaperclipNativeSession({
+    const running = executeOutpostNativeSession({
       db: leaseDb(warmExecution),
       execution: warmExecution,
       runnerInstanceId: "runner-warm-restart-release",
@@ -13091,9 +13091,9 @@ describe("native warm session supervision", () => {
 
   it("preserves the active turn when a warm checkpoint resumes the same run", async () => {
     const stateBase = await mkdtemp(
-      join(tmpdir(), "paperclip-warm-same-run-recovery-"),
+      join(tmpdir(), "outpost-warm-same-run-recovery-"),
     );
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
+    const previousOutpostHome = process.env.OUTPOST_HOME;
     process.env.OUTPOST_HOME = stateBase;
     const activeRun = {
       ...execution,
@@ -13112,7 +13112,7 @@ describe("native warm session supervision", () => {
       identity: {
         runId: activeRun.binding.runId,
         sessionId: activeRun.session.normalizedSessionId,
-        companyId: activeRun.binding.companyId,
+        spaceId: activeRun.binding.spaceId,
         issueId: activeRun.binding.issueId,
         agentId: activeRun.binding.agentId,
       },
@@ -13160,7 +13160,7 @@ describe("native warm session supervision", () => {
       });
 
     try {
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(activeRun),
         execution: activeRun,
         runnerInstanceId: "runner-warm-same-run-recovery",
@@ -13169,17 +13169,17 @@ describe("native warm session supervision", () => {
         timeout: 500,
       });
       await expect(
-        executePaperclipNativeSession({
+        executeOutpostNativeSession({
           db: leaseDb(activeRun),
           execution: activeRun,
           runnerInstanceId: "runner-warm-same-run-recovery",
         }),
       ).resolves.toBeDefined();
     } finally {
-      if (previousPaperclipHome === undefined) {
+      if (previousOutpostHome === undefined) {
         delete process.env.OUTPOST_HOME;
       } else {
-        process.env.OUTPOST_HOME = previousPaperclipHome;
+        process.env.OUTPOST_HOME = previousOutpostHome;
       }
       await rm(stateBase, { recursive: true, force: true });
     }
@@ -13190,8 +13190,8 @@ describe("native warm session supervision", () => {
     { name: "late usage not yet charged", accounted: { inputTokens: 100, outputTokens: 10 }, latest: { inputTokens: 130, outputTokens: 12 } },
     { name: "no accounted total", accounted: undefined, latest: { inputTokens: 100, outputTokens: 10 } },
   ])("starts a new run's usage from the prior run's total when a warm checkpoint resumes: $name", async ({ accounted, latest }) => {
-    const stateBase = await mkdtemp(join(tmpdir(), "paperclip-warm-next-run-usage-"));
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
+    const stateBase = await mkdtemp(join(tmpdir(), "outpost-warm-next-run-usage-"));
+    const previousOutpostHome = process.env.OUTPOST_HOME;
     process.env.OUTPOST_HOME = stateBase;
     const firstRun = {
       ...execution,
@@ -13214,7 +13214,7 @@ describe("native warm session supervision", () => {
       identity: {
         runId: firstRun.binding.runId,
         sessionId: firstRun.session.normalizedSessionId,
-        companyId: firstRun.binding.companyId,
+        spaceId: firstRun.binding.spaceId,
         issueId: firstRun.binding.issueId,
         agentId: firstRun.binding.agentId,
       },
@@ -13260,13 +13260,13 @@ describe("native warm session supervision", () => {
       });
 
     try {
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(firstRun),
         execution: firstRun,
         runnerInstanceId: "runner-warm-next-run-usage",
       });
       await vi.waitFor(() => expect(firstClose).toHaveBeenCalled(), { timeout: 500 });
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(secondRun),
         execution: secondRun,
         runnerInstanceId: "runner-warm-next-run-usage",
@@ -13278,16 +13278,16 @@ describe("native warm session supervision", () => {
       });
       expect(resumedMarker).toEqual({ consumed: false, turnId: null });
     } finally {
-      if (previousPaperclipHome === undefined) {
+      if (previousOutpostHome === undefined) {
         delete process.env.OUTPOST_HOME;
       } else {
-        process.env.OUTPOST_HOME = previousPaperclipHome;
+        process.env.OUTPOST_HOME = previousOutpostHome;
       }
       await rm(stateBase, { recursive: true, force: true });
     }
   });
 
-  it("reuses one session across distinct governed runs and closes it after idle expiry", async () => {
+  it("reuses one session across distinct controlled runs and closes it after idle expiry", async () => {
     let releaseClose!: () => void;
     const closeBarrier = new Promise<void>(resolve => { releaseClose = resolve; });
     const close = vi.fn(() => closeBarrier);
@@ -13342,12 +13342,12 @@ describe("native warm session supervision", () => {
     const db = leaseDb(base), released = vi.fn();
     const unsubscribe = onRetainedNativeSessionCleanupRelease(db, released);
     try {
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db,
         execution: base,
         runnerInstanceId: "runner",
       });
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(second),
         execution: second,
         runnerInstanceId: "runner",
@@ -13364,8 +13364,8 @@ describe("native warm session supervision", () => {
       expect(released).not.toHaveBeenCalled();
       releaseClose();
       await vi.waitFor(() => expect(released).toHaveBeenCalledExactlyOnceWith(
-        { companyId: base.binding.companyId, agentId: base.binding.agentId },
-        { companyId: base.binding.companyId, runId: base.binding.runId, issueId: base.binding.issueId },
+        { spaceId: base.binding.spaceId, agentId: base.binding.agentId },
+        { spaceId: base.binding.spaceId, runId: base.binding.runId, issueId: base.binding.issueId },
       ));
     } finally { releaseClose(); unsubscribe(); }
   });
@@ -13418,12 +13418,12 @@ describe("native warm session supervision", () => {
         return result;
       });
 
-    await executePaperclipNativeSession({
+    await executeOutpostNativeSession({
       db: leaseDb(first),
       execution: first,
       runnerInstanceId: "runner-native-warm-quarantined",
     });
-    await executePaperclipNativeSession({
+    await executeOutpostNativeSession({
       db: leaseDb(second),
       execution: second,
       runnerInstanceId: "runner-native-warm-quarantined",
@@ -13563,7 +13563,7 @@ describe("native warm session supervision", () => {
         join(tmpdir(), "outpost-runnerd-warm-authority-"),
       );
       const previousStateDirectory = process.env.OUTPOST_RUNNER_STATE_DIR;
-      const previousPaperclipHome = process.env.OUTPOST_HOME;
+      const previousOutpostHome = process.env.OUTPOST_HOME;
       process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
       process.env.OUTPOST_HOME = stateBase;
       let checkpointFirstRunner: (() => Promise<void>) | undefined;
@@ -13616,7 +13616,7 @@ describe("native warm session supervision", () => {
               kind: "remote" as const,
               transport: "sandbox" as const,
               environmentId: "environment-runnerd-warm-authority",
-              remoteCwd: "/home/daytona/paperclip-workspace",
+              remoteCwd: "/home/daytona/outpost-workspace",
               enableSandboxDuplexBridge: duplex,
               runner: { execute: vi.fn() },
             }
@@ -13644,7 +13644,7 @@ describe("native warm session supervision", () => {
             identity: {
               runId: first.binding.runId,
               sessionId: first.session.normalizedSessionId,
-              companyId: first.binding.companyId,
+              spaceId: first.binding.spaceId,
               issueId: first.binding.issueId,
               agentId: first.binding.agentId,
             },
@@ -13681,7 +13681,7 @@ describe("native warm session supervision", () => {
         });
 
       try {
-        await executePaperclipNativeSession({
+        await executeOutpostNativeSession({
           db: leaseDb(first),
           execution: first,
           runnerEnvironment: {
@@ -13713,7 +13713,7 @@ describe("native warm session supervision", () => {
           envelope.configDigest = `sha256:${createHash("sha256")
             .update(
               JSON.stringify({
-                companyId: first.binding.companyId,
+                spaceId: first.binding.spaceId,
                 normalizedSessionId: first.session.normalizedSessionId,
                 executionLocation: {
                   executionKind: "local_process",
@@ -13781,13 +13781,13 @@ describe("native warm session supervision", () => {
         } as unknown as Db;
         brokerLost = loseBridge;
         const releasePreparation = instructionFiles ? await claimWarmNativeInstructionCopy({
-          priorExecution: first, companyId: first.binding.companyId, agentId: first.binding.agentId,
+          priorExecution: first, spaceId: first.binding.spaceId, agentId: first.binding.agentId,
           executionWorkspaceId: second.binding.executionWorkspaceId, workspace: second.workspace,
           environmentId: "environment-runnerd-warm-authority", runId: second.binding.runId,
           preparationKey: secondCopy.preparationKey, adopt: async () => secondCopy,
         }) : null;
         if (instructionFiles) expect(releasePreparation === null).toBe(replacesProvider);
-        await executePaperclipNativeSession({
+        await executeOutpostNativeSession({
           db: continuationDb,
           execution: second,
           runnerEnvironment: {
@@ -13840,10 +13840,10 @@ describe("native warm session supervision", () => {
         } else {
           process.env.OUTPOST_RUNNER_STATE_DIR = previousStateDirectory;
         }
-        if (previousPaperclipHome === undefined) {
+        if (previousOutpostHome === undefined) {
           delete process.env.OUTPOST_HOME;
         } else {
-          process.env.OUTPOST_HOME = previousPaperclipHome;
+          process.env.OUTPOST_HOME = previousOutpostHome;
         }
         await rm(stateBase, { recursive: true, force: true });
       }
@@ -13869,7 +13869,7 @@ describe("native warm session supervision", () => {
           activate: githubAccess.activate.mockReset().mockImplementation(() => vi.fn()), stop: githubAccess.stop.mockReset().mockResolvedValue(undefined) }));
         const stateBase = await mkdtemp(join(tmpdir(), "outpost-runnerd-reuse-key-"));
         const previousStateDirectory = process.env.OUTPOST_RUNNER_STATE_DIR;
-        const previousPaperclipHome = process.env.OUTPOST_HOME;
+        const previousOutpostHome = process.env.OUTPOST_HOME;
         process.env.OUTPOST_RUNNER_STATE_DIR = stateBase;
         process.env.OUTPOST_HOME = stateBase;
         const scope = `${path}-${name.replaceAll(" ", "-")}`;
@@ -13882,7 +13882,7 @@ describe("native warm session supervision", () => {
         } as NativeExecutionInputV1;
         const second = { ...first, binding: { ...first.binding, runId: `run-reuse-key-second-${scope}` } } as NativeExecutionInputV1;
         const target = { kind: "remote" as const, transport: "sandbox" as const, environmentId: "environment-reuse-key",
-          remoteCwd: "/home/daytona/paperclip-workspace", runner: { execute: vi.fn() } } as never;
+          remoteCwd: "/home/daytona/outpost-workspace", runner: { execute: vi.fn() } } as never;
         const firstSession = { close: vi.fn(async () => undefined) };
         const result = { result: { summary: "completed" }, terminal: { runTerminalState: "succeeded" }, turnId: "turn",
           normalizedSessionId: first.session.normalizedSessionId, providerSessionId: "provider-reuse-key", driverKind: "test",
@@ -13891,7 +13891,7 @@ describe("native warm session supervision", () => {
           .mockImplementationOnce(async (options) => {
             await options.onCheckpoint?.({
               identity: { runId: first.binding.runId, sessionId: first.session.normalizedSessionId,
-                companyId: first.binding.companyId, issueId: first.binding.issueId, agentId: first.binding.agentId },
+                spaceId: first.binding.spaceId, issueId: first.binding.issueId, agentId: first.binding.agentId },
               providerSessionId: "provider-reuse-key", activeTurnId: "provider-turn-reuse-key",
               semanticResult: { summary: "first" }, terminal: { runTerminalState: "succeeded" },
             });
@@ -13907,7 +13907,7 @@ describe("native warm session supervision", () => {
           throw new Error("fixture adoption decision recorded");
         });
         try {
-          await executePaperclipNativeSession({ db: leaseDb(first), execution: first, runnerInstanceId: "runner-reuse-key",
+          await executeOutpostNativeSession({ db: leaseDb(first), execution: first, runnerInstanceId: "runner-reuse-key",
             useRunnerd: true, managedGitHub, runnerExecutionTarget: target,
             runnerEnvironment: { OUTPOST_GITHUB_AUTH_MODE: "managed", ...firstEnvironment } });
           const durableRoot = (await readdir(stateBase, { withFileTypes: true }))
@@ -13919,7 +13919,7 @@ describe("native warm session supervision", () => {
           await mkdir(join(durableRoot, "runner"), { recursive: true });
           await writeFile(join(durableRoot, "runner", "runner-state.json"), JSON.stringify(durableRunnerState(durableIdentity, "ready")));
           if (path === "adoption") expect(await closeIdleWarmNativeSessionsForRestart()).toEqual({ closed: 1, busy: 0, failed: 0, failures: [] });
-          const continuation = executePaperclipNativeSession({
+          const continuation = executeOutpostNativeSession({
             db: { ...leaseDb(second), select: () => ({ from: () => ({ where: () => ({ limit: () =>
               Promise.resolve([{ status: "succeeded", runnerProfileJson: { nativeExecutionInput: first } }]) }) }) }) } as unknown as Db,
             execution: second, runnerInstanceId: "runner-reuse-key", useRunnerd: true, managedGitHub, refreshTools,
@@ -13933,8 +13933,8 @@ describe("native warm session supervision", () => {
           await closeIdleWarmNativeSessionsForRestart();
           if (previousStateDirectory === undefined) delete process.env.OUTPOST_RUNNER_STATE_DIR;
           else process.env.OUTPOST_RUNNER_STATE_DIR = previousStateDirectory;
-          if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-          else process.env.OUTPOST_HOME = previousPaperclipHome;
+          if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+          else process.env.OUTPOST_HOME = previousOutpostHome;
           await rm(stateBase, { recursive: true, force: true });
         }
       }
@@ -13942,25 +13942,25 @@ describe("native warm session supervision", () => {
     },
   );
 
-  it("does not replace a different company's warm session with the same normalized id", async () => {
+  it("does not replace a different space's warm session with the same normalized id", async () => {
     const firstClose = vi.fn(async () => undefined);
     const secondClose = vi.fn(async () => undefined);
     const base = {
       ...execution,
       binding: {
         ...execution.binding,
-        companyId: "company-warm-first",
+        spaceId: "space-warm-first",
         runId: "run-warm-first",
         executionWorkspaceId: "workspace",
       },
       workspace: {
-        cwd: "/tmp/warm-native-company-isolation",
+        cwd: "/tmp/warm-native-space-isolation",
         repoUrl: null,
         repoRef: null,
         branchName: null,
       },
       session: {
-        normalizedSessionId: "shared-company-warm-session",
+        normalizedSessionId: "shared-space-warm-session",
         driverKind: "codex_app_server" as const,
         protocolVersion: 1 as const,
         lifecyclePolicy: { mode: "warm" as const, idleTimeoutMs: 20 },
@@ -13970,7 +13970,7 @@ describe("native warm session supervision", () => {
       ...base,
       binding: {
         ...base.binding,
-        companyId: "company-warm-second",
+        spaceId: "space-warm-second",
         runId: "run-warm-second",
       },
     };
@@ -13978,7 +13978,7 @@ describe("native warm session supervision", () => {
       result: { summary: "completed" },
       terminal: { runTerminalState: "succeeded" },
       turnId: "turn",
-      normalizedSessionId: "shared-company-warm-session",
+      normalizedSessionId: "shared-space-warm-session",
       providerSessionId: "provider-warm-native",
       driverKind: "test",
       driverVersion: "1",
@@ -13999,12 +13999,12 @@ describe("native warm session supervision", () => {
         return result;
       });
 
-    await executePaperclipNativeSession({
+    await executeOutpostNativeSession({
       db: leaseDb(base),
       execution: base,
       runnerInstanceId: "runner-first",
     });
-    await executePaperclipNativeSession({
+    await executeOutpostNativeSession({
       db: leaseDb(second),
       execution: second,
       runnerInstanceId: "runner-second",
@@ -14093,14 +14093,14 @@ describe("native warm session supervision", () => {
     // Advance that window only after proving the permission change closed it.
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(base),
         execution: base,
         managedAiCredentialIdentity: "first-identity",
         runnerInstanceId: "runner",
       });
       contract?.mockReturnValue(currentRuntimeContract);
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(lowered),
         execution: lowered,
         managedAiCredentialIdentity: change === "managed credential" ? "second-identity" : "first-identity",
@@ -14145,7 +14145,7 @@ describe("native session bounded recovery", () => {
     let reached!: () => void, release!: () => void;
     const claiming = new Promise<void>(resolve => { reached = resolve; });
     const preparation = new Promise<void>(resolve => { release = resolve; });
-    const running = executePaperclipNativeSession({ db, execution: fresh, runnerInstanceId: "fresh-runner",
+    const running = executeOutpostNativeSession({ db, execution: fresh, runnerInstanceId: "fresh-runner",
       onExecutionLeaseAcquired: releasePreparation,
       runnerExecutionTarget: { kind: "remote", transport: "sandbox", remoteCwd: "/workspace", environmentId: "fresh-environment", leaseId: "fresh-lease" },
       onEvent: async event => {
@@ -14184,7 +14184,7 @@ describe("native session bounded recovery", () => {
     const release = vi.spyOn(nativeLeaseRenewal, "releaseUnstartedNativeExecutionClaim")
       .mockImplementation(async () => { order.push("release"); return true; });
     try {
-      await expect(executePaperclipNativeSession({ db, execution: fresh, runnerInstanceId: "fresh-runner",
+      await expect(executeOutpostNativeSession({ db, execution: fresh, runnerInstanceId: "fresh-runner",
         onExecutionLeaseAcquired: async () => { throw failure; },
         ...(restartRecovery ? { leaseOwner: restartRecovery.leaseOwner, restartRecovery } : {}),
         runnerExecutionTarget: { kind: "remote", transport: "sandbox", remoteCwd: "/workspace", environmentId: "fresh-environment", leaseId: "fresh-lease" },
@@ -14195,7 +14195,7 @@ describe("native session bounded recovery", () => {
         // A restart claim keeps its exact recovery fence for the heartbeat's retention check.
         expect(release).not.toHaveBeenCalled();
       } else {
-        expect(release).toHaveBeenCalledExactlyOnceWith({ db, runId: fresh.binding.runId, companyId: fresh.binding.companyId,
+        expect(release).toHaveBeenCalledExactlyOnceWith({ db, runId: fresh.binding.runId, spaceId: fresh.binding.spaceId,
           issueId: fresh.binding.issueId, leaseOwner: expect.stringMatching(/^fresh-runner:/), attempt: 1 });
         expect(order).toEqual(["stop", "release"]);
       }
@@ -14211,7 +14211,7 @@ describe("native session bounded recovery", () => {
     state.upsertRecoveryAction.mockReset().mockResolvedValue({});
     const service = vi.spyOn(issueServiceModule, "issueService").mockReturnValue({ update: vi.fn(async () => null) } as unknown as ReturnType<typeof issueServiceModule.issueService>);
     try {
-    await expect(executePaperclipNativeSession({ db: leaseDb(execution, {}, {}, updates), execution, runnerInstanceId: "runner", onEvent })).rejects.toBe(failure);
+    await expect(executeOutpostNativeSession({ db: leaseDb(execution, {}, {}, updates), execution, runnerInstanceId: "runner", onEvent })).rejects.toBe(failure);
     expect(onEvent).toHaveBeenCalledWith({ eventType: "native.remote_runner_recovery_failed", level: "error",
       message: "Could not verify the existing remote runner.", payload: { remoteRunnerRecovery } });
     expect(updates.find(update => update.table === nativeRunFinalizations && update.values.failureDetail)?.values.failureDetail)
@@ -14233,13 +14233,13 @@ describe("native session bounded recovery", () => {
     const updateIssue = vi.fn(async () => ({ status: "blocked", statusVersion: 7 }));
     const service = vi.spyOn(issueServiceModule, "issueService").mockReturnValue({ update: updateIssue } as unknown as ReturnType<typeof issueServiceModule.issueService>);
     try {
-    await expect(executePaperclipNativeSession({ db: leaseDb(execution, {}, {}, updates), execution, runnerInstanceId: "runner" })).rejects.toBe(failure);
+    await expect(executeOutpostNativeSession({ db: leaseDb(execution, {}, {}, updates), execution, runnerInstanceId: "runner" })).rejects.toBe(failure);
     expect(updates.find(update => update.table === nativeRunFinalizations && update.values.phase === "terminal_failure")?.values).toMatchObject({
       failureCode: "native_permission_declined", nextAttemptAt: null,
       failureDetail: { recoverable: false, nextAction: expect.stringContaining("Automatic recovery is stopped") },
     });
     expect(updateIssue).toHaveBeenCalledWith(execution.binding.issueId, { status: "blocked" }, expect.anything());
-    expect(state.upsertRecoveryAction).toHaveBeenCalledWith(expect.objectContaining({ cause: "native_permission_declined", ownerType: "board", wakePolicy: null }));
+    expect(state.upsertRecoveryAction).toHaveBeenCalledWith(expect.objectContaining({ cause: "native_permission_declined", ownerType: "operator", wakePolicy: null }));
     expect(state.execute).toHaveBeenCalledTimes(1);
     } finally { service.mockRestore(); }
   });
@@ -14248,7 +14248,7 @@ describe("native session bounded recovery", () => {
     const stop: Record<string, unknown> = {};
     state.execute.mockReset().mockImplementationOnce(async () => {
       Object.assign(stop, { ...(source === "operator"
-        ? { cancelledByActorType: "user", cancelledByUserId: "board" }
+        ? { cancelledByActorType: "user", cancelledByUserId: "operator" }
         : { reassignmentStopRequested: true }), nativeCancellation: {
         schema: "outpost.native-cancellation.v1", ...execution.binding, scope: "run", reasonCode: "cancellation_run_only",
         dispatched: true, dispatchState: "acknowledged", intentAuditId: "intent", acknowledgementAuditId: "ack",
@@ -14256,7 +14256,7 @@ describe("native session bounded recovery", () => {
       throw failureKind === "permission-declined" ? new NativePermissionDeclinedError() : new Error("native_finalization_missing: session returned no semantic result");
     });
     state.upsertRecoveryAction.mockClear();
-    await expect(executePaperclipNativeSession({
+    await expect(executeOutpostNativeSession({
       db: leaseDb(execution, {}, stop, updates), execution, runnerInstanceId: "stop-before-completion",
     })).rejects.toThrow("native_cancellation_pending_recovery");
     expect(updates.some(update => update.table === heartbeatRuns && update.values.status === "failed")).toBe(false);
@@ -14268,14 +14268,14 @@ describe("native session bounded recovery", () => {
   // turn, which ended without a semantic result. That Stop must stay a
   // cancellation (resume continues it), never an interrupted-run retry the
   // pause then strands.
-  it.each(["Agent lifecycle stop requested", "Cancelled due to budget pause"])("does not turn an acknowledged governance pause Stop (%s) into a retry", async (reason) => {
+  it.each(["Agent lifecycle stop requested", "Cancelled due to budget pause"])("does not turn an acknowledged policy pause Stop (%s) into a retry", async (reason) => {
     const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
     const stop: Record<string, unknown> = {};
     state.execute.mockReset().mockImplementationOnce(async () => {
       Object.assign(stop, {
         cancellation: { reason, source: "control_plane", expected: true, initiator: { type: "system" },
           recordedAt: new Date().toISOString() },
-        ...(reason === "Agent lifecycle stop requested" ? { pauseStop: { holds: ["company_paused"], companyPauseReason: "budget" } } : {}),
+        ...(reason === "Agent lifecycle stop requested" ? { pauseStop: { holds: ["space_paused"], spacePauseReason: "budget" } } : {}),
         nativeCancellation: {
           schema: "outpost.native-cancellation.v1", ...execution.binding, scope: "run", reasonCode: "cancellation_run_only",
           dispatched: true, dispatchState: "acknowledged", intentAuditId: "intent", acknowledgementAuditId: "ack",
@@ -14283,15 +14283,15 @@ describe("native session bounded recovery", () => {
       throw new Error("native_finalization_missing: session returned no semantic result");
     });
     state.upsertRecoveryAction.mockClear();
-    await expect(executePaperclipNativeSession({
-      db: leaseDb(execution, {}, stop, updates), execution, runnerInstanceId: "governance-stop",
+    await expect(executeOutpostNativeSession({
+      db: leaseDb(execution, {}, stop, updates), execution, runnerInstanceId: "policy-stop",
     })).rejects.toThrow("native_cancellation_pending_recovery");
     expect(updates.some(update => update.table === heartbeatRuns && update.values.status === "failed")).toBe(false);
     expect(updates.some(update => update.table === nativeRunFinalizations && update.values.failureCode === "native_retry_cancelled")).toBe(true);
     expect(state.upsertRecoveryAction).not.toHaveBeenCalled();
   });
 
-  it("waits for an in-flight governance pause Stop to save its acknowledgement before judging a missing result", async () => {
+  it("waits for an in-flight policy pause Stop to save its acknowledgement before judging a missing result", async () => {
     let releaseCleanup!: () => void, endTurn!: () => void, opened!: () => void;
     const turnEnded = new Promise<void>(resolve => { endTurn = resolve; });
     const sessionOpen = new Promise<void>(resolve => { opened = resolve; });
@@ -14305,13 +14305,13 @@ describe("native session bounded recovery", () => {
     state.upsertRecoveryAction.mockClear();
     const runResultJson: Record<string, unknown> = {};
     const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
-    const outcome = executePaperclipNativeSession({ db: leaseDb(execution, {}, runResultJson, updates), execution, runnerInstanceId: "pause-stop-in-flight" })
+    const outcome = executeOutpostNativeSession({ db: leaseDb(execution, {}, runResultJson, updates), execution, runnerInstanceId: "pause-stop-in-flight" })
       .catch(error => error);
     // The pause's fence recorded its cancellation before dispatch.
     const persistence = cancellationDb({ resultJson: {
       cancellation: { reason: "Agent lifecycle stop requested", source: "control_plane", expected: true,
         initiator: { type: "system" }, recordedAt: new Date().toISOString() },
-      pauseStop: { holds: ["company_paused"], companyPauseReason: "budget" } } });
+      pauseStop: { holds: ["space_paused"], spacePauseReason: "budget" } } });
     const transaction = persistence.db.transaction.bind(persistence.db);
     // The executor reads the same durable run row the Stop writes.
     (persistence.db as unknown as { transaction: typeof transaction }).transaction = (async (operation: Parameters<typeof transaction>[0]) => {
@@ -14336,7 +14336,7 @@ describe("native session bounded recovery", () => {
     } finally { releaseCleanup(); endTurn(); await outcome; }
   });
 
-  it("still retries a missing result after a system Stop that is not a governance pause", async () => {
+  it("still retries a missing result after a system Stop that is not a policy pause", async () => {
     const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
     const stop: Record<string, unknown> = {};
     state.execute.mockReset().mockImplementationOnce(async () => {
@@ -14352,7 +14352,7 @@ describe("native session bounded recovery", () => {
     state.upsertRecoveryAction.mockReset().mockResolvedValue({});
     const service = vi.spyOn(issueServiceModule, "issueService").mockReturnValue({ update: vi.fn(async () => null) } as unknown as ReturnType<typeof issueServiceModule.issueService>);
     try {
-      await expect(executePaperclipNativeSession({
+      await expect(executeOutpostNativeSession({
         db: leaseDb(execution, {}, stop, updates), execution, runnerInstanceId: "termination-stop",
       })).rejects.not.toThrow("native_cancellation_pending_recovery");
       expect(updates.some(update => update.table === nativeRunFinalizations && update.values.failureCode === "native_retry_cancelled")).toBe(false);
@@ -14371,7 +14371,7 @@ describe("native session bounded recovery", () => {
       throw new Error("native_session_cancelled");
     });
     state.upsertRecoveryAction.mockClear();
-    await expect(executePaperclipNativeSession({
+    await expect(executeOutpostNativeSession({
       db: leaseDb(execution, {}, stop, updates), execution, runnerInstanceId: "stop-before-first-turn",
     })).rejects.toThrow("native_cancellation_pending_recovery");
     expect(updates.some(update => update.table === heartbeatRuns && update.values.status === "failed")).toBe(false);
@@ -14471,7 +14471,7 @@ describe("native session bounded recovery", () => {
         >);
       try {
         await expect(
-          executePaperclipNativeSession({
+          executeOutpostNativeSession({
             db,
             execution,
             runnerInstanceId: "runner",
@@ -14524,7 +14524,7 @@ describe("native session bounded recovery", () => {
         expect(state.upsertRecoveryAction).toHaveBeenCalledWith(
           expect.objectContaining({
             cause: "native_event_replay_conflict",
-            ownerType: "board",
+            ownerType: "operator",
             wakePolicy: null,
           }),
         );
@@ -14558,7 +14558,7 @@ describe("native session bounded recovery", () => {
     const disposition = nativeSessionFailureDisposition(1, new Date(), code);
     expect(disposition).toEqual({ phase: "terminal_failure", failureCode: code, nextAttemptAt: null });
     expect(nativeSessionRecoveryProjection({ ...disposition, agentId: "agent" })).toMatchObject({
-      issueStatus: "blocked", recoveryOwner: { kind: "board" },
+      issueStatus: "blocked", recoveryOwner: { kind: "operator" },
     });
     // Only the typed runner class is deterministic; the same text stays retryable.
     expect(nativeSessionFailureSourceCode(new Error(failure.message))).toBe("native_session_interrupted");
@@ -14566,7 +14566,7 @@ describe("native session bounded recovery", () => {
 
   // Chaos w-20261111T011704-s9107/t05: after a cut-off ACPX turn start the
   // Runner saved the session closed; three same-run resumes each got the same
-  // refusal before the board offered Retry.
+  // refusal before the operator offered Retry.
   describe("a turn start the Runner refused because this run's session is closed", () => {
     const turnStartFailure = (result: Record<string, unknown>) => {
       const commandResult = { commandId: "command_lab_1", commandType: "turn.start", controllerSeq: 10, result, status: "failed" };
@@ -14577,13 +14577,13 @@ describe("native session bounded recovery", () => {
       classification: "provider_session_closed" });
 
     it.each(["ACPX session is not open", "ACPX turn start failed closed: ACPX sidecar request timed out at turn.start"])(
-      "stops on the first refusal and hands the run to the board: %s", (message) => {
+      "stops on the first refusal and hands the run to the operator: %s", (message) => {
         const code = nativeSessionFailureSourceCode(closed(message));
         expect(code).toBe(NATIVE_PROVIDER_SESSION_CLOSED);
         const disposition = nativeSessionFailureDisposition(1, new Date(), code);
         expect(disposition).toEqual({ phase: "terminal_failure", failureCode: NATIVE_PROVIDER_SESSION_CLOSED, nextAttemptAt: null });
         expect(nativeSessionRecoveryProjection({ ...disposition, agentId: "agent" })).toMatchObject({
-          issueStatus: "blocked", recoveryOwner: { kind: "board" },
+          issueStatus: "blocked", recoveryOwner: { kind: "operator" },
         });
         // A rewrapped failure keeps the class through its authenticated text.
         expect(nativeSessionFailureSourceCode(new Error(closed(message).message))).toBe(NATIVE_PROVIDER_SESSION_CLOSED);
@@ -14623,13 +14623,13 @@ describe("native session bounded recovery", () => {
       message: "error creating thread: failed to load AGENTS.md instructions for environment `local`: fs sandbox helper failed with status exit status: 1: bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted",
       ...fields });
 
-    it.each(["authentication", "permission", "invalid_request"])("stops on the first %s rejection and hands the run to the board", (category) => {
+    it.each(["authentication", "permission", "invalid_request"])("stops on the first %s rejection and hands the run to the operator", (category) => {
       const code = nativeSessionFailureSourceCode(sessionOpenFailure(startupFailure({ category, retryability: "requires_action" })));
       expect(code).toBe(NATIVE_PROVIDER_STARTUP_REJECTED);
       const disposition = nativeSessionFailureDisposition(1, new Date(), code);
       expect(disposition).toEqual({ phase: "terminal_failure", failureCode: NATIVE_PROVIDER_STARTUP_REJECTED, nextAttemptAt: null });
       expect(nativeSessionRecoveryProjection({ ...disposition, agentId: "agent" })).toMatchObject({
-        issueStatus: "blocked", recoveryOwner: { kind: "board" },
+        issueStatus: "blocked", recoveryOwner: { kind: "operator" },
       });
     });
 
@@ -14718,7 +14718,7 @@ describe("native session bounded recovery", () => {
     const disposition = nativeSessionFailureDisposition(1, new Date(), code);
     expect(disposition).toEqual({ phase: "terminal_failure", failureCode: code, nextAttemptAt: null });
     expect(nativeSessionRecoveryProjection({ ...disposition, agentId: "agent" })).toMatchObject({
-      issueStatus: "blocked", recoveryOwner: { kind: "board" }, recoveryActionCause: code,
+      issueStatus: "blocked", recoveryOwner: { kind: "operator" }, recoveryActionCause: code,
     });
     // An operator reconciles the pending action; a generic Retry is not offered.
     expect(requiresExecutionReconciliation(code)).toBe(true);
@@ -14740,7 +14740,7 @@ describe("native session bounded recovery", () => {
     expect(
       nativeSessionRecoveryProjection({ ...disposition, agentId: "agent" }),
     ).toMatchObject({
-      recoveryOwner: { kind: "board" },
+      recoveryOwner: { kind: "operator" },
       recoveryActionOwnerAgentId: null,
     });
   });
@@ -14778,7 +14778,7 @@ describe("native session bounded recovery", () => {
       update: vi.fn(async () => ({ status: "blocked", statusVersion: 1 })),
     } as unknown as ReturnType<typeof issueServiceModule.issueService>);
     try {
-      await expect(executePaperclipNativeSession({
+      await expect(executeOutpostNativeSession({
         db: leaseDb(execution, {}, {}, updates), execution, runnerInstanceId: "runner",
         runnerEnvironment: { OUTPOST_AGENT_PRIVATE_KEY: privateKeyPem },
         onLog: async (_stream, text) => { logs.push(text); },
@@ -14807,7 +14807,7 @@ describe("native session bounded recovery", () => {
       >);
     try {
       await expect(
-        executePaperclipNativeSession({
+        executeOutpostNativeSession({
           db: leaseDb(execution, {}, {}, updates),
           execution,
           runnerInstanceId: "runner",
@@ -14832,7 +14832,7 @@ describe("native session bounded recovery", () => {
         expect.objectContaining({
           cause: "native_session_cleanup_quarantined",
           evidence: expect.objectContaining({ nativeFailureBlock: { runId: execution.binding.runId, statusVersion: 7 } }),
-          ownerType: "board",
+          ownerType: "operator",
           wakePolicy: null,
           nextAction: expect.stringContaining(
             "it starts once the previous session has stopped",
@@ -14864,12 +14864,12 @@ describe("native session bounded recovery", () => {
     const completedCheckpoint = { sessionCheckpoint: {
       activeTurnId: null, semanticResult: null, cursor: "818",
       identity: { runId: execution.binding.runId, agentId: execution.binding.agentId,
-        issueId: execution.binding.issueId, companyId: execution.binding.companyId, sessionId: "session" },
+        issueId: execution.binding.issueId, spaceId: execution.binding.spaceId, sessionId: "session" },
       terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded",
         turnTerminalState: "completed", reportedWorkDisposition: "yielded" },
     } };
     try {
-      await expect(executePaperclipNativeSession({
+      await expect(executeOutpostNativeSession({
         db: leaseDb(execution, {}, {}, updates, completedCheckpoint), execution, runnerInstanceId: "runner",
       })).rejects.toBe(failure);
       const terminal = updates.find(entry => entry.table === nativeRunFinalizations
@@ -14909,7 +14909,7 @@ describe("native session bounded recovery", () => {
         );
       }
       await expect(
-        executePaperclipNativeSession({
+        executeOutpostNativeSession({
           db: leaseDb(execution, {}, {}, updates),
           execution,
           runnerInstanceId: "runner",
@@ -14948,7 +14948,7 @@ describe("native session bounded recovery", () => {
         });
         expect(state.upsertRecoveryAction).toHaveBeenCalledWith(
           expect.objectContaining({
-            ownerType: "board",
+            ownerType: "operator",
             wakePolicy: null,
           }),
         );
@@ -14956,7 +14956,7 @@ describe("native session bounded recovery", () => {
     },
   );
 
-  it("makes unauthenticated adopted runner recovery Board-owned without an automatic retry", () => {
+  it("makes unauthenticated adopted runner recovery Operator-owned without an automatic retry", () => {
     const code = nativeSessionFailureSourceCode(
       new Error(
         "native_adopted_runner_authentication_timeout: retained runner did not authenticate",
@@ -14973,8 +14973,8 @@ describe("native session bounded recovery", () => {
       nativeSessionRecoveryProjection({ ...disposition, agentId: "agent" }),
     ).toMatchObject({
       issueStatus: null,
-      recoveryOwner: { kind: "board" },
-      recoveryActionOwnerType: "board",
+      recoveryOwner: { kind: "operator" },
+      recoveryActionOwnerType: "operator",
       recoveryActionOwnerAgentId: null,
       recoveryActionCause: "native_adopted_runner_authentication_timeout",
     });
@@ -15095,7 +15095,7 @@ describe("native session bounded recovery", () => {
     });
     expect(nativeSessionRecoveryProjection({
       phase: "terminal_failure", failureCode: code, agentId: "agent-1",
-    })).toMatchObject({ issueStatus: "blocked", recoveryOwner: { kind: "board" } });
+    })).toMatchObject({ issueStatus: "blocked", recoveryOwner: { kind: "operator" } });
   });
 
   it("retries the same run twice and stops at the third failed attempt", () => {
@@ -15262,8 +15262,8 @@ describe("native session bounded recovery", () => {
     ).toEqual({
       exhausted: true,
       issueStatus: "blocked",
-      recoveryOwner: { kind: "board" },
-      recoveryActionOwnerType: "board",
+      recoveryOwner: { kind: "operator" },
+      recoveryActionOwnerType: "operator",
       recoveryActionOwnerAgentId: null,
       recoveryActionCause: "native_session_retry_exhausted",
       supersedeOnIdentityChange: true,
@@ -15275,7 +15275,7 @@ describe("native process ownership", () => {
   it("checks the complete wake-comment receipt before finalizing a successful provider turn", async () => {
     const expectedBinding = {
       schema: "outpost.current-wake-comments-binding.v1",
-      companyId: execution.binding.companyId,
+      spaceId: execution.binding.spaceId,
       issueId: execution.binding.issueId,
       runId: execution.binding.runId,
       agentId: execution.binding.agentId,
@@ -15297,7 +15297,7 @@ describe("native process ownership", () => {
       highestContiguousSourceSeq: 1,
       usage: null,
     });
-    await executePaperclipNativeSession({
+    await executeOutpostNativeSession({
       db: leaseDb(),
       execution,
       runnerInstanceId: "runner-current-wake-receipt",
@@ -15313,7 +15313,7 @@ describe("native process ownership", () => {
     "refuses native provider claims after the run became %s", async status => {
       const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
       state.createBackend.mockClear();
-      await expect(executePaperclipNativeSession({
+      await expect(executeOutpostNativeSession({
         db: leaseDb(execution, {}, {}, updates, {}, status), execution, runnerInstanceId: "late-startup",
       })).rejects.toThrow();
       expect(state.createBackend).not.toHaveBeenCalled();
@@ -15324,7 +15324,7 @@ describe("native process ownership", () => {
 
   it("fences a cancellation request before its terminal status commits", async () => {
     state.createBackend.mockClear();
-    await expect(executePaperclipNativeSession({
+    await expect(executeOutpostNativeSession({
       db: leaseDb(execution, {}, { startupCancellation: { requestedAt: new Date().toISOString() } }),
       execution, runnerInstanceId: "cancel-requested",
     })).rejects.toThrow();
@@ -15341,7 +15341,7 @@ describe("native process ownership", () => {
     const db = leaseDb(execution);
     const admissionWriter = vi.spyOn(runEventWriter, "appendHeartbeatRunEvent").mockResolvedValueOnce({
       row: {
-        id: 1, companyId: execution.binding.companyId, runId: execution.binding.runId,
+        id: 1, spaceId: execution.binding.spaceId, runId: execution.binding.runId,
         agentId: execution.binding.agentId, seq: 1, eventType: "native.process_start_requested",
         stream: "system", level: "info", color: null, message: null, payload: null,
         sourceInstanceId: null, sourceEventId: null, sourceSeq: null,
@@ -15354,7 +15354,7 @@ describe("native process ownership", () => {
       await options.onSessionAdmission();
       expect(admissionWriter).toHaveBeenCalledWith(db, expect.objectContaining({
         eventType: "native.process_start_requested", runId: execution.binding.runId,
-        companyId: execution.binding.companyId, agentId: execution.binding.agentId,
+        spaceId: execution.binding.spaceId, agentId: execution.binding.agentId,
       }));
       await options.backend.onSpawn(processMetadata);
       return {
@@ -15375,7 +15375,7 @@ describe("native process ownership", () => {
     });
 
     try {
-      await executePaperclipNativeSession({ db, execution, runnerInstanceId: "runner", onSpawn });
+      await executeOutpostNativeSession({ db, execution, runnerInstanceId: "runner", onSpawn });
       expect(admissionWriter).toHaveBeenCalledOnce();
     } finally {
       admissionWriter.mockRestore();
@@ -15461,7 +15461,7 @@ describe("native process ownership", () => {
         highestContiguousSourceSeq: 1,
       });
 
-      await executePaperclipNativeSession({
+      await executeOutpostNativeSession({
         db: leaseDb(providerExecution),
         execution: providerExecution,
         runnerInstanceId: "runner",
@@ -15496,7 +15496,7 @@ describe("runnerd provider runtime wiring", () => {
       highestContiguousSourceSeq: 1,
     });
 
-    await executePaperclipNativeSession({
+    await executeOutpostNativeSession({
       db: leaseDb(current),
       execution: current,
       runnerInstanceId: "runner-remote-warm-settlement",
@@ -15519,7 +15519,7 @@ describe("runnerd provider runtime wiring", () => {
       ...execution,
       binding: {
         ...execution.binding,
-        companyId: `company-${suffix}`,
+        spaceId: `space-${suffix}`,
         runId: `run-${suffix}`,
         agentId: `agent-${suffix}`,
         executionWorkspaceId: `workspace-${suffix}`,
@@ -15612,12 +15612,12 @@ describe("runnerd provider runtime wiring", () => {
     const finished: NativeExecutionContext[] = [];
     const finishSpy = vi.spyOn(NativeExecutionContext.prototype, "finish").mockImplementation(function (this: NativeExecutionContext) { finished.push(this); finish.call(this); });
     try {
-      await expect(executePaperclipNativeSession({ ...options, execution: resumed, db: dbFor(resumed, first),
+      await expect(executeOutpostNativeSession({ ...options, execution: resumed, db: dbFor(resumed, first),
         runnerExecutionTarget: target as never })).resolves.toMatchObject({ exitCode: 0 });
       if (mode === "unsettled-describe") {
         const runtime = await import("../../vendor/outpost-runner/index.js");
         budget = vi.spyOn(runtime, "coldAdmissionTimeoutMs").mockReturnValue(1_000);
-        await expect(executePaperclipNativeSession({ ...options, execution: followup, db: dbFor(followup, resumed),
+        await expect(executeOutpostNativeSession({ ...options, execution: followup, db: dbFor(followup, resumed),
           runnerExecutionTarget: { ...target, leaseId: "followup-lease", sandboxLeaseAcquisition: {
             outcome: "resumed", providerLeaseId: "replacement-task" } } as never }))
           .rejects.toMatchObject({ message: "native_startup_cleanup_pending", requiresPreparationStop: false });
@@ -15654,7 +15654,7 @@ describe("runnerd provider runtime wiring", () => {
         const runtime = await import("../../vendor/outpost-runner/index.js");
         budget = vi.spyOn(runtime, "coldAdmissionTimeoutMs").mockReturnValue(mode === "claim-expired" ? 10 : mode === "fallback-clear-expired" ? 250 : 1_000);
       }
-      const following = executePaperclipNativeSession({ ...options, execution: followup, db: nextDb,
+      const following = executeOutpostNativeSession({ ...options, execution: followup, db: nextDb,
         onExecutionLeaseAcquired: async () => {
           if (mode === "claim-delay" || mode === "claim-expired") {
             expect(savedContext()).toMatchObject({ runId: followup.binding.runId, leaseId: "followup-lease" });
@@ -15957,7 +15957,7 @@ describe("runnerd provider runtime wiring", () => {
     const current = cursorCloudExecution("selected-transport");
     state.createBackend.mockReturnValueOnce({ kind: "test", openSession: vi.fn() } as never);
     await createRunnerdBackend({ db: leaseDb(current), execution: current, runnerInstanceId: "cursor-controller",
-      runnerEnvironment: { CURSOR_API_KEY: "selected-company-cursor-key", OPENAI_API_KEY: "other-provider-secret", PRIVATE_HOST_VALUE: "private" } });
+      runnerEnvironment: { CURSOR_API_KEY: "selected-space-cursor-key", OPENAI_API_KEY: "other-provider-secret", PRIVATE_HOST_VALUE: "private" } });
     const options = cursorCloudTransportOptions();
     expect(options).toMatchObject({ provider: "cursor_cloud", cursorCloud: current.provider.kind === "cursor_cloud" ? current.provider.cursorCloud : undefined });
     expect(options.lifecyclePolicy).toEqual({ mode: "per_turn", idleTimeoutMs: null });
@@ -15965,7 +15965,7 @@ describe("runnerd provider runtime wiring", () => {
     const projected = createCapabilityRunnerdProviderEnvironment({ provider: "cursor_cloud", options: options as never,
       identity: options.orpIdentity as never,
       codexHome: "/unused", runtimeContextPath: "/private/runtime-context.json", hasRuntimeContext: true });
-    expect(projected).toEqual({ CURSOR_API_KEY: "selected-company-cursor-key", OUTPOST_RUNNER_INSTANCE_ID: "cursor-controller",
+    expect(projected).toEqual({ CURSOR_API_KEY: "selected-space-cursor-key", OUTPOST_RUNNER_INSTANCE_ID: "cursor-controller",
       OUTPOST_RUN_ID: current.binding.runId, OUTPOST_NORMALIZED_SESSION_ID: current.session.normalizedSessionId,
       OUTPOST_NATIVE_RUNTIME_CONTEXT_PATH: "/private/runtime-context.json",
       ...Object.fromEntries(Object.entries(options.environment!).filter(([key]) => key.startsWith("OUTPOST_CURSOR_CLOUD_"))),
@@ -15977,10 +15977,10 @@ describe("runnerd provider runtime wiring", () => {
     expect(artifactRoot).not.toBe(current.workspace.cwd);
     const config = JSON.parse(await readFile(projected.OUTPOST_CURSOR_CLOUD_CONFIG_PATH!, "utf8"));
     expect(config).toMatchObject({ repos: [{ url: "https://github.com/acme/fixture", startingRef: "test-ref" }], binding: {
-      companyId: current.binding.companyId, agentId: current.binding.agentId, issueId: current.binding.issueId,
+      spaceId: current.binding.spaceId, agentId: current.binding.agentId, issueId: current.binding.issueId,
       normalizedSessionId: current.session.normalizedSessionId,
     } });
-    expect(JSON.stringify(config)).not.toContain("selected-company-cursor-key");
+    expect(JSON.stringify(config)).not.toContain("selected-space-cursor-key");
     expect((await cloudRelayProbe(current, projected)).status).toBe(401);
     expect(resolveNativeProviderEnvironment(current.provider, undefined, { CURSOR_API_KEY: "ambient-key" })).toEqual({});
   });
@@ -16017,7 +16017,7 @@ describe("runnerd provider runtime wiring", () => {
     for (const name of ["runner", "control-plane"]) { await mkdir(join(root, name), { recursive: true, mode: 0o700 }); await writeFile(join(root, name, "retained.txt"), name); }
     const replacementInput = { identity: { ...current.binding, sessionId: current.session.normalizedSessionId }, workingDirectory: current.workspace.cwd };
     const previous = { backendKind: "test", driverKind: "cursor_cloud_api", sessionId: current.session.normalizedSessionId,
-      identity: { ...current.binding, sessionId: current.session.normalizedSessionId, ...(mode === "foreign" ? { companyId: "foreign-company" } : {}) },
+      identity: { ...current.binding, sessionId: current.session.normalizedSessionId, ...(mode === "foreign" ? { spaceId: "foreign-space" } : {}) },
       providerSessionId: current.session.normalizedSessionId, activeTurnId: null, pendingRuntimeRequests: [], terminal: { runTerminalState: "failed" }, semanticResult: null };
     if (mode !== "settled") {
       try {
@@ -16059,7 +16059,7 @@ describe("runnerd provider runtime wiring", () => {
           return ending === "recover-missing" ? { recovered: false, reason: "fixture checkpoint missing" } : { recovered: true, session: rawSession }; },
       } as never);
       const backend = await createRunnerdBackend({ db: leaseDb(current), execution: current,
-        runnerInstanceId: "cursor-controller", runnerEnvironment: { CURSOR_API_KEY: "selected-company-cursor-key" } });
+        runnerInstanceId: "cursor-controller", runnerEnvironment: { CURSOR_API_KEY: "selected-space-cursor-key" } });
       environment = cursorCloudTransportOptions().environment!;
       expect((await cloudRelayProbe(current, environment)).status).toBe(401);
       if (ending === "open-failed") await expect(backend.openSession({} as never)).rejects.toThrow("cloud-open-fixture-failed");
@@ -16220,7 +16220,7 @@ describe("runnerd provider runtime wiring", () => {
       ? priorNativeRunDb(scenario === "stale-owner" ? older : first, ["active-owner", "suspension-active-owner"].includes(scenario) ? "running" : "succeeded").select(fields as never)
       : ordinarySelect(fields as never)) as Db["select"];
     try {
-      await executePaperclipNativeSession({ db: firstDb, execution: first,
+      await executeOutpostNativeSession({ db: firstDb, execution: first,
         runnerInstanceId: identity.runnerInstanceId, useRunnerd: true, runnerExecutionTarget: pluginTarget as never,...pluginOptions });
       if (suspensionReceipt) {
         // Remote suspension leaves a local identity receipt, while the Runner
@@ -16236,7 +16236,7 @@ describe("runnerd provider runtime wiring", () => {
         firstSession.close.mockClear();
       }
       if(scenario === "plugin-replaced") replacementPending=true;
-      const continuation = executePaperclipNativeSession({ db: nextDb, execution: next,
+      const continuation = executeOutpostNativeSession({ db: nextDb, execution: next,
         runnerInstanceId: `runner-next-${scenario}`, useRunnerd: true,
         runnerExecutionTarget: (scenario === "foreign-environment" ? { ...target, environmentId: `${environmentId}-other` }
           : plugin ? {...pluginTarget,leaseId:"next-core-lease"} : target) as never,...pluginOptions });
@@ -16279,7 +16279,7 @@ describe("runnerd provider runtime wiring", () => {
             await options.onSession?.(firstSession);
             return result;
           });
-          await expect(executePaperclipNativeSession({ db: thirdDb, execution: third,
+          await expect(executeOutpostNativeSession({ db: thirdDb, execution: third,
             runnerInstanceId: `runner-third-${scenario}`, useRunnerd: true,
             runnerExecutionTarget: pluginTarget as never,...pluginOptions })).resolves.toMatchObject({ exitCode: 0 });
           expect(firstSession.close).not.toHaveBeenCalled();
@@ -16406,7 +16406,7 @@ describe("runnerd provider runtime wiring", () => {
     const priorHome = process.env.OUTPOST_HOME;
     const privateRoot = await realpath(isolatedStateDirectory);
     process.env.OUTPOST_HOME = privateRoot;
-    const managedHome = join(privateRoot, "company-login");
+    const managedHome = join(privateRoot, "space-login");
     await mkdir(managedHome, { mode: 0o700 });
     await writeFile(join(managedHome, "auth.json"), "fixture-old-login", { mode: 0o600 });
     const grokExecution = { ...execution,
@@ -16530,7 +16530,7 @@ describe("runnerd provider runtime wiring", () => {
       expect(input.stageRemoteAttachment).toBeTypeOf("function");
       throw new Error("fixture_staging_boundary");
     });
-    await expect(executePaperclipNativeSession({
+    await expect(executeOutpostNativeSession({
       db: leaseDb(stagedExecution), execution: stagedExecution, runnerInstanceId: "remote-attachment-staging", useRunnerd: true,
       runnerExecutionTarget: { kind: "remote", transport: "sandbox", remoteCwd: "/lease/workspace", runner: { execute } },
     })).rejects.toThrow("fixture_staging_boundary");
@@ -16547,14 +16547,14 @@ describe("runnerd provider runtime wiring", () => {
           contentType: "text/plain",
           byteSize: 12,
           workspaceRelativePath:
-            ".paperclip-inbound/run/00000000-0000-4000-8000-000000009202",
+            ".outpost-inbound/run/00000000-0000-4000-8000-000000009202",
           unavailableReason: null,
         },
       ],
       cleanup,
     });
     state.renderNativeRunnerStagedAttachmentPrompt.mockReturnValueOnce(
-      "Paperclip native attachment access: staged.",
+      "Outpost native attachment access: staged.",
     );
     state.execute.mockReset().mockResolvedValueOnce({
       result: { summary: "completed" },
@@ -16581,7 +16581,7 @@ describe("runnerd provider runtime wiring", () => {
     } as NativeExecutionInputV1;
 
     await expect(
-      executePaperclipNativeSession({
+      executeOutpostNativeSession({
         db: leaseDb(stagedExecution),
         execution: stagedExecution,
         runnerInstanceId: "runner-attachment-cleanup",
@@ -16592,7 +16592,7 @@ describe("runnerd provider runtime wiring", () => {
     expect(state.stageNativeRunnerWakeAttachments).toHaveBeenCalledWith(
       expect.objectContaining({
         binding: expect.objectContaining({
-          companyId: stagedExecution.binding.companyId,
+          spaceId: stagedExecution.binding.spaceId,
           issueId: stagedExecution.binding.issueId,
           runId: stagedExecution.binding.runId,
           agentId: stagedExecution.binding.agentId,
@@ -16639,7 +16639,7 @@ describe("runnerd provider runtime wiring", () => {
         if (mode === "changed-preparation") current.task.prompt = "Inspect attachment ref:mutated-during-preparation";
         return { attachments: [{ id: "attachment-original" }], cleanup: async () => undefined } as never;
       });
-      state.renderNativeRunnerStagedAttachmentPrompt.mockReturnValueOnce("Materialized attachment: .paperclip-inbound/current/original");
+      state.renderNativeRunnerStagedAttachmentPrompt.mockReturnValueOnce("Materialized attachment: .outpost-inbound/current/original");
       const admission = structuredClone(current);
       if (mode === "changed-admission") admission.task.prompt = "Inspect attachment ref:changed";
       const reached = new Error("verified staged admission reached recheck");
@@ -16650,7 +16650,7 @@ describe("runnerd provider runtime wiring", () => {
           templateDigest: canonicalTemplateDigest } as never)
         .mockRejectedValueOnce(reached);
       try {
-        const resume = executePaperclipNativeSession({ db: leaseDb(current), execution: current, useRunnerd: true,
+        const resume = executeOutpostNativeSession({ db: leaseDb(current), execution: current, useRunnerd: true,
           runnerInstanceId: "attachment-runner", restartRecovery: { kind: "reattach_remote_runner", runId: current.binding.runId,
             leaseOwner: "controller", controllerGeneration: 2, providerAttempt: 1, restartKind: "hard", recoveryRequestId: null,
             remote: { kind: "sandbox", leaseId: "attachment-lease", providerLeaseId: "sandbox", remoteCwd: "/workspace" } } as never,
@@ -16660,7 +16660,7 @@ describe("runnerd provider runtime wiring", () => {
         else await expect(resume).rejects.toThrow(mode === "changed-template" ? "staged_attachment_binding_mismatch"
           : mode === "changed-preparation" ? "native_attachment_admission_changed" : "staged_attachment_recovery_unproven");
         expect(state.stageNativeRunnerWakeAttachments).toHaveBeenCalledWith(expect.objectContaining({ binding: expect.objectContaining({
-          companyId: current.binding.companyId, issueId: current.binding.issueId, agentId: current.binding.agentId, runId: current.binding.runId,
+          spaceId: current.binding.spaceId, issueId: current.binding.issueId, agentId: current.binding.agentId, runId: current.binding.runId,
         }) }));
       } finally { restore.mockRestore(); header.mockRestore(); verify.mockRestore(); await controller.stop(); }
     });
@@ -16683,7 +16683,7 @@ describe("runnerd provider runtime wiring", () => {
     const saved = JSON.parse(await readFile(join(root, "control-plane/control-plane-state.json"), "utf8"));
     state.stageNativeRunnerWakeAttachments.mockImplementationOnce(async () =>
       ({ attachments: [{ id: "attachment-original" }], cleanup: async () => undefined }) as never);
-    state.renderNativeRunnerStagedAttachmentPrompt.mockReturnValueOnce("Materialized attachment: .paperclip-inbound/current/original");
+    state.renderNativeRunnerStagedAttachmentPrompt.mockReturnValueOnce("Materialized attachment: .outpost-inbound/current/original");
     const reached = new Error("verified staged admission reached recheck");
     const restore = vi.spyOn(runnerCheckpoint, "restoreNativeRunnerCheckpoint").mockResolvedValue(null);
     const header = vi.spyOn(runnerCheckpoint, "loadNativeRunnerCheckpointHeader").mockResolvedValue("staged header");
@@ -16692,7 +16692,7 @@ describe("runnerd provider runtime wiring", () => {
         templateDigest: saved.stagedRunAttachment.templateDigest } as never)
       .mockRejectedValueOnce(reached);
     try {
-      const resume = executePaperclipNativeSession({ db: leaseDb(current), execution: current, useRunnerd: true,
+      const resume = executeOutpostNativeSession({ db: leaseDb(current), execution: current, useRunnerd: true,
         runnerInstanceId: "attachment-runner", restartRecovery: { kind: "reattach_remote_runner", runId: current.binding.runId,
           leaseOwner: "controller", controllerGeneration: 2, providerAttempt: 1, restartKind: "hard", recoveryRequestId: null,
           remote: { kind: "sandbox", leaseId: "attachment-lease", providerLeaseId: "sandbox", remoteCwd: "/workspace" } } as never,
@@ -16743,7 +16743,7 @@ describe("runnerd provider runtime wiring", () => {
     const onExecutionLeaseAcquired = vi.fn();
     const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
     const db = leaseDb(fresh, {}, {}, updates);
-    await expect(executePaperclipNativeSession({ db, execution: fresh, runnerInstanceId: "waiting-controller",
+    await expect(executeOutpostNativeSession({ db, execution: fresh, runnerInstanceId: "waiting-controller",
       useRunnerd: true, onExecutionLeaseAcquired,
       runnerExecutionTarget: { kind: "remote", transport: "sandbox", remoteCwd: "/workspace",
         environmentId: "retained-environment", leaseId: "retained-lease" },
@@ -16791,7 +16791,7 @@ describe("runnerd provider runtime wiring", () => {
         }),
     );
 
-    const active = executePaperclipNativeSession({
+    const active = executeOutpostNativeSession({
       db: leaseDb(first),
       execution: first,
       runnerInstanceId: "runner-runnerd-overlap",
@@ -16806,7 +16806,7 @@ describe("runnerd provider runtime wiring", () => {
       }),
     );
     await expect(
-      executePaperclipNativeSession({
+      executeOutpostNativeSession({
         db: leaseDb(second),
         execution: second,
         runnerInstanceId: "runner-runnerd-overlap",
@@ -16824,7 +16824,7 @@ describe("runnerd provider runtime wiring", () => {
       ...execution,
       binding: {
         ...execution.binding,
-        companyId: "company-projectless-continuation",
+        spaceId: "space-projectless-continuation",
         runId: "run-projectless-prior",
         executionWorkspaceId: "run-projectless-prior",
       },
@@ -16841,7 +16841,7 @@ describe("runnerd provider runtime wiring", () => {
         executionWorkspaceId: "run-projectless-next",
       },
     } as NativeExecutionInputV1;
-    const remoteCwd = "/home/daytona/paperclip-workspace";
+    const remoteCwd = "/home/daytona/outpost-workspace";
     const scopedRoot = await initializeScopedRunnerRoot(prior, "runner-projectless-stable");
     await mkdir(join(scopedRoot, "control-plane"), { recursive: true });
     await mkdir(join(scopedRoot, "runner"), { recursive: true });
@@ -16889,7 +16889,7 @@ describe("runnerd provider runtime wiring", () => {
       }),
     } as unknown as Db;
 
-    await executePaperclipNativeSession({
+    await executeOutpostNativeSession({
       db: continuationDb,
       execution: continuation,
       runnerInstanceId: "runner-new-heartbeat",
@@ -16941,7 +16941,7 @@ describe("runnerd provider runtime wiring", () => {
   });
 
   it.each([
-    { OUTPOST_NATIVE_MCP_NAME: "paperclip-assigned" },
+    { OUTPOST_NATIVE_MCP_NAME: "outpost-assigned" },
     { OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1:3217/mcp/gateways/test" },
     { OUTPOST_NATIVE_MCP_TOKEN: "private-run-token" },
   ])("rejects partial remote assigned MCP bindings", async (runnerEnvironment) => {
@@ -16950,7 +16950,7 @@ describe("runnerd provider runtime wiring", () => {
       db: leaseDb(execution), execution, runnerInstanceId: "runner-partial-mcp", runnerEnvironment, prepareRunnerEnvironment,
       runnerExecutionTarget: {
         kind: "remote", transport: "sandbox", providerKey: "daytona",
-        leaseId: "lease-partial-mcp", remoteCwd: "/home/daytona/paperclip-workspace",
+        leaseId: "lease-partial-mcp", remoteCwd: "/home/daytona/outpost-workspace",
         runner: { execute: vi.fn() },
       } as never,
     })).rejects.toThrow("assigned native MCP launch binding is incomplete");
@@ -16966,7 +16966,7 @@ describe("runnerd provider runtime wiring", () => {
     const assignedGate = new Promise<void>(resolve => { releaseAssigned = resolve; });
     const assignedReady = new Promise<void>(resolve => { assignedStarted = resolve; });
     const runnerEnvironment = {
-      OUTPOST_NATIVE_MCP_NAME: "paperclip-assigned",
+      OUTPOST_NATIVE_MCP_NAME: "outpost-assigned",
       OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1:3217/mcp/gateways/assigned-overlap",
       OUTPOST_NATIVE_MCP_TOKEN: "private-overlap-token",
     };
@@ -16993,7 +16993,7 @@ describe("runnerd provider runtime wiring", () => {
       runnerEnvironment, prepareRunnerEnvironment,
       runnerExecutionTarget: {
         kind: "remote", transport: "sandbox", providerKey: "daytona",
-        leaseId: "lease-overlap", remoteCwd: "/home/daytona/paperclip-workspace",
+        leaseId: "lease-overlap", remoteCwd: "/home/daytona/outpost-workspace",
         runner: { execute: vi.fn() },
       } as never,
     }).then(value => ({ value }), error => ({ error })).finally(() => { settled = true; });
@@ -17013,8 +17013,8 @@ describe("runnerd provider runtime wiring", () => {
       releaseAssigned();
       const result = await preparation;
       expect(released).toHaveBeenCalledExactlyOnceWith(
-        { companyId: execution.binding.companyId, agentId: execution.binding.agentId },
-        { companyId: execution.binding.companyId, runId: execution.binding.runId, issueId: execution.binding.issueId },
+        { spaceId: execution.binding.spaceId, agentId: execution.binding.agentId },
+        { spaceId: execution.binding.spaceId, runId: execution.binding.runId, issueId: execution.binding.issueId },
       );
       if (failure !== "success") {
         expect(result).toMatchObject({ error: { message: failure === "assigned" ? "assigned failed" : "environment failed" } });
@@ -17067,17 +17067,17 @@ describe("runnerd provider runtime wiring", () => {
     state.execute.mockClear();
     state.createBackend.mockClear();
     let settled = false;
-    const running = executePaperclipNativeSession({
+    const running = executeOutpostNativeSession({
       db: leaseDb(current), execution: current, runnerInstanceId: "runner-overlap-cleanup",
       useRunnerd: true, managedGitHub: true,
       runnerEnvironment: {
-        OUTPOST_NATIVE_MCP_NAME: "paperclip-assigned",
+        OUTPOST_NATIVE_MCP_NAME: "outpost-assigned",
         OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1:3217/mcp/gateways/assigned-cleanup",
         OUTPOST_NATIVE_MCP_TOKEN: "private-cleanup-token",
       },
       runnerExecutionTarget: {
         kind: "remote", transport: "sandbox", providerKey: "daytona",
-        leaseId: "lease-overlap-cleanup", remoteCwd: "/home/daytona/paperclip-workspace",
+        leaseId: "lease-overlap-cleanup", remoteCwd: "/home/daytona/outpost-workspace",
         runner: { execute: vi.fn() },
       } as never,
     }).then(value => ({ value }), error => ({ error })).finally(() => { settled = true; });
@@ -17167,7 +17167,7 @@ describe("runnerd provider runtime wiring", () => {
     await writeFile(join(root, "control-plane", "control-plane-state.json"), JSON.stringify(durableControlPlaneState(identity)));
     let installed: unknown = null;
     if (provider === "acpx") {
-      const packRoot = await mkdtemp(join(tmpdir(), "paperclip-replacement-pack-"));
+      const packRoot = await mkdtemp(join(tmpdir(), "outpost-replacement-pack-"));
       onTestFinished(() => rm(packRoot, { recursive: true, force: true }));
       const digest = "sha256:" + "a".repeat(64);
       const canonical = (value: unknown): string => Array.isArray(value) ? `[${value.map(canonical).join(",")}]`
@@ -17282,7 +17282,7 @@ describe("runnerd provider runtime wiring", () => {
     await writeFile(join(root, "control-plane", "control-plane-state.json"), JSON.stringify(durableControlPlaneState(identity)));
     let installed: unknown = null;
     if (provider === "acpx") {
-      const packRoot = await mkdtemp(join(tmpdir(), "paperclip-replacement-pack-"));
+      const packRoot = await mkdtemp(join(tmpdir(), "outpost-replacement-pack-"));
       onTestFinished(() => rm(packRoot, { recursive: true, force: true }));
       const digest = "sha256:" + "a".repeat(64);
       const canonical = (value: unknown): string => Array.isArray(value) ? `[${value.map(canonical).join(",")}]`
@@ -17547,7 +17547,7 @@ describe("runnerd provider runtime wiring", () => {
           expect(existsSync(join(scoped, "plugin-runner-state.json"))).toBe(false);
           expect(await readFile(join(scoped, "control-plane/control-plane-state.json"), "utf8")).toBe(journal);
         }
-        const backend = throughExecutor ? executePaperclipNativeSession({ ...launch, useRunnerd: true }) : createRunnerdBackend(launch);
+        const backend = throughExecutor ? executeOutpostNativeSession({ ...launch, useRunnerd: true }) : createRunnerdBackend(launch);
         if (["canonical", "resumed", "resumed-timeout", "local-receipt", "local-receipt-late-notice", "quarantined", "empty-runner", "empty-runner-quarantined"].includes(mode)) {
           await expect(backend).resolves.toBeDefined();
           expect(state.createBackend).toHaveBeenCalledOnce();
@@ -17670,7 +17670,7 @@ describe("runnerd provider runtime wiring", () => {
     const firstStore = { read: vi.fn(async () => "first-refresh"), remove: vi.fn(async () => {}) };
     const nextStore = { read: vi.fn(async () => "next-refresh"), remove: vi.fn(async () => {}) };
     const stores = vi.spyOn(nativeCredentialStores, "createNativeCredentialStore").mockReturnValueOnce(firstStore).mockReturnValueOnce(nextStore);
-    const persist = vi.spyOn(managedCredentialWriteback, "syncManagedAiCredentials").mockImplementation(async (_db, _company, _binding, _provider, read) => {
+    const persist = vi.spyOn(managedCredentialWriteback, "syncManagedAiCredentials").mockImplementation(async (_db, _space, _binding, _provider, read) => {
       await read(); return "rotated";
     });
     const append = vi.spyOn(nativeCredentialEvents, "appendNativeCredentialUpdate").mockImplementation(async (_db, input) => { await input.synchronizeCredentials?.(); });
@@ -17704,7 +17704,7 @@ describe("runnerd provider runtime wiring", () => {
       await completeManagedNativeCredentialTurn(session);
       await rm(nextHome, { recursive: true, force: true });
       await retainedHook(notification);
-      expect(persist).toHaveBeenLastCalledWith(expect.anything(), current.binding.companyId, nextBinding,
+      expect(persist).toHaveBeenLastCalledWith(expect.anything(), current.binding.spaceId, nextBinding,
         provider === "grok" ? "grok" : "codex", nextStore.read);
       expect(persist.mock.calls.at(-1)![2]).toBe(nextBinding);
       await session.close({ reason: "idle retirement" });
@@ -17905,7 +17905,7 @@ describe("runnerd provider runtime wiring", () => {
           normalizedSessionId: source.normalizedSessionId, providerSessionId: "provider-session", driverKind: "test", driverVersion: "1",
           nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
       });
-      const execute = executePaperclipNativeSession({ db: leaseDb(current, {}, {}, updates), execution: current,
+      const execute = executeOutpostNativeSession({ db: leaseDb(current, {}, {}, updates), execution: current,
         runnerInstanceId: source.runnerInstanceId, useRunnerd: true, runnerIngressAuthorized: true, runnerExecutionTarget: target,
         managedAiCredentialHome: home, managedAiCredentialIdentity: "selected-revision", managedAiAccountIdentity: "selected-account",
         runnerEnvironment: provider === "claude" ? { ANTHROPIC_API_KEY: "synthetic-fixture" } : {} });
@@ -17915,12 +17915,12 @@ describe("runnerd provider runtime wiring", () => {
         expect(readNativeSessionIdleWork()).toBe("present");
         const next = { ...current, binding: { ...current.binding, runId: `${current.binding.runId}-next` } };
         const nextTask = vi.fn();
-        await expect(executePaperclipNativeSession({ db: leaseDb(next), execution: next,
+        await expect(executeOutpostNativeSession({ db: leaseDb(next), execution: next,
           runnerInstanceId: source.runnerInstanceId, useRunnerd: true, runnerIngressAuthorized: true,
           runnerExecutionTarget: { ...target, runnerTask: nextTask } })).rejects.toThrow("native_session_supervisor_busy");
         expect(nextTask).not.toHaveBeenCalled();
         if (provider === "codex" && !unknown && !shutdown && !journalFailure && !deadline) {
-          await expect(executePaperclipNativeSession({ db: leaseDb(next), execution: next,
+          await expect(executeOutpostNativeSession({ db: leaseDb(next), execution: next,
             runnerInstanceId: source.runnerInstanceId, useRunnerd: true, runnerIngressAuthorized: true,
             runnerExecutionTarget: { ...target, environmentId: "competing-environment", runnerTask: nextTask,
               sandboxLeaseAcquisition: { ...target.sandboxLeaseAcquisition, providerLeaseId: "competing-task" } } })).rejects.toThrow("native_session_supervisor_busy");
@@ -17939,19 +17939,19 @@ describe("runnerd provider runtime wiring", () => {
           await receipt;
           await Promise.resolve();
           expect(readNativeSessionIdleWork()).toBe("present");
-          await expect(executePaperclipNativeSession({ db: leaseDb(next), execution: next,
+          await expect(executeOutpostNativeSession({ db: leaseDb(next), execution: next,
             runnerInstanceId: source.runnerInstanceId, useRunnerd: true, runnerIngressAuthorized: true,
             runnerExecutionTarget: { ...target, runnerTask: nextTask } })).rejects.toThrow("native_session_supervisor_busy");
           expect(nextTask).not.toHaveBeenCalled();
           allowPhysicalStop();
           await expect(execute).resolves.toMatchObject({ sessionId: source.normalizedSessionId });
           expect(readNativeSessionIdleWork()).toBe("none");
-          const directory = join(resolvePaperclipInstanceRoot(), "runtime/outpost-runner/sessions");
+          const directory = join(resolveOutpostInstanceRoot(), "runtime/outpost-runner/sessions");
           expect(JSON.parse(await readFile(join(directory, (await readdir(directory))[0]!), "utf8")).releasedRunner).toBeUndefined();
           return;
         }
         if (journalFailure) {
-          const directory = join(resolvePaperclipInstanceRoot(), "runtime/outpost-runner/sessions");
+          const directory = join(resolveOutpostInstanceRoot(), "runtime/outpost-runner/sessions");
           const path = join(directory, (await readdir(directory))[0]!);
           await rename(path, `${path}.saved`);
           await mkdir(path);
@@ -17960,7 +17960,7 @@ describe("runnerd provider runtime wiring", () => {
           allowRelease();
           await new Promise(resolve => setImmediate(resolve));
           expect(finished).toBe(false);
-          await expect(executePaperclipNativeSession({ db: leaseDb(next), execution: next,
+          await expect(executeOutpostNativeSession({ db: leaseDb(next), execution: next,
             runnerInstanceId: source.runnerInstanceId, useRunnerd: true, runnerIngressAuthorized: true,
             managedAiCredentialHome: home, managedAiCredentialIdentity: "selected-revision", managedAiAccountIdentity: "selected-account",
             runnerExecutionTarget: { ...target, remoteCwd: "different-workspace", runnerTask: nextTask } })).rejects.toThrow("native_session_supervisor_busy");
@@ -17980,7 +17980,7 @@ describe("runnerd provider runtime wiring", () => {
         allowRelease();
         await expect(execute).resolves.toMatchObject({ sessionId: source.normalizedSessionId });
         expect(readNativeSessionIdleWork()).toBe("none");
-        const directory = join(resolvePaperclipInstanceRoot(), "runtime/outpost-runner/sessions");
+        const directory = join(resolveOutpostInstanceRoot(), "runtime/outpost-runner/sessions");
         const files = await readdir(directory);
         const path = join(directory, files[0]!);
         const envelope = JSON.parse(await readFile(path, "utf8"));
@@ -17989,7 +17989,7 @@ describe("runnerd provider runtime wiring", () => {
         if (!unknown) {
           const calls = owners.mock.calls.length;
           for (const changed of [{ remoteCwd: "different-workspace" }, { runnerTaskProjectIds: ["different-project"] }]) {
-            await expect(executePaperclipNativeSession({ db: leaseDb(next), execution: next,
+            await expect(executeOutpostNativeSession({ db: leaseDb(next), execution: next,
               runnerInstanceId: source.runnerInstanceId, useRunnerd: true, runnerIngressAuthorized: true,
               managedAiCredentialHome: home, managedAiCredentialIdentity: "selected-revision", managedAiAccountIdentity: "selected-account",
               runnerExecutionTarget: { ...target, ...changed, runnerTask: nextTask },
@@ -18035,13 +18035,13 @@ describe("runnerd provider runtime wiring", () => {
             const base = { db: leaseDb(next), execution: next, runnerInstanceId: source.runnerInstanceId,
               useRunnerd: true, runnerIngressAuthorized: true, runnerExecutionTarget: target,
               managedAiCredentialHome: home, managedAiCredentialIdentity: "selected-revision", managedAiAccountIdentity: "selected-account" };
-            await expect(executePaperclipNativeSession(base)).rejects.toThrow("fixture completed-source proof checked");
+            await expect(executeOutpostNativeSession(base)).rejects.toThrow("fixture completed-source proof checked");
             for (const changed of [
               { managedAiAccountIdentity: "different-account" }, { managedAiCredentialIdentity: "different-revision" },
               { runnerExecutionTarget: { ...target, runnerTaskProjectIds: ["different-project"] } },
               { runnerExecutionTarget: { ...target, remoteCwd: "different-workspace" } },
               { runnerExecutionTarget: { ...target, sandboxLeaseAcquisition: { ...target.sandboxLeaseAcquisition, providerLeaseId: "different-task" } } },
-            ]) await expect(executePaperclipNativeSession({ ...base, ...changed })).rejects.toThrow("released_owner_scope_mismatch");
+            ]) await expect(executeOutpostNativeSession({ ...base, ...changed })).rejects.toThrow("released_owner_scope_mismatch");
             expect(owners).toHaveBeenCalledTimes(calls);
             expect(state.execute).toHaveBeenCalledTimes(1);
           } finally { inspected.mockRestore(); }
@@ -18154,7 +18154,7 @@ describe("runnerd provider runtime wiring", () => {
           db.select = ((fields?: Record<string, unknown>) => fields?.status === heartbeatRuns.status && fields?.runnerProfileJson === heartbeatRuns.runnerProfileJson
             ? priorNativeRunDb(first).select(fields as never) : select(fields as never)) as Db["select"];
         }
-        return executePaperclipNativeSession({ db, leaseOwner: "external-controller", execution,
+        return executeOutpostNativeSession({ db, leaseOwner: "external-controller", execution,
           runnerInstanceId: execution === next ? "successor-candidate-runner" : source.runnerInstanceId, useRunnerd: true, runnerIngressAuthorized: true,
           runnerExecutionTarget: execution === next ? { ...target, leaseId: "successor-controller-lease" } : target,
           managedAiCredentialHome: home, managedAiCredentialIdentity: "selected-revision",
@@ -18164,7 +18164,7 @@ describe("runnerd provider runtime wiring", () => {
       try {
         await expect(run(first)).resolves.toMatchObject({ sessionId: source.normalizedSessionId });
         expect(release).toHaveBeenCalledOnce();
-        const directory = join(resolvePaperclipInstanceRoot(), "runtime/outpost-runner/sessions");
+        const directory = join(resolveOutpostInstanceRoot(), "runtime/outpost-runner/sessions");
         const path = join(directory, (await readdir(directory))[0]!);
         expect(JSON.parse(await readFile(path, "utf8")).releasedRunner.source).toEqual(source);
         following = run(next);
@@ -18207,13 +18207,13 @@ describe("runnerd provider runtime wiring", () => {
       await createRunnerdBackend({
         db: leaseDb(selectedExecution), execution: selectedExecution, runnerInstanceId: "runner-assigned-mcp",
         runnerEnvironment: {
-          OUTPOST_NATIVE_MCP_NAME: "paperclip-assigned",
+          OUTPOST_NATIVE_MCP_NAME: "outpost-assigned",
           OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1:3217/mcp/gateways/assigned-test",
           OUTPOST_NATIVE_MCP_TOKEN: "private-run-token",
         },
         runnerExecutionTarget: providerKind === "opencode" ? undefined : {
           kind: "remote", transport: "sandbox", providerKey: "daytona",
-          leaseId: "lease-assigned-mcp", remoteCwd: "/home/daytona/paperclip-workspace",
+          leaseId: "lease-assigned-mcp", remoteCwd: "/home/daytona/outpost-workspace",
           runner: { execute: vi.fn() },
         } as never,
       });
@@ -18251,7 +18251,7 @@ describe("runnerd provider runtime wiring", () => {
     ["keeps a different live copy beside the archive", "live", "archived", 1, null],
     ["fails when no state exists", null, null, 1, null],
   ] as const)("remote authority archive script %s", async (_name, live, archived, exitCode, printed) => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-authority-archive-script-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-authority-archive-script-"));
     try {
       const source = join(root, "runner", "runner-state.json");
       const archiveDirectory = join(root, "authority-epochs", "epoch-aaaaaaaaaaaaaaaaaaaaaaaa");
@@ -18282,7 +18282,7 @@ describe("runnerd provider runtime wiring", () => {
   it.each([true, false])("prepares a resumed sandbox after a resumed rotation archived its Runner state (archived: %s)", async archived => {
     const remoteCwd = join(isolatedStateDirectory, "remote-resumed-rotation");
     const current: NativeExecutionInputV1 = { ...execution,
-      binding: { ...execution.binding, companyId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(), runId: randomUUID() },
+      binding: { ...execution.binding, spaceId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(), runId: randomUUID() },
       session: { ...execution.session, normalizedSessionId: randomUUID(), lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
     };
     const runnerInstanceId = "resumed-rotation-runner";
@@ -18324,7 +18324,7 @@ describe("runnerd provider runtime wiring", () => {
       controlPlaneRegistration: NonNullable<import("../../vendor/outpost-runner/index.js").RunnerExecutionDriver["controlPlaneRegistration"]>;
     };
     // The resumed sandbox keeps the prior run's suspended Runner and provider state.
-    const remoteSession = join(remoteCwd, ".paperclip-runtime/outpost-runner/sessions",
+    const remoteSession = join(remoteCwd, ".outpost-runtime/outpost-runner/sessions",
       createHash("sha256").update(current.session.normalizedSessionId!).digest("hex"));
     const runnerState = durableRunnerState(priorIdentity, "suspended");
     await mkdir(join(remoteSession, "runner"), { recursive: true });
@@ -18377,7 +18377,7 @@ describe("runnerd provider runtime wiring", () => {
     providerStateUnsaved.mark.mockClear();
     const remoteCwd = join(isolatedStateDirectory, `remote-unsaved-${reusable}`);
     const current: NativeExecutionInputV1 = { ...execution,
-      binding: { ...execution.binding, companyId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(), runId: randomUUID() },
+      binding: { ...execution.binding, spaceId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(), runId: randomUUID() },
       session: { ...execution.session, normalizedSessionId: randomUUID(), lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
     };
     const runnerInstanceId = "unsaved-state-runner";
@@ -18441,7 +18441,7 @@ describe("runnerd provider runtime wiring", () => {
       transport: "sandbox" as const,
       providerKey: "daytona",
       leaseId: "lease-authority-archive",
-      remoteCwd: "/home/daytona/paperclip-workspace",
+      remoteCwd: "/home/daytona/outpost-workspace",
       runner: { execute: remoteExecute },
     } as never;
     const normalizedSessionId = execution.session.normalizedSessionId;
@@ -18567,7 +18567,7 @@ describe("runnerd provider runtime wiring", () => {
       ...execution,
       binding: {
         ...execution.binding,
-        companyId: "company-legacy-state",
+        spaceId: "space-legacy-state",
         runId: "run-legacy-state",
       },
       session: {
@@ -18626,7 +18626,7 @@ describe("runnerd provider runtime wiring", () => {
       ...legacyExecution,
       binding: {
         ...legacyExecution.binding,
-        companyId: "company-unrelated-state",
+        spaceId: "space-unrelated-state",
         runId: "run-unrelated-state",
       },
     } as NativeExecutionInputV1;
@@ -18641,7 +18641,7 @@ describe("runnerd provider runtime wiring", () => {
     );
   });
 
-  it("migrates the former company/session scope into the full native session scope", async () => {
+  it("migrates the former space/session scope into the full native session scope", async () => {
     const stateBase = isolatedStateDirectory;
 
     const legacyExecution = scopedNativeExecution("former-scope");
@@ -18650,7 +18650,7 @@ describe("runnerd provider runtime wiring", () => {
       createHash("sha256")
         .update(
           JSON.stringify([
-            legacyExecution.binding.companyId,
+            legacyExecution.binding.spaceId,
             legacyExecution.session.normalizedSessionId,
           ]),
         )
@@ -18696,7 +18696,7 @@ describe("runnerd provider runtime wiring", () => {
       createHash("sha256")
         .update(
           JSON.stringify([
-            currentExecution.binding.companyId,
+            currentExecution.binding.spaceId,
             currentExecution.session.normalizedSessionId,
           ]),
         )
@@ -18857,7 +18857,7 @@ describe("runnerd provider runtime wiring", () => {
           privateKey: null, knownHosts: null, strictHostKeyChecking: true },
         providerKey: "daytona",
         leaseId: "environment-lease-remote-prior-scope",
-        remoteCwd: "/home/daytona/paperclip-workspace",
+        remoteCwd: "/home/daytona/outpost-workspace",
         runner: {
           execute: vi.fn(),
         },
@@ -18984,7 +18984,7 @@ describe("runnerd provider runtime wiring", () => {
       createHash("sha256")
         .update(
           JSON.stringify([
-            currentExecution.binding.companyId,
+            currentExecution.binding.spaceId,
             currentExecution.session.normalizedSessionId,
           ]),
         )
@@ -19077,7 +19077,7 @@ describe("runnerd provider runtime wiring", () => {
     await mkdir(join(root, "runner"), { recursive: true });
     await writeFile(join(root, "runner/runner-state.json"), JSON.stringify(durableRunnerState(identity, "ready")));
     const restore = vi.spyOn(runnerCheckpoint, "restoreNativeRunnerCheckpoint").mockImplementation(async (_db, binding, directory, sessionId) => {
-      expect(binding).toEqual({ companyId: prior.binding.companyId, issueId: prior.binding.issueId, runId: prior.binding.runId });
+      expect(binding).toEqual({ spaceId: prior.binding.spaceId, issueId: prior.binding.issueId, runId: prior.binding.runId });
       expect(sessionId).toBe(prior.session.normalizedSessionId);
       saved!.restoreSessionDirectory(directory);
       return saved!;
@@ -19145,13 +19145,13 @@ describe("runnerd provider runtime wiring", () => {
     await writeFile(path, staleProjection);
     await mkdir(join(root, "runner"), { recursive: true });
     await writeFile(join(root, "runner/runner-state.json"), JSON.stringify(durableRunnerState(identity, "suspended")));
-    const supervisorDirectory = join(resolvePaperclipInstanceRoot(), "runtime/outpost-runner/sessions");
+    const supervisorDirectory = join(resolveOutpostInstanceRoot(), "runtime/outpost-runner/sessions");
     await mkdir(supervisorDirectory, { recursive: true });
     const supervisorPath = join(supervisorDirectory, `${basename(root)}.json`);
     await writeFile(supervisorPath, JSON.stringify({ schema: "outpost.native-session-supervisor.v1",
       snapshot: { identity: { ...prior.binding, sessionId: identity.normalizedSessionId } } }));
     const restore = vi.spyOn(runnerCheckpoint, "restoreNativeRunnerCheckpoint").mockImplementation(async (_db, binding, directory, sessionId) => {
-      expect(binding).toEqual({ companyId: prior.binding.companyId, issueId: prior.binding.issueId, runId: prior.binding.runId });
+      expect(binding).toEqual({ spaceId: prior.binding.spaceId, issueId: prior.binding.issueId, runId: prior.binding.runId });
       expect(sessionId).toBe(identity.normalizedSessionId);
       if (mode === "legacy-file") return null;
       if (mode === "binding-mismatch") throw new Error("native_runner_checkpoint_binding_mismatch");
@@ -19243,7 +19243,7 @@ describe("runnerd provider runtime wiring", () => {
     const markerBefore = scenario === "missing-marker" ? null
       : await readFile(join(root, "control-plane/control-plane-state.json"), "utf8");
     const restore = vi.spyOn(runnerCheckpoint, "restoreNativeRunnerCheckpoint").mockImplementation(async (_db, binding, directory, sessionId) => {
-      expect(binding).toEqual({ companyId: prior.binding.companyId, issueId: current.binding.issueId, runId: prior.binding.runId });
+      expect(binding).toEqual({ spaceId: prior.binding.spaceId, issueId: current.binding.issueId, runId: prior.binding.runId });
       expect(sessionId).toBe(prior.session.normalizedSessionId);
       if (["missing-checkpoint", "legacy-file-no-checkpoint"].includes(scenario) || binding.issueId !== prior.binding.issueId) return null;
       if (["checkpoint-binding-error", "file-checkpoint-binding-error"].includes(scenario)) throw new Error("native_runner_checkpoint_binding_mismatch");
@@ -19310,7 +19310,7 @@ describe("runnerd provider runtime wiring", () => {
     "provider mismatch",
     "unacknowledged events",
     "runtime request",
-    "wrong company",
+    "wrong space",
     "permission denied process",
     "ambiguous turn start",
     "state symlink",
@@ -19382,10 +19382,10 @@ describe("runnerd provider runtime wiring", () => {
           identity: {
             runId: identity.runId,
             sessionId: identity.normalizedSessionId,
-            companyId:
-              scenario === "wrong company"
-                ? "other-company"
-                : priorExecution.binding.companyId,
+            spaceId:
+              scenario === "wrong space"
+                ? "other-space"
+                : priorExecution.binding.spaceId,
             agentId: priorExecution.binding.agentId,
             issueId: priorExecution.binding.issueId,
           },
@@ -19853,7 +19853,7 @@ describe("runnerd provider runtime wiring", () => {
         ...execution,
         binding: {
           ...execution.binding,
-          companyId: `warm-company-${variant}`,
+          spaceId: `warm-space-${variant}`,
           runId: `warm-run-${variant}`,
           agentId: `warm-agent-${variant}`,
           executionWorkspaceId: `warm-workspace-${variant}`,
@@ -20182,7 +20182,7 @@ describe("runnerd provider runtime wiring", () => {
       ...execution,
       binding: {
         ...execution.binding,
-        companyId: "company-prior-run-mismatch",
+        spaceId: "space-prior-run-mismatch",
         runId: "run-current-prior-mismatch",
         agentId: "agent-current-prior-mismatch",
         executionWorkspaceId: "workspace-prior-mismatch",
@@ -20205,7 +20205,7 @@ describe("runnerd provider runtime wiring", () => {
       createHash("sha256")
         .update(
           JSON.stringify([
-            currentExecution.binding.companyId,
+            currentExecution.binding.spaceId,
             currentExecution.session.normalizedSessionId,
           ]),
         )
@@ -20247,7 +20247,7 @@ describe("runnerd provider runtime wiring", () => {
       ...execution,
       binding: {
         ...execution.binding,
-        companyId: "company-mismatched-scope",
+        spaceId: "space-mismatched-scope",
         runId: "run-current-scope",
         agentId: "agent-current-scope",
         executionWorkspaceId: "workspace-current-scope",
@@ -20262,7 +20262,7 @@ describe("runnerd provider runtime wiring", () => {
       createHash("sha256")
         .update(
           JSON.stringify([
-            currentExecution.binding.companyId,
+            currentExecution.binding.spaceId,
             currentExecution.session.normalizedSessionId,
           ]),
         )
@@ -20291,14 +20291,14 @@ describe("runnerd provider runtime wiring", () => {
     await expect(access(legacyRoot)).resolves.toBeUndefined();
   });
 
-  it("isolates durable state and tool authority for equal session ids in different companies", async () => {
-    const scopedExecution = (companyId: string, runId: string) =>
+  it("isolates durable state and tool authority for equal session ids in different spaces", async () => {
+    const scopedExecution = (spaceId: string, runId: string) =>
       ({
         ...execution,
         schema: "outpost.native-execution-input.v4",
         binding: {
           ...execution.binding,
-          companyId,
+          spaceId,
           runId,
           executionWorkspaceId: "workspace",
         },
@@ -20328,8 +20328,8 @@ describe("runnerd provider runtime wiring", () => {
         credentialBindings: [],
         runtimeContext: nativeRuntimeContextFixture(),
       }) as unknown as NativeExecutionInputV1;
-    const firstExecution = scopedExecution("company-first", "run-first");
-    const secondExecution = scopedExecution("company-second", "run-second");
+    const firstExecution = scopedExecution("space-first", "run-first");
+    const secondExecution = scopedExecution("space-second", "run-second");
     state.createBackend.mockClear();
     state.toolAuthorityExecute
       .mockReset()
@@ -20378,7 +20378,7 @@ describe("runnerd provider runtime wiring", () => {
         schema: "outpost.native-execution-input.v4",
         binding: {
           ...execution.binding,
-          companyId: "company-session-scope",
+          spaceId: "space-session-scope",
           runId: input.runId,
           issueId: "issue-session-scope",
           agentId: input.agentId ?? "agent-session-scope",
@@ -20580,7 +20580,7 @@ describe("runnerd provider runtime wiring", () => {
   });
 
   it("uses the remote workspace for both the runner backend and native session", async () => {
-    const remoteCwd = "/home/daytona/paperclip-workspace";
+    const remoteCwd = "/home/daytona/outpost-workspace";
     const remoteExecution = {
       ...execution,
       binding: { ...execution.binding, runId: "run-remote-workspace-test" },
@@ -20592,7 +20592,7 @@ describe("runnerd provider runtime wiring", () => {
         workMode: "standard",
       },
       workspace: {
-        cwd: "/host/paperclip-workspace",
+        cwd: "/host/outpost-workspace",
         repoUrl: null,
         repoRef: null,
         branchName: null,
@@ -20626,7 +20626,7 @@ describe("runnerd provider runtime wiring", () => {
       highestContiguousSourceSeq: 1,
     });
 
-    await executePaperclipNativeSession({
+    await executeOutpostNativeSession({
       db: leaseDb(remoteExecution),
       execution: remoteExecution,
       runnerInstanceId: "runner",
@@ -20682,7 +20682,7 @@ describe("runnerd provider runtime wiring", () => {
       sshTransportOptions.environment.OUTPOST_RUNNER_EXTERNAL_SANDBOX,
     ).toBeUndefined();
     expect(state.createTransport.mock.calls[0]![0].runnerBinary).not.toBe(
-      `${remoteCwd}/.paperclip-runtime/outpost-runner/bin/outpost-runnerd`,
+      `${remoteCwd}/.outpost-runtime/outpost-runner/bin/outpost-runnerd`,
     );
   });
 
@@ -20773,9 +20773,9 @@ describe("runnerd provider runtime wiring", () => {
   it.each([true, false])("restores a migrated warm backup into a created lease only for its exact session (matching: %s)", async matching => {
     const remoteCwd = join(isolatedStateDirectory, "remote");
     const current: NativeExecutionInputV1 = { ...execution,
-      binding: { ...execution.binding, companyId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(),
+      binding: { ...execution.binding, spaceId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(),
         runId: randomUUID(), executionWorkspaceId: randomUUID() },
-      workspace: { ...execution.workspace, cwd: "/paperclip/legacy/task-workspace" },
+      workspace: { ...execution.workspace, cwd: "/outpost/legacy/task-workspace" },
       session: { ...execution.session, normalizedSessionId: randomUUID(), lifecyclePolicy: { mode: "warm", idleTimeoutMs: 300_000 } },
     };
     const operationId = randomUUID(), runnerInstanceId = "migrated-warm-runner";
@@ -20793,7 +20793,7 @@ describe("runnerd provider runtime wiring", () => {
     db.select = ((fields?: Record<string, unknown>) => ({ from: (table: unknown) => {
       if (table !== executionWorkspaces && table !== environmentLeases) return ordinarySelect(fields as never).from(table as never);
       const rows = table === executionWorkspaces ? [receipt] : [{ metadata: {}, providerLeaseId: "sandbox-created",
-        companyId: current.binding.companyId, heartbeatRunId: current.binding.runId }];
+        spaceId: current.binding.spaceId, heartbeatRunId: current.binding.runId }];
       const query = { then: Promise.resolve(rows).then.bind(Promise.resolve(rows)),
         leftJoin: () => query, where: () => query, limit: () => query };
       return query;
@@ -20847,7 +20847,7 @@ describe("runnerd provider runtime wiring", () => {
     })));
     if (matching) {
       await expect(options.prepareExternalRunnerState()).resolves.toBeUndefined();
-      const remoteSession = join(remoteCwd, ".paperclip-runtime/outpost-runner/sessions",
+      const remoteSession = join(remoteCwd, ".outpost-runtime/outpost-runner/sessions",
         createHash("sha256").update(current.session.normalizedSessionId!).digest("hex"));
       expect(JSON.parse(await readFile(join(remoteSession, "runner/runner-state.json"), "utf8"))).toEqual(runnerState);
       expect(await readFile(join(remoteSession, "filesystem/codex-home/sentinel.txt"), "utf8")).toBe("retained provider home");
@@ -20865,7 +20865,7 @@ describe("runnerd provider runtime wiring", () => {
   });
 
   it.each([
-    ["the source sandbox was destroyed by Paperclip", "destroyed", "matching", false, true],
+    ["the source sandbox was destroyed by Outpost", "destroyed", "matching", false, true],
     ["the source sandbox was only stopped", "stopped", "matching", false, false],
     ["the source stamp names another backup", "destroyed", "foreign", false, false],
     ["provider work followed the backup", "destroyed", "matching", true, false],
@@ -20901,7 +20901,7 @@ describe("runnerd provider runtime wiring", () => {
     // every reply failed backup_without_reusable_lease and asked for another reply.
     const remoteCwd = join(isolatedStateDirectory, "remote");
     const current: NativeExecutionInputV1 = { ...execution,
-      binding: { ...execution.binding, companyId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(),
+      binding: { ...execution.binding, spaceId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(),
         runId: randomUUID(), executionWorkspaceId: randomUUID() },
       session: { ...execution.session, normalizedSessionId: randomUUID(), lifecyclePolicy: { mode: "warm", idleTimeoutMs: 300_000 } },
     };
@@ -20909,7 +20909,7 @@ describe("runnerd provider runtime wiring", () => {
     const backupDirectory = { root: "" };
     const confirmedAt = new Date().toISOString();
     const sourceLease = (manifestSha256: string) => ({
-      id: "source-lease", companyId: current.binding.companyId, heartbeatRunId: "source-run", provider: "daytona",
+      id: "source-lease", spaceId: current.binding.spaceId, heartbeatRunId: "source-run", provider: "daytona",
       providerLeaseId: "prior-sandbox", status: idleWarm ? "retained" : restoreHold ? "released" : "expired", cleanupStatus: "success",
       leasePolicy: restoreHold ? "retain_on_failure" : "reuse_by_environment",
       acquiredAt: new Date(Date.now() - 60_000), releasedAt: idleWarm ? null : new Date(Date.now() + 1_000), expiresAt: null,
@@ -20920,14 +20920,14 @@ describe("runnerd provider runtime wiring", () => {
         // The idle warm source has no termination receipt: its sandbox is still running.
         ...(terminationState === "none" ? { pluginId: "daytona-plugin", sandboxState: "started",
           reusableSandboxLease: { version: 1, executionWorkspaceId: current.binding.executionWorkspaceId } } : {
-          remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId: current.binding.companyId,
+          remoteExecutionTermination: { schema: "outpost.remote-termination.v1", spaceId: current.binding.spaceId,
             runId: "source-run", leaseId: "source-lease", provider: "daytona", providerLeaseId: "prior-sandbox",
             state: terminationState, confirmedAt } }),
         // The exact row the hold left: marker, stop-and-retain receipt, no reuse.
         ...(restoreHold ? { pluginId: "daytona-plugin",
           workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", runId: "source-run" } } : {}),
         ...(hold === "settled_hold" ? { sandboxStopAndRetainReceipt: { schema: "outpost.sandbox-stop-and-retain-receipt.v1",
-          requestId: "stop-request", companyId: current.binding.companyId, runId: "source-run", leaseId: "source-lease",
+          requestId: "stop-request", spaceId: current.binding.spaceId, runId: "source-run", leaseId: "source-lease",
           provider: "daytona", providerLeaseId: "prior-sandbox", pluginId: "daytona-plugin", method: "environmentStopLease",
           confirmedAt } } : {}),
       },
@@ -20947,7 +20947,7 @@ describe("runnerd provider runtime wiring", () => {
           run: { id: "source-run", runtimeMode: "native", observedRemoteWorkspace: true, reference: null }, workspace: null }] : [])
         : table === executionWorkspaces ? []
         : table === heartbeatRunEvents ? (laterProviderWork ? [{ runId: "later-run" }] : [])
-          : [{ metadata: {}, providerLeaseId: targetProviderLeaseId, companyId: current.binding.companyId,
+          : [{ metadata: {}, providerLeaseId: targetProviderLeaseId, spaceId: current.binding.spaceId,
             heartbeatRunId: current.binding.runId }, sourceLease(sha)];
       const query = { then: Promise.resolve(rows).then.bind(Promise.resolve(rows)),
         leftJoin: () => query, innerJoin: () => query, where: () => query, limit: () => query };
@@ -21008,7 +21008,7 @@ describe("runnerd provider runtime wiring", () => {
     })));
     if (restores) {
       await expect(options.prepareExternalRunnerState()).resolves.toBeUndefined();
-      const remoteSession = join(remoteCwd, ".paperclip-runtime/outpost-runner/sessions",
+      const remoteSession = join(remoteCwd, ".outpost-runtime/outpost-runner/sessions",
         createHash("sha256").update(current.session.normalizedSessionId!).digest("hex"));
       expect(JSON.parse(await readFile(join(remoteSession, "runner/runner-state.json"), "utf8"))).toEqual(runnerState);
       expect(await readFile(join(remoteSession, "filesystem/codex-home/sentinel.txt"), "utf8")).toBe("retained provider home");
@@ -21120,7 +21120,7 @@ describe("runnerd provider runtime wiring", () => {
   ])(
     "bootstraps only an untouched provider session in a $outcome workspace lease: $scenario ($homeMode)", async ({ outcome, scenario, homeMode }) => {
     const remoteCwd = join(isolatedStateDirectory, "remote");
-    const runtimeRoot = join(remoteCwd, ".paperclip-runtime", "outpost-runner");
+    const runtimeRoot = join(remoteCwd, ".outpost-runtime", "outpost-runner");
     await mkdir(runtimeRoot, { recursive: true });
     const sessionRoot = join(runtimeRoot, "sessions", createHash("sha256").update(execution.session.normalizedSessionId!).digest("hex"));
     if (scenario === "existing_state") await mkdir(sessionRoot, { recursive: true });
@@ -21356,7 +21356,7 @@ describe("runnerd provider runtime wiring", () => {
     { backup: "current", nextSourceSeq: 1518, controlSchema: "outpost.runner.durable.control-plane-state.v2", registered: true },
   ])("checks the controller cursor before restoring a $backup failover backup ($controlSchema, registered=$registered)", async ({ backup, nextSourceSeq, controlSchema, registered }) => {
     const remoteCwd = join(isolatedStateDirectory, "remote");
-    await mkdir(join(remoteCwd, ".paperclip-runtime", "outpost-runner"), { recursive: true });
+    await mkdir(join(remoteCwd, ".outpost-runtime", "outpost-runner"), { recursive: true });
     const syncIn = vi.fn(async () => undefined);
     const remoteExecute = vi.fn(async (command: { command: string; args?: string[] }) => {
       if (command.args?.[0] === "--build-metadata") return {
@@ -21508,7 +21508,7 @@ describe("runnerd provider runtime wiring", () => {
         } else if (command.args?.[0] === "--version") {
           if (
             command.command.endsWith(
-              "/.paperclip-runtime/outpost-runner/bin/codex",
+              "/.outpost-runtime/outpost-runner/bin/codex",
             )
           ) {
             throw new Error("reached-preinstalled-codex-verification");
@@ -21524,7 +21524,7 @@ describe("runnerd provider runtime wiring", () => {
             : "/usr/local/bin/codex\n";
         } else if (
           !script.includes("ln -sfn") &&
-          !script.includes("paperclip_codex_launcher_tmp")
+          !script.includes("outpost_codex_launcher_tmp")
         ) {
           throw new Error(`unexpected command: ${command.command}`);
         }
@@ -21574,7 +21574,7 @@ describe("runnerd provider runtime wiring", () => {
       expect(syncIn).toHaveBeenCalledWith([expect.objectContaining({
         files: [expect.objectContaining({
           sourcePath: controllerArtifact,
-          targetPath: "/workspace/.paperclip-runtime/outpost-runner/bin/outpost-runnerd",
+          targetPath: "/workspace/.outpost-runtime/outpost-runner/bin/outpost-runnerd",
         })],
       })]);
     } else {
@@ -21583,7 +21583,7 @@ describe("runnerd provider runtime wiring", () => {
     if (exactRetained) {
       expect(remoteExecute.mock.calls.some(([call]) => call.args?.[1]?.includes("command -v outpost-runnerd"))).toBe(false);
       expect(remoteExecute).toHaveBeenCalledWith(expect.objectContaining({
-        command: "/workspace/.paperclip-runtime/outpost-runner/bin/outpost-runnerd",
+        command: "/workspace/.outpost-runtime/outpost-runner/bin/outpost-runnerd",
         args: ["--build-metadata"],
       }));
     }
@@ -21613,7 +21613,7 @@ describe("runnerd provider runtime wiring", () => {
     { version: "0.156.0", model: "gpt-6.1-sol", floor: null, recover: true },
     { version: "0.158.0", model: "gpt-6.1-sol", floor: null, recover: true },
   ])("lets sandbox Codex $version reach actual model verification ($model, recover=$recover)", async ({ version, model, recover }) => {
-    const preparedModel = recover ? resolvePaperclipRunnerNativeProviderInput({
+    const preparedModel = recover ? resolveOutpostRunnerNativeProviderInput({
       backend: "codex_app_server", adapterConfig: { provider: "codex", model }, codexCliVersion: version,
     }).model : model;
     const gatedExecution = {
@@ -21637,7 +21637,7 @@ describe("runnerd provider runtime wiring", () => {
             orpTransportModes: ["listen_ws"],
           });
         } else if (command.args?.[0] === "--version") {
-          if (command.command.endsWith("/.paperclip-runtime/outpost-runner/bin/codex")) {
+          if (command.command.endsWith("/.outpost-runtime/outpost-runner/bin/codex")) {
             throw new Error("reached-preinstalled-codex-verification");
           }
           stdout = `codex-cli ${version}`;
@@ -21647,7 +21647,7 @@ describe("runnerd provider runtime wiring", () => {
           stdout = "/usr/local/bin/outpost-runnerd\n";
         } else if (script.includes("command -v codex")) {
           stdout = "/opt/outpost-runner/bin/codex\n";
-        } else if (!script.includes("ln -sfn") && !script.includes("paperclip_codex_launcher_tmp")) {
+        } else if (!script.includes("ln -sfn") && !script.includes("outpost_codex_launcher_tmp")) {
           throw new Error(`unexpected command: ${command.command}`);
         }
         return { exitCode: 0, signal: null, timedOut: false, stderr: "", stdout };
@@ -21690,7 +21690,7 @@ describe("runnerd provider runtime wiring", () => {
 
   it.each(["ssh", "sandbox"].flatMap(transport => ["explicit", "linux-arm64", "linux-x64", "missing", "mismatch"].map(mode => ({ transport, mode }))))
   ("binds a $transport launch to the selected controller-owned runner artifact ($mode)", async ({ transport, mode }) => {
-    const remoteCwd = "/home/daytona/paperclip-workspace";
+    const remoteCwd = "/home/daytona/outpost-workspace";
     const controllerArtifact = `/controller/artifacts/${mode}/outpost-runnerd`;
     const explicit = mode === "explicit" || mode === "missing" || mode === "mismatch";
     const error = mode === "missing" ? "runner_remote_artifact_unavailable" : mode === "mismatch" ? "runner_remote_artifact_platform_mismatch" : null;
@@ -21699,7 +21699,7 @@ describe("runnerd provider runtime wiring", () => {
     const remoteExecution = {
       ...execution,
       binding: { ...execution.binding, runId: "run-remote-runner-artifact" },
-      workspace: { ...execution.workspace, cwd: "/host/paperclip-workspace" },
+      workspace: { ...execution.workspace, cwd: "/host/outpost-workspace" },
     } as NativeExecutionInputV1;
 
     const backend = createRunnerdBackend({
@@ -21752,7 +21752,7 @@ describe("runnerd provider runtime wiring", () => {
     "requires a build-owned provider pack identity before launching remote %s",
     async (providerKind, provider, driverKind) => {
       state.bundledPackManifestPath = join(tmpdir(), randomUUID(), "provider-pack.json");
-      const remoteCwd = "/home/daytona/paperclip-workspace";
+      const remoteCwd = "/home/daytona/outpost-workspace";
       const remoteProviderExecution = {
         ...execution,
         binding: {
@@ -21908,10 +21908,10 @@ describe("runnerd provider runtime wiring", () => {
   });
 });
 
-it("reconciles a saved governed wait with a bounded same-run settlement schedule", () => {
+it("reconciles a saved controlled wait with a bounded same-run settlement schedule", () => {
   const now = new Date("2026-11-09T12:00:00Z");
-  const code = nativeSessionFailureSourceCode(new NativeGovernedWaitSettlementPendingError());
-  expect(code).toBe("native_governed_wait_settlement_pending");
+  const code = nativeSessionFailureSourceCode(new NativeControlledWaitSettlementPendingError());
+  expect(code).toBe("native_controlled_wait_settlement_pending");
   expect(nativeSessionFailureDisposition(1, now, code)).toEqual({
     phase: "retryable_failure", failureCode: code, nextAttemptAt: new Date(now.getTime() + 30_000),
   });
@@ -22053,15 +22053,15 @@ describe("HTTP Stop during remote runner staging", () => {
       : await (await import("../../__tests__/helpers/embedded-postgres.js")).startEmbeddedPostgresTestDatabase("remote-staging-http-");
     const httpDb = dbModule.createDb(temporary.connectionString);
     const localExecution = { ...execution, binding: { ...execution.binding,
-      companyId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(), runId: randomUUID(), executionWorkspaceId: randomUUID() },
+      spaceId: randomUUID(), agentId: randomUUID(), issueId: randomUUID(), runId: randomUUID(), executionWorkspaceId: randomUUID() },
       workspace: { ...execution.workspace, cwd: root } };
-    const { companyId, agentId, issueId, runId } = localExecution.binding;
-    await httpDb.insert(dbModule.companies).values({ id: companyId, name: "Controlled Stop", issuePrefix: "STOP" });
-    await httpDb.insert(dbModule.agents).values({ id: agentId, companyId, name: "Controlled agent" });
-    await httpDb.insert(dbModule.issues).values({ id: issueId, companyId, title: "Controlled Stop", status: "in_progress", assigneeAgentId: agentId });
-    await httpDb.insert(dbModule.heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId,
+    const { spaceId, agentId, issueId, runId } = localExecution.binding;
+    await httpDb.insert(dbModule.spaces).values({ id: spaceId, name: "Controlled Stop", issuePrefix: "STOP" });
+    await httpDb.insert(dbModule.agents).values({ id: agentId, spaceId, name: "Controlled agent" });
+    await httpDb.insert(dbModule.issues).values({ id: issueId, spaceId, title: "Controlled Stop", status: "in_progress", assigneeAgentId: agentId });
+    await httpDb.insert(dbModule.heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId,
       invocationSource: "on_demand", status: "running", runtimeMode: "native" });
-    await httpDb.insert(dbModule.nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed" });
+    await httpDb.insert(dbModule.nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed" });
     const originalIssueService = issueServiceModule.issueService;
     vi.spyOn(issueServiceModule, "issueService").mockImplementation(db => db === httpDb ? originalIssueService(db) : ({ update: vi.fn(async () => ({ status: "blocked", statusVersion: 1 })) } as never));
     const { default: express } = await import("express");
@@ -22069,7 +22069,7 @@ describe("HTTP Stop during remote runner staging", () => {
     const { agentRoutes } = await import("../../routes/agents.js");
     const { errorHandler } = await import("../../middleware/error-handler.js");
     const app = express(); app.use(express.json());
-    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", userId: "fixture-board", companyIds: [companyId] }; next(); });
+    app.use((req, _res, next) => { req.actor = { type: "operator", source: "local_implicit", userId: "fixture-operator", spaceIds: [spaceId] }; next(); });
     const httpErrors: string[] = [];
     app.use("/api", agentRoutes(httpDb));
     app.use((error: Error, _req: unknown, _res: unknown, next: (error: Error) => void) => { httpErrors.push(error.stack ?? String(error)); next(error); });
@@ -22080,7 +22080,7 @@ describe("HTTP Stop during remote runner staging", () => {
     state.execute.mockReset().mockImplementationOnce(options => executeNativeSession({ ...options, timeoutMs: 1000,
       controlPlane: { async openRun() {}, async checkpointSession() {}, async appendEvent(event) { const sequence = "sourceSeq" in event ? event.sourceSeq : event.sequence; return { cursor: sequence, highestContiguousSourceSeq: sequence, disposition: "committed" as const }; }, async replayEvents() { return { events: [], highestContiguousSourceSeq: 0 }; }, async completeRun() {} },
     }));
-    const outcome = executePaperclipNativeSession({ db: leaseDb(localExecution), execution: localExecution, runnerInstanceId: "runner", backend, useRunnerd: false }).catch(error => error);
+    const outcome = executeOutpostNativeSession({ db: leaseDb(localExecution), execution: localExecution, runnerInstanceId: "runner", backend, useRunnerd: false }).catch(error => error);
 
     let stopping: Promise<unknown> | undefined;
     try {

@@ -18,7 +18,7 @@ The [published OpenCode setup result](https://d1p6rlowie26tp.cloudfront.net/runn
 
 All new local eval admissions are stopped. Already-active local children may finish their existing work and cleanup; no further local initial, final-B, infrastructure-health or provider qualification launches are authorized. Preserve the complete local measurement/ordinal histories and original evidence as a historical lane.
 
-All future eval execution must run in GitHub Actions on the existing AWS fleet, allowing its normal Spot or On-Demand fallback as directly authorized by the user on2026-10-27 at15:21UTC, using the new Paperclip runner **OpenCode** provider through **OpenRouter**, model **`deepseek/deepseek-v4.1-flash-1017`**. Record and verify the actual AWS host lifecycle; unknown hosts still fail closed. The earlier strict-Spot intents and refused operations remain unchanged and do not become retroactive case admissions. No local eval execution is authorized. The remote campaign requires a separately named execution/product/database/model identity and separately reported rate across all244 scenarios. Do not carry local passes into the remote rate, and do not execute obsolete local source merely to preserve the previous queue.
+All future eval execution must run in GitHub Actions on the existing AWS fleet, allowing its normal Spot or On-Demand fallback as directly authorized by the user on2026-10-27 at15:21UTC, using the new Outpost runner **OpenCode** provider through **OpenRouter**, model **`deepseek/deepseek-v4.1-flash-1017`**. Record and verify the actual AWS host lifecycle; unknown hosts still fail closed. The earlier strict-Spot intents and refused operations remain unchanged and do not become retroactive case admissions. No local eval execution is authorized. The remote campaign requires a separately named execution/product/database/model identity and separately reported rate across all244 scenarios. Do not carry local passes into the remote rate, and do not execute obsolete local source merely to preserve the previous queue.
 
 Carry the audited coherent harness corrections into the remote source. Preserve prior ordinal histories. The manager approved one new remote initial measurement for every scenario and at most one coherent correction measurement per scenario. The representative remote smoke counts as its scenario’s remote initial. A host qualification refusal before evaluation is a retained infrastructure operation, not a case measurement or consumed initial ordinal; the first such operation40519322850 left all244 remote initials unrun. Preserve all prior local ordinals separately; this is not an unlimited repair or unchanged rerun policy. Production/core fixes remain isolated and unmerged unless separately authorized.
 
@@ -26,13 +26,13 @@ Immediate deliverables are an inspectable safe results page, an exact closed loc
 
 > Execution state: This file preserves the requested goal; it is not completion evidence. Before execution, reconcile the actual state of PR #17794 rather than assuming it merged.
 
-Turn the complete Paperclip chat-scenario catalog into executable Product E2E evals, run every scenario, give each failing scenario one fix-and-rerun cycle, and ship according to the rules below.
+Turn the complete Outpost chat-scenario catalog into executable Product E2E evals, run every scenario, give each failing scenario one fix-and-rerun cycle, and ship according to the rules below.
 
 Use the current agent/Astra only as the manager for planning, architecture, integration decisions, evidence review, and delegation. Delegate implementation, investigation, testing, and PR work to subagents explicitly using gpt-6.1-sol. Use up to six Sol subagents, within the runtime’s actual concurrency limit; use waves when fewer slots are available. Give workers distinct file ownership and tell them not to revert others’ work.
 
 1. Establish the inventory and baseline.
 
-Read repository instructions and the paperclip-evals, add-product-e2e-eval, and PR workflow skills. Inspect PR #17794 and reconcile its actual state before branching; do not assume it merged or duplicate its work.
+Read repository instructions and the outpost-evals, add-product-e2e-eval, and PR workflow skills. Inspect PR #17794 and reconcile its actual state before branching; do not assume it merged or duplicate its work.
 
 Freeze the scenario IDs in tests/runner-e2e/chat-scenarios/ as the denominator. The current inventory is 244 scenarios across 35 areas and 191 capabilities. Verify those numbers and preserve every scenario’s intended request, context, and outcome. Maintain one concise progress record with owners, implementation status, attempts, results, and PR links.
 

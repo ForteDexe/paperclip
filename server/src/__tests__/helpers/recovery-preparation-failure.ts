@@ -55,16 +55,16 @@ export async function preparationFailureFixture(db: Db, agentId: string) {
 
 export async function drivePreparationFailure(input: {
   db: Db; heartbeat: ReturnType<typeof heartbeatService>; control: Awaited<ReturnType<typeof preparationFailureFixture>>;
-  entered: unknown; persisted: unknown; companyId: string; agentId: string; issueId: string;
+  entered: unknown; persisted: unknown; spaceId: string; agentId: string; issueId: string;
   run: (id: string) => Promise<typeof heartbeatRuns.$inferSelect>; owner: () => DeadlineReconciliationSnapshot;
 }) {
-  const { db, heartbeat, control, entered, persisted, companyId, agentId, issueId, run, owner } = input;
+  const { db, heartbeat, control, entered, persisted, spaceId, agentId, issueId, run, owner } = input;
     let wakeError: unknown;
     const waking = heartbeat.wakeup(agentId, { source: "on_demand", reason: "manual", requestedByActorType: "system",
       contextSnapshot: { issueId: issueId, taskId: issueId } });
     void waking.catch(error => { wakeError = error; });
     await vi.waitFor(() => { if (wakeError) throw wakeError; expect(control.phases.preparing).toBe(true); }, { timeout: 15_000 });
-    const [claimed] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.status, "running")));
+    const [claimed] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.status, "running")));
     expect(claimed).toMatchObject({ runtimeMode: "legacy", executionStage: "preparing", processPid: null,
       processGroupId: null, processStartedAt: null, legacyProcessSettlement: null });
     expect(claimed.controllerBootId).toEqual(expect.any(String)); expect(claimed.controllerLeaseExpiresAt).toBeInstanceOf(Date);

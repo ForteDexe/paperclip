@@ -20,7 +20,7 @@ const RUN_TERMINAL_STATES = new Set(["succeeded", "failed", "cancelled"]);
  */
 export async function acceptedNativeAdapterResult(db: Db, input: {
   runId: string;
-  companyId: string;
+  spaceId: string;
   resultId: string;
   model: string | null;
   driverKind: string;
@@ -33,11 +33,11 @@ export async function acceptedNativeAdapterResult(db: Db, input: {
     nativeSessionId: heartbeatRuns.nativeSessionId,
     runnerInstanceId: heartbeatRuns.runnerInstanceId,
   }).from(nativeRunResults)
-    .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, nativeRunResults.runId), eq(heartbeatRuns.companyId, nativeRunResults.companyId)))
+    .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, nativeRunResults.runId), eq(heartbeatRuns.spaceId, nativeRunResults.spaceId)))
     .where(and(
       eq(nativeRunResults.id, input.resultId),
       eq(nativeRunResults.runId, input.runId),
-      eq(nativeRunResults.companyId, input.companyId),
+      eq(nativeRunResults.spaceId, input.spaceId),
       eq(nativeRunResults.schemaStatus, "accepted"),
     )).limit(1);
   if (!row) return null;
@@ -46,7 +46,7 @@ export async function acceptedNativeAdapterResult(db: Db, input: {
   if (terminal.schema !== "outpost.orp.terminal.v1" || !RUN_TERMINAL_STATES.has(String(terminal.runTerminalState))) return null;
   const nativeTerminal = terminal as unknown as NativeFinalizationResult["terminal"];
   const succeeded = nativeTerminal.runTerminalState === "succeeded";
-  const usage = await readAcceptedRunUsageCheckpoint(db, { companyId: input.companyId, runId: input.runId });
+  const usage = await readAcceptedRunUsageCheckpoint(db, { spaceId: input.spaceId, runId: input.runId });
   const normalizedSessionId = row.nativeSessionId ?? null;
   return {
     exitCode: succeeded ? 0 : 1,
@@ -70,7 +70,7 @@ export async function acceptedNativeAdapterResult(db: Db, input: {
         runtimeMode: "native",
         runId: input.runId,
         issueId: row.issueId,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         result,
         terminal: nativeTerminal,
         turnId: row.turnId,

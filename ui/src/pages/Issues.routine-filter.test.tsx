@@ -16,12 +16,12 @@ vi.mock("../context/DesignSandboxContext", () => ({ useDesignSandbox: () => fals
 vi.mock("../hooks/useCoordinatorWorkspaceEnabled", () => ({ useCoordinatorWorkspaceEnabled: () => ({ enabled: false }) }));
 vi.mock("../hooks/useStreamlinedUiEnabled", () => ({ useStreamlinedUiEnabled: () => ({ enabled: true }) }));
 vi.mock("../hooks/useCombinedInboxTasksEnabled", () => ({ useCombinedInboxTasksEnabled: () => ({ enabled: false }) }));
-vi.mock("../context/CompanyContext", () => ({ useCompany: () => ({ selectedCompanyId: "company" }) }));
+vi.mock("../context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: "space" }) }));
 vi.mock("../context/BreadcrumbContext", () => ({ useBreadcrumbs: () => ({ setBreadcrumbs: vi.fn() }) }));
 vi.mock("../api/issues", () => ({ issuesApi: { listCompact: mocks.list } }));
 vi.mock("../api/agents", () => ({ agentsApi: { list: async () => [] } }));
 vi.mock("../api/projects", () => ({ projectsApi: { list: async () => [] } }));
-vi.mock("../api/heartbeats", () => ({ heartbeatsApi: { liveRunsForCompany: async () => [] } }));
+vi.mock("../api/heartbeats", () => ({ heartbeatsApi: { liveRunsForSpace: async () => [] } }));
 vi.mock("../hooks/useUpdateIssueMutation", () => ({ useUpdateIssueMutation: () => ({ mutate: vi.fn() }) }));
 vi.mock("../components/IssuesList", () => ({ IssuesList: ({ issues, routineTasksOnly, onRoutineTasksOnlyChange, onLoadMoreIssues, sort, onSortChange, searchFilters }: {
   searchFilters?: Record<string, unknown>;
@@ -45,7 +45,7 @@ it.each([403, 404, 429])("handles a %s task-list refresh using the shared read s
     flushSync(() => root.render(<QueryClientProvider client={client}><MemoryRouter initialEntries={["/issues?view=all"]}><Issues /></MemoryRouter></QueryClientProvider>));
     await vi.waitFor(() => expect(host.querySelector("output")?.textContent).toBe("retained-task"));
     mocks.list.mockRejectedValue(new ApiError("request_failed", status, null));
-    await client.invalidateQueries({ queryKey: queryKeys.issues.list("company") });
+    await client.invalidateQueries({ queryKey: queryKeys.issues.list("space") });
     if (status === 429) {
       expect(host.querySelector("output")?.textContent).toBe("retained-task");
       expect(host.querySelector('[data-query-view="error"]')).toBeNull();
@@ -73,7 +73,7 @@ it("offers retry after an exhausted initial task-list 429", async () => {
 });
 
 it("fetches routine tasks before pagination and removes the URL filter when unchecked", async () => {
-  mocks.list.mockImplementation(async (_company, filters) => filters.originKind === "routine_execution"
+  mocks.list.mockImplementation(async (_space, filters) => filters.originKind === "routine_execution"
     ? Array.from({ length: filters.offset ? 1 : 100 }, (_, index) => ({ id: `routine-${filters.offset + index}` }))
     : [{ id: "human-task" }]);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -83,7 +83,7 @@ it("fetches routine tasks before pagination and removes the URL filter when unch
     flushSync(() => root.render(<QueryClientProvider client={client}><MemoryRouter initialEntries={["/issues?view=all&originKind=routine_execution"]}><Issues /></MemoryRouter></QueryClientProvider>));
     await vi.waitFor(() => expect(host.querySelector("output")?.textContent).toContain("routine-99"));
     expect(host.querySelector("input")?.checked).toBe(true);
-    expect(mocks.list).toHaveBeenCalledWith("company", expect.objectContaining({
+    expect(mocks.list).toHaveBeenCalledWith("space", expect.objectContaining({
       originKind: "routine_execution", includeAgentCreatedTasks: true, includeRoutineExecutions: true, offset: 0,
     }), expect.anything());
     flushSync(() => host.querySelector("button")!.click());
@@ -100,7 +100,7 @@ it("fetches routine tasks before pagination and removes the URL filter when unch
 });
 
 it("restores URL sorting, resets paging on a sort click, and preserves routine filters", async () => {
-  mocks.list.mockImplementation(async (_company, filters) => Array.from({ length: filters.offset ? 1 : 100 }, (_, index) => ({ id: `${filters.sortDir}-${filters.offset + index}` })));
+  mocks.list.mockImplementation(async (_space, filters) => Array.from({ length: filters.offset ? 1 : 100 }, (_, index) => ({ id: `${filters.sortDir}-${filters.offset + index}` })));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const host = document.createElement("div"); document.body.append(host);
   const root = createRoot(host);

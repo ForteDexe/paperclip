@@ -1,6 +1,6 @@
 import type { PluginEnvironmentAcquisitionDiagnostic } from "@outpost/plugin-sdk";
 
-type Scope = { companyId: string; environmentId: string; runId: string };
+type Scope = { spaceId: string; environmentId: string; runId: string };
 const evidence = new WeakMap<object, { scope: Scope; diagnostic: PluginEnvironmentAcquisitionDiagnostic }>();
 
 /** The acquire RPC boundary validates the error class, ownership and diagnostic. */
@@ -15,9 +15,9 @@ export function captureEnvironmentAcquisitionDiagnostic(
 
 /** Only the run that acquired this private receipt may report it. */
 export function getEnvironmentAcquisitionDiagnostic(
-  error: unknown, run: { id: string; companyId: string },
+  error: unknown, run: { id: string; spaceId: string },
 ): PluginEnvironmentAcquisitionDiagnostic | null {
   const receipt = error && typeof error === "object" ? evidence.get(error) : undefined;
-  return receipt && receipt.scope.runId === run.id && receipt.scope.companyId === run.companyId
+  return receipt && receipt.scope.runId === run.id && receipt.scope.spaceId === run.spaceId
     ? { ...receipt.diagnostic } : null;
 }

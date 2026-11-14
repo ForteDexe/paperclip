@@ -13,7 +13,7 @@ const gh = (args) => JSON.parse(execFileSync("gh", args, {
 const api = (endpoint) => gh(["api", endpoint]);
 const pages = (endpoint) => gh(["api", "--paginate", "--slurp", endpoint]).flat();
 const query = `query($number:Int!, $endCursor:String) {
-  repository(owner:"paperclipai", name:"paperclip") {
+  repository(owner:"paperclipai", name:"outpost") {
     pullRequest(number:$number) {
       number url state isDraft headRefOid baseRefOid baseRefName changedFiles
       statusCheckRollup { contexts(first:100, after:$endCursor) {

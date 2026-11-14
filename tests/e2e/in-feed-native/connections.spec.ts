@@ -27,11 +27,11 @@ for (const journey of ['connect', 'decline', 'restart'] as const) test(`fresh na
     const port = await listenOnFetchAllowedPort(fixture);
     const env: NodeJS.ProcessEnv = { ...process.env, IN_FEED_FIXTURE_KEY: 'not-a-real-model-key', NODE_ENV: 'test', OUTPOST_TEST_CONNECTION_DELIVERY_HOLD: journey === 'restart' ? '1' : '0', PATH: `${root}/tests/e2e/fixtures/in-feed-bin:${process.env.PATH}` };
     delete env.DATABASE_URL; delete env.DATABASE_MIGRATION_URL;
-    processHandle = spawn(process.execPath, ['cli/node_modules/tsx/dist/cli.mjs', 'cli/src/index.ts', 'test-drive', '--harness', 'codex', '--api-key-env', 'IN_FEED_FIXTURE_KEY', '--company-name', 'In-feed native fixture', '--no-browser'], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    processHandle = spawn(process.execPath, ['cli/node_modules/tsx/dist/cli.mjs', 'cli/src/index.ts', 'test-drive', '--harness', 'codex', '--api-key-env', 'IN_FEED_FIXTURE_KEY', '--space-name', 'In-feed native fixture', '--no-browser'], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     processHandle.stdout!.on('data', (chunk) => { logs += chunk.toString(); });
     processHandle.stderr!.on('data', (chunk) => { logs += chunk.toString(); });
-    await expect.poll(() => logs.match(/Paperclip is ready at (http:\/\/127\.0\.0\.1:\d+)/)?.[1], { timeout: 100_000 }).toBeTruthy();
-    let base = logs.match(/Paperclip is ready at (http:\/\/127\.0\.0\.1:\d+)/)![1]!;
+    await expect.poll(() => logs.match(/Outpost is ready at (http:\/\/127\.0\.0\.1:\d+)/)?.[1], { timeout: 100_000 }).toBeTruthy();
+    let base = logs.match(/Outpost is ready at (http:\/\/127\.0\.0\.1:\d+)/)![1]!;
     const api = async (path: string, method = 'GET', data?: unknown) => {
       const response = await page.request.fetch(`${base}/api${path}`, { method, data });
       expect(response.ok(), await response.text()).toBeTruthy(); return response.json();
@@ -40,21 +40,21 @@ for (const journey of ['connect', 'decline', 'restart'] as const) test(`fresh na
       || (run.status === 'cancelled' && run.errorCode === 'issue_not_in_progress');
     const health = await api('/health');
     expect(health).toMatchObject({ status: 'ok', deploymentMode: 'local_trusted', bootstrapStatus: 'ready', serverInfo: { git: { branchName: execFileSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf8' }).trim() } } });
-    const [company] = await api('/companies');
-    const [agent] = await api(`/companies/${company.id}/agents`);
+    const [space] = await api('/spaces');
+    const [agent] = await api(`/spaces/${space.id}/agents`);
     expect(agent.adapterType).toBe('codex_local');
-    expect(await api(`/companies/${company.id}/issues`)).toEqual([]);
-    expect(await api(`/companies/${company.id}/heartbeat-runs`)).toEqual([]);
-    expect((await api(`/companies/${company.id}/tools/connections`)).connections).toEqual([]);
-    diagnosticState = async () => ({ base, companyId: company.id, agentId: agent.id,
-      tasks: (await api(`/companies/${company.id}/issues`)).map((task: Record<string, unknown>) => ({ id: task.id, status: task.status, assigneeAgentId: task.assigneeAgentId })),
-      runs: (await api(`/companies/${company.id}/heartbeat-runs`)).map((run: Record<string, unknown>) => ({ id: run.id, status: run.status, runtimeMode: run.runtimeMode, error: run.error, errorCode: run.errorCode })),
+    expect(await api(`/spaces/${space.id}/issues`)).toEqual([]);
+    expect(await api(`/spaces/${space.id}/heartbeat-runs`)).toEqual([]);
+    expect((await api(`/spaces/${space.id}/tools/connections`)).connections).toEqual([]);
+    diagnosticState = async () => ({ base, spaceId: space.id, agentId: agent.id,
+      tasks: (await api(`/spaces/${space.id}/issues`)).map((task: Record<string, unknown>) => ({ id: task.id, status: task.status, assigneeAgentId: task.assigneeAgentId })),
+      runs: (await api(`/spaces/${space.id}/heartbeat-runs`)).map((run: Record<string, unknown>) => ({ id: run.id, status: run.status, runtimeMode: run.runtimeMode, error: run.error, errorCode: run.errorCode })),
     });
     const dataDir = logs.match(/Data directory: ([^\n\r]+)/)![1]!.replace(/\u001b\[[0-9;]*m/g, '').trim();
-    const prefix = `/${company.issuePrefix}`;
+    const prefix = `/${space.issuePrefix}`;
     await page.goto(base + prefix + '/dashboard');
     await expect(page.getByText('No runs yet').first()).toBeVisible();
-    await page.goto(base + prefix + '/company/settings/instance/experimental');
+    await page.goto(base + prefix + '/space/settings/instance/experimental');
     await page.getByRole('switch', { name: 'Toggle Outpost Runner experimental setting' }).click();
     await expect.poll(async () => (await api('/instance/settings/experimental')).enableNativeRunner).toBe(true);
     await page.goto(base + prefix + `/agents/${agent.id}/configuration`);
@@ -64,7 +64,7 @@ for (const journey of ['connect', 'decline', 'restart'] as const) test(`fresh na
     await expect.poll(async () => (await api(`/agents/${agent.id}`)).adapterType).toBe('outpost_runner');
     const nativeAgent = await api(`/agents/${agent.id}`);
     expect(nativeAgent.adapterConfig.env).toEqual(agent.adapterConfig.env);
-    const holder = await api(`/companies/${company.id}/agents`, 'POST', { name: 'Archive holder', role: 'qa', adapterType: 'process', adapterConfig: { command: process.execPath, args: ['-e', 'process.exit(0)'] } });
+    const holder = await api(`/spaces/${space.id}/agents`, 'POST', { name: 'Archive holder', role: 'qa', adapterType: 'process', adapterConfig: { command: process.execPath, args: ['-e', 'process.exit(0)'] } });
     await page.goto(base + prefix + '/apps');
     const custom = page.getByRole('list', { name: 'Connector list' }).getByRole('listitem').filter({ hasText: 'Connect your own tool' });
     await custom.getByRole('button', { name: 'Connect', exact: true }).click();
@@ -78,7 +78,7 @@ for (const journey of ['connect', 'decline', 'restart'] as const) test(`fresh na
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: /Check link/i }).click();
     await expect(page.getByRole('heading', { name: /is ready/i })).toBeVisible({ timeout: 30_000 });
-    const [connection] = (await api(`/companies/${company.id}/tools/connections`)).connections;
+    const [connection] = (await api(`/spaces/${space.id}/tools/connections`)).connections;
     const installs = (await api(`/tool-connections/${connection.id}/installs`)).installs;
     expect(installs).toEqual([expect.objectContaining({ targetId: holder.id })]);
     await page.getByRole('link', { name: 'Tasks', exact: true }).click();
@@ -91,7 +91,7 @@ for (const journey of ['connect', 'decline', 'restart'] as const) test(`fresh na
     await expect(page).toHaveURL(/issues\/(?:[a-f0-9-]+|INF-\d+)/);
     await expect(page.getByText(/CEO needs/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId('connection-intent-focus-target')).toHaveCount(1);
-    await expect.poll(async () => (await api(`/companies/${company.id}/heartbeat-runs`)).every((run: { status: string }) => run.status === 'succeeded'), { timeout: 60_000 }).toBe(true);
+    await expect.poll(async () => (await api(`/spaces/${space.id}/heartbeat-runs`)).every((run: { status: string }) => run.status === 'succeeded'), { timeout: 60_000 }).toBe(true);
     await page.screenshot({ path: info.outputPath('pending-card.png'), fullPage: true });
     const composer = page.getByRole('textbox').last();
     await composer.fill('While I connect, organize the checklist.');
@@ -105,10 +105,10 @@ for (const journey of ['connect', 'decline', 'restart'] as const) test(`fresh na
       await expect(page.getByText(/I will use the information already in this task/).first()).toBeVisible({ timeout: 60_000 });
       await expect(page.getByTestId('connection-intent-focus-target')).toHaveCount(1);
       expect(calls.filter((method) => method === 'tools/call')).toHaveLength(0);
-      await expect.poll(async () => (await api(`/companies/${company.id}/heartbeat-runs`)).every((run: { status: string }) => run.status === 'succeeded'), { timeout: 60_000 }).toBe(true);
-      const runs = await Promise.all((await api(`/companies/${company.id}/heartbeat-runs`)).map((run: { id: string }) => api(`/heartbeat-runs/${run.id}`)));
+      await expect.poll(async () => (await api(`/spaces/${space.id}/heartbeat-runs`)).every((run: { status: string }) => run.status === 'succeeded'), { timeout: 60_000 }).toBe(true);
+      const runs = await Promise.all((await api(`/spaces/${space.id}/heartbeat-runs`)).map((run: { id: string }) => api(`/heartbeat-runs/${run.id}`)));
       expect(runs.every((run: { runtimeMode: string }) => run.runtimeMode === 'native')).toBe(true);
-      await writeFile(info.outputPath('instance-and-runs.json'), JSON.stringify({ base, dataDir, health, journey, companyId: company.id, agentId: agent.id,
+      await writeFile(info.outputPath('instance-and-runs.json'), JSON.stringify({ base, dataDir, health, journey, spaceId: space.id, agentId: agent.id,
         connectionId: connection.id, dependency: 'fixture', provider: 'codex', fixtureModel: 'in-feed-fixture',
         runs: runs.map((run: Record<string, unknown>) => ({ id: run.id, status: run.status, runtimeMode: run.runtimeMode })) }, null, 2));
       await page.screenshot({ path: info.outputPath('declined-continuation.png'), fullPage: true });
@@ -130,23 +130,23 @@ for (const journey of ['connect', 'decline', 'restart'] as const) test(`fresh na
       processHandle = spawn(process.execPath, ['cli/node_modules/tsx/dist/cli.mjs', 'cli/src/index.ts', 'test-drive', '--harness', 'codex', '--api-key-env', 'IN_FEED_FIXTURE_KEY', '--data-dir', dataDir, '--no-browser'], { cwd: root, env: { ...env, OUTPOST_TEST_CONNECTION_DELIVERY_HOLD: '0' }, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
       processHandle.stdout!.on('data', (chunk) => { logs += chunk.toString(); });
       processHandle.stderr!.on('data', (chunk) => { logs += chunk.toString(); });
-      await expect.poll(() => logs.match(/Paperclip is ready at (http:\/\/127\.0\.0\.1:\d+)/)?.[1], { timeout: 100_000 }).toBeTruthy();
-      base = logs.match(/Paperclip is ready at (http:\/\/127\.0\.0\.1:\d+)/)![1]!;
-      expect((await api('/companies'))[0].id).toBe(company.id);
-      const taskId = (await api(`/companies/${company.id}/issues`))[0].id;
+      await expect.poll(() => logs.match(/Outpost is ready at (http:\/\/127\.0\.0\.1:\d+)/)?.[1], { timeout: 100_000 }).toBeTruthy();
+      base = logs.match(/Outpost is ready at (http:\/\/127\.0\.0\.1:\d+)/)![1]!;
+      expect((await api('/spaces'))[0].id).toBe(space.id);
+      const taskId = (await api(`/spaces/${space.id}/issues`))[0].id;
       await page.goto(base + prefix + '/issues/' + taskId);
     }
     await expect(page.getByText(/HELIOTROPE-42: Launch in two stages/).first()).toBeVisible({ timeout: 60_000 });
     expect(calls.filter((method) => method === 'tools/call')).toHaveLength(1);
-    await expect.poll(async () => (await api(`/companies/${company.id}/heartbeat-runs`)).every(isSettledRun), { timeout: 60_000 }).toBe(true);
+    await expect.poll(async () => (await api(`/spaces/${space.id}/heartbeat-runs`)).every(isSettledRun), { timeout: 60_000 }).toBe(true);
     await expect(page.getByText(/HELIOTROPE-42: Launch in two stages/).first()).toBeVisible();
     await expect(async () => { await page.getByText(/HELIOTROPE-42: Launch in two stages/).first().scrollIntoViewIfNeeded(); }).toPass({ timeout: 10_000 });
-    const runs = await Promise.all((await api(`/companies/${company.id}/heartbeat-runs`)).map((run: { id: string }) => api(`/heartbeat-runs/${run.id}`)));
+    const runs = await Promise.all((await api(`/spaces/${space.id}/heartbeat-runs`)).map((run: { id: string }) => api(`/heartbeat-runs/${run.id}`)));
     expect(runs.filter((run: { status: string }) => run.status === 'succeeded').length).toBeGreaterThanOrEqual(2);
     if (runs.some((run: { status: string }) => run.status === 'cancelled')) {
       // Independent work may consume the new access before the queued outcome
       // runs. Closing the task must cancel that redundant wake, not reopen it.
-      expect((await api(`/companies/${company.id}/issues`))[0].status).toBe('done');
+      expect((await api(`/spaces/${space.id}/issues`))[0].status).toBe('done');
     }
     expect(runs.filter((run: { status: string }) => run.status === 'succeeded').every((run: { runtimeMode: string }) => run.runtimeMode === 'native')).toBe(true);
     await expect(page.getByText('The runner returned no user-facing response.', { exact: true })).not.toBeVisible();
@@ -158,11 +158,11 @@ for (const journey of ['connect', 'decline', 'restart'] as const) test(`fresh na
       await page.getByRole('button', { name: 'Send', exact: true }).click();
       await expect.poll(() => calls.filter((method) => method === 'tools/call').length, { timeout: 60_000 }).toBe(2);
       await expect(page.getByTestId('connection-intent-focus-target')).toHaveCount(1);
-      await expect.poll(async () => (await api(`/companies/${company.id}/heartbeat-runs`)).every(isSettledRun), { timeout: 60_000 }).toBe(true);
+      await expect.poll(async () => (await api(`/spaces/${space.id}/heartbeat-runs`)).every(isSettledRun), { timeout: 60_000 }).toBe(true);
     }
-    const finalRuns = await Promise.all((await api(`/companies/${company.id}/heartbeat-runs`)).map((run: { id: string }) => api(`/heartbeat-runs/${run.id}`)));
+    const finalRuns = await Promise.all((await api(`/spaces/${space.id}/heartbeat-runs`)).map((run: { id: string }) => api(`/heartbeat-runs/${run.id}`)));
     expect(finalRuns.filter((run: { status: string }) => run.status === 'succeeded').every((run: { runtimeMode: string }) => run.runtimeMode === 'native')).toBe(true);
-    const evidence = JSON.stringify({ base, dataDir, health, journey, companyId: company.id, agentId: agent.id, connectionId: connection.id, runs: finalRuns.map((r: Record<string, unknown>) => ({ id: r.id, runtimeMode: r.runtimeMode, status: r.status })), dependency: 'fixture', provider: 'codex', fixtureModel: 'in-feed-fixture' }, null, 2);
+    const evidence = JSON.stringify({ base, dataDir, health, journey, spaceId: space.id, agentId: agent.id, connectionId: connection.id, runs: finalRuns.map((r: Record<string, unknown>) => ({ id: r.id, runtimeMode: r.runtimeMode, status: r.status })), dependency: 'fixture', provider: 'codex', fixtureModel: 'in-feed-fixture' }, null, 2);
     await writeFile(info.outputPath('instance-and-runs.json'), evidence);
     await info.attach('instance-and-runs', { body: evidence, contentType: 'application/json' });
   } finally {

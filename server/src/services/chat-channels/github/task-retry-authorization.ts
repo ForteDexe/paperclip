@@ -19,7 +19,7 @@ async function skippedTaskRetryInputs(tx: DbOrTransaction, actions: Array<typeof
     authority.skippedActionIds?.includes(action.id)).map(action => action.id);
   if (!first || !ids.length) return new Set<string>();
   const rows = await tx.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.companyId, first.companyId), inArray(agentWakeupRequests.id, ids),
+    eq(agentWakeupRequests.spaceId, first.spaceId), inArray(agentWakeupRequests.id, ids),
     eq(agentWakeupRequests.agentId, String(first.payload.agentId)), eq(agentWakeupRequests.status, "skipped"),
     isNull(agentWakeupRequests.runId), inArray(agentWakeupRequests.reason, ["budget.blocked", "agent.not_invokable"]),
     eq(agentWakeupRequests.requestedByActorType, "user"),
@@ -48,12 +48,12 @@ async function githubTaskRetryAppAuthorized(tx: DbOrTransaction, endpoint: Endpo
   if (original?.botExternalId !== undefined || response || !endpoint.botExternalId || !delivery.conversationId) return false;
   const [prior] = await tx.select({ id: chatActions.id }).from(chatActions)
     .innerJoin(chatDeliveries, and(eq(chatDeliveries.id, chatActions.deliveryId),
-      eq(chatDeliveries.companyId, chatActions.companyId), eq(chatDeliveries.endpointId, chatActions.endpointId),
+      eq(chatDeliveries.spaceId, chatActions.spaceId), eq(chatDeliveries.endpointId, chatActions.endpointId),
       eq(chatDeliveries.conversationId, chatActions.conversationId), eq(chatDeliveries.principalId, chatActions.principalId)))
     .innerJoin(chatMessageLinks, and(eq(chatMessageLinks.deliveryId, chatDeliveries.id),
-      eq(chatMessageLinks.companyId, chatDeliveries.companyId), eq(chatMessageLinks.endpointId, chatDeliveries.endpointId),
+      eq(chatMessageLinks.spaceId, chatDeliveries.spaceId), eq(chatMessageLinks.endpointId, chatDeliveries.endpointId),
       eq(chatMessageLinks.conversationId, chatDeliveries.conversationId), eq(chatMessageLinks.direction, "inbound")))
-    .where(and(eq(chatActions.companyId, endpoint.companyId), eq(chatActions.endpointId, endpoint.id),
+    .where(and(eq(chatActions.spaceId, endpoint.spaceId), eq(chatActions.endpointId, endpoint.id),
       eq(chatActions.conversationId, delivery.conversationId), eq(chatActions.kind, "github_response_comment"),
       eq(chatActions.status, "processed"), eq(chatDeliveries.state, "processed"),
       eq(chatActions.providerActionId, sql<string>`'github_response:' || ${chatDeliveries.id}::text`),
@@ -83,7 +83,7 @@ export async function githubTaskRetryRuntimeFence(tx: DbOrTransaction, endpoint:
   authority: TaskRetryWakeAuthority): Promise<LifecycleRuntimeFence> {
   const deny = chatWakeAuthorityDenied;
   const retry = await readTaskChatRetryIntent(tx as Parameters<typeof readTaskChatRetryIntent>[0], {
-    companyId: action.companyId, issueId: String(action.payload.issueId),
+    spaceId: action.spaceId, issueId: String(action.payload.issueId),
     agentId: String(action.payload.agentId), sourceRunId: authority.sourceRunId, intentId: authority.intentId,
   });
   const skipped = await skippedTaskRetryInputs(tx, [action], authority);
@@ -91,14 +91,14 @@ export async function githubTaskRetryRuntimeFence(tx: DbOrTransaction, endpoint:
   if (endpoint.provider !== "github" || !endpoint.botExternalId || action.kind !== "inbound_wakeup"
     || (action.status !== "processed" && !skipped.has(action.id)) || delivery.state !== "processed") throw deny("source_receipt");
   const [response] = await tx.select({ payload: chatActions.payload }).from(chatActions).where(and(
-    eq(chatActions.companyId, action.companyId), eq(chatActions.endpointId, endpoint.id),
+    eq(chatActions.spaceId, action.spaceId), eq(chatActions.endpointId, endpoint.id),
     eq(chatActions.conversationId, action.conversationId!), eq(chatActions.deliveryId, delivery.id),
     eq(chatActions.kind, "github_response_comment"),
   ));
   if (!(await githubTaskRetryAppAuthorized(tx, endpoint, delivery, response))) throw deny("app_binding");
   const [connection] = await tx.select({ refs: toolConnections.credentialSecretRefs,
     enabled: toolConnections.enabled, status: toolConnections.status }).from(toolConnections).where(and(
-    eq(toolConnections.companyId, endpoint.companyId), eq(toolConnections.id, endpoint.connectionId),
+    eq(toolConnections.spaceId, endpoint.spaceId), eq(toolConnections.id, endpoint.connectionId),
   ));
   if (!connection?.enabled || connection.status !== "active") throw deny("connection_access");
   const generation = Number((endpoint.setup as { runtimeGeneration?: unknown }).runtimeGeneration ?? 0);
@@ -127,24 +127,24 @@ export function createGitHubTaskRetryBatchAuthority<T extends GitHubRetryBinding
     if (!first) throw deny("batch_scope");
     const skipped = await skippedTaskRetryInputs(tx, actions, notice.taskRetry);
     const commonScope = (action: typeof chatActions.$inferSelect) => JSON.stringify([
-      action.companyId, action.endpointId, action.conversationId, action.principalId, action.kind,
+      action.spaceId, action.endpointId, action.conversationId, action.principalId, action.kind,
       skipped.has(action.id) ? "processed" : action.status,
       ...["version", "issueId", "agentId", "sessionGeneration", "requestedByActorType", "requestedByActorId"]
         .map(key => action.payload[key]),
     ]);
     if (actions.some(action => commonScope(action) !== commonScope(first))) throw deny("batch_scope");
-    const deliveries = await tx.select().from(chatDeliveries).where(and(eq(chatDeliveries.companyId, first.companyId),
+    const deliveries = await tx.select().from(chatDeliveries).where(and(eq(chatDeliveries.spaceId, first.spaceId),
       inArray(chatDeliveries.id, actions.map(action => action.deliveryId!))));
     const byDelivery = new Map(deliveries.map(delivery => [delivery.id, delivery]));
-    const legacy = await tx.select().from(chatActions).where(and(eq(chatActions.companyId, first.companyId),
+    const legacy = await tx.select().from(chatActions).where(and(eq(chatActions.spaceId, first.spaceId),
       eq(chatActions.endpointId, first.endpointId), eq(chatActions.conversationId, first.conversationId!),
       eq(chatActions.kind, "github_response_comment"), inArray(chatActions.deliveryId, deliveries.map(delivery => delivery.id))));
     const legacyByDelivery = new Map(legacy.map(action => [action.deliveryId, action]));
     const links = await tx.select({ deliveryId: chatMessageLinks.deliveryId, commentId: chatMessageLinks.commentId,
       authorUserId: issueComments.authorUserId, deletedAt: issueComments.deletedAt }).from(chatMessageLinks)
       .innerJoin(issueComments, and(eq(issueComments.id, chatMessageLinks.commentId),
-        eq(issueComments.companyId, first.companyId), eq(issueComments.issueId, String(first.payload.issueId))))
-      .where(and(eq(chatMessageLinks.companyId, first.companyId), eq(chatMessageLinks.endpointId, first.endpointId),
+        eq(issueComments.spaceId, first.spaceId), eq(issueComments.issueId, String(first.payload.issueId))))
+      .where(and(eq(chatMessageLinks.spaceId, first.spaceId), eq(chatMessageLinks.endpointId, first.endpointId),
         eq(chatMessageLinks.conversationId, first.conversationId!), eq(chatMessageLinks.direction, "inbound"),
         inArray(chatMessageLinks.deliveryId, deliveries.map(delivery => delivery.id))));
     const expectedUserId = first.payload.requestedByActorType === "user" ? first.payload.requestedByActorId : null;

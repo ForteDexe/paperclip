@@ -1,23 +1,23 @@
 import { logger } from "../middleware/logger.js";
 import {
-  cloudTenantPrimaryCompanyId,
+  cloudTenantPrimarySpaceId,
   getCloudStackContext,
   type CloudInstanceEnv,
 } from "./cloud-instance.js";
 
 /**
- * Cloud lifecycle doorbell: when the Cloud-pinned primary company is
+ * Cloud lifecycle doorbell: when the Cloud-pinned primary space is
  * archived or unarchived on a managed instance, ring the harness
- * (`POST /v1/tenant/lifecycle-changed`) so Paperclip Cloud can converge the
- * stack — an org whose only company is archived should not keep running,
+ * (`POST /v1/tenant/lifecycle-changed`) so Outpost Cloud can converge the
+ * stack — an org whose only space is archived should not keep running,
  * and should read "Archived" on /orgs rather than "Live".
  *
  * The ring is a HINT by contract: the harness never trusts it. It reads
- * the primary company's status back through `GET /api/instance/lifecycle`
+ * the primary space's status back through `GET /api/instance/lifecycle`
  * (Cloud control assertion) before changing anything, so the worst a lost,
  * duplicated, or forged ring can do is trigger one verified read.
  *
- * Fire-and-forget with a bounded retry: archiving a company must never
+ * Fire-and-forget with a bounded retry: archiving a space must never
  * block or fail on Cloud availability, and a missed ring only delays the
  * badge/suspend convergence, it cannot corrupt state.
  */
@@ -32,28 +32,28 @@ export type CloudLifecycleSyncOptions = {
 };
 
 /**
- * True when this company is the Cloud-pinned primary company of a managed
- * instance — the only company whose archive state the harness mirrors.
+ * True when this space is the Cloud-pinned primary space of a managed
+ * instance — the only space whose archive state the harness mirrors.
  */
-export function isCloudPinnedPrimaryCompany(
-  companyId: string,
+export function isCloudPinnedPrimarySpace(
+  spaceId: string,
   env: CloudInstanceEnv = process.env,
 ): boolean {
   const stackId = getCloudStackContext(env)?.stackId;
-  return Boolean(stackId) && cloudTenantPrimaryCompanyId(stackId!) === companyId;
+  return Boolean(stackId) && cloudTenantPrimarySpaceId(stackId!) === spaceId;
 }
 
 /**
- * Ring the harness about a lifecycle change of the pinned primary company.
- * No-op (resolved promise) on self-hosted instances, non-primary companies,
+ * Ring the harness about a lifecycle change of the pinned primary space.
+ * No-op (resolved promise) on self-hosted instances, non-primary spaces,
  * or incomplete Cloud metadata. Never throws.
  */
-export async function notifyCloudOfPrimaryCompanyLifecycleChange(
-  companyId: string,
+export async function notifyCloudOfPrimarySpaceLifecycleChange(
+  spaceId: string,
   options: CloudLifecycleSyncOptions = {},
 ): Promise<void> {
   const env = options.env ?? process.env;
-  if (!isCloudPinnedPrimaryCompany(companyId, env)) return;
+  if (!isCloudPinnedPrimarySpace(spaceId, env)) return;
   const context = getCloudStackContext(env);
   const token = env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN?.trim();
   if (!context?.stackId || !context.cloudOrigin || !token) return;
@@ -77,7 +77,7 @@ export async function notifyCloudOfPrimaryCompanyLifecycleChange(
         method: "POST",
         headers: {
           authorization: `Bearer ${token}`,
-          "x-paperclip-cloud-stack-id": context.stackId,
+          "x-outpost-cloud-stack-id": context.stackId,
         },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });

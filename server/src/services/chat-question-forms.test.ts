@@ -22,7 +22,7 @@ function interaction(
 ): AskUserQuestionsInteraction {
   return {
     id: "11111111-1111-4111-8111-111111111111",
-    companyId: "22222222-2222-4222-8222-222222222222",
+    spaceId: "22222222-2222-4222-8222-222222222222",
     issueId: "33333333-3333-4333-8333-333333333333",
     kind: "ask_user_questions",
     status: "pending",
@@ -61,7 +61,7 @@ function interaction(
           allowOther: true,
           options: [
             {
-              id: "__paperclip_text__",
+              id: "__outpost_text__",
               label: "Type an answer",
               freeText: true,
             },
@@ -107,7 +107,7 @@ describe("chat question forms", () => {
     current.payload.questions[1]!.helpText = "Explain the expected behavior. ".repeat(12);
     const draft = createChatQuestionFormDraft(current)!;
     const payload = parseChatQuestionFormSubmitTokenPayload(chatQuestionFormActionRecords(draft, {
-      companyId: current.companyId, endpointId: "endpoint", conversationId: "conversation", publicationId: "publication",
+      spaceId: current.spaceId, endpointId: "endpoint", conversationId: "conversation", publicationId: "publication",
     })[1]!.payload)!;
     const modal = buildChatQuestionFormModal(current, draft.submitActionId, payload)!;
     const shown = JSON.stringify(modal);
@@ -128,7 +128,7 @@ describe("chat question forms", () => {
     const current = interaction();
     const draft = createChatQuestionFormDraft(current, { nativeProvider: "slack" })!;
     const payload = parseChatQuestionFormSubmitTokenPayload(chatQuestionFormActionRecords(draft, {
-      companyId: current.companyId, endpointId: "endpoint", conversationId: "conversation", publicationId: "publication",
+      spaceId: current.spaceId, endpointId: "endpoint", conversationId: "conversation", publicationId: "publication",
     })[1]!.payload)!;
     const modal = buildChatQuestionFormModal(current, draft.submitActionId, payload)!;
     expect(modal.children[0]).toMatchObject({ type: "text", content: "Your answers will be shared in this Slack conversation." });
@@ -144,7 +144,7 @@ describe("chat question forms", () => {
     else expect(draft).toBeNull();
   });
 
-  it("keeps an oversized editable starting value in the complete Paperclip form", () => {
+  it("keeps an oversized editable starting value in the complete Outpost form", () => {
     const current = interaction();
     current.payload.questionSet!.questions[1]!.initialText = "a".repeat(3001);
     expect(createChatQuestionFormDraft(current)).toBeNull();
@@ -163,7 +163,7 @@ describe("chat question forms", () => {
     })!;
     expect(native.fields[1]).toMatchObject({ maxLength: 4000 });
     const record = chatQuestionFormActionRecords(native, {
-      companyId: current.companyId,
+      spaceId: current.spaceId,
       endpointId: "endpoint",
       conversationId: "conversation",
       publicationId: "publication",
@@ -247,7 +247,7 @@ describe("chat question forms", () => {
     const draft = createChatQuestionFormDraft(current, { now })!;
     const payload = parseChatQuestionFormSubmitTokenPayload(
       chatQuestionFormActionRecords(draft, {
-        companyId: current.companyId,
+        spaceId: current.spaceId,
         endpointId: "44444444-4444-4444-8444-444444444444",
         conversationId: "55555555-5555-4555-8555-555555555555",
         publicationId: "66666666-6666-4666-8666-666666666666",
@@ -401,7 +401,7 @@ describe("chat question forms", () => {
     },
   );
 
-  it("keeps a credential-bearing starting draft in Paperclip instead of exposing it to a chat modal", () => {
+  it("keeps a credential-bearing starting draft in Outpost instead of exposing it to a chat modal", () => {
     const current = interaction();
     current.payload.questionSet!.questions[1]!.initialText = "xoxb-123456789012345678901234567890";
     expect(createChatQuestionFormDraft(current)).toBeNull();
@@ -427,7 +427,7 @@ describe("chat question forms", () => {
     });
 
     const rows = chatQuestionFormActionRecords(draft!, {
-      companyId: "22222222-2222-4222-8222-222222222222",
+      spaceId: "22222222-2222-4222-8222-222222222222",
       endpointId: "44444444-4444-4444-8444-444444444444",
       conversationId: "55555555-5555-4555-8555-555555555555",
       publicationId: "66666666-6666-4666-8666-666666666666",
@@ -451,7 +451,7 @@ describe("chat question forms", () => {
     const current = interaction();
     const draft = createChatQuestionFormDraft(current)!;
     const submitPayload = chatQuestionFormActionRecords(draft, {
-      companyId: current.companyId,
+      spaceId: current.spaceId,
       endpointId: "44444444-4444-4444-8444-444444444444",
       conversationId: "55555555-5555-4555-8555-555555555555",
       publicationId: "66666666-6666-4666-8666-666666666666",
@@ -528,7 +528,7 @@ describe("chat question forms", () => {
     const draft = createChatQuestionFormDraft(current)!;
     const payload = parseChatQuestionFormSubmitTokenPayload(
       chatQuestionFormActionRecords(draft, {
-        companyId: current.companyId,
+        spaceId: current.spaceId,
         endpointId: "44444444-4444-4444-8444-444444444444",
         conversationId: "55555555-5555-4555-8555-555555555555",
         publicationId: "66666666-6666-4666-8666-666666666666",
@@ -599,7 +599,7 @@ describe("chat question forms", () => {
     const draft = createChatQuestionFormDraft(current)!;
     const payload = parseChatQuestionFormSubmitTokenPayload(
       chatQuestionFormActionRecords(draft, {
-        companyId: current.companyId,
+        spaceId: current.spaceId,
         endpointId: "44444444-4444-4444-8444-444444444444",
         conversationId: "55555555-5555-4555-8555-555555555555",
         publicationId: "66666666-6666-4666-8666-666666666666",
@@ -654,7 +654,7 @@ describe("chat question forms", () => {
     })!;
     const payload = parseChatQuestionFormSubmitTokenPayload(
       chatQuestionFormActionRecords(draft, {
-        companyId: current.companyId,
+        spaceId: current.spaceId,
         endpointId: "44444444-4444-4444-8444-444444444444",
         conversationId: "55555555-5555-4555-8555-555555555555",
         publicationId: "66666666-6666-4666-8666-666666666666",
@@ -735,7 +735,7 @@ describe("chat question forms", () => {
     const draft = createChatQuestionFormDraft(interaction())!;
     const payload = parseChatQuestionFormSubmitTokenPayload(
       chatQuestionFormActionRecords(draft, {
-        companyId: "22222222-2222-4222-8222-222222222222",
+        spaceId: "22222222-2222-4222-8222-222222222222",
         endpointId: "44444444-4444-4444-8444-444444444444",
         conversationId: "55555555-5555-4555-8555-555555555555",
         publicationId: "66666666-6666-4666-8666-666666666666",
@@ -746,7 +746,7 @@ describe("chat question forms", () => {
       action: "errors",
       errors: {
         [payload.fields[0]!.fieldId]:
-          "This form is no longer authorized. Close it and open the linked Paperclip task.",
+          "This form is no longer authorized. Close it and open the linked Outpost task.",
       },
     });
     expect(chatQuestionFormDenialResponse()).toEqual({ action: "clear" });

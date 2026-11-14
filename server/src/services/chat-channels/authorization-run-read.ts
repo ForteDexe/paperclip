@@ -2,7 +2,7 @@ import { heartbeatRuns, type Db } from "@outpost/db";
 import { and, eq, sql } from "drizzle-orm";
 
 type Database = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
-type Scope = { companyId: string; agentId: string; failedRunId: string };
+type Scope = { spaceId: string; agentId: string; failedRunId: string };
 
 const contextKeys = [
   "source", "issueId", "interactionId", "taskKey", "wakeCommentIds",
@@ -21,7 +21,7 @@ const committedContext = sql<Record<string, unknown> | null>`
 export async function readChatAuthorizationRun(db: Database, scope: Scope, committed: boolean) {
   const where = and(
     eq(heartbeatRuns.id, scope.failedRunId),
-    eq(heartbeatRuns.companyId, scope.companyId),
+    eq(heartbeatRuns.spaceId, scope.spaceId),
     eq(heartbeatRuns.agentId, scope.agentId),
   );
   if (!committed) {
@@ -30,7 +30,7 @@ export async function readChatAuthorizationRun(db: Database, scope: Scope, commi
   }
   const [run] = await db.select({
     id: heartbeatRuns.id,
-    companyId: heartbeatRuns.companyId,
+    spaceId: heartbeatRuns.spaceId,
     agentId: heartbeatRuns.agentId,
     wakeupRequestId: heartbeatRuns.wakeupRequestId,
     status: heartbeatRuns.status,

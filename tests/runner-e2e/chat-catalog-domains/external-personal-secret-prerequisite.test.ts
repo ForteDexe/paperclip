@@ -5,11 +5,11 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 function fixture() {
   vi.useFakeTimers(); vi.setSystemTime(100);
   const config = { provider: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017", env: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "controller", version: "latest" } } };
-  const ready = { id: "morgan", companyId: "company", lifecycleState: "ready", lifecycleHolds: [] as string[], lifecycleError: null as string | null, status: "idle", adapterType: "outpost_runner", adapterConfig: config };
+  const ready = { id: "morgan", spaceId: "space", lifecycleState: "ready", lifecycleHolds: [] as string[], lifecycleError: null as string | null, status: "idle", adapterType: "outpost_runner", adapterConfig: config };
   const agent = { ...ready, adapterConfig: { ...config, env: { ...config.env, PUBLISHING_API_KEY: { type: "user_secret_ref", key: "PERSONAL_PUBLISHING_KEY", version: "latest", required: true, allowMissingOverride: false } } } };
   const lead = { ...ready, id: "ceo" }, evidence = vi.fn();
   const get = vi.fn(async (route: string) => route === "/api/agents/ceo" ? lead : ready);
-  const ctx = { observationDeadlineAt: 10000, input: { api: { baseURL: "http://127.0.0.1:3100", get }, evidence, fixtures: { company: { id: "company" }, agent: { id: "ceo" } }, page: { context: () => ({ cookies: async () => [{ name: "session", value: "synthetic-private-session" }] }) } } } as unknown as ChatCatalogContext;
+  const ctx = { observationDeadlineAt: 10000, input: { api: { baseURL: "http://127.0.0.1:3100", get }, evidence, fixtures: { space: { id: "space" }, agent: { id: "ceo" } }, page: { context: () => ({ cookies: async () => [{ name: "session", value: "synthetic-private-session" }] }) } } } as unknown as ChatCatalogContext;
   const state = { morganId: "morgan", morganReadyBeforeRequiredBinding: true, morganUnboundConfigHash: personalSecretUnboundConfigHash(config), definitionId: "definition", currentPersonId: "person" };
   const fetcher = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => new Response(JSON.stringify({ code: "user_secret_missing", details: { code: "user_secret_missing", definitionId: "definition", responsibleUserId: "person" } }), { status: 422 }));
   vi.stubGlobal("fetch", fetcher);
@@ -28,16 +28,16 @@ it("proves the worker ready before adding the missing required value and does no
 it("requires exact current-person missing-secret resolution and ready CEO with unchanged worker configuration", async () => {
   const f = fixture(); await provePersonalSecretMissingBoundary(f.ctx, f.state, f.agent);
   expect(f.fetcher).toHaveBeenCalledOnce();
-  expect(f.fetcher.mock.calls[0]?.[0]).toEqual(new URL("http://127.0.0.1:3100/api/companies/company/adapters/outpost_runner/test-environment"));
+  expect(f.fetcher.mock.calls[0]?.[0]).toEqual(new URL("http://127.0.0.1:3100/api/spaces/space/adapters/outpost_runner/test-environment"));
   expect(f.evidence).toHaveBeenCalledWith("personal-secret-missing-binding-prerequisite.json", expect.objectContaining({ status: 422, code: "user_secret_missing", prospectiveResolutionOnly: true }));
   expect(JSON.stringify(f.evidence.mock.calls)).not.toContain("synthetic-private-session");
 });
-it.each(["bad CEO", "bad worker", "budget hold", "wrong company", "changed model", "optional", "override", "wrong definition", "never ready"])("rejects unrelated %s before any resolution request", async invalid => {
+it.each(["bad CEO", "bad worker", "budget hold", "wrong space", "changed model", "optional", "override", "wrong definition", "never ready"])("rejects unrelated %s before any resolution request", async invalid => {
   const f = fixture();
   if (invalid === "bad CEO") f.lead.lifecycleError = "Authentication failed";
   if (invalid === "bad worker") f.agent.lifecycleError = "Authentication failed";
   if (invalid === "budget hold") f.agent.lifecycleHolds = ["budget"];
-  if (invalid === "wrong company") f.agent.companyId = "foreign";
+  if (invalid === "wrong space") f.agent.spaceId = "foreign";
   if (invalid === "changed model") f.agent.adapterConfig.model = "other";
   if (invalid === "optional") f.agent.adapterConfig.env.PUBLISHING_API_KEY.required = false;
   if (invalid === "override") f.agent.adapterConfig.env.PUBLISHING_API_KEY.allowMissingOverride = true;
@@ -64,7 +64,7 @@ it("does not let a slow resolution reset the original observation clock", async 
 
 it("accepts only the source-owned missing-binding lifecycle state once the precise resolution guard proves it", async () => {
   const f = fixture(); f.agent.lifecycleState = "verifying"; f.agent.status = "paused";
-  f.agent.lifecycleError = "Execution configuration check failed. Paperclip could not complete this step. It will retry automatically. If this continues, contact your instance administrator.";
+  f.agent.lifecycleError = "Execution configuration check failed. Outpost could not complete this step. It will retry automatically. If this continues, contact your instance administrator.";
   await expect(provePersonalSecretMissingBoundary(f.ctx, f.state, f.agent)).resolves.toBeUndefined();
 });
 it("does not expose malformed private response contents", async () => {

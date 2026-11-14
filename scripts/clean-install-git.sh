@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PC_TEST_ROOT="${PC_TEST_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/paperclip-clean-install-git.XXXXXX")}"
+PC_TEST_ROOT="${PC_TEST_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/outpost-clean-install-git.XXXXXX")}"
 PC_HOME="${PC_HOME:-$PC_TEST_ROOT/home}"
 PC_CACHE="${PC_CACHE:-$PC_TEST_ROOT/npm-cache}"
 KEEP_TEMP="${KEEP_TEMP:-0}"
@@ -22,25 +22,25 @@ echo "PC_HOME: $PC_HOME"
 
 env \
   HOME="$PC_HOME" \
-  OUTPOST_HOME="$PC_HOME/.paperclip" \
+  OUTPOST_HOME="$PC_HOME/.outpost" \
   npm_config_cache="$PC_CACHE" \
   npm_config_userconfig="$PC_HOME/.npmrc" \
   PATH="$PC_HOME/.local/bin:$PATH" \
-  pnpm --dir "$REPO_ROOT" paperclipai install --yes
+  pnpm --dir "$REPO_ROOT" outpost install --yes
 
-test -x "$PC_HOME/.local/bin/paperclipai"
-test -L "$PC_HOME/.paperclip/cli/current"
-test -f "$PC_HOME/.paperclip/cli/install.json"
+test -x "$PC_HOME/.local/bin/outpost"
+test -L "$PC_HOME/.outpost/cli/current"
+test -f "$PC_HOME/.outpost/cli/install.json"
 
-env HOME="$PC_HOME" OUTPOST_HOME="$PC_HOME/.paperclip" PATH="$PC_HOME/.local/bin:$PATH" paperclipai --version
-env HOME="$PC_HOME" OUTPOST_HOME="$PC_HOME/.paperclip" PATH="$PC_HOME/.local/bin:$PATH" paperclipai doctor \
+env HOME="$PC_HOME" OUTPOST_HOME="$PC_HOME/.outpost" PATH="$PC_HOME/.local/bin:$PATH" outpost --version
+env HOME="$PC_HOME" OUTPOST_HOME="$PC_HOME/.outpost" PATH="$PC_HOME/.local/bin:$PATH" outpost doctor \
   --config "$PC_TEST_ROOT/missing-config.json" >/dev/null || true
 
 env \
   HOME="$PC_HOME" \
-  OUTPOST_HOME="$PC_HOME/.paperclip" \
+  OUTPOST_HOME="$PC_HOME/.outpost" \
   PATH="$PC_HOME/.local/bin:$PATH" \
-  pnpm --dir "$REPO_ROOT" paperclipai uninstall
+  pnpm --dir "$REPO_ROOT" outpost uninstall
 
-test ! -e "$PC_HOME/.paperclip/cli"
-test ! -e "$PC_HOME/.local/bin/paperclipai"
+test ! -e "$PC_HOME/.outpost/cli"
+test ! -e "$PC_HOME/.local/bin/outpost"

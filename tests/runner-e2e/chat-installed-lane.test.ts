@@ -30,15 +30,15 @@ it("hashes the complete actual dependency tree and rejects external dependency l
   expect(() => installedChatTreeIdentity(prefix)).toThrow("escapes");
 });
 it("compares real source bytes to the retained public-artifact pins before every restart", () => {
-  const folder = root(), prefix = path.join(folder, "prefix"), cliRoot = path.join(prefix, "lib/node_modules/paperclipai"), serverRoot = path.join(cliRoot, "node_modules/@outpost/server");
+  const folder = root(), prefix = path.join(folder, "prefix"), cliRoot = path.join(prefix, "lib/node_modules/@outpost/cli"), serverRoot = path.join(cliRoot, "node_modules/@outpost/server");
   mkdirSync(path.join(cliRoot, "dist"), { recursive: true }); mkdirSync(path.join(serverRoot, "dist"), { recursive: true });
   const cli = path.join(cliRoot, "dist/index.js"), server = path.join(serverRoot, "dist/index.js");
   writeFileSync(cli, "export const cli=true;"); writeFileSync(server, "export const server=true;");
-  writeFileSync(path.join(cliRoot, "package.json"), JSON.stringify({ name: "paperclipai", version: "1.2.3" }));
+  writeFileSync(path.join(cliRoot, "package.json"), JSON.stringify({ name: "@outpost/cli", version: "1.2.3" }));
   writeFileSync(path.join(serverRoot, "package.json"), JSON.stringify({ name: "@outpost/server", version: "1.2.3" }));
   const planFile = path.join(folder, "plan.json");
   writeFileSync(planFile, JSON.stringify({ schemaVersion: 1, executionId: "selected", temporaryRoot: folder, prefix, cli, serverRoot, sourceVersion: "1.2.3",
-    artifacts: [{ package: "paperclipai", version: "1.2.3", entrySha256: sha(cli) }, { package: "@outpost/server", version: "1.2.3", entrySha256: sha(server) }] }), { mode: 0o600 });
+    artifacts: [{ package: "@outpost/cli", version: "1.2.3", entrySha256: sha(cli) }, { package: "@outpost/server", version: "1.2.3", entrySha256: sha(server) }] }), { mode: 0o600 });
   const env = { [CHAT_INSTALL_PLAN]: planFile, OUTPOST_RUNNER_E2E_TEMP_ROOT: folder };
   expect(refreshInstalledChatPins(env, "selected").version).toBe("1.2.3");
   expect(() => refreshInstalledChatPins(env, "other")).toThrow("another target");

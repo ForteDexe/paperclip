@@ -19,7 +19,7 @@ const result: FolderListResult = {
   folders: [
     {
       id: "my-root",
-      companyId: "company-1",
+      spaceId: "space-1",
       kind: "skill",
       parentId: null,
       name: "My Skills",
@@ -35,7 +35,7 @@ const result: FolderListResult = {
     },
     {
       id: "personal-root",
-      companyId: "company-1",
+      spaceId: "space-1",
       kind: "skill",
       parentId: "my-root",
       name: "Ada",

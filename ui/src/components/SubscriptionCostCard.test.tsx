@@ -34,7 +34,7 @@ describe("subscription costs", () => {
   });
   afterEach(() => { act(() => root.unmount()); container.remove(); client.clear(); vi.clearAllMocks(); });
   async function render(report?: SubscriptionCostReport, error?: unknown) {
-    await act(async () => root.render(<QueryClientProvider client={client}><SubscriptionCostCard companyId="company" report={report} error={error} onChanged={changed} /></QueryClientProvider>));
+    await act(async () => root.render(<QueryClientProvider client={client}><SubscriptionCostCard spaceId="space" report={report} error={error} onChanged={changed} /></QueryClientProvider>));
   }
   async function click(label: string) {
     await act(async () => [...document.querySelectorAll("button")].find(button => button.textContent === label)!.click());
@@ -89,7 +89,7 @@ describe("subscription costs", () => {
       currency.value = "EUR"; currency.dispatchEvent(new Event("change", { bubbles: true }));
     });
     await act(async () => document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-    await vi.waitFor(() => expect(mocks.update).toHaveBeenCalledWith("company", "account-1", expect.objectContaining({ amountCents: "120000.0000000", currency: "EUR", cadence: "year", expectedRevision: 0 })));
+    await vi.waitFor(() => expect(mocks.update).toHaveBeenCalledWith("space", "account-1", expect.objectContaining({ amountCents: "120000.0000000", currency: "EUR", cadence: "year", expectedRevision: 0 })));
     expect(changed).toHaveBeenCalled();
   });
   it("hides editing when the viewer does not own the account", async () => {
@@ -108,11 +108,11 @@ describe("subscription costs", () => {
       tracking.value = status; tracking.dispatchEvent(new Event("change", { bubbles: true }));
     });
     await click("Save price");
-    await vi.waitFor(() => expect(mocks.update).toHaveBeenCalledWith("company", "account-1", expect.objectContaining({
+    await vi.waitFor(() => expect(mocks.update).toHaveBeenCalledWith("space", "account-1", expect.objectContaining({
       amountCents: "1575.5000000", status,
     })));
   });
-  it("distinguishes personal seats with multiple owners from company-shared subscriptions", async () => {
+  it("distinguishes personal seats with multiple owners from space-shared subscriptions", async () => {
     const report = fixture();
     report.accounts[0] = { ...report.accounts[0], ownerUserId: null, ownerName: null, shared: false, canEdit: false };
     await render(report); await click("View details");
@@ -130,6 +130,6 @@ describe("subscription costs", () => {
     expect(document.body.textContent).toContain("keeps the selected account’s price");
     await act(async () => { const select = document.querySelector<HTMLSelectElement>("#subscription-link")!; select.value = "account-2"; select.dispatchEvent(new Event("change", { bubbles: true })); });
     await click("Link accounts");
-    await vi.waitFor(() => expect(mocks.link).toHaveBeenCalledWith("company", "account-1", "account-2", 0, 3));
+    await vi.waitFor(() => expect(mocks.link).toHaveBeenCalledWith("space", "account-1", "account-2", 0, 3));
   });
 });

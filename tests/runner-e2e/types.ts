@@ -173,7 +173,7 @@ export interface RunnerTaskFixture {
   /** Optional lower bound; expectedRunCount remains the maximum/cost estimate. */
   minimumExpectedRunCount?: number;
   expectedHumanMessageCount?: number;
-  optionalCompanySecretBindingApproval?: true;
+  optionalSpaceSecretBindingApproval?: true;
   /** Admit only the first attempt, including provider or infrastructure failures. */
   automaticRetryPolicy?: "single_attempt";
   attemptTimeoutMs: Readonly<Record<RunnerEnvironmentId, number>>;
@@ -193,7 +193,7 @@ export interface RunnerTaskFixture {
     optionLabel: string;
     expectedMarker: string;
   };
-  /** Restart the isolated Paperclip server after the waiting turn settles. */
+  /** Restart the isolated Outpost server after the waiting turn settles. */
   restartServerBeforeQuestionAnswer?: boolean;
   toolReviewDecision?: "approve" | "decline" | "always" | "restart";
   buildPlanMarkers?(nonce: string): {
@@ -259,7 +259,7 @@ export type RunnerE2ECostStatus =
 
 export interface RunnerE2ERuntimeUsage {
   provider: RunnerEnvironmentId;
-  /** Sum of the selected Paperclip heartbeat-run spans. */
+  /** Sum of the selected Outpost heartbeat-run spans. */
   agentRunDurationMs: number | null;
   /** Sum of provider lease windows when the environment exposes leases. */
   leaseDurationMs: number | null;

@@ -17,7 +17,7 @@ const agents = ([
   { id: "ceo", name: "CEO", palette: "arctic-blue" },
   { id: "cto", name: "CTO", palette: "orchid-peach" },
 ] as const).map(({ palette, ...agent }) => ({
-  ...agent, companyId: "company-storybook", urlKey: agent.id,
+  ...agent, spaceId: "space-storybook", urlKey: agent.id,
   appearance: appearanceForPalette(palette),
 })) as Agent[];
 
@@ -35,7 +35,7 @@ const recentItems = [
 ];
 
 function SidebarIconAlignment() {
-  const [pins, setPins] = useState(["agent-chat:company-storybook:ceo-v2", "agent-chat:company-storybook:glm-coder", "/routines"]);
+  const [pins, setPins] = useState(["agent-chat:space-storybook:ceo-v2", "agent-chat:space-storybook:glm-coder", "/routines"]);
   return <TruncatedTextMarqueeProvider><aside className="coordinator-workspace coordinator-sidebar design-sidebar w-60 min-h-dvh">
     <nav className="design-sidebar-navigation" aria-label="Mixed navigation icons">
       <SidebarSection label="Pinned">
@@ -59,7 +59,7 @@ const meta = {
   component: SidebarIconAlignment,
   parameters: {
     layout: "fullscreen", initialEntries: ["/PAP/chats/ceo-v2"],
-    paperclip: {
+    outpost: {
       capabilities: ["navigation-preferences/preferences"], status: "current", implementation: "production", boundary: "fixtures",
       notes: "Production pinned-item builder/list, nav rows, avatar and task glyphs in the Coordinator sidebar surface. Mixed icon types, active state, long labels, reorder and unpin use local fixtures; this does not prove API persistence or authorization.",
     },

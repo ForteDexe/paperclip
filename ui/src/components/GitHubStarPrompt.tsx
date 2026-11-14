@@ -5,12 +5,12 @@ import { healthApi } from "@/api/health";
 import { issuesApi } from "@/api/issues";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useDialogState } from "@/context/DialogContext";
 import { useLocation } from "@/lib/router";
 import { queryKeys } from "@/lib/queryKeys";
 import { MODAL_SELECTOR, useModalOpen, useOnboardingInProgress } from "./AnnouncementWell";
-import { PaperclipMark } from "./PaperclipLockup";
+import { OutpostMark } from "./OutpostLockup";
 
 export const STAR_PROMPT_COMPLETED_TASKS = 5;
 export const STAR_PROMPT_SEEN_KEY = "outpost.github-star-prompt.seen";
@@ -35,24 +35,24 @@ function markSeen() {
 
 /**
  * Asks self-hosted users to star the repository once they have finished
- * enough tasks to know whether Paperclip helps them. It shows at most once
+ * enough tasks to know whether Outpost helps them. It shows at most once
  * per browser: showing it counts as seen, so a reload or another open tab
  * never repeats it. It waits for any other dialog to close. Cloud instances,
  * unfinished onboarding and unknown state (loading or a failed read) keep it
  * hidden.
  */
 export function GitHubStarPrompt() {
-  const { selectedCompanyId, loading } = useCompany();
+  const { selectedSpaceId, loading } = useSpace();
   const { onboardingOpen } = useDialogState();
   const [seen, setSeen] = useState(readSeen);
   const [open, setOpen] = useState(false);
-  const onboardingInProgress = useOnboardingInProgress(selectedCompanyId);
+  const onboardingInProgress = useOnboardingInProgress(selectedSpaceId);
   const health = useQuery({ queryKey: queryKeys.health, queryFn: () => healthApi.get(), enabled: false });
   const selfHosted = health.isSuccess && !health.data.cloud;
-  const eligible = selfHosted && !seen && !loading && Boolean(selectedCompanyId) && !onboardingOpen && !onboardingInProgress;
+  const eligible = selfHosted && !seen && !loading && Boolean(selectedSpaceId) && !onboardingOpen && !onboardingInProgress;
   const done = useQuery({
-    queryKey: queryKeys.issues.starPromptDone(selectedCompanyId ?? "__none__"),
-    queryFn: ({ signal }) => issuesApi.listCompact(selectedCompanyId!, { status: "done", limit: STAR_PROMPT_COMPLETED_TASKS }, { signal }),
+    queryKey: queryKeys.issues.starPromptDone(selectedSpaceId ?? "__none__"),
+    queryFn: ({ signal }) => issuesApi.listCompact(selectedSpaceId!, { status: "done", limit: STAR_PROMPT_COMPLETED_TASKS }, { signal }),
     enabled: eligible,
     staleTime: 60_000,
   });
@@ -89,7 +89,7 @@ export function GitHubStarPrompt() {
       <DialogContent className="sm:max-w-md" data-testid="github-star-prompt">
         <DialogHeader className="items-center text-center sm:text-center">
           <div className="mb-2 flex size-14 items-center justify-center rounded-full border border-border bg-muted">
-            <PaperclipMark decorative className="size-7" />
+            <OutpostMark decorative className="size-7" />
           </div>
           <DialogTitle>You completed {STAR_PROMPT_COMPLETED_TASKS} tasks!</DialogTitle>
           <DialogDescription className="max-w-xs">

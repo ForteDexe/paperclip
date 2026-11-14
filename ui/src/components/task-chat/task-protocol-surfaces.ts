@@ -76,7 +76,7 @@ const interactionLifecycleEvents = [
   "interaction.response.progressed", "interaction.response.resolved", "interaction.response.delivered",
 ] as const;
 
-const governanceEvents = [
+const policyEvents = [
   "attention.request.proposed", "attention.request.routed", "attention.request.resolved",
   "attention.request.expired", "attention.request.superseded", "work.assessment.recorded",
   "issue.status.decision.recorded", "issue.status.decision.applied", "issue.status.decision.rejected",
@@ -102,7 +102,7 @@ export const TASK_PROTOCOL_EVENT_SURFACE_REGISTRY: Readonly<Record<string, TaskP
   ...Object.fromEntries(interactionLifecycleEvents.map((eventType) => [eventType, folded("interaction", "The control-plane interaction record is canonical and owns rendering." )])),
   "run.result.proposed": inline("run_result", "Task Page/Runner Protocol/Results and terminal states", "Structured completion, evidence, verification, blockers, and artifacts remain inspectable."),
   "run.result.accepted": folded("run_result", "Acceptance updates the existing result without duplicating it."),
-  "run.result.rejected": folded("run_result", "Rejected results remain part of run governance rather than a second completion card."),
+  "run.result.rejected": folded("run_result", "Rejected results remain part of run policy rather than a second completion card."),
   "run.terminal": inline("run_terminal", "Task Page/Runner Protocol/Results and terminal states", "Terminal outcome and stop reason remain visible."),
   ...Object.fromEntries(runnerLifecycleEvents.map((eventType) => [eventType, folded("turn", "Routine lifecycle transitions are summarized by the run turn and composer state.")])),
   ...Object.fromEntries(diagnosticEvents.map((eventType) => [eventType, folded("system_notice", "Actionable failure text is folded into the run or system notice.")])),
@@ -111,7 +111,7 @@ export const TASK_PROTOCOL_EVENT_SURFACE_REGISTRY: Readonly<Record<string, TaskP
   "auth.credentials.updated": debugOnly("run_debug", "Credential updates notify the host and remain in run details."),
   "sandbox.metric": debugOnly("run_debug", "Sandbox telemetry is available in run details, not the primary task thread."),
   ...Object.fromEntries(mcpLifecycleEvents.map((eventType) => [eventType, debugOnly("run_debug", "MCP application transport lifecycle remains in run details unless it produces an actionable failure.")])),
-  ...Object.fromEntries(governanceEvents.map((eventType) => [eventType, folded("governance", "Authoritative task status, attention, and interaction records own this state." )])),
+  ...Object.fromEntries(policyEvents.map((eventType) => [eventType, folded("policy", "Authoritative task status, attention, and interaction records own this state." )])),
 });
 
 export const TASK_PROTOCOL_REQUEST_SURFACE_REGISTRY = Object.freeze({

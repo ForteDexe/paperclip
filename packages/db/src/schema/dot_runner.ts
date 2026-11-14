@@ -1,13 +1,13 @@
 import { sql } from "drizzle-orm";
 import { bigserial, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { agents } from "./agents.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 import { mcpOauthGrants } from "./public_mcp.js";
 
 export const dotAgentBindings = pgTable("dot_agent_bindings", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
   operatorId: text("operator_id").notNull(),
   grantId: uuid("grant_id").references(() => mcpOauthGrants.id, { onDelete: "set null" }),
@@ -24,14 +24,14 @@ export const dotAgentBindings = pgTable("dot_agent_bindings", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
-  uniqueIndex("dot_bindings_active_agent_uq").on(t.companyId, t.agentId).where(sql`${t.revokedAt} IS NULL`),
+  uniqueIndex("dot_bindings_active_agent_uq").on(t.spaceId, t.agentId).where(sql`${t.revokedAt} IS NULL`),
   uniqueIndex("dot_bindings_active_grant_uq").on(t.grantId).where(sql`${t.revokedAt} IS NULL AND ${t.grantId} IS NOT NULL`),
   uniqueIndex("dot_bindings_pairing_code_uq").on(t.pairingCodeHash),
 ]);
 
 export const dotRunnerAssignments = pgTable("dot_runner_assignments", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   bindingId: uuid("binding_id").notNull().references(() => dotAgentBindings.id, { onDelete: "cascade" }),
   bindingGeneration: integer("binding_generation").notNull(),
   runId: uuid("run_id").notNull().references(() => heartbeatRuns.id, { onDelete: "cascade" }),
@@ -52,12 +52,12 @@ export const dotRunnerAssignments = pgTable("dot_runner_assignments", {
 }, t => [
   uniqueIndex("dot_assignments_turn_uq").on(t.runId, t.turnId),
   uniqueIndex("dot_assignments_active_binding_uq").on(t.bindingId).where(sql`${t.status} IN ('offered', 'accepted')`),
-  index("dot_assignments_company_idx").on(t.companyId),
+  index("dot_assignments_space_idx").on(t.spaceId),
 ]);
 
 export const dotRunnerOperations = pgTable("dot_runner_operations", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   assignmentId: uuid("assignment_id").notNull().references(() => dotRunnerAssignments.id, { onDelete: "cascade" }),
   requestId: uuid("request_id").notNull(),
   digest: text("digest").notNull(),
@@ -73,7 +73,7 @@ export const dotRunnerOperations = pgTable("dot_runner_operations", {
 
 export const dotMailboxItems = pgTable("dot_mailbox_items", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   bindingId: uuid("binding_id").notNull().references(() => dotAgentBindings.id, { onDelete: "cascade" }),
   bindingGeneration: integer("binding_generation").notNull(),
   assignmentId: uuid("assignment_id").references(() => dotRunnerAssignments.id, { onDelete: "cascade" }),

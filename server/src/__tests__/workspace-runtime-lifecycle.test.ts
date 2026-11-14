@@ -29,7 +29,7 @@ async function expectListenerClosed(port: number) {
 }
 
 it("retires an ephemeral runtime and preserves useful files for the same owner's next use", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-runtime-lifecycle-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-runtime-lifecycle-"));
   const previousHome = process.env.OUTPOST_HOME;
   const previousInstance = process.env.OUTPOST_INSTANCE_ID;
   process.env.OUTPOST_HOME = path.join(root, "home");
@@ -54,7 +54,7 @@ http.createServer((req, res) => {
     branchCreatedByRuntime: false, worktreePath: null, warnings: [], created: false,
   };
   const input = {
-    agent: { id: randomUUID(), companyId: randomUUID(), name: "Lifecycle worker" },
+    agent: { id: randomUUID(), spaceId: randomUUID(), name: "Lifecycle worker" },
     issue: null,
     executionWorkspaceId: randomUUID(),
     workspace,
@@ -70,7 +70,7 @@ http.createServer((req, res) => {
   const runs = [randomUUID(), randomUUID()];
   try {
     const [first] = await ensureRuntimeServicesForRun({ ...input, runId: runs[0]! });
-    expect(first).toMatchObject({ reused: false, ownerAgentId: input.agent.id, companyId: input.agent.companyId });
+    expect(first).toMatchObject({ reused: false, ownerAgentId: input.agent.id, spaceId: input.agent.spaceId });
     const firstResult = await (await fetch(first!.url!)).json() as { pid: number; count: number; retained: string };
     expect(firstResult).toMatchObject({ count: 1, retained: "useful workspace result" });
     expect(isPidAlive(firstResult.pid)).toBe(true);
@@ -84,7 +84,7 @@ http.createServer((req, res) => {
     expect(await fs.readFile(path.join(cwd, "retained.txt"), "utf8")).toBe("useful workspace result");
 
     const [second] = await ensureRuntimeServicesForRun({ ...input, runId: runs[1]! });
-    expect(second).toMatchObject({ reused: false, ownerAgentId: input.agent.id, companyId: input.agent.companyId });
+    expect(second).toMatchObject({ reused: false, ownerAgentId: input.agent.id, spaceId: input.agent.spaceId });
     expect(second!.id).not.toBe(first!.id);
     const secondResult = await (await fetch(second!.url!)).json() as { pid: number; count: number; retained: string };
     expect(secondResult).toMatchObject({ count: 2, retained: "useful workspace result" });

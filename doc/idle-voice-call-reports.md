@@ -58,7 +58,7 @@ deadlines. No provider-specific policy is added to app startup.
 
 ## Lifecycle and limitations
 
-The shared scoped worker coalesces notifications, processes fair company batches,
+The shared scoped worker coalesces notifications, processes fair space batches,
 and retains dirty scopes across drain or failed reads. Shutdown joins in-flight
 work. Restart reconstructs the persisted retry instead of immediately repeating
 the provider GET. The explicit one-shot voice reconciliation method remains for
@@ -88,7 +88,7 @@ The audit and evidence ledger is
 
 The [historical parent acceptance](plans/2026-10-25-voice-call-report-sleep-audit.md#current-parent-reconstruction-and-migration-acceptance-october-28)
 records the earlier 302 distinct passing cases, the bounded startup and same-owner restart
-regressions, deterministic company fairness, generated migration 0396 and the
+regressions, deterministic space fairness, generated migration 0396 and the
 preserved failures. The report owner keeps its finite provider refresh obligation;
 this is not an unconditional idle scan or proof of deployed suspension.
 

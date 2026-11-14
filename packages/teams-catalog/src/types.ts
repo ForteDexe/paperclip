@@ -76,7 +76,7 @@ export interface CatalogTeam {
   entrypoint: "TEAM.md";
   schema: "agentcompanies/v1";
   defaultInstall: boolean;
-  recommendedForCompanyTypes: string[];
+  recommendedForSpaceTypes: string[];
   tags: string[];
   counts: {
     agents: number;

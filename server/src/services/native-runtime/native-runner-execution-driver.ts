@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
-import { resolvePaperclipRunnerTransport, type PaperclipRunnerTransport } from "@outpost/adapter-utils/runner-connectivity";
+import { resolveOutpostRunnerTransport, type OutpostRunnerTransport } from "@outpost/adapter-utils/runner-connectivity";
 import type { RunnerExecutionDriver } from "../../vendor/outpost-runner/index.js";
 import { registerRunnerPrpAuthority } from "../../realtime/runner-orp-ws.js";
 import { connectRunnerPrpIngress } from "../../realtime/runner-orp-outbound.js";
@@ -73,8 +73,8 @@ export function resolveRemoteRunnerTransportMode(input: {
 type RemotePreparation = Pick<NativeRunnerExecutionDriverInput,
   "target" | "runnerIngressAuthorized" | "runnerPublicUrl" | "runnerCaBundlePath" | "prepareRemote"> & { runId: string };
 
-async function resolveOutboundTransport(input: RemotePreparation): Promise<PaperclipRunnerTransport> {
-  const transport = await resolvePaperclipRunnerTransport({ target: input.target, runId: input.runId,
+async function resolveOutboundTransport(input: RemotePreparation): Promise<OutpostRunnerTransport> {
+  const transport = await resolveOutpostRunnerTransport({ target: input.target, runId: input.runId,
     localConnectUrl: "ws://127.0.0.1/unused", runnerPublicUrl: input.runnerPublicUrl,
     runnerCaBundlePath: input.runnerCaBundlePath, runnerIngressAuthorized: input.runnerIngressAuthorized === true });
   if (transport.mode === "direct_outbound" && transport.caBundlePath && !existsSync(transport.caBundlePath)) {
@@ -105,7 +105,7 @@ export function createNativeRunnerExecutionDriver(input: NativeRunnerExecutionDr
           // Both journals use the current business lease. Install persistence
           // before staging; endpoint acquisition still belongs to attachment.
           const register = nativeRunnerCheckpointRegistration({ ...input.controllerPersistence!,
-            binding: { companyId: input.binding.companyId, issueId: input.binding.issueId!, runId: input.binding.runId },
+            binding: { spaceId: input.binding.spaceId, issueId: input.binding.issueId!, runId: input.binding.runId },
           });
           // A restored stage already publishes under the target. Its writer
           // must exist before registration flushes that restored revision.
@@ -118,7 +118,7 @@ export function createNativeRunnerExecutionDriver(input: NativeRunnerExecutionDr
       await input.beforeConnect?.(attachmentIdentity, authority);
       if (input.controllerPersistence && input.binding.issueId) {
         await nativeRunnerCheckpointRegistration({ ...input.controllerPersistence,
-          binding: { companyId: input.binding.companyId, issueId: input.binding.issueId, runId: input.binding.runId },
+          binding: { spaceId: input.binding.spaceId, issueId: input.binding.issueId, runId: input.binding.runId },
         })(authority, attachmentIdentity);
       }
       return measureNativeRunnerSpan(
@@ -164,7 +164,7 @@ export function createNativeRunnerExecutionDriver(input: NativeRunnerExecutionDr
             target: input.target,
             runnerIngressAuthorized: input.runnerIngressAuthorized === true,
           });
-          let transport: PaperclipRunnerTransport;
+          let transport: OutpostRunnerTransport;
           if (requiredMode === "dial_wss") {
             // Validate eligibility before staging any artifact.
             transport = await measureNativeRunnerSpan(
@@ -190,7 +190,7 @@ export function createNativeRunnerExecutionDriver(input: NativeRunnerExecutionDr
                 input.trace,
                 "runner.ingress.acquire",
                 () =>
-                  resolvePaperclipRunnerTransport({
+                  resolveOutpostRunnerTransport({
                     target: input.target,
                     runId: attachmentIdentity?.runId ?? input.binding.runId,
                     localConnectUrl: "ws://127.0.0.1/unused",
@@ -216,7 +216,7 @@ export function createNativeRunnerExecutionDriver(input: NativeRunnerExecutionDr
               mode: transport.mode,
               connectionOwner:
                 transport.mode === "provider_ingress"
-                  ? "paperclip"
+                  ? "outpost"
                   : "runnerd",
             },
           });

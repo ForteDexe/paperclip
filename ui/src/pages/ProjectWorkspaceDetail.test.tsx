@@ -17,7 +17,7 @@ const mockProjectsApi = vi.hoisted(() => ({
 }));
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockSetBreadcrumbs = vi.hoisted(() => vi.fn());
-const mockSetSelectedCompanyId = vi.hoisted(() => vi.fn());
+const mockSetSelectedSpaceId = vi.hoisted(() => vi.fn());
 const mockUsePluginSlots = vi.hoisted(() => vi.fn());
 const mockPluginSlotMount = vi.hoisted(() => vi.fn());
 const mockRouteSearch = vi.hoisted(() => ({ value: "" }));
@@ -34,20 +34,20 @@ vi.mock("@/lib/router", () => ({
     <a href={to} className={className}>{children}</a>
   ),
   useLocation: () => ({
-    pathname: "/PAP/projects/paperclip-app/workspaces/workspace-1",
+    pathname: "/PAP/projects/outpost-app/workspaces/workspace-1",
     search: mockRouteSearch.value,
     hash: "",
     state: null,
   }),
   useNavigate: () => mockNavigate,
-  useParams: () => ({ companyPrefix: "PAP", projectId: "paperclip-app", workspaceId: "workspace-1" }),
+  useParams: () => ({ spacePrefix: "PAP", projectId: "outpost-app", workspaceId: "workspace-1" }),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({
-    companies: [{ id: "company-1", issuePrefix: "PAP" }],
-    selectedCompanyId: "company-1",
-    setSelectedCompanyId: mockSetSelectedCompanyId,
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({
+    spaces: [{ id: "space-1", issuePrefix: "PAP" }],
+    selectedSpaceId: "space-1",
+    setSelectedSpaceId: mockSetSelectedSpaceId,
   }),
 }));
 vi.mock("../context/BreadcrumbContext", () => ({ useBreadcrumbs: () => ({ setBreadcrumbs: mockSetBreadcrumbs }) }));
@@ -98,11 +98,11 @@ function projectWorkspace(overrides: Partial<ProjectWorkspace> = {}): ProjectWor
   const now = new Date("2026-05-01T00:00:00Z");
   return {
     id: "workspace-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     name: "Primary checkout",
     sourceType: "local_path",
-    cwd: "/tmp/paperclip",
+    cwd: "/tmp/outpost",
     repoUrl: "https://github.com/paperclipai/paperclip",
     repoRef: "master",
     defaultRef: "origin/main",
@@ -127,8 +127,8 @@ function project(overrides: Partial<Project> = {}): Project {
   const workspace = projectWorkspace();
   return {
     id: "project-1",
-    companyId: "company-1",
-    urlKey: "paperclip-app",
+    spaceId: "space-1",
+    urlKey: "outpost-app",
     goalId: null,
     goalIds: [],
     goals: [],
@@ -148,10 +148,10 @@ function project(overrides: Partial<Project> = {}): Project {
       repoUrl: workspace.repoUrl,
       repoRef: workspace.repoRef,
       defaultRef: workspace.defaultRef,
-      repoName: "paperclip",
+      repoName: "outpost",
       localFolder: workspace.cwd,
-      managedFolder: workspace.cwd ?? "/tmp/paperclip",
-      effectiveLocalFolder: workspace.cwd ?? "/tmp/paperclip",
+      managedFolder: workspace.cwd ?? "/tmp/outpost",
+      effectiveLocalFolder: workspace.cwd ?? "/tmp/outpost",
       origin: "local_folder",
     },
     workspaces: [workspace],
@@ -220,17 +220,17 @@ describe("ProjectWorkspaceDetail plugin tabs", () => {
     });
   }
 
-  it("scopes plugin detail-tab discovery to project_workspace and the project's company", async () => {
+  it("scopes plugin detail-tab discovery to project_workspace and the project's space", async () => {
     await render();
 
     const enabledDetailTabFilters = mockUsePluginSlots.mock.calls
-      .map(([filters]) => filters as { slotTypes: string[]; entityType: string; companyId: string | null; enabled?: boolean })
+      .map(([filters]) => filters as { slotTypes: string[]; entityType: string; spaceId: string | null; enabled?: boolean })
       .filter((filters) => filters.slotTypes.includes("detailTab") && filters.enabled !== false);
 
     expect(enabledDetailTabFilters.length).toBeGreaterThan(0);
     for (const filters of enabledDetailTabFilters) {
       expect(filters.entityType).toBe("project_workspace");
-      expect(filters.companyId).toBe("company-1");
+      expect(filters.spaceId).toBe("space-1");
     }
   });
 
@@ -289,7 +289,7 @@ describe("ProjectWorkspaceDetail plugin tabs", () => {
     });
 
     expect(mockNavigate).toHaveBeenCalledWith(
-      "/projects/paperclip-app/workspaces/workspace-1?tab=plugin%3Aoutpost.quality%3Aquality-tab",
+      "/projects/outpost-app/workspaces/workspace-1?tab=plugin%3Aoutpost.quality%3Aquality-tab",
     );
     expect(mockNavigate).not.toHaveBeenCalledWith(expect.stringContaining("diffView"));
     expect(mockNavigate).not.toHaveBeenCalledWith(expect.stringContaining("baseRef"));
@@ -312,7 +312,7 @@ describe("ProjectWorkspaceDetail plugin tabs", () => {
     await render();
 
     expect(container.textContent).toContain("Workspace plugin tab is not available.");
-    expect(container.querySelector('a[href="/projects/paperclip-app/workspaces/workspace-1?tab=configuration"]')?.textContent).toBe(
+    expect(container.querySelector('a[href="/projects/outpost-app/workspaces/workspace-1?tab=configuration"]')?.textContent).toBe(
       "Back to configuration",
     );
     expect(container.querySelector('[data-testid="plugin-slot-mount"]')).toBeNull();
@@ -384,7 +384,7 @@ describe("ProjectWorkspaceDetail local path under the managed-sandbox-only polic
 
     expect(container.textContent).toContain("Local path");
     expect(container.querySelector('input[placeholder="/absolute/path/to/workspace"]')).not.toBeNull();
-    expect(container.textContent).toContain("/tmp/paperclip");
+    expect(container.textContent).toContain("/tmp/outpost");
   });
 
   it("hides the local path field and fact row when the policy is on", async () => {
@@ -392,7 +392,7 @@ describe("ProjectWorkspaceDetail local path under the managed-sandbox-only polic
 
     expect(container.textContent).not.toContain("Local path");
     expect(container.querySelector('input[placeholder="/absolute/path/to/workspace"]')).toBeNull();
-    expect(container.textContent).not.toContain("/tmp/paperclip");
+    expect(container.textContent).not.toContain("/tmp/outpost");
     // The repo fact row does not name the host filesystem, so it stays.
     expect(container.textContent).toContain("Repo URL");
   });

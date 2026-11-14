@@ -5,7 +5,7 @@ import { registerScopedDeadlineWork } from "./scoped-deadline-work.js";
 import type { ChatRunMilestoneScope } from "./chat-run-milestone-notifications.js";
 import { enqueueChatRunLifecycleMilestones, loadChatRunLifecycleMilestoneScopes } from "./chat-run-publications.js";
 
-type Entry = { id: string; companyId: string; issueId: string; dueAt: number };
+type Entry = { id: string; spaceId: string; issueId: string; dueAt: number };
 const batchSize = 100;
 
 /** No periodic discovery: reconstruct on startup/committed changes, drain
@@ -13,12 +13,12 @@ const batchSize = 100;
 export function chatRunMilestoneWork(db: Db, publicBaseUrl?: string | null) {
   async function load(scope?: ChatRunMilestoneScope, signal?: AbortSignal): Promise<Entry[]> {
     return (await loadChatRunLifecycleMilestoneScopes(db, scope, signal)).map(row => ({
-      ...row, id: `${row.companyId}:${row.issueId}`, dueAt: 0,
+      ...row, id: `${row.spaceId}:${row.issueId}`, dueAt: 0,
     }));
   }
   async function check(entry: Entry, signal?: AbortSignal): Promise<Entry | null> {
     const inserted = await enqueueChatRunLifecycleMilestones(db, {
-      scope: { companyId: entry.companyId, issueId: entry.issueId },
+      scope: { spaceId: entry.spaceId, issueId: entry.issueId },
       publicBaseUrl, limit: batchSize, signal,
     });
     // A short batch exhausted the selector, including currently suppressed
@@ -30,7 +30,7 @@ export function chatRunMilestoneWork(db: Db, publicBaseUrl?: string | null) {
       queue: DELIVERY_QUEUES.chatRunMilestones,
       decodeScope: (hint: string): ChatRunMilestoneScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
       matches: (entry: Entry, scope?: ChatRunMilestoneScope) => !scope ||
-        (entry.companyId === scope.companyId && (!scope.issueId || entry.issueId === scope.issueId)),
+        (entry.spaceId === scope.spaceId && (!scope.issueId || entry.issueId === scope.issueId)),
       load, check,
     }, canRun);
   }

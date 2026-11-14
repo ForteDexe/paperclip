@@ -27,15 +27,15 @@ export function issueApprovalService(db: Db) {
       .then((rows) => rows[0] ?? null);
   }
 
-  async function assertIssueAndApprovalSameCompany(issueId: string, approvalId: string) {
+  async function assertIssueAndApprovalSameSpace(issueId: string, approvalId: string) {
     const issue = await getIssue(issueId);
     if (!issue) throw notFound("Issue not found");
 
     const approval = await getApproval(approvalId);
     if (!approval) throw notFound("Approval not found");
 
-    if (issue.companyId !== approval.companyId) {
-      throw unprocessable("Issue and approval must belong to the same company");
+    if (issue.spaceId !== approval.spaceId) {
+      throw unprocessable("Issue and approval must belong to the same space");
     }
 
     return { issue, approval };
@@ -49,7 +49,7 @@ export function issueApprovalService(db: Db) {
       const result = await db
         .select({
           id: approvals.id,
-          companyId: approvals.companyId,
+          spaceId: approvals.spaceId,
           type: approvals.type,
           requestedByAgentId: approvals.requestedByAgentId,
           requestedByUserId: approvals.requestedByUserId,
@@ -78,7 +78,7 @@ export function issueApprovalService(db: Db) {
       return db
         .select({
           id: issues.id,
-          companyId: issues.companyId,
+          spaceId: issues.spaceId,
           projectId: issues.projectId,
           goalId: issues.goalId,
           parentId: issues.parentId,
@@ -106,12 +106,12 @@ export function issueApprovalService(db: Db) {
     },
 
     link: async (issueId: string, approvalId: string, actor?: LinkActor) => {
-      const { issue } = await assertIssueAndApprovalSameCompany(issueId, approvalId);
+      const { issue } = await assertIssueAndApprovalSameSpace(issueId, approvalId);
 
-      await writeApprovalChange(db, issue.companyId, tx => tx
+      await writeApprovalChange(db, issue.spaceId, tx => tx
         .insert(issueApprovals)
         .values({
-          companyId: issue.companyId,
+          spaceId: issue.spaceId,
           issueId,
           approvalId,
           linkedByAgentId: actor?.agentId ?? null,
@@ -127,8 +127,8 @@ export function issueApprovalService(db: Db) {
     },
 
     unlink: async (issueId: string, approvalId: string) => {
-      const { issue } = await assertIssueAndApprovalSameCompany(issueId, approvalId);
-      await writeApprovalChange(db, issue.companyId, tx => tx
+      const { issue } = await assertIssueAndApprovalSameSpace(issueId, approvalId);
+      await writeApprovalChange(db, issue.spaceId, tx => tx
         .delete(issueApprovals)
         .where(and(eq(issueApprovals.issueId, issueId), eq(issueApprovals.approvalId, approvalId))), { issueIds: [issueId] });
     },
@@ -143,7 +143,7 @@ export function issueApprovalService(db: Db) {
       const rows = await db
         .select({
           id: issues.id,
-          companyId: issues.companyId,
+          spaceId: issues.spaceId,
         })
         .from(issues)
         .where(inArray(issues.id, uniqueIssueIds));
@@ -153,16 +153,16 @@ export function issueApprovalService(db: Db) {
       }
 
       for (const row of rows) {
-        if (row.companyId !== approval.companyId) {
-          throw unprocessable("Issue and approval must belong to the same company");
+        if (row.spaceId !== approval.spaceId) {
+          throw unprocessable("Issue and approval must belong to the same space");
         }
       }
 
-      await writeApprovalChange(db, approval.companyId, tx => tx
+      await writeApprovalChange(db, approval.spaceId, tx => tx
         .insert(issueApprovals)
         .values(
           uniqueIssueIds.map((issueId) => ({
-            companyId: approval.companyId,
+            spaceId: approval.spaceId,
             issueId,
             approvalId,
             linkedByAgentId: actor?.agentId ?? null,

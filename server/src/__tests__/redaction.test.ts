@@ -29,9 +29,9 @@ import { appendSemanticToolReceipt } from "../../../packages/outpost-runner/src/
 function receiptNotice(version: 1 | 2 = 1): Record<string, any> {
   return {
     schema: "outpost.provider.notice.v1", noticeId: `copilot-evidence-${"a".repeat(24)}-1`,
-    severity: "info", category: `paperclip_semantic_tool_receipt_v${version}`, scope: "turn",
-    recoverable: true, userActionable: false, summary: "Paperclip returned a semantic tool result.",
-    provenance: { method: "paperclip/semantic_tool_result", eventType: "semantic_result", sessionId: "session", turnId: "turn" },
+    severity: "info", category: `outpost_semantic_tool_receipt_v${version}`, scope: "turn",
+    recoverable: true, userActionable: false, summary: "Outpost returned a semantic tool result.",
+    provenance: { method: "outpost/semantic_tool_result", eventType: "semantic_result", sessionId: "session", turnId: "turn" },
     details: Object.entries({ stage: "semantic_result", schema: `outpost.semantic_tool_receipt.v${version}`,
       operationId: "finish_task", callIdentitySha256: "a".repeat(64), inputSha256: "b".repeat(64),
       resultSha256: "c".repeat(64), outcome: "returned", ...(version === 2 ? { normalizedInputSha256: "d".repeat(64) } : {}),
@@ -66,7 +66,7 @@ describe("redaction", () => {
     expect(receipt.schema).toBe("outpost.semantic_tool_receipt.v2");
     projector.captureSemanticReceipt()!(receipt);
     expect(events).toHaveLength(1);
-    expect(events[0]!.payload.category).toBe("paperclip_semantic_tool_receipt_v2");
+    expect(events[0]!.payload.category).toBe("outpost_semantic_tool_receipt_v2");
     expect(events[0]!.payload.details).toHaveLength(8);
     const input = { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1,
       eventType: "provider.notice.recorded", payload: events[0]!.payload } };
@@ -283,7 +283,7 @@ describe("redaction", () => {
     expect(result.normal).toBe("plain");
   });
 
-  it("preserves Paperclip protocol schema identifiers", () => {
+  it("preserves Outpost protocol schema identifiers", () => {
     expect(
       sanitizeRecord({
         schema: "outpost.question_set.v1",
@@ -548,9 +548,9 @@ describe("redaction", () => {
     const input = [
       "Authorization: Bearer live-bearer-token-value",
       `payload {"apiKey":"json-secret-value"}`,
-      `paperclip {"OUTPOST_API_KEY":"paperclip-json-secret"}`,
+      `outpost {"OUTPOST_API_KEY":"outpost-json-secret"}`,
       `escaped {\\"apiKey\\":\\"escaped-json-secret\\"}`,
-      `export OUTPOST_API_KEY='paperclip-shell-secret'`,
+      `export OUTPOST_API_KEY='outpost-shell-secret'`,
       `GITHUB_TOKEN=${githubToken}`,
       `session=${jwt}`,
     ].join("\n");
@@ -560,9 +560,9 @@ describe("redaction", () => {
     expect(result).toContain(REDACTED_EVENT_VALUE);
     expect(result).not.toContain("live-bearer-token-value");
     expect(result).not.toContain("json-secret-value");
-    expect(result).not.toContain("paperclip-json-secret");
+    expect(result).not.toContain("outpost-json-secret");
     expect(result).not.toContain("escaped-json-secret");
-    expect(result).not.toContain("paperclip-shell-secret");
+    expect(result).not.toContain("outpost-shell-secret");
     expect(result).not.toContain(githubToken);
     expect(result).not.toContain(jwt);
   });

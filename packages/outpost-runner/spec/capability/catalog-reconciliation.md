@@ -29,7 +29,7 @@ catalog's presentation set drifts from the canonical surface.
 Reconciled op-set relationship (pinned by the drift test):
 
 - **24 shared** operation ids.
-- **13 scenario-only:** `administer_company`, `export_company`, `inspect_operation_result`, `list_cases`, `list_company_skills`, `list_goals`, `list_projects`, `list_routines`, `list_secret_metadata`, `manage_routine`, `read_secret_value`, `sync_company_skills`, `upsert_case`.
+- **13 scenario-only:** `administer_space`, `export_space`, `inspect_operation_result`, `list_cases`, `list_space_skills`, `list_goals`, `list_projects`, `list_routines`, `list_secret_metadata`, `manage_routine`, `read_secret_value`, `sync_space_skills`, `upsert_case`.
 - **4 live-only:** `get_agent`, `get_approval`, `get_approval_context`, `schedule_wake`.
 - **Union = 41 operations.**
 
@@ -108,9 +108,9 @@ Legacy MCP aliases are indexed in `spec/capability/mcp-tool-map.yaml`
 alias row carries a `foldedInto` disposition linking it to the native eval/
 operation that now covers its behavior; the reconciliation drift test asserts
 every row has one. The authority additionally records the direct native
-operation for the well-known aliases (for example `paperclipListAgents` →
-`list_agents`, `paperclipGetAgent` → `get_agent`, `paperclipListIssues` →
-`search_tasks`, `paperclipCreateIssue` → `create_task`).
+operation for the well-known aliases (for example `outpostListAgents` →
+`list_agents`, `outpostGetAgent` → `get_agent`, `outpostListIssues` →
+`search_tasks`, `outpostCreateIssue` → `create_task`).
 
 ## Collapse decisions executed by TASK-17039
 

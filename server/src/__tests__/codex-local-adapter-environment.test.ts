@@ -8,13 +8,13 @@ const itWindows = process.platform === "win32" ? it : it.skip;
 const itPosix = process.platform === "win32" ? it.skip : it;
 
 async function runProbeFixture(options: { failCleanup?: boolean; error?: string; managedProvider?: boolean } = {}) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-probe-result-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-probe-result-"));
   const capture = path.join(root, "capture.json");
   const command = path.join(root, "codex");
   const managedHome = path.join(root, "managed");
   if (options.managedProvider) {
     await fs.mkdir(managedHome);
-    await fs.writeFile(path.join(managedHome, "config.toml"), 'model_provider = "paperclip"\n');
+    await fs.writeFile(path.join(managedHome, "config.toml"), 'model_provider = "outpost"\n');
   }
   await fs.writeFile(command, `#!${process.execPath}
 const fs = require('node:fs');
@@ -31,7 +31,7 @@ console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:1,output_t
   }
   try {
     const result = await testEnvironment({
-      companyId: "company-1", adapterType: "codex_local",
+      spaceId: "space-1", adapterType: "codex_local",
       config: { engine: "cli", command, cwd: root, ...(options.managedProvider ? { managedAiConnection: { identity: "fixture" }, managedAiRouting: { kind: "openrouter" } } : {}), env: {
         ...(options.managedProvider ? { CODEX_HOME: managedHome, OUTPOST_AI_PROVIDER_KEY: "gateway-fixture-key" } : {}),
         OPENAI_API_KEY: options.managedProvider ? "" : "fixture-key", PROBE_CAPTURE: capture,
@@ -59,7 +59,7 @@ describe("codex_local environment diagnostics", () => {
     expect(result.status).toBe("pass");
     expect(capture.nativeKey).toBe("");
     expect(capture.providerKey).toBe("gateway-fixture-key");
-    expect(capture.config).toContain('model_provider = "paperclip"');
+    expect(capture.config).toContain('model_provider = "outpost"');
     expect(result.checks).not.toContainEqual(expect.objectContaining({ code: "codex_openai_api_key_present" }));
   });
 
@@ -91,14 +91,14 @@ describe("codex_local environment diagnostics", () => {
   it("creates a missing working directory when cwd is absolute", async () => {
     const cwd = path.join(
       os.tmpdir(),
-      `paperclip-codex-local-cwd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-codex-local-cwd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       "workspace",
     );
 
     await fs.rm(path.dirname(cwd), { recursive: true, force: true });
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       config: {
         engine: "cli",
@@ -117,7 +117,7 @@ describe("codex_local environment diagnostics", () => {
   it("emits codex_native_auth_present when ~/.codex/auth.json exists and OPENAI_API_KEY is unset", async () => {
     const root = path.join(
       os.tmpdir(),
-      `paperclip-codex-auth-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-codex-auth-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const codexHome = path.join(root, ".codex");
     const cwd = path.join(root, "workspace");
@@ -130,7 +130,7 @@ describe("codex_local environment diagnostics", () => {
       );
 
       const result = await testEnvironment({
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType: "codex_local",
         config: {
           engine: "cli",
@@ -150,7 +150,7 @@ describe("codex_local environment diagnostics", () => {
   it("emits codex_openai_api_key_missing when neither env var nor native auth exists", async () => {
     const root = path.join(
       os.tmpdir(),
-      `paperclip-codex-noauth-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-codex-noauth-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const codexHome = path.join(root, ".codex");
     const cwd = path.join(root, "workspace");
@@ -160,7 +160,7 @@ describe("codex_local environment diagnostics", () => {
       // No auth.json written
 
       const result = await testEnvironment({
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType: "codex_local",
         config: {
           engine: "cli",
@@ -180,7 +180,7 @@ describe("codex_local environment diagnostics", () => {
   itWindows("runs the hello probe when Codex is available via a Windows .cmd wrapper", async () => {
     const root = path.join(
       os.tmpdir(),
-      `paperclip-codex-local-probe-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-codex-local-probe-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const binDir = path.join(root, "bin");
     const cwd = path.join(root, "workspace");
@@ -199,7 +199,7 @@ describe("codex_local environment diagnostics", () => {
       await fs.writeFile(fakeCodex, script, "utf8");
 
       const result = await testEnvironment({
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType: "codex_local",
         config: {
           engine: "cli",

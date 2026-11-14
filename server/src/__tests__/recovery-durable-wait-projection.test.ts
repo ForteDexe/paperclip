@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  agents, agentWakeupRequests, approvals, companies, createDb, heartbeatRuns,
+  agents, agentWakeupRequests, approvals, spaces, createDb, heartbeatRuns,
   issueApprovals, issueRecoveryActions, issueRelations, issueThreadInteractions, issues, type Db,
 } from "@outpost/db";
 import { collectDispositionRepairSourceState, readDispositionRepairDurableWaitingState } from "../services/recovery/disposition-repair.js";
@@ -25,41 +25,41 @@ const pendingExecution = { status: "pending", currentStageId: null, currentStage
     db = createDb(external ?? temporary!.connectionString);
     db.$client.options.onnotice = () => {};
   }, 30_000);
-  afterEach(async () => { vi.restoreAllMocks(); await db.execute(sql`truncate companies cascade`); });
+  afterEach(async () => { vi.restoreAllMocks(); await db.execute(sql`truncate spaces cascade`); });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
 
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Recovery", issuePrefix: `R${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Owner", role: "engineer", status: "idle" });
-    const [issue] = await db.insert(issues).values({ companyId, title: "Source", status: "blocked", assigneeAgentId: agentId }).returning();
-    const [action] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issue.id,
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Recovery", issuePrefix: `R${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Owner", role: "engineer", status: "idle" });
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Source", status: "blocked", assigneeAgentId: agentId }).returning();
+    const [action] = await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issue.id,
       kind: "deliberate_wait_without_target", ownerType: "agent", ownerAgentId: agentId,
       cause: "deliberate_wait_without_target", fingerprint: "fixture", nextAction: "Decide",
       wakePolicy: { type: "bounded_recovery_owner" } }).returning();
-    return { companyId, agentId, issue, action };
+    return { spaceId, agentId, issue, action };
   }
   const enqueueWakeup = vi.fn(async () => { throw new Error("Unexpected recovery wake"); });
 
   it("ignores foreign, hidden and settled evidence, then sees a newly pending wait", async () => {
     const f = await fixture(), foreign = await fixture();
     const blockers = await db.insert(issues).values([
-      { companyId: f.companyId, title: "Hidden", status: "todo", hiddenAt: new Date() },
-      { companyId: f.companyId, title: "Done", status: "done" },
+      { spaceId: f.spaceId, title: "Hidden", status: "todo", hiddenAt: new Date() },
+      { spaceId: f.spaceId, title: "Done", status: "done" },
     ]).returning();
     await db.insert(issueRelations).values([
-      ...blockers.map(blocker => ({ companyId: f.companyId, issueId: blocker.id, relatedIssueId: f.issue.id, type: "blocks" as const })),
-      { companyId: f.companyId, issueId: foreign.issue.id, relatedIssueId: f.issue.id, type: "blocks" },
+      ...blockers.map(blocker => ({ spaceId: f.spaceId, issueId: blocker.id, relatedIssueId: f.issue.id, type: "blocks" as const })),
+      { spaceId: f.spaceId, issueId: foreign.issue.id, relatedIssueId: f.issue.id, type: "blocks" },
     ]);
     await db.insert(issueThreadInteractions).values([
-      { companyId: foreign.companyId, issueId: f.issue.id, kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Foreign" } },
-      { companyId: f.companyId, issueId: f.issue.id, kind: "request_confirmation", status: "answered", payload: { version: 1, prompt: "Answered" } },
+      { spaceId: foreign.spaceId, issueId: f.issue.id, kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Foreign" } },
+      { spaceId: f.spaceId, issueId: f.issue.id, kind: "request_confirmation", status: "answered", payload: { version: 1, prompt: "Answered" } },
     ]);
-    const [foreignApproval] = await db.insert(approvals).values({ companyId: foreign.companyId, type: "hire_agent", status: "pending", payload: {} }).returning();
-    const [approved] = await db.insert(approvals).values({ companyId: f.companyId, type: "hire_agent", status: "approved", payload: {} }).returning();
+    const [foreignApproval] = await db.insert(approvals).values({ spaceId: foreign.spaceId, type: "create_agent", status: "pending", payload: {} }).returning();
+    const [approved] = await db.insert(approvals).values({ spaceId: f.spaceId, type: "create_agent", status: "approved", payload: {} }).returning();
     await db.insert(issueApprovals).values([
-      { companyId: f.companyId, issueId: f.issue.id, approvalId: foreignApproval.id },
-      { companyId: f.companyId, issueId: f.issue.id, approvalId: approved.id },
+      { spaceId: f.spaceId, issueId: f.issue.id, approvalId: foreignApproval.id },
+      { spaceId: f.spaceId, issueId: f.issue.id, approvalId: approved.id },
     ]);
     const read = () => readDispositionRepairDurableWaitingState(db, { issue: f.issue });
     expect(await read()).toEqual({ hasDurableWaitingPath: false, durablePathReason: null });
@@ -75,22 +75,22 @@ const pendingExecution = { status: "pending", currentStageId: null, currentStage
       const f = await fixture();
       const order = ["user_owner", "blocker", "monitor", "execution_stage", "interaction", "approval"];
       const priority = order.indexOf(reason);
-      if (priority <= 0) await db.update(issues).set({ assigneeAgentId: null, assigneeUserId: "board" }).where(eq(issues.id, f.issue.id));
+      if (priority <= 0) await db.update(issues).set({ assigneeAgentId: null, assigneeUserId: "operator" }).where(eq(issues.id, f.issue.id));
       if (priority <= 1) {
-        const [blocker] = await db.insert(issues).values({ companyId: f.companyId, title: "Blocker", status: "todo" }).returning();
-        await db.insert(issueRelations).values({ companyId: f.companyId, issueId: blocker.id, relatedIssueId: f.issue.id, type: "blocks" });
+        const [blocker] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Blocker", status: "todo" }).returning();
+        await db.insert(issueRelations).values({ spaceId: f.spaceId, issueId: blocker.id, relatedIssueId: f.issue.id, type: "blocks" });
       }
       if (priority <= 2) await db.update(issues).set({ monitorNextCheckAt: new Date(Date.now() + 3_600_000) }).where(eq(issues.id, f.issue.id));
       if (priority <= 3) await db.update(issues).set({ executionState: pendingExecution }).where(eq(issues.id, f.issue.id));
-      if (priority <= 4) await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issue.id,
+      if (priority <= 4) await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issue.id,
         kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Decide" } });
-      const [approval] = await db.insert(approvals).values({ companyId: f.companyId, type: "hire_agent", status: "pending", payload: {} }).returning();
-      await db.insert(issueApprovals).values({ companyId: f.companyId, issueId: f.issue.id, approvalId: approval.id });
+      const [approval] = await db.insert(approvals).values({ spaceId: f.spaceId, type: "create_agent", status: "pending", payload: {} }).returning();
+      await db.insert(issueApprovals).values({ spaceId: f.spaceId, issueId: f.issue.id, approvalId: approval.id });
       const [current] = await db.select().from(issues).where(eq(issues.id, f.issue.id));
       const projected = await readDispositionRepairDurableWaitingState(db, { issue: current });
       expect(projected).toEqual({ hasDurableWaitingPath: true, durablePathReason: reason });
       expect(await collectDispositionRepairSourceState(db, { issue: current })).toMatchObject(projected);
-      const result = await recoveryService(db, { enqueueWakeup }).reconcileActiveRecoveryActions({ companyId: f.companyId });
+      const result = await recoveryService(db, { enqueueWakeup }).reconcileActiveRecoveryActions({ spaceId: f.spaceId });
       expect(result.resolved).toBe(1);
       const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.action.id));
       expect(action).toMatchObject({ status: "resolved", ownerType: "agent", ownerAgentId: f.agentId,
@@ -98,34 +98,34 @@ const pendingExecution = { status: "pending", currentStageId: null, currentStage
     },
   );
 
-  it("retains board-owned waits and same-action paths but accepts an independent path", async () => {
+  it("retains operator-owned waits and same-action paths but accepts an independent path", async () => {
     const f = await fixture();
-    await db.update(issueRecoveryActions).set({ ownerType: "board", ownerAgentId: null }).where(eq(issueRecoveryActions.id, f.action.id));
-    await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issue.id,
-      kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Board" } });
-    await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running",
+    await db.update(issueRecoveryActions).set({ ownerType: "operator", ownerAgentId: null }).where(eq(issueRecoveryActions.id, f.action.id));
+    await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issue.id,
+      kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Operator" } });
+    await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "running",
       contextSnapshot: { issueId: f.issue.id, recoveryActionId: f.action.id } });
-    await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId, source: "system", status: "queued",
+    await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId, source: "system", status: "queued",
       payload: { issueId: f.issue.id, recoveryActionId: f.action.id } });
     const service = recoveryService(db, { enqueueWakeup });
-    expect((await service.reconcileActiveRecoveryActions({ companyId: f.companyId })).resolved).toBe(0);
-    await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running", contextSnapshot: { taskId: f.issue.id } });
-    expect((await service.reconcileActiveRecoveryActions({ companyId: f.companyId })).resolved).toBe(1);
+    expect((await service.reconcileActiveRecoveryActions({ spaceId: f.spaceId })).resolved).toBe(0);
+    await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "running", contextSnapshot: { taskId: f.issue.id } });
+    expect((await service.reconcileActiveRecoveryActions({ spaceId: f.spaceId })).resolved).toBe(1);
   });
 
-  it("keeps native reconciliation holds and resolves a board action through a healthy child", async () => {
+  it("keeps native reconciliation holds and resolves a operator action through a healthy child", async () => {
     const held = await fixture(), parent = await fixture();
-    await db.update(issueRecoveryActions).set({ ownerType: "board", ownerAgentId: null,
+    await db.update(issueRecoveryActions).set({ ownerType: "operator", ownerAgentId: null,
       cause: "native_workspace_finalization_owner_unverified" }).where(eq(issueRecoveryActions.id, held.action.id));
-    await db.insert(heartbeatRuns).values({ companyId: held.companyId, agentId: held.agentId, status: "running", contextSnapshot: { issueId: held.issue.id } });
+    await db.insert(heartbeatRuns).values({ spaceId: held.spaceId, agentId: held.agentId, status: "running", contextSnapshot: { issueId: held.issue.id } });
     const service = recoveryService(db, { enqueueWakeup });
-    expect((await service.reconcileActiveRecoveryActions({ companyId: held.companyId })).resolved).toBe(0);
-    await db.update(issueRecoveryActions).set({ ownerType: "board", ownerAgentId: null }).where(eq(issueRecoveryActions.id, parent.action.id));
-    const [child] = await db.insert(issues).values({ companyId: parent.companyId, title: "Child", status: "todo",
+    expect((await service.reconcileActiveRecoveryActions({ spaceId: held.spaceId })).resolved).toBe(0);
+    await db.update(issueRecoveryActions).set({ ownerType: "operator", ownerAgentId: null }).where(eq(issueRecoveryActions.id, parent.action.id));
+    const [child] = await db.insert(issues).values({ spaceId: parent.spaceId, title: "Child", status: "todo",
       parentId: parent.issue.id, assigneeAgentId: parent.agentId }).returning();
-    await db.insert(issueThreadInteractions).values({ companyId: parent.companyId, issueId: child.id,
+    await db.insert(issueThreadInteractions).values({ spaceId: parent.spaceId, issueId: child.id,
       kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Child decision" } });
-    expect((await service.reconcileActiveRecoveryActions({ companyId: parent.companyId })).resolved).toBe(1);
+    expect((await service.reconcileActiveRecoveryActions({ spaceId: parent.spaceId })).resolved).toBe(1);
     const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, parent.action.id));
     expect(action.resolutionNote).toBe("durable_path_restored:healthy_child");
     expect(await db.select().from(issueRelations).where(eq(issueRelations.relatedIssueId, parent.issue.id)))
@@ -146,16 +146,16 @@ const pendingExecution = { status: "pending", currentStageId: null, currentStage
       }
       return execute(query);
     }) as unknown as Db["execute"]);
-    const running = recoveryService(db, { enqueueWakeup }).reconcileActiveRecoveryActions({ companyId: f.companyId });
+    const running = recoveryService(db, { enqueueWakeup }).reconcileActiveRecoveryActions({ spaceId: f.spaceId });
     const operator = createDb(external ?? temporary!.connectionString, { maxConnections: 1 });
     try {
       await vi.waitFor(async () => { await ready; }, { timeout: 3_000 });
-      await operator.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issue.id,
+      await operator.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issue.id,
         kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Late decision" } });
-      if (operatorResolves) await operator.update(issueRecoveryActions).set({ status: "resolved", resolutionNote: "board_decision" }).where(eq(issueRecoveryActions.id, f.action.id));
+      if (operatorResolves) await operator.update(issueRecoveryActions).set({ status: "resolved", resolutionNote: "operator_decision" }).where(eq(issueRecoveryActions.id, f.action.id));
       release(); const result = await running;
       const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.action.id));
-      expect(action.resolutionNote).toBe(operatorResolves ? "board_decision" : "durable_path_restored:interaction");
+      expect(action.resolutionNote).toBe(operatorResolves ? "operator_decision" : "durable_path_restored:interaction");
       expect(result.resolved).toBe(operatorResolves ? 0 : 1);
     } finally { release(); await running; spy.mockRestore(); await operator.$client.end({ timeout: 1 }); }
   });

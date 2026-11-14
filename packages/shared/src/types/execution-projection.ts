@@ -28,7 +28,7 @@ export interface ExecutionBlocker {
 
 /** Presentation of existing execution records, not a second task status machine. */
 export interface ExecutionProjection {
-  /** The board can Stop this run now: any queued or running run, or a failed native run whose retry is still pending. */
+  /** The operator can Stop this run now: any queued or running run, or a failed native run whose retry is still pending. */
   canStop?: boolean;
   phase:
     | "working"
@@ -48,7 +48,7 @@ export interface ExecutionProjection {
   retryAt: string | null;
   attempt: number;
   maxAttempts: number;
-  recoveryOwner: "agent" | "board" | null;
+  recoveryOwner: "agent" | "operator" | null;
   nextAction: string | null;
   permittedActions: Array<"inspect_run" | "inspect_recovery">;
   predecessorRunId: string | null;
@@ -68,7 +68,7 @@ export const EXECUTION_RECONCILIATION_CAUSES = [
   "provider_failure_meaning_unverified",
   "provider_ownership_unverified",
   "native_provider_terminal_failed",
-  "native_governed_wait_settlement_pending",
+  "native_controlled_wait_settlement_pending",
   "native_event_replay_conflict",
   "native_session_cleanup_quarantined",
   "native_session_retry_exhausted",
@@ -146,9 +146,9 @@ export interface TaskInterruptionPresentation {
   nextRetryAt: string | null;
   canRetry: boolean;
   userAction: "approval" | "reconnect" | "assign_agent" | "choose_model" | "resume" | "budget" | "project_access"
-    /** Board confirms that a previous server, which can no longer report, stopped its workspace copyback. */
+    /** Operator confirms that a previous server, which can no longer report, stopped its workspace copyback. */
     | "confirm_owner_stop"
-    /** Board confirms that a run whose server restarted before it recorded the agent's process has stopped. */
+    /** Operator confirms that a run whose server restarted before it recorded the agent's process has stopped. */
     | "confirm_run_stopped" | null;
   /** Only the task's own project id is exposed. Other source projects stay unnamed. */
   projectAccess?: { agentId: string; projectId: string | null; ready: boolean };

@@ -1,13 +1,13 @@
 # OpenCode skill routing and clickable delivery — 2026-10-02
 
-**TL;DR: 0 newly failing cells, 0 newly passing cells, 2 unchanged passes, and 0 pending pairs in this matched trial. Both document cases pass in both variants, so this does not establish that the metadata/link change caused the earlier failures to recover. Handoff remains imperfect in the original case:** candidate uses a clickable link with the wrong `PAP` company prefix; baseline supplies only a bare prefix-less slug path. Neither defect is scored by the preserved original document-storage oracle. The explicit clickable-link cases deliver the correct `RUN` link in both variants.
+**TL;DR: 0 newly failing cells, 0 newly passing cells, 2 unchanged passes, and 0 pending pairs in this matched trial. Both document cases pass in both variants, so this does not establish that the metadata/link change caused the earlier failures to recover. Handoff remains imperfect in the original case:** candidate uses a clickable link with the wrong `PAP` space prefix; baseline supplies only a bare prefix-less slug path. Neither defect is scored by the preserved original document-storage oracle. The explicit clickable-link cases deliver the correct `RUN` link in both variants.
 
-The narrow correction expands the operational skill's stock discovery description to include Paperclip task/heartbeat work and document/file delivery. The early API recipe asks for a clickable Markdown link, and the reference shows a canonical UI-link example. The full skill stays on disk; the eight-word manual and shared prompts remain reduced. No full-body injection, adapter policy override or native tool guidance is added to legacy runs.
+The narrow correction expands the operational skill's stock discovery description to include Outpost task/heartbeat work and document/file delivery. The early API recipe asks for a clickable Markdown link, and the reference shows a canonical UI-link example. The full skill stays on disk; the eight-word manual and shared prompts remain reduced. No full-body injection, adapter policy override or native tool guidance is added to legacy runs.
 
 | Classic OpenCode case | Pre-correction skill | Corrected skill | Independent evidence and limitation |
 | --- | --- | --- | --- |
 | Original assigned skill, verbatim request | Pass | Pass | Exactly one saved document with skill-only marker and persisted revision in each. Both handoff paths are deficient and outside this case's link-free oracle. |
-| Explicit Paperclip storage with clarified clickable UI link | Pass | Pass | Saved revision/content and exact clickable `/RUN/issues/RUN-1#document-context-integrity-output` in both. |
+| Explicit Outpost storage with clarified clickable UI link | Pass | Pass | Saved revision/content and exact clickable `/RUN/issues/RUN-1#document-context-integrity-output` in both. |
 
 Original machine results, source/configuration proof, tool-read sequence, costs and evidence hashes are preserved in the [safe evidence projection](2026-10-02-opencode-skill-routing-link-qualification.json). All four cells clean up successfully; none uses automatic disposition recovery or an extra attempt. No provider was rerun to improve these results.
 
@@ -19,15 +19,15 @@ Original machine results, source/configuration proof, tool-read sequence, costs 
 - Git tree comparison verifies 8,242 identical tracked files. Only the two operational skill sources and an explicit baseline provenance receipt differ. Models, effort, tools, auth, permissions, budgets, manual/shared prompts and behavioral fixtures/graders are fixed; both fixture configuration hashes match. Suite/source digest differences correctly include the changed skill bytes.
 - Local source preparation passed 918 E2E support tests, eight canonical inventory calibrations, skill validation, E2E typecheck, two-cell discovery and both exact-source prerequisites. Both capability inventories use the same declared source list. Initial setup mistakes remain retained and did not reach providers.
 
-The explicit fixture now asks for a clickable company-prefixed Paperclip UI document link, matching its intended oracle. Bare paths and code-formatted paths fail calibration; correct relative/same-app absolute links pass. The original assigned-skill request and procedure remain verbatim. Earlier API-link grades are not retroactively changed, and these explicit results are not a direct repeat of the older “usable link” cohort.
+The explicit fixture now asks for a clickable space-prefixed Outpost UI document link, matching its intended oracle. Bare paths and code-formatted paths fail calibration; correct relative/same-app absolute links pass. The original assigned-skill request and procedure remain verbatim. Earlier API-link grades are not retroactively changed, and these explicit results are not a direct repeat of the older “usable link” cohort.
 
 ## Which guidance was read before delivery
 
-In the candidate original assignment, OpenCode loads the assigned Context integrity output skill, then operational Paperclip before any document write. The returned Paperclip skill is marked truncated, but the early saved-document recipe and reference pointer are visible. It reads `issue-documents.md`, then writes the public task document through the API. This differs from the previously failing candidate, which first loaded Paperclip only in a separate disposition-recovery run after its local-only output.
+In the candidate original assignment, OpenCode loads the assigned Context integrity output skill, then operational Outpost before any document write. The returned Outpost skill is marked truncated, but the early saved-document recipe and reference pointer are visible. It reads `issue-documents.md`, then writes the public task document through the API. This differs from the previously failing candidate, which first loaded Outpost only in a separate disposition-recovery run after its local-only output.
 
-The current baseline original assignment first loads the assigned output skill and writes a workspace Markdown file. It later loads Paperclip and reads the issue-document reference, then saves a public document before completing the **same** assignment. Thus its successful delivery did not require improved metadata; stock selection timing varies between trials. Both explicit variants load Paperclip and read the reference before the document API call. Four rendered final-state screenshots were inspected, and public document revisions/content and completion comments agree with the retained results.
+The current baseline original assignment first loads the assigned output skill and writes a workspace Markdown file. It later loads Outpost and reads the issue-document reference, then saves a public document before completing the **same** assignment. Thus its successful delivery did not require improved metadata; stock selection timing varies between trials. Both explicit variants load Outpost and read the reference before the document API call. Four rendered final-state screenshots were inspected, and public document revisions/content and completion comments agree with the retained results.
 
-The candidate original comment has an actual Markdown href `/PAP/issues/RUN-1#document-context-integrity-output`, despite the measured company prefix being `RUN`. Baseline's original comment has a bare `/issues/runner-e2e-…#document-task-document` path without a Markdown anchor. The candidate's literal prefix matches the reference's example, making example copying a plausible cause, but this trial does not isolate that cause. Authenticated click navigation was not replayed after cleanup; neither original link is presented as a verified usable handoff. A minimal follow-up can show an issue-derived prefix instead of a literal company example. These original machine passes must not be presented as fully correct links.
+The candidate original comment has an actual Markdown href `/PAP/issues/RUN-1#document-context-integrity-output`, despite the measured space prefix being `RUN`. Baseline's original comment has a bare `/issues/runner-e2e-…#document-task-document` path without a Markdown anchor. The candidate's literal prefix matches the reference's example, making example copying a plausible cause, but this trial does not isolate that cause. Authenticated click navigation was not replayed after cleanup; neither original link is presented as a verified usable handoff. A minimal follow-up can show an issue-derived prefix instead of a literal space example. These original machine passes must not be presented as fully correct links.
 
 ## Timing, usage and cost
 
@@ -52,8 +52,8 @@ The approved reference-only follow-up replaces the literal `PAP` link with a
 JavaScript construction using the current `issue.identifier` and the successful
 write receipt's `saved.key`. It is a later source change, **not live-qualified**
 by the frozen candidate above. The independent storage grader now calibrates a
-wrong-company link as failure, and executes the shipped recipe against two
-other company prefixes plus a locked-write redirected document key. All 25
+wrong-space link as failure, and executes the shipped recipe against two
+other space prefixes plus a locked-write redirected document key. All 25
 focused document/source-digest tests, eight inventory calibrations, canonical
 generated metadata checks and E2E typecheck pass. An initial sandboxed support attempt denied localhost/tsx
 pipe creation; the failed attempt is retained, with its affected files rerun
@@ -66,8 +66,8 @@ Fresh native-PR review caught a supported edge case in that later recipe:
 `issue.identifier` may be null. The recipe now uses the current issue ID in the
 unprefixed UI route when no identifier exists. Provider-free tests cover both
 null and absent identifiers, preserving the returned document key. Source review
-confirms that the board resolves the loaded issue's actual company and preserves
-the document hash; no agent-side company fetch is needed. This route logic also
+confirms that the board resolves the loaded issue's actual space and preserves
+the document hash; no agent-side space fetch is needed. This route logic also
 corrects wrong prefixes, so the frozen candidate's `PAP` href is noncanonical,
 not a proven broken link. No authenticated click replay or further model run was
 made. The previous 4/5 review and local setup/timing failures remain retained;

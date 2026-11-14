@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "chat_slack_manager_grants" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"user_id" text NOT NULL,
 	"slack_user_id" text NOT NULL,
 	"workspace_id" text NOT NULL,
@@ -20,17 +20,17 @@ CREATE TABLE IF NOT EXISTS "chat_slack_manager_grants" (
 ALTER TABLE "chat_slack_registrations" ADD COLUMN IF NOT EXISTS "manager_grant_id" uuid;
 --> statement-breakpoint
 DO $$ BEGIN
-ALTER TABLE "chat_slack_manager_grants" ADD CONSTRAINT "chat_slack_manager_grants_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "chat_slack_manager_grants" ADD CONSTRAINT "chat_slack_manager_grants_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
 
-CREATE UNIQUE INDEX IF NOT EXISTS "chat_slack_manager_grants_company_id_idx" ON "chat_slack_manager_grants" USING btree ("company_id","id");
+CREATE UNIQUE INDEX IF NOT EXISTS "chat_slack_manager_grants_space_id_idx" ON "chat_slack_manager_grants" USING btree ("space_id","id");
 --> statement-breakpoint
 
-CREATE UNIQUE INDEX IF NOT EXISTS "chat_slack_manager_grants_owner_idx" ON "chat_slack_manager_grants" USING btree ("company_id","user_id","manager_app_id","workspace_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "chat_slack_manager_grants_owner_idx" ON "chat_slack_manager_grants" USING btree ("space_id","user_id","manager_app_id","workspace_id");
 --> statement-breakpoint
 DO $$ BEGIN
-ALTER TABLE "chat_slack_registrations" ADD CONSTRAINT "chat_slack_registrations_company_id_manager_grant_id_chat_slack_manager_grants_company_id_id_fk" FOREIGN KEY ("company_id","manager_grant_id") REFERENCES "public"."chat_slack_manager_grants"("company_id","id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "chat_slack_registrations" ADD CONSTRAINT "chat_slack_registrations_space_id_manager_grant_id_chat_slack_manager_grants_space_id_id_fk" FOREIGN KEY ("space_id","manager_grant_id") REFERENCES "public"."chat_slack_manager_grants"("space_id","id") ON DELETE no action ON UPDATE no action;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
 ALTER TABLE "chat_slack_manager_grants" ADD COLUMN IF NOT EXISTS "revision" integer DEFAULT 0 NOT NULL;

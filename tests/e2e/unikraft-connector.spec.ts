@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 test("Unikraft uses the ordinary access and credential wizard", async ({ page, request }) => {
-  const response = await request.post("/api/companies", { data: { name: `Unikraft setup ${Date.now()}` } });
+  const response = await request.post("/api/spaces", { data: { name: `Unikraft setup ${Date.now()}` } });
   expect(response.ok()).toBe(true);
-  const company = await response.json();
-  await page.goto(`/${company.issuePrefix}/apps`);
+  const space = await response.json();
+  await page.goto(`/${space.issuePrefix}/apps`);
   await expect(page.getByRole("heading", { name: "Connectors", exact: true })).toBeVisible();
   await page.getByRole("searchbox", { name: "Search connectors" }).fill("Unikraft");
   const card = page.getByRole("list", { name: "Connector list" }).getByRole("listitem").filter({ hasText: "Unikraft" });

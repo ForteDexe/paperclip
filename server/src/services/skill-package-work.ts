@@ -1,7 +1,7 @@
-import { readPaperclipSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
+import { readOutpostSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
 import { promises as fs } from "node:fs";
 import { and, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
-import { companySkillRepositorySnapshots as snapshots, companySkillVersions as versions,
+import { spaceSkillRepositorySnapshots as snapshots, spaceSkillVersions as versions,
   skillPackageDeletions, agents, type Db } from "@outpost/db";
 import { getStorageService, type StorageService } from "../storage/index.js";
 import { storageFailureDiagnosticsFor } from "../storage/failure-diagnostics.js";
@@ -43,21 +43,21 @@ export function skillPackageWork(db: Db, storage?: StorageService) {
   const maintenance = skillPackageMaintenance(db, storage);
   const backend = () => storage ?? getStorageService();
   async function retire(id: string, signal: AbortSignal) {
-    const [row] = await db.select({ id: snapshots.id, companyId: snapshots.companyId, contentHash: snapshots.contentHash, createdAt: snapshots.createdAt,
+    const [row] = await db.select({ id: snapshots.id, spaceId: snapshots.spaceId, contentHash: snapshots.contentHash, createdAt: snapshots.createdAt,
       storage: snapshots.storage, upload: snapshots.upload, restore: snapshots.restore, migrationAt: snapshots.migrationAt })
       .from(snapshots).where(eq(snapshots.id, id));
     if (!row) return;
     signal.throwIfAborted();
     // Orphan deletion is delayed so an upload can publish its first version.
     const removeLocal = async () => {
-      const paths = skillPackagePaths(row.companyId, id);
+      const paths = skillPackagePaths(row.spaceId, id);
       try {
         await ensureSkillCacheDirectory(paths.parent);
         await fs.rm(paths.directory, { recursive: true, force: true });
         await fs.rm(paths.manifest, { force: true });
       } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     };
-    if (await withSkillVersionCacheLock(db, row.companyId, async () => {
+    if (await withSkillVersionCacheLock(db, row.spaceId, async () => {
       if (!(await maintenance.collectOrphans({ id, apply: true, signal })).removed) return false;
       await removeLocal();
       return true;
@@ -81,21 +81,21 @@ export function skillPackageWork(db: Db, storage?: StorageService) {
           if (!latest) return true;
           if (!latest.storage || latest.storage.durable || latest.upload || latest.migrationAt
             || !latest.maintenanceAt || latest.maintenanceAt.getTime() > Date.now()) return;
-          await withSkillVersionCacheLock(db, row.companyId, async () => {
-            const referenced = await tx.select({ id: versions.id, repositorySnapshotId: versions.repositorySnapshotId }).from(versions).where(and(eq(versions.companyId, row.companyId),
+          await withSkillVersionCacheLock(db, row.spaceId, async () => {
+            const referenced = await tx.select({ id: versions.id, repositorySnapshotId: versions.repositorySnapshotId }).from(versions).where(and(eq(versions.spaceId, row.spaceId),
               sql`(${versions.repositorySnapshotId} = ${id} or ${versions.packageSnapshotId} = ${id})`));
             if (referenced.some(version => version.repositorySnapshotId !== id)) return;
-            const [current] = await tx.execute(sql`select 1 from company_skills s where s.company_id = ${row.companyId}
-              and s.current_version_id in (select id from company_skill_versions where repository_snapshot_id = ${id} or package_snapshot_id = ${id})
-              union all select 1 from company_skill_test_runs t where t.company_id = ${row.companyId}
+            const [current] = await tx.execute(sql`select 1 from space_skills s where s.space_id = ${row.spaceId}
+              and s.current_version_id in (select id from space_skill_versions where repository_snapshot_id = ${id} or package_snapshot_id = ${id})
+              union all select 1 from space_skill_test_runs t where t.space_id = ${row.spaceId}
                 and t.status in ('queued', 'running') and t.skill_version_id in
-                  (select id from company_skill_versions where repository_snapshot_id = ${id} or package_snapshot_id = ${id}) limit 1`);
+                  (select id from space_skill_versions where repository_snapshot_id = ${id} or package_snapshot_id = ${id}) limit 1`);
             if (current) return;
             const pinned = new Set<string>();
-            for (const agent of await tx.select({ config: agents.adapterConfig }).from(agents).where(eq(agents.companyId, row.companyId))) {
-              for (const entry of readPaperclipSkillSyncPreference(agent.config ?? {}).desiredSkillEntries) if (entry.versionId) pinned.add(entry.versionId);
+            for (const agent of await tx.select({ config: agents.adapterConfig }).from(agents).where(eq(agents.spaceId, row.spaceId))) {
+              for (const entry of readOutpostSkillSyncPreference(agent.config ?? {}).desiredSkillEntries) if (entry.versionId) pinned.add(entry.versionId);
             }
-            const { versions: active } = await protectedVersions(tx as unknown as Db, row.companyId);
+            const { versions: active } = await protectedVersions(tx as unknown as Db, row.spaceId);
             if (!active || referenced.some(version => active.has(version.id) || pinned.has(version.id))) return;
             signal.throwIfAborted();
             // Metadata/recipe remain. Triggered deletion receipts retain the old
@@ -154,9 +154,9 @@ export function skillPackageWork(db: Db, storage?: StorageService) {
   async function deadline() {
     if (!skillPackageStorageEnabled()) return null;
     const [row] = await db.execute<{ at: string | Date | null }>(sql`select min(at) as at from (
-      select min(migration_at) as at from company_skill_repository_snapshots
-      union all select min(migration_at) from company_skill_versions
-      union all select min(maintenance_at) from company_skill_repository_snapshots
+      select min(migration_at) as at from space_skill_repository_snapshots
+      union all select min(migration_at) from space_skill_versions
+      union all select min(maintenance_at) from space_skill_repository_snapshots
       union all select min(delete_after) from skill_package_deletions where provider = ${backend().provider}
     ) deadlines`);
     return row?.at ? new Date(row.at).getTime() : null;

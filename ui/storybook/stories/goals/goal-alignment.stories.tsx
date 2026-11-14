@@ -5,7 +5,7 @@ import { expect, userEvent, within } from "storybook/test";
 import {
   storybookGoals,
   storybookProjects,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 import {
   prepareFixtureApi,
   type FixtureState,
@@ -28,7 +28,7 @@ const meta = {
     "Projects and execution/Goals and work alignment/Aligned work and navigation",
   component: Goal,
   parameters: { layout: "padded", initialEntries: ["/PAP/goals/goal-gap"],
-    paperclip: {
+    outpost: {
       "capabilities": [
         "goals/alignment",
         "goals/navigation"
@@ -44,7 +44,7 @@ const meta = {
       [
         { path: "/api/goals/goal-gap", read: () => goal },
         {
-          path: "/api/companies/company-storybook/goals",
+          path: "/api/spaces/space-storybook/goals",
           read: () =>
             parameters.fixtureState === "empty"
               ? [goal]
@@ -59,7 +59,7 @@ const meta = {
                 ],
         },
         {
-          path: "/api/companies/company-storybook/projects",
+          path: "/api/spaces/space-storybook/projects",
           read: () =>
             parameters.fixtureState === "empty"
               ? []

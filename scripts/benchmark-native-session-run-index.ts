@@ -4,7 +4,7 @@
  * Runs the real checkpoint-retention pass (dry run) against a synthetic agent
  * history, captures the session-run statement that `sessionRetentionBlocker`
  * sends, and replays that exact SQL with and without
- * `heartbeat_runs_company_native_session_idx`. Order: no index, index, no
+ * `heartbeat_runs_space_native_session_idx`. Order: no index, index, no
  * index, index, to expose cache-order bias. Fails unless every pass returns the
  * same rows and the same service result. Then times the migration through the
  * normal migration runner, including a rerun.
@@ -19,7 +19,7 @@ import { createHash } from "node:crypto";
 import { promises as fs, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { agents, applyPendingMigrations, companies, createDb, issues, nativeRunFinalizations,
+import { agents, applyPendingMigrations, spaces, createDb, issues, nativeRunFinalizations,
   nativeRunnerCheckpoints, startEmbeddedPostgresTestDatabase } from "../packages/db/src/index.js";
 import { nativeHarnessBackupExpirationService } from "../server/src/services/native-runtime/native-harness-backup-expiration.js";
 
@@ -45,17 +45,17 @@ try {
   await sql.unsafe("create extension if not exists pgcrypto");
   const now = new Date();
   const finishedAt = new Date(now.getTime() - 10 * DAY_MS);
-  const [company] = await db.insert(companies).values({ name: "Index", issuePrefix: "IDX" }).returning();
-  const [agent] = await db.insert(agents).values({ companyId: company!.id, name: "Measured" }).returning();
-  const [other] = await db.insert(agents).values({ companyId: company!.id, name: "Other" }).returning();
-  const [issue] = await db.insert(issues).values({ companyId: company!.id, title: "Closed", status: "done",
+  const [space] = await db.insert(spaces).values({ name: "Index", issuePrefix: "IDX" }).returning();
+  const [agent] = await db.insert(agents).values({ spaceId: space!.id, name: "Measured" }).returning();
+  const [other] = await db.insert(agents).values({ spaceId: space!.id, name: "Other" }).returning();
+  const [issue] = await db.insert(issues).values({ spaceId: space!.id, title: "Closed", status: "done",
     completedAt: finishedAt }).returning();
 
   const loadStart = performance.now();
   // Incompressible profiles; one run in 100 has an incomplete recovery marker.
   const seedRuns = (agentId: string, count: number) => sql.unsafe(`
     with sessions as (select s, gen_random_uuid() as id from generate_series(0, ($3::int - 1) / $4::int) s)
-    insert into heartbeat_runs (company_id, agent_id, status, issue_id, native_issue_id, native_session_id,
+    insert into heartbeat_runs (space_id, agent_id, status, issue_id, native_issue_id, native_session_id,
       runtime_mode, finished_at, created_at, started_at, runner_profile_json)
     select $1::uuid, $2::uuid, 'succeeded', $5::uuid, $5::uuid, sessions.id, 'native', $6::timestamptz,
       $6::timestamptz - make_interval(secs => g), $6::timestamptz - make_interval(secs => g),
@@ -64,7 +64,7 @@ try {
         'nativeControllerRecovery', case when g % 100 = 0 then jsonb_build_object(
           'schema', 'outpost.native-controller-recovery.v1', 'checkpoint', null) end)
     from generate_series(0, $3::int - 1) g join sessions on sessions.s = g / $4::int`,
-  [company!.id, agentId, count, RUNS_PER_SESSION, issue!.id, finishedAt.toISOString(), PROFILE_KIB]);
+  [space!.id, agentId, count, RUNS_PER_SESSION, issue!.id, finishedAt.toISOString(), PROFILE_KIB]);
   await seedRuns(agent!.id, RUNS);
   await seedRuns(other!.id, OTHER_RUNS);
   // The retention candidate: one settled run whose session has other runs.
@@ -73,8 +73,8 @@ try {
   const sessionRuns = await sql.unsafe(`select id from heartbeat_runs where native_session_id = $1::uuid`,
     [target!.native_session_id as string]);
   for (const run of sessionRuns) await db.insert(nativeRunFinalizations).values({ runId: run.id,
-    companyId: company!.id, issueId: issue!.id, phase: "committed" });
-  await db.insert(nativeRunnerCheckpoints).values({ companyId: company!.id, issueId: issue!.id,
+    spaceId: space!.id, issueId: issue!.id, phase: "committed" });
+  await db.insert(nativeRunnerCheckpoints).values({ spaceId: space!.id, issueId: issue!.id,
     runId: target!.id as string, part: "header", material: { encrypted: true } });
   await sql.unsafe("vacuum analyze");
   const loadMs = performance.now() - loadStart;

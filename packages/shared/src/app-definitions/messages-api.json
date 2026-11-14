@@ -29,7 +29,7 @@
         "customer"
       ],
       "whenToUse": "Connect any compatible harness to an Anthropic Messages-compatible provider or gateway.",
-      "guidanceMd": "Use your personal account or an explicitly shared company account.",
+      "guidanceMd": "Use your personal account or an explicitly shared space account.",
       "riskTier": "S3",
       "credentialFields": [
         {

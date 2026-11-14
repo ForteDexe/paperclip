@@ -9,14 +9,14 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import type { FolderKind } from "@outpost/shared";
 
 export const folders = pgTable(
   "folders",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     kind: text("kind").$type<FolderKind>().notNull(),
     parentId: uuid("parent_id").references((): AnyPgColumn => folders.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
@@ -28,23 +28,23 @@ export const folders = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyKindPositionIdx: index("folders_company_kind_position_idx").on(
-      table.companyId,
+    spaceKindPositionIdx: index("folders_space_kind_position_idx").on(
+      table.spaceId,
       table.kind,
       table.position,
       table.name,
     ),
-    companyKindRootSlugUniqueIdx: uniqueIndex("folders_company_kind_root_slug_uq")
-      .on(table.companyId, table.kind, table.slug)
+    spaceKindRootSlugUniqueIdx: uniqueIndex("folders_space_kind_root_slug_uq")
+      .on(table.spaceId, table.kind, table.slug)
       .where(sql`${table.parentId} is null`),
-    companyKindParentSlugUniqueIdx: uniqueIndex("folders_company_kind_parent_slug_uq")
-      .on(table.companyId, table.kind, table.parentId, table.slug)
+    spaceKindParentSlugUniqueIdx: uniqueIndex("folders_space_kind_parent_slug_uq")
+      .on(table.spaceId, table.kind, table.parentId, table.slug)
       .where(sql`${table.parentId} is not null`),
-    companyKindSystemKeyUniqueIdx: uniqueIndex("folders_company_kind_system_key_uq")
-      .on(table.companyId, table.kind, table.systemKey)
+    spaceKindSystemKeyUniqueIdx: uniqueIndex("folders_space_kind_system_key_uq")
+      .on(table.spaceId, table.kind, table.systemKey)
       .where(sql`${table.systemKey} is not null`),
-    companyKindParentPositionIdx: index("folders_company_kind_parent_position_idx").on(
-      table.companyId,
+    spaceKindParentPositionIdx: index("folders_space_kind_parent_position_idx").on(
+      table.spaceId,
       table.kind,
       table.parentId,
       table.position,

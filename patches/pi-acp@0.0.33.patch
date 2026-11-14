@@ -13,7 +13,7 @@
  // src/pi-rpc/process.ts
  import { spawn } from "child_process";
 -import * as readline from "readline";
-+import { PI_ACP_FEATURES, PiRpcMessageDeltas, piNativeFailure, PiAssistantMessages, piAssistantChunk, piHistoricalAssistantChunk, PiToolIdentities, piHistoricalToolIdentity, PiRpcFrames, PiUiBridge, PiTurnUsage, createPiLaunchSpec, snapshotPiWorkspaceFile } from "./paperclip-runtime.js";
++import { PI_ACP_FEATURES, PiRpcMessageDeltas, piNativeFailure, PiAssistantMessages, piAssistantChunk, piHistoricalAssistantChunk, PiToolIdentities, piHistoricalToolIdentity, PiRpcFrames, PiUiBridge, PiTurnUsage, createPiLaunchSpec, snapshotPiWorkspaceFile } from "./outpost-runtime.js";
 
  // src/pi-rpc/command.ts
  import { platform } from "os";
@@ -42,7 +42,7 @@
 +      this.exited = error;
 +      for (const [, pending] of this.pending) pending.reject(error);
 +      this.pending.clear();
-+      for (const handler of this.eventHandlers) handler({ type: "paperclip_process_exit", failure: piNativeFailure(error) });
++      for (const handler of this.eventHandlers) handler({ type: "outpost_process_exit", failure: piNativeFailure(error) });
 +    };
 +    const frames = new PiRpcFrames((msg) => {
 +      if (msg.type === "response") {
@@ -112,7 +112,7 @@
        }
 -    } catch {
 +      const commands = await proc.getCommands();
-+      if (!Array.isArray(commands?.commands) || !commands.commands.some((command) => command.name === "paperclip-runtime-ready-v1" && command.description === "Paperclip runtime gate v1")) throw new Error("Pi owned runtime extension did not initialize");
++      if (!Array.isArray(commands?.commands) || !commands.commands.some((command) => command.name === "outpost-runtime-ready-v1" && command.description === "Outpost runtime gate v1")) throw new Error("Pi owned runtime extension did not initialize");
 +    } catch (error) {
 +      proc.dispose("SIGKILL");
 +      throw new PiRpcSpawnError("Pi owned runtime extension failed admission", { cause: error });
@@ -121,7 +121,7 @@
    }
    onEvent(handler) {
      this.eventHandlers.push(handler);
-+    if (this.exited) queueMicrotask(() => handler({ type: "paperclip_process_exit", failure: piNativeFailure(this.exited) }));
++    if (this.exited) queueMicrotask(() => handler({ type: "outpost_process_exit", failure: piNativeFailure(this.exited) }));
      return () => {
        this.eventHandlers = this.eventHandlers.filter((h) => h !== handler);
      };
@@ -198,7 +198,7 @@
        authMethods: getAuthMethods()
      },
 -    "Configure an API key or log in with an OAuth provider."
-+    "Bind the configured OpenRouter API credential to this Paperclip runtime."
++    "Bind the configured OpenRouter API credential to this Outpost runtime."
    );
  }
 
@@ -213,7 +213,7 @@
 +  const encoded = JSON.stringify(value);
 +  if (encoded === void 0) return void 0;
 +  const bytes = Buffer.byteLength(encoded);
-+  return bytes <= 65536 ? value : { _meta: { paperclipPi: { omitted: "tool value exceeds 65536 bytes", originalBytes: bytes } } };
++  return bytes <= 65536 ? value : { _meta: { outpostPi: { omitted: "tool value exceeds 65536 bytes", originalBytes: bytes } } };
  }
  function bashResultText(result) {
    const record = result;
@@ -260,7 +260,7 @@
    }
    emit(update) {
 +    const provenance = typeof update.toolCallId === "string" ? this.proc.toolIdentities.provenance(update.toolCallId) : undefined;
-+    if (provenance) update = { ...update, _meta: { ...update._meta, paperclipPi: { ...update._meta?.paperclipPi, ...provenance } } };
++    if (provenance) update = { ...update, _meta: { ...update._meta, outpostPi: { ...update._meta?.outpostPi, ...provenance } } };
      this.lastEmit = this.lastEmit.then(
        () => this.conn.sessionUpdate({
          sessionId: this.sessionId,
@@ -270,7 +270,7 @@
      });
 +  }
 +  emitNotice(category, summary, severity = "info", details = {}) {
-+    this.lastEmit = this.lastEmit.then(() => this.conn.extNotification("paperclip/pi_notice", {
++    this.lastEmit = this.lastEmit.then(() => this.conn.extNotification("outpost/pi_notice", {
 +      sessionId: this.sessionId, category, severity,
 +      summary: String(summary).slice(0, 4000), details
 +    })).catch(() => {});
@@ -316,7 +316,7 @@
 -          const reason = this.cancelRequested ? "cancelled" : "error";
 -          this.pendingTurn?.resolve(reason);
 +          if (this.cancelRequested) this.pendingTurn?.resolve("cancelled");
-+          else this.pendingTurn?.reject(RequestError3.internalError({ paperclipPi: failure }, failure.summary));
++          else this.pendingTurn?.reject(RequestError3.internalError({ outpostPi: failure }, failure.summary));
          }
          this.pendingTurn = null;
          this.inAgentLoop = false;
@@ -324,7 +324,7 @@
    handlePiEvent(ev) {
      const type = String(ev.type ?? "");
      switch (type) {
-+      case "paperclip_process_exit": {
++      case "outpost_process_exit": {
 +        this.uiBridge.cancelAll();
 +        const failure = piNativeFailure(ev.failure?.summary);
 +        this.emitNotice("runtime_failure", failure.summary, "error", { reason: failure.reason });
@@ -332,12 +332,12 @@
 +        this.pendingTurn = null;
 +        this.turnEpoch += 1;
 +        void this.flushEmits().finally(() => {
-+          for (const turn of turns) turn.reject(RequestError3.internalError({ paperclipPi: failure }, failure.summary));
++          for (const turn of turns) turn.reject(RequestError3.internalError({ outpostPi: failure }, failure.summary));
 +        });
 +        break;
 +      }
 +      case "message_start": {
-+        if (ev.paperclipAssistantMessage) this.emit(piAssistantChunk(ev.paperclipAssistantMessage));
++        if (ev.outpostAssistantMessage) this.emit(piAssistantChunk(ev.outpostAssistantMessage));
 +        break;
 +      }
 +      case "message_end": {
@@ -345,13 +345,13 @@
 +          const failure = piNativeFailure(ev.message.errorMessage);
 +          this.emitNotice("runtime_failure", failure.summary, "error", { reason: failure.reason });
 +        }
-+        if (ev.paperclipAssistantMessage) this.emit(piAssistantChunk(ev.paperclipAssistantMessage));
++        if (ev.outpostAssistantMessage) this.emit(piAssistantChunk(ev.outpostAssistantMessage));
 +        try { this.turnUsage.accept(ev.message); } catch {
 +          const failure = piNativeFailure("Pi usage receipt is invalid");
 +          this.emitNotice("runtime_failure", failure.summary, "error", { reason: failure.reason });
 +          const pending = this.pendingTurn;
 +          this.pendingTurn = null;
-+          void this.flushEmits().finally(() => pending?.reject(RequestError3.internalError({ paperclipPi: failure }, failure.summary)));
++          void this.flushEmits().finally(() => pending?.reject(RequestError3.internalError({ outpostPi: failure }, failure.summary)));
 +          this.uiBridge.cancelAll();
 +          this.proc.dispose("SIGKILL");
 +        }
@@ -364,7 +364,7 @@
 -            sessionUpdate: "agent_message_chunk",
 -            content: { type: "text", text: ame.delta }
 -          });
-+          this.emit(piAssistantChunk(ev.paperclipAssistantMessage, ame.delta));
++          this.emit(piAssistantChunk(ev.outpostAssistantMessage, ame.delta));
            break;
          }
          if (ame?.type === "thinking_delta" && typeof ame.delta === "string") {
@@ -372,7 +372,7 @@
 -            sessionUpdate: "agent_thought_chunk",
 -            content: { type: "text", text: ame.delta }
 -          });
-+          this.emit(piAssistantChunk(ev.paperclipAssistantMessage, ame.delta, true));
++          this.emit(piAssistantChunk(ev.outpostAssistantMessage, ame.delta, true));
            break;
          }
          if (ame?.type === "toolcall_start" || ame?.type === "toolcall_delta" || ame?.type === "toolcall_end") {
@@ -532,7 +532,7 @@
      }
    }
    async initialize(params) {
-+    if (process.env.OUTPOST_ACPX_ISOLATED_CONTEXT !== "1") throw RequestError3.invalidParams("Pi requires a qualified Paperclip launch");
++    if (process.env.OUTPOST_ACPX_ISOLATED_CONTEXT !== "1") throw RequestError3.invalidParams("Pi requires a qualified Outpost launch");
      const supportedVersion = 1;
      const requested = params.protocolVersion;
      return {
@@ -542,7 +542,7 @@
          loadSession: true,
 -        mcpCapabilities: { http: false, sse: false },
 +        mcpCapabilities: { http: true, sse: false },
-+        _meta: { paperclipPi: PI_ACP_FEATURES },
++        _meta: { outpostPi: PI_ACP_FEATURES },
          promptCapabilities: {
            image: true,
            audio: false,
@@ -570,7 +570,7 @@
        throw RequestError3.authRequired(
          { authMethods: getAuthMethods() },
 -        "Configure an API key or log in with an OAuth provider."
-+        "Bind the configured OpenRouter API credential to this Paperclip runtime."
++        "Bind the configured OpenRouter API credential to this Outpost runtime."
        );
      }
      if (stateErr && maybeAuthRequiredError(stateErr)) {
@@ -578,7 +578,7 @@
        throw RequestError3.authRequired(
          { authMethods: getAuthMethods() },
 -        "Configure an API key or log in with an OAuth provider."
-+        "Bind the configured OpenRouter API credential to this Paperclip runtime."
++        "Bind the configured OpenRouter API credential to this Outpost runtime."
        );
      }
      const { configOptions, models, modes } = await getSessionConfiguration(session.proc, {
@@ -725,7 +725,7 @@
                status: "completed",
                content: bashTerminalContent(toolCallId),
 -              _meta: bashTerminalInfoMeta(toolCallId, params.cwd)
-+              _meta: { ...bashTerminalInfoMeta(toolCallId, params.cwd), paperclipPi: historical.provenance }
++              _meta: { ...bashTerminalInfoMeta(toolCallId, params.cwd), outpostPi: historical.provenance }
              }
            });
            await this.conn.sessionUpdate({
@@ -735,7 +735,7 @@
                  ...text2 ? bashTerminalOutputMeta(toolCallId, text2) : {},
 -                ...bashTerminalExitMeta(toolCallId, bashExitCode(m, isError))
 +                ...bashTerminalExitMeta(toolCallId, bashExitCode(m, isError)),
-+                paperclipPi: historical.provenance
++                outpostPi: historical.provenance
                }
              }
            });
@@ -743,7 +743,7 @@
              title: toolName,
              kind: toolName === "read" ? "read" : toolName === "write" || toolName === "edit" ? "edit" : "other",
              status: "completed",
-+            _meta: { paperclipPi: historical.provenance },
++            _meta: { outpostPi: historical.provenance },
              rawInput: null,
              rawOutput: m
            }
@@ -751,7 +751,7 @@
              sessionUpdate: "tool_call_update",
              toolCallId,
              status: isError ? "failed" : "completed",
-+            _meta: { paperclipPi: historical.provenance },
++            _meta: { outpostPi: historical.provenance },
              content: text ? [{ type: "content", content: { type: "text", text } }] : null,
              rawOutput: m
            }
@@ -890,8 +890,8 @@
    } catch {
    }
    try {
---- a/dist/paperclip-runtime.js
-+++ b/dist/paperclip-runtime.js
+--- a/dist/outpost-runtime.js
++++ b/dist/outpost-runtime.js
 @@ -0,0 +1,577 @@
 +/** Source for the helper embedded in patches/pi-acp@0.0.33.patch. */
 +import { createHash, randomUUID } from "node:crypto";
@@ -1078,7 +1078,7 @@
 +        this.active = null;
 +      }
 +    }
-+    return { ...event, paperclipAssistantMessage: boundary };
++    return { ...event, outpostAssistantMessage: boundary };
 +  }
 +}
 +
@@ -1359,7 +1359,7 @@
 +        const input = record(permission.input);
 +        const result = record(await this.connection.requestPermission({
 +          sessionId: this.sessionId,
-+          toolCall: { toolCallId, _meta: { paperclipPi: { nativeToolCallId: text(permission.nativeToolCallId, 256), modelIteration: permission.modelIteration } }, title: `Pi ${toolName}`, kind: toolName === "bash" ? "execute" : ["write", "edit"].includes(toolName) ? "edit" : "read", status: "pending", rawInput: input },
++          toolCall: { toolCallId, _meta: { outpostPi: { nativeToolCallId: text(permission.nativeToolCallId, 256), modelIteration: permission.modelIteration } }, title: `Pi ${toolName}`, kind: toolName === "bash" ? "execute" : ["write", "edit"].includes(toolName) ? "edit" : "read", status: "pending", rawInput: input },
 +          options: PERMISSION_CHOICES,
 +        }));
 +        const outcome = record(result.outcome);
@@ -1379,7 +1379,7 @@
 +      const result = record(await this.connection.unstable_createElicitation({
 +        sessionId: this.sessionId, mode: "form", message: typeof event.message === "string" ? text(event.message) : title,
 +        requestedSchema: { type: "object", title, properties: { answer: property }, required: ["answer"] },
-+        _meta: { paperclipPi: { version: 1, requestId: id, method } },
++        _meta: { outpostPi: { version: 1, requestId: id, method } },
 +      }));
 +      if (result.action !== "accept") { await finish({ cancelled: true }); return; }
 +      const answer = record(result.content).answer;
@@ -1465,7 +1465,7 @@
 +
 +  response(stopReason                           )              {
 +    return {
-+      ...(this.observed ? { usage: { ...Object.fromEntries(Object.entries(this.total).filter(([name]) => !this.unknown.has(name                           ))), _meta: { paperclipPi: { provenance: this.compactionObserved ? "assistant_message_and_compaction_receipts" : "assistant_message_receipts", ...(this.costObserved && !this.costIncomplete ? { costUsd: this.cost, costSource: "pi_pricing_estimate" } : {}) } } } } : {}),
++      ...(this.observed ? { usage: { ...Object.fromEntries(Object.entries(this.total).filter(([name]) => !this.unknown.has(name                           ))), _meta: { outpostPi: { provenance: this.compactionObserved ? "assistant_message_and_compaction_receipts" : "assistant_message_receipts", ...(this.costObserved && !this.costIncomplete ? { costUsd: this.cost, costSource: "pi_pricing_estimate" } : {}) } } } } : {}),
 +      ...(this.failed && stopReason !== "cancelled" ? { _meta: { jetbrains: { air: { version: 1, sessionFailure: { severity: "error", category: "service", title: "Pi provider request failed" } } } } } : {}),
 +    };
 +  }

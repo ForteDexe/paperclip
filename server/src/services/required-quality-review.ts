@@ -52,20 +52,20 @@ export function bindQualityReview(requirement: RequiredQualityReview | null, bin
   return { key: binding.key, requirementHash: qualityReviewRequirementHash(requirement) };
 }
 
-export async function currentQualityReviewTarget(db: Db, companyId: string, issueId: string, target: unknown, lock = false): Promise<boolean> {
+export async function currentQualityReviewTarget(db: Db, spaceId: string, issueId: string, target: unknown, lock = false): Promise<boolean> {
   const value = record(target);
   if (value.issueId && value.issueId !== issueId) return false;
   if (value.type === "issue_document" && typeof value.key === "string" && value.key !== "plan") {
     let query = db.select({ revisionId: documents.latestRevisionId }).from(issueDocuments)
-      .innerJoin(documents, and(eq(documents.id, issueDocuments.documentId), eq(documents.companyId, companyId)))
-      .where(and(eq(issueDocuments.companyId, companyId), eq(issueDocuments.issueId, issueId), eq(issueDocuments.key, value.key))).limit(1);
+      .innerJoin(documents, and(eq(documents.id, issueDocuments.documentId), eq(documents.spaceId, spaceId)))
+      .where(and(eq(issueDocuments.spaceId, spaceId), eq(issueDocuments.issueId, issueId), eq(issueDocuments.key, value.key))).limit(1);
     const [row] = await (lock ? query.for("update", { of: documents }) : query);
     return Boolean(row && row.revisionId === value.revisionId);
   }
   if (value.type === "issue_attachment" && typeof value.attachmentId === "string") {
     const query = db.select({ assetId: assets.id, sha256: assets.sha256 }).from(issueAttachments)
-      .innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.companyId, companyId)))
-      .where(and(eq(issueAttachments.companyId, companyId), eq(issueAttachments.issueId, issueId), eq(issueAttachments.id, value.attachmentId))).limit(1);
+      .innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.spaceId, spaceId)))
+      .where(and(eq(issueAttachments.spaceId, spaceId), eq(issueAttachments.issueId, issueId), eq(issueAttachments.id, value.attachmentId))).limit(1);
     const [row] = await (lock ? query.for("update", { of: [issueAttachments, assets] }) : query);
     return Boolean(row && row.assetId === value.assetId && row.sha256 === value.sha256);
   }
@@ -79,14 +79,14 @@ export interface RequiredQualityReviewState {
 }
 
 /** At most ten indexed task-local lookups. No model claims, labels, plans or file presence count as approval. */
-export async function readRequiredQualityReview(db: Db, issue: { id: string; companyId: string; executionPolicy?: unknown }, lock = false): Promise<RequiredQualityReviewState> {
+export async function readRequiredQualityReview(db: Db, issue: { id: string; spaceId: string; executionPolicy?: unknown }, lock = false): Promise<RequiredQualityReviewState> {
   const requirement = requiredQualityReview(issue.executionPolicy);
   if (!requirement) return { required: false, satisfied: true, missing: [] };
   const fingerprint = qualityReviewRequirementHash(requirement);
   const missing: RequiredQualityReviewState["missing"] = [];
   for (const slot of requirement.deliverables) {
     const [row] = await db.select().from(issueThreadInteractions).where(and(
-      eq(issueThreadInteractions.companyId, issue.companyId), eq(issueThreadInteractions.issueId, issue.id),
+      eq(issueThreadInteractions.spaceId, issue.spaceId), eq(issueThreadInteractions.issueId, issue.id),
       sql`((${issueThreadInteractions.kind} = 'request_confirmation' AND ${issueThreadInteractions.payload}->'qualityReview'->>'key' = ${slot.key}) OR
         (${issueThreadInteractions.kind} = 'request_item_verdicts' AND EXISTS (
           SELECT 1 FROM jsonb_array_elements(${issueThreadInteractions.payload}->'items') item WHERE item->'qualityReview'->>'key' = ${slot.key})))`,
@@ -104,13 +104,13 @@ export async function readRequiredQualityReview(db: Db, issue: { id: string; com
       : ["pending", "answered"].includes(row.status) && result.outcome === "resolved" && verdict?.verdict === "approve" && Boolean(verdict.resolvedByUserId) && !verdict.resolvedByAgentId);
     const reason = item?.qualityReview?.requirementHash !== fingerprint ? "stale"
       : !humanApproved ? row.status === "pending" && !verdict ? "pending" : "not_approved"
-      : !await currentQualityReviewTarget(db, issue.companyId, issue.id, item.target, lock) ? "stale" : null;
+      : !await currentQualityReviewTarget(db, issue.spaceId, issue.id, item.target, lock) ? "stale" : null;
     if (reason) missing.push({ ...slot, reason, interactionId: row.id });
   }
   return { required: true, satisfied: missing.length === 0, missing };
 }
 
-export async function assertRequiredQualityReviewComplete(db: Db, issue: { id: string; companyId: string; executionPolicy?: unknown }, lock = false) {
+export async function assertRequiredQualityReviewComplete(db: Db, issue: { id: string; spaceId: string; executionPolicy?: unknown }, lock = false) {
   const state = await readRequiredQualityReview(db, issue, lock);
   if (!state.satisfied) throw unprocessable("Required human quality review is not approved for the current outputs", {
     code: "required_quality_review_incomplete", missing: state.missing,

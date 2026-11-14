@@ -5,7 +5,7 @@ import { expect, type APIRequestContext } from "@playwright/test";
 import { eq } from "../../../server/node_modules/drizzle-orm/index.js";
 
 export interface RichLoadingFixture {
-  companyId: string;
+  spaceId: string;
   prefix: string;
   id: string;
   identifier: string;
@@ -31,7 +31,7 @@ export async function richLoadingFixture(request: APIRequestContext): Promise<Ri
     const response = await request.get(`/api/issues/${saved.id}`);
     if (response.ok()) {
       const issue = await response.json();
-      expect(issue.companyId).toBe(saved.companyId);
+      expect(issue.spaceId).toBe(saved.spaceId);
       const agentResponse = await request.get(`/api/agents/${issue.assigneeAgentId}`);
       expect(agentResponse.ok(), await agentResponse.text()).toBeTruthy();
       const agent = await agentResponse.json();
@@ -51,14 +51,14 @@ export async function richLoadingFixture(request: APIRequestContext): Promise<Ri
     expect(response.ok(), await response.text()).toBeTruthy();
     return response.json();
   };
-  const company = await create("/api/companies", { name: "FrameLab" });
-  const agent = await create(`/api/companies/${company.id}/agents`, {
+  const space = await create("/api/spaces", { name: "FrameLab" });
+  const agent = await create(`/api/spaces/${space.id}/agents`, {
     name: "Investigation author", role: "engineer", status: "idle", adapterType: "claude_local", adapterConfig: {},
     runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } },
   });
-  const project = await create(`/api/companies/${company.id}/projects`, { name: "Loading verification" });
+  const project = await create(`/api/spaces/${space.id}/projects`, { name: "Loading verification" });
   const title = "[Investigation] Failed query selecting a saved task record from a long-running workspace investigation after restoring the archived state (workspace-investigation.ts)";
-  const issue = await create(`/api/companies/${company.id}/issues`, {
+  const issue = await create(`/api/spaces/${space.id}/issues`, {
     title, status: "backlog", projectId: project.id,
     description: "## Investigate the saved workspace\n\n" +
       "Keep the current task, its saved findings, and the requested review together. ".repeat(12) +
@@ -83,7 +83,7 @@ export async function richLoadingFixture(request: APIRequestContext): Promise<Ri
   const db = createDb(databaseUrl);
   const base = Date.now() - 30 * 24 * 3600_000;
   const comments = Array.from({ length: 200 }, (_, index) => ({
-    id: randomUUID(), companyId: company.id, issueId: issue.id, authorType: "agent" as const, authorAgentId: agent.id,
+    id: randomUUID(), spaceId: space.id, issueId: issue.id, authorType: "agent" as const, authorAgentId: agent.id,
     body: `## ${index === 199 ? "Latest investigation findings" : `Investigation update ${index}`}\n\n` +
       "Verified the saved workspace, inspected the reported behavior, and checked that the evidence still matches the current revision. ".repeat(index === 199 ? 12 : 5) +
       (index === 199 ? "\n\n[Read the saved analysis](#document-analysis) and [verification results](#document-verification).\n\n| Check | Result |\n|---|---|\n| Saved evidence | Complete |\n| Review | Waiting for your decision |" : ""),
@@ -100,7 +100,7 @@ export async function richLoadingFixture(request: APIRequestContext): Promise<Ri
       } },
     }).where(eq(issues.id, issue.id));
   } finally { await closeRegisteredClients(databaseUrl); }
-  const fixture = { companyId: company.id, prefix: company.issuePrefix, id: issue.id, identifier: issue.identifier, title, lastCommentId: comments.at(-1)!.id, interactionId: interaction.id };
+  const fixture = { spaceId: space.id, prefix: space.issuePrefix, id: issue.id, identifier: issue.identifier, title, lastCommentId: comments.at(-1)!.id, interactionId: interaction.id };
   await fs.mkdir(path.dirname(fixturePath), { recursive: true });
   await fs.writeFile(fixturePath, JSON.stringify(fixture, null, 2));
   return fixture;

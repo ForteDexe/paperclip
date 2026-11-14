@@ -4,7 +4,7 @@ import { pipeline } from "node:stream/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { addAbortSignal } from "node:stream";
 import { notFound } from "../errors.js";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 import { createS3StorageProvider } from "../storage/s3-provider.js";
 import type { StorageProvider } from "../storage/types.js";
 import type { ObjectJournalIOPriority } from "./object-byte-journal.js";
@@ -55,7 +55,7 @@ export interface RunLogFinalizeSummary {
 }
 
 export interface RunLogBeginInput {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   runId: string;
   // Set only when persisted run lifecycle state proves no earlier attempt
@@ -133,7 +133,7 @@ export interface DurableRunLogStoreOptions {
 // detail. Live append/tail stays on the pod-local file (fast, no per-chunk PUT);
 // on finalize the complete .ndjson is uploaded to object storage; on read we try
 // local first and fall back to S3 when the local file is gone. This is the fix
-// for "Run log not found" after a deploy/restart (the /paperclip data dir is an
+// for "Run log not found" after a deploy/restart (the /outpost data dir is an
 // emptyDir in cloud_tenant mode -- persistence is disabled to avoid the
 // operator's privileged selinux-relabel init container in our hardened ns).
 //
@@ -331,9 +331,9 @@ export function createDurableRunLogStore(options: DurableRunLogStoreOptions): Ru
 
   return {
     async begin(input) {
-      const [companyId, agentId] = safeSegments(input.companyId, input.agentId);
+      const [spaceId, agentId] = safeSegments(input.spaceId, input.agentId);
       const runId = safeSegments(input.runId)[0]!;
-      const relDir = path.join(companyId, agentId);
+      const relDir = path.join(spaceId, agentId);
       const relPath = path.join(relDir, `${runId}.ndjson`);
       await ensureDir(relDir);
       const absPath = resolveWithin(basePath, relPath);
@@ -562,7 +562,7 @@ let cachedStore: RunLogStore | null = null;
 
 export function getRunLogStore() {
   if (cachedStore) return cachedStore;
-  const basePath = process.env.RUN_LOG_BASE_PATH ?? path.resolve(resolvePaperclipInstanceRoot(), "data", "run-logs");
+  const basePath = process.env.RUN_LOG_BASE_PATH ?? path.resolve(resolveOutpostInstanceRoot(), "data", "run-logs");
   const local = createDurableRunLogStore({ basePath, s3: resolveRunLogS3() });
   const s3 = resolveRunEvidenceStorage();
   const external = s3 ? createObjectRunLogStore({
@@ -618,7 +618,7 @@ export async function flushInFlightRunLogMirrors(): Promise<void> {
 
 
 export async function openLegacyRunLogForMigration(logRef: string, options: { requireCanonicalLocalFile?: boolean } = {}) {
-  const basePath = process.env.RUN_LOG_BASE_PATH ?? path.resolve(resolvePaperclipInstanceRoot(), "data", "run-logs");
+  const basePath = process.env.RUN_LOG_BASE_PATH ?? path.resolve(resolveOutpostInstanceRoot(), "data", "run-logs");
   const base = options.requireCanonicalLocalFile ? await fs.realpath(basePath) : basePath;
   const file = resolveWithin(base, logRef);
   if (options.requireCanonicalLocalFile) {

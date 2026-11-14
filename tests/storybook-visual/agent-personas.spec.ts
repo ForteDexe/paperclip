@@ -109,7 +109,7 @@ for (const { size, density, state } of snapshotCases) {
     });
 }
 
-const fullPages = ["all-agents", "agent-overview", "task", "company-dashboard", "meet-your-next-agent", "new-agent-connection"];
+const fullPages = ["all-agents", "agent-overview", "task", "space-dashboard", "meet-your-next-agent", "new-agent-connection"];
 for (const id of fullPages) {
   test(`full app page: ${id}`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -118,7 +118,7 @@ for (const id of fullPages) {
     await expect(page.locator("main")).toBeVisible();
     await expect(page.locator("main")).not.toContainText("This page hit an error");
     await expect(page.locator('img[src*="/agent-avatar-images/"]').first()).toBeAttached();
-    if (id === "company-dashboard") await expect(page.getByText("Live now", { exact: true })).toBeVisible();
+    if (id === "space-dashboard") await expect(page.getByText("Live now", { exact: true })).toBeVisible();
     await imagesLoaded(page);
     await expect(page.locator("canvas")).toHaveCount(0);
     await expect(page).toHaveScreenshot(`full-page-${id}.png`, { animations: "disabled", maxDiffPixels: 0 });

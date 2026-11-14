@@ -4,12 +4,12 @@ import type {
   CapabilityRunContext,
 } from "../mock-core/capability-control-plane-types.js";
 import type {
-  PaperclipJsonSchema,
-  PaperclipJsonValue,
-  PaperclipSemanticActionDescriptor,
-  PaperclipSemanticActionEffect,
-  PaperclipSemanticActionId,
-  PaperclipSemanticActionMode,
+  OutpostJsonSchema,
+  OutpostJsonValue,
+  OutpostSemanticActionDescriptor,
+  OutpostSemanticActionEffect,
+  OutpostSemanticActionId,
+  OutpostSemanticActionMode,
 } from "../catalog/semantic-action-types.js";
 import type { PrpSemanticToolEnvelope } from "../protocol/replay-contract.js";
 
@@ -221,65 +221,65 @@ export type CapabilitySemanticToolResult =
   | CapabilitySemanticToolSuccess
   | CapabilitySemanticToolDenial;
 
-export interface PaperclipSemanticRunContext {
+export interface OutpostSemanticRunContext {
   readonly runId: string;
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly actor: {
     readonly id: string;
-    readonly companyId: string;
+    readonly spaceId: string;
     readonly status: string;
     readonly role: string;
     readonly claims: readonly string[];
   };
   readonly activeTask: {
     readonly id: string;
-    readonly companyId: string;
+    readonly spaceId: string;
     readonly assigneeActorId: string | null;
     readonly executionRunId: string | null;
     readonly status: string;
-    readonly workMode: PaperclipSemanticActionMode;
+    readonly workMode: OutpostSemanticActionMode;
   };
   /** Claims explicitly delegated to this run. Actor claims can only narrow them. */
   readonly delegatedClaims: readonly string[];
   readonly policy?: {
-    readonly deniedOperationIds?: readonly PaperclipSemanticActionId[];
+    readonly deniedOperationIds?: readonly OutpostSemanticActionId[];
     readonly allowedInteractionKinds?: readonly string[];
   };
 }
 
-export type PaperclipSemanticContextProvider = (
+export type OutpostSemanticContextProvider = (
   runId: string,
-) => PaperclipSemanticRunContext | Promise<PaperclipSemanticRunContext>;
+) => OutpostSemanticRunContext | Promise<OutpostSemanticRunContext>;
 
-export interface PaperclipSemanticToolDefinition {
-  readonly name: PaperclipSemanticActionId;
+export interface OutpostSemanticToolDefinition {
+  readonly name: OutpostSemanticActionId;
   readonly description: string;
-  readonly inputSchema: PaperclipJsonSchema;
-  readonly outputSchema: PaperclipJsonSchema;
+  readonly inputSchema: OutpostJsonSchema;
+  readonly outputSchema: OutpostJsonSchema;
   readonly annotations: {
     readonly semanticContract: "outpost.semantic-action.v1";
     readonly version: 1;
-    readonly placement: PaperclipSemanticActionDescriptor["placement"];
-    readonly effect: PaperclipSemanticActionEffect;
+    readonly placement: OutpostSemanticActionDescriptor["placement"];
+    readonly effect: OutpostSemanticActionEffect;
     readonly requiredClaims: readonly string[];
   };
 }
 
-export interface PaperclipSemanticDiscoveryResult {
+export interface OutpostSemanticDiscoveryResult {
   readonly schema: "outpost.semantic-discovery.v1";
   readonly query: string;
   readonly namespace: string | null;
-  readonly operations: readonly PaperclipSemanticToolDefinition[];
+  readonly operations: readonly OutpostSemanticToolDefinition[];
   readonly truncated: boolean;
 }
 
-export type PaperclipSemanticAuthorizationPhase = "exposure" | "invocation";
+export type OutpostSemanticAuthorizationPhase = "exposure" | "invocation";
 
-export type PaperclipSemanticDenialCode =
+export type OutpostSemanticDenialCode =
   | "operation_absent"
   | "authority_context_invalid"
   | "run_mismatch"
-  | "company_mismatch"
+  | "space_mismatch"
   | "actor_inactive"
   | "task_mode_denied"
   | "task_state_denied"
@@ -298,20 +298,20 @@ export type PaperclipSemanticDenialCode =
   | "binding_failed"
   | "binding_output_invalid";
 
-export interface PaperclipSemanticAuthorizationDecision {
+export interface OutpostSemanticAuthorizationDecision {
   readonly allowed: boolean;
-  readonly phase: PaperclipSemanticAuthorizationPhase;
-  readonly operationId: PaperclipSemanticActionId;
-  readonly code: "allowed" | PaperclipSemanticDenialCode;
+  readonly phase: OutpostSemanticAuthorizationPhase;
+  readonly operationId: OutpostSemanticActionId;
+  readonly code: "allowed" | OutpostSemanticDenialCode;
   readonly reason: string;
   readonly effectiveClaims: readonly string[];
 }
 
-export interface PaperclipSemanticAuthorizationRecord extends PaperclipSemanticAuthorizationDecision {
+export interface OutpostSemanticAuthorizationRecord extends OutpostSemanticAuthorizationDecision {
   readonly schema: "outpost.semantic-authorization-record.v1";
   readonly id: string;
   readonly runId: string;
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly actorId: string;
   readonly taskId: string;
   readonly callId: string | null;
@@ -319,7 +319,7 @@ export interface PaperclipSemanticAuthorizationRecord extends PaperclipSemanticA
   readonly operationReceiptId: string | null;
 }
 
-export interface PaperclipSemanticSafeReference {
+export interface OutpostSemanticSafeReference {
   readonly kind:
     | "task"
     | "document_revision"
@@ -335,32 +335,32 @@ export interface PaperclipSemanticSafeReference {
   readonly id: string;
 }
 
-export interface PaperclipSemanticBindingResult {
-  readonly value: PaperclipJsonValue;
+export interface OutpostSemanticBindingResult {
+  readonly value: OutpostJsonValue;
   readonly code?: string;
   readonly stateRevision?: number;
-  readonly references?: readonly PaperclipSemanticSafeReference[];
+  readonly references?: readonly OutpostSemanticSafeReference[];
   readonly auditReceiptId?: string;
 }
 
-export interface PaperclipAuthorizedSemanticInvocation {
+export interface OutpostAuthorizedSemanticInvocation {
   readonly runId: string;
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly actorId: string;
   readonly taskId: string;
   readonly callId: string;
-  readonly operationId: PaperclipSemanticActionId;
-  readonly input: Readonly<Record<string, PaperclipJsonValue>>;
+  readonly operationId: OutpostSemanticActionId;
+  readonly input: Readonly<Record<string, OutpostJsonValue>>;
 }
 
-export interface PaperclipSemanticActionBinding {
-  readonly operationId: PaperclipSemanticActionId;
+export interface OutpostSemanticActionBinding {
+  readonly operationId: OutpostSemanticActionId;
   execute(
-    invocation: PaperclipAuthorizedSemanticInvocation,
-  ): PaperclipSemanticBindingResult | Promise<PaperclipSemanticBindingResult>;
+    invocation: OutpostAuthorizedSemanticInvocation,
+  ): OutpostSemanticBindingResult | Promise<OutpostSemanticBindingResult>;
 }
 
-export interface PaperclipSemanticCorrelation {
+export interface OutpostSemanticCorrelation {
   readonly runId: string;
   readonly normalizedSessionId: string;
   readonly turnId: string;
@@ -368,30 +368,30 @@ export interface PaperclipSemanticCorrelation {
   readonly requestId?: string;
 }
 
-export interface PaperclipSemanticToolCall {
+export interface OutpostSemanticToolCall {
   readonly runId: string;
   readonly callId: string;
   readonly operationId: string;
-  readonly correlation: PaperclipSemanticCorrelation;
+  readonly correlation: OutpostSemanticCorrelation;
   readonly input: unknown;
 }
 
-export interface PaperclipSemanticStoredOutcome {
-  readonly operationId: PaperclipSemanticActionId;
+export interface OutpostSemanticStoredOutcome {
+  readonly operationId: OutpostSemanticActionId;
   readonly inputDigest: string;
   readonly operationReceiptId: string;
-  readonly value: PaperclipJsonValue;
+  readonly value: OutpostJsonValue;
   readonly code: string;
   readonly stateRevision?: number;
-  readonly references: readonly PaperclipSemanticSafeReference[];
+  readonly references: readonly OutpostSemanticSafeReference[];
   readonly auditReceiptId?: string;
 }
 
-export type PaperclipSemanticIdempotencyClaim =
+export type OutpostSemanticIdempotencyClaim =
   | { readonly kind: "claimed"; readonly token: string }
   | {
       readonly kind: "duplicate";
-      readonly outcome: PaperclipSemanticStoredOutcome;
+      readonly outcome: OutpostSemanticStoredOutcome;
     }
   | { readonly kind: "conflict" }
   | { readonly kind: "in_progress" };
@@ -404,30 +404,30 @@ export type PaperclipSemanticIdempotencyClaim =
  * transient failure. A store without an independent recovery path cannot be
  * used to expose mutation actions.
  */
-export interface PaperclipSemanticIdempotencyStore {
+export interface OutpostSemanticIdempotencyStore {
   claim(input: {
     readonly scope: string;
-    readonly operationId: PaperclipSemanticActionId;
+    readonly operationId: OutpostSemanticActionId;
     readonly inputDigest: string;
   }):
-    | PaperclipSemanticIdempotencyClaim
-    | Promise<PaperclipSemanticIdempotencyClaim>;
+    | OutpostSemanticIdempotencyClaim
+    | Promise<OutpostSemanticIdempotencyClaim>;
   complete(
     token: string,
-    outcome: PaperclipSemanticStoredOutcome,
+    outcome: OutpostSemanticStoredOutcome,
   ): void | Promise<void>;
   recover(
     token: string,
-    outcome: PaperclipSemanticStoredOutcome,
+    outcome: OutpostSemanticStoredOutcome,
   ): void | Promise<void>;
   release(token: string): void | Promise<void>;
 }
 
-export interface PaperclipSemanticToolSuccess {
+export interface OutpostSemanticToolSuccess {
   readonly ok: true;
-  readonly operationId: PaperclipSemanticActionId;
+  readonly operationId: OutpostSemanticActionId;
   readonly callId: string;
-  readonly value: PaperclipJsonValue;
+  readonly value: OutpostJsonValue;
   readonly code: string;
   readonly duplicate: boolean;
   readonly stateRevision?: number;
@@ -435,12 +435,12 @@ export interface PaperclipSemanticToolSuccess {
   readonly resultReceipt: PrpSemanticToolEnvelope;
 }
 
-export interface PaperclipSemanticToolDenial {
+export interface OutpostSemanticToolDenial {
   readonly ok: false;
   readonly operationId: string;
   readonly callId: string;
   readonly error: {
-    readonly code: PaperclipSemanticDenialCode;
+    readonly code: OutpostSemanticDenialCode;
     readonly message: string;
     readonly retryable: boolean;
   };
@@ -448,5 +448,5 @@ export interface PaperclipSemanticToolDenial {
   readonly resultReceipt: PrpSemanticToolEnvelope | null;
 }
 
-export type PaperclipSemanticToolResult =
-  PaperclipSemanticToolSuccess | PaperclipSemanticToolDenial;
+export type OutpostSemanticToolResult =
+  OutpostSemanticToolSuccess | OutpostSemanticToolDenial;

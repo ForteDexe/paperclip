@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
 import type { NativeSession } from "../../vendor/outpost-runner/index.js";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { canonicalProviderPackJson, type ProviderPackIdentity } from "./remote-provider-pack-verification.js";
@@ -16,7 +16,7 @@ function manifest(revision = "a".repeat(40)): ProviderPackIdentity {
     artifacts: { nodeCommand: artifact, opencodeCommand: artifact, opencodeProxy: artifact } };
   return { schema: "outpost-runner/remote-provider-pack/v1", payload, digest: hash(canonicalProviderPackJson(payload)) };
 }
-const initial = { companyId: "company", agentId: "agent", issueId: "issue", runId: "source-run", sessionId: "session" };
+const initial = { spaceId: "space", agentId: "agent", issueId: "issue", runId: "source-run", sessionId: "session" };
 function sessionFixture(identity = initial) {
   let current = { ...identity };
   const session = { identity: () => ({ ...current }), attachRun: async ({ identity: next }: { identity: typeof initial }) => { current = { ...next }; } } as NativeSession;
@@ -47,14 +47,14 @@ describe("provider pack admission identity", () => {
     const next = admittedNativeProviderPack(session, target)!;
     expect(next).toEqual({ ...before, runId: target.runId, inheritedFromRunId: initial.runId });
     expect(JSON.stringify(next)).not.toContain("private/provider-path");
-    expect(Object.keys(next).sort()).toEqual(["schema", "stage", "authority", "companyId", "agentId", "runId", "sessionId",
+    expect(Object.keys(next).sort()).toEqual(["schema", "stage", "authority", "spaceId", "agentId", "runId", "sessionId",
       "runnerInstanceId", "runnerEnvironmentLeaseId", "providerPackDigest", "opencodeProxySha256", "sourceRevision", "inheritedFromRunId"].sort());
     expect(remember(session, target, original)).toBe(true);
     expect(admittedNativeProviderPack(session, target)).toEqual(next);
     expect(remember(session, target, manifest("b".repeat(40)))).toBe(true);
     expect(admittedNativeProviderPack(session, target)).toMatchObject({ sourceRevision: "b".repeat(40), runId: target.runId });
   });
-  it.each(["companyId", "agentId", "issueId", "runId", "sessionId"] as const)("rejects a returned session with a different %s", key => {
+  it.each(["spaceId", "agentId", "issueId", "runId", "sessionId"] as const)("rejects a returned session with a different %s", key => {
     const { session } = sessionFixture();
     expect(remember(session, { ...initial, [key]: "foreign" })).toBe(false);
     expect(admittedNativeProviderPack(session, initial)).toBeNull();
@@ -89,7 +89,7 @@ describe("provider pack admission identity", () => {
     await recovered.attach(target);
     expect(admittedNativeProviderPack(recovered.session, target)).toEqual({ ...saved, runId: target.runId, inheritedFromRunId: initial.runId });
   });
-  it.each(["companyId", "agentId", "runId", "sessionId", "runnerInstanceId", "runnerEnvironmentLeaseId"] as const)("rejects a prior receipt with a different %s", async key => {
+  it.each(["spaceId", "agentId", "runId", "sessionId", "runnerInstanceId", "runnerEnvironmentLeaseId"] as const)("rejects a prior receipt with a different %s", async key => {
     const source = sessionFixture(); remember(source.session);
     const saved = { ...admittedNativeProviderPack(source.session, initial)!, [key]: "foreign" };
     const recovered = sessionFixture();
@@ -123,17 +123,17 @@ describe("provider pack admission PostgreSQL fencing", () => {
   beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("pack-admission-"); db = createDb(database.connectionString); }, 90_000);
   afterAll(async () => { await database?.cleanup(); });
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Pack admission", issuePrefix: randomUUID().slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Pack agent" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Pack task", assigneeAgentId: agentId });
-    const identity = { companyId, agentId, issueId, runId, sessionId: `session-${runId}` };
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Pack admission", issuePrefix: randomUUID().slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Pack agent" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Pack task", assigneeAgentId: agentId });
+    const identity = { spaceId, agentId, issueId, runId, sessionId: `session-${runId}` };
     const admissionEpoch = randomUUID();
     const profile = { preserved: { value: "unchanged" }, nativeExecutionInput: { binding: identity },
       nativeProviderPackAdmissionState: nativeProviderPackAdmissionPending(admissionEpoch) };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, runtimeMode: "native", status: "running", runnerProfileJson: profile });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId, runtimeMode: "native", status: "running", runnerProfileJson: profile });
     const claim = { leaseOwner: randomUUID(), attempt: 1, controllerGeneration: 2, controllerBootId: randomUUID() };
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed", ...claim,
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed", ...claim,
       leaseExpiresAt: new Date(Date.now() + 60_000) });
     const { session } = sessionFixture(identity); remember(session, identity);
     return { identity, session, claim, profile, admissionEpoch };
@@ -175,7 +175,7 @@ describe("provider pack admission PostgreSQL fencing", () => {
   it("preserves the original inheritance when the same run recovers the same verified pack", async () => {
     const f = await fixture(), sourceRunId = randomUUID();
     const receipt = admittedNativeProviderPack(f.session, f.identity)!;
-    await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId: f.identity.companyId, agentId: f.identity.agentId,
+    await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId: f.identity.spaceId, agentId: f.identity.agentId,
       nativeIssueId: f.identity.issueId, runtimeMode: "native", status: "succeeded",
       runnerProfileJson: { nativeProviderPackAdmission: { ...receipt, runId: sourceRunId } } });
     const original = { ...f.profile, nativeProviderPackAdmission: { ...receipt, inheritedFromRunId: sourceRunId } };

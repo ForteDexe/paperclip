@@ -18,9 +18,9 @@ import {
   agents,
   agentApiKeys,
   authUsers,
-  boardApiKeys,
-  companies,
-  companyMemberships,
+  operatorApiKeys,
+  spaces,
+  spaceMemberships,
   createDb,
   toolApplications,
   toolConnections,
@@ -43,9 +43,9 @@ import {
   trackIdleRequestHandlers,
 } from "../middleware/idle-admission.js";
 import { errorHandler } from "../middleware/error-handler.js";
-import { companyRoutes } from "../routes/companies.js";
+import { spaceRoutes } from "../routes/spaces.js";
 import { agentService } from "../services/agents.js";
-import { boardAuthService } from "../services/board-auth.js";
+import { operatorAuthService } from "../services/operator-auth.js";
 import { readIdleSleepSafety } from "../services/idle-sleep-safety.js";
 import {
   readIdleIncomingWakeProof,
@@ -161,7 +161,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
     // rows during every eligibility scenario, then isolate the next scenario.
     const resetFixture = async () => {
       await db.execute(
-        sql`TRUNCATE companies, "user", chat_github_registrations CASCADE`,
+        sql`TRUNCATE spaces, "user", chat_github_registrations CASCADE`,
       );
     };
     beforeEach(resetFixture);
@@ -185,15 +185,15 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
         { incomingWake },
       );
     async function seed() {
-      const companyId = randomUUID(),
+      const spaceId = randomUUID(),
         agentId = randomUUID(),
         userId = randomUUID(),
         foreignId = randomUUID();
-      await db.insert(companies).values([
+      await db.insert(spaces).values([
         {
-          id: companyId,
+          id: spaceId,
           name: "Incoming fixture",
-          issuePrefix: `I${companyId.slice(0, 6)}`,
+          issuePrefix: `I${spaceId.slice(0, 6)}`,
         },
         {
           id: foreignId,
@@ -211,9 +211,9 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
           updatedAt: new Date(),
         });
       await db
-        .insert(companyMemberships)
+        .insert(spaceMemberships)
         .values({
-          companyId,
+          spaceId,
           principalType: "user",
           principalId: userId,
           membershipRole: "owner",
@@ -223,15 +223,15 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
         .insert(agents)
         .values({
           id: agentId,
-          companyId,
+          spaceId,
           name: "Fixture agent",
           role: "engineer",
           adapterType: "process",
           status: "idle",
         });
-      const board = await boardAuthService(db).createNamedBoardApiKey({
+      const operator = await operatorAuthService(db).createNamedBoardApiKey({
         userId,
-        name: "incoming board",
+        name: "incoming operator",
         expiresAt: null,
       });
       const agent = await agentService(db).createApiKey(
@@ -240,7 +240,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
         { kind: "standard" },
         { responsibleUserId: userId },
       );
-      return { companyId, foreignId, userId, agentId, board, agent };
+      return { spaceId, foreignId, userId, agentId, operator, agent };
     }
     it("retains real saved keys and exempts them only for the verified exact owner/profile", async () => {
       const f = await seed();
@@ -252,15 +252,15 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
       });
       const receipt = (await read(verified())).apiWakeAdmission!;
       expect(receipt.keys).toHaveLength(2);
-      expect(matchesApiWakeAdmission(receipt, { stackId: "fixture-stack", token: f.board.token, now })).toBe(true);
+      expect(matchesApiWakeAdmission(receipt, { stackId: "fixture-stack", token: f.operator.token, now })).toBe(true);
       expect(matchesApiWakeAdmission(receipt, { stackId: "fixture-stack", token: f.agent.token, now })).toBe(true);
       const serialized = JSON.stringify(receipt);
-      expect(serialized).not.toContain(f.board.token);
+      expect(serialized).not.toContain(f.operator.token);
       expect(serialized).not.toContain(f.agent.token);
-      await db.update(boardApiKeys).set({ revokedAt: new Date() }).where(eq(boardApiKeys.id, f.board.id));
+      await db.update(operatorApiKeys).set({ revokedAt: new Date() }).where(eq(operatorApiKeys.id, f.operator.id));
       const changedReceipt = (await read(verified())).apiWakeAdmission!;
       expect(changedReceipt.generation).not.toBe(receipt.generation);
-      expect(matchesApiWakeAdmission(changedReceipt, { stackId: "fixture-stack", token: f.board.token, now })).toBe(false);
+      expect(matchesApiWakeAdmission(changedReceipt, { stackId: "fixture-stack", token: f.operator.token, now })).toBe(false);
       expect(
         (await read(verified({ ...capability, ownerId: randomUUID() })))
           .backgroundWork,
@@ -274,8 +274,8 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
       expect(
         await db
           .select()
-          .from(boardApiKeys)
-          .where(eq(boardApiKeys.id, f.board.id)),
+          .from(operatorApiKeys)
+          .where(eq(operatorApiKeys.id, f.operator.id)),
       ).toHaveLength(1);
     });
     it("delivers through actual tenant auth/routes, denies current revoked/expired/foreign authority and holds only successful API use", async () => {
@@ -302,14 +302,14 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
           resolveSession: async () => null,
         }),
       );
-      app.use("/api/companies", companyRoutes(db));
+      app.use("/api/spaces", spaceRoutes(db));
       app.use(errorHandler);
       trackIdleRequestHandlers(app);
       expect(idleApiActivity.active()).toBe(false);
       expect(
         (
           await request(app)
-            .get(`/api/companies/${f.companyId}`)
+            .get(`/api/spaces/${f.spaceId}`)
             .set("Authorization", "Bearer unknown")
         ).status,
       ).toBe(401);
@@ -317,27 +317,27 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
       expect(
         (
           await request(app)
-            .get(`/api/companies/${f.foreignId}`)
-            .set("Authorization", `Bearer ${f.board.token}`)
+            .get(`/api/spaces/${f.foreignId}`)
+            .set("Authorization", `Bearer ${f.operator.token}`)
         ).status,
       ).toBe(403);
       expect(idleApiActivity.active()).toBe(false);
       const own = await request(app)
-        .patch(`/api/companies/${f.companyId}`)
-        .set("Authorization", `Bearer ${f.board.token}`)
+        .patch(`/api/spaces/${f.spaceId}`)
+        .set("Authorization", `Bearer ${f.operator.token}`)
         .send({ name: "Persisted after wake" });
       expect(own.status).toBe(200);
       expect(idleApiActivity.active()).toBe(true);
       expect(
         (
-          await db.select().from(companies).where(eq(companies.id, f.companyId))
+          await db.select().from(spaces).where(eq(spaces.id, f.spaceId))
         )[0]!.name,
       ).toBe("Persisted after wake");
       monotonic += 300_000;
       expect(
         (
           await request(app)
-            .get(`/api/companies/${f.companyId}`)
+            .get(`/api/spaces/${f.spaceId}`)
             .set("Authorization", `Bearer ${f.agent.token}`)
         ).status,
       ).toBe(200);
@@ -350,20 +350,20 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
       });
       release = () => {};
       const held = request(app)
-        .patch(`/api/companies/${f.companyId}`)
-        .set("Authorization", `Bearer ${f.board.token}`)
+        .patch(`/api/spaces/${f.spaceId}`)
+        .set("Authorization", `Bearer ${f.operator.token}`)
         .send({ name: "Must not commit" })
         .then((r) => r);
       await arrival;
       await db
-        .update(boardApiKeys)
+        .update(operatorApiKeys)
         .set({ revokedAt: new Date() })
-        .where(eq(boardApiKeys.id, f.board.id));
+        .where(eq(operatorApiKeys.id, f.operator.id));
       release!();
       release = undefined;
       expect((await held).status).toBe(401);
       expect(idleApiActivity.active()).toBe(false);
-      const expired = await boardAuthService(db).createNamedBoardApiKey({
+      const expired = await operatorAuthService(db).createNamedBoardApiKey({
         userId: f.userId,
         name: "expired",
         expiresAt: new Date(0),
@@ -371,7 +371,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
       expect(
         (
           await request(app)
-            .get(`/api/companies/${f.companyId}`)
+            .get(`/api/spaces/${f.spaceId}`)
             .set("Authorization", `Bearer ${expired.token}`)
         ).status,
       ).toBe(401);
@@ -380,7 +380,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
       expect(
         (
           await request(app)
-            .patch(`/api/companies/${f.companyId}`)
+            .patch(`/api/spaces/${f.spaceId}`)
             .set("Authorization", `Bearer ${f.agent.token}`)
             .send({ name: "Draining" })
         ).status,
@@ -389,7 +389,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
       stopTaskDrain();
       expect(
         (
-          await db.select().from(companies).where(eq(companies.id, f.companyId))
+          await db.select().from(spaces).where(eq(spaces.id, f.spaceId))
         )[0]!.name,
       ).toBe("Persisted after wake");
     });
@@ -398,11 +398,11 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
     // producer in chat-channels.integration.test.ts, without deleting history.
     async function removedGitHubFixture() {
       const f = await seed(), applicationId = randomUUID(), connectionId = randomUUID(), endpointId = randomUUID();
-      await db.insert(toolApplications).values({ id: applicationId, companyId: f.companyId, name: "Removed GitHub", type: "chat" });
-      await db.insert(toolConnections).values({ id: connectionId, companyId: f.companyId, applicationId,
+      await db.insert(toolApplications).values({ id: applicationId, spaceId: f.spaceId, name: "Removed GitHub", type: "chat" });
+      await db.insert(toolConnections).values({ id: connectionId, spaceId: f.spaceId, applicationId,
         name: "Removed GitHub", uid: randomUUID(), transport: "chat_sdk", connectionPurpose: "channel",
         status: "archived", enabled: false, credentialSecretRefs: [] });
-      await db.insert(chatEndpoints).values({ id: endpointId, companyId: f.companyId, connectionId,
+      await db.insert(chatEndpoints).values({ id: endpointId, spaceId: f.spaceId, connectionId,
         assignedAgentId: f.agentId, provider: "github", publicId: randomUUID(), status: "archived",
         archivedAt: new Date(), setup: { step: "complete", runtimeGeneration: 1 } as InternalSetupState });
       const blocked = async () => (await db.execute(sql`SELECT EXISTS (
@@ -427,12 +427,12 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
         if (fault === "missing_generation" || fault === "fractional_generation") await db.update(chatEndpoints)
           .set({ setup: (fault === "missing_generation" ? { step: "complete" } : { step: "complete", runtimeGeneration: 1.5 }) as InternalSetupState })
           .where(eq(chatEndpoints.id, f.endpointId));
-        if (fault === "lease" || fault === "expired_lease") await db.insert(chatEndpointLeases).values({ companyId: f.companyId,
+        if (fault === "lease" || fault === "expired_lease") await db.insert(chatEndpointLeases).values({ spaceId: f.spaceId,
           endpointId: f.endpointId, leaseKey: "credentials", token: randomUUID(), expiresAt: new Date(fault === "lease" ? Date.now() + 60_000 : 0) });
         if (fault === "pending_registration" || fault === "unconsumed_registration") await db.insert(chatGitHubRegistrations).values({
-          companyId: f.companyId, endpointId: f.endpointId, userId: f.userId, stateHash: randomUUID(), trustedOrigin: "https://tenant.example.test",
+          spaceId: f.spaceId, endpointId: f.endpointId, userId: f.userId, stateHash: randomUUID(), trustedOrigin: "https://tenant.example.test",
           status: fault === "pending_registration" ? "pending" : "completed", expiresAt: new Date(Date.now() + 60_000) });
-        if (fault === "wrong_registry") await db.insert(chatSlackRegistrations).values({ endpointId: f.endpointId, companyId: f.companyId,
+        if (fault === "wrong_registry") await db.insert(chatSlackRegistrations).values({ endpointId: f.endpointId, spaceId: f.spaceId,
           requestId: randomUUID(), status: "uncertain", manifest: {}, manifestHash: "a".repeat(64), callbackUri: "https://tenant.example.test",
           createdByUserId: f.userId, secretIds: { clientSecret: randomUUID() } });
         expect(await f.blocked()).toBe(true);
@@ -442,8 +442,8 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
       const f = await removedGitHubFixture();
       await expect(db.execute(sql`UPDATE chat_endpoints SET connection_id = ${randomUUID()}::uuid WHERE id = ${f.endpointId}::uuid`)).rejects.toThrow();
       const foreignApplication = randomUUID(), foreignConnection = randomUUID();
-      await db.insert(toolApplications).values({ id: foreignApplication, companyId: f.foreignId, name: "Foreign", type: "chat" });
-      await db.insert(toolConnections).values({ id: foreignConnection, companyId: f.foreignId, applicationId: foreignApplication,
+      await db.insert(toolApplications).values({ id: foreignApplication, spaceId: f.foreignId, name: "Foreign", type: "chat" });
+      await db.insert(toolConnections).values({ id: foreignConnection, spaceId: f.foreignId, applicationId: foreignApplication,
         name: "Foreign", uid: randomUUID(), transport: "chat_sdk", connectionPurpose: "channel", status: "archived", enabled: false });
       await expect(db.execute(sql`UPDATE chat_endpoints SET connection_id = ${foreignConnection}::uuid WHERE id = ${f.endpointId}::uuid`)).rejects.toThrow();
       await expect(db.execute(sql`UPDATE chat_endpoints SET status = 'unknown' WHERE id = ${f.endpointId}::uuid`)).rejects.toThrow();
@@ -451,17 +451,17 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
     });
     it("does not let removed GitHub endpoint history discharge pending delivery, publication or action obligations", async () => {
       const f = await removedGitHubFixture();
-      await db.insert(chatGitHubRegistrations).values({ companyId: f.companyId, endpointId: f.endpointId, userId: f.userId,
+      await db.insert(chatGitHubRegistrations).values({ spaceId: f.spaceId, endpointId: f.endpointId, userId: f.userId,
         stateHash: randomUUID(), trustedOrigin: "https://tenant.example.test", status: "completed", consumedAt: new Date(), expiresAt: new Date(0) });
       expect(await f.blocked()).toBe(false);
-      const [issue] = await db.insert(issues).values({ companyId: f.companyId, title: "Retained chat debt", status: "done" }).returning();
-      const [conversation] = await db.insert(chatConversations).values({ companyId: f.companyId, endpointId: f.endpointId,
+      const [issue] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Retained chat debt", status: "done" }).returning();
+      const [conversation] = await db.insert(chatConversations).values({ spaceId: f.spaceId, endpointId: f.endpointId,
         issueId: issue.id, externalConversationId: "github:retained", externalLabel: "retained", state: "endpoint_removed" }).returning();
-      await db.insert(chatDeliveries).values({ companyId: f.companyId, endpointId: f.endpointId, conversationId: conversation.id,
+      await db.insert(chatDeliveries).values({ spaceId: f.spaceId, endpointId: f.endpointId, conversationId: conversation.id,
         providerEventId: "retained", deduplicationKey: "retained", eventKind: "message", normalizedEvent: {}, state: "retry", nextAttemptAt: new Date() });
-      await db.insert(chatPublications).values({ companyId: f.companyId, endpointId: f.endpointId, conversationId: conversation.id,
+      await db.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpointId, conversationId: conversation.id,
         issueId: issue.id, idempotencyKey: "retained", payload: { text: "Retained" }, state: "retry", nextAttemptAt: new Date() });
-      await db.insert(chatActions).values({ companyId: f.companyId, endpointId: f.endpointId, conversationId: conversation.id,
+      await db.insert(chatActions).values({ spaceId: f.spaceId, endpointId: f.endpointId, conversationId: conversation.id,
         kind: "provider_effect", providerActionId: "retained", payload: {}, status: "received" });
       const report = await readIdleSleepSafety(db, hold, () => now, ownerId, async () => "none", undefined, undefined,
         false, false, { incomingWake: verified(), collectDiagnostics: true });
@@ -493,7 +493,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
         .insert(toolApplications)
         .values({
           id: botApplication,
-          companyId: f.companyId,
+          spaceId: f.spaceId,
           name: "GitHub bot",
           type: "chat",
         });
@@ -501,7 +501,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
         .insert(toolConnections)
         .values({
           id: botConnectionId,
-          companyId: f.companyId,
+          spaceId: f.spaceId,
           applicationId: botApplication,
           name: "GitHub bot",
           uid: randomUUID(),
@@ -515,7 +515,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
         .insert(chatEndpoints)
         .values({
           id: endpointId,
-          companyId: f.companyId,
+          spaceId: f.spaceId,
           connectionId: botConnectionId,
           assignedAgentId: f.agentId,
           provider: "github",
@@ -536,7 +536,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
       await db
         .insert(chatGitHubRegistrations)
         .values({
-          companyId: f.companyId,
+          spaceId: f.spaceId,
           endpointId,
           userId: f.userId,
           stateHash: randomUUID(),
@@ -551,7 +551,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
         });
       const botTuple = [
         `github-app:${registration}`,
-        f.companyId,
+        f.spaceId,
         f.userId,
         "github.bot",
         `gateway:${registration}`,
@@ -590,7 +590,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
         .insert(toolApplications)
         .values({
           id: applicationId,
-          companyId: f.companyId,
+          spaceId: f.spaceId,
           name: "GitHub",
           type: "mcp_http",
         });
@@ -598,7 +598,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
         .insert(toolConnections)
         .values({
           id: connectionId,
-          companyId: f.companyId,
+          spaceId: f.spaceId,
           applicationId,
           name: "GitHub",
           uid: randomUUID(),
@@ -625,7 +625,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
         .insert(connectionGrants)
         .values({
           id: grantId,
-          companyId: f.companyId,
+          spaceId: f.spaceId,
           connectionId,
           kind: "user",
           subjectUserId: f.userId,
@@ -646,7 +646,7 @@ function verified(incomingWake = capability): VerifiedIdleCapabilities {
             botTuple,
             [
               `${grantId}_123`,
-              f.companyId,
+              f.spaceId,
               f.userId,
               "github.code",
               "123",

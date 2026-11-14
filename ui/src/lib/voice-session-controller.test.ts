@@ -36,7 +36,7 @@ describe("voice media session lifecycle", () => {
     const x = setup(); await x.controller.start(); const delivery = deferred<void>(); x.media.sendChatMessage.mockReturnValue(delivery.promise);
     const notification = { sessionId: "session-a", generation: 2, publicationId: "result-a" };
     expect(await x.controller.notify({ ...notification, generation: 1 })).toBe(false);
-    expect(await x.controller.notify({ ...notification, sessionId: "another-company-session" })).toBe(false);
+    expect(await x.controller.notify({ ...notification, sessionId: "another-space-session" })).toBe(false);
     const first = x.controller.notify(notification); expect(await x.controller.notify(notification)).toBe(false); delivery.resolve(); expect(await first).toBe(true);
     expect(x.media.sendChatMessage).toHaveBeenCalledOnce(); expect(x.controller.getSnapshot().transcript[0]?.source).toBe("application");
   });

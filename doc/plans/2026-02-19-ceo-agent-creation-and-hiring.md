@@ -8,7 +8,7 @@ Owner: Product + Server + UI + Skills
 
 Enable a CEO agent to create new agents directly, with lightweight but explicit governance:
 
-- Company-level toggle: new hires require board approval (default ON).
+- Space-level toggle: new hires require board approval (default ON).
 - Agent-level permission: `can_create_agents` (default ON for CEO, OFF for everyone else).
 - Clear hire workflow with draft/limbo state until approval.
 - Config reflection so hiring agents can inspect available adapter configuration and compare existing agent configs (including self).
@@ -16,24 +16,24 @@ Enable a CEO agent to create new agents directly, with lightweight but explicit 
 
 ## 2. Current State (Repo Reality)
 
-- Agent creation is board-only at `POST /api/companies/:companyId/agents` (`server/src/routes/agents.ts`).
+- Agent creation is board-only at `POST /api/spaces/:spaceId/agents` (`server/src/routes/agents.ts`).
 - Approvals support `pending/approved/rejected/cancelled` and `hire_agent` + `approve_ceo_strategy` (`packages/shared/src/constants.ts`, `server/src/services/approvals.ts`).
 - `hire_agent` approval currently creates the agent only on approval; there is no pre-created limbo agent.
 - There is no agent permissions system today.
-- There is no company setting for "new hires require board approval".
+- There is no space setting for "new hires require board approval".
 - Approvals have no comment thread or revision-request state.
 - Inbox and Approvals UIs support approve/reject only; no approval detail route exists in app routes.
 - Agent adapter configuration is free-form JSON; no runtime reflection endpoint exists for machine-readable or text discovery.
 
 ## 3. Product Decisions
 
-## 3.1 Company setting
+## 3.1 Space setting
 
-Add company setting:
+Add space setting:
 
 - `requireBoardApprovalForNewAgents: boolean`
 - Default: `true`
-- Editable only in company advanced settings (not onboarding/company creation flow UI)
+- Editable only in space advanced settings (not onboarding/space creation flow UI)
 
 ## 3.2 Agent permissions
 
@@ -49,7 +49,7 @@ Defaults:
 Authority:
 
 - Board can edit permissions for any agent.
-- CEO can edit permissions for agents in same company.
+- CEO can edit permissions for agents in same space.
 
 No broader RBAC system in this phase.
 
@@ -66,7 +66,7 @@ Meaning:
 
 ## 4. Data Model Changes
 
-## 4.1 `companies`
+## 4.1 `spaces`
 
 Add column:
 
@@ -74,10 +74,10 @@ Add column:
 
 Sync required:
 
-- `packages/db/src/schema/companies.ts`
-- `packages/shared/src/types/company.ts`
-- `packages/shared/src/validators/company.ts`
-- UI company API type usage and company advanced settings form
+- `packages/db/src/schema/spaces.ts`
+- `packages/shared/src/types/space.ts`
+- `packages/shared/src/validators/space.ts`
+- UI space API type usage and space advanced settings form
 
 ## 4.2 `agents`
 
@@ -108,7 +108,7 @@ Keep approval as central governance record; extend workflow support:
 
 Add discussion thread for approvals:
 
-- `id`, `company_id`, `approval_id`, `author_agent_id`, `author_user_id`, `body`, timestamps
+- `id`, `space_id`, `approval_id`, `author_agent_id`, `author_user_id`, `body`, timestamps
 
 Purpose:
 
@@ -123,26 +123,26 @@ Purpose:
 
 Add server-side authz helpers:
 
-- `assertCanCreateAgents(req, companyId)`
-- `assertCanManageAgentPermissions(req, companyId)`
+- `assertCanCreateAgents(req, spaceId)`
+- `assertCanManageAgentPermissions(req, spaceId)`
 
 Rules:
 
 - Board always passes.
-- Agent passes `can_create_agents` check if self permission true and same company.
+- Agent passes `can_create_agents` check if self permission true and same space.
 - Permission management by CEO or board.
 
 ## 5.2 Hire creation flow
 
 Add route:
 
-- `POST /api/companies/:companyId/agent-hires`
+- `POST /api/spaces/:spaceId/agent-hires`
 
 Behavior:
 
 - Requires `can_create_agents` (or board).
 - Creates agent row first.
-- If company setting requires approval:
+- If space setting requires approval:
   - create agent with `status=pending_approval`
   - create `approvals(type=hire_agent,status=pending,payload.agentId=...)`
   - return both agent + approval
@@ -181,7 +181,7 @@ Supports initial key only:
 
 Add permission-gated config-read endpoints:
 
-- `GET /api/companies/:companyId/agent-configurations`
+- `GET /api/spaces/:spaceId/agent-configurations`
 - `GET /api/agents/:id/configuration`
 
 Access:
@@ -204,7 +204,7 @@ Add plain-text reflection routes:
 
 Index file includes:
 
-- installed adapter list for this Paperclip instance
+- installed adapter list for this Outpost instance
 - per-adapter doc URLs
 - brief "how to hire" API sequence links
 
@@ -236,9 +236,9 @@ This is required so reflection is generated from installed adapters, not hardcod
 
 ## 7. UI Plan
 
-## 7.1 Company advanced settings
+## 7.1 Space advanced settings
 
-In Companies UI, add advanced settings panel/modal with:
+In Spaces UI, add advanced settings panel/modal with:
 
 - toggle: "Require board approval for new agent hires" (default on)
 
@@ -284,12 +284,12 @@ Provide board-only destructive action in approval detail:
 - explicit confirmation dialog
 - preserves approval + comment history (audit)
 
-## 8. New Skill: `paperclip-create-agent`
+## 8. New Skill: `outpost-create-agent`
 
 Create new skill directory:
 
-- `skills/paperclip-create-agent/SKILL.md`
-- `skills/paperclip-create-agent/references/api-reference.md`
+- `skills/outpost-create-agent/SKILL.md`
+- `skills/outpost-create-agent/references/api-reference.md`
 
 Skill responsibilities:
 
@@ -301,7 +301,7 @@ Skill responsibilities:
 - Execute hire API flow
 - Handle revision loop with board comments
 
-Also update `skills/paperclip/SKILL.md` to reference this skill for hiring workflows.
+Also update `skills/outpost/SKILL.md` to reference this skill for hiring workflows.
 
 ## 9. Enforcement and Invariants
 
@@ -321,7 +321,7 @@ New/updated invariants:
 
 ## Phase 1: Contracts and migration
 
-- DB schema updates (`companies`, `agents`, approvals status expansion, `approval_comments`)
+- DB schema updates (`spaces`, `agents`, approvals status expansion, `approval_comments`)
 - shared constants/types/validators updates
 - migration generation and typecheck
 
@@ -340,18 +340,18 @@ New/updated invariants:
 
 ## Phase 4: UI and skilling
 
-- company advanced setting UI
+- space advanced setting UI
 - permission controls
 - approval detail + comments/revision flow in inbox/approvals
 - disapproved agent delete flow
-- `paperclip-create-agent` skill + docs updates
+- `outpost-create-agent` skill + docs updates
 
 ## 11. Test Plan
 
 Server tests:
 
 - permission gate tests for hire/config-read/permission-update endpoints
-- hire creation behavior with company setting on/off
+- hire creation behavior with space setting on/off
 - approval transitions including revision cycle
 - pending_approval enforcement across wakeup/invoke/assignment/keys
 - config redaction tests

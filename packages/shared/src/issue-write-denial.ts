@@ -71,7 +71,7 @@ export interface IssueWriteDenialContext {
   assigneeLabel?: string | null;
   /** Target issue identifier, e.g. `TASK-482`. */
   issueIdentifier?: string | null;
-  /** Board path of the target issue, e.g. `/TASK/issues/TASK-482`. */
+  /** Operator path of the target issue, e.g. `/TASK/issues/TASK-482`. */
   issuePath?: string | null;
   /** Per-run cross-issue influence cap. */
   cap?: number | null;
@@ -140,9 +140,9 @@ export function describeIssueWriteDenial(
           `read. ${issue} is not visible to ${actor}, so its comment, update, child, and ` +
           `assignment channels are all closed — the wall is visibility, not the write itself.`,
         whoCanAct:
-          `${assignee}, and any agent or board member the task is visible to.`,
+          `${assignee}, and any agent or operator member the task is visible to.`,
         sanctionedPath:
-          `Ask the board to widen visibility for ${actor}.`,
+          `Ask the operator to widen visibility for ${actor}.`,
       };
 
     case "issue_write_actor_class_excluded":
@@ -157,7 +157,7 @@ export function describeIssueWriteDenial(
           `skill-test, and task-bridge scopes keep their existing tight walls, so ` +
           `${actor} cannot write to ${issue} no matter who it acts for.`,
         whoCanAct:
-          `A standard-trust agent in this company, or a board member.`,
+          `A standard-trust agent in this space, or a operator member.`,
         sanctionedPath:
           `Report the request upward and let a standard-trust agent make the write — ` +
           `actor-class scope cannot be widened per task.`,
@@ -193,7 +193,7 @@ export function describeIssueWriteDenial(
         boundary: "Responsible-user availability",
         title: unavailable.title,
         description: `${unavailable.description} The write to ${issue} was refused for that reason.`,
-        whoCanAct: `A board member, or ${actor} once it has an active responsible user.`,
+        whoCanAct: `A operator member, or ${actor} once it has an active responsible user.`,
         sanctionedPath: unavailable.recommendedAction,
       };
     }
@@ -232,7 +232,7 @@ export function describeIssueWriteDenial(
           `going with no task bound to it. Agents cannot stop or interrupt another ` +
           `agent's run, so this status change is refused.`,
         whoCanAct:
-          `A board user, or the run of ${assignee} that holds the lock.`,
+          `A operator user, or the run of ${assignee} that holds the lock.`,
         sanctionedPath:
           `This refusal is final: do not retry with another status, assignee or route. ` +
           `Reply now and send the person to ${taskLink}. To stop the live run they use its ` +
@@ -278,7 +278,7 @@ export function describeIssueWriteDenial(
           `This request arrived without a valid run, so it could not be contained.`,
         whoCanAct: `${actor}, once the request carries its own run id.`,
         sanctionedPath:
-          `Send the \`X-Paperclip-Run-Id\` header with your current run (\`$OUTPOST_RUN_ID\`) ` +
+          `Send the \`X-Outpost-Run-Id\` header with your current run (\`$OUTPOST_RUN_ID\`) ` +
           `and retry.`,
 
       };
@@ -320,7 +320,7 @@ export function issueWriteDenialApiMessage(copy: IssueWriteDenialCopy): string {
 
 /**
  * Build the full `{ error, details }` body for a denied issue write. Keeping the
- * machine-readable `code` next to the prose lets the board UI render the same
+ * machine-readable `code` next to the prose lets the operator UI render the same
  * copy without parsing sentences.
  */
 export function issueWriteDenialResponse(

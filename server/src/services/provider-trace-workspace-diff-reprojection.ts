@@ -110,7 +110,7 @@ export async function persistReprojectedWorkspaceDiffs(
   input: {
     traceId: string;
     runId: string;
-    companyId: string;
+    spaceId: string;
     agentId: string;
     projection: WorkspaceDiffTraceProjection;
   },
@@ -145,7 +145,7 @@ export async function persistReprojectedWorkspaceDiffs(
       continue;
     }
     const result = await appendHeartbeatRunEvent(db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       runId: input.runId,
       agentId: input.agentId,
       eventType: "workspace.diff.recorded",

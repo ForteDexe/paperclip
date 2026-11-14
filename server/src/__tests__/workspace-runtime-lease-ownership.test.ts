@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   executionWorkspaceRuntimeLeases,
   executionWorkspaces,
@@ -39,12 +39,12 @@ const kind = OWNABLE_KINDS.find(entry => entry.id === KIND)!;
 describeEmbeddedPostgres("execution workspace runtime lease ownership", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db!: ReturnType<typeof createDb>;
-  let companyId: string;
+  let spaceId: string;
   let projectId: string;
   let agentId: string;
 
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-runtime-lease-ownership-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-runtime-lease-ownership-");
     db = createDb(database.connectionString);
   }, 60_000);
   afterAll(async () => {
@@ -53,35 +53,35 @@ describeEmbeddedPostgres("execution workspace runtime lease ownership", () => {
 
   beforeEach(async () => {
     await db.execute(sql`truncate activity_log, execution_workspace_runtime_leases, issues, execution_workspaces,
-      projects, heartbeat_runs, agents, companies cascade`);
-    companyId = randomUUID(); projectId = randomUUID(); agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Lease ownership", issuePrefix: "LOW",
-      requireBoardApprovalForNewAgents: false });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Lane", status: "in_progress" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Engineer", role: "engineer" });
+      projects, heartbeat_runs, agents, spaces cascade`);
+    spaceId = randomUUID(); projectId = randomUUID(); agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Lease ownership", issuePrefix: "LOW",
+      requireOperatorApprovalForNewAgents: false });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Lane", status: "in_progress" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Engineer", role: "engineer" });
   });
 
   async function workspace() {
     const id = randomUUID();
-    await db.insert(executionWorkspaces).values({ id, companyId, projectId, mode: "shared_workspace",
+    await db.insert(executionWorkspaces).values({ id, spaceId, projectId, mode: "shared_workspace",
       strategyType: "git_worktree", name: "Shared", status: "active", cwd: `/tmp/lease-${id}` });
     return id;
   }
   async function issue(status = "in_progress") {
     const id = randomUUID();
-    await db.insert(issues).values({ id, companyId, projectId, title: "Lane issue", status, priority: "high",
+    await db.insert(issues).values({ id, spaceId, projectId, title: "Lane issue", status, priority: "high",
       assigneeAgentId: agentId });
     return id;
   }
   async function run(status = "running") {
     const id = randomUUID();
-    await db.insert(heartbeatRuns).values({ id, companyId, agentId, status });
+    await db.insert(heartbeatRuns).values({ id, spaceId, agentId, status });
     return id;
   }
   const owner = (input: { issueId?: string; runId?: string }) =>
     ({ actorType: "agent", agentId, runId: input.runId ?? null, issueId: input.issueId ?? null });
   async function claim(executionWorkspaceId: string, input: { issueId?: string; runId?: string }, now?: Date) {
-    return workspaceRuntimeLeaseService(db).claim({ companyId, executionWorkspaceId, action: "start",
+    return workspaceRuntimeLeaseService(db).claim({ spaceId, executionWorkspaceId, action: "start",
       owner: owner(input), now });
   }
   const leaseRows = () => db.select().from(executionWorkspaceRuntimeLeases);

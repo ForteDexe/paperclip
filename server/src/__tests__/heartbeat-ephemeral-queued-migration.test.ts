@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { S3Client, CreateBucketCommand, DeleteBucketCommand, DeleteObjectsCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
-import { agents, authUsers, companies, companyMemberships, createDb, closeRegisteredClients, environmentLeases,
+import { agents, authUsers, spaces, spaceMemberships, createDb, closeRegisteredClients, environmentLeases,
   environments, executionWorkspaces, heartbeatRuns, agentWakeupRequests, issues, issueWorkProducts, nativeRunResults } from "@outpost/db";
 import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
@@ -27,7 +27,7 @@ import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } 
 vi.mock("@outpost/adapter-utils/execution-target", async importOriginal => ({
   ...await importOriginal<typeof import("@outpost/adapter-utils/execution-target")>(),
   // The scripted session makes no sandbox-to-host API calls.
-  startAdapterExecutionTargetPaperclipBridge: async () => null,
+  startAdapterExecutionTargetOutpostBridge: async () => null,
 }));
 
 // Real database, migration, object storage, queue claim, workspace restoration,
@@ -77,37 +77,37 @@ describe.skipIf(!process.env.OUTPOST_TEST_S3_ENDPOINT)("queued turn after preser
   });
 
   it("admits the original queued run once and reads its saved workspace and instructions without the old disk", async () => {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = randomUUID();
     const workProductId = randomUUID(), evidenceRef = `work_product:${workProductId}`;
     await instanceSettingsService(db).updateExperimental({ enableNativeRunner: true, enableIsolatedWorkspaces: true });
     await db.insert(authUsers).values({ id: userId, name: "Owner", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companies).values({ id: companyId, name: "Queued enrollment", issuePrefix: "QEM", defaultResponsibleUserId: userId });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "owner" });
-    const [environment] = await db.insert(environments).values({ name: `Scripted sandbox ${companyId}`, driver: "sandbox",
+    await db.insert(spaces).values({ id: spaceId, name: "Queued enrollment", issuePrefix: "QEM", defaultResponsibleUserId: userId });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "owner" });
+    const [environment] = await db.insert(environments).values({ name: `Scripted sandbox ${spaceId}`, driver: "sandbox",
       status: "active", config: { provider: "daytona" } }).returning();
     const instructions = "Preserved instructions: read saved.txt before completing this turn.";
-    const instructionsRoot = resolveManagedInstructionsRoot({ id: agentId, companyId, name: "Queued worker", adapterConfig: {} });
+    const instructionsRoot = resolveManagedInstructionsRoot({ id: agentId, spaceId, name: "Queued worker", adapterConfig: {} });
     await materializeInstructionBytes(instructionsRoot, "AGENTS.md", Buffer.from(instructions));
-    await db.insert(agents).values({ id: agentId, companyId, name: "Queued worker", adapterType: "outpost_runner", status: "idle",
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Queued worker", adapterType: "outpost_runner", status: "idle",
       defaultEnvironmentId: environment.id, adapterConfig: { provider: "codex", instructionsBundleMode: "managed", instructionsRootPath: instructionsRoot },
       runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Continue saved work", issueNumber: 1, identifier: "QEM-1",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Continue saved work", issueNumber: 1, identifier: "QEM-1",
       status: "todo", assigneeAgentId: agentId, responsibleUserId: userId, executionWorkspacePreference: "reuse_existing",
       executionWorkspaceSettings: { mode: "isolated_workspace" } });
     const oldHome = process.env.OUTPOST_HOME!, cwd = path.join(oldHome, "task");
     await fs.mkdir(cwd, { recursive: true }); await fs.writeFile(path.join(cwd, "saved.txt"), "unfinished work before migration");
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId, sourceIssueId: issueId, name: "Saved task",
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId, sourceIssueId: issueId, name: "Saved task",
       mode: "isolated_workspace", strategyType: "project_primary", providerType: "local_fs", cwd }).returning();
     await db.update(issues).set({ executionWorkspaceId: workspace.id }).where(eq(issues.id, issueId));
-    await db.insert(issueWorkProducts).values({ id: workProductId, companyId, issueId, type: "artifact", provider: "paperclip",
+    await db.insert(issueWorkProducts).values({ id: workProductId, spaceId, issueId, type: "artifact", provider: "outpost",
       title: "Migration fixture evidence", status: "ready_for_review", reviewState: "approved" });
     const predecessor = heartbeatService(db);
     startTaskDrain({});
     await predecessor.wakeup(agentId, { source: "on_demand", triggerDetail: "manual", reason: "manual",
       requestedByActorType: "user", requestedByActorId: userId, payload: { issueId }, contextSnapshot: { issueId, skipIssueComment: true } });
     await predecessor.drainActiveRunExecutions();
-    const [queued] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
-    const [wake] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId));
+    const [queued] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId));
+    const [wake] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId));
     expect(queued).toMatchObject({ status: "queued", startedAt: null, wakeupRequestId: wake.id });
     expect(wake.status).toBe("queued");
     expect(await migrateEphemeralServerData(db, { signal: AbortSignal.timeout(60_000), phase: () => {} }))
@@ -145,7 +145,7 @@ describe.skipIf(!process.env.OUTPOST_TEST_S3_ENDPOINT)("queued turn after preser
     }) as AdapterExecutionTarget);
     const runtime = environmentRuntimeService(db);
     vi.spyOn(runtime, "acquireRunLease").mockImplementation(async input => {
-      const [lease] = await db.insert(environmentLeases).values({ companyId, environmentId: environment.id, heartbeatRunId: input.heartbeatRunId,
+      const [lease] = await db.insert(environmentLeases).values({ spaceId, environmentId: environment.id, heartbeatRunId: input.heartbeatRunId,
         issueId, executionWorkspaceId: workspace.id, provider: "daytona", providerLeaseId: `fixture-${queued.id}`, status: "active", metadata: { remoteCwd } }).returning();
       return { environment: input.environment, lease: lease as EnvironmentLease,
         leaseContext: { executionWorkspaceId: workspace.id, executionWorkspaceMode: "isolated_workspace" } };
@@ -156,7 +156,7 @@ describe.skipIf(!process.env.OUTPOST_TEST_S3_ENDPOINT)("queued turn after preser
     const startTurn = vi.fn();
     const backendFactory = (execution: NativeExecutionInput): NativeSessionBackend => {
       const turnId = `turn-${queued.id}`;
-      const identity = { companyId, agentId, issueId, runId: queued.id, sessionId: execution.session.normalizedSessionId! };
+      const identity = { spaceId, agentId, issueId, runId: queued.id, sessionId: execution.session.normalizedSessionId! };
       const result = structuredClone(CONTROL_PLANE_CONFORMANCE_RESULT);
       result.completionClaim.contractRevision = execution.completionContract.contract.revision;
       result.completionClaim.criteria = execution.completionContract.contract.criteria.map(criterion => ({
@@ -205,9 +205,9 @@ describe.skipIf(!process.env.OUTPOST_TEST_S3_ENDPOINT)("queued turn after preser
     expect(finished?.wakeupRequestId).toBe(wake.id);
     await replacement.resumeQueuedRunsAfterDrain(); await replacement.drainActiveRunExecutions();
     expect(startTurn).toHaveBeenCalledOnce();
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId))).toHaveLength(1);
     expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, queued.id))).toHaveLength(1);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId)))
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId)))
       .toEqual([expect.objectContaining({ id: wake.id, status: "completed", runId: queued.id,
         claimedAt: expect.any(Date), finishedAt: expect.any(Date), payload: wake.payload })]);
   }, 120_000);

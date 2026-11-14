@@ -67,7 +67,7 @@ fn bounded_turn_timing(response: &Value, elapsed: Duration) -> Value {
 }
 
 fn is_reserved_terminal_operation_id(operation_id: &str) -> bool {
-    matches!(operation_id, "paperclip_finish" | "paperclip_block")
+    matches!(operation_id, "outpost_finish" | "outpost_block")
 }
 use crate::stable_identity::{is_stable_id, DURABLE_STABLE_ID_CHARS};
 
@@ -250,7 +250,7 @@ fn registered_asset_suffix(context: &Value) -> Option<String> {
         blocks.push(if copy.get("kind").and_then(Value::as_str) == Some("agent_files") {
             format!("Your persistent agent directory (AGENT_HOME) is {path}. This is the current turn's copy; its absolute path may change between turns. In shell commands, use the current $AGENT_HOME environment variable instead of an absolute agent-directory path from an earlier turn. Your instruction entry is {entry}, relative to that directory. All supported files and subfolders there are restored across tasks and sessions, and collected after this provider stops. Write task deliverables in the task working directory. Only changed or deleted files synchronize; the last sync wins for the same file. Temporary copies are cleaned up without retaining file history. Check the save receipt before claiming persistence.")
         } else {
-            format!("Your editable agent instruction file is {path}/{entry}. Edit this registered private copy normally. After this run stops, Paperclip saves changed content as a persistent revision if your responsible user still has permission and the baseline has not changed. Check the run's instruction-save receipt before claiming persistence. Conflicts are preserved for explicit resolution. Repository instruction files, skills, and this run's loaded prompt are separate and are not collected.")
+            format!("Your editable agent instruction file is {path}/{entry}. Edit this registered private copy normally. After this run stops, Outpost saves changed content as a persistent revision if your responsible user still has permission and the baseline has not changed. Check the run's instruction-save receipt before claiming persistence. Conflicts are preserved for explicit resolution. Repository instruction files, skills, and this run's loaded prompt are separate and are not collected.")
         });
     }
     blocks.push(format!("Read-only instruction sibling root: {root}"));
@@ -1099,7 +1099,7 @@ impl AcpxCommandExecutor {
     // - The session is suspended. No turn, request, undelivered event, or
     //   unconfirmed provider exit remains. Nothing from the old provider
     //   process continues; the next launch only loads the conversation.
-    // - The startup is ordinary. Candidate admission carries company, model
+    // - The startup is ordinary. Candidate admission carries space, model
     //   and expiry authority in the digest, so candidate sessions stay
     //   exactly bound.
     // - The saved descriptor names this startup's sidecar command and
@@ -1663,7 +1663,7 @@ impl AcpxCommandExecutor {
             DurableRunnerError::invalid(format!("run.attach ACPX provider is invalid: {error}"))
         })?;
         let mut attachment_context = self.context.clone();
-        if let Some(boundary) = payload.get("paperclipNextAuthority") {
+        if let Some(boundary) = payload.get("outpostNextAuthority") {
             // The durable runner validates this authority's immutable bindings
             // and ORP v2 handoff capability before dispatching run.attach. Its
             // activation follows our command result, so self.context must keep
@@ -1691,7 +1691,7 @@ impl AcpxCommandExecutor {
         let cold_candidate_attachment = self
             .candidate_admission()
             .is_some_and(|grant| grant.agent == "kimi")
-            && payload.get("paperclipNextAuthority").is_none()
+            && payload.get("outpostNextAuthority").is_none()
             && self
                 .state
                 .as_ref()
@@ -1717,7 +1717,7 @@ impl AcpxCommandExecutor {
                 let proposed: crate::acpx_candidate_admission::AcpxCandidateAdmission =
                     serde_json::from_value(
                         payload
-                            .pointer("/paperclipNextAuthority/candidateAdmission")
+                            .pointer("/outpostNextAuthority/candidateAdmission")
                             .cloned()
                             .ok_or_else(|| {
                                 DurableRunnerError::invalid(
@@ -3103,7 +3103,7 @@ impl CommandExecutor for AcpxCommandExecutor {
             .candidate_admission()
             .is_some_and(|admission| admission.agent == "antigravity")
             && command.command_type == "run.attach"
-            && command.payload.get("paperclipNextAuthority").is_some()
+            && command.payload.get("outpostNextAuthority").is_some()
         {
             return Err(DurableRunnerError::invalid(
                 "ACPX candidate cannot rotate a live runner authority",
@@ -3409,7 +3409,7 @@ mod tests {
             .unwrap()
             .as_nanos();
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-acpx-backend-{label}-{}-{nonce}",
+            "outpost-acpx-backend-{label}-{}-{nonce}",
             std::process::id()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -4353,7 +4353,7 @@ mod tests {
                         entry
                             .file_name()
                             .to_string_lossy()
-                            .starts_with(".paperclip-verified-executable-")
+                            .starts_with(".outpost-verified-executable-")
                     })
                     .count()
             }
@@ -4540,7 +4540,7 @@ mod tests {
             },
             "skills": [{"key": "skill-1", "bundle": {"digest": "d".repeat(64), "rootPath": "/old-skill"}}],
             "mcp": {"assignmentSetId": "assignment-1", "digest": "e".repeat(64), "bindingId": "old-run-binding"},
-            "futurePolicy": {"companyId": "company-1"},
+            "futurePolicy": {"spaceId": "space-1"},
         });
         let original_descriptor: AcpxProviderDescriptor =
             serde_json::from_value(descriptor_value.clone()).unwrap();
@@ -4742,7 +4742,7 @@ mod tests {
             .is_err());
         let warm_payload = json!({
             "provider": descriptor_value,
-            "paperclipNextAuthority": {
+            "outpostNextAuthority": {
                 "identity": {
                     "runnerInstanceId": original_config.runner_instance_id,
                     "environmentLeaseId": original_config.environment_lease_id,
@@ -4755,10 +4755,10 @@ mod tests {
             },
         });
         let mut wrong_run = warm_payload.clone();
-        wrong_run["paperclipNextAuthority"]["identity"]["runId"] = json!("run-3");
+        wrong_run["outpostNextAuthority"]["identity"]["runId"] = json!("run-3");
         assert!(original.attach_run(&wrong_run).is_err());
         let mut wrong_session = warm_payload.clone();
-        wrong_session["paperclipNextAuthority"]["identity"]["normalizedSessionId"] =
+        wrong_session["outpostNextAuthority"]["identity"]["normalizedSessionId"] =
             json!("other-session");
         assert!(original.attach_run(&wrong_session).is_err());
         let mut changed_profile = warm_payload.clone();
@@ -4855,7 +4855,7 @@ mod tests {
             },
             "skills": [{"key": "skill-1", "bundle": {"digest": "d".repeat(64), "rootPath": "/old-skill"}}],
             "mcp": {"assignmentSetId": "assignment-1", "digest": "e".repeat(64), "bindingId": "old-run-binding"},
-            "futurePolicy": {"companyId": "company-1"},
+            "futurePolicy": {"spaceId": "space-1"},
         });
         if matches!(agent, "claude" | "grok" | "codex") {
             descriptor_value["instructions"] = json!(format!(
@@ -5026,7 +5026,7 @@ mod tests {
                 "/prompt/digest",
                 "/instructions/bundle/digest",
                 "/skills/0/bundle/digest",
-                "/futurePolicy/companyId",
+                "/futurePolicy/spaceId",
             ] {
                 let mut changed_identity = descriptor_value.clone();
                 *changed_identity["runtimeContext"]
@@ -5089,7 +5089,7 @@ mod tests {
             .is_err());
         let warm_payload = json!({
             "provider": descriptor_value,
-            "paperclipNextAuthority": {
+            "outpostNextAuthority": {
                 "identity": {
                     "runnerInstanceId": original_config.runner_instance_id,
                     "environmentLeaseId": original_config.environment_lease_id,
@@ -5102,10 +5102,10 @@ mod tests {
             },
         });
         let mut wrong_run = warm_payload.clone();
-        wrong_run["paperclipNextAuthority"]["identity"]["runId"] = json!("run-3");
+        wrong_run["outpostNextAuthority"]["identity"]["runId"] = json!("run-3");
         assert!(original.attach_run(&wrong_run).is_err());
         let mut wrong_session = warm_payload.clone();
-        wrong_session["paperclipNextAuthority"]["identity"]["normalizedSessionId"] =
+        wrong_session["outpostNextAuthority"]["identity"]["normalizedSessionId"] =
             json!("other-session");
         assert!(original.attach_run(&wrong_session).is_err());
         let mut changed_profile = warm_payload.clone();
@@ -5183,7 +5183,7 @@ mod tests {
             },
             "skills": [{"key": "skill-1", "bundle": {"digest": "d".repeat(64), "rootPath": "/old-skill"}}],
             "mcp": {"assignmentSetId": "assignment-1", "digest": "e".repeat(64), "bindingId": "old-run-binding"},
-            "futurePolicy": {"companyId": "company-1"},
+            "futurePolicy": {"spaceId": "space-1"},
         });
         let original_descriptor: AcpxProviderDescriptor =
             serde_json::from_value(descriptor_value.clone()).unwrap();
@@ -5365,7 +5365,7 @@ mod tests {
             .is_err());
         let warm_payload = json!({
             "provider": descriptor_value,
-            "paperclipNextAuthority": {
+            "outpostNextAuthority": {
                 "identity": {
                     "runnerInstanceId": original_config.runner_instance_id,
                     "environmentLeaseId": original_config.environment_lease_id,
@@ -5378,10 +5378,10 @@ mod tests {
             },
         });
         let mut wrong_run = warm_payload.clone();
-        wrong_run["paperclipNextAuthority"]["identity"]["runId"] = json!("run-3");
+        wrong_run["outpostNextAuthority"]["identity"]["runId"] = json!("run-3");
         assert!(original.attach_run(&wrong_run).is_err());
         let mut wrong_session = warm_payload.clone();
-        wrong_session["paperclipNextAuthority"]["identity"]["normalizedSessionId"] =
+        wrong_session["outpostNextAuthority"]["identity"]["normalizedSessionId"] =
             json!("other-session");
         assert!(original.attach_run(&wrong_session).is_err());
         let mut changed_profile = warm_payload.clone();
@@ -5907,7 +5907,7 @@ mod tests {
         let before = fs::read(executor.state_path()).unwrap();
         let mut provider = value;
         provider["runId"] = json!("run-2");
-        let payload = json!({"provider":provider,"paperclipNextAuthority":{
+        let payload = json!({"provider":provider,"outpostNextAuthority":{
             "identity":{"runId":"run-2","normalizedSessionId":"session-1"}
         }});
         let mut injected_profile = executor.launch_profile.as_ref().unwrap().clone();
@@ -5929,7 +5929,7 @@ mod tests {
             ("runId", json!("run-1")),
         ] {
             let mut invalid = payload.clone();
-            invalid["paperclipNextAuthority"]["identity"][field] = changed;
+            invalid["outpostNextAuthority"]["identity"][field] = changed;
             assert!(executor.attach_run(&invalid).is_err(), "{field}");
             assert_eq!(fs::read(executor.state_path()).unwrap(), before);
         }
@@ -6100,9 +6100,9 @@ mod tests {
         all(target_os = "macos", target_arch = "aarch64"),
         all(target_os = "linux", target_arch = "x86_64")
     ))]
-    fn released_kimi_governed_wait_cold_restore_uses_ordinary_startup_without_grant() {
+    fn released_kimi_controlled_wait_cold_restore_uses_ordinary_startup_without_grant() {
         let (directory, next_config, payload, before, sentinel, _) =
-            kimi_cold_restore_fixture("kimi-candidate-cold-governed-wait");
+            kimi_cold_restore_fixture("kimi-candidate-cold-controlled-wait");
         let mut recovered = AcpxCommandExecutor::with_runner_config(&directory, &next_config);
         recovered.restore().expect("released cold Kimi restore retains its settled prior session under the same full ordinary profile");
         assert!(recovered.session.is_none());
@@ -6135,7 +6135,7 @@ mod tests {
     ))]
     fn released_kimi_cold_restore_rejects_candidate_injection_and_changed_full_profile() {
         for field in [
-            "company",
+            "space",
             "model",
             "expiry",
             "expired",
@@ -6170,7 +6170,7 @@ mod tests {
                         _ => {
                             let mut grant = candidate;
                             match field {
-                                "company" => grant.company_id = "foreign-company".into(),
+                                "space" => grant.space_id = "foreign-space".into(),
                                 "model" => grant.model = "foreign-model".into(),
                                 "expiry" => grant.expires_at += 1,
                                 "expired" => grant.expires_at = 1,

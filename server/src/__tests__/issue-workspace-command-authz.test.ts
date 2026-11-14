@@ -45,7 +45,7 @@ const mockHeartbeatService = vi.hoisted(() => ({
 
 const mockInstanceSettingsService = vi.hoisted(() => ({
   get: vi.fn(),
-  listCompanyIds: vi.fn(),
+  listSpaceIds: vi.fn(),
 }));
 
 const mockLogActivity = vi.hoisted(() => vi.fn());
@@ -56,7 +56,7 @@ const mockRoutineService = vi.hoisted(() => ({
 
 const mockDbSelectWhere = vi.hoisted(() => vi.fn(() => ({
   then: (onFulfilled: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
-    Promise.resolve([{ companyId: "company-1", agentId: "agent-1", contextSnapshot: null }]).then(
+    Promise.resolve([{ spaceId: "space-1", agentId: "agent-1", contextSnapshot: null }]).then(
       onFulfilled,
       onRejected,
     ),
@@ -106,12 +106,12 @@ function registerRouteMocks() {
   }));
 
   vi.doMock("../services/index.js", () => ({
-    companyService: () => ({
-      getById: vi.fn(async () => ({ id: "company-1" })),
+    spaceService: () => ({
+      getById: vi.fn(async () => ({ id: "space-1" })),
     }),
     accessService: () => mockAccessService,
     agentService: () => mockAgentService,
-    companySkillService: () => ({
+    spaceSkillService: () => ({
       completeTestRunForIssue: vi.fn(async () => null),
     }),
     documentAnnotationService: () => ({ remapOpenThreadsForDocument: async () => [] }),
@@ -171,7 +171,7 @@ async function createApp(actor: Record<string, unknown>) {
 function makeIssue(overrides: Record<string, unknown> = {}) {
   return {
     id: "issue-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     status: "todo",
     priority: "medium",
     projectId: null,
@@ -179,7 +179,7 @@ function makeIssue(overrides: Record<string, unknown> = {}) {
     parentId: null,
     assigneeAgentId: null,
     assigneeUserId: null,
-    createdByUserId: "board-user",
+    createdByUserId: "operator-user",
     identifier: "PAP-1000",
     title: "Workspace authz",
     executionPolicy: null,
@@ -221,14 +221,14 @@ describe("issue workspace command authorization", () => {
     mockAccessService.canUser.mockResolvedValue(true);
     mockAccessService.decide.mockResolvedValue({
       allowed: true,
-      action: "company_scope:read",
+      action: "space_scope:read",
       reason: "allow_test",
       explanation: "Allowed by test mock.",
     });
     mockAccessService.hasPermission.mockResolvedValue(true);
     mockAgentService.getById.mockResolvedValue({
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       permissions: null,
     });
     mockExecutionWorkspaceService.getStoredById.mockResolvedValue(null);
@@ -250,14 +250,14 @@ describe("issue workspace command authorization", () => {
         feedbackDataSharingPreference: "prompt",
       },
     });
-    mockInstanceSettingsService.listCompanyIds.mockResolvedValue(["company-1"]);
+    mockInstanceSettingsService.listSpaceIds.mockResolvedValue(["space-1"]);
     mockLogActivity.mockResolvedValue(undefined);
     mockRoutineService.syncRunStatusForIssue.mockResolvedValue(undefined);
     mockDbSelect.mockImplementation(() => ({ from: mockDbSelectFrom }));
     mockDbSelectFrom.mockImplementation(() => ({ where: mockDbSelectWhere }));
     mockDbSelectWhere.mockImplementation(() => ({
       then: (onFulfilled: (rows: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) =>
-        Promise.resolve([{ companyId: "company-1", agentId: "agent-1", contextSnapshot: null }]).then(
+        Promise.resolve([{ spaceId: "space-1", agentId: "agent-1", contextSnapshot: null }]).then(
           onFulfilled,
           onRejected,
         ),
@@ -268,19 +268,19 @@ describe("issue workspace command authorization", () => {
     const app = await createApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
       runId: "run-1",
     });
 
     const res = await request(app)
-      .post("/api/companies/company-1/issues")
+      .post("/api/spaces/space-1/issues")
       .send({
         title: "Exploit",
         executionWorkspaceSettings: {
           workspaceStrategy: {
             type: "git_worktree",
-            runtimeProvisionCommand: "touch /tmp/paperclip-rce",
+            runtimeProvisionCommand: "touch /tmp/outpost-rce",
           },
         },
       });
@@ -295,7 +295,7 @@ describe("issue workspace command authorization", () => {
     const app = await createApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
       runId: "run-1",
     });
@@ -307,7 +307,7 @@ describe("issue workspace command authorization", () => {
           adapterConfig: {
             workspaceStrategy: {
               type: "git_worktree",
-              teardownCommand: "rm -rf /tmp/paperclip-rce",
+              teardownCommand: "rm -rf /tmp/outpost-rce",
             },
           },
         },

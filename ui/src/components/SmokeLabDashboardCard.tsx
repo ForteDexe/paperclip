@@ -31,25 +31,25 @@ function formatTime(value: string | Date | null | undefined): string {
 
 /**
  * Compact "Integration smoke" dashboard card (PAP-13347 / S2, plan §D3).
- * Renders only when `experimental.enableSmokeLab` is on (board-readable flag),
+ * Renders only when `experimental.enableSmokeLab` is on (operator-readable flag),
  * so the dashboard stays clean for everyone who isn't running the Smoke Lab.
  * Operator-facing copy stays plain; protocol depth lives behind the link into
  * the Developer › Smoke Lab tab.
  */
-export function SmokeLabDashboardCard({ companyId }: { companyId: string }) {
+export function SmokeLabDashboardCard({ spaceId }: { spaceId: string }) {
   const { enabled, loaded } = useSmokeLabEnabled();
 
   const runsQuery = useQuery({
-    queryKey: queryKeys.smokeLab.runs(companyId),
-    queryFn: () => smokeLabApi.listRuns(companyId),
+    queryKey: queryKeys.smokeLab.runs(spaceId),
+    queryFn: () => smokeLabApi.listRuns(spaceId),
     enabled: enabled && loaded,
   });
 
   const latestRun = runsQuery.data?.runs?.[0];
 
   const detailQuery = useQuery({
-    queryKey: queryKeys.smokeLab.run(companyId, latestRun?.id ?? "__none__"),
-    queryFn: () => smokeLabApi.getRun(companyId, latestRun!.id),
+    queryKey: queryKeys.smokeLab.run(spaceId, latestRun?.id ?? "__none__"),
+    queryFn: () => smokeLabApi.getRun(spaceId, latestRun!.id),
     enabled: enabled && loaded && !!latestRun,
   });
 

@@ -447,7 +447,7 @@ export function TaskChatProtocolActivityRow({ item }: { item: TaskChatProtocolIt
     <div className="flex min-w-0 flex-col text-xs" data-testid="task-chat-protocol-activity-row" data-activity-family={item.surface === "provider_activity" ? item.family : item.surface}>
       {activityRow}
       {presentation.note ? (
-        <p className="min-w-0 whitespace-pre-wrap break-words pb-1 pl-7 text-muted-foreground" data-testid="task-chat-governance-note">
+        <p className="min-w-0 whitespace-pre-wrap break-words pb-1 pl-7 text-muted-foreground" data-testid="task-chat-policy-note">
           {presentation.note}
         </p>
       ) : null}

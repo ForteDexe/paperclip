@@ -3,7 +3,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
-import { agents, agentTaskSessions, companies, heartbeatRuns, issues } from "@outpost/db";
+import { agents, agentTaskSessions, spaces, heartbeatRuns, issues } from "@outpost/db";
 import { expect, it } from "vitest";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
 import { createIsolatedTestHome } from "../../__tests__/helpers/isolated-test-home.js";
@@ -34,10 +34,10 @@ it.skipIf(process.env.OUTPOST_LIVE_SESSION_EPOCH !== "true")("publishes a fresh 
     const db = server.db;
     await db.update(issues).set({ executionRunId: null, executionWorkspaceSettings: { mode: "shared_workspace" },
       title: "Preserve one verification file across native sessions",
-      description: "Follow the latest comment's single file step. The deliverable is epoch.txt in this workspace. Read the file to verify the step. Complete this step with paperclip_finish, reportedWorkDisposition done, and file evidence. Do not do later steps or repeat earlier steps.",
+      description: "Follow the latest comment's single file step. The deliverable is epoch.txt in this workspace. Read the file to verify the step. Complete this step with outpost_finish, reportedWorkDisposition done, and file evidence. Do not do later steps or repeat earlier steps.",
     }).where(eq(issues.id, fixture.issueId));
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, fixture.runId));
-    await db.update(companies).set({ defaultResponsibleUserId: fixture.userId }).where(eq(companies.id, fixture.companyId));
+    await db.update(spaces).set({ defaultResponsibleUserId: fixture.userId }).where(eq(spaces.id, fixture.spaceId));
     await db.update(agents).set({ adapterConfig: { provider: "codex", model: "gpt-6.1-sol", modelReasoningEffort: "low",
       cwd: fixture.workspace, workspaceStrategy: { type: "project_primary" }, env: { CODEX_HOME: codexHome }, timeoutSec: 180,
       lifecycleMode, idleTimeoutMs: 900_000 },

@@ -30,7 +30,7 @@ export function createSpekoSetup(db: Db, options: SpekoSetupOptions) {
   async function configureSpekoTools(endpoint: EndpointRow, credentials: Record<string, string>, credentialLease: CredentialMutationLeaseGuard, previousSpekoSigningSecret: string | undefined) {
         const webhookPublicBaseUrl = getWebhookPublicBaseUrl();
         if (!webhookPublicBaseUrl?.startsWith("https://")) throw unprocessable("Speko needs an explicitly configured public HTTPS callback origin");
-        await configureSpekoSessionTools(db, { companyId: endpoint.companyId, endpointId: endpoint.id, agentId: credentials.agentId, callbackUrl: `${webhookPublicBaseUrl}/api/voice-webhooks/${endpoint.publicId}/tools`, signingSecret: credentials.signingSecret, previousSigningSecret: previousSpekoSigningSecret, client: createSpekoProvider(credentials.apiKey, fetchImpl), assertOwned: () => credentialLease.assertOwned() });
+        await configureSpekoSessionTools(db, { spaceId: endpoint.spaceId, endpointId: endpoint.id, agentId: credentials.agentId, callbackUrl: `${webhookPublicBaseUrl}/api/voice-webhooks/${endpoint.publicId}/tools`, signingSecret: credentials.signingSecret, previousSigningSecret: previousSpekoSigningSecret, client: createSpekoProvider(credentials.apiKey, fetchImpl), assertOwned: () => credentialLease.assertOwned() });
       }
 
   return { installSpekoVoiceTools, configureSpekoTools };

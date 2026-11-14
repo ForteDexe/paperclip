@@ -1,5 +1,5 @@
 // The public packages the public-install verifier stages: `@outpost/server`
-// and `paperclipai` plus every public workspace package they reach through
+// and `@outpost/cli` plus every public workspace package they reach through
 // `workspace:` specs, in the depth-first order the verifier packs them. The
 // npm cache warm-up reads the same closure from source manifests before
 // `pnpm build` has produced anything, so both share this one definition.
@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const PUBLIC_INSTALL_ROOTS = ['@outpost/server', 'paperclipai'];
+export const PUBLIC_INSTALL_ROOTS = ['@outpost/server', '@outpost/cli'];
 
 // Returns `{ packages, needed }`: `packages` maps every public workspace
 // package name to `{ dir, manifest }`, and `needed` is the closure in visit

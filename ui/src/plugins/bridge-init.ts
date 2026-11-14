@@ -21,7 +21,7 @@ import {
   usePluginStream,
   usePluginToast,
 } from "./bridge.js";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { Component, createElement, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import * as ReactJsxRuntimeModule from "react/jsx-runtime";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -41,8 +41,8 @@ import { authApi } from "@/api/auth";
 import { heartbeatsApi } from "@/api/heartbeats";
 import { issuesApi } from "@/api/issues";
 import {
-  buildCompanyUserInlineOptions,
-} from "@/lib/company-members";
+  buildSpaceUserInlineOptions,
+} from "@/lib/space-members";
 import { collectLiveIssueIds } from "@/lib/liveIssueIds";
 import { useProjectOrder } from "@/hooks/useProjectOrder";
 import { usePublishSharedQueryData, useSharedPollingQuery } from "@/hooks/useSharedPolling";
@@ -68,7 +68,7 @@ import { copyTextToClipboard } from "@/lib/clipboard";
 /**
  * The global bridge registry shape.
  *
- * This is placed on `globalThis.__paperclipPluginBridge__` and consumed by
+ * This is placed on `globalThis.__outpostPluginBridge__` and consumed by
  * the plugin module loader to provide implementations for external imports.
  */
 export interface PluginBridgeRegistry {
@@ -87,7 +87,7 @@ export interface PluginBridgeRegistry {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __paperclipPluginBridge__: PluginBridgeRegistry | undefined;
+  var __outpostPluginBridge__: PluginBridgeRegistry | undefined;
 }
 
 type PluginFileTreePathCollection = ReadonlySet<string> | readonly string[];
@@ -173,7 +173,7 @@ type PluginIssuesListFilters = {
 };
 
 type PluginIssuesListProps = {
-  companyId: string | null;
+  spaceId: string | null;
   projectId?: string | null;
   filters?: PluginIssuesListFilters;
   viewStateKey?: string;
@@ -188,7 +188,7 @@ type PluginAssigneePickerSelection = {
 };
 
 type PluginAssigneePickerProps = {
-  companyId?: string | null;
+  spaceId?: string | null;
   value: string;
   onChange: (value: string, selection: PluginAssigneePickerSelection) => void;
   placeholder?: string;
@@ -202,7 +202,7 @@ type PluginAssigneePickerProps = {
 };
 
 type PluginProjectPickerProps = {
-  companyId?: string | null;
+  spaceId?: string | null;
   value: string;
   onChange: (projectId: string) => void;
   placeholder?: string;
@@ -248,10 +248,10 @@ function compactIssueFilters(filters: PluginIssuesListFilters): PluginIssuesList
 }
 
 function PluginSdkIssuesList({
-  companyId,
+  spaceId,
   projectId = null,
   filters,
-  viewStateKey = "paperclip:plugin-issues-view",
+  viewStateKey = "outpost:plugin-issues-view",
   initialSearch,
   createIssueLabel,
   searchWithinLoadedIssues = true,
@@ -267,40 +267,40 @@ function PluginSdkIssuesList({
   const originKindPrefix = issueFilters.originKindPrefix ?? null;
   const resolvedProjectId = issueFilters.projectId ?? projectId ?? null;
   const issuesQueryKey = useMemo(
-    () => ["plugins", "sdk-ui", "issues-list", companyId ?? "__no-company__", issueFilters] as const,
-    [companyId, issueFilters],
+    () => ["plugins", "sdk-ui", "issues-list", spaceId ?? "__no-space__", issueFilters] as const,
+    [spaceId, issueFilters],
   );
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(companyId ?? "__no-company__"),
-    queryFn: () => agentsApi.list(companyId!),
-    enabled: !!companyId,
+    queryKey: queryKeys.agents.list(spaceId ?? "__no-space__"),
+    queryFn: () => agentsApi.list(spaceId!),
+    enabled: !!spaceId,
   });
   const { data: projects } = useQuery({
-    ...companyProjectsQuery(companyId ?? "__no-company__", { includeArchived: true }),
-    enabled: !!companyId,
+    ...spaceProjectsQuery(spaceId ?? "__no-space__", { includeArchived: true }),
+    enabled: !!spaceId,
   });
-  const liveRunsQueryKey = queryKeys.liveRuns(companyId ?? "__no-company__");
+  const liveRunsQueryKey = queryKeys.liveRuns(spaceId ?? "__no-space__");
   const sharedLiveRuns = useSharedPollingQuery({
-    companyId,
+    spaceId,
     resourceKey: "live-runs",
     queryKey: liveRunsQueryKey,
-    enabled: !!companyId,
+    enabled: !!spaceId,
     // Event-sourced via LiveUpdatesProvider (#9627); no interval poll needed.
     refetchInterval: false,
     leaderOnly: true,
   });
   const { data: liveRuns, dataUpdatedAt: liveRunsUpdatedAt } = useQuery({
     queryKey: liveRunsQueryKey,
-    queryFn: () => heartbeatsApi.liveRunsForCompany(companyId!),
+    queryFn: () => heartbeatsApi.liveRunsForSpace(spaceId!),
     enabled: sharedLiveRuns.enabled,
     refetchInterval: sharedLiveRuns.refetchInterval,
   });
   usePublishSharedQueryData(sharedLiveRuns, liveRuns, liveRunsUpdatedAt);
   const { data: issues, isLoading, error } = useQuery({
     queryKey: issuesQueryKey,
-    queryFn: () => issuesApi.list(companyId!, issueFilters),
-    enabled: !!companyId,
+    queryFn: () => issuesApi.list(spaceId!, issueFilters),
+    enabled: !!spaceId,
   });
   const liveIssueIds = useMemo(() => collectLiveIssueIds(liveRuns, issues), [issues, liveRuns]);
 
@@ -308,21 +308,21 @@ function PluginSdkIssuesList({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       issuesApi.update(id, data),
     onSuccess: () => {
-      if (!companyId) return;
-      queryClient.invalidateQueries({ queryKey: ["plugins", "sdk-ui", "issues-list", companyId] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId) });
+      if (!spaceId) return;
+      queryClient.invalidateQueries({ queryKey: ["plugins", "sdk-ui", "issues-list", spaceId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(spaceId) });
       if (resolvedProjectId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.issues.listByProject(companyId, resolvedProjectId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.issues.listByProject(spaceId, resolvedProjectId) });
         if (originKindPrefix) {
           queryClient.invalidateQueries({
-            queryKey: queryKeys.issues.listPluginOperationsByProject(companyId, resolvedProjectId, originKindPrefix),
+            queryKey: queryKeys.issues.listPluginOperationsByProject(spaceId, resolvedProjectId, originKindPrefix),
           });
         }
       }
     },
   });
 
-  if (!companyId) {
+  if (!spaceId) {
     return createElement("div", { className: "text-sm text-muted-foreground" }, "Select an outpost to view tasks.");
   }
 
@@ -343,7 +343,7 @@ function PluginSdkIssuesList({
 }
 
 function PluginSdkAssigneePicker({
-  companyId,
+  spaceId,
   value,
   onChange,
   placeholder = "Responsible",
@@ -356,7 +356,7 @@ function PluginSdkAssigneePicker({
   onConfirm,
 }: PluginAssigneePickerProps) {
   const hostContext = useHostContext();
-  const resolvedCompanyId = companyId ?? hostContext.companyId ?? null;
+  const resolvedSpaceId = spaceId ?? hostContext.spaceId ?? null;
   const { data: session } = useQuery({
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
@@ -364,14 +364,14 @@ function PluginSdkAssigneePicker({
   });
   const currentUserId = session?.user?.id ?? session?.session?.userId ?? null;
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(resolvedCompanyId ?? "__no-company__"),
-    queryFn: () => agentsApi.list(resolvedCompanyId!),
-    enabled: !!resolvedCompanyId,
+    queryKey: queryKeys.agents.list(resolvedSpaceId ?? "__no-space__"),
+    queryFn: () => agentsApi.list(resolvedSpaceId!),
+    enabled: !!resolvedSpaceId,
   });
-  const { data: companyMembers } = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(resolvedCompanyId ?? "__no-company__"),
-    queryFn: () => accessApi.listUserDirectory(resolvedCompanyId!),
-    enabled: !!resolvedCompanyId && includeUsers,
+  const { data: spaceMembers } = useQuery({
+    queryKey: queryKeys.access.spaceUserDirectory(resolvedSpaceId ?? "__no-space__"),
+    queryFn: () => accessApi.listUserDirectory(resolvedSpaceId!),
+    enabled: !!resolvedSpaceId && includeUsers,
   });
   const recentAssigneeSelectionIds = useMemo(() => getRecentAssigneeSelectionIds(), []);
   const recentAssigneeIds = useMemo(
@@ -391,7 +391,7 @@ function PluginSdkAssigneePicker({
     () => [
       ...(includeUsers ? currentUserAssigneeOption(currentUserId) : []),
       ...(includeUsers
-        ? buildCompanyUserInlineOptions(companyMembers?.users, { excludeUserIds: [currentUserId] })
+        ? buildSpaceUserInlineOptions(spaceMembers?.users, { excludeUserIds: [currentUserId] })
         : []),
       ...sortedAgents.map((agent) => ({
         id: assigneeValueFromSelection({ assigneeAgentId: agent.id }),
@@ -399,7 +399,7 @@ function PluginSdkAssigneePicker({
         searchText: `${agent.name} ${agent.role} ${agent.title ?? ""}`,
       })),
     ],
-    [companyMembers?.users, currentUserId, includeUsers, sortedAgents],
+    [spaceMembers?.users, currentUserId, includeUsers, sortedAgents],
   );
   const selectedAssignee = parseAssigneeValue(value);
   const selectedAgent = selectedAssignee.assigneeAgentId
@@ -453,7 +453,7 @@ function PluginSdkAssigneePicker({
 }
 
 function PluginSdkProjectPicker({
-  companyId,
+  spaceId,
   value,
   onChange,
   placeholder = "Project",
@@ -465,15 +465,15 @@ function PluginSdkProjectPicker({
   onConfirm,
 }: PluginProjectPickerProps) {
   const hostContext = useHostContext();
-  const resolvedCompanyId = companyId ?? hostContext.companyId ?? null;
+  const resolvedSpaceId = spaceId ?? hostContext.spaceId ?? null;
   const { data: session } = useQuery({
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
   });
   const currentUserId = session?.user?.id ?? session?.session?.userId ?? null;
   const { data: projects } = useQuery({
-    ...companyProjectsQuery(resolvedCompanyId ?? "__no-company__", { includeArchived }),
-    enabled: !!resolvedCompanyId,
+    ...spaceProjectsQuery(resolvedSpaceId ?? "__no-space__", { includeArchived }),
+    enabled: !!resolvedSpaceId,
   });
   const visibleProjects = useMemo(
     () => (projects ?? []).filter((project) => includeArchived || !project.archivedAt),
@@ -481,7 +481,7 @@ function PluginSdkProjectPicker({
   );
   const { orderedProjects } = useProjectOrder({
     projects: visibleProjects,
-    companyId: resolvedCompanyId,
+    spaceId: resolvedSpaceId,
     userId: currentUserId,
   });
   const recentProjectIds = useMemo(() => getRecentProjectIds(), []);
@@ -668,7 +668,7 @@ class PluginSdkErrorBoundary extends Component<{ children: ReactNode; fallback?:
  * Initialize the plugin bridge global registry.
  *
  * Registers the host's React, ReactDOM, and SDK UI bridge implementations
- * on `globalThis.__paperclipPluginBridge__` so the plugin module loader
+ * on `globalThis.__outpostPluginBridge__` so the plugin module loader
  * can provide them to plugin bundles.
  *
  * @param react - The host's React module
@@ -678,7 +678,7 @@ export function initPluginBridge(
   react: typeof import("react"),
   reactDom: typeof import("react-dom"),
 ): void {
-  globalThis.__paperclipPluginBridge__ = {
+  globalThis.__outpostPluginBridge__ = {
     react,
     reactJsxRuntime: ReactJsxRuntimeModule,
     reactDom,

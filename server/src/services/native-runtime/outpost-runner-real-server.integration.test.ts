@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 import { eq } from "drizzle-orm";
-import { agents, companies, createDb, heartbeatRuns, issues } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, issues } from "@outpost/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -18,7 +18,7 @@ import {
   runnerPrpWebSocketInternals,
   setupRunnerPrpWebSocketServer,
 } from "../../realtime/runner-orp-ws.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 const fakeCodexAppServer = resolve(
   import.meta.dirname,
@@ -30,7 +30,7 @@ const runnerBinaryIt = runnerBinariesAvailable ? it : it.skip;
 
 describe("outpost-runner real server vertical slice", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
-  const companyId = "00000000-0000-4000-8000-000000000701";
+  const spaceId = "00000000-0000-4000-8000-000000000701";
   const agentId = "00000000-0000-4000-8000-000000000702";
   const issueId = "00000000-0000-4000-8000-000000000703";
   const runId = "00000000-0000-4000-8000-000000000704";
@@ -47,10 +47,10 @@ describe("outpost-runner real server vertical slice", () => {
 
   runnerBinaryIt("runs Rust runnerd through Outpost ORP and reads the real bound task", async () => {
     const db = createDb(temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Real runner slice", issuePrefix: "RRS" });
+    await db.insert(spaces).values({ id: spaceId, name: "Real runner slice", issuePrefix: "RRS" });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Real runner agent",
       adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" },
@@ -59,7 +59,7 @@ describe("outpost-runner real server vertical slice", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       identifier: "RRS-1",
       title: "Read me through the real control plane",
       status: "in_progress",
@@ -68,7 +68,7 @@ describe("outpost-runner real server vertical slice", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       runtimeMode: "native",
@@ -79,7 +79,7 @@ describe("outpost-runner real server vertical slice", () => {
     });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
 
-    const authority = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId });
+    const authority = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId });
     const server = createServer();
     await new Promise<void>((resolveListen) => server.listen(0, "127.0.0.1", resolveListen));
     const address = server.address();
@@ -89,7 +89,7 @@ describe("outpost-runner real server vertical slice", () => {
     });
     const stateDirectory = await mkdtemp(resolve(tmpdir(), "outpost-runner-real-resume-"));
     const expectedContextFile = resolve(stateDirectory, "expected-context.json");
-    await writeFile(expectedContextFile, JSON.stringify({ companyId, actorId: agentId, taskId: issueId, runId, callId: "semantic-call-1" }));
+    await writeFile(expectedContextFile, JSON.stringify({ spaceId, actorId: agentId, taskId: issueId, runId, callId: "semantic-call-1" }));
     const fakeArgs = ["--state-file", resolve(stateDirectory, "fake-provider-state.json"), "--emit-tool-call", "--durable-turn-ids", "--durable-tool-ids", "--expected-canonical-task-context-file", expectedContextFile];
     const bundle = createRunnerdCodexTransport({
       runnerBinary: defaultCapabilityRunnerdBinary(),
@@ -105,7 +105,7 @@ describe("outpost-runner real server vertical slice", () => {
         turnId: "turn-real-server",
         itemId: "item-real-server",
       },
-      controlPlaneRegistration: (orp) => registerRunnerPrpAuthority({ companyId, runId, authority: orp }),
+      controlPlaneRegistration: (orp) => registerRunnerPrpAuthority({ spaceId, runId, authority: orp }),
     });
     const observedResults: unknown[] = [];
     bundle.transport.setServerRequestHandler(async (request) => {
@@ -145,7 +145,7 @@ describe("outpost-runner real server vertical slice", () => {
       await bundle.transport.close();
       await db.insert(heartbeatRuns).values({
         id: resumedRunId,
-        companyId,
+        spaceId,
         agentId,
         status: "running",
         runtimeMode: "native",
@@ -155,13 +155,13 @@ describe("outpost-runner real server vertical slice", () => {
         contextSnapshot: { issueId },
       });
       await db.update(issues).set({ executionRunId: resumedRunId }).where(eq(issues.id, issueId));
-      const resumedAuthority = new PaperclipRunnerToolAuthority(db, {
-        companyId,
+      const resumedAuthority = new OutpostRunnerToolAuthority(db, {
+        spaceId,
         agentId,
         issueId,
         runId: resumedRunId,
       });
-      await writeFile(expectedContextFile, JSON.stringify({ companyId, actorId: agentId, taskId: issueId, runId: resumedRunId, callId: "semantic-call-2" }));
+      await writeFile(expectedContextFile, JSON.stringify({ spaceId, actorId: agentId, taskId: issueId, runId: resumedRunId, callId: "semantic-call-2" }));
       const restored = createRunnerdCodexTransport({
         runnerBinary: defaultCapabilityRunnerdBinary(),
         codexCommand: fakeCodexAppServer,
@@ -178,7 +178,7 @@ describe("outpost-runner real server vertical slice", () => {
           itemId: "item-real-server-resumed",
         },
         controlPlaneRegistration: (orp) => registerRunnerPrpAuthority({
-          companyId,
+          spaceId,
           runId: resumedRunId,
           authority: orp,
         }),

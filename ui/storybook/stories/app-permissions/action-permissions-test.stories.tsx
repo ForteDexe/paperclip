@@ -8,7 +8,7 @@ import { ActionsSection } from "@/pages/apps/app-detail/PermissionsPanel";
 const CONNECTION = "conn-asana-storybook";
 const TOOL: ToolCatalogEntry = {
   id: "asana-list-projects",
-  companyId: "company-storybook",
+  spaceId: "space-storybook",
   applicationId: "app-asana",
   connectionId: CONNECTION,
   entryKind: "tool",
@@ -180,7 +180,7 @@ const meta = {
   id: "apps-action-permissions-test",
   title: "Apps, channels, and extensions/App access and action permissions/Apps/Action permissions test",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "app-permissions/test-action",
         "app-permissions/action-policy"

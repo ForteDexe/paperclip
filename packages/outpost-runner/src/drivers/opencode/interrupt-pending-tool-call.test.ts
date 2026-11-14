@@ -5,7 +5,7 @@ import { expect, it } from "vitest";
 import type { PrpEvent } from "../../protocol/replay-contract.js";
 import { OpenCodeServerDriver } from "./opencode-server-driver.js";
 
-// Operator Stop while the provider waits inside a Paperclip MCP tool call.
+// Operator Stop while the provider waits inside a Outpost MCP tool call.
 // runnerd settles the pending call before it asks the driver to interrupt, and
 // OpenCode 1.18 can then report the abort as a bare idle. That idle closes the
 // stopped turn. It must not count as an empty answer that earns a corrective
@@ -35,7 +35,7 @@ it.each(["idle-after-settle", "idle-before-settle", "aborted-error"] as const)(
       runtimeDirectory: root,
       command,
       environment: { PATH: process.env.PATH, OPENROUTER_API_KEY: "controlled-fixture-key" },
-      dynamicTools: [{ name: "paperclip_call_assigned_tool", inputSchema: { type: "object" } }],
+      dynamicTools: [{ name: "outpost_call_assigned_tool", inputSchema: { type: "object" } }],
       dynamicToolHandler: async () => {
         toolStarted();
         // The controller's gated assigned tool never answers this call: runnerd
@@ -77,15 +77,15 @@ it.each(["idle-after-settle", "idle-before-settle", "aborted-error"] as const)(
       const turn = await session.startTurn({ message: { role: "user", text: "Read the website brief." } });
       expect(prompts).toHaveLength(1);
 
-      // OpenCode calls the Paperclip tool through the authenticated MCP bridge.
+      // OpenCode calls the Outpost tool through the authenticated MCP bridge.
       const config = JSON.parse(await readFile(join(root, "owned-session", "config", "opencode", "opencode.json"), "utf8"));
-      const bridge = config.mcp.paperclip as { url: string; headers: Record<string, string> };
+      const bridge = config.mcp.outpost as { url: string; headers: Record<string, string> };
       emit({ type: "message.updated", properties: { info: { id: "tool-message", sessionID: ownedSessionId, role: "assistant" } } });
       const toolResponse = fetch(bridge.url, {
         method: "POST",
         headers: { ...bridge.headers, "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
         body: JSON.stringify({ jsonrpc: "2.0", id: "assigned-call", method: "tools/call",
-          params: { name: "paperclip_call_assigned_tool", arguments: { name: "read_website_brief", arguments: {} } } }),
+          params: { name: "outpost_call_assigned_tool", arguments: { name: "read_website_brief", arguments: {} } } }),
       });
       await toolCalled;
 
@@ -93,7 +93,7 @@ it.each(["idle-after-settle", "idle-before-settle", "aborted-error"] as const)(
         ["turn.completed", "turn.cancelled", "turn.failed"].includes(event.eventType));
       if (abortReport === "idle-after-settle") {
         // runnerd answers the pending call before it interrupts the turn.
-        releaseTool(new Error("Paperclip stopped the active provider turn"));
+        releaseTool(new Error("Outpost stopped the active provider turn"));
         await toolResponse;
       }
       await session.interrupt?.({ turnId: turn.turnId, reason: "Cancelled by a board operator" });
@@ -102,7 +102,7 @@ it.each(["idle-after-settle", "idle-before-settle", "aborted-error"] as const)(
       if (abortReport !== "idle-after-settle") {
         // The stopped provider abandons its tool call; the late courtesy result
         // must not reopen the turn either.
-        releaseTool(new Error("Paperclip stopped the active provider turn"));
+        releaseTool(new Error("Outpost stopped the active provider turn"));
         await toolResponse;
         await settle();
       }

@@ -15,15 +15,15 @@ const TERMINAL_RUN_STATUSES = ["succeeded", "failed", "cancelled", "timed_out", 
 type Snapshot = typeof executionWorkspaceSnapshots.$inferSelect;
 
 export async function retireEndedRemoteSnapshotLedgerRow(tx: Db, input: {
-  companyId: string; snapshotId: string; now: Date; proof: string;
+  spaceId: string; snapshotId: string; now: Date; proof: string;
 }): Promise<{ retired: true; snapshot: Snapshot; status: "deleted" | "delete_requested" } | { retired: false; reason: string }> {
   const [snapshot] = await tx.select().from(executionWorkspaceSnapshots).where(and(
-    eq(executionWorkspaceSnapshots.companyId, input.companyId), eq(executionWorkspaceSnapshots.id, input.snapshotId)));
+    eq(executionWorkspaceSnapshots.spaceId, input.spaceId), eq(executionWorkspaceSnapshots.id, input.snapshotId)));
   if (!snapshot || snapshot.status !== "pending") return { retired: false, reason: "ledger_no_longer_pending" };
   if (snapshot.objectKey !== null) return { retired: false, reason: "upload_published" };
   if (!snapshot.sourceRunId) return { retired: false, reason: "owner_run_missing" };
   const [operation] = await tx.select().from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, snapshot.companyId), eq(workspaceOperations.id, snapshot.sourceOperationId))).for("update");
+    eq(workspaceOperations.spaceId, snapshot.spaceId), eq(workspaceOperations.id, snapshot.sourceOperationId))).for("update");
   if (operation) {
     if (operation.phase !== "remote_workspace_snapshot") return { retired: false, reason: "not_a_workspace_save" };
     if (operation.status === "running" || operation.status === "pending") return { retired: false, reason: "save_in_progress" };
@@ -31,10 +31,10 @@ export async function retireEndedRemoteSnapshotLedgerRow(tx: Db, input: {
     if (work && (work.unknown || work.activeIds.length)) return { retired: false, reason: "save_work_unsettled" };
   }
   const [run] = await tx.select({ status: heartbeatRuns.status }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, snapshot.companyId), eq(heartbeatRuns.id, snapshot.sourceRunId)));
+    eq(heartbeatRuns.spaceId, snapshot.spaceId), eq(heartbeatRuns.id, snapshot.sourceRunId)));
   if (run && !TERMINAL_RUN_STATUSES.includes(run.status)) return { retired: false, reason: "owner_run_active" };
   const [workspace] = await tx.select({ metadata: executionWorkspaces.metadata }).from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, snapshot.companyId), eq(executionWorkspaces.id, snapshot.executionWorkspaceId)));
+    eq(executionWorkspaces.spaceId, snapshot.spaceId), eq(executionWorkspaces.id, snapshot.executionWorkspaceId)));
   const authority = readRemoteWorkspaceAuthority(workspace?.metadata);
   if (authority && authority.epoch === snapshot.epoch && authority.writerRunId === snapshot.sourceRunId) {
     return { retired: false, reason: "writer_epoch_current" };
@@ -62,25 +62,25 @@ export async function abortRetiredSnapshotUploads(snapshots: Snapshot[], storage
   if (!attempted.length) return;
   let service: StorageService;
   try { service = storage ?? getStorageService(); } catch { return; }
-  for (const snapshot of attempted) await abortSnapshotAttemptUploads(service, snapshot.companyId, snapshotAttemptKeys(snapshot));
+  for (const snapshot of attempted) await abortSnapshotAttemptUploads(service, snapshot.spaceId, snapshotAttemptKeys(snapshot));
 }
 
 export async function settleAbandonedRemoteSnapshotLedger(db: Db, record: InProgressRecord,
   context: { now: Date; proof: OwnerProof }, options: { storage?: StorageService } = {}): Promise<SettleOutcome> {
-  if (record.owner.kind !== "run" || !record.companyId) return { settled: false, reason: "owner_not_provable" };
-  const companyId = record.companyId;
+  if (record.owner.kind !== "run" || !record.spaceId) return { settled: false, reason: "owner_not_provable" };
+  const spaceId = record.spaceId;
   let publication: ActivityPublication | undefined;
   let retired: Snapshot | undefined;
   const outcome = await db.transaction(async (transaction): Promise<SettleOutcome> => {
     const tx = transaction as unknown as Db;
-    const result = await retireEndedRemoteSnapshotLedgerRow(tx, { companyId, snapshotId: record.recordId,
+    const result = await retireEndedRemoteSnapshotLedgerRow(tx, { spaceId, snapshotId: record.recordId,
       now: context.now, proof: context.proof.reason });
     if (!result.retired) {
       return { settled: false, reason: result.reason,
         ...(["upload_published", "not_a_workspace_save"].includes(result.reason) ? { watch: false } : {}) };
     }
     const activity = await persistActivity(tx, {
-      companyId, actorType: "system", actorId: "ownership-reconciler",
+      spaceId, actorType: "system", actorId: "ownership-reconciler",
       action: "workspace_snapshot.reconciled", entityType: "execution_workspace", entityId: result.snapshot.executionWorkspaceId,
       runId: result.snapshot.sourceRunId, details: { snapshotId: result.snapshot.id, status: result.status,
         ...(result.snapshot.metadata?.abandonedUpload as Record<string, unknown>) },
@@ -95,14 +95,14 @@ export async function settleAbandonedRemoteSnapshotLedger(db: Db, record: InProg
 }
 
 export async function retireAbandonedSaveLedgerRows(tx: Db, input: {
-  companyId: string; operationId: string; now: Date; proof: string;
+  spaceId: string; operationId: string; now: Date; proof: string;
 }) {
   const rows = await tx.select({ id: executionWorkspaceSnapshots.id }).from(executionWorkspaceSnapshots).where(and(
-    eq(executionWorkspaceSnapshots.companyId, input.companyId), eq(executionWorkspaceSnapshots.sourceOperationId, input.operationId),
+    eq(executionWorkspaceSnapshots.spaceId, input.spaceId), eq(executionWorkspaceSnapshots.sourceOperationId, input.operationId),
     eq(executionWorkspaceSnapshots.status, "pending")));
   const retired: Snapshot[] = [];
   for (const row of rows) {
-    const result = await retireEndedRemoteSnapshotLedgerRow(tx, { companyId: input.companyId, snapshotId: row.id, now: input.now, proof: input.proof });
+    const result = await retireEndedRemoteSnapshotLedgerRow(tx, { spaceId: input.spaceId, snapshotId: row.id, now: input.now, proof: input.proof });
     if (result.retired) retired.push(result.snapshot);
   }
   return retired;

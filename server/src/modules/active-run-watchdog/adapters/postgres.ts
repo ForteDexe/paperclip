@@ -58,7 +58,7 @@ function issueContextId(contextSnapshot: unknown): string | null {
 function toRunSnapshot(row: typeof heartbeatRuns.$inferSelect): RunSnapshot {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     agentId: row.agentId,
     status: row.status,
     lastOutputAt: row.lastOutputAt,
@@ -75,20 +75,20 @@ function toRunSnapshot(row: typeof heartbeatRuns.$inferSelect): RunSnapshot {
   };
 }
 
-function runtimeSettlementPending(companyId: string, runId: string) {
+function runtimeSettlementPending(spaceId: string, runId: string) {
   return sql<boolean>`(
     ${heartbeatRuns.runtimeMode} = 'native'
     or coalesce(${heartbeatRuns.resultJson}->>'workspaceRestoreFailure', '') <> ''
     or exists (
       select 1 from ${environmentLeases}
-      where ${environmentLeases.companyId} = ${companyId}
+      where ${environmentLeases.spaceId} = ${spaceId}
         and ${environmentLeases.heartbeatRunId} = ${runId}
         and ${environmentLeases.providerLeaseId} is not null
         and ${environmentLeases.status} in ('active', 'acquiring')
     )
     or exists (
       select 1 from ${workspaceOperations}
-      where ${workspaceOperations.companyId} = ${companyId}
+      where ${workspaceOperations.spaceId} = ${spaceId}
         and ${workspaceOperations.heartbeatRunId} = ${runId}
         and ${workspaceOperations.phase} = 'workspace_finalize'
         and ${workspaceOperations.status} in ('running', 'failed')
@@ -101,7 +101,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
   const recoveryActionsSvc = issueRecoveryActionService(db);
 
   async function findCandidateSilentRuns(input: {
-    companyId?: string;
+    spaceId?: string;
     runId?: string;
     suspicionBefore: Date;
     issueCreatedAtGte?: Date | null;
@@ -111,7 +111,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
       .from(heartbeatRuns)
       .where(
         and(
-          input.companyId ? eq(heartbeatRuns.companyId, input.companyId) : undefined,
+          input.spaceId ? eq(heartbeatRuns.spaceId, input.spaceId) : undefined,
           input.runId ? eq(heartbeatRuns.id, input.runId) : undefined,
           eq(heartbeatRuns.status, "running"),
           sql`coalesce(${heartbeatRuns.lastOutputAt}, ${heartbeatRuns.processStartedAt}, ${heartbeatRuns.startedAt}, ${heartbeatRuns.createdAt}) <= ${input.suspicionBefore.toISOString()}::timestamptz`,
@@ -143,23 +143,23 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
     return candidates;
   }
 
-  async function findRunForCompany(companyId: string, runId: string): Promise<RunSnapshot | null> {
+  async function findRunForSpace(spaceId: string, runId: string): Promise<RunSnapshot | null> {
     const [row] = await db
       .select()
       .from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId)))
+      .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId)))
       .limit(1);
     return row ? toRunSnapshot(row) : null;
   }
 
-  async function isRuntimeSettlementPending(companyId: string, runId: string): Promise<boolean> {
+  async function isRuntimeSettlementPending(spaceId: string, runId: string): Promise<boolean> {
     const [row] = await db.select({
-      pending: sql<boolean>`${heartbeatRuns.status} <> 'running' or ${runtimeSettlementPending(companyId, runId)}`,
-    }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId)));
+      pending: sql<boolean>`${heartbeatRuns.status} <> 'running' or ${runtimeSettlementPending(spaceId, runId)}`,
+    }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId)));
     return row?.pending ?? true;
   }
 
-  async function findLatestDecision(companyId: string, runId: string, now: Date) {
+  async function findLatestDecision(spaceId: string, runId: string, now: Date) {
     const [quietUntilRows, dismissedRows] = await Promise.all([
       db
         .select({
@@ -169,7 +169,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
         .from(heartbeatRunWatchdogDecisions)
         .where(
           and(
-            eq(heartbeatRunWatchdogDecisions.companyId, companyId),
+            eq(heartbeatRunWatchdogDecisions.spaceId, spaceId),
             eq(heartbeatRunWatchdogDecisions.runId, runId),
             inArray(heartbeatRunWatchdogDecisions.decision, ["snooze", "continue"]),
             gt(heartbeatRunWatchdogDecisions.snoozedUntil, now),
@@ -182,7 +182,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
         .from(heartbeatRunWatchdogDecisions)
         .where(
           and(
-            eq(heartbeatRunWatchdogDecisions.companyId, companyId),
+            eq(heartbeatRunWatchdogDecisions.spaceId, spaceId),
             eq(heartbeatRunWatchdogDecisions.runId, runId),
             eq(heartbeatRunWatchdogDecisions.decision, "dismissed_false_positive"),
           ),
@@ -204,20 +204,20 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
       identifier: issues.identifier,
       status: issues.status,
       assigneeAgentId: issues.assigneeAgentId,
-      companyId: issues.companyId,
+      spaceId: issues.spaceId,
       originKind: issues.originKind,
       originId: issues.originId,
       hiddenAt: issues.hiddenAt,
     };
   }
 
-  async function findOpenStaleRunEvaluation(companyId: string, runId: string): Promise<EvaluationIssueSnapshot | null> {
+  async function findOpenStaleRunEvaluation(spaceId: string, runId: string): Promise<EvaluationIssueSnapshot | null> {
     const [row] = await db
       .select(selectEvaluationIssueSnapshot())
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, companyId),
+          eq(issues.spaceId, spaceId),
           eq(issues.originKind, STALE_ACTIVE_RUN_EVALUATION_ORIGIN_KIND),
           eq(issues.originId, runId),
           visibleIssueCondition(),
@@ -228,16 +228,16 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
     return row ?? null;
   }
 
-  async function findEvaluationIssueById(companyId: string, issueId: string): Promise<EvaluationIssueSnapshot | null> {
+  async function findEvaluationIssueById(spaceId: string, issueId: string): Promise<EvaluationIssueSnapshot | null> {
     const [row] = await db
       .select(selectEvaluationIssueSnapshot())
       .from(issues)
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, companyId)))
+      .where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId)))
       .limit(1);
     return row ?? null;
   }
 
-  async function findLatestSameRunTerminalEvidence(companyId: string, input: {
+  async function findLatestSameRunTerminalEvidence(spaceId: string, input: {
     runId: string;
     sourceIssueId: string;
     sourceIssueStatus: string;
@@ -245,7 +245,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
   }) {
     if (!isTerminalIssueStatus(input.sourceIssueStatus)) return null;
     const activityPredicates = [
-      eq(activityLog.companyId, companyId),
+      eq(activityLog.spaceId, spaceId),
       eq(activityLog.runId, input.runId),
       eq(activityLog.action, "issue.updated"),
       eq(activityLog.entityType, "issue"),
@@ -267,30 +267,30 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
     return activity ? { kind: "activity" as const, id: activity.id, createdAt: activity.createdAt, action: activity.action } : null;
   }
 
-  async function findSourceIssue(companyId: string, issueId: string): Promise<SourceIssueSnapshot | null> {
+  async function findSourceIssue(spaceId: string, issueId: string): Promise<SourceIssueSnapshot | null> {
     const [row] = await db
       .select({ id: issues.id, identifier: issues.identifier, status: issues.status, originKind: issues.originKind })
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.id, issueId), visibleIssueCondition()))
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.id, issueId), visibleIssueCondition()))
       .limit(1);
     return row ? { ...row, isRecoveryOriginKind: isRecoveryOriginKind(row.originKind) } : null;
   }
 
-  async function findRunningAgent(companyId: string, agentId: string) {
+  async function findRunningAgent(spaceId: string, agentId: string) {
     const [row] = await db
-      .select({ id: agents.id, companyId: agents.companyId, adapterType: agents.adapterType })
+      .select({ id: agents.id, spaceId: agents.spaceId, adapterType: agents.adapterType })
       .from(agents)
-      .where(and(eq(agents.id, agentId), eq(agents.companyId, companyId)))
+      .where(and(eq(agents.id, agentId), eq(agents.spaceId, spaceId)))
       .limit(1);
     return row ?? null;
   }
 
-  async function recordDecision(companyId: string, input: RecordDecisionInput): Promise<WatchdogDecisionRecord> {
+  async function recordDecision(spaceId: string, input: RecordDecisionInput): Promise<WatchdogDecisionRecord> {
     const [row] = await db.transaction(async tx => {
-      await notifyActiveRunSilence(tx, { companyId, runId: input.runId });
+      await notifyActiveRunSilence(tx, { spaceId, runId: input.runId });
       return tx.insert(heartbeatRunWatchdogDecisions)
       .values({
-        companyId,
+        spaceId,
         runId: input.runId,
         evaluationIssueId: input.evaluationIssueId,
         decision: input.decision,
@@ -304,12 +304,12 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
     });
 
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: input.actor.type === "agent" ? "agent" : "user",
       actorId: input.actor.type === "agent"
         ? input.actor.agentId ?? "agent"
-        : input.actor.type === "board"
-          ? input.actor.userId ?? "board"
+        : input.actor.type === "operator"
+          ? input.actor.userId ?? "operator"
           : "unknown",
       agentId: input.actor.type === "agent" ? input.actor.agentId ?? null : null,
       runId: input.runId,
@@ -328,7 +328,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
     return { ...row, decision: row.decision as WatchdogDecisionRecord["decision"] };
   }
 
-  async function foldSourceResolvedRun(companyId: string, input: FoldSourceResolvedRunInput): Promise<FoldOutcome> {
+  async function foldSourceResolvedRun(spaceId: string, input: FoldSourceResolvedRunInput): Promise<FoldOutcome> {
     const finalRunStatus = input.sourceIssue.status === "cancelled" ? "cancelled" : "succeeded";
     const postCommitIssueActions: IssuePostCommitAction[] = [];
     const resultJson = {
@@ -351,11 +351,11 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
     const transactionResult = await db.transaction(async (tx) => {
       await notifyLiveRunRecovery(tx, input.run);
       await notifyLiveResourceRecovery(tx, input.run);
-      await notifyInstructionCollection(tx, { companyId, runId: input.run.id });
-      await notifyExternalAgentSettlement(tx, { companyId, runId: input.run.id });
-      await notifyCancelledWorkspacePreservation(tx, { companyId, runId: input.run.id });
-      await notifyUnsafeWorkspaceExportRecovery(tx, { companyId, issueId: input.sourceIssue.id });
-      await notifyNativeStatusReassessment(tx, { companyId, issueId: input.sourceIssue.id });
+      await notifyInstructionCollection(tx, { spaceId, runId: input.run.id });
+      await notifyExternalAgentSettlement(tx, { spaceId, runId: input.run.id });
+      await notifyCancelledWorkspacePreservation(tx, { spaceId, runId: input.run.id });
+      await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId, issueId: input.sourceIssue.id });
+      await notifyNativeStatusReassessment(tx, { spaceId, issueId: input.sourceIssue.id });
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
       const [updatedRun] = await tx
         .update(heartbeatRuns)
@@ -369,9 +369,9 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
         })
         .where(and(
           eq(heartbeatRuns.id, input.run.id),
-          eq(heartbeatRuns.companyId, companyId),
+          eq(heartbeatRuns.spaceId, spaceId),
           eq(heartbeatRuns.status, "running"),
-          sql`not ${runtimeSettlementPending(companyId, input.run.id)}`,
+          sql`not ${runtimeSettlementPending(spaceId, input.run.id)}`,
         ))
         .returning();
       if (!updatedRun) return null;
@@ -387,13 +387,13 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
           })
           .where(and(
             eq(agentWakeupRequests.id, input.run.wakeupRequestId),
-            eq(agentWakeupRequests.companyId, companyId),
+            eq(agentWakeupRequests.spaceId, spaceId),
             // A late success fold cannot restore cancelled assignment authority.
             ne(agentWakeupRequests.status, "cancelled"),
           ));
       }
 
-      await notifyStatusCardIssueChange(tx, companyId);
+      await notifyStatusCardIssueChange(tx, spaceId);
       await tx
         .update(issues)
         .set({
@@ -404,7 +404,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
         })
         .where(and(
           eq(issues.id, input.sourceIssue.id),
-          eq(issues.companyId, companyId),
+          eq(issues.spaceId, spaceId),
           eq(issues.executionRunId, input.run.id),
         ));
 
@@ -430,13 +430,13 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
       }
 
       const activeRecoveryAction = await recoveryActionsSvc.getActiveForIssue(
-        companyId,
+        spaceId,
         input.sourceIssue.id,
         tx,
       );
       if (activeRecoveryAction?.kind === "active_run_watchdog") {
         await recoveryActionsSvc.resolveActiveForIssue({
-          companyId,
+          spaceId,
           sourceIssueId: input.sourceIssue.id,
           actionId: activeRecoveryAction.id,
           status: "resolved",
@@ -448,7 +448,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
       const [decision] = await tx
         .insert(heartbeatRunWatchdogDecisions)
         .values({
-          companyId,
+          spaceId,
           runId: input.run.id,
           evaluationIssueId: input.existingEvaluation?.id ?? null,
           decision: "dismissed_false_positive",
@@ -458,7 +458,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
         .returning();
 
       await appendHeartbeatRunEvent(tx as unknown as Db, {
-        companyId,
+        spaceId,
         runId: input.run.id,
         agentId: input.run.agentId,
         eventType: "lifecycle",
@@ -469,7 +469,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
       });
 
       await logActivity(tx as unknown as Db, {
-        companyId,
+        spaceId,
         actorType: "system",
         actorId: "system",
         agentId: input.run.agentId,
@@ -495,7 +495,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
         .select({ count: sql<number>`count(*)::int` })
         .from(heartbeatRuns)
         .where(and(
-          eq(heartbeatRuns.companyId, companyId),
+          eq(heartbeatRuns.spaceId, spaceId),
           eq(heartbeatRuns.agentId, input.run.agentId),
           eq(heartbeatRuns.status, "running"),
         ));
@@ -507,7 +507,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
         .set({ status: nextAgentStatus, lastHeartbeatAt: new Date(), updatedAt: new Date() })
         .where(and(
           eq(agents.id, input.run.agentId),
-          eq(agents.companyId, companyId),
+          eq(agents.spaceId, spaceId),
           notInArray(agents.status, ["paused", "terminated"]),
           eq(agents.lifecycleState, "ready"),
         ));
@@ -529,7 +529,7 @@ export function createPostgresWatchdogAdapter(db: Db): WatchdogRunReader & Watch
 
   return {
     findCandidateSilentRuns,
-    findRunForCompany,
+    findRunForSpace,
     isRuntimeSettlementPending,
     findLatestDecision,
     findOpenStaleRunEvaluation,

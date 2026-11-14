@@ -45,18 +45,18 @@ function statusVariant(status: ToolProfileWithDetails["status"]): "default" | "s
 }
 
 export function ProfilesIndex({
-  companyId,
+  spaceId,
   initialStatusFilter,
   initialResolverOpen,
 }: {
-  companyId: string;
+  spaceId: string;
   initialStatusFilter?: "active" | "archived";
   initialResolverOpen?: boolean;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
-  const { profiles, agents } = useProfilesData(companyId);
+  const { profiles, agents } = useProfilesData(spaceId);
   const profilesView = useQueryView(profiles);
   const [resolverOpen, setResolverOpen] = useState(Boolean(initialResolverOpen));
   const [statusFilter, setStatusFilter] = useState<"active" | "archived">(initialStatusFilter ?? "active");
@@ -75,7 +75,7 @@ export function ProfilesIndex({
   );
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.tools.profiles(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.tools.profiles(spaceId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.tools.testAgentAccesses() });
   };
 
@@ -150,7 +150,7 @@ export function ProfilesIndex({
           </SheetDescription>
         </SheetHeader>
         <div className="flex min-h-0 flex-1 flex-col p-4">
-          <EffectiveAgentPanel companyId={companyId} agentOptions={agentOptions} />
+          <EffectiveAgentPanel spaceId={spaceId} agentOptions={agentOptions} />
         </div>
       </SheetContent>
     </Sheet>
@@ -268,7 +268,7 @@ export function ProfilesIndex({
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 text-foreground">
-                          {profile.summary.isCompanyDefault ? null : (
+                          {profile.summary.isSpaceDefault ? null : (
                             <Users className="h-3.5 w-3.5 text-muted-foreground" />
                           )}
                           {assigned.text}

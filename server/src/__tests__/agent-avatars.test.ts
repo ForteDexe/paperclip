@@ -84,7 +84,7 @@ describe("on-demand agent avatars", () => {
     const send = vi.spyOn(S3Client.prototype, "send").mockImplementation(async (command: any) => {
       const key = command.input.Key as string;
       expect(command.input.Bucket).toBe("avatar-test");
-      expect(key).toMatch(/^paperclip\/generated-agent-avatars\/cap-v1\//);
+      expect(key).toMatch(/^outpost\/generated-agent-avatars\/cap-v1\//);
       if (command instanceof PutObjectCommand) { objects.set(key, Buffer.from(command.input.Body as Uint8Array)); return {}; }
       if (command instanceof DeleteObjectCommand) { objects.delete(key); return {}; }
       const bytes = objects.get(key);
@@ -94,7 +94,7 @@ describe("on-demand agent avatars", () => {
       throw new Error("Unexpected S3 command");
     });
     try {
-      const provider = createS3StorageProvider({ bucket: "avatar-test", region: "us-east-1", prefix: "paperclip" });
+      const provider = createS3StorageProvider({ bucket: "avatar-test", region: "us-east-1", prefix: "outpost" });
       const render = vi.fn(async () => Buffer.from("s3-avatar"));
       const first = await createAgentAvatarService(provider, render).get(request);
       const second = await createAgentAvatarService(provider, render).get(request);
@@ -124,7 +124,7 @@ describe("on-demand agent avatars", () => {
     }
     expect(data[(256 * info.width + 256) * info.channels + 3]).toBe(255);
   }, 20_000);
-  it("serves Slack exports on the Paperclip dark-mode color in a separate cache", async () => {
+  it("serves Slack exports on the Outpost dark-mode color in a separate cache", async () => {
     const css = await readFile(new URL("../../../ui/src/index.css", import.meta.url), "utf8");
     const lightness = Number(css.match(/\.dark\s*\{\s*--background:\s*oklch\(([\d.]+) 0 0\)/)?.[1]);
     // Neutral OKLCH converts to equal sRGB channels; PNG rounds to 8-bit color.
@@ -134,14 +134,14 @@ describe("on-demand agent avatars", () => {
     const service = createAgentAvatarService(await storage()); cleanups.push(() => service.close());
     const url = await serve(service);
     const clear = await fetch(url + "?size=512&scale=1");
-    const dark = await fetch(url + "?size=512&scale=1&background=paperclip-dark");
+    const dark = await fetch(url + "?size=512&scale=1&background=outpost-dark");
     expect(dark.status).toBe(200);
     expect(dark.headers.get("etag")).not.toBe(clear.headers.get("etag"));
     const clearPixels = await sharp(Buffer.from(await clear.arrayBuffer())).ensureAlpha().raw().toBuffer();
     const darkPixels = await sharp(Buffer.from(await dark.arrayBuffer())).ensureAlpha().raw().toBuffer();
     expect(Array.from(clearPixels.subarray(0, 4))).toEqual([0, 0, 0, 0]);
     expect(Array.from(darkPixels.subarray(0, 4))).toEqual([channel, channel, channel, 255]);
-    expect(avatarCacheKey({ ...request, background: "paperclip-dark" })).not.toBe(avatarCacheKey(request));
+    expect(avatarCacheKey({ ...request, background: "outpost-dark" })).not.toBe(avatarCacheKey(request));
     const invalid = await fetch(url + "?background=white");
     expect(invalid.status).toBe(400); await invalid.text();
   }, 20_000);

@@ -20,7 +20,7 @@ export function projectIdleProviderTraceSchedule(rows: IdleProviderTraceRow[], n
     const objectRef = objectProviderTraceRef(trace.traceRef);
     const localRef = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.ndjson$/.test(trace.traceRef);
     if (localRef && trace.status === "deleted" && trace.deletedAt) continue;
-    if (importingProviderTraceRef(trace.traceRef) || (objectRef && (objectRef[1] !== trace.companyId || objectRef[2] !== trace.runId))
+    if (importingProviderTraceRef(trace.traceRef) || (objectRef && (objectRef[1] !== trace.spaceId || objectRef[2] !== trace.runId))
       || (!objectRef && !localRef)
       || trace.deletedAt || !["complete", "incomplete", "truncated"].includes(trace.status)) return blocked();
     const at = trace.expiresAt.getTime();
@@ -32,7 +32,7 @@ export function projectIdleProviderTraceSchedule(rows: IdleProviderTraceRow[], n
 export async function readIdleProviderTraceSchedule(tx: Pick<Db, "select">, now: number) {
   const rows = await tx.select({ trace: getTableColumns(providerTraceRecords),
     finishedRun: sql<boolean>`EXISTS (SELECT 1 FROM heartbeat_runs r WHERE r.id = ${providerTraceRecords.runId}
-      AND r.company_id = ${providerTraceRecords.companyId} AND ${sql.raw(finishedIdleRun("r"))})`,
+      AND r.space_id = ${providerTraceRecords.spaceId} AND ${sql.raw(finishedIdleRun("r"))})`,
   }).from(providerTraceRecords).orderBy(providerTraceRecords.id).limit(idleDeadlineRowLimit + 1);
   return projectIdleProviderTraceSchedule(rows, now);
 }

@@ -3,9 +3,9 @@ import { gradeGatewayCreate, requestedGateways } from "./external-gateways-profi
 
 function observation(agentCreated = true) {
   const gateway = agentCreated
-    ? { id: "gateway", companyId: "company", profileId: "profile", name: "Website", createdByAgentId: "ceo", tokens: [] as Array<{ pendingReveal?: boolean }> }
-    : { id: "gateway", companyId: "company", profileId: "profile", name: "Website team tools", createdByAgentId: null, tokens: [] as Array<{ pendingReveal?: boolean }> };
-  return { scenarioId: "gateways-profiles.create-gateway", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+    ? { id: "gateway", spaceId: "space", profileId: "profile", name: "Website", createdByAgentId: "ceo", tokens: [] as Array<{ pendingReveal?: boolean }> }
+    : { id: "gateway", spaceId: "space", profileId: "profile", name: "Website team tools", createdByAgentId: null, tokens: [] as Array<{ pendingReveal?: boolean }> };
+  return { scenarioId: "gateways-profiles.create-gateway", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     reply: "Created the gateway. Open [Website](/COM/apps/gateways/gateway/overview).", phaseReplies: [], connections: [], profiles: [], secrets: [], endpoints: [], interactions: [],
     activity: [{ id: "event", entityId: "gateway", actorType: agentCreated ? "agent" : "user", action: "tool_gateway.created" }], links: [], runs: [], humanQueries: [],
     state: { profileId: "profile", gatewaysAfter: [gateway], gatewayCountBeforeHuman: agentCreated ? 1 : 0, ...(agentCreated ? { agentCreated: true } : { humanCreated: true }),
@@ -24,7 +24,7 @@ describe("create-gateway oracle", () => {
     const o = observation(); (o.state.gatewaysAfter as Array<{ tokens: Array<{ pendingReveal?: boolean }> }>)[0]!.tokens = [{ pendingReveal: true }];
     expect(gradeGatewayCreate(o).passed).toBe(true);
   });
-  it("ignores Paperclip's own runtime gateway when counting requested gateways", () => {
+  it("ignores Outpost's own runtime gateway when counting requested gateways", () => {
     const native = { id: "native", metadata: { nativeRuntimeAssignmentDigest: "abc", agentId: "ceo" }, createdByAgentId: "ceo" };
     const requested = { id: "gateway", metadata: {}, createdByAgentId: "ceo" };
     expect(requestedGateways([native, requested]).map(row => row.id)).toEqual(["gateway"]);
@@ -32,7 +32,7 @@ describe("create-gateway oracle", () => {
   });
   it("rejects wrong scope, duplicates, unlinked results, wrong attribution and token values", () => {
     for (const mutate of [
-      (o: ReturnType<typeof observation>) => { (o.state.gatewaysAfter as Array<{ companyId: string }>)[0]!.companyId = "other"; },
+      (o: ReturnType<typeof observation>) => { (o.state.gatewaysAfter as Array<{ spaceId: string }>)[0]!.spaceId = "other"; },
       (o: ReturnType<typeof observation>) => { (o.state.gatewaysAfter as Array<{ profileId: string }>)[0]!.profileId = "other"; },
       (o: ReturnType<typeof observation>) => { (o.state.gatewaysAfter as unknown[]).push({ ...(o.state.gatewaysAfter as object[])[0]!, id: "second" }); },
       (o: ReturnType<typeof observation>) => { (o.state.gatewaysAfter as Array<{ createdByAgentId: string | null }>)[0]!.createdByAgentId = "someone-else"; },

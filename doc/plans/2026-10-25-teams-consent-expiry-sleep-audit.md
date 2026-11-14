@@ -17,7 +17,7 @@ expiry must not convert them into retries or manufacture delivery receipts.
 
 ## Owner and persistence
 
-chatTeamsFileTransfers already owns the phase, expiry, company, endpoint,
+chatTeamsFileTransfers already owns the phase, expiry, space, endpoint,
 publication, version, authority digest and encrypted private state. No schema or
 new queue table is needed. teamsFileTransferService is the only production insert
 and update owner found by the initial writer search. Its issue() insertion and
@@ -30,7 +30,7 @@ The existing lock order is publication -> transfer -> projection policy/source
 locks. Expiry rechecks eligibility after those locks and performs no provider
 I/O. Integrity checks and projection in the same transaction must remain intact.
 Maintenance lock waits are bounded to 250ms, with no-wait publication/transfer
-locking. A bad or locked row must not starve other companies or later rows.
+locking. A bad or locked row must not starve other spaces or later rows.
 Never log private envelopes, SQL parameter errors, provider capabilities or tokens.
 
 ## Intended migration
@@ -66,7 +66,7 @@ cannot expire consent. Full stack checks and master reconciliation remain requir
 ## Other outstanding gates
 
 #17586 is published, attached, and locally verified; remote CI/reviews are pending.
-#17580's company deletion policy finding and #17490's E2E cancellation failure are
+#17580's space deletion policy finding and #17490's E2E cancellation failure are
 still unresolved. No original recurring-server obligation is removed from scope.
 
 ## Implementation and acceptance
@@ -116,7 +116,7 @@ Evidence logs: `/tmp/sleep26-teams-tests.log` (initial two fixture failures),
 `/tmp/sleep26-workspace-{types,build}.log` (pass).
 
 Parent #17586 at 250fca6cff has passing Actions, security and Greptile checks;
-Paperclip Review is still running at the latest inspection. This does not clear
+Outpost Review is still running at the latest inspection. This does not clear
 older stack findings or imply merge authority. Refreshed master is b7dc594bfa;
 final whole-stack reconciliation is still required.
 
@@ -177,7 +177,7 @@ and `/tmp/sleep26-bounded-final-boundaries.log`.
 
 Current stack state supersedes the historical outstanding-gates paragraph:
 cleanup and retention have landed, including the repaired legacy ownership case
-and the explicitly accepted company-deletion ownership policy. The report parent
+and the explicitly accepted space-deletion ownership policy. The report parent
 has a documentation-only follow-up after `c28de398` and still needs its own latest
 CI/reviews. This local Teams preparation must preserve that actual landed parent
 before publication; it is not authority to merge into an unmerged feature branch.
@@ -188,12 +188,12 @@ before publication; it is not authority to merge into an unmerged feature branch
 Current Teams head `36f43922` received exact-head Greptile 5/5 and Ponytail 5/5,
 but CI run `40708566195`, server shard 6/12 job `122887395220`, failed the existing
 voice-retention case `pages through more than one batch of history across
-companies`. The shard had 2,291 passed tests, one failed and one skipped. Its
-initial assertion expected the other company's row already deleted after one
+spaces`. The shard had 2,291 passed tests, one failed and one skipped. Its
+initial assertion expected the other space's row already deleted after one
 startup batch, even when its random ID put it beyond the first 100-row inventory
 page. This CI failure is not accepted as green evidence.
 
-Placing the other company at a fixed final UUID reproduces the exact assertion.
+Placing the other space at a fixed final UUID reproduces the exact assertion.
 The fixture now uses a supplied ID for both insertion and its transaction hint.
 The test controls scheduler time, requires that row to remain before discovery,
 then requires its deletion in the next fair batch after page-two discovery. It
@@ -205,7 +205,7 @@ expectation without changing retention, Teams, or shared scheduler behavior.
 The complete 13-case retention suite passes. Its run spent 96.66 seconds in
 module transforms but all actual cases completed successfully; no timeout was
 increased and this was not counted as a failed test or silently retried. A
-guarded mutation bypassing company rotation fails the new post-discovery fair
+guarded mutation bypassing space rotation fails the new post-discovery fair
 batch assertion. The original shared helper was restored byte-for-byte. The
 previous 223-case Teams acceptance remains evidence for unchanged Teams source;
 these 13 retention cases are a separate CI-repair acceptance group. Earlier

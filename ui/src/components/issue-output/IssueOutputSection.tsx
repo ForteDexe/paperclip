@@ -127,7 +127,7 @@ export function IssueOutputSection({ workProducts, resolveCreatorName, onMediaCl
         <span className="text-xs text-muted-foreground">{count}</span>
       </div>
 
-      {/* Stable anchor target so company Artifacts cards can deep-link to a
+      {/* Stable anchor target so space Artifacts cards can deep-link to a
           specific work product inside its issue context (PAP-10359). */}
       <div id={`work-product-${primary.id}`} className="scroll-mt-20">
         <OutputPrimaryCard item={primary} creatorName={creatorFor(primary)} onMediaClick={onMediaClick} />

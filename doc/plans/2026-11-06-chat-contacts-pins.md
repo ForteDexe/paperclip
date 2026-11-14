@@ -8,7 +8,7 @@ CHAT section heading and retains the shared properties control.
 Agent pins are available in the contact directory and Agents list. A pin opens
 the existing direct-chat route. Personal page and agent pins share one ordered
 Pinned section. Pointer and keyboard sorting preserve the stored order without
-removing pins hidden by a company switch. The drag grip sits after unpin.
+removing pins hidden by a space switch. The drag grip sits after unpin.
 Hover and focus controls share the highlighted row surface. The fade masks only
 the text behind the control.
 
@@ -31,7 +31,7 @@ Use the directory, sidebar, breadcrumb, task-row and history tests. Run the UI
 typecheck, build and token gates. Verify mouse and keyboard pin sorting,
 create-agent dialog access, full-width search and header, and overflow at both
 Recents edges. Use both long and short viewports. Preserve existing unread-chat
-counts and account/company boundaries.
+counts and account/space boundaries.
 
 An early row-wide drag allowed native link navigation after sorting. A dedicated
 grip and prevention of native link dragging fixed it. The regression failed
@@ -44,7 +44,7 @@ Reserve separate space for unread badges and pin actions, including touch input.
 Unread rows do not fade text that the pin no longer covers. Build pin sets and
 item maps once per list, keep their inputs stable, and share pin state across
 agent rows. Large-list regressions count input reads and pin parsing for five
-hundred agents and pins. Reordering retains hidden-company slots. Task history
+hundred agents and pins. Reordering retains hidden-space slots. Task history
 also uses indexed summary lookups now that it is no longer capped at five rows.
 
 ## Browser journey alignment

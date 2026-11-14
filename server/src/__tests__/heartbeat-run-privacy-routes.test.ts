@@ -10,8 +10,8 @@ import {
   agentRuntimeState,
   activityLog,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   connectionGrants,
   createDb,
   heartbeatRunEvents,
@@ -46,7 +46,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
   const previousPrivacyMode = process.env.OUTPOST_ISSUE_PRIVACY_MODE;
 
   beforeAll(async () => {
-    if (!externalDatabaseUrl) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-run-privacy-routes-");
+    if (!externalDatabaseUrl) tempDb = await startEmbeddedPostgresTestDatabase("outpost-run-privacy-routes-");
     db = createDb(externalDatabaseUrl ?? tempDb!.connectionString);
     process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce";
   }, 120_000);
@@ -62,8 +62,8 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     await db.delete(heartbeatRuns);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
     await db.delete(authUsers);
   });
 
@@ -75,7 +75,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
   });
 
   async function seedFixture() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const ownerAgentId = randomUUID();
     const grantedAgentId = randomUUID();
     const otherAgentId = randomUUID();
@@ -86,11 +86,11 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     const maintenanceRunId = randomUUID();
     const operationId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Run Privacy",
       issuePrefix: "RPR",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(authUsers).values([ownerUserId, otherUserId].map((id) => ({
       id,
@@ -100,8 +100,8 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
       createdAt: new Date(),
       updatedAt: new Date(),
     })));
-    await db.insert(companyMemberships).values([ownerUserId, otherUserId].map((principalId) => ({
-      companyId,
+    await db.insert(spaceMemberships).values([ownerUserId, otherUserId].map((principalId) => ({
+      spaceId,
       principalType: "user",
       principalId,
       status: "active",
@@ -110,7 +110,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     await db.insert(agents).values([
       {
         id: ownerAgentId,
-        companyId,
+        spaceId,
         name: "Owner",
         role: "engineer",
         adapterType: "process",
@@ -120,7 +120,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
       },
       {
         id: grantedAgentId,
-        companyId,
+        spaceId,
         name: "Granted reviewer",
         role: "security",
         adapterType: "process",
@@ -130,7 +130,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
       },
       {
         id: otherAgentId,
-        companyId,
+        spaceId,
         name: "Other agent",
         role: "engineer",
         adapterType: "process",
@@ -141,7 +141,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     ]);
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       identifier: "RPR-1",
       title: "Confidential email triage",
       description: "private@example.test",
@@ -164,7 +164,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     await db.insert(heartbeatRuns).values([
       {
         id: privateRunId,
-        companyId,
+        spaceId,
         agentId: ownerAgentId,
         scopeKind: "issue",
         issueId,
@@ -180,9 +180,9 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
       },
       {
         id: maintenanceRunId,
-        companyId,
+        spaceId,
         agentId: ownerAgentId,
-        scopeKind: "company",
+        scopeKind: "space",
         issueId: null,
         invocationSource: "timer",
         status: "succeeded",
@@ -193,7 +193,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
       },
     ]);
     await db.insert(heartbeatRunEvents).values({
-      companyId,
+      spaceId,
       runId: privateRunId,
       agentId: ownerAgentId,
       seq: 1,
@@ -203,7 +203,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     });
     await db.insert(workspaceOperations).values({
       id: operationId,
-      companyId,
+      spaceId,
       heartbeatRunId: privateRunId,
       issueId: null,
       phase: "provision",
@@ -215,7 +215,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     });
 
     return {
-      companyId,
+      spaceId,
       ownerAgentId,
       grantedAgentId,
       otherAgentId,
@@ -228,14 +228,14 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     };
   }
 
-  function createApp(companyId: string, agentId: string, sourceDb = db) {
+  function createApp(spaceId: string, agentId: string, sourceDb = db) {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
       req.actor = {
         type: "agent",
         agentId,
-        companyId,
+        spaceId,
         source: "agent_jwt",
       };
       next();
@@ -246,14 +246,14 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     return app;
   }
 
-  function createBoardApp(companyId: string, userId: string) {
+  function createBoardApp(spaceId: string, userId: string) {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
       req.actor = {
-        type: "board",
+        type: "operator",
         userId,
-        companyIds: [companyId],
+        spaceIds: [spaceId],
         source: "session",
         isInstanceAdmin: false,
       };
@@ -274,7 +274,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     const capture = createFullDatabaseResponseCapture({ start: now - 100, end: now + 59_000 }, event => events.push(event));
     installDatabaseResponseCapture(observed, { heartbeatRuns }, capture);
     try {
-      const app = createApp(f.companyId, f.grantedAgentId, observed);
+      const app = createApp(f.spaceId, f.grantedAgentId, observed);
       const response = await request(app).get(`/api/heartbeat-runs/${f.privateRunId}/workspace-operations`).expect(200);
       expect(response.body).toEqual([expect.objectContaining({ id: f.operationId })]);
       capture.flush();
@@ -290,7 +290,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
   it.each(["local_file", "s3_segments"])("returns 404 for private %s run content and metadata-only list stubs", async (logStore) => {
     const fixture = await seedFixture();
     await db.update(heartbeatRuns).set({ logStore }).where(eq(heartbeatRuns.id, fixture.privateRunId));
-    const app = createApp(fixture.companyId, fixture.otherAgentId);
+    const app = createApp(fixture.spaceId, fixture.otherAgentId);
 
     for (const path of [
       `/api/heartbeat-runs/${fixture.privateRunId}`,
@@ -305,7 +305,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
       expect(JSON.stringify(response.body)).not.toContain("private@example.test");
     }
 
-    const history = await request(app).get(`/api/companies/${fixture.companyId}/heartbeat-runs`);
+    const history = await request(app).get(`/api/spaces/${fixture.spaceId}/heartbeat-runs`);
     expect(history.status).toBe(200);
     const privateStub = history.body.find((run: { id: string }) => run.id === fixture.privateRunId);
     expect(privateStub).toMatchObject({
@@ -321,12 +321,12 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     expect(JSON.stringify(privateStub)).not.toContain("summary");
 
     const summarizedHistory = await request(app)
-      .get(`/api/companies/${fixture.companyId}/heartbeat-runs?summary=true`);
+      .get(`/api/spaces/${fixture.spaceId}/heartbeat-runs?summary=true`);
     const summarizedStub = summarizedHistory.body.find((run: { id: string }) => run.id === fixture.privateRunId);
     expect(summarizedStub).toMatchObject({ redacted: true, durationMs: 60_000, costUsd: 0.42 });
     expect(summarizedStub.usageJson).toMatchObject({ inputTokens: 11, outputTokens: 7 });
 
-    const live = await request(app).get(`/api/companies/${fixture.companyId}/live-runs`);
+    const live = await request(app).get(`/api/spaces/${fixture.spaceId}/live-runs`);
     expect(live.status).toBe(200);
     expect(live.body[0]).toMatchObject({ id: fixture.privateRunId, redacted: true, costUsd: 0.42 });
     expect(live.body[0]).not.toHaveProperty("issueId");
@@ -344,11 +344,11 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
       .where(eq(heartbeatRuns.id, f.maintenanceRunId));
     const timeoutId = randomUUID();
     await db.insert(heartbeatRuns).values({
-      id: timeoutId, companyId: f.companyId, agentId: f.otherAgentId, scopeKind: "company",
+      id: timeoutId, spaceId: f.spaceId, agentId: f.otherAgentId, scopeKind: "space",
       invocationSource: "timer", status: "timed_out", createdAt: new Date("2026-10-26T11:00:00Z"),
     });
-    const app = createApp(f.companyId, f.otherAgentId);
-    const path = `/api/companies/${f.companyId}/heartbeat-runs?summary=true&latestFailuresOnly=true`;
+    const app = createApp(f.spaceId, f.otherAgentId);
+    const path = `/api/spaces/${f.spaceId}/heartbeat-runs?summary=true&latestFailuresOnly=true`;
     const response = await request(app).get(path).expect(200);
     expect(response.body.map((run: { id: string }) => run.id)).toEqual([timeoutId, f.privateRunId]);
     const privateStub = response.body[1];
@@ -371,7 +371,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     const fixture = await seedFixture();
 
     for (const agentId of [fixture.ownerAgentId, fixture.grantedAgentId]) {
-      const app = createApp(fixture.companyId, agentId);
+      const app = createApp(fixture.spaceId, agentId);
       const detail = await request(app).get(`/api/heartbeat-runs/${fixture.privateRunId}`);
       expect(detail.status).toBe(200);
       expect(detail.body).toMatchObject({ issueId: fixture.issueId });
@@ -387,20 +387,20 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     }
   });
 
-  it("filters private task links from a readable company run while preserving authorized links", async () => {
+  it("filters private task links from a readable space run while preserving authorized links", async () => {
     const fixture = await seedFixture();
     const publicIssueId = randomUUID();
     await db.insert(issues).values({
-      id: publicIssueId, companyId: fixture.companyId, identifier: "RPR-2",
+      id: publicIssueId, spaceId: fixture.spaceId, identifier: "RPR-2",
       title: "Public follow-up", visibility: "open", status: "todo",
     });
     await db.insert(activityLog).values([fixture.issueId, publicIssueId].map(entityId => ({
-      companyId: fixture.companyId, runId: fixture.maintenanceRunId,
+      spaceId: fixture.spaceId, runId: fixture.maintenanceRunId,
       agentId: fixture.ownerAgentId, actorType: "agent", actorId: fixture.ownerAgentId,
       action: "issue.comment_added", entityType: "issue", entityId,
     })));
 
-    const outsider = await request(createApp(fixture.companyId, fixture.otherAgentId))
+    const outsider = await request(createApp(fixture.spaceId, fixture.otherAgentId))
       .get(`/api/heartbeat-runs/${fixture.maintenanceRunId}/issues`);
     expect(outsider.status).toBe(200);
     expect(outsider.body).toEqual([expect.objectContaining({ issueId: publicIssueId, title: "Public follow-up" })]);
@@ -409,7 +409,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     expect(JSON.stringify(outsider.body)).not.toContain("RPR-1");
 
     for (const agentId of [fixture.ownerAgentId, fixture.grantedAgentId]) {
-      const response = await request(createApp(fixture.companyId, agentId))
+      const response = await request(createApp(fixture.spaceId, agentId))
         .get(`/api/heartbeat-runs/${fixture.maintenanceRunId}/issues`);
       expect(response.status).toBe(200);
       expect(response.body.map((row: { issueId: string }) => row.issueId).sort())
@@ -421,21 +421,21 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     const fixture = await seedFixture();
     const readerId = `reader-${randomUUID()}`;
     await db.insert(authUsers).values({ id: readerId, name: "Task reader", email: `${readerId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId: fixture.companyId, principalType: "user", principalId: readerId, status: "active", membershipRole: "operator" });
+    await db.insert(spaceMemberships).values({ spaceId: fixture.spaceId, principalType: "user", principalId: readerId, status: "active", membershipRole: "operator" });
     await db.update(issues).set({ visibility: "open", privacyRootIssueId: null }).where(eq(issues.id, fixture.issueId));
     const applicationId = randomUUID(), connectionId = randomUUID(), grantId = randomUUID();
-    await db.insert(toolApplications).values({ id: applicationId, companyId: fixture.companyId, name: "AI fixture", type: "rest_api" });
-    await db.insert(toolConnections).values({ id: connectionId, companyId: fixture.companyId, applicationId, name: "Owner's API key", uid: "credential-fixture", connectionPurpose: "ai", transport: "runtime_auth" });
-    await db.insert(connectionGrants).values({ id: grantId, companyId: fixture.companyId, connectionId, kind: "user", subjectUserId: fixture.ownerUserId });
+    await db.insert(toolApplications).values({ id: applicationId, spaceId: fixture.spaceId, name: "AI fixture", type: "rest_api" });
+    await db.insert(toolConnections).values({ id: connectionId, spaceId: fixture.spaceId, applicationId, name: "Owner's API key", uid: "credential-fixture", connectionPurpose: "ai", transport: "runtime_auth" });
+    await db.insert(connectionGrants).values({ id: grantId, spaceId: fixture.spaceId, connectionId, kind: "user", subjectUserId: fixture.ownerUserId });
     await db.update(heartbeatRuns).set({ status: "failed", responsibleUserId: fixture.otherUserId,
       errorCode: "configuration_incomplete", error: "This credential is not shared with the responsible user",
       resultJson: { configurationIncomplete: { selectionFailure: "ai_connection_credential_not_shared",
         credentialAccess: { connectionName: "Owner's API key", grantId } } },
     }).where(eq(heartbeatRuns.id, fixture.privateRunId));
     for (const userId of [fixture.ownerUserId, fixture.otherUserId, readerId]) {
-      const app = createBoardApp(fixture.companyId, userId);
+      const app = createBoardApp(fixture.spaceId, userId);
       const detail = await request(app).get(`/api/heartbeat-runs/${fixture.privateRunId}`);
-      const history = await request(app).get(`/api/companies/${fixture.companyId}/heartbeat-runs`);
+      const history = await request(app).get(`/api/spaces/${fixture.spaceId}/heartbeat-runs`);
       expect(detail.status).toBe(200);
       expect(history.status).toBe(200);
       const expected = userId === readerId ? {} : { connectionName: "Owner's API key" };
@@ -448,7 +448,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
 
   it("returns no linked issue metadata to a non-member", async () => {
     const fixture = await seedFixture();
-    const response = await request(createApp(fixture.companyId, fixture.otherAgentId))
+    const response = await request(createApp(fixture.spaceId, fixture.otherAgentId))
       .get(`/api/heartbeat-runs/${fixture.privateRunId}/issues`);
     expect(response.status).toBe(200);
     expect(response.body).toEqual([]);
@@ -458,19 +458,19 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     const fixture = await seedFixture();
     await db.update(heartbeatRuns).set({ status: "failed", runtimeMode: "native", nativeIssueId: fixture.issueId, resultJson: null })
       .where(eq(heartbeatRuns.id, fixture.privateRunId));
-    await db.insert(nativeRunFinalizations).values({ runId: fixture.privateRunId, companyId: fixture.companyId,
+    await db.insert(nativeRunFinalizations).values({ runId: fixture.privateRunId, spaceId: fixture.spaceId,
       issueId: fixture.issueId, phase: "retryable_failure" });
     const requestId = randomUUID();
-    await claimCancellationRequest(db, fixture.privateRunId, fixture.companyId, requestId, fixture.ownerUserId);
-    const detail = await request(createBoardApp(fixture.companyId, fixture.ownerUserId)).get(`/api/heartbeat-runs/${fixture.privateRunId}`);
+    await claimCancellationRequest(db, fixture.privateRunId, fixture.spaceId, requestId, fixture.ownerUserId);
+    const detail = await request(createBoardApp(fixture.spaceId, fixture.ownerUserId)).get(`/api/heartbeat-runs/${fixture.privateRunId}`);
     expect(detail.status).toBe(200);
     expect(detail.body.execution.canStop).toBe(true);
     expect(detail.body.resultJson.startupCancellation).toMatchObject({ cancellationRequestId: requestId,
-      requestedBy: { type: "board", userId: fixture.ownerUserId } });
+      requestedBy: { type: "operator", userId: fixture.ownerUserId } });
     expect(detail.body.resultJson.nativeCancellation).toBeUndefined();
-    await expect(claimCancellationRequest(db, fixture.privateRunId, fixture.companyId, requestId, fixture.otherUserId))
+    await expect(claimCancellationRequest(db, fixture.privateRunId, fixture.spaceId, requestId, fixture.otherUserId))
       .rejects.toMatchObject({ status: 409 });
-    await expect(claimCancellationRequest(db, fixture.privateRunId, fixture.companyId, requestId, fixture.ownerUserId))
+    await expect(claimCancellationRequest(db, fixture.privateRunId, fixture.spaceId, requestId, fixture.ownerUserId))
       .resolves.toMatchObject({ status: "failed" });
   });
 
@@ -479,25 +479,25 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     await db.update(heartbeatRuns).set({ status: "failed", runtimeMode: "native", nativeIssueId: fixture.issueId,
       driverKind: "codex_app_server", resultJson: null,
     }).where(eq(heartbeatRuns.id, fixture.privateRunId));
-    await db.insert(nativeRunFinalizations).values({ runId: fixture.privateRunId, companyId: fixture.companyId,
+    await db.insert(nativeRunFinalizations).values({ runId: fixture.privateRunId, spaceId: fixture.spaceId,
       issueId: fixture.issueId, phase: "retryable_failure" });
-    const app = createBoardApp(fixture.companyId, fixture.ownerUserId);
+    const app = createBoardApp(fixture.spaceId, fixture.ownerUserId);
     const detail = await request(app).get(`/api/heartbeat-runs/${fixture.privateRunId}`);
     expect(detail.status).toBe(200);
     expect(detail.body.execution.canStop).toBe(true);
     await db.update(nativeRunFinalizations).set({ phase: "terminal_failure", failureCode: "retry_authority_revoked" })
       .where(eq(nativeRunFinalizations.runId, fixture.privateRunId));
-    const before = await db.select().from(activityLog).where(eq(activityLog.companyId, fixture.companyId));
+    const before = await db.select().from(activityLog).where(eq(activityLog.spaceId, fixture.spaceId));
     const unchanged = await request(app).post(`/api/heartbeat-runs/${fixture.privateRunId}/cancel`).send({});
     expect(unchanged.status).toBe(200);
     expect(unchanged.body).toMatchObject({ status: "failed", resultJson: null });
-    const recorded = await db.select().from(activityLog).where(eq(activityLog.companyId, fixture.companyId));
+    const recorded = await db.select().from(activityLog).where(eq(activityLog.spaceId, fixture.spaceId));
     expect(recorded).toHaveLength(before.length + 1);
     expect(recorded.at(-1)?.action).toBe("heartbeat.cancelled");
     const denied = await request(app).post(`/api/heartbeat-runs/${fixture.privateRunId}/cancel`)
       .send({ cancellationRequestId: randomUUID() });
     expect(denied.status).toBe(409);
-    expect(await db.select().from(activityLog).where(eq(activityLog.companyId, fixture.companyId))).toEqual(recorded);
+    expect(await db.select().from(activityLog).where(eq(activityLog.spaceId, fixture.spaceId))).toEqual(recorded);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, fixture.privateRunId)))[0])
       .toMatchObject({ status: "failed", resultJson: null });
   });
@@ -505,16 +505,16 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
   it("conceals private runs from unauthorized cancellation and watchdog mutations", async () => {
     const fixture = await seedFixture();
 
-    const deniedCancel = await request(createBoardApp(fixture.companyId, fixture.otherUserId))
+    const deniedCancel = await request(createBoardApp(fixture.spaceId, fixture.otherUserId))
       .post(`/api/heartbeat-runs/${fixture.privateRunId}/cancel`);
     expect(deniedCancel.status).toBe(404);
 
-    const deniedWatchdog = await request(createApp(fixture.companyId, fixture.otherAgentId))
+    const deniedWatchdog = await request(createApp(fixture.spaceId, fixture.otherAgentId))
       .post(`/api/heartbeat-runs/${fixture.privateRunId}/watchdog-decisions`)
       .send({ decision: "continue" });
     expect(deniedWatchdog.status).toBe(404);
 
-    const allowedWatchdog = await request(createBoardApp(fixture.companyId, fixture.ownerUserId))
+    const allowedWatchdog = await request(createBoardApp(fixture.spaceId, fixture.ownerUserId))
       .post(`/api/heartbeat-runs/${fixture.privateRunId}/watchdog-decisions`)
       .send({ decision: "continue" });
     expect(allowedWatchdog.status).toBe(200);
@@ -522,7 +522,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     await db.update(heartbeatRuns)
       .set({ status: "succeeded" })
       .where(eq(heartbeatRuns.id, fixture.privateRunId));
-    const allowedCancel = await request(createBoardApp(fixture.companyId, fixture.ownerUserId))
+    const allowedCancel = await request(createBoardApp(fixture.spaceId, fixture.ownerUserId))
       .post(`/api/heartbeat-runs/${fixture.privateRunId}/cancel`);
     expect(allowedCancel.status).toBe(200);
     expect(allowedCancel.body.id).toBe(fixture.privateRunId);
@@ -533,7 +533,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
 
     await db.delete(issues).where(eq(issues.id, fixture.issueId));
 
-    const missingDetail = await request(createApp(fixture.companyId, fixture.ownerAgentId))
+    const missingDetail = await request(createApp(fixture.spaceId, fixture.ownerAgentId))
       .get(`/api/heartbeat-runs/${fixture.privateRunId}`);
     expect(missingDetail.status).toBe(404);
 
@@ -553,7 +553,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
       .where(eq(workspaceOperations.id, fixture.operationId));
     expect(operation).toEqual({ heartbeatRunId: fixture.privateRunId, issueId: null });
 
-    const missingOperationLog = await request(createApp(fixture.companyId, fixture.ownerAgentId))
+    const missingOperationLog = await request(createApp(fixture.spaceId, fixture.ownerAgentId))
       .get(`/api/workspace-operations/${fixture.operationId}/log`);
     expect(missingOperationLog.status).toBe(404);
   });
@@ -562,7 +562,7 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     const fixture = await seedFixture();
     process.env.OUTPOST_ISSUE_PRIVACY_MODE = "shadow";
     try {
-      const response = await request(createApp(fixture.companyId, fixture.otherAgentId))
+      const response = await request(createApp(fixture.spaceId, fixture.otherAgentId))
         .get(`/api/heartbeat-runs/${fixture.privateRunId}`);
       expect(response.status).toBe(200);
       expect(response.body.resultJson.summary).toBe("Read the confidential email");
@@ -574,18 +574,18 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     const fixture = await seedFixture();
     const ids = Array.from({ length: 64 }, () => randomUUID());
     await db.insert(issues).values(ids.map((id, index) => ({
-      id, companyId: fixture.companyId, title: `History ${index}`, status: "in_progress",
+      id, spaceId: fixture.spaceId, title: `History ${index}`, status: "in_progress",
       visibility: index % 2 ? "private" : "open", privacyRootIssueId: index % 2 ? id : null,
       assigneeAgentId: fixture.ownerAgentId, responsibleUserId: fixture.ownerUserId,
     })));
     const queries: string[] = [];
     const observedDb = drizzle(db.$client, { schema, logger: { logQuery(query) { queries.push(query); } } }) as typeof db;
     const access = authorizationService(observedDb);
-    const actor = { type: "agent" as const, companyId: fixture.companyId, agentId: fixture.grantedAgentId };
-    const bindings = [...ids, fixture.issueId].map(issueId => ({ companyId: fixture.companyId, scopeKind: "issue" as const, issueId }));
-    const runs = [...bindings, ...bindings, { ...bindings[0], companyId: randomUUID() },
-      { ...bindings[0], issueId: randomUUID() }, { companyId: fixture.companyId, scopeKind: "company" as const },
-      { companyId: fixture.companyId, scopeKind: "issue" as const }];
+    const actor = { type: "agent" as const, spaceId: fixture.spaceId, agentId: fixture.grantedAgentId };
+    const bindings = [...ids, fixture.issueId].map(issueId => ({ spaceId: fixture.spaceId, scopeKind: "issue" as const, issueId }));
+    const runs = [...bindings, ...bindings, { ...bindings[0], spaceId: randomUUID() },
+      { ...bindings[0], issueId: randomUUID() }, { spaceId: fixture.spaceId, scopeKind: "space" as const },
+      { spaceId: fixture.spaceId, scopeKind: "issue" as const }];
     const individual = await getHeartbeatRunReadDecisions(observedDb, { decide: access.decide }, actor, runs);
     const individualCount = queries.length;
     queries.length = 0;
@@ -605,41 +605,41 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     process.env.OUTPOST_ISSUE_PRIVACY_MODE = mode;
     try {
       const access = authorizationService(db);
-      const actor = { type: "board" as const, userId: fixture.ownerUserId };
-      const binding = { companyId: fixture.companyId, scopeKind: "issue" as const, issueId: fixture.issueId };
-      const runs = [binding, { ...binding, issueId: randomUUID() }, { ...binding, companyId: randomUUID() }];
+      const actor = { type: "operator" as const, userId: fixture.ownerUserId };
+      const binding = { spaceId: fixture.spaceId, scopeKind: "issue" as const, issueId: fixture.issueId };
+      const runs = [binding, { ...binding, issueId: randomUUID() }, { ...binding, spaceId: randomUUID() }];
       const expected = await getHeartbeatRunReadDecisions(db, { decide: access.decide }, actor, runs);
       expect(await getHeartbeatRunReadDecisions(db, access, actor, runs)).toEqual(expected);
       expect(expected).toEqual([true, false, false]);
-      await db.delete(companyMemberships).where(eq(companyMemberships.principalId, fixture.ownerUserId));
+      await db.delete(spaceMemberships).where(eq(spaceMemberships.principalId, fixture.ownerUserId));
       expect(await getHeartbeatRunReadDecisions(db, access, actor, [binding])).toEqual(
         await getHeartbeatRunReadDecisions(db, { decide: access.decide }, actor, [binding]),
       );
     } finally { process.env.OUTPOST_ISSUE_PRIVACY_MODE = "enforce"; }
   });
 
-  it("checks more than 500 task bindings with bounded company-scoped queries", async () => {
+  it("checks more than 500 task bindings with bounded space-scoped queries", async () => {
     const fixture = await seedFixture();
     const ids = Array.from({ length: 501 }, () => randomUUID());
     await db.insert(issues).values(ids.map((id, index) => ({
-      id, companyId: fixture.companyId, title: `Batch ${index}`, visibility: "open", status: "in_progress",
+      id, spaceId: fixture.spaceId, title: `Batch ${index}`, visibility: "open", status: "in_progress",
     })));
     const queries: { query: string; params: unknown[] }[] = [];
     const observedDb = drizzle(db.$client, { schema, logger: { logQuery(query, params) { queries.push({ query, params }); } } }) as typeof db;
     const access = authorizationService(observedDb);
-    const actor = { type: "agent" as const, companyId: fixture.companyId, agentId: fixture.ownerAgentId };
-    const runs = ids.map(issueId => ({ companyId: fixture.companyId, scopeKind: "issue" as const, issueId }));
+    const actor = { type: "agent" as const, spaceId: fixture.spaceId, agentId: fixture.ownerAgentId };
+    const runs = ids.map(issueId => ({ spaceId: fixture.spaceId, scopeKind: "issue" as const, issueId }));
     expect(await getHeartbeatRunReadDecisions(observedDb, access, actor, runs)).toEqual(ids.map(() => true));
     const existence = queries.filter(({ query }) => query.startsWith('select "id" from "issues"'));
     expect(existence.map(({ params }) => params.length).sort((a, b) => a - b)).toEqual([2, 501]);
-    expect(existence.every(({ query, params }) => query.includes('"company_id"') && params[0] === fixture.companyId)).toBe(true);
+    expect(existence.every(({ query, params }) => query.includes('"space_id"') && params[0] === fixture.spaceId)).toBe(true);
   });
 
   it("captures batch inputs before awaiting reads and rejects a failed batch", async () => {
     const fixture = await seedFixture();
     const access = authorizationService(db);
-    const actor = { type: "agent" as const, companyId: fixture.companyId, agentId: fixture.ownerAgentId };
-    const binding = { companyId: fixture.companyId, scopeKind: "issue" as const, issueId: fixture.issueId };
+    const actor = { type: "agent" as const, spaceId: fixture.spaceId, agentId: fixture.ownerAgentId };
+    const binding = { spaceId: fixture.spaceId, scopeKind: "issue" as const, issueId: fixture.issueId };
     const decideReads = vi.spyOn(access, "decideReads");
     const pending = getHeartbeatRunReadDecisions(db, access, actor, [binding, binding]);
     binding.issueId = randomUUID();
@@ -654,16 +654,16 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     expect(await getHeartbeatRunReadDecisions(db, access, actor, [current])).toEqual([true]);
   });
 
-  it("does no database or authorization work for company-only or empty batches", async () => {
+  it("does no database or authorization work for space-only or empty batches", async () => {
     const fixture = await seedFixture();
     const queries: string[] = [];
     const observedDb = drizzle(db.$client, { schema, logger: { logQuery(query) { queries.push(query); } } }) as typeof db;
     const access = authorizationService(observedDb);
     const decideReads = vi.spyOn(access, "decideReads");
-    const actor = { type: "agent" as const, companyId: fixture.companyId, agentId: fixture.ownerAgentId };
+    const actor = { type: "agent" as const, spaceId: fixture.spaceId, agentId: fixture.ownerAgentId };
     expect(await getHeartbeatRunReadDecisions(observedDb, access, actor, [])).toEqual([]);
     expect(await getHeartbeatRunReadDecisions(observedDb, access, actor, [
-      { companyId: fixture.companyId, scopeKind: "company" }, { companyId: fixture.companyId, scopeKind: "issue" },
+      { spaceId: fixture.spaceId, scopeKind: "space" }, { spaceId: fixture.spaceId, scopeKind: "issue" },
     ])).toEqual([true, false]);
     expect(queries).toEqual([]);
     expect(decideReads).not.toHaveBeenCalled();
@@ -675,25 +675,25 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     const decide = vi.spyOn(access, "decide");
     const actor = {
       type: "agent" as const,
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       agentId: viewer === "owner" ? fixture.ownerAgentId : fixture.otherAgentId,
     };
-    const binding = { companyId: fixture.companyId, scopeKind: "issue" as const, issueId: fixture.issueId };
+    const binding = { spaceId: fixture.spaceId, scopeKind: "issue" as const, issueId: fixture.issueId };
     const decisions = await getHeartbeatRunReadDecisions(db, { decide: access.decide }, actor, Array.from({ length: 200 }, () => ({ ...binding })));
     expect(decisions).toEqual(Array(200).fill(viewer === "owner"));
     expect(decide).toHaveBeenCalledTimes(1);
     decide.mockRestore();
   });
 
-  it("keeps company scope, issue scope, and company identity separate", async () => {
+  it("keeps space scope, issue scope, and space identity separate", async () => {
     const fixture = await seedFixture();
     const access = authorizationService(db);
-    const actor = { type: "agent" as const, companyId: fixture.companyId, agentId: fixture.ownerAgentId };
-    const binding = { companyId: fixture.companyId, scopeKind: "issue" as const, issueId: fixture.issueId };
-    expect(await getHeartbeatRunReadDecisions(db, access, actor, [binding, { ...binding, companyId: randomUUID() }])).toEqual([true, false]);
+    const actor = { type: "agent" as const, spaceId: fixture.spaceId, agentId: fixture.ownerAgentId };
+    const binding = { spaceId: fixture.spaceId, scopeKind: "issue" as const, issueId: fixture.issueId };
+    expect(await getHeartbeatRunReadDecisions(db, access, actor, [binding, { ...binding, spaceId: randomUUID() }])).toEqual([true, false]);
     expect(await getHeartbeatRunReadDecisions(db, access, { ...actor, agentId: fixture.otherAgentId }, [
-      { ...binding, scopeKind: "company" }, binding, { ...binding, scopeKind: null },
-      { companyId: fixture.companyId, scopeKind: "issue" },
+      { ...binding, scopeKind: "space" }, binding, { ...binding, scopeKind: null },
+      { spaceId: fixture.spaceId, scopeKind: "issue" },
     ])).toEqual([true, false, false, false]);
   });
 
@@ -701,21 +701,21 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     const fixture = await seedFixture();
     const access = authorizationService(db);
     const decide = vi.spyOn(access, "decide");
-    const actor = { type: "agent" as const, companyId: fixture.companyId, agentId: fixture.ownerAgentId };
-    const binding = { companyId: fixture.companyId, scopeKind: "issue" as const, issueId: fixture.issueId };
+    const actor = { type: "agent" as const, spaceId: fixture.spaceId, agentId: fixture.ownerAgentId };
+    const binding = { spaceId: fixture.spaceId, scopeKind: "issue" as const, issueId: fixture.issueId };
     const pending = getHeartbeatRunReadDecisions(db, { decide: access.decide }, actor, [binding, binding]);
     binding.issueId = randomUUID();
     expect(await pending).toEqual([true, true]);
     expect(decide).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      resource: expect.objectContaining({ companyId: fixture.companyId, issueId: fixture.issueId }),
+      resource: expect.objectContaining({ spaceId: fixture.spaceId, issueId: fixture.issueId }),
     }));
   });
 
   it("does not share decisions between actors", async () => {
     const fixture = await seedFixture();
     const access = authorizationService(db);
-    const binding = { companyId: fixture.companyId, scopeKind: "issue" as const, issueId: fixture.issueId };
-    const actor = { type: "agent" as const, companyId: fixture.companyId, agentId: fixture.ownerAgentId };
+    const binding = { spaceId: fixture.spaceId, scopeKind: "issue" as const, issueId: fixture.issueId };
+    const actor = { type: "agent" as const, spaceId: fixture.spaceId, agentId: fixture.ownerAgentId };
     expect(await getHeartbeatRunReadDecisions(db, access, actor, [binding])).toEqual([true]);
     expect(await getHeartbeatRunReadDecisions(db, access, { ...actor, agentId: fixture.otherAgentId }, [binding])).toEqual([false]);
   });
@@ -728,18 +728,18 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     }).where(eq(heartbeatRuns.id, fixture.privateRunId));
     const queries: string[] = [];
     const observedDb = drizzle(db.$client, { schema, logger: { logQuery(query) { queries.push(query); } } }) as typeof db;
-    const app = createApp(fixture.companyId, fixture.grantedAgentId, observedDb);
+    const app = createApp(fixture.spaceId, fixture.grantedAgentId, observedDb);
     const response = await request(app).get(`/api/heartbeat-runs/${fixture.privateRunId}/events`);
     expect(response.status).toBe(200);
     expect(response.body[0].message).toBe("private@example.test");
-    expect(queries.some(query => query.startsWith('select "id", "company_id", "scope_kind", "issue_id" from "heartbeat_runs"'))).toBe(true);
+    expect(queries.some(query => query.startsWith('select "id", "space_id", "scope_kind", "issue_id" from "heartbeat_runs"'))).toBe(true);
     expect(queries.filter(query => query.startsWith("select ")).join("\n")).not.toMatch(/"runner_profile_json"|"stdout_excerpt"/);
     queries.length = 0;
     const [operation] = await db.select().from(workspaceOperations).where(eq(workspaceOperations.id, fixture.operationId));
     expect(await canActorReadWorkspaceOperation(observedDb, authorizationService(observedDb), {
-      type: "agent", companyId: fixture.companyId, agentId: fixture.grantedAgentId,
+      type: "agent", spaceId: fixture.spaceId, agentId: fixture.grantedAgentId,
     }, operation)).toBe(true);
-    expect(queries.some(query => query.startsWith('select "company_id", "scope_kind", "issue_id" from "heartbeat_runs"'))).toBe(true);
+    expect(queries.some(query => query.startsWith('select "space_id", "scope_kind", "issue_id" from "heartbeat_runs"'))).toBe(true);
     expect(queries.filter(query => query.startsWith("select ")).join("\n")).not.toMatch(/"runner_profile_json"|"stdout_excerpt"/);
     await db.update(issueAccessGrants).set({ revokedAt: new Date() }).where(eq(issueAccessGrants.subjectId, fixture.grantedAgentId));
     expect((await request(app).get(`/api/heartbeat-runs/${fixture.privateRunId}/events`)).status).toBe(404);
@@ -749,12 +749,12 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     const fixture = await seedFixture();
     const duplicateId = randomUUID();
     await db.insert(heartbeatRuns).values({
-      id: duplicateId, companyId: fixture.companyId, agentId: fixture.ownerAgentId,
+      id: duplicateId, spaceId: fixture.spaceId, agentId: fixture.ownerAgentId,
       scopeKind: "issue", issueId: fixture.issueId, invocationSource: "on_demand", status: "succeeded",
       resultJson: { summary: "PRIVATE_HISTORY_CANARY" },
     });
-    const app = createApp(fixture.companyId, fixture.grantedAgentId);
-    const path = `/api/companies/${fixture.companyId}/heartbeat-runs`;
+    const app = createApp(fixture.spaceId, fixture.grantedAgentId);
+    const path = `/api/spaces/${fixture.spaceId}/heartbeat-runs`;
     const permitted = await request(app).get(path);
     expect(permitted.status).toBe(200);
     expect(permitted.body.find((run: { id: string }) => run.id === duplicateId).resultJson.summary).toBe("PRIVATE_HISTORY_CANARY");
@@ -775,8 +775,8 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
     const access = authorizationService(db);
     const error = new Error("authorization unavailable");
     const decide = vi.spyOn(access, "decide").mockRejectedValue(error);
-    const actor = { type: "agent" as const, companyId: fixture.companyId, agentId: fixture.ownerAgentId };
-    const binding = { companyId: fixture.companyId, scopeKind: "issue" as const, issueId: fixture.issueId };
+    const actor = { type: "agent" as const, spaceId: fixture.spaceId, agentId: fixture.ownerAgentId };
+    const binding = { spaceId: fixture.spaceId, scopeKind: "issue" as const, issueId: fixture.issueId };
     await expect(getHeartbeatRunReadDecisions(db, { decide: access.decide }, actor, Array(20).fill(binding))).rejects.toBe(error);
     expect(decide).toHaveBeenCalledTimes(1);
     decide.mockRestore();
@@ -786,8 +786,8 @@ describeEmbeddedPostgres("heartbeat run privacy routes", { concurrent: false }, 
   it("rejects an issue deleted before the next request", async () => {
     const fixture = await seedFixture();
     const access = authorizationService(db);
-    const actor = { type: "agent" as const, companyId: fixture.companyId, agentId: fixture.ownerAgentId };
-    const binding = { companyId: fixture.companyId, scopeKind: "issue" as const, issueId: fixture.issueId };
+    const actor = { type: "agent" as const, spaceId: fixture.spaceId, agentId: fixture.ownerAgentId };
+    const binding = { spaceId: fixture.spaceId, scopeKind: "issue" as const, issueId: fixture.issueId };
     expect(await getHeartbeatRunReadDecisions(db, access, actor, [binding])).toEqual([true]);
     await db.delete(issues).where(eq(issues.id, fixture.issueId));
     expect(await getHeartbeatRunReadDecisions(db, access, actor, [binding])).toEqual([false]);

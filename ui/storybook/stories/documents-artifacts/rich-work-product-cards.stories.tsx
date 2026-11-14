@@ -10,7 +10,7 @@ const meta = {
   title: "Tasks and conversations/Documents, attachments, and work products/Task Chat/Rich Work Product Cards",
   component: RichWorkProductCard,
   parameters: { layout: "centered",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "documents-artifacts/work-products"
       ],
@@ -79,7 +79,7 @@ const KINDS: CardKind[] = [
     id: "artifact-file",
     label: "Artifact · file",
     type: "artifact",
-    provider: "paperclip",
+    provider: "outpost",
     title: "interaction-map.pdf",
     url: "/api/attachments/story-file/content",
     metadata: { contentType: "application/pdf", byteSize: 48_120 },
@@ -88,7 +88,7 @@ const KINDS: CardKind[] = [
     id: "artifact-image",
     label: "Artifact · image",
     type: "artifact",
-    provider: "paperclip",
+    provider: "outpost",
     title: "thread-preview.png",
     url: IMAGE_PREVIEW,
     metadata: { contentType: "image/png", byteSize: 204_800, openPath: IMAGE_PREVIEW },
@@ -97,7 +97,7 @@ const KINDS: CardKind[] = [
     id: "document",
     label: "Document",
     type: "document",
-    provider: "paperclip",
+    provider: "outpost",
     title: "Implementation plan",
     url: "/PAP/issues/PAP-18213#document-plan",
     metadata: { revisionNumber: 4 },
@@ -115,7 +115,7 @@ const KINDS: CardKind[] = [
     id: "runtime-service",
     label: "Runtime service",
     type: "runtime_service",
-    provider: "paperclip",
+    provider: "outpost",
     title: "Storybook",
     url: "http://localhost:6006",
     metadata: { service: "storybook", port: 6006 },
@@ -146,7 +146,7 @@ const RUNTIME_STATES: CardState[] = [
 function product(kind: CardKind, state: CardState, withStats = false): IssueWorkProduct {
   return {
     id: `${kind.id}-${state.id}-${withStats ? "stats" : "plain"}`,
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     projectId: null,
     issueId: "issue-storybook",
     executionWorkspaceId: null,
@@ -264,11 +264,11 @@ export const Mobile375: Story = {
 function attachment(id: string, name: string, contentType: string, byteSize: number): IssueAttachment {
   return {
     id,
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     issueId: "issue-storybook",
     issueCommentId: "message-storybook",
     assetId: `asset-${id}`,
-    provider: "paperclip",
+    provider: "outpost",
     objectKey: id,
     contentType,
     byteSize,
@@ -316,13 +316,13 @@ export const MessageTailMediaAndTypedChips: Story = {
 const LOCAL_BRANCH: IssueWorkProduct = {
   ...product(KINDS[2], STATES[0]),
   id: "local-branch-no-remote",
-  title: "Company skill update entrypoint",
+  title: "Space skill update entrypoint",
   provider: "git",
   updatedAt: new Date("2026-10-03T11:52:54.448Z"),
   url: null,
   metadata: null,
   status: "active",
-  summary: "Uncommitted implementation changes are in the execution working tree on branch company-skill-update-entrypoint. Includes a guarded skill API, runner tool, docs, and focused regressions. No commit or push was requested.",
+  summary: "Uncommitted implementation changes are in the execution working tree on branch space-skill-update-entrypoint. Includes a guarded skill API, runner tool, docs, and focused regressions. No commit or push was requested.",
 };
 
 /** A work product without a remote URL still explains what it is and opens its own details. */

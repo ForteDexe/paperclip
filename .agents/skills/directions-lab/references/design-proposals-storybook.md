@@ -30,13 +30,13 @@ Rules for a story homed in `design-proposals`:
   group, extend line 11 and the test, never the generated `preview.tsx`. No empty groups (`README.md:65`).
 - File path starts `ui/storybook/stories/design-proposals/` (107). Subfolders pass: `files()`
   recurses (19-24) and the check is `startsWith`.
-- Exactly one literal `parameters.paperclip` on the meta (45-59): `parameters` is an object literal
-  (47) with one `paperclip` key (49), non-computed (51), and no `...spread` or `[computed]` key after
+- Exactly one literal `parameters.outpost` on the meta (45-59): `parameters` is an object literal
+  (47) with one `outpost` key (49), non-computed (51), and no `...spread` or `[computed]` key after
   it (52-53), so put it last. Values are string, boolean, number, array or object literals; `as` and
   `satisfies` wrappers are unwrapped (26-43). Template literals, identifiers, calls and `null` throw
   "metadata must be literal; expressions are not executed". To omit a key, leave it out.
 - Closed field set (16): `capabilities`, `status`, `implementation`, `boundary`, `notes`, `home`,
-  `exception`, `replacement`. Any other key throws "unknown paperclip field <key>" (57).
+  `exception`, `replacement`. Any other key throws "unknown outpost field <key>" (57).
 - Enums (13-15): status `current | proposed | historical | mixed | unreviewed`; implementation
   `production | prototype | mixed | guide | unreviewed`; boundary `fixtures | fixture-server | static |
   unreviewed`. Omitted status, implementation and boundary default to `unreviewed`, notes to `""` (77).
@@ -57,9 +57,9 @@ Two failure modes: `annotation()` and `literal()` throw and abort the whole scan
 Storybook does not start and `tsc` never runs; `validateCatalog` collects errors and throws them
 joined (83-116, 189-190). A `.mdx` file passes the filename filter (64) but the parser throws a raw
 Babel error: emit TSX only, prose goes in `parameters.docs.description.component`. Only the meta
-block counts: a story-level `parameters.paperclip` is ignored, and a file whose only block is
-story-level fails "declare parameters.paperclip as literal metadata" (47) when the meta has no
-`parameters`, else "expected one parameters.paperclip annotation" (49). Storybook merges story
+block counts: a story-level `parameters.outpost` is ignored, and a file whose only block is
+story-level fails "declare parameters.outpost as literal metadata" (47) when the meta has no
+`parameters`, else "expected one parameters.outpost annotation" (49). Storybook merges story
 parameters at runtime, so a story-level block still reaches the theme decorator (section 2).
 
 How it runs:
@@ -92,7 +92,7 @@ in the annotation: `fingerprint` fails as an unknown field (`storybook-catalog.t
 One decorator, `ui/storybook/.storybook/preview-base.tsx:843-857`. Line 853, verbatim:
 
 ```tsx
-{context.parameters.paperclip?.home === "design-proposals" && context.parameters.designProposalTheme !== false ? <AvatarInitialProvider><div className="design-proposal-theme"><Story /></div></AvatarInitialProvider> : <Story />}
+{context.parameters.outpost?.home === "design-proposals" && context.parameters.designProposalTheme !== false ? <AvatarInitialProvider><div className="design-proposal-theme"><Story /></div></AvatarInitialProvider> : <Story />}
 ```
 
 Opt out per meta or per story with `parameters: { designProposalTheme: false }`. The parameter exists
@@ -183,7 +183,7 @@ converts kit tokens into `index.css` tokens.
 
 File: `ui/storybook/stories/design-proposals/<slug>-directions.stories.tsx`, rendered by
 `node .agents/skills/directions-lab/scripts/scaffold.mjs new` from
-`assets/templates/stories/compare.stories.tsx.mjs`; `<...>` marks what the flags fill. Every `paperclip`
+`assets/templates/stories/compare.stories.tsx.mjs`; `<...>` marks what the flags fill. Every `outpost`
 value is emitted with `JSON.stringify`, so it stays a plain double-quoted string literal. The id is
 `design-<slug>-directions` (`registry.storyId`), chosen once; it is permanent.
 
@@ -235,15 +235,15 @@ const meta = {
   args: { direction: "today", surface: "<first surface id>", animation: true },
   parameters: {
     layout: "fullscreen",
-    docs: { description: { component: "Pick a direction and a surface. 0.Today mounts the shipped <Title> components on the lab's fixtures; 1–<n> are the explored directions. Page: https://paperclip-<slug>-directions.vercel.app." } },
-    paperclip: {
+    docs: { description: { component: "Pick a direction and a surface. 0.Today mounts the shipped <Title> components on the lab's fixtures; 1–<n> are the explored directions. Page: https://outpost-<slug>-directions.vercel.app." } },
+    outpost: {
       capabilities: ["<area>/<key>"],
       status: "proposed",
       home: "design-proposals",
       implementation: "prototype",
       boundary: "fixtures",
       exception: "Design directory entry for <Title>: the shipped baseline and <n> proposed directions compared on static mocks of <surface labels>.",
-      notes: "Controls pick a direction kit and a surface. Today mounts the shipped <Title> components behind the lab's fetch stub with the <company> fixture world; the other kits are lab components. Frames are static mocks of the product chrome; nothing here establishes production behaviour or access checks.",
+      notes: "Controls pick a direction kit and a surface. Today mounts the shipped <Title> components behind the lab's fetch stub with the <space> fixture world; the other kits are lab components. Frames are static mocks of the product chrome; nothing here establishes production behaviour or access checks.",
     },
   },
 } satisfies Meta<typeof DirectionView>;
@@ -283,7 +283,7 @@ Rules the file encodes:
   `--d-1`, `TodayProductionPalette` -> `--today-production-palette`): change display text with `name`,
   never by renaming an export. `scaffold.mjs check --slug <slug>` requires the meta id to equal
   `registry.storyId`, the exports `Compare`, `Today`, `TodayProductionPalette` and one `D<N>` per registry
-  direction, `paperclip` last in `parameters`, and `status: "proposed"` while `storybook-catalog.mjs:99`
+  direction, `outpost` last in `parameters`, and `status: "proposed"` while `storybook-catalog.mjs:99`
   stands (`lib/check.mjs:28,116-132`; `lib/modes.mjs`). `add-direction` inserts the next `D<N>` export
   before `TodayProductionPalette`.
 - No comment lines: `lib/write.mjs:5-15,25-26` refuses any line starting `//`, `/*`, `{/*` or `<!--`, the
@@ -293,13 +293,13 @@ Rules the file encodes:
   file `<slug>-directions-<digit>.stories.tsx` mirroring the hybrid story, id
   `design-<slug>-directions-<digit>` (the digit key, never the name: a rename must never change an id;
   the precedent's `-hybrid` suffix predates this rule), title
-  `Design proposals/<Group>/<Title> directions/<N>.<Name>`, same `paperclip` block with the exception
+  `Design proposals/<Group>/<Title> directions/<N>.<Name>`, same `outpost` block with the exception
   narrowed to that direction (`artifact-directions-hybrid.stories.tsx:44`), meta `satisfies Meta` without
   `component`.
 - Theme: the file is themed except `TodayProductionPalette`, which opts out with
   `parameters: { designProposalTheme: false }` so Today is judged on the production palette; kit tokens
   stay scoped by `data-direction` (section 3) and Today has no `tokens.css`. The lab page keeps its state
-  in the URL; a proposal that persists UI state uses `paperclip:design-proposals:<slug>:...`
+  in the URL; a proposal that persists UI state uses `outpost:design-proposals:<slug>:...`
   (`ui/storybook/support/design-proposals/ToolbarsPreview.tsx:52`).
 - Every new story adds two visual-regression screenshots (dark, light) generated from the built
   `index.json` (`tests/storybook-visual/storybook-visual.spec.ts:6-26`); baselines are external and

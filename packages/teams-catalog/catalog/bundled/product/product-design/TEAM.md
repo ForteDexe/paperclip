@@ -4,12 +4,12 @@ description: Bundled product design team with a Principal Product Designer who o
 schema: agentcompanies/v1
 slug: product-design
 category: product
-key: paperclipai/bundled/product/product-design
+key: outpost/bundled/product/product-design
 manager: agents/ux-designer/AGENTS.md
 includes:
   - projects/product-design/PROJECT.md
 defaultInstall: false
-recommendedForCompanyTypes:
+recommendedForSpaceTypes:
   - software
   - product
   - design
@@ -18,9 +18,9 @@ tags:
   - ux
   - product
 requiredSkills:
-  - paperclipai/bundled/product/wireframe
-  - paperclipai/optional/product/design-critique
-  - paperclipai/bundled/paperclip-operations/task-planning
+  - outpost/bundled/product/wireframe
+  - outpost/optional/product/design-critique
+  - outpost/bundled/outpost-operations/task-planning
 ---
 
 # Product Design

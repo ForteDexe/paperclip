@@ -23,7 +23,7 @@ import {
   chatEndpointResources,
   chatExternalPrincipals,
   chatIdentityLinks,
-  companyMemberships,
+  spaceMemberships,
 } from "@outpost/db";
 
 import {
@@ -47,12 +47,12 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
 
   async function findAuthorizedIdentityLink(endpoint: EndpointRow, userId: string) {
     return db.select({ id: chatIdentityLinks.id }).from(chatIdentityLinks)
-      .innerJoin(companyMemberships, and(
-        eq(companyMemberships.companyId, chatIdentityLinks.companyId), eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.principalId, userId), eq(companyMemberships.status, "active"), ne(companyMemberships.membershipRole, "viewer"),
+      .innerJoin(spaceMemberships, and(
+        eq(spaceMemberships.spaceId, chatIdentityLinks.spaceId), eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.principalId, userId), eq(spaceMemberships.status, "active"), ne(spaceMemberships.membershipRole, "viewer"),
       ))
-      .where(and(eq(chatIdentityLinks.companyId, endpoint.companyId), eq(chatIdentityLinks.endpointId, endpoint.id),
-        eq(chatIdentityLinks.paperclipUserId, userId), eq(chatIdentityLinks.status, "linked")))
+      .where(and(eq(chatIdentityLinks.spaceId, endpoint.spaceId), eq(chatIdentityLinks.endpointId, endpoint.id),
+        eq(chatIdentityLinks.outpostUserId, userId), eq(chatIdentityLinks.status, "linked")))
       .limit(1).then((rows) => rows[0] ?? null);
   }
 
@@ -70,7 +70,7 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
     const [principal] = await db
       .insert(chatExternalPrincipals)
       .values({
-        companyId: endpoint.companyId,
+        spaceId: endpoint.spaceId,
         provider: endpoint.provider,
         providerAccountId,
         externalId,
@@ -83,7 +83,7 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
       })
       .onConflictDoUpdate({
         target: [
-          chatExternalPrincipals.companyId,
+          chatExternalPrincipals.spaceId,
           chatExternalPrincipals.provider,
           chatExternalPrincipals.providerAccountId,
           chatExternalPrincipals.externalId,
@@ -99,7 +99,7 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
       .returning();
     if (endpoint.provider === "speko") {
       try {
-        const authorization = await db.transaction((tx) => voiceStore.authorizePrincipal(tx, endpoint.companyId, endpoint.id, externalId));
+        const authorization = await db.transaction((tx) => voiceStore.authorizePrincipal(tx, endpoint.spaceId, endpoint.id, externalId));
         return { principal, userId: authorization.userId, linkedDenied: false };
       } catch (error) {
         if (!(error instanceof HttpError && [403, 404].includes(error.status))) throw error;
@@ -108,7 +108,7 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
     }
     const link = await db
       .select({
-        userId: chatIdentityLinks.paperclipUserId,
+        userId: chatIdentityLinks.outpostUserId,
         status: chatIdentityLinks.status,
       })
       .from(chatIdentityLinks)
@@ -122,19 +122,19 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
     if (link?.status === "linked" && link.userId) {
       const membership = await db
         .select({
-          status: companyMemberships.status,
-          membershipRole: companyMemberships.membershipRole,
+          status: spaceMemberships.status,
+          membershipRole: spaceMemberships.membershipRole,
         })
-        .from(companyMemberships)
+        .from(spaceMemberships)
         .where(
           and(
-            eq(companyMemberships.companyId, endpoint.companyId),
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, link.userId),
+            eq(spaceMemberships.spaceId, endpoint.spaceId),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, link.userId),
           ),
         )
         .then((rows) => rows[0] ?? null);
-      // External chat performs the same task mutations as the board. A linked
+      // External chat performs the same task mutations as the operator. A linked
       // viewer therefore remains read-only instead of gaining write authority
       // merely by using a provider account.
       if (
@@ -149,21 +149,21 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
   }
 
   async function sponsorAllowsGuest(endpoint: EndpointRow): Promise<boolean> {
-    // A null sponsor is the local board/operator context used by self-hosted
+    // A null sponsor is the local operator/operator context used by self-hosted
     // instances. Cloud endpoints retain the creating user and must revalidate
-    // that user's current company authority on every sponsored guest turn.
+    // that user's current space authority on every sponsored guest turn.
     if (!endpoint.sponsorUserId) return true;
     const membership = await db
       .select({
-        status: companyMemberships.status,
-        membershipRole: companyMemberships.membershipRole,
+        status: spaceMemberships.status,
+        membershipRole: spaceMemberships.membershipRole,
       })
-      .from(companyMemberships)
+      .from(spaceMemberships)
       .where(
         and(
-          eq(companyMemberships.companyId, endpoint.companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, endpoint.sponsorUserId),
+          eq(spaceMemberships.spaceId, endpoint.spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, endpoint.sponsorUserId),
         ),
       )
       .then((rows) => rows[0] ?? null);
@@ -184,9 +184,9 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
   }> {
     if (endpoint.provider === "speko") {
       const principal = await tx.select({ externalId: chatExternalPrincipals.externalId }).from(chatExternalPrincipals)
-        .where(and(eq(chatExternalPrincipals.id, principalId), eq(chatExternalPrincipals.companyId, endpoint.companyId), eq(chatExternalPrincipals.provider, "speko"))).then((rows) => rows[0]);
+        .where(and(eq(chatExternalPrincipals.id, principalId), eq(chatExternalPrincipals.spaceId, endpoint.spaceId), eq(chatExternalPrincipals.provider, "speko"))).then((rows) => rows[0]);
       if (!principal) return { allowed: false, linkedDenied: true, userId: null };
-      try { return await voiceStore.authorizePrincipal(tx as import("../../voice/voice-session-store.js").VoiceTransaction, endpoint.companyId, endpoint.id, principal.externalId); }
+      try { return await voiceStore.authorizePrincipal(tx as import("../../voice/voice-session-store.js").VoiceTransaction, endpoint.spaceId, endpoint.id, principal.externalId); }
       catch (error) {
         if (!(error instanceof HttpError && [403, 404].includes(error.status))) throw error;
         return { allowed: false, linkedDenied: true, userId: null };
@@ -199,17 +199,17 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
     // identity from racing the authorization snapshot. Row locks below also
     // serialize revocation and membership changes that do not use this key.
     await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`chat-identity:${endpoint.companyId}:${principalId}`}, 0))`,
+      sql`select pg_advisory_xact_lock(hashtextextended(${`chat-identity:${endpoint.spaceId}:${principalId}`}, 0))`,
     );
     const link = await tx
       .select({
         status: chatIdentityLinks.status,
-        userId: chatIdentityLinks.paperclipUserId,
+        userId: chatIdentityLinks.outpostUserId,
       })
       .from(chatIdentityLinks)
       .where(
         and(
-          eq(chatIdentityLinks.companyId, endpoint.companyId),
+          eq(chatIdentityLinks.spaceId, endpoint.spaceId),
           eq(chatIdentityLinks.endpointId, endpoint.id),
           eq(chatIdentityLinks.principalId, principalId),
         ),
@@ -222,15 +222,15 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
       }
       const membership = await tx
         .select({
-          status: companyMemberships.status,
-          membershipRole: companyMemberships.membershipRole,
+          status: spaceMemberships.status,
+          membershipRole: spaceMemberships.membershipRole,
         })
-        .from(companyMemberships)
+        .from(spaceMemberships)
         .where(
           and(
-            eq(companyMemberships.companyId, endpoint.companyId),
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, link.userId),
+            eq(spaceMemberships.spaceId, endpoint.spaceId),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, link.userId),
           ),
         )
         .for("update")
@@ -252,15 +252,15 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
     }
     const sponsorMembership = await tx
       .select({
-        status: companyMemberships.status,
-        membershipRole: companyMemberships.membershipRole,
+        status: spaceMemberships.status,
+        membershipRole: spaceMemberships.membershipRole,
       })
-      .from(companyMemberships)
+      .from(spaceMemberships)
       .where(
         and(
-          eq(companyMemberships.companyId, endpoint.companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, endpoint.sponsorUserId),
+          eq(spaceMemberships.spaceId, endpoint.spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, endpoint.sponsorUserId),
         ),
       )
       .for("update")
@@ -304,7 +304,7 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
       .from(chatConversations)
       .where(
         and(
-          eq(chatConversations.companyId, endpoint.companyId),
+          eq(chatConversations.spaceId, endpoint.spaceId),
           eq(chatConversations.endpointId, endpoint.id),
           eq(chatConversations.id, input.conversationId),
           inArray(chatConversations.state, ["active", "waiting"]),
@@ -323,7 +323,7 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
           .from(chatEndpointResources)
           .where(
             and(
-              eq(chatEndpointResources.companyId, endpoint.companyId),
+              eq(chatEndpointResources.spaceId, endpoint.spaceId),
               eq(chatEndpointResources.endpointId, endpoint.id),
               eq(chatEndpointResources.id, conversation.resourceId),
             ),
@@ -339,7 +339,7 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
       endpoint,
       input.principalId,
     );
-    // Governed actions never fall back to sponsored-guest authority. If the
+    // Controlled actions never fall back to sponsored-guest authority. If the
     // provider identity was relinked while this callback waited, reject this
     // stale actor snapshot and let a fresh callback use the new identity.
     if (
@@ -386,7 +386,7 @@ export function createChatInboundAuthority(db: Db, options: InboundAuthorityOpti
     const [resource] = await database
       .insert(chatEndpointResources)
       .values({
-        companyId: endpoint.companyId,
+        spaceId: endpoint.spaceId,
         endpointId: endpoint.id,
         type,
         providerResourceId,

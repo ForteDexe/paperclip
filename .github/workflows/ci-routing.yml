@@ -21,7 +21,7 @@ permissions:
 jobs:
   gate:
     name: Select trusted runner
-    runs-on: ${{ vars.AWS_CI_ENABLED == 'true' && vars.AWS_CI_ROUTING_USER_IDS_SOURCE != '' && vars.AWS_CI_TRUSTED_USER_IDS == vars.AWS_CI_ROUTING_USER_IDS_SOURCE && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && ((github.event_name == 'pull_request' && contains(vars.AWS_CI_ROUTING_USER_IDS, format('|{0}|', github.event.pull_request.user.id)) && contains(vars.AWS_CI_ROUTING_USER_IDS, format('|{0}|', github.event.sender.id))) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && contains(vars.AWS_CI_ROUTING_USER_IDS, format('|{0}|', github.actor_id)))) && 'runs-on/fleet=paperclip-ci-routing-x64/env=public-ci' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.AWS_CI_ENABLED == 'true' && vars.AWS_CI_ROUTING_USER_IDS_SOURCE != '' && vars.AWS_CI_TRUSTED_USER_IDS == vars.AWS_CI_ROUTING_USER_IDS_SOURCE && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && ((github.event_name == 'pull_request' && contains(vars.AWS_CI_ROUTING_USER_IDS, format('|{0}|', github.event.pull_request.user.id)) && contains(vars.AWS_CI_ROUTING_USER_IDS, format('|{0}|', github.event.sender.id))) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && contains(vars.AWS_CI_ROUTING_USER_IDS, format('|{0}|', github.actor_id)))) && 'runs-on/fleet=outpost-ci-routing-x64/env=public-ci' || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
       plan: ${{ steps.plan.outputs.plan }}
@@ -56,7 +56,7 @@ jobs:
           set -u
 
           github_runner='ubuntu-latest'
-          aws_runner='runs-on/fleet=paperclip-public-pr-x64/env=public-ci'
+          aws_runner='runs-on/fleet=outpost-public-pr-x64/env=public-ci'
 
           fail_closed() {
             echo "runner=$github_runner" >> "$GITHUB_OUTPUT"
@@ -398,7 +398,7 @@ jobs:
           # lag behind its actual first parent. A bare tree diff has no API file cap.
           git init --bare "$directory/repository.git" >/dev/null || fallback
           git -C "$directory/repository.git" fetch --quiet --no-tags --filter=blob:none --depth=2 \
-            https://github.com/paperclipai/outpost.git "$EVENT_MERGE_SHA" || fallback
+            https://github.com/paperclipai/paperclip.git "$EVENT_MERGE_SHA" || fallback
           if [[ "$PROFILE_CI" == 'true' || "$FORCE_FULL_CI" == 'true' ]]; then
             export CI_FORCE_REASON='Full suite requested by label'
           elif [[ "$STACK_JSON" != 'null' && -n "$STACK_JSON" ]]; then

@@ -10,11 +10,11 @@ import { connectionMethodForConnection } from "../connection-methods.js";
 import { googleWorkspaceDraftRequestedScopes, googleWorkspaceSelectedScopes, type GoogleWorkspaceServiceSelection, isGoogleWorkspaceScopeGrant } from "@outpost/shared";
 import { and, eq, lt } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { companies, agents, connectionGrants, issueThreadInteractions, toolConnections, toolOauthStates } from "@outpost/db";
+import { spaces, agents, connectionGrants, issueThreadInteractions, toolConnections, toolOauthStates } from "@outpost/db";
 import type { ConnectionGrantKind, ToolOAuthStartResult } from "@outpost/shared";
 import { getConnectableAppDefinition } from "@outpost/shared";
 import { badRequest, conflict, forbidden, notFound, unprocessable } from "../../../errors.js";
-import { isPaperclipCloudConnectorStrategy, type PaperclipCloudConnector } from "../../paperclip-cloud-connector.js";
+import { isOutpostCloudConnectorStrategy, type OutpostCloudConnector } from "../../outpost-cloud-connector.js";
 import { deriveVercelConnectSubject, vercelConnectCallbackUrl, VercelConnectClientError, type VercelConnectClient } from "../../vercel-connect.js";
 
 import type { ConnectionSetupPolicy } from "../connections/setup-policy.js";
@@ -26,10 +26,10 @@ import type { createPersonalConnectionIdentity } from "../connections/personal-i
 
 type Dependencies = {
   now: () => Date;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   setupPolicy: ConnectionSetupPolicy;
   fixedPersonalIdentityForReconnect: ReturnType<typeof createPersonalConnectionIdentity>;
-  currentCloudConnector: () => PaperclipCloudConnector | null;
+  currentCloudConnector: () => OutpostCloudConnector | null;
   vercelConnect: VercelConnectClient | null;
   ensureOAuthClient: ReturnType<typeof createOAuthClientRegistration>;
   oauthEndpointsForConnection: ReturnType<typeof createOAuthDiscovery>["oauthEndpointsForConnection"];
@@ -40,7 +40,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
   const { now, getConnectionRow, setupPolicy, fixedPersonalIdentityForReconnect, currentCloudConnector, vercelConnect, ensureOAuthClient, oauthEndpointsForConnection, assertOAuthEndpointUrl } = dependencies;
   const { assertConnectorConnectionSetupEnabled, assertExperimentalConnectorSetupEnabled } = setupPolicy;
   async function startOAuth(
-    companyId: string,
+    spaceId: string,
     connectionId: string,
     input: {
       redirectUri: string;
@@ -55,7 +55,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
     },
   ): Promise<ToolOAuthStartResult> {
     await input.actor.managementContext?.reauthorize();
-    let connection = await getConnectionRow(connectionId, companyId);
+    let connection = await getConnectionRow(connectionId, spaceId);
     assertSupportedConnection(connection);
     await assertConnectorConnectionSetupEnabled(connection);
     await assertExperimentalConnectorSetupEnabled(connection.config.sourceTemplateKey, connection.status !== "draft");
@@ -82,7 +82,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
       fixedPersonalIdentity?.subjectUserId ?? input.subjectUserId;
     const authorizationSubjectAgentId = input.subjectAgentId;
     const workspaceDraftBinding = {
-      companyId, connectionId: connection.id,
+      spaceId, connectionId: connection.id,
       actorType: starterBinding.actorType, actorId: starterBinding.actorId,
       grantKind: connection.credentialPolicy === "per_user" ? "user" as const
         : connection.credentialPolicy === "per_agent" ? "agent" as const : "organization" as const,
@@ -106,7 +106,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
           const kind = connection.credentialPolicy === "per_user" ? "user"
             : connection.credentialPolicy === "per_agent" ? "agent" : "organization";
           const [grant] = await db.select().from(connectionGrants).where(and(
-            eq(connectionGrants.companyId, companyId),
+            eq(connectionGrants.spaceId, spaceId),
             eq(connectionGrants.connectionId, connection.id),
             eq(connectionGrants.kind, kind),
             kind === "user" ? eq(connectionGrants.subjectUserId, subjectUserId ?? "")
@@ -146,13 +146,13 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
         .where(
           and(
             eq(agents.id, authorizationSubjectAgentId),
-            eq(agents.companyId, companyId),
+            eq(agents.spaceId, spaceId),
           ),
         )
         .limit(1);
       if (!subjectAgent)
         throw badRequest(
-          "Dedicated identity requires an agent in this company",
+          "Dedicated identity requires an agent in this space",
         );
       if (connection.credentialPolicy !== "per_agent") {
         throw badRequest(
@@ -173,7 +173,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
           .where(
             and(
               eq(issueThreadInteractions.id, input.interactionId),
-              eq(issueThreadInteractions.companyId, companyId),
+              eq(issueThreadInteractions.spaceId, spaceId),
             ),
           )
           .limit(1)
@@ -198,7 +198,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
         await input.actor.managementContext.reauthorize();
         const userId = input.actor.managementContext.responsibleUserId!;
         await db.transaction(async tx => {
-          const [saved] = await tx.select().from(toolConnections).where(and(eq(toolConnections.id, connection.id), eq(toolConnections.companyId, companyId))).for("no key update");
+          const [saved] = await tx.select().from(toolConnections).where(and(eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, spaceId))).for("no key update");
           if (!saved) throw notFound("Connection not found");
           const rawOauth = saved.config.oauth;
           const oauth = rawOauth && typeof rawOauth === "object" && !Array.isArray(rawOauth) ? rawOauth as Record<string, unknown> : {};
@@ -211,10 +211,10 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
           await tx.update(toolConnections).set({ config, transportConfig, updatedAt: now() }).where(eq(toolConnections.id, saved.id));
         });
       }
-      const [company] = await db.select({ prefix: companies.issuePrefix }).from(companies).where(eq(companies.id, companyId));
-      if (!company) throw notFound("Outpost not found");
+      const [space] = await db.select({ prefix: spaces.issuePrefix }).from(spaces).where(eq(spaces.id, spaceId));
+      if (!space) throw notFound("Outpost not found");
       const destination = new URL(input.redirectUri);
-      destination.pathname = `/${encodeURIComponent(company.prefix)}/apps/${connection.credentialSource === "vercel_connect" ? "vercel-connect" : "connect"}`;
+      destination.pathname = `/${encodeURIComponent(space.prefix)}/apps/${connection.credentialSource === "vercel_connect" ? "vercel-connect" : "connect"}`;
       destination.search = new URLSearchParams({ [connection.status === "draft" ? "resume" : "reconnect"]: connection.id,
         ...(sourceTemplateKey ? { source: sourceTemplateKey } : {}), ...(intentLink ? { intent: intentLink.id } : {}) }).toString();
       destination.hash = "";
@@ -225,7 +225,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
       const workspaceSetup = { version: 1, ...workspaceDraftBinding, requestedScopes };
       const updated = await db.transaction(async tx => {
         const [saved] = await tx.select().from(toolConnections).where(and(
-          eq(toolConnections.id, connection.id), eq(toolConnections.companyId, companyId), eq(toolConnections.status, "draft"),
+          eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, spaceId), eq(toolConnections.status, "draft"),
         )).for("no key update");
         if (!saved || (["credentialPolicy", "credentialSource", "authKind", "transport", "createdByUserId"] as const)
           .some(key => saved[key] !== connection[key])
@@ -246,7 +246,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
           }
         }
         const [row] = await tx.update(toolConnections).set({ config, transportConfig, updatedAt: now() })
-          .where(and(eq(toolConnections.id, saved.id), eq(toolConnections.companyId, companyId), eq(toolConnections.status, "draft"))).returning();
+          .where(and(eq(toolConnections.id, saved.id), eq(toolConnections.spaceId, spaceId), eq(toolConnections.status, "draft"))).returning();
         return row;
       });
       if (!updated) throw conflict("Connection setup changed. Reload before continuing");
@@ -278,7 +278,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
       const derived = deriveVercelConnectSubject({
         credential,
         connectionId: connection.id,
-        companyId,
+        spaceId,
         grantKind,
         subjectUserId: authorizationSubjectUserId,
       });
@@ -314,7 +314,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
         .where(lt(toolOauthStates.expiresAt, now()));
       await db.insert(toolOauthStates).values({
         state,
-        companyId,
+        spaceId,
         connectionId: connection.id,
         // Vercel owns its verifier. This marker only dispatches the consumed
         // one-time state to the Vercel callback completion path.
@@ -341,7 +341,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
     }
     if (
       galleryMethod &&
-      isPaperclipCloudConnectorStrategy(galleryMethod.oauthStrategy)
+      isOutpostCloudConnectorStrategy(galleryMethod.oauthStrategy)
     ) {
       const connectorProfile = galleryMethod.connectorProfile;
       const managedProfile = managedConnectorProfile(connectorProfile);
@@ -353,7 +353,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
         throw unprocessable(
           `${providerName} connections through Outpost are not available on this instance yet`,
           {
-            code: "paperclip_cloud_connector_unavailable",
+            code: "outpost_cloud_connector_unavailable",
           },
         );
       }
@@ -378,7 +378,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
         subjectUserId !== binding.actorId
       ) {
         throw forbidden(
-          `Board users may only authorize their own ${providerName} identity`,
+          `Operator users may only authorize their own ${providerName} identity`,
         );
       }
       await db
@@ -393,7 +393,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
         subject: authorizationSubjectAgentId
           ? `agent:${authorizationSubjectAgentId}`
           : subjectUserId!,
-        companyId,
+        spaceId,
         profile: managedProfile.id,
         ...(managedProfile.id === "workspace.all" ? { scopes: requestedScopes! } : {}),
         returnUri: returnUri.toString(),
@@ -407,11 +407,11 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
         : new Date(now().getTime() + 10 * 60 * 1000);
       await db.insert(toolOauthStates).values({
         state,
-        companyId,
+        spaceId,
         connectionId: connection.id,
-        // Paperclip Cloud owns PKCE for this flow. The local state row remains the
+        // Outpost Cloud owns PKCE for this flow. The local state row remains the
         // single-use browser correlator and never stores broker token material.
-        codeVerifier: "paperclip-cloud-connector",
+        codeVerifier: "outpost-cloud-connector",
         createdByActorType: binding.actorType,
         createdByActorId: binding.actorId,
         createdBySessionId: binding.sessionId,
@@ -486,11 +486,11 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     const binding = starterBinding;
     if (!binding.actorType || !binding.actorId) {
-      throw forbidden("OAuth sign-in requires an authenticated board session");
+      throw forbidden("OAuth sign-in requires an authenticated operator session");
     }
     await db.insert(toolOauthStates).values({
       state,
-      companyId,
+      spaceId,
       connectionId: connection.id,
       codeVerifier,
       createdByActorType: binding.actorType,
@@ -506,11 +506,11 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
 
     // Last gate before this URL becomes a top-level browser navigation. Every
     // producer above already validates, so reaching a rejection here means a new
-    // path was added without one — fail closed rather than hand the board an
+    // path was added without one — fail closed rather than hand the operator an
     // unvetted target.
     const authorizationUrl = new URL(
       assertOAuthEndpointUrl("authorization", endpoints.authorizationUrl, {
-        // Paperclip's own callback origin: a first-party authorization endpoint is
+        // Outpost's own callback origin: a first-party authorization endpoint is
         // served however this deployment is served, plaintext LAN host included.
         firstPartyOrigin: originOf(input.redirectUri),
       }),
@@ -531,7 +531,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
     // Curated definitions are an allowlist, not a suggestion. Never copy every
     // scope advertised by discovery into a provider consent screen: a curated
     // method either sends its reviewed hint or omits scope entirely. Generic
-    // MCP URLs retain discovery-first behavior because Paperclip has no manifest
+    // MCP URLs retain discovery-first behavior because Outpost has no manifest
     // against which it could safely judge the caller's requested scope.
     if (authorizationScopes.length > 0)
       authorizationUrl.searchParams.set("scope", authorizationScopes.join(" "));
@@ -577,7 +577,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
             .where(
               and(
                 eq(agents.id, binding.actorId),
-                eq(agents.companyId, companyId),
+                eq(agents.spaceId, spaceId),
               ),
             )
             .limit(1)
@@ -609,13 +609,13 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
       };
       const issueId = input.issueId;
       await db.transaction(async tx => {
-        await notifyIssueReviewState(tx, { companyId, issueId });
+        await notifyIssueReviewState(tx, { spaceId, issueId });
         const [existingInteraction] = await tx
           .select()
           .from(issueThreadInteractions)
           .where(
             and(
-              eq(issueThreadInteractions.companyId, companyId),
+              eq(issueThreadInteractions.spaceId, spaceId),
               eq(issueThreadInteractions.issueId, issueId),
               eq(issueThreadInteractions.idempotencyKey, idempotencyKey),
             ),
@@ -641,7 +641,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
           : await tx
               .insert(issueThreadInteractions)
               .values({
-                companyId,
+                spaceId,
                 issueId: issueId,
                 kind: "request_confirmation",
                 status: "pending",
@@ -674,7 +674,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
 
     await db.transaction(async tx => {
       const [saved] = await tx.select().from(toolConnections).where(and(
-        eq(toolConnections.id, connection.id), eq(toolConnections.companyId, companyId),
+        eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, spaceId),
       )).for("no key update");
       if (!saved) throw notFound("Tool connection not found");
       assertOAuthClientBindingUnchanged(connection, saved, endpoints, input.redirectUri);
@@ -686,7 +686,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
         metadataUrl: endpoints.metadataUrl ?? null,
         // Curated apps persist only the reviewed scopes attached to this OAuth
         // state. Discovery metadata can advertise a provider's entire scope
-        // universe and must never silently become Paperclip's requested set.
+        // universe and must never silently become Outpost's requested set.
         scopes: authorizationScopes,
         offlineAccessSupported: endpoints.offlineAccessSupported,
         grantTypesSupported: endpoints.grantTypesSupported ?? [],
@@ -722,7 +722,7 @@ export function createOAuthAuthorizationStart(db: Db, dependencies: Dependencies
           transportConfig: nextTransportConfig,
           updatedAt: new Date(),
         })
-        .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.companyId, companyId)));
+        .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, spaceId)));
     });
 
     return {

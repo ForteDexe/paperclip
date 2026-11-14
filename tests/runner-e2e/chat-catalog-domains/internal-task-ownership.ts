@@ -43,8 +43,8 @@ function assignmentConflict(): ChatCatalogCase {
     const t = await task(ctx, "Website task", p.id, { assigneeAgentId: riley.id,
       description: `${readMarker}. Read the authorized Website Brief app's read_website_brief tool before doing any work. Wait for its actual source response; do not invent its contents.` });
     const state: Record<string, unknown> = { project: p, task: t, worker, riley, readMarker };
-    const root = `/api/companies/${ctx.input.fixtures.company.id}`;
-    for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, ...[ctx.input.fixtures.agent.id, worker.id].map(id => ({ scopeType: "agent", scopeId: id }))])
+    const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
+    for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, ...[ctx.input.fixtures.agent.id, worker.id].map(id => ({ scopeType: "agent", scopeId: id }))])
       await ctx.input.api.post(`${root}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
     await openStandingChat(ctx); const { sendChatMessage } = await import("../chat-flow.js");
     await sendChatMessage(ctx.input.page, `Read the Website task (${t.identifier ?? t.id}) and report its current assignee, status and brief. Do not change it; wait for my next request.`);

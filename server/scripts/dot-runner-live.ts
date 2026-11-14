@@ -1,7 +1,7 @@
 /** Disposable real-Dot transport lab. Not production scheduling or admission.
  * Only the MCP listener may be tunneled. Control stays on a separate loopback
  * port with a random bearer credential stored in a mode-0600 local file.
- * No existing Paperclip database, user, API key, or company is loaded. */
+ * No existing Outpost database, user, API key, or space is loaded. */
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { once } from "node:events";
@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import express from "express";
 import { z } from "zod";
-import { activityLog, authUsers, companies, companyMemberships, createDb, issues, mcpEventSubscriptions, mcpEventDeliveries, startEmbeddedPostgresTestDatabase } from "@outpost/db";
+import { activityLog, authUsers, spaces, spaceMemberships, createDb, issues, mcpEventSubscriptions, mcpEventDeliveries, startEmbeddedPostgresTestDatabase } from "@outpost/db";
 import { DotHarnessDriver } from "../../packages/outpost-runner/src/drivers/dot/dot-harness-driver.js";
 import { HarnessDriverBackend } from "../../packages/outpost-runner/src/backends/harness-driver-backend.js";
 import { publicMcpIngressRoutes } from "../src/routes/public-mcp.js";
@@ -25,7 +25,7 @@ const origin = new URL(process.env.DOT_LAB_ORIGIN ?? "").origin;
 assert(origin.startsWith("https://"), "DOT_LAB_ORIGIN must be the public HTTPS tunnel origin");
 const port = z.coerce.number().int().min(1024).max(65534).parse(process.env.DOT_LAB_PORT ?? 43127);
 const requestIdSchema = z.string().regex(/^pcmcp_request_[A-Za-z0-9_-]{43}$/);
-const scratch = await mkdtemp(join(tmpdir(), "paperclip-dot-live-"));
+const scratch = await mkdtemp(join(tmpdir(), "outpost-dot-live-"));
 process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = join(scratch, "master.key");
 delete process.env.OUTPOST_SECRETS_MASTER_KEY;
 delete process.env.OUTPOST_CLOUD_API_ORIGIN;
@@ -41,15 +41,15 @@ async function listen(server: Server, listenPort: number) { server.listen(listen
 async function close(server: Server) { server.closeAllConnections(); if (server.listening) await new Promise<void>(resolve => server.close(() => resolve())); }
 const escape = (value: string) => value.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 try {
-  database = await startEmbeddedPostgresTestDatabase("paperclip-dot-live-");
+  database = await startEmbeddedPostgresTestDatabase("outpost-dot-live-");
   const db = createDb(database.connectionString);
-  const oauth = createPublicMcpOAuth(db, { origin, resource: origin + "/mcp/paperclip" });
+  const oauth = createPublicMcpOAuth(db, { origin, resource: origin + "/mcp/outpost" });
   await instanceSettingsService(db).updateExperimental({ enablePublicMcp: true });
   const userId = randomUUID();
   await db.insert(authUsers).values({ id: userId, name: "Dot lab operator", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-  const [company] = await db.insert(companies).values({ name: "Disposable Dot integration lab", issuePrefix: "DOT" }).returning(); assert(company);
-  await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
-  const [task] = await db.insert(issues).values({ companyId: company.id, title: "Dot live test inbox", status: "todo" }).returning(); assert(task);
+  const [space] = await db.insert(spaces).values({ name: "Disposable Dot integration lab", issuePrefix: "DOT" }).returning(); assert(space);
+  await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
+  const [task] = await db.insert(issues).values({ spaceId: space.id, title: "Dot live test inbox", status: "todo" }).returning(); assert(task);
   const actor = { type: "board" as const, source: "session" as const, userId };
   const pending = new Map<string, Awaited<ReturnType<typeof oauth.describeRequest>>>();
   const redirects = new Map<string, string>();
@@ -67,7 +67,7 @@ try {
   let stopLab!: () => void;
   const stopped = new Promise<void>(resolve => { stopLab = resolve; });
   const api: ApiDispatch = async (principal, method, path) => {
-    if (principal.grant.companyId !== company.id || method !== "GET" || path !== `/issues/${task.id}`) throw new McpApiError(403);
+    if (principal.grant.spaceId !== space.id || method !== "GET" || path !== `/issues/${task.id}`) throw new McpApiError(403);
     return task;
   };
   const bridge = createDotRunnerMcpBridge();
@@ -76,14 +76,14 @@ try {
   service = createPublicMcpEvents(db, oauth, api, { enableDotPrototype: true });
   app.use((req, res, next) => {
     res.setHeader("Cache-Control", "no-store"); res.setHeader("Referrer-Policy", "no-referrer");
-    if (req.path === "/mcp/paperclip" && req.method === "POST") {
+    if (req.path === "/mcp/outpost" && req.method === "POST") {
       const method = String(req.body?.method ?? "").slice(0, 100);
       const tool = method === "tools/call" ? String(req.body?.params?.name ?? "").slice(0, 100) : undefined;
       res.on("finish", () => record("mcp", { method, ...(tool ? { tool } : {}), status: res.statusCode }));
     }
     next();
   });
-  app.get("/", (_req, res) => res.type("text").send("Disposable Paperclip Dot lab. Authenticated MCP endpoint: /mcp/outpost. No production data."));
+  app.get("/", (_req, res) => res.type("text").send("Disposable Outpost Dot lab. Authenticated MCP endpoint: /mcp/outpost. No production data."));
   app.get("/mcp-connect/:id", async (req, res) => {
     const id = requestIdSchema.parse(req.params.id);
     const redirect = redirects.get(id);
@@ -92,7 +92,7 @@ try {
     if (pending.size >= 20 && !pending.has(id)) { res.sendStatus(429); return; }
     pending.set(id, request);
     res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
-    res.type("html").send(`<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="3"><title>Paperclip Dot lab connection</title><h1>Connect the disposable Dot lab</h1><p>Waiting for the local lab operator to approve this request.</p><p>Client: ${escape(request.clientName)}. Return destination: ${escape(request.redirectOrigin)}.</p><p>This lab contains one test task and no existing Paperclip data. It expires when the lab closes.</p><p>Request: ${escape(id)}</p>`);
+    res.type("html").send(`<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="3"><title>Outpost Dot lab connection</title><h1>Connect the disposable Dot lab</h1><p>Waiting for the local lab operator to approve this request.</p><p>Client: ${escape(request.clientName)}. Return destination: ${escape(request.redirectOrigin)}.</p><p>This lab contains one test task and no existing Outpost data. It expires when the lab closes.</p><p>Request: ${escape(id)}</p>`);
   });
   app.use(publicMcpIngressRoutes(oauth, createPublicMcpExecutor(db, oauth, api), service, bridge));
   const errors: express.ErrorRequestHandler = (_error, _req, res, _next) => { res.status(400).json({ error: "Lab request unavailable" }); };
@@ -103,7 +103,7 @@ try {
     if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) { res.sendStatus(401); return; }
     next();
   });
-  control.get("/status", async (_req, res) => res.json({ companyId: company.id, taskId: task.id, connected: !!native, queued,
+  control.get("/status", async (_req, res) => res.json({ spaceId: space.id, taskId: task.id, connected: !!native, queued,
     pending: [...pending.values()], reports, transcript, records,
     subscriptions: await db.select({ id: mcpEventSubscriptions.id, name: mcpEventSubscriptions.name, stoppedAt: mcpEventSubscriptions.stoppedAt }).from(mcpEventSubscriptions),
     deliveries: await db.select({ id: mcpEventDeliveries.id, outcome: mcpEventDeliveries.outcome, attempts: mcpEventDeliveries.attempts }).from(mcpEventDeliveries),
@@ -113,37 +113,37 @@ try {
     assert(!grantId, "This lab permits only one connection");
     const requestId = requestIdSchema.parse(req.body.requestId);
     assert(pending.has(requestId), "Visit the public consent page first");
-    const consent = await oauth.consent(requestId, actor, { decision: "approve", companyId: company.id, allowWrites: true });
+    const consent = await oauth.consent(requestId, actor, { decision: "approve", spaceId: space.id, allowWrites: true });
     const grants = await oauth.listConnections(userId); assert.equal(grants.length, 1);
     grantId = grants[0]!.id;
-    const identity = { companyId: company.id, agentId: randomUUID(), issueId: task.id, runId: randomUUID(), sessionId: randomUUID() };
-    const driver = new DotHarnessDriver({ identity, principal: { companyId: company.id, grantId }, expiresAt: Date.now() + 2 * 3600_000,
+    const identity = { spaceId: space.id, agentId: randomUUID(), issueId: task.id, runId: randomUUID(), sessionId: randomUUID() };
+    const driver = new DotHarnessDriver({ identity, principal: { spaceId: space.id, grantId }, expiresAt: Date.now() + 2 * 3600_000,
       assertAuthority: async () => { assert(active); await oauth.authorizeGrant(grantId!); },
       tools: [{ name: "save_report", description: "Save a short harmless report in this disposable lab only", inputSchema: { type: "object", properties: { body: { type: "string", maxLength: 2000 } }, required: ["body"], additionalProperties: false } }],
       executeTool: async ({ name, arguments: args }) => { assert.equal(name, "save_report"); const { body } = z.object({ body: z.string().min(1).max(2000) }).strict().parse(args); reports.push(body); record("report_saved", { body }); return { saved: true, reportNumber: reports.length }; },
-      publish: async assignment => { await db.insert(activityLog).values({ companyId: company.id, actorType: "agent", actorId: identity.agentId, action: "dot.work_available", entityType: "issue", entityId: task.id, details: { ...assignment } }); record("assignment_published", { ...assignment }); },
+      publish: async assignment => { await db.insert(activityLog).values({ spaceId: space.id, actorType: "agent", actorId: identity.agentId, action: "dot.work_available", entityType: "issue", entityId: task.id, details: { ...assignment } }); record("assignment_published", { ...assignment }); },
     });
     unregister = bridge.register(driver, grantId);
     native = await new HarnessDriverBackend(driver).openSession({ identity });
     void (async () => { for await (const event of native!.events()) { transcript.push(event); record("runner_event", { event }); } })().catch(() => record("runner_stream_error"));
     redirects.set(requestId, consent.redirectUrl); pending.delete(requestId);
-    record("connection_approved"); res.json({ connected: true, companyId: company.id, taskId: task.id });
+    record("connection_approved"); res.json({ connected: true, spaceId: space.id, taskId: task.id });
   });
   control.post("/queue", async (_req, res) => {
     assert(native && !queued, "Connect first; this lab permits one task");
     const subscriptions = await db.select().from(mcpEventSubscriptions);
     assert(subscriptions.some(s => s.grantId === grantId && s.name === "outpost.dot.work_available" && !s.stoppedAt && s.expiresAt > new Date()), "Dot must establish its event subscription first");
     queued = true;
-    await native.startTurn({ message: { role: "user", text: "Live integration test: compute 17 + 25. Call the projected save_report tool with body 'Dot received the Paperclip event. 17 + 25 = 42.' Then finish with schema outpost.run_result.v1, reportedWorkDisposition 'done', summary stating the saved result, completionClaim {contractRevision:'dot-live-v1',objectiveSatisfied:true,criteria:[],remainingWork:[]}, and empty arrays for evidence, verification, attentionRequests, artifacts. Do not use any other apps, private data, external messages, or additional tasks." } });
+    await native.startTurn({ message: { role: "user", text: "Live integration test: compute 17 + 25. Call the projected save_report tool with body 'Dot received the Outpost event. 17 + 25 = 42.' Then finish with schema outpost.run_result.v1, reportedWorkDisposition 'done', summary stating the saved result, completionClaim {contractRevision:'dot-live-v1',objectiveSatisfied:true,criteria:[],remainingWork:[]}, and empty arrays for evidence, verification, attentionRequests, artifacts. Do not use any other apps, private data, external messages, or additional tasks." } });
     await service!.tick(); res.json({ queued: true });
   });
   control.post("/stop", (_req, res) => { res.json({ stopping: true }); stopLab(); });
   control.use(errors);
   await listen(http, port); await listen(admin, port + 1); service.start();
-  await writeFile(join(scratch, "control.json"), JSON.stringify({ origin, controlOrigin: `http://127.0.0.1:${port + 1}`, token: controlToken, companyId: company.id, taskId: task.id }), { mode: 0o600 });
-  console.log(`LIVE LAB READY ${origin}/mcp/paperclip`);
+  await writeFile(join(scratch, "control.json"), JSON.stringify({ origin, controlOrigin: `http://127.0.0.1:${port + 1}`, token: controlToken, spaceId: space.id, taskId: task.id }), { mode: 0o600 });
+  console.log(`LIVE LAB READY ${origin}/mcp/outpost`);
   console.log(`Local control file: ${join(scratch, "control.json")}`);
-  console.log(`Standing instruction: Subscribe to outpost.dot.work_available for companyId ${company.id}, taskId ${task.id}. When an event arrives, check paperclip_dot_inbox; read, accept, execute and finish its assignment. Do not poll. Wait for the event before taking work.`);
+  console.log(`Standing instruction: Subscribe to outpost.dot.work_available for spaceId ${space.id}, taskId ${task.id}. When an event arrives, check outpost_dot_inbox; read, accept, execute and finish its assignment. Do not poll. Wait for the event before taking work.`);
   process.once("SIGINT", stopLab); process.once("SIGTERM", stopLab);
   const timer = setTimeout(stopLab, 2 * 3600_000); timer.unref();
   await stopped; clearTimeout(timer);

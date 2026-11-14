@@ -27,7 +27,7 @@ tested with a live account.
 Personal invocation secrets now belong to the grant's user. Setup, health,
 discovery and the run gateway share ownership checks and canonical credential
 paths. Public unauthenticated URLs need no credential repair. OAuth client
-registration secrets remain company-owned and separate from invocation tokens.
+registration secrets remain space-owned and separate from invocation tokens.
 Existing connections with incorrectly owned credentials require the owner to
 reconnect with a fresh key or secret URL. There is no automatic ownership backfill.
 
@@ -111,7 +111,7 @@ Backend regressions execute catalog Zapier, generic secret URLs, personal
 bearer/custom headers, organization credentials and public URLs through the
 run-scoped gateway using a fixture transport. They assert canonical persisted
 ownership/declarations and run read and write calls. Reconnect regressions cover
-replacing legacy company credentials with user-owned values and declarations.
+replacing legacy space credentials with user-owned values and declarations.
 OAuth fixtures assert exact authorization scopes and rejection of an unrelated
 advertised admin scope; they do not contact provider accounts.
 
@@ -135,7 +135,7 @@ invocation and catalog refresh rejected it with `grant_credential_invalid`.
 The catalog showed “Needs attention” and offered Reconnect. Replacing the key
 through that UI preserved the connection and personal grant, created a fresh
 user-owned secret and canonical declaration, and restored writes. The legacy
-company secret retained its ownership. Separate HTTP calls through a session
+space secret retained its ownership. Separate HTTP calls through a session
 bound to a fixture agent run also completed a write and read-back.
 
 The walkthrough exposed and verified fixes for a false “Still not working”

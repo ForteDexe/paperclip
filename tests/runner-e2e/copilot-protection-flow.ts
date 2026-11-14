@@ -47,7 +47,7 @@ export async function settleCopilotDeniedRun(input: {
     }, accept, intervalMs: 200,
   });
   await poll("persisted correlated failed native edit", state => {
-    readCopilotDeniedEdit({ events: state.events, request: input.request, companyId: state.issue.companyId }); return true;
+    readCopilotDeniedEdit({ events: state.events, request: input.request, spaceId: state.issue.spaceId }); return true;
   });
   await input.afterDeniedEdit();
   // This negative case does not qualify active-turn cancellation. Give natural
@@ -58,7 +58,7 @@ export async function settleCopilotDeniedRun(input: {
     const state = await input.load();
     if (["failed", "timed_out"].includes(state.run.status)) throw new Error("Copilot provider run failed before Stop");
     assertBeforeStop(state);
-    preStop = observeCopilotPreStop({ events: state.events, request: input.request, companyId: state.issue.companyId, cancellationRequestId });
+    preStop = observeCopilotPreStop({ events: state.events, request: input.request, spaceId: state.issue.spaceId, cancellationRequestId });
     if (preStop.terminal || Date.now() >= observeUntil) break;
     await new Promise(resolve => setTimeout(resolve, Math.min(200, observeUntil - Date.now())));
   }
@@ -72,7 +72,7 @@ export async function settleCopilotDeniedRun(input: {
     dispatchState = await input.load();
     assertBeforeStop(dispatchState);
     if (Date.now() >= input.deadlineAt) throw new Error("Copilot denial deadline reached before Stop");
-    const observed = observeCopilotPreStop({ events: dispatchState.events, request: input.request, companyId: dispatchState.issue.companyId, cancellationRequestId });
+    const observed = observeCopilotPreStop({ events: dispatchState.events, request: input.request, spaceId: dispatchState.issue.spaceId, cancellationRequestId });
     if (JSON.stringify([observed.terminal, observed.incompleteRecovery]) === JSON.stringify([preStop.terminal, preStop.incompleteRecovery])) break;
     // Completion or its missing-result recovery row can arrive while the previous receipt is being persisted.
     // Retain that actual pre-dispatch observation, then recheck for an earlier
@@ -84,7 +84,7 @@ export async function settleCopilotDeniedRun(input: {
   const stopDispatchMonotonicNs = process.hrtime.bigint().toString();
   const stopped = await input.api.post<Row>(`/api/heartbeat-runs/${input.request.runId}/cancel`);
   const stopAcknowledgement = readCopilotStopAcknowledgement(stopped,
-    { companyId: preStop.companyId, issueId: dispatchState.issue.id, runId: input.request.runId, callerUserId: "local-board" }, cancellationRequestId, stopDispatchMonotonicNs, undefined,
+    { spaceId: preStop.spaceId, issueId: dispatchState.issue.id, runId: input.request.runId, callerUserId: "local-operator" }, cancellationRequestId, stopDispatchMonotonicNs, undefined,
     preStop.terminal?.eventType === "turn.completed" ? "provider-completed-before-stop" : "active-provider");
   await input.retainStopAcknowledgement?.(stopAcknowledgement);
   stopSent = true;
@@ -101,7 +101,7 @@ export function copilotDeniedIssueOutcome(task: RunnerTaskFixture, issue: Row, s
   const issueStatus = settlement.runStop.issueStatus;
   if (task.flow !== "copilot_protection" || task.id !== "native-permission-deny-write"
     || !validCopilotDenialSettlement(settlement)
-    || issue.id !== settlement.runStop.issueId || issue.companyId !== settlement.runStop.companyId
+    || issue.id !== settlement.runStop.issueId || issue.spaceId !== settlement.runStop.spaceId
     || issue.status !== issueStatus || ![task.expectedTerminalState.issue, task.expectedTerminalState.alternativeIssue].includes(issueStatus)
     || (issueStatus === "blocked" && issue.activeRecoveryAction?.id !== settlement.runStop.incompleteRecovery?.actionId)) {
     throw new Error("Copilot denial task outcome does not match its verified settlement");
@@ -158,7 +158,7 @@ export async function runCopilotProtectionFlow(input: {
   const check = (id: string, passed: boolean, detail: string) => { checks.push({ id, passed, detail }); expect(passed, detail).toBe(true); };
   async function load() {
     if (issue.id) issue = await api.get<Row>(`/api/issues/${issue.id}`);
-    const listed = await api.get<Row[]>(`/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100`);
+    const listed = await api.get<Row[]>(`/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100`);
     runs = await Promise.all(listed.map(r => api.get<Row>(`/api/heartbeat-runs/${r.id}`)));
     if (runs.length > 1) throw new Error("Copilot protection case dispatched an extra run");
     input.observe(issue, runs);
@@ -177,16 +177,16 @@ export async function runCopilotProtectionFlow(input: {
     const agent = await api.get<Row>(`/api/agents/${fixtures.agent.id}`);
     await api.patch(`/api/agents/${fixtures.agent.id}`, { adapterConfig: { ...agent.adapterConfig, acpxPermissionMode: deny ? "approve-reads" : "approve-all", timeoutSec: 120, lifecycleMode: "per_turn" } });
     check("per-turn-process-lifecycle", (await api.get<Row>(`/api/agents/${fixtures.agent.id}`)).adapterConfig?.lifecycleMode === "per_turn", "This case explicitly requires a per-turn runner process, never a retained warm daemon");
-    const project = await api.post<Row>(`/api/companies/${fixtures.company.id}/projects`, {
+    const project = await api.post<Row>(`/api/spaces/${fixtures.space.id}/projects`, {
       name: `Copilot protection ${nonce}`, executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", sharedWorkspaceConcurrency: "serialize", allowIssueOverride: false, environmentId: fixtures.environment.id, workspaceStrategy: { type: "project_primary" } },
       workspace: { name: "Primary", sourceType: "local_path", cwd: workspacePath, isPrimary: true },
     });
     if (deny && !remote) { await sample("before-request"); check("target-initially-absent", !fileObservations[0]!.exists, "The exact isolated target is absent before dispatch"); }
     const prompt = remote ? input.remoteBootstrap!.prompt(nonce) : `${localTarget ? bindDeniedTargetPrompt(execution.task.buildPrompt(nonce), targetName, target) : execution.task.buildPrompt(nonce)}${command ? `\nThe exact supplied command is:\n${command.command}\nDo not inspect or modify fixture code, fabricate its marker, or launch a substitute command.` : ""}`;
-    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt, workMode: "standard", projectName: project.name, requireExplicitTitle: true });
-    const found = await pollUntil({ label: "browser-created Copilot protection task", deadlineAt: input.deadlineAt, load: async () => (await api.get<Row[]>(`/api/companies/${fixtures.company.id}/issues?limit=100`)).find(r => r.id === createdTask.issueId), accept: Boolean });
+    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt, workMode: "standard", projectName: project.name, requireExplicitTitle: true });
+    const found = await pollUntil({ label: "browser-created Copilot protection task", deadlineAt: input.deadlineAt, load: async () => (await api.get<Row[]>(`/api/spaces/${fixtures.space.id}/issues?limit=100`)).find(r => r.id === createdTask.issueId), accept: Boolean });
     if (!found) throw new Error("Browser-created task was not found"); issue = found;
-    await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
+    await page.goto(`/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
     await prepareCopilotContext({
       remoteSetup: remote ? async () => {
         await wait("exact remote bootstrap run", state => state.runs.length === 1 && state.runs[0]?.status === "running");
@@ -194,7 +194,7 @@ export async function runCopilotProtectionFlow(input: {
           targets: [deny ? target : `copilot-settlement-${nonce}.txt`],
           actionPrompt: async fixture => {
             remoteFixture = fixture;
-            const prepared = await prepareCopilotRemoteAction({ fixture, companyId: fixtures.company.id, environmentId: fixtures.environment.id, runId: runs[0]!.id,
+            const prepared = await prepareCopilotRemoteAction({ fixture, spaceId: fixtures.space.id, environmentId: fixtures.environment.id, runId: runs[0]!.id,
               target: deny ? target : `copilot-settlement-${nonce}.txt`, prompt: execution.task.buildPrompt(nonce), ...(deny ? {} : { markerText: remoteMarker }) });
             baseline = prepared.baseline; remoteCommand = prepared.command;
             if (deny) { await sample("before-request"); check("target-initially-absent", !fileObservations[0]!.exists, "The actual remote target is absent before action publication"); }
@@ -217,7 +217,7 @@ export async function runCopilotProtectionFlow(input: {
         });
       } : undefined,
       approveContext: async () => {
-        if (deny) await approveCopilotContextThroughUi({ page, companyId: fixtures.company.id, deadlineAt: input.deadlineAt,
+        if (deny) await approveCopilotContextThroughUi({ page, spaceId: fixtures.space.id, deadlineAt: input.deadlineAt,
           load: async () => { const state = await load(); return { run: state.runs[0] ?? {}, events: state.runEvents }; }, evidence: input.evidence });
       },
     });
@@ -292,7 +292,7 @@ export async function runCopilotProtectionFlow(input: {
         markerMatches: localMarkerMatches, afterCleanupMarkerMatches: localAfterCleanupMarkerMatches });
       const call = matched?.call;
       check("single-exact-command", Boolean(matched), "Exactly one native execution matches the fixture command with at most eight leading ASCII SPACE/TAB bytes");
-      const semantic = readCopilotSemanticCompletion(runEvents, { companyId: fixtures.company.id, runId: call!.runId, turnId: call!.turnId,
+      const semantic = readCopilotSemanticCompletion(runEvents, { spaceId: fixtures.space.id, runId: call!.runId, turnId: call!.turnId,
         nativeSessionId: call!.sessionId, command: call!, summary: execution.task.buildVisibleMarker(nonce), requireContextRead: true });
       await input.evidence("copilot-semantic-completion.json", semantic);
       check("accepted-canonical-completion", true, "One exact native finish receipt matches the proposed and control-plane accepted result; transport success alone is insufficient");

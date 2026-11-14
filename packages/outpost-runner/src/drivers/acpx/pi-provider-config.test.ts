@@ -82,7 +82,7 @@ it("attributes Pi's default and custom OpenRouter providers including model over
   }) })!.json);
   expect(custom.providers.openrouter.headers).toMatchObject({ "HTTP-Referer": "https://outpost.ing", Authorization: "Bearer fixture" });
   expect(custom.providers.openrouter.headers).not.toHaveProperty("http-referer");
-  expect(custom.providers.openrouter.models[0].headers["X-Title"]).toBe("Paperclip");
+  expect(custom.providers.openrouter.models[0].headers["X-Title"]).toBe("Outpost");
   expect(custom.providers.openrouter.modelOverrides.other.headers).toMatchObject({ "HTTP-Referer": "https://outpost.ing", "X-Route": "chosen" });
   expect(custom.providers.openrouter.modelOverrides.other.headers).not.toHaveProperty("http-referer");
   expect(custom.providers.alias.headers["HTTP-Referer"]).toBe("https://outpost.ing");

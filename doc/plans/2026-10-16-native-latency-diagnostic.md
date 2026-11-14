@@ -12,7 +12,7 @@ one expected run, the original deadlines, and no automatic retry.
 
 The staging comparison uses subscription authentication. This experiment uses
 an API key. A fresh local database and fixture instructions do not reproduce
-staging company data, Slack admission or Slack delivery. Separate controller
+staging space data, Slack admission or Slack delivery. Separate controller
 setup and provider timing. Do not report the result as exact staging or release
 qualification. Keep the selected image and executable digests in the evidence.
 

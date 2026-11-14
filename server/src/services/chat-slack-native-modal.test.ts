@@ -27,14 +27,14 @@ const channelId = "C-MODAL";
 const threadTs = "1788.100";
 const messageTs = "1788.200";
 const userId = "U-OPERATOR";
-const botUserId = "U-PAPERCLIP-BOT";
+const botUserId = "U-OUTPOST-BOT";
 type SubmitCallback = NonNullable<ChatSdkRuntimeCallbacks["onModalSubmit"]>;
 type SubmitEvent = Parameters<SubmitCallback>[0];
 
 function formFixture(configure?: (interaction: AskUserQuestionsInteraction) => void) {
   const interaction: AskUserQuestionsInteraction = {
     id: "11111111-1111-4111-8111-111111111111",
-    companyId: "22222222-2222-4222-8222-222222222222",
+    spaceId: "22222222-2222-4222-8222-222222222222",
     issueId: "33333333-3333-4333-8333-333333333333",
     kind: "ask_user_questions",
     status: "pending",
@@ -72,7 +72,7 @@ function formFixture(configure?: (interaction: AskUserQuestionsInteraction) => v
           allowOther: true,
           options: [
             {
-              id: "__paperclip_text__",
+              id: "__outpost_text__",
               label: "Type an answer",
               freeText: true,
             },
@@ -109,7 +109,7 @@ function formFixture(configure?: (interaction: AskUserQuestionsInteraction) => v
   const draft = createChatQuestionFormDraft(interaction)!;
   const payload = parseChatQuestionFormSubmitTokenPayload(
     chatQuestionFormActionRecords(draft, {
-      companyId: interaction.companyId,
+      spaceId: interaction.spaceId,
       endpointId: "endpoint-slack-modal",
       conversationId: "conversation-slack-modal",
       publicationId: "publication-slack-modal",
@@ -126,7 +126,7 @@ function formFixture(configure?: (interaction: AskUserQuestionsInteraction) => v
 function memoryPersistence(): ChatSdkStatePersistence {
   const rows = new Map<string, ChatSdkStateRecord>();
   const keyFor = (scope: ChatSdkStateScope, key: string) =>
-    JSON.stringify([scope.companyId, scope.endpointId, key]);
+    JSON.stringify([scope.spaceId, scope.endpointId, key]);
   return {
     async read(scope, key) {
       return rows.get(keyFor(scope, key)) ?? null;
@@ -193,7 +193,7 @@ function submission(view: SlackView) {
   )!;
   return {
     type: "view_submission",
-    team: { id: "T-PAPERCLIP" },
+    team: { id: "T-OUTPOST" },
     user: { id: userId, username: "operator", name: "Operator Name" },
     view: {
       id: "V-MODAL",
@@ -244,7 +244,7 @@ describe("Slack native multi-question modal adapter-to-runtime boundary", () => 
       onSubmit?: SubmitCallback;
       persistence?: ChatSdkStatePersistence;
       endpointId?: string;
-      companyId?: string;
+      spaceId?: string;
     } = {},
   ) {
     const form = formFixture(options.configureForm);
@@ -281,10 +281,10 @@ describe("Slack native multi-question modal adapter-to-runtime boundary", () => 
           ok: true,
           user: {
             id: params.get("user"),
-            name: "paperclip-agent",
-            real_name: "Paperclip Agent",
+            name: "outpost-agent",
+            real_name: "Outpost Agent",
             is_bot: true,
-            profile: { display_name: "Paperclip Agent" },
+            profile: { display_name: "Outpost Agent" },
           },
         };
       } else if (method === "views.open") {
@@ -332,14 +332,14 @@ describe("Slack native multi-question modal adapter-to-runtime boundary", () => 
       },
     );
     const runtime = createChatSdkEndpointRuntime({
-      companyId: options.companyId ?? form.interaction.companyId,
+      spaceId: options.spaceId ?? form.interaction.spaceId,
       endpointId: options.endpointId ?? "endpoint-slack-modal",
       callbacks: { onMessage() {}, onAction, onModalSubmit: onSubmit },
       logger: "silent",
       persistence: options.persistence ?? memoryPersistence(),
       providerConfig: {
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           apiUrl,
           botToken: "xoxb-synthetic",
@@ -354,7 +354,7 @@ describe("Slack native multi-question modal adapter-to-runtime boundary", () => 
       const response = await runtime.handleWebhook(
         signedRequest({
           type: "block_actions",
-          team: { id: "T-PAPERCLIP" },
+          team: { id: "T-OUTPOST" },
           user: { id: userId, username: "operator", name: "Operator Name" },
           channel: { id: channelId },
           container: {
@@ -413,7 +413,7 @@ describe("Slack native multi-question modal adapter-to-runtime boundary", () => 
     expect(test.validations).toEqual([{ ok: true, answers: expect.any(Array) }]);
   });
 
-  it("round-trips the actual Paperclip modal, opaque metadata and Slack state into canonical answers", async () => {
+  it("round-trips the actual Outpost modal, opaque metadata and Slack state into canonical answers", async () => {
     const test = await harness();
     const view = await test.open();
     expect(view.callback_id).toBe(test.form.draft.submitActionId);
@@ -438,7 +438,7 @@ describe("Slack native multi-question modal adapter-to-runtime boundary", () => 
     const wire = JSON.stringify(view);
     for (const canonical of [
       test.form.interaction.id,
-      test.form.interaction.companyId,
+      test.form.interaction.spaceId,
       '"environment"',
       '"reason"',
       '"production"',
@@ -658,7 +658,7 @@ describe("Slack native multi-question modal adapter-to-runtime boundary", () => 
     const second = await harness({
       persistence,
       endpointId: "endpoint-other",
-      companyId: "company-other",
+      spaceId: "space-other",
       onSubmit: () => chatQuestionFormDenialResponse(),
     });
     const submitted = submission(view);

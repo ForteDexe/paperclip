@@ -651,7 +651,7 @@ fn recovery_rejects_tampered_authorization_catalog_bindings() {
     let mut changed_map_key = encoded;
     let authorized = changed_map_key["authorized"].as_object_mut().unwrap();
     let tool = authorized.remove("get_task_context").unwrap();
-    authorized.insert("delete_company".to_owned(), tool);
+    authorized.insert("delete_space".to_owned(), tool);
     let mut recovered: ProviderToolBridge = serde_json::from_value(changed_map_key).unwrap();
     let error = recovered
         .attach_existing_run()
@@ -669,7 +669,7 @@ fn recovery_rejects_tampered_pending_call_contracts() {
     let encoded = serde_json::to_value(&bridge).unwrap();
 
     let mut unauthorized = encoded.clone();
-    unauthorized["pending"]["call-1"]["operationId"] = json!("delete_company");
+    unauthorized["pending"]["call-1"]["operationId"] = json!("delete_space");
     let mut recovered: ProviderToolBridge = serde_json::from_value(unauthorized).unwrap();
     assert!(recovered.attach_existing_run().is_err());
 
@@ -702,7 +702,7 @@ fn recovery_rejects_tampered_retained_result_contracts() {
     let completed = serde_json::to_value(&bridge).unwrap();
 
     let mut unauthorized = completed.clone();
-    unauthorized["completed"]["call-1"]["result"]["operationId"] = json!("delete_company");
+    unauthorized["completed"]["call-1"]["result"]["operationId"] = json!("delete_space");
     let error = serde_json::from_value::<ProviderToolBridge>(unauthorized)
         .expect_err("durable decoding must reject mismatched call and result identities");
     assert!(error

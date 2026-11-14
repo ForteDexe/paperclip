@@ -31,7 +31,7 @@ import {
   chatExternalPrincipals,
   chatIdentityLinks,
   chatMessageLinks,
-  companyMemberships,
+  spaceMemberships,
   issueComments,
   issues,
 } from "@outpost/db";
@@ -63,7 +63,7 @@ export function createSlackTaskAuthorityRegistration(db: Db, options: SlackTaskA
       throw forbidden("Slack tools require the bound task and an accepted linked user");
     const resolved = await measureRunTransaction(db, "connectors.slack.authority", async (tx) => {
       const [action] = await tx.select().from(chatActions).where(and(
-        eq(chatActions.companyId, binding.companyId),
+        eq(chatActions.spaceId, binding.spaceId),
         eq(chatActions.kind, "inbound_wakeup"),
         sql`${chatActions.payload}->>'issueId' = ${binding.issueId}`,
         sql`${chatActions.payload}->>'agentId' = ${binding.agentId}`,
@@ -75,7 +75,7 @@ export function createSlackTaskAuthorityRegistration(db: Db, options: SlackTaskA
         // Ordinary tasks and routines use their accepted responsible user, never
         // an earlier Slack sender or the connection owner's credentials.
         const [message] = identity.sourceMessageId ? await tx.select().from(issueComments)
-          .where(and(eq(issueComments.companyId, binding.companyId), eq(issueComments.issueId, binding.issueId),
+          .where(and(eq(issueComments.spaceId, binding.spaceId), eq(issueComments.issueId, binding.issueId),
             eq(issueComments.id, identity.sourceMessageId), isNull(issueComments.deletedAt))) : [];
         if (identity.sourceMessageId && (!message || message.authorType !== "user" || message.authorUserId !== run.responsibleUserId))
           throw forbidden("Slack tools require the current task requester's identity");
@@ -83,33 +83,33 @@ export function createSlackTaskAuthorityRegistration(db: Db, options: SlackTaskA
         // falling back to ordinary-task access after source admission fails.
         if (identity.sourceMessageId) {
           const [external] = await tx.select({ id: chatMessageLinks.id }).from(chatMessageLinks)
-            .where(and(eq(chatMessageLinks.companyId, binding.companyId), eq(chatMessageLinks.commentId, identity.sourceMessageId), eq(chatMessageLinks.direction, "inbound"))).limit(1);
+            .where(and(eq(chatMessageLinks.spaceId, binding.spaceId), eq(chatMessageLinks.commentId, identity.sourceMessageId), eq(chatMessageLinks.direction, "inbound"))).limit(1);
           if (external) throw forbidden("External messages require their originating Slack connection");
         }
         const endpoints = await tx.select().from(chatEndpoints).where(and(
-          eq(chatEndpoints.companyId, binding.companyId), eq(chatEndpoints.provider, "slack"),
+          eq(chatEndpoints.spaceId, binding.spaceId), eq(chatEndpoints.provider, "slack"),
           eq(chatEndpoints.assignedAgentId, binding.agentId), eq(chatEndpoints.status, "active"),
           ...(binding.endpointId ? [eq(chatEndpoints.id, binding.endpointId)] : []),
         )).for("no key update");
         if (endpoints.length !== 1) throw forbidden("Select an active Slack connection assigned to this agent");
         const endpoint = endpoints[0]!;
-        const [issue] = await tx.select().from(issues).where(and(eq(issues.companyId, binding.companyId), eq(issues.id, binding.issueId), eq(issues.assigneeAgentId, binding.agentId)));
+        const [issue] = await tx.select().from(issues).where(and(eq(issues.spaceId, binding.spaceId), eq(issues.id, binding.issueId), eq(issues.assigneeAgentId, binding.agentId)));
         if (!issue) throw forbidden("Slack tools require a task assigned to this agent");
-        const [member] = await tx.select().from(companyMemberships).where(and(
-          eq(companyMemberships.companyId, binding.companyId), eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, run.responsibleUserId!), eq(companyMemberships.status, "active"), ne(companyMemberships.membershipRole, "viewer"),
+        const [member] = await tx.select().from(spaceMemberships).where(and(
+          eq(spaceMemberships.spaceId, binding.spaceId), eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, run.responsibleUserId!), eq(spaceMemberships.status, "active"), ne(spaceMemberships.membershipRole, "viewer"),
         ));
-        if (!member) throw forbidden("The responsible user must be an active company operator");
+        if (!member) throw forbidden("The responsible user must be an active space operator");
         const links = await tx.select({ principal: chatExternalPrincipals }).from(chatIdentityLinks)
-          .innerJoin(chatExternalPrincipals, and(eq(chatExternalPrincipals.id, chatIdentityLinks.principalId), eq(chatExternalPrincipals.companyId, binding.companyId)))
-          .where(and(eq(chatIdentityLinks.companyId, binding.companyId), eq(chatIdentityLinks.endpointId, endpoint.id),
-            eq(chatIdentityLinks.paperclipUserId, run.responsibleUserId!), eq(chatIdentityLinks.status, "linked"),
+          .innerJoin(chatExternalPrincipals, and(eq(chatExternalPrincipals.id, chatIdentityLinks.principalId), eq(chatExternalPrincipals.spaceId, binding.spaceId)))
+          .where(and(eq(chatIdentityLinks.spaceId, binding.spaceId), eq(chatIdentityLinks.endpointId, endpoint.id),
+            eq(chatIdentityLinks.outpostUserId, run.responsibleUserId!), eq(chatIdentityLinks.status, "linked"),
             eq(chatExternalPrincipals.provider, "slack"), eq(chatExternalPrincipals.providerAccountId, endpoint.providerAccountId!), eq(chatExternalPrincipals.isBot, false)));
         if (links.length !== 1) throw forbidden("Link your Slack account to this connection before using it from tasks or routines");
-        // A Board message changes who is directing the work, not the privacy
+        // A Operator message changes who is directing the work, not the privacy
         // of context already present in its linked Slack conversation.
         const conversations = await tx.select().from(chatConversations).where(and(
-          eq(chatConversations.companyId, binding.companyId), eq(chatConversations.endpointId, endpoint.id),
+          eq(chatConversations.spaceId, binding.spaceId), eq(chatConversations.endpointId, endpoint.id),
           eq(chatConversations.issueId, binding.issueId),
         )).limit(2);
         if (conversations.length > 1) throw forbidden("The task's Slack conversation boundary is ambiguous");
@@ -123,13 +123,13 @@ export function createSlackTaskAuthorityRegistration(db: Db, options: SlackTaskA
       // endpoint update cannot turn tool setup into a NOWAIT failure. The
       // scheduler retains its nonblocking check when it owns the issue first.
       await tx.select({ id: chatEndpoints.id }).from(chatEndpoints).where(and(
-        eq(chatEndpoints.companyId, binding.companyId),
+        eq(chatEndpoints.spaceId, binding.spaceId),
         eq(chatEndpoints.id, action.endpointId),
       )).for("no key update");
       const source = await authorizeInboundWakeup(tx, action);
       if (source.endpoint.provider !== "slack") throw forbidden("This is not a Slack task");
       const [principal] = await tx.select().from(chatExternalPrincipals).where(and(
-        eq(chatExternalPrincipals.companyId, binding.companyId),
+        eq(chatExternalPrincipals.spaceId, binding.spaceId),
         eq(chatExternalPrincipals.id, action.principalId!),
         eq(chatExternalPrincipals.provider, "slack"),
         eq(chatExternalPrincipals.providerAccountId, source.endpoint.providerAccountId!),
@@ -160,7 +160,7 @@ export function createSlackTaskAuthorityRegistration(db: Db, options: SlackTaskA
       revision: createHash("sha256").update(JSON.stringify([
         authority.endpoint.status, authority.endpoint.allowDirectMessages, authority.conversation?.sessionGeneration ?? null,
         authority.userId, authority.botToken,
-        await measureRunPhase("connectors.slack.revision", () => slackAuthorizationRevision(db, binding.companyId, authority.endpoint.id, authority.endpoint.connectionId, binding.agentId, authority.userId)),
+        await measureRunPhase("connectors.slack.revision", () => slackAuthorizationRevision(db, binding.spaceId, authority.endpoint.id, authority.endpoint.connectionId, binding.agentId, authority.userId)),
       ])).digest("hex"),
       searchActionToken: resolved.searchActionToken(),
     };

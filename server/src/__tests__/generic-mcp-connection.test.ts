@@ -13,12 +13,12 @@ import {
   activityLog,
   agents,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   connectionGrants,
-  companySecretBindings,
-  companySecrets,
-  companySecretVersions,
+  spaceSecretBindings,
+  spaceSecrets,
+  spaceSecretVersions,
   createDb,
   heartbeatRuns,
   issueThreadInteractions,
@@ -176,7 +176,7 @@ function headerRecord(init: RequestInit | undefined): Record<string, string> {
 /**
  * A single fetch implementation standing in for an MCP server plus its
  * authorization server. Returns the request log so tests can assert on the exact
- * protocol parameters Paperclip sent (RFC 8707 `resource`, DCR metadata, PKCE).
+ * protocol parameters Outpost sent (RFC 8707 `resource`, DCR metadata, PKCE).
  */
 function installMcpOAuthFixture(options: FixtureOptions = {}) {
   const auth = options.auth ?? "public";
@@ -239,7 +239,7 @@ function installMcpOAuthFixture(options: FixtureOptions = {}) {
           structuredContent: { meeting_id: "meeting-1" },
         } });
       }
-      return jsonResponse({ jsonrpc: "2.0", id: "paperclip-catalog-refresh", result: { tools } });
+      return jsonResponse({ jsonrpc: "2.0", id: "outpost-catalog-refresh", result: { tools } });
     }
 
     if (href === resourceMetadataUrl) {
@@ -262,7 +262,7 @@ function installMcpOAuthFixture(options: FixtureOptions = {}) {
       const requested = parsedBody as Record<string, unknown>;
       return jsonResponse({
         client_id: "fixture-dcr-client",
-        // A conforming server echoes back what it registered, and Paperclip
+        // A conforming server echoes back what it registered, and Outpost
         // requires its own callback even when the provider adds a routing URI.
         redirect_uris: [
           ...(requested.redirect_uris as string[]),
@@ -328,23 +328,23 @@ function installMcpOAuthFixture(options: FixtureOptions = {}) {
   };
 }
 
-async function createCompany(db: ReturnType<typeof createDb>) {
-  const company = await db
-    .insert(companies)
+async function createSpace(db: ReturnType<typeof createDb>) {
+  const space = await db
+    .insert(spaces)
     .values({
       name: `Generic MCP ${randomUUID()}`,
       issuePrefix: `GM${randomUUID().slice(0, 6).toUpperCase()}`,
     })
     .returning()
     .then((rows) => rows[0]!);
-  await db.insert(companyMemberships).values({
-    companyId: company.id,
+  await db.insert(spaceMemberships).values({
+    spaceId: space.id,
     principalType: "user",
-    principalId: "board-user",
+    principalId: "operator-user",
     status: "active",
     membershipRole: "admin",
   });
-  return company;
+  return space;
 }
 
 function createRouteApp(
@@ -362,9 +362,9 @@ function createRouteApp(
   if (requestLogger) app.use(requestLogger);
   app.use((req, _res, next) => {
     req.actor = {
-      type: "board",
-      userId: "board-user",
-      userName: "Board User",
+      type: "operator",
+      userId: "operator-user",
+      userName: "Operator User",
       userEmail: null,
       isInstanceAdmin: true,
       source: "local_implicit",
@@ -387,7 +387,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       await applyPendingMigrations(externalTestDatabaseUrl);
       return;
     }
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-generic-mcp-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-generic-mcp-");
     db = createDb(tempDb.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
@@ -395,15 +395,15 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     for (const restore of restoreCatalogEndpoints.splice(0)) restore();
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
-    await instanceSettingsService(db).updateExperimental({ enablePaperclipNotebook: false });
+    await instanceSettingsService(db).updateExperimental({ enableOutpostNotebook: false });
     await db.delete(toolCallEvents);
     await db.delete(toolInvocations);
     await db.delete(toolActionRequests);
     await db.delete(toolOauthStates);
     await db.delete(secretAccessEvents);
-    await db.delete(companySecretBindings);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
+    await db.delete(spaceSecretBindings);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
     await db.delete(activityLog);
     await db.delete(toolAccessAuditEvents);
     await db.delete(toolGatewaySessions);
@@ -421,9 +421,9 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     await db.delete(heartbeatRuns);
     await db.delete(issues);
     await db.delete(principalPermissionGrants);
-    await db.delete(companyMemberships);
+    await db.delete(spaceMemberships);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     await db.delete(authUsers);
   });
 
@@ -440,7 +440,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
           FROM pg_stat_activity
           WHERE state = 'active'
             AND wait_event_type = 'Lock'
-            AND query ILIKE '%company_memberships%'
+            AND query ILIKE '%space_memberships%'
             AND query ILIKE '%for update%'
         ) AS waiting
       `);
@@ -451,7 +451,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   }
 
   function useNotebookFixtureEndpoint() {
-    const method = APP_DEFINITIONS.find(app => app.slug === "paperclip-notebook")!.methods.find(method => method.key === "mcp-oauth")!;
+    const method = APP_DEFINITIONS.find(app => app.slug === "outpost-notebook")!.methods.find(method => method.key === "mcp-oauth")!;
     const originalUrl = method.defaults!.serverUrl;
     method.defaults!.serverUrl = MCP_URL;
     restoreCatalogEndpoints.push(() => { method.defaults!.serverUrl = originalUrl; });
@@ -459,7 +459,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   async function notebookContextFixture() {
     const settings = instanceSettingsService(db);
-    await settings.updateExperimental({ enablePaperclipNotebook: true });
+    await settings.updateExperimental({ enableOutpostNotebook: true });
     useNotebookFixtureEndpoint();
     const fixture = installMcpOAuthFixture({ auth: "oauth", notebookAccount: { id: "cloud-owner", email: "owner@example.test", emailVerified: true },
       tools: [{ name: "notebook_get_account", annotations: { readOnlyHint: true } }],
@@ -469,21 +469,21 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         "prompts/list": { prompts: [{ name: "summarize", title: "Summarize note" }] },
         "prompts/get": { messages: [{ role: "user", content: { type: "text", text: "Summarize it" } }] },
       } });
-    const company = await createCompany(db), service = toolAccessService(db, { paperclipCloudConnector: null });
-    const actor = { actorType: "user" as const, actorId: "board-user" };
-    const connected = await service.connectGalleryApp(company.id, { galleryKey: "paperclip-notebook" }, actor);
-    const start = await service.startOAuth(company.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
+    const space = await createSpace(db), service = toolAccessService(db, { outpostCloudConnector: null });
+    const actor = { actorType: "user" as const, actorId: "operator-user" };
+    const connected = await service.connectGalleryApp(space.id, { galleryKey: "outpost-notebook" }, actor);
+    const start = await service.startOAuth(space.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
     const completed = await service.completeOAuthCallback({ state: new URL(start.authorizationUrl).searchParams.get("state")!,
       code: fixture.issueAuthorizationCode(start.authorizationUrl), iss: ISSUER, redirectUri: REDIRECT_URI, actor });
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Context reader", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Read Notebook context", status: "in_progress", assigneeAgentId: agent!.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent!.id, invocationSource: "assignment", status: "running", responsibleUserId: "board-user", contextSnapshot: { issueId: issue!.id } }).returning();
-    await service.finishGalleryAppConnection(company.id, connected.connectionId, { enabledCatalogEntryIds: completed.catalog.map(entry => entry.id), askFirstCatalogEntryIds: [], access: { agentIds: [agent!.id] } }, actor);
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Context reader", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Read Notebook context", status: "in_progress", assigneeAgentId: agent!.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent!.id, invocationSource: "assignment", status: "running", responsibleUserId: "operator-user", contextSnapshot: { issueId: issue!.id } }).returning();
+    await service.finishGalleryAppConnection(space.id, connected.connectionId, { enabledCatalogEntryIds: completed.catalog.map(entry => entry.id), askFirstCatalogEntryIds: [], access: { agentIds: [agent!.id] } }, actor);
     const [profile] = await db.select().from(toolProfiles).where(eq(toolProfiles.profileKey, `app:${connected.connectionId}`));
-    await db.insert(toolProfileEntries).values({ companyId: company.id, profileId: profile!.id, selectorType: "connection", effect: "include", connectionId: connected.connectionId });
+    await db.insert(toolProfileEntries).values({ spaceId: space.id, profileId: profile!.id, selectorType: "connection", effect: "include", connectionId: connected.connectionId });
     const gateway = createToolGatewayService(db);
-    const named = await gateway.createNamedGateway({ companyId: company.id, body: { name: "Notebook context", profileId: profile!.id, agentId: agent!.id, issueId: issue!.id } });
-    const token = await gateway.createNamedGatewayToken({ companyId: company.id, gatewayId: named.id, body: { name: "Context run", subjectType: "heartbeat_run", subjectId: run!.id, clientLabel: "Context run client", ownerNote: "" } });
+    const named = await gateway.createNamedGateway({ spaceId: space.id, body: { name: "Notebook context", profileId: profile!.id, agentId: agent!.id, issueId: issue!.id } });
+    const token = await gateway.createNamedGatewayToken({ spaceId: space.id, gatewayId: named.id, body: { name: "Context run", subjectType: "heartbeat_run", subjectId: run!.id, clientLabel: "Context run client", ownerNote: "" } });
     const context = (method: "resources/list" | "resources/read" | "prompts/list" | "prompts/get", params?: Record<string, unknown>) =>
       gateway.executeContextForNamedGateway({ gatewayPublicId: named.gatewayPublicId, bearerToken: token.token, method, params });
     const resources = await context("resources/list"), prompts = await context("prompts/list");
@@ -503,7 +503,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     if (marker === "missing") delete config.sourceTemplateKey;
     else config.sourceTemplateKey = "fireflies";
     await f.service.updateConnection(f.connected.connectionId, { config });
-    await f.settings.updateExperimental({ enablePaperclipNotebook: false });
+    await f.settings.updateExperimental({ enableOutpostNotebook: false });
     const calls = f.fixture.requests.length, secretAccess = await db.select().from(secretAccessEvents);
     await expect(f.context("resources/list")).resolves.toEqual({ resources: [] });
     await expect(f.context("prompts/list")).resolves.toEqual({ prompts: [] });
@@ -525,7 +525,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       const service = actualService(...args);
       return { ...service, async getExperimental() {
         const settings = await service.getExperimental();
-        if (++settingsReads === 1) await f.settings.updateExperimental({ enablePaperclipNotebook: false });
+        if (++settingsReads === 1) await f.settings.updateExperimental({ enableOutpostNotebook: false });
         return settings;
       } };
     });
@@ -537,51 +537,51 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   });
 
   it.each(["missing", "relabelled"])("keeps Notebook setup internal after %s markers, denying pending OAuth and finalization while allowing removal", async marker => {
-    const company = await createCompany(db), settings = instanceSettingsService(db);
-    await settings.updateExperimental({ enablePaperclipNotebook: false });
-    const service = toolAccessService(db, { paperclipCloudConnector: null });
-    const actor = { actorType: "user" as const, actorId: "board-user" };
+    const space = await createSpace(db), settings = instanceSettingsService(db);
+    await settings.updateExperimental({ enableOutpostNotebook: false });
+    const service = toolAccessService(db, { outpostCloudConnector: null });
+    const actor = { actorType: "user" as const, actorId: "operator-user" };
     const app = createRouteApp(db);
-    const gallery = await request(app).get(`/api/companies/${company.id}/tools/gallery`).expect(200);
-    expect(gallery.body.apps.some((item: { slug: string }) => item.slug === "paperclip-notebook")).toBe(false);
-    await expect(service.connectGalleryApp(company.id, { galleryKey: "paperclip-notebook", grantKind: "user" }, actor))
+    const gallery = await request(app).get(`/api/spaces/${space.id}/tools/gallery`).expect(200);
+    expect(gallery.body.apps.some((item: { slug: string }) => item.slug === "outpost-notebook")).toBe(false);
+    await expect(service.connectGalleryApp(space.id, { galleryKey: "outpost-notebook", grantKind: "user" }, actor))
       .rejects.toMatchObject({ status: 403, details: { code: "connector_disabled" } });
-    await request(app).get(`/api/companies/${company.id}/tools/apps/paperclip-notebook/preflight`).expect(403);
-    await expect(service.createConnection(company.id, createToolConnectionSchema.parse({ name: "Notebook bypass", transport: "mcp_remote", config: {
-      sourceTemplateKey: "paperclip-notebook", url: MCP_URL,
+    await request(app).get(`/api/spaces/${space.id}/tools/apps/outpost-notebook/preflight`).expect(403);
+    await expect(service.createConnection(space.id, createToolConnectionSchema.parse({ name: "Notebook bypass", transport: "mcp_remote", config: {
+      sourceTemplateKey: "outpost-notebook", url: MCP_URL,
     } }), actor)).rejects.toMatchObject({ status: 403, details: { code: "connector_disabled" } });
-    expect(await db.select().from(toolConnections).where(eq(toolConnections.companyId, company.id))).toEqual([]);
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.companyId, company.id))).toEqual([]);
-    await settings.updateExperimental({ enablePaperclipNotebook: true });
+    expect(await db.select().from(toolConnections).where(eq(toolConnections.spaceId, space.id))).toEqual([]);
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.spaceId, space.id))).toEqual([]);
+    await settings.updateExperimental({ enableOutpostNotebook: true });
     useNotebookFixtureEndpoint();
     const fixture = installMcpOAuthFixture({ auth: "oauth", notebookAccount: { id: "cloud-owner", email: "owner@example.test", emailVerified: true } });
-    const enabledGallery = await request(app).get(`/api/companies/${company.id}/tools/gallery`).expect(200);
-    expect(enabledGallery.body.apps.some((item: { slug: string }) => item.slug === "paperclip-notebook")).toBe(true);
-    const connected = await service.connectGalleryApp(company.id, { galleryKey: "paperclip-notebook", grantKind: "user" }, actor);
-    const start = await service.startOAuth(company.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
-    const saved = await service.getConnection(connected.connectionId, company.id);
+    const enabledGallery = await request(app).get(`/api/spaces/${space.id}/tools/gallery`).expect(200);
+    expect(enabledGallery.body.apps.some((item: { slug: string }) => item.slug === "outpost-notebook")).toBe(true);
+    const connected = await service.connectGalleryApp(space.id, { galleryKey: "outpost-notebook", grantKind: "user" }, actor);
+    const start = await service.startOAuth(space.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
+    const saved = await service.getConnection(connected.connectionId, space.id);
     const config = { ...saved.config };
     delete config.sourceTemplateKey;
     if (marker === "relabelled") config.sourceTemplateKey = "custom-mcp";
     await service.updateConnection(connected.connectionId, { config });
-    await settings.updateExperimental({ enablePaperclipNotebook: false });
+    await settings.updateExperimental({ enableOutpostNotebook: false });
     await expect(service.completeOAuthCallback({ state: new URL(start.authorizationUrl).searchParams.get("state")!,
       code: fixture.issueAuthorizationCode(start.authorizationUrl), iss: ISSUER, redirectUri: REDIRECT_URI, actor }))
       .rejects.toMatchObject({ status: 403, details: { code: "connector_disabled" } });
     expect(fixture.requestsTo("/token")).toHaveLength(0);
-    await expect(service.startOAuth(company.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor }))
+    await expect(service.startOAuth(space.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor }))
       .rejects.toMatchObject({ status: 403, details: { code: "connector_disabled" } });
-    await expect(service.reconnectGalleryApp(connected.connectionId, company.id, { credentialValues: {} }, actor))
+    await expect(service.reconnectGalleryApp(connected.connectionId, space.id, { credentialValues: {} }, actor))
       .rejects.toMatchObject({ status: 403, details: { code: "connector_disabled" } });
-    await expect(service.connectGalleryApp(company.id, { resumeConnectionId: connected.connectionId, grantKind: "user" }, actor))
+    await expect(service.connectGalleryApp(space.id, { resumeConnectionId: connected.connectionId, grantKind: "user" }, actor))
       .rejects.toMatchObject({ status: 403, details: { code: "connector_disabled" } });
-    await expect(service.finishGalleryAppConnection(company.id, connected.connectionId, { enabledCatalogEntryIds: [], askFirstCatalogEntryIds: [], access: { agentIds: [] } }, actor))
+    await expect(service.finishGalleryAppConnection(space.id, connected.connectionId, { enabledCatalogEntryIds: [], askFirstCatalogEntryIds: [], access: { agentIds: [] } }, actor))
       .rejects.toMatchObject({ status: 403, details: { code: "connector_disabled" } });
-    await expect(service.archiveConnection(connected.connectionId, company.id, actor)).resolves.toMatchObject({ connection: { status: "archived" } });
+    await expect(service.archiveConnection(connected.connectionId, space.id, actor)).resolves.toMatchObject({ connection: { status: "archived" } });
   });
 
   it("connects Notebook with personal OAuth and preserves policies across ordinary rotation, reconnect, and local removal", async () => {
-    await instanceSettingsService(db).updateExperimental({ enablePaperclipNotebook: true });
+    await instanceSettingsService(db).updateExperimental({ enableOutpostNotebook: true });
     useNotebookFixtureEndpoint();
     const scopes = ["notebook:read", "notebook:write", "notebook:share", "notebook:delete"];
     const fixture = installMcpOAuthFixture({ auth: "oauth", scopes, rotateRefreshTokens: true,
@@ -593,13 +593,13 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         { name: "notebook_set_sharing", annotations: { readOnlyHint: false } },
         { name: "notebook_delete_page", annotations: { readOnlyHint: false, destructiveHint: true } },
       ] });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const serviceDb = createDb(externalTestDatabaseUrl ?? tempDb!.connectionString, { maxConnections: 1 });
-    const service = toolAccessService(serviceDb, { paperclipCloudConnector: null });
-    const actor = { actorType: "user" as const, actorId: "board-user" };
-    const connected = await service.connectGalleryApp(company.id, { galleryKey: "paperclip-notebook" }, actor);
+    const service = toolAccessService(serviceDb, { outpostCloudConnector: null });
+    const actor = { actorType: "user" as const, actorId: "operator-user" };
+    const connected = await service.connectGalleryApp(space.id, { galleryKey: "outpost-notebook" }, actor);
     const authorize = async () => {
-      const start = await service.startOAuth(company.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
+      const start = await service.startOAuth(space.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
       expect(start.registrationSource).toBe("dcr");
       const authorization = new URL(start.authorizationUrl);
       expect(authorization.searchParams.get("resource")).toBe(MCP_URL);
@@ -609,20 +609,20 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         iss: ISSUER, redirectUri: REDIRECT_URI, actor });
     };
     const completed = await authorize();
-    expect(completed.connection).toMatchObject({ name: "Paperclip Notebook", credentialPolicy: "per_user" });
+    expect(completed.connection).toMatchObject({ name: "Outpost Notebook", credentialPolicy: "per_user" });
     expect(completed.catalog).toHaveLength(5);
     expect(completed.catalog.every(entry => entry.status === "active")).toBe(true);
     const [grant] = await db.select().from(connectionGrants).where(eq(connectionGrants.connectionId, connected.connectionId));
-    expect(grant).toMatchObject({ kind: "user", subjectUserId: "board-user" });
+    expect(grant).toMatchObject({ kind: "user", subjectUserId: "operator-user" });
     expect(grant!.providerTenant).not.toHaveProperty("name");
     expect(grant!.providerTenant).not.toHaveProperty("externalId");
     expect(fixture.requestsTo("/mcp").filter(call => (call.body as Record<string, unknown>)?.method === "tools/call")).toEqual([]);
-    const stored = await db.select().from(companySecrets).where(inArray(companySecrets.id, grant!.credentialSecretRefs.map(ref => ref.secretId)));
+    const stored = await db.select().from(spaceSecrets).where(inArray(spaceSecrets.id, grant!.credentialSecretRefs.map(ref => ref.secretId)));
     expect(stored).toHaveLength(2);
-    expect(stored.every(secret => secret.scope === "user" && secret.ownerUserId === "board-user")).toBe(true);
+    expect(stored.every(secret => secret.scope === "user" && secret.ownerUserId === "operator-user")).toBe(true);
     expect(JSON.stringify(completed)).not.toContain("fixture-access-");
     for (let rotation = 0; rotation < 2; rotation += 1) {
-      await service.refreshOAuthGrantCredentials({ companyId: company.id, connectionId: connected.connectionId, grantId: grant!.id, forceRefresh: true, actor });
+      await service.refreshOAuthGrantCredentials({ spaceId: space.id, connectionId: connected.connectionId, grantId: grant!.id, forceRefresh: true, actor });
     }
     const refreshRequests = fixture.requestsTo("/token").filter(call => (call.body as URLSearchParams).get("grant_type") === "refresh_token");
     expect(refreshRequests).toHaveLength(2);
@@ -630,9 +630,9 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     expect((refreshRequests[1]!.body as URLSearchParams).get("refresh_token")).toBe(fixture.tokenResponses[1]!.refresh_token);
     expect(fixture.tokenResponses[0]!.refresh_token).not.toBe(fixture.tokenResponses[1]!.refresh_token);
     expect(fixture.requests.every(call => call.headers["idempotency-key"] === undefined)).toBe(true);
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Notebook author", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
-    const [unassigned] = await db.insert(agents).values({ companyId: company.id, name: "Unassigned", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
-    await service.finishGalleryAppConnection(company.id, connected.connectionId, {
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Notebook author", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
+    const [unassigned] = await db.insert(agents).values({ spaceId: space.id, name: "Unassigned", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
+    await service.finishGalleryAppConnection(space.id, connected.connectionId, {
       enabledCatalogEntryIds: completed.catalog.filter(entry => entry.toolName !== "notebook_delete_page").map(entry => entry.id),
       askFirstCatalogEntryIds: completed.catalog.filter(entry => entry.toolName === "notebook_set_sharing").map(entry => entry.id), access: { agentIds: [agent!.id] },
     }, actor);
@@ -641,20 +641,20 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     const policy = toolAccessPolicyService(db);
     const decision = (name: string, agentId = agent!.id) => {
       const entry = completed.catalog.find(entry => entry.toolName === name)!;
-      return policy.decide({ companyId: company.id, actor: { actorType: "agent", actorId: agentId, agentId },
+      return policy.decide({ spaceId: space.id, actor: { actorType: "agent", actorId: agentId, agentId },
         request: { connectionId: connected.connectionId, catalogEntryId: entry.id, toolName: name } });
     };
     await expect(decision("notebook_publish")).resolves.toMatchObject({ allowed: true });
     await expect(decision("notebook_set_sharing")).resolves.toMatchObject({ allowed: false, decision: "require_approval" });
     await expect(decision("notebook_delete_page")).resolves.toMatchObject({ allowed: false, decision: "deny" });
     await expect(decision("notebook_publish", unassigned!.id)).resolves.toMatchObject({ allowed: false });
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Notebook MCP publication", status: "in_progress", assigneeAgentId: agent!.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent!.id, invocationSource: "assignment", status: "running",
-      responsibleUserId: "board-user", contextSnapshot: { issueId: issue!.id } }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Notebook MCP publication", status: "in_progress", assigneeAgentId: agent!.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent!.id, invocationSource: "assignment", status: "running",
+      responsibleUserId: "operator-user", contextSnapshot: { issueId: issue!.id } }).returning();
     const [profile] = await db.select().from(toolProfiles).where(eq(toolProfiles.profileKey, `app:${connected.connectionId}`));
     const gateway = createToolGatewayService(db, { toolActionSigningSecret: "notebook-mcp-fixture" });
-    const named = await gateway.createNamedGateway({ companyId: company.id, body: { name: "Notebook MCP", profileId: profile!.id, agentId: agent!.id, issueId: issue!.id } });
-    const token = await gateway.createNamedGatewayToken({ companyId: company.id, gatewayId: named.id, body: { name: "Notebook run", subjectType: "heartbeat_run", subjectId: run!.id, clientLabel: "Notebook run client", ownerNote: "" } });
+    const named = await gateway.createNamedGateway({ spaceId: space.id, body: { name: "Notebook MCP", profileId: profile!.id, agentId: agent!.id, issueId: issue!.id } });
+    const token = await gateway.createNamedGatewayToken({ spaceId: space.id, gatewayId: named.id, body: { name: "Notebook run", subjectType: "heartbeat_run", subjectId: run!.id, clientLabel: "Notebook run client", ownerNote: "" } });
     const descriptors = await gateway.listToolsForNamedGateway({ gatewayPublicId: named.gatewayPublicId, bearerToken: token.token });
     const publish = descriptors.find(tool => tool.upstreamToolName === "notebook_publish")!;
     const share = descriptors.find(tool => tool.upstreamToolName === "notebook_set_sharing")!;
@@ -663,9 +663,9 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     const callsBeforeApproval = fixture.requestsTo("/mcp").length;
     await expect(gateway.executeTool({ gatewayPublicId: named.gatewayPublicId, sessionToken: token.token, tool: share.name, parameters: {} })).rejects.toMatchObject({ reasonCode: "approval_required" });
     expect(fixture.requestsTo("/mcp")).toHaveLength(callsBeforeApproval);
-    const [action] = await db.select().from(toolActionRequests).where(and(eq(toolActionRequests.companyId, company.id), eq(toolActionRequests.status, "pending")));
+    const [action] = await db.select().from(toolActionRequests).where(and(eq(toolActionRequests.spaceId, space.id), eq(toolActionRequests.status, "pending")));
     expect(action).toBeDefined();
-    const saved = await service.getConnection(connected.connectionId, company.id);
+    const saved = await service.getConnection(connected.connectionId, space.id);
     const config = { ...saved.config };
     delete config.sourceTemplateKey;
     await service.updateConnection(connected.connectionId, { config });
@@ -673,15 +673,15 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     await db.update(connectionGrants).set({ providerTenant: { ...currentGrant!.providerTenant, oauth: {
       ...currentGrant!.providerTenant?.oauth, accessTokenExpiresAt: new Date(0).toISOString(),
     } } }).where(eq(connectionGrants.id, grant!.id));
-    await instanceSettingsService(db).updateExperimental({ enablePaperclipNotebook: false });
+    await instanceSettingsService(db).updateExperimental({ enableOutpostNotebook: false });
     const callsBeforeDisabledDispatch = fixture.requestsTo("/mcp").length;
     expect(await gateway.listToolsForNamedGateway({ gatewayPublicId: named.gatewayPublicId, bearerToken: token.token })).toEqual([]);
     await expect(gateway.executeTool({ gatewayPublicId: named.gatewayPublicId, sessionToken: token.token, tool: publish.name, parameters: {} })).rejects.toMatchObject({ reasonCode: "tool_not_found" });
-    await expect(gateway.approveActionRequest({ companyId: company.id, actionRequestId: action!.id, actor: { userId: "board-user" } })).rejects.toMatchObject({ reasonCode: "tool_not_found" });
+    await expect(gateway.approveActionRequest({ spaceId: space.id, actionRequestId: action!.id, actor: { userId: "operator-user" } })).rejects.toMatchObject({ reasonCode: "tool_not_found" });
     const intents = connectionIntentService(db);
-    const claims = { sub: agent!.id, company_id: company.id, run_id: run!.id, responsible_user_id: "board-user" };
-    expect((await intents.search(claims, "Paperclip Notebook")).results.some(item => item.service === "paperclip-notebook")).toBe(false);
-    await expect(intents.request(claims, "paperclip-notebook")).rejects.toMatchObject({ status: 404 });
+    const claims = { sub: agent!.id, space_id: space.id, run_id: run!.id, responsible_user_id: "operator-user" };
+    expect((await intents.search(claims, "Outpost Notebook")).results.some(item => item.service === "outpost-notebook")).toBe(false);
+    await expect(intents.request(claims, "outpost-notebook")).rejects.toMatchObject({ status: 404 });
     expect(fixture.requestsTo("/mcp")).toHaveLength(callsBeforeDisabledDispatch);
     const tokenRequestsWhileOff = fixture.requestsTo("/token").length;
     const mcpRequestsWhileOff = fixture.requestsTo("/mcp").length;
@@ -691,37 +691,37 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     expect(fixture.requestsTo("/token")).toHaveLength(tokenRequestsWhileOff);
     expect(fixture.requestsTo("/mcp")).toHaveLength(mcpRequestsWhileOff);
     expect(await db.select({ id: secretAccessEvents.id }).from(secretAccessEvents)).toEqual(secretAccessBeforeOff);
-    const removed = await service.archiveConnection(connected.connectionId, company.id, actor);
+    const removed = await service.archiveConnection(connected.connectionId, space.id, actor);
     expect(removed.connection.status).toBe("archived");
     expect(removed.removal).not.toHaveProperty("oauthRevocationPending");
     await expect(decision("notebook_publish")).resolves.toMatchObject({ allowed: false });
     const [removedGrant] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, grant!.id));
     expect(removedGrant).toMatchObject({ status: "revoked", credentialSecretRefs: [] });
-    expect(await db.select().from(companySecrets).where(inArray(companySecrets.id, currentGrant!.credentialSecretRefs.map(ref => ref.secretId)))).toEqual([]);
+    expect(await db.select().from(spaceSecrets).where(inArray(spaceSecrets.id, currentGrant!.credentialSecretRefs.map(ref => ref.secretId)))).toEqual([]);
     expect(fixture.requestsTo("/oauth/revoke")).toEqual([]);
-    await instanceSettingsService(db).updateExperimental({ enablePaperclipNotebook: true });
-    await service.connectGalleryApp(company.id, { galleryKey: "paperclip-notebook", applicationId: connected.application.id }, actor);
+    await instanceSettingsService(db).updateExperimental({ enableOutpostNotebook: true });
+    await service.connectGalleryApp(space.id, { galleryKey: "outpost-notebook", applicationId: connected.application.id }, actor);
     await authorize();
     expect(fixture.requestsTo("/oauth/revoke")).toEqual([]);
     expect(fixture.requests.every(call => call.headers["idempotency-key"] === undefined)).toBe(true);
   });
 
   it("reconnects Notebook after a lost rotating refresh response requires new authorization", async () => {
-    await instanceSettingsService(db).updateExperimental({ enablePaperclipNotebook: true });
+    await instanceSettingsService(db).updateExperimental({ enableOutpostNotebook: true });
     useNotebookFixtureEndpoint();
     const fixture = installMcpOAuthFixture({ auth: "oauth", rotateRefreshTokens: true, dropFirstRefreshResponse: true,
       notebookAccount: { id: "cloud-owner", email: "owner@example.test", emailVerified: true } });
-    const company = await createCompany(db), service = toolAccessService(db, { paperclipCloudConnector: null });
-    const actor = { actorType: "user" as const, actorId: "board-user" };
-    const connected = await service.connectGalleryApp(company.id, { galleryKey: "paperclip-notebook" }, actor);
+    const space = await createSpace(db), service = toolAccessService(db, { outpostCloudConnector: null });
+    const actor = { actorType: "user" as const, actorId: "operator-user" };
+    const connected = await service.connectGalleryApp(space.id, { galleryKey: "outpost-notebook" }, actor);
     const authorize = async () => {
-      const start = await service.startOAuth(company.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
+      const start = await service.startOAuth(space.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
       return service.completeOAuthCallback({ state: new URL(start.authorizationUrl).searchParams.get("state")!, code: fixture.issueAuthorizationCode(start.authorizationUrl),
         iss: ISSUER, redirectUri: REDIRECT_URI, actor });
     };
     await authorize();
     const [grant] = await db.select().from(connectionGrants).where(eq(connectionGrants.connectionId, connected.connectionId));
-    const refresh = () => service.refreshOAuthGrantCredentials({ companyId: company.id, connectionId: connected.connectionId, grantId: grant!.id, forceRefresh: true, actor });
+    const refresh = () => service.refreshOAuthGrantCredentials({ spaceId: space.id, connectionId: connected.connectionId, grantId: grant!.id, forceRefresh: true, actor });
     await expect(refresh()).rejects.toThrow("Fixture lost the committed rotating refresh response");
     expect(fixture.requestsTo("/token")).toHaveLength(2);
     await expect(refresh()).rejects.toMatchObject({ status: 422, details: { code: "oauth_reauthorization_required" } });
@@ -737,7 +737,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   });
 
   it.each(["mcp-oauth", "mcp-api-key"])("connects Fireflies through %s with vaulted credentials and its stable meeting tools", async (methodKey) => {
-    // Keep the real catalog method and governance identity; redirect only its
+    // Keep the real catalog method and policy identity; redirect only its
     // transport URL to the deterministic protocol fixture.
     const method = APP_DEFINITIONS.find((app) => app.slug === "fireflies")!.methods.find((entry) => entry.key === methodKey)!;
     const originalUrl = method.defaults!.serverUrl;
@@ -750,15 +750,15 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         requiredHeader: { name: "Authorization", value: "Bearer fixture-fireflies-key" },
         tools: availableTools,
       });
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const service = toolAccessService(db);
-      const connected = await service.connectGalleryApp(company.id, {
+      const connected = await service.connectGalleryApp(space.id, {
         galleryKey: "fireflies", connectionMethodKey: methodKey,
         ...(methodKey === "mcp-api-key" ? { credentialValues: { "credentials.authorization": "fixture-fireflies-key" } } : {}),
       });
       if (methodKey === "mcp-oauth") {
-        const actor = { actorType: "user" as const, actorId: "board-user" };
-        const start = await service.startOAuth(company.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
+        const actor = { actorType: "user" as const, actorId: "operator-user" };
+        const start = await service.startOAuth(space.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
         expect(start.registrationSource).toBe("dcr");
         const url = new URL(start.authorizationUrl);
         expect(url.searchParams.get("code_challenge_method")).toBe("S256");
@@ -774,16 +774,16 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       expect(connection!.credentialSecretRefs.length).toBeGreaterThan(0);
       expect(JSON.stringify({ connected, connection })).not.toContain("fixture-fireflies-key");
       expect(JSON.stringify(connection!.config)).not.toContain("fixture-access-");
-      const refreshed = await service.refreshCatalog(connected.connectionId, { actorType: "user", actorId: "board-user" });
-      const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Meeting reviewer", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
-      await service.finishGalleryAppConnection(company.id, connected.connectionId, {
+      const refreshed = await service.refreshCatalog(connected.connectionId, { actorType: "user", actorId: "operator-user" });
+      const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Meeting reviewer", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
+      await service.finishGalleryAppConnection(space.id, connected.connectionId, {
         enabledCatalogEntryIds: refreshed.catalog.filter((entry) => entry.toolName !== "fireflies_move_meeting").map((entry) => entry.id),
         askFirstCatalogEntryIds: refreshed.catalog.filter((entry) => entry.toolName === "fireflies_share_meeting").map((entry) => entry.id),
         access: { agentIds: [agent!.id] },
-      }, { actorType: "user", actorId: "board-user" });
+      }, { actorType: "user", actorId: "operator-user" });
       const gateway = createToolGatewayService(db, { toolActionSigningSecret: "fireflies-test-only-signing-secret" });
       for (const toolName of names) {
-        await expect(gateway.executeTestCall({ companyId: company.id, connectionId: connected.connectionId, agentId: agent!.id, userId: "board-user", toolName, parameters: {} }))
+        await expect(gateway.executeTestCall({ spaceId: space.id, connectionId: connected.connectionId, agentId: agent!.id, userId: "operator-user", toolName, parameters: {} }))
           .resolves.toMatchObject({ decision: "allowed", result: { data: { structuredContent: { meeting_id: "meeting-1" } } } });
       }
       const policy = toolAccessPolicyService(db);
@@ -792,26 +792,26 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       // Newly discovered tools still receive the normal connection defaults.
       availableTools.push({ name: "fixture_new_read", annotations: { readOnlyHint: true } });
       if (methodKey === "mcp-oauth") {
-        const actor = { actorType: "user" as const, actorId: "board-user" };
-        const start = await service.startOAuth(company.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
+        const actor = { actorType: "user" as const, actorId: "operator-user" };
+        const start = await service.startOAuth(space.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
         await service.completeOAuthCallback({ state: new URL(start.authorizationUrl).searchParams.get("state")!, code: fixture.issueAuthorizationCode(start.authorizationUrl), iss: ISSUER, redirectUri: REDIRECT_URI, actor });
       } else {
-        const reconnected = await service.reconnectGalleryApp(connected.connectionId, company.id, {
+        const reconnected = await service.reconnectGalleryApp(connected.connectionId, space.id, {
           credentialValues: { "credentials.authorization": "fixture-fireflies-key" },
         });
         expect(reconnected.connection.id).toBe(connected.connectionId);
       }
-      await service.refreshCatalog(connected.connectionId, { actorType: "user", actorId: "board-user" });
-      await expect(gateway.executeTestCall({ companyId: company.id, connectionId: connected.connectionId, agentId: agent!.id, userId: "board-user", toolName: "fixture_new_read", parameters: {} }))
+      await service.refreshCatalog(connected.connectionId, { actorType: "user", actorId: "operator-user" });
+      await expect(gateway.executeTestCall({ spaceId: space.id, connectionId: connected.connectionId, agentId: agent!.id, userId: "operator-user", toolName: "fixture_new_read", parameters: {} }))
         .resolves.toMatchObject({ decision: "allowed" });
-      await expect(policy.decide({ companyId: company.id, actor: { actorType: "agent", actorId: agent!.id, agentId: agent!.id }, request: { connectionId: connected.connectionId, catalogEntryId: entry.id, toolName: entry.toolName } }))
+      await expect(policy.decide({ spaceId: space.id, actor: { actorType: "agent", actorId: agent!.id, agentId: agent!.id }, request: { connectionId: connected.connectionId, catalogEntryId: entry.id, toolName: entry.toolName } }))
         .resolves.toMatchObject({ allowed: false, decision: "require_approval" });
       const offEntry = refreshed.catalog.find((item) => item.toolName === "fireflies_move_meeting")!;
-      await expect(policy.decide({ companyId: company.id, actor: { actorType: "agent", actorId: agent!.id, agentId: agent!.id }, request: { connectionId: connected.connectionId, catalogEntryId: offEntry.id, toolName: offEntry.toolName } }))
+      await expect(policy.decide({ spaceId: space.id, actor: { actorType: "agent", actorId: agent!.id, agentId: agent!.id }, request: { connectionId: connected.connectionId, catalogEntryId: offEntry.id, toolName: offEntry.toolName } }))
         .resolves.toMatchObject({ allowed: false, decision: "deny" });
-      await expect(gateway.executeTestCall({ companyId: randomUUID(), connectionId: connected.connectionId, agentId: agent!.id, userId: "board-user", toolName: names[0]!, parameters: {} })).rejects.toThrow();
-      await service.archiveConnection(connected.connectionId, company.id);
-      await expect(gateway.executeTestCall({ companyId: company.id, connectionId: connected.connectionId, agentId: agent!.id, userId: "board-user", toolName: names[0]!, parameters: {} })).rejects.toThrow();
+      await expect(gateway.executeTestCall({ spaceId: randomUUID(), connectionId: connected.connectionId, agentId: agent!.id, userId: "operator-user", toolName: names[0]!, parameters: {} })).rejects.toThrow();
+      await service.archiveConnection(connected.connectionId, space.id);
+      await expect(gateway.executeTestCall({ spaceId: space.id, connectionId: connected.connectionId, agentId: agent!.id, userId: "operator-user", toolName: names[0]!, parameters: {} })).rejects.toThrow();
       expect((await db.select().from(toolConnections).where(eq(toolConnections.id, connected.connectionId)))[0]?.status).toBe("archived");
     } finally {
       method.defaults!.serverUrl = originalUrl;
@@ -820,10 +820,10 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("discovers every tool for a public unknown endpoint without activating the draft", async () => {
     installMcpOAuthFixture({ auth: "public" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    const result = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture MCP" });
+    const result = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture MCP" });
 
     expect(result.auth ?? null).toBeNull();
     expect(result.actions.readOnly.map((action) => action.toolName)).toEqual(["list_insights"]);
@@ -837,7 +837,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     // this connection cannot be depending on gallery metadata for anything.
     expect(connection!.config).not.toHaveProperty("sourceTemplateKey");
     expect(connection!.config).not.toHaveProperty("connectionMethodKey");
-    await expect(service.listConnectionGrants(result.connectionId, company.id)).resolves.toMatchObject({
+    await expect(service.listConnectionGrants(result.connectionId, space.id)).resolves.toMatchObject({
       grants: [expect.objectContaining({ kind: "organization", isDefault: true, credentialSecretRefs: [] })],
     });
     const profiles = await db.select().from(toolProfiles).where(eq(
@@ -856,20 +856,20 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       if (String(url) === secretUrl && (init?.method ?? "GET").toUpperCase() === "POST") {
         return jsonResponse({
           jsonrpc: "2.0",
-          id: "paperclip-catalog-refresh",
+          id: "outpost-catalog-refresh",
           result: { tools: FIXTURE_TOOLS },
         });
       }
       return jsonResponse({ error: "not_found" }, 404);
     });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const app = createRouteApp(db, {
       deploymentMode: "local_trusted",
       deploymentExposure: "private",
     });
 
     const response = await request(app)
-      .post(`/api/companies/${company.id}/tools/apps/connect`)
+      .post(`/api/spaces/${space.id}/tools/apps/connect`)
       .send({ link: secretUrl, name: "Token URL fixture", grantKind })
       .expect(201);
 
@@ -896,17 +896,17 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       expect.objectContaining({
         kind: grantKind,
         credentialSecretRefs: expectedRefs,
-        ...(grantKind === "user" ? { subjectUserId: "board-user" } : {}),
+        ...(grantKind === "user" ? { subjectUserId: "operator-user" } : {}),
       }),
     ]);
-    expect(await db.select().from(companySecrets)).toHaveLength(1);
+    expect(await db.select().from(spaceSecrets)).toHaveLength(1);
     expect(JSON.stringify(await db.select().from(activityLog))).not.toContain("zapier-secret");
   });
 
   it("keeps a generated Zapier URL attached to the curated Zapier identity", async () => {
     const secretUrl = "https://mcp.zapier.com/api/v1/connect?token=zapier-secret";
     const publicUrl = "https://mcp.zapier.com/api/v1/connect";
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const app = createRouteApp(db, {
       deploymentMode: "local_trusted",
       deploymentExposure: "private",
@@ -926,12 +926,12 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     });
 
     const response = await request(app)
-      .post(`/api/companies/${company.id}/tools/apps/connect`)
+      .post(`/api/spaces/${space.id}/tools/apps/connect`)
       .send({
         galleryKey: "zapier",
         connectionMethodKey: "generated-url",
         link: secretUrl,
-        name: "Zapier for the company",
+        name: "Zapier for the space",
       });
 
     expect(response.status, JSON.stringify(response.body)).toBe(201);
@@ -957,14 +957,14 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   });
 
   it("rejects a generated URL for curated methods that do not declare one", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const app = createRouteApp(db, {
       deploymentMode: "local_trusted",
       deploymentExposure: "private",
     });
 
     const response = await request(app)
-      .post(`/api/companies/${company.id}/tools/apps/connect`)
+      .post(`/api/spaces/${space.id}/tools/apps/connect`)
       .send({
         galleryKey: "notion",
         connectionMethodKey: "mcp-oauth",
@@ -977,14 +977,14 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   });
 
   it("emits DNS guidance for a real NXDOMAIN failure", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const app = createRouteApp(db, {
       deploymentMode: "local_trusted",
       deploymentExposure: "private",
     });
 
     const response = await request(app)
-      .post(`/api/companies/${company.id}/tools/apps/connect`)
+      .post(`/api/spaces/${space.id}/tools/apps/connect`)
       .send({ link: "https://qa-nonexistent.invalid/mcp", name: "Missing DNS fixture" });
 
     // Public-mode preflight returns 400; local-mode platform fetch reports the
@@ -1000,9 +1000,9 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("automatically gives a new connection a distinct name when its default is already used", async () => {
     installMcpOAuthFixture({ auth: "public" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     await db.insert(toolApplications).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationKey: `existing:${randomUUID()}`,
       name: "Taken fixture name",
       type: "mcp_http",
@@ -1015,7 +1015,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     });
 
     const response = await request(app)
-      .post(`/api/companies/${company.id}/tools/apps/connect`)
+      .post(`/api/spaces/${space.id}/tools/apps/connect`)
       .send({ link: MCP_URL, name: "Taken fixture name" })
       .expect(201);
 
@@ -1024,7 +1024,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     await expect(
       db.select({ name: toolApplications.name })
         .from(toolApplications)
-        .where(eq(toolApplications.companyId, company.id)),
+        .where(eq(toolApplications.spaceId, space.id)),
     ).resolves.toEqual(expect.arrayContaining([
       { name: "Taken fixture name" },
       { name: "Taken fixture name (2)" },
@@ -1058,19 +1058,19 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       { name: "list_insights", description: "List insights", annotations: { readOnlyHint: true, destructiveHint: false } },
       { name: "create_insight", description: "Create an insight", annotations: { readOnlyHint: false, destructiveHint: true } },
     ] });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
-    const actor = { actorType: "user" as const, actorId: "board-user", userId: "board-user" } as never;
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture bearer", authMode: "bearer",
+    const actor = { actorType: "user" as const, actorId: "operator-user", userId: "operator-user" } as never;
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture bearer", authMode: "bearer",
       credentialValues: { "credentials.authorization": "fixture-key-123" }, grantKind: "organization" } as never, actor);
     const readOnly = connected.actions.readOnly.map((row: { catalogEntryId: string }) => row.catalogEntryId);
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Morgan", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
-    await service.finishGalleryAppConnection(company.id, connected.connectionId, { enabledCatalogEntryIds: readOnly, askFirstCatalogEntryIds: [], access: { agentIds: [] } }, actor);
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Morgan", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
+    await service.finishGalleryAppConnection(space.id, connected.connectionId, { enabledCatalogEntryIds: readOnly, askFirstCatalogEntryIds: [], access: { agentIds: [] } }, actor);
     await service.putConnectionInstalls(connected.connectionId, { installs: [{ targetType: "agent", targetId: agent!.id }] }, actor);
     // Every new standard agent receives this unscoped grant.
-    await db.insert(principalPermissionGrants).values({ companyId: company.id, principalType: "agent", principalId: agent!.id, permissionKey: "tools:use", scope: null });
+    await db.insert(principalPermissionGrants).values({ spaceId: space.id, principalType: "agent", principalId: agent!.id, permissionKey: "tools:use", scope: null });
     const gateway = createToolGatewayService(db, { toolActionSigningSecret: "fixture-secret" });
-    const summary = async () => (await gateway.summarizeConnectionAccessForAgent({ companyId: company.id, connectionId: connected.connectionId, agentId: agent!.id }))
+    const summary = async () => (await gateway.summarizeConnectionAccessForAgent({ spaceId: space.id, connectionId: connected.connectionId, agentId: agent!.id }))
       .tools.map(tool => [tool.toolName, tool.decision]).sort();
     expect(await summary()).toEqual([["create_insight", "off"], ["list_insights", "allowed"]]);
     // A grant scoped to the action is an explicit choice and still applies.
@@ -1079,36 +1079,36 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     expect(await summary()).toEqual([["create_insight", "allowed"], ["list_insights", "allowed"]]);
   });
 
-  async function setUpGovernedTwoActionConnection(options: { enabled: "read" | "none"; access?: "all_agents" }) {
+  async function setUpControlledTwoActionConnection(options: { enabled: "read" | "none"; access?: "all_agents" }) {
     installMcpOAuthFixture({ auth: "header", requiredHeader: { name: "Authorization", value: "Bearer fixture-key-123" }, tools: [
       { name: "list_insights", description: "List insights", annotations: { readOnlyHint: true, destructiveHint: false } },
       { name: "create_insight", description: "Create an insight", annotations: { readOnlyHint: false, destructiveHint: true } },
     ] });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
-    const actor = { actorType: "user" as const, actorId: "board-user", userId: "board-user" } as never;
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture bearer", authMode: "bearer",
+    const actor = { actorType: "user" as const, actorId: "operator-user", userId: "operator-user" } as never;
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture bearer", authMode: "bearer",
       credentialValues: { "credentials.authorization": "fixture-key-123" }, grantKind: "organization" } as never, actor);
     const readOnly = connected.actions.readOnly.map((row: { catalogEntryId: string }) => row.catalogEntryId);
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Morgan", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
-    await service.finishGalleryAppConnection(company.id, connected.connectionId, {
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Morgan", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
+    await service.finishGalleryAppConnection(space.id, connected.connectionId, {
       enabledCatalogEntryIds: options.enabled === "read" ? readOnly : [], askFirstCatalogEntryIds: [],
       access: options.access ?? { agentIds: [] },
     }, actor);
     if (!options.access) await service.putConnectionInstalls(connected.connectionId, { installs: [{ targetType: "agent", targetId: agent!.id }] }, actor);
     // Every new standard agent receives this unscoped grant.
-    await db.insert(principalPermissionGrants).values({ companyId: company.id, principalType: "agent", principalId: agent!.id, permissionKey: "tools:use", scope: null });
+    await db.insert(principalPermissionGrants).values({ spaceId: space.id, principalType: "agent", principalId: agent!.id, permissionKey: "tools:use", scope: null });
     const gateway = createToolGatewayService(db, { toolActionSigningSecret: "fixture-secret" });
-    const summary = async (agentId = agent!.id) => (await gateway.summarizeConnectionAccessForAgent({ companyId: company.id, connectionId: connected.connectionId, agentId }))
+    const summary = async (agentId = agent!.id) => (await gateway.summarizeConnectionAccessForAgent({ spaceId: space.id, connectionId: connected.connectionId, agentId }))
       .tools.map(tool => [tool.toolName, tool.decision]).sort();
     const setGrantScope = (scope: Record<string, unknown> | null) => db.update(principalPermissionGrants).set({ scope })
       .where(and(eq(principalPermissionGrants.principalId, agent!.id), eq(principalPermissionGrants.permissionKey, "tools:use")));
     const [connection] = await db.select().from(toolConnections).where(eq(toolConnections.id, connected.connectionId));
-    return { company, agent: agent!, connection: connection!, summary, setGrantScope };
+    return { space, agent: agent!, connection: connection!, summary, setGrantScope };
   }
 
   it("keeps every action off when the connection turns all of them off, even for the default unscoped tools:use grant", async () => {
-    const { connection, summary, setGrantScope } = await setUpGovernedTwoActionConnection({ enabled: "none" });
+    const { connection, summary, setGrantScope } = await setUpControlledTwoActionConnection({ enabled: "none" });
     expect(await summary()).toEqual([["create_insight", "off"], ["list_insights", "off"]]);
     // A grant that only narrows when it applies (agent, project) still covers every tool, so it is not a choice about this connection.
     await setGrantScope({ actorType: "agent" });
@@ -1121,35 +1121,35 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   });
 
   it("keeps the unscoped tools:use grant for agents the connection's profile does not cover", async () => {
-    const { company, summary } = await setUpGovernedTwoActionConnection({ enabled: "read" });
-    const [other] = await db.insert(agents).values({ companyId: company.id, name: "Riley", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
-    await db.insert(principalPermissionGrants).values({ companyId: company.id, principalType: "agent", principalId: other!.id, permissionKey: "tools:use", scope: null });
+    const { space, summary } = await setUpControlledTwoActionConnection({ enabled: "read" });
+    const [other] = await db.insert(agents).values({ spaceId: space.id, name: "Riley", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
+    await db.insert(principalPermissionGrants).values({ spaceId: space.id, principalType: "agent", principalId: other!.id, permissionKey: "tools:use", scope: null });
     expect(await summary(other!.id)).toEqual([["create_insight", "allowed"], ["list_insights", "allowed"]]);
   });
 
   it("does not let the unscoped tools:use grant override a profile entry that excludes the application", async () => {
-    const { company, summary } = await setUpGovernedTwoActionConnection({ enabled: "read" });
-    const [other] = await db.insert(agents).values({ companyId: company.id, name: "Riley", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
-    await db.insert(principalPermissionGrants).values({ companyId: company.id, principalType: "agent", principalId: other!.id, permissionKey: "tools:use", scope: null });
-    const [connection] = await db.select().from(toolConnections).where(eq(toolConnections.companyId, company.id));
-    const [profile] = await db.insert(toolProfiles).values({ companyId: company.id, profileKey: `no-insights-${randomUUID()}`, name: "No insights", defaultAction: "allow" }).returning();
+    const { space, summary } = await setUpControlledTwoActionConnection({ enabled: "read" });
+    const [other] = await db.insert(agents).values({ spaceId: space.id, name: "Riley", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
+    await db.insert(principalPermissionGrants).values({ spaceId: space.id, principalType: "agent", principalId: other!.id, permissionKey: "tools:use", scope: null });
+    const [connection] = await db.select().from(toolConnections).where(eq(toolConnections.spaceId, space.id));
+    const [profile] = await db.insert(toolProfiles).values({ spaceId: space.id, profileKey: `no-insights-${randomUUID()}`, name: "No insights", defaultAction: "allow" }).returning();
     // An application selector carries no connection id.
-    await db.insert(toolProfileEntries).values({ companyId: company.id, profileId: profile!.id, selectorType: "application", effect: "exclude", applicationId: connection!.applicationId });
-    await db.insert(toolProfileBindings).values({ companyId: company.id, profileId: profile!.id, targetType: "agent", targetId: other!.id });
+    await db.insert(toolProfileEntries).values({ spaceId: space.id, profileId: profile!.id, selectorType: "application", effect: "exclude", applicationId: connection!.applicationId });
+    await db.insert(toolProfileBindings).values({ spaceId: space.id, profileId: profile!.id, targetType: "agent", targetId: other!.id });
     expect(await summary(other!.id)).toEqual([["create_insight", "off"], ["list_insights", "off"]]);
   });
 
-  it("applies the connection profile on the direct policy check and keeps a board user's unscoped grant", async () => {
-    const { company, agent, connection, summary } = await setUpGovernedTwoActionConnection({ enabled: "read", access: "all_agents" });
+  it("applies the connection profile on the direct policy check and keeps a operator user's unscoped grant", async () => {
+    const { space, agent, connection, summary } = await setUpControlledTwoActionConnection({ enabled: "read", access: "all_agents" });
     expect(await summary()).toEqual([["create_insight", "off"], ["list_insights", "allowed"]]);
     const [create] = await db.select().from(toolCatalogEntries).where(and(eq(toolCatalogEntries.connectionId, connection.id), eq(toolCatalogEntries.toolName, "create_insight")));
     const request = { connectionId: connection.id, catalogEntryId: create!.id, toolName: create!.toolName, arguments: {} };
     const policy = toolAccessPolicyService(db);
-    const agentDecision = await policy.decide({ companyId: company.id, actor: { actorType: "agent", actorId: agent.id, agentId: agent.id }, request });
+    const agentDecision = await policy.decide({ spaceId: space.id, actor: { actorType: "agent", actorId: agent.id, agentId: agent.id }, request });
     expect([agentDecision.decision, agentDecision.reasonCode]).toEqual(["deny", "deny_default"]);
-    // The connection's profile is bound to the company, which also matches board users; their operator grant still applies.
-    await db.insert(principalPermissionGrants).values({ companyId: company.id, principalType: "user", principalId: "board-user", permissionKey: "tools:use", scope: null });
-    const userDecision = await policy.decide({ companyId: company.id, actor: { actorType: "user", actorId: "board-user" }, request });
+    // The connection's profile is bound to the space, which also matches operator users; their operator grant still applies.
+    await db.insert(principalPermissionGrants).values({ spaceId: space.id, principalType: "user", principalId: "operator-user", permissionKey: "tools:use", scope: null });
+    const userDecision = await policy.decide({ spaceId: space.id, actor: { actorType: "user", actorId: "operator-user" }, request });
     expect([userDecision.decision, userDecision.reasonCode]).toEqual(["allow", "allow_explicit_grant"]);
   });
 
@@ -1158,10 +1158,10 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       auth: "header",
       requiredHeader: { name: "Authorization", value: "Bearer fixture-key-123" },
     });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    const result = await service.connectGalleryApp(company.id, {
+    const result = await service.connectGalleryApp(space.id, {
       link: MCP_URL,
       name: "Fixture bearer",
       authMode: "bearer",
@@ -1185,10 +1185,10 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       auth: "header",
       requiredHeader: { name: "X-Api-Key", value: "phx_fixture_secret" },
     });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    const result = await service.connectGalleryApp(company.id, {
+    const result = await service.connectGalleryApp(space.id, {
       link: MCP_URL,
       name: "Fixture headers",
       authMode: "custom_headers",
@@ -1207,18 +1207,18 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     expect(serialized).toContain("X-Api-Key");
   });
 
-  it("rejects header names Paperclip refuses to send", async () => {
+  it("rejects header names Outpost refuses to send", async () => {
     installMcpOAuthFixture({ auth: "public" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    await expect(service.connectGalleryApp(company.id, {
+    await expect(service.connectGalleryApp(space.id, {
       link: MCP_URL,
       name: "Fixture unsafe header",
       credentialValues: { "headers.Host": "evil.example" },
     })).rejects.toMatchObject({ status: 400 });
 
-    await expect(service.connectGalleryApp(company.id, {
+    await expect(service.connectGalleryApp(space.id, {
       link: MCP_URL,
       name: "Fixture split header",
       credentialValues: { "headers.X-Api-Key": "abc\r\nX-Injected: 1" },
@@ -1226,22 +1226,22 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
     // Nothing partial survived either rejection.
     await expect(db.select().from(toolConnections)).resolves.toHaveLength(0);
-    await expect(db.select().from(companySecrets)).resolves.toHaveLength(0);
+    await expect(db.select().from(spaceSecrets)).resolves.toHaveLength(0);
   });
 
   it("registers dynamically for an unknown OAuth endpoint and completes the flow", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture OAuth" });
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture OAuth" });
     // Discovery succeeded, so the wizard gets a real sign-in branch rather than
     // an error, and it already knows which server it is about to trust.
     expect(connected.auth).toMatchObject({ kind: "oauth", issuer: ISSUER, resource: MCP_URL });
 
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     expect(start.registrationSource).toBe("dcr");
     expect(start.issuer).toBe(ISSUER);
@@ -1274,7 +1274,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       code,
       iss: ISSUER,
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
 
     // Same catalog/review pipeline a curated connection gets.
@@ -1321,12 +1321,12 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   it.each(["organization", "user"] as const)("keeps a real %s MCP connection usable across offline-access token expiry and rotation", async (grantKind) => {
     const fixture = await startOAuthRefreshFixture();
     try {
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const app = createRouteApp(db, { deploymentMode: "local_trusted", deploymentExposure: "private" });
       const redirectUri = "http://127.0.0.1:3100/api/tools/oauth/callback";
       vi.stubEnv("OUTPOST_PUBLIC_URL", "http://127.0.0.1:3100");
-      const actor = { actorType: "user" as const, actorId: "board-user" };
-      const connected = await request(app).post(`/api/companies/${company.id}/tools/apps/connect`)
+      const actor = { actorType: "user" as const, actorId: "operator-user" };
+      const connected = await request(app).post(`/api/spaces/${space.id}/tools/apps/connect`)
         .send({ link: fixture.mcpUrl, name: "Offline access MCP", grantKind }).expect(201);
       const connectionId = connected.body.connectionId;
       const start = await request(app).post(`/api/tools/oauth/${connectionId}/start`)
@@ -1337,17 +1337,17 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         iss: callback.searchParams.get("iss")!, redirectUri, actor,
       });
       const service = toolAccessService(db);
-      const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Offline access reader", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
+      const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Offline access reader", role: "engineer", status: "active", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
       const catalog = await service.refreshCatalog(connectionId, actor);
-      await service.finishGalleryAppConnection(company.id, connectionId, {
+      await service.finishGalleryAppConnection(space.id, connectionId, {
         enabledCatalogEntryIds: catalog.catalog.map((entry) => entry.id), askFirstCatalogEntryIds: [], access: { agentIds: [agent!.id] },
       }, actor);
       const call = () => createToolGatewayService(db).executeTestCall({
-        companyId: company.id, connectionId, agentId: agent!.id, userId: "board-user", toolName: "read_status", parameters: {},
+        spaceId: space.id, connectionId, agentId: agent!.id, userId: "operator-user", toolName: "read_status", parameters: {},
       });
       const successfulCall = { decision: "allowed", result: { data: { content: [{ type: "text", text: "Authenticated MCP call succeeded" }] } } };
       await expect(call()).resolves.toMatchObject(successfulCall);
-      // The provider actually rejects its old access token. Expire Paperclip's
+      // The provider actually rejects its old access token. Expire Outpost's
       // cached timestamp too, without waiting an hour or mocking global time.
       for (let rotation = 0; rotation < 2; rotation += 1) {
         fixture.advanceTime(3_601_000);
@@ -1361,7 +1361,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       ]);
       expect(fixture.events.filter((event) => event.kind === "token").map((event) => event.grantType))
         .toEqual(["authorization_code", "refresh_token", "refresh_token"]);
-      const state = await service.getConnection(connectionId, company.id);
+      const state = await service.getConnection(connectionId, space.id);
       expect(JSON.stringify(state)).not.toMatch(/fixture-(access|refresh)-/);
     } finally { await fixture.close(); }
   });
@@ -1372,16 +1372,16 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   ])("adds only offline access to generic discovery scopes ($resourceScopes)", async (options) => {
     const fixture = await startOAuthRefreshFixture(options);
     try {
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const service = toolAccessService(db);
-      const connected = await service.connectGalleryApp(company.id, { link: fixture.mcpUrl });
+      const connected = await service.connectGalleryApp(space.id, { link: fixture.mcpUrl });
       // Explicit scope overrides must still get refresh capability, and must
       // remain the saved scope set used by reconnect and callback persistence.
-      const actor = { actorType: "user" as const, actorId: "board-user" };
+      const actor = { actorType: "user" as const, actorId: "operator-user" };
       const input = { redirectUri: "http://127.0.0.1:3100/api/tools/oauth/callback", actor, scopes: options.requestedScopes };
-      const start = await service.startOAuth(company.id, connected.connectionId, input);
+      const start = await service.startOAuth(space.id, connected.connectionId, input);
       expect(new URL(start.authorizationUrl).searchParams.get("scope")).toBe("mcp:read offline_access");
-      const saved = await service.getConnection(connected.connectionId, company.id);
+      const saved = await service.getConnection(connected.connectionId, space.id);
       expect(saved.config?.oauth).toMatchObject({ scopes: ["mcp:read", "offline_access"] });
       const callback = await approveFixtureAuthorization(start.authorizationUrl);
       const completed = await service.completeOAuthCallback({
@@ -1397,7 +1397,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         scopeSource: "provider",
         unrequestedScopes: [],
       });
-      const reconnect = await service.startOAuth(company.id, connected.connectionId, { redirectUri: input.redirectUri, actor });
+      const reconnect = await service.startOAuth(space.id, connected.connectionId, { redirectUri: input.redirectUri, actor });
       expect(new URL(reconnect.authorizationUrl).searchParams.get("scope")).toBe("mcp:read offline_access");
     } finally { await fixture.close(); }
   });
@@ -1408,11 +1408,11 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   ])("does not request offline access when the authorization server does not support refresh ($supportsOfflineAccess, $grantTypes)", async (options) => {
     const fixture = await startOAuthRefreshFixture(options);
     try {
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const service = toolAccessService(db);
-      const connected = await service.connectGalleryApp(company.id, { link: fixture.mcpUrl });
-      const start = await service.startOAuth(company.id, connected.connectionId, {
-        redirectUri: "http://127.0.0.1:3100/api/tools/oauth/callback", actor: { actorType: "user", actorId: "board-user" },
+      const connected = await service.connectGalleryApp(space.id, { link: fixture.mcpUrl });
+      const start = await service.startOAuth(space.id, connected.connectionId, {
+        redirectUri: "http://127.0.0.1:3100/api/tools/oauth/callback", actor: { actorType: "user", actorId: "operator-user" },
       });
       const url = new URL(start.authorizationUrl);
       expect(url.searchParams.get("scope")).toBe("mcp:read");
@@ -1423,7 +1423,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       const completed = await service.completeOAuthCallback({
         state: callback.searchParams.get("state")!, code: callback.searchParams.get("code")!,
         iss: callback.searchParams.get("iss")!, redirectUri: "http://127.0.0.1:3100/api/tools/oauth/callback",
-        actor: { actorType: "user", actorId: "board-user" },
+        actor: { actorType: "user", actorId: "operator-user" },
       });
       expect(completed.connection.status).toBe("active");
       expect(completed.connection.credentialSecretRefs.some((ref) => ref.configPath === "oauth.access_token")).toBe(true);
@@ -1459,11 +1459,11 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       }
       return originalFetch(url, init);
     });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
-      redirectUri: REDIRECT_URI, actor: { actorType: "user", actorId: "board-user" },
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL });
+    const start = await service.startOAuth(space.id, connected.connectionId, {
+      redirectUri: REDIRECT_URI, actor: { actorType: "user", actorId: "operator-user" },
     });
     const url = new URL(start.authorizationUrl);
     expect(url.origin + url.pathname).toBe(`${ISSUER}/authorize`);
@@ -1474,18 +1474,18 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   it("discovers offline refresh support when reconnecting a legacy connection with cached endpoints", async () => {
     const fixture = await startOAuthRefreshFixture();
     try {
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const service = toolAccessService(db);
-      const connected = await service.connectGalleryApp(company.id, { link: fixture.mcpUrl });
-      const input = { redirectUri: "http://127.0.0.1:3100/api/tools/oauth/callback", actor: { actorType: "user" as const, actorId: "board-user" } };
-      await service.startOAuth(company.id, connected.connectionId, input);
+      const connected = await service.connectGalleryApp(space.id, { link: fixture.mcpUrl });
+      const input = { redirectUri: "http://127.0.0.1:3100/api/tools/oauth/callback", actor: { actorType: "user" as const, actorId: "operator-user" } };
+      await service.startOAuth(space.id, connected.connectionId, input);
       const [connection] = await db.select().from(toolConnections).where(eq(toolConnections.id, connected.connectionId));
       const oauth: Record<string, unknown> = { ...connection!.config.oauth as Record<string, unknown>, scopes: ["mcp:read"] };
       delete oauth.offlineAccessSupported;
       delete oauth.grantTypesSupported;
       const config = { ...connection!.config, oauth };
       await db.update(toolConnections).set({ config, transportConfig: config }).where(eq(toolConnections.id, connected.connectionId));
-      const reconnect = await service.startOAuth(company.id, connected.connectionId, input);
+      const reconnect = await service.startOAuth(space.id, connected.connectionId, input);
       const url = new URL(reconnect.authorizationUrl);
       expect(url.searchParams.get("scope")).toBe("mcp:read offline_access");
       expect(url.searchParams.get("prompt")).toBe("consent");
@@ -1495,13 +1495,13 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("discovers OAuth for a personal URL connection before its user grant exists", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const app = createRouteApp(db);
     vi.stubEnv("OUTPOST_PUBLIC_URL", PUBLIC_BASE_URL);
-    const actor = { actorType: "user" as const, actorId: "board-user" };
+    const actor = { actorType: "user" as const, actorId: "operator-user" };
 
     const response = await request(app)
-      .post(`/api/companies/${company.id}/tools/apps/connect`)
+      .post(`/api/spaces/${space.id}/tools/apps/connect`)
       .send({
         link: MCP_URL,
         name: "Fixture personal OAuth",
@@ -1547,27 +1547,27 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("creates a separate fresh personal URL connection and keeps explicit reconnect owner-bound", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
     const input = { link: MCP_URL, name: "Archived personal URL", grantKind: "user" as const };
-    const first = await service.connectGalleryApp(company.id, input, { actorType: "user", actorId: "board-user" });
+    const first = await service.connectGalleryApp(space.id, input, { actorType: "user", actorId: "operator-user" });
     await db.update(toolConnections).set({ status: "archived" }).where(eq(toolConnections.id, first.connectionId));
     await db.update(toolApplications).set({ status: "archived" }).where(eq(toolApplications.id, first.application.id));
-    await db.insert(companyMemberships).values({
-      companyId: company.id, principalType: "user", principalId: "other-user", status: "active", membershipRole: "admin",
+    await db.insert(spaceMemberships).values({
+      spaceId: space.id, principalType: "user", principalId: "other-user", status: "active", membershipRole: "admin",
     });
     const archivedConnection = await db.select().from(toolConnections).where(eq(toolConnections.id, first.connectionId));
     const archivedApplication = await db.select().from(toolApplications).where(eq(toolApplications.id, first.application.id));
     fixture.fetchMock.mockClear();
 
     for (const target of [{ reconnectConnectionId: first.connectionId }, { applicationId: first.application.id }]) {
-      await expect(service.connectGalleryApp(company.id, { ...input, ...target }, {
+      await expect(service.connectGalleryApp(space.id, { ...input, ...target }, {
         actorType: "user", actorId: "other-user",
       })).rejects.toMatchObject({ status: 403, message: "Only the existing personal identity can reconnect this connection" });
     }
 
     expect(fixture.fetchMock).not.toHaveBeenCalled();
-    const fresh = await service.connectGalleryApp(company.id, input, { actorType: "user", actorId: "other-user" });
+    const fresh = await service.connectGalleryApp(space.id, input, { actorType: "user", actorId: "other-user" });
     expect(fresh.connectionId).not.toBe(first.connectionId);
     expect(fresh.application.id).not.toBe(first.application.id);
     expect(fresh.auth).toMatchObject({ kind: "oauth" });
@@ -1581,24 +1581,24 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     // OAuth grants are created only after authorization; discovery is not a grant.
     await expect(db.select().from(connectionGrants)).resolves.toHaveLength(0);
     await expect(service.getConnection(first.connectionId)).resolves.toMatchObject({
-      status: "archived", createdByUserId: "board-user",
+      status: "archived", createdByUserId: "operator-user",
     });
-    const resumed = await service.connectGalleryApp(company.id, {
+    const resumed = await service.connectGalleryApp(space.id, {
       ...input, reconnectConnectionId: first.connectionId,
-    }, { actorType: "user", actorId: "board-user" });
+    }, { actorType: "user", actorId: "operator-user" });
     expect(resumed.connectionId).toBe(first.connectionId);
     expect(resumed.auth).toMatchObject({ kind: "oauth" });
   });
 
   it("creates one personal grant when two public URL setup retries probe concurrently", async () => {
     const fixture = installMcpOAuthFixture({ auth: "public" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
-    const actor = { actorType: "user" as const, actorId: "board-user" };
-    const first = await service.connectGalleryApp(company.id, {
+    const actor = { actorType: "user" as const, actorId: "operator-user" };
+    const first = await service.connectGalleryApp(space.id, {
       link: MCP_URL, name: "Concurrent personal URL", grantKind: "user",
     }, actor);
-    await service.connectGalleryApp(company.id, {
+    await service.connectGalleryApp(space.id, {
       link: MCP_URL, grantKind: "user", resumeConnectionId: first.connectionId,
     }, actor);
     // Model an interrupted draft with catalog/defaults but no personal grant.
@@ -1613,10 +1613,10 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       probes += 1;
       if (probes === 2) release();
       await bothProbed;
-      return jsonResponse({ jsonrpc: "2.0", id: "paperclip-catalog-refresh", result: { tools: FIXTURE_TOOLS } });
+      return jsonResponse({ jsonrpc: "2.0", id: "outpost-catalog-refresh", result: { tools: FIXTURE_TOOLS } });
     });
 
-    const results = await Promise.allSettled([0, 1].map(() => service.connectGalleryApp(company.id, {
+    const results = await Promise.allSettled([0, 1].map(() => service.connectGalleryApp(space.id, {
       link: MCP_URL, grantKind: "user", resumeConnectionId: first.connectionId,
     }, actor)));
 
@@ -1634,14 +1634,14 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("keeps a successful personal setup when the grant-creating retry later fails", async () => {
     const fixture = installMcpOAuthFixture({ auth: "public" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
-    const actor = { actorType: "user" as const, actorId: "board-user" };
-    const first = await service.connectGalleryApp(company.id, {
+    const actor = { actorType: "user" as const, actorId: "operator-user" };
+    const first = await service.connectGalleryApp(space.id, {
       link: MCP_URL, name: "Personal retry rollback", grantKind: "user",
     }, actor);
     const retryInput = { link: MCP_URL, grantKind: "user" as const, resumeConnectionId: first.connectionId };
-    await service.connectGalleryApp(company.id, retryInput, actor);
+    await service.connectGalleryApp(space.id, retryInput, actor);
     await db.delete(connectionGrants).where(eq(connectionGrants.connectionId, first.connectionId));
     await db.update(toolConnections).set({ status: "archived" }).where(eq(toolConnections.id, first.connectionId));
     await db.update(toolApplications).set({ status: "archived", archivedAt: new Date() }).where(eq(toolApplications.id, first.application.id));
@@ -1659,14 +1659,14 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         await releaseCatalog;
         throw new Error("first retry catalog unavailable");
       }
-      return jsonResponse({ jsonrpc: "2.0", id: "paperclip-catalog-refresh", result: { tools: FIXTURE_TOOLS } });
+      return jsonResponse({ jsonrpc: "2.0", id: "outpost-catalog-refresh", result: { tools: FIXTURE_TOOLS } });
     });
-    const failure = service.connectGalleryApp(company.id, {
+    const failure = service.connectGalleryApp(space.id, {
       link: MCP_URL, name: "Personal retry rollback", grantKind: "user", reconnectConnectionId: first.connectionId,
     }, actor).then(() => null, (error: unknown) => error);
     await Promise.race([catalogPending, failure.then((error) => { throw error ?? new Error("Retry finished before the catalog probe"); })]);
     try {
-      const successfulRetry = await service.connectGalleryApp(company.id, retryInput, actor);
+      const successfulRetry = await service.connectGalleryApp(space.id, retryInput, actor);
       expect(successfulRetry.connectionId).toBe(first.connectionId);
     } finally {
       failCatalog();
@@ -1682,18 +1682,18 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("rolls back partial catalog and profile writes without removing the established public identity", async () => {
     const fixture = installMcpOAuthFixture({ auth: "public" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
-    const actor = { actorType: "user" as const, actorId: "board-user" };
+    const actor = { actorType: "user" as const, actorId: "operator-user" };
     const input = { link: MCP_URL, name: "Personal atomic catalog", grantKind: "user" as const };
-    const first = await service.connectGalleryApp(company.id, input, actor);
+    const first = await service.connectGalleryApp(space.id, input, actor);
     const catalogBefore = await db.select().from(toolCatalogEntries).where(eq(toolCatalogEntries.connectionId, first.connectionId));
     await db.delete(connectionGrants).where(eq(connectionGrants.connectionId, first.connectionId));
     await db.update(toolConnections).set({ status: "archived" }).where(eq(toolConnections.id, first.connectionId));
     await db.update(toolApplications).set({ status: "archived", archivedAt: new Date() }).where(eq(toolApplications.id, first.application.id));
     fixture.fetchMock.mockRestore();
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => jsonResponse({
-      jsonrpc: "2.0", id: "paperclip-catalog-refresh",
+      jsonrpc: "2.0", id: "outpost-catalog-refresh",
       result: { tools: [...FIXTURE_TOOLS, { name: "new_tool", description: "Partial catalog addition" }] },
     }));
     await db.execute(sql`
@@ -1705,13 +1705,13 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       FOR EACH ROW EXECUTE FUNCTION test_personal_profile_failure()
     `);
     try {
-      await expect(service.connectGalleryApp(company.id, {
+      await expect(service.connectGalleryApp(space.id, {
         ...input, reconnectConnectionId: first.connectionId,
       }, actor)).rejects.toThrow();
       await expect(db.select().from(toolCatalogEntries).where(eq(toolCatalogEntries.connectionId, first.connectionId)))
         .resolves.toEqual(catalogBefore);
-      await expect(db.select().from(toolProfiles).where(eq(toolProfiles.companyId, company.id))).resolves.toHaveLength(0);
-      await expect(db.select().from(toolProfileBindings).where(eq(toolProfileBindings.companyId, company.id))).resolves.toHaveLength(0);
+      await expect(db.select().from(toolProfiles).where(eq(toolProfiles.spaceId, space.id))).resolves.toHaveLength(0);
+      await expect(db.select().from(toolProfileBindings).where(eq(toolProfileBindings.spaceId, space.id))).resolves.toHaveLength(0);
       await expect(db.select().from(connectionGrants).where(eq(connectionGrants.connectionId, first.connectionId)))
         .resolves.toEqual([expect.objectContaining({ kind: "user", status: "active", credentialSecretRefs: [] })]);
       await expect(service.getConnection(first.connectionId)).resolves.toMatchObject({ status: "draft", credentialPolicy: "per_user" });
@@ -1719,10 +1719,10 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       await db.execute(sql`DROP TRIGGER test_personal_profile_failure ON tool_profile_entries`);
       await db.execute(sql`DROP FUNCTION test_personal_profile_failure()`);
     }
-    const retry = await service.connectGalleryApp(company.id, { ...input, resumeConnectionId: first.connectionId }, actor);
+    const retry = await service.connectGalleryApp(space.id, { ...input, resumeConnectionId: first.connectionId }, actor);
     expect(retry.catalog).toHaveLength(3);
-    await expect(db.select().from(toolProfiles).where(eq(toolProfiles.companyId, company.id))).resolves.toHaveLength(1);
-    await expect(db.select().from(toolProfileBindings).where(eq(toolProfileBindings.companyId, company.id))).resolves.toHaveLength(1);
+    await expect(db.select().from(toolProfiles).where(eq(toolProfiles.spaceId, space.id))).resolves.toHaveLength(1);
+    await expect(db.select().from(toolProfileBindings).where(eq(toolProfileBindings.spaceId, space.id))).resolves.toHaveLength(1);
   });
 
   it("creates an empty user grant after a personal public URL probe succeeds", async () => {
@@ -1741,15 +1741,15 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     const address = mcpServer.address();
     if (!address || typeof address === "string") throw new Error("Missing MCP fixture port");
     try {
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const app = createRouteApp(db, {
         deploymentMode: "local_trusted",
         deploymentExposure: "private",
       });
-      const actor = { actorType: "user" as const, actorId: "board-user" };
+      const actor = { actorType: "user" as const, actorId: "operator-user" };
 
       const response = await request(app)
-        .post(`/api/companies/${company.id}/tools/apps/connect`)
+        .post(`/api/spaces/${space.id}/tools/apps/connect`)
         .send({
           link: `http://127.0.0.1:${address.port}/mcp`,
           name: "Fixture personal public",
@@ -1790,20 +1790,20 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("completes organization OAuth with a single database connection", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const callbackDb = createDb(externalTestDatabaseUrl ?? tempDb!.connectionString, { maxConnections: 1 });
     const service = toolAccessService(callbackDb);
     let deadline: ReturnType<typeof setTimeout> | null = null;
 
     try {
       await callbackDb.execute(sql`select pg_backend_pid()`);
-      const connected = await service.connectGalleryApp(company.id, {
+      const connected = await service.connectGalleryApp(space.id, {
         link: MCP_URL,
         name: "Fixture single-pool OAuth",
       });
-      const start = await service.startOAuth(company.id, connected.connectionId, {
+      const start = await service.startOAuth(space.id, connected.connectionId, {
         redirectUri: REDIRECT_URI,
-        actor: { actorType: "user", actorId: "board-user" },
+        actor: { actorType: "user", actorId: "operator-user" },
       });
       const authorizationUrl = new URL(start.authorizationUrl);
       const code = fixture.issueAuthorizationCode(start.authorizationUrl);
@@ -1814,7 +1814,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
           code,
           iss: ISSUER,
           redirectUri: REDIRECT_URI,
-          actor: { actorType: "user", actorId: "board-user" },
+          actor: { actorType: "user", actorId: "operator-user" },
         }),
         new Promise<never>((_resolve, reject) => {
           deadline = setTimeout(() => {
@@ -1833,22 +1833,22 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("rejects organization OAuth completion after the initiating user loses write access", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
-    const actor = { actorType: "user" as const, actorId: "board-user" };
+    const actor = { actorType: "user" as const, actorId: "operator-user" };
 
-    const connected = await service.connectGalleryApp(company.id, {
+    const connected = await service.connectGalleryApp(space.id, {
       link: MCP_URL,
       name: "Fixture revoked organization OAuth",
     });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
       actor,
     });
     await db
-      .update(companyMemberships)
+      .update(spaceMemberships)
       .set({ membershipRole: "viewer" })
-      .where(eq(companyMemberships.companyId, company.id));
+      .where(eq(spaceMemberships.spaceId, space.id));
 
     const authorizationUrl = new URL(start.authorizationUrl);
     const code = fixture.issueAuthorizationCode(start.authorizationUrl);
@@ -1874,11 +1874,11 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("serializes organization OAuth completion behind membership revocation", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const callbackDb = createDb(externalTestDatabaseUrl ?? tempDb!.connectionString, { maxConnections: 1 });
     const removalDb = createDb(externalTestDatabaseUrl ?? tempDb!.connectionString, { maxConnections: 1 });
     const service = toolAccessService(callbackDb);
-    const actor = { actorType: "user" as const, actorId: "board-user" };
+    const actor = { actorType: "user" as const, actorId: "operator-user" };
     let releaseRemoval!: () => void;
     const removalMayCommit = new Promise<void>((resolve) => {
       releaseRemoval = resolve;
@@ -1888,39 +1888,39 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       membershipLocked = resolve;
     });
 
-    const connected = await service.connectGalleryApp(company.id, {
+    const connected = await service.connectGalleryApp(space.id, {
       link: MCP_URL,
       name: "Fixture concurrent revocation OAuth",
     });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
       actor,
     });
     const authorizationUrl = new URL(start.authorizationUrl);
     const code = fixture.issueAuthorizationCode(start.authorizationUrl);
-    const beforeSecrets = await db.select().from(companySecrets).where(eq(companySecrets.companyId, company.id));
-    const beforeVersions = await db.select().from(companySecretVersions);
-    const beforeBindings = await db.select().from(companySecretBindings).where(eq(companySecretBindings.companyId, company.id));
+    const beforeSecrets = await db.select().from(spaceSecrets).where(eq(spaceSecrets.spaceId, space.id));
+    const beforeVersions = await db.select().from(spaceSecretVersions);
+    const beforeBindings = await db.select().from(spaceSecretBindings).where(eq(spaceSecretBindings.spaceId, space.id));
     const beforeGrants = await db.select().from(connectionGrants).where(and(
-      eq(connectionGrants.companyId, company.id),
+      eq(connectionGrants.spaceId, space.id),
       eq(connectionGrants.connectionId, connected.connectionId),
     ));
 
     const removal = removalDb.transaction(async (tx) => {
-      await tx.select({ id: companyMemberships.id }).from(companyMemberships).where(and(
-        eq(companyMemberships.companyId, company.id),
-        eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.principalId, "board-user"),
+      await tx.select({ id: spaceMemberships.id }).from(spaceMemberships).where(and(
+        eq(spaceMemberships.spaceId, space.id),
+        eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.principalId, "operator-user"),
       )).for("update");
       membershipLocked();
       await removalMayCommit;
-      await tx.update(companyMemberships).set({
+      await tx.update(spaceMemberships).set({
         membershipRole: "viewer",
         updatedAt: new Date(),
       }).where(and(
-        eq(companyMemberships.companyId, company.id),
-        eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.principalId, "board-user"),
+        eq(spaceMemberships.spaceId, space.id),
+        eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.principalId, "operator-user"),
       ));
     });
 
@@ -1953,13 +1953,13 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       ));
       expect(connection).toMatchObject({ status: "draft" });
       expect(connection!.credentialSecretRefs).toEqual([]);
-      await expect(db.select().from(companySecrets).where(eq(companySecrets.companyId, company.id)))
+      await expect(db.select().from(spaceSecrets).where(eq(spaceSecrets.spaceId, space.id)))
         .resolves.toHaveLength(beforeSecrets.length);
-      await expect(db.select().from(companySecretVersions)).resolves.toHaveLength(beforeVersions.length);
-      await expect(db.select().from(companySecretBindings).where(eq(companySecretBindings.companyId, company.id)))
+      await expect(db.select().from(spaceSecretVersions)).resolves.toHaveLength(beforeVersions.length);
+      await expect(db.select().from(spaceSecretBindings).where(eq(spaceSecretBindings.spaceId, space.id)))
         .resolves.toHaveLength(beforeBindings.length);
       const afterGrants = await db.select().from(connectionGrants).where(and(
-        eq(connectionGrants.companyId, company.id),
+        eq(connectionGrants.spaceId, space.id),
         eq(connectionGrants.connectionId, connected.connectionId),
       ));
       expect(afterGrants).toEqual(beforeGrants);
@@ -1973,24 +1973,24 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("discovers a pathful issuer through the OIDC suffix form too", async () => {
     installMcpOAuthFixture({ auth: "oauth", wellKnownStyle: "oidc-suffix" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture suffix" });
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture suffix" });
     expect(connected.auth).toMatchObject({ kind: "oauth", issuer: ISSUER });
   });
 
   it("prefers a Client ID Metadata Document over dynamic registration", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth", cimd: true });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db, {
       oauthClientMetadataLookup: async () => [{ address: "93.184.216.34", family: 4 }],
     });
 
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture CIMD" });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture CIMD" });
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
 
     expect(start.registrationSource).toBe("cimd");
@@ -2005,16 +2005,16 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       cimd: true,
       registrationExtraRedirectUris: [`${ISSUER}/oauth/callback/`],
     });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     let metadataAddress = "93.184.216.34";
     const service = toolAccessService(db, {
       oauthClientMetadataLookup: async () => [{ address: metadataAddress, family: 4 }],
     });
 
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture private CIMD" });
-    const firstStart = await service.startOAuth(company.id, connected.connectionId, {
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture private CIMD" });
+    const firstStart = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: "https://outpost.tailnet.test:42001/api/tools/oauth/callback",
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     expect(firstStart.registrationSource).toBe("cimd");
 
@@ -2022,9 +2022,9 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     // also proves retry migration: a connection that persisted the now-unusable
     // CIMD client id must not keep presenting it forever.
     metadataAddress = "100.100.100.100";
-    const retry = await service.startOAuth(company.id, connected.connectionId, {
+    const retry = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: "https://outpost.tailnet.test:42001/api/tools/oauth/callback",
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
 
     expect(retry.registrationSource).toBe("dcr");
@@ -2034,15 +2034,15 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("falls back to dynamic registration when the callback is not public HTTPS", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth", cimd: true });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture local CIMD" });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture local CIMD" });
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       // A loopback callback cannot serve a client_id an authorization server can
       // fetch, so CIMD is unavailable and DCR has to carry the flow.
       redirectUri: "http://localhost:3100/api/tools/oauth/callback",
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
 
     expect(start.registrationSource).toBe("dcr");
@@ -2052,13 +2052,13 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   it("prefers a deployment-preconfigured client over any registration", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth", cimd: true });
     vi.stubEnv("OUTPOST_TOOL_OAUTH_CLIENT_ID", "preconfigured-client");
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture preconfigured" });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture preconfigured" });
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
 
     expect(start.registrationSource).toBe("preconfigured");
@@ -2068,12 +2068,12 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("asks for a preregistered client when the server offers neither CIMD nor DCR", async () => {
     installMcpOAuthFixture({ auth: "oauth", dcr: false });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const app = createRouteApp(db);
     vi.stubEnv("OUTPOST_PUBLIC_URL", PUBLIC_BASE_URL);
 
     const response = await request(app)
-      .post(`/api/companies/${company.id}/tools/apps/connect`)
+      .post(`/api/spaces/${space.id}/tools/apps/connect`)
       .send({ link: MCP_URL, name: "Fixture manual" })
       .expect(201);
 
@@ -2085,18 +2085,18 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("uses preregistered client credentials without registering anything", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth", dcr: false });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    const connected = await service.connectGalleryApp(company.id, {
+    const connected = await service.connectGalleryApp(space.id, {
       link: MCP_URL,
       name: "Fixture manual client",
       authMode: "oauth",
       oauthClient: { clientId: "operator-client", clientSecret: "operator-secret" },
     });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
 
     expect(start.registrationSource).toBe("manual");
@@ -2115,7 +2115,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       state: new URL(start.authorizationUrl).searchParams.get("state")!,
       code,
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     const tokenRequest = fixture.requestsTo("/token").at(-1)!;
     expect((tokenRequest.body as URLSearchParams).get("client_secret")).toBe("operator-secret");
@@ -2123,35 +2123,35 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("uses a preregistered client secret stored on a personal user grant", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth", dcr: false });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     await db
-      .update(companyMemberships)
+      .update(spaceMemberships)
       .set({ membershipRole: "owner" })
-      .where(eq(companyMemberships.companyId, company.id));
+      .where(eq(spaceMemberships.spaceId, space.id));
     const service = toolAccessService(db);
 
-    const connected = await service.connectGalleryApp(company.id, {
+    const connected = await service.connectGalleryApp(space.id, {
       link: MCP_URL,
       name: "Fixture personal manual client",
       authMode: "oauth",
       grantKind: "user",
       oauthClient: { clientId: "operator-client", clientSecret: "operator-secret" },
-    }, { actorType: "user", actorId: "board-user" });
+    }, { actorType: "user", actorId: "operator-user" });
     const [storedConnection] = await db.select().from(toolConnections)
       .where(eq(toolConnections.id, connected.connectionId));
     expect(storedConnection!.credentialPolicy).toBe("per_user");
     expect(storedConnection!.credentialSecretRefs).toEqual([]);
 
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     const code = fixture.issueAuthorizationCode(start.authorizationUrl);
     await service.completeOAuthCallback({
       state: new URL(start.authorizationUrl).searchParams.get("state")!,
       code,
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
 
     const tokenRequest = fixture.requestsTo("/token").at(-1)!;
@@ -2164,17 +2164,17 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       dcr: false,
       tokenEndpointAuthMethods: ["client_secret_basic", "client_secret_post"],
     });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
-    const connected = await service.connectGalleryApp(company.id, {
+    const connected = await service.connectGalleryApp(space.id, {
       link: MCP_URL,
       name: "Fixture manual Basic client",
       authMode: "oauth",
       oauthClient: { clientId: "operator-client", clientSecret: "operator-secret" },
     });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
 
     const code = fixture.issueAuthorizationCode(start.authorizationUrl);
@@ -2182,7 +2182,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       state: new URL(start.authorizationUrl).searchParams.get("state")!,
       code,
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
 
     const tokenRequest = fixture.requestsTo("/token").at(-1)!;
@@ -2192,13 +2192,13 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("refuses a callback whose iss names a different authorization server", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture iss" });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture iss" });
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     const state = new URL(start.authorizationUrl).searchParams.get("state")!;
     const code = fixture.issueAuthorizationCode(start.authorizationUrl);
@@ -2208,7 +2208,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       code,
       iss: "https://attacker.fixture.test",
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     })).rejects.toMatchObject({ status: 400, details: { code: "oauth_issuer_mismatch" } });
 
     // The code was never exchanged.
@@ -2224,7 +2224,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
    */
   const PROVIDER_CANARY = "canary-sk-live-9f3a2b7c";
   const HOSTILE_ERROR_DESCRIPTION =
-    `\u001b[31mFATAL\u001b[0m **Paperclip needs your recovery key**: ${PROVIDER_CANARY} <script>alert(1)</script>`;
+    `\u001b[31mFATAL\u001b[0m **Outpost needs your recovery key**: ${PROVIDER_CANARY} <script>alert(1)</script>`;
   const HOSTILE_ERROR_BODY = {
     error_description: HOSTILE_ERROR_DESCRIPTION,
     error_uri: `https://attacker.fixture.test/why?leak=${PROVIDER_CANARY}`,
@@ -2264,12 +2264,12 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       auth: "oauth",
       tokenFailure: { status: 400, body: { error: "invalid_grant", ...HOSTILE_ERROR_BODY } },
     });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture hostile token" });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture hostile token" });
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     const code = fixture.issueAuthorizationCode(start.authorizationUrl);
 
@@ -2279,10 +2279,10 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       code,
       iss: ISSUER,
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     }).then(() => null, (error: unknown) => error);
 
-    // Paperclip's own copy for `invalid_grant`, not a syllable of the provider's.
+    // Outpost's own copy for `invalid_grant`, not a syllable of the provider's.
     expect(thrown).toMatchObject({
       status: 502,
       message: "The authorization server rejected the authorization code or refresh token.",
@@ -2303,12 +2303,12 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       auth: "oauth",
       tokenFailure: { status: 503, body: { error: hostileCode, ...HOSTILE_ERROR_BODY } },
     });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture unknown code" });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture unknown code" });
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     const code = fixture.issueAuthorizationCode(start.authorizationUrl);
 
@@ -2318,11 +2318,11 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       code,
       iss: ISSUER,
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     }).then(() => null, (error: unknown) => error);
 
     // Off the allowlist, so the label collapses and the message falls back to
-    // Paperclip's generic copy rather than naming the provider's code.
+    // Outpost's generic copy rather than naming the provider's code.
     expect(thrown).toMatchObject({
       status: 502,
       message: "OAuth token exchange failed",
@@ -2339,19 +2339,19 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       auth: "oauth",
       registrationFailure: { status: 400, body: { error: "invalid_redirect_uri", ...HOSTILE_ERROR_BODY } },
     });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture hostile dcr" });
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture hostile dcr" });
 
     const consoleSpy = captureConsole();
-    const thrown = await service.startOAuth(company.id, connected.connectionId, {
+    const thrown = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     }).then(() => null, (error: unknown) => error);
 
     expect(thrown).toMatchObject({
       status: 502,
-      message: "The authorization server rejected Paperclip's callback URL.",
+      message: "The authorization server rejected Outpost's callback URL.",
       details: {
         code: "oauth_dynamic_client_registration_failed",
         providerError: "invalid_redirect_uri",
@@ -2367,7 +2367,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   it("redacts a hostile denial from the callback route and consumes the state", async () => {
     vi.stubEnv("OUTPOST_PUBLIC_URL", PUBLIC_BASE_URL);
     installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
     const logChunks: string[] = [];
     const logStream = new Writable({
@@ -2378,10 +2378,10 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     });
     const requestLogger = createHttpLogger(pino({ redact: [...HTTP_LOG_REDACT_PATHS] }, logStream));
     const app = createRouteApp(db, undefined, requestLogger);
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture hostile denial" });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture hostile denial" });
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     const state = new URL(start.authorizationUrl).searchParams.get("state")!;
 
@@ -2432,16 +2432,16 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
   it("returns browser denials to Permissions without reflecting provider-authored details", async () => {
     vi.stubEnv("OUTPOST_PUBLIC_URL", PUBLIC_BASE_URL);
     installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
     const app = createRouteApp(db);
-    const connected = await service.connectGalleryApp(company.id, {
+    const connected = await service.connectGalleryApp(space.id, {
       link: MCP_URL,
       name: "Fixture browser denial",
     });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     const state = new URL(start.authorizationUrl).searchParams.get("state")!;
 
@@ -2457,7 +2457,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
     expect(res.status).toBe(303);
     const location = new URL(res.headers.location, PUBLIC_BASE_URL);
-    expect(location.pathname).toBe(`/${company.issuePrefix}/apps/${connected.connectionId}/permissions`);
+    expect(location.pathname).toBe(`/${space.issuePrefix}/apps/${connected.connectionId}/permissions`);
     expect(location.searchParams.get("oauth")).toBe("denied");
     expect(location.searchParams.get("code")).toBe("oauth_authorization_denied");
     expect(res.headers.location).not.toContain(PROVIDER_CANARY);
@@ -2467,17 +2467,17 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("validates the callback state before acting on a provider-reported error", async () => {
     installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
-    await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture unsolicited denial" });
+    await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture unsolicited denial" });
 
-    // An unsolicited callback carries no state Paperclip issued, so it is
+    // An unsolicited callback carries no state Outpost issued, so it is
     // rejected on that ground and never reaches the provider-error branch.
     await expect(service.completeOAuthCallback({
-      state: "state-paperclip-never-issued",
+      state: "state-outpost-never-issued",
       error: "access_denied",
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     })).rejects.toMatchObject({
       status: 400,
       message: "OAuth state was not found or has already been used",
@@ -2488,17 +2488,17 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
    * PAP-17109 — a denial or a cancel is a final answer to an authorization
    * request, so it has to end the request rather than just fail the callback.
    * Left live, the `state` the user refused stays completable for the rest of its
-   * TTL by anyone who can produce a code, and the board keeps showing a prompt
+   * TTL by anyone who can produce a code, and the operator keeps showing a prompt
    * for a flow the user already declined.
    */
   describe("denied and cancelled callbacks", () => {
     it("stops a later code from completing a flow the user refused", async () => {
       const fixture = installMcpOAuthFixture({ auth: "oauth" });
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const service = toolAccessService(db);
-      const actor = { actorType: "user" as const, actorId: "board-user" };
-      const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture denied" });
-      const start = await service.startOAuth(company.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
+      const actor = { actorType: "user" as const, actorId: "operator-user" };
+      const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture denied" });
+      const start = await service.startOAuth(space.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
       const state = new URL(start.authorizationUrl).searchParams.get("state")!;
       // Held before the denial on purpose: this is the whole attack. A code that
       // shows up after "no" must not be exchangeable.
@@ -2519,15 +2519,15 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
     it("treats a cancel the same as a denial even when the provider names it its own way", async () => {
       const fixture = installMcpOAuthFixture({ auth: "oauth" });
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const service = toolAccessService(db);
-      const actor = { actorType: "user" as const, actorId: "board-user" };
-      const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture cancelled" });
-      const start = await service.startOAuth(company.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
+      const actor = { actorType: "user" as const, actorId: "operator-user" };
+      const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture cancelled" });
+      const start = await service.startOAuth(space.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
       const state = new URL(start.authorizationUrl).searchParams.get("state")!;
       const code = fixture.issueAuthorizationCode(start.authorizationUrl);
 
-      // Real providers invent their own cancel codes. Whether or not Paperclip
+      // Real providers invent their own cancel codes. Whether or not Outpost
       // recognizes the label, the request is over.
       const thrown = await service.completeOAuthCallback({
         state,
@@ -2546,11 +2546,11 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
     it("will not let another session's denial spend a pending request", async () => {
       const fixture = installMcpOAuthFixture({ auth: "oauth" });
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const service = toolAccessService(db);
-      const owner = { actorType: "user" as const, actorId: "board-user", sessionId: "owner-session" };
-      const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture victim" });
-      const start = await service.startOAuth(company.id, connected.connectionId, {
+      const owner = { actorType: "user" as const, actorId: "operator-user", sessionId: "owner-session" };
+      const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture victim" });
+      const start = await service.startOAuth(space.id, connected.connectionId, {
         redirectUri: REDIRECT_URI,
         actor: owner,
       });
@@ -2564,9 +2564,9 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         actor: { ...owner, sessionId: "other-session" },
       })).rejects.toMatchObject({ status: 403 });
 
-      // A different user — which is also how a different company arrives, since a
+      // A different user — which is also how a different space arrives, since a
       // state is bound to the actor id that started it and the callback route
-      // authorizes against the state row's own company.
+      // authorizes against the state row's own space.
       await expect(service.completeOAuthCallback({
         state,
         error: "access_denied",
@@ -2582,12 +2582,12 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         .resolves.toMatchObject({ connectionId: connected.connectionId });
     });
 
-    it("resolves the board's pending authorization prompt as rejected", async () => {
+    it("resolves the operator's pending authorization prompt as rejected", async () => {
       installMcpOAuthFixture({ auth: "oauth" });
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const service = toolAccessService(db);
       const [agent] = await db.insert(agents).values({
-        companyId: company.id,
+        spaceId: space.id,
         name: `Connector ${randomUUID()}`,
         role: "engineer",
         status: "idle",
@@ -2596,17 +2596,17 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         runtimeConfig: {},
       }).returning();
       const [issue] = await db.insert(issues).values({
-        companyId: company.id,
+        spaceId: space.id,
         title: "Connect the analytics app",
       }).returning();
-      const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture prompt" });
+      const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture prompt" });
 
-      // The agent-driven shape: the agent asks, the board user answers in the
+      // The agent-driven shape: the agent asks, the operator user answers in the
       // provider's window, so the prompt's fate is decided by the callback.
-      const start = await service.startOAuth(company.id, connected.connectionId, {
+      const start = await service.startOAuth(space.id, connected.connectionId, {
         redirectUri: REDIRECT_URI,
         actor: { actorType: "agent", actorId: agent!.id },
-        subjectUserId: "board-user",
+        subjectUserId: "operator-user",
         issueId: issue!.id,
       });
       const [pending] = await db.select().from(issueThreadInteractions);
@@ -2616,28 +2616,28 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         state: new URL(start.authorizationUrl).searchParams.get("state")!,
         error: "access_denied",
         redirectUri: REDIRECT_URI,
-        actor: { actorType: "user", actorId: "board-user" },
+        actor: { actorType: "user", actorId: "operator-user" },
       })).rejects.toMatchObject({ status: 400, details: { code: "oauth_authorization_denied" } });
 
       const [resolved] = await db
         .select()
         .from(issueThreadInteractions)
         .where(eq(issueThreadInteractions.id, pending!.id));
-      expect(resolved).toMatchObject({ status: "rejected", resolvedByUserId: "board-user" });
+      expect(resolved).toMatchObject({ status: "rejected", resolvedByUserId: "operator-user" });
       expect(resolved!.result).toMatchObject({ outcome: "rejected" });
       expect(resolved!.resolvedAt).not.toBeNull();
-      // The prompt's reason is Paperclip's own copy, never the provider's.
+      // The prompt's reason is Outpost's own copy, never the provider's.
       expect(JSON.stringify(resolved!.result)).not.toContain("access_denied");
       await expect(db.select().from(toolOauthStates)).resolves.toHaveLength(0);
     });
 
     it("lets only one of two simultaneous callbacks exchange a code", async () => {
       const fixture = installMcpOAuthFixture({ auth: "oauth" });
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const service = toolAccessService(db);
-      const actor = { actorType: "user" as const, actorId: "board-user" };
-      const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture replay" });
-      const start = await service.startOAuth(company.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
+      const actor = { actorType: "user" as const, actorId: "operator-user" };
+      const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture replay" });
+      const start = await service.startOAuth(space.id, connected.connectionId, { redirectUri: REDIRECT_URI, actor });
       const state = new URL(start.authorizationUrl).searchParams.get("state")!;
       const code = fixture.issueAuthorizationCode(start.authorizationUrl);
 
@@ -2652,7 +2652,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       try {
         // Connect before racing: paying TCP and startup latency inside the race
         // would just hand the first callback an uncontested head start.
-        await otherDb.select().from(companies).limit(1);
+        await otherDb.select().from(spaces).limit(1);
         settled = await Promise.allSettled([
           service.completeOAuthCallback({ state, code, iss: ISSUER, redirectUri: REDIRECT_URI, actor }),
           otherService.completeOAuthCallback({ state, code, iss: ISSUER, redirectUri: REDIRECT_URI, actor }),
@@ -2674,13 +2674,13 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
   it("accepts an iss that differs only by a trailing slash", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture iss slash" });
-    const start = await service.startOAuth(company.id, connected.connectionId, {
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture iss slash" });
+    const start = await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     const code = fixture.issueAuthorizationCode(start.authorizationUrl);
 
@@ -2689,65 +2689,65 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       code,
       iss: `${ISSUER}/`,
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     })).resolves.toMatchObject({ connectionId: connected.connectionId });
   });
 
   it("re-registers rather than reusing a client bound to a different callback", async () => {
     const fixture = installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture rebind" });
-    await service.startOAuth(company.id, connected.connectionId, {
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture rebind" });
+    await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     expect(fixture.requestsTo("/register")).toHaveLength(1);
 
     // Same redirect URI: the stored client is still bound, so nothing re-registers.
-    await service.startOAuth(company.id, connected.connectionId, {
+    await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     expect(fixture.requestsTo("/register")).toHaveLength(1);
 
     // Different callback origin: the binding no longer holds.
-    await service.startOAuth(company.id, connected.connectionId, {
+    await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: "https://other.fixture.test/api/tools/oauth/callback",
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
     expect(fixture.requestsTo("/register")).toHaveLength(2);
   });
 
   it("will not auto-re-register over a client the operator supplied", async () => {
     installMcpOAuthFixture({ auth: "oauth" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
 
-    const connected = await service.connectGalleryApp(company.id, {
+    const connected = await service.connectGalleryApp(space.id, {
       link: MCP_URL,
       name: "Fixture manual rebind",
       authMode: "oauth",
       oauthClient: { clientId: "operator-client" },
     });
-    await service.startOAuth(company.id, connected.connectionId, {
+    await service.startOAuth(space.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     });
 
-    // The callback moved. Paperclip cannot re-register in the operator's console,
+    // The callback moved. Outpost cannot re-register in the operator's console,
     // so it must stop and say so rather than silently minting a new client.
-    await expect(service.startOAuth(company.id, connected.connectionId, {
+    await expect(service.startOAuth(space.id, connected.connectionId, {
       redirectUri: "https://other.fixture.test/api/tools/oauth/callback",
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     })).rejects.toMatchObject({ details: { code: "oauth_manual_client_rebinding_required" } });
   });
 
   /**
-   * PAP-17099 — the authorization endpoint is the one discovered value Paperclip
+   * PAP-17099 — the authorization endpoint is the one discovered value Outpost
    * hands to the operator's browser as a top-level navigation, so a hostile
-   * server must not be able to advertise a scheme that runs code in the board's
+   * server must not be able to advertise a scheme that runs code in the operator's
    * origin, reads a local file, or downgrades the authorization request.
    */
   describe("unsafe advertised authorization endpoints", () => {
@@ -2761,10 +2761,10 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       ["a malformed url", "not-a-url"],
     ])("refuses to connect when the server advertises %s", async (_label, authorizationEndpoint) => {
       installMcpOAuthFixture({ auth: "oauth", authorizationEndpoint });
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const service = toolAccessService(db);
 
-      await expect(service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture hostile authorize" }))
+      await expect(service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture hostile authorize" }))
         .rejects.toMatchObject({ status: 422, details: { code: "oauth_authorization_endpoint_rejected" } });
 
       // Nothing about the refused endpoint is persisted, so a later reconnect
@@ -2776,12 +2776,12 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
 
     it("never navigates to a stored authorization endpoint that is unsafe", async () => {
       installMcpOAuthFixture({ auth: "oauth" });
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const service = toolAccessService(db);
 
-      const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture poisoned config" });
+      const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture poisoned config" });
       // A row written before the gate existed (or by any other writer) is not
-      // trusted just because it is in Paperclip's own database.
+      // trusted just because it is in Outpost's own database.
       const poisonStoredAuthorizationUrl = async () => {
         const [row] = await db.select().from(toolConnections).where(eq(toolConnections.id, connected.connectionId));
         const poisoned = {
@@ -2795,9 +2795,9 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       await poisonStoredAuthorizationUrl();
 
       // The stored value is discarded and re-discovered rather than opened.
-      const start = await service.startOAuth(company.id, connected.connectionId, {
+      const start = await service.startOAuth(space.id, connected.connectionId, {
         redirectUri: REDIRECT_URI,
-        actor: { actorType: "user", actorId: "board-user" },
+        actor: { actorType: "user", actorId: "operator-user" },
       });
       expect(start.authorizationUrl.startsWith(`${ISSUER}/authorize?`)).toBe(true);
 
@@ -2807,32 +2807,32 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       await poisonStoredAuthorizationUrl();
       vi.restoreAllMocks();
       vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({}, 404));
-      await expect(service.startOAuth(company.id, connected.connectionId, {
+      await expect(service.startOAuth(space.id, connected.connectionId, {
         redirectUri: REDIRECT_URI,
-        actor: { actorType: "user", actorId: "board-user" },
+        actor: { actorType: "user", actorId: "operator-user" },
       })).rejects.toMatchObject({ status: 422, details: { code: "oauth_authorization_endpoint_rejected" } });
       await expect(db.select().from(toolOauthStates)).resolves.toHaveLength(0);
     });
 
     it("refuses an unsafe token endpoint even when the authorization endpoint is fine", async () => {
       installMcpOAuthFixture({ auth: "oauth", tokenEndpoint: "http://evil.fixture.test/token" });
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       const service = toolAccessService(db);
 
-      await expect(service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture hostile token" }))
+      await expect(service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture hostile token" }))
         .rejects.toMatchObject({ status: 422, details: { code: "oauth_token_endpoint_rejected" } });
     });
 
     it("allows loopback http only outside an authenticated public deployment", async () => {
       installMcpOAuthFixture({ auth: "oauth", authorizationEndpoint: "http://127.0.0.1:8930/authorize" });
-      const company = await createCompany(db);
+      const space = await createSpace(db);
       // Default deployment = local development, where a loopback authorization
       // server is how someone tests their own MCP server.
       const service = toolAccessService(db);
-      const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture loopback authorize" });
-      const start = await service.startOAuth(company.id, connected.connectionId, {
+      const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture loopback authorize" });
+      const start = await service.startOAuth(space.id, connected.connectionId, {
         redirectUri: REDIRECT_URI,
-        actor: { actorType: "user", actorId: "board-user" },
+        actor: { actorType: "user", actorId: "operator-user" },
       });
       expect(new URL(start.authorizationUrl).origin).toBe("http://127.0.0.1:8930");
 
@@ -2843,32 +2843,32 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         deploymentMode: "authenticated",
         deploymentExposure: "public",
       });
-      await expect(publicService.startOAuth(company.id, connected.connectionId, {
+      await expect(publicService.startOAuth(space.id, connected.connectionId, {
         redirectUri: REDIRECT_URI,
-        actor: { actorType: "user", actorId: "board-user" },
+        actor: { actorType: "user", actorId: "operator-user" },
       })).rejects.toMatchObject({ status: 422, details: { code: "oauth_authorization_endpoint_rejected" } });
     });
   });
 
   it("rejects a private-network endpoint in an authenticated public deployment", async () => {
     installMcpOAuthFixture({ auth: "public" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db, {
       deploymentMode: "authenticated",
       deploymentExposure: "public",
     });
 
-    await expect(service.connectGalleryApp(company.id, {
+    await expect(service.connectGalleryApp(space.id, {
       link: "http://127.0.0.1:8848/mcp",
       name: "Fixture loopback",
     })).rejects.toMatchObject({ details: { code: "remote_http_private_endpoint" } });
     await expect(db.select().from(toolConnections)).resolves.toHaveLength(0);
   });
 
-  it("keeps generic connections inside their own company", async () => {
+  it("keeps generic connections inside their own space", async () => {
     installMcpOAuthFixture({ auth: "public" });
-    const owner = await createCompany(db);
-    const other = await createCompany(db);
+    const owner = await createSpace(db);
+    const other = await createSpace(db);
     const service = toolAccessService(db);
 
     const connected = await service.connectGalleryApp(owner.id, { link: MCP_URL, name: "Fixture scoped" });
@@ -2876,18 +2876,18 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     await expect(service.getConnection(connected.connectionId, other.id)).rejects.toMatchObject({ status: 404 });
     await expect(service.startOAuth(other.id, connected.connectionId, {
       redirectUri: REDIRECT_URI,
-      actor: { actorType: "user", actorId: "board-user" },
+      actor: { actorType: "user", actorId: "operator-user" },
     })).rejects.toMatchObject({ status: 404 });
   });
 
   it("gives a generic connection the same review, access, install, gateway and revoke path", async () => {
     installMcpOAuthFixture({ auth: "public" });
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const service = toolAccessService(db);
     const policy = toolAccessPolicyService(db);
     const [agent, outsideAgent] = await db.insert(agents).values([
       {
-        companyId: company.id,
+        spaceId: space.id,
         name: `Generic MCP agent ${randomUUID()}`,
         role: "engineer",
         status: "active",
@@ -2896,7 +2896,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
         runtimeConfig: {},
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         name: `Outside MCP agent ${randomUUID()}`,
         role: "engineer",
         status: "active",
@@ -2906,16 +2906,16 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       },
     ]).returning();
 
-    const connected = await service.connectGalleryApp(company.id, { link: MCP_URL, name: "Fixture governance" });
+    const connected = await service.connectGalleryApp(space.id, { link: MCP_URL, name: "Fixture policy" });
     const readEntry = connected.catalog.find((entry) => entry.toolName === "list_insights")!;
     const writeEntry = connected.catalog.find((entry) => entry.toolName === "create_insight")!;
 
     // Action selection: enable the read, leave the state-changing action off.
-    const finished = await service.finishGalleryAppConnection(company.id, connected.connectionId, {
+    const finished = await service.finishGalleryAppConnection(space.id, connected.connectionId, {
       enabledCatalogEntryIds: [readEntry.id],
       askFirstCatalogEntryIds: [],
       access: { agentIds: [agent!.id] },
-    }, { actorType: "user", actorId: "board-user" });
+    }, { actorType: "user", actorId: "operator-user" });
 
     expect(finished.connection).toMatchObject({ status: "active", enabled: true });
     expect(finished.profile).toMatchObject({ profileKey: `app:${connected.connectionId}`, defaultAction: "deny" });
@@ -2924,7 +2924,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     ]);
 
     const decisionInput = (catalogEntryId: string, toolName: string, agentId = agent!.id) => ({
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent" as const, actorId: agentId, agentId },
       request: { connectionId: connected.connectionId, catalogEntryId, toolName },
     });
@@ -2942,7 +2942,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     // Simulate a profile written by the legacy install path. Saving installs
     // must self-heal this over-broad entry as well as avoiding it for new apps.
     await db.insert(toolProfileEntries).values({
-      companyId: company.id,
+      spaceId: space.id,
       profileId: finished.profile.id,
       selectorType: "connection",
       effect: "include",
@@ -2953,7 +2953,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
     // Installation targets the chosen agent, same as a curated connection.
     await service.putConnectionInstalls(connected.connectionId, {
       installs: [{ targetType: "agent", targetId: agent!.id }],
-    }, { actorType: "user", actorId: "board-user" });
+    }, { actorType: "user", actorId: "operator-user" });
     const installs = await db.select().from(toolConnectionInstalls)
       .where(eq(toolConnectionInstalls.connectionId, connected.connectionId));
     expect(installs).toEqual([expect.objectContaining({ targetType: "agent", targetId: agent!.id })]);
@@ -2972,12 +2972,12 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       .resolves.toMatchObject({ allowed: false, reasonCode: "deny_default" });
 
     // Revoke: archiving the connection removes access but keeps the trail.
-    await service.archiveConnection(connected.connectionId, company.id);
+    await service.archiveConnection(connected.connectionId, space.id);
     const afterRevoke = await policy.decide(decisionInput(readEntry.id, "list_insights"));
     expect(afterRevoke.allowed).toBe(false);
 
     const auditEvents = await db.select().from(toolAccessAuditEvents)
-      .where(eq(toolAccessAuditEvents.companyId, company.id));
+      .where(eq(toolAccessAuditEvents.spaceId, space.id));
     expect(auditEvents.length).toBeGreaterThan(0);
   });
 
@@ -3007,8 +3007,8 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       .toContain("headers.Authorization");
   });
 
-  it("serves a client metadata document with no company or secret data", async () => {
-    const company = await createCompany(db);
+  it("serves a client metadata document with no space or secret data", async () => {
+    const space = await createSpace(db);
     vi.stubEnv("OUTPOST_PUBLIC_URL", PUBLIC_BASE_URL);
     const app = createRouteApp(db);
 
@@ -3020,7 +3020,7 @@ describeEmbeddedPostgres("generic remote MCP connections", () => {
       token_endpoint_auth_method: "none",
       application_type: "web",
     });
-    expect(JSON.stringify(response.body)).not.toContain(company.id);
+    expect(JSON.stringify(response.body)).not.toContain(space.id);
   });
 
   it("uses the configured auth origin for self-hosted OAuth callbacks", async () => {

@@ -2,7 +2,7 @@ import {cloudEventAuthoritySchema,cloudEventValidationOrigin,currentTenantEventO
 import { createHash, randomUUID } from "node:crypto";
 import { and, asc, count, inArray, eq, gt, gte, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { companies, activityLog, issueComments, heartbeatRuns, dotMailboxItems, dotAgentBindings, dotRunnerAssignments, mcpEventAdmissions as admissions, mcpEventDeliveries as deliveries, mcpEventSubscriptions as subscriptions, type Db } from "@outpost/db";
+import { spaces, activityLog, issueComments, heartbeatRuns, dotMailboxItems, dotAgentBindings, dotRunnerAssignments, mcpEventAdmissions as admissions, mcpEventDeliveries as deliveries, mcpEventSubscriptions as subscriptions, type Db } from "@outpost/db";
 import { dotRunnerBroker } from "../dot-runner-broker.js";
 import { ISSUE_STATUSES } from "@outpost/shared";
 import { createLocalEncryptedCipher, localEncryptedProvider } from "../../secrets/local-encrypted-provider.js";
@@ -15,8 +15,8 @@ import { PublicMcpDisabledError, type McpPrincipal, type PublicMcpOAuth } from "
 import { boundedJson, callbackUrl, eventFetch, McpEventError, postEvent, signingKey, verifyCallback, type EventFetch } from "./event-webhooks.js";
 
 const names = ["outpost.task.status_changed", "outpost.task.comment_created", "outpost.task.document_updated", "outpost.dot.work_available", "outpost.dot.mailbox_updated"] as const;
-const filters = z.object({ companyId: z.uuid(), taskId: z.uuid(), statuses: z.array(z.enum(ISSUE_STATUSES)).min(1).max(ISSUE_STATUSES.length).optional() }).strict();
-const resourceFilters = z.object({ companyId: z.uuid(), taskId: z.uuid().optional(), bindingId: z.uuid().optional(), statuses: z.array(z.enum(ISSUE_STATUSES)).min(1).max(ISSUE_STATUSES.length).optional() }).strict().refine(v => !!v.taskId !== !!v.bindingId);
+const filters = z.object({ spaceId: z.uuid(), taskId: z.uuid(), statuses: z.array(z.enum(ISSUE_STATUSES)).min(1).max(ISSUE_STATUSES.length).optional() }).strict();
+const resourceFilters = z.object({ spaceId: z.uuid(), taskId: z.uuid().optional(), bindingId: z.uuid().optional(), statuses: z.array(z.enum(ISSUE_STATUSES)).min(1).max(ISSUE_STATUSES.length).optional() }).strict().refine(v => !!v.taskId !== !!v.bindingId);
 const common = { name: z.enum(names), arguments: resourceFilters, delivery: z.object({ mode: z.literal("webhook"), url: z.string().max(2048), secret: z.string().max(100).optional() }).strict(), _meta: z.record(z.string(), z.unknown()).optional() };
 const subscribeSchema = z.object({ ...common, ttlMs: z.number().int().positive().nullable().optional(), cursor: z.null().optional() }).strict();
 const unsubscribeSchema = z.object(common).strict();
@@ -38,7 +38,7 @@ export const publicMcpEventDefinitions = names.slice(0, 3).map((name, index) => 
   delivery: ["webhook"],
   inputSchema: z.toJSONSchema(index === 0 ? filters : filters.omit({ statuses: true })),
   payloadSchema: z.toJSONSchema(z.object({
-    companyId: z.uuid(), taskId: z.uuid(), url: z.url(),
+    spaceId: z.uuid(), taskId: z.uuid(), url: z.url(),
     ...(index === 0 ? { status: z.enum(ISSUE_STATUSES) } : index === 1 ? { commentId: z.uuid() } : { documentKey: z.string(), revisionNumber: z.number().int() }),
   }).strict()),
 }));
@@ -46,7 +46,7 @@ export const publicMcpEventDefinitions = names.slice(0, 3).map((name, index) => 
 const dotEventDefinition = {
   name: names[3], description: "Reference prototype work is available. Read the offered turn and report it through the prototype tools.", delivery: ["webhook"],
   inputSchema: z.toJSONSchema(filters.omit({ statuses: true })),
-  payloadSchema: z.toJSONSchema(z.object({ companyId: z.uuid(), taskId: z.uuid(), url: z.url(), runId: z.uuid(), agentId: z.uuid(), turnId: z.uuid(), messageId: z.uuid() }).strict()),
+  payloadSchema: z.toJSONSchema(z.object({ spaceId: z.uuid(), taskId: z.uuid(), url: z.url(), runId: z.uuid(), agentId: z.uuid(), turnId: z.uuid(), messageId: z.uuid() }).strict()),
 };
 
 export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDispatch, options: { fetch?: EventFetch; now?: () => number; cloudOrigin?: string; enableDotPrototype?: boolean; enableDotRunner?: boolean; isBackgroundWorkEnabled?: () => boolean } = {}) {
@@ -72,9 +72,9 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
   async function authorize(principal: McpPrincipal, args: z.infer<typeof resourceFilters>) {
     if (args.bindingId) {
       if (!options.enableDotRunner) throw new McpEventError(-32602, "Dot requires the dedicated agent endpoint.");
-      await dotRunnerBroker(db).authorizeBinding(principal, args.companyId, args.bindingId); return;
+      await dotRunnerBroker(db).authorizeBinding(principal, args.spaceId, args.bindingId); return;
     }
-    if (args.companyId !== principal.grant.companyId || !principal.grant.scopes.includes("paperclip:read")) throw new McpEventError(-32602, "This task is outside the authorized company.");
+    if (args.spaceId !== principal.grant.spaceId || !principal.grant.scopes.includes("outpost:read")) throw new McpEventError(-32602, "This task is outside the authorized space.");
     await api(principal, "GET", `/issues/${args.taskId}`);
   }
   async function authorizeCloud(principal: McpPrincipal, authority?: CloudEventAuthority) {
@@ -83,20 +83,20 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
     if (!authority || !Number.isFinite(authority.expiresAt) || authority.expiresAt <= now() || authority.token.length > 24000) throw new McpEventError(-32602, "Refresh the hosted connection before subscribing.");
     const validationOrigin=await cloudEventValidationOrigin(db,oauth.config,cloudOrigin,authority);
     if(!validationOrigin)throw new McpEventError(-32602,"The hosted subscription authority is unavailable.");
-    const response = await fetcher(validationOrigin + "/mcp/paperclip", {
+    const response = await fetcher(validationOrigin + "/mcp/outpost", {
       method: "POST", redirect: "error", signal: AbortSignal.timeout(10_000),
       headers: { Authorization: `Bearer ${authority.token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "paperclip_connection", arguments: {} } }),
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "outpost_connection", arguments: {} } }),
     });
     if (!response.ok) { await response.body?.cancel(); throw new McpEventError(-32602, "Hosted connection access is unavailable."); }
     const body = await boundedJson(response);
-    const result = body.result as { isError?: boolean; structuredContent?: { user?: { id?: string }; companyId?: string; connectionId?: string } } | undefined;
-    if (result?.isError || result?.structuredContent?.user?.id !== principal.grant.userId || result?.structuredContent?.companyId !== principal.grant.companyId || result?.structuredContent?.connectionId !== principal.grant.id) {
+    const result = body.result as { isError?: boolean; structuredContent?: { user?: { id?: string }; spaceId?: string; connectionId?: string } } | undefined;
+    if (result?.isError || result?.structuredContent?.user?.id !== principal.grant.userId || result?.structuredContent?.spaceId !== principal.grant.spaceId || result?.structuredContent?.connectionId !== principal.grant.id) {
       throw new McpEventError(-32602, "Hosted connection authority does not match.");
     }
   }
   function identity(principal: McpPrincipal, input: z.infer<typeof unsubscribeSchema>) {
-    // Grant includes the authenticated company, person and registered client.
+    // Grant includes the authenticated space, person and registered client.
     return "sub_" + createHash("sha256").update(canonical([principal.grant.id, callbackUrl(input.delivery.url), input.name, input.arguments])).digest("hex");
   }
   function validate(input: z.infer<typeof unsubscribeSchema>) {
@@ -133,23 +133,23 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
       const verify = !!input.arguments.bindingId || !existing || existing.verifiedAt.getTime() + rotationMs <= now() || previous?.secret !== secret;
       if (!existing) {
         const [total] = await tx.select({ n: count() }).from(subscriptions);
-        const [company] = await tx.select({ n: count() }).from(subscriptions).where(eq(subscriptions.companyId, principal.grant.companyId));
+        const [space] = await tx.select({ n: count() }).from(subscriptions).where(eq(subscriptions.spaceId, principal.grant.spaceId));
         const [grant] = await tx.select({ n: count() }).from(subscriptions).where(eq(subscriptions.grantId, principal.grant.id));
         const reserved = await tx.select().from(admissions).where(and(isNull(admissions.finishedAt), eq(admissions.reservesSubscription, true)));
-        if (total!.n + reserved.length >= 1000 || company!.n + reserved.filter(r => r.companyId === principal.grant.companyId).length >= 100 || grant!.n + reserved.filter(r => r.grantId === principal.grant.id).length >= 20) {
+        if (total!.n + reserved.length >= 1000 || space!.n + reserved.filter(r => r.spaceId === principal.grant.spaceId).length >= 100 || grant!.n + reserved.filter(r => r.grantId === principal.grant.id).length >= 20) {
           throw new McpEventError(-32602, "Subscription limit reached. Stop an existing monitor first.");
         }
       }
       if (!verify && !cloudOrigin) return { existing, previous, verify, lease: null };
       const attempts = await tx.select().from(admissions);
-      const companyAttempts = attempts.filter(r => r.companyId === principal.grant.companyId);
-      const grantAttempts = companyAttempts.filter(r => r.grantId === principal.grant.id);
+      const spaceAttempts = attempts.filter(r => r.spaceId === principal.grant.spaceId);
+      const grantAttempts = spaceAttempts.filter(r => r.grantId === principal.grant.id);
       const pendingCount = (rows: typeof attempts) => rows.filter(r => !r.finishedAt).length;
-      if (attempts.length >= 1000 || companyAttempts.length >= 200 || grantAttempts.length >= 30
-        || pendingCount(attempts) >= 32 || pendingCount(companyAttempts) >= 8 || pendingCount(grantAttempts) >= 2) {
+      if (attempts.length >= 1000 || spaceAttempts.length >= 200 || grantAttempts.length >= 30
+        || pendingCount(attempts) >= 32 || pendingCount(spaceAttempts) >= 8 || pendingCount(grantAttempts) >= 2) {
         throw new McpEventError(-32602, "Subscription verification capacity reached. Retry later.");
       }
-      const [lease] = await tx.insert(admissions).values({ subscriptionId: id, companyId: principal.grant.companyId, grantId: principal.grant.id,
+      const [lease] = await tx.insert(admissions).values({ subscriptionId: id, spaceId: principal.grant.spaceId, grantId: principal.grant.id,
         reservesSubscription: !existing, createdAt: new Date(now()), expiresAt: new Date(now() + 60_000) }).returning();
       return { existing, previous, verify, lease: lease! };
     });
@@ -187,14 +187,14 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
         // not revoke a lifetime already promised to another caller. Hosted
         // authority still caps the lifetime to its current proof.
         const expiresAt = new Date(Math.min(Math.max(retainedExpiry, now() + Math.min(Math.max(input.ttlMs ?? lifetime, 30_000), lifetime)), cloudOrigin ? Math.min(now() + rotationMs, cloud!.expiresAt) : Infinity));
-        const value = { companyId: principal.grant.companyId, grantId: principal.grant.id, name: input.name, taskId: input.arguments.taskId ?? null, bindingId: input.arguments.bindingId ?? null,
+        const value = { spaceId: principal.grant.spaceId, grantId: principal.grant.id, name: input.name, taskId: input.arguments.taskId ?? null, bindingId: input.arguments.bindingId ?? null,
           arguments: input.arguments, deliveryMaterial: material, expiresAt, stoppedAt: null,
           verifiedAt: verify ? new Date(now()) : existing!.verifiedAt, startsAt: existing?.startsAt ?? requestedAt, scannedAt: new Date(now()) };
         await notifyDeliveryWork(tx, queue, input.arguments.bindingId ? `binding:${input.arguments.bindingId}` : id);
         await tx.insert(subscriptions).values({ id, ...value }).onConflictDoUpdate({ target: subscriptions.id, set: value });
         if (input.arguments.bindingId && lease) {
           const [binding] = await tx.select().from(dotAgentBindings).where(and(
-            eq(dotAgentBindings.id, input.arguments.bindingId), eq(dotAgentBindings.companyId, principal.grant.companyId),
+            eq(dotAgentBindings.id, input.arguments.bindingId), eq(dotAgentBindings.spaceId, principal.grant.spaceId),
             eq(dotAgentBindings.grantId, principal.grant.id), isNull(dotAgentBindings.revokedAt))).for("update");
           if (!binding) throw new McpEventError(-32602, "The Dot binding was revoked. Reconnect the agent.");
           const outstanding = await tx.select().from(dotRunnerAssignments).where(and(
@@ -202,12 +202,12 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
             gt(dotRunnerAssignments.expiresAt, new Date(now())),
             or(eq(dotRunnerAssignments.status, "accepted"), and(eq(dotRunnerAssignments.status, "offered"), gt(dotRunnerAssignments.acceptBy, new Date(now()))))));
           for (const assignment of outstanding) await tx.insert(dotMailboxItems).values({
-            companyId: binding.companyId, bindingId: binding.id, bindingGeneration: binding.generation,
+            spaceId: binding.spaceId, bindingId: binding.id, bindingGeneration: binding.generation,
             assignmentId: assignment.id, kind: "assignment", sourceEventId: "reconnect_" + lease.id,
             references: { assignmentId: assignment.id, runId: assignment.runId, revision: assignment.revision },
           }).onConflictDoNothing();
         }
-        await logActivity(tx as unknown as Db, { companyId: principal.grant.companyId, actorType: "user", actorId: principal.grant.userId,
+        await logActivity(tx as unknown as Db, { spaceId: principal.grant.spaceId, actorType: "user", actorId: principal.grant.userId,
           action: "mcp.event_subscribed", entityType: "mcp_subscription", entityId: id, details: { name: input.name, taskId: input.arguments.taskId, expiresAt: expiresAt.toISOString() } });
         return { id, refreshBefore: expiresAt.toISOString(), cursor: null, truncated: false };
       });
@@ -223,7 +223,7 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
       await tx.update(admissions).set({ finishedAt: new Date(now()) }).where(and(eq(admissions.subscriptionId, id), isNull(admissions.finishedAt)));
       await notifyDeliveryWork(tx, queue, id);
       await tx.delete(subscriptions).where(and(eq(subscriptions.id, id), eq(subscriptions.grantId, principal.grant.id)));
-      await logActivity(tx as unknown as Db, { companyId: principal.grant.companyId, actorType: "user", actorId: principal.grant.userId,
+      await logActivity(tx as unknown as Db, { spaceId: principal.grant.spaceId, actorType: "user", actorId: principal.grant.userId,
         action: "mcp.event_unsubscribed", entityType: "mcp_subscription", entityId: id, details: { name: input.name, taskId: input.arguments.taskId } });
     });
     return {};
@@ -232,11 +232,11 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
   async function enqueue(s: Subscription) {
     if (s.bindingId) {
       if (!options.enableDotRunner) return;
-      const [binding] = await db.select().from(dotAgentBindings).where(and(eq(dotAgentBindings.id, s.bindingId), eq(dotAgentBindings.companyId, s.companyId), isNull(dotAgentBindings.revokedAt)));
+      const [binding] = await db.select().from(dotAgentBindings).where(and(eq(dotAgentBindings.id, s.bindingId), eq(dotAgentBindings.spaceId, s.spaceId), isNull(dotAgentBindings.revokedAt)));
       if (!binding) return;
       // SQL idempotency makes this safe across restarts, replicas and callback
       // renewals. Reload before filtering delivery against the newly issued test.
-      await dotRunnerBroker(db).challenge(binding.companyId, binding.agentId, { automatic: true, bindingId: binding.id });
+      await dotRunnerBroker(db).challenge(binding.spaceId, binding.agentId, { automatic: true, bindingId: binding.id });
       const [b] = await db.select().from(dotAgentBindings).where(and(eq(dotAgentBindings.id, binding.id), isNull(dotAgentBindings.revokedAt)));
       if (!b) return;
       // Materialize only references to newly recorded task input. This does not steer
@@ -245,13 +245,13 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
         const [current] = await tx.select().from(dotAgentBindings).where(eq(dotAgentBindings.id, b.id)).for("update");
         if (!current || current.revokedAt || current.generation !== b.generation) return;
         const incoming = await tx.select({ assignmentId: dotRunnerAssignments.id, commentId: issueComments.id })
-          .from(dotRunnerAssignments).innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, dotRunnerAssignments.runId), eq(heartbeatRuns.companyId, b.companyId), eq(heartbeatRuns.status, "running")))
-          .innerJoin(issueComments, and(eq(issueComments.issueId, heartbeatRuns.nativeIssueId), eq(issueComments.companyId, b.companyId)))
-          .where(and(eq(dotRunnerAssignments.companyId, b.companyId), eq(dotRunnerAssignments.bindingId, b.id), eq(dotRunnerAssignments.bindingGeneration, b.generation),
+          .from(dotRunnerAssignments).innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, dotRunnerAssignments.runId), eq(heartbeatRuns.spaceId, b.spaceId), eq(heartbeatRuns.status, "running")))
+          .innerJoin(issueComments, and(eq(issueComments.issueId, heartbeatRuns.nativeIssueId), eq(issueComments.spaceId, b.spaceId)))
+          .where(and(eq(dotRunnerAssignments.spaceId, b.spaceId), eq(dotRunnerAssignments.bindingId, b.id), eq(dotRunnerAssignments.bindingGeneration, b.generation),
             eq(dotRunnerAssignments.status, "accepted"), gt(dotRunnerAssignments.expiresAt, new Date(now())),
             gte(issueComments.createdAt, dotRunnerAssignments.createdAt), sql`not exists (select 1 from ${dotMailboxItems} previous where previous.source_event_id = 'dot-follow-up:' || ${dotRunnerAssignments.id}::text || ':' || ${issueComments.id}::text)`, sql`(${issueComments.authorAgentId} is null or ${issueComments.authorAgentId} <> ${b.agentId})`)).limit(100);
         if (incoming.length === 100) moreSources = true;
-        for (const input of incoming) await tx.insert(dotMailboxItems).values({ companyId: b.companyId, bindingId: b.id, bindingGeneration: b.generation,
+        for (const input of incoming) await tx.insert(dotMailboxItems).values({ spaceId: b.spaceId, bindingId: b.id, bindingGeneration: b.generation,
           assignmentId: input.assignmentId, kind: "follow_up", sourceEventId: `dot-follow-up:${input.assignmentId}:${input.commentId}`, references: { assignmentId: input.assignmentId, commentId: input.commentId } }).onConflictDoNothing();
       });
       const rows = await db.select({ item: dotMailboxItems, assignment: dotRunnerAssignments })
@@ -266,20 +266,20 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
             && !!assignment && ["offered", "accepted"].includes(assignment.status) && assignment.expiresAt > new Date(now());
         await db.insert(deliveries).values({ subscriptionId: s.id, mailboxItemId: item.id, nextAttemptAt: new Date(now()),
           event: wanted ? { eventId: "evt_dot_" + item.id + "_" + s.startsAt.getTime(), name: names[4], timestamp: new Date(now()).toISOString(),
-            data: { companyId: b.companyId, bindingId: b.id, bindingGeneration: b.generation, mailboxItemId: item.id, kind: item.kind }, cursor: null } : {},
+            data: { spaceId: b.spaceId, bindingId: b.id, bindingGeneration: b.generation, mailboxItemId: item.id, kind: item.kind }, cursor: null } : {},
           ...(!wanted ? { finishedAt: new Date(now()), outcome: "filtered" } : {}) }).onConflictDoNothing();
       }
       await db.update(subscriptions).set({ scannedAt: new Date(now()) }).where(eq(subscriptions.id, s.id));
       return;
     }
     if (!s.taskId) return;
-    const [company] = await db.select({ prefix: companies.issuePrefix }).from(companies).where(eq(companies.id, s.companyId));
-    if (!company) return;
+    const [space] = await db.select({ prefix: spaces.issuePrefix }).from(spaces).where(eq(spaces.id, s.spaceId));
+    if (!space) return;
     // No moving timestamp cursor: an activity transaction committing late cannot
     // fall behind a high-water mark. The unique receipt is the durable scan marker.
     const rows = await db.select({ activity: activityLog }).from(activityLog)
       .leftJoin(deliveries, and(eq(deliveries.subscriptionId, s.id), eq(deliveries.activityId, activityLog.id)))
-      .where(and(eq(activityLog.companyId, s.companyId), eq(activityLog.entityType, "issue"), eq(activityLog.entityId, s.taskId),
+      .where(and(eq(activityLog.spaceId, s.spaceId), eq(activityLog.entityType, "issue"), eq(activityLog.entityId, s.taskId),
         gte(activityLog.createdAt, s.startsAt), lt(activityLog.createdAt, s.expiresAt), isNull(deliveries.id)))
       .orderBy(asc(activityLog.createdAt), asc(activityLog.id)).limit(100);
     if (rows.length === 100) moreSources = true;
@@ -292,7 +292,7 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
         : s.name === names[1] ? activity.action === "issue.comment_added" && details.origin !== "fast_response" && z.uuid().safeParse(details.commentId).success
         : s.name === names[2] ? ["issue.document_created", "issue.document_updated"].includes(activity.action) && typeof details.key === "string" && typeof details.revisionNumber === "number"
         : options.enableDotPrototype && activity.action === "dot.work_available" && [details.runId, details.agentId, details.turnId, details.messageId].every(v => z.uuid().safeParse(v).success);
-      const data = { companyId: s.companyId, taskId: s.taskId, url: oauth.config.origin + "/" + encodeURIComponent(company.prefix) + "/issues/" + s.taskId,
+      const data = { spaceId: s.spaceId, taskId: s.taskId, url: oauth.config.origin + "/" + encodeURIComponent(space.prefix) + "/issues/" + s.taskId,
         ...(s.name === names[0] ? { status: details.status } : s.name === names[1] ? { commentId: details.commentId }
           : s.name === names[2] ? { documentKey: details.key, revisionNumber: details.revisionNumber }
           : { runId: details.runId, agentId: details.agentId, turnId: details.turnId, messageId: details.messageId }) };
@@ -371,7 +371,7 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
           inArray(subscriptions.id, scan.ids.filter(id => !id.includes(":"))),
           inArray(subscriptions.bindingId, scan.ids.filter(id => id.startsWith("binding:")).map(id => id.slice(8))),
           inArray(subscriptions.taskId, scan.ids.filter(id => id.startsWith("task:")).map(id => id.slice(5))),
-          inArray(subscriptions.companyId, scan.ids.filter(id => id.startsWith("company:")).map(id => id.slice(8))),
+          inArray(subscriptions.spaceId, scan.ids.filter(id => id.startsWith("space:")).map(id => id.slice(8))),
         ) : undefined)).orderBy(asc(subscriptions.id)).limit(20);
       for (const s of active) {
         if (stopped || options.isBackgroundWorkEnabled?.() === false) return;
@@ -461,9 +461,9 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
   }
   const inspectIdleDestination = (s: Subscription) => createIdleDestinationInspector()(s);
   return { subscribe, unsubscribe, tick, inspectIdleDestination, createIdleDestinationInspector,
-    definitions: options.enableDotRunner ? [{ name: names[4], description: "The bound Dot mailbox changed. Drain paperclip_dot_inbox, read and accept current work. Duplicate/out-of-order events do not imply new assignments. Readiness challenges require paperclip_dot_confirm_event.", delivery: ["webhook"],
-      inputSchema: z.toJSONSchema(z.object({ companyId: z.uuid(), bindingId: z.uuid() }).strict()),
-      payloadSchema: z.toJSONSchema(z.object({ companyId: z.uuid(), bindingId: z.uuid(), bindingGeneration: z.number().int(), mailboxItemId: z.number().int(), kind: z.string() }).passthrough()),
+    definitions: options.enableDotRunner ? [{ name: names[4], description: "The bound Dot mailbox changed. Drain outpost_dot_inbox, read and accept current work. Duplicate/out-of-order events do not imply new assignments. Readiness challenges require outpost_dot_confirm_event.", delivery: ["webhook"],
+      inputSchema: z.toJSONSchema(z.object({ spaceId: z.uuid(), bindingId: z.uuid() }).strict()),
+      payloadSchema: z.toJSONSchema(z.object({ spaceId: z.uuid(), bindingId: z.uuid(), bindingGeneration: z.number().int(), mailboxItemId: z.number().int(), kind: z.string() }).passthrough()),
     }] : [...publicMcpEventDefinitions, ...(options.enableDotPrototype ? [dotEventDefinition] : [])],
     start,
     reconciliationSnapshot: (): DeadlineReconciliationSnapshot => ({ revision: `${ownerGeneration}:${ownerRevision}`, reconciled: ownerReconciled && !stopped && !running }),

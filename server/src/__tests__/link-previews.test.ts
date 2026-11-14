@@ -3,7 +3,7 @@ import { once } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLinkPreviewService, type LinkPreviewProvider } from "../services/link-previews.js";
 
-const scope = { companyId: "company-a", userId: "alice" };
+const scope = { spaceId: "space-a", userId: "alice" };
 const url = "https://github.com/acme/web/pull/42";
 const unavailable = { preview: null, maxAgeMs: 60_000 };
 const provider = (resolve = vi.fn(async () => unavailable)): LinkPreviewProvider => ({ key: "github", resolve });
@@ -22,12 +22,12 @@ describe("demand-driven link preview cache", () => {
     await service.get(scope, url);
     expect(resolve).toHaveBeenCalledTimes(1);
   });
-  it("separates viewers, companies, and resources", async () => {
+  it("separates viewers, spaces, and resources", async () => {
     const resolve = vi.fn(async () => unavailable);
     const service = createLinkPreviewService([provider(resolve)]);
     await service.get(scope, url);
     await service.get({ ...scope, userId: "bob" }, url);
-    await service.get({ ...scope, companyId: "company-b" }, url);
+    await service.get({ ...scope, spaceId: "space-b" }, url);
     await service.get(scope, `${url}1`);
     expect(resolve).toHaveBeenCalledTimes(4);
   });

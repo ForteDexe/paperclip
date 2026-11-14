@@ -48,8 +48,8 @@ describe("Codex security configuration", () => {
       import { delimiter, dirname, isAbsolute, join } from "node:path";
       import { resolveCodexCommand, resolvePinnedCodexCommand } from ${JSON.stringify(new URL("./codex-command.ts", import.meta.url).href)};
       import { codexExecutableReadOnlyRoots, createIsolatedCodexAppServerArgs } from ${JSON.stringify(new URL("./codex-security-config.ts", import.meta.url).href)};
-      const root = realpathSync(mkdtempSync(join(tmpdir(), "paperclip-pinned-codex-test-")));
-      const pathOnlyRoot = realpathSync(mkdtempSync(join(tmpdir(), "paperclip-path-codex-test-")));
+      const root = realpathSync(mkdtempSync(join(tmpdir(), "outpost-pinned-codex-test-")));
+      const pathOnlyRoot = realpathSync(mkdtempSync(join(tmpdir(), "outpost-path-codex-test-")));
       const pathDirectory = join(pathOnlyRoot, "bin");
       const pathCommand = join(pathDirectory, "codex");
       const commandEnvironment = { PATH: pathDirectory };
@@ -400,7 +400,7 @@ describe("Codex security configuration", () => {
   });
 
   it("N-12: the pinned Codex binary keeps built-in image generation enabled under the isolated launch", () => {
-    const codexHome = mkdtempSync(join(tmpdir(), "paperclip-n12-codex-home-"));
+    const codexHome = mkdtempSync(join(tmpdir(), "outpost-n12-codex-home-"));
     try {
       const args = createIsolatedCodexAppServerArgs({ PATH: process.env.PATH, HOME: codexHome, CODEX_HOME: codexHome });
       const output = execFileSync(resolvePinnedCodexCommand(), [...args.slice(0, -1), "features", "list"], {
@@ -563,13 +563,13 @@ describe("Codex security configuration", () => {
     const external = planningArgs({
       OUTPOST_RUNNER_EXTERNAL_SANDBOX: "1",
       OUTPOST_RUNNER_NETWORK_ACCESS: "enabled",
-      HOME: "/home/daytona/.paperclip/codex-home",
-      CODEX_HOME: "/home/daytona/.paperclip/codex-home",
+      HOME: "/home/daytona/.outpost/codex-home",
+      CODEX_HOME: "/home/daytona/.outpost/codex-home",
       OUTPOST_GITHUB_BROKER_TOKEN: "broker-capability",
-      GH_CONFIG_DIR: "/home/daytona/.paperclip/gh",
+      GH_CONFIG_DIR: "/home/daytona/.outpost/gh",
     });
     expect(external).toEqual({
-      filesystem: 'permissions.outpost-runner-workspace-read-only.filesystem={":root"="read","/home/daytona/.paperclip/gh"="write"}',
+      filesystem: 'permissions.outpost-runner-workspace-read-only.filesystem={":root"="read","/home/daytona/.outpost/gh"="write"}',
       network: "permissions.outpost-runner-workspace-read-only.network.enabled=true",
     });
     expect(external.filesystem).not.toContain('="none"');
@@ -577,7 +577,7 @@ describe("Codex security configuration", () => {
     expect(planningArgs({
       OUTPOST_RUNNER_EXTERNAL_SANDBOX: "1",
       OUTPOST_RUNNER_NETWORK_ACCESS: "disabled",
-      CODEX_HOME: "/home/daytona/.paperclip/codex-home",
+      CODEX_HOME: "/home/daytona/.outpost/codex-home",
     })).toEqual({
       filesystem: 'permissions.outpost-runner-workspace-read-only.filesystem={":root"="read"}',
       network: "permissions.outpost-runner-workspace-read-only.network.enabled=false",

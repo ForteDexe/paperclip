@@ -1,10 +1,10 @@
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 
-export type NativeWorkspaceFinalizationScope = { companyId: string; runId?: string; issueId?: string };
+export type NativeWorkspaceFinalizationScope = { spaceId: string; runId?: string; issueId?: string };
 
 export function notifyNativeWorkspaceFinalization(tx: object, scope?: NativeWorkspaceFinalizationScope) {
   return notifyDeliveryWork(tx, DELIVERY_QUEUES.nativeWorkspaceFinalization,
-    scope ? JSON.stringify({ companyId: scope.companyId, runId: scope.runId, issueId: scope.issueId }) : "*");
+    scope ? JSON.stringify({ spaceId: scope.spaceId, runId: scope.runId, issueId: scope.issueId }) : "*");
 }
 
 

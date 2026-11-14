@@ -35,18 +35,18 @@ migration is added.
 
 The existing target link table supports ordinary issue scopes. Before a target
 is deleted, the decision owner locks its issue row, reads distinct linked open
-decisions in the same company, and signals their IDs. The links may then cascade
+decisions in the same space, and signals their IDs. The links may then cascade
 without losing notification scope. The row lock closes the race in which a new
 proposal could add its target reference after discovery but before deletion.
 This remains part of the caller's existing transaction; no provider operation
 is wrapped in a new transaction. Production hints require an issue or decision
 ID, so routine cleanup and repeated removals do not restart full startup paging.
 
-Company deletion no longer signals target work. With no decision rows it cannot
-create a same-company invalidation obligation. Pre-existing restrictive origin
-run/issue foreign keys still prevent deleting some companies with decisions;
+Space deletion no longer signals target work. With no decision rows it cannot
+create a same-space invalidation obligation. Pre-existing restrictive origin
+run/issue foreign keys still prevent deleting some spaces with decisions;
 that separate limitation is unchanged. This migration does not claim to implement
-complete decision-data deletion for those companies.
+complete decision-data deletion for those spaces.
 
 Other direct issue writers were inspected: checkout/adoption enter in-progress;
 conversation writers enter todo/in-progress/in-review; recovery enters blocked;
@@ -100,7 +100,7 @@ updated Runner vendor (1,524 inputs and 1,563 outputs).
 
 Four real regressions failed before repair: sub-millisecond paging, deletion
 behind a full valid startup page, unrelated deletion notifications and successful
-empty-company deletion notifications. They all pass. The new concurrency test
+empty-space deletion notifications. They all pass. The new concurrency test
 observes the proposal's actual PostgreSQL lock wait while deletion is held.
 Temporarily removing the issue-row lock made the test fail because the proposal
 was accepted instead of waiting; restoring it passes. The mutation was restored

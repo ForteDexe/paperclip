@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, budgetPolicies, companies, costEvents, createDb, heartbeatRuns, runUsageReceipts, type Db } from "@outpost/db";
+import { activityLog, agents, budgetPolicies, spaces, costEvents, createDb, heartbeatRuns, runUsageReceipts, type Db } from "@outpost/db";
 import { type PrpEvent } from "../../vendor/outpost-runner/index.js";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { flushBudgetEvaluationWork } from "../budgets.js";
@@ -33,11 +33,11 @@ describe("producer-owned native usage", () => {
   }, 660_000);
   afterAll(async () => { await database?.cleanup(); });
   const seed = async () => {
-    const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Usage delivery", issuePrefix: randomUUID().slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Producer", adapterType: "outpost_runner" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", status: "running", runtimeMode: "native", costAccountingPending: true });
-    return { companyId, agentId, runId, runnerInstanceId: randomUUID(), provider: { kind: "codex" as const, model: "test-model" }, billing };
+    const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Usage delivery", issuePrefix: randomUUID().slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Producer", adapterType: "outpost_runner" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "on_demand", status: "running", runtimeMode: "native", costAccountingPending: true });
+    return { spaceId, agentId, runId, runnerInstanceId: randomUUID(), provider: { kind: "codex" as const, model: "test-model" }, billing };
   };
   const event = (input: Pick<Awaited<ReturnType<typeof seed>>, "runId" | "runnerInstanceId">, sequence: number, type: string, turnId = "turn-1", amount = 0.25): PrpEvent => ({
     schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", sourceInstanceId: input.runnerInstanceId,
@@ -150,13 +150,13 @@ describe("producer-owned native usage", () => {
       expect((await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, input.runId)))[0].costCents).toBe(25);
     });
 
-  it.each(["company", "run", "runner", "source"])("rejects a changed continuation binding without mutation: %s", async change => {
+  it.each(["space", "run", "runner", "source"])("rejects a changed continuation binding without mutation: %s", async change => {
     const { input, source } = await finalizedSource();
     if (change === "source") await db.update(heartbeatRuns).set({ usageJson: sql`${heartbeatRuns.usageJson} || ${JSON.stringify({ accountingReceiptSourceId: randomUUID() })}::jsonb` })
       .where(eq(heartbeatRuns.id, input.runId));
     const before = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, input.runId));
     await expect(createNativeUsageContinuationDelivery(db, { ...source,
-      ...(change === "company" ? { companyId: randomUUID() } : {}),
+      ...(change === "space" ? { spaceId: randomUUID() } : {}),
       ...(change === "run" ? { runId: randomUUID() } : {}),
       ...(change === "runner" ? { runnerInstanceId: randomUUID() } : {}),
     })).rejects.toThrow("native_usage_continuation_source_mismatch");
@@ -286,7 +286,7 @@ describe("producer-owned native usage", () => {
     const successor = async (owner: Awaited<ReturnType<typeof finalizedSource>>) => {
       const runId = randomUUID();
       await db.update(heartbeatRuns).set({ nativeSessionId: sessionId }).where(eq(heartbeatRuns.id, owner.input.runId));
-      await db.insert(heartbeatRuns).values({ id: runId, companyId: owner.input.companyId, agentId: owner.input.agentId, invocationSource: "on_demand",
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId: owner.input.spaceId, agentId: owner.input.agentId, invocationSource: "on_demand",
         status: "running", runtimeMode: "native", nativeSessionId: sessionId, costAccountingPending: true });
       return { ...owner.input, runId };
     };
@@ -314,7 +314,7 @@ describe("producer-owned native usage", () => {
       expect(run.costAccountingPending).toBe(false);
       const [activity] = await db.select().from(activityLog).where(and(eq(activityLog.entityId, owner.input.runId), eq(activityLog.action, "cost.late_usage_posted")));
       expect(activity.details).toMatchObject({ attribution, reportedByRunId: current.runId, inputTokens: 30 });
-      const inspection = await accountingIntegrityService(db).inspect(owner.input.companyId);
+      const inspection = await accountingIntegrityService(db).inspect(owner.input.spaceId);
       expect(inspection.findings.filter(finding => finding.entityId === owner.input.runId)).toEqual([]);
     });
 
@@ -326,7 +326,7 @@ describe("producer-owned native usage", () => {
       await ownerDelivery.capture(event(ownerInput, 2, "turn.completed"));
       await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, ownerInput.runId));
       const runId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: runId, companyId: ownerInput.companyId, agentId: ownerInput.agentId, invocationSource: "on_demand",
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId: ownerInput.spaceId, agentId: ownerInput.agentId, invocationSource: "on_demand",
         status: "running", runtimeMode: "native", nativeSessionId: sessionId, costAccountingPending: true });
       const current = { ...ownerInput, runId };
       await (await createNativeUsageDelivery(db, current)).capture(lateReport(current, { runId: ownerInput.runId, normalizedSessionId: sessionId }));
@@ -351,7 +351,7 @@ describe("producer-owned native usage", () => {
       const other = await finalizedSource();
       await db.update(heartbeatRuns).set({ nativeSessionId: randomUUID() }).where(eq(heartbeatRuns.id, other.input.runId));
       const runId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: runId, companyId: other.input.companyId, agentId: other.input.agentId, invocationSource: "on_demand",
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId: other.input.spaceId, agentId: other.input.agentId, invocationSource: "on_demand",
         status: "running", runtimeMode: "native", nativeSessionId: sessionId, costAccountingPending: true });
       const current = { ...other.input, runId };
       const delivery = await createNativeUsageDelivery(db, current);
@@ -365,7 +365,7 @@ describe("producer-owned native usage", () => {
       expect(await ledger(other.input.runId)).toHaveLength(1);
       const [activity] = await db.select().from(activityLog).where(and(eq(activityLog.entityId, runId), eq(activityLog.action, "cost.late_usage_posted")));
       expect(activity.details).toMatchObject({ attribution: "inferred", reportedByRunId: runId });
-      expect((await accountingIntegrityService(db).inspect(current.companyId)).findings.filter(finding => finding.entityId === runId)).toEqual([]);
+      expect((await accountingIntegrityService(db).inspect(current.spaceId)).findings.filter(finding => finding.entityId === runId)).toEqual([]);
     });
   });
 
@@ -379,7 +379,7 @@ describe("producer-owned native usage", () => {
     const charges = await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, input.runId));
     expect(charges.map(row => row.inputTokens).sort((a, b) => a - b)).toEqual([30, 120]);
     expect(charges.reduce((sum, row) => sum + row.costCents, 0)).toBeCloseTo(50);
-    expect((await accountingIntegrityService(db).inspect(input.companyId)).findings.filter(finding => finding.entityId === input.runId)).toEqual([]);
+    expect((await accountingIntegrityService(db).inspect(input.spaceId)).findings.filter(finding => finding.entityId === input.runId)).toEqual([]);
   });
 
   it("prices a same-run late report from the rate card instead of posting free tokens", async () => {
@@ -403,7 +403,7 @@ describe("producer-owned native usage", () => {
     expect(late.costCents).toBeGreaterThan(0);
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, input.runId));
     expect(run.usageJson).toMatchObject({ outputTokens: 120000, accountingLateReceiptPending: false });
-    expect((await accountingIntegrityService(db).inspect(input.companyId)).findings.filter(finding => finding.entityId === input.runId)).toEqual([]);
+    expect((await accountingIntegrityService(db).inspect(input.spaceId)).findings.filter(finding => finding.entityId === input.runId)).toEqual([]);
   });
 
   it("labels a rate-card late charge as an estimate when the original charge was reported", async () => {
@@ -442,10 +442,10 @@ describe("producer-owned native usage", () => {
   it("preserves source takeover fencing, budget holds, and missing-usage debt", async () => {
     const input = await seed();
     const first = await createNativeUsageDelivery(db, input);
-    await db.insert(budgetPolicies).values({ companyId: input.companyId, scopeType: "agent", scopeId: input.agentId,
+    await db.insert(budgetPolicies).values({ spaceId: input.spaceId, scopeType: "agent", scopeId: input.agentId,
       metric: "billed_cents", windowKind: "lifetime", amount: 10, notifyEnabled: false });
     await first.capture(event(input, 1, "usage.reported"));
-    await flushBudgetEvaluationWork(db, { companyId: input.companyId });
+    await flushBudgetEvaluationWork(db, { spaceId: input.spaceId });
     const [agent] = await db.select().from(agents).where(eq(agents.id, input.agentId));
     expect(agent.lifecycleHolds).toContain("budget");
     const replacement = { ...input, runnerInstanceId: randomUUID() };

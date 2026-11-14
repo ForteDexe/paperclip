@@ -17,7 +17,7 @@ export async function runCursorCloudStopFlow(input: {
   evidence(name: string, value: unknown): Promise<void>;
 }) {
   const { page, api, fixtures, execution, nonce, observer } = input;
-  const created = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name,
+  const created = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name,
     title: execution.task.buildTitle(nonce), prompt: execution.task.buildPrompt(nonce), workMode: "standard", requireExplicitTitle: true });
   let issue: Row = {}, runs: Row[] = [];
   const load = async () => {
@@ -53,7 +53,7 @@ export async function runCursorCloudStopFlow(input: {
     const absent = async () => !(await observer.client.listArtifacts(active.identity.agentId)).items.some(item => item.path.split("/").at(-1) === cursorCloudStopArtifactName(nonce));
     expect(await absent(), "Delayed Cloud artifact must be absent before Stop").toBe(true);
     await input.evidence("cursor-cloud-stop-active.json", { identity: cursorCloudIdentityProof(active.identity), remoteStatus: active.remoteStatus, localRunId: active.localRunId, nativeToolStarted: true, executionId: active.executionId, commandSha256: active.commandSha256 });
-    await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
+    await page.goto(`/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
     await input.capture("cloud-before-stop", "Cloud run independently active before Stop", "cloud-before-stop.png");
     const stop = page.getByTestId("task-chat-composer-stop").last(); await expect(stop).toBeVisible();
     const beforeStop = await readPendingBoundary();
@@ -64,12 +64,12 @@ export async function runCursorCloudStopFlow(input: {
     await stop.click();
     await input.evidence("cursor-cloud-stop-pending-recheck.json", { checkedAt: pendingCheckedAt, executionId: beforeStop!.executionId,
       commandSha256: beforeStop!.commandSha256, identity: cursorCloudIdentityProof(beforeStop!.identity), remoteStatus: beforeStop!.remoteStatus });
-    await pollUntil({ label: "Cloud and Paperclip cancellation", deadlineAt: input.deadlineAt, intervalMs: 500, retryOnError: () => false,
+    await pollUntil({ label: "Cloud and Outpost cancellation", deadlineAt: input.deadlineAt, intervalMs: 500, retryOnError: () => false,
       load: async () => { await load(); return { local: runs[0], remote: await observer.client.getRun(active.identity.agentId, active.identity.runId!) }; },
       accept: value => value.local?.status === "cancelled" && value.remote.status === "CANCELLED",
       reject: value => ["FINISHED", "ERROR", "EXPIRED"].includes(value.remote.status) ? "Cloud run ended without verified cancellation" : undefined });
     const receipt = runs[0]!.resultJson?.nativeCancellation;
-    expect(receipt).toMatchObject({ schema: "outpost.native-cancellation.v1", companyId: fixtures.company.id, issueId: issue.id, runId: active.localRunId, scope: "run", dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only" });
+    expect(receipt).toMatchObject({ schema: "outpost.native-cancellation.v1", spaceId: fixtures.space.id, issueId: issue.id, runId: active.localRunId, scope: "run", dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only" });
     const samples: Array<{ elapsedMs: number; providerCancelled: boolean; artifactAbsent: boolean; localCancelled: boolean }> = [];
     const quietStart = Date.now();
     do {

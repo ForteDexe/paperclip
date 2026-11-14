@@ -330,7 +330,7 @@
     "billingSettingsChanged": false
   },
   "retainedFailures": [
-    "startup structural root assertion; portal-aware fixture treatment passes without changing visible UX, zero-company or cleanup assertions",
+    "startup structural root assertion; portal-aware fixture treatment passes without changing visible UX, zero-space or cleanup assertions",
     "two Intel test preparation attempts executed no tests; actual ARM reconnect baseline fails both required states",
     "original CI runner shutdown failures retained; only failed jobs retried",
     "one archived canary metadata-probe sandbox was explicitly deleted; all six owned IDs independently return404",

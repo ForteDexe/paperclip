@@ -1,7 +1,7 @@
 import { context, trace } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from "@opentelemetry/sdk-trace";
-import { companies, createDb, executionWorkspaces, issueComments, issues, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
+import { spaces, createDb, executionWorkspaces, issueComments, issues, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
@@ -16,14 +16,14 @@ const support = await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("execution timing with real database waits", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  let companyId: string, workspaceId: string;
+  let spaceId: string, workspaceId: string;
   let exporter: InMemorySpanExporter, provider: TracerProvider, manager: AsyncLocalStorageContextManager;
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-execution-timing-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-execution-timing-");
     db = createDb(temporary.connectionString);
-    const [company] = await db.insert(companies).values({ name: "Timing fixture", issuePrefix: "TIME" }).returning();
-    companyId = company.id;
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId, name: "Files", mode: "shared_workspace", strategyType: "task_directory" }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Timing fixture", issuePrefix: "TIME" }).returning();
+    spaceId = space.id;
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId, name: "Files", mode: "shared_workspace", strategyType: "task_directory" }).returning();
     workspaceId = workspace.id;
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   beforeEach(() => {
@@ -95,11 +95,11 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("records durable response commit and server publication under the same attempt", async () => {
-    const [issue] = await db.insert(issues).values({ companyId, title: "Response timing" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Response timing" }).returning();
     const body = "Private response fixture";
     const comment = await withRunExecutionTiming("response", async () => {
-      const saved = await issueService(db).addComment(issue.id, body, { userId: "local-board" });
-      await logActivity(db, { companyId, actorType: "user", actorId: "local-board", action: "issue.comment_added", entityType: "issue", entityId: issue.id });
+      const saved = await issueService(db).addComment(issue.id, body, { userId: "local-operator" });
+      await logActivity(db, { spaceId, actorType: "user", actorId: "local-operator", action: "issue.comment_added", entityType: "issue", entityId: issue.id });
       return saved;
     });
     const [stored] = await db.select().from(issueComments).where(eq(issueComments.id, comment.id));
@@ -117,10 +117,10 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("preserves a real access denial and exports only failed status", async () => {
     await expect(withRunExecutionTiming("denied", () => assertExecutionWorkspaceRecordAccess(db,
-      { type: "board", userId: "not-a-company-member" }, companyId, workspaceId,
+      { type: "operator", userId: "not-a-space-member" }, spaceId, workspaceId,
     ))).rejects.toMatchObject({ status: 403 });
     const spans = exporter.getFinishedSpans();
     expect(spans.find(span => span.name === "task.execution_attempt")?.status.code).toBe(2);
-    expect(JSON.stringify(spans.map(span => ({ attributes: span.attributes, events: span.events })))).not.toContain("not-a-company-member");
+    expect(JSON.stringify(spans.map(span => ({ attributes: span.attributes, events: span.events })))).not.toContain("not-a-space-member");
   });
 });

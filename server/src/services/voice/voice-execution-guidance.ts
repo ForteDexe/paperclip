@@ -10,20 +10,20 @@ export const LIVE_VOICE_EXECUTION_GUIDANCE = [
 
 /** Derive live context from accepted server records, never from caller text or wake metadata. */
 export async function liveVoiceExecutionGuidance(db: Db, input: {
-  companyId: string; issueId: string; agentId: string;
+  spaceId: string; issueId: string; agentId: string;
 }, now = new Date()): Promise<string | null> {
   const [live] = await db.select({ id: chatVoiceSessions.id, authority: chatVoiceSessions.callerAuthority }).from(chatVoiceSessions)
-    .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.companyId, chatVoiceSessions.companyId)))
-    .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, chatEndpoints.companyId)))
+    .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.spaceId, chatVoiceSessions.spaceId)))
+    .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, chatEndpoints.spaceId)))
     .where(and(
-      eq(chatVoiceSessions.companyId, input.companyId), eq(chatVoiceSessions.issueId, input.issueId),
+      eq(chatVoiceSessions.spaceId, input.spaceId), eq(chatVoiceSessions.issueId, input.issueId),
       eq(chatVoiceSessions.assignedAgentId, input.agentId), eq(chatEndpoints.assignedAgentId, input.agentId),
       eq(chatEndpoints.provider, "speko"), inArray(chatEndpoints.status, ["active", "verifying"]),
       eq(toolConnections.status, "active"), eq(toolConnections.enabled, true),
       eq(chatVoiceSessions.state, "active"), isNull(chatVoiceSessions.endedAt), gt(chatVoiceSessions.expiresAt, now),
       inArray(chatVoiceSessions.callerAuthority, ["member", "instance_admin", "local_board", "guest_intake"]),
       sql`${chatVoiceSessions.generation} = coalesce((${chatEndpoints.setup}->>'runtimeGeneration')::integer, 0)`,
-      sql`exists (select 1 from ${chatVoiceToolCalls} where ${chatVoiceToolCalls.companyId} = ${chatVoiceSessions.companyId}
+      sql`exists (select 1 from ${chatVoiceToolCalls} where ${chatVoiceToolCalls.spaceId} = ${chatVoiceSessions.spaceId}
         and ${chatVoiceToolCalls.sessionId} = ${chatVoiceSessions.id} and ${chatVoiceToolCalls.tool} = 'submit_request'
         and ${chatVoiceToolCalls.deliveryId} is not null)`,
     )).limit(1);

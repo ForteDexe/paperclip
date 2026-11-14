@@ -42,7 +42,7 @@ export const environmentRunnerLaunchRequirementsSchema = z.object({
   model: z.string().min(1).nullable(), instructions: z.string().max(1024 * 1024),
   runtimeContext: z.record(z.string(), z.unknown()).nullable(),
   settings: z.object({ acpxAgent: identifier.optional(), acpxMode: z.string().optional(),
-    acpxPermissionMode: z.enum(["approve-all", "approve-paperclip", "approve-reads", "deny-all"]).optional(),
+    acpxPermissionMode: z.enum(["approve-all", "approve-outpost", "approve-reads", "deny-all"]).optional(),
     acpxPermissionModePinned: z.boolean().optional(), piThinkingLevel: z.enum(["off", "low", "high", "max"]).optional(),
     claudeEffort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
     opencodePermissionMode: z.enum(["allow", "ask", "deny"]).optional(),
@@ -199,7 +199,7 @@ export interface PluginEnvironmentTaskParams extends Omit<PluginEnvironmentDrive
   /** Null during cleanup after the associated run is deleted. */
   runId: string | null;
   agentId: string | null;
-  /** Company-validated projects to prepare on submit; empty during cleanup. */
+  /** Space-validated projects to prepare on submit; empty during cleanup. */
   projectIds: string[];
   workspace?: import("@outpost/shared").WorkspaceProviderBinding;
   fresh?: import("./workspace-provider.js").PluginFreshWorkspace;

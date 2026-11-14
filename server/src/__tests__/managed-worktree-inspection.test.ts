@@ -75,7 +75,7 @@ describe("managed worktree registration inspection", () => {
       base: { baseCwd: repo, source: "project_primary", projectId: "project", workspaceId: "workspace", repoUrl: null, repoRef: "HEAD" },
       workspace: { id: "execution-workspace", mode: "isolated_workspace", strategyType: "git_worktree", cwd: worktree, providerRef: worktree, projectId: "project", projectWorkspaceId: "workspace", repoUrl: null, baseRef: "HEAD", branchName: "work" },
       issue: { id: "issue", identifier: "TEST-1", title: "Preserve workspace" },
-      agent: { id: "agent", name: "Agent", companyId: "company" },
+      agent: { id: "agent", name: "Agent", spaceId: "space" },
     })).rejects.toMatchObject({ code: "workspace_validation_failed", resultJson: { workspaceValidation: {
       reason: "git_worktree_not_reusable", reasonCode: "git_inspection_failed",
       inspectionDiagnostic: { command: "worktree_list", failure: "nonzero_exit", exitCode: 126 },

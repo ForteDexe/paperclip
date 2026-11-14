@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { agentTaskSessions, heartbeatRuns, nativeRunResults, type Db, type issues } from "@outpost/db";
 import { validatePrpStructuredRunResult, type PersistedNativeSession } from "../../vendor/outpost-runner/index.js";
 import { nativeSha256 } from "./canonical.js";
-import type { PaperclipControlPlaneBinding } from "./paperclip-control-plane-port.js";
+import type { OutpostControlPlaneBinding } from "./outpost-control-plane-port.js";
 import { readRunCancellation } from "../run-cancellation.js";
 
 /** Prepared once by heartbeat; never copied into recovery metadata or receipts. */
@@ -17,7 +17,7 @@ type Transaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Outcome = "published" | "suppressed_reset" | "suppressed_newer" | "suppressed_authority" | "missing_stub" | "unsupported";
 interface Receipt {
   schema: "outpost.native-task-session-publication.v1";
-  companyId: string;
+  spaceId: string;
   issueId: string;
   agentId: string;
   runId: string;
@@ -37,22 +37,22 @@ const outcomes: readonly string[] = ["published", "suppressed_reset", "suppresse
 function receiptFromProfile(profile: unknown): Receipt | null {
   const root = record(profile), value = record(root[NATIVE_TASK_SESSION_PUBLICATION_KEY]);
   if (value.schema !== "outpost.native-task-session-publication.v1"
-      || ![value.companyId, value.issueId, value.agentId, value.runId, value.sessionId, value.resultId].every(uuid)
+      || ![value.spaceId, value.issueId, value.agentId, value.runId, value.sessionId, value.resultId].every(uuid)
       || typeof value.taskKey !== "string" || value.taskKey.length > 512
       || typeof value.adapterType !== "string" || !value.adapterType.length || value.adapterType.length > 128
       || !outcomes.includes(String(value.outcome)) || Object.keys(value).length !== 10) return null;
   const snapshot = record(root.sessionCheckpoint), identity = record(snapshot.identity);
-  if (identity.runId !== value.runId || identity.companyId !== value.companyId || identity.issueId !== value.issueId
+  if (identity.runId !== value.runId || identity.spaceId !== value.spaceId || identity.issueId !== value.issueId
       || identity.agentId !== value.agentId || identity.sessionId !== value.sessionId) return null;
   return value as unknown as Receipt;
 }
 
 /** Only the exact server-written outcome may suppress heartbeat's late fallback. */
 export function nativeTaskSessionPublicationHandled(profile: unknown, binding: {
-  companyId: string; agentId: string; runId: string; taskKey: string; adapterType: string;
+  spaceId: string; agentId: string; runId: string; taskKey: string; adapterType: string;
 }): boolean {
   const receipt = receiptFromProfile(profile);
-  return !!receipt && receipt.companyId === binding.companyId && receipt.agentId === binding.agentId
+  return !!receipt && receipt.spaceId === binding.spaceId && receipt.agentId === binding.agentId
     && receipt.runId === binding.runId && receipt.taskKey === binding.taskKey
     && receipt.adapterType === binding.adapterType && ["published", "suppressed_reset", "suppressed_newer", "suppressed_authority", "missing_stub"].includes(receipt.outcome);
 }
@@ -63,14 +63,14 @@ export function eligibleNativeTaskSessionPublication(snapshot: PersistedNativeSe
 }
 
 export type NativeTaskSessionPublicationRun = Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "nativeIssueId" | "nativeSessionId" | "status" | "resultJson" | "contextSnapshot" | "startedAt" | "createdAt" | "runnerProfileJson">;
+  "id" | "spaceId" | "agentId" | "nativeIssueId" | "nativeSessionId" | "status" | "resultJson" | "contextSnapshot" | "startedAt" | "createdAt" | "runnerProfileJson">;
 export type NativeTaskSessionPublicationIssue = Pick<typeof issues.$inferSelect,
-  "id" | "companyId" | "executionRunId" | "conversationAgentId" | "conversationSessionGeneration">;
+  "id" | "spaceId" | "executionRunId" | "conversationAgentId" | "conversationSessionGeneration">;
 
 /** Caller holds coordinator → issue NO KEY UPDATE → run. This helper owns only
  * the task-row lock and UPDATE; never starts a transaction or creates a stub. */
 export async function publishNativeTaskSessionInTransaction(tx: Transaction, input: {
-  binding: PaperclipControlPlaneBinding;
+  binding: OutpostControlPlaneBinding;
   context: NativeTaskSessionPublicationContext;
   snapshot: PersistedNativeSession;
   run: NativeTaskSessionPublicationRun;
@@ -81,7 +81,7 @@ export async function publishNativeTaskSessionInTransaction(tx: Transaction, inp
   const { binding, context, snapshot, run, issue } = input;
   const existingReceipt = receiptFromProfile(run.runnerProfileJson);
   if (existingReceipt) {
-    if (existingReceipt.companyId !== binding.companyId || existingReceipt.issueId !== binding.issueId
+    if (existingReceipt.spaceId !== binding.spaceId || existingReceipt.issueId !== binding.issueId
         || existingReceipt.agentId !== binding.agentId || existingReceipt.runId !== binding.runId
         || existingReceipt.sessionId !== snapshot.identity.sessionId || existingReceipt.taskKey !== context.taskKey
         || existingReceipt.adapterType !== context.adapterType || existingReceipt.resultId !== input.resultId) {
@@ -96,7 +96,7 @@ export async function publishNativeTaskSessionInTransaction(tx: Transaction, inp
   const [accepted] = await tx.select({ id: nativeRunResults.id, canonicalSha256: nativeRunResults.canonicalSha256,
     turnId: nativeRunResults.turnId }).from(nativeRunResults).where(and(
     eq(nativeRunResults.id, input.resultId), eq(nativeRunResults.runId, binding.runId),
-    eq(nativeRunResults.companyId, binding.companyId), eq(nativeRunResults.issueId, binding.issueId),
+    eq(nativeRunResults.spaceId, binding.spaceId), eq(nativeRunResults.issueId, binding.issueId),
     eq(nativeRunResults.completionContractId, binding.completionContractId), eq(nativeRunResults.schemaStatus, "accepted"),
   )).limit(1);
   const validated = validatePrpStructuredRunResult(snapshot.semanticResult);
@@ -104,12 +104,12 @@ export async function publishNativeTaskSessionInTransaction(tx: Transaction, inp
     binding, result: validated.result, terminal: snapshot.terminal, turnId: accepted.turnId ?? null,
   })) throw new Error("native_task_session_publication_result_mismatch");
   const receipt = (outcome: Outcome): Receipt => ({ schema: "outpost.native-task-session-publication.v1",
-    companyId: binding.companyId, issueId: binding.issueId, agentId: binding.agentId, runId: binding.runId,
+    spaceId: binding.spaceId, issueId: binding.issueId, agentId: binding.agentId, runId: binding.runId,
     taskKey: context.taskKey, adapterType: context.adapterType, sessionId: snapshot.identity.sessionId,
     resultId: accepted.id, outcome });
   if (context.taskKey !== binding.issueId || input.recoveryReady === false) return receipt("unsupported");
   const cancellation = record(run.resultJson?.nativeCancellation), stop = readRunCancellation(run.resultJson);
-  if (!issue || ["cancelled", "interrupted", "failed", "timed_out"].includes(run.status) || issue.companyId !== binding.companyId
+  if (!issue || ["cancelled", "interrupted", "failed", "timed_out"].includes(run.status) || issue.spaceId !== binding.spaceId
       || run.resultJson?.startupCancellation || (stop?.source === "operator" && stop.expected)
       || (["run", "issue"].includes(String(cancellation.scope)) && ["pending", "acknowledged"].includes(String(cancellation.dispatchState)))
       || (issue.conversationAgentId && issue.conversationAgentId !== binding.agentId)) return receipt("suppressed_authority");
@@ -118,7 +118,7 @@ export async function publishNativeTaskSessionInTransaction(tx: Transaction, inp
   if (issue.executionRunId && issue.executionRunId !== binding.runId) return receipt("suppressed_newer");
   const [session] = await tx.select({ id: agentTaskSessions.id, goalSourceId: agentTaskSessions.goalSourceId,
     lastRunId: agentTaskSessions.lastRunId }).from(agentTaskSessions).where(and(
-    eq(agentTaskSessions.companyId, binding.companyId), eq(agentTaskSessions.agentId, binding.agentId),
+    eq(agentTaskSessions.spaceId, binding.spaceId), eq(agentTaskSessions.agentId, binding.agentId),
     eq(agentTaskSessions.adapterType, context.adapterType), eq(agentTaskSessions.taskKey, context.taskKey),
   )).for("update").limit(1);
   // Supported native turns synchronously project a stub before this terminal
@@ -129,10 +129,10 @@ export async function publishNativeTaskSessionInTransaction(tx: Transaction, inp
     .map(source => `${source}:${binding.runId}`);
   if (!session.goalSourceId || !boundSources.includes(session.goalSourceId)) return receipt("suppressed_newer");
   if (session.lastRunId && session.lastRunId !== binding.runId) {
-    const [prior] = await tx.select({ companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+    const [prior] = await tx.select({ spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
       issueId: heartbeatRuns.issueId, nativeIssueId: heartbeatRuns.nativeIssueId, finishedAt: heartbeatRuns.finishedAt,
     }).from(heartbeatRuns).where(eq(heartbeatRuns.id, session.lastRunId)).limit(1);
-    if (!prior || prior.companyId !== binding.companyId || prior.agentId !== binding.agentId
+    if (!prior || prior.spaceId !== binding.spaceId || prior.agentId !== binding.agentId
         || (prior.nativeIssueId ?? prior.issueId) !== binding.issueId || !prior.finishedAt || !run.startedAt
         || prior.finishedAt > run.startedAt) return receipt("suppressed_newer");
   }

@@ -18,7 +18,7 @@ afterEach(async () => {
 const runningDb = { select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ status: "running", runtimeMode: "native" }] }) }) }) } as unknown as Db;
 
 function execution(runId: string): NativeExecutionInput {
-  return { binding: { companyId: "company", agentId: "agent", issueId: "issue", runId, executionWorkspaceId: "workspace" },
+  return { binding: { spaceId: "space", agentId: "agent", issueId: "issue", runId, executionWorkspaceId: "workspace" },
     provider: { kind: "cursor_cloud", model: "explicit-model", cursorCloud: { schema: "outpost.cursor-cloud.config.v1", repos: [{ url: "https://github.com/acme/fixture" }] } },
     session: { normalizedSessionId: "same-cloud-session", lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
   } as NativeExecutionInput;

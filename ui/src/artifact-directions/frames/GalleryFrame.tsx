@@ -8,7 +8,7 @@ import { SupportButton } from "./AppShell";
 import { Slot } from "./Slot";
 
 /**
- * Static mock of the company Artifacts page (pages/Artifacts.tsx): the 60px top
+ * Static mock of the space Artifacts page (pages/Artifacts.tsx): the 60px top
  * bar, the toolbar and, when a stack is open, its header row. The kit supplies
  * the grid below.
  */

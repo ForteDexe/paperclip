@@ -30,7 +30,7 @@ ALTER TABLE "tool_mcp_gateways" ADD COLUMN IF NOT EXISTS "auth_config" jsonb DEF
 --> statement-breakpoint
 ALTER TABLE "tool_mcp_gateways" ADD COLUMN IF NOT EXISTS "header_policy" jsonb DEFAULT '{"version":1,"callerPassthrough":{"enabled":false,"allowedHeaders":[]},"staticHeaders":[],"generatedMetadata":{"enabled":false,"allowedHeaders":[]},"responseHeaders":{"forwardMcpRequiredHeaders":true,"forwardSafeCacheHeaders":true}}'::jsonb NOT NULL;
 --> statement-breakpoint
-ALTER TABLE "tool_mcp_gateways" ADD COLUMN IF NOT EXISTS "metadata_policy" jsonb DEFAULT '{"version":1,"forwardCompanyId":false,"forwardGatewayId":false,"forwardProjectId":false,"forwardIssueId":false,"forwardAgentId":false,"forwardRunId":false,"forwardCorrelationId":true}'::jsonb NOT NULL;
+ALTER TABLE "tool_mcp_gateways" ADD COLUMN IF NOT EXISTS "metadata_policy" jsonb DEFAULT '{"version":1,"forwardSpaceId":false,"forwardGatewayId":false,"forwardProjectId":false,"forwardIssueId":false,"forwardAgentId":false,"forwardRunId":false,"forwardCorrelationId":true}'::jsonb NOT NULL;
 --> statement-breakpoint
 ALTER TABLE "tool_mcp_gateways" ADD COLUMN IF NOT EXISTS "on_demand_tools_config" jsonb DEFAULT '{"enabled":false,"searchToolName":"search_tools","runToolName":"run_tool"}'::jsonb NOT NULL;
 --> statement-breakpoint
@@ -165,12 +165,12 @@ END $$;
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "tool_mcp_gateways_public_id_uq" ON "tool_mcp_gateways" USING btree ("gateway_public_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_mcp_gateway_tokens_subject_idx" ON "tool_mcp_gateway_tokens" USING btree ("company_id", "subject_type", "subject_id");
+CREATE INDEX IF NOT EXISTS "tool_mcp_gateway_tokens_subject_idx" ON "tool_mcp_gateway_tokens" USING btree ("space_id", "subject_type", "subject_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_gateway_sessions_gateway_idx" ON "tool_gateway_sessions" USING btree ("company_id", "gateway_id");
+CREATE INDEX IF NOT EXISTS "tool_gateway_sessions_gateway_idx" ON "tool_gateway_sessions" USING btree ("space_id", "gateway_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_invocations_gateway_idx" ON "tool_invocations" USING btree ("company_id", "gateway_id");
+CREATE INDEX IF NOT EXISTS "tool_invocations_gateway_idx" ON "tool_invocations" USING btree ("space_id", "gateway_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_call_events_gateway_idx" ON "tool_call_events" USING btree ("company_id", "gateway_id");
+CREATE INDEX IF NOT EXISTS "tool_call_events_gateway_idx" ON "tool_call_events" USING btree ("space_id", "gateway_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_access_audit_gateway_idx" ON "tool_access_audit_events" USING btree ("company_id", "gateway_id");
+CREATE INDEX IF NOT EXISTS "tool_access_audit_gateway_idx" ON "tool_access_audit_events" USING btree ("space_id", "gateway_id");

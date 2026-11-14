@@ -3,7 +3,7 @@ import path from "node:path";
 import * as p from "@clack/prompts";
 import type { Command } from "commander";
 import { readConfig, resolveConfigPath } from "../config/store.js";
-import { resolvePaperclipInstanceId, resolvePaperclipInstanceRoot } from "../config/home.js";
+import { resolveOutpostInstanceId, resolveOutpostInstanceRoot } from "../config/home.js";
 import { detectServiceManager, type ServiceManager, type ServiceStatus } from "../services/service-manager.js";
 import { ensureServiceShim } from "../onboard-service.js";
 import { buildLocalHealthUrl } from "../utils/health-url.js";
@@ -60,7 +60,7 @@ export async function withHotRestartLock<T>(
   callback: () => Promise<T>,
   options: { timeoutMs?: number; pollMs?: number; isProcessAlive?: (pid: number) => boolean } = {},
 ): Promise<T> {
-  const instanceRoot = resolvePaperclipInstanceRoot(instanceId);
+  const instanceRoot = resolveOutpostInstanceRoot(instanceId);
   const lockPath = path.join(instanceRoot, "hot-restart.lock");
   const token = `${process.pid}:${Date.now()}:${Math.random().toString(16).slice(2)}`;
   const deadline = Date.now() + (options.timeoutMs ?? 120_000);
@@ -120,7 +120,7 @@ export async function withHotRestartLock<T>(
 async function writeHotRestartIntent(status: ServiceStatus, instanceId: string, drainRequired: boolean): Promise<{ requestedAt: string }> {
   if (!status.pid) throw new Error(`Cannot restart ${status.serviceName}: supervisor did not report a server pid.`);
   const health = await probeHealth(instanceId);
-  const instanceRoot = resolvePaperclipInstanceRoot(instanceId);
+  const instanceRoot = resolveOutpostInstanceRoot(instanceId);
   const requestedAt = new Date().toISOString();
   await fs.mkdir(instanceRoot, { recursive: true });
   await fs.rm(path.join(instanceRoot, "hot-restart-report.json"), { force: true });
@@ -136,7 +136,7 @@ async function writeHotRestartIntent(status: ServiceStatus, instanceId: string, 
 }
 
 async function waitForRestartReport(instanceId: string, requestedAt: string, timeoutMs = 10_000): Promise<unknown | null> {
-  const reportPath = path.join(resolvePaperclipInstanceRoot(instanceId), "hot-restart-report.json");
+  const reportPath = path.join(resolveOutpostInstanceRoot(instanceId), "hot-restart-report.json");
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
@@ -151,7 +151,7 @@ async function waitForRestartReport(instanceId: string, requestedAt: string, tim
 }
 
 export async function restartManagedService(input: { instanceId?: string; expectedVersion?: string | null; waitForDrain?: boolean } = {}): Promise<{ status: ServiceStatus; health: HealthResult; report: unknown | null }> {
-  const instanceId = resolvePaperclipInstanceId(input.instanceId);
+  const instanceId = resolveOutpostInstanceId(input.instanceId);
   return withHotRestartLock(instanceId, async () => {
     const detection = await detectServiceManager({ instanceId });
     if (!detection.supported) throw new Error(detection.reason);
@@ -177,11 +177,11 @@ export function registerServiceCommands(program: Command): void {
       if (!shim.ok) {
         throw new Error(
           `Background service not installed: ${shim.reason ?? "the managed install could not be completed"}. ` +
-            "Run `paperclipai install`, then `paperclipai service install`.",
+            "Run `outpost install`, then `outpost service install`.",
         );
       }
       if (shim.installedNow) {
-        p.log.success("Installed the managed paperclipai payload and command shim for the service.");
+        p.log.success("Installed the managed outpost payload and command shim for the service.");
       }
       const result = await manager.install({ startNow: opts.startNow, startOnLogin: opts.startOnLogin });
       let lingerEnabled = false;
@@ -218,7 +218,7 @@ export function registerServiceCommands(program: Command): void {
 
   common(service.command("status").description("Show supervisor and health status")).action(async (opts) => {
     const manager = await resolveManager(opts); if (!manager) return;
-    const instanceId = resolvePaperclipInstanceId(opts.instance);
+    const instanceId = resolveOutpostInstanceId(opts.instance);
     output({ ...await manager.status(), health: await probeHealth(instanceId) }, opts.json);
   });
 

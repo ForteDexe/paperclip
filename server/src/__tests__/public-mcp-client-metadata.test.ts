@@ -69,15 +69,15 @@ describe("public MCP client metadata", () => {
 });
 describe("assistant invitation content", () => {
   it("contains no credential and tells a cold client to verify actual access", () => {
-    const resource = "https://outpost.example/mcp/paperclip";
-    const company = { id: "44444444-4444-4444-8444-444444444444", name: "Butter" };
-    expect(mcpInvitation(resource, company)).toContain("company=" + company.id);
-    const markdown = mcpSetupMarkdown(resource, company.id);
-    expect(markdown).toContain("paperclip_connection");
+    const resource = "https://outpost.example/mcp/outpost";
+    const space = { id: "44444444-4444-4444-8444-444444444444", name: "Butter" };
+    expect(mcpInvitation(resource, space)).toContain("space=" + space.id);
+    const markdown = mcpSetupMarkdown(resource, space.id);
+    expect(markdown).toContain("outpost_connection");
     expect(markdown).toContain("restart");
-    expect(markdown).not.toContain("paperclip_whoami");
+    expect(markdown).not.toContain("outpost_whoami");
     expect(markdown).not.toContain("pcmcp_at_");
-    expect(renderMcpSetup(resource, company.id)).toContain("Instructions for assistants");
-    expect(renderMcpSetup(resource, company.id)).not.toContain(company.name);
+    expect(renderMcpSetup(resource, space.id)).toContain("Instructions for assistants");
+    expect(renderMcpSetup(resource, space.id)).not.toContain(space.name);
   });
 });

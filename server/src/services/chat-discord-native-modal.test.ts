@@ -115,7 +115,7 @@ function submit(overrides: Record<string, unknown> = {}) {
 function memoryPersistence() {
   const rows = new Map<string, ChatSdkStateRecord>();
   const keyFor = (scope: ChatSdkStateScope, key: string) =>
-    JSON.stringify([scope.companyId, scope.endpointId, key]);
+    JSON.stringify([scope.spaceId, scope.endpointId, key]);
   const persistence: ChatSdkStatePersistence = {
     async read(scope, key) {
       return rows.get(keyFor(scope, key)) ?? null;
@@ -170,7 +170,7 @@ describe("Discord native modal Gateway bridge", () => {
       }),
     );
     const runtime = createChatSdkEndpointRuntime({
-      companyId: "company-discord-modal",
+      spaceId: "space-discord-modal",
       endpointId: "endpoint-discord-modal",
       callbacks: { onMessage() {}, ...callbacks },
       enableDiscordGateway: false,
@@ -376,7 +376,7 @@ describe("Discord native modal Gateway bridge", () => {
     expect(click.reply).toHaveBeenCalledWith(
       expect.objectContaining({
         content:
-          "This form could not be opened. Open the linked Paperclip task.",
+          "This form could not be opened. Open the linked Outpost task.",
         flags: 64,
       }),
     );
@@ -429,7 +429,7 @@ describe("Discord native modal Gateway bridge", () => {
       await adapter.handleGatewayInteraction(input);
       expect(input.reply).toHaveBeenCalledWith({
         content:
-          "This response was not accepted. Open the linked Paperclip task or reopen the question to try again.",
+          "This response was not accepted. Open the linked Outpost task or reopen the question to try again.",
         flags: 64,
         allowedMentions: { parse: [] },
       });
@@ -453,7 +453,7 @@ describe("Discord native modal Gateway bridge", () => {
       onModalSubmit: async () => ({
         action: "errors",
         errors: { field: "Required" },
-        paperclipDiscordCorrection: {
+        outpostDiscordCorrection: {
           version: 1,
           actionId,
           message: "Release note: Please provide an answer.",

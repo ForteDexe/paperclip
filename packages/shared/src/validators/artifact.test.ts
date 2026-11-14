@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { companyArtifactsQuerySchema, companyArtifactsResponseSchema } from "./artifact.js";
+import { spaceArtifactsQuerySchema, spaceArtifactsResponseSchema } from "./artifact.js";
 
 const issue = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -24,9 +24,9 @@ const artifact = {
   href: "/PAP/issues/PAP-1#document-plan",
 };
 
-describe("companyArtifactsQuerySchema", () => {
+describe("spaceArtifactsQuerySchema", () => {
   it("defaults to the existing flat artifact query", () => {
-    expect(companyArtifactsQuerySchema.parse({})).toMatchObject({
+    expect(spaceArtifactsQuerySchema.parse({})).toMatchObject({
       kind: "all",
       groupBy: "none",
       limit: 30,
@@ -35,7 +35,7 @@ describe("companyArtifactsQuerySchema", () => {
 
   it("accepts grouped artifact query parameters", () => {
     expect(
-      companyArtifactsQuerySchema.parse({
+      spaceArtifactsQuerySchema.parse({
         groupBy: "parent_task",
         groupIssueId: issue.id,
         kind: "video",
@@ -50,12 +50,12 @@ describe("companyArtifactsQuerySchema", () => {
   });
 
   it("rejects invalid grouped artifact query parameters", () => {
-    expect(() => companyArtifactsQuerySchema.parse({ groupBy: "agent" })).toThrow();
-    expect(() => companyArtifactsQuerySchema.parse({ groupIssueId: "PAP-1" })).toThrow();
+    expect(() => spaceArtifactsQuerySchema.parse({ groupBy: "agent" })).toThrow();
+    expect(() => spaceArtifactsQuerySchema.parse({ groupIssueId: "PAP-1" })).toThrow();
   });
 });
 
-describe("companyArtifactsResponseSchema", () => {
+describe("spaceArtifactsResponseSchema", () => {
   it("accepts grouped artifact responses with selected group metadata", () => {
     const group = {
       id: `task:${issue.id}`,
@@ -70,7 +70,7 @@ describe("companyArtifactsResponseSchema", () => {
     };
 
     expect(
-      companyArtifactsResponseSchema.parse({
+      spaceArtifactsResponseSchema.parse({
         artifacts: [artifact],
         groups: [group],
         selectedGroup: group,

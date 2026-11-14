@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { check, foreignKey, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 import { projects } from "./projects.js";
 
@@ -11,13 +11,13 @@ import { projects } from "./projects.js";
  */
 export const projectTaskExecutionPolicies = pgTable("project_task_execution_policies", {
   projectId: uuid("project_id").primaryKey(),
-  companyId: uuid("company_id").notNull(),
+  spaceId: uuid("space_id").notNull(),
   maxConcurrentTasks: integer("max_concurrent_tasks"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => ({
-  project: foreignKey({ columns: [t.companyId, t.projectId], foreignColumns: [projects.companyId, projects.id],
-    name: "project_task_execution_policies_company_project_fk" }).onDelete("cascade"),
+  project: foreignKey({ columns: [t.spaceId, t.projectId], foreignColumns: [projects.spaceId, projects.id],
+    name: "project_task_execution_policies_space_project_fk" }).onDelete("cascade"),
   maximum: check("project_task_execution_policies_maximum_check", sql`${t.maxConcurrentTasks} is null or ${t.maxConcurrentTasks} > 0`),
 }));
 
@@ -31,7 +31,7 @@ export const projectTaskExecutionPolicies = pgTable("project_task_execution_poli
  */
 export const executionAdmissions = pgTable("execution_admissions", {
   id: uuid("id").primaryKey(),
-  companyId: uuid("company_id").notNull().references(() => companies.id),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id),
   runId: uuid("run_id").notNull().references(() => heartbeatRuns.id),
   attempt: integer("attempt").notNull(),
   primaryProjectId: uuid("primary_project_id"),
@@ -41,7 +41,7 @@ export const executionAdmissions = pgTable("execution_admissions", {
   settledAt: timestamp("settled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => ({
-  companyIdentity: uniqueIndex("execution_admissions_company_id_uq").on(t.companyId, t.id),
+  spaceIdentity: uniqueIndex("execution_admissions_space_id_uq").on(t.spaceId, t.id),
   runAttempt: uniqueIndex("execution_admissions_run_attempt_uq").on(t.runId, t.attempt),
   liveRun: uniqueIndex("execution_admissions_live_run_uq").on(t.runId).where(sql`${t.settledAt} is null`),
   attemptCheck: check("execution_admissions_attempt_check", sql`${t.attempt} > 0`),
@@ -53,13 +53,13 @@ export const executionAdmissions = pgTable("execution_admissions", {
 /** One active charge per distinct admitted project. Settlement deletes the whole set; a charged project cannot be deleted. */
 export const executionAdmissionProjectCharges = pgTable("execution_admission_project_charges", {
   admissionId: uuid("admission_id").notNull(),
-  companyId: uuid("company_id").notNull(),
+  spaceId: uuid("space_id").notNull(),
   projectId: uuid("project_id").notNull(),
 }, t => ({
   identity: primaryKey({ columns: [t.admissionId, t.projectId] }),
-  admission: foreignKey({ columns: [t.companyId, t.admissionId], foreignColumns: [executionAdmissions.companyId, executionAdmissions.id],
-    name: "execution_admission_project_charges_company_admission_fk" }).onDelete("cascade"),
-  project: foreignKey({ columns: [t.companyId, t.projectId], foreignColumns: [projects.companyId, projects.id],
-    name: "execution_admission_project_charges_company_project_fk" }),
-  activeProject: index("execution_admission_project_charges_project_idx").on(t.companyId, t.projectId),
+  admission: foreignKey({ columns: [t.spaceId, t.admissionId], foreignColumns: [executionAdmissions.spaceId, executionAdmissions.id],
+    name: "execution_admission_project_charges_space_admission_fk" }).onDelete("cascade"),
+  project: foreignKey({ columns: [t.spaceId, t.projectId], foreignColumns: [projects.spaceId, projects.id],
+    name: "execution_admission_project_charges_space_project_fk" }),
+  activeProject: index("execution_admission_project_charges_project_idx").on(t.spaceId, t.projectId),
 }));

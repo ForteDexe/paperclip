@@ -160,7 +160,7 @@ function actorMatchesComment(
 async function hasVerifiedInteractionWakeRequest(
   dbOrTx: Pick<Db, "select">,
   input: {
-    companyId: string;
+    spaceId: string;
     agentId?: string | null;
     runId?: string | null;
     wakeupRequestId?: string | null;
@@ -171,7 +171,7 @@ async function hasVerifiedInteractionWakeRequest(
 ) {
   if (!input.runId && !input.wakeupRequestId) return false;
   const predicates = [
-    eq(agentWakeupRequests.companyId, input.companyId),
+    eq(agentWakeupRequests.spaceId, input.spaceId),
     sql`${agentWakeupRequests.payload} ->> 'issueId' = ${input.issueId}`,
     sql`${agentWakeupRequests.payload} ->> 'commentId' = ${input.commentId}`,
   ];
@@ -202,7 +202,7 @@ async function hasVerifiedInteractionWakeRequest(
 export async function isVerifiedIssueTreeControlInteractionWake(
   dbOrTx: Pick<Db, "select">,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     agentId?: string | null;
     contextSnapshot: Record<string, unknown> | null | undefined;
@@ -231,7 +231,7 @@ export async function isVerifiedIssueTreeControlInteractionWake(
     .from(issueComments)
     .where(
       and(
-        eq(issueComments.companyId, input.companyId),
+        eq(issueComments.spaceId, input.spaceId),
         eq(issueComments.issueId, input.issueId),
         eq(issueComments.id, commentId),
       ),
@@ -246,7 +246,7 @@ export async function isVerifiedIssueTreeControlInteractionWake(
   if (actorMatchesComment(directActor, comment)) return true;
 
   return hasVerifiedInteractionWakeRequest(dbOrTx, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     agentId: input.agentId,
     runId: input.runId,
     wakeupRequestId: input.wakeupRequestId,
@@ -284,7 +284,7 @@ function toPreviewRun(row: ActiveRunRow): IssueTreePreviewRun {
 function toHold(row: HoldRow, members?: HoldMemberRow[]): IssueTreeHold {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     rootIssueId: row.rootIssueId,
     mode: row.mode as IssueTreeControlMode,
     status: row.status as IssueTreeHold["status"],
@@ -310,7 +310,7 @@ function toHold(row: HoldRow, members?: HoldMemberRow[]): IssueTreeHold {
 function toHoldMember(row: HoldMemberRow): IssueTreeHoldMember {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     holdId: row.holdId,
     issueId: row.issueId,
     parentIssueId: row.parentIssueId,
@@ -461,11 +461,11 @@ function restoreStatusFromCancelSnapshot(status: IssueStatus): IssueStatus | nul
 }
 
 export function issueTreeControlService(db: Db) {
-  async function listTreeIssues(companyId: string, rootIssueId: string): Promise<TreeIssue[]> {
+  async function listTreeIssues(spaceId: string, rootIssueId: string): Promise<TreeIssue[]> {
     const root = await db
       .select()
       .from(issues)
-      .where(and(eq(issues.id, rootIssueId), eq(issues.companyId, companyId)))
+      .where(and(eq(issues.id, rootIssueId), eq(issues.spaceId, spaceId)))
       .then((rows) => rows[0] ?? null);
     if (!root) {
       throw notFound("Root issue not found");
@@ -481,7 +481,7 @@ export function issueTreeControlService(db: Db) {
       const children = await db
         .select()
         .from(issues)
-        .where(and(eq(issues.companyId, companyId), inArray(issues.parentId, parentIds)))
+        .where(and(eq(issues.spaceId, spaceId), inArray(issues.parentId, parentIds)))
         .orderBy(asc(issues.createdAt), asc(issues.id));
 
       const nextFrontier: typeof frontier = [];
@@ -498,7 +498,7 @@ export function issueTreeControlService(db: Db) {
     return result;
   }
 
-  async function activeRunsForTree(companyId: string, treeIssues: TreeIssue[]) {
+  async function activeRunsForTree(spaceId: string, treeIssues: TreeIssue[]) {
     const issueIds = treeIssues.map((issue) => issue.id);
     if (issueIds.length === 0) return [];
     const runIds = treeIssues
@@ -520,7 +520,7 @@ export function issueTreeControlService(db: Db) {
       .from(heartbeatRuns)
       .where(
         and(
-          eq(heartbeatRuns.companyId, companyId),
+          eq(heartbeatRuns.spaceId, spaceId),
           inArray(heartbeatRuns.status, [...ACTIVE_RUN_STATUSES]),
           uniqueRunIds.length > 0
             ? or(inArray(heartbeatRuns.id, uniqueRunIds), inArray(issueIdFromContext, issueIds))
@@ -553,7 +553,7 @@ export function issueTreeControlService(db: Db) {
       .sort((a, b) => a.issueId.localeCompare(b.issueId) || a.createdAt.getTime() - b.createdAt.getTime());
   }
 
-  async function activeHoldsByIssueId(companyId: string, issueIds: string[]) {
+  async function activeHoldsByIssueId(spaceId: string, issueIds: string[]) {
     const byIssueId = new Map<string, { all: string[]; pause: string[] }>();
     if (issueIds.length === 0) return byIssueId;
     const rows = await db
@@ -566,7 +566,7 @@ export function issueTreeControlService(db: Db) {
       .innerJoin(issueTreeHolds, eq(issueTreeHoldMembers.holdId, issueTreeHolds.id))
       .where(
         and(
-          eq(issueTreeHoldMembers.companyId, companyId),
+          eq(issueTreeHoldMembers.spaceId, spaceId),
           eq(issueTreeHolds.status, "active"),
           inArray(issueTreeHoldMembers.issueId, issueIds),
         ),
@@ -582,8 +582,8 @@ export function issueTreeControlService(db: Db) {
     return byIssueId;
   }
 
-  async function activeCancelSnapshotsByIssueId(companyId: string, rootIssueId: string) {
-    const activeCancelHolds = await listHolds(companyId, rootIssueId, {
+  async function activeCancelSnapshotsByIssueId(spaceId: string, rootIssueId: string) {
+    const activeCancelHolds = await listHolds(spaceId, rootIssueId, {
       status: "active",
       mode: "cancel",
       includeMembers: true,
@@ -600,14 +600,14 @@ export function issueTreeControlService(db: Db) {
     return byIssueId;
   }
 
-  async function activePauseHoldsForIssueIds(companyId: string, issueIds: string[]) {
+  async function activePauseHoldsForIssueIds(spaceId: string, issueIds: string[]) {
     if (issueIds.length === 0) return [];
     return db
       .select()
       .from(issueTreeHolds)
       .where(
         and(
-          eq(issueTreeHolds.companyId, companyId),
+          eq(issueTreeHolds.spaceId, spaceId),
           eq(issueTreeHolds.status, "active"),
           eq(issueTreeHolds.mode, "pause"),
           inArray(issueTreeHolds.rootIssueId, issueIds),
@@ -617,7 +617,7 @@ export function issueTreeControlService(db: Db) {
   }
 
   async function getActivePauseHoldGate(
-    companyId: string,
+    spaceId: string,
     issueId: string,
   ): Promise<ActiveIssueTreePauseHoldGate | null> {
     const activePauseHolds = await db
@@ -630,7 +630,7 @@ export function issueTreeControlService(db: Db) {
       .from(issueTreeHolds)
       .where(
         and(
-          eq(issueTreeHolds.companyId, companyId),
+          eq(issueTreeHolds.spaceId, spaceId),
           eq(issueTreeHolds.status, "active"),
           eq(issueTreeHolds.mode, "pause"),
         ),
@@ -664,7 +664,7 @@ export function issueTreeControlService(db: Db) {
       const parent: { parentId: string | null } | null = await db
         .select({ parentId: issues.parentId })
         .from(issues)
-        .where(and(eq(issues.id, currentIssueId), eq(issues.companyId, companyId)))
+        .where(and(eq(issues.id, currentIssueId), eq(issues.spaceId, spaceId)))
         .then((rows) => rows[0] ?? null);
       currentIssueId = parent?.parentId ?? null;
     }
@@ -673,20 +673,20 @@ export function issueTreeControlService(db: Db) {
   }
 
   async function preview(
-    companyId: string,
+    spaceId: string,
     rootIssueId: string,
     input: {
       mode: IssueTreeControlMode;
       releasePolicy?: IssueTreeHoldReleasePolicy | null;
     },
   ): Promise<IssueTreeControlPreview> {
-    const treeIssues = await listTreeIssues(companyId, rootIssueId);
+    const treeIssues = await listTreeIssues(spaceId, rootIssueId);
     const issueIds = treeIssues.map((issue) => issue.id);
     const [activeRunRows, holdsByIssueId, activeCancelSnapshots] = await Promise.all([
-      activeRunsForTree(companyId, treeIssues),
-      activeHoldsByIssueId(companyId, issueIds),
+      activeRunsForTree(spaceId, treeIssues),
+      activeHoldsByIssueId(spaceId, issueIds),
       input.mode === "restore"
-        ? activeCancelSnapshotsByIssueId(companyId, rootIssueId)
+        ? activeCancelSnapshotsByIssueId(spaceId, rootIssueId)
         : Promise.resolve(new Map<string, ActiveCancelSnapshot>()),
     ]);
     const runsByIssueId = new Map<string, ActiveRunRow>();
@@ -729,7 +729,7 @@ export function issueTreeControlService(db: Db) {
     const affectedAgents = buildAffectedAgents(issuesToPreview, input.mode);
 
     return {
-      companyId,
+      spaceId,
       rootIssueId,
       mode: input.mode,
       generatedAt: new Date(),
@@ -752,7 +752,7 @@ export function issueTreeControlService(db: Db) {
   }
 
   async function createHold(
-    companyId: string,
+    spaceId: string,
     rootIssueId: string,
     input: {
       mode: IssueTreeControlMode;
@@ -767,28 +767,28 @@ export function issueTreeControlService(db: Db) {
   }> {
     if (input.mode === "cancel") {
       const [conversation] = await db.select({ id: issues.id }).from(issues).where(and(
-        eq(issues.id, rootIssueId), eq(issues.companyId, companyId), sql`${issues.conversationAgentId} is not null`,
+        eq(issues.id, rootIssueId), eq(issues.spaceId, spaceId), sql`${issues.conversationAgentId} is not null`,
       ));
       if (conversation) throw unprocessable("Stop the active reply instead of cancelling the persistent conversation");
     }
     const holdReleasePolicy = normalizeReleasePolicy(input.releasePolicy);
-    const holdPreview = await preview(companyId, rootIssueId, {
+    const holdPreview = await preview(spaceId, rootIssueId, {
       mode: input.mode,
       releasePolicy: holdReleasePolicy,
     });
 
     if (input.mode === "resume") {
       const issueIds = [...new Set(holdPreview.issues.map((issue) => issue.id))];
-      const activePauseHolds = await activePauseHoldsForIssueIds(companyId, issueIds);
+      const activePauseHolds = await activePauseHoldsForIssueIds(spaceId, issueIds);
       const releaseReason = input.reason ?? "Subtree resume applied.";
 
       const { hold: resumeHold } = await db.transaction(async (tx) => {
-        await notifyIssueRecovery(tx, { companyId });
-        await notifyDeferredExecutionEligibility(tx, { companyId });
+        await notifyIssueRecovery(tx, { spaceId });
+        await notifyDeferredExecutionEligibility(tx, { spaceId });
         const [createdHold] = await tx
           .insert(issueTreeHolds)
           .values({
-            companyId,
+            spaceId,
             rootIssueId,
             mode: input.mode,
             status: "active",
@@ -802,7 +802,7 @@ export function issueTreeControlService(db: Db) {
           .returning();
 
         const memberRows = holdPreview.issues.map((issue) => ({
-          companyId,
+          spaceId,
           holdId: createdHold.id,
           issueId: issue.id,
           parentIssueId: issue.parentId,
@@ -832,7 +832,7 @@ export function issueTreeControlService(db: Db) {
       if (resumedPauseHoldIds.length > 0) {
         await Promise.all(
           activePauseHolds.map((pauseHold) =>
-            releaseHold(companyId, pauseHold.rootIssueId, pauseHold.id, {
+            releaseHold(spaceId, pauseHold.rootIssueId, pauseHold.id, {
               reason: releaseReason,
               metadata: {
                 resumedByResumeHoldId: resumeHold.id,
@@ -845,7 +845,7 @@ export function issueTreeControlService(db: Db) {
         );
       }
 
-      const releasedResumeHold = await releaseHold(companyId, rootIssueId, resumeHold.id, {
+      const releasedResumeHold = await releaseHold(spaceId, rootIssueId, resumeHold.id, {
         reason: releaseReason,
         metadata: {
           resumedPauseHoldIds,
@@ -863,12 +863,12 @@ export function issueTreeControlService(db: Db) {
     }
 
     const { hold, members } = await db.transaction(async (tx) => {
-      await notifyIssueRecovery(tx, { companyId });
-      await notifyDeferredExecutionEligibility(tx, { companyId });
+      await notifyIssueRecovery(tx, { spaceId });
+      await notifyDeferredExecutionEligibility(tx, { spaceId });
       const [createdHold] = await tx
         .insert(issueTreeHolds)
         .values({
-          companyId,
+          spaceId,
           rootIssueId,
           mode: input.mode,
           status: "active",
@@ -882,7 +882,7 @@ export function issueTreeControlService(db: Db) {
         .returning();
 
       const memberRows = holdPreview.issues.map((issue) => ({
-        companyId,
+        spaceId,
         holdId: createdHold.id,
         issueId: issue.id,
         parentIssueId: issue.parentId,
@@ -912,11 +912,11 @@ export function issueTreeControlService(db: Db) {
   }
 
   async function cancelIssueStatusesForHold(
-    companyId: string,
+    spaceId: string,
     rootIssueId: string,
     holdId: string,
   ): Promise<TreeStatusUpdateResult> {
-    const hold = await getHold(companyId, holdId);
+    const hold = await getHold(spaceId, holdId);
     if (!hold) throw notFound("Issue tree hold not found");
     if (hold.rootIssueId !== rootIssueId) {
       throw unprocessable("Issue tree hold does not belong to the requested root issue");
@@ -940,7 +940,7 @@ export function issueTreeControlService(db: Db) {
         .from(issues)
         .where(
           and(
-            eq(issues.companyId, companyId),
+            eq(issues.spaceId, spaceId),
             inArray(issues.id, issueIds),
             notInArray(issues.status, ["done", "cancelled"]),
           ),
@@ -977,7 +977,7 @@ export function issueTreeControlService(db: Db) {
   }
 
   async function restoreIssueStatusesForHold(
-    companyId: string,
+    spaceId: string,
     rootIssueId: string,
     restoreHoldId: string,
     input: {
@@ -985,7 +985,7 @@ export function issueTreeControlService(db: Db) {
       actor: ActorInput;
     },
   ): Promise<RestoreTreeStatusResult> {
-    const restoreHold = await getHold(companyId, restoreHoldId);
+    const restoreHold = await getHold(spaceId, restoreHoldId);
     if (!restoreHold) throw notFound("Issue tree hold not found");
     if (restoreHold.rootIssueId !== rootIssueId) {
       throw unprocessable("Issue tree hold does not belong to the requested root issue");
@@ -994,7 +994,7 @@ export function issueTreeControlService(db: Db) {
       throw unprocessable("Issue tree hold is not a restore operation");
     }
 
-    const activeCancelHolds = await listHolds(companyId, rootIssueId, {
+    const activeCancelHolds = await listHolds(spaceId, rootIssueId, {
       status: "active",
       mode: "cancel",
       includeMembers: true,
@@ -1029,20 +1029,20 @@ export function issueTreeControlService(db: Db) {
     const now = new Date();
     const releasedCancelHoldIds = activeCancelHolds.map((hold) => hold.id);
     const updatedIssues = await db.transaction(async (tx) => {
-      await notifyDeferredExecutionEligibility(tx, { companyId });
+      await notifyDeferredExecutionEligibility(tx, { spaceId });
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
       const restored: TreeStatusUpdateResult["updatedIssues"] = [];
       for (const [status, issueIdsForStatus] of issueIdsByStatus) {
         if (issueIdsForStatus.length === 0) continue;
         for (const issueId of issueIdsForStatus) {
-          await notifyRoutineExecutionStatus(tx, issueId, companyId);
-          await notifyNativeStatusReassessment(tx, { companyId, issueId });
+          await notifyRoutineExecutionStatus(tx, issueId, spaceId);
+          await notifyNativeStatusReassessment(tx, { spaceId, issueId });
           await notifyTerminalWorkspaceWork(tx, `issue:${issueId}`);
-          await notifyChatResponseAvailability(tx, { companyId, issueId });
-          if (status === "blocked" || status === "in_review") await notifyUnsafeWorkspaceExportRecovery(tx, { companyId, issueId });
+          await notifyChatResponseAvailability(tx, { spaceId, issueId });
+          if (status === "blocked" || status === "in_review") await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId, issueId });
         }
-        await notifyStatusCardIssueChange(tx, companyId);
+        await notifyStatusCardIssueChange(tx, spaceId);
         const rows = await tx
           .update(issues)
           .set({
@@ -1057,7 +1057,7 @@ export function issueTreeControlService(db: Db) {
           })
           .where(
             and(
-              eq(issues.companyId, companyId),
+              eq(issues.spaceId, spaceId),
               inArray(issues.id, issueIdsForStatus),
               eq(issues.status, "cancelled"),
             ),
@@ -1091,7 +1091,7 @@ export function issueTreeControlService(db: Db) {
             },
             updatedAt: now,
           })
-          .where(and(eq(issueTreeHolds.companyId, companyId), inArray(issueTreeHolds.id, releasedCancelHoldIds)));
+          .where(and(eq(issueTreeHolds.spaceId, spaceId), inArray(issueTreeHolds.id, releasedCancelHoldIds)));
       }
 
       await tx
@@ -1110,7 +1110,7 @@ export function issueTreeControlService(db: Db) {
           },
           updatedAt: now,
         })
-        .where(and(eq(issueTreeHolds.companyId, companyId), eq(issueTreeHolds.id, restoreHoldId)));
+        .where(and(eq(issueTreeHolds.spaceId, spaceId), eq(issueTreeHolds.id, restoreHoldId)));
 
       return restored;
     });
@@ -1119,27 +1119,27 @@ export function issueTreeControlService(db: Db) {
       updatedIssueIds: updatedIssues.map((issue) => issue.id),
       updatedIssues,
       releasedCancelHoldIds,
-      restoreHold: await getHold(companyId, restoreHoldId),
+      restoreHold: await getHold(spaceId, restoreHoldId),
     };
   }
 
-  async function getHold(companyId: string, holdId: string) {
+  async function getHold(spaceId: string, holdId: string) {
     const hold = await db
       .select()
       .from(issueTreeHolds)
-      .where(and(eq(issueTreeHolds.id, holdId), eq(issueTreeHolds.companyId, companyId)))
+      .where(and(eq(issueTreeHolds.id, holdId), eq(issueTreeHolds.spaceId, spaceId)))
       .then((rows) => rows[0] ?? null);
     if (!hold) return null;
     const members = await db
       .select()
       .from(issueTreeHoldMembers)
-      .where(and(eq(issueTreeHoldMembers.companyId, companyId), eq(issueTreeHoldMembers.holdId, holdId)))
+      .where(and(eq(issueTreeHoldMembers.spaceId, spaceId), eq(issueTreeHoldMembers.holdId, holdId)))
       .orderBy(asc(issueTreeHoldMembers.depth), asc(issueTreeHoldMembers.createdAt), asc(issueTreeHoldMembers.issueId));
     return toHold(hold, members);
   }
 
   async function listHolds(
-    companyId: string,
+    spaceId: string,
     rootIssueId: string,
     input?: {
       status?: IssueTreeHold["status"];
@@ -1148,7 +1148,7 @@ export function issueTreeControlService(db: Db) {
     },
   ) {
     const whereClauses = [
-      eq(issueTreeHolds.companyId, companyId),
+      eq(issueTreeHolds.spaceId, spaceId),
       eq(issueTreeHolds.rootIssueId, rootIssueId),
     ];
     if (input?.status) whereClauses.push(eq(issueTreeHolds.status, input.status));
@@ -1169,7 +1169,7 @@ export function issueTreeControlService(db: Db) {
       .from(issueTreeHoldMembers)
       .where(
         and(
-          eq(issueTreeHoldMembers.companyId, companyId),
+          eq(issueTreeHoldMembers.spaceId, spaceId),
           inArray(issueTreeHoldMembers.holdId, holdIds),
         ),
       )
@@ -1186,7 +1186,7 @@ export function issueTreeControlService(db: Db) {
   }
 
   async function releaseHold(
-    companyId: string,
+    spaceId: string,
     rootIssueId: string,
     holdId: string,
     input: {
@@ -1199,7 +1199,7 @@ export function issueTreeControlService(db: Db) {
     const existing = await db
       .select()
       .from(issueTreeHolds)
-      .where(and(eq(issueTreeHolds.id, holdId), eq(issueTreeHolds.companyId, companyId)))
+      .where(and(eq(issueTreeHolds.id, holdId), eq(issueTreeHolds.spaceId, spaceId)))
       .then((rows) => rows[0] ?? null);
     if (!existing) throw notFound("Issue tree hold not found");
     if (existing.rootIssueId !== rootIssueId) {
@@ -1210,7 +1210,7 @@ export function issueTreeControlService(db: Db) {
     }
 
     const [updated] = await db.transaction(async tx => {
-      await promoteDeferredWorkIntents(tx, { companyId, trigger: "tree_hold_released" });
+      await promoteDeferredWorkIntents(tx, { spaceId, trigger: "tree_hold_released" });
       return tx
       .update(issueTreeHolds)
       .set({
@@ -1227,7 +1227,7 @@ export function issueTreeControlService(db: Db) {
         releaseMetadata: input.metadata ?? null,
         updatedAt: new Date(),
       })
-      .where(and(eq(issueTreeHolds.id, holdId), eq(issueTreeHolds.companyId, companyId),
+      .where(and(eq(issueTreeHolds.id, holdId), eq(issueTreeHolds.spaceId, spaceId),
         eq(issueTreeHolds.status, "active")))
       .returning();
     });
@@ -1237,7 +1237,7 @@ export function issueTreeControlService(db: Db) {
     const members = await db
       .select()
       .from(issueTreeHoldMembers)
-      .where(and(eq(issueTreeHoldMembers.companyId, companyId), eq(issueTreeHoldMembers.holdId, holdId)))
+      .where(and(eq(issueTreeHoldMembers.spaceId, spaceId), eq(issueTreeHoldMembers.holdId, holdId)))
       .orderBy(asc(issueTreeHoldMembers.depth), asc(issueTreeHoldMembers.createdAt), asc(issueTreeHoldMembers.issueId));
 
     return toHold(updated, members);
@@ -1255,24 +1255,24 @@ export function issueTreeControlService(db: Db) {
    * must be executable by the same agent, and the claim marker makes the
    * resume happen at most once. Execution blockers are the caller's.
    */
-  async function findOwedPauseResume(companyId: string, issueId: string) {
+  async function findOwedPauseResume(spaceId: string, issueId: string) {
     const [issue] = await db.select({
       status: issues.status, assigneeAgentId: issues.assigneeAgentId, assigneeUserId: issues.assigneeUserId,
-    }).from(issues).where(and(eq(issues.companyId, companyId), eq(issues.id, issueId)));
+    }).from(issues).where(and(eq(issues.spaceId, spaceId), eq(issues.id, issueId)));
     if (!issue?.assigneeAgentId || issue.assigneeUserId
       || !ISSUE_TREE_RESUME_EXECUTABLE_STATUSES.includes(issue.status)) return null;
     const [run] = await db.select({
       id: heartbeatRuns.id, agentId: heartbeatRuns.agentId, status: heartbeatRuns.status,
       finishedAt: heartbeatRuns.finishedAt, resultJson: heartbeatRuns.resultJson, errorCode: heartbeatRuns.errorCode,
     }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, companyId),
+      eq(heartbeatRuns.spaceId, spaceId),
       sql`coalesce(${heartbeatRuns.issueId}::text, ${heartbeatRuns.contextSnapshot}->>'issueId') = ${issueId}`,
     )).orderBy(sql`${heartbeatRuns.createdAt} desc`).limit(1);
     if (!run || run.status !== "cancelled" || !run.finishedAt || run.agentId !== issue.assigneeAgentId
       || run.resultJson?.treeHoldResume !== undefined) return null;
     // Only a cancellation recorded while a covering pause was active is owed.
     const activeAtCancellation = and(
-      eq(issueTreeHolds.companyId, companyId), eq(issueTreeHolds.mode, "pause"),
+      eq(issueTreeHolds.spaceId, spaceId), eq(issueTreeHolds.mode, "pause"),
       sql`${issueTreeHolds.createdAt} <= ${run.finishedAt.toISOString()}::timestamptz`,
       or(isNull(issueTreeHolds.releasedAt),
         sql`${issueTreeHolds.releasedAt} >= ${run.finishedAt.toISOString()}::timestamptz`),
@@ -1280,7 +1280,7 @@ export function issueTreeControlService(db: Db) {
     const memberHold = (snapshotRunId?: string) => db.select({ id: issueTreeHolds.id }).from(issueTreeHoldMembers)
       .innerJoin(issueTreeHolds, eq(issueTreeHolds.id, issueTreeHoldMembers.holdId))
       .where(and(
-        eq(issueTreeHoldMembers.companyId, companyId), eq(issueTreeHoldMembers.issueId, issueId),
+        eq(issueTreeHoldMembers.spaceId, spaceId), eq(issueTreeHoldMembers.issueId, issueId),
         snapshotRunId ? eq(issueTreeHoldMembers.activeRunId, snapshotRunId) : undefined,
         eq(issueTreeHoldMembers.skipped, false), activeAtCancellation,
       )).orderBy(asc(issueTreeHolds.createdAt)).limit(1);
@@ -1291,29 +1291,29 @@ export function issueTreeControlService(db: Db) {
       // recorded that hold falls back to a snapshot pause active at the time.
       [hold] = suppressedBy
         ? await db.select({ id: issueTreeHolds.id }).from(issueTreeHolds).where(and(eq(issueTreeHolds.id, suppressedBy),
-          eq(issueTreeHolds.companyId, companyId), eq(issueTreeHolds.mode, "pause"))).limit(1)
+          eq(issueTreeHolds.spaceId, spaceId), eq(issueTreeHolds.mode, "pause"))).limit(1)
         : await memberHold();
     } else if (readRunCancellation(run.resultJson)?.source === "operator") {
       // A Stop is owed only when the pause snapshot named the stopped run.
       [hold] = await memberHold(run.id);
     }
     if (!hold) return null;
-    if (await getActivePauseHoldGate(companyId, issueId)) return null;
+    if (await getActivePauseHoldGate(spaceId, issueId)) return null;
     return { issueId, agentId: run.agentId, interruptedRunId: run.id, holdId: hold.id };
   }
 
-  async function cancelUnclaimedWakeupsForTree(companyId: string, rootIssueId: string, reason: string) {
-    const treeIssues = await listTreeIssues(companyId, rootIssueId);
+  async function cancelUnclaimedWakeupsForTree(spaceId: string, rootIssueId: string, reason: string) {
+    const treeIssues = await listTreeIssues(spaceId, rootIssueId);
     const issueIds = treeIssues.map((issue) => issue.id);
     if (issueIds.length === 0) return [];
     const now = new Date();
     return db.transaction(async tx => {
       const affected = await tx.select({ agentId: agentWakeupRequests.agentId }).from(agentWakeupRequests).where(and(
-        eq(agentWakeupRequests.companyId, companyId), inArray(agentWakeupRequests.status, ["queued", "deferred_issue_execution"]),
+        eq(agentWakeupRequests.spaceId, spaceId), inArray(agentWakeupRequests.status, ["queued", "deferred_issue_execution"]),
         isNull(agentWakeupRequests.runId), inArray(sql<string | null>`${agentWakeupRequests.payload} ->> 'issueId'`, issueIds),
       )).for("update");
-      for (const agentId of new Set(affected.map(wake => wake.agentId))) await notifyStrandedAgentStatus(tx, { companyId, agentId });
-      await notifyChatInboundWakeNotices(tx, { companyId });
+      for (const agentId of new Set(affected.map(wake => wake.agentId))) await notifyStrandedAgentStatus(tx, { spaceId, agentId });
+      await notifyChatInboundWakeNotices(tx, { spaceId });
       return tx
         .update(agentWakeupRequests)
         .set({
@@ -1324,7 +1324,7 @@ export function issueTreeControlService(db: Db) {
         })
         .where(
           and(
-            eq(agentWakeupRequests.companyId, companyId),
+            eq(agentWakeupRequests.spaceId, spaceId),
             inArray(agentWakeupRequests.status, ["queued", "deferred_issue_execution"]),
             isNull(agentWakeupRequests.runId),
             inArray(sql<string | null>`${agentWakeupRequests.payload} ->> 'issueId'`, issueIds),

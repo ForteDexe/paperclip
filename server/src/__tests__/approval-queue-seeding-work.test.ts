@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, approvals, companies, createDb, applyPendingMigrations, decisionQueueItems, decisionQueues, decisionRetention, decisionTriageEvents, issueApprovals, issues, issueWorkProducts, subscribeDatabaseWork, type Db } from "@outpost/db";
+import { activityLog, approvals, spaces, createDb, applyPendingMigrations, decisionQueueItems, decisionQueues, decisionRetention, decisionTriageEvents, issueApprovals, issues, issueWorkProducts, subscribeDatabaseWork, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { approvalRecords } from "../services/approvals.js";
 import { approvalRetentionService } from "../services/approval-retention.js";
 import { approvalQueueSeedingService, registerApprovalQueueSeedingWork } from "../services/approval-queue-seeding-work.js";
 import { attentionService } from "../services/attention.js";
-import { companyService } from "../services/companies.js";
+import { spaceService } from "../services/space-service.js";
 import { decisionQueueService } from "../services/decision-queues.js";
 import { issueApprovalService } from "../services/issue-approvals.js";
 import { issueService } from "../services/issues.js";
@@ -21,7 +21,7 @@ const external = resolveExternalTestDatabaseUrl("OUTPOST_APPROVAL_QUEUE_TEST_DAT
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("approval queue seeding", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
-  let db: ReturnType<typeof createDb>, companyId: string;
+  let db: ReturnType<typeof createDb>, spaceId: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let draining = false;
   const errors: unknown[] = [];
@@ -31,8 +31,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 6, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
   }, 30_000);
   beforeEach(async () => {
-    companyId = randomUUID(); draining = false; errors.length = 0;
-    await db.insert(companies).values({ id: companyId, name: "Approval queue", issuePrefix: `Q${companyId.slice(0, 6)}` });
+    spaceId = randomUUID(); draining = false; errors.length = 0;
+    await db.insert(spaces).values({ id: spaceId, name: "Approval queue", issuePrefix: `Q${spaceId.slice(0, 6)}` });
     await Promise.all(Array.from({ length: 6 }, () => db.execute(sql`select pg_sleep(0.01)`)));
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"], shouldAdvanceTime: true });
   });
@@ -45,20 +45,20 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.execute(sql`drop function if exists approval_queue_fail()`);
     await db.delete(decisionTriageEvents); await db.delete(decisionQueueItems); await db.delete(decisionQueues);
     await db.delete(decisionRetention); await db.delete(activityLog); await db.delete(issueApprovals);
-    await db.delete(issueWorkProducts); await db.delete(approvals); await db.delete(issues); await db.delete(companies);
+    await db.delete(issueWorkProducts); await db.delete(approvals); await db.delete(issues); await db.delete(spaces);
     expect(errors).toEqual([]);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
-  const authActor = () => ({ type: "board" as const, source: "local_implicit" as const, userId: "board-user", companyIds: [companyId], isInstanceAdmin: true });
-  const actor = { actorType: "user" as const, actorId: "board-user", agentId: null, userId: "board-user", runId: null, agentApiKeyId: null, responsibleUserId: "board-user" };
-  const mutation = () => ({ companyId, key: "prs", authActor: authActor(), actor });
-  const memberships = () => db.select().from(decisionQueueItems).where(eq(decisionQueueItems.companyId, companyId));
-  const createApproval = (database: Db = db) => approvalRecords(database).create(companyId, { type: "request_board_approval", payload: {} });
+  const authActor = () => ({ type: "operator" as const, source: "local_implicit" as const, userId: "operator-user", spaceIds: [spaceId], isInstanceAdmin: true });
+  const actor = { actorType: "user" as const, actorId: "operator-user", agentId: null, userId: "operator-user", runId: null, agentApiKeyId: null, responsibleUserId: "operator-user" };
+  const mutation = () => ({ spaceId, key: "prs", authActor: authActor(), actor });
+  const memberships = () => db.select().from(decisionQueueItems).where(eq(decisionQueueItems.spaceId, spaceId));
+  const createApproval = (database: Db = db) => approvalRecords(database).create(spaceId, { type: "request_operator_approval", payload: {} });
   async function issue(hiddenAt: Date | null = null) {
-    const [row] = await db.insert(issues).values({ companyId, title: "Review PR", status: "todo", hiddenAt }).returning();
+    const [row] = await db.insert(issues).values({ spaceId, title: "Review PR", status: "todo", hiddenAt }).returning();
     return row;
   }
-  const product = (issueId: string, type = "pull_request") => workProductService(db).createForIssue(issueId, companyId, { type, provider: "github", title: "PR", status: "open" });
+  const product = (issueId: string, type = "pull_request") => workProductService(db).createForIssue(issueId, spaceId, { type, provider: "github", title: "PR", status: "open" });
   async function pending(target?: string) {
     const targetId = target ?? (await issue()).id;
     if (!target) await product(targetId);
@@ -91,7 +91,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     reads.mockRestore(); writes.mockRestore(); executes.mockRestore();
   }
 
-  it("retains a company commit arriving during its final empty read", async () => {
+  it("retains a space commit arriving during its final empty read", async () => {
     const service = approvalQueueSeedingService(db);
     await service.sweep();
     expect(await service.next()).toBeNull();
@@ -123,7 +123,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       };
       return query;
     });
-    service.request(new Set([companyId]));
+    service.request(new Set([spaceId]));
     const sweep = service.sweep();
     try {
       await observedEmpty;
@@ -136,21 +136,21 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     } finally { release(); await sweep; reads.mockRestore(); unsubscribe(); }
   });
 
-  it("does not let a company write reconcile another company's approvals", async () => {
+  it("does not let a space write reconcile another space's approvals", async () => {
     await start(); await quiet();
     const foreignId = randomUUID();
-    await db.insert(companies).values({ id: foreignId, name: "Other tenant", issuePrefix: `F${foreignId.slice(0, 6)}` });
-    const [foreignIssue] = await db.insert(issues).values({ companyId: foreignId, title: "Other PR", status: "todo" }).returning();
-    const [foreignApproval] = await db.insert(approvals).values({ companyId: foreignId, type: "request_board_approval", payload: {} }).returning();
-    await db.insert(issueApprovals).values({ companyId: foreignId, issueId: foreignIssue.id, approvalId: foreignApproval.id });
-    await db.insert(issueWorkProducts).values({ companyId: foreignId, issueId: foreignIssue.id, type: "pull_request", provider: "github", title: "Other PR", status: "open" });
+    await db.insert(spaces).values({ id: foreignId, name: "Other tenant", issuePrefix: `F${foreignId.slice(0, 6)}` });
+    const [foreignIssue] = await db.insert(issues).values({ spaceId: foreignId, title: "Other PR", status: "todo" }).returning();
+    const [foreignApproval] = await db.insert(approvals).values({ spaceId: foreignId, type: "request_operator_approval", payload: {} }).returning();
+    await db.insert(issueApprovals).values({ spaceId: foreignId, issueId: foreignIssue.id, approvalId: foreignApproval.id });
+    await db.insert(issueWorkProducts).values({ spaceId: foreignId, issueId: foreignIssue.id, type: "pull_request", provider: "github", title: "Other PR", status: "open" });
     const ownApproval = await pending(); await seeded(ownApproval.id); await quiet();
-    expect(await db.select().from(decisionQueueItems).where(eq(decisionQueueItems.companyId, foreignId))).toEqual([]);
-    await companyService(db).update(foreignId, { status: "paused" }); await settle();
-    await companyService(db).update(foreignId, { status: "active" });
+    expect(await db.select().from(decisionQueueItems).where(eq(decisionQueueItems.spaceId, foreignId))).toEqual([]);
+    await spaceService(db).update(foreignId, { status: "paused" }); await settle();
+    await spaceService(db).update(foreignId, { status: "active" });
     await vi.waitFor(async () => {
       await vi.advanceTimersByTimeAsync(1000);
-      expect(await db.select().from(decisionQueueItems).where(eq(decisionQueueItems.companyId, foreignId)))
+      expect(await db.select().from(decisionQueueItems).where(eq(decisionQueueItems.spaceId, foreignId)))
         .toEqual([expect.objectContaining({ sourceId: foreignApproval.id })]);
     });
     await quiet();
@@ -160,10 +160,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await start(); await quiet();
     const approval = await pending();
     await approvalRetentionService(db).sweep();
-    await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true, excludeSources: ["approval", "join_request"] });
+    await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true, excludeSources: ["approval", "join_request"] });
     await seeded(approval.id);
-    expect((await decisionQueueService(db).list(companyId, authActor())).map(queue => queue.key)).toContain("prs");
-    expect(await decisionQueueService(db).listItems(companyId, "prs", authActor())).toEqual(expect.arrayContaining([
+    expect((await decisionQueueService(db).list(spaceId, authActor())).map(queue => queue.key)).toContain("prs");
+    expect(await decisionQueueService(db).listItems(spaceId, "prs", authActor())).toEqual(expect.arrayContaining([
       expect.objectContaining({ sourceKind: "approval", sourceId: approval.id }),
     ]));
     await quiet();
@@ -171,7 +171,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("recovers startup projection debt and stays quiet with already seeded and completed history", async () => {
     const first = await pending(), completed = await pending();
-    await approvalRecords(db).resolveApproval(completed.id, "approved", "board-user", null);
+    await approvalRecords(db).resolveApproval(completed.id, "approved", "operator-user", null);
     await start(); await seeded(first.id); await quiet();
     expect((await memberships()).map(row => row.sourceId)).toEqual([first.id]);
     await coordinator!.stop(); coordinator = undefined;
@@ -190,7 +190,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("wakes from batch-imported PR work products", async () => {
     const target = await issue(), approval = await pending(target.id);
     await start(); await quiet();
-    await workProductService(db).createManyForImport([{ companyId, issueId: target.id, projectId: null, type: "pull_request", provider: "github", externalId: null, title: "Imported PR", url: null, status: "open", reviewState: "none", isPrimary: false, healthStatus: "unknown", summary: null, metadata: null, executionWorkspaceId: null, runtimeServiceId: null, createdByRunId: null, sourceTrust: null }]);
+    await workProductService(db).createManyForImport([{ spaceId, issueId: target.id, projectId: null, type: "pull_request", provider: "github", externalId: null, title: "Imported PR", url: null, status: "open", reviewState: "none", isPrimary: false, healthStatus: "unknown", summary: null, metadata: null, executionWorkspaceId: null, runtimeServiceId: null, createdByRunId: null, sourceTrust: null }]);
     await seeded(approval.id); await quiet();
   });
 
@@ -209,32 +209,32 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await issueApprovalService(db).unlink(withoutPr.id, approval.id); await seeded(approval.id); await quiet();
   });
 
-  it("does not infer PRs from a later link or another company's work product", async () => {
+  it("does not infer PRs from a later link or another space's work product", async () => {
     const target = await issue(), approval = await pending(target.id);
-    const foreignId = randomUUID(); await db.insert(companies).values({ id: foreignId, name: "Other", issuePrefix: "OTHER" });
-    await db.insert(issueWorkProducts).values({ companyId: foreignId, issueId: target.id, type: "pull_request", provider: "github", title: "Invalid foreign product", status: "open" });
+    const foreignId = randomUUID(); await db.insert(spaces).values({ id: foreignId, name: "Other", issuePrefix: "OTHER" });
+    await db.insert(issueWorkProducts).values({ spaceId: foreignId, issueId: target.id, type: "pull_request", provider: "github", title: "Invalid foreign product", status: "open" });
     await start(); await quiet(); expect(await memberships()).toEqual([]);
     await product(target.id); await seeded(approval.id); await quiet();
   });
 
   it("keeps disabled seeds quiet and wakes when the queue rule is enabled", async () => {
-    await db.insert(decisionQueues).values({ companyId, key: "prs", title: "PRs", createdByType: "system", seedRulesEnabled: false });
+    await db.insert(decisionQueues).values({ spaceId, key: "prs", title: "PRs", createdByType: "system", seedRulesEnabled: false });
     const approval = await pending(); await start(); await quiet(); expect(await memberships()).toEqual([]);
     await decisionQueueService(db).update({ ...mutation(), patch: { seedRulesEnabled: true } });
     await seeded(approval.id); await quiet();
   });
 
-  it("waits for company activation", async () => {
-    const approval = await pending(); await companyService(db).update(companyId, { status: "paused" });
+  it("waits for space activation", async () => {
+    const approval = await pending(); await spaceService(db).update(spaceId, { status: "paused" });
     await start(); await quiet(); expect(await memberships()).toEqual([]);
-    await companyService(db).update(companyId, { status: "active" }); await seeded(approval.id); await quiet();
+    await spaceService(db).update(spaceId, { status: "active" }); await seeded(approval.id); await quiet();
   });
 
   it("waits for resubmission and never removes retained membership after approval", async () => {
-    const approval = await pending(); await approvalRecords(db).requestRevision(approval.id, "board-user");
+    const approval = await pending(); await approvalRecords(db).requestRevision(approval.id, "operator-user");
     await start(); await quiet(); expect(await memberships()).toEqual([]);
     await approvalRecords(db).resubmit(approval.id); await seeded(approval.id);
-    await approvalRecords(db).resolveApproval(approval.id, "approved", "board-user", null); await quiet();
+    await approvalRecords(db).resolveApproval(approval.id, "approved", "operator-user", null); await quiet();
     expect(await memberships()).toHaveLength(1);
   });
 
@@ -287,13 +287,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const service = approvalQueueSeedingService(db);
     await service.sweep();
     const approval = await pending();
-    service.request(new Set([companyId]));
+    service.request(new Set([spaceId]));
     await db.execute(sql`create function approval_queue_fail() returns trigger language plpgsql as $$ begin raise exception 'projection unavailable'; end $$`);
     await db.execute(sql`create trigger approval_queue_fail before insert on decision_queue_items for each row execute function approval_queue_fail()`);
     const transactions = vi.spyOn(db, "transaction");
     try {
       for (let second = 0; second < 120; second++) {
-        service.request(new Set([companyId]));
+        service.request(new Set([spaceId]));
         await service.sweep().catch(() => undefined);
         await vi.advanceTimersByTimeAsync(1000);
       }
@@ -314,9 +314,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("resets consecutive failure backoff after a successful batch with remaining debt", async () => {
     const target = await issue(); await product(target.id);
     const rows = await db.insert(approvals).values(Array.from({ length: 101 }, () => ({
-      companyId, type: "request_board_approval", payload: {},
+      spaceId, type: "request_operator_approval", payload: {},
     }))).returning();
-    await db.insert(issueApprovals).values(rows.map(row => ({ companyId, issueId: target.id, approvalId: row.id })));
+    await db.insert(issueApprovals).values(rows.map(row => ({ spaceId, issueId: target.id, approvalId: row.id })));
     const service = approvalQueueSeedingService(db);
     await db.execute(sql`create function approval_queue_fail() returns trigger language plpgsql as $$ begin raise exception 'projection unavailable'; end $$`);
     const fail = () => db.execute(sql`create trigger approval_queue_fail before insert on decision_queue_items for each row execute function approval_queue_fail()`);
@@ -343,9 +343,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("preserves outage backoff across an empty cursor rollover", async () => {
     const target = await issue(); await product(target.id);
     const rows = await db.insert(approvals).values(Array.from({ length: 100 }, () => ({
-      companyId, type: "request_board_approval", payload: {},
+      spaceId, type: "request_operator_approval", payload: {},
     }))).returning();
-    await db.insert(issueApprovals).values(rows.map(row => ({ companyId, issueId: target.id, approvalId: row.id })));
+    await db.insert(issueApprovals).values(rows.map(row => ({ spaceId, issueId: target.id, approvalId: row.id })));
     const service = approvalQueueSeedingService(db);
     await db.execute(sql`create function approval_queue_fail() returns trigger language plpgsql as $$ begin raise exception 'projection unavailable'; end $$`);
     await db.execute(sql`create trigger approval_queue_fail before insert on decision_queue_items for each row execute function approval_queue_fail()`);
@@ -362,14 +362,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(await memberships()).toHaveLength(100); expect(service.next()).toBeNull();
   });
 
-  it("keeps backoff SQL-quiet while another company's committed work proceeds", async () => {
+  it("keeps backoff SQL-quiet while another space's committed work proceeds", async () => {
     const service = approvalQueueSeedingService(db), sweep = service.sweep;
     let running = false;
     service.sweep = async signal => { running = true; try { await sweep(signal); } finally { running = false; } };
     await start(service); await quiet();
     await db.execute(sql`create function approval_queue_fail() returns trigger language plpgsql as $$ begin
-      if new.company_id::text = TG_ARGV[0] then raise exception 'projection unavailable'; end if; return new; end $$`);
-    await db.execute(sql`create trigger approval_queue_fail before insert on decision_queue_items for each row execute function approval_queue_fail(${sql.raw("'" + companyId + "'")})`);
+      if new.space_id::text = TG_ARGV[0] then raise exception 'projection unavailable'; end if; return new; end $$`);
+    await db.execute(sql`create trigger approval_queue_fail before insert on decision_queue_items for each row execute function approval_queue_fail(${sql.raw("'" + spaceId + "'")})`);
     const approval = await pending();
     for (let count = 1; count <= 7; count++) {
       await vi.waitFor(async () => { await vi.advanceTimersByTimeAsync(1000); expect(errors.length).toBeGreaterThanOrEqual(count); }, { timeout: 5000 });
@@ -380,14 +380,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(reads).not.toHaveBeenCalled(); expect(writes).not.toHaveBeenCalled();
     reads.mockRestore(); writes.mockRestore();
     const otherId = randomUUID();
-    await db.insert(companies).values({ id: otherId, name: "Healthy tenant", issuePrefix: `H${otherId.slice(0, 6)}` });
-    const [otherIssue] = await db.insert(issues).values({ companyId: otherId, title: "Other PR", status: "todo" }).returning();
+    await db.insert(spaces).values({ id: otherId, name: "Healthy tenant", issuePrefix: `H${otherId.slice(0, 6)}` });
+    const [otherIssue] = await db.insert(issues).values({ spaceId: otherId, title: "Other PR", status: "todo" }).returning();
     await workProductService(db).createForIssue(otherIssue.id, otherId, { type: "pull_request", provider: "github", title: "Other PR", status: "open" });
-    const otherApproval = await approvalRecords(db).create(otherId, { type: "request_board_approval", payload: {} });
+    const otherApproval = await approvalRecords(db).create(otherId, { type: "request_operator_approval", payload: {} });
     await issueApprovalService(db).link(otherIssue.id, otherApproval.id);
     await vi.waitFor(async () => {
       await vi.advanceTimersByTimeAsync(1000);
-      expect(await db.select().from(decisionQueueItems).where(eq(decisionQueueItems.companyId, otherId)))
+      expect(await db.select().from(decisionQueueItems).where(eq(decisionQueueItems.spaceId, otherId)))
         .toEqual([expect.objectContaining({ sourceId: otherApproval.id })]);
     }, { timeout: 5000 });
     expect(await memberships()).toEqual([]);
@@ -398,12 +398,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("drains multiple pages without duplicating memberships or audit events", async () => {
     const target = await issue(); await product(target.id);
-    const rows = await db.insert(approvals).values(Array.from({ length: 101 }, () => ({ companyId, type: "request_board_approval", payload: {} }))).returning();
-    await db.insert(issueApprovals).values(rows.map(row => ({ companyId, issueId: target.id, approvalId: row.id })));
+    const rows = await db.insert(approvals).values(Array.from({ length: 101 }, () => ({ spaceId, type: "request_operator_approval", payload: {} }))).returning();
+    await db.insert(issueApprovals).values(rows.map(row => ({ spaceId, issueId: target.id, approvalId: row.id })));
     await start();
     await vi.waitFor(async () => { await vi.advanceTimersByTimeAsync(1_000); expect(await memberships()).toHaveLength(101); }, { timeout: 10_000 });
     await quiet();
-    await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true }); await quiet();
+    await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true }); await quiet();
     expect(await memberships()).toHaveLength(101);
     expect(await db.select().from(decisionTriageEvents).where(eq(decisionTriageEvents.action, "queue_item.seeded"))).toHaveLength(101);
   });
@@ -415,8 +415,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   it("pages past failed projections and revisits them after recovery", async () => {
     const target = await issue(); await product(target.id);
-    const rows = await db.insert(approvals).values(Array.from({ length: 101 }, () => ({ companyId, type: "request_board_approval", payload: {} }))).returning();
-    await db.insert(issueApprovals).values(rows.map(row => ({ companyId, issueId: target.id, approvalId: row.id })));
+    const rows = await db.insert(approvals).values(Array.from({ length: 101 }, () => ({ spaceId, type: "request_operator_approval", payload: {} }))).returning();
+    await db.insert(issueApprovals).values(rows.map(row => ({ spaceId, issueId: target.id, approvalId: row.id })));
     const last = rows.map(row => row.id).sort().at(-1)!;
     await db.execute(sql`create function approval_queue_fail() returns trigger language plpgsql as $$ begin
       if new.source_id <> TG_ARGV[0] then raise exception 'projection unavailable'; end if; return new; end $$`);
@@ -434,19 +434,19 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
     const append = async (start: number, count: number) => {
       const rows = await db.insert(approvals).values(Array.from({ length: count }, (_, offset) => ({
-        id: id(start + offset), companyId, type: "request_board_approval", payload: {},
+        id: id(start + offset), spaceId, type: "request_operator_approval", payload: {},
       }))).returning();
-      await db.insert(issueApprovals).values(rows.map(row => ({ companyId, issueId: target.id, approvalId: row.id })));
+      await db.insert(issueApprovals).values(rows.map(row => ({ spaceId, issueId: target.id, approvalId: row.id })));
     };
     const service = approvalQueueSeedingService(db); await service.sweep();
-    await append(1, 101); service.request(new Set([companyId]));
+    await append(1, 101); service.request(new Set([spaceId]));
     await db.execute(sql`create function approval_queue_fail() returns trigger language plpgsql as $$ begin
       if new.source_id = TG_ARGV[0] then raise exception 'projection unavailable'; end if; return new; end $$`);
     await db.execute(sql`create trigger approval_queue_fail before insert on decision_queue_items for each row execute function approval_queue_fail(${sql.raw("'" + id(1) + "'")})`);
     await expect(service.sweep()).rejects.toThrow("Failed query");
-    await append(102, 100); service.request(new Set([companyId]));
+    await append(102, 100); service.request(new Set([spaceId]));
     await vi.advanceTimersByTimeAsync(1000); await service.sweep();
-    await append(202, 100); service.request(new Set([companyId]));
+    await append(202, 100); service.request(new Set([spaceId]));
     await db.execute(sql`drop trigger approval_queue_fail on decision_queue_items`);
     await service.sweep();
     expect((await memberships()).some(row => row.sourceId === id(1))).toBe(true);
@@ -459,7 +459,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const gate = new Promise<void>(resolve => { release = resolve; }), admitted = new Promise<void>(resolve => { locked = resolve; });
     const write = db.transaction(async tx => {
       await tx.execute(sql`select id from approvals where id = ${approval.id} for update`); locked(); await gate;
-      await approvalRecords(tx as unknown as Db).resolveApproval(approval.id, "approved", "board-user", null);
+      await approvalRecords(tx as unknown as Db).resolveApproval(approval.id, "approved", "operator-user", null);
     });
     await admitted; const sweep = approvalQueueSeedingService(db).sweep();
     await vi.advanceTimersByTimeAsync(100); release(); await write; await sweep;
@@ -476,7 +476,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("preserves seeding for kept and archived approvals", async () => {
     const approval = await pending();
-    await db.insert(decisionRetention).values({ companyId, sourceKind: "approval", sourceId: approval.id,
+    await db.insert(decisionRetention).values({ spaceId, sourceKind: "approval", sourceId: approval.id,
       sourceActivityAt: approval.updatedAt, keep: true, archivedAt: new Date() });
     await start(); await seeded(approval.id); await quiet();
   });
@@ -502,13 +502,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const approval = await pending();
     const [link] = await db.select().from(issueApprovals).where(eq(issueApprovals.approvalId, approval.id));
     const queues = decisionQueueService(db);
-    const seed = () => queues.materializeSeedSources(companyId, [{ sourceKind: "approval", sourceId: approval.id, issueId: link.issueId }]);
+    const seed = () => queues.materializeSeedSources(spaceId, [{ sourceKind: "approval", sourceId: approval.id, issueId: link.issueId }]);
     await seed();
     await db.execute(sql`create function approval_queue_delete_gate() returns trigger language plpgsql as $$ begin
       perform pg_advisory_xact_lock(hashtext(TG_ARGV[0])); return old; end $$`);
-    await db.execute(sql`create trigger approval_queue_delete_gate after delete on decision_queue_items for each row execute function approval_queue_delete_gate(${sql.raw("'" + companyId + "'")})`);
+    await db.execute(sql`create trigger approval_queue_delete_gate after delete on decision_queue_items for each row execute function approval_queue_delete_gate(${sql.raw("'" + spaceId + "'")})`);
     const blocker = await db.$client.reserve();
-    await blocker`select pg_advisory_lock(hashtext(${companyId}))`;
+    await blocker`select pg_advisory_lock(hashtext(${spaceId}))`;
     let complete: Promise<PromiseSettledResult<unknown>[]> | undefined;
     try {
       const removed = queues.removeItem({ ...mutation(), sourceKind: "approval", sourceId: approval.id });

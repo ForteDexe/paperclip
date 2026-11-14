@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { activityLog, companies, createDb, userWorkspacePreferences } from "@outpost/db";
+import { activityLog, spaces, createDb, userWorkspacePreferences } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { errorHandler } from "../middleware/index.js";
 import { workspacePreferenceRoutes } from "../routes/workspace-preferences.js";
@@ -16,14 +16,14 @@ if (!support.supported) console.warn(`Workspace preference database tests unavai
   let db: ReturnType<typeof createDb>;
   let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   beforeAll(async () => {
-    temp = await startEmbeddedPostgresTestDatabase("paperclip-workspace-preferences-");
+    temp = await startEmbeddedPostgresTestDatabase("outpost-workspace-preferences-");
     db = createDb(temp.connectionString);
   }, 30_000);
   afterAll(async () => { await temp?.cleanup(); });
 
-  const actor = (companyId: string, userId: string): Express.Request["actor"] => ({
-    type: "board", source: "session", userId, companyIds: [companyId],
-    memberships: [{ companyId, membershipRole: "viewer", status: "active" }],
+  const actor = (spaceId: string, userId: string): Express.Request["actor"] => ({
+    type: "operator", source: "session", userId, spaceIds: [spaceId],
+    memberships: [{ spaceId, membershipRole: "viewer", status: "active" }],
   });
   const app = (identity: Express.Request["actor"]) => {
     const result = express(); result.use(express.json());
@@ -31,12 +31,12 @@ if (!support.supported) console.warn(`Workspace preference database tests unavai
     result.use("/api", workspacePreferenceRoutes(db)); result.use(errorHandler);
     return result;
   };
-  async function company() {
+  async function space() {
     const id = randomUUID();
-    await db.insert(companies).values({ id, name: "Workspace preference test", issuePrefix: `P${id.slice(0, 7)}` });
+    await db.insert(spaces).values({ id, name: "Workspace preference test", issuePrefix: `P${id.slice(0, 7)}` });
     return id;
   }
-  const url = (companyId: string) => `/api/companies/${companyId}/workspace-preferences/me`;
+  const url = (spaceId: string) => `/api/spaces/${spaceId}/workspace-preferences/me`;
 
   it("defaults to Coordinator without creating a row", async () => {
     const userId = randomUUID();
@@ -46,17 +46,17 @@ if (!support.supported) console.warn(`Workspace preference database tests unavai
 
   it.each([false, true])("uses Coordinator for an old experimental preference (%s) until Classic is explicitly selected", async legacyEnabled => {
     const userId = randomUUID();
-    const companyId = await company();
+    const spaceId = await space();
     await db.insert(userWorkspacePreferences).values({ userId, coordinatorWorkspaceEnabled: legacyEnabled });
     expect((await workspacePreferenceService(db).get(userId)).coordinatorWorkspaceEnabled).toBe(true);
-    await request(app(actor(companyId, userId))).put(url(companyId)).send({ coordinatorWorkspaceEnabled: false }).expect(200);
+    await request(app(actor(spaceId, userId))).put(url(spaceId)).send({ coordinatorWorkspaceEnabled: false }).expect(200);
     expect((await workspacePreferenceService(db).get(userId)).coordinatorWorkspaceEnabled).toBe(false);
-    await request(app(actor(companyId, userId))).put(url(companyId)).send({ coordinatorWorkspaceEnabled: true }).expect(200);
+    await request(app(actor(spaceId, userId))).put(url(spaceId)).send({ coordinatorWorkspaceEnabled: true }).expect(200);
     expect((await workspacePreferenceService(db).get(userId)).coordinatorWorkspaceEnabled).toBe(true);
   });
 
-  it("lets a viewer opt in and out across companies without changing another person's choice", async () => {
-    const first = await company(), second = await company(), userId = randomUUID(), otherUser = randomUUID();
+  it("lets a viewer opt in and out across spaces without changing another person's choice", async () => {
+    const first = await space(), second = await space(), userId = randomUUID(), otherUser = randomUUID();
     await request(app(actor(first, userId))).put(url(first)).send({ coordinatorWorkspaceEnabled: true }).expect(200);
     const response = await request(app(actor(second, userId))).get("/api/workspace-preferences/me").expect(200);
     expect(response.body).toMatchObject({ userId, coordinatorWorkspaceEnabled: true });
@@ -66,43 +66,43 @@ if (!support.supported) console.warn(`Workspace preference database tests unavai
     expect((await workspacePreferenceService(db).get(userId)).coordinatorWorkspaceEnabled).toBe(false);
     const events = await db.select().from(activityLog).where(and(eq(activityLog.actorId, userId), eq(activityLog.action, "workspace_preferences.updated")));
     expect(events).toHaveLength(2);
-    expect(events.map(event => event.companyId).sort()).toEqual([first, second].sort());
+    expect(events.map(event => event.spaceId).sort()).toEqual([first, second].sort());
     expect(events.every(event => event.details === null && event.entityType === "user_preference")).toBe(true);
   });
 
-  it("rejects foreign company audit scopes, inactive membership, anonymous/agent callers and identity injection", async () => {
-    const companyId = await company(), foreignId = await company(), userId = randomUUID();
-    await request(app(actor(companyId, userId))).put(url(foreignId)).send({ coordinatorWorkspaceEnabled: true }).expect(403);
-    await request(app({ ...actor(companyId, userId), memberships: [] })).put(url(companyId)).send({ coordinatorWorkspaceEnabled: true }).expect(403);
-    await request(app(actor(companyId, userId))).put(url(companyId)).send({ coordinatorWorkspaceEnabled: true, userId: "someone-else" }).expect(400);
+  it("rejects foreign space audit scopes, inactive membership, anonymous/agent callers and identity injection", async () => {
+    const spaceId = await space(), foreignId = await space(), userId = randomUUID();
+    await request(app(actor(spaceId, userId))).put(url(foreignId)).send({ coordinatorWorkspaceEnabled: true }).expect(403);
+    await request(app({ ...actor(spaceId, userId), memberships: [] })).put(url(spaceId)).send({ coordinatorWorkspaceEnabled: true }).expect(403);
+    await request(app(actor(spaceId, userId))).put(url(spaceId)).send({ coordinatorWorkspaceEnabled: true, userId: "someone-else" }).expect(400);
     await request(app({ type: "none", source: "none" })).get("/api/workspace-preferences/me").expect(403);
-    await request(app({ type: "agent", source: "agent_key", companyId, agentId: randomUUID() })).get("/api/workspace-preferences/me").expect(403);
+    await request(app({ type: "agent", source: "agent_key", spaceId, agentId: randomUUID() })).get("/api/workspace-preferences/me").expect(403);
     expect((await workspacePreferenceService(db).get(userId)).coordinatorWorkspaceEnabled).toBe(true);
   });
 
   it("saves the browser time zone without changing the workspace choice, and keeps it when the workspace changes", async () => {
-    const companyId = await company(), userId = randomUUID();
-    await request(app(actor(companyId, userId))).put(url(companyId)).send({ coordinatorWorkspaceEnabled: false }).expect(200);
-    const saved = await request(app(actor(companyId, userId))).put(url(companyId)).send({ timeZone: "America/Chicago" }).expect(200);
+    const spaceId = await space(), userId = randomUUID();
+    await request(app(actor(spaceId, userId))).put(url(spaceId)).send({ coordinatorWorkspaceEnabled: false }).expect(200);
+    const saved = await request(app(actor(spaceId, userId))).put(url(spaceId)).send({ timeZone: "America/Chicago" }).expect(200);
     expect(saved.body).toMatchObject({ userId, coordinatorWorkspaceEnabled: false, timeZone: "America/Chicago" });
-    await request(app(actor(companyId, userId))).put(url(companyId)).send({ coordinatorWorkspaceEnabled: true }).expect(200);
+    await request(app(actor(spaceId, userId))).put(url(spaceId)).send({ coordinatorWorkspaceEnabled: true }).expect(200);
     expect(await workspacePreferenceService(db).get(userId)).toMatchObject({ coordinatorWorkspaceEnabled: true, timeZone: "America/Chicago" });
     const newUser = randomUUID();
-    await request(app(actor(companyId, newUser))).put(url(companyId)).send({ timeZone: "Asia/Kolkata" }).expect(200);
+    await request(app(actor(spaceId, newUser))).put(url(spaceId)).send({ timeZone: "Asia/Kolkata" }).expect(200);
     expect(await workspacePreferenceService(db).get(newUser)).toMatchObject({ coordinatorWorkspaceEnabled: true, timeZone: "Asia/Kolkata" });
     for (const body of [{ timeZone: "Mars/Olympus_Mons" }, { timeZone: "" }, { timeZone: "x".repeat(65) }, { timeZone: 5 }, {}]) {
-      await request(app(actor(companyId, userId))).put(url(companyId)).send(body).expect(400);
+      await request(app(actor(spaceId, userId))).put(url(spaceId)).send(body).expect(400);
     }
     expect((await workspacePreferenceService(db).get(userId)).timeZone).toBe("America/Chicago");
     const events = await db.select().from(activityLog).where(and(eq(activityLog.actorId, userId), eq(activityLog.action, "workspace_preferences.updated")));
     expect(events).toHaveLength(3);
   });
 
-  it("uses the explicit local board principal without creating a signed-in user's setting", async () => {
-    const companyId = await company();
-    const local: Express.Request["actor"] = { type: "board", source: "local_implicit", userId: "local-board", isInstanceAdmin: true };
-    await request(app(local)).put(url(companyId)).send({ coordinatorWorkspaceEnabled: true }).expect(200);
-    expect((await request(app(local)).get("/api/workspace-preferences/me").expect(200)).body).toMatchObject({ userId: "local-board", coordinatorWorkspaceEnabled: true });
+  it("uses the explicit local operator principal without creating a signed-in user's setting", async () => {
+    const spaceId = await space();
+    const local: Express.Request["actor"] = { type: "operator", source: "local_implicit", userId: "local-operator", isInstanceAdmin: true };
+    await request(app(local)).put(url(spaceId)).send({ coordinatorWorkspaceEnabled: true }).expect(200);
+    expect((await request(app(local)).get("/api/workspace-preferences/me").expect(200)).body).toMatchObject({ userId: "local-operator", coordinatorWorkspaceEnabled: true });
     expect((await workspacePreferenceService(db).get(randomUUID())).coordinatorWorkspaceEnabled).toBe(true);
   });
 

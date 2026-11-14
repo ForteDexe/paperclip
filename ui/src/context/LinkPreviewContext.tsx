@@ -3,23 +3,23 @@ import type { LinkPreviewResult, LinkPreviewTarget } from "@outpost/shared";
 import { api } from "@/api/client";
 
 export interface LinkPreviewContextValue {
-  companyId: string;
+  spaceId: string;
   userId: string | null;
   load: (target: LinkPreviewTarget) => Promise<LinkPreviewResult>;
 }
 
 const LinkPreviewContext = createContext<LinkPreviewContextValue | null>(null);
 
-export function LinkPreviewProvider({ companyId, userId, children }: {
-  companyId: string | null; userId: string | null; children: ReactNode;
+export function LinkPreviewProvider({ spaceId, userId, children }: {
+  spaceId: string | null; userId: string | null; children: ReactNode;
 }) {
-  const value = useMemo<LinkPreviewContextValue | null>(() => companyId ? ({
-    companyId, userId,
+  const value = useMemo<LinkPreviewContextValue | null>(() => spaceId ? ({
+    spaceId, userId,
     load: target => api.get<LinkPreviewResult>(
-      `/companies/${companyId}/link-preview?${new URLSearchParams({ url: target.canonicalUrl })}`,
+      `/spaces/${spaceId}/link-preview?${new URLSearchParams({ url: target.canonicalUrl })}`,
       { timeoutMs: 6_000, cache: "no-store" },
     ),
-  }) : null, [companyId, userId]);
+  }) : null, [spaceId, userId]);
   return <LinkPreviewContext.Provider value={value}>{children}</LinkPreviewContext.Provider>;
 }
 

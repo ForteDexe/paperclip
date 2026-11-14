@@ -16,8 +16,8 @@ type Prepare = Parameters<ReturnType<typeof createHeartbeatInstructionWorkingCop
 type Copy = NonNullable<Awaited<ReturnType<Input["instructionCopies"]["prepare"]>>>;
 
 function fixture(executionTarget: Input["workspace"]["executionTarget"] = null, acpxAgent?: string) {
-  let run = { id: "current-run", companyId: "company", agentId: "agent", runnerProfileJson: null, status: "queued" } as ReturnType<Input["readRun"]>;
-  const copy = { runId: run.id, companyId: run.companyId, agentId: run.agentId,
+  let run = { id: "current-run", spaceId: "space", agentId: "agent", runnerProfileJson: null, status: "queued" } as ReturnType<Input["readRun"]>;
+  const copy = { runId: run.id, spaceId: run.spaceId, agentId: run.agentId,
     localRoot: "/workspace/copy", executionRoot: "/workspace/copy", entryFile: "AGENTS.md",
     state: "prepared", receipt: { schema: AGENT_FILES_CONTRACT, warm: true }, errorCode: null, errorMessage: null,
   } as unknown as Copy;
@@ -29,11 +29,11 @@ function fixture(executionTarget: Input["workspace"]["executionTarget"] = null, 
     reportRetirementUnconfirmed: vi.fn().mockResolvedValue(null),
   };
   const appendRunEvent = vi.fn().mockResolvedValue(undefined);
-  const context = { paperclipWorkspace: { agentHome: "/canonical" } } as Record<string, unknown>;
+  const context = { outpostWorkspace: { agentHome: "/canonical" } } as Record<string, unknown>;
   const controller = createHeartbeatInstructionWorkingCopy({
     db: {} as Input["db"], instructionCopies: copies as unknown as Input["instructionCopies"],
     readRun: () => run,
-    agent: { id: "agent", companyId: "company", adapterType: acpxAgent ? "outpost_runner" : "codex_local", adapterConfig: { lifecycleMode: "warm", ...(acpxAgent ? { provider: "acpx", acpxAgent } : {}) }, runtimeConfig: {} } as unknown as Input["agent"],
+    agent: { id: "agent", spaceId: "space", adapterType: acpxAgent ? "outpost_runner" : "codex_local", adapterConfig: { lifecycleMode: "warm", ...(acpxAgent ? { provider: "acpx", acpxAgent } : {}) }, runtimeConfig: {} } as unknown as Input["agent"],
     context,
     session: { taskSession: null, taskSessionForRun: { lastRunId: "previous-run" }, sessionConfigMetadata: {} as Input["session"]["sessionConfigMetadata"] },
     workspace: { executionTarget, executionWorkspace: { cwd: "/workspace" } as Input["workspace"]["executionWorkspace"], persistedExecutionWorkspace: null },
@@ -151,6 +151,6 @@ describe("instruction working-copy extraction boundary", () => {
     expect(await f.controller.nativeInstructionWorkingCopy()?.checkpointWarm?.()).toBe(true);
     expect(f.controller.getInstructionSave()).toMatchObject({ state: "unchanged" });
     expect(f.appendRunEvent.mock.calls.at(-1)?.[0]).toBe(running);
-    expect(f.context.paperclipWorkspace).toMatchObject({ agentHome: f.copy.executionRoot, agentHomeForPermissions: "/canonical" });
+    expect(f.context.outpostWorkspace).toMatchObject({ agentHome: f.copy.executionRoot, agentHomeForPermissions: "/canonical" });
   });
 });

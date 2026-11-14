@@ -128,7 +128,7 @@ type SlackSessionStopOptions = {
   runtimeCallbackEndpoint: (tx: DbTransaction, endpointId: string, context: LifecycleRuntimeFence, statuses: EndpointRow["status"][]) => Promise<EndpointRow | null>;
   lockCurrentPrincipalAuthorization: (tx: DbOrTransaction, endpoint: EndpointRow, principalId: string) => Promise<{ allowed: boolean; userId: string | null }>;
   nonDirectDestinationAllowed: (endpoint: EndpointRow, resource: typeof chatEndpointResources.$inferSelect | null | undefined) => boolean;
-  stageAuthorizedTaskControlPublication: (tx: DbOrTransaction, input: { companyId: string; conversationId: string; endpointId: string; idempotencyKey: string; issueId: string; payload: SafeChatPublicationPayload; principalId: string }) => Promise<{ id: string }>;
+  stageAuthorizedTaskControlPublication: (tx: DbOrTransaction, input: { spaceId: string; conversationId: string; endpointId: string; idempotencyKey: string; issueId: string; payload: SafeChatPublicationPayload; principalId: string }) => Promise<{ id: string }>;
   getPublicBaseUrl: () => string | null;
   heartbeat: { cancelRun?: (runId: string, reason?: string, options?: { errorCode?: string; eventMessage?: string; eventPayload?: Record<string, unknown>; resultJson?: Record<string, unknown> }) => Promise<unknown> };
   redactError: (error: unknown) => string;
@@ -157,7 +157,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
         .from(chatConversations)
         .where(
           and(
-            eq(chatConversations.companyId, currentEndpoint.companyId),
+            eq(chatConversations.spaceId, currentEndpoint.spaceId),
             eq(chatConversations.endpointId, currentEndpoint.id),
             eq(chatConversations.externalThreadId, event.threadId),
             inArray(chatConversations.state, ["active", "waiting"]),
@@ -172,7 +172,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
         .from(chatExternalPrincipals)
         .where(
           and(
-            eq(chatExternalPrincipals.companyId, currentEndpoint.companyId),
+            eq(chatExternalPrincipals.spaceId, currentEndpoint.spaceId),
             eq(chatExternalPrincipals.provider, "slack"),
             eq(
               chatExternalPrincipals.providerAccountId,
@@ -191,7 +191,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
             .from(issues)
             .where(
               and(
-                eq(issues.companyId, currentEndpoint.companyId),
+                eq(issues.spaceId, currentEndpoint.spaceId),
                 eq(issues.id, conversation.issueId),
                 eq(issues.assigneeAgentId, currentEndpoint.assignedAgentId),
               ),
@@ -210,7 +210,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
         const run = await tx
           .select({
             agentId: heartbeatRuns.agentId,
-            companyId: heartbeatRuns.companyId,
+            spaceId: heartbeatRuns.spaceId,
             contextSnapshot: heartbeatRuns.contextSnapshot,
             createdAt: heartbeatRuns.createdAt,
             id: heartbeatRuns.id,
@@ -220,7 +220,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
           .where(
             and(
               eq(heartbeatRuns.id, issue.executionRunId),
-              eq(heartbeatRuns.companyId, currentEndpoint.companyId),
+              eq(heartbeatRuns.spaceId, currentEndpoint.spaceId),
               eq(heartbeatRuns.agentId, currentEndpoint.assignedAgentId),
               inArray(heartbeatRuns.status, [
                 "queued",
@@ -247,7 +247,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
           .from(agentWakeupRequests)
           .where(
             and(
-              eq(agentWakeupRequests.companyId, currentEndpoint.companyId),
+              eq(agentWakeupRequests.spaceId, currentEndpoint.spaceId),
               eq(agentWakeupRequests.agentId, currentEndpoint.assignedAgentId),
               inArray(agentWakeupRequests.status, [
                 "queued",
@@ -258,8 +258,8 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
               or(
                 sql`${agentWakeupRequests.payload}->>'issueId' = ${issue.id}`,
                 sql`${agentWakeupRequests.payload}->>'taskId' = ${issue.id}`,
-                sql`${agentWakeupRequests.payload}->'_paperclipWakeContext'->>'issueId' = ${issue.id}`,
-                sql`${agentWakeupRequests.payload}->'_paperclipWakeContext'->>'taskId' = ${issue.id}`,
+                sql`${agentWakeupRequests.payload}->'_outpostWakeContext'->>'issueId' = ${issue.id}`,
+                sql`${agentWakeupRequests.payload}->'_outpostWakeContext'->>'taskId' = ${issue.id}`,
               ),
             ),
           )
@@ -285,7 +285,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
       const [inserted] = await tx
         .insert(chatActions)
         .values({
-          companyId: currentEndpoint.companyId,
+          spaceId: currentEndpoint.spaceId,
           endpointId: currentEndpoint.id,
           conversationId: conversation?.id ?? null,
           principalId: principal?.id ?? null,
@@ -415,7 +415,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
           })
           .where(eq(chatActions.id, current.id));
         await logActivity(tx as unknown as Db, {
-          companyId: current.companyId,
+          spaceId: current.spaceId,
           actorType: actorUserId ? "user" : "system",
           actorId: actorUserId ?? "slack-session-stop",
           action:
@@ -450,7 +450,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
         .where(
           and(
             eq(chatEndpoints.id, current.endpointId),
-            eq(chatEndpoints.companyId, current.companyId),
+            eq(chatEndpoints.spaceId, current.spaceId),
             eq(chatEndpoints.provider, "slack"),
             eq(chatEndpoints.status, "active"),
             eq(chatEndpoints.assignedAgentId, payload.assignedAgentId),
@@ -465,7 +465,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
             .where(
               and(
                 eq(chatConversations.id, current.conversationId),
-                eq(chatConversations.companyId, current.companyId),
+                eq(chatConversations.spaceId, current.spaceId),
                 eq(chatConversations.endpointId, current.endpointId),
                 eq(chatConversations.issueId, payload.issueId),
                 eq(chatConversations.externalThreadId, payload.threadId),
@@ -487,7 +487,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
               .where(
                 and(
                   eq(chatEndpointResources.id, conversation.resourceId),
-                  eq(chatEndpointResources.companyId, current.companyId),
+                  eq(chatEndpointResources.spaceId, current.spaceId),
                   eq(chatEndpointResources.endpointId, current.endpointId),
                 ),
               )
@@ -501,7 +501,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
             .where(
               and(
                 eq(chatExternalPrincipals.id, current.principalId),
-                eq(chatExternalPrincipals.companyId, current.companyId),
+                eq(chatExternalPrincipals.spaceId, current.spaceId),
                 eq(chatExternalPrincipals.provider, "slack"),
                 eq(
                   chatExternalPrincipals.providerAccountId,
@@ -533,7 +533,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
               .where(
                 and(
                   eq(issues.id, payload.issueId),
-                  eq(issues.companyId, current.companyId),
+                  eq(issues.spaceId, current.spaceId),
                   eq(issues.assigneeAgentId, payload.assignedAgentId),
                 ),
               )
@@ -567,14 +567,14 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
           .where(
             and(
               eq(agentWakeupRequests.id, payload.target.id),
-              eq(agentWakeupRequests.companyId, current.companyId),
+              eq(agentWakeupRequests.spaceId, current.spaceId),
               eq(agentWakeupRequests.agentId, payload.assignedAgentId),
               lte(agentWakeupRequests.requestedAt, eventCutoff),
               or(
                 sql`${agentWakeupRequests.payload}->>'issueId' = ${issue.id}`,
                 sql`${agentWakeupRequests.payload}->>'taskId' = ${issue.id}`,
-                sql`${agentWakeupRequests.payload}->'_paperclipWakeContext'->>'issueId' = ${issue.id}`,
-                sql`${agentWakeupRequests.payload}->'_paperclipWakeContext'->>'taskId' = ${issue.id}`,
+                sql`${agentWakeupRequests.payload}->'_outpostWakeContext'->>'issueId' = ${issue.id}`,
+                sql`${agentWakeupRequests.payload}->'_outpostWakeContext'->>'taskId' = ${issue.id}`,
               ),
             ),
           )
@@ -586,8 +586,8 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
           ["queued", "deferred_issue_execution"].includes(wakeup.status) &&
           !issue.executionRunId
         ) {
-          await notifyStrandedAgentStatus(tx, { companyId: current.companyId, agentId: wakeup.agentId });
-          await notifyChatInboundWakeNotices(tx, { companyId: current.companyId, issueId: issue.id });
+          await notifyStrandedAgentStatus(tx, { spaceId: current.spaceId, agentId: wakeup.agentId });
+          await notifyChatInboundWakeNotices(tx, { spaceId: current.spaceId, issueId: issue.id });
           await tx
             .update(agentWakeupRequests)
             .set({
@@ -611,13 +611,13 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
             .from(agents)
             .where(
               and(
-                eq(agents.companyId, current.companyId),
+                eq(agents.spaceId, current.spaceId),
                 eq(agents.id, payload.assignedAgentId),
               ),
             )
             .then((rows) => rows[0]?.name ?? "Outpost agent");
           await stageAuthorizedTaskControlPublication(tx, {
-            companyId: current.companyId,
+            spaceId: current.spaceId,
             conversationId: conversation.id,
             endpointId: current.endpointId,
             idempotencyKey: `control:stop:${current.id}`,
@@ -669,7 +669,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
             .where(
               and(
                 eq(heartbeatRuns.id, runId),
-                eq(heartbeatRuns.companyId, current.companyId),
+                eq(heartbeatRuns.spaceId, current.spaceId),
                 eq(heartbeatRuns.agentId, payload.assignedAgentId),
                 payload.target.kind === "wakeup"
                   ? eq(heartbeatRuns.wakeupRequestId, payload.target.id)
@@ -788,7 +788,7 @@ export function createSlackSessionStop(db: Db, options: SlackSessionStopOptions)
           .returning({ id: chatActions.id });
         if (!settled) return;
         await logActivity(tx as unknown as Db, {
-          companyId: action.companyId,
+          spaceId: action.spaceId,
           actorType: "user",
           actorId: claim.userId,
           action: cancellationWon

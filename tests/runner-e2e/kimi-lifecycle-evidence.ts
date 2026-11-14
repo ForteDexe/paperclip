@@ -7,7 +7,7 @@ import { isValidNativePrpEnvelope } from "./native-event-envelope.js";
 import type { ActiveStopCaller } from "./native-active-stop-evidence.js";
 
 type Row = Record<string, any>;
-export interface KimiLifecycleScope { companyId: string; issueId: string; runId: string; target: string; actionFile?: string; contextProof?: KimiContextProof }
+export interface KimiLifecycleScope { spaceId: string; issueId: string; runId: string; target: string; actionFile?: string; contextProof?: KimiContextProof }
 export interface KimiLifecycleState { run: Row; issue: Row; events: readonly unknown[] }
 export interface KimiLifecyclePending {
   schema: "outpost.e2e.kimi-native-write-pending.v1"; scope: KimiLifecycleScope;
@@ -24,13 +24,13 @@ function demand(value: unknown, reason: string): asserts value { if (!value) thr
 
 function origin(events: readonly unknown[], scope: KimiLifecycleScope) {
   events = withoutProvenKimiContext(events, scope.contextProof);
-  demand([scope.companyId, scope.issueId, scope.runId, scope.target].every(id) && events.length > 0 && events.length <= 20_000
+  demand([scope.spaceId, scope.issueId, scope.runId, scope.target].every(id) && events.length > 0 && events.length <= 20_000
     && !scope.target.startsWith("/") && !scope.target.split("/").some(part => part === ".." || part === "." || part === ""), "bounded exact scope required");
   const projected = events.map(rec).filter(row => rec(row.payload).orpEvent !== undefined)
     .map(row => ({ row, event: rec(rec(row.payload).orpEvent) })).sort((a, b) => a.row.seq - b.row.seq);
   const seqs = new Set<number>(), sourceIds = new Set<string>(), cursors = new Map<string, number>();
   for (const { row, event: e } of projected) {
-    demand(row.companyId === scope.companyId && row.runId === scope.runId && isValidNativePrpEnvelope(e, row.protocolSchemaVersion)
+    demand(row.spaceId === scope.spaceId && row.runId === scope.runId && isValidNativePrpEnvelope(e, row.protocolSchemaVersion)
       && e.runId === scope.runId && e.eventType === row.eventType && Number.isSafeInteger(row.seq) && row.seq > 0 && !seqs.has(row.seq)
       && id(e.sourceInstanceId) && Number.isSafeInteger(e.sourceSeq) && e.sourceSeq > (cursors.get(e.sourceInstanceId) ?? 0)
       && e.sourceEventId === `${e.sourceInstanceId}:${e.runId}:${e.sourceSeq}` && !sourceIds.has(e.sourceEventId)
@@ -72,7 +72,7 @@ function origin(events: readonly unknown[], scope: KimiLifecycleScope) {
   const extra = executions.filter(x => x.event.payload.executionId !== executionId), reads = new Map<string, typeof extra>();
   for (const x of extra) {
     const p = rec(x.event.payload);
-    demand(scope.actionFile && /^\.paperclip-eval-action-[a-f0-9]{36}\.txt$/u.test(scope.actionFile)
+    demand(scope.actionFile && /^\.outpost-eval-action-[a-f0-9]{36}\.txt$/u.test(scope.actionFile)
       && p.schema === "outpost.tool.execution.v1" && p.transport === "builtin"
       && x.row.seq < Math.min(card.row.seq, started[0]!.row.seq) && id(p.executionId), "extra native or semantic operation");
     const group = reads.get(p.executionId) ?? []; group.push(x); reads.set(p.executionId, group);
@@ -91,9 +91,9 @@ function origin(events: readonly unknown[], scope: KimiLifecycleScope) {
 
 export function observeKimiLifecyclePending(input: KimiLifecycleState & { scope: KimiLifecycleScope }): KimiLifecyclePending {
   const { scope, run, issue } = input, p = origin(input.events, scope);
-  demand(run.id === scope.runId && run.companyId === scope.companyId && run.nativeIssueId === scope.issueId && run.status === "running" && run.runtimeMode === "native"
+  demand(run.id === scope.runId && run.spaceId === scope.spaceId && run.nativeIssueId === scope.issueId && run.status === "running" && run.runtimeMode === "native"
     && run.nativeSessionId === p.card.event.normalizedSessionId && run.runnerInstanceId === p.card.event.sourceInstanceId
-    && issue.id === scope.issueId && issue.companyId === scope.companyId && issue.status === "in_progress"
+    && issue.id === scope.issueId && issue.spaceId === scope.spaceId && issue.status === "in_progress"
     && run.resultJson?.startupCancellation == null && run.resultJson?.nativeCancellation == null, "run is not original active native work");
   demand(!p.rows.some(x => terminalTypes.has(x.event.eventType) || closureTypes.has(x.event.eventType)
     || x.event.eventType === "tool.execution.completed" && x.event.payload.executionId === p.executionId), "permission or provider already settled");
@@ -121,16 +121,16 @@ export function readKimiLifecycleSettlement(input: KimiLifecycleState & { pendin
     && c.event.sourceSeq > Math.max(b.requestSourceSeq, b.startedSourceSeq) && t.event.sourceSeq > c.event.sourceSeq
     && p.rows.filter(x => x.event.eventType.startsWith("tool.execution.")).every(x => x.event.sourceSeq < t.event.sourceSeq)
     && !p.rows.some(x => ["completion.accepted", "task.completed", "run.result.proposed"].includes(x.event.eventType)), "callback accepted, replayed, or outlived its provider");
-  demand(run.id === b.scope.runId && run.companyId === b.scope.companyId && run.nativeIssueId === b.scope.issueId && run.runtimeMode === "native"
-    && run.nativeSessionId === b.normalizedSessionId && run.runnerInstanceId === b.sourceInstanceId && issue.id === b.scope.issueId && issue.companyId === b.scope.companyId, "run ownership or generation changed");
+  demand(run.id === b.scope.runId && run.spaceId === b.scope.spaceId && run.nativeIssueId === b.scope.issueId && run.runtimeMode === "native"
+    && run.nativeSessionId === b.normalizedSessionId && run.runnerInstanceId === b.sourceInstanceId && issue.id === b.scope.issueId && issue.spaceId === b.scope.spaceId, "run ownership or generation changed");
   if (input.branch === "stop") {
     const caller = input.caller, stop = rec(run.resultJson?.nativeCancellation), startup = rec(run.resultJson?.startupCancellation);
-    demand(caller?.type === "board" && caller.userId === "local-board" && caller.source === "local_implicit"
+    demand(caller?.type === "board" && caller.userId === "local-operator" && caller.source === "local_implicit"
       && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(input.cancellationRequestId ?? "")
       && c.event.eventType === "runtime_request.cancelled" && cp.reason === "turn_terminal"
       && t.event.eventType === "turn.cancelled" && tp.status === "cancelled" && tp.error === null && run.status === "cancelled" && issue.status === "in_progress"
       && startup.requestedBy?.type === caller.type && startup.requestedBy?.userId === caller.userId && startup.cancellationRequestId === input.cancellationRequestId
-      && stop.schema === "outpost.native-cancellation.v1" && stop.intentId === `native-cancellation:${input.cancellationRequestId}` && stop.companyId === b.scope.companyId && stop.runId === run.id && stop.issueId === issue.id
+      && stop.schema === "outpost.native-cancellation.v1" && stop.intentId === `native-cancellation:${input.cancellationRequestId}` && stop.spaceId === b.scope.spaceId && stop.runId === run.id && stop.issueId === issue.id
       && stop.scope === "run" && stop.dispatched === true && stop.dispatchState === "acknowledged" && stop.reasonCode === "cancellation_run_only"
       && Array.isArray(stop.effects) && stop.effects.length === 1 && stop.effects[0] === "release_run_resources"
       && id(stop.intentAuditId) && id(stop.acknowledgementAuditId) && stop.intentAuditId !== stop.acknowledgementAuditId, "caller-owned Stop acknowledgement missing");

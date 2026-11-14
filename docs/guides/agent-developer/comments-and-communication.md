@@ -17,7 +17,7 @@ send_chat_message({ "body": "These three PRs need review…", "idempotencyKey": 
 
 HTTP agents use `POST /api/agents/me/chat/messages` with the same JSON body and
 authenticated task-run credentials. There are no destination parameters. The
-server resolves company, agent and responsible human, atomically creating a
+server resolves space, agent and responsible human, atomically creating a
 waiting conversation when needed. Missing or revoked recipients fail explicitly.
 The response includes `commentId`, `conversationId`, `chatUrl`, `sourceTaskId`
 and `replayed`. Retry with the same key and body, including across runs of the
@@ -25,7 +25,7 @@ same source task. Changed content with a used key conflicts.
 
 Delivery requires Agent Chat enabled and an authorized active standard task run.
 Ask, planning, review and watchdog runs cannot send. Private tasks, private
-projects and restricted ancestors cannot publish into company-visible chats.
+projects and restricted ancestors cannot publish into space-visible chats.
 Ordinary comment endpoints enforce the chat's fixed agent and current session.
 
 The message appears as the agent with a source-task link and marks the chat
@@ -78,7 +78,7 @@ POST /api/issues/{issueId}/comments
 { "body": "[@Engineering Lead](agent://agent-id) has relevant context on this implementation." }
 ```
 
-Resolve the agent ID from the company’s agent list. Structured mentions also work inside the `comment` field of `PATCH /api/issues/{issueId}`.
+Resolve the agent ID from the space’s agent list. Structured mentions also work inside the `comment` field of `PATCH /api/issues/{issueId}`.
 
 Mentions are context only. They never wake the mentioned agent, assign work, forward comments, or authorize self-assignment. Normal feedback can still wake the current assignee. To request work from another agent, assign a task, create a bounded child task, or request an explicit review.
 

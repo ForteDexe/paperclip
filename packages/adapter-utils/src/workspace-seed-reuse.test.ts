@@ -51,38 +51,38 @@ it.each([
   { nested: true, secondBranch: "issue/second" },
   { nested: false, secondBranch: null },
   { nested: true, secondBranch: null },
-])("reuses company seed content and restores branch identity ($nested, $secondBranch)", async ({ nested, secondBranch }) => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-shared seed-'"));
+])("reuses space seed content and restores branch identity ($nested, $secondBranch)", async ({ nested, secondBranch }) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-shared seed-'"));
   roots.push(root);
   vi.stubEnv("OUTPOST_HOME", path.join(root, "home"));
   const source = path.join(root, "source");
-  const repositories = nested ? ["", ".paperclip-repositories/backend"] : [""];
+  const repositories = nested ? ["", ".outpost-repositories/backend"] : [""];
   for (const relative of repositories) {
     const cwd = path.join(source, relative);
     await fs.mkdir(cwd, { recursive: true });
     await git(cwd, "init", "-q", "-b", "main");
     await fs.writeFile(path.join(cwd, "tracked.txt"), "committed bytes\n");
     await fs.writeFile(path.join(cwd, "deleted.txt"), "delete in host\n");
-    await fs.writeFile(path.join(cwd, ".gitignore"), "secret.txt\n.paperclip-repositories/\n");
+    await fs.writeFile(path.join(cwd, ".gitignore"), "secret.txt\n.outpost-repositories/\n");
     await fs.symlink("tracked.txt", path.join(cwd, "link.txt"));
     await git(cwd, "add", ".");
     await git(cwd, "-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "-qm", "Seed");
   }
-  const company = path.join(root, "company");
+  const space = path.join(root, "space");
   const otherWorkspace = path.join(root, "other-workspace"); await fs.mkdir(otherWorkspace);
   const priorGenerations = new Set<string>();
   for (let index = 0; index < 16; index++) {
     await fs.writeFile(path.join(otherWorkspace, "file.txt"), `Other workspace ${index}\n`);
     const snapshot = await captureDirectorySnapshot(otherWorkspace);
-    const generation = workspaceSeedGeneration(snapshot, null, [], "company");
+    const generation = workspaceSeedGeneration(snapshot, null, [], "space");
     await disposeDirectorySnapshot(snapshot);
     const archive = path.join(root, `other-${index}.tar`);
     await exec("tar", ["-cf", archive, "-C", otherWorkspace, "."]);
-    expect(await publishWorkspaceSeedGeneration(path.join(company, "shared-v1"), generation,
-      { workspaceArchivePath: archive }, { companyDirectory: company, scope: "company" })).toBe(true);
+    expect(await publishWorkspaceSeedGeneration(path.join(space, "shared-v1"), generation,
+      { workspaceArchivePath: archive }, { spaceDirectory: space, scope: "space" })).toBe(true);
     priorGenerations.add(generation);
   }
-  const prepare = async (name: string, branch: string | null, companyDirectory = company) => {
+  const prepare = async (name: string, branch: string | null, spaceDirectory = space) => {
     const host = path.join(root, name, "host"), remote = path.join(root, name, "remote");
     for (const relative of repositories) {
       const cwd = path.join(host, relative);
@@ -100,8 +100,8 @@ it.each([
       spec: { transport: "sandbox", provider: "filesystem", sandboxId: name, remoteCwd: remote, timeoutMs: 30_000, apiKey: null },
       adapterKey: "test", client: client(), workspaceLocalDir: host, workspaceCheckpoint: true,
       workspaceGitIndexRefresh: true,
-      workspaceSeedCacheScope: "company",
-      workspaceSeedCacheDirectory: path.join(companyDirectory, "shared-v1"), workspaceSeedCacheCompanyDirectory: companyDirectory,
+      workspaceSeedCacheScope: "space",
+      workspaceSeedCacheDirectory: path.join(spaceDirectory, "shared-v1"), workspaceSeedCacheSpaceDirectory: spaceDirectory,
       workspaceDurableSeed: { workspaceArchivePath: path.join(durable, "workspace.tar"), gitArchivePath: path.join(durable, "git.tar") },
       runtimeSpan: async (name, work) => { phases.push(name); return work(); },
     };
@@ -140,18 +140,18 @@ it.each([
   expect(second.phases).toContain("workspace.git_index_refresh");
   expect(second.phases).not.toContain("workspace.git_clone");
   expect(second.phases).not.toContain("workspace.seed_publish");
-  const generations = await fs.readdir(path.join(company, "shared-v1"));
+  const generations = await fs.readdir(path.join(space, "shared-v1"));
   expect(generations).toHaveLength(17);
   const current = generations.filter(generation => !priorGenerations.has(generation));
   expect(current).toHaveLength(1);
-  expect(await readWorkspaceSeedGeneration(path.join(company, "shared-v1"), current[0]!, { companyDirectory: company })).not.toBeNull();
+  expect(await readWorkspaceSeedGeneration(path.join(space, "shared-v1"), current[0]!, { spaceDirectory: space })).not.toBeNull();
   const recovery = path.join(root, "replacement");
   const refreshCount = second.phases.filter(phase => phase === "workspace.git_index_refresh").length;
   const recovered = await prepareSandboxManagedRuntime({
     ...second.input,
     spec: { ...second.input.spec, remoteCwd: recovery },
     workspaceInboundMode: "durable_seed",
-    workspaceSeedCacheScope: undefined, workspaceSeedCacheDirectory: undefined, workspaceSeedCacheCompanyDirectory: undefined,
+    workspaceSeedCacheScope: undefined, workspaceSeedCacheDirectory: undefined, workspaceSeedCacheSpaceDirectory: undefined,
     workspaceBaseline: second.prepared.workspaceSyncSnapshot!.baseline,
     workspaceGitSnapshot: second.prepared.workspaceSyncSnapshot!.gitSnapshot,
   });
@@ -173,10 +173,10 @@ it.each([
     expect(await fs.readFile(path.join(first.host, relative, "tracked.txt"), "utf8")).toBe("working-tree bytes\n");
   }
   await first.prepared.cleanupWorkspaceSnapshot?.();
-  const isolated = await prepare("other-company", secondBranch, path.join(root, "other-company-cache"));
+  const isolated = await prepare("other-space", secondBranch, path.join(root, "other-space-cache"));
   expect(isolated.phases).toContain("workspace.git_clone");
   await isolated.prepared.cleanupWorkspaceSnapshot?.();
-  await fs.writeFile(path.join(company, "shared-v1", current[0]!, "git.tar"), "corrupted cache");
+  await fs.writeFile(path.join(space, "shared-v1", current[0]!, "git.tar"), "corrupted cache");
   const fallback = await prepare("corrupted-cache", secondBranch);
   expect(fallback.phases).toContain("workspace.git_clone");
   for (const relative of repositories) {
@@ -190,27 +190,27 @@ it.each([
 }, 30_000);
 
 it("separates shared seeds when file contents, Git head, origin or repository layout differ", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-seed-identity-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-seed-identity-"));
   roots.push(root);
   await fs.writeFile(path.join(root, "file.txt"), "first bytes");
   const first = await captureDirectorySnapshot(root);
   const git: GitWorkspaceSnapshot = { headCommit: "a".repeat(40), branchName: "first", originUrl: "https://example.test/one.git", overlayPaths: [], deletedPaths: [], ignoredPaths: [] };
-  const generation = workspaceSeedGeneration(first, git, [], "company");
-  expect(workspaceSeedGeneration(first, { ...git, branchName: "second" }, [], "company")).toBe(generation);
+  const generation = workspaceSeedGeneration(first, git, [], "space");
+  expect(workspaceSeedGeneration(first, { ...git, branchName: "second" }, [], "space")).toBe(generation);
   expect(workspaceSeedGeneration(first, git)).not.toBe(workspaceSeedGeneration(first, { ...git, branchName: "second" }));
-  expect(workspaceSeedGeneration(first, { ...git, headCommit: "b".repeat(40) }, [], "company")).not.toBe(generation);
-  expect(workspaceSeedGeneration(first, { ...git, originUrl: "https://example.test/two.git" }, [], "company")).not.toBe(generation);
-  expect(workspaceSeedGeneration(first, git, [{ path: "nested", snapshot: git }], "company")).not.toBe(generation);
-  expect(workspaceSeedGeneration(first, null, [{ path: "first", snapshot: git }], "company"))
-    .not.toBe(workspaceSeedGeneration(first, null, [{ path: "second", snapshot: git }], "company"));
+  expect(workspaceSeedGeneration(first, { ...git, headCommit: "b".repeat(40) }, [], "space")).not.toBe(generation);
+  expect(workspaceSeedGeneration(first, { ...git, originUrl: "https://example.test/two.git" }, [], "space")).not.toBe(generation);
+  expect(workspaceSeedGeneration(first, git, [{ path: "nested", snapshot: git }], "space")).not.toBe(generation);
+  expect(workspaceSeedGeneration(first, null, [{ path: "first", snapshot: git }], "space"))
+    .not.toBe(workspaceSeedGeneration(first, null, [{ path: "second", snapshot: git }], "space"));
   await fs.writeFile(path.join(root, "file.txt"), "second bytes");
   const second = await captureDirectorySnapshot(root);
-  expect(workspaceSeedGeneration(second, git, [], "company")).not.toBe(generation);
+  expect(workspaceSeedGeneration(second, git, [], "space")).not.toBe(generation);
   await disposeDirectorySnapshot(first); await disposeDirectorySnapshot(second);
 });
 
 it.each([false, true])("awaits restored-index work before inbound preparation completes (failure=%s)", async failure => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-index-barrier-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-index-barrier-"));
   roots.push(root);
   vi.stubEnv("OUTPOST_HOME", path.join(root, "home"));
   const host = path.join(root, "host"), remote = path.join(root, "remote");

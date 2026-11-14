@@ -8,7 +8,7 @@ import type {
   ProviderTraceFrame,
   ProviderTraceMetadata,
 } from "@outpost/shared";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 import { createProviderTraceObjectStore, objectProviderTraceRef, importingProviderTraceRef, providerTraceCleanupRef, type ProviderTraceObjectStore } from "./provider-trace-object-store.js";
 import { isObjectJournalBusyError, type ObjectJournalIOPriority } from "./object-byte-journal.js";
 import { resolveRunEvidenceStorage } from "./run-evidence-storage.js";
@@ -31,7 +31,7 @@ type TraceRow = typeof providerTraceRecords.$inferSelect;
 function traceRoot() {
   return (
     process.env.PROVIDER_TRACE_BASE_PATH ??
-    path.resolve(resolvePaperclipInstanceRoot(), "data", "provider-traces")
+    path.resolve(resolveOutpostInstanceRoot(), "data", "provider-traces")
   );
 }
 
@@ -56,7 +56,7 @@ function asMetadata(row: TraceRow): ProviderTraceMetadata {
     schema: "outpost.provider_trace_metadata.v1",
     id: row.id,
     runId: row.runId,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     status: row.status as ProviderTraceMetadata["status"],
     provider: row.provider,
     frameCount: row.frameCount,
@@ -344,7 +344,7 @@ export function providerTraceStore(db: Db, options: { objectStore?: ProviderTrac
     }
     if (newlyExpired) {
       await logActivity(db, {
-        companyId: row.companyId,
+        spaceId: row.spaceId,
         actorType: "system",
         actorId: "provider-trace-expiry",
         runId: row.runId,
@@ -387,7 +387,7 @@ export function providerTraceStore(db: Db, options: { objectStore?: ProviderTrac
 
   async function prepare(input: {
     runId: string;
-    companyId: string;
+    spaceId: string;
     provider: string;
     requestedBy: string;
     assertWriterAuthority?: () => Promise<void>;
@@ -421,14 +421,14 @@ export function providerTraceStore(db: Db, options: { objectStore?: ProviderTrac
     }
     await fs.mkdir(traceRoot(), { recursive: true, mode: 0o700 });
     const filename = `${randomUUID()}.ndjson`;
-    const traceRef = selected === "s3_segments" ? `s3-segments-v1:${input.companyId}/${input.runId}/${filename}` : filename;
+    const traceRef = selected === "s3_segments" ? `s3-segments-v1:${input.spaceId}/${input.runId}/${filename}` : filename;
     const filePath = tracePath(traceRef);
     const handle = await fs.open(filePath, "wx", 0o600);
     await handle.close();
     await fs.chmod(filePath, 0o600);
     const expiresAt = new Date(Date.now() + PROVIDER_TRACE_RETENTION_MS);
     const values = {
-      runId: input.runId, companyId: input.companyId, status: "capturing", provider: input.provider,
+      runId: input.runId, spaceId: input.spaceId, status: "capturing", provider: input.provider,
       traceRef, requestedBy: input.requestedBy, expiresAt,
     };
     const row = await db.transaction(async tx => {
@@ -443,11 +443,11 @@ export function providerTraceStore(db: Db, options: { objectStore?: ProviderTrac
     return { metadata: asMetadata(row), path: filePath };
   }
 
-  async function getByRun(runId: string, companyId?: string) {
-    const where = companyId
+  async function getByRun(runId: string, spaceId?: string) {
+    const where = spaceId
       ? and(
           eq(providerTraceRecords.runId, runId),
-          eq(providerTraceRecords.companyId, companyId),
+          eq(providerTraceRecords.spaceId, spaceId),
         )
       : eq(providerTraceRecords.runId, runId);
     return db
@@ -458,8 +458,8 @@ export function providerTraceStore(db: Db, options: { objectStore?: ProviderTrac
       .then((rows) => rows[0] ?? null);
   }
 
-  async function getReadableByRun(runId: string, companyId: string) {
-    const row = await getByRun(runId, companyId);
+  async function getReadableByRun(runId: string, spaceId: string) {
+    const row = await getByRun(runId, spaceId);
     if (!row) return null;
     const now = new Date();
     if (row.deletedAt) {
@@ -478,30 +478,30 @@ export function providerTraceStore(db: Db, options: { objectStore?: ProviderTrac
     return row;
   }
 
-  async function listMetadataForRuns(companyId: string, runIds: string[]) {
+  async function listMetadataForRuns(spaceId: string, runIds: string[]) {
     if (runIds.length === 0) return [];
     const rows = await db
       .select()
       .from(providerTraceRecords)
       .where(
         and(
-          eq(providerTraceRecords.companyId, companyId),
+          eq(providerTraceRecords.spaceId, spaceId),
           inArray(providerTraceRecords.runId, runIds.slice(0, 100)),
         ),
       );
     return rows.map(asMetadata);
   }
 
-  async function finalize(runId: string, companyId: string, failureReason?: string | null) {
-    try { return await finalizeCapture(runId, companyId, failureReason); }
-    finally { await external?.stopRun(companyId, runId); }
+  async function finalize(runId: string, spaceId: string, failureReason?: string | null) {
+    try { return await finalizeCapture(runId, spaceId, failureReason); }
+    finally { await external?.stopRun(spaceId, runId); }
   }
   async function finalizeCapture(
     runId: string,
-    companyId: string,
+    spaceId: string,
     failureReason?: string | null,
   ) {
-    const row = await getReadableByRun(runId, companyId);
+    const row = await getReadableByRun(runId, spaceId);
     if (!row) return null;
     let bytes: Buffer;
     try {
@@ -526,7 +526,7 @@ export function providerTraceStore(db: Db, options: { objectStore?: ProviderTrac
         ))
         .returning()
         .then((rows) => rows[0] ?? null);
-      if (!finalized) await getReadableByRun(runId, companyId);
+      if (!finalized) await getReadableByRun(runId, spaceId);
       return finalized;
     }
     let invalidRecordCount = 0;
@@ -569,12 +569,12 @@ export function providerTraceStore(db: Db, options: { objectStore?: ProviderTrac
       ))
       .returning()
       .then((rows) => rows[0] ?? null);
-    if (!finalized) await getReadableByRun(runId, companyId);
+    if (!finalized) await getReadableByRun(runId, spaceId);
     return finalized;
   }
 
-  async function inspect(runId: string, companyId: string) {
-    const row = await getReadableByRun(runId, companyId);
+  async function inspect(runId: string, spaceId: string) {
+    const row = await getReadableByRun(runId, spaceId);
     if (!row) return { trace: null, entries: [] };
     const entries = await entriesFor(row.traceRef).catch((error) => {
       if (isObjectJournalBusyError(error)) throw error;
@@ -588,18 +588,18 @@ export function providerTraceStore(db: Db, options: { objectStore?: ProviderTrac
     };
   }
 
-  async function readExactEntries(runId: string, companyId: string) {
-    const row = await getReadableByRun(runId, companyId);
+  async function readExactEntries(runId: string, spaceId: string) {
+    const row = await getReadableByRun(runId, spaceId);
     if (!row) return null;
     return entriesFor(row.traceRef);
   }
 
   async function revealFrame(
     runId: string,
-    companyId: string,
+    spaceId: string,
     frameId: number,
   ) {
-    const row = await getReadableByRun(runId, companyId);
+    const row = await getReadableByRun(runId, spaceId);
     if (!row) return null;
     const entry = (await entriesFor(row.traceRef)).find(
       (candidate) =>
@@ -610,14 +610,14 @@ export function providerTraceStore(db: Db, options: { objectStore?: ProviderTrac
       : null;
   }
 
-  async function download(runId: string, companyId: string) {
-    const row = await getReadableByRun(runId, companyId);
+  async function download(runId: string, spaceId: string) {
+    const row = await getReadableByRun(runId, spaceId);
     if (!row) return null;
     return { row, bytes: await readBytes(row.traceRef, "interactive") };
   }
 
-  async function remove(runId: string, companyId: string) {
-    const row = await getByRun(runId, companyId);
+  async function remove(runId: string, spaceId: string) {
+    const row = await getByRun(runId, spaceId);
     if (!row) return null;
     if (providerTraceCleanupRef(row.traceRef)) {
       const now = new Date();

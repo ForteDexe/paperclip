@@ -10,7 +10,7 @@ function text(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
-/** Runnerd's per-turn `paperclipCompletionContract`, or undefined when absent or malformed. */
+/** Runnerd's per-turn `outpostCompletionContract`, or undefined when absent or malformed. */
 export function openCodeProxyCompletionContract(value: unknown): { revision: string; criterionIds: string[] } | undefined {
   const contract = record(value);
   const revision = text(contract.revision).trim();

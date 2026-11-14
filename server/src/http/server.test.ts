@@ -9,7 +9,7 @@ import express from "express";
 import { DurablePrpControlPlane } from "../vendor/outpost-runner/index.js";
 import { registerRunnerPrpAuthority, runnerPrpWebSocketInternals } from "../realtime/runner-orp-ws.js";
 import { LocalRuntimeApiListenerClosedError, resolveLocalRuntimeApiUrl } from "../runtime-api.js";
-import { createPaperclipHttpServer } from "./server.js";
+import { createOutpostHttpServer } from "./server.js";
 import { privateHostnameGuard } from "../middleware/private-hostname-guard.js";
 
 async function guardedNativeRead(bindHost: string, configuredHost = bindHost) {
@@ -18,7 +18,7 @@ async function guardedNativeRead(bindHost: string, configuredHost = bindHost) {
   app.get("/api/native-read", (req, res) => {
     res.status(req.header("authorization") === "Bearer synthetic-readonly-run-token" ? 200 : 401).json({ readonly: true });
   });
-  const server = createPaperclipHttpServer(app, { apiUrl: "https://advertised.example.test" });
+  const server = createOutpostHttpServer(app, { apiUrl: "https://advertised.example.test" });
   try {
     server.listen(0, bindHost);
     await once(server, "listening");
@@ -35,7 +35,7 @@ async function guardedNativeRead(bindHost: string, configuredHost = bindHost) {
   }
 }
 
-describe("Paperclip HTTP server runner transport", () => {
+describe("Outpost HTTP server runner transport", () => {
   afterEach(() => {
     runnerPrpWebSocketInternals.resetForTests();
     vi.restoreAllMocks();
@@ -43,7 +43,7 @@ describe("Paperclip HTTP server runner transport", () => {
   });
 
   it("registers native runner authority without a separate startup call", async () => {
-    const server = createPaperclipHttpServer((_req, res) => res.end("ok"), {
+    const server = createOutpostHttpServer((_req, res) => res.end("ok"), {
       apiUrl: "http://127.0.0.1:3210",
     });
     const handleUpgrade = vi.fn();
@@ -52,7 +52,7 @@ describe("Paperclip HTTP server runner transport", () => {
     await once(server, "listening");
     const origin = resolveLocalRuntimeApiUrl();
     const authority = await registerRunnerPrpAuthority({
-      companyId: "company-1", runId,
+      spaceId: "space-1", runId,
       authority: { handleUpgrade } as unknown as DurablePrpControlPlane,
     });
     expect(authority.connectUrl).toBe(`${origin.replace("http:", "ws:")}/api/runner/v1/connect/${runId}`);
@@ -61,7 +61,7 @@ describe("Paperclip HTTP server runner transport", () => {
   });
 
   it("serves HTTP and rejects an unregistered runner over the real listener", async () => {
-    const server = createPaperclipHttpServer((_req, res) => res.end("ready"), {
+    const server = createOutpostHttpServer((_req, res) => res.end("ready"), {
       apiUrl: "http://127.0.0.1:3210",
     });
     server.listen(0, "127.0.0.1");
@@ -90,10 +90,10 @@ describe("Paperclip HTTP server runner transport", () => {
     vi.stubEnv("OUTPOST_API_URL", "https://advertised.example.test");
     vi.stubEnv("OUTPOST_LISTEN_HOST", "controller.example.test");
     vi.stubEnv("OUTPOST_LISTEN_PORT", "3210");
-    const server = createPaperclipHttpServer((_req, res) => res.end("ready"), {
+    const server = createOutpostHttpServer((_req, res) => res.end("ready"), {
       apiUrl: "https://advertised.example.test",
     });
-    const binding = { companyId: "company-1", runId: "00000000-0000-4000-8000-000000000779",
+    const binding = { spaceId: "space-1", runId: "00000000-0000-4000-8000-000000000779",
       authority: {} as DurablePrpControlPlane };
     expect(() => resolveLocalRuntimeApiUrl()).toThrow();
     await expect(registerRunnerPrpAuthority(binding)).rejects.toThrow();
@@ -126,11 +126,11 @@ describe("Paperclip HTTP server runner transport", () => {
     vi.stubEnv("OUTPOST_API_URL", "https://advertised.example.test");
     vi.stubEnv("OUTPOST_LISTEN_HOST", hostname);
     vi.stubEnv("OUTPOST_LISTEN_PORT", "1");
-    const server = createPaperclipHttpServer((req, res) => {
+    const server = createOutpostHttpServer((req, res) => {
       res.statusCode = req.headers.authorization === "Bearer synthetic-run-token" ? 200 : 401;
       res.end("local-controller");
     }, { apiUrl: "https://advertised.example.test" });
-    const directory = await mkdtemp(join(tmpdir(), "paperclip-bound-orp-"));
+    const directory = await mkdtemp(join(tmpdir(), "outpost-bound-orp-"));
     const runId = "00000000-0000-4000-8000-000000000780";
     const authority = new DurablePrpControlPlane({ stateDirectory: directory,
       identity: { runnerInstanceId: "bound-runner", environmentLeaseId: "bound-lease", normalizedSessionId: "bound-session", runId, turnId: "bound-turn", itemId: "bound-item" },
@@ -144,7 +144,7 @@ describe("Paperclip HTTP server runner transport", () => {
       const expected = `http://127.0.0.1:${address.port}`;
       expect(resolveLocalRuntimeApiUrl()).toBe(expected);
       expect(await (await fetch(resolveLocalRuntimeApiUrl(), { headers: { Authorization: "Bearer synthetic-run-token" } })).text()).toBe("local-controller");
-      registration = await registerRunnerPrpAuthority({ companyId: "company-1", runId, authority });
+      registration = await registerRunnerPrpAuthority({ spaceId: "space-1", runId, authority });
       expect(registration.connectUrl).toBe(`${expected.replace("http:", "ws:")}/api/runner/v1/connect/${runId}`);
       const upgraded = await new Promise<number | undefined>((resolve, reject) => {
         const req = request(registration!.connectUrl.replace("ws:", "http:"), { headers: {
@@ -171,7 +171,7 @@ describe("Paperclip HTTP server runner transport", () => {
   it.each([
     ["0.0.0.0", "127.0.0.1"], ["::", "[::1]"], ["::1", "[::1]"],
   ])("uses matching loopback for a real %s bind", async (host, connectHost) => {
-    const server = createPaperclipHttpServer((_req, res) => res.end("bound"), { apiUrl: "https://advertised.example.test" });
+    const server = createOutpostHttpServer((_req, res) => res.end("bound"), { apiUrl: "https://advertised.example.test" });
     server.listen(0, host);
     await once(server, "listening");
     try {
@@ -186,8 +186,8 @@ describe("Paperclip HTTP server runner transport", () => {
   });
 
   it("fails closed for unavailable or nonnumeric bound addresses and competing listeners", async () => {
-    const first = createPaperclipHttpServer((_req, res) => res.end("first"), { apiUrl: "http://ignored.example.test" });
-    const second = createPaperclipHttpServer((_req, res) => res.end("second"), { apiUrl: "http://ignored.example.test" });
+    const first = createOutpostHttpServer((_req, res) => res.end("first"), { apiUrl: "http://ignored.example.test" });
+    const second = createOutpostHttpServer((_req, res) => res.end("second"), { apiUrl: "http://ignored.example.test" });
     first.listen(0, "127.0.0.1");
     await once(first, "listening");
     try {
@@ -199,7 +199,7 @@ describe("Paperclip HTTP server runner transport", () => {
       second.listen(0, "127.0.0.1");
       await once(second, "listening");
       expect(() => resolveLocalRuntimeApiUrl()).toThrow("local_runtime_api_listener_ambiguous");
-      await expect(registerRunnerPrpAuthority({ companyId: "company-1", runId: "00000000-0000-4000-8000-000000000781", authority: {} as DurablePrpControlPlane }))
+      await expect(registerRunnerPrpAuthority({ spaceId: "space-1", runId: "00000000-0000-4000-8000-000000000781", authority: {} as DurablePrpControlPlane }))
         .rejects.toThrow("local_runtime_api_listener_ambiguous");
     } finally {
       await Promise.all([first, second].map(server => new Promise<void>(resolve => server.close(() => resolve()))));
@@ -209,7 +209,7 @@ describe("Paperclip HTTP server runner transport", () => {
   it("distinguishes a listener closed for shutdown from one that never served", async () => {
     expect(() => resolveLocalRuntimeApiUrl()).toThrow("local_runtime_api_listener_unavailable");
     expect(() => resolveLocalRuntimeApiUrl()).not.toThrow(LocalRuntimeApiListenerClosedError);
-    const server = createPaperclipHttpServer((_req, res) => res.end("closing"), { apiUrl: "http://ignored.example.test" });
+    const server = createOutpostHttpServer((_req, res) => res.end("closing"), { apiUrl: "http://ignored.example.test" });
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
     const client = await fetch(resolveLocalRuntimeApiUrl(), { keepalive: true });

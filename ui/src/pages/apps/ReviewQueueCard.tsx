@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2, ShieldQuestion, X } from "lucide-react";
 import type { ToolActionRequestListItem } from "@outpost/shared";
 import { humanizeConnectionDisplayName } from "@outpost/shared";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useToast } from "@/context/ToastContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { timeAgo } from "@/lib/timeAgo";
@@ -37,12 +37,12 @@ export function ReviewQueueCard({
   heading?: string;
   plain?: boolean;
 }) {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
 
   const query = useQuery({
-    queryKey: queryKeys.tools.actionRequests(selectedCompanyId ?? "__none__", "pending"),
-    queryFn: () => toolsApi.listActionRequests(selectedCompanyId!, "pending"),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.tools.actionRequests(selectedSpaceId ?? "__none__", "pending"),
+    queryFn: () => toolsApi.listActionRequests(selectedSpaceId!, "pending"),
+    enabled: !!selectedSpaceId,
     refetchInterval: 20_000,
   });
   const view = useQueryView(query);
@@ -52,7 +52,7 @@ export function ReviewQueueCard({
     return connectionId ? all.filter((item) => item.connectionId === connectionId) : all;
   }, [query.data, connectionId]);
 
-  if (!selectedCompanyId) return null;
+  if (!selectedSpaceId) return null;
   if (query.isLoading || view.kind === "reconnecting") return null;
   if (view.kind === "error") return <QueryErrorState error={query.error} action="load connection reviews" onRetry={view.retry} retrying={view.isFetching} />;
 
@@ -76,7 +76,7 @@ export function ReviewQueueCard({
       </div>
       <div className="space-y-3">
         {items.map((item) => (
-          <ReviewRow key={item.request.id} companyId={selectedCompanyId} item={item} plain={plain} />
+          <ReviewRow key={item.request.id} spaceId={selectedSpaceId} item={item} plain={plain} />
         ))}
       </div>
     </section>
@@ -84,11 +84,11 @@ export function ReviewQueueCard({
 }
 
 function ReviewRow({
-  companyId,
+  spaceId,
   item,
   plain,
 }: {
-  companyId: string;
+  spaceId: string;
   item: ToolActionRequestListItem;
   plain: boolean;
 }) {
@@ -104,14 +104,14 @@ function ReviewRow({
   const linkedInteraction = interactionQuery.data?.find(row => row.id === item.request.interactionId);
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.tools.actionRequests(companyId, "pending") });
-    queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(companyId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.tools.trustRules(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.tools.actionRequests(spaceId, "pending") });
+    queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(spaceId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.tools.trustRules(spaceId) });
     if (item.request.issueId) queryClient.invalidateQueries({ queryKey: queryKeys.issues.interactions(item.request.issueId) });
   };
 
   const allowOnce = useMutation({
-    mutationFn: () => toolsApi.approveActionRequest(companyId, item.request.id),
+    mutationFn: () => toolsApi.approveActionRequest(spaceId, item.request.id),
     onMutate: () => setResolving("allow"),
     onSuccess: () => {
       pushToast({ title: "Allowed once", body: `${actionLabel(item)} can run this time.`, tone: "success" });
@@ -126,7 +126,7 @@ function ReviewRow({
 
   const alwaysAllow = useMutation({
     mutationFn: async () => {
-      return toolsApi.approveActionRequest(companyId, item.request.id, true);
+      return toolsApi.approveActionRequest(spaceId, item.request.id, true);
     },
     onMutate: () => setResolving("always"),
     onSuccess: () => {
@@ -136,7 +136,7 @@ function ReviewRow({
         tone: "success",
       });
       invalidate();
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.trustRules(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.trustRules(spaceId) });
     },
     onError: (error) => {
       invalidate();
@@ -146,7 +146,7 @@ function ReviewRow({
   });
 
   const decline = useMutation({
-    mutationFn: () => toolsApi.declineActionRequest(companyId, item.request.id),
+    mutationFn: () => toolsApi.declineActionRequest(spaceId, item.request.id),
     onMutate: () => setResolving("decline"),
     onSuccess: () => {
       pushToast({ title: "Declined", body: `${actionLabel(item)} won’t run.`, tone: "info" });
@@ -162,11 +162,11 @@ function ReviewRow({
   if (linkedInteraction) return <IssueThreadInteractionCard
     interaction={linkedInteraction}
     onAcceptInteraction={async (_interaction, _keys, _options, rememberAction) => {
-      try { await toolsApi.approveActionRequest(companyId, item.request.id, rememberAction); }
+      try { await toolsApi.approveActionRequest(spaceId, item.request.id, rememberAction); }
       finally { invalidate(); }
     }}
     onRejectInteraction={async (_interaction, reason) => {
-      try { await toolsApi.declineActionRequest(companyId, item.request.id, reason); }
+      try { await toolsApi.declineActionRequest(spaceId, item.request.id, reason); }
       finally { invalidate(); }
     }}
   />;

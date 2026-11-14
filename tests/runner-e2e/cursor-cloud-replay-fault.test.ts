@@ -231,7 +231,7 @@ it("the actual driver reconnects the real client with its saved cursor and dedup
     throw new Error("Unexpected controlled request");
   };
   const client = new CursorCloudClient({ apiKey: "private-auth-canary", fetch: createCursorCloudReplayFaultFetch({ fetch: peer, digest, record: value => proofs.push(value) }) });
-  const driver = new CursorCloudDriver({ model: "explicit-model", config: { schema: "outpost.cursor-cloud.config.v1", repos: [{ url: "https://github.com/example/disposable", startingRef: "main" }] }, binding: { companyId: "company", agentId: "agent", issueId: "issue", normalizedSessionId: "session" }, runtimeDirectory: directory,
+  const driver = new CursorCloudDriver({ model: "explicit-model", config: { schema: "outpost.cursor-cloud.config.v1", repos: [{ url: "https://github.com/example/disposable", startingRef: "main" }] }, binding: { spaceId: "space", agentId: "agent", issueId: "issue", normalizedSessionId: "session" }, runtimeDirectory: directory,
     relay: { url: "https://relay.example.test/mcp", token: "private-relay-canary", socketPath: join(directory, "mcp.sock"), expiresAt: Date.now() + 60_000 }, instructions: "Exact fixture instructions.", dynamicTools: [], dynamicToolHandler: async () => ({ success: true }), client, reconnectDelayMs: 1 });
   const session = await driver.openSession({ runId: "local-run", normalizedSessionId: "session", workingDirectory: directory });
   const pump = (async () => { for await (const event of session.events()) events.push(event); })();

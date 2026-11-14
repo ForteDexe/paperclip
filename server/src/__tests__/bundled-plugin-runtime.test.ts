@@ -12,8 +12,8 @@ import {
 } from "../services/bundled-plugin-runtime.js";
 
 it("converts Windows loader paths into ESM file URL specifiers", () => {
-  expect(nodeImportSpecifier("C:\\paperclip\\cli\\node_modules\\tsx\\dist\\loader.mjs"))
-    .toBe("file:///C:/paperclip/cli/node_modules/tsx/dist/loader.mjs");
+  expect(nodeImportSpecifier("C:\\outpost\\cli\\node_modules\\tsx\\dist\\loader.mjs"))
+    .toBe("file:///C:/outpost/cli/node_modules/tsx/dist/loader.mjs");
 });
 
 const roots: string[] = [];

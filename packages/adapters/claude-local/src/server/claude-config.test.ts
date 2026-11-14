@@ -50,14 +50,14 @@ describe("prepareClaudeConfigSeed", () => {
   function createEnv(root: string, sourceDir: string): NodeJS.ProcessEnv {
     return {
       HOME: root,
-      OUTPOST_HOME: path.join(root, "paperclip-home"),
+      OUTPOST_HOME: path.join(root, "outpost-home"),
       OUTPOST_INSTANCE_ID: "test-instance",
       CLAUDE_CONFIG_DIR: sourceDir,
     };
   }
 
   it("reuses the same snapshot path when the seeded files are unchanged", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-config-seed-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-config-seed-"));
     cleanupDirs.push(root);
     const sourceDir = path.join(root, "claude-source");
     await fs.mkdir(sourceDir, { recursive: true });
@@ -70,8 +70,8 @@ describe("prepareClaudeConfigSeed", () => {
     const onLog = vi.fn(async () => {});
     const env = createEnv(root, sourceDir);
 
-    const first = await prepareClaudeConfigSeed(env, onLog, "company-1");
-    const second = await prepareClaudeConfigSeed(env, onLog, "company-1");
+    const first = await prepareClaudeConfigSeed(env, onLog, "space-1");
+    const second = await prepareClaudeConfigSeed(env, onLog, "space-1");
 
     expect(first).toBe(second);
     await expect(fs.readFile(path.join(first, "settings.json"), "utf8"))
@@ -81,7 +81,7 @@ describe("prepareClaudeConfigSeed", () => {
   });
 
   it("keeps an existing snapshot intact when the seeded files change", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-config-race-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-config-race-"));
     cleanupDirs.push(root);
     const sourceDir = path.join(root, "claude-source");
     await fs.mkdir(sourceDir, { recursive: true });
@@ -89,10 +89,10 @@ describe("prepareClaudeConfigSeed", () => {
 
     const onLog = vi.fn(async () => {});
     const env = createEnv(root, sourceDir);
-    const first = await prepareClaudeConfigSeed(env, onLog, "company-1");
+    const first = await prepareClaudeConfigSeed(env, onLog, "space-1");
 
     await fs.writeFile(path.join(sourceDir, "settings.json"), JSON.stringify({ theme: "dark" }), "utf8");
-    const second = await prepareClaudeConfigSeed(env, onLog, "company-1");
+    const second = await prepareClaudeConfigSeed(env, onLog, "space-1");
 
     expect(second).not.toBe(first);
     await expect(fs.readFile(path.join(first, "settings.json"), "utf8"))
@@ -102,7 +102,7 @@ describe("prepareClaudeConfigSeed", () => {
   });
 
   it("seeds bypassPermissions only when it is requested", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-config-bypass-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-config-bypass-"));
     cleanupDirs.push(root);
     const sourceDir = path.join(root, "claude-source");
     await fs.mkdir(sourceDir, { recursive: true });
@@ -114,8 +114,8 @@ describe("prepareClaudeConfigSeed", () => {
 
     const onLog = vi.fn(async () => {});
     const env = createEnv(root, sourceDir);
-    const defaultSeed = await prepareClaudeConfigSeed(env, onLog, "company-1");
-    const bypassSeed = await prepareClaudeConfigSeed(env, onLog, "company-1", {
+    const defaultSeed = await prepareClaudeConfigSeed(env, onLog, "space-1");
+    const bypassSeed = await prepareClaudeConfigSeed(env, onLog, "space-1", {
       permissionDefaultMode: "bypassPermissions",
     });
 
@@ -127,15 +127,15 @@ describe("prepareClaudeConfigSeed", () => {
   });
 
   it("writes a bypassPermissions settings file when the host has none", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-config-bypass-empty-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-config-bypass-empty-"));
     cleanupDirs.push(root);
     const sourceDir = path.join(root, "claude-source");
     await fs.mkdir(sourceDir, { recursive: true });
 
     const onLog = vi.fn(async () => {});
     const env = createEnv(root, sourceDir);
-    const defaultSeed = await prepareClaudeConfigSeed(env, onLog, "company-1");
-    const bypassSeed = await prepareClaudeConfigSeed(env, onLog, "company-1", {
+    const defaultSeed = await prepareClaudeConfigSeed(env, onLog, "space-1");
+    const bypassSeed = await prepareClaudeConfigSeed(env, onLog, "space-1", {
       permissionDefaultMode: "bypassPermissions",
     });
 
@@ -146,7 +146,7 @@ describe("prepareClaudeConfigSeed", () => {
   });
 
   it("strips local-only settings from remote Claude config seeds", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-config-boundary-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-config-boundary-"));
     cleanupDirs.push(root);
     const sourceDir = path.join(root, "claude-source");
     await fs.mkdir(sourceDir, { recursive: true });
@@ -168,7 +168,7 @@ describe("prepareClaudeConfigSeed", () => {
 
     const onLog = vi.fn(async () => {});
     const env = createEnv(root, sourceDir);
-    const seedDir = await prepareClaudeConfigSeed(env, onLog, "company-1");
+    const seedDir = await prepareClaudeConfigSeed(env, onLog, "space-1");
     const remoteSettings = JSON.parse(await fs.readFile(path.join(seedDir, "settings.json"), "utf8"));
 
     expect(remoteSettings.permissions).toEqual({ defaultMode: "default" });
@@ -193,7 +193,7 @@ describe("prepareSandboxClaudeProbeRuntime managed-config diagnostics", () => {
     kind: "remote",
     transport: "sandbox",
     providerKey: "daytona",
-    remoteCwd: "/home/daytona/paperclip-workspace",
+    remoteCwd: "/home/daytona/outpost-workspace",
     runner: {
       execute: async () => ({
         exitCode: 0,
@@ -229,7 +229,7 @@ describe("prepareSandboxClaudeProbeRuntime managed-config diagnostics", () => {
     const opaqueCredMarker = "OPAQUECREDMARKERconfig";
     const proxyMarker = "http://user:pass@proxy.corp.internal:3128";
 
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-config-mgmt-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-config-mgmt-"));
     cleanupDirs.push(root);
     const sourceDir = path.join(root, "claude-source");
     await fs.mkdir(sourceDir, { recursive: true });
@@ -238,7 +238,7 @@ describe("prepareSandboxClaudeProbeRuntime managed-config diagnostics", () => {
       savedEnv[key] = process.env[key];
     }
     process.env.CLAUDE_CONFIG_DIR = sourceDir;
-    process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+    process.env.OUTPOST_HOME = path.join(root, "outpost-home");
     process.env.OUTPOST_INSTANCE_ID = "test-instance";
 
     prepareAdapterExecutionTargetRuntime.mockRejectedValueOnce(
@@ -250,8 +250,8 @@ describe("prepareSandboxClaudeProbeRuntime managed-config diagnostics", () => {
       runId: "run-1",
       target: sandboxTarget,
       // The probe passes no CLAUDE_CONFIG_DIR, so the managed branch runs.
-      cwd: "/home/daytona/paperclip-workspace",
-      companyId: "company-1",
+      cwd: "/home/daytona/outpost-workspace",
+      spaceId: "space-1",
       env: {},
       installCommand: "install-claude",
       detectCommand: "claude",
@@ -290,7 +290,7 @@ describe("Claude tool shell prefix", () => {
   });
 
   async function installPrefix() {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-tool-prefix-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-tool-prefix-"));
     cleanupDirs.push(root);
     const prefixPath = path.join(root, "runtime", "tool-shell-prefix.sh");
     const command = buildRemoteClaudeConfigMaterializationCommand({
@@ -372,7 +372,7 @@ describe("Claude tool shell prefix", () => {
       kind: "remote",
       transport: "sandbox",
       providerKey: "daytona",
-      remoteCwd: "/home/daytona/paperclip-workspace",
+      remoteCwd: "/home/daytona/outpost-workspace",
       runner: {
         execute: async () => ({
           exitCode: 0,
@@ -391,7 +391,7 @@ describe("Claude tool shell prefix", () => {
       remoteClaudeConfigDir: "/sandbox/runtime/config",
       remoteClaudeConfigSeedDir: "/sandbox/runtime/config-seed",
       remoteToolShellPrefixPath: "/sandbox/runtime/tool-shell-prefix.sh",
-      options: { cwd: "/home/daytona/paperclip-workspace", env: {} },
+      options: { cwd: "/home/daytona/outpost-workspace", env: {} },
     })).resolves.toEqual({ toolShellPrefixInstalled: false });
   });
 });

@@ -14,10 +14,10 @@ describe("prompt response receipts", () => {
     const collector = createAcpxPromptReceiptCollector("pi")!;
     collector.begin("turn-1", "s");
     collector.observe("outbound", prompt(7));
-    collector.observe("inbound", { jsonrpc: "2.0", id: 6, result: { usage: { _meta: { paperclipPi: { provenance: "assistant_message_receipts", costUsd: 9 } } } } });
+    collector.observe("inbound", { jsonrpc: "2.0", id: 6, result: { usage: { _meta: { outpostPi: { provenance: "assistant_message_receipts", costUsd: 9 } } } } });
     expect(collector.statusFields()).toEqual({});
     collector.observe("inbound", { jsonrpc: "2.0", id: 7, result: { stopReason: "end_turn",
-      usage: { _meta: { paperclipPi: { provenance: "assistant_message_receipts", costUsd: 0.12 } } } } });
+      usage: { _meta: { outpostPi: { provenance: "assistant_message_receipts", costUsd: 0.12 } } } } });
     expect(collector.statusFields()).toEqual({ piPromptReceipt: { request_id: "turn-1", receipt: { provenance: "assistant_message_receipts", cost_usd: 0.12 } } });
     collector.begin("turn-2", "s");
     expect(collector.statusFields()).toEqual({});
@@ -27,16 +27,16 @@ describe("prompt response receipts", () => {
     const collector = createAcpxPromptReceiptCollector("cursor")!;
     collector.begin("turn-1", "s");
     collector.observe("outbound", prompt(3));
-    collector.observe("inbound", { jsonrpc: "2.0", id: 3, result: { stopReason: "max_tokens", _meta: { paperclipCursorUsage: cursorReceipt } } });
+    collector.observe("inbound", { jsonrpc: "2.0", id: 3, result: { stopReason: "max_tokens", _meta: { outpostCursorUsage: cursorReceipt } } });
     expect(collector.statusFields()).toEqual({});
     collector.begin("turn-2", "s");
     collector.observe("outbound", prompt(4));
-    collector.observe("inbound", { jsonrpc: "2.0", id: 4, result: { stopReason: "end_turn", _meta: { paperclipCursorUsage: cursorReceipt } } });
+    collector.observe("inbound", { jsonrpc: "2.0", id: 4, result: { stopReason: "end_turn", _meta: { outpostCursorUsage: cursorReceipt } } });
     expect(collector.statusFields()).toEqual({ cursorPromptReceipt: { request_id: "turn-2", receipt: cursorReceipt } });
   });
 
   it("invalidates a turn with a foreign session, a second prompt, an error, or a repeated reply", () => {
-    const reply = (id: number) => ({ jsonrpc: "2.0", id, result: { stopReason: "end_turn", _meta: { paperclipCursorUsage: cursorReceipt } } });
+    const reply = (id: number) => ({ jsonrpc: "2.0", id, result: { stopReason: "end_turn", _meta: { outpostCursorUsage: cursorReceipt } } });
     const cases: Array<(collector: NonNullable<ReturnType<typeof createAcpxPromptReceiptCollector>>) => void> = [
       c => { c.observe("outbound", prompt(1, "other")); c.observe("inbound", reply(1)); },
       c => { c.observe("outbound", prompt(1)); c.observe("outbound", prompt(2)); c.observe("inbound", reply(1)); },

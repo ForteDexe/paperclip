@@ -5,13 +5,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CONNECTABLE_APP_DEFINITIONS } from "@outpost/shared";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
-import { CompanySkills } from "@/pages/CompanySkills";
+import { SpaceSkills } from "@/pages/SpaceSkills";
 import { SkillSources } from "@/pages/SkillSources";
 import { SkillStudio } from "@/pages/SkillStudio";
 import { PluginLauncherProvider } from "@/plugins/launchers";
 import { Link, Route, Routes, useNavigate } from "@/lib/router";
 import { queryKeys } from "@/lib/queryKeys";
-import { COMPANY_ID, COMMIT, installFixtures, repositoryCandidates, repositoryFixture, SOURCE_ID } from "../../fixtures/githubSkillSources";
+import { SPACE_ID, COMMIT, installFixtures, repositoryCandidates, repositoryFixture, SOURCE_ID } from "../../fixtures/githubSkillSources";
 
 type Step = "start" | "repository" | "selection" | "imported" | "library" | "detail" | "agents" | "assigned" | "refresh" | "new-skills" | "scanning" | "saving";
 const routes: Record<Step, string> = {
@@ -44,7 +44,7 @@ export function GitHubSkillsJourney({ step = "start", packageScenario }: { step?
   useEffect(() => {
     const empty = ["start", "repository", "selection", "scanning", "saving"].includes(step);
     const cleanup = installFixtures(empty, false, { journey: true, packageScenario, scan: step === "scanning" ? "large" : undefined, saving: step === "saving", refreshed: step === "new-skills", assigned: step === "assigned" });
-    const draftKeys = ["new", SOURCE_ID].map(id => `outpost.skill-source-draft:${COMPANY_ID}:${id}`);
+    const draftKeys = ["new", SOURCE_ID].map(id => `outpost.skill-source-draft:${SPACE_ID}:${id}`);
     const previousDrafts = draftKeys.map(key => sessionStorage.getItem(key));
     draftKeys.forEach(key => sessionStorage.removeItem(key));
     if (step === "scanning") sessionStorage.setItem(draftKeys[0]!, JSON.stringify({ repositoryUrl: "https://github.com/acme/team-skills" }));
@@ -57,12 +57,12 @@ export function GitHubSkillsJourney({ step = "start", packageScenario }: { step?
         discovery: { repositoryId: "123456", repositoryUrl: "https://github.com/acme/team-skills", fullName: "acme/team-skills", trackingRef: "main", commitSha: COMMIT, candidates: discovered, warnings: [], packageMode: "repository", repositoryPackage: repositoryFixture(packageScenario) },
       }));
     }
-    client.setQueryData(queryKeys.apps.gallery(COMPANY_ID), {
+    client.setQueryData(queryKeys.apps.gallery(SPACE_ID), {
       apps: CONNECTABLE_APP_DEFINITIONS.filter(app => app.slug === "github").map(app => ({ ...app, ownershipAvailability: { platform_shared: true, platform_provisioned: false, customer: true, dcr: true } })),
-      capabilities: { canSetCompanyInstall: true, canCreateOrganizationGrant: true, canConnectAsCurrentUser: true },
+      capabilities: { canSetSpaceInstall: true, canCreateOrganizationGrant: true, canConnectAsCurrentUser: true },
     });
-    client.setQueryData(queryKeys.tools.applications(COMPANY_ID), { applications: [] });
-    client.setQueryData(queryKeys.tools.connections(COMPANY_ID), { connections: [] });
+    client.setQueryData(queryKeys.tools.applications(SPACE_ID), { applications: [] });
+    client.setQueryData(queryKeys.tools.connections(SPACE_ID), { connections: [] });
     initialNavigate.current(routes[step], { replace: true });
     setReady(true);
     return () => {
@@ -77,11 +77,11 @@ export function GitHubSkillsJourney({ step = "start", packageScenario }: { step?
   if (!ready) return null;
   return <PluginLauncherProvider>
     <Routes>
-      <Route path="/:companyPrefix" element={<Layout />}>
+      <Route path="/:spacePrefix" element={<Layout />}>
         <Route path="skills/sources" element={<SkillSources />} />
         <Route path="skills/sources/:sourceId" element={<SkillSources />} />
         <Route path="skills/studio/:skillId" element={<SkillStudio />} />
-        <Route path="skills/*" element={<CompanySkills />} />
+        <Route path="skills/*" element={<SpaceSkills />} />
         <Route path="*" element={<OutsideJourney />} />
       </Route>
     </Routes>
@@ -95,8 +95,8 @@ const meta = {
   tags: ["!autodocs"],
   parameters: {
     layout: "fullscreen",
-    docs: { description: { component: "Sequential checkpoints in the real Paperclip app shell: company navigation, Skills sidebar, breadcrumbs, library, source dialogs, and skill details. Each story starts at a checkpoint and remains interactive. Start at 01 and import acme/team-skills, open Installed, assign Code review to an agent, then refresh Sources to discover Security review. API responses and assignments are local fixtures; no GitHub OAuth, downloads, agent runs, or real mutations occur." } },
-    paperclip: {
+    docs: { description: { component: "Sequential checkpoints in the real Outpost app shell: space navigation, Skills sidebar, breadcrumbs, library, source dialogs, and skill details. Each story starts at a checkpoint and remains interactive. Start at 01 and import acme/team-skills, open Installed, assign Code review to an agent, then refresh Sources to discover Security review. API responses and assignments are local fixtures; no GitHub OAuth, downloads, agent runs, or real mutations occur." } },
+    outpost: {
       "capabilities": [
         "skills/versions",
         "skills/discovery",

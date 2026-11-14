@@ -63,14 +63,14 @@ describe("Cursor Cloud Product E2E registration", () => {
 
 describe("Cloud observer evidence calibration", () => {
   function planObserver(change?: (rows: Array<Record<string, any>>, identities: Array<Record<string, any>>) => void) {
-    const rows = [0, 1, 2].map(index => ({ id: `local-${index}`, companyId: "owned-company", agentId: "owned-agent", sessionIdBefore: null,
+    const rows = [0, 1, 2].map(index => ({ id: `local-${index}`, spaceId: "owned-space", agentId: "owned-agent", sessionIdBefore: null,
       contextSnapshot: index === 2 ? { forceFreshSession: true, workspaceRefreshReason: "accepted_plan_confirmation",
         source: "issue.interaction.accept", interactionStatus: "accepted", interactionId: "revised-confirmation" } : {} }));
     const identities = rows.map((row, index) => ({ agentId: index < 2 ? agentId : "bc-33333333-3333-4333-8333-333333333333",
       runId: `run-22222222-2222-4222-8222-22222222222${index}`, normalizedSessionId: index < 2 ? "planning-session" : "accepted-session" }));
     change?.(rows, identities);
     const api = { get: vi.fn(async (path: string) => {
-      if (path.includes("companies/")) return rows;
+      if (path.includes("spaces/")) return rows;
       const index = rows.findIndex(row => path.includes(`/heartbeat-runs/${row.id}`));
       if (index < 0) throw new Error("Unknown owned fixture run");
       if (!path.includes("/events?")) return rows[index];
@@ -79,7 +79,7 @@ describe("Cloud observer evidence calibration", () => {
       value.payload.orpEvent.payload.summary = JSON.stringify({ ...identity, ...identities[index] });
       return [{ ...value, seq: 1 }];
     }) } as unknown as RunnerApi;
-    return new CursorCloudOwnedObserver(api, "owned-company", "owned-agent", "test-key");
+    return new CursorCloudOwnedObserver(api, "owned-space", "owned-agent", "test-key");
   }
   it("allows only the revision-bound accepted Plan to rotate its owned Cloud session", async () => {
     const observer = planObserver();
@@ -125,14 +125,14 @@ describe("Cloud observer evidence calibration", () => {
     } else expect(readCursorCloudRemoteIdentity([value], "local-run")).toBeUndefined();
   });
   it("refuses unrelated agents before any provider cleanup mutation", async () => {
-    const api = { get: vi.fn(async (path: string) => path.includes("companies/") ? [{ id: "foreign" }] : { id: "foreign", companyId: "owned-company", agentId: "other-agent" }) } as unknown as RunnerApi;
-    const observer = new CursorCloudOwnedObserver(api, "owned-company", "owned-agent", "test-key");
+    const api = { get: vi.fn(async (path: string) => path.includes("spaces/") ? [{ id: "foreign" }] : { id: "foreign", spaceId: "owned-space", agentId: "other-agent" }) } as unknown as RunnerApi;
+    const observer = new CursorCloudOwnedObserver(api, "owned-space", "owned-agent", "test-key");
     const remove = vi.spyOn(observer.client, "deleteAgent");
     expect((await observer.cleanup())[0]?.passed).toBe(false); expect(remove).not.toHaveBeenCalled();
   });
   function ownedObserver() {
-    const api = { get: vi.fn(async (path: string) => path.includes("/events?") ? [{ ...notice(), seq: 1 }] : path.includes("companies/") ? [{ id: "local-run" }] : { id: "local-run", companyId: "owned-company", agentId: "owned-agent" }) } as unknown as RunnerApi;
-    const observer = new CursorCloudOwnedObserver(api, "owned-company", "owned-agent", "test-key");
+    const api = { get: vi.fn(async (path: string) => path.includes("/events?") ? [{ ...notice(), seq: 1 }] : path.includes("spaces/") ? [{ id: "local-run" }] : { id: "local-run", spaceId: "owned-space", agentId: "owned-agent" }) } as unknown as RunnerApi;
+    const observer = new CursorCloudOwnedObserver(api, "owned-space", "owned-agent", "test-key");
     vi.spyOn(observer.client, "getRun").mockResolvedValue({ id: runId, agentId, status: "CANCELLED", createdAt: "2026-10-28T00:00:00Z", updatedAt: "2026-10-28T00:00:00Z" });
     return observer;
   }

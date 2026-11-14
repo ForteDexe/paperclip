@@ -23,7 +23,7 @@ import {
   type ManagedWorkspaceIdentity,
 } from "../services/managed-workspace-identity.js";
 import {
-  WORKSPACE_EXECUTION_WORKSPACE_COMPANY_ID_ENV_KEY,
+  WORKSPACE_EXECUTION_WORKSPACE_SPACE_ID_ENV_KEY,
   WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY,
   WORKSPACE_HANDOFF_KEY_ENV_KEY,
   WORKSPACE_READINESS_TOKEN_ENV_KEY,
@@ -35,7 +35,7 @@ import {
 const tempDirs: string[] = [];
 
 function createMarkerDir(files: Record<string, string> = {}) {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "paperclip-workspace-readiness-"));
+  const dir = mkdtempSync(path.join(os.tmpdir(), "outpost-workspace-readiness-"));
   tempDirs.push(dir);
   const configPath = path.join(dir, "config.json");
   writeFileSync(configPath, "{}\n", "utf8");
@@ -62,7 +62,7 @@ function readyDb() {
     // Both readiness probes are `limit(1)` existence queries, so one row is enough
     // to answer either of them.
     select: vi.fn(() => {
-      const result = [{ companyId: "company-1", userId: "user-1" }];
+      const result = [{ spaceId: "space-1", userId: "user-1" }];
       const chain = {
         from: vi.fn(() => chain),
         innerJoin: vi.fn(() => chain),
@@ -93,7 +93,7 @@ function readyGuestEnv(configPath: string, overrides: NodeJS.ProcessEnv = {}): N
     OUTPOST_CONFIG: configPath,
     [WORKSPACE_HANDOFF_KEY_ENV_KEY]: "key",
     [WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY]: "ews-1",
-    [WORKSPACE_EXECUTION_WORKSPACE_COMPANY_ID_ENV_KEY]: "company-1",
+    [WORKSPACE_EXECUTION_WORKSPACE_SPACE_ID_ENV_KEY]: "space-1",
     ...overrides,
   };
 }
@@ -150,7 +150,7 @@ describe("resolveWorkspaceReadiness", () => {
       seedState: "verified",
       seedMode: "minimal",
       executionWorkspaceId: "ews-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       failurePhase: null,
     });
   });
@@ -166,20 +166,20 @@ describe("resolveWorkspaceReadiness", () => {
     expect(readiness.failurePhase).toBe("auth_handoff_not_configured");
   });
 
-  it("fails closed when the guest has no company binding", async () => {
+  it("fails closed when the guest has no space binding", async () => {
     const { configPath } = createMarkerDir({ "seed-manifest.json": verifiedManifest() });
     const db = readyDb();
     const readiness = await resolveWorkspaceReadiness({
       db,
       env: readyGuestEnv(configPath, {
-        [WORKSPACE_EXECUTION_WORKSPACE_COMPANY_ID_ENV_KEY]: undefined,
+        [WORKSPACE_EXECUTION_WORKSPACE_SPACE_ID_ENV_KEY]: undefined,
       }),
     });
     expect(readiness).toMatchObject({
       state: "degraded",
       cloneDataReady: false,
       authHandoffReady: false,
-      failurePhase: "workspace_company_not_configured",
+      failurePhase: "workspace_space_not_configured",
     });
     expect(db.select).not.toHaveBeenCalled();
   });
@@ -290,7 +290,7 @@ describe("probeManagedWorkspaceReadiness", () => {
   const identity: ManagedWorkspaceIdentity = {
     instanceId: "instance-a",
     executionWorkspaceId: "ews-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     handoffKey: "handoff-key",
     readinessToken: "probe-token",
     secretSource: "derived",
@@ -318,7 +318,7 @@ describe("probeManagedWorkspaceReadiness", () => {
       seedMode: "minimal",
       instanceId: "instance-a",
       executionWorkspaceId: "ews-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       failurePhase: null,
     },
   };
@@ -369,12 +369,12 @@ describe("probeManagedWorkspaceReadiness", () => {
     ).toMatchObject({ ok: false, reason: "identity_mismatch" });
   });
 
-  it("proves every active control-plane board identity before publication", async () => {
+  it("proves every active control-plane operator identity before publication", async () => {
     const db = handoffSubjectDb([
       { userId: "user-1", email: "one@example.com" },
       { userId: "user-2", email: "two@example.com" },
     ]);
-    await expect(listManagedWorkspaceHandoffSubjects(db, "company-1")).resolves.toEqual([
+    await expect(listManagedWorkspaceHandoffSubjects(db, "space-1")).resolves.toEqual([
       { userId: "user-1", email: "one@example.com" },
       { userId: "user-2", email: "two@example.com" },
     ]);
@@ -398,7 +398,7 @@ describe("probeManagedWorkspaceReadiness", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
-  it("blocks publication when no current board identity can use the handoff", async () => {
+  it("blocks publication when no current operator identity can use the handoff", async () => {
     const fetchImpl = vi.fn() as unknown as typeof fetch;
     await expect(probeManagedWorkspaceHandoffSubjects({
       db: handoffSubjectDb([]),
@@ -409,7 +409,7 @@ describe("probeManagedWorkspaceReadiness", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("rejects a workspace serving another instance, workspace, or company", async () => {
+  it("rejects a workspace serving another instance, workspace, or space", async () => {
     const wrongInstance = await probeManagedWorkspaceReadiness({
       healthUrl: "http://127.0.0.1:42013/api/health",
       identity,
@@ -430,19 +430,19 @@ describe("probeManagedWorkspaceReadiness", () => {
     });
     expect(wrongWorkspace).toMatchObject({ ok: false, reason: "identity_mismatch" });
 
-    const wrongCompany = await probeManagedWorkspaceReadiness({
+    const wrongSpace = await probeManagedWorkspaceReadiness({
       healthUrl: "http://127.0.0.1:42013/api/health",
       identity,
       fetchImpl: respond({
         ...readyPayload,
-        workspace: { ...readyPayload.workspace, companyId: "company-other" },
+        workspace: { ...readyPayload.workspace, spaceId: "space-other" },
       }),
     });
-    expect(wrongCompany).toMatchObject({ ok: false, reason: "identity_mismatch" });
+    expect(wrongSpace).toMatchObject({ ok: false, reason: "identity_mismatch" });
   });
 
-  it("rejects a partial readiness contract with no company identity", async () => {
-    const { companyId: _companyId, ...partialReadiness } = readyPayload.workspace;
+  it("rejects a partial readiness contract with no space identity", async () => {
+    const { spaceId: _spaceId, ...partialReadiness } = readyPayload.workspace;
     expect(
       await probeManagedWorkspaceReadiness({
         healthUrl: "http://127.0.0.1:42013/api/health",
@@ -508,30 +508,30 @@ describe("probeManagedWorkspaceReadiness", () => {
     const complete = {
       workspaceCwd: "/srv/worktree",
       executionWorkspaceId: "ews-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       env: { OUTPOST_WORKSPACE_HANDOFF_SECRET: "root" },
     };
     expect(resolveManagedWorkspaceIdentity(complete)).not.toBeNull();
-    expect(resolveManagedWorkspaceIdentity({ ...complete, companyId: null })).toBeNull();
+    expect(resolveManagedWorkspaceIdentity({ ...complete, spaceId: null })).toBeNull();
     expect(resolveManagedWorkspaceIdentity({ ...complete, executionWorkspaceId: null })).toBeNull();
     expect(resolveManagedWorkspaceIdentity({ ...complete, workspaceCwd: null })).toBeNull();
     expect(resolveManagedWorkspaceIdentity({ ...complete, env: {} })).toBeNull();
   });
 
-  it("derives distinct key material per company on the same workspace", () => {
+  it("derives distinct key material per space on the same workspace", () => {
     const base = {
       workspaceCwd: "/srv/worktree",
       executionWorkspaceId: "ews-1",
       env: { OUTPOST_WORKSPACE_HANDOFF_SECRET: "root" },
     };
-    const first = resolveManagedWorkspaceIdentity({ ...base, companyId: "company-1" });
-    const second = resolveManagedWorkspaceIdentity({ ...base, companyId: "company-2" });
-    // The signing key is deliberately per instance+workspace, not per company —
-    // the company is enforced by the signed `cid` claim instead — so the keys match
-    // while the recorded company differs.
+    const first = resolveManagedWorkspaceIdentity({ ...base, spaceId: "space-1" });
+    const second = resolveManagedWorkspaceIdentity({ ...base, spaceId: "space-2" });
+    // The signing key is deliberately per instance+workspace, not per space —
+    // the space is enforced by the signed `cid` claim instead — so the keys match
+    // while the recorded space differs.
     expect(first?.handoffKey).toBe(second?.handoffKey);
-    expect(first?.companyId).toBe("company-1");
-    expect(second?.companyId).toBe("company-2");
+    expect(first?.spaceId).toBe("space-1");
+    expect(second?.spaceId).toBe("space-2");
   });
 
   it("hands the guest only derived per-workspace material", () => {
@@ -539,7 +539,7 @@ describe("probeManagedWorkspaceReadiness", () => {
       [WORKSPACE_HANDOFF_KEY_ENV_KEY]: "handoff-key",
       [WORKSPACE_READINESS_TOKEN_ENV_KEY]: "probe-token",
       [WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY]: "ews-1",
-      OUTPOST_EXECUTION_WORKSPACE_COMPANY_ID: "company-1",
+      OUTPOST_EXECUTION_WORKSPACE_SPACE_ID: "space-1",
     });
   });
 });
@@ -572,7 +572,7 @@ describe("waitForManagedWorkspaceReadiness", () => {
   const identity: ManagedWorkspaceIdentity = {
     instanceId: "instance-a",
     executionWorkspaceId: "ews-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     handoffKey: "k",
     readinessToken: "t",
     secretSource: "derived",
@@ -591,7 +591,7 @@ describe("waitForManagedWorkspaceReadiness", () => {
       seedMode: "minimal",
       instanceId: "instance-a",
       executionWorkspaceId: "ews-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       failurePhase: null,
     },
   };

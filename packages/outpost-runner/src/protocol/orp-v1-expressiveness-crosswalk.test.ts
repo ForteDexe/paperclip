@@ -44,10 +44,10 @@ describe("ORP v1 expressiveness crosswalk", () => {
   it("classifies every required audit fact with concrete evidence", () => {
     const expected = [
       "semantic-tool-exposure", "semantic-tool-call-result", "semantic-tool-denial-and-redaction",
-      "optimistic-write-conflict", "artifacts-and-deliverables", "governance-links-and-interactions",
+      "optimistic-write-conflict", "artifacts-and-deliverables", "approvals-links-and-interactions",
       "blockers-monitors-and-wakes", "budget-cost-stop-reason", "audit-and-idempotency-receipts",
       "capability-negotiation-and-unsupported", "end-to-end-causality",
-      "control-plane-local-lifecycle", "future-cross-company-and-destructive-admin",
+      "control-plane-local-lifecycle", "future-cross-space-and-destructive-admin",
       "existing-fixture-and-doc-coverage",
     ];
     expect(crosswalk.facts.map((fact) => fact.id).sort()).toEqual(expected.sort());

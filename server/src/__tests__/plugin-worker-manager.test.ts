@@ -2,7 +2,7 @@ import { currentPluginInteractionOrigin } from "../services/plugin-interaction-c
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
-import type { Company, PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { Space, OutpostPluginManifestV1 } from "@outpost/shared";
 import {
   createHostClientHandlers,
   JsonRpcCallError,
@@ -48,13 +48,13 @@ const INVOCATION_SCOPE_WORKER_ENTRYPOINT = path.join(
 const TERMINATED_WORKER_ENTRYPOINT = path.join(FIXTURES_DIR, "plugin-worker-terminated.cjs");
 const EXECUTE_LOG_WORKER_ENTRYPOINT = path.join(FIXTURES_DIR, "plugin-worker-execute-log.cjs");
 
-const TEST_MANIFEST: PaperclipPluginManifestV1 = {
+const TEST_MANIFEST: OutpostPluginManifestV1 = {
   id: "test.plugin",
   apiVersion: 1,
   version: "1.0.0",
   displayName: "Test plugin",
   description: "Test plugin",
-  author: "Paperclip",
+  author: "Outpost",
   categories: ["automation"],
   capabilities: [],
   entrypoints: { worker: "dist/worker.js" },
@@ -70,13 +70,13 @@ describe("worker configuration completion", () => {
         instanceInfo: { instanceId: "instance-1", hostVersion: "1.0.0" }, apiVersion: 1, hostHandlers: {},
       });
       expect(applied).not.toHaveBeenCalled();
-      const updating = manager.call("test.plugin", "configChanged", { companyId: "company-1", config: { delayMs: 20 } });
+      const updating = manager.call("test.plugin", "configChanged", { spaceId: "space-1", config: { delayMs: 20 } });
       expect(applied).not.toHaveBeenCalled();
       await updating; expect(applied).toHaveBeenCalledTimes(1);
-      await expect(manager.call("test.plugin", "configChanged", { companyId: "company-1", config: { fail: true } })).rejects.toThrow("configuration rejected");
+      await expect(manager.call("test.plugin", "configChanged", { spaceId: "space-1", config: { fail: true } })).rejects.toThrow("configuration rejected");
       expect(applied).toHaveBeenCalledTimes(1);
       unsubscribe();
-      await manager.call("test.plugin", "configChanged", { companyId: "company-1", config: {} });
+      await manager.call("test.plugin", "configChanged", { spaceId: "space-1", config: {} });
       expect(applied).toHaveBeenCalledTimes(1);
     } finally { unsubscribe(); await manager.stopAll(); }
   });
@@ -209,7 +209,7 @@ describe("plugin-worker-manager stderr failure context", () => {
 
       await expect(handle.call("environmentExecute", {
         driverKey: "e2b",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "environment-1",
         config: {},
         lease: { providerLeaseId: "lease-1" },
@@ -242,7 +242,7 @@ describe("plugin-worker-manager stderr failure context", () => {
 
       await expect(handle.call("environmentExecute", {
         driverKey: "e2b",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "environment-1",
         config: {},
         lease: { providerLeaseId: "lease-1" },
@@ -284,7 +284,7 @@ describe("plugin-worker-manager stderr failure context", () => {
           "environmentExecute" as keyof HostToWorkerMethods,
           {
             driverKey: "e2b",
-            companyId: "company-1",
+            spaceId: "space-1",
             environmentId: "environment-1",
             config: {},
             lease: { providerLeaseId: "lease-1" },
@@ -313,36 +313,36 @@ describe("plugin-worker-manager stderr failure context", () => {
     const handle = createPluginWorkerHandle("test.plugin", {
       entrypointPath: INVOCATION_SCOPE_WORKER_ENTRYPOINT, manifest: TEST_MANIFEST, config: {},
       instanceInfo: { instanceId: "instance-1", hostVersion: "1.0.0" }, apiVersion: 1,
-      hostHandlers: { "companies.get": (async (_params: unknown, context?: { invocationScope?: unknown }) => context?.invocationScope) as never },
+      hostHandlers: { "spaces.get": (async (_params: unknown, context?: { invocationScope?: unknown }) => context?.invocationScope) as never },
     });
-    const common = { companyId: "company-a", params: { mode: "echo", requestedCompanyId: "company-a" } };
+    const common = { spaceId: "space-a", params: { mode: "echo", requestedSpaceId: "space-a" } };
     try {
       await handle.start();
       await expect(handle.call("resourceLifecycle", { ...common, resourceType: "project", resourceId: "project-a" } as never))
-        .resolves.toEqual({ companyId: "company-a", projectGit: { projectId: "project-a" } });
+        .resolves.toEqual({ spaceId: "space-a", projectGit: { projectId: "project-a" } });
       await expect(handle.call("resourceLifecycle", { ...common, resourceType: "agent", resourceId: "agent-a" } as never))
-        .resolves.toEqual({ companyId: "company-a" });
+        .resolves.toEqual({ spaceId: "space-a" });
       for (const kind of ["prepare", "inspect", "remove", "finalize"]) {
         const params = { ...common, projectId: "project-a", runId: "run-a", agentId: "agent-a", operation: {
           kind, source: { id: "workspace-a" }, binding: { projectWorkspaceId: "workspace-a" } } };
-        await expect(handle.call("workspaceOperation", params as never)).resolves.toEqual({ companyId: "company-a",
+        await expect(handle.call("workspaceOperation", params as never)).resolves.toEqual({ spaceId: "space-a",
           ...(kind === "finalize" ? {} : { projectGit: { projectId: "project-a", workspaceId: "workspace-a", operation: kind,
             ...(kind === "prepare" ? { runId: "run-a", agentId: "agent-a" } : {}) } }) });
       }
       await expect(handle.call("workspaceOperation", { ...common, projectId: "project-a", runId: null, agentId: null,
-        operation: { kind: "prepare", source: { id: "workspace-a" } } } as never)).resolves.toEqual({ companyId: "company-a", projectGit: { projectId: "project-a", workspaceId: "workspace-a", operation: "prepare" } });
+        operation: { kind: "prepare", source: { id: "workspace-a" } } } as never)).resolves.toEqual({ spaceId: "space-a", projectGit: { projectId: "project-a", workspaceId: "workspace-a", operation: "prepare" } });
       await expect(handle.call("workspaceOperation", { ...common, projectId: "project-a", runId: null, agentId: "agent-a",
-        operation: { kind: "prepare", source: { id: "workspace-a" } } } as never)).resolves.toEqual({ companyId: "company-a" });
+        operation: { kind: "prepare", source: { id: "workspace-a" } } } as never)).resolves.toEqual({ spaceId: "space-a" });
     } finally { await handle.stop().catch(() => undefined); }
   });
 
   it("passes performAction invocation scope to nested worker host calls", async () => {
-    const companiesGet = vi.fn(async (
-      params: { companyId: string },
-      context?: { invocationScope?: { companyId?: string | null } | null },
+    const spacesGet = vi.fn(async (
+      params: { spaceId: string },
+      context?: { invocationScope?: { spaceId?: string | null } | null },
     ) => ({
-      id: params.companyId,
-      scopedCompanyId: context?.invocationScope?.companyId ?? null,
+      id: params.spaceId,
+      scopedSpaceId: context?.invocationScope?.spaceId ?? null,
     }));
     const handle = createPluginWorkerHandle("test.plugin", {
       entrypointPath: INVOCATION_SCOPE_WORKER_ENTRYPOINT,
@@ -354,7 +354,7 @@ describe("plugin-worker-manager stderr failure context", () => {
       },
       apiVersion: 1,
       hostHandlers: {
-        "companies.get": companiesGet as never,
+        "spaces.get": spacesGet as never,
       },
     });
 
@@ -365,23 +365,23 @@ describe("plugin-worker-manager stderr failure context", () => {
         key: "probe",
         params: {
           mode: "echo",
-          requestedCompanyId: "company-a",
+          requestedSpaceId: "space-a",
         },
         actorContext: {
           type: "agent",
           userId: null,
           agentId: "agent-1",
           runId: "run-1",
-          companyId: "company-a",
+          spaceId: "space-a",
         },
         renderEnvironment: null,
       })).resolves.toEqual({
-        id: "company-a",
-        scopedCompanyId: "company-a",
+        id: "space-a",
+        scopedSpaceId: "space-a",
       });
-      expect(companiesGet).toHaveBeenCalledWith(
-        { companyId: "company-a" },
-        { invocationScope: { companyId: "company-a", agentOrigin: { agentId: "agent-1", runId: "run-1" } }, traceparent: undefined, providerSpanBudget: { remaining: 256 } },
+      expect(spacesGet).toHaveBeenCalledWith(
+        { spaceId: "space-a" },
+        { invocationScope: { spaceId: "space-a", agentOrigin: { agentId: "agent-1", runId: "run-1" } }, traceparent: undefined, providerSpanBudget: { remaining: 256 } },
       );
     } finally {
       await handle.stop().catch(() => undefined);
@@ -389,34 +389,34 @@ describe("plugin-worker-manager stderr failure context", () => {
   });
 
   it("binds nested host operations to the initiating agent and refuses proactive fallback during its invocation", async () => {
-    const companiesGet = vi.fn(async () => {
+    const spacesGet = vi.fn(async () => {
       await Promise.resolve();
       return currentPluginInteractionOrigin();
     });
     const handle = createPluginWorkerHandle("test.plugin", {
       entrypointPath: INVOCATION_SCOPE_WORKER_ENTRYPOINT, manifest: TEST_MANIFEST, config: {},
       instanceInfo: { instanceId: "instance-1", hostVersion: "1.0.0" }, apiVersion: 1,
-      proactiveCompanyScopes: ["company-a"], hostHandlers: { "companies.get": companiesGet as never },
+      proactiveSpaceScopes: ["space-a"], hostHandlers: { "spaces.get": spacesGet as never },
     });
     try {
       await handle.start();
-      const input = { toolName: "probe", parameters: { mode: "echo", requestedCompanyId: "company-a" },
-        runContext: { companyId: "company-a", agentId: "agent-a", runId: "run-a" } };
+      const input = { toolName: "probe", parameters: { mode: "echo", requestedSpaceId: "space-a" },
+        runContext: { spaceId: "space-a", agentId: "agent-a", runId: "run-a" } };
       await expect(handle.call("executeTool", input as HostToWorkerMethods["executeTool"][0])).resolves.toEqual({
-        companyId: "company-a", agentId: "agent-a", runId: "run-a",
+        spaceId: "space-a", agentId: "agent-a", runId: "run-a",
       });
       expect(currentPluginInteractionOrigin()).toBeUndefined();
-      const calls = companiesGet.mock.calls.length;
+      const calls = spacesGet.mock.calls.length;
       await expect(handle.call("executeTool", { ...input, parameters: { ...input.parameters, mode: "missing" } } as HostToWorkerMethods["executeTool"][0]))
         .rejects.toMatchObject({ code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED });
       await expect(handle.call("executeTool", { ...input, parameters: { ...input.parameters, mode: "unknown" } } as HostToWorkerMethods["executeTool"][0]))
         .rejects.toMatchObject({ code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED });
-      expect(companiesGet).toHaveBeenCalledTimes(calls);
+      expect(spacesGet).toHaveBeenCalledTimes(calls);
     } finally { await handle.stop().catch(() => undefined); }
   });
 
   it("passes echoed invocation scope to worker-to-host handlers", async () => {
-    const companiesGet = vi.fn(async () => ({ id: "company-1" }) as Company);
+    const spacesGet = vi.fn(async () => ({ id: "space-1" }) as Space);
     const handle = createPluginWorkerHandle("test.plugin", {
       entrypointPath: INVOCATION_SCOPE_WORKER_ENTRYPOINT,
       manifest: TEST_MANIFEST,
@@ -427,7 +427,7 @@ describe("plugin-worker-manager stderr failure context", () => {
       },
       apiVersion: 1,
       hostHandlers: {
-        "companies.get": companiesGet,
+        "spaces.get": spacesGet,
       },
     });
 
@@ -436,16 +436,16 @@ describe("plugin-worker-manager stderr failure context", () => {
 
       await expect(handle.call("getData", {
         key: "probe",
-        companyId: "company-1",
+        spaceId: "space-1",
         params: {
           mode: "echo",
-          requestedCompanyId: "company-1",
+          requestedSpaceId: "space-1",
         },
-      } as HostToWorkerMethods["getData"][0])).resolves.toEqual({ id: "company-1" });
+      } as HostToWorkerMethods["getData"][0])).resolves.toEqual({ id: "space-1" });
 
-      expect(companiesGet).toHaveBeenCalledWith(
-        { companyId: "company-1" },
-        { invocationScope: { companyId: "company-1" }, traceparent: undefined, providerSpanBudget: { remaining: 256 } },
+      expect(spacesGet).toHaveBeenCalledWith(
+        { spaceId: "space-1" },
+        { invocationScope: { spaceId: "space-1" }, traceparent: undefined, providerSpanBudget: { remaining: 256 } },
       );
     } finally {
       await handle.stop().catch(() => undefined);
@@ -455,11 +455,11 @@ describe("plugin-worker-manager stderr failure context", () => {
   it("rejects performAction nested host calls that omit the invocation id", async () => {
     const handlers = createHostClientHandlers({
       pluginId: "test.plugin",
-      capabilities: ["companies.read"],
+      capabilities: ["spaces.read"],
       services: {
-        companies: {
+        spaces: {
           list: vi.fn(async () => []),
-          get: vi.fn(async (params: { companyId: string }) => ({ id: params.companyId })),
+          get: vi.fn(async (params: { spaceId: string }) => ({ id: params.spaceId })),
         },
       } as unknown as HostServices,
     });
@@ -481,14 +481,14 @@ describe("plugin-worker-manager stderr failure context", () => {
       await expect(handle.call("performAction", {
         key: "probe",
         params: {
-          requestedCompanyId: "company-b",
+          requestedSpaceId: "space-b",
         },
         actorContext: {
           type: "agent",
           userId: null,
           agentId: "agent-1",
           runId: "run-1",
-          companyId: "company-a",
+          spaceId: "space-a",
         },
         renderEnvironment: null,
       })).rejects.toMatchObject({
@@ -501,13 +501,13 @@ describe("plugin-worker-manager stderr failure context", () => {
   });
 
   it("rejects nested worker host calls that forge an unknown invocation id", async () => {
-    const companiesGet = vi.fn(async (params: { companyId: string }) => ({ id: params.companyId }));
+    const spacesGet = vi.fn(async (params: { spaceId: string }) => ({ id: params.spaceId }));
     const handlers = createHostClientHandlers({
       pluginId: "test.plugin",
-      capabilities: ["companies.read"],
+      capabilities: ["spaces.read"],
       services: {
-        companies: {
-          get: companiesGet,
+        spaces: {
+          get: spacesGet,
         },
       } as unknown as HostServices,
     });
@@ -530,34 +530,34 @@ describe("plugin-worker-manager stderr failure context", () => {
         key: "probe",
         params: {
           mode: "unknown",
-          requestedCompanyId: "company-a",
+          requestedSpaceId: "space-a",
         },
         actorContext: {
           type: "agent",
           userId: null,
           agentId: "agent-1",
           runId: "run-1",
-          companyId: "company-a",
+          spaceId: "space-a",
         },
         renderEnvironment: null,
       })).rejects.toMatchObject({
         code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED,
         message: expect.stringContaining("unknown invocation scope"),
       });
-      expect(companiesGet).not.toHaveBeenCalled();
+      expect(spacesGet).not.toHaveBeenCalled();
     } finally {
       await handle.stop().catch(() => undefined);
     }
   });
 
-  it("rejects missing or unknown invocation ids while a company invocation is active", async () => {
-    const companiesGet = vi.fn(async () => ({ id: "company-2" }));
+  it("rejects missing or unknown invocation ids while a space invocation is active", async () => {
+    const spacesGet = vi.fn(async () => ({ id: "space-2" }));
     const hostHandlers = createHostClientHandlers({
       pluginId: "test.plugin",
-      capabilities: ["companies.read"],
+      capabilities: ["spaces.read"],
       services: {
-        companies: {
-          get: companiesGet,
+        spaces: {
+          get: spacesGet,
         },
       } as unknown as HostServices,
     });
@@ -579,17 +579,17 @@ describe("plugin-worker-manager stderr failure context", () => {
       for (const mode of ["omit", "unknown"]) {
         await expect(handle.call("getData", {
           key: "probe",
-          companyId: "company-1",
+          spaceId: "space-1",
           params: {
             mode,
-            requestedCompanyId: "company-2",
+            requestedSpaceId: "space-2",
           },
         } as HostToWorkerMethods["getData"][0])).rejects.toMatchObject({
           code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED,
         });
       }
 
-      expect(companiesGet).not.toHaveBeenCalled();
+      expect(spacesGet).not.toHaveBeenCalled();
     } finally {
       await handle.stop().catch(() => undefined);
     }
@@ -597,8 +597,8 @@ describe("plugin-worker-manager stderr failure context", () => {
 });
 
 
-describe("plugin host company context guards", () => {
-  it("rejects config and secret calls without host-issued company context before host services run", async () => {
+describe("plugin host space context guards", () => {
+  it("rejects config and secret calls without host-issued space context before host services run", async () => {
     const configGet = vi.fn(async () => ({ apiKey: "unreachable" }));
     const secretsResolve = vi.fn(async () => "unreachable");
     const handlers = createHostClientHandlers({
@@ -612,11 +612,11 @@ describe("plugin host company context guards", () => {
 
     await expect(handlers["config.get"]({})).rejects.toMatchObject({
       name: "InvocationScopeDeniedError",
-      message: expect.stringContaining("company context is required"),
+      message: expect.stringContaining("space context is required"),
     });
-    await expect(handlers["config.get"]({ companyId: "company-1" })).rejects.toMatchObject({
+    await expect(handlers["config.get"]({ spaceId: "space-1" })).rejects.toMatchObject({
       name: "InvocationScopeDeniedError",
-      message: expect.stringContaining("company context is required"),
+      message: expect.stringContaining("space context is required"),
     });
     await expect(
       handlers["secrets.resolve"]({
@@ -624,23 +624,23 @@ describe("plugin host company context guards", () => {
       }),
     ).rejects.toMatchObject({
       name: "InvocationScopeDeniedError",
-      message: expect.stringContaining("company context is required"),
+      message: expect.stringContaining("space context is required"),
     });
     await expect(
       handlers["secrets.resolve"]({
-        companyId: "company-1",
+        spaceId: "space-1",
         secretRef: { type: "secret_ref", secretId: "11111111-1111-4111-8111-111111111111" },
       }),
     ).rejects.toMatchObject({
       name: "InvocationScopeDeniedError",
-      message: expect.stringContaining("company context is required"),
+      message: expect.stringContaining("space context is required"),
     });
 
     expect(configGet).not.toHaveBeenCalled();
     expect(secretsResolve).not.toHaveBeenCalled();
   });
 
-  it("rejects cross-company config and secret reads in scoped worker invocations before host services run", async () => {
+  it("rejects cross-space config and secret reads in scoped worker invocations before host services run", async () => {
     const configGet = vi.fn(async () => ({ apiKeyRef: "unreachable" }));
     const secretsResolve = vi.fn(async () => "unreachable");
     const hostHandlers = createHostClientHandlers({
@@ -672,19 +672,19 @@ describe("plugin host company context guards", () => {
           params: {
             mode: "echo",
             hostMethod,
-            requestedCompanyId: "company-b",
+            requestedSpaceId: "space-b",
           },
           actorContext: {
             type: "agent",
             userId: null,
             agentId: "agent-1",
             runId: "run-1",
-            companyId: "company-a",
+            spaceId: "space-a",
           },
           renderEnvironment: null,
         })).rejects.toMatchObject({
           code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED,
-          message: expect.stringContaining('requested company "company-b"'),
+          message: expect.stringContaining('requested space "space-b"'),
         });
       }
 
@@ -697,26 +697,26 @@ describe("plugin host company context guards", () => {
 });
 
 
-describe("plugin proactive company scope (LOOA-629)", () => {
-  // A proactive plugin (e.g. the chat gateway) makes company-scoped worker→host
+describe("plugin proactive space scope (LOOA-629)", () => {
+  // A proactive plugin (e.g. the chat gateway) makes space-scoped worker→host
   // calls from its own timers/loops — outside any host-issued invocation, so
-  // those calls carry no paperclipInvocationId (the fixture's "omit" mode). The
-  // host authorizes a bounded set of companies for such proactive work; calls
-  // referencing an authorized company resolve to that scope, all others stay
+  // those calls carry no outpostInvocationId (the fixture's "omit" mode). The
+  // host authorizes a bounded set of spaces for such proactive work; calls
+  // referencing an authorized space resolve to that scope, all others stay
   // denied. Each case drives a real worker so the nested call flows through the
   // worker manager's context resolution, not just the SDK gate in isolation.
   function makeHandle(overrides?: {
-    companiesGet?: ReturnType<typeof vi.fn>;
+    spacesGet?: ReturnType<typeof vi.fn>;
     stateGet?: ReturnType<typeof vi.fn>;
   }) {
-    const companiesGet = overrides?.companiesGet ?? vi.fn(async () => ({ id: "company-1", name: "Co" }));
+    const spacesGet = overrides?.spacesGet ?? vi.fn(async () => ({ id: "space-1", name: "Co" }));
     const stateGet = overrides?.stateGet ?? vi.fn(async () => ({ value: "ok" }));
-    const listLifecycle = vi.fn(async () => [{ id: "1", companyId: "company-1" }]);
+    const listLifecycle = vi.fn(async () => [{ id: "1", spaceId: "space-1" }]);
     const hostHandlers = createHostClientHandlers({
       pluginId: "test.plugin",
-      capabilities: ["companies.read", "plugin.state.read", "events.subscribe"],
+      capabilities: ["spaces.read", "plugin.state.read", "events.subscribe"],
       services: {
-        companies: { get: companiesGet },
+        spaces: { get: spacesGet },
         state: { get: stateGet },
         events: { listLifecycle },
       } as unknown as HostServices,
@@ -729,109 +729,109 @@ describe("plugin proactive company scope (LOOA-629)", () => {
       apiVersion: 1,
       hostHandlers,
     });
-    return { handle, companiesGet, stateGet, listLifecycle };
+    return { handle, spacesGet, stateGet, listLifecycle };
   }
 
-  it("denies a proactive company-scoped call when no company is authorized", async () => {
-    const { handle, companiesGet } = makeHandle();
+  it("denies a proactive space-scoped call when no space is authorized", async () => {
+    const { handle, spacesGet } = makeHandle();
     try {
       await handle.start();
       await expect(handle.call("getData", {
-        params: { mode: "omit", hostMethod: "companies.get", requestedCompanyId: "company-1" },
+        params: { mode: "omit", hostMethod: "spaces.get", requestedSpaceId: "space-1" },
       } as unknown as HostToWorkerMethods["getData"][0])).rejects.toMatchObject({
         code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED,
-        message: expect.stringContaining("company context is required"),
+        message: expect.stringContaining("space context is required"),
       });
-      expect(companiesGet).not.toHaveBeenCalled();
+      expect(spacesGet).not.toHaveBeenCalled();
     } finally {
       await handle.stop().catch(() => undefined);
     }
   });
 
-  it("admits lifecycle polling only for configured proactive companies", async () => {
+  it("admits lifecycle polling only for configured proactive spaces", async () => {
     const { handle, listLifecycle } = makeHandle();
-    const poll = (companyId: string) => handle.call("getData", {
-      params: { mode: "omit", hostMethod: "events.listLifecycle", requestedCompanyId: companyId },
+    const poll = (spaceId: string) => handle.call("getData", {
+      params: { mode: "omit", hostMethod: "events.listLifecycle", requestedSpaceId: spaceId },
     } as unknown as HostToWorkerMethods["getData"][0]);
     try {
       await handle.start();
-      await expect(poll("company-1")).rejects.toMatchObject({ code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED });
-      handle.setProactiveCompanyScopes(["company-1"]);
-      expect(await poll("company-1")).toEqual([{ id: "1", companyId: "company-1" }]);
-      await expect(poll("company-2")).rejects.toMatchObject({ code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED });
-      handle.setProactiveCompanyScopes([]);
-      await expect(poll("company-1")).rejects.toMatchObject({ code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED });
+      await expect(poll("space-1")).rejects.toMatchObject({ code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED });
+      handle.setProactiveSpaceScopes(["space-1"]);
+      expect(await poll("space-1")).toEqual([{ id: "1", spaceId: "space-1" }]);
+      await expect(poll("space-2")).rejects.toMatchObject({ code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED });
+      handle.setProactiveSpaceScopes([]);
+      await expect(poll("space-1")).rejects.toMatchObject({ code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED });
       expect(listLifecycle).toHaveBeenCalledTimes(1);
     } finally {
       await handle.stop().catch(() => undefined);
     }
   });
 
-  it("admits a proactive company-scoped call for an authorized company", async () => {
-    const { handle, companiesGet } = makeHandle();
+  it("admits a proactive space-scoped call for an authorized space", async () => {
+    const { handle, spacesGet } = makeHandle();
     try {
       await handle.start();
-      handle.setProactiveCompanyScopes(["company-1"]);
+      handle.setProactiveSpaceScopes(["space-1"]);
       const result = await handle.call("getData", {
-        params: { mode: "omit", hostMethod: "companies.get", requestedCompanyId: "company-1" },
+        params: { mode: "omit", hostMethod: "spaces.get", requestedSpaceId: "space-1" },
       } as unknown as HostToWorkerMethods["getData"][0]);
-      expect(result).toMatchObject({ id: "company-1" });
-      expect(companiesGet).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({ id: "space-1" });
+      expect(spacesGet).toHaveBeenCalledTimes(1);
     } finally {
       await handle.stop().catch(() => undefined);
     }
   });
 
-  it("admits a proactive state.get (scopeKind company) for an authorized company", async () => {
+  it("admits a proactive state.get (scopeKind space) for an authorized space", async () => {
     const { handle, stateGet } = makeHandle();
     try {
       await handle.start();
-      handle.setProactiveCompanyScopes(["company-1"]);
+      handle.setProactiveSpaceScopes(["space-1"]);
       const result = await handle.call("getData", {
-        params: { mode: "omit", hostMethod: "state.get", requestedCompanyId: "company-1" },
+        params: { mode: "omit", hostMethod: "state.get", requestedSpaceId: "space-1" },
       } as unknown as HostToWorkerMethods["getData"][0]);
       expect(result).toMatchObject({ value: "ok" });
       expect(stateGet).toHaveBeenCalledTimes(1);
-      expect(stateGet.mock.calls[0]?.[0]).toMatchObject({ scopeKind: "company", scopeId: "company-1" });
+      expect(stateGet.mock.calls[0]?.[0]).toMatchObject({ scopeKind: "space", scopeId: "space-1" });
     } finally {
       await handle.stop().catch(() => undefined);
     }
   });
 
-  it("still denies proactive calls for a company outside the authorized set", async () => {
-    const { handle, companiesGet } = makeHandle();
+  it("still denies proactive calls for a space outside the authorized set", async () => {
+    const { handle, spacesGet } = makeHandle();
     try {
       await handle.start();
-      handle.setProactiveCompanyScopes(["company-1"]);
+      handle.setProactiveSpaceScopes(["space-1"]);
       await expect(handle.call("getData", {
-        params: { mode: "omit", hostMethod: "companies.get", requestedCompanyId: "company-2" },
+        params: { mode: "omit", hostMethod: "spaces.get", requestedSpaceId: "space-2" },
       } as unknown as HostToWorkerMethods["getData"][0])).rejects.toMatchObject({
         code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED,
-        message: expect.stringContaining("company context is required"),
+        message: expect.stringContaining("space context is required"),
       });
-      expect(companiesGet).not.toHaveBeenCalled();
+      expect(spacesGet).not.toHaveBeenCalled();
     } finally {
       await handle.stop().catch(() => undefined);
     }
   });
 
   it("revokes proactive access when the authorized set is cleared", async () => {
-    const { handle, companiesGet } = makeHandle();
+    const { handle, spacesGet } = makeHandle();
     try {
       await handle.start();
-      handle.setProactiveCompanyScopes(["company-1"]);
+      handle.setProactiveSpaceScopes(["space-1"]);
       await handle.call("getData", {
-        params: { mode: "omit", hostMethod: "companies.get", requestedCompanyId: "company-1" },
+        params: { mode: "omit", hostMethod: "spaces.get", requestedSpaceId: "space-1" },
       } as unknown as HostToWorkerMethods["getData"][0]);
-      expect(companiesGet).toHaveBeenCalledTimes(1);
+      expect(spacesGet).toHaveBeenCalledTimes(1);
 
-      handle.setProactiveCompanyScopes([]);
+      handle.setProactiveSpaceScopes([]);
       await expect(handle.call("getData", {
-        params: { mode: "omit", hostMethod: "companies.get", requestedCompanyId: "company-1" },
+        params: { mode: "omit", hostMethod: "spaces.get", requestedSpaceId: "space-1" },
       } as unknown as HostToWorkerMethods["getData"][0])).rejects.toMatchObject({
         code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED,
       });
-      expect(companiesGet).toHaveBeenCalledTimes(1);
+      expect(spacesGet).toHaveBeenCalledTimes(1);
     } finally {
       await handle.stop().catch(() => undefined);
     }
@@ -840,19 +840,19 @@ describe("plugin proactive company scope (LOOA-629)", () => {
 
 describe("plugin proactive events.subscribe: options-seeded scope + filter parity (LOOA-695)", () => {
   // The chat gateway subscribes to issue.*/approval.* from setup() via
-  // ctx.events.on(name, { companyId }, fn), which the SDK turns into a proactive
-  // (no-invocation) events.subscribe whose company lives in params.filter.companyId.
+  // ctx.events.on(name, { spaceId }, fn), which the SDK turns into a proactive
+  // (no-invocation) events.subscribe whose space lives in params.filter.spaceId.
   // Two things had to hold for outbound push to work and neither did before this
   // fix:
-  //   (1) the authorized company set must be present BEFORE the worker's setup()
+  //   (1) the authorized space set must be present BEFORE the worker's setup()
   //       calls land — the loader used to set it only after startWorker resolved,
   //       so it was seeded via WorkerStartOptions at handle creation instead;
-  //   (2) the host's proactive-scope resolver (referencedCompanyId) must derive
-  //       events.subscribe's company from filter.companyId, mirroring the SDK
-  //       gate (requestedCompanyScope).
+  //   (2) the host's proactive-scope resolver (referencedSpaceId) must derive
+  //       events.subscribe's space from filter.spaceId, mirroring the SDK
+  //       gate (requestedSpaceScope).
   // Each case drives a real worker so the subscribe flows through the manager's
   // context resolution exactly as it does in production.
-  function makeEventsHandle(seededCompanies: readonly string[]) {
+  function makeEventsHandle(seededSpaces: readonly string[]) {
     const eventsSubscribe = vi.fn(async (_params: unknown) => undefined);
     const hostHandlers = createHostClientHandlers({
       pluginId: "test.plugin",
@@ -869,41 +869,41 @@ describe("plugin proactive events.subscribe: options-seeded scope + filter parit
       apiVersion: 1,
       hostHandlers,
       // Seeded at handle creation — the loader now threads the plugin's
-      // configured companies here BEFORE startWorker, never via a post-start
-      // setProactiveCompanyScopes call.
-      proactiveCompanyScopes: seededCompanies,
+      // configured spaces here BEFORE startWorker, never via a post-start
+      // setProactiveSpaceScopes call.
+      proactiveSpaceScopes: seededSpaces,
     });
     return { handle, eventsSubscribe };
   }
 
-  it("admits a setup()-time events.subscribe for a company seeded via WorkerStartOptions", async () => {
-    const { handle, eventsSubscribe } = makeEventsHandle(["company-1"]);
+  it("admits a setup()-time events.subscribe for a space seeded via WorkerStartOptions", async () => {
+    const { handle, eventsSubscribe } = makeEventsHandle(["space-1"]);
     try {
       await handle.start();
-      // No post-start setProactiveCompanyScopes call: the seed from options is
+      // No post-start setProactiveSpaceScopes call: the seed from options is
       // the only authorization, exactly as it is when the worker subscribes
       // during setup() before startWorker resolves.
       await handle.call("getData", {
-        params: { mode: "omit", hostMethod: "events.subscribe", requestedCompanyId: "company-1" },
+        params: { mode: "omit", hostMethod: "events.subscribe", requestedSpaceId: "space-1" },
       } as unknown as HostToWorkerMethods["getData"][0]);
       expect(eventsSubscribe).toHaveBeenCalledTimes(1);
       expect(eventsSubscribe.mock.calls[0]?.[0]).toMatchObject({
-        filter: { companyId: "company-1" },
+        filter: { spaceId: "space-1" },
       });
     } finally {
       await handle.stop().catch(() => undefined);
     }
   });
 
-  it("still denies a proactive events.subscribe for a company outside the seeded set", async () => {
-    const { handle, eventsSubscribe } = makeEventsHandle(["company-1"]);
+  it("still denies a proactive events.subscribe for a space outside the seeded set", async () => {
+    const { handle, eventsSubscribe } = makeEventsHandle(["space-1"]);
     try {
       await handle.start();
       await expect(handle.call("getData", {
-        params: { mode: "omit", hostMethod: "events.subscribe", requestedCompanyId: "company-2" },
+        params: { mode: "omit", hostMethod: "events.subscribe", requestedSpaceId: "space-2" },
       } as unknown as HostToWorkerMethods["getData"][0])).rejects.toMatchObject({
         code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED,
-        message: expect.stringContaining("company context is required"),
+        message: expect.stringContaining("space context is required"),
       });
       expect(eventsSubscribe).not.toHaveBeenCalled();
     } finally {
@@ -911,12 +911,12 @@ describe("plugin proactive events.subscribe: options-seeded scope + filter parit
     }
   });
 
-  it("denies a proactive events.subscribe when no company is seeded", async () => {
+  it("denies a proactive events.subscribe when no space is seeded", async () => {
     const { handle, eventsSubscribe } = makeEventsHandle([]);
     try {
       await handle.start();
       await expect(handle.call("getData", {
-        params: { mode: "omit", hostMethod: "events.subscribe", requestedCompanyId: "company-1" },
+        params: { mode: "omit", hostMethod: "events.subscribe", requestedSpaceId: "space-1" },
       } as unknown as HostToWorkerMethods["getData"][0])).rejects.toMatchObject({
         code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED,
       });
@@ -948,7 +948,7 @@ function executeParams(
 ): HostToWorkerMethods["environmentExecute"][0] {
   return {
     driverKey: "daytona",
-    companyId: "company-1",
+    spaceId: "space-1",
     environmentId: "env-1",
     config: {},
     lease: { providerLeaseId: "lease-1" },
@@ -1035,7 +1035,7 @@ describe("plugin worker manager execute.log route", () => {
     }
   });
 
-  it("routes two concurrent same-company execute calls to their own sink only", async () => {
+  it("routes two concurrent same-space execute calls to their own sink only", async () => {
     const handle = makeExecuteLogHandle();
     const sinkA = vi.fn();
     const sinkB = vi.fn();
@@ -1044,7 +1044,7 @@ describe("plugin worker manager execute.log route", () => {
       const callA = handle.call(
         "environmentExecute",
         executeParams({
-          companyId: "company-1",
+          spaceId: "space-1",
           logs: [{ stream: "stdout", chunk: "a1" }],
           delayMs: 40,
         }),
@@ -1054,7 +1054,7 @@ describe("plugin worker manager execute.log route", () => {
       const callB = handle.call(
         "environmentExecute",
         executeParams({
-          companyId: "company-1",
+          spaceId: "space-1",
           logs: [{ stream: "stdout", chunk: "b1" }],
           delayMs: 40,
         }),
@@ -1062,8 +1062,8 @@ describe("plugin worker manager execute.log route", () => {
         sinkB,
       );
       await Promise.all([callA, callB]);
-      // Both calls belong to one company, so the shared pipe stays
-      // single-company and each chunk reaches only its own call's sink.
+      // Both calls belong to one space, so the shared pipe stays
+      // single-space and each chunk reaches only its own call's sink.
       expect(sinkA.mock.calls).toEqual([["stdout", "a1"]]);
       expect(sinkB.mock.calls).toEqual([["stdout", "b1"]]);
     } finally {
@@ -1071,22 +1071,22 @@ describe("plugin worker manager execute.log route", () => {
     }
   });
 
-  it("fails closed and never delivers execute.log across companies, even with a forged peer id", async () => {
-    // A single worker process serves every company, so it knows both companies'
-    // active invocation ids. While company B's execute stays active, company A's
+  it("fails closed and never delivers execute.log across spaces, even with a forged peer id", async () => {
+    // A single worker process serves every space, so it knows both spaces'
+    // active invocation ids. While space B's execute stays active, space A's
     // execute forges B's known, valid id and aims a chunk at B's route. The host
-    // must not deliver it to B. Before the exact-company-scope validation, the
+    // must not deliver it to B. Before the exact-space-scope validation, the
     // route lookup by the worker-supplied id delivered the forged chunk to B.
     const handle = makeExecuteLogHandle();
     const sinkA = vi.fn();
     const sinkB = vi.fn();
     try {
       await handle.start();
-      // Company B opens first and stays active (delayed finish), so its route is
-      // registered and known to the worker when company A runs.
+      // Space B opens first and stays active (delayed finish), so its route is
+      // registered and known to the worker when space A runs.
       const callB = handle.call(
         "environmentExecute",
-        executeParams({ companyId: "company-b", logs: [], delayMs: 200 }),
+        executeParams({ spaceId: "space-b", logs: [], delayMs: 200 }),
         undefined,
         sinkB,
       );
@@ -1095,7 +1095,7 @@ describe("plugin worker manager execute.log route", () => {
       const callA = handle.call(
         "environmentExecute",
         executeParams({
-          companyId: "company-a",
+          spaceId: "space-a",
           logs: [{ stream: "stdout", chunk: "forged-into-b", tag: "forge-previous" }],
         }),
         undefined,
@@ -1223,12 +1223,12 @@ function makeLoginPtyHandle(extra?: Record<string, unknown>) {
 }
 
 // One valid session home. The shape is the fixed root, one slash, and one UUID.
-const PTY_SESSION_HOME = "/tmp/paperclip-adapter-login/11111111-2222-4333-8444-555555555555";
+const PTY_SESSION_HOME = "/tmp/outpost-adapter-login/11111111-2222-4333-8444-555555555555";
 
 function ptyOpenInput(directive: unknown) {
   return {
     driverKey: "daytona",
-    companyId: "company-1",
+    spaceId: "space-1",
     environmentId: "env-1",
     // The test directive rides in `providerLeaseId`, an opaque field the manager
     // forwards to the worker unchanged. The manager carries the closed command
@@ -1251,7 +1251,7 @@ describe("plugin worker manager setup-token pty route gate", () => {
       await expect(
         handle.openLoginPtySession({
           driverKey: "daytona",
-          companyId: "company-1",
+          spaceId: "space-1",
           environmentId: "env-1",
           providerLeaseId: JSON.stringify({ mode: "normal" }),
           loginCommandKey: "gemini" as unknown as "claude",
@@ -1279,11 +1279,11 @@ describe("plugin worker manager setup-token pty route gate", () => {
       await expect(
         handle.openLoginPtySession({
           driverKey: "daytona",
-          companyId: "company-1",
+          spaceId: "space-1",
           environmentId: "env-1",
           providerLeaseId: JSON.stringify({ mode: "normal" }),
           loginCommandKey: "claude" as const,
-          sessionHome: "/tmp/paperclip-adapter-login/../etc",
+          sessionHome: "/tmp/outpost-adapter-login/../etc",
         }),
       ).rejects.toThrow("LOGIN_PTY_INVALID_SESSION_HOME");
       // The rejected open never consumed the single route.
@@ -1364,14 +1364,14 @@ describe("plugin worker manager setup-token pty route gate", () => {
     }
   });
 
-  it("retains the opening company for scoped host calls during input, stop, and close", async () => {
+  it("retains the opening space for scoped host calls during input, stop, and close", async () => {
     const stages: string[] = [];
-    const handle = makeLoginPtyHandle({ hostHandlers: { "companies.get": async (
-      params: { companyId: string; stage: string }, context?: { invocationScope?: { companyId?: string } },
+    const handle = makeLoginPtyHandle({ hostHandlers: { "spaces.get": async (
+      params: { spaceId: string; stage: string }, context?: { invocationScope?: { spaceId?: string } },
     ) => {
-      if (context?.invocationScope?.companyId !== params.companyId || params.companyId !== "company-1") throw new Error("Host company scope denied");
+      if (context?.invocationScope?.spaceId !== params.spaceId || params.spaceId !== "space-1") throw new Error("Host space scope denied");
       stages.push(params.stage);
-      return { id: params.companyId };
+      return { id: params.spaceId };
     } } });
     try {
       await handle.start();
@@ -1400,9 +1400,9 @@ describe("plugin worker manager setup-token pty route gate", () => {
     let releaseClose!: () => void;
     const heldClose = new Promise<void>(resolve => { releaseClose = resolve; });
     let closeCalls = 0;
-    const handle = makeLoginPtyHandle({ hostHandlers: { "companies.get": async (params: { stage: string }) => {
+    const handle = makeLoginPtyHandle({ hostHandlers: { "spaces.get": async (params: { stage: string }) => {
       if (params.stage === "loginPtyClose") { closeCalls++; await heldClose; }
-      return { id: "company-1" };
+      return { id: "space-1" };
     } } });
     try {
       await handle.start();

@@ -61,9 +61,9 @@ and skill compatibility still gate recovery. An MCP-only assignment change can
 resume only when the selected harness explicitly supports refreshing tools.
 
 Compact continuation messages include the active completion revision and criterion
-IDs plus a reminder to obtain an accepted `paperclip_finish` or `paperclip_block`
+IDs plus a reminder to obtain an accepted `outpost_finish` or `outpost_block`
 result for this turn. Reports from earlier turns do not finish the new turn.
-Provider final text alone remains insufficient; governed waits and strict native
+Provider final text alone remains insufficient; controlled waits and strict native
 completion validation keep their existing behavior. This reminder changes the
 resumed model input, not the tool catalog or automatic retry policy.
 
@@ -213,13 +213,13 @@ ORP tool delivery and supply the semantic tool bridge.
 ORP delivery keeps the controller's exact operation names, including compact MCP catalog tools.
 The selected permission and read-only policies still apply.
 
-Install Cursor explicitly with `paperclipai runtime setup cursor`; npm installation
+Install Cursor explicitly with `outpost runtime setup cursor`; npm installation
 does not download it. Run setup as the OS user that runs Outpost (the service
 account for a managed service). Setup writes to that account's
-`~/.paperclip/runtimes/cursor/<platform>-<arch>/<closure-sha256>`, so a system-wide
+`~/.outpost/runtimes/cursor/<platform>-<arch>/<closure-sha256>`, so a system-wide
 npm installation can remain read-only. Isolated provider HOME/XDG settings do not
 redirect this cache. Container images continue to use their packaged assets.
-Configure a company secret binding for `CURSOR_API_KEY` or
+Configure a space secret binding for `CURSOR_API_KEY` or
 `CURSOR_AUTH_TOKEN`, select Cursor in the Runner configuration, and select an exact
 model ID. Agent is the default; Plan and Ask are explicit modes. Outpost semantic
 questions are supported. Native AskQuestion and authoritative per-run dollar usage
@@ -242,7 +242,7 @@ Agent environment bindings support `CURSOR_API_KEY` only. Configure hosted shell
 secrets in the Cursor Cloud environment. Other selected process variables are
 rejected; they are not silently omitted from the hosted run.
 
-Outpost native tools use the injected `paperclip` MCP server with
+Outpost native tools use the injected `outpost` MCP server with
 controller-managed authentication; they need no Outpost REST credentials in the
 Cloud VM. Cursor also loads account and team MCP servers. The driver directs
 Outpost operations to the run-bound server; Cursor controls the other account
@@ -252,7 +252,7 @@ The hosted agent needs a reachable HTTPS callback origin from the server's publi
 URL configuration (for example `OUTPOST_PUBLIC_URL`). Forward only
 `POST /mcp/native-runs/:runId` through a callback proxy; keep the local trusted
 application private. The callback requires an expiring run capability and current
-company/run authority, then passes tool calls through normal ORP/Core dispatch.
+space/run authority, then passes tool calls through normal ORP/Core dispatch.
 **Test** checks configuration, callback reachability and account/model access
 without launching a paid prompt. A passing Test does not qualify task completion.
 
@@ -268,7 +268,7 @@ Production usage and dollar cost remain unknown; the Cloud usage API is not yet
 projected through the Runner facade.
 Budget policies can block further work after an unpriced run. If you accept
 unknown charges, clear **Block new work when usage has no reliable price** in
-both company and agent policies under **Costs → Budgets → Advanced settings**.
+both space and agent policies under **Costs → Budgets → Advanced settings**.
 Known-cost hard stops remain active, but cannot cap charges Cursor does not report.
 Outpost semantic tools use their existing authorization. Stop cancels the exact
 Cloud run and requires a terminal provider receipt. Unknown cancellation remains
@@ -308,12 +308,12 @@ blocks new imports rather than resetting the budget. See the
 for runnable acceptance cells and the remaining live qualification gates.
 
 Google Antigravity is an **unqualified, pending** native ACPX integration. The
-explicit `paperclipai runtime setup antigravity` command installs the verified
+explicit `outpost runtime setup antigravity` command installs the verified
 Antigravity ACP 1.4.3 distribution and its owned admission patch on macOS ARM64.
 It verifies both the official vendor closure and the separately pinned patched
 closure; npm installation downloads no Antigravity runtime. This setup installs
 assets only. Global release qualification remains pending and normal execution
-admission stays closed. An isolated operator can admit one company, exact model,
+admission stays closed. An isolated operator can admit one space, exact model,
 local platform and pinned native closure/profile until a fixed expiry through
 trusted server startup authority. The candidate supports a managed saved Google
 subscription; the recorded acceptance reused the same owner's personal default
@@ -360,7 +360,7 @@ startup.
 For sandbox environments, the existing explicit environment probe can measure
 OS, architecture and libc from its allocated lease. It records those facts only
 for an image pinned with `@sha256`, after confirmed lease cleanup. The record is
-server-owned and bound to the company, effective provider/image configuration
+server-owned and bound to the space, effective provider/image configuration
 and active custom-image identity. Creation and discovery read this record without
 allocating a sandbox. Configuration or image changes invalidate it. Mutable tags,
 provider defaults and unverified snapshot names do not establish compatibility;
@@ -433,7 +433,7 @@ remain unchanged.
 
 Cursor candidate configuration accepts `acpxSessionMode: "agent" | "plan" | "ask"`
 (default `agent`). This selects the native Cursor mode independently of
-`acpxPermissionMode` and Outpost task planning or company approvals. The mode
+`acpxPermissionMode` and Outpost task planning or space approvals. The mode
 is validated at the API boundary and is bound to provider admission and recovery;
 changing it cannot reuse an incompatible warm session. Other providers reject
 this setting. Cursor configuration requires an explicit model. Pending providers retain
@@ -443,7 +443,7 @@ operator-controlled qualification admission.
 Remote Codex sessions relay assigned app tools through the server's configured
 gateway. Small catalogs are sent directly. When a catalog would exceed the
 runner's 256-operation or 768 KiB contract limit, the server exposes
-`paperclip_search_assigned_tools` and `paperclip_call_assigned_tool` instead.
+`outpost_search_assigned_tools` and `outpost_call_assigned_tool` instead.
 Search accepts a `limit` from 1 to 20 and defaults to 5 results per page.
 Use the returned `nextOffset` as `offset` to read the next page. The tool and
 parameter descriptions include these bounds for providers that render numeric
@@ -521,15 +521,15 @@ task envelope retains task-specific constraints and the completion contract,
 without repeating the system instructions. This applies to all users of the
 proxy; already-recorded conversation history is not rewritten.
 
-The runner's authenticated bridge and controller still enforce company access,
-action claims, task modes, and governed approvals. Provider permission defaults
+The runner's authenticated bridge and controller still enforce space access,
+action claims, task modes, and controlled approvals. Provider permission defaults
 do not change workspace isolation or grant credentials or connection access.
-`approve-paperclip` remains an optional narrower mode for assigned planning and
+`approve-outpost` remains an optional narrower mode for assigned planning and
 task tools; `approve-reads` allows assigned reads; `deny-all` rejects requests.
 None of these restrictive modes is the default.
 
 `prepare_repository` requires a provider permission decision in restrictive
-modes, including `approve-paperclip`: repository acquisition can clone onto the
+modes, including `approve-outpost`: repository acquisition can clone onto the
 controller and is not automatically approved as a planning action. Full auto
 still allows it; repository acquisition currently has no cumulative disk quota.
 
@@ -547,15 +547,15 @@ boundary. Grok preserves these restricted settings, but its ACP requests lack
 independently bound tool authority. Those operations require a supported operator
 permission decision; a missing interactive responder stops with
 `approval_required`. An explicitly selected `approve-all` policy permits unattended
-Grok work in an assigned sandbox. Outpost authorization and governed approvals
+Grok work in an assigned sandbox. Outpost authorization and controlled approvals
 still apply.
 
 Runnerd selects only qualified provider profiles. Claude Managed and AWS
-AgentCore receive immutable company-profile snapshots with explicit retention,
+AgentCore receive immutable space-profile snapshots with explicit retention,
 spend, and invocation limits. No provider process receives an Outpost API
 credential or unrestricted server environment.
 
-Claude Managed resolves its API key from the company secret bound to the
+Claude Managed resolves its API key from the space secret bound to the
 selected profile. AWS AgentCore uses workload identity only; long-lived static
 AWS access keys are intentionally removed from the runner environment.
 
@@ -767,7 +767,7 @@ the fixture does not execute or verify the sandbox.
 ## Direct live protocol qualification
 
 The canonical direct live protocol suite lives in the separate
-`paperclip-evals` repository under `evals/outpost-runner/`. Its
+`outpost-evals` repository under `evals/outpost-runner/`. Its
 `live-mini.json` roster is the complete 35-case Codex qualification lane. Build
 this package's TypeScript output, release `outpost-runnerd`, package tarball,
 and `dist-issue-thread` viewer, then use the roster runner documented in that
@@ -805,11 +805,11 @@ additional scheduling after the observed campaign total reaches that value:
 
 ```sh
 OUTPOST_EVAL_MAX_CAMPAIGN_COST_USD=12 \
-  OUTPOST_EVALS_ROOT=/path/to/paperclip-evals \
+  OUTPOST_EVALS_ROOT=/path/to/outpost-evals \
   pnpm --filter @outpost/outpost-runner report:runner-live-evals
 
 # Run two scheduled native Codex executions only.
-OUTPOST_EVALS_ROOT=/path/to/paperclip-evals \
+OUTPOST_EVALS_ROOT=/path/to/outpost-evals \
   pnpm --filter @outpost/outpost-runner report:runner-live-evals -- \
   --candidate codex-luna --limit 2
 ```
@@ -845,7 +845,7 @@ environment binding:
 
 ```sh
 pnpm --filter @outpost/outpost-runner aws-agentcore:provision -- \
-  --aws-profile paperclip-dev \
+  --aws-profile outpost-dev \
   --github-oidc-provider-arn arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com
 ```
 
@@ -877,7 +877,7 @@ recorded lab unless `--force` is also supplied.
 | `test:eval-slice`                                       | Run the credential-free eval bundle, scoring, and behavior/fault slice.                                                                     |
 | `test:runner-workflow-evals`                            | Run the deterministic provider-neutral workflow matrix.                                                                                     |
 | `report:runner-workflow-evals`                          | Validate deterministic fail-closed results and write JSON, Markdown, JUnit, and GitHub-safe reports.                                        |
-| `report:runner-live-evals`                              | Execute the paid provider schedule and render its immutable attempts with the canonical `paperclip-evals` HTML grid.                        |
+| `report:runner-live-evals`                              | Execute the paid provider schedule and render its immutable attempts with the canonical `outpost-evals` HTML grid.                        |
 | `report:runner-chaos-evals`                             | Write the credential-free eight-scenario chaos schedule.                                                                                    |
 | `test:aws-agentcore-provisioning`                       | Validate the AgentCore template and wrapper safety contracts without provisioning.                                                          |
 | `aws-agentcore:provision` / `probe` / `lab` / `destroy` | Manage the scoped AgentCore proof-of-concept lifecycle.                                                                                     |
@@ -1020,7 +1020,7 @@ permissions can enforce denial of Runner state; use native Codex or isolated mod
 An operator must select this mode on the agent/Runner
 configuration. Task-level overrides are rejected, and agent credentials cannot
 set or inherit this option. Other providers reject this option. The internal ACPX task bridge uses a stable
-session name so an existing user MCP server named `paperclip` remains available.
+session name so an existing user MCP server named `outpost` remains available.
 
 Prepare authentication, skills, and external MCP servers on the execution machine
 before launching. Runner does not install skills, copy or remove credentials, or
@@ -1123,17 +1123,17 @@ require no candidate grant.
 The installation targets are macOS ARM64 and Linux x64. Platform startup,
 authenticated driver checks, and product acceptance are separate evidence levels.
 
-Run `paperclipai runtime setup kimi` on the execution host to install its complete
+Run `outpost runtime setup kimi` on the execution host to install its complete
 verified runtime. Setup downloads public pinned dependencies without model calls
 or provider credentials. An invalid existing installation fails without ambient
-Kimi fallback. Bind a company secret as `KIMI_API_KEY` and select an exact model.
+Kimi fallback. Bind a space secret as `KIMI_API_KEY` and select an exact model.
 This release uses the global Code endpoint at `https://api.kimi.ai/coding/v1`.
 Model suggestions are empty; a compatible typed model is decided by the provider.
 The account needs Kimi Code entitlement. Runtime Test verifies installation and
 queries the authenticated Code model catalog for the exact selected model. It
 sends no model prompt; an actual task verifies inference and tool execution.
 
-The qualified native profile uses ordinary setup, hiring, metadata Test and task
+The qualified native profile uses ordinary setup, creation, metadata Test and task
 startup on these two supported targets without operator admission flags. Protected
 candidate startup records remain reserved for future pending profiles; saved agent
 configuration and public requests cannot supply that authority.

@@ -6,7 +6,7 @@ import {
   agents,
   agentRuntimeState,
   agentWakeupRequests,
-  companies,
+  spaces,
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -66,7 +66,7 @@ describeEmbeddedPostgres("heartbeat lock release on cross-agent reassignment", (
     await db.delete(issues);
     await db.delete(agentRuntimeState);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     vi.clearAllMocks();
   });
 
@@ -75,26 +75,26 @@ describeEmbeddedPostgres("heartbeat lock release on cross-agent reassignment", (
   });
 
   async function seedCrossAgentScenario(opts: { holderStatus: "queued" | "running" }) {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const coderAgentId = randomUUID();
     const reviewerAgentId = randomUUID();
     const issueId = randomUUID();
     const holderRunId = randomUUID();
     const wakeupRequestId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "responsible-user",
     });
 
     await db.insert(agents).values([
       {
         id: coderAgentId,
-        companyId,
+        spaceId,
         name: "Coder",
         role: "engineer",
         status: "idle",
@@ -105,7 +105,7 @@ describeEmbeddedPostgres("heartbeat lock release on cross-agent reassignment", (
       },
       {
         id: reviewerAgentId,
-        companyId,
+        spaceId,
         name: "Reviewer",
         role: "engineer",
         status: "idle",
@@ -118,7 +118,7 @@ describeEmbeddedPostgres("heartbeat lock release on cross-agent reassignment", (
 
     await db.insert(agentWakeupRequests).values({
       id: wakeupRequestId,
-      companyId,
+      spaceId,
       agentId: coderAgentId,
       source: "assignment",
       status: "queued",
@@ -126,7 +126,7 @@ describeEmbeddedPostgres("heartbeat lock release on cross-agent reassignment", (
 
     await db.insert(heartbeatRuns).values({
       id: holderRunId,
-      companyId,
+      spaceId,
       agentId: coderAgentId,
       invocationSource: "assignment",
       triggerDetail: "system",
@@ -137,7 +137,7 @@ describeEmbeddedPostgres("heartbeat lock release on cross-agent reassignment", (
 
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Cross-agent reassignment race",
       status: "in_review",
       priority: "medium",
@@ -150,7 +150,7 @@ describeEmbeddedPostgres("heartbeat lock release on cross-agent reassignment", (
     });
 
     return {
-      companyId,
+      spaceId,
       coderAgentId,
       reviewerAgentId,
       issueId,
@@ -171,7 +171,7 @@ describeEmbeddedPostgres("heartbeat lock release on cross-agent reassignment", (
       payload: { issueId },
       contextSnapshot: { issueId, taskId: issueId, wakeReason: "issue_assigned" },
       requestedByActorType: "user",
-      requestedByActorId: "local-board",
+      requestedByActorId: "local-operator",
     });
 
     expect(followupRun).toBeNull();
@@ -298,7 +298,7 @@ describeEmbeddedPostgres("heartbeat lock release on cross-agent reassignment", (
   });
 
   it("cancels a queued holder's run on reassignment and emits agent.task_run for it", async () => {
-    const { companyId, coderAgentId, reviewerAgentId, issueId, holderRunId } =
+    const { spaceId, coderAgentId, reviewerAgentId, issueId, holderRunId } =
       await seedCrossAgentScenario({ holderStatus: "queued" });
 
     // Keep the reviewer's queue from auto-claiming/executing the new run
@@ -313,7 +313,7 @@ describeEmbeddedPostgres("heartbeat lock release on cross-agent reassignment", (
       .where(eq(agents.id, reviewerAgentId));
     await db.insert(heartbeatRuns).values({
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId: reviewerAgentId,
       invocationSource: "automation",
       triggerDetail: "system",
@@ -330,7 +330,7 @@ describeEmbeddedPostgres("heartbeat lock release on cross-agent reassignment", (
       payload: { issueId },
       contextSnapshot: { issueId, taskId: issueId, wakeReason: "issue_assigned" },
       requestedByActorType: "user",
-      requestedByActorId: "local-board",
+      requestedByActorId: "local-operator",
     });
 
     expect(newAssigneeRun).not.toBeNull();

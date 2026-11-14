@@ -35,7 +35,7 @@ export async function escalateExhaustedIssueReviewPathRecovery(
     // Share the issue fence with ownership, monitor, and interaction updates.
     // Re-read the disposition under the lock rather than blocking a repaired task.
     const issue = await tx.select({ ...getTableColumns(issues), externalConversationState: externalConversationStateSql() }).from(issues)
-      .where(and(eq(issues.companyId, run.companyId), eq(issues.id, issueId)))
+      .where(and(eq(issues.spaceId, run.spaceId), eq(issues.id, issueId)))
       .for("update").then((rows) => rows[0] ?? null);
     if (!issue || issue.status !== "in_review" || issue.assigneeAgentId !== run.agentId
       || issue.assigneeUserId || isWaitingConversation(issue)
@@ -46,12 +46,12 @@ export async function escalateExhaustedIssueReviewPathRecovery(
     // Otherwise the dispatcher leaves it overdue indefinitely without consuming it.
     if (hasUnconsumedIssueMonitorPath(issue, new Date())) {
       const owner = await tx.select({ runtimeConfig: agents.runtimeConfig }).from(agents)
-        .where(and(eq(agents.companyId, run.companyId), eq(agents.id, issue.assigneeAgentId)))
+        .where(and(eq(agents.spaceId, run.spaceId), eq(agents.id, issue.assigneeAgentId)))
         .then((rows) => rows[0] ?? null);
       if (owner && isHeartbeatWakeOnDemandEnabled(owner)) return null;
     }
 
-    const attention = (await issuesSvc.listReviewAttention(run.companyId, [issue], tx)).get(issueId);
+    const attention = (await issuesSvc.listReviewAttention(run.spaceId, [issue], tx)).get(issueId);
     if (!attention || decideIssueReviewPathRecovery({
       issueId,
       sourceRunId: run.id,
@@ -62,7 +62,7 @@ export async function escalateExhaustedIssueReviewPathRecovery(
     }).kind !== "exhausted") return null;
 
     const latestRun = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, run.companyId), or(
+      .where(and(eq(heartbeatRuns.spaceId, run.spaceId), or(
         eq(heartbeatRuns.issueId, issueId),
         eq(heartbeatRuns.nativeIssueId, issueId),
         sql`coalesce(${heartbeatRuns.contextSnapshot}->>'issueId', ${heartbeatRuns.contextSnapshot}->>'taskId') = ${issueId}`,
@@ -76,10 +76,10 @@ export async function escalateExhaustedIssueReviewPathRecovery(
     });
     const nextAction = "Inspect the run, then restore a scheduled check or review path, retry the original assignee, or record an intentional resolution.";
     const recoveryAction = await issueRecoveryActionService(tx as unknown as Db).upsertSourceScoped({
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       sourceIssueId: issueId,
       kind: "missing_disposition",
-      ownerType: "board",
+      ownerType: "operator",
       previousOwnerAgentId: run.agentId,
       returnOwnerAgentId: run.agentId,
       cause: ISSUE_REVIEW_PATH_LOST_WAKE_REASON,
@@ -92,19 +92,19 @@ export async function escalateExhaustedIssueReviewPathRecovery(
         maxRecoveryAttempts: 1,
       },
       nextAction,
-      wakePolicy: { type: "board_escalation", preservesSourceAssignee: true },
+      wakePolicy: { type: "operator_escalation", preservesSourceAssignee: true },
       attemptCount: 1,
       maxAttempts: 1,
       lastAttemptAt: run.finishedAt ?? new Date(),
     });
     await issuesSvc.update(issueId, {
-      status: "blocked", companyGuard: run.companyId,
+      status: "blocked", spaceGuard: run.spaceId,
     }, tx, publications, postCommitActions);
     const notice = buildStrandedRecoveryEscalationNotice({
       seed: {
         title: "No follow-up scheduled",
         tone: "danger",
-        body: "The automatic review-path repair finished without saving a scheduled check, reviewer, approval, or other maintained path. Outpost has blocked this task for a board decision; no further automatic follow-up is scheduled.",
+        body: "The automatic review-path repair finished without saving a scheduled check, reviewer, approval, or other maintained path. Outpost has blocked this task for a operator decision; no further automatic follow-up is scheduled.",
         nextAction,
       },
       recoveryCause: ISSUE_REVIEW_PATH_LOST_WAKE_REASON,
@@ -116,7 +116,7 @@ export async function escalateExhaustedIssueReviewPathRecovery(
       authorType: "system", presentation: notice.presentation, metadata: notice.metadata,
     }, tx);
     await logActivity(tx as unknown as Db, {
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       actorType: "system",
       actorId: "heartbeat",
       agentId: run.agentId,

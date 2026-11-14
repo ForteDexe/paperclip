@@ -8,7 +8,7 @@ export async function maintenanceDatabaseSupport(databaseUrl?: string): Promise<
 }
 
 export async function createMaintenanceArtifacts(root = tmpdir()) {
-  const directory = await mkdtemp(path.join(root, "paperclip-maintenance-"));
+  const directory = await mkdtemp(path.join(root, "outpost-maintenance-"));
   const retainedDirectory = process.env.OUTPOST_MAINTENANCE_KEEP_ARTIFACTS === "1" ? directory : undefined;
   let disposal: Promise<void> | undefined;
   return {

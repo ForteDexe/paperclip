@@ -6,8 +6,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   activityLog,
   agents,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   connectionGrantDelegations,
   connectionGrants,
   createDb,
@@ -21,9 +21,9 @@ import {
 } from "./helpers/embedded-postgres.js";
 
 vi.hoisted(() => {
-  process.env.OUTPOST_HOME = "/tmp/paperclip-test-home";
+  process.env.OUTPOST_HOME = "/tmp/outpost-test-home";
   process.env.OUTPOST_INSTANCE_ID = "vitest";
-  process.env.OUTPOST_LOG_DIR = "/tmp/paperclip-test-home/logs";
+  process.env.OUTPOST_LOG_DIR = "/tmp/outpost-test-home/logs";
   process.env.OUTPOST_IN_WORKTREE = "false";
 });
 
@@ -32,19 +32,19 @@ const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : 
 
 type Db = ReturnType<typeof createDb>;
 
-async function createApp(db: Db, companyId: string, userId: string) {
-  process.env.OUTPOST_LOG_DIR = "/tmp/paperclip-test-home/logs";
+async function createApp(db: Db, spaceId: string, userId: string) {
+  process.env.OUTPOST_LOG_DIR = "/tmp/outpost-test-home/logs";
   process.env.OUTPOST_IN_WORKTREE = "false";
   const { accessRoutes } = await import("../routes/access.js");
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
     req.actor = {
-      type: "board",
+      type: "operator",
       userId,
       source: "local_implicit",
-      companyIds: [companyId],
-      memberships: [{ companyId, membershipRole: "owner", status: "active" }],
+      spaceIds: [spaceId],
+      memberships: [{ spaceId, membershipRole: "owner", status: "active" }],
       isInstanceAdmin: true,
     };
     next();
@@ -61,9 +61,9 @@ async function createApp(db: Db, companyId: string, userId: string) {
   return app;
 }
 
-async function createCompanyWithOwner(db: Db) {
-  const company = await db
-    .insert(companies)
+async function createSpaceWithOwner(db: Db) {
+  const space = await db
+    .insert(spaces)
     .values({
       name: `Access Routes ${randomUUID()}`,
       issuePrefix: `AR${randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase()}`,
@@ -71,9 +71,9 @@ async function createCompanyWithOwner(db: Db) {
     .returning()
     .then((rows) => rows[0]!);
   const owner = await db
-    .insert(companyMemberships)
+    .insert(spaceMemberships)
     .values({
-      companyId: company.id,
+      spaceId: space.id,
       principalType: "user",
       principalId: `owner-${randomUUID()}`,
       status: "active",
@@ -81,7 +81,7 @@ async function createCompanyWithOwner(db: Db) {
     })
     .returning()
     .then((rows) => rows[0]!);
-  return { company, owner };
+  return { space, owner };
 }
 
 describeEmbeddedPostgres("access routes permissions upgrade compatibility", () => {
@@ -95,7 +95,7 @@ describeEmbeddedPostgres("access routes permissions upgrade compatibility", () =
   }, 30_000);
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-access-routes-permissions-upgrade-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-access-routes-permissions-upgrade-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -106,9 +106,9 @@ describeEmbeddedPostgres("access routes permissions upgrade compatibility", () =
     await db.delete(toolConnections);
     await db.delete(toolApplications);
     await db.delete(principalPermissionGrants);
-    await db.delete(companyMemberships);
+    await db.delete(spaceMemberships);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -116,10 +116,10 @@ describeEmbeddedPostgres("access routes permissions upgrade compatibility", () =
   });
 
   it("rejects owner self-lockout through the member route after the permissions upgrade", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
+    const { space, owner } = await createSpaceWithOwner(db);
 
-    const res = await request(await createApp(db, company.id, owner.principalId))
-      .patch(`/api/companies/${company.id}/members/${owner.id}`)
+    const res = await request(await createApp(db, space.id, owner.principalId))
+      .patch(`/api/spaces/${space.id}/members/${owner.id}`)
       .send({ membershipRole: "admin" });
 
     expect(res.status, JSON.stringify(res.body)).toBe(403);
@@ -127,18 +127,18 @@ describeEmbeddedPostgres("access routes permissions upgrade compatibility", () =
 
     const unchanged = await db
       .select()
-      .from(companyMemberships)
-      .where(eq(companyMemberships.id, owner.id))
+      .from(spaceMemberships)
+      .where(eq(spaceMemberships.id, owner.id))
       .then((rows) => rows[0]!);
     expect(unchanged.membershipRole).toBe("owner");
   }, 10_000);
 
   it("keeps custom grants when the role-only member route changes a member role", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
+    const { space, owner } = await createSpaceWithOwner(db);
     const member = await db
-      .insert(companyMemberships)
+      .insert(spaceMemberships)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         principalType: "user",
         principalId: `admin-${randomUUID()}`,
         status: "active",
@@ -148,7 +148,7 @@ describeEmbeddedPostgres("access routes permissions upgrade compatibility", () =
       .then((rows) => rows[0]!);
     const customScope = { projectIds: ["project-1"] };
     await db.insert(principalPermissionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       principalType: "user",
       principalId: member.principalId,
       permissionKey: "tasks:assign_scope",
@@ -156,8 +156,8 @@ describeEmbeddedPostgres("access routes permissions upgrade compatibility", () =
       grantedByUserId: owner.principalId,
     });
 
-    const res = await request(await createApp(db, company.id, owner.principalId))
-      .patch(`/api/companies/${company.id}/members/${member.id}`)
+    const res = await request(await createApp(db, space.id, owner.principalId))
+      .patch(`/api/spaces/${space.id}/members/${member.id}`)
       .send({ membershipRole: "operator" });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -168,7 +168,7 @@ describeEmbeddedPostgres("access routes permissions upgrade compatibility", () =
       .from(principalPermissionGrants)
       .where(
         and(
-          eq(principalPermissionGrants.companyId, company.id),
+          eq(principalPermissionGrants.spaceId, space.id),
           eq(principalPermissionGrants.principalType, "user"),
           eq(principalPermissionGrants.principalId, member.principalId),
         ),
@@ -182,30 +182,30 @@ describeEmbeddedPostgres("access routes permissions upgrade compatibility", () =
   });
 
   it("sweeps personal connection access when the member route suspends a user", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
-    const member = await db.insert(companyMemberships).values({
-      companyId: company.id,
+    const { space, owner } = await createSpaceWithOwner(db);
+    const member = await db.insert(spaceMemberships).values({
+      spaceId: space.id,
       principalType: "user",
       principalId: `member-${randomUUID()}`,
       status: "active",
       membershipRole: "member",
     }).returning().then((rows) => rows[0]!);
     const agent = await db.insert(agents).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Delegated route agent",
       role: "worker",
       adapterType: "process",
       adapterConfig: {},
     }).returning().then((rows) => rows[0]!);
     const application = await db.insert(toolApplications).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationKey: `route-app-${randomUUID()}`,
       name: "Route personal app",
       type: "mcp_http",
       status: "active",
     }).returning().then((rows) => rows[0]!);
     const connection = await db.insert(toolConnections).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationId: application.id,
       name: "Route personal connection",
       uid: `route-connection-${randomUUID()}`,
@@ -218,21 +218,21 @@ describeEmbeddedPostgres("access routes permissions upgrade compatibility", () =
       enabled: true,
     }).returning().then((rows) => rows[0]!);
     const grant = await db.insert(connectionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       connectionId: connection.id,
       kind: "user",
       subjectUserId: member.principalId,
       status: "active",
     }).returning().then((rows) => rows[0]!);
     await db.insert(connectionGrantDelegations).values({
-      companyId: company.id,
+      spaceId: space.id,
       grantId: grant.id,
       agentId: agent.id,
       createdByUserId: member.principalId,
     });
 
-    const res = await request(await createApp(db, company.id, owner.principalId))
-      .patch(`/api/companies/${company.id}/members/${member.id}`)
+    const res = await request(await createApp(db, space.id, owner.principalId))
+      .patch(`/api/spaces/${space.id}/members/${member.id}`)
       .send({ status: "suspended" });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -241,20 +241,20 @@ describeEmbeddedPostgres("access routes permissions upgrade compatibility", () =
     expect(await db.select().from(connectionGrants).where(eq(connectionGrants.id, grant.id)))
       .toEqual([expect.objectContaining({ status: "revoked" })]);
 
-    await request(await createApp(db, company.id, owner.principalId))
-      .patch(`/api/companies/${company.id}/members/${member.id}/role-and-grants`)
+    await request(await createApp(db, space.id, owner.principalId))
+      .patch(`/api/spaces/${space.id}/members/${member.id}/role-and-grants`)
       .send({ status: "active", grants: [] })
       .expect(200);
     await db.update(connectionGrants).set({ status: "active" }).where(eq(connectionGrants.id, grant.id));
     await db.insert(connectionGrantDelegations).values({
-      companyId: company.id,
+      spaceId: space.id,
       grantId: grant.id,
       agentId: agent.id,
       createdByUserId: member.principalId,
     });
 
-    const permissionsRoute = await request(await createApp(db, company.id, owner.principalId))
-      .patch(`/api/companies/${company.id}/members/${member.id}/role-and-grants`)
+    const permissionsRoute = await request(await createApp(db, space.id, owner.principalId))
+      .patch(`/api/spaces/${space.id}/members/${member.id}/role-and-grants`)
       .send({ status: "suspended", grants: [] });
     expect(permissionsRoute.status, JSON.stringify(permissionsRoute.body)).toBe(200);
     expect(await db.select().from(connectionGrantDelegations)).toHaveLength(0);

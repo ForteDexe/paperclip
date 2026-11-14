@@ -14,7 +14,7 @@ import { loadNativeRunnerCheckpointHeader } from "./native-runner-checkpoint.js"
 import { rebindNativeSessionCheckpoint } from "./native-session-resume.js";
 
 type FrozenRun = Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "nativeIssueId" | "nativeSessionId" | "runnerInstanceId" |
+  "id" | "spaceId" | "agentId" | "nativeIssueId" | "nativeSessionId" | "runnerInstanceId" |
   "runtimeMode" | "status" | "runnerProfileJson" | "finishedAt">;
 
 type StagedHeaderProof = NonNullable<ReturnType<typeof inspectStagedRunAttachmentHeader>>;
@@ -40,7 +40,7 @@ function record(value: unknown): Record<string, unknown> {
 function boundTargetCheckpoint(run: FrozenRun, source: PersistedNativeSession): PersistedNativeSession | null {
   const snapshot = record(run.runnerProfileJson?.sessionCheckpoint), identity = record(snapshot.identity);
   if (typeof snapshot.sessionId !== "string" || !snapshot.sessionId || identity.runId !== run.id ||
-    identity.companyId !== run.companyId || identity.issueId !== run.nativeIssueId || identity.agentId !== run.agentId ||
+    identity.spaceId !== run.spaceId || identity.issueId !== run.nativeIssueId || identity.agentId !== run.agentId ||
     identity.sessionId !== run.nativeSessionId) return null;
   // A target checkpoint may advance cursor/goal/tool progress, but cannot change
   // the provider session retained by this attachment. Do not rebound it again.
@@ -53,7 +53,7 @@ function frozenExecution(run: FrozenRun): NativeExecutionInput | null {
   try {
     const execution = parseNativeExecutionInput(run.runnerProfileJson?.nativeExecutionInput);
     return run.runtimeMode === "native" && execution.binding.runId === run.id &&
-      execution.binding.companyId === run.companyId && execution.binding.agentId === run.agentId &&
+      execution.binding.spaceId === run.spaceId && execution.binding.agentId === run.agentId &&
       execution.binding.issueId === run.nativeIssueId && execution.session.normalizedSessionId === run.nativeSessionId
       ? execution : null;
   } catch { return null; }
@@ -85,17 +85,17 @@ export async function resolveNativeStagedAttachmentRecovery(input: {
   const [source] = await input.db.select({ run: heartbeatRuns, coordinator: nativeRunFinalizations,
     resultId: nativeRunResults.id, resultStatus: nativeRunResults.schemaStatus }).from(heartbeatRuns)
     .innerJoin(nativeRunFinalizations, and(eq(nativeRunFinalizations.runId, heartbeatRuns.id),
-      eq(nativeRunFinalizations.companyId, heartbeatRuns.companyId), eq(nativeRunFinalizations.issueId, heartbeatRuns.nativeIssueId)))
+      eq(nativeRunFinalizations.spaceId, heartbeatRuns.spaceId), eq(nativeRunFinalizations.issueId, heartbeatRuns.nativeIssueId)))
     .innerJoin(nativeRunResults, and(eq(nativeRunResults.id, nativeRunFinalizations.resultId),
-      eq(nativeRunResults.runId, heartbeatRuns.id), eq(nativeRunResults.companyId, heartbeatRuns.companyId),
+      eq(nativeRunResults.runId, heartbeatRuns.id), eq(nativeRunResults.spaceId, heartbeatRuns.spaceId),
       eq(nativeRunResults.issueId, heartbeatRuns.nativeIssueId)))
-    .where(and(eq(heartbeatRuns.id, attachment.sourceIdentity.runId), eq(heartbeatRuns.companyId, input.currentRun.companyId),
+    .where(and(eq(heartbeatRuns.id, attachment.sourceIdentity.runId), eq(heartbeatRuns.spaceId, input.currentRun.spaceId),
       eq(heartbeatRuns.agentId, input.currentRun.agentId), eq(heartbeatRuns.nativeIssueId, current.binding.issueId)))
     .limit(1);
-  if (!source || source.run.companyId !== current.binding.companyId || source.run.agentId !== current.binding.agentId ||
+  if (!source || source.run.spaceId !== current.binding.spaceId || source.run.agentId !== current.binding.agentId ||
     source.run.nativeIssueId !== current.binding.issueId || !matchesRun(attachment.sourceIdentity, source.run) ||
     source.run.status !== "succeeded" || source.run.finishedAt === null || source.coordinator.phase !== "committed" ||
-    source.coordinator.companyId !== current.binding.companyId || source.coordinator.issueId !== current.binding.issueId ||
+    source.coordinator.spaceId !== current.binding.spaceId || source.coordinator.issueId !== current.binding.issueId ||
     source.coordinator.runId !== source.run.id || !source.coordinator.resultId ||
     source.coordinator.resultId !== source.resultId || source.resultStatus !== "accepted" ||
     source.coordinator.leaseOwner !== null || source.coordinator.leaseExpiresAt !== null) return null;
@@ -110,7 +110,7 @@ export async function resolveNativeStagedAttachmentRecovery(input: {
   const targetCheckpoint = hasTargetCheckpoint ? boundTargetCheckpoint(input.currentRun, checkpoint) : null;
   if (hasTargetCheckpoint && !targetCheckpoint) return null;
   const sourceHeader = await loadNativeRunnerCheckpointHeader(input.db, {
-    companyId: source.run.companyId, issueId: current.binding.issueId, runId: source.run.id,
+    spaceId: source.run.spaceId, issueId: current.binding.issueId, runId: source.run.id,
   });
   if (!sourceHeader || !isDeepStrictEqual(inspectDurablePrpCheckpointHeader(sourceHeader), attachment.sourceIdentity)) return null;
   // The codec above has validated this bounded header's artifact fields. A

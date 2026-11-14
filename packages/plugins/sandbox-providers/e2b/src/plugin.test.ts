@@ -170,7 +170,7 @@ describe("E2B sandbox provider plugin", () => {
 
     const lease = await plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       config: {
@@ -189,11 +189,11 @@ describe("E2B sandbox provider plugin", () => {
       providerLeaseId: "sandbox-123",
       metadata: {
         provider: "e2b",
-        remoteCwd: "/home/user/paperclip-workspace",
+        remoteCwd: "/home/user/outpost-workspace",
       },
     });
     expect(sandbox.commands.run).toHaveBeenNthCalledWith(1, "pwd");
-    expect(sandbox.commands.run).toHaveBeenNthCalledWith(2, "mkdir -p '/home/user/paperclip-workspace'");
+    expect(sandbox.commands.run).toHaveBeenNthCalledWith(2, "mkdir -p '/home/user/outpost-workspace'");
   });
 
   it("kills the sandbox if acquire setup fails after creation", async () => {
@@ -204,7 +204,7 @@ describe("E2B sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       config: {
@@ -225,7 +225,7 @@ describe("E2B sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       config: {
@@ -251,7 +251,7 @@ describe("E2B sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentResumeLease?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       providerLeaseId: "sandbox-123",
@@ -289,7 +289,7 @@ describe("E2B sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         template: "base",
@@ -307,19 +307,19 @@ describe("E2B sandbox provider plugin", () => {
     });
 
     expect(mockConnect).toHaveBeenCalledWith("sandbox-123", expect.objectContaining({ apiKey: "resolved-key" }));
-    expect(sandbox.files.write).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/paperclip-stdin-/), "input");
+    expect(sandbox.files.write).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/outpost-stdin-/), "input");
     const stdinCall = sandbox.commands.run.mock.calls.find(([cmd]) => cmd.includes("'printf'"));
     expect(stdinCall).toBeDefined();
     if (!stdinCall) throw new Error("stdinCall not found");
     expect(stdinCall[0]).toMatch(/\.profile/);
-    expect(stdinCall[0]).toMatch(/exec env FOO='bar' 'printf' 'hello' < '\/tmp\/paperclip-stdin-/);
+    expect(stdinCall[0]).toMatch(/exec env FOO='bar' 'printf' 'hello' < '\/tmp\/outpost-stdin-/);
     expect(stdinCall[1]).toEqual(expect.objectContaining({ cwd: "/workspace", timeoutMs: 1000 }));
     expect(stdinCall[1]).not.toHaveProperty("envs");
     expect(stdinCall[1]).not.toHaveProperty("background");
     expect(sandbox.commands.sendStdin).not.toHaveBeenCalled();
     expect(sandbox.commands.closeStdin).not.toHaveBeenCalled();
     expect(sandbox.handle.wait).not.toHaveBeenCalled();
-    expect(sandbox.files.remove).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/paperclip-stdin-/));
+    expect(sandbox.files.remove).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/outpost-stdin-/));
     expect(result).toEqual({
       exitCode: 0,
       timedOut: false,
@@ -349,7 +349,7 @@ describe("E2B sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         template: "base",
@@ -393,7 +393,7 @@ describe("E2B sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentExecute?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         template: "base",
@@ -419,7 +419,7 @@ describe("E2B sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         template: "base",
@@ -448,7 +448,7 @@ describe("E2B sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentExecute?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         template: "base",
@@ -465,7 +465,7 @@ describe("E2B sandbox provider plugin", () => {
       timeoutMs: 1000,
     })).rejects.toThrow("write failed");
 
-    expect(sandbox.files.remove).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/paperclip-stdin-/));
+    expect(sandbox.files.remove).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/outpost-stdin-/));
     expect(sandbox.commands.sendStdin).not.toHaveBeenCalled();
     expect(sandbox.handle.wait).not.toHaveBeenCalled();
   });
@@ -490,7 +490,7 @@ describe("E2B sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         template: "base",
@@ -535,7 +535,7 @@ describe("E2B sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         template: "base",
@@ -567,7 +567,7 @@ describe("E2B sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentReleaseLease?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         template: "base",
@@ -579,7 +579,7 @@ describe("E2B sandbox provider plugin", () => {
     });
     await plugin.definition.onEnvironmentReleaseLease?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         template: "base",
@@ -603,7 +603,7 @@ describe("E2B sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentReleaseLease?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         template: "base",
@@ -625,7 +625,7 @@ describe("E2B sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentRealizeWorkspace?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         template: "base",
@@ -635,21 +635,21 @@ describe("E2B sandbox provider plugin", () => {
       },
       lease: {
         providerLeaseId: "sandbox-realize",
-        metadata: { remoteCwd: "/home/user/paperclip-workspace" },
+        metadata: { remoteCwd: "/home/user/outpost-workspace" },
       },
       workspace: {
-        localPath: "/tmp/paperclip-workspace",
+        localPath: "/tmp/outpost-workspace",
       },
     })).resolves.toEqual({
-      cwd: "/home/user/paperclip-workspace",
+      cwd: "/home/user/outpost-workspace",
       metadata: {
         provider: "e2b",
-        remoteCwd: "/home/user/paperclip-workspace",
+        remoteCwd: "/home/user/outpost-workspace",
       },
     });
 
     expect(mockConnect).toHaveBeenCalledWith("sandbox-realize", expect.objectContaining({ apiKey: "resolved-key" }));
-    expect(sandbox.commands.run).toHaveBeenCalledWith("mkdir -p '/home/user/paperclip-workspace'");
+    expect(sandbox.commands.run).toHaveBeenCalledWith("mkdir -p '/home/user/outpost-workspace'");
   });
 
   it("swallows destroy kill errors after logging them", async () => {
@@ -660,7 +660,7 @@ describe("E2B sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentDestroyLease?.({
       driverKey: "e2b",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         template: "base",

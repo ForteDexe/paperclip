@@ -19,13 +19,13 @@ it("preserves a subsecond replacement deadline when the owner does not require p
     queue: DELIVERY_QUEUES.secretProposalExpiry,
     minimumPassIntervalMs: 0,
     decodeScope: hint => hint === "*" ? undefined : hint,
-    matches: (entry, companyId?: string) => companyId === undefined || entry.companyId === companyId,
-    load: async () => [{ id: "company", companyId: "company", dueAt }],
+    matches: (entry, spaceId?: string) => spaceId === undefined || entry.spaceId === spaceId,
+    load: async () => [{ id: "space", spaceId: "space", dueAt }],
     check,
   }, () => true);
   await worker.ready;
   dueAt = now + 250;
-  worker.invalidate("company");
+  worker.invalidate("space");
   await vi.advanceTimersByTimeAsync(1);
   expect(coordinator.nextWakeAt()).toBe(dueAt);
   await vi.advanceTimersByTimeAsync(248);
@@ -38,7 +38,7 @@ it("preserves a subsecond replacement deadline when the owner does not require p
   expect(onError).not.toHaveBeenCalled();
 });
 
-type Entry = { id: string; companyId: string; issueId: string; dueAt: number };
+type Entry = { id: string; spaceId: string; issueId: string; dueAt: number };
 
 function concurrentFixture(entries: Entry[], limit = 4, concurrent = true, key?: (entry: Entry) => string | readonly string[]) {
   vi.useFakeTimers();
@@ -66,7 +66,7 @@ function concurrentFixture(entries: Entry[], limit = 4, concurrent = true, key?:
   coordinator = createDeliveryWorkCoordinator({ owner, canRun: () => canRun, onError });
   const options = {
     queue: DELIVERY_QUEUES.nativeResponsePresentation,
-    concurrentChecks: concurrent ? { limit, key: key ?? ((entry: Entry) => `${entry.companyId}:${entry.issueId}`) } : undefined,
+    concurrentChecks: concurrent ? { limit, key: key ?? ((entry: Entry) => `${entry.spaceId}:${entry.issueId}`) } : undefined,
     decodeScope: () => undefined,
     matches: () => true,
     load,
@@ -83,7 +83,7 @@ function concurrentFixture(entries: Entry[], limit = 4, concurrent = true, key?:
   };
 }
 
-const entry = (id: string, issueId = id, companyId = "company"): Entry => ({ id, issueId, companyId, dueAt: 0 });
+const entry = (id: string, issueId = id, spaceId = "space"): Entry => ({ id, issueId, spaceId, dueAt: 0 });
 
 it("merges transitive resource conflicts in candidate order without blocking independent work", async () => {
   const keys: Record<string, string[]> = {
@@ -193,9 +193,9 @@ it("checks independent tasks concurrently with a bounded number of active checks
   expect(f.onError).not.toHaveBeenCalled();
 });
 
-it("serializes each task in candidate order while other tasks and companies progress", async () => {
+it("serializes each task in candidate order while other tasks and spaces progress", async () => {
   const f = concurrentFixture([
-    entry("1", "shared"), entry("2", "shared"), entry("3", "other"), entry("4", "shared", "other-company"),
+    entry("1", "shared"), entry("2", "shared"), entry("3", "other"), entry("4", "shared", "other-space"),
   ]);
   try {
     await vi.waitFor(() => expect(new Set(f.started)).toEqual(new Set(["1", "3", "4"])), { timeout: 100 });
@@ -268,7 +268,7 @@ it("keeps failures isolated and retries their deadline without repeating success
   const check = vi.fn(async (_entry: Entry) => null).mockRejectedValueOnce(new Error("temporary failure"));
   const options = {
     queue: DELIVERY_QUEUES.nativeResponsePresentation,
-    concurrentChecks: { limit: 4, key: (entry: Entry) => `${entry.companyId}:${entry.issueId}` },
+    concurrentChecks: { limit: 4, key: (entry: Entry) => `${entry.spaceId}:${entry.issueId}` },
     decodeScope: () => undefined, matches: () => true, load, check,
   };
   const worker = registerScopedDeadlineWork(coordinator, options, () => true);
@@ -296,10 +296,10 @@ it("joins one beforePass across keyed parallel checks while retaining per-task o
   coordinator = createDeliveryWorkCoordinator({ owner, canRun: () => true, onError });
   const worker = registerScopedDeadlineWork(coordinator, {
     queue: DELIVERY_QUEUES.nativeResponsePresentation, minimumPassIntervalMs: 0,
-    concurrentChecks: { limit: 2, key: (row: Entry) => `${row.companyId}:${row.issueId}` },
+    concurrentChecks: { limit: 2, key: (row: Entry) => `${row.spaceId}:${row.issueId}` },
     reconstructionIntervalMs: 30_000, beforePass,
     decodeScope: hint => hint === "*" ? undefined : hint,
-    matches: (row, companyId?: string) => companyId === undefined || row.companyId === companyId,
+    matches: (row, spaceId?: string) => spaceId === undefined || row.spaceId === spaceId,
     load,
     check: async row => {
       started.push(row.id);
@@ -312,7 +312,7 @@ it("joins one beforePass across keyed parallel checks while retaining per-task o
     await vi.advanceTimersByTimeAsync(0);
     expect(started).toEqual(["first", "independent"]);
     expect(beforePass).toHaveBeenCalledOnce();
-    worker.invalidate("company");
+    worker.invalidate("space");
     await vi.advanceTimersByTimeAsync(0);
     expect(beforePass).toHaveBeenCalledOnce();
     releases.get("independent")!();
@@ -351,14 +351,14 @@ it("keeps an exact deadline and late reconstruction debt with concurrency enable
     concurrentChecks: { limit: 2, key: (row: Entry) => row.issueId },
     reconstructionIntervalMs: 30_000, beforePass,
     decodeScope: hint => hint === "*" ? undefined : hint,
-    matches: (row, companyId?: string) => companyId === undefined || row.companyId === companyId,
+    matches: (row, spaceId?: string) => spaceId === undefined || row.spaceId === spaceId,
     load, check,
   }, () => canRun);
   await worker.ready;
-  worker.invalidate("company");
+  worker.invalidate("space");
   try {
     await vi.advanceTimersByTimeAsync(1); await loading;
-    worker.invalidate("company");
+    worker.invalidate("space");
   } finally { release(); }
   await vi.advanceTimersByTimeAsync(0);
   expect(load).toHaveBeenCalledTimes(2);
@@ -385,21 +385,21 @@ it("coalesces broad reconstruction without delaying an exact object hint or save
   coordinator = createDeliveryWorkCoordinator({ owner, canRun: () => true, onError: vi.fn() });
   const now = Date.now();
   let dueAt = now + 60_000;
-  const load = vi.fn(async () => [{ id: "object", companyId: "company", dueAt }]);
+  const load = vi.fn(async () => [{ id: "object", spaceId: "space", dueAt }]);
   const check = vi.fn(async () => null);
   const worker = registerScopedDeadlineWork(coordinator, {
     queue: DELIVERY_QUEUES.externalObjectRefresh,
     minimumPassIntervalMs: 0,
-    reconstructionIntervalMs: (scope: string | undefined) => scope === "company" ? 30_000 : 0,
+    reconstructionIntervalMs: (scope: string | undefined) => scope === "space" ? 30_000 : 0,
     decodeScope: hint => hint === "*" ? undefined : hint,
     matches: () => true,
     load,
     check,
   }, () => true);
   await worker.ready;
-  worker.invalidate("company"); await vi.advanceTimersByTimeAsync(0);
+  worker.invalidate("space"); await vi.advanceTimersByTimeAsync(0);
   expect(load).toHaveBeenCalledTimes(2);
-  worker.invalidate("company"); await vi.advanceTimersByTimeAsync(0);
+  worker.invalidate("space"); await vi.advanceTimersByTimeAsync(0);
   expect(load).toHaveBeenCalledTimes(2);
   expect(coordinator.nextWakeAt()).toBe(now + 30_000);
   dueAt = now + 250;
@@ -441,10 +441,10 @@ it("admits saved deadlines that come due behind a slow check without overlapping
     decodeScope: () => undefined,
     matches: () => true,
     load: async () => [
-      { id: "slow", issueId: "shared", companyId: "company", dueAt: now },
-      { id: "retrying", issueId: "other", companyId: "company", dueAt: now },
+      { id: "slow", issueId: "shared", spaceId: "space", dueAt: now },
+      { id: "retrying", issueId: "other", spaceId: "space", dueAt: now },
       // Same resource as the slow check: it must stay queued behind it.
-      { id: "sibling", issueId: "shared", companyId: "company", dueAt: now + 10_000 },
+      { id: "sibling", issueId: "shared", spaceId: "space", dueAt: now + 10_000 },
     ],
     check,
   }, () => true);
@@ -481,8 +481,8 @@ it("admits a later deadline when the pass starts with only one slow resource due
     decodeScope: () => undefined,
     matches: () => true,
     load: async () => [
-      { id: "slow", issueId: "a", companyId: "company", dueAt: now },
-      { id: "retry", issueId: "b", companyId: "company", dueAt: now + 30_000 },
+      { id: "slow", issueId: "a", spaceId: "space", dueAt: now },
+      { id: "retry", issueId: "b", spaceId: "space", dueAt: now + 30_000 },
     ],
     check: async (item: Entry) => { started.push(item.id); if (item.id === "slow") await slow; return null; },
   }, () => true);
@@ -511,13 +511,13 @@ it("never admits a later entry between queued siblings that share its resource",
     decodeScope: () => undefined,
     matches: () => true,
     load: async () => [
-      { id: "a", issueId: "x", companyId: "company", dueAt: now },
-      { id: "b", issueId: "x", companyId: "company", dueAt: now },
-      { id: "c", issueId: "x", companyId: "company", dueAt: now + 10_000 },
+      { id: "a", issueId: "x", spaceId: "space", dueAt: now },
+      { id: "b", issueId: "x", spaceId: "space", dueAt: now },
+      { id: "c", issueId: "x", spaceId: "space", dueAt: now + 10_000 },
       // Keeps the pass open so an idle slot waits to admit "c".
-      { id: "hold", issueId: "y", companyId: "company", dueAt: now },
+      { id: "hold", issueId: "y", spaceId: "space", dueAt: now },
       // Finishes at once, leaving its slot idle and waiting for "c".
-      { id: "quick", issueId: "z", companyId: "company", dueAt: now },
+      { id: "quick", issueId: "z", spaceId: "space", dueAt: now },
     ],
     check: async (item: Entry) => {
       if (item.id === "quick") return null;
@@ -559,8 +559,8 @@ it("wakes an idle admission slot during shutdown and starts nothing new", async 
     decodeScope: () => undefined,
     matches: () => true,
     load: async () => [
-      { id: "slow", issueId: "a", companyId: "company", dueAt: now },
-      { id: "later", issueId: "b", companyId: "company", dueAt: now + 60_000 },
+      { id: "slow", issueId: "a", spaceId: "space", dueAt: now },
+      { id: "later", issueId: "b", spaceId: "space", dueAt: now + 60_000 },
     ],
     check: async (item: Entry) => { started.push(item.id); if (item.id === "slow") await slow; return null; },
   }, () => true);
@@ -584,7 +584,7 @@ it("certifies settled future entries during drain but fences dirty reconstructio
   let draining = false;
   const owner = installDatabaseWorkSignals({ execute: vi.fn(async () => []), transaction: vi.fn() });
   coordinator = createDeliveryWorkCoordinator({ owner, canRun: () => !draining, canReconcile: () => true, onError: vi.fn() });
-  const load = vi.fn(async () => [{ id: "object", companyId: "company", dueAt: Date.now() + 600_000 }]);
+  const load = vi.fn(async () => [{ id: "object", spaceId: "space", dueAt: Date.now() + 600_000 }]);
   const worker = registerScopedDeadlineWork(coordinator, {
     queue: DELIVERY_QUEUES.externalObjectRefresh, minimumPassIntervalMs: 0,
     decodeScope: () => undefined, matches: () => true, load, check: async () => null,
@@ -609,7 +609,7 @@ it("keeps partial reconstruction and failed checks uncertified until they finish
   vi.useFakeTimers();
   const owner = installDatabaseWorkSignals({ execute: vi.fn(async () => []), transaction: vi.fn() });
   coordinator = createDeliveryWorkCoordinator({ owner, canRun: () => true, onError: vi.fn() });
-  const entry = { id: "object", companyId: "company", dueAt: Date.now() };
+  const entry = { id: "object", spaceId: "space", dueAt: Date.now() };
   let complete = false, fail = true;
   const worker = registerScopedDeadlineWork(coordinator, {
     queue: DELIVERY_QUEUES.externalObjectRefresh, minimumPassIntervalMs: 1_000,

@@ -49,7 +49,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it.each(["process_gone", "issue_cancelled"] as const)("publishes the recovered terminal state after %s and becomes quiet", async reason => {
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId,
       // The sweep's own process-gone backstop is native; a legacy run goes to
       // the one lost-process reaper.
       status: "running", runtimeMode: reason === "process_gone" ? "native" : "legacy", responsibleUserId: f.userId,
@@ -83,7 +83,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     // when this file runs near midnight and quiet() advances the fake clock.
     vi.setSystemTime(new Date("2026-11-02T12:00:00.000Z"));
     const runId = randomUUID(), old = new Date(Date.now() - 48 * 60 * 60_000);
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId,
       status: "failed", runtimeMode: "legacy", responsibleUserId: f.userId,
       createdAt: old, startedAt: old, finishedAt: old, updatedAt: old,
       error: "You've hit your usage limit for GPT-5. Try again at 12:00 AM (UTC).", errorCode: "adapter_failed",

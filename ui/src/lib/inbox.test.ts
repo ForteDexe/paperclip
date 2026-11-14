@@ -47,7 +47,7 @@ import {
   saveInboxIssueColumns,
   saveInboxWorkItemGroupBy,
   saveLastInboxTab,
-  shouldShowCompanyAlerts,
+  shouldShowSpaceAlerts,
   shouldResetInboxWorkspaceGrouping,
   shouldShowInboxSection,
   type InboxWorkItem,
@@ -74,8 +74,8 @@ Object.defineProperty(globalThis, "localStorage", {
 function makeApproval(status: Approval["status"]): Approval {
   return {
     id: `approval-${status}`,
-    companyId: "company-1",
-    type: "hire_agent",
+    spaceId: "space-1",
+    type: "create_agent",
     requestedByAgentId: null,
     requestedByUserId: null,
     status,
@@ -105,7 +105,7 @@ function makeJoinRequest(id: string): JoinRequest {
   return {
     id,
     inviteId: "invite-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     requestType: "human",
     status: "pending_approval",
     requestEmailSnapshot: null,
@@ -130,9 +130,9 @@ function makeJoinRequest(id: string): JoinRequest {
 function makeRun(id: string, status: HeartbeatRun["status"], createdAt: string, agentId = "agent-1"): HeartbeatRun {
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     agentId,
-    scopeKind: "company",
+    scopeKind: "space",
     issueId: null,
     responsibleUserId: "user-1",
     invocationSource: "assignment",
@@ -180,7 +180,7 @@ function makeRun(id: string, status: HeartbeatRun["status"], createdAt: string, 
 function makeIssue(id: string, isUnreadForMe: boolean): Issue {
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     projectWorkspaceId: null,
     goalId: null,
@@ -226,7 +226,7 @@ function makeIssue(id: string, isUnreadForMe: boolean): Issue {
 function makeProjectWorkspace(overrides: Partial<ProjectWorkspace> = {}): ProjectWorkspace {
   return {
     id: "project-workspace-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     name: "Primary workspace",
     sourceType: "local_path",
@@ -252,7 +252,7 @@ function makeProjectWorkspace(overrides: Partial<ProjectWorkspace> = {}): Projec
 function makeExecutionWorkspace(overrides: Partial<ExecutionWorkspace> = {}): ExecutionWorkspace {
   return {
     id: "execution-workspace-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     projectWorkspaceId: "project-workspace-1",
     sourceIssueId: "issue-1",
@@ -290,7 +290,7 @@ describe("inbox helpers", () => {
     const dismissedAtByKey = buildInboxDismissedAtByKey([
       {
         id: "dismissal-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         userId: "user-1",
         itemKey: "approval:approval-1",
         kind: "dismiss",
@@ -324,7 +324,7 @@ describe("inbox helpers", () => {
     expect(issues).toHaveLength(2);
   });
 
-  it("shows actionable approvals on mine, while recent and unread stay company-wide", () => {
+  it("shows actionable approvals on mine, while recent and unread stay space-wide", () => {
     const approvals = [
       {
         ...makeApprovalWithTimestamps("approval-approved", "approved", "2026-03-11T02:00:00.000Z"),
@@ -678,11 +678,11 @@ describe("inbox helpers", () => {
     ).toBe(false);
   });
 
-  it("shows company alerts only on the all tab", () => {
-    expect(shouldShowCompanyAlerts("mine")).toBe(false);
-    expect(shouldShowCompanyAlerts("recent")).toBe(false);
-    expect(shouldShowCompanyAlerts("unread")).toBe(false);
-    expect(shouldShowCompanyAlerts("all")).toBe(true);
+  it("shows space alerts only on the all tab", () => {
+    expect(shouldShowSpaceAlerts("mine")).toBe(false);
+    expect(shouldShowSpaceAlerts("recent")).toBe(false);
+    expect(shouldShowSpaceAlerts("unread")).toBe(false);
+    expect(shouldShowSpaceAlerts("all")).toBe(true);
   });
 
   it("limits recent touched issues before unread badge counting", () => {
@@ -969,8 +969,8 @@ describe("inbox helpers", () => {
     expect(loadLastInboxTab()).toBe("blocked");
   });
 
-  it("persists inbox filters per company", () => {
-    saveInboxFilterPreferences("company-1", {
+  it("persists inbox filters per space", () => {
+    saveInboxFilterPreferences("space-1", {
       allCategoryFilter: "approvals",
       allApprovalFilter: "resolved",
       issueFilters: {
@@ -987,7 +987,7 @@ describe("inbox helpers", () => {
         routineTasksOnly: false,
       },
     });
-    saveInboxFilterPreferences("company-2", {
+    saveInboxFilterPreferences("space-2", {
       allCategoryFilter: "failed_runs",
       allApprovalFilter: "actionable",
       issueFilters: {
@@ -1005,7 +1005,7 @@ describe("inbox helpers", () => {
       },
     });
 
-    expect(loadInboxFilterPreferences("company-1")).toEqual({
+    expect(loadInboxFilterPreferences("space-1")).toEqual({
       allCategoryFilter: "approvals",
       allApprovalFilter: "resolved",
       issueFilters: {
@@ -1022,7 +1022,7 @@ describe("inbox helpers", () => {
         routineTasksOnly: false,
       },
     });
-    expect(loadInboxFilterPreferences("company-2")).toEqual({
+    expect(loadInboxFilterPreferences("space-2")).toEqual({
       allCategoryFilter: "failed_runs",
       allApprovalFilter: "actionable",
       issueFilters: {
@@ -1042,7 +1042,7 @@ describe("inbox helpers", () => {
   });
 
   it("normalizes invalid inbox filter storage back to safe defaults", () => {
-    localStorage.setItem("paperclip:inbox:filters:company-1", JSON.stringify({
+    localStorage.setItem("outpost:inbox:filters:space-1", JSON.stringify({
       allCategoryFilter: "bogus",
       allApprovalFilter: "bogus",
       issueFilters: {
@@ -1058,7 +1058,7 @@ describe("inbox helpers", () => {
       },
     }));
 
-    expect(loadInboxFilterPreferences("company-1")).toEqual({
+    expect(loadInboxFilterPreferences("space-1")).toEqual({
       allCategoryFilter: "everything",
       allApprovalFilter: "all",
       issueFilters: {
@@ -1212,7 +1212,7 @@ describe("inbox helpers", () => {
   });
 
   it("maps legacy new-tab storage to mine", () => {
-    localStorage.setItem("paperclip:inbox:last-tab", "new");
+    localStorage.setItem("outpost:inbox:last-tab", "new");
     expect(loadLastInboxTab()).toBe("mine");
   });
 
@@ -1332,8 +1332,8 @@ describe("inbox helpers", () => {
   });
 
   it("groups project sections by latest issue activity while preserving non-issue sections", () => {
-    const paperclipIssue = makeIssue("paperclip", true);
-    paperclipIssue.projectId = "project-1";
+    const outpostIssue = makeIssue("outpost", true);
+    outpostIssue.projectId = "project-1";
 
     const onboardingIssue = makeIssue("onboarding", false);
     onboardingIssue.projectId = "project-2";
@@ -1341,7 +1341,7 @@ describe("inbox helpers", () => {
     const noProjectIssue = makeIssue("no-project", false);
 
     const items: InboxWorkItem[] = [
-      { kind: "issue", timestamp: 9, issue: paperclipIssue },
+      { kind: "issue", timestamp: 9, issue: outpostIssue },
       { kind: "issue", timestamp: 4, issue: onboardingIssue },
       { kind: "join_request", timestamp: 6, joinRequest: makeJoinRequest("join-1") },
       { kind: "issue", timestamp: 2, issue: noProjectIssue },
@@ -1424,35 +1424,35 @@ describe("inbox helpers", () => {
     expect(loadInboxWorkItemGroupBy()).toBe("project");
   });
 
-  it("persists collapsed inbox groups per company", () => {
-    saveCollapsedInboxGroupKeys("company-1", new Set(["workspace:alpha", "workspace:beta"]));
-    saveCollapsedInboxGroupKeys("company-2", new Set(["type:approval"]));
+  it("persists collapsed inbox groups per space", () => {
+    saveCollapsedInboxGroupKeys("space-1", new Set(["workspace:alpha", "workspace:beta"]));
+    saveCollapsedInboxGroupKeys("space-2", new Set(["type:approval"]));
 
-    expect(loadCollapsedInboxGroupKeys("company-1")).toEqual(new Set(["workspace:alpha", "workspace:beta"]));
-    expect(loadCollapsedInboxGroupKeys("company-2")).toEqual(new Set(["type:approval"]));
+    expect(loadCollapsedInboxGroupKeys("space-1")).toEqual(new Set(["workspace:alpha", "workspace:beta"]));
+    expect(loadCollapsedInboxGroupKeys("space-2")).toEqual(new Set(["type:approval"]));
   });
 
   it("returns empty collapsed inbox groups for missing or invalid storage", () => {
-    expect(loadCollapsedInboxGroupKeys("company-1")).toEqual(new Set());
-    localStorage.setItem("paperclip:inbox:collapsed-groups:company-1", JSON.stringify({ nope: true }));
-    expect(loadCollapsedInboxGroupKeys("company-1")).toEqual(new Set());
+    expect(loadCollapsedInboxGroupKeys("space-1")).toEqual(new Set());
+    localStorage.setItem("outpost:inbox:collapsed-groups:space-1", JSON.stringify({ nope: true }));
+    expect(loadCollapsedInboxGroupKeys("space-1")).toEqual(new Set());
   });
 
-  it("persists collapsed inbox parents per company", () => {
-    saveCollapsedInboxParentIds("company-1", new Set(["parent-1", "parent-2"]));
-    saveCollapsedInboxParentIds("company-2", new Set(["parent-3"]));
+  it("persists collapsed inbox parents per space", () => {
+    saveCollapsedInboxParentIds("space-1", new Set(["parent-1", "parent-2"]));
+    saveCollapsedInboxParentIds("space-2", new Set(["parent-3"]));
 
-    expect(loadCollapsedInboxParentIds("company-1")).toEqual(new Set(["parent-1", "parent-2"]));
-    expect(loadCollapsedInboxParentIds("company-2")).toEqual(new Set(["parent-3"]));
+    expect(loadCollapsedInboxParentIds("space-1")).toEqual(new Set(["parent-1", "parent-2"]));
+    expect(loadCollapsedInboxParentIds("space-2")).toEqual(new Set(["parent-3"]));
 
-    saveCollapsedInboxParentIds("company-1", new Set());
-    expect(loadCollapsedInboxParentIds("company-1")).toEqual(new Set());
+    saveCollapsedInboxParentIds("space-1", new Set());
+    expect(loadCollapsedInboxParentIds("space-1")).toEqual(new Set());
   });
 
   it("returns empty collapsed inbox parents for missing or invalid storage", () => {
-    expect(loadCollapsedInboxParentIds("company-1")).toEqual(new Set());
-    localStorage.setItem("paperclip:inbox:collapsed-parents:company-1", JSON.stringify({ nope: true }));
-    expect(loadCollapsedInboxParentIds("company-1")).toEqual(new Set());
+    expect(loadCollapsedInboxParentIds("space-1")).toEqual(new Set());
+    localStorage.setItem("outpost:inbox:collapsed-parents:space-1", JSON.stringify({ nope: true }));
+    expect(loadCollapsedInboxParentIds("space-1")).toEqual(new Set());
   });
 
   it("does not reset workspace grouping before experimental settings have loaded", () => {

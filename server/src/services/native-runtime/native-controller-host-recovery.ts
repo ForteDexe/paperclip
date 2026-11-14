@@ -9,7 +9,7 @@ import { surfaceNativeControllerNamespaceAttention } from "./native-restart-reco
 import { readPendingNativeRunStop } from "./native-cancellation-request.js";
 
 export const NATIVE_CONTROLLER_HOST_UNVERIFIED = "native_controller_host_unverified";
-/** controller_host_hash value written once the board confirms the stop. */
+/** controller_host_hash value written once the operator confirms the stop. */
 export const OPERATOR_ATTESTED_CONTROLLER_HOST = "operator_attested";
 
 const fingerprint = (runId: string) => `native-controller-host:${runId}`;
@@ -17,13 +17,13 @@ const changed = () => conflict("The recorded controller is no longer current. Re
   { code: "native_controller_host_recovery_stale" });
 
 type Coordinator = Pick<typeof nativeRunFinalizations.$inferSelect,
-  "runId" | "companyId" | "issueId" | "controllerBootId" | "controllerPid" | "controllerProcessStartedAt" | "controllerHostHash">;
+  "runId" | "spaceId" | "issueId" | "controllerBootId" | "controllerPid" | "controllerProcessStartedAt" | "controllerHostHash">;
 
 /** Idempotent. Another active recovery action on the task keeps precedence. */
 export async function requestNativeControllerStopConfirmation(tx: Db, coordinator: Coordinator) {
   await tx.insert(issueRecoveryActions).values({
-    companyId: coordinator.companyId, sourceIssueId: coordinator.issueId, kind: "active_run_watchdog",
-    status: "active", ownerType: "board", cause: NATIVE_CONTROLLER_HOST_UNVERIFIED,
+    spaceId: coordinator.spaceId, sourceIssueId: coordinator.issueId, kind: "active_run_watchdog",
+    status: "active", ownerType: "operator", cause: NATIVE_CONTROLLER_HOST_UNVERIFIED,
     fingerprint: fingerprint(coordinator.runId), attemptCount: 1,
     evidence: { runId: coordinator.runId, controller: { bootId: coordinator.controllerBootId, pid: coordinator.controllerPid,
       hostHash: coordinator.controllerHostHash,
@@ -34,10 +34,10 @@ export async function requestNativeControllerStopConfirmation(tx: Db, coordinato
   }).onConflictDoNothing();
 }
 
-/** Board attestation. It marks only the exact recorded controller as stopped;
+/** Operator attestation. It marks only the exact recorded controller as stopped;
  * restart recovery then takes over through its normal path. */
 export async function confirmNativeControllerStopped(input: {
-  db: Db; companyId: string; issueId: string; actionId: string; runId: string; stopEvidence: string; actorId: string;
+  db: Db; spaceId: string; issueId: string; actionId: string; runId: string; stopEvidence: string; actorId: string;
 }) {
   const confirmation = confirmNativeControllerStoppedSchema.parse({
     actionId: input.actionId, runId: input.runId, stopEvidence: input.stopEvidence,
@@ -47,17 +47,17 @@ export async function confirmNativeControllerStopped(input: {
     // Match Native admission and containment lock order. This records only
     // the previous controller stop, not provider containment or a new turn.
     const [task] = await tx.select().from(issues).where(and(
-      eq(issues.companyId, input.companyId), eq(issues.id, input.issueId))).for("update");
+      eq(issues.spaceId, input.spaceId), eq(issues.id, input.issueId))).for("update");
     const [coordinator] = await tx.select().from(nativeRunFinalizations).where(and(
-      eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.issueId, input.issueId),
+      eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.issueId, input.issueId),
       eq(nativeRunFinalizations.runId, input.runId))).for("update");
     const [run] = await tx.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId))).for("update");
+      eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId))).for("update");
     const [action] = await tx.select().from(issueRecoveryActions).where(and(
-      eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.sourceIssueId, input.issueId),
+      eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.sourceIssueId, input.issueId),
       eq(issueRecoveryActions.id, input.actionId))).for("update");
     const recorded = (action?.evidence?.controller ?? {}) as Record<string, unknown>;
-    if (!task || !coordinator || !action || !run || action.cause !== NATIVE_CONTROLLER_HOST_UNVERIFIED || action.ownerType !== "board"
+    if (!task || !coordinator || !action || !run || action.cause !== NATIVE_CONTROLLER_HOST_UNVERIFIED || action.ownerType !== "operator"
       || !["active", "escalated"].includes(action.status) || action.evidence?.runId !== input.runId
       || coordinator.controllerHostHash !== (recorded.hostHash ?? null) || coordinator.controllerPid !== recorded.pid
       || coordinator.controllerBootId !== recorded.bootId
@@ -74,13 +74,13 @@ export async function confirmNativeControllerStopped(input: {
       || coordinator.leaseOwner.startsWith("native-finalizer:") || coordinator.leaseOwner.startsWith("native-cleanup:")
       || await readPendingNativeRunStop(tx, run)) throw changed();
     const [newer] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, run.companyId), ne(heartbeatRuns.id, run.id),
+      eq(heartbeatRuns.spaceId, run.spaceId), ne(heartbeatRuns.id, run.id),
       or(eq(heartbeatRuns.nativeIssueId, task.id), sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${task.id}`,
         sql`exists (select 1 from ${nativeRunFinalizations} newer_owner
-          where newer_owner.run_id = ${heartbeatRuns.id} and newer_owner.company_id = ${run.companyId}
+          where newer_owner.run_id = ${heartbeatRuns.id} and newer_owner.space_id = ${run.spaceId}
             and newer_owner.issue_id = ${task.id})`),
       sql`${heartbeatRuns.createdAt} >= (select source.created_at from ${heartbeatRuns} source
-        where source.id = ${run.id} and source.company_id = ${run.companyId})`,
+        where source.id = ${run.id} and source.space_id = ${run.spaceId})`,
     )).limit(1);
     if (newer) throw changed();
     // Use the DB's full precision, not a Date or session-dependent rendering.
@@ -88,7 +88,7 @@ export async function confirmNativeControllerStopped(input: {
       .from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, run.id));
     if (!expiry?.epoch) throw changed();
     // Work intent before the write it announces (sleep-aware background work).
-    await notifyLiveRunRecovery(tx, { companyId: input.companyId, runId: input.runId, agentId: run.agentId });
+    await notifyLiveRunRecovery(tx, { spaceId: input.spaceId, runId: input.runId, agentId: run.agentId });
     const now = new Date();
     const [updated] = await tx.update(nativeRunFinalizations).set({ controllerHostHash: OPERATOR_ATTESTED_CONTROLLER_HOST, updatedAt: now })
       .where(and(eq(nativeRunFinalizations.runId, input.runId), coordinator.controllerHostHash === null
@@ -116,7 +116,7 @@ export async function confirmNativeControllerStopped(input: {
       const { remoteProcess } = await readNativeRemoteExecutionOwnership(tx, { run, issueId: task.id });
       await surfaceNativeControllerNamespaceAttention(tx, { run, coordinator: updated, expiryEpoch: expiry.epoch, remoteProcess });
     }
-    const publication = await persistActivity(tx, { companyId: input.companyId, actorType: "user", actorId: input.actorId,
+    const publication = await persistActivity(tx, { spaceId: input.spaceId, actorType: "user", actorId: input.actorId,
       action: "issue.native_controller_stop_confirmed", entityType: "issue", entityId: input.issueId, runId: input.runId,
       details: { recoveryActionId: input.actionId, ...proof } });
     return { publication };

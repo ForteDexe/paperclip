@@ -3,12 +3,12 @@ import { uploadFactualQueryAttachment } from "../chat-query-attachments.js";
 vi.mock("../chat-query-attachments.js", async importOriginal => ({ ...await importOriginal<typeof import("../chat-query-attachments.js")>(), uploadFactualQueryAttachment: vi.fn(async () => ({ id: "customer-brief-upload" })) }));
 import { customerBugFacts, preservesCustomerBugFacts, gradeIntegratorCaseCreation, integratorCaseCreationCases } from "./integrator-case-create.js";
 function valid() {
-  const brief = { id: "brief", issueId: "primary", companyId: "company", key: "brief", body: Object.values(customerBugFacts).join("\n") };
-  const workflow = { id: "workflow", issueId: "primary", companyId: "company", key: "workflow", body: "Morgan investigates, saves findings, then hands this same primary task to its next owner for review." };
+  const brief = { id: "brief", issueId: "primary", spaceId: "space", key: "brief", body: Object.values(customerBugFacts).join("\n") };
+  const workflow = { id: "workflow", issueId: "primary", spaceId: "space", key: "workflow", body: "Morgan investigates, saves findings, then hands this same primary task to its next owner for review." };
   const revision = (doc: typeof brief) => ({ id: `${doc.id}-revision`, documentId: doc.id, issueId: "primary", key: doc.key, body: doc.body, createdByAgentId: "ceo", createdByRunId: "source-run", createdAt: "2026-10-26T12:00:00Z" });
-  return { scenarioId: "cases.create-case", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { project: { id: "project" }, task: { id: "source-brief" }, worker: { id: "morgan" } },
-    tasks: [{ id: "source-brief", title: "Customer bug brief" }, { id: "primary", companyId: "company", title: "Customer checkout bug", assigneeAgentId: "morgan" }], projects: [], goals: [], comments: [], documents: [], revisions: [], humanQueries: [], activity: [], reply: "Created the case and started Morgan's investigation on its primary task.", links: ["/ACORN/cases/case", "/ACORN/issues/primary"],
-    cases: [{ id: "case", companyId: "company", projectId: "project", workIssueId: "primary", fields: structuredClone(customerBugFacts) }],
+  return { scenarioId: "cases.create-case", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { project: { id: "project" }, task: { id: "source-brief" }, worker: { id: "morgan" } },
+    tasks: [{ id: "source-brief", title: "Customer bug brief" }, { id: "primary", spaceId: "space", title: "Customer checkout bug", assigneeAgentId: "morgan" }], projects: [], goals: [], comments: [], documents: [], revisions: [], humanQueries: [], activity: [], reply: "Created the case and started Morgan's investigation on its primary task.", links: ["/ACORN/cases/case", "/ACORN/issues/primary"],
+    cases: [{ id: "case", spaceId: "space", projectId: "project", workIssueId: "primary", fields: structuredClone(customerBugFacts) }],
     handoffs: { case: [{ id: "kickoff", caseId: "case", version: 1, issueId: "primary", toAgentId: "morgan", actorId: "ceo", sourceRunId: null as string | null, state: "delivered", createdAt: "2026-10-26T12:00:30Z" }] as Array<Record<string, unknown>> }, taskDocuments: { primary: [workflow, brief] },
     documentVersions: { "primary:workflow": [revision(workflow)], "primary:brief": [revision(brief)] },
     runs: [{ id: "source-run", agentId: "ceo", status: "succeeded", contextSnapshot: { issueId: "source-brief" } as Record<string, unknown>, startedAt: "2026-10-26T11:59:00Z", finishedAt: "2026-10-26T12:00:40Z" },
@@ -70,12 +70,12 @@ it("places the genuine customer brief on the canonical conversation's normal doc
   const source = { id: "standing-chat", title: "Chat with CEO" }; let saved: Record<string, unknown> | undefined;
   const created: string[] = []; const patches: Array<{ path: string; body: unknown }> = [];
   const api = {
-    get: async (path: string) => path.endsWith("/documents/brief") ? saved : path.startsWith("/api/agents/") ? { id: "morgan", companyId: "company", lifecycleState: "ready" } : { enableCases: false },
+    get: async (path: string) => path.endsWith("/documents/brief") ? saved : path.startsWith("/api/agents/") ? { id: "morgan", spaceId: "space", lifecycleState: "ready" } : { enableCases: false },
     patch: async (path: string, body: unknown) => { patches.push({ path, body }); return {}; },
     post: async (path: string, body: Record<string, unknown>) => { created.push(path); return { ...body, id: path.endsWith("/projects") ? "project" : "morgan" }; },
     putSensitive: async (path: string, body: Record<string, unknown>) => { expect(path).toBe("/api/issues/standing-chat/documents/brief"); saved = { ...body, issueId: source.id }; return saved; },
   };
-  const ctx = { input: { nonce: "offline", api, evidence: async () => undefined, fixtures: { company: { id: "company" }, agent: { id: "ceo" }, environment: { id: "environment" }, secretRefs: {} }, execution: { environment: { id: "local" }, profile: { credential: "ANTHROPIC_API_KEY", buildAgent: () => ({}) } } },
+  const ctx = { input: { nonce: "offline", api, evidence: async () => undefined, fixtures: { space: { id: "space" }, agent: { id: "ceo" }, environment: { id: "environment" }, secretRefs: {} }, execution: { environment: { id: "local" }, profile: { credential: "ANTHROPIC_API_KEY", buildAgent: () => ({}) } } },
     refreshIssue: async () => {}, issue: () => source } as unknown as Parameters<typeof integratorCaseCreationCases[0]["setup"]>[0];
   const state = await integratorCaseCreationCases[0]!.setup(ctx);
   expect((state.task as { id: string }).id).toBe(source.id);

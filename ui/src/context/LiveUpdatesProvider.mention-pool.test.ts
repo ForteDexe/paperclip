@@ -7,9 +7,9 @@ import { __liveUpdatesTestUtils } from "./LiveUpdatesProvider";
 import { createCoalescingQueryClient, createInvalidationBatcher } from "../lib/query-invalidation-batcher";
 import { queryKeys } from "../lib/queryKeys";
 
-const COMPANY = "company-1";
+const SPACE = "space-1";
 const ACTOR = { userId: "user-1", agentId: null };
-const POOL_KEY = queryKeys.issues.mentionPool(COMPANY);
+const POOL_KEY = queryKeys.issues.mentionPool(SPACE);
 const WINDOW_MS = __liveUpdatesTestUtils.MENTION_POOL_REFRESH_WINDOW_MS;
 
 function task(id: string): Issue {
@@ -33,7 +33,7 @@ function authenticatedEvent(entityId: string, action: string, taskIdentityChange
 }
 
 function emit(client: QueryClient, payload: Record<string, unknown>) {
-  __liveUpdatesTestUtils.invalidateActivityQueries(client, COMPANY, { entityType: "issue", ...payload }, ACTOR);
+  __liveUpdatesTestUtils.invalidateActivityQueries(client, SPACE, { entityType: "issue", ...payload }, ACTOR);
 }
 
 const POOL = [task("t1"), task("t2"), task("t3")];
@@ -51,7 +51,7 @@ describe("LiveUpdatesProvider @task mention pool", () => {
 
   it("does not refetch for a burst of authenticated progress events on pooled tasks, and reorders in place", async () => {
     const pool = mountQuery(client, POOL_KEY, POOL);
-    const otherList = mountQuery(client, [...queryKeys.issues.list(COMPANY), "descendants", "t1"]);
+    const otherList = mountQuery(client, [...queryKeys.issues.list(SPACE), "descendants", "t1"]);
     await settle();
     expect(pool.queryFn).toHaveBeenCalledTimes(1);
 
@@ -65,7 +65,7 @@ describe("LiveUpdatesProvider @task mention pool", () => {
 
     expect(pool.queryFn).toHaveBeenCalledTimes(1);
     expect(client.getQueryData<Issue[]>(POOL_KEY)?.map((issue) => issue.id)).toEqual(["t2", "t3", "t1"]);
-    // Other company-scoped issue queries keep their live refresh.
+    // Other space-scoped issue queries keep their live refresh.
     expect(otherList.queryFn.mock.calls.length).toBeGreaterThan(1);
     pool.unsubscribe();
     otherList.unsubscribe();
@@ -154,16 +154,16 @@ describe("LiveUpdatesProvider @task mention pool", () => {
     const coalescing = createCoalescingQueryClient(client, batcher);
     const invalidate = vi.spyOn(client, "invalidateQueries");
     const pool = mountQuery(client, POOL_KEY, POOL);
-    const otherList = mountQuery(client, [...queryKeys.issues.list(COMPANY), "descendants", "t1"]);
+    const otherList = mountQuery(client, [...queryKeys.issues.list(SPACE), "descendants", "t1"]);
     await settle();
 
     for (let i = 0; i < 30; i += 1) {
-      __liveUpdatesTestUtils.invalidateActivityQueries(coalescing, COMPANY, authenticatedEvent("t1", "issue.comment_added", false), ACTOR);
+      __liveUpdatesTestUtils.invalidateActivityQueries(coalescing, SPACE, authenticatedEvent("t1", "issue.comment_added", false), ACTOR);
     }
     await settle(1_000);
 
     const broad = invalidate.mock.calls.filter(([filters]) =>
-      JSON.stringify(filters?.queryKey) === JSON.stringify(queryKeys.issues.list(COMPANY)));
+      JSON.stringify(filters?.queryKey) === JSON.stringify(queryKeys.issues.list(SPACE)));
     expect(broad).toHaveLength(1);
     expect(otherList.queryFn).toHaveBeenCalledTimes(2);
     expect(pool.queryFn).toHaveBeenCalledTimes(1);

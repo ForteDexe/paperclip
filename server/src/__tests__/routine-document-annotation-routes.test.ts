@@ -3,8 +3,8 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const routineId = "11111111-1111-4111-8111-111111111111";
-const companyId = "22222222-2222-4222-8222-222222222222";
-const otherCompanyId = "33333333-3333-4333-8333-333333333333";
+const spaceId = "22222222-2222-4222-8222-222222222222";
+const otherSpaceId = "33333333-3333-4333-8333-333333333333";
 const agentId = "77777777-7777-4777-8777-777777777777";
 const firstRevisionId = "44444444-4444-4444-8444-444444444444";
 const secondRevisionId = "99999999-9999-4999-8999-999999999999";
@@ -27,7 +27,7 @@ const mockLogActivity = vi.hoisted(() => vi.fn(async () => undefined));
 
 const routine = {
   id: routineId,
-  companyId,
+  spaceId,
   title: "Daily summary",
   description: "Alpha selected text omega",
   status: "active",
@@ -38,7 +38,7 @@ const routine = {
 
 const descriptionDocument = {
   id: "document-1",
-  companyId,
+  spaceId,
   routineId,
   key: "description",
   title: "Routine instructions",
@@ -47,9 +47,9 @@ const descriptionDocument = {
   latestRevisionId: firstRevisionId,
   latestRevisionNumber: 1,
   createdByAgentId: null,
-  createdByUserId: "board-user",
+  createdByUserId: "operator-user",
   updatedByAgentId: null,
-  updatedByUserId: "board-user",
+  updatedByUserId: "operator-user",
   createdAt: new Date("2026-06-16T12:00:00.000Z"),
   updatedAt: new Date("2026-06-16T12:00:00.000Z"),
 };
@@ -69,7 +69,7 @@ const selector = {
 
 const annotationThread = {
   id: "55555555-5555-4555-8555-555555555555",
-  companyId,
+  spaceId,
   issueId: null,
   routineId,
   documentId: descriptionDocument.id,
@@ -90,7 +90,7 @@ const annotationThread = {
   markdownEnd: 19,
   anchorSelector: selector,
   createdByAgentId: null,
-  createdByUserId: "board-user",
+  createdByUserId: "operator-user",
   resolvedByAgentId: null,
   resolvedByUserId: null,
   resolvedAt: null,
@@ -100,7 +100,7 @@ const annotationThread = {
 
 const annotationComment = {
   id: "66666666-6666-4666-8666-666666666666",
-  companyId,
+  spaceId,
   threadId: annotationThread.id,
   issueId: null,
   routineId,
@@ -108,7 +108,7 @@ const annotationComment = {
   body: "Please tighten this",
   authorType: "user",
   authorAgentId: null,
-  authorUserId: "board-user",
+  authorUserId: "operator-user",
   createdByRunId: null,
   createdAt: new Date("2026-06-16T12:01:00.000Z"),
   updatedAt: new Date("2026-06-16T12:01:00.000Z"),
@@ -125,7 +125,7 @@ function registerModuleMocks() {
   }));
 }
 
-async function createApp(actor: "board" | "agent" = "board", actorCompanyId = companyId) {
+async function createApp(actor: "operator" | "agent" = "operator", actorSpaceId = spaceId) {
   const [{ routineRoutes }, { errorHandler }] = await Promise.all([
     vi.importActual<typeof import("../routes/routines.js")>("../routes/routines.js"),
     vi.importActual<typeof import("../middleware/index.js")>("../middleware/index.js"),
@@ -137,13 +137,13 @@ async function createApp(actor: "board" | "agent" = "board", actorCompanyId = co
       ? {
         type: "agent",
         agentId,
-        companyId: actorCompanyId,
+        spaceId: actorSpaceId,
         runId: "88888888-8888-4888-8888-888888888888",
       }
       : {
-        type: "board",
-        userId: "board-user",
-        companyIds: [actorCompanyId],
+        type: "operator",
+        userId: "operator-user",
+        spaceIds: [actorSpaceId],
         source: "local_implicit",
         isInstanceAdmin: false,
       };
@@ -219,7 +219,7 @@ describe("routine description annotation routes", () => {
       routineId,
       "description",
       expect.objectContaining({ baseRevisionId: firstRevisionId, body: "Please tighten this" }),
-      expect.objectContaining({ actorType: "user", userId: "board-user" }),
+      expect.objectContaining({ actorType: "user", userId: "operator-user" }),
     );
     expect(mockLogActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       action: "routine.document_annotation_thread_created",
@@ -237,7 +237,7 @@ describe("routine description annotation routes", () => {
       "description",
       annotationThread.id,
       expect.objectContaining({ body: "Reply on the same thread" }),
-      expect.objectContaining({ actorType: "user", userId: "board-user" }),
+      expect.objectContaining({ actorType: "user", userId: "operator-user" }),
     );
     expect(mockLogActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       action: "routine.document_annotation_comment_added",
@@ -294,10 +294,10 @@ describe("routine description annotation routes", () => {
     }));
   });
 
-  it("rejects agent cross-company routine annotation reads", async () => {
+  it("rejects agent cross-space routine annotation reads", async () => {
     // Cross-tenant requests return 404 (not 403) so the status code cannot be
     // used as an existence oracle for other tenants' routine ids.
-    await request(await createApp("agent", otherCompanyId))
+    await request(await createApp("agent", otherSpaceId))
       .get(`/api/routines/${routineId}/description/annotations`)
       .expect(404);
   });

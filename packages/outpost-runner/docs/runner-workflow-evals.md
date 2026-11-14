@@ -7,7 +7,7 @@ capability inventory, capability cases, and existing scoring/report readers.
 The workspace-private `@outpost/outpost-eval-kernel` package owns only
 structural scenario-by-candidate orchestration. Runner-specific cases,
 observations, scoring, and traceability remain package-local. The HTML matrix is
-rendered by the canonical `paperclip-evals` report program so live results use
+rendered by the canonical `outpost-evals` report program so live results use
 the same grid and drill-down pages as the direct Runner eval suite.
 
 ## Lanes
@@ -18,7 +18,7 @@ the same grid and drill-down pages as the direct Runner eval suite.
 - `pnpm --filter @outpost/outpost-runner report:runner-workflow-evals`
   validates the deterministic fail-closed fixture matrix and writes JSON,
   Markdown, JUnit, and GitHub-safe artifacts under
-  `.paperclip-local/evals/workflows/`. It makes no network requests.
+  `.outpost-local/evals/workflows/`. It makes no network requests.
 - `pnpm --filter @outpost/outpost-runner report:runner-live-evals` runs
   the balanced forty-execution schedule against real provider sessions. Live
   candidate failures are trend-only; missing credentials, qualification
@@ -33,14 +33,14 @@ environment. `OUTPOST_EVAL_MAX_CAMPAIGN_COST_USD` must be a positive finite
 number and defaults to 12 USD for scheduled runs.
 
 Live executions export one immutable Evalbook attempt per workflow/candidate to
-`.paperclip-local/evals/workflows/evalbook-runs/`, then invoke
-`evals/outpost-runner/tools/eval_program.py report` from a `paperclip-evals`
+`.outpost-local/evals/workflows/evalbook-runs/`, then invoke
+`evals/outpost-runner/tools/eval_program.py report` from a `outpost-evals`
 checkout. That program writes the canonical matrix to
-`.paperclip-local/evals/workflows/index.html`, plus `latest.html`, test pages,
+`.outpost-local/evals/workflows/index.html`, plus `latest.html`, test pages,
 and attempt pages. Set `OUTPOST_EVALBOOK_PROGRAM` to the program's absolute
 path or `OUTPOST_EVALS_ROOT` to its repository root. Conventional sibling
 worktree locations are discovered automatically. GitHub Actions checks out a
-pinned `paperclip-evals` revision, so every hosted run uses the same reviewed
+pinned `outpost-evals` revision, so every hosted run uses the same reviewed
 report implementation rather than a copied or package-local renderer.
 Filtered reports with only a few candidates expand their result columns to the
 available viewport, keeping the PASS, FAIL, and INFRA labels visible without a

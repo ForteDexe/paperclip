@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import {
-  companySecrets,
+  spaceSecrets,
   providerBillingSnapshots,
   type Db,
 } from "@outpost/db";
@@ -218,7 +218,7 @@ export async function fetchProviderDailyCosts(
 
 export async function importProviderDailyCosts(
   db: Db,
-  companyId: string,
+  spaceId: string,
   raw: ImportProviderCosts,
   actorId: string,
   fetcher = fetch,
@@ -226,26 +226,26 @@ export async function importProviderDailyCosts(
   const input = importProviderCostsSchema.parse(raw);
   const [secret] = await db
     .select()
-    .from(companySecrets)
+    .from(spaceSecrets)
     .where(
       and(
-        eq(companySecrets.id, input.secretId),
-        eq(companySecrets.companyId, companyId),
+        eq(spaceSecrets.id, input.secretId),
+        eq(spaceSecrets.spaceId, spaceId),
       ),
     );
-  if (!secret || secret.scope !== "company")
-    throw forbidden("Select a company billing credential.");
+  if (!secret || secret.scope !== "space")
+    throw forbidden("Select a space billing credential.");
   // Metadata is an explicit operator designation, not the secret-storage
   // provider (which may be local encryption, AWS, etc.). Never send a generic
-  // company secret to an external API merely because the caller knows its ID.
+  // space secret to an external API merely because the caller knows its ID.
   const designation = secret.providerMetadata?.providerBilling;
   if (!designation || typeof designation !== "object" || Array.isArray(designation)
     || !("provider" in designation) || designation.provider !== input.provider
     || !("accountId" in designation) || designation.accountId !== input.accountId) {
-    throw forbidden("Select a company secret designated for this billing provider and account.");
+    throw forbidden("Select a space secret designated for this billing provider and account.");
   }
   const credential = await secretService(db).resolveSecretValue(
-    companyId,
+    spaceId,
     secret.id,
     "latest",
     {
@@ -264,7 +264,7 @@ export async function importProviderDailyCosts(
     .from(providerBillingSnapshots)
     .where(
       and(
-        eq(providerBillingSnapshots.companyId, companyId),
+        eq(providerBillingSnapshots.spaceId, spaceId),
         eq(providerBillingSnapshots.provider, input.provider),
         eq(providerBillingSnapshots.accountId, input.accountId),
         inArray(providerBillingSnapshots.scopeId, input.scopeIds),
@@ -278,7 +278,7 @@ export async function importProviderDailyCosts(
   const daily = await fetchProviderDailyCosts(input, credential, fetcher);
   return applyProviderDailyCosts(
     db,
-    companyId,
+    spaceId,
     input,
     daily,
     actorId,
@@ -288,17 +288,17 @@ export async function importProviderDailyCosts(
 
 export async function applyProviderDailyCosts(
   db: Db,
-  companyId: string,
+  spaceId: string,
   input: ImportProviderCosts,
   daily: DailyProviderCost[],
   actorId: string,
   expectedRevisions?: ReadonlyMap<string, number>,
 ) {
-  return withAccountingTransaction(db, companyId, async (tx, publications) => {
+  return withAccountingTransaction(db, spaceId, async (tx, publications) => {
     let eventsCreated = 0;
     for (const day of daily) {
       const where = and(
-        eq(providerBillingSnapshots.companyId, companyId),
+        eq(providerBillingSnapshots.spaceId, spaceId),
         eq(providerBillingSnapshots.provider, input.provider),
         eq(providerBillingSnapshots.accountId, input.accountId),
         eq(providerBillingSnapshots.scopeId, day.scopeId),
@@ -334,7 +334,7 @@ export async function applyProviderDailyCosts(
         : await tx
             .insert(providerBillingSnapshots)
             .values({
-              companyId,
+              spaceId,
               provider: input.provider,
               accountId: input.accountId,
               ...day,
@@ -345,7 +345,7 @@ export async function applyProviderDailyCosts(
       await createFinanceEventInTransaction(
         tx,
         publications,
-        companyId,
+        spaceId,
         {
           idempotencyKey: `provider-report:${snapshot.id}:${revision}`,
           biller: input.provider,

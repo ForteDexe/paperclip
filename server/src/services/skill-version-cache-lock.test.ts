@@ -31,11 +31,11 @@ describePostgres("skill version cache lock during slow preparation", () => {
   });
 
   it("keeps the lock beyond the idle timeout while preparation uses the ordinary pool", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     let entered!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
-    const preparation = withSkillVersionCacheLock(db, companyId, async () => {
+    const preparation = withSkillVersionCacheLock(db, spaceId, async () => {
       await db.execute(sql`select 1`);
       entered();
       await pending;
@@ -51,7 +51,7 @@ describePostgres("skill version cache lock during slow preparation", () => {
       })]);
       await delay(1400);
       await expect(db.execute(sql`select 1 as usable`)).resolves.toMatchObject([{ usable: 1 }]);
-      await expect(withSkillVersionCacheLock(db, companyId, async () => "overlap", true))
+      await expect(withSkillVersionCacheLock(db, spaceId, async () => "overlap", true))
         .rejects.toBeInstanceOf(SkillCacheBusy);
       await expect(withSkillVersionCacheLock(db, randomUUID(), async () => "independent", true))
         .resolves.toBe("independent");
@@ -60,16 +60,16 @@ describePostgres("skill version cache lock during slow preparation", () => {
       await preparation;
     }
     expect(await preparation).toEqual({ value: "prepared" });
-    await expect(withSkillVersionCacheLock(db, companyId, async () => "next", true)).resolves.toBe("next");
+    await expect(withSkillVersionCacheLock(db, spaceId, async () => "next", true)).resolves.toBe("next");
   });
 
   it("releases a failed preparation and preserves the original failure", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const failure = new Error("skill preparation failed");
-    await expect(withSkillVersionCacheLock(db, companyId, async () => {
+    await expect(withSkillVersionCacheLock(db, spaceId, async () => {
       await delay(1400);
       throw failure;
     })).rejects.toBe(failure);
-    await expect(withSkillVersionCacheLock(db, companyId, async () => "recovered", true)).resolves.toBe("recovered");
+    await expect(withSkillVersionCacheLock(db, spaceId, async () => "recovered", true)).resolves.toBe("recovered");
   });
 });

@@ -11,8 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Link } from '@/lib/router';
 import type { SkillTreeCandidate } from './SkillSourceTree';
 
-export function SkillPackagePreview({ companyId, repository, commitSha, skill, initialFile, repositoryPackage, onClose }: {
-  companyId: string; repository: SkillSourceDiscoveryRequest; commitSha: string | null;
+export function SkillPackagePreview({ spaceId, repository, commitSha, skill, initialFile, repositoryPackage, onClose }: {
+  spaceId: string; repository: SkillSourceDiscoveryRequest; commitSha: string | null;
   repositoryPackage?: SkillRepositoryPackage; skill: SkillTreeCandidate; initialFile?: string; onClose: () => void;
 }) {
   const inspection = repositoryPackage ? { ...repositoryPackage, references: [] } : skill.inspection;
@@ -24,8 +24,8 @@ export function SkillPackagePreview({ companyId, repository, commitSha, skill, i
   const root = skill.path.includes('/') ? skill.path.slice(0, skill.path.lastIndexOf('/')) : '';
   const repositoryFilePath = repositoryPackage ? filePath : filePath === 'SKILL.md' ? skill.path : [root, filePath].filter(Boolean).join('/');
   const preview = useQuery({
-    queryKey: [...queryKeys.skillSources.preview(companyId, repository.repositoryUrl, repository.connectionId ?? null, commitSha, skill.path, filePath), repository.packageMode ?? 'skills'],
-    queryFn: () => skillSourcesApi.preview(companyId, { ...repository, commitSha: commitSha!, skillPath: skill.path, filePath: repository.packageMode === 'repository' ? repositoryFilePath : filePath }),
+    queryKey: [...queryKeys.skillSources.preview(spaceId, repository.repositoryUrl, repository.connectionId ?? null, commitSha, skill.path, filePath), repository.packageMode ?? 'skills'],
+    queryFn: () => skillSourcesApi.preview(spaceId, { ...repository, commitSha: commitSha!, skillPath: skill.path, filePath: repository.packageMode === 'repository' ? repositoryFilePath : filePath }),
     enabled: Boolean(commitSha && file), staleTime: 5 * 60_000, refetchOnWindowFocus: false,
   });
   const previewView = useQueryView(preview);

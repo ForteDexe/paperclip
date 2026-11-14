@@ -12,7 +12,7 @@ for (const [name, overrides, ref, allowed] of [
   ["exact master push", {}, sha, true],
   ["PR", { event_name: "pull_request", ref: "refs/pull/1/merge" }, sha, false],
   ["privileged PR", { event_name: "pull_request_target" }, sha, false],
-  ["fork", { repository: "someone/paperclip" }, sha, false],
+  ["fork", { repository: "someone/outpost" }, sha, false],
   ["branch", { ref: "refs/heads/feature" }, sha, false],
   ["manual source", { event_name: "workflow_dispatch" }, sha, false],
   ["unmerged source", {}, "b".repeat(40), false],

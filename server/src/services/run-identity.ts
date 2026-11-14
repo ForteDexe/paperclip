@@ -20,10 +20,10 @@ import { queuedInteractionId } from "./queued-interaction-response.js";
 /** Resolve an explicit click from persisted receipts, never caller context or message authors. */
 export async function explicitOperatorRunIdentity(
   executor: Pick<Db, "select">,
-  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "agentId" | "contextSnapshot" | "wakeupRequestId">,
+  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId" | "agentId" | "contextSnapshot" | "wakeupRequestId">,
 ) {
   const [request] = run.wakeupRequestId ? await executor.select().from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.id, run.wakeupRequestId), eq(agentWakeupRequests.companyId, run.companyId),
+    eq(agentWakeupRequests.id, run.wakeupRequestId), eq(agentWakeupRequests.spaceId, run.spaceId),
     eq(agentWakeupRequests.agentId, run.agentId), eq(agentWakeupRequests.runId, run.id),
   )) : [];
   if (request?.payload?.manualUserWake === true) {
@@ -35,13 +35,13 @@ export async function explicitOperatorRunIdentity(
   const prefix = "queued-comment-interrupt:";
   if (!request?.idempotencyKey?.startsWith(prefix)) return null;
   const queueId = request.idempotencyKey.slice(prefix.length);
-  // The key only locates a candidate. The consumed queue, actor, run, company,
+  // The key only locates a candidate. The consumed queue, actor, run, space,
   // agent, task, and delivered messages must all independently agree.
   if (!isUuidLike(queueId)) {
     throw forbidden("Queued-message interrupt authority is unavailable");
   }
   const [receipt] = await executor.select().from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.id, queueId), eq(agentWakeupRequests.companyId, run.companyId),
+    eq(agentWakeupRequests.id, queueId), eq(agentWakeupRequests.spaceId, run.spaceId),
     eq(agentWakeupRequests.agentId, run.agentId), eq(agentWakeupRequests.runId, run.id),
     eq(agentWakeupRequests.status, "coalesced"),
   ));
@@ -58,7 +58,7 @@ export async function explicitOperatorRunIdentity(
     const [interaction] = interactionId && run.contextSnapshot?.interactionId === interactionId
       ? await executor.select({ resolvedByUserId: issueThreadInteractions.resolvedByUserId })
         .from(issueThreadInteractions).where(and(
-          eq(issueThreadInteractions.id, interactionId), eq(issueThreadInteractions.companyId, run.companyId),
+          eq(issueThreadInteractions.id, interactionId), eq(issueThreadInteractions.spaceId, run.spaceId),
           eq(issueThreadInteractions.issueId, String(run.contextSnapshot.issueId)),
           eq(issueThreadInteractions.status, String(receipt.payload?.interactionStatus)),
         ))
@@ -87,7 +87,7 @@ type Executor = Pick<Db, "select" | "insert" | "update">;
  */
 async function lockIdentityTask(
   executor: Pick<Db, "select">,
-  companyId: string,
+  spaceId: string,
   runId: string,
 ) {
   const [run] = await executor
@@ -98,7 +98,7 @@ async function lockIdentityTask(
     })
     .from(heartbeatRuns)
     .where(
-      and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId)),
+      and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId)),
     );
   const issueId = run?.nativeIssueId ?? run?.issueId ?? run?.contextSnapshot?.issueId ?? run?.contextSnapshot?.taskId;
   const legacyIssueId = run?.contextSnapshot?.issueId ?? run?.contextSnapshot?.taskId;
@@ -110,14 +110,14 @@ async function lockIdentityTask(
     await executor
       .select({ id: issues.id })
       .from(issues)
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, companyId)))
+      .where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId)))
       .for("no key update");
 }
 
 async function append(
   executor: Executor,
   input: {
-    companyId: string;
+    spaceId: string;
     runId: string;
     responsibleUserId: string | null;
     messageId?: string | null;
@@ -159,10 +159,10 @@ async function append(
 async function activate(executor: Executor, context: RunIdentityContext) {
   const [binding] = await executor.select({ issueId: boundRunIssueIdSql() })
     .from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, context.runId), eq(heartbeatRuns.companyId, context.companyId),
+      eq(heartbeatRuns.id, context.runId), eq(heartbeatRuns.spaceId, context.spaceId),
     ));
   if (binding?.issueId) {
-    await notifyChatRunMilestones(executor, { companyId: context.companyId, issueId: binding.issueId });
+    await notifyChatRunMilestones(executor, { spaceId: context.spaceId, issueId: binding.issueId });
   }
   const [run] = await executor
     .update(heartbeatRuns)
@@ -174,7 +174,7 @@ async function activate(executor: Executor, context: RunIdentityContext) {
     .where(
       and(
         eq(heartbeatRuns.id, context.runId),
-        eq(heartbeatRuns.companyId, context.companyId),
+        eq(heartbeatRuns.spaceId, context.spaceId),
       ),
     )
     .returning({
@@ -188,7 +188,7 @@ async function activate(executor: Executor, context: RunIdentityContext) {
       .update(issues)
       .set({ continuationIdentityContextId: context.id })
       .where(
-        and(eq(issues.id, issueId), eq(issues.companyId, context.companyId)),
+        and(eq(issues.id, issueId), eq(issues.spaceId, context.spaceId)),
       );
 }
 
@@ -196,7 +196,7 @@ async function activate(executor: Executor, context: RunIdentityContext) {
 export async function initializeRunIdentity(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     runId: string;
     responsibleUserId: string | null;
     messageIds?: string[];
@@ -208,18 +208,18 @@ export async function initializeRunIdentity(
   },
 ) {
   return db.transaction(async (tx) => {
-    await lockIdentityTask(tx, input.companyId, input.runId);
+    await lockIdentityTask(tx, input.spaceId, input.runId);
     const [run] = await tx
       .select()
       .from(heartbeatRuns)
       .where(
         and(
           eq(heartbeatRuns.id, input.runId),
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
         ),
       )
       .for("no key update");
-    if (!run) throw forbidden("Run identity does not belong to this company");
+    if (!run) throw forbidden("Run identity does not belong to this space");
     if (run.activeIdentityContextId) {
       const [current] = await tx
         .select()
@@ -232,19 +232,19 @@ export async function initializeRunIdentity(
     const retryId = run.contextSnapshot?.taskRetryRequestId;
     if (typeof retryId === "string") {
       const [receipt] = await tx.select().from(agentWakeupRequests).where(and(
-        eq(agentWakeupRequests.id, retryId), eq(agentWakeupRequests.companyId, input.companyId),
+        eq(agentWakeupRequests.id, retryId), eq(agentWakeupRequests.spaceId, input.spaceId),
         eq(agentWakeupRequests.agentId, run.agentId)));
       const retry = readTaskRetryIntent(receipt?.payload);
-      if (run.contextSnapshot?.boardMessageRetry === true || retry?.boardMessageOrigin) {
-        if (!retry?.boardMessageOrigin) throw forbidden("This saved message can no longer be retried safely. Send a new message on the task to continue from saved work.");
+      if (run.contextSnapshot?.operatorMessageRetry === true || retry?.operatorMessageOrigin) {
+        if (!retry?.operatorMessageOrigin) throw forbidden("This saved message can no longer be retried safely. Send a new message on the task to continue from saved work.");
         const [dispatch] = run.wakeupRequestId ? await tx.select().from(agentWakeupRequests).where(and(
-          eq(agentWakeupRequests.id, run.wakeupRequestId), eq(agentWakeupRequests.companyId, input.companyId),
+          eq(agentWakeupRequests.id, run.wakeupRequestId), eq(agentWakeupRequests.spaceId, input.spaceId),
           eq(agentWakeupRequests.agentId, run.agentId), eq(agentWakeupRequests.runId, run.id),
           eq(agentWakeupRequests.status, "claimed"), eq(agentWakeupRequests.reason, "task_retry"),
           eq(agentWakeupRequests.idempotencyKey, `task-retry-dispatch:${receipt!.id}`),
           eq(agentWakeupRequests.requestedByActorType, "user"), eq(agentWakeupRequests.requestedByActorId, retry.actorId))) : [];
         const [task] = input.issueId ? await tx.select({ id: issues.id }).from(issues).where(and(
-          eq(issues.id, input.issueId), eq(issues.companyId, input.companyId), eq(issues.assigneeAgentId, run.agentId),
+          eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId), eq(issues.assigneeAgentId, run.agentId),
           eq(issues.executionRunId, run.id))) : [];
         const origin = input.issueId && run.status === "running" && task && dispatch &&
           [run.issueId, run.nativeIssueId, run.contextSnapshot?.issueId, run.contextSnapshot?.taskId]
@@ -252,10 +252,10 @@ export async function initializeRunIdentity(
           receipt!.reason === "task_retry" && receipt!.requestedByActorType === "user" &&
           run.contextSnapshot?.previousRunId === retry.sourceRunId && retry.generationId === receipt!.id && !retry.chatActionId && !retry.canonicalIntentId &&
           receipt!.payload?.issueId === input.issueId && retry.actorId === receipt!.requestedByActorId &&
-          await readTaskRetryBoardMessageOrigin(tx as unknown as Db, { companyId: input.companyId, issueId: input.issueId,
+          await readTaskRetryBoardMessageOrigin(tx as unknown as Db, { spaceId: input.spaceId, issueId: input.issueId,
             agentId: run.agentId, sourceRunId: retry.sourceRunId, actorId: retry.actorId });
-        if (!origin || origin.commentId !== retry.boardMessageOrigin.commentId ||
-            origin.identityContextId !== retry.boardMessageOrigin.identityContextId) {
+        if (!origin || origin.commentId !== retry.operatorMessageOrigin.commentId ||
+            origin.identityContextId !== retry.operatorMessageOrigin.identityContextId) {
           throw forbidden("This saved message can no longer be retried safely. Send a new message on the task to continue from saved work.");
         }
         retryOrigin = origin.identityContextId;
@@ -268,7 +268,7 @@ export async function initializeRunIdentity(
           .where(
             and(
               eq(heartbeatRuns.id, input.parentRunId),
-              eq(heartbeatRuns.companyId, input.companyId),
+              eq(heartbeatRuns.spaceId, input.spaceId),
             ),
           )
       : [];
@@ -280,7 +280,7 @@ export async function initializeRunIdentity(
             .where(
               and(
                 eq(issueThreadInteractions.id, input.interactionId),
-                eq(issueThreadInteractions.companyId, input.companyId),
+                eq(issueThreadInteractions.spaceId, input.spaceId),
                 eq(issueThreadInteractions.issueId, input.issueId),
               ),
             )
@@ -295,7 +295,7 @@ export async function initializeRunIdentity(
           .where(
             and(
               eq(runIdentityContexts.id, parentId),
-              eq(runIdentityContexts.companyId, input.companyId),
+              eq(runIdentityContexts.spaceId, input.spaceId),
               eq(runIdentityContexts.status, "accepted"),
             ),
           )
@@ -303,12 +303,12 @@ export async function initializeRunIdentity(
     if (parentId && !origin)
       throw forbidden("Originating execution identity is unavailable");
     let current = await append(tx, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       runId: input.runId,
       responsibleUserId: operatorIdentity?.actorId ?? (origin ? origin.responsibleUserId : input.responsibleUserId),
       parentContextId: origin?.id ?? null,
       cause:
-        operatorIdentity ? operatorIdentity.cause : origin?.cause === "company_default" ? "company_default" : input.cause,
+        operatorIdentity ? operatorIdentity.cause : origin?.cause === "space_default" ? "space_default" : input.cause,
       correlationId: "dispatch",
     });
     const ids = [...new Set(input.messageIds ?? [])];
@@ -319,7 +319,7 @@ export async function initializeRunIdentity(
             .from(issueComments)
             .where(
               and(
-                eq(issueComments.companyId, input.companyId),
+                eq(issueComments.spaceId, input.spaceId),
                 eq(issueComments.issueId, input.issueId),
                 inArray(issueComments.id, ids),
               ),
@@ -329,7 +329,7 @@ export async function initializeRunIdentity(
       const comment = comments.find((c) => c.id === id);
       if (!comment?.authorUserId) continue;
       current = await append(tx, {
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         runId: input.runId,
         responsibleUserId: operatorIdentity?.actorId ?? comment.authorUserId,
         messageId: id,
@@ -346,7 +346,7 @@ export async function initializeRunIdentity(
 export async function prepareSteeredIdentity(
   executor: Executor,
   input: {
-    companyId: string;
+    spaceId: string;
     runId: string;
     messageId: string;
     issueId: string;
@@ -359,7 +359,7 @@ export async function prepareSteeredIdentity(
     .where(
       and(
         eq(heartbeatRuns.id, input.runId),
-        eq(heartbeatRuns.companyId, input.companyId),
+        eq(heartbeatRuns.spaceId, input.spaceId),
       ),
     );
   const [comment] = input.source === "interaction" ? [] : await executor
@@ -368,13 +368,13 @@ export async function prepareSteeredIdentity(
     .where(
       and(
         eq(issueComments.id, input.messageId),
-        eq(issueComments.companyId, input.companyId),
+        eq(issueComments.spaceId, input.spaceId),
         eq(issueComments.issueId, input.issueId),
       ),
     );
   const [interaction] = input.source === "interaction" ? await executor.select().from(issueThreadInteractions).where(and(
     eq(issueThreadInteractions.id, input.messageId),
-    eq(issueThreadInteractions.companyId, input.companyId),
+    eq(issueThreadInteractions.spaceId, input.spaceId),
     eq(issueThreadInteractions.issueId, input.issueId),
     inArray(issueThreadInteractions.status, ["accepted", "answered", "rejected"]),
   )) : [];
@@ -388,7 +388,7 @@ export async function prepareSteeredIdentity(
     throw conflict("Steering targets a different or inactive execution");
   }
   return append(executor, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     runId: input.runId,
     responsibleUserId,
     messageId: input.messageId,
@@ -404,14 +404,14 @@ export async function reserveSteeredIdentity(
   input: Parameters<typeof prepareSteeredIdentity>[1],
 ) {
   return db.transaction(async (tx) => {
-    await lockIdentityTask(tx, input.companyId, input.runId);
+    await lockIdentityTask(tx, input.spaceId, input.runId);
     const [run] = await tx
       .select()
       .from(heartbeatRuns)
       .where(
         and(
           eq(heartbeatRuns.id, input.runId),
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
         ),
       )
       .for("no key update");
@@ -493,7 +493,7 @@ export async function acceptSteeredIdentity(
 }
 
 const runIdentityFields = {
-  id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+  id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
   status: heartbeatRuns.status, responsibleUserId: heartbeatRuns.responsibleUserId,
   activeIdentityContextId: heartbeatRuns.activeIdentityContextId,
 };
@@ -505,7 +505,7 @@ export const runIdentityTaskFields = {
     then jsonb_build_object('issueId', ${heartbeatRuns.contextSnapshot}->'issueId',
       'taskId', ${heartbeatRuns.contextSnapshot}->'taskId',
       'conversationSessionGeneration', ${heartbeatRuns.contextSnapshot}->'conversationSessionGeneration',
-      'paperclipSkillTest', ${heartbeatRuns.contextSnapshot}->'paperclipSkillTest') else null end`,
+      'outpostSkillTest', ${heartbeatRuns.contextSnapshot}->'outpostSkillTest') else null end`,
 };
 
 export const runIdentityBrokerFields = {
@@ -515,11 +515,11 @@ export const runIdentityBrokerFields = {
       'projectId', ${heartbeatRuns.contextSnapshot}->'projectId', 'routineId', ${heartbeatRuns.contextSnapshot}->'routineId',
       'responsibleUserId', ${heartbeatRuns.contextSnapshot}->'responsibleUserId',
       'responsible_user_id', ${heartbeatRuns.contextSnapshot}->'responsible_user_id',
-      'paperclipIssue', case when jsonb_typeof(${heartbeatRuns.contextSnapshot}->'paperclipIssue') = 'object'
-        then jsonb_build_object('id', ${heartbeatRuns.contextSnapshot}->'paperclipIssue'->'id',
-          'projectId', ${heartbeatRuns.contextSnapshot}->'paperclipIssue'->'projectId',
-          'responsibleUserId', ${heartbeatRuns.contextSnapshot}->'paperclipIssue'->'responsibleUserId',
-          'responsible_user_id', ${heartbeatRuns.contextSnapshot}->'paperclipIssue'->'responsible_user_id') else null end)
+      'outpostIssue', case when jsonb_typeof(${heartbeatRuns.contextSnapshot}->'outpostIssue') = 'object'
+        then jsonb_build_object('id', ${heartbeatRuns.contextSnapshot}->'outpostIssue'->'id',
+          'projectId', ${heartbeatRuns.contextSnapshot}->'outpostIssue'->'projectId',
+          'responsibleUserId', ${heartbeatRuns.contextSnapshot}->'outpostIssue'->'responsibleUserId',
+          'responsible_user_id', ${heartbeatRuns.contextSnapshot}->'outpostIssue'->'responsible_user_id') else null end)
     else null end`,
 };
 
@@ -545,12 +545,12 @@ export type RunIdentityCapture<Scope extends RunIdentityReadScope | undefined = 
 
 export async function captureRunIdentity<Scope extends RunIdentityReadScope | undefined = undefined>(
   db: Db,
-  input: { companyId: string; runId: string; agentId: string },
+  input: { spaceId: string; runId: string; agentId: string },
   options?: { readScope: Scope },
 ): Promise<RunIdentityCapture<Scope>> {
   // Lock acquisition serializes with steering delivery and its durable acknowledgement.
   return db.transaction(async (tx) => {
-    await lockIdentityTask(tx, input.companyId, input.runId);
+    await lockIdentityTask(tx, input.spaceId, input.runId);
     const [run] = await tx
       .select(options?.readScope === "identity" ? runIdentityFields :
         options?.readScope === "task_authorization" ? runIdentityTaskFields :
@@ -570,7 +570,7 @@ export async function captureRunIdentity<Scope extends RunIdentityReadScope | un
       .where(
         and(
           eq(heartbeatRuns.id, input.runId),
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
           eq(heartbeatRuns.agentId, input.agentId),
         ),
       )
@@ -616,7 +616,7 @@ export async function captureRunIdentity<Scope extends RunIdentityReadScope | un
 
 export async function listRunIdentityContexts(
   db: Db,
-  companyId: string,
+  spaceId: string,
   runId: string,
 ) {
   return db
@@ -624,7 +624,7 @@ export async function listRunIdentityContexts(
     .from(runIdentityContexts)
     .where(
       and(
-        eq(runIdentityContexts.companyId, companyId),
+        eq(runIdentityContexts.spaceId, spaceId),
         eq(runIdentityContexts.runId, runId),
       ),
     )
@@ -637,14 +637,14 @@ export async function reconcileSteeredIdentity(
   context: RunIdentityContext,
 ) {
   await db.transaction(async (tx) => {
-    await lockIdentityTask(tx, context.companyId, context.runId);
+    await lockIdentityTask(tx, context.spaceId, context.runId);
     const [run] = await tx
       .select()
       .from(heartbeatRuns)
       .where(
         and(
           eq(heartbeatRuns.id, context.runId),
-          eq(heartbeatRuns.companyId, context.companyId),
+          eq(heartbeatRuns.spaceId, context.spaceId),
         ),
       )
       .for("no key update");
@@ -656,7 +656,7 @@ export async function reconcileSteeredIdentity(
 /** Only events validated and persisted by the native control-plane transport count. */
 export async function storedSteeringAcknowledgement(
   executor: Pick<Db, "select">,
-  context: Pick<RunIdentityContext, "companyId" | "runId" | "messageId">,
+  context: Pick<RunIdentityContext, "spaceId" | "runId" | "messageId">,
 ) {
   if (!context.messageId) return null;
   const [receipt] = await executor
@@ -664,7 +664,7 @@ export async function storedSteeringAcknowledgement(
     .from(heartbeatRunEvents)
     .where(
       and(
-        eq(heartbeatRunEvents.companyId, context.companyId),
+        eq(heartbeatRunEvents.spaceId, context.spaceId),
         eq(heartbeatRunEvents.runId, context.runId),
         eq(heartbeatRunEvents.eventType, "item.completed"),
         sql`${heartbeatRunEvents.sourceEventId} is not null`,

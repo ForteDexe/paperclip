@@ -1,6 +1,6 @@
 import { connectionManagementService } from "../services/connection-management.js";
 import { chatCredentialRotationId, connectionIntentService, savedChatSetupPath } from "../services/connection-intents.js";
-import { companies } from "@outpost/db";
+import { spaces } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { requiredConnectionUserAction, filterConnectionManagementRows, connectionManagementGuard, connectionRequestContext, connectionRequestUserId } from "./connection-management-authz.js";
 import { slackTestMessageSchema, slackRegistrationSchema, slackSetupActionSchema, slackManagedProvisionSchema } from "@outpost/shared";
@@ -46,9 +46,9 @@ import {
   type InviteRateLimiter,
 } from "../services/invite-rate-limit.js";
 import {
-  assertBoard,
-  assertBoardOrAgent,
-  assertCompanyAccess,
+  assertOperator,
+  assertOperatorOrAgent,
+  assertSpaceAccess,
   getAccessibleResource,
   getActorInfo,
 } from "./authz.js";
@@ -85,7 +85,7 @@ async function assertEndpointAccess(
   res: ExpressResponse,
   service: ChatChannelService,
 ): Promise<boolean> {
-  assertBoardOrAgent(req);
+  assertOperatorOrAgent(req);
   const endpoint = await getAccessibleResource(
     req,
     res,
@@ -107,25 +107,25 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
 
   async function setupHandoff(req: ExpressRequest, reason: string, kind: ConnectionRequiredUserAction["kind"] = "authenticate", options: { requireCredentialRotation?: boolean; credentialFields?: string[] } = {}) {
     const endpoint = await service.get(endpointId(req));
-    const [company] = await db.select({ prefix: companies.issuePrefix }).from(companies).where(eq(companies.id, endpoint.companyId));
+    const [space] = await db.select({ prefix: spaces.issuePrefix }).from(spaces).where(eq(spaces.id, endpoint.spaceId));
     const action = options.requireCredentialRotation ? "rotate_credentials" as const : kind === "enter_credentials" || kind === "confirm_identity" ? kind : undefined;
     const handoff = req.actor.type === "agent" && req.actor.runId && endpoint.assignedAgentId === req.actor.agentId
-      ? await connectionIntentService(db).requestChatHandoff({ sub: req.actor.agentId!, company_id: endpoint.companyId,
+      ? await connectionIntentService(db).requestChatHandoff({ sub: req.actor.agentId!, space_id: endpoint.spaceId,
           run_id: req.actor.runId, responsible_user_id: connectionRequestUserId(req)! }, endpoint.id, { action, credentialFields: options.credentialFields })
       : null;
     const interactionId = handoff?.interactionId ?? null;
     const previousRotationId = handoff ? handoff.previousRotationId : chatCredentialRotationId(endpoint.setup);
     return { status: "needs_user_action", interactionId, endpointId: endpoint.id, connectionId: endpoint.connectionId,
-      ...requiredConnectionUserAction(req, { type: "chat_endpoint", id: endpoint.id, companyId: endpoint.companyId },
-        savedChatSetupPath(company!.prefix, endpoint, action, previousRotationId, { fields: options.credentialFields, requireAll: !!options.credentialFields }), reason, kind),
+      ...requiredConnectionUserAction(req, { type: "chat_endpoint", id: endpoint.id, spaceId: endpoint.spaceId },
+        savedChatSetupPath(space!.prefix, endpoint, action, previousRotationId, { fields: options.credentialFields, requireAll: !!options.credentialFields }), reason, kind),
     };
   }
 
   async function assertIdentityLinkAccess(req: ExpressRequest) {
-    assertBoard(req);
+    assertOperator(req);
     const userId = actorUserId(req);
     if (!userId) throw badRequest("A signed-in Outpost user is required");
-    // Enforce rollout here: invited nonmembers cannot read the board's
+    // Enforce rollout here: invited nonmembers cannot read the operator's
     // experimental-settings API. A private token never bypasses this gate.
     const experimental = await instanceSettingsService(db).getExperimental();
     if (!experimental.enableChatConnectors && !experimental.enableGitHubReviewBots) {
@@ -151,18 +151,18 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
     if (provider === "agentmail") return;
     if (provider === "github" ? experimental.enableGitHubReviewBots : experimental.enableChatConnectors) return;
     const setting = provider === "github" ? "GitHub review bots" : "Chat connectors";
-    throw forbidden(`${setting} is turned off on this instance, so this chat endpoint cannot be created. An instance admin turns it on in Experimental settings at /<prefix>/company/settings/instance/experimental. Agents cannot change instance settings.`);
+    throw forbidden(`${setting} is turned off on this instance, so this chat endpoint cannot be created. An instance admin turns it on in Experimental settings at /<prefix>/space/settings/instance/experimental. Agents cannot change instance settings.`);
   }
 
   async function assertConnectionManager(
     req: ExpressRequest,
-    companyId: string,
+    spaceId: string,
   ) {
-    assertBoardOrAgent(req);
-    assertCompanyAccess(req, companyId);
+    assertOperatorOrAgent(req);
+    assertSpaceAccess(req, spaceId);
     if (req.actor.type === "agent") {
       const context = connectionRequestContext(req);
-      if (!context || context.resource.companyId !== companyId) throw forbidden("Connection management authority is required");
+      if (!context || context.resource.spaceId !== spaceId) throw forbidden("Connection management authority is required");
       await context.reauthorize();
       return;
     }
@@ -172,7 +172,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
     if (
       userId &&
       (await access.hasPermission(
-        companyId,
+        spaceId,
         "user",
         userId,
         "tools:manage_connections",
@@ -188,23 +188,23 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
   ): Promise<boolean> {
     if (!(await assertEndpointAccess(req, res, service))) return false;
     const endpoint = await service.get(endpointId(req));
-    await assertConnectionManager(req, endpoint.companyId);
+    await assertConnectionManager(req, endpoint.spaceId);
     return true;
   }
 
-  router.get("/companies/:companyId/chat-endpoints", managementGuard("connections:read", "GET /companies/:companyId/chat-endpoints"), async (req, res) => {
-    assertBoardOrAgent(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    res.json(await filterConnectionManagementRows(db, req, "connections:read", await service.list(companyId), row => ({ connectionId: row.connectionId, targetAgentId: row.assignedAgentId })));
+  router.get("/spaces/:spaceId/chat-endpoints", managementGuard("connections:read", "GET /spaces/:spaceId/chat-endpoints"), async (req, res) => {
+    assertOperatorOrAgent(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    res.json(await filterConnectionManagementRows(db, req, "connections:read", await service.list(spaceId), row => ({ connectionId: row.connectionId, targetAgentId: row.assignedAgentId })));
   });
 
   router.post(
-    "/companies/:companyId/chat-endpoints", managementGuard("connections:configure", "POST /companies/:companyId/chat-endpoints"),
+    "/spaces/:spaceId/chat-endpoints", managementGuard("connections:configure", "POST /spaces/:spaceId/chat-endpoints"),
     validate(createChatEndpointSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      await assertConnectionManager(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      await assertConnectionManager(req, spaceId);
       assertChatProviderEnabledForCreate(req.body.provider, await instanceSettingsService(db).getExperimental());
       if (req.body.provider === "slack" && !req.body.slackSetupMethod) {
         req.body.slackSetupMethod = service.slackRegistration.managerGrants.defaultMethod();
@@ -212,7 +212,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
       if (req.body.slackSetupMethod === "managed" && service.slackRegistration.managerGrants.defaultMethod() !== "managed") throw forbidden("Managed Slack setup is unavailable");
       res
         .status(201)
-        .json(await service.create(companyId, req.body, actorUserId(req), connectionRequestContext(req)));
+        .json(await service.create(spaceId, req.body, actorUserId(req), connectionRequestContext(req)));
     },
   );
 
@@ -222,18 +222,18 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
   });
 
   const slackActor = (req: ExpressRequest) => {
-    assertBoardOrAgent(req);
+    assertOperatorOrAgent(req);
     const userId = connectionRequestUserId(req);
     if (!userId) throw forbidden("A responsible user is required");
-    return { userId, sessionId: req.actor.type === "board" ? req.actor.sessionId ?? null : null,
+    return { userId, sessionId: req.actor.type === "operator" ? req.actor.sessionId ?? null : null,
       managementContext: connectionRequestContext(req),
-      bypassPermissionCheck: req.actor.type === "board" && (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin === true) };
+      bypassPermissionCheck: req.actor.type === "operator" && (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin === true) };
   };
-  router.get("/companies/:companyId/chat-slack/setup-options", managementGuard("connections:read", "GET /companies/:companyId/chat-slack/setup-options"), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertConnectionManager(req, companyId);
+  router.get("/spaces/:spaceId/chat-slack/setup-options", managementGuard("connections:read", "GET /spaces/:spaceId/chat-slack/setup-options"), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertConnectionManager(req, spaceId);
     res.set("Cache-Control", "no-store");
-    res.json(await service.slackRegistration.managerGrants.choices(companyId, slackActor(req)));
+    res.json(await service.slackRegistration.managerGrants.choices(spaceId, slackActor(req)));
   });
   router.post("/chat-endpoints/:endpointId/slack/managed/authorize", managementGuard("connections:configure", "POST /chat-endpoints/:endpointId/slack/managed/authorize"), validate(slackSetupActionSchema), async (req, res) => {
     if (!(await assertEndpointManagementAccess(req, res))) return;
@@ -246,21 +246,21 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
     res.set("Cache-Control", "no-store");
     res.json(await service.slackRegistration.managed.provision(endpointId(req), slackActor(req), req.body));
   });
-  router.delete("/companies/:companyId/chat-slack/manager-grants/:grantId", managementGuard("connections:configure", "DELETE /companies/:companyId/chat-slack/manager-grants/:grantId", { slackManagerGrant: true }), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertConnectionManager(req, companyId);
-    await service.slackRegistration.managerGrants.revoke(req.params.grantId as string, companyId, slackActor(req));
+  router.delete("/spaces/:spaceId/chat-slack/manager-grants/:grantId", managementGuard("connections:configure", "DELETE /spaces/:spaceId/chat-slack/manager-grants/:grantId", { slackManagerGrant: true }), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertConnectionManager(req, spaceId);
+    await service.slackRegistration.managerGrants.revoke(req.params.grantId as string, spaceId, slackActor(req));
     res.sendStatus(204);
   });
   router.get("/chat-slack/managed/oauth/callback", async (req, res) => {
     res.set("Cache-Control", "no-store"); res.set("Referrer-Policy", "no-referrer");
-    assertBoard(req);
+    assertOperator(req);
     const actor = slackActor(req);
     const state = typeof req.query.state === "string" ? req.query.state : "";
     const expiredId = await service.slackRegistration.managerGrants.expiredReturn(state, actor);
     if (expiredId) { res.redirect(303, await service.slackRegistration.returnPath(expiredId)); return; }
     const pending = await service.slackRegistration.managerGrants.pending(state, actor);
-    await assertConnectionManager(req, pending.current.endpoint.companyId);
+    await assertConnectionManager(req, pending.current.endpoint.spaceId);
     if (req.get("accept")?.includes("text/html") && isCrossSiteOAuthCallbackNavigation(req)) {
       res.type("html").send(oauthCallbackInterstitialHtml()); return;
     }
@@ -296,13 +296,13 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
   router.get("/chat-slack/oauth/callback", async (req, res) => {
     res.set("Cache-Control", "no-store");
     res.set("Referrer-Policy", "no-referrer");
-    assertBoard(req);
+    assertOperator(req);
     const actor = slackActor(req);
     const state = typeof req.query.state === "string" ? req.query.state : "";
     const expiredReturn = await service.slackRegistration.expiredReturn(state, actor);
     if (expiredReturn) { res.redirect(303, expiredReturn); return; }
     const pending = await service.slackRegistration.pending(state, actor);
-    await assertConnectionManager(req, pending.row.companyId);
+    await assertConnectionManager(req, pending.row.spaceId);
     if (req.get("accept")?.includes("text/html") && isCrossSiteOAuthCallbackNavigation(req)) {
       res.type("html").send(oauthCallbackInterstitialHtml());
       return;
@@ -351,7 +351,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
     if (!(await assertEndpointAccess(req, res, service))) return;
     res.json(await github.personalConnections(endpointId(req), githubUser(req)));
   });
-  router.post("/chat-endpoints/:endpointId/github/identity", (req, _res, next) => { assertBoard(req); next(); }, validate(z.object({ connectionId: z.string().uuid(), confirmedGithubUserId: z.string().regex(/^[1-9][0-9]*$/).optional() }).strict()), async (req, res) => {
+  router.post("/chat-endpoints/:endpointId/github/identity", (req, _res, next) => { assertOperator(req); next(); }, validate(z.object({ connectionId: z.string().uuid(), confirmedGithubUserId: z.string().regex(/^[1-9][0-9]*$/).optional() }).strict()), async (req, res) => {
     if (!(await assertEndpointAccess(req, res, service))) return;
     res.json(await github.identity(endpointId(req), req.body.connectionId, githubUser(req), req.body.confirmedGithubUserId));
   });
@@ -390,7 +390,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
     if (req.actor.type === "agent") { res.json(await setupHandoff(req, "The responsible user must authenticate and confirm their own GitHub identity.", "confirm_identity")); return; }
     res.json(await service.githubWizard.startIdentity(endpointId(req), githubUser(req), req.actor));
   });
-  router.post("/chat-endpoints/:endpointId/github/identity/confirm", (req, _res, next) => { assertBoard(req); next(); }, validate(z.object({ githubUserId: z.string().regex(/^[1-9][0-9]*$/) }).strict()), async (req, res) => {
+  router.post("/chat-endpoints/:endpointId/github/identity/confirm", (req, _res, next) => { assertOperator(req); next(); }, validate(z.object({ githubUserId: z.string().regex(/^[1-9][0-9]*$/) }).strict()), async (req, res) => {
     if (!(await assertEndpointManagementAccess(req, res))) return;
     res.set("Cache-Control", "no-store");
     res.json(await service.githubWizard.confirmIdentity(endpointId(req), githubUser(req), req.body.githubUserId));
@@ -581,7 +581,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
       throw error;
     });
     // A link privately issued to a signed Slack sender is an invitation to
-    // request membership. Other link intents retain company-access checks.
+    // request membership. Other link intents retain space-access checks.
     const preview = invitation?.selfService ? invitation : await getAccessibleResource(
       req, res, Promise.resolve(invitation), "Identity-link request not found",
     );
@@ -607,7 +607,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
   });
 
   router.post(
-    "/chat-endpoints/:endpointId/deliveries/:deliveryId/replay", (req, _res, next) => { assertBoard(req); next(); },
+    "/chat-endpoints/:endpointId/deliveries/:deliveryId/replay", (req, _res, next) => { assertOperator(req); next(); },
     async (req, res) => {
       if (!(await assertEndpointManagementAccess(req, res))) return;
       await service.replayDelivery(
@@ -619,7 +619,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
   );
 
   router.post(
-    "/chat-endpoints/:endpointId/publications/:publicationId/replay", (req, _res, next) => { assertBoard(req); next(); },
+    "/chat-endpoints/:endpointId/publications/:publicationId/replay", (req, _res, next) => { assertOperator(req); next(); },
     async (req, res) => {
       if (!(await assertEndpointManagementAccess(req, res))) return;
       await service.replayPublication(
@@ -631,12 +631,12 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
   );
 
   router.post(
-    "/chat-endpoints/:endpointId/publications/:publicationId/resolve", (req, _res, next) => { assertBoard(req); next(); },
+    "/chat-endpoints/:endpointId/publications/:publicationId/resolve", (req, _res, next) => { assertOperator(req); next(); },
     validate(resolveChatPublicationSchema),
     async (req, res) => {
       if (!(await assertEndpointManagementAccess(req, res))) return;
       const userId = actorUserId(req);
-      if (!userId) throw badRequest("A board user is required");
+      if (!userId) throw badRequest("A operator user is required");
       await service.resolvePublication(
         endpointId(req),
         req.params.publicationId as string,
@@ -649,12 +649,12 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
   );
 
   router.post(
-    "/chat-endpoints/:endpointId/actions/:actionId/resolve", (req, _res, next) => { assertBoard(req); next(); },
+    "/chat-endpoints/:endpointId/actions/:actionId/resolve", (req, _res, next) => { assertOperator(req); next(); },
     validate(resolveChatActionSchema),
     async (req, res) => {
       if (!(await assertEndpointManagementAccess(req, res))) return;
       const userId = actorUserId(req);
-      if (!userId) throw badRequest("A board user is required");
+      if (!userId) throw badRequest("A operator user is required");
       await service.resolveAction(
         endpointId(req),
         req.params.actionId as string,
@@ -666,7 +666,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
   );
 
   router.post(
-    "/chat-endpoints/:endpointId/conversations/:conversationId/publications", (req, _res, next) => { assertBoard(req); next(); },
+    "/chat-endpoints/:endpointId/conversations/:conversationId/publications", (req, _res, next) => { assertOperator(req); next(); },
     validate(publishChatPublicationSchema),
     async (req, res) => {
       if (!(await assertEndpointAccess(req, res, service))) return;
@@ -683,7 +683,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
         return;
       }
       const userId = actorUserId(req);
-      if (!userId) throw badRequest("A board user is required");
+      if (!userId) throw badRequest("A operator user is required");
       res
         .status(201)
         .json(
@@ -725,7 +725,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
   );
 
   router.get("/issues/:issueId/chat-binding", managementGuard("connections:read", "GET /issues/:issueId/chat-binding"), async (req, res) => {
-    assertBoardOrAgent(req);
+    assertOperatorOrAgent(req);
     const issueId = req.params.issueId as string;
     if (issueId !== issueId.trim() || !isUuidLike(issueId)) {
       throw badRequest("Task ID must be a UUID");
@@ -791,7 +791,7 @@ async function writeStandardResponse(response: Response, res: ExpressResponse) {
   res.status(response.status).send(body);
 }
 
-/** Provider-authenticated ingress. Mount outside the board mutation guard. */
+/** Provider-authenticated ingress. Mount outside the operator mutation guard. */
 export function chatWebhookRoutes(
   service: ChatChannelService,
   options: ChatWebhookRouteOptions = {},

@@ -11,7 +11,7 @@ import {
 function step(overrides: Partial<SmokeRunStep> & Pick<SmokeRunStep, "path" | "scenarioStep" | "status">): SmokeRunStep {
   return {
     id: `${overrides.path}-${overrides.scenarioStep}`,
-    companyId: "c1",
+    spaceId: "c1",
     runId: "r1",
     detail: null,
     screenshotArtifactRef: null,
@@ -25,7 +25,7 @@ function step(overrides: Partial<SmokeRunStep> & Pick<SmokeRunStep, "path" | "sc
 function run(overrides: Partial<SmokeRun> = {}): SmokeRun {
   return {
     id: "r1",
-    companyId: "c1",
+    spaceId: "c1",
     trigger: "manual",
     status: "passed",
     startedAt: "2026-07-10T00:00:00Z",

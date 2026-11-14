@@ -38,7 +38,7 @@ export interface InvitationPrerequisiteReceipt {
   observedRedactorSha256?: string;
   supervisorReceiptSha256?: string;
   inviteId?: string;
-  companyId?: string;
+  spaceId?: string;
   inviteReadback: boolean;
   inviteRevoked: boolean;
   personSessionDisposed: boolean;
@@ -71,7 +71,7 @@ export class InvitationEnrollmentPrerequisiteBlocked extends Error {
 }
 /** Returns only for the independently qualified fixed logger. Otherwise the
  * issued private capability is verified and revoked without ever using its URL. */
-export async function requireSafeInvitationEnrollment(api: RunnerApi, companyId: string, inviteId: string, role: "operator" | "viewer", disposePerson: () => Promise<void>) {
+export async function requireSafeInvitationEnrollment(api: RunnerApi, spaceId: string, inviteId: string, role: "operator" | "viewer", disposePerson: () => Promise<void>) {
   const binding = bindings.get(api);
   let proof: InvitationRuntimeProof | undefined;
   try { proof = await binding?.verifyRuntime(); } catch { /* Unknown identity never authorizes acceptance. */ }
@@ -87,19 +87,19 @@ export async function requireSafeInvitationEnrollment(api: RunnerApi, companyId:
     ...(disposition === "affected" ? { observedRedactorSha256: proof!.redactorSha256, supervisorReceiptSha256: proof!.supervisorReceiptSha256 } : {}),
     inviteReadback: false, inviteRevoked: false, personSessionDisposed: false, acceptanceCalled: false, nativeDispatchFromPrerequisite: false,
   };
-  if (!/^[a-f0-9-]{36}$/.test(inviteId) || !/^[a-f0-9-]{36}$/.test(companyId)) {
+  if (!/^[a-f0-9-]{36}$/.test(inviteId) || !/^[a-f0-9-]{36}$/.test(spaceId)) {
     try { await disposePerson(); receipt.personSessionDisposed = true; } catch { /* Keep incomplete cleanup visible. */ }
     await binding?.evidence("identity-invitation-enrollment-prerequisite.json", receipt);
     throw new Error(`Invitation prerequisite probe incomplete: ${JSON.stringify(receipt)}`);
   }
-  receipt.inviteId = inviteId; receipt.companyId = companyId;
+  receipt.inviteId = inviteId; receipt.spaceId = spaceId;
   try {
-    const page = await api.get<{ invites: Array<{ id: string; companyId: string; allowedJoinTypes: string; humanRole: string; state: string }> }>(`/api/companies/${companyId}/invites?limit=100`);
-    receipt.inviteReadback = page.invites.some(row => row.id === inviteId && row.companyId === companyId && row.allowedJoinTypes === "human" && row.humanRole === role && row.state === "active");
+    const page = await api.get<{ invites: Array<{ id: string; spaceId: string; allowedJoinTypes: string; humanRole: string; state: string }> }>(`/api/spaces/${spaceId}/invites?limit=100`);
+    receipt.inviteReadback = page.invites.some(row => row.id === inviteId && row.spaceId === spaceId && row.allowedJoinTypes === "human" && row.humanRole === role && row.state === "active");
   } catch { /* The safe receipt records an incomplete public prerequisite. */ }
   try {
     await api.postSensitive(`/api/invites/${inviteId}/revoke`, {});
-    const page = await api.get<{ invites: Array<{ id: string; state: string }> }>(`/api/companies/${companyId}/invites?state=revoked&limit=100`);
+    const page = await api.get<{ invites: Array<{ id: string; state: string }> }>(`/api/spaces/${spaceId}/invites?state=revoked&limit=100`);
     receipt.inviteRevoked = page.invites.some(row => row.id === inviteId && row.state === "revoked");
   } catch { /* Cleanup failure must remain visible and cannot count as blocked proof. */ }
   try { await disposePerson(); receipt.personSessionDisposed = true; } catch { /* An incomplete cleanup is never credited as closed proof. */ }

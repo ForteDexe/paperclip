@@ -13,15 +13,15 @@ describe("standalone Node commentary helper", () => {
   let root: string;
   let helper: string;
   const servers: Server[] = [];
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const runId = randomUUID();
   const token = "private-helper-test-token";
 
   beforeAll(async () => {
-    root = await mkdtemp(join(tmpdir(), "paperclip-node-feedback-"));
+    root = await mkdtemp(join(tmpdir(), "outpost-node-feedback-"));
     helper = join(root, "submit-agent-commentary.mjs");
     // An installed skill must work outside the repository/package boundary.
-    await copyFile(fileURLToPath(new URL("../../../skills/paperclip/scripts/submit-agent-commentary.mjs", import.meta.url)), helper);
+    await copyFile(fileURLToPath(new URL("../../../skills/outpost/scripts/submit-agent-commentary.mjs", import.meta.url)), helper);
   });
   afterAll(async () => { await rm(root, { recursive: true, force: true }); });
   afterEach(async () => {
@@ -39,7 +39,7 @@ describe("standalone Node commentary helper", () => {
     const server = createServer(async (request, response) => {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(chunk);
-      requests.push({ url: request.url, method: request.method, authorization: request.headers.authorization, runId: request.headers["x-paperclip-run-id"], payload: JSON.parse(Buffer.concat(chunks).toString("utf8")) });
+      requests.push({ url: request.url, method: request.method, authorization: request.headers.authorization, runId: request.headers["x-outpost-run-id"], payload: JSON.parse(Buffer.concat(chunks).toString("utf8")) });
       reply(response);
     });
     servers.push(server);
@@ -54,7 +54,7 @@ describe("standalone Node commentary helper", () => {
       const child = spawn(process.execPath, [helper, ...args], {
         cwd: root,
         // No Python, shell, or other executable is available through PATH.
-        env: { ...process.env, PATH: "", OUTPOST_API_URL: apiUrl, OUTPOST_API_KEY: token, OUTPOST_COMPANY_ID: companyId, OUTPOST_RUN_ID: runId, ...env },
+        env: { ...process.env, PATH: "", OUTPOST_API_URL: apiUrl, OUTPOST_API_KEY: token, OUTPOST_SPACE_ID: spaceId, OUTPOST_RUN_ID: runId, ...env },
         stdio: "pipe",
       });
       let out = "", err = "";
@@ -74,7 +74,7 @@ describe("standalone Node commentary helper", () => {
     const args = kind === "complaint" ? [kind, "stable-key"] : [kind];
     expect(await run(`${target.url}/api/`, body, args)).toEqual({ code: 0, out: "Feedback stored.\n", err: "" });
     expect(target.requests).toEqual([{
-      url: `/api/companies/${companyId}/agent-commentary`, method: "POST", authorization: `Bearer ${token}`, runId,
+      url: `/api/spaces/${spaceId}/agent-commentary`, method: "POST", authorization: `Bearer ${token}`, runId,
       payload: { kind, body, idempotencyKey: kind === "complaint" ? "stable-key" : expect.stringMatching(/^[0-9a-f-]{36}$/) },
     }]);
   });

@@ -14,7 +14,7 @@ pnpm test
 ## Install Into Outpost
 
 ```bash
-npx paperclipai plugin install ./
+npx @outpost/cli plugin install ./
 ```
 
 ## Build Options

@@ -4,7 +4,7 @@ import { boundSetupCommandFailure, readSetupCommandFailure } from "./workspace-s
 import { and, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { unidentifiedLocalLaunchRefusals } from "./native-local-process-stop.js";
 import { nativeSessionCleanupBlock } from "../vendor/outpost-runner/index.js";
-import { agents, agentWakeupRequests, approvals, chatActions, companies, environmentLeases, heartbeatRuns, issueApprovals, issueRecoveryActions,
+import { agents, agentWakeupRequests, approvals, chatActions, spaces, environmentLeases, heartbeatRuns, issueApprovals, issueRecoveryActions,
   issues, issueTreeHoldMembers, issueTreeHolds, nativeRunFinalizations, projects, type Db } from "@outpost/db";
 import { unionAll } from "drizzle-orm/pg-core";
 import { HEARTBEAT_RUN_STATUSES, readProviderFailure, type TaskInterruptionPresentation } from "@outpost/shared";
@@ -40,10 +40,10 @@ const NATIVE_RESUME_DISPATCH_GRACE_MS = 2 * 60_000;
 // successor starts. Past this, a hand-off that never started offers Retry.
 const QUEUED_INTERRUPT_HANDOFF_GRACE_MS = 5 * 60_000;
 
-type ProjectionIssue = Pick<typeof issues.$inferSelect, "id" | "companyId" | "status" | "assigneeAgentId" | "projectId">;
+type ProjectionIssue = Pick<typeof issues.$inferSelect, "id" | "spaceId" | "status" | "assigneeAgentId" | "projectId">;
 type ProjectionRun = Pick<typeof heartbeatRuns.$inferSelect,
   "id" | "status" | "scheduledRetryAt" | "errorCode" | "livenessState" | "resultJson"> &
-  Partial<Pick<typeof heartbeatRuns.$inferSelect, "agentId" | "error" | "companyId" | "nativeIssueId" | "runtimeMode" | "startedAt"
+  Partial<Pick<typeof heartbeatRuns.$inferSelect, "agentId" | "error" | "spaceId" | "nativeIssueId" | "runtimeMode" | "startedAt"
     | "scheduledRetryReason" | "createdAt" | "finishedAt" | "processPid" | "processGroupId">> & {
   /** Due time of the native coordinator's own same-run resume, if one is pending. */
   nativeResumeAt?: Date | null;
@@ -74,10 +74,10 @@ type ProjectionState = {
   projectAccessProjectId?: string | null;
   workspaceSelectionAvailable?: boolean;
   project?: Pick<typeof projects.$inferSelect, "pausedAt" | "pauseReason">;
-  company?: Pick<typeof companies.$inferSelect, "status" | "pauseReason">;
+  space?: Pick<typeof spaces.$inferSelect, "status" | "pauseReason">;
   paused: boolean;
   approval: boolean;
-  /** A board-owned workspace-owner fence on this run that no automatic proof has released. */
+  /** A operator-owned workspace-owner fence on this run that no automatic proof has released. */
   ownerStopRequired?: boolean;
   unidentifiedLaunchConfirmable?: boolean;
   /** The latest wake for a task with no run yet, when admission refused it. */
@@ -160,7 +160,7 @@ const retryWaitMessages: Record<string, string> = {
 };
 
 const UNIDENTIFIED_RUNNER_STOP_MESSAGE = "Outpost can't confirm that the previous run stopped. The server restarted after it started the agent but before it recorded the agent's process. "
-  + "If no agent is still working on this task, a board operator can confirm that it stopped, and your Retry starts right away. Your message is saved.";
+  + "If no agent is still working on this task, a operator operator can confirm that it stopped, and your Retry starts right away. Your message is saved.";
 
 type RetryDependencies = { count: number; blocked: boolean; cancelled: boolean; savingFilesOnly: boolean };
 
@@ -201,7 +201,7 @@ export function projectTaskInterruption(issue: ProjectionIssue, input: Projectio
 }
 
 function projectTaskInterruptionState(issue: ProjectionIssue, input: ProjectionState, now: number): TaskInterruptionPresentation | null {
-  const { run, wait, action, agent, project, company } = input;
+  const { run, wait, action, agent, project, space } = input;
   const retryWait = input.retryWait ?? wait;
   if (!run) {
     const admission = input.admissionWait;
@@ -212,8 +212,8 @@ function projectTaskInterruptionState(issue: ProjectionIssue, input: ProjectionS
     // Budget pauses, ordinary pauses and approvals wait on a person; only an
     // accounting hold settles by itself. Admission records all of them as budget.blocked.
     const userAction = !issue.assigneeAgentId ? "assign_agent" : input.approval ? "approval"
-      : [agent?.pauseReason, project?.pauseReason, company?.pauseReason].some(reason => reason === "budget" || reason === "budget_exceeded")
-        ? "budget" : input.paused || project?.pausedAt || agent?.status === "paused" || company?.status === "paused" ? "resume" : null;
+      : [agent?.pauseReason, project?.pauseReason, space?.pauseReason].some(reason => reason === "budget" || reason === "budget_exceeded")
+        ? "budget" : input.paused || project?.pausedAt || agent?.status === "paused" || space?.status === "paused" ? "resume" : null;
     if (userAction) return { ...waiting, responsibility: "user", state: "waiting_for_user", userAction };
     return { ...waiting, retryWait: { reason: admission.reason!, message: admissionWaitMessages[admission.reason!] } };
   }
@@ -238,11 +238,11 @@ function projectTaskInterruptionState(issue: ProjectionIssue, input: ProjectionS
   const userAction = !issue.assigneeAgentId ? "assign_agent" : input.approval || run.errorCode === "native_provider_approval_required" ? "approval"
     : isAiAuthenticationBlocked(run) ? "reconnect"
       : run.errorCode === "native_provider_model_rejected" ? "choose_model"
-      : [agent?.pauseReason, project?.pauseReason, company?.pauseReason].some(reason => reason === "budget" || reason === "budget_exceeded")
-        ? "budget" : input.paused || project?.pausedAt || agent?.status === "paused" || company?.status === "paused" ? "resume" : null;
+      : [agent?.pauseReason, project?.pauseReason, space?.pauseReason].some(reason => reason === "budget" || reason === "budget_exceeded")
+        ? "budget" : input.paused || project?.pausedAt || agent?.status === "paused" || space?.status === "paused" ? "resume" : null;
   if (userAction) return { ...base, responsibility: "user", state: "waiting_for_user", userAction,
     ...(userAction === "choose_model" && run.rejectedModel ? { rejectedModel: run.rejectedModel } : {}) };
-  // The previous controller cannot confirm its own stop. Name the one board
+  // The previous controller cannot confirm its own stop. Name the one operator
   // action instead of showing the fenced run as working (RC-47).
   if (input.ownerStopRequired) return { ...base, responsibility: "user", state: "waiting_for_user", userAction: "confirm_owner_stop" };
   // The task's existing dependency UI owns this wait. Keep actual recovery and
@@ -250,8 +250,8 @@ function projectTaskInterruptionState(issue: ProjectionIssue, input: ProjectionS
   if (!action && !retryWait?.preparationStatus && isQueuedDependencyWait(run)) return base;
   // Intentional Stop is not an unsuccessful attempt. This is presentation only;
   // physical containment and pending cleanup keep their execution-side gates.
-  if (!wait && run.runtimeMode === "native" && run.companyId === issue.companyId && run.nativeIssueId === issue.id
-      && isAcknowledgedNativeStop({ ...run, companyId: run.companyId, nativeIssueId: run.nativeIssueId })) return base;
+  if (!wait && run.runtimeMode === "native" && run.spaceId === issue.spaceId && run.nativeIssueId === issue.id
+      && isAcknowledgedNativeStop({ ...run, spaceId: run.spaceId, nativeIssueId: run.nativeIssueId })) return base;
   // A queued-message Interrupt stops this run to deliver that exact message.
   // The stop is the user's intent and the message starts next, so show the
   // hand-off as working, not as a failed attempt.
@@ -301,10 +301,10 @@ function projectTaskInterruptionState(issue: ProjectionIssue, input: ProjectionS
   // dispatch runs. A resume that never ran falls through to one Retry.
   const nativeResumeAt = run.nativeResumeAt?.getTime();
   const retryAt = system?.nextAttemptAt ?? nativeResumeAt ?? run.scheduledRetryAt?.getTime();
-  if (run.runtimeMode === "native" && run.errorCode === "native_governed_wait_settlement_pending") {
+  if (run.runtimeMode === "native" && run.errorCode === "native_controlled_wait_settlement_pending") {
     const settling = recoveryRunning || Boolean(retryAt && now - retryAt < NATIVE_RESUME_DISPATCH_GRACE_MS);
     return { ...base, state: settling ? "working" : "failed", canRetry: false,
-      retryWait: { reason: "governed_wait_settlement", message: settling
+      retryWait: { reason: "controlled_wait_settlement", message: settling
         ? "Your work is saved. Outpost is finishing shutdown."
         : "Outpost couldn’t confirm shutdown. Your work is saved; continuation is paused." } };
   }
@@ -351,16 +351,16 @@ function projectTaskInterruptionState(issue: ProjectionIssue, input: ProjectionS
  * remote environment not yet released (its termination receipt retires the
  * gate), or a scheduled close in this process. An operator-required gate or a
  * gate lost with a restarted process has no owner. */
-async function quarantineCleanupSettling(db: Db, companyId: string,
+async function quarantineCleanupSettling(db: Db, spaceId: string,
   entries: Array<{ issueId: string; run: { id: string; nativeIssueId?: string | null } }>): Promise<Set<string>> {
   const settling = new Set<string>();
   if (!entries.length) return settling;
   const unreleased = new Set((await db.select({ runId: environmentLeases.heartbeatRunId }).from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, companyId), inArray(environmentLeases.heartbeatRunId, entries.map(entry => entry.run.id)),
+    eq(environmentLeases.spaceId, spaceId), inArray(environmentLeases.heartbeatRunId, entries.map(entry => entry.run.id)),
     isNull(environmentLeases.releasedAt), sql`${environmentLeases.provider} is distinct from 'local'`,
   ))).map(row => row.runId));
   for (const { issueId, run } of entries) {
-    if (unreleased.has(run.id) || nativeSessionCleanupBlock({ companyId, issueId: run.nativeIssueId ?? issueId }) === "pending")
+    if (unreleased.has(run.id) || nativeSessionCleanupBlock({ spaceId, issueId: run.nativeIssueId ?? issueId }) === "pending")
       settling.add(issueId);
   }
   return settling;
@@ -370,8 +370,8 @@ async function quarantineCleanupSettling(db: Db, companyId: string,
  * the predecessor it retries: the countdown keeps its reason.
  * Batch list reads rather than doing seven queries per row. Keep run logs and
  * large result bodies out of this projection. */
-export async function taskInterruptionPresentations(db: Db, companyId: string, input: ProjectionIssue[]) {
-  const selected = input.filter(issue => issue.companyId === companyId);
+export async function taskInterruptionPresentations(db: Db, spaceId: string, input: ProjectionIssue[]) {
+  const selected = input.filter(issue => issue.spaceId === spaceId);
   const result = new Map<string, TaskInterruptionPresentation | null>();
   if (!selected.length) return result;
   const ids = selected.map(issue => issue.id);
@@ -381,7 +381,7 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
     then ${requestedIssueId}::uuid else null end`;
   const legacyIssue = sql<string>`${heartbeatRuns.contextSnapshot}->>'issueId'`;
   const candidate = (condition: ReturnType<typeof and>) => db.select({ id: heartbeatRuns.id, createdAt: heartbeatRuns.createdAt })
-    .from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), condition))
+    .from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), condition))
     .orderBy(desc(heartbeatRuns.createdAt), desc(heartbeatRuns.id)).limit(1);
   const candidates = unionAll(
     candidate(eq(heartbeatRuns.nativeIssueId, requestedUuid)),
@@ -395,9 +395,9 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
   const agentIds = selected.flatMap(issue => issue.assigneeAgentId ? [issue.assigneeAgentId] : []);
   const projectIds = selected.flatMap(issue => issue.projectId ? [issue.projectId] : []);
   const startingIssueIds = selected.filter(issue => issue.status === "todo" && issue.assigneeAgentId).map(issue => issue.id);
-  const [runs, waits, agentRows, projectRows, pauseRows, approvalRows, companyRows, admissionWaits] = await Promise.all([
+  const [runs, waits, agentRows, projectRows, pauseRows, approvalRows, spaceRows, admissionWaits] = await Promise.all([
     db.select({ issueId: requestedIssueId, id: heartbeatRuns.id, status: heartbeatRuns.status,
-      createdAt: heartbeatRuns.createdAt, finishedAt: heartbeatRuns.finishedAt, agentId: heartbeatRuns.agentId, companyId: heartbeatRuns.companyId,
+      createdAt: heartbeatRuns.createdAt, finishedAt: heartbeatRuns.finishedAt, agentId: heartbeatRuns.agentId, spaceId: heartbeatRuns.spaceId,
       nativeIssueId: heartbeatRuns.nativeIssueId, runtimeMode: heartbeatRuns.runtimeMode, startedAt: heartbeatRuns.startedAt,
       processPid: heartbeatRuns.processPid, processGroupId: heartbeatRuns.processGroupId,
       agentAdapter: agents.adapterType,
@@ -423,13 +423,13 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
       // it defers an ineligible run. The scheduler's own admission check below
       // decides whether this resume is real.
       nativeResumeAt: sql<Date | null>`(select ${nativeRunFinalizations.nextAttemptAt} from ${nativeRunFinalizations}
-        where ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId} and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
+        where ${nativeRunFinalizations.spaceId} = ${heartbeatRuns.spaceId} and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
           and ${heartbeatRuns.runtimeMode} = 'native' and ${heartbeatRuns.status} = 'failed'
           and ${nativeRunFinalizations.resultId} is null and ${nativeRunFinalizations.phase} = 'retryable_failure'
           and ${heartbeatRuns.contextSnapshot}->'nativeQuestionCancellation' is null
           and ${heartbeatRuns.runnerProfileJson}->'legacyWorkspaceRecoveryMigration' is null)`.mapWith(value => value == null ? null : new Date(value)),
       nativeFailedAt: sql<Date | null>`(select ${nativeRunFinalizations.updatedAt} from ${nativeRunFinalizations}
-        where ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId} and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
+        where ${nativeRunFinalizations.spaceId} = ${heartbeatRuns.spaceId} and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
           and ${nativeRunFinalizations.phase} = 'terminal_failure')`.mapWith(value => value == null ? null : new Date(value)),
       nativeFinalizationRetry: exhaustedNativeFinalizationCondition(),
       nativeFinalizationRetryPending: savedResultRetryPendingCondition(),
@@ -453,7 +453,7 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
         'nativeCancellation', jsonb_build_object(
           'schema', ${boundedJsonString(sql`${heartbeatRuns.resultJson}->'nativeCancellation'->'schema'`, 64)},
           'runId', ${boundedJsonString(sql`${heartbeatRuns.resultJson}->'nativeCancellation'->'runId'`, 160)},
-          'companyId', ${boundedJsonString(sql`${heartbeatRuns.resultJson}->'nativeCancellation'->'companyId'`, 160)},
+          'spaceId', ${boundedJsonString(sql`${heartbeatRuns.resultJson}->'nativeCancellation'->'spaceId'`, 160)},
           'issueId', ${boundedJsonString(sql`${heartbeatRuns.resultJson}->'nativeCancellation'->'issueId'`, 160)},
           'scope', ${boundedJsonString(sql`${heartbeatRuns.resultJson}->'nativeCancellation'->'scope'`, 32)},
           'reasonCode', ${boundedJsonString(sql`${heartbeatRuns.resultJson}->'nativeCancellation'->'reasonCode'`, 64)},
@@ -463,13 +463,13 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
           'acknowledgementAuditId', ${boundedJsonString(sql`${heartbeatRuns.resultJson}->'nativeCancellation'->'acknowledgementAuditId'`, 160)}),
         'providerFailure', coalesce(${heartbeatRuns.resultJson}->'providerFailure', case when ${heartbeatRuns.status} = 'scheduled_retry'
           then (select predecessor.result_json->'providerFailure' from ${heartbeatRuns} predecessor
-            where predecessor.company_id = ${heartbeatRuns.companyId} and predecessor.id = ${heartbeatRuns.retryOfRunId}) end),
+            where predecessor.space_id = ${heartbeatRuns.spaceId} and predecessor.id = ${heartbeatRuns.retryOfRunId}) end),
         'setupCommandFailure', coalesce(${heartbeatRuns.resultJson}->'setupCommandFailure', case when ${heartbeatRuns.status} = 'scheduled_retry'
           then (select predecessor.result_json->'setupCommandFailure' from ${heartbeatRuns} predecessor
-            where predecessor.company_id = ${heartbeatRuns.companyId} and predecessor.id = ${heartbeatRuns.retryOfRunId}
+            where predecessor.space_id = ${heartbeatRuns.spaceId} and predecessor.id = ${heartbeatRuns.retryOfRunId}
               and predecessor.error_code = 'setup_failed') end))`,
-    }).from(requested).innerJoinLateral(latestRuns, sql`true`).innerJoin(heartbeatRuns, and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, latestRuns.id)))
-      .leftJoin(agents, and(eq(agents.companyId, heartbeatRuns.companyId), eq(agents.id, heartbeatRuns.agentId)))
+    }).from(requested).innerJoinLateral(latestRuns, sql`true`).innerJoin(heartbeatRuns, and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, latestRuns.id)))
+      .leftJoin(agents, and(eq(agents.spaceId, heartbeatRuns.spaceId), eq(agents.id, heartbeatRuns.agentId)))
       .orderBy(requestedIssueId),
     // Keep at most two candidates per task: latest Retry and latest other input.
     // A new message must not hide an existing Retry's admission explanation.
@@ -479,34 +479,34 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
         sql`${agentWakeupRequests.payload}#>>'{executionWait,message}'`)})`, 80),
       preparationStatus: chatActions.status, preparationRetryAt: chatActionDeadline("failed_run_retry"),
       preparationUpdatedAt: chatActions.updatedAt })
-      .from(agentWakeupRequests).leftJoin(chatActions, and(eq(chatActions.companyId, agentWakeupRequests.companyId),
+      .from(agentWakeupRequests).leftJoin(chatActions, and(eq(chatActions.spaceId, agentWakeupRequests.spaceId),
         eq(chatActions.id, canonicalExecutionUuid(sql`${agentWakeupRequests.payload}#>>'{taskRetry,chatActionId}'`)),
         eq(chatActions.kind, "failed_run_retry"), sql`${chatActions.payload}->>'taskRetryIntentId' = ${agentWakeupRequests.id}::text`,
         sql`${chatActions.payload}->>'issueId' = ${wakeIssue}`,
         sql`${chatActions.payload}->>'agentId' = ${agentWakeupRequests.agentId}::text`,
         sql`${chatActions.payload}->>'failedRunId' = ${agentWakeupRequests.payload}#>>'{taskRetry,sourceRunId}'`,
         inArray(chatActions.status, ["issued", "processing", "failed", "cancelled"])))
-      .where(and(eq(agentWakeupRequests.companyId, companyId), inArray(wakeIssue, ids),
+      .where(and(eq(agentWakeupRequests.spaceId, spaceId), inArray(wakeIssue, ids),
         eq(agentWakeupRequests.status, "deferred_issue_execution"), eq(agentWakeupRequests.requestedByActorType, "user")))
       .orderBy(wakeIssue, isRetryWait, desc(agentWakeupRequests.requestedAt), desc(agentWakeupRequests.id)),
     agentIds.length ? db.select({ id: agents.id, status: agents.status, pauseReason: agents.pauseReason }).from(agents)
-      .where(and(eq(agents.companyId, companyId), inArray(agents.id, agentIds))) : [],
+      .where(and(eq(agents.spaceId, spaceId), inArray(agents.id, agentIds))) : [],
     projectIds.length ? db.select({ id: projects.id, pausedAt: projects.pausedAt, pauseReason: projects.pauseReason }).from(projects)
-      .where(and(eq(projects.companyId, companyId), inArray(projects.id, projectIds))) : [],
+      .where(and(eq(projects.spaceId, spaceId), inArray(projects.id, projectIds))) : [],
     db.select({ issueId: issueTreeHoldMembers.issueId }).from(issueTreeHoldMembers).innerJoin(issueTreeHolds, and(
-      eq(issueTreeHolds.companyId, issueTreeHoldMembers.companyId), eq(issueTreeHolds.id, issueTreeHoldMembers.holdId)))
-      .where(and(eq(issueTreeHoldMembers.companyId, companyId), inArray(issueTreeHoldMembers.issueId, ids),
+      eq(issueTreeHolds.spaceId, issueTreeHoldMembers.spaceId), eq(issueTreeHolds.id, issueTreeHoldMembers.holdId)))
+      .where(and(eq(issueTreeHoldMembers.spaceId, spaceId), inArray(issueTreeHoldMembers.issueId, ids),
         eq(issueTreeHolds.status, "active"), eq(issueTreeHolds.mode, "pause"))),
     db.select({ issueId: issueApprovals.issueId }).from(issueApprovals).innerJoin(approvals, and(
-      eq(approvals.companyId, issueApprovals.companyId), eq(approvals.id, issueApprovals.approvalId)))
-      .where(and(eq(issueApprovals.companyId, companyId), inArray(issueApprovals.issueId, ids),
+      eq(approvals.spaceId, issueApprovals.spaceId), eq(approvals.id, issueApprovals.approvalId)))
+      .where(and(eq(issueApprovals.spaceId, spaceId), inArray(issueApprovals.issueId, ids),
         inArray(approvals.status, ["pending", "revision_requested"]))),
-    db.select({ status: companies.status, pauseReason: companies.pauseReason }).from(companies).where(eq(companies.id, companyId)),
+    db.select({ status: spaces.status, pauseReason: spaces.pauseReason }).from(spaces).where(eq(spaces.id, spaceId)),
     // Only consulted for tasks without a run: the latest wake says whether admission refused it.
     startingIssueIds.length ? db.selectDistinctOn([wakeIssue], { issueId: wakeIssue, id: agentWakeupRequests.id,
       status: agentWakeupRequests.status, reason: unpricedUsageWait(sql`${agentWakeupRequests.reason}`, sql`${agentWakeupRequests.error}`),
       agentId: agentWakeupRequests.agentId })
-      .from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, companyId), inArray(wakeIssue, startingIssueIds)))
+      .from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, spaceId), inArray(wakeIssue, startingIssueIds)))
       .orderBy(wakeIssue, desc(agentWakeupRequests.requestedAt), desc(agentWakeupRequests.id)) : [],
   ]);
   // Advertise a pending resume only when the scheduler would admit it, using
@@ -520,12 +520,12 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
     const { readNativeSessionResumptionAgent } = await import("./native-runtime/native-session-resumption-admission.js");
     const candidateIds = resumeCandidates.map(run => run.id);
     const [fullRuns, coordinators] = await Promise.all([
-      db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), inArray(heartbeatRuns.id, candidateIds))),
-      db.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, companyId),
+      db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), inArray(heartbeatRuns.id, candidateIds))),
+      db.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.spaceId, spaceId),
         inArray(nativeRunFinalizations.runId, candidateIds))),
     ]);
     const issueIds = [...new Set(fullRuns.flatMap(run => run.nativeIssueId ? [run.nativeIssueId] : []))];
-    const issueRows = issueIds.length ? await db.select().from(issues).where(and(eq(issues.companyId, companyId),
+    const issueRows = issueIds.length ? await db.select().from(issues).where(and(eq(issues.spaceId, spaceId),
       inArray(issues.id, issueIds))) : [];
     const runById = new Map(fullRuns.map(run => [run.id, run]));
     const coordinatorByRun = new Map(coordinators.map(row => [row.runId, row]));
@@ -551,19 +551,19 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
   const interruptWaits = interruptQueueIds.length ? await db.select({ issueId: wakeIssue, id: agentWakeupRequests.id,
     requestedAt: agentWakeupRequests.requestedAt,
     queuedInterruptRequestedAt: boundedJsonString(sql`${agentWakeupRequests.payload}#>'{queuedCommentInterrupt,requestedAt}'`, 40) })
-    .from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, companyId), inArray(agentWakeupRequests.id, interruptQueueIds),
+    .from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, spaceId), inArray(agentWakeupRequests.id, interruptQueueIds),
       eq(agentWakeupRequests.status, "deferred_issue_execution"), eq(agentWakeupRequests.requestedByActorType, "user"))) : [];
   const interruptWaitById = new Map(interruptWaits.map(wait => [wait.id, wait]));
   const runIds = runs.map(run => run.id);
   const actions = runIds.length ? await db.selectDistinctOn([issueRecoveryActions.sourceIssueId]).from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, companyId), inArray(issueRecoveryActions.sourceIssueId, ids),
+    eq(issueRecoveryActions.spaceId, spaceId), inArray(issueRecoveryActions.sourceIssueId, ids),
     inArray(sql`${issueRecoveryActions.evidence}->>'runId'`, runIds),
     sql`${issueRecoveryActions.evidence} ? 'systemRecovery'`,
   )).orderBy(issueRecoveryActions.sourceIssueId, desc(issueRecoveryActions.createdAt)) : [];
   const ownerStops = runIds.length ? await db.select({ issueId: issueRecoveryActions.sourceIssueId,
     runId: sql<string>`${issueRecoveryActions.evidence}->>'runId'` }).from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, companyId), inArray(issueRecoveryActions.sourceIssueId, ids),
-    eq(issueRecoveryActions.cause, "native_workspace_finalization_owner_unverified"), eq(issueRecoveryActions.ownerType, "board"),
+    eq(issueRecoveryActions.spaceId, spaceId), inArray(issueRecoveryActions.sourceIssueId, ids),
+    eq(issueRecoveryActions.cause, "native_workspace_finalization_owner_unverified"), eq(issueRecoveryActions.ownerType, "operator"),
     inArray(issueRecoveryActions.status, ["active", "escalated"]),
     inArray(sql`${issueRecoveryActions.evidence}->>'runId'`, runIds),
     sql`${issueRecoveryActions.evidence}->'workspaceOwnerStop' is null`,
@@ -581,10 +581,10 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
   const retryDependencyMap = new Map<string, RetryDependencies>();
   if (retryIssueIds.length) {
     const { issueService } = await import("./issues.js");
-    const readiness = await issueService(db).listDependencyReadiness(companyId, retryIssueIds);
+    const readiness = await issueService(db).listDependencyReadiness(spaceId, retryIssueIds);
     const blockerIds = [...new Set([...readiness.values()].flatMap(row => row.unresolvedBlockerIssueIds))];
     const statusRows = blockerIds.length ? await db.select({ id: issues.id, status: issues.status }).from(issues)
-      .where(and(eq(issues.companyId, companyId), inArray(issues.id, blockerIds))) : [];
+      .where(and(eq(issues.spaceId, spaceId), inArray(issues.id, blockerIds))) : [];
     const statusById = new Map(statusRows.map(row => [row.id, row.status]));
     for (const [waitingIssueId, row] of readiness) {
       const ids = [...new Set(row.unresolvedBlockerIssueIds)];
@@ -602,7 +602,7 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
   const waitingOnBlockers = new Set<string>();
   if (settledIssueIds.length) {
     const { issueService } = await import("./issues.js");
-    const readiness = await issueService(db).listDependencyReadiness(companyId, settledIssueIds);
+    const readiness = await issueService(db).listDependencyReadiness(spaceId, settledIssueIds);
     for (const [waitingIssueId, row] of readiness)
       if (row.unresolvedBlockerIssueIds.length) waitingOnBlockers.add(waitingIssueId);
   }
@@ -619,7 +619,7 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
   // become obsolete after a workspace selection changes.
   const deniedIssues = selected.filter(issue => issue.assigneeAgentId && !["done", "cancelled"].includes(issue.status)
     && deniedProjectId(issue, runMap.get(issue.id)) !== undefined);
-  const requirements = await taskWorkspaceProjectRequirements(db, companyId, deniedIssues.map(issue => issue.id));
+  const requirements = await taskWorkspaceProjectRequirements(db, spaceId, deniedIssues.map(issue => issue.id));
   const deniedByAgent = new Map<string, Set<string>>();
   for (const issue of deniedIssues) {
     const ids = deniedByAgent.get(issue.assigneeAgentId!) ?? new Set<string>();
@@ -630,8 +630,8 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
   const authorization = authorizationService(db);
   for (const [agentId, ids] of deniedByAgent) {
     const projectIds = [...ids];
-    const decisions = await authorization.decideReads({ type: "agent", agentId, companyId, source: "agent_key" },
-      projectIds.map(projectId => ({ type: "project" as const, companyId, projectId })));
+    const decisions = await authorization.decideReads({ type: "agent", agentId, spaceId, source: "agent_key" },
+      projectIds.map(projectId => ({ type: "project" as const, spaceId, projectId })));
     projectIds.forEach((projectId, index) => currentAccess.set(`${agentId}:${projectId}`, decisions[index]?.allowed === true));
   }
   const actionMap = new Map(actions.map(action => [action.sourceIssueId, action]));
@@ -649,7 +649,7 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
     return run && wait.sourceRunId === run.id && wait.executionWaitReason === "process_identity_missing" ? [{ issueId, run }] : [];
   });
   const launchRefusals = await unidentifiedLocalLaunchRefusals(db, launchWaits.map(entry => entry.run));
-  const cleanupSettling = await quarantineCleanupSettling(db, companyId,
+  const cleanupSettling = await quarantineCleanupSettling(db, spaceId,
     [...runMap].flatMap(([issueId, run]) => run.errorCode === NATIVE_SESSION_CLEANUP_QUARANTINED ? [{ issueId, run }] : []));
   const confirmableLaunches = new Set(launchWaits.filter(entry => launchRefusals.get(entry.run.id) === null).map(entry => entry.issueId));
   const now = Date.now();
@@ -664,7 +664,7 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
       projectAccessProjectId: denied?.includes(issue.projectId ?? "") ? issue.projectId : null,
       workspaceSelectionAvailable: required?.available ?? false,
       agent: agentMap.get(issue.assigneeAgentId ?? ""), project: projectMap.get(issue.projectId ?? ""),
-      company: companyRows[0], paused: pauses.has(issue.id), approval: approvalsSet.has(issue.id),
+      space: spaceRows[0], paused: pauses.has(issue.id), approval: approvalsSet.has(issue.id),
       ownerStopRequired: ownerStopRequired.has(`${issue.id}:${facts.run?.id}`),
       unidentifiedLaunchConfirmable: confirmableLaunches.has(issue.id),
       admissionWait: admissionWaitMap.get(issue.id),
@@ -678,7 +678,7 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
     const changedAt = taskInterruptionChangedAt(facts);
     if (presentation?.responsibility === "system" && presentation.state === "failed" && run && runStatus
         && (changedAt === null || changedAt > now - TASK_INTERRUPTION_REPORT_WINDOW_MS)) {
-      captureTaskInterruptionFailure({ companyId, taskId: issue.id, agentId: run.agentId,
+      captureTaskInterruptionFailure({ spaceId, taskId: issue.id, agentId: run.agentId,
         runId: run.id, runStatus, intentId: presentation.intentId, runErrorCode: run.errorCode ?? null,
         agentAdapter: run.agentAdapter ?? "unknown" });
     }
@@ -695,7 +695,7 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
   if (disclosures.length) {
     try {
       const [redacted, settings] = await Promise.all([
-        createRunSecretRedactionRegistry(db).redactForRuns(companyId, disclosures.flatMap(({ id, providerFailureRunId, setupFailureRunId, providerFailure, workspaceFailure, setupFailure }) => [
+        createRunSecretRedactionRegistry(db).redactForRuns(spaceId, disclosures.flatMap(({ id, providerFailureRunId, setupFailureRunId, providerFailure, workspaceFailure, setupFailure }) => [
           { id: providerFailureRunId, providerFailure, workspaceFailure: undefined, setupFailure: undefined },
           { id, providerFailure: undefined, workspaceFailure, setupFailure: undefined },
           { id: setupFailureRunId, providerFailure: undefined, workspaceFailure: undefined, setupFailure },
@@ -736,12 +736,12 @@ export async function taskInterruptionPresentations(db: Db, companyId: string, i
         delete presentation.workspaceFailure;
         delete presentation.setupFailure;
       }
-      logger.warn({ companyId, runCount: disclosures.length }, "Could not redact run failure display; explanations omitted");
+      logger.warn({ spaceId, runCount: disclosures.length }, "Could not redact run failure display; explanations omitted");
     }
   }
   return result;
 }
 
 export async function taskInterruptionPresentation(db: Db, issue: ProjectionIssue) {
-  return (await taskInterruptionPresentations(db, issue.companyId, [issue])).get(issue.id) ?? null;
+  return (await taskInterruptionPresentations(db, issue.spaceId, [issue])).get(issue.id) ?? null;
 }

@@ -17,7 +17,7 @@ function ReviewGuide() {
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">Design review · Primary Agent</p>
         <h1 className="text-3xl font-semibold">Your main point of contact</h1>
-        <p className="max-w-3xl text-base text-muted-foreground">One crown per person, per company. Your first agent receives it automatically. Recent choices take precedence; the crown is your fallback.</p>
+        <p className="max-w-3xl text-base text-muted-foreground">One crown per person, per space. Your first agent receives it automatically. Recent choices take precedence; the crown is your fallback.</p>
         <a className="inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground" href={storyLink("06 Journeys", "switch-primary")} target="_top">Start the walkthrough</a>
       </div>
       <div className="overflow-x-auto rounded-lg border border-border">
@@ -43,7 +43,7 @@ function ReviewGuide() {
       </section>
       <section className="max-w-3xl space-y-3 text-sm text-muted-foreground">
         <h2 className="text-xl font-semibold text-foreground">Review boundary</h2>
-        <p>The pages, menus, avatars, composer, and app shell are production components. Preferences, first-creation results, fallback routing, and server responses are isolated Storybook simulations. Reload resets a story; no real agents run and no company data changes.</p>
+        <p>The pages, menus, avatars, composer, and app shell are production components. Preferences, first-creation results, fallback routing, and server responses are isolated Storybook simulations. Reload resets a story; no real agents run and no space data changes.</p>
         <p>The live app has retired the collapsed icon rail. Coverage uses the supported collapsible Agents section and mobile drawer instead. In the streamlined shell, the proposed Agents section is supplied through Layout’s existing sidebar slot; the classic shell uses its existing section.</p>
         <p>Persistence, migration, API authorization, and production default selection come after this review. These stories remain the implementation reference.</p>
       </section>
@@ -52,7 +52,7 @@ function ReviewGuide() {
 }
 export default { id: "primary-agent-00-review-guide",
   title: "Agents and reusable capabilities/Hiring, configuration, and organization/Primary Agent/00 Review guide", parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "agents/primary-agent",
         "tasks/create",

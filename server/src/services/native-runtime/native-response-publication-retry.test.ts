@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, companies, completionContracts, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues,
+import { activityLog, agents, spaces, completionContracts, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues,
   nativeRunFinalizations, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
@@ -27,22 +27,22 @@ describe.skipIf(!support.supported)("native final reply publication retry", () =
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
   const reply = "Keyboard shortcuts are now available on every plan.";
-  async function fixture(options: { companyId?: string; agentId?: string; runId?: string; issueId?: string; contract?: typeof completionContracts.$inferSelect } = {}) {
-    const companyId = options.companyId ?? randomUUID(), agentId = options.agentId ?? randomUUID();
+  async function fixture(options: { spaceId?: string; agentId?: string; runId?: string; issueId?: string; contract?: typeof completionContracts.$inferSelect } = {}) {
+    const spaceId = options.spaceId ?? randomUUID(), agentId = options.agentId ?? randomUUID();
     const issueId = options.issueId ?? randomUUID(), runId = options.runId ?? randomUUID();
     const sessionId = randomUUID(), runnerId = randomUUID();
-    if (!options.companyId) await db.insert(companies).values({ id: companyId, name: "Reply publication fixture", issuePrefix: companyId.slice(0, 8) });
-    if (!options.agentId) await db.insert(agents).values({ id: agentId, companyId, name: "Writer", adapterType: "outpost_runner" });
-    if (!options.issueId) await db.insert(issues).values({ id: issueId, companyId, title: "Short changelog blurb", status: "in_progress", assigneeAgentId: agentId });
-    const [contract] = options.contract ? [options.contract] : await db.insert(completionContracts).values({ companyId, issueId, revision: 1,
+    if (!options.spaceId) await db.insert(spaces).values({ id: spaceId, name: "Reply publication fixture", issuePrefix: spaceId.slice(0, 8) });
+    if (!options.agentId) await db.insert(agents).values({ id: agentId, spaceId, name: "Writer", adapterType: "outpost_runner" });
+    if (!options.issueId) await db.insert(issues).values({ id: issueId, spaceId, title: "Short changelog blurb", status: "in_progress", assigneeAgentId: agentId });
+    const [contract] = options.contract ? [options.contract] : await db.insert(completionContracts).values({ spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard", completionAuthority: "server_arbiter",
       incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: { revision: "test", objective: "Write the blurb", criteria: [] },
       canonicalSha256: "fixture-publication-contract", createdByActorType: "system", createdByActorId: "test" }).returning();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, nativeSessionId: sessionId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId, nativeSessionId: sessionId,
       runnerInstanceId: runnerId, completionContractId: contract.id, completionContractSha256: contract.canonicalSha256,
       status: "running", runtimeMode: "native", contextSnapshot: { issueId, source: "assignment" } });
     await db.update(issues).set({ executionRunId: runId, status: "in_progress" }).where(eq(issues.id, issueId));
-    const port = new NativeRunCoordinatorStore(db, { companyId, issueId, runId, agentId, normalizedSessionId: sessionId,
+    const port = new NativeRunCoordinatorStore(db, { spaceId, issueId, runId, agentId, normalizedSessionId: sessionId,
       runnerSourceInstanceId: runnerId, completionContractId: contract.id, completionContractSha256: contract.canonicalSha256,
       completionContractRevision: "test", completionContractCriterionIds: [] });
     await port.completeRun({ result: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done",
@@ -55,9 +55,9 @@ describe.skipIf(!support.supported)("native final reply publication retry", () =
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, runId));
     const orpEvent = { runId, normalizedSessionId: sessionId, turnId: "blurb-turn", sourceEventId: "fixture-final-reply",
       payload: { kind: "agentMessage", channel: "final", providerPhase: "final", text: reply } };
-    const saveFinalReply = () => db.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: 170, eventType: "item.completed",
+    const saveFinalReply = () => db.insert(heartbeatRunEvents).values({ spaceId, runId, agentId, seq: 170, eventType: "item.completed",
       payload: { orpEvent } });
-    return { companyId, issueId, runId, agentId, contract, saveFinalReply };
+    return { spaceId, issueId, runId, agentId, contract, saveFinalReply };
   }
   const comments = (runId: string) => db.select().from(issueComments).where(eq(issueComments.createdByRunId, runId));
   const run = async (runId: string) => (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)))[0];
@@ -69,7 +69,7 @@ describe.skipIf(!support.supported)("native final reply publication retry", () =
 
   it("publishes a later-page reply while older publication groups remain contended", async () => {
     const first = await fixture({ runId: "00000000-0000-4000-8000-000000000001" });
-    const group = { companyId: first.companyId, agentId: first.agentId };
+    const group = { spaceId: first.spaceId, agentId: first.agentId };
     const older = [first];
     // A full real SQL page of retained replies shares one publication owner.
     // This is the same grouping boundary as retained replies to one endpoint.
@@ -138,7 +138,7 @@ describe.skipIf(!support.supported)("native final reply publication retry", () =
   it("keeps an accepted reply scheduled after a single refused publication and posts it exactly once", async () => {
     const f = await fixture();
     const work = nativeResponsePresentationWork(db);
-    const [entry] = await work.load({ companyId: f.companyId, issueId: f.issueId });
+    const [entry] = await work.load({ spaceId: f.spaceId, issueId: f.issueId });
     expect(entry).toMatchObject({ id: f.runId });
 
     // The final reply is not visible yet, so publication is refused once.
@@ -149,7 +149,7 @@ describe.skipIf(!support.supported)("native final reply publication retry", () =
     expect(rescheduled!.dueAt).toBeGreaterThan(before);
     expect(await receipt(f.runId)).toMatchObject({ state: "retrying", attempts: 1, lastReason: "publication_refused" });
     // A restarted worker reconstructs the saved schedule instead of losing it.
-    const [reloaded] = await nativeResponsePresentationWork(db).load({ companyId: f.companyId, issueId: f.issueId });
+    const [reloaded] = await nativeResponsePresentationWork(db).load({ spaceId: f.spaceId, issueId: f.issueId });
     expect(reloaded).toMatchObject({ id: f.runId, dueAt: rescheduled!.dueAt });
     // Not yet due: no second attempt.
     await expect(work.check(reloaded)).resolves.toMatchObject({ dueAt: rescheduled!.dueAt });
@@ -157,13 +157,13 @@ describe.skipIf(!support.supported)("native final reply publication retry", () =
 
     await f.saveFinalReply();
     await makeDue(f.runId);
-    const [due] = await work.load({ companyId: f.companyId, issueId: f.issueId });
+    const [due] = await work.load({ spaceId: f.spaceId, issueId: f.issueId });
     await expect(work.check(due)).resolves.toBeNull();
     expect(await comments(f.runId)).toEqual([expect.objectContaining({ body: reply, authorAgentId: f.agentId })]);
     expect(await receipt(f.runId)).toMatchObject({ state: "resolved", attempts: 1 });
     expect(((await run(f.runId)).resultJson as Record<string, any>).presentationDecision.commentId).toEqual(expect.any(String));
     // Idempotent: nothing left to publish and a repeated check never double-posts.
-    expect(await work.load({ companyId: f.companyId, issueId: f.issueId })).toEqual([]);
+    expect(await work.load({ spaceId: f.spaceId, issueId: f.issueId })).toEqual([]);
     await expect(work.check(due)).resolves.toBeNull();
     expect(await comments(f.runId)).toHaveLength(1);
   });
@@ -184,7 +184,7 @@ describe.skipIf(!support.supported)("native final reply publication retry", () =
       return Reflect.get(target, key);
     } });
     const work = nativeResponsePresentationWork(failing as Db);
-    const [entry] = await work.load({ companyId: f.companyId, issueId: f.issueId });
+    const [entry] = await work.load({ spaceId: f.spaceId, issueId: f.issueId });
     const rescheduled = await work.check(entry);
     expect(rescheduled).not.toBeNull();
     expect(await comments(f.runId)).toEqual([]);
@@ -199,21 +199,21 @@ describe.skipIf(!support.supported)("native final reply publication retry", () =
     const f = await fixture();
     await f.saveFinalReply();
     // The live path wrote the reply but stopped before recording its decision.
-    const [posted] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId, authorAgentId: f.agentId,
+    const [posted] = await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId, authorAgentId: f.agentId,
       createdByRunId: f.runId, body: reply }).returning();
     const work = nativeResponsePresentationWork(db);
-    const [entry] = await work.load({ companyId: f.companyId, issueId: f.issueId });
+    const [entry] = await work.load({ spaceId: f.spaceId, issueId: f.issueId });
     await expect(work.check(entry)).resolves.toBeNull();
     expect(await comments(f.runId)).toEqual([posted]);
     expect(((await run(f.runId)).resultJson as Record<string, any>).presentationDecision).toMatchObject({
       commentAction: "reuse", commentId: posted.id });
     expect(await receipt(f.runId)).toBeUndefined();
-    expect(await work.load({ companyId: f.companyId, issueId: f.issueId })).toEqual([]);
+    expect(await work.load({ spaceId: f.spaceId, issueId: f.issueId })).toEqual([]);
   });
 
   it("counts one due attempt once when two workers check it concurrently", async () => {
     const f = await fixture();
-    const [entry] = await nativeResponsePresentationWork(db).load({ companyId: f.companyId, issueId: f.issueId });
+    const [entry] = await nativeResponsePresentationWork(db).load({ spaceId: f.spaceId, issueId: f.issueId });
     const results = await Promise.all([nativeResponsePresentationWork(db).check(entry), nativeResponsePresentationWork(db).check(entry)]);
     expect(results.every(result => result !== null)).toBe(true);
     expect(await receipt(f.runId)).toMatchObject({ state: "retrying", attempts: 1 });
@@ -225,7 +225,7 @@ describe.skipIf(!support.supported)("native final reply publication retry", () =
     const work = nativeResponsePresentationWork(db);
     let attempts = 0;
     for (;;) {
-      const [entry] = await work.load({ companyId: f.companyId, issueId: f.issueId });
+      const [entry] = await work.load({ spaceId: f.spaceId, issueId: f.issueId });
       if (!entry) break;
       attempts += 1;
       expect(attempts).toBeLessThanOrEqual(10);
@@ -244,6 +244,6 @@ describe.skipIf(!support.supported)("native final reply publication retry", () =
       eq(activityLog.action, "issue.response_publication_failed")));
     expect(activity).toEqual([expect.objectContaining({ runId: f.runId, agentId: f.agentId })]);
     // Bounded: the failed reply is no longer rescheduled.
-    expect(await work.load({ companyId: f.companyId, issueId: f.issueId })).toEqual([]);
+    expect(await work.load({ spaceId: f.spaceId, issueId: f.issueId })).toEqual([]);
   });
 });

@@ -22,14 +22,14 @@ export async function readRuntimeTaskGate(ctx: ChatCatalogContext, gate: Runtime
   const root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT;
   if (!root) throw new Error("Task gate requires the owned attempt root");
   const [task, view] = await Promise.all([
-    ctx.input.api.get<{ id: string; companyId: string; assigneeAgentId: string | null; executionWorkspaceId: string | null }>(`/api/issues/${taskId}`),
-    ctx.input.api.get<{ workspace: { id: string; companyId: string; cwd: string } | null }>(`/api/issues/${taskId}/workspace`),
+    ctx.input.api.get<{ id: string; spaceId: string; assigneeAgentId: string | null; executionWorkspaceId: string | null }>(`/api/issues/${taskId}`),
+    ctx.input.api.get<{ workspace: { id: string; spaceId: string; cwd: string } | null }>(`/api/issues/${taskId}/workspace`),
   ]);
-  const mismatched = [task.id !== taskId && "task", task.companyId !== ctx.input.fixtures.company.id && "company",
+  const mismatched = [task.id !== taskId && "task", task.spaceId !== ctx.input.fixtures.space.id && "space",
     task.assigneeAgentId !== workerId && (task.assigneeAgentId ? "assignee" : "assignee-cleared"),
-    !view.workspace ? "workspace-unbound" : view.workspace.companyId !== task.companyId && "workspace-company",
+    !view.workspace ? "workspace-unbound" : view.workspace.spaceId !== task.spaceId && "workspace-space",
     !!view.workspace && view.workspace.id !== task.executionWorkspaceId && (task.executionWorkspaceId ? "workspace-id" : "task-workspace-field-missing")].filter(Boolean);
-  if (mismatched.length) throw new Error(`Task gate does not match the actual company, assignee and workspace binding (${mismatched.join(", ")})`);
+  if (mismatched.length) throw new Error(`Task gate does not match the actual space, assignee and workspace binding (${mismatched.join(", ")})`);
   const workspace = view.workspace!;
   const cwd = await realpath(workspace.cwd), ownedRoot = await realpath(root);
   if (!cwd.startsWith(`${ownedRoot}${path.sep}`)) throw new Error("Task gate workspace escapes the owned attempt root");
@@ -56,24 +56,24 @@ export async function prepareRuntimeWorkerGate(ctx: ChatCatalogContext, options:
   if (options.taskBound) gate = taskBoundRuntimeGate(`${ctx.input.nonce}-${previousRuns.length}`);
   else {
     const candidate = path.resolve(resolveDefaultAgentWorkspaceDir(worker.id));
-    if (!candidate.startsWith(`${isolated}${path.sep}`)) throw new Error("Busy fixture escaped its isolated company home");
+    if (!candidate.startsWith(`${isolated}${path.sep}`)) throw new Error("Busy fixture escaped its isolated space home");
     await mkdir(candidate, { recursive: true });
     const home = await realpath(candidate);
-    if (!home.startsWith(`${isolated}${path.sep}`)) throw new Error("Busy fixture resolved outside its isolated company home");
+    if (!home.startsWith(`${isolated}${path.sep}`)) throw new Error("Busy fixture resolved outside its isolated space home");
     const original = await prepareChatBrief(home, `runtime-${ctx.input.nonce}-${previousRuns.length}`, 300_000);
     gate = { ...original, command: `node ${JSON.stringify(original.scriptPath)}`, taskBound: false };
   }
-  const company = `/api/companies/${ctx.input.fixtures.company.id}`;
+  const space = `/api/spaces/${ctx.input.fixtures.space.id}`;
   const fundedAgents = [...new Set(options.taskBound ? [worker.id, ctx.input.fixtures.agent.id] : [worker.id])];
-  for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, ...fundedAgents.map(scopeId => ({ scopeType: "agent", scopeId }))])
-    await ctx.input.api.post(`${company}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
-  return { worker, gate, previousRuns, company };
+  for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, ...fundedAgents.map(scopeId => ({ scopeType: "agent", scopeId }))])
+    await ctx.input.api.post(`${space}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+  return { worker, gate, previousRuns, space };
 }
 export async function busyRuntimeWorker(ctx: ChatCatalogContext, options: { worker?: RuntimeAgent; observationDeadlineAt?: number } = {}) {
-  const { worker, gate, previousRuns, company } = await prepareRuntimeWorkerGate(ctx, { ...options, taskBound: true });
+  const { worker, gate, previousRuns, space } = await prepareRuntimeWorkerGate(ctx, { ...options, taskBound: true });
   // Each busy worker owns its own task. Without allowDuplicate the product's recent-open-title
   // deduplication returns the first worker's identically titled "Website task" (HTTP 200).
-  const task = await ctx.input.api.post<Entity>(`${company}/issues`, { title: "Website task", status: "todo", assigneeAgentId: worker.id, allowDuplicate: true,
+  const task = await ctx.input.api.post<Entity>(`${space}/issues`, { title: "Website task", status: "todo", assigneeAgentId: worker.id, allowDuplicate: true,
     description: `The website brief is being supplied by the human. Run ${gate.command} once and wait for its real output. Do not invent a brief, replace the script, or mark work complete before it returns. Once the brief arrives, save it as a task document and finish normally.` });
   if (task.assigneeAgentId !== worker.id || previousRuns.some(run => run.contextSnapshot?.issueId === task.id))
     throw new Error("Busy worker fixture did not create its own task for this worker");

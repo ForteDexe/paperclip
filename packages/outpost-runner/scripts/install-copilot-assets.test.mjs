@@ -69,7 +69,7 @@ for (const owner of ["runner", "server"]) {
       succeeded(invoke(installer), "installed");
       succeeded(invoke(installer), "verified-existing");
       const assets = join(root, "provider-assets");
-      const closure = join(assets, "copilot", target, ".paperclip-copilot-closure.json");
+      const closure = join(assets, "copilot", target, ".outpost-copilot-closure.json");
       const original = await readFile(closure);
       const corrupted = JSON.parse(original.toString());
       corrupted.entries[0].sha256 = "0".repeat(64);

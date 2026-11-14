@@ -81,9 +81,9 @@ async function inputFor(
     receiptPath: process.env[PUBLIC_ORIGIN_RECEIPT_ENV]!,
     backendOrigin: ctx.input.api.baseURL,
     publicOrigin: origin.publicOrigin,
-    companyId: ctx.input.fixtures.company.id,
-    companyName: ctx.input.fixtures.company.name,
-    prefix: ctx.input.fixtures.company.issuePrefix ?? "",
+    spaceId: ctx.input.fixtures.space.id,
+    spaceName: ctx.input.fixtures.space.name,
+    prefix: ctx.input.fixtures.space.issuePrefix ?? "",
     humanId: person.user.id,
     operatorRef: p.operatorRef,
     authorizationRef: p.chatgptAuthorizationRef,
@@ -132,7 +132,7 @@ async function start(ctx: ChatCatalogContext, input: ChatgptInput) {
       "A named ChatGPT private child is already owned by this case",
     );
   const directory = await mkdtemp(
-    path.join(tmpdir(), "paperclip-chatgpt-operator-"),
+    path.join(tmpdir(), "outpost-chatgpt-operator-"),
   );
   await chmod(directory, 0o700);
   try {

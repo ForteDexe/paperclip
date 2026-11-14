@@ -87,11 +87,11 @@ createInterface({ input: process.stdin }).on("line", (line) => {
   if (request.type === "get_available_models") { response({ models: [{ provider: "openrouter", id: "fixture-model", name: "Fixture" }, { provider: "openrouter", id: "fixture-alternate", name: "Alternate" }] }); return; }
   if (request.type === "set_model") { model = request.modelId; if (!availableThinkingLevels().includes(thinkingLevel)) thinkingLevel = "high"; response({ model: { provider: request.provider, id: model } }); return; }
   if (request.type === "get_messages") { response({ messages: process.env.PI_FIXTURE_HISTORY ? [
-    { role: "toolResult", toolName: "mcp__paperclip__paperclip_finish", toolCallId: "call_0", content: [{ type: "text", text: "correct criteria" }], isError: true },
-    { role: "toolResult", toolName: "mcp__paperclip__paperclip_finish", toolCallId: "call_0", content: [{ type: "text", text: "accepted" }] },
+    { role: "toolResult", toolName: "mcp__outpost__outpost_finish", toolCallId: "call_0", content: [{ type: "text", text: "correct criteria" }], isError: true },
+    { role: "toolResult", toolName: "mcp__outpost__outpost_finish", toolCallId: "call_0", content: [{ type: "text", text: "accepted" }] },
     { role: "assistant", content: [{ type: "text", text: "Historical reply" }] },
   ] : [] }); return; }
-  if (request.type === "get_commands") { response({ commands: process.env.PI_FIXTURE_EXTENSION_FAIL ? [] : [{ name: "paperclip-runtime-ready-v1", description: "Outpost runtime gate v1", source: "extension" }] }); return; }
+  if (request.type === "get_commands") { response({ commands: process.env.PI_FIXTURE_EXTENSION_FAIL ? [] : [{ name: "outpost-runtime-ready-v1", description: "Outpost runtime gate v1", source: "extension" }] }); return; }
   const inputDisposition = process.env.PI_FIXTURE_INPUT_DISPOSITION === "missing" ? {} : { disposition: process.env.PI_FIXTURE_INPUT_DISPOSITION === "malformed" ? { queued: true } : process.env.PI_FIXTURE_INPUT_DISPOSITION ?? "queued" };
   if (request.type === "steer") { response(inputDisposition); if (inputDisposition.disposition !== "queued") return; output({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: `steered:${request.message}` } }); return; }
   if (request.type === "follow_up") { response(inputDisposition); if (inputDisposition.disposition !== "queued") return; finish(`follow-up:${request.message}`); return; }
@@ -107,14 +107,14 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     if (["narration-final", "tool-only", "empty-final"].includes(request.message)) {
       output({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "Calling finish." } });
       endMessage("toolUse", {});
-      const args = {}; output({ type: "tool_execution_start", toolCallId: "finish", toolName: "paperclip_finish", args });
-      output({ type: "tool_execution_end", toolCallId: "finish", toolName: "paperclip_finish", result: { content: [{ type: "text", text: "accepted" }] } });
+      const args = {}; output({ type: "tool_execution_start", toolCallId: "finish", toolName: "outpost_finish", args });
+      output({ type: "tool_execution_end", toolCallId: "finish", toolName: "outpost_finish", result: { content: [{ type: "text", text: "accepted" }] } });
       if (request.message === "tool-only") { output({ type: "turn_end" }); active = false; output({ type: "agent_settled" }); }
       else finish(request.message === "empty-final" ? "" : "EXACT_MARKER");
       return;
     }
     if (request.message === "reused-tool-ids") {
-      for (const [index, toolName] of ["mcp__paperclip__paperclip_finish", "mcp__paperclip__paperclip_finish", "mcp__paperclip__get_task_context"].entries()) {
+      for (const [index, toolName] of ["mcp__outpost__outpost_finish", "mcp__outpost__outpost_finish", "mcp__outpost__get_task_context"].entries()) {
         if (index) { output({ type: "turn_end" }); begin(); }
         const args = { revision: index + 1 };
         output({ type: "message_update", assistantMessageEvent: { type: "toolcall_start", contentIndex: 0, partial: { content: [{ type: "toolCall", id: "call_0", name: toolName, arguments: args }] } } });

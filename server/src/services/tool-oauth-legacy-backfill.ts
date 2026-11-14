@@ -1,10 +1,10 @@
 import { and, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import {
-  companySecretBindings,
-  companySecretProviderConfigs,
-  companySecrets,
-  companySecretVersions,
+  spaceSecretBindings,
+  spaceSecretProviderConfigs,
+  spaceSecrets,
+  spaceSecretVersions,
   toolConnections,
 } from "@outpost/db";
 import type { McpConnectionCredentialRef, SecretProvider, ToolCredentialSecretRef } from "@outpost/shared";
@@ -101,18 +101,18 @@ function configPath(kind: OAuthTokenKind): "oauth.access_token" | "oauth.refresh
 
 async function runtimeProviderConfigForExistingSecret(
   tx: DbTransaction,
-  secret: typeof companySecrets.$inferSelect,
+  secret: typeof spaceSecrets.$inferSelect,
 ): Promise<SecretProviderVaultRuntimeConfig | null> {
   if (!secret.providerConfigId) return null;
   const providerConfig = await tx
     .select()
-    .from(companySecretProviderConfigs)
-    .where(eq(companySecretProviderConfigs.id, secret.providerConfigId))
+    .from(spaceSecretProviderConfigs)
+    .where(eq(spaceSecretProviderConfigs.id, secret.providerConfigId))
     .then((rows) => rows[0] ?? null);
   if (!providerConfig) {
     throw new Error("Provider vault not found for existing OAuth token secret " + secret.id);
   }
-  if (providerConfig.companyId !== secret.companyId || providerConfig.provider !== secret.provider) {
+  if (providerConfig.spaceId !== secret.spaceId || providerConfig.provider !== secret.provider) {
     throw new Error("Provider vault does not match existing OAuth token secret " + secret.id);
   }
   if (providerConfig.status === "disabled" || providerConfig.status === "coming_soon") {
@@ -164,10 +164,10 @@ async function upsertTokenSecret(
   const name = key;
   const existing = await tx
     .select()
-    .from(companySecrets)
+    .from(spaceSecrets)
     .where(and(
-      eq(companySecrets.companyId, connection.companyId),
-      eq(companySecrets.key, key),
+      eq(spaceSecrets.spaceId, connection.spaceId),
+      eq(spaceSecrets.key, key),
     ))
     .then((rows) => rows[0] ?? null);
   const nextVersion = existing ? existing.latestVersion + 1 : 1;
@@ -175,7 +175,7 @@ async function upsertTokenSecret(
   const provider = getSecretProvider(providerId);
   const providerConfig = existing ? await runtimeProviderConfigForExistingSecret(tx, existing) : null;
   const providerWriteContext = {
-    companyId: connection.companyId,
+    spaceId: connection.spaceId,
     secretKey: key,
     secretName: existing?.name ?? name,
     version: nextVersion,
@@ -194,15 +194,15 @@ async function upsertTokenSecret(
 
   const now = new Date();
   const secret = existing ?? await tx
-    .insert(companySecrets)
+    .insert(spaceSecrets)
     .values({
-      companyId: connection.companyId,
+      spaceId: connection.spaceId,
       key,
       name,
       provider: "local_encrypted",
       providerConfigId: null,
       status: "active",
-      managedMode: "paperclip_managed",
+      managedMode: "outpost_managed",
       externalRef: null,
       providerMetadata: { source: "tool_oauth_legacy_backfill", namespace: secretNamespace(connection.id) },
       latestVersion: 1,
@@ -214,7 +214,7 @@ async function upsertTokenSecret(
     .returning()
     .then((rows) => rows[0]!);
 
-  await tx.insert(companySecretVersions).values({
+  await tx.insert(spaceSecretVersions).values({
     secretId: secret.id,
     version: nextVersion,
     material: prepared.material,
@@ -227,21 +227,21 @@ async function upsertTokenSecret(
 
   if (existing) {
     await tx
-      .update(companySecretVersions)
+      .update(spaceSecretVersions)
       .set({ status: "previous" })
       .where(and(
-        eq(companySecretVersions.secretId, existing.id),
-        ne(companySecretVersions.version, nextVersion),
+        eq(spaceSecretVersions.secretId, existing.id),
+        ne(spaceSecretVersions.version, nextVersion),
       ));
     await tx
-      .update(companySecretVersions)
+      .update(spaceSecretVersions)
       .set({ status: "current" })
       .where(and(
-        eq(companySecretVersions.secretId, existing.id),
-        eq(companySecretVersions.version, nextVersion),
+        eq(spaceSecretVersions.secretId, existing.id),
+        eq(spaceSecretVersions.version, nextVersion),
       ));
     await tx
-      .update(companySecrets)
+      .update(spaceSecrets)
       .set({
         status: "active",
         latestVersion: nextVersion,
@@ -250,7 +250,7 @@ async function upsertTokenSecret(
         lastRotatedAt: now,
         updatedAt: now,
       })
-      .where(eq(companySecrets.id, existing.id));
+      .where(eq(spaceSecrets.id, existing.id));
   }
 
   const ref: ToolCredentialSecretRef = {
@@ -261,9 +261,9 @@ async function upsertTokenSecret(
     label: secretLabel(token.kind),
   };
   await tx
-    .insert(companySecretBindings)
+    .insert(spaceSecretBindings)
     .values({
-      companyId: connection.companyId,
+      spaceId: connection.spaceId,
       secretId: secret.id,
       targetType: "tool_connection",
       targetId: connection.id,
@@ -274,10 +274,10 @@ async function upsertTokenSecret(
     })
     .onConflictDoUpdate({
       target: [
-        companySecretBindings.companyId,
-        companySecretBindings.targetType,
-        companySecretBindings.targetId,
-        companySecretBindings.configPath,
+        spaceSecretBindings.spaceId,
+        spaceSecretBindings.targetType,
+        spaceSecretBindings.targetId,
+        spaceSecretBindings.configPath,
       ],
       set: {
         secretId: secret.id,

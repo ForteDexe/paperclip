@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { advanceRecoveryCursor, assertActiveRecoveryBoundary, parseRecoveryBinding, readControllerRecoverySnapshot, recoveryObservation, validControllerRecoveryReceipt, type RecoverySnapshot } from "./controller-recovery-observer.js";
 import type { ControllerOutageReceipt } from "./controller-outage.js";
 
-const binding = { companyId: "10000000-0000-0000-0000-000000000001", issueId: "10000000-0000-0000-0000-000000000002", runId: "10000000-0000-0000-0000-000000000003" };
+const binding = { spaceId: "10000000-0000-0000-0000-000000000001", issueId: "10000000-0000-0000-0000-000000000002", runId: "10000000-0000-0000-0000-000000000003" };
 const before: RecoverySnapshot = { runId: binding.runId, runnerInstanceId: "runner", nativeSessionId: "session",
   status: "running", phase: "observed", resultId: null,
   bootId: "old", generation: 1, attempt: 1, leaseExpiresAt: "2026-10-24T00:01:00.000Z", sourceSeq: 42, history: [],

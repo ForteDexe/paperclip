@@ -33,7 +33,7 @@ function classifyHeading(path, heading) {
   if (/(artifact|comment|document|plan|interaction|confirmation|final disposition|work product|report|question)/.test(normalized)) {
     return "always_agent_tool";
   }
-  if (/(company|agent|project|goal|routine|workspace|approval|case|secret|import|export|skill)/.test(normalized) || path.includes("api-reference")) {
+  if (/(space|agent|project|goal|routine|workspace|approval|case|secret|import|export|skill)/.test(normalized) || path.includes("api-reference")) {
     return "optional_agent_tool";
   }
   return "control_plane_owned";
@@ -76,7 +76,7 @@ async function readSkillHeadings(paths) {
 async function readLegacyTools() {
   const path = "packages/mcp-server/src/tools.ts";
   const contents = await readFile(resolve(repositoryRoot, path), "utf8");
-  return [...contents.matchAll(/makeTool\(\s*\n?\s*"(paperclip[A-Za-z0-9]+)"/g)].map((match) => ({
+  return [...contents.matchAll(/makeTool\(\s*\n?\s*"(outpost[A-Za-z0-9]+)"/g)].map((match) => ({
     name: match[1],
     sourceAnchor: sourceAnchor(path, contents.slice(0, match.index).split("\n").length, match[1]),
   }));
@@ -89,7 +89,7 @@ function parseCase(entry, group, contract) {
     id,
     title,
     group,
-    sourceAnchor: `paperclip-evals/paperclip-skill-optimization/${group}.yaml#${id}`,
+    sourceAnchor: `outpost-evals/outpost-skill-optimization/${group}.yaml#${id}`,
     primaryDisposition,
     fixtureProfile: `${group}-baseline`,
     dominantValidationKind: validationKind,

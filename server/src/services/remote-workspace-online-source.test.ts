@@ -6,10 +6,10 @@ import os from "node:os";
 import path from "node:path";
 import { sql, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, companies, completionContracts, createDb, environmentLeases, environments, executionWorkspaceSnapshots, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, projects, projectWorkspaces, workspaceOperations, workspaceRuntimeServices, type Db } from "@outpost/db";
+import { activityLog, agents, spaces, completionContracts, createDb, environmentLeases, environments, executionWorkspaceSnapshots, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, projects, projectWorkspaces, workspaceOperations, workspaceRuntimeServices, type Db } from "@outpost/db";
 import { readRemoteWorkspaceAuthority, readRemoteWorkspaceRunReference } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
-import { resolveManagedProjectWorkspaceDir, resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveManagedProjectWorkspaceDir, resolveOutpostInstanceRoot } from "../home-paths.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
 import { createStorageService } from "../storage/service.js";
 import type { StorageService } from "../storage/types.js";
@@ -68,26 +68,26 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     await db.delete(executionWorkspaces);
     await db.delete(projectWorkspaces);
     await db.delete(projects);
-    await db.delete(companies);
+    await db.delete(spaces);
     vi.unstubAllEnvs();
     await fs.rm(home, { recursive: true, force: true });
   });
   async function fixture() {
-    const companyId = randomUUID(), projectId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Online source", issuePrefix: `O${companyId.slice(0, 6)}` });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Shared legacy project" });
-    const cwd = resolveManagedProjectWorkspaceDir({ companyId, projectId });
+    const spaceId = randomUUID(), projectId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Online source", issuePrefix: `O${spaceId.slice(0, 6)}` });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Shared legacy project" });
+    const cwd = resolveManagedProjectWorkspaceDir({ spaceId, projectId });
     await fs.mkdir(cwd, { recursive: true });
     await fs.writeFile(path.join(cwd, "saved.txt"), "saved legacy edits\n");
     const aliases = [];
     for (let n = 0; n < 3; n++) {
-      const [issue] = await db.insert(issues).values({ companyId, projectId, title: `Legacy task ${n}` }).returning();
-      const [workspace] = await db.insert(executionWorkspaces).values({ companyId, projectId, sourceIssueId: issue.id,
+      const [issue] = await db.insert(issues).values({ spaceId, projectId, title: `Legacy task ${n}` }).returning();
+      const [workspace] = await db.insert(executionWorkspaces).values({ spaceId, projectId, sourceIssueId: issue.id,
         name: `Alias ${n}`, mode: "shared_workspace", strategyType: "project_primary", providerType: "local_fs", cwd, providerRef: cwd }).returning();
       await db.update(issues).set({ executionWorkspaceId: workspace.id }).where(eq(issues.id, issue.id));
       aliases.push({ issue, workspace });
     }
-    return { companyId, projectId, cwd, aliases, workspaceId: aliases[0].workspace.id };
+    return { spaceId, projectId, cwd, aliases, workspaceId: aliases[0].workspace.id };
   }
   const execute = promisify(execFile);
   const git = async (cwd: string, ...args: string[]) => (await execute("git", ["-c", `core.hooksPath=${os.devNull}`, "-C", cwd, ...args], {
@@ -102,10 +102,10 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     await git(base.cwd, "remote", "add", "origin", repoUrl);
     for (const alias of base.aliases) await db.update(executionWorkspaces).set({ repoUrl, branchName: "main" })
       .where(eq(executionWorkspaces.id, alias.workspace.id));
-    const [issue] = await db.insert(issues).values({ companyId: base.companyId, projectId: base.projectId, title: "Shared Git child" }).returning();
-    const cwd = path.join(base.cwd, ".paperclip", "worktrees", "child");
+    const [issue] = await db.insert(issues).values({ spaceId: base.spaceId, projectId: base.projectId, title: "Shared Git child" }).returning();
+    const cwd = path.join(base.cwd, ".outpost", "worktrees", "child");
     await git(base.cwd, "worktree", "add", "-qb", "child", cwd);
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: base.companyId, projectId: base.projectId,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: base.spaceId, projectId: base.projectId,
       sourceIssueId: issue.id, name: "Shared Git child", mode: "isolated_workspace", strategyType: "git_worktree",
       providerType: "git_worktree", cwd, providerRef: cwd, repoUrl, branchName: "child", baseRef: "main" }).returning();
     await db.update(issues).set({ executionWorkspaceId: workspace.id }).where(eq(issues.id, issue.id));
@@ -119,7 +119,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     await fs.writeFile(path.join(home, "host-only.txt"), "outside the workspace\n");
     await git(home, "add", "host-only.txt"); await git(home, "commit", "-qm", "Enclosing host repository");
     const head = await git(home, "rev-parse", "HEAD"), f = await fixture();
-    if (legacyTask) { const cwd = path.join(resolvePaperclipInstanceRoot(), "isolated-workspaces", f.companyId, f.aliases[0].issue.id);
+    if (legacyTask) { const cwd = path.join(resolveOutpostInstanceRoot(), "isolated-workspaces", f.spaceId, f.aliases[0].issue.id);
       await fs.cp(f.cwd, cwd, { recursive: true }); await db.update(executionWorkspaces).set({ cwd, providerRef: null }).where(eq(executionWorkspaces.id, f.workspaceId)); f.cwd = cwd;
     }
     expect(await inventoryRemoteWorkspaceMigration(db, f)).toMatchObject({ eligible: true });
@@ -137,13 +137,13 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
   it.each([false, true])("does not admit a Git fragment as an ordinary migration source (objects: %s)", async objects => {
     const f = await fixture(), info = path.join(f.cwd, ".git", "info");
     await fs.mkdir(info, { recursive: true });
-    await fs.writeFile(path.join(info, "exclude"), "/.paperclip-repositories/\n");
+    await fs.writeFile(path.join(info, "exclude"), "/.outpost-repositories/\n");
     if (objects) await fs.mkdir(path.join(f.cwd, ".git", "objects"));
     expect(await inventoryRemoteWorkspaceMigration(db, f)).toMatchObject({ eligible: false,
       reasons: expect.arrayContaining(["online_workspace_source_scope_unproven"]) });
     await expect(migrateRemoteWorkspace({ db, storage, ...f, apply: true })).rejects.toThrow("online_workspace_source_scope_unproven");
     expect(await db.select().from(workspaceOperations)).toEqual([]);
-    expect(await fs.readFile(path.join(info, "exclude"), "utf8")).toBe("/.paperclip-repositories/\n");
+    expect(await fs.readFile(path.join(info, "exclude"), "utf8")).toBe("/.outpost-repositories/\n");
   });
   it("preserves unmanaged Git import in genuine offline mode while retaining online and drain guards", async () => {
     const f = await fixture(), cwd = path.join(home, "self-hosted-repository"), repoUrl = "https://example.invalid/self-hosted.git";
@@ -159,8 +159,8 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
       reasons: expect.arrayContaining(["online_workspace_source_scope_unproven"]) });
     await expect(migrateRemoteWorkspace({ db, storage, ...f, apply: true })).rejects.toThrow("online_workspace_source_scope_unproven");
     vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "true");
-    const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Offline writer guard" }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: agent.id,
+    const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Offline writer guard" }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: agent.id,
       issueId: f.aliases[0].issue.id, status: "running", runtimeMode: "legacy" }).returning();
     await expect(migrateRemoteWorkspace({ db, storage, ...f, apply: true, writersStopped: true }))
       .rejects.toThrow("active_execution_requires_drain");
@@ -173,21 +173,21 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     "rejects foreign $kind ownership through $locator source locators", async ({ kind, locator }) => {
       const base = await fixture(), f = kind === "Git" ? await gitFixture(base) : null;
       const workspaceId = f?.child.id ?? base.workspaceId, sourcePath = f?.child.cwd ?? base.cwd;
-      const companyId = randomUUID(), unrelated = path.join(home, "foreign-display-root"), alias = path.join(home, "foreign-path-alias");
+      const spaceId = randomUUID(), unrelated = path.join(home, "foreign-display-root"), alias = path.join(home, "foreign-path-alias");
       await fs.mkdir(unrelated); await fs.symlink(sourcePath, alias);
-      await db.insert(companies).values({ id: companyId, name: "Foreign source owner", issuePrefix: "FOREIGN" });
-      await db.insert(executionWorkspaces).values({ companyId, name: "Foreign source alias", mode: "shared_workspace",
+      await db.insert(spaces).values({ id: spaceId, name: "Foreign source owner", issuePrefix: "FOREIGN" });
+      await db.insert(executionWorkspaces).values({ spaceId, name: "Foreign source alias", mode: "shared_workspace",
         strategyType: "project_primary", providerType: "local_fs",
         cwd: locator === "cwd" ? sourcePath : locator === "providerRef" ? null : unrelated,
         providerRef: locator === "cwd" ? null : locator === "alias" ? alias : sourcePath });
-      const input = { companyId: base.companyId, workspaceId };
+      const input = { spaceId: base.spaceId, workspaceId };
       expect(await inventoryRemoteWorkspaceMigration(db, input)).toMatchObject({ eligible: false });
       await expect(migrateRemoteWorkspace({ db, storage, ...input, apply: true })).rejects.toThrow("remote_workspace_migration_blocked");
       expect(readRemoteWorkspaceAuthority((await stored(workspaceId)).metadata)).toBeNull();
       expect(await db.select().from(executionWorkspaceSnapshots)).toEqual([]);
       expect(await fs.readFile(path.join(sourcePath, "saved.txt"), "utf8")).toBe("saved legacy edits\n");
     });
-  it.each(["cwd", "providerRef"] as const)("rejects a mismatched same-company ordinary %s owner", async locator => {
+  it.each(["cwd", "providerRef"] as const)("rejects a mismatched same-space ordinary %s owner", async locator => {
     const f = await fixture(), unrelated = path.join(home, "another-source");
     await fs.mkdir(unrelated);
     await db.update(executionWorkspaces).set({ cwd: locator === "cwd" ? f.cwd : unrelated,
@@ -206,7 +206,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     await db.update(executionWorkspaces).set({ cwd: locator === "providerRef" ? null : unrelated,
       providerRef: locator === "alias" ? alias : sourcePath, repoUrl: null, branchName: null,
       strategyType: "project_primary" }).where(eq(executionWorkspaces.id, workspaceId));
-    const input = { companyId: base.companyId, workspaceId };
+    const input = { spaceId: base.spaceId, workspaceId };
     expect(await inventoryRemoteWorkspaceMigration(db, input)).toMatchObject({ eligible: false,
       reasons: expect.arrayContaining(["online_workspace_source_scope_unproven"]) });
     await expect(migrateRemoteWorkspace({ db, storage, ...input, apply: true })).rejects.toThrow("online_workspace_source_scope_unproven");
@@ -222,7 +222,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     let entered!: () => void, release!: () => void, mutated = false;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
-    const owner = withWorkspaceSourceLocks(db, { companyId: f.companyId, projectIds: [f.projectId] }, async () => { entered(); await pending; });
+    const owner = withWorkspaceSourceLocks(db, { spaceId: f.spaceId, projectIds: [f.projectId] }, async () => { entered(); await pending; });
     await started;
     const lifecycle = withExecutionWorkspaceLifecycleLock(db, f.workspaceId, async () => { mutated = true; });
     try {
@@ -249,22 +249,22 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     });
     return { started, release };
   }
-  async function remoteWriter(companyId: string, agentId: string) {
+  async function remoteWriter(spaceId: string, agentId: string) {
     const workspaceId = randomUUID(), runId = randomUUID(), leaseId = randomUUID(), providerLeaseId = randomUUID();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Unrelated object-backed task" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Unrelated object-backed task" }).returning();
     const [environment] = await db.insert(environments).values({ name: runId, driver: "daytona" }).returning();
     const remoteCwd = `/workspaces/${workspaceId}`;
     const authority = { schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: null, source: { kind: "empty" },
       location: { environmentId: environment.id, leaseId, providerLeaseId, remoteCwd }, writerRunId: runId, dirty: true };
-    const [workspace] = await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issue.id,
+    const [workspace] = await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issue.id,
       name: "Unrelated remote writer", mode: "isolated_workspace", strategyType: "project_primary", providerType: "cloud_sandbox",
       cwd: remoteCwd, metadata: { remoteWorkspace: authority } }).returning();
     const reference = { schema: "outpost.remote-workspace-run.v1", workspaceId, leaseId, providerLeaseId,
       remoteCwd, epoch: 1, state: "prepared", snapshotId: null };
-    const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId: issue.id,
+    const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId: issue.id,
       nativeIssueId: issue.id, status: "running", runtimeMode: "native", contextSnapshot: { executionWorkspaceId: workspaceId },
       runnerProfileJson: { remoteWorkspace: reference } }).returning();
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, heartbeatRunId: runId, issueId: issue.id,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, heartbeatRunId: runId, issueId: issue.id,
       executionWorkspaceId: workspaceId, environmentId: environment.id, provider: "daytona", providerLeaseId,
       status: "active", metadata: { remoteCwd } });
     expect(readRemoteWorkspaceAuthority(workspace.metadata)).toEqual(authority);
@@ -273,8 +273,8 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
   }
   it("imports an alias with unrelated object-backed execution still running and leaves all original files", async () => {
     const f = await fixture();
-    const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Unrelated active agent" }).returning();
-    const run = await remoteWriter(f.companyId, agent.id);
+    const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Unrelated active agent" }).returning();
+    const run = await remoteWriter(f.spaceId, agent.id);
     expect(await inventoryRemoteWorkspaceMigration(db, f)).toMatchObject({ eligible: true });
     const get = vi.spyOn(storage, "getObject");
     await expect(migrateRemoteWorkspace({ db, storage, ...f, apply: true })).resolves.toMatchObject({ applied: true });
@@ -294,15 +294,15 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     const migration = migrateRemoteWorkspace({ db, storage, ...f, apply: true });
     await Promise.race([barrier.started, migration.then(() => { throw new Error("capture did not reach upload"); })]);
     let lifecycleEntered = false, preparationEntered = false;
-    const preparation = withIsolatedRepositorySourceLock(db, f.companyId, randomUUID(), async () => {
+    const preparation = withIsolatedRepositorySourceLock(db, f.spaceId, randomUUID(), async () => {
       await materializeManagedProjectWorkspace(path.join(f.cwd, "new-issue"), { repoUrl: null });
       preparationEntered = true;
     });
     const lifecycle = withExecutionWorkspaceLifecycleLock(db, f.aliases[1].workspace.id, async () => { lifecycleEntered = true; });
     try {
       expect(await fs.lstat(path.join(f.cwd, "new-issue")).catch(() => null)).toBeNull();
-      const unrelated = resolveManagedProjectWorkspaceDir({ companyId: f.companyId, projectId: randomUUID() });
-      await withIsolatedRepositorySourceLock(db, f.companyId, randomUUID(), () =>
+      const unrelated = resolveManagedProjectWorkspaceDir({ spaceId: f.spaceId, projectId: randomUUID() });
+      await withIsolatedRepositorySourceLock(db, f.spaceId, randomUUID(), () =>
         materializeManagedProjectWorkspace(unrelated, { repoUrl: null }));
       expect((await fs.stat(unrelated)).isDirectory()).toBe(true);
       await vi.waitFor(async () => {
@@ -320,7 +320,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     let entered!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
-    const owner = withIsolatedRepositorySourceLock(db, f.companyId, f.aliases[2].issue.id, async () => { entered(); await pending; });
+    const owner = withIsolatedRepositorySourceLock(db, f.spaceId, f.aliases[2].issue.id, async () => { entered(); await pending; });
     await started;
     try {
       await expect(migrateRemoteWorkspace({ db, storage, ...f, apply: true })).rejects.toBeInstanceOf(IsolatedRepositorySourceBusy);
@@ -332,7 +332,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     let entered!: () => void, release!: () => void, moved = false;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
-    const owner = withWorkspaceSourceLocks(db, { companyId: f.companyId, projectIds: [f.projectId] }, async () => { entered(); await pending; });
+    const owner = withWorkspaceSourceLocks(db, { spaceId: f.spaceId, projectIds: [f.projectId] }, async () => { entered(); await pending; });
     await started;
     const movement = withWorkspaceMoveLocks(db, f.aliases[0].workspace, async () => { moved = true; });
     try {
@@ -351,7 +351,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
       return realpath(target);
     });
     expect(await ensureRuntimeServicesForRun({ db, runId: randomUUID(), executionWorkspaceId: f.workspaceId,
-      agent: { id: null, name: "No service owner", companyId: f.companyId }, issue: null, adapterEnv: {}, config: {}, skipHostProvision: true,
+      agent: { id: null, name: "No service owner", spaceId: f.spaceId }, issue: null, adapterEnv: {}, config: {}, skipHostProvision: true,
       workspace: { cwd: f.cwd, baseCwd: f.cwd, source: "project_primary", projectId: f.projectId, workspaceId: null,
         repoUrl: null, repoRef: null, strategy: "project_primary", branchName: null, branchCreatedByRuntime: false,
         worktreePath: null, warnings: [], created: false } })).toEqual([]);
@@ -359,18 +359,18 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
   it.each(["workspace", "configured", "symlink"] as const)("fences project command provisioning and its running %s CWD without an execution workspace ID", async location => {
     const f = await fixture();
     const startProjectId = location === "configured" ? randomUUID() : f.projectId;
-    if (startProjectId !== f.projectId) await db.insert(projects).values({ id: startProjectId, companyId: f.companyId, name: "Service owner" });
+    if (startProjectId !== f.projectId) await db.insert(projects).values({ id: startProjectId, spaceId: f.spaceId, name: "Service owner" });
     const startCwd = location === "symlink" ? path.join(home, "configured-service-source")
-      : resolveManagedProjectWorkspaceDir({ companyId: f.companyId, projectId: startProjectId });
+      : resolveManagedProjectWorkspaceDir({ spaceId: f.spaceId, projectId: startProjectId });
     if (location === "symlink") await fs.symlink(f.cwd, startCwd);
     await fs.mkdir(startCwd, { recursive: true });
-    const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Project command owner" }).returning();
-    const [projectWorkspace] = await db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: startProjectId,
+    const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Project command owner" }).returning();
+    const [projectWorkspace] = await db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: startProjectId,
       name: "Project source", cwd: startCwd }).returning();
     let entered!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
-    const owner = withWorkspaceSourceLocks(db, { companyId: f.companyId, projectIds: [f.projectId] }, async () => { entered(); await pending; });
+    const owner = withWorkspaceSourceLocks(db, { spaceId: f.spaceId, projectIds: [f.projectId] }, async () => { entered(); await pending; });
     await started;
     const node = JSON.stringify(process.execPath), marker = path.join(startCwd, "runtime-source-marker");
     const services = startRuntimeServicesForWorkspaceControl({ db, actor: agent, issue: null, adapterEnv: {},
@@ -405,37 +405,37 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
   });
   it("fences a configured alias of an existing isolated task directory using its original issue key", async () => {
     const f = await fixture(), sourceIssueId = f.aliases[0].issue.id;
-    const cwd = path.join(resolvePaperclipInstanceRoot(), "isolated-workspaces", f.companyId, sourceIssueId);
+    const cwd = path.join(resolveOutpostInstanceRoot(), "isolated-workspaces", f.spaceId, sourceIssueId);
     await fs.mkdir(cwd, { recursive: true });
     let entered!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
-    const owner = withIsolatedRepositorySourceLock(db, f.companyId, sourceIssueId, async () => { entered(); await pending; });
+    const owner = withIsolatedRepositorySourceLock(db, f.spaceId, sourceIssueId, async () => { entered(); await pending; });
     await started;
     try {
-      await expect(withIsolatedRepositorySourceLock(db, f.companyId, randomUUID(), () =>
+      await expect(withIsolatedRepositorySourceLock(db, f.spaceId, randomUUID(), () =>
         materializeManagedProjectWorkspace(path.join(cwd, "new-alias"), { repoUrl: null })))
         .rejects.toBeInstanceOf(IsolatedRepositorySourceBusy);
       expect(await fs.lstat(path.join(cwd, "new-alias")).catch(() => null)).toBeNull();
     } finally { release(); await owner; }
   });
   it("bounds source-lock closures before reserving a connection", async () => {
-    await expect(withWorkspaceSourceLocks(db, { companyId: randomUUID(), issueIds: Array.from({ length: 129 }, () => randomUUID()) },
+    await expect(withWorkspaceSourceLocks(db, { spaceId: randomUUID(), issueIds: Array.from({ length: 129 }, () => randomUUID()) },
       async () => { throw new Error("scope must not be admitted"); })).rejects.toThrow("workspace_source_scope_limit");
   });
   it.each(["task", "operation", "foreign", "descendant"] as const)("retains the %s guard across the complete alias closure", async kind => {
     const f = await fixture(), alias = f.aliases[2];
     if (kind === "task") {
-      const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Alias checkout" }).returning();
-      const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: agent.id, status: "succeeded" }).returning();
+      const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Alias checkout" }).returning();
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: agent.id, status: "succeeded" }).returning();
       await db.update(issues).set({ checkoutRunId: run.id }).where(eq(issues.id, alias.issue.id));
     }
-    if (kind === "operation") await db.insert(workspaceOperations).values({ companyId: f.companyId,
+    if (kind === "operation") await db.insert(workspaceOperations).values({ spaceId: f.spaceId,
       executionWorkspaceId: alias.workspace.id, phase: "cleanup", status: "running" });
     if (kind === "foreign") {
-      const companyId = randomUUID();
-      await db.insert(companies).values({ id: companyId, name: "Foreign", issuePrefix: "FOREIGN" });
-      await db.insert(executionWorkspaces).values({ companyId, name: "Foreign alias", mode: "shared_workspace",
+      const spaceId = randomUUID();
+      await db.insert(spaces).values({ id: spaceId, name: "Foreign", issuePrefix: "FOREIGN" });
+      await db.insert(executionWorkspaces).values({ spaceId, name: "Foreign alias", mode: "shared_workspace",
         strategyType: "project_primary", providerType: "local_fs", cwd: f.cwd });
     }
     if (kind === "descendant") await db.update(executionWorkspaces).set({ cwd: path.join(f.cwd, "child") }).where(eq(executionWorkspaces.id, alias.workspace.id));
@@ -444,21 +444,21 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     expect(readRemoteWorkspaceAuthority((await stored(f.workspaceId)).metadata)).toBeNull();
     expect(await fs.readFile(path.join(f.cwd, "saved.txt"), "utf8")).toBe("saved legacy edits\n");
   });
-  it("does not count unrelated tenants against the company alias bound", async () => {
-    const f = await fixture(), companyId = randomUUID(), cwd = path.join(home, "other-tenant");
+  it("does not count unrelated tenants against the space alias bound", async () => {
+    const f = await fixture(), spaceId = randomUUID(), cwd = path.join(home, "other-tenant");
     await fs.mkdir(cwd);
-    await db.insert(companies).values({ id: companyId, name: "Unrelated tenant", issuePrefix: "OTHER" });
+    await db.insert(spaces).values({ id: spaceId, name: "Unrelated tenant", issuePrefix: "OTHER" });
     await db.insert(executionWorkspaces).values(Array.from({ length: 1001 }, () => ({
-      companyId, name: "Unrelated workspace", mode: "shared_workspace", strategyType: "project_primary",
+      spaceId, name: "Unrelated workspace", mode: "shared_workspace", strategyType: "project_primary",
       providerType: "local_fs", cwd,
     })));
     expect(await inventoryRemoteWorkspaceMigration(db, f)).toMatchObject({ eligible: true, reasons: [] });
   });
   it.each(["symlink", "unreadable"] as const)("blocks an unproven foreign %s path even for a single local alias", async kind => {
-    const f = await fixture(), companyId = randomUUID(), cwd = path.join(home, "foreign-alias");
+    const f = await fixture(), spaceId = randomUUID(), cwd = path.join(home, "foreign-alias");
     for (const alias of f.aliases.slice(1)) await db.update(executionWorkspaces).set({ providerType: "plugin" })
       .where(eq(executionWorkspaces.id, alias.workspace.id));
-    await db.insert(companies).values({ id: companyId, name: "Foreign alias", issuePrefix: "FOREIGN" });
+    await db.insert(spaces).values({ id: spaceId, name: "Foreign alias", issuePrefix: "FOREIGN" });
     if (kind === "symlink") await fs.symlink(f.cwd, cwd);
     else {
       const realpath = fs.realpath.bind(fs);
@@ -467,7 +467,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
         return realpath(value);
       });
     }
-    await db.insert(executionWorkspaces).values({ companyId, name: "Foreign path", mode: "shared_workspace",
+    await db.insert(executionWorkspaces).values({ spaceId, name: "Foreign path", mode: "shared_workspace",
       strategyType: "project_primary", providerType: "local_fs", cwd });
     expect(await inventoryRemoteWorkspaceMigration(db, f)).toMatchObject({ eligible: false,
       reasons: expect.arrayContaining(["online_workspace_source_scope_unproven"]) });
@@ -490,7 +490,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     const f = await fixture(), barrier = uploadBarrier();
     const migration = migrateRemoteWorkspace({ db, storage, ...f, apply: true }).then(value => ({ value }), error => ({ error }));
     await Promise.race([barrier.started, migration.then(result => { if ("error" in result) throw result.error; throw new Error("capture did not reach upload"); })]);
-    const key = `managed_project_source:${f.companyId}:${f.projectId}`;
+    const key = `managed_project_source:${f.spaceId}:${f.projectId}`;
     const rows = await db.execute(sql`select distinct a.pid from pg_stat_activity a join pg_locks l on l.pid=a.pid
       where a.datname=current_database() and l.locktype='advisory' and l.granted
       and l.classid=((hashtextextended(${key},0)>>32)&4294967295)::oid
@@ -504,19 +504,19 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
   });
   async function recoveryFixture(descendant = false) {
     const f = await fixture(), runId = randomUUID();
-    const issue = descendant ? (await db.insert(issues).values({ companyId: f.companyId, projectId: f.projectId,
+    const issue = descendant ? (await db.insert(issues).values({ spaceId: f.spaceId, projectId: f.projectId,
       parentId: f.aliases[0].issue.id, title: "Descendant prepared recovery", executionWorkspaceId: f.workspaceId }).returning())[0]
       : f.aliases[0].issue;
-    const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Terminal native worker", adapterType: "outpost_runner" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Terminal native worker", adapterType: "outpost_runner" }).returning();
     const reference = { schema: "outpost.native-workspace-sync/v3", state: "prepared", workspaceId: f.workspaceId,
       leaseId: randomUUID(), providerLeaseId: randomUUID(), remoteCwd: "/workspaces/retained",
       descriptorSha256: "12".repeat(32), baselineSha256: "34".repeat(32), resourceDisposition: "destroy" };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: agent.id,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: agent.id,
       nativeIssueId: issue.id, status: "failed", runtimeMode: "native", runnerProfileJson: { nativeWorkspaceSync: reference } }).returning();
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: issue.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: issue.id,
       runId, phase: "observed" });
     const [environment] = await db.insert(environments).values({ name: runId, driver: "daytona" }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ id: reference.leaseId, companyId: f.companyId,
+    const [lease] = await db.insert(environmentLeases).values({ id: reference.leaseId, spaceId: f.spaceId,
       issueId: issue.id, heartbeatRunId: runId, executionWorkspaceId: f.workspaceId, environmentId: environment.id,
       provider: "daytona", providerLeaseId: reference.providerLeaseId, status: "retained", leasePolicy: "retain_on_failure",
       metadata: { remoteCwd: reference.remoteCwd } }).returning();
@@ -534,18 +534,18 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     await db.delete(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.warning.id));
     const reference = f.run.runnerProfileJson!.nativeWorkspaceSync as Record<string, unknown>;
     const extra = Array.from({ length: 7 }, () => ({ runId: randomUUID(), leaseId: randomUUID(), providerLeaseId: randomUUID() }));
-    await db.insert(heartbeatRuns).values(extra.map(row => ({ id: row.runId, companyId: f.companyId, agentId: f.run.agentId,
+    await db.insert(heartbeatRuns).values(extra.map(row => ({ id: row.runId, spaceId: f.spaceId, agentId: f.run.agentId,
       nativeIssueId: f.run.nativeIssueId, status: "failed", runtimeMode: "native", finishedAt: new Date(),
       runnerProfileJson: { nativeWorkspaceSync: { ...reference, leaseId: row.leaseId, providerLeaseId: row.providerLeaseId } } })));
-    await db.insert(nativeRunFinalizations).values(extra.map(row => ({ companyId: f.companyId,
+    await db.insert(nativeRunFinalizations).values(extra.map(row => ({ spaceId: f.spaceId,
       issueId: f.run.nativeIssueId!, runId: row.runId, phase: "terminal_failure" })));
-    await db.insert(environmentLeases).values(extra.map(row => ({ id: row.leaseId, companyId: f.companyId,
+    await db.insert(environmentLeases).values(extra.map(row => ({ id: row.leaseId, spaceId: f.spaceId,
       environmentId: f.lease.environmentId, executionWorkspaceId: f.workspaceId, issueId: f.run.nativeIssueId,
       heartbeatRunId: row.runId, provider: "daytona", providerLeaseId: row.providerLeaseId,
       status: "retained", leasePolicy: "retain_on_failure", metadata: { remoteCwd: reference.remoteCwd } })));
-    const apply = () => cohort ? migrateRemoteWorkspaceCohort({ db, storage, companyId: f.companyId,
+    const apply = () => cohort ? migrateRemoteWorkspaceCohort({ db, storage, spaceId: f.spaceId,
       workspaceIds: [f.workspaceId], apply: true, signal: AbortSignal.timeout(30_000) })
-      : migrateRemoteWorkspace({ db, storage, companyId: f.companyId, workspaceId: f.workspaceId, apply: true });
+      : migrateRemoteWorkspace({ db, storage, spaceId: f.spaceId, workspaceId: f.workspaceId, apply: true });
     const transaction = db.transaction.bind(db);
     const interrupt = vi.spyOn(db, "transaction").mockImplementation(async (action, config) => {
       const result = await transaction(action, config);
@@ -631,7 +631,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     const ready = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
     const held = other.transaction(async tx => {
-      expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, { companyId: f.companyId, runId: f.changed.runId })).toBe(true);
+      expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, { spaceId: f.spaceId, runId: f.changed.runId })).toBe(true);
       entered(); await pending;
     });
     await ready;
@@ -650,7 +650,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     await db.update(heartbeatRuns).set({ runnerProfileJson: profile, nextEventSeq: cause === "native_session_interrupted" ? 1 : 250,
       resultJson: { ...f.run.resultJson, workspaceRestoreRecovery: restore } }).where(eq(heartbeatRuns.id, f.run.id));
     const events = cause === "native_session_interrupted" ? [] : ["session.started", ...Array.from({ length: 124 }, () => ["tool.execution.started", "tool.execution.completed"]).flat()];
-    if (events.length) await db.insert(heartbeatRunEvents).values(events.map((eventType, index) => ({ companyId: f.companyId,
+    if (events.length) await db.insert(heartbeatRunEvents).values(events.map((eventType, index) => ({ spaceId: f.spaceId,
       runId: f.run.id, agentId: f.run.agentId, seq: index + 1, eventType })));
     const evidence = await nativeProviderRecoveryEvidence({ db, runId: f.run.id, metadataOnly: true, sourceFailureCode: cause });
     expect(evidence).toMatchObject({ recoveryMode: cause === "native_session_interrupted" ? "ambiguous_state" : "exact_checkpoint_resume", providerSessionEstablished: cause !== "native_session_interrupted" });
@@ -661,7 +661,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     await db.update(nativeRunFinalizations).set({ phase, failureCode, nextAttemptAt: null }).where(eq(nativeRunFinalizations.runId, f.run.id));
     await db.update(issues).set({ status: "blocked", statusVersion, executionRunId: null, checkoutRunId: null })
       .where(eq(issues.id, f.run.nativeIssueId!));
-    await db.update(issueRecoveryActions).set({ cause, ownerType: "board", ownerAgentId: null,
+    await db.update(issueRecoveryActions).set({ cause, ownerType: "operator", ownerAgentId: null,
       returnOwnerAgentId: f.run.agentId, wakePolicy: null,
       fingerprint: createHash("sha256").update(`${f.run.id}:${cause}`).digest("hex"), evidence: {
         runId: f.run.id, coordinatorAttempt: 3, sourceFailureCode: cause, recoveryDisposition: cause,
@@ -680,12 +680,12 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
       .where(eq(heartbeatRuns.id, f.run.id));
     if (kind === "exhausted") {
       const cause = "native_workspace_sync_out_retry_exhausted", contractId = randomUUID(), resultId = randomUUID();
-      await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.run.nativeIssueId!, revision: 1,
+      await db.insert(completionContracts).values({ id: contractId, spaceId: f.spaceId, issueId: f.run.nativeIssueId!, revision: 1,
         schemaVersion: "v1", policyVersion: "v1", risk: "low", completionAuthority: "agent", incompleteCriteriaPolicy: "block",
         contractJson: {}, canonicalSha256: "45".repeat(32), createdByActorType: "system", createdByActorId: "fixture" });
       await db.update(heartbeatRuns).set({ completionContractId: contractId, completionContractSha256: "45".repeat(32),
         resultJson: { retained: "original failed-run result" } }).where(eq(heartbeatRuns.id, f.run.id));
-      await db.insert(nativeRunResults).values({ id: resultId, companyId: f.companyId, issueId: f.run.nativeIssueId!, runId: f.run.id,
+      await db.insert(nativeRunResults).values({ id: resultId, spaceId: f.spaceId, issueId: f.run.nativeIssueId!, runId: f.run.id,
         completionContractId: contractId, serverFingerprint: "accepted retained export result", schemaStatus: "accepted",
         resultJson: { terminal: { runTerminalState: "succeeded" }, retained: "original accepted result" }, canonicalSha256: "67".repeat(32) });
       await db.update(nativeRunFinalizations).set({ phase: "terminal_failure", resultId, failureCode: cause, nextAttemptAt: null,
@@ -708,13 +708,13 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
   }
   it.each(["interrupted", "exhausted"] as const)("preserves a stable local Git copy with its %s remote hold intact", async kind => {
     const recovery = await heldLocalFixture(kind), f = { ...recovery, ...await gitFixture(recovery) };
-    const results = await db.select().from(nativeRunResults), unrelated = await remoteWriter(f.companyId, f.run.agentId);
-    await expect(migrateRemoteWorkspace({ db, storage, companyId: f.companyId, workspaceId: f.child.id, apply: true }))
+    const results = await db.select().from(nativeRunResults), unrelated = await remoteWriter(f.spaceId, f.run.agentId);
+    await expect(migrateRemoteWorkspace({ db, storage, spaceId: f.spaceId, workspaceId: f.child.id, apply: true }))
       .resolves.toMatchObject({ applied: true });
     const put = storage.putFile.bind(storage);
     vi.spyOn(storage, "putFile").mockImplementationOnce(async input => {
       await db.transaction(async tx => expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, {
-        companyId: f.companyId, runId: f.run.id,
+        spaceId: f.spaceId, runId: f.run.id,
       })).toBe(false));
       return put(input);
     });
@@ -778,12 +778,12 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     const descriptor = nativeWorkspaceSyncInternals.descriptorPath(f.run.id, nativeReference.descriptorSha256);
     expect(await fs.lstat(descriptor).catch(() => null)).toBeNull();
     expect(await inventoryRemoteWorkspaceMigration(db, { ...f, workspaceId: f.child.id })).toMatchObject({ eligible: true });
-    await migrateRemoteWorkspace({ db, storage, companyId: f.companyId, workspaceId: f.child.id, apply: true });
+    await migrateRemoteWorkspace({ db, storage, spaceId: f.spaceId, workspaceId: f.child.id, apply: true });
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0]).toEqual(original[0]);
     const put = storage.putFile.bind(storage);
     vi.spyOn(storage, "putFile").mockImplementationOnce(async input => {
       await db.transaction(async tx => {
-        expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, { companyId: f.companyId, runId: f.run.id })).toBe(false);
+        expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, { spaceId: f.spaceId, runId: f.run.id })).toBe(false);
       });
       return put(input);
     });
@@ -797,7 +797,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     expect((await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.warning.id)))[0]).toEqual(f.warning);
     expect((await db.select().from(issues).where(eq(issues.id, f.issue.id)))[0]).toEqual(f.issue);
     expect(await db.select().from(heartbeatRunEvents)).toHaveLength(249);
-    expect(await readMigratedLegacyWorkspaceSource(db, { companyId: f.companyId, runId: f.run.id,
+    expect(await readMigratedLegacyWorkspaceSource(db, { spaceId: f.spaceId, runId: f.run.id,
       reference: nativeReference })).toMatchObject({ runId: f.run.id,
       reference: { state: "prepared" }, recoveryAllocations: [{ leaseId: f.lease.id }] });
     expect(await verifiedWorkspaceRepairReceipt(db, run)).toBeNull();
@@ -811,7 +811,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     expect(await fs.readFile(path.join(targetDir, "saved.txt"), "utf8")).toBe("saved legacy edits\n");
     expect(await fs.lstat(descriptor).catch(() => null)).toBeNull();
   });
-  it.each(["stale-block", "foreign-company", "expired-owner", "live-controller", "live-control", "malformed-block", "missing-allocation", "fingerprint"])(
+  it.each(["stale-block", "foreign-space", "expired-owner", "live-controller", "live-control", "malformed-block", "missing-allocation", "fingerprint"])(
     "keeps a prepared artifact failure held with %s evidence", async mode => {
       const f = await artifactFailureFixture();
       if (mode === "stale-block") await db.update(issues).set({ statusVersion: f.issue.statusVersion + 1 }).where(eq(issues.id, f.issue.id));
@@ -830,9 +830,9 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
       if (mode === "live-control") adapterExecutionControls.set(f.run.id, control);
       try {
         const [saved] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.warning.id));
-        const recovery = mode === "foreign-company" ? { ...saved, companyId: randomUUID() } : saved;
+        const recovery = mode === "foreign-space" ? { ...saved, spaceId: randomUUID() } : saved;
         expect(await inspectOnlineLegacyWorkspaceRecoveryHold(db, { workspace: await stored(f.workspaceId), recovery })).toBeNull();
-        if (mode !== "foreign-company") {
+        if (mode !== "foreign-space") {
           expect(await inventoryRemoteWorkspaceMigration(db, f)).toMatchObject({ eligible: false });
           await expect(migrateRemoteWorkspace({ db, storage, ...f, apply: true })).rejects.toThrow();
         }
@@ -866,7 +866,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     const recovery = await artifactFailureFixture(true), linked = mode === "companion" ? await gitFixture(recovery) : null;
     const f = { ...recovery, ...linked };
     const descendant = f.issue;
-    const input = { companyId: f.companyId, workspaceId: linked?.child.id ?? f.workspaceId };
+    const input = { spaceId: f.spaceId, workspaceId: linked?.child.id ?? f.workspaceId };
     expect(await inventoryRemoteWorkspaceMigration(db, input)).toMatchObject({ eligible: true });
     const other = createDb(database.connectionString, { maxConnections: 1 });
     let entered!: () => void, release!: () => void;
@@ -887,20 +887,20 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
         .toMatchObject({ status: "active", sourceIssueId: descendant.id, evidence: f.warning.evidence });
     } finally { release(); await held; await other.$client.end({ timeout: 1 }); }
   });
-  it("discovers all Git companions in one fresh company-scoped scan per inspection", async () => {
+  it("discovers all Git companions in one fresh space-scoped scan per inspection", async () => {
     const recovery = await recoveryFixture(), f = await gitFixture(recovery);
-    const [finalizedIssue] = await db.insert(issues).values({ companyId: f.companyId, projectId: f.projectId,
+    const [finalizedIssue] = await db.insert(issues).values({ spaceId: f.spaceId, projectId: f.projectId,
       parentId: f.aliases[1].issue.id, title: "Retained finalized companion" }).returning();
-    await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: recovery.run.agentId,
+    await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: recovery.run.agentId,
       nativeIssueId: finalizedIssue.id, status: "succeeded", runtimeMode: "legacy", runnerProfileJson: {
         nativeWorkspaceSync: { workspaceId: f.aliases[1].workspace.id, state: "finalized" } } });
-    const [finalizedRecovery] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId,
+    const [finalizedRecovery] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId,
       sourceIssueId: finalizedIssue.id, kind: "stranded_assigned_issue", cause: "fixture", fingerprint: randomUUID(),
-      ownerType: "board", nextAction: "Retain the original recovery owner" }).returning();
-    const foreignCompany = randomUUID();
-    await db.insert(companies).values({ id: foreignCompany, name: "Foreign companion", issuePrefix: "FOREIGN" });
-    const [foreignAgent] = await db.insert(agents).values({ companyId: foreignCompany, name: "Foreign native worker" }).returning();
-    await db.insert(heartbeatRuns).values({ companyId: foreignCompany, agentId: foreignAgent.id, runtimeMode: "native",
+      ownerType: "operator", nextAction: "Retain the original recovery owner" }).returning();
+    const foreignSpace = randomUUID();
+    await db.insert(spaces).values({ id: foreignSpace, name: "Foreign companion", issuePrefix: "FOREIGN" });
+    const [foreignAgent] = await db.insert(agents).values({ spaceId: foreignSpace, name: "Foreign native worker" }).returning();
+    await db.insert(heartbeatRuns).values({ spaceId: foreignSpace, agentId: foreignAgent.id, runtimeMode: "native",
       status: "running", runnerProfileJson: { nativeWorkspaceSync: { workspaceId: f.workspaceId, state: "prepared" } } });
     const source = await inspectOnlineLegacyWorkspaceRecoverySource(db, { workspace: f.aliases[0].workspace, runId: recovery.run.id });
     const preparedHold = await inspectOnlineLegacyWorkspaceRecoveryHold(db, { workspace: f.aliases[0].workspace, recovery: recovery.warning });
@@ -925,7 +925,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
       expect(scope!.settledRecoveryIssueIds).toContain(finalizedIssue.id);
       expect(scans).toHaveLength(1);
 
-      await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: recovery.run.agentId,
+      await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: recovery.run.agentId,
         nativeIssueId: f.aliases[2].issue.id, status: "running", runtimeMode: "native",
         runnerProfileJson: { nativeWorkspaceSync: { workspaceId: f.aliases[2].workspace.id, state: "prepared" } } });
       scans.length = 0;
@@ -935,11 +935,11 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
   });
   it("imports a shared Git child while a terminal sibling recovery and unrelated remote execution remain intact", async () => {
     const recovery = await recoveryFixture(), f = await gitFixture(recovery);
-    const unrelated = await remoteWriter(f.companyId, recovery.run.agentId);
+    const unrelated = await remoteWriter(f.spaceId, recovery.run.agentId);
     await fs.writeFile(path.join(f.child.cwd!, "saved.txt"), "staged child work\n");
     await git(f.child.cwd!, "add", ".");
     await fs.writeFile(path.join(f.child.cwd!, "saved.txt"), "unstaged child work\n");
-    const input = { companyId: f.companyId, workspaceId: f.child.id };
+    const input = { spaceId: f.spaceId, workspaceId: f.child.id };
     expect(await inventoryRemoteWorkspaceMigration(db, input)).toMatchObject({ eligible: true });
     await expect(migrateRemoteWorkspace({ db, storage, ...input, apply: true })).resolves.toMatchObject({ applied: true });
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, unrelated.id)))[0]).toEqual(unrelated);
@@ -948,7 +948,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     expect((await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, recovery.warning.id)))[0]).toEqual(recovery.warning);
     expect((await db.select().from(environmentLeases).where(eq(environmentLeases.id, recovery.lease.id)))[0]).toEqual(recovery.lease);
     const authority = readRemoteWorkspaceAuthority((await stored(f.child.id)).metadata)!;
-    const reference = await getWorkspaceSnapshot(db, { companyId: f.companyId, workspaceId: f.child.id, snapshotId: authority.snapshotId! });
+    const reference = await getWorkspaceSnapshot(db, { spaceId: f.spaceId, workspaceId: f.child.id, snapshotId: authority.snapshotId! });
     const archivePath = path.join(home, "git-child.pcws"), targetDir = path.join(home, "git-child-restored");
     await loadWorkspaceSnapshotArchive({ storage, reference: reference!, targetPath: archivePath });
     expect(await fs.readFile(path.join(f.cwd, "saved.txt"), "utf8")).toBe("saved legacy edits\n");
@@ -960,25 +960,25 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
   });
   it("takes the original private Git store owner before reserving an import journal", async () => {
     const f = await fixture();
-    const [seed] = await db.insert(issues).values({ companyId: f.companyId, title: "Private seed owner" }).returning();
-    const source = path.join(resolvePaperclipInstanceRoot(), "isolated-repository-sources", f.companyId, seed.id, "checkout");
+    const [seed] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Private seed owner" }).returning();
+    const source = path.join(resolveOutpostInstanceRoot(), "isolated-repository-sources", f.spaceId, seed.id, "checkout");
     await fs.mkdir(source, { recursive: true }); await git(source, "init", "-q", "-b", "main");
     await fs.writeFile(path.join(source, "saved.txt"), "private seed work\n");
     await git(source, "add", "."); await git(source, "commit", "-qm", "Private seed");
     const repoUrl = "https://example.invalid/private-seed.git";
     await git(source, "remote", "add", "origin", repoUrl);
-    const [issue] = await db.insert(issues).values({ companyId: f.companyId, title: "Linked task" }).returning();
-    const cwd = path.join(f.cwd, ".paperclip", "worktrees", "private-child");
+    const [issue] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Linked task" }).returning();
+    const cwd = path.join(f.cwd, ".outpost", "worktrees", "private-child");
     await git(source, "worktree", "add", "-qb", "private-child", cwd);
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId, projectId: f.projectId,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, projectId: f.projectId,
       sourceIssueId: issue.id, name: "Private linked source", mode: "isolated_workspace", strategyType: "git_worktree",
       providerType: "git_worktree", cwd, providerRef: cwd, repoUrl, branchName: "private-child" }).returning();
     let entered!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
-    const owner = withIsolatedRepositorySourceLock(db, f.companyId, seed.id, async () => { entered(); await pending; });
+    const owner = withIsolatedRepositorySourceLock(db, f.spaceId, seed.id, async () => { entered(); await pending; });
     await started;
-    const input = { companyId: f.companyId, workspaceId: workspace.id };
+    const input = { spaceId: f.spaceId, workspaceId: workspace.id };
     try {
       expect(await inventoryRemoteWorkspaceMigration(db, input)).toMatchObject({ eligible: true });
       await expect(migrateRemoteWorkspace({ db, storage, ...input, apply: true })).rejects.toBeInstanceOf(IsolatedRepositorySourceBusy);
@@ -989,7 +989,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
   });
   it.each(["coordinator", "allocation", "locator", "git-metadata"] as const)("rechecks the shared Git companion %s before publication", async change => {
     const recovery = await recoveryFixture(), f = await gitFixture(recovery), barrier = uploadBarrier();
-    const migration = migrateRemoteWorkspace({ db, storage, companyId: f.companyId, workspaceId: f.child.id, apply: true })
+    const migration = migrateRemoteWorkspace({ db, storage, spaceId: f.spaceId, workspaceId: f.child.id, apply: true })
       .then(value => ({ value }), error => ({ error }));
     await Promise.race([barrier.started, migration.then(result => { if ("error" in result) throw result.error; throw new Error("capture did not upload"); })]);
     try {
@@ -1013,19 +1013,19 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
   });
   it("retains an imported nested child's private cache owner through parent source verification", async () => {
     const f = await gitFixture(), sourceIssueId = randomUUID();
-    const source = path.join(resolvePaperclipInstanceRoot(), "isolated-repository-sources", f.companyId, sourceIssueId, "checkout");
+    const source = path.join(resolveOutpostInstanceRoot(), "isolated-repository-sources", f.spaceId, sourceIssueId, "checkout");
     await git(f.cwd, "worktree", "remove", f.child.cwd!);
     await fs.mkdir(path.dirname(source), { recursive: true });
     await git(home, "clone", "--no-hardlinks", f.cwd, source);
     await git(source, "remote", "set-url", "origin", f.repoUrl);
     await git(source, "worktree", "add", "-qb", "private-child", f.child.cwd!);
     await db.update(executionWorkspaces).set({ branchName: "private-child" }).where(eq(executionWorkspaces.id, f.child.id));
-    await migrateRemoteWorkspace({ db, storage, companyId: f.companyId, workspaceId: f.child.id, apply: true });
+    await migrateRemoteWorkspace({ db, storage, spaceId: f.spaceId, workspaceId: f.child.id, apply: true });
     expect((await stored(f.child.id)).providerType).toBe("cloud_sandbox");
     let entered!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const pending = new Promise<void>(resolve => { release = resolve; });
-    const owner = withWorkspaceSourceLocks(db, { companyId: f.companyId, issueIds: [sourceIssueId] }, async () => {
+    const owner = withWorkspaceSourceLocks(db, { spaceId: f.spaceId, issueIds: [sourceIssueId] }, async () => {
       entered(); await pending;
     });
     await started;
@@ -1043,7 +1043,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
 
   it.each(["missing", "deleted"] as const)("rejects a Git parent with %s imported-child snapshot coverage", async state => {
     const f = await gitFixture();
-    await migrateRemoteWorkspace({ db, storage, companyId: f.companyId, workspaceId: f.child.id, apply: true });
+    await migrateRemoteWorkspace({ db, storage, spaceId: f.spaceId, workspaceId: f.child.id, apply: true });
     const authority = readRemoteWorkspaceAuthority((await stored(f.child.id)).metadata)!;
     if (state === "missing") await db.delete(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.id, authority.snapshotId!));
     else await db.update(executionWorkspaceSnapshots).set({ status: "deleted" }).where(eq(executionWorkspaceSnapshots.id, authority.snapshotId!));
@@ -1058,7 +1058,7 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
     const f = await gitFixture();
     expect(await inventoryRemoteWorkspaceMigration(db, f)).toMatchObject({ eligible: false,
       reasons: expect.arrayContaining(["nested_workspace_import_required"]) });
-    await migrateRemoteWorkspace({ db, storage, companyId: f.companyId, workspaceId: f.child.id, apply: true });
+    await migrateRemoteWorkspace({ db, storage, spaceId: f.spaceId, workspaceId: f.child.id, apply: true });
     const child = await stored(f.child.id), childAuthority = readRemoteWorkspaceAuthority(child.metadata)!;
     const [childSnapshot] = await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.id, childAuthority.snapshotId!));
     if (changed) await fs.writeFile(path.join(f.child.cwd!, "new-work.txt"), "changed after child import\n");
@@ -1076,11 +1076,11 @@ describe.skipIf(!support.supported)("online ordinary physical source fence", () 
   });
   it("imports a terminal prepared source while retaining its original provider and finalization obligations", async () => {
     const f = await recoveryFixture(), put = storage.putFile.bind(storage);
-    const unrelated = await remoteWriter(f.companyId, f.run.agentId);
+    const unrelated = await remoteWriter(f.spaceId, f.run.agentId);
     expect(await inventoryRemoteWorkspaceMigration(db, f)).toMatchObject({ eligible: true });
     vi.spyOn(storage, "putFile").mockImplementationOnce(async input => {
       await db.transaction(async tx => {
-        expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, { companyId: f.companyId, runId: f.run.id })).toBe(false);
+        expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, { spaceId: f.spaceId, runId: f.run.id })).toBe(false);
       });
       return put(input);
     });

@@ -6,17 +6,17 @@ vi.unmock("http");
 vi.unmock("node:http");
 
 // Tests that verify the write-path membership/role checks restored by Fix 1.
-// `assertCompanyAccess` (in authz.ts) must reject viewer-role users and
+// `assertSpaceAccess` (in authz.ts) must reject viewer-role users and
 // inactive members on non-safe HTTP methods (POST/PUT/PATCH/DELETE), even when
-// `hasCompanyAccess` would let them through the 404 oracle gate.
+// `hasSpaceAccess` would let them through the 404 oracle gate.
 
-const companyId = "11111111-1111-4111-8111-111111111111";
+const spaceId = "11111111-1111-4111-8111-111111111111";
 const goalId = "22222222-2222-4222-8222-222222222222";
 
 const baseGoal = {
   id: goalId,
-  companyId,
-  level: "company" as const,
+  spaceId,
+  level: "space" as const,
   title: "Q3 goal",
   description: null,
   parentId: null,
@@ -123,13 +123,13 @@ describe("write-path membership checks (viewer / inactive)", () => {
 
   describe("viewer role", () => {
     const viewerActor = {
-      type: "board" as const,
+      type: "operator" as const,
       userId: "viewer-user",
-      companyIds: [companyId],
+      spaceIds: [spaceId],
       source: "session" as const,
       isInstanceAdmin: false,
       memberships: [
-        { companyId, status: "active", membershipRole: "viewer" },
+        { spaceId, status: "active", membershipRole: "viewer" },
       ],
     };
 
@@ -155,12 +155,12 @@ describe("write-path membership checks (viewer / inactive)", () => {
       expect(mockGoalService.remove).not.toHaveBeenCalled();
     });
 
-    it("rejects POST (create) on a company's goals with 403 'Viewer access is read-only'", async () => {
+    it("rejects POST (create) on a space's goals with 403 'Viewer access is read-only'", async () => {
       const app = await createApp(viewerActor);
       const res = await requestApp(app, (baseUrl) =>
         request(baseUrl)
-          .post(`/api/companies/${companyId}/goals`)
-          .send({ level: "company", title: "New goal" }),
+          .post(`/api/spaces/${spaceId}/goals`)
+          .send({ level: "space", title: "New goal" }),
       );
 
       expect(res.status).toBe(403);
@@ -182,61 +182,61 @@ describe("write-path membership checks (viewer / inactive)", () => {
 
   describe("inactive membership", () => {
     const inactiveActor = {
-      type: "board" as const,
-      userId: "ex-employee",
-      companyIds: [companyId],
+      type: "operator" as const,
+      userId: "ex-agent",
+      spaceIds: [spaceId],
       source: "session" as const,
       isInstanceAdmin: false,
       memberships: [
-        { companyId, status: "removed", membershipRole: "editor" },
+        { spaceId, status: "removed", membershipRole: "editor" },
       ],
     };
 
-    it("rejects PATCH on a goal with 403 'User does not have active company access'", async () => {
+    it("rejects PATCH on a goal with 403 'User does not have active space access'", async () => {
       const app = await createApp(inactiveActor);
       const res = await requestApp(app, (baseUrl) =>
         request(baseUrl).patch(`/api/goals/${goalId}`).send({ title: "New title" }),
       );
 
       expect(res.status).toBe(403);
-      expect(res.body.error).toBe("User does not have active company access");
+      expect(res.body.error).toBe("User does not have active space access");
       expect(mockGoalService.update).not.toHaveBeenCalled();
     });
 
-    it("rejects DELETE on a goal with 403 'User does not have active company access'", async () => {
+    it("rejects DELETE on a goal with 403 'User does not have active space access'", async () => {
       const app = await createApp(inactiveActor);
       const res = await requestApp(app, (baseUrl) =>
         request(baseUrl).delete(`/api/goals/${goalId}`),
       );
 
       expect(res.status).toBe(403);
-      expect(res.body.error).toBe("User does not have active company access");
+      expect(res.body.error).toBe("User does not have active space access");
       expect(mockGoalService.remove).not.toHaveBeenCalled();
     });
 
-    it("rejects POST on a company's goals with 403 'User does not have active company access'", async () => {
+    it("rejects POST on a space's goals with 403 'User does not have active space access'", async () => {
       const app = await createApp(inactiveActor);
       const res = await requestApp(app, (baseUrl) =>
         request(baseUrl)
-          .post(`/api/companies/${companyId}/goals`)
-          .send({ level: "company", title: "New goal" }),
+          .post(`/api/spaces/${spaceId}/goals`)
+          .send({ level: "space", title: "New goal" }),
       );
 
       expect(res.status).toBe(403);
-      expect(res.body.error).toBe("User does not have active company access");
+      expect(res.body.error).toBe("User does not have active space access");
       expect(mockGoalService.create).not.toHaveBeenCalled();
     });
   });
 
   describe("active editor (sanity check)", () => {
     const editorActor = {
-      type: "board" as const,
+      type: "operator" as const,
       userId: "editor-user",
-      companyIds: [companyId],
+      spaceIds: [spaceId],
       source: "session" as const,
       isInstanceAdmin: false,
       memberships: [
-        { companyId, status: "active", membershipRole: "editor" },
+        { spaceId, status: "active", membershipRole: "editor" },
       ],
     };
 

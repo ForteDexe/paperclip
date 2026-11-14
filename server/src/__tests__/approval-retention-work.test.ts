@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, approvals, chatConversations, chatEndpoints, companies, createDb, subscribeDatabaseWork, decisionArchiveNotificationOutbox, decisionRetention, issueApprovals, issues, toolApplications, toolConnections, type Db } from "@outpost/db";
+import { activityLog, agents, approvals, chatConversations, chatEndpoints, spaces, createDb, subscribeDatabaseWork, decisionArchiveNotificationOutbox, decisionRetention, issueApprovals, issues, toolApplications, toolConnections, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { approvalRecords } from "../services/approvals.js";
@@ -9,7 +9,7 @@ import { approvalRetentionService, registerApprovalRetentionWork } from "../serv
 import { decisionRetentionService, DEFAULT_DECISION_ARCHIVE_DAYS } from "../services/decision-retention.js";
 import { attentionService } from "../services/attention.js";
 import { issueApprovalService } from "../services/issue-approvals.js";
-import { companyService } from "../services/companies.js";
+import { spaceService } from "../services/space-service.js";
 import { issueService } from "../services/issues.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
@@ -20,7 +20,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
 (support.supported ? describe : describe.skip)("approval retention worker", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
-  let db: ReturnType<typeof createDb>, companyId: string;
+  let db: ReturnType<typeof createDb>, spaceId: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let draining: boolean;
   const errors: unknown[] = [];
@@ -29,8 +29,8 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
     db = createDb(externalUrl ?? temporary!.connectionString, { maxConnections: 6, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
   }, 30_000);
   beforeEach(async () => {
-    companyId = randomUUID(); draining = false; errors.length = 0;
-    await db.insert(companies).values({ id: companyId, name: "Approval retention", issuePrefix: `A${companyId.slice(0, 6)}` });
+    spaceId = randomUUID(); draining = false; errors.length = 0;
+    await db.insert(spaces).values({ id: spaceId, name: "Approval retention", issuePrefix: `A${spaceId.slice(0, 6)}` });
     await Promise.all(Array.from({ length: 6 }, () => db.execute(sql`select pg_sleep(0.01)`)));
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"], shouldAdvanceTime: true });
   });
@@ -43,18 +43,18 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
     await db.delete(activityLog); await db.delete(issueApprovals); await db.delete(approvals);
     await db.delete(chatConversations); await db.delete(chatEndpoints);
     await db.delete(toolConnections); await db.delete(toolApplications);
-    await db.delete(issues); await db.delete(agents); await db.delete(companies);
+    await db.delete(issues); await db.delete(agents); await db.delete(spaces);
     expect(errors).toEqual([]);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
-  const create = (at = new Date(), database: Db = db) => approvalRecords(database).create(companyId, {
-    type: "request_board_approval", payload: {}, createdAt: at, updatedAt: at,
+  const create = (at = new Date(), database: Db = db) => approvalRecords(database).create(spaceId, {
+    type: "request_operator_approval", payload: {}, createdAt: at, updatedAt: at,
   });
   const old = () => new Date(Date.now() - delay - 60_000);
-  const state = (id: string) => decisionRetentionService(db).getState(companyId, "approval", id);
-  const authActor = () => ({ type: "board" as const, source: "local_implicit" as const, userId: "board-user", companyIds: [companyId], isInstanceAdmin: true });
-  const actor = { actorType: "user" as const, actorId: "board-user", agentId: null, userId: "board-user", runId: null, agentApiKeyId: null, responsibleUserId: "board-user" };
-  const mutation = (id: string) => ({ companyId, sourceKind: "approval" as const, sourceId: id, authActor: authActor(), actor });
+  const state = (id: string) => decisionRetentionService(db).getState(spaceId, "approval", id);
+  const authActor = () => ({ type: "operator" as const, source: "local_implicit" as const, userId: "operator-user", spaceIds: [spaceId], isInstanceAdmin: true });
+  const actor = { actorType: "user" as const, actorId: "operator-user", agentId: null, userId: "operator-user", runId: null, agentApiKeyId: null, responsibleUserId: "operator-user" };
+  const mutation = (id: string) => ({ spaceId, sourceKind: "approval" as const, sourceId: id, authActor: authActor(), actor });
   async function start(service = approvalRetentionService(db)) {
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => !draining, canReconcile: () => true, onError: error => errors.push(error) });
     await registerApprovalRetentionWork(coordinator, service, () => !draining).ready;
@@ -81,7 +81,7 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
     }, { timeout: 5000 });
   }
   async function issue(hiddenAt: Date | null = null) {
-    const [row] = await db.insert(issues).values({ companyId, title: "Approval target", status: "todo", hiddenAt }).returning();
+    const [row] = await db.insert(issues).values({ spaceId, title: "Approval target", status: "todo", hiddenAt }).returning();
     return row;
   }
 
@@ -113,18 +113,18 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
         await issueApprovalService(db).link(target.id, row.id);
         await issueApprovalService(db).unlink(target.id, row.id);
       }
-      await approvalRecords(db).requestRevision(row.id, "board-user");
+      await approvalRecords(db).requestRevision(row.id, "operator-user");
       await approvalRecords(db).resubmit(row.id);
       expect(events).toEqual(queues.map(() => []));
       if (outcome === "cancelled") await approvalRecords(db).cancel(row.id, "cancelled by user");
-      else await approvalRecords(db).resolveApproval(row.id, outcome, "board-user", null);
+      else await approvalRecords(db).resolveApproval(row.id, outcome, "operator-user", null);
       expect(events).toEqual(queues.map(() => ["intent", "settled"]));
     } finally { for (const unsubscribe of subscriptions) unsubscribe(); }
   });
 
   it("bounds aggregate retention reads to one reconciliation per thirty seconds of sequential tenant writes", async () => {
-    const [otherCompany] = await db.insert(companies).values({ name: "Other tenant", issuePrefix: `B${companyId.slice(0, 6)}` }).returning();
-    const other = await approvalRecords(db).create(otherCompany.id, { type: "request_board_approval", payload: {} });
+    const [otherSpace] = await db.insert(spaces).values({ name: "Other tenant", issuePrefix: `B${spaceId.slice(0, 6)}` }).returning();
+    const other = await approvalRecords(db).create(otherSpace.id, { type: "request_operator_approval", payload: {} });
     const service = await start(); await settle();
     const sweep = vi.spyOn(service, "sweep"), reads = vi.spyOn(db, "select");
     await create();
@@ -158,14 +158,14 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
 
   it("recovers old unseen approvals on startup and leaves completed history quiet", async () => {
     const due = await create(old()), completed = await create(old());
-    await approvalRecords(db).resolveApproval(completed.id, "approved", "board-user", null);
+    await approvalRecords(db).resolveApproval(completed.id, "approved", "operator-user", null);
     await start(); await archived(due.id); await quiet();
     expect(await state(completed.id)).toBeNull();
   });
 
   it("disarms on revision and moves the deadline when resubmitted", async () => {
     await start(); const row = await create(); await settle();
-    await approvalRecords(db).requestRevision(row.id, "board-user"); await quiet();
+    await approvalRecords(db).requestRevision(row.id, "operator-user"); await quiet();
     const resubmitted = await approvalRecords(db).resubmit(row.id); await settle();
     expect(coordinator!.nextWakeAt()).toBe(resubmitted.updatedAt.getTime() + delay);
     await approvalRecords(db).cancel(row.id); await quiet();
@@ -198,7 +198,7 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
 
   it("honors keep and wakes when an old approval is unkept", async () => {
     const row = await create(old());
-    await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true });
+    await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true });
     await decisionRetentionService(db).setKeep({ ...mutation(row.id), keep: true });
     await start(); await quiet(); expect((await state(row.id))?.archivedAt).toBeNull();
     await decisionRetentionService(db).setKeep({ ...mutation(row.id), keep: false });
@@ -207,7 +207,7 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
 
   it("disarms on manual archive and reactivates on revive", async () => {
     const row = await create(old());
-    await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true });
+    await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true });
     await decisionRetentionService(db).archive(mutation(row.id));
     await start(); await quiet();
     await decisionRetentionService(db).revive(mutation(row.id));
@@ -215,11 +215,11 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
     expect((await state(row.id))?.archivedReason).toBe("idle_ttl");
   });
 
-  it("waits for inactive companies and wakes on company activation", async () => {
+  it("waits for inactive spaces and wakes on space activation", async () => {
     const row = await create(old());
-    await companyService(db).update(companyId, { status: "paused" });
+    await spaceService(db).update(spaceId, { status: "paused" });
     await start(); await quiet(); expect(await state(row.id)).toBeNull();
-    await companyService(db).update(companyId, { status: "active" });
+    await spaceService(db).update(spaceId, { status: "active" });
     await archived(row.id); await quiet();
   });
 
@@ -249,10 +249,10 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
 
   it("preserves normal attention reads while excluding approval retention maintenance", async () => {
     const row = await create(old());
-    const excluded = await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true, excludeSources: ["approval"] });
+    const excluded = await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true, excludeSources: ["approval"] });
     expect(excluded.items.some(item => item.sourceKind === "approval")).toBe(false);
     expect(await state(row.id)).toBeNull();
-    const visible = await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true });
+    const visible = await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true });
     expect(visible.items.some(item => item.subject.id === row.id)).toBe(true);
     expect(await state(row.id)).not.toBeNull();
   });
@@ -293,7 +293,7 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
     const write = db.transaction(async tx => {
       await tx.execute(sql`select id from approvals where id = ${row.id} for update`);
       locked(); await barrier;
-      await approvalRecords(tx as unknown as Db).requestRevision(row.id, "board-user");
+      await approvalRecords(tx as unknown as Db).requestRevision(row.id, "operator-user");
       await approvalRecords(tx as unknown as Db).resubmit(row.id);
     });
     await admitted;
@@ -316,7 +316,7 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
   }
 
   it("retains failed durable work across drain and resumes recovery", async () => {
-    const row = await approvalRecords(db).create(companyId, { type: "request_board_approval",
+    const row = await approvalRecords(db).create(spaceId, { type: "request_operator_approval",
       payload: { retentionTestFailure: true }, updatedAt: old() });
     await failArchives();
     await start();
@@ -331,8 +331,8 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
 
   it("advances bounded pages past a failed row without losing its retry", async () => {
     const at = old();
-    await db.insert(approvals).values(Array.from({ length: 101 }, (_, i) => ({ companyId,
-      type: "request_board_approval", payload: { retentionTestFailure: i === 0 },
+    await db.insert(approvals).values(Array.from({ length: 101 }, (_, i) => ({ spaceId,
+      type: "request_operator_approval", payload: { retentionTestFailure: i === 0 },
       createdAt: at, updatedAt: new Date(at.getTime() + i),
     })));
     await failArchives();
@@ -347,10 +347,10 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
 
   it("retries a failed approval while newer overdue pages keep arriving", async () => {
     const at = old();
-    const [failed] = await db.insert(approvals).values({ companyId, type: "request_board_approval",
+    const [failed] = await db.insert(approvals).values({ spaceId, type: "request_operator_approval",
       payload: { retentionTestFailure: true }, createdAt: at, updatedAt: at }).returning();
     const append = async (offset: number) => db.insert(approvals).values(Array.from({ length: 100 }, (_, i) => ({
-      companyId, type: "request_board_approval", payload: {}, createdAt: at,
+      spaceId, type: "request_operator_approval", payload: {}, createdAt: at,
       updatedAt: new Date(at.getTime() + offset + i),
     })));
     await append(1); await failArchives();
@@ -379,7 +379,7 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
     const [first, second] = [one, two].sort((a, b) => a.id.localeCompare(b.id));
     await db.update(issues).set({ hiddenAt: new Date() }).where(eq(issues.id, first.id));
     await issueApprovalService(db).linkManyForApproval(row.id, [second.id, first.id]);
-    expect((await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true })).items
+    expect((await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true })).items
       .some(item => item.subject.id === row.id)).toBe(false);
     await start(); await quiet();
     await issueApprovalService(db).unlink(first.id, row.id);
@@ -391,7 +391,7 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
     const [first, second] = [one, two].sort((a, b) => a.id.localeCompare(b.id));
     await db.update(issues).set({ hiddenAt: new Date() }).where(eq(issues.id, second.id));
     await issueApprovalService(db).linkManyForApproval(row.id, [second.id, first.id]);
-    expect((await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true })).items
+    expect((await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true })).items
       .some(item => item.subject.id === row.id)).toBe(true);
     await start(); await archived(row.id); await quiet();
   });
@@ -417,16 +417,16 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
 
 
   it("uses the shared feed eligibility for a waiting Slack conversation with a pending approval", async () => {
-    const [agent] = await db.insert(agents).values({ companyId, name: "Origin", role: "engineer", status: "active", adapterType: "codex_local" }).returning();
-    const [app] = await db.insert(toolApplications).values({ companyId, name: "Slack", type: "chat" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId, applicationId: app.id, name: "Slack", uid: randomUUID(), transport: "chat_sdk", connectionPurpose: "channel" }).returning();
-    const [endpoint] = await db.insert(chatEndpoints).values({ companyId, connectionId: connection.id, provider: "slack", publicId: randomUUID(), assignedAgentId: agent.id, status: "active" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Origin", role: "engineer", status: "active", adapterType: "codex_local" }).returning();
+    const [app] = await db.insert(toolApplications).values({ spaceId, name: "Slack", type: "chat" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId: app.id, name: "Slack", uid: randomUUID(), transport: "chat_sdk", connectionPurpose: "channel" }).returning();
+    const [endpoint] = await db.insert(chatEndpoints).values({ spaceId, connectionId: connection.id, provider: "slack", publicId: randomUUID(), assignedAgentId: agent.id, status: "active" }).returning();
     const target = await issue();
     await db.update(issues).set({ status: "in_review", assigneeAgentId: agent.id }).where(eq(issues.id, target.id));
-    await db.insert(chatConversations).values({ companyId, endpointId: endpoint.id, issueId: target.id, externalConversationId: randomUUID(), externalLabel: "Waiting", state: "waiting" });
-    const row = await approvalRecords(db).create(companyId, { type: "request_board_approval", payload: {}, requestedByAgentId: agent.id, updatedAt: old() });
+    await db.insert(chatConversations).values({ spaceId, endpointId: endpoint.id, issueId: target.id, externalConversationId: randomUUID(), externalLabel: "Waiting", state: "waiting" });
+    const row = await approvalRecords(db).create(spaceId, { type: "request_operator_approval", payload: {}, requestedByAgentId: agent.id, updatedAt: old() });
     await issueApprovalService(db).link(target.id, row.id);
-    const feed = await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true });
+    const feed = await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true });
     expect(feed.items.some(item => item.subject.id === row.id)).toBe(true);
     await start(); await archived(row.id); await quiet();
     expect(await db.select().from(decisionArchiveNotificationOutbox)).toMatchObject([
@@ -436,8 +436,8 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
 
 
   it("advances past a failed page with full database timestamp precision", async () => {
-    await db.execute(sql`insert into approvals(company_id, type, payload, updated_at)
-      select ${companyId}, 'request_board_approval', jsonb_build_object('retentionTestFailure', n <= 100),
+    await db.execute(sql`insert into approvals(space_id, type, payload, updated_at)
+      select ${spaceId}, 'request_operator_approval', jsonb_build_object('retentionTestFailure', n <= 100),
         date_trunc('milliseconds', now() - interval '91 days') + interval '456 microseconds'
           + case when n <= 100 then interval '0 seconds' else interval '1 second' end
       from generate_series(1, 101) n`);

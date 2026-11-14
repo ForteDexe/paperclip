@@ -36,8 +36,8 @@ export interface AgentAdvancedTabProps {
 export function AgentAdvancedTab(props: AgentAdvancedTabProps) {
   const [initial, setInitial] = useState<AgentConfigurationSnapshot | null>(null);
   const query = useQuery({
-    queryKey: ["agent-configuration-yaml", props.agent.companyId, props.agent.id],
-    queryFn: () => loadAgentConfiguration(props.agent.id, props.agent.companyId),
+    queryKey: ["agent-configuration-yaml", props.agent.spaceId, props.agent.id],
+    queryFn: () => loadAgentConfiguration(props.agent.id, props.agent.spaceId),
     refetchOnWindowFocus: false,
   });
   useEffect(() => {
@@ -87,8 +87,8 @@ function ConfigurationEditor({ agent, initial, onDirtyChange, onSaved, onSavingC
     onSuccess: configuration => {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.urlKey) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(agent.companyId) });
-      queryClient.setQueryData(["agent-configuration-yaml", agent.companyId, agent.id], configuration);
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(agent.spaceId) });
+      queryClient.setQueryData(["agent-configuration-yaml", agent.spaceId, agent.id], configuration);
       if (!active.current) return;
       setSaved(configuration);
       setSource(editableYaml(configuration));
@@ -101,7 +101,7 @@ function ConfigurationEditor({ agent, initial, onDirtyChange, onSaved, onSavingC
     },
     onSettled: () => {
       operationPending.current = false;
-      queryClient.invalidateQueries({ predicate: query => query.queryKey.some(part => part === agent.id || part === agent.companyId), refetchType: "none" });
+      queryClient.invalidateQueries({ predicate: query => query.queryKey.some(part => part === agent.id || part === agent.spaceId), refetchType: "none" });
     },
     onError: cause => {
       if (!active.current) return;
@@ -110,12 +110,12 @@ function ConfigurationEditor({ agent, initial, onDirtyChange, onSaved, onSavingC
     },
   });
   const reload = useMutation({
-    mutationFn: () => loadAgentConfiguration(agent.id, agent.companyId),
+    mutationFn: () => loadAgentConfiguration(agent.id, agent.spaceId),
     onSuccess: updated => {
-      queryClient.setQueryData(["agent-configuration-yaml", agent.companyId, agent.id], updated);
+      queryClient.setQueryData(["agent-configuration-yaml", agent.spaceId, agent.id], updated);
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.urlKey) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(agent.companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(agent.spaceId) });
       if (active.current) { setSaved(updated); setSource(editableYaml(updated)); setError(null); setReloadRequired(false); onSaved(updated.agent); }
     },
     onSettled: () => { operationPending.current = false; },

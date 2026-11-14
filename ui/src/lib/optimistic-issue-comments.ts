@@ -52,7 +52,7 @@ function sortIssueCommentsDesc<T extends { createdAt: Date | string; id: string 
 }
 
 export function createOptimisticIssueComment(params: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   body: string;
   authorUserId: string | null;
@@ -64,7 +64,7 @@ export function createOptimisticIssueComment(params: {
   return {
     id: clientId,
     clientId,
-    companyId: params.companyId,
+    spaceId: params.spaceId,
     issueId: params.issueId,
     authorType: "user",
     authorAgentId: null,

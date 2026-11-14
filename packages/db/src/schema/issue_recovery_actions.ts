@@ -10,14 +10,14 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { agents } from "./agents.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { issues } from "./issues.js";
 
 export const issueRecoveryActions = pgTable(
   "issue_recovery_actions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     sourceIssueId: uuid("source_issue_id").notNull().references(() => issues.id, { onDelete: "cascade" }),
     recoveryIssueId: uuid("recovery_issue_id").references(() => issues.id, { onDelete: "set null" }),
     kind: text("kind").notNull(),
@@ -45,7 +45,7 @@ export const issueRecoveryActions = pgTable(
   },
   (table) => ({
     sourceRunIdx: index("issue_recovery_actions_source_run_idx")
-      .on(table.companyId, table.sourceIssueId, sql`(${table.evidence}->>'runId')`),
+      .on(table.spaceId, table.sourceIssueId, sql`(${table.evidence}->>'runId')`),
     systemRecoveryDueIdx: index("issue_recovery_actions_system_recovery_due_idx")
       .on(sql`(${table.evidence}#>'{systemRecovery,nextAttemptAt}')`, table.id)
       .where(sql`${table.evidence} ? 'systemRecovery'`),
@@ -61,25 +61,25 @@ export const issueRecoveryActions = pgTable(
       and (${table.evidence}->'executionReconciliation' is null
         or ${table.evidence}#>>'{workspaceRecovery,status}' = 'recovered')
     `),
-    companySourceStatusIdx: index("issue_recovery_actions_company_source_status_idx").on(
-      table.companyId,
+    spaceSourceStatusIdx: index("issue_recovery_actions_space_source_status_idx").on(
+      table.spaceId,
       table.sourceIssueId,
       table.status,
     ),
-    companyOwnerStatusIdx: index("issue_recovery_actions_company_owner_status_idx").on(
-      table.companyId,
+    spaceOwnerStatusIdx: index("issue_recovery_actions_space_owner_status_idx").on(
+      table.spaceId,
       table.ownerAgentId,
       table.status,
     ),
-    companyRecoveryIssueIdx: index("issue_recovery_actions_company_recovery_issue_idx").on(
-      table.companyId,
+    spaceRecoveryIssueIdx: index("issue_recovery_actions_space_recovery_issue_idx").on(
+      table.spaceId,
       table.recoveryIssueId,
     ),
     activeSourceIdx: uniqueIndex("issue_recovery_actions_active_source_uq")
-      .on(table.companyId, table.sourceIssueId)
+      .on(table.spaceId, table.sourceIssueId)
       .where(sql`${table.status} in ('active', 'escalated')`),
     activeFingerprintIdx: uniqueIndex("issue_recovery_actions_active_fingerprint_uq")
-      .on(table.companyId, table.sourceIssueId, table.cause, table.fingerprint)
+      .on(table.spaceId, table.sourceIssueId, table.cause, table.fingerprint)
       .where(sql`${table.status} in ('active', 'escalated')`),
   }),
 );

@@ -8,7 +8,7 @@ import {
   type RemoteAgentProfileInput,
   type RemoteAgentService,
 } from "../services/remote-agent-profiles.js";
-import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertOperator, assertSpaceAccess, getActorInfo } from "./authz.js";
 
 function remoteAgentService(value: unknown): RemoteAgentService {
   if (value !== "aws_bedrock_agentcore_harness") {
@@ -50,24 +50,24 @@ export function remoteAgentProfileRoutes(db: Db) {
   const router = Router();
   const profiles = remoteAgentProfileService(db);
 
-  router.get("/companies/:companyId/remote-agent-profiles", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/remote-agent-profiles", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const service = req.query.service === undefined
       ? undefined
       : remoteAgentService(req.query.service);
-    res.json(await profiles.list(companyId, service));
+    res.json(await profiles.list(spaceId, service));
   });
 
-  router.post("/companies/:companyId/remote-agent-profiles", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const profile = await profiles.upsert(companyId, profileInput(req.body));
+  router.post("/spaces/:spaceId/remote-agent-profiles", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const profile = await profiles.upsert(spaceId, profileInput(req.body));
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,

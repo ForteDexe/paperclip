@@ -5,7 +5,7 @@ const {
   ensureAdapterExecutionTargetRuntimeCommandInstalled,
   executeCodexAcp,
   prepareCodexRuntimeConfig,
-  readPaperclipRuntimeSkillEntries,
+  readOutpostRuntimeSkillEntries,
   resolveAdapterExecutionTargetCommandForLogs,
   runAdapterExecutionTargetProcess,
   tempCodexHome,
@@ -16,7 +16,7 @@ const {
     throw new Error('Transform failed with 1 error: execute.ts:818:0: ERROR: Unexpected "<<"');
   }),
   prepareCodexRuntimeConfig: vi.fn(async () => ({ cleanup: vi.fn(async () => undefined), notes: [] })),
-  readPaperclipRuntimeSkillEntries: vi.fn(async () => []),
+  readOutpostRuntimeSkillEntries: vi.fn(async () => []),
   resolveAdapterExecutionTargetCommandForLogs: vi.fn(async () => "codex"),
   runAdapterExecutionTargetProcess: vi.fn(async () => ({
     exitCode: 0,
@@ -37,7 +37,7 @@ const {
     pid: 123,
     startedAt: new Date().toISOString(),
   })),
-  tempCodexHome: "/tmp/paperclip-codex-acp-fallback-test-home",
+  tempCodexHome: "/tmp/outpost-codex-acp-fallback-test-home",
 }));
 
 vi.mock("./acp.js", () => ({
@@ -69,7 +69,7 @@ vi.mock("@outpost/adapter-utils/server-utils", async () => {
   );
   return {
     ...actual,
-    readPaperclipRuntimeSkillEntries,
+    readOutpostRuntimeSkillEntries,
   };
 });
 
@@ -106,7 +106,7 @@ function buildContext(config: Record<string, unknown> = {}) {
     runId: "run-1",
     agent: {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Codex Coder",
       adapterType: "codex_local",
       adapterConfig: {},

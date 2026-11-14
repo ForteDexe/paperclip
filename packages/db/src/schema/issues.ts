@@ -17,7 +17,7 @@ import {
 import { agents } from "./agents.js";
 import { projects } from "./projects.js";
 import { goals } from "./goals.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 import { projectWorkspaces } from "./project_workspaces.js";
 import { executionWorkspaces } from "./execution_workspaces.js";
@@ -27,7 +27,7 @@ export const issues = pgTable(
   "issues",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     // Conversation identity and session boundaries are owned by the server.
     conversationAgentId: uuid("conversation_agent_id").references(() => agents.id),
     conversationUserId: text("conversation_user_id"),
@@ -102,7 +102,7 @@ export const issues = pgTable(
   },
   (table) => ({
     visibilityCheck: check("issues_visibility_check", sql`${table.visibility} in ('open', 'private')`),
-    conversationIdentityIdx: uniqueIndex("issues_conversation_identity_idx").on(table.companyId, table.conversationAgentId, table.conversationUserId),
+    conversationIdentityIdx: uniqueIndex("issues_conversation_identity_idx").on(table.spaceId, table.conversationAgentId, table.conversationUserId),
     conversationIdentityCheck: check("issues_conversation_identity_check", sql`(
       ${table.conversationAgentId} is null and ${table.conversationUserId} is null and ${table.conversationState} is null
     ) or (
@@ -112,53 +112,53 @@ export const issues = pgTable(
       and ${table.conversationState} in ('active', 'waiting')
       and ${table.status} not in ('done', 'cancelled')
     )`),
-    companyIdUq: unique("issues_company_id_uq").on(table.companyId, table.id),
-    companyStatusIdx: index("issues_company_status_idx").on(table.companyId, table.status),
-    companyHarnessKindIdx: index("issues_company_harness_kind_idx").on(table.companyId, table.harnessKind),
-    assigneeStatusIdx: index("issues_company_assignee_status_idx").on(
-      table.companyId,
+    spaceIdUq: unique("issues_space_id_uq").on(table.spaceId, table.id),
+    spaceStatusIdx: index("issues_space_status_idx").on(table.spaceId, table.status),
+    spaceHarnessKindIdx: index("issues_space_harness_kind_idx").on(table.spaceId, table.harnessKind),
+    assigneeStatusIdx: index("issues_space_assignee_status_idx").on(
+      table.spaceId,
       table.assigneeAgentId,
       table.status,
     ),
-    assigneeUserStatusIdx: index("issues_company_assignee_user_status_idx").on(
-      table.companyId,
+    assigneeUserStatusIdx: index("issues_space_assignee_user_status_idx").on(
+      table.spaceId,
       table.assigneeUserId,
       table.status,
     ),
-    responsibleUserIdx: index("issues_company_responsible_user_idx").on(table.companyId, table.responsibleUserId),
-    parentIdx: index("issues_company_parent_idx").on(table.companyId, table.parentId),
-    privacyParentIdx: index("issues_company_privacy_parent_idx").on(table.companyId, table.privacyParentIssueId),
-    privacyRootIdx: index("issues_company_privacy_root_idx").on(table.companyId, table.privacyRootIssueId),
-    projectIdx: index("issues_company_project_idx").on(table.companyId, table.projectId),
-    originIdx: index("issues_company_origin_idx").on(table.companyId, table.originKind, table.originId),
-    originIssueIdx: index("issues_company_origin_issue_idx").on(table.companyId, table.originIssueId),
+    responsibleUserIdx: index("issues_space_responsible_user_idx").on(table.spaceId, table.responsibleUserId),
+    parentIdx: index("issues_space_parent_idx").on(table.spaceId, table.parentId),
+    privacyParentIdx: index("issues_space_privacy_parent_idx").on(table.spaceId, table.privacyParentIssueId),
+    privacyRootIdx: index("issues_space_privacy_root_idx").on(table.spaceId, table.privacyRootIssueId),
+    projectIdx: index("issues_space_project_idx").on(table.spaceId, table.projectId),
+    originIdx: index("issues_space_origin_idx").on(table.spaceId, table.originKind, table.originId),
+    originIssueIdx: index("issues_space_origin_issue_idx").on(table.spaceId, table.originIssueId),
     // Tasks whose creation provenance is only a run. The created-from list
     // probes this set by the source task's runs. The predicate must stay
     // identical to the legacy run branch of `createdFromIssueCondition`.
-    legacyOriginRunIdx: index("issues_company_legacy_origin_run_idx")
-      .on(table.companyId, table.originRunId)
+    legacyOriginRunIdx: index("issues_space_legacy_origin_run_idx")
+      .on(table.spaceId, table.originRunId)
       .where(sql`${table.originIssueId} is null and ${table.originRunId} is not null`)
       .concurrently(),
-    projectWorkspaceIdx: index("issues_company_project_workspace_idx").on(table.companyId, table.projectWorkspaceId),
-    executionWorkspaceIdx: index("issues_company_execution_workspace_idx").on(table.companyId, table.executionWorkspaceId),
-    dueMonitorIdx: index("issues_company_monitor_due_idx").on(table.companyId, table.monitorNextCheckAt),
-    companyUpdatedIdx: index("issues_company_updated_idx").on(table.companyId, table.updatedAt),
-    companyCreatedIdx: index("issues_company_created_idx").on(table.companyId, table.createdAt),
+    projectWorkspaceIdx: index("issues_space_project_workspace_idx").on(table.spaceId, table.projectWorkspaceId),
+    executionWorkspaceIdx: index("issues_space_execution_workspace_idx").on(table.spaceId, table.executionWorkspaceId),
+    dueMonitorIdx: index("issues_space_monitor_due_idx").on(table.spaceId, table.monitorNextCheckAt),
+    spaceUpdatedIdx: index("issues_space_updated_idx").on(table.spaceId, table.updatedAt),
+    spaceCreatedIdx: index("issues_space_created_idx").on(table.spaceId, table.createdAt),
     openNormalizedTitleCreatedIdx: index("issues_open_normalized_title_created_idx")
       .on(
-        table.companyId,
+        table.spaceId,
         table.parentId,
         sql`lower(regexp_replace(btrim(${table.title}), '\\s+', ' ', 'g'))`,
         table.createdAt,
       )
       .where(sql`${table.hiddenAt} is null and ${table.status} not in ('done', 'cancelled')`),
-    companyPriorityIdx: index("issues_company_priority_idx").on(table.companyId, table.priority),
+    spacePriorityIdx: index("issues_space_priority_idx").on(table.spaceId, table.priority),
     identifierIdx: uniqueIndex("issues_identifier_idx").on(table.identifier),
     titleSearchIdx: index("issues_title_search_idx").using("gin", table.title.op("gin_trgm_ops")),
     identifierSearchIdx: index("issues_identifier_search_idx").using("gin", table.identifier.op("gin_trgm_ops")),
     descriptionSearchIdx: index("issues_description_search_idx").using("gin", table.description.op("gin_trgm_ops")),
     openRoutineExecutionIdx: uniqueIndex("issues_open_routine_execution_uq")
-      .on(table.companyId, table.originKind, table.originId, table.originFingerprint)
+      .on(table.spaceId, table.originKind, table.originId, table.originFingerprint)
       .where(
         sql`${table.originKind} = 'routine_execution'
           and ${table.originId} is not null
@@ -167,7 +167,7 @@ export const issues = pgTable(
           and ${table.status} in ('backlog', 'todo', 'in_progress', 'in_review', 'blocked')`,
       ),
     activeLivenessRecoveryIncidentIdx: uniqueIndex("issues_active_liveness_recovery_incident_uq")
-      .on(table.companyId, table.originKind, table.originId)
+      .on(table.spaceId, table.originKind, table.originId)
       .where(
         sql`${table.originKind} = 'harness_liveness_escalation'
           and ${table.originId} is not null
@@ -175,7 +175,7 @@ export const issues = pgTable(
           and ${table.status} not in ('done', 'cancelled')`,
       ),
     activeLivenessRecoveryLeafIdx: uniqueIndex("issues_active_liveness_recovery_leaf_uq")
-      .on(table.companyId, table.originKind, table.originFingerprint)
+      .on(table.spaceId, table.originKind, table.originFingerprint)
       .where(
         sql`${table.originKind} = 'harness_liveness_escalation'
           and ${table.originFingerprint} <> 'default'
@@ -183,7 +183,7 @@ export const issues = pgTable(
           and ${table.status} not in ('done', 'cancelled')`,
       ),
     activeStaleRunEvaluationIdx: uniqueIndex("issues_active_stale_run_evaluation_uq")
-      .on(table.companyId, table.originKind, table.originId)
+      .on(table.spaceId, table.originKind, table.originId)
       .where(
         sql`${table.originKind} = 'stale_active_run_evaluation'
           and ${table.originId} is not null
@@ -191,7 +191,7 @@ export const issues = pgTable(
           and ${table.status} not in ('done', 'cancelled')`,
       ),
     activeTaskWatchdogIdx: uniqueIndex("issues_active_task_watchdog_uq")
-      .on(table.companyId, table.originKind, table.originId)
+      .on(table.spaceId, table.originKind, table.originId)
       .where(
         sql`${table.originKind} = 'task_watchdog'
           and ${table.originId} is not null
@@ -199,7 +199,7 @@ export const issues = pgTable(
           and ${table.status} not in ('done', 'cancelled')`,
       ),
     activeProductivityReviewIdx: uniqueIndex("issues_active_productivity_review_uq")
-      .on(table.companyId, table.originKind, table.originId)
+      .on(table.spaceId, table.originKind, table.originId)
       .where(
         sql`${table.originKind} = 'issue_productivity_review'
           and ${table.originId} is not null
@@ -207,7 +207,7 @@ export const issues = pgTable(
           and ${table.status} not in ('done', 'cancelled')`,
       ),
     activeStrandedIssueRecoveryIdx: uniqueIndex("issues_active_stranded_issue_recovery_uq")
-      .on(table.companyId, table.originKind, table.originId)
+      .on(table.spaceId, table.originKind, table.originId)
       .where(
         sql`${table.originKind} = 'stranded_issue_recovery'
           and ${table.originId} is not null
@@ -215,11 +215,11 @@ export const issues = pgTable(
           and ${table.status} not in ('done', 'cancelled')`,
       ),
     // The onboarding first-task origin grants privileged behavior (agent-attributed
-    // greeting, description suppression), so at most one issue per company may ever
+    // greeting, description suppression), so at most one issue per space may ever
     // carry it — concurrent creates race on the pre-insert count check and this
     // index is what atomically rejects the loser.
     onboardingFirstTaskIdx: uniqueIndex("issues_onboarding_first_task_uq")
-      .on(table.companyId)
+      .on(table.spaceId)
       .where(sql`${table.originKind} = 'onboarding_first_task'`),
   }),
 );

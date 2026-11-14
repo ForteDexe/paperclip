@@ -68,7 +68,7 @@ fixture used 1,400 runs with approximately 192 KiB contexts; these are examples,
 not universal sizes. Historical resolved recovery actions also matter: an empty
 or tiny action table can hide the expensive join.
 
-Fix timestamps and distinguish ordering ties. Include cross-company decoys,
+Fix timestamps and distinguish ordering ties. Include cross-space decoys,
 empty results, duplicates, missing JSON keys, null/scalar/array/object contexts,
 malformed/noncanonical IDs, and conflicting native/legacy bindings where the
 affected contract permits them. Seed only relevant cases in each test.
@@ -81,7 +81,7 @@ silently hiding changed values. Matching row counts or IDs alone is insufficient
 
 Compare exact order where the API promises it. Otherwise compare multisets of
 complete rows, preserving duplicates; do not sort away a pagination bug. Keep
-parameter values, company/user scope, limits, and stable clock inputs equivalent.
+parameter values, space/user scope, limits, and stable clock inputs equivalent.
 Assert equality outside the timing interval and fail the harness on mismatch.
 
 For intentional behavior changes, specify an explicit oracle. A bounded history
@@ -151,12 +151,12 @@ or label the migration ready to deploy while that decision remains unresolved.
   uppercase/noncanonical text. Preserve the former text-comparison semantics
   deliberately; guard casts and keep the indexed UUID side unwrapped.
 - A native first-class ID may take precedence over legacy JSON. Do not change
-  fallback order, cross-company access, or ownership holds while improving joins.
+  fallback order, cross-space access, or ownership holds while improving joins.
 - A single JSON expansion must preserve legacy `->>` conversions and non-object
   inputs. Returning fewer projected keys can break redaction or downstream UI.
 - History limits can break older deep links. Verify the actual run panel with
   an older selected run, including an empty recent list, fetch failure/retry,
-  company/agent mismatch, and navigation while a lookup is pending. Check all
+  space/agent mismatch, and navigation while a lookup is pending. Check all
   shipped page variants and relevant desktop/mobile branches.
 - Query-builder mocks may need new joins, but mock updates do not replace a real
   database test or justify removing a retry/disconnect regression test.

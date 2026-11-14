@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { pollUntil } from "./api.js";
-type RunDeliveryBinding = { companyId: string; issueId: string; runId: string };
+type RunDeliveryBinding = { spaceId: string; issueId: string; runId: string };
 
 type Row = Record<string, any>;
 export function inspectRunDelivery(input: { binding: RunDeliveryBinding; agentId: string; run: Row; comments: Row[]; attachments?: Row[] }) {
@@ -18,15 +18,15 @@ export function inspectRunDelivery(input: { binding: RunDeliveryBinding; agentId
           !Array.isArray(result.entityRefs) || !result.entityRefs.includes(result.attachmentId)) continue;
       const matching = (input.attachments ?? []).filter(attachment => attachment.id === result.attachmentId &&
         attachment.issueId === binding.issueId && attachment.originatingRunId === binding.runId &&
-        (attachment.companyId === undefined || attachment.companyId === binding.companyId) &&
+        (attachment.spaceId === undefined || attachment.spaceId === binding.spaceId) &&
         typeof attachment.issueCommentId === "string" && result.entityRefs.includes(attachment.issueCommentId));
       if (matching.length === 1) generated.add(matching[0]!.issueCommentId);
     }
   }
-  const replies = input.comments.filter(comment => comment.companyId === binding.companyId && comment.issueId === binding.issueId &&
+  const replies = input.comments.filter(comment => comment.spaceId === binding.spaceId && comment.issueId === binding.issueId &&
     comment.authorAgentId === input.agentId && comment.createdByRunId === binding.runId && !comment.deletedAt &&
     comment.presentation?.kind !== "system_notice" && !generated.has(comment.id));
-  const receiptMatches = run.id === binding.runId && run.companyId === binding.companyId && run.nativeIssueId === binding.issueId &&
+  const receiptMatches = run.id === binding.runId && run.spaceId === binding.spaceId && run.nativeIssueId === binding.issueId &&
     run.agentId === input.agentId && run.issueCommentStatus === "satisfied" && replies.length === 1 &&
     typeof replies[0]!.body === "string" && Boolean(replies[0]!.body.trim()) && run.issueCommentSatisfiedByCommentId === replies[0]!.id &&
     presentation?.schema === "outpost.run_presentation_decision.v1" && presentation.commentId === replies[0]!.id &&

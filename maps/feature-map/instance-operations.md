@@ -4,7 +4,7 @@ navigation: {"section":"Oversight and operation","sectionOrder":70,"order":40}
 
 # Instance operations
 
-An operator can install and run Paperclip, diagnose the instance, configure supported deployment settings, manage its service, and produce a recoverable database backup.
+An operator can install and run Outpost, diagnose the instance, configure supported deployment settings, manage its service, and produce a recoverable database backup.
 
 Feature ID: `instance-operations`.
 
@@ -25,17 +25,17 @@ Agent access: [companion](../agent-access-map/instance-operations.md).
 
 ### `operator-cli`
 
-Use `paperclipai install`, `run`, `service`, `doctor`, `configure`, `channels`, or `update --help` for the intended operation.
+Use `outpost install`, `run`, `service`, `doctor`, `configure`, `channels`, or `update --help` for the intended operation.
 
 ### `settings-backup`
 
-Use currently visible instance settings for experiments/access and `paperclipai db:backup --help` for one-off backup. Some legacy general-settings URLs redirect.
+Use currently visible instance settings for experiments/access and `outpost db:backup --help` for one-off backup. Some legacy general-settings URLs redirect.
 
 ### `runtime-provisioning`
 
-On an owned published server installation, use `paperclipai runtime setup pi`, `paperclipai runtime setup cursor`, `paperclipai runtime setup antigravity`, or `paperclipai runtime import-remote <companion-directory> --sha256 <trusted-companion-json-digest>`. Run as the OS user operating that installation; this is separate from source-checkout dependency installation. Antigravity setup stages a pinned patched macOS ARM64 runtime; it remains unavailable for tasks until native acceptance passes.
+On an owned published server installation, use `outpost runtime setup pi`, `outpost runtime setup cursor`, `outpost runtime setup antigravity`, or `outpost runtime import-remote <companion-directory> --sha256 <trusted-companion-json-digest>`. Run as the OS user operating that installation; this is separate from source-checkout dependency installation. Antigravity setup stages a pinned patched macOS ARM64 runtime; it remains unavailable for tasks until native acceptance passes.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a disposable data directory/service identity. Do not update, restart, or restore over an unrelated live instance as a documentation test.
 
@@ -133,9 +133,9 @@ checks do not establish authenticated task execution.
 Capability ID: `instance-operations/backup`.
 
 Scope: ui
-Storybook: Mount shipped InstanceGeneralSettings in CompanySettings with daily/weekly/monthly retention presets, selected values, saving/error/loading and cloud-hidden controls. Backup creation and restore remain separate CLI/operator checks.
+Storybook: Mount shipped InstanceGeneralSettings in SpaceSettings with daily/weekly/monthly retention presets, selected values, saving/error/loading and cloud-hidden controls. Backup creation and restore remain separate CLI/operator checks.
 Production: PATCH /api/instance/settings/general must enforce instance settings authority and managed hidden fields, persist retention and survive reload. Separately inspect a real backup and restore a known record into a second disposable target; a successful write does not prove restoration.
-Sources: Source: [InstanceGeneralSettings.tsx](../../ui/src/pages/InstanceGeneralSettings.tsx), [CompanySettings.tsx](../../ui/src/pages/CompanySettings.tsx), [instance-settings.ts](../../server/src/routes/instance-settings.ts), [db-backup.ts](../../cli/src/commands/db-backup.ts). Tests: [InstanceGeneralSettings.test.tsx](../../ui/src/pages/InstanceGeneralSettings.test.tsx), [instance-settings-routes.test.ts](../../server/src/__tests__/instance-settings-routes.test.ts), [instance-settings-managed-overlay.test.ts](../../server/src/__tests__/instance-settings-managed-overlay.test.ts), [instance-database-backups-routes.test.ts](../../server/src/__tests__/instance-database-backups-routes.test.ts)
+Sources: Source: [InstanceGeneralSettings.tsx](../../ui/src/pages/InstanceGeneralSettings.tsx), [SpaceSettings.tsx](../../ui/src/pages/SpaceSettings.tsx), [instance-settings.ts](../../server/src/routes/instance-settings.ts), [db-backup.ts](../../cli/src/commands/db-backup.ts). Tests: [InstanceGeneralSettings.test.tsx](../../ui/src/pages/InstanceGeneralSettings.test.tsx), [instance-settings-routes.test.ts](../../server/src/__tests__/instance-settings-routes.test.ts), [instance-settings-managed-overlay.test.ts](../../server/src/__tests__/instance-settings-managed-overlay.test.ts), [instance-database-backups-routes.test.ts](../../server/src/__tests__/instance-database-backups-routes.test.ts)
 
 #### `install-update`
 
@@ -159,7 +159,7 @@ Sources: Source: [doctor.ts](../../cli/src/commands/doctor.ts). Tests: [doctor.t
 Incoming API wake is an optional Cloud deployment capability. On an owned qualified
 stack, close the browser, retain valid saved credentials, let the stack sleep,
 and send an ordinary API request. Check the persisted result and current
-revocation/company authorization after wake, truthful retry failures, and return
+revocation/space authorization after wake, truthful retry failures, and return
 to idle after successful API activity ends. Brokered GitHub bot wake uses the
 existing durable connector queue and exact registration ownership. Direct
 webhooks, persistent transports and personal GitHub credential continuity retain

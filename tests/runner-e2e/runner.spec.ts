@@ -133,7 +133,7 @@ import { assertRunnerE2EPrerequisites } from "./prerequisites.js";
 interface IssueRecord {
   id: string;
   identifier?: string | null;
-  companyId: string;
+  spaceId: string;
   title: string;
   status: string;
   statusVersion?: number;
@@ -160,7 +160,7 @@ interface CommentRecord {
 
 interface RunRecord {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   status: string;
   runtimeMode?: string;
@@ -284,7 +284,7 @@ function sortRunsChronologically(runs: readonly RunRecord[]): RunRecord[] {
   );
 }
 
-async function restartIsolatedPaperclipServer(input: {
+async function restartIsolatedOutpostServer(input: {
   api: RunnerApi;
   requestId: string;
   kimiCandidateAdmission?: import("../../packages/outpost-runner/src/drivers/acpx/candidate-admission.js").AcpxCandidateAdmission;
@@ -642,19 +642,19 @@ for (const execution of executions) {
       profileId: execution.profile.id, caseId: execution.task.id, sourceRevision: resolveRunnerE2ESource().sha,
     }) : undefined;
     const saveTrace = async () => { if (trace) await writeSanitizedJson(snapshotsDir, "braintrust-trace.json", trace.snapshot(), secrets); };
-    const onCompanyCreated = async (id: string) => {
+    const onSpaceCreated = async (id: string) => {
       const admission = kimiCandidateAdmissionForExecution(execution, id);
       if (admission) {
-        await restartIsolatedPaperclipServer({ api, requestId: `kimi-startup-${nonce}`,
+        await restartIsolatedOutpostServer({ api, requestId: `kimi-startup-${nonce}`,
           kimiCandidateAdmission: admission, deadlineAt: startedAtMs + deadlineMs });
         if (execution.environment.id === "daytona") {
-          await waitForFixtureDaytonaProvider(api, { companyId: id, deadlineAt: startedAtMs + deadlineMs });
+          await waitForFixtureDaytonaProvider(api, { spaceId: id, deadlineAt: startedAtMs + deadlineMs });
         }
       }
-      if (trace) { try { await trace.configureCompany(api, id); } finally { await saveTrace(); } }
+      if (trace) { try { await trace.configureSpace(api, id); } finally { await saveTrace(); } }
     };
     const api = new RunnerApi(request);
-    const companyRunFlow = execution.suite.id === "task-titles" || execution.task.flow === "cursor_cloud_stop" || ["plan_task_guidance", "blocker_guidance", "continuation_accounting", "continuation", "context_integrity", "repository_skills", "agent_chat", "everyday_workflow", "first_task", "instruction_persistence", "pi_native", "pi_controls", "copilot_protection", "cursor_native", "native_active_stop", "native_provider_loss", "kimi_native_lifecycle", "public_mcp", "case_handoff"].includes(execution.task.flow);
+    const spaceRunFlow = execution.suite.id === "task-titles" || execution.task.flow === "cursor_cloud_stop" || ["plan_task_guidance", "blocker_guidance", "continuation_accounting", "continuation", "context_integrity", "repository_skills", "agent_chat", "everyday_workflow", "first_task", "instruction_persistence", "pi_native", "pi_controls", "copilot_protection", "cursor_native", "native_active_stop", "native_provider_loss", "kimi_native_lifecycle", "public_mcp", "case_handoff"].includes(execution.task.flow);
     const publicMcpUsage = execution.task.flow === "public_mcp" ? assistantUsage(execution.profile.provider === "claude" ? "anthropic" : "openai", execution.profile.model) : undefined;
     let publicMcpUserId = "";
     const consoleDiagnostics: Array<Record<string, unknown>> = [];
@@ -664,7 +664,7 @@ for (const execution of executions) {
     let nativeInitial: { issueIds: string[]; agentIds: string[]; workspaceDigest: string | null } | undefined;
     const nativeWorkspaceDigest = () => execution.task.id === "native-blocked-report"
       ? nativeCompletionWorkspaceDigest(workspacePath!) : Promise.resolve(null);
-    let boundaryScreenshotResources: { companyId?: string; agentId?: string } = {};
+    let boundaryScreenshotResources: { spaceId?: string; agentId?: string } = {};
     let fixtures: LiveFixtureValues | undefined;
     let reviewProvider: Awaited<ReturnType<typeof setupConnectionReview>> | undefined;
     let issue: IssueRecord | undefined;
@@ -734,7 +734,7 @@ for (const execution of executions) {
     const isReviewedFixtureScreenshotRoute = () =>
       isPublicRunnerScreenshotRoute(page.url(), {
         chatAgentId: execution.task.flow === "agent_chat" ? fixtures?.agent.id : undefined,
-        issuePrefix: fixtures?.company.issuePrefix,
+        issuePrefix: fixtures?.space.issuePrefix,
         issueId: issue?.id,
         issueIdentifier: issue?.identifier,
         caseId: execution.task.flow === "case_handoff" ? workflowCase?.id : undefined,
@@ -748,17 +748,17 @@ for (const execution of executions) {
     ) => {
       let reviewedBoundary = false;
       if (execution.suite.id === "chat-features" && execution.task.id === "agent-chat.chat-disabled"
-        && boundaryScreenshotResources.companyId && boundaryScreenshotResources.agentId
+        && boundaryScreenshotResources.spaceId && boundaryScreenshotResources.agentId
         && findChatCatalogCase(execution.task.id)?.journeyKind === "browser-boundary") {
-        const [company, agent, session, settings] = await Promise.all([
-          api.get<{ id: string; issuePrefix: string }>(`/api/companies/${boundaryScreenshotResources.companyId}`),
-          api.get<{ id: string; companyId: string }>(`/api/agents/${boundaryScreenshotResources.agentId}`),
+        const [space, agent, session, settings] = await Promise.all([
+          api.get<{ id: string; issuePrefix: string }>(`/api/spaces/${boundaryScreenshotResources.spaceId}`),
+          api.get<{ id: string; spaceId: string }>(`/api/agents/${boundaryScreenshotResources.agentId}`),
           api.get<{ user: { id: string } }>("/api/auth/get-session"),
           api.get<{ enableConferenceRoomChat: boolean }>("/api/instance/settings/experimental"),
         ]);
-        reviewedBoundary = company.id === boundaryScreenshotResources.companyId && agent.id === boundaryScreenshotResources.agentId
+        reviewedBoundary = space.id === boundaryScreenshotResources.spaceId && agent.id === boundaryScreenshotResources.agentId
           && isConferenceRoomOffBoundaryScreenshotRoute(page.url(), { scenarioId: execution.task.id, origin: api.baseURL,
-            companyId: company.id, agentCompanyId: agent.companyId, issuePrefix: company.issuePrefix,
+            spaceId: space.id, agentSpaceId: agent.spaceId, issuePrefix: space.issuePrefix,
             agentId: agent.id, authenticatedPersonId: session.user.id, conferenceRoomEnabled: settings.enableConferenceRoomChat });
       }
       if (!isReviewedFixtureScreenshotRoute() && !reviewedBoundary) {
@@ -789,15 +789,15 @@ for (const execution of executions) {
     };
 
     const cancelActiveRunsForCleanup = async (budgetMs?: number) => {
-      if (!issue && !(companyRunFlow && fixtures)) return;
+      if (!issue && !(spaceRunFlow && fixtures)) return;
       const cleanupIssueId = issue?.id;
       const cleanupDeadline = budgetMs === undefined ? undefined : Date.now() + budgetMs;
       const cleanupRequestOptions = () => cleanupDeadline === undefined ? undefined : { timeout: Math.max(1, cleanupDeadline - Date.now()) };
       const runs = await api.get<RunRecord[]>(
-        companyRunFlow && fixtures ? `/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100` : `/api/issues/${cleanupIssueId}/runs`, cleanupRequestOptions(),
+        spaceRunFlow && fixtures ? `/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100` : `/api/issues/${cleanupIssueId}/runs`, cleanupRequestOptions(),
       );
-      const activeRunIds = companyRunFlow && fixtures
-        ? ownedActiveCleanupRunIds(runs, fixtures.company.id, TERMINAL_RUN_STATUSES)
+      const activeRunIds = spaceRunFlow && fixtures
+        ? ownedActiveCleanupRunIds(runs, fixtures.space.id, TERMINAL_RUN_STATUSES)
         : [
         ...new Set(
           runs
@@ -817,7 +817,7 @@ for (const execution of executions) {
       await pollUntil({
         label: `cleanup cancellation for issue ${cleanupIssueId}`,
         deadlineAt: cleanupDeadline ?? Date.now() + 45_000,
-        load: () => api.get<RunRecord[]>(companyRunFlow && fixtures ? `/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100` : `/api/issues/${cleanupIssueId}/runs`, cleanupRequestOptions()),
+        load: () => api.get<RunRecord[]>(spaceRunFlow && fixtures ? `/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100` : `/api/issues/${cleanupIssueId}/runs`, cleanupRequestOptions()),
         accept: (currentRuns) =>
           currentRuns
             .filter((run) => activeIds.has(run.id))
@@ -830,15 +830,15 @@ for (const execution of executions) {
     const captureApiState = async (capturePhase: "failure" | "final" = "failure") => {
       if (!fixtures || capturePhase === "failure" && catalogFailureCaptureAttempted) return;
       if (execution.task.flow === "followup_stop_resume") {
-        const captured = await captureFollowupStopFailureApiState({ api, companyId: fixtures.company.id,
+        const captured = await captureFollowupStopFailureApiState({ api, spaceId: fixtures.space.id,
           agentId: fixtures.agent.id, issueId: issue?.id,
           evidence: (name, value) => writeSanitizedJson(snapshotsDir, name, value, secrets) });
         if (captured) { issue = captured.issue as IssueRecord; selectedRuns = captured.runs as RunRecord[]; }
         return;
       }
-      if (companyRunFlow && !issue) {
-        const companyRuns = await api.get<RunRecord[]>(`/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100`);
-        selectedRuns = await Promise.all(companyRuns.map(run => api.get<RunRecord>(`/api/heartbeat-runs/${run.id}`)));
+      if (spaceRunFlow && !issue) {
+        const spaceRuns = await api.get<RunRecord[]>(`/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100`);
+        selectedRuns = await Promise.all(spaceRuns.map(run => api.get<RunRecord>(`/api/heartbeat-runs/${run.id}`)));
         // Settings are already restored on failure, so chat resolution may be
         // gated. Direct task access still permits evidence and usage capture.
         const sourceId = selectedRuns.map(run => record(run.contextSnapshot).issueId).find(id => typeof id === "string");
@@ -855,9 +855,9 @@ for (const execution of executions) {
           capture(() => api.get<IssueRecord>(`/api/issues/${issue!.id}`)),
           capture(() =>
             api.get<RunRecord[]>(
-              companyRunFlow
-                ? `/api/companies/${fixtures!.company.id}/heartbeat-runs?limit=100`
-                : `/api/companies/${fixtures!.company.id}/heartbeat-runs?agentId=${fixtures!.agent.id}&limit=20`,
+              spaceRunFlow
+                ? `/api/spaces/${fixtures!.space.id}/heartbeat-runs?limit=100`
+                : `/api/spaces/${fixtures!.space.id}/heartbeat-runs?agentId=${fixtures!.agent.id}&limit=20`,
             ),
           ),
           capture(() =>
@@ -872,7 +872,7 @@ for (const execution of executions) {
           ),
         ]);
       const taskRuns = Array.isArray(listedRuns)
-        ? companyRunFlow ? listedRuns : matchingRuns(listedRuns, "id" in currentIssue ? currentIssue : issue)
+        ? spaceRunFlow ? listedRuns : matchingRuns(listedRuns, "id" in currentIssue ? currentIssue : issue)
         : [];
       const detailedRuns = await Promise.all(
         taskRuns.map((candidate) =>
@@ -998,7 +998,7 @@ for (const execution of executions) {
           },
           observeResources(value) {
             recordBoundaryResources(boundaryTrail, value);
-            if (execution.task.id === "agent-chat.chat-disabled") boundaryScreenshotResources = { companyId: value.companyId, agentId: value.agentId };
+            if (execution.task.id === "agent-chat.chat-disabled") boundaryScreenshotResources = { spaceId: value.spaceId, agentId: value.agentId };
             // Boundaries independently collect their real resources. They do not
             // manufacture LiveFixtureValues or a source issue for result fields.
             if (value.runIds.length) matcherResults.push({ matcher: { kind: "json_path", path: "boundary.actual-agent-dispatch", expected: true },
@@ -1050,7 +1050,7 @@ for (const execution of executions) {
           sourceRevision: resolveRunnerE2ESource().sha, secrets }),
         retain: proof => writeSanitizedJson(snapshotsDir, "sdk-canary-pre-fixture.json", proof, secrets),
         fixtures: async () => execution.task.flow === "first_task"
-        ? await setupFirstTaskFixtures({ page, api, execution, nonce, credentials, daytonaImage: process.env.OUTPOST_E2E_DAYTONA_IMAGE, deadlineAt: startedAtMs + deadlineMs, observe: value => { fixtures = value; }, onCompanyCreated })
+        ? await setupFirstTaskFixtures({ page, api, execution, nonce, credentials, daytonaImage: process.env.OUTPOST_E2E_DAYTONA_IMAGE, deadlineAt: startedAtMs + deadlineMs, observe: value => { fixtures = value; }, onSpaceCreated })
         : await setupLiveFixtures({
         api,
         execution,
@@ -1059,17 +1059,17 @@ for (const execution of executions) {
         credentials,
         daytonaImage: process.env.OUTPOST_E2E_DAYTONA_IMAGE,
         cleanupDeadlineAt: kimiLifecycleTiming?.cleanupDeadlineAt,
-        onCompanyCreated,
+        onSpaceCreated,
       }) });
       if (execution.profile.provider === "cursor_cloud") {
-        cursorCloudObserver = new CursorCloudOwnedObserver(api, fixtures.company.id, fixtures.agent.id, credentials.CURSOR_API_KEY!);
+        cursorCloudObserver = new CursorCloudOwnedObserver(api, fixtures.space.id, fixtures.agent.id, credentials.CURSOR_API_KEY!);
         registerBeforeEnvironmentTeardownAssertion(() => cursorCloudObserver!.cleanup());
       }
       await finishBudgetedEvalSetup({ executionId: execution.id, environmentId: execution.environment.id, agentId: fixtures.agent.id,
-        companyId: fixtures.company.id, deadlineAt: startedAtMs + deadlineMs, api,
+        spaceId: fixtures.space.id, deadlineAt: startedAtMs + deadlineMs, api,
         observe: observations => writeSanitizedJson(snapshotsDir, "budgeted-setup.json", { observations }, secrets) });
       const kimiWorkDeadlineAt = kimiLifecycleTiming ? await (async () => {
-        await waitForEvalAgentReady({ environmentId: execution.environment.id, agentId: fixtures.agent.id, companyId: fixtures.company.id,
+        await waitForEvalAgentReady({ environmentId: execution.environment.id, agentId: fixtures.agent.id, spaceId: fixtures.space.id,
           deadlineAt: kimiLifecycleTiming.setupDeadlineAt, api,
           observe: observations => writeSanitizedJson(snapshotsDir, "kimi-lifecycle-setup.json", { observations }, secrets) });
         const readyAt = Date.now(), workDeadlineAt = kimiLifecycleTiming.beginWork(readyAt);
@@ -1081,13 +1081,13 @@ for (const execution of executions) {
       trace?.phase("execution");
 
       if (["native-completion", NATIVE_INSTRUCTION_SUITE].includes(execution.suite.id)) {
-        const receipt = await captureNativeDefault({ api, agentId: fixtures.agent.id, companyId: fixtures.company.id });
+        const receipt = await captureNativeDefault({ api, agentId: fixtures.agent.id, spaceId: fixtures.space.id });
         const grade = gradeNativeDefault(receipt, execution.suite.id === NATIVE_INSTRUCTION_SUITE ? NATIVE_INSTRUCTION_DEFAULT_SHA256 : undefined);
         await writeSanitizedJson(snapshotsDir, "native-default-before-execution.json", { receipt, grade }, secrets);
         if (!grade.passed) throw new Error("Native production-default hire admission failed before execution");
         const [issues, agents, workspaceDigest] = await Promise.all([
-          api.get<Array<{ id: string }>>(`/api/companies/${fixtures.company.id}/issues?limit=100`),
-          api.get<Array<{ id: string }>>(`/api/companies/${fixtures.company.id}/agents`), nativeWorkspaceDigest(),
+          api.get<Array<{ id: string }>>(`/api/spaces/${fixtures.space.id}/issues?limit=100`),
+          api.get<Array<{ id: string }>>(`/api/spaces/${fixtures.space.id}/agents`), nativeWorkspaceDigest(),
         ]);
         nativeInitial = { issueIds: issues.map(value => value.id), agentIds: agents.map(value => value.id), workspaceDigest };
       }
@@ -1095,7 +1095,7 @@ for (const execution of executions) {
         && ["pi_native", "pi_controls", "copilot_protection", "cursor_native", "native_active_stop", "native_provider_loss", "kimi_native_lifecycle"].includes(execution.task.flow)
         ? createRemoteNativeBootstrap({
           api, daytona: await createRemoteFixtureClient(credentials.DAYTONA_API_KEY ?? ""),
-          companyId: fixtures.company.id, environmentId: fixtures.environment.id, agentId: fixtures.agent.id,
+          spaceId: fixtures.space.id, environmentId: fixtures.environment.id, agentId: fixtures.agent.id,
           image: process.env.OUTPOST_E2E_DAYTONA_IMAGE ?? "",
           nodeSha256: process.env.OUTPOST_E2E_DAYTONA_NODE_SHA256 ?? "",
           runnerdSha256: process.env.OUTPOST_E2E_DAYTONA_RUNNERD_SHA256 ?? "",
@@ -1105,7 +1105,7 @@ for (const execution of executions) {
         }) : undefined;
 
       if (execution.suite.id === "stock-harness") {
-        const hire = await captureStockHarness({ api, companyId: fixtures.company.id,
+        const hire = await captureStockHarness({ api, spaceId: fixtures.space.id,
           agentId: fixtures.agent.id, generation: execution.profile.generation, runIds: [] });
         const checks = gradeStockHire(hire);
         await writeSanitizedJson(snapshotsDir, "stock-harness-hire.json", {
@@ -1117,7 +1117,7 @@ for (const execution of executions) {
       }
 
       if (usesApiResponseProof(execution.suite.id)) {
-        const source = await api.post<{ id: string }>(`/api/companies/${fixtures.company.id}/issues`, {
+        const source = await api.post<{ id: string }>(`/api/spaces/${fixtures.space.id}/issues`, {
           title: `Synthetic diagnostic evidence ${nonce}`,
           description: execution.suite.id === "api-artifact-transfer" ? artifactTransferDescription(nonce) : responseEvidenceDescription(nonce), status: "backlog",
         });
@@ -1126,7 +1126,7 @@ for (const execution of executions) {
       }
 
       if (execution.suite.id === "lifecycle-baseline" && lifecycleLiveCase(execution.task.id)?.family === "blocker") {
-        const prerequisite = await api.post<{ id: string }>(`/api/companies/${fixtures.company.id}/issues`, {
+        const prerequisite = await api.post<{ id: string }>(`/api/spaces/${fixtures.space.id}/issues`, {
           title: `Supply dataset ${nonce}`,
           description: "Fixture operator prerequisite: dataset has not been supplied.",
           status: "backlog",
@@ -1141,7 +1141,7 @@ for (const execution of executions) {
         {
           executionId: execution.id,
           lifecycleBlockerId,
-          companyId: fixtures.company.id,
+          spaceId: fixtures.space.id,
           environmentId: fixtures.environment.id,
           agentId: fixtures.agent.id,
           ...(execution.suite.id === "cursor-cloud" && fixtures.qualificationBudget ? { qualificationBudget: fixtures.qualificationBudget } : {}),
@@ -1181,7 +1181,7 @@ for (const execution of executions) {
           issue: { id: issue.id, identifier: issue.identifier, status: issue.status,
             assigneeAgentId: issue.assigneeAgentId, statusVersion: issue.statusVersion },
           workflowCase,
-          runs: selectedRuns.map(candidate => ({ id: candidate.id, companyId: candidate.companyId,
+          runs: selectedRuns.map(candidate => ({ id: candidate.id, spaceId: candidate.spaceId,
             agentId: candidate.agentId, status: candidate.status, runtimeMode: candidate.runtimeMode,
             nativeIssueId: candidate.nativeIssueId, startedAt: candidate.startedAt,
             finishedAt: candidate.finishedAt, errorCode: candidate.errorCode })),
@@ -1200,7 +1200,7 @@ for (const execution of executions) {
       } else if (execution.task.flow === "finalization_recovery") {
         const journey = await runFinalizationRecoveryFlow({ page, api, fixtures, execution, nonce, temporaryRoot,
           deadlineAt: startedAtMs + deadlineMs - 30_000,
-          restart: binding => restartIsolatedPaperclipServer({ api, requestId: `finalization-${nonce}`, deadlineAt: startedAtMs + deadlineMs, crashAfterResult: binding }),
+          restart: binding => restartIsolatedOutpostServer({ api, requestId: `finalization-${nonce}`, deadlineAt: startedAtMs + deadlineMs, crashAfterResult: binding }),
           observe: (currentIssue, currentRuns, checks) => {
             issue = currentIssue as IssueRecord; selectedRuns = currentRuns as RunRecord[];
             matcherResults = checks.map(check => ({ matcher: { kind: "json_path" as const, path: `finalizationRecovery.${check.id}`, expected: true }, passed: check.passed, detail: check.detail }));
@@ -1228,7 +1228,7 @@ for (const execution of executions) {
       } else if (execution.task.flow === "task_workspaces") {
         const journey = await runTaskWorkspacesFlow({ page, api, fixtures, execution, nonce, temporaryRoot,
           deadlineAt: startedAtMs + deadlineMs - 30_000,
-          restart: () => restartIsolatedPaperclipServer({ api, requestId: `task-workspaces-${nonce}`, deadlineAt: startedAtMs + deadlineMs }),
+          restart: () => restartIsolatedOutpostServer({ api, requestId: `task-workspaces-${nonce}`, deadlineAt: startedAtMs + deadlineMs }),
           observe: (currentIssue, currentRuns, checks) => {
             issue = currentIssue as IssueRecord; selectedRuns = currentRuns as RunRecord[];
             matcherResults = checks.map(check => ({ matcher: { kind: "json_path" as const, path: `taskWorkspaces.${check.id}`, expected: true }, passed: check.passed, detail: check.detail }));
@@ -1268,7 +1268,7 @@ for (const execution of executions) {
       } else if (execution.task.flow === "continuation_accounting") {
         const accounting = await runAccountingFlow({
           page, api, fixtures, execution, nonce, deadlineAt: startedAtMs + deadlineMs - 60_000,
-          restart: () => restartIsolatedPaperclipServer({ api, requestId: `accounting-${nonce}`, deadlineAt: startedAtMs + deadlineMs }),
+          restart: () => restartIsolatedOutpostServer({ api, requestId: `accounting-${nonce}`, deadlineAt: startedAtMs + deadlineMs }),
           observe: (currentIssue, currentRuns, checks) => {
             issue = currentIssue; selectedRuns = currentRuns;
             matcherResults = checks.map(check => ({ matcher: { kind: "json_path" as const, path: `accounting.${check.id}`, expected: true }, passed: check.passed, detail: check.detail }));
@@ -1344,7 +1344,7 @@ for (const execution of executions) {
       } else if (execution.task.flow === "pi_native") {
         const story = await runPiNativeFlow({
           page, api, fixtures, execution, nonce, workspacePath, deadlineAt: startedAtMs + deadlineMs,
-          restart: preserveRunner => restartIsolatedPaperclipServer({ api, requestId: `pi-native-${nonce}`, deadlineAt: startedAtMs + deadlineMs, preserveRunner }),
+          restart: preserveRunner => restartIsolatedOutpostServer({ api, requestId: `pi-native-${nonce}`, deadlineAt: startedAtMs + deadlineMs, preserveRunner }),
           observe: (currentIssue, currentRuns) => { issue = currentIssue as IssueRecord; selectedRuns = currentRuns as RunRecord[]; },
           capture: captureScreenshot,
           evidence: (name, data) => writeSanitizedJson(snapshotsDir, name, data, secrets),
@@ -1355,7 +1355,7 @@ for (const execution of executions) {
       } else if (execution.task.flow === "instruction_persistence") {
         const story = await runInstructionPersistenceFlow({
           page, api, fixtures, execution, nonce, secrets, deadlineAt: startedAtMs + deadlineMs,
-          restart: () => restartIsolatedPaperclipServer({ api, requestId: `instructions-${nonce}`, deadlineAt: startedAtMs + deadlineMs }),
+          restart: () => restartIsolatedOutpostServer({ api, requestId: `instructions-${nonce}`, deadlineAt: startedAtMs + deadlineMs }),
           observe: (currentIssue, currentRuns) => { issue = currentIssue as IssueRecord; selectedRuns = currentRuns as RunRecord[]; },
           capture: captureScreenshot,
           evidence: (name, data) => writeSanitizedJson(snapshotsDir, name, data, secrets),
@@ -1365,7 +1365,7 @@ for (const execution of executions) {
       } else if (execution.task.flow === "continuation") {
         const continuation = await runContinuationFlow({
           page, api, fixtures, execution, nonce, secrets, workspacePath, deadlineAt: startedAtMs + deadlineMs - 60_000,
-          restart: () => restartChatServer(page, () => restartIsolatedPaperclipServer({ api, requestId: `continuation-${nonce}`, deadlineAt: startedAtMs + deadlineMs })),
+          restart: () => restartChatServer(page, () => restartIsolatedOutpostServer({ api, requestId: `continuation-${nonce}`, deadlineAt: startedAtMs + deadlineMs })),
           observe: (currentIssue, currentRuns, checks) => {
             issue = currentIssue; selectedRuns = currentRuns;
             matcherResults = checks.map(check => ({ matcher: { kind: "json_path" as const, path: `continuation.${check.id}`, expected: true }, passed: check.passed, detail: check.detail }));
@@ -1386,7 +1386,7 @@ for (const execution of executions) {
           restart: async (recoveryBinding, controllerDowntimeMs) => {
             let receipt: ControllerReplacementReceipt | undefined;
             restartIndex += 1;
-            await restartIsolatedPaperclipServer({ api, requestId: `story-${nonce}-${restartIndex}`, deadlineAt: startedAtMs + deadlineMs,
+            await restartIsolatedOutpostServer({ api, requestId: `story-${nonce}-${restartIndex}`, deadlineAt: startedAtMs + deadlineMs,
               discardControllerCache: controllerOutage !== undefined || isRollingWebDeployment(execution),
               ...(isRollingWebDeployment(execution) ? { rollingDeployment: true as const } : {}),
               controllerOutage: controllerOutage && !recoveryBinding ? { ...controllerOutage, holdMs: 1000 } : controllerOutage,
@@ -1428,7 +1428,7 @@ for (const execution of executions) {
       } else if (execution.task.flow === "setup_health") {
         await runChatSetupHealth({ api, fixtures, temporaryRoot: temporaryRoot!, evidence: completionEvidence });
         await captureSetupHealthProfile({ executionId: execution.id, api, page,
-          companyId: fixtures.company.id, agentId: fixtures.agent.id, capturePrivate: capturePrivateScreenshot });
+          spaceId: fixtures.space.id, agentId: fixtures.agent.id, capturePrivate: capturePrivateScreenshot });
         matcherResults = [{ matcher: { kind: "json_path", path: "setupHealth.closed-checks", expected: true }, passed: true,
           detail: "One genuine ordinary setup hello, exact saved configuration, zero chat/task work." }];
       } else if (execution.task.flow === "agent_chat") {
@@ -1436,7 +1436,7 @@ for (const execution of executions) {
           privateSecrets: secrets, privateInputs,
           page, api, fixtures, execution, nonce, workspacePath,
           deadlineAt: startedAtMs + deadlineMs,
-          restart: () => restartChatServer(page, () => restartIsolatedPaperclipServer({ api, requestId: `chat-${nonce}`, deadlineAt: startedAtMs + deadlineMs })),
+          restart: () => restartChatServer(page, () => restartIsolatedOutpostServer({ api, requestId: `chat-${nonce}`, deadlineAt: startedAtMs + deadlineMs })),
           retireFailedAttempt: async error => {
             catalogFailureCaptureAttempted = true;
             primaryError ??= error;
@@ -1460,9 +1460,9 @@ for (const execution of executions) {
             matcherResults = evidence.checks.map(check => ({ matcher: { kind: "json_path" as const, path: `firstTask.checks.${check.id}`, expected: true }, passed: check.passed, detail: check.detail }));
           },
           createOrdinary: async (taskTitle, taskPrompt) => {
-            const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures!.company.issuePrefix!, agentName: fixtures!.agent.name, title: taskTitle, prompt: taskPrompt, workMode: "standard" });
+            const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures!.space.issuePrefix!, agentName: fixtures!.agent.name, title: taskTitle, prompt: taskPrompt, workMode: "standard" });
             const created = await pollUntil({ label: "ordinary UI-created task", deadlineAt: startedAtMs + deadlineMs,
-              load: async () => (await api.get<IssueRecord[]>(`/api/companies/${fixtures!.company.id}/issues?limit=100`)).find(row => row.id === createdTask.issueId), accept: row => Boolean(row) });
+              load: async () => (await api.get<IssueRecord[]>(`/api/spaces/${fixtures!.space.id}/issues?limit=100`)).find(row => row.id === createdTask.issueId), accept: row => Boolean(row) });
             if (!created) throw new Error("Missing ordinary task");
             return created;
           },
@@ -1471,19 +1471,19 @@ for (const execution of executions) {
         });
         issue = firstTask.issue as IssueRecord; selectedRuns = firstTask.runs as RunRecord[];
       } else {
-      const issuePrefix = fixtures.company.issuePrefix;
+      const issuePrefix = fixtures.space.issuePrefix;
       if (!issuePrefix)
         throw new Error(
-          "Created fixture company did not return an issue prefix",
+          "Created fixture space did not return an issue prefix",
         );
       if (execution.task.flow === "governed_tool_review") {
-        reviewProvider = await setupConnectionReview({ page, api, prefix: issuePrefix, companyId: fixtures.company.id, agentId: fixtures.agent.id, marker });
+        reviewProvider = await setupConnectionReview({ page, api, prefix: issuePrefix, spaceId: fixtures.space.id, agentId: fixtures.agent.id, marker });
       }
       // Capture the actual creation response: a generated title can change before
       // a later list query, and the initial provisional state is part of the oracle.
       const titleCreationResponse = execution.suite.id === "task-titles"
         ? page.waitForResponse(response => response.request().method() === "POST"
-          && new URL(response.url()).pathname === `/api/companies/${fixtures!.company.id}/issues`,
+          && new URL(response.url()).pathname === `/api/spaces/${fixtures!.space.id}/issues`,
           { timeout: Math.max(1, startedAtMs + deadlineMs - Date.now()) })
           .catch((cause: unknown) => new Error("Could not capture task creation response", { cause }))
         : null;
@@ -1514,7 +1514,7 @@ for (const execution of executions) {
         deadlineAt,
         load: async () => {
           const issues = await api.get<IssueRecord[]>(
-            `/api/companies/${fixtures!.company.id}/issues?limit=50`,
+            `/api/spaces/${fixtures!.space.id}/issues?limit=50`,
           );
           return issues.find((candidate) => candidate.id === createdTask.issueId);
         },
@@ -1522,11 +1522,11 @@ for (const execution of executions) {
       });
       if (!issue) throw new Error(`Issue ${title} disappeared after creation`);
       if (
-        issue.companyId !== fixtures.company.id ||
+        issue.spaceId !== fixtures.space.id ||
         issue.assigneeAgentId !== fixtures.agent.id
       ) {
         throw new Error(
-          "UI-created issue does not belong to the fixture company and agent",
+          "UI-created issue does not belong to the fixture space and agent",
         );
       }
       if (issue.workMode !== execution.task.workMode) {
@@ -1554,9 +1554,9 @@ for (const execution of executions) {
         const [currentIssue, runs, comments, interactions] = await Promise.all([
           api.get<IssueRecord>(`/api/issues/${issue!.id}`),
           api.get<RunRecord[]>(
-            companyRunFlow
-                ? `/api/companies/${fixtures!.company.id}/heartbeat-runs?limit=100`
-                : `/api/companies/${fixtures!.company.id}/heartbeat-runs?agentId=${fixtures!.agent.id}&limit=20`,
+            spaceRunFlow
+                ? `/api/spaces/${fixtures!.space.id}/heartbeat-runs?limit=100`
+                : `/api/spaces/${fixtures!.space.id}/heartbeat-runs?agentId=${fixtures!.agent.id}&limit=20`,
           ),
           api.get<CommentRecord[]>(
             `/api/issues/${issue!.id}/comments?order=asc`,
@@ -1608,7 +1608,7 @@ for (const execution of executions) {
         await captureScreenshot("tool-review-pending", "Connection review awaiting a human", "tool-review-pending.png");
         await page.getByRole("button", { name: "Dismiss Approve tool action" }).click();
         if (execution.task.toolReviewDecision === "restart") {
-          await restartIsolatedPaperclipServer({ api, requestId: `tool-review-${nonce}`, deadlineAt });
+          await restartIsolatedOutpostServer({ api, requestId: `tool-review-${nonce}`, deadlineAt });
           await page.reload();
         }
         // Open the review card on the document that will act on it: an
@@ -1712,7 +1712,7 @@ for (const execution of executions) {
         );
         if (execution.task.restartServerBeforeQuestionAnswer) {
           const restartRequestId = `question-wait-${nonce}`;
-          await restartIsolatedPaperclipServer({
+          await restartIsolatedOutpostServer({
             api,
             requestId: restartRequestId,
             deadlineAt,
@@ -2129,7 +2129,7 @@ for (const execution of executions) {
       }
       if (reviewProvider) {
         expect(reviewProvider.invocationCount()).toBe(execution.task.toolReviewDecision === "decline" ? 0 : execution.task.toolReviewDecision === "always" ? 2 : 1);
-        const pending = await api.get<{ actionRequests: unknown[] }>(`/api/companies/${fixtures.company.id}/tools/action-requests?status=pending`);
+        const pending = await api.get<{ actionRequests: unknown[] }>(`/api/spaces/${fixtures.space.id}/tools/action-requests?status=pending`);
         expect(pending.actionRequests).toHaveLength(0);
         await writeSanitizedJson(snapshotsDir, "connection-review.json", { source: "local MCP fixture", connectionId: reviewProvider.connectionId, providerCalls: reviewProvider.invocationCount(), decision: execution.task.toolReviewDecision, issueId: issue.id }, secrets);
       }
@@ -2157,7 +2157,7 @@ for (const execution of executions) {
           `Expected ${minimumRunCount(execution.task)}..${execution.task.expectedRunCount} task heartbeat run(s); observed ${selectedRuns.length}`,
         );
       }
-      // The company run-list endpoint intentionally returns only a compact,
+      // The space run-list endpoint intentionally returns only a compact,
       // allowlisted context summary. Hydrate each selected run through the
       // public detail endpoint before asserting environment/lease metadata.
       selectedRuns = await Promise.all(
@@ -2414,7 +2414,7 @@ for (const execution of executions) {
         if (!paging.passed) invariantFailures.push(`Bounded response paging was not proven: ${paging.failure}`);
       }
       if (piFileSeed) {
-        const proof = await collectPiFileEvidence({ page, api, nonce, companyId: fixtures.company.id,
+        const proof = await collectPiFileEvidence({ page, api, nonce, spaceId: fixtures.space.id,
           issueId: issue.id, agentId: fixtures.agent.id, run: finalRun,
           events: runEventsByRun.find(entry => entry.runId === finalRun.id)?.events ?? [],
           seed: piFileSeed, workspace: workspacePath,
@@ -2436,7 +2436,7 @@ for (const execution of executions) {
 
       const context = record(run.contextSnapshot);
       const environmentContext = record(context.outpostEnvironment);
-      const workspaceContext = record(context.paperclipWorkspace);
+      const workspaceContext = record(context.outpostWorkspace);
       const environmentDriver =
         environmentContext.driver ?? persistedEnvironment.driver;
       const observedEnvironment =
@@ -2491,7 +2491,7 @@ for (const execution of executions) {
         downloadedResponseProof = await readResponseProof(api, issue.id, run.id);
         fileObservations["api-response-proof.txt"] = downloadedResponseProof.content;
         if (execution.suite.id === "api-artifact-transfer") {
-          const transferIdentity = { companyId: fixtures.company.id, runId: run.id, agentId: fixtures.agent.id };
+          const transferIdentity = { spaceId: fixtures.space.id, runId: run.id, agentId: fixtures.agent.id };
           const transfer = gradeApiArtifactTransfer(runEventsByRun.flatMap(captured => captured.events),
             apiResponseSourceId ?? "", downloadedResponseProof, artifactTransferDescription(nonce),
             await readArtifactTransferSource(api, runEventsByRun.flatMap(captured => captured.events), transferIdentity), transferIdentity);
@@ -2601,7 +2601,7 @@ for (const execution of executions) {
         );
         const projectWorkspaceIds = selectedRuns.map(
           (candidate) =>
-            record(record(candidate.contextSnapshot).paperclipWorkspace)
+            record(record(candidate.contextSnapshot).outpostWorkspace)
               .workspaceId,
         );
         const executionWorkspaceIds = selectedRuns.map(
@@ -3064,24 +3064,24 @@ for (const execution of executions) {
       }
       if (["native-completion", NATIVE_INSTRUCTION_SUITE].includes(execution.suite.id)) {
         if (!issue || !nativeInitial) throw new Error("Missing native qualification issue or pre-execution receipt");
-        const [currentIssue, companyRuns, issues, agents, comments, documents, interactions, workspaceDigest] = await Promise.all([
+        const [currentIssue, spaceRuns, issues, agents, comments, documents, interactions, workspaceDigest] = await Promise.all([
           api.get<IssueRecord>(`/api/issues/${issue.id}`),
-          api.get<RunRecord[]>(`/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100`),
-          api.get<Array<{ id: string }>>(`/api/companies/${fixtures.company.id}/issues?limit=100`),
-          api.get<Array<{ id: string }>>(`/api/companies/${fixtures.company.id}/agents`),
+          api.get<RunRecord[]>(`/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100`),
+          api.get<Array<{ id: string }>>(`/api/spaces/${fixtures.space.id}/issues?limit=100`),
+          api.get<Array<{ id: string }>>(`/api/spaces/${fixtures.space.id}/agents`),
           api.get<CommentRecord[]>(`/api/issues/${issue.id}/comments`),
           api.get<IssueDocumentRecord[]>(`/api/issues/${issue.id}/documents`),
           api.get<InteractionRecord[]>(`/api/issues/${issue.id}/interactions`), nativeWorkspaceDigest(),
         ]);
-        const detailedRuns = await Promise.all(companyRuns.map(candidate => api.get<RunRecord>(`/api/heartbeat-runs/${candidate.id}`)));
+        const detailedRuns = await Promise.all(spaceRuns.map(candidate => api.get<RunRecord>(`/api/heartbeat-runs/${candidate.id}`)));
         selectedRuns = detailedRuns; issue = currentIssue;
         const events = detailedRuns.length === 1 ? await collectRunEvents<RunEventRecord>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${detailedRuns[0]!.id}/events?afterSeq=${afterSeq}&limit=${limit}`)) : [];
         const observation = { caseId: execution.task.id as "assigned-skill-explicit-invocation" | "native-blocked-report",
-          companyId: fixtures.company.id, agentId: fixtures.agent.id, issue: currentIssue as unknown as Record<string, unknown>,
+          spaceId: fixtures.space.id, agentId: fixtures.agent.id, issue: currentIssue as unknown as Record<string, unknown>,
           runs: detailedRuns as unknown as Record<string, unknown>[], comments: comments as unknown as Record<string, unknown>[], events: events as unknown as Record<string, unknown>[],
           initial: nativeInitial, state: { issueIds: issues.map(value => value.id), agentIds: agents.map(value => value.id), documentCount: documents.length, interactionCount: interactions.length },
           workspaceChanged: workspaceDigest !== nativeInitial.workspaceDigest, marker,
-          documentLinkContext: { appOrigin: new URL(page.url()).origin, issuePrefix: fixtures.company.issuePrefix ?? "",
+          documentLinkContext: { appOrigin: new URL(page.url()).origin, issuePrefix: fixtures.space.issuePrefix ?? "",
             issueIdentifier: currentIssue.identifier ?? "", documents } };
         const grade = execution.suite.id === NATIVE_INSTRUCTION_SUITE
           ? gradeNativeCompletionFinalAnswer(observation) : gradeNativeCompletion(observation);
@@ -3091,7 +3091,7 @@ for (const execution of executions) {
         if (!grade.passed || integrity.length) throw new Error(`Native completion matcher failure: ${[...grade.checks.filter(check => !check.passed).map(check => check.id), ...integrity].join("; ")}`);
         if (execution.suite.id === NATIVE_INSTRUCTION_SUITE && execution.task.id === "assigned-skill-explicit-invocation") {
           const document = documents[0]!;
-          const href = `/${encodeURIComponent(fixtures.company.issuePrefix!)}/issues/${encodeURIComponent(currentIssue.identifier!)}#document-${encodeURIComponent(document.key)}`;
+          const href = `/${encodeURIComponent(fixtures.space.issuePrefix!)}/issues/${encodeURIComponent(currentIssue.identifier!)}#document-${encodeURIComponent(document.key)}`;
           let opened = false;
           try {
             const link = page.getByTestId("task-chat-agent-bubble").locator(`a[href=${JSON.stringify(href)}]`).last();
@@ -3201,14 +3201,14 @@ for (const execution of executions) {
           const verification = await runCleanupWithObservers({
             retireRuns: async () => {
               await cancelActiveRunsForCleanup();
-              if (companyRunFlow) {
-                const companyRuns = await api.get<RunRecord[]>(`/api/companies/${fixtures!.company.id}/heartbeat-runs?limit=100`);
-                selectedRuns = await Promise.all(companyRuns.map(run => api.get<RunRecord>(`/api/heartbeat-runs/${run.id}`)));
+              if (spaceRunFlow) {
+                const spaceRuns = await api.get<RunRecord[]>(`/api/spaces/${fixtures!.space.id}/heartbeat-runs?limit=100`);
+                selectedRuns = await Promise.all(spaceRuns.map(run => api.get<RunRecord>(`/api/heartbeat-runs/${run.id}`)));
                 await writeSanitizedJson(snapshotsDir, execution.task.flow === "first_task" ? "first-task-final-run-ledger.json" : "chat-final-run-ledger.json", selectedRuns, secrets);
               }
               if (execution.suite.id === "stock-harness") {
                 try {
-                  const stock = await captureStockHarness({ api, companyId: fixtures!.company.id,
+                  const stock = await captureStockHarness({ api, spaceId: fixtures!.space.id,
                     agentId: fixtures!.agent.id, generation: execution.profile.generation,
                     runIds: selectedRuns.map(run => run.id) });
                   const checks = gradeStockHarness(stock);
@@ -3228,7 +3228,7 @@ for (const execution of executions) {
             assertions: beforeEnvironmentTeardownAssertions,
             teardown: async () => {
               try {
-                taskChat = await captureTaskChat({ get: route => api.get(route, { timeout: 5_000 }), companyId: fixtures!.company.id,
+                taskChat = await captureTaskChat({ get: route => api.get(route, { timeout: 5_000 }), spaceId: fixtures!.space.id,
                   issueIds: [...new Set([issue?.id, ...selectedRuns.flatMap(run => [run.nativeIssueId,
                     run.contextSnapshot?.issueId as string | undefined])].filter((id): id is string => Boolean(id)))], secrets });
               } catch {
@@ -3239,7 +3239,7 @@ for (const execution of executions) {
               await workerTiming.enter("feedback");
               trace?.phase("feedback");
               try {
-                feedback = await collectAttemptFeedback({ api, companyId: fixtures!.company.id,
+                feedback = await collectAttemptFeedback({ api, spaceId: fixtures!.space.id,
                   onCheckpoint: summary => { feedback = summary; },
                   persist: async (evidence, signal) => {
                     await writeSanitizedJson(snapshotsDir, "agent-feedback.pending.json", evidence, secrets, signal);
@@ -3328,7 +3328,7 @@ for (const execution of executions) {
       if (execution.suite.id === FEEDBACK_PERSISTENCE_SUITE) {
         let evidence: unknown;
         try { evidence = JSON.parse(await readFile(path.join(snapshotsDir, "agent-feedback.json"), "utf8")); } catch { evidence = undefined; }
-        const checks = gradeFeedbackPersistence({ evidence, nonce, companyId: fixtures?.company.id,
+        const checks = gradeFeedbackPersistence({ evidence, nonce, spaceId: fixtures?.space.id,
           agentId: fixtures?.agent.id, taskId: issue?.id, runIds: selectedRuns.map(run => run.id) });
         matcherResults.push(...checks.map(check => ({ matcher: { kind: "json_path" as const,
           path: `feedbackPersistence.${check.id}`, expected: true }, passed: check.passed, detail: check.detail })));

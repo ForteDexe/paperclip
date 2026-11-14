@@ -131,7 +131,7 @@ export function createChatPublicationPreparation(db: Db, options: PublicationPre
         await notifyChatPublicationWork(tx);
         await tx.insert(chatPublications).values(
           currentParts.slice(1).map((_part, offset) => ({
-            companyId: current.companyId,
+            spaceId: current.spaceId,
             endpointId: current.endpointId,
             conversationId: current.conversationId,
             issueId: current.issueId,

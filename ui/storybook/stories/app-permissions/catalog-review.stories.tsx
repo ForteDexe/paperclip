@@ -5,7 +5,7 @@ import { ActionsSection } from "@/pages/apps/app-detail/PermissionsPanel";
 import { expect, userEvent, within } from "storybook/test";
 const entry: ToolCatalogEntry = {
   id: "catalog-gap",
-  companyId: "company-storybook",
+  spaceId: "space-storybook",
   applicationId: null,
   connectionId: "connection-gap",
   entryKind: "tool",
@@ -84,7 +84,7 @@ const meta = {
           "Shipped action section and quarantine reviewer with local catalog props. Discovery failures belong to the owning AppDetail API boundary; permissions and review persistence need production checks.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "app-permissions/catalog-change"
       ],

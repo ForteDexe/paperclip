@@ -29,7 +29,7 @@ that owner; extraction alone does not remove its existing behavior.
 ## Work predicate
 
 Discovery joins the coordinator, exact native run, issue, and accepted result.
-Company, issue, run, completion-contract, and result identities must agree.
+Space, issue, run, completion-contract, and result identities must agree.
 The coordinator must still have the historical unsafe terminal failure.
 One of two obligations must exist:
 
@@ -51,7 +51,7 @@ retains its retry; it does not infer that the owner stopped because time elapsed
 Dormant history has no retry. Relevant committed state changes must rediscover
 it. The producer audit below records the supported local writers.
 
-Discovery uses 100-row keyset pages. Dispatch uses the shared fair company batch
+Discovery uses 100-row keyset pages. Dispatch uses the shared fair space batch
 with a five-entry limit. Exact pending work retries after 30 seconds; exceptions
 use the shared bounded backoff. The check reads the exact run again before
 calling the owner, then retains a deadline only if the work predicate still
@@ -82,9 +82,9 @@ Additional producer coverage:
 | Competing queued/running run becomes terminal or leaves that set | Lifecycle status writes, queue cancellation, dispatch suppression/stale-run cancellation, retry deferral, active-run watchdog, execution-control recovery, orphan recovery, legacy settlement, native finalizer, finalization reconciler, restart recovery, and session executor |
 | Recovery action status or lineage | Recovery-action service, issue repair routes, execution/legacy recovery resolution, workspace reconstruction, safe replacement, explicit continuation |
 | Historical unsafe failure first appears | Finalizer failure, interaction bridge finalization error, coordinator-store retry marking |
-| Deletion removes a competing run | Agent and company deletion signal the company before deleting runs |
+| Deletion removes a competing run | Agent and space deletion signal the space before deleting runs |
 
-Signals carry only company and optional issue IDs. Run writers use their already
+Signals carry only space and optional issue IDs. Run writers use their already
 loaded native issue and legacy context issue; both distinct references are sent.
 Signals do not pass service contexts, provider data, or database objects through
 JSON. Existing transaction owners remain authoritative. The few root writes
@@ -123,7 +123,7 @@ query visited 10,074 result rows and took 9.827 ms. Scoped discovery removed
 10,075 coordinator rows by filter and took 2.625 ms. LIMIT alone did not bound
 history work.
 
-The partial index on `(company_id, issue_id, run_id)`, restricted to the exact
+The partial index on `(space_id, issue_id, run_id)`, restricted to the exact
 unsafe terminal-failure state, reduced these measurements to 0.105 ms and
 0.046 ms. The plans selected one coordinator from the partial index. These are
 local fixture timings, not deployment latency or fleet cost claims. Dormant
@@ -146,7 +146,7 @@ non-production fingerprint. The actual failure writer superseded it with a
 cancelled record. The existing explicit-settlement veto correctly prevented
 readmission. The fixture now starts before that recovery action exists. No
 production veto was weakened. The failed database remains available as
-`paperclip_sleep46_owner_v1_20261025_test` on the local test Postgres instance.
+`outpost_sleep46_owner_v1_20261025_test` on the local test Postgres instance.
 
 The next export run passed all 70 cases (`/tmp/sleep46-owner-v2.log`). Real issue
 and recovery-action producers then replaced the direct-hint fixture; all 71
@@ -208,7 +208,7 @@ terminal failure after the older notice resolved. It now proves automatic
 readmission without another write or restart, preservation of both accepted
 results, no extra run or provider call, and quiet after settlement. All 80
 export-owner tests and 63 startup tests passed. The first combined rerun failed
-export fixture setup because the reused database retained its fixed company
+export fixture setup because the reused database retained its fixed space
 prefix; the complete export suite subsequently passed on a fresh dedicated
 database. Final integrated typecheck, build, and remote checks remain required.
 
@@ -272,7 +272,7 @@ acceptance, not an unmodified embedded CI reproduction. Actual database build,
 server types/build, module boundaries and exact-head migration order pass.
 
 A populated 0409-to0410 upgrade preserves all 408 prior migration receipts and
-all 38 companies, appends exactly one receipt and adds none on replay. The
+all 38 spaces, appends exactly one receipt and adds none on replay. The
 unsafe-export index is valid and ready on fresh and upgraded databases.
 
 These checks preserve all earlier failures recorded above and verify current
@@ -297,7 +297,7 @@ automatic-review merge and fresh published-head CI and reviews.
 Normal integration `8f43c9f81fac23b50997e7f0e1d0d9cf383a8109` carries the
 verified prefix correction through the updated automatic-review parent. The
 only changed source file relative to the accepted child is the status-authority
-corpus: its two fixed prefix values now use their own company UUIDs. All
+corpus: its two fixed prefix values now use their own space UUIDs. All
 production source, all packages including the complete 0410 database tree, and
 all 24 files in the accepted 2188-case selection remain byte-identical to their
 accepted source. No assertion, timing limit or teardown changes. The prior
@@ -305,7 +305,7 @@ accepted source. No assertion, timing limit or teardown changes. The prior
 
 The additional complete 72-case status-authority corpus passes at this source
 in 14.00 seconds, then passes again on the same fresh 0410 database in 13.08
-seconds. Three retained PSC/OUT/sentinel company rows remain unchanged in the
+seconds. Three retained PSC/OUT/sentinel space rows remain unchanged in the
 inspected ID/name/prefix fields after both runs; each invocation appends two
 distinct UUID-derived prefixes. Database build and exact-head migration order
 pass. This adds one independently checked file to the previous selection; the
@@ -333,7 +333,7 @@ ancestry reconciliation. Fresh current-head CI and reviews remain required.
 Normal integration `4d51231abe8b68c21ce896d0d2ac16865978c8ab` adopts
 published automatic-review parent `181bf800a79449961e09c995f2785dd7f8060bb3`.
 The only source changes are the initial GitHub idle poll's established
-five-second observation argument and master's company-skill cleanup assertion.
+five-second observation argument and master's space-skill cleanup assertion.
 All production source, all packages including migration 0410, all 24 accepted
 suite files and the additional 72-case corpus remain byte-identical. The
 previous acceptance keeps that precise source scope; it is not rerun or

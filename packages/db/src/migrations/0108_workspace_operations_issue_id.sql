@@ -11,7 +11,7 @@ END $$;
 WITH "run_issue_candidates" AS (
 	SELECT
 		"heartbeat_runs"."id" AS "run_id",
-		"heartbeat_runs"."company_id" AS "company_id",
+		"heartbeat_runs"."space_id" AS "space_id",
 		CASE
 			WHEN "heartbeat_runs"."context_snapshot" ? 'issueId'
 				AND "heartbeat_runs"."context_snapshot"->>'issueId' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
@@ -27,7 +27,7 @@ WITH "run_issue_candidates" AS (
 	FROM "run_issue_candidates"
 	INNER JOIN "issues"
 		ON "issues"."id" = "run_issue_candidates"."issue_id"
-		AND "issues"."company_id" = "run_issue_candidates"."company_id"
+		AND "issues"."space_id" = "run_issue_candidates"."space_id"
 	WHERE "run_issue_candidates"."issue_id" IS NOT NULL
 )
 UPDATE "workspace_operations"
@@ -38,4 +38,4 @@ FROM "run_issue_attribution"
 WHERE "workspace_operations"."heartbeat_run_id" = "run_issue_attribution"."run_id"
 	AND "workspace_operations"."issue_id" IS NULL;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "workspace_operations_company_workspace_issue_started_idx" ON "workspace_operations" USING btree ("company_id","execution_workspace_id","issue_id","started_at");
+CREATE INDEX IF NOT EXISTS "workspace_operations_space_workspace_issue_started_idx" ON "workspace_operations" USING btree ("space_id","execution_workspace_id","issue_id","started_at");

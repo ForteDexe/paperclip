@@ -708,7 +708,7 @@ pub(crate) fn validate_question_set(value: &Value) -> Result<(), LocalRunnerErro
         .map_err(|_| LocalRunnerError::invalid("embedded question-set schema cannot compile"))?;
     if !validator.is_valid(value) {
         return Err(LocalRunnerError::invalid(
-            "ACPX input request failed the Paperclip question-set schema",
+            "ACPX input request failed the Outpost question-set schema",
         ));
     }
     let mut ids = BTreeSet::new();

@@ -183,14 +183,14 @@ export interface HeartbeatRecoveryDependencies extends Pick<HeartbeatRetryDepend
   classifyAndPersistRunLiveness: (run: HeartbeatRun, resultJson?: Record<string, unknown> | null) => Promise<HeartbeatRun | null>;
   releaseEnvironmentLeasesForRun: (input: {
     runId: string;
-    companyId: string;
+    spaceId: string;
     agentId: string;
     status: string | null | undefined;
     failureReason?: string | null;
     providerResourceDisposition?: ProviderResourceDisposition;
     respectCleanupDeadlines?: boolean;
   }) => Promise<void>;
-  acknowledgeRemoteStop: (runId: string, companyId: string) => Promise<void>;
+  acknowledgeRemoteStop: (runId: string, spaceId: string) => Promise<void>;
   resumeRemoteStopComments: (run: HeartbeatRun) => Promise<void>;
   dispatchPendingNativeStatusWakeups: () => Promise<unknown>;
   cancelRunInternal: (runId: string, reason?: string, options?: Pick<CancelRunOptions, "resultJson" | "expectedStatus" | "errorCode">) => Promise<unknown>;
@@ -427,7 +427,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
     const context = parseObject(input.run.contextSnapshot);
     return {
       runId: input.run.id,
-      companyId: input.run.companyId,
+      spaceId: input.run.spaceId,
       agentId: input.run.agentId,
       adapterType: input.adapterType,
       status: input.run.status,
@@ -1208,7 +1208,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
         // not finalize, and the next controller's reconciler skips leased rows.
         // A finalizer lease belongs to finalization already in progress here.
         const released = await db.transaction(async tx => {
-          await notifyLiveRunRecovery(tx, { companyId: run.companyId, runId: run.id });
+          await notifyLiveRunRecovery(tx, { spaceId: run.spaceId, runId: run.id });
           return tx.update(nativeRunFinalizations).set({
             leaseExpiresAt: sql`case when ${nativeRunFinalizations.resultId} is not null
               and ${nativeRunFinalizations.leaseOwner} like 'native-finalizer:%'
@@ -1322,7 +1322,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
           if (control) {
             const current = await getRun(run.id, { includeExecutionEvidence: true });
             if (current && HEARTBEAT_RUN_TERMINAL_STATUSES.some(status => status === current.status)) {
-              await releaseEnvironmentLeasesForRun({ runId: current.id, companyId: current.companyId,
+              await releaseEnvironmentLeasesForRun({ runId: current.id, spaceId: current.spaceId,
                 agentId: current.agentId, status: current.status, failureReason: current.error ?? undefined });
             }
           }
@@ -1342,7 +1342,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
 
         await releaseEnvironmentLeasesForRun({
           runId: interrupted.id,
-          companyId: interrupted.companyId,
+          spaceId: interrupted.spaceId,
           agentId: interrupted.agentId,
           status: interrupted.status,
           failureReason: interrupted.error ?? undefined,
@@ -1539,7 +1539,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
   // it. The bump pushes the row past the fixed-size page, so the next tick
   // reaches the rows behind it. It costs the row one extra backoff wait,
   // which is safe because the guard means a physical sandbox still exists.
-  // Where the next unscoped orphaned run-lease page starts, per company scope.
+  // Where the next unscoped orphaned run-lease page starts, per space scope.
   const orphanRunLeaseCursors = new Map<string, string>();
 
   async function deferOrphanedActiveLease(leaseId: string): Promise<void> {
@@ -1573,7 +1573,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
   async function sweepOrphanedActiveLeases(opts: {
     /** Idle time before a run-less (login/probe) lease is recovered. */
     backoffMs: number;
-    companyId?: string;
+    spaceId?: string;
     leaseId?: string;
     onDeferredDeadline?: (at: number) => void;
   }): Promise<{ recovered: number }> {
@@ -1584,7 +1584,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
     // One bounded page per call. An unscoped call continues after the last
     // page it read, so leases kept by a live holder or another obligation
     // never block the leases behind them.
-    const cursorKey = opts.leaseId ? null : opts.companyId ?? "*";
+    const cursorKey = opts.leaseId ? null : opts.spaceId ?? "*";
     const after = cursorKey === null ? undefined : orphanRunLeaseCursors.get(cursorKey);
     const scoped = await db
       .select({ lease: environmentLeases })
@@ -1592,7 +1592,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
       .leftJoin(heartbeatRuns, eq(environmentLeases.heartbeatRunId, heartbeatRuns.id))
       .where(and(
         eq(environmentLeases.status, "active"),
-        opts.companyId ? eq(environmentLeases.companyId, opts.companyId) : undefined,
+        opts.spaceId ? eq(environmentLeases.spaceId, opts.spaceId) : undefined,
         opts.leaseId ? eq(environmentLeases.id, opts.leaseId) : undefined,
         after ? gt(environmentLeases.id, after) : undefined,
         isNotNull(environmentLeases.heartbeatRunId),
@@ -1628,7 +1628,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
       .from(environmentLeases)
       .where(and(
         eq(environmentLeases.status, "active"),
-        opts.companyId ? eq(environmentLeases.companyId, opts.companyId) : undefined,
+        opts.spaceId ? eq(environmentLeases.spaceId, opts.spaceId) : undefined,
         opts.leaseId ? eq(environmentLeases.id, opts.leaseId) : undefined,
         isNull(environmentLeases.heartbeatRunId),
         sql`not (coalesce(${environmentLeases.metadata}, '{}'::jsonb) ? ${ENVIRONMENT_LEASE_CONTROLLER_KEY})`,
@@ -1667,7 +1667,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
         .update(environmentLeases)
         .set({ status: "pending_cleanup", failureReason: ORPHANED_RUN_LEASE_FAILURE_REASON })
         .where(and(eq(environmentLeases.id, lease.id), eq(environmentLeases.status, "active")))
-        .returning({ id: environmentLeases.id }), { companyId: lease.companyId, leaseId: lease.id });
+        .returning({ id: environmentLeases.id }), { spaceId: lease.spaceId, leaseId: lease.id });
       if (flipped.length > 0) recovered += 1;
     }
 
@@ -1687,7 +1687,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
      * A later user Retry may bypass the cooldown after a provider failure,
      * but cannot take over an in-flight cleanup attempt.
      */
-    explicitRetry?: { companyId: string; runId: string; actorId: string; reason?: "retry_failed_run" | "queued_comment_interrupt" };
+    explicitRetry?: { spaceId: string; runId: string; actorId: string; reason?: "retry_failed_run" | "queued_comment_interrupt" };
     /** One cleanup attempt per lease of this environment, for an operator who
      * asked to delete it with its sandboxes. It bypasses the cooldown in the
      * same way as `explicitRetry`, and never takes over an in-flight attempt. */
@@ -1738,7 +1738,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
       .where(
         and(
           eq(environmentLeases.status, "pending_cleanup"),
-          opts?.explicitRetry ? eq(environmentLeases.companyId, opts.explicitRetry.companyId) : undefined,
+          opts?.explicitRetry ? eq(environmentLeases.spaceId, opts.explicitRetry.spaceId) : undefined,
           opts?.explicitRetry ? eq(environmentLeases.heartbeatRunId, opts.explicitRetry.runId) : undefined,
           opts?.environmentRetry ? eq(environmentLeases.environmentId, opts.environmentRetry.environmentId) : undefined,
           pendingCleanupRetryDueSql(manualRetry),
@@ -1840,12 +1840,12 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
 
       try {
         if (opts?.explicitRetry) await logActivity(db, {
-          companyId: row.companyId, actorType: "user", actorId: opts.explicitRetry.actorId,
+          spaceId: row.spaceId, actorType: "user", actorId: opts.explicitRetry.actorId,
           action: "environment_lease.cleanup_retried", entityType: "environment_lease", entityId: row.id,
           runId: opts.explicitRetry.runId, details: { attempt: attempts + 1, reason: opts.explicitRetry.reason ?? "retry_failed_run" },
         });
         else if (opts?.environmentRetry) await logActivity(db, {
-          companyId: row.companyId, actorType: "user", actorId: opts.environmentRetry.actorId,
+          spaceId: row.spaceId, actorType: "user", actorId: opts.environmentRetry.actorId,
           action: "environment_lease.cleanup_retried", entityType: "environment_lease", entityId: row.id,
           runId: row.heartbeatRunId ?? undefined, details: { attempt: attempts + 1, reason: "environment_deleted" },
         });
@@ -1935,12 +1935,12 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
             ? 30 * 60_000 : Math.min(30 * 60_000, Math.max(30_000, backoffMs))),
         })}::jsonb`,
       }).where(and(eq(environmentLeases.id, lease.id),
-        sql`${environmentLeases.metadata}->>'pendingCleanupAttemptId' = ${claimed}`)), { companyId: lease.companyId, runId: lease.heartbeatRunId ?? undefined });
+        sql`${environmentLeases.metadata}->>'pendingCleanupAttemptId' = ${claimed}`)), { spaceId: lease.spaceId, runId: lease.heartbeatRunId ?? undefined });
       if (lease.heartbeatRunId) {
         // Delivery failure must not revert successful provider cleanup. A new
         // message can still use the persisted receipt on its next admission.
         await (async () => {
-          await acknowledgeRemoteStop(lease.heartbeatRunId!, lease.companyId);
+          await acknowledgeRemoteStop(lease.heartbeatRunId!, lease.spaceId);
           const run = await getRun(lease.heartbeatRunId!);
           if (run) await resumeRemoteStopComments(run);
         })().catch(() => logger.warn({ leaseId: lease.id }, "could not reconsider messages after cleanup retry"));
@@ -1959,7 +1959,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
       agentId: heartbeatRunEvents.agentId,
       payload: heartbeatRunEvents.payload,
     }).from(heartbeatRunEvents).where(and(
-      eq(heartbeatRunEvents.companyId, run.companyId),
+      eq(heartbeatRunEvents.spaceId, run.spaceId),
       eq(heartbeatRunEvents.runId, run.id),
       isNull(heartbeatRunEvents.sourceEventId),
       inArray(heartbeatRunEvents.eventType, [PROCESS_START_REQUESTED, PROCESS_IDENTITY_RECORDED]),
@@ -1970,7 +1970,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
         recorded.processPid !== run.processPid || recorded.processGroupId !== run.processGroupId ||
         !run.processStartedAt || recorded.processStartedAt !== run.processStartedAt.toISOString()) return false;
     const leases = await db.select({ provider: environmentLeases.provider }).from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+      eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
     ));
     return leases.every(lease => lease.provider === "local");
   }
@@ -2039,7 +2039,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
 
   async function settleRecoveredNativeEnvironment(input: {
     runId: string;
-    companyId: string;
+    spaceId: string;
     agentId: string;
     succeeded: boolean;
   }, onlyTerminal = false) {
@@ -2047,7 +2047,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
     if (!settledRun || onlyTerminal && !["succeeded", "failed", "cancelled", "timed_out", "interrupted"].includes(settledRun.status)) return;
     await releaseEnvironmentLeasesForRun({
       runId: input.runId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       agentId: input.agentId,
       status: settledRun?.status,
       failureReason: settledRun?.error ?? undefined,
@@ -2059,7 +2059,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
   const nativeEnvironmentSettlement = nativeEnvironmentSettlementWork(db, input => settleRecoveredNativeEnvironment(input, true));
 
   async function settleRecoveredNativeWorkspace(input: {
-    runId: string; companyId: string; agentId: string; succeeded: boolean;
+    runId: string; spaceId: string; agentId: string; succeeded: boolean;
   }, options?: { skipEnvironmentSettlement?: boolean }) {
     if (!options?.skipEnvironmentSettlement) await settleRecoveredNativeEnvironment(input);
     const settledRun = await getRun(input.runId);
@@ -2078,7 +2078,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
     ).catch(() => undefined);
   }
 
-  function cleanupRetainedNativeSession(input: { companyId: string; runId: string }) {
+  function cleanupRetainedNativeSession(input: { spaceId: string; runId: string }) {
     const operation = reconcileRetainedNativeSessionCleanup(db, input);
 
 
@@ -2122,7 +2122,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
   }
 
   type RecoveryScope = {
-    companyId?: string;
+    spaceId?: string;
     runId?: string;
     onDeferredDeadline?: (at: number) => void;
     onError?: (error: unknown) => void;
@@ -2143,7 +2143,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
       )
       .where(
         and(
-          scope.companyId ? eq(heartbeatRuns.companyId, scope.companyId) : undefined,
+          scope.spaceId ? eq(heartbeatRuns.spaceId, scope.spaceId) : undefined,
           scope.runId ? eq(heartbeatRuns.id, scope.runId) : undefined,
           inArray(heartbeatRuns.status, ["running", "failed"]),
           eq(heartbeatRuns.runtimeMode, "native"),
@@ -2175,7 +2175,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
           else remoteRetryRunIds.push(run.id);
         } else {
           const [taskLease] = await db.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
-            eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+            eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
             sql`${environmentLeases.metadata}->>'runnerTaskLease' = 'true'`,
           )).limit(1);
           if (taskLease) remoteRetryRunIds.push(run.id);
@@ -2244,7 +2244,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
         : await dispatchNativeSessionResumptions({
             db,
             runnerInstanceId:
-              runtimeEnv.OUTPOST_INSTANCE_ID?.trim() || "paperclip-heartbeat",
+              runtimeEnv.OUTPOST_INSTANCE_ID?.trim() || "outpost-heartbeat",
             now,
             runIds: [...claimableNativeRunIds],
             deferIneligible: !scope.runId,
@@ -2290,7 +2290,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
       .from(heartbeatRuns)
       .where(
         and(
-          scope.companyId ? eq(heartbeatRuns.companyId, scope.companyId) : undefined,
+          scope.spaceId ? eq(heartbeatRuns.spaceId, scope.spaceId) : undefined,
           scope.runId ? eq(heartbeatRuns.id, scope.runId) : undefined,
           or(inArray(heartbeatRuns.status, [
             ...CANCELLABLE_HEARTBEAT_RUN_STATUSES,
@@ -2373,7 +2373,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
         eq(nativeRunFinalizations.runId, heartbeatRuns.id),
       )
       .where(and(eq(heartbeatRuns.status, "running"),
-        scope.companyId ? eq(heartbeatRuns.companyId, scope.companyId) : undefined,
+        scope.spaceId ? eq(heartbeatRuns.spaceId, scope.spaceId) : undefined,
         scope.runId ? eq(heartbeatRuns.id, scope.runId) : undefined));
 
     // Reuse the orphan sweep's active-run inventory. Only an expired, untracked
@@ -2409,7 +2409,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
         ? await db
             .select({
               id: issues.id,
-              companyId: issues.companyId,
+              spaceId: issues.spaceId,
               monitorNextCheckAt: issues.monitorNextCheckAt,
             })
             .from(issues)
@@ -2417,7 +2417,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
         : [];
     const monitorNextCheckAtByIssue = new Map(
       monitorIssues.map((issue) => [
-        `${issue.companyId}:${issue.id}`,
+        `${issue.spaceId}:${issue.id}`,
         issue.monitorNextCheckAt,
       ]),
     );
@@ -2497,7 +2497,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
         !resumedRunIds.has(run.id) &&
         !locallyTracked;
       // Persisted numeric process identifiers prove only that some process is
-      // alive, not that Paperclip still owns it. Likewise an observed native
+      // alive, not that Outpost still owns it. Likewise an observed native
       // coordinator without a live in-process execution has no durable proof
       // that its prior provider owner stopped. Keep both cases running but
       // blocked: never signal, finalize, or retry them automatically. This gate
@@ -2634,7 +2634,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
       const runContext = parseObject(run.contextSnapshot);
       const monitorIssueId = readNonEmptyString(runContext.issueId);
       const monitorNextCheckAt = monitorIssueId
-        ? monitorNextCheckAtByIssue.get(`${run.companyId}:${monitorIssueId}`)
+        ? monitorNextCheckAtByIssue.get(`${run.spaceId}:${monitorIssueId}`)
         : undefined;
       const monitorDispatchLostWithoutFutureWake =
         readNonEmptyString(runContext.wakeReason) === "issue_monitor_due" &&
@@ -2673,7 +2673,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
         !revokedState.processPid &&
         !revokedState.processGroupId;
       const shouldRetry =
-        !await pendingCaseHandoffForRun(db, run.id, run.companyId) &&
+        !await pendingCaseHandoffForRun(db, run.id, run.spaceId) &&
         // Process loss spends the durable failure retry budget that
         // enqueueProcessLossRetry schedules against (execution-semantics
         // "Shutdown, process loss, and provider failure"). Checking it here
@@ -2730,7 +2730,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
       // Counted by the release that removes the pre-#19871 fallback. It never
       // holds the settle back.
       if (legacyProcessProof?.legacyHostFallback) {
-        await persistActivity(db, { companyId: run.companyId, actorType: "system", actorId: "orphan-reaper",
+        await persistActivity(db, { spaceId: run.spaceId, actorType: "system", actorId: "orphan-reaper",
           action: LEGACY_HOST_FALLBACK_EVENT, entityType: "heartbeat_run", entityId: run.id, runId: run.id,
           agentId: run.agentId, details: { reason: "process_lost", source: "active_execution_recovery" } })
           .catch(error => logger.error({ err: error, runId: run.id }, "failed to record the legacy host fallback event"));
@@ -2750,7 +2750,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
         )) ?? finalizedRun;
       await releaseEnvironmentLeasesForRun({
         runId: finalizedRun.id,
-        companyId: finalizedRun.companyId,
+        spaceId: finalizedRun.spaceId,
         agentId: finalizedRun.agentId,
         status: finalizedRun.status,
         failureReason: finalizedRun.error ?? undefined,
@@ -2971,7 +2971,7 @@ export function createHeartbeatRecovery(db: Db, dependencies: HeartbeatRecoveryD
           return;
         }
         const outcome = await releaseSettledNativeRunProcess(db, scope.runId, scope);
-        if (outcome !== "pending") await acknowledgeRemoteStop(scope.runId, scope.companyId);
+        if (outcome !== "pending") await acknowledgeRemoteStop(scope.runId, scope.spaceId);
       },
       orphanLease: scope => sweepOrphanedActiveLeases({ ...scope, backoffMs: 5 * 60_000 }),
       shutdown: scope => sweepLegacyShutdownWorkspaceSettlements(db, new Date(), scope),

@@ -33,7 +33,7 @@ const rootPackage = JSON.parse(await readFile(new URL("../package.json", import.
 const profileData = JSON.parse(await readFile(new URL("../packages/outpost-runner/acpx-profiles.json", import.meta.url), "utf8"));
 const nativeTargets = ["linux-x64", "darwin-arm64", "darwin-x64"];
 function esbuildFixture(t) {
-  const directory = realpathSync(mkdtempSync(join(tmpdir(), "paperclip-bundled-esbuild-")));
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "outpost-bundled-esbuild-")));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const graph = join(directory, "node_modules");
   const writePackage = (location, metadata) => {
@@ -59,7 +59,7 @@ const codexOptional = Object.fromEntries(codexTargets.map(target => [`@openai/co
 const claudeTargets = [...codexTargets, "linux-x64-musl", "linux-arm64-musl"];
 const claudeOptional = Object.fromEntries(claudeTargets.map(target => [`@anthropic-ai/claude-agent-sdk-${target}`, "0.3.286"]));
 function claudeFixture(t) {
-  const directory = realpathSync(mkdtempSync(join(tmpdir(), "paperclip-bundled-claude-")));
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "outpost-bundled-claude-")));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const graph = join(directory, "node_modules");
   const writePackage = (location, metadata) => {
@@ -80,11 +80,11 @@ function claudeFixture(t) {
   });
   writeFileSync(join(producer, "claude"), "producer native fixture, never executed");
   const profiles = [{ agent: "claude", ...profileData.profiles.claude }];
-  const publish = { name: "paperclip-claude-pack-fixture", version: "1.0.0", dependencies: { "@agentclientprotocol/claude-agent-acp": "0.73.0" }, bundleDependencies: ["@agentclientprotocol/claude-agent-acp"] };
+  const publish = { name: "outpost-claude-pack-fixture", version: "1.0.0", dependencies: { "@agentclientprotocol/claude-agent-acp": "0.73.0" }, bundleDependencies: ["@agentclientprotocol/claude-agent-acp"] };
   return { directory, graph, bridge, runtime, producer, profiles, publish, writePackage };
 }
 function codexFixture(t) {
-  const directory = realpathSync(mkdtempSync(join(tmpdir(), "paperclip-bundled-codex-")));
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "outpost-bundled-codex-")));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const graph = join(directory, "node_modules");
   const writePackage = (location, metadata) => {
@@ -100,7 +100,7 @@ function codexFixture(t) {
   const nested = writePackage(join(bridge, "node_modules/@openai/codex-darwin-arm64"), { name: "@openai/codex", version: "0.160.0-darwin-arm64", os: ["darwin"], cpu: ["arm64"] });
   writePackage(join(graph, "unrelated-linux-x64"), { name: "unrelated-linux-x64", version: "1.0.0" });
   const profiles = [{ agent: "codex", ...profileData.profiles.codex }];
-  const publish = { name: "paperclip-codex-pack-fixture", version: "1.0.0", dependencies: { "@agentclientprotocol/codex-acp": "1.6.2" }, bundleDependencies: ["@agentclientprotocol/codex-acp"] };
+  const publish = { name: "outpost-codex-pack-fixture", version: "1.0.0", dependencies: { "@agentclientprotocol/codex-acp": "1.6.2" }, bundleDependencies: ["@agentclientprotocol/codex-acp"] };
   return { directory, graph, bridge, runtime, producer, nested, profiles, publish, writePackage };
 }
 const adapterUtilsPackage = JSON.parse(
@@ -295,7 +295,7 @@ test("Codex bundles retain pinned JavaScript and delegate official consumer plat
   const staged = stageBundledProviderOptionalDependencies(directory, publish, profiles);
   assert.deepEqual(staged.optionalDependencies, codexOptional);
   assert.deepEqual(staged.bundleDependencies, publish.bundleDependencies);
-  assert.equal(staged.paperclipProviderArtifacts, undefined);
+  assert.equal(staged.outpostProviderArtifacts, undefined);
   assert.equal(existsSync(producer), false);
   assert.equal(existsSync(nested), false, "Transitive producer platform packages must also be removed");
   assert.equal(existsSync(join(runtime, "vendor")), false, "Wrapper fallback native payload must be removed");
@@ -488,7 +488,7 @@ test("bundled package staging installs only dependencies included in the tarball
 });
 
 test("bundled package staging selects only the installed dependency version's patch", (t) => {
-  const destinationDir = mkdtempSync(join(tmpdir(), "paperclip-bundled-patch-selection-"));
+  const destinationDir = mkdtempSync(join(tmpdir(), "outpost-bundled-patch-selection-"));
   const installedPackageDir = join(destinationDir, "node_modules", "acpx");
   mkdirSync(installedPackageDir, { recursive: true });
   writeFileSync(
@@ -513,7 +513,7 @@ test("bundled package staging selects only the installed dependency version's pa
 });
 
 test("bundled package patch selection handles scoped package names", (t) => {
-  const destinationDir = mkdtempSync(join(tmpdir(), "paperclip-scoped-patch-selection-"));
+  const destinationDir = mkdtempSync(join(tmpdir(), "outpost-scoped-patch-selection-"));
   const installedPackageDir = join(destinationDir, "node_modules", "@example", "runtime");
   mkdirSync(installedPackageDir, { recursive: true });
   writeFileSync(
@@ -538,7 +538,7 @@ test("bundled package patch selection handles scoped package names", (t) => {
 });
 
 test("bundled package patch selection reports missing installed metadata", (t) => {
-  const destinationDir = mkdtempSync(join(tmpdir(), "paperclip-missing-patch-metadata-"));
+  const destinationDir = mkdtempSync(join(tmpdir(), "outpost-missing-patch-metadata-"));
   t.after(() => rmSync(destinationDir, { recursive: true, force: true }));
 
   assert.throws(
@@ -551,7 +551,7 @@ test("bundled package patch selection reports missing installed metadata", (t) =
 });
 
 test("bundled package patch selection rejects an unpatched installed version", (t) => {
-  const destinationDir = mkdtempSync(join(tmpdir(), "paperclip-unmatched-patch-version-"));
+  const destinationDir = mkdtempSync(join(tmpdir(), "outpost-unmatched-patch-version-"));
   const installedPackageDir = join(destinationDir, "node_modules", "acpx");
   mkdirSync(installedPackageDir, { recursive: true });
   writeFileSync(
@@ -571,7 +571,7 @@ test("bundled package patch selection rejects an unpatched installed version", (
 });
 
 test("server package staging applies every bundled runtime patch and preserves the vendored runner", (t) => {
-  const fixtureDir = realpathSync(mkdtempSync(join(tmpdir(), "paperclip-bundled-stage-")));
+  const fixtureDir = realpathSync(mkdtempSync(join(tmpdir(), "outpost-bundled-stage-")));
   const sourceDir = join(fixtureDir, "source");
   const destinationDir = join(fixtureDir, "destination");
   const binDir = join(fixtureDir, "bin");
@@ -686,7 +686,7 @@ printf 'patched requestExtension runtime\\n' > "$target/dist/runtime.js"
     assert.equal(stagedManifest.bundleDependencies.includes(name), false);
   }
   assert.equal(existsSync(join(destinationDir, "node_modules/@openai/codex/vendor")), false);
-  assert.equal(stagedManifest.paperclipProviderArtifacts, undefined);
+  assert.equal(stagedManifest.outpostProviderArtifacts, undefined);
   assert.equal(JSON.parse(readFileSync(join(destinationDir, "node_modules/@openai/codex/package.json"), "utf8")).optionalDependencies, undefined);
   assert.equal(stagedManifest.optionalDependencies["@esbuild/darwin-arm64"], "0.28.2");
   assert.equal(stagedManifest.optionalDependencies["@esbuild/darwin-x64"], "0.28.2");

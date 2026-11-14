@@ -21,7 +21,7 @@ const fail = () => { throw new Error('attachment_staging_failed'); };
       dir = await fs.open('/proc/self/fd/' + dir.fd + '/' + part, C.O_RDONLY | C.O_DIRECTORY | C.O_NOFOLLOW);
       dirs.push(dir);
     }
-    for (const part of ['.paperclip-inbound', i.slot]) {
+    for (const part of ['.outpost-inbound', i.slot]) {
       const name = '/proc/self/fd/' + dir.fd + '/' + part;
       if (i.phase === 'stage') await fs.mkdir(name, { mode: 0o700 }).catch(e => { if (e.code !== 'EEXIST') throw e; });
       try { dir = await fs.open(name, C.O_RDONLY | C.O_DIRECTORY | C.O_NOFOLLOW); }
@@ -29,7 +29,7 @@ const fail = () => { throw new Error('attachment_staging_failed'); };
       dirs.push(dir);
     }
     const parent = '/proc/self/fd/' + dir.fd;
-    const expected = path.join(i.root, '.paperclip-inbound', i.slot);
+    const expected = path.join(i.root, '.outpost-inbound', i.slot);
     const checkParent = async () => { if (await fs.realpath(parent) !== expected) fail(); };
     await checkParent();
     const target = parent + '/' + i.filename;
@@ -119,7 +119,7 @@ export function createRemoteAttachmentStager(
         || !/^\d+$/.test(result.dev) || !/^\d+$/.test(result.ino)) throw new Error("outpost_runner_attachment_staging_failed");
       identity = { dev: result.dev, ino: result.ino };
       if (closed) throw new Error("outpost_runner_attachment_staging_scope_closed");
-      return { workspaceRelativePath: `.paperclip-inbound/${slot}/${filename}`, cleanup };
+      return { workspaceRelativePath: `.outpost-inbound/${slot}/${filename}`, cleanup };
     } catch {
       await cleanup();
       throw new Error("outpost_runner_attachment_staging_failed");

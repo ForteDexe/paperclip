@@ -10,7 +10,7 @@
  *   `description`, `prompt` and optionally `model`;
  * - each tool call the subagent makes carries
  *   `_meta.claudeCode.parentToolUseId`, the spawning call's id;
- * - Paperclip's claude-agent-acp patch forwards the SDK's
+ * - Outpost's claude-agent-acp patch forwards the SDK's
  *   `agentProgressSummaries` text as a `tool_call_update` on the spawning call
  *   with `_meta.claudeCode.subagentProgress`, and an async subagent's terminal
  *   state and summary with `_meta.claudeCode.subagentState`. An async
@@ -19,8 +19,8 @@
  *
  * ACP updates are deltas, so identity, prompt and the latest progress summary
  * arrive on different frames. This tracker remembers them per tool call and
- * annotates each event with a complete `paperclipSubagent` (spawning call) or
- * `paperclipParentToolCallId` (child call). The canonical mapper reads only
+ * annotates each event with a complete `outpostSubagent` (spawning call) or
+ * `outpostParentToolCallId` (child call). The canonical mapper reads only
  * those annotations. All values are producer hints and grant no authority.
  */
 import { createHash } from "node:crypto";
@@ -43,8 +43,8 @@ export interface AcpxSubagentIdentity {
 }
 
 export interface AcpxSubagentAnnotations {
-  paperclipSubagent?: AcpxSubagentIdentity;
-  paperclipParentToolCallId?: string;
+  outpostSubagent?: AcpxSubagentIdentity;
+  outpostParentToolCallId?: string;
 }
 
 const SUBAGENT_TOOL_NAMES = new Set(["agent", "task"]);
@@ -169,12 +169,12 @@ export function createClaudeSubagentLineageTracker<
           (launchedAsync ? null : boundedResult(output)),
       };
       remember(subagents, toolCallId, next);
-      return { ...event, paperclipSubagent: next };
+      return { ...event, outpostSubagent: next };
     }
     const rawParent = boundedId(claudeCode.parentToolUseId);
     const parent = rawParent ? projectToolCallId(rawParent) : parents.get(toolCallId);
     if (!parent || parent === toolCallId) return event;
     remember(parents, toolCallId, parent);
-    return { ...event, paperclipParentToolCallId: parent };
+    return { ...event, outpostParentToolCallId: parent };
   };
 }

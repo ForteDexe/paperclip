@@ -7,7 +7,7 @@ features, runtime/issue-thread request routing, structured work disposition,
 terminal causality, and provider-neutral semantic-control-plane receipts. The
 optional `semantic_tool` and `terminal.stopReason` envelopes now type tool
 invocation, authorization denial, redaction, optimistic concurrency, mutation
-receipts, artifacts, governed targets, causal continuations, and budget stops.
+receipts, artifacts, controlled targets, causal continuations, and budget stops.
 They remain receipts for control-plane-owned operations, not a provider tool
 catalog or permission to move control-plane policy into the runner.
 
@@ -57,10 +57,10 @@ The correction is one optional, versioned `semantic_tool` envelope for
 - operation id, call id, correlation ids, idempotency key, outcome, stable
   code, retryability, and audit/operation receipt id;
 - admitted input/output references or digests, redaction disposition, and only
-  safe identifiers; never raw credentials, hidden-company identifiers, or
+  safe identifiers; never raw credentials, hidden-space identifiers, or
   secret payloads;
-- authorization boundary (`company`, `actor`, `active_task`, `grant`,
-  `governed_action`, `lock`, or `revision`), current revision where safe, and
+- authorization boundary (`space`, `actor`, `active_task`, `grant`,
+  `controlled_action`, `lock`, or `revision`), current revision where safe, and
   a deterministic conflict/duplicate result;
 - artifact/work-product references linked to the semantic receipt and terminal
   result; immutable interaction/approval document or decision targets; and
@@ -84,7 +84,7 @@ projections:
 1. `semantic-tool-artifact-happy-path.json` — artifact and work-product receipt;
 2. `semantic-tool-denial-redaction.json` — denied/redacted with no fallback;
 3. `semantic-tool-conflict-duplicate-retry.json` — stale conflict and exact retry;
-4. `semantic-tool-governance-wake-monitor.json` — immutable governed targets and continuation chain;
+4. `semantic-tool-approvals-wake-monitor.json` — immutable controlled targets and continuation chain;
 5. `budget-cost-stop-reason.json` — typed terminal budget/cost stop;
 6. `semantic-tool-unknown-optional-envelope.json` — optional fields accepted with unchanged projection;
 7. `semantic-tool-unsupported-required-version.json` — required v2 envelope rejected fail-closed.
@@ -97,9 +97,9 @@ state-diff observations across deterministic mock and production bindings.
 
 Checkout/release, task selection, wake routing, budget enforcement, audit and
 run persistence/replay, assignment, and monitor management are control-plane
-actions, not runner-wire semantic operations. Cross-company discovery, broad
-audit access, destructive document lifecycle, and company administration are
-breaking v2/product-governance work. The runner must report typed unavailable
+actions, not runner-wire semantic operations. Cross-space discovery, broad
+audit access, destructive document lifecycle, and space administration are
+breaking v2/product-approvals work. The runner must report typed unavailable
 or denied outcomes rather than tunnel those operations through generic payloads.
 
 ## Review checklist

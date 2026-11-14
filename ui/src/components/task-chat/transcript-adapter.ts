@@ -185,7 +185,7 @@ const TARGET_MAX = 96;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Argument keys that name one Paperclip task by its id. */
+/** Argument keys that name one Outpost task by its id. */
 const TASK_REF_KEYS = ["taskId", "task_id", "issueId", "issue_id"] as const;
 
 /** A raw id is an internal handle, never something a person reads. */
@@ -1398,7 +1398,7 @@ export function omitProgressRepeatedByResponseAcrossSegments(
  * presentation filter for the new-runner turn surface. Legacy adapters keep
  * their existing lifecycle and usage rows.
  */
-export function paperclipRunnerHistoryItems(
+export function outpostRunnerHistoryItems(
   parsed: readonly TaskChatItem[],
 ): TaskChatItem[] {
   return parsed.filter((item) => {
@@ -1421,7 +1421,7 @@ export function paperclipRunnerHistoryItems(
  * response. Logical provider/tool lifecycles have already been coalesced by
  * `transcriptToTaskChatItems`, so each returned item is one visible "thing".
  */
-export function paperclipRunnerActivityItems(
+export function outpostRunnerActivityItems(
   parsed: readonly TaskChatItem[],
 ): TaskChatItem[] {
   const hasAggregateWorkspaceChange = parsed.some(
@@ -1444,7 +1444,7 @@ export function paperclipRunnerActivityItems(
           (normalizedName === "file_change" || normalizedName === "filechange")
         )
           return false;
-        return normalizedName !== "paperclip_finish";
+        return normalizedName !== "outpost_finish";
       }
       case "marker":
         return item.variant === "interrupted" || item.variant === "context_compacted";
@@ -1454,7 +1454,7 @@ export function paperclipRunnerActivityItems(
         if (
           item.surface === "provider_activity" &&
           item.family === "tool_execution" &&
-          providerItemDetail(item, "Name") === "paperclip_finish"
+          providerItemDetail(item, "Name") === "outpost_finish"
         ) return false;
         if (
           hasAggregateWorkspaceChange &&
@@ -1496,7 +1496,7 @@ export function paperclipRunnerActivityItems(
  * the shared projector can use each request as a phase boundary and place its
  * terminal receipt at the request's first-seen position.
  */
-export function paperclipRunnerTimelineItems(
+export function outpostRunnerTimelineItems(
   allParsed: readonly TaskChatItem[],
 ): TaskChatItem[] {
   // Decide retry recovery on the full transcript: the final answer that
@@ -1509,7 +1509,7 @@ export function paperclipRunnerTimelineItems(
       : item,
   );
   const activityIds = new Set(
-    paperclipRunnerActivityItems(parsed).map((item) => item.id),
+    outpostRunnerActivityItems(parsed).map((item) => item.id),
   );
   return parsed.filter(
     (item) =>
@@ -1524,7 +1524,7 @@ export function paperclipRunnerTimelineItems(
  * A response-wake can answer now while deliberately leaving the task open.
  * Its marker is derived by the native event projector, never from final prose.
  */
-export function paperclipRunnerAcceptedResponseWake(
+export function outpostRunnerAcceptedResponseWake(
   parsed: readonly TaskChatItem[],
   runId: string | undefined,
 ): TaskChatRunResultItem | undefined {
@@ -1571,7 +1571,7 @@ export function isYieldedWaitStub(
 }
 
 /** Resolve a terminal reply without presenting ordinary yielded waits as answers. */
-export function paperclipRunnerFinalResponse(
+export function outpostRunnerFinalResponse(
   parsed: readonly TaskChatItem[],
   options?: {
     runId?: string;
@@ -1598,7 +1598,7 @@ export function paperclipRunnerFinalResponse(
     const accepted =
       options?.allowFallback === false
         ? undefined
-        : paperclipRunnerAcceptedResponseWake(parsed, options?.runId);
+        : outpostRunnerAcceptedResponseWake(parsed, options?.runId);
     if (accepted) {
       return {
         id: `${accepted.id}:final-response`,
@@ -1899,7 +1899,7 @@ function phaseSummary(
               ? "Searched available tools"
               : `Searched available tools ${count} times`;
           break;
-        case "paperclip_read":
+        case "outpost_read":
           text =
             count === 1
               ? "Read from Outpost"

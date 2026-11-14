@@ -52,7 +52,7 @@ export async function agentExecutionsHaveStopped(db: Db, agentIds: string[]) {
     if (processAlive || groupAlive) return false;
     if (run.status !== "cancelled" || !run.startedAt) continue;
     if (run.runtimeMode === "native" && !run.processPid && !run.processGroupId &&
-        !await hasNativeLocalProcessStop(db, run.companyId, run.id) &&
+        !await hasNativeLocalProcessStop(db, run.spaceId, run.id) &&
         !await isCancelledNativeStartup(db, run, coordinators.find(row => row.runId === run.id))) return false;
     if (run.runtimeMode === "legacy" && !run.processPid && !run.processGroupId &&
         (run.resultJson?.executionCancellation as Record<string, unknown> | undefined)?.state !== "acknowledged" &&

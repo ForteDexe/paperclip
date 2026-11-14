@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { AdapterRuntimeMcpServer } from "@outpost/adapter-utils";
 import { runChildProcess } from "@outpost/adapter-utils/server-utils";
-import { buildPaperclipTaskMarkdown } from "../services/heartbeat.js";
+import { buildOutpostTaskMarkdown } from "../services/heartbeat.js";
 import {
   claudeCommandSupportsEffortFlag,
   claudeSessionCwdMatchesExecutionTarget,
@@ -74,9 +74,9 @@ const payload = {
   claudeConfigEntries: process.env.CLAUDE_CONFIG_DIR && fs.existsSync(process.env.CLAUDE_CONFIG_DIR)
     ? fs.readdirSync(process.env.CLAUDE_CONFIG_DIR).sort()
     : [],
-  paperclipApiUrl: process.env.OUTPOST_API_URL || null,
-  paperclipApiKey: process.env.OUTPOST_API_KEY || null,
-  paperclipApiBridgeMode: process.env.OUTPOST_API_BRIDGE_MODE || null,
+  outpostApiUrl: process.env.OUTPOST_API_URL || null,
+  outpostApiKey: process.env.OUTPOST_API_KEY || null,
+  outpostApiBridgeMode: process.env.OUTPOST_API_BRIDGE_MODE || null,
 };
 if (capturePath) {
   fs.writeFileSync(capturePath, JSON.stringify(payload), "utf8");
@@ -178,9 +178,9 @@ type CapturePayload = {
   claudeConfigDir: string | null;
   claudeConfigEntries?: string[];
   mcpConfigContents?: string | null;
-  paperclipApiUrl?: string | null;
-  paperclipApiKey?: string | null;
-  paperclipApiBridgeMode?: string | null;
+  outpostApiUrl?: string | null;
+  outpostApiKey?: string | null;
+  outpostApiBridgeMode?: string | null;
   appendedSystemPromptFilePath?: string | null;
   appendedSystemPromptFileContents?: string | null;
 };
@@ -362,9 +362,9 @@ function createLocalSandboxRunner() {
 
 describe("claude execute", () => {
   it("passes real assignment markdown and ordered current events once through the CLI", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-context-owner-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-context-owner-"));
     const { workspace, commandPath, capturePath, restore } = await setupExecuteEnv(root);
-    const markdown = buildPaperclipTaskMarkdown({
+    const markdown = buildOutpostTaskMarkdown({
       issue: { id: "issue-1", identifier: "PAP-901", title: "Repeat phrase Repeat phrase", description: "Repeat phrase Repeat phrase" },
       wakeComments: [
         { id: "comment-a", body: "Same event body." },
@@ -372,7 +372,7 @@ describe("claude execute", () => {
       ],
       includeWakeComments: false,
     });
-    const historicalMarkdown = buildPaperclipTaskMarkdown({
+    const historicalMarkdown = buildOutpostTaskMarkdown({
       issue: { id: "issue-1", identifier: "PAP-901", title: "Repeat phrase Repeat phrase", description: "Repeat phrase Repeat phrase" },
       wakeComments: [
         { id: "comment-a", body: "Same event body." },
@@ -382,18 +382,18 @@ describe("claude execute", () => {
     try {
       await execute({
         runId: "run-context-owner",
-        agent: { id: "agent-1", companyId: "company-1", name: "Claude", adapterType: "claude_local", adapterConfig: {} },
+        agent: { id: "agent-1", spaceId: "space-1", name: "Claude", adapterType: "claude_local", adapterConfig: {} },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli", command: commandPath, cwd: workspace,
           env: { OUTPOST_TEST_CAPTURE_PATH: capturePath },
-          promptTemplate: "Custom template keeps {{paperclipTaskMarkdown}} and {{paperclipWakePrompt}}.",
+          promptTemplate: "Custom template keeps {{outpostTaskMarkdown}} and {{outpostWakePrompt}}.",
         },
         context: {
           issueId: "issue-1",
-          paperclipTaskMarkdown: historicalMarkdown,
-          paperclipTaskMarkdownAssignment: markdown,
-          paperclipWake: {
+          outpostTaskMarkdown: historicalMarkdown,
+          outpostTaskMarkdownAssignment: markdown,
+          outpostWake: {
             reason: "issue_commented",
             issue: { id: "issue-1", identifier: "PAP-901", title: "Repeat phrase Repeat phrase", description: "Repeat phrase Repeat phrase", status: "in_progress" },
             comments: [
@@ -403,7 +403,7 @@ describe("claude execute", () => {
             commentWindow: { requestedCount: 2, includedCount: 2, missingCount: 0 },
             fallbackFetchNeeded: false,
           },
-          paperclipTurnContext: { version: 1, assignment: { owner: "task_markdown" }, events: { owner: "wake_prompt", comments: [{ id: "comment-a", revision: "a" }, { id: "comment-b", revision: "b" }] } },
+          outpostTurnContext: { version: 1, assignment: { owner: "task_markdown" }, events: { owner: "wake_prompt", comments: [{ id: "comment-a", revision: "a" }, { id: "comment-b", revision: "b" }] } },
         },
         onLog: async () => {},
       });
@@ -424,12 +424,12 @@ describe("claude execute", () => {
     ["  ", "claude-opus-5-5"],
     ["claude-sonnet-4-5", "claude-sonnet-4-5"],
   ])("passes the resolved model to the CLI for %j", async (model, expected) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-default-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-default-"));
     const { workspace, commandPath, capturePath, restore } = await setupExecuteEnv(root);
     try {
       const result = await execute({
         runId: "run-default",
-        agent: { id: "agent-1", companyId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: {} },
+        agent: { id: "agent-1", spaceId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: {} },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli", model, command: commandPath, cwd: workspace,
@@ -447,13 +447,13 @@ describe("claude execute", () => {
   });
 
   it("uses a strict per-agent MCP config only when managed servers are present", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-mcp-config-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-mcp-config-"));
     const { workspace, commandPath, capturePath, restore } = await setupExecuteEnv(root);
     try {
       const run = async (runId: string, agentId: string, servers: AdapterRuntimeMcpServer[]) => {
         await execute({
           runId,
-          agent: { id: agentId, companyId: "co-1", name: agentId, adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+          agent: { id: agentId, spaceId: "co-1", name: agentId, adapterType: "claude_local", adapterConfig: { engine: "cli" } },
           runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
           config: {
             engine: "cli",
@@ -507,14 +507,14 @@ describe("claude execute", () => {
    * re-injecting them wastes tokens and may be rejected by the CLI.
    */
   it("passes --append-system-prompt-file on a fresh session when instructionsFile is set", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-exec-fresh-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-exec-fresh-"));
     const { workspace, commandPath, capturePath, restore } = await setupExecuteEnv(root);
     const instructionsFile = path.join(root, "instructions.md");
     await fs.writeFile(instructionsFile, "# Agent instructions", "utf-8");
     try {
       await execute({
         runId: "run-fresh",
-        agent: { id: "agent-1", companyId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli",
@@ -541,14 +541,14 @@ describe("claude execute", () => {
   });
 
   it("omits --append-system-prompt-file on a resumed session even when instructionsFile is set", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-exec-resume-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-exec-resume-"));
     const { workspace, commandPath, capturePath, restore } = await setupExecuteEnv(root);
     const instructionsFile = path.join(root, "instructions.md");
     await fs.writeFile(instructionsFile, "# Agent instructions", "utf-8");
     try {
       await execute({
         runId: "run-resume",
-        agent: { id: "agent-1", companyId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: "11111111-1111-4111-8111-111111111111", sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli",
@@ -579,7 +579,7 @@ describe("claude execute", () => {
    * was actually passed — i.e. on fresh sessions, not resumed ones.
    */
   it("commandNotes reports injection on a fresh session with instructionsFile", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-exec-notes-fresh-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-exec-notes-fresh-"));
     const { workspace, commandPath, restore } = await setupExecuteEnv(root);
     const instructionsFile = path.join(root, "instructions.md");
     await fs.writeFile(instructionsFile, "# Agent instructions", "utf-8");
@@ -587,7 +587,7 @@ describe("claude execute", () => {
     try {
       await execute({
         runId: "run-notes-fresh",
-        agent: { id: "agent-1", companyId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli",
@@ -610,7 +610,7 @@ describe("claude execute", () => {
   });
 
   it("commandNotes is empty on a resumed session even when instructionsFile is set", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-exec-notes-resume-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-exec-notes-resume-"));
     const { workspace, commandPath, restore } = await setupExecuteEnv(root);
     const instructionsFile = path.join(root, "instructions.md");
     await fs.writeFile(instructionsFile, "# Agent instructions", "utf-8");
@@ -618,7 +618,7 @@ describe("claude execute", () => {
     try {
       await execute({
         runId: "run-notes-resume",
-        agent: { id: "agent-1", companyId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: "11111111-1111-4111-8111-111111111111", sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli",
@@ -641,7 +641,7 @@ describe("claude execute", () => {
   });
 
   it("rebuilds the combined instructions file when an unknown resumed session falls back to fresh", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-exec-resume-fallback-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-exec-resume-fallback-"));
     const { workspace, commandPath, capturePath, statePath, restore } = await setupExecuteEnv(root, {
       commandWriter: writeRetryThenSucceedClaudeCommand,
     });
@@ -654,7 +654,7 @@ describe("claude execute", () => {
       const result = await execute({
         runId: "run-resume-fallback",
         getFreshSessionHandoff,
-        agent: { id: "agent-1", companyId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: "11111111-1111-4111-8111-111111111111", sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli",
@@ -713,7 +713,7 @@ describe("claude execute", () => {
   });
 
   it("normalizes max-turn exhaustion into scheduler stop metadata", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-exec-max-turns-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-exec-max-turns-"));
     const resultEvent = {
       type: "result",
       subtype: "error_max_turns",
@@ -729,7 +729,7 @@ describe("claude execute", () => {
     try {
       const result = await execute({
         runId: "run-max-turns",
-        agent: { id: "agent-1", companyId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli",
@@ -754,7 +754,7 @@ describe("claude execute", () => {
   });
 
   it("does not normalize unstructured max-turn text into scheduler stop metadata", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-exec-max-turn-text-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-exec-max-turn-text-"));
     const resultEvent = {
       type: "result",
       subtype: "error",
@@ -769,7 +769,7 @@ describe("claude execute", () => {
     try {
       const result = await execute({
         runId: "run-max-turns-text",
-        agent: { id: "agent-1", companyId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli",
@@ -793,7 +793,7 @@ describe("claude execute", () => {
   });
 
   it("does not normalize fallback stdout/stderr max-turn text into scheduler stop metadata", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-exec-max-turn-fallback-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-exec-max-turn-fallback-"));
     const { workspace, commandPath, restore } = await setupExecuteEnv(root, {
       commandWriter: (commandPath) =>
         writeTextFailingClaudeCommand(commandPath, {
@@ -805,7 +805,7 @@ describe("claude execute", () => {
     try {
       const result = await execute({
         runId: "run-max-turns-fallback-text",
-        agent: { id: "agent-1", companyId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli",
@@ -829,7 +829,7 @@ describe("claude execute", () => {
   });
 
   it("logs HOME, CLAUDE_CONFIG_DIR, and the resolved executable path in invocation metadata", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-execute-meta-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-execute-meta-"));
     const workspace = path.join(root, "workspace");
     const binDir = path.join(root, "bin");
     const commandPath = path.join(binDir, "claude");
@@ -854,7 +854,7 @@ describe("claude execute", () => {
         runId: "run-meta",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Claude Coder",
           adapterType: "claude_local",
           adapterConfig: { engine: "cli" },
@@ -872,7 +872,7 @@ describe("claude execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -904,7 +904,7 @@ describe("claude execute", () => {
   });
 
   it("injects bridge env into sandbox-managed remote runs", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-execute-sandbox-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-execute-sandbox-"));
     const localWorkspace = path.join(root, "workspace");
     const remoteWorkspace = path.join(root, "sandbox-$HOME");
     const binDir = path.join(root, "bin");
@@ -929,7 +929,7 @@ describe("claude execute", () => {
         runId: "run-sandbox-auth",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Claude Coder",
           adapterType: "claude_local",
           adapterConfig: { engine: "cli" },
@@ -947,7 +947,7 @@ describe("claude execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath1,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         executionTarget: {
@@ -978,11 +978,11 @@ describe("claude execute", () => {
       const capture = JSON.parse(await fs.readFile(capturePath1, "utf8")) as CapturePayload;
       expect(capture.argv).toContain("--dangerously-skip-permissions");
       expect(capture.argv).not.toContain("--allowedTools");
-      expect(capture.claudeConfigDir).toBe(path.join(remoteWorkspace, ".paperclip-runtime", "claude", "config"));
+      expect(capture.claudeConfigDir).toBe(path.join(remoteWorkspace, ".outpost-runtime", "claude", "config"));
       expect(capture.claudeConfigEntries).toContain("settings.json");
-      expect(capture.paperclipApiUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
-      expect(capture.paperclipApiKey).not.toBe("run-jwt-token");
-      expect(capture.paperclipApiBridgeMode).toBe("queue_v1");
+      expect(capture.outpostApiUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+      expect(capture.outpostApiKey).not.toBe("run-jwt-token");
+      expect(capture.outpostApiBridgeMode).toBe("queue_v1");
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
@@ -993,7 +993,7 @@ describe("claude execute", () => {
   }, 10_000);
 
   it("omits --effort for sandbox-managed runs when the installed Claude CLI does not advertise it", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-execute-sandbox-effort-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-execute-sandbox-effort-"));
     const { workspace, commandPath, capturePath, restore } = await setupExecuteEnv(root, {
       commandWriter: writeHelpWithoutEffortClaudeCommand,
     });
@@ -1005,7 +1005,7 @@ describe("claude execute", () => {
         runId: "run-sandbox-effort-fallback",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Claude Coder",
           adapterType: "claude_local",
           adapterConfig: { engine: "cli" },
@@ -1051,12 +1051,12 @@ describe("claude execute", () => {
   }, 10_000);
 
   it.each(["compatible", "network-error"])("prepares the selected Claude command before probing effort and logs the %s outcome", async state => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-prepared-effort-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-prepared-effort-"));
     const { workspace, commandPath, capturePath, restore } = await setupExecuteEnv(root, {
       commandWriter: writeHelpWithoutEffortClaudeCommand,
     });
     const remoteWorkspace = path.join(root, "sandbox-workspace");
-    const preparedCommand = path.join(remoteWorkspace, ".paperclip-runtime/claude-cli/2.1.280/bin/claude");
+    const preparedCommand = path.join(remoteWorkspace, ".outpost-runtime/claude-cli/2.1.280/bin/claude");
     const logs: string[] = [];
     const commands: string[] = [];
     const loggedCommands: Array<string | undefined> = [];
@@ -1070,7 +1070,7 @@ describe("claude execute", () => {
       const runner = createLocalSandboxRunner();
       const result = await execute({
         runId: `run-prepared-effort-${state}`,
-        agent: { id: "agent-1", companyId: "company-1", name: "Claude Coder", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "space-1", name: "Claude Coder", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: { engine: "cli", command: "claude", cwd: workspace, model: "claude-opus-5-5", effort: "high",
           env: { OUTPOST_TEST_CAPTURE_PATH: capturePath }, promptTemplate: "Keep the selected reasoning effort." },
@@ -1104,7 +1104,7 @@ describe("claude execute", () => {
   }, 10_000);
 
   it("passes through --effort and reuses the sandbox capability probe across sandbox leases when the installed Claude CLI advertises it", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-execute-sandbox-effort-supported-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-execute-sandbox-effort-supported-"));
     const { workspace, commandPath, capturePath, restore } = await setupExecuteEnv(root, {
       commandWriter: writeHelpWithEffortClaudeCommand,
     });
@@ -1115,7 +1115,7 @@ describe("claude execute", () => {
     const baseInput = {
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Claude Coder",
         adapterType: "claude_local",
         adapterConfig: { engine: "cli" },
@@ -1234,22 +1234,22 @@ describe("claude execute", () => {
   });
 
   it.each(["unchanged", "added", "removed"])("resumes a stable Claude prompt bundle with %s MCP tools", async (change) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-execute-bundle-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-execute-bundle-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "claude");
     const capturePath1 = path.join(root, "capture-1.json");
     const capturePath2 = path.join(root, "capture-2.json");
     const instructionsPath = path.join(root, "AGENTS.md");
-    const paperclipHome = path.join(root, "paperclip-home");
+    const outpostHome = path.join(root, "outpost-home");
     await fs.mkdir(workspace, { recursive: true });
     await fs.writeFile(instructionsPath, "You are managed instructions.\n", "utf8");
     await writeFakeClaudeCommand(commandPath);
 
     const previousHome = process.env.HOME;
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
-    const previousPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
+    const previousOutpostHome = process.env.OUTPOST_HOME;
+    const previousOutpostInstanceId = process.env.OUTPOST_INSTANCE_ID;
     process.env.HOME = root;
-    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_HOME = outpostHome;
     delete process.env.OUTPOST_INSTANCE_ID;
 
     try {
@@ -1257,7 +1257,7 @@ describe("claude execute", () => {
         runId: "run-1",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Claude Coder",
           adapterType: "claude_local",
           adapterConfig: { engine: "cli" },
@@ -1276,17 +1276,17 @@ describe("claude execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath1,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
-          paperclipSkillSync: {
-            desiredSkills: ["paperclip"],
+          promptTemplate: "Follow the outpost heartbeat.",
+          outpostSkillSync: {
+            desiredSkills: ["outpost"],
           },
         },
         context: {},
         runtimeMcp: {
           getServers: () => [{
-            name: "Paperclip projects",
+            name: "Outpost projects",
             url: "http://localhost:3100/api/mcp/project-tools",
-            connectionId: "paperclip-project-tools",
+            connectionId: "outpost-project-tools",
             token: "run-jwt-token",
           }],
         },
@@ -1308,7 +1308,7 @@ describe("claude execute", () => {
         runId: "run-2",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Claude Coder",
           adapterType: "claude_local",
           adapterConfig: { engine: "cli" },
@@ -1327,9 +1327,9 @@ describe("claude execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath2,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
-          paperclipSkillSync: {
-            desiredSkills: ["paperclip"],
+          promptTemplate: "Follow the outpost heartbeat.",
+          outpostSkillSync: {
+            desiredSkills: ["outpost"],
           },
         },
         context: {
@@ -1338,7 +1338,7 @@ describe("claude execute", () => {
           wakeReason: "issue_commented",
           wakeCommentId: "comment-2",
           refreshTools: change !== "unchanged",
-          paperclipWake: {
+          outpostWake: {
             reason: "issue_commented",
             issue: {
               id: "issue-1",
@@ -1370,9 +1370,9 @@ describe("claude execute", () => {
         },
         runtimeMcp: {
           getServers: () => change === "removed" ? [] : [{
-            name: "Paperclip projects",
+            name: "Outpost projects",
             url: "http://localhost:3100/api/mcp/project-tools",
-            connectionId: "paperclip-project-tools",
+            connectionId: "outpost-project-tools",
             token: "next-run-jwt-token",
           }, ...(change === "added" ? [{ name: "GitHub", url: "https://example.test/github/mcp", connectionId: "github", token: "fresh-github-token" }] : [])],
         },
@@ -1386,11 +1386,11 @@ describe("claude execute", () => {
       const capture1 = JSON.parse(await fs.readFile(capturePath1, "utf8")) as CapturePayload;
       const capture2 = JSON.parse(await fs.readFile(capturePath2, "utf8")) as CapturePayload;
       const expectedRoot = path.join(
-        paperclipHome,
+        outpostHome,
         "instances",
         "default",
-        "companies",
-        "company-1",
+        "spaces",
+        "space-1",
         "claude-prompt-cache",
       );
 
@@ -1404,7 +1404,7 @@ describe("claude execute", () => {
       expect(capture1.instructionsContents).not.toContain(instructionsPath);
       expect(capture1.prompt).toContain(`Agent instructions for this run were loaded from ${instructionsPath}.`);
       expect(capture2.prompt).toContain(`Agent instructions for this run were loaded from ${instructionsPath}.`);
-      expect(capture1.skillEntries).toContain("paperclip");
+      expect(capture1.skillEntries).toContain("outpost");
       expect(capture2.argv).toContain("--resume");
       expect(getFreshSessionHandoff).not.toHaveBeenCalled();
       expect(capture2.argv).toContain("11111111-1111-4111-8111-111111111111");
@@ -1414,21 +1414,21 @@ describe("claude execute", () => {
         expect(capture2.mcpConfigContents).not.toContain('"run-jwt-token"');
         if (change === "added") expect(capture2.mcpConfigContents).toContain("fresh-github-token");
       }
-      expect(capture2.prompt).toContain("## Paperclip Resume Delta");
-      expect(capture2.prompt).not.toContain("Follow the paperclip heartbeat.");
+      expect(capture2.prompt).toContain("## Outpost Resume Delta");
+      expect(capture2.prompt).not.toContain("Follow the outpost heartbeat.");
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
-      if (previousPaperclipInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
-      else process.env.OUTPOST_INSTANCE_ID = previousPaperclipInstanceId;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
+      if (previousOutpostInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+      else process.env.OUTPOST_INSTANCE_ID = previousOutpostInstanceId;
       await fs.rm(root, { recursive: true, force: true });
     }
   });
 
   it("resumes across per-run instruction copies and refreshes their location", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-working-copy-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-working-copy-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "claude");
     const capturePath = path.join(root, "capture.json");
@@ -1437,7 +1437,7 @@ describe("claude execute", () => {
     await fs.mkdir(skillDir);
     await fs.writeFile(path.join(skillDir, "SKILL.md"), "First skill version.\n");
     await writeFakeClaudeCommand(commandPath);
-    vi.stubEnv("OUTPOST_HOME", path.join(root, "paperclip-home"));
+    vi.stubEnv("OUTPOST_HOME", path.join(root, "outpost-home"));
     vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
 
     try {
@@ -1446,7 +1446,7 @@ describe("claude execute", () => {
       let previousInstructionsPath = "";
       for (const [index, change] of ["initial", "location", "instructions", "skill"].entries()) {
         const runId = `run-${index}`;
-        const instructionsPath = path.join(root, "companies", "company-1", "agents", "agent-1",
+        const instructionsPath = path.join(root, "spaces", "space-1", "agents", "agent-1",
           "file-sync", "runs", runId, "live", "AGENTS.md");
         await fs.mkdir(path.dirname(instructionsPath), { recursive: true });
         await fs.writeFile(instructionsPath, index < 2 ? "First instructions.\n" : "Changed instructions.\n");
@@ -1456,15 +1456,15 @@ describe("claude execute", () => {
         const logs: string[] = [];
         const result = await execute({
           runId,
-          agent: { id: "agent-1", companyId: "company-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+          agent: { id: "agent-1", spaceId: "space-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
           runtime: { sessionId: null, sessionParams, sessionDisplayId: null, taskKey: "issue-1" },
           config: {
             engine: "cli",
             command: commandPath,
             cwd: workspace,
             instructionsFilePath: instructionsPath,
-            paperclipRuntimeSkills: [{ key: "test-skill", runtimeName: "test-skill", source: skillDir }],
-            paperclipSkillSync: { desiredSkills: ["test-skill"] },
+            outpostRuntimeSkills: [{ key: "test-skill", runtimeName: "test-skill", source: skillDir }],
+            outpostSkillSync: { desiredSkills: ["test-skill"] },
             env: { OUTPOST_TEST_CAPTURE_PATH: capturePath, CLAUDE_CONFIG_DIR: path.join(root, "claude-config") },
           },
           context: { issueId: "issue-1" },
@@ -1503,23 +1503,23 @@ describe("claude execute", () => {
   });
 
   it("starts a fresh Claude session when the stable prompt bundle changes", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-execute-reset-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-execute-reset-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "claude");
     const capturePath1 = path.join(root, "capture-before.json");
     const capturePath2 = path.join(root, "capture-after.json");
     const instructionsPath = path.join(root, "AGENTS.md");
-    const paperclipHome = path.join(root, "paperclip-home");
+    const outpostHome = path.join(root, "outpost-home");
     const logs: string[] = [];
     await fs.mkdir(workspace, { recursive: true });
     await fs.writeFile(instructionsPath, "Version one instructions.\n", "utf8");
     await writeFakeClaudeCommand(commandPath);
 
     const previousHome = process.env.HOME;
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
-    const previousPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
+    const previousOutpostHome = process.env.OUTPOST_HOME;
+    const previousOutpostInstanceId = process.env.OUTPOST_INSTANCE_ID;
     process.env.HOME = root;
-    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_HOME = outpostHome;
     delete process.env.OUTPOST_INSTANCE_ID;
 
     try {
@@ -1527,7 +1527,7 @@ describe("claude execute", () => {
         runId: "run-before",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Claude Coder",
           adapterType: "claude_local",
           adapterConfig: { engine: "cli" },
@@ -1546,7 +1546,7 @@ describe("claude execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath1,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -1559,7 +1559,7 @@ describe("claude execute", () => {
         runId: "run-after",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Claude Coder",
           adapterType: "claude_local",
           adapterConfig: { engine: "cli" },
@@ -1578,7 +1578,7 @@ describe("claude execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath2,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -1596,21 +1596,21 @@ describe("claude execute", () => {
 
       expect(before.instructionsFilePath).not.toBe(after.instructionsFilePath);
       expect(after.argv).not.toContain("--resume");
-      expect(after.prompt).toContain("Follow the paperclip heartbeat.");
+      expect(after.prompt).toContain("Follow the outpost heartbeat.");
       expect(logs.join("")).toContain("will not be resumed with");
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
-      if (previousPaperclipInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
-      else process.env.OUTPOST_INSTANCE_ID = previousPaperclipInstanceId;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
+      if (previousOutpostInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+      else process.env.OUTPOST_INSTANCE_ID = previousOutpostInstanceId;
       await fs.rm(root, { recursive: true, force: true });
     }
   }, 15_000);
 
   it("classifies Claude 'out of extra usage' failures as provider quota errors", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-execute-transient-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-execute-transient-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "claude");
     await fs.mkdir(workspace, { recursive: true });
@@ -1635,7 +1635,7 @@ describe("claude execute", () => {
         runId: "run-claude-transient",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Claude Coder",
           adapterType: "claude_local",
           adapterConfig: { engine: "cli" },
@@ -1650,7 +1650,7 @@ describe("claude execute", () => {
           engine: "cli",
           command: commandPath,
           cwd: workspace,
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -1677,7 +1677,7 @@ describe("claude execute", () => {
   });
 
   it("treats subtype=success results as successful even when the process exits nonzero", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-execute-success-subtype-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-execute-success-subtype-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "claude");
     await fs.mkdir(workspace, { recursive: true });
@@ -1701,7 +1701,7 @@ describe("claude execute", () => {
         runId: "run-claude-success-subtype",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Claude Coder",
           adapterType: "claude_local",
           adapterConfig: { engine: "cli" },
@@ -1716,7 +1716,7 @@ describe("claude execute", () => {
           engine: "cli",
           command: commandPath,
           cwd: workspace,
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -1735,7 +1735,7 @@ describe("claude execute", () => {
   });
 
   it("classifies rate-limit / overloaded failures without reset metadata as transient", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-execute-rate-limit-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-execute-rate-limit-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "claude");
     await fs.mkdir(workspace, { recursive: true });
@@ -1758,7 +1758,7 @@ describe("claude execute", () => {
         runId: "run-claude-overloaded",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Claude Coder",
           adapterType: "claude_local",
           adapterConfig: { engine: "cli" },
@@ -1773,7 +1773,7 @@ describe("claude execute", () => {
           engine: "cli",
           command: commandPath,
           cwd: workspace,
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -1794,7 +1794,7 @@ describe("claude execute", () => {
   });
 
   it("does not reclassify deterministic Claude failures (auth, max turns) as transient", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-execute-max-turns-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-execute-max-turns-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "claude");
     await fs.mkdir(workspace, { recursive: true });
@@ -1816,7 +1816,7 @@ describe("claude execute", () => {
         runId: "run-claude-max-turns",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Claude Coder",
           adapterType: "claude_local",
           adapterConfig: { engine: "cli" },
@@ -1831,7 +1831,7 @@ describe("claude execute", () => {
           engine: "cli",
           command: commandPath,
           cwd: workspace,
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -1848,7 +1848,7 @@ describe("claude execute", () => {
   });
 
   it("auto-rotates session on previous_message_id 400 (synthetic-msg poisoning) and succeeds on retry", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-exec-poisoned-msgid-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-exec-poisoned-msgid-"));
     const { workspace, commandPath, capturePath, statePath, restore } = await setupExecuteEnv(root, {
       commandWriter: writePoisonedMessageIdClaudeCommand,
     });
@@ -1856,7 +1856,7 @@ describe("claude execute", () => {
     try {
       const result = await execute({
         runId: "run-poisoned-msgid",
-        agent: { id: "agent-1", companyId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli",
@@ -1896,14 +1896,14 @@ describe("claude execute", () => {
    * /v1/messages returns 400 again, permanently stranding the issue.
    */
   it("drops sessionId and forces clearSession when a fresh run reports a poisoned previous_message_id", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-exec-poisoned-fresh-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-exec-poisoned-fresh-"));
     const { workspace, commandPath, capturePath, restore } = await setupExecuteEnv(root, {
       commandWriter: writeAlwaysPoisonedMessageIdClaudeCommand,
     });
     try {
       const result = await execute({
         runId: "run-poisoned-fresh",
-        agent: { id: "agent-1", companyId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli",
@@ -1940,14 +1940,14 @@ describe("claude execute", () => {
    * was persisted and every subsequent continuation hit the same 400 again.
    */
   it("forces clearSession when the recovery retry also reports a poisoned previous_message_id", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-exec-poisoned-retry-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-exec-poisoned-retry-"));
     const { workspace, commandPath, capturePath, restore } = await setupExecuteEnv(root, {
       commandWriter: writeAlwaysPoisonedMessageIdClaudeCommand,
     });
     try {
       const result = await execute({
         runId: "run-poisoned-retry",
-        agent: { id: "agent-1", companyId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "co-1", name: "Test", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
         runtime: {
           sessionId: "aaaaaaaa-0000-4000-8000-000000000004",
           sessionParams: null,

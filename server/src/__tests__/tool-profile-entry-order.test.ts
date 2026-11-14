@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import {
-  companies,
+  spaces,
   createDb,
   toolApplications,
   toolCatalogEntries,
@@ -24,7 +24,7 @@ describeDatabase("tool profile entry order", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
 
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-profile-entry-order-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-profile-entry-order-");
     db = createDb(database.connectionString, { maxConnections: 1 });
   }, 20_000);
 
@@ -34,24 +34,24 @@ describeDatabase("tool profile entry order", () => {
   });
 
   it("keeps list and detail entries stable across tied timestamps and physical row order", async () => {
-    const [company, foreign] = await db.insert(companies).values([
+    const [space, foreign] = await db.insert(spaces).values([
       { name: "Entry order", issuePrefix: `EO${randomUUID().slice(0, 6)}` },
       { name: "Other entry order", issuePrefix: `EF${randomUUID().slice(0, 6)}` },
     ]).returning();
     const [profile, foreignProfile] = await db.insert(toolProfiles).values([
-      { companyId: company.id, profileKey: "ordered", name: "Ordered" },
-      { companyId: foreign.id, profileKey: "foreign", name: "Foreign" },
+      { spaceId: space.id, profileKey: "ordered", name: "Ordered" },
+      { spaceId: foreign.id, profileKey: "foreign", name: "Foreign" },
     ]).returning();
     const [application] = await db.insert(toolApplications).values({
-      companyId: company.id, name: "Order fixture", type: "mcp_http", status: "active",
+      spaceId: space.id, name: "Order fixture", type: "mcp_http", status: "active",
     }).returning();
     const [connection] = await db.insert(toolConnections).values({
-      companyId: company.id, applicationId: application.id, name: "Order fixture",
+      spaceId: space.id, applicationId: application.id, name: "Order fixture",
       uid: `fixture/${randomUUID()}`, transport: "mcp_remote", status: "active",
       enabled: true, config: {},
     }).returning();
     await db.insert(toolCatalogEntries).values(["allowed", "blocked"].map(toolName => ({
-      companyId: company.id, applicationId: application.id, connectionId: connection.id,
+      spaceId: space.id, applicationId: application.id, connectionId: connection.id,
       name: toolName, toolName, riskLevel: "read" as const, status: "active" as const,
       versionHash: randomUUID(), schemaHash: randomUUID(),
     })));
@@ -60,7 +60,7 @@ describeDatabase("tool profile entry order", () => {
     const tiedAt = new Date("2026-01-02T00:00:00Z");
     const tied = Array.from({ length: 30 }, (_, index) => ({
       id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
-      companyId: company.id, profileId: profile.id, selectorType: "tool_name" as const,
+      spaceId: space.id, profileId: profile.id, selectorType: "tool_name" as const,
       effect: index === 29 ? "exclude" as const : "include" as const,
       toolName: index === 0 ? "allowed" : index === 1 || index === 29 ? "blocked" : `other_${index}`,
       createdAt: tiedAt,
@@ -71,7 +71,7 @@ describeDatabase("tool profile entry order", () => {
     };
     await db.insert(toolProfileEntries).values([
       ...tied.toReversed(), earlier,
-      { companyId: foreign.id, profileId: foreignProfile.id,
+      { spaceId: foreign.id, profileId: foreignProfile.id,
         selectorType: "tool_name", toolName: "foreign" },
     ]);
 
@@ -87,8 +87,8 @@ describeDatabase("tool profile entry order", () => {
       const physical = await db.execute<{ id: string }>(sql`
         SELECT id FROM tool_profile_entries WHERE profile_id = ${profile.id} ORDER BY ctid
       `);
-      const [listed] = await service.listProfiles(company.id);
-      const detail = await service.getProfile(profile.id, company.id);
+      const [listed] = await service.listProfiles(space.id);
+      const detail = await service.getProfile(profile.id, space.id);
       snapshots.push({ physical: physical.map(row => row.id), listed, detail });
     }
     expect(snapshots[0].physical).not.toEqual(snapshots[1].physical);
@@ -104,7 +104,7 @@ describeDatabase("tool profile entry order", () => {
 
     // A real entry change must remain visible to configuration comparison.
     await db.update(toolProfileEntries).set({ effect: "include" }).where(eq(toolProfileEntries.id, tied[29].id));
-    const changed = await service.getProfile(profile.id, company.id);
+    const changed = await service.getProfile(profile.id, space.id);
     expect(changed.entries).not.toEqual(snapshots[1].detail.entries);
     expect(changed.summary).toMatchObject({ allowedToolCount: 2, excludedToolCount: 0 });
   });

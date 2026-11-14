@@ -5,11 +5,11 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { agents, heartbeatRuns, issueAttachments, issueComments, issues, issueWorkProducts } from "@outpost/db";
-import { startAdapterExecutionTargetPaperclipBridge, type AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
+import { startAdapterExecutionTargetOutpostBridge, type AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
 import { runChildProcess } from "@outpost/adapter-utils/server-utils";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { readVerifiedRemoteWorkspaceFile } from "../services/native-runtime/remote-deliverable-file.js";
 import { startFileDeliveryDaytona } from "./helpers/file-delivery-daytona.js";
 import { startRunnerApiTestServer } from "./helpers/runner-api-server.js";
@@ -80,9 +80,9 @@ describe(`durable file delivery (${liveDaytona ? "Daytona" : "local processes"})
     const fixture = await server.fixture({ apiToolsEnabled: false });
     await server.db.update(agents).set({ adapterType: "codex_local" }).where(eq(agents.id, fixture.agentId));
     await server.db.update(heartbeatRuns).set({ runtimeMode: "legacy" }).where(eq(heartbeatRuns.id, fixture.runId));
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "codex_local", fixture.runId)!;
+    const token = createLocalAgentJwt(fixture.agentId, fixture.spaceId, "codex_local", fixture.runId)!;
     const remote = await execution(fixture.workspace);
-    const installedHelper = await remote.write("paperclip-upload-artifact.sh", await readFile(helper));
+    const installedHelper = await remote.write("outpost-upload-artifact.sh", await readFile(helper));
     const target: AdapterSandboxExecutionTarget = {
       kind: "remote", transport: "sandbox", providerKey: liveDaytona ? "daytona" : "local-test", remoteCwd: remote.workspace,
       runner: remote.runner, timeoutMs: 30_000,
@@ -93,14 +93,14 @@ describe(`durable file delivery (${liveDaytona ? "Daytona" : "local processes"})
         duplexCommandStream: true, runnerWebSocketIngress: false,
       },
     };
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: fixture.runId, target, runtimeRootDir: path.join(remote.workspace, ".runtime"),
       adapterKey: "codex", hostApiToken: token, hostApiUrl: server.apiUrl,
       enableSandboxDuplexBridge: duplex,
     });
     expect(bridge?.env.OUTPOST_API_BRIDGE_MODE).toBe(duplex ? "http2_v1" : "queue_v1");
     const env = { ...bridge!.env, TMPDIR: path.join(remote.workspace, ".unavailable-controller-temp"), OUTPOST_RUN_ID: fixture.runId,
-      OUTPOST_COMPANY_ID: fixture.companyId, OUTPOST_TASK_ID: fixture.issueId,
+      OUTPOST_SPACE_ID: fixture.spaceId, OUTPOST_TASK_ID: fixture.issueId,
       OUTPOST_WORKSPACE_CWD: remote.workspace };
     const headers = { authorization: `Bearer ${bridge!.env.OUTPOST_API_KEY}` };
     const receipts: Array<{ attachment: { id: string; contentPath: string; downloadPath: string } }> = [];
@@ -141,13 +141,13 @@ describe(`durable file delivery (${liveDaytona ? "Daytona" : "local processes"})
   it("registers native files with API tools disabled and returns durable download receipts", async () => {
     const fixture = await server.fixture({ apiToolsEnabled: false });
     const remote = await execution(fixture.workspace);
-    const authority = new PaperclipRunnerToolAuthority(server.db, { ...fixture,
+    const authority = new OutpostRunnerToolAuthority(server.db, { ...fixture,
       workspaceRoot: remote.workspace, executionTargetKind: liveDaytona ? "remote" : "local",
       readRemoteWorkspaceFile: liveDaytona ? request => readVerifiedRemoteWorkspaceFile({ ...request, runner: remote.runner, workspaceRoot: remote.workspace }) : undefined,
     });
     expect(authority.definitions().some(definition => definition.name === "register_deliverable")).toBe(true);
     expect(authority.definitions().some(definition => definition.name === "api_post")).toBe(false);
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId)!;
+    const token = createLocalAgentJwt(fixture.agentId, fixture.spaceId, "outpost_runner", fixture.runId)!;
     const receipts: Array<{ downloadPath: string }> = [];
     for (const file of files) {
       await remote.write(`out/${file.name}`, file.body);

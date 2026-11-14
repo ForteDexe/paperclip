@@ -7,11 +7,11 @@ import type {
   AdapterSkillSnapshot,
 } from "@outpost/adapter-utils";
 import {
-  ensurePaperclipSkillSymlink,
-  isPaperclipSkillSourceMissing,
+  ensureOutpostSkillSymlink,
+  isOutpostSkillSourceMissing,
   readInstalledSkillTargets,
-  readPaperclipRuntimeSkillEntries,
-  resolveLegacyPaperclipDesiredSkillNames,
+  readOutpostRuntimeSkillEntries,
+  resolveLegacyOutpostDesiredSkillNames,
 } from "@outpost/adapter-utils/server-utils";
 import { fileURLToPath } from "node:url";
 
@@ -119,7 +119,7 @@ async function buildSkillEntry(
     origin: "user_installed",
     originLabel: "Hermes skill",
     locationLabel: `~/.hermes/skills/${categoryPath}`,
-    readOnly: true, // Hermes manages its own skills — Paperclip can't toggle them
+    readOnly: true, // Hermes manages its own skills — Outpost can't toggle them
     sourcePath: skillMdPath,
     targetPath: null,
     detail: description,
@@ -134,22 +134,22 @@ async function buildHermesSkillSnapshot(config: Record<string, unknown>): Promis
   const home = resolveHermesHome(config);
   const hermesSkillsHome = path.join(home, "skills");
 
-  // 1. Scan Paperclip-managed skills (bundled with the adapter)
-  const paperclipEntries = await readPaperclipRuntimeSkillEntries(config, __moduleDir);
-  const desiredSkills = resolveLegacyPaperclipDesiredSkillNames(config, paperclipEntries);
+  // 1. Scan Outpost-managed skills (bundled with the adapter)
+  const outpostEntries = await readOutpostRuntimeSkillEntries(config, __moduleDir);
+  const desiredSkills = resolveLegacyOutpostDesiredSkillNames(config, outpostEntries);
   const desiredSet = new Set(desiredSkills);
-  const availableByKey = new Map(paperclipEntries.map((e) => [e.key, e]));
+  const availableByKey = new Map(outpostEntries.map((e) => [e.key, e]));
 
   // 2. Scan Hermes's own skills from ~/.hermes/skills/
   const hermesSkillEntries = await scanHermesSkills(hermesSkillsHome);
   const hermesKeys = new Set(hermesSkillEntries.map((e) => e.key));
 
-  // 3. Merge: Paperclip skills first (ephemeral), then Hermes skills
+  // 3. Merge: Outpost skills first (ephemeral), then Hermes skills
   const entries: AdapterSkillEntry[] = [];
   const warnings: string[] = [];
 
-  // Paperclip-managed skills
-  for (const entry of paperclipEntries) {
+  // Outpost-managed skills
+  for (const entry of outpostEntries) {
     const desired = desiredSet.has(entry.key);
     entries.push({
       key: entry.key,
@@ -157,7 +157,7 @@ async function buildHermesSkillSnapshot(config: Record<string, unknown>): Promis
       desired,
       managed: true,
       state: desired ? "configured" : "available",
-      origin: "company_managed",
+      origin: "space_managed",
       originLabel: "Managed by Outpost",
       readOnly: false,
       sourcePath: entry.source,
@@ -170,7 +170,7 @@ async function buildHermesSkillSnapshot(config: Record<string, unknown>): Promis
 
   // Hermes-installed skills (read-only, always loaded)
   for (const entry of hermesSkillEntries) {
-    // Skip if Paperclip already manages a skill with the same key
+    // Skip if Outpost already manages a skill with the same key
     if (availableByKey.has(entry.key)) continue;
     entries.push(entry);
   }
@@ -213,17 +213,17 @@ export async function listHermesSkills(
   return buildHermesSkillSnapshot(ctx.config);
 }
 
-export async function reconcileHermesPaperclipSkills(
+export async function reconcileHermesOutpostSkills(
   config: Record<string, unknown>,
   requestedDesiredSkills?: string[],
 ): Promise<string[]> {
-  const availableEntries = await readPaperclipRuntimeSkillEntries(config, __moduleDir);
+  const availableEntries = await readOutpostRuntimeSkillEntries(config, __moduleDir);
   const desiredSkills = requestedDesiredSkills
     ? Array.from(new Set([
-        ...resolveLegacyPaperclipDesiredSkillNames({}, availableEntries),
+        ...resolveLegacyOutpostDesiredSkillNames({}, availableEntries),
         ...requestedDesiredSkills,
       ]))
-    : resolveLegacyPaperclipDesiredSkillNames(config, availableEntries);
+    : resolveLegacyOutpostDesiredSkillNames(config, availableEntries);
   const desiredSet = new Set(desiredSkills);
   const skillsHome = path.join(resolveHermesHome(config), "skills");
   await fs.mkdir(skillsHome, { recursive: true });
@@ -231,9 +231,9 @@ export async function reconcileHermesPaperclipSkills(
   const availableByRuntimeName = new Map(availableEntries.map((entry) => [entry.runtimeName, entry]));
 
   for (const entry of availableEntries) {
-    if (!desiredSet.has(entry.key) || isPaperclipSkillSourceMissing(entry)) continue;
+    if (!desiredSet.has(entry.key) || isOutpostSkillSourceMissing(entry)) continue;
     const target = path.join(skillsHome, entry.runtimeName);
-    await ensurePaperclipSkillSymlink(entry.source, target);
+    await ensureOutpostSkillSymlink(entry.source, target);
     const linkedSource = await fs.readlink(target).catch(() => null);
     const resolvedSource = linkedSource
       ? path.resolve(path.dirname(target), linkedSource)
@@ -259,7 +259,7 @@ export async function syncHermesSkills(
   ctx: AdapterSkillContext,
   desiredSkills: string[],
 ): Promise<AdapterSkillSnapshot> {
-  await reconcileHermesPaperclipSkills(ctx.config, desiredSkills);
+  await reconcileHermesOutpostSkills(ctx.config, desiredSkills);
   return buildHermesSkillSnapshot(ctx.config);
 }
 
@@ -267,5 +267,5 @@ export function resolveHermesDesiredSkillNames(
   config: Record<string, unknown>,
   availableEntries: Array<{ key: string; runtimeName?: string | null }>,
 ): string[] {
-  return resolveLegacyPaperclipDesiredSkillNames(config, availableEntries);
+  return resolveLegacyOutpostDesiredSkillNames(config, availableEntries);
 }

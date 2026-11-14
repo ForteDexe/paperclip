@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import type { Db } from "@outpost/db";
 import { validate } from "../middleware/validate.js";
-import { assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertSpaceAccess, getActorInfo } from "./authz.js";
 import { inboxDismissalService, logActivity } from "../services/index.js";
 
 const ITEM_KEY_RE = /^(approval|join|run|attention):.+$/;
@@ -33,13 +33,13 @@ const inboxDismissalSchema = z.object({
   }
 });
 
-function requireBoardUser(req: Request, res: Response) {
-  if (req.actor.type !== "board") {
-    res.status(403).json({ error: "Board authentication required" });
+function requireOperatorUser(req: Request, res: Response) {
+  if (req.actor.type !== "operator") {
+    res.status(403).json({ error: "Operator authentication required" });
     return null;
   }
   if (!req.actor.userId) {
-    res.status(403).json({ error: "Board user context required" });
+    res.status(403).json({ error: "Operator user context required" });
     return null;
   }
   return req.actor.userId;
@@ -49,39 +49,39 @@ export function inboxDismissalRoutes(db: Db) {
   const router = Router();
   const svc = inboxDismissalService(db);
 
-  router.get("/companies/:companyId/inbox-dismissals", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const userId = requireBoardUser(req, res);
+  router.get("/spaces/:spaceId/inbox-dismissals", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const userId = requireOperatorUser(req, res);
     if (!userId) return;
 
-    const dismissals = await svc.list(companyId, userId);
+    const dismissals = await svc.list(spaceId, userId);
     res.json(dismissals);
   });
 
   router.post(
-    "/companies/:companyId/inbox-dismissals",
+    "/spaces/:spaceId/inbox-dismissals",
     validate(inboxDismissalSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
-      const userId = requireBoardUser(req, res);
+      const spaceId = req.params.spaceId as string;
+      assertSpaceAccess(req, spaceId);
+      const userId = requireOperatorUser(req, res);
       if (!userId) return;
 
       const dismissal = req.body.kind === "snooze"
-        ? await svc.snooze(companyId, userId, req.body.itemKey, new Date(req.body.snoozedUntil))
-        : await svc.dismiss(companyId, userId, req.body.itemKey, new Date());
+        ? await svc.snooze(spaceId, userId, req.body.itemKey, new Date(req.body.snoozedUntil))
+        : await svc.dismiss(spaceId, userId, req.body.itemKey, new Date());
       const actor = getActorInfo(req);
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         agentId: actor.agentId,
         runId: actor.runId,
         agentApiKeyId: actor.agentApiKeyId,
         action: dismissal.kind === "snooze" ? "inbox.snoozed" : "inbox.dismissed",
-        entityType: "company",
-        entityId: companyId,
+        entityType: "space",
+        entityId: spaceId,
         details: {
           userId,
           itemKey: dismissal.itemKey,
@@ -95,10 +95,10 @@ export function inboxDismissalRoutes(db: Db) {
     },
   );
 
-  router.delete("/companies/:companyId/inbox-dismissals/:itemKey", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const userId = requireBoardUser(req, res);
+  router.delete("/spaces/:spaceId/inbox-dismissals/:itemKey", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const userId = requireOperatorUser(req, res);
     if (!userId) return;
 
     const itemKey = req.params.itemKey as string;
@@ -107,19 +107,19 @@ export function inboxDismissalRoutes(db: Db) {
       return;
     }
 
-    const restored = await svc.restore(companyId, userId, itemKey);
+    const restored = await svc.restore(spaceId, userId, itemKey);
     if (restored) {
       const actor = getActorInfo(req);
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         agentId: actor.agentId,
         runId: actor.runId,
         agentApiKeyId: actor.agentApiKeyId,
         action: "inbox.restored",
-        entityType: "company",
-        entityId: companyId,
+        entityType: "space",
+        entityId: spaceId,
         details: {
           userId,
           itemKey: restored.itemKey,

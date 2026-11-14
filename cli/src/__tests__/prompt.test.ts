@@ -8,14 +8,14 @@ import { runAgentPrompt, runBoardPrompt } from "../commands/client/prompt.js";
 const ORIGINAL_ENV = { ...process.env };
 
 function createTempContextPath(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-cli-prompt-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-cli-prompt-"));
   return path.join(dir, "context.json");
 }
 
 function agent(overrides: Record<string, unknown> = {}) {
   return {
     id: "11111111-1111-4111-8111-111111111111",
-    companyId: "22222222-2222-4222-8222-222222222222",
+    spaceId: "22222222-2222-4222-8222-222222222222",
     name: "Worker",
     urlKey: "worker",
     role: "Engineer",
@@ -36,16 +36,16 @@ describe("prompt handoff", () => {
     vi.restoreAllMocks();
   });
 
-  it("fails when an agent prompt uses a board persona profile", async () => {
+  it("fails when an agent prompt uses a operator persona profile", async () => {
     const contextPath = createTempContextPath();
     writeContext(
       {
         version: 2,
-        currentProfile: "board",
+        currentProfile: "operator",
         profiles: {
-          board: {
+          operator: {
             apiBase: "http://localhost:3100",
-            persona: "board",
+            persona: "operator",
           },
         },
       },
@@ -54,7 +54,7 @@ describe("prompt handoff", () => {
 
     await expect(runAgentPrompt("worker", "Do the work", { context: contextPath, apiKey: "agent-token" }))
       .rejects
-      .toThrow(/persona=board/);
+      .toThrow(/persona=operator/);
   });
 
   it("fails when the supplied agent key belongs to a different agent", async () => {
@@ -75,7 +75,7 @@ describe("prompt handoff", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify(agent()), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         id: "issue-1",
-        companyId: "22222222-2222-4222-8222-222222222222",
+        spaceId: "22222222-2222-4222-8222-222222222222",
         title: "Investigate queue lag",
         status: "todo",
         priority: "medium",
@@ -92,7 +92,7 @@ describe("prompt handoff", () => {
     expect(result.mode).toBe("issue");
     expect(result.agent.id).toBe("11111111-1111-4111-8111-111111111111");
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("http://localhost:3100/api/companies/22222222-2222-4222-8222-222222222222/issues");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("http://localhost:3100/api/spaces/22222222-2222-4222-8222-222222222222/issues");
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toMatchObject({
       title: "Investigate queue lag",
       assigneeAgentId: "11111111-1111-4111-8111-111111111111",
@@ -100,7 +100,7 @@ describe("prompt handoff", () => {
     expect(fetchMock.mock.calls[2]?.[0]).toBe("http://localhost:3100/api/agents/11111111-1111-4111-8111-111111111111/wakeup");
   });
 
-  it("fails when a board prompt uses an agent persona profile", async () => {
+  it("fails when a operator prompt uses an agent persona profile", async () => {
     const contextPath = createTempContextPath();
     writeContext(
       {
@@ -109,7 +109,7 @@ describe("prompt handoff", () => {
         profiles: {
           agent: {
             apiBase: "http://localhost:3100",
-            companyId: "22222222-2222-4222-8222-222222222222",
+            spaceId: "22222222-2222-4222-8222-222222222222",
             persona: "agent",
             agentId: "11111111-1111-4111-8111-111111111111",
           },
@@ -120,17 +120,17 @@ describe("prompt handoff", () => {
 
     await expect(runBoardPrompt("worker", "Do the work", {
       context: contextPath,
-      apiKey: "board-token",
+      apiKey: "operator-token",
     })).rejects.toThrow(/persona=agent/);
   });
 
-  it("creates an assigned issue and wakes the target agent with board auth", async () => {
+  it("creates an assigned issue and wakes the target agent with operator auth", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(agent()), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         id: "issue-1",
-        companyId: "22222222-2222-4222-8222-222222222222",
+        spaceId: "22222222-2222-4222-8222-222222222222",
         title: "Investigate queue lag",
         status: "todo",
         priority: "medium",
@@ -141,19 +141,19 @@ describe("prompt handoff", () => {
 
     const result = await runBoardPrompt("worker", "Investigate queue lag", {
       apiBase: "http://localhost:3100",
-      apiKey: "board-token",
-      companyId: "22222222-2222-4222-8222-222222222222",
+      apiKey: "operator-token",
+      spaceId: "22222222-2222-4222-8222-222222222222",
     });
 
-    expect(result.actor).toBe("board");
+    expect(result.actor).toBe("operator");
     expect(result.mode).toBe("issue");
     expect(result.agent.id).toBe("11111111-1111-4111-8111-111111111111");
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "http://localhost:3100/api/agents/worker?companyId=22222222-2222-4222-8222-222222222222",
+      "http://localhost:3100/api/agents/worker?spaceId=22222222-2222-4222-8222-222222222222",
     );
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
-      "http://localhost:3100/api/companies/22222222-2222-4222-8222-222222222222/issues",
+      "http://localhost:3100/api/spaces/22222222-2222-4222-8222-222222222222/issues",
     );
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toMatchObject({
       assigneeAgentId: "11111111-1111-4111-8111-111111111111",
@@ -165,7 +165,7 @@ describe("prompt handoff", () => {
     );
   });
 
-  it("adds a board-authored prompt comment without waking when disabled", async () => {
+  it("adds a operator-authored prompt comment without waking when disabled", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(agent()), { status: 200 }))
@@ -178,13 +178,13 @@ describe("prompt handoff", () => {
 
     const result = await runBoardPrompt("worker", "Follow up on queue lag", {
       apiBase: "http://localhost:3100",
-      apiKey: "board-token",
-      companyId: "22222222-2222-4222-8222-222222222222",
+      apiKey: "operator-token",
+      spaceId: "22222222-2222-4222-8222-222222222222",
       issue: "issue-1",
       wake: false,
     });
 
-    expect(result.actor).toBe("board");
+    expect(result.actor).toBe("operator");
     expect(result.mode).toBe("comment");
     expect(result.wakeup).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(2);

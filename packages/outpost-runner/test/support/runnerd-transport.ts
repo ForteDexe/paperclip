@@ -23,7 +23,7 @@ export async function expectTurnStarted(
     expect(next.done).not.toBe(true);
     if (next.value.method === "turn/started") return;
     // Startup ownership and capability facts can precede the active turn.
-    expect(next.value.method).toBe("paperclip/canonicalProviderEvent");
+    expect(next.value.method).toBe("outpost/canonicalProviderEvent");
   }
   throw new Error(
     "provider turn did not start within the bounded notification prefix",
@@ -67,7 +67,7 @@ export function assignedRuntimeContext(
     },
     skills: [
       {
-        key: "company/assigned",
+        key: "space/assigned",
         runtimeName: "assigned",
         versionId: "version-1",
         bundle: {

@@ -13,7 +13,7 @@ function persistedEventsFor(
   return localIntegrityEventsFor(profile).map((orpEvent) => {
     return {
       id: orpEvent.sourceSeq,
-      companyId: "73000000-0000-4000-8000-000000000001",
+      spaceId: "73000000-0000-4000-8000-000000000001",
       runId: profile.runId,
       agentId: "73000000-0000-4000-8000-000000000201",
       seq: orpEvent.sourceSeq,

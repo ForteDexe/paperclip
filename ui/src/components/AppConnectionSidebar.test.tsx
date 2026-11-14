@@ -38,9 +38,9 @@ vi.mock("@/lib/router", () => ({
   ),
 }));
 
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({
-    selectedCompanyId: "company-1",
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({
+    selectedSpaceId: "space-1",
   }),
 }));
 
@@ -216,11 +216,11 @@ describe("AppConnectionSidebar", () => {
     expect(mockToolsApi.listAppsAttention).not.toHaveBeenCalled();
     expect(container.textContent).toContain("Review 3");
     mockToolsApi.getConnectionReviewCounts.mockResolvedValue({ pendingActionRequestCount: 0, quarantinedCatalogEntryCount: 0 });
-    await act(async () => { await client.invalidateQueries({ queryKey: queryKeys.apps.attention("company-1") }); });
+    await act(async () => { await client.invalidateQueries({ queryKey: queryKeys.apps.attention("space-1") }); });
     await flushReact();
     expect(container.textContent).not.toContain("Review 3");
-    expect(client.getQueryData(queryKeys.apps.connectionReviewCounts("company-1", "conn-1"))).toEqual({ pendingActionRequestCount: 0, quarantinedCatalogEntryCount: 0 });
-    expect(client.getQueryData(queryKeys.apps.connectionReviewCounts("company-1", "other"))).toBeUndefined();
+    expect(client.getQueryData(queryKeys.apps.connectionReviewCounts("space-1", "conn-1"))).toEqual({ pendingActionRequestCount: 0, quarantinedCatalogEntryCount: 0 });
+    expect(client.getQueryData(queryKeys.apps.connectionReviewCounts("space-1", "other"))).toBeUndefined();
   });
 
   it.each([AppDetailSidebar, ProductionAppDetailSidebar])("waits for connection identity before polling", async (Sidebar) => {
@@ -333,7 +333,7 @@ describe("AppConnectionSidebar", () => {
     expect(sidebarNavItemMock).not.toHaveBeenCalledWith(expect.objectContaining({ label: "Advanced" }));
     expect(sidebarNavItemMock).not.toHaveBeenCalledWith(expect.objectContaining({ label: "Setup" }));
     expect(container.querySelector('[data-to="/apps/app/app-1/review"]')?.getAttribute("data-active")).toBe("true");
-    // Testing is part of Permissions and Activity lives in the company Audit feed.
+    // Testing is part of Permissions and Activity lives in the space Audit feed.
     expect(container.querySelector('[data-to="/apps/app/app-1/test"]')).toBeNull();
     expect(container.querySelectorAll("[data-to]").length).toBe(2);
   });

@@ -29,7 +29,7 @@
     "safeUrl": { "type": ["string", "null"], "maxLength": 8192, "pattern": "^https?://" },
     "plan": {
       "type": "object",
-      "description": "A complete provider-authored within-turn checklist snapshot. Consumers replace the prior snapshot with the same planId in ORP sourceSeq order; this is not Paperclip's durable Plan document.",
+      "description": "A complete provider-authored within-turn checklist snapshot. Consumers replace the prior snapshot with the same planId in ORP sourceSeq order; this is not Outpost's durable Plan document.",
       "required": ["schema", "planId", "revision", "steps", "complete", "syncStatus"],
       "properties": {
         "schema": { "const": "outpost.plan.updated.v1" },
@@ -45,7 +45,7 @@
     },
     "planProposal": {
       "type": "object",
-      "description": "A provider-authored proposed plan document awaiting human approval (Codex plan item, Claude ExitPlanMode). Paperclip may synchronize a completed proposal into the issue's durable Plan document; it is distinct from the within-turn plan.updated checklist.",
+      "description": "A provider-authored proposed plan document awaiting human approval (Codex plan item, Claude ExitPlanMode). Outpost may synchronize a completed proposal into the issue's durable Plan document; it is distinct from the within-turn plan.updated checklist.",
       "required": ["schema", "proposalId", "status", "markdown", "source"],
       "properties": {
         "schema": { "const": "outpost.plan.proposed.v1" },

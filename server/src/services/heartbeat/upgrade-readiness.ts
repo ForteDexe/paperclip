@@ -34,8 +34,8 @@ export async function readUpgradeReadiness(db: Db, input: {
   const owner = await currentNativeControllerIdentity();
   const rows = await db.transaction(async tx => {
     await tx.execute(sql`set local statement_timeout = '2s'`);
-    return tx.execute<Candidate & { companyId: string; issueId: string; runnerId: string; sessionId: string; workspace: unknown; remoteWorkspace: unknown; hasRemoteWorkspace: boolean; hasResult: boolean; pluginLeaseId: string | null; material: Record<string, unknown> | null }>(sql`
-    select r.id, r.company_id as "companyId", r.native_issue_id as "issueId",
+    return tx.execute<Candidate & { spaceId: string; issueId: string; runnerId: string; sessionId: string; workspace: unknown; remoteWorkspace: unknown; hasRemoteWorkspace: boolean; hasResult: boolean; pluginLeaseId: string | null; material: Record<string, unknown> | null }>(sql`
+    select r.id, r.space_id as "spaceId", r.native_issue_id as "issueId",
       r.runner_instance_id as "runnerId", r.native_session_id as "sessionId",
       r.runner_profile_json->'nativeWorkspaceSync' as workspace,
       r.runner_profile_json->'remoteWorkspace' as "remoteWorkspace",
@@ -72,15 +72,15 @@ export async function readUpgradeReadiness(db: Db, input: {
           and f.phase = 'observed' and f.result_id is null and f.failure_code is null)
         or (r.runtime_mode = 'legacy' and r.execution_stage = 'preparing' and r.controller_boot_id is not null))
       and not exists (select 1 from heartbeat_run_events e
-        where e.company_id = r.company_id and e.run_id = r.id and (e.source_event_id is not null
+        where e.space_id = r.space_id and e.run_id = r.id and (e.source_event_id is not null
           or e.event_type in ('adapter.invoke', ${PROCESS_START_REQUESTED}, ${PROCESS_IDENTITY_RECORDED}, 'tool.execution.started')))
     ) is true as restartable
-    from heartbeat_runs r join agents a on a.id = r.agent_id and a.company_id = r.company_id
-    left join native_run_finalizations f on f.run_id = r.id and f.company_id = r.company_id
-    left join native_runner_checkpoints c on c.run_id = r.id and c.company_id = r.company_id
+    from heartbeat_runs r join agents a on a.id = r.agent_id and a.space_id = r.space_id
+    left join native_run_finalizations f on f.run_id = r.id and f.space_id = r.space_id
+    left join native_runner_checkpoints c on c.run_id = r.id and c.space_id = r.space_id
       and c.issue_id = r.native_issue_id and c.part = 'header'
     left join lateral (select l.id from environment_leases l
-      where l.company_id = r.company_id and l.heartbeat_run_id = r.id and l.status = 'active'
+      where l.space_id = r.space_id and l.heartbeat_run_id = r.id and l.status = 'active'
         and l.issue_id = r.native_issue_id and l.metadata->>'agentId' = r.agent_id::text
         and l.released_at is null and l.cleanup_status is null
         and (l.expires_at is null or l.expires_at > clock_timestamp())
@@ -100,13 +100,13 @@ export async function readUpgradeReadiness(db: Db, input: {
       ? remote.success && !row.pluginLeaseId ? remote.data.workspaceId : null
       : row.pluginLeaseId ?? readNativeWorkspaceSyncReference(row.workspace)?.workspaceId;
     const identity = (row.recoverable || row.hasResult) && row.material
-      ? inspectNativeRunnerUpgradeHeader({ companyId: row.companyId, issueId: row.issueId, runId: row.id }, row.material) : null;
+      ? inspectNativeRunnerUpgradeHeader({ spaceId: row.spaceId, issueId: row.issueId, runId: row.id }, row.material) : null;
     const bound = Boolean(workspaceId && identity && identity.runId === row.id
       && identity.runnerInstanceId === row.runnerId && identity.normalizedSessionId === row.sessionId
       && identity.environmentLeaseId === workspaceId);
     const finalization = bound && row.hasResult && remote.success && !row.pluginLeaseId
       && performance.now() < inspectionDeadline
-      ? await readNativeFinalizationUpgradeReadiness(db, { companyId: row.companyId, runId: row.id,
+      ? await readNativeFinalizationUpgradeReadiness(db, { spaceId: row.spaceId, runId: row.id,
         controller: owner, supportedOutageMs: 300_000 }).catch(() => false) : false;
     candidates.push({ id: row.id, recoverable: bound && (row.recoverable || finalization),
       restartable: row.restartable === true, retainedUnowned: row.retainedUnowned });

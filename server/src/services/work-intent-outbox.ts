@@ -36,7 +36,7 @@ export type WorkIntentHoldTrigger = (typeof WORK_INTENT_HOLD_TRIGGERS)[number];
  * work (a disabled timer, no actionable work). */
 export const TEMPORARY_REFUSAL_TRIGGERS: Readonly<Record<string, WorkIntentHoldTrigger>> = {
   "budget.blocked": "pause_lifted",
-  "company.inactive": "pause_lifted",
+  "space.inactive": "pause_lifted",
   "agent.not_invokable": "pause_lifted",
   "issue_tree_hold_active": "tree_hold_released",
   "heartbeat.scheduling_suppressed": "scheduling_resumed",
@@ -61,22 +61,22 @@ const DEFERRED_RETRY_BACKOFF = sql`interval '30 seconds'`;
  * The one promotion path for deferred work intents. Call it inside a
  * transaction, normally the one that releases a hold (accounting settled, a lock released, a
  * pause lifted). It wakes queued-run dispatch, the saved-receipt worker and
- * stranded-work recovery for the company, and hints each saved intent of the
+ * stranded-work recovery for the space, and hints each saved intent of the
  * issue by id. All notifications publish on commit.
  */
 export async function promoteDeferredWorkIntents(tx: object, input: {
-  companyId: string; trigger: WorkIntentHoldTrigger; issueId?: string | null;
+  spaceId: string; trigger: WorkIntentHoldTrigger; issueId?: string | null;
 }) {
   // Register the work signals before the write they announce.
-  await notifyRunDispatch(tx, { companyId: input.companyId });
-  await notifyDeferredExecutionEligibility(tx, { companyId: input.companyId });
-  await notifyIssueRecovery(tx, { companyId: input.companyId });
-  if (input.issueId) await notifyDeferredWakesForIssue(tx, { companyId: input.companyId, issueId: input.issueId });
+  await notifyRunDispatch(tx, { spaceId: input.spaceId });
+  await notifyDeferredExecutionEligibility(tx, { spaceId: input.spaceId });
+  await notifyIssueRecovery(tx, { spaceId: input.spaceId });
+  if (input.issueId) await notifyDeferredWakesForIssue(tx, { spaceId: input.spaceId, issueId: input.issueId });
   const db = tx as Pick<Db, "update">;
   await db.update(agentWakeupRequests).set({
     updatedAt: sql`least(${agentWakeupRequests.updatedAt}, now() - ${DEFERRED_RETRY_BACKOFF})`,
   }).where(and(
-    eq(agentWakeupRequests.companyId, input.companyId),
+    eq(agentWakeupRequests.spaceId, input.spaceId),
     eq(agentWakeupRequests.status, "deferred_issue_execution"),
     sql`${agentWakeupRequests.payload}->'executionWait' is not null`,
     sql`${agentWakeupRequests.updatedAt} > now() - ${DEFERRED_RETRY_BACKOFF}`,
@@ -84,14 +84,14 @@ export async function promoteDeferredWorkIntents(tx: object, input: {
   ));
 }
 
-const DEFERRED_WAKE_CONTEXT_KEY = "_paperclipWakeContext";
+const DEFERRED_WAKE_CONTEXT_KEY = "_outpostWakeContext";
 
 /** SQL: the latest recorded `done` transition of the task was not made by a
  * person. A task a person closed (or with no recorded close) is never
  * reopened for an earlier message. */
-export function taskClosedByAgentSql(companyId: unknown, issueId: unknown) {
+export function taskClosedByAgentSql(spaceId: unknown, issueId: unknown) {
   return sql`coalesce((select closed.actor_type from activity_log closed
-    where closed.company_id = ${companyId} and closed.entity_type = 'issue' and closed.entity_id = ${issueId}::text
+    where closed.space_id = ${spaceId} and closed.entity_type = 'issue' and closed.entity_id = ${issueId}::text
       and closed.action = 'issue.updated'
       and (closed.details->>'toStatus' = 'done' or closed.details->>'status' = 'done')
     order by closed.created_at desc limit 1), 'user') <> 'user'`;
@@ -114,7 +114,7 @@ export function taskClosedByAgentSql(companyId: unknown, issueId: unknown) {
  * own comments never qualify.
  */
 export async function saveUndeliveredUserComments(db: Db, input: {
-  companyId: string; issueId: string; agentId: string; commentIds: string[];
+  spaceId: string; issueId: string; agentId: string; commentIds: string[];
   allowedStatuses: readonly string[]; requestedByActorId?: string | null;
   source?: string | null; triggerDetail?: string | null;
   /** Names why the receipt waits and what promotes it. */
@@ -127,13 +127,13 @@ export async function saveUndeliveredUserComments(db: Db, input: {
   const savedId = await db.transaction(async tx => {
     const [issue] = await tx.select({ status: issues.status, assigneeAgentId: issues.assigneeAgentId,
       conversationAgentId: issues.conversationAgentId }).from(issues)
-      .where(and(eq(issues.companyId, input.companyId), eq(issues.id, input.issueId))).for("update");
+      .where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, input.issueId))).for("update");
     // A reassigned or cancelled task ends the intent; a conversation keeps
     // its own inbound authorization path.
     if (!issue || issue.assigneeAgentId !== input.agentId || issue.conversationAgentId ||
         !input.allowedStatuses.includes(issue.status)) return null;
     if (issue.status === "done") {
-      const [closed] = await tx.execute<{ byAgent: boolean }>(sql`select ${taskClosedByAgentSql(input.companyId, input.issueId)} as "byAgent"`);
+      const [closed] = await tx.execute<{ byAgent: boolean }>(sql`select ${taskClosedByAgentSql(input.spaceId, input.issueId)} as "byAgent"`);
       if (closed?.byAgent !== true) return null;
     }
     const resumeIds = input.explicitResumeCommentIds?.filter(id => input.commentIds.includes(id)) ?? [];
@@ -141,11 +141,11 @@ export async function saveUndeliveredUserComments(db: Db, input: {
     const human = and(isNotNull(issueComments.authorUserId), isNull(issueComments.authorAgentId), isNull(issueComments.createdByRunId));
     const live = await tx.select({ id: issueComments.id, authorUserId: issueComments.authorUserId,
       authorAgentId: issueComments.authorAgentId }).from(issueComments).where(and(
-      eq(issueComments.companyId, input.companyId), eq(issueComments.issueId, input.issueId),
+      eq(issueComments.spaceId, input.spaceId), eq(issueComments.issueId, input.issueId),
       inArray(issueComments.id, input.commentIds), isNull(issueComments.deletedAt),
       resumeIds.length ? or(human, and(inArray(issueComments.id, resumeIds), isNotNull(issueComments.authorAgentId),
         ne(issueComments.authorAgentId, input.agentId))) : human));
-    const delivered = await deliveredQueuedCommentIds(tx as unknown as Db, { companyId: input.companyId,
+    const delivered = await deliveredQueuedCommentIds(tx as unknown as Db, { spaceId: input.spaceId,
       issueId: input.issueId, agentId: input.agentId, commentIds: live.map(row => row.id) });
     const remaining = input.commentIds.filter(id => live.some(row => row.id === id) && !delivered.has(id));
     if (remaining.length === 0) return null;
@@ -153,10 +153,10 @@ export async function saveUndeliveredUserComments(db: Db, input: {
     const resumingAgentId = live.find(row => row.id === latest)?.authorAgentId ?? null;
     const agentResume = resumingAgentId !== null && remaining.every(id => live.find(row => row.id === id)?.authorAgentId);
     const resumeIntent = agentResume ? { resumeIntent: true, followUpRequested: true } : {};
-    await notifyDeferredExecutionWork(tx, { companyId: input.companyId });
-    await notifyDeferredWakesForIssue(tx, { companyId: input.companyId, issueId: input.issueId });
+    await notifyDeferredExecutionWork(tx, { spaceId: input.spaceId });
+    await notifyDeferredWakesForIssue(tx, { spaceId: input.spaceId, issueId: input.issueId });
     const [saved] = await tx.insert(agentWakeupRequests).values({
-      companyId: input.companyId, agentId: input.agentId, source: input.source ?? "automation",
+      spaceId: input.spaceId, agentId: input.agentId, source: input.source ?? "automation",
       triggerDetail: input.triggerDetail ?? "system", reason: "issue_commented", status: "deferred_issue_execution",
       requestedByActorType: agentResume ? "agent" : "user",
       requestedByActorId: agentResume ? resumingAgentId : input.requestedByActorId
@@ -169,10 +169,10 @@ export async function saveUndeliveredUserComments(db: Db, input: {
     }).returning({ id: agentWakeupRequests.id });
     if (saved && issue.status === "done" && input.reopenAgentClosedDone) {
       const { issueService } = await import("./issues.js");
-      const updated = await issueService(tx as unknown as Db).updateForCompany(input.issueId, input.companyId,
+      const updated = await issueService(tx as unknown as Db).updateForSpace(input.issueId, input.spaceId,
         { status: "todo", executionState: null }, tx);
       if (!updated) throw new Error("undelivered_comment_task_changed");
-      publication = (await persistActivity(tx as unknown as Db, { companyId: input.companyId, actorType: "system",
+      publication = (await persistActivity(tx as unknown as Db, { spaceId: input.spaceId, actorType: "system",
         actorId: "ownership-reconciler", agentId: input.agentId, action: "issue.updated", entityType: "issue",
         entityId: input.issueId,
         details: { status: "todo", reopened: true, reopenedFrom: "done", source: "undelivered_comment_backstop" } })).publication;

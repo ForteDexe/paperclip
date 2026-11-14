@@ -194,20 +194,20 @@ export function extractExternalObjectCanonicalUrls(
 }
 
 export function buildExternalObjectScopedIdentityKey(args: {
-  companyId: string;
+  spaceId: string;
   providerKey: string;
   objectType: string;
   canonicalIdentityHash: string;
 }): string {
-  return [args.companyId, args.providerKey, args.objectType, args.canonicalIdentityHash].join(":");
+  return [args.spaceId, args.providerKey, args.objectType, args.canonicalIdentityHash].join(":");
 }
 
 export function buildExternalObjectMentionSourceKey(source: Required<Pick<
   ExternalObjectMentionSource,
-  "companyId" | "sourceIssueId" | "sourceKind"
+  "spaceId" | "sourceIssueId" | "sourceKind"
 >> & ExternalObjectMentionSource): string {
   return [
-    source.companyId,
+    source.spaceId,
     source.sourceIssueId,
     source.sourceKind,
     source.sourceRecordId ?? "",

@@ -3,13 +3,13 @@
   "state": {
     "issue": {
       "id": "issue",
-      "companyId": "company",
+      "spaceId": "space",
       "status": "in_progress"
     },
     "runs": [
       {
         "id": "run",
-        "companyId": "company",
+        "spaceId": "space",
         "nativeIssueId": "issue",
         "runtimeMode": "native",
         "status": "running",
@@ -20,7 +20,7 @@
     "interactions": [
       {
         "id": "interaction",
-        "companyId": "company",
+        "spaceId": "space",
         "issueId": "issue",
         "kind": "ask_user_questions",
         "status": "pending",
@@ -44,7 +44,7 @@
               "allowOther": true,
               "options": [
                 {
-                  "id": "paperclip_text_answer",
+                  "id": "outpost_text_answer",
                   "label": "Pi native restart",
                   "description": "Expected text input",
                   "freeText": true
@@ -76,7 +76,7 @@
   },
   "events": [
     {
-      "companyId": "company",
+      "spaceId": "space",
       "runId": "run",
       "seq": 25,
       "protocolSchemaVersion": 1,
@@ -99,7 +99,7 @@
       }
     },
     {
-      "companyId": "company",
+      "spaceId": "space",
       "runId": "run",
       "seq": 28,
       "protocolSchemaVersion": 1,
@@ -123,7 +123,7 @@
       }
     },
     {
-      "companyId": "company",
+      "spaceId": "space",
       "runId": "run",
       "seq": 222,
       "protocolSchemaVersion": 1,

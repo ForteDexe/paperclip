@@ -14,7 +14,7 @@
       "baselineSha256": "d798cd0859ca363ae3be33c607f10b4755420d77d796824d1ee9570d0f7a253c"
     },
     {
-      "path": "server/src/services/native-runtime/paperclip-control-plane-port.ts",
+      "path": "server/src/services/native-runtime/outpost-control-plane-port.ts",
       "candidateSha256": "b9143eea07733b67eab80e7e000cf1018202b047c755c47533a6679b67d57c51",
       "baselineSha256": "a1f807c5d8fbdcb30e966ebf8a4789974f6a8a7086a0056d9351da6e9817e5f2"
     },
@@ -69,7 +69,7 @@
   "profiles": {
     "steady": {
       "schema": "outpost.normal-recovery-load/v1",
-      "scope": "Paired baseline/candidate, including real PaperclipControlPlanePort snapshot persistence on every control checkpoint. Database/control-plane component stress; real production checkpoint writer and natural remote lease timers. Same synthetic DB request load. Not full HTTP, harness or hosted capacity qualification.",
+      "scope": "Paired baseline/candidate, including real OutpostControlPlanePort snapshot persistence on every control checkpoint. Database/control-plane component stress; real production checkpoint writer and natural remote lease timers. Same synthetic DB request load. Not full HTTP, harness or hosted capacity qualification.",
       "hardware": {
         "postgresCpuLimit": 2,
         "postgresMemoryLimitMiB": 1536,
@@ -271,7 +271,7 @@
                   "max": 0
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 0,
                 "observedLowerMs": {
                   "n": 0,
@@ -480,7 +480,7 @@
                   "max": 0
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 0,
                 "observedLowerMs": {
                   "n": 0,
@@ -689,7 +689,7 @@
                   "max": 0
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 0,
                 "observedLowerMs": {
                   "n": 0,
@@ -898,7 +898,7 @@
                   "max": 0
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 0,
                 "observedLowerMs": {
                   "n": 0,
@@ -962,7 +962,7 @@
     },
     "burst": {
       "schema": "outpost.normal-recovery-load/v1",
-      "scope": "Paired baseline/candidate, including real PaperclipControlPlanePort snapshot persistence on every control checkpoint. Database/control-plane component stress; real production checkpoint writer and natural remote lease timers. Same synthetic DB request load. Not full HTTP, harness or hosted capacity qualification.",
+      "scope": "Paired baseline/candidate, including real OutpostControlPlanePort snapshot persistence on every control checkpoint. Database/control-plane component stress; real production checkpoint writer and natural remote lease timers. Same synthetic DB request load. Not full HTTP, harness or hosted capacity qualification.",
       "hardware": {
         "postgresCpuLimit": 2,
         "postgresMemoryLimitMiB": 1536,
@@ -1164,7 +1164,7 @@
                   "max": 0
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 0,
                 "observedLowerMs": {
                   "n": 0,
@@ -1373,7 +1373,7 @@
                   "max": 0
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 0,
                 "observedLowerMs": {
                   "n": 0,
@@ -1582,7 +1582,7 @@
                   "max": 26.656120999978157
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 0,
                 "observedLowerMs": {
                   "n": 0,
@@ -1791,7 +1791,7 @@
                   "max": 0
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 1,
                 "observedLowerMs": {
                   "n": 1,
@@ -1855,7 +1855,7 @@
     },
     "overlap-burst": {
       "schema": "outpost.normal-recovery-load/v1",
-      "scope": "Two logical servers in one client process, 150 controllers each, separate request/liveness/checkpoint pools at unchanged caps; same aggregate aligned-burst workload. Component overlap capacity only; no takeover latency or provider reattachment claim. Includes real PaperclipControlPlanePort snapshot persistence on every control checkpoint. Database/control-plane component stress; real production checkpoint writer and natural remote lease timers. Same synthetic DB request load. Not full HTTP, harness or hosted capacity qualification.",
+      "scope": "Two logical servers in one client process, 150 controllers each, separate request/liveness/checkpoint pools at unchanged caps; same aggregate aligned-burst workload. Component overlap capacity only; no takeover latency or provider reattachment claim. Includes real OutpostControlPlanePort snapshot persistence on every control checkpoint. Database/control-plane component stress; real production checkpoint writer and natural remote lease timers. Same synthetic DB request load. Not full HTTP, harness or hosted capacity qualification.",
       "hardware": {
         "logicalServers": 2,
         "postgresCpuLimit": 2,
@@ -2099,7 +2099,7 @@
                   "max": 77.9257440000074
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 4,
                 "observedLowerMs": {
                   "n": 4,
@@ -2163,7 +2163,7 @@
     },
     "overlap-abba": {
       "schema": "outpost.normal-recovery-load/v1",
-      "scope": "Two logical servers in one client process, 150 controllers each, separate request/liveness/checkpoint pools at unchanged caps; same aggregate aligned-burst workload. Matched baseline/candidate ABBA pool-overlap component qualification; no takeover latency or provider reattachment claim. Includes real PaperclipControlPlanePort snapshot persistence on every control checkpoint. Database/control-plane component stress; real production checkpoint writer and natural remote lease timers. Same synthetic DB request load. Not full HTTP, harness or hosted capacity qualification.",
+      "scope": "Two logical servers in one client process, 150 controllers each, separate request/liveness/checkpoint pools at unchanged caps; same aggregate aligned-burst workload. Matched baseline/candidate ABBA pool-overlap component qualification; no takeover latency or provider reattachment claim. Includes real OutpostControlPlanePort snapshot persistence on every control checkpoint. Database/control-plane component stress; real production checkpoint writer and natural remote lease timers. Same synthetic DB request load. Not full HTTP, harness or hosted capacity qualification.",
       "hardware": {
         "logicalServers": 2,
         "postgresCpuLimit": 2,
@@ -2434,7 +2434,7 @@
                   "max": 0
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 0,
                 "observedLowerMs": {
                   "n": 0,
@@ -2702,7 +2702,7 @@
                   "max": 25.092009999993024
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 0,
                 "observedLowerMs": {
                   "n": 0,
@@ -2970,7 +2970,7 @@
                   "max": 59.07080300000962
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 4,
                 "observedLowerMs": {
                   "n": 4,
@@ -3238,7 +3238,7 @@
                   "max": 0
                 }
               },
-              "paperclip-controller-lease": {
+              "outpost-controller-lease": {
                 "observedEpisodes": 0,
                 "observedLowerMs": {
                   "n": 0,
@@ -3325,7 +3325,7 @@
             "max": 0
           }
         },
-        "paperclip-controller-lease": {
+        "outpost-controller-lease": {
           "observedEpisodes": 0,
           "observedLowerMs": {
             "n": 0,
@@ -3504,7 +3504,7 @@
             "max": 0
           }
         },
-        "paperclip-controller-lease": {
+        "outpost-controller-lease": {
           "observedEpisodes": 0,
           "observedLowerMs": {
             "n": 0,

@@ -8,12 +8,12 @@ import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 
-const home = await mkdtemp(resolve(tmpdir(), "paperclip-speko-native-"));
+const home = await mkdtemp(resolve(tmpdir(), "outpost-speko-native-"));
 const port = Number(process.env.SPEKO_NATIVE_PORT ?? 3449);
 const origin = `http://127.0.0.1:${port}`;
 const callbackOrigin = process.env.SPEKO_NATIVE_CALLBACK_ORIGIN;
 if (!callbackOrigin || new URL(callbackOrigin).protocol !== "https:") throw new Error("Explicit HTTPS callback origin required");
-// Set isolation before importing anything that reads Paperclip configuration.
+// Set isolation before importing anything that reads Outpost configuration.
 Object.assign(process.env, {
   NODE_ENV: "test", OUTPOST_HOME: home, OUTPOST_INSTANCE_ID: "speko-native-acceptance",
   OUTPOST_CONFIG: resolve(home, "config.json"), OUTPOST_DISABLE_CWD_ENV_FILE: "true",
@@ -32,7 +32,7 @@ delete process.env.OUTPOST_IN_WORKTREE;
 delete process.env.OUTPOST_MANAGED_CONFIG;
 await mkdir(resolve(home, "storage"));
 const { startEmbeddedPostgresTestDatabase, applyPendingMigrations } = await import("../../packages/db/src/index.js");
-const database = await startEmbeddedPostgresTestDatabase("paperclip-speko-native-db-");
+const database = await startEmbeddedPostgresTestDatabase("outpost-speko-native-db-");
 const { spawn } = await import("node:child_process");
 // The supervisor owns the temporary database. Restarting app code preserves
 // calls, credentials and delivery receipts so recovery can be qualified.

@@ -115,7 +115,7 @@ it.skipIf(!tar || !hasZstd)("stages a complete layered pack into a fresh nested 
   const remote = await runner(root);
   const workspace = path.join(root, "workspace");
   await fs.mkdir(workspace);
-  const targetPath = path.join(workspace, ".paperclip-runtime", "outpost-runner", "provider-pack");
+  const targetPath = path.join(workspace, ".outpost-runtime", "outpost-runner", "provider-pack");
   await expect(fs.lstat(path.dirname(targetPath))).rejects.toMatchObject({ code: "ENOENT" });
   expect(await stageProviderPackArchive({ archive, runner: remote, targetPath, reuseRoots: [pack] })).toBe(true);
   expect(await fs.readFile(path.join(targetPath, "bin/large"))).toEqual(await fs.readFile(path.join(pack, "bin/large")));

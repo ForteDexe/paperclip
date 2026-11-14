@@ -80,7 +80,7 @@ operational retry. Real required/optional regressions and controlled coarse-hint
 negatives fail before repair and pass afterward without changing time limits.
 
 Historical discovery measurements in the audit retain their original revision:
-10,000 selected-history tasks return no company candidates in about 35 ms;
+10,000 selected-history tasks return no space candidates in about 35 ms;
 10,000 real candidates require 101 queries and about 1.56 seconds to discover.
 This is discovery cost, not complete backlog execution. The current worker still
 retains candidates in memory proportional to backlog size. Its permanent

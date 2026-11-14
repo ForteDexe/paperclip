@@ -44,7 +44,7 @@
     "packages/outpost-runner/src/drivers/acpx/pi-acp-runtime.ts": "ff9aa9773d17351ba5fe01274f64ef0a9845a33e91820d539c3f7674cd5b426b",
     "packages/outpost-runner/src/drivers/acpx/pi-runtime-extension.ts": "d30c99fbb46baa335034f2faf105decef9624a84cda8b0db373a008e435962c7",
     "outpost.js": "d479d4f510295077b8904645e161a527531233a688760a80cca8db9ae01f3b02",
-    "paperclip-runtime.js": "2df24aee67ca6a5cc813e1f87324f51a72f6a104757daed97a09cbbcb63626d4",
+    "outpost-runtime.js": "2df24aee67ca6a5cc813e1f87324f51a72f6a104757daed97a09cbbcb63626d4",
     "packages/outpost-runner/src/backends/runtime-context.ts": "e7c46e81cc9c93f9a4f805b5091ef08c59ea70c62f208cfda70d6edeed363898",
     "packages/outpost-runner/src/contracts/runtime-context.ts": "a17e30a69f3cb38fba00c37e1a06753d723651a004e6050c9e77ae202a61264b"
   },

@@ -280,7 +280,7 @@ index 861fc88..da53821 100644
     */
    entries?: AcpRuntimePlanEntry[];
 +  /**
-+   * Paperclip patch: the ACP update's `_meta`, forwarded unvalidated.
++   * Outpost patch: the ACP update's `_meta`, forwarded unvalidated.
 +   * Producer-controlled; consumers must bound and allowlist it.
 +   */
 +  _meta?: Record<string, unknown>;
@@ -292,7 +292,7 @@ index 861fc88..da53821 100644
    rawOutput?: unknown;
    content?: ToolCallContent[];
 +  /**
-+   * Paperclip patch: the ACP update's `_meta`, forwarded unvalidated.
++   * Outpost patch: the ACP update's `_meta`, forwarded unvalidated.
 +   * Producer-controlled; consumers must bound and allowlist it.
 +   */
 +  _meta?: Record<string, unknown>;

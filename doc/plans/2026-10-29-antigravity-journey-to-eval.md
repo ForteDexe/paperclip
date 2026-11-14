@@ -3,7 +3,7 @@
 This is the conversion contract for the recorded user walkthrough, not a runtime
 manifest. The runnable contract and commands live in
 [Antigravity agent journey](../../tests/runner-e2e/ANTIGRAVITY-AGENT-JOURNEY.md).
-Raw recordings and concrete account, company, agent, task, attachment and native
+Raw recordings and concrete account, space, agent, task, attachment and native
 session bindings remain in private evidence. The aliases and hashes below locate
 that evidence without publishing an authenticated screenshot report.
 
@@ -18,7 +18,7 @@ that file, returns to Done, and survives reload.
 - Profile: `runner-antigravity`; case: `saved-subscription-two-turn`.
 - Execution ID:
   `antigravity-agent-journey.runner-antigravity.local.saved-subscription-two-turn`.
-- Entry: the selected existing company's dashboard as its board operator.
+- Entry: the selected existing space's dashboard as its board operator.
 - Measured creation: a fresh additional agent and one task with two work turns.
 - Excluded: fresh Google signup/consent, API keys, gateways, other models,
   permission/question/Stop interactions, controller or provider loss, remote
@@ -96,11 +96,11 @@ names agent execution, not whether the application is Cloud-hosted.
 | --- | --- | --- | --- |
 | Attached self-hosted development target, same-host loopback local macOS ARM64, saved personal Google subscription, exact low model | Applicable with trusted candidate admission, account reuse and native lifecycle capabilities | Selected explicit cell | A+B exploratory live pass on native .5; converted fixed-driver acceptance is a separate attempt |
 | Compatible self-hosted staging target with the same local runner capabilities | Same user promise; revision, auth and target prerequisites differ | Remote observer/setup adapter gap; current observer requires same-host loopback | Not run; missing fixture is not an unsupported-product claim |
-| Paperclip Cloud with an admitted local macOS ARM64 execution target and equivalent account route | Conditional applicability; actual service/target capabilities must be established | Current config restricts hosting to self-hosted; Cloud adapter gap | Not run; no Cloud qualification |
+| Outpost Cloud with an admitted local macOS ARM64 execution target and equivalent account route | Conditional applicability; actual service/target capabilities must be established | Current config restricts hosting to self-hosted; Cloud adapter gap | Not run; no Cloud qualification |
 | Linux, macOS x64, Daytona or another remote target | Current native closure/admission unavailable for this case | Excluded from current execution cell | No platform/remote proof |
 | Fresh OAuth, API key or gateway | Meaningfully different authentication/setup variant | Excluded from saved-subscription case | No fresh-auth proof |
 
-Required prerequisites are an attached, exclusively assigned test company and
+Required prerequisites are an attached, exclusively assigned test space and
 local environment, exact expected serving revision and deployment mode, a
 dedicated signed-in browser profile, and a current trusted operator candidate
 admission. Admission remains a server-startup responsibility. Agent configuration,
@@ -113,14 +113,14 @@ native process retirement through kernel birth identities and all three public
 checkpoint lifetime fences. It has no managed-local bootstrap adapter; existing
 workspace ownership establishes the test drive before non-paying preflight. The
 roster must already contain a nonterminated agent to exercise the additional-agent
-entry rather than first-company onboarding.
+entry rather than first-space onboarding.
 
 | Dependency alias | Consumer / phase | Requirement and delivery | Ownership / cleanup |
 | --- | --- | --- | --- |
-| `browser-operator` | Browser driver; prerequisite | Existing company member with board agent creation/configuration, instructions, task and connection-use rights; dedicated signed-in QA profile | Supplied user/profile retained; exclusive profile lock |
+| `browser-operator` | Browser driver; prerequisite | Existing space member with board agent creation/configuration, instructions, task and connection-use rights; dedicated signed-in QA profile | Supplied user/profile retained; exclusive profile lock |
 | `google-subscription-owner` | Browser user and connection; prerequisite | Same user as browser identity; existing personal Google subscription and personal default grant, exact private connection binding | Shared saved credential/grant retained; no default change or revocation |
 | `product-model-account` | Newly created product agent; measured binding | Existing connection selected through ordinary Google setup; normal managed credential delivery; exact low model | New agent owned by attempt; managed credential refresh remains product-owned |
-| `native-candidate-authority` | Attached server/native admission; prerequisite | Approved version/profile/closure/platform/company/model and finite expiry through trusted startup | Operator owns renewal; never copied into prompt or agent configuration |
+| `native-candidate-authority` | Attached server/native admission; prerequisite | Approved version/profile/closure/platform/space/model and finite expiry through trusted startup | Operator owns renewal; never copied into prompt or agent configuration |
 | `independent-observer` | Harness; observation | Same session's bounded authorized read APIs and owned-file download; local native evidence only where its declared target permits | Read-only; private evidence retained |
 
 Expected MCP connections: **none** for browser driver, product agent, observer or
@@ -141,7 +141,7 @@ fixture setup. Every one of the 47 numbered steps appears once below.
 
 | Source | Observed action/result | Phase / checkpoint | Disposition | Assertion / evidence |
 | --- | --- | --- | --- | --- |
-| A01 | Open test-drive root, initially loading | measured / dashboard | retain | Selected company dashboard is the entry |
+| A01 | Open test-drive root, initially loading | measured / dashboard | retain | Selected space dashboard is the entry |
 | A02 | Dashboard loads, Agents visible | measured / dashboard | observation | Bound loading wait; ordinary sidebar route |
 | A03 | Click Agents | measured / agent-roster | retain | Navigate through visible sidebar |
 | A04 | Roster has New Agent | measured / agent-roster | observation | Correct roster creation control visible |
@@ -192,7 +192,7 @@ fixture setup. Every one of the 47 numbered steps appears once below.
 ## Acceptance, ownership and execution bounds
 
 The observer is armed before each UI mutation and journals immutable owned
-agent/task/run/artifact IDs as they become available. It rejects a wrong company,
+agent/task/run/artifact IDs as they become available. It rejects a wrong space,
 agent, task/run, stale first artifact, empty file, missing proof, model mismatch,
 conversation mismatch, uncommitted completion, pending lease or uncertain
 retirement. Exact synthetic pass/fail/missing-evidence controls calibrate the same
@@ -226,13 +226,13 @@ fails the bound and remains in accounting. Measured token usage and missing
 prices survive packaging as unknown cost rather than free work. No recurrence
 is requested.
 
-Supplied company, environment, browser user, saved Google connection and default
+Supplied space, environment, browser user, saved Google connection and default
 grant are retained. The ordinary draft POST is forwarded unchanged only after
-its safe identity subset is durably journaled: future setup ID, company/name,
+its safe identity subset is durably journaled: future setup ID, space/name,
 origin, intended harness and preflight creator. Serialized private temp-file
 fsync, atomic rename and directory fsync keep later interruptions from truncating
 that identity. A lost response can be recovered only by exact-ID and creator
-readback with unique company/name binding; pending 404 stays unconfirmed. No
+readback with unique space/name binding; pending 404 stays unconfirmed. No
 historical source request is inferred or reconstructed from a later agent row.
 The new measured agent, task and any owned active work are journaled incrementally.
 Teardown cancels/stops only owned work, waits for

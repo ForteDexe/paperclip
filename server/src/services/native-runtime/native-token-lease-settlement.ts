@@ -37,9 +37,9 @@ const PREFIX: Record<NativeTokenLeaseKind, string> = {
 /** Wakes the ownership worker for a newly claimed token lease, so a quiet
  * worker (on any server) starts watching the holder. Call it in the claim's
  * transaction, before the write it announces. */
-export async function notifyNativeTokenLeaseClaimed(tx: object, scope: { companyId: string; runId: string }) {
+export async function notifyNativeTokenLeaseClaimed(tx: object, scope: { spaceId: string; runId: string }) {
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.ownershipInvariantReport,
-    JSON.stringify({ companyId: scope.companyId, runId: scope.runId }));
+    JSON.stringify({ spaceId: scope.spaceId, runId: scope.runId }));
 }
 
 /** The `lease_holder` value for a token-only lease claimed by this process. */
@@ -77,13 +77,13 @@ export async function settleNativeTokenLease(kind: NativeTokenLeaseKind, db: Db,
   return db.transaction(async transaction => {
     const tx = transaction as unknown as Db;
     const [row] = await tx.select({
-      runId: nativeRunFinalizations.runId, companyId: nativeRunFinalizations.companyId,
+      runId: nativeRunFinalizations.runId, spaceId: nativeRunFinalizations.spaceId,
       issueId: nativeRunFinalizations.issueId, decisionId: nativeRunFinalizations.decisionId,
       agentId: heartbeatRuns.agentId, leaseOwner: nativeRunFinalizations.leaseOwner,
       leaseHolder: nativeRunFinalizations.leaseHolder,
     }).from(nativeRunFinalizations)
       .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, nativeRunFinalizations.runId),
-        eq(heartbeatRuns.companyId, nativeRunFinalizations.companyId)))
+        eq(heartbeatRuns.spaceId, nativeRunFinalizations.spaceId)))
       .where(and(eq(nativeRunFinalizations.runId, record.recordId), like(nativeRunFinalizations.leaseOwner, `${PREFIX[kind]}%`),
         gt(nativeRunFinalizations.leaseExpiresAt, now)))
       .for("update", { of: nativeRunFinalizations });
@@ -96,10 +96,10 @@ export async function settleNativeTokenLease(kind: NativeTokenLeaseKind, db: Db,
     }
     // Work intents before the write they announce (sleep-aware background work).
     if (kind === "native_finalizer_lease") {
-      if (row.decisionId) await notifyNativeFinalizationWork(tx, { companyId: row.companyId, runId: row.runId });
-      else await notifyNativeResultCommit(tx, { companyId: row.companyId, runId: row.runId, issueId: row.issueId });
+      if (row.decisionId) await notifyNativeFinalizationWork(tx, { spaceId: row.spaceId, runId: row.runId });
+      else await notifyNativeResultCommit(tx, { spaceId: row.spaceId, runId: row.runId, issueId: row.issueId });
     } else {
-      await notifyRetainedNativeSessionCleanup(tx, { companyId: row.companyId, runId: row.runId,
+      await notifyRetainedNativeSessionCleanup(tx, { spaceId: row.spaceId, runId: row.runId,
         issueId: row.issueId, agentId: row.agentId });
     }
     const updated = await tx.update(nativeRunFinalizations).set({ leaseExpiresAt: now, updatedAt: now })

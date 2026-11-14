@@ -3,7 +3,7 @@
   "fixtureName": "Interrupted run",
   "identity": {
     "schema": "outpost.orp.identity.v1",
-    "companyId": "company_replay",
+    "spaceId": "space_replay",
     "issueId": "issue_replay_interrupted",
     "runId": "run_replay_interrupted",
     "environmentLeaseId": "lease_replay_interrupted",

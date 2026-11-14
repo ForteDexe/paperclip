@@ -11,7 +11,7 @@ const handoffSchema = z.object({
   outcome: z.enum(["rotated", "unchanged", "binding_changed", "not_dispatched", "no_credentials"]).optional(),
 }).strict();
 const key = "runnerTaskCredentialHandoff";
-type Scope = { companyId: string; leaseId: string; expectedTaskId?: string };
+type Scope = { spaceId: string; leaseId: string; expectedTaskId?: string };
 
 /** Save authority, never credential bytes or a controller-local temporary path. */
 export async function registerPluginTaskCredentialHandoff(
@@ -23,7 +23,7 @@ export async function registerPluginTaskCredentialHandoff(
   const handoff = handoffSchema.parse({ accountIdentity, binding, state: "pending" });
   await db.transaction(async tx => {
     const [lease] = await tx.select().from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, scope.companyId), eq(environmentLeases.id, scope.leaseId),
+      eq(environmentLeases.spaceId, scope.spaceId), eq(environmentLeases.id, scope.leaseId),
     )).for("update");
     if (!lease || lease.status !== "active" || lease.metadata?.runnerTaskLease !== true ||
         lease.metadata.runnerTaskRetiring === true) {
@@ -49,25 +49,25 @@ export async function syncPluginTaskCredentialHandoff(
   fetchCredential: (accountIdentity: string) => Promise<PluginEnvironmentTaskCredential | null>,
 ) {
   const [lease] = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, scope.companyId), eq(environmentLeases.id, scope.leaseId),
+    eq(environmentLeases.spaceId, scope.spaceId), eq(environmentLeases.id, scope.leaseId),
     scope.expectedTaskId === undefined ? undefined : eq(environmentLeases.providerLeaseId, scope.expectedTaskId),
   ));
   if (!lease) throw new Error("Plugin task credential lease unavailable");
   if (!lease.metadata?.[key]) return;
   const handoff = handoffSchema.parse(lease.metadata[key]);
   if (handoff.state === "complete") return;
-  const outcome = await writeBackCredentials(db, scope.companyId, handoff, fetchCredential);
+  const outcome = await writeBackCredentials(db, scope.spaceId, handoff, fetchCredential);
   if (outcome === "no_credentials") throw new Error("Plugin task credential snapshot unavailable");
   return outcome;
 }
 
 async function writeBackCredentials(
   db: Db,
-  companyId: string,
+  spaceId: string,
   handoff: z.infer<typeof handoffSchema>,
   fetchCredential: (accountIdentity: string) => Promise<PluginEnvironmentTaskCredential | null>,
 ) {
-  return syncManagedAiCredentials(db, companyId, handoff.binding, "codex", async () => {
+  return syncManagedAiCredentials(db, spaceId, handoff.binding, "codex", async () => {
     const credential = await fetchCredential(handoff.accountIdentity);
     if (credential === null) return null;
     if (credential.type !== "codex-auth-json") throw new Error("Plugin task credential provider mismatch");
@@ -90,19 +90,19 @@ export async function settlePluginTaskCredentialHandoff(
     throw new Error("Plugin task credential process termination is unconfirmed");
   }
   const outcome = dispatched
-    ? await writeBackCredentials(db, scope.companyId, handoff, fetchCredential)
+    ? await writeBackCredentials(db, scope.spaceId, handoff, fetchCredential)
     : "not_dispatched";
   const settled = { ...handoff, state: "complete" as const, outcome };
   const completed = await db.update(environmentLeases).set({
     metadata: sql`coalesce(${environmentLeases.metadata}, '{}'::jsonb) || ${JSON.stringify({ [key]: settled })}::jsonb`,
   }).where(and(
-    eq(environmentLeases.companyId, scope.companyId), eq(environmentLeases.id, scope.leaseId),
+    eq(environmentLeases.spaceId, scope.spaceId), eq(environmentLeases.id, scope.leaseId),
     scope.expectedTaskId === undefined ? undefined : eq(environmentLeases.providerLeaseId, scope.expectedTaskId),
     sql`${environmentLeases.metadata}->${key} = ${JSON.stringify(handoff)}::jsonb`,
   )).returning({ id: environmentLeases.id });
   if (completed.length !== 1) {
     const [current] = await db.select({ metadata: environmentLeases.metadata, taskId: environmentLeases.providerLeaseId }).from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, scope.companyId), eq(environmentLeases.id, scope.leaseId),
+      eq(environmentLeases.spaceId, scope.spaceId), eq(environmentLeases.id, scope.leaseId),
     ));
     const saved = handoffSchema.safeParse(current?.metadata?.[key]);
     if (scope.expectedTaskId !== undefined && current?.taskId !== scope.expectedTaskId ||

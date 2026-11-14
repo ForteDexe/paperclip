@@ -32,7 +32,7 @@ describe("dev outage simulator", () => {
 
   it("fails API requests with the chosen gateway code without calling the server", async () => {
     window.localStorage.setItem(OUTAGE_SIMULATOR_STORAGE_KEY, "503:tenant_app_unavailable");
-    const error = await api.get("/companies").catch((caught: unknown) => caught);
+    const error = await api.get("/spaces").catch((caught: unknown) => caught);
     expect(error).toMatchObject({ name: "ApiError", status: 503, code: "tenant_app_unavailable" });
     expect(classifyError(error)).toBe("transient");
     expect((error as Error).message).not.toMatch(/tenant_app_unavailable/);
@@ -43,7 +43,7 @@ describe("dev outage simulator", () => {
 
   it("simulates a dropped connection", async () => {
     window.localStorage.setItem(OUTAGE_SIMULATOR_STORAGE_KEY, "network");
-    const error = await api.get("/companies").catch((caught: unknown) => caught);
+    const error = await api.get("/spaces").catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(TypeError);
     expect(classifyError(error)).toBe("transient");
   });
@@ -55,11 +55,11 @@ describe("dev outage simulator", () => {
     vi.advanceTimersByTime(20_000);
     expect(activeSimulatedOutage()).toBeNull();
     expect(window.localStorage.getItem(OUTAGE_SIMULATOR_STORAGE_KEY)).toBeNull();
-    await expect(api.get("/companies")).resolves.toEqual({ status: "ok" });
+    await expect(api.get("/spaces")).resolves.toEqual({ status: "ok" });
   });
 
   it("is a no-op when the key is absent", async () => {
-    await expect(api.get("/companies")).resolves.toEqual({ status: "ok" });
+    await expect(api.get("/spaces")).resolves.toEqual({ status: "ok" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

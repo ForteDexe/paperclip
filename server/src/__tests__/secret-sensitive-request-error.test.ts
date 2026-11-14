@@ -132,16 +132,16 @@ describe("SecretSensitiveRequestError", () => {
     const original = new Error("x");
     original.stack = [
       "Error: x",
-      "    at verify (/home/Jane Doe/paperclip/server.js:10:2)",
-      "    at C:\\Users\\Jane Doe\\paperclip\\server\\dist\\index.js:3:4",
-      "    at Layer.handle (file:///C:/Users/Jane%20Doe/paperclip/layer.js:5:6)",
+      "    at verify (/home/Jane Doe/outpost/server.js:10:2)",
+      "    at C:\\Users\\Jane Doe\\outpost\\server\\dist\\index.js:3:4",
+      "    at Layer.handle (file:///C:/Users/Jane%20Doe/outpost/layer.js:5:6)",
       "    at Router.handle (\\\\build-host\\share\\router.js:7:8)",
     ].join("\n");
 
     expect(new SecretSensitiveRequestError(original, facts).diagnostics.originFrames).toEqual([
-      "at verify (/home/Jane Doe/paperclip/server.js:10:2)",
-      "at C:\\Users\\Jane Doe\\paperclip\\server\\dist\\index.js:3:4",
-      "at Layer.handle (file:///C:/Users/Jane%20Doe/paperclip/layer.js:5:6)",
+      "at verify (/home/Jane Doe/outpost/server.js:10:2)",
+      "at C:\\Users\\Jane Doe\\outpost\\server\\dist\\index.js:3:4",
+      "at Layer.handle (file:///C:/Users/Jane%20Doe/outpost/layer.js:5:6)",
       "at Router.handle (\\\\build-host\\share\\router.js:7:8)",
     ]);
   });
@@ -160,13 +160,13 @@ describe("secretSensitiveRouteFamily", () => {
       ["POST", "/api/chat-webhooks/endpoint-1/slack", "provider_webhook"],
       ["GET", "/api/muse/v1/commands", "muse"],
       ["GET", "/mcp/files/file-1", "mcp_files"],
-      ["POST", "/api/companies/company/agent-commentary", "agent_commentary"],
-      ["PUT", "/api/companies/company/observability", "agent_observability"],
+      ["POST", "/api/spaces/space/agent-commentary", "agent_commentary"],
+      ["PUT", "/api/spaces/space/observability", "agent_observability"],
       ["POST", "/MCP/RUNNER/call", "mcp_runner"],
-      ["POST", "/api/companies/company/agents/agent/avatar", "agent_avatar"],
+      ["POST", "/api/spaces/space/agents/agent/avatar", "agent_avatar"],
       ["GET", "/api/chat-slack/oauth/callback?code=private", "chat_slack_oauth"],
       ["POST", "/api/chat-endpoints/id/slack/install", "chat_endpoint_slack"],
-      ["POST", "/api/companies/company/voice-sessions", "voice_sessions"],
+      ["POST", "/api/spaces/space/voice-sessions", "voice_sessions"],
       ["POST", "/mcp/oauth/token", "mcp_oauth"],
       ["POST", "/api/mcp/tools", "api_mcp"],
       ["POST", "/api/chat-endpoints/id/setup-secret", "chat_endpoint_setup"],
@@ -221,7 +221,7 @@ describe("secret-sensitive Sentry capture", () => {
     await sentryReady;
     const app = express();
     app.use(express.json());
-    app.put("/api/companies/:companyId/observability", () => {
+    app.put("/api/spaces/:spaceId/observability", () => {
       const database = Object.assign(new Error("duplicate canary-api-key"), { code: "23505" });
       throw Object.assign(new TypeError("provider echoed canary-api-key", { cause: database }), {
         name: "canary-api-key",
@@ -234,7 +234,7 @@ describe("secret-sensitive Sentry capture", () => {
     app.use(errorHandler);
 
     const res = await request(app)
-      .put("/api/companies/company-1/observability?token=canary-api-key")
+      .put("/api/spaces/space-1/observability?token=canary-api-key")
       .send({ credentials: { apiKey: "canary-api-key" } });
     const setupRes = await request(app).post("/api/chat-endpoints/endpoint-1/setup").send({ botToken: "canary-api-key" });
 
@@ -256,7 +256,7 @@ describe("secret-sensitive Sentry capture", () => {
     });
     expect(hint.contexts.secret_sensitive_request).toMatchObject({
       routeFamily: "agent_observability",
-      routePattern: "/api/companies/:companyId/observability",
+      routePattern: "/api/spaces/:spaceId/observability",
     });
     const frames = hint.contexts.secret_sensitive_request!.originFrames as string[];
     expect(frames.some((frame) => frame.includes("secret-sensitive-request-error.test.ts"))).toBe(true);

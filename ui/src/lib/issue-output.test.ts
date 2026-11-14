@@ -12,13 +12,13 @@ import {
 
 function makeWorkProduct(overrides: Partial<IssueWorkProduct> & { id: string }): IssueWorkProduct {
   return {
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     issueId: "issue-1",
     executionWorkspaceId: null,
     runtimeServiceId: null,
     type: "artifact",
-    provider: "paperclip",
+    provider: "outpost",
     externalId: null,
     title: overrides.title ?? "output.mp4",
     url: null,

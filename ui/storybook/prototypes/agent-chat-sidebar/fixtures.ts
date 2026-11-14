@@ -1,5 +1,5 @@
 import { appearanceForPalette, type Agent } from "@outpost/shared";
-import { storybookAgents } from "../../fixtures/paperclipData";
+import { storybookAgents } from "../../fixtures/outpostData";
 
 export type SidebarScenario = "conversation" | "landing" | "large-team";
 

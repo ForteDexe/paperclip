@@ -263,7 +263,7 @@ describe("server adapter registry", () => {
     expect(adapter.supportsInstructionsBundle).toBe(true);
     expect(adapter.instructionsPathKey).toBe("instructionsFilePath");
     const result = await adapter.testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "outpost_runner",
       config: { provider: "claude_managed" },
     });
@@ -280,7 +280,7 @@ describe("server adapter registry", () => {
 
   it.each(["pass", "fail"] as const)("uses the selected native Codex runtime for setup (%s)", async status => {
     nativeSetup.authenticate.mockReset().mockResolvedValue({ adapterType: "outpost_runner", status, testedAt: "", checks: [{ code: `codex_hello_probe_${status === "pass" ? "passed" : "auth_required"}`, level: status === "pass" ? "info" : "error", message: "Selected native account" }] });
-    const context = { companyId: "company-1", adapterType: "outpost_runner", config: { provider: "codex", model: "gpt-5.6-sol", modelReasoningEffort: "high", env: { OPENAI_API_KEY: "selected-key" } } };
+    const context = { spaceId: "space-1", adapterType: "outpost_runner", config: { provider: "codex", model: "gpt-5.6-sol", modelReasoningEffort: "high", env: { OPENAI_API_KEY: "selected-key" } } };
     const result = await requireServerAdapter("outpost_runner").testEnvironment(context);
     expect(result.status).toBe(status);
     expect(nativeSetup.authenticate).toHaveBeenCalledWith(context, "codex", "gpt-5.6-sol");
@@ -309,7 +309,7 @@ describe("server adapter registry", () => {
     }, "aws_agentcore_profile_selected"],
   ] as const)("accepts a complete %s profile selection", async (provider, config, code) => {
     const result = await requireServerAdapter("outpost_runner").testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "outpost_runner",
       config: { provider, ...config },
     });
@@ -325,7 +325,7 @@ describe("server adapter registry", () => {
     ["claude", "claude-sonnet-5"],
   ] as const)("does not claim runtime readiness from the remote ACPX %s platform alone", async (acpxAgent, model) => {
     const result = await requireServerAdapter("outpost_runner").testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "outpost_runner",
       config: { provider: "acpx", acpxAgent, model },
       executionTarget: {
@@ -349,7 +349,7 @@ describe("server adapter registry", () => {
     if (ready) probe.mockResolvedValueOnce(undefined);
     else probe.mockRejectedValueOnce(new Error("Runtime package integrity verification failed"));
     const result = await requireServerAdapter("outpost_runner").testEnvironment({
-      companyId: "company-1", adapterType: "outpost_runner",
+      spaceId: "space-1", adapterType: "outpost_runner",
       config: { provider: "acpx", acpxAgent: "claude", model: "custom-claude-model" },
     });
     expect(probe).toHaveBeenLastCalledWith("custom-claude-model");
@@ -364,7 +364,7 @@ describe("server adapter registry", () => {
     if (ready) probe.mockResolvedValueOnce(undefined);
     else probe.mockRejectedValueOnce(new Error("Pi closure unavailable"));
     const result = await requireServerAdapter("outpost_runner").testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "outpost_runner",
       config: {
         provider: "acpx",
@@ -383,23 +383,23 @@ describe("server adapter registry", () => {
     const prior=process.env.COPILOT_GITHUB_TOKEN;process.env.COPILOT_GITHUB_TOKEN="ambient-not-authority";
     const probe=vi.mocked(probeCopilotExecutionTarget);probe.mockClear();
     try{
-      const result=await requireServerAdapter("outpost_runner").testEnvironment({companyId:"company-1",adapterType:"outpost_runner",config:{provider:"acpx",acpxAgent:"copilot",model:"gpt-5.6-luna"}});
+      const result=await requireServerAdapter("outpost_runner").testEnvironment({spaceId:"space-1",adapterType:"outpost_runner",config:{provider:"acpx",acpxAgent:"copilot",model:"gpt-5.6-luna"}});
       expect(result).toMatchObject({status:"fail",checks:[{code:"COPILOT_AUTH_REQUIRED"}]});expect(probe).not.toHaveBeenCalled();
     }finally{if(prior===undefined)delete process.env.COPILOT_GITHUB_TOKEN;else process.env.COPILOT_GITHUB_TOKEN=prior;}
   });
   it.each([undefined,{kind:"remote",remoteCwd:"/workspace"}])("verifies the selected Copilot runtime and model without a prompt",async(executionTarget)=>{
-    const result=await requireServerAdapter("outpost_runner").testEnvironment({companyId:"company-1",adapterType:"outpost_runner",config:{provider:"acpx",acpxAgent:"copilot",model:"gpt-5.6-luna",env:{COPILOT_GITHUB_TOKEN:"fixture-token"}},executionTarget} as any);
+    const result=await requireServerAdapter("outpost_runner").testEnvironment({spaceId:"space-1",adapterType:"outpost_runner",config:{provider:"acpx",acpxAgent:"copilot",model:"gpt-5.6-luna",env:{COPILOT_GITHUB_TOKEN:"fixture-token"}},executionTarget} as any);
     expect(probeCopilotExecutionTarget).toHaveBeenLastCalledWith("fixture-token",executionTarget,"gpt-5.6-luna");
     expect(result).toMatchObject({status:"pass",checks:[{code:"copilot_metadata_verified"}]});
   });
   it.each(["COPILOT_AUTH_REQUIRED","COPILOT_ENTITLEMENT_DENIED","COPILOT_MODEL_UNAVAILABLE","COPILOT_INSTALLATION_INVALID","COPILOT_REQUEST_FAILED"])("reports distinct Copilot failure %s",async code=>{
     vi.mocked(probeCopilotExecutionTarget).mockRejectedValueOnce(new HttpError(422,"Fixture metadata failure",{code}));
-    const result=await requireServerAdapter("outpost_runner").testEnvironment({companyId:"company-1",adapterType:"outpost_runner",config:{provider:"acpx",acpxAgent:"copilot",model:"gpt-5.6-luna",env:{COPILOT_GITHUB_TOKEN:"fixture-token"}}});
+    const result=await requireServerAdapter("outpost_runner").testEnvironment({spaceId:"space-1",adapterType:"outpost_runner",config:{provider:"acpx",acpxAgent:"copilot",model:"gpt-5.6-luna",env:{COPILOT_GITHUB_TOKEN:"fixture-token"}}});
     expect(result).toMatchObject({status:"fail",checks:[{code}]});
   });
   it("sanitizes unexpected Copilot metadata failures",async()=>{
     vi.mocked(probeCopilotExecutionTarget).mockRejectedValueOnce(new Error("fixture private implementation detail"));
-    const result=await requireServerAdapter("outpost_runner").testEnvironment({companyId:"company-1",adapterType:"outpost_runner",config:{provider:"acpx",acpxAgent:"copilot",model:"gpt-5.6-luna",env:{COPILOT_GITHUB_TOKEN:"fixture-token"}}});
+    const result=await requireServerAdapter("outpost_runner").testEnvironment({spaceId:"space-1",adapterType:"outpost_runner",config:{provider:"acpx",acpxAgent:"copilot",model:"gpt-5.6-luna",env:{COPILOT_GITHUB_TOKEN:"fixture-token"}}});
     expect(result).toMatchObject({status:"fail",checks:[{code:"COPILOT_REQUEST_FAILED",message:"Copilot metadata verification failed."}]});
     expect(JSON.stringify(result)).not.toContain("private implementation detail");
   });

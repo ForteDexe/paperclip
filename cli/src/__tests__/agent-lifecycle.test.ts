@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerAgentCommands } from "../commands/client/agent.js";
 
-const COMPANY_ID = "22222222-2222-4222-8222-222222222222";
+const SPACE_ID = "22222222-2222-4222-8222-222222222222";
 const AGENT_ID = "11111111-1111-4111-8111-111111111111";
 const REVISION_ID = "33333333-3333-4333-8333-333333333333";
 
@@ -21,7 +21,7 @@ async function run(args: string[]): Promise<void> {
   await createProgram().parseAsync([
     ...args,
     "--api-base", "http://localhost:3100",
-    "--api-key", "board-token",
+    "--api-key", "operator-token",
   ], { from: "user" });
 }
 
@@ -43,10 +43,10 @@ describe("agent lifecycle commands", () => {
 
     await run([
       "agent", "create",
-      "--company-id", COMPANY_ID,
+      "--space-id", SPACE_ID,
       "--payload-json", JSON.stringify({ name: "Builder", adapterType: "codex_local" }),
     ]);
-    await run(["agent", "hire", "--company-id", COMPANY_ID, "--payload-json", "{}"]);
+    await run(["agent", "create", "--space-id", SPACE_ID, "--payload-json", "{}"]);
     await run(["agent", "update", AGENT_ID, "--payload-json", JSON.stringify({ title: "Senior Builder" })]);
     await run(["agent", "pause", AGENT_ID]);
     await run(["agent", "resume", AGENT_ID]);
@@ -57,8 +57,8 @@ describe("agent lifecycle commands", () => {
     await run(["agent", "delete", AGENT_ID, "--yes"]);
 
     expect(fetchMock.mock.calls.map((call) => [call[1]?.method ?? "GET", call[0]])).toEqual([
-      ["POST", `http://localhost:3100/api/companies/${COMPANY_ID}/agents`],
-      ["POST", `http://localhost:3100/api/companies/${COMPANY_ID}/agent-hires`],
+      ["POST", `http://localhost:3100/api/spaces/${SPACE_ID}/agents`],
+      ["POST", `http://localhost:3100/api/spaces/${SPACE_ID}/agent-creations`],
       ["PATCH", `http://localhost:3100/api/agents/${AGENT_ID}`],
       ["POST", `http://localhost:3100/api/agents/${AGENT_ID}/pause`],
       ["POST", `http://localhost:3100/api/agents/${AGENT_ID}/resume`],
@@ -74,12 +74,12 @@ describe("agent lifecycle commands", () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse()));
     vi.stubGlobal("fetch", fetchMock);
     const payload = { name: "Builder", adapterType: "codex_local" };
-    await run(["agent", "create", "--company-id", COMPANY_ID, "--payload-json", JSON.stringify(payload)]);
-    await run(["agent", "create", "--company-id", COMPANY_ID, "--payload-json", JSON.stringify({ ...payload, runner: "auto" }), "--runner", "legacy"]);
-    await run(["agent", "hire", "--company-id", COMPANY_ID, "--payload-json", JSON.stringify(payload), "--runner", "paperclip"]);
+    await run(["agent", "create", "--space-id", SPACE_ID, "--payload-json", JSON.stringify(payload)]);
+    await run(["agent", "create", "--space-id", SPACE_ID, "--payload-json", JSON.stringify({ ...payload, runner: "auto" }), "--runner", "legacy"]);
+    await run(["agent", "create", "--space-id", SPACE_ID, "--payload-json", JSON.stringify(payload), "--runner", "outpost"]);
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body).runner).toBeUndefined();
     expect(JSON.parse(fetchMock.mock.calls[1]![1].body).runner).toBe("legacy");
-    expect(JSON.parse(fetchMock.mock.calls[2]![1].body).runner).toBe("paperclip");
+    expect(JSON.parse(fetchMock.mock.calls[2]![1].body).runner).toBe("outpost");
   });
 
   it("wraps configuration, runtime, skills, and instructions endpoints", async () => {
@@ -100,7 +100,7 @@ describe("agent lifecycle commands", () => {
       "skills:sync",
       AGENT_ID,
       "--desired-skills",
-      "paperclip,github",
+      "outpost,github",
       "--mode",
       "replace",
     ]);

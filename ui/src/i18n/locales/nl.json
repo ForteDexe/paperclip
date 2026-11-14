@@ -1,9 +1,9 @@
 {
   "app": {
-    "noCompanies": {
+    "noSpaces": {
       "title": "Maak uw eerste bedrijf aan",
       "description": "Begin door een bedrijf aan te maken.",
-      "newCompany": "Nieuw bedrijf"
+      "newSpace": "Nieuw bedrijf"
     }
   }
 }

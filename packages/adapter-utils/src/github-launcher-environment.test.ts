@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 async function sandbox(layout: string, concurrent?: boolean) {
-  const root = await mkdtemp(path.join(os.tmpdir(), "paperclip-launcher-env-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "outpost-launcher-env-"));
   roots.push(root);
   const bin = path.join(root, layout);
   await mkdir(bin, { recursive: true });
@@ -242,13 +242,13 @@ describe("managed GitHub launcher environment", () => {
   // filesystem regression on that platform; shell/launcher tests cover both.
   it.runIf(process.platform === "linux")("keeps launcher restaging and command scratch inside the runner runtime", async () => {
     const fixture = await sandbox("usr/bin");
-    const privateRoot = path.join(fixture.root, ".paperclip-runtime");
+    const privateRoot = path.join(fixture.root, ".outpost-runtime");
     await mkdir(path.join(privateRoot, "outpost-runner"), { recursive: true });
     await writeFile(path.join(fixture.root, "user.txt"), "Existing work\n");
     const mutations: string[] = [];
     const watchers = [fixture.root, privateRoot].map((directory) => watch(directory, (_kind, name) => {
       const changed = path.relative(fixture.root, path.join(directory, String(name)));
-      if (changed !== ".paperclip-runtime/outpost-runner") mutations.push(changed);
+      if (changed !== ".outpost-runtime/outpost-runner") mutations.push(changed);
     }));
     try {
       const input = { runId: "restart-same-launchers", target: fixture.target, cwd: fixture.root,
@@ -266,7 +266,7 @@ describe("managed GitHub launcher environment", () => {
       expect(mutations).toEqual([]);
       // The watcher must still notice housekeeping outside that exact runtime.
       await mkdir(path.join(privateRoot, "outside-runtime-control"));
-      await vi.waitFor(() => expect(mutations).toContain(".paperclip-runtime/outside-runtime-control"));
+      await vi.waitFor(() => expect(mutations).toContain(".outpost-runtime/outside-runtime-control"));
     } finally { for (const watcher of watchers) watcher.close(); }
   });
 
@@ -330,7 +330,7 @@ describe("managed GitHub launcher environment", () => {
     await command("git init -q && printf 'first\\n' > work.txt && git add work.txt && git commit -qm first");
     await command("printf 'second\\n' >> work.txt && git add work.txt && git commit -qm second");
     expect(await command("git log --format='%an <%ae>|%cn <%ce>'"))
-      .toBe(Array(2).fill("Paperclip <noreply@outpost.ing>|Paperclip <noreply@outpost.ing>").join("\n"));
+      .toBe(Array(2).fill("Outpost <noreply@outpost.ing>|Outpost <noreply@outpost.ing>").join("\n"));
     expect(await command("git show HEAD:work.txt")).toBe("first\nsecond");
     expect(await readFile(path.join(fixture.root, ".git", "config"), "utf8")).not.toContain("[user]");
     expect(await readFile(path.join(fixture.root, ".gitconfig"), "utf8")).toContain("Image User");
@@ -411,7 +411,7 @@ describe("managed GitHub launcher environment", () => {
   });
 
   it("preserves local host credential helpers and validates worktree metadata", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "paperclip-host-git-")); roots.push(root);
+    const root = await mkdtemp(path.join(os.tmpdir(), "outpost-host-git-")); roots.push(root);
     vi.stubEnv("HOME", root);
     vi.stubEnv("GH_TOKEN", "legacy-token");
     await writeFile(path.join(root, ".gitconfig"), '[credential]\n  helper = store\n');

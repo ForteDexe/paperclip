@@ -40,7 +40,7 @@ const CLOUD_HEALTH = {
   ...SELF_HOSTED_HEALTH,
   cloud: {
     managed: true as const,
-    managedBy: "paperclip-cloud" as const,
+    managedBy: "outpost-cloud" as const,
     stackSlug: "acme",
     cloudBaseUrl: "https://cloud.example.test",
   },
@@ -106,8 +106,8 @@ describe("InstanceGeneralSettings sign-out", () => {
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
     await renderPage(SELF_HOSTED_HEALTH);
     queryClient.setQueryData(queryKeys.auth.session, { session: { id: "session-1" } });
-    queryClient.setQueryData(queryKeys.companies.all, {
-      companies: [{ id: "company-a", name: "Account A Co" }],
+    queryClient.setQueryData(queryKeys.spaces.all, {
+      spaces: [{ id: "space-a", name: "Account A Co" }],
       unauthorized: false,
     });
 
@@ -119,7 +119,7 @@ describe("InstanceGeneralSettings sign-out", () => {
     await vi.waitFor(() =>
       expect(queryClient.getQueryData(queryKeys.auth.session)).toBeUndefined(),
     );
-    expect(queryClient.getQueryData(queryKeys.companies.all)).toBeUndefined();
+    expect(queryClient.getQueryData(queryKeys.spaces.all)).toBeUndefined();
     // Health describes the instance, so it is refreshed rather than dropped.
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.health });
     expect(queryClient.getQueryData(queryKeys.health)).toEqual(SELF_HOSTED_HEALTH);

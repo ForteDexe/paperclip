@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRuns, issueRecoveryActions, issues } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, issueRecoveryActions, issues } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { currentControllerProcessStamp } from "./controller-process-identity.js";
 import { isInterruptedNativePreparation } from "./cancelled-native-startup.js";
@@ -24,21 +24,21 @@ describe("automatic recovery after a drained legacy controller", () => {
   }
 
   async function seedDrainedRun(controller: "exited" | "current", ending: "drained" | "killed" = "drained") {
-    const companyId = randomUUID(), issueId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), issueId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
     const live = currentControllerProcessStamp();
     const bootId = controller === "current" ? legacyControllerBootId : randomUUID();
     const controllerProcess = controller === "current" ? live
       : { bootId, pid: exitedPid(), hostHash: live.hostHash, processStartedAt: new Date(Date.now() - 120_000).toISOString() };
-    await db.insert(companies).values({ id: companyId, name: "Drain company", issuePrefix: `D${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner", status: "idle" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Follow up", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, status: ending === "drained" ? "interrupted" : "failed",
+    await db.insert(spaces).values({ id: spaceId, name: "Drain space", issuePrefix: `D${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "outpost_runner", status: "idle" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Follow up", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, status: ending === "drained" ? "interrupted" : "failed",
       errorCode: ending === "drained" ? "server_shutdown_interrupted" : "process_lost", runtimeMode: "legacy", executionStage: "preparing",
       contextSnapshot: { issueId }, finishedAt: new Date(), runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } }, controllerBootId: bootId, controllerProcess,
       controllerLeaseExpiresAt: new Date(Date.now() + 55_000),
       resultJson: { stopReason: "interrupted", executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } });
-    const [action] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId, kind: "active_run_watchdog",
-      status: "active", ownerType: "board", returnOwnerAgentId: agentId, cause: "legacy_execution_requires_reconciliation",
+    const [action] = await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId, kind: "active_run_watchdog",
+      status: "active", ownerType: "operator", returnOwnerAgentId: agentId, cause: "legacy_execution_requires_reconciliation",
       fingerprint: `legacy-execution:${runId}`, nextAction: "Reconcile the interrupted execution.",
       evidence: { runId, originalFailureCode: "server_shutdown_interrupted" } }).returning();
     return { actionId: action!.id, runId };

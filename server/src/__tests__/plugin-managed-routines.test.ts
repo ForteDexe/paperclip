@@ -5,7 +5,7 @@ import {
   activityLog,
   agentConfigRevisions,
   agents,
-  companies,
+  spaces,
   createDb,
   documentRevisions,
   documents,
@@ -19,7 +19,7 @@ import {
   routineTriggers,
   routines,
 } from "@outpost/db";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -45,14 +45,14 @@ function issuePrefix(id: string) {
   return `T${id.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 }
 
-function manifest(): PaperclipPluginManifestV1 {
+function manifest(): OutpostPluginManifestV1 {
   return {
     id: "outpost.managed-routines-test",
     apiVersion: 1,
     version: "0.1.0",
     displayName: "Managed Routines Test",
     description: "Test plugin",
-    author: "Paperclip",
+    author: "Outpost",
     categories: ["automation"],
     capabilities: ["agents.managed", "projects.managed", "routines.managed"],
     entrypoints: { worker: "./dist/worker.js" },
@@ -110,7 +110,7 @@ describeEmbeddedPostgres("plugin-managed routines", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-plugin-managed-routines-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-plugin-managed-routines-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -129,20 +129,20 @@ describeEmbeddedPostgres("plugin-managed routines", () => {
     await db.delete(agents);
     await db.delete(projects);
     await db.delete(plugins);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompanyAndPlugin(pluginManifest = manifest()) {
-    const companyId = randomUUID();
+  async function seedSpaceAndPlugin(pluginManifest = manifest()) {
+    const spaceId = randomUUID();
     const pluginId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: issuePrefix(companyId),
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: issuePrefix(spaceId),
       defaultResponsibleUserId: "responsible-user",
     });
     await db.insert(plugins).values({
@@ -159,15 +159,15 @@ describeEmbeddedPostgres("plugin-managed routines", () => {
     const services = buildHostServices(db, pluginId, pluginManifest.id, createEventBusStub(), undefined, {
       manifest: pluginManifest,
     });
-    return { companyId, pluginId, pluginManifest, services };
+    return { spaceId, pluginId, pluginManifest, services };
   }
 
   it("resolves routine agent and project refs by stable managed keys", async () => {
-    const { companyId, services } = await seedCompanyAndPlugin();
-    const agent = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
-    const project = await services.projects.reconcileManaged({ companyId, projectKey: "operations" });
+    const { spaceId, services } = await seedSpaceAndPlugin();
+    const agent = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
+    const project = await services.projects.reconcileManaged({ spaceId, projectKey: "operations" });
 
-    const created = await services.routines.managedReconcile({ companyId, routineKey: "nightly-lint" });
+    const created = await services.routines.managedReconcile({ spaceId, routineKey: "nightly-lint" });
 
     expect(created.status).toBe("created");
     expect(created.routine).toMatchObject({
@@ -192,9 +192,9 @@ describeEmbeddedPostgres("plugin-managed routines", () => {
   });
 
   it("returns missing refs until the operator repairs them and preserves routine edits on reconcile", async () => {
-    const { companyId, services } = await seedCompanyAndPlugin();
+    const { spaceId, services } = await seedSpaceAndPlugin();
 
-    const missing = await services.routines.managedReconcile({ companyId, routineKey: "nightly-lint" });
+    const missing = await services.routines.managedReconcile({ spaceId, routineKey: "nightly-lint" });
     expect(missing.status).toBe("missing_refs");
     expect(missing.missingRefs).toEqual([
       expect.objectContaining({ resourceKind: "agent", resourceKey: "wiki-maintainer" }),
@@ -202,7 +202,7 @@ describeEmbeddedPostgres("plugin-managed routines", () => {
     ]);
 
     const [agent] = await db.insert(agents).values({
-      companyId,
+      spaceId,
       name: "Operator-selected maintainer",
       role: "engineer",
       status: "idle",
@@ -212,13 +212,13 @@ describeEmbeddedPostgres("plugin-managed routines", () => {
       permissions: {},
     }).returning();
     const [project] = await db.insert(projects).values({
-      companyId,
+      spaceId,
       name: "Operator-selected project",
       status: "in_progress",
     }).returning();
 
     const repaired = await services.routines.managedReconcile({
-      companyId,
+      spaceId,
       routineKey: "nightly-lint",
       assigneeAgentId: agent.id,
       projectId: project.id,
@@ -234,20 +234,20 @@ describeEmbeddedPostgres("plugin-managed routines", () => {
       .set({ title: "Operator renamed lint", updatedAt: new Date() })
       .where(eq(routines.id, repaired.routineId!));
 
-    const reconciled = await services.routines.managedReconcile({ companyId, routineKey: "nightly-lint" });
+    const reconciled = await services.routines.managedReconcile({ spaceId, routineKey: "nightly-lint" });
     expect(reconciled.status).toBe("resolved");
     expect(reconciled.routine?.title).toBe("Operator renamed lint");
   });
 
   it("creates routine operation issues with plugin visibility and managed project scoping", async () => {
-    const { companyId, services } = await seedCompanyAndPlugin();
-    const agent = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
-    const project = await services.projects.reconcileManaged({ companyId, projectKey: "operations" });
-    const routine = await services.routines.managedReconcile({ companyId, routineKey: "nightly-lint" });
+    const { spaceId, services } = await seedSpaceAndPlugin();
+    const agent = await services.agents.managedReconcile({ spaceId, agentKey: "wiki-maintainer" });
+    const project = await services.projects.reconcileManaged({ spaceId, projectKey: "operations" });
+    const routine = await services.routines.managedReconcile({ spaceId, routineKey: "nightly-lint" });
     const wakeup = vi.fn(async () => ({ id: randomUUID() }));
     const routinesSvc = routineService(db, { heartbeat: { wakeup } });
 
-    const run = await routinesSvc.runRoutine(routine.routineId!, { source: "manual" }, { userId: "board-user" });
+    const run = await routinesSvc.runRoutine(routine.routineId!, { source: "manual" }, { userId: "operator-user" });
 
     expect(run.status).toBe("issue_created");
     const [issue] = await db.select().from(issues).where(eq(issues.id, run.linkedIssueId!));

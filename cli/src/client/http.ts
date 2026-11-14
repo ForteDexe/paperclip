@@ -50,7 +50,7 @@ interface ApiClientOptions {
   recoverAuth?: (input: RecoverAuthInput) => Promise<string | null>;
 }
 
-export class PaperclipApiClient {
+export class OutpostApiClient {
   readonly apiBase: string;
   apiKey?: string;
   readonly runId?: string;
@@ -128,7 +128,7 @@ export class PaperclipApiClient {
     }
 
     if (this.runId) {
-      headers["x-paperclip-run-id"] = this.runId;
+      headers["x-outpost-run-id"] = this.runId;
     }
 
     let response: Response;
@@ -233,7 +233,7 @@ function buildConnectionErrorMessage(input: {
     "This usually means the Outpost server is not running, the configured URL is wrong, or the request is being blocked before it reaches Outpost.",
     "",
     "Try:",
-    "- Start Outpost with `pnpm dev` (from a source checkout) or `npx paperclipai run`.",
+    "- Start Outpost with `pnpm dev` (from a source checkout) or `npx @outpost/cli run`.",
     `- Verify the server is reachable with \`curl ${healthUrl}\`.`,
     `- If Outpost is running elsewhere, pass \`--api-base ${input.apiBase.replace(/\/+$/, "")}\` or set \`OUTPOST_API_URL\`.`,
   );

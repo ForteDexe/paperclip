@@ -21,7 +21,7 @@ reactivate through settings and lifecycle notifications, including after drain.
 
 Producer audit: issue service create/update, native set_task_monitor, native
 preserved-monitor decisions, scheduler manual/automatic claim/release/consumption,
-issue lifecycle state, company pause/reactivation/budget transitions/deletion, and
+issue lifecycle state, space pause/reactivation/budget transitions/deletion, and
 native run/finalization changes. Import deliberately leaves monitor deadlines null
 until explicitly activated. Existing native projection and issue review-state
 notification boundaries already cover their corresponding transition owners.
@@ -31,7 +31,7 @@ claim support for unrelated SQL writers or another server replica.
 
 Acceptance must measure quiet SQL, first real producer, future and stale-claim
 boundaries, capped overdue work, deferred/error retry, manual compatibility,
-outer commit/rollback, native settlement reactivation, company pause/resume,
+outer commit/rollback, native settlement reactivation, space pause/resume,
 startup/restart, drain/standby, and shutdown. Existing monitor/admission integration
 coverage remains required. This audit is a plan, not evidence of completion.
 
@@ -70,10 +70,10 @@ queue, new table, independent timer, or shared scheduler modification was added.
 | Workspace reconstruction and execution-recovery blocking | Added intent before changing eligibility |
 | Native projection/finalization and issue review transitions | Extended existing notification fanout; no service invocation inside the notifier |
 | Execution-control recovery writes and active-run watchdog folding | Extended transaction notifications because these can release native ownership |
-| Company status/deletion/budget changes | Added monitor topic beside existing schedule notifications |
+| Space status/deletion/budget changes | Added monitor topic beside existing schedule notifications |
 | Worktree execution suppression setting | Existing native projection notification now also wakes monitor inspection |
 
-The next-deadline predicate deliberately has the same issue/company/native-owner
+The next-deadline predicate deliberately has the same issue/space/native-owner
 eligibility as the existing due-monitor query. Admission still owns authorization,
 quota behavior, exact claim guards, current assignment, and client-error handling.
 An abort or drain observed after a claim leaves that claim durable for later stale
@@ -165,7 +165,7 @@ Current source `c24aadfc91e9394d73c799f9e05fc67202160557` passed **1,233 cases
 in 35 complete files**, without skips, in 458.16 seconds. Coverage includes
 heartbeat scheduling and monitor admission, scheduled deadline queries, retained
 routine lifecycles, native monitor preservation and run projection, execution
-control, issue and tree services, conversation producers, budget/company changes,
+control, issue and tree services, conversation producers, budget/space changes,
 startup, and the shared deadline helper's plugin, credential expiry, tool review,
 decision, retention, custom-image and Grok consumers. Database build, production
 server typechecking/build, module boundaries, migration order and Runner profile

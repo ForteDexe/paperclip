@@ -8,7 +8,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   completionContracts,
   createDb,
   heartbeatRunEvents,
@@ -29,7 +29,7 @@ vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => ({
   executeNativeSession: provider.execute,
 }));
 
-import { executePaperclipNativeSession, prepareNativeSessionOpenTimeoutRetry, scopedRunnerdStateRoot } from "./native-session-executor.js";
+import { executeOutpostNativeSession, prepareNativeSessionOpenTimeoutRetry, scopedRunnerdStateRoot } from "./native-session-executor.js";
 import { buildNativeCompletionContract } from "./completion-contracts.js";
 import { prepareNativeHeartbeatRun } from "./prepare-native-run.js";
 import { claimNativeSessionResumptions } from "./native-finalization-reconciler.js";
@@ -93,13 +93,13 @@ const backoffWindow = (from: Date, attempt: number) => {
 describe("native provider startup retry", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
 
   beforeAll(async () => {
     temporary = await startEmbeddedPostgresTestDatabase("native-startup-retry-");
     db = createDb(temporary.connectionString);
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Native startup retry",
       issuePrefix: "NSR",
     });
@@ -113,7 +113,7 @@ describe("native provider startup retry", () => {
     const agentId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: `Startup agent ${agentId.slice(0, 8)}`,
       status: "active",
       adapterType: "outpost_runner",
@@ -129,7 +129,7 @@ describe("native provider startup retry", () => {
       .insert(issues)
       .values({
         id: issueId,
-        companyId,
+        spaceId,
         title: "Start work after a provider startup failure",
         status: "in_progress",
         workMode: "standard",
@@ -140,7 +140,7 @@ describe("native provider startup retry", () => {
       .insert(heartbeatRuns)
       .values({
         id: runId,
-        companyId,
+        spaceId,
         agentId,
         status: "running",
         runtimeMode: "native",
@@ -164,7 +164,7 @@ describe("native provider startup retry", () => {
       .where(eq(completionContracts.issueId, issueId));
     const execution: NativeExecutionInputV1 = {
       schema: "outpost.native-execution-input.v1",
-      binding: { companyId, runId, issueId, agentId, executionWorkspaceId: runId },
+      binding: { spaceId, runId, issueId, agentId, executionWorkspaceId: runId },
       provider: { kind: "codex", model: "gpt-5.6-luna" },
       task: {
         identifier: issueId,
@@ -199,7 +199,7 @@ describe("native provider startup retry", () => {
       .where(eq(heartbeatRuns.id, runId));
     await db.insert(nativeRunFinalizations).values({
       runId,
-      companyId,
+      spaceId,
       issueId,
       phase: "observed",
     });
@@ -219,7 +219,7 @@ describe("native provider startup retry", () => {
     });
     const startedAt = new Date();
     await expect(
-      executePaperclipNativeSession({
+      executeOutpostNativeSession({
         db,
         execution: seeded.execution,
         runnerInstanceId: seeded.runnerInstanceId,
@@ -279,7 +279,7 @@ describe("native provider startup retry", () => {
   async function recordPriorRun(agentId: string, values: Partial<typeof heartbeatRuns.$inferInsert>) {
     await db.insert(heartbeatRuns).values({
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId,
       runtimeMode: "native",
       invocationSource: "assignment",
@@ -344,7 +344,7 @@ describe("native provider startup retry", () => {
         settlementArmed = false;
         if (options.race === "checkpoint") { core.issueBootstrapTicket(); await core.flushCheckpoint(); }
         if (options.race === "stop") await db.update(heartbeatRuns).set({ resultJson: {
-          nativeCancellation: { schema: "outpost.native-cancellation.v1", companyId, issueId: seeded.issueId,
+          nativeCancellation: { schema: "outpost.native-cancellation.v1", spaceId, issueId: seeded.issueId,
             runId: seeded.runId, scope: "run", intentAuditId: randomUUID(), dispatchState: "pending" },
         } }).where(eq(heartbeatRuns.id, seeded.runId));
         if (options.race === "claim") await db.update(nativeRunFinalizations).set({
@@ -356,10 +356,10 @@ describe("native provider startup retry", () => {
     const getRunnerIngressEndpoint = vi.fn(async () => {
       const response = await fetch(`http://127.0.0.1:${address.port}/private-preview`);
       if (options.checkpoint === "truncated") await db.delete(nativeRunnerCheckpoints).where(and(
-        eq(nativeRunnerCheckpoints.companyId, companyId), eq(nativeRunnerCheckpoints.runId, seeded.runId),
+        eq(nativeRunnerCheckpoints.spaceId, spaceId), eq(nativeRunnerCheckpoints.runId, seeded.runId),
         eq(nativeRunnerCheckpoints.part, "command:2")));
       if (options.checkpoint === "progress") await db.insert(heartbeatRunEvents).values({
-        companyId, runId: seeded.runId, agentId: seeded.agentId, seq: 900, eventType: "turn.started", stream: "system", level: "info",
+        spaceId, runId: seeded.runId, agentId: seeded.agentId, seq: 900, eventType: "turn.started", stream: "system", level: "info",
         message: "Provider activity exists", payload: {},
       });
       if (!response.ok) {
@@ -384,7 +384,7 @@ describe("native provider startup retry", () => {
       throw new Error("ingress failure must precede process launch");
     });
     try {
-      await expect(executePaperclipNativeSession({ db, execution: seeded.execution,
+      await expect(executeOutpostNativeSession({ db, execution: seeded.execution,
         runnerInstanceId: seeded.runnerInstanceId, useRunnerd: true,
         runnerExecutionTarget: { kind: "remote", transport: "sandbox", remoteCwd: "/workspace", runner: {} } as never,
         backend: { descriptor: async () => { throw new Error("unexpected descriptor"); },
@@ -529,7 +529,7 @@ describe("native provider startup retry", () => {
         failureDetail: expect.objectContaining({ originalFailureCode: "provider_session_open_timeout", recoveryMode: "bootstrap_retry" }),
       });
       expect(state.issue.status).toBe("blocked");
-      expect(state.action).toMatchObject({ ownerType: "board", cause: "native_session_retry_exhausted", wakePolicy: null });
+      expect(state.action).toMatchObject({ ownerType: "operator", cause: "native_session_retry_exhausted", wakePolicy: null });
     },
   );
 
@@ -543,12 +543,12 @@ describe("native provider startup retry", () => {
     provider.execute.mockReset().mockImplementation(async () => {
       if (eventType) {
         await db.insert(heartbeatRunEvents).values({
-          companyId, runId: seeded.runId, agentId: seeded.agentId, seq: 900, eventType, stream: "system",
+          spaceId, runId: seeded.runId, agentId: seeded.agentId, seq: 900, eventType, stream: "system",
         });
       }
       throw new Error(message);
     });
-    await expect(executePaperclipNativeSession({
+    await expect(executeOutpostNativeSession({
       db,
       execution: seeded.execution,
       runnerInstanceId: seeded.runnerInstanceId,
@@ -672,7 +672,7 @@ describe("native provider startup retry", () => {
       throw new Error("expected the closed listener to stop startup");
     });
     const failedAt = new Date();
-    await expect(executePaperclipNativeSession({
+    await expect(executeOutpostNativeSession({
       db,
       execution: seeded.execution,
       runnerInstanceId: seeded.runnerInstanceId,
@@ -714,12 +714,12 @@ describe("native provider startup retry", () => {
     runtimeApiInternals.resetForTests();
     provider.execute.mockReset().mockImplementation(async () => {
       await db.insert(heartbeatRunEvents).values({
-        companyId, runId: seeded.runId, agentId: seeded.agentId, seq: 900,
+        spaceId, runId: seeded.runId, agentId: seeded.agentId, seq: 900,
         eventType: "turn.started", stream: "system",
       });
       resolveLocalRuntimeApiUrl();
     });
-    await expect(executePaperclipNativeSession({
+    await expect(executeOutpostNativeSession({
       db,
       execution: seeded.execution,
       runnerInstanceId: seeded.runnerInstanceId,
@@ -763,10 +763,10 @@ describe("native provider startup retry", () => {
       expect(state.run).toMatchObject({ status: "failed", errorCode: "native_provider_model_rejected" });
       expect(state.issue.status).toBe("blocked");
       expect(state.issue.executionRunId).toBeNull();
-      // A named, durable board action owns the next step.
+      // A named, durable operator action owns the next step.
       expect(state.action).toMatchObject({
         status: "active",
-        ownerType: "board",
+        ownerType: "operator",
         cause: "native_provider_model_rejected",
         returnOwnerAgentId: seeded.agentId,
         wakePolicy: null,
@@ -789,14 +789,14 @@ describe("native provider startup retry", () => {
     const seeded = await seedRun(await createAgent());
     provider.execute.mockReset().mockImplementation(async () => {
       await db.insert(heartbeatRunEvents).values({
-        companyId, runId: seeded.runId, agentId: seeded.agentId, seq: 900,
+        spaceId, runId: seeded.runId, agentId: seeded.agentId, seq: 900,
         eventType: "turn.started", stream: "system",
       });
       // What the native runtime throws for Claude's AIR "selected model" request failure.
       throw new NativeProviderTerminalFailure("RUNTIME", false,
         "native_provider_model_rejected: ACP agent reported a terminal request failure.");
     });
-    await expect(executePaperclipNativeSession({
+    await expect(executeOutpostNativeSession({
       db, execution: seeded.execution, runnerInstanceId: seeded.runnerInstanceId,
       backend: {
         descriptor: async () => { throw new Error("Unexpected provider descriptor call"); },
@@ -815,7 +815,7 @@ describe("native provider startup retry", () => {
     expect(String(state.coordinator.failureDetail?.nextAction)).not.toContain("ambiguous");
     expect(state.run).toMatchObject({ status: "failed", errorCode: "native_provider_model_rejected" });
     expect(state.issue.status).toBe("blocked");
-    expect(state.action).toMatchObject({ ownerType: "board", cause: "native_provider_model_rejected", wakePolicy: null });
+    expect(state.action).toMatchObject({ ownerType: "operator", cause: "native_provider_model_rejected", wakePolicy: null });
     expect(state.action!.nextAction).toContain("Choose a supported model");
     expect(state.action!.nextAction).not.toContain("ambiguous");
   });
@@ -842,7 +842,7 @@ describe("native provider startup retry", () => {
     expect(state.issue.status).toBe("blocked");
     expect(state.issue.executionRunId).toBeNull();
     expect(state.action).toMatchObject({
-      ownerType: "board",
+      ownerType: "operator",
       cause: "native_session_retry_exhausted",
       wakePolicy: null,
     });
@@ -978,7 +978,7 @@ describe("native provider startup retry", () => {
     await failStartup(seeded, sessionOpenFailure());
     const state = await read(seeded);
     expect(state.coordinator.failureDetail).toMatchObject({ providerCooldownAt: expected.toISOString() });
-    expect(await agentProviderLimitCooldown(db, { companyId, agentId, now: new Date() }))
+    expect(await agentProviderLimitCooldown(db, { spaceId, agentId, now: new Date() }))
       .toMatchObject({ resetAt: expected, resetReported: true });
   });
 
@@ -1047,7 +1047,7 @@ describe("native provider startup retry", () => {
       beforeFailure: providerEvent
         ? async () => {
           await db.insert(heartbeatRunEvents).values({
-            companyId,
+            spaceId,
             runId: seeded.runId,
             agentId: seeded.agentId,
             seq: 900,
@@ -1069,7 +1069,7 @@ describe("native provider startup retry", () => {
       }),
     });
     expect(state.issue.status).toBe("blocked");
-    expect(state.action).toMatchObject({ ownerType: "board", wakePolicy: null });
+    expect(state.action).toMatchObject({ ownerType: "operator", wakePolicy: null });
     expect(await claimNativeSessionResumptions({
       db,
       runnerInstanceId: "startup-retry-test",

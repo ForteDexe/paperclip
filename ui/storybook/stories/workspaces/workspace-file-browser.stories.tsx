@@ -167,7 +167,7 @@ function Placement() {
         <h3 className="text-sm font-medium text-muted-foreground">Workspace</h3>
         <IssueWorkspaceCard
           issue={{
-            companyId: "company-1",
+            spaceId: "space-1",
             projectId: "project-1",
             projectWorkspaceId: "pw-1",
             executionWorkspaceId: "ws-1",
@@ -179,7 +179,7 @@ function Placement() {
               mode: "isolated_workspace",
               status: "active",
               branchName: "PAP-1953-plan-a-file-viewer",
-              cwd: "/srv/paperclip/.../worktrees/PAP-1953",
+              cwd: "/srv/outpost/.../worktrees/PAP-1953",
               repoUrl: null,
               projectWorkspaceId: "pw-1",
               name: "PAP-1953",
@@ -200,7 +200,7 @@ const meta: Meta = {
   id: "issue-workspace-file-browser",
   title: "Projects and execution/Workspaces, services, and files/Issue/Workspace File Browser",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "workspaces/files-git"
       ],

@@ -30,7 +30,7 @@ export const FIRST_TURN_QUEUED_INPUT_KEY = "firstTurnQueuedInput";
 export const FIRST_TURN_QUEUED_INPUT_SCHEMA = "outpost.first-turn-queued-input.v1";
 
 const DEFERRED_WAKE_STATUS = "deferred_issue_execution";
-const DEFERRED_WAKE_CONTEXT_KEY = "_paperclipWakeContext";
+const DEFERRED_WAKE_CONTEXT_KEY = "_outpostWakeContext";
 const COMMENT_WAKE_REASONS = new Set(["issue_commented", "issue_reopened_via_comment", "issue_comment_mentioned"]);
 const MAX_COMMENT_CHARS = 16_000;
 const MAX_TOTAL_CHARS = 48_000;
@@ -133,18 +133,18 @@ export function renderFirstTurnQueuedInput(messages: readonly QueuedMessage[]): 
  * prompt carries text only; a message with files keeps its own delivery, which
  * stages those files for the turn that reads it.
  */
-function firstTurnEligibleComment(input: { companyId: string; issueId: string; responsibleUserId: string }) {
+function firstTurnEligibleComment(input: { spaceId: string; issueId: string; responsibleUserId: string }) {
   return and(
-    eq(issueComments.companyId, input.companyId), eq(issueComments.issueId, input.issueId),
+    eq(issueComments.spaceId, input.spaceId), eq(issueComments.issueId, input.issueId),
     eq(issueComments.authorUserId, input.responsibleUserId),
     isNull(issueComments.authorAgentId), isNull(issueComments.createdByRunId), isNull(issueComments.deletedAt),
-    sql`not exists (select 1 from ${issueAttachments} where ${issueAttachments.companyId} = ${input.companyId}
+    sql`not exists (select 1 from ${issueAttachments} where ${issueAttachments.spaceId} = ${input.spaceId}
       and ${issueAttachments.issueCommentId} = ${issueComments.id})`);
 }
 
 async function readQueuedMessages(
   tx: Db,
-  input: { companyId: string; issueId: string; agentId: string; responsibleUserId: string; commentIds: string[]; excludeDelivered: boolean },
+  input: { spaceId: string; issueId: string; agentId: string; responsibleUserId: string; commentIds: string[]; excludeDelivered: boolean },
 ): Promise<QueuedMessage[]> {
   if (input.commentIds.length === 0) return [];
   const rows = await tx.select({
@@ -152,7 +152,7 @@ async function readQueuedMessages(
     sourceTrust: issueComments.sourceTrust,
   }).from(issueComments).where(and(inArray(issueComments.id, input.commentIds), firstTurnEligibleComment(input)));
   const delivered = input.excludeDelivered
-    ? await deliveredQueuedCommentIds(tx, { companyId: input.companyId, issueId: input.issueId, agentId: input.agentId,
+    ? await deliveredQueuedCommentIds(tx, { spaceId: input.spaceId, issueId: input.issueId, agentId: input.agentId,
       commentIds: rows.map(row => row.id) })
     : new Set<string>();
   const byId = new Map(rows.map(row => [row.id, row]));
@@ -171,19 +171,19 @@ async function readQueuedMessages(
  */
 export async function claimFirstTurnQueuedInput(
   db: Db,
-  binding: { companyId: string; runId: string; issueId: string; agentId: string },
+  binding: { spaceId: string; runId: string; issueId: string; agentId: string },
 ): Promise<string | null> {
   return db.transaction(async (tx) => {
     // Redact on this transaction's own connection: a second pool connection
     // while the seal holds its locks can wait forever on a one-connection pool.
     const render = async (messages: QueuedMessage[]) => messages.length === 0 ? null : renderFirstTurnQueuedInput(
-      await createRunSecretRedactionRegistry(tx as unknown as Db).redactForIssue(binding.companyId, binding.issueId, messages));
+      await createRunSecretRedactionRegistry(tx as unknown as Db).redactForIssue(binding.spaceId, binding.issueId, messages));
     // Lock in the queue routes' order (task, queue, run) so a concurrent
     // Interrupt and this seal serialize instead of deadlocking.
     const [issue] = await tx.select({ conversationAgentId: issues.conversationAgentId, executionRunId: issues.executionRunId })
-      .from(issues).where(and(eq(issues.id, binding.issueId), eq(issues.companyId, binding.companyId))).for("update").limit(1);
+      .from(issues).where(and(eq(issues.id, binding.issueId), eq(issues.spaceId, binding.spaceId))).for("update").limit(1);
     const wakes = !issue ? [] : await tx.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, binding.companyId), eq(agentWakeupRequests.agentId, binding.agentId),
+      eq(agentWakeupRequests.spaceId, binding.spaceId), eq(agentWakeupRequests.agentId, binding.agentId),
       eq(agentWakeupRequests.status, DEFERRED_WAKE_STATUS),
       sql`${agentWakeupRequests.payload} ->> 'issueId' = ${binding.issueId}`,
     )).orderBy(asc(agentWakeupRequests.requestedAt), asc(agentWakeupRequests.id)).for("update");
@@ -192,7 +192,7 @@ export async function claimFirstTurnQueuedInput(
       runtimeMode: heartbeatRuns.runtimeMode, responsibleUserId: heartbeatRuns.responsibleUserId,
       contextSnapshot: heartbeatRuns.contextSnapshot,
     }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.companyId, binding.companyId),
+      eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.spaceId, binding.spaceId),
       eq(heartbeatRuns.agentId, binding.agentId))).for("update").limit(1);
     if (!run || run.status !== "running" || run.runtimeMode !== "native" || !run.responsibleUserId) return null;
     const receipt = readFirstTurnQueuedInputReceipt(run);
@@ -236,7 +236,7 @@ export async function claimFirstTurnQueuedInput(
  */
 export async function runAcceptsFirstTurnQueuedInput(
   tx: Pick<Db, "select">,
-  run: { id: string; companyId: string; status: string; runtimeMode: string | null; runtimeModeResolvedAt?: Date | null;
+  run: { id: string; spaceId: string; status: string; runtimeMode: string | null; runtimeModeResolvedAt?: Date | null;
     runnerProfileJson?: unknown; contextSnapshot?: unknown },
 ): Promise<boolean> {
   if (run.status !== "running") return false;
@@ -245,7 +245,7 @@ export async function runAcceptsFirstTurnQueuedInput(
   if (run.runtimeMode !== "native" && !preparingNative) return false;
   if (readFirstTurnQueuedInputReceipt(run)) return false;
   const [accepted] = await tx.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     inArray(heartbeatRunEvents.eventType, [...PROVIDER_TURN_ACCEPTED_EVENT_TYPES]))).limit(1);
   return !accepted;
 }
@@ -265,13 +265,13 @@ export function firstTurnWakePayloadFields(payload: typeof agentWakeupRequests.p
     'externalChatProvider', ${payload}->'externalChatProvider'`;
 }
 
-/** The lean `_paperclipWakeContext` fields `deferredWakeJoinsFirstTurn` reads. */
+/** The lean `_outpostWakeContext` fields `deferredWakeJoinsFirstTurn` reads. */
 export function firstTurnWakeContextFields(payload: typeof agentWakeupRequests.payload) {
-  return sql`'wakeReason', ${payload}->'_paperclipWakeContext'->'wakeReason',
-    'interactionId', ${payload}->'_paperclipWakeContext'->'interactionId',
-    'interactionStatus', ${payload}->'_paperclipWakeContext'->'interactionStatus',
-    'resumeIntent', ${payload}->'_paperclipWakeContext'->'resumeIntent',
-    'chatConversationId', ${payload}->'_paperclipWakeContext'->'chatConversationId'`;
+  return sql`'wakeReason', ${payload}->'_outpostWakeContext'->'wakeReason',
+    'interactionId', ${payload}->'_outpostWakeContext'->'interactionId',
+    'interactionStatus', ${payload}->'_outpostWakeContext'->'interactionStatus',
+    'resumeIntent', ${payload}->'_outpostWakeContext'->'resumeIntent',
+    'chatConversationId', ${payload}->'_outpostWakeContext'->'chatConversationId'`;
 }
 
 /**
@@ -285,7 +285,7 @@ export function firstTurnWakeContextFields(payload: typeof agentWakeupRequests.p
 export async function firstTurnQueuedCommentIds(
   tx: Pick<Db, "select">,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     runId: string;
     wake: { agentId: string; status: string; reason: string | null; requestedByActorType: string | null;
@@ -298,15 +298,15 @@ export async function firstTurnQueuedCommentIds(
   if (wakeIds.length === 0) return [];
   // Read only the receipt and dispatch choice; a run snapshot can be large.
   const [row] = await tx.select({
-    id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+    id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
     status: heartbeatRuns.status, runtimeMode: heartbeatRuns.runtimeMode,
     runtimeModeResolvedAt: heartbeatRuns.runtimeModeResolvedAt, responsibleUserId: heartbeatRuns.responsibleUserId,
     dispatchAdapterType: sql<string | null>`${heartbeatRuns.runnerProfileJson}->'adapterDispatch'->>'adapterType'`,
     receipt: sql<unknown>`${heartbeatRuns.contextSnapshot}->${FIRST_TURN_QUEUED_INPUT_KEY}`,
     executionRunId: issues.executionRunId, conversationAgentId: issues.conversationAgentId,
   }).from(heartbeatRuns)
-    .leftJoin(issues, and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId)))
-    .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId))).limit(1);
+    .leftJoin(issues, and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId)))
+    .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId))).limit(1);
   if (!row || row.status !== "running" || row.agentId !== wake.agentId) return [];
   const run = { ...row, runnerProfileJson: { adapterDispatch: { adapterType: row.dispatchAdapterType } },
     contextSnapshot: { [FIRST_TURN_QUEUED_INPUT_KEY]: row.receipt } };
@@ -320,7 +320,7 @@ export async function firstTurnQueuedCommentIds(
   if (!(await runAcceptsFirstTurnQueuedInput(tx, run))) return [];
   const eligible = await tx.select({ id: issueComments.id }).from(issueComments).where(and(
     inArray(issueComments.id, wakeIds),
-    firstTurnEligibleComment({ companyId: input.companyId, issueId: input.issueId, responsibleUserId: run.responsibleUserId })));
+    firstTurnEligibleComment({ spaceId: input.spaceId, issueId: input.issueId, responsibleUserId: run.responsibleUserId })));
   const ids = new Set(eligible.map(row => row.id));
   return wakeIds.filter(id => ids.has(id));
 }
@@ -332,13 +332,13 @@ export async function firstTurnQueuedCommentIds(
  */
 export async function firstTurnTakesAllQueuedComments(
   tx: Pick<Db, "select">,
-  input: { companyId: string; issueId: string; responsibleUserId: string | null; commentIds: string[] },
+  input: { spaceId: string; issueId: string; responsibleUserId: string | null; commentIds: string[] },
 ): Promise<boolean> {
   if (input.commentIds.length === 0 || !input.responsibleUserId) return false;
   const rows = await tx.select({
     id: issueComments.id,
     eligible: sql<boolean>`coalesce((${firstTurnEligibleComment({ ...input, responsibleUserId: input.responsibleUserId })}), false)`,
-  }).from(issueComments).where(and(eq(issueComments.companyId, input.companyId), eq(issueComments.issueId, input.issueId),
+  }).from(issueComments).where(and(eq(issueComments.spaceId, input.spaceId), eq(issueComments.issueId, input.issueId),
     inArray(issueComments.id, input.commentIds), isNull(issueComments.deletedAt)));
   return rows.length > 0 && rows.every(row => row.eligible === true);
 }

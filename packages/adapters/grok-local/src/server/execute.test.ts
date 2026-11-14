@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => {
         const assetDirs =
           override?.assetDirs ??
           Object.fromEntries(
-            (input.assets ?? []).map((asset) => [asset.key, `/remote/workspace/.paperclip-runtime/grok/${asset.key}`]),
+            (input.assets ?? []).map((asset) => [asset.key, `/remote/workspace/.outpost-runtime/grok/${asset.key}`]),
           );
         const workspaceRemoteDir = override && "workspaceRemoteDir" in override
           ? override.workspaceRemoteDir
@@ -78,7 +78,7 @@ import { resolveManagedGrokHomeDir } from "./grok-home.js";
 const tempRoots: string[] = [];
 
 async function makeTempRoot() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-grok-local-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-grok-local-"));
   tempRoots.push(root);
   return root;
 }
@@ -114,7 +114,7 @@ function makeRestoreWorkspace(
     for (const asset of assets) {
       if (!asset.restore) continue;
       await asset.restore({
-        assetDir: "/remote/workspace/.paperclip-runtime/grok/home",
+        assetDir: "/remote/workspace/.outpost-runtime/grok/home",
         readFile: async () => {
           if (sandboxAuthFixture.error) throw sandboxAuthFixture.error;
           if (sandboxAuthFixture.bytes === null) {
@@ -149,7 +149,7 @@ async function makeCtx(runId: string, cwd: string): Promise<AdapterExecutionCont
     runId,
     agent: {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Grok Agent",
       adapterType: "grok_local",
       adapterConfig: {},
@@ -323,11 +323,11 @@ describe("grok_local execute", () => {
   it("stages Grok-native instructions and skills into the workspace for the run and cleans them up afterward", async () => {
     const root = await makeTempRoot();
     const instructionsPath = path.join(root, "managed", "AGENTS.md");
-    const skillSource = path.join(root, "runtime-skills", "paperclip");
+    const skillSource = path.join(root, "runtime-skills", "outpost");
     await fs.mkdir(path.dirname(instructionsPath), { recursive: true });
     await fs.writeFile(instructionsPath, "You are Grok.\n", "utf8");
     await fs.mkdir(skillSource, { recursive: true });
-    await fs.writeFile(path.join(skillSource, "SKILL.md"), "---\nname: paperclip\ndescription: test\n---\n", "utf8");
+    await fs.writeFile(path.join(skillSource, "SKILL.md"), "---\nname: outpost\ndescription: test\n---\n", "utf8");
 
     runProcessMock.mockImplementation(async (_runId, _target, _command, args, options) => {
       expect(args).toEqual(
@@ -341,7 +341,7 @@ describe("grok_local execute", () => {
       // so no permission mode may be passed unless explicitly configured.
       expect(args).not.toContain("--permission-mode");
       expect(await fs.readFile(path.join(root, "Agents.md"), "utf8")).toContain("You are Grok.");
-      expect(await pathExists(path.join(root, ".claude", "skills", "paperclip", "SKILL.md"))).toBe(true);
+      expect(await pathExists(path.join(root, ".claude", "skills", "outpost", "SKILL.md"))).toBe(true);
       await options.onLog?.("stdout", '{"type":"text","data":"done"}\n');
       return {
         exitCode: 0,
@@ -360,7 +360,7 @@ describe("grok_local execute", () => {
       runId: "run-1",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Grok Agent",
         adapterType: "grok_local",
         adapterConfig: {},
@@ -374,13 +374,13 @@ describe("grok_local execute", () => {
       config: {
         cwd: root,
         instructionsFilePath: instructionsPath,
-        paperclipRuntimeSkills: [{
-          key: "paperclip",
-          runtimeName: "paperclip",
+        outpostRuntimeSkills: [{
+          key: "outpost",
+          runtimeName: "outpost",
           source: skillSource,
           required: false,
         }],
-        paperclipSkillSync: { desiredSkills: ["paperclip"] },
+        outpostSkillSync: { desiredSkills: ["outpost"] },
       },
       context: {},
       authToken: "run-token",
@@ -399,7 +399,7 @@ describe("grok_local execute", () => {
       sessionDisplayId: "sess-1",
     });
     expect(await pathExists(path.join(root, "Agents.md"))).toBe(false);
-    expect(await pathExists(path.join(root, ".claude", "skills", "paperclip"))).toBe(false);
+    expect(await pathExists(path.join(root, ".claude", "skills", "outpost"))).toBe(false);
     expect(logs.map((entry) => entry.chunk)).not.toEqual([]);
   });
 
@@ -454,12 +454,12 @@ describe("grok_local execute", () => {
 
   describe("local lane GROK_HOME", () => {
     let previousApiKey: string | undefined;
-    let previousPaperclipHome: string | undefined;
+    let previousOutpostHome: string | undefined;
     let previousGrokHome: string | undefined;
 
     beforeEach(async () => {
       previousApiKey = process.env.XAI_API_KEY;
-      previousPaperclipHome = process.env.OUTPOST_HOME;
+      previousOutpostHome = process.env.OUTPOST_HOME;
       previousGrokHome = process.env.GROK_HOME;
       process.env.OUTPOST_HOME = await makeTempRoot();
       delete process.env.XAI_API_KEY;
@@ -469,13 +469,13 @@ describe("grok_local execute", () => {
     afterEach(() => {
       if (previousApiKey === undefined) delete process.env.XAI_API_KEY;
       else process.env.XAI_API_KEY = previousApiKey;
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
       if (previousGrokHome === undefined) delete process.env.GROK_HOME;
       else process.env.GROK_HOME = previousGrokHome;
     });
 
-    it("leaves GROK_HOME unset when the company home has no usable auth", async () => {
+    it("leaves GROK_HOME unset when the space home has no usable auth", async () => {
       let seenEnv: Record<string, string> = {};
       runProcessMock.mockImplementation(async (_runId, _target, _command, _args, options) => {
         seenEnv = options.env;
@@ -486,14 +486,14 @@ describe("grok_local execute", () => {
       expect(seenEnv.GROK_HOME).toBeUndefined();
     });
 
-    it("lets a local child read the host login when the company home is empty", async () => {
+    it("lets a local child read the host login when the space home is empty", async () => {
       const hostRoot = await makeTempRoot();
       const hostHome = path.join(hostRoot, ".grok");
       await fs.mkdir(hostHome);
       const auth = grokAuth({ key: "fixture-host-key", expiresAt: NEWER_EXPIRY });
       await fs.writeFile(path.join(hostHome, "auth.json"), auth);
-      const companyHome = resolveManagedGrokHomeDir(process.env, "company-1");
-      await fs.mkdir(companyHome, { recursive: true });
+      const spaceHome = resolveManagedGrokHomeDir(process.env, "space-1");
+      await fs.mkdir(spaceHome, { recursive: true });
       const ctx = await makeCtx("run-host-login-child", await makeTempRoot());
       ctx.config.env = { HOME: hostRoot };
       runProcessMock.mockImplementation(async (_runId, _target, _command, _args, options) => {
@@ -514,15 +514,15 @@ describe("grok_local execute", () => {
 
       expect(result.exitCode).toBe(0);
       expect(result.sessionId).toBe("host-login");
-      expect(await fs.readdir(companyHome)).toEqual([]);
+      expect(await fs.readdir(spaceHome)).toEqual([]);
       expect(await fs.readFile(path.join(hostHome, "auth.json"), "utf8")).toBe(auth);
     });
 
-    it("pins GROK_HOME to the company home when that home has usable auth", async () => {
-      const companyHome = resolveManagedGrokHomeDir(process.env, "company-1");
-      await fs.mkdir(companyHome, { recursive: true });
+    it("pins GROK_HOME to the space home when that home has usable auth", async () => {
+      const spaceHome = resolveManagedGrokHomeDir(process.env, "space-1");
+      await fs.mkdir(spaceHome, { recursive: true });
       await fs.writeFile(
-        path.join(companyHome, "auth.json"),
+        path.join(spaceHome, "auth.json"),
         grokAuth({ key: "local-key", expiresAt: NEWER_EXPIRY }),
         "utf8",
       );
@@ -534,21 +534,21 @@ describe("grok_local execute", () => {
       });
 
       await execute(await makeCtx("run-subscription-home-seeded", await makeTempRoot()));
-      expect(seenEnv.GROK_HOME).toBe(companyHome);
+      expect(seenEnv.GROK_HOME).toBe(spaceHome);
     });
 
     it.each(["{invalid", "{}", JSON.stringify({ [GROK_IDENTITY]: { key: "incomplete" } })])(
-      "uses host login when company auth is unusable (%s)",
+      "uses host login when space auth is unusable (%s)",
       async (contents) => {
-        const companyHome = resolveManagedGrokHomeDir(process.env, "company-1");
-        await fs.mkdir(companyHome, { recursive: true });
-        await fs.writeFile(path.join(companyHome, "auth.json"), contents);
+        const spaceHome = resolveManagedGrokHomeDir(process.env, "space-1");
+        await fs.mkdir(spaceHome, { recursive: true });
+        await fs.writeFile(path.join(spaceHome, "auth.json"), contents);
         runProcessMock.mockResolvedValue(makeSuccessfulRunResult());
 
-        await execute(await makeCtx("run-unusable-company-auth", await makeTempRoot()));
+        await execute(await makeCtx("run-unusable-space-auth", await makeTempRoot()));
 
         expect(runProcessMock.mock.calls[0][4].env.GROK_HOME).toBeUndefined();
-        expect(await fs.readFile(path.join(companyHome, "auth.json"), "utf8")).toBe(contents);
+        expect(await fs.readFile(path.join(spaceHome, "auth.json"), "utf8")).toBe(contents);
       },
     );
 
@@ -567,19 +567,19 @@ describe("grok_local execute", () => {
       expect(commandCall[3].GROK_HOME).toBe(hostHome);
     });
 
-    it("uses company login when an explicit empty API key overrides an inherited key", async () => {
+    it("uses space login when an explicit empty API key overrides an inherited key", async () => {
       process.env.XAI_API_KEY = "host-api-key";
       process.env.GROK_HOME = await makeTempRoot();
-      const companyHome = resolveManagedGrokHomeDir(process.env, "company-1");
-      await fs.mkdir(companyHome, { recursive: true });
-      await fs.writeFile(path.join(companyHome, "auth.json"), grokAuth({ key: "company-key", expiresAt: NEWER_EXPIRY }));
+      const spaceHome = resolveManagedGrokHomeDir(process.env, "space-1");
+      await fs.mkdir(spaceHome, { recursive: true });
+      await fs.writeFile(path.join(spaceHome, "auth.json"), grokAuth({ key: "space-key", expiresAt: NEWER_EXPIRY }));
       const ctx = await makeCtx("run-cleared-host-api-key", await makeTempRoot());
       ctx.config.env = { XAI_API_KEY: "" };
       runProcessMock.mockResolvedValue(makeSuccessfulRunResult());
 
       const result = await execute(ctx);
 
-      expect(runProcessMock.mock.calls[0][4].env.GROK_HOME).toBe(companyHome);
+      expect(runProcessMock.mock.calls[0][4].env.GROK_HOME).toBe(spaceHome);
       expect(result.billingType).toBe("subscription");
     });
 
@@ -626,7 +626,7 @@ describe("grok_local execute", () => {
       runId: "run-permission-mode",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Grok Agent",
         adapterType: "grok_local",
         adapterConfig: {},
@@ -648,18 +648,18 @@ describe("grok_local execute", () => {
   it("cleans up staged assets when setup fails before the Grok process starts", async () => {
     const root = await makeTempRoot();
     const instructionsPath = path.join(root, "managed", "AGENTS.md");
-    const skillSource = path.join(root, "runtime-skills", "paperclip");
+    const skillSource = path.join(root, "runtime-skills", "outpost");
     await fs.mkdir(path.dirname(instructionsPath), { recursive: true });
     await fs.writeFile(instructionsPath, "You are Grok.\n", "utf8");
     await fs.mkdir(skillSource, { recursive: true });
-    await fs.writeFile(path.join(skillSource, "SKILL.md"), "---\nname: paperclip\ndescription: test\n---\n", "utf8");
+    await fs.writeFile(path.join(skillSource, "SKILL.md"), "---\nname: outpost\ndescription: test\n---\n", "utf8");
     ensureCommandMock.mockRejectedValueOnce(new Error("grok not installed"));
 
     const ctx: AdapterExecutionContext = {
       runId: "run-setup-fail",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Grok Agent",
         adapterType: "grok_local",
         adapterConfig: {},
@@ -673,13 +673,13 @@ describe("grok_local execute", () => {
       config: {
         cwd: root,
         instructionsFilePath: instructionsPath,
-        paperclipRuntimeSkills: [{
-          key: "paperclip",
-          runtimeName: "paperclip",
+        outpostRuntimeSkills: [{
+          key: "outpost",
+          runtimeName: "outpost",
           source: skillSource,
           required: false,
         }],
-        paperclipSkillSync: { desiredSkills: ["paperclip"] },
+        outpostSkillSync: { desiredSkills: ["outpost"] },
       },
       context: {},
       authToken: "run-token",
@@ -689,21 +689,21 @@ describe("grok_local execute", () => {
     await expect(execute(ctx)).rejects.toThrow("grok not installed");
     expect(runProcessMock).not.toHaveBeenCalled();
     expect(await pathExists(path.join(root, "Agents.md"))).toBe(false);
-    expect(await pathExists(path.join(root, ".claude", "skills", "paperclip"))).toBe(false);
+    expect(await pathExists(path.join(root, ".claude", "skills", "outpost"))).toBe(false);
   });
 
   describe("remote lane credential staging", () => {
     let previousApiKey: string | undefined;
-    let previousPaperclipHome: string | undefined;
-    let paperclipHomeRoot: string;
+    let previousOutpostHome: string | undefined;
+    let outpostHomeRoot: string;
 
     beforeEach(async () => {
       previousApiKey = process.env.XAI_API_KEY;
-      previousPaperclipHome = process.env.OUTPOST_HOME;
+      previousOutpostHome = process.env.OUTPOST_HOME;
       // Point the managed Grok home at a private tmp root, so staging never
-      // touches a real developer or CI-host `~/.paperclip` tree.
-      paperclipHomeRoot = await makeTempRoot();
-      process.env.OUTPOST_HOME = paperclipHomeRoot;
+      // touches a real developer or CI-host `~/.outpost` tree.
+      outpostHomeRoot = await makeTempRoot();
+      process.env.OUTPOST_HOME = outpostHomeRoot;
       sandboxAuthFixture.bytes = null;
       sandboxAuthFixture.error = null;
     });
@@ -711,12 +711,12 @@ describe("grok_local execute", () => {
     afterEach(() => {
       if (previousApiKey === undefined) delete process.env.XAI_API_KEY;
       else process.env.XAI_API_KEY = previousApiKey;
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
     });
 
     async function seedHostGrokAuth(contents: string): Promise<string> {
-      const hostGrokHome = resolveManagedGrokHomeDir(process.env, "company-1");
+      const hostGrokHome = resolveManagedGrokHomeDir(process.env, "space-1");
       await fs.mkdir(hostGrokHome, { recursive: true });
       await fs.writeFile(path.join(hostGrokHome, "auth.json"), contents, "utf8");
       return hostGrokHome;
@@ -747,7 +747,7 @@ describe("grok_local execute", () => {
           }
           return {
             workspaceRemoteDir: "/remote/workspace",
-            assetDirs: { home: "/remote/workspace/.paperclip-runtime/grok/home" },
+            assetDirs: { home: "/remote/workspace/.outpost-runtime/grok/home" },
             restoreWorkspace: async () => {},
           };
         },
@@ -774,22 +774,22 @@ describe("grok_local execute", () => {
 
       await execute(await makeCtx("run-remote-subscription-home", await makeTempRoot()));
 
-      expect(seenEnv.GROK_HOME).toBe("/remote/workspace/.paperclip-runtime/grok/home");
+      expect(seenEnv.GROK_HOME).toBe("/remote/workspace/.outpost-runtime/grok/home");
     });
 
-    it("stages an empty company home instead of a configured host login for remote runs", async () => {
+    it("stages an empty space home instead of a configured host login for remote runs", async () => {
       delete process.env.XAI_API_KEY;
       mocks.state.isRemote = true;
       const hostHome = await makeTempRoot();
       await fs.writeFile(path.join(hostHome, "auth.json"), grokAuth({ key: "host-only", expiresAt: NEWER_EXPIRY }));
-      const ctx = await makeCtx("run-remote-empty-company", await makeTempRoot());
+      const ctx = await makeCtx("run-remote-empty-space", await makeTempRoot());
       ctx.config.env = { GROK_HOME: hostHome };
       let stagedEntries: string[] | undefined;
       prepareRuntimeMock.mockImplementationOnce(async (input) => {
         stagedEntries = await fs.readdir(input.assets![0].localDir);
         return {
           workspaceRemoteDir: "/remote/workspace",
-          assetDirs: { home: "/remote/workspace/.paperclip-runtime/grok/home" },
+          assetDirs: { home: "/remote/workspace/.outpost-runtime/grok/home" },
           restoreWorkspace: async () => {},
         };
       });
@@ -798,7 +798,7 @@ describe("grok_local execute", () => {
       await execute(ctx);
 
       expect(stagedEntries).toEqual([]);
-      expect(runProcessMock.mock.calls[0][4].env.GROK_HOME).toBe("/remote/workspace/.paperclip-runtime/grok/home");
+      expect(runProcessMock.mock.calls[0][4].env.GROK_HOME).toBe("/remote/workspace/.outpost-runtime/grok/home");
     });
 
     it("uses the fallback remote path when assetDirs.home is absent", async () => {
@@ -815,7 +815,7 @@ describe("grok_local execute", () => {
       await execute(await makeCtx("run-remote-subscription-fallback", await makeTempRoot()));
 
       expect(seenEnv.GROK_HOME).toBe(
-        "/remote/fallback-workspace/.paperclip-runtime/grok/home",
+        "/remote/fallback-workspace/.outpost-runtime/grok/home",
       );
     });
 
@@ -856,7 +856,7 @@ describe("grok_local execute", () => {
         stagedDir = input.assets?.[0]?.localDir ?? "";
         return {
           workspaceRemoteDir: "/remote/workspace",
-          assetDirs: { home: "/remote/workspace/.paperclip-runtime/grok/home" },
+          assetDirs: { home: "/remote/workspace/.outpost-runtime/grok/home" },
           restoreWorkspace: async () => {},
         };
       });
@@ -876,7 +876,7 @@ describe("grok_local execute", () => {
         stagedDir = input.assets?.[0]?.localDir ?? "";
         return {
           workspaceRemoteDir: "/remote/workspace",
-          assetDirs: { home: "/remote/workspace/.paperclip-runtime/grok/home" },
+          assetDirs: { home: "/remote/workspace/.outpost-runtime/grok/home" },
           restoreWorkspace: async () => {},
         };
       });
@@ -905,7 +905,7 @@ describe("grok_local execute", () => {
         stagedDir = input.assets?.[0]?.localDir ?? "";
         return {
           workspaceRemoteDir: "/remote/workspace",
-          assetDirs: { home: "/remote/workspace/.paperclip-runtime/grok/home" },
+          assetDirs: { home: "/remote/workspace/.outpost-runtime/grok/home" },
           restoreWorkspace: async () => { order.push("restore"); },
         };
       });
@@ -937,7 +937,7 @@ describe("grok_local execute", () => {
       });
       prepareRuntimeMock.mockImplementationOnce(async () => ({
         workspaceRemoteDir: "/remote/workspace",
-        assetDirs: { home: "/remote/workspace/.paperclip-runtime/grok/home" },
+        assetDirs: { home: "/remote/workspace/.outpost-runtime/grok/home" },
         restoreWorkspace: async () => { throw new Error("restore failed"); },
       }));
       const ctx = await makeCtx("run-collection-and-restore-reject", await makeTempRoot());
@@ -972,7 +972,7 @@ describe("grok_local execute", () => {
         stagedDir = input.assets?.[0]?.localDir ?? "";
         return {
           workspaceRemoteDir: "/remote/workspace",
-          assetDirs: { home: "/remote/workspace/.paperclip-runtime/grok/home" },
+          assetDirs: { home: "/remote/workspace/.outpost-runtime/grok/home" },
           restoreWorkspace: async () => {
             throw new Error("restore failed");
           },
@@ -995,7 +995,7 @@ describe("grok_local execute", () => {
       expect(await pathExists(stagedDir)).toBe(false);
     });
 
-    it("a remote run copies the refreshed sandbox credential to the company Grok home", async () => {
+    it("a remote run copies the refreshed sandbox credential to the space Grok home", async () => {
       delete process.env.XAI_API_KEY;
       mocks.state.isRemote = true;
       const hostGrokHome = await seedHostGrokAuth(grokAuth({ key: "host-key", expiresAt: OLDER_EXPIRY }));
@@ -1010,7 +1010,7 @@ describe("grok_local execute", () => {
         }>;
         return {
           workspaceRemoteDir: "/remote/workspace",
-          assetDirs: { home: "/remote/workspace/.paperclip-runtime/grok/home" },
+          assetDirs: { home: "/remote/workspace/.outpost-runtime/grok/home" },
           restoreWorkspace: makeRestoreWorkspace(assets),
         };
       });
@@ -1036,7 +1036,7 @@ describe("grok_local execute", () => {
         }>;
         return {
           workspaceRemoteDir: "/remote/workspace",
-          assetDirs: { home: "/remote/workspace/.paperclip-runtime/grok/home" },
+          assetDirs: { home: "/remote/workspace/.outpost-runtime/grok/home" },
           restoreWorkspace: makeRestoreWorkspace(assets),
         };
       });
@@ -1063,7 +1063,7 @@ describe("grok_local execute", () => {
         }>;
         return {
           workspaceRemoteDir: "/remote/workspace",
-          assetDirs: { home: "/remote/workspace/.paperclip-runtime/grok/home" },
+          assetDirs: { home: "/remote/workspace/.outpost-runtime/grok/home" },
           restoreWorkspace: makeRestoreWorkspace(assets),
         };
       });
@@ -1091,7 +1091,7 @@ describe("grok_local execute", () => {
 
       await execute(ctx);
 
-      expect(deliveredPrompt).toContain(fixture.paperclipTaskMarkdownAssignment);
+      expect(deliveredPrompt).toContain(fixture.outpostTaskMarkdownAssignment);
       expect(deliveredPrompt.indexOf("Append the same ledger entry.")).toBeLessThan(
         deliveredPrompt.lastIndexOf("Append the same ledger entry."),
       );
@@ -1128,8 +1128,8 @@ describe("grok_local execute", () => {
 
       expect(result.exitCode).toBe(0);
       expect(prompts).toHaveLength(2);
-      expect(prompts[0]).toContain(fixture.paperclipTaskMarkdownAssignmentCompact);
-      expect(prompts[1]).toContain(fixture.paperclipTaskMarkdownAssignment);
+      expect(prompts[0]).toContain(fixture.outpostTaskMarkdownAssignmentCompact);
+      expect(prompts[1]).toContain(fixture.outpostTaskMarkdownAssignment);
       expect(prompts[1]).toContain("comment-first");
       expect(prompts[1]).toContain("comment-scope");
     });

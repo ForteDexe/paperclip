@@ -4,7 +4,7 @@ import { probePluginRunnerEnvironment } from "./plugin-runner-probe.js";
 import { assertHarnessTestPassed } from "../agent-harness-verification.js";
 
 const probe = (runnerTask: () => Promise<unknown>) => probePluginRunnerEnvironment({
-  companyId: "fixture-company", adapterType: "outpost_runner", config: { provider: "codex", model: "fixture-model" },
+  spaceId: "fixture-space", adapterType: "outpost_runner", config: { provider: "codex", model: "fixture-model" },
   executionTarget: { kind: "remote", transport: "sandbox", remoteCwd: ".", leaseId: "probe-lease",
     runnerTaskProbe: { runId: "probe-run", sessionId: "probe-session" }, runnerTask },
 } as Parameters<typeof probePluginRunnerEnvironment>[0]);

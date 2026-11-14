@@ -197,7 +197,7 @@ describe("completedActivitySummary", () => {
   });
 });
 
-describe("completedActivitySummary governance", () => {
+describe("completedActivitySummary policy", () => {
   const hook = (outcome: string, status: TaskChatProviderActivityItem["status"] = "completed"): TaskChatProviderActivityItem => ({
     ...provider("hook", status),
     id: `hook-${outcome}`,

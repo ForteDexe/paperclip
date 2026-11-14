@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, applyPendingMigrations, heartbeatRuns, museRunnerAssignments, museAgentBindings, subscribeDatabaseWork } from "@outpost/db";
+import { agents, spaces, createDb, applyPendingMigrations, heartbeatRuns, museRunnerAssignments, museAgentBindings, subscribeDatabaseWork } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { notifyMuseContactVerification, parseMuseVerificationHint } from "../modules/external-agents/index.js";
 import { startMuseMaintenance } from "./muse-maintenance.js";
@@ -48,14 +48,14 @@ describeDatabase("Muse commit and deadline maintenance", () => {
     await coordinator?.stop();
     await stop?.();
     vi.useRealTimers();
-    await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await database?.cleanup(); });
 
   async function fixture(expiresAt: Date | null = null) {
-    const [company] = await db.insert(companies).values({ name: "Maintenance", issuePrefix: `MT${randomUUID().slice(0, 6)}` }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Muse agent" }).returning();
-    const [binding] = await db.insert(museAgentBindings).values({ companyId: company.id, agentId: agent.id,
+    const [space] = await db.insert(spaces).values({ name: "Maintenance", issuePrefix: `MT${randomUUID().slice(0, 6)}` }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Muse agent" }).returning();
+    const [binding] = await db.insert(museAgentBindings).values({ spaceId: space.id, agentId: agent.id,
       operatorId: "synthetic-operator", qualificationId: expiresAt ? randomUUID() : null, qualificationExpiresAt: expiresAt }).returning();
     return binding;
   }
@@ -96,10 +96,10 @@ describeDatabase("Muse commit and deadline maintenance", () => {
     try {
       await expect(db.transaction(async tx => {
         expect(await notifyMuseContactVerification(tx, {
-          companyId: binding.companyId, bindingId: binding.id, generation: binding.generation,
+          spaceId: binding.spaceId, bindingId: binding.id, generation: binding.generation,
         }, "contact-persist")).toBe(1);
         expect(hints.map(parseMuseVerificationHint)).toEqual([{
-          kind: "muse-contact-verification", companyId: binding.companyId,
+          kind: "muse-contact-verification", spaceId: binding.spaceId,
           bindingId: binding.id, generation: binding.generation,
         }]);
         const [before] = await tx.select().from(museAgentBindings).where(eq(museAgentBindings.id, binding.id));
@@ -113,7 +113,7 @@ describeDatabase("Muse commit and deadline maintenance", () => {
     } finally { unsubscribe(); }
   });
 
-  it("targets only pending contact bindings for the affected company and operator", async () => {
+  it("targets only pending contact bindings for the affected space and operator", async () => {
     const binding = await fixture();
     const foreign = await fixture();
     const otherOperator = await fixture();
@@ -121,8 +121,8 @@ describeDatabase("Muse commit and deadline maintenance", () => {
       await db.update(museAgentBindings).set({ pairedAt: new Date(), receiverContactAt: new Date() })
         .where(eq(museAgentBindings.id, pending.id));
     }
-    const [otherAgent] = await db.insert(agents).values({ companyId: binding.companyId, name: "Other Muse agent" }).returning();
-    await db.update(museAgentBindings).set({ companyId: binding.companyId, agentId: otherAgent.id,
+    const [otherAgent] = await db.insert(agents).values({ spaceId: binding.spaceId, name: "Other Muse agent" }).returning();
+    await db.update(museAgentBindings).set({ spaceId: binding.spaceId, agentId: otherAgent.id,
       operatorId: "another-operator" }).where(eq(museAgentBindings.id, otherOperator.id));
     const hints: string[] = [];
     const unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.museMaintenance, (event, values) => {
@@ -131,22 +131,22 @@ describeDatabase("Muse commit and deadline maintenance", () => {
     try {
       await db.transaction(async tx => {
         expect(await notifyMuseContactVerification(tx, {
-          companyId: binding.companyId, operatorId: binding.operatorId,
+          spaceId: binding.spaceId, operatorId: binding.operatorId,
         })).toBe(1);
       });
       expect(hints.map(parseMuseVerificationHint)).toEqual([{
-        kind: "muse-contact-verification", companyId: binding.companyId,
+        kind: "muse-contact-verification", spaceId: binding.spaceId,
         bindingId: binding.id, generation: binding.generation,
       }]);
       expect(hints.some(hint => hint.includes(foreign.id) || hint.includes(otherOperator.id))).toBe(false);
       await db.transaction(async tx => {
-        expect(await notifyMuseContactVerification(tx, { companyId: binding.companyId,
+        expect(await notifyMuseContactVerification(tx, { spaceId: binding.spaceId,
           bindingId: binding.id, generation: binding.generation + 1 })).toBe(0);
       });
       expect(hints).toHaveLength(1);
       await db.update(museAgentBindings).set({ verifiedReplyAt: new Date() }).where(eq(museAgentBindings.id, binding.id));
       await db.transaction(async tx => {
-        expect(await notifyMuseContactVerification(tx, { companyId: binding.companyId,
+        expect(await notifyMuseContactVerification(tx, { spaceId: binding.spaceId,
           operatorId: binding.operatorId })).toBe(0);
       });
       expect(hints).toHaveLength(1);
@@ -209,9 +209,9 @@ describeDatabase("Muse commit and deadline maintenance", () => {
   });
   it("does not poll a running Muse assignment waiting for a real event", async () => {
     const b = await fixture();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: b.companyId, agentId: b.agentId,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: b.spaceId, agentId: b.agentId,
       invocationSource: "automation", status: "running" }).returning();
-    await db.insert(museRunnerAssignments).values({ companyId: b.companyId,
+    await db.insert(museRunnerAssignments).values({ spaceId: b.spaceId,
       agentId: b.agentId, bindingId: b.id, bindingGeneration: b.generation, runId: run.id,
       normalizedSessionId: randomUUID(), turnId: randomUUID(), controllerGeneration: 1,
       catalogDigest: "test", status: "accepted", projection: {}, acceptBy: new Date(), expiresAt: new Date(Date.now() + 3_600_000) });
@@ -224,9 +224,9 @@ describeDatabase("Muse commit and deadline maintenance", () => {
 
   it("retries a terminal assignment only until its concrete settlement completes", async () => {
     const b = await fixture();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: b.companyId, agentId: b.agentId,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: b.spaceId, agentId: b.agentId,
       invocationSource: "automation", status: "succeeded", finishedAt: new Date() }).returning();
-    const [assignment] = await db.insert(museRunnerAssignments).values({ companyId: b.companyId,
+    const [assignment] = await db.insert(museRunnerAssignments).values({ spaceId: b.spaceId,
       agentId: b.agentId, bindingId: b.id, bindingGeneration: b.generation, runId: run.id,
       normalizedSessionId: randomUUID(), turnId: randomUUID(), controllerGeneration: 1,
       catalogDigest: "test", status: "accepted", projection: {}, acceptBy: new Date(), expiresAt: new Date(Date.now() + 60_000) }).returning();
@@ -246,9 +246,9 @@ describeDatabase("Muse commit and deadline maintenance", () => {
     const at = new Date(Date.now() + 1000);
     const expiring = await fixture(at);
     const b = await fixture();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: b.companyId, agentId: b.agentId,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: b.spaceId, agentId: b.agentId,
       invocationSource: "automation", status: "succeeded", finishedAt: new Date() }).returning();
-    const [assignment] = await db.insert(museRunnerAssignments).values({ companyId: b.companyId,
+    const [assignment] = await db.insert(museRunnerAssignments).values({ spaceId: b.spaceId,
       agentId: b.agentId, bindingId: b.id, bindingGeneration: b.generation, runId: run.id,
       normalizedSessionId: randomUUID(), turnId: randomUUID(), controllerGeneration: 1,
       catalogDigest: "test", status: "accepted", projection: {}, acceptBy: new Date(),
@@ -293,7 +293,7 @@ describeDatabase("Muse commit and deadline maintenance", () => {
     expect(calls).toEqual([]);
     enabled = true;
     await vi.advanceTimersByTimeAsync(5000); await settle();
-    expect(effects.reconcileTerminalAssignments).toHaveBeenCalledWith(binding.companyId, binding.agentId, binding.id, { limit: 100 });
+    expect(effects.reconcileTerminalAssignments).toHaveBeenCalledWith(binding.spaceId, binding.agentId, binding.id, { limit: 100 });
     expect(calls.filter(c => c === "update")).toHaveLength(1);
   });
   it("pauses deadline maintenance during drain and catches up after release", async () => {

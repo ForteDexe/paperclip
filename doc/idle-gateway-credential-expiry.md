@@ -2,7 +2,7 @@
 
 Gateway sessions and named gateway tokens already persist their expiry times.
 `cleanupExpiredSessions` remains the owner of physical deletion. Authentication
-continues to check expiry, revocation, company scope, run ownership, and active
+continues to check expiry, revocation, space scope, run ownership, and active
 run state on use. No table, authorization rule, or external alarm is added.
 
 ## Producer inventory
@@ -15,7 +15,7 @@ run state on use. No table, authorization rule, or external alarm is added.
 - Last-use updates do not change expiry. Token/session revocation, including
   heartbeat completion and connection removal, also leaves the saved expiry
   intact. Revoked rows retain the same physical deletion deadline.
-- Gateway/company deletion removes dependent rows and can leave one harmless
+- Gateway/space deletion removes dependent rows and can leave one harmless
   stale deadline. It cannot create overdue work. No supported service changes
   a saved credential expiry after creation.
 

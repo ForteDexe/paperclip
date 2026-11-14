@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
+import { agents, authUsers, spaces, spaceMemberships, createDb, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
 import { registerServerAdapter, unregisterServerAdapter, type AdapterExecutionContext } from "../adapters/index.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { getRunLogStore } from "../services/run-log-store.js";
 import { withS3FailureDiagnostics } from "../storage/s3-failure.js";
 import { sendThroughStorageOutage } from "../storage/storage-unavailable.js";
-import { subscribeCompanyLiveEvents } from "../services/live-events.js";
+import { subscribeSpaceLiveEvents } from "../services/live-events.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
 const support = await getEmbeddedPostgresTestSupport();
@@ -46,14 +46,14 @@ describePostgres("heartbeat output through adapter dispatch and finalization", (
   });
 
   async function seed(execute: (input: AdapterExecutionContext) => Promise<void>) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Output fixture", issuePrefix: `O${companyId.slice(0, 6)}` });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "output-user",
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Output fixture", issuePrefix: `O${spaceId.slice(0, 6)}` });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "output-user",
       membershipRole: "operator", status: "active" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Output writer", adapterType, status: "idle" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Output fixture", status: "todo", assigneeAgentId: agentId, responsibleUserId: "output-user", issueNumber: 1 });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Output writer", adapterType, status: "idle" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Output fixture", status: "todo", assigneeAgentId: agentId, responsibleUserId: "output-user", issueNumber: 1 });
     executeByAgent.set(agentId, execute);
-    return { companyId, agentId, issueId };
+    return { spaceId, agentId, issueId };
   }
   async function execute(f: Awaited<ReturnType<typeof seed>>) {
     const run = await heartbeat.wakeup(f.agentId, { source: "on_demand", triggerDetail: "manual", reason: "manual", payload: { issueId: f.issueId }, contextSnapshot: { issueId: f.issueId } });
@@ -77,7 +77,7 @@ describePostgres("heartbeat output through adapter dispatch and finalization", (
       await input.onEvent?.({ eventType: "   ", stream: "system", level: "info", message: "ignored blank event" });
     });
     const live: Record<string, unknown>[] = [];
-    const unsubscribe = subscribeCompanyLiveEvents(f.companyId, event => {
+    const unsubscribe = subscribeSpaceLiveEvents(f.spaceId, event => {
       if (event.type === "heartbeat.run.log") live.push(event.payload);
     });
     try {
@@ -127,7 +127,7 @@ describePostgres("heartbeat output through adapter dispatch and finalization", (
       payload: { issueId: f.issueId }, contextSnapshot: { issueId: f.issueId } });
     await vi.waitFor(() => expect(begin).toHaveBeenCalled(), { timeout: 10_000 });
     const stoppedAt = Date.now();
-    await heartbeat.cancelRun(run!.id, "Cancelled by a board operator");
+    await heartbeat.cancelRun(run!.id, "Cancelled by a operator operator");
     await heartbeat.drainActiveRunExecutions();
     expect(Date.now() - stoppedAt).toBeLessThan(10_000);
     const [stopped] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run!.id));

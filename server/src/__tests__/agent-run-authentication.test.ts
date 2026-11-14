@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { agents, companies, createDb, heartbeatRuns, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { agentRunWritesRevoked } from "../agent-run-cancellation.js";
 import { loadAgentRunAuthentication } from "../middleware/agent-run-authentication.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -10,16 +10,16 @@ const support = await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("agent run authentication projection", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
   const identityContextId = randomUUID();
-  const input = { companyId, agentId, runId };
+  const input = { spaceId, agentId, runId };
 
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("agent-run-authentication-");
     db = createDb(database.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Authentication fixture", issuePrefix: "AUTH" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "process" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running",
+    await db.insert(spaces).values({ id: spaceId, name: "Authentication fixture", issuePrefix: "AUTH" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "process" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running",
       activeIdentityContextId: identityContextId, responsibleUserId: "fixture-user" });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
@@ -36,7 +36,7 @@ const support = await getEmbeddedPostgresTestSupport();
       resultJson: heartbeatRuns.resultJson,
       contextSnapshot: heartbeatRuns.contextSnapshot,
     }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId),
-      eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, agentId)));
+      eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, agentId)));
     return row;
   }
 
@@ -86,8 +86,8 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(agentRunWritesRevoked((await loadAgentRunAuthentication(db, input))[0])).toBe(true);
   });
 
-  it("does not return another company, agent, or run", async () => {
-    for (const key of ["companyId", "agentId", "runId"] as const) {
+  it("does not return another space, agent, or run", async () => {
+    for (const key of ["spaceId", "agentId", "runId"] as const) {
       expect(await loadAgentRunAuthentication(db, { ...input, [key]: randomUUID() })).toEqual([]);
     }
   });

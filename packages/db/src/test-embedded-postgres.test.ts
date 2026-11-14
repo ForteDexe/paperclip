@@ -11,7 +11,7 @@ import {
   __isUsableEmbeddedPostgresTemplateForTests as isUsableTemplate,
   __lastEmbeddedPostgresStartModeForTests as lastStartMode,
   __resetEmbeddedPostgresTemplateStateForTests as resetTemplateState,
-  __setEmbeddedPostgresCtorProviderForTests,
+  __setEmbeddedPostgresEngineeringLeadrProviderForTests,
   __startEmbeddedPostgresWithRetryForTests as startWithRetry,
   computeEmbeddedPostgresTemplateKey,
   EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
@@ -43,7 +43,7 @@ type FakeOptions = {
 
 const BIND_CONFLICT_LOG = 'could not bind IPv4 address "127.0.0.1": Address already in use';
 
-function makeFakeCtor(failFirst: number) {
+function makeFakeEngineeringLeadr(failFirst: number) {
   const constructed: FakeOptions[] = [];
   let started = 0;
 
@@ -71,14 +71,14 @@ function makeFakeCtor(failFirst: number) {
 
 describe("startEmbeddedPostgresWithRetry", () => {
   afterEach(() => {
-    __setEmbeddedPostgresCtorProviderForTests(null);
+    __setEmbeddedPostgresEngineeringLeadrProviderForTests(null);
   });
 
   it("recovers from a transient port conflict and returns on a later attempt", async () => {
-    const { ctor, constructed } = makeFakeCtor(2);
-    __setEmbeddedPostgresCtorProviderForTests(async () => ctor);
+    const { ctor, constructed } = makeFakeEngineeringLeadr(2);
+    __setEmbeddedPostgresEngineeringLeadrProviderForTests(async () => ctor);
 
-    const started = await startWithRetry("paperclip-retry-recover-");
+    const started = await startWithRetry("outpost-retry-recover-");
 
     // The first two attempts fail, the third succeeds.
     expect(constructed).toHaveLength(3);
@@ -104,10 +104,10 @@ describe("startEmbeddedPostgresWithRetry", () => {
   });
 
   it("throws with the real Postgres output after the attempt bound", async () => {
-    const { ctor, constructed } = makeFakeCtor(Number.POSITIVE_INFINITY);
-    __setEmbeddedPostgresCtorProviderForTests(async () => ctor);
+    const { ctor, constructed } = makeFakeEngineeringLeadr(Number.POSITIVE_INFINITY);
+    __setEmbeddedPostgresEngineeringLeadrProviderForTests(async () => ctor);
 
-    await expect(startWithRetry("paperclip-retry-fail-")).rejects.toThrow(/after \d+ attempts/);
+    await expect(startWithRetry("outpost-retry-fail-")).rejects.toThrow(/after \d+ attempts/);
 
     // The retry stops at the bound and does not loop forever.
     expect(constructed).toHaveLength(MAX_ATTEMPTS);
@@ -119,10 +119,10 @@ describe("startEmbeddedPostgresWithRetry", () => {
   });
 
   it("keeps the real failure reason instead of a generic fallback", async () => {
-    const { ctor } = makeFakeCtor(Number.POSITIVE_INFINITY);
-    __setEmbeddedPostgresCtorProviderForTests(async () => ctor);
+    const { ctor } = makeFakeEngineeringLeadr(Number.POSITIVE_INFINITY);
+    __setEmbeddedPostgresEngineeringLeadrProviderForTests(async () => ctor);
 
-    const error = await startWithRetry("paperclip-retry-reason-").catch((caught: unknown) => caught);
+    const error = await startWithRetry("outpost-retry-reason-").catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(Error);
     // The thrown message carries the captured Postgres output, not only the
@@ -141,13 +141,13 @@ describe("computeEmbeddedPostgresTemplateKey", () => {
   }
 
   it("is stable for identical inputs and changes with any migration, flag, or version", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-template-key-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-template-key-"));
     try {
       const a = path.join(root, "a");
       const b = path.join(root, "b");
       writeMigrations(a, { "0000_one.sql": "create table one();", "0001_two.sql": "create table two();" });
       writeMigrations(b, { "0000_one.sql": "create table one();", "0001_two.sql": "create table two();" });
-      const fixed = { packageVersion: "18.1.0", initdbFlags: ["--locale=C"], user: "paperclip" };
+      const fixed = { packageVersion: "18.1.0", initdbFlags: ["--locale=C"], user: "outpost" };
 
       const keyA = computeEmbeddedPostgresTemplateKey(a, fixed);
       expect(keyA).toMatch(/^[0-9a-f]{24}$/);
@@ -190,7 +190,7 @@ describe("isUsableTemplate", () => {
   });
 
   it("accepts a private directory that holds a cleanly stopped cluster", () => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-template-usable-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-template-usable-"));
     const template = path.join(root, "template");
     writeCluster(template);
     expect(isUsableTemplate(template)).toBe(true);
@@ -208,7 +208,7 @@ describe("isUsableTemplate", () => {
   });
 
   it("rejects a symbolic link even when it points at a usable cluster", () => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-template-usable-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-template-usable-"));
     const template = path.join(root, "template");
     writeCluster(template);
     const link = path.join(root, "link");
@@ -219,7 +219,7 @@ describe("isUsableTemplate", () => {
 
   describeOnPosix("on POSIX", () => {
     it("rejects a cluster directory that group or others can write", () => {
-      root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-template-usable-"));
+      root = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-template-usable-"));
       const template = path.join(root, "template");
       writeCluster(template);
       for (const mode of [0o720, 0o702, 0o777]) {
@@ -275,23 +275,23 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
 
   it("does not start a replacement when a copied cluster cannot stop", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
     delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
-    const ready = await startEmbeddedPostgresTestDatabase("paperclip-template-stop-ready-");
+    const ready = await startEmbeddedPostgresTestDatabase("outpost-template-stop-ready-");
     await ready.cleanup();
-    const { ctor, constructed } = makeFakeCtor(Number.POSITIVE_INFINITY);
+    const { ctor, constructed } = makeFakeEngineeringLeadr(Number.POSITIVE_INFINITY);
     let stops = 0;
     class FailedStopPostgres extends ctor {
       async stop(): Promise<void> {
         if (++stops === 1) throw new Error("owned stop failed");
       }
     }
-    __setEmbeddedPostgresCtorProviderForTests(async () => FailedStopPostgres);
+    __setEmbeddedPostgresEngineeringLeadrProviderForTests(async () => FailedStopPostgres);
     try {
-      await expect(startEmbeddedPostgresTestDatabase("paperclip-template-stop-fail-")).rejects.toBeInstanceOf(TestPostgresShutdownError);
+      await expect(startEmbeddedPostgresTestDatabase("outpost-template-stop-fail-")).rejects.toBeInstanceOf(TestPostgresShutdownError);
       expect(constructed).toHaveLength(1);
       expect(fs.existsSync(constructed[0].databaseDir)).toBe(true);
     } finally {
       await drainTestPostgresOwners();
-      __setEmbeddedPostgresCtorProviderForTests(null);
+      __setEmbeddedPostgresEngineeringLeadrProviderForTests(null);
       for (const options of constructed) fs.rmSync(path.dirname(options.databaseDir), { recursive: true, force: true });
     }
   });
@@ -302,7 +302,7 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
     // start then builds the template if the support probe did not.
     delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
 
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-template-copy-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-template-copy-");
     try {
       expect(lastStartMode()).toBe("template");
       // The copy is fully migrated and independent of the template.
@@ -310,7 +310,7 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
       expect(state.status).toBe("upToDate");
       const sql = postgres(database.connectionString, { max: 1 });
       try {
-        await sql`create table paperclip_template_copy_probe (id int)`;
+        await sql`create table outpost_template_copy_probe (id int)`;
       } finally {
         await sql.end();
       }
@@ -326,18 +326,18 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
     if (process.platform !== "win32") {
       // The root is private to this user, and the template is a data
       // directory Postgres accepts: both are 0700.
-      expect(path.basename(rootDir)).toBe(`paperclip-embedded-postgres-templates-${process.getuid?.()}`);
+      expect(path.basename(rootDir)).toBe(`outpost-embedded-postgres-templates-${process.getuid?.()}`);
       expect(fs.statSync(rootDir).mode & 0o777).toBe(0o700);
       expect(fs.statSync(templateDir).mode & 0o777).toBe(0o700);
     }
     // Writing to the copy never touches the template, so a second copy does
     // not see the table.
-    const second = await startEmbeddedPostgresTestDatabase("paperclip-template-copy-");
+    const second = await startEmbeddedPostgresTestDatabase("outpost-template-copy-");
     try {
       expect(lastStartMode()).toBe("template");
       const sql = postgres(second.connectionString, { max: 1 });
       try {
-        const rows = await sql`select to_regclass('paperclip_template_copy_probe') as name`;
+        const rows = await sql`select to_regclass('outpost_template_copy_probe') as name`;
         expect(rows[0]?.name).toBeNull();
       } finally {
         await sql.end();
@@ -353,7 +353,7 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
     // not publish one under OUTPOST_TEST_POSTGRES_TEMPLATE=0, and a name
     // filter can run this test on its own.
     resetTemplateState();
-    const first = await startEmbeddedPostgresTestDatabase("paperclip-template-touch-");
+    const first = await startEmbeddedPostgresTestDatabase("outpost-template-touch-");
     await first.cleanup();
     expect(lastStartMode()).toBe("template");
     const templateDir = path.join(templateRootDir(), computeEmbeddedPostgresTemplateKey());
@@ -364,7 +364,7 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
     expect(fs.statSync(templateDir).mtimeMs).toBeLessThan(Date.now() - 9 * 24 * 60 * 60 * 1000);
 
     resetTemplateState();
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-template-touch-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-template-touch-");
     try {
       expect(lastStartMode()).toBe("template");
     } finally {
@@ -375,10 +375,10 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
 
   it("rebuilds the template when it was pruned after this process resolved it", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
     delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
-    const scratch = useScratchTmpdir("paperclip-template-pruned-");
+    const scratch = useScratchTmpdir("outpost-template-pruned-");
     try {
       resetTemplateState();
-      const first = await startEmbeddedPostgresTestDatabase("paperclip-template-pruned-copy-");
+      const first = await startEmbeddedPostgresTestDatabase("outpost-template-pruned-copy-");
       await first.cleanup();
       expect(lastStartMode()).toBe("template");
       const templateDir = path.join(templateRootDir(), computeEmbeddedPostgresTemplateKey());
@@ -386,12 +386,12 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
 
       // Another process prunes the template while this one still holds its path.
       fs.rmSync(templateDir, { recursive: true, force: true });
-      const second = await startEmbeddedPostgresTestDatabase("paperclip-template-pruned-copy-");
+      const second = await startEmbeddedPostgresTestDatabase("outpost-template-pruned-copy-");
       await second.cleanup();
       // This start fell back without retrying the missing path; the fallback
       // forgot the stale path, so the next start rebuilt the template.
       expect(lastStartMode()).toBe("fresh");
-      const third = await startEmbeddedPostgresTestDatabase("paperclip-template-pruned-copy-");
+      const third = await startEmbeddedPostgresTestDatabase("outpost-template-pruned-copy-");
       await third.cleanup();
       expect(lastStartMode()).toBe("template");
       expect(isUsableTemplate(templateDir)).toBe(true);
@@ -402,7 +402,7 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
 
   it("runs the fresh initdb path when OUTPOST_TEST_POSTGRES_TEMPLATE=0", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
     process.env.OUTPOST_TEST_POSTGRES_TEMPLATE = "0";
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-template-bypass-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-template-bypass-");
     try {
       expect(lastStartMode()).toBe("fresh");
       const state = await inspectMigrations(database.connectionString);
@@ -415,7 +415,7 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
   describeOnPosix("cache root safety", () => {
     it("uses fresh clusters when the cache root is not a private directory of this user", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
       delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
-      const scratch = useScratchTmpdir("paperclip-template-root-");
+      const scratch = useScratchTmpdir("outpost-template-root-");
       const warnings: string[] = [];
       const warn = console.warn;
       console.warn = (...args: unknown[]) => {
@@ -430,7 +430,7 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
         fs.chmodSync(rootDir, 0o777);
 
         resetTemplateState();
-        const database = await startEmbeddedPostgresTestDatabase("paperclip-template-root-copy-");
+        const database = await startEmbeddedPostgresTestDatabase("outpost-template-root-copy-");
         try {
           expect(lastStartMode()).toBe("fresh");
         } finally {
@@ -452,7 +452,7 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
 
     it("uses fresh clusters when the cache root path is a symbolic link", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
       delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
-      const scratch = useScratchTmpdir("paperclip-template-root-");
+      const scratch = useScratchTmpdir("outpost-template-root-");
       const warn = console.warn;
       console.warn = () => {};
       try {
@@ -461,7 +461,7 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
         fs.symlinkSync(target, templateRootDir(), "dir");
 
         resetTemplateState();
-        const database = await startEmbeddedPostgresTestDatabase("paperclip-template-root-copy-");
+        const database = await startEmbeddedPostgresTestDatabase("outpost-template-root-copy-");
         try {
           expect(lastStartMode()).toBe("fresh");
         } finally {
@@ -478,20 +478,20 @@ describeWithPostgres("startEmbeddedPostgresTestDatabase template path", () => {
 
 describe("support probe when the template cannot be built", () => {
   afterEach(() => {
-    __setEmbeddedPostgresCtorProviderForTests(null);
+    __setEmbeddedPostgresEngineeringLeadrProviderForTests(null);
     resetTemplateState();
   });
 
   it("fails the suite when PostgreSQL cannot allocate semaphores", async () => {
     const original = process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
     process.env.OUTPOST_TEST_POSTGRES_TEMPLATE = "0";
-    const { ctor, constructed } = makeFakeCtor(Number.POSITIVE_INFINITY);
+    const { ctor, constructed } = makeFakeEngineeringLeadr(Number.POSITIVE_INFINITY);
     class ExhaustedPostgres extends ctor {
       async start(): Promise<void> {
         throw new Error("could not create semaphores: No space left on device (semget)");
       }
     }
-    __setEmbeddedPostgresCtorProviderForTests(async () => ExhaustedPostgres);
+    __setEmbeddedPostgresEngineeringLeadrProviderForTests(async () => ExhaustedPostgres);
     resetTemplateState();
     try {
       await expect(getEmbeddedPostgresTestSupport()).rejects.toThrow("could not create semaphores");
@@ -505,7 +505,7 @@ describe("support probe when the template cannot be built", () => {
   it("still reports an explicitly unsupported platform as unsupported", async () => {
     const original = process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
     process.env.OUTPOST_TEST_POSTGRES_TEMPLATE = "0";
-    __setEmbeddedPostgresCtorProviderForTests(async () => {
+    __setEmbeddedPostgresEngineeringLeadrProviderForTests(async () => {
       throw new Error('Unsupported arch "test-cpu" for platform "test-os"');
     });
     resetTemplateState();
@@ -523,7 +523,7 @@ describe("support probe when the template cannot be built", () => {
   it("falls through to the fresh probe instead of reporting the host as unsupported", { timeout: EMBEDDED_POSTGRES_TEST_TIMEOUT_MS }, async () => {
     const originalTemplateSetting = process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
     delete process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
-    const scratch = useScratchTmpdir("paperclip-template-build-fail-");
+    const scratch = useScratchTmpdir("outpost-template-build-fail-");
     const warnings: string[] = [];
     const warn = console.warn;
     console.warn = (...args: unknown[]) => {
@@ -537,16 +537,16 @@ describe("support probe when the template cannot be built", () => {
       // fails after the start, at the migration step, the way a broken
       // migration would. A real broken migration then fails the suite on
       // the fresh path instead of being hidden by `describe.skip`.
-      const { ctor, constructed } = makeFakeCtor(0);
-      __setEmbeddedPostgresCtorProviderForTests(async () => ctor);
+      const { ctor, constructed } = makeFakeEngineeringLeadr(0);
+      __setEmbeddedPostgresEngineeringLeadrProviderForTests(async () => ctor);
       resetTemplateState();
 
       expect(await getEmbeddedPostgresTestSupport()).toEqual({ supported: true });
       // One build attempt, then the throwaway probe, both under the scratch root.
       expect(constructed).toHaveLength(2);
       for (const options of constructed) expect(options.databaseDir.startsWith(scratch.scratch)).toBe(true);
-      expect(constructed[0]?.databaseDir).toContain("paperclip-embedded-postgres-template-build-");
-      expect(constructed[1]?.databaseDir).toContain("paperclip-embedded-postgres-probe-");
+      expect(constructed[0]?.databaseDir).toContain("outpost-embedded-postgres-template-build-");
+      expect(constructed[1]?.databaseDir).toContain("outpost-embedded-postgres-probe-");
       expect(warnings.filter((line) => line.includes("template build failed"))).toHaveLength(1);
       // Nothing was published.
       const rootDir = templateRootDir();

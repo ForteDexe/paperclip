@@ -8,28 +8,28 @@ import type { ActorInfo } from "../types.js";
 import { oauthConfig } from "../oauth/metadata.js";
 import { and, asc, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { agents, connectionGrantMembers, connectionGrantDelegations, connectionGrants, authUsers, companyMemberships, toolAccessAuditEvents, toolConnections } from "@outpost/db";
+import { agents, connectionGrantMembers, connectionGrantDelegations, connectionGrants, authUsers, spaceMemberships, toolAccessAuditEvents, toolConnections } from "@outpost/db";
 import { badRequest, conflict, forbidden, notFound, unprocessable } from "../../../errors.js";
-import { isPaperclipCloudConnectorStrategy } from "../../paperclip-cloud-connector.js";
+import { isOutpostCloudConnectorStrategy } from "../../outpost-cloud-connector.js";
 import { vercelTokenRequest, type VercelConnectClient } from "../../vercel-connect.js";
 
 import type { createConnectionCredentialValidation } from "./credential-validation.js";
 type GrantDependencies = {
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   assertSecretRefs: ReturnType<typeof createConnectionCredentialValidation>;
   vercelConnect: VercelConnectClient | null;
 };
 
 export function createConnectionGrants(db: Db, { getConnectionRow, assertSecretRefs, vercelConnect }: GrantDependencies) {
   return {
-    listConnectionGrants: async (idOrUid: string, companyId?: string) => {
-      const connection = await getConnectionRow(idOrUid, companyId);
+    listConnectionGrants: async (idOrUid: string, spaceId?: string) => {
+      const connection = await getConnectionRow(idOrUid, spaceId);
       const grants = await db
         .select()
         .from(connectionGrants)
         .where(
           and(
-            eq(connectionGrants.companyId, connection.companyId),
+            eq(connectionGrants.spaceId, connection.spaceId),
             eq(connectionGrants.connectionId, connection.id),
           ),
         )
@@ -47,7 +47,7 @@ export function createConnectionGrants(db: Db, { getConnectionRow, assertSecretR
                 .from(connectionGrantMembers)
                 .where(
                   and(
-                    eq(connectionGrantMembers.companyId, connection.companyId),
+                    eq(connectionGrantMembers.spaceId, connection.spaceId),
                     inArray(connectionGrantMembers.grantId, grantIds),
                   ),
                 ),
@@ -57,8 +57,8 @@ export function createConnectionGrants(db: Db, { getConnectionRow, assertSecretR
                 .where(
                   and(
                     eq(
-                      connectionGrantDelegations.companyId,
-                      connection.companyId,
+                      connectionGrantDelegations.spaceId,
+                      connection.spaceId,
                     ),
                     inArray(connectionGrantDelegations.grantId, grantIds),
                   ),
@@ -76,24 +76,24 @@ export function createConnectionGrants(db: Db, { getConnectionRow, assertSecretR
       };
     },
     /**
-     * Company members eligible to appear in an organization grant's audience.
+     * Space members eligible to appear in an organization grant's audience.
      * The audience editor needs display names, and the client must not have to
      * cross-reference a second endpoint to render "12 selected members".
      */
-listConnectionAudienceMembers: async (companyId: string) => {
+listConnectionAudienceMembers: async (spaceId: string) => {
       const rows = await db
         .select({
-          userId: companyMemberships.principalId,
+          userId: spaceMemberships.principalId,
           name: authUsers.name,
           email: authUsers.email,
         })
-        .from(companyMemberships)
-        .leftJoin(authUsers, eq(authUsers.id, companyMemberships.principalId))
+        .from(spaceMemberships)
+        .leftJoin(authUsers, eq(authUsers.id, spaceMemberships.principalId))
         .where(
           and(
-            eq(companyMemberships.companyId, companyId),
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.status, "active"),
+            eq(spaceMemberships.spaceId, spaceId),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.status, "active"),
           ),
         );
       return rows
@@ -114,13 +114,13 @@ listConnectionAudienceMembers: async (companyId: string) => {
      * An empty `memberUserIds` persists as zero rows, which the resolver already
      * treats as "every organization member". Replacement is delete-then-insert
      * inside one transaction so a partially-applied audience can never widen or
-     * narrow access, and every member id is checked against active company
+     * narrow access, and every member id is checked against active space
      * membership first so an audience cannot name an outsider. Existing audience
      * members are locked too: membership cleanup deliberately retains a sole
      * inactive audience row, and a concurrent empty replacement must not erase
      * that fail-closed marker after cleanup wins. Once cleanup has retained that
      * marker, callers must restore the member or replace it with an active named
-     * audience before widening access to the whole company.
+     * audience before widening access to the whole space.
      */
 replaceConnectionGrantMembers: async (
       idOrUid: string,
@@ -136,7 +136,7 @@ replaceConnectionGrantMembers: async (
         .where(
           and(
             eq(connectionGrants.id, grantId),
-            eq(connectionGrants.companyId, connection.companyId),
+            eq(connectionGrants.spaceId, connection.spaceId),
             eq(connectionGrants.connectionId, connection.id),
           ),
         )
@@ -161,7 +161,7 @@ replaceConnectionGrantMembers: async (
           .from(connectionGrantMembers)
           .where(
             and(
-              eq(connectionGrantMembers.companyId, connection.companyId),
+              eq(connectionGrantMembers.spaceId, connection.spaceId),
               eq(connectionGrantMembers.grantId, grant.id),
               eq(connectionGrantMembers.subjectType, "user"),
             ),
@@ -179,18 +179,18 @@ replaceConnectionGrantMembers: async (
           // member. Whichever transaction wins is then authoritative.
           const memberships = await tx
             .select({
-              principalId: companyMemberships.principalId,
-              status: companyMemberships.status,
+              principalId: spaceMemberships.principalId,
+              status: spaceMemberships.status,
             })
-            .from(companyMemberships)
+            .from(spaceMemberships)
             .where(
               and(
-                eq(companyMemberships.companyId, connection.companyId),
-                eq(companyMemberships.principalType, "user"),
-                inArray(companyMemberships.principalId, membershipUserIds),
+                eq(spaceMemberships.spaceId, connection.spaceId),
+                eq(spaceMemberships.principalType, "user"),
+                inArray(spaceMemberships.principalId, membershipUserIds),
               ),
             )
-            .orderBy(asc(companyMemberships.id))
+            .orderBy(asc(spaceMemberships.id))
             .for("update");
           const active = new Set(
             memberships
@@ -200,9 +200,9 @@ replaceConnectionGrantMembers: async (
           const unknown = requested.filter((id) => !active.has(id));
           if (unknown.length > 0) {
             throw unprocessable(
-              "Every audience member must be an active member of this company",
+              "Every audience member must be an active member of this space",
               {
-                code: "audience_member_not_in_company",
+                code: "audience_member_not_in_space",
                 unknownUserIds: unknown,
               },
             );
@@ -212,7 +212,7 @@ replaceConnectionGrantMembers: async (
           );
           if (requested.length === 0 && inactiveExisting.length > 0) {
             throw conflict(
-              "Replace inactive audience members before widening access to the whole company",
+              "Replace inactive audience members before widening access to the whole space",
               {
                 code: "audience_widening_blocked",
                 inactiveUserIds: inactiveExisting,
@@ -226,7 +226,7 @@ replaceConnectionGrantMembers: async (
           .where(
             and(
               eq(connectionGrants.id, grant.id),
-              eq(connectionGrants.companyId, connection.companyId),
+              eq(connectionGrants.spaceId, connection.spaceId),
               eq(connectionGrants.connectionId, connection.id),
             ),
           )
@@ -237,7 +237,7 @@ replaceConnectionGrantMembers: async (
           .delete(connectionGrantMembers)
           .where(
             and(
-              eq(connectionGrantMembers.companyId, connection.companyId),
+              eq(connectionGrantMembers.spaceId, connection.spaceId),
               eq(connectionGrantMembers.grantId, grant.id),
             ),
           );
@@ -248,7 +248,7 @@ replaceConnectionGrantMembers: async (
                 .insert(connectionGrantMembers)
                 .values(
                   requested.map((subjectId) => ({
-                    companyId: connection.companyId,
+                    spaceId: connection.spaceId,
                     grantId: grant.id,
                     subjectType: "user" as const,
                     subjectId,
@@ -262,7 +262,7 @@ replaceConnectionGrantMembers: async (
         return inserted;
       });
       await db.insert(toolAccessAuditEvents).values({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         actorType: binding.actorType ?? "system",
         actorId: binding.actorId,
@@ -295,21 +295,21 @@ replaceConnectionGrantMembers: async (
         // removal deletes a delegation committed first, while creation that runs
         // second observes the inactive membership and fails closed.
         const [membership] = await tx
-          .select({ id: companyMemberships.id })
-          .from(companyMemberships)
+          .select({ id: spaceMemberships.id })
+          .from(spaceMemberships)
           .where(
             and(
-              eq(companyMemberships.companyId, connection.companyId),
-              eq(companyMemberships.principalType, "user"),
-              eq(companyMemberships.principalId, ownerUserId),
-              eq(companyMemberships.status, "active"),
+              eq(spaceMemberships.spaceId, connection.spaceId),
+              eq(spaceMemberships.principalType, "user"),
+              eq(spaceMemberships.principalId, ownerUserId),
+              eq(spaceMemberships.status, "active"),
             ),
           )
           .for("update")
           .limit(1);
         if (!membership) {
           throw forbidden(
-            "Only an active company member can delegate their personal grant",
+            "Only an active space member can delegate their personal grant",
           );
         }
 
@@ -319,7 +319,7 @@ replaceConnectionGrantMembers: async (
           .where(
             and(
               eq(connectionGrants.id, grantId),
-              eq(connectionGrants.companyId, connection.companyId),
+              eq(connectionGrants.spaceId, connection.spaceId),
               eq(connectionGrants.connectionId, connection.id),
               eq(connectionGrants.kind, "user"),
               eq(connectionGrants.subjectUserId, ownerUserId),
@@ -340,7 +340,7 @@ replaceConnectionGrantMembers: async (
           .where(
             and(
               eq(agents.id, agentId),
-              eq(agents.companyId, connection.companyId),
+              eq(agents.spaceId, connection.spaceId),
             ),
           )
           .for("no key update")
@@ -360,14 +360,14 @@ replaceConnectionGrantMembers: async (
         const [delegation] = await tx
           .insert(connectionGrantDelegations)
           .values({
-            companyId: connection.companyId,
+            spaceId: connection.spaceId,
             grantId: grant.id,
             agentId,
             createdByUserId: ownerUserId,
           })
           .returning();
         await tx.insert(toolAccessAuditEvents).values({
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           connectionId: connection.id,
           actorType: managementContext?.audit.actorType ?? "user",
           actorId: managementContext?.audit.actorId ?? ownerUserId,
@@ -390,20 +390,20 @@ replaceConnectionGrantMembers: async (
       const connection = await getConnectionRow(idOrUid);
       const delegation = await db.transaction(async tx => {
         const [grant] = await tx.select({ id: connectionGrants.id }).from(connectionGrants)
-          .where(and(eq(connectionGrants.id, grantId), eq(connectionGrants.companyId, connection.companyId), eq(connectionGrants.connectionId, connection.id)))
+          .where(and(eq(connectionGrants.id, grantId), eq(connectionGrants.spaceId, connection.spaceId), eq(connectionGrants.connectionId, connection.id)))
           .for("update");
         if (!grant) return undefined;
         const [target] = await tx.select({ agentId: connectionGrantDelegations.agentId }).from(connectionGrantDelegations)
-          .where(and(eq(connectionGrantDelegations.id, delegationId), eq(connectionGrantDelegations.companyId, connection.companyId), eq(connectionGrantDelegations.grantId, grantId)));
+          .where(and(eq(connectionGrantDelegations.id, delegationId), eq(connectionGrantDelegations.spaceId, connection.spaceId), eq(connectionGrantDelegations.grantId, grantId)));
         if (!target) return undefined;
         await tx.select({ id: agents.id }).from(agents)
-          .where(and(eq(agents.companyId, connection.companyId), eq(agents.id, target.agentId))).for("no key update");
+          .where(and(eq(agents.spaceId, connection.spaceId), eq(agents.id, target.agentId))).for("no key update");
         const [removed] = await tx
           .delete(connectionGrantDelegations)
           .where(
             and(
               eq(connectionGrantDelegations.id, delegationId),
-              eq(connectionGrantDelegations.companyId, connection.companyId),
+              eq(connectionGrantDelegations.spaceId, connection.spaceId),
               eq(connectionGrantDelegations.grantId, grantId),
             ),
           )
@@ -413,7 +413,7 @@ replaceConnectionGrantMembers: async (
       if (!delegation) throw notFound("Connection grant delegation not found");
       const binding = actorBinding(actor);
       await db.insert(toolAccessAuditEvents).values({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         actorType: binding.actorType ?? "system",
         actorId: binding.actorId,
@@ -436,7 +436,7 @@ replaceConnectionGrantMembers: async (
       await actor?.managementContext?.reauthorize();
       const connection = await getConnectionRow(idOrUid);
       await assertSecretRefs(
-        connection.companyId,
+        connection.spaceId,
         input.credentialSecretRefs ?? [],
       );
       if (input.isDefault) {
@@ -454,7 +454,7 @@ replaceConnectionGrantMembers: async (
       const [grant] = await db
         .insert(connectionGrants)
         .values({
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           connectionId: connection.id,
           kind: "organization",
           providerTenant: input.providerTenant,
@@ -468,7 +468,7 @@ replaceConnectionGrantMembers: async (
         .returning();
       if (!grant) throw new Error("Failed to create connection installation");
       await db.insert(toolAccessAuditEvents).values({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         actorType: binding.actorType ?? "system",
         actorId: binding.actorId,
@@ -497,7 +497,7 @@ replaceConnectionGrantMembers: async (
         .where(
           and(
             eq(connectionGrants.id, grantId),
-            eq(connectionGrants.companyId, connection.companyId),
+            eq(connectionGrants.spaceId, connection.spaceId),
             eq(connectionGrants.connectionId, connection.id),
           ),
         )
@@ -512,7 +512,7 @@ replaceConnectionGrantMembers: async (
           credential: connection.externalCredential,
           grant: currentGrant,
           connectionId: connection.id,
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           resources: vercelConnectResourcesFor(connection),
         });
         vercelConnect?.evict(request);
@@ -528,10 +528,10 @@ replaceConnectionGrantMembers: async (
           }
         }
       } else if (
-        isPaperclipCloudConnectorStrategy(oauthConfig(connection).strategy)
+        isOutpostCloudConnectorStrategy(oauthConfig(connection).strategy)
       ) {
         // Google revocation is client-wide for a user. The managed Workspace
-        // profiles intentionally share one Paperclip-owned client, so revoking
+        // profiles intentionally share one Outpost-owned client, so revoking
         // one token here could invalidate unrelated Gmail, Drive, and Calendar
         // grants. A per-profile removal is therefore local-only. A future
         // provider-level disconnect must warn that it removes every profile.
@@ -540,17 +540,17 @@ replaceConnectionGrantMembers: async (
       const grant = await db.transaction(async (tx) => {
         await notifyGitHubCredentialChange(tx, connection);
         const [lockedGrant] = await tx.select({ id: connectionGrants.id }).from(connectionGrants)
-          .where(and(eq(connectionGrants.id, grantId), eq(connectionGrants.companyId, connection.companyId), eq(connectionGrants.connectionId, connection.id)))
+          .where(and(eq(connectionGrants.id, grantId), eq(connectionGrants.spaceId, connection.spaceId), eq(connectionGrants.connectionId, connection.id)))
           .for("update");
         if (!lockedGrant) throw notFound("Connection grant not found");
         await tx.select({ id: agents.id }).from(agents)
-          .where(and(eq(agents.companyId, connection.companyId), notInArray(agents.status, ["pending_approval", "terminated"])))
+          .where(and(eq(agents.spaceId, connection.spaceId), notInArray(agents.status, ["pending_approval", "terminated"])))
           .orderBy(agents.id).for("no key update");
         const removedDelegations = await tx
           .delete(connectionGrantDelegations)
           .where(
             and(
-              eq(connectionGrantDelegations.companyId, connection.companyId),
+              eq(connectionGrantDelegations.spaceId, connection.spaceId),
               eq(connectionGrantDelegations.grantId, grantId),
             ),
           )
@@ -570,7 +570,7 @@ replaceConnectionGrantMembers: async (
           .where(
             and(
               eq(connectionGrants.id, grantId),
-              eq(connectionGrants.companyId, connection.companyId),
+              eq(connectionGrants.spaceId, connection.spaceId),
               eq(connectionGrants.connectionId, connection.id),
             ),
           )
@@ -579,7 +579,7 @@ replaceConnectionGrantMembers: async (
         if (removedDelegations.length > 0) {
           await tx.insert(toolAccessAuditEvents).values(
             removedDelegations.map((delegation) => ({
-              companyId: connection.companyId,
+              spaceId: connection.spaceId,
               connectionId: connection.id,
               actorType: binding.actorType ?? "system",
               actorId: binding.actorId,
@@ -598,7 +598,7 @@ replaceConnectionGrantMembers: async (
       });
       if (!grant) throw notFound("Connection grant not found");
       await db.insert(toolAccessAuditEvents).values({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         actorType: binding.actorType ?? "system",
         actorId: binding.actorId,

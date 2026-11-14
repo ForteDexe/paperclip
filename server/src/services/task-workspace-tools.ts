@@ -4,12 +4,12 @@ import { executionWorkspaceRepositories, type Db } from "@outpost/db";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 export async function pendingTaskRepository(db: Pick<Db, "select">, input: {
-  companyId: string; issueId: string; workspaceId: string | null; repositoryIds?: string[];
+  spaceId: string; issueId: string; workspaceId: string | null; repositoryIds?: string[];
 }) {
   if (input.repositoryIds?.length === 0) return null;
   if (!input.workspaceId) return null;
   const [repository] = await db.select({ id: executionWorkspaceRepositories.id }).from(executionWorkspaceRepositories)
-    .where(and(eq(executionWorkspaceRepositories.companyId, input.companyId),
+    .where(and(eq(executionWorkspaceRepositories.spaceId, input.spaceId),
       eq(executionWorkspaceRepositories.executionWorkspaceId, input.workspaceId),
       eq(executionWorkspaceRepositories.requestedByIssueId, input.issueId),
       eq(executionWorkspaceRepositories.state, "pending"),
@@ -19,7 +19,7 @@ export async function pendingTaskRepository(db: Pick<Db, "select">, input: {
 }
 
 export async function pendingTaskRepositoryContinuation(db: Pick<Db, "select">, input: {
-  companyId: string; issueId: string; runId: string; workspaceId: string | null;
+  spaceId: string; issueId: string; runId: string; workspaceId: string | null;
 }) {
   const repository = await pendingTaskRepository(db, input);
   return repository ? { kind: "same_agent" as const, summary: "Continue with the prepared task repository.",
@@ -32,7 +32,7 @@ function repositoryView(repo: Record<string, unknown>) {
 }
 
 /** The workspace detail page exists only while isolated workspaces are enabled,
- * so callers pass the company prefix only then; a missing href means no page. */
+ * so callers pass the space prefix only then; a missing href means no page. */
 function workspaceHref(prefix: string | null | undefined, id: unknown) {
   return prefix && typeof id === "string" ? { href: `/${encodeURIComponent(prefix)}/execution-workspaces/${encodeURIComponent(id)}` } : {};
 }
@@ -63,7 +63,7 @@ function workspacePage(rows: Array<Record<string, unknown>>, limit: number) {
   return result();
 }
 
-export async function callTaskWorkspaceTool(input: { name: string; arguments: Record<string, unknown>; apiUrl: string; token: string; companyId: string; issueId: string; workspaceRoot?: string; workspacePagePrefix?: string | null }) {
+export async function callTaskWorkspaceTool(input: { name: string; arguments: Record<string, unknown>; apiUrl: string; token: string; spaceId: string; issueId: string; workspaceRoot?: string; workspacePagePrefix?: string | null }) {
   let route = `/issues/${input.issueId}/workspace`;
   let method = "GET";
   let body: unknown;
@@ -73,7 +73,7 @@ export async function callTaskWorkspaceTool(input: { name: string; arguments: Re
     case "list_workspaces": {
       const query = new URLSearchParams({ summary: "true", selectableForTask: "true", limit: String(page!.limit + 1) });
       if (page!.cursor) query.set("cursor", page!.cursor);
-      route = `/companies/${input.companyId}/execution-workspaces?${query}`;
+      route = `/spaces/${input.spaceId}/execution-workspaces?${query}`;
       break;
     }
     case "select_workspace": method = "PUT"; body = selectTaskWorkspaceSchema.parse(input.arguments); break;
@@ -89,7 +89,7 @@ export async function callTaskWorkspaceTool(input: { name: string; arguments: Re
   if (input.name === "prepare_repository") {
     const { operationId, ...rest } = result;
     return { ...rest, ...(result.repository ? { repository: repositoryView(result.repository) } : {}), preparationId: operationId,
-      ...(result.kind === "requires_next_admission" ? { instruction: "The repository is staged for the next admission. If unfinished work needs this checkout, finish independent work, then call paperclip_finish with reportedWorkDisposition=\"yielded\" and omit continuation (or use null). Outpost will select the saved workspace continuation. Repository admission is routine setup; do not call paperclip_block or ask the user to restart. No timer is needed." } : {}),
+      ...(result.kind === "requires_next_admission" ? { instruction: "The repository is staged for the next admission. If unfinished work needs this checkout, finish independent work, then call outpost_finish with reportedWorkDisposition=\"yielded\" and omit continuation (or use null). Outpost will select the saved workspace continuation. Repository admission is routine setup; do not call outpost_block or ask the user to restart. No timer is needed." } : {}),
     };
   }
   if (input.name === "get_workspace") {

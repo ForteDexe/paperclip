@@ -3,7 +3,7 @@
 The issue list displays a current interruption state for each visible task.
 `taskInterruptionPresentations` owns that read-only projection. Its old latest-run
 query grouped `coalesce(native_issue_id::text, issue_id::text,
-context_snapshot->>'issueId')` across company history. That expression cannot use
+context_snapshot->>'issueId')` across space history. That expression cannot use
 the existing individual binding indexes to find a small page of tasks.
 
 The query now probes the native, first-class, and legacy text indexes separately.
@@ -20,7 +20,7 @@ A non-null mismatching native or first-class binding prevents legacy fallback.
 A guarded UUID parameter keeps uppercase and noncanonical caller strings from
 matching a UUID where the former text comparison would not. Legacy text keeps
 PostgreSQL `->>` behavior for empty, missing, scalar, array, object, and null data.
-Company boundaries, duplicate inputs, absent runs, and timestamp ties are covered.
+Space boundaries, duplicate inputs, absent runs, and timestamp ties are covered.
 The existing project-access interruption tests exercise real repair and retry
 consumers. Presentation remains read-only; execution rechecks its own authority.
 
@@ -44,7 +44,7 @@ dependencies. Its service source is identical to the original discovery baseline
 The treatment service SHA-256 is
 `4607c8382aea8ec9cc76f628caa9b4a031b19dd43ff4beff12e596079742b763`.
 
-The fixtures use a second company, unrelated histories, mixed binding types,
+The fixtures use a second space, unrelated histories, mixed binding types,
 fixed dates, and incompressible random context/result bodies. Mixed fixtures
 retain historical null bindings by disabling only the fixture database's modern
 scope-fill trigger during insert. The modern control leaves that trigger enabled.
@@ -85,7 +85,7 @@ Immediate follow-up for that remaining cost: profile a synthetic 10,000-run,
 mostly native-bound task with complete result equality and per-branch
 `EXPLAIN (ANALYZE, BUFFERS)` counters. First test a migration-free selection that
 avoids repeated walks while retaining precedence and timestamp/ID ties. If an
-index is still necessary, evaluate a company/native-issue/creation-time index,
+index is still necessary, evaluate a space/native-issue/creation-time index,
 a first-class binding index restricted to `native_issue_id IS NULL`, and a legacy
 binding index restricted to both native and first-class bindings being null.
 Measure the complete index builds and blocking on a production-size disposable

@@ -27,7 +27,7 @@ export async function startRunBriefGate(ctx: ChatCatalogContext, workerId: strin
   });
   const port = await listenOnFetchAllowedPort(server); let connectionId: string | undefined;
   try {
-    const root = `/api/companies/${ctx.input.fixtures.company.id}`;
+    const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
     const connected = await ctx.input.api.postSensitive<{ connectionId: string; actions: { readOnly: Array<{ catalogEntryId: string }> } }>(`${root}/tools/apps/connect`, {
       link: `http://127.0.0.1:${port}/`, name: "Website Brief", authMode: "bearer", credentialValues: { "credentials.authorization": token }, grantKind: "organization",
     });

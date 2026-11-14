@@ -9,15 +9,15 @@ import { asc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { WebSocket } from "ws";
 import {
-  agents, authUsers, companies, companyMemberships, completionContracts,
+  agents, authUsers, spaces, spaceMemberships, completionContracts,
   createDb, heartbeatRunEvents, heartbeatRuns, issues, type Db,
 } from "@outpost/db";
 import * as schema from "@outpost/db/schema/index";
 import type { LiveEvent } from "@outpost/shared";
 import type { PrpEvent } from "../vendor/outpost-runner/index.js";
 import { setupLiveEventsWebSocketServer } from "../realtime/live-events-ws.js";
-import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
-import { subscribeCompanyLiveEvents } from "../services/live-events.js";
+import { OutpostControlPlanePort } from "../services/native-runtime/outpost-control-plane-port.js";
+import { subscribeSpaceLiveEvents } from "../services/live-events.js";
 import { startRecoveryPostgres } from "./helpers/recovery-postgres.js";
 import { redactEventPayload } from "../redaction.js";
 import { compareObserverReplays, type ObserverReplayMeasurement } from "./helpers/observer-replay-report.js";
@@ -42,18 +42,18 @@ const expectedDeliveries = fixturePayloads.length;
 describe("native event replay observation evidence", () => {
   let temporary: Awaited<ReturnType<typeof startRecoveryPostgres>>;
   let db: Db;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   const userId = `observer-${randomUUID()}`;
 
   beforeAll(async () => {
     temporary = await startRecoveryPostgres("observer-replay-");
     db = createDb(temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Synthetic replay", issuePrefix: "REPLAY" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "codex_local" });
+    await db.insert(spaces).values({ id: spaceId, name: "Synthetic replay", issuePrefix: "REPLAY" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "codex_local" });
     await db.insert(authUsers).values({ id: userId, name: "Fixture viewer", email: `${userId}@example.test`,
       createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId,
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId,
       membershipRole: "owner", status: "active" });
   });
 
@@ -63,16 +63,16 @@ describe("native event replay observation evidence", () => {
     firstBatchDelayAfterWorkMs = 0): Promise<ObserverReplayMeasurement> {
     const runId = randomUUID(), issueId = randomUUID(), sessionId = randomUUID();
     const sourceInstanceId = randomUUID(), completionContractId = randomUUID();
-    const identity = { companyId, agentId, issueId, runId, sessionId };
+    const identity = { spaceId, agentId, issueId, runId, sessionId };
     const binding = { ...identity, sourceInstanceId, controlPlaneSourceInstanceId: `control-${runId}`,
       completionContractId, completionContractSha256: "observer-replay-contract" };
-    await db.insert(issues).values({ id: issueId, companyId, title: "Synthetic replay", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(completionContracts).values({ id: completionContractId, companyId, issueId, revision: 1,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Synthetic replay", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(completionContracts).values({ id: completionContractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "fixture-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "fixture-v1", objective: "Synthetic replay", criteria: [{ id: "objective", requirement: "Replay" }] },
       canonicalSha256: binding.completionContractSha256, createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, scopeKind: "issue", issueId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, scopeKind: "issue", issueId,
       status: "running", runtimeMode: "native", nativeIssueId: issueId, nativeSessionId: sessionId,
       runnerInstanceId: sourceInstanceId, completionContractId, completionContractSha256: binding.completionContractSha256 });
 
@@ -81,13 +81,13 @@ describe("native event replay observation evidence", () => {
     const counted = (category: "persistence" | "viewerDelivery" | "polling") => drizzle(db.$client, {
       schema, logger: { logQuery() { if (measuring) queries[category] += 1; } },
     }) as Db;
-    const port = new PaperclipControlPlanePort(counted("persistence"), binding);
-    const pollPort = new PaperclipControlPlanePort(counted("polling"), binding);
+    const port = new OutpostControlPlanePort(counted("persistence"), binding);
+    const pollPort = new OutpostControlPlanePort(counted("polling"), binding);
     await port.openRun({ identity, backendKind: "mock", sourceInstanceId });
     const server = createServer();
     const wss = setupLiveEventsWebSocketServer(server, counted("viewerDelivery"), {
       deploymentMode: "authenticated",
-      resolveCloudActor: async () => ({ userId, companyIds: [companyId] }),
+      resolveCloudActor: async () => ({ userId, spaceIds: [spaceId] }),
     });
     const sockets: WebSocket[] = [];
     const received: LiveEvent[][] = [];
@@ -99,7 +99,7 @@ describe("native event replay observation evidence", () => {
     } });
     const pollOffsets: number[][] = Array.from({ length: viewerCount }, () => []);
     const signals: LiveEvent[] = [];
-    const unsubscribe = subscribeCompanyLiveEvents(companyId, event => {
+    const unsubscribe = subscribeSpaceLiveEvents(spaceId, event => {
       if (event.type === "heartbeat.run.event" && event.payload.runId === runId) signals.push(event);
     });
     let polling = false;
@@ -112,13 +112,13 @@ describe("native event replay observation evidence", () => {
     try {
       server.listen(0, "127.0.0.1");
       await once(server, "listening");
-      const url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/api/companies/${companyId}/events/ws`;
-      // The production upgrade path must reject a company outside the actor's scope.
-      const denied = new WebSocket(url.replace(companyId, randomUUID()));
+      const url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/api/spaces/${spaceId}/events/ws`;
+      // The production upgrade path must reject a space outside the actor's scope.
+      const denied = new WebSocket(url.replace(spaceId, randomUUID()));
       const rejection = await new Promise<number>((resolve, reject) => {
         denied.once("unexpected-response", (_request, response) => { response.resume(); denied.terminate(); resolve(response.statusCode!); });
         denied.once("error", () => {});
-        denied.once("open", () => { denied.terminate(); reject(new Error("foreign-company viewer admitted")); });
+        denied.once("open", () => { denied.terminate(); reject(new Error("foreign-space viewer admitted")); });
       });
       expect(rejection).toBe(403);
       for (let index = 0; index < viewerCount; index += 1) {
@@ -214,7 +214,7 @@ describe("native event replay observation evidence", () => {
       queries.total = queries.persistence + queries.viewerDelivery + queries.polling + queries.visibilityProof;
 
       // Read through a fresh production port after ingestion, not a writer cache.
-      const reopened = new PaperclipControlPlanePort(visibilityDb, binding);
+      const reopened = new OutpostControlPlanePort(visibilityDb, binding);
       const durable = await reopened.replayEvents({ runId, sourceInstanceId, afterSourceSeq: 0, limit: 100 });
       expect(durable.events).toEqual(events);
       expect(durable.highestContiguousSourceSeq).toBe(events.length);
@@ -226,7 +226,7 @@ describe("native event replay observation evidence", () => {
           runId, agentId, issueId, seq: event.sourceSeq, eventType: event.eventType,
           stream: "system", level: "info", payload: redactEventPayload({ orpEvent: event }),
         })));
-        expect(messages.every(event => event.companyId === companyId)).toBe(true);
+        expect(messages.every(event => event.spaceId === spaceId)).toBe(true);
         expect(JSON.stringify(messages)).toContain(output.trim());
       }
       expect(activeViewers).toBe(viewerCount);

@@ -14,8 +14,8 @@ const mockAccessService = vi.hoisted(() => ({
   setMemberPermissions: vi.fn(),
   promoteInstanceAdmin: vi.fn(),
   demoteInstanceAdmin: vi.fn(),
-  listUserCompanyAccess: vi.fn(),
-  setUserCompanyAccess: vi.fn(),
+  listUserSpaceAccess: vi.fn(),
+  setUserSpaceAccess: vi.fn(),
   setPrincipalGrants: vi.fn(),
 }));
 
@@ -23,7 +23,7 @@ const mockAgentService = vi.hoisted(() => ({
   getById: vi.fn(),
 }));
 
-const mockBoardAuthService = vi.hoisted(() => ({
+const mockOperatorAuthService = vi.hoisted(() => ({
   createCliAuthChallenge: vi.fn(),
   describeCliAuthChallenge: vi.fn(),
   approveCliAuthChallenge: vi.fn(),
@@ -41,10 +41,10 @@ const mockStorage = vi.hoisted(() => ({
 vi.mock("../services/index.js", () => ({
   accessService: () => mockAccessService,
   agentService: () => mockAgentService,
-  boardAuthService: () => mockBoardAuthService,
+  operatorAuthService: () => mockOperatorAuthService,
   deduplicateAgentName: vi.fn(),
   logActivity: mockLogActivity,
-  notifyHireApproved: vi.fn(),
+  notifyCreateApproved: vi.fn(),
 }));
 
 vi.mock("../storage/index.js", () => ({
@@ -76,8 +76,8 @@ function createSelectChain(rows: unknown[]) {
 function createDbStub(...selectResponses: unknown[][]) {
   const createdInvite = {
     id: "invite-1",
-    companyId: "company-1",
-    inviteType: "company_join",
+    spaceId: "space-1",
+    inviteType: "space_join",
     allowedJoinTypes: "agent",
     defaultsPayload: null,
     expiresAt: new Date("2099-03-07T00:10:00.000Z"),
@@ -126,14 +126,14 @@ function createApp(actor: Record<string, unknown>, db: Record<string, unknown>) 
   return app;
 }
 
-describe("POST /companies/:companyId/openclaw/invite-prompt", () => {
-  const companyBranding = {
+describe("POST /spaces/:spaceId/openclaw/invite-prompt", () => {
+  const spaceBranding = {
     name: "Acme AI",
     logoAssetId: "logo-1",
   };
   const logoAsset = {
-    companyId: "company-1",
-    objectKey: "company-1/assets/companies/logo-1",
+    spaceId: "space-1",
+    objectKey: "space-1/assets/spaces/logo-1",
     contentType: "image/png",
     byteSize: 3,
     originalFilename: "logo.png",
@@ -154,80 +154,80 @@ describe("POST /companies/:companyId/openclaw/invite-prompt", () => {
       {
         type: "agent",
         agentId: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         source: "agent_key",
       },
       db,
     );
 
     const res = await request(app)
-      .post("/api/companies/company-1/openclaw/invite-prompt")
+      .post("/api/spaces/space-1/openclaw/invite-prompt")
       .send({});
 
     expect(res.status).toBe(403);
     expect(res.body.error).toContain("Permission denied");
   });
 
-  it("rejects CEO agent callers outside the target company scope", async () => {
+  it("rejects Default agent agent callers outside the target space scope", async () => {
     const db = createDbStub();
     const app = createApp(
       {
         type: "agent",
         agentId: "agent-1",
-        companyId: "company-2",
+        spaceId: "space-2",
         source: "agent_key",
       },
       db,
     );
 
     const res = await request(app)
-      .post("/api/companies/company-1/openclaw/invite-prompt")
+      .post("/api/spaces/space-1/openclaw/invite-prompt")
       .send({});
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("another company");
+    expect(res.body.error).toContain("another space");
     expect(mockAgentService.getById).not.toHaveBeenCalled();
     expect((db as any).__insertValues).not.toHaveBeenCalled();
   });
 
   it("allows peer agent callers with explicit invite permission", async () => {
-    const db = createDbStub([companyBranding], [logoAsset]);
+    const db = createDbStub([spaceBranding], [logoAsset]);
     mockAccessService.hasPermission.mockImplementation(
-      async (_companyId, _principalType, _principalId, permissionKey) => permissionKey === "users:invite",
+      async (_spaceId, _principalType, _principalId, permissionKey) => permissionKey === "users:invite",
     );
     const app = createApp(
       {
         type: "agent",
         agentId: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         source: "agent_key",
       },
       db,
     );
 
     const res = await request(app)
-      .post("/api/companies/company-1/openclaw/invite-prompt")
+      .post("/api/spaces/space-1/openclaw/invite-prompt")
       .send({ agentMessage: "Join and configure OpenClaw gateway." });
 
     expect([200, 201]).toContain(res.status);
-    expect(res.body.companyName).toBe("Acme AI");
+    expect(res.body.spaceName).toBe("Acme AI");
     expect(res.body.onboardingTextPath).toContain("/api/invites/");
     expect((db as any).__insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
-        companyId: "company-1",
-        inviteType: "company_join",
+        spaceId: "space-1",
+        inviteType: "space_join",
         allowedJoinTypes: "agent",
       }),
     );
   });
 
-  it("includes companyName in invite summary responses", async () => {
-    const db = createDbStub([companyBranding], [logoAsset]);
+  it("includes spaceName in invite summary responses", async () => {
+    const db = createDbStub([spaceBranding], [logoAsset]);
     const app = createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "user-1",
-        companyIds: ["company-1"],
+        spaceIds: ["space-1"],
         source: "session",
         isInstanceAdmin: false,
       },
@@ -237,21 +237,21 @@ describe("POST /companies/:companyId/openclaw/invite-prompt", () => {
     const res = await request(app).get("/api/invites/pcp_invite_test");
 
     expect(res.status).toBe(200);
-    expect(res.body.companyName).toBe("Acme AI");
-    expect(res.body).not.toHaveProperty("companyBrandColor");
-    expect(res.body.companyLogoUrl).toBe("/api/invites/pcp_invite_test/logo");
-    expect(res.body.inviteType).toBe("company_join");
+    expect(res.body.spaceName).toBe("Acme AI");
+    expect(res.body).not.toHaveProperty("spaceBrandColor");
+    expect(res.body.spaceLogoUrl).toBe("/api/invites/pcp_invite_test/logo");
+    expect(res.body.inviteType).toBe("space_join");
     expect(res.body.allowedJoinTypes).toBe("agent");
   });
 
-  it("allows board callers with invite permission", async () => {
-    const db = createDbStub([companyBranding], [logoAsset]);
+  it("allows operator callers with invite permission", async () => {
+    const db = createDbStub([spaceBranding], [logoAsset]);
     mockAccessService.canUser.mockResolvedValue(true);
     const app = createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "user-1",
-        companyIds: ["company-1"],
+        spaceIds: ["space-1"],
         source: "session",
         isInstanceAdmin: false,
       },
@@ -259,23 +259,23 @@ describe("POST /companies/:companyId/openclaw/invite-prompt", () => {
     );
 
     const res = await request(app)
-      .post("/api/companies/company-1/openclaw/invite-prompt")
+      .post("/api/spaces/space-1/openclaw/invite-prompt")
       .send({});
 
     expect([200, 201]).toContain(res.status);
-    expect(res.body.companyName).toBe("Acme AI");
+    expect(res.body.spaceName).toBe("Acme AI");
     expect(res.body.inviteUrl).toContain("/invite/");
     expect(res.body.onboardingTextPath).toContain("/api/invites/");
   }, 15_000);
 
-  it("rejects board callers without invite permission", async () => {
+  it("rejects operator callers without invite permission", async () => {
     const db = createDbStub();
     mockAccessService.canUser.mockResolvedValue(false);
     const app = createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "user-1",
-        companyIds: ["company-1"],
+        spaceIds: ["space-1"],
         source: "session",
         isInstanceAdmin: false,
       },
@@ -283,7 +283,7 @@ describe("POST /companies/:companyId/openclaw/invite-prompt", () => {
     );
 
     const res = await request(app)
-      .post("/api/companies/company-1/openclaw/invite-prompt")
+      .post("/api/spaces/space-1/openclaw/invite-prompt")
       .send({});
 
     expect(res.status).toBe(403);

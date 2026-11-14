@@ -4,14 +4,14 @@ import { pollUntil, type RunnerApi } from "./api.js";
 import { beginEvalAgentPhase } from "./attempt-phase.js";
 import { runnerE2EPlaywrightCaseTimeoutMs } from "./web-server-command.js";
 
-type SetupState = Pick<Agent, "id" | "companyId" | "status" | "lifecycleState" | "lifecycleError"> & { lifecycleHolds?: string[] };
+type SetupState = Pick<Agent, "id" | "spaceId" | "status" | "lifecycleState" | "lifecycleError"> & { lifecycleHolds?: string[] };
 export type EvalSetupObservation = SetupState & { observedAt: string };
 
 type EvalAgentSetupInput = {
   executionId: string;
   environmentId: RunnerEnvironmentId;
   agentId: string;
-  companyId: string;
+  spaceId: string;
   deadlineAt: number;
   api: Pick<RunnerApi, "get">;
   observe: (observations: EvalSetupObservation[]) => Promise<void>;
@@ -21,11 +21,11 @@ export async function waitForEvalAgentReady(input: Omit<EvalAgentSetupInput, "ex
   const deadlineAt = input.environmentId === "daytona" ? input.deadlineAt : Math.min(input.deadlineAt, Date.now() + 45_000);
   const observations: EvalSetupObservation[] = [];
   let previous: string | undefined;
-  const scoped = (agent: SetupState) => agent.id === input.agentId && agent.companyId === input.companyId;
+  const scoped = (agent: SetupState) => agent.id === input.agentId && agent.spaceId === input.spaceId;
   await pollUntil({ label: "budgeted eval agent setup", deadlineAt, intervalMs: 500,
     load: async () => {
       const agent = await input.api.get<SetupState>(`/api/agents/${input.agentId}`, { timeout: Math.max(1, Math.min(5_000, deadlineAt - Date.now())) });
-      const state: SetupState = { id: agent.id, companyId: agent.companyId, status: agent.status,
+      const state: SetupState = { id: agent.id, spaceId: agent.spaceId, status: agent.status,
         lifecycleState: agent.lifecycleState, lifecycleError: agent.lifecycleError, lifecycleHolds: agent.lifecycleHolds };
       const current = JSON.stringify(state);
       if (current !== previous) {

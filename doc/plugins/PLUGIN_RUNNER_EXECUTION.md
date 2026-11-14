@@ -144,7 +144,7 @@ old controller are not required to adopt an already running task.
 The five-minute outage contract and its prerequisites are described in the
 [continuity recipe](../testing-native-remote-continuity.md#replacing-the-main-server).
 
-Core checks company, agent, environment, workspace, driver, and termination
+Core checks space, agent, environment, workspace, driver, and termination
 receipts before it supplies `resumeFrom`. Historical controller recovery without
 the durable journal first stops and releases the old task. A failed stop prevents replacement.
 A new run prepares its current assignments. Provider compatibility checks remain
@@ -223,7 +223,7 @@ reference still identifies `headSha`, and independently check the actual workspa
 and all owned data. Arbitrary remote URLs and reference names are not accepted.
 Absent capability means Core does not send the extra field. Before dispatch,
 Core persists the negotiated removal payload and its operation ID. Retries replay
-both unchanged, even if capabilities change, while still enforcing company,
+both unchanged, even if capabilities change, while still enforcing space,
 provider enablement, binding and generation checks. A downgraded provider can
 reject an unsupported payload; Core does not silently change its identity.
 Legacy intents without a recovery hint retain their deterministic ID. A hinted
@@ -259,7 +259,7 @@ snapshot; callers cannot overwrite it through workspace metadata updates. Older
 providers omit it. Core only falls back to their captured explicit source refs,
 not a mutable project configuration or a newly chosen default branch. A source
 SHA or tag may support direct ancestry, but does not imply a PR base branch.
-Provider upgrades, activation, company re-enablement, and finalization settlement
+Provider upgrades, activation, space re-enablement, and finalization settlement
 wake cleanup transactionally. No table, independent timer, or background scan of
 all remote PR refs is required.
 

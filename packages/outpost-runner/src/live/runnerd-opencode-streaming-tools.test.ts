@@ -52,14 +52,14 @@ it.skipIf(!compilerAvailable || !existsSync(runner)).each(["discovery", "complet
         // Keep the real Rust → proxy → HTTP MCP request open beyond both old
         // 30-second deadlines. The saved result must reach the provider once.
         if (tool === "durable" && seen.length === 1) await new Promise(resolve => setTimeout(resolve, 31_000));
-        return dynamicToolResponse(request.params.tool === "paperclip_finish" ? "Accepted completion." : { tools: [] });
+        return dynamicToolResponse(request.params.tool === "outpost_finish" ? "Accepted completion." : { tools: [] });
       });
       let completed: Promise<void> | undefined;
       try {
         await transport.request("thread/start", {
           cwd: workspace, model: "openrouter/deepseek/deepseek-v4.1-flash-1017",
           completionContract: { revision: "streaming-tools-v1", criterionIds: ["objective"] },
-          dynamicTools: [{ name: "paperclip_search_assigned_tools", description: "Search assigned synthetic tools.", inputSchema: { type: "object" } }, ...codexSemanticToolSpecs()],
+          dynamicTools: [{ name: "outpost_search_assigned_tools", description: "Search assigned synthetic tools.", inputSchema: { type: "object" } }, ...codexSemanticToolSpecs()],
         });
         completed = (async () => {
           for await (const event of transport.notifications()) {
@@ -73,7 +73,7 @@ it.skipIf(!compilerAvailable || !existsSync(runner)).each(["discovery", "complet
           catch { return null; }
         }, { timeout: tool === "durable" ? 45_000 : 15_000 }).toMatchObject({ acknowledged: true });
         await completed;
-        expect(seen).toEqual(tool !== "completion" ? ["paperclip_search_assigned_tools", "paperclip_finish"] : ["paperclip_finish"]);
+        expect(seen).toEqual(tool !== "completion" ? ["outpost_search_assigned_tools", "outpost_finish"] : ["outpost_finish"]);
         expect(text.join("")).toBe("Streaming progress. ".repeat(800));
         if (tool === "durable") {
           const runnerPid = transport.processInfo!().pid;
@@ -84,7 +84,7 @@ it.skipIf(!compilerAvailable || !existsSync(runner)).each(["discovery", "complet
           await transport.request("turn/start", { input: [{ type: "text", text: "stream-backlog-discovery" }] });
           await completed;
           expect(transport.processInfo!().pid).toBe(runnerPid);
-          expect(seen).toEqual(["paperclip_search_assigned_tools", "paperclip_finish", "paperclip_search_assigned_tools", "paperclip_finish"]);
+          expect(seen).toEqual(["outpost_search_assigned_tools", "outpost_finish", "outpost_search_assigned_tools", "outpost_finish"]);
           const provider = JSON.parse(await readFile(join(root, "state", "runner", "codex-provider-state.json"), "utf8"));
           expect(provider.toolBridge.pending).toEqual({});
         }

@@ -28,7 +28,7 @@ const {
       startedAt: new Date().toISOString(),
     })),
     describeAdapterExecutionTarget: vi.fn(() => "Daytona"),
-    resolveAdapterExecutionTargetCwd: vi.fn(() => "/home/daytona/paperclip-workspace"),
+    resolveAdapterExecutionTargetCwd: vi.fn(() => "/home/daytona/outpost-workspace"),
   };
 });
 
@@ -55,7 +55,7 @@ const sandboxTarget: AdapterExecutionTarget = {
   kind: "remote",
   transport: "sandbox",
   providerKey: "daytona",
-  remoteCwd: "/home/daytona/paperclip-workspace",
+  remoteCwd: "/home/daytona/outpost-workspace",
   runner: {
     execute: async () => ({
       exitCode: 0,
@@ -72,13 +72,13 @@ const sandboxTarget: AdapterExecutionTarget = {
 const sshTarget: AdapterExecutionTarget = {
   kind: "remote",
   transport: "ssh",
-  remoteCwd: "/home/agent/paperclip-workspace",
+  remoteCwd: "/home/agent/outpost-workspace",
   spec: {
     host: "ssh.example.test",
     port: 22,
     username: "agent",
-    remoteCwd: "/home/agent/paperclip-workspace",
-    remoteWorkspacePath: "/home/agent/paperclip-workspace",
+    remoteCwd: "/home/agent/outpost-workspace",
+    remoteWorkspacePath: "/home/agent/outpost-workspace",
     privateKey: null,
     knownHosts: null,
     strictHostKeyChecking: true,
@@ -86,7 +86,7 @@ const sshTarget: AdapterExecutionTarget = {
 };
 
 const initLine =
-  '{"type":"system","subtype":"init","cwd":"/home/daytona/paperclip-workspace","session_id":"abc","tools":["Bash","Read"]}';
+  '{"type":"system","subtype":"init","cwd":"/home/daytona/outpost-workspace","session_id":"abc","tools":["Bash","Read"]}';
 
 const loginRequiredStdout = [
   initLine,
@@ -107,7 +107,7 @@ describe("claude sandbox auth-missing check", () => {
     probeResult.value = { exitCode: 1, stdout: loginRequiredStdout, stderr: "" };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sandboxTarget,
@@ -128,7 +128,7 @@ describe("claude sandbox auth-missing check", () => {
     probeResult.value = { exitCode: 1, stdout: loginRequiredStdout, stderr: "" };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: { model: "claude-opus-5", engine: "cli", command: "claude" },
       executionTarget: sshTarget,
@@ -142,7 +142,7 @@ describe("claude sandbox auth-missing check", () => {
 
 describe("claude CLI model compatibility check", () => {
   it("runs the hello probe with the compatible private CLI after updating an old sandbox", async () => {
-    const command = "/home/daytona/paperclip-workspace/.paperclip-runtime/claude-cli/2.1.280/bin/claude";
+    const command = "/home/daytona/outpost-workspace/.outpost-runtime/claude-cli/2.1.280/bin/claude";
     const response = { signal: null, timedOut: false, pid: 123, startedAt: new Date().toISOString(), stderr: "" };
     runAdapterExecutionTargetProcess
       .mockResolvedValueOnce({ ...response, exitCode: 0, stdout: "2.1.263 (Claude Code)\n" })
@@ -154,7 +154,7 @@ describe("claude CLI model compatibility check", () => {
     probeResult.value = { exitCode: 0, stdout: [initLine,
       JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "hello", session_id: "abc" }),
     ].join("\n"), stderr: "" };
-    const result = await testEnvironment({ companyId: "company-1", adapterType: "claude_local",
+    const result = await testEnvironment({ spaceId: "space-1", adapterType: "claude_local",
       config: { engine: "cli", model: "claude-opus-5-5", env: { CLAUDE_CODE_OAUTH_TOKEN: "fixture-subscription" } },
       executionTarget: sandboxTarget, environmentName: "Daytona" });
     expect(result.status).toBe("pass");
@@ -172,7 +172,7 @@ describe("claude CLI model compatibility check", () => {
       code: "claude_install_command_run", level: "warn", message: "Install command exited 1: npm install",
       detail: "npm error code ENOTFOUND https://registry-secret@example.test/private",
     });
-    const result = await testEnvironment({ companyId: "company-1", adapterType: "claude_local",
+    const result = await testEnvironment({ spaceId: "space-1", adapterType: "claude_local",
       config: { engine: "cli", model: "claude-opus-5-5" }, executionTarget: sandboxTarget });
     expect(result.status).toBe("fail");
     expect(result.checks).toContainEqual(expect.objectContaining({ code: "claude_runtime_preparation_failed",
@@ -194,7 +194,7 @@ describe("claude CLI model compatibility check", () => {
     };
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {
         engine: "cli",

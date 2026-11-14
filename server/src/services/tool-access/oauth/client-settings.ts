@@ -45,7 +45,7 @@ export function configuredOAuthClientForConnection(
     return {
       clientIdEnv: "SMOKE_LAB_FIXED_CLIENT_ID",
       clientSecretEnv: "SMOKE_LAB_FIXED_CLIENT_SECRET",
-      clientId: "paperclip-smoke-lab",
+      clientId: "outpost-smoke-lab",
       clientSecret: null,
     };
   }
@@ -66,18 +66,18 @@ export function credentialScope(
           ? "agent"
           : actor?.actorType === "user"
             ? "user"
-            : "company";
+            : "space";
   const id =
     typeof configured.id === "string"
       ? configured.id
       : typeof configured.targetId === "string"
         ? configured.targetId
-        : (actor?.actorId ?? connection.companyId);
+        : (actor?.actorId ?? connection.spaceId);
   return {
     type,
     id,
     hash: stableHash({
-      companyId: connection.companyId,
+      spaceId: connection.spaceId,
       connectionId: connection.id,
       type,
       id,

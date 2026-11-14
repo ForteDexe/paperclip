@@ -31,13 +31,13 @@ function asRecord(value: unknown): Record<string, unknown> {
 type HealthDependencies = {
   now: () => Date;
   audit: ToolAccessAudit;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   discovery: ToolCatalogDiscovery;
   setupPolicy: ConnectionSetupPolicy;
   resolveCredentialHeaders: ConnectionCredentialAccess["resolveCredentialHeaders"];
   refreshManagedGitHubGrantAccess: ReturnType<typeof createGitHubGrantContinuity>["refreshManagedGitHubGrantAccess"];
   ensureRuntimeSlot: ReturnType<typeof createToolRuntimeSlots>["ensureRuntimeSlot"];
-  stdioTemplateId(companyId: string, config: Record<string, unknown>): Promise<string>;
+  stdioTemplateId(spaceId: string, config: Record<string, unknown>): Promise<string>;
 };
 
 export function createConnectionHealth(db: Db, { now, audit, getConnectionRow, discovery, setupPolicy, resolveCredentialHeaders, refreshManagedGitHubGrantAccess, ensureRuntimeSlot, stdioTemplateId }: HealthDependencies) {
@@ -99,7 +99,7 @@ export function createConnectionHealth(db: Db, { now, audit, getConnectionRow, d
           .from(connectionGrants)
           .where(
             and(
-              eq(connectionGrants.companyId, connection.companyId),
+              eq(connectionGrants.spaceId, connection.spaceId),
               eq(connectionGrants.connectionId, connection.id),
               eq(connectionGrants.status, "active"),
             ),
@@ -150,7 +150,7 @@ export function createConnectionHealth(db: Db, { now, audit, getConnectionRow, d
         await remoteTools(connection, credentialHeaders, actor, undefined, unavailableServices);
       } else if (connection.transport === "local_stdio") {
         await resolveCredentialHeaders(connection);
-        await stdioTemplateId(connection.companyId, connection.config);
+        await stdioTemplateId(connection.spaceId, connection.config);
         await validateCogneeConnection(connection, actor, false);
       } else {
         throw unsupportedToolConnectionTransport();
@@ -177,7 +177,7 @@ export function createConnectionHealth(db: Db, { now, audit, getConnectionRow, d
       );
       const runtimeSlot = await ensureRuntimeSlot(updated);
       await audit({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         action: "tool_connection.health_check",
         outcome: "success",
@@ -202,7 +202,7 @@ export function createConnectionHealth(db: Db, { now, audit, getConnectionRow, d
           ? await ensureRuntimeSlot(updated)
           : null;
       await audit({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         action: "tool_connection.health_check",
         outcome: "failure",
@@ -247,7 +247,7 @@ export function createConnectionHealth(db: Db, { now, audit, getConnectionRow, d
       .from(toolConnections)
       .innerJoin(toolApplications, and(
         eq(toolApplications.id, toolConnections.applicationId),
-        eq(toolApplications.companyId, toolConnections.companyId),
+        eq(toolApplications.spaceId, toolConnections.spaceId),
       ))
       .where(
         and(
@@ -255,7 +255,7 @@ export function createConnectionHealth(db: Db, { now, audit, getConnectionRow, d
           eq(toolConnections.status, "active"),
           ne(toolConnections.transport, "chat_sdk"),
           ne(toolConnections.transport, "runtime_auth"),
-          ne(toolApplications.type, "paperclip_plugin"),
+          ne(toolApplications.type, "outpost_plugin"),
           or(isNull(toolConnections.healthCheckedAt), lte(toolConnections.healthCheckedAt, cutoff)),
         ),
       )

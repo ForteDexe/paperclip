@@ -13,10 +13,10 @@ import { setTaskTitleAction } from "../protocol-actions/set-task-title.js";
 import { sendChatMessageAction } from "../protocol-actions/send-chat-message.js";
 import { reassignTaskAction } from "../protocol-actions/reassign-task.js";
 import type {
-  PaperclipJsonSchema,
-  PaperclipSemanticActionDescriptor,
-  PaperclipSemanticActionId,
-  PaperclipSemanticActionMode,
+  OutpostJsonSchema,
+  OutpostSemanticActionDescriptor,
+  OutpostSemanticActionId,
+  OutpostSemanticActionMode,
 } from "./semantic-action-types.js";
 import { createSkillAction } from "../protocol-actions/create-skill.js";
 import { searchApiAction } from "../protocol-actions/search-api.js";
@@ -30,7 +30,7 @@ const STANDARD_MODE = ["standard", "skill_test"] as const;
 const text = (
   description: string,
   maxLength = 20_000,
-): PaperclipJsonSchema => ({
+): OutpostJsonSchema => ({
   type: "string",
   description,
   minLength: 1,
@@ -40,13 +40,13 @@ const text = (
 const nullableText = (
   description: string,
   maxLength = 20_000,
-): PaperclipJsonSchema => ({
+): OutpostJsonSchema => ({
   type: ["string", "null"],
   description,
   maxLength,
 });
 
-const stringArray = (description: string): PaperclipJsonSchema => ({
+const stringArray = (description: string): OutpostJsonSchema => ({
   type: "array",
   description,
   items: { type: "string", minLength: 1 },
@@ -55,16 +55,16 @@ const stringArray = (description: string): PaperclipJsonSchema => ({
 });
 
 const object = (
-  properties: Readonly<Record<string, PaperclipJsonSchema>> = {},
+  properties: Readonly<Record<string, OutpostJsonSchema>> = {},
   required: readonly string[] = [],
-): PaperclipJsonSchema => ({
+): OutpostJsonSchema => ({
   type: "object",
   properties,
   required,
   additionalProperties: false,
 });
 
-const openObject: PaperclipJsonSchema = {
+const openObject: OutpostJsonSchema = {
   type: "object",
   additionalProperties: true,
 };
@@ -91,19 +91,19 @@ const operationReceipt = object(
 );
 
 interface DescriptorInput {
-  readonly operationId: PaperclipSemanticActionId;
+  readonly operationId: OutpostSemanticActionId;
   readonly title: string;
   readonly description: string;
   readonly placement?: "always" | "optional";
-  readonly effect?: "read" | "write" | "governance";
+  readonly effect?: "read" | "write" | "approvals";
   readonly requiredClaims?: readonly string[];
-  readonly allowedModes?: readonly PaperclipSemanticActionMode[];
+  readonly allowedModes?: readonly OutpostSemanticActionMode[];
   readonly allowedRoles?: readonly string[];
-  readonly inputSchema?: PaperclipJsonSchema;
-  readonly outputSchema?: PaperclipJsonSchema;
+  readonly inputSchema?: OutpostJsonSchema;
+  readonly outputSchema?: OutpostJsonSchema;
 }
 
-function descriptor(input: DescriptorInput): PaperclipSemanticActionDescriptor {
+function descriptor(input: DescriptorInput): OutpostSemanticActionDescriptor {
   return {
     schema: "outpost.semantic-action.v1",
     operationId: input.operationId,
@@ -122,7 +122,7 @@ function descriptor(input: DescriptorInput): PaperclipSemanticActionDescriptor {
   };
 }
 
-const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
+const descriptors: readonly OutpostSemanticActionDescriptor[] = [
   descriptor({ ...createSkillAction.live.descriptor, placement: "optional", effect: "write" }),
   ...[searchApiAction, callApiAction].map(action => descriptor({
     operationId: action.id,
@@ -347,16 +347,16 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
   }),
   descriptor({
     operationId: "list_agents",
-    title: "List company agents",
-    description: "List redacted actor profiles in the run company.",
+    title: "List space agents",
+    description: "List redacted actor profiles in the run space.",
     placement: "optional",
     requiredClaims: ["discovery:agents:read"],
   }),
   descriptor({
-    operationId: "hire_agent",
-    title: "Hire a native agent",
+    operationId: "create_agent",
+    title: "Create a native agent",
     description:
-      "Create one native Outpost Runner teammate for the current company and task. The new agent reports to you, inherits your native runtime, and receives no provider, adapter, environment, or credential configuration from the tool. Reuse an existing teammate when appropriate and follow any approval returned by the API.",
+      "Create one native Outpost Runner teammate for the current space and task. The new agent reports to you, inherits your native runtime, and receives no provider, adapter, environment, or credential configuration from the tool. Reuse an existing teammate when appropriate and follow any approval returned by the API.",
     placement: "optional",
     effect: "write",
     requiredClaims: ["delegation:agents:create"],
@@ -365,7 +365,7 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
       {
         name: text("Name for the new teammate.", 200),
         role: {
-          enum: ["ceo", "cto", "cmo", "cfo", "security", "engineer", "designer", "pm", "qa", "devops", "researcher", "general"],
+          enum: ["lead", "engineering_lead", "product", "operations", "security", "engineer", "designer", "pm", "qa", "devops", "researcher", "general"],
           default: "general",
         },
         title: nullableText("Optional teammate title.", 300),
@@ -378,8 +378,8 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
   }),
   descriptor({
     operationId: "get_agent",
-    title: "Get company agent",
-    description: "Read one redacted actor profile in the run company.",
+    title: "Get space agent",
+    description: "Read one redacted actor profile in the run space.",
     placement: "optional",
     requiredClaims: ["discovery:agents:read"],
     inputSchema: object({ actorId: text("Actor identifier.", 200) }, [
@@ -388,8 +388,8 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
   }),
   descriptor({
     operationId: "search_tasks",
-    title: "Search company tasks",
-    description: "Search tasks by text and status within the run company.",
+    title: "Search space tasks",
+    description: "Search tasks by text and status within the run space.",
     placement: "optional",
     requiredClaims: ["discovery:tasks:read"],
     inputSchema: object({
@@ -416,18 +416,18 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
   descriptor({
     operationId: "list_approvals",
     title: "List approvals",
-    description: "List approvals in the run company.",
+    description: "List approvals in the run space.",
     placement: "optional",
-    effect: "governance",
-    requiredClaims: ["governance:approvals:read"],
+    effect: "approvals",
+    requiredClaims: ["approvals:approvals:read"],
   }),
   descriptor({
     operationId: "get_approval",
     title: "Get approval",
     description: "Read one approval without protected data.",
     placement: "optional",
-    effect: "governance",
-    requiredClaims: ["governance:approvals:read"],
+    effect: "approvals",
+    requiredClaims: ["approvals:approvals:read"],
     inputSchema: object({ approvalId: text("Approval identifier.", 200) }, [
       "approvalId",
     ]),
@@ -437,8 +437,8 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
     title: "Get approval context",
     description: "Read one approval, its comments, and linked tasks.",
     placement: "optional",
-    effect: "governance",
-    requiredClaims: ["governance:approvals:read"],
+    effect: "approvals",
+    requiredClaims: ["approvals:approvals:read"],
     inputSchema: object({ approvalId: text("Approval identifier.", 200) }, [
       "approvalId",
     ]),
@@ -551,7 +551,7 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
           version: { const: 1 },
           deliverables: { type: "array", minItems: 1, maxItems: 10, items: object({ key: text("Stable output key, e.g. copy or visual.", 80), label: text("Human-readable output name.", 120) }, ["key", "label"]) },
         }, ["version", "deliverables"]),
-        assigneeActorId: nullableText("Existing company agent ID from list_agents. Set the requested teammate here during creation. Omit or use null to assign the current agent; a todo task can start that agent before a later reassignment. Mutually exclusive with assigneeUserId.", 200),
+        assigneeActorId: nullableText("Existing space agent ID from list_agents. Set the requested teammate here during creation. Omit or use null to assign the current agent; a todo task can start that agent before a later reassignment. Mutually exclusive with assigneeUserId.", 200),
         assigneeUserId: nullableText("Outpost person ID from list_people. Mutually exclusive with assigneeActorId.", 200),
         status: { enum: ["backlog", "todo"], description: "Initial status. Use backlog to save work without execution. Defaults to todo (blocked when dependencies are unresolved)." },
         priority: { enum: ["critical", "high", "medium", "low"] },
@@ -564,10 +564,10 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
   descriptor({
     operationId: "request_approval",
     title: "Request approval",
-    description: "Create a governed approval and waiting posture.",
+    description: "Create a controlled approval and waiting posture.",
     placement: "optional",
-    effect: "governance",
-    requiredClaims: ["governance:approvals:request"],
+    effect: "approvals",
+    requiredClaims: ["approvals:approvals:request"],
     allowedModes: STANDARD_MODE,
     inputSchema: object(
       {
@@ -584,9 +584,9 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
     title: "Decide approval",
     description: "Decide an approval as an explicitly authorized approver.",
     placement: "optional",
-    effect: "governance",
-    requiredClaims: ["governance:approvals:decide"],
-    allowedRoles: ["board", "approver", "security"],
+    effect: "approvals",
+    requiredClaims: ["approvals:approvals:decide"],
+    allowedRoles: ["operator", "approver", "security"],
     allowedModes: STANDARD_MODE,
     inputSchema: object(
       {
@@ -604,8 +604,8 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
     title: "Comment on approval",
     description: "Add a durable comment to an approval.",
     placement: "optional",
-    effect: "governance",
-    requiredClaims: ["governance:approvals:comment"],
+    effect: "approvals",
+    requiredClaims: ["approvals:approvals:comment"],
     inputSchema: object(
       {
         ...idempotency,
@@ -667,13 +667,13 @@ export const OUTPOST_SEMANTIC_ACTION_CATALOG = Object.freeze([
   ...byId.values(),
 ]);
 
-export function paperclipSemanticAction(
+export function outpostSemanticAction(
   operationId: string,
-): PaperclipSemanticActionDescriptor | undefined {
-  return byId.get(operationId as PaperclipSemanticActionId);
+): OutpostSemanticActionDescriptor | undefined {
+  return byId.get(operationId as OutpostSemanticActionId);
 }
 
-export function canonicalPaperclipSemanticActionCatalog(): string {
+export function canonicalOutpostSemanticActionCatalog(): string {
   return `${JSON.stringify(sortKeys(OUTPOST_SEMANTIC_ACTION_CATALOG), null, 2)}\n`;
 }
 

@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS "native_runner_checkpoints" (
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"part" text NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS "native_runner_checkpoints" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
-ALTER TABLE "native_runner_checkpoints" ADD CONSTRAINT "native_runner_checkpoints_company_id_issue_id_run_id_heartbeat_runs_company_id_native_issue_id_id_fk" FOREIGN KEY ("company_id","issue_id","run_id") REFERENCES "public"."heartbeat_runs"("company_id","native_issue_id","id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "native_runner_checkpoints" ADD CONSTRAINT "native_runner_checkpoints_space_id_issue_id_run_id_heartbeat_runs_space_id_native_issue_id_id_fk" FOREIGN KEY ("space_id","issue_id","run_id") REFERENCES "public"."heartbeat_runs"("space_id","native_issue_id","id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 

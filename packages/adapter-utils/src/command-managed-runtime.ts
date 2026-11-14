@@ -147,7 +147,7 @@ function shellQuote(value: string) {
 }
 
 function mergeRuntimeExcludes(entries: string[] | undefined): string[] {
-  return [...new Set([".paperclip-runtime", ...(entries ?? [])])];
+  return [...new Set([".outpost-runtime", ...(entries ?? [])])];
 }
 
 // Largest base64 body we hand to the runner as a single stdin string. Normal
@@ -294,7 +294,7 @@ export function createCommandManagedRuntimeClient(input: {
       const total = buffer.byteLength;
       const encodedLength = base64EncodedLength(total);
       const remoteDir = path.posix.dirname(remotePath);
-      const remoteTempPath = buildUniqueStagingPath({ targetPath: remotePath, suffix: ".paperclip-upload" });
+      const remoteTempPath = buildUniqueStagingPath({ targetPath: remotePath, suffix: ".outpost-upload" });
       const canUseSingleStreamProgressPath = input.runner.supportsSingleStreamStdinProgress === true;
 
       try {
@@ -444,7 +444,7 @@ export function createCommandManagedRuntimeClient(input: {
   // rides the shared `execute` seam.
   const fallbackSyncIn = async (operations: SandboxSyncOperation[]): Promise<SandboxSyncResult> => {
     const resultOperations: SandboxSyncResult["operations"] = [];
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-syncin-fallback-"));
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-syncin-fallback-"));
     try {
       for (const operation of operations) {
         let filesTransferred = 0;
@@ -463,7 +463,7 @@ export function createCommandManagedRuntimeClient(input: {
               const tarBytes = await fs.readFile(archivePath);
               const remoteTarPath = buildUniqueStagingPath({
                 targetPath: mapping.targetPath,
-                suffix: ".paperclip-syncin.tar",
+                suffix: ".outpost-syncin.tar",
               });
               cleanupPaths.push(remoteTarPath);
               await client.writeFile(remoteTarPath, bufferToArrayBuffer(tarBytes));
@@ -560,8 +560,8 @@ export async function prepareCommandManagedRuntime(input: {
   workspaceCheckpoint?: boolean;
   onWorkspaceCheckpoint?: (metrics: WorkspaceCheckpointMetrics) => Promise<void>;
   workspaceSeedCacheDirectory?: string;
-  workspaceSeedCacheCompanyDirectory?: string;
-  workspaceSeedCacheScope?: "workspace" | "company";
+  workspaceSeedCacheSpaceDirectory?: string;
+  workspaceSeedCacheScope?: "workspace" | "space";
   workspaceBaseline?: DirectorySnapshot;
   workspaceGitSnapshot?: GitWorkspaceSnapshot | null;
   workspaceRepositories?: NonNullable<GitWorkspaceSnapshot["repositories"]>;
@@ -637,7 +637,7 @@ export async function prepareCommandManagedRuntime(input: {
           workspaceCheckpoint: input.workspaceCheckpoint,
           onWorkspaceCheckpoint: input.onWorkspaceCheckpoint,
           workspaceSeedCacheDirectory: input.workspaceSeedCacheDirectory,
-          workspaceSeedCacheCompanyDirectory: input.workspaceSeedCacheCompanyDirectory,
+          workspaceSeedCacheSpaceDirectory: input.workspaceSeedCacheSpaceDirectory,
           workspaceSeedCacheScope: input.workspaceSeedCacheScope,
           workspaceBaseline: input.workspaceBaseline,
           workspaceGitSnapshot: input.workspaceGitSnapshot,
@@ -691,7 +691,7 @@ export async function prepareCommandManagedRuntime(input: {
     workspaceCheckpoint: input.workspaceCheckpoint,
     onWorkspaceCheckpoint: input.onWorkspaceCheckpoint,
     workspaceSeedCacheDirectory: input.workspaceSeedCacheDirectory,
-    workspaceSeedCacheCompanyDirectory: input.workspaceSeedCacheCompanyDirectory,
+    workspaceSeedCacheSpaceDirectory: input.workspaceSeedCacheSpaceDirectory,
     workspaceSeedCacheScope: input.workspaceSeedCacheScope,
     workspaceBaseline: input.workspaceBaseline,
     workspaceGitSnapshot: input.workspaceGitSnapshot,

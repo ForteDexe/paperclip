@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { sql } from "drizzle-orm";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issues,
@@ -46,27 +46,27 @@ async function candidateCount(pass: Promise<unknown>) {
 describeEmbeddedPostgres("native finalization candidate selection", () => {
   let db!: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
-  let companyId: string;
+  let spaceId: string;
   let agentId: string;
   let issueId: string;
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-settled-candidates-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-native-settled-candidates-");
     db = createDb(temporary.connectionString);
   }, 30_000);
 
   beforeEach(async () => {
     captured.counts = [];
     resetSettledCommittedUpkeepForTests();
-    companyId = randomUUID();
+    spaceId = randomUUID();
     agentId = randomUUID();
     issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Settled", issuePrefix: `S${companyId.slice(0, 6)}` });
+    await db.insert(spaces).values({ id: spaceId, name: "Settled", issuePrefix: `S${spaceId.slice(0, 6)}` });
     await db.insert(agents).values({
-      id: agentId, companyId, name: "Native", role: "engineer", status: "active",
+      id: agentId, spaceId, name: "Native", role: "engineer", status: "active",
       adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {},
     });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Settled work", status: "done" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Settled work", status: "done" });
   });
 
   afterEach(async () => {
@@ -75,7 +75,7 @@ describeEmbeddedPostgres("native finalization candidate selection", () => {
     await db.delete(heartbeatRuns);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -86,7 +86,7 @@ describeEmbeddedPostgres("native finalization candidate selection", () => {
     const runId = randomUUID();
     const finishedAgoMs = options.finishedAgoMs === undefined ? 2 * HOUR_MS : options.finishedAgoMs;
     await db.insert(heartbeatRuns).values({
-      id: runId, companyId, agentId,
+      id: runId, spaceId, agentId,
       status: options.status ?? "succeeded",
       runtimeMode: "native",
       nativeIssueId: issueId,
@@ -96,7 +96,7 @@ describeEmbeddedPostgres("native finalization candidate selection", () => {
     await db.transaction(async (tx) => {
       await tx.execute(sql`set local session_replication_role = replica`);
       await tx.insert(nativeRunFinalizations).values({
-        runId, companyId, issueId, phase: "committed",
+        runId, spaceId, issueId, phase: "committed",
         resultId: randomUUID(),
         ...(options.decisionId ? { assessmentId: randomUUID(), decisionId: options.decisionId } : {}),
       });
@@ -146,7 +146,7 @@ describeEmbeddedPostgres("native finalization candidate selection", () => {
       await db.transaction(async (tx) => {
         await tx.execute(sql`set local session_replication_role = replica`);
         await tx.insert(statusDecisionEffects).values({
-          companyId, issueId, decisionId, ordinal: 0, effectKind: "wake", targetType: "agent",
+          spaceId, issueId, decisionId, ordinal: 0, effectKind: "wake", targetType: "agent",
           idempotencyKey: randomUUID(), payload: {}, deliveryState: index % 2 === 0 ? "failed" : "pending",
         });
       });

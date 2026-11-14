@@ -3,14 +3,14 @@ import { expect, userEvent, within } from "storybook/test";
 import { EmailEndpointSettings } from "@/pages/apps/chat/EmailEndpointSetup";
 import type { EmailEndpointSummary } from "@outpost/shared";
 
-const COMPANY = "company-storybook";
+const SPACE = "space-storybook";
 const ENDPOINT = "agentmail-settings-preview";
 const meta = {
   id: "connections-agentmail-settings",
   title: "Apps, channels, and extensions/External chat and email/Connections/AgentMail settings",
   component: EmailEndpointSettings,
   parameters: { layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "chat-channels/lifecycle"
       ],
@@ -19,10 +19,10 @@ const meta = {
       "notes": "Task-workspace reconciliation: EmailEndpointSettings remains the mounted inbox subsection. The surrounding ChatEndpointDetail connection-default editor and its save/inheritance behavior are not represented here."
     },
   },
-  args: { endpointId: ENDPOINT, companyId: COMPANY, assignedAgentName: "Ralph" },
+  args: { endpointId: ENDPOINT, spaceId: SPACE, assignedAgentName: "Ralph" },
   beforeEach(context) {
     let inbox: EmailEndpointSummary = {
-      id: ENDPOINT, companyId: COMPANY, connectionId: "preview-account", assignedAgentId: "ralph",
+      id: ENDPOINT, spaceId: SPACE, connectionId: "preview-account", assignedAgentId: "ralph",
       address: "ralph@outpost.example", status: "active", receiveMode: "websocket",
       lastSyncAt: "2026-10-02T12:40:00Z", lastError: null,
       ...context.parameters.inbox,
@@ -30,7 +30,7 @@ const meta = {
     const original = window.fetch;
     window.fetch = async (input, init) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin);
-      if (url.pathname === `/api/companies/${COMPANY}/email/inboxes`) return Response.json([inbox]);
+      if (url.pathname === `/api/spaces/${SPACE}/email/inboxes`) return Response.json([inbox]);
       if (url.pathname === `/api/email/inboxes/${ENDPOINT}/control`) {
         const { action } = JSON.parse(String(init?.body));
         inbox = { ...inbox, status: action === "pause" ? "paused" : action === "remove" ? "archived" : "active" };

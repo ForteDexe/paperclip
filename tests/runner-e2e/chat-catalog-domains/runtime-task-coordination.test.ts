@@ -1,19 +1,19 @@
 import { it, expect } from "vitest";
 import { gradeDependencyCycle } from "./runtime-task-coordination.js";
 function valid() {
-  const website = { id: "website", title: "Website", companyId: "company", status: "backlog", blockedBy: [] };
-  const design = { id: "design", title: "Design", companyId: "company", status: "backlog", blockedBy: [{ id: "website" }] };
-  return { scenarioId: "task-coordination.reject-dependency-cycle", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  const website = { id: "website", title: "Website", spaceId: "space", status: "backlog", blockedBy: [] };
+  const design = { id: "design", title: "Design", spaceId: "space", status: "backlog", blockedBy: [{ id: "website" }] };
+  return { scenarioId: "task-coordination.reject-dependency-cycle", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { task: website, design }, dependencyTasks: [structuredClone(website), structuredClone(design)], agents: [], tasks: [website, design],
     links: ["/ACORN/issues/website", "/ACORN/issues/design"], reply: "Design already depends on Website. That would be circular. Choose which should go first.",
     activity: [], runs: [{ id: "run" }], humanQueries: [], conversationInteractions: [] as Array<Record<string, unknown>> };
 }
 /** The pending card retained from run 42678089404, which ended the turn with an empty reply. */
 function card() {
-  return { id: "card", kind: "ask_user_questions", status: "pending", companyId: "company", createdByAgentId: "ceo", sourceRunId: "run",
+  return { id: "card", kind: "ask_user_questions", status: "pending", spaceId: "space", createdByAgentId: "ceo", sourceRunId: "run",
     resolverPolicy: "human_only", requestedResolverPolicy: "human_only", effectiveResolverPolicy: "human_only",
     title: "Choose dependency order",
-    summary: "Design (COM-2) currently waits for Website (COM-1). Paperclip won't let Website also wait for Design because that would be a dependency cycle, so which order should I keep?",
+    summary: "Design (COM-2) currently waits for Website (COM-1). Outpost won't let Website also wait for Design because that would be a dependency cycle, so which order should I keep?",
     payload: { version: 1, questions: [{ id: "order", prompt: "Which dependency order should I set?", selectionMode: "single",
       options: [{ id: "website_waits_design", label: "Website waits for Design" }, { id: "keep_design_waits_website", label: "Keep current order" }] }] } };
 }

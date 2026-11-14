@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { inboxArchivePersisted, inboxTaskMatches, inboxTaskResurfaced } from "./inbox-triage-evidence.js";
 
 describe("personal inbox triage evidence", () => {
-  const expected = { id: "owned-task", companyId: "company", userId: "reader", status: "in_progress" };
-  const task = { id: expected.id, companyId: expected.companyId, assigneeUserId: expected.userId,
+  const expected = { id: "owned-task", spaceId: "space", userId: "reader", status: "in_progress" };
+  const task = { id: expected.id, spaceId: expected.spaceId, assigneeUserId: expected.userId,
     assigneeAgentId: null, status: expected.status, isUnreadForMe: false };
   const archived = { ...task, archivedAt: "2020-01-01T12:00:00.000Z" };
   it("requires persisted personal archive state and actual exclusion from Mine", () => {
@@ -12,7 +12,7 @@ describe("personal inbox triage evidence", () => {
     expect(inboxArchivePersisted(archived, expected, [task])).toBe(false);
     expect(inboxArchivePersisted({ ...archived, archivedAt: "not-a-time" }, expected, [])).toBe(false);
   });
-  it.each([{ id: "foreign-task" }, { companyId: "foreign-company" }, { assigneeUserId: "other-user" },
+  it.each([{ id: "foreign-task" }, { spaceId: "foreign-space" }, { assigneeUserId: "other-user" },
     { assigneeAgentId: "unexpected-agent" }, { status: "done" }])("rejects changed ownership or completion %j", change => {
     expect(inboxTaskMatches({ ...task, ...change }, expected)).toBe(false);
     expect(inboxArchivePersisted({ ...archived, ...change }, expected, [])).toBe(false);

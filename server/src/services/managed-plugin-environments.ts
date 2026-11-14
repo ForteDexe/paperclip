@@ -5,7 +5,7 @@
  * Each declared entry owns exactly one row, identified by the marker
  * `metadata.managedPluginEnvironment = "<pluginKey>:<driverKey>"` (unique
  * index `environments_managed_plugin_environment_idx`) next to
- * `managedByPaperclip: true`, which puts the row behind the environments-route
+ * `managedByOutpost: true`, which puts the row behind the environments-route
  * write floor on cloud-managed instances.
  *
  * - The first ensure adopts an existing unmarked row for the same plugin and
@@ -24,7 +24,7 @@
 
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { companies, environments } from "@outpost/db";
+import { spaces, environments } from "@outpost/db";
 import type { PluginEnvironmentConfig } from "@outpost/shared";
 import { logActivity, publishActivity, type ActivityPublication } from "./activity-log.js";
 import { normalizeEnvironmentConfig } from "./environment-config.js";
@@ -95,19 +95,19 @@ function markerOf(row: Pick<EnvironmentRow, "metadata">): string | null {
 }
 
 /**
- * Record activity for every company inside the caller's transaction, so the
+ * Record activity for every space inside the caller's transaction, so the
  * entries commit (or roll back) with the row change. Live events go to
  * `publications` and are published by the caller after commit.
  */
-async function logForEveryCompany(
+async function logForEverySpace(
   tx: Db,
   publications: ActivityPublication[],
   input: { action: string; environmentId: string; details: Record<string, unknown> },
 ): Promise<void> {
-  const companyIds = await tx.select({ id: companies.id }).from(companies).then((rows) => rows.map((row) => row.id));
-  for (const companyId of companyIds) {
+  const spaceIds = await tx.select({ id: spaces.id }).from(spaces).then((rows) => rows.map((row) => row.id));
+  for (const spaceId of spaceIds) {
     await logActivity(tx, {
-      companyId,
+      spaceId,
       actorType: "system",
       actorId: "managed-environment-reconciler",
       action: input.action,
@@ -135,7 +135,7 @@ export async function ensureManagedPluginEnvironment(
   const result = await db.transaction(async (tx): Promise<ManagedPluginEnvironmentRowResult> => {
     const reconciled = await reconcile(tx);
     if (reconciled.action !== "unchanged") {
-      await logForEveryCompany(tx as unknown as Db, publications, {
+      await logForEverySpace(tx as unknown as Db, publications, {
         action: `environment.managed_plugin_${reconciled.action}`,
         environmentId: reconciled.row.id,
         details: { pluginKey: input.pluginKey, driverKey: input.driverKey, reconciliationAction: reconciled.action },
@@ -188,7 +188,7 @@ export async function ensureManagedPluginEnvironment(
           status: "active",
           config: desiredConfig,
           envVars: {},
-          metadata: { managedByPaperclip: true, [MANAGED_PLUGIN_ENVIRONMENT_MARKER_KEY]: marker },
+          metadata: { managedByOutpost: true, [MANAGED_PLUGIN_ENVIRONMENT_MARKER_KEY]: marker },
           createdAt: now,
           updatedAt: now,
         })
@@ -211,7 +211,7 @@ export async function ensureManagedPluginEnvironment(
     const currentMetadata = metadataOf(row);
     const desiredMetadata = {
       ...currentMetadata,
-      managedByPaperclip: true,
+      managedByOutpost: true,
       [MANAGED_PLUGIN_ENVIRONMENT_MARKER_KEY]: marker,
     };
     const matches =
@@ -263,7 +263,7 @@ export async function archiveManagedPluginEnvironment(
       .returning()
       .then((rows) => rows[0] ?? null);
     if (!row) return null;
-    await logForEveryCompany(tx as unknown as Db, publications, {
+    await logForEverySpace(tx as unknown as Db, publications, {
       action: "environment.managed_provider_unavailable_archived",
       environmentId: row.id,
       details: { pluginKey: input.pluginKey, driverKey: input.driverKey },

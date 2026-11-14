@@ -143,7 +143,7 @@ writes the requested 33 bytes, performs one complete native read with the exact
 nonce plus LF, receives the expected cross-root denial, saves the exact bytes
 through the public managed-file API, and retires cleanly. The grader wrongly
 requires a null projected target for cloud agent files. The remote projection
-correctly names `.paperclip-runtime/agent-files/<agent-id>/<run-id>/memory/pi-native.txt`;
+correctly names `.outpost-runtime/agent-files/<agent-id>/<run-id>/memory/pi-native.txt`;
 local private-root reads remain withheld. This is a grader-authority mismatch,
 not evidence of wrong file content. Restart and the fresh task were not reached.
 
@@ -665,7 +665,7 @@ remains deferred and no prior-source live result transfers to this candidate.
 This branch merges `origin/master` through `a9a20fb5c6c080884ced7ee0a4e3b04f9cbf3a6e`.
 The original integration point was `a6306ba606eb87c89b9ef0344e9fe8e0025580f9`;
 two additional master commits are included in the final merge.
-Pi accepts the operator's explicit provider/model ID without a Paperclip model
+Pi accepts the operator's explicit provider/model ID without a Outpost model
 allowlist. Catalog discovery does not gate selection. Exact native model
 acknowledgment remains required before prompting. API credentials for built-in
 providers and explicit native custom-provider configurations remain session-bound.
@@ -785,7 +785,7 @@ held.
 Review of `fc661a364` identifies a further crash window: issue/workspace
 closure calls provider destruction before recording `pending_cleanup`. The
 correction now shares one durable, scoped cleanup claim with environment
-deletion. The atomic claim re-checks company, environment, issue/workspace,
+deletion. The atomic claim re-checks space, environment, issue/workspace,
 lease policy, current status and holding-run liveness. It records an attempt
 identity and renewable cleanup ownership before provider work, preventing
 concurrent closures or sweeps from destroying the same resource. A failed
@@ -849,9 +849,9 @@ own proven corrections; this cleanup change does not authorize their retries.
 All 26 Product and seven Runner cases remain required on the final set.
 
 Review also identifies the issue/workspace closure path, which omitted failed
-reusable leases. The follow-up includes them there while retaining company and
+reusable leases. The follow-up includes them there while retaining space and
 issue/workspace scope and the live-run check. All 282 environment tests pass,
-including failed-lease closure for each scope and rejection of another company.
+including failed-lease closure for each scope and rejection of another space.
 The complete server typecheck passes with all corrected services and tests.
 The corrected-suite log hash is
 `9b965b9cf0acc1dc49340f85d4efb5588f6f59b3bc2522df7ec96d3bb515443a`.
@@ -925,7 +925,7 @@ The first birth-reader build at `9fdcefcc3` passes full build, recursive
 typecheck and harness typecheck, and all 18 packages are repacked. Its normal ARM
 install and Pi setup pass, but offline admission fails because the server imports
 the private Runner package instead of its bundled vendor boundary. The browser
-CI shards and company-import test show the same missing-module error. Those
+CI shards and space-import test show the same missing-module error. Those
 failed receipts and image remain preserved and supply no qualification evidence.
 The follow-up routes the import through the existing vendor shim and mirrors the
 compiled Runner export there. All 39 hot-restart and native-recovery tests pass
@@ -992,7 +992,7 @@ merge or release.
 The fresh Runner human-confirmation case reaches its original 120-second
 provider-turn deadline before any control-plane operation or human interaction.
 The native transcript contains a DSML invocation of
-`mcp__paperclip__request_human_input` as assistant text, followed by a claim that
+`mcp__outpost__request_human_input` as assistant text, followed by a claim that
 a card was created. The mock state records no such operation or card. There is
 no terminal turn. Provider metadata records Inceptron HTTP 499 after 119.7 seconds
 at 5.3 tokens/second. This observation narrows the failure to native tool-call
@@ -1087,7 +1087,7 @@ qualify changed shipping inputs. Keep rollout held and do not merge or release.
 ## Sandbox GitHub housekeeping correction — 2026-10-06
 
 The shipping correction moves sandbox GitHub launchers, upload locks and
-per-command configuration below `.paperclip-runtime/outpost-runner/github`.
+per-command configuration below `.outpost-runtime/outpost-runner/github`.
 One shared path now binds staging, the native callback bridge and cleanup.
 Local and SSH locations keep their existing behavior. The native watcher,
 excluded subtree, exact byte grades, timeouts and lifecycle assertions do not
@@ -1243,7 +1243,7 @@ Product 0/26 and Runner 0/7.
 
 A credential-free regression reproduces the fallback restore defect after
 controller recovery: file bytes survive, but transfer creates a reserved
-`.paperclip-runtime/agent-files` directory inside native `AGENT_HOME`. The
+`.outpost-runtime/agent-files` directory inside native `AGENT_HOME`. The
 product's complete agent-directory probe rejects that directory. Transfer
 scratch now lives in the original materialization's host runtime area, outside
 native memory. Both staging and recovery use the same lease-confined path.
@@ -1776,7 +1776,7 @@ unresolved root review findings. These free checks do not qualify provider death
 
 A fresh owned Linux controller passes normal public installation, normal Pi
 setup and admission in 7.207 seconds. Installed startup passes health/UI with
-zero companies and cleanup. Complete audits pass 101,226 consumer files and
+zero spaces and cleanup. Complete audits pass 101,226 consumer files and
 16,356 plugin files. All 13 Daytona browser cases collect, and the pinned SDK
 constructor passes without credentials or provider calls. The two expired
 controllers remain absent. The rejected 30 GiB allocation created no sandbox;
@@ -1946,7 +1946,7 @@ is claimed. No automatic paid retry, fallback key, model change, workflow edit,
 or lockfile commit occurs.
 
 Normal installed Mac-to-Linux authority now passes the documented
-`paperclipai runtime import-remote` path. The companion comes from immutable
+`outpost runtime import-remote` path. The companion comes from immutable
 image `sha256:342f1fd5cb8cabfa2242f38f4f686608b28b6536aa879c54b0cb0da6fba9ef47`,
 contains 24,352 inventoried entries, and has manifest SHA256
 `2c9d337c7d3753db6b8c44c5b347e195a2544b574670af7f32e5dfaffc0b4017`.
@@ -1965,7 +1965,7 @@ Historical corrections and evidence as of October 3:
   a full wake and the next sleep, with no state event during its 11:54–11:57 UTC
   attempt. The separate workflow-context/document sleep correction does not
   establish a correction for this failure.
-- Runner finish-task reports the run through `paperclip_finish` without invoking
+- Runner finish-task reports the run through `outpost_finish` without invoking
   the advertised `finish_task` mutation. Preserve the mock authority distinction
   and the failed behavior grade. The actual failed attempt advertises and
   authorizes `finish_task`; runtime instructions already explain the distinction.
@@ -2026,7 +2026,7 @@ Historical corrections and evidence as of October 3:
   PostgreSQL lifecycle: required native library links are absent and initdb
   exits 127. Standard `npm rebuild @embedded-postgres/linux-x64` repairs those
   links without changing archived bytes. The real installed launcher then
-  passes health/UI with zero companies, zero provider calls and full scratch
+  passes health/UI with zero spaces, zero provider calls and full scratch
   cleanup in 12.101 seconds. Strict complete installed audits pass 101,213
   controller files and 16,356 plugin files; the importer authority receipt is
   validated exactly. Normal CLI/plugin admission and all 13 Daytona catalog
@@ -2633,9 +2633,9 @@ the database status. Drain or recover recorded cleanup before rolling back to
 a release that cannot interpret its metadata, and preserve the provider handle
 and receipts throughout that operation.
 
-1. Record `paperclipai --version`, the prior CLI/server package versions, the
-   current company configuration and the exact retained package set. Run
-   `paperclipai db:backup --json` against the intended instance. Retain the
+1. Record `outpost --version`, the prior CLI/server package versions, the
+   current space configuration and the exact retained package set. Run
+   `outpost db:backup --json` against the intended instance. Retain the
    reported backup path and size. Record the backup file SHA256 before updating.
    Drain active native runs on every platform before updating. On Linux, also
    drain before crossing between ctime-based and kernel-birth receipts. Never
@@ -2647,9 +2647,9 @@ and receipts throughout that operation.
    separately reviewed install procedure rather than this npm version command.
 
    ```sh
-   paperclipai update --version "$PI_RELEASE_VERSION" --dry-run --json
-   paperclipai update --version "$PI_RELEASE_VERSION"
-   paperclipai runtime setup pi
+   outpost update --version "$PI_RELEASE_VERSION" --dry-run --json
+   outpost update --version "$PI_RELEASE_VERSION"
+   outpost runtime setup pi
    ```
 
 3. For Daytona, select the exact image in the completed release qualification
@@ -2662,16 +2662,16 @@ and receipts throughout that operation.
    platform-specific manifest digests are evidence, not published release assets.
 
    ```sh
-   paperclipai runtime import-remote "$PI_RELEASE_COMPANION" --sha256 "$PI_RELEASE_COMPANION_SHA256"
+   outpost runtime import-remote "$PI_RELEASE_COMPANION" --sha256 "$PI_RELEASE_COMPANION_SHA256"
    ```
 
-4. After all release gates pass, begin with one operator-owned Linux Pi company using profile 18,
+4. After all release gates pass, begin with one operator-owned Linux Pi space using profile 18,
    the accepted qualification model `openrouter/anthropic/claude-sonnet-4.6`
    and explicit low thinking. This canary input is not a production model
-   allowlist: later companies may select any model acknowledged by their native
+   allowlist: later spaces may select any model acknowledged by their native
    provider or explicit custom-provider configuration. Check normal startup, one question and answer, Stop, three warm turns,
    terminal task state and usage visibility before expanding. Preserve the
-   existing company permissions and budget hard stop. Record the installed
+   existing space permissions and budget hard stop. Record the installed
    package, runtime, companion and image identities with each canary run.
    Verify an exact memory write with its final LF and read it in a fresh task.
    Current-artifact exact-byte memory acceptance must pass before expansion;
@@ -2690,8 +2690,8 @@ platform. On Linux, also drain before crossing the process-birth format change.
 Preserve terminal and cleanup evidence.
 
 ```sh
-paperclipai update --rollback --dry-run --json
-paperclipai update --rollback
+outpost update --rollback --dry-run --json
+outpost update --rollback
 ```
 
 The CLI restores the retained prior managed payload and restarts an active
@@ -2702,7 +2702,7 @@ resuming. Preserve post-backup run evidence separately. Non-managed installation
 must restore the recorded prior published CLI/server set through their install
 method; `--rollback` is supported only for managed installations.
 
-Restore the recorded company configuration and verify service health before
+Restore the recorded space configuration and verify service health before
 enabling dispatch. Reopen incompatible sessions. Do not replay uncertain provider
 actions or present expired callbacks as live questions. Preserve run history and
 all failed release evidence.
@@ -2726,7 +2726,7 @@ all failed release evidence.
 - Public graph audits pass 722 CLI packages and 79,360 files, the 150-package Pi
   closure, and 191 Daytona plugin packages with 16,356 files. The separately
   packed Runner matches all 1,330 vendored distribution files. Installed browser
-  startup passes health/UI with zero companies, credentials or provider calls.
+  startup passes health/UI with zero spaces, credentials or provider calls.
 - The local AMD64 Docker admission failures persist across bind-mounted and
   native-volume installs. The process observer sees Rosetta executable ownership.
   Native Linux succeeds with the exact-source image. Rosetta is a supported

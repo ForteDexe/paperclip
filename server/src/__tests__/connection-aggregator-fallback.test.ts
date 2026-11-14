@@ -7,8 +7,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   goals,
   heartbeatRuns,
   issueThreadInteractions,
@@ -42,28 +42,28 @@ const support = await getEmbeddedPostgresTestSupport();
     let runId!: string;
     beforeAll(async () => {
       const tempDb = await startEmbeddedPostgresTestDatabase(
-        "paperclip-connection-intents-",
+        "outpost-connection-intents-",
       );
       cleanup = tempDb.cleanup;
       connectionString = tempDb.connectionString;
       db = createDb(connectionString);
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const agentId = randomUUID();
       const goalId = randomUUID();
       const issueId = randomUUID();
       runId = randomUUID();
-      await db.insert(companies).values({
-        id: companyId,
+      await db.insert(spaces).values({
+        id: spaceId,
         name: "Connection tests",
         issuePrefix: "AGG",
-        requireBoardApprovalForNewAgents: false,
+        requireOperatorApprovalForNewAgents: false,
       });
       await db.insert(authUsers).values({
         id: "responsible-user", name: "Responsible user", email: "responsible-user@example.test",
         createdAt: new Date(), updatedAt: new Date(),
       });
-      await db.insert(companyMemberships).values({
-        companyId,
+      await db.insert(spaceMemberships).values({
+        spaceId,
         principalType: "user",
         principalId: "responsible-user",
         status: "active",
@@ -71,14 +71,14 @@ const support = await getEmbeddedPostgresTestSupport();
       });
       await db.insert(goals).values({
         id: goalId,
-        companyId,
+        spaceId,
         title: "Connect a service",
         level: "task",
         status: "active",
       });
       await db.insert(agents).values({
         id: agentId,
-        companyId,
+        spaceId,
         name: "Researcher",
         role: "researcher",
         status: "active",
@@ -89,7 +89,7 @@ const support = await getEmbeddedPostgresTestSupport();
       });
       await db.insert(issues).values({
         id: issueId,
-        companyId,
+        spaceId,
         goalId,
         title: "Read Notion",
         status: "in_progress",
@@ -98,7 +98,7 @@ const support = await getEmbeddedPostgresTestSupport();
       });
       await db.insert(heartbeatRuns).values({
         id: runId,
-        companyId,
+        spaceId,
         agentId,
         status: "running",
         responsibleUserId: "responsible-user",
@@ -106,7 +106,7 @@ const support = await getEmbeddedPostgresTestSupport();
       });
       claims = {
         sub: agentId,
-        company_id: companyId,
+        space_id: spaceId,
         run_id: runId,
         responsible_user_id: "responsible-user",
         scope: "connection_intents",
@@ -128,7 +128,7 @@ const support = await getEmbeddedPostgresTestSupport();
       await db
         .insert(issueComments)
         .values({
-          companyId: claims.company_id,
+          spaceId: claims.space_id,
           issueId: run!.contextSnapshot!.issueId as string,
           authorUserId: userId,
           body,
@@ -137,19 +137,19 @@ const support = await getEmbeddedPostgresTestSupport();
     async function resetQuestions() {
       await db
         .delete(issueComments)
-        .where(eq(issueComments.companyId, claims.company_id));
+        .where(eq(issueComments.spaceId, claims.space_id));
       await db
         .delete(issueThreadInteractions)
-        .where(eq(issueThreadInteractions.companyId, claims.company_id));
+        .where(eq(issueThreadInteractions.spaceId, claims.space_id));
       await db
         .delete(toolConnections)
-        .where(eq(toolConnections.companyId, claims.company_id));
+        .where(eq(toolConnections.spaceId, claims.space_id));
       await db
         .delete(toolProfiles)
-        .where(eq(toolProfiles.companyId, claims.company_id));
+        .where(eq(toolProfiles.spaceId, claims.space_id));
       await db
         .delete(toolApplications)
-        .where(eq(toolApplications.companyId, claims.company_id));
+        .where(eq(toolApplications.spaceId, claims.space_id));
     }
     async function selectProvider(
       option: string,
@@ -163,7 +163,7 @@ const support = await getEmbeddedPostgresTestSupport();
         .where(eq(heartbeatRuns.id, runId));
       const issue = {
         id: run!.contextSnapshot!.issueId as string,
-        companyId: claims.company_id,
+        spaceId: claims.space_id,
       };
       const interaction = await issueThreadInteractionService(db).create(
         issue,
@@ -175,7 +175,7 @@ const support = await getEmbeddedPostgresTestSupport();
         },
         { agentId: claims.sub, runId },
       );
-      // Public resolution service enforces human answer semantics; company membership
+      // Public resolution service enforces human answer semantics; space membership
       // and wrong-identity request checks are also exercised below.
       await issueThreadInteractionService(db).answerQuestions(
         issue,
@@ -198,7 +198,7 @@ const support = await getEmbeddedPostgresTestSupport();
       const [app] = await db
         .insert(toolApplications)
         .values({
-          companyId: claims.company_id,
+          spaceId: claims.space_id,
           applicationKey: randomUUID(),
           name: provider,
           type: "mcp_http",
@@ -209,7 +209,7 @@ const support = await getEmbeddedPostgresTestSupport();
       const [connection] = await db
         .insert(toolConnections)
         .values({
-          companyId: claims.company_id,
+          spaceId: claims.space_id,
           applicationId: app!.id,
           uid: randomUUID(),
           name: provider,
@@ -223,14 +223,14 @@ const support = await getEmbeddedPostgresTestSupport();
         })
         .returning();
       await db.insert(connectionGrants).values({
-        companyId: claims.company_id,
+        spaceId: claims.space_id,
         connectionId: connection!.id,
         kind: "user",
         subjectUserId: userId,
         status: "active",
       });
       await db.insert(toolCatalogEntries).values({
-        companyId: claims.company_id,
+        spaceId: claims.space_id,
         connectionId: connection!.id,
         toolName,
         name: toolName,
@@ -240,7 +240,7 @@ const support = await getEmbeddedPostgresTestSupport();
         lastSeenAt: new Date("2026-09-20T00:00:00Z"),
       });
       await db.insert(toolConnectionInstalls).values({
-        companyId: claims.company_id,
+        spaceId: claims.space_id,
         connectionId: connection!.id,
         targetType: "agent",
         targetId: claims.sub,
@@ -249,7 +249,7 @@ const support = await getEmbeddedPostgresTestSupport();
         const [profile] = await db
           .insert(toolProfiles)
           .values({
-            companyId: claims.company_id,
+            spaceId: claims.space_id,
             profileKey: randomUUID(),
             name: "Fixture reads",
             defaultAction: "allow",
@@ -257,7 +257,7 @@ const support = await getEmbeddedPostgresTestSupport();
           })
           .returning();
         await db.insert(toolProfileBindings).values({
-          companyId: claims.company_id,
+          spaceId: claims.space_id,
           profileId: profile!.id,
           targetType: "agent",
           targetId: claims.sub,
@@ -330,7 +330,7 @@ const support = await getEmbeddedPostgresTestSupport();
       })]));
       expect(result.providerQuestion).toBeUndefined();
       expect(result.instruction).not.toContain("Ask the responsible user with providerQuestion");
-      // A deliberate app name still reaches the existing governed provider choice.
+      // A deliberate app name still reaches the existing controlled provider choice.
       const named = await service.search(claims, "Page X");
       expect(named.providerQuestion?.id).toBe("connection-provider:page-x");
       expect(named.results[0]?.service).toBe("via:composio:page-x");
@@ -401,10 +401,10 @@ const support = await getEmbeddedPostgresTestSupport();
       expect(result.providerQuestion).toBeUndefined();
       expect(result.instruction).toContain("connection_request");
     });
-    // BUG-06: on Paperclip Cloud, the native Slack tool path requires a customer-created
+    // BUG-06: on Outpost Cloud, the native Slack tool path requires a customer-created
     // Slack OAuth app and managed Slack chat setup is behind the Chat connectors opt-in.
     // Agents must offer the one-click aggregator routes instead of that card.
-    describe("Slack on Paperclip Cloud", () => {
+    describe("Slack on Outpost Cloud", () => {
       const slackQuery = "Slack (team updates / notifications)";
       beforeAll(() => { vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "cloud-test-token"); });
       afterAll(() => { vi.unstubAllEnvs(); });
@@ -438,20 +438,20 @@ const support = await getEmbeddedPostgresTestSupport();
       });
       it("keeps Slack's aggregator routes in capability-only discovery", async () => {
         await resetQuestions();
-        const result = await connectionIntentService(db).search(claims, "start and continue Paperclip work");
+        const result = await connectionIntentService(db).search(claims, "start and continue Outpost work");
         const services = result.results.map((item) => item.service);
         expect(services).toContain("via:composio:slack");
         expect(services).not.toContain("slack");
         // A route needs the provider-choice flow before connection_request.
         expect(result.instruction).toContain("search its aggregator.targetService");
       });
-      it("keeps native connectors that declare a Paperclip Cloud managed method", async () => {
+      it("keeps native connectors that declare a Outpost Cloud managed method", async () => {
         await resetQuestions();
         const result = await connectionIntentService(db).search(claims, "asana");
         expect(result.results[0]).toMatchObject({ service: "asana" });
         expect(result.providerQuestion).toBeUndefined();
       });
-      it("keeps native Slack for a company that already saved a Slack connection", async () => {
+      it("keeps native Slack for a space that already saved a Slack connection", async () => {
         await resetQuestions();
         await seedProvider("slack", "slack_send_message");
         const result = await connectionIntentService(db).search(claims, slackQuery);
@@ -497,7 +497,7 @@ const support = await getEmbeddedPostgresTestSupport();
         await db
           .select()
           .from(issueThreadInteractions)
-          .where(eq(issueThreadInteractions.companyId, claims.company_id)),
+          .where(eq(issueThreadInteractions.spaceId, claims.space_id)),
       ).toHaveLength(0);
     });
     it("requires a real saved provider answer before requesting setup", async () => {
@@ -578,7 +578,7 @@ const support = await getEmbeddedPostgresTestSupport();
       const interaction = await issueThreadInteractionService(db).create(
         {
           id: run!.contextSnapshot!.issueId as string,
-          companyId: claims.company_id,
+          spaceId: claims.space_id,
         },
         {
           kind: "ask_user_questions",
@@ -677,7 +677,7 @@ const support = await getEmbeddedPostgresTestSupport();
       const connection = await seedProvider("arcade", "Hubspot_ListContacts", "responsible-user", false);
       await db.delete(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, connection.id));
       await seedProvider("composio", "Unrelated_PrivateTool", "other-user", false);
-      await db.insert(toolCatalogEntries).values({ companyId: claims.company_id, connectionId: connection.id,
+      await db.insert(toolCatalogEntries).values({ spaceId: claims.space_id, connectionId: connection.id,
         toolName: "Hubspot_RemovedTool", name: "Removed", versionHash: "old", entryKind: "tool", status: "removed" });
       const answer = await selectProvider("via:arcade:hubspot");
       const service = connectionIntentService(db);
@@ -688,8 +688,8 @@ const support = await getEmbeddedPostgresTestSupport();
       expect(error.message).toContain('"Hubspot_ListContacts"');
       expect(error.message).toContain("Request only the needed exact names");
       expect(error.message).not.toMatch(/Unrelated_PrivateTool|Hubspot_RemovedTool/);
-      expect(await db.select().from(toolProfiles).where(eq(toolProfiles.companyId, claims.company_id))).toEqual([]);
-      const interactions = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.companyId, claims.company_id));
+      expect(await db.select().from(toolProfiles).where(eq(toolProfiles.spaceId, claims.space_id))).toEqual([]);
+      const interactions = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.spaceId, claims.space_id));
       expect(interactions.map(row => [row.id, row.status])).toEqual([[answer.id, "answered"]]);
       const requested = await service.request(claims, "via:arcade:hubspot", {
         selectionInteractionId: answer.id, toolNames: ["Hubspot_ListContacts"],
@@ -698,13 +698,13 @@ const support = await getEmbeddedPostgresTestSupport();
       const loaded = await service.loadIntent(requested.interactionId!);
       expect(loaded.interaction.payload.accessRequest?.tools.map(tool => tool.toolName)).toEqual(["Hubspot_ListContacts"]);
       expect(loaded.interaction.status).toBe("pending");
-      expect(await db.select().from(toolProfiles).where(eq(toolProfiles.companyId, claims.company_id))).toEqual([]);
+      expect(await db.select().from(toolProfiles).where(eq(toolProfiles.spaceId, claims.space_id))).toEqual([]);
     });
     it("bounds catalog-name recovery and does not disclose an ineligible connection", async () => {
       await resetQuestions();
       const connection = await seedProvider("arcade", "Read_00", "responsible-user", false);
       await db.insert(toolCatalogEntries).values(Array.from({ length: 24 }, (_, index) => ({
-        companyId: claims.company_id, connectionId: connection.id, toolName: `Read_${String(index + 1).padStart(2, "0")}`,
+        spaceId: claims.space_id, connectionId: connection.id, toolName: `Read_${String(index + 1).padStart(2, "0")}`,
         name: `Read_${String(index + 1).padStart(2, "0")}`, versionHash: "v1", entryKind: "tool" as const, status: "active" as const,
       })));
       const service = connectionIntentService(db);

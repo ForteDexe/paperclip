@@ -27,16 +27,16 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_USER: paperclip
+          POSTGRES_USER: outpost
           POSTGRES_PASSWORD: backup-qualification-fixture
           POSTGRES_DB: backup_source_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U paperclip -d backup_source_test"
+          --health-cmd "pg_isready -U outpost -d backup_source_test"
           --health-interval 5s --health-timeout 5s --health-retries 12
     env:
-      OUTPOST_BACKUP_CHECKPOINT_SOURCE_TEST_DATABASE_URL: postgres://paperclip:backup-qualification-fixture@127.0.0.1:5432/backup_source_test
-      OUTPOST_BACKUP_CHECKPOINT_RESTORE_TEST_DATABASE_URL: postgres://paperclip:backup-qualification-fixture@127.0.0.1:5432/backup_restore_test
+      OUTPOST_BACKUP_CHECKPOINT_SOURCE_TEST_DATABASE_URL: postgres://outpost:backup-qualification-fixture@127.0.0.1:5432/backup_source_test
+      OUTPOST_BACKUP_CHECKPOINT_RESTORE_TEST_DATABASE_URL: postgres://outpost:backup-qualification-fixture@127.0.0.1:5432/backup_restore_test
       OUTPOST_BACKUP_QUALIFICATION_RECEIPT: ${{ github.workspace }}/backup-checkpoint-evidence/qualification.json
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683

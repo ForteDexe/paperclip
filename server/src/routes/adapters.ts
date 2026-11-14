@@ -6,9 +6,9 @@
  * - Installing external adapters from npm packages or local paths
  * - Unregistering external adapters
  *
- * Read-only routes require board org access. Mutating adapter management
+ * Read-only routes require operator org access. Mutating adapter management
  * routes require instance-admin access because they can install, reload, or
- * toggle server-side adapter code for the whole Paperclip instance.
+ * toggle server-side adapter code for the whole Outpost instance.
  *
  * @module server/routes/adapters
  */
@@ -19,7 +19,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { Router } from "express";
-import { companies, type Db } from "@outpost/db";
+import { spaces, type Db } from "@outpost/db";
 import { adapterSettingsService } from "../services/adapter-settings.js";
 import { logActivity, publishActivity, type ActivityPublication } from "../services/activity-log.js";
 import {
@@ -52,7 +52,7 @@ import { badRequest, forbidden, HttpError } from "../errors.js";
 import { isCloudManagedInstance } from "../services/cloud-instance.js";
 import { assertExternalAdapterCodeAllowed } from "../services/adapter-code-policy.js";
 import { getHiddenSettings } from "../services/settings-visibility.js";
-import { assertBoardOrgAccess, assertCompanyAccess, assertInstanceAdmin, getActorInfo } from "./authz.js";
+import { assertOperatorOrgAccess, assertSpaceAccess, assertInstanceAdmin, getActorInfo } from "./authz.js";
 import { BUILTIN_ADAPTER_TYPES, OUTPOST_AGENT_ADAPTER_TYPES } from "../adapters/builtin-adapter-types.js";
 import { agentRunnerAvailability, type RunnerTarget } from "../services/agent-runner-selection.js";
 import type { AgentRunnerAvailability } from "@outpost/shared";
@@ -80,7 +80,7 @@ function assertAdapterManagementVisible() {
 // ---------------------------------------------------------------------------
 
 interface AdapterInstallRequest {
-  /** npm package name (e.g., "droid-paperclip-adapter") or local path */
+  /** npm package name (e.g., "droid-outpost-adapter") or local path */
   packageName: string;
   /** True if packageName is a local filesystem path */
   isLocalPath?: boolean;
@@ -253,7 +253,7 @@ export function adapterRoutes(options: {
   db?: Db;
   getNativeRunnerEnabled?: () => Promise<boolean>;
   getOpenAiDotEnabled?: () => Promise<boolean>;
-  resolveRunnerTarget?: (companyId: string, environmentId?: string) => Promise<RunnerTarget>;
+  resolveRunnerTarget?: (spaceId: string, environmentId?: string) => Promise<RunnerTarget>;
 } = {}) {
   const router = Router();
   const settings = adapterSettingsService(options.db);
@@ -266,24 +266,24 @@ export function adapterRoutes(options: {
    * its model count, and load status.
    */
   router.get("/adapters", async (_req, res) => {
-    // Adapter inventory is needed by ordinary board members when creating or
-    // editing company agents. Mutating adapter management routes below remain
+    // Adapter inventory is needed by ordinary operator members when creating or
+    // editing space agents. Mutating adapter management routes below remain
     // instance-admin only because they affect the whole server runtime.
-    assertBoardOrgAccess(_req);
+    assertOperatorOrgAccess(_req);
 
-    const companyId = _req.query.companyId;
+    const spaceId = _req.query.spaceId;
     const environmentId = _req.query.environmentId;
-    if ((companyId !== undefined && (typeof companyId !== "string" || !companyId.trim()))
+    if ((spaceId !== undefined && (typeof spaceId !== "string" || !spaceId.trim()))
       || (environmentId !== undefined && (typeof environmentId !== "string" || !environmentId.trim()))) {
-      throw badRequest("companyId and environmentId must be nonempty strings.");
+      throw badRequest("spaceId and environmentId must be nonempty strings.");
     }
-    if (environmentId !== undefined && companyId === undefined) throw badRequest("companyId is required when selecting an environment.");
+    if (environmentId !== undefined && spaceId === undefined) throw badRequest("spaceId is required when selecting an environment.");
     let target: RunnerTarget | undefined;
-    if (typeof companyId === "string") {
-      assertCompanyAccess(_req, companyId);
+    if (typeof spaceId === "string") {
+      assertSpaceAccess(_req, spaceId);
       if (!options.resolveRunnerTarget) throw badRequest("Scoped adapter discovery is unavailable.");
       try {
-        target = await options.resolveRunnerTarget(companyId, typeof environmentId === "string" ? environmentId : undefined);
+        target = await options.resolveRunnerTarget(spaceId, typeof environmentId === "string" ? environmentId : undefined);
       } catch (error) {
         // API controllers do not need a Computer. Keep their catalog visible
         // when only the implicit managed Computer is unavailable. This target
@@ -306,10 +306,10 @@ export function adapterRoutes(options: {
     // adapter-admin disabling still applies to both choices.
 
     let candidate: ReturnType<typeof resolveAntigravityCandidateAdmission>;
-    if (typeof companyId === "string" && target?.driver === "local") {
+    if (typeof spaceId === "string" && target?.driver === "local") {
       // An expired optional preview must not hide the ordinary adapter catalog.
       // Execution and model discovery still perform strict admission checks.
-      try { candidate = resolveAntigravityCandidateAdmission({ companyId }); }
+      try { candidate = resolveAntigravityCandidateAdmission({ spaceId }); }
       catch (error) {
         candidate = undefined;
         // Expiry is ordinary catalog state. Invalid trusted startup JSON needs
@@ -352,7 +352,7 @@ export function adapterRoutes(options: {
     }
 
     // Strip version suffix if the UI sends "pkg@1.2.3" instead of separating it
-    // e.g. "@henkey/hermes-paperclip-adapter@0.3.0" → packageName + version
+    // e.g. "@henkey/hermes-outpost-adapter@0.3.0" → packageName + version
     let canonicalName = packageName;
     let explicitVersion = version;
     const versionSuffix = packageName.match(/@(\d+\.\d+\.\d+.*)$/);
@@ -465,7 +465,7 @@ export function adapterRoutes(options: {
   });
 
   router.get("/adapters/:type", async (req, res) => {
-    assertBoardOrgAccess(req);
+    assertOperatorOrgAccess(req);
 
     const adapterType = req.params.type;
     const adapter = findServerAdapter(adapterType);
@@ -510,10 +510,10 @@ export function adapterRoutes(options: {
     const publications: ActivityPublication[] = [];
     const changed = await settings.setDisabled(adapterType, disabled, async (tx, current) => {
       const actor = getActorInfo(req);
-      const companyIds = await tx.select({ id: companies.id }).from(companies);
-      for (const company of companyIds) {
+      const spaceIds = await tx.select({ id: spaces.id }).from(spaces);
+      for (const space of spaceIds) {
         await logActivity(tx as Db, {
-          companyId: company.id,
+          spaceId: space.id,
           ...actor,
           action: "instance.adapter.updated",
           entityType: "instance_settings",
@@ -526,7 +526,7 @@ export function adapterRoutes(options: {
       try {
         publishActivity(publication);
       } catch (error) {
-        logger.error({ err: error, companyId: publication.companyId }, "failed to publish adapter settings activity");
+        logger.error({ err: error, spaceId: publication.spaceId }, "failed to publish adapter settings activity");
       }
     }
 
@@ -786,7 +786,7 @@ export function adapterRoutes(options: {
   router.get("/adapters/:type/config-schema", async (req, res) => {
     // Config schemas are read-only form metadata used when org members create
     // or edit agents; they do not install or execute new adapter code.
-    assertBoardOrgAccess(req);
+    assertOperatorOrgAccess(req);
     const { type } = req.params;
 
     const adapter = findActiveServerAdapter(type);
@@ -819,14 +819,14 @@ export function adapterRoutes(options: {
   // ── GET /api/adapters/:type/ui-parser.js ─────────────────────────────────
   // Serve the self-contained UI parser JS for an adapter type.
   // This allows external adapters to provide custom run-log parsing
-  // without modifying Paperclip's source code.
+  // without modifying Outpost's source code.
   //
   // The adapter package must export a "./ui-parser" entry in package.json
   // pointing to a self-contained ESM module with zero runtime dependencies.
   router.get("/adapters/:type/ui-parser.js", (req, res) => {
     // UI parsers are read-only assets for displaying existing run output.
     // Runtime-changing adapter management routes above require instance admin.
-    assertBoardOrgAccess(req);
+    assertOperatorOrgAccess(req);
     const { type } = req.params;
     const source = getOrExtractUiParserSource(type);
     if (!source) {

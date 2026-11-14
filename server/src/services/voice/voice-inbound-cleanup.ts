@@ -9,7 +9,7 @@ import { notifyVoiceRecovery } from "./voice-recovery-notifications.js";
 
 type Admission = typeof chatVoiceInboundCalls.$inferSelect;
 type Session = typeof chatVoiceSessions.$inferSelect;
-export type VoiceInboundEntry = { id: string; sessionId: string | null; companyId: string; endpointId: string; connectionId: string; dueAt: number };
+export type VoiceInboundEntry = { id: string; sessionId: string | null; spaceId: string; endpointId: string; connectionId: string; dueAt: number };
 const terminal = (session: Session) => ["ended", "failed", "expired"].includes(session.state) && session.endedAt !== null;
 const rejected = (call: Admission) => ["denied", "expired", "ended"].includes(call.state);
 
@@ -25,11 +25,11 @@ export function inboundCleanupAt(call: Admission, session: Session | null): numb
   return ["awaiting_approval", "guest_intake", "approving"].includes(call.state) ? call.expiresAt.getTime() : 0;
 }
 
-/** Caller locks company endpoints before this check, matching admission ingress. */
-export async function assertVoiceInboundCleanupSettled(db: Pick<Db, "select">, companyId: string) {
+/** Caller locks space endpoints before this check, matching admission ingress. */
+export async function assertVoiceInboundCleanupSettled(db: Pick<Db, "select">, spaceId: string) {
   const [pending] = await db.select({ id: chatVoiceInboundCalls.id }).from(chatVoiceInboundCalls)
-    .where(and(eq(chatVoiceInboundCalls.companyId, companyId), isNull(chatVoiceInboundCalls.cleanupConfirmedAt))).limit(1);
-  if (pending) throw conflict("Incoming phone calls must finish cleanup before deleting this company");
+    .where(and(eq(chatVoiceInboundCalls.spaceId, spaceId), isNull(chatVoiceInboundCalls.cleanupConfirmedAt))).limit(1);
+  if (pending) throw conflict("Incoming phone calls must finish cleanup before deleting this space");
 }
 
 export function voiceInboundCleanup(db: Db, terminate: (call: Admission) => Promise<boolean>) {
@@ -38,14 +38,14 @@ export function voiceInboundCleanup(db: Db, terminate: (call: Admission) => Prom
     signal?.throwIfAborted();
     const rows = await db.select({ call: chatVoiceInboundCalls, session: chatVoiceSessions, connectionId: chatEndpoints.connectionId })
       .from(chatVoiceInboundCalls)
-      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceInboundCalls.endpointId), eq(chatEndpoints.companyId, chatVoiceInboundCalls.companyId)))
-      .leftJoin(chatVoiceSessions, and(eq(chatVoiceSessions.id, chatVoiceInboundCalls.sessionId), eq(chatVoiceSessions.companyId, chatVoiceInboundCalls.companyId)))
+      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceInboundCalls.endpointId), eq(chatEndpoints.spaceId, chatVoiceInboundCalls.spaceId)))
+      .leftJoin(chatVoiceSessions, and(eq(chatVoiceSessions.id, chatVoiceInboundCalls.sessionId), eq(chatVoiceSessions.spaceId, chatVoiceInboundCalls.spaceId)))
       .where(and(isNull(chatVoiceInboundCalls.cleanupConfirmedAt),
         scope?.kind === "admission" ? eq(chatVoiceInboundCalls.id, scope.id) : undefined,
         scope?.kind === "session" ? eq(chatVoiceInboundCalls.sessionId, scope.id) : undefined,
         scope?.kind === "endpoint" ? eq(chatVoiceInboundCalls.endpointId, scope.id) : undefined,
         scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
-        scope?.kind === "company" ? eq(chatVoiceInboundCalls.companyId, scope.id) : undefined,
+        scope?.kind === "space" ? eq(chatVoiceInboundCalls.spaceId, scope.id) : undefined,
         cursor ? gt(chatVoiceInboundCalls.id, cursor) : undefined))
       .orderBy(chatVoiceInboundCalls.id).limit(100);
     signal?.throwIfAborted();
@@ -55,7 +55,7 @@ export function voiceInboundCleanup(db: Db, terminate: (call: Admission) => Prom
     const result: VoiceInboundEntry[] = [];
     for (const { call, session, connectionId } of rows) {
       const dueAt = inboundCleanupAt(call, session);
-      if (dueAt !== null) result.push({ id: call.id, sessionId: call.sessionId, companyId: call.companyId, endpointId: call.endpointId, connectionId, dueAt });
+      if (dueAt !== null) result.push({ id: call.id, sessionId: call.sessionId, spaceId: call.spaceId, endpointId: call.endpointId, connectionId, dueAt });
     }
     return result;
   }
@@ -84,7 +84,7 @@ export function voiceInboundCleanup(db: Db, terminate: (call: Admission) => Prom
       const [call] = await tx.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.id, id)).for("update");
       if (!call || call.cleanupConfirmedAt) return null;
       const [session] = await tx.select().from(chatVoiceSessions).where(and(
-        eq(chatVoiceSessions.companyId, call.companyId), eq(chatVoiceSessions.endpointId, call.endpointId),
+        eq(chatVoiceSessions.spaceId, call.spaceId), eq(chatVoiceSessions.endpointId, call.endpointId),
         eq(chatVoiceSessions.providerSessionId, call.providerSessionId))).for("update");
       if (session) {
         if (terminal(session)) {
@@ -147,7 +147,7 @@ export function voiceInboundCleanup(db: Db, terminate: (call: Admission) => Prom
     cursors.clear();
     return registerScopedDeadlineWork(coordinator, {
       queue: DELIVERY_QUEUES.voiceInboundCleanup, decodeScope: voiceInboundScope,
-      matches: (entry, scope) => !scope || (scope.kind === "admission" ? entry.id : scope.kind === "session" ? entry.sessionId : scope.kind === "endpoint" ? entry.endpointId : scope.kind === "connection" ? entry.connectionId : entry.companyId) === scope.id,
+      matches: (entry, scope) => !scope || (scope.kind === "admission" ? entry.id : scope.kind === "session" ? entry.sessionId : scope.kind === "endpoint" ? entry.endpointId : scope.kind === "connection" ? entry.connectionId : entry.spaceId) === scope.id,
       load: refresh, check: (entry, signal) => check(entry.id, signal),
     }, canRun);
   }

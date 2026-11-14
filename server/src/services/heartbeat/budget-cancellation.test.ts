@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import type { Db } from "@outpost/db";
-import { agents, agentWakeupRequests, browserUseRuns, browserUseSessions, budgetPolicies, companies, connectionGrants, costEvents, environmentLeases, heartbeatRuns, issues, projects, toolApplications, toolConnections } from "@outpost/db";
+import { agents, agentWakeupRequests, browserUseRuns, browserUseSessions, budgetPolicies, spaces, connectionGrants, costEvents, environmentLeases, heartbeatRuns, issues, projects, toolApplications, toolConnections } from "@outpost/db";
 import { eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { runningProcesses } from "../../adapters/index.js";
@@ -31,14 +31,14 @@ vi.mock("../local-service-supervisor.js", async (importOriginal) => ({
 
 describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellation", () => {
   let db: Db;
-  const { fixture, liveRun } = setupRunControlDatabase("paperclip-heartbeat-budget-cancellation", value => { db = value; });
+  const { fixture, liveRun } = setupRunControlDatabase("outpost-heartbeat-budget-cancellation", value => { db = value; });
 
   it("rechecks stale budget enforcement before cancelling runs or queued wakes", async () => {
-    const { company, agent } = await fixture();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, status: "queued", runtimeMode: "legacy" }).returning();
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: company.id, agentId: agent.id, source: "assignment", status: "queued" }).returning();
+    const { space, agent } = await fixture();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, status: "queued", runtimeMode: "legacy" }).returning();
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: space.id, agentId: agent.id, source: "assignment", status: "queued" }).returning();
     const deps = callbacks(db);
-    await createHeartbeatRunControl(db, deps).cancelBudgetScopeWork({ companyId: company.id, scopeType: "agent", scopeId: agent.id, enforcement: { policyId: randomUUID(), version: 1 } });
+    await createHeartbeatRunControl(db, deps).cancelBudgetScopeWork({ spaceId: space.id, scopeType: "agent", scopeId: agent.id, enforcement: { policyId: randomUUID(), version: 1 } });
     expect((await deps.getRun(run.id))?.status).toBe("queued");
     expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wake.id)))[0].status).toBe("queued");
     expect(deps.setRunStatusFromLive).not.toHaveBeenCalled();
@@ -47,14 +47,14 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
   });
 
   it("does not apply an earlier enforcement generation after a budget increase", async () => {
-    const { company, agent } = await fixture();
-    const [policy] = await db.insert(budgetPolicies).values({ companyId: company.id,
+    const { space, agent } = await fixture();
+    const [policy] = await db.insert(budgetPolicies).values({ spaceId: space.id,
       scopeType: "agent", scopeId: agent.id, windowKind: "lifetime", amount: 10_000,
       enforcementVersion: 2, enforcementDeliveredVersion: 1 }).returning();
-    const run = await liveRun(company.id, agent.id);
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: company.id, agentId: agent.id,
+    const run = await liveRun(space.id, agent.id);
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: space.id, agentId: agent.id,
       source: "assignment", status: "queued" }).returning();
-    await createHeartbeatRunControl(db, callbacks(db)).cancelBudgetScopeWork({ companyId: company.id,
+    await createHeartbeatRunControl(db, callbacks(db)).cancelBudgetScopeWork({ spaceId: space.id,
       scopeType: "agent", scopeId: agent.id, enforcement: { policyId: policy.id, version: 1 } });
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0]).toMatchObject({ status: "running", resultJson: null });
     expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wake.id)))[0].status).toBe("queued");
@@ -62,17 +62,17 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
   });
 
   it("fences every affected run and queued wake before bounded provider delivery", async () => {
-    const { company, agent } = await fixture();
+    const { space, agent } = await fixture();
     const runs = await db.insert(heartbeatRuns).values(Array.from({ length: 5 }, () => ({
-      companyId: company.id, agentId: agent.id, status: "running", runtimeMode: "legacy", runtimeModeResolvedAt: new Date(),
+      spaceId: space.id, agentId: agent.id, status: "running", runtimeMode: "legacy", runtimeModeResolvedAt: new Date(),
     }))).returning();
-    const [unrelatedAgent] = await db.insert(agents).values({ companyId: company.id, name: "Unrelated" }).returning();
-    const unrelated = await db.insert(heartbeatRuns).values({ companyId: company.id,
+    const [unrelatedAgent] = await db.insert(agents).values({ spaceId: space.id, name: "Unrelated" }).returning();
+    const unrelated = await db.insert(heartbeatRuns).values({ spaceId: space.id,
       agentId: unrelatedAgent.id, status: "running", runtimeMode: "legacy" }).returning().then(rows => rows[0]);
     const wakes = await db.insert(agentWakeupRequests).values([
-      { companyId: company.id, agentId: agent.id, source: "assignment", status: "queued" },
-      { companyId: company.id, agentId: agent.id, source: "assignment", status: "deferred_issue_execution" },
-      { companyId: company.id, agentId: unrelatedAgent.id, source: "assignment", status: "queued" },
+      { spaceId: space.id, agentId: agent.id, source: "assignment", status: "queued" },
+      { spaceId: space.id, agentId: agent.id, source: "assignment", status: "deferred_issue_execution" },
+      { spaceId: space.id, agentId: unrelatedAgent.id, source: "assignment", status: "queued" },
     ]).returning();
     runs.forEach((run, i) => runningProcesses.set(run.id, {
       child: { pid: 425000 + i } as never, graceSec: 4, processGroupId: 425000 + i,
@@ -86,7 +86,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
       active -= 1;
     });
     const deps = callbacks(db);
-    const delivery = createHeartbeatRunControl(db, deps).cancelBudgetScopeWork({ companyId: company.id,
+    const delivery = createHeartbeatRunControl(db, deps).cancelBudgetScopeWork({ spaceId: space.id,
       scopeType: "agent", scopeId: agent.id });
     try {
       await vi.waitFor(() => expect(releases.size).toBe(4));
@@ -113,26 +113,26 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
   });
 
   it("wakes scoped Stop delivery from a partial usage overrun without waiting for adapter termination", async () => {
-    const { company, agent } = await fixture();
+    const { space, agent } = await fixture();
     const [project, otherProject] = await db.insert(projects).values([
-      { companyId: company.id, name: "Over budget" }, { companyId: company.id, name: "Still admitted" },
+      { spaceId: space.id, name: "Over budget" }, { spaceId: space.id, name: "Still admitted" },
     ]).returning();
     const sourceId = randomUUID();
-    const run = await liveRun(company.id, agent.id);
+    const run = await liveRun(space.id, agent.id);
     await db.update(heartbeatRuns).set({ contextSnapshot: { projectId: project.id }, costAccountingPending: true,
       usageJson: { accountingReceiptSourceId: sourceId, accountingReceiptSequence: 0,
         accountingReceiptReady: false, ledgerScope: { projectId: project.id } },
     }).where(eq(heartbeatRuns.id, run.id));
     const [queued, unrelated] = await db.insert(heartbeatRuns).values([
-      { companyId: company.id, agentId: agent.id, status: "queued", runtimeMode: "legacy", contextSnapshot: { projectId: project.id } },
-      { companyId: company.id, agentId: agent.id, status: "running", runtimeMode: "legacy", contextSnapshot: { projectId: otherProject.id } },
+      { spaceId: space.id, agentId: agent.id, status: "queued", runtimeMode: "legacy", contextSnapshot: { projectId: project.id } },
+      { spaceId: space.id, agentId: agent.id, status: "running", runtimeMode: "legacy", contextSnapshot: { projectId: otherProject.id } },
     ]).returning();
     const wakes = await db.insert(agentWakeupRequests).values([
-      { companyId: company.id, agentId: agent.id, source: "assignment", status: "queued", payload: { projectId: project.id } },
-      { companyId: company.id, agentId: agent.id, source: "assignment", status: "deferred_issue_execution", payload: { projectId: project.id } },
-      { companyId: company.id, agentId: agent.id, source: "assignment", status: "queued", payload: { projectId: otherProject.id } },
+      { spaceId: space.id, agentId: agent.id, source: "assignment", status: "queued", payload: { projectId: project.id } },
+      { spaceId: space.id, agentId: agent.id, source: "assignment", status: "deferred_issue_execution", payload: { projectId: project.id } },
+      { spaceId: space.id, agentId: agent.id, source: "assignment", status: "queued", payload: { projectId: otherProject.id } },
     ]).returning();
-    const [policy] = await db.insert(budgetPolicies).values({ companyId: company.id, scopeType: "project",
+    const [policy] = await db.insert(budgetPolicies).values({ spaceId: space.id, scopeType: "project",
       scopeId: project.id, windowKind: "lifetime", amount: 100, notifyEnabled: false }).returning();
     let releaseTermination!: () => void;
     const termination = new Promise<void>(resolve => { releaseTermination = resolve; });
@@ -149,8 +149,8 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
       expect(terminateLocalService).not.toHaveBeenCalled();
       expect(coordinator.nextWakeAt()).toBeNull();
       const startedAt = performance.now();
-      await persistUsageReceipt(db, { schema: "paperclip/accounting-receipt/v1", id: randomUUID(),
-        companyId: company.id, runId: run.id, sourceId, sequence: 1, receivedAt: new Date().toISOString(),
+      await persistUsageReceipt(db, { schema: "outpost/accounting-receipt/v1", id: randomUUID(),
+        spaceId: space.id, runId: run.id, sourceId, sequence: 1, receivedAt: new Date().toISOString(),
         adapterType: agent.adapterType, receipt: { complete: false, usageBasis: "per_run", costUsd: 1.1,
           provider: "test", biller: "test", model: "budget-stop-fixture", billingType: "metered_api", costStatus: "unpriced" },
       });
@@ -200,9 +200,9 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
   });
 
   it("drains other provider stops after a failed delivery and retries the unfinished run", async () => {
-    const { company, agent } = await fixture();
-    const failed = await liveRun(company.id, agent.id);
-    const [other] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const { space, agent } = await fixture();
+    const failed = await liveRun(space.id, agent.id);
+    const [other] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "running", runtimeMode: "legacy", runtimeModeResolvedAt: new Date() }).returning();
     runningProcesses.set(other.id, { child: { pid: 434343 } as never, graceSec: 4, processGroupId: 434343 });
     vi.mocked(terminateLocalService).mockImplementation(async input => {
@@ -210,7 +210,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
     });
     const deps = callbacks(db);
     const control = createHeartbeatRunControl(db, deps);
-    const scope = { companyId: company.id, scopeType: "agent" as const, scopeId: agent.id };
+    const scope = { spaceId: space.id, scopeType: "agent" as const, scopeId: agent.id };
     await expect(control.cancelBudgetScopeWork(scope)).rejects.toThrow("Budget cancellation delivery remains pending");
     expect((await deps.getRun(other.id))?.status).toBe("cancelled");
     expect(await deps.getRun(failed.id)).toMatchObject({ status: "running", resultJson: { startupCancellation: expect.any(Object) } });
@@ -221,10 +221,10 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
   });
 
   it("shares four Stop slots across independent scopes and service instances", async () => {
-    const { company, agent } = await fixture();
-    const [otherAgent] = await db.insert(agents).values({ companyId: company.id, name: "Another scope" }).returning();
+    const { space, agent } = await fixture();
+    const [otherAgent] = await db.insert(agents).values({ spaceId: space.id, name: "Another scope" }).returning();
     const runs = await db.insert(heartbeatRuns).values([agent.id, otherAgent.id].flatMap(agentId =>
-      Array.from({ length: 3 }, () => ({ companyId: company.id, agentId,
+      Array.from({ length: 3 }, () => ({ spaceId: space.id, agentId,
         status: "running", runtimeMode: "legacy", runtimeModeResolvedAt: new Date() })))).returning();
     runs.forEach((run, i) => runningProcesses.set(run.id, {
       child: { pid: 435000 + i } as never, graceSec: 4, processGroupId: 435000 + i,
@@ -238,7 +238,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
       active -= 1;
     });
     const deliveries = [agent, otherAgent].map(selected => createHeartbeatRunControl(db, callbacks(db))
-      .cancelBudgetScopeWork({ companyId: company.id, scopeType: "agent", scopeId: selected.id }));
+      .cancelBudgetScopeWork({ spaceId: space.id, scopeType: "agent", scopeId: selected.id }));
     try {
       await vi.waitFor(() => expect(releases.size).toBe(4));
       expect(maximumActive).toBe(4);
@@ -255,8 +255,8 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
   });
 
   it("blocks retry promotion after the budget batch commits but before Stop delivery", async () => {
-    const { company, agent } = await fixture();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const { space, agent } = await fixture();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "scheduled_retry", runtimeMode: "legacy", runtimeModeResolvedAt: new Date(),
       scheduledRetryAt: new Date(), scheduledRetryReason: "transient_failure" }).returning();
     const deps = callbacks(db);
@@ -265,12 +265,12 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
     const deliveryEntered = new Promise<void>(resolve => { entered = resolve; });
     const continueDelivery = new Promise<void>(resolve => { release = resolve; });
     deps.getAgent.mockImplementationOnce(async id => { entered(); await continueDelivery; return getAgent(id); });
-    const cancellation = createHeartbeatRunControl(db, deps).cancelBudgetScopeWork({ companyId: company.id,
+    const cancellation = createHeartbeatRunControl(db, deps).cancelBudgetScopeWork({ spaceId: space.id,
       scopeType: "agent", scopeId: agent.id });
     try {
       await deliveryEntered;
       expect(await createPostgresRunDispatchAdapter(db).promoteOrCancelDueRetry({
-        companyId: company.id, runId: run.id, now: new Date(),
+        spaceId: space.id, runId: run.id, now: new Date(),
       })).toMatchObject({ outcome: "not_promoted" });
       expect(await deps.getRun(run.id)).toMatchObject({ status: "scheduled_retry",
         resultJson: { startupCancellation: expect.any(Object) } });
@@ -282,11 +282,11 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
   });
 
   it("recovers a committed Stop after its policy was deleted without fencing newly admitted work", async () => {
-    const { company, agent } = await fixture();
-    const oldRun = await liveRun(company.id, agent.id);
-    const [newRun] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const { space, agent } = await fixture();
+    const oldRun = await liveRun(space.id, agent.id);
+    const [newRun] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "queued", runtimeMode: "legacy" }).returning();
-    const intent = { companyId: company.id, scopeType: "agent", scopeId: agent.id,
+    const intent = { spaceId: space.id, scopeType: "agent", scopeId: agent.id,
       policyId: randomUUID(), version: 1 };
     await db.update(heartbeatRuns).set({ resultJson: { startupCancellation: {
       requestedAt: new Date().toISOString(), budgetEnforcement: intent,
@@ -302,10 +302,10 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
   });
 
   it("retains a terminal budget Stop until actual stop acknowledgement exists", async () => {
-    const { company, agent } = await fixture();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const { space, agent } = await fixture();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "cancelled", runtimeMode: "legacy", startedAt: new Date(), resultJson: {
-        startupCancellation: { budgetEnforcement: { companyId: company.id, scopeType: "agent", scopeId: agent.id,
+        startupCancellation: { budgetEnforcement: { spaceId: space.id, scopeType: "agent", scopeId: agent.id,
           policyId: randomUUID(), version: 1 } },
       } }).returning();
     const control = createHeartbeatRunControl(db, callbacks(db));
@@ -321,8 +321,8 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
   });
 
   it.each(["local exit", "remote receipt", "unproven", "later launch"] as const)("reconciles normal completion before queued budget Stop using %s evidence", async evidence => {
-    const { company, agent } = await fixture();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const { space, agent } = await fixture();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "running", runtimeMode: "native", startedAt: new Date() }).returning();
     const deps = callbacks(db);
     if (evidence === "local exit" || evidence === "later launch") {
@@ -340,9 +340,9 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
     }
     if (evidence === "remote receipt") {
       const leaseId = randomUUID(), providerLeaseId = randomUUID();
-      await db.insert(environmentLeases).values({ id: leaseId, companyId: company.id, heartbeatRunId: run.id,
+      await db.insert(environmentLeases).values({ id: leaseId, spaceId: space.id, heartbeatRunId: run.id,
         provider: "daytona", providerLeaseId, status: "released", releasedAt: new Date(), cleanupStatus: "success",
-        metadata: { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId: company.id,
+        metadata: { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", spaceId: space.id,
           runId: run.id, leaseId, provider: "daytona", providerLeaseId, state: "stopped", confirmedAt: new Date().toISOString() } },
       });
     }
@@ -356,11 +356,11 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
       return getRun(id);
     });
     const policyId = randomUUID();
-    await db.insert(budgetPolicies).values({ id: policyId, companyId: company.id, scopeType: "agent",
+    await db.insert(budgetPolicies).values({ id: policyId, spaceId: space.id, scopeType: "agent",
       scopeId: agent.id, windowKind: "lifetime", amount: 1, enforcementVersion: 1 });
-    await db.insert(costEvents).values({ companyId: company.id, agentId: agent.id, provider: "test",
+    await db.insert(costEvents).values({ spaceId: space.id, agentId: agent.id, provider: "test",
       model: "overrun", inputTokens: 1, outputTokens: 1, costCents: 2, occurredAt: new Date() });
-    const scope = { companyId: company.id, scopeType: "agent" as const, scopeId: agent.id,
+    const scope = { spaceId: space.id, scopeType: "agent" as const, scopeId: agent.id,
       enforcement: { policyId, version: 1 } };
     const control = createHeartbeatRunControl(db, deps);
     const succeeded = evidence === "local exit" || evidence === "remote receipt";
@@ -380,12 +380,12 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
   });
 
   it("moves an attempted failed Stop behind another pending scope", async () => {
-    const { company, agent } = await fixture();
-    const [otherAgent] = await db.insert(agents).values({ companyId: company.id, name: "Later recovery" }).returning();
+    const { space, agent } = await fixture();
+    const [otherAgent] = await db.insert(agents).values({ spaceId: space.id, name: "Later recovery" }).returning();
     await db.insert(heartbeatRuns).values([agent, otherAgent].map((selected, index) => ({
-      companyId: company.id, agentId: selected.id, status: "cancelled", runtimeMode: "legacy",
+      spaceId: space.id, agentId: selected.id, status: "cancelled", runtimeMode: "legacy",
       resultJson: { startupCancellation: { requestedAt: `2020-01-0${index + 1}T00:00:00.000Z`,
-        budgetEnforcement: { companyId: company.id, scopeType: "agent", scopeId: selected.id,
+        budgetEnforcement: { spaceId: space.id, scopeType: "agent", scopeId: selected.id,
           policyId: randomUUID(), version: 1 } } },
     })));
     const [first] = await listPendingBudgetCancellationScopes(db, 1);
@@ -399,56 +399,56 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
       ?.budgetEnforcement?.lastAttemptAt).toEqual(expect.any(String));
   });
 
-  it("limits project budget cancellation by company, effective project, and admission cutoff", async () => {
-    const { company, agent } = await fixture();
-    const [otherCompany] = await db.insert(companies).values({ name: "Other company", issuePrefix: "OC" }).returning();
-    const [otherAgent] = await db.insert(agents).values({ companyId: otherCompany.id, name: "Other company agent" }).returning();
+  it("limits project budget cancellation by space, effective project, and admission cutoff", async () => {
+    const { space, agent } = await fixture();
+    const [otherSpace] = await db.insert(spaces).values({ name: "Other space", issuePrefix: "OC" }).returning();
+    const [otherAgent] = await db.insert(agents).values({ spaceId: otherSpace.id, name: "Other space agent" }).returning();
     const projectRows = await db.insert(projects).values([
-      { companyId: company.id, name: "Target" }, { companyId: company.id, name: "Override" },
+      { spaceId: space.id, name: "Target" }, { spaceId: space.id, name: "Override" },
     ]).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, projectId: projectRows[0].id, title: "Bound task", issueNumber: 1, identifier: "RC-1" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, projectId: projectRows[0].id, title: "Bound task", issueNumber: 1, identifier: "RC-1" }).returning();
     const old = new Date("2026-01-01T00:00:00Z");
     const cutoff = new Date("2026-01-02T00:00:00Z");
     const wakes = await db.insert(agentWakeupRequests).values([
-      { companyId: company.id, agentId: agent.id, source: "assignment", status: "queued", createdAt: old, payload: { issueId: issue.id } },
-      { companyId: company.id, agentId: agent.id, source: "assignment", status: "queued", createdAt: old, payload: { issueId: issue.id, projectId: projectRows[1].id } },
-      { companyId: company.id, agentId: agent.id, source: "assignment", status: "queued", createdAt: cutoff, payload: { projectId: projectRows[0].id } },
-      { companyId: otherCompany.id, agentId: otherAgent.id, source: "assignment", status: "queued", createdAt: old, payload: { projectId: projectRows[0].id } },
+      { spaceId: space.id, agentId: agent.id, source: "assignment", status: "queued", createdAt: old, payload: { issueId: issue.id } },
+      { spaceId: space.id, agentId: agent.id, source: "assignment", status: "queued", createdAt: old, payload: { issueId: issue.id, projectId: projectRows[1].id } },
+      { spaceId: space.id, agentId: agent.id, source: "assignment", status: "queued", createdAt: cutoff, payload: { projectId: projectRows[0].id } },
+      { spaceId: otherSpace.id, agentId: otherAgent.id, source: "assignment", status: "queued", createdAt: old, payload: { projectId: projectRows[0].id } },
     ]).returning();
-    await createHeartbeatRunControl(db, callbacks(db)).cancelBudgetScopeWork({ companyId: company.id, scopeType: "project", scopeId: projectRows[0].id, createdBefore: cutoff });
+    await createHeartbeatRunControl(db, callbacks(db)).cancelBudgetScopeWork({ spaceId: space.id, scopeType: "project", scopeId: projectRows[0].id, createdBefore: cutoff });
     const persisted = await db.select().from(agentWakeupRequests);
     expect(wakes.map(wake => persisted.find(row => row.id === wake.id)?.status)).toEqual(["cancelled", "queued", "queued", "queued"]);
   });
 
   it("fences detached browsers after their parent run finishes using admitted project scope and cutoff", async () => {
-    const { company, agent } = await fixture();
+    const { space, agent } = await fixture();
     const [project, otherProject] = await db.insert(projects).values([
-      { companyId: company.id, name: "Stopped project" }, { companyId: company.id, name: "Other project" },
+      { spaceId: space.id, name: "Stopped project" }, { spaceId: space.id, name: "Other project" },
     ]).returning();
     const [movedIssue, targetIssue] = await db.insert(issues).values([
-      { companyId: company.id, projectId: otherProject.id, title: "Moved after browser admission" },
-      { companyId: company.id, projectId: project.id, title: "Current project" },
+      { spaceId: space.id, projectId: otherProject.id, title: "Moved after browser admission" },
+      { spaceId: space.id, projectId: project.id, title: "Current project" },
     ]).returning();
-    const [parent] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const [parent] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "succeeded", finishedAt: new Date(), runtimeMode: "legacy" }).returning();
-    const [application] = await db.insert(toolApplications).values({ companyId: company.id, name: "Browser fixture", type: "rest_api" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId: company.id, applicationId: application.id,
+    const [application] = await db.insert(toolApplications).values({ spaceId: space.id, name: "Browser fixture", type: "rest_api" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId: space.id, applicationId: application.id,
       name: "Browser fixture", uid: "budget-browser-fixture", transport: "rest_api" }).returning();
-    const [grant] = await db.insert(connectionGrants).values({ companyId: company.id, connectionId: connection.id, kind: "organization" }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId: space.id, connectionId: connection.id, kind: "organization" }).returning();
     const cutoff = new Date();
     const old = new Date(cutoff.getTime() - 1_000);
     const later = new Date(cutoff.getTime() + 60_000);
     const [admitted, other, legacy, newer, noProject] = await db.insert(browserUseSessions).values([
       { issueId: movedIssue.id, stopRequested: "cancel" }, { issueId: targetIssue.id },
       { issueId: targetIssue.id }, { issueId: targetIssue.id, createdAt: later }, { issueId: targetIssue.id },
-    ].map(values => ({ companyId: company.id, agentId: agent.id, connectionId: connection.id, grantId: grant.id,
+    ].map(values => ({ spaceId: space.id, agentId: agent.id, connectionId: connection.id, grantId: grant.id,
       providerSessionId: randomUUID(), status: "running", createdAt: old, nextPollAt: later,
       leaseToken: randomUUID(), leaseUntil: later, error: "retained cleanup context", ...values }))).returning();
     await db.insert(browserUseRuns).values([admitted, other, legacy, noProject].map((session, index) => {
       const invocationId = randomUUID();
-      return { companyId: company.id, sessionId: session.id, heartbeatRunId: parent.id, invocationId,
+      return { spaceId: space.id, sessionId: session.id, heartbeatRunId: parent.id, invocationId,
         status: "running", detachedUntil: later, createdAt: old,
-        result: index === 2 ? null : { paperclipBudgetHold: { invocationId, amountCents: "10", state: "held",
+        result: index === 2 ? null : { outpostBudgetHold: { invocationId, amountCents: "10", state: "held",
           projectId: index === 0 ? project.id : index === 1 ? otherProject.id : null } },
       };
     }));
@@ -456,9 +456,9 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
     const unsubscribe = subscribeDeliveryWork(db, DELIVERY_QUEUES.browser, wake);
     const deps = callbacks(db);
     try {
-      await createHeartbeatRunControl(db, deps).cancelBudgetScopeWork({ companyId: company.id,
+      await createHeartbeatRunControl(db, deps).cancelBudgetScopeWork({ spaceId: space.id,
         scopeType: "project", scopeId: project.id, createdBefore: cutoff });
-      const persisted = await db.select().from(browserUseSessions).where(eq(browserUseSessions.companyId, company.id));
+      const persisted = await db.select().from(browserUseSessions).where(eq(browserUseSessions.spaceId, space.id));
       for (const original of [admitted, legacy]) {
         const stopped = persisted.find(session => session.id === original.id)!;
         expect(stopped).toMatchObject({ status: "stopping", stopRequested: "end", providerSessionId: original.providerSessionId,
@@ -474,18 +474,18 @@ describe.skipIf(!runControlPostgresSupport.supported)("scoped budget cancellatio
   });
 
   it("reads pending Stops through the partial index and ignores delivered or malformed intents", async () => {
-    const { company, agent } = await fixture();
-    const intent = { companyId: company.id, scopeType: "agent" as const, scopeId: agent.id, policyId: randomUUID(), version: 1 };
+    const { space, agent } = await fixture();
+    const intent = { spaceId: space.id, scopeType: "agent" as const, scopeId: agent.id, policyId: randomUUID(), version: 1 };
     const [pending] = await db.insert(heartbeatRuns).values([
       { resultJson: { startupCancellation: { budgetEnforcement: intent } } },
       { resultJson: { startupCancellation: { budgetEnforcement: { ...intent, deliveredAt: new Date().toISOString() } } } },
       { resultJson: { startupCancellation: { budgetEnforcement: "legacy" } } },
       { resultJson: { startupCancellation: { requestedAt: new Date().toISOString() } } },
       { resultJson: null },
-    ].map(row => ({ ...row, companyId: company.id, agentId: agent.id, status: "cancelled", runtimeMode: "legacy" as const }))).returning();
+    ].map(row => ({ ...row, spaceId: space.id, agentId: agent.id, status: "cancelled", runtimeMode: "legacy" as const }))).returning();
     expect(await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(pendingBudgetRunCancellationPredicate()))
       .toEqual([{ id: pending.id }]);
-    expect(await listPendingBudgetCancellationScopes(db)).toEqual([{ companyId: company.id, scopeType: "agent", scopeId: agent.id,
+    expect(await listPendingBudgetCancellationScopes(db)).toEqual([{ spaceId: space.id, scopeType: "agent", scopeId: agent.id,
       enforcement: { policyId: intent.policyId, version: 1 } }]);
     // The schema index predicate must stay identical to the server predicate.
     // Otherwise every worker pass falls back to reading all run result JSON.

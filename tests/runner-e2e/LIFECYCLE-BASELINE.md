@@ -1,6 +1,6 @@
 # Live lifecycle baseline
 
-This explicit-only Product E2E suite runs real Chromium, Paperclip, an isolated
+This explicit-only Product E2E suite runs real Chromium, Outpost, an isolated
 database, the selected runner, and a real LLM. It is distinct from
 `pnpm test:lifecycle-baseline`, whose providers are scripted.
 
@@ -92,14 +92,14 @@ a test-environment restriction, not a provider run or product-behavior result.
 
 The [13-scenario inventory](../lifecycle-baseline/README.md) maps all layers.
 Timing permutations, retry exhaustion, stale ownership, process terminal ordering,
-monitor due-time policy and cross-company authorization are primarily deterministic
+monitor due-time policy and cross-space authorization are primarily deterministic
 runner/service tests. This paid selection does not replace them or claim an
 exhaustive live Cartesian product. Live monitor protocol coverage remains in the
 Runner Eval roster; arbitrary process-crash recovery and exhausted-repair races
 are not new paid model cases.
 
 The earlier native `same_agent` probes inject an internal compatibility result.
-The current public `paperclip_finish` schema exposes `response_wake`, which waits
+The current public `outpost_finish` schema exposes `response_wake`, which waits
 for a real response. Therefore those two failures do not demonstrate a reachable
 current model-facing autonomous-continuation defect. This live suite uses supported
 question/approval/dependency responses and restart boundaries; it does not instruct

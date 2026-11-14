@@ -9,7 +9,7 @@ import { IssuePropertiesPlansTab } from "./IssuePropertiesPlansTab";
 
 const issueDocument: IssueDocument = {
   id: "document-1",
-  companyId: "company-1",
+  spaceId: "space-1",
   issueId: "issue-1",
   key: "qa-evidence",
   title: "QA evidence",

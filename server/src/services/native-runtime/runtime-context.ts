@@ -12,13 +12,13 @@ import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { and, desc, eq } from "drizzle-orm";
-import { agentInstructionRevisions, agents, companySkillVersions, heartbeatRuns, type Db } from "@outpost/db";
-import type { PaperclipSkillEntry } from "@outpost/adapter-utils/server-utils";
+import { agentInstructionRevisions, agents, spaceSkillVersions, heartbeatRuns, type Db } from "@outpost/db";
+import type { OutpostSkillEntry } from "@outpost/adapter-utils/server-utils";
 import { isToolConnectionAttentionHealth } from "@outpost/shared";
 import {
   OUTPOST_OPERATIONAL_SKILL_KEY,
   resolveNativeOutpostDesiredSkillNames,
-  resolvePaperclipDesiredSkillNames,
+  resolveOutpostDesiredSkillNames,
 } from "@outpost/adapter-utils/server-utils";
 import {
   NATIVE_RUNTIME_ASSET_SCHEMA,
@@ -30,7 +30,7 @@ import {
   type NativeRuntimeAssetReference,
   type NativeRuntimeContextSnapshot,
 } from "../../vendor/outpost-runner/index.js";
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 import { agentInstructionsService, agentInstructionsBundleMode } from "../agent-instructions.js";
 import { agentInstructionRevisionService } from "../agent-instruction-revisions.js";
 import { toolAccessService } from "../tool-access.js";
@@ -39,7 +39,7 @@ import { rehydratePreservedRuntimeSkill } from "./runtime-skill-preservation.js"
 
 const MAX_ASSET_FILES = 10_000;
 const MAX_ASSET_BYTES = 64 * 1024 * 1024;
-type RuntimeAgent = { id: string; companyId: string; name: string; adapterType?: string | null; adapterConfig: unknown };
+type RuntimeAgent = { id: string; spaceId: string; name: string; adapterType?: string | null; adapterConfig: unknown };
 type AssetFile = { path: string; content: Buffer; mode: number };
 
 const sha256 = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
@@ -107,7 +107,7 @@ export async function materializeAsset(files: AssetFile[]): Promise<NativeRuntim
     return { sorted, manifestFiles, totalBytes, assetDigest, manifestText, manifestDigest };
   });
   return withRuntimeAssetUse(assetDigest, async function publishOrReuse(locked): Promise<NativeRuntimeAssetReference> {
-    const assetsRoot = path.join(resolvePaperclipInstanceRoot(), "runtime-context-assets");
+    const assetsRoot = path.join(resolveOutpostInstanceRoot(), "runtime-context-assets");
     const rootPath = path.join(assetsRoot, "bundles", assetDigest);
     const manifestPath = path.join(assetsRoot, "manifests", `${assetDigest}.json`);
     const existing = await measureRunPhase("runtime_context.asset_cache", () => fs.readFile(manifestPath, "utf8").catch(() => null));
@@ -166,7 +166,7 @@ export async function materializeAsset(files: AssetFile[]): Promise<NativeRuntim
 
 async function materializeInstructionBundle(db: Db, agent: RuntimeAgent, agentFiles = false) {
   if (agentFiles) {
-    const current = await agentInstructionRevisionService(db).readCommittedForRuntime({ companyId: agent.companyId, agentId: agent.id });
+    const current = await agentInstructionRevisionService(db).readCommittedForRuntime({ spaceId: agent.spaceId, agentId: agent.id });
     if (!current) throw new Error("Configured instruction entry is missing");
     const entryPath = safeRelativePath(current.revision.entryFile, "instruction entry path");
     return { entryPath, bundle: await materializeAsset([{ path: entryPath, content: Buffer.from(current.content, "utf8"), mode: 0o444 }]) };
@@ -176,7 +176,7 @@ async function materializeInstructionBundle(db: Db, agent: RuntimeAgent, agentFi
     // The database head remains authoritative when a saved revision could not
     // update its disk projection. Overlay the exact committed snapshot directly;
     // a repair followed by a separate export can race another pending commit.
-    const current = await agentInstructionRevisionService(db).readCommittedForRuntime({ companyId: agent.companyId, agentId: agent.id });
+    const current = await agentInstructionRevisionService(db).readCommittedForRuntime({ spaceId: agent.spaceId, agentId: agent.id });
     if (current) {
       exported.entryFile = current.revision.entryFile;
       exported.files[current.revision.entryFile] = current.content;
@@ -201,7 +201,7 @@ async function materializeSkillAsset(source: string) {
 }
 
 async function localRuntimeAssetPresent(asset: NativeRuntimeAssetReference) {
-  const root = path.join(resolvePaperclipInstanceRoot(), "runtime-context-assets");
+  const root = path.join(resolveOutpostInstanceRoot(), "runtime-context-assets");
   const manifest = await fs.readFile(path.join(root, "manifests", `${asset.digest}.json`), "utf8").catch(() => null);
   return manifest !== null && sha256(manifest) === asset.manifestDigest
     && (await fs.lstat(path.join(root, "bundles", asset.digest)).catch(() => null))?.isDirectory() === true;
@@ -213,17 +213,17 @@ function singleFileAssetDigest(entryPath: string, content: Buffer) {
 
 export async function rehydratePinnedInstructionAsset(
   db: Db,
-  binding: { companyId: string; agentId: string },
+  binding: { spaceId: string; agentId: string },
   context: NativeRuntimeContextSnapshot,
 ): Promise<NativeRuntimeContextSnapshot> {
   const pinned = context.instructions.bundle;
-  if (pinned.rootPath !== path.join(resolvePaperclipInstanceRoot(), "runtime-context-assets", "bundles", pinned.digest)) return context;
+  if (pinned.rootPath !== path.join(resolveOutpostInstanceRoot(), "runtime-context-assets", "bundles", pinned.digest)) return context;
   if (await localRuntimeAssetPresent(pinned)) return context;
   const matches = (bundle: NativeRuntimeAssetReference) => bundle.digest === pinned.digest
     && bundle.manifestDigest === pinned.manifestDigest && bundle.fileCount === pinned.fileCount && bundle.totalBytes === pinned.totalBytes;
   if (pinned.fileCount === 1) {
     const rows = await db.select({ contentBase64: agentInstructionRevisions.contentBase64 }).from(agentInstructionRevisions)
-      .where(and(eq(agentInstructionRevisions.companyId, binding.companyId), eq(agentInstructionRevisions.agentId, binding.agentId),
+      .where(and(eq(agentInstructionRevisions.spaceId, binding.spaceId), eq(agentInstructionRevisions.agentId, binding.agentId),
         eq(agentInstructionRevisions.entryFile, context.instructions.entryPath)))
       .orderBy(desc(agentInstructionRevisions.createdAt)).limit(500);
     for (const row of rows) {
@@ -233,7 +233,7 @@ export async function rehydratePinnedInstructionAsset(
       if (matches(bundle)) return { ...context, instructions: { ...context.instructions, bundle } };
     }
   }
-  const [agent] = await db.select().from(agents).where(and(eq(agents.companyId, binding.companyId), eq(agents.id, binding.agentId)));
+  const [agent] = await db.select().from(agents).where(and(eq(agents.spaceId, binding.spaceId), eq(agents.id, binding.agentId)));
   if (agent) {
     for (const agentFiles of [true, false]) {
       const rebuilt = await materializeInstructionBundle(db, agent, agentFiles).catch(() => null);
@@ -247,19 +247,19 @@ export async function rehydratePinnedInstructionAsset(
 
 export async function rehydratePinnedSkillAssets(
   db: Db,
-  binding: { companyId: string; runId: string; agentId: string },
+  binding: { spaceId: string; runId: string; agentId: string },
   context: NativeRuntimeContextSnapshot,
 ): Promise<NativeRuntimeContextSnapshot> {
   if (!context.skills.length) return context;
   const [run] = await db.select({ responsibleUserId: heartbeatRuns.responsibleUserId,
-    id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+    id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
     nativeIssueId: heartbeatRuns.nativeIssueId, runnerProfileJson: heartbeatRuns.runnerProfileJson,
     contextSnapshot: heartbeatRuns.contextSnapshot }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, binding.companyId), eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.agentId, binding.agentId)));
+    eq(heartbeatRuns.spaceId, binding.spaceId), eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.agentId, binding.agentId)));
   if (!run) throw new Error("Skill recovery has no matching admitted run");
-  const actor = { type: "agent" as const, companyId: binding.companyId, agentId: binding.agentId,
+  const actor = { type: "agent" as const, spaceId: binding.spaceId, agentId: binding.agentId,
     runId: binding.runId, source: "agent_jwt" as const,
-    onBehalfOfUserId: run.responsibleUserId === "local-board" ? null : run.responsibleUserId };
+    onBehalfOfUserId: run.responsibleUserId === "local-operator" ? null : run.responsibleUserId };
   const delivery = skillExecutionContent(db, { actor });
   const pins = run.contextSnapshot?.skillVersions;
   const skills: NativeRuntimeContextSnapshot["skills"] = [];
@@ -277,10 +277,10 @@ export async function rehydratePinnedSkillAssets(
       || (pins as Record<string, unknown>)[skill.key] !== skill.versionId)) {
       throw new Error("Skill recovery differs from the admitted version selection");
     }
-    const [version] = await db.select({ skillId: companySkillVersions.companySkillId }).from(companySkillVersions).where(and(
-      eq(companySkillVersions.companyId, binding.companyId), eq(companySkillVersions.id, skill.versionId)));
+    const [version] = await db.select({ skillId: spaceSkillVersions.spaceSkillId }).from(spaceSkillVersions).where(and(
+      eq(spaceSkillVersions.spaceId, binding.spaceId), eq(spaceSkillVersions.id, skill.versionId)));
     if (!version) throw new Error("Pinned skill version is unavailable for recovery");
-    const bundle = await delivery.withVersion({ companyId: binding.companyId, skillId: version.skillId, versionId: skill.versionId },
+    const bundle = await delivery.withVersion({ spaceId: binding.spaceId, skillId: version.skillId, versionId: skill.versionId },
       source => materializeSkillAsset(source));
     if (bundle.digest !== skill.bundle.digest || bundle.manifestDigest !== skill.bundle.manifestDigest
       || bundle.fileCount !== skill.bundle.fileCount || bundle.totalBytes !== skill.bundle.totalBytes) {
@@ -291,22 +291,22 @@ export async function rehydratePinnedSkillAssets(
   return { ...context, skills };
 }
 
-export async function materializeSelectedSkills(runtimeConfig: Record<string, unknown>, entries: PaperclipSkillEntry[], omitLegacy: boolean) {
+export async function materializeSelectedSkills(runtimeConfig: Record<string, unknown>, entries: OutpostSkillEntry[], omitLegacy: boolean) {
   const desiredKeys = (omitLegacy
     ? resolveNativeOutpostDesiredSkillNames(runtimeConfig, entries)
-    : resolvePaperclipDesiredSkillNames(runtimeConfig, entries));
+    : resolveOutpostDesiredSkillNames(runtimeConfig, entries));
   const byKey = new Map(entries.map((entry) => [entry.key, entry]));
   return Promise.all(desiredKeys.sort().map(async (key) => {
     const entry = byKey.get(key);
-    if (!entry) throw new Error(`assigned runtime skill is missing from the company library: ${key}`);
+    if (!entry) throw new Error(`assigned runtime skill is missing from the space library: ${key}`);
     if (entry.sourceStatus === "missing") throw new Error(entry.missingDetail ?? `assigned runtime skill source is missing: ${key}`);
     const bundle = await materializeSkillAsset(entry.source);
     return { key: entry.key, runtimeName: safeRelativePath(entry.runtimeName, `runtime name for ${key}`), versionId: entry.versionId ?? entry.currentVersionId ?? null, bundle };
   }));
 }
 
-export async function resolveNativeRuntimeMcpSnapshot(input: { db: Db; agent: Pick<RuntimeAgent, "id" | "companyId">; runId: string }) {
-  const effective = await toolAccessService(input.db).getEffectiveToolAssignmentsForAgent(input.agent.companyId, input.agent.id);
+export async function resolveNativeRuntimeMcpSnapshot(input: { db: Db; agent: Pick<RuntimeAgent, "id" | "spaceId">; runId: string }) {
+  const effective = await toolAccessService(input.db).getEffectiveToolAssignmentsForAgent(input.agent.spaceId, input.agent.id);
   const permitted = new Set([...effective.entries.filter((entry) => entry.effect === "include" && entry.connectionId).map((entry) => entry.connectionId!), ...effective.allowedTools.map((tool) => tool.connectionId)]);
   const hasGitHubConnection = effective.installedConnections.some((connection) => {
     const config = connection.config && typeof connection.config === "object"
@@ -323,7 +323,7 @@ export async function resolveNativeRuntimeMcpSnapshot(input: { db: Db; agent: Pi
       .from(heartbeatRuns)
       .where(and(
         eq(heartbeatRuns.id, input.runId),
-        eq(heartbeatRuns.companyId, input.agent.companyId),
+        eq(heartbeatRuns.spaceId, input.agent.spaceId),
         eq(heartbeatRuns.agentId, input.agent.id),
       ))
       .limit(1)
@@ -333,15 +333,15 @@ export async function resolveNativeRuntimeMcpSnapshot(input: { db: Db; agent: Pi
   const resolvedInstalledConnections = runIdentity?.activeIdentityContextId
     ? effective.installedConnections : await filterResolvedGitHubConnectionsForRun({
     db: input.db,
-    companyId: input.agent.companyId,
+    spaceId: input.agent.spaceId,
     agentId: input.agent.id,
     responsibleUserId: runIdentity?.responsibleUserId ?? null,
     connections: effective.installedConnections,
   });
   // App access is optional runtime context. Keep usable assignments pinned, but
   // do not stop unrelated work because an assigned app needs attention.
-  const githubBotConnectionIds = await githubBotConnectionIdsForRun(input.db, input.agent.companyId, input.agent.id, input.runId);
-  const spekoConnectionIds = hasVoiceConnection ? new Set((await spekoToolsForSession(input.db, { companyId: input.agent.companyId, agentId: input.agent.id, runId: input.runId, issueId: runIdentity?.issueId ?? null, identityContextId: runIdentity?.activeIdentityContextId })).map(tool => tool.connectionId)) : new Set<string>();
+  const githubBotConnectionIds = await githubBotConnectionIdsForRun(input.db, input.agent.spaceId, input.agent.id, input.runId);
+  const spekoConnectionIds = hasVoiceConnection ? new Set((await spekoToolsForSession(input.db, { spaceId: input.agent.spaceId, agentId: input.agent.id, runId: input.runId, issueId: runIdentity?.issueId ?? null, identityContextId: runIdentity?.activeIdentityContextId })).map(tool => tool.connectionId)) : new Set<string>();
   const availableConnectionIds = new Set(resolvedInstalledConnections.filter((connection) =>
     permitted.has(connection.id)
     && connection.status === "active"
@@ -364,7 +364,7 @@ export async function resolveNativeRuntimeMcpSnapshot(input: { db: Db; agent: Pi
   return { assignmentSetId: `sha256:${assignmentDigest}`, digest: assignmentDigest, bindingId: assignment.connections.length ? `native-mcp:${input.runId}` : null };
 }
 
-export async function buildNativeRuntimeContext(input: { db: Db; agent: RuntimeAgent; runId: string; runtimeConfig: Record<string, unknown>; runtimeSkillEntries: PaperclipSkillEntry[]; instructionWorkingCopy?: { rootPath: string; entryPath: string; kind?: "agent_files" } }): Promise<NativeRuntimeContextSnapshot> {
+export async function buildNativeRuntimeContext(input: { db: Db; agent: RuntimeAgent; runId: string; runtimeConfig: Record<string, unknown>; runtimeSkillEntries: OutpostSkillEntry[]; instructionWorkingCopy?: { rootPath: string; entryPath: string; kind?: "agent_files" } }): Promise<NativeRuntimeContextSnapshot> {
   const preconfigured = input.runtimeConfig.homeMode === "preconfigured";
   const emptyMcpDigest = sha256("preconfigured");
   const [instructions, skills, mcp] = await Promise.all([
@@ -377,8 +377,8 @@ export async function buildNativeRuntimeContext(input: { db: Db; agent: RuntimeA
     instructions: { ...instructions, ...(input.instructionWorkingCopy ? { workingCopy: input.instructionWorkingCopy } : {}) },
     skills,
     mcp,
-    ...(input.runtimeConfig.paperclipConnectionInstructions ? {
-      connectionInstructions: input.runtimeConfig.paperclipConnectionInstructions as { text: string; digest: string },
+    ...(input.runtimeConfig.outpostConnectionInstructions ? {
+      connectionInstructions: input.runtimeConfig.outpostConnectionInstructions as { text: string; digest: string },
     } : {}),
   };
   return parseNativeRuntimeContext({ ...snapshot, aggregateDigest: canonicalNativeRuntimeContextDigest(snapshot) });

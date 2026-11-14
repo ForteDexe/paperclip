@@ -58,7 +58,7 @@ fn first_task_confirmation_repairs_misplaced_metadata_without_becoming_a_questio
                 "harness.diagnostic" if event.payload["code"] == "semantic_tool_denied" => {
                     denied += 1;
                     assert_eq!(dispatched, 0);
-                    assert_eq!(event.payload["paperclipExecuted"], false);
+                    assert_eq!(event.payload["outpostExecuted"], false);
                     let hint = event.payload["inputSchemaGuidance"].as_str().unwrap();
                     assert!(hint.contains("payload.version"));
                     assert!(hint.contains("payload.supersedeOnUserComment"));

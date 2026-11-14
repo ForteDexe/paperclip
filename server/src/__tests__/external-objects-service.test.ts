@@ -3,7 +3,7 @@ import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordin
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import {
-  companies,
+  spaces,
   applyPendingMigrations,
   createDb,
   activityLog,
@@ -25,7 +25,7 @@ import {
   type ExternalObjectResolver,
 } from "../services/external-objects.js";
 import { canonicalizeExternalObjectUrl } from "@outpost/shared/external-objects-server";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import { createGitHubExternalObjectProvider } from "../services/github-external-object-provider.js";
 
@@ -59,10 +59,10 @@ describe("external object registries", () => {
     ]);
 
     const detections = await registry.detect({
-      companyId: "company-1",
+      spaceId: "space-1",
       urls: [canonical],
       sourceContext: {
-        companyId: "company-1",
+        spaceId: "space-1",
         sourceIssueId: "issue-1",
         sourceKind: "description",
         sourceRecordId: null,
@@ -85,10 +85,10 @@ describe("external object registries", () => {
     const registry = createExternalObjectDetectorRegistry([]);
 
     const detections = await registry.detect({
-      companyId: "company-1",
+      spaceId: "space-1",
       urls: [canonical],
       sourceContext: {
-        companyId: "company-1",
+        spaceId: "space-1",
         sourceIssueId: "issue-1",
         sourceKind: "description",
         sourceRecordId: null,
@@ -135,7 +135,7 @@ describe("GitHub external object provider", () => {
     if (!canonical) throw new Error("expected canonical url");
     return {
       id: randomUUID(),
-      companyId: "company-1",
+      spaceId: "space-1",
       providerKey: "github",
       objectType,
       externalId: `acme/app#${path}`,
@@ -170,10 +170,10 @@ describe("GitHub external object provider", () => {
     if (!pr || !issue || !other) throw new Error("expected canonical urls");
 
     const detections = await provider.detector.detect({
-      companyId: "company-1",
+      spaceId: "space-1",
       urls: [pr, issue, other],
       sourceContext: {
-        companyId: "company-1",
+        spaceId: "space-1",
         sourceIssueId: "issue-1",
         sourceKind: "description",
         sourceRecordId: null,
@@ -230,7 +230,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -277,7 +277,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "issue")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("issues/42", "issue"),
     });
 
@@ -310,7 +310,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -340,7 +340,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -362,7 +362,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -386,7 +386,7 @@ describe("GitHub external object provider", () => {
     expect(JSON.stringify(result)).not.toContain("http");
   });
 
-  it("caches repository-visibility probes per company and repo", async () => {
+  it("caches repository-visibility probes per space and repo", async () => {
     let probeCalls = 0;
     const fetch = vi.fn(async (url: string) => {
       if (url.endsWith("/repos/acme/app")) {
@@ -401,8 +401,8 @@ describe("GitHub external object provider", () => {
     const provider = createGitHubExternalObjectProvider({} as any, { fetch, tokenProvider: () => null });
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
-    await resolver.resolve({ companyId: "company-1", object: githubObject("pull/42", "pull_request") });
-    await resolver.resolve({ companyId: "company-1", object: githubObject("pull/99", "pull_request") });
+    await resolver.resolve({ spaceId: "space-1", object: githubObject("pull/42", "pull_request") });
+    await resolver.resolve({ spaceId: "space-1", object: githubObject("pull/99", "pull_request") });
 
     expect(probeCalls).toBe(1);
     expect(fetch.mock.calls.filter(([url]) => String(url).endsWith("/repos/acme/app"))).toHaveLength(1);
@@ -429,10 +429,10 @@ describe("GitHub external object provider", () => {
     });
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
-    const visibleVerdict = await resolver.resolve({ companyId: "company-1", object: githubObject("pull/42", "pull_request") });
+    const visibleVerdict = await resolver.resolve({ spaceId: "space-1", object: githubObject("pull/42", "pull_request") });
 
     // Same repo, same credentials: probe result is reused.
-    await resolver.resolve({ companyId: "company-1", object: githubObject("pull/99", "pull_request") });
+    await resolver.resolve({ spaceId: "space-1", object: githubObject("pull/99", "pull_request") });
     const probesUnderTokenA = fetch.mock.calls.filter(([url]) => String(url).endsWith("/repos/acme/app"));
     expect(probesUnderTokenA).toHaveLength(1);
 
@@ -440,7 +440,7 @@ describe("GitHub external object provider", () => {
     // serve the stale "visible" verdict, or this object would be frozen as a
     // probe-verified not-found forever.
     token = "other-token";
-    const hiddenVerdict = await resolver.resolve({ companyId: "company-1", object: githubObject("pull/10", "pull_request") });
+    const hiddenVerdict = await resolver.resolve({ spaceId: "space-1", object: githubObject("pull/10", "pull_request") });
 
     expect(visibleVerdict).toEqual(
       expect.objectContaining({ ok: true, snapshot: expect.objectContaining({ isTerminal: true }) }),
@@ -462,7 +462,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -488,7 +488,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -516,7 +516,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -545,7 +545,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -564,7 +564,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -585,7 +585,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -593,7 +593,7 @@ describe("GitHub external object provider", () => {
       expect.objectContaining({
         ok: false,
         liveness: "auth_required",
-        errorCode: "github_repo_requires_company_token",
+        errorCode: "github_repo_requires_space_token",
       }),
     );
     expect(fetch).not.toHaveBeenCalledWith(expect.stringContaining("/pulls/42"), expect.anything());
@@ -613,7 +613,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -621,7 +621,7 @@ describe("GitHub external object provider", () => {
       expect.objectContaining({
         ok: false,
         liveness: "auth_required",
-        errorCode: "github_repo_requires_company_token",
+        errorCode: "github_repo_requires_space_token",
       }),
     );
     expect(fetch).not.toHaveBeenCalledWith(expect.stringContaining("/pulls/42"), expect.anything());
@@ -640,7 +640,7 @@ describe("GitHub external object provider", () => {
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -662,17 +662,17 @@ describe("GitHub external object provider", () => {
 
     // First refresh while the repository is public: the object resolves.
     const publicResult = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
     expect(publicResult.ok).toBe(true);
 
     // The repository becomes private inside the probe-cache TTL. The server token
-    // still has access, but this company did not authorize it, so the second object
+    // still has access, but this space did not authorize it, so the second object
     // must not reuse the cached "public" verdict to read private details.
     repoPrivate = true;
     const privateResult = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/43", "pull_request"),
     });
 
@@ -680,26 +680,26 @@ describe("GitHub external object provider", () => {
       expect.objectContaining({
         ok: false,
         liveness: "auth_required",
-        errorCode: "github_repo_requires_company_token",
+        errorCode: "github_repo_requires_space_token",
       }),
     );
     expect(fetch).not.toHaveBeenCalledWith(expect.stringContaining("/pulls/43"), expect.anything());
     expect(JSON.stringify(privateResult)).not.toContain("env-token");
   });
 
-  it("lets a company-scoped token resolve a private repository", async () => {
+  it("lets a space-scoped token resolve a private repository", async () => {
     const fetch = vi.fn(async (url: string) => {
       if (url.endsWith("/repos/acme/app")) return response({ private: true });
       return response({ state: "open", draft: false, merged: false, title: "Private PR" });
     });
     const provider = createGitHubExternalObjectProvider({} as any, {
       fetch,
-      credentialProvider: async () => ({ token: "company-token", source: "company_secret", secretName: "GITHUB_TOKEN" }),
+      credentialProvider: async () => ({ token: "space-token", source: "space_secret", secretName: "GITHUB_TOKEN" }),
     });
     const resolver = provider.resolvers.find((entry) => entry.objectType === "pull_request")!;
 
     const result = await resolver.resolve({
-      companyId: "company-1",
+      spaceId: "space-1",
       object: githubObject("pull/42", "pull_request"),
     });
 
@@ -714,7 +714,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
 
   beforeAll(async () => {
     if (externalDatabaseUrl) await applyPendingMigrations(externalDatabaseUrl);
-    if (!externalDatabaseUrl) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-external-objects-");
+    if (!externalDatabaseUrl) tempDb = await startEmbeddedPostgresTestDatabase("outpost-external-objects-");
     db = createDb(externalDatabaseUrl ?? tempDb!.connectionString, { maxConnections: 6 });
   }, 90_000);
 
@@ -725,7 +725,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
     await db.delete(issueComments);
     await db.delete(issues);
     await db.delete(plugins);
-    await db.delete(companies);
+    await db.delete(spaces);
     vi.restoreAllMocks();
   });
 
@@ -746,28 +746,28 @@ describeEmbeddedPostgres("externalObjectService", () => {
     }
   }
 
-  async function createIssue(companyId = randomUUID()) {
+  async function createIssue(spaceId = randomUUID()) {
     const issueId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `E${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `E${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
-      identifier: `PAP-${companyId.replace(/-/g, "").slice(0, 12).toUpperCase()}`,
+      spaceId,
+      identifier: `PAP-${spaceId.replace(/-/g, "").slice(0, 12).toUpperCase()}`,
       title: "External refs",
       description: "Track https://github.com/acme/app/pull/42?token=secret#discussion twice https://github.com/acme/app/pull/42.",
       status: "todo",
       priority: "medium",
     });
-    return { companyId, issueId };
+    return { spaceId, issueId };
   }
 
   it("syncs sanitized, deduped mentions without storing secret-bearing urls", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     const svc = externalObjectService(db);
 
     await svc.syncIssue(issueId);
@@ -778,7 +778,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
     ]);
     expect(objectRows).toHaveLength(1);
     expect(objectRows[0]).toMatchObject({
-      companyId,
+      spaceId,
       providerKey: "github",
       objectType: "pull_request",
       externalId: "acme/app#pull/42",
@@ -789,7 +789,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
     expect(JSON.stringify(objectRows[0])).not.toContain("secret");
     expect(mentionRows).toHaveLength(1);
     expect(mentionRows[0]).toMatchObject({
-      companyId,
+      spaceId,
       sourceIssueId: issueId,
       sourceKind: "description",
       sanitizedDisplayUrl: "https://github.com/acme/app/pull/42",
@@ -820,7 +820,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
   });
 
   it("preserves last-known status when resolver reports auth and unreachable failures", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     const resolver: ExternalObjectResolver = {
       providerKey: "url",
       objectType: "link",
@@ -855,14 +855,14 @@ describeEmbeddedPostgres("externalObjectService", () => {
     await svc.syncIssue(issueId);
     const object = await db.select().from(externalObjects).then((rows) => rows[0]!);
 
-    await svc.refreshObject(object.id, { companyId, force: true });
-    await svc.refreshObject(object.id, { companyId, force: true });
+    await svc.refreshObject(object.id, { spaceId, force: true });
+    await svc.refreshObject(object.id, { spaceId, force: true });
 
     const authFailure = await db.select().from(externalObjects).then((rows) => rows[0]!);
     expect(authFailure.lastErrorMessage).toContain("token=[redacted]");
     expect(authFailure.lastErrorMessage).not.toContain("secret");
 
-    await svc.refreshObject(object.id, { companyId, force: true });
+    await svc.refreshObject(object.id, { spaceId, force: true });
 
     const updated = await db.select().from(externalObjects).then((rows) => rows[0]!);
     expect(updated.statusCategory).toBe("open");
@@ -873,7 +873,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
   });
 
   it("schedules newly detected objects for automatic refresh", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     const resolve = vi.fn(async () => ({
       ok: true as const,
       snapshot: {
@@ -902,7 +902,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
   });
 
   it("coalesces automatic and manual refreshes for the same object", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     let markResolverStarted!: () => void;
     const resolverStarted = new Promise<void>((resolve) => {
       markResolverStarted = resolve;
@@ -936,7 +936,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
 
     const dueRefresh = runRefreshWork(svc);
     await resolverStarted;
-    const manualRefresh = svc.refreshObject(object.id, { companyId, force: true });
+    const manualRefresh = svc.refreshObject(object.id, { spaceId, force: true });
     finishResolver();
 
     const [, manualResult] = await Promise.all([dueRefresh, manualRefresh]);
@@ -947,7 +947,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
   });
 
   it("prevents duplicate refreshes across service instances", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     let markResolverStarted!: () => void;
     const resolverStarted = new Promise<void>((resolve) => {
       markResolverStarted = resolve;
@@ -982,7 +982,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
 
     const dueRefresh = runRefreshWork(scheduledService);
     await resolverStarted;
-    const manualRefresh = await manualService.refreshObject(object.id, { companyId, force: true });
+    const manualRefresh = await manualService.refreshObject(object.id, { spaceId, force: true });
     finishResolver();
     await dueRefresh;
 
@@ -996,7 +996,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
   });
 
   it("does not let a stale refresh overwrite a replacement claimant", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     let markResolverStarted!: () => void;
     const resolverStarted = new Promise<void>((resolve) => {
       markResolverStarted = resolve;
@@ -1044,7 +1044,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
     const dueRefresh = runRefreshWork(scheduledService);
     await resolverStarted;
     const replacementResult = await replacementService.refreshObject(object.id, {
-      companyId,
+      spaceId,
       force: true,
       now: new Date(claimedAt.getTime() + 301_000),
     });
@@ -1060,13 +1060,13 @@ describeEmbeddedPostgres("externalObjectService", () => {
     expect(replacementResolve).toHaveBeenCalledTimes(1);
   });
 
-  it("refreshes due objects for active companies only", async () => {
+  it("refreshes due objects for active spaces only", async () => {
     const active = await createIssue();
     const paused = await createIssue();
     await db
-      .update(companies)
+      .update(spaces)
       .set({ status: "paused" })
-      .where(eq(companies.id, paused.companyId));
+      .where(eq(spaces.id, paused.spaceId));
     const resolve = vi.fn(async () => ({
       ok: true as const,
       snapshot: {
@@ -1089,21 +1089,21 @@ describeEmbeddedPostgres("externalObjectService", () => {
     await runRefreshWork(svc);
     expect(resolve).toHaveBeenCalledTimes(1);
     const rows = await db.select().from(externalObjects);
-    const activeObject = rows.find((row) => row.companyId === active.companyId);
-    const pausedObject = rows.find((row) => row.companyId === paused.companyId);
+    const activeObject = rows.find((row) => row.spaceId === active.spaceId);
+    const pausedObject = rows.find((row) => row.spaceId === paused.spaceId);
     expect(activeObject?.statusLabel).toBe("Open");
     expect(pausedObject?.statusLabel).toBeNull();
   });
 
   it("removes comment mentions when a synced comment is hard-deleted", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     const commentId = randomUUID();
     await db.insert(issueComments).values({
       id: commentId,
-      companyId,
+      spaceId,
       issueId,
       authorType: "user",
-      authorUserId: "local-board",
+      authorUserId: "local-operator",
       body: "See https://github.com/acme/app/issues/88",
     });
     const svc = externalObjectService(db, { github: false });
@@ -1118,7 +1118,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
   });
 
   it("skips terminal objects when refreshing due objects", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     const resolve = vi.fn(async () => ({
       ok: true as const,
       snapshot: {
@@ -1139,7 +1139,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
     await svc.syncIssue(issueId);
     const object = await db.select().from(externalObjects).then((rows) => rows[0]!);
 
-    await svc.refreshObject(object.id, { companyId, force: true });
+    await svc.refreshObject(object.id, { spaceId, force: true });
     await db
       .update(externalObjects)
       .set({ nextRefreshAt: new Date(0) })
@@ -1151,7 +1151,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
   });
 
   it("keeps terminal objects fresh-for-display after their refresh window passes", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     const resolve = vi.fn(async () => ({
       ok: true as const,
       snapshot: {
@@ -1169,7 +1169,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
     });
     await svc.syncIssue(issueId);
     const object = await db.select().from(externalObjects).then((rows) => rows[0]!);
-    await svc.refreshObject(object.id, { companyId, force: true });
+    await svc.refreshObject(object.id, { spaceId, force: true });
     // Expire the refresh window so the display path computes liveness from
     // scratch. Terminal objects must still show as fresh, never as stale.
     await db
@@ -1182,18 +1182,18 @@ describeEmbeddedPostgres("externalObjectService", () => {
     expect(displayed?.liveness).toBe("fresh");
     expect(displayed?.isTerminal).toBe(true);
 
-    const summaryLater = await svc.getIssueSummaries(companyId, [issueId]).then((map) => map.get(issueId));
+    const summaryLater = await svc.getIssueSummaries(spaceId, [issueId]).then((map) => map.get(issueId));
     expect(summaryLater?.objects[0]?.liveness).toBe("fresh");
     expect(summaryLater?.staleCount).toBe(0);
     expect(summaryLater?.byLiveness?.stale ?? 0).toBe(0);
   });
 
   it("re-checks previously frozen GitHub not-found objects so they can self-heal", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     const canonical = canonicalizeExternalObjectUrl("https://github.com/acme/app/pull/42");
     if (!canonical) throw new Error("expected canonical url");
     const inserted = await db.insert(externalObjects).values({
-      companyId,
+      spaceId,
       providerKey: "github",
       objectType: "pull_request",
       externalId: "acme/app#pull/42",
@@ -1230,8 +1230,8 @@ describeEmbeddedPostgres("externalObjectService", () => {
     const svc = externalObjectService(db, { resolvers: [resolver], github: false });
     expect(object.isTerminal).toBe(true);
 
-    const [linked] = await db.select().from(externalObjects).where(eq(externalObjects.companyId, companyId));
-    await db.insert(externalObjectMentions).values({ companyId, sourceIssueId: issueId,
+    const [linked] = await db.select().from(externalObjects).where(eq(externalObjects.spaceId, spaceId));
+    await db.insert(externalObjectMentions).values({ spaceId, sourceIssueId: issueId,
       sourceKind: "description", objectId: linked!.id });
     await runRefreshWork(svc);
 
@@ -1242,11 +1242,11 @@ describeEmbeddedPostgres("externalObjectService", () => {
   });
 
   it("does not re-check probe-verified GitHub not-found objects (deleted references are terminal)", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     const canonical = canonicalizeExternalObjectUrl("https://github.com/acme/app/pull/42");
     if (!canonical) throw new Error("expected canonical url");
     await db.insert(externalObjects).values({
-      companyId,
+      spaceId,
       providerKey: "github",
       objectType: "pull_request",
       externalId: "acme/app#pull/42",
@@ -1279,8 +1279,8 @@ describeEmbeddedPostgres("externalObjectService", () => {
     };
     const svc = externalObjectService(db, { resolvers: [resolver], github: false });
 
-    const [linked] = await db.select().from(externalObjects).where(eq(externalObjects.companyId, companyId));
-    await db.insert(externalObjectMentions).values({ companyId, sourceIssueId: issueId,
+    const [linked] = await db.select().from(externalObjects).where(eq(externalObjects.spaceId, spaceId));
+    await db.insert(externalObjectMentions).values({ spaceId, sourceIssueId: issueId,
       sourceKind: "description", objectId: linked!.id });
     await runRefreshWork(svc);
 
@@ -1288,11 +1288,11 @@ describeEmbeddedPostgres("externalObjectService", () => {
   });
 
   it("does not re-check terminal objects that are not GitHub not-found verdicts", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     const canonical = canonicalizeExternalObjectUrl("https://github.com/acme/app/pull/42");
     if (!canonical) throw new Error("expected canonical url");
     await db.insert(externalObjects).values({
-      companyId,
+      spaceId,
       providerKey: "github",
       objectType: "pull_request",
       externalId: "acme/app#pull/42",
@@ -1324,15 +1324,15 @@ describeEmbeddedPostgres("externalObjectService", () => {
     };
     const svc = externalObjectService(db, { resolvers: [resolver], github: false });
 
-    const [linked] = await db.select().from(externalObjects).where(eq(externalObjects.companyId, companyId));
-    await db.insert(externalObjectMentions).values({ companyId, sourceIssueId: issueId,
+    const [linked] = await db.select().from(externalObjects).where(eq(externalObjects.spaceId, spaceId));
+    await db.insert(externalObjectMentions).values({ spaceId, sourceIssueId: issueId,
       sourceKind: "description", objectId: linked!.id });
     await runRefreshWork(svc);
 
     expect(resolver.resolve).not.toHaveBeenCalled();
   });
 
-  it("keeps external object identities company-scoped for duplicate urls", async () => {
+  it("keeps external object identities space-scoped for duplicate urls", async () => {
     const first = await createIssue();
     const second = await createIssue();
     const svc = externalObjectService(db);
@@ -1342,12 +1342,12 @@ describeEmbeddedPostgres("externalObjectService", () => {
 
     const objectRows = await db.select().from(externalObjects);
     expect(objectRows).toHaveLength(2);
-    expect(new Set(objectRows.map((row) => row.companyId))).toEqual(new Set([first.companyId, second.companyId]));
+    expect(new Set(objectRows.map((row) => row.spaceId))).toEqual(new Set([first.spaceId, second.spaceId]));
     expect(new Set(objectRows.map((row) => row.canonicalIdentityHash)).size).toBe(1);
   });
 
   it("uses a mock plugin provider to detect and resolve non-GitHub objects", async () => {
-    const { companyId, issueId } = await createIssue();
+    const { spaceId, issueId } = await createIssue();
     await db
       .update(issues)
       .set({
@@ -1355,13 +1355,13 @@ describeEmbeddedPostgres("externalObjectService", () => {
       })
       .where(eq(issues.id, issueId));
 
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: "outpost.mock-object-provider",
       apiVersion: 1,
       version: "1.0.0",
       displayName: "Mock Object Provider",
       description: "Detects mock tracker tickets",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["connector"],
       capabilities: ["external.objects.detect", "external.objects.read"],
       entrypoints: { worker: "dist/worker.js" },
@@ -1376,7 +1376,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
     };
     const [plugin] = await db.insert(plugins).values({
       pluginKey: manifest.id,
-      packageName: "@paperclip/mock-object-provider",
+      packageName: "@outpost/mock-object-provider",
       version: manifest.version,
       apiVersion: 1,
       categories: manifest.categories,
@@ -1427,7 +1427,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
 
     const object = await db.select().from(externalObjects).then((rows) => rows[0]!);
     expect(object).toMatchObject({
-      companyId,
+      spaceId,
       providerKey: "mocktracker",
       objectType: "ticket",
       externalId: "MOCK-123",
@@ -1438,7 +1438,7 @@ describeEmbeddedPostgres("externalObjectService", () => {
     });
     expect(JSON.stringify(object)).not.toContain("secret");
 
-    const refreshed = await svc.refreshObject(object.id, { companyId, force: true });
+    const refreshed = await svc.refreshObject(object.id, { spaceId, force: true });
     expect(refreshed.object).toMatchObject({
       displayKey: "Mock Ticket",
       iconKey: "circle-dot",

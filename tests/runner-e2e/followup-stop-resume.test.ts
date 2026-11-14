@@ -3,7 +3,7 @@ import { runnerMatrix } from "./catalog.js";
 import { stopRunBelongsToTask, isActiveStopCheckpointRun, exactSyntheticJson, gradeFollowupStopResume, type FollowupStopObservation } from "./followup-stop-resume.js";
 
 function fixture(): FollowupStopObservation {
-  return { binding: { companyId: "company", issueId: "task", agentId: "agent" },
+  return { binding: { spaceId: "space", issueId: "task", agentId: "agent" },
     initial: { runId: "original", workspaceId: "workspace", instructionsDigest: "a".repeat(64), toolFingerprint: `sha256:${"b".repeat(64)}`, checkpointVerified: true },
     followup: { commentIds: ["followup"], runId: "original", runStatus: "running", acceptedResults: 0, providerStarted: true, observedAt: "2026-10-21T12:00:00Z" },
     stop: { runId: "original", status: "cancelled", acknowledgementMatches: true,
@@ -81,12 +81,12 @@ it("observes the actual active provider through its durable turn rather than a f
 
 
 it("keeps the recorded task binding during preparation without treating an absent native binding as foreign work", () => {
-  const binding = { companyId: "company", agentId: "agent", issueId: "task" };
+  const binding = { spaceId: "space", agentId: "agent", issueId: "task" };
   const queued = { ...binding, nativeIssueId: null, contextSnapshot: { issueId: "task" }, runtimeMode: "legacy", runtimeModeResolvedAt: null };
   expect(stopRunBelongsToTask(queued, binding)).toBe(true);
   const selected = { ...queued, nativeIssueId: "task", runtimeMode: "native" };
   expect(stopRunBelongsToTask(selected, binding)).toBe(true);
-  for (const run of [{ ...queued, companyId: "foreign" }, { ...queued, agentId: "foreign" },
+  for (const run of [{ ...queued, spaceId: "foreign" }, { ...queued, agentId: "foreign" },
     { ...queued, issueId: "foreign" }, { ...queued, nativeIssueId: "foreign" },
     { ...queued, contextSnapshot: { issueId: "foreign" } }, { ...queued, nativeIssueId: "" },
     { ...queued, issueId: undefined, contextSnapshot: null }]) expect(stopRunBelongsToTask(run, binding)).toBe(false);

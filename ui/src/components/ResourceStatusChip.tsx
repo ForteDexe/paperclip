@@ -60,7 +60,7 @@ const VARIANTS: Record<ResourceStatusVariant, VariantSpec> = {
     color: "amber",
     glyph: "⚠",
     label: "Pending approval",
-    title: "Waiting on board hire approval before it can run",
+    title: "Waiting on operator create approval before it can run",
   },
   proposal_pending: {
     color: "blue",

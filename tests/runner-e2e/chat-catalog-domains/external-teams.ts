@@ -3,8 +3,8 @@ import { definition, externalObservation, observeExternal, root, sameRows, check
 import { collectRunEvents } from "../run-observations.js";
 
 const LIST_TEAMS = new Set(["GET /api/teams/catalog", "GET /api/teams/catalog/{catalogId}"]);
-const PREVIEW_TEAM = "POST /api/companies/{companyId}/teams/catalog/{catalogId}/preview";
-const INSTALL_TEAM = "POST /api/companies/{companyId}/teams/catalog/{catalogId}/install";
+const PREVIEW_TEAM = "POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/preview";
+const INSTALL_TEAM = "POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/install";
 /** Successful call_api operations the agent's own runs executed, from their recorded tool results. */
 export function teamApiOperations(events: readonly { payload?: Record<string, unknown> | null }[]) {
   const operations: string[] = [];
@@ -36,7 +36,7 @@ export function linksMissingTeamCatalogPage(o: { links: string[]; origin: string
 // state and the preview the product computes. The web app has no catalog page to link.
 export function gradeTeams(value: unknown) {
   const c = checks(); const o = externalObservation(value);
-  c.add("complete-team-catalog-evidence", !!o, "Public catalog metadata, before/after company resources and reply links are required."); if (!o) return c.result();
+  c.add("complete-team-catalog-evidence", !!o, "Public catalog metadata, before/after space resources and reply links are required."); if (!o) return c.result();
   const team = o.state.team as CatalogTeam | undefined;
   const operations = o.state.runEventsRead === true && Array.isArray(o.state.teamApiOperations) ? o.state.teamApiOperations as string[] : undefined;
   c.add("existing-package-grounding", !!team && team.compatibility === "compatible" && team.agentSlugs.length >= 2 && team.counts.projects > 0

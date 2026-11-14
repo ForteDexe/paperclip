@@ -75,8 +75,8 @@ export class CapabilityDeniedError extends Error {
 }
 
 /**
- * Thrown when a worker→host call asks for company-scoped data outside the
- * company authorized for the current top-level plugin invocation.
+ * Thrown when a worker→host call asks for space-scoped data outside the
+ * space authorized for the current top-level plugin invocation.
  */
 export class InvocationScopeDeniedError extends Error {
   override readonly name = "InvocationScopeDeniedError";
@@ -107,7 +107,7 @@ export interface HostServices {
     ): Promise<Record<string, unknown>>;
   };
 
-  /** Provides trusted company-scoped local folder helpers. */
+  /** Provides trusted space-scoped local folder helpers. */
   localFolders: {
     declarations(params: WorkerToHostMethods["localFolders.declarations"][0]): Promise<WorkerToHostMethods["localFolders.declarations"][1]>;
     configure(params: WorkerToHostMethods["localFolders.configure"][0]): Promise<WorkerToHostMethods["localFolders.configure"][1]>;
@@ -162,7 +162,7 @@ export interface HostServices {
   /** Provides `activity.log`. */
   activity: {
     log(params: {
-      companyId: string;
+      spaceId: string;
       message: string;
       entityType?: string;
       entityId?: string;
@@ -193,10 +193,10 @@ export interface HostServices {
     ): Promise<void>;
   };
 
-  /** Provides `companies.list`, `companies.get`. */
-  companies: {
-    list(params: WorkerToHostMethods["companies.list"][0]): Promise<WorkerToHostMethods["companies.list"][1]>;
-    get(params: WorkerToHostMethods["companies.get"][0]): Promise<WorkerToHostMethods["companies.get"][1]>;
+  /** Provides `spaces.list`, `spaces.get`. */
+  spaces: {
+    list(params: WorkerToHostMethods["spaces.list"][0]): Promise<WorkerToHostMethods["spaces.list"][1]>;
+    get(params: WorkerToHostMethods["spaces.get"][0]): Promise<WorkerToHostMethods["spaces.get"][1]>;
   };
 
   /** Provides `projects.list`, `projects.get`, `projects.listWorkspaces`, `projects.getPrimaryWorkspace`, `projects.getWorkspaceForIssue`. */
@@ -437,9 +437,9 @@ const METHOD_CAPABILITY_MAP: Record<WorkerToHostMethodName, PluginCapability | n
   // still derives solely from the current host-owned invocation.
   "span.record": "environment.drivers.register",
 
-  // Companies
-  "companies.list": "companies.read",
-  "companies.get": "companies.read",
+  // Spaces
+  "spaces.list": "spaces.read",
+  "spaces.get": "spaces.read",
 
   // Projects
   "projects.list": "projects.read",
@@ -567,12 +567,12 @@ export function createHostClientHandlers(
   const { pluginId, services } = options;
   const capabilitySet = new Set<PluginCapability>(options.capabilities);
 
-  type CompanyScopeRequest =
+  type SpaceScopeRequest =
     | { kind: "none" }
-    | { kind: "single"; companyId: string }
+    | { kind: "single"; spaceId: string }
     | { kind: "all" };
 
-  const noCompanyScope: CompanyScopeRequest = { kind: "none" };
+  const noSpaceScope: SpaceScopeRequest = { kind: "none" };
 
   function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -582,35 +582,35 @@ export function createHostClientHandlers(
     return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
   }
 
-  function requestedCompanyScope(
+  function requestedSpaceScope(
     method: WorkerToHostMethodName,
     params: unknown,
-  ): CompanyScopeRequest {
-    if (method === "companies.list") return { kind: "all" };
-    if (!isRecord(params)) return noCompanyScope;
+  ): SpaceScopeRequest {
+    if (method === "spaces.list") return { kind: "all" };
+    if (!isRecord(params)) return noSpaceScope;
 
-    const companyId = readNonEmptyString(params.companyId);
-    if (companyId) return { kind: "single", companyId };
+    const spaceId = readNonEmptyString(params.spaceId);
+    if (spaceId) return { kind: "single", spaceId };
 
-    if (params.scopeKind === "company") {
+    if (params.scopeKind === "space") {
       const scopeId = readNonEmptyString(params.scopeId);
-      return scopeId ? { kind: "single", companyId: scopeId } : { kind: "all" };
+      return scopeId ? { kind: "single", spaceId: scopeId } : { kind: "all" };
     }
 
     if (method === "events.subscribe" && isRecord(params.filter)) {
-      const filterCompanyId = readNonEmptyString(params.filter.companyId);
-      if (filterCompanyId) return { kind: "single", companyId: filterCompanyId };
+      const filterSpaceId = readNonEmptyString(params.filter.spaceId);
+      if (filterSpaceId) return { kind: "single", spaceId: filterSpaceId };
     }
 
-    return noCompanyScope;
+    return noSpaceScope;
   }
 
-  function requireInvocationCompanyScope(
+  function requireInvocationSpaceScope(
     method: WorkerToHostMethodName,
     params: unknown,
     context?: WorkerHostCallContext,
   ): void {
-    const requested = requestedCompanyScope(method, params);
+    const requested = requestedSpaceScope(method, params);
     if (requested.kind === "none") return;
 
     if (context?.invalidInvocationScope) {
@@ -621,34 +621,34 @@ export function createHostClientHandlers(
       );
     }
 
-    const allowedCompanyId = readNonEmptyString(context?.invocationScope?.companyId);
+    const allowedSpaceId = readNonEmptyString(context?.invocationScope?.spaceId);
 
     if (requested.kind === "all") {
-      if (method === "companies.list") return;
-      if (!allowedCompanyId) {
-        throw new InvocationScopeDeniedError(pluginId, method, "company context is required");
+      if (method === "spaces.list") return;
+      if (!allowedSpaceId) {
+        throw new InvocationScopeDeniedError(pluginId, method, "space context is required");
       }
       throw new InvocationScopeDeniedError(
         pluginId,
         method,
-        `the current invocation is scoped to company "${allowedCompanyId}"`,
+        `the current invocation is scoped to space "${allowedSpaceId}"`,
       );
     }
 
-    if (!allowedCompanyId) {
-      throw new InvocationScopeDeniedError(pluginId, method, "company context is required");
+    if (!allowedSpaceId) {
+      throw new InvocationScopeDeniedError(pluginId, method, "space context is required");
     }
 
-    if (requested.companyId !== allowedCompanyId) {
+    if (requested.spaceId !== allowedSpaceId) {
       throw new InvocationScopeDeniedError(
         pluginId,
         method,
-        `requested company "${requested.companyId}" but the current invocation is scoped to company "${allowedCompanyId}"`,
+        `requested space "${requested.spaceId}" but the current invocation is scoped to space "${allowedSpaceId}"`,
       );
     }
   }
 
-  function resolveRequiredCompanyId(
+  function resolveRequiredSpaceId(
     method: WorkerToHostMethodName,
     params: unknown,
     context?: WorkerHostCallContext,
@@ -661,25 +661,25 @@ export function createHostClientHandlers(
       );
     }
 
-    const requested = requestedCompanyScope(method, params);
-    const scopedCompanyId = readNonEmptyString(context?.invocationScope?.companyId);
+    const requested = requestedSpaceScope(method, params);
+    const scopedSpaceId = readNonEmptyString(context?.invocationScope?.spaceId);
     if (requested.kind === "single") {
-      if (!scopedCompanyId) {
-        throw new InvocationScopeDeniedError(pluginId, method, "company context is required");
+      if (!scopedSpaceId) {
+        throw new InvocationScopeDeniedError(pluginId, method, "space context is required");
       }
-      if (requested.companyId !== scopedCompanyId) {
+      if (requested.spaceId !== scopedSpaceId) {
         throw new InvocationScopeDeniedError(
           pluginId,
           method,
-          `requested company "${requested.companyId}" but the current invocation is scoped to company "${scopedCompanyId}"`,
+          `requested space "${requested.spaceId}" but the current invocation is scoped to space "${scopedSpaceId}"`,
         );
       }
-      return scopedCompanyId;
+      return scopedSpaceId;
     }
 
-    if (scopedCompanyId) return scopedCompanyId;
+    if (scopedSpaceId) return scopedSpaceId;
 
-    throw new InvocationScopeDeniedError(pluginId, method, "company context is required");
+    throw new InvocationScopeDeniedError(pluginId, method, "space context is required");
   }
 
   /**
@@ -709,7 +709,7 @@ export function createHostClientHandlers(
   ): HostHandler<M> {
     return async (params: WorkerToHostMethods[M][0], context?: WorkerHostCallContext) => {
       requireCapability(method);
-      requireInvocationCompanyScope(method, params, context);
+      requireInvocationSpaceScope(method, params, context);
       return handler(params, context);
     };
   }
@@ -721,8 +721,8 @@ export function createHostClientHandlers(
   return {
     // Config
     "config.get": gated("config.get", async (params, context) => {
-      const companyId = resolveRequiredCompanyId("config.get", params, context);
-      return services.config.get({ ...params, companyId }, context);
+      const spaceId = resolveRequiredSpaceId("config.get", params, context);
+      return services.config.get({ ...params, spaceId }, context);
     }),
 
     "localFolders.declarations": gated("localFolders.declarations", async (params) => {
@@ -793,8 +793,8 @@ export function createHostClientHandlers(
 
     // Secrets
     "secrets.resolve": gated("secrets.resolve", async (params, context) => {
-      const companyId = resolveRequiredCompanyId("secrets.resolve", params, context);
-      return services.secrets.resolve({ ...params, companyId }, context);
+      const spaceId = resolveRequiredSpaceId("secrets.resolve", params, context);
+      return services.secrets.resolve({ ...params, spaceId }, context);
     }),
 
     // Activity
@@ -822,17 +822,17 @@ export function createHostClientHandlers(
       return services.tracer.record(params, context);
     }),
 
-    // Companies
-    "companies.list": gated("companies.list", async (params, context) => {
-      const rows = await services.companies.list(params);
-      const allowedCompanyId = readNonEmptyString(context?.invocationScope?.companyId);
-      if (!allowedCompanyId) return rows;
-      return rows.filter((company) =>
-        isRecord(company) && company.id === allowedCompanyId,
-      ) as WorkerToHostMethods["companies.list"][1];
+    // Spaces
+    "spaces.list": gated("spaces.list", async (params, context) => {
+      const rows = await services.spaces.list(params);
+      const allowedSpaceId = readNonEmptyString(context?.invocationScope?.spaceId);
+      if (!allowedSpaceId) return rows;
+      return rows.filter((space) =>
+        isRecord(space) && space.id === allowedSpaceId,
+      ) as WorkerToHostMethods["spaces.list"][1];
     }),
-    "companies.get": gated("companies.get", async (params) => {
-      return services.companies.get(params);
+    "spaces.get": gated("spaces.get", async (params) => {
+      return services.spaces.get(params);
     }),
 
     // Projects
@@ -840,31 +840,31 @@ export function createHostClientHandlers(
       return services.projects.list(params);
     }),
     "projects.resolveGitCredential": gated("projects.resolveGitCredential", async (params, context) => {
-      const companyId = resolveRequiredCompanyId("projects.resolveGitCredential", params, context);
+      const spaceId = resolveRequiredSpaceId("projects.resolveGitCredential", params, context);
       const scope = context?.invocationScope?.projectGit;
       if (!scope || scope.projectId !== params.projectId || (scope.workspaceId && scope.workspaceId !== params.workspaceId)) {
         throw new Error("Git credentials require a matching host project operation");
       }
-      return services.projects.resolveGitCredential({ ...params, companyId }, context!);
+      return services.projects.resolveGitCredential({ ...params, spaceId }, context!);
     }),
     "projects.getInstanceSecrets": gated("projects.getInstanceSecrets", async (params, context) => {
-      const companyId = resolveRequiredCompanyId("projects.getInstanceSecrets", params, context);
-      return services.projects.getInstanceSecrets({ ...params, companyId });
+      const spaceId = resolveRequiredSpaceId("projects.getInstanceSecrets", params, context);
+      return services.projects.getInstanceSecrets({ ...params, spaceId });
     }),
     "projects.readSnapshots": gated("projects.readSnapshots", async (params, context) => {
-      const companyId = resolveRequiredCompanyId("projects.readSnapshots", params, context);
+      const spaceId = resolveRequiredSpaceId("projects.readSnapshots", params, context);
       requireCapability("projects.get");
       requireCapability("projects.listWorkspaces");
       const { projectIds, entityType } = params;
       validateProjectSnapshotRequest(projectIds, entityType);
       const snapshots: WorkerToHostMethods["projects.readSnapshots"][1] = [];
       for (const projectId of projectIds) {
-        const scope = { companyId, projectId };
+        const scope = { spaceId, projectId };
         const project = await services.projects.get(scope);
-        if (project?.id !== projectId || project.companyId !== companyId || project.archivedAt) {
+        if (project?.id !== projectId || project.spaceId !== spaceId || project.archivedAt) {
           throw new Error("Project snapshot unavailable");
         }
-        const query = { entityType, scopeKind: "company" as const, scopeId: companyId, externalId: projectId, limit: 1 };
+        const query = { entityType, scopeKind: "space" as const, scopeId: spaceId, externalId: projectId, limit: 1 };
         const [entity] = await services.entities.list(query);
         const instanceSecrets = await services.projects.getInstanceSecrets(scope);
         const workspaces = await services.projects.listWorkspaces(scope);

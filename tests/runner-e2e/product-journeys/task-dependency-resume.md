@@ -15,7 +15,7 @@ The saved dependency, blocked status, and empty task/agent run histories must
 remain observable for at least ten seconds. This is a finite measured wait,
 not an unlimited claim that no execution can ever occur.
 
-The person completes the blocker through the task's status control. Paperclip must
+The person completes the blocker through the task's status control. Outpost must
 then start exactly one native run automatically. Its durable wake must name the
 same resolved blocker, reason `issue_blockers_resolved`, and saved source
 `issue.blockers_resolved`; `blocker_done` is the producer's separate mutation
@@ -30,7 +30,7 @@ be authored by this agent and run. Reloading the task must show that same saved
 revision and preserve the two tasks' descriptions, dependency, and board-owned
 blocker completion audit. No agent work is permitted on the human-owned blocker.
 
-The case requires `company`, `board-user`, `task-write`, and `agent`. It declares
+The case requires `space`, `board-user`, `task-write`, and `agent`. It declares
 one work run, uses the existing bounded case budget, and shares the original
 campaign deadline. The native agent must have nonblank provider and model
 identifiers before any observation read or task creation. An incomplete execution
@@ -40,12 +40,12 @@ records while checking only newly appearing runs for this case. Earlier terminal
 campaign work stays in the accounting and does not count as new execution.
 Owned-task activity reads are complete and uncapped; the separate agent-filtered
 activity read fails closed if its 500-row bound is reached. The agent run list
-likewise fails closed at the public API's 1000-row cap. Unrelated company history
+likewise fails closed at the public API's 1000-row cap. Unrelated space history
 does not enter these completeness checks.
 Agent setup usage is outside task-run accounting; missing
 provider prices remain unknown. The owning target provider controls normal
 cancellation, termination, retained history, and evidence cleanup. It never
-changes a shared source agent, company budget, or execution environment.
+changes a shared source agent, space budget, or execution environment.
 
 The private evidence folder contains `task-dependency-observations.json` and
 `observation-read-failures.json`, with allowlisted owned task, run, audit, and
@@ -54,7 +54,7 @@ Both evidence writes are attempted. A write failure retains an existing journey
 error and its outcome; a previously successful journey fails if required evidence
 cannot be saved. Diagnostics name only the affected evidence file.
 Runtime identity, document authorship, reload visibility, and retained history
-use their own observations bound to the same company, task, agent, and run. One
+use their own observations bound to the same space, task, agent, and run. One
 failed control does not mark unrelated controls failed. All eight checks remain
 required for acceptance.
 There are no direct database writes, private runner hooks, manually dispatched

@@ -10,7 +10,7 @@ function fixture() {
   const select = () => ({ from: () => ({ where: () => ({ limit: coordinator }) }) });
   const transaction = vi.fn(async (run: (tx: unknown) => Promise<unknown>) => run({ update, select, execute: vi.fn() }));
   const db = { update, transaction };
-  return { update, returning, transaction, coordinator, input: { db: db as unknown as Db, runId: "run", companyId: "company", issueId: "issue",
+  return { update, returning, transaction, coordinator, input: { db: db as unknown as Db, runId: "run", spaceId: "space", issueId: "issue",
     leaseOwner: "owner", attempt: 1, controller: { bootId: "boot", pid: 1, processStartedAt: new Date() }, remote: true,
     onLost: vi.fn(async () => undefined) } };
 }

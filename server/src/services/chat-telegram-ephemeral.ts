@@ -7,7 +7,7 @@ export const TELEGRAM_PRIVATE_ACTION_UNAVAILABLE =
 export interface TelegramCallbackReceipt {
   version: 1;
   kind: "telegram_callback";
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   botUserId: string;
   updateId: number;
@@ -46,7 +46,7 @@ const hash = (value: Omit<TelegramCallbackReceipt, "sourceSha256">) =>
     JSON.stringify([
       value.version,
       value.kind,
-      value.companyId,
+      value.spaceId,
       value.endpointId,
       value.botUserId,
       value.updateId,
@@ -75,10 +75,10 @@ export function parseTelegramCallbackReceipt(
   if (
     !record(value) ||
     Object.keys(value).sort().join(",") !==
-      "botUserId,callbackId,chatId,chatType,companyId,dataSha256,deadlineAtMs,endpointId,kind,messageThreadId,receivedAtMs,receiverUserId,sourceMessageId,sourceSha256,updateId,version" ||
+      "botUserId,callbackId,chatId,chatType,spaceId,dataSha256,deadlineAtMs,endpointId,kind,messageThreadId,receivedAtMs,receiverUserId,sourceMessageId,sourceSha256,updateId,version" ||
     value.version !== 1 ||
     value.kind !== "telegram_callback" ||
-    !identifier(value.companyId) ||
+    !identifier(value.spaceId) ||
     !identifier(value.endpointId) ||
     !decimal(value.botUserId) ||
     !decimal(value.receiverUserId) ||
@@ -108,7 +108,7 @@ export function parseTelegramCallbackReceipt(
 
 /** Called only by the runtime's post-verification adapter dispatch wrapper. */
 export function captureTelegramCallbackProvenance(
-  scope: { companyId: string; endpointId: string; botUserId: string },
+  scope: { spaceId: string; endpointId: string; botUserId: string },
   update: unknown,
   receivedAtMs: number,
 ): { raw: object; proof: TelegramCallbackProvenance } | null {
@@ -172,7 +172,7 @@ export function captureTelegramCallbackProvenance(
 export function readTelegramCallbackProvenance(
   proof: unknown,
   expected: {
-    companyId: string;
+    spaceId: string;
     endpointId: string;
     botUserId: string;
     threadId: string;
@@ -182,7 +182,7 @@ export function readTelegramCallbackProvenance(
 ): TelegramCallbackReceipt | null {
   const value = record(proof) ? proofs.get(proof) : undefined;
   return value &&
-    value.companyId === expected.companyId &&
+    value.spaceId === expected.spaceId &&
     value.endpointId === expected.endpointId &&
     value.botUserId === expected.botUserId &&
     telegramCallbackThreadId(value) === expected.threadId &&

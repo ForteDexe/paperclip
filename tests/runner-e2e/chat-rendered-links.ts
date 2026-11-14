@@ -1,29 +1,29 @@
 import type { Locator, Page } from "@playwright/test";
 import type { ChatRun } from "./chat-flow.js";
 
-interface Row { id: string; companyId?: string; issueId?: string; authorAgentId?: string | null; createdByRunId?: string | null; name?: string; action?: string; entityType?: string; entityId?: string; agentId?: string | null; actorType?: string; actorId?: string; runId?: string | null }
+interface Row { id: string; spaceId?: string; issueId?: string; authorAgentId?: string | null; createdByRunId?: string | null; name?: string; action?: string; entityType?: string; entityId?: string; agentId?: string | null; actorType?: string; actorId?: string; runId?: string | null }
 export interface RenderedConversationLink {
   threadTestId: "task-chat-thread" | "thread-root"; href: string; source: "reply" | "project-created-card"; conversationId: string; anchorCommentId: string;
   commentId?: string; resourceId?: string; cardLabel?: string; createdByRunId?: string;
 }
 export interface ConversationLinkInput {
-  origin: string; companyId: string; companyPrefix?: string | null; sourceId: string; leadId: string;
+  origin: string; spaceId: string; spacePrefix?: string | null; sourceId: string; leadId: string;
   comments: Row[]; runs: ChatRun[]; projects: Row[]; activity: Row[];
 }
 export function conversationLinkBindings(input: ConversationLinkInput) {
-  const comments = input.comments.filter(row => row.companyId === input.companyId && row.issueId === input.sourceId);
+  const comments = input.comments.filter(row => row.spaceId === input.spaceId && row.issueId === input.sourceId);
   const replies = comments.filter(row => row.authorAgentId === input.leadId && input.runs.some(run =>
-    run.id === row.createdByRunId && run.companyId === input.companyId && run.agentId === input.leadId
+    run.id === row.createdByRunId && run.spaceId === input.spaceId && run.agentId === input.leadId
     && ((run as ChatRun & { nativeIssueId?: string }).nativeIssueId ?? run.contextSnapshot?.issueId) === input.sourceId));
   const projects = input.projects.flatMap(project => {
-    if (project.companyId !== input.companyId || !project.name) return [];
-    const creation = input.activity.find(row => row.companyId === input.companyId && row.action === "project.created"
+    if (project.spaceId !== input.spaceId || !project.name) return [];
+    const creation = input.activity.find(row => row.spaceId === input.spaceId && row.action === "project.created"
       && row.entityType === "project" && row.entityId === project.id && row.actorType === "agent"
       && row.actorId === input.leadId && row.agentId === input.leadId
       && replies.some(reply => reply.createdByRunId === row.runId));
     return creation?.runId ? [{ id: project.id, name: project.name, runId: creation.runId }] : [];
   });
-  return { origin: input.origin, companyPrefix: input.companyPrefix, sourceId: input.sourceId,
+  return { origin: input.origin, spacePrefix: input.spacePrefix, sourceId: input.sourceId,
     anchors: comments.map(row => row.id), replies: replies.map(row => row.id), projects };
 }
 export function readConversationDomLinks(input: ReturnType<typeof conversationLinkBindings>): RenderedConversationLink[] {
@@ -44,19 +44,19 @@ export function readConversationDomLinks(input: ReturnType<typeof conversationLi
   const anchor = input.anchors.find(id => Array.from(root.querySelectorAll("[id]")).some(node => node.id === `comment-${id}`))!;
   const rows: RenderedConversationLink[] = [];
   const sameConversation = (node: Element) => node.closest(threadSelector) === root;
-  const companyResource = (href: string) => {
+  const spaceResource = (href: string) => {
     try {
       const url = new URL(href, input.origin), parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
       const resourceAt = parts.findIndex(part => ["projects", "issues", "goals"].includes(part));
       if (url.origin !== new URL(input.origin).origin) return !(resourceAt === 1 && parts.length === 3);
-      return resourceAt < 0 || resourceAt === 1 && parts[0] === input.companyPrefix;
+      return resourceAt < 0 || resourceAt === 1 && parts[0] === input.spacePrefix;
     } catch { return false; }
   };
   for (const id of input.replies) {
     const reply = Array.from(root.querySelectorAll("[id]")).find(node => node.id === `comment-${id}` && sameConversation(node));
     for (const node of reply?.querySelectorAll("a[href]") ?? []) {
       const href = node.getAttribute("href");
-      if (href && sameConversation(node) && visible(node) && companyResource(href)) rows.push({ threadTestId, href, source: "reply", conversationId: input.sourceId, anchorCommentId: id, commentId: id });
+      if (href && sameConversation(node) && visible(node) && spaceResource(href)) rows.push({ threadTestId, href, source: "reply", conversationId: input.sourceId, anchorCommentId: id, commentId: id });
     }
   }
   for (const project of threadTestId === "task-chat-thread" ? input.projects : []) {
@@ -69,7 +69,7 @@ export function readConversationDomLinks(input: ReturnType<typeof conversationLi
         if (!href || !visible(node) || !sameConversation(node)) continue;
         try {
           const url = new URL(href, input.origin), parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
-          if (url.origin !== new URL(input.origin).origin || parts.length !== 3 || parts[0] !== input.companyPrefix || parts[1] !== "projects" || parts[2] !== project.id) continue;
+          if (url.origin !== new URL(input.origin).origin || parts.length !== 3 || parts[0] !== input.spacePrefix || parts[1] !== "projects" || parts[2] !== project.id) continue;
           rows.push({ threadTestId, href, source: "project-created-card", conversationId: input.sourceId, anchorCommentId: anchor, resourceId: project.id, cardLabel: label, createdByRunId: project.runId });
         } catch { continue; }
       }

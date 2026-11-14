@@ -20,7 +20,7 @@ export interface RetainedMaintenanceIdentity {
 }
 
 export interface RetainedMaintenanceEventReceipt {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   runId: string;
   eventType: string;
@@ -33,7 +33,7 @@ export interface RetainedMaintenanceEventReceipt {
 }
 
 export interface RetainedMaintenanceNoLaunchInput {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   identity: RetainedMaintenanceIdentity;
   original: RetainedMaintenanceSnapshot;
@@ -546,7 +546,7 @@ export function verifyRetainedMaintenanceNoLaunch(
       const row = bySequence.get(Number(raw.sourceSeq));
       requireProof(
         row &&
-          row.companyId === input.companyId &&
+          row.spaceId === input.spaceId &&
           row.agentId === input.agentId &&
           row.runId === identity.runId &&
           row.eventType === "native.cleanup.event" &&

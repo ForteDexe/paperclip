@@ -25,7 +25,7 @@ afterEach(async () => {
 
 describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
   it("backfills every valid context issue binding and preserves maintenance runs", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-run-issue-privacy-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-run-issue-privacy-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     cleanups.push(async () => sql.end());
@@ -33,7 +33,7 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
     await sql`DELETE FROM "drizzle"."__drizzle_migrations" WHERE "hash" = ${await migrationHash()}`;
 
     await sql`DROP TRIGGER IF EXISTS heartbeat_runs_set_scope_kind ON heartbeat_runs`;
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const firstIssueId = randomUUID();
     const secondIssueId = randomUUID();
@@ -42,46 +42,46 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
     const maintenanceRunId = randomUUID();
 
     await sql`
-      INSERT INTO "companies" ("id", "name", "issue_prefix")
-      VALUES (${companyId}, 'Run Privacy', 'RPR')
+      INSERT INTO "spaces" ("id", "name", "issue_prefix")
+      VALUES (${spaceId}, 'Run Privacy', 'RPR')
     `;
     await sql`
-      INSERT INTO "agents" ("id", "company_id", "name", "role", "adapter_type", "adapter_config")
-      VALUES (${agentId}, ${companyId}, 'Runner', 'engineer', 'process', '{}'::jsonb)
+      INSERT INTO "agents" ("id", "space_id", "name", "role", "adapter_type", "adapter_config")
+      VALUES (${agentId}, ${spaceId}, 'Runner', 'engineer', 'process', '{}'::jsonb)
     `;
     await sql`
-      INSERT INTO "issues" ("id", "company_id", "title", "identifier")
+      INSERT INTO "issues" ("id", "space_id", "title", "identifier")
       VALUES
-        (${firstIssueId}, ${companyId}, 'First private task', 'RPR-1'),
-        (${secondIssueId}, ${companyId}, 'Second private task', 'RPR-2')
+        (${firstIssueId}, ${spaceId}, 'First private task', 'RPR-1'),
+        (${secondIssueId}, ${spaceId}, 'Second private task', 'RPR-2')
     `;
     await sql`
       INSERT INTO "heartbeat_runs" (
-        "id", "company_id", "agent_id", "status", "issue_id", "context_snapshot"
+        "id", "space_id", "agent_id", "status", "issue_id", "context_snapshot"
       )
       VALUES
-        (${firstRunId}, ${companyId}, ${agentId}, 'succeeded', NULL, ${sql.json({ issueId: firstIssueId })}),
-        (${secondRunId}, ${companyId}, ${agentId}, 'failed', NULL, ${sql.json({ taskId: secondIssueId })}),
-        (${maintenanceRunId}, ${companyId}, ${agentId}, 'succeeded', NULL, ${sql.json({ wakeReason: "heartbeat_timer" })})
+        (${firstRunId}, ${spaceId}, ${agentId}, 'succeeded', NULL, ${sql.json({ issueId: firstIssueId })}),
+        (${secondRunId}, ${spaceId}, ${agentId}, 'failed', NULL, ${sql.json({ taskId: secondIssueId })}),
+        (${maintenanceRunId}, ${spaceId}, ${agentId}, 'succeeded', NULL, ${sql.json({ wakeReason: "heartbeat_timer" })})
     `;
 
     const legacyProjectId = randomUUID();
-    await sql`INSERT INTO projects (id, company_id, name, visibility) VALUES (${legacyProjectId}, ${companyId}, 'Legacy private project', 'private')`;
-    await sql`INSERT INTO activity_log (company_id, actor_type, actor_id, action, entity_type, entity_id)
-      VALUES (${companyId}, 'user', 'original-owner', 'project.created', 'project', ${legacyProjectId})`;
-    await sql`INSERT INTO project_access_members (company_id, project_id, subject_type, subject_id)
-      VALUES (${companyId}, ${legacyProjectId}, 'user', 'ordinary-reader')`;
+    await sql`INSERT INTO projects (id, space_id, name, visibility) VALUES (${legacyProjectId}, ${spaceId}, 'Legacy private project', 'private')`;
+    await sql`INSERT INTO activity_log (space_id, actor_type, actor_id, action, entity_type, entity_id)
+      VALUES (${spaceId}, 'user', 'original-owner', 'project.created', 'project', ${legacyProjectId})`;
+    await sql`INSERT INTO project_access_members (space_id, project_id, subject_type, subject_id)
+      VALUES (${spaceId}, ${legacyProjectId}, 'user', 'ordinary-reader')`;
 
     const agentProjectId = randomUUID(), runProjectId = randomUUID(), preferredProjectId = randomUUID();
     await sql`UPDATE heartbeat_runs SET responsible_user_id = 'run-owner' WHERE id = ${secondRunId}`;
-    await sql`INSERT INTO projects (id, company_id, name, visibility) VALUES
-      (${agentProjectId}, ${companyId}, 'Agent API project', 'private'),
-      (${runProjectId}, ${companyId}, 'Run-backed project', 'private'),
-      (${preferredProjectId}, ${companyId}, 'Recorded owner project', 'private')`;
-    await sql`INSERT INTO activity_log (company_id, actor_type, actor_id, responsible_user_id, run_id, action, entity_type, entity_id) VALUES
-      (${companyId}, 'agent', ${agentId}, 'activity-owner', NULL, 'project.created', 'project', ${agentProjectId}),
-      (${companyId}, 'agent', ${agentId}, NULL, ${secondRunId}, 'project.created', 'project', ${runProjectId}),
-      (${companyId}, 'agent', ${agentId}, 'activity-owner', ${secondRunId}, 'project.created', 'project', ${preferredProjectId})`;
+    await sql`INSERT INTO projects (id, space_id, name, visibility) VALUES
+      (${agentProjectId}, ${spaceId}, 'Agent API project', 'private'),
+      (${runProjectId}, ${spaceId}, 'Run-backed project', 'private'),
+      (${preferredProjectId}, ${spaceId}, 'Recorded owner project', 'private')`;
+    await sql`INSERT INTO activity_log (space_id, actor_type, actor_id, responsible_user_id, run_id, action, entity_type, entity_id) VALUES
+      (${spaceId}, 'agent', ${agentId}, 'activity-owner', NULL, 'project.created', 'project', ${agentProjectId}),
+      (${spaceId}, 'agent', ${agentId}, NULL, ${secondRunId}, 'project.created', 'project', ${runProjectId}),
+      (${spaceId}, 'agent', ${agentId}, 'activity-owner', ${secondRunId}, 'project.created', 'project', ${preferredProjectId})`;
 
     await applyPendingMigrations(database.connectionString);
     for (const [projectId, owner] of [[agentProjectId, 'activity-owner'], [runProjectId, 'run-owner'], [preferredProjectId, 'activity-owner']]) {
@@ -106,7 +106,7 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
     expect(issueByRun.get(maintenanceRunId)).toBeNull();
     expect(rows.find((row) => row.id === firstRunId)?.scope_kind).toBe("issue");
     expect(rows.find((row) => row.id === secondRunId)?.scope_kind).toBe("issue");
-    expect(rows.find((row) => row.id === maintenanceRunId)?.scope_kind).toBe("company");
+    expect(rows.find((row) => row.id === maintenanceRunId)?.scope_kind).toBe("space");
 
     const [parity] = await sql<{ expected_count: number; populated_count: number }[]>`
       SELECT
@@ -118,11 +118,11 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
     expect(parity).toEqual({ expected_count: 2, populated_count: 2 });
 
     const [newRun] = await sql<{ id: string; issue_id: string | null; scope_kind: string }[]>`
-      INSERT INTO heartbeat_runs (company_id, agent_id, status, context_snapshot)
-      VALUES (${companyId}, ${agentId}, 'succeeded', ${sql.json({ taskId: secondIssueId })})
+      INSERT INTO heartbeat_runs (space_id, agent_id, status, context_snapshot)
+      VALUES (${spaceId}, ${agentId}, 'succeeded', ${sql.json({ taskId: secondIssueId })})
       RETURNING id, issue_id, scope_kind`;
     expect(newRun).toMatchObject({ issue_id: secondIssueId, scope_kind: "issue" });
-    await sql`UPDATE heartbeat_runs SET context_snapshot = '{}'::jsonb, scope_kind = 'company' WHERE id = ${newRun.id}`;
+    await sql`UPDATE heartbeat_runs SET context_snapshot = '{}'::jsonb, scope_kind = 'space' WHERE id = ${newRun.id}`;
     expect(await sql`SELECT issue_id, scope_kind FROM heartbeat_runs WHERE id = ${newRun.id}`)
       .toEqual([{ issue_id: secondIssueId, scope_kind: "issue" }]);
 
@@ -130,13 +130,13 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
       SELECT "indexname"
       FROM "pg_indexes"
       WHERE "schemaname" = 'public'
-        AND "indexname" = 'heartbeat_runs_company_issue_created_idx'
+        AND "indexname" = 'heartbeat_runs_space_issue_created_idx'
     `;
     expect(indexes).toHaveLength(1);
   }, 30_000);
 
   it("fails closed when a legacy issue claim cannot be resolved", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-run-issue-privacy-invalid-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-run-issue-privacy-invalid-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     cleanups.push(async () => sql.end());
@@ -144,39 +144,39 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
     await sql`DELETE FROM "drizzle"."__drizzle_migrations" WHERE "hash" = ${await migrationHash()}`;
 
     await sql`DROP TRIGGER IF EXISTS heartbeat_runs_set_scope_kind ON heartbeat_runs`;
-    const companyId = randomUUID();
-    const otherCompanyId = randomUUID();
+    const spaceId = randomUUID();
+    const otherSpaceId = randomUUID();
     const agentId = randomUUID();
     const foreignIssueId = randomUUID();
     await sql`
-      INSERT INTO "companies" ("id", "name", "issue_prefix")
+      INSERT INTO "spaces" ("id", "name", "issue_prefix")
       VALUES
-        (${companyId}, 'Run Privacy', 'RPI'),
-        (${otherCompanyId}, 'Other Company', 'RPO')
+        (${spaceId}, 'Run Privacy', 'RPI'),
+        (${otherSpaceId}, 'Other Space', 'RPO')
     `;
     await sql`
-      INSERT INTO "agents" ("id", "company_id", "name", "role", "adapter_type", "adapter_config")
-      VALUES (${agentId}, ${companyId}, 'Runner', 'engineer', 'process', '{}'::jsonb)
+      INSERT INTO "agents" ("id", "space_id", "name", "role", "adapter_type", "adapter_config")
+      VALUES (${agentId}, ${spaceId}, 'Runner', 'engineer', 'process', '{}'::jsonb)
     `;
     await sql`
-      INSERT INTO "issues" ("id", "company_id", "title", "identifier")
-      VALUES (${foreignIssueId}, ${otherCompanyId}, 'Foreign task', 'RPO-1')
+      INSERT INTO "issues" ("id", "space_id", "title", "identifier")
+      VALUES (${foreignIssueId}, ${otherSpaceId}, 'Foreign task', 'RPO-1')
     `;
     await sql`
-      INSERT INTO "heartbeat_runs" ("company_id", "agent_id", "status", "context_snapshot")
+      INSERT INTO "heartbeat_runs" ("space_id", "agent_id", "status", "context_snapshot")
       VALUES
-        (${companyId}, ${agentId}, 'succeeded', ${sql.json({ issueId: "not-a-uuid" })}),
-        (${companyId}, ${agentId}, 'succeeded', ${sql.json({ issueId: randomUUID() })}),
-        (${companyId}, ${agentId}, 'succeeded', ${sql.json({ issueId: foreignIssueId })}),
-        (${companyId}, ${agentId}, 'succeeded', ${sql.json({ taskId: "not-a-uuid" })}),
-        (${companyId}, ${agentId}, 'succeeded', ${sql.json({ taskId: randomUUID() })}),
-        (${companyId}, ${agentId}, 'succeeded', ${sql.json({ taskId: foreignIssueId })}),
-        (${companyId}, ${agentId}, 'succeeded', ${sql.json({ taskId: null })})
+        (${spaceId}, ${agentId}, 'succeeded', ${sql.json({ issueId: "not-a-uuid" })}),
+        (${spaceId}, ${agentId}, 'succeeded', ${sql.json({ issueId: randomUUID() })}),
+        (${spaceId}, ${agentId}, 'succeeded', ${sql.json({ issueId: foreignIssueId })}),
+        (${spaceId}, ${agentId}, 'succeeded', ${sql.json({ taskId: "not-a-uuid" })}),
+        (${spaceId}, ${agentId}, 'succeeded', ${sql.json({ taskId: randomUUID() })}),
+        (${spaceId}, ${agentId}, 'succeeded', ${sql.json({ taskId: foreignIssueId })}),
+        (${spaceId}, ${agentId}, 'succeeded', ${sql.json({ taskId: null })})
     `;
 
     await applyPendingMigrations(database.connectionString);
     const rows = await sql<{ issue_id: string | null; scope_kind: string }[]>`
-      SELECT issue_id, scope_kind FROM heartbeat_runs WHERE company_id = ${companyId}`;
+      SELECT issue_id, scope_kind FROM heartbeat_runs WHERE space_id = ${spaceId}`;
     expect(rows).toHaveLength(7);
     expect(rows.every(row => row.scope_kind === "issue" && row.issue_id === null)).toBe(true);
     // Re-running the migration preserves fail-closed tombstones and constraints.
@@ -185,24 +185,24 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
   }, 30_000);
 
   it("releases schema and completed-batch row locks and resumes after interruption", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-privacy-batch-commits-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-privacy-batch-commits-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     cleanups.push(async () => sql.end());
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
     const runId = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
-    await sql`INSERT INTO companies (id, name, issue_prefix) VALUES (${companyId}, 'Batch commits', 'BCH')`;
-    await sql`INSERT INTO agents (id, company_id, name, adapter_type) VALUES (${agentId}, ${companyId}, 'Runner', 'process')`;
-    await sql`INSERT INTO issues (id, company_id, title, visibility) VALUES (${issueId}, ${companyId}, 'Private task', 'private')`;
+    await sql`INSERT INTO spaces (id, name, issue_prefix) VALUES (${spaceId}, 'Batch commits', 'BCH')`;
+    await sql`INSERT INTO agents (id, space_id, name, adapter_type) VALUES (${agentId}, ${spaceId}, 'Runner', 'process')`;
+    await sql`INSERT INTO issues (id, space_id, title, visibility) VALUES (${issueId}, ${spaceId}, 'Private task', 'private')`;
     await sql`DROP TRIGGER heartbeat_runs_set_scope_kind ON heartbeat_runs`;
-    await sql`INSERT INTO heartbeat_runs (id, company_id, agent_id, status, context_snapshot)
+    await sql`INSERT INTO heartbeat_runs (id, space_id, agent_id, status, context_snapshot)
       SELECT ('00000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
-        ${companyId}::uuid, ${agentId}::uuid, 'succeeded', ${sql.json({ taskId: issueId })}::jsonb
+        ${spaceId}::uuid, ${agentId}::uuid, 'succeeded', ${sql.json({ taskId: issueId })}::jsonb
       FROM generate_series(1, 1001) n`;
     // A failed concurrent build must be repaired rather than skipped by
     // CREATE INDEX IF NOT EXISTS when the migration is retried.
-    await sql`DROP INDEX heartbeat_runs_company_issue_created_idx`;
-    await expect(sql.unsafe("CREATE UNIQUE INDEX CONCURRENTLY heartbeat_runs_company_issue_created_idx ON heartbeat_runs (company_id)"))
+    await sql`DROP INDEX heartbeat_runs_space_issue_created_idx`;
+    await expect(sql.unsafe("CREATE UNIQUE INDEX CONCURRENTLY heartbeat_runs_space_issue_created_idx ON heartbeat_runs (space_id)"))
       .rejects.toThrow();
     await sql.unsafe(`CREATE FUNCTION interrupt_privacy_batch_fixture() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN
@@ -210,7 +210,7 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
         RAISE EXCEPTION 'fixture interrupted second batch';
       END $$`);
     await sql.unsafe(`CREATE TRIGGER zzz_interrupt_privacy_batch_fixture BEFORE UPDATE ON heartbeat_runs
-      FOR EACH ROW WHEN (OLD.scope_kind = 'company' AND NEW.id = '${runId(1001)}'::uuid)
+      FOR EACH ROW WHEN (OLD.scope_kind = 'space' AND NEW.id = '${runId(1001)}'::uuid)
       EXECUTE FUNCTION interrupt_privacy_batch_fixture()`);
     const hash = await migrationHash();
     await sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash = ${hash}`;
@@ -222,7 +222,7 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
       // committed batch and write a row whose lock has already been released.
       await expect.poll(async () => {
         const [row] = await sql`SELECT count(*)::int AS n FROM heartbeat_runs
-          WHERE company_id = ${companyId} AND scope_kind = 'issue'`;
+          WHERE space_id = ${spaceId} AND scope_kind = 'issue'`;
         return row.n;
       }, { timeout: 10_000 }).toBe(1000);
       // The session lock survives batch commits and blocks another migrator.
@@ -231,7 +231,7 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
         const [row] = await sql`SELECT count(*)::int AS n FROM pg_stat_activity
           WHERE datname = current_database() AND query LIKE '%SELECT pg_try_advisory_lock%'
             AND query NOT LIKE '%FROM pg_stat_activity%'
-            AND strpos(query, 'paperclip:migrations') > 0`;
+            AND strpos(query, 'outpost:migrations') > 0`;
         return row.n;
       }, { timeout: 10_000 }).toBe(1);
       expect(await sql`SELECT hash FROM drizzle.__drizzle_migrations WHERE hash = ${hash}`).toHaveLength(0);
@@ -253,15 +253,15 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
     await sql`DROP FUNCTION interrupt_privacy_batch_fixture()`;
     await Promise.all([applyPendingMigrations(database.connectionString), applyPendingMigrations(database.connectionString)]);
     const [finished] = await sql`SELECT count(*)::int AS n FROM heartbeat_runs
-      WHERE company_id = ${companyId} AND scope_kind = 'issue' AND issue_id = ${issueId}`;
+      WHERE space_id = ${spaceId} AND scope_kind = 'issue' AND issue_id = ${issueId}`;
     expect(finished.n).toBe(1001);
-    expect(await sql`SELECT indisvalid FROM pg_index WHERE indexrelid = 'heartbeat_runs_company_issue_created_idx'::regclass`)
+    expect(await sql`SELECT indisvalid FROM pg_index WHERE indexrelid = 'heartbeat_runs_space_issue_created_idx'::regclass`)
       .toEqual([{ indisvalid: true }]);
     expect(await sql`SELECT hash FROM drizzle.__drizzle_migrations WHERE hash = ${hash}`).toHaveLength(1);
   }, 30_000);
 
   it("keeps all privacy triggers installed when replacement is interrupted", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-privacy-trigger-atomic-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-privacy-trigger-atomic-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     cleanups.push(async () => sql.end());
@@ -274,12 +274,12 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
       await expect(sql.unsafe(interrupted)).rejects.toThrow("fixture interrupted trigger replacement");
       expect(await sql`SELECT tgname FROM pg_trigger WHERE tgname = ${name} AND NOT tgisinternal`).toEqual([{ tgname: name }]);
     }
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-    await sql`INSERT INTO companies (id, name, issue_prefix) VALUES (${companyId}, 'Atomic triggers', 'ATR')`;
-    await sql`INSERT INTO agents (id, company_id, name, adapter_type) VALUES (${agentId}, ${companyId}, 'Runner', 'process')`;
-    await sql`INSERT INTO issues (id, company_id, title, visibility) VALUES (${issueId}, ${companyId}, 'Private', 'private')`;
-    expect(await sql`INSERT INTO heartbeat_runs (company_id, agent_id, status, context_snapshot)
-      VALUES (${companyId}, ${agentId}, 'succeeded', ${sql.json({ taskId: issueId })}) RETURNING issue_id, scope_kind`)
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    await sql`INSERT INTO spaces (id, name, issue_prefix) VALUES (${spaceId}, 'Atomic triggers', 'ATR')`;
+    await sql`INSERT INTO agents (id, space_id, name, adapter_type) VALUES (${agentId}, ${spaceId}, 'Runner', 'process')`;
+    await sql`INSERT INTO issues (id, space_id, title, visibility) VALUES (${issueId}, ${spaceId}, 'Private', 'private')`;
+    expect(await sql`INSERT INTO heartbeat_runs (space_id, agent_id, status, context_snapshot)
+      VALUES (${spaceId}, ${agentId}, 'succeeded', ${sql.json({ taskId: issueId })}) RETURNING issue_id, scope_kind`)
       .toEqual([{ issue_id: issueId, scope_kind: "issue" }]);
   }, 30_000);
 

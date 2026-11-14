@@ -28,7 +28,7 @@ export function createDiscordRuntimeReconciliation(db: Db, options: Reconciliati
         afterCommands.endpoint.botExternalId &&
         afterCommands.endpoint.providerAccountId
         ? await readRegisteredDiscordCommandRegistration(db, {
-          companyId: afterCommands.endpoint.companyId,
+          spaceId: afterCommands.endpoint.spaceId,
           endpointId: endpointId,
           applicationId: afterCommands.endpoint.botExternalId,
           guildId: afterCommands.endpoint.providerAccountId,
@@ -79,7 +79,7 @@ export function createDiscordRuntimeReconciliation(db: Db, options: Reconciliati
           .from(toolConnections)
           .where(
             and(
-              eq(toolConnections.companyId, current.companyId),
+              eq(toolConnections.spaceId, current.spaceId),
               eq(toolConnections.id, current.connectionId),
             ),
           )
@@ -99,7 +99,7 @@ export function createDiscordRuntimeReconciliation(db: Db, options: Reconciliati
           .set({ capabilities: { ...current.capabilities, modals: true } })
           .where(
             and(
-              eq(chatEndpoints.companyId, current.companyId),
+              eq(chatEndpoints.spaceId, current.spaceId),
               eq(chatEndpoints.id, current.id),
             ),
           );

@@ -34,7 +34,7 @@ export function historicalCleanupVerificationService(db: Db, inspectors: Inspect
             AND NOT (COALESCE(${environmentLeases.metadata}, '{}'::jsonb) ?| ARRAY['nativeWorkspaceExportResume', 'sandboxStopAndRetain'])`,
           sql`(${sql.raw(verifiedResourceCleanup('environment_leases', 'lease'))}) IS NOT TRUE`,
           sql`(${environmentLeases.heartbeatRunId} IS NULL OR EXISTS (SELECT 1 FROM heartbeat_runs historical_run
-            WHERE historical_run.id = ${environmentLeases.heartbeatRunId} AND historical_run.company_id = ${environmentLeases.companyId}
+            WHERE historical_run.id = ${environmentLeases.heartbeatRunId} AND historical_run.space_id = ${environmentLeases.spaceId}
               AND ${sql.raw(finishedIdleRun('historical_run'))}))`,
           sql`NOT EXISTS (SELECT 1 FROM environment_leases other_owner
             WHERE other_owner.id <> ${environmentLeases.id} AND other_owner.provider = ${environmentLeases.provider}
@@ -83,10 +83,10 @@ export function historicalCleanupVerificationService(db: Db, inspectors: Inspect
           result.deferred += 1; return;
         }
         const now = new Date();
-        const companyId = kind === "lease" ? (row as Lease).companyId
-          : typeof row.metadata?.setupRpcCompanyId === "string" && row.metadata.setupRpcCompanyId.trim()
-            ? row.metadata.setupRpcCompanyId.trim() : "instance";
-        const proof = { schema: CLEANUP_VERIFICATION_SCHEMA, kind, resourceId: row.id, companyId,
+        const spaceId = kind === "lease" ? (row as Lease).spaceId
+          : typeof row.metadata?.setupRpcSpaceId === "string" && row.metadata.setupRpcSpaceId.trim()
+            ? row.metadata.setupRpcSpaceId.trim() : "instance";
+        const proof = { schema: CLEANUP_VERIFICATION_SCHEMA, kind, resourceId: row.id, spaceId,
           environmentId: row.environmentId, provider: row.provider, providerLeaseId: row.providerLeaseId,
           heartbeatRunId: kind === "lease" ? (row as Lease).heartbeatRunId : null,
           state: "destroyed", confirmedAt: now.toISOString() };
@@ -97,7 +97,7 @@ export function historicalCleanupVerificationService(db: Db, inspectors: Inspect
         if (kind === "lease") {
           const lease = row as Lease;
           updated = await db.update(environmentLeases).set({ metadata, updatedAt: now }).where(and(
-            eq(environmentLeases.id, lease.id), eq(environmentLeases.companyId, lease.companyId),
+            eq(environmentLeases.id, lease.id), eq(environmentLeases.spaceId, lease.spaceId),
             eq(environmentLeases.status, "failed"), eq(environmentLeases.leasePolicy, "ephemeral"),
             eq(environmentLeases.cleanupStatus, "success"),
             sql`${environmentLeases.provider} IS NOT DISTINCT FROM ${lease.provider}
@@ -106,7 +106,7 @@ export function historicalCleanupVerificationService(db: Db, inspectors: Inspect
               AND ${environmentLeases.heartbeatRunId} IS NOT DISTINCT FROM ${lease.heartbeatRunId}::uuid
               AND ${environmentLeases.releasedAt} IS NOT NULL`,
             sql`(${environmentLeases.heartbeatRunId} IS NULL OR EXISTS (SELECT 1 FROM heartbeat_runs verify_run
-              WHERE verify_run.id = ${environmentLeases.heartbeatRunId} AND verify_run.company_id = ${environmentLeases.companyId}
+              WHERE verify_run.id = ${environmentLeases.heartbeatRunId} AND verify_run.space_id = ${environmentLeases.spaceId}
                 AND ${sql.raw(finishedIdleRun('verify_run'))}))`,
             sql`${sql.raw(cleanupRowStamp('environment_leases'))} = ${stamp}
               AND ${environmentLeases.metadata} IS NOT DISTINCT FROM ${(lease.metadata === null ? null : JSON.stringify(lease.metadata))}::jsonb`,

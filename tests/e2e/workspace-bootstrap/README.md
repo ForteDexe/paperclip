@@ -18,7 +18,7 @@ Production's longer snapshot deadline would outlast the injected failure.
 
 Set `BOOTSTRAP_REAL_GIT` to the absolute Git executable if it is not
 `/usr/bin/git`. Do not point this fixture at a normal development or production
-instance. The seeder checks the loopback host, trusted-local mode, and company
+instance. The seeder checks the loopback host, trusted-local mode, and space
 name. It does not create tasks; each test creates its task through the UI.
 
 Use the ready URL printed by test-drive:

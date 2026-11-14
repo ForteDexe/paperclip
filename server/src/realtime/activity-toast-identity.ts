@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { agents, authUsers, companyMemberships, issues, type Db } from "@outpost/db";
+import { agents, authUsers, spaceMemberships, issues, type Db } from "@outpost/db";
 import { logger } from "../middleware/logger.js";
 
 const TOAST_ACTIONS = new Set(["issue.created", "issue.updated", "issue.comment_added"]);
@@ -7,7 +7,7 @@ const TOAST_ACTIONS = new Set(["issue.created", "issue.updated", "issue.comment_
 /** Called only after the viewer can read the activity's task. Never copy details. */
 export async function activityToastIdentity(
   db: Db,
-  companyId: string,
+  spaceId: string,
   payload: Record<string, unknown>,
 ) {
   const actorType = typeof payload.actorType === "string" ? payload.actorType : null;
@@ -23,11 +23,11 @@ export async function activityToastIdentity(
       const [issue] = await db
         .select({ identifier: issues.identifier })
         .from(issues)
-        .where(and(eq(issues.companyId, companyId), eq(issues.id, issueId)))
+        .where(and(eq(issues.spaceId, spaceId), eq(issues.id, issueId)))
         .limit(1);
       issueIdentifier = issue?.identifier ?? null;
     } catch (err) {
-      logger.warn({ err, companyId, issueId }, "task toast identifier lookup failed");
+      logger.warn({ err, spaceId, issueId }, "task toast identifier lookup failed");
     }
   }
   const identity = { ...actorIdentity, ...(issueId ? { issueIdentifier } : {}) };
@@ -37,20 +37,20 @@ export async function activityToastIdentity(
     const [agent] = await db
       .select({ name: agents.name, appearance: agents.appearance })
       .from(agents)
-      .where(and(eq(agents.companyId, companyId), eq(agents.id, actorId)))
+      .where(and(eq(agents.spaceId, spaceId), eq(agents.id, actorId)))
       .limit(1);
     return { ...identity, actorName: agent?.name, actorAppearance: agent?.appearance };
   }
   if (actorType === "user") {
     const [user] = await db
       .select({ name: authUsers.name, image: authUsers.image })
-      .from(companyMemberships)
-      .innerJoin(authUsers, eq(authUsers.id, companyMemberships.principalId))
+      .from(spaceMemberships)
+      .innerJoin(authUsers, eq(authUsers.id, spaceMemberships.principalId))
       .where(and(
-        eq(companyMemberships.companyId, companyId),
-        eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.principalId, actorId),
-        eq(companyMemberships.status, "active"),
+        eq(spaceMemberships.spaceId, spaceId),
+        eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.principalId, actorId),
+        eq(spaceMemberships.status, "active"),
       ))
       .limit(1);
     return { ...identity, actorName: user?.name, actorImage: user?.image };

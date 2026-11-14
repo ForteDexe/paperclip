@@ -14,13 +14,13 @@ const migrationFile = "0332_little_night_nurse.sql";
     const database = await startEmbeddedPostgresTestDatabase("question-history-migration-");
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     try {
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const agentId = randomUUID();
-      await sql`INSERT INTO companies (id, name, issue_prefix) VALUES (${companyId}, 'Migration fixture', 'QHM')`;
-      await sql`INSERT INTO agents (id, company_id, name, role, adapter_type)
-        VALUES (${agentId}, ${companyId}, 'Fixture', 'engineer', 'process')`;
-      await sql`INSERT INTO agent_wakeup_requests (company_id, agent_id, source, idempotency_key, status)
-        SELECT ${companyId}::uuid, ${agentId}::uuid, 'automation', 'question-response:' || n::text, 'failed'
+      await sql`INSERT INTO spaces (id, name, issue_prefix) VALUES (${spaceId}, 'Migration fixture', 'QHM')`;
+      await sql`INSERT INTO agents (id, space_id, name, role, adapter_type)
+        VALUES (${agentId}, ${spaceId}, 'Fixture', 'engineer', 'process')`;
+      await sql`INSERT INTO agent_wakeup_requests (space_id, agent_id, source, idempotency_key, status)
+        SELECT ${spaceId}::uuid, ${agentId}::uuid, 'automation', 'question-response:' || n::text, 'failed'
         FROM generate_series(1, 3) n`;
       const content = await readFile(new URL(`./migrations/${migrationFile}`, import.meta.url), "utf8");
       const hash = createHash("sha256").update(content).digest("hex");
@@ -28,7 +28,7 @@ const migrationFile = "0332_little_night_nurse.sql";
       await sql.unsafe(`DROP INDEX ${indexName}`);
       // A failed concurrent UNIQUE build leaves the same invalid-index state
       // as an interrupted nonunique build, without relying on timing a cancel.
-      await expect(sql.unsafe(`CREATE UNIQUE INDEX CONCURRENTLY ${indexName} ON agent_wakeup_requests (company_id)`))
+      await expect(sql.unsafe(`CREATE UNIQUE INDEX CONCURRENTLY ${indexName} ON agent_wakeup_requests (space_id)`))
         .rejects.toThrow();
       const [invalid] = await sql`SELECT i.indisvalid FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
         WHERE c.relname = ${indexName}`;
@@ -38,9 +38,9 @@ const migrationFile = "0332_little_night_nurse.sql";
         FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = ${indexName}`;
       expect(rebuilt?.indisvalid).toBe(true);
       expect(rebuilt?.indisunique).toBe(false);
-      expect(rebuilt?.definition).toContain("company_id, idempotency_key");
+      expect(rebuilt?.definition).toContain("space_id, idempotency_key");
       expect(rebuilt?.definition).toContain("question-response:%");
-      const [wakes] = await sql`SELECT count(*)::int AS n FROM agent_wakeup_requests WHERE company_id = ${companyId}`;
+      const [wakes] = await sql`SELECT count(*)::int AS n FROM agent_wakeup_requests WHERE space_id = ${spaceId}`;
       expect(wakes?.n).toBe(3);
       const [history] = await sql`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations WHERE hash = ${hash}`;
       expect(history?.n).toBe(1);

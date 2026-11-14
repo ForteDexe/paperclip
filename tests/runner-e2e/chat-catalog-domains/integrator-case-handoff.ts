@@ -79,10 +79,10 @@ export const integratorCaseHandoffCases = [integratorDefinition("cases", "cases.
   try {
     await ctx.input.api.patch("/api/instance/settings/experimental", { enableCases: true });
     const p = await project(ctx, "Launch"); const reviewer = await fixtureWorker(ctx); await ctx.input.api.patch(`/api/agents/${reviewer.id}`, { name: "Riley", title: "Case reviewer", capabilities: "Reviews the same ordinary case task using saved findings; completes review without inventing terminal case closure." });
-    for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, ...[ctx.input.fixtures.agent.id, reviewer.id].map(scopeId => ({ scopeType: "agent", scopeId }))])
-      await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+    for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, ...[ctx.input.fixtures.agent.id, reviewer.id].map(scopeId => ({ scopeType: "agent", scopeId }))])
+      await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
     const gate = await startRunBriefGate(ctx, ctx.input.fixtures.agent.id); resources.get(ctx)!.gate = gate;
-    const kickoff = await ctx.input.api.post<HandoffCaseResult>(`/api/companies/${ctx.input.fixtures.company.id}/case-handoffs`, {
+    const kickoff = await ctx.input.api.post<HandoffCaseResult>(`/api/spaces/${ctx.input.fixtures.space.id}/case-handoffs`, {
       idempotencyKey: `morgan-primary-${ctx.input.nonce}`, case: { create: { caseType: "customer", title: "Mobile checkout investigation", projectId: p.id, fields: { browser: "mobile Safari", observed: "Tapping Pay does nothing; keyboard activation succeeds" } } }, toAgentId: ctx.input.fixtures.agent.id, phase: "investigation",
       instructions: "Read the saved customer observations and save a document with key findings on this ordinary task, keeping observation distinct from an unproven root cause. Then call the connected Website Brief read_website_brief tool to wait for the remaining source evidence. Do not complete or hand off this investigation until the person's next direction.",
       workflow_document_text: `# Owners and review\nMorgan investigates this same ordinary primary task and saves findings. Riley (${reviewer.id}) is the eligible next reviewer. A later explicit human review request must preserve this task and its findings. Case handoff authority belongs to the actual primary task execution. Riley reviews the saved findings, saves a review comment, and marks this review task done without a terminal case handoff. Case closure requires a later explicit accepted-fix decision.`,
@@ -99,14 +99,14 @@ export const integratorCaseHandoffCases = [integratorDefinition("cases", "cases.
       load: async () => ({ runs: await ctx.allRuns(), task: await ctx.input.api.get<OwnedTask>(`/api/issues/${kickoff.taskId}`) }),
       accept: value => value.runs.length === 1 && value.runs[0]?.status === "cancelled" && value.task.status === "in_progress" && !value.task.executionRunId && !value.task.checkoutRunId });
     gate.release();
-    await waitCaseCancellationAccounting(ctx, { companyId: ctx.input.fixtures.company.id, agentId: ctx.input.fixtures.agent.id, issueId: kickoff.taskId, runId: phase.runs[0]!.id });
+    await waitCaseCancellationAccounting(ctx, { spaceId: ctx.input.fixtures.space.id, agentId: ctx.input.fixtures.agent.id, issueId: kickoff.taskId, runId: phase.runs[0]!.id });
     return { project: p, reviewer: { id: reviewer.id, name: "Riley" }, respondentId: ctx.input.fixtures.agent.id, task: await ctx.input.api.get<OwnedTask>(`/api/issues/${kickoff.taskId}`),
       case: await ctx.input.api.get<CaseRecord>(`/api/cases/${kickoff.caseId}`), findings, interruptedTask: phase.task, interruptedRunId: phase.runs[0]!.id };
   } catch (error) { await cleanup(ctx); throw error; }
 }, observeHandoff, gradeIntegratorCaseHandoff, async (ctx, state) => {
   const task = state.task as Entity; const row = state.case as CaseRecord;
-  await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, task.title!);
-  await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/cases/${row.identifier}`, row.title);
+  await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, task.title!);
+  await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/cases/${row.identifier}`, row.title);
 }, { oracleVersion: "outpost.chat-catalog.case-handoff.structural.v2", sourceFiles: ["chat-catalog-domains/integrator-case-handoff.ts", "chat-catalog-domains/internal-run-brief.ts", "chat-catalog-domains/internal-definition.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/integrator-support.ts", "chat-scenarios/cases.yaml"],
   respondingAgent: { kind: "case-primary-owner", name: "Morgan", role: "engineer", canAssignTasks: true },
   expectedRunCount: 4, attemptTimeoutMs: 900_000, runPolicy: { kind: "terminal-counts", terminalStatusCounts: { cancelled: 1, succeeded: 3 } },

@@ -171,7 +171,7 @@ describe("Antigravity managed Runner credentials", () => {
   });
   it("settles the retained runtime refresh before reusing its original home", async () => {
     const managedHome = await home(), runtimeHome = await home();
-    const release = bindRetainedGoogleCredentialHome(managedHome, { companyId: "company", accountKey: managedHome });
+    const release = bindRetainedGoogleCredentialHome(managedHome, { spaceId: "space", accountKey: managedHome });
     const destination = join(managedHome, "antigravity-acp", "acp_token.json");
     const source = join(runtimeHome, "antigravity-acp", "auth-refresh.json");
     await writeFile(destination, credential("fixture-original"), { mode: 0o644 });
@@ -193,7 +193,7 @@ describe("Antigravity managed Runner credentials", () => {
   });
   it.each(["turn completion", "direct close"])("retries original process proof after rejected %s before reusing the original home, without clearing session failure", async origin => {
     const managedHome = await home(), runtimeHome = await home();
-    const release = bindRetainedGoogleCredentialHome(managedHome, { companyId: "company-retirement", accountKey: managedHome });
+    const release = bindRetainedGoogleCredentialHome(managedHome, { spaceId: "space-retirement", accountKey: managedHome });
     const destination = join(managedHome, "antigravity-acp", "acp_token.json"), source = join(runtimeHome, "antigravity-acp", "auth-refresh.json");
     await writeFile(destination, credential("fixture-original"), { mode: 0o600 });
     await writeFile(source, credential("fixture-refreshed"), { mode: 0o600 });
@@ -244,7 +244,7 @@ describe("Antigravity managed Runner credentials", () => {
       await writeFile(source, refreshed, { mode: 0o600 });
       const close = vi.fn(async () => {});
       const session = bindAntigravityCredentialTurn({ close } as unknown as NativeSession, { managedHome, runtimeHome, credential: original });
-      const release = bindRetainedGoogleCredentialHome(managedHome, { companyId: "company-atomic", accountKey: managedHome });
+      const release = bindRetainedGoogleCredentialHome(managedHome, { spaceId: "space-atomic", accountKey: managedHome });
       copyFault.phase = phase; copyFault.destination = destination; copyFault.source = source; copyFault.hits = 0;
       try {
         await expect(completeManagedNativeCredentialTurn(session)).rejects.toThrow("fixture " + phase);

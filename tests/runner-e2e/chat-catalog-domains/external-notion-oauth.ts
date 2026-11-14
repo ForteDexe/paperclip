@@ -102,8 +102,8 @@ export async function privateNotionOAuth(
       : {}),
     ...(options.intentId ? { issueId: ctx.issue()?.id } : {}),
     publicOrigin: origin.publicOrigin,
-    companyId: ctx.input.fixtures.company.id,
-    prefix: ctx.input.fixtures.company.issuePrefix ?? "",
+    spaceId: ctx.input.fixtures.space.id,
+    prefix: ctx.input.fixtures.space.issuePrefix ?? "",
     humanId: human.user.id,
     agentId: ctx.input.fixtures.agent.id,
     workspaceId: p.workspaceId!,
@@ -117,7 +117,7 @@ export async function privateNotionOAuth(
       "Setup blocker: Notion human/workspace/session prerequisite is outside the finite named-provider contract",
     );
   const directory = await mkdtemp(
-    path.join(tmpdir(), "paperclip-notion-oauth-"),
+    path.join(tmpdir(), "outpost-notion-oauth-"),
   );
   await chmod(directory, 0o700);
   try {

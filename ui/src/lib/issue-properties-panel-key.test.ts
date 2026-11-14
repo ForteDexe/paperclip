@@ -56,7 +56,7 @@ describe("buildIssuePropertiesPanelKey", () => {
       createIssue({
         watchdog: {
           id: "watchdog-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           watchdogAgentId: "agent-1",
           instructions: "Keep the tree moving.",
@@ -86,7 +86,7 @@ describe("buildIssuePropertiesPanelKey", () => {
         executionWorkspaceSettings: { mode: "isolated_workspace" },
         currentExecutionWorkspace: {
           id: "workspace-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           projectId: "project-1",
           projectWorkspaceId: "project-workspace-1",
           sourceIssueId: "issue-1",
@@ -95,12 +95,12 @@ describe("buildIssuePropertiesPanelKey", () => {
           name: "PAP-1 workspace",
           status: "active",
           deliveryState: "unknown",
-          cwd: "/tmp/paperclip/PAP-1",
+          cwd: "/tmp/outpost/PAP-1",
           repoUrl: null,
           baseRef: "master",
           branchName: "PAP-1-workspace",
           providerType: "git_worktree",
-          providerRef: "/tmp/paperclip/PAP-1",
+          providerRef: "/tmp/outpost/PAP-1",
           derivedFromExecutionWorkspaceId: null,
           lastUsedAt: new Date("2026-04-12T12:01:00.000Z"),
           openedAt: new Date("2026-04-12T12:01:00.000Z"),

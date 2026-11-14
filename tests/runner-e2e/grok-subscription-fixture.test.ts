@@ -7,8 +7,8 @@ import { stageGrokSubscriptionFixture } from "./grok-subscription-fixture.js";
 import { findSecretLeak, normalizedSecrets, sanitizeJson } from "./redaction.js";
 import { buildOutpostServerEnvironment } from "./harness-env.js";
 
-const companyId = "11111111-2222-4333-8444-555555555555";
-const raw = JSON.stringify({ [`https://auth.x.ai::${companyId}`]: {
+const spaceId = "11111111-2222-4333-8444-555555555555";
+const raw = JSON.stringify({ [`https://auth.x.ai::${spaceId}`]: {
   key: "fixture-access-credential", refresh_token: "fixture-refresh-credential", email: "fixture@example.invalid",
 } });
 const roots: string[] = [];
@@ -16,32 +16,32 @@ afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, {
 async function setup() {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), "grok-fixture-")));
   roots.push(root);
-  const home = path.join(root, "paperclip-home");
+  const home = path.join(root, "outpost-home");
   await mkdir(home);
   return { OUTPOST_RUNNER_E2E_TEMP_ROOT: root, OUTPOST_HOME: home, OUTPOST_INSTANCE_ID: "runner-e2e-test" };
 }
 
-it("stages only the explicit company credential privately and cleans refreshed state", async () => {
+it("stages only the explicit space credential privately and cleans refreshed state", async () => {
   const environment = await setup();
-  const remove = await stageGrokSubscriptionFixture({ raw, companyId, environment });
-  const home = resolveManagedGrokHomeDir(environment, companyId);
+  const remove = await stageGrokSubscriptionFixture({ raw, spaceId, environment });
+  const home = resolveManagedGrokHomeDir(environment, spaceId);
   expect(await readFile(path.join(home, "auth.json"), "utf8")).toBe(raw);
   expect((await stat(home)).mode & 0o777).toBe(0o700);
   expect((await stat(path.join(home, "auth.json"))).mode & 0o777).toBe(0o600);
-  await expect(stageGrokSubscriptionFixture({ raw, companyId, environment })).rejects.toThrow();
+  await expect(stageGrokSubscriptionFixture({ raw, spaceId, environment })).rejects.toThrow();
   await remove();
   await expect(stat(home)).rejects.toThrow();
 });
 
 it("refuses malformed credentials and nonisolated or redirected homes", async () => {
   const environment = await setup();
-  await expect(stageGrokSubscriptionFixture({ raw: "{}", companyId, environment })).rejects.toThrow("malformed");
-  await expect(stageGrokSubscriptionFixture({ raw, companyId: "../outside", environment })).rejects.toThrow("isolated");
-  await expect(stageGrokSubscriptionFixture({ raw, companyId, environment: { ...environment, OUTPOST_HOME: tmpdir() } })).rejects.toThrow("outside");
-  const home = resolveManagedGrokHomeDir(environment, companyId);
+  await expect(stageGrokSubscriptionFixture({ raw: "{}", spaceId, environment })).rejects.toThrow("malformed");
+  await expect(stageGrokSubscriptionFixture({ raw, spaceId: "../outside", environment })).rejects.toThrow("isolated");
+  await expect(stageGrokSubscriptionFixture({ raw, spaceId, environment: { ...environment, OUTPOST_HOME: tmpdir() } })).rejects.toThrow("outside");
+  const home = resolveManagedGrokHomeDir(environment, spaceId);
   await mkdir(path.dirname(home), { recursive: true });
   await symlink(tmpdir(), home);
-  await expect(stageGrokSubscriptionFixture({ raw, companyId, environment })).rejects.toThrow("redirected");
+  await expect(stageGrokSubscriptionFixture({ raw, spaceId, environment })).rejects.toThrow("redirected");
 });
 
 it("strips subscription input from the server environment and masks token fragments", () => {

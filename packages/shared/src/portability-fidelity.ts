@@ -6,7 +6,7 @@ export interface PortabilityFidelityWarning {
   message: string;
 }
 
-export const EXPORT_FIDELITY_REPORT_SCHEMA = "paperclip-export-fidelity-v1";
+export const EXPORT_FIDELITY_REPORT_SCHEMA = "outpost-export-fidelity-v1";
 
 export const EXPORT_FIDELITY_COUNT_KEYS = [
   "labelDefinitions",
@@ -25,7 +25,7 @@ export type ExportFidelityCounts = Record<(typeof EXPORT_FIDELITY_COUNT_KEYS)[nu
 
 export interface ExportFidelityReport {
   schema: typeof EXPORT_FIDELITY_REPORT_SCHEMA;
-  companyId: string;
+  spaceId: string;
   counts: ExportFidelityCounts;
   warnings: PortabilityFidelityWarning[];
   generatedAt: string;

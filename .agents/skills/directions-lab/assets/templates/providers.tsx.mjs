@@ -1,7 +1,7 @@
 export default () => `import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { CompanyProvider } from "@/context/CompanyContext";
+import { SpaceProvider } from "@/context/SpaceContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -14,9 +14,9 @@ export function LabProviders({ client, children }: { client: QueryClient; childr
     <MemoryRouter>
       <QueryClientProvider client={client}>
         <ThemeProvider>
-          <CompanyProvider>
+          <SpaceProvider>
             <TooltipProvider>{children}</TooltipProvider>
-          </CompanyProvider>
+          </SpaceProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </MemoryRouter>

@@ -6,7 +6,7 @@ type CompileCard = Parameters<typeof compileDescription>[0];
 
 const card = {
   id: "11111111-1111-4111-8111-111111111111",
-  companyId: "22222222-2222-4222-8222-222222222222",
+  spaceId: "22222222-2222-4222-8222-222222222222",
   interestPrompt: "Blocked launch work updated this week",
 } as CompileCard;
 
@@ -27,8 +27,8 @@ describe("status-card compile prompt", () => {
     for (const field of ["scope", "q", "status", "priority", "assigneeAgentId", "projectId", "labelId", "updatedWithin", "sort", "limit", "offset"]) {
       expect(description).toContain(`\`${field}\``);
     }
-    expect(description).toContain(`GET /api/companies/${card.companyId}/projects`);
-    expect(description).toContain(`GET /api/companies/${card.companyId}/labels`);
+    expect(description).toContain(`GET /api/spaces/${card.spaceId}/projects`);
+    expect(description).toContain(`GET /api/spaces/${card.spaceId}/labels`);
     expect(description).toContain(`PUT /api/status-cards/${card.id}/query`);
     expect(description).toContain(`GET /api/status-cards/${card.id}/dry-run`);
     expect(description).toContain(`PUT /api/status-cards/${card.id}/summary`);

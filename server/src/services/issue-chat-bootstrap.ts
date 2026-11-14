@@ -21,12 +21,12 @@ async function mapWithConcurrency<T, R>(items: readonly T[], concurrency: number
 /**
  * Resolve task references, keep the readable ones and read each in request
  * order. Missing, foreign and unreadable references are omitted without a
- * trace. The caller owns company scoping, authorization and the per-task
+ * trace. The caller owns space scoping, authorization and the per-task
  * payloads, which must match the individual task endpoints. A task named twice
  * (by UUID and by identifier) is read once and returned under each reference.
  */
-export async function readIssueChatBootstrapItems<TIssue extends { id: string; companyId: string }, TPayload extends object>(input: {
-  companyId: string;
+export async function readIssueChatBootstrapItems<TIssue extends { id: string; spaceId: string }, TPayload extends object>(input: {
+  spaceId: string;
   refs: readonly string[];
   resolve: (ref: string) => Promise<TIssue | null | undefined>;
   filterReadable: (issues: TIssue[]) => Promise<TIssue[]>;
@@ -36,7 +36,7 @@ export async function readIssueChatBootstrapItems<TIssue extends { id: string; c
   const concurrency = input.concurrency ?? ISSUE_CHAT_BOOTSTRAP_TASK_CONCURRENCY;
   const resolved = await mapWithConcurrency(input.refs, concurrency, async (ref) => {
     const issue = await input.resolve(ref);
-    return issue && issue.companyId === input.companyId ? { ref, issue } : null;
+    return issue && issue.spaceId === input.spaceId ? { ref, issue } : null;
   });
   const found = resolved.filter((entry): entry is { ref: string; issue: TIssue } => entry !== null);
   const issuesById = new Map<string, TIssue>();

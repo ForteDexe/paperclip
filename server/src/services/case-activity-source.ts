@@ -8,7 +8,7 @@ export function activityEntityIdCondition(entityType: string | undefined, entity
   if (entityType !== "case") return eq(activityLog.entityId, id);
   return or(eq(activityLog.entityId, id), sql<boolean>`exists (
     select 1 from ${cases} where ${cases.id}::text = ${activityLog.entityId}
-      and ${cases.companyId} = ${activityLog.companyId}
+      and ${cases.spaceId} = ${activityLog.spaceId}
       and ${cases.identifier} = ${id.toUpperCase()}
   )`)!;
 }
@@ -23,13 +23,13 @@ const CASE_ONLY_EVENT_KINDS = [
   "issue_unlinked", "child_linked", "attachment_added", "label_added", "label_removed",
 ];
 
-export function caseAwareActivitySource(db: Db, companyId: string) {
+export function caseAwareActivitySource(db: Db, spaceId: string) {
   return unionAll(
     db.select(getTableColumns(activityLog)).from(activityLog)
-      .where(eq(activityLog.companyId, companyId)),
+      .where(eq(activityLog.spaceId, spaceId)),
     db.select({
       id: caseEvents.id,
-      companyId: caseEvents.companyId,
+      spaceId: caseEvents.spaceId,
       actorType: caseEvents.actorType,
       actorId: sql<string>`coalesce(${caseEvents.actorAgentId}::text, ${caseEvents.actorUserId}, 'system')`.as("actor_id"),
       action: sql<string>`'case.' || ${caseEvents.kind}`.as("action"),
@@ -41,7 +41,7 @@ export function caseAwareActivitySource(db: Db, companyId: string) {
       details: caseEvents.payload,
       createdAt: caseEvents.createdAt,
     }).from(caseEvents).where(and(
-      eq(caseEvents.companyId, companyId),
+      eq(caseEvents.spaceId, spaceId),
       inArray(caseEvents.kind, CASE_ONLY_EVENT_KINDS),
     )),
   ).as("activity_log");

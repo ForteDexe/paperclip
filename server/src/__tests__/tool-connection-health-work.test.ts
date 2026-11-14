@@ -1,13 +1,13 @@
 import { logger } from "../middleware/logger.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
-import { deleteCompany } from "../services/company-deletion.js";
+import { deleteSpace } from "../services/space-deletion.js";
 import { notifyChatConnectionHealth } from "../services/chat-channels/connection-health-notifications.js";
 import { smokeLabService } from "../services/smoke-lab.js";
 import { toolAccessService } from "../services/tool-access.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq, ne, sql } from "drizzle-orm";
-import { applyPendingMigrations, companies, createDb, subscribeDatabaseWork, toolApplications, toolConnections } from "@outpost/db";
+import { applyPendingMigrations, spaces, createDb, subscribeDatabaseWork, toolApplications, toolConnections } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { connectionHealthSchedule } from "../services/tool-access/catalog/health-schedule.js";
@@ -21,7 +21,7 @@ const external = resolveExternalTestDatabaseUrl("OUTPOST_TOOL_HEALTH_TEST_DATABA
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("scheduled tool connection health", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
-  let db: ReturnType<typeof createDb>, companyId: string, applicationId: string;
+  let db: ReturnType<typeof createDb>, spaceId: string, applicationId: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let draining = false;
   const errors: unknown[] = [];
@@ -32,9 +32,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 6, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
   }, 30_000);
   beforeEach(async () => {
-    companyId = randomUUID(); draining = false; errors.length = 0;
-    await db.insert(companies).values({ id: companyId, name: "Tool health", issuePrefix: `H${companyId.slice(0, 6)}` });
-    const [app] = await db.insert(toolApplications).values({ companyId, name: "Health fixture", type: "mcp_http" }).returning();
+    spaceId = randomUUID(); draining = false; errors.length = 0;
+    await db.insert(spaces).values({ id: spaceId, name: "Tool health", issuePrefix: `H${spaceId.slice(0, 6)}` });
+    const [app] = await db.insert(toolApplications).values({ spaceId, name: "Health fixture", type: "mcp_http" }).returning();
     applicationId = app.id;
     probe.mockReset(); probe.mockImplementation(async (id: string) => {
       const [connection] = await db.select().from(toolConnections).where(eq(toolConnections.id, id));
@@ -49,16 +49,16 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   afterEach(async () => {
     await coordinator?.stop(); coordinator = undefined;
     vi.useRealTimers(); vi.restoreAllMocks();
-    await db.delete(companies).where(eq(companies.id, companyId));
+    await db.delete(spaces).where(eq(spaces.id, spaceId));
     expect(errors).toEqual([]);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   function connection(patch: Partial<typeof toolConnections.$inferInsert> = {}, signal = true) {
     const id = patch.id ?? randomUUID();
     const insert = async (writer: typeof db) => (await writer.insert(toolConnections).values({
-      id, companyId, applicationId, name: "Check", uid: randomUUID(), transport: "mcp_remote", status: "active", enabled: true, ...patch,
+      id, spaceId, applicationId, name: "Check", uid: randomUUID(), transport: "mcp_remote", status: "active", enabled: true, ...patch,
     }).returning())[0];
-    return signal ? writeToolConnectionHealthChange(db, { companyId, id }, insert) : insert(db);
+    return signal ? writeToolConnectionHealthChange(db, { spaceId, id }, insert) : insert(db);
   }
   async function start(service = connectionHealthSchedule(db, probe)) {
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => !draining, canReconcile: () => true, onError: error => errors.push(error) });
@@ -92,10 +92,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     reads.mockRestore(); writes.mockRestore();
     await vi.advanceTimersByTimeAsync(due - Date.now()); await checked();
   });
-  it("refreshes only the changed connection after real API writes in a large company", async () => {
+  it("refreshes only the changed connection after real API writes in a large space", async () => {
     const checkedAt = new Date();
     const rows = await db.insert(toolConnections).values(Array.from({ length: 205 }, (_, index) => ({
-      companyId, applicationId, name: `Inventory ${index}`, uid: randomUUID(), transport: "mcp_remote" as const,
+      spaceId, applicationId, name: `Inventory ${index}`, uid: randomUUID(), transport: "mcp_remote" as const,
       config: { url: "https://health.example.test/mcp" },
       status: "active" as const, enabled: true, healthCheckedAt: checkedAt,
     }))).returning();
@@ -117,22 +117,22 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const enabled = (await settings.getExperimental()).enableSmokeLab;
     const tools = toolAccessService(db);
     const smoke = smokeLabService(db, { deploymentMode: "local_trusted", deploymentExposure: "private" });
-    const install = () => kind === "example" ? tools.installExample(companyId, "safe-read-only-todo-kv")
-      : smoke.installFixtures(companyId);
+    const install = () => kind === "example" ? tools.installExample(spaceId, "safe-read-only-todo-kv")
+      : smoke.installFixtures(spaceId);
     try {
       if (kind === "smoke") await settings.updateExperimental({ enableSmokeLab: true });
       await install();
-      const fixtureConnections = await db.select().from(toolConnections).where(eq(toolConnections.companyId, companyId));
+      const fixtureConnections = await db.select().from(toolConnections).where(eq(toolConnections.spaceId, spaceId));
       const [application] = await db.select().from(toolApplications).where(and(
-        eq(toolApplications.companyId, companyId), ne(toolApplications.id, applicationId),
+        eq(toolApplications.spaceId, spaceId), ne(toolApplications.id, applicationId),
       ));
       const checkedAt = new Date();
       const unrelated = await db.insert(toolConnections).values(Array.from({ length: 205 }, (_, index) => ({
-        companyId, applicationId: application.id, name: `Other ${index}`, uid: randomUUID(),
+        spaceId, applicationId: application.id, name: `Other ${index}`, uid: randomUUID(),
         transport: "mcp_remote" as const, enabled: true, status: "active" as const,
         healthCheckedAt: checkedAt, config: { url: "https://health.example.test/mcp" },
       }))).returning({ id: toolConnections.id });
-      await db.update(toolConnections).set({ healthCheckedAt: checkedAt }).where(eq(toolConnections.companyId, companyId));
+      await db.update(toolConnections).set({ healthCheckedAt: checkedAt }).where(eq(toolConnections.spaceId, spaceId));
       const service = connectionHealthSchedule(db, probe), load = service.load;
       let returnedRows = 0, excludedApplicationLoaded = false;
       const loadedIds = new Set<string>();
@@ -147,8 +147,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         await install(); await idleAt(checkedAt.getTime() + 900_000);
       }
       expect(returnedRows).toBeLessThanOrEqual(10 * fixtureConnections.length);
-      await writeToolConnectionHealthChange(db, { companyId, applicationId: application.id }, async tx => {
-        await tx.update(toolApplications).set({ type: "paperclip_plugin" }).where(eq(toolApplications.id, application.id));
+      await writeToolConnectionHealthChange(db, { spaceId, applicationId: application.id }, async tx => {
+        await tx.update(toolApplications).set({ type: "outpost_plugin" }).where(eq(toolApplications.id, application.id));
       });
       await vi.advanceTimersByTimeAsync(31_000);
       await vi.waitFor(() => expect(excludedApplicationLoaded).toBe(true));
@@ -164,7 +164,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("notifies restored application eligibility after waiting for a concurrent type change", async () => {
     const tools = toolAccessService(db);
-    const installed = await tools.installExample(companyId, "safe-read-only-todo-kv");
+    const installed = await tools.installExample(spaceId, "safe-read-only-todo-kv");
     const hints = new Set<string>();
     const unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.toolConnectionHealth, (event, changed) => {
       if (event === "settled") for (const hint of changed ?? []) hints.add(hint);
@@ -173,13 +173,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const gate = new Promise<void>(resolve => { unlock = resolve; });
     const admitted = new Promise<void>(resolve => { acquired = resolve; });
     const holder = db.transaction(async tx => {
-      await tx.update(toolApplications).set({ type: "paperclip_plugin" }).where(eq(toolApplications.id, installed.application.id));
+      await tx.update(toolApplications).set({ type: "outpost_plugin" }).where(eq(toolApplications.id, installed.application.id));
       acquired(); await gate;
     });
     await admitted;
     let installing: ReturnType<typeof tools.installExample> | undefined;
     try {
-      installing = tools.installExample(companyId, "safe-read-only-todo-kv");
+      installing = tools.installExample(spaceId, "safe-read-only-todo-kv");
       void installing.catch(() => undefined);
       await vi.waitFor(async () => {
         const waits = await db.execute(sql`select 1 from pg_stat_activity where datname = current_database()
@@ -187,7 +187,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         expect(waits.length).toBe(1);
       });
       unlock(); await holder; await installing;
-      expect(hints.has(`${companyId}:application:${installed.application.id}`)).toBe(true);
+      expect(hints.has(`${spaceId}:application:${installed.application.id}`)).toBe(true);
       expect((await db.select().from(toolApplications).where(eq(toolApplications.id, installed.application.id)))[0].type).toBe("mcp_stdio");
     } finally {
       unlock(); await Promise.allSettled([holder, installing]); unsubscribe();
@@ -197,11 +197,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("pages startup inventory while retaining every eligible deadline", async () => {
     const checkedAt = new Date();
     await db.insert(toolConnections).values(Array.from({ length: 205 }, (_, index) => ({
-      companyId, applicationId, name: `Page ${index}`, uid: randomUUID(), transport: "mcp_remote" as const,
+      spaceId, applicationId, name: `Page ${index}`, uid: randomUUID(), transport: "mcp_remote" as const,
       status: "active" as const, enabled: true, healthCheckedAt: checkedAt,
     })));
     const reads = vi.spyOn(db, "select");
-    const rows = await connectionHealthSchedule(db, probe).load(companyId);
+    const rows = await connectionHealthSchedule(db, probe).load(spaceId);
     expect(rows).toHaveLength(205);
     expect(new Set(rows.map(row => row.id)).size).toBe(205);
     expect(reads).toHaveBeenCalledTimes(3);
@@ -209,18 +209,18 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   it("invalidates an application's cached deadlines without removing another application's work", async () => {
     const checkedAt = new Date();
-    const [otherApp] = await db.insert(toolApplications).values({ companyId, name: "Other app", type: "mcp_http" }).returning();
+    const [otherApp] = await db.insert(toolApplications).values({ spaceId, name: "Other app", type: "mcp_http" }).returning();
     await connection({ healthCheckedAt: checkedAt });
     const other = await connection({ applicationId: otherApp.id, healthCheckedAt: new Date(checkedAt.getTime() + 60_000) });
     const service = connectionHealthSchedule(db, probe), load = vi.spyOn(service, "load");
     await start(service); await idleAt(checkedAt.getTime() + 900_000); load.mockClear();
-    await writeToolConnectionHealthChange(db, { companyId, applicationId }, async tx => {
-      await tx.update(toolApplications).set({ type: "paperclip_plugin" }).where(eq(toolApplications.id, applicationId));
+    await writeToolConnectionHealthChange(db, { spaceId, applicationId }, async tx => {
+      await tx.update(toolApplications).set({ type: "outpost_plugin" }).where(eq(toolApplications.id, applicationId));
     });
     await idleAt(other.healthCheckedAt!.getTime() + 900_000);
-    expect(load).toHaveBeenCalledWith(companyId, undefined, applicationId, expect.any(AbortSignal));
+    expect(load).toHaveBeenCalledWith(spaceId, undefined, applicationId, expect.any(AbortSignal));
     expect(load).toHaveBeenCalledTimes(1);
-    await writeToolConnectionHealthChange(db, { companyId, applicationId }, async tx => {
+    await writeToolConnectionHealthChange(db, { spaceId, applicationId }, async tx => {
       await tx.update(toolApplications).set({ type: "mcp_http" }).where(eq(toolApplications.id, applicationId));
     });
     await idleAt(checkedAt.getTime() + 900_000);
@@ -230,7 +230,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const checkedAt = new Date();
     const first = await connection({ healthCheckedAt: checkedAt });
     const other = await connection({ healthCheckedAt: new Date(checkedAt.getTime() + 60_000) });
-    const [plugin] = await db.insert(toolApplications).values({ companyId, name: "Excluded app", type: "paperclip_plugin" }).returning();
+    const [plugin] = await db.insert(toolApplications).values({ spaceId, name: "Excluded app", type: "outpost_plugin" }).returning();
     await start(); await idleAt(checkedAt.getTime() + 900_000);
     await writeToolConnectionHealthChange(db, first, async tx => {
       await tx.update(toolConnections).set({ applicationId: plugin.id }).where(eq(toolConnections.id, first.id));
@@ -247,22 +247,22 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   it("reactivates on the first committed connection and disarms after deletion", async () => {
     await start(); await quiet(); const row = await connection(); await checked();
-    await writeToolConnectionHealthChange(db, companyId, async tx => { await tx.delete(toolConnections).where(eq(toolConnections.id, row.id)); });
+    await writeToolConnectionHealthChange(db, spaceId, async tx => { await tx.delete(toolConnections).where(eq(toolConnections.id, row.id)); });
     await quiet();
   });
   it("defers nested creation until the outer transaction commits and ignores rollback", async () => {
     await start(); await quiet();
     await expect(db.transaction(async tx => {
-      await writeToolConnectionHealthChange(tx as unknown as typeof db, companyId, async writer => {
-        await writer.insert(toolConnections).values({ companyId, applicationId, name: "Rollback", uid: randomUUID(), transport: "mcp_remote", status: "active", enabled: true });
+      await writeToolConnectionHealthChange(tx as unknown as typeof db, spaceId, async writer => {
+        await writer.insert(toolConnections).values({ spaceId, applicationId, name: "Rollback", uid: randomUUID(), transport: "mcp_remote", status: "active", enabled: true });
       });
       await vi.advanceTimersByTimeAsync(60_000); expect(probe).not.toHaveBeenCalled();
       throw new Error("abort");
     })).rejects.toThrow("abort");
     await quiet();
     await db.transaction(async tx => {
-      await writeToolConnectionHealthChange(tx as unknown as typeof db, companyId, async writer => {
-        await writer.insert(toolConnections).values({ companyId, applicationId, name: "Commit", uid: randomUUID(), transport: "mcp_remote", status: "active", enabled: true });
+      await writeToolConnectionHealthChange(tx as unknown as typeof db, spaceId, async writer => {
+        await writer.insert(toolConnections).values({ spaceId, applicationId, name: "Commit", uid: randomUUID(), transport: "mcp_remote", status: "active", enabled: true });
       });
       await vi.advanceTimersByTimeAsync(60_000); expect(probe).not.toHaveBeenCalled();
     });
@@ -280,7 +280,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("moves the deadline when an actual-use health observation commits", async () => {
     const row = await connection({ healthCheckedAt: new Date() }); await start();
     const checkedAt = new Date(Date.now() + 60_000);
-    await writeToolConnectionHealthChange(db, companyId, async tx => { await tx.update(toolConnections).set({ healthCheckedAt: checkedAt }).where(eq(toolConnections.id, row.id)); });
+    await writeToolConnectionHealthChange(db, spaceId, async tx => { await tx.update(toolConnections).set({ healthCheckedAt: checkedAt }).where(eq(toolConnections.id, row.id)); });
     await idleAt(checkedAt.getTime() + 900_000); expect(probe).not.toHaveBeenCalled();
   });
   it("reconstructs saved future checks after restart", async () => {
@@ -305,7 +305,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       remoteHttpEndpointLookup: async () => [{ address: "8.8.8.8", family: 4 }], remoteHttpRequest: requests,
     });
     await start(tools.scheduledHealth); await quiet();
-    const row = await tools.createConnection(companyId, { applicationId, name: "Real producer", connectionPurpose: "tool", transport: "mcp_remote", authKind: "none", ownership: "customer",
+    const row = await tools.createConnection(spaceId, { applicationId, name: "Real producer", connectionPurpose: "tool", transport: "mcp_remote", authKind: "none", ownership: "customer",
       status: "active", connectionKind: "managed", enabled: true, credentialSecretRefs: [],
       config: { url: "https://health.example.test/mcp" }, transportConfig: { url: "https://health.example.test/mcp" } });
     await vi.waitFor(async () => {
@@ -319,17 +319,17 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const [stored] = await db.select().from(toolConnections).where(eq(toolConnections.id, row.id));
     await idleAt(stored.healthCheckedAt!.getTime() + 900_000);
     expect(requests).toHaveBeenCalledOnce();
-    await tools.archiveConnection(row.id, companyId); await quiet();
+    await tools.archiveConnection(row.id, spaceId); await quiet();
   });
 
-  it("checks a quiet company in the first batch despite another company's unchecked backlog", async () => {
+  it("checks a quiet space in the first batch despite another space's unchecked backlog", async () => {
     for (let index = 0; index < 30; index++) await connection({}, false);
     const otherId = randomUUID();
-    await db.insert(companies).values({ id: otherId, name: "Quiet health", issuePrefix: `Q${otherId.slice(0, 6)}` });
-    const [app] = await db.insert(toolApplications).values({ companyId: otherId, name: "Quiet health", type: "mcp_http" }).returning();
+    await db.insert(spaces).values({ id: otherId, name: "Quiet health", issuePrefix: `Q${otherId.slice(0, 6)}` });
+    const [app] = await db.insert(toolApplications).values({ spaceId: otherId, name: "Quiet health", type: "mcp_http" }).returning();
     try {
       const [other] = await db.insert(toolConnections).values({
-        companyId: otherId, applicationId: app.id, name: "Quiet", uid: randomUUID(), transport: "mcp_remote",
+        spaceId: otherId, applicationId: app.id, name: "Quiet", uid: randomUUID(), transport: "mcp_remote",
         status: "active", enabled: true, healthCheckedAt: new Date(Date.now() - 901_000),
       }).returning();
       await start();
@@ -337,41 +337,41 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       expect(probe.mock.calls.map(([id]) => id)).toContain(other.id);
     } finally {
       await coordinator?.stop(); coordinator = undefined;
-      await db.delete(companies).where(eq(companies.id, otherId));
+      await db.delete(spaces).where(eq(spaces.id, otherId));
     }
   });
 
-  it("continues another company's checks when one scope cannot refresh", async () => {
+  it("continues another space's checks when one scope cannot refresh", async () => {
     const service = connectionHealthSchedule(db, probe), load = service.load;
     await start(service); await quiet();
-    service.load = async (...args) => { if (args[0] === companyId) throw new Error("scope unavailable"); return load(...args); };
+    service.load = async (...args) => { if (args[0] === spaceId) throw new Error("scope unavailable"); return load(...args); };
     const otherId = randomUUID();
-    await db.insert(companies).values({ id: otherId, name: "Other", issuePrefix: `O${otherId.slice(0, 6)}` });
-    const [app] = await db.insert(toolApplications).values({ companyId: otherId, name: "Other health", type: "mcp_http" }).returning();
+    await db.insert(spaces).values({ id: otherId, name: "Other", issuePrefix: `O${otherId.slice(0, 6)}` });
+    const [app] = await db.insert(toolApplications).values({ spaceId: otherId, name: "Other health", type: "mcp_http" }).returning();
     try {
       await connection();
       const [other] = await writeToolConnectionHealthChange(db, otherId, tx => tx.insert(toolConnections).values({
-        companyId: otherId, applicationId: app.id, name: "Other", uid: randomUUID(), transport: "mcp_remote", status: "active", enabled: true,
+        spaceId: otherId, applicationId: app.id, name: "Other", uid: randomUUID(), transport: "mcp_remote", status: "active", enabled: true,
       }).returning());
       await checked(); expect(probe.mock.calls[0][0]).toBe(other.id);
-    } finally { service.load = load; await db.delete(companies).where(eq(companies.id, otherId)); errors.length = 0; }
+    } finally { service.load = load; await db.delete(spaces).where(eq(spaces.id, otherId)); errors.length = 0; }
   });
-  it("does not accelerate failed inventory reads while another company drains multiple pages", async () => {
+  it("does not accelerate failed inventory reads while another space drains multiple pages", async () => {
     const service = connectionHealthSchedule(db, probe), load = service.load;
     await start(service); await quiet();
     const failedAt: number[] = [];
     service.load = async (...args) => {
-      if (args[0] === companyId) { failedAt.push(Date.now()); throw new Error("scope unavailable"); }
+      if (args[0] === spaceId) { failedAt.push(Date.now()); throw new Error("scope unavailable"); }
       return load(...args);
     };
     const otherId = randomUUID();
-    await db.insert(companies).values({ id: otherId, name: "Backlog", issuePrefix: `B${otherId.slice(0, 6)}` });
-    const [app] = await db.insert(toolApplications).values({ companyId: otherId, name: "Backlog", type: "mcp_http" }).returning();
+    await db.insert(spaces).values({ id: otherId, name: "Backlog", issuePrefix: `B${otherId.slice(0, 6)}` });
+    const [app] = await db.insert(toolApplications).values({ spaceId: otherId, name: "Backlog", type: "mcp_http" }).returning();
     try {
       draining = true;
       await connection();
       await writeToolConnectionHealthChange(db, otherId, tx => tx.insert(toolConnections).values(
-        Array.from({ length: 60 }, () => ({ companyId: otherId, applicationId: app.id, name: "Due", uid: randomUUID(),
+        Array.from({ length: 60 }, () => ({ spaceId: otherId, applicationId: app.id, name: "Due", uid: randomUUID(),
           transport: "mcp_remote" as const, status: "active" as const, enabled: true })),
       ));
       draining = false;
@@ -388,48 +388,48 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       expect(reads).not.toHaveBeenCalled(); reads.mockRestore();
     } finally {
       draining = false; service.load = load; await coordinator?.stop(); coordinator = undefined;
-      await db.delete(companies).where(eq(companies.id, otherId)); errors.length = 0;
+      await db.delete(spaces).where(eq(spaces.id, otherId)); errors.length = 0;
     }
   });
   it("cancels and restores experimental connector checks through the settings producer", async () => {
     const settings = instanceSettingsService(db);
-    const original = (await settings.getExperimental()).enablePaperclipNotebook;
+    const original = (await settings.getExperimental()).enableOutpostNotebook;
     try {
-      await settings.updateExperimental({ enablePaperclipNotebook: false });
-      await connection({ config: { sourceTemplateKey: "paperclip-notebook" } });
+      await settings.updateExperimental({ enableOutpostNotebook: false });
+      await connection({ config: { sourceTemplateKey: "outpost-notebook" } });
       await start(); await quiet(); expect(probe).not.toHaveBeenCalled();
-      await settings.updateExperimental({ enablePaperclipNotebook: true });
+      await settings.updateExperimental({ enableOutpostNotebook: true });
       await checked();
-      await settings.updateExperimental({ enablePaperclipNotebook: false });
+      await settings.updateExperimental({ enableOutpostNotebook: false });
       await quiet();
     } finally {
       await coordinator?.stop(); coordinator = undefined;
-      await settings.updateExperimental({ enablePaperclipNotebook: original });
+      await settings.updateExperimental({ enableOutpostNotebook: original });
     }
   });
-  it("cancels a company's cached deadline when the real deletion service commits", async () => {
+  it("cancels a space's cached deadline when the real deletion service commits", async () => {
     const checkedAt = new Date(); await connection({ healthCheckedAt: checkedAt });
     await start(); await idleAt(checkedAt.getTime() + 900_000);
-    await deleteCompany(db, companyId); await quiet(); expect(probe).not.toHaveBeenCalled();
+    await deleteSpace(db, spaceId); await quiet(); expect(probe).not.toHaveBeenCalled();
   });
   it("keeps SDK-only chat mutations quiet and wakes the existing voice obligation", async () => {
     const voice = await connection({ transport: "voice", connectionPurpose: "channel", status: "draft", enabled: false });
     await start(); await quiet();
-    await db.transaction(async tx => { await notifyChatConnectionHealth(tx, { companyId, connectionId: voice.id, provider: "slack" }); });
+    await db.transaction(async tx => { await notifyChatConnectionHealth(tx, { spaceId, connectionId: voice.id, provider: "slack" }); });
     await quiet();
     await db.transaction(async tx => {
-      await notifyChatConnectionHealth(tx, { companyId, connectionId: voice.id, provider: "speko" });
+      await notifyChatConnectionHealth(tx, { spaceId, connectionId: voice.id, provider: "speko" });
       await tx.update(toolConnections).set({ status: "active", enabled: true }).where(eq(toolConnections.id, voice.id));
     });
     await checked(); expect(probe.mock.calls[0][0]).toBe(voice.id);
   });
-  it("retains a producer wake arriving while its company is being refreshed", async () => {
+  it("retains a producer wake arriving while its space is being refreshed", async () => {
     const service = connectionHealthSchedule(db, probe), load = service.load;
     await start(service); await quiet();
     let inserted = false;
     service.load = async (...args) => {
       const rows = await load(...args);
-      if (args[0] === companyId && !inserted) { inserted = true; await connection(); }
+      if (args[0] === spaceId && !inserted) { inserted = true; await connection(); }
       return rows;
     };
     await connection(); await checked(2);
@@ -481,7 +481,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const [stored] = await db.select().from(toolConnections).where(eq(toolConnections.id, row.id));
     expect(stored.healthCheckedAt).not.toBeNull();
     expect(warnings).toHaveBeenCalledWith(
-      { companyId, connectionId: row.id }, "Scheduled tool connection health check failed",
+      { spaceId, connectionId: row.id }, "Scheduled tool connection health check failed",
     );
     expect(JSON.stringify(warnings.mock.calls)).not.toContain("private-provider-response");
     const due = stored.healthCheckedAt!.getTime() + 900_000;

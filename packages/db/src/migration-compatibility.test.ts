@@ -33,7 +33,7 @@ const cases: readonly Case[] = [
   ["constraints on a table created here", `${NEW_TABLE}ALTER TABLE "widgets" ADD CONSTRAINT "widgets_issue_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issues"("id") ON DELETE cascade ON UPDATE no action;`, "online_compatible", "alter_new_table"],
   ["trigger on a table created here", `${NEW_TABLE}CREATE TRIGGER widgets_touch BEFORE UPDATE OF issue_id ON "widgets" FOR EACH ROW EXECUTE FUNCTION touch();`, "online_compatible", "create_trigger_new_table"],
   ["constant rows in a table created here", `${NEW_TABLE}INSERT INTO "widgets" ("id") VALUES ('00000000-0000-0000-0000-000000000001');`, "online_compatible", "seed_new_table"],
-  ["concurrent index", `CREATE INDEX CONCURRENTLY IF NOT EXISTS "issues_x_idx" ON "issues" USING btree ("company_id","id") WHERE "issues"."status" = 'done';`, "online_compatible", "create_index_concurrently"],
+  ["concurrent index", `CREATE INDEX CONCURRENTLY IF NOT EXISTS "issues_x_idx" ON "issues" USING btree ("space_id","id") WHERE "issues"."status" = 'done';`, "online_compatible", "create_index_concurrently"],
   ["nullable column", `ALTER TABLE "issues" ADD COLUMN "time_zone" text;`, "online_compatible", "add_column"],
   ["column with a constant default", `ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "attempts" integer DEFAULT 0 NOT NULL;`, "online_compatible", "add_column"],
   ["column with a cast literal default", `ALTER TABLE "issues" ADD COLUMN "meta" jsonb NOT NULL DEFAULT '{"a": "b, c"}'::jsonb;`, "online_compatible", "add_column"],
@@ -65,8 +65,8 @@ const cases: readonly Case[] = [
   ["not null column without a default", `ALTER TABLE "issues" ADD COLUMN "public_id" varchar(128) NOT NULL;`, "requires_staging", "add_not_null_column_without_default"],
   ["drop default", `ALTER TABLE "issues" ALTER COLUMN "status" DROP DEFAULT;`, "requires_staging", "drop_default"],
   ["validated check", `ALTER TABLE "issues" ADD CONSTRAINT "issues_kind_check" CHECK ("kind" IN ('a', 'b'));`, "requires_staging", "add_validated_check"],
-  ["unique constraint", `ALTER TABLE "issues" ADD CONSTRAINT "issues_uq" UNIQUE("company_id","number");`, "requires_staging", "add_unique_constraint"],
-  ["unique index on an existing table", `CREATE UNIQUE INDEX CONCURRENTLY "issues_uq" ON "issues" ("company_id","number");`, "requires_staging", "create_unique_index_existing_table"],
+  ["unique constraint", `ALTER TABLE "issues" ADD CONSTRAINT "issues_uq" UNIQUE("space_id","number");`, "requires_staging", "add_unique_constraint"],
+  ["unique index on an existing table", `CREATE UNIQUE INDEX CONCURRENTLY "issues_uq" ON "issues" ("space_id","number");`, "requires_staging", "create_unique_index_existing_table"],
   ["drop type", `DROP TYPE "public"."mood";`, "requires_staging", "drop_type"],
   ["rename enum value", `ALTER TYPE "mood" RENAME VALUE 'ok' TO 'fine';`, "requires_staging", "rename_type"],
   ["truncate", `TRUNCATE TABLE "issues";`, "requires_staging", "truncate"],
@@ -75,7 +75,7 @@ const cases: readonly Case[] = [
   ["guarded DO block around a validated check", `DO $$ BEGIN\n ALTER TABLE "issues" ADD CONSTRAINT "c" CHECK ("a" > 0);\nEXCEPTION WHEN duplicate_object THEN null;\nEND $$;`, "requires_staging", "add_validated_check"],
 
   // Lock and duration hazards: unknown, reported under lock_hazard_ codes.
-  ["plain index on an existing table", `CREATE INDEX IF NOT EXISTS "issues_x_idx" ON "issues" USING btree ("company_id");`, "unknown", "lock_hazard_create_index"],
+  ["plain index on an existing table", `CREATE INDEX IF NOT EXISTS "issues_x_idx" ON "issues" USING btree ("space_id");`, "unknown", "lock_hazard_create_index"],
   ["validated foreign key on an existing table", `ALTER TABLE "issues" ADD CONSTRAINT "issues_owner_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;`, "unknown", "lock_hazard_validated_foreign_key"],
   ["validated foreign key in a guarded DO block", `DO $$ BEGIN\n IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'x') THEN\n  ALTER TABLE "issues" ADD CONSTRAINT "x" FOREIGN KEY ("a") REFERENCES "b"("id");\n END IF;\nEND $$;`, "unknown", "lock_hazard_validated_foreign_key"],
   ["validate constraint", `ALTER TABLE "issues" VALIDATE CONSTRAINT "issues_owner_fk";`, "unknown", "lock_hazard_validate_constraint"],
@@ -217,7 +217,7 @@ describe("migration-compat override", () => {
   const hazard = `CREATE INDEX "i" ON "issues" ("a");`;
 
   it("replaces the verdict and keeps the classifier's own result", () => {
-    const result = classifyMigrationSql(`-- paperclip:migration-compat online_compatible: issues has under 1k rows on every stack\n${hazard}`);
+    const result = classifyMigrationSql(`-- outpost:migration-compat online_compatible: issues has under 1k rows on every stack\n${hazard}`);
     expect(result).toMatchObject({
       compatibility: "online_compatible",
       classified: "unknown",
@@ -228,34 +228,34 @@ describe("migration-compat override", () => {
   });
 
   it("can mark a contract migration compatible and an additive one staged", () => {
-    expect(classifyMigrationSql(`-- Contract step.\n\n-- paperclip:migration-compat online_compatible: no release since v0.3 reads issues.legacy\nALTER TABLE "issues" DROP COLUMN "legacy";`))
+    expect(classifyMigrationSql(`-- Contract step.\n\n-- outpost:migration-compat online_compatible: no release since v0.3 reads issues.legacy\nALTER TABLE "issues" DROP COLUMN "legacy";`))
       .toMatchObject({ compatibility: "online_compatible", classified: "requires_staging" });
-    expect(classifyMigrationSql(`-- paperclip:migration-compat requires_staging: old servers crash on the new enum value\nALTER TYPE "mood" ADD VALUE 'x';`))
+    expect(classifyMigrationSql(`-- outpost:migration-compat requires_staging: old servers crash on the new enum value\nALTER TYPE "mood" ADD VALUE 'x';`))
       .toMatchObject({ compatibility: "requires_staging", classified: "online_compatible" });
   });
 
   it.each([
-    ["missing justification", `-- paperclip:migration-compat online_compatible\n${hazard}`],
-    ["empty justification", `-- paperclip:migration-compat online_compatible:   \n${hazard}`],
-    ["token justification", `-- paperclip:migration-compat online_compatible: ok\n${hazard}`],
-    ["unknown value", `-- paperclip:migration-compat unknown: we could not decide today\n${hazard}`],
-    ["unsupported value", `-- paperclip:migration-compat safe: this one is certainly fine\n${hazard}`],
-    ["missing colon", `-- paperclip:migration-compat online_compatible because it is fine\n${hazard}`],
-    ["two directives", `-- paperclip:migration-compat online_compatible: the table is tiny everywhere\n-- paperclip:migration-compat requires_staging: or maybe it is not\n${hazard}`],
-    ["after the first statement", `${hazard}\n-- paperclip:migration-compat online_compatible: the table is tiny everywhere\n`],
-    ["inside a block comment", `/* paperclip:migration-compat online_compatible: the table is tiny everywhere */\n${hazard}`],
-    ["on a breakpoint line", `--> statement-breakpoint paperclip:migration-compat online_compatible: the table is tiny\n${hazard}`],
+    ["missing justification", `-- outpost:migration-compat online_compatible\n${hazard}`],
+    ["empty justification", `-- outpost:migration-compat online_compatible:   \n${hazard}`],
+    ["token justification", `-- outpost:migration-compat online_compatible: ok\n${hazard}`],
+    ["unknown value", `-- outpost:migration-compat unknown: we could not decide today\n${hazard}`],
+    ["unsupported value", `-- outpost:migration-compat safe: this one is certainly fine\n${hazard}`],
+    ["missing colon", `-- outpost:migration-compat online_compatible because it is fine\n${hazard}`],
+    ["two directives", `-- outpost:migration-compat online_compatible: the table is tiny everywhere\n-- outpost:migration-compat requires_staging: or maybe it is not\n${hazard}`],
+    ["after the first statement", `${hazard}\n-- outpost:migration-compat online_compatible: the table is tiny everywhere\n`],
+    ["inside a block comment", `/* outpost:migration-compat online_compatible: the table is tiny everywhere */\n${hazard}`],
+    ["on a breakpoint line", `--> statement-breakpoint outpost:migration-compat online_compatible: the table is tiny\n${hazard}`],
   ])("rejects an override with %s", (_name, sql) => {
     const result = classifyMigrationSql(sql);
     expect(result.override).toBeNull();
-    expect(result.overrideError).toMatch(/paperclip:migration-compat/);
+    expect(result.overrideError).toMatch(/outpost:migration-compat/);
     expect(result.compatibility).toBe("unknown");
     expect(result.reasons.map((reason) => reason.code)).toContain("invalid_override");
   });
 
   it("never lets a rejected override improve the verdict", () => {
-    expect(classifyMigrationSql(`-- paperclip:migration-compat online_compatible\nDROP TABLE "issues";`).compatibility).toBe("requires_staging");
-    expect(classifyMigrationSql(`-- paperclip:migration-compat online_compatible\nALTER TABLE "issues" ADD COLUMN "a" text;`).compatibility).toBe("unknown");
+    expect(classifyMigrationSql(`-- outpost:migration-compat online_compatible\nDROP TABLE "issues";`).compatibility).toBe("requires_staging");
+    expect(classifyMigrationSql(`-- outpost:migration-compat online_compatible\nALTER TABLE "issues" ADD COLUMN "a" text;`).compatibility).toBe("unknown");
   });
 
   it("reads nothing when the file has no directive", () => {
@@ -283,19 +283,19 @@ describe("checkNewMigrationCompatibility", () => {
     expect(error).toContain("lock_hazard_data_backfill (statement 2)");
     expect(error).toContain("CREATE INDEX CONCURRENTLY");
     expect(error).toContain("expand migration now and a contract migration in a later release");
-    expect(error).toContain("-- paperclip:migration-compat online_compatible: <why");
-    expect(error).toContain("-- paperclip:migration-compat requires_staging: <what");
+    expect(error).toContain("-- outpost:migration-compat online_compatible: <why");
+    expect(error).toContain("-- outpost:migration-compat requires_staging: <what");
     expect(error).toContain("doc/DATABASE.md");
   });
 
   it("passes an unknown migration that carries a justified override, with a notice", () => {
-    const result = checkNewMigrationCompatibility([{ ...unknown, sql: `-- paperclip:migration-compat online_compatible: issues is small and the update is idempotent\n${unknown.sql}` }]);
+    const result = checkNewMigrationCompatibility([{ ...unknown, sql: `-- outpost:migration-compat online_compatible: issues is small and the update is idempotent\n${unknown.sql}` }]);
     expect(result).toMatchObject({ passed: true, errors: [] });
     expect(result.notices).toEqual([expect.stringMatching(/0501_unknown\.sql: online_compatible by override \(classifier said unknown\): issues is small/)]);
   });
 
   it("fails an override without a justification, even on a compatible migration", () => {
-    const result = checkNewMigrationCompatibility([{ ...additive, sql: `-- paperclip:migration-compat online_compatible:\n${additive.sql}` }]);
+    const result = checkNewMigrationCompatibility([{ ...additive, sql: `-- outpost:migration-compat online_compatible:\n${additive.sql}` }]);
     expect(result.passed).toBe(false);
     expect(result.errors).toEqual([expect.stringMatching(/0500_additive\.sql: .*needs a justification/)]);
   });

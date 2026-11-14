@@ -1,5 +1,5 @@
 export type SecretPathRow =
-  | { kind: "company"; secret: { name: string } }
+  | { kind: "space"; secret: { name: string } }
   | { kind: "user"; definition: { name: string } };
 
 export interface SecretPathFolder {
@@ -25,7 +25,7 @@ const NATURAL_NAME_SORT_OPTIONS: Intl.CollatorOptions = {
 };
 
 export function getSecretPathRowName(row: SecretPathRow): string {
-  return row.kind === "company" ? row.secret.name : row.definition.name;
+  return row.kind === "space" ? row.secret.name : row.definition.name;
 }
 
 export function splitSecretPath(path: string): string[] {

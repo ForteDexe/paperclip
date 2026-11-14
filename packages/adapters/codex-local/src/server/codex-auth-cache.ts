@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { lstat, mkdir, open, readFile, realpath, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { resolvePaperclipInstanceRootForAdapter } from "@outpost/adapter-utils/server-utils";
+import { resolveOutpostInstanceRootForAdapter } from "@outpost/adapter-utils/server-utils";
 import { withDirectoryMergeLock } from "@outpost/adapter-utils/workspace-restore-merge";
 import { toAccountHandle } from "@outpost/shared";
 import { USE_SOURCE_EXIT, decideCodexAuthMerge } from "./codex-auth-merge-decision.js";
@@ -12,7 +12,7 @@ import { writeCredentialSeedOrNewer } from "./codex-auth-seed-write.js";
 // credential per identity (`account_id`) in a SEPARATE host tree, outside the
 // shared Codex home and outside the symlink allowlist. Each identity's entry
 // directory doubles as that account's addressable home: the device-login
-// promotion writes the durable credential there, and a company secret names the
+// promotion writes the durable credential there, and a space secret names the
 // directory by path. The store also still backs the identity-anchored vend: it
 // never changes the copy-back path, the fail-closed decision predicate, or the
 // host default store overwrite, it only refreshes an identity the host already
@@ -90,32 +90,32 @@ export function toCacheKey(accountId: string): string {
 }
 
 /**
- * Resolves the company-scoped cache root under the same isolation boundary as
+ * Resolves the space-scoped cache root under the same isolation boundary as
  * the managed Codex home (`resolveManagedCodexHomeDir`). The root is always
- * company-scoped, so a Codex credential can never cross a company boundary.
- * There is no instance-global fallback root: `companyId` is required, and an
- * empty value is a fail-loud error. `companyId` is sanitized to a single safe
+ * space-scoped, so a Codex credential can never cross a space boundary.
+ * There is no instance-global fallback root: `spaceId` is required, and an
+ * empty value is a fail-loud error. `spaceId` is sanitized to a single safe
  * path segment, so a traversal value (`..`, `/etc`, `a/b`) can never make the
- * cache root escape the `companies/` directory. Every downstream path (the
+ * cache root escape the `spaces/` directory. Every downstream path (the
  * entry path, the vend, and the clear) inherits this guard. (Security
  * condition 1.)
  */
 export function resolveCodexAuthCacheDir(
   env: NodeJS.ProcessEnv = process.env,
-  companyId: string,
+  spaceId: string,
 ): string {
-  const safeCompanyId = toSafePathSegment(companyId, "companyId");
-  const instanceRoot = resolvePaperclipInstanceRootForAdapter({
+  const safeSpaceId = toSafePathSegment(spaceId, "spaceId");
+  const instanceRoot = resolveOutpostInstanceRootForAdapter({
     homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
     instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
-  return path.resolve(instanceRoot, "companies", safeCompanyId, CACHE_DIR_NAME);
+  return path.resolve(instanceRoot, "spaces", safeSpaceId, CACHE_DIR_NAME);
 }
 
 /**
  * True when `homePath` sits inside the per-identity credential store of ANY
- * company: `<instanceRoot>/companies/<id>/codex-auth-cache/…` (or is a store
+ * space: `<instanceRoot>/spaces/<id>/codex-auth-cache/…` (or is a store
  * root itself). These directories are identity-anchored slots owned by the
  * device-login promotion, the vend, and the copy-back, each under its own
  * lock. The managed-home seeding pass consults this to refuse to symlink,
@@ -128,15 +128,15 @@ export function isCodexAuthCachePath(
   env: NodeJS.ProcessEnv,
   homePath: string,
 ): boolean {
-  const instanceRoot = resolvePaperclipInstanceRootForAdapter({
+  const instanceRoot = resolveOutpostInstanceRootForAdapter({
     homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
     instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
-  const companiesRoot = path.resolve(instanceRoot, "companies");
+  const spacesRoot = path.resolve(instanceRoot, "spaces");
   const resolved = path.resolve(homePath);
-  if (!resolved.startsWith(companiesRoot + path.sep)) return false;
-  const segments = resolved.slice(companiesRoot.length + 1).split(path.sep);
+  if (!resolved.startsWith(spacesRoot + path.sep)) return false;
+  const segments = resolved.slice(spacesRoot.length + 1).split(path.sep);
   return segments.length >= 2 && segments[1] === CACHE_DIR_NAME;
 }
 
@@ -153,13 +153,13 @@ export function isCodexAuthCachePath(
 export function resolveCodexAuthCacheEntryPath(
   env: NodeJS.ProcessEnv = process.env,
   accountId: string,
-  companyId: string,
+  spaceId: string,
 ): string {
   const handle = toAccountHandle(accountId);
   if (!handle) {
     throw new Error("codex auth cache: account_id is not a valid account handle");
   }
-  const resolvedRoot = resolveCodexAuthCacheDir(env, companyId);
+  const resolvedRoot = resolveCodexAuthCacheDir(env, spaceId);
   const safeKey = toCacheKey(handle);
   const entryDir = path.resolve(resolvedRoot, safeKey);
   const entryPath = path.resolve(entryDir, CACHE_ENTRY_FILE);
@@ -202,10 +202,10 @@ async function ensurePrivateDir(dir: string): Promise<void> {
 export async function ensureCodexAuthCacheEntryDir(
   env: NodeJS.ProcessEnv = process.env,
   accountId: string,
-  companyId: string,
+  spaceId: string,
 ): Promise<string> {
-  const entryPath = resolveCodexAuthCacheEntryPath(env, accountId, companyId);
-  await ensurePrivateDir(resolveCodexAuthCacheDir(env, companyId));
+  const entryPath = resolveCodexAuthCacheEntryPath(env, accountId, spaceId);
+  await ensurePrivateDir(resolveCodexAuthCacheDir(env, spaceId));
   await ensurePrivateDir(path.dirname(entryPath));
   return entryPath;
 }
@@ -220,26 +220,26 @@ export interface EnsureCodexAuthCacheEntryDirExclusiveResult {
 
 /**
  * Same as {@link ensureCodexAuthCacheEntryDir}, but the absence check and the
- * directory creation run inside one lock keyed to the company-scoped cache
+ * directory creation run inside one lock keyed to the space-scoped cache
  * root. Two different logins for the SAME Codex account can promote at the
  * same time (each login owns its own promotion slot), so a plain
  * check-then-create sequence lets both concurrent callers see the slot as
  * absent and both report `created: true`. Under this lock, only the caller
  * that truly finds the slot absent gets `created: true`; the other caller
  * correctly reports `created: false` and so never deletes a home the first
- * caller's login already wrote to and named with a company secret.
+ * caller's login already wrote to and named with a space secret.
  */
 export async function ensureCodexAuthCacheEntryDirExclusive(
   env: NodeJS.ProcessEnv = process.env,
   accountId: string,
-  companyId: string,
+  spaceId: string,
 ): Promise<EnsureCodexAuthCacheEntryDirExclusiveResult> {
-  const cacheRoot = resolveCodexAuthCacheDir(env, companyId);
+  const cacheRoot = resolveCodexAuthCacheDir(env, spaceId);
   await ensurePrivateDir(cacheRoot);
   return withDirectoryMergeLock(
     cacheRoot,
     async () => {
-      const entryPath = resolveCodexAuthCacheEntryPath(env, accountId, companyId);
+      const entryPath = resolveCodexAuthCacheEntryPath(env, accountId, spaceId);
       const entryDir = path.dirname(entryPath);
       const created = await lstat(entryDir)
         .then(() => false)
@@ -255,10 +255,10 @@ export async function ensureCodexAuthCacheEntryDirExclusive(
 }
 
 /**
- * Resolves a per-company, named lock target directory under the same
- * instance-scoped `companies/<companyId>/` tree the cache root and the
+ * Resolves a per-space, named lock target directory under the same
+ * instance-scoped `spaces/<spaceId>/` tree the cache root and the
  * promotion lock use. Two callers that pass the same `lockName` for the same
- * `companyId` always resolve the same directory, so they share one lock; two
+ * `spaceId` always resolve the same directory, so they share one lock; two
  * different `lockName` values never share a lock key, so a caller that holds
  * one of these named locks can still call {@link ensureCodexAuthCacheEntryDirExclusive}
  * (which locks the cache root) or another named lock without nesting a lock
@@ -266,20 +266,20 @@ export async function ensureCodexAuthCacheEntryDirExclusive(
  */
 function resolveCodexAuthCacheNamedLockDir(
   env: NodeJS.ProcessEnv = process.env,
-  companyId: string,
+  spaceId: string,
   lockName: string,
 ): string {
-  const safeCompanyId = toSafePathSegment(companyId, "companyId");
-  const instanceRoot = resolvePaperclipInstanceRootForAdapter({
+  const safeSpaceId = toSafePathSegment(spaceId, "spaceId");
+  const instanceRoot = resolveOutpostInstanceRootForAdapter({
     homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
     instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
-  return path.resolve(instanceRoot, "companies", safeCompanyId, lockName);
+  return path.resolve(instanceRoot, "spaces", safeSpaceId, lockName);
 }
 
 /**
- * Serializes one company's whole device-login promotion sequence: the
+ * Serializes one space's whole device-login promotion sequence: the
  * account-home directory create-or-reuse decision, the credential write, and
  * the secret bind or cleanup that follows. Two different logins for the SAME
  * Codex account run this sequence one at a time under this lock, so no login
@@ -300,17 +300,17 @@ function resolveCodexAuthCacheNamedLockDir(
  */
 export async function withCodexAccountHomePromotionLock<T>(
   env: NodeJS.ProcessEnv = process.env,
-  companyId: string,
+  spaceId: string,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const lockDir = resolveCodexAuthCacheNamedLockDir(env, companyId, "codex-auth-cache-promotion-lock");
+  const lockDir = resolveCodexAuthCacheNamedLockDir(env, spaceId, "codex-auth-cache-promotion-lock");
   await ensurePrivateDir(lockDir);
   return withDirectoryMergeLock(lockDir, fn, env);
 }
 
 /**
- * Serializes one company's writes to the literal value of any
- * `local_encrypted` company secret against the account-home cleanup's
+ * Serializes one space's writes to the literal value of any
+ * `local_encrypted` space secret against the account-home cleanup's
  * claimant scan in {@link withCodexAccountHomePromotionLock}'s caller. Only a
  * `local_encrypted` secret can hold a literal directory path, so this is the
  * one provider a cleanup claimant scan must trust. Without this lock, a
@@ -342,10 +342,10 @@ const secretMutationOwnership = new AsyncLocalStorage<Map<string, { active: bool
 
 export async function withAccountHomeSecretMutationLock<T>(
   env: NodeJS.ProcessEnv = process.env,
-  companyId: string,
+  spaceId: string,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const lockDir = resolveCodexAuthCacheNamedLockDir(env, companyId, "codex-account-home-secret-mutation-lock");
+  const lockDir = resolveCodexAuthCacheNamedLockDir(env, spaceId, "codex-account-home-secret-mutation-lock");
   await ensurePrivateDir(lockDir);
   const key = await realpath(lockDir);
   const inherited = secretMutationOwnership.getStore();
@@ -361,7 +361,7 @@ export async function withAccountHomeSecretMutationLock<T>(
 
 /**
  * Confirms a `local_encrypted` secret value that names a directory under this
- * company's Codex account-home cache root still exists on disk. Call this
+ * space's Codex account-home cache root still exists on disk. Call this
  * inside {@link withAccountHomeSecretMutationLock}, before a create or a
  * rotate commits the value.
  *
@@ -375,17 +375,17 @@ export async function withAccountHomeSecretMutationLock<T>(
  * does not exist. This check closes that window: a write whose value would
  * name a directory the cleanup already removed fails instead of committing.
  *
- * A value outside this company's cache root is left alone. Only a value
+ * A value outside this space's cache root is left alone. Only a value
  * under the cache root can ever be an account-home directory, so this never
  * rejects an unrelated `local_encrypted` secret write, such as an API key or
  * a hand-typed token.
  */
 export async function assertAccountHomeCacheDirStillValid(
   env: NodeJS.ProcessEnv = process.env,
-  companyId: string,
+  spaceId: string,
   value: string,
 ): Promise<void> {
-  const cacheRoot = resolveCodexAuthCacheDir(env, companyId);
+  const cacheRoot = resolveCodexAuthCacheDir(env, spaceId);
   if (!value.startsWith(cacheRoot + path.sep)) return;
   const exists = await lstat(value)
     .then(() => true)
@@ -577,9 +577,9 @@ export async function selectVendCredential(
 export async function clearCodexAuthCacheEntry(
   env: NodeJS.ProcessEnv = process.env,
   accountId: string,
-  companyId: string,
+  spaceId: string,
 ): Promise<void> {
-  const entryPath = resolveCodexAuthCacheEntryPath(env, accountId, companyId);
+  const entryPath = resolveCodexAuthCacheEntryPath(env, accountId, spaceId);
   const entryDir = path.dirname(entryPath);
   // A missing slot is a benign no-op. Pre-check before the lock: the merge lock
   // sits next to the slot under the cache root, so locking a slot whose cache
@@ -599,13 +599,13 @@ export async function clearCodexAuthCacheEntry(
 }
 
 /**
- * Removes every slot in the company-scoped cache root. A missing cache root is a
+ * Removes every slot in the space-scoped cache root. A missing cache root is a
  * benign no-op.
  */
 export async function clearCodexAuthCache(
   env: NodeJS.ProcessEnv = process.env,
-  companyId: string,
+  spaceId: string,
 ): Promise<void> {
-  const cacheDir = resolveCodexAuthCacheDir(env, companyId);
+  const cacheDir = resolveCodexAuthCacheDir(env, spaceId);
   await rm(cacheDir, { recursive: true, force: true });
 }

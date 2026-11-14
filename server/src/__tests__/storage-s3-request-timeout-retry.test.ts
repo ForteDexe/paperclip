@@ -59,7 +59,7 @@ async function readAll(stream: NodeJS.ReadableStream) {
 describe("S3 request timeout retries", () => {
   it("retries a read that the provider answered with 408 RequestCanceled", async () => {
     failuresLeft = 1;
-    const object = await provider().getObject({ objectKey: "company/asset.png" });
+    const object = await provider().getObject({ objectKey: "space/asset.png" });
 
     expect(await readAll(object.stream)).toBe("hello");
     expect(requests).toEqual(["GET", "GET"]);
@@ -67,13 +67,13 @@ describe("S3 request timeout retries", () => {
 
   it("retries a HEAD request that timed out", async () => {
     failuresLeft = 1;
-    await expect(provider().headObject({ objectKey: "company/asset.png" })).resolves.toMatchObject({ exists: true });
+    await expect(provider().headObject({ objectKey: "space/asset.png" })).resolves.toMatchObject({ exists: true });
     expect(requests).toEqual(["HEAD", "HEAD"]);
   });
 
   it("stops at the SDK attempt limit and still reports the failed read", async () => {
     failuresLeft = 10;
-    const error = await provider().getObject({ objectKey: "company/asset.png" }).catch((err: unknown) => err);
+    const error = await provider().getObject({ objectKey: "space/asset.png" }).catch((err: unknown) => err);
 
     expect(error).toMatchObject({ name: "RequestCanceled" });
     expect(requests).toEqual(["GET", "GET", "GET"]);

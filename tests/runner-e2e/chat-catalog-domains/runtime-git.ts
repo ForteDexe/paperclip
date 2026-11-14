@@ -47,7 +47,7 @@ export const runtimeGitCases = [runtimeDefinition("workspaces.inspect-git", asyn
   await writeFile(header, `<h1>Launch later</h1>\n<!-- ${ctx.input.nonce} -->\n`, "utf8");
   await writeFile(notes, "Existing unrelated notes before the user's edit.\n", "utf8");
   await ownedGit(cwd, ["add", "--", "header.html", "existing-notes.txt"]);
-  await ownedGit(cwd, ["-c", "core.hooksPath=/dev/null", "-c", "user.name=Paperclip Eval Fixture", "-c", "user.email=fixture@invalid.example", "commit", "-m", "Synthetic baseline for the owned diff fixture"]);
+  await ownedGit(cwd, ["-c", "core.hooksPath=/dev/null", "-c", "user.name=Outpost Eval Fixture", "-c", "user.email=fixture@invalid.example", "commit", "-m", "Synthetic baseline for the owned diff fixture"]);
   await writeFile(header, `<h1>Launch sooner</h1>\n<!-- ${ctx.input.nonce} -->\n`, "utf8");
   await writeFile(notes, `Existing unrelated notes preserved with human amendment ${ctx.input.nonce}.\n`, "utf8");
   const lead = await ctx.input.api.get<RuntimeAgent>(`/api/agents/${ctx.input.fixtures.agent.id}`);
@@ -69,7 +69,7 @@ export const runtimeGitCases = [runtimeDefinition("workspaces.inspect-git", asyn
   },
   async verifyResult(ctx, state) {
     const source = ctx.input.page.url(), task = state.task as Entity;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("heading", { name: task.title!, exact: true }).first()).toBeVisible();
     // The task side panel can start closed; open it through the control the page renders ("Show properties"

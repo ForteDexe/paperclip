@@ -1,5 +1,5 @@
 import { VoiceCallProvider } from "./components/voice/VoiceCallProvider";
-import { useAccountIdentity } from "./api/companies-query";
+import { useAccountIdentity } from "./api/spaces-query";
 import * as React from "react";
 import { StrictMode, useEffect } from "react";
 import * as ReactDOM from "react-dom";
@@ -7,7 +7,7 @@ import { BrowserRouter } from "@/lib/router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { CompanyProvider, useCompany } from "./context/CompanyContext";
+import { SpaceProvider, useSpace } from "./context/SpaceContext";
 import { LinkPreviewProvider } from "./context/LinkPreviewContext";
 import { LiveUpdatesProvider } from "./context/LiveUpdatesProvider";
 import { BreadcrumbProvider } from "./context/BreadcrumbContext";
@@ -25,7 +25,7 @@ import { initPluginBridge } from "./plugins/bridge-init";
 import { PluginLauncherProvider } from "./plugins/launchers";
 import { startChunkLoadRecovery } from "./lib/chunk-load-recovery";
 import { startPerfMeasureReaper } from "./lib/perf-measure-reaper";
-import { getOrCreatePaperclipReactRoot } from "./lib/react-root";
+import { getOrCreateOutpostReactRoot } from "./lib/react-root";
 import { startServiceWorkerUpdates } from "./lib/service-worker-updates";
 import { connectivity } from "./lib/connectivity";
 import { bindConnectivity, createAppQueryClient } from "./lib/query-client";
@@ -99,56 +99,56 @@ window.addEventListener("load", () => {
   });
 });
 
-function CompanyAwareBreadcrumbProvider({ children }: { children: React.ReactNode }) {
-  const { selectedCompany } = useCompany();
-  return <BreadcrumbProvider companyName={selectedCompany?.name ?? null}>{children}</BreadcrumbProvider>;
+function SpaceAwareBreadcrumbProvider({ children }: { children: React.ReactNode }) {
+  const { selectedSpace } = useSpace();
+  return <BreadcrumbProvider spaceName={selectedSpace?.name ?? null}>{children}</BreadcrumbProvider>;
 }
 
-function CompanyVoiceCalls({ children }: { children: React.ReactNode }) {
-  const { selectedCompanyId } = useCompany();
+function SpaceVoiceCalls({ children }: { children: React.ReactNode }) {
+  const { selectedSpaceId } = useSpace();
   const { userId } = useAccountIdentity();
-  return <VoiceCallProvider companyId={selectedCompanyId} userId={userId}>{children}</VoiceCallProvider>;
+  return <VoiceCallProvider spaceId={selectedSpaceId} userId={userId}>{children}</VoiceCallProvider>;
 }
 
-function CompanyLinkPreviews({ children }: { children: React.ReactNode }) {
-  const { selectedCompanyId } = useCompany();
+function SpaceLinkPreviews({ children }: { children: React.ReactNode }) {
+  const { selectedSpaceId } = useSpace();
   const { userId, settled } = useAccountIdentity();
-  return <LinkPreviewProvider companyId={settled ? selectedCompanyId : null} userId={userId}>{children}</LinkPreviewProvider>;
+  return <LinkPreviewProvider spaceId={settled ? selectedSpaceId : null} userId={userId}>{children}</LinkPreviewProvider>;
 }
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Outpost root element is missing");
 
-getOrCreatePaperclipReactRoot(window, rootElement).render(
+getOrCreateOutpostReactRoot(window, rootElement).render(
   <StrictMode>
     <AppErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <BrowserRouter>
-            <CompanyProvider>
+            <SpaceProvider>
               <EditorAutocompleteProvider>
                 <ToastProvider>
                   <MutationErrorToastBridge />
                   <PrimaryAgentProvider>
                   <LiveUpdatesProvider>
                     <TooltipProvider>
-                      <CompanyAwareBreadcrumbProvider>
+                      <SpaceAwareBreadcrumbProvider>
                         <SidebarProvider>
                           <PanelProvider>
                             <PluginLauncherProvider>
                               <DialogProvider>
-                                <DesignSandboxProvider><CompanyVoiceCalls><CompanyLinkPreviews><App /></CompanyLinkPreviews></CompanyVoiceCalls></DesignSandboxProvider>
+                                <DesignSandboxProvider><SpaceVoiceCalls><SpaceLinkPreviews><App /></SpaceLinkPreviews></SpaceVoiceCalls></DesignSandboxProvider>
                               </DialogProvider>
                             </PluginLauncherProvider>
                           </PanelProvider>
                         </SidebarProvider>
-                      </CompanyAwareBreadcrumbProvider>
+                      </SpaceAwareBreadcrumbProvider>
                     </TooltipProvider>
                   </LiveUpdatesProvider>
                   </PrimaryAgentProvider>
                 </ToastProvider>
               </EditorAutocompleteProvider>
-            </CompanyProvider>
+            </SpaceProvider>
           </BrowserRouter>
         </ThemeProvider>
       </QueryClientProvider>

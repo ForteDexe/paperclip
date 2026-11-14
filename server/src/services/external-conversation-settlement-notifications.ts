@@ -5,5 +5,5 @@ import type { ExternalConversationSettlementScope } from "./slack-conversation-l
 export async function notifyExternalConversationSettlement(tx: object, scope?: ExternalConversationSettlementScope) {
   await notifyIssueRecovery(tx, scope);
   return notifyDeliveryWork(tx, DELIVERY_QUEUES.externalConversationSettlement,
-    scope ? JSON.stringify({ companyId: scope.companyId, issueId: scope.issueId }) : "*");
+    scope ? JSON.stringify({ spaceId: scope.spaceId, issueId: scope.issueId }) : "*");
 }

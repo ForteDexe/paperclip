@@ -2,7 +2,7 @@
 //
 // The form supplies two sources for adapter `env`:
 //   - `envBindings`: structured bindings keyed by variable name. A binding is a
-//     plain value, a company `secret_ref`, or a user-scoped `user_secret_ref`.
+//     plain value, a space `secret_ref`, or a user-scoped `user_secret_ref`.
 //   - `envVars`: a legacy plain-text block of `KEY=value` lines.
 //
 // The server resolves every binding to a string, both at run time and at test

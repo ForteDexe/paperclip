@@ -8,17 +8,17 @@ import { applySharedPollingResult } from "./useSharedPolling";
 
 describe("applySharedPollingResult", () => {
   afterEach(() => {
-    clearLocalInboxArchive("company-1", "issue-archived");
+    clearLocalInboxArchive("space-1", "issue-archived");
   });
 
   it("drops result messages that are older than local query state", () => {
     const queryClient = new QueryClient();
-    const queryKey = ["live-runs", "company-1"];
+    const queryKey = ["live-runs", "space-1"];
     queryClient.setQueryData(queryKey, [{ id: "run-1", lastEventAt: "newer" }], { updatedAt: 2_000 });
 
     const applied = applySharedPollingResult(queryClient, queryKey, {
       type: "result",
-      key: "company:live-runs",
+      key: "space:live-runs",
       from: "leader",
       at: 1_000,
       dataUpdatedAt: 1_000,
@@ -32,12 +32,12 @@ describe("applySharedPollingResult", () => {
 
   it("applies newer result messages with the producer dataUpdatedAt", () => {
     const queryClient = new QueryClient();
-    const queryKey = ["live-runs", "company-1"];
+    const queryKey = ["live-runs", "space-1"];
     queryClient.setQueryData(queryKey, [{ id: "run-1", lastEventAt: "older" }], { updatedAt: 1_000 });
 
     const applied = applySharedPollingResult(queryClient, queryKey, {
       type: "result",
-      key: "company:live-runs",
+      key: "space:live-runs",
       from: "leader",
       at: 4_000,
       dataUpdatedAt: 3_000,
@@ -51,12 +51,12 @@ describe("applySharedPollingResult", () => {
 
   it("filters locally archived issues from newer inbox broadcasts", () => {
     const queryClient = new QueryClient();
-    const queryKey = ["issues", "company-1", "mine-by-me"];
-    beginLocalInboxArchive("company-1", "issue-archived");
+    const queryKey = ["issues", "space-1", "mine-by-me"];
+    beginLocalInboxArchive("space-1", "issue-archived");
 
     const applied = applySharedPollingResult(queryClient, queryKey, {
       type: "result",
-      key: "company:inbox",
+      key: "space:inbox",
       from: "leader",
       at: 4_000,
       dataUpdatedAt: 3_000,
@@ -71,17 +71,17 @@ describe("applySharedPollingResult", () => {
     const queryClient = new QueryClient();
     const queryKey = [
       "issues",
-      "company-1",
+      "space-1",
       "compact",
       "with-routine-executions",
       "live-descendant-summary",
       250,
     ];
-    beginLocalInboxArchive("company-1", "issue-archived");
+    beginLocalInboxArchive("space-1", "issue-archived");
 
     const applied = applySharedPollingResult(queryClient, queryKey, {
       type: "result",
-      key: "company:inbox:issues",
+      key: "space:inbox:issues",
       from: "leader",
       at: 4_000,
       dataUpdatedAt: 3_000,

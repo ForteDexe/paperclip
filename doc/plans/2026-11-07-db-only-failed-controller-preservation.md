@@ -6,8 +6,8 @@ absent. This is preserved evidence. It does not become successful or executable
 recovery authority merely because the instance changes storage mode.
 
 The migration owner accepts this case only after the canonical checkpoint decoder
-validates every record and its company/issue/run encryption binding. The selected
-run, admitted execution and inline snapshot must match company, agent, issue, run
+validates every record and its space/issue/run encryption binding. The selected
+run, admitted execution and inline snapshot must match space, agent, issue, run
 and normalized session. The decoded checkpoint and protocol header must also match
 the run, Runner instance and normalized session. The exact controller and supervisor
 paths must both be absent. A remaining file, symbolic link, unsafe path, invalid

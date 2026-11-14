@@ -42,7 +42,7 @@ Do not extend Cloud alarm coverage or remove active-connection sleep blockers in
 this slice.
 
 The current SQL excludes `chat_sdk`, `runtime_auth`, and applications of type
-`paperclip_plugin`. The schema couples AI purpose to `runtime_auth`, and
+`outpost_plugin`. The schema couples AI purpose to `runtime_auth`, and
 `checkConnectionHealth` returns immediately for AI purpose. Do not claim AI rows
 are an uncovered polling case without evidence of supported legacy rows outside
 those constraints. PR #14638 separately covers AI health behavior.
@@ -78,12 +78,12 @@ health wake merely because they share a table.
 - Access provisioning, agent routes, smoke-lab setup, AI connection services,
   and chat provider modules: classify supported imports and shared entry points;
   do not attach unnecessary wakes to excluded AI/chat transports.
-- Application type changes and company deletion: retain SQL join eligibility and
+- Application type changes and space deletion: retain SQL join eligibility and
   remove stale deadlines after cascades. Instance experimental settings are an
   intentional administrative scope, distinct from ordinary tenant mutations.
 
 Use existing transaction notifications before writes, including caller-owned
-transactions. Ordinary company mutations must not activate cross-company scans.
+transactions. Ordinary space mutations must not activate cross-space scans.
 Startup reconstruction is a separate instance-owned obligation. Process-local
 hints are not a multi-replica or independent-SQL-writer protocol.
 
@@ -95,7 +95,7 @@ hints are not a multi-replica or independent-SQL-writer protocol.
 - Successful/failed manual probe and catalog/use health updates reschedule correctly.
 - Disablement, deletion, and feature changes cancel or restore the proper obligation.
 - Page fairness with more than 25 due rows and with an early uncheckable candidate.
-- Company scope, outer commit/rollback, a commit during final reconciliation,
+- Space scope, outer commit/rollback, a commit during final reconciliation,
   drain/resume, startup reconstruction, admitted shutdown, and failure recovery.
 - Keep provider calls outside transactions and avoid concurrent checks that can
   overwrite newer credentials or health observations with an old result.
@@ -151,7 +151,7 @@ The implementation and producer dispositions are now recorded in
 [the health lifecycle document](../idle-tool-connection-health.md). Health
 creation/setup mutations commit their grant/binding/runtime-slot SQL before the
 wake. Direct/cloud/Vercel OAuth activation and refresh disablement, catalog and
-actual-use observations, email control, access removal, company deletion, and
+actual-use observations, email control, access removal, space deletion, and
 feature changes now notify the owner. Voice connections remain covered through
 the chat lifecycle; the provider-to-transport mapping stays in the chat catalog,
 and excluded SDK chat updates do not notify health work.
@@ -167,18 +167,18 @@ final stack reconciliation with master is still required. No merge is authorized
 
 ## Security follow-up: individual refreshes
 
-The company-hint design amplified ordinary connection writes into full company
+The space-hint design amplified ordinary connection writes into full space
 reads. The current contract scopes individual producers (API/example creation,
 setup/rollback, OAuth, gateway, health/catalog, email, voice, GitHub events, access
-removal, and Smoke Lab) by company plus connection ID. Existing application
-updates in example setup and Smoke Lab use application scopes. Company deletion
+removal, and Smoke Lab) by space plus connection ID. Existing application
+updates in example setup and Smoke Lab use application scopes. Space deletion
 and instance feature-settings changes retain broad invalidation. Startup and
 broad loads use bounded UUID pages. The health owner still defines eligibility
 and provider policy; the shared notification/coordinator layers remain generic.
 
 See `doc/idle-tool-connection-health.md` for the failing amplification baseline,
 changed contract, scope-cancellation tests, and verification results. The older
-company-hint observations in this audit describe the superseded implementation.
+space-hint observations in this audit describe the superseded implementation.
 
 ## Acceptance follow-up after the plugin parent merged (October 27)
 
@@ -192,5 +192,5 @@ It preserves the two real installer amplification failures, type-change lock-wai
 mutation proof, independent failed-inventory retry regression, fresh database
 fixture setup, and verification scope. Metadata-only installer writes do not
 invalidate an entire application; actual eligibility changes still do. Inventory
-failures do not inherit another company's one-second backlog continuation.
+failures do not inherit another space's one-second backlog continuation.
 Current-head reviews and CI remain required; these are worker-level guarantees.

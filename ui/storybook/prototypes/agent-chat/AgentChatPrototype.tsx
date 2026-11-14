@@ -26,10 +26,10 @@ import {
 import {
   storybookAgents,
   storybookAuthSession,
-  storybookCompanies,
+  storybookSpaces,
   storybookIssues,
   storybookIssueDocuments,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 import { chatAgents, chatIdentifier } from "./AgentChatSidebar";
 import { AgentChatSidebarReviewLayout, AgentChatSidebarLanding } from "../agent-chat-sidebar/AgentChatSidebarReview";
 import { sidebarAgents, sidebarRoster, type SidebarScenario } from "../agent-chat-sidebar/fixtures";
@@ -128,7 +128,7 @@ const logItems = [
     item: {
       id: "save-plan",
       type: "command_execution",
-      command: "paperclip documents update PAP-241 plan",
+      command: "outpost documents update PAP-241 plan",
     },
   },
   {
@@ -136,7 +136,7 @@ const logItems = [
     item: {
       id: "save-plan",
       type: "command_execution",
-      command: "paperclip documents update PAP-241 plan",
+      command: "outpost documents update PAP-241 plan",
       aggregated_output: "Saved launch plan revision 3.",
       status: "completed",
       exit_code: 0,
@@ -170,7 +170,7 @@ function comment(
   );
   return {
     id,
-    companyId: issue.companyId,
+    spaceId: issue.spaceId,
     issueId: issue.id,
     body,
     authorType: agentReply ? "agent" : "user",
@@ -240,9 +240,9 @@ export function AgentChatPrototype({
   }, [contextInitiallyOpen, setPanelVisible]);
   useLayoutEffect(() => {
     const originalFetch = window.fetch;
-    const recentKey = `outpost.recentAgentChats:${issue.companyId}:user-board`;
+    const recentKey = `outpost.recentAgentChats:${issue.spaceId}:user-board`;
     const previousRecents = localStorage.getItem(recentKey);
-    const recentTasksKey = getRecentTasksStorageKey(issue.companyId, "user-board");
+    const recentTasksKey = getRecentTasksStorageKey(issue.spaceId, "user-board");
     const previousRecentTasks = localStorage.getItem(recentTasksKey);
     if (sidebarScenario) localStorage.setItem(recentTasksKey, "[]");
     const hasPlan = scenario !== "empty" && (!sidebarScenario || contextInitiallyOpen);
@@ -336,7 +336,7 @@ export function AgentChatPrototype({
           : "I saved the plan here and copied it to [PAP-248](/PAP/issues/PAP-248) in the new project. The assigned task can now begin; we can continue the discussion here.",
       };
       messages.set(task.id, history);
-      writeTaskSidePanelState("user-board", task.companyId, task.id, {
+      writeTaskSidePanelState("user-board", task.spaceId, task.id, {
         state: {
           tabs: taskComparison
             ? [taskPanelPropertiesTab()]
@@ -354,7 +354,7 @@ export function AgentChatPrototype({
       });
     }
     for (const id of entryScenario === "first-use" ? [] : ["chat-design", "agent-qa", "agent-codex"])
-      recordAgentChatVisit(issue.companyId, "user-board", id);
+      recordAgentChatVisit(issue.spaceId, "user-board", id);
     window.fetch = async (input, init) => {
       const url = new URL(
         typeof input === "string"
@@ -373,7 +373,7 @@ export function AgentChatPrototype({
         init?.body && typeof init.body === "string"
           ? JSON.parse(init.body)
           : {};
-      if (/\/companies\/[^/]+\/chats$/.test(path)) return Response.json([...chats.values()]);
+      if (/\/spaces\/[^/]+\/chats$/.test(path)) return Response.json([...chats.values()]);
       const chatRef = path.match(/\/chats\/([^/]+)$/)?.[1];
       if (chatRef) {
         const a = fixtureAgents.find(
@@ -459,14 +459,14 @@ export function AgentChatPrototype({
         return Response.json({
           source: "local_implicit",
           isInstanceAdmin: true,
-          companyIds: [issue.companyId],
+          spaceIds: [issue.spaceId],
           memberships: [],
         });
       if (path === "/api/workspace-preferences/me")
         return Response.json({ userId: "user-board", coordinatorWorkspaceEnabled: coordinator, updatedAt: null });
       if (/\/issues\/[^/]+\/(decision-receipts|chat-handoffs)$/.test(path))
         return Response.json({ items: [], nextCursor: null });
-      if (/\/companies\/[^/]+\/email\/tasks\/[^/]+$/.test(path))
+      if (/\/spaces\/[^/]+\/email\/tasks\/[^/]+$/.test(path))
         return Response.json(null);
       if (path === "/api/instance/settings/experimental")
         return Response.json({
@@ -535,14 +535,14 @@ export function AgentChatPrototype({
             : [],
         );
       if (path.endsWith("/activity") && scenario.startsWith("project-") && scenario !== "project-failed" && scenario !== "project-reused") return Response.json([{
-        id: "created-project-event", companyId: issue.companyId, actorType: "agent", actorId: agent.id,
+        id: "created-project-event", spaceId: issue.spaceId, actorType: "agent", actorId: agent.id,
         agentId: agent.id, runId, entityType: "project", entityId: "launch-project", action: "project.created",
         createdAt: "2026-09-10T15:42:30Z", details: {
           name: scenario === "project-multi-repo" ? "First agent handoff across the application, documentation, and onboarding service" : "First agent handoff",
           description: "Help new teams get their first useful result.", sourceIssueId: issue.id,
           repositories: scenario === "project-no-repo" ? [] : [
             { id: "1", name: "paperclipai/paperclip", url: "https://github.com/paperclipai/paperclip" },
-            ...(scenario === "project-multi-repo" ? [{ id: "2", name: "paperclipai/onboarding", url: "https://github.com/paperclipai/onboarding" }] : []),
+            ...(scenario === "project-multi-repo" ? [{ id: "2", name: "outpostai/onboarding", url: "https://github.com/outpostai/onboarding" }] : []),
           ],
         },
       }]);
@@ -561,11 +561,11 @@ export function AgentChatPrototype({
           taskRef === child.id || taskRef === child.identifier ? child : task,
         );
       if (
-        /\/companies\/[^/]+\/issues$/.test(path) &&
+        /\/spaces\/[^/]+\/issues$/.test(path) &&
         (url.searchParams.has("parentId") || url.searchParams.has("descendantOf"))
       )
         return Response.json(scenario === "empty" || sidebarScenario ? [] : [child]);
-      if (/\/companies\/[^/]+\/agents$/.test(path))
+      if (/\/spaces\/[^/]+\/agents$/.test(path))
         return Response.json(fixtureAgents);
       if (/\/agents\/[^/]+$/.test(path))
         return Response.json(
@@ -576,14 +576,14 @@ export function AgentChatPrototype({
       if (/^\/api\/adapters\/[^/]+\/config-schema$/.test(path))
         return Response.json({ error: "No schema override" }, { status: 404 });
       if (
-        path === "/api/companies" ||
+        path === "/api/spaces" ||
         path === "/api/auth/get-session" ||
         path === "/api/adapters" ||
         path === "/api/health" ||
-        /\/companies\/[^/]+\/(projects|dashboard|sidebar-badges|user-directory|issues|approvals)$/.test(
+        /\/spaces\/[^/]+\/(projects|dashboard|sidebar-badges|user-directory|issues|approvals)$/.test(
           path,
         ) ||
-        /^\/api\/companies\/[^/]+\/(adapters\/|environments)/.test(path)
+        /^\/api\/spaces\/[^/]+\/(adapters\/|environments)/.test(path)
       )
         return originalFetch(input, init);
       return Response.json([]);
@@ -592,17 +592,17 @@ export function AgentChatPrototype({
     if (sidebarScenario) {
       // These stories review a settled page, not a chain of loading screens.
       // Seed the same query keys and shapes consumed by the production chat.
-      queryClient.setQueryData(queryKeys.agentChats.list(issue.companyId, "user-board"), [...chats.values()]);
+      queryClient.setQueryData(queryKeys.agentChats.list(issue.spaceId, "user-board"), [...chats.values()]);
       queryClient.setQueryData(queryKeys.auth.session, storybookAuthSession);
-      queryClient.setQueryData(queryKeys.companies.list("user-board"), { companies: storybookCompanies, unauthorized: false });
-      queryClient.setQueryData(queryKeys.agents.list(issue.companyId), fixtureAgents);
+      queryClient.setQueryData(queryKeys.spaces.list("user-board"), { spaces: storybookSpaces, unauthorized: false });
+      queryClient.setQueryData(queryKeys.agents.list(issue.spaceId), fixtureAgents);
       queryClient.setQueryData(queryKeys.instance.experimentalSettings, {
         enableAgentChat: scenario !== "disabled", enableStreamlinedUi: true,
         enableClassicTaskInterface: false, enableExperimentalFileViewer: true,
       });
       for (const a of fixtureAgents) {
         const task = chats.get(a.id) ?? null;
-        queryClient.setQueryData(queryKeys.agentChats.detail(issue.companyId, "user-board", a.id), task);
+        queryClient.setQueryData(queryKeys.agentChats.detail(issue.spaceId, "user-board", a.id), task);
         if (task) {
           queryClient.setQueryData(queryKeys.issues.detail(task.id), task);
           queryClient.setQueryData(queryKeys.issues.comments(task.id), { pages: [[...(messages.get(task.id) ?? [])].reverse()], pageParams: [null] });
@@ -619,7 +619,7 @@ export function AgentChatPrototype({
       if (entryScenario) {
         if (previousRecents === null) localStorage.removeItem(recentKey);
         else localStorage.setItem(recentKey, previousRecents);
-        window.dispatchEvent(new Event("paperclip:recent-agent-chats"));
+        window.dispatchEvent(new Event("outpost:recent-agent-chats"));
       }
       queryClient.clear();
     };
@@ -636,7 +636,7 @@ export function AgentChatPrototype({
   if (!ready || pathname === "/PAP/storybook") return null;
   const routes = (
       <Routes>
-        <Route path="/:companyPrefix" element={sidebarScenario ? <AgentChatSidebarReviewLayout scenario={sidebarScenario} /> : <Layout sidebarSections={entryScenario ? <ChatEntrySidebar /> : undefined} />}>
+        <Route path="/:spacePrefix" element={sidebarScenario ? <AgentChatSidebarReviewLayout scenario={sidebarScenario} /> : <Layout sidebarSections={entryScenario ? <ChatEntrySidebar /> : undefined} />}>
           <Route path="chats" element={sidebarScenario ? <AgentChatSidebarLanding /> : <ChatEntryLanding />} />
           <Route path="chats/:agentRef" element={<AgentChat />} />
           <Route path="issues/:issueId" element={<IssueDetail />} />

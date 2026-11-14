@@ -7,9 +7,9 @@ This isolated follow-up removes **2 registered executions, 2 root renders and 26
 | Retired registration | Keeper | Original observations retained |
 |---|---|---|
 | `requests the collapsed app sidebar by default` | `renders range controls plus icon zoom controls without the user lens selector or visible-duration readout` | expect(container.querySelector('[data-testid="request-collapsed-sidebar"]')).not.toBeNull(); |
-| `requests the company timeline without a user lens parameter` | `renders range controls plus icon zoom controls without the user lens selector or visible-duration readout` | expect(mockWorkTimelineApi.get).toHaveBeenCalledWith(       "company-1",       expect.objectContaining({         from: expect.any(String),         to: expect.any(String),       }),       { signal: expect.any(AbortSignal) },     );; expect(mockWorkTimelineApi.get.mock.calls[0]?.[1]).not.toHaveProperty("userId"); |
+| `requests the space timeline without a user lens parameter` | `renders range controls plus icon zoom controls without the user lens selector or visible-duration readout` | expect(mockWorkTimelineApi.get).toHaveBeenCalledWith(       "space-1",       expect.objectContaining({         from: expect.any(String),         to: expect.any(String),       }),       { signal: expect.any(AbortSignal) },     );; expect(mockWorkTimelineApi.get.mock.calls[0]?.[1]).not.toHaveProperty("userId"); |
 
-Timeline.tsx calls loadTimelineWindow with the selected company, computed date window and AbortSignal. The default unembedded render requests RequestCollapsedSidebar. All three paired cases use the same emptyTimeline beforeEach result, company context, blank URL search, fresh query client, render and flush. Sidebar-request and complete API argument/no-userId guards move after existing controls assertions. Populated stats, pagination, clipping, overlap and project scope remain distinct.
+Timeline.tsx calls loadTimelineWindow with the selected space, computed date window and AbortSignal. The default unembedded render requests RequestCollapsedSidebar. All three paired cases use the same emptyTimeline beforeEach result, space context, blank URL search, fresh query client, render and flush. Sidebar-request and complete API argument/no-userId guards move after existing controls assertions. Populated stats, pagination, clipping, overlap and project scope remain distinct.
 
 The verifier reconstructs the exact candidate text from only the declared removals and insertions, requires byte equality, and compares the entire program AST after the same migrations. Every unrelated source byte, hook, mock, test body and binding remains unchanged, outside the audit receipt’s explicitly declared duplicate-title or blank-line cleanup where applicable. Setup ASTs are equal except the explicitly normalized attachment callback binding described above where applicable. No tests are skipped, softened, suppressed or added. Each file remains included in `@outpost/ui` under CI `general-workspaces-a`; Vitest file sharding selects it once across the two shards, with no workflow/config change.
 
@@ -28,7 +28,7 @@ All 6 separately selected positive keeper controls passed. Every deliberate beha
 |---|---|
 | collapsed | `expect(container.querySelector('[data-testid="request-collapsed-sidebar"]')).not.toBeNull()` |
 | userId | `expect(mockWorkTimelineApi.get.mock.calls[0]?.[1]).not.toHaveProperty("userId")` |
-| company | `expect(mockWorkTimelineApi.get).toHaveBeenCalledWith(` |
+| space | `expect(mockWorkTimelineApi.get).toHaveBeenCalledWith(` |
 | from | `expect(mockWorkTimelineApi.get).toHaveBeenCalledWith(` |
 | to | `expect(mockWorkTimelineApi.get).toHaveBeenCalledWith(` |
 | signal | `expect(mockWorkTimelineApi.get).toHaveBeenCalledWith(` |

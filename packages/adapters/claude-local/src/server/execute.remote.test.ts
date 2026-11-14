@@ -11,7 +11,7 @@ const {
   prepareWorkspaceForSshExecution,
   restoreWorkspaceFromSshExecution,
   syncDirectoryToSsh,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
 } = vi.hoisted(() => ({
   runChildProcess: vi.fn(async (_runId: string, _command: string, args: string[]): Promise<RunProcessResult> => ({
     exitCode: 0,
@@ -33,7 +33,7 @@ const {
   prepareWorkspaceForSshExecution: vi.fn(async () => ({ gitBacked: false })),
   restoreWorkspaceFromSshExecution: vi.fn(async () => undefined),
   syncDirectoryToSsh: vi.fn(async () => undefined),
-  startAdapterExecutionTargetPaperclipBridge: vi.fn(async () => ({
+  startAdapterExecutionTargetOutpostBridge: vi.fn(async () => ({
     env: {
       OUTPOST_API_URL: "http://127.0.0.1:4310",
       OUTPOST_API_KEY: "bridge-token",
@@ -73,7 +73,7 @@ vi.mock("@outpost/adapter-utils/execution-target", async () => {
   );
   return {
     ...actual,
-    startAdapterExecutionTargetPaperclipBridge,
+    startAdapterExecutionTargetOutpostBridge,
   };
 });
 
@@ -98,12 +98,12 @@ describe("claude remote execution", () => {
   it("prepares the workspace, syncs Claude runtime assets, and restores workspace changes for remote SSH execution", async () => {
     vi.stubEnv("CLAUDE_CODE_USE_BEDROCK", "1");
     vi.stubEnv("ANTHROPIC_MODEL", "host-only-model");
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-claude-remote-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-claude-remote-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     const alternateWorkspaceDir = path.join(rootDir, "workspace-other");
     const instructionsPath = path.join(rootDir, "instructions.md");
-    const managedRemoteWorkspace = "/remote/workspace/.paperclip-runtime/runs/run-1/workspace";
+    const managedRemoteWorkspace = "/remote/workspace/.outpost-runtime/runs/run-1/workspace";
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(alternateWorkspaceDir, { recursive: true });
     await writeFile(instructionsPath, "Use the remote workspace.\n", "utf8");
@@ -112,7 +112,7 @@ describe("claude remote execution", () => {
       runId: "run-1",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Claude Coder",
         adapterType: "claude_local",
         adapterConfig: {},
@@ -134,27 +134,27 @@ describe("claude remote execution", () => {
         },
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
           strategy: "git_worktree",
           workspaceId: "workspace-1",
-          repoUrl: "https://github.com/paperclipai/outpost.git",
+          repoUrl: "https://github.com/example/outpost.git",
           repoRef: "main",
           branchName: "feature/remote-claude",
           worktreePath: workspaceDir,
         },
-        paperclipWorkspaces: [
+        outpostWorkspaces: [
           {
             workspaceId: "workspace-1",
             cwd: workspaceDir,
-            repoUrl: "https://github.com/paperclipai/outpost.git",
+            repoUrl: "https://github.com/example/outpost.git",
             repoRef: "main",
           },
           {
             workspaceId: "workspace-2",
             cwd: alternateWorkspaceDir,
-            repoUrl: "https://github.com/paperclipai/outpost.git",
+            repoUrl: "https://github.com/example/outpost.git",
             repoRef: "feature/other",
           },
         ],
@@ -182,11 +182,11 @@ describe("claude remote execution", () => {
     // One sync per registered runtime asset: skills and mcp-config.
     expect(syncDirectoryToSsh).toHaveBeenCalledTimes(2);
     expect(syncDirectoryToSsh).toHaveBeenCalledWith(expect.objectContaining({
-      remoteDir: `${managedRemoteWorkspace}/.paperclip-runtime/claude/skills`,
+      remoteDir: `${managedRemoteWorkspace}/.outpost-runtime/claude/skills`,
       followSymlinks: true,
     }));
     expect(syncDirectoryToSsh).toHaveBeenCalledWith(expect.objectContaining({
-      remoteDir: `${managedRemoteWorkspace}/.paperclip-runtime/claude/mcp-config`,
+      remoteDir: `${managedRemoteWorkspace}/.outpost-runtime/claude/mcp-config`,
       followSymlinks: true,
     }));
     expect(runChildProcess.mock.calls.filter(call => !call[2].includes("--version"))).toHaveLength(1);
@@ -198,22 +198,22 @@ describe("claude remote execution", () => {
     expect(call?.[2]).not.toContain("--allowedTools");
     expect(call?.[2]).toContain("--append-system-prompt-file");
     expect(call?.[2]).toContain(
-      `${managedRemoteWorkspace}/.paperclip-runtime/claude/skills/agent-instructions.md`,
+      `${managedRemoteWorkspace}/.outpost-runtime/claude/skills/agent-instructions.md`,
     );
     expect(call?.[2]).toContain("--add-dir");
-    expect(call?.[2]).toContain(`${managedRemoteWorkspace}/.paperclip-runtime/claude/skills`);
+    expect(call?.[2]).toContain(`${managedRemoteWorkspace}/.outpost-runtime/claude/skills`);
     expect(call?.[3].env.OUTPOST_WORKSPACE_CWD).toBe(managedRemoteWorkspace);
     expect(call?.[3].env.OUTPOST_WORKSPACE_WORKTREE_PATH).toBeUndefined();
     expect(JSON.parse(call?.[3].env.OUTPOST_WORKSPACES_JSON ?? "[]")).toEqual([
       {
         workspaceId: "workspace-1",
         cwd: managedRemoteWorkspace,
-        repoUrl: "https://github.com/paperclipai/outpost.git",
+        repoUrl: "https://github.com/example/outpost.git",
         repoRef: "main",
       },
       {
         workspaceId: "workspace-2",
-        repoUrl: "https://github.com/paperclipai/outpost.git",
+        repoUrl: "https://github.com/example/outpost.git",
         repoRef: "feature/other",
       },
     ]);
@@ -223,7 +223,7 @@ describe("claude remote execution", () => {
     expect(call?.[3].env.RANDOM_WORKSPACE_CWD).toBe(managedRemoteWorkspace);
     expect(call?.[3].env.OTHER_ENV).toBe(workspaceDir);
     expect(call?.[3].remoteExecution?.remoteCwd).toBe(managedRemoteWorkspace);
-    expect(startAdapterExecutionTargetPaperclipBridge).toHaveBeenCalledTimes(1);
+    expect(startAdapterExecutionTargetOutpostBridge).toHaveBeenCalledTimes(1);
     expect(restoreWorkspaceFromSshExecution).toHaveBeenCalledTimes(1);
     expect(restoreWorkspaceFromSshExecution).toHaveBeenCalledWith(expect.objectContaining({
       localDir: workspaceDir,
@@ -232,7 +232,7 @@ describe("claude remote execution", () => {
   });
 
   it("does not resume saved Claude sessions for remote SSH execution without a matching remote identity", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-claude-remote-resume-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-claude-remote-resume-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     await mkdir(workspaceDir, { recursive: true });
@@ -241,7 +241,7 @@ describe("claude remote execution", () => {
       runId: "run-ssh-no-resume",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Claude Coder",
         adapterType: "claude_local",
         adapterConfig: {},
@@ -260,7 +260,7 @@ describe("claude remote execution", () => {
         command: "claude",
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -286,14 +286,14 @@ describe("claude remote execution", () => {
   });
 
   it("explains a remote-to-local session reset even when the cwd matches", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-claude-local-reset-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-claude-local-reset-"));
     cleanupDirs.push(rootDir);
     vi.stubEnv("OUTPOST_HOME", rootDir);
     const onLog = vi.fn(async () => {});
 
     await execute({
       runId: "run-local-reset",
-      agent: { id: "agent-1", companyId: "company-1", name: "Claude Coder", adapterType: "claude_local", adapterConfig: {} },
+      agent: { id: "agent-1", spaceId: "space-1", name: "Claude Coder", adapterType: "claude_local", adapterConfig: {} },
       runtime: {
         sessionId: "12345678-1234-4abc-9def-123456789012",
         sessionParams: {
@@ -303,7 +303,7 @@ describe("claude remote execution", () => {
         sessionDisplayId: null,
         taskKey: null,
       },
-      config: { model: "claude-opus-5", engine: "cli", command: "claude", cwd: rootDir, paperclipRuntimeSkills: [] },
+      config: { model: "claude-opus-5", engine: "cli", command: "claude", cwd: rootDir, outpostRuntimeSkills: [] },
       context: {},
       onLog,
     });
@@ -314,17 +314,17 @@ describe("claude remote execution", () => {
   });
 
   it("resumes saved Claude sessions for remote SSH execution when the remote identity matches", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-claude-remote-resume-match-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-claude-remote-resume-match-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
-    const managedRemoteWorkspace = "/remote/workspace/.paperclip-runtime/runs/run-ssh-resume/workspace";
+    const managedRemoteWorkspace = "/remote/workspace/.outpost-runtime/runs/run-ssh-resume/workspace";
     await mkdir(workspaceDir, { recursive: true });
 
     await execute({
       runId: "run-ssh-resume",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Claude Coder",
         adapterType: "claude_local",
         adapterConfig: {},
@@ -350,7 +350,7 @@ describe("claude remote execution", () => {
         command: "claude",
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -377,7 +377,7 @@ describe("claude remote execution", () => {
   });
 
   it("forwards the duplex_channel_lost transport code on the unparsed Claude result path", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-claude-remote-duplex-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-claude-remote-duplex-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     await mkdir(workspaceDir, { recursive: true });
@@ -402,7 +402,7 @@ describe("claude remote execution", () => {
       runId: "run-ssh-duplex-lost",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Claude Coder",
         adapterType: "claude_local",
         adapterConfig: {},
@@ -418,7 +418,7 @@ describe("claude remote execution", () => {
         command: "claude",
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -452,7 +452,7 @@ describe("claude remote execution", () => {
         runId: "run-model-passthrough",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Claude Coder",
           adapterType: "claude_local",
           adapterConfig: {},
@@ -469,7 +469,7 @@ describe("claude remote execution", () => {
           ...config,
         },
         context: {
-          paperclipWorkspace: {
+          outpostWorkspace: {
             cwd: workspaceDir,
             source: "project_primary",
           },
@@ -496,7 +496,7 @@ describe("claude remote execution", () => {
     }
 
     it.each(["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5"])("passes %s as --model on the CLI lane", async (model) => {
-      const { args } = await executeWithModel("paperclip-claude-model-direct-", {
+      const { args } = await executeWithModel("outpost-claude-model-direct-", {
         model,
       });
 
@@ -506,7 +506,7 @@ describe("claude remote execution", () => {
     });
 
     it("passes the Bedrock-native Fable 5.1 ID as --model under Bedrock auth", async () => {
-      const { args } = await executeWithModel("paperclip-claude-model-bedrock-", {
+      const { args } = await executeWithModel("outpost-claude-model-bedrock-", {
         model: "us.anthropic.claude-fable-5-1",
         env: { CLAUDE_CODE_USE_BEDROCK: "1" },
       });
@@ -517,7 +517,7 @@ describe("claude remote execution", () => {
     });
 
     it("skips --model for a direct Anthropic ID under Bedrock auth", async () => {
-      const { args } = await executeWithModel("paperclip-claude-model-bedrock-skip-", {
+      const { args } = await executeWithModel("outpost-claude-model-bedrock-skip-", {
         model: "claude-fable-5-1",
         env: { CLAUDE_CODE_USE_BEDROCK: "1" },
       });
@@ -540,7 +540,7 @@ describe("claude remote execution", () => {
         startedAt: new Date().toISOString(),
       });
 
-      const { args, result } = await executeWithModel("paperclip-claude-model-old-cli-", {
+      const { args, result } = await executeWithModel("outpost-claude-model-old-cli-", {
         model,
       });
 
@@ -554,8 +554,8 @@ describe("claude remote execution", () => {
     });
 
     it("leaves Fable compatibility to explicitly configured custom CLI wrappers", async () => {
-      const { args, result } = await executeWithModel("paperclip-claude-model-wrapper-", {
-        command: "/opt/paperclip/claude-wrapper",
+      const { args, result } = await executeWithModel("outpost-claude-model-wrapper-", {
+        command: "/opt/outpost/claude-wrapper",
         model: "claude-fable-5-1",
       });
 
@@ -570,7 +570,7 @@ describe("claude remote execution", () => {
 
 
   it("reselects the full assignment and bootstrap guidance after a failed resume", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-claude-cli-fallback-context-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-claude-cli-fallback-context-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     await mkdir(workspaceDir, { recursive: true });
@@ -608,7 +608,7 @@ describe("claude remote execution", () => {
       runId: "run-claude-cli-fallback-context",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Claude Coder",
         adapterType: "claude_local",
         adapterConfig: {},
@@ -626,7 +626,7 @@ describe("claude remote execution", () => {
       },
       context: {
         ...createPromptContextFixture(),
-        paperclipWorkspace: { cwd: workspaceDir, source: "project_primary" },
+        outpostWorkspace: { cwd: workspaceDir, source: "project_primary" },
       },
       onLog: async () => {},
     });

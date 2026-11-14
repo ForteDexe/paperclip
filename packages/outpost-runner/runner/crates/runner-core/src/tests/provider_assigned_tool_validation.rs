@@ -23,7 +23,7 @@ fn authorized_bridge(operation_id: &str, input_schema: Value) -> ProviderToolBri
 
 #[test]
 fn assigned_tool_discovery_rejection_guides_repair_without_retaining_a_receipt() {
-    let operation_id = "paperclip_search_assigned_tools";
+    let operation_id = "outpost_search_assigned_tools";
     let mut bridge = authorized_bridge(
         operation_id,
         json!({

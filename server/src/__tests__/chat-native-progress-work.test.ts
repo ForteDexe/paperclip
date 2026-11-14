@@ -12,7 +12,7 @@ import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { nativeChatProgressWork } from "../services/chat-native-progress-work.js";
 import { appendHeartbeatRunEvent } from "../services/heartbeat-run-events.js";
 import { NativeRunCoordinatorStore } from "../services/native-runtime/native-run-coordinator-store.js";
-import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "../services/native-runtime/outpost-control-plane-port.js";
 import type { PrpEvent } from "../vendor/outpost-runner/index.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 
@@ -34,11 +34,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   }, 60_000);
   beforeEach(async () => {
     errors.length = 0; canRun = true; f = await fixtures.create(); runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId,
       nativeIssueId: f.issueId, runtimeMode: "native", status: "running", responsibleUserId: f.userId,
       contextSnapshot: { issueId: f.issueId, source: "chat:slack", endpointId: f.endpointId, wakeCommentId: f.commentId },
     });
-    await db.insert(chatPublications).values({ companyId: f.companyId, endpointId: f.endpointId,
+    await db.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: `run:${runId}:working:${f.endpointId}`,
       payload: { text: "Maya is working…", progressState: "working" }, state: "published",
       createdAt: new Date(Date.now() - 60_000),
@@ -70,7 +70,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     finally { select.mockRestore(); transaction.mockRestore(); }
   }
   function event(nativeSource = false, eventType = "item.completed") {
-    return { companyId: f.companyId, agentId: f.agentId, runId, eventType,
+    return { spaceId: f.spaceId, agentId: f.agentId, runId, eventType,
       message: "PRIVATE event text", payload: { token: "PRIVATE token" },
       ...(nativeSource ? { nativeSource: { sourceInstanceId: runId, sourceEventId: "event-1", sourceSeq: 1,
         protocolSchemaVersion: 1, canonicalPayload: { eventType } } } : {}),
@@ -109,7 +109,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await start(); await settle(); expect(await publications()).toEqual([]); await quiet();
     await db.transaction(async tx => {
       expect(await enqueueChatRunLifecycleMilestones(tx as unknown as typeof db, {
-        scope: { companyId: f.companyId, issueId: f.issueId },
+        scope: { spaceId: f.spaceId, issueId: f.issueId },
       })).toBe(1);
       // Model a base transaction that began before the event but committed
       // afterwards, without a wall-clock delay in the suite. PostgreSQL's
@@ -149,7 +149,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it.each(["port", "coordinator"] as const)("wakes from the real %s event owner after outer commit, with quiet replay", async kind => {
     const sessionId = randomUUID(), runnerId = randomUUID();
     await db.update(heartbeatRuns).set({ nativeSessionId: sessionId }).where(eq(heartbeatRuns.id, runId));
-    const binding = { companyId: f.companyId, issueId: f.issueId, runId, agentId: f.agentId,
+    const binding = { spaceId: f.spaceId, issueId: f.issueId, runId, agentId: f.agentId,
       sessionId, completionContractId: randomUUID(), completionContractSha256: "fixture",
       sourceInstanceId: runnerId, controlPlaneSourceInstanceId: "control",
       normalizedSessionId: sessionId, runnerSourceInstanceId: runnerId,
@@ -161,7 +161,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       eventType: "item.completed", priority: 1, emittedAt: new Date().toISOString(), payload: {},
     };
     const append = (client: typeof db) => (kind === "port"
-      ? new PaperclipControlPlanePort(client, binding)
+      ? new OutpostControlPlanePort(client, binding)
       : new NativeRunCoordinatorStore(client, binding)).appendEvent(source);
     await start(); await settle(); await quiet();
     await expect(db.transaction(async tx => {
@@ -243,7 +243,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       } })).toString("base64"),
     }]);
     expect(projection.turns).toHaveLength(1);
-    const input = { traceId: randomUUID(), companyId: f.companyId, agentId: f.agentId, runId, projection };
+    const input = { traceId: randomUUID(), spaceId: f.spaceId, agentId: f.agentId, runId, projection };
     expect(await persistReprojectedWorkspaceDiffs(db, input)).toMatchObject({ created: 1 });
     await settle();
     expect(await publications()).toEqual([expect.objectContaining({ payload: expect.objectContaining({ text: "Maya is working with files…" }) })]);
@@ -259,11 +259,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const [source] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
     const secondRunId = randomUUID();
     await db.insert(heartbeatRuns).values({
-      id: secondRunId, companyId: f.companyId, agentId: f.agentId, nativeIssueId: f.issueId,
+      id: secondRunId, spaceId: f.spaceId, agentId: f.agentId, nativeIssueId: f.issueId,
       runtimeMode: "native", status: "running", responsibleUserId: f.userId, contextSnapshot: source.contextSnapshot,
     });
     await db.insert(chatPublications).values({
-      companyId: f.companyId, endpointId: f.endpointId, conversationId: f.conversationId,
+      spaceId: f.spaceId, endpointId: f.endpointId, conversationId: f.conversationId,
       issueId: f.issueId, idempotencyKey: `run:${secondRunId}:working:${f.endpointId}`,
       payload: { text: "Maya is working…", progressState: "working" }, state: "published",
       createdAt: new Date(Date.now() - 60_000),
@@ -292,21 +292,21 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("limits an event wake to its issue and reconstructs other saved scopes on restart", async () => {
     await start(); await settle();
     // Seed rows without signals to expose an accidentally global event wake.
-    const others = [await fixtures.create(f.companyId), await fixtures.create()];
+    const others = [await fixtures.create(f.spaceId), await fixtures.create()];
     for (const other of others) {
       const id = randomUUID();
       await db.insert(heartbeatRuns).values({
-        id, companyId: other.companyId, agentId: other.agentId, nativeIssueId: other.issueId,
+        id, spaceId: other.spaceId, agentId: other.agentId, nativeIssueId: other.issueId,
         runtimeMode: "native", status: "running", responsibleUserId: other.userId,
         contextSnapshot: { issueId: other.issueId, source: "chat:slack", endpointId: other.endpointId, wakeCommentId: other.commentId },
       });
       await db.insert(chatPublications).values({
-        companyId: other.companyId, endpointId: other.endpointId, conversationId: other.conversationId,
+        spaceId: other.spaceId, endpointId: other.endpointId, conversationId: other.conversationId,
         issueId: other.issueId, idempotencyKey: `run:${id}:working:${other.endpointId}`,
         payload: { text: "Maya is working…", progressState: "working" }, state: "published",
         createdAt: new Date(Date.now() - 60_000),
       });
-      await db.insert(heartbeatRunEvents).values({ companyId: other.companyId, agentId: other.agentId,
+      await db.insert(heartbeatRunEvents).values({ spaceId: other.spaceId, agentId: other.agentId,
         runId: id, seq: 1, eventType: "item.completed" });
     }
     const saved = (issueId: string) => db.select().from(chatPublications).where(and(
@@ -324,17 +324,17 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const [source] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
     const ids = Array.from({ length: 105 }, () => randomUUID());
     await db.insert(heartbeatRuns).values(ids.map(id => ({
-      id, companyId: f.companyId, agentId: f.agentId, nativeIssueId: f.issueId,
+      id, spaceId: f.spaceId, agentId: f.agentId, nativeIssueId: f.issueId,
       runtimeMode: "native", status: "running", responsibleUserId: f.userId, contextSnapshot: source.contextSnapshot,
     })));
     await db.insert(chatPublications).values(ids.map(id => ({
-      companyId: f.companyId, endpointId: f.endpointId, conversationId: f.conversationId,
+      spaceId: f.spaceId, endpointId: f.endpointId, conversationId: f.conversationId,
       issueId: f.issueId, idempotencyKey: `run:${id}:working:${f.endpointId}`,
       payload: { text: "Maya is working…", progressState: "working" as const }, state: "published" as const,
       createdAt: new Date(Date.now() - 60_000),
     })));
     await db.insert(heartbeatRunEvents).values(ids.map(id => ({
-      companyId: f.companyId, agentId: f.agentId, runId: id, seq: 1, eventType: "item.completed",
+      spaceId: f.spaceId, agentId: f.agentId, runId: id, seq: 1, eventType: "item.completed",
     })));
     await start(); await settle();
     expect(await publications()).toHaveLength(ids.length); await quiet(); expect(errors).toEqual([]);

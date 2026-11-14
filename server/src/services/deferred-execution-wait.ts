@@ -19,12 +19,12 @@ export class PersistedExecutionWaitRefusal extends HttpError {
  * reloading. Pass `publications` when the caller's transaction is still open;
  * they must be published after it commits.
  */
-export async function writeDeferredExecutionWait(db: Db, scope: { companyId: string; requestId: string },
+export async function writeDeferredExecutionWait(db: Db, scope: { spaceId: string; requestId: string },
   condition: Record<string, unknown>, options: { replace?: boolean; publications?: ActivityPublication[] } = {}) {
   const pending: ActivityPublication[] = [];
   const saved = await db.transaction(async tx => {
     const [current] = await tx.select({ payload: agentWakeupRequests.payload, agentId: agentWakeupRequests.agentId }).from(agentWakeupRequests)
-      .where(and(eq(agentWakeupRequests.companyId, scope.companyId), eq(agentWakeupRequests.id, scope.requestId),
+      .where(and(eq(agentWakeupRequests.spaceId, scope.spaceId), eq(agentWakeupRequests.id, scope.requestId),
         eq(agentWakeupRequests.status, "deferred_issue_execution"))).for("update");
     if (!current) return false;
     const previous = current.payload?.executionWait;
@@ -37,11 +37,11 @@ export async function writeDeferredExecutionWait(db: Db, scope: { companyId: str
         ${options.replace ? sql`'{}'::jsonb` : sql`coalesce(${agentWakeupRequests.payload}->'executionWait', '{}'::jsonb)`}
           || ${JSON.stringify(condition)}::jsonb)`,
       updatedAt: new Date(),
-    }).where(and(eq(agentWakeupRequests.companyId, scope.companyId), eq(agentWakeupRequests.id, scope.requestId),
+    }).where(and(eq(agentWakeupRequests.spaceId, scope.spaceId), eq(agentWakeupRequests.id, scope.requestId),
       eq(agentWakeupRequests.status, "deferred_issue_execution"))).returning({ id: agentWakeupRequests.id });
     const issueId = current.payload?.issueId;
     if (saved && reasonChanged && typeof issueId === "string" && issueId && typeof condition.reason === "string") {
-      const { publication } = await persistActivity(tx as unknown as Db, { companyId: scope.companyId, actorType: "system",
+      const { publication } = await persistActivity(tx as unknown as Db, { spaceId: scope.spaceId, actorType: "system",
         actorId: "execution-admission", action: "issue.execution_waiting", entityType: "issue", entityId: issueId,
         agentId: current.agentId, details: { requestId: scope.requestId, reason: condition.reason } });
       pending.push(publication);

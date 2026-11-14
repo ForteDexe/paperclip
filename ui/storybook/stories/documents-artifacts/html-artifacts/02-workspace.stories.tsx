@@ -34,7 +34,7 @@ function Workspace({ sheet = false }: { sheet?: boolean }) {
 }
 const meta = { id: "html-artifacts-02-workspace",
   title: "Tasks and conversations/Documents, attachments, and work products/HTML artifacts/02 Workspace", component: Workspace, render: (args, context) => <Workspace key={context.id} {...args} />, parameters: { layout: "fullscreen", docs: { story: { inline: false } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "documents-artifacts/attachments",
         "workspaces/files-git"

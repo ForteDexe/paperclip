@@ -75,14 +75,14 @@ export function mapIssuesInQueryData(data: unknown, refs: ReadonlySet<string>, u
 /** Optimistically apply `data` to the issue everywhere it is cached; returns what rollback needs. */
 export function applyOptimisticIssueUpdate(
   queryClient: QueryClient,
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   refs: ReadonlySet<string>,
   data: Record<string, unknown>,
 ): IssueRollback {
   const rollback: IssueRollback = [];
   const filters = [
     { queryKey: ["issues", "detail"] as QueryKey },
-    ...(companyId ? [{ queryKey: ["issues", companyId] as QueryKey }] : []),
+    ...(spaceId ? [{ queryKey: ["issues", spaceId] as QueryKey }] : []),
   ];
   for (const filter of filters) {
     for (const [queryKey, cached] of queryClient.getQueriesData({ queryKey: filter.queryKey })) {
@@ -153,7 +153,7 @@ function takeIssueWriteTurn(key: string): IssueWriteTurn {
 }
 
 export interface UseUpdateIssueMutationOptions {
-  companyId: string | null | undefined;
+  spaceId: string | null | undefined;
   /** Query keys this surface lists issues under; refreshed after every update. */
   invalidateKeys?: QueryKey[];
   onSuccess?: (result: IssueUpdateResponse, variables: UpdateIssueVariables) => void;
@@ -185,7 +185,7 @@ export function useUpdateIssueMutation(options: UseUpdateIssueMutationOptions): 
   const queryClient = useQueryClient();
   const { pushToast } = useToastActions();
   const connectivity = useConnectivityStore();
-  const { companyId, invalidateKeys, onSuccess, onSettled, action = "update the task" } = options;
+  const { spaceId, invalidateKeys, onSuccess, onSettled, action = "update the task" } = options;
 
   const mutationOptions = {
     waitForTurn: (variables: UpdateIssueVariables) => issueWriteTurns.get(variables)?.ready,
@@ -199,9 +199,9 @@ export function useUpdateIssueMutation(options: UseUpdateIssueMutationOptions): 
       // optimistic value; other issues' reads keep going.
       await Promise.all([
         ...[...refs].map((ref) => queryClient.cancelQueries({ queryKey: queryKeys.issues.detail(ref) })),
-        ...(companyId ? [queryClient.cancelQueries({ queryKey: queryKeys.issues.list(companyId) })] : []),
+        ...(spaceId ? [queryClient.cancelQueries({ queryKey: queryKeys.issues.list(spaceId) })] : []),
       ]);
-      return { refs, rollback: applyOptimisticIssueUpdate(queryClient, companyId, refs, data) };
+      return { refs, rollback: applyOptimisticIssueUpdate(queryClient, spaceId, refs, data) };
     },
     onSuccess: (result: IssueUpdateResponse, variables: UpdateIssueVariables) => {
       onSuccess?.(result, variables);
@@ -216,7 +216,7 @@ export function useUpdateIssueMutation(options: UseUpdateIssueMutationOptions): 
     onFinished: (variables: UpdateIssueVariables) => { issueWriteTurns.get(variables)?.release(); },
     onSettled: (_result: unknown, _error: unknown, variables: UpdateIssueVariables) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(variables.id) });
-      for (const queryKey of invalidateKeys ?? (companyId ? [queryKeys.issues.list(companyId)] : [])) {
+      for (const queryKey of invalidateKeys ?? (spaceId ? [queryKeys.issues.list(spaceId)] : [])) {
         void queryClient.invalidateQueries({ queryKey });
       }
       onSettled?.();
@@ -232,13 +232,13 @@ export function useUpdateIssueMutation(options: UseUpdateIssueMutationOptions): 
   replayableRef.current = replayable;
   const directRef = useRef(direct);
   directRef.current = direct;
-  const companyIdRef = useRef(companyId);
-  companyIdRef.current = companyId;
+  const spaceIdRef = useRef(spaceId);
+  spaceIdRef.current = spaceId;
   const queue = (variables: UpdateIssueVariables) => {
     // A copy, so each call gets its own turn even if a caller reuses variables.
     const queued = { ...variables };
     const cached = queryClient.getQueryData<Issue>(queryKeys.issues.detail(variables.id));
-    issueWriteTurns.set(queued, takeIssueWriteTurn(`${companyIdRef.current ?? "none"}:${cached?.id ?? variables.id}`));
+    issueWriteTurns.set(queued, takeIssueWriteTurn(`${spaceIdRef.current ?? "none"}:${cached?.id ?? variables.id}`));
     const mutation = isReplayableIssueUpdate(queued.data) ? replayableRef.current : directRef.current;
     return { mutation, queued };
   };

@@ -13,14 +13,14 @@ import type {
   ExternalObjectStatusCategory,
   ExternalObjectStatusTone,
 } from "@outpost/shared";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { plugins } from "./plugins.js";
 
 export const externalObjects = pgTable(
   "external_objects",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     providerKey: text("provider_key").notNull(),
     pluginId: uuid("plugin_id").references(() => plugins.id, { onDelete: "set null" }),
     objectType: text("object_type").notNull(),
@@ -52,25 +52,25 @@ export const externalObjects = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyProviderObjectIdx: index("external_objects_company_provider_object_idx").on(
-      table.companyId,
+    spaceProviderObjectIdx: index("external_objects_space_provider_object_idx").on(
+      table.spaceId,
       table.providerKey,
       table.objectType,
     ),
-    companyProviderStatusIdx: index("external_objects_company_provider_status_idx").on(
-      table.companyId,
+    spaceProviderStatusIdx: index("external_objects_space_provider_status_idx").on(
+      table.spaceId,
       table.providerKey,
       table.statusCategory,
     ),
-    companyRefreshIdx: index("external_objects_company_refresh_idx").on(table.companyId, table.nextRefreshAt),
-    companyExternalIdUq: uniqueIndex("external_objects_company_external_id_uq").on(
-      table.companyId,
+    spaceRefreshIdx: index("external_objects_space_refresh_idx").on(table.spaceId, table.nextRefreshAt),
+    spaceExternalIdUq: uniqueIndex("external_objects_space_external_id_uq").on(
+      table.spaceId,
       table.providerKey,
       table.objectType,
       table.externalId,
     ),
-    companyCanonicalIdentityUq: uniqueIndex("external_objects_company_identity_uq").on(
-      table.companyId,
+    spaceCanonicalIdentityUq: uniqueIndex("external_objects_space_identity_uq").on(
+      table.spaceId,
       table.providerKey,
       table.objectType,
       table.canonicalIdentityHash,

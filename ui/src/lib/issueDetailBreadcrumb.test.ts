@@ -35,7 +35,7 @@ describe("issueDetailBreadcrumb", () => {
   function createIssue(overrides: Partial<Issue> = {}): Issue {
     return {
       id: "11111111-1111-4111-8111-111111111111",
-      companyId: "company-1",
+      spaceId: "space-1",
       projectId: "project-1",
       projectWorkspaceId: null,
       goalId: null,
@@ -73,8 +73,8 @@ describe("issueDetailBreadcrumb", () => {
       hiddenAt: null,
       project: {
         id: "project-1",
-        companyId: "company-1",
-        urlKey: "paperclip-app",
+        spaceId: "space-1",
+        urlKey: "outpost-app",
         goalId: null,
         goalIds: [],
         goals: [],
@@ -96,8 +96,8 @@ describe("issueDetailBreadcrumb", () => {
           defaultRef: null,
           repoName: null,
           localFolder: null,
-          managedFolder: "/tmp/paperclip-app",
-          effectiveLocalFolder: "/tmp/paperclip-app",
+          managedFolder: "/tmp/outpost-app",
+          effectiveLocalFolder: "/tmp/outpost-app",
           origin: "local_folder",
         },
         workspaces: [],

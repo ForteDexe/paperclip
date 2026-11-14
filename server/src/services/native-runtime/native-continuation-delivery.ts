@@ -8,13 +8,13 @@ import { NATIVE_RUN_FAILED_RETRY_CAUSE } from "./status-arbiter.js";
  * provider-supplied source IDs or the mere presence of a chat on the task. */
 export async function readNativeContinuationSource(
   db: Pick<Db, "select">,
-  binding: { companyId: string; issueId: string; runId: string },
+  binding: { spaceId: string; issueId: string; runId: string },
 ): Promise<string | null> {
   const source = alias(heartbeatRuns, "continuation_source");
   const dispatch = alias(agentWakeupRequests, "continuation_dispatch");
   const sources = await db.select({ runId: source.id }).from(heartbeatRuns)
     .innerJoin(agentWakeupRequests, and(
-      eq(agentWakeupRequests.companyId, binding.companyId),
+      eq(agentWakeupRequests.spaceId, binding.spaceId),
       or(isNull(agentWakeupRequests.runId), eq(agentWakeupRequests.runId, heartbeatRuns.id)),
       eq(agentWakeupRequests.agentId, heartbeatRuns.agentId),
       eq(agentWakeupRequests.reason, "issue_status_changed"),
@@ -25,7 +25,7 @@ export async function readNativeContinuationSource(
       sql`${heartbeatRuns.contextSnapshot}->>'nativeStatusWakeIntentId' = ${agentWakeupRequests.id}::text`,
     ))
     .innerJoin(dispatch, and(
-      eq(dispatch.companyId, binding.companyId), eq(dispatch.agentId, heartbeatRuns.agentId),
+      eq(dispatch.spaceId, binding.spaceId), eq(dispatch.agentId, heartbeatRuns.agentId),
       eq(dispatch.runId, heartbeatRuns.id), eq(dispatch.reason, "issue_status_changed"),
       eq(dispatch.requestedByActorType, "system"),
       sql`${dispatch.requestedByActorId} = 'native-status-wake-dispatch:' || ${agentWakeupRequests.id}::text`,
@@ -34,7 +34,7 @@ export async function readNativeContinuationSource(
       sql`${dispatch.payload}->>'issueId' = ${binding.issueId}`,
     ))
     .innerJoin(statusDecisionEffects, and(
-      eq(statusDecisionEffects.companyId, binding.companyId), eq(statusDecisionEffects.issueId, binding.issueId),
+      eq(statusDecisionEffects.spaceId, binding.spaceId), eq(statusDecisionEffects.issueId, binding.issueId),
       eq(statusDecisionEffects.targetType, "agent_wakeup_request"),
       sql`${statusDecisionEffects.targetId} = ${agentWakeupRequests.id}::text`,
       eq(statusDecisionEffects.deliveryState, "delivered"),
@@ -49,7 +49,7 @@ export async function readNativeContinuationSource(
       )),
     ))
     .innerJoin(statusDecisions, and(
-      eq(statusDecisions.id, statusDecisionEffects.decisionId), eq(statusDecisions.companyId, binding.companyId),
+      eq(statusDecisions.id, statusDecisionEffects.decisionId), eq(statusDecisions.spaceId, binding.spaceId),
       eq(statusDecisions.issueId, binding.issueId), eq(statusDecisions.applicationState, "applied"),
       or(and(
         eq(statusDecisions.reasonCode, "live_continuation_registered"),
@@ -61,12 +61,12 @@ export async function readNativeContinuationSource(
       sql`${agentWakeupRequests.payload}->>'nativeDecisionId' = ${statusDecisions.id}::text`,
     ))
     .innerJoin(source, and(
-      eq(source.id, statusDecisions.runId), eq(source.companyId, binding.companyId),
+      eq(source.id, statusDecisions.runId), eq(source.spaceId, binding.spaceId),
       eq(source.nativeIssueId, binding.issueId), eq(source.runtimeMode, "native"),
       eq(source.agentId, heartbeatRuns.agentId), ne(source.id, heartbeatRuns.id),
       sql`${source.responsibleUserId} is not distinct from ${heartbeatRuns.responsibleUserId}`,
     ))
-    .where(and(eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.companyId, binding.companyId),
+    .where(and(eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.spaceId, binding.spaceId),
       eq(boundRunIssueIdSql(), binding.issueId)))
     .groupBy(source.id).limit(2);
   return sources.length === 1 ? sources[0]!.runId : null;

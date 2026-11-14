@@ -5,7 +5,7 @@ describe("kubernetesProviderConfigSchema", () => {
   it("accepts inCluster=true with no kubeconfig", () => {
     const parsed = parseKubernetesProviderConfig({ inCluster: true });
     expect(parsed.inCluster).toBe(true);
-    expect(parsed.namespacePrefix).toBe("paperclip-");
+    expect(parsed.namespacePrefix).toBe("outpost-");
     expect(parsed.imageAllowList).toEqual([]);
     expect(parsed.egressMode).toBe("standard");
     expect(parsed.jobTtlSecondsAfterFinished).toBe(900);
@@ -25,9 +25,9 @@ describe("kubernetesProviderConfigSchema", () => {
     );
   });
 
-  it("rejects invalid companySlug", () => {
+  it("rejects invalid spaceSlug", () => {
     expect(() =>
-      parseKubernetesProviderConfig({ inCluster: true, companySlug: "INVALID UPPER" }),
+      parseKubernetesProviderConfig({ inCluster: true, spaceSlug: "INVALID UPPER" }),
     ).toThrow();
   });
 

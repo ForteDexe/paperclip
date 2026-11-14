@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  activityLog, agents, agentWakeupRequests, companies, createDb, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issueRelations,
+  activityLog, agents, agentWakeupRequests, spaces, createDb, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issueRelations,
   issues, type Db,
 } from "@outpost/db";
 import { ISSUE_BLOCKER_STALLED_WAKE_REASON } from "@outpost/shared";
@@ -14,7 +14,7 @@ import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database
 const external = resolveExternalTestDatabaseUrl("OUTPOST_RECOVERY_ACTION_TEST_DATABASE_URL");
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 
-// Restart chaos w-20261108T181313-s9701 t05: a child blocked on a board-owned
+// Restart chaos w-20261108T181313-s9701 t05: a child blocked on a operator-owned
 // recovery action (retries exhausted), and its parent sat silently blocked for
 // 50+ minutes because only completion or resolution wakes a parent.
 (support.supported ? describe : describe.skip)("issue_blocker_stalled wakes", () => {
@@ -25,7 +25,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     db = createDb(external ?? temporary!.connectionString);
     db.$client.options.onnotice = () => {};
   }, 30_000);
-  afterEach(async () => { vi.restoreAllMocks(); await db.execute(sql`truncate companies cascade`); });
+  afterEach(async () => { vi.restoreAllMocks(); await db.execute(sql`truncate spaces cascade`); });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
 
   // Records each wake the way the queue does, so the idempotency check sees it.
@@ -33,45 +33,45 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const calls: Array<{ agentId: string; input: Record<string, any> }> = [];
     const enqueueWakeup = vi.fn(async (agentId: string, input: Record<string, any>) => {
       calls.push({ agentId, input });
-      const [row] = await db.insert(agentWakeupRequests).values({ companyId: input.payload.companyId ?? companyIdOf.get(agentId)!,
+      const [row] = await db.insert(agentWakeupRequests).values({ spaceId: input.payload.spaceId ?? spaceIdOf.get(agentId)!,
         agentId, source: input.source, triggerDetail: input.triggerDetail, reason: input.reason, payload: input.payload,
         idempotencyKey: input.idempotencyKey, status: "queued" }).returning();
       return { id: row.id };
     });
     return { calls, enqueueWakeup };
   }
-  const companyIdOf = new Map<string, string>();
+  const spaceIdOf = new Map<string, string>();
 
-  async function fixture(options: { ownerType?: "board" | "agent"; status?: "active" | "escalated" } = {}) {
-    const companyId = randomUUID(), parentAgent = randomUUID(), childAgent = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Stall", issuePrefix: `S${companyId.slice(0, 6)}` });
+  async function fixture(options: { ownerType?: "operator" | "agent"; status?: "active" | "escalated" } = {}) {
+    const spaceId = randomUUID(), parentAgent = randomUUID(), childAgent = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Stall", issuePrefix: `S${spaceId.slice(0, 6)}` });
     await db.insert(agents).values([
-      { id: parentAgent, companyId, name: "Parent owner", role: "engineer", status: "idle" },
-      { id: childAgent, companyId, name: "Child owner", role: "engineer", status: "idle" },
+      { id: parentAgent, spaceId, name: "Parent owner", role: "engineer", status: "idle" },
+      { id: childAgent, spaceId, name: "Child owner", role: "engineer", status: "idle" },
     ]);
-    companyIdOf.set(parentAgent, companyId); companyIdOf.set(childAgent, companyId);
-    const [parent] = await db.insert(issues).values({ companyId, title: "Parent", status: "blocked", assigneeAgentId: parentAgent }).returning();
-    const [child] = await db.insert(issues).values({ companyId, title: "Child", status: "blocked", parentId: parent.id,
+    spaceIdOf.set(parentAgent, spaceId); spaceIdOf.set(childAgent, spaceId);
+    const [parent] = await db.insert(issues).values({ spaceId, title: "Parent", status: "blocked", assigneeAgentId: parentAgent }).returning();
+    const [child] = await db.insert(issues).values({ spaceId, title: "Child", status: "blocked", parentId: parent.id,
       assigneeAgentId: childAgent }).returning();
-    const [action] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: child.id,
-      kind: "run_recovery", status: options.status ?? "escalated", ownerType: options.ownerType ?? "board",
+    const [action] = await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: child.id,
+      kind: "run_recovery", status: options.status ?? "escalated", ownerType: options.ownerType ?? "operator",
       cause: "execution_recovery_budget_exhausted", fingerprint: "fixture", nextAction: "Retry the run or reassign the task" }).returning();
-    return { companyId, parentAgent, childAgent, parent, child, action };
+    return { spaceId, parentAgent, childAgent, parent, child, action };
   }
 
   it("wakes the parent's assignee once per stall, with the stalled child and its recovery action", async () => {
     const f = await fixture();
     const { calls, enqueueWakeup } = wakeRecorder();
     const service = recoveryService(db, { enqueueWakeup: enqueueWakeup as never });
-    await service.reconcileActiveRecoveryActions({ companyId: f.companyId });
-    await service.reconcileActiveRecoveryActions({ companyId: f.companyId });
+    await service.reconcileActiveRecoveryActions({ spaceId: f.spaceId });
+    await service.reconcileActiveRecoveryActions({ spaceId: f.spaceId });
     const parentWakes = calls.filter(call => call.input.reason === ISSUE_BLOCKER_STALLED_WAKE_REASON);
     expect(parentWakes).toHaveLength(1);
     expect(parentWakes[0]).toMatchObject({ agentId: f.parentAgent, input: {
       idempotencyKey: issueBlockerStalledWakeKey({ waiterIssueId: f.parent.id, stalledIssueId: f.child.id, recoveryActionId: f.action.id }),
       contextSnapshot: { issueId: f.parent.id, wakeReason: ISSUE_BLOCKER_STALLED_WAKE_REASON, blockerStall: {
         stalledIssueId: f.child.id, stalledIssueStatus: "blocked", relation: "child",
-        recoveryAction: { id: f.action.id, status: "escalated", ownerType: "board", nextAction: "Retry the run or reassign the task" },
+        recoveryAction: { id: f.action.id, status: "escalated", ownerType: "operator", nextAction: "Retry the run or reassign the task" },
       } },
     } });
     const activity = await db.select().from(activityLog).where(eq(activityLog.action, "issue.blocker_stalled_wake"));
@@ -80,10 +80,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
     // Unstalled, then stalled again: a new recovery action is a new stall.
     await db.update(issueRecoveryActions).set({ status: "resolved", resolvedAt: new Date() }).where(eq(issueRecoveryActions.id, f.action.id));
-    const [again] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.child.id,
-      kind: "run_recovery", status: "escalated", ownerType: "board", cause: "execution_recovery_budget_exhausted",
+    const [again] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.child.id,
+      kind: "run_recovery", status: "escalated", ownerType: "operator", cause: "execution_recovery_budget_exhausted",
       fingerprint: "fixture-2", nextAction: "Retry" }).returning();
-    await service.reconcileActiveRecoveryActions({ companyId: f.companyId });
+    await service.reconcileActiveRecoveryActions({ spaceId: f.spaceId });
     const later = calls.filter(call => call.input.reason === ISSUE_BLOCKER_STALLED_WAKE_REASON);
     expect(later).toHaveLength(2);
     expect(later[1]!.input.contextSnapshot.blockerStall.recoveryAction.id).toBe(again.id);
@@ -92,13 +92,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("wakes the assignee of an issue the stalled one blocks", async () => {
     const f = await fixture();
     const dependentAgent = randomUUID();
-    await db.insert(agents).values({ id: dependentAgent, companyId: f.companyId, name: "Dependent owner", role: "engineer", status: "idle" });
-    companyIdOf.set(dependentAgent, f.companyId);
-    const [dependent] = await db.insert(issues).values({ companyId: f.companyId, title: "Dependent", status: "blocked",
+    await db.insert(agents).values({ id: dependentAgent, spaceId: f.spaceId, name: "Dependent owner", role: "engineer", status: "idle" });
+    spaceIdOf.set(dependentAgent, f.spaceId);
+    const [dependent] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Dependent", status: "blocked",
       assigneeAgentId: dependentAgent }).returning();
-    await db.insert(issueRelations).values({ companyId: f.companyId, issueId: f.child.id, relatedIssueId: dependent.id, type: "blocks" });
+    await db.insert(issueRelations).values({ spaceId: f.spaceId, issueId: f.child.id, relatedIssueId: dependent.id, type: "blocks" });
     const { calls, enqueueWakeup } = wakeRecorder();
-    await recoveryService(db, { enqueueWakeup: enqueueWakeup as never }).reconcileActiveRecoveryActions({ companyId: f.companyId });
+    await recoveryService(db, { enqueueWakeup: enqueueWakeup as never }).reconcileActiveRecoveryActions({ spaceId: f.spaceId });
     const stalled = calls.filter(call => call.input.reason === ISSUE_BLOCKER_STALLED_WAKE_REASON);
     expect(stalled.map(call => [call.agentId, call.input.contextSnapshot.blockerStall.relation]).sort())
       .toEqual([[dependentAgent, "blocker"], [f.parentAgent, "child"]].sort());
@@ -107,17 +107,17 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("wakes only the swept waiter for a shared stalled blocker, so N dependents cost N, not N squared", async () => {
     const f = await fixture();
     const dependentAgent = randomUUID();
-    await db.insert(agents).values({ id: dependentAgent, companyId: f.companyId, name: "Dependent owner", role: "engineer", status: "idle" });
-    companyIdOf.set(dependentAgent, f.companyId);
-    const dependents = await db.insert(issues).values([1, 2, 3].map(index => ({ companyId: f.companyId,
+    await db.insert(agents).values({ id: dependentAgent, spaceId: f.spaceId, name: "Dependent owner", role: "engineer", status: "idle" });
+    spaceIdOf.set(dependentAgent, f.spaceId);
+    const dependents = await db.insert(issues).values([1, 2, 3].map(index => ({ spaceId: f.spaceId,
       title: `Dependent ${index}`, status: "blocked" as const, assigneeAgentId: dependentAgent }))).returning();
-    await db.insert(issueRelations).values(dependents.map(dependent => ({ companyId: f.companyId, issueId: f.child.id,
+    await db.insert(issueRelations).values(dependents.map(dependent => ({ spaceId: f.spaceId, issueId: f.child.id,
       relatedIssueId: dependent.id, type: "blocks" as const })));
     const { calls, enqueueWakeup } = wakeRecorder();
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId, issueId: dependents[0]!.id });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId, issueId: dependents[0]!.id });
     expect(calls.map(call => call.input.payload.issueId)).toEqual([dependents[0]!.id]);
     // The stalled issue's own pass reaches every waiter, skipping those already woken.
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId, issueId: f.child.id });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId, issueId: f.child.id });
     expect(calls.map(call => call.input.payload.issueId).sort())
       .toEqual([f.parent.id, ...dependents.map(dependent => dependent.id)].sort());
   });
@@ -126,35 +126,35 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await fixture();
     const [sleepy, awake] = [randomUUID(), randomUUID()];
     await db.insert(agents).values([
-      { id: sleepy, companyId: f.companyId, name: "Sleepy", role: "engineer", status: "paused" },
-      { id: awake, companyId: f.companyId, name: "Awake", role: "engineer", status: "idle" },
+      { id: sleepy, spaceId: f.spaceId, name: "Sleepy", role: "engineer", status: "paused" },
+      { id: awake, spaceId: f.spaceId, name: "Awake", role: "engineer", status: "idle" },
     ]);
-    companyIdOf.set(sleepy, f.companyId); companyIdOf.set(awake, f.companyId);
+    spaceIdOf.set(sleepy, f.spaceId); spaceIdOf.set(awake, f.spaceId);
     const rows = Array.from({ length: 101 }, (_, index) => ({ id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
-      companyId: f.companyId, title: `Waiter ${index}`, status: "todo" as const, assigneeAgentId: index < 100 ? sleepy : awake }));
+      spaceId: f.spaceId, title: `Waiter ${index}`, status: "todo" as const, assigneeAgentId: index < 100 ? sleepy : awake }));
     await db.insert(issues).values(rows);
-    await db.insert(issueRelations).values(rows.map(row => ({ companyId: f.companyId, issueId: f.child.id,
+    await db.insert(issueRelations).values(rows.map(row => ({ spaceId: f.spaceId, issueId: f.child.id,
       relatedIssueId: row.id, type: "blocks" as const })));
     const { calls, enqueueWakeup } = wakeRecorder();
-    const result = await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId, issueId: f.child.id });
+    const result = await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId, issueId: f.child.id });
     expect(calls.map(call => call.input.payload.issueId)).toContain(rows[100]!.id);
     expect(result.deferred).toBe(100);
   });
 
-  it("wakes the dependent when the blocker's board action resolved as blocked (t05 shape)", async () => {
-    // t05: CHA-8 blocks CHA-5. Its board-owned action was resolved with outcome
+  it("wakes the dependent when the blocker's operator action resolved as blocked (t05 shape)", async () => {
+    // t05: CHA-8 blocks CHA-5. Its operator-owned action was resolved with outcome
     // "blocked" six seconds after creation, as the issue moved to blocked for
-    // the board, so no open action remained to find.
+    // the operator, so no open action remained to find.
     const f = await fixture();
     await db.update(issueRecoveryActions).set({ status: "resolved", outcome: "blocked", resolvedAt: new Date() })
       .where(eq(issueRecoveryActions.id, f.action.id));
     await db.update(issues).set({ parentId: null }).where(eq(issues.id, f.child.id));
-    await db.insert(issueRelations).values({ companyId: f.companyId, issueId: f.child.id, relatedIssueId: f.parent.id, type: "blocks" });
+    await db.insert(issueRelations).values({ spaceId: f.spaceId, issueId: f.child.id, relatedIssueId: f.parent.id, type: "blocks" });
     const { calls, enqueueWakeup } = wakeRecorder();
     const service = recoveryService(db, { enqueueWakeup: enqueueWakeup as never });
     // The per-issue blocked sweep visits the stalled blocker itself.
-    await service.reconcileResolvedDependencyWakeBackstop({ companyId: f.companyId, issueId: f.child.id });
-    await service.reconcileResolvedDependencyWakeBackstop({ companyId: f.companyId, issueId: f.child.id });
+    await service.reconcileResolvedDependencyWakeBackstop({ spaceId: f.spaceId, issueId: f.child.id });
+    await service.reconcileResolvedDependencyWakeBackstop({ spaceId: f.spaceId, issueId: f.child.id });
     const stalled = calls.filter(call => call.input.reason === ISSUE_BLOCKER_STALLED_WAKE_REASON);
     expect(stalled).toHaveLength(1);
     expect(stalled[0]).toMatchObject({ agentId: f.parentAgent, input: { contextSnapshot: { blockerStall: {
@@ -162,23 +162,23 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
     // Retry moves it out of blocked: not a stall any more, and no new wake.
     await db.update(issues).set({ status: "todo" }).where(eq(issues.id, f.child.id));
-    await service.reconcileResolvedDependencyWakeBackstop({ companyId: f.companyId, issueId: f.child.id });
-    await service.reconcileActiveRecoveryActions({ companyId: f.companyId });
+    await service.reconcileResolvedDependencyWakeBackstop({ spaceId: f.spaceId, issueId: f.child.id });
+    await service.reconcileActiveRecoveryActions({ spaceId: f.spaceId });
     expect(calls.filter(call => call.input.reason === ISSUE_BLOCKER_STALLED_WAKE_REASON)).toHaveLength(1);
   });
 
   it("lists the waiting issue's stalled children and blockers for its page", async () => {
     const f = await fixture();
-    const [blocker] = await db.insert(issues).values({ companyId: f.companyId, title: "Blocker", status: "blocked" }).returning();
-    await db.insert(issueRelations).values({ companyId: f.companyId, issueId: blocker.id, relatedIssueId: f.parent.id, type: "blocks" });
-    await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: blocker.id, kind: "run_recovery",
-      status: "resolved", outcome: "blocked", ownerType: "board", cause: "native_session_retry_exhausted",
+    const [blocker] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Blocker", status: "blocked" }).returning();
+    await db.insert(issueRelations).values({ spaceId: f.spaceId, issueId: blocker.id, relatedIssueId: f.parent.id, type: "blocks" });
+    await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: blocker.id, kind: "run_recovery",
+      status: "resolved", outcome: "blocked", ownerType: "operator", cause: "native_session_retry_exhausted",
       fingerprint: "blocker", nextAction: "Retry", resolvedAt: new Date() });
-    const listed = await listStalledDependencies(db, { companyId: f.companyId, issueId: f.parent.id });
+    const listed = await listStalledDependencies(db, { spaceId: f.spaceId, issueId: f.parent.id });
     expect(listed.map(entry => [entry.stalledIssueId, entry.relation]).sort())
       .toEqual([[blocker.id, "blocker"], [f.child.id, "child"]].sort());
     await db.update(issues).set({ status: "todo" }).where(eq(issues.id, blocker.id));
-    expect((await listStalledDependencies(db, { companyId: f.companyId, issueId: f.parent.id })).map(entry => entry.stalledIssueId))
+    expect((await listStalledDependencies(db, { spaceId: f.spaceId, issueId: f.parent.id })).map(entry => entry.stalledIssueId))
       .toEqual([f.child.id]);
   });
 
@@ -186,18 +186,18 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await fixture();
     await db.update(issues).set({ status: "backlog" }).where(eq(issues.id, f.parent.id));
     const { calls, enqueueWakeup } = wakeRecorder();
-    await recoveryService(db, { enqueueWakeup: enqueueWakeup as never }).reconcileActiveRecoveryActions({ companyId: f.companyId });
+    await recoveryService(db, { enqueueWakeup: enqueueWakeup as never }).reconcileActiveRecoveryActions({ spaceId: f.spaceId });
     expect(calls).toEqual([]);
   });
 
   it("does not let a merged run swallow a second stall, and guards the waiter's state", async () => {
     const f = await fixture();
-    const [second] = await db.insert(issues).values({ companyId: f.companyId, title: "Second child", status: "blocked",
+    const [second] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Second child", status: "blocked",
       parentId: f.parent.id, assigneeAgentId: f.childAgent }).returning();
-    await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: second.id, kind: "run_recovery",
-      status: "escalated", ownerType: "board", cause: "execution_recovery_budget_exhausted", fingerprint: "second", nextAction: "Retry" });
+    await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: second.id, kind: "run_recovery",
+      status: "escalated", ownerType: "operator", cause: "execution_recovery_budget_exhausted", fingerprint: "second", nextAction: "Retry" });
     const { calls, enqueueWakeup } = wakeRecorder();
-    await recoveryService(db, { enqueueWakeup: enqueueWakeup as never }).reconcileActiveRecoveryActions({ companyId: f.companyId });
+    await recoveryService(db, { enqueueWakeup: enqueueWakeup as never }).reconcileActiveRecoveryActions({ spaceId: f.spaceId });
     expect(calls).toHaveLength(2);
     for (const call of calls) {
       expect(call.input).toMatchObject({ allowRunCoalescing: false,
@@ -209,7 +209,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await fixture();
     await db.update(agents).set({ runtimeConfig: { heartbeat: { wakeOnDemand: false } } }).where(eq(agents.id, f.parentAgent));
     const { calls, enqueueWakeup } = wakeRecorder();
-    const result = await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    const result = await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(result).toMatchObject({ woken: 0, deferred: 1 });
     expect(result.retryAt).toBeGreaterThan(Date.now() + 9 * 60_000);
     expect(calls).toEqual([]);
@@ -217,53 +217,53 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     // Wakes enabled again; an earlier refusal row exists for this stall.
     await db.update(agents).set({ runtimeConfig: {} }).where(eq(agents.id, f.parentAgent));
     const key = issueBlockerStalledWakeKey({ waiterIssueId: f.parent.id, stalledIssueId: f.child.id, recoveryActionId: f.action.id });
-    const [refused] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.parentAgent, source: "automation",
+    const [refused] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.parentAgent, source: "automation",
       triggerDetail: "system", reason: "heartbeat.wakeOnDemand.disabled", payload: { issueId: f.parent.id }, idempotencyKey: key,
       status: "skipped" }).returning();
-    const refusedPass = await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    const refusedPass = await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toEqual([]); // a fresh refusal is not retried at once
     expect(refusedPass.retryAt).toBe(refused.requestedAt.getTime() + 10 * 60_000);
     await db.update(agentWakeupRequests).set({ requestedAt: new Date(Date.now() - 11 * 60_000) }).where(eq(agentWakeupRequests.id, refused.id));
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(1);
   });
 
   it("does not wake again while a resource-wait retry carries the stall", async () => {
     const f = await fixture();
     const { calls, enqueueWakeup } = wakeRecorder();
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(1);
     // A workspace-busy deferral cancels the wake and schedules a keyless retry
     // that keeps the stall context.
     await db.update(agentWakeupRequests).set({ status: "cancelled", requestedAt: new Date(Date.now() - 11 * 60_000) })
-      .where(eq(agentWakeupRequests.companyId, f.companyId));
-    const [retry] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.parentAgent,
+      .where(eq(agentWakeupRequests.spaceId, f.spaceId));
+    const [retry] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.parentAgent,
       invocationSource: "automation", status: "scheduled_retry", scheduledRetryAt: new Date(),
       contextSnapshot: { ...calls[0]!.input.contextSnapshot, wakeReason: "workspace_busy_retry", retryOfRunId: randomUUID() } }).returning();
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(1);
     // A retry chain that failed no longer carries the stall. Its failure counts
     // as a failed run of this stall, so the stall is retried after the wait.
     await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, retry.id));
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(1);
     await db.update(heartbeatRuns).set({ finishedAt: new Date(Date.now() - 11 * 60_000) }).where(eq(heartbeatRuns.id, retry.id));
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(2);
   });
 
   it("counts failed resource-wait retries toward the stall's failed-run limit", async () => {
     const f = await fixture();
     const { calls, enqueueWakeup } = wakeRecorder();
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     // Each keyed wake is cancelled by a workspace wait; its keyless retry then fails.
     for (let attempt = 0; attempt < 3; attempt += 1) {
       await db.update(agentWakeupRequests).set({ status: "cancelled", requestedAt: new Date(Date.now() - 24 * 60 * 60_000) })
-        .where(eq(agentWakeupRequests.companyId, f.companyId));
-      await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.parentAgent, invocationSource: "automation",
+        .where(eq(agentWakeupRequests.spaceId, f.spaceId));
+      await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.parentAgent, invocationSource: "automation",
         status: "failed", finishedAt: new Date(Date.now() - 24 * 60 * 60_000),
         contextSnapshot: { ...calls[0]!.input.contextSnapshot, wakeReason: "workspace_busy_retry", retryOfRunId: randomUUID() } });
-      await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+      await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     }
     expect(calls).toHaveLength(3);
   });
@@ -271,21 +271,21 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("reaches a waiter through its own sweep when the stalled blocker is unassigned", async () => {
     const f = await fixture();
     await db.update(issues).set({ parentId: null, assigneeAgentId: null }).where(eq(issues.id, f.child.id));
-    await db.insert(issueRelations).values({ companyId: f.companyId, issueId: f.child.id, relatedIssueId: f.parent.id, type: "blocks" });
+    await db.insert(issueRelations).values({ spaceId: f.spaceId, issueId: f.child.id, relatedIssueId: f.parent.id, type: "blocks" });
     const { calls, enqueueWakeup } = wakeRecorder();
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId, issueId: f.parent.id });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId, issueId: f.parent.id });
     expect(calls.map(call => call.agentId)).toEqual([f.parentAgent]);
   });
 
   it("makes progress past the per-pass cap", async () => {
     const f = await fixture();
-    const [second] = await db.insert(issues).values({ companyId: f.companyId, title: "Second child", status: "blocked",
+    const [second] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Second child", status: "blocked",
       parentId: f.parent.id, assigneeAgentId: f.childAgent }).returning();
-    await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: second.id, kind: "run_recovery",
-      status: "escalated", ownerType: "board", cause: "c", fingerprint: "second", nextAction: "Retry" });
+    await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: second.id, kind: "run_recovery",
+      status: "escalated", ownerType: "operator", cause: "c", fingerprint: "second", nextAction: "Retry" });
     const { calls, enqueueWakeup } = wakeRecorder();
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId, maxStalls: 1 });
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId, maxStalls: 1 });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId, maxStalls: 1 });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId, maxStalls: 1 });
     expect(new Set(calls.map(call => call.input.contextSnapshot.blockerStall.stalledIssueId))).toEqual(new Set([f.child.id, second.id]));
   });
 
@@ -293,8 +293,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await fixture();
     const { calls, enqueueWakeup } = wakeRecorder();
     const results = await Promise.all([
-      wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId }),
-      wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId, issueId: f.child.id }),
+      wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId }),
+      wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId, issueId: f.child.id }),
     ]);
     const rows = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.reason, ISSUE_BLOCKER_STALLED_WAKE_REASON));
     expect(rows).toHaveLength(1);
@@ -302,22 +302,22 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(calls.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("keeps a company with only a resolved-as-blocked stall in the recovery-action sweep", async () => {
+  it("keeps a space with only a resolved-as-blocked stall in the recovery-action sweep", async () => {
     const f = await fixture();
     await db.update(issueRecoveryActions).set({ status: "resolved", outcome: "blocked", resolvedAt: new Date() })
       .where(eq(issueRecoveryActions.id, f.action.id));
-    const selected = async () => (await db.selectDistinct({ companyId: issueRecoveryActions.companyId }).from(issueRecoveryActions)
-      .where(recoveryActionSweepCondition())).map(row => row.companyId);
-    expect(await selected()).toContain(f.companyId);
+    const selected = async () => (await db.selectDistinct({ spaceId: issueRecoveryActions.spaceId }).from(issueRecoveryActions)
+      .where(recoveryActionSweepCondition())).map(row => row.spaceId);
+    expect(await selected()).toContain(f.spaceId);
     await db.update(issues).set({ status: "todo" }).where(eq(issues.id, f.child.id));
-    expect(await selected()).not.toContain(f.companyId);
+    expect(await selected()).not.toContain(f.spaceId);
   });
 
   it("withholds a private stalled issue's details from a waiter agent that cannot read it", async () => {
     const f = await fixture();
     await db.update(issues).set({ visibility: "private", title: "Secret acquisition" }).where(eq(issues.id, f.child.id));
     const { calls, enqueueWakeup } = wakeRecorder();
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(1);
     const stall = calls[0]!.input.contextSnapshot.blockerStall;
     expect(JSON.stringify(stall)).not.toContain("Secret acquisition");
@@ -333,8 +333,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       .where(eq(issueRecoveryActions.id, f.action.id));
     const { calls, enqueueWakeup } = wakeRecorder();
     const service = recoveryService(db, { enqueueWakeup: enqueueWakeup as never });
-    await service.reconcileResolvedDependencyWakeBackstop({ companyId: f.companyId, issueId: f.child.id });
-    await service.reconcileActiveRecoveryActions({ companyId: f.companyId });
+    await service.reconcileResolvedDependencyWakeBackstop({ spaceId: f.spaceId, issueId: f.child.id });
+    await service.reconcileActiveRecoveryActions({ spaceId: f.spaceId });
     expect(calls.filter(call => call.input.reason === ISSUE_BLOCKER_STALLED_WAKE_REASON)).toEqual([]);
   });
 
@@ -348,7 +348,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.update(issues).set({ hiddenAt: new Date() }).where(eq(issues.id, hidden.parent.id));
     const { calls, enqueueWakeup } = wakeRecorder();
     const service = recoveryService(db, { enqueueWakeup: enqueueWakeup as never });
-    for (const f of [agentOwned, doneParent, unassigned, hidden]) await service.reconcileActiveRecoveryActions({ companyId: f.companyId });
+    for (const f of [agentOwned, doneParent, unassigned, hidden]) await service.reconcileActiveRecoveryActions({ spaceId: f.spaceId });
     expect(calls.filter(call => call.input.reason === ISSUE_BLOCKER_STALLED_WAKE_REASON)).toEqual([]);
   });
 
@@ -361,24 +361,24 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   async function legacySharedWorkspaceFixture() {
     const f = await fixture();
     const endedAt = new Date(Date.now() - 4 * 24 * 60 * 60_000);
-    const [writer] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.childAgent,
+    const [writer] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.childAgent,
       runtimeMode: "native", nativeIssueId: f.child.id, status: "failed", startedAt: new Date(endedAt.getTime() - 15 * 60_000),
       finishedAt: endedAt, lastOutputAt: endedAt,
       resultJson: { failureCode: "native_workspace_sync_out_retry_exhausted", finalizationPhase: "terminal_failure" } }).returning();
     const authority = { schema: "outpost.remote-workspace.v1" as const, epoch: 2, snapshotId: randomUUID(),
       source: { kind: "empty" as const }, dirty: true, writerRunId: writer.id,
       location: { leaseId: randomUUID(), providerLeaseId: randomUUID(), environmentId: randomUUID(), remoteCwd: "/home/daytona/ws" } };
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId, sourceIssueId: f.parent.id,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, sourceIssueId: f.parent.id,
       name: "Task workspace", mode: "shared_workspace", strategyType: "project_primary", providerType: "cloud_sandbox",
       status: "active", cwd: `/workspaces/${randomUUID()}`, metadata: { remoteWorkspace: authority } }).returning();
     await db.update(issues).set({ executionWorkspaceId: workspace.id, executionWorkspacePreference: "reuse_existing" })
       .where(inArray(issues.id, [f.parent.id, f.child.id]));
-    // The child's stall: its exhausted save recovery, handed to the board.
+    // The child's stall: its exhausted save recovery, handed to the operator.
     await db.update(issueRecoveryActions).set({ kind: "active_run_watchdog", cause: "native_workspace_sync_out_retry_exhausted",
-      ownerType: "board", status: "escalated", evidence: { runId: writer.id, systemRecovery: { state: "exhausted" } } })
+      ownerType: "operator", status: "escalated", evidence: { runId: writer.id, systemRecovery: { state: "exhausted" } } })
       .where(eq(issueRecoveryActions.id, f.action.id));
     // The parent's own last run (an earlier wake) already failed setup on that hold.
-    const [refused] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.parentAgent,
+    const [refused] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.parentAgent,
       invocationSource: "automation", status: "failed", errorCode: "setup_failed",
       error: "The workspace still has an unfinished writer or save operation.",
       createdAt: new Date(Date.now() - 30 * 60_000), finishedAt: new Date(Date.now() - 30 * 60_000),
@@ -390,29 +390,29 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await legacySharedWorkspaceFixture();
     const { calls, enqueueWakeup } = wakeRecorder();
     const service = recoveryService(db, { enqueueWakeup: enqueueWakeup as never });
-    for (let pass = 0; pass < 3; pass += 1) await service.reconcileActiveRecoveryActions({ companyId: f.companyId });
-    const held = await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId, issueId: f.parent.id });
+    for (let pass = 0; pass < 3; pass += 1) await service.reconcileActiveRecoveryActions({ spaceId: f.spaceId });
+    const held = await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId, issueId: f.parent.id });
     // No run is created that could only fail setup; the sweep looks again later.
     expect(calls.filter(call => call.input.reason === ISSUE_BLOCKER_STALLED_WAKE_REASON)).toEqual([]);
     expect(held).toMatchObject({ woken: 0, deferred: 1 });
     expect(held.retryAt).toBeGreaterThan(Date.now());
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toEqual([]);
 
     // A writer still inside the holder cutoff parks the run in a workspace wait
     // instead of failing it, so that wake is delivered as before.
     await db.update(heartbeatRuns).set({ finishedAt: new Date(), lastOutputAt: new Date() }).where(eq(heartbeatRuns.id, f.writer.id));
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(1);
   });
 
   it("delivers the held stall wake once the workspace hold settles", async () => {
     const f = await legacySharedWorkspaceFixture();
     const { calls, enqueueWakeup } = wakeRecorder();
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toEqual([]);
     await db.update(executionWorkspaces).set({ metadata: { remoteWorkspace: { ...f.authority, dirty: false, writerRunId: null } } })
       .where(eq(executionWorkspaces.id, f.workspace.id));
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls.map(call => call.agentId)).toEqual([f.parentAgent]);
   });
 
@@ -424,12 +424,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     // Reassigned to another agent: the old assignee's refused run is no evidence for it.
     const reassigned = await legacySharedWorkspaceFixture();
     const otherAgent = randomUUID();
-    await db.insert(agents).values({ id: otherAgent, companyId: reassigned.companyId, name: "New owner", role: "engineer", status: "idle" });
-    companyIdOf.set(otherAgent, reassigned.companyId);
+    await db.insert(agents).values({ id: otherAgent, spaceId: reassigned.spaceId, name: "New owner", role: "engineer", status: "idle" });
+    spaceIdOf.set(otherAgent, reassigned.spaceId);
     await db.update(issues).set({ assigneeAgentId: otherAgent }).where(eq(issues.id, reassigned.parent.id));
     const { calls, enqueueWakeup } = wakeRecorder();
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: fresh.companyId });
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: reassigned.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: fresh.spaceId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: reassigned.spaceId });
     expect(calls.map(call => call.agentId)).toEqual([fresh.parentAgent, otherAgent]);
   });
 
@@ -438,41 +438,41 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const { calls, enqueueWakeup } = wakeRecorder();
     const age = async (minutesAgo: number) => {
       const at = new Date(Date.now() - minutesAgo * 60_000);
-      await db.update(agentWakeupRequests).set({ requestedAt: at }).where(eq(agentWakeupRequests.companyId, f.companyId));
-      await db.update(heartbeatRuns).set({ finishedAt: at }).where(eq(heartbeatRuns.companyId, f.companyId));
+      await db.update(agentWakeupRequests).set({ requestedAt: at }).where(eq(agentWakeupRequests.spaceId, f.spaceId));
+      await db.update(heartbeatRuns).set({ finishedAt: at }).where(eq(heartbeatRuns.spaceId, f.spaceId));
     };
     // The latest wake's run fails, as the queue records it.
     const fail = async (minutesAgo: number) => {
-      await db.update(agentWakeupRequests).set({ status: "failed" }).where(eq(agentWakeupRequests.companyId, f.companyId));
-      await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.parentAgent, invocationSource: "automation",
+      await db.update(agentWakeupRequests).set({ status: "failed" }).where(eq(agentWakeupRequests.spaceId, f.spaceId));
+      await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.parentAgent, invocationSource: "automation",
         status: "failed", contextSnapshot: calls.at(-1)!.input.contextSnapshot });
       await age(minutesAgo);
     };
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(1);
     // First failed run: retried after ten minutes.
     await fail(11);
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(2);
     // Second failed run: the wait doubles.
     await fail(11);
-    const backingOff = await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    const backingOff = await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(2);
     expect(backingOff.retryAt).toBeGreaterThan(Date.now() + 8 * 60_000);
     await age(21);
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(3);
     // Third failed run: the stall is not retried again, and no timer is asked for.
     await fail(24 * 60);
-    const spent = await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    const spent = await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(3);
     expect(spent.retryAt).toBeNull();
     // A new stall (a new recovery action) is delivered again.
     await db.update(issueRecoveryActions).set({ status: "resolved", resolvedAt: new Date(), outcome: "restored" })
       .where(eq(issueRecoveryActions.id, f.action.id));
-    await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.child.id, kind: "run_recovery",
-      status: "escalated", ownerType: "board", cause: "execution_recovery_budget_exhausted", fingerprint: "fixture-2", nextAction: "Retry" });
-    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { companyId: f.companyId });
+    await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.child.id, kind: "run_recovery",
+      status: "escalated", ownerType: "operator", cause: "execution_recovery_budget_exhausted", fingerprint: "fixture-2", nextAction: "Retry" });
+    await wakeWaitersOfStalledIssues(db, enqueueWakeup as never, { spaceId: f.spaceId });
     expect(calls).toHaveLength(4);
   });
 });

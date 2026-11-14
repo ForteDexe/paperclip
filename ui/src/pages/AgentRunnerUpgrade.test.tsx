@@ -22,11 +22,11 @@ vi.mock("../context/ToastContext", async importOriginal => {
 });
 vi.mock("../components/AgentConfigForm", () => ({
   AgentConfigForm: ({ onSave }: { onSave: (patch: Record<string, unknown>) => Promise<unknown> }) =>
-    <button onClick={() => { void onSave({ runner: "paperclip" }); }}>Upgrade runner</button>,
+    <button onClick={() => { void onSave({ runner: "outpost" }); }}>Upgrade runner</button>,
 }));
 
 function agent(id: string): AgentDetail {
-  return { id, companyId: "company-1", name: id, urlKey: id, role: "engineer", permissions: {},
+  return { id, spaceId: "space-1", name: id, urlKey: id, role: "engineer", permissions: {},
     adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, chainOfCommand: [] } as unknown as AgentDetail;
 }
 
@@ -43,7 +43,7 @@ it("keeps an upgrade receipt on its original agent when navigation changes the c
   const root = createRoot(container);
   const noop = () => {};
   const render = (value: AgentDetail) => root.render(<QueryClientProvider client={client}>
-    <ConfigurationTab agent={value} companyId={value.companyId} onDirtyChange={noop} onSaveActionChange={noop}
+    <ConfigurationTab agent={value} spaceId={value.spaceId} onDirtyChange={noop} onSaveActionChange={noop}
       onCancelActionChange={noop} onSavingChange={noop} updatePermissions={{ mutate: noop, isPending: false }} />
   </QueryClientProvider>);
   try {
@@ -52,7 +52,7 @@ it("keeps an upgrade receipt on its original agent when navigation changes the c
     await act(async () => render(agent("other-agent")));
     await act(async () => finish({ ...original, adapterType: "outpost_runner", adapterConfig: { provider: "codex" } }));
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
-    expect(mocks.update).toHaveBeenCalledWith(original.id, { runner: "paperclip" }, original.companyId);
+    expect(mocks.update).toHaveBeenCalledWith(original.id, { runner: "outpost" }, original.spaceId);
     expect(mocks.navigate).not.toHaveBeenCalled();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["agents", "detail", original.id] });
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["agents", "detail", "other-agent"] });

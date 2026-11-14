@@ -19,13 +19,13 @@ export async function admitUnclaimedNativeBootstrapRetry(input: {
   return input.db.transaction(async tx => {
     await tx.execute(sql`select set_config('statement_timeout', '15000', true), set_config('lock_timeout', '1000', true)`);
     const [issue] = await tx.select().from(issues).where(and(
-      eq(issues.id, binding.issueId), eq(issues.companyId, binding.companyId))).for("update");
+      eq(issues.id, binding.issueId), eq(issues.spaceId, binding.spaceId))).for("update");
     const [coordinator] = await tx.select().from(nativeRunFinalizations).where(and(
-      eq(nativeRunFinalizations.runId, binding.runId), eq(nativeRunFinalizations.companyId, binding.companyId),
+      eq(nativeRunFinalizations.runId, binding.runId), eq(nativeRunFinalizations.spaceId, binding.spaceId),
       eq(nativeRunFinalizations.issueId, binding.issueId), eq(nativeRunFinalizations.leaseOwner, input.leaseOwner),
       eq(nativeRunFinalizations.phase, "observed"), isNull(nativeRunFinalizations.resultId))).for("update");
     const [run] = await tx.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.companyId, binding.companyId),
+      eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.spaceId, binding.spaceId),
       eq(heartbeatRuns.agentId, binding.agentId), eq(heartbeatRuns.nativeIssueId, binding.issueId))).for("update");
     if (!issue || !coordinator || !run || coordinator.attempt < 1 || coordinator.attempt >= 3
       || !coordinator.leaseExpiresAt || coordinator.leaseExpiresAt.getTime() <= Date.now()

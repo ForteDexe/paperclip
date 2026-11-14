@@ -24,7 +24,7 @@ ${ctx.kits.map(directionEntry).join("\n")}
   landing: { direction: ${quote(ctx.landing.direction)}, view: ${quote(ctx.landing.view)} },
   today: { flags: {} },
   shell: {
-    company: { id: ${quote(ctx.company.id)}, name: ${quote(ctx.company.name)}, issuePrefix: ${quote(ctx.company.issuePrefix)} },
+    space: { id: ${quote(ctx.space.id)}, name: ${quote(ctx.space.name)}, issuePrefix: ${quote(ctx.space.issuePrefix)} },
     tasks: [
 ${ctx.tasks.map((task) => `      { identifier: ${quote(task.identifier)}, title: ${quote(task.title)} },`).join("\n")}
     ],

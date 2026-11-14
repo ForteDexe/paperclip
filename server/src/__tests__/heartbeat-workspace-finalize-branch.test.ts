@@ -14,10 +14,10 @@ import {
   agentTaskSessions,
   agentWakeupRequests,
   agents,
-  companies,
+  spaces,
   authUsers,
-  companyMemberships,
-  companySkills,
+  spaceMemberships,
+  spaceSkills,
   createDb,
   documentRevisions,
   documents,
@@ -86,10 +86,10 @@ async function runGit(cwd: string, args: string[]) {
 }
 
 async function createGitRepo() {
-  const repoRoot = await mkdtemp(path.join(os.tmpdir(), "paperclip-finalize-branch-repo-"));
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), "outpost-finalize-branch-repo-"));
   await runGit(repoRoot, ["init"]);
-  await runGit(repoRoot, ["config", "user.email", "paperclip-test@example.com"]);
-  await runGit(repoRoot, ["config", "user.name", "Paperclip Test"]);
+  await runGit(repoRoot, ["config", "user.email", "outpost-test@example.com"]);
+  await runGit(repoRoot, ["config", "user.name", "Outpost Test"]);
   await writeFile(path.join(repoRoot, "README.md"), "finalization branch guard\n", "utf8");
   await runGit(repoRoot, ["add", "README.md"]);
   await runGit(repoRoot, ["commit", "-m", "initial"]);
@@ -139,7 +139,7 @@ async function deleteHeartbeatRowsAfterActivityLogDrains(db: Db) {
 
 function readAdapterWorkspace(input: unknown) {
   const context = (input as { context?: Record<string, unknown> }).context ?? {};
-  const workspace = context.paperclipWorkspace as Record<string, unknown> | undefined;
+  const workspace = context.outpostWorkspace as Record<string, unknown> | undefined;
   const cwd = typeof workspace?.cwd === "string" ? workspace.cwd : null;
   const branchName = typeof workspace?.branchName === "string" ? workspace.branchName : null;
   const executionWorkspaceId =
@@ -151,7 +151,7 @@ function readAdapterWorkspace(input: unknown) {
 }
 
 async function seedRunTarget(db: Db, repoRoot: string) {
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const projectId = randomUUID();
   const projectWorkspaceId = randomUUID();
   const issueId = randomUUID();
@@ -160,20 +160,20 @@ async function seedRunTarget(db: Db, repoRoot: string) {
   await instanceSettingsService(db).updateExperimental({
     enableIsolatedWorkspaces: true,
   });
-  await db.insert(companies).values({
-    id: companyId,
+  await db.insert(spaces).values({
+    id: spaceId,
     name: "Acme",
-    issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+    issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
     status: "active",
     defaultResponsibleUserId: "responsible-user",
     createdAt: new Date(),
     updatedAt: new Date(),
   });
   await db.insert(authUsers).values({ id: "responsible-user", name: "Fixture user", email: "responsible-user@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-  await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
+  await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
   await db.insert(projects).values({
     id: projectId,
-    companyId,
+    spaceId,
     name: "Workspace Finalize Branch Guard",
     status: "active",
     createdAt: new Date(),
@@ -181,7 +181,7 @@ async function seedRunTarget(db: Db, repoRoot: string) {
   });
   await db.insert(projectWorkspaces).values({
     id: projectWorkspaceId,
-    companyId,
+    spaceId,
     projectId,
     name: "Primary",
     cwd: repoRoot,
@@ -191,7 +191,7 @@ async function seedRunTarget(db: Db, repoRoot: string) {
   });
   await db.insert(agents).values({
     id: agentId,
-    companyId,
+    spaceId,
     name: "CodexCoder",
     role: "engineer",
     status: "idle",
@@ -209,7 +209,7 @@ async function seedRunTarget(db: Db, repoRoot: string) {
   });
   await db.insert(issues).values({
     id: issueId,
-    companyId,
+    spaceId,
     projectId,
     projectWorkspaceId,
     title: "Publish without drifting managed workspace",
@@ -225,7 +225,7 @@ async function seedRunTarget(db: Db, repoRoot: string) {
     updatedAt: new Date(),
   });
 
-  return { companyId, projectId, projectWorkspaceId, issueId, agentId };
+  return { spaceId, projectId, projectWorkspaceId, issueId, agentId };
 }
 
 async function wakeIssue(heartbeat: Heartbeat, agentId: string, issueId: string) {
@@ -268,7 +268,7 @@ describeEmbeddedPostgres("heartbeat workspace finalization branch guard", () => 
   const tempRoots: string[] = [];
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-finalize-branch-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-finalize-branch-");
     db = createDb(tempDb.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
@@ -311,9 +311,9 @@ describeEmbeddedPostgres("heartbeat workspace finalization branch guard", () => 
     await db.delete(agentRuntimeState);
     await db.delete(agents);
     await db.delete(environments);
-    await db.delete(companySkills);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceSkills);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
     await db.delete(authUsers).where(eq(authUsers.id, "responsible-user"));
   });
 

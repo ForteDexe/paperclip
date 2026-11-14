@@ -12,7 +12,7 @@ import { googleWorkspaceEffectiveScopes, isGoogleWorkspaceScopeGrant } from "@ou
 import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, ne } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { connectionGrants, companyMemberships, principalPermissionGrants, issueThreadInteractions, toolApplications, toolConnections } from "@outpost/db";
+import { connectionGrants, spaceMemberships, principalPermissionGrants, issueThreadInteractions, toolApplications, toolConnections } from "@outpost/db";
 import type { ConnectToolAppResult } from "@outpost/shared";
 import { getConnectableAppDefinition, recommendedDefaultsForApp } from "@outpost/shared";
 import { badRequest, forbidden, HttpError, unprocessable } from "../../../errors.js";
@@ -37,7 +37,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 type Dependencies = {
   now: () => Date;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   state: OAuthStateStore;
   refreshCatalog: RefreshConnectionCatalog;
   finishOAuthCatalogWithRecommendedDefaults: OAuthCatalogCompletion;
@@ -70,7 +70,7 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
     actor?: ActorInfo;
   }): Promise<ConnectToolAppResult> {
     // Binding first, outcome second: the provider's report of a failure is only
-    // acted on once the callback is bound to a state Paperclip issued and to the
+    // acted on once the callback is bound to a state Outpost issued and to the
     // actor that started the flow, so an unsolicited callback cannot drive any
     // path here. Consuming the state up front is what makes a denial terminal —
     // a refused request must not stay completable by a later code (PAP-17109).
@@ -97,7 +97,7 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
 
     let connection = await getConnectionRow(
       stateRow.connectionId,
-      stateRow.companyId,
+      stateRow.spaceId,
     );
     // Reauthorization refreshes credentials and catalog without rebuilding the
     // operator's action profile, policy rules, or access bindings.
@@ -167,22 +167,22 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
         // Serialize callback persistence with suspension/removal. Those paths
         // lock this same membership row before sweeping personal credentials.
         const [membership] = await tx
-          .select({ id: companyMemberships.id })
-          .from(companyMemberships)
+          .select({ id: spaceMemberships.id })
+          .from(spaceMemberships)
           .where(
             and(
-              eq(companyMemberships.companyId, connection.companyId),
-              eq(companyMemberships.principalType, "user"),
-              eq(companyMemberships.principalId, stateRow.subjectUserId!),
-              eq(companyMemberships.status, "active"),
-              ne(companyMemberships.membershipRole, "viewer"),
+              eq(spaceMemberships.spaceId, connection.spaceId),
+              eq(spaceMemberships.principalType, "user"),
+              eq(spaceMemberships.principalId, stateRow.subjectUserId!),
+              eq(spaceMemberships.status, "active"),
+              ne(spaceMemberships.membershipRole, "viewer"),
             ),
           )
           .limit(1)
           .for("update");
         if (!membership) {
           throw forbidden(
-            "Your company membership no longer permits connection changes. Ask a company owner to restore non-viewer access before you authorize this connection again.",
+            "Your space membership no longer permits connection changes. Ask a space owner to restore non-viewer access before you authorize this connection again.",
           );
         }
         const txSecrets = secretService(tx);
@@ -193,7 +193,7 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
           .from(connectionGrants)
           .where(
             and(
-              eq(connectionGrants.companyId, connection.companyId),
+              eq(connectionGrants.spaceId, connection.spaceId),
               eq(connectionGrants.connectionId, connection.id),
               eq(connectionGrants.kind, "user"),
               eq(connectionGrants.subjectUserId, stateRow.subjectUserId!),
@@ -202,16 +202,16 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
           .limit(1)
           .for("update");
         await tx.select({ id: toolApplications.id }).from(toolApplications)
-          .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.companyId, connection.companyId)))
+          .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.spaceId, connection.spaceId)))
           .for("update");
         await tx.select({ id: toolConnections.id }).from(toolConnections)
-          .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.companyId, connection.companyId)))
+          .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, connection.spaceId)))
           .for("update");
         const subjectCredentialSecretRefs =
           existingUserGrant?.credentialSecretRefs ?? [];
         const accessRef = await createOrRotateOAuthSecret(
           {
-            companyId: connection.companyId,
+            spaceId: connection.spaceId,
             connection,
             configPath: "oauth.access_token",
             label: "OAuth access token",
@@ -234,7 +234,7 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
           nextCredentialSecretRefs.push(
             await createOrRotateOAuthSecret(
               {
-                companyId: connection.companyId,
+                spaceId: connection.spaceId,
                 connection,
                 configPath: "oauth.refresh_token",
                 label: "OAuth refresh token",
@@ -291,7 +291,7 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
             .where(eq(connectionGrants.id, existingUserGrant.id));
         } else {
           await tx.insert(connectionGrants).values({
-            companyId: connection.companyId,
+            spaceId: connection.spaceId,
             connectionId: connection.id,
             kind: "user",
             subjectUserId: stateRow.subjectUserId!,
@@ -387,7 +387,7 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
           stateRow.interactionId &&
           linkedInteraction?.kind === "request_confirmation"
         ) {
-          await notifyIssueReviewState(tx, { companyId: connection.companyId, issueId: linkedInteraction.issueId });
+          await notifyIssueReviewState(tx, { spaceId: connection.spaceId, issueId: linkedInteraction.issueId });
           await tx
             .update(issueThreadInteractions)
             .set({
@@ -400,7 +400,7 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
             .where(
               and(
                 eq(issueThreadInteractions.id, stateRow.interactionId),
-                eq(issueThreadInteractions.companyId, connection.companyId),
+                eq(issueThreadInteractions.spaceId, connection.spaceId),
               ),
             );
         }
@@ -472,24 +472,24 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
       // revoked between the live check and the shared credential/grant writes.
       const [membership] = await tx
         .select({
-          id: companyMemberships.id,
-          membershipRole: companyMemberships.membershipRole,
+          id: spaceMemberships.id,
+          membershipRole: spaceMemberships.membershipRole,
         })
-        .from(companyMemberships)
+        .from(spaceMemberships)
         .where(
           and(
-            eq(companyMemberships.companyId, connection.companyId),
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, organizationActorUserId),
-            eq(companyMemberships.status, "active"),
-            ne(companyMemberships.membershipRole, "viewer"),
+            eq(spaceMemberships.spaceId, connection.spaceId),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, organizationActorUserId),
+            eq(spaceMemberships.status, "active"),
+            ne(spaceMemberships.membershipRole, "viewer"),
           ),
         )
         .limit(1)
         .for("update");
       if (!membership) {
         throw forbidden(
-          "Your company membership no longer permits connection changes. Ask a company owner to restore non-viewer access before you authorize this connection again.",
+          "Your space membership no longer permits connection changes. Ask a space owner to restore non-viewer access before you authorize this connection again.",
         );
       }
       const roleCanManage =
@@ -504,7 +504,7 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
             .from(principalPermissionGrants)
             .where(
               and(
-                eq(principalPermissionGrants.companyId, connection.companyId),
+                eq(principalPermissionGrants.spaceId, connection.spaceId),
                 eq(principalPermissionGrants.principalType, "user"),
                 eq(
                   principalPermissionGrants.principalId,
@@ -520,18 +520,18 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
             .for("update");
       if (!roleCanManage && !explicitManagerGrant) {
         throw forbidden(
-          "Only a company owner, admin, or member with connection-manager permission can share credentials with the organization.",
+          "Only a space owner, admin, or member with connection-manager permission can share credentials with the organization.",
         );
       }
       await tx.select({ id: connectionGrants.id }).from(connectionGrants)
-        .where(and(eq(connectionGrants.companyId, connection.companyId), eq(connectionGrants.connectionId, connection.id),
+        .where(and(eq(connectionGrants.spaceId, connection.spaceId), eq(connectionGrants.connectionId, connection.id),
           eq(connectionGrants.kind, "organization"), eq(connectionGrants.isDefault, true)))
         .for("update");
       await tx.select({ id: toolApplications.id }).from(toolApplications)
-        .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.companyId, connection.companyId)))
+        .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.spaceId, connection.spaceId)))
         .for("update");
       await tx.select({ id: toolConnections.id }).from(toolConnections)
-        .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.companyId, connection.companyId)))
+        .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, connection.spaceId)))
         .for("update");
       const txSecrets = secretService(tx);
       const txSecretContext = { dbClient: tx, secretClient: txSecrets };
@@ -539,7 +539,7 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
       const subjectCredentialSecretRefs = connection.credentialSecretRefs;
       const accessRef = await createOrRotateOAuthSecret(
         {
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           connection,
           configPath: "oauth.access_token",
           label: "OAuth access token",
@@ -560,7 +560,7 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
         nextCredentialSecretRefs.push(
           await createOrRotateOAuthSecret(
             {
-              companyId: connection.companyId,
+              spaceId: connection.spaceId,
               connection,
               configPath: "oauth.refresh_token",
               label: "OAuth refresh token",

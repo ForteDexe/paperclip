@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readWorkspaceGitSourceRoots } from "./workspace-git-source-roots.js";
 import { workspaceSourceIdentities } from "./workspace-source-lock.js";
 import { localWorkspaceSourcePaths } from "./execution-workspace-source-roots.js";
-import { resolveManagedProjectWorkspaceDir, resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveManagedProjectWorkspaceDir, resolveOutpostInstanceRoot } from "../home-paths.js";
 const execute = promisify(execFile);
 let root: string;
 const git = async (cwd: string, ...args: string[]) => execute("git", ["-c", `core.hooksPath=${os.devNull}`, "-C", cwd, ...args], {
@@ -28,7 +28,7 @@ describe("Git physical source roots", () => {
   it("distinguishes an ignore-only fragment from Git source metadata", async () => {
     const cwd = path.join(root, "plain-task"), marker = path.join(cwd, ".git");
     await fs.mkdir(path.join(marker, "info"), { recursive: true });
-    await fs.writeFile(path.join(marker, "info", "exclude"), "/.paperclip-repositories/\n");
+    await fs.writeFile(path.join(marker, "info", "exclude"), "/.outpost-repositories/\n");
     expect(await readWorkspaceGitSourceRoots(cwd)).toBeNull();
     for (const name of ["HEAD", "config", "commondir"]) {
       await fs.writeFile(path.join(marker, name), name === "commondir" ? ".\n" : "partial Git state\n");
@@ -48,14 +48,14 @@ describe("Git physical source roots", () => {
   });
   it.each([false, true])("maps a configured directory symlink before strict Git inspection (%s)", async isGit => {
     vi.stubEnv("OUTPOST_HOME", root);
-    const companyId = randomUUID(), projectId = randomUUID();
-    const cwd = resolveManagedProjectWorkspaceDir({ companyId, projectId });
+    const spaceId = randomUUID(), projectId = randomUUID();
+    const cwd = resolveManagedProjectWorkspaceDir({ spaceId, projectId });
     await fs.mkdir(cwd, { recursive: true });
     if (isGit) await git(cwd, "init", "-q");
     const alias = path.join(root, "configured-source");
     await fs.symlink(cwd, alias);
-    expect(await workspaceSourceIdentities(companyId, alias)).toMatchObject({ projectIds: [projectId], unownedPaths: [] });
-    expect(await workspaceSourceIdentities(companyId, alias)).toEqual(await workspaceSourceIdentities(companyId, cwd));
+    expect(await workspaceSourceIdentities(spaceId, alias)).toMatchObject({ projectIds: [projectId], unownedPaths: [] });
+    expect(await workspaceSourceIdentities(spaceId, alias)).toEqual(await workspaceSourceIdentities(spaceId, cwd));
     await expect(readWorkspaceGitSourceRoots(alias)).rejects.toThrow("workspace_git_source_unproven");
   });
   it("binds actual linked worktree administration and the full shared object-store root", async () => {
@@ -105,35 +105,35 @@ describe("Git physical source roots", () => {
   });
   it.each([false, true])("maps a managed linked source and its service subdirectory to both physical owners (%s)", async nested => {
     vi.stubEnv("OUTPOST_HOME", root);
-    const companyId = randomUUID(), projectId = randomUUID(), sourceIssueId = randomUUID();
-    const source = await repository(path.relative(root, path.join(resolvePaperclipInstanceRoot(),
-      "isolated-repository-sources", companyId, sourceIssueId, "checkout")));
-    const cwd = path.join(resolveManagedProjectWorkspaceDir({ companyId, projectId }), ".paperclip", "worktrees", "task");
+    const spaceId = randomUUID(), projectId = randomUUID(), sourceIssueId = randomUUID();
+    const source = await repository(path.relative(root, path.join(resolveOutpostInstanceRoot(),
+      "isolated-repository-sources", spaceId, sourceIssueId, "checkout")));
+    const cwd = path.join(resolveManagedProjectWorkspaceDir({ spaceId, projectId }), ".outpost", "worktrees", "task");
     await fs.mkdir(path.dirname(cwd), { recursive: true });
     await git(source, "worktree", "add", "-b", "task", cwd);
     const target = nested ? path.join(cwd, "service") : cwd;
     if (nested) await fs.mkdir(target);
-    const identities = await workspaceSourceIdentities(companyId, target);
+    const identities = await workspaceSourceIdentities(spaceId, target);
     expect(identities).toMatchObject({ projectIds: [projectId], issueIds: [sourceIssueId], unownedPaths: [] });
     expect(identities.git!.commonDirectory.path).toBe(path.join(source, ".git"));
   });
-  it("rejects a physical Git source owned by another company", async () => {
+  it("rejects a physical Git source owned by another space", async () => {
     vi.stubEnv("OUTPOST_HOME", root);
-    const companyId = randomUUID(), foreignCompanyId = randomUUID();
-    const source = await repository(path.relative(root, path.join(resolvePaperclipInstanceRoot(),
-      "isolated-repository-sources", foreignCompanyId, randomUUID(), "checkout")));
-    const cwd = resolveManagedProjectWorkspaceDir({ companyId, projectId: randomUUID() });
+    const spaceId = randomUUID(), foreignSpaceId = randomUUID();
+    const source = await repository(path.relative(root, path.join(resolveOutpostInstanceRoot(),
+      "isolated-repository-sources", foreignSpaceId, randomUUID(), "checkout")));
+    const cwd = resolveManagedProjectWorkspaceDir({ spaceId, projectId: randomUUID() });
     await fs.mkdir(path.dirname(cwd), { recursive: true });
     await git(source, "worktree", "add", "-b", "task", cwd);
-    await expect(workspaceSourceIdentities(companyId, cwd)).rejects.toThrow("workspace_source_company_mismatch");
+    await expect(workspaceSourceIdentities(spaceId, cwd)).rejects.toThrow("workspace_source_space_mismatch");
   });
   it("keeps an external borrowed store explicitly unowned", async () => {
     vi.stubEnv("OUTPOST_HOME", root);
-    const companyId = randomUUID(), projectId = randomUUID(), source = await repository("external");
-    const cwd = resolveManagedProjectWorkspaceDir({ companyId, projectId });
+    const spaceId = randomUUID(), projectId = randomUUID(), source = await repository("external");
+    const cwd = resolveManagedProjectWorkspaceDir({ spaceId, projectId });
     await fs.mkdir(path.dirname(cwd), { recursive: true });
     await git(root, "clone", "--shared", source, cwd);
-    expect(await workspaceSourceIdentities(companyId, cwd)).toMatchObject({ projectIds: [projectId],
+    expect(await workspaceSourceIdentities(spaceId, cwd)).toMatchObject({ projectIds: [projectId],
       unownedPaths: [path.join(source, ".git", "objects")] });
   });
   it("leaves absent and ordinary directories outside the Git proof", async () => {

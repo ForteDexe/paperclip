@@ -3,18 +3,18 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Company, Project } from "@outpost/shared";
+import type { Space, Project } from "@outpost/shared";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { queryKeys } from "@/lib/queryKeys";
 import { markCachedSession } from "@/lib/cached-session";
 import { startPersistedQueryCache } from "@/lib/persisted-query-cache";
-import { useCompanyOrder } from "./useCompanyOrder";
+import { useSpaceOrder } from "./useSpaceOrder";
 import { useProjectOrder } from "./useProjectOrder";
 
 const getSession = vi.hoisted(() => vi.fn());
 const sidebarApi = vi.hoisted(() => ({
-  getCompanyOrder: vi.fn(),
-  updateCompanyOrder: vi.fn(),
+  getSpaceOrder: vi.fn(),
+  updateSpaceOrder: vi.fn(),
   getProjectOrder: vi.fn(),
   updateProjectOrder: vi.fn(),
 }));
@@ -23,25 +23,25 @@ vi.mock("../api/sidebarPreferences", () => ({ sidebarPreferencesApi: sidebarApi 
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const companies = [{ id: "company-1" }, { id: "company-2" }] as Company[];
+const spaces = [{ id: "space-1" }, { id: "space-2" }] as Space[];
 const projects = [{ id: "project-1" }, { id: "project-2" }] as Project[];
 let persistOrder: (ids: string[]) => void;
 
-function CompanyHarness() {
-  persistOrder = useCompanyOrder({ companies, userId: "user-1" }).persistOrder;
+function SpaceHarness() {
+  persistOrder = useSpaceOrder({ spaces, userId: "user-1" }).persistOrder;
   return null;
 }
 
 function ProjectHarness() {
-  persistOrder = useProjectOrder({ projects, companyId: "company-1", userId: "user-1" }).persistOrder;
+  persistOrder = useProjectOrder({ projects, spaceId: "space-1", userId: "user-1" }).persistOrder;
   return null;
 }
 
 const cases = [
-  { name: "company", Harness: CompanyHarness, ids: ["company-2", "company-1"], update: sidebarApi.updateCompanyOrder,
-    key: queryKeys.sidebarPreferences.companyOrder("user-1") },
+  { name: "space", Harness: SpaceHarness, ids: ["space-2", "space-1"], update: sidebarApi.updateSpaceOrder,
+    key: queryKeys.sidebarPreferences.spaceOrder("user-1") },
   { name: "project", Harness: ProjectHarness, ids: ["project-2", "project-1"], update: sidebarApi.updateProjectOrder,
-    key: queryKeys.sidebarPreferences.projectOrder("company-1", "user-1") },
+    key: queryKeys.sidebarPreferences.projectOrder("space-1", "user-1") },
 ];
 
 let host: HTMLDivElement;
@@ -52,10 +52,10 @@ beforeEach(() => {
   document.body.append(host);
   root = createRoot(host);
   for (const fn of Object.values(sidebarApi)) fn.mockReset();
-  sidebarApi.getCompanyOrder.mockResolvedValue({ orderedIds: [], updatedAt: null });
+  sidebarApi.getSpaceOrder.mockResolvedValue({ orderedIds: [], updatedAt: null });
   sidebarApi.getProjectOrder.mockResolvedValue({ orderedIds: [], updatedAt: null });
-  sidebarApi.updateCompanyOrder.mockImplementation(async (data: { orderedIds: string[] }) => ({ ...data, updatedAt: null }));
-  sidebarApi.updateProjectOrder.mockImplementation(async (_companyId: string, data: { orderedIds: string[] }) => ({ ...data, updatedAt: null }));
+  sidebarApi.updateSpaceOrder.mockImplementation(async (data: { orderedIds: string[] }) => ({ ...data, updatedAt: null }));
+  sidebarApi.updateProjectOrder.mockImplementation(async (_spaceId: string, data: { orderedIds: string[] }) => ({ ...data, updatedAt: null }));
   getSession.mockReset();
 });
 

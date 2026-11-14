@@ -13,10 +13,10 @@ const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_TEST_DATABASE_URL");
 const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("GitHub webhook ingress claim PostgreSQL behavior", () => {
   let db: ReturnType<typeof createDb>;
-  const fixtureCompanyIds = new Set<string>();
+  const fixtureSpaceIds = new Set<string>();
   async function githubIngressFixture(database: typeof db, factory = createGitHubWebhookIngress, bodyBytes?: number) {
     const fixture = await createFixture(database, factory, bodyBytes);
-    fixtureCompanyIds.add(fixture.companyId);
+    fixtureSpaceIds.add(fixture.spaceId);
     return fixture;
   }
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
@@ -27,8 +27,8 @@ describe.skipIf(!support.supported)("GitHub webhook ingress claim PostgreSQL beh
   }, 90_000);
   afterEach(async () => {
     vi.restoreAllMocks();
-    for (const companyId of fixtureCompanyIds) await cleanupIngressFixture(db, companyId);
-    fixtureCompanyIds.clear();
+    for (const spaceId of fixtureSpaceIds) await cleanupIngressFixture(db, spaceId);
+    fixtureSpaceIds.clear();
   });
   afterAll(async () => { await db?.$client.end({ timeout: 0 }); await temporary?.cleanup(); });
 

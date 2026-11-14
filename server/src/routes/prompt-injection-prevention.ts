@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { Db } from "@outpost/db";
 import { updatePromptInjectionPreventionSchema } from "@outpost/shared";
-import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertOperator, assertSpaceAccess, getActorInfo } from "./authz.js";
 import { canManageAiConnections } from "./ai-connections.js";
 import { forbidden } from "../errors.js";
 import { validate } from "../middleware/validate.js";
@@ -14,33 +14,33 @@ import { listOpenRouterModels } from "../services/openrouter-models.js";
 export function promptInjectionPreventionRoutes(db: Db) {
   const router = Router();
   const service = promptInjectionPreventionService(db, { budgetHooks: { cancelWorkForScope: heartbeatService(db).cancelBudgetScopeWork } });
-  router.get("/companies/:companyId/prompt-injection-prevention", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId); assertBoard(req);
-    const canManage = await canManageAiConnections(db, req, companyId);
-    res.json(canManage ? { canManage, settings: await service.settings(companyId), choices: await service.choices(companyId, getActorInfo(req).actorId) }
+  router.get("/spaces/:spaceId/prompt-injection-prevention", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId); assertOperator(req);
+    const canManage = await canManageAiConnections(db, req, spaceId);
+    res.json(canManage ? { canManage, settings: await service.settings(spaceId), choices: await service.choices(spaceId, getActorInfo(req).actorId) }
       : { canManage, settings: null, choices: [] });
   });
-  router.put("/companies/:companyId/prompt-injection-prevention", validate(updatePromptInjectionPreventionSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId); assertBoard(req);
-    if (!(await canManageAiConnections(db, req, companyId))) throw forbidden();
-    res.json(await service.configure(companyId, getActorInfo(req).actorId, req.body));
+  router.put("/spaces/:spaceId/prompt-injection-prevention", validate(updatePromptInjectionPreventionSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId); assertOperator(req);
+    if (!(await canManageAiConnections(db, req, spaceId))) throw forbidden();
+    res.json(await service.configure(spaceId, getActorInfo(req).actorId, req.body));
   });
-  router.get("/companies/:companyId/prompt-injection-prevention/models", async (req, res) => {
-    const companyId = req.params.companyId as string, userId = getActorInfo(req).actorId;
-    assertCompanyAccess(req, companyId); assertBoard(req);
-    if (!(await canManageAiConnections(db, req, companyId))) throw forbidden();
-    const choice = (await service.choices(companyId, userId)).find(c => c.id === req.query.connectionId);
+  router.get("/spaces/:spaceId/prompt-injection-prevention/models", async (req, res) => {
+    const spaceId = req.params.spaceId as string, userId = getActorInfo(req).actorId;
+    assertSpaceAccess(req, spaceId); assertOperator(req);
+    if (!(await canManageAiConnections(db, req, spaceId))) throw forbidden();
+    const choice = (await service.choices(spaceId, userId)).find(c => c.id === req.query.connectionId);
     if (!choice) throw forbidden();
-    await aiConnectionService(db).selectPromptInjectionPrevention({ companyId, userId, connectionId: choice.id, grantId: choice.grantId });
+    await aiConnectionService(db).selectPromptInjectionPrevention({ spaceId, userId, connectionId: choice.id, grantId: choice.grantId });
     res.json((await listOpenRouterModels()).map(m => ({ ...m, id: m.id.replace(/^openrouter\//, "") })));
   });
-  router.post("/companies/:companyId/prompt-injection-prevention/test", validate(z.object({}).strict()), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId); assertBoard(req);
-    if (!(await canManageAiConnections(db, req, companyId))) throw forbidden();
-    res.json(await service.test(companyId, getActorInfo(req).actorId));
+  router.post("/spaces/:spaceId/prompt-injection-prevention/test", validate(z.object({}).strict()), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId); assertOperator(req);
+    if (!(await canManageAiConnections(db, req, spaceId))) throw forbidden();
+    res.json(await service.test(spaceId, getActorInfo(req).actorId));
   });
   return router;
 }

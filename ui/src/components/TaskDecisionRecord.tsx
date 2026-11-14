@@ -9,19 +9,19 @@ import { DecisionResolver } from "./DecisionResolver";
 import { Button } from "./ui/button";
 
 /** A selected Decisions-v1 record belongs to its task, not a second history tab. */
-export function TaskDecisionRecord({ companyId, issueId, viewerId, agentMap }: {
-  companyId: string; issueId: string; viewerId: string | null; agentMap?: Map<string, Agent>;
+export function TaskDecisionRecord({ spaceId, issueId, viewerId, agentMap }: {
+  spaceId: string; issueId: string; viewerId: string | null; agentMap?: Map<string, Agent>;
 }) {
   const { hash } = useLocation();
   const anchor = taskChatHashAnchor(hash);
   const decisionId = anchor?.startsWith("decision-") ? anchor.slice("decision-".length) : null;
   const record = useQuery({
-    queryKey: queryKeys.decisions.taskRecord(companyId, issueId, viewerId, decisionId),
+    queryKey: queryKeys.decisions.taskRecord(spaceId, issueId, viewerId, decisionId),
     queryFn: () => decisionsApi.get(decisionId!), enabled: !!decisionId, });
   const recordView = useQueryView(record);
   if (!decisionId) return null;
   const decision = record.data;
-  const matchesTask = decision?.companyId === companyId && decision.originIssueId === issueId;
+  const matchesTask = decision?.spaceId === spaceId && decision.originIssueId === issueId;
   const choice = decision?.options.find((option) => option.id === decision.chosenOptionId);
   return <section id={anchor!} aria-label="Decision record" className="space-y-3 rounded-xl border border-border bg-card p-4">
     <h2 className="text-sm font-medium">Decision record</h2>
@@ -34,7 +34,7 @@ export function TaskDecisionRecord({ companyId, issueId, viewerId, agentMap }: {
           <dt className="text-muted-foreground">{input.label}</dt><dd className="whitespace-pre-wrap">{decision.inputValues![input.id]}</dd>
         </div>)}
       </dl> : null}
-      <DecisionResolver companyId={companyId} decisionId={decisionId} agentMap={agentMap} initialDecision={decision}
+      <DecisionResolver spaceId={spaceId} decisionId={decisionId} agentMap={agentMap} initialDecision={decision}
         recordedDecision={decision.status === "open" ? undefined : decision} onResolved={() => { void record.refetch(); }} />
     </>}
   </section>;

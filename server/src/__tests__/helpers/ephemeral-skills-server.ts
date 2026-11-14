@@ -4,9 +4,9 @@ import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createDb } from "@outpost/db";
-import { companySkillRoutes } from "../../routes/company-skills.js";
+import { spaceSkillRoutes } from "../../routes/space-skills.js";
 import { errorHandler } from "../../middleware/error-handler.js";
-import { companySkillService } from "../../services/company-skills.js";
+import { spaceSkillService } from "../../services/space-skills.js";
 import { getStorageService } from "../../storage/index.js";
 
 const db = createDb(process.env.DATABASE_URL!, { maxConnections: 1 });
@@ -28,7 +28,7 @@ storage.putFile = async (...args) => {
 const app = express();
 app.use(express.json());
 app.use((req, res, next) => {
-  req.actor = { type: "board", source: "local_implicit", userId: "local-board", isInstanceAdmin: true };
+  req.actor = { type: "operator", source: "local_implicit", userId: "local-operator", isInstanceAdmin: true };
   const json = res.json.bind(res);
   res.json = ((body: unknown) => {
     if (lostResponse && res.statusCode < 400 && req.method !== "GET") {
@@ -40,7 +40,7 @@ app.use((req, res, next) => {
   }) as typeof res.json;
   next();
 });
-app.use("/api", companySkillRoutes(db));
+app.use("/api", spaceSkillRoutes(db));
 app.use(errorHandler);
 const server = app.listen(0, "127.0.0.1", () => {
   const address = server.address();
@@ -60,7 +60,7 @@ process.on("message", async (message: { id: number; method: string; input?: Reco
       downloads = 0; downloadedBytes = 0;
     } else if (message.method === "runtime") {
       const started = performance.now();
-      result = await companySkillService(db).withRuntimeSkillEntries(input.companyId, {
+      result = await spaceSkillService(db).withRuntimeSkillEntries(input.spaceId, {
         onlyKeys: new Set([input.key]), snapshotLatest: true,
         ...(input.versionId ? { versionSelections: new Map([[input.key, input.versionId]]) } : {}),
       }, async entries => {

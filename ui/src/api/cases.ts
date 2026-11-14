@@ -3,7 +3,7 @@ import { api } from "./client";
 
 // -----------------------------------------------------------------------------
 // Cases API (experimental — PAP-12947). Mirrors server/src/routes/cases.ts.
-// Board pages are read-only; agents and authorized REST callers author case data.
+// Operator pages are read-only; agents and authorized REST callers author case data.
 // -----------------------------------------------------------------------------
 
 export const CASE_STATUSES = [
@@ -24,7 +24,7 @@ export type CaseLinkRole = "origin" | "work" | "reference";
 /** A case row as returned by the list endpoint. */
 export interface CaseSummary {
   id: string;
-  companyId: string;
+  spaceId: string;
   projectId: string | null;
   caseNumber: number;
   identifier: string;
@@ -73,7 +73,7 @@ export interface CaseTaskDocumentRef {
 
 export interface CaseDocument {
   id: string;
-  companyId: string;
+  spaceId: string;
   title: string | null;
   format: string;
   latestBody: string | null;
@@ -210,7 +210,7 @@ export interface CaseEvent {
 /** One revision of a case document, with author + via-issue attribution. */
 export interface CaseDocumentRevision {
   id: string;
-  companyId?: string;
+  spaceId?: string;
   documentId?: string;
   revisionNumber: number;
   title: string;
@@ -310,7 +310,7 @@ export interface PatchCaseInput {
 export function caseDocumentToIssueDocument(caseId: string, key: string, document: CaseDocument): IssueDocument {
   return {
     id: document.id,
-    companyId: document.companyId,
+    spaceId: document.spaceId,
     issueId: caseId,
     key,
     title: document.title,
@@ -334,7 +334,7 @@ export function caseDocumentToIssueDocument(caseId: string, key: string, documen
 export function caseRevisionToDocumentRevision(caseId: string, key: string, revision: CaseDocumentRevision): DocumentRevision {
   return {
     id: revision.id,
-    companyId: revision.companyId ?? "",
+    spaceId: revision.spaceId ?? "",
     documentId: revision.documentId ?? "",
     issueId: caseId,
     key,
@@ -350,24 +350,24 @@ export function caseRevisionToDocumentRevision(caseId: string, key: string, revi
 }
 
 export const casesApi = {
-  handoff: (companyId: string, input: HandoffCaseInput) =>
-    api.post<HandoffCaseResult>(`/companies/${companyId}/case-handoffs`, input),
+  handoff: (spaceId: string, input: HandoffCaseInput) =>
+    api.post<HandoffCaseResult>(`/spaces/${spaceId}/case-handoffs`, input),
   listHandoffs: (caseId: string, cursor?: string | null) =>
     api.get<CaseHandoffPage>(`/cases/${caseId}/handoffs?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`),
   retryHandoff: (caseId: string, handoffId: string) =>
     api.post(`/cases/${caseId}/handoffs/${handoffId}/retry`, {}),
   cancelHandoff: (caseId: string, handoffId: string) =>
     api.post(`/cases/${caseId}/handoffs/${handoffId}/cancel`, {}),
-  list: (companyId: string, params: ListCasesParams = {}) =>
-    api.get<CaseSummary[]>(`/companies/${companyId}/cases${toQuery(params)}`),
-  listTypes: (companyId: string) => api.get<string[]>(`/companies/${companyId}/cases/types`),
+  list: (spaceId: string, params: ListCasesParams = {}) =>
+    api.get<CaseSummary[]>(`/spaces/${spaceId}/cases${toQuery(params)}`),
+  listTypes: (spaceId: string) => api.get<string[]>(`/spaces/${spaceId}/cases/types`),
   get: (idOrIdentifier: string) => api.get<CaseDetail>(`/cases/${idOrIdentifier}`),
   patch: (idOrIdentifier: string, input: PatchCaseInput) =>
     api.patch<CaseDetail>(`/cases/${idOrIdentifier}`, input),
   listEvents: (idOrIdentifier: string, limit = 100) =>
     api.get<CaseEvent[]>(`/cases/${idOrIdentifier}/events?limit=${limit}`),
-  listChildren: (companyId: string, parentId: string) =>
-    api.get<CaseSummary[]>(`/companies/${companyId}/cases${toQuery({ parent: parentId, limit: 200 })}`),
+  listChildren: (spaceId: string, parentId: string) =>
+    api.get<CaseSummary[]>(`/spaces/${spaceId}/cases${toQuery({ parent: parentId, limit: 200 })}`),
   getDocument: (idOrIdentifier: string, key: string) =>
     api.get<CaseDocument & { key: string; body: string }>(`/cases/${idOrIdentifier}/documents/${encodeURIComponent(key)}`),
   upsertDocument: (

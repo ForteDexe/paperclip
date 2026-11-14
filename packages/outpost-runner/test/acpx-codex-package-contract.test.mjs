@@ -159,7 +159,7 @@ test("the Codex patch enforces isolated instructions, tools, and skills", () => 
   }
 });
 
-test("the Codex patch keeps MCP tool approvals on the governed permission channel", () => {
+test("the Codex patch keeps MCP tool approvals on the controlled permission channel", () => {
   assert.match(
     codexPatch,
     /!context\.isToolApproval && this\.shouldUseAcpElicitation\(params\)/,

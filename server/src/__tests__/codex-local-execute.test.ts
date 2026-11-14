@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { runChildProcess } from "@outpost/adapter-utils/server-utils";
 import { execute } from "@outpost/adapter-codex-local/server";
-import { buildPaperclipTaskMarkdown } from "../services/heartbeat.js";
+import { buildOutpostTaskMarkdown } from "../services/heartbeat.js";
 import { AGENT_CHAT_DIRECTIVE } from "../services/agent-conversations.js";
 
 async function writeFakeCodexCommand(commandPath: string): Promise<void> {
@@ -19,10 +19,10 @@ const payload = {
   codexConfigContents: process.env.CODEX_HOME && fs.existsSync(process.env.CODEX_HOME + "/config.toml")
     ? fs.readFileSync(process.env.CODEX_HOME + "/config.toml", "utf8")
     : null,
-  paperclipWakePayloadJson: process.env.OUTPOST_WAKE_PAYLOAD_JSON || null,
-  paperclipApiUrl: process.env.OUTPOST_API_URL || null,
-  paperclipApiKey: process.env.OUTPOST_API_KEY || null,
-  paperclipApiBridgeMode: process.env.OUTPOST_API_BRIDGE_MODE || null,
+  outpostWakePayloadJson: process.env.OUTPOST_WAKE_PAYLOAD_JSON || null,
+  outpostApiUrl: process.env.OUTPOST_API_URL || null,
+  outpostApiKey: process.env.OUTPOST_API_KEY || null,
+  outpostApiBridgeMode: process.env.OUTPOST_API_BRIDGE_MODE || null,
   outpostEnvKeys: Object.keys(process.env)
     .filter((key) => key.startsWith("OUTPOST_"))
     .sort(),
@@ -52,10 +52,10 @@ type CapturePayload = {
   prompt: string;
   codexHome: string | null;
   codexConfigContents?: string | null;
-  paperclipWakePayloadJson: string | null;
-  paperclipApiUrl?: string | null;
-  paperclipApiKey?: string | null;
-  paperclipApiBridgeMode?: string | null;
+  outpostWakePayloadJson: string | null;
+  outpostApiUrl?: string | null;
+  outpostApiKey?: string | null;
+  outpostApiBridgeMode?: string | null;
   outpostEnvKeys: string[];
 };
 
@@ -119,19 +119,19 @@ function createLocalSandboxRunner() {
 }
 
 describe("codex execute", () => {
-  it("uses a Paperclip-managed CODEX_HOME outside worktree mode while preserving shared auth and config", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-default-"));
+  it("uses a Outpost-managed CODEX_HOME outside worktree mode while preserving shared auth and config", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-default-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
     const sharedCodexHome = path.join(root, "shared-codex-home");
-    const paperclipHome = path.join(root, "paperclip-home");
+    const outpostHome = path.join(root, "outpost-home");
     const managedCodexHome = path.join(
-      paperclipHome,
+      outpostHome,
       "instances",
       "default",
-      "companies",
-      "company-1",
+      "spaces",
+      "space-1",
       "codex-home",
     );
     await fs.mkdir(workspace, { recursive: true });
@@ -141,12 +141,12 @@ describe("codex execute", () => {
     await writeFakeCodexCommand(commandPath);
 
     const previousHome = process.env.HOME;
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
-    const previousPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
-    const previousPaperclipInWorktree = process.env.OUTPOST_IN_WORKTREE;
+    const previousOutpostHome = process.env.OUTPOST_HOME;
+    const previousOutpostInstanceId = process.env.OUTPOST_INSTANCE_ID;
+    const previousOutpostInWorktree = process.env.OUTPOST_IN_WORKTREE;
     const previousCodexHome = process.env.CODEX_HOME;
     process.env.HOME = root;
-    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_HOME = outpostHome;
     delete process.env.OUTPOST_INSTANCE_ID;
     delete process.env.OUTPOST_IN_WORKTREE;
     process.env.CODEX_HOME = sharedCodexHome;
@@ -157,7 +157,7 @@ describe("codex execute", () => {
         runId: "run-default",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -175,7 +175,7 @@ describe("codex execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -199,22 +199,22 @@ describe("codex execute", () => {
       expect(await fs.realpath(managedAuth)).toBe(await fs.realpath(path.join(sharedCodexHome, "auth.json")));
       expect((await fs.lstat(managedConfig)).isFile()).toBe(true);
       expect(await fs.readFile(managedConfig, "utf8")).toBe('model = "codex-mini-latest"\n');
-      await expect(fs.lstat(path.join(sharedCodexHome, "companies", "company-1"))).rejects.toThrow();
+      await expect(fs.lstat(path.join(sharedCodexHome, "spaces", "space-1"))).rejects.toThrow();
       expect(logs).toContainEqual(
         expect.objectContaining({
           stream: "stdout",
-          chunk: expect.stringContaining("Using Paperclip-managed Codex home"),
+          chunk: expect.stringContaining("Using Outpost-managed Codex home"),
         }),
       );
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
-      if (previousPaperclipInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
-      else process.env.OUTPOST_INSTANCE_ID = previousPaperclipInstanceId;
-      if (previousPaperclipInWorktree === undefined) delete process.env.OUTPOST_IN_WORKTREE;
-      else process.env.OUTPOST_IN_WORKTREE = previousPaperclipInWorktree;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
+      if (previousOutpostInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+      else process.env.OUTPOST_INSTANCE_ID = previousOutpostInstanceId;
+      if (previousOutpostInWorktree === undefined) delete process.env.OUTPOST_IN_WORKTREE;
+      else process.env.OUTPOST_IN_WORKTREE = previousOutpostInWorktree;
       if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
       else process.env.CODEX_HOME = previousCodexHome;
       await fs.rm(root, { recursive: true, force: true });
@@ -222,18 +222,18 @@ describe("codex execute", () => {
   });
 
   it("writes managed MCP gateways into Codex config and warns on overlapping direct entries without logging tokens", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-managed-mcp-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-managed-mcp-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
     const sharedCodexHome = path.join(root, "shared-codex-home");
-    const paperclipHome = path.join(root, "paperclip-home");
+    const outpostHome = path.join(root, "outpost-home");
     const managedCodexHome = path.join(
-      paperclipHome,
+      outpostHome,
       "instances",
       "default",
-      "companies",
-      "company-1",
+      "spaces",
+      "space-1",
       "codex-home",
     );
     await fs.mkdir(workspace, { recursive: true });
@@ -253,12 +253,12 @@ describe("codex execute", () => {
     await writeFakeCodexCommand(commandPath);
 
     const previousHome = process.env.HOME;
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
-    const previousPaperclipApiUrl = process.env.OUTPOST_API_URL;
-    const previousPaperclipRuntimeApiUrl = process.env.OUTPOST_RUNTIME_API_URL;
+    const previousOutpostHome = process.env.OUTPOST_HOME;
+    const previousOutpostApiUrl = process.env.OUTPOST_API_URL;
+    const previousOutpostRuntimeApiUrl = process.env.OUTPOST_RUNTIME_API_URL;
     const previousCodexHome = process.env.CODEX_HOME;
     process.env.HOME = root;
-    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_HOME = outpostHome;
     process.env.OUTPOST_API_URL = "http://outpost.local:3100";
     process.env.OUTPOST_RUNTIME_API_URL = "http://outpost.local:3100";
     process.env.CODEX_HOME = sharedCodexHome;
@@ -269,7 +269,7 @@ describe("codex execute", () => {
         runId: "run-managed-mcp",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: {},
@@ -287,7 +287,7 @@ describe("codex execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         runtimeMcp: {
           getServers: () => [
@@ -311,14 +311,14 @@ describe("codex execute", () => {
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
       const configText = capture.codexConfigContents ?? "";
       expect(configText).toContain("[mcp_servers.github]");
-      expect(configText).toContain("[mcp_servers.\"paperclip-github\"]");
+      expect(configText).toContain("[mcp_servers.\"outpost-github\"]");
       expect(configText).toContain('url = "http://outpost.local:3100/api/tool-gateway/gateways/gateway-1/mcp"');
       expect(configText).toContain('Authorization = "Bearer pcgw_secret-managed-token"');
       expect(logs).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             stream: "stderr",
-            chunk: expect.stringContaining("Paperclip cannot enforce policies for that direct entry"),
+            chunk: expect.stringContaining("Outpost cannot enforce policies for that direct entry"),
           }),
         ]),
       );
@@ -326,12 +326,12 @@ describe("codex execute", () => {
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
-      if (previousPaperclipApiUrl === undefined) delete process.env.OUTPOST_API_URL;
-      else process.env.OUTPOST_API_URL = previousPaperclipApiUrl;
-      if (previousPaperclipRuntimeApiUrl === undefined) delete process.env.OUTPOST_RUNTIME_API_URL;
-      else process.env.OUTPOST_RUNTIME_API_URL = previousPaperclipRuntimeApiUrl;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
+      if (previousOutpostApiUrl === undefined) delete process.env.OUTPOST_API_URL;
+      else process.env.OUTPOST_API_URL = previousOutpostApiUrl;
+      if (previousOutpostRuntimeApiUrl === undefined) delete process.env.OUTPOST_RUNTIME_API_URL;
+      else process.env.OUTPOST_RUNTIME_API_URL = previousOutpostRuntimeApiUrl;
       if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
       else process.env.CODEX_HOME = previousCodexHome;
       await fs.rm(root, { recursive: true, force: true });
@@ -339,7 +339,7 @@ describe("codex execute", () => {
   });
 
   it("emits a command note that Codex auto-applies repo-scoped AGENTS.md files", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-notes-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-notes-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
@@ -356,7 +356,7 @@ describe("codex execute", () => {
         runId: "run-notes",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -374,7 +374,7 @@ describe("codex execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -387,7 +387,7 @@ describe("codex execute", () => {
       expect(result.exitCode).toBe(0);
       expect(result.errorMessage).toBeNull();
       expect(commandNotes).toContain(
-        "Codex exec automatically applies repo-scoped AGENTS.md instructions from the current workspace; Paperclip does not currently suppress that discovery.",
+        "Codex exec automatically applies repo-scoped AGENTS.md instructions from the current workspace; Outpost does not currently suppress that discovery.",
       );
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
@@ -397,7 +397,7 @@ describe("codex execute", () => {
   });
 
   it("logs HOME and the resolved executable path in invocation metadata", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-meta-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-meta-"));
     const workspace = path.join(root, "workspace");
     const binDir = path.join(root, "bin");
     const commandPath = path.join(binDir, "codex");
@@ -419,7 +419,7 @@ describe("codex execute", () => {
         runId: "run-meta",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -437,7 +437,7 @@ describe("codex execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -463,7 +463,7 @@ describe("codex execute", () => {
   });
 
   it("injects bridge env into sandbox-managed remote runs", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-sandbox-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-sandbox-"));
     const localWorkspace = path.join(root, "workspace");
     const remoteWorkspace = path.join(root, "sandbox");
     const binDir = path.join(root, "bin");
@@ -486,7 +486,7 @@ describe("codex execute", () => {
         runId: "run-sandbox-auth",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -504,7 +504,7 @@ describe("codex execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         executionTarget: {
@@ -525,10 +525,10 @@ describe("codex execute", () => {
       expect(result.errorMessage).toBeNull();
 
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
-      expect(capture.codexHome).toBe(path.join(remoteWorkspace, ".paperclip-runtime", "codex", "home"));
-      expect(capture.paperclipApiUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
-      expect(capture.paperclipApiKey).not.toBe("run-jwt-token");
-      expect(capture.paperclipApiBridgeMode).toBe("queue_v1");
+      expect(capture.codexHome).toBe(path.join(remoteWorkspace, ".outpost-runtime", "codex", "home"));
+      expect(capture.outpostApiUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+      expect(capture.outpostApiKey).not.toBe("run-jwt-token");
+      expect(capture.outpostApiBridgeMode).toBe("queue_v1");
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
@@ -539,7 +539,7 @@ describe("codex execute", () => {
   });
 
   it.each([false, true])("delivers oversized wake context through stdin (sandbox=%s)", async (sandbox) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-wake-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-wake-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
@@ -557,7 +557,7 @@ describe("codex execute", () => {
         runId: "run-wake",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -576,14 +576,14 @@ describe("codex execute", () => {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
             OUTPOST_WAKE_PAYLOAD_JSON: description,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {
           issueId: "issue-1",
           taskId: "issue-1",
           wakeReason: "issue_commented",
           wakeCommentId: "comment-2",
-          paperclipWake: {
+          outpostWake: {
             reason: "issue_commented",
             issue: {
               id: "issue-1",
@@ -641,10 +641,10 @@ describe("codex execute", () => {
 
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
       expect(capture.outpostEnvKeys).not.toContain("OUTPOST_WAKE_PAYLOAD_JSON");
-      expect(capture.paperclipWakePayloadJson).toBeNull();
+      expect(capture.outpostWakePayloadJson).toBeNull();
       expect(capture.prompt).toContain(description);
       expect(capture.prompt).toContain("- reason: issue_commented");
-      expect(capture.prompt).toContain("## Paperclip Wake Payload");
+      expect(capture.prompt).toContain("## Outpost Wake Payload");
       expect(capture.prompt).toContain("Use this wake to continue the task, applying new user direction and preserving its approval gates.");
       expect(capture.prompt).toContain("Do not switch to another issue until you have handled this wake.");
       expect(capture.prompt).toContain(
@@ -660,13 +660,13 @@ describe("codex execute", () => {
   });
 
   it("keeps real assignment markdown and current wake events single-owned at the CLI boundary", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-context-owner-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-context-owner-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
     await fs.mkdir(workspace, { recursive: true });
     await writeFakeCodexCommand(commandPath);
-    const markdown = buildPaperclipTaskMarkdown({
+    const markdown = buildOutpostTaskMarkdown({
       issue: { id: "issue-1", identifier: "PAP-900", title: "Repeat phrase Repeat phrase", description: "Repeat phrase Repeat phrase" },
       wakeComments: [
         { id: "comment-a", body: "Same event body." },
@@ -674,7 +674,7 @@ describe("codex execute", () => {
       ],
       includeWakeComments: false,
     });
-    const historicalMarkdown = buildPaperclipTaskMarkdown({
+    const historicalMarkdown = buildOutpostTaskMarkdown({
       issue: { id: "issue-1", identifier: "PAP-900", title: "Repeat phrase Repeat phrase", description: "Repeat phrase Repeat phrase" },
       wakeComments: [
         { id: "comment-a", body: "Same event body." },
@@ -684,23 +684,23 @@ describe("codex execute", () => {
     try {
       await execute({
         runId: "run-context-owner",
-        agent: { id: "agent-1", companyId: "company-1", name: "Codex", adapterType: "codex_local", adapterConfig: {} },
+        agent: { id: "agent-1", spaceId: "space-1", name: "Codex", adapterType: "codex_local", adapterConfig: {} },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
         config: {
           engine: "cli", command: commandPath, cwd: workspace,
           env: { OUTPOST_TEST_CAPTURE_PATH: capturePath },
-          promptTemplate: "Custom template keeps {{paperclipTaskMarkdown}} and {{paperclipWakePrompt}}.",
+          promptTemplate: "Custom template keeps {{outpostTaskMarkdown}} and {{outpostWakePrompt}}.",
         },
         context: {
           issueId: "issue-1",
-          paperclipTaskMarkdown: historicalMarkdown,
-          paperclipTaskMarkdownAssignment: markdown,
-          paperclipWake: {
+          outpostTaskMarkdown: historicalMarkdown,
+          outpostTaskMarkdownAssignment: markdown,
+          outpostWake: {
             reason: "issue_commented",
             issue: { id: "issue-1", identifier: "PAP-900", title: "Repeat phrase Repeat phrase", description: "Repeat phrase Repeat phrase", status: "in_progress" },
             executionContinuation: {
               version: 1,
-              companyId: "company-1",
+              spaceId: "space-1",
               issueId: "issue-1",
               trigger: { reason: "issue_commented", interactionId: null, sourceRunId: null },
               originCommentIds: [],
@@ -719,7 +719,7 @@ describe("codex execute", () => {
             commentWindow: { requestedCount: 2, includedCount: 2, missingCount: 0 },
             fallbackFetchNeeded: false,
           },
-          paperclipTurnContext: { version: 1, assignment: { owner: "task_markdown" }, events: { owner: "wake_prompt", comments: [{ id: "comment-a", revision: "a" }, { id: "comment-b", revision: "b" }] } },
+          outpostTurnContext: { version: 1, assignment: { owner: "task_markdown" }, events: { owner: "wake_prompt", comments: [{ id: "comment-a", revision: "a" }, { id: "comment-b", revision: "b" }] } },
         },
         onLog: async () => {},
       });
@@ -738,7 +738,7 @@ describe("codex execute", () => {
   });
 
   it("classifies remote-compaction high-demand failures as retryable transient upstream errors", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-transient-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-transient-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     await fs.mkdir(workspace, { recursive: true });
@@ -756,7 +756,7 @@ describe("codex execute", () => {
         runId: "run-transient-error",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -771,7 +771,7 @@ describe("codex execute", () => {
           engine: "cli",
           command: commandPath,
           cwd: workspace,
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -790,7 +790,7 @@ describe("codex execute", () => {
   });
 
   it.each([true, false])("retries missing resume only before a session starts (started=%s)", async (started) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-resume-stop-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-resume-stop-"));
     const commandPath = path.join(root, "codex");
     const attemptsPath = path.join(root, "attempts");
     await seedSharedCodexAuth(root);
@@ -810,7 +810,7 @@ if (process.argv.includes("resume")) {
     try {
       const result = await execute({
         runId: `resume-stop-${started}`,
-        agent: { id: "agent-1", companyId: "company-1", name: "Codex", adapterType: "codex_local", adapterConfig: { engine: "cli" } },
+        agent: { id: "agent-1", spaceId: "space-1", name: "Codex", adapterType: "codex_local", adapterConfig: { engine: "cli" } },
         runtime: { sessionId: "existing-session", sessionParams: null, sessionDisplayId: "existing-session", taskKey: null },
         config: { engine: "cli", command: commandPath, cwd: root, promptTemplate: "Test resume." },
         context: {}, onLog: async () => {},
@@ -823,7 +823,7 @@ if (process.argv.includes("resume")) {
   });
 
   it("classifies mid-turn harness crashes as retryable transient upstream errors", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-harness-crash-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-harness-crash-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     await fs.mkdir(workspace, { recursive: true });
@@ -848,7 +848,7 @@ process.exit(1);
         runId: "run-harness-crash",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -863,7 +863,7 @@ process.exit(1);
           engine: "cli",
           command: commandPath,
           cwd: workspace,
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -885,7 +885,7 @@ process.exit(1);
   });
 
   it("persists retry-not-before metadata for codex provider quota failures", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-usage-limit-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-usage-limit-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     await fs.mkdir(workspace, { recursive: true });
@@ -905,7 +905,7 @@ process.exit(1);
         runId: "run-usage-limit",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -924,7 +924,7 @@ process.exit(1);
           command: commandPath,
           cwd: workspace,
           model: "gpt-5.3-codex-spark",
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -950,7 +950,7 @@ process.exit(1);
   });
 
   it("classifies Codex refresh-token auth failures without credential telemetry", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-refresh-token-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-refresh-token-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     await fs.mkdir(workspace, { recursive: true });
@@ -965,7 +965,7 @@ process.exit(1);
         runId: "run-refresh-token-reused",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -980,7 +980,7 @@ process.exit(1);
           engine: "cli",
           command: commandPath,
           cwd: workspace,
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -1000,7 +1000,7 @@ process.exit(1);
   });
 
   it("uses safer invocation settings and a fresh-session handoff for codex transient fallback retries", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-fallback-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-fallback-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
@@ -1017,7 +1017,7 @@ process.exit(1);
         runId: "run-fallback",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -1040,11 +1040,11 @@ process.exit(1);
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {
           codexTransientFallbackMode: "fresh_session_safer_invocation",
-          paperclipContinuationSummary: {
+          outpostContinuationSummary: {
             key: "continuation-summary",
             title: "Continuation Summary",
             body: "Issue continuation summary for the next fresh session.",
@@ -1066,7 +1066,7 @@ process.exit(1);
       expect(capture.argv).not.toContain("resume");
       expect(capture.argv).not.toContain('service_tier="fast"');
       expect(capture.argv).not.toContain("features.fast_mode=true");
-      expect(capture.prompt).toContain("Paperclip session handoff:");
+      expect(capture.prompt).toContain("Outpost session handoff:");
       expect(capture.prompt).toContain("Issue continuation summary for the next fresh session.");
       expect(commandNotes).toContain("Codex transient fallback requested safer invocation settings for this retry.");
       expect(commandNotes).toContain("Codex transient fallback forced a fresh session with a continuation handoff.");
@@ -1078,7 +1078,7 @@ process.exit(1);
   });
 
   it("renders execution-stage wake instructions for reviewer and executor roles", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-stage-wake-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-stage-wake-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
@@ -1094,7 +1094,7 @@ process.exit(1);
         runId: "run-stage-wake",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -1112,13 +1112,13 @@ process.exit(1);
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {
           issueId: "issue-1",
           taskId: "issue-1",
           wakeReason: "execution_review_requested",
-          paperclipWake: {
+          outpostWake: {
             reason: "execution_review_requested",
             issue: {
               id: "issue-1",
@@ -1164,7 +1164,7 @@ process.exit(1);
         runId: "run-stage-wake-executor",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -1182,13 +1182,13 @@ process.exit(1);
           env: {
             OUTPOST_TEST_CAPTURE_PATH: executorCapturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {
           issueId: "issue-1",
           taskId: "issue-1",
           wakeReason: "execution_changes_requested",
-          paperclipWake: {
+          outpostWake: {
             reason: "execution_changes_requested",
             issue: {
               id: "issue-1",
@@ -1235,7 +1235,7 @@ process.exit(1);
   });
 
   it("renders an issue-scoped wake prompt even when the wake has no comments yet", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-issue-wake-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-issue-wake-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
@@ -1251,7 +1251,7 @@ process.exit(1);
         runId: "run-issue-wake",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -1269,13 +1269,13 @@ process.exit(1);
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {
           issueId: "issue-1",
           taskId: "issue-1",
           wakeReason: "issue_assigned",
-          paperclipWake: {
+          outpostWake: {
             reason: "issue_assigned",
             issue: {
               id: "issue-1",
@@ -1306,8 +1306,8 @@ process.exit(1);
 
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
       expect(capture.outpostEnvKeys).not.toContain("OUTPOST_WAKE_PAYLOAD_JSON");
-      expect(capture.paperclipWakePayloadJson).toBeNull();
-      expect(capture.prompt).toContain("## Paperclip Wake Payload");
+      expect(capture.outpostWakePayloadJson).toBeNull();
+      expect(capture.prompt).toContain("## Outpost Wake Payload");
       expect(capture.prompt).toContain("Do not switch to another issue until you have handled this wake.");
       expect(capture.prompt).toContain("- issue: PAP-1201 Fix gallery opening for inline images");
       expect(capture.prompt).not.toContain("- pending comments:");
@@ -1324,7 +1324,7 @@ process.exit(1);
   });
 
   it.each([{ conversationMode: false, resumedSession: true }, { conversationMode: true, resumedSession: true }, { conversationMode: true, resumedSession: false }])("retains current task policy (conversation=$conversationMode, resumed=$resumedSession)", async ({ conversationMode, resumedSession }) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-resume-wake-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-resume-wake-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
@@ -1338,7 +1338,7 @@ process.exit(1);
     await seedSharedCodexAuth(root);
 
     const policy = conversationMode
-      ? buildPaperclipTaskMarkdown({
+      ? buildOutpostTaskMarkdown({
           issue: { id: "issue-1", identifier: null, title: "Chat", workMode: "planning", conversationAgentId: "agent-1" },
           interaction: { kind: "request_confirmation", status: "rejected" },
           planReview: { status: "rejected", reason: "Revise the final note." },
@@ -1353,7 +1353,7 @@ process.exit(1);
         runId: "run-resume-wake",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -1375,17 +1375,17 @@ process.exit(1);
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: conversationMode ? undefined : "Follow the paperclip heartbeat.",
+          promptTemplate: conversationMode ? undefined : "Follow the outpost heartbeat.",
         },
         context: {
           conversationMode,
-          paperclipTaskMarkdown: `Full description that must not replay\n${policy}`,
-          paperclipTaskMarkdownCompact: policy,
+          outpostTaskMarkdown: `Full description that must not replay\n${policy}`,
+          outpostTaskMarkdownCompact: policy,
           issueId: "issue-1",
           taskId: "issue-1",
           wakeReason: "issue_commented",
           wakeCommentId: "comment-2",
-          paperclipWake: {
+          outpostWake: {
             reason: "issue_commented",
             issue: {
               id: "issue-1",
@@ -1430,7 +1430,7 @@ process.exit(1);
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
       if (resumedSession) expect(capture.argv).toEqual(expect.arrayContaining(["resume", "codex-session-1", "-"]));
       else expect(capture.argv).not.toContain("resume");
-      expect(capture.prompt).toContain(resumedSession ? "## Paperclip Resume Delta" : "## Paperclip Wake Payload");
+      expect(capture.prompt).toContain(resumedSession ? "## Outpost Resume Delta" : "## Outpost Wake Payload");
       expect(capture.prompt).toContain("Do not switch to another issue until you have handled this wake.");
       expect(capture.prompt).toContain("Second comment");
       expect(capture.prompt).toContain(policy);
@@ -1445,10 +1445,10 @@ process.exit(1);
         expect(capture.prompt).not.toContain("Use child issues");
       }
       expect(capture.prompt).not.toContain("Execution contract:");
-      expect(capture.prompt).not.toContain("Follow the paperclip heartbeat.");
+      expect(capture.prompt).not.toContain("Follow the outpost heartbeat.");
       if (resumedSession) {
         expect(capture.prompt).not.toContain("You are managed instructions.");
-        expect(invocationPrompt).toContain("## Paperclip Resume Delta");
+        expect(invocationPrompt).toContain("## Outpost Resume Delta");
         expect(invocationNotes).toContain("Skipped stdin instruction reinjection because an existing Codex session is being resumed with a wake delta.");
         expect(promptMetrics.instructionsChars).toBe(0);
         expect(promptMetrics.heartbeatPromptChars).toBe(0);
@@ -1463,21 +1463,21 @@ process.exit(1);
     }
   });
   it("uses a worktree-isolated CODEX_HOME and mounts the operational skill by default", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
     const sharedCodexHome = path.join(root, "shared-codex-home");
-    const paperclipHome = path.join(root, "paperclip-home");
+    const outpostHome = path.join(root, "outpost-home");
     const isolatedCodexHome = path.join(
-      paperclipHome,
+      outpostHome,
       "instances",
       "worktree-1",
-      "companies",
-      "company-1",
+      "spaces",
+      "space-1",
       "codex-home",
     );
-    const homeSkill = path.join(isolatedCodexHome, "skills", "paperclip");
+    const homeSkill = path.join(isolatedCodexHome, "skills", "outpost");
     await fs.mkdir(workspace, { recursive: true });
     await fs.mkdir(sharedCodexHome, { recursive: true });
     await fs.writeFile(path.join(sharedCodexHome, "auth.json"), `${fakeCodexAuthJson}\n`, "utf8");
@@ -1485,12 +1485,12 @@ process.exit(1);
     await writeFakeCodexCommand(commandPath);
 
     const previousHome = process.env.HOME;
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
-    const previousPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
-    const previousPaperclipInWorktree = process.env.OUTPOST_IN_WORKTREE;
+    const previousOutpostHome = process.env.OUTPOST_HOME;
+    const previousOutpostInstanceId = process.env.OUTPOST_INSTANCE_ID;
+    const previousOutpostInWorktree = process.env.OUTPOST_IN_WORKTREE;
     const previousCodexHome = process.env.CODEX_HOME;
     process.env.HOME = root;
-    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_HOME = outpostHome;
     process.env.OUTPOST_INSTANCE_ID = "worktree-1";
     process.env.OUTPOST_IN_WORKTREE = "true";
     process.env.CODEX_HOME = sharedCodexHome;
@@ -1501,7 +1501,7 @@ process.exit(1);
         runId: "run-1",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -1519,7 +1519,7 @@ process.exit(1);
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -1534,13 +1534,13 @@ process.exit(1);
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
       expect(capture.codexHome).toBe(isolatedCodexHome);
       expect(capture.argv).toEqual(expect.arrayContaining(["exec", "--json", "-"]));
-      expect(capture.prompt).toContain("Follow the paperclip heartbeat.");
+      expect(capture.prompt).toContain("Follow the outpost heartbeat.");
       expect(capture.outpostEnvKeys).toEqual(
         expect.arrayContaining([
           "OUTPOST_AGENT_ID",
           "OUTPOST_API_KEY",
           "OUTPOST_API_URL",
-          "OUTPOST_COMPANY_ID",
+          "OUTPOST_SPACE_ID",
           "OUTPOST_RUN_ID",
         ]),
       );
@@ -1562,18 +1562,18 @@ process.exit(1);
       expect(logs).toContainEqual(
         expect.objectContaining({
           stream: "stdout",
-          chunk: expect.stringContaining('Injected Codex skill "paperclip"'),
+          chunk: expect.stringContaining('Injected Codex skill "outpost"'),
         }),
       );
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
-      if (previousPaperclipInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
-      else process.env.OUTPOST_INSTANCE_ID = previousPaperclipInstanceId;
-      if (previousPaperclipInWorktree === undefined) delete process.env.OUTPOST_IN_WORKTREE;
-      else process.env.OUTPOST_IN_WORKTREE = previousPaperclipInWorktree;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
+      if (previousOutpostInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+      else process.env.OUTPOST_INSTANCE_ID = previousOutpostInstanceId;
+      if (previousOutpostInWorktree === undefined) delete process.env.OUTPOST_IN_WORKTREE;
+      else process.env.OUTPOST_IN_WORKTREE = previousOutpostInWorktree;
       if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
       else process.env.CODEX_HOME = previousCodexHome;
       await fs.rm(root, { recursive: true, force: true });
@@ -1581,7 +1581,7 @@ process.exit(1);
   });
 
   it("isolates connector skills by agent and revision without changing the selected model identity", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-connector-codex-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-connector-codex-"));
     const workspace = path.join(root, "workspace");
     const command = path.join(root, "codex");
     const capture = path.join(root, "capture.json");
@@ -1596,21 +1596,21 @@ process.exit(1);
     await writeFakeCodexCommand(command);
     const keys = ["OUTPOST_HOME", "OUTPOST_INSTANCE_ID", "CODEX_HOME"] as const;
     const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
-    process.env.OUTPOST_HOME = path.join(root, "paperclip");
+    process.env.OUTPOST_HOME = path.join(root, "outpost");
     process.env.OUTPOST_INSTANCE_ID = "connectors";
     process.env.CODEX_HOME = sourceHome;
     const invoke = async (agentId: string, digest: string | null, source = skillSource, connectorSkillInstructions = "") => {
       const config = {
         engine: "cli", command, cwd: workspace,
         env: { CODEX_HOME: sourceHome, OUTPOST_TEST_CAPTURE_PATH: capture },
-        paperclipConnectorSkillDigest: digest,
-        paperclipSkillSync: { desiredSkills: digest ? ["paperclipai/paperclip/agentmail"] : [] },
-        paperclipRuntimeSkills: digest ? [{ key: "paperclipai/paperclip/agentmail", runtimeName: "agentmail", source }] : [],
+        outpostConnectorSkillDigest: digest,
+        outpostSkillSync: { desiredSkills: digest ? ["outpost/outpost/agentmail"] : [] },
+        outpostRuntimeSkills: digest ? [{ key: "outpost/outpost/agentmail", runtimeName: "agentmail", source }] : [],
       };
       const result = await execute({ runId: `run-${agentId}-${digest?.slice(0, 1) ?? "none"}`,
-        agent: { id: agentId, companyId: "company-1", name: "Email agent", adapterType: "codex_local", adapterConfig: config },
+        agent: { id: agentId, spaceId: "space-1", name: "Email agent", adapterType: "codex_local", adapterConfig: config },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
-        config, context: { paperclipWake: { connectorSkillInstructions } }, authToken: "test-token", onLog: async () => {},
+        config, context: { outpostWake: { connectorSkillInstructions } }, authToken: "test-token", onLog: async () => {},
       });
       expect(result.errorMessage).toBeNull();
       expect(result.exitCode).toBe(0);
@@ -1660,7 +1660,7 @@ process.exit(1);
   });
 
   it.each([false, true])("isolates private skills and keeps custom routing with an explicit credential home: %s", async (explicitHome) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-private-codex-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-private-codex-"));
     const workspace = path.join(root, "workspace");
     const command = path.join(root, "codex");
     const capture = path.join(root, "capture.json");
@@ -1674,7 +1674,7 @@ process.exit(1);
     await writeFakeCodexCommand(command);
     const keys = ["OUTPOST_HOME", "OUTPOST_INSTANCE_ID", "CODEX_HOME"] as const;
     const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
-    process.env.OUTPOST_HOME = path.join(root, "paperclip");
+    process.env.OUTPOST_HOME = path.join(root, "outpost");
     process.env.OUTPOST_INSTANCE_ID = "connectors";
     process.env.CODEX_HOME = sourceHome;
     const invoke = async (agentId: string, digest: string | null, source = skillSource, connectorSkillInstructions = "") => {
@@ -1686,13 +1686,13 @@ process.exit(1);
           } }, model_provider: "test_gateway" }),
         },
 
-        paperclipSkillSync: { desiredSkills: digest ? ["paperclipai/paperclip/agentmail"] : [] },
-        paperclipRuntimeSkills: digest ? [{ key: "paperclipai/paperclip/agentmail", runtimeName: "agentmail", source }] : [],
+        outpostSkillSync: { desiredSkills: digest ? ["outpost/outpost/agentmail"] : [] },
+        outpostRuntimeSkills: digest ? [{ key: "outpost/outpost/agentmail", runtimeName: "agentmail", source }] : [],
       };
       const result = await execute({ runId: `run-${agentId}-${digest?.slice(0, 1) ?? "none"}`,
-        agent: { id: agentId, companyId: "company-1", name: "Email agent", adapterType: "codex_local", adapterConfig: config },
+        agent: { id: agentId, spaceId: "space-1", name: "Email agent", adapterType: "codex_local", adapterConfig: config },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
-        config, context: { paperclipWake: { connectorSkillInstructions } }, authToken: "test-token", onLog: async () => {},
+        config, context: { outpostWake: { connectorSkillInstructions } }, authToken: "test-token", onLog: async () => {},
       });
       expect(result.errorMessage).toBeNull();
       expect(result.exitCode).toBe(0);
@@ -1730,20 +1730,20 @@ process.exit(1);
       expect(removed.codexHome).toContain("skill-runtimes/agent-1/");
       await expect(fs.stat(path.join(removed.codexHome!, "skills/agentmail"))).rejects.toMatchObject({ code: "ENOENT" });
       if (!explicitHome) {
-        // A promoted company login can differ from the host's default account.
+        // A promoted space login can differ from the host's default account.
         // Digest and seeding must use that same effective credential source.
-        const companyHome = path.resolve(first.codexHome!, "../../..");
-        await fs.unlink(path.join(companyHome, "auth.json"));
-        const originalAccount = JSON.stringify({ tokens: { account_id: "company-account-one", access_token: "test-token-one" } });
-        await fs.writeFile(path.join(companyHome, "auth.json"), originalAccount);
-        const companyRun = await invoke("agent-1", "a".repeat(64));
-        expect(JSON.parse(await fs.readFile(path.join(companyRun.codexHome!, "auth.json"), "utf8")).tokens.account_id).toBe("company-account-one");
-        await fs.unlink(path.join(companyRun.codexHome!, "auth.json"));
-        await fs.writeFile(path.join(companyRun.codexHome!, "auth.json"), originalAccount);
-        await fs.writeFile(path.join(companyHome, "auth.json"), JSON.stringify({ tokens: { account_id: "company-account-two", access_token: "test-token-two" } }));
-        const companyNext = await invoke("agent-1", "a".repeat(64));
-        expect(companyNext.codexHome).not.toBe(companyRun.codexHome);
-        expect(JSON.parse(await fs.readFile(path.join(companyNext.codexHome!, "auth.json"), "utf8")).tokens.account_id).toBe("company-account-two");
+        const spaceHome = path.resolve(first.codexHome!, "../../..");
+        await fs.unlink(path.join(spaceHome, "auth.json"));
+        const originalAccount = JSON.stringify({ tokens: { account_id: "space-account-one", access_token: "test-token-one" } });
+        await fs.writeFile(path.join(spaceHome, "auth.json"), originalAccount);
+        const spaceRun = await invoke("agent-1", "a".repeat(64));
+        expect(JSON.parse(await fs.readFile(path.join(spaceRun.codexHome!, "auth.json"), "utf8")).tokens.account_id).toBe("space-account-one");
+        await fs.unlink(path.join(spaceRun.codexHome!, "auth.json"));
+        await fs.writeFile(path.join(spaceRun.codexHome!, "auth.json"), originalAccount);
+        await fs.writeFile(path.join(spaceHome, "auth.json"), JSON.stringify({ tokens: { account_id: "space-account-two", access_token: "test-token-two" } }));
+        const spaceNext = await invoke("agent-1", "a".repeat(64));
+        expect(spaceNext.codexHome).not.toBe(spaceRun.codexHome);
+        expect(JSON.parse(await fs.readFile(path.join(spaceNext.codexHome!, "auth.json"), "utf8")).tokens.account_id).toBe("space-account-two");
         expect(await fs.readFile(path.join(sourceHome, "auth.json"), "utf8")).toBe(fakeCodexAuthJson);
       } else {
         await fs.writeFile(path.join(sourceHome, "config.toml"), '[mcp_servers.changed]\ncommand = "new-selected-server"\n');
@@ -1763,25 +1763,25 @@ process.exit(1);
   });
 
   it("respects an explicit CODEX_HOME config override even in worktree mode", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-execute-explicit-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-execute-explicit-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
     const sharedCodexHome = path.join(root, "shared-codex-home");
     const explicitCodexHome = path.join(root, "explicit-codex-home");
-    const paperclipHome = path.join(root, "paperclip-home");
+    const outpostHome = path.join(root, "outpost-home");
     await fs.mkdir(workspace, { recursive: true });
     await fs.mkdir(sharedCodexHome, { recursive: true });
     await fs.writeFile(path.join(sharedCodexHome, "auth.json"), `${fakeCodexAuthJson}\n`, "utf8");
     await writeFakeCodexCommand(commandPath);
 
     const previousHome = process.env.HOME;
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
-    const previousPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
-    const previousPaperclipInWorktree = process.env.OUTPOST_IN_WORKTREE;
+    const previousOutpostHome = process.env.OUTPOST_HOME;
+    const previousOutpostInstanceId = process.env.OUTPOST_INSTANCE_ID;
+    const previousOutpostInWorktree = process.env.OUTPOST_IN_WORKTREE;
     const previousCodexHome = process.env.CODEX_HOME;
     process.env.HOME = root;
-    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_HOME = outpostHome;
     process.env.OUTPOST_INSTANCE_ID = "worktree-1";
     process.env.OUTPOST_IN_WORKTREE = "true";
     process.env.CODEX_HOME = sharedCodexHome;
@@ -1791,7 +1791,7 @@ process.exit(1);
         runId: "run-2",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Codex Coder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -1810,9 +1810,9 @@ process.exit(1);
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
             CODEX_HOME: explicitCodexHome,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
-          paperclipSkillSync: {
-            desiredSkills: ["paperclip"],
+          promptTemplate: "Follow the outpost heartbeat.",
+          outpostSkillSync: {
+            desiredSkills: ["outpost"],
           },
         },
         context: {},
@@ -1825,17 +1825,17 @@ process.exit(1);
 
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
       expect(capture.codexHome).toBe(explicitCodexHome);
-      expect((await fs.lstat(path.join(explicitCodexHome, "skills", "paperclip"))).isSymbolicLink()).toBe(true);
-      await expect(fs.lstat(path.join(paperclipHome, "instances", "worktree-1", "codex-home"))).rejects.toThrow();
+      expect((await fs.lstat(path.join(explicitCodexHome, "skills", "outpost"))).isSymbolicLink()).toBe(true);
+      await expect(fs.lstat(path.join(outpostHome, "instances", "worktree-1", "codex-home"))).rejects.toThrow();
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
-      if (previousPaperclipInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
-      else process.env.OUTPOST_INSTANCE_ID = previousPaperclipInstanceId;
-      if (previousPaperclipInWorktree === undefined) delete process.env.OUTPOST_IN_WORKTREE;
-      else process.env.OUTPOST_IN_WORKTREE = previousPaperclipInWorktree;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
+      if (previousOutpostInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+      else process.env.OUTPOST_INSTANCE_ID = previousOutpostInstanceId;
+      if (previousOutpostInWorktree === undefined) delete process.env.OUTPOST_IN_WORKTREE;
+      else process.env.OUTPOST_IN_WORKTREE = previousOutpostInWorktree;
       if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
       else process.env.CODEX_HOME = previousCodexHome;
       await fs.rm(root, { recursive: true, force: true });

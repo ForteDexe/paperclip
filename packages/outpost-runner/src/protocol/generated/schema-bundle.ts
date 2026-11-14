@@ -51,7 +51,7 @@ export const identitySchema = {
   "type": "object",
   "required": [
     "schema",
-    "companyId",
+    "spaceId",
     "issueId",
     "runId",
     "environmentLeaseId",
@@ -63,7 +63,7 @@ export const identitySchema = {
     "schema": {
       "const": "outpost.orp.identity.v1"
     },
-    "companyId": {
+    "spaceId": {
       "$ref": "#/$defs/stableId"
     },
     "issueId": {
@@ -1908,7 +1908,7 @@ export const providerEventSchema = {
     },
     "plan": {
       "type": "object",
-      "description": "A complete provider-authored within-turn checklist snapshot. Consumers replace the prior snapshot with the same planId in ORP sourceSeq order; this is not Paperclip's durable Plan document.",
+      "description": "A complete provider-authored within-turn checklist snapshot. Consumers replace the prior snapshot with the same planId in ORP sourceSeq order; this is not Outpost's durable Plan document.",
       "required": [
         "schema",
         "planId",
@@ -1986,7 +1986,7 @@ export const providerEventSchema = {
     },
     "planProposal": {
       "type": "object",
-      "description": "A provider-authored proposed plan document awaiting human approval (Codex plan item, Claude ExitPlanMode). Paperclip may synchronize a completed proposal into the issue's durable Plan document; it is distinct from the within-turn plan.updated checklist.",
+      "description": "A provider-authored proposed plan document awaiting human approval (Codex plan item, Claude ExitPlanMode). Outpost may synchronize a completed proposal into the issue's durable Plan document; it is distinct from the within-turn plan.updated checklist.",
       "required": [
         "schema",
         "proposalId",
@@ -3031,7 +3031,7 @@ export const providerEventSchema = {
 export const workspaceDiffSchema = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://outpost.dev/schemas/orp/v1/workspace-diff.schema.json",
-  "title": "Paperclip workspace diff",
+  "title": "Outpost workspace diff",
   "type": "object",
   "required": [
     "schema",
@@ -3183,7 +3183,7 @@ export const workspaceDiffSchema = {
 export const workspaceFileReferenceSchema = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://outpost.dev/schemas/orp/v1/workspace-file-reference.schema.json",
-  "title": "Paperclip workspace file reference",
+  "title": "Outpost workspace file reference",
   "type": "object",
   "required": [
     "schema",
@@ -3362,11 +3362,11 @@ export const semanticToolSchema = {
     },
     "authorizationBoundary": {
       "enum": [
-        "company",
+        "space",
         "actor",
         "active_task",
         "grant",
-        "governed_action",
+        "controlled_action",
         "lock",
         "revision"
       ]
@@ -3789,7 +3789,7 @@ export const stopReasonSchema = {
     },
     "limitClass": {
       "enum": [
-        "company_monthly",
+        "space_monthly",
         "actor_monthly",
         "project_monthly",
         "run_cost",
@@ -3905,7 +3905,7 @@ export const terminalSchema = {
 export const questionSetSchema = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://outpost.dev/schemas/orp/v1/question-set.schema.json",
-  "title": "Paperclip question set",
+  "title": "Outpost question set",
   "type": "object",
   "required": [
     "schema",
@@ -4140,7 +4140,7 @@ export const questionSetSchema = {
 export const questionResponseSchema = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://outpost.dev/schemas/orp/v1/question-response.schema.json",
-  "title": "Paperclip question response",
+  "title": "Outpost question response",
   "type": "object",
   "required": [
     "schema",
@@ -6360,7 +6360,7 @@ export const eventV3Schema = {
                   "binding": {
                     "type": "object",
                     "properties": {
-                      "companyId": {
+                      "spaceId": {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 240
@@ -6401,7 +6401,7 @@ export const eventV3Schema = {
                     },
                     "additionalProperties": false,
                     "required": [
-                      "companyId",
+                      "spaceId",
                       "agentId",
                       "bindingId",
                       "runId",
@@ -6477,7 +6477,7 @@ export const eventV3Schema = {
                   "binding": {
                     "type": "object",
                     "properties": {
-                      "companyId": {
+                      "spaceId": {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 240
@@ -6518,7 +6518,7 @@ export const eventV3Schema = {
                     },
                     "additionalProperties": false,
                     "required": [
-                      "companyId",
+                      "spaceId",
                       "agentId",
                       "bindingId",
                       "runId",
@@ -6568,7 +6568,7 @@ export const eventV3Schema = {
               "binding": {
                 "type": "object",
                 "properties": {
-                  "companyId": {
+                  "spaceId": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 240
@@ -6609,7 +6609,7 @@ export const eventV3Schema = {
                 },
                 "additionalProperties": false,
                 "required": [
-                  "companyId",
+                  "spaceId",
                   "agentId",
                   "bindingId",
                   "runId",
@@ -6656,7 +6656,7 @@ export const eventV3Schema = {
               "binding": {
                 "type": "object",
                 "properties": {
-                  "companyId": {
+                  "spaceId": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 240
@@ -6697,7 +6697,7 @@ export const eventV3Schema = {
                 },
                 "additionalProperties": false,
                 "required": [
-                  "companyId",
+                  "spaceId",
                   "agentId",
                   "bindingId",
                   "runId",

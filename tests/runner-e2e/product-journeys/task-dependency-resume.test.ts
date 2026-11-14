@@ -34,7 +34,7 @@ async function fixture(premature = false, options: FixtureOptions = {}) {
     id: `prior-${i}`, nativeIssueId: `prior-task-${i}`, contextSnapshot: { issueId: `prior-task-${i}` },
     startedAt: "2019-12-31T23:00:00Z", status: options.activePrior ? "running" : i % 2 ? "failed" : "succeeded" }));
   const activity = (count: number, entityId: string, agentId?: string) => Array.from({ length: count }, (_, i) => ({
-    id: `${entityId}-activity-${i}`, companyId: s.companyId, entityType: "issue", entityId, agentId,
+    id: `${entityId}-activity-${i}`, spaceId: s.spaceId, entityType: "issue", entityId, agentId,
     actorType: agentId ? "agent" : "user", actorId: agentId ?? s.userId, action: "issue.observed" }));
   const taskDocument = () => ({ ...f.finished.document, body: output() });
   const revision = () => ({ ...f.finished.revision, body: output() });
@@ -100,18 +100,18 @@ async function fixture(premature = false, options: FixtureOptions = {}) {
     if (route === "/api/heartbeat-runs/run") return runs()[0];
     if (route === `/api/issues/${s.blockerId}/activity`) return completed ? structuredClone(f.reopened.activity) : [];
     if (route === `/api/issues/${s.dependentId}/activity`) return activity(options.ownedActivity ?? 0, s.dependentId);
-    if (route === `/api/companies/${s.companyId}/activity?agentId=${s.agentId}&limit=500`) {
+    if (route === `/api/spaces/${s.spaceId}/activity?agentId=${s.agentId}&limit=500`) {
       return options.missingActivity ? undefined : activity(options.agentActivity ?? 0, "prior-task", s.agentId);
     }
-    if (route === `/api/companies/${s.companyId}/activity?limit=500`) return activity(options.unrelatedActivity ?? 0, "unrelated-task").slice(0, 500);
+    if (route === `/api/spaces/${s.spaceId}/activity?limit=500`) return activity(options.unrelatedActivity ?? 0, "unrelated-task").slice(0, 500);
     if (route === `/api/issues/${s.dependentId}/documents`) return completed ? [taskDocument()] : [];
     if (route.endsWith("/documents/dependency-proof")) return taskDocument();
     if (route.endsWith("/revisions/revision")) return revision();
     throw new Error(`unexpected_read:${route}`);
   }, async post(...args: unknown[]) { writes.push(args); throw new Error("unexpected_mutation"); },
   async patch(...args: unknown[]) { writes.push(args); throw new Error("unexpected_mutation"); } };
-  const context = { page, api, company: { id: s.companyId, issuePrefix: "QA" }, user: { id: s.userId }, environmentId: s.environmentId,
-    capabilities: ["company", "board-user", "task-write", "agent"], agent: { id: s.agentId, name: "Fixture agent", provider: s.provider, model: s.model, runtimeMode: "native" } } as JourneyContext;
+  const context = { page, api, space: { id: s.spaceId, issuePrefix: "QA" }, user: { id: s.userId }, environmentId: s.environmentId,
+    capabilities: ["space", "board-user", "task-write", "agent"], agent: { id: s.agentId, name: "Fixture agent", provider: s.provider, model: s.model, runtimeMode: "native" } } as JourneyContext;
   const session = { own: vi.fn(async resource => { owned.push(resource); }) } as unknown as TargetSession;
   const evidence = { checks: [] } as unknown as JourneyEvidence;
   return { directory, context, session, evidence, actions, owned, writes, reads };
@@ -207,7 +207,7 @@ describe("dependency browser flow orchestration", () => {
     ["empty history", {}],
     ["completed earlier campaign runs", { priorRuns: 3 }],
     ["more than 100 earlier campaign runs", { priorRuns: 150 }],
-    ["more than 500 unrelated company events", { unrelatedActivity: 800 }],
+    ["more than 500 unrelated space events", { unrelatedActivity: 800 }],
     ["more than 500 owned task events", { ownedActivity: 600 }],
     ["prior agent events", { priorRuns: 2, agentActivity: 300 }],
   ] as const)("uses browser actions with %s and never writes output through API observations", async (_name, options) => {
@@ -231,7 +231,7 @@ describe("dependency browser flow orchestration", () => {
       expect(saved.reopened.agentRuns).toHaveLength(saved.startingAgentRuns.length + 1);
       expect(f.reads.some(route => route.startsWith("/api/heartbeat-runs/prior-"))).toBe(false);
       expect(f.reads).toContain("/api/issues/blocker/activity"); expect(f.reads).toContain("/api/issues/dependent/activity");
-      expect(f.reads).not.toContain("/api/companies/company/activity?limit=500");
+      expect(f.reads).not.toContain("/api/spaces/space/activity?limit=500");
     } finally { await rm(f.directory, { recursive: true, force: true }); }
   });
   it.each(["properties", "toggle"] as const)("opens a closed properties pane through its %s control before linking", async closedPanel => {

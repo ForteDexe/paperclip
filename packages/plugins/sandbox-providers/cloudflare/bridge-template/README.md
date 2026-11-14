@@ -2,7 +2,7 @@
 
 This Worker is the operator-facing bridge used by `@outpost/plugin-cloudflare-sandbox`.
 
-It exposes a small authenticated JSON API under `/api/paperclip-sandbox/v1` and translates Outpost lease and command requests into Cloudflare Sandbox SDK calls.
+It exposes a small authenticated JSON API under `/api/outpost-sandbox/v1` and translates Outpost lease and command requests into Cloudflare Sandbox SDK calls.
 
 ## What it does
 

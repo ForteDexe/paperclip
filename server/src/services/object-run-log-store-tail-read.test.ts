@@ -88,7 +88,7 @@ async function writeManySegmentLog(
     keyPrefix: "logs",
     assertWriterAuthority: async () => undefined,
   });
-  const handle = await store.begin({ companyId: "company", agentId: "agent", runId: "run" });
+  const handle = await store.begin({ spaceId: "space", agentId: "agent", runId: "run" });
   for (let seq = 1; seq <= records; seq++) {
     // One append is one flushed segment, like a live run's frequent flushes.
     void store.enqueue!(handle, {

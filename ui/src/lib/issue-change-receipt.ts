@@ -5,7 +5,7 @@ import { formatReviewPolicyValue } from "./review-policy";
  * Read + format the field-level change receipts carried on an `issue.updated`
  * activity event (the open cross-task write design (audit), built on the field-change receipts the API already records).
  *
- * Every issue PATCH — agent and board alike — must leave an auditable record of
+ * Every issue PATCH — agent and operator alike — must leave an auditable record of
  * who changed what, when, and under which authorization. The server writes that
  * receipt; this module turns it into something a human can scan in the activity
  * stream without opening the audit log.
@@ -167,14 +167,14 @@ export function readIssueChangeReceipt(
 const AUTHORIZATION_REASON_LABELS: Record<string, string> = {
   allow_visible_issue_write: "default-open write on a visible task",
   allow_scoped_agent_write: "scoped agent write",
-  allow_board_actor: "board actor",
+  allow_board_actor: "operator actor",
   allow_self: "own task",
   allow_issue_mention_grant: "mention grant",
   allow_direct_parent_report: "direct parent report",
   allow_low_trust_boundary: "low-trust boundary allowance",
   allow_explicit_grant: "explicit permission grant",
   allow_instance_admin: "instance admin",
-  allow_local_board: "local board",
+  allow_local_board: "local operator",
   internal_agent_write: "internal agent write",
 };
 

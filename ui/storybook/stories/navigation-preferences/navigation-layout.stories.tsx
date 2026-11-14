@@ -11,14 +11,14 @@ import {
 } from "lucide-react";
 import { BreadcrumbBar } from "@/components/BreadcrumbBar";
 import { CommandPalette } from "@/components/CommandPalette";
-import { CompanySwitcher } from "@/components/CompanySwitcher";
+import { SpaceSwitcher } from "@/components/SpaceSwitcher";
 import { KeyboardShortcutsCheatsheetContent } from "@/components/KeyboardShortcutsCheatsheet";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { PageTabBar } from "@/components/PageTabBar";
 import { Sidebar } from "@/components/Sidebar";
 import { PluginLauncherProvider } from "@/plugins/launchers";
 import { SidebarAccountMenu } from "@/components/SidebarAccountMenu";
-import { SidebarCompanyMenu } from "@/components/SidebarCompanyMenu";
+import { SidebarSpaceMenu } from "@/components/SidebarSpaceMenu";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -39,7 +39,7 @@ import {
   storybookIssues,
   storybookProjects,
   storybookSidebarBadges,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 
 function Section({
   eyebrow,
@@ -51,9 +51,9 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="paperclip-story__frame overflow-hidden">
+    <section className="outpost-story__frame overflow-hidden">
       <div className="border-b border-border px-5 py-4">
-        <div className="paperclip-story__label">{eyebrow}</div>
+        <div className="outpost-story__label">{eyebrow}</div>
         <h2 className="mt-1 text-xl font-semibold">{title}</h2>
       </div>
       <div className="p-5">{children}</div>
@@ -220,22 +220,22 @@ function CommandEmptySurface() {
 
 function NavigationLayoutStories() {
   return (
-    <div className="paperclip-story">
+    <div className="outpost-story">
       <RouteSetter to="/PAP/projects/board-ui/issues" />
-      <main className="paperclip-story__inner max-w-[1320px] space-y-6">
-        <section className="paperclip-story__frame p-6">
+      <main className="outpost-story__inner max-w-[1320px] space-y-6">
+        <section className="outpost-story__frame p-6">
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div>
-              <div className="paperclip-story__label">Navigation and layout</div>
+              <div className="outpost-story__label">Navigation and layout</div>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight">Sidebar, command, tabs, and mobile chrome</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
-                Fixture-backed navigation states for the board shell: company switching, dense work navigation,
+                Fixture-backed navigation states for the board shell: space switching, dense work navigation,
                 breadcrumbs, command discovery, and mobile entry points.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">fixture backed</Badge>
-              <Badge variant="outline">company scoped</Badge>
+              <Badge variant="outline">space scoped</Badge>
               <Badge variant="outline">responsive chrome</Badge>
             </div>
           </div>
@@ -248,7 +248,7 @@ function NavigationLayoutStories() {
           </div>
         </Section>
 
-        <Section eyebrow="Menus" title="Account, company, and switcher menus in open state">
+        <Section eyebrow="Menus" title="Account, space, and switcher menus in open state">
           <div className="grid gap-5 xl:grid-cols-3">
             <div className="relative h-[440px] overflow-hidden border border-border bg-background">
               <div className="absolute bottom-0 left-0 w-72">
@@ -261,11 +261,11 @@ function NavigationLayoutStories() {
             </div>
 
             <div className="h-[260px] overflow-hidden border border-border bg-background p-3">
-              <SidebarCompanyMenu open onOpenChange={() => undefined} />
+              <SidebarSpaceMenu open onOpenChange={() => undefined} />
             </div>
 
             <div className="h-[320px] overflow-hidden border border-border bg-background p-4">
-              <CompanySwitcher open onOpenChange={() => undefined} />
+              <SpaceSwitcher open onOpenChange={() => undefined} />
             </div>
           </div>
         </Section>
@@ -335,8 +335,8 @@ const meta = {
   id: "product-navigation-layout",
   title: "Oversight and operation/Navigation, profile, and announcements/Product/Navigation & Layout",
   component: NavigationLayoutStories,
-  // Sidebar mounts PluginLauncherOutlet unconditionally once a company is
-  // selected; without this provider the story raced company selection and
+  // Sidebar mounts PluginLauncherOutlet unconditionally once a space is
+  // selected; without this provider the story raced space selection and
   // intermittently threw "usePluginLauncherRuntime must be used within
   // PluginLauncherProvider".
   decorators: [
@@ -350,10 +350,10 @@ const meta = {
     docs: {
       description: {
         component:
-          "Navigation and layout stories cover the board shell components that orient operators across companies, work surfaces, command search, breadcrumbs, tabs, and mobile navigation.",
+          "Navigation and layout stories cover the board shell components that orient operators across spaces, work surfaces, command search, breadcrumbs, tabs, and mobile navigation.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "navigation-preferences/navigation"
       ],
@@ -377,7 +377,7 @@ export const BoardChromeMatrix: Story = {};
 function SidebarIconAlignmentHarness() {
   return (
     <PluginLauncherProvider>
-      <div className="paperclip-story">
+      <div className="outpost-story">
         <RouteSetter to="/PAP/projects/board-ui/issues" />
         <div className="flex min-h-[760px] items-start justify-center bg-muted/30 p-8">
           <div

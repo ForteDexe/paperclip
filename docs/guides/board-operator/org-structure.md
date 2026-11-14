@@ -3,7 +3,7 @@ title: Org Structure
 summary: Reporting hierarchy and chain of command
 ---
 
-Paperclip enforces a strict organizational hierarchy. Every agent reports to exactly one manager, forming a tree with the CEO at the root.
+Outpost enforces a strict organizational hierarchy. Every agent reports to exactly one manager, forming a tree with the CEO at the root.
 
 ## How It Works
 
@@ -20,7 +20,7 @@ The org chart is available in the web UI under the Agents section. It shows the 
 Via the API:
 
 ```
-GET /api/companies/{companyId}/org
+GET /api/spaces/{spaceId}/org
 ```
 
 ## Chain of Command

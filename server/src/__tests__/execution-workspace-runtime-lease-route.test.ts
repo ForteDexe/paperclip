@@ -4,7 +4,7 @@ import request from "supertest";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   executionWorkspaceRuntimeLeases,
   executionWorkspaces,
@@ -84,7 +84,7 @@ if (!embeddedPostgresSupport.supported) {
 describeEmbeddedPostgres("execution workspace runtime control lease enforcement", () => {
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId = "";
+  let spaceId = "";
   let projectId = "";
   let executionWorkspaceId = "";
   let agentId = "";
@@ -92,7 +92,7 @@ describeEmbeddedPostgres("execution workspace runtime control lease enforcement"
   let competingIssueId = "";
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-runtime-lease-route-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-runtime-lease-route-");
     db = createDb(tempDb.connectionString);
   }, 30_000);
 
@@ -119,23 +119,23 @@ describeEmbeddedPostgres("execution workspace runtime control lease enforcement"
       return { id: randomUUID(), status: "succeeded" };
     });
 
-    companyId = randomUUID();
+    spaceId = randomUUID();
     projectId = randomUUID();
     executionWorkspaceId = randomUUID();
     agentId = randomUUID();
     canaryIssueId = randomUUID();
     competingIssueId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Runtime lease route",
-      issuePrefix: `R${companyId.replace(/-/g, "").slice(0, 7).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+      issuePrefix: `R${spaceId.replace(/-/g, "").slice(0, 7).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Lane", status: "in_progress" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Lane", status: "in_progress" });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       mode: "shared_workspace",
       strategyType: "git_worktree",
@@ -143,11 +143,11 @@ describeEmbeddedPostgres("execution workspace runtime control lease enforcement"
       status: "active",
       cwd: "/tmp/lease-route-workspace",
     });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Engineer", role: "engineer" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Engineer", role: "engineer" });
     await db.insert(issues).values([
       {
         id: canaryIssueId,
-        companyId,
+        spaceId,
         projectId,
         executionWorkspaceId,
         title: "HTTPS canary",
@@ -157,7 +157,7 @@ describeEmbeddedPostgres("execution workspace runtime control lease enforcement"
       },
       {
         id: competingIssueId,
-        companyId,
+        spaceId,
         projectId,
         executionWorkspaceId,
         title: "Unrelated shared-workspace work",
@@ -169,7 +169,7 @@ describeEmbeddedPostgres("execution workspace runtime control lease enforcement"
 
     mockExecutionWorkspaceService.getById.mockResolvedValue({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId: null,
       projectWorkspaceId: null,
       sourceIssueId: null,
@@ -196,7 +196,7 @@ describeEmbeddedPostgres("execution workspace runtime control lease enforcement"
     await db.delete(executionWorkspaces);
     await db.delete(projects);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   async function createApp() {
@@ -210,7 +210,7 @@ describeEmbeddedPostgres("execution workspace runtime control lease enforcement"
       (req as any).actor = {
         type: "agent",
         agentId,
-        companyId,
+        spaceId,
         source: "agent_key",
         runId: null,
       };
@@ -318,13 +318,13 @@ describeEmbeddedPostgres("execution workspace runtime control lease enforcement"
     expect(rows[0]?.ownerIssueId).toBe(competingIssueId);
   });
 
-  it("leaves board actors unleased and unblocked", async () => {
+  it("leaves operator actors unleased and unblocked", async () => {
     const [{ executionWorkspaceRoutes }, { errorHandler }] = await Promise.all([
       import("../routes/execution-workspaces.js"),
       import("../middleware/index.js"),
     ]);
     mockAssertCanManage.mockResolvedValue({
-      actorType: "board",
+      actorType: "operator",
       agentId: null,
       runId: null,
       issueId: null,
@@ -333,9 +333,9 @@ describeEmbeddedPostgres("execution workspace runtime control lease enforcement"
     app.use(express.json());
     app.use((req, _res, next) => {
       (req as any).actor = {
-        type: "board",
-        userId: "board-1",
-        companyIds: [companyId],
+        type: "operator",
+        userId: "operator-1",
+        spaceIds: [spaceId],
         source: "session",
         isInstanceAdmin: false,
       };

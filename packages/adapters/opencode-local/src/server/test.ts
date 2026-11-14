@@ -151,7 +151,7 @@ export async function testEnvironment(
     // Native workspaces are assigned at execution time. A configuration probe
     // without an explicit workspace must not run in the server's checkout.
     if (!targetIsRemote && ctx.adapterType === "outpost_runner" && !asString(config.cwd, "").trim()) {
-      nativeProbeWorkspaceLocalDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-opencode-native-probe-"));
+      nativeProbeWorkspaceLocalDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-opencode-native-probe-"));
       runtimeCwd = nativeProbeWorkspaceLocalDir;
     }
     // The native runner gives every OpenCode process its own home and data
@@ -159,7 +159,7 @@ export async function testEnvironment(
     // data directory, and concurrent processes sharing the host user's
     // database fail with "database is locked".
     if (!targetIsRemote && ctx.adapterType === "outpost_runner") {
-      nativeProbeHomeLocalDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-opencode-native-probe-home-"));
+      nativeProbeHomeLocalDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-opencode-native-probe-home-"));
       Object.assign(preparedRuntimeConfig.env, {
         HOME: nativeProbeHomeLocalDir,
         XDG_DATA_HOME: path.join(nativeProbeHomeLocalDir, "data"),
@@ -172,7 +172,7 @@ export async function testEnvironment(
       });
     }
     if (targetIsRemote) {
-      preparedRuntimeWorkspaceLocalDir = await fs.mkdtemp(path.join(os.tmpdir(), `paperclip-opencode-envtest-${runId}-`));
+      preparedRuntimeWorkspaceLocalDir = await fs.mkdtemp(path.join(os.tmpdir(), `outpost-opencode-envtest-${runId}-`));
       const preparedExecutionTargetRuntime = await prepareAdapterExecutionTargetRuntime({
         runId,
         target,

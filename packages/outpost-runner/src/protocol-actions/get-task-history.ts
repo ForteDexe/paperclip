@@ -1,5 +1,5 @@
 /** Canonical definition and documentation for `get_task_history`. */
-const description = "Read bounded comments on the active task only. Calling get_task does not change the active task. This is not a status or assignment audit. For progress chronology and handoff actors, use search_api to discover the company timeline or issue activity, then call_api.";
+const description = "Read bounded comments on the active task only. Calling get_task does not change the active task. This is not a status or assignment audit. For progress chronology and handoff actors, use search_api to discover the space timeline or issue activity, then call_api.";
 
 export const getTaskHistoryAction = {
   "id": "get_task_history",

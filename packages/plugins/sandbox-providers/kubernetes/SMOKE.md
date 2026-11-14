@@ -1,16 +1,16 @@
 # Manual smoke test — `@outpost/plugin-kubernetes`
 
 Manual sanity check that the plugin works end-to-end against a real
-paperclip-server instance and a real Kubernetes cluster (kind for local
+outpost-server instance and a real Kubernetes cluster (kind for local
 dev). Future work may automate this in CI.
 
 ## Prerequisites
 
 - A running kind cluster:
   ```bash
-  kind create cluster --name paperclip
+  kind create cluster --name outpost
   ```
-- `kubectl --context kind-paperclip get nodes` returns a node in `Ready` state.
+- `kubectl --context kind-outpost get nodes` returns a node in `Ready` state.
 
 ## Steps
 
@@ -24,13 +24,13 @@ pnpm build
 
 Expected: `dist/` populated with compiled `.js` and `.d.ts` files. No errors.
 
-### 2. Start paperclip-server in dev mode
+### 2. Start outpost-server in dev mode
 
 In a separate terminal:
 
 ```bash
-cd /path/to/paperclip
-export OUTPOST_HOME=/tmp/paperclip-smoke
+cd /path/to/outpost
+export OUTPOST_HOME=/tmp/outpost-smoke
 export OUTPOST_INSTANCE_ID=smoke
 export OUTPOST_DEPLOYMENT_MODE=local_trusted
 pnpm --filter @outpost/server dev
@@ -41,19 +41,19 @@ Wait for `Server listening on 127.0.0.1:3100`.
 ### 3. Install the plugin via the CLI
 
 ```bash
-npx paperclipai plugin install \
-  --local /path/to/paperclip/packages/plugins/sandbox-providers/kubernetes \
+npx @outpost/cli plugin install \
+  --local /path/to/outpost/packages/plugins/sandbox-providers/kubernetes \
   --api-base http://127.0.0.1:3100
 ```
 
 Expected: `✓ Installed outpost.kubernetes-sandbox-provider v0.1.0 (ready)`.
 
-### 4. Create a company and a kubernetes sandbox environment
+### 4. Create a space and a kubernetes sandbox environment
 
 ```bash
 CO_ID=$(curl -s -X POST -H "Content-Type: application/json" \
   -d '{"name":"SmokeCo"}' \
-  http://127.0.0.1:3100/api/companies | jq -r '.id')
+  http://127.0.0.1:3100/api/spaces | jq -r '.id')
 
 KUBECONFIG_CONTENT=$(cat ~/.kube/config | jq -Rs .)
 
@@ -64,12 +64,12 @@ curl -s -X POST -H "Content-Type: application/json" \
     \"config\": {
       \"provider\": \"kubernetes\",
       \"kubeconfig\": $KUBECONFIG_CONTENT,
-      \"companySlug\": \"smoke\",
+      \"spaceSlug\": \"smoke\",
       \"adapterType\": \"claude_local\",
-      \"imageAllowList\": [\"ghcr.io/paperclipai/agent-runtime-claude:v1\"]
+      \"imageAllowList\": [\"ghcr.io/fortedexe/agent-runtime-claude:v1\"]
     }
   }" \
-  http://127.0.0.1:3100/api/companies/$CO_ID/environments | jq
+  http://127.0.0.1:3100/api/spaces/$CO_ID/environments | jq
 ```
 
 Expected: HTTP 201 with the new environment row.
@@ -77,13 +77,13 @@ Expected: HTTP 201 with the new environment row.
 ### 5. Probe the environment
 
 ```bash
-ENV_ID=$(curl -s http://127.0.0.1:3100/api/companies/$CO_ID/environments | jq -r '.[0].id')
+ENV_ID=$(curl -s http://127.0.0.1:3100/api/spaces/$CO_ID/environments | jq -r '.[0].id')
 curl -s -X POST -d '{}' -H "Content-Type: application/json" \
   http://127.0.0.1:3100/api/environments/$ENV_ID/probe | jq
 ```
 
 Expected: `{"ok": true, ...}` with a summary mentioning the tenant namespace
-(`paperclip-smoke`). On first probe the namespace may not yet exist —
+(`outpost-smoke`). On first probe the namespace may not yet exist —
 the plugin treats a 404 on `listNamespacedPod` as a successful reachability
 check.
 
@@ -92,7 +92,7 @@ check.
 Use the UI or the API to dispatch a run against the `k8s-sandbox` environment.
 The plugin's `onEnvironmentAcquireLease` will:
 
-1. `ensureTenant` — provision the `paperclip-smoke` namespace, SA, Role,
+1. `ensureTenant` — provision the `outpost-smoke` namespace, SA, Role,
    RoleBinding, ResourceQuota, LimitRange, NetworkPolicies
 2. `buildJobManifest` — render the security-hardened Job manifest
 3. `createJob` — submit to `batch/v1`
@@ -101,26 +101,26 @@ The plugin's `onEnvironmentAcquireLease` will:
 ### 7. Verify the tenant resources
 
 ```bash
-kubectl --context kind-paperclip get namespace paperclip-smoke
-kubectl --context kind-paperclip get all,networkpolicy,resourcequota,limitrange,sa,role,rolebinding -n paperclip-smoke
+kubectl --context kind-outpost get namespace outpost-smoke
+kubectl --context kind-outpost get all,networkpolicy,resourcequota,limitrange,sa,role,rolebinding -n outpost-smoke
 ```
 
 Expected:
 
-- Namespace `paperclip-smoke` exists with PSS labels
+- Namespace `outpost-smoke` exists with PSS labels
   (`pod-security.kubernetes.io/enforce=restricted`)
-- ServiceAccount `paperclip-tenant-sa`
-- Role `paperclip-tenant-role`, RoleBinding `paperclip-tenant-rb`
-- ResourceQuota `paperclip-quota`, LimitRange `paperclip-limits`
-- NetworkPolicies `paperclip-deny-all` + `paperclip-egress-allow`
+- ServiceAccount `outpost-tenant-sa`
+- Role `outpost-tenant-role`, RoleBinding `outpost-tenant-rb`
+- ResourceQuota `outpost-quota`, LimitRange `outpost-limits`
+- NetworkPolicies `outpost-deny-all` + `outpost-egress-allow`
 - Job `pc-{ulid}` and its child Pod
 - Secret `pc-{ulid}-env` with `ownerReferences` pointing at the Job
 
 ### 8. Tear down
 
 ```bash
-kubectl --context kind-paperclip delete namespace paperclip-smoke
-kill %1  # paperclip-server
+kubectl --context kind-outpost delete namespace outpost-smoke
+kill %1  # outpost-server
 ```
 
 ### 9. Document the result
@@ -130,6 +130,6 @@ record:
 
 - Date + git SHA
 - `kubectl version` server version
-- Output of `kubectl get all -n paperclip-smoke` after step 6
+- Output of `kubectl get all -n outpost-smoke` after step 6
 - Probe response from step 5
 - Time-to-acquire-lease (target: <30s on kind for a cold tenant)

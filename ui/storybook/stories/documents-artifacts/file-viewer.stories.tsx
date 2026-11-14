@@ -218,7 +218,7 @@ const meta: Meta = {
   parameters: {
     layout: "fullscreen",
     a11y: { test: "todo" },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "documents-artifacts/attachments"
       ],

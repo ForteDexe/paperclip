@@ -42,7 +42,7 @@ export type AgentProviderLimitCooldown = {
  * from the agent's recent runs. A later successful run clears older evidence.
  */
 export async function agentProviderLimitCooldown(db: Db, input: {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   /** Excluded from the evidence; the caller supplies its own failure. */
   runId?: string;
@@ -62,7 +62,7 @@ export async function agentProviderLimitCooldown(db: Db, input: {
     })
     .from(heartbeatRuns)
     .where(and(
-      eq(heartbeatRuns.companyId, input.companyId),
+      eq(heartbeatRuns.spaceId, input.spaceId),
       eq(heartbeatRuns.agentId, input.agentId),
       gte(heartbeatRuns.startedAt, new Date(now - NATIVE_PROVIDER_LIMIT_WINDOW_MS)),
       ...(input.runId ? [ne(heartbeatRuns.id, input.runId)] : []),
@@ -102,7 +102,7 @@ export async function agentProviderLimitCooldown(db: Db, input: {
  */
 export async function planNativeStartupRetry(input: {
   db: Db;
-  binding: { companyId: string; agentId: string; runId: string };
+  binding: { spaceId: string; agentId: string; runId: string };
   attempt: number;
   retryable: boolean;
   failure: ProviderFailure | null;
@@ -111,7 +111,7 @@ export async function planNativeStartupRetry(input: {
   // Limit evidence only refines the schedule. A failed read must not stop the
   // failure from settling, so the retry falls back to plain backoff.
   const providerCooldownAt = await agentProviderLimitCooldown(input.db, {
-    companyId: input.binding.companyId,
+    spaceId: input.binding.spaceId,
     agentId: input.binding.agentId,
     runId: input.binding.runId,
     failure: input.failure,

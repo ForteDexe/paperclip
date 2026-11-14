@@ -64,7 +64,7 @@ export async function inventoryRecoveryFiles({ instanceRoot, orphanDirectory, ma
               remaining--;
               summary.observedEntries++;
               const entryKind = entry.isFile() ? "file"
-                : entry.isDirectory() && uuid.test(entry.name) ? "company-directory" : "other";
+                : entry.isDirectory() && uuid.test(entry.name) ? "space-directory" : "other";
               const classification = classifyRecoveryEntry(summary.kind, depth, entryKind);
               if (classification === "descend") {
                 const child = path.join(target, entry.name);
@@ -93,7 +93,7 @@ export async function inventoryRecoveryFiles({ instanceRoot, orphanDirectory, ma
     summary.status = cutoverStatus(summary);
     summaries.push(summary);
   }
-  return { schema: "paperclip/recovery-cutover-inventory/v1", status:
+  return { schema: "outpost/recovery-cutover-inventory/v1", status:
     summaries.some(s => s.status === "unknown") ? "unknown" : summaries.some(s => s.status === "blocked") ? "blocked" : "clear",
     instanceStatus: rootState, contentInspection: "none", counts: "observed-lower-bounds", maxEntries, directories: summaries };
 }

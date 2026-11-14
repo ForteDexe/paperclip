@@ -38,7 +38,7 @@ test("standalone Popover sections support toggles, radio checks and the canonica
   await expect(page.getByRole("link", { name: "View profile", exact: true })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Account", exact: true }).locator('[data-slot="avatar-fallback"]')).toHaveText("R");
   const invite = page.getByRole("link", { name: "Invite", exact: true });
-  await expect(invite).toHaveAttribute("href", /\/company\/settings\/members\?tab=invites$/);
+  await expect(invite).toHaveAttribute("href", /\/space\/settings\/members\?tab=invites$/);
   await invite.click();
   await expect(page.getByRole("dialog", { name: "Account", exact: true })).toBeHidden();
 });

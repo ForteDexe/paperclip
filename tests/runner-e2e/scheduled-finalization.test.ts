@@ -16,7 +16,7 @@ function fixture() {
   const cell = runnerMatrix.find(row => row.id === "feedback-persistence.runner-acpx-claude.local.complaint-and-suggestion")!;
   const nonce = "abcdef123-1", bodies = expectedFixtureFeedback(nonce);
   const entries = ["complaint", "suggestion"].map(kind => ({ kind, body: bodies[kind as keyof typeof bodies] })) as FeedbackEvidence["entries"];
-  const feedback = { version: 1, companyId: "company", entries, invocations: [], diagnostics: [], summary: emptyFeedbackSummary() } as FeedbackEvidence;
+  const feedback = { version: 1, spaceId: "space", entries, invocations: [], diagnostics: [], summary: emptyFeedbackSummary() } as FeedbackEvidence;
   const result: RunnerE2EResult = { schema: "outpost.runner-e2e.result/v2", executionId: cell.id,
     suiteId: cell.suite.id, suiteDefinitionHash: cell.suiteDefinitionHash,
     accountingIdentity: { campaignId: "scheduled-fixture", attemptId: "one" }, source: { sha: "a".repeat(40), ref: null, workflowRunUrl: null },

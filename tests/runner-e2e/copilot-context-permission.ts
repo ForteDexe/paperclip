@@ -9,7 +9,7 @@ type Row = Record<string, any>;
 const record = (value: unknown): Row => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
 
 /** Fixture human decision, never an automatic production permission rule. */
-export function pendingCopilotContextPermission(events: readonly unknown[], companyId: string, runId: string) {
+export function pendingCopilotContextPermission(events: readonly unknown[], spaceId: string, runId: string) {
   const rows = events.map(record), notices = readCopilotToolEvidence(events, runId);
   const closed = new Set(rows.filter(r => ["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"].includes(r.eventType))
     .map(r => record(record(record(r.payload).orpEvent).payload).requestId));
@@ -31,7 +31,7 @@ export function pendingCopilotContextPermission(events: readonly unknown[], comp
     || group.some(n => n.target !== undefined || n.commandSha256 !== undefined || n.shellId !== undefined || n.readTargetSha256 !== undefined)) throw new Error("Context fixture lacks an exact read-only origin");
   for (const r of [row, ...canonical, ...group.map(n => rows.find(r => r.seq === n.seq)!)]) {
     const e = record(record(r?.payload).orpEvent);
-    if (r?.companyId !== companyId || r.runId !== runId || e.schema !== "outpost.orp.event.v1" || e.sourceKind !== "runner"
+    if (r?.spaceId !== spaceId || r.runId !== runId || e.schema !== "outpost.orp.event.v1" || e.sourceKind !== "runner"
       || e.eventType !== r.eventType || e.runId !== runId || e.turnId !== native.turnId || e.normalizedSessionId !== frame.normalizedSessionId
       || e.sourceInstanceId !== frame.sourceInstanceId || r.sourceInstanceId !== e.sourceInstanceId || r.sourceSeq !== e.sourceSeq
       || !Number.isSafeInteger(e.sourceSeq) || !Number.isSafeInteger(r.seq)) throw new Error("Context fixture has foreign durable evidence");
@@ -41,14 +41,14 @@ export function pendingCopilotContextPermission(events: readonly unknown[], comp
     || !(hasAcpxNativeOrigin(request.origin, "copilot", "session/request_permission") || hasAcpxNativeOrigin(request.origin, "acpx", "session/request_permission"))
     || !Array.isArray(request.choices) || !["accept", "decline"].every(key => request.choices.some((c: Row) => c.key === key))) throw new Error("Context fixture cannot approve this card");
   const tool = record(record(record(canonical[0]?.payload).orpEvent).payload);
-  if (canonical.length && (tool.name !== `paperclip-${operationId}` || tool.operation !== (discovery ? "search" : "read") || tool.readOnly !== true || tool.target !== null || tool.transport !== "builtin")) throw new Error("Context fixture cannot approve this card");
+  if (canonical.length && (tool.name !== `outpost-${operationId}` || tool.operation !== (discovery ? "search" : "read") || tool.readOnly !== true || tool.target !== null || tool.transport !== "builtin")) throw new Error("Context fixture cannot approve this card");
   if (!started.length || !canonical.length) return undefined; // Await matching origin rows within the existing deadline.
   if (discovery && !isCopilotContextDiscoveryProgress(tool.progress)) throw new Error("Context discovery must search only for the required context tool");
   return { operationId, runId, requestId: native.requestId!, turnId: native.turnId, toolCallId: native.toolCallId };
 }
 
 export async function approveCopilotContextThroughUi(input: {
-  page: Page; companyId: string; deadlineAt: number;
+  page: Page; spaceId: string; deadlineAt: number;
   load(): Promise<{ run: Row; events: readonly unknown[] }>;
   evidence(name: string, data: unknown): Promise<void>;
 }) {
@@ -62,7 +62,7 @@ export async function approveCopilotContextThroughUi(input: {
         const notices = readCopilotToolEvidence(state.events, state.run.id);
         if (notices.some(n => n.semanticOperationId === "get_task_context" && n.status === "completed" && n.semanticOutcome === "returned")) return { completed: true as const };
         try {
-          const pending = pendingCopilotContextPermission(state.events, input.companyId, state.run.id);
+          const pending = pendingCopilotContextPermission(state.events, input.spaceId, state.run.id);
           if (pending && decided.has(pending.requestId)) return undefined; // Await durable closure after the browser POST.
           return pending ? { pending } : undefined;
         } catch (error) { throw new Error(`Stopped waiting for ${label}: ${error instanceof Error ? error.message : "invalid request"}`); }

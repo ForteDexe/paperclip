@@ -3,12 +3,12 @@ title: CLI Overview
 summary: CLI installation and setup
 ---
 
-The Paperclip CLI handles instance setup, diagnostics, and control-plane operations.
+The Outpost CLI handles instance setup, diagnostics, and control-plane operations.
 
 ## Usage
 
 ```sh
-pnpm paperclipai --help
+pnpm outpost --help
 ```
 
 ## Global Options
@@ -17,19 +17,19 @@ All commands support:
 
 | Flag | Description |
 |------|-------------|
-| `--data-dir <path>` | Local Paperclip data root (isolates from `~/.paperclip`) |
+| `--data-dir <path>` | Local Outpost data root (isolates from `~/.outpost`) |
 | `--api-base <url>` | API base URL |
 | `--api-key <token>` | API authentication token |
 | `--context <path>` | Context file path |
 | `--profile <name>` | Context profile name |
 | `--json` | Output as JSON |
 
-Company-scoped commands also accept `--company-id <id>`.
+Space-scoped commands also accept `--space-id <id>`.
 
 For clean local instances, pass `--data-dir` on the command you run:
 
 ```sh
-npx paperclipai run --data-dir ./tmp/paperclip-dev
+npx @outpost/cli run --data-dir ./tmp/outpost-dev
 ```
 
 ## Context Profiles
@@ -38,36 +38,36 @@ Store defaults to avoid repeating flags:
 
 ```sh
 # Set defaults
-npx paperclipai context set --api-base http://localhost:3100 --company-id <id>
+npx @outpost/cli context set --api-base http://localhost:3100 --space-id <id>
 
 # View current context
-pnpm paperclipai context show
+pnpm outpost context show
 
 # List profiles
-pnpm paperclipai context list
+pnpm outpost context list
 
 # Switch profile
-npx paperclipai context use default
+npx @outpost/cli context use default
 ```
 
 To avoid storing secrets in context, use an env var:
 
 ```sh
-npx paperclipai context set --api-key-env-var-name OUTPOST_API_KEY
+npx @outpost/cli context set --api-key-env-var-name OUTPOST_API_KEY
 export OUTPOST_API_KEY=...
 ```
 
-Secret operations are available under `paperclipai secrets`:
+Secret operations are available under `outpost secrets`:
 
 ```sh
-npx paperclipai secrets declarations --company-id <company-id> --kind secret
-npx paperclipai secrets create --company-id <company-id> --name anthropic-api-key --value-env ANTHROPIC_API_KEY
-npx paperclipai secrets link --company-id <company-id> --name prod-stripe-key --provider aws_secrets_manager --external-ref <provider-ref>
-npx paperclipai secrets doctor --company-id <company-id>
-npx paperclipai secrets migrate-inline-env --company-id <company-id> --apply
+npx @outpost/cli secrets declarations --space-id <space-id> --kind secret
+npx @outpost/cli secrets create --space-id <space-id> --name anthropic-api-key --value-env ANTHROPIC_API_KEY
+npx @outpost/cli secrets link --space-id <space-id> --name prod-stripe-key --provider aws_secrets_manager --external-ref <provider-ref>
+npx @outpost/cli secrets doctor --space-id <space-id>
+npx @outpost/cli secrets migrate-inline-env --space-id <space-id> --apply
 ```
 
-Context is stored at `~/.paperclip/context.json`.
+Context is stored at `~/.outpost/context.json`.
 
 ## Command Categories
 

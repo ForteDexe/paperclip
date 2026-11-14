@@ -9,11 +9,11 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
   agents,
-  companies,
-  companySecretBindings,
-  companySecretProviderConfigs,
-  companySecretVersions,
-  companySecrets,
+  spaces,
+  spaceSecretBindings,
+  spaceSecretProviderConfigs,
+  spaceSecretVersions,
+  spaceSecrets,
   createDb,
   heartbeatRuns,
   secretAccessEvents,
@@ -36,7 +36,7 @@ describeEmbeddedPostgres("agent secret routes", () => {
   let stopDb: (() => Promise<void>) | null = null;
   let db!: ReturnType<typeof createDb>;
   const previousKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
-  const secretsTmpDir = path.join(os.tmpdir(), `paperclip-agent-secret-routes-${randomUUID()}`);
+  const secretsTmpDir = path.join(os.tmpdir(), `outpost-agent-secret-routes-${randomUUID()}`);
 
   beforeAll(async () => {
     mkdirSync(secretsTmpDir, { recursive: true });
@@ -49,13 +49,13 @@ describeEmbeddedPostgres("agent secret routes", () => {
   afterEach(async () => {
     await db.delete(activityLog);
     await db.delete(secretAccessEvents);
-    await db.delete(companySecretBindings);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
-    await db.delete(companySecretProviderConfigs);
+    await db.delete(spaceSecretBindings);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
+    await db.delete(spaceSecretProviderConfigs);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -66,18 +66,18 @@ describeEmbeddedPostgres("agent secret routes", () => {
   });
 
   async function seedAgentRun(permissions: Record<string, unknown> = {}) {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const heartbeatRunId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Agent secret routes",
-      issuePrefix: `S${companyId.slice(0, 7)}`.toUpperCase(),
+      issuePrefix: `S${spaceId.slice(0, 7)}`.toUpperCase(),
       status: "active",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Secret reader",
       role: "engineer",
       adapterType: "codex_local",
@@ -87,12 +87,12 @@ describeEmbeddedPostgres("agent secret routes", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: heartbeatRunId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       contextSnapshot: {},
     });
-    return { companyId, agentId, heartbeatRunId };
+    return { spaceId, agentId, heartbeatRunId };
   }
 
   function createApp(
@@ -106,7 +106,7 @@ describeEmbeddedPostgres("agent secret routes", () => {
       req.actor = {
         type: "agent",
         agentId: fixture.agentId,
-        companyId: fixture.companyId,
+        spaceId: fixture.spaceId,
         runId: fixture.heartbeatRunId,
         keyScope,
         keyId: source === "agent_key" ? randomUUID() : undefined,
@@ -122,40 +122,40 @@ describeEmbeddedPostgres("agent secret routes", () => {
   it("lists metadata only, reads env and access grants, and audits success and failure", async () => {
     const fixture = await seedAgentRun();
     const svc = secretService(db);
-    const envSecret = await svc.create(fixture.companyId, {
+    const envSecret = await svc.create(fixture.spaceId, {
       key: "ENV_ONLY_KEY",
       name: "Env only",
       description: "Injected and API-readable",
       provider: "local_encrypted",
       value: "env-secret-value",
     });
-    const apiSecret = await svc.create(fixture.companyId, {
+    const apiSecret = await svc.create(fixture.spaceId, {
       key: "API_ONLY_KEY",
       name: "API only",
       provider: "local_encrypted",
       value: "api-secret-value",
     });
-    const unboundSecret = await svc.create(fixture.companyId, {
+    const unboundSecret = await svc.create(fixture.spaceId, {
       key: "UNBOUND_KEY",
       name: "Unbound",
       provider: "local_encrypted",
       value: "unbound-secret-value",
     });
-    const projectSecret = await svc.create(fixture.companyId, {
+    const projectSecret = await svc.create(fixture.spaceId, {
       key: "PROJECT_KEY",
       name: "Project layer",
       provider: "local_encrypted",
       value: "project-secret-value",
     });
     await svc.createBinding({
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       secretId: envSecret.id,
       targetType: "agent",
       targetId: fixture.agentId,
       configPath: "env.ENV_ONLY_KEY",
     });
     await svc.createBinding({
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       secretId: apiSecret.id,
       targetType: "agent",
       targetId: fixture.agentId,
@@ -163,7 +163,7 @@ describeEmbeddedPostgres("agent secret routes", () => {
       projectionClass: "unclassified",
     });
     const projectBinding = await svc.createBinding({
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       secretId: projectSecret.id,
       targetType: "project",
       targetId: randomUUID(),
@@ -171,7 +171,7 @@ describeEmbeddedPostgres("agent secret routes", () => {
     });
     await db.update(heartbeatRuns).set({
       contextSnapshot: {
-        paperclipSecrets: {
+        outpostSecrets: {
           manifest: [{
             bindingId: projectBinding.id,
             secretId: projectSecret.id,
@@ -201,7 +201,7 @@ describeEmbeddedPostgres("agent secret routes", () => {
     const [registeredRun] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, fixture.heartbeatRunId));
     expect(JSON.stringify(registeredRun.contextSnapshot)).not.toContain("env-secret-value");
     expect(registeredRun.contextSnapshot).toMatchObject({
-      paperclipSecretRedactions: [expect.objectContaining({ fingerprintSha256: expect.any(String), material: expect.any(Object) })],
+      outpostSecretRedactions: [expect.objectContaining({ fingerprintSha256: expect.any(String), material: expect.any(Object) })],
     });
     expect(await db.select().from(secretAccessEvents)).toEqual([
       expect.objectContaining({ secretId: envSecret.id, outcome: "success", consumerType: "agent_api" }),
@@ -229,7 +229,7 @@ describeEmbeddedPostgres("agent secret routes", () => {
 
   it("fails closed when run redaction registration cannot be persisted", async () => {
     const fixture = await seedAgentRun();
-    await expect(createRunSecretRedactionRegistry(db).register(fixture.companyId, randomUUID(), "must-not-return"))
+    await expect(createRunSecretRedactionRegistry(db).register(fixture.spaceId, randomUUID(), "must-not-return"))
       .rejects.toThrow("Heartbeat run redaction registration failed");
   });
 
@@ -238,32 +238,32 @@ describeEmbeddedPostgres("agent secret routes", () => {
     const registry = createRunSecretRedactionRegistry(db);
 
     await Promise.all([
-      registry.register(fixture.companyId, fixture.heartbeatRunId, "duplicate-secret"),
-      registry.register(fixture.companyId, fixture.heartbeatRunId, "duplicate-secret"),
+      registry.register(fixture.spaceId, fixture.heartbeatRunId, "duplicate-secret"),
+      registry.register(fixture.spaceId, fixture.heartbeatRunId, "duplicate-secret"),
     ]);
 
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, fixture.heartbeatRunId));
     expect(run.contextSnapshot).toMatchObject({
-      paperclipSecretRedactions: [expect.objectContaining({ fingerprintSha256: expect.any(String) })],
+      outpostSecretRedactions: [expect.objectContaining({ fingerprintSha256: expect.any(String) })],
     });
-    expect((run.contextSnapshot as { paperclipSecretRedactions: unknown[] }).paperclipSecretRedactions).toHaveLength(1);
+    expect((run.contextSnapshot as { outpostSecretRedactions: unknown[] }).outpostSecretRedactions).toHaveLength(1);
   });
 
-  it("redacts batched runs from projected registries and enforces company scope", async () => {
+  it("redacts batched runs from projected registries and enforces space scope", async () => {
     const first = await seedAgentRun();
     const foreign = await seedAgentRun();
     const registry = createRunSecretRedactionRegistry(db);
-    await registry.register(first.companyId, first.heartbeatRunId, "first-secret-value");
-    await registry.register(foreign.companyId, foreign.heartbeatRunId, "foreign-secret-value");
+    await registry.register(first.spaceId, first.heartbeatRunId, "first-secret-value");
+    await registry.register(foreign.spaceId, foreign.heartbeatRunId, "foreign-secret-value");
     const runs = [
       { id: first.heartbeatRunId, text: "first-secret-value foreign-secret-value", createdAt: new Date() },
       { id: foreign.heartbeatRunId, text: "foreign-secret-value", createdAt: new Date() },
     ];
-    const redacted = await registry.redactForRuns(first.companyId, runs);
+    const redacted = await registry.redactForRuns(first.spaceId, runs);
     expect(redacted[0].text).toBe(`${REDACTED_EVENT_VALUE} foreign-secret-value`);
     expect(redacted[0].createdAt).toEqual(runs[0].createdAt);
     expect(redacted[1].text).toBe("foreign-secret-value");
-    expect(await registry.redactForRun(first.companyId, first.heartbeatRunId, runs[0].text))
+    expect(await registry.redactForRun(first.spaceId, first.heartbeatRunId, runs[0].text))
       .toBe(redacted[0].text);
   });
 
@@ -272,12 +272,12 @@ describeEmbeddedPostgres("agent secret routes", () => {
     const registry = createRunSecretRedactionRegistry(db);
     const legacy = { id: fixture.heartbeatRunId, status: "failed", errorCode: "adapter_failed",
       error: 'Failed query: select "token" from "secrets" where "id" = $1\nparams: sk-secret', resultJson: { failureCause: "40001" } };
-    const [listed] = await registry.redactForRuns(fixture.companyId, [legacy]);
+    const [listed] = await registry.redactForRuns(fixture.spaceId, [legacy]);
     expect(listed).toMatchObject({ id: fixture.heartbeatRunId, error: "Database query failed (40001)", resultJson: { failureCause: "40001" } });
-    expect(await registry.redactForRun(fixture.companyId, fixture.heartbeatRunId, legacy))
+    expect(await registry.redactForRun(fixture.spaceId, fixture.heartbeatRunId, legacy))
       .toMatchObject({ error: "Database query failed (40001)" });
     const plain = { id: fixture.heartbeatRunId, error: "Adapter failed" };
-    expect((await registry.redactForRuns(fixture.companyId, [plain]))[0]).toEqual(plain);
+    expect((await registry.redactForRuns(fixture.spaceId, [plain]))[0]).toEqual(plain);
   });
 
   it("denies low-trust, task-bridge, and skill-test callers on both routes", async () => {

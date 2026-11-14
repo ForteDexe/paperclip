@@ -34,7 +34,7 @@ function projectedView(): CapabilityIssueThreadSnapshot {
       agentLabel: "Real Codex",
       runnerLabel: "Real runnerd",
       runnerAttached: true,
-      controlPlaneLabel: "Mock Paperclip",
+      controlPlaneLabel: "Mock Outpost",
       controlPlaneTooltip: "All issue records are mock.",
       replaySource: null,
     },
@@ -288,8 +288,8 @@ describe("Capability evidence redaction", () => {
       params: {
         item: {
           type: "dynamicToolCall",
-          tool: "paperclip_finish",
-          namespace: "paperclip",
+          tool: "outpost_finish",
+          namespace: "outpost",
           status: "completed",
           arguments: { summary: "Done", apiKey: CANARY },
           result: { ok: true, note: "Recorded" },
@@ -299,8 +299,8 @@ describe("Capability evidence redaction", () => {
 
     expect(redacted).toMatchObject({
       event: "tool_completed",
-      tool: "paperclip_finish",
-      namespace: "paperclip",
+      tool: "outpost_finish",
+      namespace: "outpost",
       status: "completed",
       arguments: { summary: "Done", apiKey: "[redacted]" },
       result: { ok: true, note: "Recorded" },

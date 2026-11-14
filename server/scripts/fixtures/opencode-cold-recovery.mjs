@@ -86,7 +86,7 @@ try {
       ? {}
       : {
           cwd: input.workspace,
-          model: "paperclip/qualification",
+          model: "outpost/qualification",
           dynamicTools: [],
           completionContract: {
             revision: "cold-closure-v1",

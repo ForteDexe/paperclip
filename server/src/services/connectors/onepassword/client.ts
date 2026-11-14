@@ -62,10 +62,10 @@ export async function callOnePassword(headers: Record<string, string>, tool: str
 }
 
 export function executeOnePasswordTool(input: {
-  binding: { companyId: string; agentId?: string | null }; connection: { companyId: string };
+  binding: { spaceId: string; agentId?: string | null }; connection: { spaceId: string };
   headers: Record<string, string>; toolName: string; parameters: unknown; deadlineAt?: number; signal?: AbortSignal;
 }) {
-  if (!input.binding.agentId || input.binding.companyId !== input.connection.companyId) {
+  if (!input.binding.agentId || input.binding.spaceId !== input.connection.spaceId) {
     throw new HttpError(404, "Connection not found", { code: "onepassword_connection_not_found" });
   }
   const remainingMs = (input.deadlineAt ?? Date.now() + 30_000) - Date.now();

@@ -7,7 +7,7 @@ import { NewIssueDialog } from "@/components/NewIssueDialog";
 import { initialItems } from "../../support/design-proposals/task-page-data";
 import { DesignProposalAccess } from "../../support/design-proposals/DesignProposalAccess";
 import { prepareFixtureApi } from "../../support/capability-gaps/api";
-import { storybookIssueLabels } from "../../fixtures/paperclipData";
+import { storybookIssueLabels } from "../../fixtures/outpostData";
 
 function CoordinatorTasksPreview() {
   return <DesignProposalAccess><div className="coordinator-workspace"><DesignPageShell title="Tasks"
@@ -21,7 +21,7 @@ const meta = {
   component: CoordinatorTasksPreview,
   parameters: {
     layout: "fullscreen", initialEntries: ["/PAP/issues"], designProposalTheme: false,
-    paperclip: {
+    outpost: {
       capabilities: ["tasks/organize", "tasks/create", "navigation-preferences/navigation", "inbox-search/decisions"],
       status: "proposed", home: "design-proposals",
       exception: "Coordinator experimental workspace in an isolated worktree, awaiting review.",
@@ -30,17 +30,17 @@ const meta = {
     },
   },
   beforeEach: () => prepareFixtureApi([
-    { path: /\/api\/companies\/[^/]+\/labels$/, method: "GET", read: () => storybookIssueLabels },
-    { path: /\/api\/companies\/[^/]+\/issues$/, method: "GET", read: ({ url }) => {
+    { path: /\/api\/spaces\/[^/]+\/labels$/, method: "GET", read: () => storybookIssueLabels },
+    { path: /\/api\/spaces\/[^/]+\/issues$/, method: "GET", read: ({ url }) => {
       const q = (url.searchParams.get("q") ?? "").toLowerCase();
       return initialItems.map(item => item.issue).filter(issue => `${issue.title} ${issue.identifier}`.toLowerCase().includes(q));
     } },
     { path: /\/api\/issues\/[^/]+$/, method: "GET", read: ({ url }) => initialItems.find(item => item.issue.id === url.pathname.split("/").at(-1))?.issue },
-    { path: /\/api\/companies\/[^/]+\/attention$/, method: "GET", read: () => ({
-      companyId: "company-storybook", generatedAt: "2026-10-27T12:00:00Z", totalCount: 2, deskBadgeCount: 2, nextCursor: null, countsBySourceKind: { issue_thread_interaction: 2 },
+    { path: /\/api\/spaces\/[^/]+\/attention$/, method: "GET", read: () => ({
+      spaceId: "space-storybook", generatedAt: "2026-10-27T12:00:00Z", totalCount: 2, deskBadgeCount: 2, nextCursor: null, countsBySourceKind: { issue_thread_interaction: 2 },
       items: initialItems.slice(1, 3).map(({ issue }, index) => ({ id: `fixture-decision-${index}`, sourceKind: "issue_thread_interaction", subject: { kind: "interaction", id: `fixture-question-${index}` }, relatedIssue: { id: issue.id, title: issue.title, identifier: issue.identifier } })),
     }) },
-    { path: /\/api\/companies\/[^/]+\/chats$/, method: "GET", read: () => [] },
+    { path: /\/api\/spaces\/[^/]+\/chats$/, method: "GET", read: () => [] },
   ]).cleanup,
 } satisfies Meta<typeof CoordinatorTasksPreview>;
 export default meta;

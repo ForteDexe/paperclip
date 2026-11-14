@@ -123,7 +123,7 @@ vi.mock("./TaskWorkspaceFilePanel", () => ({
 function issue(overrides: Partial<Issue> = {}): Issue {
   return {
     id: "task-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     title: "Portable tabs",
     workMode: "agent",
     ...overrides,
@@ -229,7 +229,7 @@ describe("TaskSidePanel", () => {
 
   it.each([false, true])("restores a saved manual view after discovery (different assignee=%s)", async differentAssignee => {
     const tab = taskPanelPluginTab(pluginPanel);
-    writeTaskSidePanelState("user-1", "company-1", "task-1", {
+    writeTaskSidePanelState("user-1", "space-1", "task-1", {
       state: { tabs: [tab], activeTabId: tab.id },
       launcherOpen: false, userInteracted: true, autoPlanHandled: false, updatedAt: 1,
     });
@@ -373,7 +373,7 @@ describe("TaskSidePanel", () => {
 
   it("preserves explicitly saved Coordinator tabs when a decision link adds its document", async () => {
     coordinator.enabled = true;
-    writeTaskSidePanelState("user-1", "company-1", "task-1", {
+    writeTaskSidePanelState("user-1", "space-1", "task-1", {
       state: { tabs: [taskPanelPropertiesTab(), taskPanelArtifactsTab()], activeTabId: "properties" },
       launcherOpen: false, userInteracted: true, autoPlanHandled: false, updatedAt: Date.now(),
     });
@@ -417,7 +417,7 @@ describe("TaskSidePanel", () => {
     await act(async () => container.querySelector<HTMLButtonElement>("#side-panel-tab-properties")?.click());
     expect(container.querySelector("iframe")).toBe(iframe);
     expect(iframe?.closest("[hidden]")).toBeTruthy();
-    expect(localStorage.getItem("paperclip:task-side-panel:v1:user-1:company-1")).not.toContain("test-viewer");
+    expect(localStorage.getItem("outpost:task-side-panel:v1:user-1:space-1")).not.toContain("test-viewer");
     await act(async () => container.querySelector<HTMLButtonElement>(`[id="side-panel-tab-browser:${id}"]`)?.click());
     const close = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(b => b.getAttribute("aria-label")?.startsWith("Close Browser"));
     expect(close).toBeTruthy();
@@ -431,7 +431,7 @@ describe("TaskSidePanel", () => {
     const next = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
     const acknowledged = vi.fn(() => {
       expect(container.querySelector('[role="tab"][aria-selected="true"]')?.id).toBe(`side-panel-tab-browser:${next}`);
-      expect(localStorage.getItem("paperclip:task-side-panel:v1:user-1:company-1")).toContain(next);
+      expect(localStorage.getItem("outpost:task-side-panel:v1:user-1:space-1")).toContain(next);
     });
     await render(panel({ openBrowserId: first }));
     await render(panel({ openBrowserId: next, onBrowserOpened: acknowledged }));
@@ -450,7 +450,7 @@ describe("TaskSidePanel", () => {
   });
 
   it("keeps an Artifacts-only layout the user chose", async () => {
-    writeTaskSidePanelState("user-1", "company-1", "task-1", {
+    writeTaskSidePanelState("user-1", "space-1", "task-1", {
       state: { tabs: [taskPanelArtifactsTab()], activeTabId: "artifacts" },
       launcherOpen: false,
       userInteracted: true,
@@ -465,7 +465,7 @@ describe("TaskSidePanel", () => {
   it("falls back to Artifacts when Agent Chat is off and only the Tasks tab was saved", async () => {
     agentChat.enabled = false;
     try {
-      writeTaskSidePanelState("user-1", "company-1", "task-1", {
+      writeTaskSidePanelState("user-1", "space-1", "task-1", {
         state: { tabs: [taskPanelAgentTasksTab()], activeTabId: "agent-tasks" },
         launcherOpen: false,
         userInteracted: true,
@@ -481,7 +481,7 @@ describe("TaskSidePanel", () => {
   });
 
   it("moves a chat's stored Artifacts-only default onto the agent's tasks", async () => {
-    writeTaskSidePanelState("user-1", "company-1", "task-1", {
+    writeTaskSidePanelState("user-1", "space-1", "task-1", {
       state: { tabs: [taskPanelArtifactsTab()], activeTabId: "artifacts" },
       launcherOpen: false,
       userInteracted: false,
@@ -808,7 +808,7 @@ describe("TaskSidePanel", () => {
   });
 
   it("lets a persisted intentionally empty state win over defaults", async () => {
-    writeTaskSidePanelState("user-1", "company-1", "task-1", {
+    writeTaskSidePanelState("user-1", "space-1", "task-1", {
       state: { tabs: [], activeTabId: null },
       launcherOpen: false,
       userInteracted: true,
@@ -821,7 +821,7 @@ describe("TaskSidePanel", () => {
   });
 
   it("removes a Plan tab persisted before a plan document existed", async () => {
-    writeTaskSidePanelState("user-1", "company-1", "task-1", {
+    writeTaskSidePanelState("user-1", "space-1", "task-1", {
       state: {
         tabs: [taskPanelPropertiesTab(), taskPanelDocumentTab("plan", "Plan")],
         activeTabId: "document:plan",
@@ -848,7 +848,7 @@ describe("TaskSidePanel", () => {
   });
 
   it("keeps Files out of the launcher when the experiment is disabled", async () => {
-    writeTaskSidePanelState("user-1", "company-1", "task-1", {
+    writeTaskSidePanelState("user-1", "space-1", "task-1", {
       state: { tabs: [], activeTabId: null },
       launcherOpen: false,
       userInteracted: true,
@@ -860,7 +860,7 @@ describe("TaskSidePanel", () => {
   });
 
   it("restores a persisted Properties tab", async () => {
-    writeTaskSidePanelState("user-1", "company-1", "task-1", {
+    writeTaskSidePanelState("user-1", "space-1", "task-1", {
       state: { tabs: [taskPanelPropertiesTab()], activeTabId: "properties" },
       launcherOpen: false,
       userInteracted: true,
@@ -876,7 +876,7 @@ describe("TaskSidePanel", () => {
     const classic = { tabs: [taskPanelPropertiesTab()], activeTabId: "properties" };
     const experiment = { tabs: [taskPanelArtifactsTab()], activeTabId: "artifacts" };
     for (const [scope, state] of [["user-1", classic], ["coordinator:user-1", experiment]] as const) {
-      writeTaskSidePanelState(scope, "company-1", "task-1", {
+      writeTaskSidePanelState(scope, "space-1", "task-1", {
         state, launcherOpen: false, userInteracted: true, autoPlanHandled: true, updatedAt: 1,
       });
     }
@@ -888,12 +888,12 @@ describe("TaskSidePanel", () => {
     await render(panel({ accountScope: "coordinator:user-1", mobile }));
     expect(container.textContent).toContain("Artifacts content");
     expect(container.textContent).not.toContain("Properties content");
-    expect(readTaskSidePanelState("user-1", "company-1", "task-1", false)?.state).toEqual(classic);
-    expect(readTaskSidePanelState("coordinator:user-1", "company-1", "task-1", false)?.state).toEqual(experiment);
+    expect(readTaskSidePanelState("user-1", "space-1", "task-1", false)?.state).toEqual(classic);
+    expect(readTaskSidePanelState("coordinator:user-1", "space-1", "task-1", false)?.state).toEqual(experiment);
     coordinator.enabled = false;
     await render(panel({ accountScope: "user-1", mobile }));
     expect(container.textContent).toContain("Properties content");
-    expect(readTaskSidePanelState("coordinator:user-1", "company-1", "task-1", false)?.state).toEqual(experiment);
+    expect(readTaskSidePanelState("coordinator:user-1", "space-1", "task-1", false)?.state).toEqual(experiment);
   });
 
   it("opens a URL-backed workspace file tab outside file-viewer provider ancestry", async () => {

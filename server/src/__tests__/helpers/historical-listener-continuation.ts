@@ -12,7 +12,7 @@ import { buildNativeExecutionInput } from "../../services/native-runtime/native-
 import { buildNativeCompletionContract } from "../../services/native-runtime/completion-contracts.js";
 import { nativeRuntimeContextFixture } from "../../services/native-runtime/runtime-context.test-fixture.js";
 import { materializeAsset } from "../../services/native-runtime/runtime-context.js";
-import { executePaperclipNativeSession } from "../../services/native-runtime/native-session-executor.js";
+import { executeOutpostNativeSession } from "../../services/native-runtime/native-session-executor.js";
 import { reconcileNativeFinalizations } from "../../services/native-runtime/native-finalization-reconciler.js";
 import { canonicalNativeRuntimeContextDigest, createNativeSessionBackend, createRunnerdCodexTransport, defaultCapabilityRunnerdBinary } from "../../vendor/outpost-runner/index.js";
 import { registerLocalRuntimeApiServer } from "../../runtime-api.js";
@@ -28,7 +28,7 @@ async function prepare(db: Db, runId: string, cwd: string, environmentLeaseId: s
   runtimeContext.instructions.bundle = await materializeAsset([{ path: "AGENTS.md", mode: 0o444,
     content: Buffer.from("Complete the saved task once.\n") }]);
   runtimeContext.aggregateDigest = canonicalNativeRuntimeContextDigest(runtimeContext);
-  const execution = buildNativeExecutionInput({ companyId: run.companyId, agentId: run.agentId, runId, issue,
+  const execution = buildNativeExecutionInput({ spaceId: run.spaceId, agentId: run.agentId, runId, issue,
     taskPrompt: "Preserve the saved file and complete the task once.", provider: "codex",
     workspace: { id: issue.executionWorkspaceId!, cwd, repoUrl: null, repoRef: null, branchName: null },
     normalizedSessionId: native.normalizedSessionId, runtimeContext,
@@ -47,7 +47,7 @@ export async function recordHistoricalListenerFailure(input: {
   await input.db.update(heartbeatRuns).set({ status: "running", finishedAt: null, error: null, errorCode: null })
     .where(eq(heartbeatRuns.id, input.runId));
   const { execution, native } = await prepare(input.db, input.runId, input.cwd, input.leaseId);
-  await input.db.insert(nativeRunFinalizations).values({ runId: input.runId, companyId: execution.binding.companyId,
+  await input.db.insert(nativeRunFinalizations).values({ runId: input.runId, spaceId: execution.binding.spaceId,
     issueId: execution.binding.issueId, phase: "observed" });
   const child = spawn(process.execPath, ["--import", createRequire(import.meta.url).resolve("tsx"),
     resolve(import.meta.dirname, "native-drain-controller.test-worker.ts")], { stdio: ["ignore", "pipe", "pipe", "ipc"], env: process.env });
@@ -80,16 +80,16 @@ export async function completeHistoricalListenerSuccessor(input: { db: Db; runId
   prepareWorkspace: () => Promise<{ cwd: string; finalize: () => Promise<void> }> }) {
   const [scheduled] = await input.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, input.runId));
   const dispatch = createRunDispatch(input.db);
-  expect(await dispatch.promoteScheduledRetry({ companyId: scheduled.companyId, runId: scheduled.id,
+  expect(await dispatch.promoteScheduledRetry({ spaceId: scheduled.spaceId, runId: scheduled.id,
     now: new Date(scheduled.scheduledRetryAt!.getTime() + 1) })).toMatchObject({ outcome: "promoted" });
-  expect(await dispatch.cancelStaleQueuedRun({ companyId: scheduled.companyId, runId: scheduled.id, expectedStatus: "queued" }))
+  expect(await dispatch.cancelStaleQueuedRun({ spaceId: scheduled.spaceId, runId: scheduled.id, expectedStatus: "queued" }))
     .toMatchObject({ outcome: "not_stale" });
   await input.db.update(heartbeatRuns).set({ status: "running", runtimeMode: "native",
     nativeIssueId: String(scheduled.contextSnapshot?.issueId) }).where(eq(heartbeatRuns.id, scheduled.id));
   await input.db.update(issues).set({ executionRunId: scheduled.id }).where(eq(issues.id, String(scheduled.contextSnapshot?.issueId)));
   const workspace = await input.prepareWorkspace();
   const { execution, native } = await prepare(input.db, scheduled.id, workspace.cwd, `controlled-${scheduled.id}`);
-  await input.db.insert(nativeRunFinalizations).values({ runId: scheduled.id, companyId: scheduled.companyId,
+  await input.db.insert(nativeRunFinalizations).values({ runId: scheduled.id, spaceId: scheduled.spaceId,
     issueId: execution.binding.issueId, phase: "observed" });
   const home = join(input.root, "codex-home"), report = join(input.root, "result.json"), calls = join(input.root, "calls.log");
   await mkdir(home, { recursive: true });
@@ -112,12 +112,12 @@ export async function completeHistoricalListenerSuccessor(input: { db: Db; runId
     sourceCodexHome: home, environment: { CODEX_HOME: home, PATH: process.env.PATH },
     orpIdentity: { runnerInstanceId: native.runnerInstanceId, environmentLeaseId: native.environmentLeaseId,
       runId: scheduled.id, normalizedSessionId: native.normalizedSessionId, turnId: native.turnId, itemId: native.itemId },
-    controlPlaneRegistration: authority => registerRunnerPrpAuthority({ companyId: scheduled.companyId, runId: scheduled.id, authority }),
+    controlPlaneRegistration: authority => registerRunnerPrpAuthority({ spaceId: scheduled.spaceId, runId: scheduled.id, authority }),
   });
   const backend = createNativeSessionBackend(execution, { runnerInstanceId: native.runnerInstanceId,
     environment: { CODEX_HOME: home, PATH: process.env.PATH }, codexTransportFactory: () => bundle.transport });
   try {
-    expect(await executePaperclipNativeSession({ db: input.db, execution, backend, useRunnerd: true,
+    expect(await executeOutpostNativeSession({ db: input.db, execution, backend, useRunnerd: true,
       runnerInstanceId: native.runnerInstanceId, turnTimeoutMs: 15_000 })).toMatchObject({ exitCode: 0, timedOut: false });
     await workspace.finalize();
     await reconcileNativeFinalizations(input.db, [scheduled.id]);

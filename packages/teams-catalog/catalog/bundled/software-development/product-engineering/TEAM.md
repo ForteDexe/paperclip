@@ -4,14 +4,14 @@ description: Bundled engineering team that pairs an Engineering Lead with a seni
 schema: agentcompanies/v1
 slug: product-engineering
 category: software-development
-key: paperclipai/bundled/software-development/product-engineering
-manager: agents/cto/AGENTS.md
+key: outpost/bundled/software-development/product-engineering
+manager: agents/engineering-lead/AGENTS.md
 includes:
   - agents/senior-coder/AGENTS.md
   - agents/qa/AGENTS.md
   - projects/product-engineering/PROJECT.md
 defaultInstall: false
-recommendedForCompanyTypes:
+recommendedForSpaceTypes:
   - software
   - startup
   - product
@@ -21,15 +21,15 @@ tags:
   - qa
   - code-review
 requiredSkills:
-  - paperclipai/bundled/software-development/github-pr-workflow
-  - paperclipai/bundled/quality/qa-acceptance
-  - paperclipai/bundled/paperclip-operations/task-planning
-  - paperclipai/bundled/docs/doc-maintenance
+  - outpost/bundled/software-development/github-pr-workflow
+  - outpost/bundled/quality/qa-acceptance
+  - outpost/bundled/outpost-operations/task-planning
+  - outpost/bundled/docs/doc-maintenance
 ---
 
 # Product Engineering
 
-An optional drop-in engineering pod for Outposts that want a working software-delivery loop without going through the catalog's `core-exec-team` first. Install it under an existing Outpost Lead/manager and the imported Engineering Lead will own engineering execution.
+An optional drop-in engineering pod for Outposts that want a working software-delivery loop without going through the catalog's `core-crew` first. Install it under an existing Default agent/manager and the imported Engineering Lead will own engineering execution.
 
 ## Contents
 

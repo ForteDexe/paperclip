@@ -48,13 +48,13 @@ try {
     const seedStart = performance.now();
     const f = await seedInterruptionFixture(db, fixture);
     const seedMs = performance.now() - seedStart;
-    const before = await captureInterruptionQuery(db, baseline.taskInterruptionPresentations, f.companyId, f.input);
-    const after = await captureInterruptionQuery(db, taskInterruptionPresentations, f.companyId, f.input);
+    const before = await captureInterruptionQuery(db, baseline.taskInterruptionPresentations, f.spaceId, f.input);
+    const after = await captureInterruptionQuery(db, taskInterruptionPresentations, f.spaceId, f.input);
     const execute = async (query: CapturedQuery) => db!.$client.unsafe(query.sql, query.params as never[]).values();
     const beforeRows = await execute(before), afterRows = await execute(after);
     assert.deepEqual(afterRows, beforeRows, "Every positional SQL field and row order must match");
-    assert.deepEqual(await taskInterruptionPresentations(db, f.companyId, f.input),
-      await baseline.taskInterruptionPresentations(db, f.companyId, f.input), "Full service output must match");
+    assert.deepEqual(await taskInterruptionPresentations(db, f.spaceId, f.input),
+      await baseline.taskInterruptionPresentations(db, f.spaceId, f.input), "Full service output must match");
     const samples = { baseline: [] as number[], treatment: [] as number[] };
     for (let round = 0; round < 7; round++) {
       for (const arm of round % 2 ? ["treatment", "baseline"] as const : ["baseline", "treatment"] as const) {

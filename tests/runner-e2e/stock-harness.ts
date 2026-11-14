@@ -5,17 +5,17 @@ import { readStockInstructionVariant } from "./stock-harness-instruction-variant
 
 // These are an independent product contract, not imports of the implementation
 // constants. Otherwise a larger shipped manual could silently update the oracle.
-export const STOCK_HIRE_IDENTITY = "You are an agent in a Paperclip company.\n";
+export const STOCK_HIRE_IDENTITY = "You are an agent in a Outpost space.\n";
 export const STOCK_TEMPLATE_IDENTITY = "You are agent";
-const SKILL_SOURCES = ["../../skills/paperclip/SKILL.md", "../../skills/paperclip/references/issue-documents.md",
-  "../../scripts/paperclip-issue-update.sh", "../../skills/paperclip/scripts/paperclip-issue-update.sh"];
+const SKILL_SOURCES = ["../../skills/outpost/SKILL.md", "../../skills/outpost/references/issue-documents.md",
+  "../../scripts/outpost-issue-update.sh", "../../skills/outpost/scripts/outpost-issue-update.sh"];
 export function stockHarnessSkillSources() {
   return SKILL_SOURCES.map(source => {
     try {
       return { path: source.replace(/^\.\.\/\.\.\//, ""), present: true,
         sha256: createHash("sha256").update(readFileSync(new URL(source, import.meta.url))).digest("hex") };
     } catch (error) {
-      if ((source.endsWith("/references/issue-documents.md") || source === "../../skills/paperclip/scripts/paperclip-issue-update.sh")
+      if ((source.endsWith("/references/issue-documents.md") || source === "../../skills/outpost/scripts/outpost-issue-update.sh")
         && (error as NodeJS.ErrnoException).code === "ENOENT")
         return { path: source.replace(/^\.\.\/\.\.\//, ""), present: false, sha256: null };
       throw error;
@@ -45,7 +45,7 @@ export interface StockHarnessEvidence {
   schema: "outpost.stock-harness.v1";
   generation: "legacy" | "native";
   agentId: string;
-  budgets: { companyMonthlyCents: unknown; agentMonthlyCents: unknown };
+  budgets: { spaceMonthlyCents: unknown; agentMonthlyCents: unknown };
   bundle: { entryFile?: string; files: Array<{ path: string; content: string }> };
   invocations: Array<{ runId: string; prompt: unknown; promptMetrics?: Record<string, unknown>; conversationMode?: boolean }>;
   runIds: string[];
@@ -55,8 +55,8 @@ export function gradeStockHire(evidence: Pick<StockHarnessEvidence, "bundle" | "
   instructionVariant = readStockInstructionVariant()) {
   const checks: Array<{ id: string; passed: boolean; detail: string }> = [];
   const check = (id: string, passed: boolean, detail: string) => checks.push({ id, passed, detail });
-  check("budget-hard-stops", evidence.budgets.companyMonthlyCents === 1_000 && evidence.budgets.agentMonthlyCents === 1_000,
-    "Public company and agent records must both retain the 1,000-cent monthly hard stops.");
+  check("budget-hard-stops", evidence.budgets.spaceMonthlyCents === 1_000 && evidence.budgets.agentMonthlyCents === 1_000,
+    "Public space and agent records must both retain the 1,000-cent monthly hard stops.");
   check("default-hire-bundle", evidence.bundle.entryFile === "AGENTS.md" &&
     evidence.bundle.files.length === 1 && evidence.bundle.files[0]?.path === "AGENTS.md" &&
     evidence.bundle.files[0]?.content === instructionVariant.content,
@@ -89,12 +89,12 @@ export function gradeStockHarness(evidence: StockHarnessEvidence, instructionVar
       check("historical-invocation-classification", prompts.length > 0 && classified,
         "Every invocation needs public run-scoped conversation mode and explicit template-delivery metrics.");
       check("historical-startup-contract", classified && fresh.length > 0 && fresh.every(row => row.conversationMode
-        ? String(row.prompt).includes("Continue your Paperclip conversation using the supplied chat mode directive.") &&
+        ? String(row.prompt).includes("Continue your Outpost conversation using the supplied chat mode directive.") &&
           String(row.prompt).includes("After 2 consecutive failures of the same control-plane write")
         : String(row.prompt).includes("Execution contract:") && String(row.prompt).includes("Final disposition checklist:")),
       `Check each of ${fresh.length} fresh invocations against its historical task or conversation template.`);
       check("historical-continuation-contract", classified && resumed.every(row =>
-        String(row.prompt).includes("## Paperclip Resume Delta") && (row.conversationMode
+        String(row.prompt).includes("## Outpost Resume Delta") && (row.conversationMode
           ? !String(row.prompt).includes("Execution contract:")
           : String(row.prompt).includes("Execution contract: take concrete action") &&
             String(row.prompt).includes("a successful process exit or final response is not sufficient"))),
@@ -113,15 +113,15 @@ export function gradeStockHarness(evidence: StockHarnessEvidence, instructionVar
 export async function captureStockHarness(input: {
   api: { get<T>(path: string): Promise<T> };
   agentId: string;
-  companyId: string;
+  spaceId: string;
   generation: "legacy" | "native";
   runIds: string[];
 }): Promise<StockHarnessEvidence> {
   const bundle = await input.api.get<{ entryFile: string; files: Array<{ path: string }> }>(
     `/api/agents/${input.agentId}/instructions-bundle`,
   );
-  const [company, agent] = await Promise.all([
-    input.api.get<{ budgetMonthlyCents: unknown }>(`/api/companies/${input.companyId}`),
+  const [space, agent] = await Promise.all([
+    input.api.get<{ budgetMonthlyCents: unknown }>(`/api/spaces/${input.spaceId}`),
     input.api.get<{ budgetMonthlyCents: unknown }>(`/api/agents/${input.agentId}`),
   ]);
   const files = await Promise.all(bundle.files.map(async file => {
@@ -132,21 +132,21 @@ export async function captureStockHarness(input: {
   }));
   const events = await Promise.all(input.runIds.map(async runId => ({
     runId,
-    run: await input.api.get<{ id: string; companyId: string; agentId: string; contextSnapshot?: { conversationMode?: boolean } }>(
+    run: await input.api.get<{ id: string; spaceId: string; agentId: string; contextSnapshot?: { conversationMode?: boolean } }>(
       `/api/heartbeat-runs/${runId}`,
     ),
     rows: await input.api.get<Array<{ eventType?: string; payload?: Record<string, unknown> }>>(
       `/api/heartbeat-runs/${runId}/events?limit=1000`,
     ),
   })));
-  if (events.some(({ runId, run }) => run.id !== runId || run.companyId !== input.companyId || run.agentId !== input.agentId ||
+  if (events.some(({ runId, run }) => run.id !== runId || run.spaceId !== input.spaceId || run.agentId !== input.agentId ||
       !run.contextSnapshot || typeof run.contextSnapshot !== "object" || Array.isArray(run.contextSnapshot) ||
       (run.contextSnapshot.conversationMode !== undefined && typeof run.contextSnapshot.conversationMode !== "boolean"))) {
-    throw new Error("Stock invocation mode receipt is missing or bound to a different run/company/agent.");
+    throw new Error("Stock invocation mode receipt is missing or bound to a different run/space/agent.");
   }
   return {
     schema: "outpost.stock-harness.v1", generation: input.generation,
-    budgets: { companyMonthlyCents: company.budgetMonthlyCents, agentMonthlyCents: agent.budgetMonthlyCents },
+    budgets: { spaceMonthlyCents: space.budgetMonthlyCents, agentMonthlyCents: agent.budgetMonthlyCents },
     agentId: input.agentId, bundle: { entryFile: bundle.entryFile, files }, runIds: input.runIds,
     invocations: events.flatMap(({ runId, rows, run }) => rows.filter(row => row.eventType === "adapter.invoke")
       .map(row => ({ runId, prompt: row.payload?.prompt, promptMetrics: row.payload?.promptMetrics as Record<string, unknown> | undefined,

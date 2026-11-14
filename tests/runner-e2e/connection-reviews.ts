@@ -12,7 +12,7 @@ export async function setupConnectionReview(input: {
   page: Page;
   api: RunnerApi;
   prefix: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   marker: string;
   authenticated?: boolean;
@@ -28,7 +28,7 @@ export async function setupConnectionReview(input: {
       // Setup through the public API avoids putting this fixture credential in
       // browser traces or the agent's environment. Approval remains a UI action.
       const connected = await api.postSensitive<any>(
-        `/api/companies/${input.companyId}/tools/apps/connect`,
+        `/api/spaces/${input.spaceId}/tools/apps/connect`,
         {
           link: provider.url,
           name: "Studio Page Service",
@@ -42,7 +42,7 @@ export async function setupConnectionReview(input: {
         ...connected.actions.canMakeChanges,
       ].map((a: any) => a.catalogEntryId);
       await api.post(
-        `/api/companies/${input.companyId}/tools/apps/${connected.connectionId}/finish`,
+        `/api/spaces/${input.spaceId}/tools/apps/${connected.connectionId}/finish`,
         {
           enabledCatalogEntryIds: ids,
           askFirstCatalogEntryIds: ids,
@@ -81,7 +81,7 @@ export async function setupConnectionReview(input: {
       const {
         connections: [createdConnection],
       } = await api.get<{ connections: Array<{ id: string }> }>(
-        `/api/companies/${input.companyId}/tools/connections`,
+        `/api/spaces/${input.spaceId}/tools/connections`,
       );
       connection = createdConnection!;
     }

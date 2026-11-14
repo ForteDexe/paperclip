@@ -93,7 +93,7 @@ wait up to this window; the ten-minute stale-claim policy is unchanged.
 
 This is the bounded-frequency alternative raised in review. Discovery is still
 instance-wide, and real stale backlogs still drain through the existing pages.
-It does not claim company-isolated scans or constant cost for a real backlog.
+It does not claim space-isolated scans or constant cost for a real backlog.
 No notification and no saved execution deadline means no periodic scan. No new
 table, index, or scheduler is added. Startup, drain, retry and shutdown retain
 the existing owners.

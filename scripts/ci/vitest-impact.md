@@ -82,7 +82,7 @@ There are concrete missing edges in this repository:
 - `ui/src/pages/apps/chat/chat-ui-contract.test.ts` reads `Inbox.tsx` through
   `readFileSync`. It is absent from the six-file selection even though changes
   to Inbox can break its assertions.
-- `server/src/__tests__/paperclip-skill-utils.test.ts` reads `docs/api/issues.md`
+- `server/src/__tests__/outpost-skill-utils.test.ts` reads `docs/api/issues.md`
   through `fs.readFile`. Changing that document selects zero server tests.
 
 A deliberate negative control confirmed the first missing edge: temporarily

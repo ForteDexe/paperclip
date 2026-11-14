@@ -18,7 +18,7 @@ vi.mock("../lib/agent-configuration/save", async importOriginal => ({
 vi.mock("../context/ToastContext", () => ({ useToastActions: () => ({ pushToast: vi.fn() }) }));
 
 const agent = {
-  id: "11111111-1111-4111-8111-111111111111", companyId: "company", urlKey: "codie", name: "Codie",
+  id: "11111111-1111-4111-8111-111111111111", spaceId: "space", urlKey: "codie", name: "Codie",
   role: "engineer", title: null, icon: null, appearance: appearanceForPalette("bubblegum-sky"), reportsTo: null,
   capabilities: null, adapterType: "process", adapterConfig: { command: "echo" }, runtimeConfig: {},
   defaultEnvironmentId: null, budgetMonthlyCents: 0, metadata: null, configurationRevision: "a".repeat(64),
@@ -27,7 +27,7 @@ const agent = {
 } satisfies Agent & { configurationRevision: string };
 
 function snapshot(value = agent) {
-  return { agent: value, core: value, document: { apiVersion: "paperclip/v1", kind: "Agent", spec: agentConfigurationSpec(value) } };
+  return { agent: value, core: value, document: { apiVersion: "outpost/v1", kind: "Agent", spec: agentConfigurationSpec(value) } };
 }
 
 describe("Advanced agent configuration", () => {

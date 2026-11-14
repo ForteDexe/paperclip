@@ -19,7 +19,7 @@ export function grade_projects(value: unknown) {
   switch (o.scenarioId) {
     case "projects.create-project": {
       const created = o.projects.filter(row => row.name === "Launch");
-      c.add("one-company-project", created.length === 1 && created[0]?.companyId === o.companyId, "Exactly one Launch is saved in the active company.");
+      c.add("one-space-project", created.length === 1 && created[0]?.spaceId === o.spaceId, "Exactly one Launch is saved in the active space.");
       c.add("agent-created-project", created.length === 1 && authored("project.created", created[0]!.id), "Creation is attributed to the acting CEO rather than fixture setup.");
       c.add("usable-project-link", created.length === 1 && hasLink(o, "projects", created[0]!), "Chat renders the exact saved project link.");
       c.add("retry-reuses-first-project", initialProjectCreation(observation(o.state.firstCreation)) && Array.isArray(o.state.firstIds) && o.state.firstIds.length === 1 && created[0]?.id === o.state.firstIds[0]
@@ -54,7 +54,7 @@ export const projectsCases: readonly ChatCatalogCase[] = [
 function initialProjectCreation(o: InternalObservation | undefined): boolean {
   if (!o) return false;
   const projects = o.projects.filter(row => row.name === "Launch"); const p = projects[0];
-  return projects.length === 1 && !!p && p.companyId === o.companyId && o.tasks.length === 0 && hasLink(o, "projects", p)
+  return projects.length === 1 && !!p && p.spaceId === o.spaceId && o.tasks.length === 0 && hasLink(o, "projects", p)
     && o.activity.some(row => row.action === "project.created" && row.entityId === p.id && row.agentId === o.leadId)
     && !/\b(?:deployed|website is ready|repository is ready)\b/i.test(o.reply);
 }
@@ -84,7 +84,7 @@ function archivedProject(): ChatCatalogCase {
     async verifyResult(ctx, state) {
       const source = ctx.input.page.url();
       for (const [kind, row] of [["projects", entity(state, "project")], ["issues", entity(state, "task")]] as const) {
-        await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.company.issuePrefix}/${kind}/${row.id}`, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded" });
+        await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.space.issuePrefix}/${kind}/${row.id}`, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded" });
         await expect(ctx.input.page.getByRole("heading", { name: row.name ?? row.title!, exact: true }).first()).toBeVisible();
         await ctx.input.evidence(`chat-catalog-archived-history-${kind}.json`, { id: row.id, actualUrl: ctx.input.page.url(), actualHeading: row.name ?? row.title });
       }

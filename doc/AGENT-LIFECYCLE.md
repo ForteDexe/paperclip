@@ -24,12 +24,12 @@ const state = await lifecycle.get(agentId);
 The pause command records the request. The worker completes the external steps.
 Read `lifecycleState` to check progress.
 Configuration updates accept only the fields in `AGENT_CONFIGURATION_FIELDS`.
-They reject identity, company, accounting totals, timestamp, and lifecycle fields.
+They reject identity, space, accounting totals, timestamp, and lifecycle fields.
 The public update schema also rejects spend totals. Budget limit changes remain
 permitted through `budgetMonthlyCents`.
 
 Do not import module adapters or construct module dependencies in a caller.
-The company deletion service uses the separate deletion entry point.
+The space deletion service uses the separate deletion entry point.
 The listed configuration workflows use the restricted transaction service.
 These are the only transaction integrations. They are described below.
 
@@ -56,7 +56,7 @@ The existing restrictions for built-in agents and accounting still apply.
 
 Messages accepted during setup remain queued until verification completes.
 After the worker commits `ready`, its driver immediately asks the scheduler to
-dispatch that agent's saved work. The scheduler rechecks company scope,
+dispatch that agent's saved work. The scheduler rechecks space scope,
 invokability, budgets, concurrency, and task ownership through normal admission.
 If dispatch fails, readiness remains committed and the periodic queue sweep
 retries; setup is not repeated because of a scheduler failure.
@@ -75,16 +75,16 @@ A proposed hire waits for `approveHire`.
 `approveHire` and `rejectHire` accept an agent ID or `{ approvalId }`.
 Both forms use the same hire decision path. An agent ID also resolves its open
 hire approval. The approval and the agent change commit together.
-The existing company approval rules still apply.
+The existing space approval rules still apply.
 
 `pauseAgent`, `resumeAgent`, and `terminateAgent` record the requested change.
 They do not wait for external resource operations.
 `retry` makes a failed step available for another attempt.
-`reconcilePolicyHolds` updates budget and company holds for the specified company.
+`reconcilePolicyHolds` updates budget and space holds for the specified space.
 The background policy check processes at most 100 eligible agents each minute.
 It continues from the last agent ID and returns to the start after the last page.
 Pending hires and agents in termination or a final state are excluded.
-An explicit company or budget change still updates all affected agents immediately.
+An explicit space or budget change still updates all affected agents immediately.
 `updateAndTransition` applies a configuration change and a lifecycle command
 in one transaction. A failed command does not save the configuration change.
 
@@ -101,12 +101,12 @@ The approval service owns comments, revisions, and general approval records.
 The lifecycle module resolves a hire approval and changes the agent in one
 transaction. It retains the original credential owner when it approves a hire.
 
-The company deletion service owns the company data cascade.
+The space deletion service owns the space data cascade.
 It requests agent termination before it starts that cascade.
-It locks the company in the deletion transaction and removes dependent records.
-It then calls `agentLifecycleCompanyDeletion.deleteCompanyData(tx, companyId)`
-through the module's separate `company-deletion.ts` entry point.
-This operation implements the shared `CompanyDeletionParticipant` interface.
+It locks the space in the deletion transaction and removes dependent records.
+It then calls `agentLifecycleSpaceDeletion.deleteSpaceData(tx, spaceId)`
+through the module's separate `space-deletion.ts` entry point.
+This operation implements the shared `SpaceDeletionParticipant` interface.
 It locks the agent rows, checks their states, and deletes them.
 All agents must be terminated or rejected. Otherwise, it throws an error.
 The error rolls back all database changes in the deletion transaction.
@@ -159,10 +159,10 @@ The transaction integration cannot approve, pause, resume, or terminate an agent
 It does not start a worker before the caller commits. The periodic scan recovers
 pending setup work after the commit.
 
-Manual, budget, and company pause holds are independent.
-A manual resume does not remove a budget or company hold.
-Restoring a company does not remove a manual hold.
-Budget and company policy still prevent admission while the pause work runs.
+Manual, budget, and space pause holds are independent.
+A manual resume does not remove a budget or space hold.
+Restoring a space does not remove a manual hold.
+Budget and space policy still prevent admission while the pause work runs.
 
 The legacy `status` field remains available to existing clients.
 It shows `paused` during preparation, verification, pause, and resume.
@@ -203,14 +203,14 @@ needs a new plugin automatically pauses execution, waits for the host and
 existing plugins to stop, resumes with the new plugin, and verifies the saved
 configuration before admitting work. The change and pause request commit
 together; retries and server restarts retain the pending operation. Manual,
-budget, and company holds still prevent automatic resume. An agent in
+budget, and space holds still prevent automatic resume. An agent in
 `verifying` returns to `preparing`. An agent that moves away keeps the selection until it is terminated,
 so the plugin keeps its resources until then.
 
 The existing agent configuration permission authorizes this move, including its
 temporary system pause. That permission already controls environment selection
 and resource allocation. Separate permission to issue a manual pause is not
-required for the migration. Configuration and company access checks still run
+required for the migration. Configuration and space access checks still run
 before the change; an unauthorized request cannot save the environment or pause
 the agent.
 
@@ -220,7 +220,7 @@ save the change, and then resume them.
 
 Each request contains these fields:
 
-- `companyId` and `agentId` identify the agent.
+- `spaceId` and `agentId` identify the agent.
 - `phase` identifies the lifecycle step.
 - `operationId` identifies the operation.
 - `version` identifies the state revision.
@@ -240,7 +240,7 @@ A scan failure has no agent ID.
 
 Calls can repeat after a timeout or a server restart.
 A plugin must make repeated calls safe.
-It must retain the highest version for each company and agent.
+It must retain the highest version for each space and agent.
 It must reject an older request after it accepts a newer version.
 It must also prevent an older operation from creating resources after cleanup.
 Serialize external effects or remove resources from a late completion.
@@ -249,14 +249,14 @@ Do not treat a host timeout as cancellation of the external effect.
 ### Local instance secrets
 
 Lifecycle requests include `instanceSecrets`, a map of this plugin's private
-credentials for this company and agent. A plugin can return an `instanceSecrets`
+credentials for this space and agent. A plugin can return an `instanceSecrets`
 map with its result to save values. A null value removes the key. Omitted keys
 remain unchanged. Writes are allowed during preparation and resume; removals can
 also occur during stop and cleanup. Use at most 16 keys per result, with names
 matching `[a-z][a-z0-9_]{0,63}` and values no larger than 64 KiB each.
 
 The tenant persists the changes before accepting the result. It locks the agent
-and checks its company, phase, operation, revision, required plugin selection,
+and checks its space, phase, operation, revision, required plugin selection,
 and the captured attempt's current lease owner and unexpired deadline.
 A stale reply or a failed secret write cannot complete preparation. Calls after
 a restart receive the saved values. Stop and cleanup requests receive an empty
@@ -264,17 +264,17 @@ map, so a damaged credential cannot block removal. Return removals even while
 cleanup is pending. An older host omits the field; plugins that require durable
 credentials must reject that host before resource effects.
 
-This uses the existing secret service, `company_secrets`, secret versions, and
+This uses the existing secret service, `space_secrets`, secret versions, and
 `local_encrypted` provider. There is no new encryption system or remote API.
 The `instance` scope requires an owning agent and plugin. Agent/plugin deletion
-cascades the native secret records. These secrets are excluded from company
+cascades the native secret records. These secrets are excluded from space
 catalogs, normal secret references, agent access, plugin state, and public agent
-records. The general SDK `ctx.secrets.resolve()` remains read-only. Company vault imports
+records. The general SDK `ctx.secrets.resolve()` remains read-only. Space vault imports
 ignore instance-owned names and keys. Device-login cleanup checks instance-owned
 account-home claims privately and keeps the directory if a value cannot be read.
 
 Trusted server runtime code can resolve values with
-`agentInstanceSecretService(db).read({ companyId, agentId, pluginId })` after its
+`agentInstanceSecretService(db).read({ spaceId, agentId, pluginId })` after its
 normal execution admission checks. Use the installed plugin's database ID.
 Never place returned values in an agent environment, task payload, log, or UI
 response. Preserve the existing secret master key through restarts and backups.
@@ -313,7 +313,7 @@ Shutdown waits for active work.
 
 The agent API returns `lifecycleState`, `lifecycleVersion`, and `lifecycleError`.
 A board user can retry through `POST /api/agents/:id/lifecycle/retry`.
-The route applies the existing company access checks.
+The route applies the existing space access checks.
 
 ## Existing installations
 

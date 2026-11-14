@@ -13,20 +13,20 @@ interface OnboardingChatProps {
   taskId: string;
   agentId: string;
   agentName: string;
-  companyName: string;
-  companyGoal: string;
+  spaceName: string;
+  spaceGoal: string;
   onPlanDetected?: (planMarkdown: string) => void;
   onReviewPlan?: () => void;
 }
 
 /**
- * Detects whether a comment body contains a structured hiring plan.
+ * Detects whether a comment body contains a structured creation plan.
  * Looks for markdown headers or bullet lists that mention roles/positions.
  */
-function detectHiringPlan(body: string): boolean {
+function detectCreationPlan(body: string): boolean {
   const planPatterns = [
-    /##?\s*(hiring|team|org|roles|plan)/i,
-    /##?\s*(proposed|recommended)\s*(roles|hires|team)/i,
+    /##?\s*(creation|team|org|roles|plan)/i,
+    /##?\s*(proposed|recommended)\s*(roles|creations|team)/i,
     /\n-\s+\*\*[^*]+\*\*/g, // bullet list with bold items (role names)
     /\|\s*role\s*\|/i, // markdown table with "Role" header
   ];
@@ -83,8 +83,8 @@ export function OnboardingChat({
   taskId,
   agentId,
   agentName,
-  companyName,
-  companyGoal,
+  spaceName,
+  spaceGoal,
   onPlanDetected,
   onReviewPlan,
 }: OnboardingChatProps) {
@@ -137,7 +137,7 @@ export function OnboardingChat({
     }
   }, [comments?.length]);
 
-  // Detect hiring plan in agent comments.
+  // Detect creation plan in agent comments.
   // Only considers agent comments newer than the user's last message AND
   // newer than any "ignore" marker (set when user asks for revisions).
   useEffect(() => {
@@ -156,7 +156,7 @@ export function OnboardingChat({
     // Only scan agent comments after the cutoff
     for (let i = comments.length - 1; i > cutoffIdx; i--) {
       const c = comments[i];
-      if (c.authorAgentId && detectHiringPlan(c.body)) {
+      if (c.authorAgentId && detectCreationPlan(c.body)) {
         setDetectedPlanCommentId(c.id);
         // Fetch the full plan document — it has richer role descriptions
         issuesApi.getDocument(taskId, "plan").then((doc) => {
@@ -264,14 +264,14 @@ export function OnboardingChat({
         {/* Default-agent welcome message + chips — delayed reveal */}
         <WelcomeMessage
           agentName={agentName}
-          companyName={companyName}
-          companyGoal={companyGoal}
+          spaceName={spaceName}
+          spaceGoal={spaceGoal}
           hasComments={Boolean(comments?.length)}
           onDiscuss={() => {
             setInput("I want to discuss the plan before you get started.");
             inputRef.current?.focus();
           }}
-          onStart={() => sendMessage("Yes, get started on the hiring plan!")}
+          onStart={() => sendMessage("Yes, get started on the creation plan!")}
         />
         {comments?.map((comment) => {
           const isAgent = Boolean(comment.authorAgentId);
@@ -301,7 +301,7 @@ export function OnboardingChat({
                 {isPlan && (
                   <span className="inline-flex items-center gap-0.5 text-(length:--text-nano) text-green-600 dark:text-green-400 font-medium">
                     <CheckCircle2 className="h-3 w-3" />
-                    Hiring plan detected
+                    Creation plan detected
                   </span>
                 )}
               </div>
@@ -350,7 +350,7 @@ export function OnboardingChat({
               <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
               <div>
                 <p className="text-sm font-medium">
-                  {agentName} has prepared a hiring plan
+                  {agentName} has prepared a creation plan
                 </p>
                 <p className="text-(length:--text-micro) text-muted-foreground">
                   Review it, make edits, then approve.
@@ -396,15 +396,15 @@ export function OnboardingChat({
 
 function WelcomeMessage({
   agentName,
-  companyName,
-  companyGoal,
+  spaceName,
+  spaceGoal,
   hasComments,
   onDiscuss,
   onStart,
 }: {
   agentName: string;
-  companyName: string;
-  companyGoal: string;
+  spaceName: string;
+  spaceGoal: string;
   hasComments: boolean;
   onDiscuss: () => void;
   onStart: () => void;
@@ -432,10 +432,10 @@ function WelcomeMessage({
             </span>
           </div>
           <p>
-            Hi! Thanks for bringing me on to lead <strong>{companyName}</strong>.
+            Hi! Thanks for bringing me on to lead <strong>{spaceName}</strong>.
           </p>
           <p className="mt-1">
-            Our mission is: <em>{companyGoal}</em>
+            Our mission is: <em>{spaceGoal}</em>
           </p>
           <p className="mt-1">
             I'm ready to put together a plan for who we should bring on. Want me to get started?

@@ -38,7 +38,7 @@ vi.mock("@/lib/router", () => ({
 const triggeredAt = new Date("2026-08-31T16:00:00.000Z");
 const run: RoutineRunSummary = {
   id: "run-1",
-  companyId: "company-1",
+  spaceId: "space-1",
   routineId: "routine-1",
   triggerId: "trigger-1",
   source: "schedule",
@@ -66,7 +66,7 @@ const run: RoutineRunSummary = {
 
 const routine = {
   id: "routine-1",
-  companyId: "company-1",
+  spaceId: "space-1",
   projectId: "project-1",
   folderId: null,
   goalId: null,
@@ -79,7 +79,7 @@ const routine = {
   concurrencyPolicy: "coalesce_if_active",
   catchUpPolicy: "skip_missed",
   activityGatePolicy: "always",
-  activityGateScope: "company",
+  activityGateScope: "space",
   variables: [],
   env: { PRIVATE_TOKEN: { type: "secret_ref", secretId: "secret-1" } },
   latestRevisionId: "revision-1",
@@ -98,7 +98,7 @@ const routine = {
   parentIssue: null,
   triggers: [{
     id: "trigger-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     routineId: "routine-1",
     kind: "schedule",
     label: "weekday",
@@ -128,7 +128,7 @@ function contextFixture(): RoutineDetailContextValue {
   return {
     routine,
     routineId: routine.id,
-    companyId: routine.companyId,
+    spaceId: routine.spaceId,
     routineRuns: [run],
     currentAssignee: {
       id: "agent-1",
@@ -177,10 +177,10 @@ describe("RoutineOverview", () => {
   });
 
   it("adapts compact run tasks to the canonical task presentation", () => {
-    const issue = routineRunIssue(run.linkedIssue!, run, "company-1", "project-1");
+    const issue = routineRunIssue(run.linkedIssue!, run, "space-1", "project-1");
     expect(issue).toMatchObject({
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       projectId: "project-1",
       status: "done",
       priority: "high",

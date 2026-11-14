@@ -16,7 +16,7 @@ it("retains every streamed byte and flushes before a tool request or terminal", 
   const output = createOpenCodeProxyOutput(write);
   for (const text of ["A ", "流", "ed answer."]) output.send(delta(text));
   expect(write).not.toHaveBeenCalled();
-  const tool = { id: "tool-1", method: "item/tool/call", params: { tool: "paperclip_finish" } };
+  const tool = { id: "tool-1", method: "item/tool/call", params: { tool: "outpost_finish" } };
   output.send(tool);
   expect(write.mock.calls.map(([value]) => value)).toEqual([delta("A 流ed answer."), tool]);
   output.send(delta("Final."));

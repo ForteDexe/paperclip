@@ -74,7 +74,7 @@ test('selection accepts the exact master workflow URL returned by a build-server
   const value = await validatePilotSelection(refreshed.get, env, context, 99);
   assert.deepEqual(value.cases.map(row => row.caseId), selected.map(row => row.caseId));
   assert.equal(value.targetSha, catalogTargetSha);
-  for (const url of [job.url.replace('/master/', '/other-branch/'), job.url.replace('/paperclipai/', '/other-owner/'),
+  for (const url of [job.url.replace('/master/', '/other-branch/'), job.url.replace('/outpost/', '/other-owner/'),
     job.url.replace('chat-catalog-testops.yml', 'chat-catalog-testops-case.yml')]) {
     const wrong = api({ '/api/job/11': { ...job, url } });
     await assert.rejects(validatePilotSelection(wrong.get, env, context, 99), /job_mismatch/);

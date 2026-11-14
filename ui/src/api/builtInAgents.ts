@@ -3,11 +3,11 @@ import { api } from "./client";
 
 /**
  * Lifecycle of a built-in agent, derived server-side from row existence,
- * adapter-config completeness, board-approval state, and `pausedAt`.
+ * adapter-config completeness, operator-approval state, and `pausedAt`.
  *
  * `not_provisioned → pending_approval → needs_setup → ready ⇄ paused`
  *
- * `pending_approval` only occurs when the company requires board approval for
+ * `pending_approval` only occurs when the space requires operator approval for
  * new agents; otherwise provisioning goes straight to `needs_setup`/`ready`.
  */
 export type BuiltInAgentStatus =
@@ -64,7 +64,7 @@ export type BuiltInManagedResourceKind = "instructions" | "skill" | "routine";
  * Drift status of one managed resource versus the shipped stock default:
  * - `missing` — expected resource absent; a reconcile will recreate it.
  * - `stock_current` — present and byte-identical to the shipped default.
- * - `stock_update_available` — unedited, but Paperclip shipped a newer default.
+ * - `stock_update_available` — unedited, but Outpost shipped a newer default.
  * - `operator_modified` — operator-edited; reconcile preserves these edits.
  */
 export type BuiltInManagedResourceStockStatus =
@@ -103,7 +103,7 @@ export interface BuiltInAgentState {
   pauseReason: string | null;
   /** Per-resource drift/readiness for bundle-backed built-ins (may be empty). */
   resources?: BuiltInManagedResourceState[];
-  /** Present when provisioning queued a board hire approval (HTTP 202). */
+  /** Present when provisioning queued a operator create approval (HTTP 202). */
   approval?: Approval | null;
 }
 
@@ -136,10 +136,10 @@ export const BUILT_IN_AGENT_NOT_CONFIGURED_CODE = "built_in_agent_not_configured
 export const BUILT_IN_AGENT_PAUSED_CODE = "built_in_agent_paused";
 
 export const builtInAgentsApi = {
-  list: (companyId: string) =>
-    api.get<BuiltInAgentState[]>(`/companies/${companyId}/built-in-agents`),
-  provision: (companyId: string, key: string, input: BuiltInAgentProvisionInput = {}) =>
-    api.post<BuiltInAgentState>(`/companies/${companyId}/built-in-agents/${key}/provision`, input),
+  list: (spaceId: string) =>
+    api.get<BuiltInAgentState[]>(`/spaces/${spaceId}/built-in-agents`),
+  provision: (spaceId: string, key: string, input: BuiltInAgentProvisionInput = {}) =>
+    api.post<BuiltInAgentState>(`/spaces/${spaceId}/built-in-agents/${key}/provision`, input),
   /**
    * Reset built-in defaults. Pass `resources` to scope the reset to specific
    * managed resources (e.g. `["skill"]`); omit it to reset the whole agent +
@@ -147,9 +147,9 @@ export const builtInAgentsApi = {
    * default — the same path used for both "reset drifted edits" and "apply an
    * available stock update".
    */
-  reset: (companyId: string, key: string, resources?: BuiltInResetResource[]) =>
+  reset: (spaceId: string, key: string, resources?: BuiltInResetResource[]) =>
     api.post<BuiltInAgentState>(
-      `/companies/${companyId}/built-in-agents/${key}/reset`,
+      `/spaces/${spaceId}/built-in-agents/${key}/reset`,
       resources ? { resources } : {},
     ),
   /**
@@ -157,12 +157,12 @@ export const builtInAgentsApi = {
    * (`stock_update_available`) and `missing` resources while preserving
    * `operator_modified` edits — it is the safe "apply available updates" path.
    */
-  reconcile: (companyId: string, key: string) =>
-    api.post<BuiltInAgentState>(`/companies/${companyId}/built-in-agents/${key}/reconcile`, {}),
-  runRoutine: (companyId: string, key: string, routineKey: string) =>
-    api.post<unknown>(`/companies/${companyId}/built-in-agents/${key}/routines/${routineKey}/run`, {}),
-  enableRoutineSchedule: (companyId: string, key: string, routineKey: string) =>
-    api.post<BuiltInAgentState>(`/companies/${companyId}/built-in-agents/${key}/routines/${routineKey}/enable`, {}),
-  disableRoutineSchedule: (companyId: string, key: string, routineKey: string) =>
-    api.post<BuiltInAgentState>(`/companies/${companyId}/built-in-agents/${key}/routines/${routineKey}/disable`, {}),
+  reconcile: (spaceId: string, key: string) =>
+    api.post<BuiltInAgentState>(`/spaces/${spaceId}/built-in-agents/${key}/reconcile`, {}),
+  runRoutine: (spaceId: string, key: string, routineKey: string) =>
+    api.post<unknown>(`/spaces/${spaceId}/built-in-agents/${key}/routines/${routineKey}/run`, {}),
+  enableRoutineSchedule: (spaceId: string, key: string, routineKey: string) =>
+    api.post<BuiltInAgentState>(`/spaces/${spaceId}/built-in-agents/${key}/routines/${routineKey}/enable`, {}),
+  disableRoutineSchedule: (spaceId: string, key: string, routineKey: string) =>
+    api.post<BuiltInAgentState>(`/spaces/${spaceId}/built-in-agents/${key}/routines/${routineKey}/disable`, {}),
 };

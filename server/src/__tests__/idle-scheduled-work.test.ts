@@ -3,7 +3,7 @@ import type { Db } from "@outpost/db";
 import { readIdleRoutineSchedule } from "../services/idle-scheduled-work.js";
 
 const now = Date.UTC(2020, 0, 1);
-const trigger = { id: "fixture", routine_id: "routine", company_id: "company", kind: "schedule",
+const trigger = { id: "fixture", routine_id: "routine", space_id: "space", kind: "schedule",
   setup_pending: false, cron_expression: "*/15 * * * *", timezone: "UTC", scoped: true,
   next_run_at: new Date(now + 600_000), routine_updated: new Date(now), trigger_updated: new Date(now) };
 function database(rows: unknown[]) {

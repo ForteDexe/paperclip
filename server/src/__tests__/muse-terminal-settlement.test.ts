@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, closeRegisteredClients,
+import { agents, authUsers, spaces, spaceMemberships, createDb, closeRegisteredClients,
   externalAgentHolds, heartbeatRuns, issues, completionContracts, nativeRunResults, nativeRunFinalizations, museAgentBindings as bindings,
   museRunnerAssignments as assignments, museRunnerOperations as operations, type Db } from "@outpost/db";
 import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
@@ -43,7 +43,7 @@ describe("Muse terminal settlement lifecycle", () => {
     await stop?.(); stop = undefined;
     for (const detach of detachers.splice(0)) await detach();
     vi.useRealTimers(); vi.restoreAllMocks();
-    await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
   });
   async function start(canSettle: () => Promise<boolean> = async () => recover, database: Db = db) {
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => admitted,
@@ -80,22 +80,22 @@ describe("Muse terminal settlement lifecycle", () => {
   afterAll(async () => { await closeRegisteredClients(external ?? temporary!.connectionString); await temporary?.cleanup(); });
   async function fixture(ready=true) {
     const operatorId=randomUUID();await db.insert(authUsers).values({id:operatorId,name:"Muse authorizer",email:operatorId+"@example.test",createdAt:new Date(),updatedAt:new Date()});
-    const [company]=await db.insert(companies).values({name:"Muse control",issuePrefix:"MU"+operatorId.replaceAll("-","")}).returning();
-    const [agent]=await db.insert(agents).values({companyId:company.id,name:"Muse",role:"engineer",status:"active",adapterType:"outpost_runner",adapterConfig:{provider:"muse",allowUnmeteredProvider:true,lifecycle:"per_turn"},permissions:{canCreateTasks:true}}).returning();
-    await db.insert(companyMemberships).values([{companyId:company.id,principalType:"user",principalId:operatorId,membershipRole:"owner",status:"active"},{companyId:company.id,principalType:"agent",principalId:agent.id,membershipRole:"member",status:"active"}]);
-    const ticket=randomBytes(32).toString("base64url");const [binding]=await db.insert(bindings).values({companyId:company.id,agentId:agent.id,operatorId,ticketHash:museCredentialHash(ticket),ticketExpiresAt:new Date(Date.now()+600000)}).returning();
+    const [space]=await db.insert(spaces).values({name:"Muse control",issuePrefix:"MU"+operatorId.replaceAll("-","")}).returning();
+    const [agent]=await db.insert(agents).values({spaceId:space.id,name:"Muse",role:"engineer",status:"active",adapterType:"outpost_runner",adapterConfig:{provider:"muse",allowUnmeteredProvider:true,lifecycle:"per_turn"},permissions:{canCreateTasks:true}}).returning();
+    await db.insert(spaceMemberships).values([{spaceId:space.id,principalType:"user",principalId:operatorId,membershipRole:"owner",status:"active"},{spaceId:space.id,principalType:"agent",principalId:agent.id,membershipRole:"member",status:"active"}]);
+    const ticket=randomBytes(32).toString("base64url");const [binding]=await db.insert(bindings).values({spaceId:space.id,agentId:agent.id,operatorId,ticketHash:museCredentialHash(ticket),ticketExpiresAt:new Date(Date.now()+600000)}).returning();
     await db.update(agents).set({adapterConfig:{...agent.adapterConfig,museBindingId:binding.id}}).where(eq(agents.id,agent.id));
     const identity=museIdentity(db),credentials=await identity.pair(ticket,"2"),broker=museRunnerBroker(db,{publicOrigin:"https://outpost.example",heartbeat:{wakeup:vi.fn().mockResolvedValue(null),cancelRun:vi.fn()}});
     if(ready)await db.update(bindings).set({status:"ready",receiverContactAt:new Date(),verifiedReplyAt:new Date()}).where(eq(bindings.id,binding.id));
-    return {company,agent,operatorId,binding,ticket,identity,credentials,broker,subject:await identity.authenticate(credentials.accessToken)};
+    return {space,agent,operatorId,binding,ticket,identity,credentials,broker,subject:await identity.authenticate(credentials.accessToken)};
   }
   async function active(provided?:Awaited<ReturnType<typeof fixture>>,afterSettle?: (command:ExternalProviderOperation)=>Promise<void>) {
     const f=provided??await fixture(),runId=randomUUID(),session=randomUUID(),turnId="turn_"+randomUUID();
-    const [issue]=await db.insert(issues).values({companyId:f.company.id,title:"Muse task",status:"in_progress",assigneeAgentId:f.agent.id,responsibleUserId:f.operatorId}).returning();
-    await db.insert(heartbeatRuns).values({id:runId,companyId:f.company.id,agentId:f.agent.id,status:"running",runtimeMode:"native",driverKind:"muse_external",nativeIssueId:issue.id,nativeSessionId:session,nativePhase:"turn_running",responsibleUserId:f.operatorId});
+    const [issue]=await db.insert(issues).values({spaceId:f.space.id,title:"Muse task",status:"in_progress",assigneeAgentId:f.agent.id,responsibleUserId:f.operatorId}).returning();
+    await db.insert(heartbeatRuns).values({id:runId,spaceId:f.space.id,agentId:f.agent.id,status:"running",runtimeMode:"native",driverKind:"muse_external",nativeIssueId:issue.id,nativeSessionId:session,nativePhase:"turn_running",responsibleUserId:f.operatorId});
     await db.update(issues).set({checkoutRunId:runId,executionRunId:runId}).where(eq(issues.id,issue.id));
-    await db.insert(nativeRunFinalizations).values({runId,companyId:f.company.id,issueId:issue.id,phase:"running",controllerGeneration:1,leaseExpiresAt:new Date(Date.now()+600000)});
-    const execution={binding:{companyId:f.company.id,agentId:f.agent.id,runId},provider:{binding:await f.broker.snapshot(f.company.id,f.agent.id,f.binding.id)}};
+    await db.insert(nativeRunFinalizations).values({runId,spaceId:f.space.id,issueId:issue.id,phase:"running",controllerGeneration:1,leaseExpiresAt:new Date(Date.now()+600000)});
+    const execution={binding:{spaceId:f.space.id,agentId:f.agent.id,runId},provider:{binding:await f.broker.snapshot(f.space.id,f.agent.id,f.binding.id)}};
     const port=f.broker.port(execution),sent:ExternalProviderOperation[]=[];
     const detach=await port.attach(async command=>{sent.push(command);await port.settle({sourceEventId:"settle_"+command.requestId,payload:{binding:ref,requestId:command.requestId,outcome:command.action==="consume_input"?{status:"consumed",requestId:command.input.requestId,inputDigest:command.input.inputDigest}:{status:command.action==="accept"?"accepted":"completed"}}});await afterSettle?.(command);});
     const ref={...execution.provider.binding,runId,normalizedSessionId:session,turnId,assignmentRevision:1};
@@ -104,14 +104,14 @@ describe("Muse terminal settlement lifecycle", () => {
     detachers.push(detach);
     return {...f,runId,issue,port,ref,assignment,sent,detach};
   }
-  it("ignores routine company-only finalization hints and still settles a committed Muse run", async () => {
+  it("ignores routine space-only finalization hints and still settles a committed Muse run", async () => {
     const f = await acceptedResult();
     await start(); await idle(); await quiet();
     const previous = db.$client.options.debug, queries: string[] = [];
     db.$client.options.debug = (_id, query) => queries.push(query);
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
-        await db.transaction(tx => notifyNativeFinalizationWork(tx, { companyId: f.company.id }));
+        await db.transaction(tx => notifyNativeFinalizationWork(tx, { spaceId: f.space.id }));
         await idle();
       }
       expect(queries.filter(query => query.includes('"muse_runner_assignments"'))).toEqual([]);
@@ -288,13 +288,13 @@ describe("Muse terminal settlement lifecycle", () => {
 
 
     const contractId = randomUUID();
-    await db.insert(completionContracts).values({ id: contractId, companyId: f.company.id, issueId: f.issue.id,
+    await db.insert(completionContracts).values({ id: contractId, spaceId: f.space.id, issueId: f.issue.id,
       revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "settlement-test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "settlement-test", objective: "Finish", criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
     await db.update(heartbeatRuns).set({ completionContractId: contractId }).where(eq(heartbeatRuns.id, f.runId));
-    const [result] = await db.insert(nativeRunResults).values({ companyId: f.company.id, issueId: f.issue.id,
+    const [result] = await db.insert(nativeRunResults).values({ spaceId: f.space.id, issueId: f.issue.id,
       runId: f.runId, completionContractId: contractId, serverFingerprint: randomUUID(), canonicalSha256: randomUUID(),
       schemaStatus: "accepted", resultJson: { terminal: { runTerminalState: "succeeded" } } }).returning();
     const [finalization] = await db.update(nativeRunFinalizations).set({ resultId: result.id, phase: "committed" })
@@ -324,7 +324,7 @@ describe("Muse terminal settlement lifecycle", () => {
     await vi.advanceTimersByTimeAsync(5000); await idle();
     expect(await missing()).toHaveLength(0); await quiet();
     await db.update(assignments).set({ finalizedAt: null }).where(eq(assignments.bindingId, f.binding.id));
-    await f.broker.reconcileTerminalAssignments(f.company.id, f.agent.id, f.binding.id);
+    await f.broker.reconcileTerminalAssignments(f.space.id, f.agent.id, f.binding.id);
     expect(await missing()).toHaveLength(0);
     expect(errors).toEqual([]); await quiet();
   });
@@ -335,7 +335,7 @@ describe("Muse terminal settlement lifecycle", () => {
     const requestId = randomUUID(), input = { result: {} };
 
 
-    await db.insert(operations).values({ companyId: f.company.id, assignmentId: f.assignment.id, requestId,
+    await db.insert(operations).values({ spaceId: f.space.id, assignmentId: f.assignment.id, requestId,
       digest: externalOperationDigest("finish", input), command: { ...f.ref, requestId, action: "finish", input,
         digest: externalOperationDigest("finish", input) }, status: "pending" });
     await f.detach();
@@ -357,7 +357,7 @@ describe("Muse terminal settlement lifecycle", () => {
 
     await db.update(externalAgentHolds).set({ workerUnknown: false, releasedAt: new Date() })
       .where(eq(externalAgentHolds.assignmentId, f.assignment.id));
-    await f.broker.revoke(f.company.id, f.agent.id, f.operatorId);
+    await f.broker.revoke(f.space.id, f.agent.id, f.operatorId);
     await db.update(agents).set({ adapterConfig: { provider: "codex" } }).where(eq(agents.id, f.agent.id));
     await lifecycle().setRunStatus(f.runId, "succeeded", { finishedAt: new Date() });
     await start(); await idle();

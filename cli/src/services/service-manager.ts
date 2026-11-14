@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { resolvePaperclipHomeDir, resolvePaperclipInstanceId } from "../config/home.js";
+import { resolveOutpostHomeDir, resolveOutpostInstanceId } from "../config/home.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -74,7 +74,7 @@ function escapeRegExp(value: string): string {
 }
 
 export function resolveServiceShimPath(homeDir = os.homedir()): string {
-  return process.env.OUTPOST_SHIM_PATH?.trim() || path.join(homeDir, ".local", "bin", "paperclipai");
+  return process.env.OUTPOST_SHIM_PATH?.trim() || path.join(homeDir, ".local", "bin", "outpost");
 }
 
 // The installed definition, not the current environment, is the truth
@@ -117,11 +117,11 @@ export async function isExecutableFile(filePath: string): Promise<boolean> {
 }
 
 export function systemdServiceName(instanceId: string): string {
-  return instanceId === "default" ? "paperclipai.service" : `paperclipai-${instanceId}.service`;
+  return instanceId === "default" ? "outpost.service" : `outpost-${instanceId}.service`;
 }
 
 export function launchdServiceName(instanceId: string): string {
-  return instanceId === "default" ? "ing.outpost.paperclipai" : `ing.outpost.paperclipai.${instanceId}`;
+  return instanceId === "default" ? "ing.outpost.cli" : `ing.outpost.cli.${instanceId}`;
 }
 
 export function renderSystemdUnit(input: { instanceId: string; shimPath: string; homeDir: string }): string {
@@ -207,7 +207,7 @@ export class SystemdServiceManager implements ServiceManager {
   readonly serviceName: string;
   readonly definitionPath: string;
 
-  constructor(readonly instanceId: string, private readonly runner: CommandRunner = defaultCommandRunner, private readonly homeDir = resolvePaperclipHomeDir(), private readonly shimPath = resolveServiceShimPath(), userHomeDir = os.homedir()) {
+  constructor(readonly instanceId: string, private readonly runner: CommandRunner = defaultCommandRunner, private readonly homeDir = resolveOutpostHomeDir(), private readonly shimPath = resolveServiceShimPath(), userHomeDir = os.homedir()) {
     this.serviceName = systemdServiceName(instanceId);
     this.definitionPath = path.join(userHomeDir, ".config", "systemd", "user", this.serviceName);
   }
@@ -282,7 +282,7 @@ export class LaunchdServiceManager implements ServiceManager {
   private readonly stdoutPath: string;
   private readonly stderrPath: string;
 
-  constructor(readonly instanceId: string, private readonly runner: CommandRunner = defaultCommandRunner, private readonly homeDir = resolvePaperclipHomeDir(), private readonly shimPath = resolveServiceShimPath(), userHomeDir = os.homedir()) {
+  constructor(readonly instanceId: string, private readonly runner: CommandRunner = defaultCommandRunner, private readonly homeDir = resolveOutpostHomeDir(), private readonly shimPath = resolveServiceShimPath(), userHomeDir = os.homedir()) {
     this.serviceName = launchdServiceName(instanceId);
     this.definitionPath = path.join(userHomeDir, "Library", "LaunchAgents", `${this.serviceName}.plist`);
     const logDir = path.join(homeDir, "instances", instanceId, "logs");
@@ -347,16 +347,16 @@ export class LaunchdServiceManager implements ServiceManager {
 export type ServiceManagerDetection = { supported: true; manager: ServiceManager } | { supported: false; reason: string };
 
 export async function detectServiceManager(input: { instanceId?: string; platform?: NodeJS.Platform; runner?: CommandRunner } = {}): Promise<ServiceManagerDetection> {
-  const instanceId = resolvePaperclipInstanceId(input.instanceId);
+  const instanceId = resolveOutpostInstanceId(input.instanceId);
   const platform = input.platform ?? process.platform;
   const runner = input.runner ?? defaultCommandRunner;
   if (platform === "darwin") return { supported: true, manager: new LaunchdServiceManager(instanceId, runner) };
-  if (platform !== "linux") return { supported: false, reason: `Service management is not supported on ${platform}. Use paperclipai run instead.` };
+  if (platform !== "linux") return { supported: false, reason: `Service management is not supported on ${platform}. Use outpost run instead.` };
   try {
     await runner("systemctl", ["--user", "show-environment"]);
     return { supported: true, manager: new SystemdServiceManager(instanceId, runner) };
   } catch {
-    return { supported: false, reason: "No usable systemd user manager was detected (common in containers and WSL1). Use paperclipai run instead." };
+    return { supported: false, reason: "No usable systemd user manager was detected (common in containers and WSL1). Use outpost run instead." };
   }
 }
 
@@ -365,5 +365,5 @@ export async function assertForegroundRunAllowed(instanceId: string, force = fal
   const detection = await detector({ instanceId });
   if (!detection.supported) return;
   const status = await detection.manager.status();
-  if (status.active) throw new Error(`Outpost instance '${instanceId}' is already running as ${status.serviceName}. Use 'paperclipai service status --instance ${instanceId}' or pass --force to bypass this safety check.`);
+  if (status.active) throw new Error(`Outpost instance '${instanceId}' is already running as ${status.serviceName}. Use 'outpost service status --instance ${instanceId}' or pass --force to bypass this safety check.`);
 }

@@ -11,13 +11,13 @@ import type { Agent } from "@outpost/shared";
 import type { IssueChatComment } from "@/lib/issue-chat-messages";
 import { resolveCommentAttribution } from "@/lib/comment-attribution";
 import { resolveIssueChatHumanAuthor } from "@/lib/issue-chat-human-author";
-import type { CompanyUserProfile } from "@/lib/company-members";
+import type { SpaceUserProfile } from "@/lib/space-members";
 import type { TaskChatAuthorKind, TaskChatItem, TaskChatMessageItem } from "./task-chat-model";
 
 export interface TaskChatAdapterContext {
   agentMap?: Map<string, Agent>;
   userLabelMap?: ReadonlyMap<string, string> | null;
-  userProfileMap?: ReadonlyMap<string, CompanyUserProfile> | null;
+  userProfileMap?: ReadonlyMap<string, SpaceUserProfile> | null;
   currentUserId?: string | null;
   /**
    * Task's current assignee. Agent comments from anyone else are cross-issue

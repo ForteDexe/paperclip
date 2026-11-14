@@ -80,7 +80,7 @@ const activityGatePolicyOptions = [
 
 const activityGateScopeOptions = [
   {
-    value: "company",
+    value: "space",
     title: "Outpost-wide",
     description: "Any activity across the outpost counts as a reason to run.",
   },
@@ -436,7 +436,7 @@ export function SecretsSection() {
   const ctx = useRoutineDetail();
   const { editDraft, setEditDraft, availableSecrets, createSecret } = ctx;
 
-  // Project/company-scoped secrets that already see real usage, surfaced as
+  // Project/space-scoped secrets that already see real usage, surfaced as
   // quick-bind chips (§3.4). Ranked by reference count then recency.
   const recentlyUsedSecrets = useMemo(
     () =>

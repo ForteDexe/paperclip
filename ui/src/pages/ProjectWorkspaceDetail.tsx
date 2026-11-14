@@ -19,7 +19,7 @@ import {
   type WorkspaceRuntimeControlRequest,
 } from "../components/WorkspaceRuntimeControls";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useManagedSandboxOnly } from "../hooks/useManagedSandboxOnly";
 import { queryKeys } from "../lib/queryKeys";
 import { projectRouteRef, projectWorkspaceUrl } from "../lib/utils";
@@ -247,12 +247,12 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
 }
 
 export function ProjectWorkspaceDetail() {
-  const { companyPrefix, projectId, workspaceId } = useParams<{
-    companyPrefix?: string;
+  const { spacePrefix, projectId, workspaceId } = useParams<{
+    spacePrefix?: string;
     projectId: string;
     workspaceId: string;
   }>();
-  const { companies, selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { spaces, selectedSpaceId, setSelectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const location = useLocation();
   const navigate = useNavigate();
@@ -265,17 +265,17 @@ export function ProjectWorkspaceDetail() {
   const routeWorkspaceId = workspaceId ?? "";
   const activeTab = useMemo(() => projectWorkspaceTabFromSearch(location.search), [location.search]);
 
-  const routeCompanyId = useMemo(() => {
-    if (!companyPrefix) return null;
-    const requestedPrefix = companyPrefix.toUpperCase();
-    return companies.find((company) => company.issuePrefix.toUpperCase() === requestedPrefix)?.id ?? null;
-  }, [companies, companyPrefix]);
+  const routeSpaceId = useMemo(() => {
+    if (!spacePrefix) return null;
+    const requestedPrefix = spacePrefix.toUpperCase();
+    return spaces.find((space) => space.issuePrefix.toUpperCase() === requestedPrefix)?.id ?? null;
+  }, [spaces, spacePrefix]);
 
-  const lookupCompanyId = routeCompanyId ?? selectedCompanyId ?? undefined;
-  const canFetchProject = routeProjectRef.length > 0 && (isUuidLike(routeProjectRef) || Boolean(lookupCompanyId));
+  const lookupSpaceId = routeSpaceId ?? selectedSpaceId ?? undefined;
+  const canFetchProject = routeProjectRef.length > 0 && (isUuidLike(routeProjectRef) || Boolean(lookupSpaceId));
   const projectQuery = useQuery({
-    queryKey: [...queryKeys.projects.detail(routeProjectRef), lookupCompanyId ?? null],
-    queryFn: () => projectsApi.get(routeProjectRef, lookupCompanyId),
+    queryKey: [...queryKeys.projects.detail(routeProjectRef), lookupSpaceId ?? null],
+    queryFn: () => projectsApi.get(routeProjectRef, lookupSpaceId),
     enabled: canFetchProject,
   });
   const projectView = useQueryView(projectQuery);
@@ -295,8 +295,8 @@ export function ProjectWorkspaceDetail() {
   } = usePluginSlots({
     slotTypes: ["detailTab"],
     entityType: "project_workspace",
-    companyId: project?.companyId ?? null,
-    enabled: Boolean(project?.companyId),
+    spaceId: project?.spaceId ?? null,
+    enabled: Boolean(project?.spaceId),
   });
   const pluginTabItems = useMemo(
     () => pluginDetailSlots.map((slot) => ({
@@ -313,9 +313,9 @@ export function ProjectWorkspaceDetail() {
   );
 
   useEffect(() => {
-    if (!project?.companyId || project.companyId === selectedCompanyId) return;
-    setSelectedCompanyId(project.companyId, { source: "route_sync" });
-  }, [project?.companyId, selectedCompanyId, setSelectedCompanyId]);
+    if (!project?.spaceId || project.spaceId === selectedSpaceId) return;
+    setSelectedSpaceId(project.spaceId, { source: "route_sync" });
+  }, [project?.spaceId, selectedSpaceId, setSelectedSpaceId]);
 
   useEffect(() => {
     if (!workspace) return;
@@ -343,14 +343,14 @@ export function ProjectWorkspaceDetail() {
     if (!project) return;
     queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(project.id) });
     queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(project.urlKey) });
-    if (lookupCompanyId) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(lookupCompanyId) });
+    if (lookupSpaceId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(lookupSpaceId) });
     }
   };
 
   const updateWorkspace = useMutation({
     mutationFn: (patch: Record<string, unknown>) =>
-      projectsApi.updateWorkspace(project!.id, routeWorkspaceId, patch, lookupCompanyId),
+      projectsApi.updateWorkspace(project!.id, routeWorkspaceId, patch, lookupSpaceId),
     onSuccess: () => {
       invalidateProject();
       setErrorMessage(null);
@@ -361,7 +361,7 @@ export function ProjectWorkspaceDetail() {
   });
 
   const setPrimaryWorkspace = useMutation({
-    mutationFn: () => projectsApi.updateWorkspace(project!.id, routeWorkspaceId, { isPrimary: true }, lookupCompanyId),
+    mutationFn: () => projectsApi.updateWorkspace(project!.id, routeWorkspaceId, { isPrimary: true }, lookupSpaceId),
     onSuccess: () => {
       invalidateProject();
       setErrorMessage(null);
@@ -373,7 +373,7 @@ export function ProjectWorkspaceDetail() {
 
   const controlRuntimeServices = useMutation({
     mutationFn: (request: WorkspaceRuntimeControlRequest) =>
-      projectsApi.controlWorkspaceCommands(project!.id, routeWorkspaceId, request.action, lookupCompanyId, request),
+      projectsApi.controlWorkspaceCommands(project!.id, routeWorkspaceId, request.action, lookupSpaceId, request),
     onSuccess: (result, request) => {
       invalidateProject();
       setErrorMessage(null);
@@ -747,8 +747,8 @@ export function ProjectWorkspaceDetail() {
           <PluginSlotMount
             slot={activePluginTab.slot}
             context={{
-              companyId: project.companyId,
-              companyPrefix: companyPrefix ?? null,
+              spaceId: project.spaceId,
+              spacePrefix: spacePrefix ?? null,
               projectId: project.id,
               entityId: workspace.id,
               entityType: "project_workspace",

@@ -1,12 +1,12 @@
 import {
   buildAdapterEnvConfig,
-  isPaperclipRunnerProvider,
+  isOutpostRunnerProvider,
   normalizeLegacyRunnerProvider,
-  resolvePaperclipRunnerModel,
-  resolvePaperclipRunnerIdleTimeoutMs,
-  resolvePaperclipRunnerPermissionMode,
-  resolvePaperclipRunnerCursorMode,
-  resolvePaperclipRunnerPiThinkingLevel,
+  resolveOutpostRunnerModel,
+  resolveOutpostRunnerIdleTimeoutMs,
+  resolveOutpostRunnerPermissionMode,
+  resolveOutpostRunnerCursorMode,
+  resolveOutpostRunnerPiThinkingLevel,
   OUTPOST_RUNNER_ACPX_PROFILES,
   type CreateConfigValues,
 } from "@outpost/adapter-utils";
@@ -73,7 +73,7 @@ export function buildCodexLocalConfig(v: CreateConfigValues): Record<string, unk
 }
 
 /** Build a provider profile accepted by the experimental Rust runner. */
-export function buildPaperclipRunnerConfig(v: CreateConfigValues, context?: {
+export function buildOutpostRunnerConfig(v: CreateConfigValues, context?: {
   candidateHarnesses?: readonly { agent: "antigravity"; model: string }[];
 }): Record<string, unknown> {
   const config = buildCodexLocalConfig(v);
@@ -100,7 +100,7 @@ export function buildPaperclipRunnerConfig(v: CreateConfigValues, context?: {
     delete schemaValues[unsupportedKey];
   }
   const providerCandidate = schemaValues.provider;
-  const provider = isPaperclipRunnerProvider(providerCandidate)
+  const provider = isOutpostRunnerProvider(providerCandidate)
     ? providerCandidate
     : "codex";
   if (provider === "muse") {
@@ -131,8 +131,8 @@ export function buildPaperclipRunnerConfig(v: CreateConfigValues, context?: {
     throw new Error(`${selectedAcpxProfile.label} is not enabled for production`);
   }
   const acpxAgent = selectedAcpxProfile?.value ?? "claude";
-  const cursorMode = resolvePaperclipRunnerCursorMode(provider, acpxAgent, schemaValues.acpxSessionMode);
-  const piThinkingLevel = resolvePaperclipRunnerPiThinkingLevel(provider, acpxAgent, schemaValues.piThinkingLevel);
+  const cursorMode = resolveOutpostRunnerCursorMode(provider, acpxAgent, schemaValues.acpxSessionMode);
+  const piThinkingLevel = resolveOutpostRunnerPiThinkingLevel(provider, acpxAgent, schemaValues.piThinkingLevel);
 
   const schemaModel = typeof schemaValues.model === "string"
     ? schemaValues.model.trim()
@@ -195,12 +195,12 @@ export function buildPaperclipRunnerConfig(v: CreateConfigValues, context?: {
     300,
     "AWS AgentCore timeoutSeconds",
   );
-  const lifecycleCandidate = v.paperclipRunnerLifecycleMode ?? schemaValues.lifecycleMode;
+  const lifecycleCandidate = v.outpostRunnerLifecycleMode ?? schemaValues.lifecycleMode;
   // No choice stores no lifecycleMode; the server applies the product default.
   const lifecycleMode = lifecycleCandidate === "warm" || lifecycleCandidate === "per_turn" ? lifecycleCandidate : undefined;
   const configuredIdleTimeoutMs =
-    v.paperclipRunnerIdleTimeoutMs ?? schemaValues.idleTimeoutMs;
-  const idleTimeoutMs = resolvePaperclipRunnerIdleTimeoutMs(
+    v.outpostRunnerIdleTimeoutMs ?? schemaValues.idleTimeoutMs;
+  const idleTimeoutMs = resolveOutpostRunnerIdleTimeoutMs(
     configuredIdleTimeoutMs,
   );
   const configuredCodexPermissionMode =
@@ -266,16 +266,16 @@ export function buildPaperclipRunnerConfig(v: CreateConfigValues, context?: {
     ...schemaValues,
     provider,
     ...(provider === "codex"
-      ? { model: resolvePaperclipRunnerModel("codex", config.model),
+      ? { model: resolveOutpostRunnerModel("codex", config.model),
           ...(v.search === false ? { search: false } : {}),
           ...(configuredEffort ? { modelReasoningEffort: configuredEffort } : {}) }
       : {}),
     codexPermissionMode: "never",
-    opencodePermissionMode: resolvePaperclipRunnerPermissionMode(
+    opencodePermissionMode: resolveOutpostRunnerPermissionMode(
       "opencode",
       v.adapterSchemaValues?.opencodePermissionMode,
     ),
-    acpxPermissionMode: resolvePaperclipRunnerPermissionMode(
+    acpxPermissionMode: resolveOutpostRunnerPermissionMode(
       "acpx",
       v.adapterSchemaValues?.acpxPermissionMode,
     ),
@@ -292,7 +292,7 @@ export function buildPaperclipRunnerConfig(v: CreateConfigValues, context?: {
           ...(acpxAgent === "claude" && configuredEffort ? { modelReasoningEffort: configuredEffort } : {}),
           ...(cursorMode === undefined ? {} : { acpxSessionMode: cursorMode }),
           ...(piThinkingLevel === undefined ? {} : { piThinkingLevel }),
-          model: configuredModel || schemaModel || (acpxAgent === "grok" ? "grok-4.7" : resolvePaperclipRunnerModel("acpx", undefined)),
+          model: configuredModel || schemaModel || (acpxAgent === "grok" ? "grok-4.7" : resolveOutpostRunnerModel("acpx", undefined)),
         }
       : {}),
     ...(provider === "claude_managed"

@@ -1,6 +1,6 @@
 import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { environments } from "./environments.js";
 import { executionWorkspaces } from "./execution_workspaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
@@ -10,7 +10,7 @@ export const environmentLeases = pgTable(
   "environment_leases",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     // A lease-less orphan sandbox is recorded here as a `pending_cleanup` row.
     // That row is the only durable teardown reference the cleanup sweep has for
     // the remote sandbox. So the environment reference must survive an
@@ -41,18 +41,18 @@ export const environmentLeases = pgTable(
       .on(table.heartbeatRunId).concurrently().where(sql`${table.leasePolicy} = 'retain_on_failure'
         and ${table.heartbeatRunId} is not null
         and not (coalesce(${table.metadata}, '{}'::jsonb) ? 'systemRecoveryAdoption')`),
-    companyEnvironmentStatusIdx: index("environment_leases_company_environment_status_idx").on(
-      table.companyId,
+    spaceEnvironmentStatusIdx: index("environment_leases_space_environment_status_idx").on(
+      table.spaceId,
       table.environmentId,
       table.status,
     ),
-    companyExecutionWorkspaceIdx: index("environment_leases_company_execution_workspace_idx").on(
-      table.companyId,
+    spaceExecutionWorkspaceIdx: index("environment_leases_space_execution_workspace_idx").on(
+      table.spaceId,
       table.executionWorkspaceId,
     ),
-    companyIssueIdx: index("environment_leases_company_issue_idx").on(table.companyId, table.issueId),
+    spaceIssueIdx: index("environment_leases_space_issue_idx").on(table.spaceId, table.issueId),
     heartbeatRunIdx: index("environment_leases_heartbeat_run_idx").on(table.heartbeatRunId),
-    companyLastUsedIdx: index("environment_leases_company_last_used_idx").on(table.companyId, table.lastUsedAt),
+    spaceLastUsedIdx: index("environment_leases_space_last_used_idx").on(table.spaceId, table.lastUsedAt),
     providerLeaseIdx: index("environment_leases_provider_lease_idx").on(table.providerLeaseId),
     // Leases that reference one native harness backup root by its scope digest
     // (backup expiration, retention and session retention checks). Partial:

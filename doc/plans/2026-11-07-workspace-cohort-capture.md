@@ -10,7 +10,7 @@ work or replay a provider turn.
 await migrateRemoteWorkspaceCohort({
   db,
   storage,
-  companyId,
+  spaceId,
   workspaceIds,
   apply: true,
   concurrency: 2,

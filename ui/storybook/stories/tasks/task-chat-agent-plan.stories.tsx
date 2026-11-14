@@ -15,7 +15,7 @@ import {
 } from "@/components/task-chat/TaskChatTurnStatusIsland";
 import type { TaskChatProtocolStep } from "@/components/task-chat/task-chat-model";
 import { composerAgentAppearance, composerAgents } from "../../prototypes/composer-model-picker/fixtures";
-import { storybookAgentMap } from "../../fixtures/paperclipData";
+import { storybookAgentMap } from "../../fixtures/outpostData";
 
 type Status = TaskChatProtocolStep["status"];
 
@@ -252,7 +252,7 @@ const meta = {
           "The agent's checklist for the current turn, docked above the composer. It is built from canonical `plan.updated` provider events, so every harness that reports a native plan renders the same way.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "tasks/discussion",
         "runs-adapters/runs"

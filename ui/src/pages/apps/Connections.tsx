@@ -13,14 +13,14 @@ import {
   isToolConnectionAttentionHealth as isAttentionHealthStatus,
 } from "@outpost/shared";
 import { useNavigate } from "@/lib/router";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useToast } from "@/context/ToastContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { toolsApi } from "@/api/tools";
 import { accessApi } from "@/api/access";
 import { useQueryView } from "@/components/QueryView";
-import { buildCompanyUserProfileMap } from "@/lib/company-members";
+import { buildSpaceUserProfileMap } from "@/lib/space-members";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -117,7 +117,7 @@ export function Connections() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
-  const { selectedCompany, selectedCompanyId } = useCompany();
+  const { selectedSpace, selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const reviewCount = useReviewCount();
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -137,29 +137,29 @@ export function Connections() {
   }, [setBreadcrumbs]);
 
   const galleryQuery = useQuery({
-    queryKey: queryKeys.apps.gallery(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listGallery(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.apps.gallery(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listGallery(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const applicationsQuery = useQuery({
-    queryKey: queryKeys.tools.applications(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listApplications(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.tools.applications(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listApplications(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const connectionsQuery = useQuery({
-    queryKey: queryKeys.tools.connections(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listConnections(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.tools.connections(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listConnections(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const profilesQuery = useQuery({
-    queryKey: queryKeys.tools.profiles(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listProfiles(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.tools.profiles(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listProfiles(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const userDirectoryQuery = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(selectedCompanyId ?? "__none__"),
-    queryFn: () => accessApi.listUserDirectory(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.access.spaceUserDirectory(selectedSpaceId ?? "__none__"),
+    queryFn: () => accessApi.listUserDirectory(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const connectorEnrollmentQuery = useQuery({
     queryKey: ["cloud-connector", "enrollment"],
@@ -171,7 +171,7 @@ export function Connections() {
   const connectionsView = useQueryView(connectionsQuery);
   const connectorEnrollmentView = useQueryView(connectorEnrollmentQuery);
   const startConnectorEnrollment = useMutation({
-    mutationFn: () => toolsApi.startCloudConnectorEnrollment(selectedCompanyId!, selectedCompany?.name),
+    mutationFn: () => toolsApi.startCloudConnectorEnrollment(selectedSpaceId!, selectedSpace?.name),
     onSuccess: async (status) => {
       if (status.verificationUrl) await authorization.open(status.verificationUrl);
       else authorization.cancel();
@@ -191,9 +191,9 @@ export function Connections() {
     }) =>
       toolsApi.archiveConnection(target.id),
     onSuccess: (_connection, target) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.applications(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.applications(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedSpaceId!) });
       pushToast({
         title: "Connection deleted",
         body: target.remainingConnectionCount > 0
@@ -247,7 +247,7 @@ export function Connections() {
     return map;
   }, [connections]);
   const userProfileById = useMemo(
-    () => buildCompanyUserProfileMap(userDirectoryQuery.data?.users),
+    () => buildSpaceUserProfileMap(userDirectoryQuery.data?.users),
     [userDirectoryQuery.data],
   );
 
@@ -311,7 +311,7 @@ export function Connections() {
   const rowsNeedingAttention = rows.filter(rowNeedsAttention);
   const visibleRows = filter === "attention" ? rowsNeedingAttention : rows;
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <div className="p-6 text-sm text-muted-foreground">Select an outpost to manage apps.</div>;
   }
 

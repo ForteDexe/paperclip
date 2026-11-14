@@ -2,14 +2,14 @@
 
 ## Context
 
-Paperclip currently stores model spend in `cost_events` and operational run state in `heartbeat_runs`.
+Outpost currently stores model spend in `cost_events` and operational run state in `heartbeat_runs`.
 That split is fine, but the current reporting code tries to infer billing semantics by mixing both tables:
 
 - `cost_events` knows provider, model, tokens, and dollars
 - `heartbeat_runs.usage_json` knows some per-run billing metadata
 - `heartbeat_runs.usage_json` does **not** currently carry enough normalized billing dimensions to support honest provider-level reporting
 
-This becomes incorrect as soon as a company uses more than one provider, more than one billing channel, or more than one billing mode.
+This becomes incorrect as soon as a space uses more than one provider, more than one billing channel, or more than one billing mode.
 
 Examples:
 
@@ -47,7 +47,7 @@ For request-level inference reporting, `cost_events` is enough if it carries the
 
 That is why the first implementation pass extends `cost_events` instead of introducing a second table immediately.
 
-However, if Paperclip needs to account for the full billing surface of aggregators and managed AI platforms, then `cost_events` alone is not enough.
+However, if Outpost needs to account for the full billing surface of aggregators and managed AI platforms, then `cost_events` alone is not enough.
 Some charges are not cleanly representable as a single model inference event:
 
 - account top-ups and credit purchases
@@ -73,7 +73,7 @@ That separation keeps request reporting honest without forcing us to fake invoic
 ## External Motivation And Sources
 
 The need for this model is not theoretical.
-It follows directly from the billing systems of providers and aggregators Paperclip needs to support.
+It follows directly from the billing systems of providers and aggregators Outpost needs to support.
 
 ### OpenRouter
 
@@ -90,7 +90,7 @@ Relevant billing behavior as of March 14, 2026:
 - BYOK has its own fee model after a free request threshold.
 - OpenRouter billing is aggregated at the OpenRouter account level even when the upstream provider is Anthropic, OpenAI, Google, or another provider.
 
-Implication for Paperclip:
+Implication for Outpost:
 
 - request usage belongs in `cost_events`
 - credit purchases, purchase fees, BYOK fees, refunds, and expirations belong in `finance_events`
@@ -110,7 +110,7 @@ Relevant billing behavior as of March 14, 2026:
 - Spend limits can stop request processing on daily, weekly, or monthly boundaries.
 - Unified Billing traffic can use Cloudflare-managed credentials rather than the user's direct provider key.
 
-Implication for Paperclip:
+Implication for Outpost:
 
 - request usage needs `biller=cloudflare`
 - upstream provider still needs to be preserved separately
@@ -133,7 +133,7 @@ Relevant billing behavior as of March 14, 2026:
 - imported model copies are billed in 5-minute windows once active
 - customization and fine-tuning introduce training and hosted-model charges beyond normal inference
 
-Implication for Paperclip:
+Implication for Outpost:
 
 - normal tokenized inference fits in `cost_events`
 - provisioned throughput, custom model unit charges, training, and storage charges require `finance_events`
@@ -230,7 +230,7 @@ Do not overload `provider` to mean biller.
 
 Add a future `finance_events` table for account-level financial events with fields along these lines:
 
-- `company_id`
+- `space_id`
 - `occurred_at`
 - `event_kind`
 - `direction`
@@ -252,9 +252,9 @@ Add a future `finance_events` table for account-level financial events with fiel
 
 Add indexes:
 
-- `(company_id, biller, occurred_at)`
-- `(company_id, provider, occurred_at)`
-- `(company_id, heartbeat_run_id)` if distinct-run reporting remains common
+- `(space_id, biller, occurred_at)`
+- `(space_id, provider, occurred_at)`
+- `(space_id, heartbeat_run_id)` if distinct-run reporting remains common
 
 ## Shared Contract Changes
 
@@ -426,7 +426,7 @@ Add or update tests for:
 1. heartbeat-created ledger rows persist `heartbeatRunId`, `biller`, `billingType`, and cached tokens
 2. legacy adapter billing values map correctly
 3. provider reporting uses ledger data only
-4. mixed-provider companies do not cross-attribute subscription usage
+4. mixed-provider spaces do not cross-attribute subscription usage
 5. zero-dollar subscription usage still appears in token reporting
 6. quota fetch failures render explicit UI state
 7. manual cost events still validate and write correctly

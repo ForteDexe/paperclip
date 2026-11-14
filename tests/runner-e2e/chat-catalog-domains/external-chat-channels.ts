@@ -19,7 +19,7 @@ export const chatChannelExternalCases = [definition("chat-channels.provider-disa
   await ctx.input.api.patch("/api/instance/settings/experimental", { enableChatConnectors: false });
   const saved = await ctx.input.api.get<Record<string, unknown>>("/api/instance/settings/experimental");
   return { worker, disabledBefore: saved.enableChatConnectors === false, priorChatConnectors: settings.enableChatConnectors,
-    resultPath: `/${ctx.input.fixtures.company.issuePrefix}/company/settings/instance/experimental`, resultLabel: "Experimental" };
+    resultPath: `/${ctx.input.fixtures.space.issuePrefix}/space/settings/instance/experimental`, resultLabel: "Experimental" };
 }, gradeDisabledChannel, {
   oracleVersion: "outpost.chat-catalog.external.v2",
   sourceFiles: ["chat-catalog-domains/external-chat-channels.ts", "chat-catalog-domains/external-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/identity-support.ts", "chat-scenarios/chat-channels.yaml"],
@@ -27,8 +27,8 @@ export const chatChannelExternalCases = [definition("chat-channels.provider-disa
     const settings = await ctx.input.api.get<Record<string, unknown>>("/api/instance/settings/experimental");
     const page = await ctx.input.page.context().newPage();
     try {
-      await page.goto(`/${ctx.input.fixtures.company.issuePrefix}/apps/chat/connect?provider=imessage-photon`, { waitUntil: "domcontentloaded" });
-      await page.waitForURL(url => url.pathname === `/${ctx.input.fixtures.company.issuePrefix}/apps`);
+      await page.goto(`/${ctx.input.fixtures.space.issuePrefix}/apps/chat/connect?provider=imessage-photon`, { waitUntil: "domcontentloaded" });
+      await page.waitForURL(url => url.pathname === `/${ctx.input.fixtures.space.issuePrefix}/apps`);
       state.imessageSetupGated = true;
     } finally { await page.close(); }
     state.disabledAfter = settings.enableChatConnectors === false;

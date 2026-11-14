@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { and, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import { executionWorkspaces, heartbeatRuns, issueRecoveryActions, type Db } from "@outpost/db";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 import { inspectImportedWorkspaceSourcePaths, inspectOnlineOrdinarySource, physicalPath, requiresOnlineOrdinarySource, type WorkspaceSourceScope } from "./remote-workspace-migration-tree.js";
 import { workspaceSourceIdentities } from "./workspace-source-lock.js";
 import { readNestedWorkspaceGitSourceRoots, readWorkspaceGitLinkedRoots, readWorkspaceGitSourceRoots, type WorkspaceGitSourceRoots } from "./workspace-git-source-roots.js";
@@ -50,7 +50,7 @@ async function companion(db: ReadDb, workspace: Workspace, runs: CompanionRun[])
   }
   const issueIds = [...new Set([workspace.sourceIssueId, ...runs.map(run => run.issueId)].filter((id): id is string => Boolean(id)))];
   const actions = issueIds.length ? await db.select().from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, workspace.companyId), inArray(issueRecoveryActions.sourceIssueId, issueIds),
+    eq(issueRecoveryActions.spaceId, workspace.spaceId), inArray(issueRecoveryActions.sourceIssueId, issueIds),
     inArray(issueRecoveryActions.status, ["active", "escalated"]),
   )).orderBy(issueRecoveryActions.id) : [];
   const holds: Array<OnlineLegacyWorkspaceRecoveryHold & { actionId: string }> = [];
@@ -79,9 +79,9 @@ export async function inspectOnlineWorkspaceSource(db: ReadDb, workspace: Worksp
   let selected: Identities;
   try {
     selected = nestedGit.length && ordinary ? { projectIds: ordinary.projectId ? [ordinary.projectId] : [],
-      issueIds: [...ordinary.issueIds], unownedPaths: [], git: null } : await workspaceSourceIdentities(workspace.companyId, cwd);
+      issueIds: [...ordinary.issueIds], unownedPaths: [], git: null } : await workspaceSourceIdentities(workspace.spaceId, cwd);
     for (const source of nestedGit) {
-      const nested = await workspaceSourceIdentities(workspace.companyId, source.root);
+      const nested = await workspaceSourceIdentities(workspace.spaceId, source.root);
       if (!nested.git || nested.git.fingerprint !== source.fingerprint) return null;
       selected.projectIds = [...new Set([...selected.projectIds, ...nested.projectIds])].sort();
       selected.issueIds = [...new Set([...selected.issueIds, ...nested.issueIds])].sort();
@@ -108,7 +108,7 @@ export async function inspectOnlineWorkspaceSource(db: ReadDb, workspace: Worksp
     }
     for (const proof of linkedSources.values()) {
       for (const link of proof.links) {
-        const linked = await workspaceSourceIdentities(workspace.companyId, link.root.path);
+        const linked = await workspaceSourceIdentities(workspace.spaceId, link.root.path);
         if (!linked.git || linked.git.gitDirectory.path !== link.gitDirectory.path) return null;
         selected.projectIds = [...new Set([...selected.projectIds, ...linked.projectIds])].sort();
         selected.issueIds = [...new Set([...selected.issueIds, ...linked.issueIds])].sort();
@@ -119,7 +119,7 @@ export async function inspectOnlineWorkspaceSource(db: ReadDb, workspace: Worksp
   if (selected.unownedPaths.length) return null;
   const selectedFingerprint = createHash("sha256").update(JSON.stringify([gitSources, [...linkedSources.values()]])).digest("hex");
   const entry = await fs.lstat(cwd);
-  const rows = await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.companyId, workspace.companyId),
+  const rows = await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.spaceId, workspace.spaceId),
     inArray(executionWorkspaces.providerType, ["local_fs", "git_worktree"]))).orderBy(executionWorkspaces.id).limit(1001);
   if (rows.length > 1000) return null;
   const nodes: Array<{ row: Workspace; identities: Identities; fingerprint: string | null }> = [];
@@ -128,9 +128,9 @@ export async function inspectOnlineWorkspaceSource(db: ReadDb, workspace: Worksp
     if (!paths.length || paths.some(cwd => !path.isAbsolute(cwd))) return null;
     try {
       const identities = paths[0] === captureRoot ? { ...selected, projectIds: [...selected.projectIds], issueIds: [...selected.issueIds] }
-        : await workspaceSourceIdentities(workspace.companyId, paths[0]);
+        : await workspaceSourceIdentities(workspace.spaceId, paths[0]);
       for (const cwd of paths.slice(1)) {
-        const alternate = await workspaceSourceIdentities(workspace.companyId, cwd);
+        const alternate = await workspaceSourceIdentities(workspace.spaceId, cwd);
         identities.projectIds = [...new Set([...identities.projectIds, ...alternate.projectIds])].sort();
         identities.issueIds = [...new Set([...identities.issueIds, ...alternate.issueIds])].sort();
       }
@@ -142,7 +142,7 @@ export async function inspectOnlineWorkspaceSource(db: ReadDb, workspace: Worksp
   try {
     for (const child of await inspectImportedWorkspaceSourcePaths(db, workspace,
       [...linkedSources.values()].flatMap(proof => proof.links.map(link => link.root.path)))) {
-      const identities = await workspaceSourceIdentities(workspace.companyId, child.sourcePath);
+      const identities = await workspaceSourceIdentities(workspace.spaceId, child.sourcePath);
       if (identities.unownedPaths.length) return null;
       for (const id of identities.projectIds) projectIds.add(id);
       for (const id of identities.issueIds) physicalIssueIds.add(id);
@@ -175,15 +175,15 @@ export async function inspectOnlineWorkspaceSource(db: ReadDb, workspace: Worksp
     link.root.path === root || link.root.path.startsWith(root + path.sep))))) return null;
   const issueIds = [...new Set([...physicalIssueIds, ...included.map(node => node.row.sourceIssueId!)])].sort();
   if (issueIds.length + projectIds.size > 128) return null;
-  const instance = await physicalPath(resolvePaperclipInstanceRoot());
-  const gitSourceRoots = [...[...projectIds].map(id => path.join(instance, "projects", workspace.companyId, id)),
+  const instance = await physicalPath(resolveOutpostInstanceRoot());
+  const gitSourceRoots = [...[...projectIds].map(id => path.join(instance, "projects", workspace.spaceId, id)),
     ...issueIds.flatMap(id => ["isolated-workspaces", "isolated-workspace-attempts", "isolated-repository-sources"].map(kind =>
-      path.join(instance, kind, workspace.companyId, id, ...(kind === "isolated-repository-sources" ? ["checkout"] : []))))].sort();
+      path.join(instance, kind, workspace.spaceId, id, ...(kind === "isolated-repository-sources" ? ["checkout"] : []))))].sort();
   const owned = (target: string) => gitSourceRoots.some(root => target === root || target.startsWith(root + path.sep));
   let after: string | undefined;
   for (let page = 0; ; page++) {
     const foreign = await db.select({ id: executionWorkspaces.id, cwd: executionWorkspaces.cwd, providerRef: executionWorkspaces.providerRef })
-      .from(executionWorkspaces).where(and(ne(executionWorkspaces.companyId, workspace.companyId),
+      .from(executionWorkspaces).where(and(ne(executionWorkspaces.spaceId, workspace.spaceId),
         inArray(executionWorkspaces.providerType, ["local_fs", "git_worktree"]), ...(after ? [gt(executionWorkspaces.id, after)] : [])))
       .orderBy(executionWorkspaces.id).limit(256);
     for (const row of foreign) {
@@ -206,7 +206,7 @@ export async function inspectOnlineWorkspaceSource(db: ReadDb, workspace: Worksp
   const runs = await db.select({ id: heartbeatRuns.id, issueId: heartbeatRuns.nativeIssueId,
     workspaceId: sql<string>`${heartbeatRuns.runnerProfileJson}->'nativeWorkspaceSync'->>'workspaceId'`,
     state: sql<string>`${heartbeatRuns.runnerProfileJson}->'nativeWorkspaceSync'->>'state'` }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, workspace.companyId),
+    eq(heartbeatRuns.spaceId, workspace.spaceId),
     inArray(sql<string>`${heartbeatRuns.runnerProfileJson}->'nativeWorkspaceSync'->>'workspaceId'`, included.map(node => node.row.id)),
     sql`${heartbeatRuns.runnerProfileJson}->'nativeWorkspaceSync'->>'state' in ('prepared','finalized')`,
   )).orderBy(heartbeatRuns.id);

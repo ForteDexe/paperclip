@@ -63,7 +63,7 @@ Keep native schemas aligned with their services/routes. Transactional source
 run checks must precede case writes, so Stop or an accepted handoff cannot race
 an HTTP request into a late mutation. Generic API rollout settings do not remove
 these dedicated tools; case, mode and resource authorization still apply.
-Company deletion removes cases before task/agent dependencies. Individual agent
+Space deletion removes cases before task/agent dependencies. Individual agent
 purge preserves handoff attribution and returns `agent_case_history_retained`
 before destructive cleanup when history references that agent. Termination stays available.
 
@@ -72,11 +72,11 @@ failure. Compatible continuations carry a versioned case projection tied to the
 actual prior native input and exact agent/task/session. Stable facts fingerprints
 include document revisions and accessible references, while phase/version and
 incoming instructions are refreshed separately. Do not use a prepared
-`contextSnapshot.paperclipCase` as proof that a compact provider turn received
+`contextSnapshot.outpostCase` as proof that a compact provider turn received
 those facts. Legacy adapters continue to receive their bounded case snapshot.
 
 Start work through `handoff_case` or
-`POST /api/companies/:companyId/case-handoffs`. Subsequent calls use the same
+`POST /api/spaces/:spaceId/case-handoffs`. Subsequent calls use the same
 primary task and observed case/task revisions. GET the case's `/handoffs` for
 history; `/handoffs/:handoffId/retry` retries delivery without creating new work,
 and `/cancel` cancels pending delivery without reversing an applied assignment.
@@ -89,7 +89,7 @@ fencing, outgoing yield detection and recipient dispatch.
 
 The board case list/detail pages are read-only. URL query parameters retain
 search/status/type/project filters through detail navigation; list paging and
-the `GET /api/companies/:companyId/cases/types` read use authorized server data.
+the `GET /api/spaces/:spaceId/cases/types` read use authorized server data.
 Storybook's Cases / Read-only pages stories mount those same production pages
 with HTTP fixtures, including document previews, waiting handoffs and mobile.
 
@@ -105,7 +105,7 @@ durable admission, and legacy process integration tests. Run the explicit-only
 case-handoffs Product E2E workflow for provider/browser qualification; fixture
 and service tests do not establish that a live model followed the workflow.
 See [implementation and acceptance](plans/2026-10-19-persistent-case-handoffs.md)
-and the [agent case reference](../skills/paperclip/references/cases.md).
+and the [agent case reference](../skills/outpost/references/cases.md).
 
 Task detail, heartbeat context, and closed-workspace admission guards read stored
 workspace metadata. They do not inspect Git or refresh live runtime health.
@@ -155,15 +155,15 @@ are not on this list. They hold attested provider pins, so change them by hand
 
 ## Trusted PR Workflow
 
-The PR caller uses `paperclipai/paperclip/.github/workflows/pr-trusted.yml@master`.
-The AWS runner group `paperclip-public-pr` must allow
-`paperclipai/paperclip/.github/workflows/pr-trusted.yml@refs/heads/master`.
+The PR caller uses `outpost/outpost/.github/workflows/pr-trusted.yml@master`.
+The AWS runner group `outpost-public-pr` must allow
+`outpost/outpost/.github/workflows/pr-trusted.yml@refs/heads/master`.
 New workflow versions merged into master then receive runner access without a
 separate SHA allowlist update. Dependabot leaves this first-party reference on
 master.
 
 Runner selection calls `ci-routing.yml@master`. Allowlisted maintainers use the
-reserved `paperclip-ci-routing-x64` AWS fleet for this bounded metadata job;
+reserved `outpost-ci-routing-x64` AWS fleet for this bounded metadata job;
 other callers use GitHub-hosted capacity. The gate never checks out or executes
 PR code. The author, event sender and rerun actor must each be both
 in `AWS_CI_TRUSTED_USER_IDS` and a current owner of `.github/**` in CODEOWNERS.
@@ -377,8 +377,8 @@ explicit. When changing shard layout, update `.github/ci-task-matrix.json` and
 the full fallback matrices in `pr-trusted.yml`; the contract tests require them
 to agree. Add new cache-affecting environment settings to `globalEnv`.
 
-The `paperclip-ci-routing` runner group must allow
-`paperclipai/paperclip/.github/workflows/ci-routing.yml@refs/heads/master`.
+The `outpost-ci-routing` runner group must allow
+`outpost/outpost/.github/workflows/ci-routing.yml@refs/heads/master`.
 Keep `AWS_CI_ROUTING_USER_IDS_SOURCE` equal to the exact JSON value of
 `AWS_CI_TRUSTED_USER_IDS` and `AWS_CI_ROUTING_USER_IDS` as its delimiter-wrapped
 numeric IDs (for example, `|34892728|139239|`). Missing or mismatched admission
@@ -464,7 +464,7 @@ This starts:
 
 `pnpm dev:once` auto-applies pending local migrations by default before starting the dev server.
 
-`pnpm dev` and `pnpm dev:once` are now idempotent for the current repo and instance: if the matching Paperclip dev runner is already alive, Paperclip reports the existing process instead of starting a duplicate.
+`pnpm dev` and `pnpm dev:once` are now idempotent for the current repo and instance: if the matching Outpost dev runner is already alive, Outpost reports the existing process instead of starting a duplicate.
 
 To run against a separate local state root, pass `--data-dir`. The dev runner
 translates it to an isolated `OUTPOST_HOME` before migration checks or server
@@ -472,15 +472,15 @@ startup, so embedded PostgreSQL and other default instance state live under that
 directory:
 
 ```sh
-pnpm dev --data-dir ./tmp/paperclip-dev
+pnpm dev --data-dir ./tmp/outpost-dev
 ```
 
 Pass the same option to the service-management commands so they use the
 isolated runtime-service registry:
 
 ```sh
-pnpm dev:list --data-dir ./tmp/paperclip-dev
-pnpm dev:stop --data-dir ./tmp/paperclip-dev
+pnpm dev:list --data-dir ./tmp/outpost-dev
+pnpm dev:stop --data-dir ./tmp/outpost-dev
 ```
 
 Issue execution may also use project execution workspace policies and workspace runtime services for per-project worktrees, preview servers, and managed dev commands. Configure those through the project workspace/runtime surfaces rather than starting long-running unmanaged processes when a task needs a reusable service.
@@ -508,7 +508,7 @@ Stories are grouped in `ui/storybook/stories/<feature-area>/`. Feature recipe
 navigation controls the sidebar. Shared fixtures live in `ui/storybook/support/`.
 Keep each suite's explicit meta `id` when changing titles or locations so existing
 review links remain valid. Author capability associations, implementation/data
-classification and durable limitations in the story's `parameters.paperclip`.
+classification and durable limitations in the story's `parameters.outpost`.
 
 Storybook start/build generates the catalog, feature Overview pages, and literal
 sidebar order from the checked-out sources. `ui/storybook/generated/` and
@@ -553,7 +553,7 @@ STORYBOOK_TEST_BASE_URL=http://localhost:6006 pnpm exec playwright test inline-l
 
 **Link previews** mounts the same Markdown renderer with its production preview
 provider. A delayed hover or keyboard focus requests PR metadata. Repeated PR URLs,
-including diff links and fragments, share a viewer/company-scoped query. The card
+including diff links and fragments, share a viewer/space-scoped query. The card
 stays aligned with the link, and the exact navigation URL stays intact. The stories
 simulate the API response for open, merged, conflicts, draft, closed, loading,
 unavailable and failed reads, with a narrow long-title example. Run:
@@ -562,12 +562,12 @@ unavailable and failed reads, with a narrow long-title example. Run:
 STORYBOOK_TEST_BASE_URL=http://localhost:6006 pnpm exec playwright test link-previews.spec.ts --config=tests/storybook-visual/playwright.config.ts --project=stories
 ```
 
-The board-only `GET /api/companies/:companyId/link-preview?url=...` is optional
+The board-only `GET /api/spaces/:spaceId/link-preview?url=...` is optional
 enrichment, independent of the External Objects experiment. Its GitHub adapter
-uses the viewer's eligible managed connection, then the existing company/public
+uses the viewer's eligible managed connection, then the existing space/public
 credential path only when no managed connection is configured. Personal results
-remain in bounded, process-local viewer/company caches and are never persisted as
-company external objects. Successful responses live for one minute; unavailable
+remain in bounded, process-local viewer/space caches and are never persisted as
+space external objects. Successful responses live for one minute; unavailable
 responses use a short negative cache or GitHub's retry window. Reads have an
 abortable deadline and a bounded concurrency budget. Nothing polls while idle.
 The browser neither retries these reads nor refreshes them on window focus.
@@ -684,7 +684,7 @@ isolation enabled. Choose a new worktree, reuse an eligible worktree from that
 project, or keep the shared project workspace. Reuse carries the worktree's source
 checkout, including a non-primary checkout. Changing projects clears the
 previous worktree choice. Switching from reuse to a new worktree or the project
-workspace restores the project default checkout. Task creation uses the selected company and has
+workspace restores the project default checkout. Task creation uses the selected space and has
 no separate heading or settings control.
 
 Task execution-policy controls apply the shared schema defaults when stages or
@@ -697,16 +697,16 @@ review-round limit when the last reviewer or monitor is removed, so adding a
 reviewer later uses the saved limit.
 
 Fresh tasks start with an empty request and the last task assignee chosen in that
-company, including a human. If that assignee is unavailable, the CEO is the
-default, or the first eligible agent when the company has no CEO. Explicit launch
+space, including a human. If that assignee is unavailable, the CEO is the
+default, or the first eligible agent when the space has no CEO. Explicit launch
 assignees and saved drafts keep their selection. Selecting an assignee never
 inserts a mention. Clicking the assignee opens its searchable list directly;
 model and effort have a separate trigger and appear only for agents whose
 harness supports those settings.
-Fresh tasks also keep the company's last project (including No project); launch
+Fresh tasks also keep the space's last project (including No project); launch
 context and saved drafts take precedence. New projects receive a random palette
 color and become the remembered project. The shared composer remembers the last
-effort within the company and applies it only when the selected model supports
+effort within the space and applies it only when the selected model supports
 that level. Explicit task overrides and drafts take precedence. Default model
 labels show the configured or known adapter model, otherwise simply Default.
 Claude defaults supplied by the server's host environment remain Default unless
@@ -848,7 +848,7 @@ The board UI ships its own sans-serif webfont assets in `ui/public/fonts/`.
 `ui/src/index.css` declares Inter v4.1 variable regular and italic faces and wires
 the Tailwind `font-sans` token to those bundled files before system fallbacks.
 Linux screenshot or Storybook capture jobs should not install host Inter packages
-or inject external font CSS to make Paperclip text render correctly.
+or inject external font CSS to make Outpost text render correctly.
 
 Font assets live in Vite's public directory so `pnpm --filter @outpost/ui build`
 emits them under `ui/dist/fonts/`. The server package copies the same output into
@@ -882,7 +882,7 @@ Transient errors (network drops, non-JSON responses, 408/425/429/502/503/504,
 and gateway codes such as `tenant_app_unavailable` in any status) are classified
 in `ui/src/api/errors.ts`.
 
-A new page shows **Reconnecting to Paperclip** with a **Try again** action and
+A new page shows **Reconnecting to Outpost** with a **Try again** action and
 waits for startup health to become ready. Valid startup metadata remains
 available to sign-in and invitation pages. An already open page stays mounted
 during temporary background failures so unsaved edits survive; after about two
@@ -939,10 +939,10 @@ To reproduce a deploy blip in a dev or QA build, set the outage simulator in the
 browser console and remove it to end the outage:
 
 ```js
-localStorage.paperclipSimulateOutage = "503:tenant_app_unavailable"    // until removed
-localStorage.paperclipSimulateOutage = "503:tenant_app_unavailable@20" // for 20 seconds
-localStorage.paperclipSimulateOutage = "network"                       // dropped connection
-localStorage.removeItem("paperclipSimulateOutage")
+localStorage.outpostSimulateOutage = "503:tenant_app_unavailable"    // until removed
+localStorage.outpostSimulateOutage = "503:tenant_app_unavailable@20" // for 20 seconds
+localStorage.outpostSimulateOutage = "network"                       // dropped connection
+localStorage.removeItem("outpostSimulateOutage")
 ```
 
 Reads render through `useQueryView(query)` or `<QueryView>`
@@ -985,15 +985,15 @@ identities let a later request reclaim an abandoned marker after the operating
 system recycles the numeric PID. Older markers stay compatible and use process
 start metadata when available. When OS metadata is unavailable, the current
 server's health-reported boot time can still prove that a legacy marker predates
-the process now using its PID. Paperclip refuses to create a new request without
+the process now using its PID. Outpost refuses to create a new request without
 at least one identity source. Supported-platform process probes fail explicitly
 instead of silently treating a live PID as either the original owner or a
 recycled process when identity cannot be established.
 
 Use `--drain-required` only when the deploy intentionally requires the old terminate-and-retry behavior. Without that flag, the old server verifies that the marker targets its own PID, stops new scheduler work, waits for any queue-claim callback already in flight, snapshots currently running heartbeat run IDs and child PIDs, and skips the shutdown drain so eligible detached local-agent processes can keep running. ACP-backed local runs use server-owned stdio and cannot survive their parent server, so the old server instead persists their complete snapshot, changes the marker to `drainRequired` with `drainReason: "active_acp_run"`, and drains only those runs to bounded conversation retries. These retries resume the prior session when compatible, otherwise carry the full task conversation into a fresh session. They do not automatically replay tool calls or require receipts for every prior action. Detached CLI runs remain eligible for adoption during the same mixed restart. If an ACP process terminates but its terminal run update does not persist, startup classifies it as lost with reason `selective_drain_not_finalized` rather than treating the drain as successful. On startup the new server writes `$OUTPOST_HOME/instances/${OUTPOST_INSTANCE_ID:-default}/hot-restart-report.json` with `previousServerPid`, `newServerPid`, `previousServerVersion`, `newServerVersion`, `drainReason`, `adoptedRunIds`, `finalizedWhileDownRunIds`, `lostRunIds`, and per-run classifications before the normal orphan reaper runs.
 
-When Paperclip manages embedded PostgreSQL, it suppresses that dependency's eager
-`SIGINT`/`SIGTERM` cleanup hooks. Paperclip owns signal ordering so the heartbeat
+When Outpost manages embedded PostgreSQL, it suppresses that dependency's eager
+`SIGINT`/`SIGTERM` cleanup hooks. Outpost owns signal ordering so the heartbeat
 snapshot and any required drain complete while the database is still available;
 the coordinated shutdown path stops embedded PostgreSQL afterward.
 
@@ -1065,7 +1065,7 @@ account, and use the setup screen to claim the first instance admin from the
 browser. The CLI fallback remains:
 
 ```sh
-pnpm paperclipai auth bootstrap-ceo
+pnpm outpost auth bootstrap-ceo
 ```
 
 For Tailscale-only reachability on a detected tailnet address:
@@ -1084,7 +1084,7 @@ pnpm dev --authenticated-private
 Allow additional private hostnames (for example custom Tailscale hostnames):
 
 ```sh
-npx paperclipai allowed-hostname dotta-macbook-pro
+npx @outpost/cli allowed-hostname dotta-macbook-pro
 ```
 
 ## Agent status recovery
@@ -1194,7 +1194,7 @@ the Runner's `ensure:eval-build-deps`, `build:rust`, `build` and
 - A worktree without `runner/target` starts from a clone of a shared cargo seed
   that holds only third-party crates, so cargo compiles only the Runner crate.
 
-The cache lives in `~/.cache/paperclip/agent-build` (`OUTPOST_AGENT_CACHE_DIR`
+The cache lives in `~/.cache/outpost/agent-build` (`OUTPOST_AGENT_CACHE_DIR`
 moves it, `OUTPOST_AGENT_CACHE=0` or `--no-cache` turns it off). Entries are
 keyed by content and toolchain, never by path or mtime, are written once with an
 atomic rename, and are restored as APFS clones, so concurrent worktrees can share
@@ -1365,7 +1365,7 @@ must be able to create databases. Each fixture creates a random database and
 closes only its clients before dropping it. It never stops the external server.
 `DATABASE_URL` does not select this test path. The optional
 `OUTPOST_TEST_POSTGRES_TEMPLATE` can name an existing migrated database with
-the form `paperclip_test_template_<hex>`; `0` disables template reuse.
+the form `outpost_test_template_<hex>`; `0` disables template reuse.
 
 On a supported platform, PostgreSQL startup failures fail test collection.
 Resource exhaustion, unavailable configured servers, and broken native binaries
@@ -1394,7 +1394,7 @@ budget for its final directory cleanup after hundreds of table truncations.
 Suites that call `startEmbeddedPostgresTestDatabase` (from `@outpost/db`)
 without an administrative URL get their own embedded Postgres cluster. The first such suite on a host builds
 one fully migrated cluster and publishes its data directory under
-`$TMPDIR/paperclip-embedded-postgres-templates-<uid>/<key>`. Every later suite
+`$TMPDIR/outpost-embedded-postgres-templates-<uid>/<key>`. Every later suite
 copies that template and starts Postgres on the copy instead of running
 `initdb` and all migrations again, and the `getEmbeddedPostgresTestSupport`
 probe reuses it instead of starting a throwaway cluster. The key hashes the
@@ -1437,7 +1437,7 @@ process per layer. Each layer reads the earlier layers as declarations:
 | `test-tree-0` to `test-tree-2` | `src/__tests__`, in shards |
 
 The generated configs and declarations go in
-`server/node_modules/.cache/paperclip-typecheck`. You do not maintain a layer list.
+`server/node_modules/.cache/outpost-typecheck`. You do not maintain a layer list.
 `server/tsconfig.json` remains the single program for editors and `pnpm build`.
 The server typecheck builds only the Runner's TypeScript output. Use
 `pnpm --filter @outpost/outpost-runner build` when a local check needs the
@@ -1645,7 +1645,7 @@ the export mode, and trace IDs. Exported traces identify this local diagnostic
 in their service version; they are not evidence of staging performance.
 
 If creating another embedded cluster is impractical, `--postgres-port=55448
---postgres-user=paperclip` uses an existing **local** server. It creates and migrates
+--postgres-user=outpost` uses an existing **local** server. It creates and migrates
 a uniquely named disposable database and drops that database afterward; it does
 not reuse an application database.
 
@@ -1703,7 +1703,7 @@ agent latency measurement.
 
 ### Recent task ordering
 
-The streamlined sidebar keeps five recent tasks per company and account in browser
+The streamlined sidebar keeps five recent tasks per space and account in browser
 storage. It sorts by the newest observed task or comment activity, not by live-run
 state. Older detail responses cannot move the stored activity time backward.
 Activity-only reorderings wait for one second without further activity changes;
@@ -1711,7 +1711,7 @@ new and removed tasks appear immediately. Titles, status, and live indicators st
 current during that delay.
 
 The sidebar renders saved snapshots immediately and refreshes its exact five IDs
-with one company/account-scoped summary query. Passive refreshes do not fetch
+with one space/account-scoped summary query. Passive refreshes do not fetch
 full task details or inspect workspaces. Successful omissions remove unavailable
 tasks; failed batch reads retain saved history. Existing full-detail cache data
 can update an entry only after the current account's summary confirms access.
@@ -1721,23 +1721,23 @@ session and health; reconnects and visibility recovery retain full reconciliatio
 ### Authenticated board startup
 
 `GET /api/auth/get-session` can include an optional `boardBootstrap` for the same
-authenticated session or Cloud tenant actor. It contains accessible company
+authenticated session or Cloud tenant actor. It contains accessible space
 snapshots and the existing current-board-access projection. Directory visibility
-through instance admin alone does not add accessible companies. The ordinary
+through instance admin alone does not add accessible spaces. The ordinary
 session schema stays compatible with clients that ignore this projection.
 
 The browser seeds account-keyed navigation and board-access queries from this
-response, avoiding two serial startup reads. Normal company/access readers still
+response, avoiding two serial startup reads. Normal space/access readers still
 own invalidation and refresh. A new successful session snapshot replaces older
 cached membership/access for a returning account once; later ordinary reads and
 mutations can update those queries. Missing, malformed, or failed optional bootstrap
 falls back to those readers; a failed session does not become an anonymous cache
-entry. Local trusted startup keeps its existing synthetic `local-board` principal.
+entry. Local trusted startup keeps its existing synthetic `local-operator` principal.
 
 ### Run history authorization reads
 
 Run history reuses the authorization service's batch read API for distinct task
-bindings. Existence checks remain company-scoped and use batches of at most 500
+bindings. Existence checks remain space-scoped and use batches of at most 500
 IDs. Missing or foreign tasks stay unreadable in every privacy mode. The batch
 snapshot lasts for one request only; the next request checks current grants,
 membership, and run restrictions again. Adapters that expose only `decide`
@@ -1745,12 +1745,12 @@ retain the individual-read path with duplicate bindings shared within the reques
 
 ### Managed Cloud runner images
 
-Paperclip-managed Cloud sandbox images do not require a saved platform or
+Outpost-managed Cloud sandbox images do not require a saved platform or
 snapshot qualification. Discovery offers Outpost Runner, and execution uses
 the current platform-selected image even when an older qualification exists.
 The real runtime startup and handshake report compatibility failures. Test goes
 directly to that runtime check when discovery already offers Outpost Runner.
-Company access, adapter availability, credentials and runtime integrity checks
+Space access, adapter availability, credentials and runtime integrity checks
 still apply. Self-hosted sandboxes, custom environments and active captured
 custom images keep their existing qualification and snapshot binding.
 The active Cloud configuration must still provision the sandbox provider; a
@@ -1774,15 +1774,15 @@ saved execution choices remain unchanged.
 ### OpenCode native runtime
 
 Outpost Runner resolves the pinned OpenCode platform package installed with
-Paperclip. On Apple Silicon and Intel Macs it runs the matching macOS binary;
+Outpost. On Apple Silicon and Intel Macs it runs the matching macOS binary;
 on Linux x64 it runs the qualified baseline binary. No global OpenCode command
 or dependency postinstall script is required. This also works when installation
 scripts are disabled. The published server declares the same pinned dependency
 as the source Runner package.
 
-For native OpenCode and Cursor on Daytona, a complete installed Paperclip release
+For native OpenCode and Cursor on Daytona, a complete installed Outpost release
 also selects its packaged Linux daemon and provider-pack identity automatically.
-Use a qualified Paperclip Daytona image. For an OS-protected pack, startup
+Use a qualified Outpost Daytona image. For an OS-protected pack, startup
 checks the selected provider interface and platform from its small manifest in
 the existing runner metadata query. It does not rescan the pack or require the
 same app source revision. Writable or legacy installations retain full content
@@ -1809,12 +1809,12 @@ An explicit override remains authoritative and fails closed if invalid.
 For a first-time local install, you can bootstrap and run in one command:
 
 ```sh
-pnpm paperclipai run
+pnpm outpost run
 ```
 
 > **Note: private npm registry `.npmrc` + first-run onboarding**
 >
-> The first-run experience often starts with `npx paperclipai onboard --yes` (before you have a repo checkout). If your global `~/.npmrc` sets `registry` to a private registry (for example GitHub Packages), `npx` may try to resolve `paperclipai` from that private registry and fail with `E404`.
+> The first-run experience often starts with `npx @outpost/cli onboard --yes` (before you have a repo checkout). If your global `~/.npmrc` sets `registry` to a private registry (for example GitHub Packages), `npx` may try to resolve `outpostai` from that private registry and fail with `E404`.
 >
 > Diagnostic:
 >
@@ -1825,13 +1825,13 @@ pnpm paperclipai run
 > Workaround (cross-platform; force the public npm registry for this command):
 >
 > ```sh
-> npx --registry https://registry.npmjs.org paperclipai onboard --yes
+> npx --registry https://registry.npmjs.org outpost onboard --yes
 > ```
 
-`paperclipai run` does:
+`outpost run` does:
 
 1. auto-onboard if config is missing
-2. `paperclipai doctor` with repair enabled
+2. `outpost doctor` with repair enabled
 3. starts the server when checks pass
 
 ### One-command isolated manual test drive
@@ -1849,7 +1849,7 @@ OPENROUTER_API_KEY=... node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts t
 
 The command creates a trusted-loopback instance in a unique OS temporary data
 directory, prints the absolute directory, runs onboarding and doctor
-non-interactively, creates `Test Company` with a `CEO` agent, then opens the
+non-interactively, creates `Test Space` with a `CEO` agent, then opens the
 browser. It runs in the foreground, does not install a background service, and
 does not create a goal, project, issue, task, or first heartbeat. Temporary
 directories are retained for inspection. Use `--data-dir <path>` to reuse one
@@ -1877,7 +1877,7 @@ Claude uses `ANTHROPIC_API_KEY`; Codex uses `OPENAI_API_KEY`; OpenCode uses
 `OPENROUTER_API_KEY` and requires an `openrouter/...` model. `--api-key-env`
 can name a different source variable while the agent still receives the
 canonical variable. `--api-key <value>` is also supported and is mutually
-exclusive with `--api-key-env`; Paperclip redacts it from its own output, but
+exclusive with `--api-key-env`; Outpost redacts it from its own output, but
 also removes it from the JavaScript argument view before telemetry, diagnostics,
 or server startup. Wrappers, operating-system process listings, and shell
 history may still expose argument values. This is an explicit local test-drive
@@ -1886,8 +1886,8 @@ linked Git worktree the command sets worktree runtime mode and safely arms
 **Run tasks in this worktree** for the current isolated instance. Primary
 checkouts and non-Git directories leave that experimental setting unchanged.
 
-If the selected data directory already contains any company, `test-drive`
-preserves all companies, agents, and secrets and ignores the bootstrap flags.
+If the selected data directory already contains any space, `test-drive`
+preserves all spaces, agents, and secrets and ignores the bootstrap flags.
 The worktree execution setting is the only value it may reconcile in that
 case.
 
@@ -1903,12 +1903,12 @@ token, install the app, verify Slack delivery, and try a conversation. Agent
 selection generates readable defaults for the Slack app name, bot display name,
 and slash command; edit them under **Advanced** if needed. **Get your App
 configuration token** opens Slack app settings. Enter the temporary token directly
-into Paperclip, then select **Create Slack app**. Paperclip creates the app,
+into Outpost, then select **Create Slack app**. Outpost creates the app,
 vaults its credentials, and attempts avatar upload before discarding the token.
 App details lock after creation dispatch, including an uncertain result.
 
 **Install in Slack** obtains the bot token through OAuth, links the installing
-Slack account to the Paperclip account that started installation, and sends one
+Slack account to the Outpost account that started installation, and sends one
 welcome DM. Approve with your own Slack account. After Slack verifies the Events
 Request URL, use **Open your Slack DM**, send the suggested message, and continue
 in the thread. **Done** finishes setup; the conversation test is optional.
@@ -1920,14 +1920,14 @@ token step. These paths retain manual credential entry and a separate personal
 account-linking step. Send `/<your-command> connect` to discover your identity
 without starting work, then confirm **This is my Slack account** in the wizard
 or use the private confirmation link. The link expires after 15 minutes and
-requires company membership. Future messages use the linked user's current
+requires space membership. Future messages use the linked user's current
 permissions. Additional or different accounts can be linked later in **Access**.
 
 New Slack connections disable **Allow unlinked people** by default. The Access
 page includes the shareable connect command and instructions for other users.
 Other Slack users join through the same connect command after setup. A signed-in
 nonmember can **Request access** from the confirmation page. This creates a
-pending human join request in the company's existing admin approval queue; it
+pending human join request in the space's existing admin approval queue; it
 does not grant membership or link the identity. After approval, confirm the
 identity, or send the connect command again if the link has expired. Successful
 confirmation also queues a private Slack acknowledgement.
@@ -1935,7 +1935,7 @@ confirmation also queues a private Slack acknowledgement.
 Slack identity invitation pages retain the cloud authentication and bootstrap
 checks. Signed-in nonmembers may open a valid private invitation to request
 membership, but confirmation still requires membership in the invitation's
-company. Preview, access-request, and confirmation APIs also enforce the chat
+space. Preview, access-request, and confirmation APIs also enforce the chat
 connector rollout flag on the server; invitees cannot read board experimental
 settings before they join. Expired or consumed tokens grant no access.
 
@@ -1947,12 +1947,12 @@ separate strict connection-test API retains its conversation and delivery checks
 
 New Slack conversations receive default communication guidance that requires a
 clickable link to each task the agent creates. Agents use the public task URL
-from Paperclip tools or task context and report when a link is unavailable.
+from Outpost tools or task context and report when a link is unavailable.
 Existing conversations keep their original communication guidance snapshot.
 
 Slack catalog discovery uses `resolveSlackTaskAuthorization` to recheck the live
 run, task, agent, linked user, endpoint, and current bot credential. Discovery
-does not consume a compatibility revision, so it avoids hashing company policy
+does not consume a compatibility revision, so it avoids hashing space policy
 and profile rows. Callers that need a revision continue to use
 `resolveSlackTaskAuthority`; connector skill snapshots and governed operations
 retain their existing fingerprint. Both paths share the same authorization
@@ -1968,23 +1968,23 @@ The first page refreshes automatically; older pages do not poll. Mutable action 
 entry forward in time, so this is a live ledger, not a historical snapshot. Requests without pagination
 parameters retain the recent-100 array response for existing clients.
 
-Slack callback diagnostics tolerate HTTP between a TLS proxy and Paperclip when the public host,
+Slack callback diagnostics tolerate HTTP between a TLS proxy and Outpost when the public host,
 port, and path still match. A changed authority or path remains stale. This comparison only affects
 health display; it does not trust forwarded headers or alter Slack signature verification.
 
 
 ## Docker Quickstart (No local Node install)
 
-Build and run Paperclip in Docker:
+Build and run Outpost in Docker:
 
 ```sh
-docker build -t paperclip-local .
-docker run --name paperclip \
+docker build -t outpost-local .
+docker run --name outpost \
   -p 3100:3100 \
   -e HOST=0.0.0.0 \
-  -e OUTPOST_HOME=/paperclip \
-  -v "$(pwd)/data/docker-paperclip:/paperclip" \
-  paperclip-local
+  -e OUTPOST_HOME=/outpost \
+  -v "$(pwd)/data/docker-outpost:/outpost" \
+  outpost-local
 ```
 
 Or use Compose:
@@ -2004,7 +2004,7 @@ For a separate review-oriented container that keeps `codex`/`claude` login state
 Every local install keeps runtime state directly under the selected instance root:
 
 ```text
-~/.paperclip/instances/default/                  # instance root
+~/.outpost/instances/default/                  # instance root
   config.json                                    # runtime config
   .env                                           # instance env file
   db/                                            # embedded PostgreSQL data
@@ -2017,11 +2017,11 @@ Every local install keeps runtime state directly under the selected instance roo
   secrets/master.key                             # local_encrypted master key
   workspaces/<agent-id>/                         # default agent workspaces
   projects/                                      # project execution workspaces
-  companies/<company-id>/agents/<agent-id>/codex-home/
+  spaces/<space-id>/agents/<agent-id>/codex-home/
                                                    # per-agent codex_local home
 ```
 
-`OUTPOST_HOME` and `OUTPOST_INSTANCE_ID` override the home root and instance id respectively. `paperclipai onboard` echoes the resolved values in its banner (`Local home: <home> | instance: <id> | config: <path>`) so you can confirm where state will land before continuing.
+`OUTPOST_HOME` and `OUTPOST_INSTANCE_ID` override the home root and instance id respectively. `outpost onboard` echoes the resolved values in its banner (`Local home: <home> | instance: <id> | config: <path>`) so you can confirm where state will land before continuing.
 
 Config updates preserve unrecognized top-level and nested keys so provider or
 plugin extensions survive `configure` and worktree port repair. Likely
@@ -2036,12 +2036,12 @@ runs stop without replacing the original.
 For local development, leave `DATABASE_URL` unset.
 The server will automatically use embedded PostgreSQL and persist data at:
 
-- `~/.paperclip/instances/default/db`
+- `~/.outpost/instances/default/db`
 
 Override home or instance:
 
 ```sh
-OUTPOST_HOME=/custom/path OUTPOST_INSTANCE_ID=dev pnpm paperclipai run
+OUTPOST_HOME=/custom/path OUTPOST_INSTANCE_ID=dev pnpm outpost run
 ```
 
 No Docker or external database is required for this mode.
@@ -2056,7 +2056,7 @@ No Docker or external database is required for this mode.
 
 Grant checks read current database state; there is no positive privacy cache.
 
-A run-history list is one read operation. It checks each distinct company,
+A run-history list is one read operation. It checks each distinct space,
 run scope, and task binding once, then applies that decision to the related
 rows in the same response. Every new list operation reads permissions again.
 
@@ -2074,23 +2074,23 @@ Issue-bound heartbeat runs inherit the same read predicate through the stored
 nulls the foreign key but preserves the explicit issue scope as a fail-closed
 tombstone. Workspace-operation history is either deleted with its direct issue
 or run binding, or remains bound to that fail-closed run tombstone, so it cannot
-become company-level maintenance data through foreign-key nulling. In enforce mode, direct run detail, transcript,
-event, log, and workspace-operation reads return `404` to non-members. Company
+become space-level maintenance data through foreign-key nulling. In enforce mode, direct run detail, transcript,
+event, log, and workspace-operation reads return `404` to non-members. Space
 run-history and live-run lists retain a metadata-only row with timing, status,
 token usage, and cost for budget oversight; issue identifiers, summaries, and
-run content are omitted. Runs without an issue binding keep company-level
+run content are omitted. Runs without an issue binding keep space-level
 maintenance-run visibility.
 
 ## Storage in Dev (Auto-Handled)
 
 For local development, the default storage provider is `local_disk`, which persists uploaded images/attachments at:
 
-- `~/.paperclip/instances/default/data/storage`
+- `~/.outpost/instances/default/data/storage`
 
 Configure storage provider/settings:
 
 ```sh
-pnpm paperclipai configure --section storage
+pnpm outpost configure --section storage
 ```
 
 ### Managed cloud prerequisites
@@ -2104,7 +2104,7 @@ The managed profile also requires:
   database snapshot. An invalid explicit environment value refuses startup even
   if the snapshot selects S3.
 - An explicit nonblank `OUTPOST_STORAGE_S3_BUCKET` or `storage.s3.bucket`.
-  The self-hosted `paperclip` bucket default does not qualify. The region defaults
+  The self-hosted `outpost` bucket default does not qualify. The region defaults
   to `us-east-1`; an explicit blank region refuses startup. An optional endpoint
   must be an HTTP(S) URL without embedded credentials.
 - An external PostgreSQL URL from the environment `DATABASE_URL`.
@@ -2119,7 +2119,7 @@ opening the database or creating local state. Effective storage validation follo
 canonical snapshot resolution, before signing keys, first-party Telemetry or app
 construction. Raw canonical rows and legacy S3 imports cannot obtain a missing
 bucket from schema defaults. Already-stored nonblank bucket values remain
-canonical, including the deliberate name `paperclip`; prior normalization cannot
+canonical, including the deliberate name `outpost`; prior normalization cannot
 reliably establish their original provenance.
 It does not contact S3 or verify credentials, bucket access, database connectivity,
 or that a key matches existing encrypted data. Operators must qualify ordinary
@@ -2274,7 +2274,7 @@ until the existing reconciliation path settles it.
 
 Files reads use the current committed saved version when remote authority is
 clean and has no active writer, even while its old allocation remains recorded.
-The saved loader verifies the company, workspace, snapshot, and archive before
+The saved loader verifies the space, workspace, snapshot, and archive before
 reading. Dirty or writer-owned authority uses the live allocation and cannot
 substitute an older save if that allocation is unavailable. A saved read permits
 cleanup to clear its recorded allocation while the epoch, snapshot, source,
@@ -2289,9 +2289,9 @@ checkout with the deployment's database, S3, and key configuration loaded:
 
 ```sh
 pnpm --filter @outpost/server exec tsx scripts/migrate-remote-workspaces.ts \
-  --company-id <company-uuid> --workspace-id <workspace-uuid> --dry-run
+  --space-id <space-uuid> --workspace-id <workspace-uuid> --dry-run
 pnpm --filter @outpost/server exec tsx scripts/migrate-remote-workspaces.ts \
-  --company-id <company-uuid> --workspace-id <workspace-uuid> --apply
+  --space-id <space-uuid> --workspace-id <workspace-uuid> --apply
 ```
 
 Dry-run is the default and reports eligibility and blocking reasons without
@@ -2322,7 +2322,7 @@ An interrupted archived Git import reuses its original uploaded archive after
 authentication, including when the upload reply was lost. It does not rebuild
 that archive from today's remote branch pointers. The original import journal,
 restoration recipe, task binding, and execution fences must still match before
-publication. Saved nested sources must still belong to the same company and
+publication. Saved nested sources must still belong to the same space and
 project with the same repository URL; publication locks and rechecks those source
 rows. Imports from mutable local folders still recapture and compare the
 current files; a saved upload does not permit later local edits to be discarded.
@@ -2362,7 +2362,7 @@ leave the pending set. Original folders remain on the retained volume.
 
 Supported sources include empty task folders, repository URLs, and managed
 mutable repositories. Authorized mentioned projects attach all their configured
-Git repositories as writable copies under `.paperclip-repositories/` in the task
+Git repositories as writable copies under `.outpost-repositories/` in the task
 workspace. These copies use the existing remote save/restore lifecycle and do not
 write to the source project's folder. Later turns retain their saved paths, refs,
 pins and edits, and recheck each retained project's access and trust policy.
@@ -2418,10 +2418,10 @@ When an agent generates a file that a board user or reviewer should inspect as
 a deliverable, attach it to the issue before marking the task complete. Do not
 rely on a local workspace path as the only access path.
 
-Use the helper bundled with the Paperclip skill from the repo root:
+Use the helper bundled with the Outpost skill from the repo root:
 
 ```sh
-skills/paperclip/scripts/paperclip-upload-artifact.sh dist/demo.mp4 \
+skills/outpost/scripts/outpost-upload-artifact.sh dist/demo.mp4 \
   --title "Demo video render" \
   --summary "MP4 render for board review"
 ```
@@ -2429,7 +2429,7 @@ skills/paperclip/scripts/paperclip-upload-artifact.sh dist/demo.mp4 \
 For WebM output:
 
 ```sh
-skills/paperclip/scripts/paperclip-upload-artifact.sh out/walkthrough.webm \
+skills/outpost/scripts/outpost-upload-artifact.sh out/walkthrough.webm \
   --title "Walkthrough video" \
   --summary "WebM walkthrough render"
 ```
@@ -2444,28 +2444,28 @@ that file, not as the main completion path for deliverables.
 
 ## Default Agent Workspaces
 
-When a local agent run has no resolved project/session workspace, Paperclip falls back to an agent home workspace under the instance root:
+When a local agent run has no resolved project/session workspace, Outpost falls back to an agent home workspace under the instance root:
 
-- `~/.paperclip/instances/default/workspaces/<agent-id>`
+- `~/.outpost/instances/default/workspaces/<agent-id>`
 
 This path honors `OUTPOST_HOME` and `OUTPOST_INSTANCE_ID` in non-default setups.
 
-For `codex_local`, Paperclip assigns new and updated agents an isolated Codex home under the instance root and blocks shared host/company Codex homes:
+For `codex_local`, Outpost assigns new and updated agents an isolated Codex home under the instance root and blocks shared host/space Codex homes:
 
-- `~/.paperclip/instances/default/companies/<company-id>/agents/<agent-id>/codex-home`
+- `~/.outpost/instances/default/spaces/<space-id>/agents/<agent-id>/codex-home`
 
-Paperclip also persists an empty `OPENAI_API_KEY` override for those agents so a host-level `OPENAI_API_KEY` cannot leak into Codex runs through process inheritance. If an operator explicitly configures `adapterConfig.env.CODEX_HOME`, it must not point at the shared company `codex-home`, `$CODEX_HOME`, or `~/.codex`.
+Outpost also persists an empty `OPENAI_API_KEY` override for those agents so a host-level `OPENAI_API_KEY` cannot leak into Codex runs through process inheritance. If an operator explicitly configures `adapterConfig.env.CODEX_HOME`, it must not point at the shared space `codex-home`, `$CODEX_HOME`, or `~/.codex`.
 
 If the `codex` CLI is not installed or not on `PATH`, `codex_local` agent runs fail at execution time with a clear adapter error. Quota polling uses a short-lived `codex app-server` subprocess: when `codex` cannot be spawned, that provider reports `ok: false` in aggregated quota results and the API server keeps running (it must not exit on a missing binary).
 
-Local adapters require their corresponding CLI/session setup on the machine running Paperclip. Self-hosted instances can install external adapters through the adapter/plugin flow without hardcoded imports in `server/` or `ui/`.
+Local adapters require their corresponding CLI/session setup on the machine running Outpost. Self-hosted instances can install external adapters through the adapter/plugin flow without hardcoded imports in `server/` or `ui/`.
 
 Cloud-managed instances use only adapter implementations supplied by the release image. A tenant server token or the presence of `OUTPOST_MANAGED_CONFIG` enforces this boundary. Startup and UI parser requests do not read external adapter registrations or packages. Install, reinstall, reload, remove, and override operations return `403` with `adapter_install_platform_managed`, including for instance admins. Legacy `adapter-plugins.json` files stay untouched and do not change the built-in registry.
 
 ### Filesystem access boundary (2026-10-20)
 
 Filesystem isolation belongs to the OS, execution environment, and storage layout.
-Paperclip authorizes the current task/run, company, explicitly selected configuration,
+Outpost authorizes the current task/run, space, explicitly selected configuration,
 execution policy, and repository credentials. It does not infer file permissions from
 other tasks or agents that previously used the same directory, overlapping roots,
 symlink aliases, or shared Git storage. Existing files under an authorized task root
@@ -2479,9 +2479,9 @@ publication receipts, binding checks, and lifecycle locks remain authoritative.
 
 ## Project Repository Checkouts
 
-Tasks use every distinct repository attached to their project, including repository-only sources with no local folder. Paperclip creates a managed checkout when no local folder is configured. The selected repository remains at the task workspace root. Other project repositories have editable Git checkouts under `.paperclip-repositories/<name>-<key>`. Workspace hints expose each checkout path to the agent. A repository without a configured local folder is checked out as a Git worktree of one shared managed clone per project and repository URL, on its own `paperclip/<id>/<branch>` branch tracking `origin/<branch>`, so its objects are stored once; see [Recoverable disk cleanup](recoverable-disk-cleanup.md#nested-project-repository-worktrees). Existing standalone checkouts keep working.
+Tasks use every distinct repository attached to their project, including repository-only sources with no local folder. Outpost creates a managed checkout when no local folder is configured. The selected repository remains at the task workspace root. Other project repositories have editable Git checkouts under `.outpost-repositories/<name>-<key>`. Workspace hints expose each checkout path to the agent. A repository without a configured local folder is checked out as a Git worktree of one shared managed clone per project and repository URL, on its own `outpost/<id>/<branch>` branch tracking `origin/<branch>`, so its objects are stored once; see [Recoverable disk cleanup](recoverable-disk-cleanup.md#nested-project-repository-worktrees). Existing standalone checkouts keep working.
 
-When an additional repository has a configured local checkout, Paperclip seeds the task copy from its current commit and uncommitted files. Git-ignored files stay out of that copy. Subsequent task edits stay in the task copy. They do not overwrite the configured source folder. Existing task copies retain their work across runs.
+When an additional repository has a configured local checkout, Outpost seeds the task copy from its current commit and uncommitted files. Git-ignored files stay out of that copy. Subsequent task edits stay in the task copy. They do not overwrite the configured source folder. Existing task copies retain their work across runs.
 
 Sandbox staging, including Daytona, transfers each repository's Git history and working files. Restore merges files and commits back into each local task checkout independently. Durable sandbox recovery keeps the same repository snapshots. Normal ignore and workspace exclusion rules still apply. A clone failure stops task preparation with an error so the agent does not start with only part of the project.
 
@@ -2494,27 +2494,27 @@ not start another run. A chat reply cannot clear the file recovery hold.
 
 Staging preserves relative symlink targets in secondary repositories, including skill links such as `.claude/skills/demo -> ../../skills/demo`. It does not rewrite them to host temporary paths or copy their target contents in place of the link. Daytona still rejects outbound archives with absolute or escaping link targets before extraction.
 
-If a repository is detached or its source configuration changes, its previous task copy is retained under `.paperclip-runtime/detached-repositories/` and excluded from future sandbox transfers. Referenced projects continue to use the separate read-only multi-project workspace behavior.
+If a repository is detached or its source configuration changes, its previous task copy is retained under `.outpost-runtime/detached-repositories/` and excluded from future sandbox transfers. Referenced projects continue to use the separate read-only multi-project workspace behavior.
 
 ## Config Freshness
 
 Agent, project, environment, secret, skill, and workspace config edits are sampled at the next run boundary. A heartbeat that is already running finishes with the config it started with. Native runners project explicitly configured task environment variables into provider processes and tool commands, including custom `OUTPOST_*` names such as `OUTPOST_PAGE_BUCKET`. Adding, changing, or removing a projected variable replaces a retained provider process at the next run boundary. Unchanged variables permit process reuse. The projection contains names only; secret values stay in the child environment. Ambient host secrets are not projected. Native projections allow up to 128 variable names, 64 KiB per entry, and 256 KiB of values in total. These native launch limits do not apply to legacy adapter configuration. Runtime authority, provider login credentials, and process-loader settings use their existing restricted paths.
 
 Native OpenCode applies that projection when starting `opencode serve`, so its
-shell tools receive both plain bindings and resolved company secrets from
+shell tools receive both plain bindings and resolved space secrets from
 `adapterConfig.env`. Forwarded values participate in diagnostic and provider-trace
 redaction. The isolated HOME, provider credential proxy, and GitHub broker retain
 their existing launch rules. OpenCode owns the `OPENCODE_*` and `XDG_*`
 configuration variables; task bindings cannot override them.
 
-When effective run config changes, Paperclip may intentionally skip a saved adapter session, refresh persisted workspace runtime config, replace a reused execution workspace, or avoid reusing a sandbox/environment lease. Fresh execution can lose adapter-specific session, workspace, or sandbox state; correctness of the next run's config takes priority over continuity. Plain environment values affect freshness through value hashes; run result JSON and workspace operation logs expose only the non-sensitive freshness decision categories, without storing secret values, full env maps, provider credentials, or private path details.
+When effective run config changes, Outpost may intentionally skip a saved adapter session, refresh persisted workspace runtime config, replace a reused execution workspace, or avoid reusing a sandbox/environment lease. Fresh execution can lose adapter-specific session, workspace, or sandbox state; correctness of the next run's config takes priority over continuity. Plain environment values affect freshness through value hashes; run result JSON and workspace operation logs expose only the non-sensitive freshness decision categories, without storing secret values, full env maps, provider credentials, or private path details.
 
-An explicit `reuse_existing` Git workspace keeps its recorded source repository, including after its project-workspace row is deleted or the project primary changes. The server verifies the original company, project, repository origin, and worktree registration before reuse. It does not attach a deleted association to the new primary. A conflicting explicit project-workspace selection, missing source identity, or an unverified legacy local checkout blocks the run. Restore the original source. Before intentionally clearing the existing-workspace binding to choose a new repository, review and preserve its retained work. Missing worktrees may be reconstructed only from the verified original source; current project defaults are not a fallback.
+An explicit `reuse_existing` Git workspace keeps its recorded source repository, including after its project-workspace row is deleted or the project primary changes. The server verifies the original space, project, repository origin, and worktree registration before reuse. It does not attach a deleted association to the new primary. A conflicting explicit project-workspace selection, missing source identity, or an unverified legacy local checkout blocks the run. Restore the original source. Before intentionally clearing the existing-workspace binding to choose a new repository, review and preserve its retained work. Missing worktrees may be reconstructed only from the verified original source; current project defaults are not a fallback.
 
 ### Isolated repository object cache
 
 Fresh task-private GitHub HTTPS sources use a pristine upstream object cache at
-`<instance root>/repository-object-cache/<company>/<opaque scope>`. The scope
+`<instance root>/repository-object-cache/<space>/<opaque scope>`. The scope
 includes the repository URL and current credential fingerprint. Credentials
 are not stored in the cache. Other remote providers retain the ordinary clone
 path. Existing task sources and local dirty source copies keep their current
@@ -2529,7 +2529,7 @@ never populate this cache. Reproducibility checks continue to use a fresh upstre
 their independent proof; they do not use this cache.
 
 Cache publication is optional and never waits for another publisher. It keeps
-at most 64 entries and 4 GiB per company, with 2 GiB per entry. Temporary cache
+at most 64 entries and 4 GiB per space, with 2 GiB per entry. Temporary cache
 construction can use one additional entry's space; the existing manifest free
 space reserve applies. Priming uses a five-second cooperative work budget and
 a 4,096-entry scan allowance; individual filesystem calls and cleanup can
@@ -2542,7 +2542,7 @@ task Git objects.
 
 ## Workspace Git Scan Protection
 
-Paperclip applies one process-wide scheduler to expensive host-side workspace Git enumeration, including changed-file browsing, runtime/finalization cleanliness guards, and adapter sandbox-sync snapshots. The scheduler defaults to two active scans and a bounded queue of 32. Identical buffered scans of the same canonical worktree share one subprocess, while successful changed-file listings are cached for 10 seconds. Streaming snapshot scans have caller-owned sinks, so they use separate jobs in the same queue and are never cached or coalesced. Correctness-sensitive runtime guards bypass the result cache.
+Outpost applies one process-wide scheduler to expensive host-side workspace Git enumeration, including changed-file browsing, runtime/finalization cleanliness guards, and adapter sandbox-sync snapshots. The scheduler defaults to two active scans and a bounded queue of 32. Identical buffered scans of the same canonical worktree share one subprocess, while successful changed-file listings are cached for 10 seconds. Streaming snapshot scans have caller-owned sinks, so they use separate jobs in the same queue and are never cached or coalesced. Correctness-sensitive runtime guards bypass the result cache.
 
 The shared scan subprocess sets `GIT_OPTIONAL_LOCKS=0`, including when a caller supplies an environment. This prevents background `git status` from rewriting the index's stat cache and competing with workspace writers. Git still computes current tracked and untracked changes. Required write locks remain enforced; existing lock files are never removed or treated as stale by a scan. This avoids optional index refresh work but may make later scans repeat stat checks. See Git's [background refresh guidance](https://git-scm.com/docs/git-status#_background_refresh).
 
@@ -2560,7 +2560,7 @@ Workspace preparation resolves an existing root symlink before reading the snaps
 Execution-workspace close-readiness and branch-reconciliation status checks allow up to 32 MiB of buffered output. This accommodates nested task worktrees while preserving exact untracked-file counts. Larger output fails the scan and blocks destructive cleanup. Other buffered scan bounds stay unchanged.
 
 Heartbeat configuration, environment selection, and finalization read persisted
-workspace records through the company-scoped `getStoredById` service method.
+workspace records through the space-scoped `getStoredById` service method.
 Those reads do not inspect Git, refresh runtime service health, or resolve PR
 delivery. Workspace detail responses still load live display state, and the
 execution and cleanup boundaries retain their live branch and cleanliness
@@ -2589,33 +2589,33 @@ Structured `workspace_git_scan` logs expose the operation name, a non-reversible
 
 ## Worktree-local Instances
 
-When developing from multiple git worktrees, do not point two Paperclip servers at the same embedded PostgreSQL data directory.
+When developing from multiple git worktrees, do not point two Outpost servers at the same embedded PostgreSQL data directory.
 
-Instead, create a repo-local Paperclip config plus an isolated instance for the worktree:
+Instead, create a repo-local Outpost config plus an isolated instance for the worktree:
 
 ```sh
-paperclipai worktree init
+outpost worktree init
 # or create the git worktree and initialize it in one step:
-npx paperclipai worktree:make paperclip-pr-432
+npx @outpost/cli worktree:make outpost-pr-432
 ```
 
 This command:
 
-- writes repo-local files at `.paperclip/config.json` and `.paperclip/.env`
-- creates an isolated instance under `~/.paperclip-worktrees/instances/<worktree-id>/`
+- writes repo-local files at `.outpost/config.json` and `.outpost/.env`
+- creates an isolated instance under `~/.outpost-worktrees/instances/<worktree-id>/`
 - when run inside a linked git worktree, mirrors the effective git hooks into that worktree's private git dir
 - picks a free app port and embedded PostgreSQL port
 - disables automatic database backups for the isolated instance
-- by default seeds the isolated DB in `minimal` mode from the current effective Paperclip instance/config (repo-local worktree config when present, otherwise the default instance) via a logical SQL snapshot
+- by default seeds the isolated DB in `minimal` mode from the current effective Outpost instance/config (repo-local worktree config when present, otherwise the default instance) via a logical SQL snapshot
 
 Seed modes:
 
-- `minimal` keeps core app state like companies, projects, issues, comments, approvals, and auth state, preserves schema for all tables, but omits row data from heavy operational history such as heartbeat runs, wake requests, activity logs, runtime services, and agent session state
+- `minimal` keeps core app state like spaces, projects, issues, comments, approvals, and auth state, preserves schema for all tables, but omits row data from heavy operational history such as heartbeat runs, wake requests, activity logs, runtime services, and agent session state
 - `full` makes a full logical clone of the source instance
 - `--no-seed` defers database copying until the worktree is first used
 - `--empty` creates an empty isolated instance, with fresh signing secrets and no deferred copy; use this for synthetic test drives
 
-`--empty` persists a `.paperclip/seed-empty` marker before writing the instance config.
+`--empty` persists a `.outpost/seed-empty` marker before writing the instance config.
 The CLI and managed runtime provisioner honor it even when a registered source
 instance is present. An explicit successful `worktree reseed`, or a replacement
 `worktree init --force` without `--empty`, clears the choice.
@@ -2623,40 +2623,40 @@ While that marker exists, startup uses the instance's saved JWT and tool-action
 signing keys even if the shell inherited another instance's keys. Better Auth
 uses its saved key or the fresh instance JWT key. Missing saved keys stop startup.
 
-Seeded worktree instances quarantine copied live execution by default for both `minimal` and `full` seeds. During restore, Paperclip disables copied agent timer heartbeats, resets copied `running` agents to `idle`, blocks and unassigns copied agent-owned `in_progress` issues, and unassigns copied agent-owned `todo`/`in_review` issues. This keeps a freshly booted worktree from starting agents for work already owned by the source instance. Pass `--preserve-live-work` only when you intentionally want the isolated worktree to resume copied assignments.
+Seeded worktree instances quarantine copied live execution by default for both `minimal` and `full` seeds. During restore, Outpost disables copied agent timer heartbeats, resets copied `running` agents to `idle`, blocks and unassigns copied agent-owned `in_progress` issues, and unassigns copied agent-owned `todo`/`in_review` issues. This keeps a freshly booted worktree from starting agents for work already owned by the source instance. Pass `--preserve-live-work` only when you intentionally want the isolated worktree to resume copied assignments.
 
-The same quarantine stops copied project/execution-workspace runtime desired states and clears copied runtime process claims. Without this reset, booting the cloned Paperclip database could restart a source workspace's dev service from the isolated instance, creating duplicate runners, port reassignment, and stale public URLs.
+The same quarantine stops copied project/execution-workspace runtime desired states and clears copied runtime process claims. Without this reset, booting the cloned Outpost database could restart a source workspace's dev service from the isolated instance, creating duplicate runners, port reassignment, and stale public URLs.
 
-After `worktree init`, both the server and the CLI auto-load the repo-local `.paperclip/.env` when run inside that worktree, so normal commands like `pnpm dev`, `paperclipai doctor`, and `paperclipai db:backup` stay scoped to the worktree instance.
+After `worktree init`, both the server and the CLI auto-load the repo-local `.outpost/.env` when run inside that worktree, so normal commands like `pnpm dev`, `outpost doctor`, and `outpost db:backup` stay scoped to the worktree instance.
 
-`pnpm dev` now fails fast in a linked git worktree when `.paperclip/.env` is missing, instead of silently booting against the default instance/port. If that happens, run `paperclipai worktree init` in the worktree first.
+`pnpm dev` now fails fast in a linked git worktree when `.outpost/.env` is missing, instead of silently booting against the default instance/port. If that happens, run `outpost worktree init` in the worktree first.
 
 ### Lean worktrees and deferred seeding
 
 Seeding a worktree database is the heaviest part of `worktree init`. That work can be deferred so a worktree is cheap to create and only pays the seed cost the first time it is actually used — the CLI/dev-time analog of the server's lazy runtime provisioning (see the board-operator guide's "Lazy runtime provisioning" section).
 
-Seeding state is tracked in `.paperclip/seed-manifest.json`. The versioned manifest records only non-secret evidence: source instance id/config path, target instance id, seed mode, snapshot time, migration revision, attempt timestamps, current phase, terminal state, and a bounded phase diagnostic history. It never stores database credentials or auth credential material. The legacy `seed-pending` and `seed-complete` files remain read-only compatibility signals for worktrees created before the manifest shipped.
+Seeding state is tracked in `.outpost/seed-manifest.json`. The versioned manifest records only non-secret evidence: source instance id/config path, target instance id, seed mode, snapshot time, migration revision, attempt timestamps, current phase, terminal state, and a bounded phase diagnostic history. It never stores database credentials or auth credential material. The legacy `seed-pending` and `seed-complete` files remain read-only compatibility signals for worktrees created before the manifest shipped.
 
 The default `worktree init` still seeds eagerly. A lean worktree (created without an eager seed) has a `pending` manifest until something seeds it on demand:
 
-- `pnpm paperclipai worktree ensure-seeded` performs the deferred seed **exactly once**. It is lock-guarded and idempotent: only a complete `verified` manifest short-circuits it, so it is safe to call repeatedly and from concurrent processes. Managed workspaces derive the source from the control-plane-provided base project workspace when it carries its own `.paperclip/config.json`, and otherwise from the control plane's own registered instance config; either way the workspace's manifest never selects it. Manual worktrees must pass `--from-config`.
-- `paperclipai run` calls `ensureWorktreeSeeded` automatically before doctor/boot. Managed runs transparently seed a lean worktree from their registered base workspace; an unmanaged lean worktree must first run `worktree ensure-seeded --from-config <source-config>`.
-- Managed git worktrees run a repository's `scripts/provision-worktree.sh` when the strategy omits `provisionCommand` and that file exists. The Paperclip repository deliberately does not ship a file at that path, so agent turns in Paperclip worktrees do not wait on dependency installs or instance setup. Its setup script is `scripts/setup-paperclip-worktree.sh`: run it by hand, or set it as the project's `provisionCommand` to opt in. When a registered source config exists, it creates the isolated config and pending manifest, then installs dependencies. Runtime startup still runs `scripts/provision-worktree-runtime.sh` automatically when no explicit runtime provision command is configured and the manifest is not verified; that script runs `scripts/setup-paperclip-worktree.sh` first when the worktree has no config. Explicitly configured provision commands still take precedence.
+- `pnpm outpost worktree ensure-seeded` performs the deferred seed **exactly once**. It is lock-guarded and idempotent: only a complete `verified` manifest short-circuits it, so it is safe to call repeatedly and from concurrent processes. Managed workspaces derive the source from the control-plane-provided base project workspace when it carries its own `.outpost/config.json`, and otherwise from the control plane's own registered instance config; either way the workspace's manifest never selects it. Manual worktrees must pass `--from-config`.
+- `outpost run` calls `ensureWorktreeSeeded` automatically before doctor/boot. Managed runs transparently seed a lean worktree from their registered base workspace; an unmanaged lean worktree must first run `worktree ensure-seeded --from-config <source-config>`.
+- Managed git worktrees run a repository's `scripts/provision-worktree.sh` when the strategy omits `provisionCommand` and that file exists. The Outpost repository deliberately does not ship a file at that path, so agent turns in Outpost worktrees do not wait on dependency installs or instance setup. Its setup script is `scripts/setup-outpost-worktree.sh`: run it by hand, or set it as the project's `provisionCommand` to opt in. When a registered source config exists, it creates the isolated config and pending manifest, then installs dependencies. Runtime startup still runs `scripts/provision-worktree-runtime.sh` automatically when no explicit runtime provision command is configured and the manifest is not verified; that script runs `scripts/setup-outpost-worktree.sh` first when the worktree has no config. Explicitly configured provision commands still take precedence.
 - An environment-configured server may have no local seed config. If neither the base checkout nor the default control-plane instance has one, a fresh worktree prepares its dependencies without creating a development instance. This also applies when `OUTPOST_CONFIG` names the default `$OUTPOST_HOME/instances/$OUTPOST_INSTANCE_ID/config.json` path, as the Docker image does. Setup creates no config, environment file, or seed manifest and does not claim runtime or seed readiness. A later request for a seeded development runtime still needs a canonical registered source config. Once that source exists, provisioning the checkout again creates the development instance normally.
 - A missing custom `OUTPOST_CONFIG`, rejected symlink, or non-regular source file still fails setup. An existing worktree with a config, environment file, or seed state also fails if its source disappears; setup never downgrades that instance to a plain checkout. Repair the source before retrying.
-- The built-in deferred seed is recorded as its own terminal `workspace_seed` operation. A zero exit code is not enough for success: the operation succeeds only when `.paperclip/seed-manifest.json` contains complete verified evidence; failed, missing, or malformed manifests produce a failed operation with the seed phase in metadata.
-- Worktrees created before lazy seeding shipped may have neither marker. Paperclip adopts them only after their configured database proves a compatible migration journal and the core Paperclip schema; otherwise managed startup creates a pending manifest and performs the normal verified seed. Manual markerless worktrees must provide `--from-config` so the source remains explicit.
+- The built-in deferred seed is recorded as its own terminal `workspace_seed` operation. A zero exit code is not enough for success: the operation succeeds only when `.outpost/seed-manifest.json` contains complete verified evidence; failed, missing, or malformed manifests produce a failed operation with the seed phase in metadata.
+- Worktrees created before lazy seeding shipped may have neither marker. Outpost adopts them only after their configured database proves a compatible migration journal and the core Outpost schema; otherwise managed startup creates a pending manifest and performs the normal verified seed. Manual markerless worktrees must provide `--from-config` so the source remains explicit.
 
-Both `minimal` and `full` modes use the same terminal data-validation contract. Source validation accepts a migration journal that is a prefix of the checkout's journal and records the source revision in seed diagnostics; it rejects a source that is ahead of the checkout because that would require a downgrade. After restore, Paperclip applies pending migrations and requires the target journal to be current. Both validations also read an auth user with an instance administrator role, active company membership, and representative cloned company/issue pair. Authenticated instances additionally require that administrator to have a non-empty credential account. `local_trusted` instances accept the implicit local Board user without an account row because that mode intentionally has no human login flow. Restore, migrations, execution quarantine, routine pausing, workspace rebinding, and post-restore validation all run under the seed lock. An interruption leaves the exact active phase in terminal `failed` state; it cannot produce readiness evidence.
+Both `minimal` and `full` modes use the same terminal data-validation contract. Source validation accepts a migration journal that is a prefix of the checkout's journal and records the source revision in seed diagnostics; it rejects a source that is ahead of the checkout because that would require a downgrade. After restore, Outpost applies pending migrations and requires the target journal to be current. Both validations also read an auth user with an instance administrator role, active space membership, and representative cloned space/issue pair. Authenticated instances additionally require that administrator to have a non-empty credential account. `local_trusted` instances accept the implicit local Board user without an account row because that mode intentionally has no human login flow. Restore, migrations, execution quarantine, routine pausing, workspace rebinding, and post-restore validation all run under the seed lock. An interruption leaves the exact active phase in terminal `failed` state; it cannot produce readiness evidence.
 
 The seed process must own the target embedded PostgreSQL lifecycle for that entire sequence. It refuses to restore into a target postmaster that is already running, suppresses the embedded provider's process-global exit hooks, and stops its owned target only after validation or failure cleanup. A shutdown detected during restore is recorded as a target-database shutdown diagnostic rather than a generic restore failure.
 
-The seed manifest never grants source-path authority. Its source path and instance are diagnostic assertions derived from the realpath-canonical registered source. Deferred seeding resolves registration independently before taking the seed lock; under that lock it replaces stale source diagnostics from the registered value and then revalidates the manifest before any backup, service stop, spawn, or database mutation. Missing registration, invalid registered paths, source/target identity collisions, target-instance mismatches, and company mismatches fail closed.
+The seed manifest never grants source-path authority. Its source path and instance are diagnostic assertions derived from the realpath-canonical registered source. Deferred seeding resolves registration independently before taking the seed lock; under that lock it replaces stale source diagnostics from the registered value and then revalidates the manifest before any backup, service stop, spawn, or database mutation. Missing registration, invalid registered paths, source/target identity collisions, target-instance mismatches, and space mismatches fail closed.
 
 **Unverified-seed guard.** `pnpm dev` (the dev-runner) refuses to boot a worktree whose manifest is pending, running, failed, malformed, or missing required verification evidence and points you at the fix:
 
 ```
-[outpost] this worktree database is seed-pending. Run `pnpm paperclipai worktree ensure-seeded` before `pnpm dev`.
+[outpost] this worktree database is seed-pending. Run `pnpm outpost worktree ensure-seeded` before `pnpm dev`.
 ```
 
 This guard (`isWorktreeSeedPending` in `server/src/dev-runner-worktree.ts`) prevents `pnpm dev` from starting the app against an empty or partially restored database — run `worktree ensure-seeded` once and re-run `pnpm dev`.
@@ -2674,22 +2674,22 @@ The server/UI use those values for worktree-specific branding such as the top ba
 Authenticated worktree servers also use the `OUTPOST_INSTANCE_ID` value to scope Better Auth cookie names.
 Browser cookies are shared by host rather than port, so this prevents logging into one `127.0.0.1:<port>` worktree from replacing another worktree server's session cookie.
 
-When Paperclip closes a server-managed git worktree, it also reclaims the isolated instance referenced by that worktree's repo-local `.paperclip/.env`. New server-managed worktrees use a collision-resistant instance id derived from the resolved absolute worktree path, and Paperclip persists the resulting instance root as execution-workspace ownership metadata. Cleanup requires the env pointer to match that persisted root, stops a running embedded PostgreSQL process, and then removes the instance directory. The deletion guard only accepts canonical instance paths below `OUTPOST_WORKTREES_DIR/instances/`; legacy or mismatched ownership, pointers to the default/live Paperclip home, and all other locations are logged and left untouched.
+When Outpost closes a server-managed git worktree, it also reclaims the isolated instance referenced by that worktree's repo-local `.outpost/.env`. New server-managed worktrees use a collision-resistant instance id derived from the resolved absolute worktree path, and Outpost persists the resulting instance root as execution-workspace ownership metadata. Cleanup requires the env pointer to match that persisted root, stops a running embedded PostgreSQL process, and then removes the instance directory. The deletion guard only accepts canonical instance paths below `OUTPOST_WORKTREES_DIR/instances/`; legacy or mismatched ownership, pointers to the default/live Outpost home, and all other locations are logged and left untouched.
 
 Print shell exports explicitly when needed:
 
 ```sh
-paperclipai worktree env
+outpost worktree env
 # or:
-eval "$(paperclipai worktree env)"
+eval "$(outpost worktree env)"
 ```
 
 ### Workspace login handoff and readiness
 
 Opening a managed workspace board no longer depends on knowing which cloned password is current. `Open workspace` asks the main control plane for a short-lived, single-use ticket; the isolated workspace verifies it and creates its own instance-scoped Better Auth session.
 
-- **Issue** — `POST /api/execution-workspaces/{id}/login-handoff` (board actors only). The ticket is bound to the caller's user id and email, the execution workspace id, the workspace's company id, the isolated instance id, the live runtime origin, a nonce, and a ~90 s expiry. Nothing in the request body influences that binding; only the landing path is caller-supplied and it is reduced to a same-origin path before signing.
-- **Exchange** — `GET /api/auth/{workspace-handoff}/exchange?ticket=…` on the workspace itself, registered as a Better Auth plugin so session creation and cookie signing use Better Auth's own path. It verifies the signature, expiry, origin, instance, workspace, company, the cloned user's email, and an active membership **in that company**, records the nonce so a replay loses, and answers with an HTTP redirect — which is what keeps the ticket out of browser history. Request logs redact the `ticket` parameter.
+- **Issue** — `POST /api/execution-workspaces/{id}/login-handoff` (board actors only). The ticket is bound to the caller's user id and email, the execution workspace id, the workspace's space id, the isolated instance id, the live runtime origin, a nonce, and a ~90 s expiry. Nothing in the request body influences that binding; only the landing path is caller-supplied and it is reduced to a same-origin path before signing.
+- **Exchange** — `GET /api/auth/{workspace-handoff}/exchange?ticket=…` on the workspace itself, registered as a Better Auth plugin so session creation and cookie signing use Better Auth's own path. It verifies the signature, expiry, origin, instance, workspace, space, the cloned user's email, and an active membership **in that space**, records the nonce so a replay loses, and answers with an HTTP redirect — which is what keeps the ticket out of browser history. Request logs redact the `ticket` parameter.
 - **Fallback** — direct email/password sign-in still works and the UI labels it accurately as *snapshot-local credentials*. A rejected ticket redirects to `/auth?workspaceHandoffError=<reason>` rather than failing opaquely.
 
 Key material is derived, never shared. The control plane keeps a root secret (`OUTPOST_WORKSPACE_HANDOFF_SECRET`, or a domain-separated derivation from the instance's existing signing secret when that is unset) and injects only per-workspace values into the guest process:
@@ -2699,7 +2699,7 @@ Key material is derived, never shared. The control plane keeps a root secret (`O
 | `OUTPOST_WORKSPACE_HANDOFF_KEY` | Per-workspace ticket verification key. A guest cannot mint a ticket for a sibling workspace. |
 | `OUTPOST_WORKSPACE_READINESS_TOKEN` | Bearer token the control plane presents to read this workspace's protected readiness. |
 | `OUTPOST_EXECUTION_WORKSPACE_ID` | Execution workspace the guest was provisioned for, used for identity checks. |
-| `OUTPOST_EXECUTION_WORKSPACE_COMPANY_ID` | Company whose board the guest represents. Scopes both the membership check and the readiness probes, so "some company in the clone is fine" cannot pass for the one being opened. |
+| `OUTPOST_EXECUTION_WORKSPACE_SPACE_ID` | Space whose board the guest represents. Scopes both the membership check and the readiness probes, so "some space in the clone is fine" cannot pass for the one being opened. |
 
 Protected `/api/health` on a cloned workspace additionally carries a `workspace` block — `state`, `databaseReady`, `cloneDataReady`, `authHandoffReady`, `seedState`, `seedPhase`, `instanceId`, `executionWorkspaceId`, `failurePhase`. Public health stays redacted. Managed runtime start will not publish `running / healthy` unless that block agrees and names this exact instance and workspace, and runtime-service work products are refreshed from the live runtime row so a port change cannot leave a stale user-facing URL.
 
@@ -2707,13 +2707,13 @@ The workspace UI surfaces `Provisioning database`, `Validating clone`, `Ready`, 
 
 ### Worktree CLI Reference
 
-**`npx paperclipai worktree init [options]`** — Create repo-local config/env and an isolated instance for the current worktree.
+**`npx @outpost/cli worktree init [options]`** — Create repo-local config/env and an isolated instance for the current worktree.
 
 | Option | Description |
 |---|---|
 | `--name <name>` | Display name used to derive the instance id |
 | `--instance <id>` | Explicit isolated instance id |
-| `--home <path>` | Home root for worktree instances (default: `~/.paperclip-worktrees`) |
+| `--home <path>` | Home root for worktree instances (default: `~/.outpost-worktrees`) |
 | `--from-config <path>` | Source config.json to seed from |
 | `--from-data-dir <path>` | Source OUTPOST_HOME used when deriving the source config |
 | `--from-instance <id>` | Source instance id (default: `default`) |
@@ -2727,32 +2727,32 @@ The workspace UI surfaces `Provisioning database`, `Validating clone`, `Ready`, 
 Examples:
 
 ```sh
-paperclipai worktree init --no-seed
-paperclipai worktree init --seed-mode full
-paperclipai worktree init --from-instance default
-paperclipai worktree init --from-data-dir ~/.paperclip
-paperclipai worktree init --force
+outpost worktree init --no-seed
+outpost worktree init --seed-mode full
+outpost worktree init --from-instance default
+outpost worktree init --from-data-dir ~/.outpost
+outpost worktree init --force
 ```
 
 Repair an already-created repo-managed worktree and reseed its isolated instance from the main default install. Point `--from-config` at the instance config:
 
 ```sh
-cd /path/to/paperclip/.paperclip/worktrees/PAP-884-ai-commits-component
-npx paperclipai worktree init --force --seed-mode minimal \
+cd /path/to/outpost/.outpost/worktrees/PAP-884-ai-commits-component
+npx @outpost/cli worktree init --force --seed-mode minimal \
   --name PAP-884-ai-commits-component \
-  --from-config ~/.paperclip/instances/default/config.json
+  --from-config ~/.outpost/instances/default/config.json
 ```
 
-That rewrites the worktree-local `.paperclip/config.json` + `.paperclip/.env`, recreates the isolated instance under `~/.paperclip-worktrees/instances/<worktree-id>/`, and preserves the git worktree contents themselves.
+That rewrites the worktree-local `.outpost/config.json` + `.outpost/.env`, recreates the isolated instance under `~/.outpost-worktrees/instances/<worktree-id>/`, and preserves the git worktree contents themselves.
 
 For an already-created worktree where you want the CLI to decide whether to rebuild missing worktree metadata or just reseed the isolated DB, use `worktree repair`.
 
-**`npx paperclipai worktree repair [options]`** — Repair the current linked worktree by default, or create/repair a named linked worktree under `.paperclip/worktrees/` when `--branch` is provided. The command never targets the primary checkout unless you explicitly pass `--branch`.
+**`npx @outpost/cli worktree repair [options]`** — Repair the current linked worktree by default, or create/repair a named linked worktree under `.outpost/worktrees/` when `--branch` is provided. The command never targets the primary checkout unless you explicitly pass `--branch`.
 
 | Option | Description |
 |---|---|
-| `--branch <name>` | Existing branch/worktree selector to repair, or a branch name to create under `.paperclip/worktrees` |
-| `--home <path>` | Home root for worktree instances (default: `~/.paperclip-worktrees`) |
+| `--branch <name>` | Existing branch/worktree selector to repair, or a branch name to create under `.outpost/worktrees` |
+| `--home <path>` | Home root for worktree instances (default: `~/.outpost-worktrees`) |
 | `--from-config <path>` | Source config.json to seed from |
 | `--from-data-dir <path>` | Source `OUTPOST_HOME` used when deriving the source config |
 | `--from-instance <id>` | Source instance id when deriving the source config (default: `default`) |
@@ -2763,19 +2763,19 @@ For an already-created worktree where you want the CLI to decide whether to rebu
 Examples:
 
 ```sh
-# From inside a linked worktree, rebuild missing .paperclip metadata and reseed it from the default instance.
-cd /path/to/paperclip/.paperclip/worktrees/PAP-1132-assistant-ui-pap-1131-make-issues-comments-be-like-a-chat
-pnpm paperclipai worktree repair
+# From inside a linked worktree, rebuild missing .outpost metadata and reseed it from the default instance.
+cd /path/to/outpost/.outpost/worktrees/PAP-1132-assistant-ui-pap-1131-make-issues-comments-be-like-a-chat
+pnpm outpost worktree repair
 
-# From the primary checkout, create or repair a linked worktree for a branch under .paperclip/worktrees/.
+# From the primary checkout, create or repair a linked worktree for a branch under .outpost/worktrees/.
 # This command repairs the local checkout, so run the checked-out CLI through the direct-exec form.
-cd /path/to/paperclip
+cd /path/to/outpost
 node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts worktree repair --branch PAP-1132-assistant-ui-pap-1131-make-issues-comments-be-like-a-chat
 ```
 
-For an already-created worktree where you want to keep the existing repo-local config/env and only overwrite the isolated database, use `worktree reseed` instead. Stop the target worktree's Paperclip server first so the command can replace the DB safely.
+For an already-created worktree where you want to keep the existing repo-local config/env and only overwrite the isolated database, use `worktree reseed` instead. Stop the target worktree's Outpost server first so the command can replace the DB safely.
 
-**`npx paperclipai worktree reseed [options]`** — Re-seed an existing worktree-local instance from another Paperclip instance or worktree while preserving the target worktree's current config, ports, and instance identity.
+**`npx @outpost/cli worktree reseed [options]`** — Re-seed an existing worktree-local instance from another Outpost instance or worktree while preserving the target worktree's current config, ports, and instance identity.
 
 | Option | Description |
 |---|---|
@@ -2793,29 +2793,29 @@ Examples:
 
 ```sh
 # From the main repo, reseed a worktree from the current default/master instance.
-cd /path/to/paperclip
-npx paperclipai worktree reseed \
+cd /path/to/outpost
+npx @outpost/cli worktree reseed \
   --from current \
   --to PAP-1132-assistant-ui-pap-1131-make-issues-comments-be-like-a-chat \
   --seed-mode full \
   --yes
 
 # From inside a worktree, reseed it from the default instance config.
-cd /path/to/paperclip/.paperclip/worktrees/PAP-1132-assistant-ui-pap-1131-make-issues-comments-be-like-a-chat
-npx paperclipai worktree reseed \
+cd /path/to/outpost/.outpost/worktrees/PAP-1132-assistant-ui-pap-1131-make-issues-comments-be-like-a-chat
+npx @outpost/cli worktree reseed \
   --from-instance default \
   --seed-mode full
 ```
 
 Managed workspace repair uses this same verified full-reseed contract through `POST /api/execution-workspaces/:id/runtime-commands/repair`. The exclusive, audited operation stops managed services, writes a recoverable pre-repair database backup under the isolated instance's backup directory, performs the full seed/migration/quarantine/rebinding sequence, and restarts only after terminal manifest and service-health validation. It preserves the worktree filesystem. On failure, services remain stopped while the database backup, seed manifest, bounded phase diagnostics, and operation log are retained for inspection; repair never retries itself in a loop.
 
-**`npx paperclipai worktree:make <name> [options]`** — Create `~/NAME` as a git worktree, then initialize an isolated Paperclip instance inside it. This combines `git worktree add` with `worktree init` in a single step.
+**`npx @outpost/cli worktree:make <name> [options]`** — Create `~/NAME` as a git worktree, then initialize an isolated Outpost instance inside it. This combines `git worktree add` with `worktree init` in a single step.
 
 | Option | Description |
 |---|---|
 | `--start-point <ref>` | Remote ref to base the new branch on (e.g. `origin/main`) |
 | `--instance <id>` | Explicit isolated instance id |
-| `--home <path>` | Home root for worktree instances (default: `~/.paperclip-worktrees`) |
+| `--home <path>` | Home root for worktree instances (default: `~/.outpost-worktrees`) |
 | `--from-config <path>` | Source config.json to seed from |
 | `--from-data-dir <path>` | Source OUTPOST_HOME used when deriving the source config |
 | `--from-instance <id>` | Source instance id (default: `default`) |
@@ -2829,12 +2829,12 @@ Managed workspace repair uses this same verified full-reseed contract through `P
 Examples:
 
 ```sh
-npx paperclipai worktree:make paperclip-pr-432
-npx paperclipai worktree:make my-feature --start-point origin/main
-npx paperclipai worktree:make experiment --no-seed
+npx @outpost/cli worktree:make outpost-pr-432
+npx @outpost/cli worktree:make my-feature --start-point origin/main
+npx @outpost/cli worktree:make experiment --no-seed
 ```
 
-**`npx paperclipai worktree env [options]`** — Print shell exports for the current worktree-local Paperclip instance.
+**`npx @outpost/cli worktree env [options]`** — Print shell exports for the current worktree-local Outpost instance.
 
 | Option | Description |
 |---|---|
@@ -2844,18 +2844,18 @@ npx paperclipai worktree:make experiment --no-seed
 Examples:
 
 ```sh
-pnpm paperclipai worktree env
-pnpm paperclipai worktree env --json
-eval "$(npx paperclipai worktree env)"
+pnpm outpost worktree env
+pnpm outpost worktree env --json
+eval "$(npx @outpost/cli worktree env)"
 ```
 
-For project execution worktrees, Paperclip can also run a project-defined provision command after it creates or reuses an isolated git worktree. Configure this on the project's execution workspace policy (`workspaceStrategy.provisionCommand`). The command runs inside the derived worktree and receives `OUTPOST_WORKSPACE_*`, `OUTPOST_PROJECT_ID`, `OUTPOST_AGENT_ID`, and `OUTPOST_ISSUE_*` environment variables so each repo can bootstrap itself however it wants.
+For project execution worktrees, Outpost can also run a project-defined provision command after it creates or reuses an isolated git worktree. Configure this on the project's execution workspace policy (`workspaceStrategy.provisionCommand`). The command runs inside the derived worktree and receives `OUTPOST_WORKSPACE_*`, `OUTPOST_PROJECT_ID`, `OUTPOST_AGENT_ID`, and `OUTPOST_ISSUE_*` environment variables so each repo can bootstrap itself however it wants.
 
 An issue's partial `workspaceStrategy` inherits omitted fields from the enabled project's strategy when both use the same type. For example, an issue can override `baseRef` without losing the project's provision, runtime provision, or teardown commands. An explicit value, including `null` or an empty string, replaces the project value. Clearing a command restores the runtime's usual default behavior; use `provisionCommand: "true"` for an explicit no-op. A different strategy type or a disabled project policy does not supply these defaults. An issue's `existingBranch` pin also excludes the project's `branchTemplate`.
 
 An issue can pin its isolated worktree to an exact pre-existing branch instead of a template-derived one — the contract PR-preparation tasks use. Set the issue's `executionWorkspaceSettings` to `{ "mode": "isolated_workspace", "workspaceStrategy": { "type": "git_worktree", "existingBranch": "<branch>" } }`. The validator requires isolated mode plus a `git_worktree` strategy and rejects `branchTemplate` alongside `existingBranch`. At dispatch the runtime attaches (never creates, renames, fast-forwards, or resets) that branch: it reuses a registered worktree that already has the branch checked out (including legacy `.worktrees/` paths), otherwise it attaches the branch under the managed worktree parent. A missing branch, an occupied worktree path on another branch, or a non-worktree strategy fails closed with a `workspace_validation_failed` error instead of falling back to the shared checkout or a derived branch, and an inherited `reuse_existing` workspace binding on a different branch is ignored in favor of realizing the pinned branch.
 
-Heavier setup that is only needed by a managed runtime service can use `workspaceStrategy.runtimeProvisionCommand`. Paperclip runs this command lazily before spawning the first service in a start batch, serializes concurrent provisioning for the same workspace, and records the attempt as `workspace_runtime_provision`. The command receives the same workspace environment as `provisionCommand` and should be idempotent because later service-start batches invoke it again.
+Heavier setup that is only needed by a managed runtime service can use `workspaceStrategy.runtimeProvisionCommand`. Outpost runs this command lazily before spawning the first service in a start batch, serializes concurrent provisioning for the same workspace, and records the attempt as `workspace_runtime_provision`. The command receives the same workspace environment as `provisionCommand` and should be idempotent because later service-start batches invoke it again.
 
 Managed runtime control actions (`start`, `stop`, `restart`, and job `run`) are mutually exclusive per execution workspace. An overlapping control is rejected with `409 workspace_runtime_control_in_progress` instead of racing the active operation, and authorization is still checked first, so the conflict never widens who may control a workspace.
 
@@ -2864,7 +2864,7 @@ files under the instance's `runtime-service-logs/` directory. The child inherits
 the file descriptors rather than supervisor-owned pipes, so request-logging
 servers remain responsive and adoptable when the control plane restarts.
 
-Every managed control reaches a terminal operation state. Each one stamps the owning server process and pid on its `workspace_operations` row and heartbeats while it runs, and each one carries a wall-clock ceiling (30 minutes for lifecycle controls, 4 hours for workspace jobs) so a hung provider or listener fails the operation rather than leaving it active. When a start fails part-way, Paperclip tears the workspace's runtime services down through the ordinary stop path and records a stopped desired state, so the lane is retryable and a startup reconcile will not resurrect a service that never came up.
+Every managed control reaches a terminal operation state. Each one stamps the owning server process and pid on its `workspace_operations` row and heartbeats while it runs, and each one carries a wall-clock ceiling (30 minutes for lifecycle controls, 4 hours for workspace jobs) so a hung provider or listener fails the operation rather than leaving it active. When a start fails part-way, Outpost tears the workspace's runtime services down through the ordinary stop path and records a stopped desired state, so the lane is retryable and a startup reconcile will not resurrect a service that never came up.
 
 Recovery of stranded controls is bounded and cannot steal a live operation. A `running` control is only terminalized when its owning process is gone, when the owning request in this process no longer exists, or after 60 seconds without a heartbeat; the terminalizing write is a compare-and-swap on `updated_at`, so an owner that heartbeats concurrently keeps its operation. Recovery runs on server startup and before each managed control, appends reconciliation evidence to the workspace-operation log, and stays inside the requested workspace's scope.
 
@@ -2876,11 +2876,11 @@ Lease recovery is bounded and explicit. Another issue may reclaim the lane once 
 
 For Tailscale HTTPS exposure, readiness includes stable listener-ownership checks for every requested loopback port (the app and, when configured, its Vite HMR companion). Each listener must belong to the spawned managed process group; an unrelated listener that races onto either reserved port fails the start closed before the broker is asked to expose it.
 
-Managed `paperclip-dev` worktree services enable `OUTPOST_UI_DEV_MIDDLEWARE=true` by default, so newly started worktrees hot-reload UI source changes. Managed HTTPS services use this default only when they publish the Paperclip Vite HMR companion listener, which is the default exposure configuration. A service or adapter can explicitly set the variable to `false` when it intentionally needs to exercise the built UI bundle.
+Managed `outpost-dev` worktree services enable `OUTPOST_UI_DEV_MIDDLEWARE=true` by default, so newly started worktrees hot-reload UI source changes. Managed HTTPS services use this default only when they publish the Outpost Vite HMR companion listener, which is the default exposure configuration. A service or adapter can explicitly set the variable to `false` when it intentionally needs to exercise the built UI bundle.
 
-In Vite middleware mode, Paperclip gives HMR a dedicated HTTP server bound to the managed runtime's loopback host. The browser still derives the HMR hostname from the public HTTPS page, and exposed runtimes use secure WebSockets, so listener containment does not break remote hot reload.
+In Vite middleware mode, Outpost gives HMR a dedicated HTTP server bound to the managed runtime's loopback host. The browser still derives the HMR hostname from the public HTTPS page, and exposed runtimes use secure WebSockets, so listener containment does not break remote hot reload.
 
-When a workspace service runs Paperclip for browser OAuth QA, configure its `expose.urlTemplate` with the canonical URL the browser can reach. Paperclip preserves explicit `OUTPOST_PUBLIC_URL` or `BETTER_AUTH_URL` settings; otherwise it uses a valid exposed HTTPS origin (or loopback HTTP) as the managed runtime fallback for Better Auth and `/api/tools/oauth/callback`. Internal service names such as `http://paperclip-dev:<port>` are rejected unless that hostname is genuinely the browser route. Use a unique origin per isolated worktree. See [Execution Workspaces And Runtime Services](../docs/guides/board-operator/execution-workspaces-and-runtime-services.md#browser-reachable-origins-for-oauth-qa) for configuration and verification.
+When a workspace service runs Outpost for browser OAuth QA, configure its `expose.urlTemplate` with the canonical URL the browser can reach. Outpost preserves explicit `OUTPOST_PUBLIC_URL` or `BETTER_AUTH_URL` settings; otherwise it uses a valid exposed HTTPS origin (or loopback HTTP) as the managed runtime fallback for Better Auth and `/api/tools/oauth/callback`. Internal service names such as `http://outpost-dev:<port>` are rejected unless that hostname is genuinely the browser route. Use a unique origin per isolated worktree. See [Execution Workspaces And Runtime Services](../docs/guides/board-operator/execution-workspaces-and-runtime-services.md#browser-reachable-origins-for-oauth-qa) for configuration and verification.
 
 ## Heartbeat Service Extractions
 
@@ -2949,14 +2949,14 @@ and self-hosted or SSH runtime checks retain their status. A passed connection
 test does not replace Runner package verification before execution.
 Public-path tests are in `server/src/__tests__/heartbeat-execution-configuration.test.ts`.
 
-Concurrent skill preparations join the company inventory refresh before taking
+Concurrent skill preparations join the space inventory refresh before taking
 the version-cache lock. Each preparation then reads its actor's current skill
 visibility under that lock. Snapshot materialization and the durable run version
 pins stay in the same locked callback. Only the in-flight inventory work is
 shared; completed refreshes and permission results are not cached.
 
 Browser Use skill assignment first checks for an enabled, active Browser Use
-connection in the run's company. With none, it skips full tool discovery.
+connection in the run's space. With none, it skips full tool discovery.
 With one, the existing task, tool-policy and credential-grant checks still apply.
 
 Session preparation is in `server/src/services/heartbeat/session-preparation.ts`.
@@ -3040,7 +3040,7 @@ in `_test`. The harness applies migrations there and adds synthetic fixtures.
 
 Continuation history reads select completed tool receipts and the typed
 conversation/workspace recovery fields used to choose the prior terminal run.
-Every completed receipt keeps its full result. Receipt order, company/agent/task
+Every completed receipt keeps its full result. Receipt order, space/agent/task
 scope, and the complete retained history stay unchanged. Saved results remain
 available to detail, recovery, and execution paths.
 Use `pnpm --filter @outpost/server exec tsx ../scripts/benchmark-continuation-history.ts --baseline-ref=<pre-fix-commit>`
@@ -3171,10 +3171,10 @@ CLI paths that use stdin avoid that separate limit for the wake prompt.
 ## Adding a native Runner harness
 
 Google Antigravity's pending integration uses the official ACP server 1.4.3 with
-a pinned native admission patch. `paperclipai runtime setup antigravity` installs
-its verified assets on macOS ARM64 as the OS user running Paperclip. Setup does
+a pinned native admission patch. `outpost runtime setup antigravity` installs
+its verified assets on macOS ARM64 as the OS user running Outpost. Setup does
 not enable global execution: qualification remains pending and admission is
-closed by default. An isolated company can use a finite trusted server-startup
+closed by default. An isolated space can use a finite trusted server-startup
 candidate authorization bound to the exact model, local platform, profile and
 native closure. The candidate's recorded setup and two-turn task reused the same
 owner's managed personal-default Google subscription on macOS ARM64 with
@@ -3211,7 +3211,7 @@ Other adapters require an explicit provider choice. Legacy ACPX Codex agent
 settings normalize to native Codex on configuration updates and before fresh
 runs; immutable run descriptors remain readable. The **Outpost Runner**
 experimental setting applies to other native providers. Native Codex, OpenCode,
-ACPX Claude, ACPX Grok Build, and ACPX Pi do not require it. Company access checks still apply.
+ACPX Claude, ACPX Grok Build, and ACPX Pi do not require it. Space access checks still apply.
 
 Native Codex preserves an explicit `adapterConfig.search: false` when converting
 or saving an agent. The disabled hosted-search policy is recorded in the native
@@ -3244,13 +3244,13 @@ use that draft's identity and a bounded Core-issued probe; ordinary tasks remain
 blocked. Environment changes save immediately, preserve the selected account,
 and invalidate the previous test. Tests without an agent report that prerequisite
 without allocating a lease. Finishing setup still verifies the saved configuration.
-Companies that require hire approval keep drafts paused and defer allocation and
+Spaces that require hire approval keep drafts paused and defer allocation and
 verification until that approval. The wizard saves the account with a pending
 verification warning instead of requiring a pre-approval computer.
 
 Pi also requires an explicit `provider/model` before testing or hiring; inactive
 setup drafts may precede model selection. Install its pinned runtime on the
-execution host with `paperclipai runtime setup pi` before testing the connection.
+execution host with `outpost runtime setup pi` before testing the connection.
 The native default uses `approve-all` permissions, `per_turn` lifecycle, and
 `low` thinking. Exact native thinking levels are `off`, `low`, `high`, and `max`.
 Legacy `minimal`, `medium`, and `xhigh` thinking, custom commands/arguments, and
@@ -3288,7 +3288,7 @@ retain the pinned SDK JavaScript and declare its native packages as server
 optional dependencies, so npm installs the executable for the consumer's
 platform. Runtime admission still checks the exact version and executable digest.
 A missing provider package is reported as **Runtime missing**, with automatic
-retries stopped. Reinstall or rebuild Paperclip with its provider dependencies,
+retries stopped. Reinstall or rebuild Outpost with its provider dependencies,
 restart the server, and run the agent's runtime test before retrying the task.
 Changing the model or signing in again cannot repair a missing runtime package.
 
@@ -3319,7 +3319,7 @@ GitHub access. Discovery remains fresh for each run, and tool calls still use th
 current gateway permissions. Local, custom-backend and other provider paths keep
 their existing preparation order.
 OpenCode defaults to `allow`, with explicit `ask` and `deny` options; ACPX
-defaults to `approve-all`, with explicit `approve-paperclip`, `approve-reads`,
+defaults to `approve-all`, with explicit `approve-outpost`, `approve-reads`,
 and `deny-all` options. Codex conversion keeps a non-empty model and
 otherwise stores the shared `gpt-6.1-sol` default (half the `gpt-5.6-sol` token
 price on the reviewed OpenAI rate card in `server/src/services/codex-pricing.ts`).
@@ -3333,12 +3333,12 @@ the Claude account through the agent's **AI connection** section (or supply an
 explicit supported provider credential); an ambient Claude CLI login alone is
 not a credential source for its isolated runner home. The default
 `approve-all` setting approves harness operations across assigned tools and
-connections, including provider-native tools. Company permissions, approval
+connections, including provider-native tools. Space permissions, approval
 gates, and workspace isolation still apply. Explicit restrictive modes remain
 restrictive; omitted settings use full auto.
 
-Assigned app tools can use `paperclip_search_assigned_tools` and
-`paperclip_call_assigned_tool` instead of direct tool definitions. Search with
+Assigned app tools can use `outpost_search_assigned_tools` and
+`outpost_call_assigned_tool` instead of direct tool definitions. Search with
 `{"query":"github"}` and call an exact returned tool name. Omitted, empty or
 whitespace-only `schemaTool` values perform normal discovery, including when
 `schemaOffset` is zero. To read a large schema, set `schemaTool` to the exact
@@ -3355,7 +3355,7 @@ selected run's user comments so the agent can answer the original request.
 
 An unsaved Agent Chat uses an ephemeral `chat:<agent-id>` view-model ID. Task
 browser polling starts after the first send or upload creates a persisted task
-UUID. Saved chats retain the task browser's company and credential access checks.
+UUID. Saved chats retain the task browser's space and credential access checks.
 Task browser routes reject malformed task IDs with `404` before querying PostgreSQL.
 
 A native continuation that requires reconciliation shows **Recovery needed**
@@ -3364,7 +3364,7 @@ hold. A generic retry cannot resolve this incident. The runner's
 `get_task_context` includes up to 100 existing direct child tasks and a truncation
 flag so resumed agents can reuse delegated work and inspect completed results.
 
-For native Codex runs, Paperclip passes the resolved execution workspace as
+For native Codex runs, Outpost passes the resolved execution workspace as
 `OUTPOST_WORKSPACE_CWD` and uses it as the provider containment boundary. A
 workspace below the host `HOME` is valid, including the default projectless
 agent workspace. The host `HOME` itself, a directory that contains it, a
@@ -3539,7 +3539,7 @@ Runner's settled-provider check. A staged target does not yet certify a resumabl
 session. Its eventual snapshot still uses the existing checkpoint transaction.
 
 Custom source-mode HTTP launchers should create their listener with
-`createPaperclipHttpServer` from `server/src/http/server.ts`, passing the selected
+`createOutpostHttpServer` from `server/src/http/server.ts`, passing the selected
 API origin as `apiUrl`. This registers the native Runner WebSocket transport
 before execution is admitted. Plain Express `app.listen()` or Node
 `createServer(app)` alone does not initialize that transport and native runs
@@ -3547,7 +3547,7 @@ fail with `runner_orp_websocket_server_not_configured`. Browser live events stil
 use their separate authenticated setup.
 
 Project discovery through `list_projects` returns up to 50 compact summaries.
-It uses `GET /api/companies/:companyId/projects?view=summary&limit=50&cursor=...`;
+It uses `GET /api/spaces/:spaceId/projects?view=summary&limit=50&cursor=...`;
 the cursor is optional. The database reads bounded summary projections. Agent
 and run trust boundaries narrow database candidates before per-project access
 checks. Projects with their own authorization policy remain candidates because
@@ -3590,7 +3590,7 @@ ownership evidence. Scheduling and generic orphan recovery start only after
 that classification finishes.
 
 - A verified live runner re-registers its existing ORP authority and reconnects
-  with the same operating-system PID. Paperclip does not spawn a competing
+  with the same operating-system PID. Outpost does not spawn a competing
   runner.
 - For a running sandbox session, recovery checks the original provider lease,
   remote workspace, durable runner identity, and process marker inside that
@@ -3610,7 +3610,7 @@ that classification finishes.
   resumes the same provider checkpoint. Only the operating-system PID changes.
 - A prepared remote workspace interrupted before the executor's first claim
   can continue on the same run without a provider checkpoint. Under the recovery
-  locks, Paperclip requires attempt and controller generation zero, no prior
+  locks, Outpost requires attempt and controller generation zero, no prior
   controller or lease owner, and no session, process, launch, or provider evidence.
   Any existing durable runner root must still prove an untouched bootstrap before
   execution starts. A prior claim or contradictory evidence retains the hold.
@@ -3625,14 +3625,14 @@ that classification finishes.
   A detached execution also preserves the current owner's run-scoped gateway tokens.
 - A runner that died before its first authenticated connection can restart on
   the same run only when its durable root proves that no provider authority or
-  checkpoint exists. Paperclip quarantines the incomplete root first.
-- A live but mismatched or unverifiable process fails closed. Paperclip does not
+  checkpoint exists. Outpost quarantines the incomplete root first.
+- A live but mismatched or unverifiable process fails closed. Outpost does not
   signal it or spawn a replacement.
 - A persisted proposed or terminal result is reconciled before any runner or
   provider work starts, so restart recovery cannot submit a duplicate turn.
 - On the next run, a completed local Codex session whose warm controller died
   before suspension is recovered automatically, including a uniquely verified
-  checkpoint quarantined by older controllers. Paperclip requires matching
+  checkpoint quarantined by older controllers. Outpost requires matching
   database/session/provider identities, a settled terminal journal, no pending
   commands or active provider turn, and a confirmed-dead process and process
   group. It seals the old authority for normal epoch rotation and preserves the
@@ -3690,7 +3690,7 @@ takes a fresh durable/local safety snapshot. Busy or failed retirement keeps the
 instance awake. Plain drain reads and `idleSleepDiagnostics=1` remain passive with
 respect to native retirement.
 
-An idle warm owner proves only the exact prior run in the same company, session,
+An idle warm owner proves only the exact prior run in the same space, session,
 workspace and environment. Mutable configuration compatibility is checked
 separately: changed settings retire the owned provider before a replacement can
 execute. A copied older owner record, an active or missing owner, and a different
@@ -3814,25 +3814,25 @@ is material. Repeat with `--capture-values=false` for acceptance timings without
 the response-value observer. Add `--baseline-ref=COMMIT --capture-values=false`
 to alternate the original and current skill services against the same database
 and actor. This mode checks full response equality through equivalent local HTTP
-handlers. The normal mode uses the production router. Only `company-skills.ts`
+handlers. The normal mode uses the production router. Only `space-skills.ts`
 differs in paired mode; imported helpers stay at the current checkout.
 
 
 Plugin environment drivers can declare `skillKeys` that reference their own
 manifest-managed skills. Selecting that environment adds those skills to the
 normal authorized skill selection, including an explicitly empty optional
-selection. Core installs a missing managed skill in the current company's
+selection. Core installs a missing managed skill in the current space's
 library during lifecycle reconciliation or new-run admission and preserves existing
 skill edits and explicit version pins. New managed skills use
 `plugin-<short-plugin-id>-<skill-slug>` for both the library slug and SKILL.md name.
 The short ID is the final dot-separated plugin ID component, without a leading
 `plugin-`. An unrelated skill can keep the same slug in a separate canonical
-record. The required environment skill wins during delivery: a selected company
+record. The required environment skill wins during delivery: a selected space
 skill with the same slug or name is omitted and reported as shadowed. Stored agent
 assignments and both library records remain unchanged. Run warnings and snapshots,
-and the plugin runtime response, identify the omitted key and the winning key. Existing company copies keep their edits and names
+and the plugin runtime response, identify the omitted key and the winning key. Existing space copies keep their edits and names
 until reset. Lifecycle callers request installation with
-`agents.getRuntime(agentId, companyId, undefined, true)`; ordinary runtime reads and
+`agents.getRuntime(agentId, spaceId, undefined, true)`; ordinary runtime reads and
 recovery do not install newly declared skills. Run
 preparation captures the same immutable versions as ordinary assignments;
 recovery uses the saved selection. The lifecycle runtime reader includes the
@@ -3846,7 +3846,7 @@ selected skills, the effective default environment, or plugin requirements enque
 normal durable runtime events, so an idle ready computer receives updates without
 a new run. Failed synchronization retains the event for the existing retry path.
 
-The Paperclip app ships a curated catalog of company skills out of the box. The
+The Outpost app ships a curated catalog of space skills out of the box. The
 catalog is a workspace package at `packages/skills-catalog`:
 
 ```text
@@ -3862,20 +3862,20 @@ packages/skills-catalog/
 ```
 
 Server and CLI import the generated manifest; they do not crawl repository
-paths at request time. Root `skills/` remains reserved for Paperclip runtime
+paths at request time. Root `skills/` remains reserved for Outpost runtime
 skills and is not part of the catalog.
 
 Skill-capable legacy local adapters always select the bundled
-`paperclipai/paperclip/paperclip` operational skill when it is present in the
+`outpost/outpost/outpost` operational skill when it is present in the
 runtime inventory. This applies to existing agents without a stored skill
 preference and to explicit empty optional-skill selections. The operational
 skill supplies the control-plane workflow that those adapters need for
 heartbeats. The `complain` and `suggestion-box` runtime skills are also selected
 automatically alongside it; see [Agent commentary](agent-commentary.md).
 Other runtime skills remain controlled by
-`paperclipSkillSync.desiredSkills`. The native `outpost_runner` does not use
+`outpostSkillSync.desiredSkills`. The native `outpost_runner` does not use
 this legacy default because its protocol supplies the control-plane contract.
-An empty native runtime selection returns before company skill inventory work.
+An empty native runtime selection returns before space skill inventory work.
 An explicit empty stored key set does the same. Nonempty selections still use
 the current inventory, version and access checks. Legacy automatic selections
 still resolve their operational and feedback skills.
@@ -3918,8 +3918,8 @@ catalog change.
 ## Skill Version Snapshot Retention
 
 A run uses a skill version from a directory on disk:
-`<instance>/skills/<companyId>/__versions__/<skillId>/<versionId>/`. The server
-writes this directory from the stored files of the `company_skill_versions` row.
+`<instance>/skills/<spaceId>/__versions__/<skillId>/<versionId>/`. The server
+writes this directory from the stored files of the `space_skill_versions` row.
 The directory is a cache. When the server removes it and the row stays, the next
 run that selects the version writes it again.
 
@@ -3935,7 +3935,7 @@ that follows Latest into a pin when the UI saves another assignment.
 
 The server starts scanning one minute after startup, then hourly, in batches of
 50 inspected directories with one-second continuations. Current versions,
-explicit agent pins, active runs, and unresolved recovery pins stay. A company
+explicit agent pins, active runs, and unresolved recovery pins stay. A space
 with an active or unsettled run whose pins are unknown is skipped. Optional
 `OUTPOST_SKILL_VERSION_RETENTION_KEEP` retains additional newest versions
 (default `0`). Idle versions expire after `OUTPOST_SKILL_VERSION_RETENTION_GRACE_MINUTES`
@@ -3945,12 +3945,12 @@ without records receive a full observation period before expiration.
 Finished interrupted runs release their pins only after controller ownership,
 native finalization, and environment cleanup have settled. Older native runs
 without a pin map can supply their complete selection from the saved execution
-input. The recovery parser validates its digests, and its company, run, agent,
+input. The recovery parser validates its digests, and its space, run, agent,
 and issue binding must match. Captured version IDs remain protected; unversioned
 skills use separate runtime asset bundles. Missing or invalid evidence still
 blocks cleanup. This fallback does not write pins or change recovery records.
 
-Preparation, durable run pins, audits, and eviction share a company-scoped
+Preparation, durable run pins, audits, and eviction share a space-scoped
 PostgreSQL lock across processes. Eligible directories are atomically renamed
 to unique managed `.trash-<UUID>` names. Deletion runs outside the preparation
 lock and resumes after a crash. Saved version and repository snapshot rows are
@@ -3969,7 +3969,7 @@ Set `OUTPOST_SKILL_VERSION_RETENTION_DRY_RUN=true` before rollout to inspect
 candidate bytes and skip reasons without deleting or changing access records.
 Set `OUTPOST_SKILL_VERSION_RETENTION_ENABLED=false` to disable sweeps while
 leaving restoration available. Internal `skillVersionRetentionService` methods
-support company-scoped diagnosis and bounded instance-wide continuations.
+support space-scoped diagnosis and bounded instance-wide continuations.
 Server logs report candidates, allocated bytes reclaimed, and skip reasons.
 Compare volume usage separately because concurrent writes affect net savings.
 
@@ -4024,7 +4024,7 @@ keeps the revision. Migration 0358 adds this trigger without rewriting tasks.
 
 Persist the original version with the integration's initialization intent so a
 later retry cannot override a person's intervening decision. A caller still needs
-the ordinary company, task, assignment and run permissions. Do not retry an
+the ordinary space, task, assignment and run permissions. Do not retry an
 uncertain write until the saved task and initialization state are reconciled.
 
 ## Quick Health Checks
@@ -4033,13 +4033,13 @@ In another terminal:
 
 ```sh
 curl http://localhost:3100/api/health
-curl http://localhost:3100/api/companies
+curl http://localhost:3100/api/spaces
 ```
 
 Expected:
 
 - `/api/health` returns `{"status":"ok"}`
-- `/api/companies` returns a JSON array
+- `/api/spaces` returns a JSON array
 
 On `*.staging.outpost.app`, the account menu shows the running server's
 short commit SHA below the user's email. Hover over it for the full SHA,
@@ -4052,7 +4052,7 @@ The label is hidden on other hosts and when commit metadata is unavailable.
 To wipe local dev data and start fresh:
 
 ```sh
-rm -rf ~/.paperclip/instances/default/db
+rm -rf ~/.outpost/instances/default/db
 pnpm dev
 ```
 
@@ -4062,30 +4062,30 @@ If you set `DATABASE_URL`, the server will use that instead of embedded PostgreS
 
 ## Automatic DB Backups
 
-Paperclip can run automatic logical database backups on a timer. These backups cover
+Outpost can run automatic logical database backups on a timer. These backups cover
 non-system database schemas, including migration history and plugin-owned database
 schemas. Defaults:
 
 - enabled
 - every 60 minutes
 - retain 30 days
-- backup dir: `~/.paperclip/instances/default/data/backups`
+- backup dir: `~/.outpost/instances/default/data/backups`
 
 Automatic backups are disabled for isolated worktree instances created with
-`paperclipai worktree init` or `paperclipai worktree:make`. Existing worktree
+`outpost worktree init` or `outpost worktree:make`. Existing worktree
 configs are migrated to the disabled setting when their server next starts. The
 main/default instance keeps the normal enabled-by-default behavior.
 
 Configure these in:
 
 ```sh
-pnpm paperclipai configure --section database
+pnpm outpost configure --section database
 ```
 
 Run a one-off backup manually:
 
 ```sh
-pnpm paperclipai db:backup
+pnpm outpost db:backup
 # or:
 pnpm db:backup
 ```
@@ -4190,7 +4190,7 @@ those providers are enabled.
 
 Agent env vars now support secret references. By default, secret values are stored with local encryption and only secret refs are persisted in agent config.
 
-- Default local key path: `~/.paperclip/instances/default/secrets/master.key`
+- Default local key path: `~/.outpost/instances/default/secrets/master.key`
 - Override key material directly: `OUTPOST_SECRETS_MASTER_KEY`
 - Override key file path: `OUTPOST_SECRETS_MASTER_KEY_FILE`
 - Back up the key file and database together; either one alone is not enough to restore local encrypted secrets.
@@ -4206,14 +4206,14 @@ Authenticated deployments default strict mode on unless explicitly overridden.
 
 CLI configuration support:
 
-- `pnpm paperclipai onboard` writes a default `secrets` config section (`local_encrypted`, strict mode off, key file path set) and creates a local key file when needed.
-- `pnpm paperclipai configure --section secrets` lets you update provider/strict mode/key path and creates the local key file when needed.
-- `pnpm paperclipai doctor` validates secrets adapter configuration, can create a missing local key file with `--repair`, and reports missing AWS Secrets Manager bootstrap env when that provider is selected.
-- Provider health is available at `GET /api/companies/:companyId/secret-providers/health` and reports local key permission warnings plus backup guidance.
+- `pnpm outpost onboard` writes a default `secrets` config section (`local_encrypted`, strict mode off, key file path set) and creates a local key file when needed.
+- `pnpm outpost configure --section secrets` lets you update provider/strict mode/key path and creates the local key file when needed.
+- `pnpm outpost doctor` validates secrets adapter configuration, can create a missing local key file with `--repair`, and reports missing AWS Secrets Manager bootstrap env when that provider is selected.
+- Provider health is available at `GET /api/spaces/:spaceId/secret-providers/health` and reports local key permission warnings plus backup guidance.
 
-Per-company provider vaults are configured in the board UI under
-`Company Settings → Secrets → Provider vaults`, backed by
-`/api/companies/{companyId}/secret-provider-configs`. The CLI does not own
+Per-space provider vaults are configured in the board UI under
+`Space Settings → Secrets → Provider vaults`, backed by
+`/api/spaces/{spaceId}/secret-provider-configs`. The CLI does not own
 vault lifecycle today. See `docs/deploy/secrets.md` (`Provider Vaults` section)
 for the operator model.
 
@@ -4226,7 +4226,7 @@ pnpm secrets:migrate-inline-env --apply # apply migration
 
 ## Internal Connection Token Brokers
 
-Paperclip Cloud connector identities support `development`, `test`, `staging`,
+Outpost Cloud connector identities support `development`, `test`, `staging`,
 and `production`. To enroll a self-hosted instance against the test broker, set
 `OUTPOST_CLOUD_CONNECTOR_BASE_URL=https://test.outpost.app`; its environment
 is inferred as `test`. Managed instances also receive
@@ -4266,12 +4266,12 @@ credentials, query strings, fragments, and wildcards are ignored. Matching is
 by exact normalized origin, so allowing one port does not allow another.
 Link-local destinations remain denied even when explicitly listed.
 
-## Company Deletion Toggle
+## Space Deletion Toggle
 
-Company deletion is intended as a dev/debug capability and can be disabled at runtime:
+Space deletion is intended as a dev/debug capability and can be disabled at runtime:
 
 ```sh
-OUTPOST_ENABLE_COMPANY_DELETION=false
+OUTPOST_ENABLE_SPACE_DELETION=false
 ```
 
 Default behavior:
@@ -4281,27 +4281,27 @@ Default behavior:
 
 ## CLI Client Operations
 
-Paperclip CLI now includes client-side control-plane commands in addition to setup commands.
+Outpost CLI now includes client-side control-plane commands in addition to setup commands.
 
 Quick examples:
 
 ```sh
-npx paperclipai issue list --company-id <company-id>
-npx paperclipai issue create --company-id <company-id> --title "Investigate checkout conflict"
-npx paperclipai issue update <issue-id> --status in_progress --comment "Started triage"
+npx @outpost/cli issue list --space-id <space-id>
+npx @outpost/cli issue create --space-id <space-id> --title "Investigate checkout conflict"
+npx @outpost/cli issue update <issue-id> --status in_progress --comment "Started triage"
 ```
 
 Set defaults once with context profiles:
 
 ```sh
-npx paperclipai context set --api-base http://localhost:3100 --company-id <company-id>
+npx @outpost/cli context set --api-base http://localhost:3100 --space-id <space-id>
 ```
 
 Then run commands without repeating flags:
 
 ```sh
-pnpm paperclipai issue list
-pnpm paperclipai dashboard get
+pnpm outpost issue list
+pnpm outpost dashboard get
 ```
 
 See full command reference in `doc/CLI.md`.
@@ -4310,13 +4310,13 @@ See full command reference in `doc/CLI.md`.
 
 Agent-oriented invite onboarding now exposes machine-readable API docs:
 
-The board UI generates agent onboarding prompts from the add-agent modal (`+` in the agent sidebar), so agent onboarding sits with the rest of agent creation rather than company member invite settings.
+The board UI generates agent onboarding prompts from the add-agent modal (`+` in the agent sidebar), so agent onboarding sits with the rest of agent creation rather than space member invite settings.
 
 - `GET /api/invites/:token` returns invite summary plus onboarding and skills index links.
 - `GET /api/invites/:token/onboarding` returns onboarding manifest details (registration endpoint, claim endpoint template, skill install hints).
 - `GET /api/invites/:token/onboarding.txt` returns a plain-text onboarding doc intended for both human operators and agents (llm.txt-style handoff), including optional inviter message and suggested network host candidates.
 - `GET /api/skills/index` lists available skill documents.
-- `GET /api/skills/paperclip` returns the Paperclip heartbeat skill markdown.
+- `GET /api/skills/outpost` returns the Outpost heartbeat skill markdown.
 
 Hermes gateway agents use this same generic agent invite flow with
 `adapterType=hermes_gateway` and `agentDefaultsPayload.apiBaseUrl` /
@@ -4352,7 +4352,7 @@ Optional auth flags (for authenticated mode):
 
 ## PostHog MCP Live Smoke Test
 
-The PostHog smoke targets an already-running authenticated Paperclip instance.
+The PostHog smoke targets an already-running authenticated Outpost instance.
 It is deliberately separate from `pnpm test` and `pnpm test:e2e` because it
 uses a live vendor OAuth flow and creates a short-lived connection plus one
 fresh-run proof issue.
@@ -4365,18 +4365,18 @@ pnpm smoke:posthog-live https://outpost.example.test
 ```
 
 The command fails before browser launch unless all three integration bindings
-are present, and never prints their values. A Paperclip heartbeat derives the
+are present, and never prints their values. A Outpost heartbeat derives the
 target origin from its injected `OUTPOST_API_URL`; the positional URL (or
 `--base-url <url>`) selects the running instance for a manual invocation. It
 creates no trace, video, or HAR, begins
-screenshots only after OAuth returns to Paperclip, enables read actions only,
+screenshots only after OAuth returns to Outpost, enables read actions only,
 installs the connection on `CodexCoderPro` only, runs `project-get` with `{}`
 from the board Test panel and a fresh agent run, then removes the connection.
 Sanitized JSON and PNG evidence defaults to `OUTPOST_RUN_SCRATCH_DIR` when the
 command runs in a heartbeat; set `POSTHOG_EVIDENCE_DIR` for a different output
 directory.
 
-Run the focused harness checks without contacting Paperclip or PostHog:
+Run the focused harness checks without contacting Outpost or PostHog:
 
 ```sh
 node --test scripts/smoke/posthog-live.test.mjs
@@ -4403,14 +4403,14 @@ Model behavior for this smoke script:
 
 State behavior for this smoke script:
 
-- defaults to isolated config dir `~/.openclaw-paperclip-smoke`
+- defaults to isolated config dir `~/.openclaw-outpost-smoke`
 - resets smoke agent state each run by default (`OPENCLAW_RESET_STATE=1`) to avoid stale provider/auth drift
 
 Networking behavior for this smoke script:
 
-- auto-detects and prints a Paperclip host URL reachable from inside OpenClaw Docker
+- auto-detects and prints a Outpost host URL reachable from inside OpenClaw Docker
 - default container-side host alias is `host.docker.internal` (override with `OUTPOST_HOST_FROM_CONTAINER` / `OUTPOST_HOST_PORT`)
-- if Paperclip rejects container hostnames in authenticated/private mode, allow `host.docker.internal` via `npx paperclipai allowed-hostname host.docker.internal` and restart Paperclip
+- if Outpost rejects container hostnames in authenticated/private mode, allow `host.docker.internal` via `npx @outpost/cli allowed-hostname host.docker.internal` and restart Outpost
 
 ### GitHub identity for shared agents
 
@@ -4420,7 +4420,7 @@ See [execution GitHub identity](execution-github-identity.md) for the operation-
 
 See [agent-personas.md](agent-personas.md) for the dynamic avatar endpoint, cache,
 and character stories. Set `OUTPOST_STORYBOOK_API_URL` to your isolated
-Paperclip API URL when running dev Storybook. Published Storybook builds automatically
+Outpost API URL when running dev Storybook. Published Storybook builds automatically
 package avatar PNGs using the API renderer; static hosting needs no API proxy.
 
 ### Investigating polling load
@@ -4433,13 +4433,13 @@ retain those fields. Queue cadence, delivery admission, and cleanup ownership
 remain unchanged.
 
 Runtime progress updates recheck the persisted run status before publication.
-This check selects only the run ID, company ID, agent ID, and status through
+This check selects only the run ID, space ID, agent ID, and status through
 `createHeartbeatRunState().getRunStatus`. It does not fetch prompts, runner
 configuration, or provider results. Keep this read fresh so terminal or deleted
 runs cannot publish late progress from an old executor snapshot.
 
 Native event and retry-exhaustion ingestion lock the run row to verify its
-company and agent bindings. That lock reads only those two fields. Sequence
+space and agent bindings. That lock reads only those two fields. Sequence
 allocation, replay checks, and event insertion remain in the same transaction.
 
 Sandbox-provider driver lookup filters plugin manifests by driver key and kind
@@ -4447,7 +4447,7 @@ in Postgres before returning rows. Install order, status and worker checks still
 select the provider. Each lookup reads current registry state without a cache.
 
 Run-to-issue links authorize through `getRunReadAccess`, which reads only the run
-ID, company ID, scope kind, and issue ID. The existing visibility policy then
+ID, space ID, scope kind, and issue ID. The existing visibility policy then
 filters linked issues without loading the run's prompt, output, or result.
 
 Run the deterministic native event replay with the normal server test runner:
@@ -4487,22 +4487,22 @@ The output is test evidence; there is no product API or dashboard consumer to
 migrate. Keep future fields additive and check the schema and comparison status
 before interpreting timings.
 
-The company heartbeat-run and live-run lists load secret registries in one
-company-scoped query per response. Registry reads project only
-`paperclipSecretRedactions` from the run context. They do not load the full
+The space heartbeat-run and live-run lists load secret registries in one
+space-scoped query per response. Registry reads project only
+`outpostSecretRedactions` from the run context. They do not load the full
 prompt/context JSON. Decrypted values live only for that request and each run
 uses its own registry.
 
-Hidden browser tabs suspend the company live-events connection and transcript
+Hidden browser tabs suspend the space live-events connection and transcript
 log reads. Returning to a visible tab refreshes active queries once and resumes
 transcript reads from their retained offsets. A queued live-event invalidation
 that flushes after the tab hides marks data stale without starting a refetch.
 
 Live-event delivery and workspace-operation run checks select only the stored
-company, run scope, and task binding. Event-list access also selects the run ID.
+space, run scope, and task binding. Event-list access also selects the run ID.
 These checks do not load run context, runner configuration, results, or output.
 Every delivery and request still checks current permissions. Grant revocation,
-deleted tasks, missing runs, and cross-company run IDs remain fail-closed.
+deleted tasks, missing runs, and cross-space run IDs remain fail-closed.
 The developer-server health poll also stops in hidden tabs.
 
 Workspace detail responses return stored metadata and runtime service information
@@ -4576,7 +4576,7 @@ wait for the next wake, when startup restores their rows. Existing idle-sleep
 blockers and cleanup admission holds remain authoritative.
 
 The connection-health sweep selects only due IDs in SQL before applying its
-limit. Legacy `paperclip_plugin` placeholder connections are excluded: their
+limit. Legacy `outpost_plugin` placeholder connections are excluded: their
 tools run in plugin workers and do not have remote MCP endpoints. These rows
 remain available; the sweep does not disable or delete plugin connections.
 
@@ -4588,7 +4588,7 @@ URL or old workspace timestamp alone does not prove that a row is disposable.
 
 ### Reconstructable Git cache expiration
 
-The terminal-workspace worker can expire Paperclip-owned isolated Git worktrees
+The terminal-workspace worker can expire Outpost-owned isolated Git worktrees
 24 hours after every task in their tree is done or cancelled, independently of
 PR merge or delivery status. Enable it with
 `OUTPOST_GIT_CACHE_EXPIRATION_ENABLED=true`. It defaults to dry run; set
@@ -4603,7 +4603,7 @@ run contexts. Unshared paths still require every existing task, run, recovery,
 lease, service and filesystem check in the same lifecycle lock.
 
 Before deletion the worker fetches the exact commit into a fresh object store
-using the company's normal Git identity (anonymously when no identity resolves
+using the space's normal Git identity (anonymously when no identity resolves
 outside an agent run, which still proves public repositories; a private
 repository that cannot be verified keeps its workspace) and commits a versioned restoration
 recipe to workspace metadata. Current runs, previews, pending reopening,
@@ -4611,7 +4611,7 @@ unresolved recovery, dirty/untracked files, unknown ignored files, unproven
 ownership, and unsupported or unique Git state prevent deletion. Ignored files
 can be discarded only when they are repository-ignored regenerable output,
 ignored `.claude/settings.local.json` saved as an encrypted snapshot of at most
-64 KiB, or a managed project checkout under `.paperclip-repositories/<repo>-<hash>`
+64 KiB, or a managed project checkout under `.outpost-repositories/<repo>-<hash>`
 whose exact commit, branch, and source identity are saved in the restoration recipe.
 Tracked settings, oversized settings, symbolic links, and unknown files remain protected. A checkout qualifies only when its name maps back to one of
 the project's repositories and it passes the same checks as the worktree
@@ -4619,9 +4619,9 @@ the project's repositories and it passes the same checks as the worktree
 state), stock Git storage (no custom hooks), no linked worktrees, no
 unreachable objects, and every commit reachable from its refs or reflogs is
 reachable from a current upstream branch or tag, read fresh from the project
-repository's URL with the company's Git identity. A checkout that is a worktree of the project's shared clone is
+repository's URL with the space's Git identity. A checkout that is a worktree of the project's shared clone is
 checked against its own `HEAD`, `HEAD` reflog, index and branches under its
-`paperclip/<id>/` prefix instead of the clone's storage and other tasks' refs.
+`outpost/<id>/` prefix instead of the clone's storage and other tasks' refs.
 Task repositories
 (`task-repo-*`) always prevent deletion. Inspection runs Git with
 `core.fsmonitor` disabled, so a repository's local config cannot make it run a
@@ -4638,7 +4638,7 @@ refs and files are verified reproducible. Shared project clones remain intact.
 Normal authorized reopening recreates a missing source and checks out the saved
 commit, including nested project repositories, even after upstream advances.
 Settings bytes and permissions restore before provisioning; their encrypted payloads
-are bound to the company, workspace, and relative path and require the instance
+are bound to the space, workspace, and relative path and require the instance
 secrets master key. The worker rechecks the complete saved contents before deletion.
 A changed workspace is retained and made usable instead of deleting newer work.
 Interrupted settings publication and partial nested restoration are retryable.
@@ -4682,7 +4682,7 @@ for the conditions and the verification it performs.
 ### Nested clone migration
 
 Tasks prepared before nested project repositories became worktrees of a shared
-clone still hold a full standalone clone in each `.paperclip-repositories/`
+clone still hold a full standalone clone in each `.outpost-repositories/`
 checkout. Enable `OUTPOST_NESTED_CLONE_MIGRATION_ENABLED=true` (default off) to
 let the terminal workspace reaper convert those checkouts in open tasks into
 worktrees of the project's shared clone, keeping their exact state and local
@@ -4721,14 +4721,14 @@ excludes file, or `.git/info/exclude` does not count), and that hold no tracked
 file. A directory with such a name
 that does not qualify (for example a tracked `build/`) is searched in turn, so
 ignored dependencies inside it still go. It never enters `.git` or
-`.paperclip`, and it never follows a symlink. It checks each directory's ignore
+`.outpost`, and it never follows a symlink. It checks each directory's ignore
 status on its own, so dependencies below an ignored parent (for example
 `vendor/tool/node_modules`) are found. Its Git reads have a deadline and stop
 when the sweep stops. Tracked files, uncommitted changes,
 untracked files, other ignored files (such as `.env` or local data), the branch,
 and its commits all stay. The workspace row stays active.
 
-The removal is a rename into `.paperclip-compaction-trash` beside the worktree,
+The removal is a rename into `.outpost-compaction-trash` beside the worktree,
 made while the reaper holds the workspace lifecycle lock. The reaper checks the
 conditions above before the rename and again after it, in the same transaction.
 If the task reopened or a run started in between, the directories move back.
@@ -4776,7 +4776,7 @@ under its original key; it is never relabelled as a provider refusal. Legacy
 unowned form drafts remain in browser storage but are not restored into another
 account. Storybook fixtures seed the same account-specific keys.
 
-New-task staged file bytes are stored in IndexedDB for the account and company.
+New-task staged file bytes are stored in IndexedDB for the account and space.
 Writes merge the selected files with the current saved list in one read/write
 transaction. Removal and successful creation delete only the files that the
 mounted draft removed. Other open tabs keep their saved files across reloads.
@@ -4798,8 +4798,8 @@ account generation at the click and again immediately before their POST, includi
 after optimistic cache cancellation or conversation creation. A retained accepted
 comment returns its existing receipt before the route can reopen a completed task.
 `server/src/services/issue-comment-receipt.ts` completes reference and activity
-records for keyed board comments. It locks the same-company task before its
-comment, matching task and company deletion, comment removal and tombstoning. It repairs references and
+records for keyed board comments. It locks the same-space task before its
+comment, matching task and space deletion, comment removal and tombstoning. It repairs references and
 inserts a missing activity record in one
 transaction, and publishes after commit. The task uses `FOR NO KEY UPDATE` so
 concurrent comments can reference each other without blocking foreign-key checks. Both the initial send and a retained
@@ -4811,28 +4811,28 @@ echo and cannot apply its rollback to the next account.
 ### Browser realtime connection recovery
 
 If a browser cannot construct a WebSocket, the live-update and run transcript
-clients use their disconnected retry paths. While the company event stream is
+clients use their disconnected retry paths. While the space event stream is
 disconnected, visible active queries refresh every 15 seconds. This fallback
 stops when the socket opens, the tab is hidden, or the provider unmounts. A
 reconnected socket also refreshes visible queries to recover missed events.
 Run log views retain their existing HTTP polling fallback.
 
-### Company context during hot reload
+### Space context during hot reload
 
-The company React context retains only its object identity in Vite's per-module
+The space React context retains only its object identity in Vite's per-module
 `hot.data`. Provider values remain in the mounted React tree and keep their normal
 account scope. This lets a refreshed consumer read a provider from the preceding
 module version. Production builds do not use the development cache.
 
 Run `pnpm test:e2e:browser-context` to test this with real Vite modules and
 Chromium. The test starts its own loopback Vite server and mocks API responses;
-it needs no running Paperclip instance or provider credentials. The same spec lives
+it needs no running Outpost instance or provider credentials. The same spec lives
 in the default `test:e2e` discovery tree, so the existing Chrome CI shards run it
 on pull requests.
 
 ### Workspace feature checks (2026-10-09)
 
-Task files, personal agent state (`AGENT_HOME`), and provider home are distinct. New filesystem tasks without an explicit source use a stable company/task directory. Debug workspace placement through the task workspace API rather than inferring it from organizational project or agent identity.
+Task files, personal agent state (`AGENT_HOME`), and provider home are distinct. New filesystem tasks without an explicit source use a stable space/task directory. Debug workspace placement through the task workspace API rather than inferring it from organizational project or agent identity.
 
 Focused coverage lives in `task-workspace-binding.test.ts`, `task-workspace-repositories*.test.ts`, `task-workspace-tools.test.ts`, channel integration tests, and adapter-utils checkpoint/native persistence tests. Full handoff still requires the repository typecheck, test, and build commands. Remote transport fixtures establish protocol behavior; they do not qualify production provider throughput.
 
@@ -4886,7 +4886,7 @@ separate from Git materialization, environment acquisition, and provider startup
 
 ### Sidebar badge run-query benchmark
 
-The badge query keeps the newest 200 runs of nonterminated same-company agents.
+The badge query keeps the newest 200 runs of nonterminated same-space agents.
 It selects each agent's first observed run before status or Mine filters. An
 observation ordinal preserves equal-time input order. Per-agent ranking orders
 by full creation time first, then that ordinal for exact ties. SQL returns only failure
@@ -4902,8 +4902,8 @@ OUTPOST_LOG_LEVEL=error SIDEBAR_REQUIRE_BYTE_REDUCTION=1 pnpm --filter @outpost/
 The harness starts disposable embedded PostgreSQL by default. To use an existing
 isolated test database with current migrations, set
 `OUTPOST_SIDEBAR_TEST_DATABASE_URL` to a dedicated database whose name ends in
-`_test`. The harness removes only its own synthetic company fixtures. Do not use
-a development or hosted company database.
+`_test`. The harness removes only its own synthetic space fixtures. Do not use
+a development or hosted space database.
 
 The report includes service-generated SQL, complete badge equality, candidate
 bindings, alternating warm samples, plans, and UTF-8 response-value bytes before
@@ -4915,14 +4915,14 @@ Timings describe local SQL work and do not establish hosted request latency.
 
 ### Budget accounting performance
 
-Budget admission and settlement share the company accounting lock. They evaluate
-only the company, responsible agent, and applicable project. Running usage is an
+Budget admission and settlement share the space accounting lock. They evaluate
+only the space, responsible agent, and applicable project. Running usage is an
 internal exposure projection, not a provisional ledger charge. Cancellation and
 lifecycle effects run through the delivery coordinator after accounting commits.
 
 The final provider gate commits a dispatch claim before entering provider code.
 The reservation and native recovery lease generation fence duplicate handoffs;
-neither provider startup nor termination holds the company accounting lock.
+neither provider startup nor termination holds the space accounting lock.
 After accounting commits, a short ownership transaction rechecks the current
 task/run fences and covers the synchronous adapter handoff. It commits without
 awaiting provider bootstrap, results, or finalization.
@@ -4940,9 +4940,9 @@ pnpm --filter @outpost/server exec tsx ../scripts/benchmark-budget-enforcement.t
 pnpm --filter @outpost/server exec tsx ../scripts/benchmark-budget-enforcement.ts --baseline-ref=6c9b87d0922f1ebfc43e8b0c36889ac5ba7b9837 --reverse > /tmp/budget-reverse.json
 ```
 
-The cost comparison keeps one company policy and no active runs while adding 0,
+The cost comparison keeps one space policy and no active runs while adding 0,
 17, and 1,000 unrelated idle agents. It records 20 warm samples, SQL statement counts,
-company accounting locks, agent reads, and an `EXPLAIN (ANALYZE, BUFFERS)` plan.
+space accounting locks, agent reads, and an `EXPLAIN (ANALYZE, BUFFERS)` plan.
 It asserts unchanged agent state and no agent reads in the new evaluation path.
 The harness also measures reservation, the final ownership gate, and an immediate
 offline provider result with one responsible agent and one active operation. It
@@ -4957,11 +4957,11 @@ or builds when reporting timing results.
 
 Skill imports and automatic source refreshes use the delivery coordinator. Workspace
 attachment, adoption, source settings, manual refresh, disconnection, project deletion,
-and company status changes notify it through their database transaction. Nested
+and space status changes notify it through their database transaction. Nested
 transactions notify after the outer transaction settles. Budget pause/resume uses
 the same notification. The existing database work protocol resolves uncertain commits.
 
-Startup reconstructs work from `project_skill_sources` and `company_skill_sources`.
+Startup reconstructs work from `project_skill_sources` and `space_skill_sources`.
 After each sweep, the worker schedules the earliest eligible `next_sync_at`, postponed
 until an outstanding lease expires. Due batches and conflicting claims retry after
 five seconds; failures retain their saved backoff. Finishing imports admits deferred
@@ -4974,8 +4974,8 @@ until a successful sweep. Shutdown aborts provider reads and waits for the curre
 sweep. Notifications are process-local: independent SQL writers and separate live
 server replicas are not a supported notification path. Restart restores saved work.
 
-These deadlines are not yet covered by the Paperclip Cloud scheduled-wake contract.
-The sleep-safety report retains the instance while an active company has pending
+These deadlines are not yet covered by the Outpost Cloud scheduled-wake contract.
+The sleep-safety report retains the instance while an active space has pending
 imports or eligible automatic refreshes. Removing the five-second discovery poll
 establishes worker quiet; it does not establish host or database suspension.
 
@@ -4984,7 +4984,7 @@ unavailable. Use a separate, disposable database whose name ends in `_test` for 
 `OUTPOST_SKILL_SYNC_TEST_DATABASE_URL`,
 `OUTPOST_PROJECT_SKILLS_TEST_DATABASE_URL`, and
 `OUTPOST_SKILL_SOURCES_TEST_DATABASE_URL`. The suites apply migrations and create
-test data; the synchronization suite truncates company data between tests.
+test data; the synchronization suite truncates space data between tests.
 
 #### Controlled default-cadence sleep acceptance
 
@@ -5012,7 +5012,7 @@ for package in packages/shared packages/plugins/sdk packages/outpost-eval-kernel
   (cd "$package" && "$NODE24" node_modules/typescript/bin/tsc -p tsconfig.json)
 done
 (cd packages/outpost-runner && "$NODE24" node_modules/typescript/bin/tsc -p tsconfig.surfaces.json)
-export SKILL_SLEEP_RESULTS="$(mktemp -d "${TMPDIR:-/tmp}/paperclip-skill-sleep.XXXXXX")"
+export SKILL_SLEEP_RESULTS="$(mktemp -d "${TMPDIR:-/tmp}/outpost-skill-sleep.XXXXXX")"
 export OUTPOST_SKILL_DEFAULT_CADENCE_GUARD_LOG="$SKILL_SLEEP_RESULTS/controls-guard.jsonl"
 "$NODE24" scripts/test-skill-default-cadence.mjs --controls
 ```
@@ -5041,9 +5041,9 @@ export OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_NODE=/absolute/path/to/node-v22.23.4/
 export OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_SHA=389878364b42dd129835d263f91882c5774d5123
 test "$(git -C "$OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_CHECKOUT" rev-parse HEAD)" = "$OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_SHA"
 (cd "$OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_CHECKOUT" && "$OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_NODE" node_modules/typescript/bin/tsc -p tsconfig.build.json)
-export OUTPOST_TEST_POSTGRES_ADMIN_URL=postgres://paperclip@127.0.0.1:55448/postgres
-export OUTPOST_SKILL_DEFAULT_CADENCE_TEST_DATABASE_URL=postgres://paperclip@127.0.0.1:55448/skill_sleep_bootstrap_app_test
-export OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_TEST_DATABASE_URL=postgres://paperclip@127.0.0.1:55448/skill_sleep_bootstrap_cloud_test
+export OUTPOST_TEST_POSTGRES_ADMIN_URL=postgres://outpost@127.0.0.1:55448/postgres
+export OUTPOST_SKILL_DEFAULT_CADENCE_TEST_DATABASE_URL=postgres://outpost@127.0.0.1:55448/skill_sleep_bootstrap_app_test
+export OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_TEST_DATABASE_URL=postgres://outpost@127.0.0.1:55448/skill_sleep_bootstrap_cloud_test
 export OUTPOST_SKILL_DEFAULT_CADENCE_EVIDENCE="$SKILL_SLEEP_RESULTS/bootstrap"
 mkdir -p "$OUTPOST_SKILL_DEFAULT_CADENCE_EVIDENCE"
 unset OUTPOST_MAINTENANCE_PG0_CONTROLS
@@ -5057,8 +5057,8 @@ exact durable ACK before child stop. It does not check a due wake. For the compl
 run, first create a different empty pair, then run:
 
 ```sh
-export OUTPOST_SKILL_DEFAULT_CADENCE_TEST_DATABASE_URL=postgres://paperclip@127.0.0.1:55448/skill_sleep_cycles_app_test
-export OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_TEST_DATABASE_URL=postgres://paperclip@127.0.0.1:55448/skill_sleep_cycles_cloud_test
+export OUTPOST_SKILL_DEFAULT_CADENCE_TEST_DATABASE_URL=postgres://outpost@127.0.0.1:55448/skill_sleep_cycles_app_test
+export OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_TEST_DATABASE_URL=postgres://outpost@127.0.0.1:55448/skill_sleep_cycles_cloud_test
 export OUTPOST_SKILL_DEFAULT_CADENCE_EVIDENCE="$SKILL_SLEEP_RESULTS/two-cycle"
 mkdir -p "$OUTPOST_SKILL_DEFAULT_CADENCE_EVIDENCE"
 export OUTPOST_SKILL_DEFAULT_CADENCE_STAGE=two-cycle
@@ -5103,7 +5103,7 @@ The scanner preserves durable delivery receipts instead of advancing a timestamp
 cursor that could skip a late commit. Subscription scans use pages of 20; full source/delivery batches schedule another
 sweep until caught up. Subscription creation, refresh, and removal target their
 subscription ID (or the shared Dot binding for reconnect mailbox entries). Issue
-activity targets its task; comment discovery targets its company; mailbox and
+activity targets its task; comment discovery targets its space; mailbox and
 assignment changes target their Dot binding. Delivery retries do not rescan
 unchanged subscriptions. Only startup and instance-wide settings changes request
 a full scan. Settings changes retain an explicit wildcard when a transaction also
@@ -5121,7 +5121,7 @@ Independent SQL writers and separate live server replicas do not wake this proce
 startup reconstructs their durable records, but continuous multi-writer discovery
 would require an ingress or notification contract before removing its backstop.
 The host sleep-safety checks remain conservative for MCP/Dot state. These retry
-deadlines are not yet exported to Paperclip Cloud's scheduled-wake contract.
+deadlines are not yet exported to Outpost Cloud's scheduled-wake contract.
 
 `events-work.test.ts` exercises real PostgreSQL commits, rollback, startup/drain,
 retry restoration, producer reactivation, large batches, and SQL/network quiet.
@@ -5130,7 +5130,7 @@ in `_test` for `OUTPOST_MCP_SLEEP_TEST_DATABASE_URL`,
 `OUTPOST_PUBLIC_MCP_TEST_DATABASE_URL`, and
 `OUTPOST_DOT_RUNNER_TEST_DATABASE_URL`. The interaction-service regression suite
 also accepts `OUTPOST_INTERACTIONS_TEST_DATABASE_URL`. The suites migrate and write to those
-URLs; the sleep suite truncates company data between tests.
+URLs; the sleep suite truncates space data between tests.
 
 ## S3-backed run evidence
 
@@ -5144,7 +5144,7 @@ the independent disposable-server requirements are satisfied.
 
 ## Volume-free execution admission
 
-With `OUTPOST_EPHEMERAL_SERVER=true`, workspace preparation requires Paperclip
+With `OUTPOST_EPHEMERAL_SERVER=true`, workspace preparation requires Outpost
 Runner and remote workspace storage. A fresh run still has its initial `legacy`
 label at this phase; that label is not the selected execution mode. The runtime
 selector checks the resolved native warm lifecycle before admission and rejects
@@ -5237,12 +5237,12 @@ Read surfaces use `useQueryView` and `QueryErrorState`. Transient refetch failur
 
 Run `node scripts/check-query-error-rendering.mjs`. The guard now enforces across `ui/src`, including multiline expressions, and CI runs it as a policy check. Its small allowlist covers standalone preview/performance fixtures, transcript protocol result flags, and the existing account-resolution and Copilot discovery retry owners. These are not ordinary read-error renders. Additions require a specific reason; do not allowlist a page to hide an outage regression.
 
-The browser saves a small read cache in `paperclip:query-cache:v1:*` local storage records. It contains session display identity, health and shell preferences, company and sidebar data, agent/project lists, plugin UI contribution metadata, the first inbox page (including up to 100 rows per legacy Inbox query), and up to 20 recently opened tasks. Records belong to one user and company, expire 24 hours after each read, and are discarded when the build changes. Normal in-memory query garbage collection does not erase saved recent tasks or extend their expiry. Builds without a source commit stamp skip read-cache hydration and persistence, but still revoke and clear saved reads on sign-out. Plugin contributions use the existing instance-wide query inside the user's root record. Session tokens, bootstrap payloads, documents, comments, browser viewer capabilities, pairing data, other queries and mutations are excluded. Task content in this allowlist remains on the browser until expiry or sign-out; use the normal sign-out action to clear it across tabs. Account changes also detach pending shared GETs so a new user cannot join the previous user’s private reads. Editors that need fields excluded from the display cache, including bulk agent settings, fetch complete current data before opening.
+The browser saves a small read cache in `outpost:query-cache:v1:*` local storage records. It contains session display identity, health and shell preferences, space and sidebar data, agent/project lists, plugin UI contribution metadata, the first inbox page (including up to 100 rows per legacy Inbox query), and up to 20 recently opened tasks. Records belong to one user and space, expire 24 hours after each read, and are discarded when the build changes. Normal in-memory query garbage collection does not erase saved recent tasks or extend their expiry. Builds without a source commit stamp skip read-cache hydration and persistence, but still revoke and clear saved reads on sign-out. Plugin contributions use the existing instance-wide query inside the user's root record. Session tokens, bootstrap payloads, documents, comments, browser viewer capabilities, pairing data, other queries and mutations are excluded. Task content in this allowlist remains on the browser until expiry or sign-out; use the normal sign-out action to clear it across tabs. Account changes also detach pending shared GETs so a new user cannot join the previous user’s private reads. Editors that need fields excluded from the display cache, including bulk agent settings, fetch complete current data before opening.
 
 Restored identity permits cached display only. Restored inline task drafts compare their saved base with a fresh field read before each replay; conflicting edits stay in the editor for review. Account-bound writes wait for a fresh server session and are cancelled if its user changes. A definitive session denial removes saved account reads. Service-worker updates reload hidden tabs only after connectivity is online and mutations, durable sends and autosaves have settled. Durable queues synchronously report each unresolved operation, including the intervals between online rate-limit retries. Sign-out revocation also works on plain-HTTP installs without `crypto.randomUUID`.
 
 The read cache also retains up to 100 learned link previews for the current user
-and accessible companies, including unavailable results. Reloading restores the
+and accessible spaces, including unavailable results. Reloading restores the
 last known PR status without a provider request. Preview timestamps keep their
 original age: hover or keyboard focus reuses a fresh result and refreshes a stale
 one. Stale status stays visible until then. Preview retention uses the same
@@ -5257,7 +5257,7 @@ A restored task shows its header and properties while uncached history is still 
 
 Query-cache cleanup snapshots storage keys before deletion because native storage can reorder them as records are removed. Flush cleanup affects only its owning account and yields if another account becomes active.
 
-Run `pnpm exec playwright test -c tests/e2e/playwright.config.ts tests/e2e/disconnect-resilience.spec.ts` for the built-UI outage regressions. The suite uses fresh isolated local data, 20-second API interceptions, and a controlled sign-out session response. It covers retained tasks, comment and document recovery, queued-comment reloads, cached settings/sidebar/task reads, legacy Inbox reloads, real error status handling and sign-out clearing across several company records. The existing CI e2e shards discover it automatically. A real hosted restart or deploy remains a separate acceptance check.
+Run `pnpm exec playwright test -c tests/e2e/playwright.config.ts tests/e2e/disconnect-resilience.spec.ts` for the built-UI outage regressions. The suite uses fresh isolated local data, 20-second API interceptions, and a controlled sign-out session response. It covers retained tasks, comment and document recovery, queued-comment reloads, cached settings/sidebar/task reads, legacy Inbox reloads, real error status handling and sign-out clearing across several space records. The existing CI e2e shards discover it automatically. A real hosted restart or deploy remains a separate acceptance check.
 
 ### Chat and task navigation caching
 
@@ -5267,7 +5267,7 @@ Classic and already-expanded tasks keep their full-history prefetch.
 The mounted reads reuse the normal 30-second freshness window; live invalidation
 and background revalidation still apply. Recent-window catch-up retains messages
 observed before navigation. Agent Chat can render from the current person's
-company-scoped navigation list, carrying its original fetch timestamp so stale
+space-scoped navigation list, carrying its original fetch timestamp so stale
 conversations refresh in the background. No conversation is created by a read.
 
 ### Remote repository admission saves
@@ -5286,7 +5286,7 @@ A failed batch upload marks the affected repository rows as needing repair.
 
 Core handles ORP `auth.credentials.updated` notifications for managed Codex and
 Grok subscriptions across local, SSH, sandbox, and supported plugin Runner tasks.
-After validating the company, agent, run, session, and Runner binding, it exports
+After validating the space, agent, run, session, and Runner binding, it exports
 the selected account and writes newer credentials directly to the tenant secret.
 Grant, secret, version-selector, session-epoch, and provider freshness checks are
 shared across execution targets. Explicit reconnects and revoked grants win over

@@ -16,12 +16,12 @@ async function git(cwd: string, args: string[]) {
 }
 
 async function createGitWorkspace() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-workspace-diff-plugin-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-workspace-diff-plugin-"));
   tempRoots.push(root);
   await fs.mkdir(path.join(root, "src"), { recursive: true });
   await git(root, ["init"]);
-  await git(root, ["config", "user.email", "paperclip@example.com"]);
-  await git(root, ["config", "user.name", "Paperclip Test"]);
+  await git(root, ["config", "user.email", "outpost@example.com"]);
+  await git(root, ["config", "user.name", "Outpost Test"]);
   await fs.writeFile(path.join(root, "src/app.ts"), "export const value = 1;\n");
   await git(root, ["add", "src/app.ts"]);
   await git(root, ["commit", "-m", "initial"]);
@@ -53,7 +53,7 @@ describe("workspace diff plugin", () => {
     harness.seed({
       executionWorkspaces: [{
         id: "workspace-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         projectId: "project-1",
         projectWorkspaceId: null,
         path: root,
@@ -69,7 +69,7 @@ describe("workspace diff plugin", () => {
 
     const result = await harness.getData("workspace-diff", {
       workspaceId: "workspace-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       view: "working-tree",
       includeUntracked: false,
       paths: ["src/app.ts"],
@@ -87,7 +87,7 @@ describe("workspace diff plugin", () => {
     harness.seed({
       executionWorkspaces: [{
         id: "workspace-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         projectId: "project-1",
         projectWorkspaceId: null,
         path: root,
@@ -103,7 +103,7 @@ describe("workspace diff plugin", () => {
 
     await expect(harness.getData("workspace-diff", {
       workspaceId: "workspace-1",
-      companyId: "company-1",
+      spaceId: "space-1",
     })).resolves.toMatchObject({ files: [], truncated: false });
   });
 
@@ -114,9 +114,9 @@ describe("workspace diff plugin", () => {
     await git(root, ["add", "src/app.ts"]);
     await git(root, ["commit", "-m", "project workspace change"]);
     const harness = createTestHarness({ manifest });
-    harness.ctx.projects.listWorkspaces = async (projectId, companyId) => {
+    harness.ctx.projects.listWorkspaces = async (projectId, spaceId) => {
       expect(projectId).toBe("project-1");
-      expect(companyId).toBe("company-1");
+      expect(spaceId).toBe("space-1");
       return [{
         id: "workspace-1",
         projectId: "project-1",
@@ -134,7 +134,7 @@ describe("workspace diff plugin", () => {
 
     const result = await harness.getData("workspace-diff", {
       workspaceId: "workspace-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       projectId: "project-1",
       entityType: "project_workspace",
       view: "head",
@@ -182,7 +182,7 @@ describe("workspace diff plugin", () => {
     harness.seed({
       executionWorkspaces: [{
         id: "workspace-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         projectId: "project-1",
         projectWorkspaceId: "project-workspace-1",
         path: root,
@@ -194,9 +194,9 @@ describe("workspace diff plugin", () => {
         providerMetadata: null,
       }],
     });
-    harness.ctx.projects.listWorkspaces = async (projectId, companyId) => {
+    harness.ctx.projects.listWorkspaces = async (projectId, spaceId) => {
       expect(projectId).toBe("project-1");
-      expect(companyId).toBe("company-1");
+      expect(spaceId).toBe("space-1");
       return [{
         id: "project-workspace-1",
         projectId: "project-1",
@@ -214,7 +214,7 @@ describe("workspace diff plugin", () => {
 
     const result = await harness.getData("workspace-diff", {
       workspaceId: "workspace-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       view: "head",
       includeUntracked: false,
     });
@@ -237,7 +237,7 @@ describe("workspace diff plugin", () => {
     harness.seed({
       executionWorkspaces: [{
         id: "workspace-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         projectId: "project-1",
         projectWorkspaceId: null,
         path: root,
@@ -249,9 +249,9 @@ describe("workspace diff plugin", () => {
         providerMetadata: null,
       }],
     });
-    harness.ctx.projects.listWorkspaces = async (projectId, companyId) => {
+    harness.ctx.projects.listWorkspaces = async (projectId, spaceId) => {
       expect(projectId).toBe("project-1");
-      expect(companyId).toBe("company-1");
+      expect(spaceId).toBe("space-1");
       return [{
         id: "project-workspace-1",
         projectId: "project-1",
@@ -269,7 +269,7 @@ describe("workspace diff plugin", () => {
 
     const result = await harness.getData("workspace-diff", {
       workspaceId: "workspace-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       projectId: "project-1",
       view: "head",
       baseRef: null,
@@ -297,7 +297,7 @@ describe("workspace diff plugin", () => {
     harness.seed({
       executionWorkspaces: [{
         id: "workspace-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         projectId: "project-1",
         projectWorkspaceId: null,
         path: root,
@@ -313,7 +313,7 @@ describe("workspace diff plugin", () => {
 
     await expect(harness.getData("workspace-diff", {
       workspaceId: "workspace-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       view: "working-tree",
       includeUntracked: false,
     })).resolves.toMatchObject({
@@ -324,7 +324,7 @@ describe("workspace diff plugin", () => {
 
     await expect(harness.getData("workspace-diff", {
       workspaceId: "workspace-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       view: "head",
       baseRef: null,
       includeUntracked: false,
@@ -342,6 +342,6 @@ describe("workspace diff plugin", () => {
 
     await expect(harness.getData("workspace-diff", {
       workspaceId: "workspace-1",
-    })).rejects.toThrow("workspaceId and companyId are required");
+    })).rejects.toThrow("workspaceId and spaceId are required");
   });
 });

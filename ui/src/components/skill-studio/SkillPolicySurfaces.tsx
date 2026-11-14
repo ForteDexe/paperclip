@@ -4,7 +4,7 @@
  * These are the *only* permission-related visuals core renders, and they follow
  * the north star from the approved UX spec (PAP-13863): under the open default
  * there is no permission chrome at all. A denial banner (`SkillPolicyDenialNotice`)
- * appears only when an explicit company policy (State B) or a platform invariant
+ * appears only when an explicit space policy (State B) or a platform invariant
  * (State C) actually denied an action.
  */
 

@@ -3,14 +3,14 @@ title: How Delegation Works
 summary: How the CEO assigns work when delegation is part of the requested scope
 ---
 
-Paperclip supports delegation through task assignments and optional parent relationships. Work can stay on the current task. This guide describes the lifecycle when delegation is part of the requested work.
+Outpost supports delegation through task assignments and optional parent relationships. Work can stay on the current task. This guide describes the lifecycle when delegation is part of the requested work.
 
 ## The Delegation Lifecycle
 
 For a goal whose approved scope includes delegation:
 
 ```
-You set a company goal
+You set a space goal
   → CEO wakes up on heartbeat
   → CEO proposes a strategy (creates an approval for you)
   → You approve the strategy
@@ -27,7 +27,7 @@ Tasks that use parent relationships can trace back to the goal through that hier
 
 Your role is strategic oversight, not task management. Here's what the delegation model expects from you:
 
-1. **Set clear company goals.** The CEO works from these. Specific, measurable goals produce better delegation. "Build a landing page" is okay; "Ship a landing page with signup form by Friday" is better.
+1. **Set clear space goals.** The CEO works from these. Specific, measurable goals produce better delegation. "Build a landing page" is okay; "Ship a landing page with signup form by Friday" is better.
 
 2. **Approve the CEO's strategy.** After reviewing your goals, the CEO submits a strategy proposal to the approval queue. Review it, then approve, reject, or request revisions.
 
@@ -47,7 +47,7 @@ When your request or approved plan assigns work to a team, the CEO can:
 - **Break goals into concrete tasks** with clear descriptions, priorities, and acceptance criteria
 - **Assign tasks to the right agent** based on role and capabilities (e.g., engineering tasks go to the CTO or engineers, marketing tasks go to the CMO)
 - **Use parent relationships** when included in the requested task structure
-- **Hire new agents** when the team lacks capacity for a goal, with hire approvals available when enabled in company settings
+- **Hire new agents** when the team lacks capacity for a goal, with hire approvals available when enabled in space settings
 - **Monitor progress** on each heartbeat, checking task status and unblocking reports
 - **Escalate to you** when it encounters something it can't resolve — budget issues, blocked approvals, or strategic ambiguity
 
@@ -55,7 +55,7 @@ When your request or approved plan assigns work to a team, the CEO can:
 
 ### Flat Hierarchy (Small Teams)
 
-For small companies with 3-5 agents, the CEO delegates directly to each report:
+For small spaces with 3-5 agents, the CEO delegates directly to each report:
 
 ```
 CEO
@@ -104,7 +104,7 @@ If you've set a goal but nothing is happening, check these common causes:
 | **Approval queue** | The CEO may have submitted a strategy or hire request that's waiting for your approval. This is the most common reason. |
 | **Agent status** | If all reports are paused, terminated, or in an error state, the CEO has no one to delegate to. Check the Agents page. |
 | **Budget** | If the CEO is above 80% of its monthly budget, it focuses only on critical tasks and may skip lower-priority delegation. |
-| **Goals** | If no company goals are set, the CEO has nothing to work from. Create a goal first. |
+| **Goals** | If no space goals are set, the CEO has nothing to work from. Create a goal first. |
 | **Heartbeat** | Is the CEO's heartbeat enabled and running? Check the agent detail page for recent heartbeat history. |
 | **Agent instructions** | Check that its `AGENTS.md` and the task's approved scope agree with the assignment you requested. A goal or plan approval alone does not require subtasks. |
 

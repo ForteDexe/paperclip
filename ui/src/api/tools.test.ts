@@ -18,18 +18,18 @@ describe("toolsApi.listActivity", () => {
   });
 
   it("uses the omitted-window contract for all-time activity", async () => {
-    await toolsApi.listActivity("company-1", { window: "all", limit: 50 });
+    await toolsApi.listActivity("space-1", { window: "all", limit: 50 });
 
     expect(mockApi.get).toHaveBeenCalledWith(
-      "/tool-gateway/audit?companyId=company-1&limit=50",
+      "/tool-gateway/audit?spaceId=space-1&limit=50",
     );
   });
 
   it("sends bounded activity windows explicitly", async () => {
-    await toolsApi.listActivity("company-1", { window: "30d", limit: 50 });
+    await toolsApi.listActivity("space-1", { window: "30d", limit: 50 });
 
     expect(mockApi.get).toHaveBeenCalledWith(
-      "/tool-gateway/audit?companyId=company-1&window=30d&limit=50",
+      "/tool-gateway/audit?spaceId=space-1&window=30d&limit=50",
     );
   });
 });

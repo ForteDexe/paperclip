@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FlyoutAppearanceProvider } from "@/components/ui/flyout";
 import { queryKeys } from "@/lib/queryKeys";
-import { storybookActivityEvents, storybookAgentMap, storybookProjects } from "../../fixtures/paperclipData";
+import { storybookActivityEvents, storybookAgentMap, storybookProjects } from "../../fixtures/outpostData";
 import { recoveryChild } from "./task-list-data";
 
 type Density = "comfortable" | "compact";
@@ -27,7 +27,7 @@ const events: ActivityEvent[] = [
   { ...base, id: "activity-project", actorType: "agent", actorId: "agent-codex", action: "project.updated", entityType: "project", entityId: project.id },
   { ...base, id: "activity-approval", action: "approval.revision_requested", entityType: "approval", entityId: "approval-budget", details: { type: "budget_override_required" } },
   { ...base, id: "activity-run", action: "heartbeat.invoked", entityType: "heartbeat_run", entityId: "run-storybook", details: { agentId: "agent-codex" } },
-  { ...base, id: "activity-system", actorType: "system", actorId: "system", action: "company.updated", entityType: "company", entityId: "company-storybook", details: null },
+  { ...base, id: "activity-system", actorType: "system", actorId: "system", action: "space.updated", entityType: "space", entityId: "space-storybook", details: null },
 ];
 
 const names = new Map([
@@ -35,7 +35,7 @@ const names = new Map([
   ["agent:agent-codex", "CodexCoder"],
   [`project:${project.id}`, project.name],
   ["approval:approval-budget", "Monthly budget adjustment"],
-  ["company:company-storybook", "Paperclip Storybook"],
+  ["space:space-storybook", "Outpost Storybook"],
 ]);
 const titles = new Map([[`issue:${recoveryChild.id}`, recoveryChild.title]]);
 const profiles = new Map([["board", { label: "Riley Board", image: null }]]);
@@ -51,7 +51,7 @@ export function ActivityListPreview({ density = "comfortable", containerWidth = 
     <main className="task-row-design-preview min-h-screen px-6 py-10 text-foreground sm:px-10">
       <div className="mx-auto flex max-w-4xl flex-col gap-8">
         <header className="space-y-3">
-          <p className="text-xs text-muted-foreground">Paperclip · Design system · Proposed</p>
+          <p className="text-xs text-muted-foreground">Outpost · Design system · Proposed</p>
           <h1 className="text-3xl font-semibold">Activity list</h1>
           <p className="text-sm text-muted-foreground">Task, agent, project, approval, run and system activity. Rows share task-list density, type, fade and cell-local marquee. Task entries retain their hover card; other entries keep their own destination.</p>
         </header>

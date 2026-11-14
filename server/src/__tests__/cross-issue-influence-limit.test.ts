@@ -26,7 +26,7 @@ function counterDb(
             for: () => ({
               then: (resolve: (rows: unknown[]) => unknown) => resolve(runOverrides === null ? [] : [{
                 id: "11111111-1111-4111-8111-111111111111",
-                companyId: "22222222-2222-4222-8222-222222222222",
+                spaceId: "22222222-2222-4222-8222-222222222222",
                 agentId: "33333333-3333-4333-8333-333333333333",
                 responsibleUserId: "user-1",
                 contextSnapshot: { issueId: "44444444-4444-4444-8444-444444444444" },
@@ -109,7 +109,7 @@ describe("cross-issue influence limit rollout", () => {
   it("uses one durable counter for cross-issue comments, PATCH updates, and interaction resolutions", async () => {
     const fake = counterDb();
     const base = {
-      companyId: "22222222-2222-4222-8222-222222222222",
+      spaceId: "22222222-2222-4222-8222-222222222222",
       runId: "11111111-1111-4111-8111-111111111111",
       agentId: "33333333-3333-4333-8333-333333333333",
       targetIssueId: "55555555-5555-4555-8555-555555555555",
@@ -132,7 +132,7 @@ describe("cross-issue influence limit rollout", () => {
     const fake = counterDb(CROSS_ISSUE_INFLUENCE_LIMIT);
 
     await expect(observeCrossIssueInfluence(fake.db as never, {
-      companyId: "22222222-2222-4222-8222-222222222222",
+      spaceId: "22222222-2222-4222-8222-222222222222",
       runId: "11111111-1111-4111-8111-111111111111",
       agentId: "33333333-3333-4333-8333-333333333333",
       targetIssueId: "55555555-5555-4555-8555-555555555555",
@@ -153,7 +153,7 @@ describe("cross-issue influence limit rollout", () => {
       contextSnapshot: { issueId: "55555555-5555-4555-8555-555555555555" },
     });
     await expect(observeCrossIssueInfluence(fake.db as never, {
-      companyId: "22222222-2222-4222-8222-222222222222",
+      spaceId: "22222222-2222-4222-8222-222222222222",
       runId: "11111111-1111-4111-8111-111111111111",
       agentId: "33333333-3333-4333-8333-333333333333",
       targetIssueId: "55555555-5555-4555-8555-555555555555",
@@ -165,12 +165,12 @@ describe("cross-issue influence limit rollout", () => {
   it.each([
     ["missing", null],
     ["wrong-agent", { agentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }],
-    ["wrong-company", { companyId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }],
+    ["wrong-space", { spaceId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }],
   ] as const)("fails closed for a %s locked run", async (_label, runOverrides) => {
     const fake = counterDb(0, runOverrides);
 
     await expect(observeCrossIssueInfluence(fake.db as never, {
-      companyId: "22222222-2222-4222-8222-222222222222",
+      spaceId: "22222222-2222-4222-8222-222222222222",
       runId: "11111111-1111-4111-8111-111111111111",
       agentId: "33333333-3333-4333-8333-333333333333",
       targetIssueId: "55555555-5555-4555-8555-555555555555",
@@ -186,7 +186,7 @@ describe("cross-issue influence limit rollout", () => {
     const fake = counterDb();
 
     await expect(observeCrossIssueInfluence(fake.db as never, {
-      companyId: "22222222-2222-4222-8222-222222222222",
+      spaceId: "22222222-2222-4222-8222-222222222222",
       runId: "attacker-controlled-run-id",
       agentId: "33333333-3333-4333-8333-333333333333",
       targetIssueId: "55555555-5555-4555-8555-555555555555",
@@ -206,7 +206,7 @@ describe("cross-issue influence limit rollout", () => {
     const fake = counterDb(0, { contextSnapshot: {} });
 
     await expect(observeCrossIssueInfluence(fake.db as never, {
-      companyId: "22222222-2222-4222-8222-222222222222",
+      spaceId: "22222222-2222-4222-8222-222222222222",
       runId: "11111111-1111-4111-8111-111111111111",
       agentId: "33333333-3333-4333-8333-333333333333",
       targetIssueId: "55555555-5555-4555-8555-555555555555",
@@ -224,7 +224,7 @@ describe("cross-issue influence limit rollout", () => {
     const fake = counterDb(CROSS_ISSUE_INFLUENCE_LIMIT, { contextSnapshot: {} });
 
     await expect(observeCrossIssueInfluence(fake.db as never, {
-      companyId: "22222222-2222-4222-8222-222222222222",
+      spaceId: "22222222-2222-4222-8222-222222222222",
       runId: "11111111-1111-4111-8111-111111111111",
       agentId: "33333333-3333-4333-8333-333333333333",
       targetIssueId: "55555555-5555-4555-8555-555555555555",

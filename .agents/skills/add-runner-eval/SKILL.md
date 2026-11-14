@@ -9,21 +9,21 @@ Use this skill for the **Runner Evals** family: a real Runner/provider session
 against a seeded mock control plane. Product browser/server/database/Daytona
 coverage belongs in [add-product-e2e-eval](../add-product-e2e-eval/SKILL.md).
 
-Locate the Paperclip checkout using `OUTPOST_ROOT` when supplied, or
+Locate the Outpost checkout using `OUTPOST_ROOT` when supplied, or
 `git rev-parse --show-toplevel` from a checkout. From outside Git, inspect the
 workspace roots (for example `~/paperclipai/paperclip`) and verify that the
 selected root contains `packages/outpost-runner` and `tests/runner-e2e`.
-Locate `paperclip-evals` using `OUTPOST_EVALS_ROOT` or a discovered sibling;
+Locate `outpost-evals` using `OUTPOST_EVALS_ROOT` or a discovered sibling;
 a worktree's parent directory need not contain that repository. Read
 `doc/evals.md` and `packages/outpost-runner/docs/runner-protocol-live-evals.md`,
 then inspect the nearest existing case, roster, schema, and report test before
 editing. Definitions and authored cases belong in the sibling
-`paperclip-evals/evals/outpost-runner`; Runner integration, aggregation,
+`outpost-evals/evals/outpost-runner`; Runner integration, aggregation,
 viewer, and publication behavior belongs in `packages/outpost-runner`.
 Keep the control-plane boundary explicit in names and documentation.
 
 The sibling eval README is the concrete map: cases live under `cases/`,
-company fixtures under `fixtures/`, runtime/model settings under `configs/`,
+space fixtures under `fixtures/`, runtime/model settings under `configs/`,
 selections under `rosters/`, and maintained campaign membership under
 `campaigns/live-direct-full.json`. Update inventory/coverage mappings when the
 program requires them; a new file alone does not join the maintained campaign.
@@ -60,8 +60,8 @@ reasoning may not.
 
 Validate without provider calls first using the commands above and the relevant
 report/render validation documented in the Runner docs. When a live run is
-authorized, pin the Paperclip commit and exact 40-character
-`paperclip-evals` commit, select the smallest useful roster, and retain the
+authorized, pin the Outpost commit and exact 40-character
+`outpost-evals` commit, select the smallest useful roster, and retain the
 complete provenance and cost record.
 
 Update authoritative detailed docs when the contract or command changes, then

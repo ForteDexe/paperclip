@@ -48,18 +48,18 @@ async function readStatusSelection(page: Page) {
 
 function openedIdentifier(page: Page, context: JourneyContext) {
   const url = new URL(page.url());
-  const prefix = `/${context.company.issuePrefix}/issues/`;
+  const prefix = `/${context.space.issuePrefix}/issues/`;
   return url.origin === context.api.origin && url.pathname.startsWith(prefix)
     ? decodeURIComponent(url.pathname.slice(prefix.length)) : null;
 }
 
 /** API setup owns three tasks; search, filtering and opening use the shipped UI. */
 export async function taskSearchFilter(context: JourneyContext, session: TargetSession, campaignId: string, evidence: JourneyEvidence) {
-  for (const capability of ["company", "board-user", "task-write"]) {
+  for (const capability of ["space", "board-user", "task-write"]) {
     if (!context.capabilities.includes(capability)) throw new JourneyError("unsupported", `missing_${capability}`);
   }
   if (!campaignId) throw new JourneyError("blocked", "task_search_campaign_required");
-  const { api, page, company, user } = context;
+  const { api, page, space, user } = context;
   let stage: TaskSearchStage = "prepare";
   try {
     const marker = `needle-${campaignId}`;
@@ -71,17 +71,17 @@ export async function taskSearchFilter(context: JourneyContext, session: TargetS
     ]) {
       const ownership = { kind: "issue" as const, name: fixture.title, journeyId: "task-search-filter" as const };
       await session.own(ownership);
-      const created = await api.post<{ id: string; identifier: string }>(`/api/companies/${company.id}/issues`, {
+      const created = await api.post<{ id: string; identifier: string }>(`/api/spaces/${space.id}/issues`, {
         ...fixture, assigneeUserId: user.id, assigneeAgentId: null,
       });
       if (created.id) await session.own({ ...ownership, id: created.id });
       if (!created.id || !created.identifier) throw new JourneyError("failed", "task_search_fixture_receipt_missing");
-      tasks.push({ ...fixture, id: created.id, identifier: created.identifier, companyId: company.id,
+      tasks.push({ ...fixture, id: created.id, identifier: created.identifier, spaceId: space.id,
         assigneeUserId: user.id, assigneeAgentId: null });
     }
     const [target, statusControl] = tasks as [SearchTask, SearchTask, SearchTask];
     stage = "open_collection";
-    await page.goto(`${api.origin}/${company.issuePrefix}/issues`);
+    await page.goto(`${api.origin}/${space.issuePrefix}/issues`);
     await expect(page.locator("main#main-content")).toBeVisible();
     const search = page.getByRole("textbox", { name: "Search tasks", exact: true });
     // Select the task collection through its normal view control when present.

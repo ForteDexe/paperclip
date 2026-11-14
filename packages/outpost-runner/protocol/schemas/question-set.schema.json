@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://outpost.dev/schemas/orp/v1/question-set.schema.json",
-  "title": "Paperclip question set",
+  "title": "Outpost question set",
   "type": "object",
   "required": ["schema", "questions"],
   "properties": {

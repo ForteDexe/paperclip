@@ -10,10 +10,10 @@ function sample(blocked = true, compatibility = false): NativeCompletionObservat
     sourceEventId: `event${seq}`, sourceInstanceId: sourceKind, sourceSeq: seq,
     payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, runId: "run", eventType,
       sourceKind, sourceEventId: `event${seq}`, sourceInstanceId: sourceKind, sourceSeq: seq, payload } } });
-  const tool = blocked ? "paperclip_block" : "paperclip_finish";
-  return { caseId: blocked ? "native-blocked-report" : "assigned-skill-explicit-invocation", companyId: "company", agentId: "agent", marker: "BLOCKED_probe",
-    issue: { id: "issue", companyId: "company", assigneeAgentId: "agent", status: result.reportedWorkDisposition },
-    runs: [{ id: "run", nativeIssueId: "issue", companyId: "company", agentId: "agent", status: "succeeded", runtimeMode: "native", resultJson: { nativeResult: result } }],
+  const tool = blocked ? "outpost_block" : "outpost_finish";
+  return { caseId: blocked ? "native-blocked-report" : "assigned-skill-explicit-invocation", spaceId: "space", agentId: "agent", marker: "BLOCKED_probe",
+    issue: { id: "issue", spaceId: "space", assigneeAgentId: "agent", status: result.reportedWorkDisposition },
+    runs: [{ id: "run", nativeIssueId: "issue", spaceId: "space", agentId: "agent", status: "succeeded", runtimeMode: "native", resultJson: { nativeResult: result } }],
     comments: [{ createdByRunId: "run", authorAgentId: "agent", body }],
     documentLinkContext: { appOrigin: "https://outpost.example", issuePrefix: "RUN", issueIdentifier: "RUN-1",
       documents: blocked ? [] : [{ key: "output", latestRevisionId: "revision", latestRevisionNumber: 1 }] },
@@ -57,7 +57,7 @@ describe("native completion independent oracle", () => {
     expect(gradeNativeCompletion(value).passed).toBe(false);
   });
   it.each([[true, false], [true, true], [false, false], [false, true]])("accepts disposition %s compatibility %s with final before late control-plane acceptance", (blocked, compatibility) => expect(gradeNativeCompletion(sample(blocked, compatibility)).passed).toBe(true));
-  it.each(["paperclip_finish", "paperclip_block"])("carries normalized %s identity through rehydration into the exact-call oracle", name => {
+  it.each(["outpost_finish", "outpost_block"])("carries normalized %s identity through rehydration into the exact-call oracle", name => {
     // The Rust normalization calibration asserts these exact fixture bytes.
     const fixture = JSON.parse(readFileSync(new URL("./fixtures/native-completion/terminal-tool-carrier.json", import.meta.url), "utf8")) as {
       cases: Array<{ name: string; normalizedPayload: Row }>;
@@ -66,7 +66,7 @@ describe("native completion independent oracle", () => {
     const started = rehydrateRunnerdItemNotification(normalized, "thread", "turn");
     expect(started.item).toMatchObject({ id: "terminal-call", type: "tool_call", name });
     const completed = rehydrateRunnerdItemNotification({ provider: "codex", itemId: "terminal-call", kind: "tool_result", status: "completed", channel: "detail", text: null }, "thread", "turn");
-    const value = sample(name === "paperclip_block", true);
+    const value = sample(name === "outpost_block", true);
     payload(value, 0).item = started.item;
     payload(value, 2).item = completed.item;
     expect(gradeNativeCompletion(value).passed).toBe(true);
@@ -102,7 +102,7 @@ describe("native completion independent oracle", () => {
     if (name === "extra-run") value.runs = [run, { ...run, id: "extra" }];
     if (name === "retry") run.retryOfRunId = "prior";
     if (name === "continuation") run.continuationAttempt = 1;
-    if (name === "wrong-account") run.companyId = "other";
+    if (name === "wrong-account") run.spaceId = "other";
     if (name === "wrong-agent") run.agentId = "other";
     if (name === "wrong-disposition") value.issue.status = "done";
     if (name === "punctuated-action") ((run.resultJson as Row).nativeResult as {blocker: {unblockAction: string}}).blocker.unblockAction = "Grant deployment access.";

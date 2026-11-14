@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
-import { agents, companies, issues, heartbeatRuns, nativeRunFinalizations, createDb } from "@outpost/db";
+import { agents, spaces, issues, heartbeatRuns, nativeRunFinalizations, createDb } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { deploymentNotifications } from "../services/deployment-notifications.js";
@@ -12,7 +12,7 @@ const provider = vi.hoisted(() => ({ stop: vi.fn() }));
 vi.mock("../services/native-runtime/native-session-executor.js", () => ({ cancelNativeSession: (...args: unknown[]) => provider.stop(...args) }));
 let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
 let a: ReturnType<typeof createDb>, b: ReturnType<typeof createDb>;
-let companyId: string, runId: string, intentId: string;
+let spaceId: string, runId: string, intentId: string;
 let bridgeA: ReturnType<typeof deploymentNotifications>, bridgeB: ReturnType<typeof deploymentNotifications>;
 let coordinatorA: ReturnType<typeof createDeliveryWorkCoordinator>, coordinatorB: ReturnType<typeof createDeliveryWorkCoordinator>;
 let worker: ReturnType<typeof registerNativeCancellationDelivery>;
@@ -20,13 +20,13 @@ const errors: unknown[] = [];
 beforeAll(async () => {
   database = await startEmbeddedPostgresTestDatabase("cancellation-delivery-");
   a = createDb(database.connectionString); b = createDb(database.connectionString);
-  companyId = randomUUID(); runId = randomUUID(); intentId = `native-cancellation:${randomUUID()}`;
+  spaceId = randomUUID(); runId = randomUUID(); intentId = `native-cancellation:${randomUUID()}`;
   const agentId = randomUUID(), issueId = randomUUID(), identity = await currentNativeControllerIdentity();
-  await a.insert(companies).values({ id: companyId, name: "Cancellation fixture", issuePrefix: "STOP" });
-  await a.insert(agents).values({ id: agentId, companyId, name: "Remote fixture" });
-  await a.insert(issues).values({ id: issueId, companyId, title: "Stop fixture", status: "in_progress" });
-  await a.insert(heartbeatRuns).values({ id: runId, companyId, agentId, runtimeMode: "native", status: "running", nativeIssueId: issueId });
-  await a.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "executing", controllerBootId: identity.bootId,
+  await a.insert(spaces).values({ id: spaceId, name: "Cancellation fixture", issuePrefix: "STOP" });
+  await a.insert(agents).values({ id: agentId, spaceId, name: "Remote fixture" });
+  await a.insert(issues).values({ id: issueId, spaceId, title: "Stop fixture", status: "in_progress" });
+  await a.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, runtimeMode: "native", status: "running", nativeIssueId: issueId });
+  await a.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "executing", controllerBootId: identity.bootId,
     leaseOwner: "fixture-owner", leaseExpiresAt: new Date(Date.now() + 60_000) });
   coordinatorA = createDeliveryWorkCoordinator({ owner: a, canRun: () => true, onError: error => errors.push(error) });
   coordinatorB = createDeliveryWorkCoordinator({ owner: b, canRun: () => true, onError: error => errors.push(error) });
@@ -60,14 +60,14 @@ it("routes a committed Stop from B to its live owner A and returns only A's ackn
     await tx.update(heartbeatRuns).set({ resultJson: { nativeCancellation: { schema: "outpost.native-cancellation.v1", intentId,
       scope: "run", dispatchState: "pending" } } }).where(eq(heartbeatRuns.id, runId));
   });
-  await expect(waitForNativeCancellation(b, { companyId, runId, intentId })).resolves.toEqual({ dispatched: true, decisionId: null, auditId: "fixture-audit" });
+  await expect(waitForNativeCancellation(b, { spaceId, runId, intentId })).resolves.toEqual({ dispatched: true, decisionId: null, auditId: "fixture-audit" });
   expect(provider.stop).toHaveBeenCalledTimes(1); expect(errors).toEqual([]);
 });
 it("fails closed on a different intent and never accepts a no-op acknowledgement", async () => {
-  await expect(waitForNativeCancellation(b, { companyId, runId, intentId: "wrong-intent" })).rejects.toThrow("intent_conflict");
+  await expect(waitForNativeCancellation(b, { spaceId, runId, intentId: "wrong-intent" })).rejects.toThrow("intent_conflict");
   await b.update(heartbeatRuns).set({ resultJson: { nativeCancellation: { intentId, dispatchState: "acknowledged", dispatched: false,
     acknowledgementAuditId: "not-dispatched" } } }).where(eq(heartbeatRuns.id, runId));
-  await expect(waitForNativeCancellation(b, { companyId, runId, intentId }, 50)).rejects.toThrow("pending_recovery");
+  await expect(waitForNativeCancellation(b, { spaceId, runId, intentId }, 50)).rejects.toThrow("pending_recovery");
 });
 it("keeps Stop pending across lease release and delivers after normal ownership resumes", async () => {
   vi.stubEnv("OUTPOST_EPHEMERAL_SERVER", "true");
@@ -78,7 +78,7 @@ it("keeps Stop pending across lease release and delivers after normal ownership 
   expect(await nativeCancellationHasUnsettledOwner(b, runId)).toBe(true);
   await b.update(heartbeatRuns).set({ resultJson: { nativeCancellation: { schema: "outpost.native-cancellation.v1", intentId,
     scope: "run", dispatchState: "pending" } } }).where(eq(heartbeatRuns.id, runId));
-  const acknowledged = waitForNativeCancellation(b, { companyId, runId, intentId });
+  const acknowledged = waitForNativeCancellation(b, { spaceId, runId, intentId });
   const identity = await currentNativeControllerIdentity();
   // Simulate only the normal recovery owner's claim; no test-owned dispatch or
   // acknowledgement. Production delivery must consume the durable pending Stop.

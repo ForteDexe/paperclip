@@ -1,5 +1,5 @@
 /**
- * Owns one isolated Paperclip control plane and injects K faults.
+ * Owns one isolated Outpost control plane and injects K faults.
  *
  * Reuses the runner-e2e process code instead of copying it: the config seed
  * (server-config.ts), port reservation (ports.ts), environment isolation
@@ -25,7 +25,7 @@ import { prepareControllerDatabase } from "../runner-e2e/controller-database.js"
 import { CONTROLLER_READY_BY_MS, replaceController, type ControllerOutageReceipt } from "../runner-e2e/controller-outage.js";
 import {
   assertIsolatedServerEnvironment, buildOutpostServerEnvironment, buildRunnerE2EProcessEnvironment,
-  resolvePaperclipRunnerBinaryForHarness,
+  resolveOutpostRunnerBinaryForHarness,
 } from "../runner-e2e/harness-env.js";
 import { reserveRunnerE2EServerPort } from "../runner-e2e/ports.js";
 import { createRunnerE2ETemporaryRoot, prepareRunnerE2EServerConfig } from "../runner-e2e/server-config.js";
@@ -75,7 +75,7 @@ export function crashLoopShouldFire(target: (typeof CRASH_LOOP_TARGETS)[number],
 
 /**
  * Agents reach the server at OUTPOST_API_URL. An explicit value wins over the URL the server
- * derives from its public URL (a developer's .paperclip/.env or shell can name a tailnet origin
+ * derives from its public URL (a developer's .outpost/.env or shell can name a tailnet origin
  * that serves a different instance). Pin this wave's own loopback origin so an agent's key for
  * the temporary instance is only ever sent to that instance.
  */
@@ -258,7 +258,7 @@ export class ChaosSupervisor {
     const { temporaryRoot } = this.paths;
     const { home, configPath } = this.serverHome;
     const extraEnvironment = this.extraEnvironment;
-    const runnerBinary = resolvePaperclipRunnerBinaryForHarness(
+    const runnerBinary = resolveOutpostRunnerBinaryForHarness(
       [{ profile: { generation: "native" } } as unknown as MatrixExecution], root);
     // One provider PATH per checkout: the older build keeps its own pinned Codex.
     const providerRoot = root === this.repositoryRoot ? temporaryRoot : path.join(temporaryRoot, "upgrade-from");
@@ -279,7 +279,7 @@ export class ChaosSupervisor {
       OUTPOST_STORAGE_LOCAL_DIR: path.join(temporaryRoot, "storage"), OUTPOST_SECRETS_PROVIDER: "local_encrypted",
       OUTPOST_SECRETS_STRICT_MODE: "true", OUTPOST_DB_BACKUP_ENABLED: "false",
       OUTPOST_DB_BACKUP_DIR: path.join(temporaryRoot, "backups"), OUTPOST_OPEN_ON_LISTEN: "false",
-      // The server loads a .paperclip/.env found above its cwd without overriding
+      // The server loads a .outpost/.env found above its cwd without overriding
       // set values. A worktree-initialized checkout's file sets
       // OUTPOST_IN_WORKTREE=true, which suppresses all scheduling: no run starts.
       OUTPOST_IN_WORKTREE: "false",
@@ -292,14 +292,14 @@ export class ChaosSupervisor {
     const environment = buildOutpostServerEnvironment(source, { ...overrides, ...ephemeral });
     const workspaceStorage = extraEnvironment.OUTPOST_STORAGE_PROVIDER === "s3"
       ? Object.fromEntries(Object.entries(extraEnvironment).filter(([key]) => key.startsWith("OUTPOST_STORAGE_"))) : undefined;
-    assertIsolatedServerEnvironment(environment, { temporaryRoot, paperclipHome: home, configPath, ...(workspaceStorage ? { workspaceStorage } : {}),
+    assertIsolatedServerEnvironment(environment, { temporaryRoot, outpostHome: home, configPath, ...(workspaceStorage ? { workspaceStorage } : {}),
       ...(ephemeral ? { generatedSecretsMasterKey: ephemeral.OUTPOST_SECRETS_MASTER_KEY } : {}) });
     this.environment = Object.fromEntries(Object.entries(environment).filter((entry): entry is [string, string] => entry[1] !== undefined));
     await prepareSourceServerDependencies(root, this.environment, false);
   }
 
   private async spawnServer(): Promise<ChildProcess> {
-    if (this.shuttingDown) throw new Error("Refusing to start Paperclip during harness shutdown");
+    if (this.shuttingDown) throw new Error("Refusing to start Outpost during harness shutdown");
     const root = this.serverRoot;
     const entry = path.join(root, "tests/runner-e2e/server-entry.ts");
     const control = this.crashPointControl;
@@ -361,7 +361,7 @@ export class ChaosSupervisor {
     const deadline = Date.now() + HEALTH_TIMEOUT_MS;
     while (Date.now() < deadline) {
       if (this.shuttingDown) throw new Error("Harness shutdown interrupted startup");
-      if (this.exited(child)) throw new Error(`Paperclip server exited during startup (code=${child.exitCode} signal=${child.signalCode})`);
+      if (this.exited(child)) throw new Error(`Outpost server exited during startup (code=${child.exitCode} signal=${child.signalCode})`);
       if (phases) {
         const phase = await this.readPhase(baseUrl);
         if (phase !== phases[phases.length - 1]?.phase) phases.push({ phase, at: Date.now() });
@@ -373,7 +373,7 @@ export class ChaosSupervisor {
       } catch { /* still booting */ }
       await delay(250);
     }
-    throw new Error(`Paperclip server did not become healthy within ${HEALTH_TIMEOUT_MS}ms`);
+    throw new Error(`Outpost server did not become healthy within ${HEALTH_TIMEOUT_MS}ms`);
   }
 
   private async waitForHealthToStop(): Promise<void> {
@@ -383,7 +383,7 @@ export class ChaosSupervisor {
       catch { return; }
       await delay(100);
     }
-    throw new Error("Old Paperclip server stayed healthy after stop");
+    throw new Error("Old Outpost server stayed healthy after stop");
   }
 
   /** Records starting → recovering → ready from /api/ready (liveness gate). */
@@ -401,7 +401,7 @@ export class ChaosSupervisor {
       }
       await delay(250);
     }
-    throw new Error(`Paperclip did not report ready within ${READY_TIMEOUT_MS}ms`);
+    throw new Error(`Outpost did not report ready within ${READY_TIMEOUT_MS}ms`);
   }
 
   /** Crash-point suite: run every spawn (from `start` on) with runtime arming. */
@@ -506,7 +506,7 @@ export class ChaosSupervisor {
     // CR1 and CR2 with a hold replace the controller as a K15 deploy does (class-r.ts).
     const redeploys = kind === "K15" || classRRedeploys(kind, holdMs);
     try {
-      if (!previous?.pid || this.exited(previous)) throw new Error("No live Paperclip server to fault");
+      if (!previous?.pid || this.exited(previous)) throw new Error("No live Outpost server to fault");
       let outage: ControllerOutageReceipt | undefined;
       if (isClassRFault(kind)) {
         if (!this.classR) throw new Error(`${kind} needs the class R hooks of a Daytona wave (main.ts)`);
@@ -946,7 +946,7 @@ export class ChaosSupervisor {
     const deadline = Date.now() + READY_TIMEOUT_MS;
     while (Date.now() < deadline) {
       if (this.shuttingDown) throw new Error("Harness shutdown interrupted the crash loop");
-      if (this.exited(child)) throw new Error(`Paperclip server exited during the crash loop (code=${child.exitCode} signal=${child.signalCode})`);
+      if (this.exited(child)) throw new Error(`Outpost server exited during the crash loop (code=${child.exitCode} signal=${child.signalCode})`);
       const phase = await this.readPhase();
       if (phase !== phases[phases.length - 1]?.phase) phases.push({ phase, at: Date.now() });
       if (crashLoopShouldFire(target, phase)) return phase;

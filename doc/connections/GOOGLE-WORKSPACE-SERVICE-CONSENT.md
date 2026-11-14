@@ -21,7 +21,7 @@ The `workspaceServices` input accepts only nonempty combinations of `gmail`,
 from the shared closed registry. Default write access requests nine scopes.
 Drive file creation is limited to app-opened/app-created files; Docs, Sheets,
 and Slides have their respective editor scopes. Gmail uses `gmail.compose`
-for draft creation; Google permits sending under that scope, but Paperclip's
+for draft creation; Google permits sending under that scope, but Outpost's
 closed tool allowlist still excludes sending.
 
 Both customer OAuth and managed Cloud OAuth bind the request to durable OAuth
@@ -33,7 +33,7 @@ before updating tenant apps; an older broker rejects narrowed requests safely.
 Only provider-reported consent enables tools. Callback and refresh cap effective
 permissions to the saved request, including read-only implications of broader
 Google grants. Accumulated grants cannot enable unselected services or writes.
-Credential ownership, agent installations, action policies, company boundaries,
+Credential ownership, agent installations, action policies, space boundaries,
 and single-use state remain under their existing enforcement paths.
 
 Production readiness additionally requires the intended OAuth client and

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { PaperclipQuestionSet } from "@outpost/adapter-utils";
+import type { OutpostQuestionSet } from "@outpost/adapter-utils";
 import { QuestionForm } from "./QuestionForm";
 vi.mock("./TaskChatRichInput", () => ({ TaskChatRichInput: () => <textarea /> }));
 vi.mock("@/components/MarkdownBody", () => ({ MarkdownBody: ({ children }: { children: string }) => <div>{children}</div> }));
@@ -21,7 +21,7 @@ function getByRole(scope: HTMLElement, role: "button" | "radio", options: { name
 }
 const fixture = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../../tests/runner-e2e/chat-catalog-domains/identity-questions-and-approvals.ts"), "utf8");
 const previousSelector = fixture.match(/await form\.getByRole\("button", \{ name: "([^"]+)", exact: true \}\)\.click\(\);\s*state\.retainedAudience/);
-const set: PaperclipQuestionSet = { schema: "outpost.question_set.v1", questions: [
+const set: OutpostQuestionSet = { schema: "outpost.question_set.v1", questions: [
   { id: "audience", prompt: "Who is the audience?", required: true, answerMode: "single_select", options: [{ id: "researchers", label: "Researchers" }] },
   { id: "tone", prompt: "What tone should we use?", required: true, answerMode: "single_select", options: [{ id: "clear", label: "Clear" }] },
 ] };

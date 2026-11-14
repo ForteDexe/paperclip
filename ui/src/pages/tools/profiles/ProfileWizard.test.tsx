@@ -90,7 +90,7 @@ describe("ProfileWizard", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={client}>
-          <ProfileWizard companyId="c1" {...props} />
+          <ProfileWizard spaceId="c1" {...props} />
         </QueryClientProvider>,
       );
       await Promise.resolve();
@@ -125,7 +125,7 @@ describe("ProfileWizard", () => {
   it("resumes a draft at the first unfinished step", async () => {
     const draft: ToolProfileWithDetails = {
       id: "d1",
-      companyId: "c1",
+      spaceId: "c1",
       profileKey: "everyday",
       name: "Everyday work",
       description: null,
@@ -145,7 +145,7 @@ describe("ProfileWizard", () => {
         totalToolCount: 0,
         assignmentCount: 0,
         appliesToAgentCount: 0,
-        isCompanyDefault: false,
+        isSpaceDefault: false,
       },
     };
     setData([draft]);

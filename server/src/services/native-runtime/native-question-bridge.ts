@@ -12,8 +12,8 @@ import { questionSetToAskUserQuestionsPayload } from "@outpost/shared";
 
 import type { PrpEvent } from "../../vendor/outpost-runner/index.js";
 import {
-  parsePaperclipQuestionSet,
-  type PaperclipQuestionSet,
+  parseOutpostQuestionSet,
+  type OutpostQuestionSet,
 } from "../../vendor/outpost-runner/index.js";
 import { logger } from "../../middleware/logger.js";
 import { unprocessable } from "../../errors.js";
@@ -35,7 +35,7 @@ type QueueCommand = (
 ) => { readonly commandId: string; readonly controllerSeq: number } | Promise<{ readonly commandId: string; readonly controllerSeq: number }>;
 
 interface NativeQuestionCommandTarget {
-  binding: Pick<NativeRunStoreBinding, "companyId" | "issueId" | "runId" | "agentId">;
+  binding: Pick<NativeRunStoreBinding, "spaceId" | "issueId" | "runId" | "agentId">;
   queueCommand: QueueCommand;
 }
 
@@ -48,7 +48,7 @@ interface NativeQuestionIdentity {
 }
 
 export interface NativeQuestionAuthorizationIdentity extends NativeQuestionIdentity {
-  companyId: string;
+  spaceId: string;
   issueId: string;
 }
 
@@ -81,7 +81,7 @@ function requestIdForInteraction(
     : requestId;
 }
 
-function toInteractionPayload(questionSet: PaperclipQuestionSet, runtimeRequestId: string) {
+function toInteractionPayload(questionSet: OutpostQuestionSet, runtimeRequestId: string) {
   return {
     ...questionSetToAskUserQuestionsPayload(questionSet),
     runtimeRequestId,
@@ -99,14 +99,14 @@ async function authorizedNativeRun(
   if (!requestId || !interaction.sourceRunId) return null;
   const run = await db.select({
     id: heartbeatRuns.id,
-    companyId: heartbeatRuns.companyId,
+    spaceId: heartbeatRuns.spaceId,
     issueId: heartbeatRuns.nativeIssueId,
     agentId: heartbeatRuns.agentId,
     runtimeMode: heartbeatRuns.runtimeMode,
     status: heartbeatRuns.status,
   }).from(heartbeatRuns).where(and(
     eq(heartbeatRuns.id, interaction.sourceRunId),
-    eq(heartbeatRuns.companyId, interaction.companyId),
+    eq(heartbeatRuns.spaceId, interaction.spaceId),
     eq(heartbeatRuns.nativeIssueId, interaction.issueId),
     eq(heartbeatRuns.runtimeMode, "native"),
   )).limit(1).then((rows) => rows[0] ?? null);
@@ -116,7 +116,7 @@ async function authorizedNativeRun(
 /** Materialize questions; permission requests use the privileged runtime card. */
 export async function projectNativeRuntimeRequest(input: {
   db: Db;
-  binding: Pick<NativeRunStoreBinding, "companyId" | "issueId" | "runId" | "agentId" | "normalizedSessionId" | "runnerSourceInstanceId">;
+  binding: Pick<NativeRunStoreBinding, "spaceId" | "issueId" | "runId" | "agentId" | "normalizedSessionId" | "runnerSourceInstanceId">;
   event: PrpEvent;
 }): Promise<AskUserQuestionsInteraction | null> {
   if (input.event.eventType !== "runtime_request.created") return null;
@@ -168,7 +168,7 @@ export async function projectNativeRuntimeRequest(input: {
   if (request.requestKind !== "runtime" || request.type !== "input") {
     throw new Error("native_runtime_request_invalid");
   }
-  const questionSet = parsePaperclipQuestionSet(request.input);
+  const questionSet = parseOutpostQuestionSet(request.input);
   if (questionSet.questions.some((question) => question.textValidation?.pattern !== undefined)) {
     // JavaScript regular expressions have no execution budget. Provider-authored
     // patterns therefore stay fail-closed until the runner contract supplies a
@@ -179,14 +179,14 @@ export async function projectNativeRuntimeRequest(input: {
   const existing = await input.db.select({ id: issueThreadInteractions.id })
     .from(issueThreadInteractions)
     .where(and(
-      eq(issueThreadInteractions.companyId, input.binding.companyId),
+      eq(issueThreadInteractions.spaceId, input.binding.spaceId),
       eq(issueThreadInteractions.issueId, input.binding.issueId),
       eq(issueThreadInteractions.idempotencyKey, idempotencyKey),
     ))
     .limit(1)
     .then((rows) => rows[0] ?? null);
   const interaction = await issueThreadInteractionService(input.db).create(
-    { id: input.binding.issueId, companyId: input.binding.companyId },
+    { id: input.binding.issueId, spaceId: input.binding.spaceId },
     {
       kind: "ask_user_questions",
       idempotencyKey,
@@ -202,7 +202,7 @@ export async function projectNativeRuntimeRequest(input: {
   ) as AskUserQuestionsInteraction;
   if (!existing) {
     await logActivity(input.db, {
-      companyId: input.binding.companyId,
+      spaceId: input.binding.spaceId,
       actorType: "agent",
       actorId: input.binding.agentId,
       agentId: input.binding.agentId,
@@ -224,7 +224,7 @@ export async function projectNativeRuntimeRequest(input: {
   return interaction;
 }
 
-/** Validate untrusted board input before the existing interaction service persists it. */
+/** Validate untrusted operator input before the existing interaction service persists it. */
 export async function validateNativeQuestionResponseInput(
   interaction: AskUserQuestionsInteraction,
   input: RespondIssueThreadInteraction,
@@ -257,7 +257,7 @@ export async function deliverNativeQuestionResponse(
   const target = activeTargets.get(run.id);
   if (
     !target
-    || target.binding.companyId !== run.companyId
+    || target.binding.spaceId !== run.spaceId
     || target.binding.issueId !== run.issueId
     || target.binding.agentId !== run.agentId
   ) {
@@ -349,7 +349,7 @@ export async function requestNativeQuestionRunCancellation(
     ...cause,
     requestedAt: new Date().toISOString(),
   });
-  await notifyLiveRunRecovery(db, { companyId: interaction.companyId, runId: run.id });
+  await notifyLiveRunRecovery(db, { spaceId: interaction.spaceId, runId: run.id });
   return db.update(heartbeatRuns).set({
     contextSnapshot: sql`jsonb_set(
       case
@@ -364,7 +364,7 @@ export async function requestNativeQuestionRunCancellation(
     updatedAt: new Date(),
   }).where(and(
     eq(heartbeatRuns.id, run.id),
-    eq(heartbeatRuns.companyId, interaction.companyId),
+    eq(heartbeatRuns.spaceId, interaction.spaceId),
     eq(heartbeatRuns.nativeIssueId, interaction.issueId),
     eq(heartbeatRuns.runtimeMode, "native"),
     inArray(heartbeatRuns.status, ["queued", "running"]),
@@ -377,7 +377,7 @@ export function nativeQuestionCancellationIdentity(
 ): NativeQuestionAuthorizationIdentity | null {
   if (!requestIdForInteraction(interaction)) return null;
   return {
-    companyId: interaction.companyId,
+    spaceId: interaction.spaceId,
     issueId: interaction.issueId,
     sourceRunId: interaction.sourceRunId,
     payload: interaction.payload,

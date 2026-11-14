@@ -10,11 +10,11 @@ export async function receiveSlackCloudCallback(event: SlackCloudEvent, current:
   const raw = event.payload.slackCallback;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new SlackCloudReceiptError("callback_packet_invalid", "invalid");
   const packet = raw as Record<string, unknown>;
-  const expectedKeys = ["version", "lane", "teamId", "appId", "userId", "channelId", "instanceId", "environment", "bindingId", "companyId", "endpointId", "publicId", "connectionId", "runtimeGeneration", "acceptedAt", "timestamp", "signature", "rawBody"];
+  const expectedKeys = ["version", "lane", "teamId", "appId", "userId", "channelId", "instanceId", "environment", "bindingId", "spaceId", "endpointId", "publicId", "connectionId", "runtimeGeneration", "acceptedAt", "timestamp", "signature", "rawBody"];
   if (Object.keys(packet).sort().join() !== expectedKeys.sort().join() || packet.version !== 1 || event.provider !== "slack"
     || !["command", "action"].includes(String(packet.lane)) || event.event !== packet.lane)
     throw new SlackCloudReceiptError("callback_packet_invalid", "invalid");
-  if (["companyId", "endpointId", "publicId", "connectionId", "runtimeGeneration", "teamId", "appId", "bindingId", "instanceId", "environment"].some(key => packet[key] !== Reflect.get(current, key))) return;
+  if (["spaceId", "endpointId", "publicId", "connectionId", "runtimeGeneration", "teamId", "appId", "bindingId", "instanceId", "environment"].some(key => packet[key] !== Reflect.get(current, key))) return;
   if (event.installationId !== current.bindingId || event.bindingIds.length !== 1 || event.bindingIds[0] !== current.bindingId
     || typeof packet.timestamp !== "string" || !/^[0-9]{1,16}$/.test(packet.timestamp)
     || typeof packet.signature !== "string" || !/^v0=[a-f0-9]{64}$/.test(packet.signature)

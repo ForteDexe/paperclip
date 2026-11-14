@@ -20,7 +20,7 @@ function dbReturning(row: Record<string, unknown> | null): Db {
 }
 
 const binding = {
-  companyId: "company-1",
+  spaceId: "space-1",
   runId: "00000000-0000-4000-8000-000000000901",
   requestId: "request-1",
 };
@@ -100,7 +100,7 @@ describe("native runtime request resolution authority", () => {
     };
     expect(() => assertNativeRuntimeRequestResolverAuthorized(pending, {
       type: "user",
-      userId: "company-member",
+      userId: "space-member",
       isInstanceAdmin: false,
     })).not.toThrow();
   });

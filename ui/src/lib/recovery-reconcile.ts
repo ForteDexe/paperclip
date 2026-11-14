@@ -18,35 +18,35 @@ function asRecord(value: unknown): Record<string, unknown> | null {
  * are not surfaced to the client and remain the server's call.
  */
 export function canBoardManageRuntime(
-  companyId: string | null | undefined,
-  boardAccess: CurrentBoardAccess | undefined,
+  spaceId: string | null | undefined,
+  operatorAccess: CurrentBoardAccess | undefined,
 ) {
-  if (!companyId || !boardAccess) return false;
-  if (boardAccess.source === "local_implicit" || boardAccess.isInstanceAdmin) return true;
-  if (!boardAccess.memberships || boardAccess.memberships.length === 0) {
-    return boardAccess.companyIds.includes(companyId);
+  if (!spaceId || !operatorAccess) return false;
+  if (operatorAccess.source === "local_implicit" || operatorAccess.isInstanceAdmin) return true;
+  if (!operatorAccess.memberships || operatorAccess.memberships.length === 0) {
+    return operatorAccess.spaceIds.includes(spaceId);
   }
 
-  const membership = boardAccess.memberships.find(
-    (item) => item.companyId === companyId && item.status === "active",
+  const membership = operatorAccess.memberships.find(
+    (item) => item.spaceId === spaceId && item.status === "active",
   );
   if (!membership) return false;
   return membership.membershipRole !== "viewer" && membership.membershipRole !== null;
 }
 
-/** Client affordance for board task mutations; the server rechecks issue access. */
+/** Client affordance for operator task mutations; the server rechecks issue access. */
 export const canBoardResolveRecoveryAction = canBoardManageRuntime;
 
-/** Client mirror of `runtime:confirm_owner_stop`: company owners and administrators,
- * the trusted local board, or an instance administrator. The server is authoritative. */
+/** Client mirror of `runtime:confirm_owner_stop`: space owners and administrators,
+ * the trusted local operator, or an instance administrator. The server is authoritative. */
 export function canBoardConfirmOwnerStop(
-  companyId: string | null | undefined,
-  boardAccess: CurrentBoardAccess | undefined,
+  spaceId: string | null | undefined,
+  operatorAccess: CurrentBoardAccess | undefined,
 ) {
-  if (!companyId || !boardAccess) return false;
-  if (boardAccess.source === "local_implicit" || boardAccess.isInstanceAdmin) return true;
-  const membership = boardAccess.memberships?.find(
-    (item) => item.companyId === companyId && item.status === "active",
+  if (!spaceId || !operatorAccess) return false;
+  if (operatorAccess.source === "local_implicit" || operatorAccess.isInstanceAdmin) return true;
+  const membership = operatorAccess.memberships?.find(
+    (item) => item.spaceId === spaceId && item.status === "active",
   );
   return membership?.membershipRole === "owner" || membership?.membershipRole === "admin";
 }

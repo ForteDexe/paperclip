@@ -1,4 +1,4 @@
-import { notifyChatRunMilestones, notifyChatCompanyAuthorityChange } from "../chat-run-milestone-notifications.js";
+import { notifyChatRunMilestones, notifyChatSpaceAuthorityChange } from "../chat-run-milestone-notifications.js";
 import { notifyChatEndpointConfiguration } from "./configuration-work-notifications.js";
 import { notifyChatConnectionHealth } from "./connection-health-notifications.js";
 import type { ConnectionManagementContext } from "../connection-management.js";
@@ -46,7 +46,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
     const [resource] = await tx
       .insert(chatEndpointResources)
       .values({
-        companyId: endpoint.companyId,
+        spaceId: endpoint.spaceId,
         endpointId: endpoint.id,
         type: item.type,
         providerResourceId: item.providerResourceId,
@@ -83,13 +83,13 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
 
   async function setResourceConversationAvailability(
     tx: DbTransaction,
-    endpoint: Pick<EndpointRow, "id" | "companyId">,
+    endpoint: Pick<EndpointRow, "id" | "spaceId">,
     resourceId: string,
     available: boolean,
     now: Date,
   ) {
     const affected = and(
-      eq(chatConversations.companyId, endpoint.companyId),
+      eq(chatConversations.spaceId, endpoint.spaceId),
       eq(chatConversations.endpointId, endpoint.id),
       eq(chatConversations.resourceId, resourceId),
       available ? eq(chatConversations.state, "unavailable") : inArray(chatConversations.state, ["active", "waiting"]),
@@ -100,7 +100,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
       const reopened = await tx.select({ issueId: chatConversations.issueId })
         .from(chatConversations).where(affected).for("update");
       for (const issueId of new Set(reopened.map(row => row.issueId))) {
-        await notifyChatRunMilestones(tx, { companyId: endpoint.companyId, issueId });
+        await notifyChatRunMilestones(tx, { spaceId: endpoint.spaceId, issueId });
       }
     }
     await tx.update(chatConversations)
@@ -124,7 +124,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
       for (const item of inventory.resources) {
         const resource = await upsertProviderResourceRow(tx, endpoint, item);
         if (resource) {
-          // Resource recovery reopens only bindings that Paperclip marked
+          // Resource recovery reopens only bindings that Outpost marked
           // unavailable. Completed historical tasks stay completed.
           await setResourceConversationAvailability(tx, endpoint, resource.id, true, new Date());
         }
@@ -138,7 +138,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
         .from(chatEndpointResources)
         .where(
           and(
-            eq(chatEndpointResources.companyId, endpoint.companyId),
+            eq(chatEndpointResources.spaceId, endpoint.spaceId),
             eq(chatEndpointResources.endpointId, endpoint.id),
             eq(chatEndpointResources.type, resourceType),
           ),
@@ -205,7 +205,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
           await credentialLease.assertOwned(tx);
           const [endpoint] = await tx
             .select({
-              companyId: chatEndpoints.companyId,
+              spaceId: chatEndpoints.spaceId,
               assignedAgentId: chatEndpoints.assignedAgentId,
               connectionId: chatEndpoints.connectionId,
               provider: chatEndpoints.provider,
@@ -215,7 +215,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
             .where(
               and(
                 eq(chatEndpoints.id, endpointId),
-                eq(chatEndpoints.companyId, initial.endpoint.companyId),
+                eq(chatEndpoints.spaceId, initial.endpoint.spaceId),
               ),
             )
             .for("no key update");
@@ -231,7 +231,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
             .from(chatEndpointResources)
             .where(
               and(
-                eq(chatEndpointResources.companyId, endpoint.companyId),
+                eq(chatEndpointResources.spaceId, endpoint.spaceId),
                 eq(chatEndpointResources.endpointId, endpointId),
                 bulk
                   ? and(
@@ -272,9 +272,9 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
           for (const entry of selectedUpdates) {
             if (entry.executionDefaults === undefined) continue;
             await assertChatExecutionDefaultsAccess(db, {
-              companyId: endpoint.companyId,
+              spaceId: endpoint.spaceId,
               assigneeAgentId: endpoint.assignedAgentId,
-              actor: options?.managementContext?.actor ?? { type: "board", userId: actorUserId, source: actorUserId ? "session" : "local_implicit" },
+              actor: options?.managementContext?.actor ?? { type: "operator", userId: actorUserId, source: actorUserId ? "session" : "local_implicit" },
               defaults: entry.executionDefaults,
             }, tx);
             finalDefaults.set(entry.id, entry.executionDefaults);
@@ -287,7 +287,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
               after: { enabled: finalEnabled.get(row.id)!, ...(JSON.stringify(row.executionDefaults) !== JSON.stringify(finalDefaults.get(row.id)) ? { executionDefaults: finalDefaults.get(row.id) } : {}) },
             }));
           if (changes.some(change => !change.before.enabled && change.after.enabled)) {
-            await notifyChatCompanyAuthorityChange(tx, { companyId: endpoint.companyId });
+            await notifyChatSpaceAuthorityChange(tx, { spaceId: endpoint.spaceId });
           }
           if (bulk) {
             // One atomic database update, independent of pagination/search and
@@ -295,7 +295,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
             await tx.update(chatEndpointResources)
               .set({ enabled: options!.allGitHubRepositoriesEnabled!, updatedAt: new Date() })
               .where(and(
-                eq(chatEndpointResources.companyId, endpoint.companyId),
+                eq(chatEndpointResources.spaceId, endpoint.spaceId),
                 eq(chatEndpointResources.endpointId, endpointId),
                 eq(chatEndpointResources.type, "repository"),
                 options!.allGitHubRepositoriesEnabled
@@ -308,7 +308,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
               .set({ enabled: entry.enabled, ...(entry.executionDefaults !== undefined ? { executionDefaults: entry.executionDefaults } : {}), updatedAt: new Date() })
               .where(
                 and(
-                  eq(chatEndpointResources.companyId, endpoint.companyId),
+                  eq(chatEndpointResources.spaceId, endpoint.spaceId),
                   eq(chatEndpointResources.endpointId, endpointId),
                   eq(chatEndpointResources.id, entry.id),
                 ),
@@ -319,8 +319,8 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
             await logActivity(
               tx as unknown as Db,
               {
-                companyId: endpoint.companyId,
-                ...(options?.managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "board" }),
+                spaceId: endpoint.spaceId,
+                ...(options?.managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "operator" }),
                 action: "chat_endpoint.resources_updated",
                 entityType: "tool_connection",
                 entityId: endpoint.connectionId,
@@ -433,7 +433,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
             const [resource] = await tx
               .insert(chatEndpointResources)
               .values({
-                companyId: currentEndpoint.companyId,
+                spaceId: currentEndpoint.spaceId,
                 endpointId: currentEndpoint.id,
                 type: effect.resourceType,
                 providerResourceId,
@@ -504,7 +504,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
                       ? "verifying"
                       : currentEndpoint.status;
                 await notifyChatEndpointConfiguration(tx, currentEndpoint);
-                if (status !== currentEndpoint.status) await notifyChatEndpointWork(tx, currentEndpoint.connectionId, currentEndpoint.companyId);
+                if (status !== currentEndpoint.status) await notifyChatEndpointWork(tx, currentEndpoint.connectionId, currentEndpoint.spaceId);
                 await tx
                   .update(chatEndpoints)
                   .set({
@@ -569,8 +569,8 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
                 .where(
                   and(
                     eq(
-                      chatEndpointResources.companyId,
-                      currentEndpoint.companyId,
+                      chatEndpointResources.spaceId,
+                      currentEndpoint.spaceId,
                     ),
                     eq(chatEndpointResources.endpointId, currentEndpoint.id),
                   ),
@@ -580,7 +580,7 @@ export function createChatResourceReconciliation(db: Db, options: ResourceReconc
                 .set({ state: "unavailable", updatedAt: now })
                 .where(
                   and(
-                    eq(chatConversations.companyId, currentEndpoint.companyId),
+                    eq(chatConversations.spaceId, currentEndpoint.spaceId),
                     eq(chatConversations.endpointId, currentEndpoint.id),
                     inArray(chatConversations.state, ["active", "waiting"]),
                   ),

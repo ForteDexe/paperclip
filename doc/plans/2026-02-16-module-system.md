@@ -1,14 +1,14 @@
-# Paperclip Module System
+# Outpost Module System
 
-> Supersession note: the company-template/package-format direction in this document is no longer current. For the current markdown-first company import/export plan, see `doc/plans/2026-03-13-company-import-export-v2.md` and `docs/companies/companies-spec.md`.
+> Supersession note: the space-template/package-format direction in this document is no longer current. For the current markdown-first space import/export plan, see `doc/plans/2026-03-13-space-import-export-v2.md` and `docs/companies/companies-spec.md`.
 
 ## Overview
 
-Paperclip's module system lets you extend the control plane with new capabilities — revenue tracking, observability, notifications, dashboards — without forking core. Modules are self-contained packages that register routes, UI pages, database tables, and lifecycle hooks.
+Outpost's module system lets you extend the control plane with new capabilities — revenue tracking, observability, notifications, dashboards — without forking core. Modules are self-contained packages that register routes, UI pages, database tables, and lifecycle hooks.
 
-Separately, **Company Templates** are code-free data packages (agent teams, org charts, goal hierarchies) that you can import to bootstrap a new company.
+Separately, **Space Templates** are code-free data packages (agent teams, org charts, goal hierarchies) that you can import to bootstrap a new space.
 
-Both are discoverable through the **Company Store**.
+Both are discoverable through the **Space Store**.
 
 ---
 
@@ -16,9 +16,9 @@ Both are discoverable through the **Company Store**.
 
 | Concept | What it is | Contains code? |
 |---------|-----------|----------------|
-| **Module** | A package that extends Paperclip's API, UI, and data model | Yes |
-| **Company Template** | A data snapshot — agents, projects, goals, org structure | No (JSON only) |
-| **Company Store** | Registry for browsing/installing modules and templates | — |
+| **Module** | A package that extends Outpost's API, UI, and data model | Yes |
+| **Space Template** | A data snapshot — agents, projects, goals, org structure | No (JSON only) |
+| **Space Store** | Registry for browsing/installing modules and templates | — |
 | **Hook** | A named event in the core that modules can subscribe to | — |
 | **Slot** | An exclusive category where only one module can be active (e.g., `observability`) | — |
 
@@ -53,7 +53,7 @@ Modules live in a top-level `modules/` directory. Each module is a pnpm workspac
   "name": "Observability",
   "description": "Token tracking, cost metrics, and agent performance instrumentation",
   "version": "0.1.0",
-  "author": "paperclip",
+  "author": "outpost",
 
   "slot": "observability",
 
@@ -427,11 +427,11 @@ Module UI hits the module's own API routes (`/api/modules/observability/*`) for 
 
 ---
 
-## Company Templates
+## Space Templates
 
 ### Format
 
-A company template is a JSON file describing a full company structure:
+A space template is a JSON file describing a full space structure:
 
 ```json
 {
@@ -439,7 +439,7 @@ A company template is a JSON file describing a full company structure:
   "name": "Startup in a Box",
   "description": "A 5-agent startup team with engineering, product, and ops",
   "version": "1.0.0",
-  "author": "paperclip",
+  "author": "outpost",
 
   "agents": [
     {
@@ -483,7 +483,7 @@ A company template is a JSON file describing a full company structure:
     {
       "ref": "north-star",
       "title": "Launch MVP",
-      "level": "company"
+      "level": "space"
     },
     {
       "ref": "build-product",
@@ -546,19 +546,19 @@ Templates use `ref` strings (not UUIDs) for internal cross-references. On import
 
 ### Export Flow
 
-You can also export a running company as a template:
+You can also export a running space as a template:
 
 ```
-GET /api/templates/export → downloads the current company as a template JSON
+GET /api/templates/export → downloads the current space as a template JSON
 ```
 
-This makes companies shareable and clonable.
+This makes spaces shareable and clonable.
 
 ---
 
-## Company Store
+## Space Store
 
-The Company Store is a registry for discovering and installing modules and templates. For v1, it's a curated GitHub repo with a JSON index. Later it could become a hosted service.
+The Space Store is a registry for discovering and installing modules and templates. For v1, it's a curated GitHub repo with a JSON index. Later it could become a hosted service.
 
 ### Index Format
 
@@ -569,7 +569,7 @@ The Company Store is a registry for discovering and installing modules and templ
       "id": "observability",
       "name": "Observability",
       "description": "Token tracking, cost metrics, and agent performance",
-      "repo": "github:paperclip/mod-observability",
+      "repo": "github:outpost/mod-observability",
       "version": "0.1.0",
       "tags": ["metrics", "monitoring", "tokens"]
     }
@@ -589,10 +589,10 @@ The Company Store is a registry for discovering and installing modules and templ
 ### CLI Commands
 
 ```bash
-pnpm paperclipai store list                    # browse available modules and templates
-pnpm paperclipai store install <module-id>     # install a module
-pnpm paperclipai store import <template-id>    # import a company template
-pnpm paperclipai store export                  # export current company as template
+pnpm outpost store list                    # browse available modules and templates
+pnpm outpost store install <module-id>     # install a module
+pnpm outpost store import <template-id>    # import a space template
+pnpm outpost store export                  # export current space as template
 ```
 
 ---
@@ -621,7 +621,7 @@ pnpm paperclipai store export                  # export current company as templ
 |--------|-------------|-----------|
 | **Audit & Compliance** | Immutable audit trail, approval workflows, spend authorization | All write hooks |
 | **Agent Logs / Replay** | Full execution traces per agent, token-by-token replay | `agent:heartbeat` |
-| **Multi-tenant** | Separate companies/orgs within one Paperclip instance | `server:started` |
+| **Multi-tenant** | Separate spaces/orgs within one Outpost instance | `server:started` |
 
 ---
 
@@ -662,7 +662,7 @@ Add new package:
 17. Template export endpoint (`GET /api/templates/export`)
 18. First template: "Startup in a Box"
 
-### Phase 4: Company Store
+### Phase 4: Space Store
 
 19. GitHub-based store index
 20. CLI commands for browse/install/import

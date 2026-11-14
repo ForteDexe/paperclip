@@ -19,7 +19,7 @@ describePostgres("queued-comment consumption in the execution blocker", () => {
     db = createDb(external ?? database!.connectionString, { maxConnections: 1 });
     await db.$client.unsafe("set client_min_messages = warning");
   }, 30_000);
-  afterEach(async () => { await db?.execute(sql`TRUNCATE companies CASCADE`); });
+  afterEach(async () => { await db?.execute(sql`TRUNCATE spaces CASCADE`); });
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
   it("bounds repeated run-context reads for eight unconsumed saved comments", async () => {
@@ -36,7 +36,7 @@ describePostgres("queued-comment consumption in the execution blocker", () => {
 
   it("preserves JSON containment, text IDs, scope, author and cancellation rules", async () => {
     const f = await seedQueuedCommentConsumption(db, { comments: 16 });
-    const [singular, array, nested, scalar, object, upper, cancelled, startedCancelled, wrongTask, nativeOnly, otherCompany, deleted, agent, pending] = f.commentIds;
+    const [singular, array, nested, scalar, object, upper, cancelled, startedCancelled, wrongTask, nativeOnly, otherSpace, deleted, agent, pending] = f.commentIds;
     await f.run({ issueId: f.issueId, wakeCommentId: singular });
     await f.run({ issueId: f.issueId, wakeCommentIds: [array, array, 1, {}, null] });
     await f.run({ issueId: f.issueId, wakeCommentIds: [[nested]] });
@@ -48,7 +48,7 @@ describePostgres("queued-comment consumption in the execution blocker", () => {
     await f.run({ issueId: f.otherIssueId, wakeCommentId: wrongTask }, { nativeIssueId: f.issueId });
     await f.run({ wakeCommentId: nativeOnly }, { issueId: f.issueId, nativeIssueId: f.issueId });
     const other = await seedQueuedCommentConsumption(db, { comments: 0 });
-    await other.run({ issueId: f.issueId, wakeCommentId: otherCompany });
+    await other.run({ issueId: f.issueId, wakeCommentId: otherSpace });
     await f.run({ issueId: f.issueId, wakeCommentIds: [pending] }, { status: "queued", startedAt: null });
     await f.run(null);
     await f.run([]);
@@ -56,16 +56,16 @@ describePostgres("queued-comment consumption in the execution blocker", () => {
     await db.update(issueComments).set({ deletedAt: fixtureTime }).where(eq(issueComments.id, deleted!));
     await db.update(issueComments).set({ authorType: "agent", authorAgentId: f.agentId }).where(eq(issueComments.id, agent!));
     const captured = await captureQueuedCommentQuery(db, f);
-    const expected = await db.$client.unsafe(`select id from issue_comments where company_id = $1::uuid and issue_id = $2::uuid
+    const expected = await db.$client.unsafe(`select id from issue_comments where space_id = $1::uuid and issue_id = $2::uuid
       and id = any($3::uuid[]) and author_type = 'user' and deleted_at is null
-      and not exists (select 1 from heartbeat_runs consumed where consumed.company_id = $1::uuid
+      and not exists (select 1 from heartbeat_runs consumed where consumed.space_id = $1::uuid
         and consumed.context_snapshot->>'issueId' = $2::text and not (consumed.status = 'cancelled' and consumed.started_at is null)
         and (consumed.context_snapshot->>'wakeCommentId' = issue_comments.id::text
-          or consumed.context_snapshot->'wakeCommentIds' @> jsonb_build_array(issue_comments.id::text)))`, [f.companyId, f.issueId, f.commentIds]);
+          or consumed.context_snapshot->'wakeCommentIds' @> jsonb_build_array(issue_comments.id::text)))`, [f.spaceId, f.issueId, f.commentIds]);
     const actual = await db.$client.unsafe(captured.query!.sql, captured.query!.params as never[]).values();
     expect(actual.map(row => row[0]).sort()).toEqual(expected.map(row => row.id).sort());
     expect(captured.result?.savedMessageCount).toBe(expected.length);
-    expect(expected.map(row => row.id)).toEqual(expect.arrayContaining([nested, scalar, object, upper, cancelled, wrongTask, nativeOnly, otherCompany]));
+    expect(expected.map(row => row.id)).toEqual(expect.arrayContaining([nested, scalar, object, upper, cancelled, wrongTask, nativeOnly, otherSpace]));
     expect(expected.map(row => row.id)).not.toEqual(expect.arrayContaining([singular]));
     expect(expected).toHaveLength(10);
   });
@@ -73,13 +73,13 @@ describePostgres("queued-comment consumption in the execution blocker", () => {
   it.each([0, 1, 8, 64])("counts %s queued comments without a run or a replay", async count => {
     const f = await seedQueuedCommentConsumption(db, { comments: count });
     const before = await db.select().from(heartbeatRuns);
-    const result = await getExecutionBlocker(db, f.companyId, f.issueId);
+    const result = await getExecutionBlocker(db, f.spaceId, f.issueId);
     expect(result).toEqual({ recoveryActionId: f.action.id, runId: null, agentId: null, cause: f.action.cause,
       nextAction: f.action.nextAction, runStatus: null, runError: null, canContinue: false, canRetry: false, savedMessageCount: count });
     expect(await db.select().from(heartbeatRuns)).toEqual(before);
     await db.update(agentWakeupRequests).set({ status: "consumed" }).where(eq(agentWakeupRequests.id, f.wake.id));
-    expect((await getExecutionBlocker(db, f.companyId, f.issueId))?.savedMessageCount).toBe(0);
-    await db.update(issueRecoveryActions).set({ status: "resolved" }).where(and(eq(issueRecoveryActions.companyId, f.companyId), eq(issueRecoveryActions.id, f.action.id)));
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect((await getExecutionBlocker(db, f.spaceId, f.issueId))?.savedMessageCount).toBe(0);
+    await db.update(issueRecoveryActions).set({ status: "resolved" }).where(and(eq(issueRecoveryActions.spaceId, f.spaceId), eq(issueRecoveryActions.id, f.action.id)));
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
   });
 });

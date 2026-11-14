@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, budgetEvaluationWork, budgetPolicies, companies, costEvents, costAdjustments, createDb, heartbeatRuns, projects, promptInjectionInvocations, runUsageReceipts, type Db } from "@outpost/db";
+import { agents, budgetEvaluationWork, budgetPolicies, spaces, costEvents, costAdjustments, createDb, heartbeatRuns, projects, promptInjectionInvocations, runUsageReceipts, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { accountRunCost, createCostAccountingReconciler, readCostAccountingWork } from "./run-cost-accounting.js";
 import { createRunUsageRecorder, persistUsageReceipt, type UsageReceiptEnvelope } from "./usage-receipts.js";
@@ -24,22 +24,22 @@ const support = await getEmbeddedPostgresTestSupport();
   }, 60_000);
   afterEach(async () => { await db.transaction(async tx => {
     await tx.execute(sql`SET LOCAL client_min_messages = warning`);
-    await tx.execute(sql`TRUNCATE companies CASCADE`);
+    await tx.execute(sql`TRUNCATE spaces CASCADE`);
   }); });
   afterAll(async () => { if (directory) await fs.rm(directory, { force: true, recursive: true }); await database?.cleanup(); });
 
   async function seed(change: Partial<typeof heartbeatRuns.$inferInsert> = {}) {
-    const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Accounting", issuePrefix: "ACCT" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Accounting", role: "engineer", status: "idle", adapterType: "process" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", status: "succeeded",
+    const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Accounting", issuePrefix: "ACCT" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Accounting", role: "engineer", status: "idle", adapterType: "process" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "on_demand", status: "succeeded",
       costAccountingPending: true, finishedAt: new Date(),
       usageJson: { accountingReceiptReady: true, provider: "test", model: "test", billingType: "metered_api", costUsd: 0.01 }, ...change });
-    return { companyId, agentId, runId };
+    return { spaceId, agentId, runId };
   }
 
-  function receipt(owner: { companyId: string; runId: string }, sourceId: string, sequence: number, costUsd: number, inputTokens = 10): UsageReceiptEnvelope {
-    return { schema: "paperclip/accounting-receipt/v1", ...owner, id: randomUUID(), sourceId, sequence,
+  function receipt(owner: { spaceId: string; runId: string }, sourceId: string, sequence: number, costUsd: number, inputTokens = 10): UsageReceiptEnvelope {
+    return { schema: "outpost/accounting-receipt/v1", ...owner, id: randomUUID(), sourceId, sequence,
       adapterType: "process", receivedAt: new Date().toISOString(),
       receipt: { complete: true, usageBasis: "per_run", usage: { inputTokens, cachedInputTokens: 0, outputTokens: 2 },
         provider: "test", biller: "test", model: "test", billingType: "metered_api", costUsd, costStatus: "reported",
@@ -61,26 +61,26 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("settles once without delivering cancellation in the caller", async () => {
-    const { companyId, runId } = await seed();
+    const { spaceId, runId } = await seed();
     const cancelWorkForScope = vi.fn(async () => { throw new Error("Cancellation must be asynchronous"); });
     expect(await accountRunCost(db, runId, { cancelWorkForScope })).toBe(true);
     expect(await accountRunCost(db, runId, { cancelWorkForScope })).toBe(false);
-    const events = await db.select().from(costEvents).where(and(eq(costEvents.companyId, companyId), eq(costEvents.heartbeatRunId, runId)));
+    const events = await db.select().from(costEvents).where(and(eq(costEvents.spaceId, spaceId), eq(costEvents.heartbeatRunId, runId)));
     expect(events).toHaveLength(1);
     expect(events[0].costCents).toBe(1);
     expect(cancelWorkForScope).not.toHaveBeenCalled();
     expect(await readCostAccountingWork(db, Date.now(), directory)).toEqual({ pending: false, nextRunAt: null });
   });
 
-  it("settles while company and agent accounting rows are held by unrelated writers", async () => {
+  it("settles while space and agent accounting rows are held by unrelated writers", async () => {
     const owner = await seed();
-    const [policy] = await db.insert(budgetPolicies).values({ companyId: owner.companyId, scopeType: "company",
-      scopeId: owner.companyId, windowKind: "calendar_month_utc", amount: 100 }).returning();
+    const [policy] = await db.insert(budgetPolicies).values({ spaceId: owner.spaceId, scopeType: "space",
+      scopeId: owner.spaceId, windowKind: "calendar_month_utc", amount: 100 }).returning();
     let release!: () => void, locked!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
     const acquired = new Promise<void>(resolve => { locked = resolve; });
     const holder = db.transaction(async tx => {
-      await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, owner.companyId)).for("no key update");
+      await tx.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, owner.spaceId)).for("no key update");
       await tx.select({ id: agents.id }).from(agents).where(eq(agents.id, owner.agentId)).for("no key update");
       await tx.select({ id: budgetPolicies.id }).from(budgetPolicies).where(eq(budgetPolicies.id, policy.id)).for("update");
       locked();
@@ -94,9 +94,9 @@ const support = await getEmbeddedPostgresTestSupport();
     } finally { if (timer) clearTimeout(timer); release(); await holder; await settle; }
   });
 
-  it("settles another run of the same company and agent while one run is locked", async () => {
+  it("settles another run of the same space and agent while one run is locked", async () => {
     const owner = await seed();
-    const [other] = await db.insert(heartbeatRuns).values({ companyId: owner.companyId, agentId: owner.agentId,
+    const [other] = await db.insert(heartbeatRuns).values({ spaceId: owner.spaceId, agentId: owner.agentId,
       status: "succeeded", costAccountingPending: true, finishedAt: new Date(),
       usageJson: { accountingReceiptReady: true, provider: "test", model: "test", billingType: "metered_api", costUsd: 0.02 } }).returning();
     let release!: () => void, locked!: () => void;
@@ -218,7 +218,7 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(await accountRunCost(db, owner.runId)).toBe(true);
     expect(await total()).toBeCloseTo(150);
     // Run totals follow provider-reported amounts, and corrections stay separate.
-    expect((await accountingIntegrityService(db).inspect(owner.companyId)).findings.filter(finding => finding.entityId === owner.runId)).toEqual([]);
+    expect((await accountingIntegrityService(db).inspect(owner.spaceId)).findings.filter(finding => finding.entityId === owner.runId)).toEqual([]);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, owner.runId)))[0].costAccountingPending).toBe(false);
   });
 
@@ -236,7 +236,7 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(charges.reduce((sum, charge) => sum + charge.costCents, 0)).toBeCloseTo(130);
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, owner.runId));
     expect(run.usageJson).toMatchObject({ inputTokens: 130, accountingLateReceiptPending: false });
-    expect((await accountingIntegrityService(db).inspect(owner.companyId)).findings.filter(finding => finding.entityId === owner.runId)).toEqual([]);
+    expect((await accountingIntegrityService(db).inspect(owner.spaceId)).findings.filter(finding => finding.entityId === owner.runId)).toEqual([]);
   });
 
   it("keeps late increment totals through a heartbeat metadata write", async () => {
@@ -256,9 +256,9 @@ const support = await getEmbeddedPostgresTestSupport();
     await persistUsageReceipt(db, receipt(owner, sourceId, 3, 1.4, 140));
     await accountRunCost(db, owner.runId);
     // Clearing the remaining debt must wake budgets that the debt was holding.
-    await db.delete(budgetEvaluationWork).where(eq(budgetEvaluationWork.companyId, owner.companyId));
+    await db.delete(budgetEvaluationWork).where(eq(budgetEvaluationWork.spaceId, owner.spaceId));
     await accountRunCost(db, owner.runId);
-    expect((await db.select().from(budgetEvaluationWork).where(eq(budgetEvaluationWork.companyId, owner.companyId))).length).toBeGreaterThan(0);
+    expect((await db.select().from(budgetEvaluationWork).where(eq(budgetEvaluationWork.spaceId, owner.spaceId))).length).toBeGreaterThan(0);
     const charges = await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, owner.runId));
     expect(charges.reduce((sum, charge) => sum + charge.inputTokens, 0)).toBe(140);
     expect(charges.reduce((sum, charge) => sum + charge.costCents, 0)).toBeCloseTo(140);
@@ -393,10 +393,10 @@ const support = await getEmbeddedPostgresTestSupport();
     await persistUsageReceipt(db, receipt(owner, sourceId, 1, 0.01));
     await accountRunCost(db, owner.runId);
     const [event] = await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, owner.runId));
-    await billingReconciliationService(db).adjust(owner.companyId, event.id, {
+    await billingReconciliationService(db).adjust(owner.spaceId, event.id, {
       idempotencyKey: `operator:${owner.runId}`, expectedCents: "1", correctedCents: "4",
       reason: "Reviewed authoritative invoice", pricing: { source: "operator", evidence: "Invoice review" },
-    }, "board");
+    }, "operator");
     const late = receipt(owner, sourceId, 2, 0.02);
     await persistUsageReceipt(db, late);
     expect(await accountRunCost(db, owner.runId)).toBe(false);
@@ -407,16 +407,16 @@ const support = await getEmbeddedPostgresTestSupport();
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, owner.runId)))[0].usageJson)
       .toMatchObject({ accountingLateReceiptPending: true, accountingLateReceiptDebts: { [late.id]: true } });
     expect((await readCostAccountingWork(db, Date.now(), directory)).pending).toBe(false);
-    await billingReconciliationService(db).adjust(owner.companyId, event.id, {
+    await billingReconciliationService(db).adjust(owner.spaceId, event.id, {
       idempotencyKey: `operator-reviewed-late:${owner.runId}`, expectedCents: "4", correctedCents: "2",
       reason: "Reviewed the retained late provider receipt", pricing: { source: "operator", evidence: "Reviewed late receipt" },
-    }, "board");
-    expect(await accountingIntegrityService(db).retry(owner.companyId, owner.runId, "board")).toEqual({ accounted: true });
+    }, "operator");
+    expect(await accountingIntegrityService(db).retry(owner.spaceId, owner.runId, "operator")).toEqual({ accounted: true });
     const [resolved] = await db.select().from(costEvents).where(eq(costEvents.id, event.id));
     expect(resolved).toMatchObject({ costCents: 2, pricingProvenance: { source: "operator", evidence: "Reviewed late receipt" } });
     const adjustments = await db.select().from(costAdjustments).where(eq(costAdjustments.costEventId, event.id));
     expect(adjustments).toHaveLength(2);
-    expect(adjustments.every(adjustment => adjustment.actorId === "board")).toBe(true);
+    expect(adjustments.every(adjustment => adjustment.actorId === "operator")).toBe(true);
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, owner.runId));
     expect(run.costAccountingPending).toBe(false);
     expect(run.usageJson).toMatchObject({ accountingLateReceiptPending: false, accountingLateReceiptDebts: {},
@@ -426,7 +426,7 @@ const support = await getEmbeddedPostgresTestSupport();
   it("fences a source handoff against a checkpoint committed during its spool pre-read", async () => {
     const sourceId = randomUUID();
     const owner = await seed({ status: "running", usageJson: { accountingReceiptSourceId: sourceId, accountingReceiptSequence: 0 } });
-    const [project] = await db.insert(projects).values({ companyId: owner.companyId, name: "Archived accounting scope" }).returning();
+    const [project] = await db.insert(projects).values({ spaceId: owner.spaceId, name: "Archived accounting scope" }).returning();
     await db.update(heartbeatRuns).set({ usageJson: sql`${heartbeatRuns.usageJson} || ${JSON.stringify({ ledgerScope: { projectId: project.id } })}::jsonb` })
       .where(eq(heartbeatRuns.id, owner.runId));
     await persistUsageReceipt(db, receipt(owner, sourceId, 1, 0.01));
@@ -441,14 +441,14 @@ const support = await getEmbeddedPostgresTestSupport();
     } }) as Db;
     await expect(createRunUsageRecorder(observed, { ...owner, adapterType: "process" }, directory)).rejects.toThrow("source changed");
     await createRunUsageRecorder(db, { ...owner, adapterType: "process" }, directory);
-    await db.delete(budgetEvaluationWork).where(eq(budgetEvaluationWork.companyId, owner.companyId));
+    await db.delete(budgetEvaluationWork).where(eq(budgetEvaluationWork.spaceId, owner.spaceId));
     await persistUsageReceipt(db, receipt(owner, sourceId, 3, 0.03));
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, owner.runId));
     expect(run.usageJson).toMatchObject({ accountingCaptureFailed: true, accountingReceiptReady: false,
       accountingReceiptSourceFences: { [sourceId]: 2 } });
     expect(run.accountingLastError).toBe("usage_after_source_handoff_requires_reconciliation");
     expect(await db.select({ projectId: budgetEvaluationWork.projectId }).from(budgetEvaluationWork)
-      .where(eq(budgetEvaluationWork.companyId, owner.companyId))).toEqual([{ projectId: project.id }]);
+      .where(eq(budgetEvaluationWork.spaceId, owner.spaceId))).toEqual([{ projectId: project.id }]);
   });
 
   it("repairs a stale pending marker without creating another charge", async () => {
@@ -470,9 +470,9 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("reconstructs the actual interrupted-service deadline and disarms after settlement", async () => {
-    const { companyId } = await seed({ costAccountingPending: false });
+    const { spaceId } = await seed({ costAccountingPending: false });
     const startedAt = new Date();
-    const [invocation] = await db.insert(promptInjectionInvocations).values({ companyId, source: "settings_test", actorType: "user", actorId: "test",
+    const [invocation] = await db.insert(promptInjectionInvocations).values({ spaceId, source: "settings_test", actorType: "user", actorId: "test",
       connectionId: randomUUID(), grantId: randomUUID(), policyVersion: "tool-result-v1", model: "openai/gpt-oss-safeguard-20b", startedAt }).returning();
     const work = await readCostAccountingWork(db, startedAt.getTime(), directory);
     expect(work).toEqual({ pending: false, nextRunAt: startedAt.getTime() + 120_001 });

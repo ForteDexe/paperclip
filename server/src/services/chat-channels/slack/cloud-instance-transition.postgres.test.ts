@@ -8,14 +8,14 @@ import { pathToFileURL } from "node:url";
 import { eq } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 import { SLACK_CHAT_BOT_SCOPES, type ToolCredentialSecretRef } from "@outpost/shared";
-import { activityLog, agents, applyPendingMigrations, authUsers, chatEndpoints, chatSlackRegistrations, closeCheckpointDb, closeFileStorageDb, closeLivenessDb, companies, companyMemberships, companySecrets, createDb, toolApplications, toolConnections } from "@outpost/db";
+import { activityLog, agents, applyPendingMigrations, authUsers, chatEndpoints, chatSlackRegistrations, closeCheckpointDb, closeFileStorageDb, closeLivenessDb, spaces, spaceMemberships, spaceSecrets, createDb, toolApplications, toolConnections } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "../../../lib/dedicated-test-database-url.js";
 import { heartbeatService } from "../../heartbeat.js";
 import { chatChannelService } from "../../chat-channels.js";
 import { createDeliveryWorkCoordinator } from "../../delivery-work-coordinator.js";
 import { githubConnectionEventService } from "../../github-connection-events.js";
 import { registerGitHubConnectionEventWork } from "../../github-connection-work.js";
-import { createPaperclipCloudConnector, outpostCloudConnectorConfigFromEnv } from "../../paperclip-cloud-connector.js";
+import { createOutpostCloudConnector, outpostCloudConnectorConfigFromEnv } from "../../outpost-cloud-connector.js";
 import { secretService } from "../../secrets.js";
 import type { InternalSetupState } from "../runtime-types.js";
 import { guardSlackFixtureNetwork } from "../../../__tests__/helpers/slack-cloud/transport.js";
@@ -42,7 +42,7 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("normal notifications enroll the f
   try { await registry.applyMigrations(path.resolve(cloudDist!, "../migrations"), 30_000); await registry.hydrate(); }
   catch (error) { await db.$client.end({ timeout: 1 }); await registry.close(); throw error; }
   const store = new PostgresConnectorStore(pool), secrets = new InMemoryProviderSecretStore();
-  const id = randomUUID(), companyId = randomUUID(), endpointId = randomUUID(), connectionId = randomUUID(), applicationId = randomUUID(), agentId = randomUUID();
+  const id = randomUUID(), spaceId = randomUUID(), endpointId = randomUUID(), connectionId = randomUUID(), applicationId = randomUUID(), agentId = randomUUID();
   const actor = `owner-${id}`, instanceA = `a-${id}`, instanceB = `b-${id}`, publicId = "h".repeat(43);
   const stackIds = [instanceA, instanceB], signingSecret = "0123456789abcdef0123456789abcdef";
   const keys = stackIds.map(() => ({ sign: generateKeyPairSync("ed25519"), seal: generateKeyPairSync("x25519") }));
@@ -79,9 +79,9 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("normal notifications enroll the f
         owner: { id: actor, email: `${id}@example.test` },
         stack: { stackId, accountGroupId: `account-${stackId}`, stackSlug: stackId, displayName: "Transition", kind: "demo", primaryHost: `${stackId}.example.test`, region: "us-east-1" },
         versionPlan: { appVersion: "fixture", schemaVersion: "fixture", rolloutTrack: "stable" },
-        sleepPolicy: { desiredState: "awake" }, primaryCompany: { paperclipCompanyId: index === 0 ? companyId : randomUUID(), displayName: "Transition", defaultBudgetCents: 0 },
+        sleepPolicy: { desiredState: "awake" }, primarySpace: { outpostSpaceId: index === 0 ? spaceId : randomUUID(), displayName: "Transition", defaultBudgetCents: 0 },
       });
-      await store.putCloudStackInstance({ id: stackId, kind: "cloud_stack", companyStackId: stackId, ownerUserId: actor, environment: "test",
+      await store.putCloudStackInstance({ id: stackId, kind: "cloud_stack", spaceStackId: stackId, ownerUserId: actor, environment: "test",
         signPublicKey: keys[index]!.sign.publicKey.export({ format: "jwk" }).x!, sealPublicKey: keys[index]!.seal.publicKey.export({ format: "jwk" }).x!,
         origins: ["https://tenant.example"], activeOrigin: "https://tenant.example", label: "Transition", status: "active", createdAt: new Date(), updatedAt: new Date() });
     }
@@ -94,21 +94,21 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("normal notifications enroll the f
       eventWakeEnrollmentEnabled: true, eventWakeDeliveryEnabled: true, wakeCloudStack: async () => {} });
     vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_BASE_URL", base); vi.stubEnv("OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT", "test");
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", path.join(directory, "master.key")); configureIdentity(0);
-    await db.insert(companies).values({ id: companyId, name: "Transition", issuePrefix: `T${id.slice(0, 7)}` });
+    await db.insert(spaces).values({ id: spaceId, name: "Transition", issuePrefix: `T${id.slice(0, 7)}` });
     await db.insert(authUsers).values({ id: actor, name: "Owner", email: `${id}@owner.example.test`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: actor, status: "active", membershipRole: "operator" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Transition", adapterType: "process", status: "idle" });
-    await db.insert(toolApplications).values({ id: applicationId, companyId, name: "Transition", type: "chat" });
-    await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "Transition", uid: id,
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: actor, status: "active", membershipRole: "operator" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Transition", adapterType: "process", status: "idle" });
+    await db.insert(toolApplications).values({ id: applicationId, spaceId, name: "Transition", type: "chat" });
+    await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "Transition", uid: id,
       transport: "chat_sdk", connectionPurpose: "channel", enabled: false, status: "disabled" });
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId, connectionId, assignedAgentId: agentId, publicId,
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId, assignedAgentId: agentId, publicId,
       provider: "slack", status: "paused", providerAccountId: "TTEST", botExternalId: "UBOT", setup: { runtimeGeneration: 0, step: "complete" } as InternalSetupState });
-    await db.insert(chatSlackRegistrations).values({ companyId, endpointId, requestId: randomUUID(), status: "configured", appId: "ATEST",
+    await db.insert(chatSlackRegistrations).values({ spaceId, endpointId, requestId: randomUUID(), status: "configured", appId: "ATEST",
       manifest: {}, manifestHash: "fixture", callbackUri: "https://tenant.example/callback", createdByUserId: actor });
     const vault = secretService(db), refs: ToolCredentialSecretRef[] = [];
     for (const [key, value] of Object.entries({ botToken: "xoxb-fixture", signingSecret })) {
-      const secret = await vault.create(companyId, { name: `${key}-${id}`, provider: "local_encrypted", value }, { userId: actor });
-      await vault.createBinding({ companyId, secretId: secret.id, targetType: "tool_connection", targetId: connectionId, configPath: `credentials.${key}` });
+      const secret = await vault.create(spaceId, { name: `${key}-${id}`, provider: "local_encrypted", value }, { userId: actor });
+      await vault.createBinding({ spaceId, secretId: secret.id, targetType: "tool_connection", targetId: connectionId, configPath: `credentials.${key}` });
       refs.push({ secretId: secret.id, versionSelector: "latest", configPath: `credentials.${key}`, required: true, projectionClass: "unclassified" });
     }
     await db.update(toolConnections).set({ credentialSecretRefs: refs }).where(eq(toolConnections.id, connectionId));
@@ -136,9 +136,9 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("normal notifications enroll the f
     expect(await broker.slackEvents.current(instanceA, publicId)).toBeUndefined();
     expect((await store.listWebhookBindings(instanceA)).every((binding: { receivesEvents: boolean }) => !binding.receivesEvents)).toBe(true);
     const retired = await setup(); configureIdentity(1);
-    const foreign = createPaperclipCloudConnector({ config: outpostCloudConnectorConfigFromEnv()! });
-    await expect(foreign.slackEventEnrollment({ subject: `foreign-${actor}`, companyId, enrollment: {
-      active: true, companyId, endpointId, publicId, connectionId, runtimeGeneration: 3, teamId: "TTEST", appId: "ATEST", signingSecret,
+    const foreign = createOutpostCloudConnector({ config: outpostCloudConnectorConfigFromEnv()! });
+    await expect(foreign.slackEventEnrollment({ subject: `foreign-${actor}`, spaceId, enrollment: {
+      active: true, spaceId, endpointId, publicId, connectionId, runtimeGeneration: 3, teamId: "TTEST", appId: "ATEST", signingSecret,
     } })).rejects.toMatchObject({ status: 403 });
     expect(await broker.slackEvents.current(instanceB, publicId)).toBeUndefined();
     expect((await setup()).slackCloudIntent).toBeUndefined();
@@ -175,7 +175,7 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("normal notifications enroll the f
     expect((await setup()).slackCloudInstanceId).toBe(instanceB);
     expect(await broker.slackEvents.current(instanceB, publicId)).toBeUndefined();
     expect((await pool.query("SELECT delivery_id FROM cloud_harness.connector_webhook_delivery_targets WHERE connector_instance_id=$1", [instanceB])).rows).toEqual([]);
-    await expect(broker.slackEvents.enroll(await store.getInstance(instanceB), actor, { companyId, endpointId, publicId, connectionId,
+    await expect(broker.slackEvents.enroll(await store.getInstance(instanceB), actor, { spaceId, endpointId, publicId, connectionId,
       runtimeGeneration: 5, teamId: "TTEST", appId: "ATEST", signingSecret })).rejects.toThrow("GENERATION_CHANGED");
     expect(errors).toEqual([]);
   } catch (error) { console.error("Slack instance transition body failure", error); throw error; }
@@ -184,12 +184,12 @@ it.skipIf(!appUrl || !cloudUrl || !cloudDist)("normal notifications enroll the f
     if (server.listening) { server.close(); await once(server, "close"); }
     vi.unstubAllEnvs();
     try {
-      await db.delete(chatEndpoints).where(eq(chatEndpoints.companyId, companyId));
-      await db.delete(activityLog).where(eq(activityLog.companyId, companyId));
-      await db.delete(agents).where(eq(agents.companyId, companyId));
-      await db.delete(companyMemberships).where(eq(companyMemberships.companyId, companyId));
-      await db.delete(companySecrets).where(eq(companySecrets.companyId, companyId));
-      await db.delete(companies).where(eq(companies.id, companyId));
+      await db.delete(chatEndpoints).where(eq(chatEndpoints.spaceId, spaceId));
+      await db.delete(activityLog).where(eq(activityLog.spaceId, spaceId));
+      await db.delete(agents).where(eq(agents.spaceId, spaceId));
+      await db.delete(spaceMemberships).where(eq(spaceMemberships.spaceId, spaceId));
+      await db.delete(spaceSecrets).where(eq(spaceSecrets.spaceId, spaceId));
+      await db.delete(spaces).where(eq(spaces.id, spaceId));
       await db.delete(authUsers).where(eq(authUsers.id, actor));
       await pool.query("DELETE FROM cloud_harness.connector_instances WHERE id=ANY($1::text[])", [stackIds]);
       await pool.query("DELETE FROM cloud_harness.connector_webhook_deliveries WHERE id=ANY($1::text[])", [deliveryIds]);

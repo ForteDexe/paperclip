@@ -22,7 +22,7 @@ function ActiveChatReferences({ children }: { children: ReactNode }) {
   return <CoordinatorChatReferences.Provider value={references}>{children}</CoordinatorChatReferences.Provider>;
 }
 
-/** Resolve labels once from the same person/company-scoped list used by navigation. */
+/** Resolve labels once from the same person/space-scoped list used by navigation. */
 export function CoordinatorChatReferencesProvider({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   return enabled ? <ActiveChatReferences>{children}</ActiveChatReferences> : children;
 }

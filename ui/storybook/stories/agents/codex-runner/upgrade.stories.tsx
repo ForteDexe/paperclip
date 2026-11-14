@@ -5,7 +5,7 @@ import { Route, Routes } from "@/lib/router";
 import { AgentDetail } from "@/pages/AgentDetail";
 import { Layout } from "@/components/Layout.production";
 import { PluginLauncherProvider } from "@/plugins/launchers";
-import { storybookAgents } from "../../../fixtures/paperclipData";
+import { storybookAgents } from "../../../fixtures/outpostData";
 import { resetOnboardingFixtureState, setOnboardingFixtureState } from "../../../fixtures/onboardingEnvironment";
 
 type Scenario = {
@@ -23,8 +23,8 @@ function installUpgradeFixture({ harness = "codex_local", failOnce = false, inco
   resetOnboardingFixtureState();
   setOnboardingFixtureState({ environments: "local", authSignal: "present", localLoginStatus: "ready" });
   const profile = harness === "claude_local" ? { provider: "acpx", acpxAgent: "claude" } : { provider: "codex" };
-  const savedComputer = { id: "environment-native-recovery", name: "Paperclip Sandbox", driver: "sandbox", status: "active",
-    config: { provider: "daytona", snapshot: "managed-snapshot" }, metadata: { managedByPaperclip: true } };
+  const savedComputer = { id: "environment-native-recovery", name: "Outpost Sandbox", driver: "sandbox", status: "active",
+    config: { provider: "daytona", snapshot: "managed-snapshot" }, metadata: { managedByOutpost: true } };
   let qualified = false;
   let agent = { ...storybookAgents[0]!, urlKey: "migration-agent", name: harness === "claude_local" ? "ClaudeWriter" : "CodexCoder",
     status: running ? "running" : "idle", lifecycleState: "ready", defaultEnvironmentId: nativeComputerTest ? savedComputer.id : null,
@@ -38,7 +38,7 @@ function installUpgradeFixture({ harness = "codex_local", failOnce = false, inco
   const fixtureFetch: typeof fetch = async (input, init) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.origin);
     const method = init?.method ?? "GET";
-    if (nativeComputerTest && url.pathname === `/api/companies/${agent.companyId}/environments`) return Response.json([savedComputer]);
+    if (nativeComputerTest && url.pathname === `/api/spaces/${agent.spaceId}/environments`) return Response.json([savedComputer]);
     if (nativeComputerTest && url.pathname === `/api/agents/${agent.id}/qualify-runner`) {
       if (JSON.parse(String(init?.body ?? "{}")).expectedEnvironmentId !== savedComputer.id) return Response.json({ error: "Computer changed." }, { status: 409 });
       qualified = true;
@@ -51,16 +51,16 @@ function installUpgradeFixture({ harness = "codex_local", failOnce = false, inco
     if (url.pathname === "/api/adapters") {
       const response = await previous(input, init);
       return Response.json((await response.json()).map((item: { type: string }) => ["codex_local", "claude_local"].includes(item.type)
-        ? { ...item, defaultRunner: unavailable ? "legacy" : "paperclip", supportedRunners: unavailable ? ["legacy"] : ["legacy", "paperclip"] } : item));
+        ? { ...item, defaultRunner: unavailable ? "legacy" : "outpost", supportedRunners: unavailable ? ["legacy"] : ["legacy", "outpost"] } : item));
     }
-    if (url.pathname === `/api/companies/${agent.companyId}/agents`) {
+    if (url.pathname === `/api/spaces/${agent.spaceId}/agents`) {
       return Response.json(storybookAgents.map(item => item.id === agent.id ? agent : item));
     }
     if ([`/api/agents/${agent.id}`, `/api/agents/${agent.urlKey}`].includes(url.pathname)) {
       if (method === "PATCH") {
         const patch = JSON.parse(String(init?.body ?? "{}"));
         if (delay) await new Promise(resolve => setTimeout(resolve, delay));
-        if (patch.runner !== "paperclip") return Response.json({ error: "This fixture expects an explicit runner upgrade." }, { status: 422 });
+        if (patch.runner !== "outpost") return Response.json({ error: "This fixture expects an explicit runner upgrade." }, { status: 422 });
         if (failOnce) {
           failOnce = false;
           return Response.json({ error: "Could not save this agent. Try again." }, { status: 503 });
@@ -81,7 +81,7 @@ function installUpgradeFixture({ harness = "codex_local", failOnce = false, inco
 
 function UpgradePage() {
   return <PluginLauncherProvider><Routes>
-    <Route path="/:companyPrefix" element={<Layout />}>
+    <Route path="/:spacePrefix" element={<Layout />}>
       <Route path="agents/:agentId/:tab?" element={<AgentDetail />} />
     </Route>
   </Routes></PluginLauncherProvider>;
@@ -95,7 +95,7 @@ const meta = {
     layout: "fullscreen",
     initialEntries: ["/PAP/agents/migration-agent/runtime"],
     docs: { description: { component: "Existing Codex and Claude agents in the production agent page and app shell. The upgrade PATCH and subsequent reads use a mutable HTTP fixture. These stories demonstrate the notice, save, retry and refreshed form; real migration and provider proof are separate checks." } },
-    paperclip: {
+    outpost: {
       capabilities: ["agents/instructions", "runs-adapters/validation"],
       status: "current",
       implementation: "production",
@@ -157,7 +157,7 @@ export const Light: Story = { globals: { theme: "light" } };
 
 export const NativeComputerRecovery: Story = {
   name: "Native saved computer Test",
-  parameters: { runnerUpgrade: { nativeComputerTest: true }, paperclip: {
+  parameters: { runnerUpgrade: { nativeComputerTest: true }, outpost: {
     notes: "Production native agent page. The normal Run test action qualifies its saved computer before runtime testing. Both responses are simulated; real provider qualification is separate.",
   } },
   play: async ({ canvasElement }) => {

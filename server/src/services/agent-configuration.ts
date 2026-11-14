@@ -14,7 +14,7 @@ import { notifyExternalConversationSettlement } from "./external-conversation-se
 import { and, eq } from "drizzle-orm";
 import { agents, assets, agentConfigRevisions, agentTaskSessions, agentRuntimeState, type Db } from "@outpost/db";
 import { normalizeAgentUrlKey, extractAgentMentionIds } from "@outpost/shared";
-import { normalizePaperclipRunnerAdapterConfig } from "@outpost/adapter-utils/server-utils";
+import { normalizeOutpostRunnerAdapterConfig } from "@outpost/adapter-utils/server-utils";
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { agentRecordQueries, type UpdateAgentOptions, type AgentConfigurationPatch, type AgentConfigurationRecord, isPlainRecord, buildConfigSnapshot,
   hasConfigPatchFields, changedPendingApprovalConfigFields, diffConfigSnapshot, jsonEqual } from "../lib/agent-records.js";
@@ -31,28 +31,28 @@ export async function lockAgentConfigurationInteractions(tx: Db, id: string, dat
     createdByAgentId: pluginOrigin.agentId, createdByUserId: null, source: options?.recordRevision?.source ?? "plugin_agent" } };
   const interactionActorId = pluginOrigin?.agentId ?? options?.recordRevision?.createdByAgentId;
   if (interactionActorId) {
-    const [target] = await tx.select({ companyId: agents.companyId }).from(agents).where(eq(agents.id, id));
+    const [target] = await tx.select({ spaceId: agents.spaceId }).from(agents).where(eq(agents.id, id));
     if (!target) return options;
-    await assertAgentInteraction(tx, { companyId: target.companyId, actorAgentId: interactionActorId,
+    await assertAgentInteraction(tx, { spaceId: target.spaceId, actorAgentId: interactionActorId,
       operation: "configure", targetAgentId: id, lockAgentIds: configurationText(data).flatMap(extractAgentMentionIds), lock: "update" });
   }
   return options;
 }
 
 export async function prepareAgentConfiguration(db: Db, existing: AgentConfigurationRecord, data: AgentConfigurationPatch, options?: UpdateAgentOptions): Promise<AgentConfigurationPatch> {
-  await assertAgentInteraction(db, { companyId: existing.companyId, actorAgentId: options?.recordRevision?.createdByAgentId,
+  await assertAgentInteraction(db, { spaceId: existing.spaceId, actorAgentId: options?.recordRevision?.createdByAgentId,
     operation: "mention", texts: changedConfigurationText(data, existing) });
   if (data.permissions !== undefined) data = { ...data, permissions: preserveAgentInteractionPermissions(existing.permissions, data.permissions) };
   if (options?.recordRevision?.createdByAgentId && data.budgetMonthlyCents !== undefined && data.budgetMonthlyCents !== existing.budgetMonthlyCents) {
-    throw forbidden("Only board operators can change agent budgets");
+    throw forbidden("Only operator operators can change agent budgets");
   }
-  await notifyAttentionRetentionWork(db, { companyId: existing.companyId });
+  await notifyAttentionRetentionWork(db, { spaceId: existing.spaceId });
   const id = existing.id;
-  const { ensureManager, assertNoCycle, assertCompanyShortnameAvailable, assertBuiltInAgentMetadataMutationAllowed } = agentRecordQueries(db);
+  const { ensureManager, assertNoCycle, assertSpaceShortnameAvailable, assertBuiltInAgentMetadataMutationAllowed } = agentRecordQueries(db);
   if (existing.status === "pending_approval" && !options?.allowPendingApprovalConfigUpdate) {
     const changedFields = changedPendingApprovalConfigFields(agentRecordQueries(db).normalizeAgentRow(existing), data);
     if (changedFields.length > 0) {
-      throw conflict("Pending approval agent configuration cannot be changed before board approval", {
+      throw conflict("Pending approval agent configuration cannot be changed before operator approval", {
         code: "pending_approval_agent_config_frozen",
         agentId: id,
         fields: changedFields,
@@ -62,7 +62,7 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
 
   if (data.reportsTo !== undefined) {
     if (data.reportsTo) {
-      await ensureManager(existing.companyId, data.reportsTo);
+      await ensureManager(existing.spaceId, data.reportsTo);
     }
     await assertNoCycle(id, data.reportsTo);
   }
@@ -71,7 +71,7 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
     const previousShortname = normalizeAgentUrlKey(existing.name);
     const nextShortname = normalizeAgentUrlKey(data.name);
     if (previousShortname !== nextShortname) {
-      await assertCompanyShortnameAvailable(existing.companyId, data.name, { excludeAgentId: id });
+      await assertSpaceShortnameAvailable(existing.spaceId, data.name, { excludeAgentId: id });
     }
   }
 
@@ -81,10 +81,10 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
 
   if (data.appearance?.customAvatarAssetId) {
     const [asset] = await db.select().from(assets).where(and(
-      eq(assets.id, data.appearance.customAvatarAssetId), eq(assets.companyId, existing.companyId),
+      eq(assets.id, data.appearance.customAvatarAssetId), eq(assets.spaceId, existing.spaceId),
       eq(assets.createdByAgentId, id),
     ));
-    if (!asset || asset.contentType !== "image/png" || !asset.objectKey.startsWith(`${existing.companyId}/agent-avatars/${id}/`)) {
+    if (!asset || asset.contentType !== "image/png" || !asset.objectKey.startsWith(`${existing.spaceId}/agent-avatars/${id}/`)) {
       throw unprocessable("Use the avatar upload endpoint to set this agent's image");
     }
   }
@@ -98,11 +98,11 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
     isPlainRecord(normalizedPatch.adapterConfig)
   ) {
     const normalizedAdapterConfig = await secretService(db).normalizeAdapterConfigForPersistence(
-      existing.companyId,
+      existing.spaceId,
       normalizedPatch.adapterConfig,
       { adapterType: (normalizedPatch.adapterType ?? existing.adapterType) as string },
     );
-    normalizedPatch.adapterConfig = normalizePaperclipRunnerAdapterConfig(
+    normalizedPatch.adapterConfig = normalizeOutpostRunnerAdapterConfig(
       (normalizedPatch.adapterType ?? existing.adapterType) as string,
       normalizedAdapterConfig,
     );
@@ -110,22 +110,22 @@ export async function prepareAgentConfiguration(db: Db, existing: AgentConfigura
     Object.prototype.hasOwnProperty.call(normalizedPatch, "adapterType")
     && isPlainRecord(existing.adapterConfig)
   ) {
-    normalizedPatch.adapterConfig = normalizePaperclipRunnerAdapterConfig(
+    normalizedPatch.adapterConfig = normalizeOutpostRunnerAdapterConfig(
       normalizedPatch.adapterType as string,
       existing.adapterConfig,
     );
   }
   if(normalizedPatch.adapterType!==undefined&&normalizedPatch.adapterType!==existing.adapterType
     ||normalizedPatch.adapterConfig!==undefined&&!jsonEqual(normalizedPatch.adapterConfig,existing.adapterConfig))
-    await notifyMuseContactVerification(db,{companyId:existing.companyId,agentId:existing.id});
-  await notifyStrandedAgentStatus(db, { companyId: existing.companyId, agentId: existing.id });
-  await notifyRunDispatch(db, { companyId: existing.companyId });
-  await notifyDeferredExecutionEligibility(db, { companyId: existing.companyId });
+    await notifyMuseContactVerification(db,{spaceId:existing.spaceId,agentId:existing.id});
+  await notifyStrandedAgentStatus(db, { spaceId: existing.spaceId, agentId: existing.id });
+  await notifyRunDispatch(db, { spaceId: existing.spaceId });
+  await notifyDeferredExecutionEligibility(db, { spaceId: existing.spaceId });
   if (normalizedPatch.runtimeConfig !== undefined || normalizedPatch.reportsTo !== undefined) {
     await notifyDeliveryWork(db, DELIVERY_QUEUES.agentTimers);
   }
   if (normalizedPatch.adapterConfig !== undefined) {
-    await notifySkillVersionPinChange(db, existing.companyId, existing.adapterConfig ?? {}, normalizedPatch.adapterConfig);
+    await notifySkillVersionPinChange(db, existing.spaceId, existing.adapterConfig ?? {}, normalizedPatch.adapterConfig);
   }
   assertEphemeralAgentInstructions({ ...existing, ...normalizedPatch });
   return normalizedPatch;
@@ -138,7 +138,7 @@ export async function completeAgentConfiguration(txDb: Db, existing: AgentConfig
     ? buildConfigSnapshot(agentRecordQueries(txDb).normalizeAgentRow(existing))
     : null;
   if (updated.status === "terminated") {
-    await clearPrimaryAgent(txDb, updated.companyId, id);
+    await clearPrimaryAgent(txDb, updated.spaceId, id);
   }
 
   const priorAdapterConfig = isPlainRecord(existing.adapterConfig) ? existing.adapterConfig : {};
@@ -148,15 +148,15 @@ export async function completeAgentConfiguration(txDb: Db, existing: AgentConfig
       (key) => priorAdapterConfig[key] !== afterConfig[key],
     ));
   if (changedExecution) {
-    await notifyExternalConversationSettlement(txDb, { companyId: existing.companyId });
-    await txDb.delete(agentTaskSessions).where(and(eq(agentTaskSessions.companyId, existing.companyId), eq(agentTaskSessions.agentId, id)));
+    await notifyExternalConversationSettlement(txDb, { spaceId: existing.spaceId });
+    await txDb.delete(agentTaskSessions).where(and(eq(agentTaskSessions.spaceId, existing.spaceId), eq(agentTaskSessions.agentId, id)));
     await txDb.update(agentRuntimeState).set({ adapterType: updated.adapterType, sessionId: null, stateJson: {}, updatedAt: new Date() })
-      .where(and(eq(agentRuntimeState.companyId, existing.companyId), eq(agentRuntimeState.agentId, id)));
+      .where(and(eq(agentRuntimeState.spaceId, existing.spaceId), eq(agentRuntimeState.agentId, id)));
   }
 
   if (Object.prototype.hasOwnProperty.call(normalizedPatch, "adapterConfig")) {
     await agentCredentialService(txDb).enforceClaudeOAuthBindingClaim(txDb, {
-      companyId: existing.companyId, consume: false, environmentId: null,
+      spaceId: existing.spaceId, consume: false, environmentId: null,
       childAdapterConfig: updated.adapterConfig, claudeLogin: options?.claudeLogin,
       decision: assertClaudeOAuthBindingInvariant({ adapterType: updated.adapterType,
         nextConfig: updated.adapterConfig, priorConfig: existing.adapterConfig }),
@@ -169,7 +169,7 @@ export async function completeAgentConfiguration(txDb: Db, existing: AgentConfig
   }
 
   if (normalizedPatch.budgetMonthlyCents !== undefined) {
-    await budgetServiceInTransaction(txDb, publications).upsertPolicy(existing.companyId, {
+    await budgetServiceInTransaction(txDb, publications).upsertPolicy(existing.spaceId, {
       scopeType: "agent", scopeId: id, amount: normalizedPatch.budgetMonthlyCents,
       isActive: normalizedPatch.budgetMonthlyCents > 0, windowKind: "calendar_month_utc",
     }, options?.recordRevision?.createdByUserId ?? null);
@@ -184,7 +184,7 @@ export async function completeAgentConfiguration(txDb: Db, existing: AgentConfig
     const changedKeys = diffConfigSnapshot(beforeConfig, afterConfig);
     if (changedKeys.length > 0) {
       await txDb.insert(agentConfigRevisions).values({
-        companyId: normalizedUpdated.companyId,
+        spaceId: normalizedUpdated.spaceId,
         agentId: normalizedUpdated.id,
         createdByAgentId: options?.recordRevision?.createdByAgentId ?? null,
         createdByUserId: options?.recordRevision?.createdByUserId ?? null,

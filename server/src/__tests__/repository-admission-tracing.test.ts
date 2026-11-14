@@ -35,7 +35,7 @@ const support = await getEmbeddedPostgresTestSupport();
   let lifecycle: string[];
 
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-repository-admission-tracing-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-repository-admission-tracing-");
     db = createDb(database.connectionString);
     directory = await fs.mkdtemp(path.join(os.tmpdir(), "repository-admission-tracing-"));
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
@@ -61,8 +61,8 @@ const support = await getEmbeddedPostgresTestSupport();
     fixture = await createWorkspacePreparationHistoryFixture(db, path.join(directory, `source-${Date.now()}`), {
       workspaces: 0, sharedRoots: 0, sources: 0, readers: 0,
     });
-    const [project] = await db.insert(projects).values({ companyId: fixture.companyId, name: "Selected source" }).returning();
-    const [source] = await db.insert(projectWorkspaces).values({ companyId: fixture.companyId,
+    const [project] = await db.insert(projects).values({ spaceId: fixture.spaceId, name: "Selected source" }).returning();
+    const [source] = await db.insert(projectWorkspaces).values({ spaceId: fixture.spaceId,
       projectId: project.id, name: "Selected checkout", cwd: fixture.cwd }).returning();
     await db.update(issues).set({ projectWorkspaceId: source.id }).where(eq(issues.id, fixture.issueId));
     await db.update(executionWorkspaces).set({ projectId: project.id, projectWorkspaceId: source.id })
@@ -127,7 +127,7 @@ const support = await getEmbeddedPostgresTestSupport();
       expect(span.status.message).toBeUndefined();
     }
     const exported = JSON.stringify(spans.map(span => ({ attributes: span.attributes, events: span.events, status: span.status })));
-    for (const privateValue of [fixture.companyId, fixture.issueId, fixture.workspaceId, fixture.runId, fixture.cwd, fixture.pin]) {
+    for (const privateValue of [fixture.spaceId, fixture.issueId, fixture.workspaceId, fixture.runId, fixture.cwd, fixture.pin]) {
       expect(exported).not.toContain(privateValue);
     }
   }
@@ -147,8 +147,8 @@ const support = await getEmbeddedPostgresTestSupport();
       // Startup performs many unrelated decisions before repository admission.
       // They must not exhaust the workspace authorization detail budget.
       for (let index = 0; index < 20; index++) {
-        const decision = await authorization.decide({ actor: { type: "board", source: "local_implicit", userId: "local-board" },
-          action: "company_scope:read", resource: { type: "company", companyId: fixture.companyId } });
+        const decision = await authorization.decide({ actor: { type: "operator", source: "local_implicit", userId: "local-operator" },
+          action: "space_scope:read", resource: { type: "space", spaceId: fixture.spaceId } });
         expect(decision.allowed).toBe(true);
       }
     });
@@ -230,7 +230,7 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("preserves receipt repair and releases the publication lock after a real integrity failure", async () => {
     const repository = await addReadyWorkspaceHistoryRepository(db, fixture);
-    const markerPath = path.join(repository.checkout, ".git", "paperclip-workspace-owner.json");
+    const markerPath = path.join(repository.checkout, ".git", "outpost-workspace-owner.json");
     const invalidMarker = JSON.stringify({ version: 1, repositoryId: repository.row.id, pinnedCommit: "1".repeat(40) });
     await fs.writeFile(markerPath, invalidMarker);
     await expect(admit()).rejects.toMatchObject({ status: 409,

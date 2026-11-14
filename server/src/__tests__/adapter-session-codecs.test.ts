@@ -42,9 +42,9 @@ describe("adapter session codecs", () => {
       sessionId: "11111111-1111-4111-8111-111111111111",
       cwd: "/tmp/workspace",
       mcpServerIdentity: JSON.stringify([{
-        name: "Paperclip projects",
+        name: "Outpost projects",
         url: "http://localhost:3100/api/mcp/project-tools",
-        connectionId: "paperclip-project-tools",
+        connectionId: "outpost-project-tools",
       }]),
     };
     expect(claudeSessionCodec.deserialize(claudeSessionCodec.serialize(params))).toEqual(params);
@@ -52,7 +52,7 @@ describe("adapter session codecs", () => {
 
   it("preserves claude ACP session params for ACP lane resumes", () => {
     const parsed = claudeSessionCodec.deserialize({
-      sessionKey: "paperclip:company:agent:task:fingerprint",
+      sessionKey: "outpost:space:agent:task:fingerprint",
       runtimeSessionName: "runtime-session-1",
       acpxRecordId: "record-1",
       acpSessionId: "acp-session-1",
@@ -97,7 +97,7 @@ describe("adapter session codecs", () => {
 
   it("preserves codex ACP session params for ACP lane resumes", () => {
     const parsed = codexSessionCodec.deserialize({
-      sessionKey: "paperclip:company:agent:task:fingerprint",
+      sessionKey: "outpost:space:agent:task:fingerprint",
       runtimeSessionName: "runtime-session-1",
       acpxRecordId: "record-1",
       acpSessionId: "acp-session-1",
@@ -178,7 +178,7 @@ describe("adapter session codecs", () => {
 
   it("preserves gemini ACP session params for ACP lane resumes", () => {
     const parsed = geminiSessionCodec.deserialize({
-      sessionKey: "paperclip:company:agent:task:fingerprint",
+      sessionKey: "outpost:space:agent:task:fingerprint",
       runtimeSessionName: "runtime-session-1",
       acpxRecordId: "record-1",
       acpSessionId: "acp-session-1",
@@ -205,7 +205,7 @@ describe("adapter session codecs", () => {
 
   it("preserves acpx session params required for compatibility checks", () => {
     const parsed = acpxSessionCodec.deserialize({
-      sessionKey: "paperclip:company:agent:task:fingerprint",
+      sessionKey: "outpost:space:agent:task:fingerprint",
       runtimeSessionName: "runtime-session-1",
       acpxRecordId: "record-1",
       acpSessionId: "acp-session-1",
@@ -225,7 +225,7 @@ describe("adapter session codecs", () => {
     });
 
     expect(parsed).toMatchObject({
-      sessionKey: "paperclip:company:agent:task:fingerprint",
+      sessionKey: "outpost:space:agent:task:fingerprint",
       runtimeSessionName: "runtime-session-1",
       acpxRecordId: "record-1",
       acpSessionId: "acp-session-1",

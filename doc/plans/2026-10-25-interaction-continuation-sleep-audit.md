@@ -28,7 +28,7 @@ The shared `notifyChatPublicationWork(tx, optionalIssueScope)` already signals d
 
 ## Mechanism and verification still to choose
 
-Reuse the shared coordinator/scheduler. Keep action eligibility, publication sequencing and dispatch in the continuation owner; app startup only registers it. Scope committed hints by issue/company (or exact action when useful), restore existing issued/processing debt at startup, retain work during drain and changes during a sweep, and register actual existing claim/retry deadlines. Do not scan completed history periodically.
+Reuse the shared coordinator/scheduler. Keep action eligibility, publication sequencing and dispatch in the continuation owner; app startup only registers it. Scope committed hints by issue/space (or exact action when useful), restore existing issued/processing debt at startup, retain work during drain and changes during a sweep, and register actual existing claim/retry deadlines. Do not scan completed history periodically.
 
 Tests should use the real accept/reject/board producers and preserve existing provider edit-before-wake, duplicate durable request, reassignment coalescing, deferred delivery, repeated failures and plan/source provenance assertions. Add idle first-write, no recurring SQL after settlement, rollback/outer commit, restart, failed attempt retry, paused/drain resume, bounded progress, and changed publication state wake coverage. Inspect current code again before implementation.
 
@@ -46,7 +46,7 @@ A concrete option to evaluate is a narrowly scoped queue drain for the continuat
 
 Implemented on parent `8b43e6222706491f2d8044af3bf86358085069af`.
 The owner now registers a scoped deadline worker. It restores issued/processing
-rows in 100-row UUID pages, attempts up to 25 entries per sweep with company
+rows in 100-row UUID pages, attempts up to 25 entries per sweep with space
 rotation, and schedules existing retry and stale-claim deadlines. Completed
 history has no recurring deadline. Total startup inventory and memory still grow
 with unfinished actions; page size bounds individual reads, not total inventory.
@@ -61,7 +61,7 @@ exact action hint. Provider publication and heartbeat dispatch stay outside
 these transactions. Signals add opted-in transaction/XID work; they are not free
 or a cross-process notification mechanism.
 
-The publication queue gained an optional company/endpoint/conversation scope.
+The publication queue gained an optional space/endpoint/conversation scope.
 Its existing eligibility, FIFO, credential fencing, endpoint concurrency and
 ambiguity quarantine remain authoritative. Registered continuation recovery
 attempts up to 25 ready publications in the originating conversation before
@@ -164,7 +164,7 @@ No full local repository, live-provider or physical sleep claim is made.
 
 Normal merge `71ec3c00d15cd8081514f0d2eb99d5a1728425b1` adopts published terminal
 confirmation parent `a35e78d076c1b618bc643391b7520fa6952fc996`, including its
-concurrent partial index, company/id keyset discovery and current master
+concurrent partial index, space/id keyset discovery and current master
 `644937c93150c423f12674992c7ea1e8b5dbc98c`. Both complete sets of added/removed
 patch edits are preserved, excluding only blob hashes and hunk line metadata.
 The two shared files (chat integration tests and confirmation actions) merge
@@ -215,7 +215,7 @@ with 20,000 completed/unrelated actions present. This red result is retained in
 `/tmp/sleep33-cost-red.log` and its nonzero exit receipt.
 
 Repair `a4a207ff23116c3fb739ad614c4c254992b1cdac` adds the generated
-`0399_ambitious_onslaught.sql` partial index on `(company_id, id)` for
+`0399_ambitious_onslaught.sql` partial index on `(space_id, id)` for
 `interaction_wakeup` actions in `issued`/`processing` state. It is concurrent
 and idempotent, using the existing top-level migration runner. Keyset ordering
 and its composite cursor match that index; fixed predicates remain SQL literals
@@ -224,7 +224,7 @@ continuation/publication authority. It adds no table, timer or scheduler.
 This is a deliberate additional repair after the original 12-path preservation
 proof, not a claim that the final patch is unchanged from the old implementation.
 
-The regression captures the owner's real startup and company-scoped SQL, replays
+The regression captures the owner's real startup and space-scoped SQL, replays
 it unchanged under `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`, and requires the
 correct pending ID with at most two action rows examined and fewer than 20 action
 buffers. Empty scoped recovery must also touch fewer than 20 buffers. No planner

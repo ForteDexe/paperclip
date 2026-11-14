@@ -15,7 +15,7 @@ import { issueTreeControlService } from "../services/issue-tree-control.js";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, agentWakeupRequests, authUsers, chatActions, environmentLeases, nativeRunFinalizations, chatEndpoints, toolApplications, toolConnections, companies, companyMemberships, costEvents, createDb, projects, reconcileDatabaseWork, heartbeatRuns, issueComments, issueRelations, issues } from "@outpost/db";
+import { activityLog, agents, agentWakeupRequests, authUsers, chatActions, environmentLeases, nativeRunFinalizations, chatEndpoints, toolApplications, toolConnections, spaces, spaceMemberships, costEvents, createDb, projects, reconcileDatabaseWork, heartbeatRuns, issueComments, issueRelations, issues } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -68,7 +68,7 @@ describe("deferred receipt durable dispatch", () => {
     await Promise.all(Array.from({ length: 6 }, () => db.execute(sql`select pg_sleep(0.01)`)));
   });
   beforeEach(async () => {
-    await db.execute(sql`truncate companies cascade`); drain = false; errors.length = 0; errorTimes.length = 0;
+    await db.execute(sql`truncate spaces cascade`); drain = false; errors.length = 0; errorTimes.length = 0;
     // Install one clock before any worker arms a timer. It follows wall time
     // during actual process execution; accelerated steps only settle idle work.
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
@@ -93,20 +93,20 @@ describe("deferred receipt durable dispatch", () => {
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   async function fixture() {
-    const companyId = randomUUID(), actorId = "deferred-receipt-user";
+    const spaceId = randomUUID(), actorId = "deferred-receipt-user";
     await db.insert(authUsers).values({ id: actorId, name: "Receipt operator", email: `${actorId}@example.test`,
       createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companies).values({ id: companyId, name: "Deferred dispatch", issuePrefix: `DE${companyId.slice(0, 6)}`,
-      defaultResponsibleUserId: actorId, requireBoardApprovalForNewAgents: false });
-    await db.insert(companyMemberships).values({ companyId, principalId: actorId, principalType: "user", status: "active", membershipRole: "owner" });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Receipt process", adapterType: "process", status: "idle",
+    await db.insert(spaces).values({ id: spaceId, name: "Deferred dispatch", issuePrefix: `DE${spaceId.slice(0, 6)}`,
+      defaultResponsibleUserId: actorId, requireOperatorApprovalForNewAgents: false });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: actorId, principalType: "user", status: "active", membershipRole: "owner" });
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Receipt process", adapterType: "process", status: "idle",
       adapterConfig: { command: process.execPath, args: ["-e", "console.log('receipt-proof')"], cwd: process.cwd() },
       runtimeConfig: { heartbeat: { enabled: true, intervalSec: 0, wakeOnDemand: true } } }).returning();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Resume saved task", status: "todo", assigneeAgentId: agent.id }).returning();
-    const [source] = await db.insert(heartbeatRuns).values({ companyId, agentId: agent.id, issueId: issue.id,
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Resume saved task", status: "todo", assigneeAgentId: agent.id }).returning();
+    const [source] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agent.id, issueId: issue.id,
       status: "failed", finishedAt: new Date(), responsibleUserId: actorId, errorCode: "process_failed",
       contextSnapshot: { issueId: issue.id }, resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } }).returning();
-    return { companyId, agent, issue, source, actorId };
+    return { spaceId, agent, issue, source, actorId };
   }
   async function quiet() {
     await Promise.allSettled([...passes]); await heartbeat.drainActiveRunExecutions();
@@ -154,7 +154,7 @@ describe("deferred receipt durable dispatch", () => {
   }
   it("is quiet after empty reconstruction and terminal receipt history", async () => {
     const f = await fixture();
-    await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+    await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
       source: "on_demand", status: "completed", reason: "task_retry", payload: { issueId: f.issue.id } });
     await heartbeat.registerDeferredReceiptWork(coordinator, () => !drain).ready; await quiet();
   });
@@ -163,22 +163,22 @@ describe("deferred receipt durable dispatch", () => {
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: f.issue.id,
       status: "succeeded", errorCode: null, contextSnapshot: { issueId: f.issue.id,
         wakeReason: "issue_commented", dependencyBlockedInteraction: true } }).where(eq(heartbeatRuns.id, f.source.id));
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id,
       runId: f.source.id, phase: "committed" });
     await db.update(issues).set({ status: "blocked", executionRunId: null, checkoutRunId: null }).where(eq(issues.id, f.issue.id));
-    const [blocker] = await db.insert(issues).values({ companyId: f.companyId, title: "Completed review",
+    const [blocker] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Completed review",
       status: "done", completedAt: new Date() }).returning();
-    await db.insert(issueRelations).values({ companyId: f.companyId, issueId: blocker.id,
+    await db.insert(issueRelations).values({ spaceId: f.spaceId, issueId: blocker.id,
       relatedIssueId: f.issue.id, type: "blocks" });
-    const [intent] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [intent] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
       source: "automation", reason: "issue_blockers_resolved", status: "coalesced",
       requestedByActorType: "system", requestedByActorId: "native-status-committer",
       payload: { issueId: f.issue.id, resolvedBlockerIssueId: blocker.id },
     }).returning();
-    const [receipt] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [receipt] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
       source: "automation", reason: "issue_execution_deferred", status: "deferred_issue_execution",
       requestedByActorType: "system", requestedByActorId: `native-status-wake-dispatch:${intent.id}`,
-      payload: { issueId: f.issue.id, resolvedBlockerIssueId: blocker.id, _paperclipWakeContext: {
+      payload: { issueId: f.issue.id, resolvedBlockerIssueId: blocker.id, _outpostWakeContext: {
         issueId: f.issue.id, wakeReason: "issue_blockers_resolved", statusDecisionSource: "native_status_decision",
         nativeStatusWakeIntentId: intent.id } },
     }).returning();
@@ -189,14 +189,14 @@ describe("deferred receipt durable dispatch", () => {
     const f = await fixture();
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: f.issue.id, status: "succeeded",
       errorCode: null, contextSnapshot: { issueId: f.issue.id, wakeReason: "issue_assigned" } }).where(eq(heartbeatRuns.id, f.source.id));
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id, runId: f.source.id, phase: "committed" });
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id, runId: f.source.id, phase: "committed" });
     await db.update(issues).set({ status: "blocked", executionRunId: null, checkoutRunId: null }).where(eq(issues.id, f.issue.id));
-    const [child] = await db.insert(issues).values({ companyId: f.companyId, title: "Part 1", parentId: f.issue.id,
+    const [child] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Part 1", parentId: f.issue.id,
       status: "done", completedAt: new Date() }).returning();
-    const [receipt] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [receipt] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
       source: "automation", reason: "issue_execution_deferred", status: "deferred_issue_execution",
       requestedByActorType: "system", idempotencyKey: `issue_children_completed:${f.issue.id}`,
-      payload: { issueId: f.issue.id, childIssueIds: [child.id], _paperclipWakeContext: { issueId: f.issue.id,
+      payload: { issueId: f.issue.id, childIssueIds: [child.id], _outpostWakeContext: { issueId: f.issue.id,
         taskId: f.issue.id, wakeReason: "issue_children_completed", source: "native_status_decision", childIssueIds: [child.id] } },
     }).returning();
     await heartbeat.registerDeferredReceiptWork(coordinator, () => !drain).ready;
@@ -208,7 +208,7 @@ describe("deferred receipt durable dispatch", () => {
       expect(saved.runId).not.toBeNull();
     }, { timeout: 15_000 });
     await finish(f.issue.id);
-    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId));
+    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId));
     expect(runs.filter(run => run.contextSnapshot?.wakeReason === "issue_children_completed")).toHaveLength(1);
     await quiet();
   });
@@ -216,7 +216,7 @@ describe("deferred receipt durable dispatch", () => {
   it.each(["restart", "cleanup"] as const)("recovers a dependency wake after native audit %s into one continuation", async event => {
     const f = await strandedDependency();
     const { receipt } = f;
-    const [lease] = event === "cleanup" ? await db.insert(environmentLeases).values({ companyId: f.companyId,
+    const [lease] = event === "cleanup" ? await db.insert(environmentLeases).values({ spaceId: f.spaceId,
       heartbeatRunId: f.source.id, issueId: f.issue.id, provider: "daytona", providerLeaseId: "dependency-finalizing",
       status: "active", leasePolicy: "reuse_by_environment" }).returning() : [];
     await heartbeat.registerDeferredReceiptWork(coordinator, () => !drain).ready;
@@ -238,7 +238,7 @@ describe("deferred receipt durable dispatch", () => {
       expect(saved.runId).not.toBeNull();
     }, { timeout: 15_000 });
     await finish(f.issue.id);
-    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId));
+    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId));
     const dependencyRuns = runs.filter(run => run.contextSnapshot?.wakeReason === "issue_blockers_resolved");
     expect(dependencyRuns).toHaveLength(1);
     const [resumed] = dependencyRuns;
@@ -246,7 +246,7 @@ describe("deferred receipt durable dispatch", () => {
       contextSnapshot: { wakeReason: "issue_blockers_resolved" } });
     expect(resumed.contextSnapshot?.dependencyBlockedInteraction).not.toBe(true);
     await heartbeat.resumeQueuedRuns();
-    const after = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId));
+    const after = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId));
     expect(after.filter(run => run.contextSnapshot?.wakeReason === "issue_blockers_resolved")).toHaveLength(1);
     expect(after.find(run => run.id === f.source.id)?.status).toBe("succeeded");
     expect((await db.select().from(issues).where(eq(issues.id, f.issue.id)))[0])
@@ -257,13 +257,13 @@ describe("deferred receipt durable dispatch", () => {
     const f = await strandedDependency();
     if (gate === "paused") await db.update(agents).set({ status: "paused" }).where(eq(agents.id, f.agent.id));
     if (gate === "cancelled") await db.update(issues).set({ status: "cancelled" }).where(eq(issues.id, f.issue.id));
-    if (gate === "cleanup") await db.insert(environmentLeases).values({ companyId: f.companyId,
+    if (gate === "cleanup") await db.insert(environmentLeases).values({ spaceId: f.spaceId,
       heartbeatRunId: f.source.id, issueId: f.issue.id, provider: "daytona", providerLeaseId: "dependency-cleanup",
       status: "active", leasePolicy: "reuse_by_environment" });
     await heartbeat.resumeQueuedRuns();
     const [saved] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, f.receipt.id));
     expect(saved).toMatchObject({ status: gate === "cancelled" ? "cancelled" : "deferred_issue_execution", runId: null });
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
   });
   it("checks unresolved blockers before a recovered dependency wake can execute", async () => {
     const f = await strandedDependency();
@@ -276,13 +276,13 @@ describe("deferred receipt durable dispatch", () => {
     expect(run).toMatchObject({ status: "cancelled", errorCode: "issue_dependencies_blocked", stdoutExcerpt: null });
     expect((await db.select().from(issues).where(eq(issues.id, f.issue.id)))[0].status).toBe("blocked");
   });
-  it.each([false, true])("reconsiders every saved receipt during repeated company eligibility changes (expired wait: %s)", async expiredWait => {
+  it.each([false, true])("reconsiders every saved receipt during repeated space eligibility changes (expired wait: %s)", async expiredWait => {
     const f = await fixture();
     const ids = Array.from({ length: 178 }, (_, index) => `${(index + 1).toString(16).padStart(8, "0")}-0000-4000-8000-000000000000`);
-    await db.insert(agentWakeupRequests).values(ids.map(id => ({ id, companyId: f.companyId, agentId: f.agent.id,
+    await db.insert(agentWakeupRequests).values(ids.map(id => ({ id, spaceId: f.spaceId, agentId: f.agent.id,
       source: "on_demand", status: "deferred_issue_execution",
       updatedAt: new Date(Date.now() - 60_000),
-      payload: { issueId: f.issue.id, _paperclipWakeContext: { wakeCommentIds: [randomUUID()] },
+      payload: { issueId: f.issue.id, _outpostWakeContext: { wakeCommentIds: [randomUUID()] },
         ...(expiredWait ? { executionWait: { reason: "recovery" } } : {}) },
     })));
     const checked = new Set<string>();
@@ -291,7 +291,7 @@ describe("deferred receipt durable dispatch", () => {
       settleTaskChat: async () => {}, createNativeBatch: () => async () => {}, schedulingSuppressed: async () => false,
     }, () => !drain).ready;
     for (let pass = 0; pass < 12; pass++) {
-      await db.transaction(tx => notifyDeferredExecutionEligibility(tx, { companyId: f.companyId }));
+      await db.transaction(tx => notifyDeferredExecutionEligibility(tx, { spaceId: f.spaceId }));
       await vi.advanceTimersByTimeAsync(31_000);
       await Promise.allSettled([...passes]);
       await immediate();
@@ -303,24 +303,24 @@ describe("deferred receipt durable dispatch", () => {
     const f = await fixture();
     // Hold executor capacity while queue time advances; reconstruct the saved
     // run with fresh workers at PostgreSQL time before real process execution.
-    const [occupant] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [occupant] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       status: "running", startedAt: new Date() }).returning();
     await db.update(agents).set({ runtimeConfig: { heartbeat: { enabled: true, intervalSec: 0,
       wakeOnDemand: true, maxConcurrentRuns: 1 } } }).where(eq(agents.id, f.agent.id));
-    const [closed] = await db.insert(issues).values({ companyId: f.companyId, title: "Closed task history",
+    const [closed] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Closed task history",
       status: "done", assigneeAgentId: f.agent.id }).returning();
     await db.insert(agentWakeupRequests).values(Array.from({ length: 178 }, (_, index) => ({
       id: `${(index + 1).toString(16).padStart(8, "0")}-0000-4000-8000-000000000000`,
-      companyId: f.companyId, agentId: f.agent.id, source: "on_demand", status: "deferred_issue_execution",
-      payload: { issueId: closed.id, _paperclipWakeContext: { wakeCommentIds: [randomUUID()] } },
+      spaceId: f.spaceId, agentId: f.agent.id, source: "on_demand", status: "deferred_issue_execution",
+      payload: { issueId: closed.id, _outpostWakeContext: { wakeCommentIds: [randomUUID()] } },
     })));
     await heartbeat.registerDeferredReceiptWork(coordinator, () => !drain).ready;
     await heartbeat.registerScheduledRetryCancellationWork(coordinator, () => !drain).ready;
-    const retry = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issue.id, actorId: f.actorId,
+    const retry = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issue.id, actorId: f.actorId,
       observedRunId: f.source.id, idempotencyKey: randomUUID() });
     const read = async () => (await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, retry.requestId!)))[0];
     for (let pass = 0; pass < 12 && !(await read()).runId; pass++) {
-      await db.transaction(tx => notifyDeferredExecutionEligibility(tx, { companyId: f.companyId }));
+      await db.transaction(tx => notifyDeferredExecutionEligibility(tx, { spaceId: f.spaceId }));
       await vi.advanceTimersByTimeAsync(31_000);
       await Promise.allSettled([...passes]);
       await immediate();
@@ -353,7 +353,7 @@ describe("deferred receipt durable dispatch", () => {
     await heartbeat.registerDeferredReceiptWork(coordinator, () => !drain).ready;
     await heartbeat.registerRunDispatchWork(coordinator, () => !drain).ready;
     await heartbeat.registerScheduledRetryCancellationWork(coordinator, () => !drain).ready;
-    const receipt = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issue.id, actorId: f.actorId,
+    const receipt = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issue.id, actorId: f.actorId,
       observedRunId: f.source.id, idempotencyKey: randomUUID() });
     expect(receipt.accepted).toBe(true);
     let runId: string | undefined;
@@ -384,11 +384,11 @@ describe("deferred receipt durable dispatch", () => {
     startTaskDrain({ ttlMs: 20 * 60_000 });
     let requestId: string;
     try {
-      const receipt = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issue.id, actorId: f.actorId,
+      const receipt = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issue.id, actorId: f.actorId,
         observedRunId: f.source.id, idempotencyKey: randomUUID() });
       expect(receipt.accepted).toBe(true);
       requestId = receipt.requestId!;
-      await heartbeat.resumeTaskRetry(f.companyId, requestId);
+      await heartbeat.resumeTaskRetry(f.spaceId, requestId);
       await vi.advanceTimersByTimeAsync(1000);
       const [held] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, requestId));
       expect(held).toMatchObject({ status: "deferred_issue_execution", runId: null });
@@ -409,12 +409,12 @@ describe("deferred receipt durable dispatch", () => {
   it("dispatches an operator Retry ahead of a backlog of passive waits", async () => {
     const f = await fixture();
     await db.insert(agentWakeupRequests).values(Array.from({ length: 120 }, (_, index) => ({
-      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`, companyId: f.companyId, agentId: f.agent.id,
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`, spaceId: f.spaceId, agentId: f.agent.id,
       source: "automation", status: "deferred_issue_execution", requestedByActorType: "system",
       payload: { executionWait: { reason: "recovery" } }, updatedAt: new Date(Date.now() - 60_000),
     })));
     const [retry] = await db.insert(agentWakeupRequests).values({ id: "ffffffff-ffff-4fff-bfff-ffffffffffff",
-      companyId: f.companyId, agentId: f.agent.id, source: "on_demand", status: "deferred_issue_execution",
+      spaceId: f.spaceId, agentId: f.agent.id, source: "on_demand", status: "deferred_issue_execution",
       reason: "task_retry", requestedByActorType: "user", requestedByActorId: f.actorId,
       payload: { issueId: f.issue.id } }).returning();
     const order: string[] = [];
@@ -437,7 +437,7 @@ describe("deferred receipt durable dispatch", () => {
     await registerDeferredReceiptWork(db, coordinator, { resume, settleTaskChat: vi.fn(), createNativeBatch: () => vi.fn(),
       schedulingSuppressed: async () => false, subscribeRefresh: listener => { refresh = listener; return () => {}; } },
     () => !drain).ready;
-    const [retry] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [retry] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
       source: "on_demand", status: "deferred_issue_execution", reason: "task_retry", requestedByActorType: "user",
       requestedByActorId: f.actorId, payload: { issueId: f.issue.id } }).returning();
     refresh!();
@@ -466,22 +466,22 @@ describe("deferred receipt durable dispatch", () => {
     lifecycleWorkers.add(lifecycleWorker);
     const projectId = gate === "project budget" ? randomUUID() : null;
     if (projectId) {
-      await db.insert(projects).values({ id: projectId, companyId: f.companyId, name: "Retry budget project" });
+      await db.insert(projects).values({ id: projectId, spaceId: f.spaceId, name: "Retry budget project" });
       await db.update(issues).set({ projectId }).where(eq(issues.id, f.issue.id));
     }
     const policy = { scopeType: projectId ? "project" as const : "agent" as const, scopeId: projectId ?? f.agent.id, amount: 100,
       metric: "billed_cents" as const, windowKind: "lifetime" as const, hardStopEnabled: true, notifyEnabled: false };
     if (gate !== "paused agent") {
-      await db.insert(costEvents).values({ companyId: f.companyId, agentId: f.agent.id, projectId,
+      await db.insert(costEvents).values({ spaceId: f.spaceId, agentId: f.agent.id, projectId,
         provider: "test", model: "receipt-proof", costCents: 200, occurredAt: new Date() });
-      await budgets.upsertPolicy(f.companyId, policy, f.actorId);
-      await flushBudgetEvaluationWork(db, { companyId: f.companyId });
+      await budgets.upsertPolicy(f.spaceId, policy, f.actorId);
+      await flushBudgetEvaluationWork(db, { spaceId: f.spaceId });
     } else await lifecycle.pauseAgent(f.agent.id);
     await lifecycleWorker.process(f.agent.id);
     await heartbeat.registerDeferredReceiptWork(coordinator, () => !drain).ready;
     await heartbeat.registerRunDispatchWork(coordinator, () => !drain).ready;
     await heartbeat.registerScheduledRetryCancellationWork(coordinator, () => !drain).ready;
-    const request = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issue.id, actorId: f.actorId,
+    const request = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issue.id, actorId: f.actorId,
       observedRunId: f.source.id, idempotencyKey: randomUUID() });
     expect(request.accepted).toBe(true);
     const read = async () => (await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, request.requestId!)))[0];
@@ -489,7 +489,7 @@ describe("deferred receipt durable dispatch", () => {
       reason: gate !== "paused agent" ? "budget.blocked" : "agent.not_invokable",
     }), { timeout: 10_000 });
     const refusals: unknown[] = [];
-    await heartbeat.resumeExecutionWaitComments({ companyId: f.companyId, requestId: request.requestId!, onError: error => refusals.push(error) });
+    await heartbeat.resumeExecutionWaitComments({ spaceId: f.spaceId, requestId: request.requestId!, onError: error => refusals.push(error) });
     expect(refusals).toHaveLength(1);
     expect(refusals[0]).toBeInstanceOf(HttpError);
     expect(refusals[0]).toMatchObject({ status: 409,
@@ -515,8 +515,8 @@ describe("deferred receipt durable dispatch", () => {
     // Keep the clock advancing with wall time through gate release and actual
     // child-process exit. Accelerate only after that execution has settled.
     if (gate !== "paused agent") {
-      await budgets.upsertPolicy(f.companyId, { ...policy, amount: 1000 }, f.actorId);
-      await flushBudgetEvaluationWork(db, { companyId: f.companyId });
+      await budgets.upsertPolicy(f.spaceId, { ...policy, amount: 1000 }, f.actorId);
+      await flushBudgetEvaluationWork(db, { spaceId: f.spaceId });
     } else await lifecycle.resumeAgent(f.agent.id);
     await lifecycleWorker.process(f.agent.id);
     let runId: string | null = null;
@@ -535,7 +535,7 @@ describe("deferred receipt durable dispatch", () => {
 
   it.each(["missing", "cancelled"] as const)("preserves ordinary409 when a %s receipt cannot save the gate", async status => {
     const f = await fixture(), requestId = randomUUID();
-    if (status === "cancelled") await db.insert(agentWakeupRequests).values({ id: requestId, companyId: f.companyId,
+    if (status === "cancelled") await db.insert(agentWakeupRequests).values({ id: requestId, spaceId: f.spaceId,
       agentId: f.agent.id, source: "on_demand", status, payload: { issueId: f.issue.id } });
     const deps = createHeartbeatQueueTestDependencies(db), queue = createHeartbeatQueue(db, deps);
     deps.getAgent.mockResolvedValue(f.agent);
@@ -562,7 +562,7 @@ describe("deferred receipt durable dispatch", () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: false });
     const f = await fixture();
     await createAgentLifecycle(db).pauseAgent(f.agent.id);
-    const request = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issue.id, actorId: f.actorId,
+    const request = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issue.id, actorId: f.actorId,
       observedRunId: f.source.id, idempotencyKey: randomUUID() });
     await db.execute(sql`create function c1_refusal_fault() returns trigger language plpgsql as $$
       begin if new.reason = 'task_retry' and new.payload ? 'executionWait' then
@@ -608,7 +608,7 @@ describe("deferred receipt durable dispatch", () => {
 
   it("does not park an unrelated HTTP409 as a persisted refusal", async () => {
     const f = await fixture();
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
       source: "on_demand", reason: "task_retry", status: "deferred_issue_execution" }).returning();
     const failure = conflict("Unexpected admission conflict");
     let fail = true, failedAt = 0;
@@ -636,10 +636,10 @@ describe("deferred receipt durable dispatch", () => {
         for await (const chunk of request) body += chunk;
         const { runId } = JSON.parse(body) as { runId: string };
         const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId),
-          eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.agentId, f.agent.id)));
+          eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.agentId, f.agent.id)));
         const issueId = run?.contextSnapshot?.issueId;
         const [target] = typeof issueId === "string" ? await db.select().from(issues).where(and(eq(issues.id, issueId),
-          eq(issues.companyId, f.companyId), eq(issues.assigneeAgentId, f.agent.id))) : [];
+          eq(issues.spaceId, f.spaceId), eq(issues.assigneeAgentId, f.agent.id))) : [];
         if (!run || !target) throw new Error("Unknown native cohort run");
         delivered++;
         if (delivered >= completeAfter) await issueService(db).update(target.id, { status: "done" });
@@ -656,11 +656,11 @@ describe("deferred receipt durable dispatch", () => {
     const at = Date.now();
     const intents = await db.insert(agentWakeupRequests).values(Array.from({ length: count }, (_, index) => ({
       reason: index % 2 ? "issue_blockers_resolved" : "issue_children_completed",
-      companyId: f.companyId, agentId: f.agent.id, source: "automation", triggerDetail: "system",
+      spaceId: f.spaceId, agentId: f.agent.id, source: "automation", triggerDetail: "system",
       status: "queued", requestedByActorType: "system", requestedByActorId: "native-status-committer",
       requestedAt: new Date(at - (count - index) * 1000), idempotencyKey: `native-cohort:${index}:${f.issue.id}`,
       payload: { issueId: f.issue.id, taskId: f.issue.id,
-        _paperclipWakeContext: { issueId: f.issue.id, taskId: f.issue.id, source: "native_status_decision" } },
+        _outpostWakeContext: { issueId: f.issue.id, taskId: f.issue.id, source: "native_status_decision" } },
     }))).returning();
     return { intents, failures };
   }
@@ -670,7 +670,7 @@ describe("deferred receipt durable dispatch", () => {
       const rows = await db.select().from(agentWakeupRequests).where(sql`${agentWakeupRequests.id} in ${cohort.intents.map(row => row.id)}`);
       expect(rows.map(row => row.status)).toEqual(cohort.intents.map(() => "coalesced"));
     }, { timeout: 15_000 });
-    const dispatched = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, f.companyId),
+    const dispatched = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, f.spaceId),
       sql`${agentWakeupRequests.requestedByActorId} like 'native-status-wake-dispatch:%'`,
       sql`${agentWakeupRequests.payload}->>'issueId' = ${f.issue.id}`));
     expect(dispatched.map(row => ({ id: row.id, runId: row.runId, status: row.status }))).toHaveLength(1);
@@ -698,17 +698,17 @@ describe("deferred receipt durable dispatch", () => {
     await heartbeat.registerDeferredReceiptWork(coordinator, () => !drain).ready;
     await nativeCohortResult(f, cohort); await quiet();
   });
-  it("keeps other issues and companies separate within one native worker batch", async () => {
+  it("keeps other issues and spaces separate within one native worker batch", async () => {
     const f = await fixture(), cohort = await nativeCohort(f), foreign = await fixture(), foreignCohort = await nativeCohort(foreign);
-    const [otherIssue] = await db.insert(issues).values({ companyId: f.companyId, assigneeAgentId: f.agent.id,
+    const [otherIssue] = await db.insert(issues).values({ spaceId: f.spaceId, assigneeAgentId: f.agent.id,
       status: "todo", title: "Separate native issue" }).returning();
     const otherIntents = await db.insert(agentWakeupRequests).values(cohort.intents.map((_, index) => ({
-      companyId: f.companyId, agentId: f.agent.id, source: "automation", triggerDetail: "system",
+      spaceId: f.spaceId, agentId: f.agent.id, source: "automation", triggerDetail: "system",
       reason: index ? "issue_blockers_resolved" : "issue_children_completed", status: "queued",
       requestedByActorType: "system", requestedByActorId: "native-status-committer",
       idempotencyKey: `other-native-issue:${index}:${otherIssue.id}`,
       payload: { issueId: otherIssue.id, taskId: otherIssue.id,
-        _paperclipWakeContext: { issueId: otherIssue.id, taskId: otherIssue.id, source: "native_status_decision" } },
+        _outpostWakeContext: { issueId: otherIssue.id, taskId: otherIssue.id, source: "native_status_decision" } },
     }))).returning();
     await heartbeat.registerDeferredReceiptWork(coordinator, () => !drain).ready;
     const first = await nativeCohortResult(f, cohort);
@@ -728,13 +728,13 @@ describe("deferred receipt durable dispatch", () => {
     const lateTransaction = db.transaction(async tx => {
       await tx.execute(sql`select 1`); began(); await lateGate;
       const id = randomUUID();
-      await notifyNativeStatusWakeWork(tx, { companyId: f.companyId, requestId: id });
-      [late] = await tx.insert(agentWakeupRequests).values({ id, companyId: f.companyId, agentId: f.agent.id,
+      await notifyNativeStatusWakeWork(tx, { spaceId: f.spaceId, requestId: id });
+      [late] = await tx.insert(agentWakeupRequests).values({ id, spaceId: f.spaceId, agentId: f.agent.id,
         source: "automation", triggerDetail: "system", reason: "issue_children_completed", status: "queued",
         requestedByActorType: "system", requestedByActorId: "native-status-committer", requestedAt: lateRequestedAt,
         idempotencyKey: `late-native:${id}`,
         payload: { issueId: f.issue.id, taskId: f.issue.id,
-          _paperclipWakeContext: { issueId: f.issue.id, taskId: f.issue.id, source: "native_status_decision" } },
+          _outpostWakeContext: { issueId: f.issue.id, taskId: f.issue.id, source: "native_status_decision" } },
       }).returning();
     });
     await lateBegan;
@@ -746,7 +746,7 @@ describe("deferred receipt durable dispatch", () => {
     try {
       await waitForReal(async () => expect((await db.select().from(agentWakeupRequests)
         .where(sql`${agentWakeupRequests.id} in ${cohort.intents.map(row => row.id)}`)).some(row => row.status === "claimed")).toBe(true), { timeout: 5000 });
-      const [claimed] = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, f.companyId),
+      const [claimed] = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, f.spaceId),
         eq(agentWakeupRequests.status, "claimed")));
       allowLate(); await lateTransaction;
       expect(late!.requestedAt.getTime()).toBeLessThanOrEqual(claimed.claimedAt!.getTime());
@@ -754,7 +754,7 @@ describe("deferred receipt durable dispatch", () => {
     await registration.ready;
     let lateRunId: string | null = null;
     await waitForReal(async () => {
-      const [saved] = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, f.companyId),
+      const [saved] = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, f.spaceId),
         eq(agentWakeupRequests.requestedByActorType, "system"),
         eq(agentWakeupRequests.requestedByActorId, `native-status-wake-dispatch:${late!.id}`)));
       expect(saved?.runId, JSON.stringify(saved)).toBeTruthy(); lateRunId = saved.runId;
@@ -771,17 +771,17 @@ describe("deferred receipt durable dispatch", () => {
     }, { timeout: 15_000 });
     expect(cohort.failures).toEqual([]);
     expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, late!.id)))[0].status).toBe("coalesced");
-    expect(await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, f.companyId),
+    expect(await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, f.spaceId),
       sql`${agentWakeupRequests.requestedByActorId} like 'native-status-wake-dispatch:%'`))).toHaveLength(2);
     await quiet();
   });
   it.each(["native claim", "execution wait"])("reconstructs an exact fresh %s deadline without probing early", async kind => {
     const f = await fixture(), updatedAt = new Date(), native = kind === "native claim";
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
       source: "automation", status: native ? "claimed" : "deferred_issue_execution", claimedAt: updatedAt, updatedAt,
       payload: native ? {} : { executionWait: { reason: "recovery" } },
       requestedByActorType: "system", requestedByActorId: native ? "native-status-committer" : null }).returning();
-    const check = vi.fn(async (scope: { companyId?: string; requestId?: string }) => {
+    const check = vi.fn(async (scope: { spaceId?: string; requestId?: string }) => {
       await db.update(agentWakeupRequests).set({ status: "skipped" }).where(eq(agentWakeupRequests.id, scope.requestId!));
     });
     await registerDeferredReceiptWork(db, coordinator, { resume: check, settleTaskChat: vi.fn(), createNativeBatch: () => check,
@@ -790,7 +790,7 @@ describe("deferred receipt durable dispatch", () => {
     expect(coordinator.nextWakeAt()).toBe(due); expect(check).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(due - Date.now() - 1); expect(check).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
-    await waitForReal(() => expect(check).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ companyId: f.companyId, requestId: wake.id })));
+    await waitForReal(() => expect(check).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ spaceId: f.spaceId, requestId: wake.id })));
     await quiet();
   });
   it("reconciles the first drained producer and waits for resume without domain SQL", async () => {
@@ -799,8 +799,8 @@ describe("deferred receipt durable dispatch", () => {
     await registerDeferredReceiptWork(db, coordinator, { resume, settleTaskChat: vi.fn(), createNativeBatch: () => dispatchNative,
       schedulingSuppressed: async () => false }, () => !drain).ready;
     await db.transaction(async tx => {
-      await notifyDeferredExecutionWork(tx, { companyId: f.companyId });
-      await tx.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id, source: "on_demand",
+      await notifyDeferredExecutionWork(tx, { spaceId: f.spaceId });
+      await tx.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id, source: "on_demand",
         status: "deferred_issue_execution", reason: "task_retry" });
     });
     await vi.advanceTimersByTimeAsync(1000);
@@ -810,41 +810,41 @@ describe("deferred receipt durable dispatch", () => {
     await waitForReal(() => expect(resume).toHaveBeenCalledTimes(1)); await quiet();
   });
   it.each([
-    { name: "saved comment", payload: { _paperclipWakeContext: { wakeCommentIds: ["saved-comment"] } } },
+    { name: "saved comment", payload: { _outpostWakeContext: { wakeCommentIds: ["saved-comment"] } } },
     { name: "interaction", payload: { mutation: "interaction" } },
     { name: "execution wait", payload: { executionWait: { reason: "recovery" } } },
     { name: "interrupt", payload: { queuedCommentInterrupt: { actorId: "operator" } } },
-  ])("activates only the committed company's $name receipt after an empty start", async ({ payload }) => {
+  ])("activates only the committed space's $name receipt after an empty start", async ({ payload }) => {
     const f = await fixture(), foreign = await fixture();
     const resume = vi.fn(async () => {});
     await registerDeferredReceiptWork(db, coordinator, { resume, settleTaskChat: vi.fn(), createNativeBatch: () => vi.fn(),
       schedulingSuppressed: async () => false }, () => !drain).ready;
-    const [other] = await db.insert(agentWakeupRequests).values({ companyId: foreign.companyId, agentId: foreign.agent.id,
+    const [other] = await db.insert(agentWakeupRequests).values({ spaceId: foreign.spaceId, agentId: foreign.agent.id,
       source: "on_demand", status: "deferred_issue_execution", payload }).returning();
     let requestId: string;
     await db.transaction(async tx => {
       await tx.transaction(async nested => {
-        await notifyDeferredExecutionWork(nested, { companyId: f.companyId });
-        const [row] = await nested.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+        await notifyDeferredExecutionWork(nested, { spaceId: f.spaceId });
+        const [row] = await nested.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
           source: "on_demand", status: "deferred_issue_execution", payload, updatedAt: new Date(Date.now() - 31_000) }).returning();
         requestId = row.id;
       });
       expect(resume).not.toHaveBeenCalled();
     });
-    await waitForReal(() => expect(resume).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ companyId: f.companyId, requestId })), { timeout: 5_000 });
+    await waitForReal(() => expect(resume).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ spaceId: f.spaceId, requestId })), { timeout: 5_000 });
     expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, other.id)))[0].status).toBe("deferred_issue_execution");
     await quiet();
   });
   it("reconstructs a cancelled legacy run's exact deferred queue even without comment payload", async () => {
     const f = await fixture();
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
       source: "on_demand", status: "deferred_issue_execution" }).returning();
     await db.update(heartbeatRuns).set({ status: "cancelled", resultJson: { queuedCommentInterruptQueueId: wake.id } })
       .where(eq(heartbeatRuns.id, f.source.id));
     const resume = vi.fn(async () => {});
     await registerDeferredReceiptWork(db, coordinator, { resume, settleTaskChat: vi.fn(), createNativeBatch: () => vi.fn(),
       schedulingSuppressed: async () => false }, () => !drain).ready;
-    expect(resume).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ companyId: f.companyId, requestId: wake.id }));
+    expect(resume).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ spaceId: f.spaceId, requestId: wake.id }));
     await quiet();
   });
   it("keeps a conversation Retry behind agent pause while ignoring retired Chat off values", async () => {
@@ -874,11 +874,11 @@ describe("deferred receipt durable dispatch", () => {
       await db.update(issues).set({ status: "in_review", conversationAgentId: f.agent.id,
         conversationUserId: f.actorId, conversationState: "waiting" }).where(eq(issues.id, f.issue.id));
       const comment = await issueService(db).addComment(f.issue.id, "Continue with this saved input", { userId: f.actorId });
-      const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+      const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
         source: "on_demand", status: "deferred_issue_execution", reason: "issue_commented",
         requestedByActorType: "user", requestedByActorId: f.actorId, updatedAt: new Date(Date.now() - 31_000),
         payload: { issueId: f.issue.id, queuedCommentInterrupt: { actorId: f.actorId },
-          _paperclipWakeContext: { issueId: f.issue.id, wakeCommentIds: [comment.id] } } }).returning();
+          _outpostWakeContext: { issueId: f.issue.id, wakeCommentIds: [comment.id] } } }).returning();
       await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date(Date.now() - 31_000),
         resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false },
           queuedCommentInterruptQueueId: wake.id } }).where(eq(heartbeatRuns.id, f.source.id));
@@ -896,7 +896,7 @@ describe("deferred receipt durable dispatch", () => {
       const read = async () => (await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wake.id)))[0];
       expect(await read()).toMatchObject({ status: "deferred_issue_execution", runId: null });
       await expect(db.transaction(async tx => {
-        await notifyDeferredExecutionEligibility(tx, { companyId: f.companyId });
+        await notifyDeferredExecutionEligibility(tx, { spaceId: f.spaceId });
         await tx.update(agents).set({ status: "idle" }).where(eq(agents.id, f.agent.id));
         throw new Error("rolled back agent resume");
       })).rejects.toThrow("rolled back agent resume");
@@ -905,7 +905,7 @@ describe("deferred receipt durable dispatch", () => {
       expect((await settings.getExperimental()).enableAgentChat).toBe(true);
       expect((await db.select().from(agents).where(eq(agents.id, f.agent.id)))[0].status).toBe("paused");
       await db.transaction(async tx => {
-        await notifyDeferredExecutionEligibility(tx, { companyId: f.companyId });
+        await notifyDeferredExecutionEligibility(tx, { spaceId: f.spaceId });
         await tx.update(agents).set({ status: "idle" }).where(eq(agents.id, f.agent.id));
       });
       let runId: string | null = null;
@@ -917,7 +917,7 @@ describe("deferred receipt durable dispatch", () => {
         const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId!));
         expect(run.status, JSON.stringify({ error: run.error, code: run.errorCode, stderr: run.stderrExcerpt })).toBe("succeeded"); expect(run.stdoutExcerpt).toContain("receipt-proof");
       }, { timeout: 15_000 });
-      const runs = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId),
+      const runs = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId),
         sql`${heartbeatRuns.id} <> ${f.source.id}`));
       expect(runs).toHaveLength(1);
       expect(runs[0].contextSnapshot?.wakeCommentIds).toEqual([comment.id]);
@@ -927,23 +927,23 @@ describe("deferred receipt durable dispatch", () => {
   it("settles a processed chat receipt without restaging it until an actual eligibility commit", async () => {
     const f = await fixture();
     await heartbeat.registerDeferredReceiptWork(coordinator, () => !drain).ready;
-    const [application] = await db.insert(toolApplications).values({ companyId: f.companyId, name: "Receipt chat", type: "mcp_http" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId: f.companyId, applicationId: application.id,
+    const [application] = await db.insert(toolApplications).values({ spaceId: f.spaceId, name: "Receipt chat", type: "mcp_http" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId: f.spaceId, applicationId: application.id,
       uid: randomUUID(), name: "Receipt chat", transport: "rest_api" }).returning();
-    const [endpoint] = await db.insert(chatEndpoints).values({ companyId: f.companyId, connectionId: connection.id,
+    const [endpoint] = await db.insert(chatEndpoints).values({ spaceId: f.spaceId, connectionId: connection.id,
       provider: "slack", publicId: randomUUID(), assignedAgentId: f.agent.id }).returning();
     const intentId = randomUUID(), actionId = randomUUID(), previous = new Date(Date.now() - 60_000);
     await db.insert(agentWakeupRequests).values([
-      { id: intentId, companyId: f.companyId, agentId: f.agent.id, source: "on_demand", reason: "task_retry",
+      { id: intentId, spaceId: f.spaceId, agentId: f.agent.id, source: "on_demand", reason: "task_retry",
         status: "deferred_issue_execution", updatedAt: previous, payload: { issueId: f.issue.id,
           taskRetry: { schema: "outpost.task-retry.v1", generationId: intentId, sourceRunId: f.source.id,
             actorId: f.actorId, strategy: "evaluate", chatActionId: actionId } } },
-      { id: actionId, companyId: f.companyId, agentId: f.agent.id, source: "automation", status: "deferred_issue_execution",
+      { id: actionId, spaceId: f.spaceId, agentId: f.agent.id, source: "automation", status: "deferred_issue_execution",
         payload: { issueId: f.issue.id, taskRetryRequestId: intentId } },
     ]);
     await db.transaction(async tx => {
-      await notifyTaskRetrySettlement(tx, { companyId: f.companyId, requestId: intentId });
-      await tx.insert(chatActions).values({ id: actionId, companyId: f.companyId, endpointId: endpoint.id,
+      await notifyTaskRetrySettlement(tx, { spaceId: f.spaceId, requestId: intentId });
+      await tx.insert(chatActions).values({ id: actionId, spaceId: f.spaceId, endpointId: endpoint.id,
         providerActionId: randomUUID(), kind: "failed_run_retry", status: "processed", updatedAt: new Date(),
         payload: { issueId: f.issue.id, taskRetryIntentId: intentId, failedRunId: f.source.id } });
     });
@@ -952,7 +952,7 @@ describe("deferred receipt durable dispatch", () => {
       expect(intent.updatedAt.getTime()).toBeGreaterThan(previous.getTime());
     }, { timeout: 5_000 });
     expect((await db.select().from(chatActions).where(eq(chatActions.id, actionId)))[0].status).toBe("processed");
-    await db.transaction(tx => notifyDeferredExecutionEligibility(tx, { companyId: f.companyId }));
+    await db.transaction(tx => notifyDeferredExecutionEligibility(tx, { spaceId: f.spaceId }));
     await waitForReal(async () => expect((await db.select().from(chatActions).where(eq(chatActions.id, actionId)))[0].status)
       .toBe("issued"), { timeout: 5_000 });
     await quiet();
@@ -960,11 +960,11 @@ describe("deferred receipt durable dispatch", () => {
   it("retains a moved interrupt grace deadline after an ordinary saved queue reorder", async () => {
     const f = await fixture(), initialAt = new Date();
     const comments = await db.insert(issueComments).values(["first", "second"].map(body => ({
-      companyId: f.companyId, issueId: f.issue.id, body, authorType: "user" as const, authorUserId: f.actorId,
+      spaceId: f.spaceId, issueId: f.issue.id, body, authorType: "user" as const, authorUserId: f.actorId,
     }))).returning();
     const payload = { issueId: f.issue.id, queuedCommentInterrupt: { actorId: f.actorId },
-      _paperclipWakeContext: { wakeCommentIds: comments.map(row => row.id) } };
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+      _outpostWakeContext: { wakeCommentIds: comments.map(row => row.id) } };
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
       source: "on_demand", status: "deferred_issue_execution", payload, updatedAt: initialAt }).returning();
     const deps = createHeartbeatQueueTestDependencies(db), queue = createHeartbeatQueue(db, deps);
     await registerDeferredReceiptWork(db, coordinator, { resume: scope => queue.resumeDeferredExecutionReceipts(scope),
@@ -982,17 +982,17 @@ describe("deferred receipt durable dispatch", () => {
     expect(deps.resumeQueuedCommentInterrupt).not.toHaveBeenCalled();
     expect(coordinator.nextWakeAt()).toBe(movedAt.getTime() + 30_000);
     await vi.advanceTimersByTimeAsync(movedAt.getTime() + 30_000 - Date.now());
-    await waitForReal(() => expect(deps.resumeQueuedCommentInterrupt).toHaveBeenCalledExactlyOnceWith(f.companyId, wake.id));
+    await waitForReal(() => expect(deps.resumeQueuedCommentInterrupt).toHaveBeenCalledExactlyOnceWith(f.spaceId, wake.id));
     await quiet();
   });
   it("reactivates a held task Retry when the authorized subtree hold is released without wakeAgents", async () => {
     const f = await fixture(), tree = issueTreeControlService(db);
     const actor = { actorType: "user" as const, actorId: f.actorId, userId: f.actorId };
-    const hold = await tree.createHold(f.companyId, f.issue.id, { mode: "pause", actor });
+    const hold = await tree.createHold(f.spaceId, f.issue.id, { mode: "pause", actor });
     await heartbeat.registerDeferredReceiptWork(coordinator, () => !drain).ready;
     await heartbeat.registerRunDispatchWork(coordinator, () => !drain).ready;
     await heartbeat.registerScheduledRetryCancellationWork(coordinator, () => !drain).ready;
-    const request = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issue.id, actorId: f.actorId,
+    const request = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issue.id, actorId: f.actorId,
       observedRunId: f.source.id, idempotencyKey: randomUUID() });
     expect(request.requestId).toBeTruthy();
     await waitForReal(async () => {
@@ -1001,7 +1001,7 @@ describe("deferred receipt durable dispatch", () => {
       expect(wake.runId).toBeNull();
     }, { timeout: 5_000 });
     await waitForReal(() => { expect(coordinator.nextWakeAt()).toBeNull(); expect(idleWorkSnapshot().active).toBe(0); }, { timeout: 40_000 });
-    await tree.releaseHold(f.companyId, f.issue.id, hold.hold.id, { actor, reason: "Resume saved Retry" });
+    await tree.releaseHold(f.spaceId, f.issue.id, hold.hold.id, { actor, reason: "Resume saved Retry" });
     let runId: string | null = null;
     await waitForReal(async () => {
       const [wake] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, request.requestId!));
@@ -1018,7 +1018,7 @@ describe("deferred receipt durable dispatch", () => {
   });
   it("keeps a moved native dispatch error deadline instead of retrying at its old time", async () => {
     const f = await fixture(), initialAt = new Date();
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
       source: "automation", status: "queued", error: "Transient dispatch failure", updatedAt: initialAt,
       requestedByActorType: "system", requestedByActorId: "native-status-committer" }).returning();
     const dispatchNative = vi.fn(async () => {});
@@ -1035,16 +1035,16 @@ describe("deferred receipt durable dispatch", () => {
   });
   it("arms one new wait reason grace and stays quiet when that same gate is still closed", async () => {
     const f = await fixture(); let reason = "operator_pause";
-    const resume = vi.fn(async (scope: { companyId?: string; requestId?: string }) => {
-      await writeDeferredExecutionWait(db, { companyId: scope.companyId!, requestId: scope.requestId! }, { reason });
+    const resume = vi.fn(async (scope: { spaceId?: string; requestId?: string }) => {
+      await writeDeferredExecutionWait(db, { spaceId: scope.spaceId!, requestId: scope.requestId! }, { reason });
     });
     await registerDeferredReceiptWork(db, coordinator, { resume, settleTaskChat: async () => {}, createNativeBatch: () => async () => {},
       schedulingSuppressed: async () => false }, () => !drain).ready;
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
       source: "on_demand", status: "deferred_issue_execution", reason: "task_retry" }).returning();
     for (const nextReason of ["operator_pause", "budget_pause"]) {
       reason = nextReason;
-      await writeDeferredExecutionWait(db, { companyId: f.companyId, requestId: wake.id }, { reason });
+      await writeDeferredExecutionWait(db, { spaceId: f.spaceId, requestId: wake.id }, { reason });
       const [current] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wake.id));
       const due = current.updatedAt.getTime() + 30_000;
       await vi.advanceTimersByTimeAsync(1_000);
@@ -1058,13 +1058,13 @@ describe("deferred receipt durable dispatch", () => {
   });
   it.each([false, true])("reactivates a saved Retry through ordinary restore cancelled task (held unrelated Retry: %s)", async heldFollowup => {
     const f = await fixture(), actor = { actorType: "user" as const, actorId: f.actorId, userId: f.actorId };
-    const request = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issue.id, actorId: f.actorId,
+    const request = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issue.id, actorId: f.actorId,
       observedRunId: f.source.id, idempotencyKey: randomUUID() });
     const tree = issueTreeControlService(db);
-    const cancel = await tree.createHold(f.companyId, f.issue.id, { mode: "cancel", actor });
-    await tree.cancelIssueStatusesForHold(f.companyId, f.issue.id, cancel.hold.id);
-    const restore = await tree.createHold(f.companyId, f.issue.id, { mode: "restore", actor });
-    const commitEligibility = () => tree.restoreIssueStatusesForHold(f.companyId, f.issue.id, restore.hold.id, { actor });
+    const cancel = await tree.createHold(f.spaceId, f.issue.id, { mode: "cancel", actor });
+    await tree.cancelIssueStatusesForHold(f.spaceId, f.issue.id, cancel.hold.id);
+    const restore = await tree.createHold(f.spaceId, f.issue.id, { mode: "restore", actor });
+    const commitEligibility = () => tree.restoreIssueStatusesForHold(f.spaceId, f.issue.id, restore.hold.id, { actor });
     await heartbeat.registerDeferredReceiptWork(coordinator, () => !drain).ready;
     await heartbeat.registerRunDispatchWork(coordinator, () => !drain).ready;
     await heartbeat.registerScheduledRetryCancellationWork(coordinator, () => !drain).ready;
@@ -1084,7 +1084,7 @@ describe("deferred receipt durable dispatch", () => {
             let body = "";
             for await (const chunk of incoming) body += chunk;
             const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, body));
-            expect(run).toMatchObject({ companyId: other.companyId, agentId: other.agent.id, status: "running" });
+            expect(run).toMatchObject({ spaceId: other.spaceId, agentId: other.agent.id, status: "running" });
             admitted = true;
             await release;
             await issueService(db).update(other.issue.id, { status: "done" });
@@ -1099,7 +1099,7 @@ describe("deferred receipt durable dispatch", () => {
         const port = (listener.address() as { port: number }).port;
         const script = `fetch("http://127.0.0.1:${port}", {method:"POST",body:process.env.OUTPOST_RUN_ID}).then(async response=>{if(!response.ok)throw new Error(await response.text());console.log("held-retry-proof")}).catch(error=>{console.error(error);process.exitCode=1})`;
         await db.update(agents).set({ adapterConfig: { command: process.execPath, args: ["-e", script], cwd: process.cwd() } }).where(eq(agents.id, other.agent.id));
-        await requestTaskRetry({ db, companyId: other.companyId, issueId: other.issue.id, actorId: other.actorId,
+        await requestTaskRetry({ db, spaceId: other.spaceId, issueId: other.issue.id, actorId: other.actorId,
           observedRunId: other.source.id, idempotencyKey: randomUUID() });
         await waitForReal(() => expect(admitted).toBe(true), { timeout: 15_000 });
       }
@@ -1138,11 +1138,11 @@ describe("deferred receipt durable dispatch", () => {
   });
   it("member archive publishes committed eligibility while preserving a cancelled Retry tombstone", async () => {
     const f = await fixture(), departing = `departing-${randomUUID()}`;
-    const request = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issue.id, actorId: f.actorId,
+    const request = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issue.id, actorId: f.actorId,
       observedRunId: f.source.id, idempotencyKey: randomUUID() });
     await db.insert(authUsers).values({ id: departing, name: "Departing member", email: `${departing}@example.test`,
       createdAt: new Date(), updatedAt: new Date() });
-    const [member] = await db.insert(companyMemberships).values({ companyId: f.companyId, principalId: departing,
+    const [member] = await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalId: departing,
       principalType: "user", status: "active", membershipRole: "member" }).returning();
     await issueService(db).update(f.issue.id, { assigneeUserId: departing, assigneeAgentId: null });
     const readIntent = async () => (await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, request.requestId!)))[0];
@@ -1152,7 +1152,7 @@ describe("deferred receipt durable dispatch", () => {
       subscribeDeliveryWork(db, DELIVERY_QUEUES.nativeStatusWakeIntents, native)];
     try {
       await expect(db.transaction(async tx => {
-        await accessService(tx as unknown as typeof db).archiveMember(f.companyId, member.id,
+        await accessService(tx as unknown as typeof db).archiveMember(f.spaceId, member.id,
           { reassignment: { assigneeAgentId: f.agent.id } });
         expect(deferred).not.toHaveBeenCalled(); expect(native).not.toHaveBeenCalled();
         throw new Error("roll back member archive");
@@ -1163,7 +1163,7 @@ describe("deferred receipt durable dispatch", () => {
       await reconcileDatabaseWork(db, DELIVERY_QUEUES.nativeStatusWakeIntents);
       deferred.mockClear(); native.mockClear();
       await db.transaction(async tx => {
-        await accessService(tx as unknown as typeof db).archiveMember(f.companyId, member.id,
+        await accessService(tx as unknown as typeof db).archiveMember(f.spaceId, member.id,
           { reassignment: { assigneeAgentId: f.agent.id } });
         expect(deferred).not.toHaveBeenCalled(); expect(native).not.toHaveBeenCalled();
       });
@@ -1171,7 +1171,7 @@ describe("deferred receipt durable dispatch", () => {
       expect((await db.select().from(issues).where(eq(issues.id, f.issue.id)))[0]).toMatchObject({
         assigneeUserId: null, assigneeAgentId: f.agent.id,
       });
-      expect((await db.select().from(companyMemberships).where(eq(companyMemberships.id, member.id)))[0].status).toBe("archived");
+      expect((await db.select().from(spaceMemberships).where(eq(spaceMemberships.id, member.id)))[0].status).toBe("archived");
       expect(await readIntent()).toMatchObject({ status: "cancelled", runId: null });
       expect(await db.select().from(heartbeatRuns).where(sql`${heartbeatRuns.contextSnapshot}->>'taskRetryRequestId' = ${request.requestId}`)).toHaveLength(0);
     } finally { for (const unsubscribe of unsubscribes) unsubscribe(); }
@@ -1182,12 +1182,12 @@ describe("deferred receipt durable dispatch", () => {
     await registerDeferredReceiptWork(db, coordinator, { resume: vi.fn(), settleTaskChat: vi.fn(), createNativeBatch: () => dispatchNative,
       schedulingSuppressed: async () => false }, () => !drain).ready;
     await expect(db.transaction(async tx => {
-      await notifyNativeStatusWakeWork(tx, { companyId: f.companyId });
+      await notifyNativeStatusWakeWork(tx, { spaceId: f.spaceId });
       throw new Error("outer rollback");
     })).rejects.toThrow("outer rollback");
     await db.transaction(async tx => {
       await expect(tx.transaction(async nested => {
-        await notifyNativeStatusWakeWork(nested, { companyId: f.companyId }); throw new Error("nested rollback");
+        await notifyNativeStatusWakeWork(nested, { spaceId: f.spaceId }); throw new Error("nested rollback");
       })).rejects.toThrow("nested rollback");
     });
     await quiet(); expect(dispatchNative).not.toHaveBeenCalled();
@@ -1201,20 +1201,20 @@ describe("deferred receipt durable dispatch", () => {
     await db.update(issues).set({ status: "done", completedAt: new Date() }).where(eq(issues.id, f.issue.id));
     await db.update(heartbeatRuns).set({ status: "succeeded", errorCode: null, resultJson: {}, runtimeMode: "native",
       nativeIssueId: f.issue.id, finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.source.id));
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id, runId: f.source.id, phase: "committed" });
-    const [lease] = await db.insert(environmentLeases).values({ companyId: f.companyId, heartbeatRunId: f.source.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id, runId: f.source.id, phase: "committed" });
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, heartbeatRunId: f.source.id,
       issueId: f.issue.id, provider: "daytona", providerLeaseId: "sandbox-finalizing", status: "active",
       leasePolicy: "reuse_by_environment" }).returning();
     const comments = [];
     for (const body of ["Also mention saved searches.", "Also mention it works on mobile."]) {
-      comments.push((await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issue.id, authorType: "user",
+      comments.push((await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issue.id, authorType: "user",
         authorUserId: f.actorId, body }).returning())[0]);
     }
     const commentIds = comments.map(comment => comment.id);
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
       source: "automation", triggerDetail: "system", reason: "issue_execution_deferred", status: "deferred_issue_execution",
       requestedByActorType: "user", requestedByActorId: f.actorId,
-      payload: { issueId: f.issue.id, commentId: commentIds[1], mutation: "comment", _paperclipWakeContext: {
+      payload: { issueId: f.issue.id, commentId: commentIds[1], mutation: "comment", _outpostWakeContext: {
         issueId: f.issue.id, taskId: f.issue.id, commentId: commentIds[1], wakeCommentId: commentIds[1],
         wakeCommentIds: commentIds, wakeReason: "issue_commented", source: "issue.comment" } } }).returning();
     const readWake = async () => (await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wake.id)))[0];

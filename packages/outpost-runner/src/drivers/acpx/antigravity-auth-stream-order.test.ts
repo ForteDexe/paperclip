@@ -33,7 +33,7 @@ afterEach(async () => {
 
 type Mode = "url-first" | "result-first" | "wrong-url" | "duplicate-url" | "unexpected-prompt" | "retirement-failure" | "credential-failure" | "auth-error" | "late-wrong-url" | "late-duplicate-url";
 async function fixture(mode: Mode) {
-  const home = await realpath(await mkdtemp(join(tmpdir(), "paperclip-antigravity-stream-test-"))); roots.push(home);
+  const home = await realpath(await mkdtemp(join(tmpdir(), "outpost-antigravity-stream-test-"))); roots.push(home);
   await mkdir(join(home, "antigravity-acp"), { mode: 0o700 });
   await writeFile(join(home, "antigravity-acp/acp_token.json"), JSON.stringify({ client_id: clientId, client_secret: "synthetic-client-secret",
     refresh_token: "synthetic-refresh-token", token_uri: "https://oauth2.googleapis.com/token", scopes }), { mode: 0o600 });
@@ -43,7 +43,7 @@ async function fixture(mode: Mode) {
     queueMicrotask(() => {
       if (request.method === "initialize") {
         stdout.write(JSON.stringify({ jsonrpc: "2.0", id: request.id, result: { protocolVersion: 1,
-          agentInfo: { name: "antigravity-acp", version: "1.4.3" }, agentCapabilities: { _meta: { antigravity: { paperclipAdmission: 1 } } },
+          agentInfo: { name: "antigravity-acp", version: "1.4.3" }, agentCapabilities: { _meta: { antigravity: { outpostAdmission: 1 } } },
           authMethods: [{ id: "oauth-personal" }] } }) + "\n");
       } else if (request.method === "authenticate") {
         const url = mode === "wrong-url" || mode === "late-wrong-url" ? "https://example.invalid/synthetic-private-marker" : authorizationUrl;
@@ -103,7 +103,7 @@ describe("Antigravity login cross-stream completion", () => {
   });
 
   it.each(["valid", "invalid", "duplicate"] as const)("handles a %s URL from a real child after authenticate completion and stdin EOF", async mode => {
-    const home = await realpath(await mkdtemp(join(tmpdir(), "paperclip-antigravity-real-stream-"))); roots.push(home);
+    const home = await realpath(await mkdtemp(join(tmpdir(), "outpost-antigravity-real-stream-"))); roots.push(home);
     const peer = join(home, "peer.cjs");
     await writeFile(peer, `
 const fs = require('node:fs');
@@ -116,7 +116,7 @@ reader.on('line', line => {
  fs.writeFileSync(path.join(home,'requests.json'),JSON.stringify(requests));
  if(request.method==='initialize') {
   process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:request.id,result:{protocolVersion:1,
-   agentInfo:{name:'antigravity-acp',version:'1.4.3'},agentCapabilities:{_meta:{antigravity:{paperclipAdmission:1}}},
+   agentInfo:{name:'antigravity-acp',version:'1.4.3'},agentCapabilities:{_meta:{antigravity:{outpostAdmission:1}}},
    authMethods:[{id:'oauth-personal'}]}})+'\\n');
  } else if(request.method==='authenticate') {
   fs.mkdirSync(path.join(home,'antigravity-acp'),{mode:0o700});

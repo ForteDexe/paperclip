@@ -51,8 +51,8 @@ including JSON, temporary, probe, truncated, corrupt, and unreadable files. The
 check does not read file bytes and cannot claim that a file is valid or settled.
 That decision belongs to the existing recovery owner and its format definitions.
 
-Only the credential directory's immediate UUID company directories are traversed;
-empty company directories are normal after recovery. Accounting and orphan files
+Only the credential directory's immediate UUID space directories are traversed;
+empty space directories are normal after recovery. Accounting and orphan files
 use flat directories. Unexpected directories, deeper nesting, symlinks, and
 special entries count as `unknownEntries` and block. The check does not follow
 symlinks or inspect unexpected subtrees. Directory/stat/close failures increment
@@ -60,7 +60,7 @@ symlinks or inspect unexpected subtrees. Directory/stat/close failures increment
 also blocks; it is not an empty installation.
 
 The default shared budget is 10,000 observed entries across all three scans,
-including company directories. `--max-entries` accepts 1 through 100,000. At the
+including space directories. `--max-entries` accepts 1 through 100,000. At the
 limit the scanner reads at most one extra entry per open directory to detect
 truncation. An unfinished scan reports `complete: false` and status `unknown`.
 Counts are observed lower bounds, not total records or total pending operations.
@@ -83,7 +83,7 @@ entries with their existing permissions and database checks:
 - Credentials: `ai-connections.ts` and `ai-connection-runtime.ts` use
   `quota-credential-recovery.ts` during account credential access and refresh.
   The owner validates encrypted material with the original instance master key
-  and preserves grant, company and credential version fences.
+  and preserves grant, space and credential version fences.
 - Orphan cleanup: `environment-runtime.ts` exposes `flushDeferredOrphanCleanups`
   to the existing cleanup lifecycle. `sandbox-orphan-cleanup-spool.ts` owns the
   record format and removes a file only after the recovery path saves ownership.

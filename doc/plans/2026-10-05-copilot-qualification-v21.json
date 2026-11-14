@@ -391,7 +391,7 @@
         "server/src/__tests__/workspace-runtime-exposure-reservation.test.ts",
         "server/src/__tests__/photon/photon.test.ts",
         "server/src/__tests__/photon/channel.integration.test.ts",
-        "server/src/__tests__/paperclip-skill-utils.test.ts"
+        "server/src/__tests__/outpost-skill-utils.test.ts"
       ],
       "status": "failed",
       "exitCode": 1,

@@ -6,11 +6,11 @@ import {
   type IssueLivenessIssueInput,
 } from "../services/recovery/issue-graph-liveness.js";
 
-const companyId = "company-1";
+const spaceId = "space-1";
 const agentId = "agent-1";
 
 function issue(id: string, status: string): IssueLivenessIssueInput {
-  return { id, companyId, identifier: id.toUpperCase(), title: id, status, assigneeAgentId: agentId };
+  return { id, spaceId, identifier: id.toUpperCase(), title: id, status, assigneeAgentId: agentId };
 }
 
 // Rows are the page. Off-page review tasks also wait for an external reply.
@@ -28,7 +28,7 @@ const issues = [
   issue("off-page-blocked", "blocked"),
   issue("off-page-blocker", "in_review"),
 ];
-const relation = (blockerIssueId: string, blockedIssueId: string) => ({ companyId, blockerIssueId, blockedIssueId });
+const relation = (blockerIssueId: string, blockedIssueId: string) => ({ spaceId, blockerIssueId, blockedIssueId });
 const relations = [
   relation("review-blocker", "row-blocked"),
   relation("middle", "row-chain"),
@@ -41,13 +41,13 @@ const relations = [
 ];
 const rowIds = ["row-blocked", "row-review", "row-chain", "row-cycle", "row-todo"];
 const allWaits = issues.filter((entry) => entry.status === "in_review")
-  .map((entry) => ({ id: `wait-${entry.id}`, companyId, issueId: entry.id, status: "waiting" }));
+  .map((entry) => ({ id: `wait-${entry.id}`, spaceId, issueId: entry.id, status: "waiting" }));
 
 function rowFindings(externalResponseWaits: IssueGraphLivenessInput["externalResponseWaits"]) {
   const findings = classifyIssueGraphLiveness({
     issues,
     relations,
-    agents: [{ id: agentId, companyId, name: "Coder", role: "engineer", status: "active", reportsTo: null }],
+    agents: [{ id: agentId, spaceId, name: "Coder", role: "engineer", status: "active", reportsTo: null }],
     externalResponseWaits,
     now: new Date("2026-11-10T00:00:00Z"),
   });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { paperclipQuestionSetPayloadSchema } from "./validators/issue.js";
+import { outpostQuestionSetPayloadSchema } from "./validators/issue.js";
 
 export const MUSE_PROTOCOL_VERSION = 1 as const;
 export const MUSE_ASSET_VERSION = 9 as const;
@@ -57,11 +57,11 @@ export const MUSE_PUBLIC_ROUTES = [
 
 export const MUSE_RESOURCE_PATH = "/api/muse/v1" as const;
 export const MUSE_OAUTH_PATH = "/api/muse/v1/oauth" as const;
-export const MUSE_OAUTH_SCOPES = ["paperclip:agent", "offline_access"] as const;
-/** Dedicated machine identity, never a board actor or Dot grant. */
+export const MUSE_OAUTH_SCOPES = ["outpost:agent", "offline_access"] as const;
+/** Dedicated machine identity, never a operator actor or Dot grant. */
 interface MuseSubjectIdentity {
   provider: "muse";
-  companyId: string; agentId: string; bindingId: string; generation: number;
+  spaceId: string; agentId: string; bindingId: string; generation: number;
   authorizingUserId: string; credentialId: string;
 }
 export type AgentConnectionSubject = MuseSubjectIdentity & (
@@ -83,7 +83,7 @@ const nativeRequestId = z.string().min(1).max(160).refine(
   "Native request IDs must start with an ASCII letter or digit and contain only ASCII letters, digits, '.', '_', ':', or '-'.",
 );
 const utf8Encoder = new TextEncoder();
-const nativeQuestionSet = paperclipQuestionSetPayloadSchema.refine(
+const nativeQuestionSet = outpostQuestionSetPayloadSchema.refine(
   value => utf8Encoder.encode(JSON.stringify(value)).byteLength <= 196 * 1024,
   "Question sets must not exceed Runner's 196 KiB durable UTF-8 byte bound.",
 ).refine(
@@ -138,7 +138,7 @@ export type MuseCommand = z.infer<typeof museCommandSchema>;
 export type MuseQuery = z.infer<typeof museQuerySchema>;
 export type MuseStopBoundary = z.infer<typeof museStopBoundarySchema>;
 export interface MuseCredentials {
-  version: 1; bindingId: string; generation: number; companyId: string; agentId: string;
+  version: 1; bindingId: string; generation: number; spaceId: string; agentId: string;
   accessToken: string; accessExpiresAt: string; refreshToken: string;
   refreshExpiresAt: string; cleanupToken: string; detectorCleanupToken: string;
 }

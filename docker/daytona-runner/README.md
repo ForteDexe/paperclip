@@ -1,12 +1,12 @@
-# Paperclip Daytona runner image
+# Outpost Daytona runner image
 
 Ordinary provider packs now include pinned Cursor assets for Linux x64; no
 `--candidate-providers=cursor` flag is needed. Cursor admission is enabled after
 the [production readiness gates](../../doc/plans/2026-10-03-cursor-production-readiness.md)
-passed. The public CLI installation command is `paperclipai runtime setup cursor`;
+passed. The public CLI installation command is `outpost runtime setup cursor`;
 it runs explicitly on the execution host and is never an npm installation hook.
 
-This image is the Paperclip Cloud fleet sandbox image plus a source-built
+This image is the Outpost Cloud fleet sandbox image plus a source-built
 `outpost-runnerd` and immutable provider pack. The pack contains Node 24.11,
 OpenCode 1.18.34, the compiled OpenCode proxy, ACPX 0.22.0 sidecar, qualified ACP
 agents, and the production lockfile. Its manifest digests each executable bridge
@@ -14,7 +14,7 @@ and records the runner source revision as provenance. Its interface declaration
 allows compatible app releases to reuse it without uploading or installing a pack.
 
 The fleet pins are intentionally copied from
-[`paperclip-cloud/fleet-sandbox-image/Dockerfile`](https://github.com/paperclipai/paperclip-cloud/blob/master/fleet-sandbox-image/Dockerfile).
+[`outpost-cloud/fleet-sandbox-image/Dockerfile`](https://github.com/paperclipai/paperclip-cloud/blob/master/fleet-sandbox-image/Dockerfile).
 Update both definitions together until the fleet base is published as a stable
 image that this Dockerfile can extend directly.
 
@@ -62,14 +62,14 @@ docker buildx build \
   --build-arg OUTPOST_RUNNER_CONTENT_ID="${content_id}" \
   --build-arg OUTPOST_RUNNER_SOURCE_REVISION="$(git rev-parse HEAD)" \
   --build-arg OUTPOST_RUNNER_LOCK_SHA256="$(shasum -a 256 pnpm-lock.yaml | cut -d ' ' -f 1)" \
-  --tag "paperclip-daytona-runner:e2e-content-${content_id}" \
+  --tag "outpost-daytona-runner:e2e-content-${content_id}" \
   --load \
   --file docker/daytona-runner/Dockerfile \
   .
 
 docker run --rm --platform linux/amd64 \
   --entrypoint outpost-runnerd \
-  "paperclip-daytona-runner:e2e-content-${content_id}" \
+  "outpost-daytona-runner:e2e-content-${content_id}" \
   --build-metadata
 ```
 
@@ -88,11 +88,11 @@ same content tag.
 `OUTPOST_RUNNER_SOURCE_REVISION` remains the full Git SHA that built the first
 published copy and is retained as provenance rather than cache identity.
 
-## Use in Paperclip
+## Use in Outpost
 
 Publish the image to a registry Daytona can pull, or use the environment
 editor's **Configure image** flow to produce a Daytona snapshot. Set the
-environment image to that immutable tag or snapshot. Paperclip probes the
+environment image to that immutable tag or snapshot. Outpost probes the
 sandbox user's `PATH` for `outpost-runnerd` and `codex` and checks
 `/opt/outpost-runner/provider-pack` for OpenCode and ACPX. It uses the pack
 when its selected provider interface and platform are compatible. App source
@@ -132,7 +132,7 @@ Do not promote `outpost-runner-e2e-20260826-v2` for OpenCode or ACPX. Build a
 new immutable image or snapshot from a clean committed revision and pass that
 full Git SHA as `OUTPOST_RUNNER_SOURCE_REVISION`.
 
-Do not bake provider credentials, Paperclip bootstrap tickets, or Daytona
+Do not bake provider credentials, Outpost bootstrap tickets, or Daytona
 preview tokens into this image. They remain per-run secret material.
 
 The provider-pack build pins the official Linux x64 Node 24.21.0 image by
@@ -191,6 +191,6 @@ dependencies when a task starts. Grok's additive native ACP profile keeps its
 qualified 1.0.13 executable at the verified sandbox prerequisite path. It does not replace the
 legacy adapter's `grok` command on PATH.
 
-Native Grok is an image prerequisite at `/opt/paperclip/providers/grok/1.0.13/grok`.
+Native Grok is an image prerequisite at `/opt/outpost/providers/grok/1.0.13/grok`.
 Its checksum-verified provisioning is separate from the provider pack, which ships
 only the built-in launcher. Public npm installation never downloads this binary.

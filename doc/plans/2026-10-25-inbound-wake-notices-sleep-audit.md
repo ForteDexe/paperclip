@@ -49,7 +49,7 @@ so a count-only return is insufficient once the permanent poll disappears.
 ## Selector and lifecycle work required
 
 The current owner stores a process-global Date/UUID cursor between bounded calls.
-That cursor belongs neither to a company nor to an issue and loses PostgreSQL
+That cursor belongs neither to a space nor to an issue and loses PostgreSQL
 microsecond precision. Do not reuse it as a scoped worker cursor. Use stable SQL
 precision and a complete per-pass continuation, advance past suppressed rows,
 and preserve a concrete obligation when a page or lock remains unfinished.
@@ -75,8 +75,8 @@ shared lifecycle contract as earlier slices.
   Its current notification is for terminal workspace cleanup, not these notices.
 - `chat-channels/slack/session-stop.ts` can cancel a queued receipt. A signal for
   the stop-action worker is not automatically a notice wake.
-- `companies.ts` cancels queued/deferred/claimed receipts during company state
-  changes. Preserve company visibility and disablement behavior.
+- `spaces.ts` cancels queued/deferred/claimed receipts during space state
+  changes. Preserve space visibility and disablement behavior.
 - Source-comment removal and later receipt promotion can retire a visible notice;
   audit `issues.ts`, message lifecycle owners and queued-comment control paths.
 - Publication success/message-link persistence can make a retirement eligible.
@@ -148,7 +148,7 @@ the case exercises the producer rather than a manual scan.
 Task-tree cancellation and source-comment tombstoning each reproduced a missed
 retirement wake. Tree cancellation now registers intent inside its transaction;
 caller-owned transactions retain outer commit/rollback semantics. Tombstoning
-reads and locks the still-live comment's company/task binding before registering
+reads and locks the still-live comment's space/task binding before registering
 intent and updating it; already deleted/missing comments remain no-ops. These
 changes preserve existing notice text and current authorization. Tests deliver
 the queued publication with maintenance disabled, perform real service mutations
@@ -167,7 +167,7 @@ idle-work settlement. These fixture failures are not production defects.
 Server typecheck passed in `/tmp/sleep30-notice-producer-typecheck.log`.
 
 Still required: remaining receipt/cancellation writers (including budget, agent,
-company and Slack stop paths), admission-failure settlement, authority changes
+space and Slack stop paths), admission-failure settlement, authority changes
 not already covered by shared notifications, batching/scoping/lifecycle tests,
 production registration, and removal of only this duty from the maintenance
 loop. Fresh PR creation and all checks remain outstanding for slice 30.
@@ -202,7 +202,7 @@ after surviving coalesced input promotes.
   run-less caller before adding a broad signal: a receipt with a run cannot
   produce not-started, and source tombstoning owns removed-source activation.
 - Explicit cancellation paths still needing integration/tests include
-  `run-control.ts::cancelPendingWakeupsForBudgetScope`, `cancelPendingWakeupsForAgentsInternal`, company archive cascade,
+  `run-control.ts::cancelPendingWakeupsForBudgetScope`, `cancelPendingWakeupsForAgentsInternal`, space archive cascade,
   Slack session stop, and queue replay paths that decline an unadmitted receipt.
 - `issues.ts` reassignment cancels user receipts in the issue-update transaction;
   it currently signals lifecycle only for unhide, so that signal is not coverage
@@ -216,7 +216,7 @@ after surviving coalesced input promotes.
   deciding which writes belong to this reason or the next failed-retry slice.
 
 The full chat integration suite was launched at local branch `c579148977` on a
-fresh `paperclip_sleep30_full_chat_20261025_test` database, with output at
+fresh `outpost_sleep30_full_chat_20261025_test` database, with output at
 `/tmp/sleep30-full-chat-acceptance.log`; its result must be read before claiming
 acceptance. Typecheck after merging the second parent repair passed in
 `/tmp/sleep30-after-parent-typecheck.log`.
@@ -228,15 +228,15 @@ The full chat suite at `c579148977` finished successfully: 1,458 tests in
 cancellation and privacy changes below, not acceptance of later edits.
 
 Real service regressions reproduced stale visible queue notices after agent
-cancellation, budget cancellation, and company archival. Signals now belong to
+cancellation, budget cancellation, and space archival. Signals now belong to
 those owners' transactions, as well as Slack Stop and deferred queue cancellation
 and failure. Agent cancellation now rechecks pending status and absence of a run
 at update time, so it cannot cancel a receipt promoted after candidate selection.
-Caller-owned transactions preserve outer commit and rollback. Company lifecycle
+Caller-owned transactions preserve outer commit and rollback. Space lifecycle
 intentionally owns its root transaction; its test respects that contract.
 
 Task status/assignment changes and privacy changes can restore eligibility.
-Task privacy can affect descendants, so it invalidates the company scope. Explicit
+Task privacy can affect descendants, so it invalidates the space scope. Explicit
 task grants and private-project membership use their existing persistence owners;
 the project-member helper owns a small transaction that also nests under callers.
 Project visibility changes use the existing project transaction. Shared chat
@@ -263,7 +263,7 @@ pass, plus its other unmigrated duties. The explicit/manual combined
 Focused acceptance at the current source passes 42 cases in
 `/tmp/sleep30-wired-acceptance.log`. These include actual admission after idle,
 scoped/manual cursor pagination, denied history, receipt-lock contention,
-transaction rollback and commit, queue rejection/failure, agent/budget/company
+transaction rollback and commit, queue rejection/failure, agent/budget/space
 cancellation, privacy restoration through task grants and project membership,
 signed Slack Stop, late provider receipt, restart deduplication, writes after
 shutdown, first write and failed selection during drain, and a commit arriving
@@ -275,9 +275,9 @@ Preserved failures and fixture corrections:
 - `/tmp/sleep30-cancellation-before.log`: agent cancellation missed its wake;
   an attempted agent reassignment fixture was rejected by the existing external
   channel binding rule. The unsupported fixture was removed, not bypassed.
-- `/tmp/sleep30-budget-company-before.log`: budget cancellation missed its wake;
-  company lifecycle correctly rejected a caller transaction. The root-company
-  reproduction in `/tmp/sleep30-company-root-before.log` then showed its missing
+- `/tmp/sleep30-budget-space-before.log`: budget cancellation missed its wake;
+  space lifecycle correctly rejected a caller transaction. The root-space
+  reproduction in `/tmp/sleep30-space-root-before.log` then showed its missing
   wake. All five initial retirement cases passed after the repair.
 - `/tmp/sleep30-notice-privacy-before.log`: opening a private task did not wake
   its saved notice. The repair passes. Initial grant tests used an unlinked
@@ -391,7 +391,7 @@ failed-retry slice (#17649, source `b47169855cc712e029df7e5c4c34f7b6fa04b9d4`):
   validation and before its caller writes the receipt. This keeps the contract
   central for both real heartbeat admission and supported callback-owned writes.
 - Retry authorization denial retires the exact unadmitted receipt in a transaction
-  that registers its company/task notice intent before the existing guarded update.
+  that registers its space/task notice intent before the existing guarded update.
   Pending-status, absent-run, and request-correlation conditions are preserved.
 
 No new worker, table, scheduler, polling fallback, or per-caller recovery wrapper
@@ -407,7 +407,7 @@ Two new real producer regressions fail before repair and pass afterward:
    callback emits intent before the write and settlement after outer commit.
 2. Real heartbeat admission creates the retry receipt. After actual retry receipt
    reconciliation, denial reaches its conditional retirement. A second PostgreSQL
-   transaction holds that receipt row: the fixed writer emits exact company/task
+   transaction holds that receipt row: the fixed writer emits exact space/task
    intent while the outside connection still sees deferred status, remains unsettled
    while blocked, then publishes settlement only after the failed-status write commits.
 
@@ -487,23 +487,23 @@ remote current-head CI and review remain required before protected merge.
 Greptile's current-head 5/5 summary also contained a valid P2:
 [discovery rereads denied history](https://github.com/paperclipai/paperclip/pull/17647#discussion_r4386889825).
 A task notification already contains its scope, but discovery reread every page
-of denied actions before bounded authorization could begin. Company/startup
+of denied actions before bounded authorization could begin. Space/startup
 selection likewise transferred all candidate actions merely to deduplicate tasks.
 
 Task notifications now return their supplied scope without SQL. The subsequent
 bounded reconciliation remains responsible for checking current candidates and
-authority, including an already exhausted scope. Company and startup discovery
-use one SQL DISTINCT projection of company/task identifiers. The same candidate
+authority, including an already exhausted scope. Space and startup discovery
+use one SQL DISTINCT projection of space/task identifiers. The same candidate
 query supplies both discovery and bounded selection, preserving its owner,
-company, UUID, source-removal, and publication predicates. Broad discovery may
+space, UUID, source-removal, and publication predicates. Broad discovery may
 still inspect candidate history within PostgreSQL; this is not a constant-cost
 query or a new recurring scan.
 
-Three real PostgreSQL regressions seed 250 denied candidates and a second company.
+Three real PostgreSQL regressions seed 250 denied candidates and a second space.
 They fail before the fix (two discovery queries instead of zero/one), then pass:
 zero discovery queries/rows for task hints, one query with only distinct scope
-rows for company/startup. The existing exhausted-history assertions now exercise
-company discovery; task hints deliberately need no database existence check.
+rows for space/startup. The existing exhausted-history assertions now exercise
+space discovery; task hints deliberately need no database existence check.
 Cancellation, projection budgets and precise cursor behavior remain unchanged.
 
 The revised matrix passes **267 distinct cases**: 142 complete consumer cases,
@@ -527,7 +527,7 @@ failed action settles, and its separate transaction restores coalesced ordinary
 receipts to deferred status. A consumed earlier wake cannot cover that later
 commit. The earlier writer audit missed this restoration transaction.
 
-The restoration owner now awaits the existing company/task notice intent after
+The restoration owner now awaits the existing space/task notice intent after
 its action/issue/receipt guards and before updating the ordinary receipts. The
 same transaction restores input and retires its unadmitted task Retry intent.
 No guard, source authority, table, scheduler or per-caller wrapper is added.

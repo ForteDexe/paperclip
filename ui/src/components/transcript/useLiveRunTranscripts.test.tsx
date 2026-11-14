@@ -3,7 +3,7 @@
 import { act, type ReactNode } from "react";
 import { createRoot as createReactRoot } from "react-dom/client";
 import type { LiveEvent } from "@outpost/shared";
-import { __liveUpdatesTestUtils, type CompanyLiveEventHandler } from "../../context/LiveUpdatesProvider";
+import { __liveUpdatesTestUtils, type SpaceLiveEventHandler } from "../../context/LiveUpdatesProvider";
 import { LiveTranscriptInterests } from "../../lib/live-transcript-interests";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
@@ -40,15 +40,15 @@ vi.mock("../../adapters", () => ({
 }));
 
 const { LiveEventSubscriptionContext } = __liveUpdatesTestUtils;
-let listeners: Set<CompanyLiveEventHandler>;
+let listeners: Set<SpaceLiveEventHandler>;
 let interests: LiveTranscriptInterests;
 let sent: Array<{ type: string; revision?: number; runIds?: string[] }>;
 let socketConstructed: ReturnType<typeof vi.fn<() => void>>;
 function createRoot(container: HTMLDivElement) {
   const root = createReactRoot(container);
   const subscription = {
-    companyId: "company-1", transcripts: interests,
-    subscribe(handler: CompanyLiveEventHandler) {
+    spaceId: "space-1", transcripts: interests,
+    subscribe(handler: SpaceLiveEventHandler) {
       listeners.add(handler);
       return () => { listeners.delete(handler); };
     },
@@ -101,7 +101,7 @@ describe("useLiveRunTranscripts", () => {
     logMock.mockResolvedValue({ runId: "run-1", store: "memory", logRef: "log-1", content: "", nextOffset: 42 });
     const runs = [{ id: "run-1", status: "running", adapterType: "codex_local" }];
     function Harness() {
-      useLiveRunTranscripts({ companyId: "company-1", runs, enableRealtimeUpdates: false });
+      useLiveRunTranscripts({ spaceId: "space-1", runs, enableRealtimeUpdates: false });
       return null;
     }
     const container = document.createElement("div");
@@ -241,7 +241,7 @@ describe("useLiveRunTranscripts", () => {
 
   it("registers interests on the shared connection without creating a socket", async () => {
     function Harness() {
-      useLiveRunTranscripts({ companyId: "company-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local" }] });
+      useLiveRunTranscripts({ spaceId: "space-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local" }] });
       return null;
     }
     const root = createRoot(document.createElement("div"));
@@ -259,7 +259,7 @@ describe("useLiveRunTranscripts", () => {
 
     function Harness() {
       const { hasOutputForRun } = useLiveRunTranscripts({
-        companyId: "company-1",
+        spaceId: "space-1",
         runs: [{ id: "run-1", status: "succeeded", adapterType: "codex_local", hasStoredOutput: true }],
       });
       latestHasOutput = hasOutputForRun("run-1");
@@ -296,7 +296,7 @@ describe("useLiveRunTranscripts", () => {
 
     function Harness() {
       const { isInitialHydrating } = useLiveRunTranscripts({
-        companyId: "company-1",
+        spaceId: "space-1",
         runs: [{ id: "run-1", status: "succeeded", adapterType: "codex_local" }],
       });
       latestIsInitialHydrating = isInitialHydrating;
@@ -336,7 +336,7 @@ describe("useLiveRunTranscripts", () => {
     const empty = { runId: "run-1", store: "memory", logRef: "log-1", content: "", nextOffset: 0 };
     logMock.mockImplementationOnce(() => new Promise((resolve) => { resolveLate = resolve; }));
     function Harness() {
-      latest = useLiveRunTranscripts({ companyId: "company-1", runs: [{ id: "run-1", status: "succeeded", adapterType: "codex_local" }] });
+      latest = useLiveRunTranscripts({ spaceId: "space-1", runs: [{ id: "run-1", status: "succeeded", adapterType: "codex_local" }] });
       return null;
     }
     try {
@@ -363,7 +363,7 @@ describe("useLiveRunTranscripts", () => {
 
     function Harness() {
       useLiveRunTranscripts({
-        companyId: "company-1",
+        spaceId: "space-1",
         runs: [{ id: "run-404", status: "failed", adapterType: "codex_local" }],
       });
       return null;
@@ -396,7 +396,7 @@ describe("useLiveRunTranscripts", () => {
   it("does not request persisted logs until a queued run starts", async () => {
     function Harness({ status }: { status: "queued" | "running" }) {
       useLiveRunTranscripts({
-        companyId: "company-1",
+        spaceId: "space-1",
         runs: [{ id: "run-queued", status, adapterType: "codex_local" }],
       });
       return null;
@@ -432,7 +432,7 @@ describe("useLiveRunTranscripts", () => {
   it("can hydrate active runs without opening the live event socket", async () => {
     function Harness() {
       useLiveRunTranscripts({
-        companyId: "company-1",
+        spaceId: "space-1",
         runs: [{ id: "run-1", status: "running", adapterType: "codex_local" }],
         enableRealtimeUpdates: false,
         logReadLimitBytes: 64_000,
@@ -461,7 +461,7 @@ describe("useLiveRunTranscripts", () => {
   it("starts persisted-log hydration from the newest bytes when the visible window is truncated", async () => {
     function Harness() {
       useLiveRunTranscripts({
-        companyId: "company-1",
+        spaceId: "space-1",
         runs: [{ id: "run-1", status: "running", adapterType: "codex_local", lastOutputBytes: 100_000 }],
         enableRealtimeUpdates: false,
         logReadLimitBytes: 64_000,
@@ -500,7 +500,7 @@ describe("useLiveRunTranscripts", () => {
 
     function Harness() {
       useLiveRunTranscripts({
-        companyId: "company-1",
+        spaceId: "space-1",
         runs: [{ id: "run-1", status: "running", adapterType: "gemini_local" }],
         enableRealtimeUpdates: false,
       });
@@ -546,7 +546,7 @@ describe("useLiveRunTranscripts", () => {
 
     function Harness() {
       useLiveRunTranscripts({
-        companyId: "company-1",
+        spaceId: "space-1",
         runs: [{ id: "run-1", status: "running", adapterType: "gemini_local" }],
         enableRealtimeUpdates: false,
       });
@@ -587,7 +587,7 @@ describe("useLiveRunTranscripts", () => {
 
     function Harness() {
       useLiveRunTranscripts({
-        companyId: "company-1",
+        spaceId: "space-1",
         runs: [{ id: "run-1", status: "running", adapterType: "gemini_local" }],
       });
       return null;
@@ -606,7 +606,7 @@ describe("useLiveRunTranscripts", () => {
 
     const sendLogEvent = (seq: number, chunk: string) => {
       sendEvent({
-        companyId: "company-1", type: "heartbeat.run.log", createdAt: "2026-04-20T00:00:01.000Z",
+        spaceId: "space-1", type: "heartbeat.run.log", createdAt: "2026-04-20T00:00:01.000Z",
         payload: { runId: "run-1", ts: "2026-04-20T00:00:01.000Z", stream: "stdout", chunk, seq },
       });
     };
@@ -648,7 +648,7 @@ describe("useLiveRunTranscripts", () => {
   it("rebuilds only the transcript for the run that receives live output", async () => {
     function Harness() {
       useLiveRunTranscripts({
-        companyId: "company-1",
+        spaceId: "space-1",
         runs: [
           { id: "run-1", status: "running", adapterType: "codex_local" },
           { id: "run-2", status: "running", adapterType: "codex_local" },
@@ -673,7 +673,7 @@ describe("useLiveRunTranscripts", () => {
 
     await act(async () => {
       sendEvent({
-        companyId: "company-1", type: "heartbeat.run.log", createdAt: "2026-04-20T00:00:00.000Z",
+        spaceId: "space-1", type: "heartbeat.run.log", createdAt: "2026-04-20T00:00:00.000Z",
         payload: { runId: "run-1", ts: "2026-04-20T00:00:00.000Z", stream: "stdout", chunk: "hello from run 1\n" },
       });
       await Promise.resolve();
@@ -708,7 +708,7 @@ describe("useLiveRunTranscripts", () => {
 
     const captured: { value: ReturnType<typeof useLiveRunTranscripts> | null } = { value: null };
     function Harness({ runs }: { runs: Array<{ id: string; status: string; adapterType: string }> }) {
-      captured.value = useLiveRunTranscripts({ companyId: "company-1", runs, enableRealtimeUpdates: false });
+      captured.value = useLiveRunTranscripts({ spaceId: "space-1", runs, enableRealtimeUpdates: false });
       return null;
     }
 
@@ -758,7 +758,7 @@ describe("useLiveRunTranscripts", () => {
 
       const captured: { value: ReturnType<typeof useLiveRunTranscripts> | null } = { value: null };
       function Harness({ runs }: { runs: Array<{ id: string; status: string; adapterType: string }> }) {
-        captured.value = useLiveRunTranscripts({ companyId: "company-1", runs, enableRealtimeUpdates: false });
+        captured.value = useLiveRunTranscripts({ spaceId: "space-1", runs, enableRealtimeUpdates: false });
         return null;
       }
 

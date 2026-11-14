@@ -8,14 +8,14 @@ import { asBoolean, asString, parseFrontmatterMarkdown } from "./frontmatter.js"
 import type { CatalogTeam } from "./types.js";
 
 const EXPECTED_BUNDLED_KEYS = [
-  "paperclipai/bundled/company-defaults/core-exec-team",
-  "paperclipai/bundled/product/product-design",
-  "paperclipai/bundled/software-development/product-engineering",
+  "outpost/bundled/product/product-design",
+  "outpost/bundled/software-development/product-engineering",
+  "outpost/bundled/space-defaults/core-crew",
 ];
 
 const EXPECTED_OPTIONAL_KEYS = [
-  "paperclipai/optional/communications/speko-company-phone-agent",
-  "paperclipai/optional/content/content-machine",
+  "outpost/optional/communications/speko-space-phone-agent",
+  "outpost/optional/content/content-machine",
 ];
 
 const PACKAGE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -51,8 +51,8 @@ describe("shipped teams catalog", () => {
       if (!team.description || team.description.length < 40) {
         issues.push(`${team.key} description must be at least 40 characters for catalog browse/search`);
       }
-      if (team.recommendedForCompanyTypes.length === 0) {
-        issues.push(`${team.key} must list recommendedForCompanyTypes`);
+      if (team.recommendedForSpaceTypes.length === 0) {
+        issues.push(`${team.key} must list recommendedForSpaceTypes`);
       }
       if (team.tags.length === 0) {
         issues.push(`${team.key} must list tags`);
@@ -64,11 +64,11 @@ describe("shipped teams catalog", () => {
     expect(issues).toEqual([]);
   });
 
-  it("uses canonical paperclipai keys derived from kind/category/slug", () => {
+  it("uses canonical outpost keys derived from kind/category/slug", () => {
     const violations: string[] = [];
     for (const team of catalogTeams) {
-      const expectedKey = `paperclipai/${team.kind}/${team.category}/${team.slug}`;
-      const expectedId = `paperclipai:${team.kind}:${team.category}:${team.slug}`;
+      const expectedKey = `outpost/${team.kind}/${team.category}/${team.slug}`;
+      const expectedId = `outpost:${team.kind}:${team.category}:${team.slug}`;
       if (team.key !== expectedKey) violations.push(`${team.key} should be ${expectedKey}`);
       if (team.id !== expectedId) violations.push(`${team.id} should be ${expectedId}`);
     }
@@ -82,8 +82,8 @@ describe("shipped teams catalog", () => {
   });
 
   it("resolves shipped teams by id, key, and unique slug", () => {
-    const sample = catalogTeams.find((team) => team.key === "paperclipai/bundled/company-defaults/core-exec-team");
-    expect(sample, "expected core-exec-team to ship in the bundled catalog").toBeDefined();
+    const sample = catalogTeams.find((team) => team.key === "outpost/bundled/space-defaults/core-crew");
+    expect(sample, "expected core-crew to ship in the bundled catalog").toBeDefined();
     if (!sample) return;
 
     expect(resolveCatalogTeamRef(sample.id)).toMatchObject({ key: sample.key });
@@ -93,14 +93,14 @@ describe("shipped teams catalog", () => {
 
   it("preserves shipped agent roles, reporting lines, and skill assignments", () => {
     const expected = {
-      "core-exec-team/ceo": { role: "ceo", reportsTo: null, skills: ["task-planning", "issue-triage"] },
-      "core-exec-team/cto": { role: "engineering-manager", reportsTo: "ceo", skills: ["github-pr-workflow", "task-planning"] },
-      "core-exec-team/qa": { role: "qa", reportsTo: "cto", skills: ["qa-acceptance"] },
-      "product-engineering/cto": { role: "engineering-manager", reportsTo: null, skills: ["github-pr-workflow", "task-planning", "doc-maintenance"] },
-      "product-engineering/qa": { role: "qa", reportsTo: "cto", skills: ["qa-acceptance"] },
-      "product-engineering/senior-coder": { role: "engineer", reportsTo: "cto", skills: ["github-pr-workflow", "doc-maintenance"] },
+      "core-crew/lead": { role: "lead", reportsTo: null, skills: ["task-planning", "issue-triage"] },
+      "core-crew/engineering-lead": { role: "engineering-manager", reportsTo: "lead", skills: ["github-pr-workflow", "task-planning"] },
+      "core-crew/qa": { role: "qa", reportsTo: "engineering-lead", skills: ["qa-acceptance"] },
+      "product-engineering/engineering-lead": { role: "engineering-manager", reportsTo: null, skills: ["github-pr-workflow", "task-planning", "doc-maintenance"] },
+      "product-engineering/qa": { role: "qa", reportsTo: "engineering-lead", skills: ["qa-acceptance"] },
+      "product-engineering/senior-coder": { role: "engineer", reportsTo: "engineering-lead", skills: ["github-pr-workflow", "doc-maintenance"] },
       "product-design/ux-designer": { role: "designer", reportsTo: null, skills: ["wireframe", "design-critique", "task-planning"] },
-      "speko-company-phone-agent/speko-company-phone-agent": { role: "general", reportsTo: null, skills: undefined },
+      "speko-space-phone-agent/speko-space-phone-agent": { role: "general", reportsTo: null, skills: undefined },
       "content-machine/content-lead": { role: "content-strategist", reportsTo: null, skills: ["content-calendar"] },
     };
     const observed: Record<string, unknown> = {};

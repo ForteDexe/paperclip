@@ -73,12 +73,12 @@ async function fixture(peer = new Peer(), extra: Partial<CursorCloudDriverOption
   const root = await mkdtemp("/tmp/cc-"); roots.push(root);
   const handler = vi.fn(async (_call: Parameters<CursorCloudDriverOptions["dynamicToolHandler"]>[0]) => ({ success: true, contentItems: [{ type: "inputText", text: "accepted" }] }));
   const options: CursorCloudDriverOptions = { model: "explicit-model", config: { schema: "outpost.cursor-cloud.config.v1", repos: [{ url: "https://github.com/example/repo", startingRef: "main" }] },
-    binding: { companyId: "company", agentId: "agent", issueId: "issue", normalizedSessionId: "session" }, runtimeDirectory: root,
+    binding: { spaceId: "space", agentId: "agent", issueId: "issue", normalizedSessionId: "session" }, runtimeDirectory: root,
     relay: { url: "https://relay.example.test/mcp", token: "private-relay-token", socketPath: join(root, "mcp.sock"), expiresAt: Date.now() + 600_000 }, instructions: "Follow these exact instructions.",
     dynamicTools: [{ name: "write_note", inputSchema: { type: "object", required: ["note"], properties: { note: { type: "string" } }, additionalProperties: false } }], dynamicToolHandler: handler,
     environment: { CURSOR_API_KEY: "private-cursor-key" }, client: peer, reconnectDelayMs: 1, cancelTimeoutMs: 300, ...extra };
   const driver = new CursorCloudDriver(options);
-  const session = await driver.openSession({ runId: "paperclip-run", normalizedSessionId: "session", workingDirectory: root }); sessions.push(session);
+  const session = await driver.openSession({ runId: "outpost-run", normalizedSessionId: "session", workingDirectory: root }); sessions.push(session);
   const events: PrpEvent[] = [];
   const pump = (async () => { for await (const event of session.events()) events.push(event); })();
   return { root, peer, handler, options, driver, session, events, pump };
@@ -105,7 +105,7 @@ async function savedCheckpoint(root: string, session: CursorCloudSessionHandle) 
 
 async function nextAuthority(f: Awaited<ReturnType<typeof fixture>>) {
   await acknowledgeTerminal(f.session);
-  await f.session.attachRun!({ runId: "paperclip-followup" });
+  await f.session.attachRun!({ runId: "outpost-followup" });
   const next = await f.session.startTurn({ message: { role: "user", text: "Next task" } });
   await waitFor(() => f.events.some(event => event.turnId === next.turnId && event.eventType === "item.delta"));
   return { next, checkpoint: await savedCheckpoint(f.root, f.session), eventCount: f.events.length };
@@ -303,21 +303,21 @@ describe("Cursor Cloud native driver", () => {
     }
     const sent = requests.at(-1)!;
     expect(sent.path).toBe(phase === "fresh" ? "/v1/agents" : `/v1/agents/${agentId}/runs`);
-    expect(sent.body).toMatchObject({ model: { id: "explicit-model", params: [{ id: "effort", value: "high" }] }, mode: "agent", mcpServers: [{ name: "paperclip", type: "http", url: f.options.relay.url, headers: { Authorization: `Bearer ${f.options.relay.token}` } }] });
+    expect(sent.body).toMatchObject({ model: { id: "explicit-model", params: [{ id: "effort", value: "high" }] }, mode: "agent", mcpServers: [{ name: "outpost", type: "http", url: f.options.relay.url, headers: { Authorization: `Bearer ${f.options.relay.token}` } }] });
     const prompt = sent.body.prompt.text;
-    expect(prompt).toContain('get_mcp_tools({server:"paperclip"})');
+    expect(prompt).toContain('get_mcp_tools({server:"outpost"})');
     expect(prompt).toContain("native Outpost Runner");
     expect(prompt).toContain("controller-managed MCP authentication");
-    expect(prompt).toContain("do not need Paperclip REST credentials in the Cloud VM");
+    expect(prompt).toContain("do not need Outpost REST credentials in the Cloud VM");
     expect(prompt).toContain("unrelated inherited dashboard MCP namespaces");
-    for (const tool of ["request_human_input", "paperclip_finish", "paperclip_block"]) expect(prompt).toContain(tool);
-    expect(prompt.endsWith(`\n\nPaperclip task:\n${task}`)).toBe(true);
+    for (const tool of ["request_human_input", "outpost_finish", "outpost_block"]) expect(prompt).toContain(tool);
+    expect(prompt.endsWith(`\n\nOutpost task:\n${task}`)).toBe(true);
     expect(requests[0]!.body.prompt.text.startsWith(instructions)).toBe(true);
     if (phase === "follow-up") expect(prompt).not.toContain(instructions);
     expect(prompt).not.toContain(f.options.relay.token);
     const checkpointPath = join(f.root, (await readdir(f.root)).find(name => /^checkpoint-.*\.json$/.test(name))!);
     const checkpoint = JSON.parse(await readFile(checkpointPath, "utf8"));
-    expect(checkpoint.instructionsDigest).toBe(cursorCloudDigest(requests[0]!.body.prompt.text.slice(0, -`\n\nPaperclip task:\n${task}`.length)));
+    expect(checkpoint.instructionsDigest).toBe(cursorCloudDigest(requests[0]!.body.prompt.text.slice(0, -`\n\nOutpost task:\n${task}`.length)));
     const { prompt: submittedPrompt, model, mode, mcpServers } = sent.body;
     expect(checkpoint.requestDigest).toBe(cursorCloudDigest(semanticCanonicalJson({ prompt: submittedPrompt, model, mode, mcpServers })));
   });
@@ -360,7 +360,7 @@ describe("Cursor Cloud native driver", () => {
     await reading.promise;
     await session.interrupt!({});
     await acknowledgeTerminal(session);
-    await session.attachRun!({ runId: "paperclip-followup" });
+    await session.attachRun!({ runId: "outpost-followup" });
     const next = await session.startTurn({ message: { role: "user", text: "Second task" } });
     await waitFor(() => events.some(event => event.turnId === next.turnId && event.eventType === "item.delta"));
     await session.snapshot();
@@ -485,7 +485,7 @@ describe("Cursor Cloud native driver", () => {
       await f.session.startTurn({ message: { role: "user", text: "First task" } });
       await waitFor(() => f.events.some(event => event.eventType === "item.delta"));
       await f.session.interrupt!({}); await acknowledgeTerminal(f.session);
-      await f.session.attachRun!({ runId: "paperclip-followup" });
+      await f.session.attachRun!({ runId: "outpost-followup" });
     }
     const before = await savedCheckpoint(f.root, f.session);
     const eventCount = f.events.length;
@@ -659,7 +659,7 @@ describe("Cursor Cloud native driver", () => {
     await acknowledgeTerminal(restored);
     await restored.startTurn({ message: { role: "user", text: "Follow up" } });
     await waitFor(() => f.peer.createRun.mock.calls.length === 1);
-    expect(f.peer.request?.prompt.text).toMatch(/^Updated assigned instructions and skill bundle\.[\s\S]*\n\nPaperclip task:\nFollow up$/);
+    expect(f.peer.request?.prompt.text).toMatch(/^Updated assigned instructions and skill bundle\.[\s\S]*\n\nOutpost task:\nFollow up$/);
     expect(f.peer.createAgent).toHaveBeenCalledTimes(1);
     const activeSnapshot = await restored.snapshot(); await restored.detachControllerForRestart!();
     await expect(new CursorCloudDriver(f.options).recoverSession(activeSnapshot)).rejects.toThrow("instructions changed");
@@ -668,7 +668,7 @@ describe("Cursor Cloud native driver", () => {
     await acknowledgeTerminal(final);
     await final.startTurn({ message: { role: "user", text: "One more task" } });
     await waitFor(() => f.peer.createRun.mock.calls.length === 2);
-    expect(f.peer.request?.prompt.text).toMatch(/\n\nPaperclip task:\nOne more task$/);
+    expect(f.peer.request?.prompt.text).toMatch(/\n\nOutpost task:\nOne more task$/);
     expect(f.peer.request?.prompt.text).not.toContain(revised.instructions);
   });
 
@@ -679,10 +679,10 @@ describe("Cursor Cloud native driver", () => {
     expect((await f.session.read?.())?.effectiveModelAcknowledged).toBe(false);
     await f.session.startTurn({ message: { role: "user", text: "Task one" } }); await f.peer.created.promise;
     await waitFor(() => f.events.some(event => event.eventType === "item.delta"));
-    expect(f.peer.request).toMatchObject({ model: { id: "explicit-model" }, prompt: { text: expect.stringMatching(/^Follow these exact instructions\.[\s\S]*\n\nPaperclip task:\nTask one$/) }, mcpServers: [{ url: "https://relay.example.test/mcp", headers: { Authorization: "Bearer private-relay-token" } }] });
+    expect(f.peer.request).toMatchObject({ model: { id: "explicit-model" }, prompt: { text: expect.stringMatching(/^Follow these exact instructions\.[\s\S]*\n\nOutpost task:\nTask one$/) }, mcpServers: [{ url: "https://relay.example.test/mcp", headers: { Authorization: "Bearer private-relay-token" } }] });
     expect(f.peer.request).not.toHaveProperty("schema");
     const identity = f.events.filter(event => event.payload.code === "cursor_cloud_remote_identity").map(event => JSON.parse(String(event.payload.message))).find(value => value.runId !== null);
-    expect(identity).toEqual({ schema: "outpost.cursor-cloud.remote-identity.v1", provider: "cursor_cloud", agentId: f.peer.native!.agentId, runId, ownerRunId: "paperclip-run", normalizedSessionId: "session", phase: "running" });
+    expect(identity).toEqual({ schema: "outpost.cursor-cloud.remote-identity.v1", provider: "cursor_cloud", agentId: f.peer.native!.agentId, runId, ownerRunId: "outpost-run", normalizedSessionId: "session", phase: "running" });
     const checkpoint = await readFile(join(f.root, (await readdir(f.root)).find(name => name.endsWith(".json"))!), "utf8");
     expect(checkpoint).not.toContain("private-relay-token"); expect(checkpoint).not.toContain("private-cursor-key"); expect(checkpoint).not.toContain("Task one");
     f.peer.native!.status = "FINISHED"; f.peer.release.resolve();
@@ -691,7 +691,7 @@ describe("Cursor Cloud native driver", () => {
     await acknowledgeTerminal(f.session);
     await f.session.startTurn({ message: { role: "user", text: "Task two" } });
     await waitFor(() => f.peer.createRun.mock.calls.length === 1);
-    expect(f.peer.request?.prompt.text).toMatch(/\n\nPaperclip task:\nTask two$/); expect(f.peer.request?.prompt.text).not.toContain(f.options.instructions); expect(f.peer.createAgent).toHaveBeenCalledTimes(1);
+    expect(f.peer.request?.prompt.text).toMatch(/\n\nOutpost task:\nTask two$/); expect(f.peer.request?.prompt.text).not.toContain(f.options.instructions); expect(f.peer.createAgent).toHaveBeenCalledTimes(1);
   });
 
   it("delivers the full admitted semantic response through the real Unix MCP bridge, rejects unknown/late calls", async () => {
@@ -721,9 +721,9 @@ describe("Cursor Cloud native driver", () => {
     const initialized = await rpc(f.options.relay.socketPath, { id: 0, method: "initialize" }, relayHeaders(f.peer));
     const args = { reportedWorkDisposition: "done", summary: "Completed.", evidence: [], verification: [], completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [], remainingWork: [] } };
     f.handler.mockResolvedValueOnce({ success: false, contentItems: [{ type: "inputText", text: "rejected" }] });
-    await rpc(f.options.relay.socketPath, { id: "rejected", method: "tools/call", params: { name: "paperclip_finish", arguments: args } }, relayHeaders(f.peer), initialized.session);
+    await rpc(f.options.relay.socketPath, { id: "rejected", method: "tools/call", params: { name: "outpost_finish", arguments: args } }, relayHeaders(f.peer), initialized.session);
     expect((await f.session.read?.())?.semanticCompletionReceipt).toBeNull();
-    await rpc(f.options.relay.socketPath, { id: "accepted", method: "tools/call", params: { name: "paperclip_finish", arguments: args } }, relayHeaders(f.peer), initialized.session);
+    await rpc(f.options.relay.socketPath, { id: "accepted", method: "tools/call", params: { name: "outpost_finish", arguments: args } }, relayHeaders(f.peer), initialized.session);
     expect((await f.session.read?.())?.semanticCompletionReceipt).toMatchObject({ inputDigest: expect.stringMatching(/^[a-f0-9]{64}$/) });
     expect(f.events.some(event => event.eventType === "turn.completed" || event.eventType === "run.result.proposed")).toBe(false);
     f.peer.native!.status = "FINISHED"; f.peer.release.resolve();
@@ -918,7 +918,7 @@ describe("Cursor Cloud native driver", () => {
     expect(recovered.recovered).toBe(true);
     const restored = recovered.session!; sessions.push(restored);
     expect(await restored.read()).toMatchObject({ phase: "idle", providerStatus: "REJECTED" });
-    await restored.attachRun!({ runId: "paperclip-after-size-rejection" });
+    await restored.attachRun!({ runId: "outpost-after-size-rejection" });
     distinctFollowup(peer); peer.release = deferred();
     const next = await restored.startTurn({ message: { role: "user", text: "A smaller admitted task" } });
     await vi.waitFor(async () => expect(await restored.read()).toMatchObject({ phase: "running", turnId: next.turnId }));
@@ -1037,7 +1037,7 @@ describe("Cursor Cloud native driver", () => {
         const recovered = await new CursorCloudDriver(f.options).recoverSession(snapshot);
         expect(recovered.recovered).toBe(true);
         const restored = recovered.session!; sessions.push(restored);
-        await restored.attachRun!({ runId: "paperclip-after-rejection" });
+        await restored.attachRun!({ runId: "outpost-after-rejection" });
         distinctFollowup(peer); peer.release = deferred();
         const next = await restored.startTurn({ message: { role: "user", text: "Next admitted task" } });
         await vi.waitFor(async () => expect(await restored.read()).toMatchObject({ phase: "running", turnId: next.turnId }));

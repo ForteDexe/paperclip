@@ -19,7 +19,7 @@ function Publish({ eligible = true }: { eligible?: boolean }) {
         onClick={() =>
           publishFixtureEvent({
             id: 1,
-            companyId: "company-storybook",
+            spaceId: "space-storybook",
             type: "activity.logged",
             createdAt: new Date().toISOString(),
             toastEligible: eligible,
@@ -65,7 +65,7 @@ const meta = {
           "Production socket consumer and toast viewport. Server eligibility metadata is simulated; persisted participation and mentions require multiplayer tests.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "inbox-search/toasts"
       ],

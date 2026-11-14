@@ -55,13 +55,13 @@ export async function assertEphemeralServerData(db: Db) {
 export async function readEphemeralServerDataEligibility(db: Db, options: { purpose?: "migration" | "startup" } = {}) {
   const blockers: string[] = [];
   const [missingFiles] = await db.select({ id: agents.id }).from(agents).leftJoin(agentFileRoots,
-    and(eq(agentFileRoots.companyId, agents.companyId), eq(agentFileRoots.agentId, agents.id)))
+    and(eq(agentFileRoots.spaceId, agents.spaceId), eq(agentFileRoots.agentId, agents.id)))
     .where(isNull(agentFileRoots.agentId)).limit(1);
   if (missingFiles) blockers.push("agent_files_require_migration");
   if (await hasUnsettledLocalInstructionCopies(db)) blockers.push("local_instruction_copies_require_settlement");
   // Only inspect configuration here; filesystem reads must never adopt an
   // empty directory on the replacement machine as the old server's content.
-  const configured = await db.select({ id: agents.id, companyId: agents.companyId, name: agents.name, adapterConfig: agents.adapterConfig }).from(agents);
+  const configured = await db.select({ id: agents.id, spaceId: agents.spaceId, name: agents.name, adapterConfig: agents.adapterConfig }).from(agents);
   if (configured.some(agent => agentInstructionsBundleMode(agent) === "external")) blockers.push("external_agent_instructions");
   const [localWorkspace] = await db.select({ id: executionWorkspaces.id }).from(executionWorkspaces)
     .where(localWorkspaceDependencyWhere(db)).limit(1);

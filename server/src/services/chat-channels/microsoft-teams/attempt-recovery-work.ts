@@ -5,20 +5,20 @@ import { DELIVERY_QUEUES, notifyDeliveryWork } from "../../delivery-work-notific
 import { registerScopedDeadlineWork } from "../../scoped-deadline-work.js";
 
 export const abandonedTeamsAttemptPhases = ["consent_sending", "uploading", "file_info_sending", "conflict"];
-type Entry = { id: string; companyId: string; dueAt: number };
+type Entry = { id: string; spaceId: string; dueAt: number };
 
 export function notifyTeamsAttemptRecovery(tx: object, id: string) {
   return notifyDeliveryWork(tx, DELIVERY_QUEUES.chatTeamsAttemptRecovery, id);
 }
 
 /** Retires expired transport claims without retrying an unknown provider effect. */
-export function teamsAttemptRecoveryWork(db: Db, recover: (companyId: string, id: string) => Promise<boolean>) {
+export function teamsAttemptRecoveryWork(db: Db, recover: (spaceId: string, id: string) => Promise<boolean>) {
   async function load(id?: string, signal?: AbortSignal): Promise<Entry[]> {
     try {
       const entries: Entry[] = []; let cursor: string | undefined;
       for (;;) {
         signal?.throwIfAborted();
-        const rows = await db.select({ id: chatTeamsFileTransfers.id, companyId: chatTeamsFileTransfers.companyId,
+        const rows = await db.select({ id: chatTeamsFileTransfers.id, spaceId: chatTeamsFileTransfers.spaceId,
           dueAt: sql<string>`ceil(extract(epoch from ${chatTeamsFileTransfers.attemptExpiresAt}) * 1000)`,
         }).from(chatTeamsFileTransfers).where(and(inArray(chatTeamsFileTransfers.phase, abandonedTeamsAttemptPhases),
           isNotNull(chatTeamsFileTransfers.attemptExpiresAt),
@@ -38,7 +38,7 @@ export function teamsAttemptRecoveryWork(db: Db, recover: (companyId: string, id
     if (!current) return null;
     if (current.dueAt > Date.now()) return current;
     signal?.throwIfAborted();
-    try { await recover(current.companyId, current.id); }
+    try { await recover(current.spaceId, current.id); }
     catch { throw new Error("Teams attempt recovery could not settle"); }
     return (await load(entry.id, signal))[0] ?? null;
   }

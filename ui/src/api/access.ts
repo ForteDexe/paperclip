@@ -1,16 +1,16 @@
 import type { AgentAdapterType, JoinRequest, PermissionKey } from "@outpost/shared";
 import { api, type RequestOptions } from "./client";
 
-export type HumanCompanyRole = "owner" | "admin" | "operator" | "viewer";
+export type HumanSpaceRole = "owner" | "admin" | "operator" | "viewer";
 
 type InviteSummary = {
   id: string;
-  companyId: string | null;
-  companyName?: string | null;
-  companyLogoUrl?: string | null;
-  inviteType: "company_join" | "bootstrap_ceo";
+  spaceId: string | null;
+  spaceName?: string | null;
+  spaceLogoUrl?: string | null;
+  inviteType: "space_join" | "bootstrap_lead";
   allowedJoinTypes: "human" | "agent" | "both";
-  humanRole?: HumanCompanyRole | null;
+  humanRole?: HumanSpaceRole | null;
   expiresAt: string;
   onboardingPath?: string;
   onboardingUrl?: string;
@@ -65,7 +65,7 @@ type InviteOnboardingManifest = {
   };
 };
 
-type BoardClaimStatus = {
+type OperatorClaimStatus = {
   status: "available" | "claimed" | "expired";
   requiresSignIn: boolean;
   expiresAt: string | null;
@@ -77,9 +77,9 @@ type CliAuthChallengeStatus = {
   status: "pending" | "approved" | "cancelled" | "expired";
   command: string;
   clientName: string | null;
-  requestedAccess: "board" | "instance_admin_required";
-  requestedCompanyId: string | null;
-  requestedCompanyName: string | null;
+  requestedAccess: "operator" | "instance_admin_required";
+  requestedSpaceId: string | null;
+  requestedSpaceName: string | null;
   approvedAt: string | null;
   cancelledAt: string | null;
   expiresAt: string;
@@ -89,22 +89,22 @@ type CliAuthChallengeStatus = {
   currentUserId: string | null;
 };
 
-type CompanyInviteCreated = {
+type SpaceInviteCreated = {
   id: string;
   token: string;
   inviteUrl: string;
   expiresAt: string;
   allowedJoinTypes: "human" | "agent" | "both";
-  humanRole?: HumanCompanyRole | null;
-  companyName?: string | null;
+  humanRole?: HumanSpaceRole | null;
+  spaceName?: string | null;
   onboardingTextPath?: string;
   onboardingTextUrl?: string;
   inviteMessage?: string | null;
 };
 
-export type CompanyMemberGrant = {
+export type SpaceMemberGrant = {
   id: string;
-  companyId: string;
+  spaceId: string;
   principalType: "user";
   principalId: string;
   permissionKey: PermissionKey;
@@ -114,56 +114,56 @@ export type CompanyMemberGrant = {
   updatedAt: string;
 };
 
-export type CompanyMember = {
+export type SpaceMember = {
   id: string;
-  companyId: string;
+  spaceId: string;
   principalType: "user";
   principalId: string;
   status: "pending" | "active" | "suspended" | "archived";
-  membershipRole: HumanCompanyRole | null;
+  membershipRole: HumanSpaceRole | null;
   createdAt: string;
   updatedAt: string;
   user: { id: string; email: string | null; name: string | null; image: string | null } | null;
-  grants: CompanyMemberGrant[];
+  grants: SpaceMemberGrant[];
   removal?: {
     canArchive: boolean;
     reason: string | null;
   };
 };
 
-export type ArchiveCompanyMemberResponse = {
-  member: CompanyMember;
+export type ArchiveSpaceMemberResponse = {
+  member: SpaceMember;
   reassignedIssueCount: number;
 };
 
-export type CompanyMembersResponse = {
-  members: CompanyMember[];
+export type SpaceMembersResponse = {
+  members: SpaceMember[];
   access: {
-    currentUserRole: HumanCompanyRole | null;
+    currentUserRole: HumanSpaceRole | null;
     canManageMembers: boolean;
     canInviteUsers: boolean;
     canApproveJoinRequests: boolean;
   };
 };
 
-export type CompanyUserDirectoryEntry = {
+export type SpaceUserDirectoryEntry = {
   principalId: string;
   status: "active";
   membershipRole: string | null;
   user: { id: string; email: string | null; name: string | null; image: string | null } | null;
 };
 
-export type CompanyUserDirectoryResponse = {
-  users: CompanyUserDirectoryEntry[];
+export type SpaceUserDirectoryResponse = {
+  users: SpaceUserDirectoryEntry[];
 };
 
-export type CompanyInviteRecord = {
+export type SpaceInviteRecord = {
   id: string;
-  companyId: string | null;
-  companyName: string | null;
-  inviteType: "company_join" | "bootstrap_ceo";
+  spaceId: string | null;
+  spaceName: string | null;
+  inviteType: "space_join" | "bootstrap_lead";
   allowedJoinTypes: "human" | "agent" | "both";
-  humanRole: HumanCompanyRole | null;
+  humanRole: HumanSpaceRole | null;
   defaultsPayload: Record<string, unknown> | null;
   expiresAt: string;
   invitedByUserId: string | null;
@@ -177,20 +177,20 @@ export type CompanyInviteRecord = {
   relatedJoinRequestId: string | null;
 };
 
-export type CompanyInviteListResponse = {
-  invites: CompanyInviteRecord[];
+export type SpaceInviteListResponse = {
+  invites: SpaceInviteRecord[];
   nextOffset: number | null;
 };
 
-export type CompanyJoinRequest = JoinRequest & {
+export type SpaceJoinRequest = JoinRequest & {
   requesterUser: { id: string; email: string | null; name: string | null; image: string | null } | null;
   approvedByUser: { id: string; email: string | null; name: string | null; image: string | null } | null;
   rejectedByUser: { id: string; email: string | null; name: string | null; image: string | null } | null;
   invite: {
     id: string;
-    inviteType: "company_join" | "bootstrap_ceo";
+    inviteType: "space_join" | "bootstrap_lead";
     allowedJoinTypes: "human" | "agent" | "both";
-    humanRole: HumanCompanyRole | null;
+    humanRole: HumanSpaceRole | null;
     inviteMessage: string | null;
     createdAt: string;
     expiresAt: string;
@@ -206,17 +206,17 @@ export type AdminUserDirectoryEntry = {
   name: string | null;
   image: string | null;
   isInstanceAdmin: boolean;
-  activeCompanyMembershipCount: number;
+  activeSpaceMembershipCount: number;
 };
 
 export type CurrentBoardAccess = {
   user: { id: string; email: string | null; name: string | null; image: string | null } | null;
   userId: string;
   isInstanceAdmin: boolean;
-  companyIds: string[];
+  spaceIds: string[];
   memberships?: Array<{
-    companyId: string;
-    membershipRole: HumanCompanyRole | "member" | null;
+    spaceId: string;
+    membershipRole: HumanSpaceRole | "member" | null;
     status: "pending" | "active" | "suspended" | "archived";
   }>;
   source: string;
@@ -237,25 +237,25 @@ function buildInviteListQuery(options: {
 }
 
 export const accessApi = {
-  createCompanyInvite: (
-    companyId: string,
+  createSpaceInvite: (
+    spaceId: string,
     input: {
       allowedJoinTypes?: "human" | "agent" | "both";
-      humanRole?: HumanCompanyRole | null;
+      humanRole?: HumanSpaceRole | null;
       defaultsPayload?: Record<string, unknown> | null;
       agentMessage?: string | null;
     } = {},
   ) =>
-    api.post<CompanyInviteCreated>(`/companies/${companyId}/invites`, input),
+    api.post<SpaceInviteCreated>(`/spaces/${spaceId}/invites`, input),
 
   createOpenClawInvitePrompt: (
-    companyId: string,
+    spaceId: string,
     input: {
       agentMessage?: string | null;
     } = {},
   ) =>
-    api.post<CompanyInviteCreated>(
-      `/companies/${companyId}/openclaw/invite-prompt`,
+    api.post<SpaceInviteCreated>(
+      `/spaces/${spaceId}/openclaw/invite-prompt`,
       input,
     ),
 
@@ -270,47 +270,47 @@ export const accessApi = {
     ),
 
   listInvites: (
-    companyId: string,
+    spaceId: string,
     options: {
       state?: "active" | "revoked" | "accepted" | "expired";
       limit?: number;
       offset?: number;
     } = {},
   ) =>
-    api.get<CompanyInviteListResponse>(
-      `/companies/${companyId}/invites${buildInviteListQuery(options)}`,
+    api.get<SpaceInviteListResponse>(
+      `/spaces/${spaceId}/invites${buildInviteListQuery(options)}`,
     ),
 
   revokeInvite: (inviteId: string) => api.post(`/invites/${inviteId}/revoke`, {}),
 
   listJoinRequests: (
-    companyId: string,
+    spaceId: string,
     status: "pending_approval" | "approved" | "rejected" = "pending_approval",
     requestType?: "human" | "agent",
     options?: RequestOptions,
   ) =>
-    api.get<CompanyJoinRequest[]>(
-      `/companies/${companyId}/join-requests?status=${status}${requestType ? `&requestType=${requestType}` : ""}`,
+    api.get<SpaceJoinRequest[]>(
+      `/spaces/${spaceId}/join-requests?status=${status}${requestType ? `&requestType=${requestType}` : ""}`,
       options,
     ),
 
-  listMembers: (companyId: string) =>
-    api.get<CompanyMembersResponse>(`/companies/${companyId}/members`),
+  listMembers: (spaceId: string) =>
+    api.get<SpaceMembersResponse>(`/spaces/${spaceId}/members`),
 
-  listUserDirectory: (companyId: string, options?: RequestOptions) =>
-    api.get<CompanyUserDirectoryResponse>(`/companies/${companyId}/user-directory`, options),
+  listUserDirectory: (spaceId: string, options?: RequestOptions) =>
+    api.get<SpaceUserDirectoryResponse>(`/spaces/${spaceId}/user-directory`, options),
 
   updateMember: (
-    companyId: string,
+    spaceId: string,
     memberId: string,
     input: {
-      membershipRole?: HumanCompanyRole | null;
+      membershipRole?: HumanSpaceRole | null;
       status?: "pending" | "active" | "suspended";
     },
-  ) => api.patch<CompanyMember>(`/companies/${companyId}/members/${memberId}`, input),
+  ) => api.patch<SpaceMember>(`/spaces/${spaceId}/members/${memberId}`, input),
 
   updateMemberPermissions: (
-    companyId: string,
+    spaceId: string,
     memberId: string,
     input: {
       grants: Array<{
@@ -318,23 +318,23 @@ export const accessApi = {
         scope?: Record<string, unknown> | null;
       }>;
     },
-  ) => api.patch<CompanyMember>(`/companies/${companyId}/members/${memberId}/permissions`, input),
+  ) => api.patch<SpaceMember>(`/spaces/${spaceId}/members/${memberId}/permissions`, input),
 
   updateMemberAccess: (
-    companyId: string,
+    spaceId: string,
     memberId: string,
     input: {
-      membershipRole?: HumanCompanyRole | null;
+      membershipRole?: HumanSpaceRole | null;
       status?: "pending" | "active" | "suspended";
       grants: Array<{
         permissionKey: PermissionKey;
         scope?: Record<string, unknown> | null;
       }>;
     },
-  ) => api.patch<CompanyMember>(`/companies/${companyId}/members/${memberId}/role-and-grants`, input),
+  ) => api.patch<SpaceMember>(`/spaces/${spaceId}/members/${memberId}/role-and-grants`, input),
 
   archiveMember: (
-    companyId: string,
+    spaceId: string,
     memberId: string,
     input: {
       reassignment?: {
@@ -342,13 +342,13 @@ export const accessApi = {
         assigneeUserId?: string | null;
       } | null;
     } = {},
-  ) => api.post<ArchiveCompanyMemberResponse>(`/companies/${companyId}/members/${memberId}/archive`, input),
+  ) => api.post<ArchiveSpaceMemberResponse>(`/spaces/${spaceId}/members/${memberId}/archive`, input),
 
-  approveJoinRequest: (companyId: string, requestId: string) =>
-    api.post<JoinRequest>(`/companies/${companyId}/join-requests/${requestId}/approve`, {}),
+  approveJoinRequest: (spaceId: string, requestId: string) =>
+    api.post<JoinRequest>(`/spaces/${spaceId}/join-requests/${requestId}/approve`, {}),
 
-  rejectJoinRequest: (companyId: string, requestId: string) =>
-    api.post<JoinRequest>(`/companies/${companyId}/join-requests/${requestId}/reject`, {}),
+  rejectJoinRequest: (spaceId: string, requestId: string) =>
+    api.post<JoinRequest>(`/spaces/${spaceId}/join-requests/${requestId}/reject`, {}),
 
   claimJoinRequestApiKey: (requestId: string, claimSecret: string) =>
     api.post<{ keyId: string; token: string; agentId: string; createdAt: string }>(
@@ -356,11 +356,11 @@ export const accessApi = {
       { claimSecret },
     ),
 
-  getBoardClaimStatus: (token: string, code: string) =>
-    api.get<BoardClaimStatus>(`/board-claim/${token}?code=${encodeURIComponent(code)}`),
+  getOperatorClaimStatus: (token: string, code: string) =>
+    api.get<OperatorClaimStatus>(`/operator-claim/${token}?code=${encodeURIComponent(code)}`),
 
   claimBoard: (token: string, code: string) =>
-    api.post<{ claimed: true; userId: string }>(`/board-claim/${token}/claim`, { code }),
+    api.post<{ claimed: true; userId: string }>(`/operator-claim/${token}/claim`, { code }),
 
   claimBootstrapAdmin: () =>
     api.post<{ claimed: true; userId: string }>("/bootstrap/claim", {}),

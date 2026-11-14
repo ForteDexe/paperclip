@@ -5,16 +5,16 @@ type Row = Record<string, unknown>;
 const object = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
 const time = (value: unknown) => typeof value === "string" || value instanceof Date ? new Date(value).getTime() : NaN;
 const operation = "GET /api/issues/{id}/comments";
-export interface PublicReceiptBinding { companyId: string; leadId: string; canonicalRunId: string; workerId: string; workerTaskId: string; workerRunId: string }
+export interface PublicReceiptBinding { spaceId: string; leadId: string; canonicalRunId: string; workerId: string; workerTaskId: string; workerRunId: string }
 function matchesPublicReceiptResponse(events: Row[], report: Row, comments: Row[], binding: PublicReceiptBinding) {
-  if (!binding.companyId || !binding.leadId || !binding.canonicalRunId || !binding.workerId || !binding.workerTaskId || !binding.workerRunId
+  if (!binding.spaceId || !binding.leadId || !binding.canonicalRunId || !binding.workerId || !binding.workerTaskId || !binding.workerRunId
     || binding.workerId === binding.leadId || binding.workerRunId === binding.canonicalRunId || !report.id || typeof report.body !== "string"
-    || report.companyId !== binding.companyId || report.issueId !== binding.workerTaskId || report.authorAgentId !== binding.workerId || report.createdByRunId !== binding.workerRunId
-    || !Array.isArray(comments) || !comments.length || !comments.every(row => row.companyId === binding.companyId && row.issueId === binding.workerTaskId)
+    || report.spaceId !== binding.spaceId || report.issueId !== binding.workerTaskId || report.authorAgentId !== binding.workerId || report.createdByRunId !== binding.workerRunId
+    || !Array.isArray(comments) || !comments.length || !comments.every(row => row.spaceId === binding.spaceId && row.issueId === binding.workerTaskId)
     || !comments.some(row => nativeSha256(row) === nativeSha256(report))) return false;
   const rows = events.flatMap(event => {
     const envelope = object(object(event.payload).orpEvent), payload = object(envelope.payload);
-    return event.companyId === binding.companyId && event.agentId === binding.leadId && event.runId === binding.canonicalRunId
+    return event.spaceId === binding.spaceId && event.agentId === binding.leadId && event.runId === binding.canonicalRunId
       && Number.isSafeInteger(Number(event.seq)) && Number(event.seq) > 0 && isValidNativePrpEnvelope(envelope, event.protocolSchemaVersion) && envelope.sourceKind === "runner"
       ? [{ event, payload }] : [];
   });

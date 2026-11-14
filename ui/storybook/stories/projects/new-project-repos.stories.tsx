@@ -10,7 +10,7 @@ const meta = {
   component: NewProjectPrototype,
   tags: ["!autodocs"],
   parameters: { layout: "fullscreen", viewport: { options: reviewViewports }, docs: { description: { component: "Interactive design proposal only. The project name starts empty and focused, with an outlined folder icon. The source repo region scrolls while the title, name, and actions remain visible. GitHub setup uses the existing ConnectionSetupFlow; Continue to GitHub simulates a successful provider return. Creation and repository changes stay in memory." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "projects/repositories"
       ],
@@ -28,7 +28,7 @@ export const Default: Story = { name: "01 · Name and optional repo" };
 export const NoGitHubConnection: Story = { name: "02 · GitHub not connected", args: { initialState: "disconnected" } };
 export const ExistingGitHubSetup: Story = { name: "03 · Existing GitHub connection UI", args: { initialState: "disconnected", startConnecting: true } };
 export const AllAvailableRepos: Story = {
-  name: "04 · Search personal + company repos (deduplicated)",
+  name: "04 · Search personal + space repos (deduplicated)",
   play: async ({ canvasElement }) => {
     const screen = within(canvasElement.ownerDocument.body);
     await userEvent.click(await screen.findByRole("button", { name: "Add GitHub repo" }));

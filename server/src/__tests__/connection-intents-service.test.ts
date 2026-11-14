@@ -9,11 +9,11 @@ import {
   aiProviderDefaults,
   agentWakeupRequests,
   issueComments,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   principalPermissionGrants,
-  companySecretBindings,
-  companySecrets,
+  spaceSecretBindings,
+  spaceSecrets,
   connectionGrantDelegations,
   connectionGrants,
   createDb,
@@ -36,7 +36,7 @@ import type { RuntimeToolsTokenClaims } from "../runtime-tools-token.js";
 import { wakeConnectionIntentAfterResolution } from "../routes/connection-intents.js";
 import { connectionIntentDeliveryService } from "../services/connection-intent-delivery.js";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { materializeNativeInteractionResponses } from "../services/native-runtime/native-interaction-bridge.js";
 import { toolAccessService } from "../services/tool-access.js";
 import { toolAccessPolicyService } from "../services/tool-access-policy.js";
@@ -101,24 +101,24 @@ describeEmbeddedPostgres("connectionIntentService", () => {
   let runId!: string;
 
   beforeAll(async () => {
-    const tempDb = await startEmbeddedPostgresTestDatabase("paperclip-connection-intents-");
+    const tempDb = await startEmbeddedPostgresTestDatabase("outpost-connection-intents-");
     cleanup = tempDb.cleanup;
     connectionString = tempDb.connectionString;
     db = createDb(connectionString);
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const goalId = randomUUID();
     const issueId = randomUUID();
     runId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Connection tests",
       issuePrefix: "CONN",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(authUsers).values({ id: "responsible-user", name: "Responsible user", email: "responsible@example.test", createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({
-      companyId,
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "user",
       principalId: "responsible-user",
       status: "active",
@@ -126,14 +126,14 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     });
     await db.insert(goals).values({
       id: goalId,
-      companyId,
+      spaceId,
       title: "Connect a service",
       level: "task",
       status: "active",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Researcher",
       role: "researcher",
       status: "active",
@@ -144,7 +144,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       goalId,
       title: "Read Notion",
       status: "in_progress",
@@ -153,7 +153,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       responsibleUserId: "responsible-user",
@@ -161,7 +161,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     });
     claims = {
       sub: agentId,
-      company_id: companyId,
+      space_id: spaceId,
       run_id: runId,
       responsible_user_id: "responsible-user",
       scope: "connection_intents",
@@ -183,7 +183,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
           FROM pg_stat_activity
           WHERE state = 'active'
             AND wait_event_type = 'Lock'
-            AND query ILIKE '%company_memberships%'
+            AND query ILIKE '%space_memberships%'
             AND query ILIKE '%for update%'
         ) AS waiting
       `);
@@ -236,7 +236,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
       const off = await service.search(claims, "iMessage");
       const imessage = off.results.find(item => item.service === "imessage-photon");
       expect(imessage).toMatchObject({ state: "unavailable", methods: [] });
-      expect(imessage?.reason).toMatch(/\[Experimental settings\]\(\/[A-Z0-9]+\/company\/settings\/instance\/experimental\)/);
+      expect(imessage?.reason).toMatch(/\[Experimental settings\]\(\/[A-Z0-9]+\/space\/settings\/instance\/experimental\)/);
       expect(off.instruction).toContain("Explain the reason");
       expect((await service.search(claims, "slack")).results.some(item => item.state === "unavailable" && item.methods.length === 0)).toBe(false);
       expect((await service.search(claims, "discord")).results.some(item => item.service === "discord" && item.state === "unavailable")).toBe(false);
@@ -276,7 +276,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     });
 
     const [application] = await db.insert(toolApplications).values({
-      companyId: claims.company_id,
+      spaceId: claims.space_id,
       applicationKey: `notion-${randomUUID()}`,
       name: "Notion",
       type: "mcp_http",
@@ -284,7 +284,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
       metadata: { sourceTemplateKey: "notion" },
     }).returning();
     const [connection] = await db.insert(toolConnections).values({
-      companyId: claims.company_id,
+      spaceId: claims.space_id,
       applicationId: application!.id,
       name: "Responsible user's Notion",
       uid: `notion/${randomUUID()}`,
@@ -298,7 +298,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
       transportConfig: { sourceTemplateKey: "notion" },
     }).returning();
     const [grant] = await db.insert(connectionGrants).values({
-      companyId: claims.company_id,
+      spaceId: claims.space_id,
       connectionId: connection!.id,
       kind: "user",
       subjectUserId: claims.responsible_user_id,
@@ -306,7 +306,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
       isDefault: false,
     }).returning();
     const [otherAgent] = await db.insert(agents).values({
-      companyId: claims.company_id,
+      spaceId: claims.space_id,
       name: "Existing Notion user",
       role: "researcher",
       status: "active",
@@ -316,7 +316,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
       permissions: {},
     }).returning();
     await db.insert(toolConnectionInstalls).values({
-      companyId: claims.company_id,
+      spaceId: claims.space_id,
       connectionId: connection!.id,
       targetType: "agent",
       targetId: otherAgent!.id,
@@ -329,9 +329,9 @@ describeEmbeddedPostgres("connectionIntentService", () => {
       eq(issueThreadInteractions.id, first.interactionId!),
     )).toEqual([expect.objectContaining({ status: "pending" })]);
 
-    const [profile] = await db.insert(toolProfiles).values({ companyId: claims.company_id, name: "Notion reads", profileKey: "notion-reads", defaultAction: "allow", status: "active" }).returning();
-    await db.insert(toolProfileBindings).values({ companyId: claims.company_id, profileId: profile!.id, targetType: "agent", targetId: claims.sub });
-    await db.insert(toolCatalogEntries).values({ companyId: claims.company_id, connectionId: connection!.id, toolName: "notion-read", name: "notion-read", versionHash: "fixture-v1", status: "active", entryKind: "tool" });
+    const [profile] = await db.insert(toolProfiles).values({ spaceId: claims.space_id, name: "Notion reads", profileKey: "notion-reads", defaultAction: "allow", status: "active" }).returning();
+    await db.insert(toolProfileBindings).values({ spaceId: claims.space_id, profileId: profile!.id, targetType: "agent", targetId: claims.sub });
+    await db.insert(toolCatalogEntries).values({ spaceId: claims.space_id, connectionId: connection!.id, toolName: "notion-read", name: "notion-read", versionHash: "fixture-v1", status: "active", entryKind: "tool" });
     const resolved = await service.complete(
       first.interactionId!,
       connection!.id,
@@ -366,7 +366,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     const continuationRunId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: continuationRunId,
-      companyId: claims.company_id,
+      spaceId: claims.space_id,
       agentId: claims.sub,
       status: "running",
       responsibleUserId: claims.responsible_user_id,
@@ -382,7 +382,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     ]);
 
     const [dedicatedConnection] = await db.insert(toolConnections).values({
-      companyId: claims.company_id,
+      spaceId: claims.space_id,
       applicationId: application!.id,
       name: "Researcher's dedicated Notion",
       uid: `notion/${randomUUID()}`,
@@ -396,7 +396,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
       transportConfig: { sourceTemplateKey: "notion" },
     }).returning();
     await db.insert(connectionGrants).values({
-      companyId: claims.company_id,
+      spaceId: claims.space_id,
       connectionId: dedicatedConnection!.id,
       kind: "agent",
       subjectAgentId: claims.sub,
@@ -404,13 +404,13 @@ describeEmbeddedPostgres("connectionIntentService", () => {
       isDefault: false,
     });
     await db.insert(toolConnectionInstalls).values({
-      companyId: claims.company_id,
+      spaceId: claims.space_id,
       connectionId: dedicatedConnection!.id,
       targetType: "agent",
       targetId: claims.sub,
     });
 
-    await db.insert(toolCatalogEntries).values({ companyId: claims.company_id, connectionId: dedicatedConnection!.id, toolName: "notion-read", name: "notion-read", versionHash: "fixture-v1", status: "active", entryKind: "tool" });
+    await db.insert(toolCatalogEntries).values({ spaceId: claims.space_id, connectionId: dedicatedConnection!.id, toolName: "notion-read", name: "notion-read", versionHash: "fixture-v1", status: "active", entryKind: "tool" });
     const dedicatedSearch = await service.search(continuationClaims, "notion");
     expect(dedicatedSearch.results).toEqual([
       expect.objectContaining({ service: "notion", state: "ready", connectionId: dedicatedConnection!.id }),
@@ -480,20 +480,20 @@ describeEmbeddedPostgres("connectionIntentService", () => {
   });
 
   it("serializes OAuth intent completion behind addressed-user membership revocation", async () => {
-    const raceCompanyId = randomUUID();
+    const raceSpaceId = randomUUID();
     const raceAgentId = randomUUID();
     const raceGoalId = randomUUID();
     const raceIssueId = randomUUID();
     const raceRunId = randomUUID();
     const raceUserId = `race-user-${randomUUID()}`;
-    await db.insert(companies).values({
-      id: raceCompanyId,
+    await db.insert(spaces).values({
+      id: raceSpaceId,
       name: "Connection intent authority race",
       issuePrefix: `RACE${randomUUID().slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
-    await db.insert(companyMemberships).values({
-      companyId: raceCompanyId,
+    await db.insert(spaceMemberships).values({
+      spaceId: raceSpaceId,
       principalType: "user",
       principalId: raceUserId,
       status: "active",
@@ -501,14 +501,14 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     });
     await db.insert(goals).values({
       id: raceGoalId,
-      companyId: raceCompanyId,
+      spaceId: raceSpaceId,
       title: "Connect Notion during authority race",
       level: "task",
       status: "active",
     });
     await db.insert(agents).values({
       id: raceAgentId,
-      companyId: raceCompanyId,
+      spaceId: raceSpaceId,
       name: "Race agent",
       role: "researcher",
       status: "active",
@@ -519,7 +519,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     });
     await db.insert(issues).values({
       id: raceIssueId,
-      companyId: raceCompanyId,
+      spaceId: raceSpaceId,
       goalId: raceGoalId,
       title: "Use Notion",
       status: "in_progress",
@@ -528,7 +528,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: raceRunId,
-      companyId: raceCompanyId,
+      spaceId: raceSpaceId,
       agentId: raceAgentId,
       status: "running",
       responsibleUserId: raceUserId,
@@ -536,7 +536,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     });
     const raceClaims: RuntimeToolsTokenClaims = {
       sub: raceAgentId,
-      company_id: raceCompanyId,
+      space_id: raceSpaceId,
       run_id: raceRunId,
       responsible_user_id: raceUserId,
       scope: "connection_intents",
@@ -549,7 +549,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     const service = connectionIntentService(completionDb);
     const pending = await service.request(raceClaims, "notion");
     const [application] = await db.insert(toolApplications).values({
-      companyId: raceClaims.company_id,
+      spaceId: raceClaims.space_id,
       applicationKey: `notion-race-${randomUUID()}`,
       name: "Notion",
       type: "mcp_http",
@@ -557,7 +557,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
       metadata: { sourceTemplateKey: "notion" },
     }).returning();
     const [connection] = await db.insert(toolConnections).values({
-      companyId: raceClaims.company_id,
+      spaceId: raceClaims.space_id,
       applicationId: application!.id,
       name: "Personal Notion OAuth",
       uid: `notion-race/${randomUUID()}`,
@@ -571,12 +571,12 @@ describeEmbeddedPostgres("connectionIntentService", () => {
       transportConfig: { sourceTemplateKey: "notion", connectionMethodKey: "mcp-oauth" },
     }).returning();
     const [secretDefinition] = await db.insert(userSecretDefinitions).values({
-      companyId: raceClaims.company_id,
+      spaceId: raceClaims.space_id,
       key: `notion-oauth-${randomUUID()}`,
       name: "Notion OAuth access token",
     }).returning();
-    const [accessSecret] = await db.insert(companySecrets).values({
-      companyId: raceClaims.company_id,
+    const [accessSecret] = await db.insert(spaceSecrets).values({
+      spaceId: raceClaims.space_id,
       scope: "user",
       ownerUserId: raceClaims.responsible_user_id,
       userSecretDefinitionId: secretDefinition!.id,
@@ -584,7 +584,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
       name: `Notion OAuth ${randomUUID()}`,
     }).returning();
     await db.insert(connectionGrants).values({
-      companyId: raceClaims.company_id,
+      spaceId: raceClaims.space_id,
       connectionId: connection!.id,
       kind: "user",
       subjectUserId: raceClaims.responsible_user_id,
@@ -608,23 +608,23 @@ describeEmbeddedPostgres("connectionIntentService", () => {
         status: "active",
         enabled: true,
       })]);
-      await expect(db.select().from(companySecretBindings).where(and(
-        eq(companySecretBindings.companyId, raceClaims.company_id),
-        eq(companySecretBindings.targetType, "tool_connection"),
-        eq(companySecretBindings.targetId, connection!.id),
+      await expect(db.select().from(spaceSecretBindings).where(and(
+        eq(spaceSecretBindings.spaceId, raceClaims.space_id),
+        eq(spaceSecretBindings.targetType, "tool_connection"),
+        eq(spaceSecretBindings.targetId, connection!.id),
       ))).resolves.toHaveLength(0);
       await expect(db.select().from(toolProfiles).where(and(
-        eq(toolProfiles.companyId, raceClaims.company_id),
+        eq(toolProfiles.spaceId, raceClaims.space_id),
         eq(toolProfiles.profileKey, `app:${connection!.id}`),
       ))).resolves.toHaveLength(0);
       await expect(db.select().from(toolProfileBindings).where(
-        eq(toolProfileBindings.companyId, raceClaims.company_id),
+        eq(toolProfileBindings.spaceId, raceClaims.space_id),
       )).resolves.toHaveLength(0);
       await expect(db.select().from(toolConnectionInstalls).where(
         eq(toolConnectionInstalls.connectionId, connection!.id),
       )).resolves.toHaveLength(0);
       await expect(db.select().from(connectionGrantDelegations).where(
-        eq(connectionGrantDelegations.companyId, raceClaims.company_id),
+        eq(connectionGrantDelegations.spaceId, raceClaims.space_id),
       )).resolves.toHaveLength(0);
       await expect(db.select().from(issueThreadInteractions).where(
         eq(issueThreadInteractions.id, pending.interactionId!),
@@ -644,23 +644,23 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     try {
       revocation = revocationDb.transaction(async (tx) => {
         await tx
-          .select({ id: companyMemberships.id })
-          .from(companyMemberships)
+          .select({ id: spaceMemberships.id })
+          .from(spaceMemberships)
           .where(and(
-            eq(companyMemberships.companyId, raceClaims.company_id),
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, raceClaims.responsible_user_id),
+            eq(spaceMemberships.spaceId, raceClaims.space_id),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, raceClaims.responsible_user_id),
           ))
           .for("update");
         membershipLocked();
         await revocationMayCommit;
         await tx
-          .update(companyMemberships)
+          .update(spaceMemberships)
           .set({ membershipRole: "viewer", updatedAt: new Date() })
           .where(and(
-            eq(companyMemberships.companyId, raceClaims.company_id),
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, raceClaims.responsible_user_id),
+            eq(spaceMemberships.spaceId, raceClaims.space_id),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, raceClaims.responsible_user_id),
           ));
       });
 
@@ -699,22 +699,22 @@ describeEmbeddedPostgres("connectionIntentService", () => {
   it("revalidates the responsible user's active write membership for every token use", async () => {
     const service = connectionIntentService(db);
     try {
-      await db.update(companyMemberships).set({ membershipRole: "viewer" }).where(eq(
-        companyMemberships.principalId,
+      await db.update(spaceMemberships).set({ membershipRole: "viewer" }).where(eq(
+        spaceMemberships.principalId,
         claims.responsible_user_id,
       ));
       await expect(service.search(claims, "notion"))
-        .rejects.toThrow("no longer authorized for company write access");
+        .rejects.toThrow("no longer authorized for space write access");
 
-      await db.update(companyMemberships).set({ membershipRole: "member", status: "inactive" }).where(eq(
-        companyMemberships.principalId,
+      await db.update(spaceMemberships).set({ membershipRole: "member", status: "inactive" }).where(eq(
+        spaceMemberships.principalId,
         claims.responsible_user_id,
       ));
       await expect(service.request(claims, "notion"))
-        .rejects.toThrow("no longer authorized for company write access");
+        .rejects.toThrow("no longer authorized for space write access");
     } finally {
-      await db.update(companyMemberships).set({ membershipRole: "member", status: "active" }).where(eq(
-        companyMemberships.principalId,
+      await db.update(spaceMemberships).set({ membershipRole: "member", status: "active" }).where(eq(
+        spaceMemberships.principalId,
         claims.responsible_user_id,
       ));
     }
@@ -725,27 +725,27 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     const pending = await service.request(claims, "posthog");
     expect(pending.interactionId).toBeTruthy();
     try {
-      await db.update(companyMemberships).set({ membershipRole: "viewer" }).where(eq(
-        companyMemberships.principalId,
+      await db.update(spaceMemberships).set({ membershipRole: "viewer" }).where(eq(
+        spaceMemberships.principalId,
         claims.responsible_user_id,
       ));
       await expect(service.updatePhase(
         pending.interactionId!,
         "authorizing",
         claims.responsible_user_id,
-      )).rejects.toThrow("no longer authorized for company write access");
+      )).rejects.toThrow("no longer authorized for space write access");
       await expect(service.decline(
         pending.interactionId!,
         claims.responsible_user_id,
-      )).rejects.toThrow("no longer authorized for company write access");
+      )).rejects.toThrow("no longer authorized for space write access");
       await expect(service.complete(
         pending.interactionId!,
         randomUUID(),
         claims.responsible_user_id,
-      )).rejects.toThrow("no longer authorized for company write access");
+      )).rejects.toThrow("no longer authorized for space write access");
     } finally {
-      await db.update(companyMemberships).set({ membershipRole: "member", status: "active" }).where(eq(
-        companyMemberships.principalId,
+      await db.update(spaceMemberships).set({ membershipRole: "member", status: "active" }).where(eq(
+        spaceMemberships.principalId,
         claims.responsible_user_id,
       ));
     }
@@ -757,7 +757,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     const issueId = String(run!.contextSnapshot!.issueId);
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issueId }).where(eq(heartbeatRuns.id, runId));
-    const authority = new PaperclipRunnerToolAuthority(db, { companyId: claims.company_id, issueId, agentId: claims.sub, runId });
+    const authority = new OutpostRunnerToolAuthority(db, { spaceId: claims.space_id, issueId, agentId: claims.sub, runId });
     const query = "Please help me find tools to continue this task. ".repeat(8) + "Look at my Git Hub pull requests";
     const result = await authority.execute({ tool: "connections_search", callId: "discover", arguments: { query } });
     expect(result).toMatchObject({ results: expect.arrayContaining([expect.objectContaining({ service: "github", state: "available" })]) });
@@ -771,40 +771,40 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     const first = await service.request(claims, "zapier");
     await service.updatePhase(first.interactionId!, "authorizing", claims.responsible_user_id);
     const loaded = await service.loadIntent(first.interactionId!);
-    await db.insert(issueComments).values({ companyId: claims.company_id, issueId: loaded.issue.id, authorUserId: claims.responsible_user_id, body: "Organize the checklist while I connect." });
+    await db.insert(issueComments).values({ spaceId: claims.space_id, issueId: loaded.issue.id, authorUserId: claims.responsible_user_id, body: "Organize the checklist while I connect." });
     await issueThreadInteractionService(db).getForIssue(loaded.issue, first.interactionId!);
     const laterRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: laterRunId, companyId: claims.company_id, agentId: claims.sub, status: "running", responsibleUserId: claims.responsible_user_id, contextSnapshot: { issueId: loaded.issue.id } });
+    await db.insert(heartbeatRuns).values({ id: laterRunId, spaceId: claims.space_id, agentId: claims.sub, status: "running", responsibleUserId: claims.responsible_user_id, contextSnapshot: { issueId: loaded.issue.id } });
     const repeated = await service.request({ ...claims, run_id: laterRunId }, "zapier");
     expect(repeated.interactionId).toBe(first.interactionId);
     expect((await service.loadIntent(first.interactionId!)).interaction).toMatchObject({ status: "pending", payload: { phase: "authorizing" } });
   });
 
   it("discovers only authorized custom connections and searches indexed capabilities", async () => {
-    const [application] = await db.insert(toolApplications).values({ companyId: claims.company_id, applicationKey: randomUUID(), name: "Research archive", type: "mcp_http", status: "active" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId: claims.company_id, applicationId: application!.id, uid: randomUUID(), name: "Archive fixture", transport: "mcp_remote", authKind: "none", enabled: true, status: "active", healthStatus: "ok" }).returning();
+    const [application] = await db.insert(toolApplications).values({ spaceId: claims.space_id, applicationKey: randomUUID(), name: "Research archive", type: "mcp_http", status: "active" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId: claims.space_id, applicationId: application!.id, uid: randomUUID(), name: "Archive fixture", transport: "mcp_remote", authKind: "none", enabled: true, status: "active", healthStatus: "ok" }).returning();
     const id = `connection:${connection!.id}`;
     const service = connectionIntentService(db);
     await expect(service.request(claims, id)).rejects.toThrow("not found");
-    await db.insert(connectionGrants).values({ companyId: claims.company_id, connectionId: connection!.id, kind: "user", subjectUserId: claims.responsible_user_id, status: "active" });
-    await db.insert(toolCatalogEntries).values({ companyId: claims.company_id, connectionId: connection!.id, toolName: "archive_read", name: "Archive read", description: "Read the unique heliotrope launch decision", versionHash: "fixture-v1", status: "active", entryKind: "tool" });
+    await db.insert(connectionGrants).values({ spaceId: claims.space_id, connectionId: connection!.id, kind: "user", subjectUserId: claims.responsible_user_id, status: "active" });
+    await db.insert(toolCatalogEntries).values({ spaceId: claims.space_id, connectionId: connection!.id, toolName: "archive_read", name: "Archive read", description: "Read the unique heliotrope launch decision", versionHash: "fixture-v1", status: "active", entryKind: "tool" });
     expect((await service.search(claims, "heliotrope")).results).toEqual([expect.objectContaining({ service: id, source: "configured", state: "needs_user_action" })]);
     const requested = await service.request(claims, id);
     expect((await service.setupOptions(requested.interactionId!)).existingConnections).toEqual([expect.objectContaining({ id: connection!.id })]);
-    await expect(service.request({ ...claims, company_id: randomUUID() }, id)).rejects.toThrow();
+    await expect(service.request({ ...claims, space_id: randomUUID() }, id)).rejects.toThrow();
     await db.update(toolConnections).set({ enabled: false }).where(eq(toolConnections.id, connection!.id));
     expect((await service.search(claims, "heliotrope")).results[0]).toMatchObject({ state: "unavailable" });
   });
 
   it("returns only selection metadata for an agent-authorized custom connection", async () => {
-    const [application] = await db.insert(toolApplications).values({ companyId: claims.company_id, applicationKey: randomUUID(), name: "Private archive", type: "mcp_http", status: "active" }).returning();
+    const [application] = await db.insert(toolApplications).values({ spaceId: claims.space_id, applicationKey: randomUUID(), name: "Private archive", type: "mcp_http", status: "active" }).returning();
     const [connection] = await db.insert(toolConnections).values({
-      companyId: claims.company_id, applicationId: application!.id, uid: randomUUID(),
+      spaceId: claims.space_id, applicationId: application!.id, uid: randomUUID(),
       name: "Archive identity", transport: "mcp_remote", authKind: "none", enabled: true, status: "active", healthStatus: "ok",
       config: { oauth: { accessToken: "private-access", refreshToken: "private-refresh", clientSecret: "private-client" } },
       transportConfig: { url: "https://private.invalid/mcp?token=private-url", headers: { Authorization: "private-header" } },
     }).returning();
-    await db.insert(connectionGrants).values({ companyId: claims.company_id, connectionId: connection!.id,
+    await db.insert(connectionGrants).values({ spaceId: claims.space_id, connectionId: connection!.id,
       kind: "agent", subjectAgentId: claims.sub, status: "active" });
     const service = connectionIntentService(db);
     const requested = await service.request(claims, `connection:${connection!.id}`);
@@ -818,13 +818,13 @@ describeEmbeddedPostgres("connectionIntentService", () => {
   });
 
   it("searches catalog-provider tool descriptions only within the current identity audience", async () => {
-    const [application] = await db.insert(toolApplications).values({ companyId: claims.company_id, applicationKey: randomUUID(), name: "Indexed Notion", type: "mcp_http", status: "active", metadata: { sourceTemplateKey: "notion" } }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId: claims.company_id, applicationId: application!.id, uid: randomUUID(), name: "Private Notion", transport: "mcp_remote", authKind: "none", enabled: true, status: "active", healthStatus: "ok", config: { sourceTemplateKey: "notion" } }).returning();
-    await db.insert(toolCatalogEntries).values({ companyId: claims.company_id, connectionId: connection!.id, toolName: "archive_read", name: "Archive read", description: "Read chrysanthemum workspace decisions", versionHash: "fixture-v1", status: "active", entryKind: "tool" });
+    const [application] = await db.insert(toolApplications).values({ spaceId: claims.space_id, applicationKey: randomUUID(), name: "Indexed Notion", type: "mcp_http", status: "active", metadata: { sourceTemplateKey: "notion" } }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId: claims.space_id, applicationId: application!.id, uid: randomUUID(), name: "Private Notion", transport: "mcp_remote", authKind: "none", enabled: true, status: "active", healthStatus: "ok", config: { sourceTemplateKey: "notion" } }).returning();
+    await db.insert(toolCatalogEntries).values({ spaceId: claims.space_id, connectionId: connection!.id, toolName: "archive_read", name: "Archive read", description: "Read chrysanthemum workspace decisions", versionHash: "fixture-v1", status: "active", entryKind: "tool" });
     const service = connectionIntentService(db);
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Discovery must use the stored index"));
     expect((await service.search(claims, "chrysanthemum")).results).toEqual([]);
-    await db.insert(connectionGrants).values({ companyId: claims.company_id, connectionId: connection!.id, kind: "user", subjectUserId: claims.responsible_user_id, status: "active" });
+    await db.insert(connectionGrants).values({ spaceId: claims.space_id, connectionId: connection!.id, kind: "user", subjectUserId: claims.responsible_user_id, status: "active" });
     expect((await service.search(claims, "chrysanthemum")).results).toEqual([expect.objectContaining({ service: "notion", source: "catalog" })]);
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
@@ -835,7 +835,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     const request = await service.request(claims, "linear");
     await service.decline(request.interactionId!, claims.responsible_user_id);
     const [issue] = await db.select().from(issues).where(eq(issues.assigneeAgentId, claims.sub));
-    const responses = await materializeNativeInteractionResponses({ db, companyId: claims.company_id,
+    const responses = await materializeNativeInteractionResponses({ db, spaceId: claims.space_id,
       agentId: claims.sub, runId: claims.run_id, issueId: issue!.id, interactionIds: [request.interactionId!] });
     expect(responses).toEqual([expect.objectContaining({ kind: "connection_intent", response: expect.objectContaining({ status: "rejected" }) })]);
   });
@@ -853,7 +853,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     await expect(deliveries.deliver(pending.interactionId!)).rejects.toThrow("simulated crash");
     await db.update(connectionIntentDeliveries).set({ nextAttemptAt: new Date(0) }).where(eq(connectionIntentDeliveries.interactionId, pending.interactionId!));
     // Simulate a second worker crashing immediately after heartbeat persists its wake.
-    await db.insert(agentWakeupRequests).values({ companyId: claims.company_id, agentId: claims.sub, source: "automation", status: "queued", idempotencyKey: `connection-intent:${pending.interactionId}:rejected` });
+    await db.insert(agentWakeupRequests).values({ spaceId: claims.space_id, agentId: claims.sub, source: "automation", status: "queued", idempotencyKey: `connection-intent:${pending.interactionId}:rejected` });
     await deliveries.deliver(pending.interactionId!);
     expect(wakeup).toHaveBeenCalledTimes(1);
     expect((await db.select().from(connectionIntentDeliveries).where(eq(connectionIntentDeliveries.interactionId, pending.interactionId!)))[0]!.deliveredAt).not.toBeNull();
@@ -877,27 +877,27 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     }
   });
 
-  it("rejects cross-company claims and tokens after the run ends", async () => {
+  it("rejects cross-space claims and tokens after the run ends", async () => {
     const service = connectionIntentService(db);
-    await expect(service.search({ ...claims, company_id: randomUUID() }, "notion"))
+    await expect(service.search({ ...claims, space_id: randomUUID() }, "notion"))
       .rejects.toThrow("does not match its heartbeat run");
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, runId));
     await expect(service.search(claims, "notion"))
       .rejects.toThrow("no longer active");
   });
   it("keeps runtime authentication separate from obsolete Anthropic tool requests", async () => {
-    const companyId = claims.company_id;
+    const spaceId = claims.space_id;
     const agentId = randomUUID();
     const issueId = randomUUID();
     const aiRunId = randomUUID();
     const binding = { provider: "anthropic", method: "subscription", mode: "responsible_user" } as const;
-    await db.insert(agents).values({ id: agentId, companyId, name: "AI Agent", adapterType: "claude_local", runtimeConfig: { aiConnection: binding } });
-    await db.insert(issues).values({ id: issueId, companyId, title: "AI authentication", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: aiRunId, companyId, agentId, status: "running", responsibleUserId: claims.responsible_user_id, contextSnapshot: { issueId } });
-    const [app] = await db.insert(toolApplications).values({ companyId, applicationKey: "ai-intent-fixture", name: "AI intent fixture", type: "mcp_http", metadata: { sourceTemplateKey: "anthropic" } }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId, applicationId: app!.id, name: "Personal Claude API", uid: `ai-${randomUUID()}`, connectionPurpose: "ai", transport: "runtime_auth", authKind: "api_key", credentialPolicy: "per_user", healthStatus: "ok", status: "active", enabled: true, config: { sourceTemplateKey: "anthropic", ai: { provider: "anthropic", method: "api_key" } } }).returning();
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId: connection!.id, kind: "user", subjectUserId: claims.responsible_user_id, createdByUserId: claims.responsible_user_id }).returning();
-    await db.insert(aiProviderDefaults).values({ companyId, userId: claims.responsible_user_id!, provider: "anthropic", grantId: grant!.id });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "AI Agent", adapterType: "claude_local", runtimeConfig: { aiConnection: binding } });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "AI authentication", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: aiRunId, spaceId, agentId, status: "running", responsibleUserId: claims.responsible_user_id, contextSnapshot: { issueId } });
+    const [app] = await db.insert(toolApplications).values({ spaceId, applicationKey: "ai-intent-fixture", name: "AI intent fixture", type: "mcp_http", metadata: { sourceTemplateKey: "anthropic" } }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId: app!.id, name: "Personal Claude API", uid: `ai-${randomUUID()}`, connectionPurpose: "ai", transport: "runtime_auth", authKind: "api_key", credentialPolicy: "per_user", healthStatus: "ok", status: "active", enabled: true, config: { sourceTemplateKey: "anthropic", ai: { provider: "anthropic", method: "api_key" } } }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId: connection!.id, kind: "user", subjectUserId: claims.responsible_user_id, createdByUserId: claims.responsible_user_id }).returning();
+    await db.insert(aiProviderDefaults).values({ spaceId, userId: claims.responsible_user_id!, provider: "anthropic", grantId: grant!.id });
     const aiClaims = { ...claims, sub: agentId, run_id: aiRunId };
     const service = connectionIntentService(db);
     await expect(service.request(aiClaims, "anthropic")).rejects.toMatchObject({
@@ -907,7 +907,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     // Preserve an intent created before the obsolete REST method was removed.
     // It must neither alias the AI request nor accept an AI account as tools.
     const toolRequest = await issueThreadInteractionService(db).createConnectionIntent(
-      { id: issueId, companyId },
+      { id: issueId, spaceId },
       {
         payload: {
           version: 1,
@@ -950,23 +950,23 @@ describeEmbeddedPostgres("connectionIntentService", () => {
 
 
   async function accessFixture(source = "composio") {
-    const [company] = await db.insert(companies).values({ name: "Grant fixture", issuePrefix: `G${randomUUID().slice(0, 7)}` }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Default agent", role: "general", adapterType: "process" }).returning();
-    const [otherAgent] = await db.insert(agents).values({ companyId: company.id, name: "Other agent", role: "general", adapterType: "process" }).returning();
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: "grant-user", membershipRole: "owner", status: "active" });
-    await db.insert(principalPermissionGrants).values({ companyId: company.id, principalType: "user", principalId: "grant-user", permissionKey: "agents:configure" });
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Connect Circleback", status: "in_progress", assigneeAgentId: agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, status: "running", responsibleUserId: "grant-user", contextSnapshot: { issueId: issue.id } }).returning();
-    const [application] = await db.insert(toolApplications).values({ companyId: company.id, applicationKey: randomUUID(), name: source, type: "mcp_http", metadata: { sourceTemplateKey: source } }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId: company.id, applicationId: application.id, uid: randomUUID(), name: `Saved ${source}`, transport: "mcp_remote", authKind: "none", credentialPolicy: "shared", enabled: true, status: "active", healthStatus: "ok", config: { sourceTemplateKey: source } }).returning();
-    await db.insert(connectionGrants).values({ companyId: company.id, connectionId: connection.id, kind: "organization", status: "active" });
-    await db.insert(toolConnectionInstalls).values({ companyId: company.id, connectionId: connection.id, targetType: "company", targetId: company.id });
+    const [space] = await db.insert(spaces).values({ name: "Grant fixture", issuePrefix: `G${randomUUID().slice(0, 7)}` }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Default agent", role: "general", adapterType: "process" }).returning();
+    const [otherAgent] = await db.insert(agents).values({ spaceId: space.id, name: "Other agent", role: "general", adapterType: "process" }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: "grant-user", membershipRole: "owner", status: "active" });
+    await db.insert(principalPermissionGrants).values({ spaceId: space.id, principalType: "user", principalId: "grant-user", permissionKey: "agents:configure" });
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Connect Circleback", status: "in_progress", assigneeAgentId: agent.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, status: "running", responsibleUserId: "grant-user", contextSnapshot: { issueId: issue.id } }).returning();
+    const [application] = await db.insert(toolApplications).values({ spaceId: space.id, applicationKey: randomUUID(), name: source, type: "mcp_http", metadata: { sourceTemplateKey: source } }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId: space.id, applicationId: application.id, uid: randomUUID(), name: `Saved ${source}`, transport: "mcp_remote", authKind: "none", credentialPolicy: "shared", enabled: true, status: "active", healthStatus: "ok", config: { sourceTemplateKey: source } }).returning();
+    await db.insert(connectionGrants).values({ spaceId: space.id, connectionId: connection.id, kind: "organization", status: "active" });
+    await db.insert(toolConnectionInstalls).values({ spaceId: space.id, connectionId: connection.id, targetType: "space", targetId: space.id });
     const catalog = await db.insert(toolCatalogEntries).values([
       { toolName: "COMPOSIO_SEARCH_TOOLS", riskLevel: "read" as const },
       { toolName: "COMPOSIO_MANAGE_CONNECTIONS", riskLevel: "destructive" as const },
       { toolName: "COMPOSIO_REMOTE_BASH_TOOL", riskLevel: "destructive" as const },
-    ].map(tool => ({ ...tool, companyId: company.id, connectionId: connection.id, name: tool.toolName, versionHash: "v1", entryKind: "tool" as const, status: "active" as const }))).returning();
-    return { company, agent, otherAgent, issue, connection, catalog, service: connectionIntentService(db), claims: { ...claims, sub: agent.id, company_id: company.id, run_id: run.id, responsible_user_id: "grant-user" } };
+    ].map(tool => ({ ...tool, spaceId: space.id, connectionId: connection.id, name: tool.toolName, versionHash: "v1", entryKind: "tool" as const, status: "active" as const }))).returning();
+    return { space, agent, otherAgent, issue, connection, catalog, service: connectionIntentService(db), claims: { ...claims, sub: agent.id, space_id: space.id, run_id: run.id, responsible_user_id: "grant-user" } };
   }
 
   it("keeps GitHub permission saves aligned with credential admission for existing and future agents", async () => {
@@ -974,44 +974,44 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     await db.update(connectionGrants).set({ kind: "user", subjectUserId: "grant-user" })
       .where(eq(connectionGrants.connectionId, f.connection.id));
     const access = toolAccessService(db);
-    const save = (audience: "all_agents" | { agentIds: string[] }) => access.finishGalleryAppConnection(f.company.id, f.connection.id, {
+    const save = (audience: "all_agents" | { agentIds: string[] }) => access.finishGalleryAppConnection(f.space.id, f.connection.id, {
       enabledCatalogEntryIds: f.catalog.map(tool => tool.id), askFirstCatalogEntryIds: [], access: audience,
     }, { actorType: "user", actorId: "grant-user" });
-    const select = (agentId: string) => resolveManagedGitHubIdentitySelection(db, f.company.id, {
+    const select = (agentId: string) => resolveManagedGitHubIdentitySelection(db, f.space.id, {
       agentId, responsibleUserId: "grant-user",
     });
     await save({ agentIds: [f.agent.id] });
     await expect(select(f.otherAgent.id)).resolves.toMatchObject({ configured: false });
     await save("all_agents");
     await expect(select(f.otherAgent.id)).resolves.toMatchObject({ configured: true, grant: { connectionId: f.connection.id } });
-    const [newHire] = await db.insert(agents).values({ companyId: f.company.id, name: "New engineer", role: "engineer", adapterType: "process" }).returning();
-    await expect(select(newHire.id)).resolves.toMatchObject({ configured: true, grant: { connectionId: f.connection.id } });
-    await expect(f.service.usableConnectionForAgent({ companyId: f.company.id, agentId: newHire.id,
+    const [newCreate] = await db.insert(agents).values({ spaceId: f.space.id, name: "New engineer", role: "engineer", adapterType: "process" }).returning();
+    await expect(select(newCreate.id)).resolves.toMatchObject({ configured: true, grant: { connectionId: f.connection.id } });
+    await expect(f.service.usableConnectionForAgent({ spaceId: f.space.id, agentId: newCreate.id,
       responsibleUserId: "grant-user", serviceSlug: "github" })).resolves.toMatchObject({ id: f.connection.id });
     await save({ agentIds: [f.agent.id] });
-    await expect(select(newHire.id)).resolves.toMatchObject({ configured: false });
+    await expect(select(newCreate.id)).resolves.toMatchObject({ configured: false });
     await save({ agentIds: [] });
     await expect(select(f.agent.id)).resolves.toMatchObject({ configured: false });
-    expect(await access.listConnectionInstalls(f.connection.id, f.company.id)).toEqual([]);
-    expect((await access.getConnection(f.connection.id, f.company.id))?.config?.mcpAgentAccessConfigured).toBe(true);
+    expect(await access.listConnectionInstalls(f.connection.id, f.space.id)).toEqual([]);
+    expect((await access.getConnection(f.connection.id, f.space.id))?.config?.mcpAgentAccessConfigured).toBe(true);
   });
 
   it("keeps installations with a separate narrow profile when account completion is additive", async () => {
     const f = await accessFixture("github");
     const access = toolAccessService(db);
-    await access.finishGalleryAppConnection(f.company.id, f.connection.id, {
+    await access.finishGalleryAppConnection(f.space.id, f.connection.id, {
       enabledCatalogEntryIds: f.catalog.map(tool => tool.id), askFirstCatalogEntryIds: [], access: { agentIds: [f.agent.id] },
     });
     const [appProfile] = await db.select().from(toolProfiles).where(eq(toolProfiles.profileKey, `app:${f.connection.id}`));
     await db.delete(toolProfileBindings).where(eq(toolProfileBindings.profileId, appProfile.id));
-    const [narrow] = await db.insert(toolProfiles).values({ companyId: f.company.id, profileKey: randomUUID(), name: "Narrow existing access", defaultAction: "deny" }).returning();
-    await db.insert(toolProfileEntries).values({ companyId: f.company.id, profileId: narrow.id, selectorType: "catalog_entry", catalogEntryId: f.catalog[0].id, effect: "include" });
-    await db.insert(toolProfileBindings).values({ companyId: f.company.id, profileId: narrow.id, targetType: "agent", targetId: f.agent.id });
-    await access.finishGalleryAppConnection(f.company.id, f.connection.id, {
+    const [narrow] = await db.insert(toolProfiles).values({ spaceId: f.space.id, profileKey: randomUUID(), name: "Narrow existing access", defaultAction: "deny" }).returning();
+    await db.insert(toolProfileEntries).values({ spaceId: f.space.id, profileId: narrow.id, selectorType: "catalog_entry", catalogEntryId: f.catalog[0].id, effect: "include" });
+    await db.insert(toolProfileBindings).values({ spaceId: f.space.id, profileId: narrow.id, targetType: "agent", targetId: f.agent.id });
+    await access.finishGalleryAppConnection(f.space.id, f.connection.id, {
       enabledCatalogEntryIds: f.catalog.map(tool => tool.id), askFirstCatalogEntryIds: [], access: { agentIds: [f.otherAgent.id] }, preserveExistingAccess: true,
     });
-    expect((await access.listConnectionInstalls(f.connection.id, f.company.id)).map(install => install.targetId).sort()).toEqual([f.agent.id, f.otherAgent.id].sort());
-    const effective = await access.getEffectiveToolAssignmentsForAgent(f.company.id, f.agent.id);
+    expect((await access.listConnectionInstalls(f.connection.id, f.space.id)).map(install => install.targetId).sort()).toEqual([f.agent.id, f.otherAgent.id].sort());
+    const effective = await access.getEffectiveToolAssignmentsForAgent(f.space.id, f.agent.id);
     expect(effective.installedConnections.map(connection => connection.id)).toContain(f.connection.id);
     expect(effective.allowedTools.map(tool => tool.id)).toEqual([f.catalog[0].id]);
     expect((await db.select().from(toolProfileBindings).where(eq(toolProfileBindings.profileId, appProfile.id))).map(binding => binding.targetId)).toEqual([f.otherAgent.id]);
@@ -1020,7 +1020,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
   it("creates and resolves an access card for a 46-tool connector without model-supplied tool names", async () => {
     const f = await accessFixture("notion");
     await db.insert(toolCatalogEntries).values(Array.from({ length: 43 }, (_, i) => ({
-      companyId: f.company.id, connectionId: f.connection.id, name: `read_${i}`, toolName: `read_${i}`,
+      spaceId: f.space.id, connectionId: f.connection.id, name: `read_${i}`, toolName: `read_${i}`,
       entryKind: "tool" as const, status: "active" as const, riskLevel: "read" as const, versionHash: "v1",
     })));
     const request = await f.service.request(f.claims, "notion");
@@ -1029,7 +1029,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     await expect(f.service.complete(request.interactionId!, f.connection.id, "grant-user", { canManageOrganizationGrant: true }))
       .resolves.toMatchObject({ status: "accepted" });
     expect((await f.service.search(f.claims, "notion")).results[0]).toMatchObject({ state: "ready", connectionId: f.connection.id });
-    expect(await f.service.usableConnectionForAgent({ companyId: f.company.id, agentId: f.otherAgent.id,
+    expect(await f.service.usableConnectionForAgent({ spaceId: f.space.id, agentId: f.otherAgent.id,
       responsibleUserId: "grant-user", serviceSlug: "notion" })).toBeNull();
   });
 
@@ -1062,7 +1062,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     await f.service.updatePhase(interaction.id, "authorizing", "grant-user", { setupAccess, canManageOrganizationGrant: true });
     await f.service.updatePhase(interaction.id, "needs_retry", "grant-user");
     expect((await f.service.loadIntent(interaction.id)).interaction.payload.setupAccess).toEqual(setupAccess);
-    expect(await f.service.usableConnectionForAgent({ companyId: f.company.id, agentId: f.agent.id,
+    expect(await f.service.usableConnectionForAgent({ spaceId: f.space.id, agentId: f.agent.id,
       responsibleUserId: "grant-user", serviceSlug: "notion" })).toBeNull();
     await expect(f.service.complete(interaction.id, f.connection.id, "grant-user", { oauthCompletion: true }))
       .rejects.toMatchObject({ status: 403 });
@@ -1070,20 +1070,20 @@ describeEmbeddedPostgres("connectionIntentService", () => {
 
   it("checks agent edit scope when saving task audiences and again at OAuth completion", async () => {
     const f = await accessFixture("notion");
-    await db.update(companyMemberships).set({ membershipRole: "member" }).where(eq(companyMemberships.companyId, f.company.id));
-    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.companyId, f.company.id));
+    await db.update(spaceMemberships).set({ membershipRole: "member" }).where(eq(spaceMemberships.spaceId, f.space.id));
+    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.spaceId, f.space.id));
     const interaction = await issueThreadInteractionService(db).createConnectionIntent(f.issue, {
       payload: { version: 1, serviceSlug: "notion", serviceName: "Notion", requestingAgentId: f.agent.id, requestingAgentName: f.agent.name, phase: "requested" },
       sourceRunId: f.claims.run_id, addresseeUserId: "grant-user", idempotencyKey: randomUUID(),
     });
     const setupAccess = { connectionId: f.connection.id, access: { agentIds: [f.agent.id] } };
     await expect(f.service.updatePhase(interaction.id, "authorizing", "grant-user", { setupAccess })).rejects.toMatchObject({ status: 403 });
-    await db.insert(principalPermissionGrants).values({ companyId: f.company.id, principalType: "user", principalId: "grant-user", permissionKey: "agents:configure", scope: { targetAgentIds: [f.agent.id] } });
+    await db.insert(principalPermissionGrants).values({ spaceId: f.space.id, principalType: "user", principalId: "grant-user", permissionKey: "agents:configure", scope: { targetAgentIds: [f.agent.id] } });
     await f.service.updatePhase(interaction.id, "authorizing", "grant-user", { setupAccess });
     await expect(f.service.updatePhase(interaction.id, "authorizing", "grant-user", {
       setupAccess: { connectionId: f.connection.id, access: { agentIds: [f.agent.id, f.otherAgent.id] } }, canManageOrganizationGrant: true,
     })).rejects.toMatchObject({ status: 403 });
-    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.companyId, f.company.id));
+    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.spaceId, f.space.id));
     await expect(f.service.complete(interaction.id, f.connection.id, "grant-user", { oauthCompletion: true, canManageOrganizationGrant: true }))
       .rejects.toMatchObject({ status: 403 });
     expect((await f.service.loadIntent(interaction.id)).interaction.status).toBe("pending");
@@ -1106,7 +1106,7 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     await expect(f.service.complete(interaction.id, f.connection.id, "grant-user", {
       oauthCompletion: true, canManageOrganizationGrant: true,
     })).resolves.toMatchObject({ status: "accepted" });
-    await expect(f.service.usableConnectionForAgent({ companyId: f.company.id, agentId: f.otherAgent.id,
+    await expect(f.service.usableConnectionForAgent({ spaceId: f.space.id, agentId: f.otherAgent.id,
       responsibleUserId: "grant-user", serviceSlug: "notion" })).resolves.toMatchObject({ id: f.connection.id });
   });
 
@@ -1122,18 +1122,18 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     await expect(f.service.complete(request.interactionId!, f.connection.id, "other-user", { canManageOrganizationGrant: true })).rejects.toThrow("addressed user");
     const results = await Promise.all([1, 2].map(() => f.service.complete(request.interactionId!, f.connection.id, "grant-user", { canManageOrganizationGrant: true })));
     expect(results.every(result => result.status === "accepted")).toBe(true);
-    const effective = await toolAccessService(db).getEffectiveProfilesForAgent(f.company.id, f.agent.id);
+    const effective = await toolAccessService(db).getEffectiveProfilesForAgent(f.space.id, f.agent.id);
     expect(effective.allowedTools.map(tool => tool.toolName).sort()).toEqual(["COMPOSIO_MANAGE_CONNECTIONS", "COMPOSIO_SEARCH_TOOLS"]);
-    expect((await toolAccessService(db).getEffectiveProfilesForAgent(f.company.id, f.otherAgent.id)).allowedTools).toEqual([]);
+    expect((await toolAccessService(db).getEffectiveProfilesForAgent(f.space.id, f.otherAgent.id)).allowedTools).toEqual([]);
     for (const [name, outcome] of [["COMPOSIO_SEARCH_TOOLS", "allow"], ["COMPOSIO_MANAGE_CONNECTIONS", "require_approval"], ["COMPOSIO_REMOTE_BASH_TOOL", "deny"]]) {
       const tool = f.catalog.find(tool => tool.toolName === name)!;
-      const decision = await toolAccessPolicyService(db).decide({ companyId: f.company.id, actor: { actorType: "agent", actorId: f.agent.id, agentId: f.agent.id }, request: { connectionId: f.connection.id, catalogEntryId: tool.id, toolName: tool.toolName, arguments: {} } });
+      const decision = await toolAccessPolicyService(db).decide({ spaceId: f.space.id, actor: { actorType: "agent", actorId: f.agent.id, agentId: f.agent.id }, request: { connectionId: f.connection.id, catalogEntryId: tool.id, toolName: tool.toolName, arguments: {} } });
       expect(decision.decision).toBe(outcome);
     }
     expect(await db.select().from(toolProfileEntries).where(eq(toolProfileEntries.profileId, effective.profiles.find(profile => profile.profileKey.startsWith("connection-intent:"))!.id))).toHaveLength(2);
     const managedTool = f.catalog[1];
-    await db.insert(toolPolicies).values({ companyId: f.company.id, name: "New block after approval", policyType: "block", selectors: { catalogEntryId: managedTool.id }, priority: 100 });
-    const blocked = await toolAccessPolicyService(db).decide({ companyId: f.company.id, actor: { actorType: "agent", actorId: f.agent.id, agentId: f.agent.id }, request: { connectionId: f.connection.id, catalogEntryId: managedTool.id, toolName: managedTool.toolName, arguments: {} } });
+    await db.insert(toolPolicies).values({ spaceId: f.space.id, name: "New block after approval", policyType: "block", selectors: { catalogEntryId: managedTool.id }, priority: 100 });
+    const blocked = await toolAccessPolicyService(db).decide({ spaceId: f.space.id, actor: { actorType: "agent", actorId: f.agent.id, agentId: f.agent.id }, request: { connectionId: f.connection.id, catalogEntryId: managedTool.id, toolName: managedTool.toolName, arguments: {} } });
     expect(blocked.decision).toBe("deny");
 
   });
@@ -1144,8 +1144,8 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     await db.update(toolCatalogEntries).set({ versionHash: "v2" }).where(eq(toolCatalogEntries.id, f.catalog[0].id));
     await expect(f.service.complete(request.interactionId!, f.connection.id, "grant-user", { canManageOrganizationGrant: true })).rejects.toThrow("tools changed");
     expect((await f.service.loadIntent(request.interactionId!)).interaction.status).toBe("pending");
-    expect((await toolAccessService(db).listConnectionInstalls(f.connection.id, f.company.id)).some(install => install.targetType === "agent")).toBe(false);
-    expect((await toolAccessService(db).getEffectiveProfilesForAgent(f.company.id, f.agent.id)).allowedTools).toEqual([]);
+    expect((await toolAccessService(db).listConnectionInstalls(f.connection.id, f.space.id)).some(install => install.targetType === "agent")).toBe(false);
+    expect((await toolAccessService(db).getEffectiveProfilesForAgent(f.space.id, f.agent.id)).allowedTools).toEqual([]);
     const renewed = await f.service.request(f.claims, "composio", { connectionId: f.connection.id });
     expect(renewed.interactionId).not.toBe(request.interactionId);
     expect((await f.service.loadIntent(request.interactionId!)).interaction.status).toBe("expired");
@@ -1157,13 +1157,13 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     const request = await f.service.request(f.claims, "composio", { connectionId: f.connection.id });
     await f.service.complete(request.interactionId!, f.connection.id, "grant-user", { canManageOrganizationGrant: true });
     const access = toolAccessService(db);
-    const effective = await access.getEffectiveProfilesForAgent(f.company.id, f.agent.id);
+    const effective = await access.getEffectiveProfilesForAgent(f.space.id, f.agent.id);
     const profile = effective.profiles.find(profile => profile.profileKey.startsWith("connection-intent:"))!;
     await access.deleteProfile(profile.id, { force: false });
-    expect((await access.getEffectiveProfilesForAgent(f.company.id, f.agent.id)).allowedTools).toEqual([]);
+    expect((await access.getEffectiveProfilesForAgent(f.space.id, f.agent.id)).allowedTools).toEqual([]);
     for (const tool of f.catalog.slice(0, 2)) {
       const decision = await toolAccessPolicyService(db).decide({
-        companyId: f.company.id, actor: { actorType: "agent", actorId: f.agent.id, agentId: f.agent.id },
+        spaceId: f.space.id, actor: { actorType: "agent", actorId: f.agent.id, agentId: f.agent.id },
         request: { connectionId: f.connection.id, catalogEntryId: tool.id, toolName: tool.toolName, arguments: {} },
       });
       expect(decision.decision).toBe("deny");
@@ -1175,33 +1175,33 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     await expect(f.service.request(f.claims, "composio", { connectionId: randomUUID() })).rejects.toThrow("not eligible");
     await expect(f.service.request(f.claims, "composio", { connectionId: f.connection.id, toolNames: ["invented"] })).rejects.toThrow("active catalog");
     const request = await f.service.request(f.claims, "composio", { connectionId: f.connection.id });
-    await db.insert(toolPolicies).values({ companyId: f.company.id, name: "Explicit block", policyType: "block", selectors: { catalogEntryId: f.catalog[1].id } });
+    await db.insert(toolPolicies).values({ spaceId: f.space.id, name: "Explicit block", policyType: "block", selectors: { catalogEntryId: f.catalog[1].id } });
     await expect(f.service.complete(request.interactionId!, f.connection.id, "grant-user", { canManageOrganizationGrant: true })).rejects.toThrow("existing policy blocks");
-    await expect(f.service.request({ ...f.claims, company_id: randomUUID() }, "composio", { connectionId: f.connection.id })).rejects.toThrow();
+    await expect(f.service.request({ ...f.claims, space_id: randomUUID() }, "composio", { connectionId: f.connection.id })).rejects.toThrow();
   });
 
   it("lets an agent outside a GitHub grant request scoped access beyond the access-card catalog bound", async () => {
-    // A personal grant was delegated and installed for the CEO only. An engineer
+    // A personal grant was delegated and installed for the Default agent only. An engineer
     // outside it still needs scoped discovery when a catalog exceeds 500 tools.
-    const [company] = await db.insert(companies).values({ name: "GitHub grant fixture", issuePrefix: `H${randomUUID().slice(0, 7)}` }).returning();
-    const [ceo] = await db.insert(agents).values({ companyId: company.id, name: "CEO", role: "ceo", adapterType: "process" }).returning();
-    const [engineer] = await db.insert(agents).values({ companyId: company.id, name: "Frontend Engineer", role: "engineer", adapterType: "process" }).returning();
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: "github-owner", membershipRole: "owner", status: "active" });
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Build storefront prototype (GitHub repo)", status: "in_progress", assigneeAgentId: engineer.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: engineer.id, status: "running", responsibleUserId: "github-owner", contextSnapshot: { issueId: issue.id } }).returning();
-    const [application] = await db.insert(toolApplications).values({ companyId: company.id, applicationKey: randomUUID(), name: "GitHub", type: "mcp_http", metadata: { sourceTemplateKey: "github" } }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId: company.id, applicationId: application.id, uid: randomUUID(), name: "GitHub", transport: "mcp_remote", authKind: "oauth", credentialPolicy: "per_user", enabled: true, status: "active", healthStatus: "ok", config: { sourceTemplateKey: "github" } }).returning();
-    const [grant] = await db.insert(connectionGrants).values({ companyId: company.id, connectionId: connection.id, kind: "user", subjectUserId: "github-owner", status: "active" }).returning();
-    await db.insert(connectionGrantDelegations).values({ companyId: company.id, grantId: grant.id, agentId: ceo.id, createdByUserId: "github-owner" });
-    await db.insert(toolConnectionInstalls).values({ companyId: company.id, connectionId: connection.id, targetType: "agent", targetId: ceo.id });
+    const [space] = await db.insert(spaces).values({ name: "GitHub grant fixture", issuePrefix: `H${randomUUID().slice(0, 7)}` }).returning();
+    const [lead] = await db.insert(agents).values({ spaceId: space.id, name: "Default agent", role: "lead", adapterType: "process" }).returning();
+    const [engineer] = await db.insert(agents).values({ spaceId: space.id, name: "Frontend Engineer", role: "engineer", adapterType: "process" }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: "github-owner", membershipRole: "owner", status: "active" });
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Build storefront prototype (GitHub repo)", status: "in_progress", assigneeAgentId: engineer.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: engineer.id, status: "running", responsibleUserId: "github-owner", contextSnapshot: { issueId: issue.id } }).returning();
+    const [application] = await db.insert(toolApplications).values({ spaceId: space.id, applicationKey: randomUUID(), name: "GitHub", type: "mcp_http", metadata: { sourceTemplateKey: "github" } }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId: space.id, applicationId: application.id, uid: randomUUID(), name: "GitHub", transport: "mcp_remote", authKind: "oauth", credentialPolicy: "per_user", enabled: true, status: "active", healthStatus: "ok", config: { sourceTemplateKey: "github" } }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId: space.id, connectionId: connection.id, kind: "user", subjectUserId: "github-owner", status: "active" }).returning();
+    await db.insert(connectionGrantDelegations).values({ spaceId: space.id, grantId: grant.id, agentId: lead.id, createdByUserId: "github-owner" });
+    await db.insert(toolConnectionInstalls).values({ spaceId: space.id, connectionId: connection.id, targetType: "agent", targetId: lead.id });
     const readTools = ["get_file_contents", "get_me", "list_commits", ...Array.from({ length: 483 }, (_, index) => `read_tool_${index}`)];
     const writeTools = ["create_or_update_file", "create_repository", "push_files", ...Array.from({ length: 12 }, (_, index) => `write_tool_${index}`)];
     await db.insert(toolCatalogEntries).values([
       ...readTools.map(toolName => ({ toolName, riskLevel: "read" as const })),
       ...writeTools.map(toolName => ({ toolName, riskLevel: "write" as const })),
-    ].map(tool => ({ ...tool, companyId: company.id, connectionId: connection.id, name: tool.toolName, versionHash: "v1", entryKind: "tool" as const, status: "active" as const })));
+    ].map(tool => ({ ...tool, spaceId: space.id, connectionId: connection.id, name: tool.toolName, versionHash: "v1", entryKind: "tool" as const, status: "active" as const })));
     const service = connectionIntentService(db);
-    const engineerClaims = { ...claims, sub: engineer.id, company_id: company.id, run_id: run.id, responsible_user_id: "github-owner" };
+    const engineerClaims = { ...claims, sub: engineer.id, space_id: space.id, run_id: run.id, responsible_user_id: "github-owner" };
 
     const search = await service.search(engineerClaims, "GitHub create private repository and push code");
     expect(search.results.find(result => result.service === "github")).toMatchObject({ state: "needs_user_action", connectionId: null });
@@ -1225,12 +1225,12 @@ describeEmbeddedPostgres("connectionIntentService", () => {
     const f = await accessFixture();
     const request = await f.service.request(f.claims, "composio", { connectionId: f.connection.id });
     await f.service.decline(request.interactionId!, "grant-user");
-    expect((await toolAccessService(db).getEffectiveProfilesForAgent(f.company.id, f.agent.id)).allowedTools).toEqual([]);
+    expect((await toolAccessService(db).getEffectiveProfilesForAgent(f.space.id, f.agent.id)).allowedTools).toEqual([]);
     const other = await accessFixture();
     const pending = await other.service.request(other.claims, "composio", { connectionId: other.connection.id });
     await db.update(issues).set({ assigneeAgentId: other.otherAgent.id }).where(eq(issues.id, other.issue.id));
     await expect(other.service.complete(pending.interactionId!, other.connection.id, "grant-user", { canManageOrganizationGrant: true })).rejects.toThrow();
-    expect((await toolAccessService(db).getEffectiveProfilesForAgent(other.company.id, other.agent.id)).allowedTools).toEqual([]);
+    expect((await toolAccessService(db).getEffectiveProfilesForAgent(other.space.id, other.agent.id)).allowedTools).toEqual([]);
   });
 
 });

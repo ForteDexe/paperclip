@@ -26,7 +26,7 @@ const meta = {
   id: "pr-reviews-fireflies-and-app-webhooks",
   title: "Apps, channels, and extensions/Connection setup/PR reviews/Fireflies and app webhooks",
   parameters: { layout: "fullscreen", docs: { description: { component: "Coverage of PR #13890: Fireflies catalog/artwork and shared connection flow, preserved action permissions, generic webhook wizard and saved settings, and both advanced trigger editors. All network mutations are simulated. Use the toolbar to switch theme or viewport. Legacy stories only demonstrate resuming existing configurations; new webhooks use Another app or script." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "connection-setup/credentials",
         "routines/triggers"
@@ -46,7 +46,7 @@ const meta = {
     const original = window.fetch;
     window.fetch = async (input, init) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.origin);
-      if (url.pathname.endsWith("/tools/gallery")) return Response.json({ apps: [fireflies], capabilities: { canCreateOrganizationGrant: true, canSetCompanyInstall: true } });
+      if (url.pathname.endsWith("/tools/gallery")) return Response.json({ apps: [fireflies], capabilities: { canCreateOrganizationGrant: true, canSetSpaceInstall: true } });
       const method = init?.method ?? (input instanceof Request ? input.method : "GET");
       if (url.pathname.startsWith("/api/") && !["GET", "HEAD"].includes(method.toUpperCase())) return Response.json({ error: "Storybook preview: no provider request was sent." }, { status: 422 });
       return original(input, init);

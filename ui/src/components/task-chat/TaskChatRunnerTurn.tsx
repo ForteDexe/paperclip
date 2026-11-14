@@ -23,8 +23,8 @@ import {
   buildTurnTimelineRows,
   isTerminalRunStatus,
   omitProgressRepeatedByResponse,
-  paperclipRunnerFinalResponse,
-  paperclipRunnerTimelineItems,
+  outpostRunnerFinalResponse,
+  outpostRunnerTimelineItems,
 } from "./transcript-adapter";
 
 function currentActivityStatusItems(
@@ -206,7 +206,7 @@ export function TaskChatRunnerTurn({
       item.surface === "run_result" &&
       item.disposition === "yielded",
   );
-  const observedFinal = paperclipRunnerFinalResponse(turnItems, awaitingContinuation
+  const observedFinal = outpostRunnerFinalResponse(turnItems, awaitingContinuation
     ? { allowFallback: false, yielded: true, waitSummary }
     : { allowFallback: terminal && allowSummaryFallback });
   const observedProviderText = Boolean(
@@ -243,7 +243,7 @@ export function TaskChatRunnerTurn({
     finalRef.current.providerText = observedProviderText;
   }
   const final = finalRef.current.item;
-  const timelineItems = paperclipRunnerTimelineItems(turnItems);
+  const timelineItems = outpostRunnerTimelineItems(turnItems);
   const currentActivityItems = currentActivityStatusItems(timelineItems);
   const timelineRows = groupImageResources(buildTurnTimelineRows(
     omitProgressRepeatedByResponse(timelineItems, final?.text),

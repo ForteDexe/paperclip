@@ -11,7 +11,6 @@ import {
   createIssueThreadInteractionSchema,
   createIssueTreeHoldSchema,
   createIssueWorkProductSchema,
-  type FeedbackTrace,
   type HeartbeatRun,
   linkIssueApprovalSchema,
   previewIssueTreeControlSchema,
@@ -37,12 +36,6 @@ import {
   resolveCommandContext,
   type BaseClientOptions,
 } from "./common.js";
-import {
-  buildFeedbackTraceQuery,
-  normalizeFeedbackTraceExportFormat,
-  serializeFeedbackTraces,
-} from "./feedback.js";
-
 interface IssueBaseOptions extends BaseClientOptions {
   status?: string;
   assigneeAgentId?: string;
@@ -97,18 +90,6 @@ interface IssueCheckoutOptions extends BaseClientOptions {
   expectedStatuses?: string;
 }
 
-interface IssueFeedbackOptions extends BaseClientOptions {
-  targetType?: string;
-  vote?: string;
-  status?: string;
-  from?: string;
-  to?: string;
-  sharedOnly?: boolean;
-  includePayload?: boolean;
-  out?: string;
-  format?: string;
-}
-
 interface IssueDeleteOptions extends BaseClientOptions {
   yes?: boolean;
 }
@@ -127,7 +108,7 @@ interface IssueDocumentPutOptions extends BaseClientOptions {
 }
 
 interface IssueAttachmentUploadOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   file: string;
   commentId?: string;
 }
@@ -137,7 +118,7 @@ interface IssueAttachmentDownloadOptions extends BaseClientOptions {
 }
 
 interface IssueLabelCreateOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   name: string;
   color: string;
 }
@@ -175,22 +156,22 @@ export function registerIssueCommands(program: Command): void {
   addCommonClientOptions(
     issue
       .command("list")
-      .description("List issues for a company")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .description("List issues for a space")
+      .option("-C, --space-id <id>", "Outpost ID")
       .option("--status <csv>", "Comma-separated statuses")
       .option("--assignee-agent-id <id>", "Filter by assignee agent ID")
       .option("--project-id <id>", "Filter by project ID")
       .option("--match <text>", "Local text match on identifier/title/description")
       .action(async (opts: IssueBaseOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const params = new URLSearchParams();
           if (opts.status) params.set("status", opts.status);
           if (opts.assigneeAgentId) params.set("assigneeAgentId", opts.assigneeAgentId);
           if (opts.projectId) params.set("projectId", opts.projectId);
 
           const query = params.toString();
-          const path = `${apiPath`/api/companies/${ctx.companyId}/issues`}${query ? `?${query}` : ""}`;
+          const path = `${apiPath`/api/spaces/${ctx.spaceId}/issues`}${query ? `?${query}` : ""}`;
           const rows = (await ctx.api.get<Issue[]>(path)) ?? [];
 
           const filtered = filterIssueRows(rows, opts.match);
@@ -221,7 +202,7 @@ export function registerIssueCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
@@ -278,7 +259,7 @@ export function registerIssueCommands(program: Command): void {
     issue
       .command("create")
       .description("Create an issue")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--title <title>", "Issue title")
       .option("--description <text>", "Issue description")
       .option("--status <status>", "Issue status")
@@ -298,7 +279,7 @@ export function registerIssueCommands(program: Command): void {
           if (opts.standalone && opts.parentId) {
             throw new Error("--standalone cannot be combined with --parent-id");
           }
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const payload = createIssueSchema.parse({
             title: opts.title,
             description: opts.description,
@@ -312,13 +293,13 @@ export function registerIssueCommands(program: Command): void {
             billingCode: opts.billingCode,
           });
 
-          const created = await ctx.api.post<Issue>(apiPath`/api/companies/${ctx.companyId}/issues`, payload);
+          const created = await ctx.api.post<Issue>(apiPath`/api/spaces/${ctx.spaceId}/issues`, payload);
           printOutput(created, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
@@ -956,14 +937,14 @@ export function registerIssueCommands(program: Command): void {
       .command("attachment:upload")
       .description("Upload an issue attachment")
       .argument("<issueId>", "Issue ID")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--file <path>", "File to upload")
       .option("--comment-id <id>", "Attach to an issue comment")
       .action(async (issueId: string, opts: IssueAttachmentUploadOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const attachment = await uploadAttachment(ctx.api.apiBase, ctx.api.apiKey, {
-            companyId: ctx.companyId ?? "",
+            spaceId: ctx.spaceId ?? "",
             issueId,
             filePath: opts.file,
             commentId: opts.commentId,
@@ -974,7 +955,7 @@ export function registerIssueCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
@@ -1019,38 +1000,38 @@ export function registerIssueCommands(program: Command): void {
   addCommonClientOptions(
     issue
       .command("label:list")
-      .description("List issue labels in a company")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .description("List issue labels in a space")
+      .option("-C, --space-id <id>", "Outpost ID")
       .action(async (opts: BaseClientOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const labels = await ctx.api.get(apiPath`/api/companies/${ctx.companyId}/labels`);
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const labels = await ctx.api.get(apiPath`/api/spaces/${ctx.spaceId}/labels`);
           printOutput(labels, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
     issue
       .command("label:create")
       .description("Create an issue label")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--name <name>", "Label name")
       .requiredOption("--color <hex>", "Label color, e.g. #4f46e5")
       .action(async (opts: IssueLabelCreateOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const payload = createIssueLabelSchema.parse({ name: opts.name, color: opts.color });
-          const label = await ctx.api.post(apiPath`/api/companies/${ctx.companyId}/labels`, payload);
+          const label = await ctx.api.post(apiPath`/api/spaces/${ctx.spaceId}/labels`, payload);
           printOutput(label, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
@@ -1166,44 +1147,6 @@ export function registerIssueCommands(program: Command): void {
       }),
   );
 
-  addCommonClientOptions(
-    issue
-      .command("feedback:list")
-      .description("List feedback traces for an issue")
-      .argument("<issueId>", "Issue ID")
-      .option("--target-type <type>", "Filter by target type")
-      .option("--vote <vote>", "Filter by vote value")
-      .option("--status <status>", "Filter by trace status")
-      .option("--from <iso8601>", "Only include traces created at or after this timestamp")
-      .option("--to <iso8601>", "Only include traces created at or before this timestamp")
-      .option("--shared-only", "Only include traces eligible for sharing/export")
-      .option("--include-payload", "Include stored payload snapshots in the response")
-      .action(async (issueId: string, opts: IssueFeedbackOptions) => {
-        try {
-          const ctx = resolveCommandContext(opts);
-          const traces = (await ctx.api.get<FeedbackTrace[]>(
-            `${apiPath`/api/issues/${issueId}/feedback-traces`}${buildFeedbackTraceQuery(opts)}`,
-          )) ?? [];
-          if (ctx.json) {
-            printOutput(traces, { json: true });
-            return;
-          }
-          printOutput(
-            traces.map((trace) => ({
-              id: trace.id,
-              issue: trace.issueIdentifier ?? trace.issueId,
-              vote: trace.vote,
-              status: trace.status,
-              targetType: trace.targetType,
-              target: trace.targetSummary.label,
-            })),
-            { json: false },
-          );
-        } catch (err) {
-          handleCommandError(err);
-        }
-      }),
-  );
 
   addCommonClientOptions(
     issue
@@ -1253,45 +1196,6 @@ export function registerIssueCommands(program: Command): void {
       }),
   );
 
-  addCommonClientOptions(
-    issue
-      .command("feedback:export")
-      .description("Export feedback traces for an issue")
-      .argument("<issueId>", "Issue ID")
-      .option("--target-type <type>", "Filter by target type")
-      .option("--vote <vote>", "Filter by vote value")
-      .option("--status <status>", "Filter by trace status")
-      .option("--from <iso8601>", "Only include traces created at or after this timestamp")
-      .option("--to <iso8601>", "Only include traces created at or before this timestamp")
-      .option("--shared-only", "Only include traces eligible for sharing/export")
-      .option("--include-payload", "Include stored payload snapshots in the export")
-      .option("--out <path>", "Write export to a file path instead of stdout")
-      .option("--format <format>", "Export format: json or ndjson", "ndjson")
-      .action(async (issueId: string, opts: IssueFeedbackOptions) => {
-        try {
-          const ctx = resolveCommandContext(opts);
-          const traces = (await ctx.api.get<FeedbackTrace[]>(
-            `${apiPath`/api/issues/${issueId}/feedback-traces`}${buildFeedbackTraceQuery(opts, opts.includePayload ?? true)}`,
-          )) ?? [];
-            const serialized = serializeFeedbackTraces(traces, opts.format);
-            if (opts.out?.trim()) {
-              await writeFile(opts.out, serialized, "utf8");
-              if (ctx.json) {
-                printOutput(
-                  { out: opts.out, count: traces.length, format: normalizeFeedbackTraceExportFormat(opts.format) },
-                  { json: true },
-                );
-                return;
-              }
-              console.log(`Wrote ${traces.length} feedback trace(s) to ${opts.out}`);
-            return;
-          }
-          process.stdout.write(`${serialized}${serialized.endsWith("\n") ? "" : "\n"}`);
-        } catch (err) {
-          handleCommandError(err);
-        }
-      }),
-  );
 
   addCommonClientOptions(
     issue
@@ -1407,20 +1311,20 @@ function buildApiUrl(apiBase: string, path: string): string {
 async function uploadAttachment(
   apiBase: string,
   apiKey: string | undefined,
-  input: { companyId: string; issueId: string; filePath: string; commentId?: string; runId?: string },
+  input: { spaceId: string; issueId: string; filePath: string; commentId?: string; runId?: string },
 ): Promise<unknown> {
   const bytes = await readFile(input.filePath);
   const form = new FormData();
   form.set("file", new Blob([bytes], { type: inferContentTypeFromPath(input.filePath) }), input.filePath.split(/[\\/]/).pop() ?? "attachment");
   if (input.commentId) form.set("issueCommentId", input.commentId);
-  // This multipart upload uses a hand-rolled fetch rather than PaperclipApiClient,
+  // This multipart upload uses a hand-rolled fetch rather than OutpostApiClient,
   // so it must forward the agent run-id header itself — otherwise an
   // agent-authenticated upload is rejected with "401 Agent run id required"
-  // (the client injects x-paperclip-run-id automatically for JSON requests).
+  // (the client injects x-outpost-run-id automatically for JSON requests).
   const headers: Record<string, string> = {};
   if (apiKey) headers.authorization = `Bearer ${apiKey}`;
-  if (input.runId) headers["x-paperclip-run-id"] = input.runId;
-  const response = await fetch(buildApiUrl(apiBase, apiPath`/api/companies/${input.companyId}/issues/${input.issueId}/attachments`), {
+  if (input.runId) headers["x-outpost-run-id"] = input.runId;
+  const response = await fetch(buildApiUrl(apiBase, apiPath`/api/spaces/${input.spaceId}/issues/${input.issueId}/attachments`), {
     method: "POST",
     headers,
     body: form,

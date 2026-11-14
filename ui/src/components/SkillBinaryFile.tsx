@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import type { CompanySkillFileDetail } from '@outpost/shared';
+import type { SpaceSkillFileDetail } from '@outpost/shared';
 import { Button } from './ui/button';
-export function SkillBinaryFile({ file }: { file: CompanySkillFileDetail }) {
+export function SkillBinaryFile({ file }: { file: SpaceSkillFileDetail }) {
   const [url, setUrl] = useState('');
   useEffect(() => {
     const bytes = Uint8Array.from(atob(file.content), char => char.charCodeAt(0));

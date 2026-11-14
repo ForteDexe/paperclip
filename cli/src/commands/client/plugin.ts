@@ -39,7 +39,7 @@ interface TargetHealth {
   deploymentExposure?: string;
 }
 
-/** Result of probing the Paperclip instance the CLI is about to talk to. */
+/** Result of probing the Outpost instance the CLI is about to talk to. */
 interface TargetDiagnostics {
   apiBase: string;
   reachable: boolean;
@@ -91,17 +91,17 @@ interface PluginStreamOptions extends BaseClientOptions {
   durationMs?: string;
 }
 
-interface PluginCompanyOptions extends PluginJsonOptions {
-  companyId?: string;
+interface PluginSpaceOptions extends PluginJsonOptions {
+  spaceId?: string;
 }
 
-function requireCompanyId(ctx: { companyId?: string }): string {
-  if (!ctx.companyId) {
+function requireSpaceId(ctx: { spaceId?: string }): string {
+  if (!ctx.spaceId) {
     throw new Error(
-      "Outpost ID is required. Pass --company-id, set OUTPOST_COMPANY_ID, or set context profile companyId via `paperclipai context set`.",
+      "Outpost ID is required. Pass --space-id, set OUTPOST_SPACE_ID, or set context profile spaceId via `outpost context set`.",
     );
   }
-  return ctx.companyId;
+  return ctx.spaceId;
 }
 
 interface PluginInitResult {
@@ -183,7 +183,7 @@ export function renderLocalPluginInstallHint(packagePath: string): string {
 
 /**
  * Probe `GET /api/health` on the instance the CLI is configured to talk to so a
- * developer can confirm *which* Paperclip they are about to install into. This
+ * developer can confirm *which* Outpost they are about to install into. This
  * exists because a local-path plugin can otherwise be silently installed into a
  * stale control-plane host that does not serve the branch's routes; surfacing
  * the API URL plus the server version/status catches that mismatch before the
@@ -292,7 +292,7 @@ export function buildPluginInitNextCommands(outputDir: string): string[] {
     `cd ${quotedOutputDir}`,
     "pnpm install",
     "pnpm dev",
-    `paperclipai plugin install ${quotedOutputDir}`,
+    `outpost plugin install ${quotedOutputDir}`,
   ];
 }
 
@@ -401,9 +401,9 @@ export function registerPluginCommands(program: Command): void {
       .description(
         "Install a plugin from a local path or npm package.\n" +
           "  Examples:\n" +
-          "    paperclipai plugin install ./my-plugin              # local path\n" +
-          "    paperclipai plugin install @acme/plugin-linear      # npm package\n" +
-          "    paperclipai plugin install @acme/plugin-linear@1.2  # pinned version",
+          "    outpost plugin install ./my-plugin              # local path\n" +
+          "    outpost plugin install @acme/plugin-linear      # npm package\n" +
+          "    outpost plugin install @acme/plugin-linear@1.2  # pinned version",
       )
       .option("-l, --local", "Treat <package> as a local filesystem path", false)
       .option("--version <version>", "Specific npm version to install (npm packages only)")
@@ -667,7 +667,7 @@ export function registerPluginCommands(program: Command): void {
             console.log(
               `${pc.bold(ex.displayName)}  ${pc.dim(ex.pluginKey)}\n` +
                 `  ${ex.description}\n` +
-                `  ${pc.cyan(`paperclipai plugin install ${ex.localPath}`)}`,
+                `  ${pc.cyan(`outpost plugin install ${ex.localPath}`)}`,
             );
           }
         } catch (err) {
@@ -682,9 +682,9 @@ export function registerPluginCommands(program: Command): void {
   addPluginSubGet(plugin, "health", "Get plugin health", "health");
   addPluginSubGet(plugin, "logs", "Get plugin logs", "logs");
   addPluginSubPost(plugin, "upgrade", "Upgrade a plugin", "upgrade");
-  addPluginConfigGet(plugin, "config", "Get company-scoped plugin config");
-  addPluginConfigPost(plugin, "config:set", "Set company-scoped plugin config", "config");
-  addPluginConfigPost(plugin, "config:test", "Test company-scoped plugin config", "config/test");
+  addPluginConfigGet(plugin, "config", "Get space-scoped plugin config");
+  addPluginConfigPost(plugin, "config:set", "Set space-scoped plugin config", "config");
+  addPluginConfigPost(plugin, "config:test", "Test space-scoped plugin config", "config/test");
   addPluginSubGet(plugin, "jobs", "List plugin jobs", "jobs");
   addPluginJobGet(plugin, "job:runs", "List plugin job runs", "runs");
   addPluginJobPost(plugin, "job:trigger", "Trigger a plugin job", "trigger");
@@ -766,20 +766,20 @@ function addPluginConfigGet(parent: Command, name: string, description: string):
       .command(name)
       .description(description)
       .argument("<pluginId>", "Plugin ID or key")
-      .option("-C, --company-id <id>", "Outpost ID")
-      .action(async (pluginId: string, opts: PluginCompanyOptions) => {
+      .option("-C, --space-id <id>", "Outpost ID")
+      .action(async (pluginId: string, opts: PluginSpaceOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const companyId = requireCompanyId(ctx);
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const spaceId = requireSpaceId(ctx);
           printOutput(
-            await ctx.api.get(`/api/plugins/${encodeURIComponent(pluginId)}/config?companyId=${encodeURIComponent(companyId)}`),
+            await ctx.api.get(`/api/plugins/${encodeURIComponent(pluginId)}/config?spaceId=${encodeURIComponent(spaceId)}`),
             { json: ctx.json },
           );
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 
@@ -789,16 +789,16 @@ function addPluginConfigPost(parent: Command, name: string, description: string,
       .command(name)
       .description(description)
       .argument("<pluginId>", "Plugin ID or key")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .option("--payload-json <json>", "JSON payload", "{}")
-      .action(async (pluginId: string, opts: PluginCompanyOptions) => {
+      .action(async (pluginId: string, opts: PluginSpaceOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const payload = parseJson(opts.payloadJson ?? "{}") as Record<string, unknown>;
           printOutput(
             await ctx.api.post(`/api/plugins/${encodeURIComponent(pluginId)}/${suffix}`, {
               ...payload,
-              companyId: ctx.companyId,
+              spaceId: ctx.spaceId,
             }),
             { json: ctx.json },
           );
@@ -806,7 +806,7 @@ function addPluginConfigPost(parent: Command, name: string, description: string,
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 
@@ -849,16 +849,16 @@ function addPluginLocalFolderGet(parent: Command, name: string, description: str
       .command(name)
       .description(description)
       .argument("<pluginId>", "Plugin ID or key")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
-      .action(async (pluginId: string, opts: PluginCompanyOptions) => {
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
+      .action(async (pluginId: string, opts: PluginSpaceOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          printOutput(await ctx.api.get(`/api/plugins/${encodeURIComponent(pluginId)}/companies/${ctx.companyId}/local-folders`), { json: ctx.json });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          printOutput(await ctx.api.get(`/api/plugins/${encodeURIComponent(pluginId)}/spaces/${ctx.spaceId}/local-folders`), { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 
@@ -869,19 +869,19 @@ function addPluginLocalFolderKeyGet(parent: Command, name: string, description: 
       .description(description)
       .argument("<pluginId>", "Plugin ID or key")
       .argument("<folderKey>", "Local folder key")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
-      .action(async (pluginId: string, folderKey: string, opts: PluginCompanyOptions) => {
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
+      .action(async (pluginId: string, folderKey: string, opts: PluginSpaceOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           printOutput(
-            await ctx.api.get(`/api/plugins/${encodeURIComponent(pluginId)}/companies/${ctx.companyId}/local-folders/${encodeURIComponent(folderKey)}/${suffix}`),
+            await ctx.api.get(`/api/plugins/${encodeURIComponent(pluginId)}/spaces/${ctx.spaceId}/local-folders/${encodeURIComponent(folderKey)}/${suffix}`),
             { json: ctx.json },
           );
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 
@@ -892,14 +892,14 @@ function addPluginLocalFolderKeyPost(parent: Command, name: string, description:
       .description(description)
       .argument("<pluginId>", "Plugin ID or key")
       .argument("<folderKey>", "Local folder key")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .option("--payload-json <json>", "JSON payload", "{}")
-      .action(async (pluginId: string, folderKey: string, opts: PluginCompanyOptions) => {
+      .action(async (pluginId: string, folderKey: string, opts: PluginSpaceOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           printOutput(
             await ctx.api.post(
-              `/api/plugins/${encodeURIComponent(pluginId)}/companies/${ctx.companyId}/local-folders/${encodeURIComponent(folderKey)}/${suffix}`,
+              `/api/plugins/${encodeURIComponent(pluginId)}/spaces/${ctx.spaceId}/local-folders/${encodeURIComponent(folderKey)}/${suffix}`,
               parseJson(opts.payloadJson ?? "{}"),
             ),
             { json: ctx.json },
@@ -908,7 +908,7 @@ function addPluginLocalFolderKeyPost(parent: Command, name: string, description:
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 
@@ -919,14 +919,14 @@ function addPluginLocalFolderKeyPut(parent: Command, name: string, description: 
       .description(description)
       .argument("<pluginId>", "Plugin ID or key")
       .argument("<folderKey>", "Local folder key")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "JSON payload")
-      .action(async (pluginId: string, folderKey: string, opts: PluginCompanyOptions) => {
+      .action(async (pluginId: string, folderKey: string, opts: PluginSpaceOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           printOutput(
             await ctx.api.put(
-              `/api/plugins/${encodeURIComponent(pluginId)}/companies/${ctx.companyId}/local-folders/${encodeURIComponent(folderKey)}`,
+              `/api/plugins/${encodeURIComponent(pluginId)}/spaces/${ctx.spaceId}/local-folders/${encodeURIComponent(folderKey)}`,
               parseJson(opts.payloadJson ?? "{}"),
             ),
             { json: ctx.json },
@@ -935,7 +935,7 @@ function addPluginLocalFolderKeyPut(parent: Command, name: string, description: 
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 

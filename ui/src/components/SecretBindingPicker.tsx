@@ -1,10 +1,10 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, KeyRound, Loader2, Plus, X } from "lucide-react";
-import type { CompanySecret, SecretVersionSelector } from "@outpost/shared";
+import type { SpaceSecret, SecretVersionSelector } from "@outpost/shared";
 import { secretsApi } from "../api/secrets";
 import { queryKeys } from "../lib/queryKeys";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,17 +17,17 @@ export interface SecretBindingValue {
 }
 
 /**
- * Metadata for bound secrets the current company's list cannot show — e.g.
+ * Metadata for bound secrets the current space's list cannot show — e.g.
  * an instance-scoped environment referencing a secret owned by another
- * company. Keyed by secret id. Editors that can read instance-level
+ * space. Keyed by secret id. Editors that can read instance-level
  * secret-ref descriptors provide it; everywhere else the context is absent
  * and the picker falls back to its generic missing-secret treatment.
  */
 export interface SecretRefHint {
   name: string;
   status: string;
-  companyId: string;
-  companyName: string | null;
+  spaceId: string;
+  spaceName: string | null;
 }
 
 /**
@@ -53,14 +53,14 @@ interface SecretBindingPickerProps {
   disabled?: boolean;
   /**
    * Optional whitelist of secret statuses to show. Defaults to "active".
-   * Pass null to disable the filter and show every secret in the company.
+   * Pass null to disable the filter and show every secret in the space.
    */
-  statusFilter?: Array<CompanySecret["status"]> | null;
+  statusFilter?: Array<SpaceSecret["status"]> | null;
 }
 
 const VERSION_LATEST: SecretVersionSelector = "latest";
 
-function describeSecret(secret: CompanySecret): string {
+function describeSecret(secret: SpaceSecret): string {
   const provider = secret.provider.replaceAll("_", " ");
   if (secret.managedMode === "external_reference") {
     return `External · ${provider}`;
@@ -68,7 +68,7 @@ function describeSecret(secret: CompanySecret): string {
   return provider;
 }
 
-function statusTone(status: CompanySecret["status"]): string {
+function statusTone(status: SpaceSecret["status"]): string {
   switch (status) {
     case "active":
       return "text-emerald-600 dark:text-emerald-400";
@@ -95,7 +95,7 @@ export function SecretBindingPicker({
   statusFilter = ["active"],
 }: SecretBindingPickerProps) {
   const queryClient = useQueryClient();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createValue, setCreateValue] = useState("");
@@ -103,11 +103,11 @@ export function SecretBindingPicker({
   const [createError, setCreateError] = useState<string | null>(null);
 
   const secretsQuery = useQuery({
-    queryKey: selectedCompanyId
-      ? queryKeys.secrets.list(selectedCompanyId)
+    queryKey: selectedSpaceId
+      ? queryKeys.secrets.list(selectedSpaceId)
       : ["secrets", "__disabled__"],
-    queryFn: () => secretsApi.list(selectedCompanyId!),
-    enabled: Boolean(selectedCompanyId),
+    queryFn: () => secretsApi.list(selectedSpaceId!),
+    enabled: Boolean(selectedSpaceId),
   });
 
   const filteredSecrets = useMemo(() => {
@@ -124,22 +124,22 @@ export function SecretBindingPicker({
   const selectedMissing = Boolean(value && !selectedSecret);
   const hintsContext = useContext(SecretRefHintsContext);
   const missingHint = selectedMissing && value ? hintsContext?.hints[value.secretId] : undefined;
-  // Only an active cross-company secret is healthy: runtime resolution
+  // Only an active cross-space secret is healthy: runtime resolution
   // rejects disabled/archived/deleted secrets, so those must not be
   // presented as working bindings.
-  const crossCompanyHint = missingHint && missingHint.status === "active" ? missingHint : undefined;
+  const crossSpaceHint = missingHint && missingHint.status === "active" ? missingHint : undefined;
   const hintsPending = selectedMissing && !missingHint && hintsContext !== undefined && hintsContext.status !== "ready";
-  const calmMissing = Boolean(crossCompanyHint) || hintsPending;
+  const calmMissing = Boolean(crossSpaceHint) || hintsPending;
 
   const createMutation = useMutation({
     mutationFn: () =>
-      secretsApi.create(selectedCompanyId!, {
+      secretsApi.create(selectedSpaceId!, {
         name: createName.trim(),
         value: createValue,
         description: createDescription.trim() || null,
       }),
     onSuccess: (created) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.secrets.list(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.secrets.list(selectedSpaceId!) });
       onChange({ secretId: created.id, version: VERSION_LATEST });
       setCreateOpen(false);
       setCreateName("");
@@ -197,7 +197,7 @@ export function SecretBindingPicker({
             {selectedMissing && value ? (
               <option value={value.secretId}>
                 {missingHint
-                  ? `${missingHint.name} — ${missingHint.companyName ?? "another outpost"}`
+                  ? `${missingHint.name} — ${missingHint.spaceName ?? "another outpost"}`
                   : hintsPending
                     ? `Secret (${value.secretId.slice(0, 8)}…)`
                     : `Missing secret (${value.secretId.slice(0, 8)}…)`}
@@ -242,7 +242,7 @@ export function SecretBindingPicker({
           variant="outline"
           size="sm"
           onClick={() => setCreateOpen(true)}
-          disabled={disabled || !selectedCompanyId}
+          disabled={disabled || !selectedSpaceId}
           aria-label="Create secret"
         >
           <Plus className="h-3.5 w-3.5" />
@@ -254,10 +254,10 @@ export function SecretBindingPicker({
           {selectedSecret.status !== "active" ? `Status: ${selectedSecret.status}. ` : null}
           Bound to {versionDisplay(value?.version)} · {selectedSecret.key}
         </p>
-      ) : crossCompanyHint ? (
+      ) : crossSpaceHint ? (
         <p className="text-(length:--text-micro) text-muted-foreground flex items-center gap-1">
           <AlertCircle className="h-3 w-3" />
-          Owned by {crossCompanyHint.companyName ? `the ${crossCompanyHint.companyName} Outpost` : "another Outpost"}. The binding keeps working; selecting a secret from this list re-points it here.
+          Owned by {crossSpaceHint.spaceName ? `the ${crossSpaceHint.spaceName} Outpost` : "another Outpost"}. The binding keeps working; selecting a secret from this list re-points it here.
         </p>
       ) : missingHint ? (
         <p className="text-(length:--text-micro) text-destructive flex items-center gap-1">

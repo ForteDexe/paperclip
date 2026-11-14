@@ -49,7 +49,7 @@ export function googleWorkspaceSelectionForScopes(scopes: readonly string[]): Go
 }
 
 export interface GoogleWorkspaceDraftBinding {
-  companyId: string;
+  spaceId: string;
   connectionId: string;
   actorType: string | null;
   actorId: string | null;

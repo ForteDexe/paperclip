@@ -4,10 +4,10 @@ import type { IdleDeadlineSnapshot } from "../idle-deadline-types.js";
 import type { IdleMcpInspectionBudget } from "./idle-wake-proof.js";
 
 export function pendingMcpCodePredicate(now: number) {
-  return and(sql`${mcpOauthRequests.resource} ~ '/mcp/(paperclip|runner)$'`,isNotNull(mcpOauthRequests.codeHash),isNull(mcpOauthRequests.consumedAt),gt(mcpOauthRequests.expiresAt,new Date(now)));
+  return and(sql`${mcpOauthRequests.resource} ~ '/mcp/(outpost|runner)$'`,isNotNull(mcpOauthRequests.codeHash),isNull(mcpOauthRequests.consumedAt),gt(mcpOauthRequests.expiresAt,new Date(now)));
 }
 export function pendingMcpDevicePredicate(now: number) {
-  return and(sql`${mcpOauthDeviceRequests.resource} ~ '/mcp/(paperclip|runner)$'`,gt(mcpOauthDeviceRequests.expiresAt,new Date(now)),
+  return and(sql`${mcpOauthDeviceRequests.resource} ~ '/mcp/(outpost|runner)$'`,gt(mcpOauthDeviceRequests.expiresAt,new Date(now)),
     or(sql`${mcpOauthDeviceRequests.status} NOT IN ('pending','denied','consumed')`,and(sql`${mcpOauthDeviceRequests.status} = 'pending'`,isNotNull(mcpOauthDeviceRequests.grantId))));
 }
 export async function readIdleMcpAuthorizationHandoffs(tx: Pick<Db,"select">,input: {now:number;budget:IdleMcpInspectionBudget}): Promise<IdleDeadlineSnapshot> {

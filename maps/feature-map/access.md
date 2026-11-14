@@ -25,7 +25,7 @@ Open `/auth`; first-owner bootstrap uses `/board-claim/:token` when configured. 
 
 ## Verification
 
-Automated: [auth UI](../../ui/src/pages/Auth.test.tsx), [session routes](../../server/src/__tests__/auth-session-route.test.ts), [board auth client](../../cli/src/__tests__/board-auth.test.ts), and [token commands](../../cli/src/__tests__/token.test.ts).
+Automated: [auth UI](../../ui/src/pages/Auth.test.tsx), [session routes](../../server/src/__tests__/auth-session-route.test.ts), [operator auth client](../../cli/src/__tests__/operator-auth.test.ts), and [token commands](../../cli/src/__tests__/token.test.ts).
 
 Manual: Sign in, reload a Space deep link, sign out, and revisit it. Verify that unavailable resources and cross-Space requests fail without exposing another Space's data. Authorize a CLI context, make a read-only request, revoke its token, and retry the same bearer.
 

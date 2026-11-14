@@ -13,17 +13,17 @@ approval can owe execution even when no agent run exists. Recovery uses the save
 origin and current authorization/target checks; the scheduler sees only whether
 another attempt is needed.
 
-Startup discovers companies with saved approved requests. Committed review
-signals carry the affected company ID; subsequent discovery and recovery reads
-filter by that company. The shared scoped worker coalesces changes and dispatches
-one company per pass with a one-second minimum spacing. A company writing reviews
-does not scan or lock another company's approved backlog.
+Startup discovers spaces with saved approved requests. Committed review
+signals carry the affected space ID; subsequent discovery and recovery reads
+filter by that space. The shared scoped worker coalesces changes and dispatches
+one space per pass with a one-second minimum spacing. A space writing reviews
+does not scan or lock another space's approved backlog.
 
-Recovery pages that company's approved requests in ID order using a partial index. It does not
+Recovery pages that space's approved requests in ID order using a partial index. It does not
 let a full batch of unavailable approvals starve later work. A failed read or
 unresolved executable approval retains a 30-second retry. New writes preserve
-that company's retry deadline, while other companies can run independently.
-A company pass still drains all its pages; this change does not cap provider
+that space's retry deadline, while other spaces can run independently.
+A space pass still drains all its pages; this change does not cap provider
 calls within that pass or alter the provider's existing execution timeout. Once a pass leaves no
 such obligation, there is no recurring approved-recovery query. An empty system,
 configured idle tools, completed history, and deliberately inert approvals are
@@ -38,7 +38,7 @@ queue invalidation, and the gateway's approval claims and managed-argument
 invalidation. The notification is awaited before SQL in the existing transaction;
 caller-owned outer transactions retain commit/rollback ownership.
 
-A pending-only change can cause one empty company-scoped discovery read. It does not
+A pending-only change can cause one empty space-scoped discovery read. It does not
 create a periodic scan. No per-route recovery bookkeeping or database listener
 is added. Signals use the existing database owner's single-active-writer model.
 Independent SQL writers or another process need a separate notification contract.
@@ -66,7 +66,7 @@ replay an uncertain provider call.
 
 The shared deadline worker coalesces notifications, preserves changes during a
 pass, and retains skipped work across idle drain/resume. Startup reconstructs
-saved approvals. Company deletion invalidates cached recovery and retries through
+saved approvals. Space deletion invalidates cached recovery and retries through
 the same transactional notification boundary. Shutdown stops its coordinator registration. With heartbeat
 scheduling disabled, startup keeps the existing one-off recovery behavior.
 
@@ -105,14 +105,14 @@ a new approval. Its full 469-test suite passes. The initial local command skippe
 its database cases; the suite now honors its supplied disposable database through
 the standard test-database guard independently of embedded Postgres support.
 
-Company-scoping regression: a real signed/reviewed action in company A previously
-caused an unfiltered approved-request SELECT over company B's inert legacy action.
+Space-scoping regression: a real signed/reviewed action in space A previously
+caused an unfiltered approved-request SELECT over space B's inert legacy action.
 The captured-SQL test fails before this repair and passes with scoped reads. Added
 lifecycle cases check retry preservation across committed writes, independent
-company progress, and disarming after the real company-deletion producer. These
+space progress, and disarming after the real space-deletion producer. These
 checks supplement the earlier execution, transaction, and paging evidence above.
 
-After company scoping, the complete gateway-service and startup selection passes
+After space scoping, the complete gateway-service and startup selection passes
 149 tests against a disposable PostgreSQL database, and server typecheck passes.
 Stack integration, workspace checks, and fresh remote CI remain separate gates.
 
@@ -125,7 +125,7 @@ and invocation were saved as failed, so approved recovery could not retry them.
 The preparation boundary now distinguishes explicit validation/access rejections
 from unexpected dependency errors and transient HTTP errors. The existing
 `tool-approval-execution` owner releases only its exact claim: invocation and request
-are locked in the established order, their link/company/claim timestamp must
+are locked in the established order, their link/space/claim timestamp must
 match, and the invocation must still await approval with no recorded start.
 The request returns to `approved` with a transaction-aware notification. Signed
 arguments and the human approval remain unchanged; the error propagates so the
@@ -166,7 +166,7 @@ producer is added.
 `tool-approval-execution.ts` owns the shared claim token, release, and dispatch
 transition. Its Test-tab claim/outcome functions remain specific to that consumer.
 Both origins use the same invocation-then-request locks and verify invocation,
-company, request linkage, claim timestamp, awaiting-approval state, and absence
+space, request linkage, claim timestamp, awaiting-approval state, and absence
 of an earlier start before dispatch. An agent that loses its claim during
 preparation cannot call the provider or overwrite its successor. The Test-tab
 unapproved direct-call path retains its original behavior.
@@ -197,11 +197,11 @@ but new or edited rules only inspected their counters. Two approved actions coul
 therefore both execute against one available slot. The real recovery regression
 failed for both a newly added limit and an increased limit before this repair.
 
-The policy service now owns `admitInvocation`: lock the company-scoped invocation,
+The policy service now owns `admitInvocation`: lock the space-scoped invocation,
 validate its exact actor/task/tool/argument binding, recheck current policy, spend
 only admissions not already recorded for that policy generation, and save the
 receipt atomically. The gateway supplies its execution claim; that claim is locked
-and checked by ID, invocation, company, executing status and timestamp. This also
+and checked by ID, invocation, space, executing status and timestamp. This also
 supports historical approved requests whose invocation still says pending, without
 accepting a stale claimant. Existing claim/start/settlement owners still control
 provider execution. No queue table, periodic query, or per-route wrapper is added.
@@ -260,7 +260,7 @@ combined-stack acceptance still need their own results.
 A delegated Test-tab call has an originating agent but no gateway token. The
 named-gateway admission path therefore did not evaluate its caller policy. If a
 rate rule was added while approval was pending, approval charged only the target.
-A shared company/tool bucket then rejected the caller against that same charge;
+A shared space/tool bucket then rejected the caller against that same charge;
 a caller-specific rule instead allowed execution without recording its charge.
 
 The Test-tab owner now supplies its caller/target policy evaluation to the existing
@@ -300,7 +300,7 @@ Both agent-origin and Test-tab preparation now bind the verified complete identi
 for a historical invocation before current policy admission. Signature, reviewed
 target and managed-argument checks still run first. The approval execution owner
 performs the identity transition in an invocation-then-request lock transaction.
-It requires the exact current claim, company and invocation relationship, an
+It requires the exact current claim, space and invocation relationship, an
 undispatched awaiting-approval invocation, and the expected reviewed/preview hash.
 Unrelated saved hashes are not accepted. Modern matching identities do not add
 this transaction. Current policies and rate charges still apply afterward.
@@ -344,7 +344,7 @@ the real one-connection regression; a revoked-issuer control already passed.
 The admission callback now receives its transaction and passes it through the
 existing issuer authority checks. Both connection authorization checks and the
 token read use that connection. Ordinary checks retain their root client, and
-current authority, claim, company and rate enforcement remain in place.
+current authority, claim, space and rate enforcement remain in place.
 The three constrained-pool cases pass, as do all 81 HTTP integration cases and
 190 gateway, policy, startup and deadline consumer cases. The initial consumer
 command selected an incorrect policy filename and omitted the gateway database

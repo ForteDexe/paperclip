@@ -7,8 +7,8 @@ const buildCiliumNetworkPolicyManifest = (input: BuildCiliumNetworkPolicyInput) 
 
 describe("buildCiliumNetworkPolicyManifest", () => {
   const baseInput = {
-    namespace: "paperclip-acme",
-    paperclipServerNamespace: "paperclip",
+    namespace: "outpost-acme",
+    outpostServerNamespace: "outpost",
     egressAllowFqdns: ["api.anthropic.com"],
     egressAllowCidrs: [] as string[],
   };
@@ -45,10 +45,10 @@ describe("buildCiliumNetworkPolicyManifest", () => {
     expect(dnsRule).toBeDefined();
   });
 
-  it("includes a rule for paperclip-server callback", () => {
+  it("includes a rule for outpost-server callback", () => {
     const cnp = buildCiliumNetworkPolicyManifest(baseInput);
     const cb = cnp.spec.egress.find((e: { toEndpoints?: { matchLabels: Record<string, string> }[] }) =>
-      e.toEndpoints?.some((ep) => ep.matchLabels.app === "paperclip-server"),
+      e.toEndpoints?.some((ep) => ep.matchLabels.app === "outpost-server"),
     );
     expect(cb).toBeDefined();
   });

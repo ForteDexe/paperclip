@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatCatalogContext } from "./chat-catalog-contract.js";
 import { uploadFactualQueryAttachment, type ChatQueryAttachmentReceipt } from "./chat-query-attachments.js";
-import { buildPaperclipTaskMarkdown } from "../../server/src/services/heartbeat/task-markdown.js";
+import { buildOutpostTaskMarkdown } from "../../server/src/services/heartbeat/task-markdown.js";
 vi.mock("@playwright/test", () => ({ expect: () => ({ toBeVisible: async () => {}, toContainText: async () => {}, not: { toContainText: async () => {} } }) }));
 const id = "11111111-1111-4111-8111-111111111111";
 function fixture() {
@@ -10,7 +10,7 @@ function fixture() {
   let uploaded: ChatQueryAttachmentReceipt | undefined;
   const state = { patch: {} as Partial<ChatQueryAttachmentReceipt>, changedBytes: false, humanId: "human", deploymentMode: "authenticated", existing: false };
   const inputFile = vi.fn(async (file: { name: string; buffer: Buffer }) => {
-    uploaded = { id, companyId: "company", issueId: "source", issueCommentId: null, originalFilename: file.name, contentPath: `/api/attachments/${id}/content`, byteSize: file.buffer.length,
+    uploaded = { id, spaceId: "space", issueId: "source", issueCommentId: null, originalFilename: file.name, contentPath: `/api/attachments/${id}/content`, byteSize: file.buffer.length,
       sha256: createHash("sha256").update(file.buffer).digest("hex"), createdByUserId: "human", createdByAgentId: null, ...state.patch };
   });
   const post = vi.fn(async () => ({})); const evidence = vi.fn(async () => undefined);
@@ -19,14 +19,14 @@ function fixture() {
     get: vi.fn(async (path: string) => path === "/api/health" ? { deploymentMode: state.deploymentMode } : path === "/api/auth/get-session" ? { user: state.humanId ? { id: state.humanId } : undefined }
       : uploaded ? [uploaded] : state.existing ? [{ originalFilename: "launch-update.md" }] : []),
     getAttachmentContent: vi.fn(async () => Buffer.from(state.changedBytes ? "Different launch data" : body)) };
-  const ctx = { scenario: { id: "app-permissions.ask-before-action" }, input: { api, page, evidence, fixtures: { company: { id: "company", issuePrefix: "RUN" }, agent: { id: "ceo" } } },
+  const ctx = { scenario: { id: "app-permissions.ask-before-action" }, input: { api, page, evidence, fixtures: { space: { id: "space", issuePrefix: "RUN" }, agent: { id: "ceo" } } },
     refreshIssue: vi.fn(async () => undefined), issue: () => ({ id: "source" }) } as unknown as ChatCatalogContext;
   return { ctx, state, body, inputFile, evidence, post, page };
 }
 describe("genuine factual canonical query input", () => {
   it("uses the production native context's wake attachment descriptor while conversation descriptions remain suppressed", () => {
     const hiddenDescription = "This incidental chat description is not the person's current input.";
-    const markdown = buildPaperclipTaskMarkdown({ issue: { id: "source", identifier: "RUN-1", title: "Chat with CEO", conversationAgentId: "ceo", description: hiddenDescription },
+    const markdown = buildOutpostTaskMarkdown({ issue: { id: "source", identifier: "RUN-1", title: "Chat with CEO", conversationAgentId: "ceo", description: hiddenDescription },
       nativeRunner: true, wakeComments: [{ id: "canonical", body: "Original canonical request\n\n[launch-update.md](/api/attachments/" + id + "/content)",
         attachments: [{ id, filename: "launch-update.md", contentType: "text/markdown", byteSize: 100, contentPath: `/api/attachments/${id}/content` }] }] });
     expect(markdown).not.toContain(hiddenDescription);
@@ -39,14 +39,14 @@ describe("genuine factual canonical query input", () => {
     const f = fixture(); const receipt = await uploadFactualQueryAttachment(f.ctx, { filename: "launch-update.md", body: f.body });
     expect(receipt).toMatchObject({ id, createdByUserId: "human", issueId: "source", issueCommentId: null });
     expect(f.inputFile.mock.calls[0]![0].buffer.toString("utf8")).toBe(f.body);
-    expect(f.post).toHaveBeenCalledExactlyOnceWith("/api/companies/company/chats/ceo");
+    expect(f.post).toHaveBeenCalledExactlyOnceWith("/api/spaces/space/chats/ceo");
     expect(f.page.goto).toHaveBeenCalledExactlyOnceWith("http://fixture.test/RUN/chats/ceo", { waitUntil: "domcontentloaded" });
     expect(f.evidence).toHaveBeenCalledWith("chat-catalog-factual-query-input.json", expect.objectContaining({ body: f.body }));
     expect(f.body).not.toMatch(/approval|ask.first|call_api|execute|expected|tool/);
   });
-  it.each(["company", "source", "human", "agent", "bytes", "bound-comment"]) ("rejects plausible wrong %s upload provenance", async kind => {
+  it.each(["space", "source", "human", "agent", "bytes", "bound-comment"]) ("rejects plausible wrong %s upload provenance", async kind => {
     const f = fixture();
-    if (kind === "company") f.state.patch.companyId = "foreign";
+    if (kind === "space") f.state.patch.spaceId = "foreign";
     if (kind === "source") f.state.patch.issueId = "different-source";
     if (kind === "human") f.state.patch.createdByUserId = "other-human";
     if (kind === "agent") f.state.patch.createdByAgentId = "agent";

@@ -42,7 +42,7 @@ export async function runActiveFollowup(context: JourneyContext, session: Target
   };
   await mkdir(options.directory, { recursive: true, mode: 0o700 });
   const retain = (name: string, value: unknown) => writeFile(path.join(options.directory, name), JSON.stringify(value, null, 2), { mode: 0o600 });
-  const created = await createTaskThroughUi({ page: context.page, origin: context.api.origin, issuePrefix: context.company.issuePrefix,
+  const created = await createTaskThroughUi({ page: context.page, origin: context.api.origin, issuePrefix: context.space.issuePrefix,
     agentName: agent.name, title, prompt: story.first, workMode: "standard", requireExplicitTitle: true,
     beforeDispatch: () => session.own({ kind: "issue", name: title, journeyId: id }) });
   await session.own({ kind: "issue", name: title, id: created.issueId, journeyId: id });
@@ -61,7 +61,7 @@ export async function runActiveFollowup(context: JourneyContext, session: Target
   const events = (runId: string) => collectRunEvents<Row>((afterSeq, limit) =>
     context.api.get(`/api/heartbeat-runs/${runId}/events?afterSeq=${afterSeq}&limit=${limit}`));
   const issue = (await read()).currentIssue;
-  await context.page.goto(`${context.api.origin}/${context.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`, { waitUntil: "domcontentloaded" });
+  await context.page.goto(`${context.api.origin}/${context.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`, { waitUntil: "domcontentloaded" });
   await expect(context.page.getByTestId("task-chat-composer-input").last()).toBeVisible({ timeout: 30_000 });
   const beforeComments = (await read()).comments;
   const active = await waitFor(options.deadlineAt, async () => {
@@ -97,10 +97,10 @@ export async function runActiveFollowup(context: JourneyContext, session: Target
     finalIssueStatus: value.state.currentIssue.status }), "followup_final_outcome_missing");
   check("followup-consumed-once", true);
   const finalRunId = final.replies.find(reply => reply.body === story.expectedReply)!.runId;
-  const companies = await context.api.get<Array<{ id: string; issuePrefix: string }>>("/api/companies?scope=accessible");
-  if (!Array.isArray(companies) || !companies.some(company => company.id === context.company.id) || companies.some(company => !company.issuePrefix)) throw new JourneyError("failed", "reply_company_context_missing");
+  const spaces = await context.api.get<Array<{ id: string; issuePrefix: string }>>("/api/spaces?scope=accessible");
+  if (!Array.isArray(spaces) || !spaces.some(space => space.id === context.space.id) || spaces.some(space => !space.issuePrefix)) throw new JourneyError("failed", "reply_space_context_missing");
   const reply = await readBoundTaskFinalReply({ page: context.page, runId: finalRunId, agentId: agent.id,
-    expectedText: story.expectedReply, deadlineAt: options.deadlineAt, knownCompanyPrefixes: companies.map(company => company.issuePrefix),
+    expectedText: story.expectedReply, deadlineAt: options.deadlineAt, knownSpacePrefixes: spaces.map(space => space.issuePrefix),
     load: async () => { const latest = await read(); return { run: latest.taskRuns.find(run => run.id === finalRunId)!, comments: latest.comments, events: await events(finalRunId) }; } });
   await retain("followup-final.json", { before, after, runIds: final.state.taskRuns.map(run => run.id), reply });
   check("followup-final-answer-persisted", reply.observedAfterReload === true);

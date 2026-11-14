@@ -8,7 +8,7 @@ import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } fro
 const support = await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("Speko additive voice migration", () => {
   it("upgrades existing Slack data and constrains voice transport to channel connections", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-speko-upgrade-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-speko-upgrade-");
     const sql = postgres(database.connectionString, { max: 1 });
     try {
       expect(await sql`SELECT to_regclass('chat_voice_sessions') AS name`).toEqual([{ name: "chat_voice_sessions" }]);
@@ -35,15 +35,15 @@ const support = await getEmbeddedPostgresTestSupport();
         const hash = createHash("sha256").update(migration).digest("hex");
         await sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash = ${hash}`;
       }
-      const company = randomUUID(), agent = randomUUID(), application = randomUUID(), connection = randomUUID(), endpoint = randomUUID();
-      await sql`INSERT INTO companies (id, name, issue_prefix) VALUES (${company}, 'Existing company', 'OLD')`;
-      await sql`INSERT INTO agents (id, company_id, name, role, status, adapter_type) VALUES (${agent}, ${company}, 'Existing agent', 'general', 'idle', 'process')`;
-      await sql`INSERT INTO tool_applications (id, company_id, application_key, name, type, status) VALUES (${application}, ${company}, 'slack', 'Slack', 'chat', 'active')`;
-      await sql`INSERT INTO tool_connections (id, company_id, application_id, name, uid, connection_purpose, transport, status, enabled) VALUES (${connection}, ${company}, ${application}, 'Existing Slack', 'slack/existing', 'channel', 'chat_sdk', 'active', true)`;
-      await sql`INSERT INTO chat_endpoints (id, company_id, connection_id, provider, public_id, assigned_agent_id, status) VALUES (${endpoint}, ${company}, ${connection}, 'slack', ${randomUUID()}, ${agent}, 'active')`;
+      const space = randomUUID(), agent = randomUUID(), application = randomUUID(), connection = randomUUID(), endpoint = randomUUID();
+      await sql`INSERT INTO spaces (id, name, issue_prefix) VALUES (${space}, 'Existing space', 'OLD')`;
+      await sql`INSERT INTO agents (id, space_id, name, role, status, adapter_type) VALUES (${agent}, ${space}, 'Existing agent', 'general', 'idle', 'process')`;
+      await sql`INSERT INTO tool_applications (id, space_id, application_key, name, type, status) VALUES (${application}, ${space}, 'slack', 'Slack', 'chat', 'active')`;
+      await sql`INSERT INTO tool_connections (id, space_id, application_id, name, uid, connection_purpose, transport, status, enabled) VALUES (${connection}, ${space}, ${application}, 'Existing Slack', 'slack/existing', 'channel', 'chat_sdk', 'active', true)`;
+      await sql`INSERT INTO chat_endpoints (id, space_id, connection_id, provider, public_id, assigned_agent_id, status) VALUES (${endpoint}, ${space}, ${connection}, 'slack', ${randomUUID()}, ${agent}, 'active')`;
       const aiConnection = randomUUID(), mailConnection = randomUUID();
-      await sql`INSERT INTO tool_connections (id, company_id, application_id, name, uid, connection_purpose, transport, status, enabled) VALUES (${aiConnection}, ${company}, ${application}, 'Existing AI', 'ai/existing', 'ai', 'runtime_auth', 'active', true)`;
-      await sql`INSERT INTO tool_connections (id, company_id, application_id, name, uid, connection_purpose, transport, status, enabled, config) VALUES (${mailConnection}, ${company}, ${application}, 'Existing email', 'email/existing', 'channel', 'rest_api', 'active', true, '{"provider":"agentmail"}'::jsonb)`;
+      await sql`INSERT INTO tool_connections (id, space_id, application_id, name, uid, connection_purpose, transport, status, enabled) VALUES (${aiConnection}, ${space}, ${application}, 'Existing AI', 'ai/existing', 'ai', 'runtime_auth', 'active', true)`;
+      await sql`INSERT INTO tool_connections (id, space_id, application_id, name, uid, connection_purpose, transport, status, enabled, config) VALUES (${mailConnection}, ${space}, ${application}, 'Existing email', 'email/existing', 'channel', 'rest_api', 'active', true, '{"provider":"agentmail"}'::jsonb)`;
       await applyPendingMigrations(database.connectionString);
       expect(await sql`SELECT transport FROM tool_connections WHERE id = ${aiConnection}`).toEqual([{ transport: "runtime_auth" }]);
       expect(await sql`SELECT transport FROM tool_connections WHERE id = ${mailConnection}`).toEqual([{ transport: "rest_api" }]);
@@ -63,11 +63,11 @@ const support = await getEmbeddedPostgresTestSupport();
       const [toolConstraint] = await sql`SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = 'chat_voice_tool_calls_tool_check'`;
       expect(toolConstraint.definition).toContain("answer_question");
       expect(await sql`SELECT to_regclass('chat_voice_callbacks') AS name`).toEqual([{ name: "chat_voice_callbacks" }]);
-      await sql`INSERT INTO chat_voice_callbacks (company_id, endpoint_id, user_id, phone_number) VALUES (${company}, ${endpoint}, 'member', '+12015551234')`;
+      await sql`INSERT INTO chat_voice_callbacks (space_id, endpoint_id, user_id, phone_number) VALUES (${space}, ${endpoint}, 'member', '+12015551234')`;
       expect(await sql`SELECT enabled FROM chat_voice_callbacks WHERE endpoint_id = ${endpoint}`).toEqual([{ enabled: false }]);
-      await expect(sql`INSERT INTO chat_voice_callbacks (company_id, endpoint_id, user_id, phone_number) VALUES (${company}, ${endpoint}, 'invalid', '555')`).rejects.toMatchObject({ code: "23514" });
-      await expect(sql`INSERT INTO chat_voice_callbacks (company_id, endpoint_id, user_id, phone_number) VALUES (${randomUUID()}, ${endpoint}, 'foreign', '+12015551234')`).rejects.toMatchObject({ code: "23503" });
-      await expect(sql`INSERT INTO chat_voice_callbacks (company_id, endpoint_id, user_id, phone_number) VALUES (${company}, ${endpoint}, 'member', '+12015559999')`).rejects.toMatchObject({ code: "23505" });
+      await expect(sql`INSERT INTO chat_voice_callbacks (space_id, endpoint_id, user_id, phone_number) VALUES (${space}, ${endpoint}, 'invalid', '555')`).rejects.toMatchObject({ code: "23514" });
+      await expect(sql`INSERT INTO chat_voice_callbacks (space_id, endpoint_id, user_id, phone_number) VALUES (${randomUUID()}, ${endpoint}, 'foreign', '+12015551234')`).rejects.toMatchObject({ code: "23503" });
+      await expect(sql`INSERT INTO chat_voice_callbacks (space_id, endpoint_id, user_id, phone_number) VALUES (${space}, ${endpoint}, 'member', '+12015559999')`).rejects.toMatchObject({ code: "23505" });
       await applyPendingMigrations(database.connectionString);
       // Existing installations have older migration hashes after renumbering.
       // Force each stage to execute again while preserving the actual saved rows.

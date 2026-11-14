@@ -25,7 +25,7 @@ WHERE "run"."runtime_mode" = 'native'
     SELECT 1 FROM "environment_leases" AS "lease"
     WHERE "lease"."heartbeat_run_id" = "run"."id"
       AND NOT coalesce((
-        "lease"."company_id" = "run"."company_id"
+        "lease"."space_id" = "run"."space_id"
         AND "lease"."provider" IS NOT NULL
         AND "lease"."provider" <> 'local'
         AND "lease"."provider_lease_id" IS NOT NULL
@@ -33,7 +33,7 @@ WHERE "run"."runtime_mode" = 'native'
         AND "lease"."cleanup_status" = 'success'
         AND "lease"."status" IN ('released', 'expired', 'failed')
         AND "lease"."metadata" -> 'remoteExecutionTermination' ->> 'schema' = 'outpost.remote-termination.v1'
-        AND "lease"."metadata" -> 'remoteExecutionTermination' ->> 'companyId' = "lease"."company_id"::text
+        AND "lease"."metadata" -> 'remoteExecutionTermination' ->> 'spaceId' = "lease"."space_id"::text
         AND "lease"."metadata" -> 'remoteExecutionTermination' ->> 'runId' = "lease"."heartbeat_run_id"::text
         AND "lease"."metadata" -> 'remoteExecutionTermination' ->> 'leaseId' = "lease"."id"::text
         AND "lease"."metadata" -> 'remoteExecutionTermination' ->> 'provider' = "lease"."provider"

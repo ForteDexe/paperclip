@@ -57,7 +57,7 @@ export function resolveNativeRunnerDevBinary({
   return targetStat?.isFile() ? { binary: target, sourceBuild: false } : null;
 }
 
-export function paperclipRunnerBinaryNeedsBuild({
+export function outpostRunnerBinaryNeedsBuild({
   repoRoot,
   nativeRunnerRequired,
   configuredBinary,

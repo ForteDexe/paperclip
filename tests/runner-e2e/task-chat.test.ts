@@ -6,7 +6,7 @@ import { validateRetainedRunnerResult } from "./result-validation.js";
 import type { RunnerE2EResult } from "./types.js";
 
 const time = "2026-10-28T12:00:00Z";
-const issue = { id: "task", companyId: "company", identifier: "E2E-1", title: "Write the release note", description: "Please write a release note.", createdAt: time };
+const issue = { id: "task", spaceId: "space", identifier: "E2E-1", title: "Write the release note", description: "Please write a release note.", createdAt: time };
 const question = { id: "question", createdAt: "2026-10-28T12:00:02Z", resolvedAt: "2026-10-28T12:00:03Z", kind: "ask_user_questions", status: "answered",
   payload: { questionSet: { questions: [{ id: "tone", prompt: "Which tone?", options: [{ id: "warm", label: "Warm" }, { id: "formal", label: "Formal" }] }] },
     toolAction: { argumentsJson: "PRIVATE_TOOL_ARGUMENTS" } },
@@ -43,7 +43,7 @@ describe("automatic task conversation evidence", () => {
     const comments = Array.from({ length: 1105 }, (_, i) => comment(i));
     comments[1104]!.body = "Final reply " + "Long text. ".repeat(2000);
     const api = fixture({ comments });
-    const e = await captureTaskChat({ get: api.get, companyId: "company", secrets: [] });
+    const e = await captureTaskChat({ get: api.get, spaceId: "space", secrets: [] });
     expect(e.status).toBe("complete");
     const messages = e.threads[0]!.messages.filter(m => m.kind === "comment");
     expect(messages).toHaveLength(1105);
@@ -55,10 +55,10 @@ describe("automatic task conversation evidence", () => {
 
   it("includes the standing chat after its setting is restored, plus the delegated task", async () => {
     const api = fixture();
-    const e = await captureTaskChat({ get: api.get, companyId: "company", issueIds: ["chat", "chat"], secrets: [] });
+    const e = await captureTaskChat({ get: api.get, spaceId: "space", issueIds: ["chat", "chat"], secrets: [] });
     expect(e.threads.map(t => t.issueId)).toEqual(["task", "chat"]);
     expect(e.status).toBe("complete");
-    expect(api.calls).not.toContain("/api/companies/company/chats");
+    expect(api.calls).not.toContain("/api/spaces/space/chats");
     expect(e.threads[0]!.messages.map(m => m.kind)).toEqual(["description", "comment", "interaction", "answer", "comment"]);
     const body = e.threads[0]!.messages.find(m => m.kind === "answer")!.body;
     expect(body).toContain("Warm");
@@ -69,7 +69,7 @@ describe("automatic task conversation evidence", () => {
 
   it("redacts credentials and escapes untrusted chat HTML without cutting off messages", async () => {
     const c = comment(1); c.body = 'A secret: fixture-secret-123 <img src=x onerror="alert(1)">';
-    const e = await captureTaskChat({ get: fixture({ comments: [c] }).get, companyId: "company", secrets: ["fixture-secret-123"] });
+    const e = await captureTaskChat({ get: fixture({ comments: [c] }).get, spaceId: "space", secrets: ["fixture-secret-123"] });
     const page = renderTaskChat(e);
     expect(page).not.toContain("fixture-secret-123");
     expect(page).not.toContain("<img");
@@ -79,7 +79,7 @@ describe("automatic task conversation evidence", () => {
   it("collects native progress beyond the first event page through the task API", async () => {
     const api = fixture();
     const requests: string[] = [];
-    const e = await captureTaskChat({ companyId: "company", secrets: [], get: async <T>(route: string): Promise<T> => {
+    const e = await captureTaskChat({ spaceId: "space", secrets: [], get: async <T>(route: string): Promise<T> => {
       requests.push(route);
       if (route.endsWith("/runs")) return [{ runId: "run", runtimeMode: "native", agentId: "agent" }] as T;
       if (route.startsWith("/api/heartbeat-runs/run/events?")) {
@@ -109,12 +109,12 @@ describe("automatic task conversation evidence", () => {
     expect(JSON.stringify(thread)).not.toContain("PRIVATE_VERDICT_METADATA");
   });
 
-  it("keeps company boundaries and does not read a foreign task's messages", async () => {
+  it("keeps space boundaries and does not read a foreign task's messages", async () => {
     const api = fixture({ empty: true });
     const calls: string[] = [];
-    const e = await captureTaskChat({ companyId: "company", issueIds: ["foreign"], secrets: [], get: async <T>(route: string): Promise<T> => {
+    const e = await captureTaskChat({ spaceId: "space", issueIds: ["foreign"], secrets: [], get: async <T>(route: string): Promise<T> => {
       calls.push(route);
-      return route === "/api/issues/foreign" ? { ...issue, id: "foreign", companyId: "other", description: "PRIVATE_FOREIGN_TASK" } as T : api.get<T>(route);
+      return route === "/api/issues/foreign" ? { ...issue, id: "foreign", spaceId: "other", description: "PRIVATE_FOREIGN_TASK" } as T : api.get<T>(route);
     } });
     expect(e.status).toBe("unavailable");
     expect(e.missing).toContain("task-read");
@@ -123,7 +123,7 @@ describe("automatic task conversation evidence", () => {
   });
 
   it("keeps available history and labels failed capture without retaining the API error body", async () => {
-    const e = await captureTaskChat({ get: fixture({ fail: "/interactions" }).get, companyId: "company", secrets: [] });
+    const e = await captureTaskChat({ get: fixture({ fail: "/interactions" }).get, spaceId: "space", secrets: [] });
     expect(e).toMatchObject({ status: "partial", missing: ["interactions"], threads: [{ status: "partial" }] });
     expect(renderTaskChat(e)).toContain("Message 4");
     expect(renderTaskChat(e)).toContain("partial capture");
@@ -132,14 +132,14 @@ describe("automatic task conversation evidence", () => {
 
   it("rejects repeated pages and retains the already collected prefix as partial", async () => {
     const api = fixture({ comments: Array.from({ length: 100 }, (_, i) => comment(i)) });
-    const e = await captureTaskChat({ get: route => api.get(route.replace(/&after=[^&]+/, "")), companyId: "company", secrets: [] });
+    const e = await captureTaskChat({ get: route => api.get(route.replace(/&after=[^&]+/, "")), spaceId: "space", secrets: [] });
     expect(e.status).toBe("partial");
     expect(e.missing).toContain("comments");
     expect(e.threads[0]!.messages.filter(m => m.kind === "comment")).toHaveLength(100);
   });
 
   it("has no chat section for a browser-only test with no tasks", async () => {
-    const e = await captureTaskChat({ get: fixture({ empty: true }).get, companyId: "company", secrets: [] });
+    const e = await captureTaskChat({ get: fixture({ empty: true }).get, spaceId: "space", secrets: [] });
     expect(e).toMatchObject({ status: "complete", threads: [] });
     expect(renderTaskChat(e)).toBe("");
     expect(renderTaskChat()).toBe("");

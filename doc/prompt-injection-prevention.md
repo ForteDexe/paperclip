@@ -8,13 +8,13 @@ A connection manager can choose a **shared OpenRouter API-key connection**,
 optionally edit the model, enable model checks, and save. The default is
 `openai/gpt-oss-safeguard-20b`. Use an OpenRouter API model ID without an extra
 `openrouter/` prefix. Model suggestions are optional; a catalog outage does not
-prevent manual entry. New companies and existing installations stay unconfigured
+prevent manual entry. New spaces and existing installations stay unconfigured
 until explicitly saved. Clearing the selection does not delete the connection.
 A missing/deleted selection can still be disabled or replaced.
 
 The selected provider receives the complete secret-redacted tool result and a
 fixed, versioned classification policy. API usage is paid and appears in Costs,
-including company/project/agent/user attribution when applicable. Redaction
+including space/project/agent/user attribution when applicable. Redaction
 reduces credential exposure; operators should select a provider suitable for
 their tool data. Scanned content, prompts, and model reasoning are not stored in
 classifier accounting records.
@@ -53,8 +53,8 @@ charged and does not accept arbitrary content.
 
 ## Management API
 
-All paths start with `/api/companies/:companyId/prompt-injection-prevention`.
-Company access and board identity are required. Configuration, model listing,
+All paths start with `/api/spaces/:spaceId/prompt-injection-prevention`.
+Space access and board identity are required. Configuration, model listing,
 and tests require connection-management permission. Agents cannot manage this
 service. GET returns null settings and empty choices to a board user without that
 permission. No API returns credentials.
@@ -67,20 +67,20 @@ permission. No API returns credentials.
 | POST | `/test` | Empty object; two fixed sample classifications |
 
 Identified users retain membership and credential audience restrictions. Agents
-retain installation restrictions. Company sponsorship applies only to an
+retain installation restrictions. Space sponsorship applies only to an
 already-admitted gateway operation without a responsible user; a denied person
 is never retried as a system caller. Runtime credentials always come from the
 connection vault, never process environment fallback.
 
 ## Accounting and recovery
 
-`company_prompt_injection_prevention` retains selections after connection
+`space_prompt_injection_prevention` retains selections after connection
 removal. `prompt_injection_invocations` keeps archival attribution, policy/model,
 verdict categories, bounded errors, token usage, provider request ID, and a link
 to the cost event. It stores no scanned content. A provider request records its own reservation
 from a best-effort budget observation. Shared manual-control admission fences
 are released before network I/O; settlement uses an independent invocation
-transaction without the company writer mutex. Financial changes leave durable
+transaction without the space writer mutex. Financial changes leave durable
 work for asynchronous threshold enforcement. Late receipts correct provisional
 interrupted accounting without rerunning the classifier.
 

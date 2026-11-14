@@ -6,7 +6,7 @@ import type { createSecretProposalsService } from "./secret-proposals.js";
 
 export function registerSecretProposalExpiryWork(
   coordinator: ReturnType<typeof createDeliveryWorkCoordinator>,
-  service: Pick<ReturnType<typeof createSecretProposalsService>, "sweepExpiredForCompany" | "expiryDeadlines">,
+  service: Pick<ReturnType<typeof createSecretProposalsService>, "sweepExpiredForSpace" | "expiryDeadlines">,
   canRun: () => boolean,
 ) {
   return registerScopedDeadlineWork(coordinator, {
@@ -16,14 +16,14 @@ export function registerSecretProposalExpiryWork(
     // a second away. Only actual failures require a recovery backoff.
     minimumPassIntervalMs: 0,
     decodeScope: hint => hint === "*" ? undefined : hint,
-    matches: (entry, companyId?: string) => companyId === undefined || entry.companyId === companyId,
-    load: async (companyId?: string) => (await service.expiryDeadlines(companyId))
-      .map(row => ({ ...row, id: row.companyId })),
+    matches: (entry, spaceId?: string) => spaceId === undefined || entry.spaceId === spaceId,
+    load: async (spaceId?: string) => (await service.expiryDeadlines(spaceId))
+      .map(row => ({ ...row, id: row.spaceId })),
     check: async entry => {
-      const expired = await service.sweepExpiredForCompany(entry.companyId);
-      if (expired > 0) logger.warn({ companyId: entry.companyId, expired }, "secret proposal expiry scrubbed proposals");
-      const [next] = await service.expiryDeadlines(entry.companyId);
-      return next ? { ...next, id: next.companyId } : null;
+      const expired = await service.sweepExpiredForSpace(entry.spaceId);
+      if (expired > 0) logger.warn({ spaceId: entry.spaceId, expired }, "secret proposal expiry scrubbed proposals");
+      const [next] = await service.expiryDeadlines(entry.spaceId);
+      return next ? { ...next, id: next.spaceId } : null;
     },
   }, canRun);
 }

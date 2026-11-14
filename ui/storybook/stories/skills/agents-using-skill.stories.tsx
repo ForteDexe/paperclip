@@ -2,9 +2,9 @@ import { useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type {
-  CompanySkillDetail,
-  CompanySkillUsageAgent,
-  CompanySkillVersion,
+  SpaceSkillDetail,
+  SpaceSkillUsageAgent,
+  SpaceSkillVersion,
 } from "@outpost/shared";
 import {
   AgentsUsingSkillBadge,
@@ -12,14 +12,14 @@ import {
 } from "@/components/skill-studio/AgentsUsingSkillDialog";
 import { queryKeys } from "@/lib/queryKeys";
 
-const COMPANY_ID = "company-storybook";
+const SPACE_ID = "space-storybook";
 const SKILL_ID = "skill-code-review";
 
-function makeVersion(overrides: Partial<CompanySkillVersion>): CompanySkillVersion {
+function makeVersion(overrides: Partial<SpaceSkillVersion>): SpaceSkillVersion {
   return {
     id: "ver",
-    companyId: COMPANY_ID,
-    companySkillId: SKILL_ID,
+    spaceId: SPACE_ID,
+    spaceSkillId: SKILL_ID,
     revisionNumber: 1,
     label: null,
     releaseId: null,
@@ -33,7 +33,7 @@ function makeVersion(overrides: Partial<CompanySkillVersion>): CompanySkillVersi
   };
 }
 
-const VERSIONS: CompanySkillVersion[] = [
+const VERSIONS: SpaceSkillVersion[] = [
   makeVersion({ id: "ver-3", revisionNumber: 3, label: "polish pass" }),
   makeVersion({ id: "ver-2", revisionNumber: 2 }),
   makeVersion({ id: "ver-1", revisionNumber: 1 }),
@@ -46,7 +46,7 @@ const AGENTS = [
   { id: "agent-4", name: "QA Bot", urlKey: "qa-bot", adapterType: "claude_local", icon: "bug", status: "idle" },
 ];
 
-function usageAgent(overrides: Partial<CompanySkillUsageAgent>): CompanySkillUsageAgent {
+function usageAgent(overrides: Partial<SpaceSkillUsageAgent>): SpaceSkillUsageAgent {
   return {
     id: "agent-1",
     name: "Reviewer",
@@ -59,11 +59,11 @@ function usageAgent(overrides: Partial<CompanySkillUsageAgent>): CompanySkillUsa
   };
 }
 
-function makeSkill(overrides: Partial<CompanySkillDetail> = {}): CompanySkillDetail {
+function makeSkill(overrides: Partial<SpaceSkillDetail> = {}): SpaceSkillDetail {
   return {
     id: SKILL_ID,
-    companyId: COMPANY_ID,
-    key: "paperclip/code-review",
+    spaceId: SPACE_ID,
+    key: "outpost/code-review",
     slug: "code-review",
     name: "Code Review",
     description: "Structured pull-request review with actionable findings.",
@@ -80,10 +80,10 @@ function makeSkill(overrides: Partial<CompanySkillDetail> = {}): CompanySkillDet
     authorName: null,
     homepageUrl: null,
     categories: [],
-    sharingScope: "company",
+    sharingScope: "space",
     publicShareToken: null,
     forkedFromSkillId: null,
-    forkedFromCompanyId: null,
+    forkedFromSpaceId: null,
     starCount: 0,
     installCount: 0,
     forkCount: 0,
@@ -111,10 +111,10 @@ function makeSkill(overrides: Partial<CompanySkillDetail> = {}): CompanySkillDet
 
 // Prime the react-query cache so the lazy versions/agents lookups resolve
 // offline (storybook staleTime is Infinity, so nothing refetches).
-function Seed({ skill, children }: { skill: CompanySkillDetail; children: ReactNode }) {
+function Seed({ skill, children }: { skill: SpaceSkillDetail; children: ReactNode }) {
   const queryClient = useQueryClient();
-  queryClient.setQueryData(queryKeys.companySkills.versions(COMPANY_ID, skill.id), VERSIONS);
-  queryClient.setQueryData(queryKeys.agents.list(COMPANY_ID), AGENTS);
+  queryClient.setQueryData(queryKeys.spaceSkills.versions(SPACE_ID, skill.id), VERSIONS);
+  queryClient.setQueryData(queryKeys.agents.list(SPACE_ID), AGENTS);
   return <>{children}</>;
 }
 
@@ -122,7 +122,7 @@ const meta: Meta = {
   id: "skill-studio-agentsusingskill",
   title: "Agents and reusable capabilities/Skills and Skill Studio/Skill Studio/AgentsUsingSkill",
   parameters: { layout: "centered",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "skills/policy"
       ],
@@ -144,7 +144,7 @@ export const HeaderBadge: Story = {
         <div className="flex items-center gap-3 rounded-md border border-border bg-card px-3 py-2">
           <span className="text-base font-semibold">Code Review</span>
           <span className="font-mono text-xs text-muted-foreground">v3</span>
-          <AgentsUsingSkillBadge companyId={COMPANY_ID} skill={skill} />
+          <AgentsUsingSkillBadge spaceId={SPACE_ID} skill={skill} />
         </div>
       </Seed>
     );
@@ -159,21 +159,21 @@ export const HeaderBadgeEmpty: Story = {
         <div className="flex items-center gap-3 rounded-md border border-border bg-card px-3 py-2">
           <span className="text-base font-semibold">Code Review</span>
           <span className="font-mono text-xs text-muted-foreground">v3</span>
-          <AgentsUsingSkillBadge companyId={COMPANY_ID} skill={skill} />
+          <AgentsUsingSkillBadge spaceId={SPACE_ID} skill={skill} />
         </div>
       </Seed>
     );
   },
 };
 
-function OpenDialog({ skill, canManage = true }: { skill: CompanySkillDetail; canManage?: boolean }) {
+function OpenDialog({ skill, canManage = true }: { skill: SpaceSkillDetail; canManage?: boolean }) {
   const [open, setOpen] = useState(true);
   return (
     <Seed skill={skill}>
       <AgentsUsingSkillDialog
         open={open}
         onOpenChange={setOpen}
-        companyId={COMPANY_ID}
+        spaceId={SPACE_ID}
         skill={skill}
         canManage={canManage}
       />

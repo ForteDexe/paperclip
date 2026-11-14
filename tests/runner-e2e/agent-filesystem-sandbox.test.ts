@@ -29,14 +29,14 @@ import {
 import { RUNNER_SELECTED_ID_ENV, parseRunnerSelectors, selectorArgumentsWithEnvironment } from "./selectors.js";
 import { runnerMatrix } from "./catalog.js";
 
-const repositoryRoot = "/work/paperclip";
+const repositoryRoot = "/work/outpost";
 const temporaryRoot = "/var/tmp/outpost-runner-e2e-abc";
 const cell = (id: string) => {
   const execution = runnerMatrix.find((candidate) => candidate.id === id);
   if (!execution) throw new Error(`missing ${id}`);
   return execution;
 };
-const gitStores = ["/work/paperclip/.git"];
+const gitStores = ["/work/outpost/.git"];
 const opencodeLocal = cell("task-workspaces.runner-opencode.local.task-directory-repository-resume");
 const base = {
   platform: "linux" as const,
@@ -55,9 +55,9 @@ describe("agent filesystem sandbox selection", () => {
   it("hides the harness, the trusted copy and captured evidence from local native agents", () => {
     expect(agentFilesystemSandboxConfig(base)).toEqual({
       hidden: [
-        "/work/paperclip/tests",
-        "/work/paperclip/.git",
-        "/work/paperclip/.manual-private-trusted",
+        "/work/outpost/tests",
+        "/work/outpost/.git",
+        "/work/outpost/.manual-private-trusted",
         `${temporaryRoot}/artifacts-private`,
         `${temporaryRoot}/control`,
         `${temporaryRoot}/selected-private-inputs`,
@@ -98,7 +98,7 @@ describe("agent filesystem sandbox selection", () => {
       privateDir: "/tmp/outpost-runner-e2e-abc/artifacts-private",
       evidenceRoot: "/work",
     });
-    expect(config).toEqual({ hidden: ["/work/paperclip/tests", "/work/paperclip/.git", "/work/paperclip/.manual-private-trusted"], required: false });
+    expect(config).toEqual({ hidden: ["/work/outpost/tests", "/work/outpost/.git", "/work/outpost/.manual-private-trusted"], required: false });
   });
 
   it.each([
@@ -120,9 +120,9 @@ describe("agent filesystem sandbox selection", () => {
 });
 
 describe("run-scoped runnerd sandbox", () => {
-  const instanceRoot = `${temporaryRoot}/paperclip-home/instances/runner-e2e-1`;
+  const instanceRoot = `${temporaryRoot}/outpost-home/instances/runner-e2e-1`;
   const runner = `${instanceRoot}/runtime/outpost-runner`;
-  const config = { hidden: ["/work/paperclip/tests"], required: true, instanceRoot };
+  const config = { hidden: ["/work/outpost/tests"], required: true, instanceRoot };
 
   it("keeps the instance root in the attempt's sandbox configuration", () => {
     expect(agentFilesystemSandboxConfig({ ...base, instanceRoot })?.instanceRoot).toBe(instanceRoot);
@@ -140,7 +140,7 @@ describe("run-scoped runnerd sandbox", () => {
       "--run-id", "run-1", "--session-id", "ses:own/1",
     ], { OUTPOST_OPENCODE_RUNTIME_DIR: `${runner}/opencode`, OUTPOST_PROVIDER_TRACE_PATH: trace });
     expect(launch.hidden).toEqual([
-      "/work/paperclip/tests",
+      "/work/outpost/tests",
       `${runner}/durable-sessions`,
       `${runner}/runner`,
       `${runner}/control-plane`,
@@ -153,7 +153,7 @@ describe("run-scoped runnerd sandbox", () => {
     ]);
     expect(launch.exposed).toEqual([`${runner}/durable-sessions/abc123`, `${runner}/opencode/ses_own_1`, trace]);
     expect(launch.exposedFiles).toEqual([trace]);
-    expect(launch.precreated).toEqual([`${runner}/acpx`, ...["companies", "projects", "workspaces", "runtime-context-assets", "skills", "runtime/provider-packs"].map((name) => `${instanceRoot}/${name}`)]);
+    expect(launch.precreated).toEqual([`${runner}/acpx`, ...["spaces", "projects", "workspaces", "runtime-context-assets", "skills", "runtime/provider-packs"].map((name) => `${instanceRoot}/${name}`)]);
     expect(launch.required).toBe(true);
   });
 
@@ -190,7 +190,7 @@ describe("run-scoped runnerd sandbox", () => {
       const trace = path.join(paths.providerTraces, "t.ndjson");
       const calls: unknown[][] = [];
       const fake = ((...args: unknown[]) => { calls.push(args); return { pid: 3 }; }) as unknown as typeof import("node:child_process").spawn;
-      const spawn = wrapRunnerdSpawn(fake, { hidden: ["/work/paperclip/tests"], required: true, instanceRoot: instance }, "/usr/bin/python3");
+      const spawn = wrapRunnerdSpawn(fake, { hidden: ["/work/outpost/tests"], required: true, instanceRoot: instance }, "/usr/bin/python3");
       const state = path.join(paths.durableSessions, "scope", "runner");
       spawn("/r/outpost-runnerd", ["--state-dir", state, "--session-id", "own"], { env: { OUTPOST_PROVIDER_TRACE_PATH: trace } });
       expect(statSync(path.join(paths.durableSessions, "scope")).isDirectory()).toBe(true);
@@ -255,14 +255,14 @@ describe("selected cell outside the command line", () => {
 
 describe("runnerd launch rewriting", () => {
   it("wraps only the absolute runnerd executable and execs it with the original argv", () => {
-    const runnerd = "/work/paperclip/packages/outpost-runner/runner/target/debug/outpost-runnerd";
+    const runnerd = "/work/outpost/packages/outpost-runner/runner/target/debug/outpost-runnerd";
     expect(isRunnerdLaunch(runnerd)).toBe(true);
     expect(isRunnerdLaunch("outpost-runnerd")).toBe(true);
     expect(isRunnerdLaunch("/usr/bin/git")).toBe(false);
-    const invocation = sandboxedInvocation({ hidden: ["/work/paperclip/tests"], required: true }, "/usr/bin/python3", runnerd, ["--run-id", "r"], {});
+    const invocation = sandboxedInvocation({ hidden: ["/work/outpost/tests"], required: true }, "/usr/bin/python3", runnerd, ["--run-id", "r"], {});
     expect(invocation).toEqual({
       command: "/usr/bin/python3",
-      args: ["-I", "-S", agentFilesystemSandboxHelper, "--required", "--unset", "LC_CTYPE", "--hide", "/work/paperclip/tests", "--", runnerd, "--run-id", "r"],
+      args: ["-I", "-S", agentFilesystemSandboxHelper, "--required", "--unset", "LC_CTYPE", "--hide", "/work/outpost/tests", "--", runnerd, "--run-id", "r"],
     });
     expect(sandboxedInvocation({ hidden: [], required: false }, "p", runnerd, [], { LC_CTYPE: "C" }).args).toContain("LC_CTYPE=C");
   });
@@ -270,11 +270,11 @@ describe("runnerd launch rewriting", () => {
   it("rewrites runnerd launches through the wrapped spawn and passes other launches through", () => {
     const calls: unknown[][] = [];
     const fake = ((...args: unknown[]) => { calls.push(args); return { pid: 7 }; }) as unknown as typeof import("node:child_process").spawn;
-    const spawn = wrapRunnerdSpawn(fake, { hidden: ["/work/paperclip/tests"], required: true }, "/usr/bin/python3");
-    const runnerd = "/work/paperclip/packages/outpost-runner/runner/target/debug/outpost-runnerd";
+    const spawn = wrapRunnerdSpawn(fake, { hidden: ["/work/outpost/tests"], required: true }, "/usr/bin/python3");
+    const runnerd = "/work/outpost/packages/outpost-runner/runner/target/debug/outpost-runnerd";
     spawn(runnerd, ["--run-id", "r"], { cwd: "/work", env: { LC_CTYPE: "C.UTF-8" }, detached: true });
     spawn("/usr/bin/git", ["status"], { cwd: "/work" });
-    expect(calls[0]).toEqual(["/usr/bin/python3", expect.arrayContaining(["--hide", "/work/paperclip/tests", "--", runnerd, "--run-id", "r"]),
+    expect(calls[0]).toEqual(["/usr/bin/python3", expect.arrayContaining(["--hide", "/work/outpost/tests", "--", runnerd, "--run-id", "r"]),
       { cwd: "/work", env: { LC_CTYPE: "C.UTF-8" }, detached: true }]);
     expect(calls[1]).toEqual(["/usr/bin/git", ["status"], { cwd: "/work" }]);
   });
@@ -282,7 +282,7 @@ describe("runnerd launch rewriting", () => {
   it("rewrites runnerd for every direct launch API and refuses a shell launch", () => {
     const calls: unknown[][] = [];
     const fake = (...args: unknown[]) => { calls.push(args); return { pid: 9 }; };
-    const config = { hidden: ["/work/paperclip/tests"], required: true };
+    const config = { hidden: ["/work/outpost/tests"], required: true };
     const callback = () => undefined;
     wrapRunnerdLaunch(fake, config, "/usr/bin/python3", "execFile")("outpost-runnerd", ["--x"], { cwd: "/w" }, callback);
     wrapRunnerdLaunch(fake, config, "/usr/bin/python3", "spawnSync")("/r/outpost-runnerd", { cwd: "/w" });
@@ -375,7 +375,7 @@ describe.skipIf(!landlock)("Landlock agent sandbox on this host", () => {
   it("keeps a run's own session and trace and denies every other run's state, the database and secrets", async () => {
     const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "agent-sandbox-run-scope-")));
     roots.push(root);
-    const home = path.join(root, "attempt", "paperclip-home");
+    const home = path.join(root, "attempt", "outpost-home");
     await mkdir(path.join(home, "instances", "i"), { recursive: true });
     await mkdir(path.join(root, "attempt", "artifacts-private"));
     const config = { hidden: [path.join(root, "attempt", "artifacts-private")], required: true, instanceRoot: path.join(home, "instances", "i") };

@@ -35,7 +35,7 @@ describe("document creation conflicts", () => {
     const db = {
       select: () => ({
         from: () => ({
-          where: () => Promise.resolve([{ id: "issue-1", companyId: "company-1" }]),
+          where: () => Promise.resolve([{ id: "issue-1", spaceId: "space-1" }]),
         }),
       }),
       transaction: vi.fn().mockRejectedValue(error),
@@ -49,7 +49,7 @@ describe("document creation conflicts", () => {
     const error = new Error("Failed query: insert into issue_documents", {
       cause: Object.assign(new Error("duplicate key"), {
         code: "23505",
-        constraint_name: "issue_documents_company_issue_key_uq",
+        constraint_name: "issue_documents_space_issue_key_uq",
       }),
     });
     await expect(serviceWithTransactionError(error).upsertIssueDocument(input)).rejects.toMatchObject({

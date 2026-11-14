@@ -37,14 +37,14 @@ export async function runRepositoryVerificationFlow(input: {
     const files = await Promise.all([...bundle.files].sort((a, b) => a.path.localeCompare(b.path)).map(async file => ({
       path: file.path, content: (await api.get<{ content: string }>(`/api/agents/${fixtures.agent.id}/instructions-bundle/file?path=${encodeURIComponent(file.path)}`)).content,
     })));
-    if (bundle.entryFile !== "AGENTS.md" || files.length !== 1 || files[0]?.content !== "You are an agent in a Paperclip company.\n")
+    if (bundle.entryFile !== "AGENTS.md" || files.length !== 1 || files[0]?.content !== "You are an agent in a Outpost space.\n")
       throw new Error("Repository proof requires the shipped default hire instructions, without a fixture manual");
     return createHash("sha256").update(JSON.stringify({ entryFile: bundle.entryFile, files })).digest("hex");
   }
   async function refresh() {
     if (!issue) return;
     issue = await api.get<Row>(`/api/issues/${issue.id}`);
-    const listed = await api.get<Row[]>(`/api/companies/${fixtures.company.id}/heartbeat-runs?agentId=${fixtures.agent.id}&limit=20`);
+    const listed = await api.get<Row[]>(`/api/spaces/${fixtures.space.id}/heartbeat-runs?agentId=${fixtures.agent.id}&limit=20`);
     runs = (await Promise.all(listed.map(run => api.get<Row>(`/api/heartbeat-runs/${run.id}`))))
       .filter(run => [run.nativeIssueId, run.issueId, run.contextSnapshot?.issueId, run.contextSnapshot?.taskId].includes(issue!.id));
     observation.issueDone = issue.status === "done";
@@ -62,9 +62,9 @@ export async function runRepositoryVerificationFlow(input: {
       input.observe(issue, runs, checks);
       await input.evidence("api-state.json", {
         capturePhase: phase,
-        issue: { id: issue.id, companyId: issue.companyId, identifier: issue.identifier, status: issue.status,
+        issue: { id: issue.id, spaceId: issue.spaceId, identifier: issue.identifier, status: issue.status,
           assigneeAgentId: issue.assigneeAgentId, executionWorkspaceId: issue.executionWorkspaceId, statusVersion: issue.statusVersion },
-        runs: runs.map(run => ({ id: run.id, companyId: run.companyId, agentId: run.agentId, issueId: run.issueId,
+        runs: runs.map(run => ({ id: run.id, spaceId: run.spaceId, agentId: run.agentId, issueId: run.issueId,
           nativeIssueId: run.nativeIssueId, status: run.status, runtimeMode: run.runtimeMode, nativePhase: run.nativePhase,
           startedAt: run.startedAt, finishedAt: run.finishedAt, errorCode: run.errorCode,
           finalizationPhase: run.resultJson?.finalizationPhase })),
@@ -89,11 +89,11 @@ export async function runRepositoryVerificationFlow(input: {
     await git(["add", "--", files.source]);
     await git(["-c", "user.name=Qualification Fixture", "-c", "user.email=qualification@example.test", "-c", "commit.gpgsign=false", "commit", "-m", "Seed independent repository reference"]);
     observation.expectedCommit = (await git(["rev-parse", "HEAD"])).trim();
-    await api.patch(`/api/companies/${fixtures.company.id}/budgets`, { budgetMonthlyCents: 1000 });
+    await api.patch(`/api/spaces/${fixtures.space.id}/budgets`, { budgetMonthlyCents: 1000 });
     await api.patch(`/api/agents/${fixtures.agent.id}/budgets`, { budgetMonthlyCents: 1000 });
     const before = await api.get<Row>(`/api/agents/${fixtures.agent.id}`);
-    const company = await api.get<Row>(`/api/companies/${fixtures.company.id}`);
-    if (before.budgetMonthlyCents !== 1000 || company.budgetMonthlyCents !== 1000) throw new Error("Repository proof hard-stop budgets were not retained");
+    const space = await api.get<Row>(`/api/spaces/${fixtures.space.id}`);
+    if (before.budgetMonthlyCents !== 1000 || space.budgetMonthlyCents !== 1000) throw new Error("Repository proof hard-stop budgets were not retained");
     if (before.adapterType !== (conversion ? expectedLegacyAdapter : "outpost_runner")) throw new Error("Initial adapter does not match the requested journey");
     observation.originalAdapter = before.adapterType;
     observation.configurationBefore = repositoryConfigurationDigest(before);
@@ -109,10 +109,10 @@ export async function runRepositoryVerificationFlow(input: {
         observation.instructionsBefore !== observation.instructionsAfter || !observation.permissionsPreserved || after.adapterType !== "outpost_runner")
       throw new Error("Production runner selection did not retain the configured agent context");
     await save("configured");
-    const created = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name,
+    const created = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name,
       projectName: fixtures.project.name, title: execution.task.buildTitle(nonce), prompt: execution.task.buildPrompt(nonce), workMode: "standard", requireExplicitTitle: true });
     issue = await api.get<Row>(`/api/issues/${created.issueId}`);
-    await page.goto(`/${encodeURIComponent(fixtures.company.issuePrefix!)}/issues/${encodeURIComponent(issue.identifier ?? issue.id)}`);
+    await page.goto(`/${encodeURIComponent(fixtures.space.issuePrefix!)}/issues/${encodeURIComponent(issue.identifier ?? issue.id)}`);
     await pollUntil({ label: "configured repository result", deadlineAt: input.deadlineAt, intervalMs: 1000,
       load: async () => { await refresh(); return { issue, runs }; },
       accept: () => observation.issueDone && observation.committedRuns === 1,

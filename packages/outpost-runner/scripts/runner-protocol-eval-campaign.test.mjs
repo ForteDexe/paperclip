@@ -42,7 +42,7 @@ async function fixture() {
     title: "Get context",
     description: "Synthetic public fixture",
     prompt: "Inspect the synthetic task.",
-    fixture: "../fixtures/company.json",
+    fixture: "../fixtures/space.json",
     authority: { actorId: "agent-1", taskId: "task-1" },
     checks: [{ id: "context", kind: "semantic_operation" }],
   };
@@ -317,7 +317,7 @@ test("aggregates retained attempts and synthesizes missing cells as infrastructu
     runsOut: join(root, "merged-runs"),
     campaignOut: join(root, "campaign.json"),
     source: {
-      paperclip: { sha: "a".repeat(40), ref: "refs/heads/master" },
+      outpost: { sha: "a".repeat(40), ref: "refs/heads/master" },
       evals: { repository: "paperclipai/paperclip-evals", sha: "b".repeat(40) },
       workflowRunUrl: "https://example.test/actions/runs/42",
     },

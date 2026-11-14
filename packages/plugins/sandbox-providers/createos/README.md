@@ -22,7 +22,7 @@ pnpm build
 From the Outpost checkout, with your instance running:
 
 ```sh
-node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin install /absolute/path/to/paperclip/packages/plugins/sandbox-providers/createos
+node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin install /absolute/path/to/outpost/packages/plugins/sandbox-providers/createos
 node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin list
 node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin inspect outpost.createos-sandbox-provider
 ```
@@ -48,7 +48,7 @@ has no custom UI. Required fields:
   is accepted and normalized. HTTPS is required except on loopback for testing.
 - `shape`: choose from the dropdown of published CreateOS shapes. The bundled
   choices match `https://api.sb.createos.sh/v1/shapes` as of 2026-09-08.
-- `apiKey`: your CreateOS key. Outpost saves pasted keys as company secrets;
+- `apiKey`: your CreateOS key. Outpost saves pasted keys as space secrets;
   a resolved environment key takes precedence over the optional host fallback
   `CREATEOS_API_KEY` for `https://api.sb.createos.sh` only. Custom API endpoints,
   including loopback fixtures, require an explicit environment key. The host
@@ -97,7 +97,7 @@ command, and deletes the sandbox. It therefore uses real provider resources.
   Unknown process-creation outcomes and failed process cleanup prevent reuse
   in the current worker; the operator/host must destroy the affected lease.
   No automatic retry of process creation or command execution occurs.
-- Workspace realization at `/paperclip-workspace` and native binary file sync,
+- Workspace realization at `/outpost-workspace` and native binary file sync,
   including directory archives, file modes, exclusions, symlink containment,
   atomic file downloads, and ordered post-upload commands. This keeps bulk data
   out of CreateOS's 1 MiB managed-process output journal. Ordinary command

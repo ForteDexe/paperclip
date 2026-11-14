@@ -36,7 +36,7 @@ describe("readConfigFile", () => {
   let configPath: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-config-file-test-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-config-file-test-"));
     configPath = path.join(tempDir, "config.json");
     process.env.OUTPOST_CONFIG = configPath;
   });
@@ -60,7 +60,7 @@ describe("readConfigFile", () => {
     fs.writeFileSync(configPath, "{");
 
     expect(() => readConfigFile()).toThrow(
-      new RegExp(`Invalid Paperclip config at ${escapeRegExp(configPath)}: failed to read or parse JSON`),
+      new RegExp(`Invalid Outpost config at ${escapeRegExp(configPath)}: failed to read or parse JSON`),
     );
   });
 
@@ -72,7 +72,7 @@ describe("readConfigFile", () => {
 
     writeConfig(configPath, config);
 
-    expect(() => readConfigFile()).toThrow(/Invalid Paperclip config .* \$meta\.source:/);
+    expect(() => readConfigFile()).toThrow(/Invalid Outpost config .* \$meta\.source:/);
   });
 
   it("parses a valid config file", () => {
@@ -92,14 +92,14 @@ describe("readConfigFile", () => {
   });
 
   it("preserves explicit bucket provenance without changing defaults for existing readers", () => {
-    for (const bucket of [undefined, "paperclip"]) {
+    for (const bucket of [undefined, "outpost"]) {
       writeConfig(configPath, {
         ...minimalConfig() as object,
         storage: { provider: "s3", s3: bucket === undefined ? {} : { bucket } },
       });
-      expect(readConfigFile()?.storage.s3.bucket).toBe("paperclip");
+      expect(readConfigFile()?.storage.s3.bucket).toBe("outpost");
       expect(readConfigFile({ includeProvenance: true })).toMatchObject({
-        config: { storage: { s3: { bucket: "paperclip" } } },
+        config: { storage: { s3: { bucket: "outpost" } } },
         explicitStorageS3Bucket: bucket !== undefined,
       });
     }

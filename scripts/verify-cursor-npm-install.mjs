@@ -11,7 +11,7 @@ import { materializePublishManifest, prepareBundledPackage } from './prepare-bun
 import { GROK_PUBLIC_INSTALL_LIFECYCLE, GROK_PUBLIC_INSTALL_IMAGE } from './grok-public-install-sandbox.mjs';
 import { cursorConsumerDockerArgs, prepareCursorInstallAccount } from './cursor-public-install-sandbox.mjs';
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const root = mkdtempSync(join(tmpdir(), 'paperclip-cursor-public-install-'));
+const root = mkdtempSync(join(tmpdir(), 'outpost-cursor-public-install-'));
 console.log(`Verification evidence: ${root}`);
 const env = { ...process.env, NODE_PATH: '', OUTPOST_RELEASE_REUSE_UI_DIST: '1', npm_config_ignore_scripts: 'false', npm_config_audit: 'false', npm_config_fund: 'false' };
 for (const key of Object.keys(env)) if (/^(OPENAI|ANTHROPIC|OPENROUTER|DAYTONA|XAI|GROK|CURSOR|COPILOT|GITHUB|GH)(_|$)/.test(key) || /CANDIDATE/.test(key)) delete env[key];
@@ -34,14 +34,14 @@ const generatedManifest = join(root, 'cli-manifest.json');
 run(process.execPath, [join(repo, 'scripts/generate-npm-package-json.mjs'), '--output', generatedManifest], repo);
 const publishedCli = JSON.parse(readFileSync(generatedManifest));
 publishedCli.dependencies['@outpost/server'] = releaseVersion;
-packages.set('paperclipai', { dir: 'cli', manifest: publishedCli });
+packages.set('@outpost/cli', { dir: 'cli', manifest: publishedCli });
 const needed = new Set();
 function visit(name) {
  if (needed.has(name)) return;
  const entry = packages.get(name); assert.ok(entry, `Missing public package ${name}`); needed.add(name);
- for (const [dependency, version] of Object.entries({...entry.manifest.dependencies, ...entry.manifest.optionalDependencies})) if (version.startsWith('workspace:') || dependency === '@outpost/server' && name === 'paperclipai') visit(dependency);
+ for (const [dependency, version] of Object.entries({...entry.manifest.dependencies, ...entry.manifest.optionalDependencies})) if (version.startsWith('workspace:') || dependency === '@outpost/server' && name === '@outpost/cli') visit(dependency);
 }
-visit('paperclipai');
+visit('@outpost/cli');
 // Run after the candidate build, including its required standalone adapters.
 for (const name of needed) assert.ok(existsSync(join(repo, packages.get(name).dir, 'dist')), `Missing built public package ${name}`);
 run('bash', [join(repo, 'scripts/prepare-server-ui-dist.sh')], repo);
@@ -63,13 +63,13 @@ for (const [index, name] of [...needed].entries()) {
  console.log(`Packed ${name}`);
 }
 const sentinelSource = join(root,'lifecycle-sentinel'); mkdirSync(sentinelSource);
-writeFileSync(join(sentinelSource,'package.json'), JSON.stringify({name:'paperclip-verification-lifecycle-sentinel',version:'1.0.0',private:true,scripts:{postinstall:'node -e "require(\'node:fs\').writeFileSync(\'lifecycle-ran\', \'ok\')"'}}));
+writeFileSync(join(sentinelSource,'package.json'), JSON.stringify({name:'outpost-verification-lifecycle-sentinel',version:'1.0.0',private:true,scripts:{postinstall:'node -e "require(\'node:fs\').writeFileSync(\'lifecycle-ran\', \'ok\')"'}}));
 run('npm',['pack','--ignore-scripts','--pack-destination',assets],sentinelSource);
 for (const file of readdirSync(assets)) chmodSync(join(assets,file),0o644);
 const account = prepareCursorInstallAccount(root, process.getuid(), process.getgid());
 const isolated = (command, options={}) => run('docker',cursorConsumerDockerArgs({assets,consumer,cache,account,uid:process.getuid(),gid:process.getgid(),command,...options}));
 isolated(['npm','install','--ignore-scripts','--omit=dev',...readdirSync(assets).filter(f=>f.endsWith('.tgz')).map(f=>`/packages/${f}`)],{download:true});
-const sentinel = join(consumer,'node_modules/paperclip-verification-lifecycle-sentinel/lifecycle-ran');
+const sentinel = join(consumer,'node_modules/outpost-verification-lifecycle-sentinel/lifecycle-ran');
 assert.equal(existsSync(sentinel),false);
 const lock = readFileSync(join(consumer,'package-lock.json'),'utf8');
 // Ordinary npm hooks may fetch platform dependency assets (e.g. esbuild).
@@ -78,10 +78,10 @@ isolated(GROK_PUBLIC_INSTALL_LIFECYCLE, { download: true });
 assert.equal(readFileSync(sentinel,'utf8'),'ok'); assert.equal(readFileSync(join(consumer,'package-lock.json'),'utf8'),lock);
 const installedRunner = join(consumer,'node_modules/@outpost/server/dist/vendor/outpost-runner');
 assert.equal(existsSync(join(installedRunner,'provider-assets/cursor')),false,'npm must never download Cursor');
-assert.equal(existsSync(join(account.home,'.paperclip/runtimes/cursor')),false,'npm must not provision the account runtime cache');
-const setupOutput = isolated(['node','node_modules/paperclipai/dist/index.js','runtime','setup','cursor'],{download:true,readOnlyConsumer:true}).toString();
+assert.equal(existsSync(join(account.home,'.outpost/runtimes/cursor')),false,'npm must not provision the account runtime cache');
+const setupOutput = isolated(['node','node_modules/@outpost/cli/dist/index.js','runtime','setup','cursor'],{download:true,readOnlyConsumer:true}).toString();
 console.log(setupOutput.trim());
-assert.match(setupOutput,/Verified Cursor 2026\.09\.26-dd393fe \(linux-x64\), paperclip-cursor-usage-v4/);
+assert.match(setupOutput,/Verified Cursor 2026\.09\.26-dd393fe \(linux-x64\), outpost-cursor-usage-v4/);
 const probe = `import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -89,7 +89,7 @@ import { execFileSync } from 'node:child_process';
 import { userInfo } from 'node:os';
 import { join } from 'node:path';
 import { defaultCapabilityRunnerdBinary } from '/consumer/node_modules/@outpost/server/dist/vendor/outpost-runner/live/runnerd-codex-transport.js';
-import { resolvePaperclipRunnerBinary } from '/consumer/node_modules/@outpost/server/dist/services/native-runtime/native-codex-runner.js';
+import { resolveOutpostRunnerBinary } from '/consumer/node_modules/@outpost/server/dist/services/native-runtime/native-codex-runner.js';
 import { requireServerAdapter } from '/consumer/node_modules/@outpost/server/dist/adapters/registry.js';
 import { runnerBinaryTarget } from '/consumer/node_modules/@outpost/server/dist/vendor/outpost-runner/live/runner-binary.js';
 import { bundledRemoteRunnerBinary, bundledRemoteProviderPackManifestPath } from '/consumer/node_modules/@outpost/server/dist/vendor/outpost-runner/live/bundled-remote-provider-pack.js';
@@ -98,12 +98,12 @@ import { resolveQualifiedAcpxProfile } from '/consumer/node_modules/@outpost/ser
 import { CURSOR_DISTRIBUTION_PINS } from '/consumer/node_modules/@outpost/server/dist/vendor/outpost-runner/drivers/acpx/generated-profiles.js';
 const profile = resolveQualifiedAcpxProfile('cursor', 'gpt-5.6-luna[context=272k,reasoning=medium,fast=false]');
 const installation = await verifyAcpxProfileInstallation(profile);
-assert.equal(userInfo().homedir, '/home/paperclip');
-assert.equal(installation.agentServerPackageJsonPath,join(userInfo().homedir,'.paperclip/runtimes/cursor/linux-x64',CURSOR_DISTRIBUTION_PINS['linux-x64'].closureSha256,'.paperclip-cursor-closure.json'));
+assert.equal(userInfo().homedir, '/home/outpost');
+assert.equal(installation.agentServerPackageJsonPath,join(userInfo().homedir,'.outpost/runtimes/cursor/linux-x64',CURSOR_DISTRIBUTION_PINS['linux-x64'].closureSha256,'.outpost-cursor-closure.json'));
 assert.equal(installation.agentRuntimePackageJsonPath,null);
 assert.equal(installation.commandDigest,profile.commandDigest);
 await (await installation.openCommand()).close();
-const readiness = await requireServerAdapter('outpost_runner').testEnvironment({ companyId: 'installation-probe', adapterType: 'outpost_runner', config: { provider: 'acpx', acpxAgent: 'cursor', model: profile.reportedModelId } });
+const readiness = await requireServerAdapter('outpost_runner').testEnvironment({ spaceId: 'installation-probe', adapterType: 'outpost_runner', config: { provider: 'acpx', acpxAgent: 'cursor', model: profile.reportedModelId } });
 assert.equal(readiness.status, 'pass', JSON.stringify(readiness));
 assert.equal(readiness.checks[0]?.code, 'acpx_runtime_ready');
 const binaryRoot = '/consumer/node_modules/@outpost/server/dist/vendor/outpost-runner/bin';
@@ -118,7 +118,7 @@ for (const [target, artifact] of Object.entries(manifest.platforms)) {
 }
 const binary = defaultCapabilityRunnerdBinary();
 assert.equal(binary, binaryRoot + '/linux-x64/outpost-runnerd');
-assert.equal(resolvePaperclipRunnerBinary(), binary, 'The installed server must use the same verified platform daemon');
+assert.equal(resolveOutpostRunnerBinary(), binary, 'The installed server must use the same verified platform daemon');
 assert.equal(bundledRemoteRunnerBinary(), binary);
 const remotePack = JSON.parse(readFileSync(bundledRemoteProviderPackManifestPath(), 'utf8'));
 assert.equal(remotePack.digest, manifest.remoteProviderPack.digest);

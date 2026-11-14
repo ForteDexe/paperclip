@@ -5,13 +5,13 @@
  *
  * A generic remote MCP connection points at an arbitrary authorization server,
  * so everything that server says about a failure is attacker-chosen: `error`,
- * `error_description`, `error_uri`, and the response body. Paperclip surfaces
- * connection failures to the operator through API responses, board UI copy,
+ * `error_description`, `error_uri`, and the response body. Outpost surfaces
+ * connection failures to the operator through API responses, operator UI copy,
  * audit rows and logs, so reflecting any of that text would let a hostile
  * provider plant secrets, ANSI escapes, or instructions ("paste your recovery
- * key here") into Paperclip's own voice.
+ * key here") into Outpost's own voice.
  *
- * The rule is therefore: the operator only ever reads text Paperclip authored.
+ * The rule is therefore: the operator only ever reads text Outpost authored.
  * The provider's `error` code survives — as a *label* in structured `details`,
  * never in a message — and only when it is one of the codes the RFCs define,
  * because a label is still untrusted input. Everything else is dropped, and an
@@ -54,9 +54,9 @@ const MAX_OAUTH_PROVIDER_ERROR_LENGTH = 64;
 const OAUTH_PROVIDER_ERROR_PATTERN = /^[a-z0-9_-]+$/;
 
 /**
- * Stable, Paperclip-authored operator copy for each allowlisted provider error.
+ * Stable, Outpost-authored operator copy for each allowlisted provider error.
  * Deliberately keyed on the code alone: the calling context is already carried
- * by the Paperclip `code` in `details`, so one table serves the callback,
+ * by the Outpost `code` in `details`, so one table serves the callback,
  * token-exchange and registration paths without any of them composing a message
  * out of provider text.
  */
@@ -100,7 +100,7 @@ const OAUTH_PROVIDER_ERROR_MESSAGES: Record<string, string> = {
  * Reduce a provider-supplied `error` to a bounded, allowlisted label safe to
  * keep in structured `details`. Returns `null` only when the provider sent no
  * `error` at all, so the caller can tell "silent failure" from "said something
- * Paperclip does not recognize".
+ * Outpost does not recognize".
  */
 export function normalizeOAuthProviderError(value: unknown): string | null {
   if (typeof value !== "string" || value.length === 0) return null;
@@ -116,7 +116,7 @@ export function normalizeOAuthProviderError(value: unknown): string | null {
     : UNRECOGNIZED_OAUTH_PROVIDER_ERROR;
 }
 
-/** Paperclip's own message for a provider failure, never the provider's. */
+/** Outpost's own message for a provider failure, never the provider's. */
 export function oauthProviderErrorMessage(
   providerError: string | null,
   fallback: string,

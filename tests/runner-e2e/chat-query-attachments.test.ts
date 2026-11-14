@@ -4,10 +4,10 @@ import { expect, it } from "vitest";
 import { attachmentReceiptMatches, chatQueryWithAttachments, resolveChatQueryAttachments, type ChatQueryAttachmentReceipt } from "./chat-query-attachments.js";
 import { chatCatalogHumanHistoryMatches, type ChatCatalogContext } from "./chat-catalog-contract.js";
 const id = "11111111-1111-4111-8111-111111111111", bytes = Buffer.from("Synthetic website brief");
-const receipt: ChatQueryAttachmentReceipt = { id, companyId: "company", issueId: "source", issueCommentId: null,
+const receipt: ChatQueryAttachmentReceipt = { id, spaceId: "space", issueId: "source", issueCommentId: null,
   originalFilename: "website-brief.md", contentPath: `/api/attachments/${id}/content`, byteSize: bytes.length,
   sha256: createHash("sha256").update(bytes).digest("hex"), createdByAgentId: null, createdByUserId: "human", originatingRunId: null };
-const base = { expected: receipt, saved: receipt, bytes, companyId: "company", issueId: "source" };
+const base = { expected: receipt, saved: receipt, bytes, spaceId: "space", issueId: "source" };
 it("allows only exact production attachment suffixes after the unchanged canonical query", () => {
   const query = "Have Morgan turn the attached brief into a website.";
   const body = chatQueryWithAttachments(query, [receipt]);
@@ -22,10 +22,10 @@ it("allows only exact production attachment suffixes after the unchanged canonic
 });
 it("requires genuine same-source human upload, fetched content hashes and canonical-comment attribution", () => {
   expect(attachmentReceiptMatches(base)).toBe(true);
-  const comment = { id: "canonical", body: "query", authorUserId: "human", authorAgentId: null, createdByRunId: null, issueId: "source", companyId: "company" };
+  const comment = { id: "canonical", body: "query", authorUserId: "human", authorAgentId: null, createdByRunId: null, issueId: "source", spaceId: "space" };
   const saved = { ...receipt, issueCommentId: "canonical" };
   expect(attachmentReceiptMatches({ ...base, saved, comment })).toBe(true);
-  for (const patch of [{ companyId: "foreign" }, { issueId: "other-source" }, { contentPath: "https://outside.example/file" },
+  for (const patch of [{ spaceId: "foreign" }, { issueId: "other-source" }, { contentPath: "https://outside.example/file" },
     { originalFilename: "wrong.md" }, { sha256: "0".repeat(64) }, { createdByAgentId: "agent" }, { originatingRunId: "run" },
     { createdByUserId: "other-human" }, { byteSize: 0 }]) expect(attachmentReceiptMatches({ ...base, saved: { ...receipt, ...patch } })).toBe(false);
   expect(attachmentReceiptMatches({ ...base, bytes: Buffer.from("wrong bytes") })).toBe(false);
@@ -34,7 +34,7 @@ it("requires genuine same-source human upload, fetched content hashes and canoni
 });
 it("independently resolves declared receipt IDs and rejects undeclared, duplicate or forged uploads", async () => {
   const ctx = { scenario: { id: "steering.preserve-draft" }, refreshIssue: async () => {}, issue: () => ({ id: "source" }),
-    input: { fixtures: { company: { id: "company" } }, api: { get: async () => [receipt], getAttachmentContent: async (attachmentId: string) => { expect(attachmentId).toBe(id); return bytes; } } } } as unknown as ChatCatalogContext;
+    input: { fixtures: { space: { id: "space" } }, api: { get: async () => [receipt], getAttachmentContent: async (attachmentId: string) => { expect(attachmentId).toBe(id); return bytes; } } } } as unknown as ChatCatalogContext;
   const spec = { stateKey: "brief", filename: "website-brief.md" };
   expect(await resolveChatQueryAttachments(ctx, [spec], { brief: receipt })).toEqual([receipt]);
   await expect(resolveChatQueryAttachments({ ...ctx, scenario: { ...ctx.scenario, id: "goals.create-goal-tree" } }, [spec], { brief: receipt })).rejects.toThrow("Undeclared");
@@ -55,7 +55,7 @@ it.each([
 ])("binds only the exact factual file for %s", async (scenarioId, filename) => {
   const actual = { ...receipt, originalFilename: filename };
   const ctx = { scenario: { id: scenarioId }, refreshIssue: async () => {}, issue: () => ({ id: "source" }), input: {
-    fixtures: { company: { id: "company" } }, api: { get: async () => [actual], getAttachmentContent: async () => bytes },
+    fixtures: { space: { id: "space" } }, api: { get: async () => [actual], getAttachmentContent: async () => bytes },
   } } as unknown as ChatCatalogContext;
   expect(await resolveChatQueryAttachments(ctx, [{ stateKey: "factualContextAttachment", filename }], { factualContextAttachment: actual })).toEqual([actual]);
   await expect(resolveChatQueryAttachments(ctx, [{ stateKey: "factualContextAttachment", filename: "wrong-context.md" }], { factualContextAttachment: actual })).rejects.toThrow("exact scenario filename");
@@ -83,12 +83,12 @@ it("also matches the active TaskChatComposer for its one declared upload", () =>
   for (const name of ["website-brief.md", "brief[1].md"]) expect(chatQueryWithAttachments("Canonical query", [{ ...receipt, originalFilename: name }])).toBe(production("Canonical query", [{ name, contentPath: receipt.contentPath }], escape, isImage));
 });
 
-it("admits only the declared human company-preview package with independent receipt checks", async () => {
-  const actual = { ...receipt, originalFilename: "company-package.json" };
-  const ctx = { scenario: { id: "companies.import-preview" }, refreshIssue: async () => {}, issue: () => ({ id: "source" }), input: {
-    fixtures: { company: { id: "company" } }, api: { get: async () => [actual], getAttachmentContent: async () => bytes },
+it("admits only the declared human space-preview package with independent receipt checks", async () => {
+  const actual = { ...receipt, originalFilename: "space-package.json" };
+  const ctx = { scenario: { id: "spaces.import-preview" }, refreshIssue: async () => {}, issue: () => ({ id: "source" }), input: {
+    fixtures: { space: { id: "space" } }, api: { get: async () => [actual], getAttachmentContent: async () => bytes },
   } } as unknown as ChatCatalogContext;
-  const spec = { stateKey: "packageAttachment", filename: "company-package.json" };
+  const spec = { stateKey: "packageAttachment", filename: "space-package.json" };
   expect(await resolveChatQueryAttachments(ctx, [spec], { packageAttachment: actual })).toEqual([actual]);
   for (const invalid of [{ ...spec, filename: "arbitrary.zip" }, { ...spec, stateKey: "otherUpload" }])
     await expect(resolveChatQueryAttachments(ctx, [invalid], { packageAttachment: actual })).rejects.toThrow("exact declared");

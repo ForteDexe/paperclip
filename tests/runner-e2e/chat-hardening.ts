@@ -16,7 +16,7 @@ export function mutableIssueSnapshot(issue: ChatIssue) {
   // fields governed by dedicated endpoints; omit derived read projections such
   // as inbound references, which a legitimate status reply can add to the chat.
   const keys = new Set([...Object.keys(updateIssueSchema.shape),
-    "id", "companyId", "responsibleUserId", "labels", "blockedBy", "blocks", "watchdog", "sourceTrust"]);
+    "id", "spaceId", "responsibleUserId", "labels", "blockedBy", "blocks", "watchdog", "sourceTrust"]);
   const record = issue as unknown as Record<string, unknown>;
   return Object.fromEntries([...keys].map(key => [key, record[key]]));
 }
@@ -114,18 +114,18 @@ export async function runChatHardeningFlow(context: {
 }) {
   const { input, marker, turn, idle, tasks, allRuns, comments } = context;
   const { api, page, fixtures: f, execution, nonce } = input;
-  const companyPath = `/api/companies/${f.company.id}`;
-  const project = await api.post<{ id: string; name: string }>(`${companyPath}/projects`, {
+  const spacePath = `/api/spaces/${f.space.id}`;
+  const project = await api.post<{ id: string; name: string }>(`${spacePath}/projects`, {
     name: `Chat coordination ${nonce}`, description: "Repository-free launch planning and review.",
   });
-  const agents = () => api.get<Agent[]>(`${companyPath}/agents`);
+  const agents = () => api.get<Agent[]>(`${spacePath}/agents`);
   const latestReply = async () => (await comments()).filter(comment => comment.authorAgentId === f.agent.id).at(-1)?.body ?? "";
   const output = (id: string, token: string) => readChatOutputDocument(api, id, token);
 
   try {
   if (execution.task.id === "hire-delegate-reuse") {
     const hireName = `Morgan Reviewer ${nonce}`;
-    await turn(`Hire exactly one teammate named ${hireName}, reporting to you, using your native runner, model, and available AI connection. Have that teammate write a concise launch checklist as a saved Paperclip document with the line "Reference: ${marker}". Put the work in one assigned task in ${project.name}. Link it here and let the teammate complete it.`, 2);
+    await turn(`Hire exactly one teammate named ${hireName}, reporting to you, using your native runner, model, and available AI connection. Have that teammate write a concise launch checklist as a saved Outpost document with the line "Reference: ${marker}". Put the work in one assigned task in ${project.name}. Link it here and let the teammate complete it.`, 2);
     const first = (await tasks())[0]!;
     expect(first).toBeTruthy();
     const firstOutput = await output(first.id, marker);
@@ -149,7 +149,7 @@ export async function runChatHardeningFlow(context: {
     await input.evidence("chat-hire-reuse.json", { agents: await agents(), tasks: await tasks(), firstOutput, reviewOutput, runs: await allRuns() });
   } else if (execution.task.id === "blocked-status-review") {
     const blocker = `VENUE${marker}`, staleBlocker = `BUDGET${marker}`;
-    const source = await api.post<ChatIssue>(`${companyPath}/issues`, {
+    const source = await api.post<ChatIssue>(`${spacePath}/issues`, {
       title: `Launch brief ${nonce}`, status: "blocked", projectId: project.id,
       description: "The launch brief is waiting for its recorded blocker to be resolved.",
       initialPlan: "The approved launch day is Tuesday.",
@@ -171,7 +171,7 @@ export async function runChatHardeningFlow(context: {
       taskIdsAfter: (await tasks()).map(task => task.id), taskRuns: (await allRuns()).filter(run => run.contextSnapshot?.issueId === source.id) });
     const config = execution.profile.buildAgent({ environmentId: f.environment.id, environmentFixtureId: execution.environment.id,
       workspacePath: input.workspacePath, secretRefs: f.secretRefs, executionId: nonce });
-    const reviewer = await api.post<Agent>(`${companyPath}/agents`, { ...config, name: `Riley Reviewer ${nonce}`, role: "engineer", reportsTo: f.agent.id });
+    const reviewer = await api.post<Agent>(`${spacePath}/agents`, { ...config, name: `Riley Reviewer ${nonce}`, role: "engineer", reportsTo: f.agent.id });
     await turn(`Have ${reviewer.name} review the saved brief on ${source.identifier} against that task's saved plan, in one separate task in ${project.name}. Give the reviewer both source documents. They should save a JSON review document with planLaunchDay, briefLaunchDay, and a boolean consistent, then complete the review task. Preserve the source task and both documents.`, 3);
     const review = (await tasks()).find(task => task.id !== source.id)!;
     expect(review).toMatchObject({ status: "done", assigneeAgentId: reviewer.id, parentId: null, projectId: project.id });
@@ -206,7 +206,7 @@ export async function runChatHardeningFlow(context: {
       // This tests transport retries, not automatic replay of a failed provider turn.
       const retried = await api.post<Comment>(sent!.path, sent!.data);
       expect(retried.id).toBe(sent!.commentId);
-      await page.goto(`/${f.company.issuePrefix}/chats/${f.agent.id}`, { waitUntil: "commit", timeout: 60_000 });
+      await page.goto(`/${f.space.issuePrefix}/chats/${f.agent.id}`, { waitUntil: "commit", timeout: 60_000 });
       await expect(page.getByTestId("task-chat-composer-input")).toBeVisible({ timeout: 60_000 });
       await turn(`What is the saved status of ${saved.identifier}? Just report it; do not create or change work.`, 2);
       assertCommittedSendRetry({ commentId: sent!.commentId, clientRequestId: String(sent!.data.clientRequestId),

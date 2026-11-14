@@ -14,7 +14,7 @@ scenarios:
       Let Morgan use our Notion connection, but nobody else.
     expected_outcome: >-
       The agent identifies the connection and exact agent and directs the human to the supported
-      access control. The resulting assignment is limited to Morgan rather than company-wide
+      access control. The resulting assignment is limited to Morgan rather than space-wide
       access. Chat waits for verified effective access before claiming Morgan can read, and
       existing action policy remains separate.
   - id: app-permissions.read-allowed-write-off

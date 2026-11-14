@@ -2,23 +2,23 @@ import * as React from "react";
 import * as RouterDom from "react-router-dom";
 import type { NavigateOptions, To } from "react-router-dom";
 import type { Issue } from "@outpost/shared";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { IssueLinkQuicklook } from "@/components/IssueLinkQuicklook";
 import {
-  applyCompanyPrefix,
+  applySpacePrefix,
   caseHref,
-  extractCompanyPrefixFromPath,
-  normalizeCompanyPrefix,
-} from "@/lib/company-routes";
+  extractSpacePrefixFromPath,
+  normalizeSpacePrefix,
+} from "@/lib/space-routes";
 import { parseIssuePathIdFromPath } from "@/lib/issue-reference";
 
-function resolveTo(to: To, companyPrefix: string | null): To {
+function resolveTo(to: To, spacePrefix: string | null): To {
   if (typeof to === "string") {
-    return applyCompanyPrefix(to, companyPrefix);
+    return applySpacePrefix(to, spacePrefix);
   }
 
   if (to.pathname && to.pathname.startsWith("/")) {
-    const pathname = applyCompanyPrefix(to.pathname, companyPrefix);
+    const pathname = applySpacePrefix(to.pathname, spacePrefix);
     if (pathname !== to.pathname) {
       return { ...to, pathname };
     }
@@ -27,45 +27,45 @@ function resolveTo(to: To, companyPrefix: string | null): To {
   return to;
 }
 
-export function useActiveCompanyPrefix(): string | null {
-  const { selectedCompany } = useCompany();
-  const params = RouterDom.useParams<{ companyPrefix?: string }>();
+export function useActiveSpacePrefix(): string | null {
+  const { selectedSpace } = useSpace();
+  const params = RouterDom.useParams<{ spacePrefix?: string }>();
   const location = RouterDom.useLocation();
 
-  if (params.companyPrefix) {
-    return normalizeCompanyPrefix(params.companyPrefix);
+  if (params.spacePrefix) {
+    return normalizeSpacePrefix(params.spacePrefix);
   }
 
-  const pathPrefix = extractCompanyPrefixFromPath(location.pathname);
+  const pathPrefix = extractSpacePrefixFromPath(location.pathname);
   if (pathPrefix) return pathPrefix;
 
-  return selectedCompany ? normalizeCompanyPrefix(selectedCompany.issuePrefix) : null;
+  return selectedSpace ? normalizeSpacePrefix(selectedSpace.issuePrefix) : null;
 }
 
 /**
- * Returns a builder for company-prefixed Cases hrefs bound to the active company
+ * Returns a builder for space-prefixed Cases hrefs bound to the active space
  * (e.g. `/PAP/cases/PAP-C5`). Use for all case-to-case links so they emit
  * prefixed paths directly instead of leaning on the PAP-13002 redirect.
  */
 export function useCaseHref(): (...segments: string[]) => string {
-  const companyPrefix = useActiveCompanyPrefix();
+  const spacePrefix = useActiveSpacePrefix();
   return React.useCallback(
-    (...segments: string[]) => caseHref(companyPrefix, ...segments),
-    [companyPrefix],
+    (...segments: string[]) => caseHref(spacePrefix, ...segments),
+    [spacePrefix],
   );
 }
 
 export * from "react-router-dom";
 
-type CompanyLinkProps = React.ComponentProps<typeof RouterDom.Link> & {
+type SpaceLinkProps = React.ComponentProps<typeof RouterDom.Link> & {
   disableIssueQuicklook?: boolean;
   issuePrefetch?: Issue | null;
   issueQuicklookSide?: React.ComponentProps<typeof IssueLinkQuicklook>["issueQuicklookSide"];
   issueQuicklookAlign?: React.ComponentProps<typeof IssueLinkQuicklook>["issueQuicklookAlign"];
 };
 
-export const Link = React.forwardRef<HTMLAnchorElement, CompanyLinkProps>(
-  function CompanyLink({
+export const Link = React.forwardRef<HTMLAnchorElement, SpaceLinkProps>(
+  function SpaceLink({
     to,
     disableIssueQuicklook = false,
     issuePrefetch = null,
@@ -73,8 +73,8 @@ export const Link = React.forwardRef<HTMLAnchorElement, CompanyLinkProps>(
     issueQuicklookAlign,
     ...props
   }, ref) {
-    const companyPrefix = useActiveCompanyPrefix();
-    const resolvedTo = resolveTo(to, companyPrefix);
+    const spacePrefix = useActiveSpacePrefix();
+    const resolvedTo = resolveTo(to, spacePrefix);
     const issuePathId = parseIssuePathIdFromPath(typeof resolvedTo === "string" ? resolvedTo : resolvedTo.pathname);
 
     if (issuePathId) {
@@ -97,20 +97,20 @@ export const Link = React.forwardRef<HTMLAnchorElement, CompanyLinkProps>(
 );
 
 export const NavLink = React.forwardRef<HTMLAnchorElement, React.ComponentProps<typeof RouterDom.NavLink>>(
-  function CompanyNavLink({ to, ...props }, ref) {
-    const companyPrefix = useActiveCompanyPrefix();
-    return <RouterDom.NavLink ref={ref} to={resolveTo(to, companyPrefix)} {...props} />;
+  function SpaceNavLink({ to, ...props }, ref) {
+    const spacePrefix = useActiveSpacePrefix();
+    return <RouterDom.NavLink ref={ref} to={resolveTo(to, spacePrefix)} {...props} />;
   },
 );
 
 export function Navigate({ to, ...props }: React.ComponentProps<typeof RouterDom.Navigate>) {
-  const companyPrefix = useActiveCompanyPrefix();
-  return <RouterDom.Navigate to={resolveTo(to, companyPrefix)} {...props} />;
+  const spacePrefix = useActiveSpacePrefix();
+  return <RouterDom.Navigate to={resolveTo(to, spacePrefix)} {...props} />;
 }
 
 export function useNavigate(): ReturnType<typeof RouterDom.useNavigate> {
   const navigate = RouterDom.useNavigate();
-  const companyPrefix = useActiveCompanyPrefix();
+  const spacePrefix = useActiveSpacePrefix();
 
   return React.useCallback(
     ((to: To | number, options?: NavigateOptions) => {
@@ -118,8 +118,8 @@ export function useNavigate(): ReturnType<typeof RouterDom.useNavigate> {
         navigate(to);
         return;
       }
-      navigate(resolveTo(to, companyPrefix), options);
+      navigate(resolveTo(to, spacePrefix), options);
     }) as ReturnType<typeof RouterDom.useNavigate>,
-    [navigate, companyPrefix],
+    [navigate, spacePrefix],
   );
 }

@@ -1,4 +1,4 @@
-import { agentWakeupRequests, agents, companies, createDb, heartbeatRuns, issues } from "@outpost/db";
+import { agentWakeupRequests, agents, spaces, createDb, heartbeatRuns, issues } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../../__tests__/helpers/embedded-postgres.js";
@@ -7,7 +7,7 @@ import { createPostgresWakeQueueAdapter } from "./postgres.js";
 
 const support = await getEmbeddedPostgresTestSupport();
 
-// A board Retry receipt stores only `{ issueId, taskRetry }`, with no saved
+// A operator Retry receipt stores only `{ issueId, taskRetry }`, with no saved
 // wake context. Its promoted run takes the issue's execution lock, so it must
 // stay issue-scoped for workspace and trust-boundary preparation.
 describe.skipIf(!support.supported)("promoted Retry receipt scope", () => {
@@ -25,17 +25,17 @@ describe.skipIf(!support.supported)("promoted Retry receipt scope", () => {
   });
 
   it("keeps a promoted Retry receipt without saved wake context scoped to its issue", async () => {
-    const [company] = await db.insert(companies).values({ name: "Retry scope fixture", issuePrefix: "RSF",
+    const [space] = await db.insert(spaces).values({ name: "Retry scope fixture", issuePrefix: "RSF",
       defaultResponsibleUserId: "responsible-user" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Retry agent", adapterType: "process",
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Retry agent", adapterType: "process",
       runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Retry scope fixture issue",
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Retry scope fixture issue",
       status: "in_review", priority: "medium", assigneeAgentId: agent.id }).returning();
-    const [finished] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const [finished] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       invocationSource: "on_demand", status: "succeeded", contextSnapshot: { issueId: issue.id } }).returning();
     await db.update(issues).set({ executionRunId: finished.id }).where(eq(issues.id, issue.id));
     const [wake] = await db.insert(agentWakeupRequests).values({
-      companyId: company.id, agentId: agent.id, source: "on_demand", triggerDetail: "manual", reason: "task_retry",
+      spaceId: space.id, agentId: agent.id, source: "on_demand", triggerDetail: "manual", reason: "task_retry",
       status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: "responsible-user",
       payload: { issueId: issue.id,
         taskRetry: { schema: "outpost.task-retry.v1", sourceRunId: finished.id, actorId: "responsible-user" } },
@@ -49,7 +49,7 @@ describe.skipIf(!support.supported)("promoted Retry receipt scope", () => {
       recovery: { escalateStrandedAssignedIssue: async () => undefined, escalateStrandedRecoveryIssueInPlace: async () => undefined },
     });
 
-    const result = await release({ companyId: company.id, runId: finished.id, now: new Date(), suppressImmediateRecovery: true });
+    const result = await release({ spaceId: space.id, runId: finished.id, now: new Date(), suppressImmediateRecovery: true });
 
     expect(result.outcome.kind).toBe("promoted");
     const [promoted] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.wakeupRequestId, wake.id));

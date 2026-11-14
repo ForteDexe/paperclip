@@ -4,7 +4,7 @@ import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, heartbeatRuns, issues, pluginManagedResources, plugins, routineRuns, type Db } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, issues, pluginManagedResources, plugins, routineRuns, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -36,7 +36,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   afterEach(async () => {
     await coordinator?.stop(); coordinator = undefined;
     vi.useRealTimers(); vi.restoreAllMocks();
-    await db.execute(sql`SET client_min_messages = warning; TRUNCATE companies CASCADE`);
+    await db.execute(sql`SET client_min_messages = warning; TRUNCATE spaces CASCADE`);
   });
   afterAll(async () => { await db?.$client.end(); await temporary?.cleanup(); });
   const canRun = () => enabled && !draining && !standby;
@@ -57,15 +57,15 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     } finally { select.mockRestore(); execute.mockRestore(); transaction.mockRestore(); }
   }
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Routine status work", issuePrefix: `R${companyId.slice(0, 6)}`,
-      defaultResponsibleUserId: randomUUID(), requireBoardApprovalForNewAgents: false });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Routine worker", status: "active", lifecycleState: "ready", adapterType: "codex_local" });
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Routine status work", issuePrefix: `R${spaceId.slice(0, 6)}`,
+      defaultResponsibleUserId: randomUUID(), requireOperatorApprovalForNewAgents: false });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Routine worker", status: "active", lifecycleState: "ready", adapterType: "codex_local" });
     const service = routineService(db, { heartbeat: { wakeup: async () => null }, runtimeEnv: {} });
-    const routine = await service.create(companyId, { title: "Status projection", assigneeAgentId: agentId,
+    const routine = await service.create(spaceId, { title: "Status projection", assigneeAgentId: agentId,
       variables: [],
       priority: "medium", status: "active", concurrencyPolicy: "always_enqueue", catchUpPolicy: "skip_missed" }, {});
-    return { companyId, agentId, routine, service };
+    return { spaceId, agentId, routine, service };
   }
   async function dispatch(f: Awaited<ReturnType<typeof fixture>>) {
     return f.service.runRoutine(f.routine.id, { source: "manual", idempotencyKey: randomUUID() });
@@ -103,19 +103,19 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await fixture(), first = await dispatch(f), second = await dispatch(f);
     await db.update(issues).set({ status: "done" }).where(eq(issues.id, first.linkedIssueId!));
     await db.update(routineRuns).set({ status: "failed", failureReason: "Execution issue moved to blocked", completedAt: new Date() }).where(eq(routineRuns.id, second.id));
-    const terminal = await db.insert(routineRuns).values(["skipped", "coalesced"].map(status => ({ companyId: f.companyId,
+    const terminal = await db.insert(routineRuns).values(["skipped", "coalesced"].map(status => ({ spaceId: f.spaceId,
       routineId: f.routine.id, source: "manual", linkedIssueId: first.linkedIssueId, status, completedAt: new Date() }))).returning();
     await start(); await projected(first.id, "completed"); await projected(second.id, "issue_created");
     for (const row of terminal) expect(await saved(row.id)).toEqual(row);
     await quiet(); expect(errors).toEqual([]);
   });
-  it("settles the declared custom origin of a real plugin-managed dispatch and preserves other companies", async () => {
+  it("settles the declared custom origin of a real plugin-managed dispatch and preserves other spaces", async () => {
     const f = await fixture(), other = await fixture();
     const pluginKey = `routine-status-${randomUUID()}`, originId = `operation:${randomUUID()}`;
     const [plugin] = await db.insert(plugins).values({ pluginKey, packageName: pluginKey, version: "0.1.0",
       manifestJson: { id: pluginKey, apiVersion: 1, version: "0.1.0", displayName: "Routine test", description: "Routine test",
-        author: "Paperclip", categories: ["automation"], capabilities: ["routines.managed"], entrypoints: { worker: "./worker.js" } } }).returning();
-    await db.insert(pluginManagedResources).values({ companyId: f.companyId, pluginId: plugin.id, pluginKey,
+        author: "Outpost", categories: ["automation"], capabilities: ["routines.managed"], entrypoints: { worker: "./worker.js" } } }).returning();
+    await db.insert(pluginManagedResources).values({ spaceId: f.spaceId, pluginId: plugin.id, pluginKey,
       resourceKind: "routine", resourceKey: "status", resourceId: f.routine.id, defaultsJson: { issueTemplate: { originId } } });
     const run = await dispatch(f), otherRun = await dispatch(other);
     expect((await db.select().from(issues).where(eq(issues.id, run.linkedIssueId!)))[0].originId).toBe(originId);
@@ -130,8 +130,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await fixture(), pluginKey = `routine-history-${randomUUID()}`, originId = `operation:${randomUUID()}`;
     const [plugin] = await db.insert(plugins).values({ pluginKey, packageName: pluginKey, version: "0.1.0",
       manifestJson: { id: pluginKey, apiVersion: 1, version: "0.1.0", displayName: "Routine test", description: "Routine test",
-        author: "Paperclip", categories: ["automation"], capabilities: ["routines.managed"], entrypoints: { worker: "./worker.js" } } }).returning();
-    const [resource] = await db.insert(pluginManagedResources).values({ companyId: f.companyId, pluginId: plugin.id, pluginKey,
+        author: "Outpost", categories: ["automation"], capabilities: ["routines.managed"], entrypoints: { worker: "./worker.js" } } }).returning();
+    const [resource] = await db.insert(pluginManagedResources).values({ spaceId: f.spaceId, pluginId: plugin.id, pluginKey,
       resourceKind: "routine", resourceKey: "history", resourceId: f.routine.id, defaultsJson: { issueTemplate: { originId } } }).returning();
     const run = await dispatch(f);
     expect((await db.select().from(issues).where(eq(issues.id, run.linkedIssueId!)))[0].originId).toBe(originId);
@@ -143,9 +143,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("reconstructs more than one page and does not lose a committed issue hint behind the startup cursor", async () => {
     const f = await fixture(), ids = Array.from({ length: 53 }, () => randomUUID()).sort();
     const issueIds = ids.map(() => randomUUID());
-    await db.insert(issues).values(ids.map((id, index) => ({ id: issueIds[index], companyId: f.companyId, title: "Legacy execution",
+    await db.insert(issues).values(ids.map((id, index) => ({ id: issueIds[index], spaceId: f.spaceId, title: "Legacy execution",
       status: index === 0 ? "todo" : "done", originKind: "routine_execution", originRunId: id, originId: f.routine.id })));
-    await db.insert(routineRuns).values(ids.map((id, index) => ({ id, companyId: f.companyId, routineId: f.routine.id,
+    await db.insert(routineRuns).values(ids.map((id, index) => ({ id, spaceId: f.spaceId, routineId: f.routine.id,
       source: "schedule", linkedIssueId: issueIds[index], status: "issue_created" })));
     const service = routineExecutionStatusService(db), load = service.load;
     let entered!: () => void, release!: () => void;
@@ -162,16 +162,16 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(loaded.mock.calls.some(([scope]) => scope?.issueId === issueIds[0])).toBe(true);
     await quiet(); expect(errors).toEqual([]);
   });
-  it("scopes shared execution writes to their company and settles paused-company projection debt", async () => {
+  it("scopes shared execution writes to their space and settles paused-space projection debt", async () => {
     const f = await fixture(), other = await fixture(), run = await dispatch(f), otherRun = await dispatch(other);
     const service = routineExecutionStatusService(db), load = vi.spyOn(service, "load");
     await start(service); await quiet(); load.mockClear();
-    await db.update(companies).set({ status: "paused" }).where(eq(companies.id, f.companyId));
+    await db.update(spaces).set({ status: "paused" }).where(eq(spaces.id, f.spaceId));
     await db.update(issues).set({ status: "done" }).where(eq(issues.id, otherRun.linkedIssueId!));
     await writeExecutionControl(db, DELIVERY_QUEUES.executionStatus,
-      tx => tx.update(issues).set({ status: "done" }).where(eq(issues.id, run.linkedIssueId!)), { companyId: f.companyId });
+      tx => tx.update(issues).set({ status: "done" }).where(eq(issues.id, run.linkedIssueId!)), { spaceId: f.spaceId });
     await projected(run.id, "completed");
-    expect(load.mock.calls.every(([scope]) => scope?.companyId === f.companyId)).toBe(true);
+    expect(load.mock.calls.every(([scope]) => scope?.spaceId === f.spaceId)).toBe(true);
     expect((await saved(otherRun.id)).status).toBe("issue_created"); await quiet();
     await db.transaction(async tx => { await notifyRoutineExecutionStatus(tx, otherRun.linkedIssueId!); });
     await projected(otherRun.id, "completed"); await quiet(); expect(errors).toEqual([]);
@@ -181,12 +181,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await issueService(db).update(child.linkedIssueId!, { parentId: root.linkedIssueId });
     const tree = issueTreeControlService(db), actor = { actorType: "system" as const, actorId: "routine-status-test" };
     await start(); await quiet();
-    const cancel = await tree.createHold(f.companyId, root.linkedIssueId!, { mode: "cancel", actor });
-    expect((await tree.cancelIssueStatusesForHold(f.companyId, root.linkedIssueId!, cancel.hold.id)).updatedIssueIds.sort())
+    const cancel = await tree.createHold(f.spaceId, root.linkedIssueId!, { mode: "cancel", actor });
+    expect((await tree.cancelIssueStatusesForHold(f.spaceId, root.linkedIssueId!, cancel.hold.id)).updatedIssueIds.sort())
       .toEqual([root.linkedIssueId, child.linkedIssueId].sort());
     await projected(root.id, "failed"); await projected(child.id, "failed"); await quiet();
-    const restore = await tree.createHold(f.companyId, root.linkedIssueId!, { mode: "restore", actor });
-    const restored = await tree.restoreIssueStatusesForHold(f.companyId, root.linkedIssueId!, restore.hold.id, { actor });
+    const restore = await tree.createHold(f.spaceId, root.linkedIssueId!, { mode: "restore", actor });
+    const restored = await tree.restoreIssueStatusesForHold(f.spaceId, root.linkedIssueId!, restore.hold.id, { actor });
     expect(restored.updatedIssues).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: root.linkedIssueId, status: "todo" }),
       expect.objectContaining({ id: child.linkedIssueId, status: "todo" }),
@@ -296,14 +296,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   it.each(["succeeded", "failed", "cancelled", "interrupted", "timed_out"])("uses real %s run lifecycle changes for activeIssue without an open-issue retry", async status => {
     const f = await fixture(), run = await dispatch(f); await start();
-    const [execution] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+    const [execution] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
       status: "running", contextSnapshot: { issueId: run.linkedIssueId } }).returning();
     await db.update(issues).set({ executionRunId: execution.id }).where(eq(issues.id, run.linkedIssueId!));
     expect((await f.service.getDetail(f.routine.id))?.activeIssue?.id).toBe(run.linkedIssueId);
     const deps = {
       ...createHeartbeatRunState(db), ...createHeartbeatRunPreparation(db),
       issuesSvc: { addComment: vi.fn(), listReviewAttention: vi.fn() },
-      recovery: { escalateStrandedAssignedIssue: vi.fn() }, companySkills: { completeTestRunForIssue: vi.fn() },
+      recovery: { escalateStrandedAssignedIssue: vi.fn() }, spaceSkills: { completeTestRunForIssue: vi.fn() },
       budgets: { getInvocationBlock: vi.fn(async () => null) }, treeControlSvc: { getActivePauseHoldGate: vi.fn(async () => null) },
       enqueueWakeup: vi.fn(), getCurrentUserRedactionOptions: vi.fn(async () => ({})),
       getAgentInvokability: vi.fn<HeartbeatLifecycleDependencies["getAgentInvokability"]>(async () => ({ invokable: true })), emitTerminalAgentTaskRun: vi.fn(), budgetHooks: {},

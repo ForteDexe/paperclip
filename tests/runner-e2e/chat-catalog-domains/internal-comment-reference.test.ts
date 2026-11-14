@@ -4,12 +4,12 @@ import { savedDesignInstruction, validRenderedCommentReference, waitForRenderedR
 import { grade_tasks } from "./internal-tasks.js";
 import type { InternalObservation } from "./internal-support.js";
 function valid(body = "Follow the approved design task RUN-1 as the source of truth for this landing page build."): InternalObservation {
-  const task = { id: "landing", companyId: "company", title: "Landing page", status: "backlog" };
-  const design = { id: "design", companyId: "company", identifier: "RUN-1", title: "Approved design", status: "done" };
+  const task = { id: "landing", spaceId: "space", title: "Landing page", status: "backlog" };
+  const design = { id: "design", spaceId: "space", identifier: "RUN-1", title: "Approved design", status: "done" };
   const comment = { id: "note", issueId: task.id, body, authorAgentId: "ceo", createdByRunId: "run" };
-  return { scenarioId: "tasks.comment-with-reference", origin: "http://127.0.0.1:3100", companyId: "company", leadId: "ceo", state: { task, design,
+  return { scenarioId: "tasks.comment-with-reference", origin: "http://127.0.0.1:3100", spaceId: "space", leadId: "ceo", state: { task, design,
     savedCommentReference: { commentId: comment.id, taskId: task.id, designId: design.id, bodySha256: createHash("sha256").update(body).digest("hex"), href: "/RUN/issues/RUN-1", visible: true, destinationMatched: true, publicReadMatched: true } },
-    tasks: [task, design], comments: [comment], projects: [], goals: [], activity: [], documents: [], revisions: [], reply: "Saved the note on the landing page task.", links: ["/RUN/issues/landing"], humanQueries: ["Add a note."], runs: [{ id: "run", agentId: "ceo", companyId: "company", status: "succeeded" }] };
+    tasks: [task, design], comments: [comment], projects: [], goals: [], activity: [], documents: [], revisions: [], reply: "Saved the note on the landing page task.", links: ["/RUN/issues/landing"], humanQueries: ["Add a note."], runs: [{ id: "run", agentId: "ceo", spaceId: "space", status: "succeeded" }] };
 }
 it("accepts the retained natural bare-identifier note and explicit Markdown links with actual comment-scoped proof", () => {
   for (const body of [valid().comments[0]!.body!, "Use [the approved design](/RUN/issues/RUN-1) when implementing the landing page.", "Build according to `RUN-1`.", "Follow [the design](http://127.0.0.1:3100/RUN/issues/RUN-1)."]) expect(grade_tasks(valid(body)).passed).toBe(true);
@@ -32,8 +32,8 @@ it("retains exactly one real agent/run-attributed comment", () => {
 
 // Retain the original affirmative/negative instruction calibration matrix.
 function observation(body: string): InternalObservation {
-  const task = { id: "task", companyId: "company", title: "Landing page", status: "backlog" }, design = { id: "design", identifier: "ACO-2", companyId: "company", title: "Approved design", status: "done" };
-  return { scenarioId: "tasks.comment-with-reference", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { task: structuredClone(task), design: structuredClone(design), savedCommentReference: { commentId: "note", taskId: "task", designId: "design", bodySha256: createHash("sha256").update(body).digest("hex"), href: "/ACO/issues/design", visible: true, destinationMatched: true, publicReadMatched: true } }, tasks: [task, design], projects: [], goals: [], documents: [], revisions: [], activity: [], reply: "Note added.", humanQueries: [], links: ["/ACO/issues/task"], comments: [{ id: "note", issueId: "task", authorAgentId: "ceo", createdByRunId: "run", body }], runs: [{ id: "run", companyId: "company", agentId: "ceo", status: "succeeded" }] };
+  const task = { id: "task", spaceId: "space", title: "Landing page", status: "backlog" }, design = { id: "design", identifier: "ACO-2", spaceId: "space", title: "Approved design", status: "done" };
+  return { scenarioId: "tasks.comment-with-reference", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { task: structuredClone(task), design: structuredClone(design), savedCommentReference: { commentId: "note", taskId: "task", designId: "design", bodySha256: createHash("sha256").update(body).digest("hex"), href: "/ACO/issues/design", visible: true, destinationMatched: true, publicReadMatched: true } }, tasks: [task, design], projects: [], goals: [], documents: [], revisions: [], activity: [], reply: "Note added.", humanQueries: [], links: ["/ACO/issues/task"], comments: [{ id: "note", issueId: "task", authorAgentId: "ceo", createdByRunId: "run", body }], runs: [{ id: "run", spaceId: "space", agentId: "ceo", status: "succeeded" }] };
 }
 for (const body of ["Follow [the approved design](/ACO/issues/design).", "Please use [this design](https://fixture.test/ACO/issues/ACO-2) for implementation.", "Adhere to [the approved design](/ACO/issues/design?tab=documents).", "Implement according to [the design](/ACO/issues/design).", "Build in line with [the approved design](/ACO/issues/design).", "Follow [the approved design](/ACO/issues/design) and avoid unrelated layout changes.", "Do not forget to follow [the approved design](/ACO/issues/design)."])
   it(`accepts affirmative actual design instruction: ${body}`, () => expect(grade_tasks(observation(body)).passed).toBe(true));
@@ -48,7 +48,7 @@ describe("waitForRenderedReply", () => {
     const ctx = { issue: () => ({ id: "chat" }), input: { api: { get: async () => comments }, page: { locator: () => locator } } };
     return { ctx: ctx as unknown as Parameters<typeof waitForRenderedReply>[0], checks: () => checks };
   };
-  const o = { leadId: "ceo", runs: [{ id: "run", agentId: "ceo", companyId: "company", status: "succeeded" }] } as Parameters<typeof waitForRenderedReply>[1];
+  const o = { leadId: "ceo", runs: [{ id: "run", agentId: "ceo", spaceId: "space", status: "succeeded" }] } as Parameters<typeof waitForRenderedReply>[1];
   it("waits until the saved reply is on the page instead of reading links at run settle", async () => {
     const f = fixture(3); await waitForRenderedReply(f.ctx, o, 2_000, 1); expect(f.checks()).toBe(4);
   });

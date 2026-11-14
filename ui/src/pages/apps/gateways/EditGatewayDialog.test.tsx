@@ -33,7 +33,7 @@ vi.mock("@/components/ui/dialog", () => ({
 function gateway(): ToolMcpGatewayWithTokens {
   return {
     id: "gateway-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     gatewayPublicId: "public-1",
     name: "Runtime Notion",
     displaySlug: "runtime-notion",
@@ -67,7 +67,7 @@ function gateway(): ToolMcpGatewayWithTokens {
 function profile(id: string, name: string): ToolProfileWithDetails {
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     profileKey: id,
     name,
     description: null,
@@ -87,7 +87,7 @@ function profile(id: string, name: string): ToolProfileWithDetails {
       totalToolCount: 2,
       assignmentCount: 1,
       appliesToAgentCount: 1,
-      isCompanyDefault: false,
+      isSpaceDefault: false,
     },
   } as ToolProfileWithDetails;
 }
@@ -124,7 +124,7 @@ describe("EditGatewayDialog", () => {
       root.render(
         <QueryClientProvider client={queryClient}>
           <EditGatewayDialog
-            companyId="company-1"
+            spaceId="space-1"
             gateway={existing}
             profiles={[profile("profile-1", "Original"), profile("profile-2", "Shared tools")]}
             open
@@ -158,7 +158,7 @@ describe("EditGatewayDialog", () => {
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await flushReact();
 
-    expect(updateGatewayMock).toHaveBeenCalledWith("company-1", "gateway-1", {
+    expect(updateGatewayMock).toHaveBeenCalledWith("space-1", "gateway-1", {
       name: "Shared Notion",
       description: "For the research team",
       profileId: "profile-2",

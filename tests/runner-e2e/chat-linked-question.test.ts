@@ -13,7 +13,7 @@ it("collects an actual production question takeover's two visible saved-task lin
   expect(evidence?.text).toBe("Which Landing page task should be High priority?");
   expect(evidence).toMatchObject({ interactionId: "question", questionId: "which-task", anchorCommentId: "human", sourceRunId: "run", leadId: "ceo" });
 });
-it("keeps supported unprefixed issue hrefs with exact saved identities and current company page binding", () => {
+it("keeps supported unprefixed issue hrefs with exact saved identities and current space page binding", () => {
   const input = valid();
   input.interactions[0]!.payload.questionSet!.description = "Choose [Launch](/issues/launch-task) or [Experiments](/issues/experiment-task).";
   const anchors = document.querySelectorAll("a");
@@ -32,7 +32,7 @@ it.each([
   expect(collect(input)?.links).toEqual(["/RUN/issues/RUN-1", "/RUN/issues/experiment-task"]);
 });
 it.each([
-  ["wrong company", (v: Input) => { v.interactions[0]!.companyId = "foreign"; }],
+  ["wrong space", (v: Input) => { v.interactions[0]!.spaceId = "foreign"; }],
   ["wrong conversation", (v: Input) => { v.interactions[0]!.issueId = "other-source"; }],
   ["wrong CEO", (v: Input) => { v.interactions[0]!.createdByAgentId = "another-agent"; }],
   ["human-created card", (v: Input) => { v.interactions[0]!.createdByUserId = "person"; }],
@@ -49,14 +49,14 @@ it.each([
   ["wrong source comment", (v: Input) => { v.interactions[0]!.sourceCommentId = "other-human"; }],
   ["missing create action", (v: Input) => { v.observation.activity = []; }],
   ["wrong create actor", (v: Input) => { v.observation.activity[0]!.actorId = "other"; }],
-  ["wrong create company", (v: Input) => { v.observation.activity[0]!.companyId = "foreign"; }],
+  ["wrong create space", (v: Input) => { v.observation.activity[0]!.spaceId = "foreign"; }],
   ["wrong action run", (v: Input) => { Object.assign(v.observation.activity[0]!, { runId: "old-run" }); }],
   ["wrong action resource kind", (v: Input) => { Object.assign(v.observation.activity[0]!, { entityType: "project" }); }],
   ["wrong action question", (v: Input) => { v.observation.activity[0]!.details!.interactionId = "other"; }],
   ["wrong action kind", (v: Input) => { v.observation.activity[0]!.details!.interactionKind = "request_confirmation"; }],
   ["legacy run", (v: Input) => { v.observation.runs[0]!.runtimeMode = "legacy"; }],
   ["unrelated run issue", (v: Input) => { v.observation.runs[0]!.contextSnapshot = { issueId: "other" }; }],
-  ["foreign saved task", (v: Input) => { v.tasks[0]!.companyId = "foreign"; }],
+  ["foreign saved task", (v: Input) => { v.tasks[0]!.spaceId = "foreign"; }],
   ["wrong actual task", (v: Input) => { v.observation.tasks[0]!.id = "other"; }],
   ["duplicate saved task", (v: Input) => { v.tasks[1] = v.tasks[0]!; }],
   ["old human request", (v: Input) => { v.comments[0]!.body = "another query"; }],
@@ -67,7 +67,7 @@ it.each([
   const input = valid(); change(input); expect(collect(input)).toBeUndefined();
 });
 it.each([
-  ["foreign company", "/OTHER/issues/RUN-1"], ["foreign origin", "https://foreign.test/RUN/issues/RUN-1"], ["wrong task", "/RUN/issues/wrong"],
+  ["foreign space", "/OTHER/issues/RUN-1"], ["foreign origin", "https://foreign.test/RUN/issues/RUN-1"], ["wrong task", "/RUN/issues/wrong"],
   ["task search", "/RUN/issues?search=RUN-1"], ["fragment", "/RUN/issues/RUN-1#unrelated"],
 ] as const)("rejects %s saved question link", (_, href) => {
   const input = valid(); input.interactions[0]!.payload.questionSet!.description = input.interactions[0]!.payload.questionSet!.description!.replace("/RUN/issues/RUN-1", href);

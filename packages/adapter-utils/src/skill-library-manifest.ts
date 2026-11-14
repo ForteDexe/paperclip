@@ -1,7 +1,7 @@
-import type { PaperclipSkillEntry } from "./server-utils.js";
+import type { OutpostSkillEntry } from "./server-utils.js";
 
 /**
- * Render the company skill library as a short markdown section for an agent's
+ * Render the space skill library as a short markdown section for an agent's
  * system context, marking each skill as enabled for this agent, installed but
  * not enabled, or enabled but unavailable (with the failure cause).
  *
@@ -28,7 +28,7 @@ function sanitizeManifestText(value: string, maxLength: number): string {
 }
 
 export function buildSkillLibraryManifestMarkdown(input: {
-  entries: readonly PaperclipSkillEntry[];
+  entries: readonly OutpostSkillEntry[];
   desiredSkillKeys: ReadonlySet<string>;
 }): string | null {
   if (input.entries.length === 0) return null;
@@ -47,7 +47,7 @@ export function buildSkillLibraryManifestMarkdown(input: {
     "## Outpost skill library",
     "",
     'Skills marked "enabled" are loaded into your runtime. Skills marked',
-    '"installed, not enabled for you" exist in this company\'s skill library but',
+    '"installed, not enabled for you" exist in this space\'s skill library but',
     "are not attached to you — never report those as not installed; say they",
     "are installed but not enabled for you, and ask an operator to enable them",
     'for you (the skill page\'s "Add to agent" control) when you need one.',

@@ -6,36 +6,36 @@ import type { AttentionSourceKind } from "@outpost/shared";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 
 export const ATTENTION_RETENTION_MAX_ISSUE_IDS = 100;
-export type AttentionRetentionScope = { companyId?: string; sourceKind?: AttentionSourceKind;
+export type AttentionRetentionScope = { spaceId?: string; sourceKind?: AttentionSourceKind;
   issueId?: string; issueIds?: string[]; sourceId?: string };
 
 export async function notifyAttentionRetentionWork(transaction: object, scope: AttentionRetentionScope = {}) {
   const issueIds = [...new Set([...(scope.issueIds ?? []), ...(scope.issueId ? [scope.issueId] : [])])].sort();
   await notifyDeliveryWork(transaction, DELIVERY_QUEUES.attentionRetention, JSON.stringify({
-    companyId: scope.companyId, sourceKind: scope.sourceKind, sourceId: scope.sourceId,
+    spaceId: scope.spaceId, sourceKind: scope.sourceKind, sourceId: scope.sourceId,
     issueId: issueIds.length === 1 ? issueIds[0] : undefined,
     issueIds: issueIds.length > 1 && issueIds.length <= ATTENTION_RETENTION_MAX_ISSUE_IDS ? issueIds : undefined,
   }));
 }
 
 export async function notifyIssueAttentionRetentionWork(transaction: object,
-  scope: { companyId: string; issueId?: string; parentId?: string | null; runId?: string; originKind?: string | null; originId?: string | null }) {
+  scope: { spaceId: string; issueId?: string; parentId?: string | null; runId?: string; originKind?: string | null; originId?: string | null }) {
   const database = transaction as Db;
   const seeds = [scope.issueId, scope.parentId].filter((id): id is string => Boolean(id));
   if (!seeds.length && scope.runId) {
     const rows = await database.execute(sql`select issue_id::text as id from heartbeat_runs
-      where company_id = ${scope.companyId}::uuid and id = ${scope.runId}::uuid and issue_id is not null
+      where space_id = ${scope.spaceId}::uuid and id = ${scope.runId}::uuid and issue_id is not null
       union select native_issue_id::text from heartbeat_runs
-      where company_id = ${scope.companyId}::uuid and id = ${scope.runId}::uuid and native_issue_id is not null
+      where space_id = ${scope.spaceId}::uuid and id = ${scope.runId}::uuid and native_issue_id is not null
       union select issue.id::text from heartbeat_runs run inner join issues issue
-        on issue.company_id = run.company_id
+        on issue.space_id = run.space_id
           and issue.id::text = coalesce(run.context_snapshot->>'issueId', run.context_snapshot->>'taskId')
-      where run.company_id = ${scope.companyId}::uuid and run.id = ${scope.runId}::uuid`);
+      where run.space_id = ${scope.spaceId}::uuid and run.id = ${scope.runId}::uuid`);
     for (const row of rows) seeds.push(row.id as string);
   }
-  if (!seeds.length) return notifyAttentionRetentionWork(transaction, { companyId: scope.companyId });
+  if (!seeds.length) return notifyAttentionRetentionWork(transaction, { spaceId: scope.spaceId });
   const origins = await database.execute(sql`select id::text as id, origin_kind as "originKind", origin_id as "originId" from issues
-    where company_id = ${scope.companyId}::uuid
+    where space_id = ${scope.spaceId}::uuid
       and id in (${sql.join([...new Set(seeds)].map(id => sql`${id}::uuid`), sql`, `)})`);
   const current = origins.find(source => source.id === scope.issueId);
   origins.push({ originKind: scope.originKind ?? current?.originKind, originId: scope.originId ?? current?.originId });
@@ -46,11 +46,11 @@ export async function notifyIssueAttentionRetentionWork(transaction: object,
     }
     const incident = source.originKind === RECOVERY_ORIGIN_KINDS.issueGraphLivenessEscalation
       ? parseIssueGraphLivenessIncidentKey(source.originId as string | null) : null;
-    if (incident?.companyId === scope.companyId) references.push(incident.issueId, incident.leafIssueId);
+    if (incident?.spaceId === scope.spaceId) references.push(incident.issueId, incident.leafIssueId);
   }
   if (references.length) {
     const trusted = await database.execute(sql`select id::text as id from issues
-      where company_id = ${scope.companyId}::uuid
+      where space_id = ${scope.spaceId}::uuid
         and id::text in (${sql.join([...new Set(references)].map(id => sql`${id}`), sql`, `)})`);
     for (const row of trusted) seeds.push(row.id as string);
   }
@@ -62,29 +62,29 @@ export async function notifyIssueAttentionRetentionWork(transaction: object,
     select unnest(array[${sql.join([...new Set(seeds)].map(id => sql`${id}::uuid`), sql`, `)}])
     union
     select parent.id from affected current cross join lateral (
-      (select related_issue_id as id from issue_relations where company_id = ${scope.companyId}::uuid
+      (select related_issue_id as id from issue_relations where space_id = ${scope.spaceId}::uuid
         and issue_id = current.id and type = 'blocks' limit ${ATTENTION_RETENTION_MAX_ISSUE_IDS + 1})
-      union all select parent_id from issues where company_id = ${scope.companyId}::uuid
+      union all select parent_id from issues where space_id = ${scope.spaceId}::uuid
         and id = current.id and parent_id is not null
     ) parent
   ) select id::text as "issueId" from affected limit ${ATTENTION_RETENTION_MAX_ISSUE_IDS + 1}`);
   // The sentinel means the affected set is incomplete. Reconstruct the whole
-  // company through the existing paged authority instead of dropping ancestors.
-  await notifyAttentionRetentionWork(transaction, { companyId: scope.companyId,
+  // space through the existing paged authority instead of dropping ancestors.
+  await notifyAttentionRetentionWork(transaction, { spaceId: scope.spaceId,
     issueIds: affected.length <= ATTENTION_RETENTION_MAX_ISSUE_IDS ? affected.map(row => row.issueId as string) : undefined,
   });
 }
 
-export async function notifyRetentionWork(transaction: object, kind: AttentionSourceKind, scope: { companyId?: string; sourceId?: string } = {}) {
+export async function notifyRetentionWork(transaction: object, kind: AttentionSourceKind, scope: { spaceId?: string; sourceId?: string } = {}) {
   if (kind === "approval") await notifyDeliveryWork(transaction, DELIVERY_QUEUES.approvalRetention);
   if (kind === "join_request") await notifyDeliveryWork(transaction, DELIVERY_QUEUES.joinRequestRetention);
   if (kind !== "approval" && kind !== "join_request") await notifyAttentionRetentionWork(transaction, { ...scope, sourceKind: kind,
     sourceId: kind === "blocker_attention" ? undefined : scope.sourceId });
 }
 
-export async function notifyCompanyRetentionWork(transaction: object, companyId: string) {
-  await notifyAttentionRetentionWork(transaction, { companyId });
-  await notifyApprovalWork(transaction, companyId);
+export async function notifySpaceRetentionWork(transaction: object, spaceId: string) {
+  await notifyAttentionRetentionWork(transaction, { spaceId });
+  await notifyApprovalWork(transaction, spaceId);
   await notifyRetentionWork(transaction, "join_request");
 }
 

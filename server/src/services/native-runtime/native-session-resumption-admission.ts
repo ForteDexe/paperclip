@@ -12,20 +12,20 @@ import { NATIVE_SESSION_RESUMPTION_ISSUE_STATUSES } from "./native-session-resum
 
 export async function restoreNativeSessionExecution(db: Db, input: {
   issue: Pick<typeof issues.$inferSelect, "id" | "executionRunId">;
-  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "agentId">;
+  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId" | "agentId">;
   agentName: string;
   now: Date;
 }) {
   const { issue, run, now } = input;
-  await notifyStatusCardIssueChange(db, run.companyId);
+  await notifyStatusCardIssueChange(db, run.spaceId);
   const restored = await db.update(issues).set({ executionRunId: run.id,
     executionAgentNameKey: normalizeAgentNameKey(input.agentName), executionLockedAt: now, updatedAt: now,
-  }).where(and(eq(issues.id, issue.id), eq(issues.companyId, run.companyId),
+  }).where(and(eq(issues.id, issue.id), eq(issues.spaceId, run.spaceId),
     or(isNull(issues.executionRunId), eq(issues.executionRunId, run.id)),
   )).returning({ id: issues.id });
   if (!restored.length) throw new Error("native_session_execution_binding_changed");
   if (issue.executionRunId !== run.id) await appendHeartbeatRunEvent(db, {
-    companyId: run.companyId, runId: run.id, agentId: run.agentId,
+    spaceId: run.spaceId, runId: run.id, agentId: run.agentId,
     eventType: "native.recovery.execution_reclaimed", stream: "system", level: "info",
     message: "Reclaimed the original task execution for native session recovery.", payload: { issueId: issue.id },
   });
@@ -42,27 +42,27 @@ function nativeSessionResumptionStopped(run: typeof heartbeatRuns.$inferSelect,
 }
 
 export async function readNativeSessionResumptionAgent(db: Db, input: {
-  issue: Pick<typeof issues.$inferSelect, "id" | "companyId" | "status" | "executionRunId" | "checkoutRunId" | "assigneeAgentId">;
+  issue: Pick<typeof issues.$inferSelect, "id" | "spaceId" | "status" | "executionRunId" | "checkoutRunId" | "assigneeAgentId">;
   run: typeof heartbeatRuns.$inferSelect;
   coordinator: typeof nativeRunFinalizations.$inferSelect;
 }) {
   const { issue, run, coordinator } = input;
-  if (issue.companyId !== run.companyId || issue.id !== run.nativeIssueId ||
-      coordinator.companyId !== run.companyId || coordinator.issueId !== issue.id || coordinator.runId !== run.id ||
+  if (issue.spaceId !== run.spaceId || issue.id !== run.nativeIssueId ||
+      coordinator.spaceId !== run.spaceId || coordinator.issueId !== issue.id || coordinator.runId !== run.id ||
       !(NATIVE_SESSION_RESUMPTION_ISSUE_STATUSES as readonly string[]).includes(issue.status) ||
       (issue.executionRunId && issue.executionRunId !== run.id) ||
       (issue.checkoutRunId && issue.checkoutRunId !== run.id)) return null;
   const [agent] = await db.select().from(agents).where(and(
-    eq(agents.companyId, run.companyId), eq(agents.id, run.agentId),
+    eq(agents.spaceId, run.spaceId), eq(agents.id, run.agentId),
   )).limit(1);
   if (!agent || !(await evaluateAgentInvokabilityFromDb(db, agent)).invokable) return null;
   if (issue.assigneeAgentId !== run.agentId && !await getNativeReviewAssignment(db, {
-    companyId: run.companyId, issueId: issue.id, agentId: run.agentId, contextSnapshot: run.contextSnapshot,
+    spaceId: run.spaceId, issueId: issue.id, agentId: run.agentId, contextSnapshot: run.contextSnapshot,
   })) return null;
-  if (await isAutomaticRecoverySuppressedByPauseHold(db, run.companyId, issue.id)) return null;
+  if (await isAutomaticRecoverySuppressedByPauseHold(db, run.spaceId, issue.id)) return null;
   if (!(await issueService(db).getDependencyReadiness(issue.id, db)).isDependencyReady) return null;
   const [competing] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, run.companyId), ne(heartbeatRuns.id, run.id),
+    eq(heartbeatRuns.spaceId, run.spaceId), ne(heartbeatRuns.id, run.id),
     inArray(heartbeatRuns.status, issue.executionRunId === run.id
       ? ["running", "scheduled_retry"] : ["queued", "running", "scheduled_retry"]),
     or(eq(heartbeatRuns.issueId, issue.id), eq(heartbeatRuns.nativeIssueId, issue.id),

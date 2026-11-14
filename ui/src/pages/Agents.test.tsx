@@ -37,7 +37,7 @@ const mockEnvironmentsApi = vi.hoisted(() => ({
 }));
 
 const mockHeartbeatsApi = vi.hoisted(() => ({
-  liveRunsForCompany: vi.fn(),
+  liveRunsForSpace: vi.fn(),
 }));
 
 const mockInstanceSettingsApi = vi.hoisted(() => ({
@@ -61,8 +61,8 @@ vi.mock("@/lib/router", () => ({
   useNavigate: () => mockRouterState.navigate,
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 
 vi.mock("../context/DialogContext", () => ({
@@ -77,7 +77,7 @@ vi.mock("../context/SidebarContext", () => ({
   useSidebar: () => ({ isMobile: mockSidebarState.isMobile }),
 }));
 
-vi.mock("../api/ai-connections", () => ({ aiConnectionsApi: { list: vi.fn(async () => ({ currentUserId: "board", canManageConnections: true, connections: [] })) } }));
+vi.mock("../api/ai-connections", () => ({ aiConnectionsApi: { list: vi.fn(async () => ({ currentUserId: "operator", canManageConnections: true, connections: [] })) } }));
 
 vi.mock("../api/agents", () => ({
   agentsApi: mockAgentsApi,
@@ -122,7 +122,7 @@ async function act(callback: () => void | Promise<void>) {
 function makeAgent(overrides: Partial<Agent>): Agent {
   return {
     id: "agent-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Alpha",
     urlKey: "alpha",
     role: "engineer",
@@ -265,7 +265,7 @@ const invalidOrgChainHealth: AgentOrgChainHealth = {
   fullChain: [
     {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Alpha",
       status: "active",
       reportsTo: "manager-1",
@@ -274,7 +274,7 @@ const invalidOrgChainHealth: AgentOrgChainHealth = {
     },
     {
       id: "manager-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Terminated Manager",
       status: "terminated",
       reportsTo: null,
@@ -313,7 +313,7 @@ describe("agent search", () => {
 
   it("retains the hierarchy above a matching report and promotes reports of hidden agents", () => {
     const child = { id: "child", name: "Designer", role: "designer", status: "paused", reports: [] };
-    const root = { id: "root", name: "CEO", role: "ceo", status: "active", reports: [child] };
+    const root = { id: "root", name: "Default agent", role: "lead", status: "active", reports: [child] };
     expect(filterOrgTree([root], "all", new Set(), new Set([child.id]))).toEqual([root]);
     expect(filterOrgTree([root], "all", new Set(), new Set())).toEqual([]);
     expect(filterOrgTree([{ ...root, status: "terminated" }], "all", new Set(), new Set([child.id]))).toEqual([child]);
@@ -366,7 +366,7 @@ describe("Agents", () => {
     ]);
     mockEnvironmentsApi.capabilities.mockResolvedValue(environmentCapabilities);
     mockInstanceSettingsApi.get.mockResolvedValue(makeInstanceSettings());
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([]);
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([]);
     mockResourceMembershipsApi.listMine.mockResolvedValue({
       projectMemberships: {},
       agentMemberships: {},
@@ -467,11 +467,11 @@ describe("Agents", () => {
     expect(document.querySelector('[aria-label="Bulk actions"]')?.textContent).toContain("1 hidden by filters");
     expect(container.querySelector('[aria-label="Filter agents"]')?.textContent).toBe("4");
     expect(container.querySelector('[aria-label="Agent filters"]')?.textContent).toContain("1 agent");
-    await act(() => { queryClient.setQueryData(queryKeys.agents.list("company-1"), agents.map(agent => agent.id === "alpha" ? { ...agent, adapterConfig: { model: "new-model" } } : agent)); });
+    await act(() => { queryClient.setQueryData(queryKeys.agents.list("space-1"), agents.map(agent => agent.id === "alpha" ? { ...agent, adapterConfig: { model: "new-model" } } : agent)); });
     await flushReact();
     expect(document.querySelector<HTMLSelectElement>('select[aria-label="Model"]')?.selectedOptions[0].textContent).toBe("Previously selected model");
     expect(container.textContent).toContain("No agents match these filters.");
-    await act(() => { queryClient.setQueryData(queryKeys.agents.list("company-1"), agents); });
+    await act(() => { queryClient.setQueryData(queryKeys.agents.list("space-1"), agents); });
     await flushReact();
     await select("Connection", "external");
     expect(container.textContent).toContain("No agents match these filters.");
@@ -590,7 +590,7 @@ describe("Agents", () => {
     await flushReact();
     await flushReact();
 
-    expect(mockAgentsApi.org).toHaveBeenCalledWith("company-1");
+    expect(mockAgentsApi.org).toHaveBeenCalledWith("space-1");
     expect(orgToggle?.getAttribute("aria-pressed")).toBe("true");
     const orgViewport = container.querySelector('[data-testid="org-chart-viewport"]');
     expect(orgViewport).not.toBeNull();
@@ -628,7 +628,7 @@ describe("Agents", () => {
         id: "agent-mobile",
         name: "Outpost Engineer With A Much Longer Display Name",
         title: "Software Engineer With A Much Longer Specialty Title",
-        urlKey: "paperclip-engineer-long",
+        urlKey: "outpost-engineer-long",
       }),
     ]);
 
@@ -998,7 +998,7 @@ describe("Agents", () => {
     await flushReact();
 
     expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
-    expect(mockBuiltInAgentsApi.list).toHaveBeenCalledWith("company-1");
+    expect(mockBuiltInAgentsApi.list).toHaveBeenCalledWith("space-1");
     expect(container.textContent).toContain("Briefs Agent");
     expect(container.textContent).toContain("Regular Agent");
     expect(container.querySelector('[title="Ships with Outpost"]')).toBeNull();

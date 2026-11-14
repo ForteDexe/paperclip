@@ -74,8 +74,8 @@ Neither historical cumulative total belongs on the new bottleneck shortlist.
 | Ordinary HTTP route | Requests | Mean | Sample p95 | Maximum | Relevant result |
 | --- | ---: | ---: | ---: | ---: | --- |
 | GET connection grants | 2 | 61.447 s | 66.388 s | 66.388 s | Both 200; minimum 56.506 s; very small sample |
-| GET company skills | 20 | 2.733 s | 6.015 s | 13.945 s | All 304 |
-| GET company issues | 135 | 1.079 s | 2.957 s | 9.671 s | 112 returned 304 |
+| GET space skills | 20 | 2.733 s | 6.015 s | 13.945 s | All 304 |
+| GET space issues | 135 | 1.079 s | 2.957 s | 9.671 s | 112 returned 304 |
 | GET sidebar badges | 197 | 482 ms | 1.440 s | 5.851 s | All 304 |
 | GET run events | 203 | 346 ms | 1.063 s | 4.273 s | 137 returned 304 |
 
@@ -91,9 +91,9 @@ database round trips, pool wait or other dependencies.
 This is the largest newly observed individual request delay. The route is
 `server/src/routes/tool-access.ts:1754`. Listing grants itself uses batched
 database reads. The route also describes connection capabilities by inspecting
-every company agent. Each inspection asks the connection-management policy for
+every space agent. Each inspection asks the connection-management policy for
 a capability; its default mutation-authority calculation expands existing
-company-wide installations to their agents and checks each target serially.
+space-wide installations to their agents and checks each target serially.
 This creates quadratic authorization fan-out in the reproduced service path. No provider HTTP call
 was found in this listing path. The relevant route and policy paths are
 unchanged between the measured source, later serving source and refreshed
@@ -121,9 +121,9 @@ controlled database round-trip latency. The fix should make capability descripti
 request-local facts while retaining each target's authorization decision.
 
 **Safety fact to prove:** any reused authority fact belongs to the same actor,
-company, connection and request; a denied or absent target cannot inherit an
+space, connection and request; a denied or absent target cannot inherit an
 allowed sibling's capability. Cover board, user and agent callers, personal and
-company installations, project/resource restrictions, removed grants, missing
+space installations, project/resource restrictions, removed grants, missing
 agents and mixed allowed/denied targets. Preserve current membership/revocation
 reads between requests. Do not make a one-minute route appear fast by skipping
 its checks. Do not bypass installed-target checks by passing `mutation:false` or
@@ -160,15 +160,15 @@ startup and recover missed notifications.
 
 **Safety fact to prove:** a narrower candidate path still finds every notice
 authorized by the original action/publication relationship, with unchanged
-company scope and deduplication. Cover legacy/native lineage, malformed or
+space scope and deduplication. Cover legacy/native lineage, malformed or
 missing context, delayed commits, resolved/expired actions, failed publication,
 duplicate delivery and drain/resume. Removing the recurring call requires proof
 for every producer and restart/recovery path, not only an empty-queue test.
 
 ### 3. Skills-list reconciliation and repeated resolution
 
-`server/src/routes/company-skills.ts:467` calls the service list at
-`server/src/services/company-skills.ts:3269`. Every request first awaits
+`server/src/routes/space-skills.ts:467` calls the service list at
+`server/src/services/space-skills.ts:3269`. Every request first awaits
 `ensureSkillInventoryCurrent` at line 3235: bundled imports, bundled-release
 verification, folder reconciliation and local-source inspection. The shared
 promise coalesces concurrent work but is removed when it finishes, so a later
@@ -176,7 +176,7 @@ request repeats the refresh. A GET can therefore perform filesystem and
 database reconciliation before listing any skills.
 
 The list then resolves every agent's desired skills again for each displayed
-skill (`company-skills.ts:3351`). Reference resolution performs searches over
+skill (`space-skills.ts:3351`). Reference resolution performs searches over
 the skill list at line 2152. This is a concrete repeated-work lead, but its share
 of the measured 2.733-second HTTP mean remains unproved. These service/route
 files are identical in the deployed source, local integration and current

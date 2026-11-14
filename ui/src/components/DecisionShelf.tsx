@@ -49,7 +49,7 @@ export function Curtain({
  */
 export function AgingItemRow({
   item,
-  companyId,
+  spaceId,
   now,
   agentMap,
   agents,
@@ -60,7 +60,7 @@ export function AgingItemRow({
   onSnooze,
 }: {
   item: AttentionItem;
-  companyId: string;
+  spaceId: string;
   now: number;
   agentMap: Map<string, Agent>;
   agents: Agent[] | undefined;
@@ -74,9 +74,9 @@ export function AgingItemRow({
   const { pushToast } = useToastActions();
   const idleDays = attentionIdleDays(item, now);
   const keep = useMutation({
-    mutationFn: () => decisionQueuesApi.setKeep(companyId, item.sourceKind, item.subject.id, true),
+    mutationFn: () => decisionQueuesApi.setKeep(spaceId, item.sourceKind, item.subject.id, true),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.attention(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.attention(spaceId) });
       pushToast({ title: "Kept on desk", body: item.subject.title ?? undefined, tone: "success" });
     },
     onError: (error) =>
@@ -108,7 +108,7 @@ export function AgingItemRow({
       </div>
       <AttentionQueueRow
         item={item}
-        companyId={companyId}
+        spaceId={spaceId}
         expanded={expanded}
         onToggleExpand={onToggleExpand}
         onDismiss={onDismiss}

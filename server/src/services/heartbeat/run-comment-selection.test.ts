@@ -1,4 +1,4 @@
-import { agents, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, issueComments, issues } from "@outpost/db";
+import { agents, spaces, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { createHeartbeatLifecycle, type HeartbeatLifecycleDependencies } from "./run-lifecycle.js";
@@ -10,18 +10,18 @@ describe.skipIf(!support.supported)("persisted run completion comment selection"
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-run-comment-selection-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-run-comment-selection-");
     db = createDb(database.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
-  it("retains system notices while selecting only a same-company task reply", async () => {
-    const [company] = await db.insert(companies).values({ name: "Notice selection", issuePrefix: "NSL" }).returning();
-    const [otherCompany] = await db.insert(companies).values({ name: "Other company", issuePrefix: "OTH" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Agent", adapterType: "process" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Reply Hi", assigneeAgentId: agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, issueId: issue.id, status: "running" }).returning();
-    const [notice] = await db.insert(issueComments).values({ companyId: company.id, issueId: issue.id,
+  it("retains system notices while selecting only a same-space task reply", async () => {
+    const [space] = await db.insert(spaces).values({ name: "Notice selection", issuePrefix: "NSL" }).returning();
+    const [otherSpace] = await db.insert(spaces).values({ name: "Other space", issuePrefix: "OTH" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Agent", adapterType: "process" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Reply Hi", assigneeAgentId: agent.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, issueId: issue.id, status: "running" }).returning();
+    const [notice] = await db.insert(issueComments).values({ spaceId: space.id, issueId: issue.id,
       authorAgentId: agent.id, createdByRunId: run.id, body: "## Workspace Ready",
       presentation: { kind: "system_notice", tone: "info", title: "Workspace ready", density: "compact", detailsDefaultOpen: false },
     }).returning();
@@ -29,7 +29,7 @@ describe.skipIf(!support.supported)("persisted run completion comment selection"
       ...createHeartbeatRunState(db), ...createHeartbeatRunPreparation(db),
       issuesSvc: { addComment: vi.fn(), listReviewAttention: vi.fn() },
       recovery: { escalateStrandedAssignedIssue: vi.fn() },
-      companySkills: { completeTestRunForIssue: vi.fn() },
+      spaceSkills: { completeTestRunForIssue: vi.fn() },
       budgets: { getInvocationBlock: vi.fn(async () => null) },
       treeControlSvc: { getActivePauseHoldGate: vi.fn(async () => null) },
       enqueueWakeup: vi.fn(), getCurrentUserRedactionOptions: vi.fn(async () => ({ enabled: false })),
@@ -37,12 +37,12 @@ describe.skipIf(!support.supported)("persisted run completion comment selection"
       emitTerminalAgentTaskRun: vi.fn(), budgetHooks: {},
     } satisfies HeartbeatLifecycleDependencies;
     const lifecycle = createHeartbeatLifecycle(db, dependencies);
-    expect(await lifecycle.findRunIssueComment(run.id, company.id, issue.id, {})).toBeNull();
-    const [reply] = await db.insert(issueComments).values({ companyId: company.id, issueId: issue.id,
+    expect(await lifecycle.findRunIssueComment(run.id, space.id, issue.id, {})).toBeNull();
+    const [reply] = await db.insert(issueComments).values({ spaceId: space.id, issueId: issue.id,
       authorAgentId: agent.id, createdByRunId: run.id, body: "Hi",
     }).returning();
-    expect(await lifecycle.findRunIssueComment(run.id, company.id, issue.id, {})).toMatchObject({ id: reply.id, body: "Hi" });
-    expect(await lifecycle.findRunIssueComment(run.id, otherCompany.id, issue.id, {})).toBeNull();
+    expect(await lifecycle.findRunIssueComment(run.id, space.id, issue.id, {})).toMatchObject({ id: reply.id, body: "Hi" });
+    expect(await lifecycle.findRunIssueComment(run.id, otherSpace.id, issue.id, {})).toBeNull();
     expect(await db.select().from(issueComments)).toEqual(expect.arrayContaining([expect.objectContaining({ id: notice.id }), expect.objectContaining({ id: reply.id })]));
   });
 });

@@ -4,7 +4,7 @@ import type { createDeliveryWorkCoordinator } from "./delivery-work-coordinator.
 import { DELIVERY_QUEUES, subscribeDeliveryWork } from "./delivery-work-notifications.js";
 import type { BudgetServiceHooks } from "./budgets.js";
 import { readCostAccountingWork } from "./run-cost-accounting.js";
-import { subscribeAllCompanyLiveEvents } from "./live-events.js";
+import { subscribeAllSpaceLiveEvents } from "./live-events.js";
 
 type Coordinator = Pick<ReturnType<typeof createDeliveryWorkCoordinator>, "register">;
 const accountingWakes = new WeakMap<Db, () => void>();
@@ -20,7 +20,7 @@ export function wakeCostAccountingWork(db: Db): void {
 export function registerBudgetEnforcementWork(db: Db, coordinator: Coordinator, hooks: BudgetServiceHooks) {
   // Outpost retains budget records for upgrade/data compatibility but never
   // starts the monetary enforcement worker. In particular, stale evaluation
-  // rows or cancellation intents from an older Paperclip installation cannot
+  // rows or cancellation intents from an older Outpost installation cannot
   // stop current agent work after upgrading to this fork.
   void db;
   void coordinator;
@@ -53,7 +53,7 @@ export function registerCostAccountingWork(db: Db, coordinator: Coordinator, rec
   accountingWakes.set(db, worker.wake);
   // The existing heartbeat terminal event is published after its persisted
   // transition. Receipt writes have transaction-aware accounting signals too.
-  const unsubscribe = subscribeAllCompanyLiveEvents(event => {
+  const unsubscribe = subscribeAllSpaceLiveEvents(event => {
     if (event.type === "heartbeat.run.status" &&
         ["succeeded", "failed", "timed_out", "cancelled", "interrupted"].includes(String(event.payload.status))) worker.wake();
   });

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, or, sql } from "drizzle-orm";
 import { chatEndpoints, chatSlackRegistrations, toolConnections, type Db } from "@outpost/db";
-import { createPaperclipCloudConnector, outpostCloudConnectorConfigFromEnv, PaperclipCloudConnectorError, type PaperclipCloudConnector } from "../../paperclip-cloud-connector.js";
+import { createOutpostCloudConnector, outpostCloudConnectorConfigFromEnv, OutpostCloudConnectorError, type OutpostCloudConnector } from "../../outpost-cloud-connector.js";
 import type { CredentialMutationLeaseGuard } from "../../chat-credential-mutation-lease.js";
 import type { createChatCredentials } from "../credentials.js";
 import type { InternalSetupState } from "../runtime-types.js";
@@ -33,7 +33,7 @@ export async function stageSlackCloudEnrollmentIntent(db: Db, endpointId: string
   let config: ReturnType<typeof outpostCloudConnectorConfigFromEnv>;
   try { config = outpostCloudConnectorConfigFromEnv(); } catch { config = null; }
   const [current] = await db.select({ endpoint: chatEndpoints, connection: toolConnections }).from(chatEndpoints)
-    .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, chatEndpoints.companyId)))
+    .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, chatEndpoints.spaceId)))
     .where(eq(chatEndpoints.id, endpointId)).limit(1);
   if (!current || current.endpoint.provider !== "slack") return;
   const endpoint = current.endpoint, setup = endpoint.setup as InternalSetupState;
@@ -56,10 +56,10 @@ export async function stageSlackCloudEnrollmentIntent(db: Db, endpointId: string
   if (!blocked && setup.slackCloudInstanceId === instanceId && setup.slackCloudSubject === subject
     && (active ? setup.slackCloudEvents?.runtimeGeneration === generation : setup.slackCloudRetiredGeneration === generation)) return;
   const [registration] = active ? await db.select({ appId: chatSlackRegistrations.appId }).from(chatSlackRegistrations)
-    .where(and(eq(chatSlackRegistrations.endpointId, endpointId), eq(chatSlackRegistrations.companyId, endpoint.companyId))).limit(1) : [];
+    .where(and(eq(chatSlackRegistrations.endpointId, endpointId), eq(chatSlackRegistrations.spaceId, endpoint.spaceId))).limit(1) : [];
   const appId = registration?.appId ?? setup.slackCloudEvents?.appId;
   if (active && (!appId || !endpoint.providerAccountId)) return;
-  const intent: Intent = { version: 1, id: randomUUID(), subject, instanceId, companyId: endpoint.companyId, endpointId,
+  const intent: Intent = { version: 1, id: randomUUID(), subject, instanceId, spaceId: endpoint.spaceId, endpointId,
     publicId: endpoint.publicId, connectionId: endpoint.connectionId, runtimeGeneration: generation, active,
     ...(active ? { appId: appId!, teamId: endpoint.providerAccountId! } : {}), attempts: 0, nextAttemptAt: config && !blocked ? new Date().toISOString() : null,
     ...(blocked ? { failureCode: "instance_replacement_requires_retirement" } : !config ? { failureCode: "connector_configuration_unavailable" } : {}) };
@@ -67,7 +67,7 @@ export async function stageSlackCloudEnrollmentIntent(db: Db, endpointId: string
   await db.update(chatEndpoints).set({
     lastError: config && !blocked ? sql`${chatEndpoints.lastError}` : "Slack Cloud event registration requires attention",
     setup: sql`jsonb_set(${chatEndpoints.setup}, '{slackCloudIntent}', ${JSON.stringify(intent)}::jsonb)` })
-    .where(and(eq(chatEndpoints.id, endpointId), eq(chatEndpoints.companyId, endpoint.companyId)));
+    .where(and(eq(chatEndpoints.id, endpointId), eq(chatEndpoints.spaceId, endpoint.spaceId)));
 }
 
 export async function reconcilePendingSlackCloudEnrollments(db: Db, now: Date): Promise<number | null> {
@@ -102,11 +102,11 @@ export async function reconcilePendingSlackCloudEnrollments(db: Db, now: Date): 
           if (error instanceof HttpError && error.status === 409 && error.details && typeof error.details === "object"
             && "code" in error.details && error.details.code === "chat_endpoint_credentials_busy") {
             try {
-              if (intent.companyId === endpoint.companyId && intent.endpointId === endpoint.id
+              if (intent.spaceId === endpoint.spaceId && intent.endpointId === endpoint.id
                 && intent.publicId === endpoint.publicId && intent.connectionId === endpoint.connectionId
                 && intent.runtimeGeneration === Number((endpoint.setup as InternalSetupState).runtimeGeneration ?? 0)) {
                 await db.transaction(async tx => {
-                  const sameIntent = and(eq(chatEndpoints.id, endpoint.id), eq(chatEndpoints.companyId, intent.companyId),
+                  const sameIntent = and(eq(chatEndpoints.id, endpoint.id), eq(chatEndpoints.spaceId, intent.spaceId),
                     eq(chatEndpoints.provider, "slack"), eq(chatEndpoints.publicId, intent.publicId), eq(chatEndpoints.connectionId, intent.connectionId),
                     sql`${chatEndpoints.setup}->'runtimeGeneration' = ${JSON.stringify(intent.runtimeGeneration)}::jsonb`,
                     sql`${chatEndpoints.setup}->'slackCloudIntent' = ${JSON.stringify(intent)}::jsonb`);
@@ -144,21 +144,21 @@ export async function reconcilePendingSlackCloudEnrollments(db: Db, now: Date): 
 export function createSlackCloudEnrollment(db: Db, options: {
   resolveCredentials: ReturnType<typeof createChatCredentials>["resolveCredentials"];
   runtimeGeneration(setup: InternalSetupState): number;
-  connector?: Pick<PaperclipCloudConnector, "slackEventsAvailable" | "slackEventEnrollment">;
-  onCommitted?(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], values: { endpointId: string; active: boolean; subject: string; instanceId: string; environment: import("../../paperclip-cloud-connector.js").OutpostCloudConnectorEnvironment }): Promise<void>;
+  connector?: Pick<OutpostCloudConnector, "slackEventsAvailable" | "slackEventEnrollment">;
+  onCommitted?(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], values: { endpointId: string; active: boolean; subject: string; instanceId: string; environment: import("../../outpost-cloud-connector.js").OutpostCloudConnectorEnvironment }): Promise<void>;
 }) {
   return async (endpointId: string, _actorUserId: string | null | undefined, lease: CredentialMutationLeaseGuard) => {
     const [current] = await db.select({ endpoint: chatEndpoints, connection: toolConnections }).from(chatEndpoints)
-      .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, chatEndpoints.companyId)))
+      .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, chatEndpoints.spaceId)))
       .where(eq(chatEndpoints.id, endpointId)).limit(1);
     if (!current || current.endpoint.provider !== "slack") return;
     const endpoint = current.endpoint, setup = endpoint.setup as InternalSetupState, intent = setup.slackCloudIntent;
     const config = outpostCloudConnectorConfigFromEnv();
     if (!config || !intent) return;
-    const identity = { companyId: intent.companyId, endpointId: intent.endpointId, publicId: intent.publicId,
+    const identity = { spaceId: intent.spaceId, endpointId: intent.endpointId, publicId: intent.publicId,
       connectionId: intent.connectionId, runtimeGeneration: intent.runtimeGeneration };
     const active = slackCloudEnrollmentIsActive(endpoint, current.connection);
-    if (identity.companyId !== endpoint.companyId || identity.endpointId !== endpoint.id || identity.publicId !== endpoint.publicId
+    if (identity.spaceId !== endpoint.spaceId || identity.endpointId !== endpoint.id || identity.publicId !== endpoint.publicId
       || identity.connectionId !== endpoint.connectionId || identity.runtimeGeneration !== options.runtimeGeneration(setup) || intent.active !== active) {
       await db.transaction(async tx => {
         await lease.assertOwned(tx);
@@ -166,13 +166,13 @@ export function createSlackCloudEnrollment(db: Db, options: {
         await tx.update(chatEndpoints).set({
           setup: sql`jsonb_set(${chatEndpoints.setup}, '{slackCloudIntent}', ${JSON.stringify({ ...intent, nextAttemptAt: null, failureCode: "intent_authority_changed" })}::jsonb)`,
           lastError: "Slack Cloud event registration requires attention",
-        }).where(and(eq(chatEndpoints.id, endpoint.id), eq(chatEndpoints.companyId, endpoint.companyId), sql`${chatEndpoints.setup}->'slackCloudIntent'->>'id'=${intent.id}`));
+        }).where(and(eq(chatEndpoints.id, endpoint.id), eq(chatEndpoints.spaceId, endpoint.spaceId), sql`${chatEndpoints.setup}->'slackCloudIntent'->>'id'=${intent.id}`));
         await lease.assertOwned(tx);
       });
       logger.warn({ endpointId, reason: "intent_authority_changed" }, "Slack enrollment responsibility retained");
       return;
     }
-    const connector = options.connector ?? createPaperclipCloudConnector({ config });
+    const connector = options.connector ?? createOutpostCloudConnector({ config });
     const commit = async (change: { receipt?: Record<string, unknown>; failure?: string; attention?: boolean; retryAt?: number }) => db.transaction(async tx => {
       await lease.assertOwned(tx);
       const next = change.failure ? { ...intent, attempts: Math.min(intent.attempts + 1, 1_000_000), failureCode: change.failure,
@@ -186,7 +186,7 @@ export function createSlackCloudEnrollment(db: Db, options: {
         setup: next
         ? sql`jsonb_set(${chatEndpoints.setup}, '{slackCloudIntent}', ${JSON.stringify(next)}::jsonb)`
         : sql`jsonb_set(jsonb_set(jsonb_set(${chatEndpoints.setup} - 'slackCloudIntent' - 'slackCloudRetiredGeneration', ARRAY[${field}], ${JSON.stringify(enrolled)}::jsonb), '{slackCloudInstanceId}', ${JSON.stringify(intent.instanceId)}::jsonb), '{slackCloudSubject}', ${JSON.stringify(intent.subject)}::jsonb)` })
-        .where(and(eq(chatEndpoints.id, endpointId), eq(chatEndpoints.companyId, endpoint.companyId),
+        .where(and(eq(chatEndpoints.id, endpointId), eq(chatEndpoints.spaceId, endpoint.spaceId),
           sql`${chatEndpoints.setup}->'slackCloudIntent'->>'id'=${intent.id}`,
           sql`coalesce((${chatEndpoints.setup}->>'runtimeGeneration')::integer,0)=${intent.runtimeGeneration}`)).returning({ id: chatEndpoints.id });
       if (updated.length !== 1) throw new Error("Slack configuration changed before event enrollment committed");
@@ -198,7 +198,7 @@ export function createSlackCloudEnrollment(db: Db, options: {
       if (config.instanceId !== intent.instanceId) { await commit({ failure: "instance_authority_changed", attention: true }); return; }
       if (!await connector.slackEventsAvailable()) { await commit({ failure: "unsupported_capability" }); return; }
       const signingSecret = intent.active ? await resolveSlackCloudSigningSecret(options.resolveCredentials, endpoint, db, ["signingSecret"]) : undefined;
-      const receipt = await connector.slackEventEnrollment({ subject: intent.subject, companyId: intent.companyId,
+      const receipt = await connector.slackEventEnrollment({ subject: intent.subject, spaceId: intent.spaceId,
         enrollment: { active: intent.active, ...identity, ...(intent.active ? { teamId: intent.teamId, appId: intent.appId, signingSecret: signingSecret! } : {}) } });
       if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)) throw new SlackEnrollmentFailure("receipt_unconfirmed");
       const value = receipt as Record<string, unknown>;
@@ -207,13 +207,13 @@ export function createSlackCloudEnrollment(db: Db, options: {
         throw new SlackEnrollmentFailure("receipt_identity_changed");
       await commit({ receipt: value });
     } catch (error) {
-      const conflict = error instanceof PaperclipCloudConnectorError && error.status === 409
+      const conflict = error instanceof OutpostCloudConnectorError && error.status === 409
         && ["SLACK_ENROLLMENT_GENERATION_CHANGED", "SLACK_ENROLLMENT_IDENTITY_CHANGED", "SLACK_ENROLLMENT_CHANGED", "SLACK_ENROLLMENT_UNSETTLED"].includes(error.brokerReason ?? "");
       const credentialAttention = error instanceof SlackCloudReceiptError && error.code === "signing_credential_unavailable" && error.disposition === "attention";
-      const attention = credentialAttention || error instanceof SlackEnrollmentFailure || conflict || (error instanceof PaperclipCloudConnectorError && [400, 401, 403].includes(error.status ?? 0));
+      const attention = credentialAttention || error instanceof SlackEnrollmentFailure || conflict || (error instanceof OutpostCloudConnectorError && [400, 401, 403].includes(error.status ?? 0));
       const code = credentialAttention ? "signing_credential_unavailable" : error instanceof SlackEnrollmentFailure ? error.code : attention ? "authority_required"
-        : error instanceof PaperclipCloudConnectorError && error.brokerReason === "SLACK_ENROLLMENT_DISABLED" ? "enrollment_disabled" : "broker_unavailable";
-      await commit({ failure: code, attention, retryAt: error instanceof PaperclipCloudConnectorError ? error.retryAt : undefined });
+        : error instanceof OutpostCloudConnectorError && error.brokerReason === "SLACK_ENROLLMENT_DISABLED" ? "enrollment_disabled" : "broker_unavailable";
+      await commit({ failure: code, attention, retryAt: error instanceof OutpostCloudConnectorError ? error.retryAt : undefined });
       logger.warn({ endpointId, reason: code }, "Slack enrollment responsibility retained");
     }
   };

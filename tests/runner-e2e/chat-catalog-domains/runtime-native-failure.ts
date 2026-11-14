@@ -9,10 +9,10 @@ interface NativeFailureRun extends ChatRun {
   runnerProfileJson?: { nativeExecutionInput?: { provider?: { kind?: string; model?: string | null } } };
 }
 interface NativeEvent { seq?: number; eventType?: string; payload?: { orpEvent?: { eventType?: string } } }
-export function admittedModelFailure(input: { run?: NativeFailureRun; events: NativeEvent[]; companyId: string; agentId: string; issueId: string; model: string; provider?: "codex" | "opencode" }) {
+export function admittedModelFailure(input: { run?: NativeFailureRun; events: NativeEvent[]; spaceId: string; agentId: string; issueId: string; model: string; provider?: "codex" | "opencode" }) {
   const r = input.run, provider = r?.runnerProfileJson?.nativeExecutionInput?.provider;
   return !!r && r.runtimeMode === "native" && r.status === "failed" && !!r.startedAt && !!r.errorCode && !!r.error
-    && r.companyId === input.companyId && r.agentId === input.agentId
+    && r.spaceId === input.spaceId && r.agentId === input.agentId
     && [r.nativeIssueId, r.contextSnapshot?.issueId, r.contextSnapshot?.taskId].includes(input.issueId)
     && provider?.kind === (input.provider ?? "codex") && provider.model === input.model
     && input.events.some(event => [event.eventType, event.payload?.orpEvent?.eventType].some(type => type === "run.terminal" || type === "turn.failed"));
@@ -32,8 +32,8 @@ export async function unavailableNativeModelFailure(ctx: ChatCatalogContext, wor
     throw new Error("Native failure prerequisite requires an actually ready selected native Codex or OpenCode worker");
   const provider = original.adapterConfig!.provider as "codex" | "opencode";
   const before = await ctx.allRuns(); const model = unavailableNativeModel(provider, ctx.input.nonce);
-  for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: worker.id }])
-    await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true,
+  for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: worker.id }])
+    await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true,
       isActive: true, unpricedUsagePolicy: "allow" });
   let failed: NativeFailureRun | undefined;
   try {
@@ -49,7 +49,7 @@ export async function unavailableNativeModelFailure(ctx: ChatCatalogContext, wor
         : rows.some(run => ["succeeded", "cancelled", "timed_out"].includes(run.status)) ? "Invocation did not produce genuine native failed history" : undefined });
     failed = await ctx.input.api.get<NativeFailureRun>(`/api/heartbeat-runs/${settled[0]!.id}`);
     const events = await collectRunEvents<NativeEvent>((afterSeq, limit) => ctx.input.api.get(`/api/heartbeat-runs/${failed!.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
-    if (!admittedModelFailure({ run: failed, events, companyId: ctx.input.fixtures.company.id, agentId: worker.id, issueId: receipt.issueId, model, provider }))
+    if (!admittedModelFailure({ run: failed, events, spaceId: ctx.input.fixtures.space.id, agentId: worker.id, issueId: receipt.issueId, model, provider }))
       throw new Error("Actual invocation lacks admitted model-bound native failure evidence; no failure coverage claimed");
     return { failedRun: failed, failedRunEvents: events, failedIssueId: receipt.issueId, failedModel: model,
       failureKind: "native-failure-under-explicit-unavailable-model-configuration", originalConfiguration: original };
@@ -64,6 +64,6 @@ export async function unavailableNativeModelFailure(ctx: ChatCatalogContext, wor
 
 /** OpenCode requires a provider-qualified ID; actual admission and persisted failure remain mandatory. */
 export function unavailableNativeModel(provider: "codex" | "opencode", nonce: string) {
-  const id = `paperclip-eval-unavailable-${nonce}`;
-  return provider === "opencode" ? `openrouter/paperclip-eval/${id}` : id;
+  const id = `outpost-eval-unavailable-${nonce}`;
+  return provider === "opencode" ? `openrouter/outpost-eval/${id}` : id;
 }

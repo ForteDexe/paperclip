@@ -3,7 +3,7 @@
 ## Create or upsert
 
 ```text
-POST /api/companies/:spaceId/cases
+POST /api/spaces/:spaceId/cases
 ```
 
 ```json
@@ -27,7 +27,7 @@ whole object when supplied, so send the complete desired object.
 
 ```text
 GET /api/cases/:caseIdOrIdentifier
-GET /api/companies/:spaceId/cases?type=recurring_bug&q=preview
+GET /api/spaces/:spaceId/cases?type=recurring_bug&q=preview
 ```
 
 ## Link the current task

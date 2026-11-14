@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { HeartbeatRunEvent, LiveEvent } from "@outpost/shared";
-import { __liveUpdatesTestUtils, type CompanyLiveEventHandler } from "../../context/LiveUpdatesProvider";
+import { __liveUpdatesTestUtils, type SpaceLiveEventHandler } from "../../context/LiveUpdatesProvider";
 import { LiveTranscriptInterests } from "../../lib/live-transcript-interests";
 import { useNativeRunTranscripts } from "./useNativeRunTranscripts";
 import { nativeRunEventsToTranscript } from "./native-run-events";
@@ -15,12 +15,12 @@ vi.mock("../../api/heartbeats", () => ({ heartbeatsApi: { events, conversationEv
 const { LiveEventSubscriptionContext } = __liveUpdatesTestUtils;
 let root: Root;
 let store: LiveTranscriptInterests;
-let listeners: Set<CompanyLiveEventHandler>;
+let listeners: Set<SpaceLiveEventHandler>;
 let sent: Array<{ revision?: number; runIds?: string[] }>;
 let latest: ReturnType<typeof useNativeRunTranscripts>;
-let subscription: { companyId: string; transcripts: LiveTranscriptInterests; subscribe: (fn: CompanyLiveEventHandler) => () => void };
+let subscription: { spaceId: string; transcripts: LiveTranscriptInterests; subscribe: (fn: SpaceLiveEventHandler) => () => void };
 const row = (seq: number, message = `row ${seq}`, runId = "run-1"): HeartbeatRunEvent => ({
-  id: seq, seq, runId, companyId: "company-1", agentId: "agent-1", eventType: "item.completed",
+  id: seq, seq, runId, spaceId: "space-1", agentId: "agent-1", eventType: "item.completed",
   stream: null, level: null, color: null, message, payload: { orpEvent: {
     schema: "outpost.orp.event.v1", schemaVersion: 1, sourceEventId: `event-${seq}`,
     sourceSeq: seq, sourceInstanceId: "runner-1", sourceKind: "runner", runId,
@@ -32,20 +32,20 @@ function emit(seq: number, signalOnly = false, kind = "agentMessage") {
   const value = row(seq);
   const envelope = value.payload!.orpEvent as { payload: Record<string, unknown> };
   envelope.payload = { ...envelope.payload, kind };
-  const event: LiveEvent = { id: seq, companyId: value.companyId, type: "heartbeat.run.event", createdAt: value.createdAt.toISOString(), payload: signalOnly
+  const event: LiveEvent = { id: seq, spaceId: value.spaceId, type: "heartbeat.run.event", createdAt: value.createdAt.toISOString(), payload: signalOnly
     ? { runId: value.runId, agentId: value.agentId, eventType: value.eventType, seq }
     : { ...value } };
   for (const listener of listeners) listener(event);
 }
-function Probe({ companyId = "company-1", enabled = true, older = false, compact = false }: { companyId?: string; enabled?: boolean; older?: boolean; compact?: boolean }) {
+function Probe({ spaceId = "space-1", enabled = true, older = false, compact = false }: { spaceId?: string; enabled?: boolean; older?: boolean; compact?: boolean }) {
   latest = useNativeRunTranscripts([
     { id: "run-1", status: "running", runtimeMode: "native", conversationOnly: compact },
     ...(older ? [{ id: "older", status: "succeeded", runtimeMode: "native" as const }] : []),
-  ], { companyId, enabled });
+  ], { spaceId, enabled });
   return null;
 }
-async function render(companyId = "company-1", enabled = true, older = false, compact = false) {
-  await act(async () => root.render(<LiveEventSubscriptionContext.Provider value={subscription}><Probe companyId={companyId} enabled={enabled} older={older} compact={compact} /></LiveEventSubscriptionContext.Provider>));
+async function render(spaceId = "space-1", enabled = true, older = false, compact = false) {
+  await act(async () => root.render(<LiveEventSubscriptionContext.Provider value={subscription}><Probe spaceId={spaceId} enabled={enabled} older={older} compact={compact} /></LiveEventSubscriptionContext.Provider>));
 }
 async function negotiate() {
   await act(async () => {
@@ -61,7 +61,7 @@ beforeEach(() => {
   conversationEvents.mockReset().mockResolvedValue([]);
   root = createRoot(document.createElement("div"));
   store = new LiveTranscriptInterests(); listeners = new Set(); sent = [];
-  subscription = { companyId: "company-1", transcripts: store, subscribe(fn) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
+  subscription = { spaceId: "space-1", transcripts: store, subscribe(fn) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
 });
 afterEach(async () => { await act(async () => root.unmount()); vi.restoreAllMocks(); vi.useRealTimers(); });
 
@@ -85,7 +85,7 @@ it.each(["agentMessage", "reasoning"])("streams %s deltas after hydration withou
   envelope.eventType = "item.delta";
   envelope.payload = { kind, text: "still writing" };
   await act(async () => {
-    for (const listener of listeners) listener({ id: 2, companyId: delta.companyId,
+    for (const listener of listeners) listener({ id: 2, spaceId: delta.spaceId,
       type: "heartbeat.run.event", createdAt: delta.createdAt.toISOString(), payload: { ...delta } });
     await vi.advanceTimersByTimeAsync(90_000);
   });
@@ -138,7 +138,7 @@ it("renders complete live ORP rows without initiating or scheduling history read
 });
 
 function emitTerminal() {
-  const event: LiveEvent = { id: 100, companyId: "company-1", type: "heartbeat.run.status",
+  const event: LiveEvent = { id: 100, spaceId: "space-1", type: "heartbeat.run.status",
     createdAt: new Date().toISOString(), payload: { runId: "run-1", status: "succeeded" } };
   for (const listener of listeners) listener(event);
 }
@@ -150,7 +150,7 @@ it("finishes slow historical pages while a sibling receives repeated commit and 
     if (runId === "older") return new Promise(resolve => olderReads.push({ cursor, signal, resolve }));
     return Promise.resolve([row(cursor + 1)]);
   });
-  await render("company-1", true, true);
+  await render("space-1", true, true);
   expect(olderReads).toHaveLength(1);
   await act(async () => emit(2, true));
   expect(olderReads[0].signal.aborted).toBe(false);
@@ -213,17 +213,17 @@ it("performs no recurring history reads after an acknowledged catch-up, and retr
   expect(events).toHaveBeenCalledTimes(recoveredReads);
 });
 
-it("withdraws disabled views and rejects events from the previous company", async () => {
+it("withdraws disabled views and rejects events from the previous space", async () => {
   await render(); await negotiate();
   await act(async () => emit(1));
   expect(latest.transcriptByRun.get("run-1")).toHaveLength(1);
-  await render("company-1", false);
+  await render("space-1", false);
   expect(sent.at(-1)?.runIds).toEqual([]);
   const reads = events.mock.calls.length;
   await act(async () => { emit(2); await vi.advanceTimersByTimeAsync(30_000); });
   expect(events).toHaveBeenCalledTimes(reads);
   expect(latest.transcriptByRun.get("run-1")).toHaveLength(1);
-  await render("company-2");
+  await render("space-2");
   await act(async () => emit(3));
   expect(latest.transcriptByRun.get("run-1") ?? []).toEqual([]);
 });
@@ -254,7 +254,7 @@ it("finishes catch-up while unrelated consumers repeatedly replace shared intere
 
 it.each([false, true])("settles compact recovery through filtered-out activity without recurring reads (signal only: %s)", async signalOnly => {
   conversationEvents.mockResolvedValueOnce([row(2, "Saved answer")]);
-  await render("company-1", true, false, true);
+  await render("space-1", true, false, true);
   await negotiate();
   await act(async () => store.close());
   conversationEvents.mockImplementation((_runId, after: number) => Promise.resolve(after < 6 ? [row(6, "Recovered answer")] : []));
@@ -270,7 +270,7 @@ it.each([false, true])("settles compact recovery through filtered-out activity w
 
 it("does not skip compact conversation rows committed during an older catch-up", async () => {
   conversationEvents.mockResolvedValueOnce([row(2, "Saved answer")]);
-  await render("company-1", true, false, true);
+  await render("space-1", true, false, true);
   await negotiate();
   let complete!: (rows: HeartbeatRunEvent[]) => void;
   conversationEvents.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));

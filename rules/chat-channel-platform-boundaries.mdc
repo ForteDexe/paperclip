@@ -23,7 +23,7 @@ platforms through explicit contracts.
   within each directory by responsibility, such as `messages.ts` or `setup.ts`.
 - Keep shared product behavior in the service or cohesive workflow modules,
   such as `inbound/`, `interactions/`, and `publications/`. Shared code owns common
-  company isolation, authorization, task lifecycle, ordering, and persistence
+  space isolation, authorization, task lifecycle, ordering, and persistence
   invariants. Provider details must not bypass those invariants.
 - Use explicit typed inputs, outputs, capabilities, or callbacks at the boundary.
   Shared workflows should consume normalized values rather than interpret one

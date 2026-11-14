@@ -38,7 +38,7 @@ type NativeStreamReceipt = {
 const streamReceipt = {
   ok: true,
   ts: "1788.901",
-  channel: "D-PAPERCLIP",
+  channel: "D-OUTPOST",
 };
 
 async function withNativeSlack(
@@ -69,13 +69,13 @@ async function withNativeSlack(
 ) {
   const runtime = createChatSdkEndpointRuntime({
     callbacks: { onMessage() {} },
-    companyId: "bounded-slack-company",
+    spaceId: "bounded-slack-space",
     endpointId: "bounded-slack-endpoint",
     logger: "silent",
     persistence,
     providerConfig: {
       provider: "slack",
-      userName: "paperclip-agent",
+      userName: "outpost-agent",
       credentials: {
         botToken: "xoxb-test",
         botUserId: "U-BOT",
@@ -158,7 +158,7 @@ async function withNativeSlack(
       };
     };
     await run({
-      stream: (chunks) => adapter.stream("slack:D-PAPERCLIP:1788.400", chunks),
+      stream: (chunks) => adapter.stream("slack:D-OUTPOST:1788.400", chunks),
       calls,
       start,
       append,
@@ -516,7 +516,7 @@ describe("already-approved publication streaming", () => {
           "chat.appendStream",
           "chat.stopStream",
         ]).toContain(method);
-        expect(body.get("channel")).toBe("D-PAPERCLIP");
+        expect(body.get("channel")).toBe("D-OUTPOST");
         if (method === "chat.startStream")
           expect(body.get("thread_ts")).toBe("1788.400");
         else expect(body.get("ts")).toBe(streamReceipt.ts);
@@ -704,13 +704,13 @@ describe("already-approved publication streaming", () => {
     async ({ text, expected, cachedUserId }) => {
       const runtime = createChatSdkEndpointRuntime({
         callbacks: { onMessage() {} },
-        companyId: "ready-slack-company",
+        spaceId: "ready-slack-space",
         endpointId: "ready-slack-endpoint",
         logger: "silent",
         persistence,
         providerConfig: {
           provider: "slack",
-          userName: "paperclip-agent",
+          userName: "outpost-agent",
           credentials: {
             botToken: "xoxb-test",
             botUserId: "U-BOT",
@@ -755,7 +755,7 @@ describe("already-approved publication streaming", () => {
         );
         const wait = vi.fn(async (_delayMs: number) => undefined);
         const result = await adapter.stream(
-          "slack:D-PAPERCLIP:1788.400",
+          "slack:D-OUTPOST:1788.400",
           streamSafePublicationText(text, { wait }),
         );
         expect(result.id).toBe("1788.901");
@@ -807,7 +807,7 @@ describe("already-approved publication streaming", () => {
                   message_id: 901,
                   date: 1788910000,
                   chat: { id: chatId, type: chatType },
-                  from: { id: 123, is_bot: true, first_name: "Paperclip" },
+                  from: { id: 123, is_bot: true, first_name: "Outpost" },
                   text: source,
                 },
           });
@@ -815,13 +815,13 @@ describe("already-approved publication streaming", () => {
       );
       const runtime = createChatSdkEndpointRuntime({
         callbacks: { onMessage() {} },
-        companyId: "ready-telegram-company",
+        spaceId: "ready-telegram-space",
         endpointId: "ready-telegram-endpoint",
         logger: "silent",
         persistence,
         providerConfig: {
           provider: "telegram",
-          userName: "paperclip_agent_bot",
+          userName: "outpost_agent_bot",
           credentials: { botToken: "123:test", secretToken: "test" },
         },
       });

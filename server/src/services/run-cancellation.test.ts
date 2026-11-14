@@ -6,19 +6,19 @@ describe("cancellation provenance", () => {
   const run = { status: "cancelled", runtimeMode: "legacy" as const, startedAt: new Date(0), finishedAt: new Date(1),
     error: "Cancelled", errorCode: "cancelled", resultJson: null };
   it("preserves operator intent over adapter completion metadata", () => {
-    const cancellation = requestedRunCancellation({ cancelledByUserId: "board", cancelledByActorType: "user" }, "Stop");
+    const cancellation = requestedRunCancellation({ cancelledByUserId: "operator", cancelledByActorType: "user" }, "Stop");
     const resultJson = cancellationResultJson({ ...run, resultJson: { cancellation } }, "cancelled", { status: "cancelled" });
     expect(resultJson?.cancellation).toEqual(cancellation);
     expect(isUnexpectedRunCancellation({ ...run, resultJson })).toBe(false);
     expect(canContinueCancelledRun({ ...run, resultJson })).toBe(false);
   });
   it("records queue interruption and shutdown as expected system actions", () => {
-    expect(requestedRunCancellation({ queuedCommentInterruptQueueId: "queue", cancelledByUserId: "board" }, "Send messages"))
-      .toMatchObject({ source: "queued_message", expected: true, initiator: { type: "user", id: "board" } });
+    expect(requestedRunCancellation({ queuedCommentInterruptQueueId: "queue", cancelledByUserId: "operator" }, "Send messages"))
+      .toMatchObject({ source: "queued_message", expected: true, initiator: { type: "user", id: "operator" } });
     expect(cancellationResultJson(run, "interrupted", {}, "server_shutdown_interrupted")?.cancellation)
       .toMatchObject({ source: "shutdown", expected: true });
-    expect(requestedRunCancellation({ queuedCommentInterruptQueueId: "queue", interruptedByActorType: "user", interruptedByActorId: "board" }, "Send messages"))
-      .toMatchObject({ source: "queued_message", initiator: { type: "user", id: "board" } });
+    expect(requestedRunCancellation({ queuedCommentInterruptQueueId: "queue", interruptedByActorType: "user", interruptedByActorId: "operator" }, "Send messages"))
+      .toMatchObject({ source: "queued_message", initiator: { type: "user", id: "operator" } });
   });
   it.each([
     { runtimeMode: "legacy", source: "dependency_gate" },

@@ -1,11 +1,11 @@
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { projectService } from "../services/projects.js";
 import { callProjectTool } from "../services/project-tools.js";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { agents, companies, issues, heartbeatRuns, projects, companyMemberships, executionWorkspaces } from "@outpost/db";
+import { agents, spaces, issues, heartbeatRuns, projects, spaceMemberships, executionWorkspaces } from "@outpost/db";
 import { startRunnerApiTestServer } from "./helpers/runner-api-server.js";
 import { issueService } from "../services/issues.js";
 import { documentService } from "../services/documents.js";
@@ -20,10 +20,10 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
   afterAll(async () => { await server?.close(); if (originalSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET; else process.env.OUTPOST_AGENT_JWT_SECRET = originalSecret; });
   const call = (fixture: Awaited<ReturnType<typeof server.fixture>>, tool: string, args: Record<string, unknown>) => fixture.authority.execute({ tool, arguments: args, callId: randomUUID() });
 
-  it("gives MCP list_projects rows the company-scoped project page href", async () => {
+  it("gives MCP list_projects rows the space-scoped project page href", async () => {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
-    const [{ issuePrefix }] = await server.db.select({ issuePrefix: companies.issuePrefix }).from(companies).where(eq(companies.id, f.companyId));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const [{ issuePrefix }] = await server.db.select({ issuePrefix: spaces.issuePrefix }).from(spaces).where(eq(spaces.id, f.spaceId));
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
     const originalApiUrl = process.env.OUTPOST_API_URL;
     process.env.OUTPOST_API_URL = server.apiUrl;
     try {
@@ -42,11 +42,11 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     const f = await server.fixture({ disableWakeOnDemand: true });
     const ids = Array.from({ length: 53 }, (_, i) => `abcdefab-0000-4000-8000-${String(i).padStart(12, "0")}`);
     await server.db.insert(projects).values(ids.map((id, i) => ({
-      id, companyId: f.companyId, name: `Project ${i}`, status: "in_progress",
+      id, spaceId: f.spaceId, name: `Project ${i}`, status: "in_progress",
       description: "日本語🦀".repeat(5_000), executionWorkspacePolicy: { oversized: "x".repeat(20_000) },
     })));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
-    const toolInput = { name: "list_projects", apiUrl: server.apiUrl, token, companyId: f.companyId, issueId: f.issueId, agentId: f.agentId, conversation: false };
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const toolInput = { name: "list_projects", apiUrl: server.apiUrl, token, spaceId: f.spaceId, issueId: f.issueId, agentId: f.agentId, conversation: false };
     const first = await callProjectTool({ ...toolInput, arguments: {} });
     expect(first.projects).toHaveLength(50);
     expect(Buffer.byteLength(JSON.stringify(first))).toBeLessThan(256 * 1024);
@@ -56,9 +56,9 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     expect([...first.projects, ...last.projects].map((p: { id: string }) => p.id).sort()).toEqual([...ids, f.projectId].sort());
     expect(last.nextCursor).toBeNull();
     // A permitted project beyond the first database batch must remain discoverable.
-    const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", companyId: f.companyId, projectIds: ids.slice(-2) } } };
+    const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", spaceId: f.spaceId, projectIds: ids.slice(-2) } } };
     await server.db.update(agents).set({ permissions: policy }).where(eq(agents.id, f.agentId));
-    expect((await projectService(server.db).listSummaries(f.companyId, {
+    expect((await projectService(server.db).listSummaries(f.spaceId, {
       limit: 51, includeArchived: false, candidateIds: ids.slice(-2),
     })).map(p => p.id)).toEqual(ids.slice(-2));
     const restricted = await callProjectTool({ ...toolInput, arguments: { limit: 1 } });
@@ -75,12 +75,12 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     expect(runRestricted.projects.map((p: { id: string }) => p.id)).toEqual(ids.slice(-2));
     expect(runRestricted.nextCursor).toBeNull();
     // Adding denied projects must not change either the visible page or cursor.
-    await server.db.insert(projects).values({ companyId: f.companyId, name: "Hidden" });
+    await server.db.insert(projects).values({ spaceId: f.spaceId, name: "Hidden" });
     expect(await callProjectTool({ ...toolInput, arguments: {} })).toEqual(runRestricted);
     // Project policy may contribute a root scope, so candidate narrowing must
     // not suppress a project that the full authorization decision permits.
     await server.db.update(projects).set({ executionWorkspacePolicy: {
-      authorizationPolicy: { trustBoundary: { mode: "low_trust_review", companyId: f.companyId, rootIssueId: f.issueId } },
+      authorizationPolicy: { trustBoundary: { mode: "low_trust_review", spaceId: f.spaceId, rootIssueId: f.issueId } },
     } }).where(eq(projects.id, f.projectId));
     const withProjectScope = await callProjectTool({ ...toolInput, arguments: {} });
     expect(withProjectScope.projects.map((p: { id: string }) => p.id).sort()).toEqual([...ids.slice(-2), f.projectId].sort());
@@ -89,7 +89,7 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
 
   it("allows a conversation reply to enter review without manufacturing a review interaction", async () => {
     const f = await server.fixture({ conversation: true });
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
     const response = await fetch(`${server.apiUrl}/api/issues/${f.issueId}`, {
       method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ status: "in_review", comment: "The plan is ready for our next discussion." }),
@@ -116,9 +116,9 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
 
   it.each([true, false])("defaults raw API creation only for a chat-bound run: %s", async (conversation) => {
     const f = await server.fixture({ conversation, disableWakeOnDemand: true });
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
     for (const assignment of [{}, { assigneeAgentId: null }]) {
-      const response = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/issues`, {
+      const response = await fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/issues`, {
         method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ title: `Requested task ${randomUUID()}`, projectId: f.projectId, status: "todo", ...assignment }),
       });
@@ -130,13 +130,13 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
 
   it.each(["native", "mcp"])("preserves an explicit alternate agent or person through %s creation", async (transport) => {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
-    const [otherAgent] = await server.db.insert(agents).values({ companyId: f.companyId, name: "Requested editor", status: "idle", adapterType: "process" }).returning();
+    const [otherAgent] = await server.db.insert(agents).values({ spaceId: f.spaceId, name: "Requested editor", status: "idle", adapterType: "process" }).returning();
     for (const assignment of [{ assigneeActorId: otherAgent.id }, { assigneeUserId: f.responsibleUserId }]) {
       const args = { title: `Explicitly assigned task ${randomUUID()}`, projectId: f.projectId, idempotencyKey: randomUUID(), ...assignment };
       const result = transport === "native" ? await call(f, "create_task", args) as any : await callProjectTool({
         name: "create_task", arguments: args, apiUrl: server.apiUrl,
-        token: createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!,
-        companyId: f.companyId, issueId: f.issueId, agentId: f.agentId, conversation: true,
+        token: createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!,
+        spaceId: f.spaceId, issueId: f.issueId, agentId: f.agentId, conversation: true,
       });
       const taskId = transport === "native" ? result.task.id : result.id;
       const [task] = await server.db.select().from(issues).where(eq(issues.id, taskId));
@@ -149,8 +149,8 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     const create = async (args: Record<string, unknown>) => {
       const result = transport === "native" ? await call(f, "create_task", args) as any : await callProjectTool({
         name: "create_task", arguments: args, apiUrl: server.apiUrl,
-        token: createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!,
-        companyId: f.companyId, issueId: f.issueId, agentId: f.agentId, conversation: true,
+        token: createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!,
+        spaceId: f.spaceId, issueId: f.issueId, agentId: f.agentId, conversation: true,
       });
       const [task] = await server.db.select().from(issues).where(eq(issues.id, transport === "native" ? result.task.id : result.id));
       return task;
@@ -166,7 +166,7 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     const requirement = { version: 1, deliverables: [{ key: "copy", label: "Launch copy" }] };
     const result = await callProjectTool({ name: "create_task", arguments: {
       title: "MCP review gate", projectId: f.projectId, idempotencyKey: "mcp-quality-gate", requiredQualityReview: requirement,
-    }, apiUrl: server.apiUrl, token: createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!, companyId: f.companyId, issueId: f.issueId, agentId: f.agentId, conversation: true }) as any;
+    }, apiUrl: server.apiUrl, token: createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!, spaceId: f.spaceId, issueId: f.issueId, agentId: f.agentId, conversation: true }) as any;
     const [task] = await server.db.select().from(issues).where(eq(issues.id, result.id));
     expect(task.executionPolicy).toMatchObject({ requiredQualityReview: requirement });
   });
@@ -174,15 +174,15 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
   it("rejects creation, child helpers, and reparenting under a chat, while retaining legacy children", async () => {
     const f = await server.fixture({ conversation: true });
     const svc = issueService(server.db);
-    await expect(svc.create(f.companyId, { title: "Invalid", parentId: f.issueId })).rejects.toThrow(/cannot have new subtasks/);
+    await expect(svc.create(f.spaceId, { title: "Invalid", parentId: f.issueId })).rejects.toThrow(/cannot have new subtasks/);
     await expect(svc.createChild(f.issueId, { title: "Invalid" })).rejects.toThrow(/cannot have new subtasks/);
-    await expect(svc.importIssues(f.companyId, [{
+    await expect(svc.importIssues(f.spaceId, [{
       id: randomUUID(), ref: "imported", title: "Imported child", parentId: f.issueId,
       projectId: null, projectWorkspaceId: null, description: null, assigneeAgentId: null,
       status: "backlog", priority: "medium", billingCode: null, assigneeAdapterOverrides: null,
       executionWorkspaceSettings: null, labelIds: [], monitorNotes: null, monitorScheduledBy: null,
     }])).rejects.toThrow(/cannot have new subtasks/);
-    const ordinary = await svc.create(f.companyId, { title: "Ordinary" });
+    const ordinary = await svc.create(f.spaceId, { title: "Ordinary" });
     await expect(svc.update(ordinary.id, { parentId: f.issueId })).rejects.toThrow(/cannot have new subtasks/);
     await server.db.update(issues).set({ parentId: f.issueId }).where(eq(issues.id, ordinary.id));
     expect(await svc.update(ordinary.id, { title: "Legacy edited", parentId: f.issueId })).toMatchObject({ title: "Legacy edited" });
@@ -192,19 +192,19 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
   it("hands off through the same API used by Claude/Codex MCP with the plan present on return", async () => {
     const f = await server.fixture({ conversation: true });
     const result = await callProjectTool({ name: "create_task", arguments: { title: "MCP handoff", projectId: f.projectId, initialPlan: "# Plan\nImplement in the execution task.", idempotencyKey: "mcp" },
-      apiUrl: server.apiUrl, token: createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!,
-      companyId: f.companyId, issueId: f.issueId, agentId: f.agentId, conversation: true });
+      apiUrl: server.apiUrl, token: createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!,
+      spaceId: f.spaceId, issueId: f.issueId, agentId: f.agentId, conversation: true });
     expect(result).toMatchObject({ parentId: null, projectId: f.projectId, assigneeAgentId: f.agentId });
     expect((await documentService(server.db).getIssueDocumentByKey(result.id, "plan"))?.body).toContain("Implement in the execution task");
   });
 
   it("allows low-trust chat handoffs and self-assigned subtasks through both creation endpoints", async () => {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
-    const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", companyId: f.companyId, projectIds: [f.projectId] } } };
+    const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", spaceId: f.spaceId, projectIds: [f.projectId] } } };
     await server.db.update(agents).set({ permissions: policy }).where(eq(agents.id, f.agentId));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
     const task = await callProjectTool({ name: "create_task", arguments: { title: "Contained MCP handoff", projectId: f.projectId, initialPlan: "Do the requested work", idempotencyKey: "contained-mcp" },
-      apiUrl: server.apiUrl, token, companyId: f.companyId, issueId: f.issueId, agentId: f.agentId, conversation: true });
+      apiUrl: server.apiUrl, token, spaceId: f.spaceId, issueId: f.issueId, agentId: f.agentId, conversation: true });
     expect(task).toMatchObject({ parentId: null, projectId: f.projectId, assigneeAgentId: f.agentId, sourceTrust: { disposition: "quarantined" } });
     expect(task.executionPolicy.authorizationPolicy).toMatchObject({ trustPreset: "low_trust_review", ...policy.authorizationPolicy });
     expect((await documentService(server.db).getIssueDocumentByKey(task.id, "plan"))?.sourceTrust).toMatchObject({ disposition: "quarantined" });
@@ -214,7 +214,7 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     expect(nativeTask.executionPolicy).toMatchObject({ authorizationPolicy: { trustPreset: "low_trust_review", ...policy.authorizationPolicy } });
     expect(nativeTask.sourceTrust).toMatchObject({ disposition: "quarantined" });
 
-    for (const path of [`/api/issues/${task.id}/children`, `/api/companies/${f.companyId}/issues`]) {
+    for (const path of [`/api/issues/${task.id}/children`, `/api/spaces/${f.spaceId}/issues`]) {
       const response = await fetch(`${server.apiUrl}${path}`, {
         method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ title: `Self decomposition ${path}`, parentId: task.id, assigneeAgentId: f.agentId, status: "backlog" }),
@@ -228,11 +228,11 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
 
   it("retains a run-only low-trust boundary on a new task even when standard policy is requested", async () => {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
-    const executionPolicy = { authorizationPolicy: { trustPreset: "low_trust_review", trustBoundary: { mode: "low_trust_review", companyId: f.companyId, projectIds: [f.projectId] } } };
+    const executionPolicy = { authorizationPolicy: { trustPreset: "low_trust_review", trustBoundary: { mode: "low_trust_review", spaceId: f.spaceId, projectIds: [f.projectId] } } };
     const [run] = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     await server.db.update(heartbeatRuns).set({ contextSnapshot: { ...run.contextSnapshot, executionPolicy } }).where(eq(heartbeatRuns.id, f.runId));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
-    const response = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/issues`, {
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const response = await fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/issues`, {
       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ title: "Retain containment", projectId: f.projectId, assigneeAgentId: f.agentId, executionPolicy: { authorizationPolicy: { trustPreset: "standard" } }, status: "backlog" }),
     });
@@ -243,11 +243,11 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
 
   it("enforces the proposed task scope and assignee before creating any low-trust work", async () => {
     const f = await server.fixture({ disableWakeOnDemand: true });
-    const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", companyId: f.companyId, projectIds: [f.projectId] } } };
+    const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", spaceId: f.spaceId, projectIds: [f.projectId] } } };
     await server.db.update(agents).set({ permissions: policy }).where(eq(agents.id, f.agentId));
-    const [outside] = await server.db.insert(projects).values({ companyId: f.companyId, name: "Outside boundary" }).returning();
-    const [otherAgent] = await server.db.insert(agents).values({ companyId: f.companyId, name: "Unauthorized assignee", status: "active" }).returning();
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const [outside] = await server.db.insert(projects).values({ spaceId: f.spaceId, name: "Outside boundary" }).returning();
+    const [otherAgent] = await server.db.insert(agents).values({ spaceId: f.spaceId, name: "Unauthorized assignee", status: "active" }).returning();
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
     const create = async (path: string, fields: Record<string, unknown>) => {
       const response = await fetch(`${server.apiUrl}${path}`, {
         method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -255,22 +255,22 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
       });
       return { status: response.status, body: await response.json() };
     };
-    const before = await server.db.select({ id: issues.id }).from(issues).where(eq(issues.companyId, f.companyId));
-    for (const path of [`/api/companies/${f.companyId}/issues`, `/api/issues/${f.issueId}/children`]) {
+    const before = await server.db.select({ id: issues.id }).from(issues).where(eq(issues.spaceId, f.spaceId));
+    for (const path of [`/api/spaces/${f.spaceId}/issues`, `/api/issues/${f.issueId}/children`]) {
       for (const fields of [
         { projectId: outside.id },
         { projectId: outside.id, assigneeAgentId: null },
         { projectId: f.foreignProjectId },
         { projectId: f.projectId, assigneeAgentId: otherAgent.id },
-        { projectId: f.projectId, assigneeAgentId: null, assigneeUserId: "board-user" },
+        { projectId: f.projectId, assigneeAgentId: null, assigneeUserId: "operator-user" },
       ]) {
         const result = await create(path, fields);
-        const hiddenProject = fields.projectId !== f.projectId && path.startsWith("/api/companies/");
+        const hiddenProject = fields.projectId !== f.projectId && path.startsWith("/api/spaces/");
         expect(result.status, JSON.stringify(result.body)).toBe(hiddenProject ? 404 : 403);
-        expect(result.body.error).toMatch(hiddenProject ? /^Project not found$/ : /outside.*boundary|cannot assign work to board users|different company/i);
+        expect(result.body.error).toMatch(hiddenProject ? /^Project not found$/ : /outside.*boundary|cannot assign work to operator users|different space/i);
       }
     }
-    const after = await server.db.select({ id: issues.id }).from(issues).where(eq(issues.companyId, f.companyId));
+    const after = await server.db.select({ id: issues.id }).from(issues).where(eq(issues.spaceId, f.spaceId));
     expect(after).toEqual(before);
     for (const fields of [{ projectId: outside.id }, { projectId: f.projectId, assigneeActorId: otherAgent.id }]) {
       await expect(call(f, "create_task", { title: "Native scope denial", idempotencyKey: randomUUID(), ...fields })).rejects.toThrow(/outside.*boundary/);
@@ -279,17 +279,17 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     await server.db.update(agents).set({ permissions: { ...policy, authorizationPolicy: {
       ...policy.authorizationPolicy, assignmentPolicy: { mode: "protected" }, protectedAgent: { blockAssignment: true },
     } } }).where(eq(agents.id, f.agentId));
-    const protectedResult = await create(`/api/companies/${f.companyId}/issues`, { projectId: f.projectId });
+    const protectedResult = await create(`/api/spaces/${f.spaceId}/issues`, { projectId: f.projectId });
     expect(protectedResult.status, JSON.stringify(protectedResult.body)).toBe(403);
     expect(protectedResult.body.error).toContain("protected-agent policy");
   });
 
   it("allows low-trust root-scoped subtasks without granting descendants of an exact issue scope", async () => {
     const f = await server.fixture({ disableWakeOnDemand: true });
-    const boundary = { mode: "low_trust_review", companyId: f.companyId, rootIssueId: f.issueId };
+    const boundary = { mode: "low_trust_review", spaceId: f.spaceId, rootIssueId: f.issueId };
     await server.db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: boundary } } }).where(eq(agents.id, f.agentId));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
-    for (const path of [`/api/companies/${f.companyId}/issues`, `/api/issues/${f.issueId}/children`]) {
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    for (const path of [`/api/spaces/${f.spaceId}/issues`, `/api/issues/${f.issueId}/children`]) {
       const response = await fetch(`${server.apiUrl}${path}`, {
         method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ title: `Root subtask ${randomUUID()}`, parentId: f.issueId, assigneeAgentId: f.agentId, status: "backlog" }),
@@ -300,22 +300,22 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     }
     await expect(call(f, "create_task", { title: "Native root subtask", idempotencyKey: "root-child", status: "backlog" })).resolves.toMatchObject({ task: { parentId: f.issueId, assigneeActorId: f.agentId } });
 
-    const [outside] = await server.db.insert(projects).values({ companyId: f.companyId, name: "Unrelated project" }).returning();
-    const before = await server.db.select({ id: issues.id }).from(issues).where(eq(issues.companyId, f.companyId));
-    for (const path of [`/api/companies/${f.companyId}/issues`, `/api/issues/${f.issueId}/children`]) {
+    const [outside] = await server.db.insert(projects).values({ spaceId: f.spaceId, name: "Unrelated project" }).returning();
+    const before = await server.db.select({ id: issues.id }).from(issues).where(eq(issues.spaceId, f.spaceId));
+    for (const path of [`/api/spaces/${f.spaceId}/issues`, `/api/issues/${f.issueId}/children`]) {
       const response = await fetch(`${server.apiUrl}${path}`, {
         method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Root cannot escape into another project", parentId: f.issueId,
           projectId: outside.id, assigneeAgentId: f.agentId, status: "backlog" }),
       });
       const denied = await response.json();
-      const hiddenProject = path.startsWith("/api/companies/");
+      const hiddenProject = path.startsWith("/api/spaces/");
       expect(response.status, JSON.stringify(denied)).toBe(hiddenProject ? 404 : 403);
       expect(denied.error).toMatch(hiddenProject ? /^Project not found$/ : /outside.*boundary/i);
     }
     await expect(call(f, "create_task", { title: "Native root cannot escape", projectId: outside.id,
       idempotencyKey: "root-outside", status: "backlog" })).rejects.toThrow(/outside.*boundary/);
-    expect(await server.db.select({ id: issues.id }).from(issues).where(eq(issues.companyId, f.companyId))).toEqual(before);
+    expect(await server.db.select({ id: issues.id }).from(issues).where(eq(issues.spaceId, f.spaceId))).toEqual(before);
 
     await server.db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", issueIds: [f.issueId] } } } }).where(eq(agents.id, f.agentId));
     await expect(call(f, "create_task", { title: "Exact scope is not a subtree", idempotencyKey: "exact-child" })).rejects.toThrow(/outside.*boundary/);
@@ -328,13 +328,13 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     await settings.updateExperimental({ enableIsolatedWorkspaces: true });
     try {
       await server.db.update(issues).set({ projectId: null, projectWorkspaceId: null }).where(eq(issues.id, f.issueId));
-      const [executionWorkspace] = await server.db.insert(executionWorkspaces).values({ companyId: f.companyId,
+      const [executionWorkspace] = await server.db.insert(executionWorkspaces).values({ spaceId: f.spaceId,
         projectId: f.projectId, projectWorkspaceId: f.projectWorkspaceId, mode: "shared_workspace", strategyType: "project_primary", name: "Outside root" }).returning();
-      const boundary = { mode: "low_trust_review", companyId: f.companyId, rootIssueId: f.issueId };
+      const boundary = { mode: "low_trust_review", spaceId: f.spaceId, rootIssueId: f.issueId };
       await server.db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: boundary } } }).where(eq(agents.id, f.agentId));
-      const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
-      const before = await server.db.select({ id: issues.id }).from(issues).where(eq(issues.companyId, f.companyId));
-      const paths = [`/api/companies/${f.companyId}/issues`, `/api/issues/${f.issueId}/children`];
+      const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
+      const before = await server.db.select({ id: issues.id }).from(issues).where(eq(issues.spaceId, f.spaceId));
+      const paths = [`/api/spaces/${f.spaceId}/issues`, `/api/issues/${f.issueId}/children`];
       const selections: Array<Record<string, string>> = [{ projectWorkspaceId: f.projectWorkspaceId }, { executionWorkspaceId: executionWorkspace.id },
         { inheritExecutionWorkspaceFromIssueId: f.blockerId }];
       const create = async (path: string, selection: Record<string, string>) => {
@@ -352,16 +352,16 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
           expect(response.status, JSON.stringify(response.body)).toBe(403);
         }
       }
-      expect(await server.db.select({ id: issues.id }).from(issues).where(eq(issues.companyId, f.companyId))).toEqual(before);
+      expect(await server.db.select({ id: issues.id }).from(issues).where(eq(issues.spaceId, f.spaceId))).toEqual(before);
 
       await server.db.update(issues).set({ executionWorkspaceId: executionWorkspace.id }).where(eq(issues.id, f.issueId));
       // A child never inherits its parent's workspace, so the parent's
       // out-of-boundary files cannot leak into the child either.
       await call(f, "create_task", { title: "Inherited source cannot escape", idempotencyKey: "inherited-source-denied", status: "backlog" });
       const [inheritedChild] = await server.db.select({ executionWorkspaceId: issues.executionWorkspaceId }).from(issues)
-        .where(and(eq(issues.companyId, f.companyId), eq(issues.title, "Inherited source cannot escape")));
+        .where(and(eq(issues.spaceId, f.spaceId), eq(issues.title, "Inherited source cannot escape")));
       expect(inheritedChild?.executionWorkspaceId).toBeNull();
-      await server.db.delete(issues).where(and(eq(issues.companyId, f.companyId), eq(issues.title, "Inherited source cannot escape")));
+      await server.db.delete(issues).where(and(eq(issues.spaceId, f.spaceId), eq(issues.title, "Inherited source cannot escape")));
       await server.db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: {
         trustBoundary: { ...boundary, projectIds: [f.projectId] },
       } } }).where(eq(agents.id, f.agentId));
@@ -386,26 +386,26 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
   it("keeps the responsible user's assignment restrictions on low-trust self-assignment", async () => {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
     await server.db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", projectIds: [f.projectId] } } } }).where(eq(agents.id, f.agentId));
-    await server.db.update(companyMemberships).set({ membershipRole: "viewer" }).where(eq(companyMemberships.principalId, f.responsibleUserId!));
+    await server.db.update(spaceMemberships).set({ membershipRole: "viewer" }).where(eq(spaceMemberships.principalId, f.responsibleUserId!));
     await expect(call(f, "create_task", { title: "Viewer cannot assign", projectId: f.projectId, idempotencyKey: "viewer-denied" })).rejects.toThrow();
-    expect(await server.db.select().from(issues).where(eq(issues.companyId, f.companyId))).toHaveLength(2);
+    expect(await server.db.select().from(issues).where(eq(issues.spaceId, f.spaceId))).toHaveLength(2);
   });
 
   it("does not reuse an out-of-scope task through a title or idempotency collision", async () => {
     const f = await server.fixture({ disableWakeOnDemand: true });
-    const [outside] = await server.db.insert(projects).values({ companyId: f.companyId, name: "Private project" }).returning();
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const [outside] = await server.db.insert(projects).values({ spaceId: f.spaceId, name: "Private project" }).returning();
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
     for (const parentId of [null, f.issueId]) {
       const key = randomUUID();
       const title = `Existing private work ${randomUUID()}`;
-      const existing = await issueService(server.db).create(f.companyId, { projectId: outside.id, parentId,
+      const existing = await issueService(server.db).create(f.spaceId, { projectId: outside.id, parentId,
         title, description: "Private contents", assigneeAgentId: f.agentId, status: "backlog", idempotencyKey: key });
       for (const allowed of [false, true]) {
         await server.db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: {
           trustBoundary: { mode: "low_trust_review", projectIds: [f.projectId, ...(allowed ? [outside.id] : [])] },
         } } }).where(eq(agents.id, f.agentId));
         for (const collision of [{ idempotencyKey: key, title: "Different proposed task" }, { title }]) {
-          const response = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/issues`, {
+          const response = await fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/issues`, {
             method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
             body: JSON.stringify({ projectId: f.projectId, parentId, assigneeAgentId: f.agentId, status: "backlog", ...collision }),
           });
@@ -423,7 +423,7 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     const f = await server.fixture();
     const result = await call(f, "create_task", { title: "Delegate ordinary work", idempotencyKey: "child" }) as any;
     expect(result.task.parentId).toBe(f.issueId);
-    expect(await issueService(server.db).create(f.companyId, { title: "No project needed" })).toMatchObject({ projectId: null });
+    expect(await issueService(server.db).create(f.spaceId, { title: "No project needed" })).toMatchObject({ projectId: null });
   });
 
   it("creates a project once through the production API and records it on the source feed", async () => {
@@ -446,7 +446,7 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     const realFetch = globalThis.fetch;
     const lostResponse = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
       const response = await realFetch(url, options);
-      if (response.status === 201 && String(url).endsWith(`/companies/${f.companyId}/projects`)) {
+      if (response.status === 201 && String(url).endsWith(`/spaces/${f.spaceId}/projects`)) {
         await response.arrayBuffer();
         throw new Error("Controller lost the committed response");
       }
@@ -458,16 +458,16 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     const committed = await f.snapshot();
     const created = committed.projects.find(project => project.name === request.arguments.name)!;
     expect(created).toBeDefined();
-    const recovered = await Promise.all(Array.from({ length: 4 }, () => new PaperclipRunnerToolAuthority(server.db, f).recover(request)));
+    const recovered = await Promise.all(Array.from({ length: 4 }, () => new OutpostRunnerToolAuthority(server.db, f).recover(request)));
     expect(recovered).toEqual(Array.from({ length: 4 }, () => ({ result: expect.objectContaining({ id: created.id }) })));
-    await expect(new PaperclipRunnerToolAuthority(server.db, f).recover({ ...request, arguments: { ...request.arguments, name: "Changed" } })).rejects.toThrow(/different inputs/);
+    await expect(new OutpostRunnerToolAuthority(server.db, f).recover({ ...request, arguments: { ...request.arguments, name: "Changed" } })).rejects.toThrow(/different inputs/);
     const after = await f.snapshot();
     expect(after.projects.map(project => project.id).sort()).toEqual(committed.projects.map(project => project.id).sort());
     expect(after.activity.filter(event => event.action === "project.created")).toHaveLength(1);
     const foreign = await server.fixture({ disableWakeOnDemand: true });
     expect(await foreign.authority.recover(request)).toBeNull();
     await server.db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, f.runId));
-    await expect(new PaperclipRunnerToolAuthority(server.db, f).recover(request)).rejects.toThrow();
+    await expect(new OutpostRunnerToolAuthority(server.db, f).recover(request)).rejects.toThrow();
   });
 
   it("holds an unknown project mutation without creating a project or audit event", async () => {
@@ -475,14 +475,14 @@ import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.
     const before = await f.snapshot();
     const request = { tool: "create_project", arguments: { name: "Uncertain project", idempotencyKey: "unknown" }, callId: randomUUID() };
     expect(await f.authority.recover(request)).toBeNull();
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
-    const response = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/projects`, {
-      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Paperclip-Receipt-Only": "true" },
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
+    const response = await fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/projects`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Outpost-Receipt-Only": "true" },
       body: JSON.stringify(request.arguments),
     });
     expect(response.status).toBe(204);
-    const missingKey = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/projects`, {
-      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Paperclip-Receipt-Only": "true" },
+    const missingKey = await fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/projects`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Outpost-Receipt-Only": "true" },
       body: JSON.stringify({ name: "Missing receipt key" }),
     });
     expect(missingKey.status).toBe(422);

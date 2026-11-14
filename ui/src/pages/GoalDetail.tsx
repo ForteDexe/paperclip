@@ -1,11 +1,11 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { useEffect } from "react";
 import { useParams } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { goalsApi } from "../api/goals";
 import { assetsApi } from "../api/assets";
 import { usePanel } from "../context/PanelContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useDialogActions } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
@@ -49,7 +49,7 @@ export function GoalPropertiesToggleButton({
 
 export function GoalDetail() {
   const { goalId } = useParams<{ goalId: string }>();
-  const { selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { selectedSpaceId, setSelectedSpaceId } = useSpace();
   const { openNewGoal } = useDialogActions();
   const { openPanel, closePanel, panelVisible, setPanelVisible } = usePanel();
   const { setBreadcrumbs } = useBreadcrumbs();
@@ -62,23 +62,23 @@ export function GoalDetail() {
   });
   const { data: goal, isLoading, error } = goalQuery;
   const goalView = useQueryView(goalQuery);
-  const resolvedCompanyId = goal?.companyId ?? selectedCompanyId;
+  const resolvedSpaceId = goal?.spaceId ?? selectedSpaceId;
 
   const { data: allGoals } = useQuery({
-    queryKey: queryKeys.goals.list(resolvedCompanyId!),
-    queryFn: () => goalsApi.list(resolvedCompanyId!),
-    enabled: !!resolvedCompanyId
+    queryKey: queryKeys.goals.list(resolvedSpaceId!),
+    queryFn: () => goalsApi.list(resolvedSpaceId!),
+    enabled: !!resolvedSpaceId
   });
 
   const { data: allProjects } = useQuery({
-    ...companyProjectsQuery(resolvedCompanyId!, { includeArchived: true }),
-    enabled: !!resolvedCompanyId
+    ...spaceProjectsQuery(resolvedSpaceId!, { includeArchived: true }),
+    enabled: !!resolvedSpaceId
   });
 
   useEffect(() => {
-    if (!goal?.companyId || goal.companyId === selectedCompanyId) return;
-    setSelectedCompanyId(goal.companyId, { source: "route_sync" });
-  }, [goal?.companyId, selectedCompanyId, setSelectedCompanyId]);
+    if (!goal?.spaceId || goal.spaceId === selectedSpaceId) return;
+    setSelectedSpaceId(goal.spaceId, { source: "route_sync" });
+  }, [goal?.spaceId, selectedSpaceId, setSelectedSpaceId]);
 
   const updateGoal = useMutation({
     mutationFn: (data: Record<string, unknown>) =>
@@ -87,9 +87,9 @@ export function GoalDetail() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.goals.detail(goalId!)
       });
-      if (resolvedCompanyId) {
+      if (resolvedSpaceId) {
         queryClient.invalidateQueries({
-          queryKey: queryKeys.goals.list(resolvedCompanyId)
+          queryKey: queryKeys.goals.list(resolvedSpaceId)
         });
       }
     }
@@ -97,9 +97,9 @@ export function GoalDetail() {
 
   const uploadImage = useMutation({
     mutationFn: async (file: File) => {
-      if (!resolvedCompanyId) throw new Error("No outpost selected");
+      if (!resolvedSpaceId) throw new Error("No outpost selected");
       return assetsApi.uploadImage(
-        resolvedCompanyId,
+        resolvedSpaceId,
         file,
         `goals/${goalId ?? "draft"}`
       );

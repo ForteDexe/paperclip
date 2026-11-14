@@ -64,13 +64,13 @@ describe("isPrivateWebhookHttpRequest", () => {
 });
 
 describe("isSecretSensitiveHttpRequest", () => {
-  it("protects company observability credentials on accepted and rejected paths", () => {
+  it("protects space observability credentials on accepted and rejected paths", () => {
     for (const method of ["GET", "PUT", "POST", "DELETE", "PATCH"]) {
-      for (const url of ["/api/companies/company/observability", "/api/companies/company/observability/test", "/api/companies/company/observability/unknown", "https://outpost.test/API/COMPANIES/company/OBSERVABILITY?ignored=private"]) {
+      for (const url of ["/api/spaces/space/observability", "/api/spaces/space/observability/test", "/api/spaces/space/observability/unknown", "https://outpost.test/API/SPACES/space/OBSERVABILITY?ignored=private"]) {
         expect(isSecretSensitiveHttpRequest(method, url)).toBe(true);
       }
     }
-    expect(isSecretSensitiveHttpRequest("PUT", "/api/companies/company/observability-extra")).toBe(false);
+    expect(isSecretSensitiveHttpRequest("PUT", "/api/spaces/space/observability-extra")).toBe(false);
   });
   it("protects Slack registration, installation, recovery, and all callback methods", () => {
     for (const suffix of ["registration", "install", "resume"]) expect(isSecretSensitiveHttpRequest("POST", `/api/chat-endpoints/id/slack/${suffix}`)).toBe(true);
@@ -117,7 +117,7 @@ describe("shouldSilenceHttpSuccessLog", () => {
     expect(
       shouldSilenceHttpSuccessLog(
         "GET",
-        "/api/companies/5cbe79ee-acb3-4597-896e-7662742593cd/heartbeat-runs",
+        "/api/spaces/5cbe79ee-acb3-4597-896e-7662742593cd/heartbeat-runs",
         200,
       ),
     ).toBe(true);
@@ -131,28 +131,28 @@ describe("shouldSilenceHttpSuccessLog", () => {
     expect(
       shouldSilenceHttpSuccessLog(
         "GET",
-        "/api/companies/5cbe79ee-acb3-4597-896e-7662742593cd/live-runs?minCount=3",
+        "/api/spaces/5cbe79ee-acb3-4597-896e-7662742593cd/live-runs?minCount=3",
         200,
       ),
     ).toBe(true);
     expect(
       shouldSilenceHttpSuccessLog(
         "HEAD",
-        "/api/companies/5cbe79ee-acb3-4597-896e-7662742593cd/sidebar-badges",
+        "/api/spaces/5cbe79ee-acb3-4597-896e-7662742593cd/sidebar-badges",
         200,
       ),
     ).toBe(true);
     expect(
       shouldSilenceHttpSuccessLog(
         "GET",
-        "/api/companies/5cbe79ee-acb3-4597-896e-7662742593cd/issues?includeRoutineExecutions=true",
+        "/api/spaces/5cbe79ee-acb3-4597-896e-7662742593cd/issues?includeRoutineExecutions=true",
         200,
       ),
     ).toBe(true);
     expect(
       shouldSilenceHttpSuccessLog(
         "GET",
-        "/api/companies/5cbe79ee-acb3-4597-896e-7662742593cd/activity",
+        "/api/spaces/5cbe79ee-acb3-4597-896e-7662742593cd/activity",
         200,
       ),
     ).toBe(true);
@@ -164,7 +164,7 @@ describe("shouldSilenceHttpSuccessLog", () => {
     expect(
       shouldSilenceHttpSuccessLog(
         "GET",
-        "/@fs/Users/dotta/paperclip/ui/src/main.tsx",
+        "/@fs/Users/dotta/outpost/ui/src/main.tsx",
         200,
       ),
     ).toBe(true);
@@ -191,7 +191,7 @@ describe("shouldSilenceHttpSuccessLog", () => {
     expect(
       shouldSilenceHttpSuccessLog(
         "GET",
-        "/@fs/Users/dotta/paperclip/ui/src/main.tsx",
+        "/@fs/Users/dotta/outpost/ui/src/main.tsx",
         404,
       ),
     ).toBe(false);
@@ -201,7 +201,7 @@ describe("shouldSilenceHttpSuccessLog", () => {
 
 describe("Muse HTTP privacy",()=>{
   it("protects OAuth, worker bodies and rejected namespace variants",()=>{
-    for(const path of ["/api/muse/v1/oauth/authorize?pairing_ticket=private", "/api/muse/v1/commands", "/api/muse/unknown/private", "/API/MUSE/v1/token", "http://host.invalid/api/%6duse/v1/commands", "/api/%256duse/v1/queries", "/api/companies/company/agents/agent/muse-binding", "/api/companies/company/muse-invitations"])
+    for(const path of ["/api/muse/v1/oauth/authorize?pairing_ticket=private", "/api/muse/v1/commands", "/api/muse/unknown/private", "/API/MUSE/v1/token", "http://host.invalid/api/%6duse/v1/commands", "/api/%256duse/v1/queries", "/api/spaces/space/agents/agent/muse-binding", "/api/spaces/space/muse-invitations"])
       for(const method of ["GET","POST","DELETE"]){expect(isPrivateMuseHttpRequest(path)).toBe(true);expect(isSecretSensitiveHttpRequest(method,path)).toBe(true);}
     expect(isPrivateMuseHttpRequest("/api/muse-extra")).toBe(false);
     expect(isPrivateMuseHttpRequest("/api/issues/task")).toBe(false);

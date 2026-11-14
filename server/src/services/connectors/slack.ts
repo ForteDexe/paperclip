@@ -34,7 +34,7 @@ import {
 
 async function slackAssignedEndpoint(
   db: Db,
-  binding: Partial<SlackTaskBinding> & { companyId: string; agentId: string },
+  binding: Partial<SlackTaskBinding> & { spaceId: string; agentId: string },
   endpoint: { id: string; connectionId: string },
 ) {
   if (!binding.runId || !binding.issueId) return [];
@@ -46,7 +46,7 @@ async function slackAssignedEndpoint(
       throw error;
     }
   };
-  if (!await slackBotCatalogIsCurrent(db, { ...endpoint, companyId: binding.companyId })) {
+  if (!await slackBotCatalogIsCurrent(db, { ...endpoint, spaceId: binding.spaceId })) {
     const authority = await authorize();
     if (!authority || authority.endpoint.connectionId !== endpoint.connectionId) return [];
     await measureRunTransaction(db, "connectors.slack.catalog", (tx) =>
@@ -60,7 +60,7 @@ async function slackAssignedEndpoint(
       toolProfileBindings,
       and(
         eq(toolProfileBindings.profileId, toolProfiles.id),
-        eq(toolProfileBindings.companyId, binding.companyId),
+        eq(toolProfileBindings.spaceId, binding.spaceId),
         eq(toolProfileBindings.targetType, "agent"),
         eq(toolProfileBindings.targetId, binding.agentId),
       ),
@@ -75,7 +75,7 @@ async function slackAssignedEndpoint(
     )
     .where(
       and(
-        eq(toolProfiles.companyId, binding.companyId),
+        eq(toolProfiles.spaceId, binding.spaceId),
         eq(toolProfiles.profileKey, `slack-bot:${endpoint.id}`),
         eq(toolProfiles.status, "active"),
       ),
@@ -103,7 +103,7 @@ async function slackAssignedEndpoint(
 }
 export async function slackAssignedResource(
   db: Db,
-  binding: Partial<SlackTaskBinding> & { companyId: string; agentId: string },
+  binding: Partial<SlackTaskBinding> & { spaceId: string; agentId: string },
 ) {
   const endpoints = await measureRunPhase("connectors.slack.candidates", () => slackEndpointCandidates(db, binding));
   return prepareSlackEndpoints(endpoints, endpoint => slackAssignedEndpoint(db, {
@@ -480,7 +480,7 @@ export async function executeSlackTool(
 }
 
 /** Both native and CLI calls enter the same existing policy/approval gateway. */
-export async function executeGovernedSlackTool(
+export async function executeControlledSlackTool(
   db: Db,
   binding: SlackTaskBinding,
   name: string,

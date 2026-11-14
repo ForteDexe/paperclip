@@ -32,7 +32,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations,
+import { agents, spaces, createDb, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations,
   nativeRunnerCheckpoints, startEmbeddedPostgresTestDatabase } from "../packages/db/src/index.js";
 import * as candidate from "../server/src/services/heartbeat-run-events.js";
 import { nativeRunnerCheckpointWriter } from "../server/src/services/native-runtime/native-runner-checkpoint.js";
@@ -52,21 +52,21 @@ const temporary = await startEmbeddedPostgresTestDatabase("run-event-checkpoint-
 const appendDb = createDb(temporary.connectionString);
 const checkpointDb = createDb(temporary.connectionString);
 try {
-  const [company] = await appendDb.insert(companies).values({ name: "Lock", issuePrefix: "LCK" }).returning();
-  const [agent] = await appendDb.insert(agents).values({ companyId: company!.id, name: "Native" }).returning();
-  const [issue] = await appendDb.insert(issues).values({ companyId: company!.id, title: "Streaming task" }).returning();
+  const [space] = await appendDb.insert(spaces).values({ name: "Lock", issuePrefix: "LCK" }).returning();
+  const [agent] = await appendDb.insert(agents).values({ spaceId: space!.id, name: "Native" }).returning();
+  const [issue] = await appendDb.insert(issues).values({ spaceId: space!.id, title: "Streaming task" }).returning();
   const quantile = (values: number[], q: number) => [...values].sort((a, b) => a - b)[Math.min(values.length - 1, Math.floor(values.length * q))]!;
   const round = (value: number) => Number(value.toFixed(2));
 
   async function pass(label: "baseline" | "candidate") {
     const append = (label === "baseline" ? baseline : candidate).appendHeartbeatRunEvent;
     const runId = randomUUID(), bootId = randomUUID(), leaseOwner = randomUUID();
-    await appendDb.insert(heartbeatRuns).values({ id: runId, companyId: company!.id, agentId: agent!.id, status: "running",
+    await appendDb.insert(heartbeatRuns).values({ id: runId, spaceId: space!.id, agentId: agent!.id, status: "running",
       runtimeMode: "native", nativeIssueId: issue!.id, issueId: issue!.id,
       runnerProfileJson: { padding: randomBytes(3 * 1024).toString("base64") } });
-    await appendDb.insert(nativeRunFinalizations).values({ runId, companyId: company!.id, issueId: issue!.id, phase: "observed",
+    await appendDb.insert(nativeRunFinalizations).values({ runId, spaceId: space!.id, issueId: issue!.id, phase: "observed",
       controllerBootId: bootId, controllerGeneration: 1, leaseOwner, leaseExpiresAt: new Date(Date.now() + 3_600_000) });
-    const write = nativeRunnerCheckpointWriter(checkpointDb, { companyId: company!.id, issueId: issue!.id, runId,
+    const write = nativeRunnerCheckpointWriter(checkpointDb, { spaceId: space!.id, issueId: issue!.id, runId,
       authorityRunId: runId, bootId, generation: 1, leaseOwner });
     const checkpoint = (records: Map<string, string>, changed: Map<string, string>, reset: boolean) => ({
       runId, records, changedRecords: changed, removedRecords: [], reset, workCommandIds: [], predecessor: null,
@@ -84,7 +84,7 @@ try {
       const event = { sourceSeq: seq, eventType: "item.completed", text: randomBytes(EVENT_KIB * 768).toString("base64") };
       // The append commits before the controller ACKs, like onCommittedEvent.
       await appendDb.transaction(async tx => {
-        await append(tx as unknown as typeof appendDb, { companyId: company!.id, agentId: agent!.id, runId,
+        await append(tx as unknown as typeof appendDb, { spaceId: space!.id, agentId: agent!.id, runId,
           eventType: "item.completed", stream: "system", level: "info", payload: { orpEvent: event },
           nativeSource: { sourceInstanceId: "bench-runner", sourceEventId: `event-${seq}`, sourceSeq: seq,
             protocolSchemaVersion: 1, canonicalPayload: event } });

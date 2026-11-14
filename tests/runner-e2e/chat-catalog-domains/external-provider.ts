@@ -27,7 +27,7 @@ export async function startNotesProvider(marker: string, options: { nonDestructi
         arguments: message.params?.arguments, sequence: calls.length, requestIdSha256: createHash("sha256").update(String(message.id)).digest("hex"), receivedAt: Date.now() }; calls.push(call);
       if (!authorized) { res.writeHead(401); res.end(); return; }
       let result: unknown = {};
-      if (message.method === "initialize") result = { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "paperclip-eval-synthetic-notes", version: "1.0.0" } };
+      if (message.method === "initialize") result = { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "outpost-eval-synthetic-notes", version: "1.0.0" } };
       if (message.method === "tools/list") result = { tools: tools.map(tool => ({ name: tool.name, title: tool.title, description: tool.description,
         annotations: { readOnlyHint: tool.readOnly, destructiveHint: !tool.readOnly && !options.nonDestructiveWrites }, inputSchema: { type: "object", properties: { text: { type: "string" } }, additionalProperties: false } })) };
       if (message.method === "tools/call") {

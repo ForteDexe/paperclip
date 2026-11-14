@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { it, expect } from "vitest";
 import { sshPinnedHost } from "./runtime-private.js";
 function valid() { const publicBytes = Buffer.from("synthetic public key bytes for pin calibration");
-  return { hostname: "owned-fixture.invalid", port: "2200", login: "eval", allowedRemoteRoot: "/srv/paperclip-eval-disposable",
+  return { hostname: "owned-fixture.invalid", port: "2200", login: "eval", allowedRemoteRoot: "/srv/outpost-eval-disposable",
     knownHosts: `[owned-fixture.invalid]:2200 ssh-ed25519 ${publicBytes.toString("base64")}`,
     hostKeySha256: `SHA256:${createHash("sha256").update(publicBytes).digest("base64").replace(/=+$/, "")}` }; }
 it("accepts only the exact provided owned host and matching known-host public-key pin", () => expect(sshPinnedHost(valid())).toBe(true));

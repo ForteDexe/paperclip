@@ -67,13 +67,13 @@ writers and another server process are not covered by these process-local signal
 
 ## Creation ownership
 
-A creation operation retains company, original environment, run, request identity,
+A creation operation retains space, original environment, run, request identity,
 provider, and nonsecret configuration references. Its environment FK uses SET NULL;
-company/run/task identifiers remain after those records are removed. One operation
-owns each company/environment/run/request. A retry of an attached operation returns
+space/run/task identifiers remain after those records are removed. One operation
+owns each space/environment/run/request. A retry of an attached operation returns
 its active lease. Pending or unresolved ownership never authorizes another create.
 Normal success transfers operation ownership and the lease in one transaction.
-Current company binding and run authority are checked again at attachment.
+Current space binding and run authority are checked again at attachment.
 Declared secret-reference fields retain only their references and nonsecret value
 hashes. Recovery refuses lookup under a changed credential value; it records manual
 reconciliation instead of treating a missing resource in a new account as proof.
@@ -96,8 +96,8 @@ creationOperation request on the existing read-only inspect hook and strict fail
 inspection still uses its recorded resource ID; creationOperationId metadata is
 provenance only. A missing name alone cannot prove a late allocation will never appear. Missing identity or an
 unsupported provider records needs_reconciliation and an operation-scoped warning.
-A deleted company also records manual reconciliation before credential lookup or
-cleanup transfer. A company lock fences deletion during the transfer transaction.
+A deleted space also records manual reconciliation before credential lookup or
+cleanup transfer. A space lock fences deletion during the transfer transaction.
 That manual diagnostic has no automatic timer and does not prevent idle. The row
 must be reconciled before retrying the same request. Other providers do not yet
 claim automatic creation lookup. Generic plugin operations retain identity only, including a returned task resource

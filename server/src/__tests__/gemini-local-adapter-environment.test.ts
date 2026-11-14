@@ -45,14 +45,14 @@ describe("gemini_local environment diagnostics", () => {
   it("creates a missing working directory when cwd is absolute", async () => {
     const cwd = path.join(
       os.tmpdir(),
-      `paperclip-gemini-local-cwd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-gemini-local-cwd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       "workspace",
     );
 
     await fs.rm(path.dirname(cwd), { recursive: true, force: true });
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "gemini_local",
       config: {
         engine: "cli",
@@ -71,7 +71,7 @@ describe("gemini_local environment diagnostics", () => {
   it("passes model and default yolo flags to the hello probe", async () => {
     const root = path.join(
       os.tmpdir(),
-      `paperclip-gemini-local-probe-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-gemini-local-probe-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const binDir = path.join(root, "bin");
     const cwd = path.join(root, "workspace");
@@ -80,7 +80,7 @@ describe("gemini_local environment diagnostics", () => {
     await writeFakeGeminiCommand(binDir, argsCapturePath);
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "gemini_local",
       config: {
         engine: "cli",
@@ -108,7 +108,7 @@ describe("gemini_local environment diagnostics", () => {
   it("classifies quota exhaustion as a quota warning instead of a generic failure", async () => {
     const root = path.join(
       os.tmpdir(),
-      `paperclip-gemini-local-quota-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-gemini-local-quota-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const binDir = path.join(root, "bin");
     const cwd = path.join(root, "workspace");
@@ -116,7 +116,7 @@ describe("gemini_local environment diagnostics", () => {
     await writeQuotaGeminiCommand(binDir);
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "gemini_local",
       config: {
         engine: "cli",
@@ -138,7 +138,7 @@ describe("gemini_local environment diagnostics", () => {
     let probeEnv: Record<string, string> | undefined;
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "gemini_local",
       config: {
         engine: "cli",
@@ -148,7 +148,7 @@ describe("gemini_local environment diagnostics", () => {
         kind: "remote",
         transport: "sandbox",
         providerKey: "cloudflare",
-        remoteCwd: "/workspace/paperclip",
+        remoteCwd: "/workspace/outpost",
         runner: {
           execute: async (input) => {
             if (input.command === "gemini") {

@@ -9,7 +9,7 @@ import type {
   TelemetryState,
 } from "./types.js";
 import { type ResolvedTelemetryCaps, resolveCaps } from "./config.js";
-import { OUTPOST_EVENTS } from "./generated/paperclip-telemetry.js";
+import { OUTPOST_EVENTS } from "./generated/outpost-telemetry.js";
 
 const DEFAULT_ENDPOINTS = [
   "https://telemetry.outpost.ing/ingest",
@@ -112,7 +112,7 @@ export class TelemetryClient {
   }
 
   /**
-   * Tracks first-party Paperclip telemetry events registered in the generated
+   * Tracks first-party Outpost telemetry events registered in the generated
    * backend event schema.
    */
   track<K extends TelemetryEventName>(eventName: K, ...args: TrackArgs<K>): void {
@@ -212,7 +212,7 @@ export class TelemetryClient {
   private buildEnvelope(events: TelemetryEvent[], batchId?: string): TelemetryEventEnvelope {
     const state = this.getState();
     return {
-      app: this.config.app ?? "paperclip",
+      app: this.config.app ?? "outpost",
       schemaVersion: this.config.schemaVersion ?? "1",
       installId: state.installId,
       version: this.version,

@@ -49,7 +49,7 @@ function hasComment(
   payload: Record<string, unknown> | null,
   commentId: string,
 ) {
-  const context = payload?._paperclipWakeContext;
+  const context = payload?._outpostWakeContext;
   const nested =
     context && typeof context === "object" && !Array.isArray(context)
       ? (context as Record<string, unknown>)
@@ -91,7 +91,7 @@ export function resolveInboundWakeReceipt(
     assertDurableChatWakeupReceipt(
       createDurableChatWakeupRequest({
         id: action.id,
-        companyId: action.companyId,
+        spaceId: action.spaceId,
         agentId: payload.agentId,
         issueId: payload.issueId,
         commentId: payload.commentId,
@@ -111,7 +111,7 @@ export function resolveInboundWakeReceipt(
       (receipt.status !== "coalesced" || coalescedId !== owner.id)) ||
     (owner.id === receipt.id && coalescedId !== undefined) ||
     owner.payload?.coalescedIntoWakeupRequestId !== undefined ||
-    owner.companyId !== action.companyId ||
+    owner.spaceId !== action.spaceId ||
     owner.agentId !== payload.agentId ||
     owner.requestedByActorType !== payload.requestedByActorType ||
     owner.requestedByActorId !== payload.requestedByActorId ||

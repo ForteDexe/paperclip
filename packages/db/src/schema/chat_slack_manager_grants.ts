@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
 import { check, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 
 /** Reusable personal management authorization; never a bot runtime credential. */
 export const chatSlackManagerGrants = pgTable("chat_slack_manager_grants", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull(),
   slackUserId: text("slack_user_id").notNull(),
   workspaceId: text("workspace_id").notNull(),
@@ -20,7 +20,7 @@ export const chatSlackManagerGrants = pgTable("chat_slack_manager_grants", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
-  uniqueIndex("chat_slack_manager_grants_company_id_idx").on(t.companyId, t.id),
-  uniqueIndex("chat_slack_manager_grants_owner_idx").on(t.companyId, t.userId, t.managerAppId, t.workspaceId),
+  uniqueIndex("chat_slack_manager_grants_space_id_idx").on(t.spaceId, t.id),
+  uniqueIndex("chat_slack_manager_grants_owner_idx").on(t.spaceId, t.userId, t.managerAppId, t.workspaceId),
   check("chat_slack_manager_grants_status_check", sql`${t.status} in ('active', 'revoked', 'reauthorize')`),
 ]);

@@ -8,8 +8,8 @@ import { ONBOARDING_FIRST_TASK_ORIGIN_KIND } from "@outpost/shared";
 import type { HealthStatus } from "@/api/health";
 import { GitHubStarPrompt, STAR_PROMPT_SEEN_KEY } from "./GitHubStarPrompt";
 
-const state = vi.hoisted(() => ({ companyId: "company", loading: false, onboardingOpen: false, onboardingStatus: null as string | null, done: 5, listCompact: vi.fn() }));
-vi.mock("@/context/CompanyContext", () => ({ useCompany: () => ({ selectedCompanyId: state.companyId, loading: state.loading }) }));
+const state = vi.hoisted(() => ({ spaceId: "space", loading: false, onboardingOpen: false, onboardingStatus: null as string | null, done: 5, listCompact: vi.fn() }));
+vi.mock("@/context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: state.spaceId, loading: state.loading }) }));
 vi.mock("@/context/DialogContext", () => ({ useDialogState: () => ({ onboardingOpen: state.onboardingOpen }) }));
 vi.mock("@/api/issues", () => ({ issuesApi: {
   list: () => Promise.resolve(state.onboardingStatus ? [{ id: "onboarding", originKind: ONBOARDING_FIRST_TASK_ORIGIN_KIND, status: state.onboardingStatus }] : []),
@@ -39,17 +39,17 @@ describe("GitHub star prompt", () => {
   };
   const visible = () => Boolean(document.querySelector('[data-testid="github-star-prompt"]'));
   beforeEach(() => {
-    Object.assign(state, { companyId: "company", loading: false, onboardingOpen: false, onboardingStatus: null, done: 5 });
+    Object.assign(state, { spaceId: "space", loading: false, onboardingOpen: false, onboardingStatus: null, done: 5 });
     state.listCompact.mockClear();
     window.localStorage.clear();
     container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 
-  it("opens once a self-hosted company has five done tasks, and only once", async () => {
+  it("opens once a self-hosted space has five done tasks, and only once", async () => {
     await render();
     expect(visible()).toBe(true);
-    expect(state.listCompact).toHaveBeenCalledWith("company", { status: "done", limit: 5 }, expect.anything());
+    expect(state.listCompact).toHaveBeenCalledWith("space", { status: "done", limit: 5 }, expect.anything());
     expect(window.localStorage.getItem(STAR_PROMPT_SEEN_KEY)).not.toBeNull();
     const star = document.querySelector<HTMLAnchorElement>('a[href="https://github.com/paperclipai/paperclip"]');
     expect(star?.target).toBe("_blank");

@@ -31,7 +31,7 @@ publishes its contents. Lists, documents, revisions, annotations, assets, audit
 feeds, and live events enforce the same boundary. A newly started case normally
 inherits its primary task's access. Existing passive cases retain their sources.
 
-`POST /api/companies/:companyId/case-handoffs` and the live `handoff_case` tool
+`POST /api/spaces/:spaceId/case-handoffs` and the live `handoff_case` tool
 share a transaction and idempotency contract. Subsequent handoffs require observed
 case and task versions. A retry with the same principal/key returns the same
 receipt, including after the source run ends. Different input under that key fails.
@@ -71,12 +71,12 @@ Presence of implementation is not a claim that live qualification passed.
 
 | Check | Observed result |
 | --- | --- |
-| Standalone case routes and shared request validation | Latest case suite 24 tests and shared validator suite three tests passed, including retained-source privacy, assets after unlink, audit filtering, pipeline fallthrough, source attribution, denied low-trust mutations and cross-company history/retry/cancel behavior |
+| Standalone case routes and shared request validation | Latest case suite 24 tests and shared validator suite three tests passed, including retained-source privacy, assets after unlink, audit filtering, pipeline fallthrough, source attribution, denied low-trust mutations and cross-space history/retry/cancel behavior |
 | Handoff service and actual legacy process workflow | Latest run 24 tests passed, including concurrent/replayed intent, worker restart/leases, accepted wake acknowledgement loss, private boundaries, disabled cleanup, HTTP source fencing, rejected recipients, cancelled instructions, skill-test scope, historical quarantine and actual-parent assignment authorization |
 | Assembled native workflow | Passed with real runnerd and scripted Codex app-server: live tool call, automatic accepted yield, actual source process retirement, same-task successor and fresh context persisted through `write_document` |
 | Native executor regression | 744 tests passed after correcting the feature-gate integration |
 | Final affected case integration | 57 tests passed across six suites after trust/scope hardening, including the actual native runner and legacy process paths |
-| Final authorization hardening | Protected/cyclic implicit parents use ordinary allowed fallback; protected retained private parents fail without partial work. Cross-company present/absent cases return indistinguishable 404 responses for history/retry/cancel. Native integration passed again after the parent fix. |
+| Final authorization hardening | Protected/cyclic implicit parents use ordinary allowed fallback; protected retained private parents fail without partial work. Cross-space present/absent cases return indistinguishable 404 responses for history/retry/cancel. Native integration passed again after the parent fix. |
 | Runner schema compatibility | 85 strict contract/dispatch tests, 29 authority tests and four coordinator tests passed after replacing unsupported UUID format metadata with the canonical UUID pattern |
 | Startup registration | 50 affected startup tests passed; explicit durable-worker registration and signal forwarding covered |
 | Runtime queue and run controls | 26 tests passed; separate queue-module suite 25 passed, including assignment races and cancellation/feature-disable admission |
@@ -105,7 +105,7 @@ ownership/comment run passed all 267 tests with normal limits. Responsibility
 invariants passed 14/14 unchanged, device login 41/41 twice, historical questions
 33/33, agent secret bindings 9/9, connection fixtures 6/6, environment routes
 20/20, live-run routes 91/91, CLI auth 24/24, retry lifecycle 15/15 and the static
-cross-company authorization guards 2/2.
+cross-space authorization guards 2/2.
 
 All workspace projects were exercised. The fail-fast wrapper stopped before CLI
 and before the remaining adapter/plugin projects, so those were explicitly run
@@ -154,7 +154,7 @@ records. No operator login/config/session files are committed.
 To repeat provider qualification after access recovers, select only
 `case-handoffs.runner-codex-subscription.local.same-task-roundtrip`; see
 `tests/runner-e2e/README.md`. The attempt has one automatic try, a bounded turn
-count and company/agent budget stops.
+count and space/agent budget stops.
 
 ## Read-only case pages — 2026-10-19
 
@@ -193,7 +193,7 @@ Verification for this UI change:
 
 The disposable acceptance case was CAS-C1 (`3f733ea1-cd9b-4413-b80b-4ae099e38e95`),
 primary task `ec7b291e-3fee-49d3-b0b6-3d04188f18b3`. Local launch/doctor records
-are in `/private/tmp/paperclip-cases-ui-proof-v2-20261019/`; screenshots are in the
+are in `/private/tmp/outpost-cases-ui-proof-v2-20261019/`; screenshots are in the
 Codex visualization workspace for this chat. Repo-wide checks/provider smoke
 were not repeated for this UI iteration; their earlier limits remain recorded
 above. No production data or deployment was changed.
@@ -214,7 +214,7 @@ raw API arguments and bodies remain redacted in run events.
 
 Bounds are four task work runs, daily role caps 1/2/1, one concurrent run,
 90 seconds per run, low reasoning effort, one five-minute attempt and configured
-100-cent company/agent budgets. Production setup also performs small hello
+100-cent space/agent budgets. Production setup also performs small hello
 inference outside heartbeat accounting. Its tokens/cost are unavailable and are
 not zero. Setup is observed serially with a 45-second readiness deadline and
 immediate failure on lifecycle errors; cleanup pauses agents. This is not an
@@ -269,9 +269,9 @@ through the visible sidebar, filters by project/status/type/search, opens the
 record, reads both revisions, closes with Escape and restores focus, returns
 with filters intact, reloads and checks a 390px viewport. Before/after API
 snapshots are equal; no browser case mutation, agent or heartbeat run exists.
-Teardown restored the feature flag and archived the disposable company.
+Teardown restored the feature flag and archived the disposable space.
 
-Accepted fixture company: `e69d3f47-e17f-46d2-baf7-fb118962349d`; receipt case:
+Accepted fixture space: `e69d3f47-e17f-46d2-baf7-fb118962349d`; receipt case:
 `35d46e8a-4ca6-475d-a7e2-8a204b858e73` (`REA-C1`); reference task:
 `90c82519-ac43-45ff-9d67-cfc3e663c8ae`. The standard Playwright report is
 `tests/e2e/playwright-report/index.html`, with three screenshots and the full
@@ -301,7 +301,7 @@ credential copy was removed. Sanitized evidence is retained in
 The user supplied an API credential source; only `OPENAI_API_KEY` was loaded
 privately. Its model catalog includes the unchanged `gpt-5.6-sol`. Added
 `case-handoffs.runner-codex.local.receipt-smoke` using the existing encrypted
-company-secret fixture. The subscription cells remain distinct; the historical
+space-secret fixture. The subscription cells remain distinct; the historical
 arithmetic cell was not extended to API authentication. API roles preserve their
 secret references instead of applying subscription-home overrides.
 
@@ -350,7 +350,7 @@ packaging, exact-secret scans and cleanup. Journey duration was 129,998 ms;
 Playwright including isolated server startup took about 2.5 minutes. No automatic
 retry ran. The standard report command also passed for the exact selected ID.
 
-- Company: `a1f612d7-f7c1-425a-8ec0-5622d3a6fc1f`.
+- Space: `a1f612d7-f7c1-425a-8ec0-5622d3a6fc1f`.
 - Case: `0b6f65c0-dfe5-4c67-af64-4b84813aadde` (`RUN-C3`).
 - Primary task: `ed97f870-0fde-431f-85e2-aee8a69c9afb` (`RUN-1`).
 - Runs in phase order: `946d827f-3e4e-42b8-add4-2448ad201580`,
@@ -426,7 +426,7 @@ four real native Codex work runs and eleven independent workflow checks, includi
 the new terminal receipt, plus production browser readback, packaging, secret
 scans and cleanup. Journey duration was 163,229 ms; Playwright with isolated
 server startup was about 3.9 minutes. No automatic retry or fifth run occurred.
-Company `4f479fd6-c780-49d2-8709-4f7d8c4f1830`, case
+Space `4f479fd6-c780-49d2-8709-4f7d8c4f1830`, case
 `95584a08-2a0c-4b21-970d-48cf583ad32c` (`RUN-C3`), primary task
 `eacd82f3-56f8-409b-b6e9-dee36682ae50` (`RUN-1`). Both case and task are done;
 case phase is `done`, version 5, and no handoff remains pending. Terminal
@@ -464,7 +464,7 @@ evidence is recorded separately from paid workflow acceptance.
 Provider-free browser verification passed in both interfaces (2/2), including
 done → todo → cancelled → todo → done. Status, assignee controls and composer
 finish loading before absence assertions. Both fixture agents stayed manually
-paused and each company retained zero heartbeat runs. Root inspected the
+paused and each space retained zero heartbeat runs. Root inspected the
 completed and reopened task screenshots. The independent read-only review found
 no actionable issue. Report:
 `tests/e2e/test-results/terminal-paused-agent-2026-10-19/report/index.html`.
@@ -495,7 +495,7 @@ now carry fresh identity, phase, versions, read paths and new instructions, with
 facts only when their fingerprint changes. The fingerprint covers summary,
 fields, document revisions and accessible references. It excludes routing and
 history changes. Proof comes from the actual admitted native input and exact
-company/agent/task/session/base-run identity, not merely a prepared snapshot.
+space/agent/task/session/base-run identity, not merely a prepared snapshot.
 Cold, reset, unknown-format and failed-resume paths retain the full snapshot.
 Authorization still refreshes each admission, and provider history still grows
 by one new message per phase. Legacy adapters retain their existing snapshot.
@@ -535,7 +535,7 @@ implementation saved revision 2 (`{"total":6,"currency":"USD"}`) before terminal
 handoff closed the case and task. Browser readback, report packaging, secret
 scans and fixture cleanup passed; the private test home was removed. Report:
 `tests/runner-e2e/results/local-2026-10-19T19-57-00-135Z/merged/index.html`.
-Company: `010427e2-38cf-460a-a965-7856f1552bad`; case:
+Space: `010427e2-38cf-460a-a965-7856f1552bad`; case:
 `f2b7c609-8ca0-4ca7-a687-6e4f42a5e829` (`RUN-C3`); task:
 `df01ea0e-3007-4428-b171-d662a120027f` (`RUN-1`). The work runs reported
 133,781 input, 3,101 output and 521,496 cached-input tokens, with usage coverage
@@ -574,7 +574,7 @@ classify the new phase as a repeated wake. The diagnostic record is retained at
 `/private/tmp/case-handoff-session-roundtrip-diagnostic.log`.
 
 The queue now exempts only a validated durable case-handoff request from that
-generic cooldown. The receipt is checked against the persisted company, task,
+generic cooldown. The receipt is checked against the persisted space, task,
 recipient, preallocated wake ID and assignment version, and revalidated under
 the admission transaction lock. It is not accepted by public wake schemas.
 Budget, pause, permissions, task guards, source release and duplicate admission
@@ -629,7 +629,7 @@ handoffs reject nonempty initial documents; ordinary task tools own revisions.
 
 Case detail adds bounded, authorized `taskDocuments` references carrying task,
 key, revision and read-path identity. Execution context references the same
-documents without bodies. Canonical task permissions, company scope, quarantine
+documents without bodies. Canonical task permissions, space scope, quarantine
 and system-key filtering precede the document budget. Historical case refs
 remain distinguishable. The read-only case UI loads task documents and revision
 history through ordinary task APIs and reuses the shared revision/diff display.
@@ -755,7 +755,7 @@ run or full repository suite were needed for this bounded contract tightening.
 
 The next user decision requires exact field `workflow_document_text` on native
 `create_case` and the equivalent new-case branch of
-`POST /api/companies/:companyId/case-handoffs`. The harness persists its exact
+`POST /api/spaces/:spaceId/case-handoffs`. The harness persists its exact
 nonblank text as the primary task's ordinary Markdown document `workflow`, title
 `Workflow`, before delivery. Creation, initial document revisions, attribution,
 audit, comment and durable wake intent remain one transaction. Workflow text and

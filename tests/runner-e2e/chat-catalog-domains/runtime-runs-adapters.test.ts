@@ -2,8 +2,8 @@ import { countModelDiscoveryReads, modelDiscoveryEndpoint } from "./runtime-runs
 import { it, expect } from "vitest";
 import { gradeModelOptions } from "./runtime-runs-adapters.js";
 function valid() {
-  const worker = { id: "morgan", companyId: "company", adapterType: "outpost_runner", adapterConfig: { model: "gpt-5.6-sol" }, permissions: {} };
-  return { scenarioId: "runs-adapters.list-model-options", companyId: "company", leadId: "ceo", state: { worker,
+  const worker = { id: "morgan", spaceId: "space", adapterType: "outpost_runner", adapterConfig: { model: "gpt-5.6-sol" }, permissions: {} };
+  return { scenarioId: "runs-adapters.list-model-options", spaceId: "space", leadId: "ceo", state: { worker,
     admittedModels: [{ id: "gpt-5.6-sol", label: "GPT 5.6 Sol" }], discoveryStatus: 200, agentDiscoveryReads: 1, agentRuntimeInventoryStatus: 403, secretScanComplete: true, secretLeaked: false },
     agents: [structuredClone(worker)], tasks: [], links: [], activity: [], runs: [], humanQueries: [],
     reply: "The current catalog includes gpt-5.6-sol. Available models still depend on the selected configured account binding and environment qualification." };
@@ -14,9 +14,9 @@ it("accepts a reworded answer without account keywords", () => { const o = valid
 it("rejects an answer whose run never read model discovery", () => { const o = valid(); (o.state as Record<string, unknown>).agentDiscoveryReads = 0; expect(gradeModelOptions(o).passed).toBe(false); });
 it("counts only successful model discovery results from the answering runs", () => {
   const ev = (runId: string, result: Record<string, unknown>, eventType = "item.completed") => ({ eventType, payload: { orpEvent: { runId, payload: { item: { type: "tool_result", result } } } } });
-  const ok = { ok: true, status: 200, apiOperationId: "GET /api/companies/{companyId}/adapters/{type}/models" };
+  const ok = { ok: true, status: 200, apiOperationId: "GET /api/spaces/{spaceId}/adapters/{type}/models" };
   expect(countModelDiscoveryReads([ev("run", ok), ev("run", { ...ok, ok: false, status: 403 }), ev("other", ok), ev("run", ok, "item.started"),
-    ev("run", { ...ok, apiOperationId: "GET /api/companies/{companyId}/ai-connections" })], ["run"])).toBe(1);
+    ev("run", { ...ok, apiOperationId: "GET /api/spaces/{spaceId}/ai-connections" })], ["run"])).toBe(1);
 });
 it("rejects missing discovery evidence", () => expect(gradeModelOptions(undefined).passed).toBe(false));
 it("rejects an invented vendor model presented alongside a real option", () => {
@@ -31,6 +31,6 @@ it("rejects leaked private account credentials", () => {
 
 it("discovers the actual selected native provider/environment rather than a Codex alias", () => {
   const worker = { adapterType: "outpost_runner", adapterConfig: { provider: "opencode" }, defaultEnvironmentId: "owned-environment" };
-  expect(modelDiscoveryEndpoint("company", worker as never)).toBe("/api/companies/company/adapters/outpost_runner/models?provider=opencode&environmentId=owned-environment");
-  expect(() => modelDiscoveryEndpoint("company", { ...worker, adapterConfig: { provider: "unknown" } } as never)).toThrow();
+  expect(modelDiscoveryEndpoint("space", worker as never)).toBe("/api/spaces/space/adapters/outpost_runner/models?provider=opencode&environmentId=owned-environment");
+  expect(() => modelDiscoveryEndpoint("space", { ...worker, adapterConfig: { provider: "unknown" } } as never)).toThrow();
 });

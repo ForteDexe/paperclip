@@ -47,18 +47,18 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 const CHECKOUT_NAME = /^[A-Za-z0-9._-]{1,200}$/;
 
-function restorePointObjectKey(companyId: string, workspaceId: string, generation: number, id: string, checkout?: string) {
+function restorePointObjectKey(spaceId: string, workspaceId: string, generation: number, id: string, checkout?: string) {
   if (checkout !== undefined && (!CHECKOUT_NAME.test(checkout) || checkout === "." || checkout === "..")) {
     throw new RestorePointRestoreFailure("invalid_restore_point_reference");
   }
-  return `${companyId}/${NAMESPACE}/${workspaceId}/${generation}/${checkout ? `checkouts/${checkout}/` : ""}${id}.pcrp`;
+  return `${spaceId}/${NAMESPACE}/${workspaceId}/${generation}/${checkout ? `checkouts/${checkout}/` : ""}${id}.pcrp`;
 }
 
-export function validateGitRestorePointRef(value: unknown, workspace: { companyId: string; id: string }, checkout?: string): GitRestorePointRef {
+export function validateGitRestorePointRef(value: unknown, workspace: { spaceId: string; id: string }, checkout?: string): GitRestorePointRef {
   const ref = value as GitRestorePointRef | null;
   const sha = /^[0-9a-f]{40}$/;
   let expectedKey: string | null = null;
-  try { expectedKey = ref ? restorePointObjectKey(workspace.companyId, workspace.id, ref.generation, ref.id, checkout) : null; } catch { expectedKey = null; }
+  try { expectedKey = ref ? restorePointObjectKey(workspace.spaceId, workspace.id, ref.generation, ref.id, checkout) : null; } catch { expectedKey = null; }
   if (!ref || ref.schema !== GIT_RESTORE_POINT_SCHEMA || typeof ref.id !== "string"
     || expectedKey === null || ref.objectKey !== expectedKey
     || !/^[0-9a-f]{64}$/.test(ref.sha256) || !Number.isSafeInteger(ref.byteSize) || ref.byteSize <= 0 || ref.byteSize > MAX_RESTORE_POINT_BYTES
@@ -80,7 +80,7 @@ export function validateGitRestorePointRef(value: unknown, workspace: { companyI
 export async function storeGitRestorePoint(input: {
   db: Db;
   storage: StorageService;
-  workspace: { companyId: string; id: string; sourceIssueId: string | null };
+  workspace: { spaceId: string; id: string; sourceIssueId: string | null };
   cwd: string;
   generation: number;
   checkout?: string;
@@ -97,9 +97,9 @@ export async function storeGitRestorePoint(input: {
   if (!captured) return null;
   if (await restorePointHistoryDigest(input.cwd, input.signal) !== history) throw new RestorePointRestoreFailure("restore_point_history_changed");
   const id = randomUUID();
-  const identity = { companyId: input.workspace.companyId, workspaceId: input.workspace.id, restorePointId: id, generation: input.generation };
+  const identity = { spaceId: input.workspace.spaceId, workspaceId: input.workspace.id, restorePointId: id, generation: input.generation };
   const sealed = await sealRestorePoint(captured.payload, identity);
-  const objectKey = restorePointObjectKey(input.workspace.companyId, input.workspace.id, input.generation, id, input.checkout);
+  const objectKey = restorePointObjectKey(input.workspace.spaceId, input.workspace.id, input.generation, id, input.checkout);
   const ledgerId = await storeSealedRestorePoint({ db: input.db, storage: input.storage, workspace: input.workspace,
     generation: input.generation, checkoutName: input.checkout ?? "", objectKey, sealed, signal: input.signal });
   const { manifest } = captured;
@@ -129,7 +129,7 @@ export async function storeGitRestorePoint(input: {
 export async function storeSealedRestorePoint(input: {
   db: Db;
   storage: StorageService;
-  workspace: { companyId: string; id: string; sourceIssueId: string | null };
+  workspace: { spaceId: string; id: string; sourceIssueId: string | null };
   generation: number;
   checkoutName: string;
   objectKey: string;
@@ -144,7 +144,7 @@ export async function storeSealedRestorePoint(input: {
         eq(executionWorkspaceRestorePoints.checkoutName, input.checkoutName),
         eq(executionWorkspaceRestorePoints.status, "pending")));
     return tx.insert(executionWorkspaceRestorePoints).values({
-      companyId: input.workspace.companyId,
+      spaceId: input.workspace.spaceId,
       executionWorkspaceId: input.workspace.id,
       sourceIssueId: input.workspace.sourceIssueId,
       generation: input.generation,
@@ -158,13 +158,13 @@ export async function storeSealedRestorePoint(input: {
   try {
     await input.storage.putFile({
       objectKey: input.objectKey,
-      companyId: input.workspace.companyId,
+      spaceId: input.workspace.spaceId,
       namespace: NAMESPACE,
       originalFilename: null,
       contentType: "application/octet-stream",
       body: input.sealed.ciphertext,
     });
-    const stored = await readRestorePointObject(input.storage, input.workspace.companyId, input.objectKey, input.signal);
+    const stored = await readRestorePointObject(input.storage, input.workspace.spaceId, input.objectKey, input.signal);
     if (createHash("sha256").update(stored).digest("hex") !== input.sealed.sha256) {
       throw new RestorePointRestoreFailure("stored_restore_point_mismatch");
     }
@@ -216,8 +216,8 @@ export async function abandonGitRestorePoint(db: Db, ledgerId: string) {
     .where(and(eq(executionWorkspaceRestorePoints.id, ledgerId), inArray(executionWorkspaceRestorePoints.status, ["pending", "active"])));
 }
 
-export async function readRestorePointObject(storage: StorageService, companyId: string, objectKey: string, signal?: AbortSignal) {
-  const { stream } = await storage.getObject(companyId, objectKey);
+export async function readRestorePointObject(storage: StorageService, spaceId: string, objectKey: string, signal?: AbortSignal) {
+  const { stream } = await storage.getObject(spaceId, objectKey);
   const chunks: Buffer[] = [];
   let total = 0;
   for await (const chunk of stream) {
@@ -232,12 +232,12 @@ export async function readRestorePointObject(storage: StorageService, companyId:
 
 export async function loadGitRestorePoint(input: {
   storage: StorageService;
-  workspace: { companyId: string; id: string };
+  workspace: { spaceId: string; id: string };
   ref: GitRestorePointRef;
   signal?: AbortSignal;
 }): Promise<{ payload: Buffer; manifest: RestorePointManifest }> {
   if (input.ref.expiredAt) throw new RestorePointRestoreFailure("restore_point_expired");
-  const ciphertext = await readRestorePointObject(input.storage, input.workspace.companyId, input.ref.objectKey, input.signal)
+  const ciphertext = await readRestorePointObject(input.storage, input.workspace.spaceId, input.ref.objectKey, input.signal)
     .catch((error) => {
       if (error instanceof RestorePointRestoreFailure) throw error;
       throw new RestorePointRestoreFailure("restore_point_unavailable");
@@ -247,7 +247,7 @@ export async function loadGitRestorePoint(input: {
     ciphertext,
     sha256: input.ref.sha256,
     key: input.ref.key,
-    identity: { companyId: input.workspace.companyId, workspaceId: input.workspace.id, restorePointId: input.ref.id, generation: input.ref.generation },
+    identity: { spaceId: input.workspace.spaceId, workspaceId: input.workspace.id, restorePointId: input.ref.id, generation: input.ref.generation },
   });
   const { manifest } = decodeRestorePointPayload(payload);
   if (manifest.head !== input.ref.head || manifest.index !== input.ref.index || manifest.worktree !== input.ref.worktree
@@ -260,7 +260,7 @@ export async function loadGitRestorePoint(input: {
 
 export async function ensureGitRestorePointCommit(input: {
   storage: StorageService;
-  workspace: { companyId: string; id: string };
+  workspace: { spaceId: string; id: string };
   ref: GitRestorePointRef;
   repositoryCwd: string;
   signal?: AbortSignal;
@@ -278,7 +278,7 @@ async function importNeeded(repositoryCwd: string, commit: string) {
 
 export async function applyGitRestorePointToWorktree(input: {
   storage: StorageService;
-  workspace: { companyId: string; id: string };
+  workspace: { spaceId: string; id: string };
   ref: GitRestorePointRef;
   repositoryCwd: string;
   worktreePath: string;
@@ -293,7 +293,7 @@ export async function applyGitRestorePointToWorktree(input: {
   const { payload } = await loadGitRestorePoint(input);
   const manifest = await importRestorePoint({ repositoryCwd: input.repositoryCwd, payload, signal: input.signal });
   if (input.preserveImportedHistory) {
-    for (const commit of manifest.preserved) await gitCacheCommand(input.repositoryCwd, ["update-ref", `refs/paperclip-preserved/${commit}`, commit], input.signal);
+    for (const commit of manifest.preserved) await gitCacheCommand(input.repositoryCwd, ["update-ref", `refs/outpost-preserved/${commit}`, commit], input.signal);
   }
   if (!matches) await applyRestorePoint({ cwd: input.worktreePath, manifest, signal: input.signal });
 }
@@ -309,13 +309,13 @@ function expireRestorePointRecipe(key: string, recipe: Record<string, any>, obje
   };
 }
 
-export async function markGitRestorePointExpired(db: Db, restorePoint: { companyId: string; executionWorkspaceId: string; objectKey: string }) {
+export async function markGitRestorePointExpired(db: Db, restorePoint: { spaceId: string; executionWorkspaceId: string; objectKey: string }) {
   const at = new Date().toISOString();
   for (const key of ["gitCacheRestoration", TASK_DIRECTORY_RETENTION_KEY]) {
     let settled = false;
     for (let attempt = 0; attempt < 3 && !settled; attempt += 1) {
       const [row] = await db.select({ metadata: executionWorkspaces.metadata }).from(executionWorkspaces)
-        .where(and(eq(executionWorkspaces.id, restorePoint.executionWorkspaceId), eq(executionWorkspaces.companyId, restorePoint.companyId)));
+        .where(and(eq(executionWorkspaces.id, restorePoint.executionWorkspaceId), eq(executionWorkspaces.spaceId, restorePoint.spaceId)));
       const recipe = row?.metadata?.[key] as Record<string, any> | undefined;
       if (!recipe) { settled = true; break; }
       const next = expireRestorePointRecipe(key, recipe, restorePoint.objectKey, at);
@@ -323,7 +323,7 @@ export async function markGitRestorePointExpired(db: Db, restorePoint: { company
       const updated = await db.update(executionWorkspaces).set({
         metadata: sql`jsonb_set(${executionWorkspaces.metadata}, ${`{${key}}`}::text[], ${JSON.stringify(next)}::jsonb)`,
         updatedAt: new Date(),
-      }).where(and(eq(executionWorkspaces.id, restorePoint.executionWorkspaceId), eq(executionWorkspaces.companyId, restorePoint.companyId),
+      }).where(and(eq(executionWorkspaces.id, restorePoint.executionWorkspaceId), eq(executionWorkspaces.spaceId, restorePoint.spaceId),
         sql`${executionWorkspaces.metadata}->${key} = ${JSON.stringify(recipe)}::jsonb`))
         .returning({ id: executionWorkspaces.id });
       settled = updated.length === 1;

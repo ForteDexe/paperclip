@@ -83,8 +83,8 @@ function completionGate(): ChatCatalogCase {
     reviewer = await createAuthenticatedPerson({ api: ctx.input.api, browser, secrets: ctx.input.privateSecrets, name: "Riley" });
     await enrollPrerequisitePerson(ctx, reviewer, "operator");
     const worker = await fixtureWorker(ctx); const p = await project(ctx);
-    const root = `/api/companies/${ctx.input.fixtures.company.id}`;
-    for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: worker.id }])
+    const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
+    for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: worker.id }])
       await ctx.input.api.post(`${root}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
     const t = await task(ctx, "Website task", p.id, { status: "todo", assigneeAgentId: worker.id, reviewPolicy: "human_only",
       executionPolicy: { mode: "normal", commentRequired: true, stages: [{ type: "review", participants: [{ type: "user", userId: reviewer.id }] }] },
@@ -121,7 +121,7 @@ function completionGate(): ChatCatalogCase {
     },
     async verifyResult(ctx, state, value) {
       const o = value as CompletionObservation; const source = ctx.input.page.url(); const t = o.reviewTask;
-      await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.company.issuePrefix}/issues/${t.identifier ?? t.id}`, o.origin).href, { waitUntil: "domcontentloaded" });
+      await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.space.issuePrefix}/issues/${t.identifier ?? t.id}`, o.origin).href, { waitUntil: "domcontentloaded" });
       await expect(ctx.input.page.getByRole("heading", { name: t.title!, exact: true }).first()).toBeVisible();
       await expect(ctx.input.page.getByText(/Riley/, { exact: false }).first()).toBeVisible();
       await ctx.input.evidence("chat-catalog-pending-independent-review-opened.json", { taskId: t.id, reviewerId: state.reviewerId, status: t.status, url: ctx.input.page.url() });

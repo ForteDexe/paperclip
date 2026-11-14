@@ -3,7 +3,7 @@ import { executionWorkspaces, heartbeatRuns, type Db } from "@outpost/db";
 import { readRemoteWorkspaceAuthority, remoteWorkspaceRunReferenceSchema } from "@outpost/shared";
 import { REMOTE_WORKSPACE_ABANDONED_EPOCH_SCHEMA } from "./remote-workspace-epoch-abandonment.js";
 
-type Run = Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "runnerProfileJson">;
+type Run = Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId" | "runnerProfileJson">;
 
 export async function isAbandonedPreparedRemoteWorkspace(db: Db, run: Run): Promise<boolean> {
   if (run.runnerProfileJson?.nativeWorkspaceSync != null) return false;
@@ -11,7 +11,7 @@ export async function isAbandonedPreparedRemoteWorkspace(db: Db, run: Run): Prom
   if (!parsed.success || parsed.data.state !== "prepared") return false;
   const reference = parsed.data;
   const [workspace] = await db.select({ metadata: executionWorkspaces.metadata }).from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, run.companyId), eq(executionWorkspaces.id, reference.workspaceId)));
+    eq(executionWorkspaces.spaceId, run.spaceId), eq(executionWorkspaces.id, reference.workspaceId)));
   const authority = readRemoteWorkspaceAuthority(workspace?.metadata);
   if (!authority || authority.epoch <= reference.epoch || authority.writerRunId === run.id) return false;
   const receipts = Array.isArray(workspace?.metadata?.remoteWorkspaceAbandonedEpochs)
@@ -31,7 +31,7 @@ export function abandonedPreparedRemoteWorkspaceExists() {
     and exists (select 1 from execution_workspaces workspace
       cross join lateral jsonb_array_elements(case when jsonb_typeof(workspace.metadata->'remoteWorkspaceAbandonedEpochs') = 'array'
         then workspace.metadata->'remoteWorkspaceAbandonedEpochs' else '[]'::jsonb end) receipt
-      where workspace.company_id = ${heartbeatRuns.companyId} and workspace.id::text = ${reference}->>'workspaceId'
+      where workspace.space_id = ${heartbeatRuns.spaceId} and workspace.id::text = ${reference}->>'workspaceId'
         and receipt->>'schema' = ${REMOTE_WORKSPACE_ABANDONED_EPOCH_SCHEMA} and receipt->>'runId' = ${heartbeatRuns.id}::text
         and receipt->'epoch' = ${reference}->'epoch'))`;
 }

@@ -26,7 +26,7 @@ const meta = {
     "Automation and structured work/Cases/Structure, history and task links",
   component: CaseDetailHost,
   parameters: { layout: "padded", initialEntries: ["/PAP/cases/PAP-C42"],
-    paperclip: {
+    outpost: {
       "capabilities": [
         "cases/structure",
         "cases/history",

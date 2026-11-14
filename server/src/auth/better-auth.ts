@@ -11,14 +11,14 @@ import {
   authVerifications,
 } from "@outpost/db";
 import type { Config } from "../config.js";
-import { resolvePaperclipInstanceId } from "../home-paths.js";
+import { resolveOutpostInstanceId } from "../home-paths.js";
 import {
   workspaceLoginHandoffPlugin,
   type WorkspaceHandoffExpectedIdentity,
 } from "./workspace-login-handoff-plugin.js";
 import {
   normalizeWorkspaceHandoffOrigin,
-  resolveWorkspaceHandoffLocalCompanyId,
+  resolveWorkspaceHandoffLocalSpaceId,
   resolveWorkspaceHandoffLocalKey,
   resolveWorkspaceHandoffLocalWorkspaceId,
 } from "./workspace-login-handoff.js";
@@ -54,12 +54,12 @@ export function legacyAccountIssuerForCreate(account: { providerId: string; issu
   return account.providerId === "credential" ? "local:credential" : null;
 }
 
-export function deriveAuthCookiePrefix(instanceId = resolvePaperclipInstanceId()): string {
+export function deriveAuthCookiePrefix(instanceId = resolveOutpostInstanceId()): string {
   const scopedInstanceId = instanceId
     .trim()
     .replace(AUTH_COOKIE_PREFIX_INVALID_SEGMENTS_RE, "-")
     .replace(/^-+|-+$/g, "") || AUTH_COOKIE_PREFIX_FALLBACK;
-  return `paperclip-${scopedInstanceId}`;
+  return `outpost-${scopedInstanceId}`;
 }
 
 export function buildBetterAuthAdvancedOptions(input: { disableSecureCookies: boolean }) {
@@ -236,9 +236,9 @@ export function resolveWorkspaceHandoffIdentity(
       : null);
   return {
     key,
-    instanceId: resolvePaperclipInstanceId(),
+    instanceId: resolveOutpostInstanceId(),
     executionWorkspaceId: resolveWorkspaceHandoffLocalWorkspaceId(env),
-    companyId: resolveWorkspaceHandoffLocalCompanyId(env),
+    spaceId: resolveWorkspaceHandoffLocalSpaceId(env),
     origin: configuredOrigin,
   };
 }
@@ -251,7 +251,7 @@ export function createBetterAuthInstance(db: Db, config: Config, trustedOrigins:
   if (!secret) {
     throw new Error(
       "BETTER_AUTH_SECRET (or OUTPOST_AGENT_JWT_SECRET) must be set. " +
-      "For local development, set BETTER_AUTH_SECRET=paperclip-dev-secret in your .env file.",
+      "For local development, set BETTER_AUTH_SECRET=outpost-dev-secret in your .env file.",
     );
   }
   const disableSecureCookies = shouldDisableSecureAuthCookies({
@@ -315,7 +315,7 @@ export function createBetterAuthInstance(db: Db, config: Config, trustedOrigins:
                   key: null,
                   instanceId: null,
                   executionWorkspaceId: null,
-                  companyId: null,
+                  spaceId: null,
                   origin: null,
                 },
             }),

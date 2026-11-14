@@ -28,9 +28,9 @@ export function gradePreserveDraft(value: unknown) {
   const savedAttachment = o.state.savedAttachment as ChatQueryAttachmentReceipt | undefined;
   c.add("one-message-with-original-upload", human?.length === 1 && !!canonical && !!attachment && savedAttachment?.id === attachment.id
     && savedAttachment.issueCommentId === canonical.id && savedAttachment.issueId === o.state.sourceIssueId
-    && savedAttachment.companyId === o.companyId && savedAttachment.createdByUserId === canonical.authorUserId
+    && savedAttachment.spaceId === o.spaceId && savedAttachment.createdByUserId === canonical.authorUserId
     && savedAttachment.createdByAgentId == null && savedAttachment.sha256 === o.state.briefHash,
-    "One actual human send carries the exact human-owned upload receipt for this source and company.");
+    "One actual human send carries the exact human-owned upload receipt for this source and space.");
   c.add("actual-file-bytes-retained", o.state.downloadedBrief === o.state.briefBody && typeof o.state.briefBody === "string"
     && createHash("sha256").update(o.state.briefBody).digest("hex") === savedAttachment?.sha256,
     "Independent production download bytes match the original brief and receipt hash.");
@@ -47,7 +47,7 @@ export function gradePreserveDraft(value: unknown) {
 export const runtimeSteeringCases = [runtimeDefinition("steering.preserve-draft", async ctx => {
   const worker = await runtimeWorker(ctx); const source = await openStandingChat(ctx);
   await ctx.input.page.reload({ waitUntil: "domcontentloaded" }); await expect(editor(ctx)).toBeVisible();
-  const otherTask = await ctx.input.api.post<Entity>(`/api/companies/${ctx.input.fixtures.company.id}/issues`, { title: "Unrelated draft-isolation task", status: "backlog" });
+  const otherTask = await ctx.input.api.post<Entity>(`/api/spaces/${ctx.input.fixtures.space.id}/issues`, { title: "Unrelated draft-isolation task", status: "backlog" });
   const sourceUrl = ctx.input.page.url(); const filename = "website-brief.md";
   const briefBody = `# Website brief\nUse short copy, an accessible single-page layout, and a contact section. Product reference: ${ctx.input.nonce}.\n`;
   await editor(ctx).fill(ctx.scenario.query);
@@ -58,7 +58,7 @@ export const runtimeSteeringCases = [runtimeDefinition("steering.preserve-draft"
   const receipt = briefAttachment.find(row => row.originalFilename === filename)!;
   await expect(ctx.input.page.getByTestId("task-chat-composer-attachments")).toContainText(filename);
   await expect(ctx.input.page.getByTestId("task-chat-composer-attachments")).not.toContainText("Uploading");
-  await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${otherTask.identifier ?? otherTask.id}`, { waitUntil: "domcontentloaded" });
+  await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${otherTask.identifier ?? otherTask.id}`, { waitUntil: "domcontentloaded" });
   await expect(editor(ctx)).toBeVisible(); await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
   await expect(editor(ctx)).toBeVisible();
   const otherTaskDraftIsolated = (await draftText(ctx)) !== ctx.scenario.query;

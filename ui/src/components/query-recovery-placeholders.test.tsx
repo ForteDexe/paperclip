@@ -26,7 +26,7 @@ it.each(["paused", "failed"])("keeps uncached reads in their loading state throu
   try {
     await act(async () => root.render(<ConnectivityProvider store={store}>
       <CaseHandoffHistory caseId="case-one" />
-      <TaskDecisionRecord companyId="company-one" issueId="task-one" viewerId="user-one" />
+      <TaskDecisionRecord spaceId="space-one" issueId="task-one" viewerId="user-one" />
     </ConnectivityProvider>));
     expect(container.textContent).toContain("Loading handoffs…");
     expect(container.textContent).toContain("Loading decision…");

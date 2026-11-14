@@ -52,7 +52,7 @@ const benchmark = String.raw`  it("measures equivalent completed accepted-respon
     try {
       for (let round = 0; round < 5; round++) {
         for (const label of round % 2 ? ["after", "before"] : ["before", "after"]) {
-          const fixture = await seedCompany();
+          const fixture = await seedSpace();
           const configured = await configuredTelegramEndpoint(fixture);
           const contexts = [];
           for (let index = 0; index < 4; index++) contexts.push(await committedChatResponseRecoveryFixture(
@@ -86,7 +86,7 @@ const benchmark = String.raw`  it("measures equivalent completed accepted-respon
               expect(comments[0].body).toBe(context.result.summary);
               const publications = await readChatPublicationsByCommentId(comments[0].id);
               expect(publications).toHaveLength(1);
-              expect(publications[0]).toMatchObject({ companyId: fixture.companyId, endpointId: configured.endpoint.id,
+              expect(publications[0]).toMatchObject({ spaceId: fixture.spaceId, endpointId: configured.endpoint.id,
                 issueId: context.issue.id, conversationId: context.conversation.id, payload: { text: context.result.summary } });
             }
             expect(await readChatPublicationsByEndpointId(configured.endpoint.id)).toHaveLength(4);

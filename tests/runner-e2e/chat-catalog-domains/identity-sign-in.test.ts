@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { gradeSignInBoundary, signInIdentityBoundaryCases } from "./identity-sign-in.js";
-function valid() { return { personId: "alex", returnedPersonId: "alex", companyId: "acorn", conversationId: "standing-chat", returnedConversationId: "standing-chat",
+function valid() { return { personId: "alex", returnedPersonId: "alex", spaceId: "acorn", conversationId: "standing-chat", returnedConversationId: "standing-chat",
   beforeComposerVisible: true, expiredReadStatus: 401, expiredComposerAbsent: true, configuredSignInVisible: true,
   safeReturnPath: "/ACO/chats/morgan", intendedReturnPath: "/ACO/chats/morgan", restoredComposerVisible: true,
-  nonmemberCompanyStatus: 403, nonmemberConversationStatus: 404, nonmemberBrowserBlocked: true,
+  nonmemberSpaceStatus: 403, nonmemberConversationStatus: 404, nonmemberBrowserBlocked: true,
   beforeCommentIds: [], afterCommentIds: [], runIds: [] }; }
 describe("real sign-in boundary acceptance", () => {
   it.each([401, 404])("accepts complete real auth+same-resource+audience evidence with production denial %s", expiredReadStatus => { expect(gradeSignInBoundary({ ...valid(), expiredReadStatus }).passed).toBe(true); });

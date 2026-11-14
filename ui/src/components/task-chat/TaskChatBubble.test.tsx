@@ -10,12 +10,12 @@ import { IssueGalleryContext } from "@/context/IssueGalleryContext";
 import { MemoryRouter, useLocation } from "@/lib/router";
 import { TaskChatAgentIdentity, TaskChatBubble } from "./TaskChatBubble";
 import { copyTextToClipboard } from "@/lib/clipboard";
-import { paperclipHumanAvatarUrl } from "@/lib/issue-chat-human-author";
+import { outpostHumanAvatarUrl } from "@/lib/issue-chat-human-author";
 import type { TaskChatMessageItem } from "./task-chat-model";
 
-vi.mock("@/context/CompanyContext", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@/context/CompanyContext")>(),
-  useCompany: () => ({ selectedCompany: { issuePrefix: "TES" } }),
+vi.mock("@/context/SpaceContext", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/context/SpaceContext")>(),
+  useSpace: () => ({ selectedSpace: { issuePrefix: "TES" } }),
 }));
 
 vi.mock("@/lib/clipboard", () => ({ copyTextToClipboard: vi.fn().mockResolvedValue(undefined) }));
@@ -25,7 +25,7 @@ function CurrentPath() {
 }
 
 describe("chat author navigation", () => {
-  it.each(["name", "avatar"])("opens the responding agent's company-scoped overview from its %s", async (target) => {
+  it.each(["name", "avatar"])("opens the responding agent's space-scoped overview from its %s", async (target) => {
     const container = document.body.appendChild(document.createElement("div"));
     const root = createRoot(container);
     try {
@@ -111,7 +111,7 @@ describe("TaskChatBubble attachment chips", () => {
     const bubble = container.querySelector('[data-testid="task-chat-human-bubble"]');
     expect(bubble?.className).toContain("bg-transparent");
     expect(bubble?.className).not.toContain("bg-(--liveness-blue)");
-    expect(bubble?.querySelector(".paperclip-markdown")?.className).not.toContain("paperclip-markdown-on-accent");
+    expect(bubble?.querySelector(".outpost-markdown")?.className).not.toContain("outpost-markdown-on-accent");
     render(true);
     expect(bubble?.parentElement?.classList.contains("items-end")).toBe(true);
     expect(bubble?.className).toContain("bg-(--liveness-blue)");
@@ -129,9 +129,9 @@ describe("TaskChatBubble attachment chips", () => {
     const identity = container.querySelector('[data-testid="task-chat-human-identity"]');
     expect(identity?.querySelector("img")).toBeNull();
     expect(identity?.querySelector('[data-slot="avatar-fallback"]')?.textContent).toBe("SR");
-    expect(paperclipHumanAvatarUrl("/api/assets/sam/content")).toBe("/api/assets/sam/content");
-    expect(paperclipHumanAvatarUrl("https://example.com/track.png")).toBeNull();
-    expect(paperclipHumanAvatarUrl("//example.com/track.png")).toBeNull();
+    expect(outpostHumanAvatarUrl("/api/assets/sam/content")).toBe("/api/assets/sam/content");
+    expect(outpostHumanAvatarUrl("https://example.com/track.png")).toBeNull();
+    expect(outpostHumanAvatarUrl("//example.com/track.png")).toBeNull();
   });
 
   it("shows persistent iMessage attribution only on inbound human bubbles", () => {
@@ -143,7 +143,7 @@ describe("TaskChatBubble attachment chips", () => {
       ));
       expect(container.textContent?.includes("Sent from iMessage")).toBe(author === "human");
     }
-    renderMessage("Board reply");
+    renderMessage("Operator reply");
     expect(container.textContent).not.toContain("Sent from iMessage");
   });
 
@@ -374,11 +374,11 @@ function attachment(overrides: Partial<IssueAttachment>): IssueAttachment {
   const id = overrides.id ?? "attachment";
   return {
     id,
-    companyId: "company",
+    spaceId: "space",
     issueId: "issue",
     issueCommentId: "m1",
     assetId: `asset-${id}`,
-    provider: "paperclip",
+    provider: "outpost",
     objectKey: id,
     contentType: "application/octet-stream",
     byteSize: 1,
@@ -423,17 +423,17 @@ describe("TaskChatBubble accent-bubble text color", () => {
 
   it("marks the own-message markdown as on-accent so prose text follows text-white", () => {
     render({ id: "m1", kind: "message", author: "human", isCurrentUser: true, text: "when a new task is created…" });
-    const body = container.querySelector(".paperclip-markdown");
+    const body = container.querySelector(".outpost-markdown");
     expect(body).not.toBeNull();
     // Without this class the light-mode prose body color reads as black on blue.
-    expect(body?.className).toContain("paperclip-markdown-on-accent");
+    expect(body?.className).toContain("outpost-markdown-on-accent");
   });
 
   it("leaves the neutral agent bubble on default prose colors", () => {
-    render({ id: "m1", kind: "message", author: "agent", authorName: "CEO", text: "Final reply." });
-    const body = container.querySelector(".paperclip-markdown");
+    render({ id: "m1", kind: "message", author: "agent", authorName: "Default agent", text: "Final reply." });
+    const body = container.querySelector(".outpost-markdown");
     expect(body).not.toBeNull();
-    expect(body?.className).not.toContain("paperclip-markdown-on-accent");
+    expect(body?.className).not.toContain("outpost-markdown-on-accent");
   });
 });
 
@@ -555,7 +555,7 @@ describe("TaskChatBubble interstitial self-talk (PAP-357)", () => {
       id: "m1",
       kind: "message",
       author: "agent",
-      authorName: "CEO",
+      authorName: "Default agent",
       text: "Let me check the **adapter** first.",
       interstitial: true,
       streaming: true,
@@ -569,12 +569,12 @@ describe("TaskChatBubble interstitial self-talk (PAP-357)", () => {
       id: "m1",
       kind: "message",
       author: "agent",
-      authorName: "CEO",
+      authorName: "Default agent",
       text: "Final reply.",
     });
     expect(container.querySelector('[data-testid="task-chat-interstitial"]')).toBeNull();
     expect(container.querySelector('[data-testid="task-chat-agent-avatar"]')).not.toBeNull();
-    expect(container.textContent).toContain("CEO");
+    expect(container.textContent).toContain("Default agent");
   });
 });
 
@@ -605,7 +605,7 @@ describe("TaskChatBubble footer line (round 9)", () => {
   }
 
   it("shows the timestamp always — not only on hover", () => {
-    renderBubble({ id: "m1", kind: "message", author: "agent", authorName: "CEO", text: "Done.", timestamp: "2:34 PM" });
+    renderBubble({ id: "m1", kind: "message", author: "agent", authorName: "Default agent", text: "Done.", timestamp: "2:34 PM" });
     const stamp = [...container.querySelectorAll("span")].find((el) => el.textContent === "2:34 PM");
     expect(stamp).not.toBeNull();
     expect(stamp?.className).not.toContain("opacity-0");
@@ -614,7 +614,7 @@ describe("TaskChatBubble footer line (round 9)", () => {
 
   it("renders the attached turn in place of the plain timestamp footer", () => {
     renderBubble(
-      { id: "m1", kind: "message", author: "agent", authorName: "CEO", text: "Done.", timestamp: "2:34 PM" },
+      { id: "m1", kind: "message", author: "agent", authorName: "Default agent", text: "Done.", timestamp: "2:34 PM" },
       <div data-testid="fake-attached-turn">2:34 PM · Worked</div>,
     );
     const slot = container.querySelector('[data-testid="task-chat-bubble-attached-turn"]');
@@ -656,7 +656,7 @@ describe("TaskChatBubble footer actions (PAP-413)", () => {
 
   it("hands actions to the attached turn (not this wrapper) so they ride the summary row", () => {
     render(
-      { id: "m1", kind: "message", author: "agent", authorName: "CEO", text: "Done.", timestamp: "2:34 PM" },
+      { id: "m1", kind: "message", author: "agent", authorName: "Default agent", text: "Done.", timestamp: "2:34 PM" },
       { attachedTurn: <div data-testid="fake-attached-turn">2:34 PM · Worked</div>, actions },
     );
     const slot = container.querySelector('[data-testid="task-chat-bubble-attached-turn"]');
@@ -669,7 +669,7 @@ describe("TaskChatBubble footer actions (PAP-413)", () => {
 
   it("keeps runless timestamp left and actions at the stable right edge", () => {
     render(
-      { id: "m1", kind: "message", author: "agent", authorName: "CEO", text: "Done.", timestamp: "2:34 PM" },
+      { id: "m1", kind: "message", author: "agent", authorName: "Default agent", text: "Done.", timestamp: "2:34 PM" },
       { actions },
     );
     expect(container.querySelector('[data-testid="fake-actions"]')).not.toBeNull();

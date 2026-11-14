@@ -1,5 +1,5 @@
 export interface NativeDiagnosticOwner {
-  companyId: string;
+  spaceId: string;
   sessionScope: string;
   runId: string;
 }
@@ -19,18 +19,18 @@ export class NativeSessionDiagnostics {
   private lastOwner: NativeDiagnosticOwner;
 
   constructor(
-    private readonly scope: Pick<NativeDiagnosticOwner, "companyId" | "sessionScope">,
+    private readonly scope: Pick<NativeDiagnosticOwner, "spaceId" | "sessionScope">,
     initialOwner: NativeDiagnosticOwner,
     private readonly idle: (owner: NativeDiagnosticOwner, kind: NativeIdleDiagnosticKind) => void,
     private readonly failed: (owner: NativeDiagnosticOwner) => void,
   ) {
-    if (!initialOwner.runId || initialOwner.companyId !== scope.companyId || initialOwner.sessionScope !== scope.sessionScope)
+    if (!initialOwner.runId || initialOwner.spaceId !== scope.spaceId || initialOwner.sessionScope !== scope.sessionScope)
       throw new Error("native_diagnostic_owner_scope_mismatch");
     this.lastOwner = { ...initialOwner };
   }
 
   activate(owner: NativeDiagnosticOwner, sink?: Sink): NativeDiagnosticLease {
-    if (!owner.runId || owner.companyId !== this.scope.companyId || owner.sessionScope !== this.scope.sessionScope)
+    if (!owner.runId || owner.spaceId !== this.scope.spaceId || owner.sessionScope !== this.scope.sessionScope)
       throw new Error("native_diagnostic_owner_scope_mismatch");
     if (this.active && (this.active.owner.runId !== owner.runId || this.active.sink !== sink))
       throw new Error("native_diagnostic_owner_busy");

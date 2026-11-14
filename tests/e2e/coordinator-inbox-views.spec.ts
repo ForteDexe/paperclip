@@ -11,29 +11,29 @@ for (const mobile of [false, true]) test(`Mine retains Inbox behavior inside Tas
   test.setTimeout(90_000);
   await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1280, height: 900 });
   await page.addInitScript(() => {
-    if (!localStorage.getItem("paperclip:inbox:issue-columns")) localStorage.setItem("paperclip:inbox:issue-columns", JSON.stringify(["status", "id", "project", "updated"]));
+    if (!localStorage.getItem("outpost:inbox:issue-columns")) localStorage.setItem("outpost:inbox:issue-columns", JSON.stringify(["status", "id", "project", "updated"]));
   });
-  const company = await json(await request.post("/api/companies", { data: { name: "Personal Tasks verification" } }));
+  const space = await json(await request.post("/api/spaces", { data: { name: "Personal Tasks verification" } }));
   const preferences = await json(await request.get("/api/workspace-preferences/me"));
-  const preferencePath = `/api/companies/${company.id}/workspace-preferences/me`;
+  const preferencePath = `/api/spaces/${space.id}/workspace-preferences/me`;
   try {
     await json(await request.put(preferencePath, { data: { coordinatorWorkspaceEnabled: true } }));
-    const agent = await json(await request.post(`/api/companies/${company.id}/agents`, { data: {
+    const agent = await json(await request.post(`/api/spaces/${space.id}/agents`, { data: {
       name: "Inbox activity fixture", adapterType: "process", adapterConfig: {
         command: process.execPath, args: [path.resolve("tests/e2e/fixtures/inbox-activity.mjs")],
       }, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },
     } }));
-    const unread = await json(await request.post(`/api/companies/${company.id}/issues`, { data: {
+    const unread = await json(await request.post(`/api/spaces/${space.id}/issues`, { data: {
       title: "Unread personal task", status: "todo", assigneeAgentId: agent.id,
     } }));
-    const read = await json(await request.post(`/api/companies/${company.id}/issues`, { data: { title: "Read personal task", status: "todo" } }));
+    const read = await json(await request.post(`/api/spaces/${space.id}/issues`, { data: { title: "Read personal task", status: "todo" } }));
     await expect.poll(async () => {
       const comments = await json(await request.get(`/api/issues/${unread.id}/comments`));
       return comments.some((comment: { authorAgentId: string | null }) => comment.authorAgentId === agent.id);
     }, { timeout: 30_000 }).toBe(true);
     await json(await request.delete(`/api/issues/${unread.id}/read`));
     await json(await request.post(`/api/issues/${read.id}/read`, { data: {} }));
-    await page.goto(`/${company.issuePrefix}/inbox/mine`);
+    await page.goto(`/${space.issuePrefix}/inbox/mine`);
     await expect(page).toHaveURL(/\/issues\?view=mine$/);
     const mine = page.getByRole("region", { name: "Tasks", exact: true });
     const unreadRow = mine.locator(`[data-issue-id="${unread.id}"]`);
@@ -41,7 +41,7 @@ for (const mobile of [false, true]) test(`Mine retains Inbox behavior inside Tas
     await expect(unreadRow).toHaveAttribute("data-unread", "true");
     await expect(unreadRow.locator('[data-slot="task-row-title"]')).toHaveClass(/font-semibold/);
     await expect(readRow.locator('[data-slot="task-row-title"]')).not.toHaveClass(/font-semibold/);
-    await expect(page.getByRole("link", { name: /^Inbox(?:,|$)/ }).first()).toHaveAttribute("href", `/${company.issuePrefix}/decisions`);
+    await expect(page.getByRole("link", { name: /^Inbox(?:,|$)/ }).first()).toHaveAttribute("href", `/${space.issuePrefix}/decisions`);
 
     await page.getByRole("button", { name: "Columns", exact: true }).click();
     const creatorColumn = page.getByRole("menuitemcheckbox", { name: /^Kicked off by/ });
@@ -82,7 +82,7 @@ for (const mobile of [false, true]) test(`Mine retains Inbox behavior inside Tas
       await page.keyboard.press("U");
       await expect(unreadRow).toHaveAttribute("data-unread", "true");
       const archiveSaved = page.waitForResponse(response => response.url().endsWith(`/api/issues/${unread.id}/inbox-archive`) && response.request().method() === "POST");
-      const archiveRefreshed = page.waitForResponse(response => response.url().includes(`/api/companies/${company.id}/inbox/mine`) && response.request().method() === "GET");
+      const archiveRefreshed = page.waitForResponse(response => response.url().includes(`/api/spaces/${space.id}/inbox/mine`) && response.request().method() === "GET");
       await page.keyboard.press("a");
       expect((await archiveSaved).ok()).toBe(true);
       await archiveRefreshed;
@@ -95,6 +95,6 @@ for (const mobile of [false, true]) test(`Mine retains Inbox behavior inside Tas
     }
   } finally {
     await request.put(preferencePath, { data: { coordinatorWorkspaceEnabled: preferences.coordinatorWorkspaceEnabled } });
-    await request.patch(`/api/companies/${company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${space.id}`, { data: { status: "archived" } });
   }
 });

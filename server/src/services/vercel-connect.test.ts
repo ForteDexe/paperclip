@@ -12,7 +12,7 @@ import type { VercelConnectCredentialReference } from "@outpost/shared";
 const credential: VercelConnectCredentialReference = {
   provider: "vercel_connect",
   connectorId: "scl_posthog",
-  connectorUid: "posthog-paperclip",
+  connectorUid: "posthog-outpost",
   service: "posthog",
   connectorType: "api-key",
   principalMode: "user",
@@ -24,7 +24,7 @@ const credential: VercelConnectCredentialReference = {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("Vercel Connect credential adapter", () => {
-  it("canonicalizes Paperclip's loopback callback to Vercel's accepted localhost form", () => {
+  it("canonicalizes Outpost's loopback callback to Vercel's accepted localhost form", () => {
     expect(vercelConnectCallbackUrl(
       "http://127.0.0.1:3200/api/tools/oauth/callback?stale=1#fragment",
       "one-time-state",
@@ -68,19 +68,19 @@ describe("Vercel Connect credential adapter", () => {
     });
   });
 
-  it("derives stable company- and user-bound subjects without browser input", () => {
+  it("derives stable space- and user-bound subjects without browser input", () => {
     vi.stubEnv("OUTPOST_INSTANCE_ID", "instance-one");
     const base = {
       credential,
       connectionId: "connection-one",
-      companyId: "company-one",
+      spaceId: "space-one",
       grantKind: "user" as const,
       subjectUserId: "user-one",
     };
     const first = deriveVercelConnectSubject(base);
     expect(first).toEqual(deriveVercelConnectSubject(base));
     expect(first.subject).toMatchObject({ type: "user", id: expect.stringMatching(/^pc_/) });
-    expect(deriveVercelConnectSubject({ ...base, companyId: "company-two" }).subject).not.toEqual(first.subject);
+    expect(deriveVercelConnectSubject({ ...base, spaceId: "space-two" }).subject).not.toEqual(first.subject);
     expect(deriveVercelConnectSubject({ ...base, subjectUserId: "user-two" }).subject).not.toEqual(first.subject);
   });
 
@@ -89,17 +89,17 @@ describe("Vercel Connect credential adapter", () => {
     expect(deriveVercelConnectSubject({
       credential: appCredential,
       connectionId: "connection-one",
-      companyId: "company-one",
+      spaceId: "space-one",
       grantKind: "organization",
     })).toEqual({ subject: { type: "app" } });
     expect(vercelTokenRequest({
       credential: appCredential,
       connectionId: "connection-one",
-      companyId: "company-one",
+      spaceId: "space-one",
       resources: ["https://mcp.posthog.com/mcp"],
       grant: { kind: "organization", subjectUserId: null, externalCredential: null },
     })).toMatchObject({
-      connector: "posthog-paperclip",
+      connector: "posthog-outpost",
       subject: { type: "app" },
       resources: ["https://mcp.posthog.com/mcp"],
     });
@@ -114,7 +114,7 @@ describe("Vercel Connect credential adapter", () => {
         token: "provider-bearer-must-not-persist",
         tokenId: "stk_123",
         expiresAt: Date.parse("2026-08-26T13:00:00.000Z"),
-        connector: { id: "scl_posthog", uid: "posthog-paperclip", type: "api-key" },
+        connector: { id: "scl_posthog", uid: "posthog-outpost", type: "api-key" },
         installationId: "installation-1",
         tenantId: "project-1",
         claims: { email: "private@example.com" },

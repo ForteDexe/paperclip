@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   costEvents,
   createDb,
   decisions,
@@ -38,7 +38,7 @@ describeEmbeddedPostgres("issueService.remove referential integrity", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-issue-remove-cascade-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-issue-remove-cascade-");
     db = createDb(tempDb.connectionString);
     svc = issueService(db);
   }, 20_000);
@@ -57,35 +57,35 @@ describeEmbeddedPostgres("issueService.remove referential integrity", () => {
     await db.delete(issues);
     await db.delete(goals);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompanyAgentRun() {
-    const companyId = randomUUID();
+  async function seedSpaceAgentRun() {
+    const spaceId = randomUUID();
     const goalId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(goals).values({
       id: goalId,
-      companyId,
+      spaceId,
       title: "Delete safety",
       level: "task",
       status: "active",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Origin",
       role: "engineer",
       status: "active",
@@ -96,20 +96,20 @@ describeEmbeddedPostgres("issueService.remove referential integrity", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "manual",
       status: "succeeded",
     });
 
-    return { companyId, goalId, agentId, runId };
+    return { spaceId, goalId, agentId, runId };
   }
 
-  async function seedIssue(companyId: string, goalId: string) {
+  async function seedIssue(spaceId: string, goalId: string) {
     const issueId = randomUUID();
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       goalId,
       title: "Deletable issue",
       status: "in_progress",
@@ -119,28 +119,28 @@ describeEmbeddedPostgres("issueService.remove referential integrity", () => {
   }
 
   it("deletes an issue and cascades its dependent rows", async () => {
-    const { companyId, goalId, runId } = await seedCompanyAgentRun();
-    const issueId = await seedIssue(companyId, goalId);
+    const { spaceId, goalId, runId } = await seedSpaceAgentRun();
+    const issueId = await seedIssue(spaceId, goalId);
 
     await db.insert(feedbackVotes).values({
       id: randomUUID(),
-      companyId,
+      spaceId,
       issueId,
       targetType: "comment",
       targetId: "target-1",
-      authorUserId: "board-user",
+      authorUserId: "operator-user",
       vote: "up",
     });
     await db.insert(issueComments).values({
       id: randomUUID(),
-      companyId,
+      spaceId,
       issueId,
-      authorUserId: "board-user",
+      authorUserId: "operator-user",
       body: "First comment.",
     });
     await db.insert(issueThreadInteractions).values({
       id: randomUUID(),
-      companyId,
+      spaceId,
       issueId,
       kind: "request_confirmation",
       sourceRunId: runId,
@@ -153,15 +153,15 @@ describeEmbeddedPostgres("issueService.remove referential integrity", () => {
     });
     await db.insert(issueReadStates).values({
       id: randomUUID(),
-      companyId,
+      spaceId,
       issueId,
-      userId: "board-user",
+      userId: "operator-user",
     });
     await db.insert(issueInboxArchives).values({
       id: randomUUID(),
-      companyId,
+      spaceId,
       issueId,
-      userId: "board-user",
+      userId: "operator-user",
     });
 
     const removed = await svc.remove(issueId);
@@ -179,13 +179,13 @@ describeEmbeddedPostgres("issueService.remove referential integrity", () => {
   });
 
   it("deletes an issue and keeps ledger rows with issueId set to null", async () => {
-    const { companyId, goalId, agentId } = await seedCompanyAgentRun();
-    const issueId = await seedIssue(companyId, goalId);
+    const { spaceId, goalId, agentId } = await seedSpaceAgentRun();
+    const issueId = await seedIssue(spaceId, goalId);
 
     const costEventId = randomUUID();
     await db.insert(costEvents).values({
       id: costEventId,
-      companyId,
+      spaceId,
       agentId,
       issueId,
       provider: "anthropic",
@@ -196,7 +196,7 @@ describeEmbeddedPostgres("issueService.remove referential integrity", () => {
     const financeEventId = randomUUID();
     await db.insert(financeEvents).values({
       id: financeEventId,
-      companyId,
+      spaceId,
       agentId,
       issueId,
       costEventId,
@@ -222,12 +222,12 @@ describeEmbeddedPostgres("issueService.remove referential integrity", () => {
   });
 
   it("returns a 409 conflict when a restricted decisions row references the issue", async () => {
-    const { companyId, goalId, agentId, runId } = await seedCompanyAgentRun();
-    const issueId = await seedIssue(companyId, goalId);
+    const { spaceId, goalId, agentId, runId } = await seedSpaceAgentRun();
+    const issueId = await seedIssue(spaceId, goalId);
 
     await db.insert(decisions).values({
       id: randomUUID(),
-      companyId,
+      spaceId,
       originAgentId: agentId,
       originIssueId: issueId,
       originRunId: runId,

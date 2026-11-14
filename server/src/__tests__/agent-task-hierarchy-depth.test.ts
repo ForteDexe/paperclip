@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRuns, issueRelations, issues } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, issueRelations, issues } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -18,7 +18,7 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   let db: ReturnType<typeof createDb>;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-agent-task-depth-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-agent-task-depth-");
     db = createDb(tempDb.connectionString);
   });
 
@@ -26,18 +26,18 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompany() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `D${companyId.replace(/-/g, "").slice(0, 5).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+  async function seedSpace() {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `D${spaceId.replace(/-/g, "").slice(0, 5).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     const agentId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Coder",
       role: "engineer",
       status: "active",
@@ -46,17 +46,17 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
       runtimeConfig: {},
       permissions: {},
     });
-    return { companyId, agentId };
+    return { spaceId, agentId };
   }
 
   async function seedIssue(
-    companyId: string,
+    spaceId: string,
     values: Partial<typeof issues.$inferInsert> = {},
   ) {
     const id = randomUUID();
     await db.insert(issues).values({
       id,
-      companyId,
+      spaceId,
       title: `Task ${id.slice(0, 6)}`,
       status: "todo",
       priority: "medium",
@@ -65,21 +65,21 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
     return id;
   }
 
-  async function seedTree(companyId: string) {
+  async function seedTree(spaceId: string) {
     const suffix = randomUUID().slice(0, 8);
     const rootIdentifier = `ROOT-${suffix}`;
     const childIdentifier = `CHILD-${suffix}`;
-    const rootId = await seedIssue(companyId, { identifier: rootIdentifier });
-    const childId = await seedIssue(companyId, { parentId: rootId, identifier: childIdentifier });
+    const rootId = await seedIssue(spaceId, { identifier: rootIdentifier });
+    const childId = await seedIssue(spaceId, { parentId: rootId, identifier: childIdentifier });
     return { rootId, childId, rootIdentifier, childIdentifier };
   }
 
   it("places an agent's child-of-a-child beside the requester and keeps it as the origin", async () => {
-    const { companyId } = await seedCompany();
-    const { rootId, childId, rootIdentifier, childIdentifier } = await seedTree(companyId);
+    const { spaceId } = await seedSpace();
+    const { rootId, childId, rootIdentifier, childIdentifier } = await seedTree(spaceId);
 
     // expectedParentId: the route authorized the placed ancestor.
-    const created = await issueService(db).create(companyId, {
+    const created = await issueService(db).create(spaceId, {
       title: "Follow-up from the child",
       parentId: childId,
       expectedParentId: rootId,
@@ -96,12 +96,12 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
     });
   });
 
-  it("lets board users create grandchildren", async () => {
-    const { companyId } = await seedCompany();
-    const { childId } = await seedTree(companyId);
+  it("lets operator users create grandchildren", async () => {
+    const { spaceId } = await seedSpace();
+    const { childId } = await seedTree(spaceId);
 
-    const created = await issueService(db).create(companyId, {
-      title: "Board grandchild",
+    const created = await issueService(db).create(spaceId, {
+      title: "Operator grandchild",
       parentId: childId,
       parentDepthPolicy: "allow_nested",
     });
@@ -112,10 +112,10 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   });
 
   it("creates direct children of a top-level task unchanged", async () => {
-    const { companyId } = await seedCompany();
-    const { rootId } = await seedTree(companyId);
+    const { spaceId } = await seedSpace();
+    const { rootId } = await seedTree(spaceId);
 
-    const created = await issueService(db).create(companyId, { title: "Second child", parentId: rootId });
+    const created = await issueService(db).create(spaceId, { title: "Second child", parentId: rootId });
 
     expect(created.parentId).toBe(rootId);
     expect(created.originIssueId).toBe(rootId);
@@ -123,12 +123,12 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   });
 
   it("records the creating run's task as the origin of a top-level task", async () => {
-    const { companyId, agentId } = await seedCompany();
-    const sourceId = await seedIssue(companyId);
+    const { spaceId, agentId } = await seedSpace();
+    const sourceId = await seedIssue(spaceId);
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", issueId: sourceId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", issueId: sourceId });
 
-    const created = await issueService(db).create(companyId, {
+    const created = await issueService(db).create(spaceId, {
       title: "Standalone follow-up",
       parentId: null,
       createdByAgentId: agentId,
@@ -141,11 +141,11 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   });
 
   it("flattens legacy deep trees to their root", async () => {
-    const { companyId } = await seedCompany();
-    const { rootId, childId } = await seedTree(companyId);
-    const grandchildId = await seedIssue(companyId, { parentId: childId });
+    const { spaceId } = await seedSpace();
+    const { rootId, childId } = await seedTree(spaceId);
+    const grandchildId = await seedIssue(spaceId, { parentId: childId });
 
-    const created = await issueService(db).create(companyId, { title: "Under legacy grandchild", parentId: grandchildId, expectedParentId: rootId });
+    const created = await issueService(db).create(spaceId, { title: "Under legacy grandchild", parentId: grandchildId, expectedParentId: rootId });
 
     expect(created.parentId).toBe(rootId);
     expect(created.originIssueId).toBe(grandchildId);
@@ -153,8 +153,8 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   });
 
   it("blocks the requester, not the root, when a flattened child should block its parent", async () => {
-    const { companyId } = await seedCompany();
-    const { rootId, childId } = await seedTree(companyId);
+    const { spaceId } = await seedSpace();
+    const { rootId, childId } = await seedTree(spaceId);
 
     const { issue, parentBlockerAdded } = await issueService(db).createChild(childId, {
       title: "Blocking follow-up",
@@ -174,8 +174,8 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   });
 
   it("reuses a flattened child for the same idempotency key", async () => {
-    const { companyId } = await seedCompany();
-    const { childId } = await seedTree(companyId);
+    const { spaceId } = await seedSpace();
+    const { childId } = await seedTree(spaceId);
     const idempotencyKey = `flatten-${randomUUID()}`;
 
     const first = await issueService(db).createChild(childId, { title: "Once", idempotencyKey });
@@ -185,43 +185,43 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   });
 
   it("places under the real root of a legacy tree deeper than 64 levels", async () => {
-    const { companyId } = await seedCompany();
-    const rootId = await seedIssue(companyId);
+    const { spaceId } = await seedSpace();
+    const rootId = await seedIssue(spaceId);
     let deepestId = rootId;
-    for (let level = 1; level < 70; level += 1) deepestId = await seedIssue(companyId, { parentId: deepestId });
+    for (let level = 1; level < 70; level += 1) deepestId = await seedIssue(spaceId, { parentId: deepestId });
 
-    const created = await issueService(db).create(companyId, { title: "From the 70th level", parentId: deepestId, expectedParentId: rootId });
+    const created = await issueService(db).create(spaceId, { title: "From the 70th level", parentId: deepestId, expectedParentId: rootId });
 
     expect(created.parentId).toBe(rootId);
     expect(created.originIssueId).toBe(deepestId);
   });
 
   it("does not move a task above a low-trust boundary root", async () => {
-    const { companyId } = await seedCompany();
-    const rootId = await seedIssue(companyId);
+    const { spaceId } = await seedSpace();
+    const rootId = await seedIssue(spaceId);
     const boundaryId = randomUUID();
-    await seedIssue(companyId, {
+    await seedIssue(spaceId, {
       id: boundaryId,
       parentId: rootId,
       executionPolicy: {
         authorizationPolicy: {
-          trustBoundary: { mode: "low_trust_review", companyId, rootIssueId: boundaryId },
+          trustBoundary: { mode: "low_trust_review", spaceId, rootIssueId: boundaryId },
         },
       },
     });
 
-    const placement = await resolveNewTaskParent(db, companyId, boundaryId, "flatten");
+    const placement = await resolveNewTaskParent(db, spaceId, boundaryId, "flatten");
 
     expect(placement).toEqual({ effectiveParentId: boundaryId, adjustment: null });
   });
 
   it("falls back to top level when a legacy tree is rooted at a conversation", async () => {
-    const { companyId, agentId } = await seedCompany();
-    const conversationId = await seedIssue(companyId, { conversationAgentId: agentId, conversationUserId: "user-1", conversationState: "active", assigneeAgentId: agentId,
+    const { spaceId, agentId } = await seedSpace();
+    const conversationId = await seedIssue(spaceId, { conversationAgentId: agentId, conversationUserId: "user-1", conversationState: "active", assigneeAgentId: agentId,
     });
-    const legacyChildId = await seedIssue(companyId, { parentId: conversationId });
+    const legacyChildId = await seedIssue(spaceId, { parentId: conversationId });
 
-    const created = await issueService(db).create(companyId, { title: "From legacy chat child", parentId: legacyChildId });
+    const created = await issueService(db).create(spaceId, { title: "From legacy chat child", parentId: legacyChildId });
 
     expect(created.parentId).toBeNull();
     expect(created.originIssueId).toBe(legacyChildId);
@@ -229,13 +229,13 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   });
 
   it("rejects a create whose locked placement differs from the authorized one", async () => {
-    const { companyId } = await seedCompany();
-    const { rootId, childId } = await seedTree(companyId);
-    const otherRootId = await seedIssue(companyId);
+    const { spaceId } = await seedSpace();
+    const { rootId, childId } = await seedTree(spaceId);
+    const otherRootId = await seedIssue(spaceId);
     // The route authorized placement under rootId; the child then moved.
     await db.update(issues).set({ parentId: otherRootId }).where(eq(issues.id, childId));
 
-    await expect(issueService(db).create(companyId, {
+    await expect(issueService(db).create(spaceId, {
       title: "Stale placement",
       parentId: childId,
       expectedParentId: rootId,
@@ -243,13 +243,13 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   });
 
   it("dedupes recent titles per requester, not across siblings placed under the same root", async () => {
-    const { companyId } = await seedCompany();
-    const { rootId, childId } = await seedTree(companyId);
-    const otherChildId = await seedIssue(companyId, { parentId: rootId });
+    const { spaceId } = await seedSpace();
+    const { rootId, childId } = await seedTree(spaceId);
+    const otherChildId = await seedIssue(spaceId, { parentId: rootId });
 
-    const first = await issueService(db).create(companyId, { title: "Write tests", parentId: childId, allowDuplicate: false });
-    const second = await issueService(db).create(companyId, { title: "Write tests", parentId: otherChildId, allowDuplicate: false });
-    const repeat = await issueService(db).create(companyId, { title: "Write tests", parentId: childId, allowDuplicate: false });
+    const first = await issueService(db).create(spaceId, { title: "Write tests", parentId: childId, allowDuplicate: false });
+    const second = await issueService(db).create(spaceId, { title: "Write tests", parentId: otherChildId, allowDuplicate: false });
+    const repeat = await issueService(db).create(spaceId, { title: "Write tests", parentId: childId, allowDuplicate: false });
 
     expect(second.id).not.toBe(first.id);
     expect(second.originIssueId).toBe(otherChildId);
@@ -257,11 +257,11 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   });
 
   it("ignores caller-supplied originIssueId", async () => {
-    const { companyId } = await seedCompany();
-    const { childId } = await seedTree(companyId);
-    const forgedId = await seedIssue(companyId);
+    const { spaceId } = await seedSpace();
+    const { childId } = await seedTree(spaceId);
+    const forgedId = await seedIssue(spaceId);
 
-    const created = await issueService(db).create(companyId, {
+    const created = await issueService(db).create(spaceId, {
       title: "Provenance is server-derived",
       parentId: childId,
       ...({ originIssueId: forgedId } as Record<string, unknown>),
@@ -270,52 +270,52 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
     expect(created.originIssueId).toBe(childId);
   });
 
-  it("rejects a parent from another company on create and move", async () => {
-    const { companyId } = await seedCompany();
-    const { companyId: otherCompanyId } = await seedCompany();
-    const foreignParentId = await seedIssue(otherCompanyId);
+  it("rejects a parent from another space on create and move", async () => {
+    const { spaceId } = await seedSpace();
+    const { spaceId: otherSpaceId } = await seedSpace();
+    const foreignParentId = await seedIssue(otherSpaceId);
 
-    await expect(issueService(db).create(companyId, { title: "Foreign parent", parentId: foreignParentId }))
+    await expect(issueService(db).create(spaceId, { title: "Foreign parent", parentId: foreignParentId }))
       .rejects.toMatchObject({ status: 404 });
-    await expect(issueService(db).create(companyId, {
-      title: "Foreign parent, board", parentId: foreignParentId, parentDepthPolicy: "allow_nested",
+    await expect(issueService(db).create(spaceId, {
+      title: "Foreign parent, operator", parentId: foreignParentId, parentDepthPolicy: "allow_nested",
     })).rejects.toMatchObject({ status: 404 });
 
-    const movingId = await seedIssue(companyId);
+    const movingId = await seedIssue(spaceId);
     await expect(issueService(db).update(movingId, { parentId: foreignParentId, parentDepthPolicy: "allow_nested" }))
       .rejects.toMatchObject({ status: 404 });
   });
 
   it("originates from the creating run's task, not the named parent, in detail and lists", async () => {
-    const { companyId, agentId } = await seedCompany();
-    const { childId } = await seedTree(companyId);
-    const runTaskId = await seedIssue(companyId);
+    const { spaceId, agentId } = await seedSpace();
+    const { childId } = await seedTree(spaceId);
+    const runTaskId = await seedIssue(spaceId);
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", issueId: runTaskId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", issueId: runTaskId });
 
-    const created = await issueService(db).create(companyId, {
+    const created = await issueService(db).create(spaceId, {
       title: "Named parent from another run", parentId: childId, createdByAgentId: agentId, actorRunId: runId,
     });
     // A run working on runTask filed this under childId: it originates from runTask.
     expect(created.originIssueId).toBe(runTaskId);
     expect(created.privacyParentIssueId).toBe(childId);
 
-    const fromRunTask = await issueService(db).list(companyId, { createdFromIssueId: runTaskId });
-    const fromChild = await issueService(db).list(companyId, { createdFromIssueId: childId });
+    const fromRunTask = await issueService(db).list(spaceId, { createdFromIssueId: runTaskId });
+    const fromChild = await issueService(db).list(spaceId, { createdFromIssueId: childId });
     expect(fromRunTask.map((row) => row.id)).toContain(created.id);
     expect(fromChild.map((row) => row.id)).not.toContain(created.id);
     expect((await resolveIssueCreationSource(db, created))?.sourceIssue.id).toBe(runTaskId);
   });
 
   it("originates from a legacy run bound only by a task identifier", async () => {
-    const { companyId, agentId } = await seedCompany();
-    const { childId } = await seedTree(companyId);
+    const { spaceId, agentId } = await seedSpace();
+    const { childId } = await seedTree(spaceId);
     const identifier = `LEG-${randomUUID().slice(0, 6)}`;
-    const runTaskId = await seedIssue(companyId, { identifier });
+    const runTaskId = await seedIssue(spaceId, { identifier });
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", contextSnapshot: { taskKey: identifier } });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", contextSnapshot: { taskKey: identifier } });
 
-    const created = await issueService(db).create(companyId, {
+    const created = await issueService(db).create(spaceId, {
       title: "From a legacy-bound run", parentId: childId, createdByAgentId: agentId, actorRunId: runId,
     });
 
@@ -323,11 +323,11 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   });
 
   it("makes unconfirmed placements standalone instead of writing under an unchecked ancestor", async () => {
-    const { companyId } = await seedCompany();
-    const { childId } = await seedTree(companyId);
+    const { spaceId } = await seedSpace();
+    const { childId } = await seedTree(spaceId);
 
     // Internal callers authorize only the parent they request.
-    const created = await issueService(db).create(companyId, { title: "Internal follow-up", parentId: childId });
+    const created = await issueService(db).create(spaceId, { title: "Internal follow-up", parentId: childId });
     expect(created.parentId).toBeNull();
     expect(created.privacyParentIssueId).toBe(childId);
     expect(created.originIssueId).toBe(childId);
@@ -336,29 +336,29 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
     const { issue } = await issueService(db).createChild(childId, { title: "Internal child helper" });
     expect(issue.parentId).toBeNull();
 
-    const movingId = await seedIssue(companyId);
+    const movingId = await seedIssue(spaceId);
     const moved = await issueService(db).update(movingId, { parentId: childId, title: "Renamed anyway" });
     expect(moved?.parentId).toBeNull();
     expect(moved?.title).toBe("Renamed anyway");
     expect(moved?.parentAdjusted).toMatchObject({ reason: "max_agent_depth", applied: false, effectiveParent: null });
 
     // An already-parented task keeps its parent, and the notice names it.
-    const otherRootId = await seedIssue(companyId, { identifier: `KEEP-${randomUUID().slice(0, 6)}` });
-    const parentedId = await seedIssue(companyId, { parentId: otherRootId });
+    const otherRootId = await seedIssue(spaceId, { identifier: `KEEP-${randomUUID().slice(0, 6)}` });
+    const parentedId = await seedIssue(spaceId, { parentId: otherRootId });
     const kept = await issueService(db).update(parentedId, { parentId: childId });
     expect(kept?.parentId).toBe(otherRootId);
     expect(kept?.parentAdjusted).toMatchObject({ applied: false, effectiveParent: { id: otherRootId } });
   });
 
   it("does not expose a private origin on a task its readers may see", async () => {
-    const { companyId, agentId } = await seedCompany();
-    const openParentId = await seedIssue(companyId);
+    const { spaceId, agentId } = await seedSpace();
+    const openParentId = await seedIssue(spaceId);
     const privateTaskId = randomUUID();
-    await seedIssue(companyId, { id: privateTaskId, visibility: "private", privacyRootIssueId: privateTaskId });
+    await seedIssue(spaceId, { id: privateTaskId, visibility: "private", privacyRootIssueId: privateTaskId });
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", issueId: privateTaskId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", issueId: privateTaskId });
 
-    const created = await issueService(db).create(companyId, {
+    const created = await issueService(db).create(spaceId, {
       title: "Open work filed from a private task", parentId: openParentId, createdByAgentId: agentId, actorRunId: runId,
     });
 
@@ -370,25 +370,25 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   });
 
   it("does not expose a hidden origin or a private sibling's id", async () => {
-    const { companyId, agentId } = await seedCompany();
+    const { spaceId, agentId } = await seedSpace();
     const runOn = async (taskId: string) => {
       const runId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", issueId: taskId });
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", issueId: taskId });
       return runId;
     };
 
-    const openParentId = await seedIssue(companyId);
-    const hiddenTaskId = await seedIssue(companyId, { hiddenAt: new Date() });
-    const fromHidden = await issueService(db).create(companyId, {
+    const openParentId = await seedIssue(spaceId);
+    const hiddenTaskId = await seedIssue(spaceId, { hiddenAt: new Date() });
+    const fromHidden = await issueService(db).create(spaceId, {
       title: "From a hidden task", parentId: openParentId, createdByAgentId: agentId, actorRunId: await runOn(hiddenTaskId),
     });
     expect(fromHidden.originIssueId).toBeNull();
 
     const rootId = randomUUID();
-    await seedIssue(companyId, { id: rootId, visibility: "private", privacyRootIssueId: rootId });
-    const siblingA = await seedIssue(companyId, { parentId: rootId, visibility: "private", privacyRootIssueId: rootId });
-    const siblingB = await seedIssue(companyId, { parentId: rootId, visibility: "private", privacyRootIssueId: rootId });
-    const fromSibling = await issueService(db).create(companyId, {
+    await seedIssue(spaceId, { id: rootId, visibility: "private", privacyRootIssueId: rootId });
+    const siblingA = await seedIssue(spaceId, { parentId: rootId, visibility: "private", privacyRootIssueId: rootId });
+    const siblingB = await seedIssue(spaceId, { parentId: rootId, visibility: "private", privacyRootIssueId: rootId });
+    const fromSibling = await issueService(db).create(spaceId, {
       title: "Filed under a private sibling", parentId: siblingB, createdByAgentId: agentId,
       actorRunId: await runOn(siblingA), expectedParentId: rootId,
     });
@@ -399,11 +399,11 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
 
   describe("moves", () => {
     it("keeps the requested private parent as the privacy source of a placed move", async () => {
-      const { companyId } = await seedCompany();
-      const rootId = await seedIssue(companyId);
+      const { spaceId } = await seedSpace();
+      const rootId = await seedIssue(spaceId);
       const privateChildId = randomUUID();
-      await seedIssue(companyId, { id: privateChildId, parentId: rootId, visibility: "private", privacyRootIssueId: privateChildId });
-      const movingId = await seedIssue(companyId);
+      await seedIssue(spaceId, { id: privateChildId, parentId: rootId, visibility: "private", privacyRootIssueId: privateChildId });
+      const movingId = await seedIssue(spaceId);
 
       const updated = await issueService(db).update(movingId, { parentId: privateChildId, expectedParentId: rootId });
 
@@ -414,18 +414,18 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
     });
 
     it("rejects a move whose placement differs from the authorized one", async () => {
-      const { companyId } = await seedCompany();
-      const { childId } = await seedTree(companyId);
-      const movingId = await seedIssue(companyId);
+      const { spaceId } = await seedSpace();
+      const { childId } = await seedTree(spaceId);
+      const movingId = await seedIssue(spaceId);
 
       await expect(issueService(db).update(movingId, { parentId: childId, expectedParentId: childId }))
         .rejects.toMatchObject({ status: 409 });
     });
 
     it("places an agent move into a child beside it", async () => {
-      const { companyId } = await seedCompany();
-      const { rootId, childId } = await seedTree(companyId);
-      const movingId = await seedIssue(companyId);
+      const { spaceId } = await seedSpace();
+      const { rootId, childId } = await seedTree(spaceId);
+      const movingId = await seedIssue(spaceId);
 
       const updated = await issueService(db).update(movingId, { parentId: childId, expectedParentId: rootId });
 
@@ -434,10 +434,10 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
     });
 
     it("skips only the parent change when the moved task has children", async () => {
-      const { companyId } = await seedCompany();
-      const { rootId } = await seedTree(companyId);
-      const movingId = await seedIssue(companyId);
-      await seedIssue(companyId, { parentId: movingId });
+      const { spaceId } = await seedSpace();
+      const { rootId } = await seedTree(spaceId);
+      const movingId = await seedIssue(spaceId);
+      await seedIssue(spaceId, { parentId: movingId });
 
       const updated = await issueService(db).update(movingId, { parentId: rootId, title: "Renamed" });
 
@@ -451,15 +451,15 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
       });
     });
 
-    it("lets board users move to any depth", async () => {
-      const { companyId } = await seedCompany();
-      const { childId } = await seedTree(companyId);
-      const movingId = await seedIssue(companyId);
-      await seedIssue(companyId, { parentId: movingId });
+    it("lets operator users move to any depth", async () => {
+      const { spaceId } = await seedSpace();
+      const { childId } = await seedTree(spaceId);
+      const movingId = await seedIssue(spaceId);
+      await seedIssue(spaceId, { parentId: movingId });
 
       const plan = await planIssueParentChange(
         db,
-        { id: movingId, companyId, parentId: null },
+        { id: movingId, spaceId, parentId: null },
         childId,
         "allow_nested",
       );
@@ -472,9 +472,9 @@ describeEmbeddedPostgres("agent task hierarchy depth", () => {
   });
 
   it("resolves creation provenance from the recorded origin task", async () => {
-    const { companyId } = await seedCompany();
-    const { childId } = await seedTree(companyId);
-    const created = await issueService(db).create(companyId, { title: "Flattened", parentId: childId });
+    const { spaceId } = await seedSpace();
+    const { childId } = await seedTree(spaceId);
+    const created = await issueService(db).create(spaceId, { title: "Flattened", parentId: childId });
 
     const source = await resolveIssueCreationSource(db, created);
 

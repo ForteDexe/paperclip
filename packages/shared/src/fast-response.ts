@@ -28,7 +28,7 @@ export const updateFastResponseSchema = z
   );
 export type UpdateFastResponse = z.infer<typeof updateFastResponseSchema>;
 export interface FastResponseSettings extends UpdateFastResponse {
-  companyId: string;
+  spaceId: string;
   provider: AiProvider | null;
 }
 export interface FastResponseSettingsResponse {

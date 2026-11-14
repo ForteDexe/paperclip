@@ -128,8 +128,8 @@ type NativeOperation = {
 export type NativeCatalogEntry = { toolName: string; versionHash: string; schemaHash: string | null; riskLevel: string };
 
 // Match the interop used by the existing plugin configuration validator.
-const AjvCtor = (Ajv as any).default ?? Ajv;
-const ajv = new AjvCtor({ strict: false, allErrors: true, validateFormats: true });
+const AjvEngineeringLeadr = (Ajv as any).default ?? Ajv;
+const ajv = new AjvEngineeringLeadr({ strict: false, allErrors: true, validateFormats: true });
 ((addFormats as any).default ?? addFormats)(ajv);
 
 /** The deployed contract of a generated provider catalog: agent-visible tools,

@@ -66,9 +66,9 @@ export interface SavedWorkspaceFiles {
 
 export interface RemoteWorkspaceFileOptions {
   environmentRuntime?: Pick<EnvironmentRuntimeService, "execute" | "syncOut">;
-  /** Verify the exact company-owned, committed snapshot before exposing files. */
+  /** Verify the exact space-owned, committed snapshot before exposing files. */
   loadSavedWorkspace?(input: {
-    companyId: string;
+    spaceId: string;
     workspaceId: string;
     snapshotId: string;
     signal?: AbortSignal;
@@ -78,7 +78,7 @@ export interface RemoteWorkspaceFileOptions {
 }
 
 export interface RemoteWorkspaceFiles {
-  open(input: { companyId: string; workspaceId: string; signal?: AbortSignal }): Promise<RemoteWorkspaceFileAccess | null>;
+  open(input: { spaceId: string; workspaceId: string; signal?: AbortSignal }): Promise<RemoteWorkspaceFileAccess | null>;
 }
 
 // Run the same confined helper in the execution environment and in a verified,
@@ -91,7 +91,7 @@ const { createHash } = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const input = JSON.parse(process.argv[1]);
-const denied = new Set(['.git','.paperclip','.paperclip-runtime','node_modules','.pnpm-store','.yarn','.cache','.turbo','.next','.vite','.vercel','dist','build','coverage','runtime-services','.runtime']);
+const denied = new Set(['.git','.outpost','.outpost-runtime','node_modules','.pnpm-store','.yarn','.cache','.turbo','.next','.vite','.vercel','dist','build','coverage','runtime-services','.runtime']);
 const fail = code => { const error = new Error(code); error.code = code; throw error; };
 const deniedPath = relative => {
   const parts = relative.toLowerCase().split('/');
@@ -266,7 +266,7 @@ class ArchiveReadFailure extends Error {
   constructor(readonly code: string) { super(code); }
 }
 
-const ARCHIVE_DENIED_NAMES = new Set([".git", ".paperclip", ".paperclip-runtime", "node_modules", ".pnpm-store", ".yarn", ".cache",
+const ARCHIVE_DENIED_NAMES = new Set([".git", ".outpost", ".outpost-runtime", "node_modules", ".pnpm-store", ".yarn", ".cache",
   ".turbo", ".next", ".vite", ".vercel", "dist", "build", "coverage", "runtime-services", ".runtime"]);
 const ARCHIVE_LIST_SKIPPED = new Set(["ENOENT", "ENOTDIR", "denied_path", "symlink_denied", "not_regular_file"]);
 const archiveFail = (code: string): never => { throw new ArchiveReadFailure(code); };
@@ -414,7 +414,7 @@ async function archiveDownload(archive: SavedWorkspaceArchive, relativePath: str
     finally { release(); }
   };
   try {
-    directory = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-saved-file-"));
+    directory = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-saved-file-"));
     const file = path.join(directory, "file");
     await pipeline(await archive.read(entry, 0, entry.size, signal), createWriteStream(file, { flags: "wx", mode: 0o600 }),
       ...(signal ? [{ signal }] : []));
@@ -429,7 +429,7 @@ export function createRemoteWorkspaceFiles(db: Db, options: RemoteWorkspaceFileO
     async open(input) {
       input.signal?.throwIfAborted();
       const [workspace] = await db.select().from(executionWorkspaces).where(and(
-        eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.id, input.workspaceId),
+        eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.id, input.workspaceId),
       )).limit(1);
       if (!workspace) throw notFound("Workspace not found");
       const authority = readRemoteWorkspaceAuthority(workspace.metadata);
@@ -441,7 +441,7 @@ export function createRemoteWorkspaceFiles(db: Db, options: RemoteWorkspaceFileO
       const checkCurrent = async () => {
         input.signal?.throwIfAborted();
         const [current] = await db.select({ metadata: executionWorkspaces.metadata }).from(executionWorkspaces).where(and(
-          eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.id, input.workspaceId),
+          eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.id, input.workspaceId),
         )).limit(1);
         const currentAuthority = current ? readRemoteWorkspaceAuthority(current.metadata) : null;
         // An extracted committed save no longer depends on the allocation.
@@ -466,7 +466,7 @@ export function createRemoteWorkspaceFiles(db: Db, options: RemoteWorkspaceFileO
         if (!authority.snapshotId || authority.dirty || authority.writerRunId || !savedReady) {
           throw fileFailure("workspace_unavailable");
         }
-        const scope = { companyId: input.companyId, workspaceId: input.workspaceId, snapshotId: authority.snapshotId,
+        const scope = { spaceId: input.spaceId, workspaceId: input.workspaceId, snapshotId: authority.snapshotId,
           ...(input.signal ? { signal: input.signal } : {}) };
         if (options.openSavedWorkspaceArchive) {
           try { archive = await options.openSavedWorkspaceArchive(scope); }
@@ -485,7 +485,7 @@ export function createRemoteWorkspaceFiles(db: Db, options: RemoteWorkspaceFileO
         if (saved) return saved.root;
         if (!options.loadSavedWorkspace || !authority.snapshotId) throw fileFailure("changed_unavailable");
         try {
-          saved = await options.loadSavedWorkspace({ companyId: input.companyId, workspaceId: input.workspaceId, snapshotId: authority.snapshotId,
+          saved = await options.loadSavedWorkspace({ spaceId: input.spaceId, workspaceId: input.workspaceId, snapshotId: authority.snapshotId,
             ...(input.signal ? { signal: input.signal } : {}) });
         } catch (error) {
           if (error instanceof HttpError && error.status === 422) throw fileFailure("changed_unavailable");
@@ -499,7 +499,7 @@ export function createRemoteWorkspaceFiles(db: Db, options: RemoteWorkspaceFileO
         ({ root, source } = await loadSaved());
       } else if (authority.location) {
         const [leaseRow] = await db.select().from(environmentLeases).where(and(
-          eq(environmentLeases.companyId, input.companyId), eq(environmentLeases.id, authority.location.leaseId),
+          eq(environmentLeases.spaceId, input.spaceId), eq(environmentLeases.id, authority.location.leaseId),
         )).limit(1);
         const [environmentRow] = await db.select().from(environments).where(eq(environments.id, authority.location.environmentId)).limit(1);
         if (!leaseRow || !environmentRow || leaseRow.environmentId !== environmentRow.id ||
@@ -571,7 +571,7 @@ export function createRemoteWorkspaceFiles(db: Db, options: RemoteWorkspaceFileO
           const file = path.join(root, ...relativePath.split("/"));
           return { stream: createReadStream(file), byteSize: expected.byteSize!, cleanup: async () => {} };
         }
-        const directory = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-workspace-file-"));
+        const directory = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-workspace-file-"));
         const cleanup = async () => { await fs.rm(directory, { recursive: true, force: true }); };
         try {
           await options.environmentRuntime!.syncOut({ environment: environment!, lease: lease!, operations: [{

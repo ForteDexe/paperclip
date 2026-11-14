@@ -34,10 +34,10 @@ export function nativeCompletionProfile(profile: RunnerProfileFixture): RunnerPr
 export interface NativeDefaultReceipt {
   schema: "outpost.native-completion-default.v1";
   agentId: string;
-  companyId: string;
+  spaceId: string;
   entryFile: unknown;
   files: Array<{ path: string; sha256: string; bytes: number }>;
-  budgets: { company: unknown; agent: unknown };
+  budgets: { space: unknown; agent: unknown };
 }
 
 export function gradeNativeDefault(receipt: NativeDefaultReceipt, expectedDefaultSha256 = NATIVE_MASTER_DEFAULT_SHA256) {
@@ -46,7 +46,7 @@ export function gradeNativeDefault(receipt: NativeDefaultReceipt, expectedDefaul
       && receipt.files.length === 1 && receipt.files[0]?.path === "AGENTS.md"
       && receipt.files[0]?.sha256 === expectedDefaultSha256,
     detail: "The served public hire bundle matches the declared production default, with no fixture instruction injection." },
-    { id: "bounded-company-and-agent", passed: receipt.budgets.company === NATIVE_COMPLETION_BUDGET_CENTS
+    { id: "bounded-space-and-agent", passed: receipt.budgets.space === NATIVE_COMPLETION_BUDGET_CENTS
       && receipt.budgets.agent === NATIVE_COMPLETION_BUDGET_CENTS,
     detail: "Both public budgets enforce the declared 1,000-cent hard stop." },
   ];
@@ -54,17 +54,17 @@ export function gradeNativeDefault(receipt: NativeDefaultReceipt, expectedDefaul
 }
 
 export async function captureNativeDefault(input: {
-  api: { get<T>(path: string): Promise<T> }; agentId: string; companyId: string;
+  api: { get<T>(path: string): Promise<T> }; agentId: string; spaceId: string;
 }): Promise<NativeDefaultReceipt> {
-  const [bundle, company, agent] = await Promise.all([
+  const [bundle, space, agent] = await Promise.all([
     input.api.get<{ entryFile: unknown; files: Array<{ path: string }> }>(`/api/agents/${input.agentId}/instructions-bundle`),
-    input.api.get<{ budgetMonthlyCents: unknown }>(`/api/companies/${input.companyId}`),
+    input.api.get<{ budgetMonthlyCents: unknown }>(`/api/spaces/${input.spaceId}`),
     input.api.get<{ budgetMonthlyCents: unknown }>(`/api/agents/${input.agentId}`),
   ]);
   const files = await Promise.all(bundle.files.map(async file => {
     const detail = await input.api.get<{ content: string }>(`/api/agents/${input.agentId}/instructions-bundle/file?path=${encodeURIComponent(file.path)}`);
     return { path: file.path, sha256: createHash("sha256").update(detail.content).digest("hex"), bytes: Buffer.byteLength(detail.content) };
   }));
-  return { schema: "outpost.native-completion-default.v1", agentId: input.agentId, companyId: input.companyId,
-    entryFile: bundle.entryFile, files, budgets: { company: company.budgetMonthlyCents, agent: agent.budgetMonthlyCents } };
+  return { schema: "outpost.native-completion-default.v1", agentId: input.agentId, spaceId: input.spaceId,
+    entryFile: bundle.entryFile, files, budgets: { space: space.budgetMonthlyCents, agent: agent.budgetMonthlyCents } };
 }

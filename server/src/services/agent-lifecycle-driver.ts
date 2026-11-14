@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { CANCELLABLE_HEARTBEAT_RUN_STATUSES } from "./heartbeat/recovery.js";
 import { promoteDeferredWorkIntents } from "./work-intent-outbox.js";
-import { agents, companies, environments, heartbeatRuns, plugins, pluginCompanySettings, type Db } from "@outpost/db";
+import { agents, spaces, environments, heartbeatRuns, plugins, pluginSpaceSettings, type Db } from "@outpost/db";
 import { instanceSettingsService } from "./instance-settings.js";
 import { pluginHasAgentEnvironments, pluginServesAgentEnvironment } from "./plugin-environment-driver.js";
 import { heartbeatService } from "./heartbeat.js";
@@ -16,14 +16,14 @@ export function createLifecycleDriver(db: Db, manager: PluginWorkerManager): Lif
   const heartbeat = heartbeatService(db, { pluginWorkerManager: manager });
   return {
     async onReady(agent) {
-      await db.transaction(tx => promoteDeferredWorkIntents(tx, { companyId: agent.companyId, trigger: "pause_lifted" }));
-      await heartbeat.resumeQueuedRunsForAgent(agent.companyId, agent.id);
+      await db.transaction(tx => promoteDeferredWorkIntents(tx, { spaceId: agent.spaceId, trigger: "pause_lifted" }));
+      await heartbeat.resumeQueuedRunsForAgent(agent.spaceId, agent.id);
     },
     async requiredPluginIds(agent) {
       const selected = agent.lifecycleRequiredPluginIds;
       const installed = await db.select().from(plugins).where(inArray(plugins.status, ["ready", "error", "installed", "upgrade_pending"]));
-      const disabled = await db.select({ pluginId: pluginCompanySettings.pluginId }).from(pluginCompanySettings)
-        .where(and(eq(pluginCompanySettings.companyId, agent.companyId), eq(pluginCompanySettings.enabled, false)));
+      const disabled = await db.select({ pluginId: pluginSpaceSettings.pluginId }).from(pluginSpaceSettings)
+        .where(and(eq(pluginSpaceSettings.spaceId, agent.spaceId), eq(pluginSpaceSettings.enabled, false)));
       const candidates = installed.filter(plugin => !disabled.some(row => row.pluginId === plugin.id) &&
         plugin.manifestJson.agentLifecycle && plugin.manifestJson.capabilities.includes("agents.lifecycle.manage"));
       const [row] = await db.select({ environmentId: agents.defaultEnvironmentId }).from(agents).where(eq(agents.id, agent.id));
@@ -37,16 +37,16 @@ export function createLifecycleDriver(db: Db, manager: PluginWorkerManager): Lif
     },
     async runPlugin(agent, pluginId) {
       const [plugin] = await db.select().from(plugins).where(eq(plugins.id, pluginId));
-      const [settings] = await db.select().from(pluginCompanySettings).where(and(
-        eq(pluginCompanySettings.pluginId, pluginId), eq(pluginCompanySettings.companyId, agent.companyId)));
+      const [settings] = await db.select().from(pluginSpaceSettings).where(and(
+        eq(pluginSpaceSettings.pluginId, pluginId), eq(pluginSpaceSettings.spaceId, agent.spaceId)));
       if (settings?.enabled === false || !plugin || plugin.status !== "ready" || !plugin.manifestJson.agentLifecycle || !plugin.manifestJson.capabilities.includes("agents.lifecycle.manage")) {
         throw Object.assign(new Error("A required lifecycle plugin is unavailable"), { code: "required_plugin_unavailable" });
       }
       const operationId = agent.lifecycleOperation!.id;
       const secrets = agentInstanceSecretService(db);
       const instanceSecrets = ["preparing", "resuming"].includes(agent.lifecycleState)
-        ? await secrets.read({ companyId: agent.companyId, agentId: agent.id, pluginId }) : {};
-      const request = { companyId: agent.companyId, agentId: agent.id, operationId, version: agent.lifecycleVersion, phase: agent.lifecycleState,
+        ? await secrets.read({ spaceId: agent.spaceId, agentId: agent.id, pluginId }) : {};
+      const request = { spaceId: agent.spaceId, agentId: agent.id, operationId, version: agent.lifecycleVersion, phase: agent.lifecycleState,
         instanceSecrets };
       const result = await manager.call(plugin.id, "agentLifecycle", request, 30_000);
       if (!result || result.operationId !== operationId || result.version !== agent.lifecycleVersion || !["complete", "pending"].includes(result.status)) {
@@ -60,9 +60,9 @@ export function createLifecycleDriver(db: Db, manager: PluginWorkerManager): Lif
       if (["pausing", "terminating", "cleaning_up"].includes(agent.lifecycleState)) {
         const ids = agent.lifecycleState === "pausing" ? [agent.id]
           : [agent.id, ...listInvalidOrgChainDescendantIds(agent.id,
-            await db.select().from(agents).where(eq(agents.companyId, agent.companyId)))];
-        const reason = agent.lifecycleHolds?.includes("company_archived")
-          ? "Cancelled because the company was archived" : "Agent lifecycle stop requested";
+            await db.select().from(agents).where(eq(agents.spaceId, agent.spaceId)))];
+        const reason = agent.lifecycleHolds?.includes("space_archived")
+          ? "Cancelled because the space was archived" : "Agent lifecycle stop requested";
         // Record what this pause stopped the runs for, so a budget resume
         // continues only the work its own budget stopped, never a manual pause.
         if (agent.lifecycleState === "pausing") {
@@ -71,11 +71,11 @@ export function createLifecycleDriver(db: Db, manager: PluginWorkerManager): Lif
           const cause = agent.lifecycleOperation?.pauseCause;
           const pauseStop = sql`jsonb_build_object('pauseStop', jsonb_build_object(
             'holds', ${JSON.stringify(cause?.holds ?? agent.lifecycleHolds ?? [])}::jsonb,
-            'companyPauseReason', ${cause ? sql`${cause.companyPauseReason}::text`
-              : sql`(select ${companies.pauseReason} from ${companies} where ${companies.id} = ${agent.companyId})`}))`;
+            'spacePauseReason', ${cause ? sql`${cause.spacePauseReason}::text`
+              : sql`(select ${spaces.pauseReason} from ${spaces} where ${spaces.id} = ${agent.spaceId})`}))`;
           await db.update(heartbeatRuns).set({
             resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) || ${pauseStop}`,
-          }).where(and(eq(heartbeatRuns.companyId, agent.companyId), eq(heartbeatRuns.agentId, agent.id),
+          }).where(and(eq(heartbeatRuns.spaceId, agent.spaceId), eq(heartbeatRuns.agentId, agent.id),
             inArray(heartbeatRuns.status, [...CANCELLABLE_HEARTBEAT_RUN_STATUSES]),
             sql`not (coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) ? 'pauseStop')`));
         }

@@ -53,7 +53,7 @@ export function subscriptionPublicFixtureState(report: SubscriptionCostReport, p
 const sources = ["chat-catalog-domains/identity-subscriptions.ts", "failure-classifier.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/budgets-costs.yaml",
   "../../packages/shared/src/subscriptions.ts", "../../server/src/routes/costs.ts", "../../server/src/routes/ai-connections.ts", "../../server/src/services/subscriptions.ts", "../../ui/src/components/SubscriptionCostCard.tsx"];
 export const subscriptionIdentityCases: readonly ChatCatalogCase[] = [identityDefinition("budgets-costs.subscription-fees", async ctx => {
-  await openStandingChat(ctx); const root = `/api/companies/${ctx.input.fixtures.company.id}`;
+  await openStandingChat(ctx); const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
   const session = await ctx.input.api.get<{ user: { id: string } }>("/api/auth/get-session");
   const report = await ctx.input.api.get<SubscriptionCostReport>(`${root}/costs/subscriptions`);
   const agentReadStatus = await probeAgentPermission(ctx, `${root}/costs/subscriptions`, "GET");
@@ -76,7 +76,7 @@ export const subscriptionIdentityCases: readonly ChatCatalogCase[] = [identityDe
     await waitForReply(ctx); const pair = state.duplicateAccounts as SubscriptionAccountReport[] | undefined;
     if (!pair || pair.length !== 2 || state.sameAccountProvenanceVerified !== true || state.provenanceOrigin !== SUBSCRIPTION_PROVENANCE_ORIGIN) throw new Error("Actual same-account provenance is required before any link action");
     const [sourceAccount, targetAccount] = pair as [SubscriptionAccountReport, SubscriptionAccountReport];
-    const root = `/api/companies/${ctx.input.fixtures.company.id}`;
+    const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
     const current = await ctx.input.api.get<SubscriptionCostReport>(`${root}/costs/subscriptions`);
     state.noPreHumanMutation = pair.every(before => JSON.stringify(current.accounts.find(row => row.id === before.id)) === JSON.stringify(before));
     state.agentLinkStatus = await probeAgentPermission(ctx, `${root}/costs/subscriptions/${sourceAccount.id}/link`, "POST", { targetId: targetAccount.id, expectedRevision: sourceAccount.price.revision, targetRevision: targetAccount.price.revision });
@@ -90,7 +90,7 @@ export const subscriptionIdentityCases: readonly ChatCatalogCase[] = [identityDe
     const accountRow = dialog.locator("div.space-y-2.border-b").filter({ has: dialog.getByText(sourceAccount.name, { exact: true }) });
     await accountRow.getByRole("button", { name: "Edit price", exact: true }).click();
     await expect(dialog.getByLabel("Plan", { exact: true })).toHaveValue(sourceAccount.price.plan);
-    await expect(dialog.getByText("Linking counts these accounts once, combines their Paperclip usage, and keeps the selected account’s price. Only link the same subscription or paid seat.", { exact: true })).toBeVisible(); state.linkDisclosureVisible = true;
+    await expect(dialog.getByText("Linking counts these accounts once, combines their Outpost usage, and keeps the selected account’s price. Only link the same subscription or paid seat.", { exact: true })).toBeVisible(); state.linkDisclosureVisible = true;
     await dialog.getByLabel("Same subscription as another account?", { exact: true }).selectOption(targetAccount.id);
     const response = ctx.input.page.waitForResponse(result => result.request().method() === "POST" && new URL(result.url()).pathname === `${root}/costs/subscriptions/${sourceAccount.id}/link`
       && result.request().postDataJSON()?.targetId === targetAccount.id);
@@ -98,7 +98,7 @@ export const subscriptionIdentityCases: readonly ChatCatalogCase[] = [identityDe
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     state.afterReport = await ctx.input.api.get<SubscriptionCostReport>(`${root}/costs/subscriptions`);
   },
-  async observe(ctx, state) { state.afterReport = await ctx.input.api.get<SubscriptionCostReport>(`/api/companies/${ctx.input.fixtures.company.id}/costs/subscriptions`); return observeIdentity(ctx, state); },
+  async observe(ctx, state) { state.afterReport = await ctx.input.api.get<SubscriptionCostReport>(`/api/spaces/${ctx.input.fixtures.space.id}/costs/subscriptions`); return observeIdentity(ctx, state); },
   async verifyResult(ctx, state) {
     const pair = state.duplicateAccounts as SubscriptionAccountReport[] | undefined; if (!pair) throw new Error("Actual account context is absent");
     await ctx.input.page.getByRole("button", { name: "View details", exact: true }).click();

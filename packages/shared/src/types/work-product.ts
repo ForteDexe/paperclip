@@ -8,7 +8,7 @@ export type IssueWorkProductType =
   | "document";
 
 export type IssueWorkProductProvider =
-  | "paperclip"
+  | "outpost"
   | "github"
   | "vercel"
   | "s3"
@@ -33,7 +33,7 @@ export type IssueWorkProductReviewState =
 
 export interface IssueWorkProduct {
   id: string;
-  companyId: string;
+  spaceId: string;
   projectId: string | null;
   issueId: string;
   executionWorkspaceId: string | null;

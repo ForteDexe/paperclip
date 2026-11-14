@@ -4,12 +4,12 @@ import { test, expect } from "@playwright/test";
 // All writes use the UI. API reads only verify identity and execution outcomes.
 const disposableMarker = process.env.AI_REPAIR_TEST_DISPOSABLE_MARKER;
 const destructiveOptIn = process.env.AI_REPAIR_TEST_ALLOW_DESTRUCTIVE === "1";
-const companyId = process.env.AI_CONNECTIONS_TEST_COMPANY_ID;
+const spaceId = process.env.AI_CONNECTIONS_TEST_SPACE_ID;
 const issueId = process.env.AI_REPAIR_TEST_ISSUE_ID;
 const connectionId = process.env.AI_REPAIR_TEST_CONNECTION_ID;
 const providerKey = process.env.AI_REPAIR_TEST_KEY;
 test.use({ trace: "off", video: "off" });
-test.skip(!destructiveOptIn || !disposableMarker || !companyId || !issueId || !connectionId || !providerKey, "Live repair requires explicit disposable fixtures and a provider key");
+test.skip(!destructiveOptIn || !disposableMarker || !spaceId || !issueId || !connectionId || !providerKey, "Live repair requires explicit disposable fixtures and a provider key");
 
 test("repair the selected AI account inside the task and continue without another message", async ({ page, request }, testInfo) => {
   test.setTimeout(240_000);
@@ -23,21 +23,21 @@ test("repair the selected AI account inside the task and continue without anothe
   const fixtureName = `AI Repair QA ${disposableMarker}`;
   const health = await (await request.get("/api/health")).json();
   expect(health.deploymentMode).toBe("local_trusted");
-  const companies = await (await request.get("/api/companies")).json();
-  const company = companies.find((company: { id: string }) => company.id === companyId);
-  expect(company).toMatchObject({ id: companyId, name: fixtureName });
-  const prefix = company.issuePrefix;
+  const spaces = await (await request.get("/api/spaces")).json();
+  const space = spaces.find((space: { id: string }) => space.id === spaceId);
+  expect(space).toMatchObject({ id: spaceId, name: fixtureName });
+  const prefix = space.issuePrefix;
   const taskBefore = await (await request.get(`/api/issues/${issueId}`)).json();
   const agentBefore = await (await request.get(`/api/agents/${taskBefore.assigneeAgentId}`)).json();
-  expect(taskBefore).toMatchObject({ companyId, title: fixtureName });
-  expect(agentBefore).toMatchObject({ companyId, name: fixtureName, adapterType: "codex_local" });
-  const agents = await (await request.get(`/api/companies/${companyId}/agents`)).json();
+  expect(taskBefore).toMatchObject({ spaceId, title: fixtureName });
+  expect(agentBefore).toMatchObject({ spaceId, name: fixtureName, adapterType: "codex_local" });
+  const agents = await (await request.get(`/api/spaces/${spaceId}/agents`)).json();
   expect(agents.map((agent: { id: string }) => agent.id)).toEqual([agentBefore.id]);
-  const list = async () => (await (await request.get(`/api/companies/${companyId}/ai-connections`)).json()).connections;
+  const list = async () => (await (await request.get(`/api/spaces/${spaceId}/ai-connections`)).json()).connections;
   const before = await list();
   const accountBefore = before.find((connection: { id: string }) => connection.id === connectionId);
   expect(before).toHaveLength(1);
-  expect(accountBefore).toMatchObject({ companyId, name: fixtureName, provider: "openai", method: "api_key", ownership: "personal" });
+  expect(accountBefore).toMatchObject({ spaceId, name: fixtureName, provider: "openai", method: "api_key", ownership: "personal" });
   expect(accountBefore.isDefault).toBe(true);
   expect(["connected", "revoked"]).toContain(accountBefore.status);
 

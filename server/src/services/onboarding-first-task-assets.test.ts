@@ -37,9 +37,9 @@ describe("fillFirstTaskPlaceholders", () => {
 });
 
 describe("renderOnboardingFirstTaskGreeting", () => {
-  it("renders the board-approved greeting with the agent name", async () => {
+  it("renders the operator-approved greeting with the agent name", async () => {
     const greeting = await renderOnboardingFirstTaskGreeting({ agentName: "Ada" });
-    expect(greeting).toContain("Welcome to Paperclip! I'm Ada, your first agent teammate.");
+    expect(greeting).toContain("Welcome to Outpost! I'm Ada, your first agent teammate.");
     // The "what would you like to do" question moved onto the opening card.
     expect(greeting).not.toContain("What would you like to do?");
   });
@@ -101,13 +101,13 @@ describe("first-task proposal mode policy", () => {
     expect(skill).toContain("If the accepted child work requires a file deliverable");
     expect(skill).toContain("self-contained child description");
     expect(skill).toContain("requested filenames");
-    expect(skill).toContain("child's own Paperclip execution");
+    expect(skill).toContain("child's own Outpost execution");
     expect(skill).toContain("even when the child is assigned to yourself");
     expect(skill).toContain("Do not create or register that file from the onboarding run");
     expect(skill).toContain("`register_deliverable` is bound to its current task");
     expect(skill).toContain("preserve existing blocker IDs");
     expect(skill).toContain("`set_dependencies`");
-    expect(skill).toContain("`paperclip_block`");
+    expect(skill).toContain("`outpost_block`");
     expect(skill).toContain("`blockedByIssueIds`");
     expect(skill).toContain("End the turn so the child can execute");
     expect(skill).toContain("Do not poll for its result");
@@ -152,7 +152,7 @@ describe("first-task proposal mode policy", () => {
   it("keeps plan-only authorization and document-only child execution distinct from file handoff", async () => {
     const skill = await readFile(new URL("../onboarding-assets/first-task/skills/first-task/SKILL.md", import.meta.url), "utf8");
     expect(skill).toContain("For a plan-only request, retain the accepted plan on this task");
-    expect(skill).toContain("Do not start its implementation or hire the proposed team without authorization");
+    expect(skill).toContain("Do not start its implementation or create the proposed team without authorization");
     expect(skill).toContain("For an accepted single task, complete the work here.");
     expect(skill).toContain("For document-only child work, you may execute it directly");
     expect(skill).toContain("Save the finished output as a document on the child task and mark that child done");

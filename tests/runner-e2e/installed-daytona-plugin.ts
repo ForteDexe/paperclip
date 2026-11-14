@@ -61,7 +61,7 @@ export async function verifyInstalledDaytonaPlugin(env: NodeJS.ProcessEnv, execu
   const sdk = await packageAt(a.sdk, "@outpost/plugin-sdk");
   const shared = await packageAt(a.shared, "@outpost/shared");
   const daytona = await packageAt(a.daytona, "@daytonaio/sdk");
-  if (plugin.paperclipPlugin?.manifest !== "./dist/manifest.js" || plugin.paperclipPlugin?.worker !== "./dist/worker.js" || plugin.dependencies?.["@outpost/plugin-sdk"] !== sdk.version || sdk.dependencies?.["@outpost/shared"] !== shared.version || plugin.dependencies?.["@daytonaio/sdk"] !== "0.203.0" || daytona.version !== "0.203.0") throw new Error("Installed Daytona plugin public dependency identity differs");
+  if (plugin.outpostPlugin?.manifest !== "./dist/manifest.js" || plugin.outpostPlugin?.worker !== "./dist/worker.js" || plugin.dependencies?.["@outpost/plugin-sdk"] !== sdk.version || sdk.dependencies?.["@outpost/shared"] !== shared.version || plugin.dependencies?.["@daytonaio/sdk"] !== "0.203.0" || daytona.version !== "0.203.0") throw new Error("Installed Daytona plugin public dependency identity differs");
   await pinned(join(a.plugin.root, "dist/manifest.js"), a.plugin.manifestSha256);
   await pinned(join(a.plugin.root, "dist/worker.js"), a.plugin.workerSha256);
   for (const [name, parent, pin] of [["@outpost/plugin-sdk", join(a.plugin.root, "dist/worker.js"), a.sdk], ["@outpost/shared", join(a.sdk.root, a.sdk.entry), a.shared], ["@daytonaio/sdk", join(a.plugin.root, "dist/worker.js"), a.daytona]] as const) {

@@ -18,10 +18,10 @@ globs above.
 
 ## The paths
 
-- **Telemetry** is the Paperclip first-party event system. It is opt-out and it
-  sends data to a Paperclip endpoint by default. Its paths are:
+- **Telemetry** is the Outpost first-party event system. It is opt-out and it
+  sends data to a Outpost endpoint by default. Its paths are:
   - `packages/shared/src/telemetry/`
-  - the generated contract `packages/shared/src/telemetry/generated/paperclip-telemetry.ts`
+  - the generated contract `packages/shared/src/telemetry/generated/outpost-telemetry.ts`
   - each caller of `packages/shared/src/telemetry/events.ts` or `packages/shared/src/telemetry/client.ts`
 - **Observability** is the OpenTelemetry trace path. An operator must set an
   OTLP endpoint. Until an operator sets the endpoint, the tracer is a
@@ -44,7 +44,7 @@ Apply a review level that matches the path:
 - **Telemetry change (strict review).** The author updates the generated
   contract first. The author updates `packages/shared/src/telemetry/README.md`
   in the same pull request. The author requests a privacy review. Reason: a
-  Telemetry event goes to a Paperclip endpoint by default, so a mistake sends
+  Telemetry event goes to a Outpost endpoint by default, so a mistake sends
   data immediately.
 - **Observability change (lighter review).** The operator endpoint gate stays in
   place. The no-operation behaviour stays when no endpoint is set. A privacy

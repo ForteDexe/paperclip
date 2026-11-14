@@ -25,7 +25,7 @@ import { publishLiveEvent } from "./live-events.js";
 const ACTIVE_RUN_STATUSES = ["queued", "scheduled_retry", "running"] as const;
 const OPEN_ACTION_STATUSES = ["pending", "delivering", "delivered"] as const;
 
-type AgentBinding = Pick<typeof agents.$inferSelect, "id" | "companyId" | "adapterType" | "adapterConfig">;
+type AgentBinding = Pick<typeof agents.$inferSelect, "id" | "spaceId" | "adapterType" | "adapterConfig">;
 type TaskSession = typeof agentTaskSessions.$inferSelect;
 
 export class RunnerGoalConflictError extends Error {
@@ -241,7 +241,7 @@ export function runnerGoalService(
     queueLiveCommand?: typeof queueLiveRunnerPrpCommand;
     dispatchLiveControl?: typeof dispatchLiveRunnerGoalControl;
     enqueueOfflineControl?: (input: {
-      companyId: string;
+      spaceId: string;
       issueId: string;
       agentId: string;
       requestId: string;
@@ -252,11 +252,11 @@ export function runnerGoalService(
   const queueLiveCommand = options.queueLiveCommand ?? queueLiveRunnerPrpCommand;
   const dispatchLiveControl = options.dispatchLiveControl ?? dispatchLiveRunnerGoalControl;
 
-  async function readBinding(companyId: string, issueId: string, requestedAgentId?: string | null) {
+  async function readBinding(spaceId: string, issueId: string, requestedAgentId?: string | null) {
     const [issue] = await db
-      .select({ id: issues.id, companyId: issues.companyId, assigneeAgentId: issues.assigneeAgentId })
+      .select({ id: issues.id, spaceId: issues.spaceId, assigneeAgentId: issues.assigneeAgentId })
       .from(issues)
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, companyId)))
+      .where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId)))
       .limit(1);
     if (!issue) return null;
     const agentId = requestedAgentId ?? issue.assigneeAgentId;
@@ -264,18 +264,18 @@ export function runnerGoalService(
     const [agent] = await db
       .select({
         id: agents.id,
-        companyId: agents.companyId,
+        spaceId: agents.spaceId,
         adapterType: agents.adapterType,
         adapterConfig: agents.adapterConfig,
       })
       .from(agents)
-      .where(and(eq(agents.id, agentId), eq(agents.companyId, companyId)))
+      .where(and(eq(agents.id, agentId), eq(agents.spaceId, spaceId)))
       .limit(1);
     return { issue, agent: agent ?? null };
   }
 
-  async function projection(companyId: string, issueId: string, requestedAgentId?: string | null): Promise<RunnerGoalProjection | null> {
-    const binding = await readBinding(companyId, issueId, requestedAgentId);
+  async function projection(spaceId: string, issueId: string, requestedAgentId?: string | null): Promise<RunnerGoalProjection | null> {
+    const binding = await readBinding(spaceId, issueId, requestedAgentId);
     if (!binding) return null;
     if (!binding.agent) {
       return {
@@ -305,13 +305,13 @@ export function runnerGoalService(
     }
     const [session, activeRun] = await Promise.all([
       db.select().from(agentTaskSessions).where(and(
-        eq(agentTaskSessions.companyId, companyId),
+        eq(agentTaskSessions.spaceId, spaceId),
         eq(agentTaskSessions.agentId, binding.agent.id),
         eq(agentTaskSessions.adapterType, binding.agent.adapterType),
         eq(agentTaskSessions.taskKey, issueId),
       )).orderBy(desc(agentTaskSessions.updatedAt)).limit(1).then((rows) => rows[0] ?? null),
       db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, companyId),
+        eq(heartbeatRuns.spaceId, spaceId),
         eq(heartbeatRuns.agentId, binding.agent.id),
         eq(heartbeatRuns.nativeIssueId, issueId),
         inArray(heartbeatRuns.status, [...ACTIVE_RUN_STATUSES]),
@@ -350,18 +350,18 @@ export function runnerGoalService(
   }
 
   async function act(
-    companyId: string,
+    spaceId: string,
     issueId: string,
     request: RunnerGoalActionRequest,
   ): Promise<RunnerGoalActionAccepted> {
-    const binding = await readBinding(companyId, issueId, request.agentId);
+    const binding = await readBinding(spaceId, issueId, request.agentId);
     if (!binding) throw new RunnerGoalActionError("issue_not_found", "Issue not found.");
     if (!binding.agent) throw new RunnerGoalActionError("agent_not_found", "Agent not found.");
     if (binding.issue.assigneeAgentId !== request.agentId) {
       throw new RunnerGoalActionError("agent_not_assigned", "The selected agent is not assigned to this issue.");
     }
     const fallbackCapability = capabilityForAgent(binding.agent);
-    const initialProjection = await projection(companyId, issueId, request.agentId);
+    const initialProjection = await projection(spaceId, issueId, request.agentId);
     if (!initialProjection) throw new RunnerGoalActionError("issue_not_found", "Issue not found.");
     if (initialProjection.capability.availability !== "available") {
       throw new RunnerGoalActionError(
@@ -372,13 +372,13 @@ export function runnerGoalService(
 
     const accepted = await db.transaction(async (tx) => {
       await tx.insert(agentTaskSessions).values({
-        companyId,
+        spaceId,
         agentId: request.agentId,
         adapterType: binding.agent!.adapterType,
         taskKey: issueId,
       }).onConflictDoNothing();
       const [session] = await tx.select().from(agentTaskSessions).where(and(
-        eq(agentTaskSessions.companyId, companyId),
+        eq(agentTaskSessions.spaceId, spaceId),
         eq(agentTaskSessions.agentId, request.agentId),
         eq(agentTaskSessions.adapterType, binding.agent!.adapterType),
         eq(agentTaskSessions.taskKey, issueId),
@@ -458,7 +458,7 @@ export function runnerGoalService(
         revision: nextRevision,
       };
       const [action] = await tx.insert(agentSessionGoalActions).values({
-        companyId,
+        spaceId,
         sessionId: session.id,
         requestId: request.requestId,
         action: request.action,
@@ -485,7 +485,7 @@ export function runnerGoalService(
       return {
         requestId: request.requestId,
         status: repeatedStatus,
-        projection: originalProjection ?? (await projection(companyId, issueId, request.agentId))!,
+        projection: originalProjection ?? (await projection(spaceId, issueId, request.agentId))!,
       };
     }
 
@@ -501,7 +501,7 @@ export function runnerGoalService(
       const hasActiveRun = typeof originalProjection?.activeRunId === "string";
       const adapterControl = hasActiveRun
         ? dispatchLiveControl({
-            companyId,
+            spaceId,
             issueId,
             agentId: request.agentId,
           }, request)
@@ -511,7 +511,7 @@ export function runnerGoalService(
         liveCompletions.push(adapterControl.completion);
       } else if (hasActiveRun) {
         const queuedCommands = commands.map((command, index) => queueLiveCommand({
-          companyId,
+          spaceId,
           issueId,
           agentId: request.agentId,
           type: command.type,
@@ -525,7 +525,7 @@ export function runnerGoalService(
       }
       if (!live && options.enqueueOfflineControl) {
         await options.enqueueOfflineControl({
-          companyId,
+          spaceId,
           issueId,
           agentId: request.agentId,
           requestId: request.requestId,
@@ -546,7 +546,7 @@ export function runnerGoalService(
           failRunnerGoalAction(
             db,
             {
-              companyId,
+              spaceId,
               issueId,
               agentId: request.agentId,
               adapterType: binding.agent!.adapterType,
@@ -568,10 +568,10 @@ export function runnerGoalService(
       ));
       throw error;
     }
-    const current = await projection(companyId, issueId, request.agentId);
+    const current = await projection(spaceId, issueId, request.agentId);
     if (!current) throw new RunnerGoalActionError("issue_not_found", "Issue not found.");
     publishLiveEvent({
-      companyId,
+      spaceId,
       type: "agent.session.goal.changed",
       payload: current as unknown as Record<string, unknown>,
     });
@@ -613,14 +613,14 @@ function normalizedPrpGoal(value: unknown, workingNow: boolean): RunnerGoalSnaps
 /** The durable outbox acknowledgement is authoritative across controller loss. */
 export async function isRunnerGoalActionCompleted(
   db: Db,
-  binding: { companyId: string; agentId: string; issueId: string },
+  binding: { spaceId: string; agentId: string; issueId: string },
   requestId: string,
 ): Promise<boolean> {
   const [action] = await db.select({ id: agentSessionGoalActions.id })
     .from(agentSessionGoalActions)
     .innerJoin(agentTaskSessions, eq(agentTaskSessions.id, agentSessionGoalActions.sessionId))
     .where(and(
-      eq(agentTaskSessions.companyId, binding.companyId),
+      eq(agentTaskSessions.spaceId, binding.spaceId),
       eq(agentTaskSessions.agentId, binding.agentId),
       eq(agentTaskSessions.taskKey, binding.issueId),
       eq(agentSessionGoalActions.requestId, requestId),
@@ -633,7 +633,7 @@ export async function isRunnerGoalActionCompleted(
 export async function applyRunnerGoalPrpEvent(
   db: Db,
   binding: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     agentId: string;
     adapterType: string;
@@ -659,19 +659,19 @@ export async function applyRunnerGoalPrpEvent(
   ].includes(event.eventType)) return null;
   const payload = asRecord(event.payload) ?? {};
   const changed = await db.transaction(async (tx) => {
-    const [issue] = await tx.select().from(issues).where(and(eq(issues.id, binding.issueId), eq(issues.companyId, binding.companyId))).for("update");
+    const [issue] = await tx.select().from(issues).where(and(eq(issues.id, binding.issueId), eq(issues.spaceId, binding.spaceId))).for("update");
     if (issue?.conversationAgentId) {
       const [run] = event.sourceRunId ? await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, event.sourceRunId)) : [];
       if (run?.status === "cancelled" || run?.contextSnapshot?.conversationSessionGeneration !== issue.conversationSessionGeneration) return null;
     }
     await tx.insert(agentTaskSessions).values({
-      companyId: binding.companyId,
+      spaceId: binding.spaceId,
       agentId: binding.agentId,
       adapterType: binding.adapterType,
       taskKey: binding.issueId,
     }).onConflictDoNothing();
     const [session] = await tx.select().from(agentTaskSessions).where(and(
-      eq(agentTaskSessions.companyId, binding.companyId),
+      eq(agentTaskSessions.spaceId, binding.spaceId),
       eq(agentTaskSessions.agentId, binding.agentId),
       eq(agentTaskSessions.adapterType, binding.adapterType),
       eq(agentTaskSessions.taskKey, binding.issueId),
@@ -700,7 +700,7 @@ export async function applyRunnerGoalPrpEvent(
         runtimeMode: heartbeatRuns.runtimeMode,
       }).from(heartbeatRuns).where(and(
         inArray(heartbeatRuns.id, [priorRunId, nextRunId]),
-        eq(heartbeatRuns.companyId, binding.companyId),
+        eq(heartbeatRuns.spaceId, binding.spaceId),
         eq(heartbeatRuns.agentId, binding.agentId),
         eq(heartbeatRuns.nativeIssueId, binding.issueId),
       ));
@@ -838,13 +838,13 @@ export async function applyRunnerGoalPrpEvent(
   });
   if (!changed) return null;
   const current = await runnerGoalService(db).projection(
-    binding.companyId,
+    binding.spaceId,
     binding.issueId,
     binding.agentId,
   );
   if (!current) return null;
   publishLiveEvent({
-    companyId: binding.companyId,
+    spaceId: binding.spaceId,
     type: "agent.session.goal.changed",
     payload: current as unknown as Record<string, unknown>,
   });
@@ -853,13 +853,13 @@ export async function applyRunnerGoalPrpEvent(
 
 export async function failRunnerGoalAction(
   db: Db,
-  binding: { companyId: string; issueId: string; agentId: string; adapterType: string },
+  binding: { spaceId: string; issueId: string; agentId: string; adapterType: string },
   requestId: string,
   errorCode: string,
 ): Promise<RunnerGoalProjection | null> {
   const changed = await db.transaction(async (tx) => {
     const [session] = await tx.select().from(agentTaskSessions).where(and(
-      eq(agentTaskSessions.companyId, binding.companyId),
+      eq(agentTaskSessions.spaceId, binding.spaceId),
       eq(agentTaskSessions.agentId, binding.agentId),
       eq(agentTaskSessions.adapterType, binding.adapterType),
       eq(agentTaskSessions.taskKey, binding.issueId),
@@ -888,13 +888,13 @@ export async function failRunnerGoalAction(
   });
   if (!changed) return null;
   const current = await runnerGoalService(db).projection(
-    binding.companyId,
+    binding.spaceId,
     binding.issueId,
     binding.agentId,
   );
   if (current) {
     publishLiveEvent({
-      companyId: binding.companyId,
+      spaceId: binding.spaceId,
       type: "agent.session.goal.changed",
       payload: current as unknown as Record<string, unknown>,
     });
@@ -904,12 +904,12 @@ export async function failRunnerGoalAction(
 
 export async function blockRunnerGoalRecovery(
   db: Db,
-  binding: { companyId: string; issueId: string; agentId: string; adapterType: string },
+  binding: { spaceId: string; issueId: string; agentId: string; adapterType: string },
   reason = "provider_session_goal_recovery_failed",
 ): Promise<RunnerGoalProjection | null> {
   const changed = await db.transaction(async (tx) => {
     const [session] = await tx.select().from(agentTaskSessions).where(and(
-      eq(agentTaskSessions.companyId, binding.companyId),
+      eq(agentTaskSessions.spaceId, binding.spaceId),
       eq(agentTaskSessions.agentId, binding.agentId),
       eq(agentTaskSessions.adapterType, binding.adapterType),
       eq(agentTaskSessions.taskKey, binding.issueId),
@@ -935,13 +935,13 @@ export async function blockRunnerGoalRecovery(
   });
   if (!changed) return null;
   const current = await runnerGoalService(db).projection(
-    binding.companyId,
+    binding.spaceId,
     binding.issueId,
     binding.agentId,
   );
   if (current) {
     publishLiveEvent({
-      companyId: binding.companyId,
+      spaceId: binding.spaceId,
       type: "agent.session.goal.changed",
       payload: current as unknown as Record<string, unknown>,
     });
@@ -957,10 +957,10 @@ export async function blockRunnerGoalRecovery(
  */
 export async function settleLiveRunnerGoalBeforeInterrupt(
   db: Db,
-  binding: { companyId: string; issueId: string; agentId: string },
+  binding: { spaceId: string; issueId: string; agentId: string },
 ): Promise<"paused" | "cleared" | "none"> {
   const goals = runnerGoalService(db);
-  const current = await goals.projection(binding.companyId, binding.issueId, binding.agentId);
+  const current = await goals.projection(binding.spaceId, binding.issueId, binding.agentId);
   if (!current?.goal || current.goal.status === "complete") return "none";
   if (current.goal.status === "paused") return "paused";
   const action = current.capability.actions.includes("pause")
@@ -998,7 +998,7 @@ export async function settleLiveRunnerGoalBeforeInterrupt(
 
   const deadline = Date.now() + 5_000;
   while (Date.now() < deadline) {
-    const observed = await goals.projection(binding.companyId, binding.issueId, binding.agentId);
+    const observed = await goals.projection(binding.spaceId, binding.issueId, binding.agentId);
     if (action === "pause" && observed?.goal?.status === "paused") return "paused";
     if (action === "clear" && observed?.goal === null) return "cleared";
     await new Promise<void>((resolve) => setTimeout(resolve, 25));

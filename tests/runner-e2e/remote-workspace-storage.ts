@@ -51,14 +51,14 @@ export function remoteWorkspaceProofDigest(content: string): string {
 }
 
 export async function readRemoteWorkspaceStorageCheckpoint(input: {
-  api: Pick<RunnerApi, "get">; companyId: string; agentId: string; issueId: string; environmentId: string;
+  api: Pick<RunnerApi, "get">; spaceId: string; agentId: string; issueId: string; environmentId: string;
   expectedFileSource?: "live" | "saved";
   expectedLocation?: "retained" | "released";
 }): Promise<{ point?: RemoteWorkspaceStorageCheckpoint; content?: string }> {
   const view = await input.api.get<{ issueId: string; workspace: ExecutionWorkspace | null }>(`/api/issues/${input.issueId}/workspace`);
   const workspace = view.workspace;
   const authorityResult = remoteWorkspaceAuthoritySchema.safeParse(workspace?.metadata?.remoteWorkspace);
-  if (view.issueId !== input.issueId || !workspace || workspace.companyId !== input.companyId
+  if (view.issueId !== input.issueId || !workspace || workspace.spaceId !== input.spaceId
     || workspace.providerType !== "cloud_sandbox" || !authorityResult.success) return {};
   const authority = authorityResult.data;
   const expectedSource = input.expectedFileSource ?? "live";
@@ -72,7 +72,7 @@ export async function readRemoteWorkspaceStorageCheckpoint(input: {
     .sort((a, b) => String(b.finishedAt).localeCompare(String(a.finishedAt)))[0];
   if (!latest) return {};
   const run = await input.api.get<StoryRun>(`/api/heartbeat-runs/${encodeURIComponent(latest.runId)}`);
-  if (run.id !== latest.runId || run.companyId !== input.companyId || run.agentId !== input.agentId
+  if (run.id !== latest.runId || run.spaceId !== input.spaceId || run.agentId !== input.agentId
     || run.nativeIssueId !== input.issueId || run.runtimeMode !== "native" || run.status !== "succeeded") return {};
   const receiptResult = remoteWorkspaceRunReferenceSchema.safeParse(run.runnerProfileJson?.remoteWorkspace);
   if (!receiptResult.success) return {};
@@ -82,9 +82,9 @@ export async function readRemoteWorkspaceStorageCheckpoint(input: {
   if (authority.location && (receipt.leaseId !== authority.location.leaseId
     || receipt.providerLeaseId !== authority.location.providerLeaseId || receipt.remoteCwd !== authority.location.remoteCwd)) return {};
   if (expectedSource === "saved") {
-    const leases = await input.api.get<Array<{ id: string; companyId: string; issueId: string; providerLeaseId: string }>>(
+    const leases = await input.api.get<Array<{ id: string; spaceId: string; issueId: string; providerLeaseId: string }>>(
       `/api/environments/${input.environmentId}/leases`);
-    if (!leases.some(lease => lease.id === receipt.leaseId && lease.companyId === input.companyId
+    if (!leases.some(lease => lease.id === receipt.leaseId && lease.spaceId === input.spaceId
       && lease.issueId === input.issueId && lease.providerLeaseId === receipt.providerLeaseId)) return {};
   }
   const file = await input.api.get<WorkspaceFileContent>(`/api/issues/${input.issueId}/file-resources/content?workspace=execution&path=${REMOTE_WORKSPACE_PROOF_FILE}`);

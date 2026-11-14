@@ -43,8 +43,8 @@ export function buildClaudeLocalConfig(v: CreateConfigValues): Record<string, un
   ac.graceSec = 15;
   const env = buildAdapterEnvConfig(v.envBindings, v.envVars);
   if (Object.keys(env).length > 0) ac.env = env;
-  const nativeSelected = v.runner === "paperclip"
-    || ((v.runner === undefined || v.runner === "auto") && v.resolvedRunner === "paperclip");
+  const nativeSelected = v.runner === "outpost"
+    || ((v.runner === undefined || v.runner === "auto") && v.resolvedRunner === "outpost");
   if (!nativeSelected || v.maxTurnsPerRun !== 1000) ac.maxTurnsPerRun = v.maxTurnsPerRun;
   if (nativeSelected && v.adapterSchemaValues?.acpxPermissionMode !== undefined) {
     ac.acpxPermissionMode = v.adapterSchemaValues.acpxPermissionMode;

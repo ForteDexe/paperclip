@@ -6,8 +6,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SLACK_CHAT_BOT_SCOPES } from "@outpost/shared";
 import { activityLog, agentRuntimeState, agentTaskSessions, agentWakeupRequests, agents, applyPendingMigrations, authUsers,
-  chatActions, chatDeliveries, chatEndpoints, chatExternalPrincipals, companySecretBindings, chatIdentityLinks, chatSlackRegistrations, companies, companyMemberships,
-  companySecrets, companySkills, costEvents, financeEvents, heartbeatRunEvents, heartbeatRuns, issueComments, issues, toolApplications, toolConnections,
+  chatActions, chatDeliveries, chatEndpoints, chatExternalPrincipals, spaceSecretBindings, chatIdentityLinks, chatSlackRegistrations, spaces, spaceMemberships,
+  spaceSecrets, spaceSkills, costEvents, financeEvents, heartbeatRunEvents, heartbeatRuns, issueComments, issues, toolApplications, toolConnections,
   closeCheckpointDb, closeFileStorageDb, closeLivenessDb, createDb } from "@outpost/db";
 import { databaseWorkPending, reconcileDatabaseWork, subscribeDatabaseWork } from "@outpost/db/work-signals";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
@@ -38,7 +38,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   let cloud: ReturnType<typeof createSlackCloudConnectorFixture>;
   let network: ReturnType<typeof guardSlackFixtureNetwork>;
   let directory: string;
-  let companyId: string, actorId: string, agentId: string, applicationId: string;
+  let spaceId: string, actorId: string, agentId: string, applicationId: string;
   let runtime: ChatRuntime;
   let providerFetch: typeof fetch;
   const callbacks: ChatSdkMessageCallbackEvent[] = [];
@@ -60,17 +60,17 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     network = guardSlackFixtureNetwork({ requirePreload: process.env.SLACK_GATE_EXPECT_PRELOAD === "1" });
     directory = await mkdtemp(path.join(os.tmpdir(), "slack-owner-default-"));
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", path.join(directory, "master.key"));
-    companyId = randomUUID(); actorId = `slack-owner-${randomUUID()}`; agentId = randomUUID(); applicationId = randomUUID();
-    cloud = createSlackCloudConnectorFixture(`instance-${randomUUID()}`, companyId, actorId); cloud.install();
+    spaceId = randomUUID(); actorId = `slack-owner-${randomUUID()}`; agentId = randomUUID(); applicationId = randomUUID();
+    cloud = createSlackCloudConnectorFixture(`instance-${randomUUID()}`, spaceId, actorId); cloud.install();
     vi.spyOn(globalThis, "fetch").mockImplementation(cloud.request);
     const now = new Date();
-    await db.insert(companies).values({ id: companyId, name: "Slack default owner", issuePrefix: `S${companyId.slice(0, 7)}` });
+    await db.insert(spaces).values({ id: spaceId, name: "Slack default owner", issuePrefix: `S${spaceId.slice(0, 7)}` });
     await db.insert(authUsers).values({ id: actorId, name: "Slack owner", email: `${actorId}@example.test`, emailVerified: true, createdAt: now, updatedAt: now });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: actorId, status: "active", membershipRole: "operator" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Slack fixture", adapterType: "process", status: "idle",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: actorId, status: "active", membershipRole: "operator" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Slack fixture", adapterType: "process", status: "idle",
       runtimeConfig: { heartbeat: { wakeOnDemand: false, intervalSec: 0 } } });
-    await db.insert(companyMemberships).values({ companyId, principalType: "agent", principalId: agentId, status: "active", membershipRole: "member" });
-    await db.insert(toolApplications).values({ id: applicationId, companyId, name: "Slack", type: "chat" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "agent", principalId: agentId, status: "active", membershipRole: "member" });
+    await db.insert(toolApplications).values({ id: applicationId, spaceId, name: "Slack", type: "chat" });
     runtime = makeRuntime();
     const slackFetch: typeof fetch = async (input, init) => {
       const url = new URL(input instanceof Request ? input.url : String(input));
@@ -99,22 +99,22 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     try { await service?.shutdown(); } catch (error) { errors.push(error); }
     try { await heartbeat?.drainActiveRunExecutions(); } catch (error) { errors.push(error); }
     try {
-      await db.delete(chatEndpoints).where(eq(chatEndpoints.companyId, companyId));
-      await db.delete(financeEvents).where(eq(financeEvents.companyId, companyId));
-      await db.delete(costEvents).where(eq(costEvents.companyId, companyId));
-      await db.delete(activityLog).where(eq(activityLog.companyId, companyId));
-      await db.delete(agentTaskSessions).where(eq(agentTaskSessions.companyId, companyId));
-      await db.delete(agentRuntimeState).where(eq(agentRuntimeState.companyId, companyId));
-      await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.companyId, companyId));
-      await db.delete(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
-      await db.delete(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId));
-      await db.delete(issueComments).where(eq(issueComments.companyId, companyId));
-      await db.delete(issues).where(eq(issues.companyId, companyId));
-      await db.delete(agents).where(eq(agents.companyId, companyId));
-      await db.delete(companyMemberships).where(eq(companyMemberships.companyId, companyId));
-      await db.delete(companySecrets).where(eq(companySecrets.companyId, companyId));
-      await db.delete(companySkills).where(eq(companySkills.companyId, companyId));
-      await db.delete(companies).where(eq(companies.id, companyId));
+      await db.delete(chatEndpoints).where(eq(chatEndpoints.spaceId, spaceId));
+      await db.delete(financeEvents).where(eq(financeEvents.spaceId, spaceId));
+      await db.delete(costEvents).where(eq(costEvents.spaceId, spaceId));
+      await db.delete(activityLog).where(eq(activityLog.spaceId, spaceId));
+      await db.delete(agentTaskSessions).where(eq(agentTaskSessions.spaceId, spaceId));
+      await db.delete(agentRuntimeState).where(eq(agentRuntimeState.spaceId, spaceId));
+      await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.spaceId, spaceId));
+      await db.delete(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId));
+      await db.delete(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId));
+      await db.delete(issueComments).where(eq(issueComments.spaceId, spaceId));
+      await db.delete(issues).where(eq(issues.spaceId, spaceId));
+      await db.delete(agents).where(eq(agents.spaceId, spaceId));
+      await db.delete(spaceMemberships).where(eq(spaceMemberships.spaceId, spaceId));
+      await db.delete(spaceSecrets).where(eq(spaceSecrets.spaceId, spaceId));
+      await db.delete(spaceSkills).where(eq(spaceSkills.spaceId, spaceId));
+      await db.delete(spaces).where(eq(spaces.id, spaceId));
       await db.delete(authUsers).where(eq(authUsers.id, actorId));
     } catch (error) { errors.push(error); }
     try { network.assertQuiet(); } catch (error) { errors.push(error); }
@@ -142,14 +142,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   }
   async function createEndpoint(suffix: string) {
     const endpointId = randomUUID(), connectionId = randomUUID(), publicId = randomUUID().replaceAll("-", "").padEnd(43, "a");
-    await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: `Slack ${suffix}`, uid: endpointId,
+    await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: `Slack ${suffix}`, uid: endpointId,
       transport: "chat_sdk", connectionPurpose: "channel", enabled: true, status: "active" });
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId, connectionId, assignedAgentId: agentId, publicId,
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId, assignedAgentId: agentId, publicId,
       provider: "slack", status: "draft", sponsorUserId: actorId, allowGroupChats: true, setup: { step: "provider_setup" } });
-    await db.insert(chatSlackRegistrations).values({ companyId, endpointId, requestId: randomUUID(), status: "configured", appId: `A${suffix}`,
+    await db.insert(chatSlackRegistrations).values({ spaceId, endpointId, requestId: randomUUID(), status: "configured", appId: `A${suffix}`,
       manifest: {}, manifestHash: "fixture", callbackUri: `https://tenant.example/api/chat-webhooks/${publicId}/slack`, createdByUserId: actorId });
     await service.configure(endpointId, { action: "configure", credentials: { botToken: `xoxb-fixture-${suffix}`, signingSecret: secret } }, actorId);
-    expect((await setup(endpointId)).slackCloudIntent).toMatchObject({ companyId, endpointId, connectionId,
+    expect((await setup(endpointId)).slackCloudIntent).toMatchObject({ spaceId, endpointId, connectionId,
       instanceId: cloud.config.instanceId, subject: actorId, active: true });
     return endpointId;
   }
@@ -171,9 +171,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         "x-slack-signature": `v0=${createHmac("sha256", secret).update(`v0:${timestamp}:${payload}`).digest("hex")}` }, body: payload }));
     expect(response.status).toBe(200); await response.body?.cancel();
     await service.configure(endpointId, { action: "verify" }, actorId);
-    const [principal] = await db.insert(chatExternalPrincipals).values({ companyId, provider: "slack", providerAccountId: accountId,
+    const [principal] = await db.insert(chatExternalPrincipals).values({ spaceId, provider: "slack", providerAccountId: accountId,
       externalId: "UOPERATOR", kind: "user", displayName: "Operator" }).returning();
-    await db.insert(chatIdentityLinks).values({ companyId, endpointId, principalId: principal!.id, paperclipUserId: actorId, status: "linked", confirmedAt: new Date() });
+    await db.insert(chatIdentityLinks).values({ spaceId, endpointId, principalId: principal!.id, outpostUserId: actorId, status: "linked", confirmedAt: new Date() });
     expect((await service.test(endpointId, { optionalSlackTestForUser: actorId })).status).toBe("active");
   }
   async function holdCredentials(endpointId: string) {
@@ -189,7 +189,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await confirm(endpointId); await activate(endpointId); await confirm(endpointId);
     const endpoint = await row(endpointId), saved = await setup(endpointId), enrolled = saved.slackCloudEvents!;
     const callbackEvidence = structuredClone(saved.slackCallbackSurfaces);
-    const delivered = cloud.enqueue({ companyId, endpointId, publicId: endpoint.publicId, connectionId: endpoint.connectionId,
+    const delivered = cloud.enqueue({ spaceId, endpointId, publicId: endpoint.publicId, connectionId: endpoint.connectionId,
       runtimeGeneration: saved.runtimeGeneration, teamId: enrolled.teamId, appId: enrolled.appId, bindingId: enrolled.bindingId }, secret, "EvDefaultOwner");
     const owner = githubConnectionEventService(db, { connector: cloud.connector });
     expect((await owner.pollOnce({ forDelivery: true })).processed).toBe(1);
@@ -230,7 +230,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(cloud.calls.slice(start).filter(call => call.enrollment?.endpointId === a)).toEqual([]);
     const retryAt = Date.parse(retained.nextAttemptAt!);
     const formRetries = await db.select({ result: chatActions.result }).from(chatActions).where(and(
-      eq(chatActions.companyId, companyId),
+      eq(chatActions.spaceId, spaceId),
       sql`${chatActions.kind} in ('slack_form_owner','slack_form_grant','slack_form_session')`,
       sql`${chatActions.payload}->>'environment' = ${cloud.config.environment}`,
       sql`coalesce(${chatActions.payload}->'binding'->>'instanceId', ${chatActions.payload}->'enrollment'->>'instanceId') = ${cloud.config.instanceId}`,
@@ -275,7 +275,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const successor = { ...original, id: randomUUID(), runtimeGeneration: original.runtimeGeneration + (change === "generation" ? 1 : 0) };
     cloud.beforeReceipt(async () => {
       await db.update(chatEndpoints).set({ setup: sql`jsonb_set(jsonb_set(${chatEndpoints.setup}, '{slackCloudIntent}', ${JSON.stringify(successor)}::jsonb), '{runtimeGeneration}', ${JSON.stringify(successor.runtimeGeneration)}::jsonb)` })
-        .where(and(eq(chatEndpoints.id, endpointId), eq(chatEndpoints.companyId, companyId)));
+        .where(and(eq(chatEndpoints.id, endpointId), eq(chatEndpoints.spaceId, spaceId)));
     });
     const producer = createSlackCloudEnrollment(db, { resolveCredentials: async () => ({ signingSecret: secret }),
       runtimeGeneration: value => Number(value.runtimeGeneration), connector: cloud.connector });
@@ -287,7 +287,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("malformed sealed Slack receipt is acknowledged once instead of retained as an owner outage", async () => {
     const endpointId = await createEndpoint("INVALID"); await confirm(endpointId);
     const endpoint = await row(endpointId), saved = await setup(endpointId), enrolled = saved.slackCloudEvents!;
-    const malformed = cloud.enqueue({ companyId, endpointId: "bad", publicId: endpoint.publicId, connectionId: endpoint.connectionId,
+    const malformed = cloud.enqueue({ spaceId, endpointId: "bad", publicId: endpoint.publicId, connectionId: endpoint.connectionId,
       runtimeGeneration: saved.runtimeGeneration, teamId: enrolled.teamId, appId: enrolled.appId, bindingId: enrolled.bindingId }, secret, "EvMalformed");
     const owner = githubConnectionEventService(db, { connector: cloud.connector });
     const result = await owner.pollOnce({ forDelivery: true });
@@ -320,7 +320,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const unregister = registerSlackCloudEnrollmentOwner(db, async id => {
         expect(id).toBe(endpointId);
         await db.update(chatEndpoints).set({ setup: sql`jsonb_set(jsonb_set(${chatEndpoints.setup}, '{slackCloudIntent}', ${JSON.stringify(successor)}::jsonb), '{runtimeGeneration}', ${JSON.stringify(generation)}::jsonb)` })
-          .where(and(eq(chatEndpoints.id, endpointId), eq(chatEndpoints.companyId, companyId)));
+          .where(and(eq(chatEndpoints.id, endpointId), eq(chatEndpoints.spaceId, spaceId)));
         throw busy;
       });
       try {
@@ -375,27 +375,27 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     if (!signingRef) throw new Error("Normal Slack configure did not persist its signing credential binding");
     const credentialOwner = { consumerType: "tool_connection" as const, consumerId: connection!.id,
       configPath: "credentials.signingSecret", actorType: "system" as const };
-    await expect(secretService(db).resolveSecretValue(companyId, signingRef.secretId, "latest", credentialOwner)).resolves.toBe(secret);
+    await expect(secretService(db).resolveSecretValue(spaceId, signingRef.secretId, "latest", credentialOwner)).resolves.toBe(secret);
     cloud.setUnavailable(true);
     const requests = vi.mocked(cloud.request).mock.calls.length;
     const tools = toolAccessService(db);
-    const removed = await tools.archiveConnection(connection!.id, companyId, { actorType: "user", actorId });
+    const removed = await tools.archiveConnection(connection!.id, spaceId, { actorType: "user", actorId });
     expect(removed.connection).toMatchObject({ id: connection!.id, status: "archived", enabled: false });
     const archived = await row(endpointId);
     expect(archived.status).toBe("archived");
     const [revoked] = await db.select().from(toolConnections).where(eq(toolConnections.id, connection!.id));
     expect(revoked!.credentialSecretRefs).toEqual([]);
     expect(revoked!.credentialRefs).toEqual([]);
-    expect(await db.select().from(companySecretBindings).where(and(eq(companySecretBindings.companyId, companyId),
-      eq(companySecretBindings.targetType, "tool_connection"), eq(companySecretBindings.targetId, connection!.id)))).toEqual([]);
-    await expect(secretService(db).resolveSecretValue(companyId, signingRef.secretId, "latest", credentialOwner)).rejects.toThrow();
+    expect(await db.select().from(spaceSecretBindings).where(and(eq(spaceSecretBindings.spaceId, spaceId),
+      eq(spaceSecretBindings.targetType, "tool_connection"), eq(spaceSecretBindings.targetId, connection!.id)))).toEqual([]);
+    await expect(secretService(db).resolveSecretValue(spaceId, signingRef.secretId, "latest", credentialOwner)).rejects.toThrow();
     expect(vi.mocked(cloud.request).mock.calls).toHaveLength(requests);
     const intent = (await setup(endpointId)).slackCloudIntent;
-    expect(intent).toMatchObject({ version: 1, active: false, companyId, endpointId, connectionId: connection!.id,
+    expect(intent).toMatchObject({ version: 1, active: false, spaceId, endpointId, connectionId: connection!.id,
       publicId: originalEndpoint.publicId, runtimeGeneration: Number(originalSetup.runtimeGeneration),
       subject: originalSetup.slackCloudSubject, instanceId: originalSetup.slackCloudInstanceId, attempts: 0 });
     expect(JSON.stringify(intent)).not.toContain(secret);
-    await tools.archiveConnection(connection!.id, companyId, { actorType: "user", actorId });
+    await tools.archiveConnection(connection!.id, spaceId, { actorType: "user", actorId });
     expect((await setup(endpointId)).slackCloudIntent).toEqual(intent);
     const owner = githubConnectionEventService(db, { connector: cloud.connector });
     await expect(owner.pollOnce({ forDelivery: true })).rejects.toMatchObject({ status: 503 });
@@ -428,7 +428,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       throw failure;
     }));
     try {
-      await expect(toolAccessService(db).archiveConnection(connection!.id, companyId, { actorType: "user", actorId })).rejects.toBe(failure);
+      await expect(toolAccessService(db).archiveConnection(connection!.id, spaceId, { actorType: "user", actorId })).rejects.toBe(failure);
       expect(await row(endpointId)).toMatchObject({ status: before.status, setup: before.setup });
       const [after] = await db.select().from(toolConnections).where(eq(toolConnections.id, connection!.id));
       expect(after).toMatchObject({ status: connection!.status, enabled: connection!.enabled,
@@ -437,7 +437,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     } finally { transaction.mockRestore(); }
   }, 60_000);
 
-  it("public tool removal refuses a foreign company before Slack archival or retirement staging", async () => {
+  it("public tool removal refuses a foreign space before Slack archival or retirement staging", async () => {
     const endpointId = await createEndpoint("TOOLFOREIGN"); await confirm(endpointId);
     const before = await row(endpointId), requests = vi.mocked(cloud.request).mock.calls.length;
     await expect(toolAccessService(db).archiveConnection(before.connectionId, randomUUID(), { actorType: "user", actorId })).rejects.toMatchObject({ status: 404 });

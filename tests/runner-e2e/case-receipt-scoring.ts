@@ -5,13 +5,13 @@ import { CASE_RECEIPT_BUDGET_CENTS, CASE_RECEIPT_MAX_TURNS, CASE_RECEIPT_RUN_TIM
 
 type Row = Record<string, any>;
 export interface CaseReceiptObservation {
-  nonce: string; companyId: string; taskId: string; caseId: string; agents: CaseReceiptAgents;
+  nonce: string; spaceId: string; taskId: string; caseId: string; agents: CaseReceiptAgents;
   issue: Row; caseRecord: Row; cases: Row[]; tasks: Row[]; handoffs: Row[]; runs: Row[];
   receipt: Row | null; receiptRevisions: Row[]; review: Row | null;
   initialBrief?: Row | null; triageReadBrief?: boolean;
   handoffToolRunIds: string[]; verifierReadReceipt: boolean; builderReadReview: boolean; kickoffReplayed: boolean;
   pendingInteractions: number;
-  budgets?: { company: Row; agents: Row[] };
+  budgets?: { space: Row; agents: Row[] };
   configuredLimits?: { maxRuns: number; runTimeoutMs: number; attemptTimeoutMs: number; automaticRetryPolicy?: string; agents: Row[] };
 }
 
@@ -168,14 +168,14 @@ export function gradeCaseReceipt(input: CaseReceiptObservation) {
   const passives = cases.filter(row => row.id !== input.caseId);
   const listedWorkflow = cases.filter(row => row.id === input.caseId);
   add("one-primary-task-and-two-passive-cases", id(input.nonce) && distinctAgents.length === 3 && distinctAgents.every(id)
-    && issue.id === input.taskId && issue.companyId === input.companyId && tasks.length === 1 && tasks[0]?.id === input.taskId
-    && workflow.id === input.caseId && workflow.companyId === input.companyId && workflow.workIssueId === input.taskId
+    && issue.id === input.taskId && issue.spaceId === input.spaceId && tasks.length === 1 && tasks[0]?.id === input.taskId
+    && workflow.id === input.caseId && workflow.spaceId === input.spaceId && workflow.workIssueId === input.taskId
     && cases.length === 3 && new Set(cases.map(row => row.id)).size === 3 && listedWorkflow.length === 1
     && listedWorkflow[0]?.workIssueId === input.taskId && passives.length === 2
-    && passives.every(row => row.companyId === input.companyId && row.caseType === "receipt-research" && row.workIssueId === null
+    && passives.every(row => row.spaceId === input.spaceId && row.caseType === "receipt-research" && row.workIssueId === null
       && row.phase === null && row.handoffVersion === 0 && row.fields?.nonce === input.nonce)
     && passives.map(row => row.status).sort().join(",") === "done,draft",
-  "Exactly one company task and workflow case exist; the two draft/done research cases remain passive.");
+  "Exactly one space task and workflow case exist; the two draft/done research cases remain passive.");
   add("unchanged-receipt-inputs", fields.nonce === input.nonce && fields.currency === "USD" && Array.isArray(fields.items)
     && fields.items.length === 1 && keys(fields.items[0], ["quantity", "unitPrice"])
     && fields.items[0].quantity === 2 && fields.items[0].unitPrice === 3,
@@ -187,7 +187,7 @@ export function gradeCaseReceipt(input: CaseReceiptObservation) {
     && (brief.latestBody ?? brief.body) === `Receipt ${input.nonce}: total and currency are required.` && input.triageReadBrief === true,
   "The initial brief belongs to the primary task and triage read its persisted revision through the ordinary native document tool.");
   const validRuns = runs.length === CASE_RECEIPT_MAX_TURNS && new Set(runs.map(run => run.id)).size === CASE_RECEIPT_MAX_TURNS
-    && runs.every((run, index) => id(run.id) && run.companyId === input.companyId && run.agentId === agents[index]
+    && runs.every((run, index) => id(run.id) && run.spaceId === input.spaceId && run.agentId === agents[index]
       && run.runtimeMode === "native" && run.status === "succeeded"
       && [run.issueId, run.nativeIssueId, run.contextSnapshot?.issueId, run.contextSnapshot?.taskId].includes(input.taskId)
       && Number.isFinite(timestamp(run.startedAt)) && Number.isFinite(timestamp(run.finishedAt))
@@ -197,7 +197,7 @@ export function gradeCaseReceipt(input: CaseReceiptObservation) {
   add("four-settled-nonoverlapping-runs", validRuns,
     "Exactly four successful native task runs follow triage, builder, verifier, returning builder without overlap or an extra turn.");
   const validHandoffs = handoffs.length === 5 && new Set(handoffs.map(row => row.id)).size === 5
-    && handoffs.slice(0, 4).every((row, index) => row.destinationKind === "agent" && id(row.id) && row.companyId === input.companyId && row.caseId === input.caseId
+    && handoffs.slice(0, 4).every((row, index) => row.destinationKind === "agent" && id(row.id) && row.spaceId === input.spaceId && row.caseId === input.caseId
       && row.issueId === input.taskId && row.version === index + 1 && row.phase === phases[index] && row.toAgentId === agents[index]
       && row.state === "delivered" && integer(row.appliedIssueStatusVersion)
       && (index === 0 ? row.sourceRunId === null && (row.fromAgentId === null || row.fromAgentId === agents[0])
@@ -213,7 +213,7 @@ export function gradeCaseReceipt(input: CaseReceiptObservation) {
     && new Set(toolRuns).size === 4 && runs.every(run => toolRuns.includes(run.id)) && validRuns && validHandoffs,
   "Kickoff replay preserved the receipt, and all agent transfers and the terminal handoff have completed native tool receipts.");
   add("fresh-phase-context", validRuns && validHandoffs && runs.every((run, index) => {
-    const context = object(run.contextSnapshot?.paperclipCase);
+    const context = object(run.contextSnapshot?.outpostCase);
     return context.id === input.caseId && context.taskId === input.taskId && context.phase === phases[index]
       && context.handoffVersion === index + 1 && integer(context.issueStatusVersion)
       && context.issueStatusVersion >= handoffs[index]!.appliedIssueStatusVersion
@@ -225,7 +225,7 @@ export function gradeCaseReceipt(input: CaseReceiptObservation) {
   const revisions = [...(Array.isArray(input.receiptRevisions) ? input.receiptRevisions : [])].sort((a, b) => a.revisionNumber - b.revisionNumber);
   const inRun = (revision: Row, run: Row | undefined) => !!run && revision.createdByRunId === run.id
     && timestamp(revision.createdAt) >= timestamp(run.startedAt) && timestamp(revision.createdAt) <= timestamp(run.finishedAt);
-  add("persisted-receipt-correction", validRuns && id(receipt.id) && receipt.companyId === input.companyId
+  add("persisted-receipt-correction", validRuns && id(receipt.id) && receipt.spaceId === input.spaceId
     && receipt.createdByAgentId === input.agents.implementation && receipt.updatedByAgentId === input.agents.implementation
     && revisions.length === 2 && revisions.every((revision, index) => id(revision.id) && revision.revisionNumber === index + 1
       && revision.createdByAgentId === input.agents.implementation && revision.createdByUserId == null)
@@ -233,7 +233,7 @@ export function gradeCaseReceipt(input: CaseReceiptObservation) {
     && initialReceipt(body(revisions[0])) && finalReceipt(body(revisions[1])) && finalReceipt(body(receipt))
     && receipt.latestRevisionId === revisions[1]?.id && receipt.latestRevisionNumber === 2,
   "The first builder saved only total 6; the same returning builder revised that task document to total 6 and currency USD.");
-  add("independent-persisted-review", validRuns && id(review.id) && review.id !== receipt.id && review.companyId === input.companyId
+  add("independent-persisted-review", validRuns && id(review.id) && review.id !== receipt.id && review.spaceId === input.spaceId
     && review.createdByAgentId === input.agents.verification && review.updatedByAgentId === input.agents.verification
     && review.latestRevisionId === reviewRevision.id && review.latestRevisionNumber === 1 && reviewRevision.revisionNumber === 1
     && id(reviewRevision.id) && reviewRevision.createdByAgentId === input.agents.verification && reviewRevision.createdByUserId == null
@@ -249,7 +249,7 @@ export function gradeCaseReceipt(input: CaseReceiptObservation) {
     && workflow.phase === "done" && workflow.handoffVersion === 5 && workflow.pendingHandoff == null
     && input.pendingInteractions === 0 && Number.isFinite(timestamp(workflow.completedAt))
     && terminal?.destinationKind === "done" && terminal.state === "completed" && terminal.phase === "done"
-    && terminal.companyId === input.companyId && terminal.caseId === input.caseId && terminal.issueId === input.taskId
+    && terminal.spaceId === input.spaceId && terminal.caseId === input.caseId && terminal.issueId === input.taskId
     && terminal.version === 5 && terminal.fromAgentId === input.agents.implementation && terminal.toAgentId === null
     && terminal.sourceRunId === runs[3]?.id && Number.isFinite(timestamp(terminal.completedAt))
     && timestamp(terminal.completedAt) === timestamp(workflow.completedAt)
@@ -261,10 +261,10 @@ export function gradeCaseReceipt(input: CaseReceiptObservation) {
   const persistedAgents = Array.isArray(limits?.agents) ? limits.agents : [], budgetAgents = Array.isArray(budgets?.agents) ? budgets.agents : [];
   add("configured-four-turn-budget", limits?.maxRuns === 4 && limits.runTimeoutMs === CASE_RECEIPT_RUN_TIMEOUT_MS
     && limits.attemptTimeoutMs === 5 * 60_000 && limits.automaticRetryPolicy === "single_attempt"
-    && budgets?.company?.budgetMonthlyCents === CASE_RECEIPT_BUDGET_CENTS && budgetAgents.length === 3 && persistedAgents.length === 3
+    && budgets?.space?.budgetMonthlyCents === CASE_RECEIPT_BUDGET_CENTS && budgetAgents.length === 3 && persistedAgents.length === 3
     && distinctAgents.every((agentId, index) => budgetAgents.filter(agent => agent.id === agentId && agent.budgetMonthlyCents === CASE_RECEIPT_BUDGET_CENTS).length === 1
       && persistedAgents.filter(agent => agent.id === agentId && agent.maxDailyRuns === roleLimits[index] && agent.maxConcurrentRuns === 1
         && agent.heartbeatEnabled === false && agent.timeoutSec === 90 && agent.modelReasoningEffort === "low").length === 1),
-  "Public readback confirms 100-cent company/agent stops, role run caps 1/2/1, one concurrent run, low effort, 90-second turns, and one five-minute attempt.");
+  "Public readback confirms 100-cent space/agent stops, role run caps 1/2/1, one concurrent run, low effort, 90-second turns, and one five-minute attempt.");
   return checks;
 }

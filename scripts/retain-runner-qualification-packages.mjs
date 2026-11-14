@@ -11,13 +11,13 @@ export function retainRunnerQualificationPackages({ repo, output, sourceRevision
   assert.match(sourceRevision, /^[a-f0-9]{40}$/);
   assert.equal(JSON.parse(readFileSync(join(repo, 'server/dist/build-info.json'))).commit, sourceRevision);
   assert.ok(publicArchives.some(a => a.name === '@outpost/server'));
-  assert.ok(publicArchives.some(a => a.name === 'paperclipai'));
+  assert.ok(publicArchives.some(a => a.name === '@outpost/cli'));
   assert.ok(publicArchives.some(a => a.name === '@outpost/plugin-sdk'));
   assert.equal(new Set(publicArchives.map(a => a.name)).size, publicArchives.length);
   output = resolve(output);
   assert.ok(!existsSync(output), 'Never replace retained qualification packages');
   mkdirSync(output, { recursive: true });
-  const staging = mkdtempSync(join(tmpdir(), 'paperclip-qualification-pack-'));
+  const staging = mkdtempSync(join(tmpdir(), 'outpost-qualification-pack-'));
   const archives = [];
   const hash = file => createHash('sha256').update(readFileSync(file)).digest('hex');
   const retain = (name, file) => {

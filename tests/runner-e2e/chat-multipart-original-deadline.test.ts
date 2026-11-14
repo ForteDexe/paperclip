@@ -21,7 +21,7 @@ import { questionIdentityCases } from "./chat-catalog-domains/identity-questions
 const owner = questionIdentityCases.find(row => row.scenarioId === "questions-and-approvals.multi-part-question")!;
 afterEach(() => vi.restoreAllMocks());
 type Options = { deadline?: number | "missing"; readyAt?: number; status?: string; noWork?: boolean; extraRun?: boolean;
-  foreign?: "company" | "actor" | "source" | "comment" | "question"; duplicateComment?: boolean; missingComment?: boolean;
+  foreign?: "space" | "actor" | "source" | "comment" | "question"; duplicateComment?: boolean; missingComment?: boolean;
   lateLoad?: boolean; lateSourceRead?: boolean };
 function fixture(options: Options = {}) {
   clock.now = 30_000; clock.deadlines.splice(0);
@@ -30,7 +30,7 @@ function fixture(options: Options = {}) {
   const readyAt = options.readyAt ?? 210_000;
   const query = "Help me choose the details for the launch page before you build it.";
   const click = vi.fn(async () => { throw Error("Reached human question form"); });
-  const runs = () => options.noWork ? [] : [{ id: "native", companyId: options.foreign === "company" ? "foreign" : "company",
+  const runs = () => options.noWork ? [] : [{ id: "native", spaceId: options.foreign === "space" ? "foreign" : "space",
     agentId: options.foreign === "actor" ? "other" : "ceo", status: clock.now >= readyAt ? options.status ?? "succeeded" : "running",
     contextSnapshot: { issueId: options.foreign === "source" ? "unrelated" : "source", commentId: options.foreign === "comment" ? "other" : "human" } },
     ...(options.extraRun ? [{ id: "extra", status: "succeeded" }] : [])];
@@ -42,11 +42,11 @@ function fixture(options: Options = {}) {
     return options.missingComment ? [] : [comment, ...(options.duplicateComment ? [{ ...comment, id: "duplicate" }] : [])];
   });
   const ctx = { ...(deadline === "missing" ? {} : { observationDeadlineAt: deadline }), scenario: { query },
-    input: { fixtures: { company: { id: "company" }, agent: { id: "ceo" } }, api: { get }, page: { locator: () => ({ click }) } },
+    input: { fixtures: { space: { id: "space" }, agent: { id: "ceo" } }, api: { get }, page: { locator: () => ({ click }) } },
     issue: () => ({ id: "source", conversationState: clock.now >= readyAt ? "waiting" : "active" }),
     refreshIssue: vi.fn(async () => {}), allRuns,
   } as unknown as ChatCatalogContext;
-  const state = { sourceId: "source", original: { id: "question", companyId: "company", issueId: options.foreign === "question" ? "unrelated" : "source", kind: "ask_user_questions", status: "pending" } };
+  const state = { sourceId: "source", original: { id: "question", spaceId: "space", issueId: options.foreign === "question" ? "unrelated" : "source", kind: "ask_user_questions", status: "pending" } };
   return { ctx, state, click, get, allRuns };
 }
 it("owning multipart act observes valid delayed source completion only inside its original300s before any human form action", async () => {
@@ -62,7 +62,7 @@ it.each(["missing", NaN, Infinity, 29_999] as const)("rejects missing/invalid/ex
   await expect(owner.act!(f.ctx, f.state)).rejects.toThrow();
   expect(f.allRuns).not.toHaveBeenCalled(); expect(f.get).not.toHaveBeenCalled(); expect(f.click).not.toHaveBeenCalled();
 });
-it.each(["company", "actor", "source", "comment", "question"] as const)("does not use a completed foreign %s as permission to answer the saved question", async foreign => {
+it.each(["space", "actor", "source", "comment", "question"] as const)("does not use a completed foreign %s as permission to answer the saved question", async foreign => {
   const f = fixture({ readyAt: 30_000, foreign });
   await expect(owner.act!(f.ctx, f.state)).rejects.toThrow(); expect(f.click).not.toHaveBeenCalled();
 });

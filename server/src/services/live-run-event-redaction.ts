@@ -15,7 +15,7 @@ export function createLiveRunEventRedactor(db: Db) {
     const redacted = redactCurrentUserValue({ ...event,
       payload: redactEventPayload(event.payload) ?? {},
     }, { enabled: await sharedDeliveryRead(reads, "censor-usernames", async () => (await settings.getGeneral()).censorUsernameInLogs) });
-    const redact = await sharedDeliveryRead(reads, `secrets:${event.companyId}:${runId}`, () => redactions.redactorForRun(event.companyId, runId));
+    const redact = await sharedDeliveryRead(reads, `secrets:${event.spaceId}:${runId}`, () => redactions.redactorForRun(event.spaceId, runId));
     return redact(redacted);
   };
 }

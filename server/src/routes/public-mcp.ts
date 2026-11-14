@@ -50,16 +50,16 @@ export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnTyp
   const resourceMetadata = origin + "/.well-known/oauth-protected-resource" + endpoint;
   if (!agentConnection) router.get(["/mcp/setup", "/mcp/setup.md"], async (req, res) => {
     await oauth.assertEnabled();
-    const company = z.uuid().optional().safeParse(req.query.company);
-    if (!company.success) throw new McpOAuthError("invalid_request", "Invalid organization hint.");
+    const space = z.uuid().optional().safeParse(req.query.space);
+    if (!space.success) throw new McpOAuthError("invalid_request", "Invalid organization hint.");
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
     res.vary("Accept");
     if (req.path.endsWith(".md") || req.accepts(["html", "text/markdown"]) === "text/markdown") {
-      res.type("text/markdown").send(mcpSetupMarkdown(resource, company.data));
-    } else res.type("html").send(renderMcpSetup(resource, company.data));
+      res.type("text/markdown").send(mcpSetupMarkdown(resource, space.data));
+    } else res.type("html").send(renderMcpSetup(resource, space.data));
   });
   router.use([oauthPath, endpoint], (_req, res, next) => {
     res.setHeader("Cache-Control", "no-store");
@@ -87,7 +87,7 @@ export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnTyp
     let principal;
     try { if (!token) throw new Error(); principal = await oauth.authenticate(token); }
     catch {
-      res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${resourceMetadata}", scope="${agentConnection ? "paperclip:agent" : "paperclip:read paperclip:write paperclip:configure"}", error="invalid_token"`);
+      res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${resourceMetadata}", scope="${agentConnection ? "outpost:agent" : "outpost:read outpost:write outpost:configure"}", error="invalid_token"`);
       res.status(401).json({ error: "invalid_token" }); return;
     }
     if (req.method !== "POST") { res.setHeader("Allow", "POST"); res.status(405).end(); return; }
@@ -155,7 +155,7 @@ export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnTyp
             if (!events) { fail(-32601, "Events are unavailable."); return; }
             // The broker supplies its original access proof only for hosted subscriptions.
             // It is validated against the selected verified issuer before being retained encrypted.
-            const rawAuthority=meta["ai.paperclip/cloudAuthority"],authority = cloudEventAuthoritySchema.safeParse(rawAuthority);
+            const rawAuthority=meta["ai.outpost/cloudAuthority"],authority = cloudEventAuthoritySchema.safeParse(rawAuthority);
             if(rawAuthority!==undefined&&!authority.success)throw new McpEventError(-32602,"Invalid hosted subscription authority.");
             result = await events.subscribe(principal!, params, authority.success ? authority.data : undefined); break;
           }
@@ -164,7 +164,7 @@ export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnTyp
             result = await events.unsubscribe(principal!, params); break;
           default: fail(-32601, "Method not found."); return;
         }
-        res.json({ jsonrpc: "2.0", id: envelope.data.id, result: { ...result, resultType: "complete", _meta: { "io.modelcontextprotocol/serverInfo": { name: "paperclip", version: "0.1.0" } } } });
+        res.json({ jsonrpc: "2.0", id: envelope.data.id, result: { ...result, resultType: "complete", _meta: { "io.modelcontextprotocol/serverInfo": { name: "outpost", version: "0.1.0" } } } });
       } catch (error) {
         if (error instanceof McpEventError) fail(error.code, error.message, error.reason ? { reason: error.reason } : undefined);
         else if (error instanceof z.ZodError || error instanceof McpApiError || error instanceof McpOAuthError) fail(-32602, "Invalid arguments or unavailable authority.");
@@ -172,7 +172,7 @@ export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnTyp
       }
       return;
     }
-    const server = new Server({ name: "paperclip", version: "0.1.0" }, { capabilities: { tools: {} } });
+    const server = new Server({ name: "outpost", version: "0.1.0" }, { capabilities: { tools: {} } });
     server.setRequestHandler(ListToolsRequestSchema, listTools);
     server.setRequestHandler(CallToolRequestSchema, callTool);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
@@ -193,7 +193,7 @@ export function publicMcpManagementRoutes(oauth: PublicMcpOAuth, agentOAuth?: Pu
   };
   const deviceOAuth = async (code: string) => agentOAuth && await agentOAuth.ownsDevice(code) ? agentOAuth : oauth;
   const realUser: RequestHandler = (req, _res, next) => {
-    if (req.actor.type !== "board" || !req.actor.userId || !["session", "cloud_tenant"].includes(req.actor.source ?? "")) {
+    if (req.actor.type !== "operator" || !req.actor.userId || !["session", "cloud_tenant"].includes(req.actor.source ?? "")) {
       throw new McpOAuthError("access_denied", "Sign in to manage assistant connections.", 401);
     }
     next();
@@ -234,7 +234,7 @@ export function publicMcpManagementRoutes(oauth: PublicMcpOAuth, agentOAuth?: Pu
   });
   router.post("/mcp/requests/:id/consent", realUser, sameOrigin, async (req, res) => {
     const parsed = mcpConsentSchema.safeParse(req.body);
-    if (!parsed.success) throw new McpOAuthError("invalid_request", "Choose a company and the requested access.");
+    if (!parsed.success) throw new McpOAuthError("invalid_request", "Choose a space and the requested access.");
     res.json(await (await requestOAuth(String(req.params.id))).consent(String(req.params.id), req.actor, parsed.data));
   });
   router.get("/mcp/setup", realUser, async (_req, res) => res.json({

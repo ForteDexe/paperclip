@@ -21,7 +21,7 @@ describe("artifact metadata", () => {
       "https://example.com/tracker.png",
       "http://127.0.0.1/private",
       "//evil.test/track",
-      "/api/companies",
+      "/api/spaces",
       "/api/attachments/a/content?redirect=1",
     ])
       expect(artifactPreviewUrl(value)).toBe("");
@@ -91,7 +91,7 @@ describe("CSV artifact preview", () => {
     vi.stubGlobal("fetch", fetcher);
     for (const path of [
       "https://example.com/data.csv",
-      "/api/companies",
+      "/api/spaces",
       "/api/attachments/a/content?redirect=yes",
     ])
       await expect(loadArtifactCsv(path)).rejects.toThrow("unavailable");

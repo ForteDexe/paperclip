@@ -44,15 +44,15 @@ export function gradeClarificationEvidence(context: JourneyContext, issueId: str
     const question = value as Row;
     return question.status === "answered" && question.resolvedByUserId === context.user.id && !question.resolvedByAgentId;
   }), detail: "Both retained responses must come from the signed-in board user." },
-  { id: "question-document-attributed", passed: !!document && document.issueId === issueId && document.companyId === context.company.id
+  { id: "question-document-attributed", passed: !!document && document.issueId === issueId && document.spaceId === context.space.id
     && document.createdByAgentId === context.agent?.id && document.updatedByAgentId === context.agent?.id,
-  detail: "The owned native agent created and last wrote the document on this exact task and company." },
+  detail: "The owned native agent created and last wrote the document on this exact task and space." },
   { id: "question-document-reloaded", passed: !!document && !!readback && readback.issueId === issueId
     && readback.key === document.key && readback.revisionId === document.latestRevisionId && readback.body === document.body
     && readback.visibleBody.includes(`Use ${marker}.`) && /\bafternoon\b/i.test(readback.visibleBody),
   detail: "The reloaded document must show both saved answers at the independently read revision." },
   { id: "configured-model-and-environment", passed: bound && checkpoints.length === 3 && !!final
     && final.runs.length >= 1 && final.runs.length <= 3 && final.runs.every(run => run.status === "succeeded"),
-  detail: "Every observed run belongs to the configured native agent, task, company, model and environment." });
+  detail: "Every observed run belongs to the configured native agent, task, space, model and environment." });
   return checks;
 }

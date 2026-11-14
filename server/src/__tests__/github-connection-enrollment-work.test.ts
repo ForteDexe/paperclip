@@ -6,7 +6,7 @@ import { once } from "node:events";
 import { setImmediate as yieldForIo } from "node:timers/promises";
 import { createCipheriv, createPublicKey, diffieHellman, generateKeyPairSync, hkdfSync, randomBytes, randomUUID, verify } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { companies, connectionEventDeliveries, connectionGrants, createDb, toolApplications, toolConnections } from "@outpost/db";
+import { spaces, connectionEventDeliveries, connectionGrants, createDb, toolApplications, toolConnections } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { githubConnectionEventService } from "../services/github-connection-events.js";
@@ -14,8 +14,8 @@ import { registerGitHubConnectionEventWork } from "../services/github-connection
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 import { wakeConnectionEvents } from "../services/connection-event-wake.js";
-import { completePaperclipCloudConnectorEnrollment, loadPaperclipCloudConnectorIdentity, startPaperclipCloudConnectorEnrollment } from "../services/paperclip-cloud-connector-enrollment.js";
-import { paperclipCloudConnectorIdentityPath } from "../services/paperclip-cloud-connector-enrollment.js";
+import { completeOutpostCloudConnectorEnrollment, loadOutpostCloudConnectorIdentity, startOutpostCloudConnectorEnrollment } from "../services/outpost-cloud-connector-enrollment.js";
+import { outpostCloudConnectorIdentityPath } from "../services/outpost-cloud-connector-enrollment.js";
 
 const support = await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("GitHub enrollment on a live event worker (real PostgreSQL and signed loopback Cloud)", () => {
@@ -36,7 +36,7 @@ const support = await getEmbeddedPostgresTestSupport();
     let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
     const errors: unknown[] = [], httpErrors: unknown[] = [];
     let requests = 0, acknowledged = 0, leases = 0, enrollment: Record<string, string> | undefined;
-    let origin = "", eventId = randomUUID(), grantId = "", companyId = "";
+    let origin = "", eventId = randomUUID(), grantId = "", spaceId = "";
     const identities: string[] = [];
     const delivered = new Set<string>();
     let releaseReplacementAck!: () => void;
@@ -82,11 +82,11 @@ const support = await getEmbeddedPostgresTestSupport();
       const listening = once(server, "listening"); server.listen(0, "127.0.0.1"); await listening;
       const address = server.address(); if (!address || typeof address === "string") throw new Error("No loopback listener");
       origin = `http://127.0.0.1:${address.port}`;
-      companyId = randomUUID();
-      await db.insert(companies).values({ id: companyId, name: "Live enrollment", issuePrefix: "GLE" });
-      const [app] = await db.insert(toolApplications).values({ companyId, applicationKey: randomUUID(), name: "GitHub", type: "mcp_http", status: "active" }).returning();
-      const [connection] = await db.insert(toolConnections).values({ companyId, applicationId: app!.id, uid: randomUUID(), name: "GitHub", status: "active", enabled: true, transport: "mcp_remote", authKind: "oauth", credentialPolicy: "per_user", config: { sourceTemplateKey: "github", oauth: { connectorProfile: "github.code" } }, transportConfig: {} }).returning();
-      const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId: connection!.id, kind: "user", subjectUserId: "owner", status: "active", providerTenant: { github: { userId: "42", login: "octocat", installationIds: ["101"], installationCount: 1, repositoryCount: 0, repositorySelection: "all", installationOwnerLogins: [], webhookHealth: "unhealthy" } } }).returning();
+      spaceId = randomUUID();
+      await db.insert(spaces).values({ id: spaceId, name: "Live enrollment", issuePrefix: "GLE" });
+      const [app] = await db.insert(toolApplications).values({ spaceId, applicationKey: randomUUID(), name: "GitHub", type: "mcp_http", status: "active" }).returning();
+      const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId: app!.id, uid: randomUUID(), name: "GitHub", status: "active", enabled: true, transport: "mcp_remote", authKind: "oauth", credentialPolicy: "per_user", config: { sourceTemplateKey: "github", oauth: { connectorProfile: "github.code" } }, transportConfig: {} }).returning();
+      const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId: connection!.id, kind: "user", subjectUserId: "owner", status: "active", providerTenant: { github: { userId: "42", login: "octocat", installationIds: ["101"], installationCount: 1, repositoryCount: 0, repositorySelection: "all", installationOwnerLogins: [], webhookHealth: "unhealthy" } } }).returning();
       grantId = grant!.id;
       const env = { OUTPOST_CLOUD_CONNECTOR_BASE_URL: origin, OUTPOST_CLOUD_CONNECTOR_ENVIRONMENT: "test" };
       const service = githubConnectionEventService(db, { env });
@@ -134,10 +134,10 @@ const support = await getEmbeddedPostgresTestSupport();
       }
       await quiet("unenrolled startup"); expect(requests).toBe(0);
       async function enroll() {
-        await startPaperclipCloudConnectorEnrollment({ origin: "https://self-hosted.example.test", env, companyId });
-        const pending = loadPaperclipCloudConnectorIdentity()!;
-        await completePaperclipCloudConnectorEnrollment({ enrollmentId: pending.pending!.enrollmentId, state: pending.pending!.returnState, approvalCode: "approved", env });
-        return loadPaperclipCloudConnectorIdentity()!.instanceId;
+        await startOutpostCloudConnectorEnrollment({ origin: "https://self-hosted.example.test", env, spaceId });
+        const pending = loadOutpostCloudConnectorIdentity()!;
+        await completeOutpostCloudConnectorEnrollment({ enrollmentId: pending.pending!.enrollmentId, state: pending.pending!.returnState, approvalCode: "approved", env });
+        return loadOutpostCloudConnectorIdentity()!.instanceId;
       }
       const firstIdentity = await enroll();
       expect(wakeConnectionEvents(db)).toBe(true);
@@ -149,7 +149,7 @@ const support = await getEmbeddedPostgresTestSupport();
       // Join that existing minimum-spacing pass once; the broker now has no debt.
       await drainFollowup(2);
       await quiet("first event plus its one empty follow-up");
-      await rm(paperclipCloudConnectorIdentityPath());
+      await rm(outpostCloudConnectorIdentityPath());
       const oldLeases = leases; expect(wakeConnectionEvents(db)).toBe(true); await vi.advanceTimersByTimeAsync(6_000);
       await quiet("removed identity"); expect(leases).toBe(oldLeases);
       eventId = randomUUID(); const secondIdentity = await enroll(); expect(secondIdentity).not.toBe(firstIdentity);

@@ -12,21 +12,21 @@ Both commits have byte-identical pre-fix authorization, issue-service and
 participation-helper sources. The reproduction command uses the newer equivalent
 pre-fix baseline so unrelated upstream voice-schema changes stay constant in
 both arms. The measured source hashes below are unchanged by that replay.
-The previous recursive join can scan every company task and check its project
+The previous recursive join can scan every space task and check its project
 for each privacy frontier. In the 1,200-open-task regression this reads 1,440,000
 task rows even though every parent is NULL. The semantic ID assertion passes;
 the deterministic work assertion fails at the unchanged baseline.
 
-The replacement skips NULL parent frontiers and reads the exact same-company
+The replacement skips NULL parent frontiers and reads the exact same-space
 parent through a correlated lateral lookup. The existing unique task ID and
-company/ID index support the lookup. No schema or migration change is needed.
+space/ID index support the lookup. No schema or migration change is needed.
 
 Both `LIMIT 1` clauses are redundant under the current schema and anchor:
 
-1. The anchor selects at most one row by the outer task's ID and company.
+1. The anchor selects at most one row by the outer task's ID and space.
 2. Each task has one scalar privacy parent ID. That ID selects at most one
-   same-company parent. The lateral limit prevents the planner from replacing
-   the parameterized lookup with a company-wide hash scan.
+   same-space parent. The lateral limit prevents the planner from replacing
+   the parameterized lookup with a space-wide hash scan.
 3. Inductively, each recursive generation has at most one row. The recursive-arm
    limit exposes this fact to the planner. It does not limit chain depth.
 4. `UNION` still removes visited rows and terminates cycles. An open parent
@@ -36,10 +36,10 @@ A first lateral-only draft removed repeated scans but raised estimated ancestry
 rows from 11 to 101. This retained JIT compilation in the representative callers.
 The per-generation cardinality fence addresses that estimate. Tiny tables can
 still use a cheap sequential lookup for a real parent. The work guard prevents
-company scans for absent parents; it does not force every small-table index plan.
+space scans for absent parents; it does not force every small-table index plan.
 
 Implicit principals, live task grants, private project membership, responsible
-user and external authorizer intersections, and company membership checks use
+user and external authorizer intersections, and space membership checks use
 the same expressions. There is no cached permission result or visibility check
 moved after pagination.
 
@@ -92,7 +92,7 @@ passed without the final measured result.
 
 The dedicated real PostgreSQL tests cover NULL parents, child-to-descendant grant
 flow, sibling/ancestor denial, revocation, a 64-level root-only grant, cycles,
-public traversal barriers, foreign-company parent pointers, all three agent/user
+public traversal barriers, foreign-space parent pointers, all three agent/user
 principals, inactive user membership, private project membership, and access
 checks before list pagination. Existing production privacy, creation visibility,
 and unread badge tests exercise the shared consumers and HTTP routes.
@@ -181,7 +181,7 @@ The final-runtime focused PostgreSQL 17 run passed 44/44 tests across the dedica
 Workspace typecheck and full build passed before replay. The full local
 `pnpm test:run` attempt completed 940 native executor cases with 16 database
 bootstrap failures, then was stopped with exit 143. An independent empty native
-`initdb` failed with `semget` semaphore exhaustion before Paperclip schema or SQL
+`initdb` failed with `semget` semaphore exhaustion before Outpost schema or SQL
 ran. This is a failed/incomplete local full-suite result, not a pass. A focused
 Docker PostgreSQL retry and exact-head CI results are recorded in the PR.
 

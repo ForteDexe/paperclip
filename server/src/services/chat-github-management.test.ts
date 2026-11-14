@@ -16,7 +16,7 @@ vi.mock("./environments.js", () => ({ environmentService: vi.fn() }));
 vi.mock("./instance-settings.js", () => ({ instanceSettingsService: vi.fn() }));
 vi.mock("./execution-workspace-policy.js", () => ({ resolveExecutionWorkspaceEnvironmentId: vi.fn() }));
 
-const endpoint = { id: "bot-endpoint", companyId: "bot-company", status: "active" };
+const endpoint = { id: "bot-endpoint", spaceId: "bot-space", status: "active" };
 const credentials = {
   endpoint,
   connection: { enabled: true, status: "active" },
@@ -43,7 +43,7 @@ describe("GitHub external contributor lookup", () => {
   it("uses only the requested endpoint's installation with metadata permission", async () => {
     const { db, fetchImpl, service } = fixture();
     expect(await service.lookupPerson(endpoint.id, "octocat")).toEqual({ githubUserId: "1", login: "octocat" });
-    expect(githubBotCredentials).toHaveBeenCalledExactlyOnceWith(db, endpoint.companyId, endpoint.id);
+    expect(githubBotCredentials).toHaveBeenCalledExactlyOnceWith(db, endpoint.spaceId, endpoint.id);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(fetchImpl.mock.calls[0]).toEqual([
       "https://api.github.com/app/installations/12345/access_tokens",

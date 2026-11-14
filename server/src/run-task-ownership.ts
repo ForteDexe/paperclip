@@ -7,18 +7,18 @@ import { forbidden } from "./errors.js";
  */
 export function assertHandedOffRunTaskOwnership(
   run: {
-    companyId: string;
+    spaceId: string;
     runtimeMode: string;
     contextSnapshot?: Record<string, unknown> | null;
   } | null | undefined,
   issue: {
     id: string;
-    companyId: string;
+    spaceId: string;
     assigneeAgentId: string | null;
     assigneeUserId: string | null;
   },
 ) {
-  if ((run?.runtimeMode === "legacy" || run?.runtimeMode === "native") && run.companyId === issue.companyId &&
+  if ((run?.runtimeMode === "legacy" || run?.runtimeMode === "native") && run.spaceId === issue.spaceId &&
       run.contextSnapshot?.issueId === issue.id &&
       issue.assigneeAgentId === null && issue.assigneeUserId) {
     throw forbidden("This task is assigned to a human; the outgoing run can no longer change it", {

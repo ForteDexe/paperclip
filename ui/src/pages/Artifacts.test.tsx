@@ -6,10 +6,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Artifacts } from "./Artifacts";
-import type { CompanyArtifact, CompanyArtifactGroup } from "../api/artifacts";
+import type { SpaceArtifact, SpaceArtifactGroup } from "../api/artifacts";
 
-const companyState = vi.hoisted(() => ({
-  selectedCompanyId: "company-1",
+const spaceState = vi.hoisted(() => ({
+  selectedSpaceId: "space-1",
 }));
 
 const breadcrumbState = vi.hoisted(() => ({
@@ -26,8 +26,8 @@ vi.mock("@/hooks/useArtifactsV1Enabled", () => ({
   useArtifactsV1Enabled: () => artifactsV1Flag,
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => companyState,
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => spaceState,
 }));
 
 vi.mock("../context/BreadcrumbContext", () => ({
@@ -60,10 +60,10 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 }));
 
 vi.mock("../components/artifacts/ArtifactCard", () => ({
-  ArtifactCard: ({ artifact }: { artifact: CompanyArtifact }) => (
+  ArtifactCard: ({ artifact }: { artifact: SpaceArtifact }) => (
     <article data-testid="artifact-card">{artifact.title}</article>
   ),
-  ArtifactPreview: ({ artifact }: { artifact: CompanyArtifact }) => (
+  ArtifactPreview: ({ artifact }: { artifact: SpaceArtifact }) => (
     <div data-testid="artifact-preview">{artifact.title}</div>
   ),
 }));
@@ -87,7 +87,7 @@ class MockIntersectionObserver {
   takeRecords = vi.fn(() => []);
 }
 
-function sampleArtifact(overrides: Partial<CompanyArtifact> = {}): CompanyArtifact {
+function sampleArtifact(overrides: Partial<SpaceArtifact> = {}): SpaceArtifact {
   return {
     id: "artifact-1",
     source: "document",
@@ -107,7 +107,7 @@ function sampleArtifact(overrides: Partial<CompanyArtifact> = {}): CompanyArtifa
   };
 }
 
-function sampleGroup(overrides: Partial<CompanyArtifactGroup> = {}): CompanyArtifactGroup {
+function sampleGroup(overrides: Partial<SpaceArtifactGroup> = {}): SpaceArtifactGroup {
   return {
     id: "task:issue-1",
     groupBy: "task",
@@ -184,7 +184,7 @@ describe("Artifacts page", () => {
     const { root } = renderArtifacts(container);
 
     await waitForAssertion(() => {
-      expect(artifactsApiMock.list).toHaveBeenCalledWith("company-1", {
+      expect(artifactsApiMock.list).toHaveBeenCalledWith("space-1", {
         kind: "all",
         q: undefined,
         groupBy: "task",
@@ -230,7 +230,7 @@ describe("Artifacts page", () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     await waitForAssertion(() => {
-      expect(artifactsApiMock.list).toHaveBeenLastCalledWith("company-1", {
+      expect(artifactsApiMock.list).toHaveBeenLastCalledWith("space-1", {
         kind: "all",
         q: "launch",
         groupBy: "task",
@@ -287,7 +287,7 @@ describe("Artifacts page", () => {
     );
 
     await waitForAssertion(() => {
-      expect(artifactsApiMock.list).toHaveBeenLastCalledWith("company-1", {
+      expect(artifactsApiMock.list).toHaveBeenLastCalledWith("space-1", {
         kind: "all",
         q: undefined,
         groupBy: "none",
@@ -304,7 +304,7 @@ describe("Artifacts page", () => {
   });
 
   it("switches grouping via the group control and refetches stacks", async () => {
-    artifactsApiMock.list.mockImplementation((_companyId: string, params?: { groupBy?: string }) => {
+    artifactsApiMock.list.mockImplementation((_spaceId: string, params?: { groupBy?: string }) => {
       if (params?.groupBy === "none") {
         return Promise.resolve({ artifacts: [sampleArtifact()], nextCursor: null });
       }
@@ -327,7 +327,7 @@ describe("Artifacts page", () => {
     });
 
     await waitForAssertion(() => {
-      expect(artifactsApiMock.list).toHaveBeenLastCalledWith("company-1", {
+      expect(artifactsApiMock.list).toHaveBeenLastCalledWith("space-1", {
         kind: "all",
         q: undefined,
         groupBy: "none",
@@ -355,7 +355,7 @@ describe("Artifacts page", () => {
     const { root } = renderArtifacts(container, ["/artifacts?groupBy=task"]);
 
     await waitForAssertion(() => {
-      expect(artifactsApiMock.list).toHaveBeenCalledWith("company-1", {
+      expect(artifactsApiMock.list).toHaveBeenCalledWith("space-1", {
         kind: "all",
         q: undefined,
         groupBy: "task",
@@ -388,7 +388,7 @@ describe("Artifacts page", () => {
     ]);
 
     await waitForAssertion(() => {
-      expect(artifactsApiMock.list).toHaveBeenCalledWith("company-1", {
+      expect(artifactsApiMock.list).toHaveBeenCalledWith("space-1", {
         kind: "all",
         q: undefined,
         groupBy: "task",
@@ -419,7 +419,7 @@ describe("Artifacts page", () => {
     const { root } = renderArtifacts(container, ["/artifacts?kind=image&groupBy=task"]);
 
     await waitForAssertion(() => {
-      expect(artifactsApiMock.list).toHaveBeenCalledWith("company-1", {
+      expect(artifactsApiMock.list).toHaveBeenCalledWith("space-1", {
         kind: "image",
         q: undefined,
         groupBy: "task",
@@ -470,7 +470,7 @@ describe("Artifacts page — Artifacts V1 (Settings > Experimental)", () => {
     expect(tile?.textContent).toContain("3 Artifacts");
     expect(radio("Tasks")?.getAttribute("aria-checked")).toBe("true");
     expect(container.querySelector('[data-testid="artifact-group-card"]')).toBeNull();
-    expect(artifactsApiMock.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({ groupBy: "task", kind: "all" }));
+    expect(artifactsApiMock.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({ groupBy: "task", kind: "all" }));
     flushSync(() => root.unmount());
   });
 
@@ -495,7 +495,7 @@ describe("Artifacts page — Artifacts V1 (Settings > Experimental)", () => {
     });
     flushSync(() => radio("Images")!.click());
     await waitForAssertion(() => {
-      expect(artifactsApiMock.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({ groupBy: "none", kind: "image" }));
+      expect(artifactsApiMock.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({ groupBy: "none", kind: "image" }));
       expect(container.querySelector('[data-testid="artifact-v1-single-tile"]')).not.toBeNull();
     });
     expect(radio("Images")?.getAttribute("aria-checked")).toBe("true");
@@ -507,14 +507,14 @@ describe("Artifacts page — Artifacts V1 (Settings > Experimental)", () => {
     artifactsApiMock.list.mockResolvedValue({ artifacts: [sampleArtifact({ id: "img-1", source: "work_product", mediaKind: "image", contentType: "image/png", contentPath: "/files/hero.png" })], nextCursor: null });
     const { root } = renderArtifacts(container, ["/artifacts?kind=image&groupBy=task"]);
     await waitForAssertion(() => {
-      expect(artifactsApiMock.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({ groupBy: "none", kind: "image" }));
+      expect(artifactsApiMock.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({ groupBy: "none", kind: "image" }));
     });
     expect(radio("Images")?.getAttribute("aria-checked")).toBe("true");
     expect(radio("Tasks")?.getAttribute("aria-checked")).toBe("false");
     artifactsApiMock.list.mockResolvedValue({ artifacts: [], groups: [sampleGroup()], nextCursor: null });
     flushSync(() => container.querySelector<HTMLButtonElement>('[data-testid="artifact-group-option-task"]')!.click());
     await waitForAssertion(() => {
-      expect(artifactsApiMock.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({ groupBy: "task", kind: "all" }));
+      expect(artifactsApiMock.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({ groupBy: "task", kind: "all" }));
     });
     expect(radio("Tasks")?.getAttribute("aria-checked")).toBe("true");
     flushSync(() => root.unmount());

@@ -9,7 +9,7 @@ obligations; their existing maintenance remains until their own migrations land.
 ## Work and deadlines
 
 Existing `chat_voice_sessions` rows are authoritative. Startup reconstructs live
-sessions in UUID pages of 100, joined to their same-company endpoint and connection.
+sessions in UUID pages of 100, joined to their same-space endpoint and connection.
 Each background refresh reads at most one inventory page. An unfinished pass has
 a one-second continuation; it does not create a permanent empty scan. Only timing
 and eligibility fields are selected for discovery. The explicit foreground
@@ -31,7 +31,7 @@ expiration write requires that provider identity is still absent, so a newly
 known call retains exact-call cleanup rather than being marked terminal prematurely.
 
 Each due call is reloaded before execution. The voice store checks current
-company, endpoint, credentials, caller, task, guest sandbox and binding authority.
+space, endpoint, credentials, caller, task, guest sandbox and binding authority.
 A 403/404 means authority no longer permits the call. A transient lookup error
 retains a retry; it does not authorize ending an otherwise valid call. The existing
 voice service owns provider inspection and termination, including single-flight
@@ -45,7 +45,7 @@ termination and ambiguous-response confirmation. Recovery never creates a call.
 | `voice-session-service.ts` | Creation claim, binding, known/unknown creation failure, user end, cleanup outcome and foreground inspection |
 | `voice-inbound-service.ts` | Guest session creation, guest denial and signed terminal lifecycle callbacks |
 | `voice-reply-push.ts` | Confirmed remote end and unknown delivery outcome that changes session state/timestamp |
-| Chat configuration helper | Endpoint configuration, pause, reconnect, generation/credential changes, connection hints and company removal |
+| Chat configuration helper | Endpoint configuration, pause, reconnect, generation/credential changes, connection hints and space removal |
 | Generic tool/access services | Voice connection API mutation, removal and credential revocation during access removal |
 | Instance settings | Explicit chat-connector feature enable/disable |
 
@@ -101,7 +101,7 @@ scope's inventory is complete. A new worker resets partial inventory state befor
 reconstructing its saved obligations. Changes arriving during refresh remain dirty. Failed refreshes block use of
 stale cached entries in that scope. Per-scope and per-call failure backoff starts
 at 30 seconds and caps at five minutes. New hints do not erase failure backoff.
-Batches rotate across companies, process at most 25 calls, and continue an already
+Batches rotate across spaces, process at most 25 calls, and continue an already
 due backlog after one second. A failed provider does not stall independent calls.
 
 Drain and standby retain dirty work without passive SQL. Resume processes that
@@ -121,7 +121,7 @@ The voice integration suite exercises actual service producers, guest intake,
 signed callbacks, current authority, unknown creation and adjacent reply/report
 behavior. The recovery-owner suite uses real PostgreSQL and controlled provider
 operations for outer commit/rollback, drain, restart, scope failure, mutation during
-refresh, paging, company fairness, shutdown and the late-provider-binding race.
+refresh, paging, space fairness, shutdown and the late-provider-binding race.
 The latter race failed before the write-time guard and passes afterward.
 
 The dated audit records exact commands, results, initial fixture failures and

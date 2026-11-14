@@ -1,5 +1,5 @@
 import { Router, type Request } from "express";
-import { companies, type Db } from "@outpost/db";
+import { spaces, type Db } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import {
   createStatusCardSchema,
@@ -15,7 +15,7 @@ import { validate } from "../middleware/validate.js";
 import { authorizationDeniedDetails, issueReadSqlCondition } from "../services/authorization.js";
 import { accessService, heartbeatService, instanceSettingsService, issueService, logActivity, statusCardService } from "../services/index.js";
 import { queueIssueAssignmentWakeup, type IssueAssignmentWakeupDeps } from "../services/issue-assignment-wakeup.js";
-import { assertCompanyAccess, getAccessibleResource, getActorInfo, hasCompanyAccess } from "./authz.js";
+import { assertSpaceAccess, getAccessibleResource, getActorInfo, hasSpaceAccess } from "./authz.js";
 
 // Deadline provenance belongs to scheduling, not the public card contract.
 function publicCard<T extends { nextEvalReason?: unknown }>(card: T) {
@@ -31,11 +31,11 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
   const issueSvc = issueService(db);
   const heartbeat = opts.heartbeat ?? heartbeatService(db);
 
-  // People view, restore and refresh a card on the company's Status page. Single-card responses carry that
+  // People view, restore and refresh a card on the space's Status page. Single-card responses carry that
   // route so an agent can give the person a usable link instead of an API instruction.
-  async function companyIssuePrefix(companyId: string) {
-    const [company] = await db.select({ issuePrefix: companies.issuePrefix }).from(companies).where(eq(companies.id, companyId)).limit(1);
-    return company?.issuePrefix ?? null;
+  async function spaceIssuePrefix(spaceId: string) {
+    const [space] = await db.select({ issuePrefix: spaces.issuePrefix }).from(spaces).where(eq(spaces.id, spaceId)).limit(1);
+    return space?.issuePrefix ?? null;
   }
   function withHref<T extends { id: string }>(card: T, issuePrefix: string | null) {
     return issuePrefix ? { ...card, href: `/${issuePrefix}/status/${card.id}` } : card;
@@ -46,14 +46,14 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     if (experimental.enableStatusCards !== true) throw notFound("Status cards are not enabled");
   }
 
-  async function assertCanMutate(req: Request, companyId: string) {
-    assertCompanyAccess(req, companyId);
+  async function assertCanMutate(req: Request, spaceId: string) {
+    assertSpaceAccess(req, spaceId);
     const decision = await access.decide({
       actor: req.actor,
       action: "tasks:assign",
       resource: {
         type: "issue",
-        companyId,
+        spaceId,
         issueId: null,
         projectId: null,
         parentIssueId: null,
@@ -64,8 +64,8 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     if (!decision.allowed) throw forbidden(decision.explanation, authorizationDeniedDetails(decision));
   }
 
-  async function assertCanManageCard(req: Request, card: { companyId: string; createdByAgentId: string | null }) {
-    await assertCanMutate(req, card.companyId);
+  async function assertCanManageCard(req: Request, card: { spaceId: string; createdByAgentId: string | null }) {
+    await assertCanMutate(req, card.spaceId);
     if (req.actor.type === "agent" && card.createdByAgentId !== req.actor.agentId) {
       throw forbidden("Agents can only manage status cards they authored");
     }
@@ -83,10 +83,10 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     }
   }
 
-  async function logMutation(req: Request, companyId: string, action: string, cardId: string, details?: Record<string, unknown>) {
+  async function logMutation(req: Request, spaceId: string, action: string, cardId: string, details?: Record<string, unknown>) {
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       action,
@@ -156,26 +156,26 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     return result;
   }
 
-  router.get("/companies/:companyId/status-cards", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/status-cards", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     await assertStatusCardsEnabled();
     const query = listStatusCardsQuerySchema.parse(req.query);
-    const issuePrefix = await companyIssuePrefix(companyId);
-    res.json((await service.list(companyId, query.archived, {
+    const issuePrefix = await spaceIssuePrefix(spaceId);
+    res.json((await service.list(spaceId, query.archived, {
       issueReadCondition: await issueReadSqlCondition(db, req.actor),
     })).map((card) => withHref(publicCard(card), issuePrefix)));
   });
 
-  router.post("/companies/:companyId/status-cards", validate(createStatusCardSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
+  router.post("/spaces/:spaceId/status-cards", validate(createStatusCardSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
     await assertStatusCardsEnabled();
-    await assertCanMutate(req, companyId);
+    await assertCanMutate(req, spaceId);
     assertAgentPromptLimit(req, req.body.interestPrompt);
     const actor = getActorInfo(req);
     // Resolve the link before creating the card, so a failed lookup leaves nothing behind.
-    const issuePrefix = await companyIssuePrefix(companyId);
-    const card = await service.create(companyId, req.body, {
+    const issuePrefix = await spaceIssuePrefix(spaceId);
+    const card = await service.create(spaceId, req.body, {
       agentId: actor.actorType === "agent" ? actor.actorId : null,
       userId: actor.actorType === "user" ? actor.actorId : null,
     });
@@ -188,7 +188,7 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
       await service.remove(card.id);
       throw error;
     }
-    await logMutation(req, companyId, "status_card.created", card.id, { state: card.state });
+    await logMutation(req, spaceId, "status_card.created", card.id, { state: card.state });
     res.status(201).json(withHref(publicCard(compile.card), issuePrefix));
   });
 
@@ -198,7 +198,7 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     if (!card) return;
     res.json(withHref(publicCard(await service.hydrate(card, {
       issueReadCondition: await issueReadSqlCondition(db, req.actor),
-    })), await companyIssuePrefix(card.companyId)));
+    })), await spaceIssuePrefix(card.spaceId)));
   });
 
   router.patch("/status-cards/:id", validate(patchStatusCardSchema), async (req, res) => {
@@ -216,11 +216,11 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     const restore = req.body.archived === false && card.archivedAt && updated.queries.length > 0 && !updated.generatingIssueId
       ? await enqueueRefresh(req, card.id, true, "restore")
       : null;
-    await logMutation(req, card.companyId, "status_card.updated", card.id, {
+    await logMutation(req, card.spaceId, "status_card.updated", card.id, {
       fields: Object.keys(req.body),
       archived: Boolean(updated.archivedAt),
     });
-    res.json(withHref(publicCard(compile?.card ?? restore?.card ?? updated), await companyIssuePrefix(card.companyId)));
+    res.json(withHref(publicCard(compile?.card ?? restore?.card ?? updated), await spaceIssuePrefix(card.spaceId)));
   });
 
   router.delete("/status-cards/:id", async (req, res) => {
@@ -229,7 +229,7 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     if (!card) return;
     await assertCanManageCard(req, card);
     await service.remove(card.id);
-    await logMutation(req, card.companyId, "status_card.deleted", card.id);
+    await logMutation(req, card.spaceId, "status_card.deleted", card.id);
     res.status(204).send();
   });
 
@@ -253,7 +253,7 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     if (!card) return;
     await assertCanManageCard(req, card);
     const result = await enqueueCompile(req, card.id);
-    await logMutation(req, card.companyId, "status_card.recompile_requested", card.id, {
+    await logMutation(req, card.spaceId, "status_card.recompile_requested", card.id, {
       generatingIssueId: result.generatingIssue.id,
       alreadyGenerating: result.alreadyGenerating,
     });
@@ -266,7 +266,7 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     if (!card) return;
     await assertCanManageCard(req, card);
     const result = await enqueueRefresh(req, card.id, req.body.full);
-    await logMutation(req, card.companyId, "status_card.refresh_requested", card.id, {
+    await logMutation(req, card.spaceId, "status_card.refresh_requested", card.id, {
       full: req.body.full,
       generatingIssueId: result.generatingIssue?.id ?? null,
       alreadyGenerating: result.alreadyGenerating,
@@ -274,7 +274,7 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     });
     res.status(result.enqueued && !result.alreadyGenerating ? 202 : 200).json({
       ...result,
-      card: withHref(publicCard(result.card), await companyIssuePrefix(card.companyId)),
+      card: withHref(publicCard(result.card), await spaceIssuePrefix(card.spaceId)),
     });
   });
 
@@ -284,8 +284,8 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     if (!card) return;
     const decision = await access.decide({
       actor: req.actor,
-      action: "company_scope:read",
-      resource: { type: "company", companyId: card.companyId },
+      action: "space_scope:read",
+      resource: { type: "space", spaceId: card.spaceId },
     });
     if (!decision.allowed) {
       throw forbidden("Status-card dry-run is outside this actor's low-trust authorization boundary", authorizationDeniedDetails(decision));
@@ -303,14 +303,14 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     await assertStatusCardsEnabled();
     const card = await getAccessibleResource(req, res, service.getById(req.params.id as string), "Status card not found");
     if (!card) return;
-    if (!hasCompanyAccess(req, card.companyId)) throw notFound("Status card not found");
-    assertCompanyAccess(req, card.companyId);
+    if (!hasSpaceAccess(req, card.spaceId)) throw notFound("Status card not found");
+    assertSpaceAccess(req, card.spaceId);
     const actor = getActorInfo(req);
     const updated = await service.writeQuery(card.id, req.body, {
       agentId: actor.actorType === "agent" ? actor.actorId : null,
       runId: actor.runId ?? null,
     });
-    await logMutation(req, card.companyId, "status_card.query_written", card.id, {
+    await logMutation(req, card.spaceId, "status_card.query_written", card.id, {
       queryVersion: updated.queryVersion,
       generationIssueId: req.body.generationIssueId,
       changeSummary: req.body.changeSummary,
@@ -322,14 +322,14 @@ export function statusCardRoutes(db: Db, opts: { heartbeat?: IssueAssignmentWake
     await assertStatusCardsEnabled();
     const card = await getAccessibleResource(req, res, service.getById(req.params.id as string), "Status card not found");
     if (!card) return;
-    if (!hasCompanyAccess(req, card.companyId)) throw notFound("Status card not found");
-    assertCompanyAccess(req, card.companyId);
+    if (!hasSpaceAccess(req, card.spaceId)) throw notFound("Status card not found");
+    assertSpaceAccess(req, card.spaceId);
     const actor = getActorInfo(req);
     const result = await service.writeSummary(card.id, req.body, {
       agentId: actor.actorType === "agent" ? actor.actorId : null,
       runId: actor.runId ?? null,
     });
-    await logMutation(req, card.companyId, "status_card.summary_written", card.id, {
+    await logMutation(req, card.spaceId, "status_card.summary_written", card.id, {
       queryVersion: result.card.queryVersion,
       generationIssueId: req.body.generationIssueId,
       documentId: result.document.id,

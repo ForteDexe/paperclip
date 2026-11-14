@@ -20,11 +20,11 @@ vi.mock("@/api/tools", () => ({
     getTestAgentAccess: (connectionId: string, agentId: string) => getTestAgentAccessMock(connectionId, agentId),
     runTestCall: (connectionId: string, input: unknown) => runTestCallMock(connectionId, input),
     getTestCallStatus: (connectionId: string, requestId: string) => getTestCallStatusMock(connectionId, requestId),
-    declineActionRequest: (companyId: string, requestId: string) => declineActionRequestMock(companyId, requestId),
+    declineActionRequest: (spaceId: string, requestId: string) => declineActionRequestMock(spaceId, requestId),
   },
 }));
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 vi.mock("@/lib/router", () => ({
   Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => <a href={to} {...props}>{children}</a>,
@@ -35,7 +35,7 @@ vi.mock("@/lib/router", () => ({
 
 const entry = {
   id: "asana-list-projects",
-  companyId: "company-1",
+  spaceId: "space-1",
   applicationId: "app-asana",
   connectionId: "conn-1",
   entryKind: "tool",
@@ -135,7 +135,7 @@ beforeEach(() => {
   root = createRoot(container);
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   listTestAgentsMock.mockReset().mockResolvedValue({
-    agents: [{ id: "agent-ceo", name: "CEO", role: "ceo", title: "CEO", status: "active", orgDepth: 0 }],
+    agents: [{ id: "agent-lead", name: "Default agent", role: "lead", title: "Default agent", status: "active", orgDepth: 0 }],
   });
   getTestAgentAccessMock.mockReset().mockResolvedValue({
     access: {
@@ -184,7 +184,7 @@ describe("Permissions action Test dialog", () => {
     await flushReact();
 
     expect(runTestCallMock).toHaveBeenCalledWith("conn-1", {
-      agentId: "agent-ceo",
+      agentId: "agent-lead",
       toolName: "list_projects",
       parameters: { update_text: "" },
     });
@@ -218,7 +218,7 @@ describe("Permissions action Test dialog", () => {
     await flushReact();
 
     expect(runTestCallMock).toHaveBeenCalledWith("conn-1", {
-      agentId: "agent-ceo",
+      agentId: "agent-lead",
       toolName: "list_projects",
       parameters: { enabled: false, count: 0, options: { enabled: false, count: 0 } },
     });
@@ -308,7 +308,7 @@ describe("Permissions action Test dialog", () => {
 
     expect(document.body.textContent).not.toContain("This field is required");
     expect(runTestCallMock).toHaveBeenCalledWith("conn-1", {
-      agentId: "agent-ceo",
+      agentId: "agent-lead",
       toolName: "firecrawl_scrape",
       parameters: { url: "https://outpost.ing" },
     });
@@ -327,7 +327,7 @@ describe("Permissions action Test dialog", () => {
       },
     });
     await openAndRun();
-    expect(runTestCallMock).toHaveBeenCalledWith("conn-1", { agentId: "agent-ceo", toolName: "list_projects", parameters: {} });
+    expect(runTestCallMock).toHaveBeenCalledWith("conn-1", { agentId: "agent-lead", toolName: "list_projects", parameters: {} });
     expect(document.body.textContent).toContain("Worked. 2 rows came back.");
     expect(document.body.querySelector("table")?.textContent).toContain("Q4 launch");
     expect(document.body.textContent).not.toContain("structuredContent");

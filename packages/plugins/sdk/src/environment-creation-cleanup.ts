@@ -3,7 +3,7 @@ export interface PluginEnvironmentCreationCleanup {
   providerLeaseId: string;
   /** Provider ID observed with matching ownership, distinct from a provisional creation name. */
   observedProviderLeaseId?: string;
-  companyId: string;
+  spaceId: string;
   environmentId: string;
   runId?: string;
   attemptId: string;
@@ -11,7 +11,7 @@ export interface PluginEnvironmentCreationCleanup {
   labels: Record<string, string>;
 }
 
-const SCHEMA = "paperclip/environment-creation-cleanup/v1";
+const SCHEMA = "outpost/environment-creation-cleanup/v1";
 
 /** The step observed at the first acquisition failure, not its upstream cause. */
 export interface PluginEnvironmentAcquisitionDiagnostic {
@@ -88,17 +88,17 @@ export function readEnvironmentCreationCleanupError(error: unknown): PluginEnvir
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   const identifier = (value: unknown): value is string => typeof value === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(value);
-  if (![row.providerLeaseId, row.companyId, row.environmentId, row.attemptId].every(identifier)) return null;
+  if (![row.providerLeaseId, row.spaceId, row.environmentId, row.attemptId].every(identifier)) return null;
   if (row.runId !== undefined && !identifier(row.runId)) return null;
   if (row.observedProviderLeaseId !== undefined && !identifier(row.observedProviderLeaseId)) return null;
   if (typeof row.accountFingerprint !== "string" || !/^[a-f0-9]{64}$/.test(row.accountFingerprint)) return null;
   if (!row.labels || typeof row.labels !== "object" || Array.isArray(row.labels)) return null;
   const labels = row.labels as Record<string, unknown>;
-  if (Object.keys(labels).length > 16 || Object.entries(labels).some(([key, value]) => !/^paperclip-[a-z-]+$/.test(key) || !identifier(value))) return null;
+  if (Object.keys(labels).length > 16 || Object.entries(labels).some(([key, value]) => !/^outpost-[a-z-]+$/.test(key) || !identifier(value))) return null;
   return {
     providerLeaseId: row.providerLeaseId as string,
     ...(typeof row.observedProviderLeaseId === "string" ? { observedProviderLeaseId: row.observedProviderLeaseId } : {}),
-    companyId: row.companyId as string,
+    spaceId: row.spaceId as string,
     environmentId: row.environmentId as string,
     ...(typeof row.runId === "string" ? { runId: row.runId } : {}),
     attemptId: row.attemptId as string,

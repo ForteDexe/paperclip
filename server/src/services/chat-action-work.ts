@@ -55,8 +55,8 @@ function pendingChatAction(kind: ScheduledChatAction) {
   const telegramEligible = kind === "telegram_maintenance" ? sql`(
     ${chatActions.payload}->>'operation' <> 'stop_subscription' or exists (
       select 1 from ${chatEndpoints} inner join ${toolConnections}
-        on ${toolConnections.id} = ${chatEndpoints.connectionId} and ${toolConnections.companyId} = ${chatEndpoints.companyId}
-      where ${chatEndpoints.id} = ${chatActions.endpointId} and ${chatEndpoints.companyId} = ${chatActions.companyId}
+        on ${toolConnections.id} = ${chatEndpoints.connectionId} and ${toolConnections.spaceId} = ${chatEndpoints.spaceId}
+      where ${chatEndpoints.id} = ${chatActions.endpointId} and ${chatEndpoints.spaceId} = ${chatActions.spaceId}
         and ${chatEndpoints.provider} = 'telegram' and ${chatEndpoints.status} = 'active'
         and ${toolConnections.status} = 'active' and ${toolConnections.enabled} = true
     ))` : undefined;
@@ -70,7 +70,7 @@ export function dueChatAction(kind: ScheduledChatAction, now = Date.now()) {
 export async function nextChatActionAt(db: Db, kind: ScheduledChatAction): Promise<number | null> {
   const [row] = await db.select({ at: sql<string | null>`min(${chatActionDeadline(kind)})` })
     .from(chatActions)
-    .leftJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.companyId, chatActions.companyId)))
+    .leftJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.spaceId, chatActions.spaceId)))
     .where(pendingChatAction(kind));
   return row?.at == null ? null : Number(row.at);
 }

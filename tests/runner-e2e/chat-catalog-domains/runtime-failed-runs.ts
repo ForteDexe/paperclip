@@ -7,16 +7,16 @@ import { checks, type Entity } from "./internal-support.js";
 import { runtimeDefinition, runtimeWorker, runtimeObservation, observeRuntime } from "./runtime-support.js";
 import { unavailableNativeModelFailure } from "./runtime-native-failure.js";
 import type { HeartbeatRun } from "../../../packages/shared/src/types/heartbeat.js";
-export function exactFailedRunLink(href: string | null, origin: string, companyPrefix: string, worker: { id: string; urlKey?: string }, runId: string) {
+export function exactFailedRunLink(href: string | null, origin: string, spacePrefix: string, worker: { id: string; urlKey?: string }, runId: string) {
   if (!href) return false;
   try {
     const url = new URL(href, origin), parts = url.pathname.split("/").map(decodeURIComponent);
     return url.origin === new URL(origin).origin && !url.search && !url.hash && parts.length === 6
-      && parts[1] === companyPrefix && parts[2] === "agents" && [worker.id, worker.urlKey].includes(parts[3])
+      && parts[1] === spacePrefix && parts[2] === "agents" && [worker.id, worker.urlKey].includes(parts[3])
       && parts[4] === "runs" && parts[5] === runId;
   } catch { return false; }
 }
-/** The reply's own link to the failed attempt's run page: the company's prefix, the worker, then the run. */
+/** The reply's own link to the failed attempt's run page: the space's prefix, the worker, then the run. */
 function failedRunHref(o: { origin: string; links: string[]; state: Record<string, unknown> }) {
   const failed = o.state.failedRun as { id?: string } | undefined, worker = o.state.worker as Entity | undefined;
   const prefix = String((o.state.task as Entity | undefined)?.identifier ?? "").split("-")[0] ?? "";
@@ -51,25 +51,25 @@ export function gradeFailedAttempt(value: unknown) {
 export const runtimeFailedRunCases = [runtimeDefinition("runs-adapters.inspect-failed-run", async ctx => {
   const worker = await runtimeWorker(ctx); let task: Entity | undefined;
   const failure = await unavailableNativeModelFailure(ctx, worker, async () => {
-    task = await ctx.input.api.post<Entity>(`/api/companies/${ctx.input.fixtures.company.id}/issues`, { title: "Website task", status: "todo", assigneeAgentId: worker.id,
+    task = await ctx.input.api.post<Entity>(`/api/spaces/${ctx.input.fixtures.space.id}/issues`, { title: "Website task", status: "todo", assigneeAgentId: worker.id,
       description: `Create a small semantic HTML launch website with headline Acorn Notes and reference ${ctx.input.nonce}. Save it as website.html and register that actual file as a downloadable artifact work product titled website.html. Verify it and complete this task normally. No deployment, email, new task or remote operation is authorized.` });
     return { issueId: task.id };
   });
   if (!task) throw new Error("Actual failed native task was not created");
   const source = ctx.input.page.url();
-  await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+  await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
   const marker = ctx.input.page.locator("#main-content").getByTestId("task-chat-collapsible-marker")
     .filter({ has: ctx.input.page.getByRole("button", { name: /^Model unavailable(?: ·|$)/ }) });
   await expect(marker).toHaveCount(1);
   await marker.getByRole("button", { name: /^Model unavailable(?: ·|$)/ }).click();
   const runLink = marker.getByRole("link", { name: "View run", exact: true });
   const href = await runLink.getAttribute("href");
-  if (!exactFailedRunLink(href, ctx.input.api.baseURL, ctx.input.fixtures.company.issuePrefix!, worker, failure.failedRun.id))
-    throw new Error("Visible failed-run detail link does not identify the original company, worker and attempt");
+  if (!exactFailedRunLink(href, ctx.input.api.baseURL, ctx.input.fixtures.space.issuePrefix!, worker, failure.failedRun.id))
+    throw new Error("Visible failed-run detail link does not identify the original space, worker and attempt");
   await runLink.click();
   await ctx.input.page.waitForURL(url => url.pathname === new URL(href!, ctx.input.api.baseURL).pathname);
   const original = await ctx.input.api.get<HeartbeatRun>(`/api/heartbeat-runs/${failure.failedRun.id}`);
-  if (original.id !== failure.failedRun.id || original.status !== "failed" || original.companyId !== worker.companyId || original.agentId !== worker.id)
+  if (original.id !== failure.failedRun.id || original.status !== "failed" || original.spaceId !== worker.spaceId || original.agentId !== worker.id)
     throw new Error("The visible retry target does not retain the genuine original failure");
   const retry = ctx.input.page.locator("#main-content").getByRole("button", { name: "Retry", exact: true });
   await expect(retry).toBeVisible();

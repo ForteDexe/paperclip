@@ -3,7 +3,7 @@
   "fixtureName": "Happy path",
   "identity": {
     "schema": "outpost.orp.identity.v1",
-    "companyId": "company_replay",
+    "spaceId": "space_replay",
     "issueId": "issue_replay_happy",
     "runId": "run_replay_happy",
     "environmentLeaseId": "lease_replay_happy",

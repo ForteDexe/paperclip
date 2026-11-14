@@ -12,8 +12,8 @@ vi.mock("../lib/staged-issue-files", () => ({
 
 const image: StagedIssueFile = { id: "image", kind: "attachment", file: new File(["bytes"], "reference.png", { type: "image/png" }) };
 let current: ReturnType<typeof useStagedIssueFiles>;
-function Harness({ owner = "user-a", company = "company-a", pending = false }: { owner?: string; company?: string; pending?: boolean }) {
-  current = useStagedIssueFiles(pending ? undefined : owner, company);
+function Harness({ owner = "user-a", space = "space-a", pending = false }: { owner?: string; space?: string; pending?: boolean }) {
+  current = useStagedIssueFiles(pending ? undefined : owner, space);
   return <div>{current.files.map(item => item.file.name).join(",")}{current.error}</div>;
 }
 
@@ -29,11 +29,11 @@ describe("staged task file recovery", () => {
   });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 
-  it.each(["owner", "company"] as const)("ignores an old restore after the %s changes", async (field) => {
+  it.each(["owner", "space"] as const)("ignores an old restore after the %s changes", async (field) => {
     let release!: (files: StagedIssueFile[]) => void;
     vi.mocked(readStagedIssueFiles).mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
     await act(async () => root.render(<Harness />));
-    await act(async () => root.render(<Harness {...(field === "owner" ? { owner: "user-b" } : { company: "company-b" })} />));
+    await act(async () => root.render(<Harness {...(field === "owner" ? { owner: "user-b" } : { space: "space-b" })} />));
     await act(async () => release([image]));
     expect(container.textContent).not.toContain("reference.png");
     expect(current.restoring).toBe(false);
@@ -65,15 +65,15 @@ describe("staged task file recovery", () => {
     await act(async () => current.setFiles([image]));
     await act(async () => root.render(<Harness />));
     expect(container.textContent).toBe("reference.png");
-    expect(writeStagedIssueFiles).toHaveBeenCalledWith(JSON.stringify(["user-a", "company-a"]), [image], []);
+    expect(writeStagedIssueFiles).toHaveBeenCalledWith(JSON.stringify(["user-a", "space-a"]), [image], []);
   });
 
   it("deletes only files removed from this mounted draft", async () => {
     await act(async () => root.render(<Harness />));
     await act(async () => current.setFiles([image]));
     await act(async () => current.setFiles([]));
-    expect(writeStagedIssueFiles).toHaveBeenLastCalledWith(JSON.stringify(["user-a", "company-a"]), [], [image.id]);
+    expect(writeStagedIssueFiles).toHaveBeenLastCalledWith(JSON.stringify(["user-a", "space-a"]), [], [image.id]);
     await act(async () => current.setFiles([image]));
-    expect(writeStagedIssueFiles).toHaveBeenLastCalledWith(JSON.stringify(["user-a", "company-a"]), [image], []);
+    expect(writeStagedIssueFiles).toHaveBeenLastCalledWith(JSON.stringify(["user-a", "space-a"]), [image], []);
   });
 });

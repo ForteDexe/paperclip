@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   completionContracts,
   createDb,
   heartbeatRuns,
@@ -20,7 +20,7 @@ import {
   CONTROL_PLANE_CONFORMANCE_RESULT,
   CONTROL_PLANE_CONFORMANCE_TERMINAL,
 } from "../../vendor/outpost-runner/testing.js";
-import { PaperclipControlPlanePort } from "./paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "./outpost-control-plane-port.js";
 import { finalizeNativeRun } from "./native-run-finalizer.js";
 import { commitNativeStatusDecision } from "./status-decision-committer.js";
 import { NATIVE_STATUS_ARBITER_POLICY_VERSION } from "./status-arbiter.js";
@@ -39,14 +39,14 @@ if (!embeddedPostgresSupport.supported) {
 describeEmbeddedPostgres("native finalization recovery state", () => {
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-native-recovery-state-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-native-recovery-state-");
     db = createDb(tempDb.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Recovery state", issuePrefix: "RST" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Native worker", adapterType: "codex_local", status: "running" });
+    await db.insert(spaces).values({ id: spaceId, name: "Recovery state", issuePrefix: "RST" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Native worker", adapterType: "codex_local", status: "running" });
   }, 30_000);
 
   afterAll(async () => {
@@ -56,24 +56,24 @@ describeEmbeddedPostgres("native finalization recovery state", () => {
   async function seedNativeRun() {
     const issueId = randomUUID(), contractId = randomUUID(), runId = randomUUID(), runnerInstanceId = randomUUID();
     const contractSha256 = `contract-${contractId}`;
-    await db.insert(issues).values({ id: issueId, companyId, title: "Native recovery state fixture",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Native recovery state fixture",
       status: "in_progress", assigneeAgentId: agentId, workMode: "standard" });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "recovery-state-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "recovery-state-v1", objective: "Finish", criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: contractSha256, createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
       nativeIssueId: issueId, nativeSessionId: runId, runnerInstanceId, completionContractId: contractId,
       completionContractSha256: contractSha256, contextSnapshot: { issueId } });
     return { issueId, contractId, contractSha256, runId, runnerInstanceId };
   }
 
   async function completeResult(fixture: Awaited<ReturnType<typeof seedNativeRun>>) {
-    const port = new PaperclipControlPlanePort(db, { companyId, issueId: fixture.issueId, runId: fixture.runId, agentId,
+    const port = new OutpostControlPlanePort(db, { spaceId, issueId: fixture.issueId, runId: fixture.runId, agentId,
       sessionId: fixture.runId, completionContractId: fixture.contractId, completionContractSha256: fixture.contractSha256,
       sourceInstanceId: fixture.runnerInstanceId, controlPlaneSourceInstanceId: "recovery-state-test" });
-    await port.openRun({ identity: { runId: fixture.runId, sessionId: fixture.runId, companyId, issueId: fixture.issueId, agentId },
+    await port.openRun({ identity: { runId: fixture.runId, sessionId: fixture.runId, spaceId, issueId: fixture.issueId, agentId },
       backendKind: "mock", sourceInstanceId: fixture.runnerInstanceId });
     await port.completeRun({ result: CONTROL_PLANE_CONFORMANCE_RESULT, terminal: CONTROL_PLANE_CONFORMANCE_TERMINAL,
       callerResultId: `${fixture.runId}:result` });
@@ -98,17 +98,17 @@ describeEmbeddedPostgres("native finalization recovery state", () => {
   it("clears stale recovery state when a status decision commits", async () => {
     const fixture = await seedNativeRun();
     const resultId = randomUUID(), assessmentId = randomUUID();
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId: fixture.issueId, runId: fixture.runId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId: fixture.issueId, runId: fixture.runId,
       completionContractId: fixture.contractId, serverFingerprint: `fp-${resultId}`, schemaStatus: "accepted",
       resultJson: {}, canonicalSha256: `sha-${resultId}` });
-    await db.insert(workAssessments).values({ id: assessmentId, companyId, issueId: fixture.issueId, runId: fixture.runId,
-      contractId: fixture.contractId, resultId, triggerKind: "native_result", triggerActorCompanyId: companyId,
+    await db.insert(workAssessments).values({ id: assessmentId, spaceId, issueId: fixture.issueId, runId: fixture.runId,
+      contractId: fixture.contractId, resultId, triggerKind: "native_result", triggerActorSpaceId: spaceId,
       priorIssueStatus: "in_progress", priorStatusVersion: 0, policyVersion: "recovery-state-v1", assessmentJson: {},
       inputDigest: `digest-${assessmentId}` });
-    await db.insert(nativeRunFinalizations).values({ runId: fixture.runId, companyId, issueId: fixture.issueId,
+    await db.insert(nativeRunFinalizations).values({ runId: fixture.runId, spaceId, issueId: fixture.issueId,
       phase: "arbitrating", resultId, recoveryState: "resuming_session", recoveryRequestId: "restart-request" });
     await commitNativeStatusDecision({
-      db, companyId, issueId: fixture.issueId, runId: fixture.runId, assessmentId,
+      db, spaceId, issueId: fixture.issueId, runId: fixture.runId, assessmentId,
       priorStatus: "in_progress", priorStatusVersion: 0, priorDecisionId: null,
       decision: {
         policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,

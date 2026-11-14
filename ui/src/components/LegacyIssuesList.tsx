@@ -14,7 +14,7 @@ import { useVisibilityRefetchInterval } from "@/lib/polling";
 import { accessApi } from "../api/access";
 import { describeError } from "../api/errors";
 import { useDialogActions } from "../context/DialogContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { Link, useNavigate } from "@/lib/router";
 import { executionWorkspacesApi } from "../api/execution-workspaces";
 import { issuesApi } from "../api/issues";
@@ -27,7 +27,7 @@ import {
   shouldBlurPageSearchOnEscape,
 } from "../lib/keyboardShortcuts";
 import { formatAssigneeUserLabel } from "../lib/assignees";
-import { buildCompanyUserLabelMap, buildCompanyUserProfileMap } from "../lib/company-members";
+import { buildSpaceUserLabelMap, buildSpaceUserProfileMap } from "../lib/space-members";
 import { createIssueDetailPath, rememberIssueDetailLocationState, withIssueDetailHeaderSeed } from "../lib/issueDetailBreadcrumb";
 import { prefetchIssueDetailForNavigation } from "../lib/issueDetailCache";
 import {
@@ -729,16 +729,16 @@ export function IssuesList({
     // null, so continuous hovering triggers no re-render.
     setSelectedNavKey((prev) => (prev === null ? prev : null));
   }, []);
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { openNewIssue } = useDialogActions();
   const { data: session } = useQuery({
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
   });
-  const { data: companyMembers } = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(selectedCompanyId!),
-    queryFn: () => accessApi.listUserDirectory(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+  const { data: spaceMembers } = useQuery({
+    queryKey: queryKeys.access.spaceUserDirectory(selectedSpaceId!),
+    queryFn: () => accessApi.listUserDirectory(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const { data: experimentalSettings } = useQuery({
     queryKey: queryKeys.instance.experimentalSettings,
@@ -749,8 +749,8 @@ export function IssuesList({
   const isolatedWorkspacesEnabled = experimentalSettings?.enableIsolatedWorkspaces === true;
   const externalObjectsEnabled = experimentalSettings?.enableExternalObjects === true;
 
-  // Scope the storage key per company so folding/view state is independent across companies.
-  const scopedKey = selectedCompanyId ? `${viewStateKey}:${selectedCompanyId}` : viewStateKey;
+  // Scope the storage key per space so folding/view state is independent across spaces.
+  const scopedKey = selectedSpaceId ? `${viewStateKey}:${selectedSpaceId}` : viewStateKey;
   const initialAssigneesKey = initialAssignees?.join("|") ?? "";
   const initialWorkspacesKey = initialWorkspaces?.join("|") ?? "";
 
@@ -763,7 +763,7 @@ export function IssuesList({
     ...sort,
     ...(routineTasksOnly === undefined ? {} : { routineTasksOnly }),
   }), [savedViewState, sort, routineTasksOnly]);
-  const showAgentCreatedTasks = useShowAgentCreatedTasks(selectedCompanyId, viewStateKey);
+  const showAgentCreatedTasks = useShowAgentCreatedTasks(selectedSpaceId, viewStateKey);
   useEffect(() => {
     if (!enableAgentCreatedVisibilityFilter) return;
     setViewState((previous) => previous.showAgentCreatedTasks === showAgentCreatedTasks
@@ -813,12 +813,12 @@ export function IssuesList({
     setViewState((prev) => {
       const next = { ...prev, ...sort, ...patch };
       saveTaskCollectionPreferences({
-        companyId: selectedCompanyId ?? "__unscoped__", collectionKey: viewStateKey,
+        spaceId: selectedSpaceId ?? "__unscoped__", collectionKey: viewStateKey,
         legacyViewStorageKey: scopedKey, legacyColumnsStorageKey: getIssueColumnsStorageKey(scopedKey),
       }, { viewState: next, columns: visibleIssueColumns });
       return next;
     });
-  }, [scopedKey, selectedCompanyId, viewStateKey, visibleIssueColumns, onRoutineTasksOnlyChange, onSortChange, sort, viewState.sortField, viewState.sortDir]);
+  }, [scopedKey, selectedSpaceId, viewStateKey, visibleIssueColumns, onRoutineTasksOnlyChange, onSortChange, sort, viewState.sortField, viewState.sortDir]);
 
   useEffect(() => {
     if (!experimentalSettingsLoaded || externalObjectsEnabled || viewState.externalObjectStatuses.length === 0) return;
@@ -842,27 +842,27 @@ export function IssuesList({
   const creationRequestFilters = issueCreationRequestFilters(viewState, enableAgentCreatedVisibilityFilter);
   const { data: searchedIssues = [] } = useQuery({
     queryKey: [
-      ...queryKeys.issues.search(selectedCompanyId!, normalizedIssueSearch, projectId),
+      ...queryKeys.issues.search(selectedSpaceId!, normalizedIssueSearch, projectId),
       searchFilters ?? {},
       creationRequestFilters,
       "compact",
       ISSUE_SEARCH_RESULT_LIMIT,
     ],
     queryFn: ({ signal }) =>
-      issuesApi.listCompact(selectedCompanyId!, {
+      issuesApi.listCompact(selectedSpaceId!, {
         q: normalizedIssueSearch,
         projectId,
         limit: ISSUE_SEARCH_RESULT_LIMIT,
         ...searchFilters,
         ...creationRequestFilters,
       }, { signal }).then((rows) => rows as Issue[]),
-    enabled: !!selectedCompanyId && normalizedIssueSearch.length > 0 && !searchWithinLoadedIssues,
+    enabled: !!selectedSpaceId && normalizedIssueSearch.length > 0 && !searchWithinLoadedIssues,
     placeholderData: (previousData) => previousData,
   });
   const boardIssueQueries = useQueries({
     queries: boardIssueStatuses.map((status) => ({
       queryKey: [
-        ...queryKeys.issues.list(selectedCompanyId ?? "__no-company__"),
+        ...queryKeys.issues.list(selectedSpaceId ?? "__no-space__"),
         "board-column",
         status,
         normalizedIssueSearch,
@@ -873,7 +873,7 @@ export function IssuesList({
         ISSUE_BOARD_COLUMN_RESULT_LIMIT,
       ],
       queryFn: ({ signal }: { signal: AbortSignal }) =>
-        issuesApi.listCompact(selectedCompanyId!, {
+        issuesApi.listCompact(selectedSpaceId!, {
           ...searchFilters,
           ...(normalizedIssueSearch.length > 0 ? { q: normalizedIssueSearch } : {}),
           projectId,
@@ -881,16 +881,16 @@ export function IssuesList({
           limit: ISSUE_BOARD_COLUMN_RESULT_LIMIT,
           ...creationRequestFilters,
         }, { signal }).then((rows) => rows as Issue[]),
-      enabled: !!selectedCompanyId && viewState.viewMode === "board" && !searchWithinLoadedIssues,
+      enabled: !!selectedSpaceId && viewState.viewMode === "board" && !searchWithinLoadedIssues,
       placeholderData: (previousData: Issue[] | undefined) => previousData,
     })),
   });
   const { data: executionWorkspaces = [] } = useQuery({
-    queryKey: selectedCompanyId
-      ? queryKeys.executionWorkspaces.summaryList(selectedCompanyId)
+    queryKey: selectedSpaceId
+      ? queryKeys.executionWorkspaces.summaryList(selectedSpaceId)
       : ["execution-workspaces", "__disabled__"],
-    queryFn: () => executionWorkspacesApi.listSummaries(selectedCompanyId!),
-    enabled: !!selectedCompanyId && isolatedWorkspacesEnabled,
+    queryFn: () => executionWorkspacesApi.listSummaries(selectedSpaceId!),
+    enabled: !!selectedSpaceId && isolatedWorkspacesEnabled,
   });
 
   const agentName = useCallback((id: string | null) => {
@@ -898,13 +898,13 @@ export function IssuesList({
     return agents.find((a) => a.id === id)?.name ?? null;
   }, [agents]);
 
-  const companyUserLabelMap = useMemo(
-    () => buildCompanyUserLabelMap(companyMembers?.users),
-    [companyMembers?.users],
+  const spaceUserLabelMap = useMemo(
+    () => buildSpaceUserLabelMap(spaceMembers?.users),
+    [spaceMembers?.users],
   );
-  const companyUserProfileMap = useMemo(
-    () => buildCompanyUserProfileMap(companyMembers?.users),
-    [companyMembers?.users],
+  const spaceUserProfileMap = useMemo(
+    () => buildSpaceUserProfileMap(spaceMembers?.users),
+    [spaceMembers?.users],
   );
 
   const projectById = useMemo(() => {
@@ -990,9 +990,9 @@ export function IssuesList({
     if (currentUserId) {
       options.set(`user:${currentUserId}`, {
         id: `user:${currentUserId}`,
-        label: currentUserId === "local-board" ? "You" : "Me",
+        label: currentUserId === "local-operator" ? "You" : "Me",
         kind: "user",
-        searchText: currentUserId === "local-board" ? "board me human local-board" : `me board human ${currentUserId}`,
+        searchText: currentUserId === "local-operator" ? "board me human local-operator" : `me board human ${currentUserId}`,
       });
     }
 
@@ -1004,7 +1004,7 @@ export function IssuesList({
             id,
             label: formatAssigneeUserLabel(issue.createdByUserId, currentUserId) ?? issue.createdByUserId.slice(0, 5),
             kind: "user",
-            searchText: `${issue.createdByUserId} board user human`,
+            searchText: `${issue.createdByUserId} operator user human`,
           });
         }
       }
@@ -1118,7 +1118,7 @@ export function IssuesList({
     isLoading: externalObjectSummariesLoading,
     isReady: externalObjectSummariesReady,
   } = useIssueExternalObjectSummaries(
-    selectedCompanyId,
+    selectedSpaceId,
     issueIdsForExternalObjectSummaries,
   );
   const issueFilterContext = useMemo(() => ({
@@ -1143,8 +1143,8 @@ export function IssuesList({
     return sortIssues(filteredByControls, viewState, issue => {
       const parent = issue.parentId ? byId.get(issue.parentId) : null;
       return {
-        createdBy: issue.createdByAgentId ? agentName(issue.createdByAgentId) ?? "Unknown agent" : companyUserLabelMap.get(issue.createdByUserId ?? "") ?? "User",
-        assignee: issue.assigneeAgentId ? agentName(issue.assigneeAgentId) ?? "Unknown agent" : companyUserLabelMap.get(issue.assigneeUserId ?? "") ?? null,
+        createdBy: issue.createdByAgentId ? agentName(issue.createdByAgentId) ?? "Unknown agent" : spaceUserLabelMap.get(issue.createdByUserId ?? "") ?? "User",
+        assignee: issue.assigneeAgentId ? agentName(issue.assigneeAgentId) ?? "Unknown agent" : spaceUserLabelMap.get(issue.assigneeUserId ?? "") ?? null,
         project: projectById.get(issue.projectId ?? "")?.name,
         parentTask: parent ? `${parent.identifier} ${parent.title}` : null,
       };
@@ -1157,7 +1157,7 @@ export function IssuesList({
     liveIssueIds,
     issueFilterContext,
     agentName,
-    companyUserLabelMap,
+    spaceUserLabelMap,
     projectById,
   ]);
 
@@ -1209,9 +1209,9 @@ export function IssuesList({
   }, [checklistAffordanceEnabled, filtered, issueById, viewState.nestingEnabled]);
 
   const { data: labels } = useQuery({
-    queryKey: queryKeys.issues.labels(selectedCompanyId!),
-    queryFn: () => issuesApi.listLabels(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.issues.labels(selectedSpaceId!),
+    queryFn: () => issuesApi.listLabels(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const activeFilterCount = countActiveIssueFilters(viewState, enableAgentCreatedVisibilityFilter);
@@ -1234,7 +1234,7 @@ export function IssuesList({
 
   const hierarchyEnabled = enableAgentCreatedVisibilityFilter && !viewState.showAgentCreatedTasks && !viewState.routineTasksOnly && viewState.nestingEnabled && viewState.viewMode === "list";
   const hierarchy = useIssueHierarchyContext(
-    selectedCompanyId, filtered.slice(0, renderedIssueRowLimit), viewState.collapsedParents,
+    selectedSpaceId, filtered.slice(0, renderedIssueRowLimit), viewState.collapsedParents,
     hierarchyEnabled,
     hierarchyRowBudget,
   );
@@ -1315,7 +1315,7 @@ export function IssuesList({
         key === "__unassigned"
           ? "Unassigned"
           : key.startsWith("__user:")
-            ? (formatAssigneeUserLabel(key.slice("__user:".length), currentUserId, companyUserLabelMap) ?? "User")
+            ? (formatAssigneeUserLabel(key.slice("__user:".length), currentUserId, spaceUserLabelMap) ?? "User")
             : (agentName(key) ?? key.slice(0, 8)),
       items: groups[key]!,
     }));
@@ -1328,7 +1328,7 @@ export function IssuesList({
     currentUserId,
     workspaceNameMap,
     issueTitleMap,
-    companyUserLabelMap,
+    spaceUserLabelMap,
     projectById,
   ]);
   const groupedContent = useMemo(() => baseGroupedContent.map((group) => ({
@@ -1386,7 +1386,7 @@ export function IssuesList({
     () => preloadTaskChats ? topRenderedNavEntryRefs(flatNavEntries, renderedIssueRowLimit) : [],
     [flatNavEntries, preloadTaskChats, renderedIssueRowLimit],
   );
-  usePreloadTaskChats(selectedCompanyId, preloadTaskRefs, !isLoading && !error && (!hierarchyEnabled || !hierarchy.isLoading) && preloadTaskRefs.length > 0);
+  usePreloadTaskChats(selectedSpaceId, preloadTaskRefs, !isLoading && !error && (!hierarchyEnabled || !hierarchy.isLoading) && preloadTaskRefs.length > 0);
 
   const listNavStateRef = useRef({
     flatNavEntries,
@@ -1686,10 +1686,10 @@ export function IssuesList({
     const normalized = normalizeInboxIssueColumns(next);
     setVisibleIssueColumns(normalized);
     saveTaskCollectionPreferences({
-      companyId: selectedCompanyId ?? "__unscoped__", collectionKey: viewStateKey,
+      spaceId: selectedSpaceId ?? "__unscoped__", collectionKey: viewStateKey,
       legacyViewStorageKey: scopedKey, legacyColumnsStorageKey: getIssueColumnsStorageKey(scopedKey),
     }, { viewState, columns: normalized });
-  }, [scopedKey, selectedCompanyId, viewStateKey, viewState]);
+  }, [scopedKey, selectedSpaceId, viewStateKey, viewState]);
 
   const toggleIssueColumn = useCallback((column: InboxIssueColumn, enabled: boolean) => {
     if (enabled) {
@@ -2064,12 +2064,12 @@ export function IssuesList({
                   const issueBadge = issueBadgeById?.get(issue.id);
                   const isMutedIssue = mutedIssueIds?.has(issue.id) === true;
                   const assigneeUserProfile = issue.assigneeUserId
-                    ? companyUserProfileMap.get(issue.assigneeUserId) ?? null
+                    ? spaceUserProfileMap.get(issue.assigneeUserId) ?? null
                     : null;
                   const assigneeUserLabel = formatAssigneeUserLabel(
                     issue.assigneeUserId,
                     currentUserId,
-                    companyUserLabelMap,
+                    spaceUserLabelMap,
                   ) ?? assigneeUserProfile?.label ?? null;
                   const originatingActor = deriveOriginatingActor(issue);
                   const originatingUserId = originatingActor?.kind === "user" ? originatingActor.id : null;
@@ -2262,8 +2262,8 @@ export function IssuesList({
                               assigneeUserName={assigneeUserLabel}
                               assigneeUserAvatarUrl={assigneeUserProfile?.image ?? null}
                               creatorAgentName={agentName(issue.createdByAgentId)}
-                              creatorUserName={originatingUserId ? (companyUserProfileMap.get(originatingUserId)?.label ?? null) : null}
-                              creatorUserAvatarUrl={originatingUserId ? (companyUserProfileMap.get(originatingUserId)?.image ?? null) : null}
+                              creatorUserName={originatingUserId ? (spaceUserProfileMap.get(originatingUserId)?.label ?? null) : null}
+                              creatorUserAvatarUrl={originatingUserId ? (spaceUserProfileMap.get(originatingUserId)?.image ?? null) : null}
                               viaAgentName={originatingViaAgentId ? agentName(originatingViaAgentId) : null}
                               currentUserId={currentUserId}
                               parentIdentifier={parentIssue?.identifier ?? null}

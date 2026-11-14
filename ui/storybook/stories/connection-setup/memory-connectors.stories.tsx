@@ -9,7 +9,7 @@ import { ConnectorCard } from "@/pages/apps/Browse";
 import { InstanceExperimentalSettings } from "@/pages/InstanceExperimentalSettings";
 import { Button } from "@/components/ui/button";
 
-const COMPANY = "company-storybook";
+const SPACE = "space-storybook";
 const apps = MEMORY_CONNECTOR_IDS.map(slug => getConnectableAppDefinition(slug)!);
 
 type Scenario = "catalog" | "setup" | "disabled" | "settings" | "rejected" | "waiting" | "oauth-error" | "complete";
@@ -24,7 +24,7 @@ function MemoryReview({ provider = "mem0", scenario = "catalog" }: { provider?: 
   const client = useMemo(() => {
     const q = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false, refetchOnMount: false } } });
     q.setQueryData(queryKeys.instance.experimentalSettings, { ...instanceExperimentalSettingsSchema.parse({}), enableMemoryConnectors: scenario !== "disabled" });
-    q.setQueryData(queryKeys.apps.gallery(COMPANY), { apps, capabilities: { canSetCompanyInstall: true, companyInstallReason: null } });
+    q.setQueryData(queryKeys.apps.gallery(SPACE), { apps, capabilities: { canSetSpaceInstall: true, spaceInstallReason: null } });
     q.setQueryData(queryKeys.health, { status: "ok", deploymentMode: "local_trusted", hiddenSettings: INSTANCE_FEATURE_KEYS.filter(k => k !== "enableMemoryConnectors").map(k => `instance.experimental.${k}`) });
     return q;
   }, [scenario]);
@@ -36,14 +36,14 @@ function MemoryReview({ provider = "mem0", scenario = "catalog" }: { provider?: 
       const method = init?.method ?? (input instanceof Request ? input.method : "GET");
       // The OAuth flow waits for fresh identity reads (isFetchedAfterMount).
       // Let these queries actually fetch instead of relying on seeded cache data.
-      if (url.pathname === `/api/companies/${COMPANY}/tools/applications`) return Response.json({ applications: [] });
-      if (url.pathname === `/api/companies/${COMPANY}/tools/connections`) return Response.json({ connections: [] });
+      if (url.pathname === `/api/spaces/${SPACE}/tools/applications`) return Response.json({ applications: [] });
+      if (url.pathname === `/api/spaces/${SPACE}/tools/connections`) return Response.json({ connections: [] });
       if (url.pathname === "/api/instance/settings/experimental" && method === "PATCH") {
         const settings = { ...client.getQueryData<object>(queryKeys.instance.experimentalSettings), ...JSON.parse(String(init?.body ?? "{}")) };
         client.setQueryData(queryKeys.instance.experimentalSettings, settings);
         return Response.json(settings);
       }
-      if (url.pathname === `/api/companies/${COMPANY}/tools/apps/connect`) {
+      if (url.pathname === `/api/spaces/${SPACE}/tools/apps/connect`) {
         if (failure) return Response.json({ error: "The provider rejected this connection. Check your credentials or account access, then try again." }, { status: 422 });
         const body = JSON.parse(String(init?.body ?? "{}"));
         const app = getConnectableAppDefinition(body.galleryKey)!;
@@ -58,13 +58,13 @@ function MemoryReview({ provider = "mem0", scenario = "catalog" }: { provider?: 
           connection: { id: "memory-review", name: app.name, config: { sourceTemplateKey: app.slug }, status: "active" },
           catalog: [], actions: { readOnly: [{ catalogEntryId: "recall", toolName: "recall", riskLevel: "read" }], canMakeChanges: [{ catalogEntryId: "remember", toolName: "remember", riskLevel: "write" }] }, suggestedDefaults: {}, auth: null });
       }
-      if (url.pathname === `/api/companies/${COMPANY}/tools/apps/memory-review/finish`) {
+      if (url.pathname === `/api/spaces/${SPACE}/tools/apps/memory-review/finish`) {
         const body = JSON.parse(String(init?.body ?? "{}"));
         setAvailableTo(body.access === "all_agents" ? "Any agent" : `${body.access?.agentIds?.length ?? 0} selected agents`);
         return Response.json({ connectionId: "memory-review", installs: [] });
       }
       if (url.pathname.startsWith("/api/tool-connections/memory-review/")) return Response.json({ connectionId: "memory-review", installs: [] });
-      if (url.pathname.startsWith(`/api/companies/${COMPANY}/tools/apps/`)) return Response.json({ oauth: { metadataFound: true, registrationAdvertised: true }, endpointReachable: true });
+      if (url.pathname.startsWith(`/api/spaces/${SPACE}/tools/apps/`)) return Response.json({ oauth: { metadataFound: true, registrationAdvertised: true }, endpointReachable: true });
       return original(input, init);
     };
     window.fetch = fixture;
@@ -81,7 +81,7 @@ function MemoryReview({ provider = "mem0", scenario = "catalog" }: { provider?: 
           : selection && ready ? <>
             <div hidden={Boolean(signIn)}><ConnectionSetupFlow key={selection} serviceSlug={selection} onComplete={() => setCompleted(true)} onCancel={() => setSelection(null)} /></div>
             {signIn && app ? <div className="space-y-4">
-              <p role="note" className="text-sm text-muted-foreground">Storybook sign-in simulation. Continue to simulate provider approval and return to Paperclip.</p>
+              <p role="note" className="text-sm text-muted-foreground">Storybook sign-in simulation. Continue to simulate provider approval and return to Outpost.</p>
               <OAuthConnectStateScreen entry={app} phase="entry" onRetry={() => { signIn.complete(); setSignIn(null); }} onBack={() => { setSignIn(null); setSelection(null); }} onCancel={() => { setSignIn(null); setSelection(null); }} />
             </div> : null}
           </>
@@ -93,7 +93,7 @@ function MemoryReview({ provider = "mem0", scenario = "catalog" }: { provider?: 
 }
 const meta = { id: "apps-connections-memory",
   title: "Apps, channels, and extensions/Connection setup/Apps/Connections/Memory", component: MemoryReview, parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "connection-setup/credentials",
         "agents/instructions"

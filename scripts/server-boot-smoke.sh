@@ -9,7 +9,7 @@ fi
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 port="${SMOKE_PORT:-$(node -e 'const s=require("node:net").createServer().listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close();})')}"
 timeout_seconds="${SMOKE_TIMEOUT_SECONDS:-180}"
-scratch="$(mktemp -d "${TMPDIR:-/tmp}/paperclip-boot-smoke.XXXXXX")"
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/outpost-boot-smoke.XXXXXX")"
 log="$scratch/server.log"
 
 args=()

@@ -4,7 +4,7 @@ import { listServerAdapters } from "../adapters/registry.js";
 import { logger } from "../middleware/logger.js";
 import { createHash } from "node:crypto";
 import { eq, inArray, and } from "drizzle-orm";
-import { companySecrets, companySecretVersions, userSecretDefinitions, type Db } from "@outpost/db";
+import { spaceSecrets, spaceSecretVersions, userSecretDefinitions, type Db } from "@outpost/db";
 import { fetchCodexQuota } from "@outpost/adapter-codex-local/server";
 import { fetchClaudeQuota } from "@outpost/adapter-claude-local/server";
 import { aiConnectionService } from "./ai-connections.js";
@@ -15,23 +15,23 @@ const publicError = "Subscription quota is currently unavailable. Check usage wi
 
 /** Managed connections use their own credentials regardless of where agents run.
  * Never silently substitute the control-plane host's login for a remote account. */
-export async function fetchCompanyQuotaWindows(db: Db, companyId: string, userId: string): Promise<ProviderQuotaResult[]> {
+export async function fetchSpaceQuotaWindows(db: Db, spaceId: string, userId: string): Promise<ProviderQuotaResult[]> {
   const service = aiConnectionService(db);
-  const accounts = await service.quotaAccounts(companyId, userId);
+  const accounts = await service.quotaAccounts(spaceId, userId);
   if (!accounts.length) {
     return ["anthropic", "openai"].map(provider => ({ provider, ok: false,
-      accountKey: `unconnected:${companyId}:${provider}`, source: "managed-connection",
+      accountKey: `unconnected:${spaceId}:${provider}`, source: "managed-connection",
       errorFamily: "credentials_unavailable", error: "Connect a subscription account in AI connections to view its quota.", windows: [] }));
   }
   // Resolve revision metadata before consulting the cache, so rotation and
   // revocation cannot serve windows associated with an old credential.
   const secretIds = accounts.flatMap(row => row.grant.credentialSecretRefs.map(ref => ref.secretId));
-  const readRevisions = async (ids: string[]) => ids.length ? await db.select({ id: companySecrets.id, latestVersion: companySecrets.latestVersion, status: companySecrets.status, versionStatus: companySecretVersions.status, revokedAt: companySecretVersions.revokedAt, definitionId: companySecrets.userSecretDefinitionId, definitionStatus: userSecretDefinitions.status, definitionDeletedAt: userSecretDefinitions.deletedAt })
-    .from(companySecrets).leftJoin(companySecretVersions, and(eq(companySecretVersions.secretId, companySecrets.id), eq(companySecretVersions.version, companySecrets.latestVersion))).leftJoin(userSecretDefinitions, and(eq(userSecretDefinitions.id, companySecrets.userSecretDefinitionId), eq(userSecretDefinitions.companyId, companyId))).where(and(eq(companySecrets.companyId, companyId), inArray(companySecrets.id, ids))) : [];
+  const readRevisions = async (ids: string[]) => ids.length ? await db.select({ id: spaceSecrets.id, latestVersion: spaceSecrets.latestVersion, status: spaceSecrets.status, versionStatus: spaceSecretVersions.status, revokedAt: spaceSecretVersions.revokedAt, definitionId: spaceSecrets.userSecretDefinitionId, definitionStatus: userSecretDefinitions.status, definitionDeletedAt: userSecretDefinitions.deletedAt })
+    .from(spaceSecrets).leftJoin(spaceSecretVersions, and(eq(spaceSecretVersions.secretId, spaceSecrets.id), eq(spaceSecretVersions.version, spaceSecrets.latestVersion))).leftJoin(userSecretDefinitions, and(eq(userSecretDefinitions.id, spaceSecrets.userSecretDefinitionId), eq(userSecretDefinitions.spaceId, spaceId))).where(and(eq(spaceSecrets.spaceId, spaceId), inArray(spaceSecrets.id, ids))) : [];
   const revisions = await readRevisions(secretIds);
   const identity = (row: (typeof accounts)[number], metadata: typeof revisions) => ({
     provider: row.summary.provider,
-    accountKey: createHash("sha256").update(JSON.stringify([companyId, row.connection.id, row.grant.id,
+    accountKey: createHash("sha256").update(JSON.stringify([spaceId, row.connection.id, row.grant.id,
       row.connection.updatedAt, row.grant.updatedAt,
       row.grant.credentialSecretRefs.map(ref => [ref.secretId, metadata.find(r => r.id === ref.secretId)]),
     ])).digest("hex"),
@@ -76,7 +76,7 @@ export async function fetchCompanyQuotaWindows(db: Db, companyId: string, userId
               auth = JSON.parse(await service.refreshQuotaCredential(row, value, controller.signal));
               // Rotation changes both the grant and secret revision. Return and
               // cache the observation under the identity the next poll will see.
-              const refreshed = (await service.quotaAccounts(companyId, userId)).find(candidate =>
+              const refreshed = (await service.quotaAccounts(spaceId, userId)).find(candidate =>
                 candidate.connection.id === row.connection.id && candidate.grant.id === row.grant.id);
               if (!refreshed || refreshed.summary.status !== "connected") throw new Error("credentials_unavailable");
               base = identity(refreshed, await readRevisions(refreshed.grant.credentialSecretRefs.map(ref => ref.secretId)));
@@ -84,7 +84,7 @@ export async function fetchCompanyQuotaWindows(db: Db, companyId: string, userId
               // cache identity to one revision, rather than label old quota with
               // a newer account's key. A concurrent change defers this poll.
               const refreshedValue = await service.credential(refreshed);
-              const verified = (await service.quotaAccounts(companyId, userId)).find(candidate =>
+              const verified = (await service.quotaAccounts(spaceId, userId)).find(candidate =>
                 candidate.connection.id === row.connection.id && candidate.grant.id === row.grant.id);
               if (!verified || verified.summary.status !== "connected") throw new Error("credentials_unavailable");
               const verifiedIdentity = identity(verified, await readRevisions(verified.grant.credentialSecretRefs.map(ref => ref.secretId)));
@@ -103,7 +103,7 @@ export async function fetchCompanyQuotaWindows(db: Db, companyId: string, userId
           const invalid = message === "authentication_required" || (credentialResolved && /\b401\b|refresh_token_(?:reused|expired|invalidated)/i.test(message));
           const errorFamily = missing ? "credentials_unavailable" : invalid ? "authentication_required"
             : credentialResolved && /\b403\b/.test(message) ? "permission_denied" : "provider_unavailable";
-          logger.warn({ companyId, accountKey, provider: base.provider, authenticationFailed: invalid }, "Connected account quota unavailable");
+          logger.warn({ spaceId, accountKey, provider: base.provider, authenticationFailed: invalid }, "Connected account quota unavailable");
           return { ...base, ok: false, windows: [], error: publicError,
             errorFamily };
         }

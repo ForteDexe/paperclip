@@ -79,7 +79,7 @@ export function snapshot(root, env = localEnvironment()) {
   if (Object.entries(env).some(([name, value]) => value?.trim() && (
     name === "DATABASE_URL" || name === "OUTPOST_TEST_POSTGRES_ADMIN_URL"
     || /^OUTPOST_.*_TEST_DATABASE_URL$/.test(name)
-    || /^(?:PAPERCLIP|TEST)_.*(?:LIVE|E2E_LIVE)$/.test(name) && /^(?:1|true)$/i.test(value)
+    || /^(?:OUTPOST|TEST)_.*(?:LIVE|E2E_LIVE)$/.test(name) && /^(?:1|true)$/i.test(value)
   ))) cacheable = false;
   const context = { version: protocolVersion, root, node: process.version, executable: realpathSync(process.execPath),
     platform: process.platform, arch: process.arch, environment,

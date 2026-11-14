@@ -82,6 +82,6 @@ The recovery migrations were renumbered to 0250–0254 after master added sessio
 
 Control transitions have a 60-second deadline and a 15-second reconciliation cadence. With a healthy database and scheduler, abandoned transitions must be repaired or surfaced within 90 seconds. Healthy provider silence has no new timeout. An upgrade never automatically replays ambiguous historical work. Default CEO instructions remain unchanged.
 
-Fresh test-drive instances use local-trusted mode. Authenticated/cloud browser behavior, every legacy provider, and every deployment topology were not exercised live. Automated tests cover authorization and company boundaries. An early terminal-delivery screenshot still showed Working briefly; the final refreshed screenshot above shows the completed state.
+Fresh test-drive instances use local-trusted mode. Authenticated/cloud browser behavior, every legacy provider, and every deployment topology were not exercised live. Automated tests cover authorization and space boundaries. An early terminal-delivery screenshot still showed Working briefly; the final refreshed screenshot above shows the completed state.
 
 The final ownership-handoff regressions passed (42 tests across the dispatch adapter and stale-queue suites). They verify competing ownership at the handoff boundary and provider failure before a spawn callback, without retaining database locks for provider completion.

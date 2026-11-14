@@ -12,15 +12,15 @@ function record(value: unknown): Record<string, unknown> {
  * The broker retains failed-worker and unsettled-native-effect uncertainty.
  */
 export async function reconcileMuseNativeTerminalRun(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "runtimeMode" | "status" | "runnerProfileJson">): Promise<void> {
+  "id" | "spaceId" | "agentId" | "runtimeMode" | "status" | "runnerProfileJson">): Promise<void> {
   if (run.runtimeMode !== "native" || !["succeeded", "failed", "cancelled", "timed_out", "interrupted"].includes(run.status)) return;
   const execution = record(record(run.runnerProfileJson).nativeExecutionInput);
   const provider = record(execution.provider);
   const binding = record(provider.binding);
   if (execution.schema !== "outpost.native-execution-input.v8" || provider.kind !== "muse"
-      || binding.companyId !== run.companyId || binding.agentId !== run.agentId
+      || binding.spaceId !== run.spaceId || binding.agentId !== run.agentId
       || typeof binding.bindingId !== "string" || !binding.bindingId) return;
-  await museRunnerBroker(db).reconcileTerminalAssignments(run.companyId, run.agentId, binding.bindingId).catch(err => {
+  await museRunnerBroker(db).reconcileTerminalAssignments(run.spaceId, run.agentId, binding.bindingId).catch(err => {
     logger.warn({ err, runId: run.id, bindingId: binding.bindingId }, "Muse terminal assignment reconciliation deferred to maintenance");
   });
 }

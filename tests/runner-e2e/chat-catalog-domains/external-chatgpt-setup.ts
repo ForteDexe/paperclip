@@ -34,7 +34,7 @@ import type { Entity } from "./internal-support.js";
 function taskIdentity(t: Issue) {
   return {
     id: t.id,
-    companyId: t.companyId,
+    spaceId: t.spaceId,
     title: t.title,
     description: t.description,
     status: t.status,
@@ -45,13 +45,13 @@ function taskIdentity(t: Issue) {
     parentId: t.parentId,
   };
 }
-async function companyNativeIds(ctx: ChatCatalogContext) {
+async function spaceNativeIds(ctx: ChatCatalogContext) {
   const rows = await ctx.input.api.getRunObservation<Array<{ id: string }>>(
     `${root(ctx)}/heartbeat-runs?limit=100`,
   );
   if (rows.length >= 100)
     throw new Error(
-      "Cannot independently prove bounded complete company run inventory",
+      "Cannot independently prove bounded complete space run inventory",
     );
   return rows.map((r) => r.id).sort();
 }
@@ -84,7 +84,7 @@ export function gradeChatgptSetup(value: unknown) {
     grant = rows?.find((g) => g.id === r?.grantId),
     comment = o.state.controlComment as IssueComment | undefined;
   c.add(
-    "supported-truthful-company-handoff",
+    "supported-truthful-space-handoff",
     o.state.setupMetadataMatched === true &&
       o.state.actualBrowserInstructionsVisible === true &&
       truthfulChatgptHandoff(o.reply) &&
@@ -96,14 +96,14 @@ export function gradeChatgptSetup(value: unknown) {
           return false;
         }
       }),
-    "The canonical CEO reply points to actual company assistant instructions and does not claim ChatGPT was installed before human action.",
+    "The canonical CEO reply points to actual space assistant instructions and does not claim ChatGPT was installed before human action.",
   );
   c.add(
     "actual-selected-named-human-ui-consent",
     o.state.operatorAvailable === true &&
       !!r &&
       r.operation === "setup" &&
-      r.companyId === o.companyId &&
+      r.spaceId === o.spaceId &&
       r.humanId === o.state.humanId &&
       r.processIsolation === true &&
       r.testRunnerAttached === false &&
@@ -115,23 +115,23 @@ export function gradeChatgptSetup(value: unknown) {
       r.boundMcpComment === true &&
       r.zeroNativeAdmissions === true &&
       chatgptConsentDisclosure(
-        r.requestedScopes?.includes("paperclip:configure") === true,
+        r.requestedScopes?.includes("outpost:configure") === true,
         r.consentWording,
         r.configureDisclosed,
       ),
-    "The selected human really uses ChatGPT's private custom-app UI and submits the actual Paperclip OAuth consent; an operator acknowledgement or generic MCP client alone is insufficient.",
+    "The selected human really uses ChatGPT's private custom-app UI and submits the actual Outpost OAuth consent; an operator acknowledgement or generic MCP client alone is insufficient.",
   );
 
   c.add(
     "actual-single-named-current-person-grant",
     !!grant &&
-      rows?.filter((g) => g.companyId === o.companyId && !g.revokedAt)
+      rows?.filter((g) => g.spaceId === o.spaceId && !g.revokedAt)
         .length === 1 &&
-      grant.companyId === o.companyId &&
+      grant.spaceId === o.spaceId &&
       !grant.revokedAt &&
       /^(?:ChatGPT|OpenAI|OpenAI ChatGPT)$/i.test(grant.clientName) &&
-      grant.scopes.includes("paperclip:read") &&
-      grant.scopes.includes("paperclip:write") &&
+      grant.scopes.includes("outpost:read") &&
+      grant.scopes.includes("outpost:write") &&
       exactAcceptedChatgptScopes(
         r?.requestedScopes,
         grant.scopes,
@@ -143,9 +143,9 @@ export function gradeChatgptSetup(value: unknown) {
         r?.configureDisclosed,
       ) &&
       o.state.currentPersonPreserved === true,
-    "A real single named ChatGPT grant exists for the intended company/current person with the explicitly approved scopes.",
+    "A real single named ChatGPT grant exists for the intended space/current person with the explicitly approved scopes.",
   );
-  const activity = o.activity as Array<Entity & { companyId?: string }>;
+  const activity = o.activity as Array<Entity & { spaceId?: string }>;
   const authorized = activity.find(
     (a) =>
       a.action === "mcp.connection_authorized" &&
@@ -171,12 +171,12 @@ export function gradeChatgptSetup(value: unknown) {
         r.configureDisclosed,
       ) &&
       calls[0]!.details?.clientId === authorized.details?.clientId &&
-      calls[0]!.details?.operation === "paperclip_add_comment" &&
+      calls[0]!.details?.operation === "outpost_add_comment" &&
       calls[0]!.details?.requestId === r.clientRequestId &&
       !!comment &&
       comment.id === r.commentId &&
       comment.issueId === o.state.controlTaskId &&
-      comment.companyId === o.companyId &&
+      comment.spaceId === o.spaceId &&
       comment.authorUserId === o.state.humanId &&
       !comment.authorAgentId &&
       !comment.createdByRunId &&
@@ -190,13 +190,13 @@ export function gradeChatgptSetup(value: unknown) {
     o.state.controlTaskUnchanged === true &&
       o.state.noAgentAssignmentOrWatchdog === true &&
       o.state.zeroNativeAdmissions === true,
-    "The owned backlog task remains human-controlled, unassigned to agents, without watchdog or mentions; actual full company run IDs prove no native admission during qualification.",
+    "The owned backlog task remains human-controlled, unassigned to agents, without watchdog or mentions; actual full space run IDs prove no native admission during qualification.",
   );
   c.add(
-    "company-hint-is-not-authority",
+    "space-hint-is-not-authority",
     o.state.unauthenticatedMcpStatus === 401 &&
       o.state.unauthenticatedHintDidNotGrant === true,
-    "A real unauthenticated request carrying only a copied company hint receives no grant or company access.",
+    "A real unauthenticated request carrying only a copied space hint receives no grant or space access.",
   );
   return c.result();
 }
@@ -210,7 +210,7 @@ export const chatgptSetupCase = definition(
       setup = await ctx.input.api.get<McpConnectionSetup>("/api/mcp/setup");
     if (
       !setup.enabled ||
-      setup.serverUrl !== `${origin.publicOrigin}/mcp/paperclip`
+      setup.serverUrl !== `${origin.publicOrigin}/mcp/outpost`
     )
       throw new Error(
         "Setup blocker: actual named ChatGPT setup does not advertise its validated owned HTTPS resource",
@@ -223,7 +223,7 @@ export const chatgptSetupCase = definition(
         "/api/mcp/connections",
       ),
       url = new URL(setup.serverUrl);
-    url.searchParams.set("companyId", ctx.input.fixtures.company.id);
+    url.searchParams.set("spaceId", ctx.input.fixtures.space.id);
     const response = await fetch(url, {
       method: "POST",
       redirect: "error",
@@ -233,7 +233,7 @@ export const chatgptSetupCase = definition(
         jsonrpc: "2.0",
         id: 1,
         method: "tools/list",
-        params: { companyId: ctx.input.fixtures.company.id },
+        params: { spaceId: ctx.input.fixtures.space.id },
       }),
     });
     const unauthenticatedMcpStatus = response.status;
@@ -243,11 +243,11 @@ export const chatgptSetupCase = definition(
     );
     if (
       before.some(
-        (g) => g.companyId === ctx.input.fixtures.company.id && !g.revokedAt,
+        (g) => g.spaceId === ctx.input.fixtures.space.id && !g.revokedAt,
       )
     )
       throw new Error(
-        "Named ChatGPT setup requires no preexisting grant in the disposable company",
+        "Named ChatGPT setup requires no preexisting grant in the disposable space",
       );
     const owners = [
         "Mira Patel",
@@ -295,7 +295,7 @@ export const chatgptSetupCase = definition(
       controlIdentifier: task.identifier,
       controlBefore: taskIdentity(task),
       ownerFact,
-      resultPath: `/${ctx.input.fixtures.company.issuePrefix}/apps/assistant-connection`,
+      resultPath: `/${ctx.input.fixtures.space.issuePrefix}/apps/assistant-connection`,
       resultLabel: "Assistant Connection (MCP)",
     };
   },
@@ -347,7 +347,7 @@ export const chatgptSetupCase = definition(
         }
       });
       if (!href)
-        throw new Error("Actual intended company human setup link is missing");
+        throw new Error("Actual intended space human setup link is missing");
       await ctx.input.page
         .locator(`[id^="comment-"] a[href=${JSON.stringify(href)}]`)
         .first()
@@ -364,7 +364,7 @@ export const chatgptSetupCase = definition(
           .first(),
       ).toBeVisible();
       state.actualBrowserInstructionsVisible = true;
-      state.nativeBeforeQualification = await companyNativeIds(ctx);
+      state.nativeBeforeQualification = await spaceNativeIds(ctx);
       state.namedReceipt = await privateChatgptSetup(ctx, {
         id: String(state.controlTaskId),
         identifier: String(state.controlIdentifier),
@@ -395,7 +395,7 @@ export const chatgptSetupCase = definition(
         task.status === "backlog" &&
         !task.watchdog;
       state.zeroNativeAdmissions = isDeepStrictEqual(
-        await companyNativeIds(ctx),
+        await spaceNativeIds(ctx),
         state.nativeBeforeQualification,
       );
       state.currentPersonPreserved =
@@ -429,7 +429,7 @@ export const chatgptSetupCase = definition(
         grantId: receipt.grantId,
         requestId: receipt.requestId,
         commentId: receipt.commentId,
-        companyId: ctx.input.fixtures.company.id,
+        spaceId: ctx.input.fixtures.space.id,
         humanId: state.humanId,
         actualNamedUi: true,
         actualHumanConsent: true,

@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, and } from "drizzle-orm";
-import { activityLog, agents, authUsers, companyMemberships, companies, createDb, heartbeatRuns, issues, issueComments } from "@outpost/db";
+import { activityLog, agents, authUsers, spaceMemberships, spaces, createDb, heartbeatRuns, issues, issueComments } from "@outpost/db";
 import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
 import { issueService } from "../issues.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 describe("runner task reassignment", () => {
   let temporary: Awaited<ReturnType<typeof startRecoveryPostgres>>;
@@ -16,25 +16,25 @@ describe("runner task reassignment", () => {
   afterAll(async () => { await temporary?.cleanup(); });
 
   async function fixture(status = "todo") {
-    const companyId = randomUUID(), agentId = randomUUID(), nextId = randomUUID(), issueId = randomUUID(), targetId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Reassignment", issuePrefix: `R${companyId.slice(0, 6)}` });
+    const spaceId = randomUUID(), agentId = randomUUID(), nextId = randomUUID(), issueId = randomUUID(), targetId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Reassignment", issuePrefix: `R${spaceId.slice(0, 6)}` });
     await db.insert(agents).values([
-      { id: agentId, companyId, name: "Manager", role: "ceo", status: "active", adapterType: "outpost_runner" },
-      { id: nextId, companyId, name: "Engineer", role: "engineer", status: "active", adapterType: "outpost_runner" },
+      { id: agentId, spaceId, name: "Manager", role: "lead", status: "active", adapterType: "outpost_runner" },
+      { id: nextId, spaceId, name: "Engineer", role: "engineer", status: "active", adapterType: "outpost_runner" },
     ]);
     await db.insert(issues).values([
-      { id: issueId, companyId, title: "Coordinate", status: "in_progress", assigneeAgentId: agentId },
-      { id: targetId, companyId, title: "Existing work", status, assigneeAgentId: agentId, description: "Keep the existing plan and context" },
+      { id: issueId, spaceId, title: "Coordinate", status: "in_progress", assigneeAgentId: agentId },
+      { id: targetId, spaceId, title: "Existing work", status, assigneeAgentId: agentId, description: "Keep the existing plan and context" },
     ]);
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId } });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     const enqueueWakeup = vi.fn().mockResolvedValue({ id: randomUUID() });
     const stopTaskForReassignment = vi.fn().mockResolvedValue(undefined);
-    const binding = { companyId, agentId, issueId, runId, enqueueWakeup, stopTaskForReassignment };
-    const authority = new PaperclipRunnerToolAuthority(db, binding);
+    const binding = { spaceId, agentId, issueId, runId, enqueueWakeup, stopTaskForReassignment };
+    const authority = new OutpostRunnerToolAuthority(db, binding);
     const call = { tool: "reassign_task", callId: "handoff", arguments: { taskId: targetId, assigneeActorId: nextId, expectedAssigneeActorId: agentId, expectedStatusVersion: 0, reason: "Engineer owns implementation; retain the existing plan.", idempotencyKey: "handoff" } };
     const target = async () => (await db.select().from(issues).where(eq(issues.id, targetId)))[0]!;
-    return { companyId, agentId, nextId, issueId, targetId, runId, authority, binding, call, target, enqueueWakeup, stopTaskForReassignment };
+    return { spaceId, agentId, nextId, issueId, targetId, runId, authority, binding, call, target, enqueueWakeup, stopTaskForReassignment };
   }
 
   it("moves existing work once, persists context and audit, and dispatches a guarded wake", async () => {
@@ -45,7 +45,7 @@ describe("runner task reassignment", () => {
     expect(f.stopTaskForReassignment).toHaveBeenCalledTimes(1);
     expect(f.enqueueWakeup).toHaveBeenCalledWith(f.nextId, expect.objectContaining({ issueStateGuard: { statuses: ["todo"], assigneeAgentId: f.nextId, statusVersion: 1 } }));
     expect(f.enqueueWakeup.mock.calls[0]![1].idempotencyKey).toEqual(f.enqueueWakeup.mock.calls[1]![1].idempotencyKey);
-    expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.companyId), eq(activityLog.action, "issue.reassigned")))).toHaveLength(1);
+    expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.spaceId), eq(activityLog.action, "issue.reassigned")))).toHaveLength(1);
     expect(await db.select().from(issueComments).where(eq(issueComments.issueId, f.targetId))).toHaveLength(1);
   });
 
@@ -53,7 +53,7 @@ describe("runner task reassignment", () => {
     const f = await fixture();
     const person = randomUUID();
     await db.insert(authUsers).values({ id: person, name: "Reviewer", email: `${person}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: person, status: "active", membershipRole: "operator" });
+    await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: person, status: "active", membershipRole: "operator" });
     await f.authority.execute({ ...f.call, arguments: { ...f.call.arguments, assigneeActorId: null, assigneeUserId: person } });
     const [reassigned] = await db.select().from(activityLog).where(and(eq(activityLog.entityId, f.targetId), eq(activityLog.action, "issue.reassigned")));
     expect(reassigned).toMatchObject({ actorType: "agent", actorId: f.agentId, details: {
@@ -78,9 +78,9 @@ describe("runner task reassignment", () => {
     const f = await fixture();
     const receipt = await f.authority.execute(f.call);
     const replacement = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: replacement, companyId: f.companyId, agentId: f.agentId, nativeIssueId: f.issueId, runtimeMode: "native", status: "running", invocationSource: "assignment", triggerDetail: "system" });
+    await db.insert(heartbeatRuns).values({ id: replacement, spaceId: f.spaceId, agentId: f.agentId, nativeIssueId: f.issueId, runtimeMode: "native", status: "running", invocationSource: "assignment", triggerDetail: "system" });
     await db.update(issues).set({ executionRunId: replacement }).where(eq(issues.id, f.issueId));
-    await expect(new PaperclipRunnerToolAuthority(db, { ...f.binding, runId: replacement }).execute(f.call)).resolves.toEqual(receipt);
+    await expect(new OutpostRunnerToolAuthority(db, { ...f.binding, runId: replacement }).execute(f.call)).resolves.toEqual(receipt);
     expect((await f.target()).statusVersion).toBe(1);
   });
 
@@ -104,7 +104,7 @@ describe("runner task reassignment", () => {
   it("stops active execution before transferring ownership", async () => {
     const f = await fixture("in_progress");
     const oldRun = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: oldRun, companyId: f.companyId, agentId: f.agentId, nativeIssueId: f.targetId, runtimeMode: "native", status: "running", invocationSource: "assignment", triggerDetail: "system" });
+    await db.insert(heartbeatRuns).values({ id: oldRun, spaceId: f.spaceId, agentId: f.agentId, nativeIssueId: f.targetId, runtimeMode: "native", status: "running", invocationSource: "assignment", triggerDetail: "system" });
     await db.update(issues).set({ executionRunId: oldRun, checkoutRunId: oldRun }).where(eq(issues.id, f.targetId));
     f.stopTaskForReassignment.mockImplementationOnce(async () => {
       expect((await f.target()).assigneeAgentId).toBe(f.agentId);
@@ -121,7 +121,7 @@ describe("runner task reassignment", () => {
     expect((await f.target()).assigneeAgentId).toBe(f.agentId);
     f.stopTaskForReassignment.mockImplementationOnce(async () => {
       const runId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, status: "running", invocationSource: "assignment", triggerDetail: "system" });
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId, status: "running", invocationSource: "assignment", triggerDetail: "system" });
       await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, f.targetId));
     });
     await expect(f.authority.execute(f.call)).rejects.toThrow("reassignment_conflict");
@@ -131,7 +131,7 @@ describe("runner task reassignment", () => {
   it.each(["version", "caller", "stop-error"])("restores the prior owner after a cancelled handoff loses %s", async conflict => {
     const f = await fixture("in_progress");
     const oldRun = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: oldRun, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: oldRun, spaceId: f.spaceId, agentId: f.agentId,
       nativeIssueId: f.targetId, status: "running", runtimeMode: "native", invocationSource: "assignment", triggerDetail: "system" });
     await db.update(issues).set({ executionRunId: oldRun }).where(eq(issues.id, f.targetId));
     f.stopTaskForReassignment.mockImplementationOnce(async () => {
@@ -151,13 +151,13 @@ describe("runner task reassignment", () => {
   it.each(["owner", "closed", "new-run"])("does not compensate over a newer %s decision", async conflict => {
     const f = await fixture("in_progress");
     const oldRun = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: oldRun, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: oldRun, spaceId: f.spaceId, agentId: f.agentId,
       nativeIssueId: f.targetId, status: "running", runtimeMode: "native", invocationSource: "assignment", triggerDetail: "system" });
     await db.update(issues).set({ executionRunId: oldRun }).where(eq(issues.id, f.targetId));
     f.stopTaskForReassignment.mockImplementationOnce(async () => {
       await db.update(heartbeatRuns).set({ status: "cancelled", errorCode: "issue_reassigned" }).where(eq(heartbeatRuns.id, oldRun));
       const newRun = randomUUID();
-      if (conflict === "new-run") await db.insert(heartbeatRuns).values({ id: newRun, companyId: f.companyId,
+      if (conflict === "new-run") await db.insert(heartbeatRuns).values({ id: newRun, spaceId: f.spaceId,
         agentId: f.agentId, status: "running", invocationSource: "assignment", triggerDetail: "system" });
       await db.update(issues).set(conflict === "owner" ? { assigneeAgentId: f.nextId, statusVersion: 1 }
         : conflict === "closed" ? { status: "done" } : { executionRunId: newRun }).where(eq(issues.id, f.targetId));
@@ -205,7 +205,7 @@ describe("runner task reassignment", () => {
     expect(f.stopTaskForReassignment).not.toHaveBeenCalled();
   });
 
-  it("respects protected assignment policies instead of inheriting board authority", async () => {
+  it("respects protected assignment policies instead of inheriting operator authority", async () => {
     const f = await fixture();
     await db.update(agents).set({ permissions: { authorizationPolicy: { protectedAgent: { blockAssignment: true } } } }).where(eq(agents.id, f.nextId));
     await expect(f.authority.execute(f.call)).rejects.toThrow();

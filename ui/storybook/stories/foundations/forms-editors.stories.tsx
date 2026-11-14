@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Agent, CompanySecret, EnvBinding, Project, RoutineVariable } from "@outpost/shared";
+import type { Agent, SpaceSecret, EnvBinding, Project, RoutineVariable } from "@outpost/shared";
 import { Code2, FileText, ListPlus, RotateCcw, Table2 } from "lucide-react";
 import { EnvironmentVariablesEditor } from "@/components/environment-variables-editor";
 import { ExecutionParticipantPicker } from "@/components/ExecutionParticipantPicker";
@@ -20,7 +20,7 @@ import { ScheduleEditor, describeSchedule } from "@/components/ScheduleEditor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buildExecutionPolicy } from "@/lib/issue-execution-policy";
-import { createIssue, storybookAgents } from "../../fixtures/paperclipData";
+import { createIssue, storybookAgents } from "../../fixtures/outpostData";
 
 function Section({
   eyebrow,
@@ -34,9 +34,9 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="paperclip-story__frame overflow-hidden">
+    <section className="outpost-story__frame overflow-hidden">
       <div className="border-b border-border px-5 py-4">
-        <div className="paperclip-story__label">{eyebrow}</div>
+        <div className="outpost-story__label">{eyebrow}</div>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">{title}</h2>
@@ -78,8 +78,8 @@ function StatePanel({
 
 function StoryShell({ children }: { children: ReactNode }) {
   return (
-    <div className="paperclip-story">
-      <main className="paperclip-story__inner space-y-6">{children}</main>
+    <div className="outpost-story">
+      <main className="outpost-story__inner space-y-6">{children}</main>
     </div>
   );
 }
@@ -88,7 +88,7 @@ const reviewMarkdown = `# Release review
 
 Ship criteria for the board UI refresh:
 
-- [x] Preserve company-scoped routes
+- [x] Preserve space-scoped routes
 - [x] Keep comments and task updates auditable
 - [ ] Attach screenshots after QA
 
@@ -100,7 +100,7 @@ Tooling: lean on [/react-perf-optimizer](skill://skill-react-perf?s=react-perf-o
 | Approvals | CTO | Ready |
 
 \`\`\`ts
-const shouldRun = issue.status === "in_progress" && issue.companyId === company.id;
+const shouldRun = issue.status === "in_progress" && issue.spaceId === space.id;
 \`\`\`
 
 See [the implementation notes](https://github.com/paperclipai/paperclip).`;
@@ -133,7 +133,7 @@ const adapterSchema: JsonSchemaNode = {
       type: "string",
       title: "API key",
       format: "secret-ref",
-      description: "Stored with the active Paperclip secret provider.",
+      description: "Stored with the active Outpost secret provider.",
     },
     concurrency: {
       type: "integer",
@@ -145,7 +145,7 @@ const adapterSchema: JsonSchemaNode = {
     dryRun: {
       type: "boolean",
       title: "Dry run first",
-      description: "Require a preview run before mutating company data.",
+      description: "Require a preview run before mutating space data.",
       default: true,
     },
     notes: {
@@ -198,18 +198,18 @@ const adapterErrors = {
   "/concurrency": "Must be at most 6",
 };
 
-const storybookSecrets: CompanySecret[] = [
+const storybookSecrets: SpaceSecret[] = [
 	  {
 	    id: "secret-openai",
-	    companyId: "company-storybook",
-	    scope: "company",
+	    spaceId: "space-storybook",
+	    scope: "space",
 	    ownerUserId: null,
 	    userSecretDefinitionId: null,
 	    key: "openai-api-key",
 	    name: "OPENAI_API_KEY",
 	    provider: "local_encrypted",
 	    status: "active",
-	    managedMode: "paperclip_managed",
+	    managedMode: "outpost_managed",
 	    externalRef: null,
 	    providerConfigId: null,
 	    providerMetadata: null,
@@ -225,15 +225,15 @@ const storybookSecrets: CompanySecret[] = [
   },
 	  {
 	    id: "secret-github",
-	    companyId: "company-storybook",
-	    scope: "company",
+	    spaceId: "space-storybook",
+	    scope: "space",
 	    ownerUserId: null,
 	    userSecretDefinitionId: null,
 	    key: "github-token",
 	    name: "GITHUB_TOKEN",
 	    provider: "local_encrypted",
 	    status: "active",
-	    managedMode: "paperclip_managed",
+	    managedMode: "outpost_managed",
 	    externalRef: null,
 	    providerConfigId: null,
 	    providerMetadata: null,
@@ -291,11 +291,11 @@ const routineVariables: RoutineVariable[] = [
 
 const storybookProject: Project = {
   id: "project-board-ui",
-  companyId: "company-storybook",
+  spaceId: "space-storybook",
   urlKey: "board-ui",
-  goalId: "goal-company",
-  goalIds: ["goal-company"],
-  goals: [{ id: "goal-company", title: "We're building Paperclip" }],
+  goalId: "goal-space",
+  goalIds: ["goal-space"],
+  goals: [{ id: "goal-space", title: "We're building Outpost" }],
   name: "Board UI",
   description: "Control-plane interface, Storybook review surfaces, and operator workflows.",
   status: "in_progress",
@@ -312,10 +312,10 @@ const storybookProject: Project = {
     repoUrl: "https://github.com/paperclipai/paperclip",
     repoRef: "master",
     defaultRef: "master",
-    repoName: "paperclip",
-    localFolder: "/Users/dotta/paperclip",
-    managedFolder: "paperclip",
-    effectiveLocalFolder: "/Users/dotta/paperclip",
+    repoName: "outpost",
+    localFolder: "/Users/dotta/outpost",
+    managedFolder: "outpost",
+    effectiveLocalFolder: "/Users/dotta/outpost",
     origin: "local_folder",
   },
   workspaces: [],
@@ -467,7 +467,7 @@ function InlineEditorGallery() {
 function EnvironmentVariablesEditorGallery() {
   const [emptyEnv, setEmptyEnv] = useState<Record<string, EnvBinding>>({});
   const [env, setEnv] = useState<Record<string, EnvBinding>>(filledEnv);
-  const createSecret = async (name: string): Promise<CompanySecret> => ({
+  const createSecret = async (name: string): Promise<SpaceSecret> => ({
     ...storybookSecrets[0]!,
     id: `secret-${name.toLowerCase()}`,
     name,
@@ -638,11 +638,11 @@ function PickerGallery() {
 function FormsEditorsShowcase() {
   return (
     <StoryShell>
-      <section className="paperclip-story__frame p-6">
+      <section className="outpost-story__frame p-6">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <div className="paperclip-story__label">Forms and editors</div>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Paperclip form controls under realistic state</h1>
+            <div className="outpost-story__label">Forms and editors</div>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Outpost form controls under realistic state</h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
               Dense control-plane forms need to hold empty, filled, validation, and disabled states without losing scan
               speed. These fixtures keep the components reviewable outside production routes.
@@ -694,7 +694,7 @@ function RoutineRunDialogStory() {
       <RoutineRunVariablesDialog
         open={open}
         onOpenChange={setOpen}
-        companyId="company-storybook"
+        spaceId="space-storybook"
         routineName="Weekly release review"
         projects={[storybookProject]}
         agents={storybookAgents}
@@ -718,10 +718,10 @@ const meta = {
     docs: {
       description: {
         component:
-          "Fixture-backed stories for Paperclip form controls, markdown editors, inline editors, schedule controls, runtime-variable dialogs, and selection pickers.",
+          "Fixture-backed stories for Outpost form controls, markdown editors, inline editors, schedule controls, runtime-variable dialogs, and selection pickers.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "developer-labs/design"
       ],
@@ -749,7 +749,7 @@ export const RoutineRunVariablesDialogOpen: Story = {
 };
 
 const foldCurtainLongMarkdown = [
-  "# paperclip-bench",
+  "# outpost-bench",
   "",
   "Ship criteria for the benchmark harness — these notes are intentionally lengthy so the fold-curtain clips them.",
   "",

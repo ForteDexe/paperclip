@@ -11,7 +11,7 @@ vi.mock("node:https", () => ({ request: (url: URL, options: object) => {
 } }));
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { pluginManifestV1Schema, type PaperclipPluginManifestV1 } from "@outpost/shared";
+import { pluginManifestV1Schema, type OutpostPluginManifestV1 } from "@outpost/shared";
 
 const mockAccess = vi.hoisted(() => ({ decide: vi.fn().mockResolvedValue({ allowed: true }) }));
 vi.mock("../services/authorization.js", () => ({ authorizationService: () => mockAccess }));
@@ -51,14 +51,14 @@ vi.mock("../services/live-events.js", () => ({
   publishGlobalLiveEvent: vi.fn(),
 }));
 
-function manifest(apiRoutes: NonNullable<PaperclipPluginManifestV1["apiRoutes"]>): PaperclipPluginManifestV1 {
+function manifest(apiRoutes: NonNullable<OutpostPluginManifestV1["apiRoutes"]>): OutpostPluginManifestV1 {
   return {
     id: "outpost.scoped-api-test",
     apiVersion: 1,
     version: "1.0.0",
     displayName: "Scoped API Test",
     description: "Test plugin for scoped API routes",
-    author: "Paperclip",
+    author: "Outpost",
     categories: ["automation"],
     capabilities: ["api.routes.register", "http.outbound"],
     entrypoints: { worker: "dist/worker.js" },
@@ -110,7 +110,7 @@ async function createApp(input: {
 
 describe("plugin scoped API routes", () => {
   const pluginId = "11111111-1111-4111-8111-111111111111";
-  const companyId = "22222222-2222-4222-8222-222222222222";
+  const spaceId = "22222222-2222-4222-8222-222222222222";
   const agentId = "33333333-3333-4333-8333-333333333333";
   const peerAgentId = "33333333-3333-4333-8333-333333333334";
   const runId = "44444444-4444-4444-8444-444444444444";
@@ -128,20 +128,20 @@ describe("plugin scoped API routes", () => {
     });
   });
 
-  it("dispatches a board GET route with params, query, actor, and company context", async () => {
+  it("dispatches a operator GET route with params, query, actor, and space context", async () => {
     const apiRoutes = manifest([
       {
         routeKey: "summary.get",
         method: "GET",
-        path: "/companies/:companySlug/summary",
-        auth: "board",
+        path: "/spaces/:spaceSlug/summary",
+        auth: "operator",
         capability: "api.routes.register",
-        companyResolution: { from: "query", key: "companyId" },
+        spaceResolution: { from: "query", key: "spaceId" },
       },
     ]);
     const { app, workerManager } = await createApp({
       actor: {
-        type: "board",
+        type: "operator",
         userId: "user-1",
         source: "local_implicit",
         isInstanceAdmin: true,
@@ -156,7 +156,7 @@ describe("plugin scoped API routes", () => {
     });
 
     const res = await request(app)
-      .get(`/api/plugins/${pluginId}/api/companies/acme/summary?companyId=${companyId}&view=compact`)
+      .get(`/api/plugins/${pluginId}/api/spaces/acme/summary?spaceId=${spaceId}&view=compact`)
       .set("Authorization", "Bearer should-not-forward");
 
     expect(res.status).toBe(201);
@@ -164,9 +164,9 @@ describe("plugin scoped API routes", () => {
     expect(workerManager.call).toHaveBeenCalledWith(pluginId, "handleApiRequest", expect.objectContaining({
       routeKey: "summary.get",
       method: "GET",
-      params: { companySlug: "acme" },
-      query: { companyId, view: "compact" },
-      companyId,
+      params: { spaceSlug: "acme" },
+      query: { spaceId, view: "compact" },
+      spaceId,
       actor: expect.objectContaining({ actorType: "user", actorId: "user-1" }),
     }));
     expect(workerManager.call.mock.calls[0]?.[2].headers.authorization).toBeUndefined();
@@ -177,15 +177,15 @@ describe("plugin scoped API routes", () => {
       {
         routeKey: "summary.get",
         method: "GET",
-        path: "/companies/:companySlug/summary",
-        auth: "board",
+        path: "/spaces/:spaceSlug/summary",
+        auth: "operator",
         capability: "api.routes.register",
-        companyResolution: { from: "query", key: "companyId" },
+        spaceResolution: { from: "query", key: "spaceId" },
       },
     ]);
     const { app } = await createApp({
       actor: {
-        type: "board",
+        type: "operator",
         userId: "user-1",
         source: "local_implicit",
         isInstanceAdmin: true,
@@ -209,7 +209,7 @@ describe("plugin scoped API routes", () => {
     });
 
     const res = await request(app)
-      .get(`/api/plugins/${pluginId}/api/companies/acme/summary?companyId=${companyId}`);
+      .get(`/api/plugins/${pluginId}/api/spaces/acme/summary?spaceId=${spaceId}`);
 
     expect(res.status).toBe(200);
     expect(res.headers["cache-control"]).toBe("no-store");
@@ -227,12 +227,12 @@ describe("plugin scoped API routes", () => {
         auth: "agent",
         capability: "api.routes.register",
         checkoutPolicy: "required-for-agent-in-progress",
-        companyResolution: { from: "issue", param: "issueId" },
+        spaceResolution: { from: "issue", param: "issueId" },
       },
     ]);
     mockIssueService.getById.mockResolvedValue({
       id: issueId,
-      companyId,
+      spaceId,
       status: "in_progress",
       assigneeAgentId: agentId,
     });
@@ -240,7 +240,7 @@ describe("plugin scoped API routes", () => {
       actor: {
         type: "agent",
         agentId,
-        companyId,
+        spaceId,
         runId,
         source: "agent_key",
       },
@@ -263,7 +263,7 @@ describe("plugin scoped API routes", () => {
       params: { issueId },
       body: { step: "next" },
       actor: expect.objectContaining({ actorType: "agent", agentId, runId }),
-      companyId,
+      spaceId,
     }));
   });
 
@@ -276,12 +276,12 @@ describe("plugin scoped API routes", () => {
         auth: "agent",
         capability: "api.routes.register",
         checkoutPolicy: "required-for-agent-in-progress",
-        companyResolution: { from: "issue", param: "issueId" },
+        spaceResolution: { from: "issue", param: "issueId" },
       },
     ]);
     mockIssueService.getById.mockResolvedValue({
       id: issueId,
-      companyId,
+      spaceId,
       status: "in_progress",
       assigneeAgentId: agentId,
     });
@@ -289,7 +289,7 @@ describe("plugin scoped API routes", () => {
       actor: {
         type: "agent",
         agentId: peerAgentId,
-        companyId,
+        spaceId,
         runId,
         source: "agent_key",
       },
@@ -312,7 +312,7 @@ describe("plugin scoped API routes", () => {
       params: { issueId },
       body: { step: "next" },
       actor: expect.objectContaining({ actorType: "agent", agentId: peerAgentId, runId }),
-      companyId,
+      spaceId,
     }));
   });
 
@@ -325,12 +325,12 @@ describe("plugin scoped API routes", () => {
         auth: "agent",
         capability: "api.routes.register",
         checkoutPolicy: "required-for-agent-in-progress",
-        companyResolution: { from: "issue", param: "issueId" },
+        spaceResolution: { from: "issue", param: "issueId" },
       },
     ]);
     mockIssueService.getById.mockResolvedValue({
       id: issueId,
-      companyId,
+      spaceId,
       status: "in_progress",
       assigneeAgentId: agentId,
     });
@@ -338,7 +338,7 @@ describe("plugin scoped API routes", () => {
       actor: {
         type: "agent",
         agentId,
-        companyId,
+        spaceId,
         source: "agent_key",
       },
       plugin: {
@@ -366,12 +366,12 @@ describe("plugin scoped API routes", () => {
         auth: "agent",
         capability: "api.routes.register",
         checkoutPolicy: "always-for-agent",
-        companyResolution: { from: "issue", param: "issueId" },
+        spaceResolution: { from: "issue", param: "issueId" },
       },
     ]);
     mockIssueService.getById.mockResolvedValue({
       id: issueId,
-      companyId,
+      spaceId,
       status: "in_progress",
       assigneeAgentId: agentId,
     });
@@ -382,7 +382,7 @@ describe("plugin scoped API routes", () => {
       actor: {
         type: "agent",
         agentId,
-        companyId,
+        spaceId,
         runId,
         source: "agent_key",
       },
@@ -408,14 +408,14 @@ describe("plugin scoped API routes", () => {
         routeKey: "summary.get",
         method: "GET",
         path: "/summary",
-        auth: "board",
+        auth: "operator",
         capability: "api.routes.register",
-        companyResolution: { from: "query", key: "companyId" },
+        spaceResolution: { from: "query", key: "spaceId" },
       },
     ]);
     const { app, workerManager } = await createApp({
       actor: {
-        type: "board",
+        type: "operator",
         userId: "user-1",
         source: "local_implicit",
         isInstanceAdmin: true,
@@ -429,7 +429,7 @@ describe("plugin scoped API routes", () => {
     });
 
     const res = await request(app)
-      .get(`/api/plugins/${pluginId}/api/summary?companyId=${companyId}`);
+      .get(`/api/plugins/${pluginId}/api/summary?spaceId=${spaceId}`);
 
     expect(res.status).toBe(503);
     expect(res.body.error).toContain("disabled");
@@ -442,14 +442,14 @@ describe("plugin scoped API routes", () => {
         routeKey: "summary.get",
         method: "GET",
         path: "/summary",
-        auth: "board",
+        auth: "operator",
         capability: "api.routes.register",
-        companyResolution: { from: "query", key: "companyId" },
+        spaceResolution: { from: "query", key: "spaceId" },
       },
     ]);
     const { app, workerManager } = await createApp({
       actor: {
-        type: "board",
+        type: "operator",
         userId: "user-1",
         source: "local_implicit",
         isInstanceAdmin: true,
@@ -464,7 +464,7 @@ describe("plugin scoped API routes", () => {
     });
 
     const res = await request(app)
-      .get(`/api/plugins/${pluginId}/api/summary?companyId=${companyId}`);
+      .get(`/api/plugins/${pluginId}/api/summary?spaceId=${spaceId}`);
 
     expect(res.status).toBe(503);
     expect(res.body.error).toContain("worker is not running");
@@ -477,7 +477,7 @@ describe("plugin scoped API routes", () => {
         routeKey: "bad.shadow",
         method: "POST",
         path: "/api/issues/:issueId",
-        auth: "board",
+        auth: "operator",
         capability: "api.routes.register",
       },
     ]));
@@ -492,12 +492,12 @@ describe("plugin scoped API routes", () => {
 
 
 describe("plugin browser WebSockets", () => {
-  const companyId = "22222222-2222-4222-8222-222222222222";
+  const spaceId = "22222222-2222-4222-8222-222222222222";
   const pluginId = "11111111-1111-4111-8111-111111111111";
-  const apiRoutes = manifest([{ routeKey: "channel.connect", method: "GET", path: "/channels/:channelId", transport: "websocket", auth: "board", capability: "api.routes.register", companyResolution: { from: "query", key: "companyId" } }]);
+  const apiRoutes = manifest([{ routeKey: "channel.connect", method: "GET", path: "/channels/:channelId", transport: "websocket", auth: "operator", capability: "api.routes.register", spaceResolution: { from: "query", key: "spaceId" } }]);
   const plugin = { id: pluginId, pluginKey: apiRoutes.id, status: "ready", manifestJson: apiRoutes };
-  const board = { type: "board", userId: "user-1", source: "local_implicit", isInstanceAdmin: true };
-  const endpoint = `/api/plugins/${pluginId}/api/channels/build-output?companyId=${companyId}`;
+  const operator = { type: "operator", userId: "user-1", source: "local_implicit", isInstanceAdmin: true };
+  const endpoint = `/api/plugins/${pluginId}/api/channels/build-output?spaceId=${spaceId}`;
   async function listen(server: Server) {
     server.listen(0, "127.0.0.1"); await once(server, "listening");
     return `http://127.0.0.1:${(server.address() as { port: number }).port}`;
@@ -515,13 +515,13 @@ describe("plugin browser WebSockets", () => {
     } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
   }
   it("rejects missing/bad Origin, anonymous callers and agents before worker dispatch", async () => {
-    expect(await rejection(board)).toEqual({ status: 403, calls: 0 });
-    expect(await rejection(board, "https://attacker.test")).toEqual({ status: 403, calls: 0 });
+    expect(await rejection(operator)).toEqual({ status: 403, calls: 0 });
+    expect(await rejection(operator, "https://attacker.test")).toEqual({ status: 403, calls: 0 });
     expect(await rejection({ type: "none" }, "http://localhost:3100")).toEqual({ status: 403, calls: 0 });
-    expect(await rejection({ type: "agent", agentId: "agent", companyId }, "http://localhost:3100")).toEqual({ status: 403, calls: 0 });
+    expect(await rejection({ type: "agent", agentId: "agent", spaceId }, "http://localhost:3100")).toEqual({ status: 403, calls: 0 });
   });
   it("never exposes a worker's upstream credentials over ordinary HTTP", async () => {
-    const { app, workerManager } = await createApp({ actor: board, plugin, workerResult: { websocket: { url: "wss://private.test", headers: { Authorization: "fixture-secret" } } } });
+    const { app, workerManager } = await createApp({ actor: operator, plugin, workerResult: { websocket: { url: "wss://private.test", headers: { Authorization: "fixture-secret" } } } });
     const response = await request(app).get(endpoint);
     expect(response.status).toBe(426);
     expect(response.text).not.toContain("fixture-secret");
@@ -534,7 +534,7 @@ describe("plugin browser WebSockets", () => {
     upstream.on("upgrade", (req, socket, head) => { upstreamHeaders = req.headers; upstreamWs.handleUpgrade(req, socket, head, ws => upstreamWs.emit("connection", ws)); });
     upstreamWs.on("connection", ws => { ws.on("message", (bytes, isBinary) => ws.send(bytes, { binary: isBinary })); });
     const upstreamBase = await listen(upstream);
-    const { app, workerManager } = await createApp({ actor: board, plugin, workerResult: { websocket: { url: upstreamBase.replace("http:", "wss:") + `/channels/${channelId}`, headers: { Authorization: "Bearer fixture-only" } } } });
+    const { app, workerManager } = await createApp({ actor: operator, plugin, workerResult: { websocket: { url: upstreamBase.replace("http:", "wss:") + `/channels/${channelId}`, headers: { Authorization: "Bearer fixture-only" } } } });
     const server = createServer(app); setupPluginApiWebSocketServer(server, app);
     const base = await listen(server);
     const ws = new WebSocket(`${base}${endpoint.replace("build-output", channelId)}`, { origin: "http://localhost:3100", headers: { Cookie: "browser=fixture", Authorization: "browser-only" } });
@@ -550,7 +550,7 @@ describe("plugin browser WebSockets", () => {
       const [text, isBinary] = await textReply;
       expect(text.toString()).toBe(event);
       expect(isBinary).toBe(false);
-      expect(workerManager.call).toHaveBeenCalledWith(pluginId, "handleApiRequest", expect.objectContaining({ routeKey: "channel.connect", params: { channelId }, companyId }));
+      expect(workerManager.call).toHaveBeenCalledWith(pluginId, "handleApiRequest", expect.objectContaining({ routeKey: "channel.connect", params: { channelId }, spaceId }));
       expect(upstreamHeaders.authorization).toBe("Bearer fixture-only");
       expect(upstreamHeaders.cookie).toBeUndefined();
       expect(upstreamHeaders.origin).toBeUndefined();
@@ -562,7 +562,7 @@ describe("plugin browser WebSockets", () => {
       await Promise.all([new Promise<void>(resolve => server.close(() => resolve())), new Promise<void>(resolve => upstream.close(() => resolve()))]);
     }
   });
-  it("only permits declared board GET WebSockets", () => {
+  it("only permits declared operator GET WebSockets", () => {
     expect(pluginManifestV1Schema.safeParse(apiRoutes).success).toBe(true);
     const bad = structuredClone(apiRoutes); bad.apiRoutes![0].auth = "agent";
     expect(pluginManifestV1Schema.safeParse(bad).success).toBe(false);
@@ -570,21 +570,21 @@ describe("plugin browser WebSockets", () => {
 });
 
 it("agent-scoped plugin routes reuse agent:read and refuse denied access before worker dispatch", async () => {
-  const agentId = "33333333-3333-4333-8333-333333333333", companyId = "22222222-2222-4222-8222-222222222222", pluginId = "11111111-1111-4111-8111-111111111111";
-  const chain = { from: () => chain, where: () => chain, limit: vi.fn(async () => [{ id: agentId, companyId }]) };
-  const apiRoutes = manifest([{ routeKey: "status", method: "GET", path: "/agents/:agentId/status", auth: "board", capability: "api.routes.register", companyResolution: { from: "agent", param: "agentId" } }]);
-  const actor: Record<string, unknown> = { type: "board", source: "local_implicit", userId: "user", isInstanceAdmin: true };
+  const agentId = "33333333-3333-4333-8333-333333333333", spaceId = "22222222-2222-4222-8222-222222222222", pluginId = "11111111-1111-4111-8111-111111111111";
+  const chain = { from: () => chain, where: () => chain, limit: vi.fn(async () => [{ id: agentId, spaceId }]) };
+  const apiRoutes = manifest([{ routeKey: "status", method: "GET", path: "/agents/:agentId/status", auth: "operator", capability: "api.routes.register", spaceResolution: { from: "agent", param: "agentId" } }]);
+  const actor: Record<string, unknown> = { type: "operator", source: "local_implicit", userId: "user", isInstanceAdmin: true };
   const { app, workerManager } = await createApp({ db: { select: () => chain }, actor, plugin: { id: pluginId, pluginKey: apiRoutes.id, status: "ready", manifestJson: apiRoutes } });
   mockAccess.decide.mockResolvedValue({ allowed: true });
   expect((await request(app).get(`/api/plugins/${pluginId}/api/agents/${agentId}/status`)).status).toBe(200);
-  expect(mockAccess.decide).toHaveBeenCalledWith(expect.objectContaining({ action: "agent:read", resource: { type: "agent", companyId, agentId } }));
+  expect(mockAccess.decide).toHaveBeenCalledWith(expect.objectContaining({ action: "agent:read", resource: { type: "agent", spaceId, agentId } }));
   workerManager.call.mockClear(); mockAccess.decide.mockResolvedValue({ allowed: false });
   expect((await request(app).get(`/api/plugins/${pluginId}/api/agents/${agentId}/status`)).status).toBe(404);
-  actor.source = "session"; actor.companyIds = ["another-company"];
-  const crossCompany = await request(app).get(`/api/plugins/${pluginId}/api/agents/${agentId}/status`);
+  actor.source = "session"; actor.spaceIds = ["another-space"];
+  const crossSpace = await request(app).get(`/api/plugins/${pluginId}/api/agents/${agentId}/status`);
   chain.limit.mockResolvedValue([]);
   const missing = await request(app).get(`/api/plugins/${pluginId}/api/agents/${agentId}/status`);
-  expect(crossCompany.status).toBe(404);
-  expect(crossCompany.body).toEqual(missing.body);
+  expect(crossSpace.status).toBe(404);
+  expect(crossSpace.body).toEqual(missing.body);
   expect(workerManager.call).not.toHaveBeenCalled();
 });

@@ -86,7 +86,7 @@ describe("sw.js offline fallback", () => {
     expect(body).toContain("Outpost is offline");
     expect(body).toContain("Reload page");
     expect(body).toContain("<style>");
-    expect(body).toContain(".paperclip-offline");
+    expect(body).toContain(".outpost-offline");
     expect(body).toContain("<svg");
     expect(body).not.toMatch(/__OUTPOST_|<link|\bsrc=/);
     expect(body).not.toContain("<html>app shell</html>");

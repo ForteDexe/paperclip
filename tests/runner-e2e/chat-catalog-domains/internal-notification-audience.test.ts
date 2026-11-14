@@ -5,11 +5,11 @@ function valid() {
   const t = { id: "task", title: "Launch task", status: "backlog" }; const participation = { id: "human", authorUserId: "alex", body: "Following this draft." };
   const normal = { id: "normal", authorAgentId: "ceo", createdByRunId: "first", body: "The draft is ready for human review." };
   const mention = { id: "mention", authorAgentId: "ceo", createdByRunId: "second", body: "The draft is ready, [Riley](user://riley)." };
-  const person = (id: string, eligible: boolean) => ({ principalId: id, visibility: "visible", sockets: ["/api/companies/company/events/ws"], frames: [{ principalId: id, taskId: "task", commentId: "normal", eligible, at: 1000 }], toasts: eligible ? [{ text: "CEO commented on task", hrefs: ["/RUN/issues/task"], at: 1100 }] : [] });
-  const first = { scenarioId: "inbox-search.notification-audience", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { task: structuredClone(t), alexId: "alex", rileyId: "riley", participation },
-    tasks: [t], projects: [], goals: [], comments: [participation, normal], activity: [], documents: [], revisions: [], links: ["/RUN/issues/task"], humanQueries: [], reply: "Posted the draft-ready update.", runs: [{ id: "first", companyId: "company", agentId: "ceo", status: "succeeded" }], alex: person("alex", true), riley: person("riley", false), observedAt: 3100 };
+  const person = (id: string, eligible: boolean) => ({ principalId: id, visibility: "visible", sockets: ["/api/spaces/space/events/ws"], frames: [{ principalId: id, taskId: "task", commentId: "normal", eligible, at: 1000 }], toasts: eligible ? [{ text: "CEO commented on task", hrefs: ["/RUN/issues/task"], at: 1100 }] : [] });
+  const first = { scenarioId: "inbox-search.notification-audience", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { task: structuredClone(t), alexId: "alex", rileyId: "riley", participation },
+    tasks: [t], projects: [], goals: [], comments: [participation, normal], activity: [], documents: [], revisions: [], links: ["/RUN/issues/task"], humanQueries: [], reply: "Posted the draft-ready update.", runs: [{ id: "first", spaceId: "space", agentId: "ceo", status: "succeeded" }], alex: person("alex", true), riley: person("riley", false), observedAt: 3100 };
   const result = structuredClone(first) as typeof first & { state: { firstAudience?: typeof first; mentionPhaseStartedAt?: number } };
-  result.state.firstAudience = first; result.state.mentionPhaseStartedAt = 4000; result.comments.push(mention); result.runs.push({ id: "second", companyId: "company", agentId: "ceo", status: "succeeded" });
+  result.state.firstAudience = first; result.state.mentionPhaseStartedAt = 4000; result.comments.push(mention); result.runs.push({ id: "second", spaceId: "space", agentId: "ceo", status: "succeeded" });
   for (const p of [result.alex, result.riley]) { p.frames.push({ principalId: p.principalId, taskId: "task", commentId: "mention", eligible: true, at: 4500 }); p.toasts.push({ text: "CEO commented on task for Riley", hrefs: ["/RUN/issues/task"], at: 4600 }); }
   result.observedAt = 5000; return result;
 }

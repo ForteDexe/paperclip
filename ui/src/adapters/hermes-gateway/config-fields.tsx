@@ -130,7 +130,7 @@ export function HermesGatewayConfigFields({
   };
 
   const apiBaseUrl = String(readValue("apiBaseUrl", "") ?? "");
-  const paperclipApiUrl = String(readValue("paperclipApiUrl", "") ?? "");
+  const outpostApiUrl = String(readValue("outpostApiUrl", "") ?? "");
   const sessionKeyStrategy = String(readValue("sessionKeyStrategy", DEFAULT_SESSION_KEY_STRATEGY) ?? DEFAULT_SESSION_KEY_STRATEGY);
   const timeoutSec = Number(readValue("timeoutSec", DEFAULT_TIMEOUT_SEC) ?? DEFAULT_TIMEOUT_SEC);
   const eventReconnectMs = Number(readValue("eventReconnectMs", DEFAULT_EVENT_RECONNECT_MS) ?? DEFAULT_EVENT_RECONNECT_MS);
@@ -168,8 +168,8 @@ export function HermesGatewayConfigFields({
         hint="Optional Outpost API URL reachable by the Hermes host. This is not a credential."
       >
         <DraftInput
-          value={paperclipApiUrl}
-          onCommit={(v) => writeValue("paperclipApiUrl", v || undefined)}
+          value={outpostApiUrl}
+          onCommit={(v) => writeValue("outpostApiUrl", v || undefined)}
           immediate
           className={inputClass}
           placeholder="http://127.0.0.1:3100"

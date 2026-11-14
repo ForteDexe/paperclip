@@ -12,15 +12,15 @@ export function pendingBudgetRunCancellationPredicate() {
   );
 }
 
-export function budgetCancellationScopePredicate(scope: Pick<BudgetEnforcementScope, "companyId" | "scopeType" | "scopeId">) {
-  return and(eq(heartbeatRuns.companyId, scope.companyId),
-    sql`${heartbeatRuns.resultJson}->'startupCancellation'->'budgetEnforcement'->>'companyId' = ${scope.companyId}`,
+export function budgetCancellationScopePredicate(scope: Pick<BudgetEnforcementScope, "spaceId" | "scopeType" | "scopeId">) {
+  return and(eq(heartbeatRuns.spaceId, scope.spaceId),
+    sql`${heartbeatRuns.resultJson}->'startupCancellation'->'budgetEnforcement'->>'spaceId' = ${scope.spaceId}`,
     sql`${heartbeatRuns.resultJson}->'startupCancellation'->'budgetEnforcement'->>'scopeType' = ${scope.scopeType}`,
     sql`${heartbeatRuns.resultJson}->'startupCancellation'->'budgetEnforcement'->>'scopeId' = ${scope.scopeId}`);
 }
 
 /** The run IDs that still owe one scope's committed Stop (run control). */
-export function pendingBudgetRunIdsForScopeQuery(db: Db, scope: Pick<BudgetEnforcementScope, "companyId" | "scopeType" | "scopeId">) {
+export function pendingBudgetRunIdsForScopeQuery(db: Db, scope: Pick<BudgetEnforcementScope, "spaceId" | "scopeType" | "scopeId">) {
   return db.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
     .where(and(pendingBudgetRunCancellationPredicate(), budgetCancellationScopePredicate(scope)));
 }
@@ -38,23 +38,23 @@ export function pendingBudgetCancellationScopesQuery(db: Db, limit = 100) {
   const scopeType = sql<string>`${intent}->>'scopeType'`, scopeId = sql<string>`${intent}->>'scopeId'`;
   const attemptAt = sql`coalesce((${intent}->>'lastAttemptAt')::timestamptz,
     (${heartbeatRuns.resultJson}->'startupCancellation'->>'requestedAt')::timestamptz, ${heartbeatRuns.updatedAt})`;
-  return db.select({ companyId: heartbeatRuns.companyId,
+  return db.select({ spaceId: heartbeatRuns.spaceId,
     intent: sql<Record<string, unknown>>`(array_agg(${intent} order by ${attemptAt}, ${heartbeatRuns.id}))[1]`,
   }).from(heartbeatRuns).where(pendingBudgetRunCancellationPredicate())
-    .groupBy(heartbeatRuns.companyId, scopeType, scopeId)
-    .orderBy(sql`min(${attemptAt})`, heartbeatRuns.companyId, scopeType, scopeId)
+    .groupBy(heartbeatRuns.spaceId, scopeType, scopeId)
+    .orderBy(sql`min(${attemptAt})`, heartbeatRuns.spaceId, scopeType, scopeId)
     .limit(limit);
 }
 
 export async function listPendingBudgetCancellationScopes(db: Db, limit = 100): Promise<BudgetEnforcementScope[]> {
   const rows = await pendingBudgetCancellationScopesQuery(db, limit);
-  return rows.flatMap(({ companyId, intent }) => {
-    if (intent.companyId !== companyId || !["company", "agent", "project"].includes(String(intent.scopeType))
+  return rows.flatMap(({ spaceId, intent }) => {
+    if (intent.spaceId !== spaceId || !["space", "agent", "project"].includes(String(intent.scopeType))
       || typeof intent.scopeId !== "string" || !isUuidLike(intent.scopeId)
       || typeof intent.policyId !== "string" || !isUuidLike(intent.policyId)
       || !Number.isSafeInteger(intent.version) || Number(intent.version) < 0) return [];
     const cutoff = typeof intent.createdBefore === "string" ? new Date(intent.createdBefore) : null;
-    return [{ companyId, scopeType: intent.scopeType as BudgetEnforcementScope["scopeType"], scopeId: intent.scopeId,
+    return [{ spaceId, scopeType: intent.scopeType as BudgetEnforcementScope["scopeType"], scopeId: intent.scopeId,
       enforcement: { policyId: intent.policyId, version: Number(intent.version) },
       ...(cutoff && Number.isFinite(cutoff.getTime()) ? { createdBefore: cutoff } : {}) }];
   });

@@ -32,18 +32,18 @@ async function setup(change: (kind: string, row: any) => any = (_kind, row) => r
   const api = {
     origin: "https://qa.example.test",
     post: vi.fn(async (route: string, body: Row) => {
-      if (route === "/api/companies/company/skills") {
+      if (route === "/api/spaces/space/skills") {
         const reference = /receipt reference is ([a-f0-9]{32})/.exec(body.markdown)![1]!;
         fixture = savedSkillFixture(campaignId, reference);
         // createLocalSkill gives the parsed frontmatter name precedence over the API input name.
         const savedName = parseFrontmatterMarkdown(body.markdown).frontmatter.name;
-        skill = { id: "skill", companyId: "company", key: `company/company/${fixture.slug}`, sourceType: "managed", slug: fixture.slug,
+        skill = { id: "skill", spaceId: "space", key: `space/space/${fixture.slug}`, sourceType: "managed", slug: fixture.slug,
           name: typeof savedName === "string" && savedName.trim() ? savedName.trim() : body.name,
           markdown: body.markdown, currentVersionId: "version" };
         savedSkills.push(structuredClone(skill));
         return change("create-skill", structuredClone(skill));
       }
-      if (route === "/api/agents/agent/skills/sync?companyId=company") {
+      if (route === "/api/agents/agent/skills/sync?spaceId=space") {
         const parsed = agentSkillSyncSchema.parse(body);
         // Core normalizes a string selection to Latest; only a non-null pin requires Beta skills.
         const selections = parsed.desiredSkills.map(value => typeof value === "string" ? { key: value, versionId: null } : value);
@@ -55,20 +55,20 @@ async function setup(change: (kind: string, row: any) => any = (_kind, row) => r
     }),
     get: vi.fn(async (route: string) => {
       if (route === "/api/instance/settings/experimental") return { enableBetaSkills: betaSkillsEnabled };
-      if (route === "/api/companies/company/skills/skill") return change(reloaded ? "retained-skill" : "skill", structuredClone(skill));
-      if (route === "/api/companies/company/skills/skill/versions/version") return change(reloaded ? "retained-version" : "version", {
-        id: "version", companyId: "company", companySkillId: "skill", fileInventory: [{ path: "SKILL.md", content: fixture.markdown }],
+      if (route === "/api/spaces/space/skills/skill") return change(reloaded ? "retained-skill" : "skill", structuredClone(skill));
+      if (route === "/api/spaces/space/skills/skill/versions/version") return change(reloaded ? "retained-version" : "version", {
+        id: "version", spaceId: "space", spaceSkillId: "skill", fileInventory: [{ path: "SKILL.md", content: fixture.markdown }],
       });
-      if (route === "/api/agents/agent/skills?companyId=company") return change("assignment", {
+      if (route === "/api/agents/agent/skills?spaceId=space") return change("assignment", {
         desiredSkillEntries: assigned ? [{ key: skill.key, versionId: null }] : [],
         entries: assigned ? [{ key: skill.key, versionId: "version", runtimeName: `${fixture.slug}--0123456789` }] : [],
       });
       if (!issueCreated) throw new Error("Measured result was read before browser dispatch");
-      if (route === "/api/issues/issue") return { id: "issue", identifier: "QA-1", companyId: "company", assigneeAgentId: "agent", status: "done",
+      if (route === "/api/issues/issue") return { id: "issue", identifier: "QA-1", spaceId: "space", assigneeAgentId: "agent", status: "done",
         description: change("description", vi.mocked(createTaskThroughUi).mock.calls.at(-1)![0].prompt) };
       if (route === "/api/issues/issue/runs") return change("runs", [{ runId: "run" }]);
       if (route === "/api/issues/issue/comments?order=asc" || route === "/api/issues/issue/interactions") return [];
-      if (route === "/api/heartbeat-runs/run") return change("run", { id: "run", companyId: "company", agentId: "agent", issueId: "issue",
+      if (route === "/api/heartbeat-runs/run") return change("run", { id: "run", spaceId: "space", agentId: "agent", issueId: "issue",
         status: "succeeded", runtimeMode: "native", nativePhase: "committed", resultJson: null,
         runnerInstanceId: "instance", nativeSessionId: "session",
         contextSnapshot: { outpostEnvironment: { id: "environment" }, skillSelectionSnapshot: true, skillVersions: { [skill.key]: "version" } },
@@ -85,7 +85,7 @@ async function setup(change: (kind: string, row: any) => any = (_kind, row) => r
             correlation, content: input }), input }, createPrpSemanticToolResultEnvelope({ operationId: "read_assigned_skill",
             callId: "load", correlation, content: result, outcome: "succeeded", code: "semantic_tool_succeeded",
             retryable: false, authorizationBoundary: "active_task", operationReceiptId: "operation_load" })];
-          return semantic.map((value, i) => change("event", { runId: "run", companyId: "company", agentId: "agent",
+          return semantic.map((value, i) => change("event", { runId: "run", spaceId: "space", agentId: "agent",
             seq: i + 1, sourceSeq: i + 1, sourceEventId: `event-${i}`, sourceInstanceId: "instance", protocolSchemaVersion: 1,
             eventType: `semantic_tool.${value.phase}`, payload: { orpEvent: { ...correlation,
               schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", sourceSeq: i + 1,
@@ -107,21 +107,21 @@ async function setup(change: (kind: string, row: any) => any = (_kind, row) => r
             const result = { skill: skill.key, versionId: skill.currentVersionId, path: "SKILL.md", text: fixture.markdown,
               sha256: createHash("sha256").update(fixture.markdown).digest("hex"), byteSize: Buffer.byteLength(fixture.markdown), nextOffset: null };
             const output = JSON.stringify({ type: "inputText", text: JSON.stringify(change("assigned-read", result)) });
-            Object.assign(p.payload, { name: "paperclip_read_assigned_skill", operation: "unknown", readOnly: true, target: null,
+            Object.assign(p.payload, { name: "outpost_read_assigned_skill", operation: "unknown", readOnly: true, target: null,
               output: status === "completed" ? output : "", outputBytes: status === "completed" ? Buffer.byteLength(output) : 0 });
           }
-          return change("event", { runId: "run", companyId: "company", agentId: "agent", seq: i + 1, eventType: p.eventType,
+          return change("event", { runId: "run", spaceId: "space", agentId: "agent", seq: i + 1, eventType: p.eventType,
             sourceEventId: `event-${i}`, sourceInstanceId: "instance", sourceSeq: i + 1, protocolSchemaVersion: 1,
             payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn",
               eventType: p.eventType, sourceEventId: `event-${i}`, sourceInstanceId: "instance", sourceSeq: i + 1, payload: p.payload } } });
         });
       }
       if (route === "/api/issues/issue/documents") return change("documents", [{ key: fixture.key }]);
-      if (route === `/api/issues/issue/documents/${fixture.key}`) return { id: "document", companyId: "company", issueId: "issue",
+      if (route === `/api/issues/issue/documents/${fixture.key}`) return { id: "document", spaceId: "space", issueId: "issue",
         key: fixture.key, format: "markdown", body: JSON.stringify(fixture.expected), latestRevisionId: "revision", latestRevisionNumber: 1,
         createdByAgentId: "agent", createdByUserId: null, updatedByAgentId: "agent", updatedByUserId: null };
       if (route === `/api/issues/issue/documents/${fixture.key}/revisions/revision`) return change("revision", {
-        id: "revision", companyId: "company", issueId: "issue", documentId: "document", key: fixture.key, format: "markdown", revisionNumber: 1,
+        id: "revision", spaceId: "space", issueId: "issue", documentId: "document", key: fixture.key, format: "markdown", revisionNumber: 1,
         createdByRunId: "run", createdByAgentId: "agent", createdByUserId: null, body: JSON.stringify(fixture.expected),
       });
       throw new Error(`Unexpected observation ${route}`);
@@ -133,8 +133,8 @@ async function setup(change: (kind: string, row: any) => any = (_kind, row) => r
     expect(assigned).toBe(true); expect(input.prompt).not.toContain(fixture.expected.reference);
     await input.beforeDispatch?.(); issueCreated = true; return { issueId: "issue", submittedAtMs: Date.now() };
   });
-  const context = { api, page, company: { id: "company", issuePrefix: "QA" }, user: { id: "owner", name: "Owner" },
-    environmentId: "environment", capabilities: ["company", "board-user", "task-write", "agent", "skill-write"],
+  const context = { api, page, space: { id: "space", issuePrefix: "QA" }, user: { id: "owner", name: "Owner" },
+    environmentId: "environment", capabilities: ["space", "board-user", "task-write", "agent", "skill-write"],
     agent: { id: "agent", name: "Owned agent", provider: "opencode", model: "model", runtimeMode: "native" } } as unknown as JourneyContext;
   return { context, api, page, own, evidence, directory, savedSkills,
     run: (timeoutMs = 5000) => runSavedSkillUse(context, { own } as unknown as TargetSession, campaignId, evidence,
@@ -242,7 +242,7 @@ describe("saved skill journey orchestration", () => {
   });
   it.each([false, true])("uses ordinary Latest assignment with Beta skills %s and no setting read or write", async betaSkillsEnabled => {
     const f = await setup(undefined, "campaign", betaSkillsEnabled); await f.run();
-    expect(f.api.post.mock.calls[1]).toEqual(["/api/agents/agent/skills/sync?companyId=company",
+    expect(f.api.post.mock.calls[1]).toEqual(["/api/agents/agent/skills/sync?spaceId=space",
       { desiredSkills: [f.savedSkills[0]!.key], mode: "add" }]);
     expect(f.api.get.mock.calls.some(([route]) => route.includes("/settings/"))).toBe(false);
     expect(f.api.post.mock.calls.some(([route]) => route.includes("/settings/"))).toBe(false);
@@ -330,7 +330,7 @@ describe("saved skill journey orchestration", () => {
     ["skill", "saved_skill_assignment_bound", (row: Row) => ({ ...row, sourceType: "local_path" })],
     ["version", "saved_skill_assignment_bound", (row: Row) => ({ ...row, fileInventory: [{ path: "SKILL.md", content: "changed source" }] })],
     ["runs", "saved_skill_run_limit_exceeded", (row: Row[]) => [...row, { runId: "extra" }]],
-    ["event", "saved_skill_native_read_attributed", (row: Row) => ({ ...row, companyId: "foreign" })],
+    ["event", "saved_skill_native_read_attributed", (row: Row) => ({ ...row, spaceId: "foreign" })],
     ["documents", "saved_skill_unexpected_documents", (row: Row[]) => [...row, { key: "unrelated" }]],
     ["revision", "saved_skill_result_authored_by_run", (row: Row) => ({ ...row, createdByRunId: "foreign" })],
     ["retained-skill", "saved_skill_source_preserved", (row: Row) => ({ ...row, currentVersionId: "changed" })],
@@ -361,7 +361,7 @@ describe("saved skill journey orchestration", () => {
     expect(f.own).toHaveBeenCalledTimes(1);
     expect(createTaskThroughUi).not.toHaveBeenCalled();
     const intent = f.own.mock.calls[0]![0];
-    const recovered = f.savedSkills.filter(row => row.companyId === f.context.company.id && row.name === intent.name);
+    const recovered = f.savedSkills.filter(row => row.spaceId === f.context.space.id && row.name === intent.name);
     expect(recovered).toEqual([f.savedSkills[0]]);
     expect(intent.name).toContain(campaignId);
     expect(f.savedSkills[0]!.name).toContain(campaignId);

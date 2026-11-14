@@ -15,7 +15,7 @@ function confirmation(
 ): RequestConfirmationInteraction {
   return {
     id: "interaction-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     kind: "request_confirmation",
     status: "pending",
@@ -33,7 +33,7 @@ function confirmation(
     effectiveResolverPolicy: "anyone",
     resolverPolicyProvenance: "inherited",
     effectiveResolverPolicySource: "requested",
-    legacyResolverPolicyAliases: { requested: "board_or_agents", effective: "board_or_agents" },
+    legacyResolverPolicyAliases: { requested: "operator_or_agents", effective: "operator_or_agents" },
     ...overrides,
   };
 }
@@ -56,10 +56,10 @@ describe("resolver policy vocabulary", () => {
     expect(resolverPolicyLabel("human_only")).toBe("Human only");
   });
 
-  it("maps deprecated board aliases onto canonical copy", () => {
-    expect(resolverPolicyLabel("board_or_agents")).toBe("Anyone");
-    expect(resolverPolicyLabel("board_only")).toBe("Human only");
-    expect(resolverPolicyEffect("board_only")).toBe(resolverPolicyEffect("human_only"));
+  it("maps deprecated operator aliases onto canonical copy", () => {
+    expect(resolverPolicyLabel("operator_or_agents")).toBe("Anyone");
+    expect(resolverPolicyLabel("operator_only")).toBe("Human only");
+    expect(resolverPolicyEffect("operator_only")).toBe(resolverPolicyEffect("human_only"));
   });
 
   it("previews an effect for every choice without naming a raw policy value", () => {
@@ -150,7 +150,7 @@ describe("describeInteractionAudience", () => {
         requestedResolverPolicy: "human_only",
         effectiveResolverPolicy: "human_only",
         resolverPolicyProvenance: "explicit",
-        legacyResolverPolicyAliases: { requested: "board_only", effective: "board_only" },
+        legacyResolverPolicyAliases: { requested: "operator_only", effective: "operator_only" },
       }),
     });
     expect(audience.label).toBe("Human only");
@@ -202,33 +202,33 @@ describe("describeInteractionAudience", () => {
     expect(audience.label).toBe("Addressed");
   });
 
-  it("explains a governed-action clamp", () => {
+  it("explains a controlled-action clamp", () => {
     const audience = describeInteractionAudience({
       interaction: confirmation({
         requestedResolverPolicy: "anyone",
         effectiveResolverPolicy: "human_only",
-        effectiveResolverPolicySource: "governed_action",
+        effectiveResolverPolicySource: "controlled_action",
       }),
     });
     expect(audience.policy).toBe("human_only");
     expect(audience.requestedPolicy).toBe("anyone");
-    expect(audience.narrowedBy).toBe("governed_action");
+    expect(audience.narrowedBy).toBe("controlled_action");
     expect(audience.narrowedNote).toBe(
-      "This card runs a governed action, so it stays human-only whatever audience was requested.",
+      "This card runs a controlled action, so it stays human-only whatever audience was requested.",
     );
   });
 
-  it("explains a company cap using both audience labels", () => {
+  it("explains a space cap using both audience labels", () => {
     const audience = describeInteractionAudience({
       interaction: confirmation({
         requestedResolverPolicy: "anyone",
         effectiveResolverPolicy: "human_only",
-        effectiveResolverPolicySource: "company_cap",
+        effectiveResolverPolicySource: "space_cap",
       }),
     });
-    expect(audience.narrowedBy).toBe("company_cap");
+    expect(audience.narrowedBy).toBe("space_cap");
     expect(audience.narrowedNote).toBe(
-      "Outpost interaction governance narrowed this from Anyone to Human only.",
+      "Outpost interaction policy narrowed this from Anyone to Human only.",
     );
   });
 
@@ -326,14 +326,14 @@ describe("describeAttentionResolverAudience", () => {
     expect(audience?.shortSummary).toBe("Anyone except Watchdog can respond");
   });
 
-  it("carries the narrowing explanation for a company cap", () => {
+  it("carries the narrowing explanation for a space cap", () => {
     const audience = describeAttentionResolverAudience(attentionItem(attentionAudience({
       effectiveResolverPolicy: "human_only",
-      effectiveResolverPolicySource: "company_cap",
+      effectiveResolverPolicySource: "space_cap",
     })));
-    expect(audience?.narrowedBy).toBe("company_cap");
+    expect(audience?.narrowedBy).toBe("space_cap");
     expect(audience?.narrowedNote).toBe(
-      "Outpost interaction governance narrowed this from Anyone to Human only.",
+      "Outpost interaction policy narrowed this from Anyone to Human only.",
     );
   });
 

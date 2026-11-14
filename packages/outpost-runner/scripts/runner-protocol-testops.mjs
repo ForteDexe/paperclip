@@ -123,7 +123,7 @@ function publicUsage(usage) {
 export function filterCatalog(catalog, selection) {
   selection = validateSelection(selection);
   if (catalog.schema !== "outpost.runner-protocol-eval.catalog/v1" || catalog.rosters?.length !== 1
-    || catalog.source?.paperclipSha !== selection.sourceSha || catalog.source?.evalsSha !== selection.evalsSha) fail("catalog_binding");
+    || catalog.source?.outpostSha !== selection.sourceSha || catalog.source?.evalsSha !== selection.evalsSha) fail("catalog_binding");
   const roster = catalog.rosters[0];
   if (roster.rosterId !== contract.rosterId || roster.model !== contract.model || roster.provider !== contract.provider
     || roster.driver !== contract.driver || roster.cases.length !== contract.cases.length
@@ -152,7 +152,7 @@ export function projectResults({ selection, campaign, payloads = new Map() }) {
   validateSelection(selection);
   const campaignUrl = runUrl(selection.runId);
   if (campaign && (campaign.schema !== "outpost.runner-protocol-eval.campaign/v1"
-    || campaign.source?.paperclip?.sha !== selection.sourceSha || campaign.source?.evals?.sha !== selection.evalsSha
+    || campaign.source?.outpost?.sha !== selection.sourceSha || campaign.source?.evals?.sha !== selection.evalsSha
     || campaign.source?.workflowRunUrl !== campaignUrl || !Array.isArray(campaign.results)
     || new Set(campaign.results.map(row => row.caseId)).size !== campaign.results.length
     || campaign.results.some(row => row.rosterId !== contract.rosterId || row.model !== contract.model
@@ -270,7 +270,7 @@ async function main() {
             await readJson(join(directory, "artifact.json")), row));
         } else {
           const html = await readFile(join(args[1], "attempts", row.finalAttemptId, "index.html"), "utf8");
-          const match = /<script type="application\/json" id="paperclip-eval-report">([^<]*)<\/script>/.exec(html);
+          const match = /<script type="application\/json" id="outpost-eval-report">([^<]*)<\/script>/.exec(html);
           if (!match) fail("public_payload_missing");
           payloads.set(row.finalAttemptId, JSON.parse(match[1]));
         }

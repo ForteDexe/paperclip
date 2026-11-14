@@ -4,9 +4,9 @@ function valid(id: string) {
   const disabled = id === "cases.cases-disabled";
   const openCases = [{ id: "open", identifier: "ACORN-C-1", title: "Mobile checkout failure", status: "in_progress", projectId: "launch" }, { id: "review", identifier: "ACORN-C-2", title: "Keyboard focus loss", status: "in_review", projectId: "launch" }];
   const excludedCases = [{ id: "closed", identifier: "ACORN-C-3", title: "Resolved clipping", status: "done", projectId: "launch" }, { id: "other", identifier: "ACORN-C-4", title: "Research bug", status: "in_progress", projectId: "research" }];
-  return { scenarioId: id, origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { openCases: structuredClone(openCases), excludedCases, finishedTask: { id: "finished" } },
+  return { scenarioId: id, origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { openCases: structuredClone(openCases), excludedCases, finishedTask: { id: "finished" } },
     tasks: disabled ? [] : [{ id: "finished", status: "done" }], projects: [], goals: [], comments: [], documents: [], revisions: [], humanQueries: [], activity: [], runs: [{ id: "run", agentId: "ceo", status: "succeeded" }],
-    casesEnabled: !disabled, casesReadStatus: disabled ? 403 : 200, casesReadError: disabled ? "Cases are disabled" : undefined, cases: disabled ? [] : [...openCases, ...excludedCases], links: disabled ? ["/ACORN/company/settings/instance/experimental"] : ["/ACORN/cases/ACORN-C-1", "/ACORN/cases/review"],
+    casesEnabled: !disabled, casesReadStatus: disabled ? 403 : 200, casesReadError: disabled ? "Cases are disabled" : undefined, cases: disabled ? [] : [...openCases, ...excludedCases], links: disabled ? ["/ACORN/space/settings/instance/experimental"] : ["/ACORN/cases/ACORN-C-1", "/ACORN/cases/review"],
     reply: disabled ? "Cases is unavailable in this instance. Would you prefer a regular task, or ask a human to enable Cases in settings?" : "Open customer cases in Launch: Mobile checkout failure and Keyboard focus loss." };
 }
 describe("case browsing and disabled feature controls", () => {
@@ -38,15 +38,15 @@ describe("case browsing and disabled feature controls", () => {
     expect(gradeIntegratorCases({ ...o, reply: "", links: [], interactions: choice(["Enable Cases", "Track as a task"]) }).passed).toBe(true);
     expect(gradeIntegratorCases({ ...o, reply: "", links: [], interactions: choice(["Tell me more"]) }).passed).toBe(false);
     expect(gradeIntegratorCases({ ...o, links: [] }).passed).toBe(false);
-    expect(gradeIntegratorCases({ ...o, links: ["https://foreign.test/ACORN/company/settings/instance/experimental"] }).passed).toBe(false);
+    expect(gradeIntegratorCases({ ...o, links: ["https://foreign.test/ACORN/space/settings/instance/experimental"] }).passed).toBe(false);
     expect(gradeIntegratorCases({ ...o, tasks: [{ id: "task", status: "backlog" }] }).passed).toBe(false);
     expect(gradeIntegratorCases({ ...o, activity: [{ id: "a", action: "case.created", agentId: "ceo" }] }).passed).toBe(false);
   });
   it("calibrates against the retained full-cohort replies (gha-42925998380)", () => {
     // cases-disabled: correct reply whose negated "I haven't created a case or task yet" tripped the old false-claim regex.
     const disabled = valid("cases.cases-disabled");
-    disabled.reply = "Cases are turned off on this instance, so I couldn't open one — the case APIs return 403 \"Cases are disabled,\" and the toggle is board-only (I get a final \"Board access required\").\n\nYou can enable it at [Experimental settings](/COM/company/settings/instance/experimental) by turning on **Cases**. Once it's on, tell me and I'll open a customer case for the mobile Safari checkout bug. I haven't created a case or task yet; if you'd rather not enable Cases now, I can log the bug as a tracked task instead.";
-    disabled.links = ["/COM/agents/lead/overview", "/COM/company/settings/instance/experimental"];
+    disabled.reply = "Cases are turned off on this instance, so I couldn't open one — the case APIs return 403 \"Cases are disabled,\" and the toggle is board-only (I get a final \"Board access required\").\n\nYou can enable it at [Experimental settings](/COM/space/settings/instance/experimental) by turning on **Cases**. Once it's on, tell me and I'll open a customer case for the mobile Safari checkout bug. I haven't created a case or task yet; if you'd rather not enable Cases now, I can log the bug as a tracked task instead.";
+    disabled.links = ["/COM/agents/lead/overview", "/COM/space/settings/instance/experimental"];
     expect(gradeIntegratorCases(disabled).passed).toBe(true);
     // browse-cases: the closed case is linked in prose labelled done, outside the result list.
     const browse = valid("cases.browse-cases");
@@ -60,7 +60,7 @@ describe("case browsing and disabled feature controls", () => {
   });
 });
 
-it("retains four cases through the real API's company/type/key upsert semantics", async () => {
+it("retains four cases through the real API's space/type/key upsert semantics", async () => {
   const records = new Map<string, Record<string, unknown>>(); let index = 0;
   const api = {
     get: async (path: string) => path.includes("/cases?") ? [...records.values()] : { enableCases: false },
@@ -73,7 +73,7 @@ it("retains four cases through the real API's company/type/key upsert semantics"
       return { ...body, id: `fixture-${++index}` };
     },
   };
-  const context = { input: { nonce: "offline", api, fixtures: { company: { id: "company" } } } } as unknown as Parameters<typeof integratorCasesCases[0]["setup"]>[0];
+  const context = { input: { nonce: "offline", api, fixtures: { space: { id: "space" } } } } as unknown as Parameters<typeof integratorCasesCases[0]["setup"]>[0];
   const definition = integratorCasesCases.find(row => row.scenarioId === "cases.browse-cases")!;
   const state = await definition.setup(context);
   expect(records.size).toBe(4);

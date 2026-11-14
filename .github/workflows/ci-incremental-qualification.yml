@@ -41,7 +41,7 @@ jobs:
       - uses: ./.github/actions/setup-ci-dependencies
       - name: Prove conservative graphs, exact partitions, manifests and failure fallbacks
         run: node --test scripts/ci/test-selection*.test.mjs scripts/ci/vitest-impact-report.integration.test.mjs
-      - name: Qualify selection against the real Paperclip workspace
+      - name: Qualify selection against the real Outpost workspace
         env:
           NODE_ENV: test
           VITEST: 'true'

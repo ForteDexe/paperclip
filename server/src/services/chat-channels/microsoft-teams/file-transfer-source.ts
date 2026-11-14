@@ -12,7 +12,7 @@ export type ContinuingTeamsFileTransfer = {
 };
 
 type TeamsFileTransferSourceInput = {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   issueId: string;
   failedRunId: string;
@@ -61,7 +61,7 @@ export async function continuingTeamsFilePublication(
       chatPublications,
       and(
         eq(chatPublications.id, chatTeamsFileTransfers.publicationId),
-        eq(chatPublications.companyId, chatTeamsFileTransfers.companyId),
+        eq(chatPublications.spaceId, chatTeamsFileTransfers.spaceId),
         eq(chatPublications.endpointId, chatTeamsFileTransfers.endpointId),
         eq(
           chatPublications.conversationId,
@@ -77,7 +77,7 @@ export async function continuingTeamsFilePublication(
       chatEndpoints,
       and(
         eq(chatEndpoints.id, chatTeamsFileTransfers.endpointId),
-        eq(chatEndpoints.companyId, input.companyId),
+        eq(chatEndpoints.spaceId, input.spaceId),
         eq(chatEndpoints.provider, "microsoft-teams"),
       ),
     )
@@ -85,7 +85,7 @@ export async function continuingTeamsFilePublication(
       chatConversations,
       and(
         eq(chatConversations.id, chatTeamsFileTransfers.conversationId),
-        eq(chatConversations.companyId, input.companyId),
+        eq(chatConversations.spaceId, input.spaceId),
         eq(chatConversations.endpointId, chatTeamsFileTransfers.endpointId),
         eq(chatConversations.issueId, input.issueId),
         eq(
@@ -98,7 +98,7 @@ export async function continuingTeamsFilePublication(
       issueComments,
       and(
         eq(issueComments.id, chatTeamsFileTransfers.commentId),
-        eq(issueComments.companyId, input.companyId),
+        eq(issueComments.spaceId, input.spaceId),
         eq(issueComments.issueId, input.issueId),
         eq(issueComments.createdByRunId, input.failedRunId),
         eq(issueComments.authorAgentId, input.agentId),
@@ -109,7 +109,7 @@ export async function continuingTeamsFilePublication(
       issueAttachments,
       and(
         eq(issueAttachments.id, chatTeamsFileTransfers.attachmentId),
-        eq(issueAttachments.companyId, input.companyId),
+        eq(issueAttachments.spaceId, input.spaceId),
         eq(issueAttachments.issueId, input.issueId),
         eq(issueAttachments.issueCommentId, issueComments.id),
         eq(issueAttachments.originatingRunId, input.failedRunId),
@@ -119,14 +119,14 @@ export async function continuingTeamsFilePublication(
       assets,
       and(
         eq(assets.id, issueAttachments.assetId),
-        eq(assets.companyId, input.companyId),
+        eq(assets.spaceId, input.spaceId),
         eq(assets.sha256, chatTeamsFileTransfers.sha256),
         eq(assets.byteSize, chatTeamsFileTransfers.byteSize),
       ),
     )
     .where(
       and(
-        eq(chatTeamsFileTransfers.companyId, input.companyId),
+        eq(chatTeamsFileTransfers.spaceId, input.spaceId),
         eq(chatTeamsFileTransfers.issueId, input.issueId),
         eq(chatTeamsFileTransfers.id, continuingTransfer.transferId),
         eq(

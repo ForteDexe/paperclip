@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issues,
@@ -16,7 +16,7 @@ import {
   chatConversations,
   chatExternalPrincipals,
   chatIdentityLinks,
-  companyMemberships,
+  spaceMemberships,
   chatDeliveries,
   chatMessageLinks,
   completionContracts,
@@ -25,11 +25,11 @@ import {
   statusDecisionEffects,
   workAssessments,
 } from "@outpost/db";
-import { renderPaperclipWakePrompt } from "@outpost/adapter-utils/server-utils";
+import { renderOutpostWakePrompt } from "@outpost/adapter-utils/server-utils";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import {
   attestReviewedExternalChatRun,
-  buildPaperclipWakePayload,
+  buildOutpostWakePayload,
 } from "../services/heartbeat.js";
 import {
   listAuthorizedChatAttachments,
@@ -45,7 +45,7 @@ import { recoveryService } from "../services/recovery/service.js";
 describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (provider) => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID(),
+  const spaceId = randomUUID(),
     agentId = randomUUID(),
     issueId = randomUUID(),
     otherIssueId = randomUUID(),
@@ -65,7 +65,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
     wakeCommentIds: [commentId],
     commentId,
   };
-  const binding = { companyId, agentId, issueId, runId };
+  const binding = { spaceId, agentId, issueId, runId };
   const attest = (contextSnapshot: Record<string, unknown> = context) =>
     attestReviewedExternalChatRun({ db, ...binding, contextSnapshot });
 
@@ -75,9 +75,9 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
     );
     db = createDb(temporary.connectionString);
     await db
-      .insert(companies)
+      .insert(spaces)
       .values({
-        id: companyId,
+        id: spaceId,
         name: "Reviewed chat",
         issuePrefix: "RCB",
         issueCounter: 1,
@@ -86,7 +86,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .insert(agents)
       .values({
         id: agentId,
-        companyId,
+        spaceId,
         name: "Chat runner",
         adapterType: "outpost_runner",
         adapterConfig: { provider: "codex" },
@@ -96,7 +96,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .insert(issues)
       .values({
         id: issueId,
-        companyId,
+        spaceId,
         title: "Reviewed conversation",
         issueNumber: 1,
         identifier: "RCB-1",
@@ -106,7 +106,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       });
     await db.insert(issues).values({
       id: otherIssueId,
-      companyId,
+      spaceId,
       title: "Unrelated conversation",
       issueNumber: 2,
       identifier: "RCB-2",
@@ -117,7 +117,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .insert(heartbeatRuns)
       .values({
         id: runId,
-        companyId,
+        spaceId,
         agentId,
         status: "running",
         runtimeMode: "native",
@@ -134,12 +134,12 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .insert(issueThreadInteractions)
       .values({
         id: interactionId,
-        companyId,
+        spaceId,
         issueId,
         sourceRunId: runId,
         kind: "request_confirmation",
         status: "pending",
-        title: "Real pending governance",
+        title: "Real pending policy",
         payload: {
           version: 1,
           prompt: "Review completion before closing this task.",
@@ -151,7 +151,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .insert(toolApplications)
       .values({
         id: applicationId,
-        companyId,
+        spaceId,
         applicationKey: `chat:${provider}:${endpointId}`,
         name: "Discord",
         type: "chat",
@@ -161,7 +161,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .insert(toolConnections)
       .values({
         id: connectionId,
-        companyId,
+        spaceId,
         applicationId,
         name: "Discord",
         uid: `chat-${provider}-${endpointId}`,
@@ -174,7 +174,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .insert(chatEndpoints)
       .values({
         id: endpointId,
-        companyId,
+        spaceId,
         connectionId,
         provider,
         publicId: randomUUID(),
@@ -187,7 +187,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .insert(chatEndpointResources)
       .values({
         id: resourceId,
-        companyId,
+        spaceId,
         endpointId,
         type: "channel",
         providerResourceId: "channel-1",
@@ -199,7 +199,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .insert(chatConversations)
       .values({
         id: conversationId,
-        companyId,
+        spaceId,
         endpointId,
         resourceId,
         issueId,
@@ -212,7 +212,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .insert(chatExternalPrincipals)
       .values({
         id: principalId,
-        companyId,
+        spaceId,
         provider,
         providerAccountId: "guild-1",
         externalId: "user-1",
@@ -221,16 +221,16 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
     await db
       .insert(chatIdentityLinks)
       .values({
-        companyId,
+        spaceId,
         endpointId,
         principalId,
-        paperclipUserId: userId,
+        outpostUserId: userId,
         status: "linked",
       });
     await db
-      .insert(companyMemberships)
+      .insert(spaceMemberships)
       .values({
-        companyId,
+        spaceId,
         principalType: "user",
         principalId: userId,
         status: "active",
@@ -240,7 +240,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .insert(issueComments)
       .values({
         id: commentId,
-        companyId,
+        spaceId,
         issueId,
         authorType: "user",
         authorUserId: userId,
@@ -250,7 +250,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .insert(chatDeliveries)
       .values({
         id: deliveryId,
-        companyId,
+        spaceId,
         endpointId,
         conversationId,
         principalId,
@@ -265,7 +265,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
     await db
       .insert(chatMessageLinks)
       .values({
-        companyId,
+        spaceId,
         endpointId,
         conversationId,
         deliveryId,
@@ -303,11 +303,11 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       await lock;
     }
     await expect(attest()).resolves.toBe(true);
-    await db.update(companyMemberships).set({ status: "suspended" }).where(eq(companyMemberships.principalId, userId));
+    await db.update(spaceMemberships).set({ status: "suspended" }).where(eq(spaceMemberships.principalId, userId));
     try {
       await expect(attest()).resolves.toBe(false);
     } finally {
-      await db.update(companyMemberships).set({ status: "active" }).where(eq(companyMemberships.principalId, userId));
+      await db.update(spaceMemberships).set({ status: "active" }).where(eq(spaceMemberships.principalId, userId));
     }
     expect((await db.select().from(issues).where(eq(issues.id, issueId)))[0])
       .toMatchObject({ status: "in_review", executionRunId: runId, checkoutRunId: null });
@@ -315,7 +315,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .toBe("pending");
   }, 30_000);
 
-  it("attests existing execution ownership while preserving real pending governance and checkout state", async () => {
+  it("attests existing execution ownership while preserving real pending policy and checkout state", async () => {
     const [before] = await db
       .select()
       .from(issues)
@@ -341,13 +341,13 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       checkoutRunId: null,
       executionRunId: runId,
     });
-    const wake = await buildPaperclipWakePayload({
+    const wake = await buildOutpostWakePayload({
       db,
-      companyId,
+      spaceId,
       agentId,
       contextSnapshot: {
         ...context,
-        paperclipExternalChatExecutionBound: true,
+        outpostExternalChatExecutionBound: true,
       },
     });
     expect(wake).toMatchObject({
@@ -355,7 +355,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       externalChatExecutionBound: true,
       externalChatProvider: provider,
     });
-    const prompt = renderPaperclipWakePrompt(wake);
+    const prompt = renderOutpostWakePrompt(wake);
     expect(prompt).toContain("not a checkout, approval");
     expect(prompt).toContain("task remains in review");
     expect(prompt).not.toContain("checked out the issue for this run");
@@ -370,8 +370,8 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       assigneeAgentId: agentId,
       contextSnapshot: {
         ...context,
-        paperclipHarnessCheckedOut: true,
-        paperclipExternalChatExecutionBound: true,
+        outpostHarnessCheckedOut: true,
+        outpostExternalChatExecutionBound: true,
       },
       reviewAttention: { state: "stalled", paths: [], reason: "Review path consumed" },
       existingWake: false,
@@ -393,8 +393,8 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
   it("reauthorizes a review recovery from its retained message batch without approving the task", async () => {
     const [before] = await db.select().from(issues).where(eq(issues.id, issueId));
     await withReviewRecovery(async (recovery) => {
-      expect(recovery).not.toHaveProperty("paperclipHarnessCheckedOut");
-      expect(recovery).not.toHaveProperty("paperclipExternalChatExecutionBound");
+      expect(recovery).not.toHaveProperty("outpostHarnessCheckedOut");
+      expect(recovery).not.toHaveProperty("outpostExternalChatExecutionBound");
       await expect(attest(recovery)).resolves.toBe(true);
       expect((await db.select().from(issues).where(eq(issues.id, issueId)))[0]).toEqual(before);
       expect((await db.select().from(issueThreadInteractions)
@@ -402,23 +402,23 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
     });
   });
 
-  it("denies recovery after access revocation or a changed company, task, or message binding", async () => {
+  it("denies recovery after access revocation or a changed space, task, or message binding", async () => {
     await withReviewRecovery(async (recovery) => {
       await expect(attest(recovery)).resolves.toBe(true);
       await expect(attestReviewedExternalChatRun({
-        db, ...binding, companyId: randomUUID(), contextSnapshot: recovery,
+        db, ...binding, spaceId: randomUUID(), contextSnapshot: recovery,
       })).resolves.toBe(false);
       await expect(attestReviewedExternalChatRun({
         db, ...binding, issueId: otherIssueId, contextSnapshot: recovery,
       })).resolves.toBe(false);
       await expect(attest({ ...recovery, wakeCommentIds: [randomUUID()] })).resolves.toBe(false);
-      await db.update(companyMemberships).set({ status: "suspended" })
-        .where(eq(companyMemberships.principalId, userId));
+      await db.update(spaceMemberships).set({ status: "suspended" })
+        .where(eq(spaceMemberships.principalId, userId));
       try {
         await expect(attest(recovery)).resolves.toBe(false);
       } finally {
-        await db.update(companyMemberships).set({ status: "active" })
-          .where(eq(companyMemberships.principalId, userId));
+        await db.update(spaceMemberships).set({ status: "active" })
+          .where(eq(spaceMemberships.principalId, userId));
       }
       await db.update(chatEndpointResources).set({ enabled: false })
         .where(eq(chatEndpointResources.id, resourceId));
@@ -446,7 +446,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .where(eq(issues.id, issueId));
     try {
       await expect(
-        attest({ ...context, paperclipExternalChatExecutionBound: true }),
+        attest({ ...context, outpostExternalChatExecutionBound: true }),
       ).resolves.toBe(false);
     } finally {
       await db
@@ -461,7 +461,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       attest({
         ...context,
         source: "chat:telegram",
-        paperclipExternalChatExecutionBound: true,
+        outpostExternalChatExecutionBound: true,
       }),
     ).resolves.toBe(false);
     await db
@@ -491,11 +491,11 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
     await expect(denial({ runId: randomUUID() })).resolves.toEqual({ attested: false, reasons: ["binding_missing"] });
     await expect(denial({ contextSnapshot: { ...context, wakeCommentIds: [randomUUID()] } }))
       .resolves.toEqual({ attested: false, reasons: ["context_mismatch"] });
-    await db.update(companyMemberships).set({ status: "suspended" }).where(eq(companyMemberships.principalId, userId));
+    await db.update(spaceMemberships).set({ status: "suspended" }).where(eq(spaceMemberships.principalId, userId));
     try {
       await expect(denial()).resolves.toEqual({ attested: false, reasons: ["principal_denied"] });
     } finally {
-      await db.update(companyMemberships).set({ status: "active" }).where(eq(companyMemberships.principalId, userId));
+      await db.update(spaceMemberships).set({ status: "active" }).where(eq(spaceMemberships.principalId, userId));
     }
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, runId));
     try {
@@ -519,16 +519,16 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
         .where(eq(chatExternalPrincipals.id, principalId));
     }
     await db
-      .update(companyMemberships)
+      .update(spaceMemberships)
       .set({ status: "suspended" })
-      .where(eq(companyMemberships.principalId, userId));
+      .where(eq(spaceMemberships.principalId, userId));
     try {
       await expect(attest()).resolves.toBe(false);
     } finally {
       await db
-        .update(companyMemberships)
+        .update(spaceMemberships)
         .set({ status: "active" })
-        .where(eq(companyMemberships.principalId, userId));
+        .where(eq(spaceMemberships.principalId, userId));
     }
     await db
       .update(chatEndpointResources)
@@ -564,9 +564,9 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
         await gate;
         if (revoke)
           await tx
-            .update(companyMemberships)
+            .update(spaceMemberships)
             .set({ status: "suspended" })
-            .where(eq(companyMemberships.principalId, userId));
+            .where(eq(spaceMemberships.principalId, userId));
       });
       await lockReady;
       let finished = false;
@@ -585,9 +585,9 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
         await blocker;
         await pending;
         await db
-          .update(companyMemberships)
+          .update(spaceMemberships)
           .set({ status: "active" })
-          .where(eq(companyMemberships.principalId, userId));
+          .where(eq(spaceMemberships.principalId, userId));
       }
     }
   });
@@ -598,23 +598,23 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
   let predecessorContractRevision = 0;
   async function finalizingPredecessor() {
     const predecessorRunId = randomUUID(), contractId = randomUUID(), resultId = randomUUID(), assessmentId = randomUUID();
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: ++predecessorContractRevision,
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: ++predecessorContractRevision,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: {}, canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: predecessorRunId, companyId, agentId, status: "running",
+    await db.insert(heartbeatRuns).values({ id: predecessorRunId, spaceId, agentId, status: "running",
       runtimeMode: "native", nativeIssueId: issueId, invocationSource: "automation", triggerDetail: "system",
       completionContractId: contractId, contextSnapshot: { issueId, source: "github.pull_request_review" } });
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId: predecessorRunId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId: predecessorRunId,
       completionContractId: contractId, serverFingerprint: resultId, schemaStatus: "accepted", resultJson: {}, canonicalSha256: resultId });
     const [snapshot] = await db.select().from(issues).where(eq(issues.id, issueId));
-    await db.insert(workAssessments).values({ id: assessmentId, companyId, issueId, runId: predecessorRunId,
-      contractId, resultId, triggerKind: "native_result", triggerActorCompanyId: companyId,
+    await db.insert(workAssessments).values({ id: assessmentId, spaceId, issueId, runId: predecessorRunId,
+      contractId, resultId, triggerKind: "native_result", triggerActorSpaceId: spaceId,
       priorIssueStatus: snapshot.status, priorStatusVersion: snapshot.statusVersion,
       policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, assessmentJson: {}, inputDigest: assessmentId });
-    await db.insert(nativeRunFinalizations).values({ runId: predecessorRunId, companyId, issueId, phase: "arbitrating", resultId, assessmentId });
+    await db.insert(nativeRunFinalizations).values({ runId: predecessorRunId, spaceId, issueId, phase: "arbitrating", resultId, assessmentId });
     const commit = () => commitNativeStatusDecision({
-      db, companyId, issueId, runId: predecessorRunId, assessmentId,
+      db, spaceId, issueId, runId: predecessorRunId, assessmentId,
       priorStatus: snapshot.status, priorStatusVersion: Number(snapshot.statusVersion), priorDecisionId: snapshot.lastStatusDecisionId,
       decision: { policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, statusAction: "preserve", toStatus: "in_review",
         reasonCode: "native_review_action_finished", unblockDescriptor: null, effects: [{ kind: "release_checkout" }] },
@@ -672,7 +672,7 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
     const [before] = await db.select().from(issues).where(eq(issues.id, issueId));
     const { predecessorRunId, commit } = await finalizingPredecessor();
     const cancelledRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: cancelledRunId, companyId, agentId, status: "cancelled",
+    await db.insert(heartbeatRuns).values({ id: cancelledRunId, spaceId, agentId, status: "cancelled",
       finishedAt: new Date(), invocationSource: "automation", triggerDetail: "system", contextSnapshot: context });
     await db.update(issues).set({ checkoutRunId: predecessorRunId, executionRunId: cancelledRunId,
       executionAgentNameKey: "chat runner", executionLockedAt: new Date() }).where(eq(issues.id, issueId));
@@ -710,8 +710,8 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
         });
       try {
         if (outcome === "principal_denied") {
-          await db.update(companyMemberships).set({ status: "suspended" })
-            .where(eq(companyMemberships.principalId, userId));
+          await db.update(spaceMemberships).set({ status: "suspended" })
+            .where(eq(spaceMemberships.principalId, userId));
         }
         if (outcome === "binding_denied") {
           await db.update(chatConversations).set({ issueId: otherIssueId })
@@ -721,8 +721,8 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
         if (outcome === "authorized") expect(observed).toHaveBeenCalledTimes(2);
       } finally {
         observed.mockRestore();
-        await db.update(companyMemberships).set({ status: "active" })
-          .where(eq(companyMemberships.principalId, userId));
+        await db.update(spaceMemberships).set({ status: "active" })
+          .where(eq(spaceMemberships.principalId, userId));
         await db.update(chatConversations).set({ issueId })
           .where(eq(chatConversations.id, conversationId));
         await db.update(chatDeliveries)
@@ -766,13 +766,13 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
 
   it("binds closed historical/current readers without pretending checkout occurred", async () => {
     expect(await attest()).toBe(true);
-    const wake = await buildPaperclipWakePayload({
+    const wake = await buildOutpostWakePayload({
       db,
-      companyId,
+      spaceId,
       agentId,
       contextSnapshot: {
         ...context,
-        paperclipExternalChatExecutionBound: true,
+        outpostExternalChatExecutionBound: true,
       },
     });
     await db
@@ -780,8 +780,8 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
       .set({
         contextSnapshot: {
           ...context,
-          paperclipExternalChatExecutionBound: true,
-          paperclipWake: { ...wake, fallbackFetchNeeded: true },
+          outpostExternalChatExecutionBound: true,
+          outpostWake: { ...wake, fallbackFetchNeeded: true },
         },
       })
       .where(eq(heartbeatRuns.id, runId));
@@ -799,17 +799,17 @@ describe.each(["slack", "discord"] as const)("reviewed %s execution binding", (p
         commentIds: [commentId],
       });
       await db
-        .update(companyMemberships)
+        .update(spaceMemberships)
         .set({ status: "suspended" })
-        .where(eq(companyMemberships.principalId, userId));
+        .where(eq(spaceMemberships.principalId, userId));
       await expect(
         listAuthorizedChatAttachments({ db, binding, limit: 20 }),
       ).rejects.toThrow("principal_denied");
     } finally {
       await db
-        .update(companyMemberships)
+        .update(spaceMemberships)
         .set({ status: "active" })
-        .where(eq(companyMemberships.principalId, userId));
+        .where(eq(spaceMemberships.principalId, userId));
       await db
         .update(heartbeatRuns)
         .set({ contextSnapshot: context })

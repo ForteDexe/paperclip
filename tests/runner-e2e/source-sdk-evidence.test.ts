@@ -115,7 +115,7 @@ it("retains declarations and source maps under names the private result sealer a
 // Build a genuine OWN normal producer-certified reviewed reference. The live
 // CI lock can be regenerated for unrelated PR patches and must not be relabeled reviewed.
 const builtSdk = ["packages/shared/dist", "packages/plugins/sdk/dist"].every(target =>
-  existsSync(new URL(`../../${target}/.paperclip-build-complete`, import.meta.url)));
+  existsSync(new URL(`../../${target}/.outpost-build-complete`, import.meta.url)));
 it("seals a normal producer-certified reviewed-reference SDK, keeping key-shaped declarations out", async () => {
   const originalRoot=await realpath(path.resolve(import.meta.dirname,"../.."));
   const repositoryRoot=await realpath(await mkdtemp(path.join(os.tmpdir(),"source-sdk-reviewed-build-")));roots.push(repositoryRoot);
@@ -127,7 +127,7 @@ it("seals a normal producer-certified reviewed-reference SDK, keeping key-shaped
   await prepareSourceServerDependencies(repositoryRoot,{...process.env},false);
   for(const directory of ["packages/shared/dist","packages/plugins/sdk/dist"]){
     expect(await realpath(path.join(repositoryRoot,directory))).toBe(path.join(repositoryRoot,directory));
-    expect(JSON.parse(await readFile(path.join(repositoryRoot,directory,".paperclip-build-complete"),"utf8")))
+    expect(JSON.parse(await readFile(path.join(repositoryRoot,directory,".outpost-build-complete"),"utf8")))
       .toMatchObject({sources:expect.stringMatching(/^[a-f0-9]{64}$/),outputs:expect.stringMatching(/^[a-f0-9]{64}$/)});
   }
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "source-sdk-real-unit-"))); roots.push(root);

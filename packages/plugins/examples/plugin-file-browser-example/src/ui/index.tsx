@@ -13,7 +13,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 
-const PLUGIN_KEY = "paperclip-file-browser-example";
+const PLUGIN_KEY = "outpost-file-browser-example";
 const FILES_TAB_SLOT_ID = "files-tab";
 
 const editorBaseTheme = {
@@ -267,7 +267,7 @@ export function FilesLink({ context }: PluginProjectSidebarItemProps) {
   const projectRef = (context as PluginProjectSidebarItemProps["context"] & { projectRef?: string | null })
     .projectRef
     ?? projectId;
-  const prefix = context.companyPrefix ? `/${context.companyPrefix}` : "";
+  const prefix = context.spacePrefix ? `/${context.spacePrefix}` : "";
   const tabValue = `plugin:${PLUGIN_KEY}:${FILES_TAB_SLOT_ID}`;
   const href = `${prefix}/projects/${projectRef}?tab=${encodeURIComponent(tabValue)}`;
   const isActive = typeof window !== "undefined" && (() => {
@@ -318,7 +318,7 @@ export function FilesLink({ context }: PluginProjectSidebarItemProps) {
  * Project detail tab: workspace selector, file tree, and CodeMirror editor.
  */
 export function FilesTab({ context }: PluginDetailTabProps) {
-  const companyId = context.companyId;
+  const spaceId = context.spaceId;
   const projectId = context.entityId;
   const isMobile = useIsMobile();
   const isDarkMode = useIsDarkMode();
@@ -329,7 +329,7 @@ export function FilesTab({ context }: PluginDetailTabProps) {
   });
   const { data: workspacesData } = usePluginData<Workspace[]>("workspaces", {
     projectId,
-    companyId,
+    spaceId,
   });
   const workspaces = workspacesData ?? [];
   const workspaceSelectKey = workspaces.map((w) => `${w.id}:${workspaceLabel(w)}`).join("|");
@@ -341,8 +341,8 @@ export function FilesTab({ context }: PluginDetailTabProps) {
   );
 
   const fileListParams = useMemo(
-    () => (selectedWorkspace ? { projectId, companyId, workspaceId: selectedWorkspace.id } : {}),
-    [companyId, projectId, selectedWorkspace],
+    () => (selectedWorkspace ? { projectId, spaceId, workspaceId: selectedWorkspace.id } : {}),
+    [spaceId, projectId, selectedWorkspace],
   );
   const { data: fileListData, loading: fileListLoading, error: fileListError } = usePluginData<{ entries: FileEntry[] }>(
     "fileList",
@@ -378,7 +378,7 @@ export function FilesTab({ context }: PluginDetailTabProps) {
       setLoadingDirs((current) => new Set(current).add(dirPath));
       void loadFileList({
         projectId,
-        companyId,
+        spaceId,
         workspaceId: selectedWorkspace.id,
         directoryPath: dirPath,
       })
@@ -396,7 +396,7 @@ export function FilesTab({ context }: PluginDetailTabProps) {
           });
         });
     },
-    [companyId, loadFileList, loadedDirs, loadingDirs, projectId, selectedWorkspace],
+    [spaceId, loadFileList, loadedDirs, loadingDirs, projectId, selectedWorkspace],
   );
 
   // Track the `?file=` query parameter across navigations (popstate).
@@ -435,9 +435,9 @@ export function FilesTab({ context }: PluginDetailTabProps) {
   const fileContentParams = useMemo(
     () =>
       selectedPath && selectedWorkspace
-        ? { projectId, companyId, workspaceId: selectedWorkspace.id, filePath: selectedPath }
+        ? { projectId, spaceId, workspaceId: selectedWorkspace.id, filePath: selectedPath }
         : null,
-    [companyId, projectId, selectedWorkspace, selectedPath],
+    [spaceId, projectId, selectedWorkspace, selectedPath],
   );
   const fileContentResult = usePluginData<{ content: string | null; error?: string }>(
     "fileContent",
@@ -516,7 +516,7 @@ export function FilesTab({ context }: PluginDetailTabProps) {
     try {
       await writeFile({
         projectId,
-        companyId,
+        spaceId,
         workspaceId: selectedWorkspace.id,
         filePath: selectedPath,
         content,
@@ -690,13 +690,13 @@ export function CommentFileLinks({ context }: PluginCommentAnnotationProps) {
   const { data } = usePluginData<{ links: string[] }>("comment-file-links", {
     commentId: context.entityId,
     issueId: context.parentEntityId,
-    companyId: context.companyId,
+    spaceId: context.spaceId,
   });
 
   if (mode === "contextMenu" || mode === "none") return null;
   if (!data?.links?.length) return null;
 
-  const prefix = context.companyPrefix ? `/${context.companyPrefix}` : "";
+  const prefix = context.spacePrefix ? `/${context.spacePrefix}` : "";
   const projectId = context.projectId;
 
   return (
@@ -739,13 +739,13 @@ export function CommentOpenFiles({ context }: PluginCommentContextMenuItemProps)
   const { data } = usePluginData<{ links: string[] }>("comment-file-links", {
     commentId: context.entityId,
     issueId: context.parentEntityId,
-    companyId: context.companyId,
+    spaceId: context.spaceId,
   });
 
   if (mode === "annotation" || mode === "none") return null;
   if (!data?.links?.length) return null;
 
-  const prefix = context.companyPrefix ? `/${context.companyPrefix}` : "";
+  const prefix = context.spacePrefix ? `/${context.spacePrefix}` : "";
   const projectId = context.projectId;
 
   return (

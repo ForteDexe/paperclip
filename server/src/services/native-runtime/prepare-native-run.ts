@@ -40,7 +40,7 @@ export async function prepareNativeHeartbeatRun(input: {
   db: Db;
   run: {
     id: string;
-    companyId: string;
+    spaceId: string;
     agentId: string;
     runtimeMode: string | null;
     runtimeModeResolvedAt: Date | null;
@@ -81,7 +81,7 @@ export async function prepareNativeHeartbeatRun(input: {
       .from(completionContracts)
       .where(and(
         eq(completionContracts.id, input.run.completionContractId),
-        eq(completionContracts.companyId, input.run.companyId),
+        eq(completionContracts.spaceId, input.run.spaceId),
         eq(completionContracts.issueId, input.issue.id),
       ))
       .limit(1)
@@ -91,7 +91,7 @@ export async function prepareNativeHeartbeatRun(input: {
     ? { row: persistedContract, contract: persistedContract.contractJson }
     : await ensureNativeCompletionContract({
       db: input.db,
-      companyId: input.run.companyId,
+      spaceId: input.run.spaceId,
       issue: input.issue,
       actorId: input.run.agentId,
     });
@@ -103,7 +103,7 @@ export async function prepareNativeHeartbeatRun(input: {
       .from(heartbeatRuns)
       .where(and(
         eq(heartbeatRuns.id, input.run.id),
-        eq(heartbeatRuns.companyId, input.run.companyId),
+        eq(heartbeatRuns.spaceId, input.run.spaceId),
         eq(heartbeatRuns.agentId, input.run.agentId),
       ))
       .for("update")

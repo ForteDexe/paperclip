@@ -101,7 +101,7 @@ export function createInboundAdmission(db: Db, options: InboundAdmissionOptions)
             .from(toolConnections)
             .where(
               and(
-                eq(toolConnections.companyId, endpoint.companyId),
+                eq(toolConnections.spaceId, endpoint.spaceId),
                 eq(toolConnections.id, endpoint.connectionId),
               ),
             )
@@ -173,7 +173,7 @@ export function createInboundAdmission(db: Db, options: InboundAdmissionOptions)
       // conversations are a fallback for unaddressed replies, not permission
       // to wake every bot when the person addresses a different recipient.
       // Recheck inside durable admission so recovered deliveries follow the
-      // same company-scoped routing decision before any task or reaction.
+      // same space-scoped routing decision before any task or reaction.
       const githubAddressedElsewhere =
         endpointAccepting &&
         endpoint.provider === "github" &&
@@ -182,7 +182,7 @@ export function createInboundAdmission(db: Db, options: InboundAdmissionOptions)
         !githubIssue &&
         (await githubMessageAddressesAnotherRecipient(tx, {
           id: endpoint.id,
-          companyId: endpoint.companyId,
+          spaceId: endpoint.spaceId,
           botUsername: currentEndpoint.botUsername,
         }, message.text));
       const accepting = endpointAccepting && destinationAccepting && !githubAddressedElsewhere && !mentionRequired;
@@ -225,7 +225,7 @@ export function createInboundAdmission(db: Db, options: InboundAdmissionOptions)
         const [delivery] = await tx
           .insert(chatDeliveries)
           .values({
-            companyId: endpoint.companyId,
+            spaceId: endpoint.spaceId,
             endpointId: endpoint.id,
             providerEventId,
             deduplicationKey: createHash("sha256")

@@ -27,9 +27,9 @@ describe("capability semantic conformance vectors", () => {
       report.rows.map((row) => [row.vectorId, row.observation.authorization]),
     );
     expect(authorizations).toMatchObject({
-      "governed-action-without-claim": { outcome: "denied", code: "required_claim_missing" },
+      "controlled-action-without-claim": { outcome: "denied", code: "required_claim_missing" },
       "protected-input-redaction": { outcome: "allowed" },
-      "cross-company-dependency-denial": { outcome: "denied", code: "company_scope_violation" },
+      "cross-space-dependency-denial": { outcome: "denied", code: "space_scope_violation" },
       "progress-applied": { outcome: "allowed" },
       "progress-duplicate-retry": { outcome: "allowed" },
       "progress-idempotency-conflict": { outcome: "denied", code: "idempotency_conflict" },

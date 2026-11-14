@@ -74,7 +74,7 @@ function makeState(overrides: Partial<BuiltInAgentState> = {}): BuiltInAgentStat
 
 function makeSavedAgent(adapterType: "codex_local" | "outpost_runner", adapterConfig: Record<string, unknown>): NonNullable<BuiltInAgentState["agent"]> {
   return {
-    id: "a1", companyId: "c1", name: "Briefs Agent", urlKey: "briefs-agent", role: "general", title: null, icon: null,
+    id: "a1", spaceId: "c1", name: "Briefs Agent", urlKey: "briefs-agent", role: "general", title: null, icon: null,
     status: "idle", reportsTo: null, capabilities: null, adapterType, adapterConfig, runtimeConfig: {}, defaultEnvironmentId: null,
     budgetMonthlyCents: 0, spentMonthlyCents: 0, pauseReason: null, pausedAt: null, permissions: { canCreateAgents: false },
     lastHeartbeatAt: null, metadata: null, createdAt: new Date(0), updatedAt: new Date(0),
@@ -108,7 +108,7 @@ describe("ConfigureBuiltInAgentModal (PAP-12978)", () => {
       root!.render(
         <QueryClientProvider client={queryClient}>
           <ConfigureBuiltInAgentModal
-            companyId="c1"
+            spaceId="c1"
             state={state}
             open
             onOpenChange={onOpenChange}
@@ -230,14 +230,14 @@ describe("ConfigureBuiltInAgentModal (PAP-12978)", () => {
       ...(adapterType === "outpost_runner" ? { provider: "codex", codexPermissionMode: "never", lifecycleMode: "per_turn" } : {}),
     };
     const agent = makeSavedAgent(adapterType, savedConfig);
-    agent.metadata = { paperclipBuiltInSetupRequired: true };
+    agent.metadata = { outpostBuiltInSetupRequired: true };
     const state = makeState({
       status: "needs_setup",
       agentId: agent.id,
       agent,
       definition: { ...makeState().definition, defaultAdapterConfig: { model: "gpt-5" } },
     });
-    const configured = { ...state, status: "ready" as const, agent: { ...agent, metadata: { paperclipBuiltInSetupRequired: false } } };
+    const configured = { ...state, status: "ready" as const, agent: { ...agent, metadata: { outpostBuiltInSetupRequired: false } } };
     provisionMock.mockResolvedValue(configured);
     await renderModal(state);
 
@@ -252,7 +252,7 @@ describe("ConfigureBuiltInAgentModal (PAP-12978)", () => {
     });
     expect(onConfigured).toHaveBeenCalledWith(configured);
     expect(onOpenChange).toHaveBeenCalledWith(false);
-    expect(state.agent?.metadata?.paperclipBuiltInSetupRequired).toBe(true);
+    expect(state.agent?.metadata?.outpostBuiltInSetupRequired).toBe(true);
     expect(state.agent?.adapterConfig).toEqual(savedConfig);
   });
 

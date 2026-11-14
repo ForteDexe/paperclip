@@ -1,10 +1,10 @@
 import { createCipheriv, createHash, createHmac, diffieHellman, generateKeyPairSync, hkdfSync, randomBytes, verify } from "node:crypto";
 import { expect, vi } from "vitest";
-import { createPaperclipCloudConnector, type PaperclipCloudConnectorConfig } from "../../services/paperclip-cloud-connector.js";
+import { createOutpostCloudConnector, type OutpostCloudConnectorConfig } from "../../services/outpost-cloud-connector.js";
 
-export function createSlackCloudConnectorFixture(instanceId: string, companyId: string, subject: string) {
+export function createSlackCloudConnectorFixture(instanceId: string, spaceId: string, subject: string) {
   const signing = generateKeyPairSync("ed25519"), sealing = generateKeyPairSync("x25519");
-  const config: PaperclipCloudConnectorConfig = { baseUrl: "http://127.0.0.1:1", instanceId, environment: "test",
+  const config: OutpostCloudConnectorConfig = { baseUrl: "http://127.0.0.1:1", instanceId, environment: "test",
     signPrivateKey: signing.privateKey.export({ format: "jwk" }).d!, sealPrivateKey: sealing.privateKey.export({ format: "jwk" }).d! };
   const calls: { operation: string; enrollment?: Record<string, unknown> }[] = [];
   const acknowledged: string[] = [];
@@ -40,7 +40,7 @@ export function createSlackCloudConnectorFixture(instanceId: string, companyId: 
         const expectedSubject = operation === "slack-events" ? subject
           : ["event-lease", "event-ack"].includes(operation) ? "github-bot-events" : undefined;
         if (!expectedSubject) throw new Error(`Unexpected synthetic connector authority ${operation}`);
-        expect(claims).toMatchObject({ sub: expectedSubject, cid: companyId });
+        expect(claims).toMatchObject({ sub: expectedSubject, cid: spaceId });
       }
       if (unavailable) return Response.json({ error: "fixture_broker_unavailable" }, { status: 503 });
       if (operation === "status") return Response.json({ active: true, status: "active", profiles: [], slackEvents: { version: 1 } });
@@ -91,7 +91,7 @@ export function createSlackCloudConnectorFixture(instanceId: string, companyId: 
       payload: { slackEvent: { bindingId: identity.bindingId, sealed: seal(packet, "slack.events.v1") } } });
     return { id, packet, body };
   }
-  return { config, request, requestErrors, calls, acknowledged, events, install, enqueue, connector: createPaperclipCloudConnector({ config, request }),
+  return { config, request, requestErrors, calls, acknowledged, events, install, enqueue, connector: createOutpostCloudConnector({ config, request }),
     setUnavailable(value: boolean) { unavailable = value; },
     beforeReceipt(work: (() => Promise<void>) | undefined) { beforeEnrollmentReceipt = work; } };
 }

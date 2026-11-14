@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
-  companies,
+  spaces,
   createDb,
   documents,
   issueComments,
@@ -23,7 +23,7 @@ async function ensureIssueReferenceMentionsTable(db: ReturnType<typeof createDb>
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS "issue_reference_mentions" (
       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      "company_id" uuid NOT NULL,
+      "space_id" uuid NOT NULL,
       "source_issue_id" uuid NOT NULL REFERENCES "issues"("id") ON DELETE CASCADE,
       "target_issue_id" uuid NOT NULL REFERENCES "issues"("id") ON DELETE CASCADE,
       "source_kind" text NOT NULL,
@@ -33,14 +33,14 @@ async function ensureIssueReferenceMentionsTable(db: ReturnType<typeof createDb>
       "created_at" timestamptz NOT NULL DEFAULT now(),
       "updated_at" timestamptz NOT NULL DEFAULT now()
     );
-    CREATE INDEX IF NOT EXISTS "issue_reference_mentions_company_source_issue_idx"
-      ON "issue_reference_mentions" ("company_id", "source_issue_id");
-    CREATE INDEX IF NOT EXISTS "issue_reference_mentions_company_target_issue_idx"
-      ON "issue_reference_mentions" ("company_id", "target_issue_id");
-    CREATE INDEX IF NOT EXISTS "issue_reference_mentions_company_issue_pair_idx"
-      ON "issue_reference_mentions" ("company_id", "source_issue_id", "target_issue_id");
-    CREATE UNIQUE INDEX IF NOT EXISTS "issue_reference_mentions_company_source_mention_uq"
-      ON "issue_reference_mentions" ("company_id", "source_issue_id", "target_issue_id", "source_kind", "source_record_id");
+    CREATE INDEX IF NOT EXISTS "issue_reference_mentions_space_source_issue_idx"
+      ON "issue_reference_mentions" ("space_id", "source_issue_id");
+    CREATE INDEX IF NOT EXISTS "issue_reference_mentions_space_target_issue_idx"
+      ON "issue_reference_mentions" ("space_id", "target_issue_id");
+    CREATE INDEX IF NOT EXISTS "issue_reference_mentions_space_issue_pair_idx"
+      ON "issue_reference_mentions" ("space_id", "source_issue_id", "target_issue_id");
+    CREATE UNIQUE INDEX IF NOT EXISTS "issue_reference_mentions_space_source_mention_uq"
+      ON "issue_reference_mentions" ("space_id", "source_issue_id", "target_issue_id", "source_kind", "source_record_id");
   `));
 }
 
@@ -56,7 +56,7 @@ describeEmbeddedPostgres("issueReferenceService", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-issue-refs-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-issue-refs-");
     db = createDb(tempDb.connectionString);
     refs = issueReferenceService(db);
     await ensureIssueReferenceMentionsTable(db);
@@ -68,7 +68,7 @@ describeEmbeddedPostgres("issueReferenceService", () => {
     await db.delete(issueDocuments);
     await db.delete(documents);
     await db.delete(issues);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -76,7 +76,7 @@ describeEmbeddedPostgres("issueReferenceService", () => {
   });
 
   it("tracks outbound and inbound references across issue fields, comments, and documents", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const sourceIssueId = randomUUID();
     const targetTwoId = randomUUID();
     const targetThreeId = randomUUID();
@@ -85,17 +85,17 @@ describeEmbeddedPostgres("issueReferenceService", () => {
     const documentId = randomUUID();
     const issueDocumentId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `R${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `R${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(issues).values([
       {
         id: sourceIssueId,
-        companyId,
+        spaceId,
         title: "Coordinate PAP-2",
         description: "Review /issues/pap-3 and ignore PAP-1 self references.",
         status: "todo",
@@ -104,7 +104,7 @@ describeEmbeddedPostgres("issueReferenceService", () => {
       },
       {
         id: targetTwoId,
-        companyId,
+        spaceId,
         title: "Target two",
         status: "todo",
         priority: "medium",
@@ -112,7 +112,7 @@ describeEmbeddedPostgres("issueReferenceService", () => {
       },
       {
         id: targetThreeId,
-        companyId,
+        spaceId,
         title: "Target three",
         status: "todo",
         priority: "medium",
@@ -120,7 +120,7 @@ describeEmbeddedPostgres("issueReferenceService", () => {
       },
       {
         id: inboundIssueId,
-        companyId,
+        spaceId,
         title: "Inbound reference",
         description: "This one depends on PAP-1.",
         status: "in_progress",
@@ -134,7 +134,7 @@ describeEmbeddedPostgres("issueReferenceService", () => {
 
     await db.insert(issueComments).values({
       id: commentId,
-      companyId,
+      spaceId,
       issueId: sourceIssueId,
       body: "Follow up in https://outpost.test/issues/pap-2 after the document lands.",
     });
@@ -142,7 +142,7 @@ describeEmbeddedPostgres("issueReferenceService", () => {
 
     await db.insert(documents).values({
       id: documentId,
-      companyId,
+      spaceId,
       title: "Plan",
       format: "markdown",
       latestBody: "Spec note: /PAP/issues/PAP-3",
@@ -150,7 +150,7 @@ describeEmbeddedPostgres("issueReferenceService", () => {
     });
     await db.insert(issueDocuments).values({
       id: issueDocumentId,
-      companyId,
+      spaceId,
       issueId: sourceIssueId,
       documentId,
       key: "plan",
@@ -176,21 +176,21 @@ describeEmbeddedPostgres("issueReferenceService", () => {
   });
 
   it("serializes concurrent syncs for a description with repeated references", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const sourceIssueId = randomUUID();
     const targetIssueId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip Concurrent References",
-      issuePrefix: `C${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost Concurrent References",
+      issuePrefix: `C${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(issues).values([
       {
         id: sourceIssueId,
-        companyId,
+        spaceId,
         title: "Source issue",
         description: "Coordinate COM-2 and confirm COM-2 again.",
         status: "todo",
@@ -199,7 +199,7 @@ describeEmbeddedPostgres("issueReferenceService", () => {
       },
       {
         id: targetIssueId,
-        companyId,
+        spaceId,
         title: "Target issue",
         status: "todo",
         priority: "medium",
@@ -218,25 +218,25 @@ describeEmbeddedPostgres("issueReferenceService", () => {
     expect(mentions[0]?.targetIssueId).toBe(targetIssueId);
   });
 
-  it("backfills existing references for a company without requiring write-time sync", async () => {
-    const companyId = randomUUID();
+  it("backfills existing references for a space without requiring write-time sync", async () => {
+    const spaceId = randomUUID();
     const sourceIssueId = randomUUID();
     const targetIssueId = randomUUID();
     const commentId = randomUUID();
     const documentId = randomUUID();
     const issueDocumentId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip Backfill",
-      issuePrefix: `B${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost Backfill",
+      issuePrefix: `B${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(issues).values([
       {
         id: sourceIssueId,
-        companyId,
+        spaceId,
         title: "Legacy issue",
         status: "todo",
         priority: "medium",
@@ -244,7 +244,7 @@ describeEmbeddedPostgres("issueReferenceService", () => {
       },
       {
         id: targetIssueId,
-        companyId,
+        spaceId,
         title: "Referenced legacy issue",
         status: "todo",
         priority: "medium",
@@ -254,14 +254,14 @@ describeEmbeddedPostgres("issueReferenceService", () => {
 
     await db.insert(issueComments).values({
       id: commentId,
-      companyId,
+      spaceId,
       issueId: sourceIssueId,
       body: "Legacy comment points at PAP-20.",
     });
 
     await db.insert(documents).values({
       id: documentId,
-      companyId,
+      spaceId,
       title: "Legacy plan",
       format: "markdown",
       latestBody: "Legacy plan also links /issues/PAP-20.",
@@ -269,13 +269,13 @@ describeEmbeddedPostgres("issueReferenceService", () => {
     });
     await db.insert(issueDocuments).values({
       id: issueDocumentId,
-      companyId,
+      spaceId,
       issueId: sourceIssueId,
       documentId,
       key: "plan",
     });
 
-    await refs.syncAllForCompany(companyId);
+    await refs.syncAllForSpace(spaceId);
 
     const summary = await refs.listIssueReferenceSummary(sourceIssueId);
 

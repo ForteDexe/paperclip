@@ -1,7 +1,7 @@
 {
   "schema": "outpost-runner-rich-acp-validation-checkpoint/v1",
   "status": "rolling_checkpoint_qualification_pending",
-  "artifactBase": "private artifact set paperclip-rich-acp-production-20260929",
+  "artifactBase": "private artifact set outpost-rich-acp-production-20260929",
   "sourceRevision": "5605c350b2a4dae75be3779f164d7e1a0e4a5a87",
   "generatedAt": "2026-09-30",
   "includedRootReconciledPaidCells": [

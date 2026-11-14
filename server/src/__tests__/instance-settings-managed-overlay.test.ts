@@ -77,7 +77,7 @@ describe("applyManagedExperimentalOverlay", () => {
     // unmanaged keys keep their stored/default values
     expect(experimental.enableCases).toBe(false);
     expect(managedKeys).toEqual({
-      enableStatusCards: { managed: true, managedBy: "paperclip-cloud" },
+      enableStatusCards: { managed: true, managedBy: "outpost-cloud" },
     });
     // input is not mutated
     expect(stored.enableApps).toBe(true);
@@ -88,37 +88,37 @@ describe("instanceSettingsService managed overlay", () => {
   it.each(["team.staging.outpost.app", "team.outpost.app"])(
     "enables private Notebook through managed config without changing stored opt-out on %s",
     async (primaryHost) => {
-      const row = settingsRow({ enablePaperclipNotebook: false });
+      const row = settingsRow({ enableOutpostNotebook: false });
       const { db, persistedSets } = stubDb(row);
       const service = instanceSettingsService(db, { runtimeEnv: {
         OUTPOST_PRIMARY_HOST: primaryHost,
         ...managedEnv(JSON.stringify({
           v: 1, mode: "cloud", catalogVersion: "test",
-          features: { enablePaperclipNotebook: true }, plugins: { autoInstall: [] },
+          features: { enableOutpostNotebook: true }, plugins: { autoInstall: [] },
         })),
       } });
       expect(await service.getExperimental()).toMatchObject({
-        enablePaperclipNotebook: true,
-        managedKeys: { enablePaperclipNotebook: { managed: true, managedBy: "paperclip-cloud" } },
+        enableOutpostNotebook: true,
+        managedKeys: { enableOutpostNotebook: { managed: true, managedBy: "outpost-cloud" } },
       });
-      expect((await service.get()).experimental.enablePaperclipNotebook).toBe(true);
+      expect((await service.get()).experimental.enableOutpostNotebook).toBe(true);
       expect(persistedSets).toHaveLength(0);
-      expect(row.experimental).toEqual({ enablePaperclipNotebook: false });
-      expect((await instanceSettingsService(db, { runtimeEnv: {} }).getExperimental()).enablePaperclipNotebook).toBe(false);
+      expect(row.experimental).toEqual({ enableOutpostNotebook: false });
+      expect((await instanceSettingsService(db, { runtimeEnv: {} }).getExperimental()).enableOutpostNotebook).toBe(false);
     },
   );
 
   it("persists an explicit self-hosted Notebook opt-in and disable across service recreation", async () => {
     const row = settingsRow({});
     const { db, persistedSets } = stubDb(row);
-    expect((await instanceSettingsService(db, { runtimeEnv: {} }).getExperimental()).enablePaperclipNotebook).toBe(false);
+    expect((await instanceSettingsService(db, { runtimeEnv: {} }).getExperimental()).enableOutpostNotebook).toBe(false);
     for (const enabled of [true, false]) {
       const service = instanceSettingsService(db, { runtimeEnv: {} });
-      const updated = await service.updateExperimental({ enablePaperclipNotebook: enabled });
+      const updated = await service.updateExperimental({ enableOutpostNotebook: enabled });
       Object.assign(row, persistedSets.at(-1));
-      expect(updated.experimental.enablePaperclipNotebook).toBe(enabled);
-      expect((row.experimental as Record<string, unknown>).enablePaperclipNotebook).toBe(enabled);
-      expect((await instanceSettingsService(db, { runtimeEnv: {} }).getExperimental()).enablePaperclipNotebook).toBe(enabled);
+      expect(updated.experimental.enableOutpostNotebook).toBe(enabled);
+      expect((row.experimental as Record<string, unknown>).enableOutpostNotebook).toBe(enabled);
+      expect((await instanceSettingsService(db, { runtimeEnv: {} }).getExperimental()).enableOutpostNotebook).toBe(enabled);
     }
   });
 
@@ -143,7 +143,7 @@ describe("instanceSettingsService managed overlay", () => {
       expect((await service.getExperimental()).managedKeys).toMatchObject(
         Object.fromEntries(Object.keys(features)
           .filter((key) => key !== "enableApps" && key !== "enableMcpAggregators")
-          .map((key) => [key, { managed: true, managedBy: "paperclip-cloud" }])),
+          .map((key) => [key, { managed: true, managedBy: "outpost-cloud" }])),
       );
       for (const key of Object.keys(features)) {
         await expect(service.updateExperimental({ [key]: false })).rejects.toMatchObject({
@@ -173,7 +173,7 @@ describe("instanceSettingsService managed overlay", () => {
     for (const experimental of [await service.getExperimental(), restored]) {
       expect(experimental).toMatchObject({
         enableManagedSandboxOnly: true,
-        managedKeys: { enableManagedSandboxOnly: { managed: true, managedBy: "paperclip-cloud" } },
+        managedKeys: { enableManagedSandboxOnly: { managed: true, managedBy: "outpost-cloud" } },
       });
       expect(evaluateExecutionAllowlist(
         { managedSandboxOnly: experimental.enableManagedSandboxOnly },
@@ -195,8 +195,8 @@ describe("instanceSettingsService managed overlay", () => {
     };
     const service = instanceSettingsService(db, { runtimeEnv });
     const managedKeys = {
-      enableStatusCards: { managed: true, managedBy: "paperclip-cloud" },
-      enableNativeRunner: { managed: true, managedBy: "paperclip-cloud" },
+      enableStatusCards: { managed: true, managedBy: "outpost-cloud" },
+      enableNativeRunner: { managed: true, managedBy: "outpost-cloud" },
     };
     expect(await service.getExperimental()).toMatchObject({
       enableStatusCards: true, enableChatConnectors: false, enableNativeRunner: true, managedKeys,
@@ -248,7 +248,7 @@ describe("instanceSettingsService managed overlay", () => {
     } });
     expect(await service.getExperimental()).toMatchObject({
       enableOwnerInstanceAdmin: true,
-      managedKeys: { enableOwnerInstanceAdmin: { managed: true, managedBy: "paperclip-cloud" } },
+      managedKeys: { enableOwnerInstanceAdmin: { managed: true, managedBy: "outpost-cloud" } },
     });
     await expect(service.updateExperimental({ enableOwnerInstanceAdmin: false })).rejects.toMatchObject({ status: 403 });
   });
@@ -283,7 +283,7 @@ describe("instanceSettingsService managed overlay", () => {
     })) });
     expect(await service.getExperimental()).toMatchObject({
       enableChatConnectors: false,
-      managedKeys: { enableChatConnectors: { managed: true, managedBy: "paperclip-cloud" } },
+      managedKeys: { enableChatConnectors: { managed: true, managedBy: "outpost-cloud" } },
     });
     expect(persistedSets).toHaveLength(0);
   });
@@ -302,7 +302,7 @@ describe("instanceSettingsService managed overlay", () => {
     expect(experimental.enableApps).toBe(true);
     expect(experimental.enableStatusCards).toBe(true);
     expect(experimental.managedKeys).toEqual({
-      enableStatusCards: { managed: true, managedBy: "paperclip-cloud" },
+      enableStatusCards: { managed: true, managedBy: "outpost-cloud" },
     });
   });
 

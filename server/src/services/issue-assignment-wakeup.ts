@@ -16,7 +16,7 @@ export interface IssueAssignmentWakeupDeps {
       allowRunCoalescing?: boolean;
       requestedByActorType?: "user" | "agent" | "system";
       requestedByActorId?: string | null;
-      requestedByActorCompanyId?: string;
+      requestedByActorSpaceId?: string;
       contextSnapshot?: Record<string, unknown>;
       durableChatRequest?: DurableChatWakeupRequest;
     },
@@ -31,7 +31,7 @@ export function queueIssueAssignmentWakeup(input: {
   contextSource: string;
   requestedByActorType?: "user" | "agent" | "system";
   requestedByActorId?: string | null;
-  requestedByActorCompanyId?: string;
+  requestedByActorSpaceId?: string;
   taskKey?: string | null;
   /** Latest issue comment that caused this wakeup. Included in both payload
    * and context so the heartbeat can build the exact turn that was requested. */
@@ -60,7 +60,7 @@ export function queueIssueAssignmentWakeup(input: {
       },
       requestedByActorType: input.requestedByActorType,
       requestedByActorId: input.requestedByActorId ?? null,
-      ...(input.requestedByActorCompanyId ? { requestedByActorCompanyId: input.requestedByActorCompanyId } : {}),
+      ...(input.requestedByActorSpaceId ? { requestedByActorSpaceId: input.requestedByActorSpaceId } : {}),
       ...(input.durableChatRequest
         ? { durableChatRequest: input.durableChatRequest }
         : {}),

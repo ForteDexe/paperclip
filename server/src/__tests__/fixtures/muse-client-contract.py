@@ -20,19 +20,19 @@ spec.loader.exec_module(client_module)
 BINDING = "10000000-0000-4000-8000-000000000001"
 ASSIGNMENT = "20000000-0000-4000-8000-000000000001"
 ORIGIN = "https://outpost.invalid"
-SCOPE = {"companyId": "30000000-0000-4000-8000-000000000001", "companyName": "Scoped Company", "agentId": "40000000-0000-4000-8000-000000000001", "agentName": "Personal Muse"}
+SCOPE = {"spaceId": "30000000-0000-4000-8000-000000000001", "spaceName": "Scoped Space", "agentId": "40000000-0000-4000-8000-000000000001", "agentName": "Personal Muse"}
 
 
-CREDENTIAL_NAME = "custom.paperclip-muse-" + BINDING
+CREDENTIAL_NAME = "custom.outpost-muse-" + BINDING
 
 def identity():
-    return {"bindingId": BINDING, "generation": 1, "companyId": SCOPE["companyId"], "agentId": SCOPE["agentId"]}
+    return {"bindingId": BINDING, "generation": 1, "spaceId": SCOPE["spaceId"], "agentId": SCOPE["agentId"]}
 
 
 class ClientContract(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="muse-client-contract-")
-        self.root_patch = patch.object(client_module, "ROOT", Path(self.temporary.name) / ".config/paperclip-muse")
+        self.root_patch = patch.object(client_module, "ROOT", Path(self.temporary.name) / ".config/outpost-muse")
         self.root_patch.start()
         self.hook_patch = patch.object(client_module, "HOOK_ROOT", Path(self.temporary.name) / "hooks/scripts")
         self.hook_patch.start()
@@ -68,9 +68,9 @@ class ClientContract(unittest.TestCase):
         for path in (self.client.path, self.client.directory / "receiver.json"):
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(self.client.directory.stat().st_mode), 0o700)
-        wrapper = client_module.HOOK_ROOT / ("paperclip-muse-" + BINDING + ".sh")
+        wrapper = client_module.HOOK_ROOT / ("outpost-muse-" + BINDING + ".sh")
         self.assertEqual(stat.S_IMODE(wrapper.stat().st_mode), 0o700)
-        self.assertEqual(wrapper.read_text(), '#!/usr/bin/env bash\nexec bash "$HOME/.config/paperclip-muse/detector.sh" "' + BINDING + '"\n')
+        self.assertEqual(wrapper.read_text(), '#!/usr/bin/env bash\nexec bash "$HOME/.config/outpost-muse/detector.sh" "' + BINDING + '"\n')
         self.assertEqual(set(self.client.config), {"version", "bindingId", "origin", "credentialName", "generation", "delegationScope"})
         self.assertFalse((self.client.directory / "worker.json").exists())
         self.assertFalse((self.client.directory / "credential-commit.json").exists())
@@ -99,7 +99,7 @@ class ClientContract(unittest.TestCase):
 
     def test_authenticated_identity_and_reconfigure_cannot_expand_standing_scope(self):
         original = self.client.skill_path().read_text()
-        for field in ("companyId", "agentId"):
+        for field in ("spaceId", "agentId"):
             with self.assertRaisesRegex(RuntimeError, "outside standing delegation"):
                 self.client.remember_identity({**identity(), field: ASSIGNMENT})
             with self.assertRaisesRegex(RuntimeError, "Delegation identity changed"):
@@ -147,7 +147,7 @@ class ClientContract(unittest.TestCase):
         try:
             other.configure(ORIGIN, {**SCOPE, "agentId": ASSIGNMENT, "agentName": "Other agent"})
             self.assertNotEqual(other.skill_path(), self.client.skill_path())
-            self.assertIn("name: paperclip-muse-" + ASSIGNMENT, other.skill_path().read_text())
+            self.assertIn("name: outpost-muse-" + ASSIGNMENT, other.skill_path().read_text())
             self.assertIn('"agentId": "' + ASSIGNMENT + '"', other.skill_path().read_text())
             self.assertEqual(self.client.skill_path().read_text(), original)
         finally:
@@ -165,7 +165,7 @@ class ClientContract(unittest.TestCase):
         self.assertEqual(request.get_method(), "GET")
         self.assertIsNone(request.data)
         self.assertIsNone(request.get_header("Authorization"))
-        self.assertIsNone(request.get_header("X-paperclip-muse-binding"))
+        self.assertIsNone(request.get_header("X-outpost-muse-binding"))
         self.assertEqual(transport.call_args.kwargs["timeout"], 120)
         self.helper.add_surrogate_to_request.assert_not_called()
         self.helper.read_json_response.assert_not_called()
@@ -212,7 +212,7 @@ class ClientContract(unittest.TestCase):
 
     def test_lost_ack_reuses_persisted_identity_and_rejects_changed_effect(self):
         requests = []
-        command = {"command": "tool", "assignmentId": ASSIGNMENT, "name": "paperclip_document_upsert", "arguments": {"key": "report", "body": "Synthetic evidence"}}
+        command = {"command": "tool", "assignmentId": ASSIGNMENT, "name": "outpost_document_upsert", "arguments": {"key": "report", "body": "Synthetic evidence"}}
 
         def transport(url, body=None, token=None):
             requests.append(copy.deepcopy(body))
@@ -459,7 +459,7 @@ urllib.request.build_opener = lambda *args: Opener()
         if wrapper:
             installed = client_module.ROOT / "detector.sh"
             installed.write_bytes(detector.read_bytes())
-            invocation = [str(client_module.HOOK_ROOT / ("paperclip-muse-" + BINDING + ".sh"))]
+            invocation = [str(client_module.HOOK_ROOT / ("outpost-muse-" + BINDING + ".sh"))]
         else:
             invocation = ['bash', str(detector), BINDING]
         result = subprocess.run(invocation,
@@ -473,7 +473,7 @@ urllib.request.build_opener = lambda *args: Opener()
 
     def assert_public_request(self, requests):
         self.assertEqual(requests, [{'url': ORIGIN + '/api/muse/v1/signal',
-            'headers': {'Accept': 'application/json', 'X-paperclip-muse-binding': BINDING}}])
+            'headers': {'Accept': 'application/json', 'X-outpost-muse-binding': BINDING}}])
 
     def test_running_detector_is_independent_of_private_lock_and_worker_credentials(self):
         # The client still holds its exclusive OS lock; it is irrelevant to the
@@ -525,7 +525,7 @@ urllib.request.build_opener = lambda *args: Opener()
         self.assertEqual(duplicate_b, offered_b)
         references = [value["signal"]["reference"] for value in (offered_a, offered_b, rearmed_b)]
         self.assertEqual(len(set(references)), 3)
-        marker = Path(self.temporary.name) / "hooks/state" / ("paperclip-" + BINDING) / "signal"
+        marker = Path(self.temporary.name) / "hooks/state" / ("outpost-" + BINDING) / "signal"
         expected_markers = [references[0], references[0], references[1], references[1], references[2], references[2]]
         for response, expected, expected_marker in zip(responses, ("wake", "idle", "wake", "duplicate", "wake", "idle"), expected_markers):
             output, requests = self.run_detector(response=response, dry=False, wrapper=True)
@@ -555,7 +555,7 @@ urllib.request.build_opener = lambda *args: Opener()
         with patch.object(client_module.HTTP, "open", side_effect=error):
             with self.assertRaises(RuntimeError) as raised:
                 client_module.http(sensitive_url, {"query": "identify"}, CREDENTIAL_NAME)
-            self.assertEqual(str(raised.exception), "Paperclip HTTP 401; inspect connection or receipt before retrying")
+            self.assertEqual(str(raised.exception), "Outpost HTTP 401; inspect connection or receipt before retrying")
         error.close()
 
     def test_redirects_and_non_https_origins_are_rejected(self):
@@ -826,7 +826,7 @@ urllib.request.build_opener = lambda *args: Opener()
         harness = ('import importlib.util, pathlib, sys; sys.dont_write_bytecode=True; '
                    's=importlib.util.spec_from_file_location("client",sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); '
                    'm.ROOT=pathlib.Path(sys.argv[2]); sys.argv=["client.py","--binding",sys.argv[3],"consume-input",sys.argv[4],"question-one"]; '
-                   '\ntry: m.main()\nexcept Exception as error:\n print("Paperclip client stopped: "+(str(error) if isinstance(error, RuntimeError) else "private state or transport failure"),file=sys.stderr); sys.exit(1)')
+                   '\ntry: m.main()\nexcept Exception as error:\n print("Outpost client stopped: "+(str(error) if isinstance(error, RuntimeError) else "private state or transport failure"),file=sys.stderr); sys.exit(1)')
         self.client.close()
         result = subprocess.run([sys.executable, "-c", harness, str(client_path), str(client_module.ROOT), BINDING, ASSIGNMENT], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1); self.assertEqual(result.stdout, "")
@@ -1155,7 +1155,7 @@ if __name__ == "__main__":
     if sys.argv[1:] == ["--receiver-sequence"]:
         sequence = json.load(sys.stdin)
         BINDING, ORIGIN, SCOPE = sequence["bindingId"], sequence["origin"], sequence["scope"]
-        CREDENTIAL_NAME = "custom.paperclip-muse-" + BINDING
+        CREDENTIAL_NAME = "custom.outpost-muse-" + BINDING
         fixture = ClientContract()
         case = unittest.FunctionTestCase(lambda: fixture.assert_receiver_sequence(sequence["responses"]), setUp=fixture.setUp, tearDown=fixture.tearDown)
         result = unittest.TextTestRunner().run(case)

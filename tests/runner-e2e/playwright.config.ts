@@ -14,7 +14,7 @@ function required(name: string) {
 const port = Number(required("OUTPOST_RUNNER_E2E_PORT"));
 const temporaryRoot = required("OUTPOST_RUNNER_E2E_TEMP_ROOT");
 const privateDir = required("OUTPOST_RUNNER_E2E_PRIVATE_DIR");
-const paperclipHome = required("OUTPOST_HOME");
+const outpostHome = required("OUTPOST_HOME");
 const configPath = required("OUTPOST_CONFIG");
 const baseURL = `http://127.0.0.1:${port}`;
 const playwrightChannel = process.env.OUTPOST_PLAYWRIGHT_CHANNEL?.trim();
@@ -36,10 +36,10 @@ required("OUTPOST_DECISION_SIGNING_SECRET");
 required("OUTPOST_TOOL_ACTION_SIGNING_SECRET");
 required("BETTER_AUTH_SECRET");
 if (
-  !paperclipHome.startsWith(`${temporaryRoot}${path.sep}`) ||
+  !outpostHome.startsWith(`${temporaryRoot}${path.sep}`) ||
   !configPath.startsWith(`${temporaryRoot}${path.sep}`)
 ) {
-  throw new Error("Paperclip server paths escape the isolated temporary root");
+  throw new Error("Outpost server paths escape the isolated temporary root");
 }
 const repositoryRoot = path.resolve(import.meta.dirname, "../..");
 
@@ -75,7 +75,7 @@ export default defineConfig({
   webServer: {
     // Do not put an env object here: Playwright serializes webServer config in
     // blob reports. The wrapper inherits the test process and strips provider
-    // keys before spawning the real Paperclip process.
+    // keys before spawning the real Outpost process.
     command: runnerE2EWebServerCommand(repositoryRoot),
     gracefulShutdown: { ...runnerE2EWebServerGracefulShutdown,
       ...(JSON.parse(process.env.OUTPOST_RUNNER_E2E_EXECUTION_IDS ?? "[]").some((id: string) => id.startsWith("rolling-web-deployment.")) ? { timeout: 105_000 } : {}),

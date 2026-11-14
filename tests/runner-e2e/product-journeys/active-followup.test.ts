@@ -6,9 +6,9 @@ import { journeyRequiredChecks } from "./success-contract.js";
 import { parseTargetConfig, preparationPreview, agentJourneyRunCountValid } from "./catalog.js";
 import { validateRetainedRunnerResult } from "../result-validation.js";
 
-const run = { id: "run", companyId: "company", agentId: "agent", issueId: "issue", runtimeMode: "native", status: "running" };
+const run = { id: "run", spaceId: "space", agentId: "agent", issueId: "issue", runtimeMode: "native", status: "running" };
 function event(seq: number, type: string, payload = {}): Record<string, any> {
-  return { seq, eventType: type, runId: run.id, companyId: run.companyId, agentId: run.agentId,
+  return { seq, eventType: type, runId: run.id, spaceId: run.spaceId, agentId: run.agentId,
     protocolSchemaVersion: 2, sourceEventId: `source-${seq}`, sourceInstanceId: "source", sourceSeq: seq,
     payload: { orpEvent: { schema: "outpost.orp.event.v2", schemaVersion: 2, eventType: type, runId: run.id,
       sourceKind: "runner", sourceEventId: `source-${seq}`, sourceInstanceId: "source", sourceSeq: seq, payload } } };
@@ -46,14 +46,14 @@ describe("deployment-independent active follow-up", () => {
     for (const rows of [[], events().slice(0, 1), [...events(), event(3, "tool.execution.completed", { ...command, status: "completed" })],
       [...events(), event(3, "turn.completed")], [...events(), event(3, "turn.started")], [events()[0]!, event(2, "tool.execution.started", { ...command, operation: "read" })],
       [events()[0]!, event(2, "tool.execution.started", { ...command, readOnly: true })],
-      [events()[0]!, event(2, "tool.execution.started", { ...command, name: "paperclip_finish" })],
-      [events()[0]!, event(2, "tool.execution.started", { ...command, name: "paperclip_block" })],
-      [events()[0]!, event(2, "tool.execution.started", { ...command, namespace: "paperclip" })],
+      [events()[0]!, event(2, "tool.execution.started", { ...command, name: "outpost_finish" })],
+      [events()[0]!, event(2, "tool.execution.started", { ...command, name: "outpost_block" })],
+      [events()[0]!, event(2, "tool.execution.started", { ...command, namespace: "outpost" })],
       [events()[0]!, event(2, "tool.execution.started", { ...command, name: null })],
       [events()[0]!, event(2, "tool.execution.started", { ...command, transport: "mcp" })],
       [events()[0]!, event(3, "tool.execution.started", command)],
       [...events(), event(3, "tool.execution.started", command)]]) expect(activeFollowupBoundary(run, rows)).toBeNull();
-    for (const field of ["companyId", "agentId", "runId", "sourceEventId", "sourceInstanceId", "sourceSeq", "protocolSchemaVersion"]) {
+    for (const field of ["spaceId", "agentId", "runId", "sourceEventId", "sourceInstanceId", "sourceSeq", "protocolSchemaVersion"]) {
       const rows = events(); rows[1]![field] = "wrong"; expect(activeFollowupBoundary(run, rows)).toBeNull();
     }
     const rows = events(); rows[0]!.payload.orpEvent.sourceKind = "control_plane";
@@ -80,9 +80,9 @@ describe("deployment-independent active follow-up", () => {
     const shell = mapped("bash");
     expect(shell.payload).toMatchObject({ transport: "builtin", operation: "execute", name: "bash", readOnly: false, status: "running" });
     expect(activeFollowupBoundary(run, [event(1, "turn.started"), event(2, shell.eventType, shell.payload)])).toMatchObject({ runId: "run", startedSeq: 2 });
-    for (const semantic of [mapped("paperclip_finish"), mapped("paperclip_block"), mapped("paperclip_report_progress"),
-      mapped("paperclip_paperclip_finish"), mapped("unknown", "functions.paperclip_block:0"),
-      mapped("functions.paperclip_finish"), mapped("mcp__paperclip__paperclip_block"), mapped("outpost.paperclip_report_progress")]) {
+    for (const semantic of [mapped("outpost_finish"), mapped("outpost_block"), mapped("outpost_report_progress"),
+      mapped("outpost_outpost_finish"), mapped("unknown", "functions.outpost_block:0"),
+      mapped("functions.outpost_finish"), mapped("mcp__outpost__outpost_block"), mapped("outpost.outpost_report_progress")]) {
       expect(semantic.payload).toMatchObject({ transport: "builtin", operation: "execute", readOnly: false, status: "running" });
       expect(activeFollowupBoundary(run, [event(1, "turn.started"), event(2, semantic.eventType, semantic.payload)])).toBeNull();
     }
@@ -93,10 +93,10 @@ describe("deployment-independent active follow-up", () => {
   it("recognizes the observed legacy v1 builtin bash shape without admitting unknown operations generally", () => {
     const before = activeFollowupBoundary(run, legacyEvents());
     expect(before).toMatchObject({ runId: "run", executionId: "wait", startedSeq: 81, sourceSeq: 12 });
-    for (const change of [{ name: "unknown" }, { name: "custom-command" }, { name: "paperclip_finish" }, { name: "paperclip_block" },
-      { name: "paperclip_report_progress" }, { name: "functions.paperclip_finish" }, { readOnly: true }, { readOnly: undefined },
-      { transport: "process" }, { namespace: "paperclip" }]) expect(activeFollowupBoundary(run, legacyEvents(change))).toBeNull();
-    for (const field of ["companyId", "agentId", "runId", "sourceEventId", "sourceInstanceId", "sourceSeq", "protocolSchemaVersion"]) {
+    for (const change of [{ name: "unknown" }, { name: "custom-command" }, { name: "outpost_finish" }, { name: "outpost_block" },
+      { name: "outpost_report_progress" }, { name: "functions.outpost_finish" }, { readOnly: true }, { readOnly: undefined },
+      { transport: "process" }, { namespace: "outpost" }]) expect(activeFollowupBoundary(run, legacyEvents(change))).toBeNull();
+    for (const field of ["spaceId", "agentId", "runId", "sourceEventId", "sourceInstanceId", "sourceSeq", "protocolSchemaVersion"]) {
       const rows = legacyEvents(); rows[80]![field] = "foreign";
       expect(activeFollowupBoundary(run, rows)).toBeNull();
     }

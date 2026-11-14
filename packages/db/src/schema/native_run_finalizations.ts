@@ -10,7 +10,7 @@ import {
   index,
   jsonb,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { issues } from "./issues.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 import { nativeRunResults } from "./native_run_results.js";
@@ -21,7 +21,7 @@ export const nativeRunFinalizations = pgTable(
   "native_run_finalizations",
   {
     runId: uuid("run_id").primaryKey(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     issueId: uuid("issue_id").notNull(),
     phase: text("phase").notNull(),
     attempt: integer("attempt").notNull().default(0),
@@ -59,10 +59,10 @@ export const nativeRunFinalizations = pgTable(
   },
   (table) => ({
     pendingEffectOwnerIdx: index("native_run_finalizations_pending_effect_owner_idx")
-      .on(table.companyId, table.issueId, table.decisionId)
+      .on(table.spaceId, table.issueId, table.decisionId)
       .where(sql`${table.decisionId} is not null AND ${table.resultId} is not null AND ${table.phase} <> 'terminal_failure'`),
     unsafeExportRecoveryIdx: index("native_run_finalizations_unsafe_export_recovery_idx")
-      .on(table.companyId, table.issueId, table.runId)
+      .on(table.spaceId, table.issueId, table.runId)
       .where(sql`${table.phase} = 'terminal_failure' AND ${table.failureCode} = 'native_workspace_sync_out_unsafe_archive'`),
     // The `native_accepted_result_lease` ownership kind: outstanding executor
     // leases on an accepted result that is not final yet (reconciler listing).
@@ -79,20 +79,20 @@ export const nativeRunFinalizations = pgTable(
       .where(sql`${table.resultId} is not null AND ${table.leaseOwner} is not null AND ${table.phase} not in ('committed', 'terminal_failure', 'applied')`),
     controlDeadlineIdx: index("native_run_finalizations_control_deadline_idx")
       .on(table.controlDeadlineAt).where(sql`${table.controlDeadlineAt} is not null`),
-    issueCompanyFk: foreignKey({
-      columns: [table.companyId, table.issueId],
-      foreignColumns: [issues.companyId, issues.id],
-      name: "native_run_finalizations_issue_company_fk",
+    issueSpaceFk: foreignKey({
+      columns: [table.spaceId, table.issueId],
+      foreignColumns: [issues.spaceId, issues.id],
+      name: "native_run_finalizations_issue_space_fk",
     }),
     runOwnerFk: foreignKey({
-      columns: [table.companyId, table.issueId, table.runId],
-      foreignColumns: [heartbeatRuns.companyId, heartbeatRuns.nativeIssueId, heartbeatRuns.id],
+      columns: [table.spaceId, table.issueId, table.runId],
+      foreignColumns: [heartbeatRuns.spaceId, heartbeatRuns.nativeIssueId, heartbeatRuns.id],
       name: "native_run_finalizations_run_owner_fk",
     }),
     resultOwnerFk: foreignKey({
-      columns: [table.companyId, table.issueId, table.runId, table.resultId],
+      columns: [table.spaceId, table.issueId, table.runId, table.resultId],
       foreignColumns: [
-        nativeRunResults.companyId,
+        nativeRunResults.spaceId,
         nativeRunResults.issueId,
         nativeRunResults.runId,
         nativeRunResults.id,
@@ -100,9 +100,9 @@ export const nativeRunFinalizations = pgTable(
       name: "native_run_finalizations_result_owner_fk",
     }),
     assessmentOwnerFk: foreignKey({
-      columns: [table.companyId, table.issueId, table.runId, table.assessmentId],
+      columns: [table.spaceId, table.issueId, table.runId, table.assessmentId],
       foreignColumns: [
-        workAssessments.companyId,
+        workAssessments.spaceId,
         workAssessments.issueId,
         workAssessments.runId,
         workAssessments.id,
@@ -111,14 +111,14 @@ export const nativeRunFinalizations = pgTable(
     }),
     decisionOwnerFk: foreignKey({
       columns: [
-        table.companyId,
+        table.spaceId,
         table.issueId,
         table.runId,
         table.assessmentId,
         table.decisionId,
       ],
       foreignColumns: [
-        statusDecisions.companyId,
+        statusDecisions.spaceId,
         statusDecisions.issueId,
         statusDecisions.runId,
         statusDecisions.assessmentId,

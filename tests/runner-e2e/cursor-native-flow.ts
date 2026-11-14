@@ -55,11 +55,11 @@ export interface CursorRemoteBootstrap {
 
 /** Runs inside the awaited bootstrap callback, before action publication. */
 export async function prepareCursorRemoteAction(input: {
-  fixture: CursorRemoteNativeFixture; companyId: string; environmentId: string; runId: string;
+  fixture: CursorRemoteNativeFixture; spaceId: string; environmentId: string; runId: string;
   prompt: string; deniedRelative?: string;
 }) {
   const { fixture } = input;
-  if (fixture.binding.runId !== input.runId || fixture.binding.companyId !== input.companyId || fixture.binding.environmentId !== input.environmentId || fixture.remoteCwd !== fixture.binding.remoteCwd) throw new Error("Cursor bootstrap lease belongs to another run or workspace");
+  if (fixture.binding.runId !== input.runId || fixture.binding.spaceId !== input.spaceId || fixture.binding.environmentId !== input.environmentId || fixture.remoteCwd !== fixture.binding.remoteCwd) throw new Error("Cursor bootstrap lease belongs to another run or workspace");
   const baseline = await fixture.snapshot("before-action-publication");
   assertCursorRemoteSnapshot(baseline, fixture.binding);
   const initial = input.deniedRelative ? cursorRemoteDeniedSample(baseline, fixture.binding, input.deniedRelative, "before-request") : null;
@@ -117,7 +117,7 @@ export async function runCursorNativeFlow(input: {
   check("explicit-mode-policy", configured.adapterConfig.acpxSessionMode === design.mode && configured.adapterConfig.acpxPermissionMode === design.permissionMode, "Public agent configuration selected mode and permission policy separately before provider startup");
   if (remote || design.id === "native-write-deny-reconnect") check("per-turn-process-authority", configured.adapterConfig.lifecycleMode === "per_turn" && configured.adapterConfig.timeoutSec === 120, "Public configuration admits a bounded per-turn provider process before startup");
   await input.evidence("cursor-native-contract.json", { caseId: design.id, mode: design.mode, permissionMode: design.permissionMode, method: design.method, expectedRunCount: 1, nativeCallbackRequired: true, artifactGate: cursorNativePlanArtifactGate });
-  const project = await api.post<Row>(`/api/companies/${fixtures.company.id}/projects`, {
+  const project = await api.post<Row>(`/api/spaces/${fixtures.space.id}/projects`, {
     name: `Cursor native workspace ${nonce}`, executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", sharedWorkspaceConcurrency: "serialize", allowIssueOverride: false, environmentId: fixtures.environment.id, workspaceStrategy: { type: "project_primary" } },
     workspace: { name: "Primary", sourceType: "local_path", cwd: input.workspacePath, isPrimary: true },
   });
@@ -219,7 +219,7 @@ export async function runCursorNativeFlow(input: {
   });
   const load = async () => {
     issue = await api.get<Row>(`/api/issues/${issue.id}`);
-    const listed = await api.get<Row[]>(`/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100`);
+    const listed = await api.get<Row[]>(`/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100`);
     runs = await Promise.all(listed.map(run => api.get<Row>(`/api/heartbeat-runs/${run.id}`)));
     runs.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))); input.observe(issue, runs);
     if (watch) processes = observeProcesses();
@@ -263,8 +263,8 @@ export async function runCursorNativeFlow(input: {
   let expectedMarker = execution.task.buildVisibleMarker(nonce);
   try {
     if (!remote && design.id === "native-write-deny-reconnect") await sampleDenied("before-request");
-    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt: remote ? input.remoteBootstrap!.prompt(nonce) : execution.task.buildPrompt(nonce) + (watch ? `\nExact native shell command (copy verbatim):\n${deniedCommand!.command}` : ""), workMode: "standard", projectName: project.name, requireExplicitTitle: design.id === "native-write-deny-reconnect" });
-    issue = await pollUntil({ label: "browser-created Cursor task", deadlineAt: input.deadlineAt, load: async () => (await api.get<Row[]>(`/api/companies/${fixtures.company.id}/issues?limit=100`)).find(row => row.id === createdTask.issueId), accept: Boolean }) ?? {};
+    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt: remote ? input.remoteBootstrap!.prompt(nonce) : execution.task.buildPrompt(nonce) + (watch ? `\nExact native shell command (copy verbatim):\n${deniedCommand!.command}` : ""), workMode: "standard", projectName: project.name, requireExplicitTitle: design.id === "native-write-deny-reconnect" });
+    issue = await pollUntil({ label: "browser-created Cursor task", deadlineAt: input.deadlineAt, load: async () => (await api.get<Row[]>(`/api/spaces/${fixtures.space.id}/issues?limit=100`)).find(row => row.id === createdTask.issueId), accept: Boolean }) ?? {};
     if (!issue.id) throw new Error("Browser-created Cursor task is absent");
     if (remote) {
       const started = await pollUntil({ label: "exact Cursor bootstrap run", deadlineAt: input.deadlineAt, load, reject,
@@ -275,7 +275,7 @@ export async function runCursorNativeFlow(input: {
         actionPrompt: async fixture => {
           if (remoteFixture) throw new Error("Cursor remote action was published more than once");
           remoteFixture = fixture;
-          const prepared = await prepareCursorRemoteAction({ fixture, runId, companyId: fixtures.company.id, environmentId: fixtures.environment.id,
+          const prepared = await prepareCursorRemoteAction({ fixture, runId, spaceId: fixtures.space.id, environmentId: fixtures.environment.id,
             prompt: execution.task.buildPrompt(nonce), ...(design.id === "native-write-deny-reconnect" ? { deniedRelative } : {}) });
           remoteBaseline = prepared.baseline;
           if (prepared.initial && prepared.command) {
@@ -286,7 +286,7 @@ export async function runCursorNativeFlow(input: {
       if (!remoteFixture || boundFixture !== remoteFixture || boundFixture.binding.runId !== runId) throw new Error("Cursor remote observer is missing its run binding");
       await input.evidence("cursor-remote-baseline.json", remoteBaseline);
     }
-    await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
+    await page.goto(`/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
     const seen = new Set<string>();
     if (design.id === "native-question-reconnect") {
       const { card, event } = await pending(seen); const questions = card.payload.questionSet.questions;

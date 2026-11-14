@@ -36,7 +36,7 @@ export type ProviderConnection = {
   applyStoredClaudeLogin?: boolean;
 };
 export function AgentProviderConnection({
-  companyId,
+  spaceId,
   adapterType,
   environmentId,
   canLogin,
@@ -51,7 +51,7 @@ export function AgentProviderConnection({
   managedAccount,
   advancedConnection,
 }: {
-  companyId: string;
+  spaceId: string;
   adapterType: "claude_local" | "codex_local" | "grok_local" | "antigravity_runtime";
   environmentId: string | null;
   canLogin: boolean;
@@ -114,7 +114,7 @@ export function AgentProviderConnection({
   const envKey =
     adapterType === "antigravity_runtime" ? "GEMINI_API_KEY" : adapterType === "claude_local" ? "ANTHROPIC_API_KEY" : adapterType === "grok_local" ? "XAI_API_KEY" : "OPENAI_API_KEY";
   const aiProvider = adapterType === "antigravity_runtime" ? "google" : adapterType === "claude_local" ? "anthropic" : adapterType === "grok_local" ? "xai" : "openai";
-  const availableKeys = useSavedProviderKeys(companyId, envKey);
+  const availableKeys = useSavedProviderKeys(spaceId, envKey);
   // Add/reconnect creates the requested account, never copies a saved account's
   // credential or silently changes its ownership. Agent setup retains reuse.
   const savedKeys = managedAccount
@@ -157,20 +157,20 @@ export function AgentProviderConnection({
       ? managedAccount.intent.name
       : managedAccount.nameForMethod?.(authMethod) ?? managedAccount.intent.name,
   } : undefined;
-  const localLogin = useLocalAiLogin(companyId, managedIntent ?? {
+  const localLogin = useLocalAiLogin(spaceId, managedIntent ?? {
     provider: aiProvider, method: "subscription", name: `My ${provider} subscription`,
     ownership: "personal", agentIds: [], allAgents: true,
   }, !advanced && canUseLocalLogin && method === "subscription" && !savedSubscription && !storedLogin.data,
   );
   const auth = useQuery({
     queryKey: queryKeys.agents.authSignal(
-      companyId,
+      spaceId,
       adapterType,
       environmentId,
     ),
     queryFn: () =>
       agentsApi.getAdapterAuthSignal(
-        companyId,
+        spaceId,
         adapterType,
         environmentId ?? undefined,
       ),
@@ -185,7 +185,7 @@ export function AgentProviderConnection({
       if (managedAccount && managedIntent) {
         if (method === "subscription" && !canUseLocalLogin) return;
         const result = savedManagedAccount.current ?? await (method === "api"
-          ? aiConnectionsApi.create(companyId, { ...managedIntent, method: "api_key", apiKey: apiKey.trim() })
+          ? aiConnectionsApi.create(spaceId, { ...managedIntent, method: "api_key", apiKey: apiKey.trim() })
           : localLogin.connect(managedIntent));
         savedManagedAccount.current = result;
         setApiKey("");
@@ -217,7 +217,7 @@ export function AgentProviderConnection({
         connection = { env: {}, aiConnection: { provider: aiProvider, method: "subscription", mode: "responsible_user" } };
       }
       if (connection.credentials) {
-        await aiConnectionsApi.create(companyId, { provider: aiProvider, method: "api_key", name: `My ${provider} API`, ownership: "personal", apiKey: connection.credentials[envKey], agentIds: [], allAgents: true });
+        await aiConnectionsApi.create(spaceId, { provider: aiProvider, method: "api_key", name: `My ${provider} API`, ownership: "personal", apiKey: connection.credentials[envKey], agentIds: [], allAgents: true });
         connection = { env: {}, aiConnection: { provider: aiProvider, method: "api_key", mode: "responsible_user" } };
       }
       if (run !== epoch.current) return;
@@ -378,7 +378,7 @@ export function AgentProviderConnection({
               <AdapterLoginPanel
                 requiresAgent={requiresAgent}
                 agentId={agentId}
-                companyId={companyId}
+                spaceId={spaceId}
                 adapterType={adapterType}
                 environmentId={environmentId}
                 chrome="onboarding"
@@ -401,7 +401,7 @@ export function AgentProviderConnection({
                     if (!sessionId) { setError("The login did not return a saved connection. Try again."); return; }
                     const run = epoch.current;
                     setLoginPhase("connecting");
-                    void aiConnectionsApi.loginResult(companyId, sessionId).then((result) => {
+                    void aiConnectionsApi.loginResult(spaceId, sessionId).then((result) => {
                       if (run === epoch.current) managedAccount.onComplete({ ...result, method: "subscription" });
                     }).catch(() => {
                       if (run !== epoch.current) return;

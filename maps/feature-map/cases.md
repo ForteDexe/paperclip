@@ -36,13 +36,13 @@ Agent access: [companion](../agent-access-map/cases.md).
 
 ### `case-list`
 
-Open Cases in the company sidebar (`/:companyPrefix/cases`). The task-style header has Search and four icon controls: Columns, Filter (with an active-filter count), Sort and Group. Filter opens status/type/project choices, including No project. Sort offers updated/created/title/status/type and toggles direction; Group offers none/status/type/project. Open a row; the breadcrumb returns to the same filters and view. Cases have no Kanban or New case control.
+Open Cases in the space sidebar (`/:spacePrefix/cases`). The task-style header has Search and four icon controls: Columns, Filter (with an active-filter count), Sort and Group. Filter opens status/type/project choices, including No project. Sort offers updated/created/title/status/type and toggles direction; Group offers none/status/type/project. Open a row; the breadcrumb returns to the same filters and view. Cases have no Kanban or New case control.
 
 ### `case-record`
 
 Open `/cases/:caseIdentifier` or a task’s linked case.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Enable cases and prepare related records with different types/statuses plus an associated task.
 
@@ -62,7 +62,7 @@ Manual: Inspect Work above Details in one column. Read nested values as compact 
 
 ### `case-handoff`
 
-Reusable company workflows have only a name and Markdown prompt plus ordinary
+Reusable space workflows have only a name and Markdown prompt plus ordinary
 identity/attribution. Agent/API authoring shares the Cases flag. Work shows the
 current workflow; pending intent shows the next name/phase; expanded handoffs and
 Audit retain names captured before renames. Switch A → B → A, refresh the current
@@ -135,7 +135,7 @@ Capability ID: `cases/browse`.
 
 Scope: ui
 Storybook: Mount the production Cases page in its real shell: Columns/Filter/Sort/Group header controls, URL view state, search/status/type/project filters, No project, result paging, list-to-detail return, keyboard navigation and empty/loading/error recovery. The ListControls story changes columns, title sorting and type grouping using fixture query responses.
-Production: GET /companies/{id}/cases and /cases/types scope/filter behavior and ordering before pagination require production evidence; rendered fixtures establish presentation only. Mutation/permission scenarios need real API checks separately.
+Production: GET /spaces/{id}/cases and /cases/types scope/filter behavior and ordering before pagination require production evidence; rendered fixtures establish presentation only. Mutation/permission scenarios need real API checks separately.
 Sources: Source: [Cases.tsx](../../ui/src/pages/Cases.tsx), [cases.ts](../../server/src/routes/cases.ts). Tests: [Cases.test.tsx](../../ui/src/pages/Cases.test.tsx), [cases-routes.test.ts](../../server/src/__tests__/cases-routes.test.ts)
 
 #### `structure`
@@ -144,7 +144,7 @@ Capability ID: `cases/structure`.
 
 Scope: ui
 Storybook: Mount read-only CaseDetail and CaseFieldsTable with nested objects, singleton/multiple object arrays and scalar reference links in a compact monospace key/value table, alongside documents, attachments, parent/children and unavailable references. Dotted leaf paths omit the index for a singleton object array and retain it for multiple entries. CaseDetail shows Work above Details in one column. The older CaseFieldsPanel arbitrary/empty examples retain their generic component scope. Do not invent a general field editor or typed field validation.
-Production: GET /cases/{id} and the parent-filtered case list must return permitted company records and correct relationships; changes/persistence require route tests separately.
+Production: GET /cases/{id} and the parent-filtered case list must return permitted space records and correct relationships; changes/persistence require route tests separately.
 Sources: Source: [CaseDetail.tsx](../../ui/src/pages/CaseDetail.tsx), [CaseFieldsPanel.tsx](../../ui/src/components/CaseFieldsPanel.tsx), [Cases.tsx](../../ui/src/pages/Cases.tsx), [cases.ts](../../server/src/routes/cases.ts). Tests: [CaseFieldsPanel.test.tsx](../../ui/src/components/CaseFieldsPanel.test.tsx), [Cases.test.tsx](../../ui/src/pages/Cases.test.tsx), [CaseDetail.test.tsx](../../ui/src/pages/CaseDetail.test.tsx), [cases-routes.test.ts](../../server/src/__tests__/cases-routes.test.ts)
 
 #### `history`
@@ -153,7 +153,7 @@ Capability ID: `cases/history`.
 
 Scope: ui
 Storybook: Mount CaseDetail's View in Audit link with the case UUID query scope, and document revisions. Preserve the historical ActivityHistory export/ID for its Audit-navigation example. The destination Audit feed is a separate production surface, not reproduced in the case fixture shell.
-Production: The case-scoped Audit query must include retained historical case events, enforce the same case access boundary, and deduplicate events also recorded in the activity log. Case/Case action filters and configured agent avatars need real Audit/browser checks. GET /cases/{id}/events and /cases/{id}/documents/{key}/revisions still require company/access filtering; fixtures do not establish durable creation, privacy or restoration.
+Production: The case-scoped Audit query must include retained historical case events, enforce the same case access boundary, and deduplicate events also recorded in the activity log. Case/Case action filters and configured agent avatars need real Audit/browser checks. GET /cases/{id}/events and /cases/{id}/documents/{key}/revisions still require space/access filtering; fixtures do not establish durable creation, privacy or restoration.
 Sources: Source: [CaseDetail.tsx](../../ui/src/pages/CaseDetail.tsx), [cases.ts](../../server/src/routes/cases.ts). Tests: [CaseDetail.test.tsx](../../ui/src/pages/CaseDetail.test.tsx), [cases-routes.test.ts](../../server/src/__tests__/cases-routes.test.ts)
 
 #### `task-links`
@@ -162,7 +162,7 @@ Capability ID: `cases/task-links`.
 
 Scope: ui
 Storybook: Mount CaseDetail and IssueCasesPanel related-task/case links in both directions, missing links and unavailable targets.
-Production: GET /issues/{id}/cases and /cases/{id}/issue-links must enforce permitted task/case relationships; production browser cold links verify destination and company context.
+Production: GET /issues/{id}/cases and /cases/{id}/issue-links must enforce permitted task/case relationships; production browser cold links verify destination and space context.
 Sources: Source: [CaseDetail.tsx](../../ui/src/pages/CaseDetail.tsx), [IssueCasesPanel.tsx](../../ui/src/components/IssueCasesPanel.tsx), [cases.ts](../../server/src/routes/cases.ts). Tests: [IssueCasesPanel.test.tsx](../../ui/src/components/IssueCasesPanel.test.tsx), [CaseDetail.test.tsx](../../ui/src/pages/CaseDetail.test.tsx), [cases-routes.test.ts](../../server/src/__tests__/cases-routes.test.ts)
 
 #### `handoffs`
@@ -171,5 +171,5 @@ Capability ID: `cases/handoffs`.
 
 Scope: ui
 Storybook: Read-only pages and CaseWorkSummary mount production task/phase/history with waiting and paused-recipient API fixtures. No handoff mutation controls are exposed on these pages.
-Production: POST /companies/{id}/case-handoffs and GET /cases/{id}/handoffs require company/task authorization, retained-source privacy, observed revisions, and durable admission. Retry/cancel retain task-control authority. Native and legacy provider/workspace settlement require runtime evidence.
+Production: POST /spaces/{id}/case-handoffs and GET /cases/{id}/handoffs require space/task authorization, retained-source privacy, observed revisions, and durable admission. Retry/cancel retain task-control authority. Native and legacy provider/workspace settlement require runtime evidence.
 Sources: Source: [CaseWorkSummary.tsx](../../ui/src/components/cases/CaseWorkSummary.tsx), [case-handoffs.ts](../../server/src/services/case-handoffs.ts), [case-handoff-delivery.ts](../../server/src/services/case-handoff-delivery.ts). Tests: [CaseDetail.test.tsx](../../ui/src/pages/CaseDetail.test.tsx)

@@ -2,7 +2,7 @@
  * This scripts a synthetic external worker through production HTTP/native Runner
  * surfaces. It is not a registered Product E2E campaign or live Muse qualification.
  * pnpm --filter @outpost/server exec tsx scripts/muse-runner-smoke.ts --run --base http://127.0.0.1:3311 \
- *   --auth-file /private/path/operator.json --company <uuid> --agent <uuid> \
+ *   --auth-file /private/path/operator.json --space <uuid> --agent <uuid> \
  *   --instance <instance-id> --server-source-sha <40-char-sha> --evidence-dir /private/path/evidence
  */
 import assert from "node:assert/strict";
@@ -12,7 +12,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { digestPaperclipSemanticContent } from "../src/vendor/outpost-runner/index.js";
+import { digestOutpostSemanticContent } from "../src/vendor/outpost-runner/index.js";
 
 type Json = Record<string, unknown>;
 function object(value: unknown): Json {
@@ -27,32 +27,32 @@ function option(name: string): string {
   return process.argv[index + 1];
 }
 if (process.argv.includes("--help")) {
-  console.log("Synthetic Muse smoke: --run --base <loopback-url> --auth-file <private-json> --company <uuid> --agent <uuid> --instance <instance-id> --server-source-sha <sha> --evidence-dir <private-dir>");
+  console.log("Synthetic Muse smoke: --run --base <loopback-url> --auth-file <private-json> --space <uuid> --agent <uuid> --instance <instance-id> --server-source-sha <sha> --evidence-dir <private-dir>");
   process.exit(0);
 }
 assert.ok(process.argv.includes("--run"), "Pass --run for this bounded synthetic smoke");
 const base = new URL(option("--base"));
 assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(base.hostname), "Use an isolated loopback server");
 assert.ok(["http:", "https:"].includes(base.protocol) && !base.username && !base.password && base.pathname === "/");
-const authFile = option("--auth-file"), companyId = option("--company"), agentId = option("--agent");
+const authFile = option("--auth-file"), spaceId = option("--space"), agentId = option("--agent");
 const serverSourceSha = option("--server-source-sha"), instanceId = option("--instance");
 assert.match(serverSourceSha, /^[a-f0-9]{40}$/);
-assert.match(companyId, /^[a-f0-9-]{36}$/); assert.match(agentId, /^[a-f0-9-]{36}$/);
+assert.match(spaceId, /^[a-f0-9-]{36}$/); assert.match(agentId, /^[a-f0-9-]{36}$/);
 const evidenceDirectory = resolve(option("--evidence-dir"));
 await mkdir(evidenceDirectory, { recursive: true, mode: 0o700 });
 const operator = object(JSON.parse(await readFile(authFile, "utf8")));
 const cookie = string(operator.cookie);
 assert.equal(operator.base, base.origin, "The private operator session must belong to this target");
-assert.equal(operator.companyId, companyId, "Use the authorized isolated company");
+assert.equal(operator.spaceId, spaceId, "Use the authorized isolated space");
 const startedAt = new Date().toISOString(), deadline = Date.now() + 5 * 60_000;
 const marker = `synthetic-muse-${randomUUID()}`;
-const bindingPath = `/api/companies/${companyId}/agents/${agentId}/muse-binding`;
+const bindingPath = `/api/spaces/${spaceId}/agents/${agentId}/muse-binding`;
 const evidence: Json = {
   schema: "outpost.synthetic-muse-smoke.v1", synthetic: true,
   registeredCampaign: false, liveMuseQualification: false, browserVerified: false,
   sourceSha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), serverSourceSha,
   scriptSha256: createHash("sha256").update(await readFile(fileURLToPath(import.meta.url))).digest("hex"),
-  target: base.origin, companyId, agentId, marker, startedAt,
+  target: base.origin, spaceId, agentId, marker, startedAt,
   worker: "scripted HTTP peer; no real Muse, model, or hooks installation",
   profile: { provider: "muse", driver: "muse_external", bridgeRevision: "muse-v1", expectedTurns: 2 },
   accounting: { providerCalls: 0, usage: null, cost: null, coverage: "unavailable" },
@@ -104,12 +104,12 @@ async function until<T>(name: string, read: () => Promise<T>, predicate: (value:
 }
 async function signal() {
   await http("/api/muse/v1/signal", "GET", undefined, undefined, false,
-    { "X-Paperclip-Muse-Binding": string(credentials?.bindingId) });
+    { "X-Outpost-Muse-Binding": string(credentials?.bindingId) });
   detectorRequests++;
 }
 async function assignment(): Promise<Json> {
   return until<Json>("an offered assignment", async () => {
-    const runs = rows(await board(`/api/companies/${companyId}/heartbeat-runs?agentId=${agentId}&limit=100`));
+    const runs = rows(await board(`/api/spaces/${spaceId}/heartbeat-runs?agentId=${agentId}&limit=100`));
     const terminal = runs.find(run => !runIds.includes(string(run.id))
       && (run.issueId === issueId || run.nativeIssueId === issueId || object(run.contextSnapshot ?? {}).issueId === issueId)
       && ["failed", "cancelled", "timed_out"].includes(String(run.status)));
@@ -144,7 +144,7 @@ async function finish(work: Json, summary: string): Promise<void> {
     completionClaim: { contractRevision: string(contract.revision), objectiveSatisfied: true,
       criteria: (contract.criterionIds as unknown[]).map(id => ({ criterionId: string(id), status: "passed", evidenceRefs: [] })), remainingWork: [] },
     evidence: [], verification: [{ commandOrCheck: "Independent board document readback", status: "pass" }] };
-  const receipt = await command({ command: "tool", assignmentId: work.assignmentId, name: "paperclip_finish", arguments: result });
+  const receipt = await command({ command: "tool", assignmentId: work.assignmentId, name: "outpost_finish", arguments: result });
   const canonical = object(object(receipt.result).completionReport);
   assert.equal(canonical.schema, "outpost.run_result.v1"); assert.equal(canonical.reportedWorkDisposition, "done");
   await command({ command: "finish", assignmentId: work.assignmentId, result: canonical });
@@ -196,7 +196,7 @@ try {
   const verifier = randomUUID() + randomUUID(), state = randomUUID();
   const authorization = new URL("/api/muse/v1/oauth/authorize", base);
   authorization.search = new URLSearchParams({ client_id: string(client.client_id), redirect_uri: redirectUri,
-    response_type: "code", scope: "paperclip:agent offline_access", state,
+    response_type: "code", scope: "outpost:agent offline_access", state,
     code_challenge: createHash("sha256").update(verifier).digest("base64url"), code_challenge_method: "S256",
     pairing_ticket: string(pairing.ticket) }).toString();
   const authorized = await fetch(authorization, { redirect: "manual", signal: AbortSignal.timeout(15000) });
@@ -211,7 +211,7 @@ try {
   assert.equal(tokens.expires_in, 900);
   credentials = { bindingId: pairing.bindingId, generation: pairing.generation, accessToken: string(tokens.access_token) };
   const identified = await query({ query: "identify" });
-  assert.equal(identified.companyId, companyId); assert.equal(identified.agentId, agentId);
+  assert.equal(identified.spaceId, spaceId); assert.equal(identified.agentId, agentId);
   evidence.authentication = "synthetic DCR + single-use pairing ticket + S256 PKCE; tokens only in memory";
   evidence.signalMode = "public_binding_header";
   evidence.liveMuseDetectorCompatible = evidence.signalMode === "public_binding_header";
@@ -227,7 +227,7 @@ try {
   const ready = object(object(await board(bindingPath)).binding);
   assert.equal(ready.status, "ready"); assert.equal(ready.receiverDetected, true); assert.equal(ready.backgroundReplyVerified, true);
   step("synthetic-readiness-verified");
-  const created = object(await board(`/api/companies/${companyId}/issues`, "POST", {
+  const created = object(await board(`/api/spaces/${spaceId}/issues`, "POST", {
     title: `Synthetic Muse native smoke ${marker}`, description: "A deterministic two-turn operator smoke. Write the synthetic report, ask its native question, finish, then apply the synthetic follow-up.",
     status: "todo", assigneeAgentId: agentId, responsibleUserId: operator.userId, reviewPolicy: null, priority: "low",
   }));
@@ -258,7 +258,7 @@ try {
     answers: [{ questionId: "environment", optionIds: ["test"] }] })); assert.equal(answered.status, "answered");
   const input = await until("durable answer input", () => query({ query: "input.pending", assignmentId: first.assignmentId, nativeRequestId }), value => typeof value.inputDigest === "string");
   assert.equal(input.requestId, nativeRequestId); assert.equal(input.turnId, object(first.binding).turnId);
-  assert.equal(input.inputDigest, digestPaperclipSemanticContent({ requestId: nativeRequestId, turnId: input.turnId, response: input.response }));
+  assert.equal(input.inputDigest, digestOutpostSemanticContent({ requestId: nativeRequestId, turnId: input.turnId, response: input.response }));
   const resolvedEvent = await until("durable native answer resolution", async () =>
     rows(await board(`/api/heartbeat-runs/${runIds[0]}/events?limit=1000`)).find(row => {
       if (row.eventType !== "runtime_request.resolved") return false;
@@ -294,7 +294,7 @@ try {
   evidence.followUp = { reopenCommentId: reopen.id, activeCommentId: followUp.id, mailboxReference: true, successfulHistoryReceipt: true, reportRevised: true };
   await finish(second, "Applied the synthetic follow-up to the report.");
   await delay(1500);
-  const runs = rows(await board(`/api/companies/${companyId}/heartbeat-runs?agentId=${agentId}&limit=100`)).filter(run =>
+  const runs = rows(await board(`/api/spaces/${spaceId}/heartbeat-runs?agentId=${agentId}&limit=100`)).filter(run =>
     run.issueId === issueId || run.nativeIssueId === issueId || object(run.contextSnapshot ?? {}).issueId === issueId);
   assert.equal(runs.length, 2, "Unread follow-up must not create a third run"); assert.ok(runs.every(run => run.status === "succeeded"));
   const completedRuns = await Promise.all(runs.map(async run => object(await board(`/api/heartbeat-runs/${string(run.id)}`))));

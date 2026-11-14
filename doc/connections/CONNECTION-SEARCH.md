@@ -11,13 +11,13 @@ is shared across the catalog scan.
 
 Discovery includes tool, channel/email, and AI methods. Channel methods follow
 the instance's Chat connectors experimental setting. Each catalog method names
-its `purpose`. Channel and AI methods include a company-scoped `setupPath` to
+its `purpose`. Channel and AI methods include a space-scoped `setupPath` to
 their existing setup flow. AgentMail also supports `connection_request`: it
 creates an inline API-key card addressed to the responsible user. Search guidance
 prefers this card over a setup link or asking for credentials in chat. Other
 channel methods continue to use their setup path.
 
-The AgentMail card grants company-wide human access and installs access only for
+The AgentMail card grants space-wide human access and installs access only for
 the requesting agent. It saves the credential, provisions or connects an inbox,
 and completes only after the server verifies that the assigned inbox is usable.
 A saved key alone does not make the search result ready. Partial setup can resume
@@ -47,7 +47,7 @@ The script also accepts a saved HTML file as its first argument for reproducible
 extraction. Review the resulting diff before committing it. Searches use this
 local snapshot and authorized indexed tool namespaces; they do not send user
 queries to a provider. Broad provider descriptions are not evidence of support.
-Configured connection metadata remains scoped to the current company and
+Configured connection metadata remains scoped to the current space and
 identity. Archived and unauthorized catalogs cannot establish an aggregator route.
 
 Built-in connections remain preferred for the same app. Existing AI access is

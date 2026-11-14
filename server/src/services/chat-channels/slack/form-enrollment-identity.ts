@@ -6,18 +6,18 @@ function actionId(value: readonly unknown[] | SlackFormPublicEnrollment): string
 }
 export function slackFormEnrollmentActionId(input: SlackFormPublicEnrollment): string {
   const e = parseSlackFormPublicEnrollment(input);
-  return actionId(["slack-form-owner/v2", e.version, e.instanceId, e.companyId, e.endpointId, e.publicId,
+  return actionId(["slack-form-owner/v2", e.version, e.instanceId, e.spaceId, e.endpointId, e.publicId,
     e.connectionId, e.runtimeGeneration, e.bindingId, e.teamId, e.appId]);
 }
 export function slackFormEnrollmentCompatibleActionIds(input: SlackFormPublicEnrollment): readonly string[] {
   const e = parseSlackFormPublicEnrollment(input);
-  const projected: SlackFormPublicEnrollment = { version: e.version, instanceId: e.instanceId, companyId: e.companyId,
+  const projected: SlackFormPublicEnrollment = { version: e.version, instanceId: e.instanceId, spaceId: e.spaceId,
     endpointId: e.endpointId, publicId: e.publicId, connectionId: e.connectionId, runtimeGeneration: e.runtimeGeneration,
     bindingId: e.bindingId, teamId: e.teamId, appId: e.appId };
-  const bindingDerived: SlackFormPublicEnrollment = { version: e.version, instanceId: e.instanceId, companyId: e.companyId,
+  const bindingDerived: SlackFormPublicEnrollment = { version: e.version, instanceId: e.instanceId, spaceId: e.spaceId,
     endpointId: e.endpointId, connectionId: e.connectionId, publicId: e.publicId, runtimeGeneration: e.runtimeGeneration,
     teamId: e.teamId, appId: e.appId, bindingId: e.bindingId };
-  const publicFirstBinding: SlackFormPublicEnrollment = { version: e.version, instanceId: e.instanceId, companyId: e.companyId,
+  const publicFirstBinding: SlackFormPublicEnrollment = { version: e.version, instanceId: e.instanceId, spaceId: e.spaceId,
     endpointId: e.endpointId, publicId: e.publicId, connectionId: e.connectionId, runtimeGeneration: e.runtimeGeneration,
     teamId: e.teamId, appId: e.appId, bindingId: e.bindingId };
   return [slackFormEnrollmentActionId(e), actionId(projected), actionId(bindingDerived), actionId(publicFirstBinding)];

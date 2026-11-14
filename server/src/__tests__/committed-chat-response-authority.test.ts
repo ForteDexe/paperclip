@@ -33,7 +33,7 @@ describe("committed response authority lifecycle", () => {
     const removeSecond = registerCommittedChatResponseAuthority(db, second);
     try {
       removeFirst();
-      const input = { companyId: "company", issueId: "issue", agentId: "agent", runId: "run", resultId: "result" };
+      const input = { spaceId: "space", issueId: "issue", agentId: "agent", runId: "run", resultId: "result" };
       await authorizeCommittedChatResponse(db, db, input);
       expect(first).not.toHaveBeenCalled();
       expect(second).toHaveBeenCalledExactlyOnceWith(db, input);

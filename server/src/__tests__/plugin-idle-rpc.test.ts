@@ -22,7 +22,7 @@ function fixture(definition: PluginDefinition, rpcTimeoutMs = 30_000) {
 
 describe("plugin idle RPC", () => {
   it.each(["preparing", "verifying", "pausing", "resuming", "terminating", "cleaning_up"] as const)("advertises and dispatches the %s lifecycle phase", async phase => {
-    const request = { companyId: "company", agentId: "agent", operationId: "operation", version: 7, phase };
+    const request = { spaceId: "space", agentId: "agent", operationId: "operation", version: 7, phase };
     const f = fixture({ async setup() {}, async onAgentLifecycle(input) {
       expect(input).toEqual(request);
       return { operationId: input.operationId, version: input.version, status: "pending" };
@@ -37,7 +37,7 @@ describe("plugin idle RPC", () => {
     const f = fixture({ async setup() {} });
     try {
       expect((await f.initialize()).result.supportedMethods).not.toContain("agentLifecycle");
-      expect((await f.call("agentLifecycle", { companyId: "company", agentId: "agent", operationId: "operation", version: 1, phase: "preparing" })).error).toBeDefined();
+      expect((await f.call("agentLifecycle", { spaceId: "space", agentId: "agent", operationId: "operation", version: 1, phase: "preparing" })).error).toBeDefined();
     } finally { f.close(); }
   });
 
@@ -88,7 +88,7 @@ describe("plugin idle RPC", () => {
   it.each([false, true])("logs session callback failures (async: %s)", async (asynchronous) => {
     let subscribe!: () => Promise<unknown>;
     const f = fixture({ async setup(ctx) {
-      subscribe = () => ctx.agents.sessions.sendMessage("fixture-session", "fixture-company", {
+      subscribe = () => ctx.agents.sessions.sendMessage("fixture-session", "fixture-space", {
         prompt: "fixture",
         onEvent: asynchronous
           ? async () => { throw new Error("fixture callback failure"); }

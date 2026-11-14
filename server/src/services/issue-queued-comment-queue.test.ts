@@ -137,13 +137,13 @@ describe("withQueuedCommentIdsInRunContext", () => {
     const result = withQueuedCommentIdsInRunContext({
       issueId: "issue-1",
       preserved: "keep",
-      paperclipWake: { comments: [{ id: "comment-1" }] },
-      paperclipWakeComment: { id: "comment-1" },
-      paperclipTaskMarkdown: "historical",
-      paperclipTaskMarkdownCompact: "historical compact",
-      paperclipTaskMarkdownAssignment: "assignment",
-      paperclipTaskMarkdownAssignmentCompact: "assignment compact",
-      paperclipTurnContext: { version: 1, events: { owner: "wake_prompt" } },
+      outpostWake: { comments: [{ id: "comment-1" }] },
+      outpostWakeComment: { id: "comment-1" },
+      outpostTaskMarkdown: "historical",
+      outpostTaskMarkdownCompact: "historical compact",
+      outpostTaskMarkdownAssignment: "assignment",
+      outpostTaskMarkdownAssignmentCompact: "assignment compact",
+      outpostTurnContext: { version: 1, events: { owner: "wake_prompt" } },
     }, ["comment-2"], ["source-wake"]);
 
     expect(result).toMatchObject({
@@ -154,13 +154,13 @@ describe("withQueuedCommentIdsInRunContext", () => {
       wakeCommentId: "comment-2",
       commentId: "comment-2",
     });
-    expect(result).not.toHaveProperty("paperclipWake");
-    expect(result).not.toHaveProperty("paperclipWakeComment");
-    expect(result).not.toHaveProperty("paperclipTaskMarkdown");
-    expect(result).not.toHaveProperty("paperclipTaskMarkdownCompact");
-    expect(result).not.toHaveProperty("paperclipTaskMarkdownAssignment");
-    expect(result).not.toHaveProperty("paperclipTaskMarkdownAssignmentCompact");
-    expect(result).not.toHaveProperty("paperclipTurnContext");
+    expect(result).not.toHaveProperty("outpostWake");
+    expect(result).not.toHaveProperty("outpostWakeComment");
+    expect(result).not.toHaveProperty("outpostTaskMarkdown");
+    expect(result).not.toHaveProperty("outpostTaskMarkdownCompact");
+    expect(result).not.toHaveProperty("outpostTaskMarkdownAssignment");
+    expect(result).not.toHaveProperty("outpostTaskMarkdownAssignmentCompact");
+    expect(result).not.toHaveProperty("outpostTurnContext");
     expect(withQueuedCommentIdsInRunContext(result, ["comment-3"]).queuedCommentSourceWakeIds).toEqual(["source-wake"]);
   });
 });

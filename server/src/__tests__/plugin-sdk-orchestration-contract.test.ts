@@ -1,23 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import type { Issue, PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { Issue, OutpostPluginManifestV1 } from "@outpost/shared";
 import { createTestHarness } from "../../../packages/plugins/sdk/src/testing.js";
 
-function manifest(capabilities: PaperclipPluginManifestV1["capabilities"]): PaperclipPluginManifestV1 {
+function manifest(capabilities: OutpostPluginManifestV1["capabilities"]): OutpostPluginManifestV1 {
   return {
     id: "outpost.test-orchestration",
     apiVersion: 1,
     version: "0.1.0",
     displayName: "Test Orchestration",
     description: "Test plugin",
-    author: "Paperclip",
+    author: "Outpost",
     categories: ["automation"],
     capabilities,
     entrypoints: { worker: "./dist/worker.js" },
   };
 }
 
-function issue(input: Partial<Issue> & Pick<Issue, "id" | "companyId" | "title">): Issue {
+function issue(input: Partial<Issue> & Pick<Issue, "id" | "spaceId" | "title">): Issue {
   const now = new Date();
   return {
     workMode: "standard",
@@ -58,20 +58,20 @@ function issue(input: Partial<Issue> & Pick<Issue, "id" | "companyId" | "title">
 
 describe("plugin SDK orchestration contract", () => {
   it("supports expanded issue create fields and relation helpers", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const blockerIssueId = randomUUID();
     const harness = createTestHarness({
       manifest: manifest(["issues.create", "issue.relations.read", "issue.relations.write", "issue.subtree.read"]),
     });
     harness.seed({
-      issues: [issue({ id: blockerIssueId, companyId, title: "Blocker" })],
+      issues: [issue({ id: blockerIssueId, spaceId, title: "Blocker" })],
     });
 
     const created = await harness.ctx.issues.create({
-      companyId,
+      spaceId,
       title: "Generated issue",
       status: "todo",
-      assigneeUserId: "board-user",
+      assigneeUserId: "operator-user",
       billingCode: "mission:alpha",
       originId: "mission-alpha",
       blockedByIssueIds: [blockerIssueId],
@@ -80,9 +80,9 @@ describe("plugin SDK orchestration contract", () => {
     expect(created.originKind).toBe("plugin:outpost.test-orchestration");
     expect(created.originId).toBe("mission-alpha");
     expect(created.billingCode).toBe("mission:alpha");
-    expect(created.assigneeUserId).toBe("board-user");
+    expect(created.assigneeUserId).toBe("operator-user");
 
-    await expect(harness.ctx.issues.relations.get(created.id, companyId)).resolves.toEqual({
+    await expect(harness.ctx.issues.relations.get(created.id, spaceId)).resolves.toEqual({
       blockedBy: [
         expect.objectContaining({
           id: blockerIssueId,
@@ -92,18 +92,18 @@ describe("plugin SDK orchestration contract", () => {
       blocks: [],
     });
 
-    await expect(harness.ctx.issues.relations.removeBlockers(created.id, [blockerIssueId], companyId)).resolves.toEqual({
+    await expect(harness.ctx.issues.relations.removeBlockers(created.id, [blockerIssueId], spaceId)).resolves.toEqual({
       blockedBy: [],
       blocks: [],
     });
 
-    await expect(harness.ctx.issues.relations.addBlockers(created.id, [blockerIssueId], companyId)).resolves.toEqual({
+    await expect(harness.ctx.issues.relations.addBlockers(created.id, [blockerIssueId], spaceId)).resolves.toEqual({
       blockedBy: [expect.objectContaining({ id: blockerIssueId })],
       blocks: [],
     });
 
     await expect(
-      harness.ctx.issues.getSubtree(created.id, companyId, { includeRelations: true }),
+      harness.ctx.issues.getSubtree(created.id, spaceId, { includeRelations: true }),
     ).resolves.toMatchObject({
       rootIssueId: created.id,
       issueIds: [created.id],
@@ -116,13 +116,13 @@ describe("plugin SDK orchestration contract", () => {
   });
 
   it("enforces plugin origin namespaces in the test harness", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const harness = createTestHarness({
       manifest: manifest(["issues.create", "issues.update", "issues.read"]),
     });
 
     const created = await harness.ctx.issues.create({
-      companyId,
+      spaceId,
       title: "Generated issue",
       originKind: "plugin:outpost.test-orchestration:feature",
     });
@@ -130,13 +130,13 @@ describe("plugin SDK orchestration contract", () => {
     expect(created.originKind).toBe("plugin:outpost.test-orchestration:feature");
     await expect(
       harness.ctx.issues.list({
-        companyId,
+        spaceId,
         originKind: "plugin:outpost.test-orchestration:feature",
       }),
     ).resolves.toHaveLength(1);
     await expect(
       harness.ctx.issues.create({
-        companyId,
+        spaceId,
         title: "Spoofed issue",
         originKind: "plugin:other.plugin:feature",
       }),
@@ -145,19 +145,19 @@ describe("plugin SDK orchestration contract", () => {
       harness.ctx.issues.update(
         created.id,
         { originKind: "plugin:other.plugin:feature" },
-        companyId,
+        spaceId,
       ),
     ).rejects.toThrow("Plugin may only use originKind values under plugin:outpost.test-orchestration");
   });
 
   it("supports generic plugin operation issue visibility in the test harness", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const harness = createTestHarness({
       manifest: manifest(["issues.create"]),
     });
 
     const created = await harness.ctx.issues.create({
-      companyId,
+      spaceId,
       title: "Background operation",
       surfaceVisibility: "plugin_operation",
       originId: "operation-1",
@@ -168,7 +168,7 @@ describe("plugin SDK orchestration contract", () => {
   });
 
   it("enforces checkout and wakeup capabilities in the test harness", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
     const checkedOutIssueId = randomUUID();
@@ -179,7 +179,7 @@ describe("plugin SDK orchestration contract", () => {
       issues: [
         issue({
           id: checkedOutIssueId,
-          companyId,
+          spaceId,
           title: "Checked out",
           status: "in_progress",
           assigneeAgentId: agentId,
@@ -191,7 +191,7 @@ describe("plugin SDK orchestration contract", () => {
     await expect(
       harness.ctx.issues.assertCheckoutOwner({
         issueId: checkedOutIssueId,
-        companyId,
+        spaceId,
         actorAgentId: agentId,
         actorRunId: runId,
       }),
@@ -201,13 +201,13 @@ describe("plugin SDK orchestration contract", () => {
     });
 
     await expect(
-      harness.ctx.issues.requestWakeup(checkedOutIssueId, companyId, {
+      harness.ctx.issues.requestWakeup(checkedOutIssueId, spaceId, {
         reason: "mission_advance",
       }),
     ).resolves.toMatchObject({ queued: true });
 
     await expect(
-      harness.ctx.issues.requestWakeups([checkedOutIssueId], companyId, {
+      harness.ctx.issues.requestWakeups([checkedOutIssueId], spaceId, {
         reason: "mission_advance",
         idempotencyKeyPrefix: "mission:alpha",
       }),
@@ -220,7 +220,7 @@ describe("plugin SDK orchestration contract", () => {
   });
 
   it("rejects wakeups when blockers are unresolved", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const blockerIssueId = randomUUID();
     const blockedIssueId = randomUUID();
     const harness = createTestHarness({
@@ -228,10 +228,10 @@ describe("plugin SDK orchestration contract", () => {
     });
     harness.seed({
       issues: [
-        issue({ id: blockerIssueId, companyId, title: "Unresolved blocker", status: "todo" }),
+        issue({ id: blockerIssueId, spaceId, title: "Unresolved blocker", status: "todo" }),
         issue({
           id: blockedIssueId,
-          companyId,
+          spaceId,
           title: "Blocked work",
           status: "todo",
           assigneeAgentId: randomUUID(),
@@ -251,7 +251,7 @@ describe("plugin SDK orchestration contract", () => {
     });
 
     await expect(
-      harness.ctx.issues.requestWakeup(blockedIssueId, companyId),
+      harness.ctx.issues.requestWakeup(blockedIssueId, spaceId),
     ).rejects.toThrow("Issue is blocked by unresolved blockers");
   });
 });

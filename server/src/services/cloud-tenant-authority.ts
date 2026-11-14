@@ -43,7 +43,7 @@ export async function loadCurrentCloudOwnerAuthority(userId: string): Promise<Cu
     const response = await fetch(new URL("/v1/tenant/portfolio", identity.origin), {
       method: "GET", redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000),
       headers: { accept: "application/json", authorization: `Bearer ${process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN!.trim()}`,
-        "x-paperclip-cloud-user-id": userId, "x-paperclip-cloud-stack-id": identity.stackId },
+        "x-outpost-cloud-user-id": userId, "x-outpost-cloud-stack-id": identity.stackId },
     });
     if (!response.ok) return null;
     const parsed = portfolioSchema.safeParse(await response.json());

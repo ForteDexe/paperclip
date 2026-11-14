@@ -72,7 +72,7 @@ external-wake proof. Remote acceptance must be checked at the published head.
 Review found that the two migration suites opened external test databases without
 applying migrations. The previous verification used prepared databases, which
 hid this setup gap. Both selected retry cases failed against new empty disposable
-databases with missing `companies` and restore-point tables. Setup now applies
+databases with missing `spaces` and restore-point tables. Setup now applies
 pending migrations before creating its test client, matching the workspace
 service fixture. The embedded path is unchanged.
 

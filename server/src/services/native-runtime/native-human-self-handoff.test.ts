@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, authUsers, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issueRecoveryActions,
+import { agents, authUsers, spaces, spaceMemberships, completionContracts, createDb, heartbeatRuns, issueRecoveryActions,
   issues, nativeRunFinalizations, statusDecisions, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
@@ -29,10 +29,10 @@ describe("handed-off task decision policy", () => {
   ])("leaves the decision alone when %s", (_label, issue) => {
     expect(supersedeHandedOffDecision(incomplete, issue)).toBe(incomplete);
   });
-  it("keeps a governed request's interaction, without waking the outgoing agent", () => {
+  it("keeps a controlled request's interaction, without waking the outgoing agent", () => {
     const interaction = { kind: "create_interaction", gate: { kind: "approval", id: "a" } };
-    const gated = { ...incomplete, statusAction: "in_review", toStatus: "in_review", reasonCode: "governed_gate_pending",
-      effects: [interaction, { kind: "notify_owner", agentId: "agent-a", reason: "governed_gate_pending" }] } as unknown as NativeStatusDecision;
+    const gated = { ...incomplete, statusAction: "in_review", toStatus: "in_review", reasonCode: "controlled_gate_pending",
+      effects: [interaction, { kind: "notify_owner", agentId: "agent-a", reason: "controlled_gate_pending" }] } as unknown as NativeStatusDecision;
     expect(supersedeHandedOffDecision(gated, person)).toEqual({ ...gated, effects: [interaction] });
   });
   it("drops a failed turn's retry of the outgoing agent from a preserving decision", () => {
@@ -73,27 +73,27 @@ describe.skipIf(!support.supported)("native run hands its own task to a person",
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
   async function runningNativeTask() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = randomUUID();
     const runId = randomUUID(), sessionId = randomUUID(), runnerId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Handoff fixture", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Nibbler", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Handoff fixture", issuePrefix: spaceId.slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Nibbler", adapterType: "outpost_runner" });
     await db.insert(authUsers).values({ id: userId, name: "Reviewer", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "operator" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Draft the plan", status: "in_progress",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "operator" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Draft the plan", status: "in_progress",
       assigneeAgentId: agentId, createdByUserId: userId, description: "Draft the plan and hand it to me for review." });
-    const [contract] = await db.insert(completionContracts).values({ companyId, issueId, revision: 1,
+    const [contract] = await db.insert(completionContracts).values({ spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "low", completionAuthority: "agent_claim_policy",
       incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: { revision: "test", objective: "Draft the plan",
         criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: `handoff-${issueId}`, createdByActorType: "system", createdByActorId: "test" }).returning();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, nativeSessionId: sessionId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId, nativeSessionId: sessionId,
       runnerInstanceId: runnerId, completionContractId: contract.id, completionContractSha256: contract.canonicalSha256,
       status: "running", runtimeMode: "native", invocationSource: "assignment", contextSnapshot: { issueId, source: "issue.assigned" } });
     await db.update(issues).set({ executionRunId: runId, checkoutRunId: runId }).where(eq(issues.id, issueId));
-    const port = new NativeRunCoordinatorStore(db, { companyId, issueId, runId, agentId, normalizedSessionId: sessionId,
+    const port = new NativeRunCoordinatorStore(db, { spaceId, issueId, runId, agentId, normalizedSessionId: sessionId,
       runnerSourceInstanceId: runnerId, completionContractId: contract.id, completionContractSha256: contract.canonicalSha256,
       completionContractRevision: "test", completionContractCriterionIds: ["objective"] });
-    return { companyId, agentId, issueId, userId, runId, port };
+    return { spaceId, agentId, issueId, userId, runId, port };
   }
 
   type Fixture = Awaited<ReturnType<typeof runningNativeTask>>;
@@ -102,7 +102,7 @@ describe.skipIf(!support.supported)("native run hands its own task to a person",
   /** What the route does for the run's own hand-off: record it on the run, then save the assignment. */
   async function handOffToPerson(f: Fixture, options: { record?: boolean } = {}) {
     if (options.record !== false) {
-      expect(await recordNativeHumanSelfHandoff(db, { companyId: f.companyId, runId: f.runId, agentId: f.agentId,
+      expect(await recordNativeHumanSelfHandoff(db, { spaceId: f.spaceId, runId: f.runId, agentId: f.agentId,
         issueId: f.issueId, assigneeUserId: f.userId })).toBe(true);
     }
     return issueService(db).update(f.issueId, { assigneeAgentId: null, assigneeUserId: f.userId, status: "in_review",
@@ -110,12 +110,12 @@ describe.skipIf(!support.supported)("native run hands its own task to a person",
   }
 
   it("lets the run's terminal fence accept the task it handed to a person, and only that hand-off", async () => {
-    const binding = (f: Fixture) => ({ companyId: f.companyId, issueId: f.issueId, runId: f.runId, agentId: f.agentId });
+    const binding = (f: Fixture) => ({ spaceId: f.spaceId, issueId: f.issueId, runId: f.runId, agentId: f.agentId });
     const recorded = await runningNativeTask();
     await handOffToPerson(recorded);
     await expect(assertCurrentWakeCommentsRead(db, binding(recorded), null)).resolves.toBeUndefined();
 
-    // Without the run's record (for example a board reassignment), the fence still refuses.
+    // Without the run's record (for example a operator reassignment), the fence still refuses.
     const unrecorded = await runningNativeTask();
     await handOffToPerson(unrecorded, { record: false });
     await expect(assertCurrentWakeCommentsRead(db, binding(unrecorded), null)).rejects.toThrow("native_current_wake_comments_binding_changed");
@@ -164,7 +164,7 @@ describe.skipIf(!support.supported)("native run hands its own task to a person",
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]).toMatchObject({
       status: "in_review", assigneeAgentId: null, assigneeUserId: f.userId,
     });
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
     expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issueId))).toEqual([]);
   });
 
@@ -184,7 +184,7 @@ describe.skipIf(!support.supported)("native run hands its own task to a person",
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]).toMatchObject({
       status: "in_review", assigneeAgentId: null, assigneeUserId: f.userId,
     });
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
     expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issueId))).toEqual([]);
   });
 

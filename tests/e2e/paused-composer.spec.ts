@@ -25,9 +25,9 @@ async function pauseTask(page: Page) {
   await page.getByRole("button", { name: "Pause work", exact: true }).click({ timeout: 10_000 });
 }
 
-async function cleanupFixture(request: APIRequestContext, companyId: string, classic: boolean, primaryFailed: boolean) {
+async function cleanupFixture(request: APIRequestContext, spaceId: string, classic: boolean, primaryFailed: boolean) {
   const operations = [
-    { name: "archive fixture company", run: () => request.patch(`/api/companies/${companyId}`, { data: { status: "archived" } }) },
+    { name: "archive fixture space", run: () => request.patch(`/api/spaces/${spaceId}`, { data: { status: "archived" } }) },
     { name: "restore task interface", run: () => request.patch("/api/instance/settings/experimental", { data: { enableClassicTaskInterface: classic } }) },
   ];
   const outcomes = await Promise.allSettled(operations.map(async operation => {
@@ -49,23 +49,23 @@ async function cleanupFixture(request: APIRequestContext, companyId: string, cla
 for (const classic of [false, true]) {
   test(`resume preview: ${classic ? "classic" : "task chat"} does not promise to wake blocked work`, async ({ page, request }) => {
     test.setTimeout(120_000);
-    const company = await json(await request.post("/api/companies", { data: { name: `Resume preview ${Date.now()}` } }));
+    const space = await json(await request.post("/api/spaces", { data: { name: `Resume preview ${Date.now()}` } }));
     const settings = await json(await request.get("/api/instance/settings/experimental"));
     await page.route("**/api/workspace-preferences/me", route => route.fulfill({ json: {
-      userId: "local-board", coordinatorWorkspaceEnabled: !classic, updatedAt: null,
+      userId: "local-operator", coordinatorWorkspaceEnabled: !classic, updatedAt: null,
     } }));
     let primaryFailed = false;
     try {
       await json(await request.patch("/api/instance/settings/experimental", { data: { enableClassicTaskInterface: classic } }));
-      const agent = await json(await request.post(`/api/companies/${company.id}/agents`, { data: {
+      const agent = await json(await request.post(`/api/spaces/${space.id}/agents`, { data: {
         name: "Resume preview fixture", role: "engineer", adapterType: "process",
         adapterConfig: { command: "/usr/bin/true" },
         runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } },
       } }));
-      const task = await json(await request.post(`/api/companies/${company.id}/issues`, { data: {
+      const task = await json(await request.post(`/api/spaces/${space.id}/issues`, { data: {
         title: "Blocked work stays blocked", status: "blocked", assigneeAgentId: agent.id,
       } }));
-      await page.goto(`/${company.issuePrefix}/issues/${task.identifier}`);
+      await page.goto(`/${space.issuePrefix}/issues/${task.identifier}`);
       await pauseTask(page);
       const takeover = page.getByTestId("paused-composer-takeover");
       await expect(takeover).toBeVisible();
@@ -88,34 +88,34 @@ for (const classic of [false, true]) {
       const editor = (classic ? page.getByTestId("issue-chat-composer") : page).getByRole("textbox", { name: "editable markdown" });
       await expect(editor).toBeVisible();
       expect((await json(await request.get(`/api/issues/${task.id}`))).status).toBe("blocked");
-      expect(await json(await request.get(`/api/companies/${company.id}/heartbeat-runs?agentId=${agent.id}`))).toEqual([]);
+      expect(await json(await request.get(`/api/spaces/${space.id}/heartbeat-runs?agentId=${agent.id}`))).toEqual([]);
     } catch (error) {
       primaryFailed = true;
       throw error;
     } finally {
-      await cleanupFixture(request, company.id, settings.enableClassicTaskInterface, primaryFailed);
+      await cleanupFixture(request, space.id, settings.enableClassicTaskInterface, primaryFailed);
     }
   });
 
   test(`paused composer: ${classic ? "classic" : "task chat"} preserves drafts and requires resume`, async ({ page, request }) => {
     test.setTimeout(120_000);
-    const company = await json(await request.post("/api/companies", { data: { name: `Paused composer ${Date.now()}` } }));
+    const space = await json(await request.post("/api/spaces", { data: { name: `Paused composer ${Date.now()}` } }));
     const settings = await json(await request.get("/api/instance/settings/experimental"));
     await page.route("**/api/workspace-preferences/me", route => route.fulfill({ json: {
-      userId: "local-board", coordinatorWorkspaceEnabled: !classic, updatedAt: null,
+      userId: "local-operator", coordinatorWorkspaceEnabled: !classic, updatedAt: null,
     } }));
     let primaryFailed = false;
     try {
       await json(await request.patch("/api/instance/settings/experimental", { data: { enableClassicTaskInterface: classic } }));
-      const agent = await json(await request.post(`/api/companies/${company.id}/agents`, { data: {
+      const agent = await json(await request.post(`/api/spaces/${space.id}/agents`, { data: {
         name: "Paused composer fixture", role: "engineer", adapterType: "process",
         adapterConfig: { command: "/usr/bin/true" },
         runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } },
       } }));
-      const task = await json(await request.post(`/api/companies/${company.id}/issues`, { data: {
+      const task = await json(await request.post(`/api/spaces/${space.id}/issues`, { data: {
         title: "Review the paused composer", status: "backlog", assigneeAgentId: agent.id,
       } }));
-      await page.goto(`/${company.issuePrefix}/issues/${task.identifier}`);
+      await page.goto(`/${space.issuePrefix}/issues/${task.identifier}`);
       const editor = (classic ? page.getByTestId("issue-chat-composer") : page).getByRole("textbox", { name: "editable markdown" });
       await editor.fill("Keep this draft until I resume.");
       await pauseTask(page);
@@ -145,10 +145,10 @@ for (const classic of [false, true]) {
       // Ancestor pause is effective even when this child was created after it.
       await pauseTask(page);
       await expect(takeover).toBeVisible();
-      const child = await json(await request.post(`/api/companies/${company.id}/issues`, { data: {
+      const child = await json(await request.post(`/api/spaces/${space.id}/issues`, { data: {
         title: "Child held by parent", parentId: task.id, status: "backlog", assigneeAgentId: agent.id,
       } }));
-      await page.goto(`/${company.issuePrefix}/issues/${child.identifier}`);
+      await page.goto(`/${space.issuePrefix}/issues/${child.identifier}`);
       await expect(takeover).toContainText("Subtree is paused.");
       await expect(editor).toHaveCount(0);
       expect((await request.post(`/api/issues/${child.id}/comments`, { data: { body: "Still paused" } })).status()).toBe(409);
@@ -166,14 +166,14 @@ for (const classic of [false, true]) {
       await page.getByRole("dialog").getByRole("button", { name: "Resume subtree", exact: true }).click();
       expect((await released).ok()).toBe(true);
       await expect(page.getByRole("dialog")).toHaveCount(0);
-      await page.goto(`/${company.issuePrefix}/issues/${child.identifier}`);
+      await page.goto(`/${space.issuePrefix}/issues/${child.identifier}`);
       await expect(takeover).toHaveCount(0);
       await expect(editor).toBeVisible();
     } catch (error) {
       primaryFailed = true;
       throw error;
     } finally {
-      await cleanupFixture(request, company.id, settings.enableClassicTaskInterface, primaryFailed);
+      await cleanupFixture(request, space.id, settings.enableClassicTaskInterface, primaryFailed);
     }
   });
 }

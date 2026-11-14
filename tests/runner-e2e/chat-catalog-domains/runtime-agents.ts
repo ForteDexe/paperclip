@@ -21,9 +21,9 @@ export function gradeRuntimeAgents(value: unknown) {
   switch (o.scenarioId) {
     case "agents.change-manager": {
       const riley = o.state.riley as RuntimeAgent;
-      c.add("saved-requested-manager", !!worker && worker.reportsTo === riley.id && riley.companyId === o.companyId && worker.companyId === o.companyId,
-        "Morgan reports to the real same-company Riley.");
-      c.add("reporting-tree-valid", !!worker && validTree(o.agents), "Every reporting chain terminates without a cycle or missing company manager.");
+      c.add("saved-requested-manager", !!worker && worker.reportsTo === riley.id && riley.spaceId === o.spaceId && worker.spaceId === o.spaceId,
+        "Morgan reports to the real same-space Riley.");
+      c.add("reporting-tree-valid", !!worker && validTree(o.agents), "Every reporting chain terminates without a cycle or missing space manager.");
       c.add("unrelated-config-and-tasks-retained", !!before && !!worker && unchangedAgent(before, worker, ["reportsTo"])
         && Array.isArray(o.state.tasksBefore) && o.tasks.length === o.state.tasksBefore.length
         && o.tasks.every(row => (o.state.tasksBefore as typeof o.tasks).some(prior => sameTask(prior, row))), "Changing the manager preserves accounts, permissions and existing tasks.");
@@ -60,7 +60,7 @@ export function gradeRuntimeAgents(value: unknown) {
       const human = worker && concurrent ? instructionFileAudit(o, worker.id, concurrent.content, "user") : undefined;
       c.add("actual-concurrent-boundary", o.state.concurrentRunStatus === "running" && !!human && o.runs.some(run => {
         const end = (run as typeof run & { finishedAt?: string }).finishedAt;
-        return run.agentId === o.leadId && run.companyId === o.companyId && (!o.state.concurrentRunId || run.id === o.state.concurrentRunId)
+        return run.agentId === o.leadId && run.spaceId === o.spaceId && (!o.state.concurrentRunId || run.id === o.state.concurrentRunId)
           && Number.isFinite(Date.parse(run.startedAt ?? "")) && Number.isFinite(Date.parse(end ?? ""))
           && Date.parse(human.createdAt!) >= Date.parse(run.startedAt!) && Date.parse(human.createdAt!) <= Date.parse(end!);
       }), "The retained human file-mutation audit occurred within the independently observed active native run.");
@@ -115,14 +115,14 @@ export const runtimeAgentsCases = [
   }),
   runtimeDefinition("agents.change-manager", async ctx => {
     const worker = await runtimeWorker(ctx); const riley = await runtimeWorker(ctx, "Riley", { role: "cto", title: "CTO" });
-    const task = await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/issues`, { title: "Historical website assignment", status: "backlog", assigneeAgentId: worker.id });
+    const task = await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/issues`, { title: "Historical website assignment", status: "backlog", assigneeAgentId: worker.id });
     return { worker, riley, tasksBefore: [task] };
   }, gradeRuntimeAgents, { async verifyResult(ctx, state, value) {
     await verifyRuntimeResult(ctx, state, value);
     const source = ctx.input.page.url();
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/agents/all`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/agents/all`, { waitUntil: "domcontentloaded" });
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/agents`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/agents`, { waitUntil: "domcontentloaded" });
     const toggle = ctx.input.page.getByRole("button", { name: "Org chart view", exact: true });
     await expect(toggle).toBeVisible();
     await toggle.click();
@@ -130,7 +130,7 @@ export const runtimeAgentsCases = [
     const morgan = ctx.input.page.locator("[data-org-card]").filter({ hasText: "Morgan" });
     const riley = ctx.input.page.locator("[data-org-card]").filter({ hasText: "Riley" });
     await expect(morgan).toBeVisible(); await expect(riley).toBeVisible();
-    const org = await ctx.input.api.get<Array<{ id: string; reports: Array<{ id: string; reports: unknown[] }> }>>(`/api/companies/${ctx.input.fixtures.company.id}/org`);
+    const org = await ctx.input.api.get<Array<{ id: string; reports: Array<{ id: string; reports: unknown[] }> }>>(`/api/spaces/${ctx.input.fixtures.space.id}/org`);
     const find = (rows: Array<{ id: string; reports: unknown[] }>, id: string): { id: string; reports: unknown[] } | undefined => {
       for (const row of rows) { if (row.id === id) return row; const child = find(row.reports as typeof rows, id); if (child) return child; }
     };
@@ -149,13 +149,13 @@ export const runtimeAgentsCases = [
     // same effective permission before the human query, and must be rejected.
     // The process adapter config is a second gate an agent cannot pass, so the
     // probe never creates an agent; its error text shows which gate denied it.
-    const probe = await probeAgentPermissionResponse(ctx, `/api/companies/${ctx.input.fixtures.company.id}/agents`, "POST", {
+    const probe = await probeAgentPermissionResponse(ctx, `/api/spaces/${ctx.input.fixtures.space.id}/agents`, "POST", {
       name: "Permission probe", role: "engineer", adapterType: "process", adapterConfig: { command: "true" },
     });
     const agentCreateProbeDeniedBy = probe.error?.includes("Missing permission: agents:create") ? "agents:create" : probe.error ?? null;
     if (probe.status !== 403 || agentCreateProbeDeniedBy !== "agents:create") throw new Error(`CEO fixture does not have a genuine hiring permission denial (${probe.status}: ${probe.error ?? "no error"})`);
     const lead = await ctx.input.api.get<RuntimeAgent>(`/api/agents/${ctx.input.fixtures.agent.id}`);
-    const agentIdsBefore = (await ctx.input.api.get<RuntimeAgent[]>(`/api/companies/${ctx.input.fixtures.company.id}/agents`)).map(row => row.id);
+    const agentIdsBefore = (await ctx.input.api.get<RuntimeAgent[]>(`/api/spaces/${ctx.input.fixtures.space.id}/agents`)).map(row => row.id);
     return { canCreateAgents: lead.permissions?.canCreateAgents, agentCreateProbeStatus: probe.status, agentCreateProbeDeniedBy, agentIdsBefore };
   }, gradeRuntimeAgents, {
     oracleVersion: "outpost.chat-catalog.runtime.hire-denied.v3",
@@ -166,7 +166,7 @@ export const runtimeAgentsCases = [
       const source = ctx.input.page.url();
       const { followRenderedLink } = await import("./identity-support.js");
       await followRenderedLink(ctx, href);
-      const prefix = ctx.input.fixtures.company.issuePrefix;
+      const prefix = ctx.input.fixtures.space.issuePrefix;
       if (new URL(ctx.input.page.url()).pathname === `/${prefix}/agents/new`) {
         await expect(ctx.input.page.getByText("New agent", { exact: true }).first()).toBeVisible();
       } else {
@@ -216,11 +216,11 @@ export const runtimeAgentsCases = [
 ];
 function instructionFileAudit(o: RuntimeObservation, workerId: string, content: string, actor: "agent" | "user") {
   const hash = createHash("sha256").update(content).digest("hex");
-  return o.activity.find(row => row.action === "agent.files_updated" && row.companyId === o.companyId && row.entityId === workerId
+  return o.activity.find(row => row.action === "agent.files_updated" && row.spaceId === o.spaceId && row.entityId === workerId
     && row.actorType === actor && row.details?.path === "AGENTS.md" && row.details.contentHash === hash
     && (actor === "user" ? !row.agentId && row.details.source === "board" : row.agentId === o.leadId && row.actorId === o.leadId
       && row.details.source === "tool" && o.runs.some(run => run.id === (row as typeof row & { runId?: string }).runId
-        && run.companyId === o.companyId && run.agentId === o.leadId)));
+        && run.spaceId === o.spaceId && run.agentId === o.leadId)));
 }
 function instructionResultLink(o: RuntimeObservation, worker: RuntimeAgent): boolean {
   return !!agentLink(o, worker) || !!o.instruction && o.links.some(href => {
@@ -248,7 +248,7 @@ function validTree(agents: RuntimeAgent[]) {
     while (row?.reportsTo) {
       if (seen.has(row.id)) return false; seen.add(row.id);
       const manager = agents.find(candidate => candidate.id === row!.reportsTo);
-      if (!manager || manager.companyId !== agent.companyId) return false; row = manager;
+      if (!manager || manager.spaceId !== agent.spaceId) return false; row = manager;
     }
     return true;
   });

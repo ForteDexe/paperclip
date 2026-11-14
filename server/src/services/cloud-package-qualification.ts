@@ -1,4 +1,4 @@
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import { z } from "zod";
 import { createBundledPluginPackageResolver, type BundledPluginRegistration } from "./bundled-plugin-package.js";
 import type { ResolvedBundledPlugin } from "./bundled-plugins.js";
@@ -21,7 +21,7 @@ export async function inspectCloudPackages(input: {
   installs: readonly ResolvedBundledPlugin[];
   registrations: readonly BundledPluginRegistration[];
   catalogRoot?: string;
-  loadManifest: (packageRoot: string) => Promise<PaperclipPluginManifestV1 | null>;
+  loadManifest: (packageRoot: string) => Promise<OutpostPluginManifestV1 | null>;
 }) {
   const started = performance.now();
   const resolver = createBundledPluginPackageResolver(input.installs);

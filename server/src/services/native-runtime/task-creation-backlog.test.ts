@@ -4,11 +4,11 @@ import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
-import { authUsers, companyMemberships, activityLog, agents, companies, createDb, heartbeatRuns, issues } from "@outpost/db";
+import { authUsers, spaceMemberships, activityLog, agents, spaces, createDb, heartbeatRuns, issues } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { documentService } from "../documents.js";
 import { issueService } from "../issues.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 describe("runner backlog task creation", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
@@ -20,22 +20,22 @@ describe("runner backlog task creation", () => {
   afterAll(async () => { await temporary?.cleanup(); });
 
   async function fixture(conversation: boolean) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Backlog", issuePrefix: `B${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Planner", role: "ceo", status: "active", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Coordinate", status: "in_progress", assigneeAgentId: agentId, conversationAgentId: conversation ? agentId : null, conversationUserId: conversation ? "operator" : null, conversationState: conversation ? "active" : null });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId } });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Backlog", issuePrefix: `B${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Planner", role: "lead", status: "active", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Coordinate", status: "in_progress", assigneeAgentId: agentId, conversationAgentId: conversation ? agentId : null, conversationUserId: conversation ? "operator" : null, conversationState: conversation ? "active" : null });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     const enqueueWakeup = vi.fn().mockResolvedValue(null);
-    const binding = { companyId, agentId, issueId, runId, enqueueWakeup };
-    return { companyId, agentId, issueId, runId, binding, enqueueWakeup, authority: new PaperclipRunnerToolAuthority(db, binding) };
+    const binding = { spaceId, agentId, issueId, runId, enqueueWakeup };
+    return { spaceId, agentId, issueId, runId, binding, enqueueWakeup, authority: new OutpostRunnerToolAuthority(db, binding) };
   }
 
   it("never repeats a completed or uncertain workspace mutation and fences replay", async () => {
     const f = await fixture(false);
     const root = await mkdtemp(join(tmpdir(), "dot-workspace-receipt-"));
     await db.update(agents).set({ adapterConfig: { provider: "openai_dot", dotWorkspaceAccess: true } }).where(eq(agents.id, f.agentId));
-    const authority = new PaperclipRunnerToolAuthority(db, { ...f.binding, workspaceRoot: root, workspaceBridge: true });
+    const authority = new OutpostRunnerToolAuthority(db, { ...f.binding, workspaceRoot: root, workspaceBridge: true });
     try {
       const call = { tool: "workspace_write", callId: "write-once", arguments: { path: "report.txt", text: "first", expectedSha256: null } };
       const receipt = await authority.execute(call);
@@ -56,10 +56,10 @@ describe("runner backlog task creation", () => {
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
-  it("creates and reassigns human tasks with company membership and retry checks", async () => {
+  it("creates and reassigns human tasks with space membership and retry checks", async () => {
     const f = await fixture(false), userId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Owner", email: userId + "@test.example", createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
+    await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
     const call = { tool: "create_task", callId: "hello-owner", arguments: { idempotencyKey: "hello-owner", title: "hello", assigneeUserId: userId } };
     const receipt = await f.authority.execute(call) as { task: { id: string } };
     expect(receipt).toMatchObject({ scheduledWakeIds: [], task: { assigneeActorId: null, assigneeUserId: userId } });
@@ -91,9 +91,9 @@ describe("runner backlog task creation", () => {
     await expect(f.authority.execute({ ...call, callId: "retry" })).resolves.toEqual(receipt);
 
     const replacement = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: replacement, companyId: f.companyId, agentId: f.agentId, status: "running", runtimeMode: "native", nativeIssueId: f.issueId, invocationSource: "assignment", triggerDetail: "system" });
+    await db.insert(heartbeatRuns).values({ id: replacement, spaceId: f.spaceId, agentId: f.agentId, status: "running", runtimeMode: "native", nativeIssueId: f.issueId, invocationSource: "assignment", triggerDetail: "system" });
     await db.update(issues).set({ executionRunId: replacement }).where(eq(issues.id, f.issueId));
-    await expect(new PaperclipRunnerToolAuthority(db, { ...f.binding, runId: replacement }).execute(call)).resolves.toMatchObject({ task: { id: task!.id, status: "backlog" }, scheduledWakeIds: [] });
+    await expect(new OutpostRunnerToolAuthority(db, { ...f.binding, runId: replacement }).execute(call)).resolves.toMatchObject({ task: { id: task!.id, status: "backlog" }, scheduledWakeIds: [] });
     expect(f.enqueueWakeup).not.toHaveBeenCalled();
     const events = await db.select().from(activityLog).where(and(eq(activityLog.entityId, task!.id), eq(activityLog.action, "issue.created")));
     expect(events).toHaveLength(1);
@@ -103,7 +103,7 @@ describe("runner backlog task creation", () => {
   it.each(["todo", "done"])("keeps an explicit backlog hold with a %s prerequisite", async status => {
     const f = await fixture(true);
     const blockerId = randomUUID();
-    await db.insert(issues).values({ id: blockerId, companyId: f.companyId, title: "Prerequisite", status });
+    await db.insert(issues).values({ id: blockerId, spaceId: f.spaceId, title: "Prerequisite", status });
     const receipt = await f.authority.execute({ tool: "create_task", callId: "held", arguments: { idempotencyKey: "held", title: "Held task", status: "backlog", blockedByTaskIds: [blockerId] } }) as { task: { id: string } };
     expect(receipt).toMatchObject({ task: { status: "backlog" }, scheduledWakeIds: [] });
     expect(await issueService(db).getRelationSummaries(receipt.task.id)).toMatchObject({ blockedBy: [expect.objectContaining({ id: blockerId })] });
@@ -113,7 +113,7 @@ describe("runner backlog task creation", () => {
   it.each(["in_progress", "done", "blocked", null])("rejects unsupported initial status %s before mutation", async status => {
     const f = await fixture(true);
     await expect(f.authority.execute({ tool: "create_task", callId: "invalid", arguments: { idempotencyKey: "invalid", title: "Invalid", status } })).rejects.toThrow();
-    expect(await db.select().from(issues).where(eq(issues.companyId, f.companyId))).toHaveLength(1);
+    expect(await db.select().from(issues).where(eq(issues.spaceId, f.spaceId))).toHaveLength(1);
     expect(f.enqueueWakeup).not.toHaveBeenCalled();
   });
 });

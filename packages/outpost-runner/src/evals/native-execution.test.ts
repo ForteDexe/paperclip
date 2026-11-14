@@ -9,17 +9,17 @@ import { describe, expect, it } from "vitest";
 
 import { orpSchemaBundle } from "../protocol/generated/schema-bundle.js";
 import {
-  loadPaperclipNativeExecutionFixture,
-  paperclipNativeExecutionFixtureUrl,
-  paperclipNativeExecutionSchemaUrl,
-  parsePaperclipNativeExecution,
+  loadOutpostNativeExecutionFixture,
+  outpostNativeExecutionFixtureUrl,
+  outpostNativeExecutionSchemaUrl,
+  parseOutpostNativeExecution,
 } from "./native-execution.js";
 import { OUTPOST_RUNNER_BUILD_METADATA } from "./build-metadata.js";
 import { serializeCapabilityGeneratedSemanticContracts } from "../semantic-tools/provider-neutral.js";
 
 describe("outpost-runner/native-execution/v1", () => {
   it("refreshes a stale seeded catalog and its manifest with one semantic generator invocation", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-semantic-generator-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-semantic-generator-"));
     const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
     const run = promisify(execFile);
     try {
@@ -60,18 +60,18 @@ describe("outpost-runner/native-execution/v1", () => {
     const ajv = new Ajv2020({ allErrors: true, strict: false });
     for (const schema of Object.values(orpSchemaBundle)) ajv.addSchema(schema);
     const schema = JSON.parse(
-      await readFile(paperclipNativeExecutionSchemaUrl, "utf8"),
+      await readFile(outpostNativeExecutionSchemaUrl, "utf8"),
     ) as Record<string, unknown>;
     const validate = ajv.compile(schema);
     const fixture = JSON.parse(
-      await readFile(paperclipNativeExecutionFixtureUrl, "utf8"),
+      await readFile(outpostNativeExecutionFixtureUrl, "utf8"),
     ) as unknown;
 
     expect(validate(fixture), JSON.stringify(validate.errors)).toBe(true);
   });
 
   it("loads the shipped seeded attempt and preserves nested additive fields", async () => {
-    const bundle = await loadPaperclipNativeExecutionFixture();
+    const bundle = await loadOutpostNativeExecutionFixture();
     expect(bundle.provenance).toBe("seeded");
     expect(bundle.semanticTools.results).toEqual([
       expect.objectContaining({ outcome: "denied", callId: "call_evals_seeded" }),
@@ -95,7 +95,7 @@ describe("outpost-runner/native-execution/v1", () => {
     extended.usage.x_usage = "usage-extension";
     extended.usage.cost!.x_cost = "cost-extension";
 
-    expect(parsePaperclipNativeExecution(extended)).toMatchObject({
+    expect(parseOutpostNativeExecution(extended)).toMatchObject({
       identity: { x_identity: "identity-extension" },
       input: { x_input: "input-extension" },
       runner: {
@@ -109,39 +109,39 @@ describe("outpost-runner/native-execution/v1", () => {
   });
 
   it("rejects unknown native schema versions", async () => {
-    const bundle = await loadPaperclipNativeExecutionFixture();
-    expect(() => parsePaperclipNativeExecution({ ...bundle, schema: "outpost-runner/native-execution/v2" }))
+    const bundle = await loadOutpostNativeExecutionFixture();
+    expect(() => parseOutpostNativeExecution({ ...bundle, schema: "outpost-runner/native-execution/v2" }))
       .toThrow(/unsupported schema/);
   });
 
   it("rejects a terminal that conflicts with the event stream", async () => {
-    const bundle = await loadPaperclipNativeExecutionFixture();
-    expect(() => parsePaperclipNativeExecution({
+    const bundle = await loadOutpostNativeExecutionFixture();
+    expect(() => parseOutpostNativeExecution({
       ...bundle,
       terminal: { ...bundle.terminal, runTerminalState: "failed" },
     })).toThrow(/must equal the run\.terminal event payload/);
   });
 
   it("rejects missing denial receipts and incomplete transcript ambiguity", async () => {
-    const bundle = await loadPaperclipNativeExecutionFixture();
-    expect(() => parsePaperclipNativeExecution({
+    const bundle = await loadOutpostNativeExecutionFixture();
+    expect(() => parseOutpostNativeExecution({
       ...bundle,
       semanticTools: { ...bundle.semanticTools, denials: [] },
     })).toThrow(/needs a denial receipt/);
-    expect(() => parsePaperclipNativeExecution({
+    expect(() => parseOutpostNativeExecution({
       ...bundle,
       transcript: { ...bundle.transcript, complete: false, omissionReason: null },
     })).toThrow(/omissionReason.*required/);
   });
 
   it("rejects semantic indexes that reinterpret or omit ORP tool events", async () => {
-    const bundle = await loadPaperclipNativeExecutionFixture();
+    const bundle = await loadOutpostNativeExecutionFixture();
     const mismatched = structuredClone(bundle);
     const resultPayload = mismatched.events[1]!.payload as {
       semantic_tool: { outcome: string };
     };
     resultPayload.semantic_tool.outcome = "succeeded";
-    expect(() => parsePaperclipNativeExecution(mismatched))
+    expect(() => parseOutpostNativeExecution(mismatched))
       .toThrow(/does not match semantic envelope/);
 
     const mismatchedCorrelation = structuredClone(bundle);
@@ -149,17 +149,17 @@ describe("outpost-runner/native-execution/v1", () => {
       semantic_tool: { correlation: { runId: string } };
     };
     inputPayload.semantic_tool.correlation.runId = "other_run";
-    expect(() => parsePaperclipNativeExecution(mismatchedCorrelation))
+    expect(() => parseOutpostNativeExecution(mismatchedCorrelation))
       .toThrow(/correlation\.runId.*enclosing event/);
 
-    expect(() => parsePaperclipNativeExecution({
+    expect(() => parseOutpostNativeExecution({
       ...bundle,
       semanticTools: { ...bundle.semanticTools, calls: [] },
     })).toThrow(/no matching call|tool-input event .* is not indexed/);
   });
 
   it("rejects a non-interrupted terminal bundle with an unresolved semantic call", async () => {
-    const bundle = await loadPaperclipNativeExecutionFixture();
+    const bundle = await loadOutpostNativeExecutionFixture();
     const unresolved = structuredClone(bundle);
     unresolved.semanticTools.results = [];
     unresolved.semanticTools.denials = [];
@@ -168,7 +168,7 @@ describe("outpost-runner/native-execution/v1", () => {
     );
     unresolved.transcript.eventCount = unresolved.events.length;
 
-    expect(() => parsePaperclipNativeExecution(unresolved))
+    expect(() => parseOutpostNativeExecution(unresolved))
       .toThrow(/requires exactly one result for every semantic call/);
   });
 
@@ -177,7 +177,7 @@ describe("outpost-runner/native-execution/v1", () => {
       { turnTerminalState: "interrupted", runTerminalState: "failed" },
       { turnTerminalState: "cancelled", runTerminalState: "cancelled" },
     ] as const) {
-      const bundle = await loadPaperclipNativeExecutionFixture();
+      const bundle = await loadOutpostNativeExecutionFixture();
       const unfinished = structuredClone(bundle);
       unfinished.semanticTools.results = [];
       unfinished.semanticTools.denials = [];
@@ -192,7 +192,7 @@ describe("outpost-runner/native-execution/v1", () => {
       if (terminalEvent === undefined) throw new Error("fixture is missing its terminal event");
       terminalEvent.payload = structuredClone(unfinished.terminal);
 
-      expect(parsePaperclipNativeExecution(unfinished)).toMatchObject({
+      expect(parseOutpostNativeExecution(unfinished)).toMatchObject({
         semanticTools: { calls: [expect.any(Object)], results: [] },
         terminal: terminalState,
       });
@@ -200,10 +200,10 @@ describe("outpost-runner/native-execution/v1", () => {
   });
 
   it("rejects unordered native events", async () => {
-    const bundle = await loadPaperclipNativeExecutionFixture();
+    const bundle = await loadOutpostNativeExecutionFixture();
     const events = structuredClone(bundle.events);
     events[1] = { ...events[1]!, sourceSeq: 1 };
-    expect(() => parsePaperclipNativeExecution({ ...bundle, events }))
+    expect(() => parseOutpostNativeExecution({ ...bundle, events }))
       .toThrow(/must be ordered after 1/);
 
     const duplicateIds = structuredClone(bundle.events);
@@ -211,7 +211,7 @@ describe("outpost-runner/native-execution/v1", () => {
       ...duplicateIds[1]!,
       sourceEventId: duplicateIds[0]!.sourceEventId,
     };
-    expect(() => parsePaperclipNativeExecution({ ...bundle, events: duplicateIds }))
+    expect(() => parseOutpostNativeExecution({ ...bundle, events: duplicateIds }))
       .toThrow(/sourceEventId.*unique/);
   });
 });

@@ -29,7 +29,7 @@ const stall = (overrides: Partial<IssueBlockerStalledWakeContext> = {}): IssueBl
   stalledIssueStatus: "blocked",
   relation: "child",
   recoveryAction: { id: "action-1", kind: "active_run_watchdog", cause: "native_session_retry_exhausted",
-    status: "resolved", ownerType: "board", nextAction: "Automatic recovery stopped. Recorded work is preserved." },
+    status: "resolved", ownerType: "operator", nextAction: "Automatic recovery stopped. Recorded work is preserved." },
   ...overrides,
 });
 
@@ -70,12 +70,12 @@ describe("StalledDependencyNotice", () => {
     expect(getIssue).not.toHaveBeenCalled();
   });
 
-  it("names the stalled child, its board action and a link, and offers the child's own Retry", async () => {
+  it("names the stalled child, its operator action and a link, and offers the child's own Retry", async () => {
     getIssue.mockResolvedValue({ id: "child-1", identifier: "CHA-8", status: "blocked", interruption: { canRetry: true, observedRunId: "run-1" } });
     retryTask.mockResolvedValue({ accepted: true, presentation: null });
     const node = await render([stall()]);
     const notice = node.querySelector("[data-testid='stalled-dependency-notice']")!;
-    expect(notice.textContent).toContain("A dependency needs the board");
+    expect(notice.textContent).toContain("A dependency needs the operator");
     expect(notice.textContent).toContain("CHA-8");
     expect(notice.textContent).toContain("Ship the migration");
     expect(notice.textContent).toContain("Automatic recovery stopped");
@@ -86,7 +86,7 @@ describe("StalledDependencyNotice", () => {
     expect(retryTask).toHaveBeenCalledWith("child-1", expect.objectContaining({ observedRunId: "run-1" }));
   });
 
-  it("explains a refused Retry and lets the board try again", async () => {
+  it("explains a refused Retry and lets the operator try again", async () => {
     getIssue.mockResolvedValue({ id: "child-1", identifier: "CHA-8", status: "blocked", interruption: { canRetry: true, observedRunId: "run-1" } });
     retryTask.mockRejectedValue(new ApiError("Retry is not allowed while the run is still stopping", 409, {}));
     const node = await render([stall()]);

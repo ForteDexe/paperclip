@@ -25,19 +25,19 @@ describe("codex managed-home auth fail-fast", () => {
   });
 
   it("fails fast when a managed CODEX_HOME has no auth.json and OPENAI_API_KEY is empty", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-failfast-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-failfast-"));
     cleanupDirs.push(root);
 
-    const paperclipHome = path.join(root, "paperclip-home");
+    const outpostHome = path.join(root, "outpost-home");
     const emptySharedHome = path.join(root, "shared-codex-home");
     const workspaceDir = path.join(root, "workspace");
     // A managed per-agent home with no credentials seeded into it.
     const managedAgentHome = path.join(
-      paperclipHome,
+      outpostHome,
       "instances",
       "default",
-      "companies",
-      "company-1",
+      "spaces",
+      "space-1",
       "agents",
       "agent-1",
       "codex-home",
@@ -46,7 +46,7 @@ describe("codex managed-home auth fail-fast", () => {
     await fs.mkdir(workspaceDir, { recursive: true });
 
     // Source home has no auth.json, so nothing is symlinked into the managed home.
-    vi.stubEnv("OUTPOST_HOME", paperclipHome);
+    vi.stubEnv("OUTPOST_HOME", outpostHome);
     vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
     vi.stubEnv("CODEX_HOME", emptySharedHome);
 
@@ -55,7 +55,7 @@ describe("codex managed-home auth fail-fast", () => {
         runId: "run-failfast",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "CodexCoder",
           adapterType: "codex_local",
           adapterConfig: { engine: "cli" },
@@ -98,23 +98,23 @@ describe("codex sandbox-target credential gate", () => {
   });
 
   async function makeCredentiallessManagedHome() {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-sandbox-gate-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-sandbox-gate-"));
     cleanupDirs.push(root);
-    const paperclipHome = path.join(root, "paperclip-home");
+    const outpostHome = path.join(root, "outpost-home");
     const emptySharedHome = path.join(root, "shared-codex-home");
     await fs.mkdir(emptySharedHome, { recursive: true });
     const managedAgentHome = path.join(
-      paperclipHome,
+      outpostHome,
       "instances",
       "default",
-      "companies",
-      "company-1",
+      "spaces",
+      "space-1",
       "agents",
       "agent-1",
       "codex-home",
     );
     const env = {
-      OUTPOST_HOME: paperclipHome,
+      OUTPOST_HOME: outpostHome,
       OUTPOST_INSTANCE_ID: "default",
       CODEX_HOME: emptySharedHome,
     } as NodeJS.ProcessEnv;
@@ -134,7 +134,7 @@ describe("codex sandbox-target credential gate", () => {
     await expect(
       assertCodexCredentialsLaunchable({
         runId: "run-sandbox-login",
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: managedAgentHome,
         configuredApiKey: null,
         effectiveCodexHome: managedAgentHome,
@@ -163,7 +163,7 @@ describe("codex sandbox-target credential gate", () => {
     await expect(
       assertCodexCredentialsLaunchable({
         runId: "run-sandbox-nologin",
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: managedAgentHome,
         configuredApiKey: null,
         effectiveCodexHome: managedAgentHome,
@@ -183,7 +183,7 @@ describe("codex sandbox-target credential gate", () => {
     await expect(
       assertCodexCredentialsLaunchable({
         runId: "run-probe-error",
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: managedAgentHome,
         configuredApiKey: null,
         effectiveCodexHome: managedAgentHome,
@@ -205,7 +205,7 @@ describe("codex sandbox-target credential gate", () => {
     await expect(
       assertCodexCredentialsLaunchable({
         runId: "run-probe-timeout",
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: managedAgentHome,
         configuredApiKey: null,
         effectiveCodexHome: managedAgentHome,
@@ -223,7 +223,7 @@ describe("codex sandbox-target credential gate", () => {
     await expect(
       assertCodexCredentialsLaunchable({
         runId: "run-local",
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: managedAgentHome,
         configuredApiKey: null,
         effectiveCodexHome: managedAgentHome,
@@ -242,7 +242,7 @@ describe("codex sandbox-target credential gate", () => {
     await expect(
       assertCodexCredentialsLaunchable({
         runId: "run-api-key",
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: managedAgentHome,
         configuredApiKey: "sk-agent",
         effectiveCodexHome: managedAgentHome,

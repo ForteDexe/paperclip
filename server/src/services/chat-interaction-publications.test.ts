@@ -13,7 +13,7 @@ import {
 function closedQuestion(allowOther?: boolean): AskUserQuestionsInteraction {
   return {
     id: "11111111-1111-4111-8111-111111111111",
-    companyId: "22222222-2222-4222-8222-222222222222",
+    spaceId: "22222222-2222-4222-8222-222222222222",
     issueId: "33333333-3333-4333-8333-333333333333",
     kind: "ask_user_questions",
     status: "pending",
@@ -53,7 +53,7 @@ describe("native chat question eligibility", () => {
     });
   });
 
-  it("keeps an explicitly open question on the Paperclip-only response path", () => {
+  it("keeps an explicitly open question on the Outpost-only response path", () => {
     expect(nativeChatQuestion(closedQuestion(true))).toBeNull();
   });
 });
@@ -69,7 +69,7 @@ class CapturingTelegramAdapter extends TelegramAdapter {
       botToken: "123:test-token",
       mode: "webhook",
       secretToken: "test-webhook-secret",
-      userName: "paperclip_test_bot",
+      userName: "outpost_test_bot",
     });
   }
 

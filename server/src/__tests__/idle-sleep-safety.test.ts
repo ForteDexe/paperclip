@@ -3,9 +3,9 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  agentInstructionWorkingCopies, agents, agentApiKeys, agentWakeupRequests, budgetPolicies, companies, companySecretProposals, createDb,
+  agentInstructionWorkingCopies, agents, agentApiKeys, agentWakeupRequests, budgetPolicies, spaces, spaceSecretProposals, createDb,
   adapterAuthSessions, environments, environmentLeases, executionWorkspaces,
-  feedbackExports, feedbackVotes, companySkills, companySkillVersions, companySkillRepositorySnapshots,
+  feedbackExports, feedbackVotes, spaceSkills, spaceSkillVersions, spaceSkillRepositorySnapshots,
   heartbeatRuns, issues, issueWatchdogs, issueThreadInteractions, issueQuestionResponseDeliveries,
   projects, projectWorkspaces, routines, routineTriggers, toolApplications, toolConnections, workspaceOperations, executionWorkspaceRuntimeLeases, type Db,
 } from "@outpost/db";
@@ -174,30 +174,30 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
     if (!externalDatabaseUrl) database = await startEmbeddedPostgresTestDatabase("idle-sleep-safety-");
     db = createDb(externalDatabaseUrl ?? database.connectionString, { maxConnections: 4 });
   }, 60_000);
-  afterEach(async () => { await db.execute(sql`TRUNCATE companies, plugins, environments CASCADE`); });
+  afterEach(async () => { await db.execute(sql`TRUNCATE spaces, plugins, environments CASCADE`); });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await database?.cleanup(); }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
   const read = () => readIdleSleepSafety(db, owned, () => now, ownerId, emptyLocal);
   const readScheduled = () => readIdleSleepSafety(db, owned, () => now, ownerId, emptyLocal, undefined, undefined, true);
   async function seed() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Idle test", issuePrefix: `T${companyId.slice(0, 6).toUpperCase()}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "On-demand agent", role: "engineer", status: "idle", adapterType: "process" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", status: "succeeded" });
-    return { companyId, agentId, runId };
+    await db.insert(spaces).values({ id: spaceId, name: "Idle test", issuePrefix: `T${spaceId.slice(0, 6).toUpperCase()}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "On-demand agent", role: "engineer", status: "idle", adapterType: "process" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "on_demand", status: "succeeded" });
+    return { spaceId, agentId, runId };
   }
 
   it.each(["true", "false"])("lets optional conversion retries sleep with package storage %s", async enabled => {
     const previous = process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED;
     process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED = enabled;
     try {
-      const { companyId } = await seed();
-      const [skill] = await db.insert(companySkills).values({ companyId, key: "legacy", slug: "legacy", name: "Legacy", markdown: "original" }).returning();
-      await db.insert(companySkillVersions).values({ companyId, companySkillId: skill!.id, revisionNumber: 1,
+      const { spaceId } = await seed();
+      const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "legacy", slug: "legacy", name: "Legacy", markdown: "original" }).returning();
+      await db.insert(spaceSkillVersions).values({ spaceId, spaceSkillId: skill!.id, revisionNumber: 1,
         fileInventory: [{ path: "SKILL.md", kind: "skill", content: "original" }], migrationAt: new Date(Date.now() + 60 * 60_000) });
-      await db.insert(companySkillRepositorySnapshots).values({ companyId, contentHash: "a".repeat(64),
+      await db.insert(spaceSkillRepositorySnapshots).values({ spaceId, contentHash: "a".repeat(64),
         fileInventory: [{ path: "SKILL.md", kind: "skill", content: "original" }], migrationAt: new Date(0) });
       expect(await read()).toEqual(none);
     } finally {
@@ -221,18 +221,18 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
 
   it("retains committed budget stop intent until its exact generation is delivered", async () => {
     const f = await seed();
-    const [policy] = await db.insert(budgetPolicies).values({ companyId: f.companyId, scopeType: "company", scopeId: f.companyId,
+    const [policy] = await db.insert(budgetPolicies).values({ spaceId: f.spaceId, scopeType: "space", scopeId: f.spaceId,
       windowKind: "calendar_month_utc", enforcementVersion: 2, enforcementDeliveredVersion: 1 }).returning();
     expect(await read()).toEqual(present);
     await db.update(budgetPolicies).set({ enforcementDeliveredVersion: 2 }).where(eq(budgetPolicies.id, policy.id));
     expect(await read()).toEqual(none);
   });
 
-  it("retains company hold projection and lifecycle operations through admission drain", async () => {
+  it("retains space hold projection and lifecycle operations through admission drain", async () => {
     const f = await seed();
-    await db.update(companies).set({ status: "paused" }).where(eq(companies.id, f.companyId));
+    await db.update(spaces).set({ status: "paused" }).where(eq(spaces.id, f.spaceId));
     expect(await read()).toEqual(present);
-    await db.update(agents).set({ status: "paused", lifecycleState: "pausing", lifecycleHolds: ["company_paused"] }).where(eq(agents.id, f.agentId));
+    await db.update(agents).set({ status: "paused", lifecycleState: "pausing", lifecycleHolds: ["space_paused"] }).where(eq(agents.id, f.agentId));
     expect(await read()).toEqual(present);
     await db.update(agents).set({ lifecycleState: "paused" }).where(eq(agents.id, f.agentId));
     expect(await read()).toEqual(none);
@@ -240,7 +240,7 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
 
   it("retains a committed budget Stop after terminal status until delivery is acknowledged", async () => {
     const f = await seed();
-    const intent = { companyId: f.companyId, scopeType: "agent", scopeId: f.agentId, policyId: randomUUID(), version: 1 };
+    const intent = { spaceId: f.spaceId, scopeType: "agent", scopeId: f.agentId, policyId: randomUUID(), version: 1 };
     await db.update(heartbeatRuns).set({ status: "cancelled", resultJson: { startupCancellation: { budgetEnforcement: intent } } })
       .where(eq(heartbeatRuns.id, f.runId));
     expect(await read()).toEqual(present);
@@ -251,10 +251,10 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
 
   async function feedbackHistory(status: string, change: Partial<typeof feedbackExports.$inferInsert> = {}) {
     const f = await seed();
-    const [issue] = await db.insert(issues).values({ companyId: f.companyId, title: "Finished fixture", status: "done" }).returning();
-    const [vote] = await db.insert(feedbackVotes).values({ companyId: f.companyId, issueId: issue.id,
+    const [issue] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Finished fixture", status: "done" }).returning();
+    const [vote] = await db.insert(feedbackVotes).values({ spaceId: f.spaceId, issueId: issue.id,
       targetType: "issue", targetId: issue.id, authorUserId: "fixture-user", vote: "up" }).returning();
-    await db.insert(feedbackExports).values({ companyId: f.companyId, feedbackVoteId: vote.id,
+    await db.insert(feedbackExports).values({ spaceId: f.spaceId, feedbackVoteId: vote.id,
       issueId: issue.id, authorUserId: "fixture-user", targetType: "issue", targetId: issue.id,
       vote: "up", status, targetSummary: {}, ...change });
   }
@@ -287,9 +287,9 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
 
   async function scheduledRoutine(at = now + 600_000) {
     const fixture = await seed();
-    const [routine] = await db.insert(routines).values({ companyId: fixture.companyId,
+    const [routine] = await db.insert(routines).values({ spaceId: fixture.spaceId,
       title: "Scheduled fixture", status: "active", assigneeAgentId: fixture.agentId }).returning();
-    const [trigger] = await db.insert(routineTriggers).values({ companyId: fixture.companyId,
+    const [trigger] = await db.insert(routineTriggers).values({ spaceId: fixture.spaceId,
       routineId: routine!.id, kind: "schedule", cronExpression: "*/15 * * * *", timezone: "UTC",
       nextRunAt: new Date(at), enabled: true, archived: false, setupPending: false }).returning();
     return { ...fixture, routine: routine!, trigger: trigger! };
@@ -307,7 +307,7 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
       .toMatchObject([{ nextRunAt: f.trigger.nextRunAt, cronExpression: f.trigger.cronExpression }]);
     expect((await readScheduled()).scheduledWake).toEqual(result.scheduledWake);
   });
-  it("scheduled routines cover all companies and invalidate a moved-earlier alarm", async () => {
+  it("scheduled routines cover all spaces and invalidate a moved-earlier alarm", async () => {
     await scheduledRoutine(now + 900_000);
     const f = await scheduledRoutine(now + 600_000);
     const first = await readScheduled();
@@ -328,7 +328,7 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
   it("scheduled routines cannot exempt external API credentials or an unowned hold", async () => {
     const f = await scheduledRoutine();
     expect(await readIdleSleepSafety(db, owned, () => now, "stale", emptyLocal, undefined, undefined, true)).toEqual(unknown);
-    await db.insert(agentApiKeys).values({ companyId: f.companyId, agentId: f.agentId,
+    await db.insert(agentApiKeys).values({ spaceId: f.spaceId, agentId: f.agentId,
       name: "Fixture external automation", keyHash: "fixture-hash" });
     expect(await readScheduled()).toEqual(present);
   });
@@ -339,10 +339,10 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
     await db.update(routines).set({ status: "unknown" }).where(eq(routines.id, f.routine.id));
     expect(await readScheduled()).toEqual(present);
   });
-  it("scheduled routines reject a trigger with a different company", async () => {
+  it("scheduled routines reject a trigger with a different space", async () => {
     const f = await scheduledRoutine();
     const other = await seed();
-    await db.update(routineTriggers).set({ companyId: other.companyId }).where(eq(routineTriggers.id, f.trigger.id));
+    await db.update(routineTriggers).set({ spaceId: other.spaceId }).where(eq(routineTriggers.id, f.trigger.id));
     expect(await readScheduled()).toEqual(present);
   });
   it.each(["checkpoint", "local inspection"])("keeps a routine awake when it becomes due during %s", async stage => {
@@ -388,9 +388,9 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
   });
 
   it("keeps a live retry child awake after its parent's schedule is consumed", async () => {
-    const { companyId, agentId, runId } = await seed();
+    const { spaceId, agentId, runId } = await seed();
     await db.update(heartbeatRuns).set({ finishedAt: new Date(now), scheduledRetryAt: new Date(now - 1000) }).where(eq(heartbeatRuns.id, runId));
-    await db.insert(heartbeatRuns).values({ companyId, agentId, invocationSource: "on_demand", status: "scheduled_retry", retryOfRunId: runId, scheduledRetryAt: new Date(now + 1000) });
+    await db.insert(heartbeatRuns).values({ spaceId, agentId, invocationSource: "on_demand", status: "scheduled_retry", retryOfRunId: runId, scheduledRetryAt: new Date(now + 1000) });
     expect(await read()).toEqual(present);
   });
 
@@ -399,13 +399,13 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
     await db.update(heartbeatRuns).set({ finishedAt: new Date(now) }).where(eq(heartbeatRuns.id, seeded.runId));
     const issueId = randomUUID();
     const interactionId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId: seeded.companyId, title: "Finished question", status: "done" });
+    await db.insert(issues).values({ id: issueId, spaceId: seeded.spaceId, title: "Finished question", status: "done" });
     await db.insert(issueThreadInteractions).values({
-      id: interactionId, companyId: seeded.companyId, issueId,
+      id: interactionId, spaceId: seeded.spaceId, issueId,
       kind: "ask_user_questions", status: "answered", payload: { version: 1, questions: [] },
     });
     await db.insert(issueQuestionResponseDeliveries).values({
-      companyId: seeded.companyId, issueId, interactionId, sourceRunId: seeded.runId,
+      spaceId: seeded.spaceId, issueId, interactionId, sourceRunId: seeded.runId,
       targetRunId: seeded.runId, correlationId: randomUUID(), payloadSha256: "fixture",
       status: "fallback_queued", deliveryMode: "wake_fallback", acknowledgedAt: new Date(now), ...change,
     });
@@ -417,7 +417,7 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
     change: Partial<typeof agentWakeupRequests.$inferInsert> = {},
   ) {
     await db.insert(agentWakeupRequests).values({
-      companyId: delivery.companyId, agentId: delivery.agentId, source: "automation",
+      spaceId: delivery.spaceId, agentId: delivery.agentId, source: "automation",
       idempotencyKey: `question-response:${delivery.interactionId}`,
       status: "completed", finishedAt: new Date(now), ...change,
     });
@@ -450,7 +450,7 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
     expect(await read()).toEqual(present);
   });
 
-  it("does not accept a foreign company's finished question target", async () => {
+  it("does not accept a foreign space's finished question target", async () => {
     const foreign = await seedQuestionDelivery({ status: "failed", targetRunId: null });
     await seedQuestionDelivery({ targetRunId: foreign.runId });
     expect(await read()).toEqual(present);
@@ -492,19 +492,19 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
     expect(await read()).toEqual(present);
     await db.update(agentWakeupRequests).set({
       status: "coalesced", runId: delivery.runId, finishedAt: new Date(now),
-    }).where(eq(agentWakeupRequests.companyId, delivery.companyId));
+    }).where(eq(agentWakeupRequests.spaceId, delivery.spaceId));
     expect(await read()).toEqual(none);
   });
 
-  it.each(["missing_run", "wrong_company", "wrong_agent", "unfinished", "retry", "accounting"])(
+  it.each(["missing_run", "wrong_space", "wrong_agent", "unfinished", "retry", "accounting"])(
     "keeps a coalesced question fallback awake with %s linked-run evidence", async kind => {
       const delivery = await seedQuestionDelivery({ targetRunId: null });
       let runId = delivery.runId;
       if (kind === "missing_run") runId = randomUUID();
-      if (kind === "wrong_company") runId = (await seedQuestionDelivery({ status: "failed", targetRunId: null })).runId;
+      if (kind === "wrong_space") runId = (await seedQuestionDelivery({ status: "failed", targetRunId: null })).runId;
       if (kind === "wrong_agent") {
         const otherAgent = randomUUID();
-        await db.insert(agents).values({ id: otherAgent, companyId: delivery.companyId, name: "Other", role: "engineer", status: "idle", adapterType: "process" });
+        await db.insert(agents).values({ id: otherAgent, spaceId: delivery.spaceId, name: "Other", role: "engineer", status: "idle", adapterType: "process" });
         await db.update(heartbeatRuns).set({ agentId: otherAgent }).where(eq(heartbeatRuns.id, runId));
       }
       if (kind === "unfinished") await db.update(heartbeatRuns).set({ finishedAt: null }).where(eq(heartbeatRuns.id, runId));
@@ -515,11 +515,11 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
     },
   );
 
-  it("does not accept another interaction's or company's question wake receipt", async () => {
+  it("does not accept another interaction's or space's question wake receipt", async () => {
     const delivery = await seedQuestionDelivery({ targetRunId: null });
     await seedQuestionWake(delivery, { idempotencyKey: `question-response:${randomUUID()}` });
     const foreign = await seedQuestionDelivery({ status: "failed", targetRunId: null });
-    await seedQuestionWake(delivery, { companyId: foreign.companyId, agentId: foreign.agentId });
+    await seedQuestionWake(delivery, { spaceId: foreign.spaceId, agentId: foreign.agentId });
     expect(await read()).toEqual(present);
   });
 
@@ -541,9 +541,9 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
   });
 
   it("keeps saved agent files awake until deferred cleanup completes", async () => {
-    const { companyId, agentId, runId } = await seed();
+    const { spaceId, agentId, runId } = await seed();
     await db.insert(agentInstructionWorkingCopies).values({
-      runId, companyId, agentId, responsibleUserId: "test-user", entryFile: "AGENTS.md",
+      runId, spaceId, agentId, responsibleUserId: "test-user", entryFile: "AGENTS.md",
       baseHash: "test-hash", localRoot: "/tmp/idle-copy", executionRoot: "/tmp/idle-copy",
       location: "local", state: "saved", processStoppedAt: new Date(now),
       receipt: { schema: "outpost.agent-files.v1", cleanupPending: true },
@@ -556,19 +556,19 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
 
   it("authorizes an empty database and completed history under a quiet owned hold", async () => {
     expect(await read()).toEqual(none);
-    const { companyId } = await seed();
-    await db.insert(issues).values({ companyId, title: "Finished work", status: "done" });
-    await db.insert(routines).values({ companyId, title: "Paused schedule", status: "paused" });
-    await db.insert(environmentLeases).values({ companyId, status: "released" });
+    const { spaceId } = await seed();
+    await db.insert(issues).values({ spaceId, title: "Finished work", status: "done" });
+    await db.insert(routines).values({ spaceId, title: "Paused schedule", status: "paused" });
+    await db.insert(environmentLeases).values({ spaceId, status: "released" });
     expect(await read()).toEqual(none);
   });
 
   it("blocks a saved watchdog on a completed issue before its first review starts", async () => {
-    const { companyId, agentId } = await seed();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Finished work", status: "done" }).returning();
+    const { spaceId, agentId } = await seed();
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Finished work", status: "done" }).returning();
     expect(await read()).toEqual(none);
     const [watchdog] = await db.insert(issueWatchdogs).values({
-      companyId, issueId: issue!.id, watchdogAgentId: agentId, status: "active",
+      spaceId, issueId: issue!.id, watchdogAgentId: agentId, status: "active",
     }).returning();
     expect(watchdog!.watchdogIssueId).toBeNull();
     expect(watchdog!.lastTriggeredAt).toBeNull();
@@ -597,16 +597,16 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
   });
 
   it("blocks a durable deferred wake", async () => {
-    const { companyId, agentId } = await seed();
-    await db.insert(agentWakeupRequests).values({ companyId, agentId, source: "assignment", status: "deferred_issue_execution" });
+    const { spaceId, agentId } = await seed();
+    await db.insert(agentWakeupRequests).values({ spaceId, agentId, source: "assignment", status: "deferred_issue_execution" });
     expect(await read()).toEqual(present);
   });
 
   it("allows consumed coalesced wakes only after their linked run finishes", async () => {
-    const { companyId, agentId, runId } = await seed();
+    const { spaceId, agentId, runId } = await seed();
     await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, runId));
     await db.insert(agentWakeupRequests).values({
-      companyId, agentId, source: "assignment", status: "coalesced", runId, finishedAt: new Date(now),
+      spaceId, agentId, source: "assignment", status: "coalesced", runId, finishedAt: new Date(now),
     });
     expect(await read()).toEqual(present);
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date(now) })
@@ -614,26 +614,26 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
     expect(await read()).toEqual(none);
   });
 
-  it.each(["unfinished", "missing_run", "wrong_company", "wrong_agent", "unfinished_run", "retry", "accounting"])(
+  it.each(["unfinished", "missing_run", "wrong_space", "wrong_agent", "unfinished_run", "retry", "accounting"])(
     "keeps a coalesced wake awake with %s evidence", async kind => {
-      const { companyId, agentId, runId } = await seed();
+      const { spaceId, agentId, runId } = await seed();
       await db.update(heartbeatRuns).set({ finishedAt: new Date(now) }).where(eq(heartbeatRuns.id, runId));
       let linkedRunId = runId;
       if (kind === "missing_run") linkedRunId = randomUUID();
-      if (kind === "wrong_company") {
+      if (kind === "wrong_space") {
         linkedRunId = (await seed()).runId;
         await db.update(heartbeatRuns).set({ finishedAt: new Date(now) }).where(eq(heartbeatRuns.id, linkedRunId));
       }
       if (kind === "wrong_agent") {
         const otherAgentId = randomUUID();
-        await db.insert(agents).values({ id: otherAgentId, companyId, name: "Other agent", role: "engineer", status: "idle", adapterType: "process" });
+        await db.insert(agents).values({ id: otherAgentId, spaceId, name: "Other agent", role: "engineer", status: "idle", adapterType: "process" });
         await db.update(heartbeatRuns).set({ agentId: otherAgentId }).where(eq(heartbeatRuns.id, runId));
       }
       if (kind === "unfinished_run") await db.update(heartbeatRuns).set({ finishedAt: null }).where(eq(heartbeatRuns.id, runId));
       if (kind === "retry") await db.update(heartbeatRuns).set({ scheduledRetryAt: new Date(now + 1000) }).where(eq(heartbeatRuns.id, runId));
       if (kind === "accounting") await db.update(heartbeatRuns).set({ costAccountingPending: true }).where(eq(heartbeatRuns.id, runId));
       await db.insert(agentWakeupRequests).values({
-        companyId, agentId, source: "assignment", status: "coalesced", runId: linkedRunId,
+        spaceId, agentId, source: "assignment", status: "coalesced", runId: linkedRunId,
         finishedAt: kind === "unfinished" ? null : new Date(now),
       });
       expect(await read()).toEqual(present);
@@ -641,24 +641,24 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
   );
 
   it("blocks an active routine without waiting for its next due time", async () => {
-    const { companyId } = await seed();
-    await db.insert(routines).values({ companyId, title: "Tomorrow", status: "active" });
+    const { spaceId } = await seed();
+    await db.insert(routines).values({ spaceId, title: "Tomorrow", status: "active" });
     expect(await read()).toEqual(present);
   });
 
   it("blocks a remote resource pending cleanup", async () => {
-    const { companyId } = await seed();
-    await db.insert(environmentLeases).values({ companyId, status: "pending_cleanup" });
+    const { spaceId } = await seed();
+    await db.insert(environmentLeases).values({ spaceId, status: "pending_cleanup" });
     expect(await read()).toEqual(present);
   });
 
   async function seedAiConnection() {
     const seeded = await seed();
     const [application] = await db.insert(toolApplications).values({
-      companyId: seeded.companyId, name: "AI fixture", type: "rest_api",
+      spaceId: seeded.spaceId, name: "AI fixture", type: "rest_api",
     }).returning();
     const [connection] = await db.insert(toolConnections).values({
-      companyId: seeded.companyId, applicationId: application!.id,
+      spaceId: seeded.spaceId, applicationId: application!.id,
       name: "Saved AI login", uid: randomUUID(), connectionPurpose: "ai",
       transport: "runtime_auth", status: "active", enabled: true,
     }).returning();
@@ -674,13 +674,13 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
 
   it.each(["draft", "active_login", "pending_run", "accepted_refresh"])(
     "keeps AI connections awake for %s work", async kind => {
-      const { companyId, runId, connection } = await seedAiConnection();
+      const { spaceId, runId, connection } = await seedAiConnection();
       if (kind === "draft") await db.update(toolConnections).set({ status: "draft" }).where(eq(toolConnections.id, connection.id));
       if (kind === "pending_run") await db.update(heartbeatRuns).set({ status: "queued" }).where(eq(heartbeatRuns.id, runId));
       if (kind === "active_login") {
         const [environment] = await db.insert(environments).values({ name: "Active AI login" }).returning();
         await db.insert(adapterAuthSessions).values({
-          companyId, environmentId: environment!.id, connectionId: connection.id,
+          spaceId, environmentId: environment!.id, connectionId: connection.id,
           adapterType: "codex_local", startedByUserId: "fixture-user",
           publicSessionId: randomUUID(), status: "waiting_for_user",
         });
@@ -692,9 +692,9 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
   );
 
   it("allows saved outbound MCP connections alongside inert AI credentials", async () => {
-    const { companyId, connection } = await seedAiConnection();
+    const { spaceId, connection } = await seedAiConnection();
     await db.insert(toolConnections).values({
-      companyId, applicationId: connection.applicationId, name: "Remote tools", uid: randomUUID(),
+      spaceId, applicationId: connection.applicationId, name: "Remote tools", uid: randomUUID(),
       connectionPurpose: "tool", transport: "mcp_remote", status: "active", enabled: true,
     });
     expect(await read()).toEqual(none);
@@ -707,12 +707,12 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
     const [environment] = await db.insert(environments).values({ name: "Failed turn environment", driver: "sandbox" }).returning();
     const leaseId = randomUUID();
     const receipt = {
-      schema: "outpost.remote-termination.v1", companyId: seeded.companyId,
+      schema: "outpost.remote-termination.v1", spaceId: seeded.spaceId,
       runId: seeded.runId, leaseId, provider: "plugin:demo:sandbox",
       providerLeaseId: "fixture-resource", state: "destroyed", confirmedAt: new Date(now).toISOString(),
     };
     const [lease] = await db.insert(environmentLeases).values({
-      id: leaseId, companyId: seeded.companyId, environmentId: environment!.id,
+      id: leaseId, spaceId: seeded.spaceId, environmentId: environment!.id,
       heartbeatRunId: seeded.runId, status: "failed", leasePolicy: "ephemeral",
       provider: receipt.provider, providerLeaseId: receipt.providerLeaseId,
       acquiredAt: new Date(now - 1000), releasedAt: new Date(now), cleanupStatus: "success",
@@ -740,7 +740,7 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
 
   it.each([
     "cleanup_failed", "cleanup_unknown", "unreleased", "retained_policy", "reusable_policy",
-    "active", "pending_cleanup", "missing_receipt", "wrong_company", "wrong_run", "wrong_lease",
+    "active", "pending_cleanup", "missing_receipt", "wrong_space", "wrong_run", "wrong_lease",
     "wrong_provider", "wrong_resource", "not_stopped", "missing_run", "unfinished_run",
     "retry", "accounting", "cleanup_in_flight", "pending_export", "pending_retain",
   ])("retains failed leases with %s evidence", async kind => {
@@ -753,7 +753,7 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
     if (kind === "reusable_policy") change.leasePolicy = "reuse_by_environment";
     if (kind === "active" || kind === "pending_cleanup") change.status = kind;
     if (kind === "missing_receipt") change.metadata = {};
-    const fields: Record<string, string> = { wrong_company: "companyId", wrong_run: "runId", wrong_lease: "leaseId", wrong_provider: "provider", wrong_resource: "providerLeaseId", not_stopped: "state" };
+    const fields: Record<string, string> = { wrong_space: "spaceId", wrong_run: "runId", wrong_lease: "leaseId", wrong_provider: "provider", wrong_resource: "providerLeaseId", not_stopped: "state" };
     if (fields[kind]) change.metadata = { remoteExecutionTermination: { ...receipt, [fields[kind]]: "wrong" } };
     if (kind === "missing_run") change.heartbeatRunId = null;
     if (kind === "unfinished_run") await db.update(heartbeatRuns).set({ finishedAt: null }).where(eq(heartbeatRuns.id, runId));
@@ -767,9 +767,9 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
   });
 
   it("uses the same failed-lease cleanup proof for finished login history", async () => {
-    const { companyId, environment, lease } = await seedFinishedFailedLease();
+    const { spaceId, environment, lease } = await seedFinishedFailedLease();
     await db.insert(adapterAuthSessions).values({
-      companyId, environmentId: environment.id, adapterType: "codex_local", startedByUserId: "fixture-user",
+      spaceId, environmentId: environment.id, adapterType: "codex_local", startedByUserId: "fixture-user",
       publicSessionId: randomUUID(), providerLeaseId: lease.providerLeaseId,
       status: "authenticated", finishedAt: new Date(now),
     });
@@ -779,28 +779,28 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
   });
 
   it("reports a login sandbox awaiting cleanup", async () => {
-    const { companyId } = await seed();
+    const { spaceId } = await seed();
     const [environment] = await db.insert(environments).values({ name: "Login fixture" }).returning();
     await db.insert(adapterAuthSessions).values({
-      companyId, environmentId: environment!.id, adapterType: "codex_local",
+      spaceId, environmentId: environment!.id, adapterType: "codex_local",
       startedByUserId: "fixture-user", publicSessionId: "fixture-session", status: "cleanup_pending",
     });
     expect(await read()).toEqual(present);
   });
 
   async function seedFinishedLogin() {
-    const { companyId } = await seed();
+    const { spaceId } = await seed();
     const [environment] = await db.insert(environments).values({ name: "Finished login fixture" }).returning();
     const [lease] = await db.insert(environmentLeases).values({
-      companyId, environmentId: environment!.id, providerLeaseId: "fixture-login-resource",
+      spaceId, environmentId: environment!.id, providerLeaseId: "fixture-login-resource",
       status: "released", cleanupStatus: "success", releasedAt: new Date(now),
     }).returning();
     const [session] = await db.insert(adapterAuthSessions).values({
-      companyId, environmentId: environment!.id, adapterType: "codex_local",
+      spaceId, environmentId: environment!.id, adapterType: "codex_local",
       startedByUserId: "fixture-user", publicSessionId: "finished-fixture-session",
       status: "authenticated", finishedAt: new Date(now), providerLeaseId: lease!.providerLeaseId,
     }).returning();
-    return { companyId, environment: environment!, lease: lease!, session: session! };
+    return { spaceId, environment: environment!, lease: lease!, session: session! };
   }
 
   it.each(["authenticated", "completed", "failed", "timed_out", "cancelled"] as const)(
@@ -828,12 +828,12 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
   );
 
   it("keeps a UUID-shaped external reference awake when an internal lease conflicts", async () => {
-    const { companyId, environment, session, lease } = await seedFinishedLogin();
+    const { spaceId, environment, session, lease } = await seedFinishedLogin();
     const conflictingId = randomUUID();
     await db.update(environmentLeases).set({ providerLeaseId: conflictingId }).where(eq(environmentLeases.id, lease.id));
     await db.update(adapterAuthSessions).set({ providerLeaseId: conflictingId }).where(eq(adapterAuthSessions.id, session.id));
     await db.insert(environmentLeases).values({
-      id: conflictingId, companyId, environmentId: environment.id,
+      id: conflictingId, spaceId, environmentId: environment.id,
       status: "released", cleanupStatus: "failed", releasedAt: new Date(now),
     });
     expect(await read()).toEqual(present);
@@ -855,13 +855,13 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
     },
   );
 
-  it.each(["unfinished", "promotion_claim", "missing_lease", "wrong_company", "wrong_environment", "cleanup_failed", "cleanup_unknown", "unreleased", "conflicting_lease"])(
+  it.each(["unfinished", "promotion_claim", "missing_lease", "wrong_space", "wrong_environment", "cleanup_failed", "cleanup_unknown", "unreleased", "conflicting_lease"])(
     "retains terminal login history with %s cleanup evidence", async kind => {
-      const { companyId, session, lease, environment } = await seedFinishedLogin();
+      const { spaceId, session, lease, environment } = await seedFinishedLogin();
       if (kind === "unfinished") await db.update(adapterAuthSessions).set({ finishedAt: null }).where(eq(adapterAuthSessions.id, session.id));
       if (kind === "promotion_claim") await db.update(adapterAuthSessions).set({ promotionExpiresAt: new Date(now + 1000) }).where(eq(adapterAuthSessions.id, session.id));
       if (kind === "missing_lease") await db.delete(environmentLeases).where(eq(environmentLeases.id, lease.id));
-      if (kind === "wrong_company") await db.update(environmentLeases).set({ companyId: (await seed()).companyId }).where(eq(environmentLeases.id, lease.id));
+      if (kind === "wrong_space") await db.update(environmentLeases).set({ spaceId: (await seed()).spaceId }).where(eq(environmentLeases.id, lease.id));
       if (kind === "wrong_environment") {
         const [other] = await db.insert(environments).values({ name: "Other environment", driver: "sandbox" }).returning();
         await db.update(environmentLeases).set({ environmentId: other!.id }).where(eq(environmentLeases.id, lease.id));
@@ -870,7 +870,7 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
       if (kind === "cleanup_unknown") await db.update(environmentLeases).set({ cleanupStatus: null }).where(eq(environmentLeases.id, lease.id));
       if (kind === "unreleased") await db.update(environmentLeases).set({ releasedAt: null }).where(eq(environmentLeases.id, lease.id));
       if (kind === "conflicting_lease") await db.insert(environmentLeases).values({
-        companyId, environmentId: environment.id, providerLeaseId: lease.providerLeaseId,
+        spaceId, environmentId: environment.id, providerLeaseId: lease.providerLeaseId,
         status: "released", cleanupStatus: "failed", releasedAt: new Date(now),
       });
       expect(await read()).toEqual(present);
@@ -878,9 +878,9 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
   );
 
   it("reports a pending secret proposal with future expiry", async () => {
-    const { companyId, agentId, runId } = await seed();
-    await db.insert(companySecretProposals).values({
-      companyId, kind: "secret", proposedName: "Fixture", proposedKey: "FIXTURE",
+    const { spaceId, agentId, runId } = await seed();
+    await db.insert(spaceSecretProposals).values({
+      spaceId, kind: "secret", proposedName: "Fixture", proposedKey: "FIXTURE",
       justification: "Test pending proposal", proposedByAgentId: agentId, originRunId: runId,
       expiresAt: new Date(now + 86_400_000),
     });
@@ -888,10 +888,10 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
   });
 
   async function seedRetainedWorkspace(change: Partial<typeof executionWorkspaces.$inferInsert> = {}) {
-    const { companyId } = await seed();
-    const [project] = await db.insert(projects).values({ companyId, name: "Fixture project" }).returning();
+    const { spaceId } = await seed();
+    const [project] = await db.insert(projects).values({ spaceId, name: "Fixture project" }).returning();
     const [workspace] = await db.insert(executionWorkspaces).values({
-      companyId, projectId: project!.id, name: "Fixture workspace", mode: "isolated_workspace",
+      spaceId, projectId: project!.id, name: "Fixture workspace", mode: "isolated_workspace",
       strategyType: "git_worktree", status: "active", providerType: "git_worktree",
       cwd: "/tmp/fixture-retained-worktree", providerRef: "/tmp/fixture-retained-worktree",
       ...change,
@@ -954,7 +954,7 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
   it("retains a shared directory that can inherit project runtime configuration", async () => {
     const workspace = await seedRetainedWorkspace();
     const [projectWorkspace] = await db.insert(projectWorkspaces).values({
-      companyId: workspace.companyId, projectId: workspace.projectId!, name: "Shared fixture",
+      spaceId: workspace.spaceId, projectId: workspace.projectId!, name: "Shared fixture",
       metadata: { runtimeConfig: { workspaceRuntime: { services: [] } } },
     }).returning();
     await db.update(executionWorkspaces).set({ mode: "shared_workspace", projectWorkspaceId: projectWorkspace!.id })
@@ -964,32 +964,32 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
 
   it("retains a local directory with an unfinished operation", async () => {
     const workspace = await seedRetainedWorkspace();
-    await db.insert(workspaceOperations).values({ companyId: workspace.companyId, executionWorkspaceId: workspace.id, phase: "cleanup", status: "running" });
+    await db.insert(workspaceOperations).values({ spaceId: workspace.spaceId, executionWorkspaceId: workspace.id, phase: "cleanup", status: "running" });
     expect(await read()).toEqual(present);
   });
 
   it("retains a local directory with a runtime owner", async () => {
     const workspace = await seedRetainedWorkspace();
     await db.insert(executionWorkspaceRuntimeLeases).values({
-      companyId: workspace.companyId, executionWorkspaceId: workspace.id,
+      spaceId: workspace.spaceId, executionWorkspaceId: workspace.id,
       ownerKey: "fixture-owner", lastAction: "use", expiresAt: new Date(Date.UTC(2099, 0, 1)),
     });
     expect(await read()).toEqual(present);
   });
 
   it("blocks externally usable agent keys until revoked", async () => {
-    const { companyId, agentId } = await seed();
-    const [key] = await db.insert(agentApiKeys).values({ companyId, agentId, name: "Fixture", keyHash: "fixture-not-a-key" }).returning();
+    const { spaceId, agentId } = await seed();
+    const [key] = await db.insert(agentApiKeys).values({ spaceId, agentId, name: "Fixture", keyHash: "fixture-not-a-key" }).returning();
     expect(await read()).toEqual(present);
     await db.update(agentApiKeys).set({ revokedAt: new Date(now) }).where(eq(agentApiKeys.id, key!.id));
     expect(await read()).toEqual(none);
   });
 
-  it("checks every company in the instance", async () => {
+  it("checks every space in the instance", async () => {
     await seed();
     const otherId = randomUUID();
-    await db.insert(companies).values({ id: otherId, name: "Other company", issuePrefix: "OTHER" });
-    await db.insert(issues).values({ companyId: otherId, title: "Pending work", status: "todo" });
+    await db.insert(spaces).values({ id: otherId, name: "Other space", issuePrefix: "OTHER" });
+    await db.insert(issues).values({ spaceId: otherId, title: "Pending work", status: "todo" });
     expect(await read()).toEqual(present);
   });
 
@@ -1012,8 +1012,8 @@ if (!support.supported) console.warn(`Skipping idle sleep Postgres tests: ${supp
       VALUES ('demo.unknown', 'demo-unknown', '1.0.0', '{}'::jsonb)`);
     expect(await scan()).toEqual(present);
     await db.execute(sql`UPDATE plugins SET status = 'disabled' WHERE plugin_key = 'demo.unknown'`);
-    const { companyId } = await seed();
-    await db.insert(issues).values({ companyId, title: "Still pending", status: "todo" });
+    const { spaceId } = await seed();
+    await db.insert(issues).values({ spaceId, title: "Still pending", status: "todo" });
     expect(await scan()).toEqual(present);
   });
 

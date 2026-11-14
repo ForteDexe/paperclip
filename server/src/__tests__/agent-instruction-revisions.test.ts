@@ -4,7 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { agents, agentApiKeys, companies, authUsers, companyMemberships, principalPermissionGrants, heartbeatRuns,
+import { agents, agentApiKeys, spaces, authUsers, spaceMemberships, principalPermissionGrants, heartbeatRuns,
   agentInstructionRevisions, agentInstructionHeads, issueThreadInteractions, issues, createDb } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { agentFileStore, snapshotAgentFiles } from "../services/agent-file-store.js";
@@ -21,7 +21,7 @@ describe("canonical instruction revisions", () => {
   let service: ReturnType<typeof agentInstructionRevisionService>;
   const previousHome = process.env.OUTPOST_HOME;
   let home: string;
-  let companyId: string, agentId: string, userId: string, actorId: string, runId: string, root: string;
+  let spaceId: string, agentId: string, userId: string, actorId: string, runId: string, root: string;
   let actor: AuthorizationActor;
   const entryFile = "policy/INSTRUCTIONS.txt";
   const initial = "\uFEFF# Original\r\n☃\0\n";
@@ -39,28 +39,28 @@ describe("canonical instruction revisions", () => {
     if (home) await fs.rm(home, { recursive: true, force: true });
   });
   beforeEach(async () => {
-    companyId = randomUUID(); agentId = randomUUID(); actorId = randomUUID(); userId = randomUUID(); runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Instruction tests", issuePrefix: randomUUID().slice(0, 8) });
+    spaceId = randomUUID(); agentId = randomUUID(); actorId = randomUUID(); userId = randomUUID(); runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Instruction tests", issuePrefix: randomUUID().slice(0, 8) });
     await db.insert(authUsers).values({ id: userId, name: "Editor", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    root = resolveManagedInstructionsRoot({ id: agentId, companyId, name: "Target", adapterConfig: {} });
+    root = resolveManagedInstructionsRoot({ id: agentId, spaceId, name: "Target", adapterConfig: {} });
     await db.insert(agents).values([
-      { id: agentId, companyId, name: "Target", adapterConfig: { instructionsBundleMode: "managed", instructionsRootPath: root, instructionsEntryFile: entryFile } },
-      { id: actorId, companyId, name: "Writer" },
+      { id: agentId, spaceId, name: "Target", adapterConfig: { instructionsBundleMode: "managed", instructionsRootPath: root, instructionsEntryFile: entryFile } },
+      { id: actorId, spaceId, name: "Writer" },
     ]);
-    await db.insert(companyMemberships).values([
-      { companyId, principalType: "user", principalId: userId, membershipRole: "operator" },
-      { companyId, principalType: "agent", principalId: actorId, membershipRole: "member" },
+    await db.insert(spaceMemberships).values([
+      { spaceId, principalType: "user", principalId: userId, membershipRole: "operator" },
+      { spaceId, principalType: "agent", principalId: actorId, membershipRole: "member" },
     ]);
     await db.insert(principalPermissionGrants).values([
-      { companyId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [agentId] } },
-      { companyId, principalType: "agent", principalId: actorId, permissionKey: "agents:configure", scope: { agentIds: [agentId] } },
+      { spaceId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [agentId] } },
+      { spaceId, principalType: "agent", principalId: actorId, permissionKey: "agents:configure", scope: { agentIds: [agentId] } },
     ]);
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId: actorId, invocationSource: "on_demand", responsibleUserId: userId });
-    actor = { type: "agent", companyId, agentId: actorId, runId, source: "agent_jwt" };
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId: actorId, invocationSource: "on_demand", responsibleUserId: userId });
+    actor = { type: "agent", spaceId, agentId: actorId, runId, source: "agent_jwt" };
     await fs.mkdir(path.dirname(path.join(root, entryFile)), { recursive: true });
     await fs.writeFile(path.join(root, entryFile), initial);
   });
-  const target = () => ({ companyId, agentId });
+  const target = () => ({ spaceId, agentId });
   async function base() { return (await service.readCurrent(target(), actor))!; }
   async function save(content: string, baseRevisionId: string | null) {
     return service.commit({ ...target(), entryFile, content, baseRevisionId, source: "cleanup" }, actor);
@@ -108,10 +108,10 @@ describe("canonical instruction revisions", () => {
     expect(await instructions.getFileDates(agent!, entryFile, rootUpdated.revision.contentHash)).toHaveProperty("updatedAt");
   });
   it("reads peer instructions with read-only agent and responsible-user grants but denies saves", async () => {
-    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.companyId, companyId));
+    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.spaceId, spaceId));
     await db.insert(principalPermissionGrants).values([
-      { companyId, principalType: "user", principalId: userId, permissionKey: "agents:read", scope: { agentIds: [agentId] } },
-      { companyId, principalType: "agent", principalId: actorId, permissionKey: "agents:read", scope: { agentIds: [agentId] } },
+      { spaceId, principalType: "user", principalId: userId, permissionKey: "agents:read", scope: { agentIds: [agentId] } },
+      { spaceId, principalType: "agent", principalId: actorId, permissionKey: "agents:read", scope: { agentIds: [agentId] } },
     ]);
     const first = await base();
     expect(first.content).toBe(initial);
@@ -129,10 +129,10 @@ describe("canonical instruction revisions", () => {
       if (operation === "history") return service.history({ ...target(), entryFile }, actor);
       if (operation === "revision") return service.readRevision({ ...target(), entryFile, revisionId: first.revision.id }, actor);
       if (operation === "diff") return service.diff({ ...target(), entryFile, fromRevisionId: first.revision.id, toRevisionId: first.revision.id }, actor);
-      return agentInstructionWorkingCopyService(db).list(companyId, agentId, actor);
+      return agentInstructionWorkingCopyService(db).list(spaceId, agentId, actor);
     };
     await expect(read()).rejects.toMatchObject({ status: 403 });
-    await db.insert(principalPermissionGrants).values({ companyId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [actorId] } });
+    await db.insert(principalPermissionGrants).values({ spaceId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [actorId] } });
     await expect(read()).rejects.toMatchObject({ status: 403 });
   });
   it.each(["current", "history", "revision", "diff", "candidates", "write"])("requires the caller's own target-scoped grant for peer %s access", async (operation) => {
@@ -144,11 +144,11 @@ describe("canonical instruction revisions", () => {
       if (operation === "revision") return service.readRevision({ ...target(), entryFile, revisionId: first.revision.id }, actor);
       if (operation === "diff") return service.diff({ ...target(), entryFile, fromRevisionId: first.revision.id, toRevisionId: first.revision.id }, actor);
       if (operation === "write") return save("authorized peer edit", first.revision.id);
-      return agentInstructionWorkingCopyService(db).list(companyId, agentId, actor);
+      return agentInstructionWorkingCopyService(db).list(spaceId, agentId, actor);
     };
     // The responsible user retains permission on the target throughout.
     await expect(access()).rejects.toMatchObject({ status: 403 });
-    await db.insert(principalPermissionGrants).values({ companyId, principalType: "agent", principalId: actorId, permissionKey: "agents:configure", scope: { agentIds: [actorId] } });
+    await db.insert(principalPermissionGrants).values({ spaceId, principalType: "agent", principalId: actorId, permissionKey: "agents:configure", scope: { agentIds: [actorId] } });
     await expect(access()).rejects.toMatchObject({ status: 403 });
     await db.update(principalPermissionGrants).set({ scope: { agentIds: [agentId] } }).where(eq(principalPermissionGrants.principalId, actorId));
     // New saves have no historical revision row; authorized history lookups
@@ -156,13 +156,13 @@ describe("canonical instruction revisions", () => {
     if (operation === "revision" || operation === "diff") await expect(access()).rejects.toMatchObject({ status: 404 });
     else await expect(access()).resolves.toBeDefined();
   });
-  it("allows self and board reads without requiring instruction edit permission", async () => {
+  it("allows self and operator reads without requiring instruction edit permission", async () => {
     await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.principalId, userId));
-    const selfRoot = resolveManagedInstructionsRoot({ id: actorId, companyId, name: "Writer", adapterConfig: {} });
+    const selfRoot = resolveManagedInstructionsRoot({ id: actorId, spaceId, name: "Writer", adapterConfig: {} });
     await fs.mkdir(selfRoot, { recursive: true });
     await fs.writeFile(path.join(selfRoot, "AGENTS.md"), "Self instructions");
-    expect((await service.readCurrent({ companyId, agentId: actorId }, actor))?.content).toBe("Self instructions");
-    expect((await service.readCurrent(target(), { type: "board", userId, source: "session" }))?.content).toBe(initial);
+    expect((await service.readCurrent({ spaceId, agentId: actorId }, actor))?.content).toBe("Self instructions");
+    expect((await service.readCurrent(target(), { type: "operator", userId, source: "session" }))?.content).toBe(initial);
   });
   it("reads and replaces current bytes using content tokens without storing revisions", async () => {
     const first = await base();
@@ -199,7 +199,7 @@ describe("canonical instruction revisions", () => {
     await db.update(heartbeatRuns).set({ responsibleUserId: null }).where(eq(heartbeatRuns.id, runId));
     await expect(save("missing", first.revision.id)).rejects.toMatchObject({ status: 403 });
     await db.update(heartbeatRuns).set({ responsibleUserId: userId }).where(eq(heartbeatRuns.id, runId));
-    await db.update(companyMemberships).set({ status: "suspended" }).where(and(eq(companyMemberships.principalId, userId), eq(companyMemberships.companyId, companyId)));
+    await db.update(spaceMemberships).set({ status: "suspended" }).where(and(eq(spaceMemberships.principalId, userId), eq(spaceMemberships.spaceId, spaceId)));
     await expect(save("revoked", first.revision.id)).rejects.toMatchObject({ status: 403 });
   });
   it("rechecks user target scope and agent containment, even with shadow authorization enabled", async () => {
@@ -216,20 +216,20 @@ describe("canonical instruction revisions", () => {
   it("keeps suggest-only protected-change consent and explicit configure scope restrictions", async () => {
     const first = await base();
     await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.principalId, actorId));
-    await db.insert(principalPermissionGrants).values({ companyId, principalType: "agent", principalId: actorId, permissionKey: "agents:suggest-changes" });
+    await db.insert(principalPermissionGrants).values({ spaceId, principalType: "agent", principalId: actorId, permissionKey: "agents:suggest-changes" });
     await expect(save("needs approval", first.revision.id)).rejects.toMatchObject({ status: 403 });
     await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.principalId, actorId));
-    await db.insert(principalPermissionGrants).values({ companyId, principalType: "agent", principalId: actorId, permissionKey: "agents:configure", scope: { agentIds: [actorId] } });
+    await db.insert(principalPermissionGrants).values({ spaceId, principalType: "agent", principalId: actorId, permissionKey: "agents:configure", scope: { agentIds: [actorId] } });
     await expect(save("out of scope", first.revision.id)).rejects.toMatchObject({ status: 403 });
   });
   it("consumes accepted protected-change approval only with a successful CAS commit", async () => {
     const first = await base();
     const sourceRunId = randomUUID(), issueId = randomUUID(), interactionId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId, agentId: actorId, status: "succeeded" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Review instructions" });
+    await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId, agentId: actorId, status: "succeeded" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Review instructions" });
     await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.principalId, actorId));
-    await db.insert(principalPermissionGrants).values({ companyId, principalType: "agent", principalId: actorId, permissionKey: "agents:suggest-changes" });
-    await db.insert(issueThreadInteractions).values({ id: interactionId, companyId, issueId, kind: "request_confirmation", status: "accepted", sourceRunId, createdByAgentId: actorId,
+    await db.insert(principalPermissionGrants).values({ spaceId, principalType: "agent", principalId: actorId, permissionKey: "agents:suggest-changes" });
+    await db.insert(issueThreadInteractions).values({ id: interactionId, spaceId, issueId, kind: "request_confirmation", status: "accepted", sourceRunId, createdByAgentId: actorId,
       payload: { version: 1, prompt: "Apply the instruction change?", detailsMarkdown: "```diff\n+approved\n```", target: { type: "custom", key: `agent:${agentId}:instructions`, revisionId: "proposal" } },
       result: { version: 1, outcome: "accepted" }, resolvedByUserId: userId, resolvedAt: new Date(),
     });
@@ -242,10 +242,10 @@ describe("canonical instruction revisions", () => {
     expect((await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, interactionId)))[0].result).toMatchObject({ consumedByRunId: runId });
     await expect(save("another unapproved change", receipt.revision.id)).rejects.toMatchObject({ status: 403 });
   });
-  it("shares head/CAS and attribution between board and agent writers", async () => {
+  it("shares head/CAS and attribution between operator and agent writers", async () => {
     const first = await base();
-    const board = { type: "board", userId, source: "session" } as const;
-    const saved = await service.commit({ ...target(), entryFile, content: "board edit", baseRevisionId: first.revision.id, source: "board" }, board);
+    const operator = { type: "operator", userId, source: "session" } as const;
+    const saved = await service.commit({ ...target(), entryFile, content: "operator edit", baseRevisionId: first.revision.id, source: "operator" }, operator);
     expect(saved.revision).toMatchObject({ actorUserId: userId, responsibleUserId: userId, actorAgentId: null, sourceRunId: null, source: "api" });
     await expect(save("stale agent edit", first.revision.id)).rejects.toMatchObject({ status: 409 });
   });
@@ -259,14 +259,14 @@ describe("canonical instruction revisions", () => {
     expect(await service.readCurrent(target(), actor)).toBeNull();
     await expect(save("wrong entry", first.revision.id)).rejects.toMatchObject({ status: 409, details: { code: "INSTRUCTION_ENTRY_CHANGED" } });
   });
-  it("rejects cross-company targets, foreign revisions, and revoked API keys", async () => {
+  it("rejects cross-space targets, foreign revisions, and revoked API keys", async () => {
     const first = await base();
     await expect(service.readRevision({ ...target(), entryFile, revisionId: randomUUID() }, actor)).rejects.toMatchObject({ status: 404 });
-    await expect(service.readCurrent({ companyId: randomUUID(), agentId }, actor)).rejects.toMatchObject({ status: 404 });
+    await expect(service.readCurrent({ spaceId: randomUUID(), agentId }, actor)).rejects.toMatchObject({ status: 404 });
     const keyId = randomUUID();
-    await db.insert(agentApiKeys).values({ id: keyId, companyId, agentId: actorId, name: "test", keyHash: randomUUID(), responsibleUserId: userId, revokedAt: new Date() });
+    await db.insert(agentApiKeys).values({ id: keyId, spaceId, agentId: actorId, name: "test", keyHash: randomUUID(), responsibleUserId: userId, revokedAt: new Date() });
     await expect(service.commit({ ...target(), entryFile, content: "key", baseRevisionId: first.revision.id, source: "api" }, { ...actor, keyId })).rejects.toMatchObject({ status: 403 });
-    await expect(db.insert(agentInstructionHeads).values({ companyId: randomUUID(), agentId, entryFile, revisionId: first.revision.id })).rejects.toThrow();
+    await expect(db.insert(agentInstructionHeads).values({ spaceId: randomUUID(), agentId, entryFile, revisionId: first.revision.id })).rejects.toThrow();
   });
   it("rejects invalid content, symlinks, traversal and external bundles without changing canonical bytes", async () => {
     const first = await base();

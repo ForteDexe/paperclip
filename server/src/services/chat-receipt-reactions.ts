@@ -54,7 +54,7 @@ export async function stageReceiptReactionRemovals(
   input: {
     endpoint: typeof chatEndpoints.$inferSelect;
     binding: {
-      companyId: string;
+      spaceId: string;
       endpointId: string;
       conversationId: string;
       issueId: string;
@@ -82,7 +82,7 @@ export async function stageReceiptReactionRemovals(
     .innerJoin(
       chatMessageLinks,
       and(
-        eq(chatMessageLinks.companyId, heartbeatRuns.companyId),
+        eq(chatMessageLinks.spaceId, heartbeatRuns.spaceId),
         eq(chatMessageLinks.endpointId, input.binding.endpointId),
         eq(chatMessageLinks.conversationId, input.binding.conversationId),
         eq(chatMessageLinks.direction, "inbound"),
@@ -97,7 +97,7 @@ export async function stageReceiptReactionRemovals(
       chatDeliveries,
       and(
         eq(chatDeliveries.id, chatMessageLinks.deliveryId),
-        eq(chatDeliveries.companyId, chatMessageLinks.companyId),
+        eq(chatDeliveries.spaceId, chatMessageLinks.spaceId),
         eq(chatDeliveries.endpointId, chatMessageLinks.endpointId),
         eq(chatDeliveries.conversationId, chatMessageLinks.conversationId),
         ["slack", "telegram", "github"].includes(input.endpoint.provider)
@@ -117,7 +117,7 @@ export async function stageReceiptReactionRemovals(
     .where(
       and(
         eq(heartbeatRuns.id, runId),
-        eq(heartbeatRuns.companyId, input.binding.companyId),
+        eq(heartbeatRuns.spaceId, input.binding.spaceId),
         eq(
           sql<string>`${heartbeatRuns.contextSnapshot} ->> 'issueId'`,
           input.binding.issueId,
@@ -181,7 +181,7 @@ export async function stageReceiptReactionRemovals(
     if (!payload || payload.operation !== "add") return [];
     return [
       {
-        companyId: input.binding.companyId,
+        spaceId: input.binding.spaceId,
         endpointId: input.binding.endpointId,
         conversationId: input.binding.conversationId,
         deliveryId: receipt.deliveryId,

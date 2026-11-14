@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { NativeSessionDiagnostics, nativeSessionDiagnostics } from "./native-session-diagnostics.js";
 
-const owner = { companyId: "company", sessionScope: "session", runId: "run-a" };
+const owner = { spaceId: "space", sessionScope: "session", runId: "run-a" };
 function fixture() {
   const idle = vi.fn(), failed = vi.fn();
   return { idle, failed, channel: new NativeSessionDiagnostics(owner, owner, idle, failed) };
@@ -45,7 +45,7 @@ describe("native session diagnostic ownership", () => {
     expect(next).toHaveBeenCalledWith("stderr", "next accepted diagnostic");
   });
 
-  it.each([{ companyId: "foreign-company" }, { sessionScope: "foreign-session" }, { runId: "" }])("rejects foreign or missing ownership %j", patch => {
+  it.each([{ spaceId: "foreign-space" }, { sessionScope: "foreign-session" }, { runId: "" }])("rejects foreign or missing ownership %j", patch => {
     const f = fixture(), sink = vi.fn(async () => undefined);
     expect(() => f.channel.activate({ ...owner, ...patch }, sink)).toThrow("native_diagnostic_owner_scope_mismatch");
     f.channel.record("private provider output");

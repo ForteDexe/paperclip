@@ -55,7 +55,7 @@ describe("native warm workspace Git history", () => {
       const cacheRefused = change === "remote_commit_cache_refused" || change === "host_bytes_cache_refused" || invalidRunSeed;
       const snapshotWorker = vi.spyOn(restoreMerge, "captureDirectorySnapshotOffThread");
       const packClone = vi.spyOn(gitWorkspaceSync, "withShallowGitWorkspaceClone");
-      const root = await mkdtemp(path.join(os.tmpdir(), "paperclip-warm-history-"));
+      const root = await mkdtemp(path.join(os.tmpdir(), "outpost-warm-history-"));
       roots.push(root);
       process.env.OUTPOST_HOME = path.join(root, "home");
       process.env.OUTPOST_INSTANCE_ID = "test";
@@ -72,7 +72,7 @@ describe("native warm workspace Git history", () => {
       }
       if (change === "plain_nested_commit") await mkdir(host, { recursive: true });
       else await initRepo(host);
-      const nestedPath = path.join(".paperclip-repositories", "nested");
+      const nestedPath = path.join(".outpost-repositories", "nested");
       if (change === "nested_commit" || change === "plain_nested_commit") await initRepo(path.join(host, nestedPath));
       const lease = { id: "lease", providerLeaseId: "sandbox", metadata: {} } as EnvironmentLease;
       let runnerProfileJson: Record<string, unknown> = {};
@@ -101,7 +101,7 @@ describe("native warm workspace Git history", () => {
         remoteCwd: remote, runner, timeoutMs: 30_000,
         sandboxLeaseAcquisition: { outcome: "created", providerLeaseId: "sandbox" },
       };
-      const input = { db: db as unknown as Db, companyId: "company", workspaceId: "workspace", workspaceLocalDir: host, lease, target };
+      const input = { db: db as unknown as Db, spaceId: "space", workspaceId: "workspace", workspaceLocalDir: host, lease, target };
       const first = (await prepareNativeWorkspaceSync({ ...input, runId: "first" }))!;
       expect(first.mode).toBe("host_current");
       expect(snapshotWorker).toHaveBeenCalled();
@@ -123,7 +123,7 @@ describe("native warm workspace Git history", () => {
           lease.metadata = {};
         }
       } else if (change === "host_origin") {
-        await git(host, "remote", "add", "origin", "https://github.com/paperclipai/new-source.git");
+        await git(host, "remote", "add", "origin", "https://github.com/outpost/new-source.git");
       } else if (change === "host_bytes_cache_refused") {
         await writeFile(path.join(host, "file.txt"), "updated host content\n");
         await writeFile(path.join(host, "extra.txt"), "new host file\n");
@@ -131,7 +131,7 @@ describe("native warm workspace Git history", () => {
         await git(remote, "-c", "user.name=Test", "-c", "user.email=test@outpost.dev", "commit", "--allow-empty", "-m", "remote only");
       }
       if (change === "remote_commit_corrupt_seed" || change === "remote_commit_missing_seed") {
-        const cache = path.join(process.env.OUTPOST_HOME!, "instances", "test", "native-workspace-sync", "generations", "company", "shared-v1");
+        const cache = path.join(process.env.OUTPOST_HOME!, "instances", "test", "native-workspace-sync", "generations", "space", "shared-v1");
         const [generation] = (await readdir(cache)).filter(name => /^[a-f0-9]{64}$/.test(name));
         expect(generation).toBeDefined();
         const archive = path.join(cache, generation!, "workspace.tar");
@@ -139,7 +139,7 @@ describe("native warm workspace Git history", () => {
         if (change === "remote_commit_corrupt_seed") await writeFile(archive, "invalid cached archive");
       }
       if (cacheRefused) {
-        await rm(path.join(process.env.OUTPOST_HOME!, "instances", "test", "native-workspace-sync", "generations", "company", "shared-v1"), { recursive: true, force: true });
+        await rm(path.join(process.env.OUTPOST_HOME!, "instances", "test", "native-workspace-sync", "generations", "space", "shared-v1"), { recursive: true, force: true });
         vi.spyOn(workspaceSeedCache, "publishWorkspaceSeedGeneration").mockResolvedValue(false);
       }
       const hostRepo = change === "plain_nested_commit" ? path.join(host, nestedPath) : host;
@@ -182,7 +182,7 @@ describe("native warm workspace Git history", () => {
         if (change === "host_bytes_cache_refused") expect(await readFile(path.join(remote, "extra.txt"), "utf8")).toBe("new host file\n");
         expect(await git(remoteRepo, "rev-parse", "HEAD")).toBe(expectedHead);
         expect(await git(remoteRepo, "symbolic-ref", "--short", "HEAD")).toBe(expectedBranch);
-        if (change === "host_origin") expect(await git(remote, "remote", "get-url", "origin")).toBe("https://github.com/paperclipai/new-source.git");
+        if (change === "host_origin") expect(await git(remote, "remote", "get-url", "origin")).toBe("https://github.com/outpost/new-source.git");
         await second.restoreWorkspace();
         expect(await readFile(path.join(hostRepo, "file.txt"), "utf8")).toBe(expectedContents);
         expect(await git(hostRepo, "rev-parse", "HEAD")).toBe(expectedHead);

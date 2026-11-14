@@ -6,14 +6,14 @@ import os from "node:os";
 import path from "node:path";
 
 const baseUrl = (process.env.OUTPOST_PERF_BASE_URL || "http://localhost:3100").replace(/\/$/, "");
-const companyPrefix = process.env.OUTPOST_PERF_COMPANY_PREFIX;
-const url = companyPrefix
-  ? `${baseUrl}/${companyPrefix}/tests/perf/long-thread`
+const spacePrefix = process.env.OUTPOST_PERF_SPACE_PREFIX;
+const url = spacePrefix
+  ? `${baseUrl}/${spacePrefix}/tests/perf/long-thread`
   : `${baseUrl}/tests/perf/long-thread`;
 const origin = new URL(url).origin;
 
 function loadBoardToken() {
-  const authPath = path.resolve(os.homedir(), ".paperclip/auth.json");
+  const authPath = path.resolve(os.homedir(), ".outpost/auth.json");
   try {
     const auth = JSON.parse(fs.readFileSync(authPath, "utf-8"));
     const credentials = auth.credentials || {};
@@ -31,12 +31,12 @@ function loadBoardToken() {
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-const boardToken = process.env.OUTPOST_PERF_BEARER_TOKEN || loadBoardToken();
+const operatorToken = process.env.OUTPOST_PERF_BEARER_TOKEN || loadBoardToken();
 
-if (boardToken) {
+if (operatorToken) {
   await page.route(`${origin}/**`, async (route) => {
     await route.continue({
-      headers: { ...route.request().headers(), Authorization: `Bearer ${boardToken}` },
+      headers: { ...route.request().headers(), Authorization: `Bearer ${operatorToken}` },
     });
   });
 }

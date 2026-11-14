@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "pipeline_automation_executions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"case_id" uuid NOT NULL,
 	"automation_id" text NOT NULL,
 	"triggering_event_id" uuid NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS "pipeline_automation_executions" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "pipeline_case_blockers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"case_id" uuid NOT NULL,
 	"blocked_by_case_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS "pipeline_case_blockers" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "pipeline_case_events" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"case_id" uuid NOT NULL,
 	"type" text NOT NULL,
 	"actor_type" text NOT NULL,
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS "pipeline_case_events" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "pipeline_case_issue_links" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"case_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"role" text NOT NULL,
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS "pipeline_case_issue_links" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "pipeline_cases" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"pipeline_id" uuid NOT NULL,
 	"stage_id" uuid NOT NULL,
 	"case_key" text NOT NULL,
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS "pipeline_cases" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "pipeline_documents" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"pipeline_id" uuid NOT NULL,
 	"document_id" uuid NOT NULL,
 	"key" text NOT NULL,
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS "pipeline_transitions" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "pipelines" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"project_id" uuid,
 	"key" text NOT NULL,
 	"name" text NOT NULL,
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS "pipelines" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "pipeline_automation_executions" ADD CONSTRAINT "pipeline_automation_executions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "pipeline_automation_executions" ADD CONSTRAINT "pipeline_automation_executions_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
@@ -171,7 +171,7 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "pipeline_case_blockers" ADD CONSTRAINT "pipeline_case_blockers_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "pipeline_case_blockers" ADD CONSTRAINT "pipeline_case_blockers_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
@@ -186,7 +186,7 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "pipeline_case_events" ADD CONSTRAINT "pipeline_case_events_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "pipeline_case_events" ADD CONSTRAINT "pipeline_case_events_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
@@ -211,7 +211,7 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "pipeline_case_issue_links" ADD CONSTRAINT "pipeline_case_issue_links_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "pipeline_case_issue_links" ADD CONSTRAINT "pipeline_case_issue_links_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
@@ -226,7 +226,7 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "pipeline_cases" ADD CONSTRAINT "pipeline_cases_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "pipeline_cases" ADD CONSTRAINT "pipeline_cases_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
@@ -256,7 +256,7 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "pipeline_documents" ADD CONSTRAINT "pipeline_documents_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "pipeline_documents" ADD CONSTRAINT "pipeline_documents_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
@@ -291,7 +291,7 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "pipelines" ADD CONSTRAINT "pipelines_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "pipelines" ADD CONSTRAINT "pipelines_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
@@ -306,30 +306,30 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "pipeline_automation_executions_idempotency_uq" ON "pipeline_automation_executions" USING btree ("case_id","automation_id","triggering_event_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "pipeline_automation_executions_company_case_idx" ON "pipeline_automation_executions" USING btree ("company_id","case_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "pipeline_automation_executions_space_case_idx" ON "pipeline_automation_executions" USING btree ("space_id","case_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_automation_executions_routine_idx" ON "pipeline_automation_executions" USING btree ("routine_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_automation_executions_execution_issue_idx" ON "pipeline_automation_executions" USING btree ("execution_issue_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "pipeline_case_blockers_case_blocked_by_uq" ON "pipeline_case_blockers" USING btree ("case_id","blocked_by_case_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_case_blockers_blocked_by_idx" ON "pipeline_case_blockers" USING btree ("blocked_by_case_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "pipeline_case_blockers_company_case_idx" ON "pipeline_case_blockers" USING btree ("company_id","case_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "pipeline_case_blockers_space_case_idx" ON "pipeline_case_blockers" USING btree ("space_id","case_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_case_events_case_created_idx" ON "pipeline_case_events" USING btree ("case_id","created_at");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "pipeline_case_events_company_case_idx" ON "pipeline_case_events" USING btree ("company_id","case_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "pipeline_case_events_space_case_idx" ON "pipeline_case_events" USING btree ("space_id","case_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "pipeline_case_issue_links_case_issue_uq" ON "pipeline_case_issue_links" USING btree ("case_id","issue_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_case_issue_links_issue_idx" ON "pipeline_case_issue_links" USING btree ("issue_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "pipeline_case_issue_links_company_case_idx" ON "pipeline_case_issue_links" USING btree ("company_id","case_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "pipeline_case_issue_links_space_case_idx" ON "pipeline_case_issue_links" USING btree ("space_id","case_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "pipeline_cases_pipeline_case_key_uq" ON "pipeline_cases" USING btree ("pipeline_id","case_key");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "pipeline_cases_company_idx" ON "pipeline_cases" USING btree ("company_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "pipeline_cases_space_idx" ON "pipeline_cases" USING btree ("space_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_cases_pipeline_stage_idx" ON "pipeline_cases" USING btree ("pipeline_id","stage_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_cases_parent_idx" ON "pipeline_cases" USING btree ("parent_case_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_cases_lease_expires_idx" ON "pipeline_cases" USING btree ("lease_expires_at") WHERE "pipeline_cases"."lease_expires_at" is not null;--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "pipeline_documents_company_pipeline_key_uq" ON "pipeline_documents" USING btree ("company_id","pipeline_id","key");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "pipeline_documents_space_pipeline_key_uq" ON "pipeline_documents" USING btree ("space_id","pipeline_id","key");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "pipeline_documents_document_uq" ON "pipeline_documents" USING btree ("document_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "pipeline_documents_company_pipeline_updated_idx" ON "pipeline_documents" USING btree ("company_id","pipeline_id","updated_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "pipeline_documents_space_pipeline_updated_idx" ON "pipeline_documents" USING btree ("space_id","pipeline_id","updated_at");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "pipeline_stages_pipeline_key_uq" ON "pipeline_stages" USING btree ("pipeline_id","key");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_stages_pipeline_position_idx" ON "pipeline_stages" USING btree ("pipeline_id","position");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "pipeline_transitions_pipeline_edge_uq" ON "pipeline_transitions" USING btree ("pipeline_id","from_stage_id","to_stage_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_transitions_pipeline_from_idx" ON "pipeline_transitions" USING btree ("pipeline_id","from_stage_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_transitions_pipeline_to_idx" ON "pipeline_transitions" USING btree ("pipeline_id","to_stage_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "pipelines_company_key_uq" ON "pipelines" USING btree ("company_id","key");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "pipelines_company_idx" ON "pipelines" USING btree ("company_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "pipelines_company_project_idx" ON "pipelines" USING btree ("company_id","project_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "pipelines_space_key_uq" ON "pipelines" USING btree ("space_id","key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "pipelines_space_idx" ON "pipelines" USING btree ("space_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "pipelines_space_project_idx" ON "pipelines" USING btree ("space_id","project_id");

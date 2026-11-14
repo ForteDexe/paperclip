@@ -1,39 +1,39 @@
 import { randomUUID } from "node:crypto";
-import { agents, companies, companyMemberships, companySecrets, connectionGrants, heartbeatRuns, issueComments, issues, toolApplications, toolConnectionInstalls, toolConnections, userSecretDefinitions, type Db } from "@outpost/db";
+import { agents, spaces, spaceMemberships, spaceSecrets, connectionGrants, heartbeatRuns, issueComments, issues, toolApplications, toolConnectionInstalls, toolConnections, userSecretDefinitions, type Db } from "@outpost/db";
 import { initializeRunIdentity, reserveSteeredIdentity, reconcileSteeredIdentity } from "../../services/run-identity.js";
 
 export function githubCredentialsFixture(getDb: () => Db) {
   async function seed() {
     const db = getDb();
-    const companyId = randomUUID(),
+    const spaceId = randomUUID(),
       agentId = randomUUID(),
       runId = randomUUID(),
       issueId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: companyId,
-      issuePrefix: companyId.slice(0, 8),
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: spaceId,
+      issuePrefix: spaceId.slice(0, 8),
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Shared",
       role: "engineer",
       adapterType: "codex_local",
     });
     await db
       .insert(issues)
-      .values({ id: issueId, companyId, title: "Identity test" });
+      .values({ id: issueId, spaceId, title: "Identity test" });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       contextSnapshot: { issueId },
     });
-    await db.insert(companyMemberships).values(
+    await db.insert(spaceMemberships).values(
       ["A", "B"].map((principalId) => ({
-        companyId,
+        spaceId,
         principalType: "user",
         principalId,
         status: "active",
@@ -41,12 +41,12 @@ export function githubCredentialsFixture(getDb: () => Db) {
       })),
     );
     await initializeRunIdentity(db, {
-      companyId,
+      spaceId,
       runId,
       responsibleUserId: "A",
       cause: "instruction",
     });
-    return { companyId, agentId, runId, issueId };
+    return { spaceId, agentId, runId, issueId };
   }
   async function grant(
     input: Awaited<ReturnType<typeof seed>>,
@@ -61,13 +61,13 @@ export function githubCredentialsFixture(getDb: () => Db) {
       id = randomUUID();
     await db.insert(toolApplications).values({
       id: applicationId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       name: applicationId,
       type: "mcp_http",
     });
     await db.insert(toolConnections).values({
       id: connectionId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       applicationId,
       name: connectionId,
       uid: connectionId,
@@ -78,7 +78,7 @@ export function githubCredentialsFixture(getDb: () => Db) {
       config: { sourceTemplateKey: "github" },
     });
     await db.insert(toolConnectionInstalls).values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       connectionId,
       targetType: "agent",
       targetId: input.agentId,
@@ -86,22 +86,22 @@ export function githubCredentialsFixture(getDb: () => Db) {
     if (!dedicated)
       await db.insert(userSecretDefinitions).values({
         id: definitionId,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         key: definitionId,
         name: "Test GitHub",
       });
-    await db.insert(companySecrets).values({
+    await db.insert(spaceSecrets).values({
       id: secretId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       key: secretId,
       name: `Test token ${secretId}`,
-      scope: dedicated ? "company" : "user",
+      scope: dedicated ? "space" : "user",
       ownerUserId: dedicated ? null : user,
       userSecretDefinitionId: dedicated ? null : definitionId,
     });
     await db.insert(connectionGrants).values({
       id,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       connectionId,
       kind: dedicated ? "agent" : "user",
       subjectUserId: dedicated ? null : user,
@@ -136,7 +136,7 @@ export function githubCredentialsFixture(getDb: () => Db) {
     const id = randomUUID();
     await db.insert(issueComments).values({
       id,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       issueId: input.issueId,
       authorUserId: user,
       body: "Next instruction",

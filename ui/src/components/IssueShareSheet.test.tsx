@@ -107,7 +107,7 @@ describe("IssueShareSheet", () => {
           <IssueShareSheet
             implicitPrincipals={implicitPrincipals}
             issueId="i1"
-            companyId="c1"
+            spaceId="c1"
             canManage={canManage}
             open
             onOpenChange={() => {}}

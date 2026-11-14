@@ -7,7 +7,7 @@ import { mainPerson } from "./internal-privacy.js";
 import { checks, entity, hasLink, observation, observeInternal, project, sameTask, task, type Entity, type InternalObservation } from "./internal-support.js";
 interface Request extends Entity { addresseeUserId?: string; resolvedByUserId?: string; result?: unknown; payload?: unknown; decidedByUserId?: string | null; effectiveResolverPolicy?: string }
 interface DecisionObservation extends InternalObservation { hiring: Request; pendingQuestion?: Request; completedQuestion?: Request; visibleAttention: unknown; resolverAttention?: unknown; resolverUserId?: string; permissionStatus: number }
-interface AttentionFeed { companyId?: string; items?: Array<{ subject?: { id?: string }; relatedIssue?: { id?: string }; resolverAudience?: { addresseeUserId?: string | null; effectiveResolverPolicy?: string } }> }
+interface AttentionFeed { spaceId?: string; items?: Array<{ subject?: { id?: string }; relatedIssue?: { id?: string }; resolverAudience?: { addresseeUserId?: string | null; effectiveResolverPolicy?: string } }> }
 function approvalLink(o: InternalObservation, id: string) {
   return o.links.some(href => { try { const u = new URL(href, o.origin); return u.origin === o.origin && u.pathname.split("/").slice(-2).join("/") === `approvals/${id}`; } catch { return false; } });
 }
@@ -37,12 +37,12 @@ export function gradeDecisionSearch(value: unknown) {
   const feed = o.visibleAttention as AttentionFeed | undefined; const resolverFeed = o.resolverAttention as AttentionFeed | undefined;
   const hire = o.state.hiring as Request; const pending = o.state.pendingQuestion as Request; const done = o.state.completedQuestion as Request;
   const t = o.state.task as Entity; const history = o.state.historyTask as Entity;
-  c.add("visible-sources-and-real-resolver", feed?.companyId === o.companyId && Array.isArray(feed.items) && feed.items.some(row => row.subject?.id === hire?.id)
-    && !feed.items.some(row => row.subject?.id === pending?.id) && resolverFeed?.companyId === o.companyId && Array.isArray(resolverFeed.items)
+  c.add("visible-sources-and-real-resolver", feed?.spaceId === o.spaceId && Array.isArray(feed.items) && feed.items.some(row => row.subject?.id === hire?.id)
+    && !feed.items.some(row => row.subject?.id === pending?.id) && resolverFeed?.spaceId === o.spaceId && Array.isArray(resolverFeed.items)
     && resolverFeed.items.some(row => row.subject?.id === pending?.id && row.relatedIssue?.id === t.id && row.resolverAudience?.addresseeUserId === o.state.rileyId && row.resolverAudience?.effectiveResolverPolicy === "human_only")
     && typeof o.state.rileyId === "string" && o.state.rileyId.length > 0 && typeof o.state.ownerId === "string" && o.state.ownerId.length > 0
-    && o.resolverUserId === o.state.rileyId && o.state.rileyId !== o.state.ownerId && o.hiring.companyId === o.companyId
-    && o.pendingQuestion.companyId === o.companyId && o.pendingQuestion.issueId === t.id && o.pendingQuestion.effectiveResolverPolicy === "human_only",
+    && o.resolverUserId === o.state.rileyId && o.state.rileyId !== o.state.ownerId && o.hiring.spaceId === o.spaceId
+    && o.pendingQuestion.spaceId === o.spaceId && o.pendingQuestion.issueId === t.id && o.pendingQuestion.effectiveResolverPolicy === "human_only",
     "The current person's queue retains the hiring decision and excludes Riley's addressed question; Riley's independently authenticated queue and the accessible public question bind its exact source and human resolver.");
   c.add("list-does-not-resolve", o.hiring.id === hire?.id && o.hiring.status === "pending" && !o.hiring.decidedByUserId && JSON.stringify(o.hiring.payload) === JSON.stringify(hire.payload)
     && o.pendingQuestion.id === pending?.id && o.pendingQuestion.status === "pending" && !o.pendingQuestion.result && JSON.stringify(o.pendingQuestion.payload) === JSON.stringify(pending.payload)
@@ -83,7 +83,7 @@ function showDecisions(): ChatCatalogCase {
       const pendingQuestion = await ctx.input.api.post<Request>(`/api/issues/${t.id}/interactions`, question("Riley: choose the launch audience", riley.id));
       const informational = await ctx.input.api.post<Request>(`/api/issues/${history.id}/interactions`, question("Confirm receipt of the launch brief", ownerId));
       const completedQuestion = await ctx.input.api.post<Request>(`/api/issues/${history.id}/interactions/${informational.id}/respond`, { answers: [{ questionId: "launch-input", optionIds: [], otherText: "Received the launch brief; no further decision is needed." }] });
-      const hiring = await ctx.input.api.post<Request>(`/api/companies/${ctx.input.fixtures.company.id}/approvals`, { type: "hire_agent", requestedByAgentId: ctx.input.fixtures.agent.id,
+      const hiring = await ctx.input.api.post<Request>(`/api/spaces/${ctx.input.fixtures.space.id}/approvals`, { type: "hire_agent", requestedByAgentId: ctx.input.fixtures.agent.id,
         payload: { name: "Launch designer", role: "designer", title: "Launch designer", capabilities: "Create launch design proposals", adapterType: "process", adapterConfig: { command: "node", args: ["-e", "process.exit(0)"] } } });
       if (hiring.status !== "pending" || pendingQuestion.status !== "pending" || completedQuestion.status !== "answered") throw new Error("Decision prerequisites did not persist their genuine pending/history states");
       if (!ctx.input.privateSecrets) throw new Error("Decision scope probe requires attempt-private credential redaction");
@@ -94,7 +94,7 @@ function showDecisions(): ChatCatalogCase {
   return { ...base, authentication: "human-session", oracleVersion: "outpost.chat-catalog.decision-search.v2", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-decision-search.ts", "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts", "../../packages/shared/src/validators/issue.ts"],
     async observe(ctx, state): Promise<DecisionObservation> {
       if (!key || !riley || riley.id !== state.rileyId || riley.id === state.ownerId) throw new Error("Missing distinct authenticated decision resolver or attempt-private probe");
-      const o = await observeInternal(ctx, state); const root = `/api/companies/${o.companyId}`;
+      const o = await observeInternal(ctx, state); const root = `/api/spaces/${o.spaceId}`;
       const [hiring, pendingRows, completedRows, visibleAttention, resolverAttention] = await Promise.all([
         ctx.input.api.get<Request>(`/api/approvals/${entity(state, "hiring").id}`), ctx.input.api.get<Request[]>(`/api/issues/${entity(state, "task").id}/interactions`),
         ctx.input.api.get<Request[]>(`/api/issues/${entity(state, "historyTask").id}/interactions`), ctx.input.api.get(`${root}/attention?all=true&includeDismissed=true`),

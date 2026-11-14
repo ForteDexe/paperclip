@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "routine_documents" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"routine_id" uuid NOT NULL,
 	"document_id" uuid NOT NULL,
 	"key" text NOT NULL,
@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS "routine_documents" (
 --> statement-breakpoint
 DO $$ BEGIN
 	IF NOT EXISTS (
-		SELECT 1 FROM "pg_constraint" WHERE "conname" = 'routine_documents_company_id_companies_id_fk'
+		SELECT 1 FROM "pg_constraint" WHERE "conname" = 'routine_documents_space_id_spaces_id_fk'
 	) THEN
-		ALTER TABLE "routine_documents" ADD CONSTRAINT "routine_documents_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+		ALTER TABLE "routine_documents" ADD CONSTRAINT "routine_documents_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 	END IF;
 END $$;
 --> statement-breakpoint
@@ -32,11 +32,11 @@ DO $$ BEGIN
 	END IF;
 END $$;
 --> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "routine_documents_company_routine_key_uq" ON "routine_documents" USING btree ("company_id","routine_id","key");
+CREATE UNIQUE INDEX IF NOT EXISTS "routine_documents_space_routine_key_uq" ON "routine_documents" USING btree ("space_id","routine_id","key");
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "routine_documents_document_uq" ON "routine_documents" USING btree ("document_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "routine_documents_company_routine_updated_idx" ON "routine_documents" USING btree ("company_id","routine_id","updated_at");
+CREATE INDEX IF NOT EXISTS "routine_documents_space_routine_updated_idx" ON "routine_documents" USING btree ("space_id","routine_id","updated_at");
 --> statement-breakpoint
 ALTER TABLE "document_annotation_threads" ADD COLUMN IF NOT EXISTS "routine_id" uuid;
 --> statement-breakpoint
@@ -78,9 +78,9 @@ DO $$ BEGIN
 	END IF;
 END $$;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_threads_company_routine_status_idx" ON "document_annotation_threads" USING btree ("company_id","routine_id","status");
+CREATE INDEX IF NOT EXISTS "document_annotation_threads_space_routine_status_idx" ON "document_annotation_threads" USING btree ("space_id","routine_id","status");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_comments_company_routine_created_at_idx" ON "document_annotation_comments" USING btree ("company_id","routine_id","created_at");
+CREATE INDEX IF NOT EXISTS "document_annotation_comments_space_routine_created_at_idx" ON "document_annotation_comments" USING btree ("space_id","routine_id","created_at");
 --> statement-breakpoint
 DO $$
 DECLARE
@@ -99,7 +99,7 @@ BEGIN
 		)
 	LOOP
 		INSERT INTO "documents" (
-			"company_id",
+			"space_id",
 			"title",
 			"format",
 			"latest_body",
@@ -112,7 +112,7 @@ BEGIN
 			"updated_at"
 		)
 		VALUES (
-			routine_row."company_id",
+			routine_row."space_id",
 			'routine description',
 			'markdown',
 			coalesce(routine_row."description", ''),
@@ -127,7 +127,7 @@ BEGIN
 		RETURNING "id" INTO created_document_id;
 
 		INSERT INTO "document_revisions" (
-			"company_id",
+			"space_id",
 			"document_id",
 			"revision_number",
 			"title",
@@ -139,7 +139,7 @@ BEGIN
 			"created_at"
 		)
 		VALUES (
-			routine_row."company_id",
+			routine_row."space_id",
 			created_document_id,
 			1,
 			'routine description',
@@ -156,9 +156,9 @@ BEGIN
 		SET "latest_revision_id" = created_revision_id
 		WHERE "id" = created_document_id;
 
-		INSERT INTO "routine_documents" ("company_id", "routine_id", "document_id", "key", "created_at", "updated_at")
+		INSERT INTO "routine_documents" ("space_id", "routine_id", "document_id", "key", "created_at", "updated_at")
 		VALUES (
-			routine_row."company_id",
+			routine_row."space_id",
 			routine_row."id",
 			created_document_id,
 			'description',

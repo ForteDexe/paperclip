@@ -15,14 +15,14 @@ describeDatabase("pending profile tools through profile and attention services",
     const f = await createProfileProjectionFixture(db, { profiles: 2, tools: 8, rules: 4 });
     const now = () => new Date("2026-02-01T00:00:00Z"), service = createToolProfileService(db, now), attention = createToolAppAttention(db, now);
     const assertCounts = async (expected: number) => {
-      const profiles = await service.listProfiles(f.company.id);
+      const profiles = await service.listProfiles(f.space.id);
       expect(profiles.find(p => p.id === f.profiles[0].id)?.newToolsPendingCount).toBe(expected);
       expect(profiles.find(p => p.id === f.profiles[1].id)?.newToolsPendingCount).toBe(0);
-      expect((await service.listProfileNewTools(f.profiles[0].id, f.company.id)).pendingCount).toBe(expected);
-      expect((await attention(f.company.id)).totals.newToolsPendingReview).toBe(expected);
+      expect((await service.listProfileNewTools(f.profiles[0].id, f.space.id)).pendingCount).toBe(expected);
+      expect((await attention(f.space.id)).totals.newToolsPendingReview).toBe(expected);
     };
     await assertCounts(4);
-    const [exclude] = await db.insert(toolProfileEntries).values({ companyId: f.company.id, profileId: f.profiles[0].id,
+    const [exclude] = await db.insert(toolProfileEntries).values({ spaceId: f.space.id, profileId: f.profiles[0].id,
       selectorType: "tool_name", effect: "exclude", toolName: f.catalog[4].toolName }).returning();
     await assertCounts(3);
     await db.update(toolCatalogEntries).set({ status: "removed" }).where(eq(toolCatalogEntries.id, f.catalog[5].id));
@@ -30,7 +30,7 @@ describeDatabase("pending profile tools through profile and attention services",
     await db.update(toolProfiles).set({ newToolsReviewedAt: now() }).where(eq(toolProfiles.id, f.profiles[0].id));
     await assertCounts(0);
     const foreign = await createProfileProjectionFixture(db, { profiles: 2, tools: 5, rules: 2 });
-    expect((await service.listProfiles(foreign.company.id)).map(p => p.companyId)).toEqual([foreign.company.id, foreign.company.id]);
+    expect((await service.listProfiles(foreign.space.id)).map(p => p.spaceId)).toEqual([foreign.space.id, foreign.space.id]);
     expect((await db.select().from(toolProfileEntries).where(eq(toolProfileEntries.id, exclude.id)))[0].effect).toBe("exclude");
   });
 });

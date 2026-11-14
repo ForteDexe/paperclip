@@ -14,7 +14,7 @@ const meta = {
   id: "task-chat-recovery-notice",
   title: "Projects and execution/Recovery/Task chat/Recovery notice",
   component: ExecutionBlockerNotice,
-  parameters: { paperclip: {
+  parameters: { outpost: {
     capabilities: ["recovery/diagnosis", "recovery/exhaustion"], implementation: "production", boundary: "fixtures",
     notes: "Production task status driven by the shared presentation contract. Former inspection and certification examples now exercise ordinary Retry, quiet preparation, and permission gating. Fixture transitions do not prove provider recovery or durable admission.",
   } },

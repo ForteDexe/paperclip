@@ -123,7 +123,7 @@ test.describe("independent second trial", () => {
     await page.reload();
     await expect(rows(page)).toHaveCount(10);
     const names = await componentNames(page);
-    for (const name of ["DesignPageShell", "SidebarShell", "DesignSidebar", "SidebarCompanyMenu", "SidebarAccountMenu", "TaskListToolbar", "IssueFiltersPopover", "TaskList", "TaskListViewport", "TaskListColumnHeader", "TaskListColumnSettings", "TaskRowGroup", "IssueRow", "CellMarquee", "NewIssueDialog", "CommandPalette"]) expect(names).toContain(name);
+    for (const name of ["DesignPageShell", "SidebarShell", "DesignSidebar", "SidebarSpaceMenu", "SidebarAccountMenu", "TaskListToolbar", "IssueFiltersPopover", "TaskList", "TaskListViewport", "TaskListColumnHeader", "TaskListColumnSettings", "TaskRowGroup", "IssueRow", "CellMarquee", "NewIssueDialog", "CommandPalette"]) expect(names).toContain(name);
     expect(names).not.toContain("TaskListPagePreview");
     expect(names).not.toContain("TasksReproductionTrial");
     const controller = readFileSync("ui/storybook/support/design-proposals/TasksReproductionTrial2.tsx", "utf8");
@@ -226,7 +226,7 @@ test.describe("independent second trial", () => {
     await creator.getByRole("checkbox", { name: "Scott", exact: true }).click();
     await page.keyboard.press("Escape");
     await expect(rows(page)).toHaveCount(6);
-    await expect(titles(page)).toHaveText(["Improve connector reliability", "Chat style tasks v2", "Refine the empty task-list state", "Simplify the first company setup", "Review budget notifications", "Collect feedback on the refreshed task list"]);
+    await expect(titles(page)).toHaveText(["Improve connector reliability", "Chat style tasks v2", "Refine the empty task-list state", "Simplify the first space setup", "Review budget notifications", "Collect feedback on the refreshed task list"]);
     await page.getByRole("button", { name: "1", exact: true }).click();
     await creator.getByRole("checkbox", { name: "Scott", exact: true }).click();
     await creator.getByRole("checkbox", { name: "CodexCoder", exact: true }).click();
@@ -282,7 +282,7 @@ test.describe("independent second trial", () => {
     await expect(rows(page)).toHaveCount(10);
   });
 
-  test("canonical menus, company boundary and sidebar resize persistence", async ({ page }) => {
+  test("canonical menus, space boundary and sidebar resize persistence", async ({ page }) => {
     await page.getByRole("button", { name: "Global search", exact: true }).click();
     await expect(page.getByPlaceholder("Search tasks, agents, projects...", { exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
@@ -293,7 +293,7 @@ test.describe("independent second trial", () => {
     await expect(page.getByRole("dialog", { name: "Account", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Invite", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Open Paperclip Storybook organization switcher", exact: true }).click();
+    await page.getByRole("button", { name: "Open Outpost Storybook organization switcher", exact: true }).click();
     await expect(page.getByRole("menuitem", { name: /Research Bureau/ })).toBeVisible();
     await page.getByRole("menuitem", { name: /Research Bureau/ }).click();
     await expect(rows(page)).toHaveCount(0);

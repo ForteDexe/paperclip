@@ -41,7 +41,7 @@ import { getNativeReviewAssignment, readNativeReviewAssignmentContext } from "./
 export type RemoteWorkspaceFileReader = (input: Pick<NativeRunnerFileHandoffInput, "contentRef" | "byteSize" | "sha256">) => Promise<Buffer>;
 
 export interface NativeRunnerFileHandoffBinding {
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly issueId: string;
   readonly runId: string;
   readonly agentId: string;
@@ -458,7 +458,7 @@ function wakeAttachmentSelections(value: unknown): Array<{
   readonly id: string;
   readonly commentId: string;
 }> {
-  const wake = record(record(value).paperclipWake);
+  const wake = record(record(value).outpostWake);
   const comments = Array.isArray(wake.comments) ? wake.comments : [];
   const selected: Array<{ id: string; commentId: string }> = [];
   const seen = new Set<string>();
@@ -488,7 +488,7 @@ async function ensurePrivateStagingDirectory(
   processDirectoryName: string,
 ): Promise<string> {
   let cursor = workspaceRoot;
-  for (const segment of [".paperclip-inbound", processDirectoryName]) {
+  for (const segment of [".outpost-inbound", processDirectoryName]) {
     cursor = path.join(cursor, segment);
     try {
       await mkdir(cursor, { mode: 0o700 });
@@ -512,7 +512,7 @@ async function scrubNativeRunnerStagingResidue(
   activePaths: ReadonlySet<string>,
   processDirectoryName: string,
 ): Promise<string[]> {
-  const stagingRootPath = path.join(workspaceRoot, ".paperclip-inbound");
+  const stagingRootPath = path.join(workspaceRoot, ".outpost-inbound");
   let stagingRootStat: Stats;
   try {
     stagingRootStat = await lstat(stagingRootPath);
@@ -631,7 +631,7 @@ async function scrubNativeRunnerStagingResidue(
 
 export async function readBoundedStorageObject(input: {
   readonly storage: StorageService;
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly objectKey: string;
   readonly expectedByteSize: number;
   readonly expectedSha256: string;
@@ -645,8 +645,8 @@ export async function readBoundedStorageObject(input: {
     throw new Error("outpost_runner_attachment_staging_size_denied");
   }
   const object = input.signal
-    ? await input.storage.getObject(input.companyId, input.objectKey, { signal: input.signal })
-    : await input.storage.getObject(input.companyId, input.objectKey);
+    ? await input.storage.getObject(input.spaceId, input.objectKey, { signal: input.signal })
+    : await input.storage.getObject(input.spaceId, input.objectKey);
   if (input.signal) addAbortSignal(input.signal, object.stream);
   const chunks: Buffer[] = [];
   let byteSize = 0;
@@ -827,7 +827,7 @@ export async function stageNativeRunnerAttachmentBytes(input: {
 
 export async function resolveNativeRunnerWakeAttachmentSelections(input: {
   db: Db;
-  binding: Pick<NativeRunnerFileHandoffBinding, "companyId" | "issueId" | "runId" | "agentId">;
+  binding: Pick<NativeRunnerFileHandoffBinding, "spaceId" | "issueId" | "runId" | "agentId">;
   requireRunning?: boolean;
 }) {
   const [run] = await input.db
@@ -841,29 +841,29 @@ export async function resolveNativeRunnerWakeAttachmentSelections(input: {
       issues,
       and(
         eq(issues.id, heartbeatRuns.nativeIssueId),
-        eq(issues.companyId, heartbeatRuns.companyId),
+        eq(issues.spaceId, heartbeatRuns.spaceId),
       ),
     )
     .innerJoin(
       agents,
       and(
         eq(agents.id, heartbeatRuns.agentId),
-        eq(agents.companyId, heartbeatRuns.companyId),
+        eq(agents.spaceId, heartbeatRuns.spaceId),
       ),
     )
     .where(
       and(
         eq(heartbeatRuns.id, input.binding.runId),
-        eq(heartbeatRuns.companyId, input.binding.companyId),
+        eq(heartbeatRuns.spaceId, input.binding.spaceId),
         eq(heartbeatRuns.agentId, input.binding.agentId),
         eq(heartbeatRuns.nativeIssueId, input.binding.issueId),
         eq(heartbeatRuns.runtimeMode, "native"),
         inArray(heartbeatRuns.status, input.requireRunning ? ["running"] : ["queued", "running"]),
         eq(issues.id, input.binding.issueId),
-        eq(issues.companyId, input.binding.companyId),
+        eq(issues.spaceId, input.binding.spaceId),
         eq(issues.executionRunId, input.binding.runId),
         eq(agents.id, input.binding.agentId),
-        eq(agents.companyId, input.binding.companyId),
+        eq(agents.spaceId, input.binding.spaceId),
       ),
     )
     .limit(1);
@@ -878,7 +878,7 @@ export async function resolveNativeRunnerWakeAttachmentSelections(input: {
   const reviewContext = readNativeReviewAssignmentContext(run.contextSnapshot);
   const nativeReview = reviewContext
     ? await getNativeReviewAssignment(input.db, {
-        companyId: input.binding.companyId,
+        spaceId: input.binding.spaceId,
         issueId: input.binding.issueId,
         agentId: input.binding.agentId,
         contextSnapshot: reviewContext,
@@ -902,7 +902,7 @@ export async function stageNativeRunnerWakeAttachments(input: {
   readonly db: Db;
   readonly binding: Pick<
     NativeRunnerFileHandoffBinding,
-    | "companyId"
+    | "spaceId"
     | "issueId"
     | "runId"
     | "agentId"
@@ -979,12 +979,12 @@ export async function stageNativeRunnerWakeAttachments(input: {
       assets,
       and(
         eq(assets.id, issueAttachments.assetId),
-        eq(assets.companyId, input.binding.companyId),
+        eq(assets.spaceId, input.binding.spaceId),
       ),
     )
     .where(
       and(
-        eq(issueAttachments.companyId, input.binding.companyId),
+        eq(issueAttachments.spaceId, input.binding.spaceId),
         eq(issueAttachments.issueId, input.binding.issueId),
         inArray(
           issueAttachments.id,
@@ -1059,7 +1059,7 @@ export async function stageNativeRunnerWakeAttachments(input: {
         if (!workspaceRoot && !input.stageRemoteAttachment) throw new Error("attachment download unavailable");
         const body = await readBoundedStorageObject({
           storage,
-          companyId: input.binding.companyId,
+          spaceId: input.binding.spaceId,
           objectKey: row.objectKey,
           expectedByteSize: row.byteSize,
           expectedSha256: row.sha256,
@@ -1147,30 +1147,30 @@ async function assertCurrentBinding(
       issues,
       and(
         eq(issues.id, heartbeatRuns.nativeIssueId),
-        eq(issues.companyId, heartbeatRuns.companyId),
+        eq(issues.spaceId, heartbeatRuns.spaceId),
       ),
     )
     .innerJoin(
       agents,
       and(
         eq(agents.id, heartbeatRuns.agentId),
-        eq(agents.companyId, heartbeatRuns.companyId),
+        eq(agents.spaceId, heartbeatRuns.spaceId),
       ),
     )
     .where(
       and(
         eq(heartbeatRuns.id, binding.runId),
-        eq(heartbeatRuns.companyId, binding.companyId),
+        eq(heartbeatRuns.spaceId, binding.spaceId),
         eq(heartbeatRuns.agentId, binding.agentId),
         eq(heartbeatRuns.nativeIssueId, binding.issueId),
         eq(heartbeatRuns.runtimeMode, "native"),
         eq(heartbeatRuns.status, "running"),
         eq(issues.id, binding.issueId),
-        eq(issues.companyId, binding.companyId),
+        eq(issues.spaceId, binding.spaceId),
         eq(issues.assigneeAgentId, binding.agentId),
         eq(issues.executionRunId, binding.runId),
         eq(agents.id, binding.agentId),
-        eq(agents.companyId, binding.companyId),
+        eq(agents.spaceId, binding.spaceId),
       ),
     )
     .for("update")
@@ -1206,23 +1206,23 @@ export async function prepareNativeRunnerFileHandoff(input: {
       assets,
       and(
         eq(assets.id, issueAttachments.assetId),
-        eq(assets.companyId, input.binding.companyId),
+        eq(assets.spaceId, input.binding.spaceId),
       ),
     )
     .leftJoin(
       issueWorkProducts,
       and(
-        eq(issueWorkProducts.companyId, input.binding.companyId),
+        eq(issueWorkProducts.spaceId, input.binding.spaceId),
         eq(issueWorkProducts.issueId, input.binding.issueId),
         eq(issueWorkProducts.type, "artifact"),
-        eq(issueWorkProducts.provider, "paperclip"),
+        eq(issueWorkProducts.provider, "outpost"),
         sql`${issueWorkProducts.externalId} = ${issueAttachments.id}::text`,
         eq(issueWorkProducts.createdByRunId, input.binding.runId),
       ),
     )
     .where(
       and(
-        eq(issueAttachments.companyId, input.binding.companyId),
+        eq(issueAttachments.spaceId, input.binding.spaceId),
         eq(issueAttachments.issueId, input.binding.issueId),
         eq(issueAttachments.originatingRunId, input.binding.runId),
         eq(assets.createdByAgentId, input.binding.agentId),
@@ -1245,7 +1245,7 @@ export async function prepareNativeRunnerFileHandoff(input: {
       .where(
         and(
           eq(issueComments.id, existing.commentId),
-          eq(issueComments.companyId, input.binding.companyId),
+          eq(issueComments.spaceId, input.binding.spaceId),
           eq(issueComments.issueId, input.binding.issueId),
           eq(issueComments.authorType, "agent"),
           eq(issueComments.authorAgentId, input.binding.agentId),
@@ -1282,7 +1282,7 @@ export async function prepareNativeRunnerFileHandoff(input: {
 
   const storage = input.storage ?? getStorageService();
   const stored = await storage.putFile({
-    companyId: input.binding.companyId,
+    spaceId: input.binding.spaceId,
     namespace: `issues/${input.binding.issueId}`,
     originalFilename: verified.filename,
     contentType: verified.contentType,
@@ -1314,14 +1314,14 @@ export async function prepareNativeRunnerFileHandoff(input: {
       throw new Error("outpost_runner_file_handoff_origin_not_persisted");
     }
     await input.db.transaction(async tx => {
-      await notifyIssueRecovery(tx, { companyId: input.binding.companyId });
+      await notifyIssueRecovery(tx, { spaceId: input.binding.spaceId });
       await tx
       .update(issueWorkProducts)
       .set({ title: verified.title, updatedAt: new Date() })
       .where(
         and(
           eq(issueWorkProducts.id, attachment.artifactWorkProductId),
-          eq(issueWorkProducts.companyId, input.binding.companyId),
+          eq(issueWorkProducts.spaceId, input.binding.spaceId),
           eq(issueWorkProducts.issueId, input.binding.issueId),
           eq(issueWorkProducts.createdByRunId, input.binding.runId),
         ),
@@ -1354,12 +1354,12 @@ export async function prepareNativeRunnerFileHandoff(input: {
         scheduledWakeIds: [],
       },
       rollbackDefinitePreCommitFailure: async () => {
-        await storage.deleteObject(input.binding.companyId, stored.objectKey);
+        await storage.deleteObject(input.binding.spaceId, stored.objectKey);
       },
     };
   } catch (error) {
     await storage
-      .deleteObject(input.binding.companyId, stored.objectKey)
+      .deleteObject(input.binding.spaceId, stored.objectKey)
       .catch(() => undefined);
     throw error;
   }

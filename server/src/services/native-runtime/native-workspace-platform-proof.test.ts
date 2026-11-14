@@ -7,14 +7,14 @@ const worker = { provider: "railway" as const, projectId: "project", environment
 const binding = { runId: "run", ownerToken: "owner", worker };
 const now = new Date("2099-01-01T00:00:00Z");
 function receipt(overrides = {}) {
-  const header = Buffer.from(JSON.stringify({ alg: "EdDSA", kid: "test", typ: "paperclip-workspace-worker-stop+jwt" })).toString("base64url");
-  const payload = Buffer.from(JSON.stringify({ v: 1, iss: "paperclip-cloud", aud: "paperclip-workspace-worker-stop/v1", sub: "stack", ...binding, stopped: true, iat: now.getTime()/1000, exp: now.getTime()/1000+60, ...overrides })).toString("base64url");
+  const header = Buffer.from(JSON.stringify({ alg: "EdDSA", kid: "test", typ: "outpost-workspace-worker-stop+jwt" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ v: 1, iss: "outpost-cloud", aud: "outpost-workspace-worker-stop/v1", sub: "stack", ...binding, stopped: true, iat: now.getTime()/1000, exp: now.getTime()/1000+60, ...overrides })).toString("base64url");
   return `${header}.${payload}.${sign(null, Buffer.from(`${header}.${payload}`), privateKey).toString("base64url")}`;
 }
 describe("workspace platform stop proof", () => {
   it("accepts only signed proof for the exact stack, owner, run and full stopped deployment", () => {
     expect(verifyWorkspaceWorkerStopReceipt(receipt(), binding, env, now)).toMatchObject({ stopped: true, worker });
-    for (const invalid of [{ sub: "other-stack" }, { runId: "other-run" }, { ownerToken: "other-owner" }, { stopped: false }, { exp: now.getTime()/1000-1 }, { worker: { ...worker, deploymentId: "other" } }, { aud: "paperclip-cloud-control/v1" }]) {
+    for (const invalid of [{ sub: "other-stack" }, { runId: "other-run" }, { ownerToken: "other-owner" }, { stopped: false }, { exp: now.getTime()/1000-1 }, { worker: { ...worker, deploymentId: "other" } }, { aud: "outpost-cloud-control/v1" }]) {
       expect(verifyWorkspaceWorkerStopReceipt(receipt(invalid), binding, env, now)).toBeNull();
     }
     expect(verifyWorkspaceWorkerStopReceipt(receipt().slice(0,-5)+"wrong", binding, env, now)).toBeNull();

@@ -12,7 +12,7 @@ import { expect } from "@playwright/test";
 import { pollUntil } from "./api.js";
 import { collectChatRunEvidence, sendChatMessage } from "./chat-flow.js";
 import { prepareNativeStopCanonicalBoundary } from "./chat-native-stop-boundary.js";
-import { collectChatCatalogCompanySecretApprovalActivity, verifyChatCatalogCompanySecretBindingApproval, chatCatalogHumanHistoryMatches, chatCatalogAllowsHumanQuestionAnswer, verifyChatCatalogHumanQuestionAnswer, type ChatCatalogHumanQuestionAudit, validateChatCatalogGrade, type ChatCatalogSetupBoundary, type ChatCatalogContext, type ChatCatalogGrade } from "./chat-catalog-contract.js";
+import { collectChatCatalogSpaceSecretApprovalActivity, verifyChatCatalogSpaceSecretBindingApproval, chatCatalogHumanHistoryMatches, chatCatalogAllowsHumanQuestionAnswer, verifyChatCatalogHumanQuestionAnswer, type ChatCatalogHumanQuestionAudit, validateChatCatalogGrade, type ChatCatalogSetupBoundary, type ChatCatalogContext, type ChatCatalogGrade } from "./chat-catalog-contract.js";
 import { findChatCatalogCase, loadChatCatalogImplementation } from "./chat-catalog-registry.js";
 import { chatCatalogInventoryDigest } from "./chat-catalog-inventory.js";
 import { resolveChatCatalogQuery } from "./chat-query-bindings.js";
@@ -27,7 +27,7 @@ export async function runChatCatalogFlow(context: ChatCatalogContext) {
   const fingerprint = chatCatalogCaseFingerprint(descriptor, normalizedChatCatalogExecution(input.execution));
   assertSdkCanaryFingerprintMatches(input.execution, fingerprint);
   const implementation = await loadChatCatalogImplementation(descriptor);
-  if (implementation.optionalCompanySecretBindingApproval===true && (input.execution.task.optionalCompanySecretBindingApproval!==true || input.execution.task.expectedHumanMessageCount!==2)) throw new Error("Company governed approval task metadata is missing");
+  if (implementation.optionalSpaceSecretBindingApproval===true && (input.execution.task.optionalSpaceSecretBindingApproval!==true || input.execution.task.expectedHumanMessageCount!==2)) throw new Error("Space governed approval task metadata is missing");
   if (implementation.companionSurface) return runScopedCompanionSurface(context, implementation, fingerprint);
   const slack = implementation.journeyKind === "native-slack-thread";
   const deadlineAt = Date.now() + implementation.attemptTimeoutMs - 30_000;
@@ -45,16 +45,16 @@ export async function runChatCatalogFlow(context: ChatCatalogContext) {
     await context.refreshIssue();
     const issue = context.issue();
     const runs = await context.allRuns();
-    const comments = issue ? await input.api.get<Array<{ id: string; body: string; authorAgentId?: string; authorUserId?: string; issueId?: string; companyId?: string; createdByRunId?: string }>>(
+    const comments = issue ? await input.api.get<Array<{ id: string; body: string; authorAgentId?: string; authorUserId?: string; issueId?: string; spaceId?: string; createdByRunId?: string }>>(
       `/api/issues/${issue.id}/comments?order=asc`,
     ) : [];
     const hasCreationCard = await input.page.locator('[data-testid="task-chat-thread"] article[aria-label^="Project created: "]').count() > 0;
     const [projects, activity] = hasCreationCard ? await Promise.all([
-      input.api.get<ConversationLinkInput["projects"]>(`/api/companies/${input.fixtures.company.id}/projects?includeArchived=true`),
-      input.api.get<ConversationLinkInput["activity"]>(`/api/companies/${input.fixtures.company.id}/activity?limit=1000`),
+      input.api.get<ConversationLinkInput["projects"]>(`/api/spaces/${input.fixtures.space.id}/projects?includeArchived=true`),
+      input.api.get<ConversationLinkInput["activity"]>(`/api/spaces/${input.fixtures.space.id}/activity?limit=1000`),
     ]) : [[], []];
     const renderedLinks = issue ? await collectConversationLinks(input.page, {
-      origin: input.api.baseURL, companyId: input.fixtures.company.id, companyPrefix: input.fixtures.company.issuePrefix,
+      origin: input.api.baseURL, spaceId: input.fixtures.space.id, spacePrefix: input.fixtures.space.issuePrefix,
       sourceId: issue.id, leadId: input.fixtures.agent.id, comments, runs, projects, activity,
     }) : [];
     const evidence = { issue, runs, comments, renderedLinks };
@@ -71,31 +71,31 @@ export async function runChatCatalogFlow(context: ChatCatalogContext) {
       ? implementation!.expectedHumanQuestionAnswer?.(observation) : undefined;
     let questionAnswer: ReturnType<typeof verifyChatCatalogHumanQuestionAnswer>;
     if (expectedAnswer && evidence.issue && canonicalHuman) {
-      const [interactions, activity, companySecrets, personalSecrets] = await Promise.all([
+      const [interactions, activity, spaceSecrets, personalSecrets] = await Promise.all([
         input.api.get<AskUserQuestionsInteraction[]>(`/api/issues/${evidence.issue.id}/interactions`),
-        expectedAnswer.companySecretConfirmation ? collectChatCatalogCompanySecretApprovalActivity(input.api,input.fixtures.company.id,evidence.issue.id) : input.api.get<ChatCatalogHumanQuestionAudit[]>(`/api/issues/${evidence.issue.id}/activity`),
-        expectedAnswer.personalSecretConfirmation ? undefined : (expectedAnswer.companySavedSecretNameAnswer || expectedAnswer.companySecretConfirmation) ? input.api.get<NonNullable<Parameters<typeof verifyChatCatalogHumanQuestionAnswer>[0]["companySecrets"]>>(`/api/companies/${input.fixtures.company.id}/secrets`) : undefined,
-        expectedAnswer.personalSecretConfirmation ? input.api.get<NonNullable<Parameters<typeof verifyChatCatalogHumanQuestionAnswer>[0]["personalSecrets"]>>(`/api/companies/${input.fixtures.company.id}/me/user-secrets`) : undefined,
+        expectedAnswer.spaceSecretConfirmation ? collectChatCatalogSpaceSecretApprovalActivity(input.api,input.fixtures.space.id,evidence.issue.id) : input.api.get<ChatCatalogHumanQuestionAudit[]>(`/api/issues/${evidence.issue.id}/activity`),
+        expectedAnswer.personalSecretConfirmation ? undefined : (expectedAnswer.spaceSavedSecretNameAnswer || expectedAnswer.spaceSecretConfirmation) ? input.api.get<NonNullable<Parameters<typeof verifyChatCatalogHumanQuestionAnswer>[0]["spaceSecrets"]>>(`/api/spaces/${input.fixtures.space.id}/secrets`) : undefined,
+        expectedAnswer.personalSecretConfirmation ? input.api.get<NonNullable<Parameters<typeof verifyChatCatalogHumanQuestionAnswer>[0]["personalSecrets"]>>(`/api/spaces/${input.fixtures.space.id}/me/user-secrets`) : undefined,
       ]);
-      questionAnswer = verifyChatCatalogHumanQuestionAnswer({ expected: expectedAnswer, companyId: input.fixtures.company.id,
+      questionAnswer = verifyChatCatalogHumanQuestionAnswer({ expected: expectedAnswer, spaceId: input.fixtures.space.id,
         issueId: evidence.issue.id, agentId: input.fixtures.agent.id, canonicalComment: canonicalHuman,
-        interactions, activity, companySecrets, personalSecrets, runs: evidence.runs });
+        interactions, activity, spaceSecrets, personalSecrets, runs: evidence.runs });
     }
-    const expectedApproval=scenario.id==="secrets.configure-company-secret"&&implementation!.optionalCompanySecretBindingApproval===true?implementation!.expectedCompanySecretBindingApproval?.(observation):undefined;
-    let secretApproval:ReturnType<typeof verifyChatCatalogCompanySecretBindingApproval>;
+    const expectedApproval=scenario.id==="secrets.configure-space-secret"&&implementation!.optionalSpaceSecretBindingApproval===true?implementation!.expectedSpaceSecretBindingApproval?.(observation):undefined;
+    let secretApproval:ReturnType<typeof verifyChatCatalogSpaceSecretBindingApproval>;
     if(expectedApproval&&evidence.issue&&canonicalHuman){
       const [interactions,proposals,activity,secrets,usage]=await Promise.all([
-        input.api.get<Parameters<typeof verifyChatCatalogCompanySecretBindingApproval>[0]["interactions"]>(`/api/issues/${evidence.issue.id}/interactions`),
-        input.api.get<Parameters<typeof verifyChatCatalogCompanySecretBindingApproval>[0]["proposals"]>(`/api/companies/${input.fixtures.company.id}/secret-proposals`),
-        collectChatCatalogCompanySecretApprovalActivity(input.api,input.fixtures.company.id,evidence.issue.id),
-        input.api.get<Parameters<typeof verifyChatCatalogCompanySecretBindingApproval>[0]["secrets"]>(`/api/companies/${input.fixtures.company.id}/secrets`),
-        input.api.get<{bindings:Parameters<typeof verifyChatCatalogCompanySecretBindingApproval>[0]["bindings"]}>(`/api/secrets/${expectedApproval.secretId}/usage`),
+        input.api.get<Parameters<typeof verifyChatCatalogSpaceSecretBindingApproval>[0]["interactions"]>(`/api/issues/${evidence.issue.id}/interactions`),
+        input.api.get<Parameters<typeof verifyChatCatalogSpaceSecretBindingApproval>[0]["proposals"]>(`/api/spaces/${input.fixtures.space.id}/secret-proposals`),
+        collectChatCatalogSpaceSecretApprovalActivity(input.api,input.fixtures.space.id,evidence.issue.id),
+        input.api.get<Parameters<typeof verifyChatCatalogSpaceSecretBindingApproval>[0]["secrets"]>(`/api/spaces/${input.fixtures.space.id}/secrets`),
+        input.api.get<{bindings:Parameters<typeof verifyChatCatalogSpaceSecretBindingApproval>[0]["bindings"]}>(`/api/secrets/${expectedApproval.secretId}/usage`),
       ]);
-      secretApproval=verifyChatCatalogCompanySecretBindingApproval({scenarioId:scenario.id,expected:expectedApproval,companyId:input.fixtures.company.id,issueId:evidence.issue.id,agentId:input.fixtures.agent.id,interactions,proposals,activity,secrets,bindings:usage.bindings,comments:evidence.comments as unknown as Parameters<typeof verifyChatCatalogCompanySecretBindingApproval>[0]["comments"],runs:evidence.runs});
+      secretApproval=verifyChatCatalogSpaceSecretBindingApproval({scenarioId:scenario.id,expected:expectedApproval,spaceId:input.fixtures.space.id,issueId:evidence.issue.id,agentId:input.fixtures.agent.id,interactions,proposals,activity,secrets,bindings:usage.bindings,comments:evidence.comments as unknown as Parameters<typeof verifyChatCatalogSpaceSecretBindingApproval>[0]["comments"],runs:evidence.runs});
     }
-    const humanAccounting = { basis: secretApproval ? "comments_and_verified_company_binding_approval" : expectedAnswer?.companySecretConfirmation ? "comments_and_declared_company_secure_confirmation" : expectedAnswer?.personalSecretConfirmation ? "comments_and_declared_personal_secure_confirmation" : expectedAnswer ? "comments_and_declared_credential_question_answer" : "comments", rawHumanCommentCount: human.length, verifiedHumanQuestionAnswerCount: questionAnswer ? 1 : 0,
+    const humanAccounting = { basis: secretApproval ? "comments_and_verified_space_binding_approval" : expectedAnswer?.spaceSecretConfirmation ? "comments_and_declared_space_secure_confirmation" : expectedAnswer?.personalSecretConfirmation ? "comments_and_declared_personal_secure_confirmation" : expectedAnswer ? "comments_and_declared_credential_question_answer" : "comments", rawHumanCommentCount: human.length, verifiedHumanQuestionAnswerCount: questionAnswer ? 1 : 0,
       accountedHumanActionCount: human.length + (questionAnswer ? 1 : 0) + (secretApproval ? 1 : 0), declaredHumanActionCount: (implementation!.expectedHumanMessageCount ?? 1) + (secretApproval ? 1 : 0),
-      declaredMinimumHumanActionCount: implementation!.expectedHumanMessageCount ?? 1, declaredMaximumHumanActionCount:(implementation!.expectedHumanMessageCount ?? 1)+(implementation!.optionalCompanySecretBindingApproval===true?1:0), verifiedCompanySecretApprovalCount:secretApproval?1:0, companySecretApproval:secretApproval??null, expectedCompanySecretApprovalVerified:expectedApproval?!!secretApproval:null,
+      declaredMinimumHumanActionCount: implementation!.expectedHumanMessageCount ?? 1, declaredMaximumHumanActionCount:(implementation!.expectedHumanMessageCount ?? 1)+(implementation!.optionalSpaceSecretBindingApproval===true?1:0), verifiedSpaceSecretApprovalCount:secretApproval?1:0, spaceSecretApproval:secretApproval??null, expectedSpaceSecretApprovalVerified:expectedApproval?!!secretApproval:null,
       questionAnswer: questionAnswer ?? null, expectedQuestionAnswerVerified: expectedAnswer ? !!questionAnswer : null };
 
     const attachmentsValid = !queryAttachments.length || !!canonicalHuman && await verifyChatQueryAttachments(context, queryAttachments, canonicalHuman);
@@ -105,11 +105,11 @@ export async function runChatCatalogFlow(context: ChatCatalogContext) {
       { id: "catalog-complete-conditions", passed: !implementation!.coverageGaps?.length,
         detail: implementation!.coverageGaps?.length ? `Missing conditions: ${implementation!.coverageGaps.join(", ")}` : "No known catalog condition is omitted." },
       { id: "catalog-original-human-query", passed: (!expectedAnswer || !!questionAnswer) && (!expectedApproval||!!secretApproval) && chatCatalogHumanHistoryMatches({ implementation: implementation!, human, questionAnswer, secretApproval, runIds: evidence.runs.map(run => run.id), boundary: setupBoundary, renderedQuery: persistedQuery }),
-        detail: "The original query/setup history is unchanged. Human actions are raw comments, plus independently verified bound UI answers and an optional executed company binding approval only for its opted-in case." },
+        detail: "The original query/setup history is unchanged. Human actions are raw comments, plus independently verified bound UI answers and an optional executed space binding approval only for its opted-in case." },
       { id: "catalog-query-attachment-receipts", passed: attachmentsValid,
         detail: "Only declared production attachment suffixes are allowed, backed by same-source human receipts and independently retrieved matching bytes." },
       ...(slack ? [slackNativeRunCheck(context, evidence.runs, state)] : []),
-      ...gradeChatCatalogRuns({ implementation: implementation!, companyId: input.fixtures.company.id,
+      ...gradeChatCatalogRuns({ implementation: implementation!, spaceId: input.fixtures.space.id,
         leadId: input.fixtures.agent.id, source: evidence.issue, runs: evidence.runs, observation }).checks,
     ];
     grade = { passed: checks.every(check => check.passed), checks };
@@ -122,11 +122,11 @@ export async function runChatCatalogFlow(context: ChatCatalogContext) {
     await markReturningBrowser(input.page, input.api?.baseURL);
     await input.evidence("chat-catalog-definition.json", { scenarioId: scenario.id, ...fingerprint,
       suiteDefinitionHash: input.execution.suiteDefinitionHash, journeyKind: implementation.journeyKind ?? "agent-chat" });
-    // Setup turns (prerequisite chat messages, worker runs) spend before the query. Fund the company and
+    // Setup turns (prerequisite chat messages, worker runs) spend before the query. Fund the space and
     // lead first: the fixture's default policy blocks unpriced usage, so one unpriced setup turn would
     // otherwise budget-pause the lead before the standard funding below is applied.
-    if (implementation.setupPolicy?.funding !== "preserve-scenario") for (const scope of [{ scopeType: "company", scopeId: input.fixtures.company.id },
-      { scopeType: "agent", scopeId: input.fixtures.agent.id }]) await input.api.post(`/api/companies/${input.fixtures.company.id}/budgets/policies`, { ...scope, amount: 500,
+    if (implementation.setupPolicy?.funding !== "preserve-scenario") for (const scope of [{ scopeType: "space", scopeId: input.fixtures.space.id },
+      { scopeType: "agent", scopeId: input.fixtures.agent.id }]) await input.api.post(`/api/spaces/${input.fixtures.space.id}/budgets/policies`, { ...scope, amount: 500,
       hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
     state = await implementation.setup(context);
     const query = await resolveChatCatalogQuery(context, implementation.queryBindings, state);
@@ -137,8 +137,8 @@ export async function runChatCatalogFlow(context: ChatCatalogContext) {
     if (queryAttachments.length) await input.evidence("chat-catalog-query-attachments-before-send.json", {
       originalQuery: scenario.query, renderedQuery, persistedQuery, receipts: queryAttachments });
     await input.evidence("chat-catalog-query-binding.json", { scenarioId: scenario.id, ...query });
-    const company = `/api/companies/${input.fixtures.company.id}`;
-    const agents = await input.api.get<Array<{ id: string }>>(`${company}/agents`);
+    const space = `/api/spaces/${input.fixtures.space.id}`;
+    const agents = await input.api.get<Array<{ id: string }>>(`${space}/agents`);
     if (implementation.setupPolicy?.readiness !== "preserve-scenario") for (const agent of agents) await pollUntil({ label: `catalog agent readiness ${agent.id}`,
       deadlineAt: Math.min(deadlineAt, Date.now() + 45_000), intervalMs: 500,
       load: () => input.api.get<ChatCatalogAgentReadiness>(`/api/agents/${agent.id}`),
@@ -146,11 +146,11 @@ export async function runChatCatalogFlow(context: ChatCatalogContext) {
       reject: value => value.lifecycleError ? "Agent setup failed; diagnostic details withheld" : undefined,
       timeoutDetail: chatCatalogAgentReadinessDetail,
     });
-    const scopes = [{ scopeType: "company", scopeId: input.fixtures.company.id },
+    const scopes = [{ scopeType: "space", scopeId: input.fixtures.space.id },
       ...agents.map(agent => ({ scopeType: "agent", scopeId: agent.id }))];
-    if (implementation.setupPolicy?.funding !== "preserve-scenario") for (const scope of scopes) await input.api.post(`${company}/budgets/policies`, { ...scope, amount: 500,
+    if (implementation.setupPolicy?.funding !== "preserve-scenario") for (const scope of scopes) await input.api.post(`${space}/budgets/policies`, { ...scope, amount: 500,
       hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
-    const funding = await input.api.get<{ policies: Array<{ scopeType: string; scopeId: string; amount: number; hardStopEnabled: boolean; isActive: boolean; unpricedUsagePolicy: string }> }>(`${company}/budgets/overview`);
+    const funding = await input.api.get<{ policies: Array<{ scopeType: string; scopeId: string; amount: number; hardStopEnabled: boolean; isActive: boolean; unpricedUsagePolicy: string }> }>(`${space}/budgets/overview`);
     if (implementation.setupPolicy?.funding !== "preserve-scenario") expect(scopes.every(scope => funding.policies.some(policy => policy.scopeType === scope.scopeType && policy.scopeId === scope.scopeId
       && policy.amount === 500 && policy.hardStopEnabled && policy.isActive && policy.unpricedUsagePolicy === "allow")), "Public funding policy persisted").toBe(true);
     await input.evidence("chat-catalog-funding.json", { scopes, mode: implementation.setupPolicy?.funding ?? "standard",
@@ -163,7 +163,7 @@ export async function runChatCatalogFlow(context: ChatCatalogContext) {
       savedAgentTimeoutSec: savedLead.adapterConfig?.timeoutSec });
     await input.evidence("chat-catalog-setup.json", { nativeTimeoutPolicy, scenario, state, inventoryDigest: chatCatalogInventoryDigest,
       oracleVersion: implementation.oracleVersion, expectedRunCount: implementation.expectedRunCount,
-      ...(implementation.optionalCompanySecretBindingApproval===true?{optionalCompanySecretBindingApproval:true,declaredMinimumHumanActionCount:2,declaredMaximumHumanActionCount:3}:{}),
+      ...(implementation.optionalSpaceSecretBindingApproval===true?{optionalSpaceSecretBindingApproval:true,declaredMinimumHumanActionCount:2,declaredMaximumHumanActionCount:3}:{}),
       minimumRunCount: implementation.minimumRunCount, effectiveNativeTurnTimeoutMs: input.execution.task.turnTimeoutMs,
       authoredLegacyTurnTimeoutMs: implementation.turnTimeoutMs,
       attemptTimeoutMs: implementation.attemptTimeoutMs });
@@ -183,9 +183,9 @@ export async function runChatCatalogFlow(context: ChatCatalogContext) {
     if (slack) {
       const other=state.slackOtherThreadSetupReceipt as (import("./chat-catalog-contract.js").ChatSlackIngressReceipt & {runId:string})|undefined;
       const declaredOther=implementation.scenarioId==="chat-channels.reply-in-thread"&&implementation.slackIngress?.setupThread==="same-agent-distractor";
-      if (setupBoundary.humanCommentIds.length || (declaredOther ? !other || !slackOtherThreadBoundaryMatches({receipt:other,runs:setupConversation.runs,companyId:input.fixtures.company.id,agentId:input.fixtures.agent.id}) : setupBoundary.runIds.length!==0)) throw new Error("Native Slack setup cannot admit undeclared canonical or unrelated work");
+      if (setupBoundary.humanCommentIds.length || (declaredOther ? !other || !slackOtherThreadBoundaryMatches({receipt:other,runs:setupConversation.runs,spaceId:input.fixtures.space.id,agentId:input.fixtures.agent.id}) : setupBoundary.runIds.length!==0)) throw new Error("Native Slack setup cannot admit undeclared canonical or unrelated work");
       state.slackIngressReceipt = await dispatchNativeSlackIngress(context, implementation, state, deadlineAt);
-      await input.page.goto(new URL(`/${input.fixtures.company.issuePrefix}/issues/${context.issue()!.id}`, input.api.baseURL).href);
+      await input.page.goto(new URL(`/${input.fixtures.space.issuePrefix}/issues/${context.issue()!.id}`, input.api.baseURL).href);
       if (implementation.scenarioId === "chat-channels.channel-file") await completeNativeSlackFileConditional(context, implementation, state, deadlineAt);
     } else {
       await prepareNativeStopCanonicalBoundary(context, implementation, state, renderedQuery, setupBoundary);
@@ -209,7 +209,7 @@ export async function runChatCatalogFlow(context: ChatCatalogContext) {
       reject: result => {
         if (result.runs.length > implementation.expectedRunCount) return "Scenario exceeded its declared run bound";
         if (result.runs.some(run => ["failed", "cancelled", "timed_out"].includes(run.status) && !chatCatalogNeverStartedTerminalTaskRun(run, result.issue) && !chatCatalogRunStatusAllowed({ implementation,
-          run, companyId: input.fixtures.company.id, leadId: input.fixtures.agent.id, source: result.issue, observation }))) return "Observed provider run failed";
+          run, spaceId: input.fixtures.space.id, leadId: input.fixtures.agent.id, source: result.issue, observation }))) return "Observed provider run failed";
         if (result.runs.length && result.runs.every(run => !["queued", "running"].includes(run.status)) && result.issue?.conversationState === "waiting") settledAt ??= Date.now();
         else settledAt = undefined;
         // A passing grade is still inside accept()'s stability window; let it finish.
@@ -228,7 +228,7 @@ export async function runChatCatalogFlow(context: ChatCatalogContext) {
     for (const check of persisted.grade.checks) input.check?.(check.id, check.passed, check.detail);
     await input.capture("final-state", scenario.id, "final-state.png");
     expect(chatCatalogNativePhaseIsTimely(context), "Original selected native observation budget includes complete final proof").toBe(true);
-    return createChatCatalogFinalRunVerifier({ implementation, companyId: input.fixtures.company.id,
+    return createChatCatalogFinalRunVerifier({ implementation, spaceId: input.fixtures.space.id,
       leadId: input.fixtures.agent.id, observation });
   } catch (error) {
     failed = true;

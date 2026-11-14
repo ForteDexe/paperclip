@@ -1,6 +1,6 @@
 export const DEFAULT_CLAUDE_LOCAL_MODEL = "claude-opus-5-5";
 
-/** Resolve Paperclip's default without replacing an explicit provider model. */
+/** Resolve Outpost's default without replacing an explicit provider model. */
 export function resolveClaudeModel(
   model: unknown,
   env: Record<string, unknown> = {},
@@ -83,7 +83,7 @@ Core fields:
 ACP fields (only when engine="acp"):
 - agentCommand (string, optional): override for the Claude ACP server command; defaults to the package-local claude-agent-acp binary
 - mode (string, optional, default "persistent"): ACP session mode ("persistent" or "oneshot")
-- stateDir (string, optional): ACP session state directory; defaults to Outpost-managed company/agent scoped storage
+- stateDir (string, optional): ACP session state directory; defaults to Outpost-managed space/agent scoped storage
 - nonInteractivePermissions (string, optional, default "deny"): fallback when the ACP agent asks for input outside an interactive session
 - warmHandleIdleMs (number, optional, default 0): keep the ACP process warm for this many ms after a successful run
 - stalledToolTimeoutSec (number, optional, default 1800): end the turn as failed ("acpx_tool_stalled") when a pending tool call gets no ACP update for this many seconds; 0 disables it. The default stays at least 15 minutes above MCP_TOOL_TIMEOUT and BASH_MAX_TIMEOUT_MS

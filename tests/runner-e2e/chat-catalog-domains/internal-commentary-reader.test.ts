@@ -12,7 +12,7 @@ import { installCommentaryReader } from "./internal-commentary-reader.js";
 
 function fixture() {
   let apiUser = "owner"; let browserUser = "owner";
-  let source: { id: string; companyId: string; conversationUserId: string; conversationAgentId: string } | undefined;
+  let source: { id: string; spaceId: string; conversationUserId: string; conversationAgentId: string } | undefined;
   const state = { browserOverride: undefined as string | undefined, sourceOverride: undefined as string | undefined };
   let response: Response;
   let cancel: MockInstance<ReadableStream["cancel"]>;
@@ -26,10 +26,10 @@ function fixture() {
     request: { get: vi.fn(async () => response!) }, restoreOwner() { browserUser = "owner"; } };
   const api = { baseURL: "http://127.0.0.1:3100", get: vi.fn(async () => ({ user: { id: apiUser } })),
     setBrowserSession: vi.fn(() => { apiUser = "owner"; }),
-    post: vi.fn(async () => source = { id: "source", companyId: "11111111-1111-4111-8111-111111111111", conversationUserId: state.sourceOverride ?? apiUser, conversationAgentId: "lead" }) };
+    post: vi.fn(async () => source = { id: "source", spaceId: "11111111-1111-4111-8111-111111111111", conversationUserId: state.sourceOverride ?? apiUser, conversationAgentId: "lead" }) };
   const evidence = vi.fn(async () => undefined);
   const page = { context: () => context, reload: vi.fn(async () => undefined) };
-  const ctx = { scenario: { id: "activity.agent-feedback" }, input: { api, page, evidence, fixtures: { company: { id: "11111111-1111-4111-8111-111111111111" }, agent: { id: "lead" } } },
+  const ctx = { scenario: { id: "activity.agent-feedback" }, input: { api, page, evidence, fixtures: { space: { id: "11111111-1111-4111-8111-111111111111" }, agent: { id: "lead" } } },
     refreshIssue: vi.fn(async () => undefined), issue: () => source } as unknown as ChatCatalogContext;
   const person = { id: "casey", installSessionOn: vi.fn(async () => { browserUser = "casey"; }),
     bindApiSession: vi.fn(() => { apiUser = "casey"; }) } as unknown as Parameters<typeof installCommentaryReader>[1];

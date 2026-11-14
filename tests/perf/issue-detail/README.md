@@ -6,7 +6,7 @@ Run the repeatable baseline from the repository root:
 pnpm exec playwright test --config tests/perf/issue-detail/playwright.config.ts
 ```
 
-The rig starts an isolated seeded Paperclip instance, runs five samples for each scenario/profile, and writes median-ready raw data plus a Markdown table to `test-results/issue-detail-perf/`.
+The rig starts an isolated seeded Outpost instance, runs five samples for each scenario/profile, and writes median-ready raw data plus a Markdown table to `test-results/issue-detail-perf/`.
 
 Scenarios:
 
@@ -62,7 +62,7 @@ Local fixtures cannot reproduce staging's network round trips, server contention
 or object-store latency. `staging-click-harness.js` measures the same journey on
 any running instance, including staging, from the signed-in browser:
 
-1. Open an Issues list, for example `/<company>/issues?view=mine`.
+1. Open an Issues list, for example `/<space>/issues?view=mine`.
 2. Paste the file into the DevTools console (or evaluate it through a browser
    automation tool).
 3. Run `await __taskOpenHarness.series(["ABC-1", "ABC-2", "ABC-3"])`.
@@ -71,7 +71,7 @@ Each sample reports the time from the row click to a visible composer and to the
 latest message in the viewport, the requests started before that point, the
 requests that finished last before it (`releasedBy`), the slowest and repeated
 requests, layout shifts, and any movement of the latest message after it first
-appeared. `serverMs` comes from the `paperclip_api` Server-Timing entry that every
+appeared. `serverMs` comes from the `outpost_api` Server-Timing entry that every
 API response carries, so a long `duration` with a short `serverMs` points to the
 network or browser queueing rather than the handler. A fetch that is still
 running when the sample ends is listed with `pending: true`. Run samples
@@ -154,11 +154,11 @@ OUTPOST_ISSUE_PERF_BASE_URL=http://127.0.0.1:3102 \
   pnpm exec playwright test --config tests/perf/issue-detail/playwright.config.ts layout-stability.spec.ts
 ```
 
-The suite creates its own company and fixtures. The URL override accepts only
+The suite creates its own space and fixtures. The URL override accepts only
 loopback origins and rejects remote hosts. Use a disposable local instance,
 not a shared or production instance. Without the override, the harness starts its own
 isolated instance as before. Live provider walkthroughs additionally require a
-configured native Paperclip runner and Codex authentication; deterministic
+configured native Outpost runner and Codex authentication; deterministic
 browser fixtures do not substitute for watching an actual provider run.
 
 `saved-reply-startup.spec.ts` adds a PostgreSQL fixture with 200 long saved agent
@@ -171,11 +171,11 @@ database whose name ends in `_test`. Use the same database as the local server:
 
 ```sh
 OUTPOST_ISSUE_PERF_BASE_URL=http://127.0.0.1:3102 \
-OUTPOST_ISSUE_PERF_DATABASE_URL=postgres://paperclip:paperclip@127.0.0.1:5432/task_loading_test \
+OUTPOST_ISSUE_PERF_DATABASE_URL=postgres://outpost:outpost@127.0.0.1:5432/task_loading_test \
   pnpm exec playwright test --config tests/perf/issue-detail/playwright.config.ts saved-reply-startup.spec.ts
 ```
 
-For the live walkthrough, first assign a disposable task to a native Paperclip
+For the live walkthrough, first assign a disposable task to a native Outpost
 runner configured with the Codex provider. Its scratch project should contain
 a small `sum.mjs` fixture. The script sends a paced job, scrolls up, disconnects
 and reconnects, steers a follow-up, and records through completion:

@@ -6,7 +6,7 @@ vi.mock("../delivery-work-notifications.js",async importOriginal=>({...await imp
 import {mcpClientMirrorGeneration} from "./client-mirror-contract.js";
 import {requiresMcpDeviceBroker,currentMcpDeviceCutoverStack,installMcpDeviceCutover} from "./device-cutover.js";
 
-const resource="https://tenant.example.test/mcp/paperclip";
+const resource="https://tenant.example.test/mcp/outpost";
 const identity={version:1 as const,instanceId:"instance",origin:"https://tenant.example.test",revision:1};
 const receipt={...identity,enabled:true,frontDoor:"tenant-personal-v1" as const,deviceStatus:{keyId:"a".repeat(64),generation:"b".repeat(64),count:0},generation:""};receipt.generation=mcpClientMirrorGeneration(receipt);
 function fixture(row:unknown){let reads=0;const tx={select:()=>{reads++;return{from:()=>({where:async()=>row?[row]:[]})};}} as unknown as Pick<Db,"select">;return{tx,reads:()=>reads};}
@@ -44,11 +44,11 @@ describe("one-time managed device cutover",()=>{
     current.identity={stackId:"stack",canonicalOrigin:"https://tenant.example.test"};const f=fixture({stackId:null,at:null});
     expect(await requiresMcpDeviceBroker(f.tx,resource)).toBe(false);
     expect(await requiresMcpDeviceBroker(f.tx,"https://tenant.example.test/mcp/runner")).toBe(false);
-    expect(await requiresMcpDeviceBroker(f.tx,"https://old.example.test/mcp/paperclip")).toBe(false);expect(f.reads()).toBe(1);
+    expect(await requiresMcpDeviceBroker(f.tx,"https://old.example.test/mcp/outpost")).toBe(false);expect(f.reads()).toBe(1);
   });
   it("same-stack origin replacement and identity rotation during inspection cannot inherit cutover",async()=>{
     current.identity={stackId:"stack",canonicalOrigin:"https://replacement.example.test"};
-    expect(await requiresMcpDeviceBroker(fixture({stackId:"stack",at:new Date(1),receipt}).tx,"https://replacement.example.test/mcp/paperclip")).toBe(false);
+    expect(await requiresMcpDeviceBroker(fixture({stackId:"stack",at:new Date(1),receipt}).tx,"https://replacement.example.test/mcp/outpost")).toBe(false);
     current.identity={stackId:"stack",canonicalOrigin:identity.origin};
     const tx={select:()=>({from:()=>({where:async()=>{current.identity={stackId:"replacement",canonicalOrigin:identity.origin};return[{stackId:"stack",at:new Date(1),receipt}];}})})} as unknown as Pick<Db,"select">;
     expect(await requiresMcpDeviceBroker(tx,resource)).toBe(false);

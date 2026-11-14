@@ -2,8 +2,8 @@ import type { AiConnectionPool, AiConnectionPoolConfig, AiConnectionUsage } from
 import { api } from "./client";
 export type PoolInspection = Record<string, { reason: string; checkedAt: string | null; usage?: AiConnectionUsage }>;
 export const aiConnectionPoolsApi = {
-  list: (companyId: string) => api.get<AiConnectionPool[]>(`/companies/${companyId}/ai-connection-pools`),
-  save: (companyId: string, body: { pluginKey: string; id?: string; expectedRevision?: number; config: AiConnectionPoolConfig }) => api.post<AiConnectionPool>(`/companies/${companyId}/ai-connection-pools`, body),
-  inspect: (companyId: string, id: string) => api.get<PoolInspection>(`/companies/${companyId}/ai-connection-pools/${id}/inspection`),
-  remove: (companyId: string, id: string, expectedRevision: number) => api.delete(`/companies/${companyId}/ai-connection-pools/${id}`, { expectedRevision }),
+  list: (spaceId: string) => api.get<AiConnectionPool[]>(`/spaces/${spaceId}/ai-connection-pools`),
+  save: (spaceId: string, body: { pluginKey: string; id?: string; expectedRevision?: number; config: AiConnectionPoolConfig }) => api.post<AiConnectionPool>(`/spaces/${spaceId}/ai-connection-pools`, body),
+  inspect: (spaceId: string, id: string) => api.get<PoolInspection>(`/spaces/${spaceId}/ai-connection-pools/${id}/inspection`),
+  remove: (spaceId: string, id: string, expectedRevision: number) => api.delete(`/spaces/${spaceId}/ai-connection-pools/${id}`, { expectedRevision }),
 };

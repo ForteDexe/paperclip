@@ -2,7 +2,7 @@ import { readSkillVersionHistory } from "./integrator-skill-versions.js";
 import { saveSkillConversationContext } from "./integrator-skill-context.js";
 import { factualContextQueryAttachment } from "../chat-query-attachments.js";
 import { createHash } from "node:crypto";
-import type { CompanySkillDetail, CompanySkillVersion, CompanySkillUpdateStatus } from "../../../packages/shared/src/types/company-skill.js";
+import type { SpaceSkillDetail, SpaceSkillVersion, SpaceSkillUpdateStatus } from "../../../packages/shared/src/types/space-skill.js";
 import type { SkillSource, SkillSourceRefreshResult } from "../../../packages/shared/src/types/skill-source.js";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 import { pollUntil } from "../api.js";
@@ -15,14 +15,14 @@ import { integratorDefinition, inspectResult, observeInternal } from "./integrat
 import { accessibilityUpdatePins } from "./integrator-skill-pins.js";
 export { accessibilityUpdatePins } from "./integrator-skill-pins.js";
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
-const root = (ctx: ChatCatalogContext) => `/api/companies/${ctx.input.fixtures.company.id}`;
+const root = (ctx: ChatCatalogContext) => `/api/spaces/${ctx.input.fixtures.space.id}`;
 interface VisibleSkillReview { runId: string; issueId: string; humanCommentId: string; summary: string; visibleText: string }
-interface UpdateObservation extends InternalObservation { visibleReview?: VisibleSkillReview; upstream: CompanySkillDetail; localFork: CompanySkillDetail; upstreamVersions: CompanySkillVersion[]; forkVersions: CompanySkillVersion[]; source: SkillSource; updateStatus: Pick<CompanySkillUpdateStatus, "supported" | "currentRef" | "latestRef" | "hasUpdate"> }
+interface UpdateObservation extends InternalObservation { visibleReview?: VisibleSkillReview; upstream: SpaceSkillDetail; localFork: SpaceSkillDetail; upstreamVersions: SpaceSkillVersion[]; forkVersions: SpaceSkillVersion[]; source: SkillSource; updateStatus: Pick<SpaceSkillUpdateStatus, "supported" | "currentRef" | "latestRef" | "hasUpdate"> }
 // Only a committed current native completion can contribute rendered review text.
 export function acceptedSkillReviewRun(o: InternalObservation, issueId: string) {
   if (o.runs.length !== 1) return undefined;
   const run = o.runs[0]!, result = run.resultJson, native = result?.nativeResult as Record<string, unknown> | undefined;
-  return run.companyId === o.companyId && run.agentId === o.leadId && run.status === "succeeded" && run.runtimeMode === "native"
+  return run.spaceId === o.spaceId && run.agentId === o.leadId && run.status === "succeeded" && run.runtimeMode === "native"
     && run.contextSnapshot?.issueId === issueId && (run.nativeIssueId == null || run.nativeIssueId === issueId)
     && typeof run.contextSnapshot?.commentId === "string"
     && result?.finalizationPhase === "committed" && result.finalizationReasonCode === "conversation_turn_finished"
@@ -65,20 +65,20 @@ export function skillReviewPreviewText(o: UpdateObservation) {
 }
 const updateReceipts = new WeakMap<ChatCatalogContext, { localDigest: string; status: UpdateObservation["updateStatus"] }>();
 async function observeUpdate(ctx: ChatCatalogContext, state: Record<string, unknown>, checkpoint = false): Promise<UpdateObservation> {
-  const base = await observeInternal(ctx, state); const api = ctx.input.api; const upstream = state.upstream as CompanySkillDetail; const local = state.localFork as CompanySkillDetail;
-  const saved = { upstream: await api.get<CompanySkillDetail>(`${root(ctx)}/skills/${upstream.id}`), localFork: await api.get<CompanySkillDetail>(`${root(ctx)}/skills/${local.id}`),
-    upstreamVersions: await readSkillVersionHistory(api, ctx.input.fixtures.company.id, upstream.id), forkVersions: await readSkillVersionHistory(api, ctx.input.fixtures.company.id, local.id),
+  const base = await observeInternal(ctx, state); const api = ctx.input.api; const upstream = state.upstream as SpaceSkillDetail; const local = state.localFork as SpaceSkillDetail;
+  const saved = { upstream: await api.get<SpaceSkillDetail>(`${root(ctx)}/skills/${upstream.id}`), localFork: await api.get<SpaceSkillDetail>(`${root(ctx)}/skills/${local.id}`),
+    upstreamVersions: await readSkillVersionHistory(api, ctx.input.fixtures.space.id, upstream.id), forkVersions: await readSkillVersionHistory(api, ctx.input.fixtures.space.id, local.id),
     source: await api.get<SkillSource>(`${root(ctx)}/skill-sources/${(state.source as SkillSource).id}`) };
   // This is the same genuine semantic checkpoint, not another provider read.
   // Only the exact immutable public commit can retain it during grade settling;
   // mutable remote refs must be read again even if local state is unchanged.
-  const localDigest = hash(JSON.stringify({ companyId: ctx.input.fixtures.company.id, sourceId: ctx.issue()?.id,
-    humanQueries: base.humanQueries, runs: base.runs.map(run => ({ id: run.id, companyId: run.companyId, agentId: run.agentId,
+  const localDigest = hash(JSON.stringify({ spaceId: ctx.input.fixtures.space.id, sourceId: ctx.issue()?.id,
+    humanQueries: base.humanQueries, runs: base.runs.map(run => ({ id: run.id, spaceId: run.spaceId, agentId: run.agentId,
       status: run.status, issueId: run.contextSnapshot?.issueId, commentId: run.contextSnapshot?.commentId })), ...saved })), prior = updateReceipts.get(ctx);
   const immutable = /^[a-f0-9]{40}$/.test(saved.source.trackingRef) && saved.source.trackingRef === accessibilityUpdatePins.newCommit
     && saved.source.fullName.toLowerCase() === new URL(accessibilityUpdatePins.repositoryURL).pathname.slice(1).toLowerCase();
   const status = !checkpoint && immutable && prior?.localDigest === localDigest && prior.status.latestRef === accessibilityUpdatePins.newCommit ? prior.status
-    : await api.getSkillSourceUpdateStatus<UpdateObservation["updateStatus"]>(ctx.input.fixtures.company.id, upstream.id);
+    : await api.getSkillSourceUpdateStatus<UpdateObservation["updateStatus"]>(ctx.input.fixtures.space.id, upstream.id);
   updateReceipts.set(ctx, { localDigest, status: { ...status } });
   let visibleReview: VisibleSkillReview | undefined;
   const issueId = ctx.issue()?.id;
@@ -115,7 +115,7 @@ export async function collectVisibleSkillReviewFallback(ctx: ChatCatalogContext,
   return { runId: run.id, issueId, humanCommentId, summary: run.resultJson!.summary as string, visibleText };
 }
 function previewCorrect(o: UpdateObservation) {
-  const before = o.state.upstream as CompanySkillDetail;
+  const before = o.state.upstream as SpaceSkillDetail;
   const reply = skillReviewPreviewText(o);
   return o.upstream.currentVersionId === before.currentVersionId && o.upstream.sourceRef === accessibilityUpdatePins.oldCommit && hash(o.upstream.markdown) === accessibilityUpdatePins.oldSha256
     && o.source.lastScanCommit === accessibilityUpdatePins.oldCommit && o.source.trackingRef === accessibilityUpdatePins.newCommit && o.source.automaticUpdates === false
@@ -124,12 +124,12 @@ function previewCorrect(o: UpdateObservation) {
 }
 export function gradeIntegratorSkillUpdate(value: unknown) {
   const c = checks(); const o = updateObservation(value); c.add("real-tracked-source-and-saved-versions", !!o, "Requires actual public GitHub source tracking, installed snapshot versions and preserved editable fork."); if (!o) return c.result();
-  const first = updateObservation(o.state.reviewCheckpoint); const before = o.state.upstream as CompanySkillDetail; const local = o.state.localFork as CompanySkillDetail;
+  const first = updateObservation(o.state.reviewCheckpoint); const before = o.state.upstream as SpaceSkillDetail; const local = o.state.localFork as SpaceSkillDetail;
   c.add("review-diff-before-update", !!first && previewCorrect(first), "The canonical first answer presents substantive genuine 0.4→0.5 source changes and actual current revision while leaving the installed snapshot unchanged.");
   c.add("explicit-normal-version-update-completed", o.upstream.id === before.id && o.upstream.currentVersionId !== before.currentVersionId && o.upstream.sourceRef === accessibilityUpdatePins.newCommit && hash(o.upstream.markdown) === accessibilityUpdatePins.newSha256
     && o.source.lastScanCommit === accessibilityUpdatePins.newCommit && o.upstreamVersions.some(version => version.id === before.currentVersionId && version.fileInventory.some(file => file.path === "SKILL.md" && hash(file.content) === accessibilityUpdatePins.oldSha256))
     && o.upstreamVersions.some(version => version.id === o.upstream.currentVersionId && version.fileInventory.some(file => file.path === "SKILL.md" && hash(file.content) === accessibilityUpdatePins.newSha256))
-    && o.activity.some(event => event.agentId === o.leadId && event.action === "company.skill_source_refreshed" && event.entityId === o.source.id), "Only the later explicit human request installs the independently pinned actual newer source through normal source/version refresh, preserving the old immutable version.");
+    && o.activity.some(event => event.agentId === o.leadId && event.action === "space.skill_source_refreshed" && event.entityId === o.source.id), "Only the later explicit human request installs the independently pinned actual newer source through normal source/version refresh, preserving the old immutable version.");
   c.add("local-editable-fork-not-overwritten", o.localFork.id === local.id && o.localFork.editable && o.localFork.forkedFromSkillId === before.id && o.localFork.currentVersionId === local.currentVersionId && o.localFork.markdown === local.markdown
     && JSON.stringify(o.forkVersions) === JSON.stringify(o.state.localVersions), "The genuinely editable local fork and unrelated notes remain byte-for-byte and version-for-version unchanged.");
   const later = first && o.reply.startsWith(first.reply) ? o.reply.slice(first.reply.length) : "";
@@ -138,7 +138,7 @@ export function gradeIntegratorSkillUpdate(value: unknown) {
   return c.result();
 }
 export async function requireSkillUpdatePrerequisite(ctx: ChatCatalogContext, skillId: string) {
-  const status = await ctx.input.api.getSkillSourceUpdateStatus<CompanySkillUpdateStatus>(ctx.input.fixtures.company.id, skillId, { timeout: Math.min(30_000, remainingIdentityObservationBudget(ctx)) });
+  const status = await ctx.input.api.getSkillSourceUpdateStatus<SpaceSkillUpdateStatus>(ctx.input.fixtures.space.id, skillId, { timeout: Math.min(30_000, remainingIdentityObservationBudget(ctx)) });
   remainingIdentityObservationBudget(ctx);
   if (status.supported !== true || status.hasUpdate !== true || status.currentRef !== accessibilityUpdatePins.oldCommit
     || status.latestRef !== accessibilityUpdatePins.newCommit || status.trackingRef !== accessibilityUpdatePins.newCommit)
@@ -154,15 +154,15 @@ export const integratorSkillUpdateCases = [integratorDefinition("skills", "skill
   }
   const imported = await ctx.input.api.post<SkillSourceRefreshResult>(`${root(ctx)}/skill-sources`, { repositoryUrl: accessibilityUpdatePins.repositoryURL, trackingRef: accessibilityUpdatePins.oldCommit, commitSha: accessibilityUpdatePins.oldCommit, selectedPaths: [accessibilityUpdatePins.path], excludedFolders: [] });
   if (imported.imported.length !== 1 || !imported.source.entries.some(entry => entry.path === accessibilityUpdatePins.path && entry.skillId === imported.imported[0]?.id)) throw new Error("Tracked public source did not install the selected actual skill");
-  const upstream = await ctx.input.api.get<CompanySkillDetail>(`${root(ctx)}/skills/${imported.imported[0]!.id}`);
+  const upstream = await ctx.input.api.get<SpaceSkillDetail>(`${root(ctx)}/skills/${imported.imported[0]!.id}`);
   if (upstream.sourceType !== "github" || upstream.sourceRef !== accessibilityUpdatePins.oldCommit || hash(upstream.markdown) !== accessibilityUpdatePins.oldSha256 || upstream.editable) throw new Error("Installed public source is not the immutable old GitHub snapshot");
   const localFork = await editableLocalNotes(ctx, upstream);
   const source = await ctx.input.api.patch<SkillSource>(`${root(ctx)}/skill-sources/${imported.source.id}/settings`, { revision: imported.source.revision, automaticUpdates: false, importNewSkills: false, trackingRef: accessibilityUpdatePins.newCommit });
   if (source.lastScanCommit !== accessibilityUpdatePins.oldCommit || source.trackingRef !== accessibilityUpdatePins.newCommit || source.automaticUpdates !== false) throw new Error("Normal source settings applied an update prematurely");
   await requireSkillUpdatePrerequisite(ctx, upstream.id);
   const selected = await saveSkillConversationContext(ctx, { description: `Selected upstream accessibility skill: ${upstream.name} (${upstream.id}), tracked source ${source.id}. Installed source revision ${upstream.sourceRef}; tracking reference ${source.trackingRef}. Separate editable local copy: ${localFork.name} (${localFork.id}).` });
-  return { upstream, localFork, source, factualContextAttachment: selected.factualContextAttachment, localVersions: await readSkillVersionHistory(ctx.input.api, ctx.input.fixtures.company.id, localFork.id, localFork.currentVersionId) };
-}, observeUpdate, gradeIntegratorSkillUpdate, async (ctx, state) => { const skill = state.upstream as CompanySkillDetail; await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/skills/studio/${skill.id}`, skill.name); },
+  return { upstream, localFork, source, factualContextAttachment: selected.factualContextAttachment, localVersions: await readSkillVersionHistory(ctx.input.api, ctx.input.fixtures.space.id, localFork.id, localFork.currentVersionId) };
+}, observeUpdate, gradeIntegratorSkillUpdate, async (ctx, state) => { const skill = state.upstream as SpaceSkillDetail; await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/skills/studio/${skill.id}`, skill.name); },
 { oracleVersion: "outpost.chat-catalog.integrator.v3", authentication: "human-session", queryAttachments: factualContextQueryAttachment("skill-context.md"), expectedRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 540_000,
   sourceFiles: ["chat-catalog-domains/identity-support.ts", "chat-catalog-domains/integrator-skill-versions.ts", "chat-catalog-domains/integrator-skill-update.ts", "chat-catalog-domains/integrator-skill-source.ts", "chat-catalog-domains/integrator-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/skills.yaml"],
   async act(ctx, state) {
